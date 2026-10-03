@@ -160,7 +160,7 @@
 
 > **machine-readable companion**: 본 표의 구조적 spine(`change_type → trigger → targets → verify → guard_test → convention_ref`)은 [`.claude/config/doc-sync-matrix.json`](.claude/config/doc-sync-matrix.json) 에 SSOT 로 정리돼 있다 — `user-guide-sync-reviewer` 가 안정적 색인으로 읽고, [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 본 표와의 행 수 1:1 · 참조 실존을 검증한다(divergence 시 빌드 fail). 본 표는 사람용 뷰 — 한 행 추가/삭제 시 JSON 도 같이 고친다. 의미 기반 trigger(glob 없는 행)는 JSON 에서 `match:"semantic"` 로 표기되며 reviewer 가 판단으로 매칭한다.
 >
-> 표의 `spec/<영역 키>/<KEY>.md` 는 NERV 스펙의 읽기 전용 미러다. 스펙 쪽을 갱신할 때는 그 문서의 NERV 초안(`/nerv:spec edit <KEY>`)을 쓴다(「spec 자체에 누락·오류가 있다고 판단됨」 행 · `CLAUDE.md` §Skill 체계). 절은 옛 `§N.N` 대신 미러 문서의 「제목」 을 그대로 인용한다(제목에 번호가 들어 있으면 그 번호까지 제목이다). 「spec 신규/대규모 변경」 행의 트리거는 아직 동결된 옛 트리 기준이다. 그 행이 기대는 가드를 걷는 전환 단계 5 에서 함께 바꾼다.
+> 표의 `spec/<영역 키>/<KEY>.md` 는 NERV 스펙의 읽기 전용 미러다. 스펙 쪽을 갱신할 때는 그 문서의 NERV 초안(`/nerv:spec edit <KEY>`)을 쓴다(「spec 자체에 누락·오류가 있다고 판단됨」 행 · `CLAUDE.md` §Skill 체계). 절은 옛 `§N.N` 대신 미러 문서의 「제목」 으로 인용한다. 제목에 번호가 붙어 있어도 번호를 빼고 제목 글자만 쓴다(코드 주석과 같은 규칙. `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 규칙 18).
 
 | 변경 유형 | 필수 갱신 위치 | 검증 명령 |
 | --- | --- | --- |
@@ -183,7 +183,7 @@
 | 표현식 언어 변경 | `codebase/frontend/src/content/docs/04-expression-language/{basics,variables-and-context,cheatsheet}.mdx` + `.en.mdx` | 수동 (registry 테스트로 frontmatter 검증) |
 | 실행·디버깅 흐름 변경 | `codebase/frontend/src/content/docs/05-run-and-debug/` | 동일 |
 | 환경 변수·기동 방법·런타임 변경 (제품 최종 상태) | `README.md` | 수동 |
-| **spec 신규/대규모 변경** (`spec/{2,3,4,5}-**.md`, `spec/conventions/**.md`) | (a) frontmatter `code:` / `status:` 정합 갱신<br>(b) `status: implemented` 이면 `code:` 글로브 ≥1 매치 보장<br>(c) 미구현 surface 는 후속 NERV Task 로 올린다(`nerv_task_create`). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` | `pnpm --filter frontend test -- spec-frontmatter spec-code-paths` |
+| **spec 신규/대규모 변경** (`pull.py --task` 로 받은 미러 `spec/CLE-*`, `## 구현 위치` 가 가리키는 코드 경로의 이동 · 삭제) | (a) 구현이 있는 스펙은 `## 구현 위치` 에 구현 경로를 적는다<br>(b) 그 경로가 실재한다(글로브는 파일 하나 이상)<br>(c) 코드가 그 경로를 옮기거나 지우면 같은 PR 에서 NERV 초안을 고쳐 승인받고 `pull.py --task` 로 받는다<br>(d) 미구현 surface 는 후속 NERV Task 로 올린다(`nerv_task_create`). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「규칙」 | `pnpm --filter frontend test -- spec-impl-locations` |
 | **user-guide GUI 흐름 절 신규/변경** (`02-nodes/**.mdx`, `06-integrations-and-config/**.mdx` 의 GUI 안내 절) | `<ImplAnchor kind="ui-entry">` 동반 작성 — `file`/`symbol` 실존 의무. SoT: `spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md` | `pnpm --filter frontend test -- impl-anchor-existence integrations-coverage triggers-coverage` |
 | spec 자체에 누락·오류가 있다고 판단됨 | NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(`CLAUDE.md` §Skill 체계) | — |
 
@@ -213,7 +213,7 @@
 - **TSX 안 한국어 직접 작성** — ratchet 가드가 baseline 초과 차단하지만, *작성하는 그 순간에* dict 키 추출이 default. ratchet 가 잡은 뒤 별 commit 으로 빼는 패턴 금지
 - **인증·권한·세션 흐름 변경 vs 워크스페이스 가이드 (`07-workspace-and-team/`) 미갱신** — 흐름 변경 + 가이드 갱신 + e2e 가 한 묶음
 - **API 추가 vs swagger jsdoc 누락** — controller·DTO 의 swagger jsdoc 동반 필수. 빌드 단위 테스트가 일부만 잡음
-- **spec frontmatter `code:` 글로브 stale** — backend 경로만 명시하고 frontend 경로 누락. 텔레그램 chat-channel UI 영구 누락 사례(2026-05-23 발견) 의 재현 패턴. `spec-code-paths.test.ts` 가드가 `partial`/`implemented` 시점에 차단. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`
+- **스펙 `## 구현 위치` 누락 · stale** — backend 경로만 적고 frontend 경로를 빠뜨린다. 텔레그램 chat-channel UI 영구 누락 사례(2026-05-23 발견)의 재현 패턴이다. `spec-impl-locations.test.ts` 는 적힌 경로가 실재하는지만 본다. 빠진 경로는 잡지 못하니 구현 PR 에서 그 스펙의 NERV 초안으로 함께 적는다. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`
 - **부분 구현의 나머지 surface 미등록** — 미구현 surface 가 어떤 작업에도 책임지지 않은 채 영구 누락. 본 PR 머지 전 후속 NERV Task 를 만든다(`nerv_task_create`, developer/SKILL.md §4 partial-implementation 분리). 옛 `pending_plans:` 와 그 실존 가드는 NERV 정본 전환 단계 3 에서 `plan/` 과 함께 지웠다
 
 #### DOCUMENTATION 단계 종료 사전 체크리스트
@@ -225,7 +225,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 표의 "검증 명령" 을 실제로 실행했는가? (i18n parity / locale / backend-labels / docs registry)
 - [ ] 사용자 가시면 (UI 라벨·에러 메시지·노드 카드·가이드 본문) 이 코드 변경의 의미를 정확히 반영하는가? 단순 동기화가 아닌 *의미 갱신*
 - [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(CLAUDE.md §Skill 체계). 저장소 `spec/` 미러는 손으로 고치지 않는다
-- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) 후속 NERV Task 를 만들었는가(`nerv_task_create`)? 스펙 본문의 구현 상태 표시를 바꿔야 하면 NERV 초안으로 고쳤는가? (SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`)
+- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) 후속 NERV Task 를 만들었는가(`nerv_task_create`)? 스펙 본문의 구현 상태 표시를 바꿔야 하면 NERV 초안으로 고쳤는가? (절차: developer SKILL §4 「partial-implementation 분리」. 구현 경로는 같은 초안의 `## 구현 위치` 에 적는다. `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「규칙」)
 
 > 한 항목이라도 미충족이면 §5 (테스트 선작성) 로 진행하지 말고 §4 안에서 마무리. `fix(i18n):` · `fix(docs):` commit 빈도가 워크플로 건강 지표 — 본 PR/turn 안에서 0건이 default.
 
@@ -242,7 +242,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 | [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) | i18n 7 Principle (TSX 하드코딩 금지·ko/en parity·backend-labels 매핑·노드 MDX 의무·sibling 규약·글로서리·page stale) |
 | [`codebase/frontend/src/content/docs/_i18n-conventions.md`](codebase/frontend/src/content/docs/_i18n-conventions.md) | 파일 구조 · 프론트매터 필드 · 내부 docs 링크 규약 · 섹션 레이블 번역 |
 | [`codebase/frontend/src/content/docs/_glossary.md`](codebase/frontend/src/content/docs/_glossary.md) | 해요체 · 용어 표기 · 문장 스타일 · 금지어·지양어 |
-| [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) | spec frontmatter (`status` 5값·`code:` 글로브) 와 build-time 가드 SoT |
+| [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) | 스펙 `## 구현 위치` 와 build-time 가드 SoT |
 | [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) | `<ImplAnchor>` MDX 컴포넌트 + 3개 reverse-coverage 가드 (`impl-anchor-existence` / `integrations-coverage` / `triggers-coverage`) SoT. `user-guide-writer` 가 GUI 흐름 절 작성 시 동반 의무 |
 
 #### 파일 구조 요약
@@ -297,16 +297,14 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/locale.test.ts` — 모든 (숨김 아닌) 섹션이 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 검증
 - `codebase/frontend/src/lib/docs/__tests__/nodes-coverage.test.ts` — backend 의 모든 노드가 `02-nodes/<cat>.mdx` 본문 안에 카드/항목으로 등장하는지 검증
 - `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` — MDX frontmatter 의 `spec:` 키(NERV 미러 파일, 도우미 `spec-keys.ts`)·`code:` 경로 실존과 영어 형제 파일 프론트매터 부재 검증
-- `codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts` — `spec/{2,3,4,5}-**.md` + `spec/conventions/**.md` 의 frontmatter 의무 (id/status) 존재 검증. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — frontmatter 근거」
-- `codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts` — `status ∈ {partial, implemented}` spec 의 `code:` 글로브 ≥1 매치 강제
+- `codebase/frontend/src/lib/docs/__tests__/spec-impl-locations.test.ts` — 미러 문서의 `## 구현 위치` 절이 적은 저장소 경로(`codebase/` · `.claude/` · `.github/` · `scripts/` 로 시작하는 코드 스팬)가 실재하는지 검증. 글로브는 파일 하나 이상에 맞아야 하고 중괄호는 펼친 갈래가 모두 있어야 한다. 대괄호는 Next.js 동적 세그먼트라 글자 그대로 읽는다. 끝 세그먼트 `V<n>` 은 마이그레이션 파일 `V<n>__*` 로 읽는다. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 구현 위치 근거」
 - `codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts` — 모든 `<ImplAnchor>` 의 `file` 실존 + `symbol` grep ≥1 매치. SoT: `spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md` 「빌드 가드 (3건)」
-- `codebase/frontend/src/lib/docs/__tests__/guide-identifier-existence.test.ts` — 유저 가이드가 이름 붙인 UPPER_SNAKE **식별자**(에러 코드 + 환경변수)가 실재하는지 검증. 기준집합 = backend·packages 소스 토큰 **∪ env 선언처**(`.env.example`·compose). 3축: `<FieldTable>` 의 `name` · `code:` 값 · **백틱 전수**. 베이스라인 0. **외부 어휘 허용목록**(`GUIDE_EXTERNAL_VOCABULARY`)이 있고 테스트가 4가지를 강제한다 — 외부 시스템 이름 의무 · 상한 · 여전히 인용될 것 · 기준집합에 없을 것. **발행 축**(2026-09-13 추가): *"소스에 **메시지 접두로만** 등장하고 `CLE-API-ERRCODES` 「6. 카탈로그」 절(미러 `spec/CLE-API/CLE-API-ERRCODES.md`)에도 없는"* 인용은 `GUIDE_NON_EMITTED_VOCABULARY` 에 **사유와 함께 등록**해야 통과한다 — 카탈로그는 요구 조건이 아니라 **탈출구**다(요구 조건으로 쓰면 카탈로그 미등재 통합 코드에 거짓 RED 가 난다. 2026-09-13 옛 트리 기준 25종, 등재는 NERV Task `CLE-T-DM3AXQ`). **잔여 한계**: 여전히 *존재* 검사에 가깝다 — 소비자·분류기 목록이 토큰을 따옴표로 인용하면 접두-전용 판정이 풀려 통과한다(`spec/CLE-API/CLE-API-ERRCODES.md` 「6.5 워크플로우 실행: 엔진 수준」 이 그 구분을 명시). 아무도 읽지 않는 env 변수도 통과한다. SoT: `spec/CLE-API/CLE-API-ERRCODES.md`(명명 규칙과 「6. 카탈로그」) — **`CLE-ENG-GUIDEEVIDENCE` 「빌드 가드 (3건)」 표에는 아직 없다**(가족 규약은 거기지만 이 가드의 소유 문서는 미정이다. GUIDEEVIDENCE · ERRCODES 「미결 사항」, NERV Task `CLE-T-R2Q21Q`)
+- `codebase/frontend/src/lib/docs/__tests__/guide-identifier-existence.test.ts` — 유저 가이드가 이름 붙인 UPPER_SNAKE **식별자**(에러 코드 + 환경변수)가 실재하는지 검증. 기준집합 = backend·packages 소스 토큰 **∪ env 선언처**(`.env.example`·compose). 3축: `<FieldTable>` 의 `name` · `code:` 값 · **백틱 전수**. 베이스라인 0. **외부 어휘 허용목록**(`GUIDE_EXTERNAL_VOCABULARY`)이 있고 테스트가 4가지를 강제한다 — 외부 시스템 이름 의무 · 상한 · 여전히 인용될 것 · 기준집합에 없을 것. **발행 축**(2026-09-13 추가): *"소스에 **메시지 접두로만** 등장하고 `CLE-API-ERRCODES` 「카탈로그」 절(미러 `spec/CLE-API/CLE-API-ERRCODES.md`)에도 없는"* 인용은 `GUIDE_NON_EMITTED_VOCABULARY` 에 **사유와 함께 등록**해야 통과한다 — 카탈로그는 요구 조건이 아니라 **탈출구**다(요구 조건으로 쓰면 카탈로그 미등재 통합 코드에 거짓 RED 가 난다. 2026-09-13 옛 트리 기준 25종, 등재는 NERV Task `CLE-T-DM3AXQ`). **잔여 한계**: 여전히 *존재* 검사에 가깝다 — 소비자·분류기 목록이 토큰을 따옴표로 인용하면 접두-전용 판정이 풀려 통과한다(`spec/CLE-API/CLE-API-ERRCODES.md` 「워크플로우 실행: 엔진 수준」 이 그 구분을 명시). 아무도 읽지 않는 env 변수도 통과한다. SoT: `spec/CLE-API/CLE-API-ERRCODES.md`(명명 규칙과 「카탈로그」) — **`CLE-ENG-GUIDEEVIDENCE` 「빌드 가드 (3건)」 표에는 아직 없다**(가족 규약은 거기지만 이 가드의 소유 문서는 미정이다. GUIDEEVIDENCE · ERRCODES 「미결 사항」, NERV Task `CLE-T-R2Q21Q`)
 - `codebase/frontend/src/lib/docs/__tests__/guide-sanitized-message-parity.test.ts` — `models{,.en}.mdx` 의 연결 테스트 실패 문장표가 `sanitize-error.util.ts` 의 반환 리터럴 8갈래와 **양방향**(표→SoT · SoT→표) 일치하는지 검증. 부분집합만 보면 행 삭제가 조용히 통과하므로 누락 방향을 함께 본다
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`CLE-...`·`REQ-...-NNN`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B)
-- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외, 지운 루트 `plan/` · `review/` 로 해석되는 링크는 건너뜀), **(2)** codebase `.ts`/`.tsx` 주석의 키 링크 `[글](CLE-KEY#앵커)`(키 · 앵커를 미러 파일로 확인, `spec/**.md` 경로 링크는 위반), **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
-- `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
+- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 2가지 — **(2)** codebase `.ts`/`.tsx` 주석의 키 링크 `[글](CLE-KEY#앵커)`(키 · 앵커를 미러 파일로 확인, `spec/**.md` 경로 링크는 위반), **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). 범위 1(옛 트리 `spec/**.md` 본문)은 옛 트리와 함께 걷었고 범위 번호는 그대로 쓴다. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
 - `codebase/frontend/src/lib/docs/__tests__/legacy-path-ratchet.test.ts` — `codebase/**` 텍스트 파일(확장자 목록 · `Dockerfile`)이 옛 스펙 트리(`spec/<번호>-<영역>/`, `spec/conventions/`, `spec/data-flow/`, 루트 `spec/<번호>-<이름>.md`. 확장자 없는 인용 포함, NERV 미러 제외)와 지운 `plan/` 경로를 적은 줄 수를 파일별 기준값(`legacy-path-ratchet.baseline.json`)과 견준다. 늘어도 줄어도 실패한다. 줄였으면 `LEGACY_PATH_RATCHET_UPDATE=1` 로 기준값을 다시 쓴다(늘어난 파일이 있으면 쓰지 않는다. 파일을 옮겨 언급이 넘어간 경우만 `=grow`. CI 에서는 갱신을 거부한다). 늘어난 언급은 NERV 키와 절 제목으로 바꾼다(옛 § 번호는 옮기지 않는다). 공용 순회 `codebase-mentions.ts`. 결정 D12 · NERV Task `CLE-T-M7K35H`
 - `codebase/frontend/src/lib/docs/__tests__/spec-key-mentions.test.ts` — `codebase/**` 가 링크 없이 적은 스펙 키(`CLE-…`, Task 키 `CLE-T-…` 제외)가 미러에 있는지 검증. 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`) 키는 확인하지 않고, 다른 docs 가드 대조군의 가짜 키는 파일별 허용 목록에 둔다. 키 링크는 위 `spec-link-integrity` 범위 2 가 본다
 - `codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts` — `codebase/**` 에 줄인 NERV 발견 ID(`finding` 바로 뒤 소문자 16진 8자)와 로컬 리뷰 산출물 경로(`.review/` 아래 code · consistency · merge · spec-coverage)가 0 인지 검증. 리뷰 인용 규약(`spec/CLE-ENG/CLE-ENG-REVIEWCITE.md`) 규칙 9 · 10. 금지 형태를 일부러 담은 다른 가드의 대조군은 파일별 허용 목록에 둔다. 응답 DTO JSDoc 의 인용(발견 인용 포함)은 백엔드 `dto-jsdoc-citation.spec.ts` 가 본다
@@ -316,7 +314,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) · [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) · [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
 
-> **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail. 미러 경로(`spec/<영역 키>/<KEY>.md`)는 웹에서 문서의 부모를 옮기면 다음 pull 때 바뀐다. 그런데 harness-checks 의 `changes.pathspecs` 에 `spec/**` 는 없다(제품 경로 변경이 이 스위트를 돌리지 않게 하려는 설계이고 `test_harness_checks_paths_coverage.py` 규칙 3 이 고정한다). 그래서 pull 로 미러 파일만 바뀐 PR 에서는 이 가드가 돌지 않고 PROJECT.md · `.claude/**` 를 바꾸는 다음 PR 에서 실패한다. pull 로 미러 파일이 옮겨지면 같은 PR 에서 `python3 -m pytest .claude/tests/test_doc_sync_matrix.py -q` 를 직접 돌려 경로를 고친다. 검사하는 것은 파일 존재뿐이고 경로 뒤의 「제목」 은 검사하지 않는다. `doc-sync-matrix.json` 의 `convention_ref` 는 미러 경로만 받는다(동결된 옛 트리를 가리키면 fail).
+> **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail. 미러 경로(`spec/<영역 키>/<KEY>.md`)는 웹에서 문서의 부모를 옮기면 다음 pull 때 바뀐다. 그런데 harness-checks 의 `changes.pathspecs` 에 `spec/**` 는 없다(제품 경로 변경이 이 스위트를 돌리지 않게 하려는 설계이고 `test_harness_checks_paths_coverage.py` 규칙 3 이 고정한다). 그래서 pull 로 미러 파일만 바뀐 PR 에서는 이 가드가 돌지 않고 PROJECT.md · `.claude/**` 를 바꾸는 다음 PR 에서 실패한다. pull 로 미러 파일이 옮겨지면 같은 PR 에서 `python3 -m pytest .claude/tests/test_doc_sync_matrix.py -q` 를 직접 돌려 경로를 고친다. 검사하는 것은 파일 존재뿐이고 경로 뒤의 「제목」 은 검사하지 않는다. `doc-sync-matrix.json` 의 `convention_ref` 는 미러 경로만 받는다(미러 밖 `spec/` 경로를 가리키면 fail).
 
 ## e2e 테스트 작성 가이드
 
@@ -384,23 +382,19 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 **CI 가 강제한다** — `spec-link-checks` 워크플로가 `src/lib/docs/__tests__/` 의 **docs 가드 전체**를
 돌린다(2026-09-24 부터 — 그 전엔 `spec-link-integrity` 하나만 돌았다). `spec/**`·거버넌스
 문서·`codebase/**` 어느 쪽을 바꿔도 트리거되므로, `frontend-checks` 가 안 도는 **spec·문서만 바꾼
-PR** 에서도 `spec-frontmatter`·`spec-link-integrity` 같은 가드가 돈다. 수동 확인이 필요하면
+PR** 에서도 `spec-impl-locations`·`spec-link-integrity` 같은 가드가 돈다. 수동 확인이 필요하면
 같은 명령을 직접 실행한다.
 
 ```bash
 pnpm --filter frontend test src/lib/docs/__tests__/
 ```
 
-이 절의 나머지(스코프 3가지)는 그중 `spec-link-integrity` 가드의 검사 범위다.
+이 절의 나머지(스코프 2가지)는 그중 `spec-link-integrity` 가드의 검사 범위다.
 
-검사 스코프 3가지 (SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「빌드 가드 — 스펙 문서 저장소 무결성」):
+검사 스코프 2가지 (SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「빌드 가드 — 스펙 문서 저장소 무결성」).
+번호는 범위 1(옛 트리 `spec/**.md` 본문)을 걷기 전의 번호를 그대로 쓴다. 미러 본문의 링크는 `pull.py` 가 고쳐 쓰고
+`.claude/tools/nerv-mirror/pull.py --check` 가 본다.
 
-1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 와
-   NERV 미러 `spec/README.md` · `spec/CLE-*` 제외. 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check` 가 본다.
-   미러 제외의 근거는 위 SoT 의 R-12 다). 루트 `plan/` · `review/` 로 해석되는 링크는 건너뛴다. 두 트리는
-   NERV 정본 전환 단계 3 에서 지웠고 그 링크가 남은 옛 트리는 단계 5 에서 지운다. 옛 카탈로그 자리
-   (`spec/conventions/<vendor>-api-catalog/`)로 해석되는 링크는 새 자리 `codebase/api-catalogs/<vendor>/` 에서
-   경로와 앵커를 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`, 단계 4a. 단계 5 에서 옛 트리와 함께 걷는다)
 2. `codebase/{backend,frontend,channel-web-chat}/src` · `codebase/backend/test` · `codebase/frontend/e2e` ·
    `codebase/packages` 의 `.ts`/`.tsx` 주석.
    스펙은 키 링크 `[글](CLE-KEY#앵커)` 로 가리킨다(예: `// 근거: [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE#실행-실패-안내)`).

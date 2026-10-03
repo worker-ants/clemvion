@@ -2,7 +2,7 @@
 
 ## 실행 방법 (main Claude 가 따른다)
 
-checker(정의 5개, 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다)는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은 `Workflow` tool 이 결정적으로 처리한다 (옛 수동 Agent fan-out + STATUS/retry 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책). 절차 SSOT: [`.claude/skills/consistency-checker/SKILL.md`](../skills/consistency-checker/SKILL.md).
+checker 4개는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은 `Workflow` tool 이 결정적으로 처리한다 (옛 수동 Agent fan-out + STATUS/retry 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책). 절차 SSOT: [`.claude/skills/consistency-checker/SKILL.md`](../skills/consistency-checker/SKILL.md).
 
 0. **사전 점검**: 현재 worktree 확인. main 워크트리 호출 시 worktree 안내 후 거부.
 
@@ -21,11 +21,11 @@ checker(정의 5개, 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다
 
 ## 모드 (택일 필수)
 
-- `--spec <path>` — 스펙 초안 검토. NERV 초안을 저장한 뒤 검토 요청 **전에** 호출한다(`nerv_spec_check` 와 함께). `<path>` 는 초안 본문 파일이다.
-- `--impl-prep <scope>` — 구현 착수 **직전** 검토. `<scope>` 는 NERV 키 · 미러 영역 폴더 · 미러 파일이고 쉼표로 여럿을 준다(예: `CLE-ENG-SPECEVIDENCE,spec/CLE-API/`). 동결된 옛 트리는 받지 않는다. 키가 로컬 미러에 없으면 종료 코드 2 로 멈추므로 먼저 `python3 .claude/tools/nerv-mirror/pull.py --task <Task 키>` 로 클레임한 스펙을 받는다.
+- `--spec <path>` — 스펙 초안 검토. NERV 초안을 저장한 뒤 검토 요청 **전에** 호출한다(`nerv_spec_check` 와 함께). `<path>` 는 초안 본문 파일이다. 파일 이름을 `<KEY>.md` 로 두면 그 키의 미러 판이 대조 코퍼스에서 빠진다(Rationale 은 남는다).
+- `--impl-prep <scope>` — 구현 착수 **직전** 검토. `<scope>` 는 NERV 키 · 미러 영역 폴더 · 미러 파일이고 쉼표로 여럿을 준다(예: `CLE-ENG-SPECEVIDENCE,spec/CLE-API/`). 미러 밖 경로와 `spec/` 자체는 받지 않는다. 키가 로컬 미러에 없으면 종료 코드 2 로 멈추므로 먼저 `python3 .claude/tools/nerv-mirror/pull.py --task <Task 키>` 로 클레임한 스펙을 받는다.
 - `--impl-done <scope>` — 구현 완료 **후** 사후 검증. scope 형식은 위와 같다. 미러 문서의 `## 구현 위치` 가 바꾼 파일을 덮으면 그 문서가 대상에 더해진다. 결과를 checker 마다 `kind=consistency` 로 제출한다(developer 의 의무 단계).
 
-함께 쓰는 옵션: `--focus <keys>`, `--diff-path <path>`(`--impl-done` 의 구현 diff 경로, 하네스 작업은 `.claude`), `--diff-base <ref>`. `--focus` 는 `<scope>` 가 영역 폴더처럼 넓을 때 그 안에서 컨텍스트 예산의 앞자리를 줄 NERV 키다(보통 클레임의 `spec_ids`). `<scope>` 가 키 하나면 쓸 필요가 없다. `--plan` 모드는 없다.
+함께 쓰는 옵션: `--focus <keys>`, `--diff-path <path>`(`--impl-done` 의 구현 diff 경로, 하네스 작업은 `.claude`), `--diff-base <ref>`. `--focus` 는 `<scope>` 가 영역 폴더처럼 넓을 때 그 안에서 컨텍스트 예산의 앞자리를 줄 NERV 키다(보통 클레임의 `spec_ids`). `<scope>` 가 키 하나면 쓸 필요가 없다.
 
 ## 사용 예시
 
@@ -47,6 +47,6 @@ checker(정의 5개, 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다
 ## 환경변수
 
 자세한 옵션은 `.claude/skills/consistency-checker/SKILL.md` 참고. 주요 변수:
-- `CONSISTENCY_AGENTS` (기본은 `.claude.project.json` 이 켠 checker — 이 저장소는 `plan_coherence` 를 뺀 4개. 전체 키: `cross_spec,rationale_continuity,convention_compliance,plan_coherence,naming_collision`)
+- `CONSISTENCY_AGENTS` (기본은 `.claude.project.json` 이 켠 checker. 이 저장소는 4개 전부다. 전체 키: `cross_spec,rationale_continuity,convention_compliance,naming_collision`)
 - `CONSISTENCY_MAX_CONTEXT_SIZE` (기본 262144자)
 - `DISABLE_CONSISTENCY_CHECK=1` 로 비활성화 가능 (예외 케이스만)

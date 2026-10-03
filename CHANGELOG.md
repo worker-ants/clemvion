@@ -23,6 +23,37 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: 옛 스펙 트리를 지우고 스펙의 구현 위치를 `## 구현 위치` 로 검사한다
+
+NERV 정본 전환 단계 5(Task `CLE-T-7M4C4X`). 저장소의 옛 스펙 트리 파일 138개(`spec/0-overview.md` · `1-data-model.md` ·
+`6-brand.md`, `spec/2-navigation/` ~ `spec/5-system/` · `spec/7-channel-web-chat/` · `spec/conventions/` · `spec/data-flow/`)를
+지웠다. 원문은 git 이력에 있다. `spec/` 에는 NERV 미러와 그 README 만 남는다. 이 PR 로 전환이 끝난다.
+
+- 새 가드 `spec-impl-locations`: 미러 문서의 `## 구현 위치` 절이 적은 저장소 경로(`codebase/` · `.claude/` · `.github/` ·
+  `scripts/` 로 시작하는 코드 스팬)가 실재하는지 본다. 글로브는 파일 하나 이상에 맞아야 하고 중괄호는 펼친 갈래가 모두
+  있어야 한다. 대괄호는 Next.js 동적 세그먼트라 글자 그대로 읽고 끝 세그먼트 `V<n>` 은 마이그레이션 파일 `V<n>__*` 로
+  읽는다. 옛 frontmatter `code:` 를 보던 `spec-code-paths` 를 대신한다. 이 가드는 적힌 경로가 있는지만 보고 빠진 경로는
+  잡지 못한다.
+- 걷은 가드: 옛 트리 frontmatter 의무(`spec-frontmatter` · `spec-frontmatter-parse.ts`), 영역 index 링크
+  (`spec-area-index`), 옛 트리 본문 링크(`spec-link-integrity` 범위 1)와 그 범위의 예외(지운 `plan/` · `review/` 링크
+  건너뛰기, 옮긴 카탈로그 재배치, 미러 제외). 범위 2 · 3 은 그대로다.
+- `pull.py --check`(CI `spec-mirror-integrity`): 미러 자리만 보던 「미러가 아닌 파일」 검사를 `spec/` 전체로 넓혔다.
+  셸로 옛 트리를 되살리면 이제 잡힌다(점 폴더 안이어도). README 와 `.md` 가 아닌 점 파일은 뺀다. 미러 자리의
+  링크는 링크 문제 한 줄로만 알린다.
+- 미러 제외 판정 정리: consistency 오케스트레이터의 `is_nerv_mirror` 와 `spec-links.ts` 의 `inNervMirror` 를 걷었다.
+  둘을 대조하던 동치 테스트도 걷었다. 오케스트레이터의 scope 는 미러 영역 폴더 · 미러 파일 · NERV 키만 받고 `spec/`
+  자체와 미러 밖 경로는 거절한다.
+- consistency checker `plan_coherence` 를 걷었다. 단계 3 에서 코퍼스(`plan/`)를 잃고 꺼져 있었다. 이제 checker 4개가
+  모두 돈다.
+- `/spec-coverage` 감사 대상을 옛 트리에서 미러 문서 가운데 `## 구현 위치` 절이 있는 문서로 옮겼다. 프롬프트의 포함 ·
+  제외 목록과 절 조건을 정본(`CLE-ENG-SPECEVIDENCE` 「적용 대상」)과 대조한다.
+- 변경 매트릭스(`PROJECT.md` · `doc-sync-matrix.json`): 「spec 신규/대규모 변경」 행을 `## 구현 위치` 기준으로 다시 썼다.
+  `test_doc_sync_matrix.py` 는 `spec/` 아래 경로가 모두 미러 파일인지 보고(전에는 옛 트리 모양과 미러 모양만 봤다)
+  트리거 글로브마다 맞는 파일이 하나 이상 있는지도 본다. 첫 와일드카드 앞의 경로만 보던 검사는 옛 트리가 사라져도
+  `spec` 이 있어 초록이었다.
+- 카탈로그(`codebase/api-catalogs/**`) 본문에서 옛 트리로 가던 링크 22개를 NERV 사본과 같은 키 링크로 바꿨다.
+- 은퇴한 Stop 훅 스텁 `guard_review_before_stop.py` 를 지웠다. 단계 3 에서 배선을 걷은 뒤 시작한 세션만 남았는지 확인했다(2026-10-03, 데스크톱 앱 세션 목록에서 실행 중인 다른 세션 0개). 그 마커 디렉터리는 30일 정리 목록에 그대로 둔다.
+
 ## Unreleased — 개발 흐름: 주석 속 옛 경로가 늘지 않고 링크 없는 스펙 키도 미러로 확인한다
 
 NERV 정본 전환 단계 4g(Task `CLE-T-M7K35H`, 결정 D12). 코드 주석의 옛 스펙 경로는 한꺼번에 바꾸지 않고 파일을 고칠 때
@@ -2130,7 +2161,7 @@ DB 레벨 `select` 투영으로 옮겼다. 민감 컬럼이 애초에 로드되�
 실패한다).
 
 > **쿼리 레벨 투영 ≠ 엔티티 전역 `select: false`.** 후자는 그 컬럼을 값으로 읽는 내부 경로를
-> fail-silent 로 만들어 [데이터 모델 `## Rationale`](spec/1-data-model.md) 이 기각했다. 이것은
+> fail-silent 로 만들어 데이터 모델 `## Rationale`(옛 `spec/1-data-model.md`) 이 기각했다. 이것은
 > **이 쿼리 하나**의 투영이라 다른 경로를 건드리지 않는다.
 
 응답 wire 계약(6키)은 그대로다 — breaking change 가 아니다.
@@ -2639,7 +2670,7 @@ optional-check 없이 접근할 수 있다.
 
 > **이 필드에 대해 고친 것은 "OpenAPI 선언과 TS 타입의 내부 일치" 뿐이다.**
 > `@ApiPropertyOptional` 이냐 `@ApiProperty` 냐는 손대지 않았고, 손대지 않는 것이 맞다 —
-> [API 규약 §5.4](spec/5-system/2-api-convention.md) 의 DTO 선언 형태 규칙은 `## 5. 응답 형식`
+> API 규약 §5.4(옛 `spec/5-system/2-api-convention.md`) 의 DTO 선언 형태 규칙은 `## 5. 응답 형식`
 > 하위 절이고 본문도 *"한 **응답** 안에 섞여도 무방하나"* 로 응답 바디를 전제한다. 이건
 > **요청** DTO 이고, 키 생략과 `null` 이 둘 다 "워크스페이스 기본값 사용" 으로 수렴하므로
 > optional + nullable 조합이 정당하다. 자매 `update-assistant-session.dto.ts` 는 한 걸음 더
@@ -2659,7 +2690,7 @@ Swagger 는 `@ApiProperty({ format: 'uuid' })` — 필수·non-null 이라고 �
 | DTO | `invitedBy: string` | `invitedBy?: string \| null` |
 | Swagger | `@ApiProperty({ format: 'uuid' })` | `@ApiPropertyOptional({ format: 'uuid', nullable: true })` |
 
-형태는 [API 규약 §5.4](spec/5-system/2-api-convention.md) 를 따랐다 — 바로 앞
+형태는 API 규약 §5.4(옛 `spec/5-system/2-api-convention.md`) 를 따랐다 — 바로 앞
 `AuthConfig.ipWhitelist` 항목과 같은 형태다.
 
 **영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 필드가 nullable 로 바뀐다. 완화
@@ -2681,7 +2712,7 @@ Swagger 는 `@ApiProperty({ format: 'uuid' })` — 필수·non-null 이라고 �
 | DTO | `ipWhitelist: string[]` | `ipWhitelist?: string[] \| null` |
 | Swagger | `@ApiProperty({ type: [String] })` | `@ApiPropertyOptional({ type: [String], nullable: true })` |
 
-형태는 [API 규약 §5.4](spec/5-system/2-api-convention.md) 를 따랐다 — *"`null` 을 쓰는 필드는
+형태는 API 규약 §5.4(옛 `spec/5-system/2-api-convention.md`) 를 따랐다 — *"`null` 을 쓰는 필드는
 `@ApiPropertyOptional({ nullable: true })` + `field?: T | null`"*. 같은 DTO 의 `lastUsedAt` 이
 이미 그 형태다.
 
@@ -3045,7 +3076,7 @@ egress 는 키 **정규식**(`CREDENTIAL_KEY_PATTERN`)을 쓴다. 그 차집합�
 목록을 **직접 순회**하는 포함관계 캐너리가 정본 구현으로 그것을 단언한다 — 목록이 넓어지면
 새 키가 자동으로 검사된다.
 
-**대가 두 가지**를 [실행 내역 R-5](spec/2-navigation/14-execution-history.md) 정정 블록에
+**대가 두 가지**를 실행 내역 R-5(옛 `spec/2-navigation/14-execution-history.md`) 정정 블록에
 명시했다 — 크로스-노드 자격증명 릴레이(워크스페이스 경계는 넘지 않는다)와
 safe-by-construction → safe-by-convention 이동.
 
@@ -3346,7 +3377,7 @@ strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 *
 
 **마커를 덮지 않는다** — `deepRedactSecrets` 가 이미 마스킹된 값(`[REDACTED]` · `***` ·
 `[REDACTED_DEPTH]`)을 재마스킹하지 않게 했다. webhook ingestion 이 남긴 `[REDACTED]` 는
-[12-webhook §5.3](./spec/5-system/12-webhook.md) 이 규정한 계약이라, 덮으면 같은 헤더가
+12-webhook §5.3(옛 `spec/5-system/12-webhook.md`) 이 규정한 계약이라, 덮으면 같은 헤더가
 `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
 
 **⚠️ wire 변화**: WS/SSE 이벤트 payload 와 실행 상세 API 의 `outputData` 바이트가 바뀔 수
@@ -3371,7 +3402,7 @@ strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 *
 `toExecutionDto` · `getChain` · `stop`)에 적용한다. `POST /executions/:id/re-run` 과 WS
 `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
 
-**`nodeExecutions[].error` 도 함께 마스킹한다** — [데이터 모델 §2.14](./spec/1-data-model.md) 가 `Execution.error` 를
+**`nodeExecutions[].error` 도 함께 마스킹한다** — 데이터 모델 §2.14(옛 `spec/1-data-model.md`) 가 `Execution.error` 를
 *"최초 failed NodeExecution 의 에러 정보를 **복사**"* 로 정의하므로, 최상위만 가리면 **같은
 문자열이 같은 응답 안에 원문으로 병존**해 방어가 통째로 우회된다. 자매 표면인
 `GET /executions/:id/background-runs/:id` 의 body 노드도 같이 건다.
@@ -3985,7 +4016,7 @@ Stop 버튼(`POST /executions/:id/stop`)이 Execution 행을 `cancelled` 로 UPD
 
 SoT: `spec/conventions/node-cancellation.md` §2.3/§5.1. 추적: `plan/in-progress/node-cancellation-residual-signal-propagation.md`.
 
-## Unreleased — 웹채팅 위젯: 재로드 복원의 `404`·복구불가 `401`/`410` REST 분기 ([3-auth-session §3.1-2·§R4](spec/7-channel-web-chat/3-auth-session.md))
+## Unreleased — 웹채팅 위젯: 재로드 복원의 `404`·복구불가 `401`/`410` REST 분기 (3-auth-session §3.1-2·§R4(옛 `spec/7-channel-web-chat/3-auth-session.md`))
 
 spec 이 **동작을 확정 서술**해 두고도 비어 있던 자리다. `getStatus` 실패는 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다 — `404`(execution 소멸)에도 스트림을 열었고, 그 스트림은 아무것도 주지 않아 위젯이 `streaming` 에 무기한 고착됐다.
 
@@ -4213,7 +4244,7 @@ SoT: `spec/conventions/execution-context.md` 원칙 5 · `spec/5-system/3-error-
 
 ### 변경 사항
 
-1. **통합이 연결되어 있지 않으면(`error`/`expired`/`pending_install`) 활동 탭에 "연결 안 됨" 경고 배너를 노출한다** — 이 상태에서는 AI Agent 가 MCP bridge 로 미연결 통합의 tool 을 노출하지 않아 호출 자체가 없고(직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 즉시 실패), 새 활동이 기록되지 않는다. 종전엔 활동 탭이 단순 "활동 없음" 빈 상태만 보여줘 사용자가 "기록이 없는 것" 과 "통합이 끊겨 기록이 안 되는 것" 을 구분하지 못했다. 이제 활동 목록·빈 상태 위에 [Inline Alert](spec/0-overview.md §3.4)를 얹어 원인을 알리고, "상태 확인" 버튼으로 개요 탭(상태·재연결)으로 유도한다. 톤은 §3.4 status→tone escalation 에 맞춰 `error`=red, `expired`/`pending_install`=warning(amber) 으로 헤더 `StatusBadge` 신호와 일치시킨다. `connected`(곧 만료 expires-soon 포함)는 여전히 기록되므로 미노출. 프론트 전용(백엔드·API 무변경). SoT: `spec/2-navigation/4-integration.md §4.6` · `spec/0-overview.md §3.4`.
+1. **통합이 연결되어 있지 않으면(`error`/`expired`/`pending_install`) 활동 탭에 "연결 안 됨" 경고 배너를 노출한다** — 이 상태에서는 AI Agent 가 MCP bridge 로 미연결 통합의 tool 을 노출하지 않아 호출 자체가 없고(직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 즉시 실패), 새 활동이 기록되지 않는다. 종전엔 활동 탭이 단순 "활동 없음" 빈 상태만 보여줘 사용자가 "기록이 없는 것" 과 "통합이 끊겨 기록이 안 되는 것" 을 구분하지 못했다. 이제 활동 목록·빈 상태 위에 Inline Alert(옛 `spec/0-overview.md` §3.4)를 얹어 원인을 알리고, "상태 확인" 버튼으로 개요 탭(상태·재연결)으로 유도한다. 톤은 §3.4 status→tone escalation 에 맞춰 `error`=red, `expired`/`pending_install`=warning(amber) 으로 헤더 `StatusBadge` 신호와 일치시킨다. `connected`(곧 만료 expires-soon 포함)는 여전히 기록되므로 미노출. 프론트 전용(백엔드·API 무변경). SoT: `spec/2-navigation/4-integration.md §4.6` · `spec/0-overview.md §3.4`.
 
 ## Unreleased — AI Agent 자동 메모리 롤링 요약 압축 chat 의 llm_usage_log attribution 배선 (data-flow/7-llm-usage §1.3)
 
@@ -4541,7 +4572,7 @@ The execution-history UI displays `NodeExecution.outputData` as-is — the engin
 
 Pre-release `NodeExecution` rows have `outputData.config` in evaluated form (no rawConfig exposure yet) and lack the new `output.{subject, body, requestBody, responseHeaders, bodyTruncated}` fields on Send Email / HTTP Request. These rows are **not backfilled** — they remain as historical records. Live execution behaviour is unaffected (each Execution uses its own `nodeOutputCache`; there is no cross-execution expression reference).
 
-See [Spec 실행 엔진 §6.3](spec/5-system/4-execution-engine.md#63-재실행조회-정책-replay-policy) for the canonical policy.
+See Spec 실행 엔진 §6.3(옛 `spec/5-system/4-execution-engine.md#63-재실행조회-정책-replay-policy`) for the canonical policy.
 
 ### Internal / Infrastructure
 

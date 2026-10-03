@@ -1,6 +1,6 @@
 """Tests for `.claude/hooks/guard_nerv_owned_paths.py` — NERV 가 정본인 경로의 도구 편집 차단.
 
-NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛 `spec/<영역>/` 트리도 동결).
+NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛 `spec/<영역>/` 트리는 단계 5 에서 지웠다).
 훅은 실제 서브프로세스로 돌리고 PreToolUse 페이로드를 stdin 으로 넣는다(하네스가 부르는
 모양 그대로).
 

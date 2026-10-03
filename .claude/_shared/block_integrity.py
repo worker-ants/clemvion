@@ -130,7 +130,6 @@ ALL_CHECKERS = (
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
-    "plan_coherence",
     "naming_collision",
 )
 

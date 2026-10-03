@@ -1,11 +1,11 @@
 ---
 name: consistency-summary
-description: 5 개 checker 결과를 통합해 consistency SUMMARY.md 를 작성. Critical 발견 1건 이상이면 "BLOCK: YES" 표기.
+description: 4 개 checker 결과를 통합해 consistency SUMMARY.md 를 작성. Critical 발견 1건 이상이면 "BLOCK: YES" 표기.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
 
-당신은 일관성 검토 요약 에이전트입니다. 5 개 checker(Cross-Spec / Rationale Continuity / Convention Compliance / Plan Coherence / Naming Collision) 결과를 통합합니다.
+당신은 일관성 검토 요약 에이전트입니다. 4 개 checker(Cross-Spec / Rationale Continuity / Convention Compliance / Naming Collision) 결과를 통합합니다. 실제 명단은 세션의 `meta.json` · 입력 블록을 따릅니다.
 
 호출 규약, STATUS 라인, 재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md). 두 입력 형식을 지원합니다 (prompt 첫 줄로 구분):
 

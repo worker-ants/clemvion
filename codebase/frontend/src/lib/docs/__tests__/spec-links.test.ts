@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import {
   findBrokenGovernanceLinks,
-  findBrokenLinks,
   findBrokenSpecLinksInSources,
   extractLinks,
+  type LinkViolation,
 } from "./spec-links";
 
 // Negative-path fixture tests for the shared findBrokenLinksInFiles core,
@@ -17,9 +17,15 @@ import {
 // detection logic actually fires (a broken scanner would pass vacuously). These
 // fixtures assert the DEAD/ANCHOR paths report correctly, and pin the two
 // LinkScanOptions knobs:
-//   - checkSelfAnchors: true  (findBrokenLinks)            → same-file #anchors validated
+//   - checkSelfAnchors: true  (findBrokenGovernanceLinks)   → same-file #anchors validated
 //   - checkSelfAnchors: false (findBrokenSpecLinksInSources) → same-file #anchors ignored
 //   - targetFilter (sources) → only spec/**.md links are checked
+//
+// The DEAD/ANCHOR/line/multiline cases ran through the `spec/**.md` entry point
+// (`findBrokenLinks`, scope 1) until that scope went with the old spec tree in NERV
+// cutover stage 5 (`CLE-T-7M4C4X`). They now run through the governance entry point,
+// which uses the same core with `checkSelfAnchors: true` — the fixture doc sits at
+// the repo root (governance scans root `*.md`).
 //
 // `mkLink` assembles the markdown links so no literal `[text](url)` appears in
 // THIS file's source — otherwise findBrokenSpecLinksInSources would resolve
@@ -31,16 +37,21 @@ function fingerprint(v: { kind: string; target: string }[]): string[] {
   return v.map((x) => `${x.kind} ${x.target}`).sort();
 }
 
+/** 한 원본 파일의 위반만. 같은 픽스처의 다른 문서가 섞이지 않게 한다. */
+function violationsFrom(source: string, v: LinkViolation[]): LinkViolation[] {
+  return v.filter((x) => x.source === source);
+}
+
 describe("findBrokenLinksInFiles core (via public entry points)", () => {
   let root: string;
 
   beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "spec-links-fixture-"));
 
-    // spec/ tree — scanned by findBrokenLinks (checkSelfAnchors: true).
+    // 루트 문서 — findBrokenGovernanceLinks 가 훑는다(checkSelfAnchors: true).
     fs.mkdirSync(path.join(root, "spec"), { recursive: true });
     fs.writeFileSync(
-      path.join(root, "spec", "doc.md"),
+      path.join(root, "DOC.md"),
       [
         "# Heading One",
         "",
@@ -63,6 +74,8 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
         "```",
       ].join("\n"),
     );
+    fs.writeFileSync(path.join(root, "real.md"), "# Good Anchor\n");
+    // 코드 소스와 GOV.md 의 경로 링크가 가리키는 자리.
     fs.writeFileSync(path.join(root, "spec", "real.md"), "# Good Anchor\n");
 
     // NERV 미러 — 키 링크(`CLE-…`)가 가리키는 자리. 영역 폴더 안에 둔다.
@@ -109,10 +122,9 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it("findBrokenLinks reports DEAD + broken self-anchor, passes valid links", () => {
-    // checkSelfAnchors: true — #heading-one and real.md#good-anchor resolve;
-    // #nope and ./missing.md do not.
-    expect(fingerprint(findBrokenLinks(root))).toEqual([
+  it("checkSelfAnchors: true reports DEAD + broken self-anchor, passes valid links", () => {
+    // #heading-one and real.md#good-anchor resolve; #nope and ./missing.md do not.
+    expect(fingerprint(violationsFrom("DOC.md", findBrokenGovernanceLinks(root)))).toEqual([
       "ANCHOR #nope",
       "ANCHOR ./real.md#no-such-anchor",
       "DEAD ./missing.md",
@@ -124,7 +136,7 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
   // 옳게 세도 공개 진입점이 그것을 떨구면 사용자는 위치 없는 위반만 본다. (`15_55_00` W1)
   it("통합 경로가 line 을 그대로 전달한다 — 멀티라인 ANCHOR 는 **시작** 줄", () => {
     const byTarget = new Map(
-      findBrokenLinks(root).map((v) => [v.target, v.line]),
+      violationsFrom("DOC.md", findBrokenGovernanceLinks(root)).map((v) => [v.target, v.line]),
     );
 
     // [전제] 세 위반이 다 잡혔다 — 아니면 아래 단언이 vacuous 하다.
@@ -153,7 +165,7 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
   });
 
   it("findBrokenGovernanceLinks: 경로 링크와 함께 키 링크도 미러로 확인한다", () => {
-    expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual([
+    expect(fingerprint(violationsFrom("GOV.md", findBrokenGovernanceLinks(root)))).toEqual([
       "ANCHOR CLE-OK-DOC#nope",
       "KEY CLE-NO-SUCH#x",
     ]);
@@ -168,141 +180,18 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
   it("returns no violations when every link resolves (non-vacuous healthy path)", () => {
     const clean = fs.mkdtempSync(path.join(os.tmpdir(), "spec-links-clean-"));
     try {
-      fs.mkdirSync(path.join(clean, "spec"), { recursive: true });
       fs.writeFileSync(
-        path.join(clean, "spec", "a.md"),
-        ["# Title", "", mkLink("self", "#title"), mkLink("rel", "./b.md")].join(
+        path.join(clean, "A.md"),
+        ["# Title", "", mkLink("self", "#title"), mkLink("rel", "./B.md")].join(
           "\n",
         ),
       );
-      fs.writeFileSync(path.join(clean, "spec", "b.md"), "# B\n");
-      expect(findBrokenLinks(clean)).toEqual([]);
+      fs.writeFileSync(path.join(clean, "B.md"), "# B\n");
+      // 전제 — 두 문서를 실제로 훑어야 아래 빈 배열이 공허하지 않다.
+      expect(extractLinks(path.join(clean, "A.md")).length).toBe(2);
+      expect(findBrokenGovernanceLinks(clean)).toEqual([]);
     } finally {
       fs.rmSync(clean, { recursive: true, force: true });
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 지운 트리(`plan/` · `review/`)를 가리키는 링크.
-//
-// NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`)에서 저장소 루트의 `plan/` 과 `review/` 를
-// 지웠다. 옛 `spec/<영역>/` 트리는 동결 상태로 단계 5(`CLE-T-7M4C4X`)까지 남고, 그 안에는
-// 두 트리를 가리키는 링크가 있다. 동결 문서는 고치지 않으므로 그 링크는 건너뛴다.
-//
-// 판정은 **해석한 경로**로 한다. 원문 문자열로 `plan/` 을 찾으면 `spec/plan/x.md` 처럼
-// 루트 밖의 같은 이름 폴더까지 함께 빠진다. 아래 대조군이 그 차이를 가른다.
-describe("findBrokenLinks — 지운 루트 트리를 가리키는 링크", () => {
-  let root: string;
-
-  beforeAll(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "spec-links-retired-"));
-    fs.mkdirSync(path.join(root, "spec", "5-system"), { recursive: true });
-    fs.writeFileSync(
-      path.join(root, "spec", "5-system", "doc.md"),
-      [
-        "# Doc",
-        "",
-        mkLink("retired plan", "../../plan/in-progress/gone.md"), // 루트 plan/ → 건너뜀
-        mkLink("retired plan anchor", "../../plan/complete/gone.md#sec"), // 앵커가 있어도 건너뜀
-        mkLink("retired review", "../../review/code/2026/x/SUMMARY.md"), // 루트 review/ → 건너뜀
-        mkLink("retired root itself", "../../plan/"), // 폴더 자체 → 건너뜀
-        mkLink("same-name dir", "./plan/gone.md"), // spec/5-system/plan/ — 루트가 아니다 → DEAD
-        mkLink("look-alike", "../../planning/gone.md"), // 접두만 같은 형제 → DEAD
-      ].join("\n"),
-    );
-  });
-
-  afterAll(() => {
-    fs.rmSync(root, { recursive: true, force: true });
-  });
-
-  it("루트 plan/ · review/ 로 해석되는 링크만 건너뛰고 나머지는 그대로 본다", () => {
-    expect(fingerprint(findBrokenLinks(root))).toEqual([
-      "DEAD ../../planning/gone.md",
-      "DEAD ./plan/gone.md",
-    ]);
-  });
-
-  it("거버넌스 문서에는 적용하지 않는다 — 살아 있는 문서의 죽은 링크는 고쳐야 한다", () => {
-    fs.writeFileSync(
-      path.join(root, "CLAUDE.md"),
-      mkLink("plan link", "plan/in-progress/gone.md"),
-    );
-    try {
-      expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual([
-        "DEAD plan/in-progress/gone.md",
-      ]);
-    } finally {
-      fs.rmSync(path.join(root, "CLAUDE.md"));
-    }
-  });
-});
-
-// NERV 정본 전환 단계 4a(Task `CLE-T-BD48J3`, 결정 D4)에서 Cafe24 · MakeShop API 카탈로그를
-// `spec/conventions/<vendor>-api-catalog/` 에서 `codebase/api-catalogs/<vendor>/` 로 옮겼다.
-// 동결된 옛 `spec/<영역>/` 트리는 옛 자리를 가리킨다. 그 링크는 건너뛰지 않고 **새 자리에서**
-// 경로와 앵커를 그대로 검사한다. 지운 루트 트리(위 블록)와 달리 대상이 아직 있기 때문이다.
-describe("findBrokenLinks — 옮긴 카탈로그를 가리키는 링크", () => {
-  let root: string;
-
-  beforeAll(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "spec-links-relocated-"));
-    fs.mkdirSync(path.join(root, "spec", "conventions"), { recursive: true });
-    fs.mkdirSync(path.join(root, "spec", "4-nodes"), { recursive: true });
-    fs.mkdirSync(path.join(root, "codebase", "api-catalogs", "cafe24"), { recursive: true });
-    fs.mkdirSync(path.join(root, "codebase", "api-catalogs", "makeshop"), { recursive: true });
-    fs.writeFileSync(
-      path.join(root, "codebase", "api-catalogs", "cafe24", "_overview.md"),
-      "# Overview\n\n## 4. 동기 정책\n",
-    );
-    fs.writeFileSync(
-      path.join(root, "codebase", "api-catalogs", "makeshop", "_overview.md"),
-      "# Overview\n",
-    );
-    fs.writeFileSync(
-      path.join(root, "spec", "conventions", "meta.md"),
-      [
-        "# Meta",
-        "",
-        mkLink("moved ok", "./cafe24-api-catalog/_overview.md"), // 새 자리에 있다 → 통과
-        mkLink("moved anchor ok", "./cafe24-api-catalog/_overview.md#4-동기-정책"), // 앵커도 새 자리 기준
-        mkLink("moved folder", "./cafe24-api-catalog/"), // 폴더 자체 → 새 폴더가 있다
-        mkLink("moved makeshop", "./makeshop-api-catalog/_overview.md"),
-        mkLink("moved anchor bad", "./cafe24-api-catalog/_overview.md#nope"), // ANCHOR
-        mkLink("moved missing", "./cafe24-api-catalog/missing.md"), // 새 자리에도 없다 → DEAD
-        mkLink("look-alike", "./cafe24-api-catalogue/_overview.md"), // 접두만 같은 형제 → DEAD
-      ].join("\n"),
-    );
-    fs.writeFileSync(
-      path.join(root, "spec", "4-nodes", "node.md"),
-      mkLink("deeper", "../conventions/makeshop-api-catalog/_overview.md"),
-    );
-  });
-
-  afterAll(() => {
-    fs.rmSync(root, { recursive: true, force: true });
-  });
-
-  it("옛 카탈로그 경로로 해석되는 링크를 새 자리에서 검사한다", () => {
-    expect(fingerprint(findBrokenLinks(root))).toEqual([
-      "ANCHOR ./cafe24-api-catalog/_overview.md#nope",
-      "DEAD ./cafe24-api-catalog/missing.md",
-      "DEAD ./cafe24-api-catalogue/_overview.md",
-    ]);
-  });
-
-  it("거버넌스 문서에는 적용하지 않는다 — 살아 있는 문서는 새 경로를 적어야 한다", () => {
-    fs.writeFileSync(
-      path.join(root, "CLAUDE.md"),
-      mkLink("old catalog", "spec/conventions/cafe24-api-catalog/_overview.md"),
-    );
-    try {
-      expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual([
-        "DEAD spec/conventions/cafe24-api-catalog/_overview.md",
-      ]);
-    } finally {
-      fs.rmSync(path.join(root, "CLAUDE.md"));
     }
   });
 });
@@ -485,16 +374,15 @@ describe("extractLinks — 링크 텍스트가 줄을 넘어도 본다", () => {
 
 /**
  * 위 사각지대의 **실제 피해**를 통합 경로로 고정한다 — `extractLinks` 가 놓치면
- * `findBrokenLinks` 도 못 보고, 깨진 타깃이 조용히 통과한다.
+ * 링크 검사 진입점도 못 보고, 깨진 타깃이 조용히 통과한다.
  */
 describe("멀티라인 링크의 깨진 타깃도 잡힌다", () => {
   let root: string;
 
   beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "ml-broken-"));
-    fs.mkdirSync(path.join(root, "spec"), { recursive: true });
     fs.writeFileSync(
-      path.join(root, "spec", "a.md"),
+      path.join(root, "A.md"),
       // 텍스트가 두 줄에 걸치고, 목적지 파일은 존재하지 않는다.
       "# A\n\n[첫 줄\n둘째 줄](./nope.md)\n",
     );
@@ -502,6 +390,6 @@ describe("멀티라인 링크의 깨진 타깃도 잡힌다", () => {
   afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
   it("DEAD 로 보고된다 (종전에는 침묵 통과)", () => {
-    expect(fingerprint(findBrokenLinks(root))).toEqual(["DEAD ./nope.md"]);
+    expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual(["DEAD ./nope.md"]);
   });
 });

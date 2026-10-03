@@ -1,7 +1,7 @@
 # RAG 평가 하베스 (P0 Phase 0+1)
 
 검색 품질 변경(리랭킹·하이브리드·청킹 등)의 **상대 회귀**를 측정하는 경량 하베스.
-정식 규약(스키마·지표 정의·결정성·해석)은 [`spec/conventions/rag-evaluation.md`](../../../spec/conventions/rag-evaluation.md) 가 SoT.
+정식 규약(스키마·지표 정의·결정성·해석)은 NERV `CLE-KB-EVAL`([RAG 품질 평가](../../../spec/CLE-KB/CLE-KB-EVAL.md), 저장소 미러) 가 SoT.
 
 > [주의] **절대값 신뢰 금지.** 자동 합성 골든셋은 silver(미검수)다. 점수는 변경 전후
 > (off vs cross_encoder, PR 전후) **상대 비교** 로만 해석한다. 한국어 LLM-judge 신뢰도

@@ -6,7 +6,7 @@
 # 도입 배경: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 의 vitest 로 도는데,
 # `frontend-checks.yml` 은 `codebase/frontend/**`·`codebase/packages/**` 만 trigger 한다.
 # 그런데 이 가드가 스캔하는 영역은 `codebase/{backend,frontend,channel-web-chat,packages}`
-# 전부다(spec-impl-evidence.md §4.2). 즉 backend/channel-web-chat 소스만 바꾼 PR 은
+# 전부다(NERV `CLE-ENG-SPECEVIDENCE`). 즉 backend/channel-web-chat 소스만 바꾼 PR 은
 # 가드가 스캔하는 바로 그 영역인데도 CI 에서 가드가 안 돌던 갭이 있었다(PR #912 후속).
 #
 # frontend-checks 는 `next build`(무거움)까지 도므로 backend 변경마다 태우면 낭비다.
@@ -38,6 +38,11 @@
 # 2026-09-29: 잡 `spec-mirror-integrity` 를 더했다(NERV 정본 전환 단계 1). docs 가드와 같은
 # 경로 판정(`changes`)을 쓴다. 판정을 따로 두면 `spec/**` 와 `.claude/tools/nerv-mirror/**` 를
 # 목록 두 벌에 맞춰 적어야 하는데, 잡이 1초 안에 끝나 넓게 도는 쪽이 싸다.
+#
+# 2026-10-03: 옛 스펙 트리를 지우며 그 트리를 보던 가드(`spec-frontmatter` · `spec-area-index` ·
+# `spec-code-paths`)를 걷고 `spec-impl-locations` 를 더했다(NERV 정본 전환 단계 5, Task
+# `CLE-T-7M4C4X`). 위 2026-09-24 문단의 가드 이름은 그때 기준이다. 새 가드가 구현 위치로 읽는 루트에
+# `scripts/` · `.github/` 가 있어 pathspec 에 두 루트를 통째로 더했다(같은 갭의 넷째 판).
 
 name: spec-link-checks
 
@@ -77,20 +82,25 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/**
         spec/**
-        # 옮긴 API 카탈로그. 옛 spec 트리에서 옛 카탈로그 경로로 가는 링크를 이 디렉터리에서
-        # 경로 · 앵커까지 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 단계 5 에서 옛
-        # 트리와 함께 걷는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
+        # API 카탈로그. `codebase/` 전체를 훑는 가드(옛 경로 래칫 · 키 실재 · 리뷰 인용 형식)가
+        # 이 디렉터리의 파일도 읽는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
         # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
         # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(당시 spec·plan·
         # review 전부)를 잡았다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.
         :(glob)*.md
         .claude/**
+        # `spec-impl-locations` 가 구현 위치로 읽는 루트 넷(`codebase/` · `.claude/` · `.github/` ·
+        # `scripts/`) 전부. 미러가 인용한 `scripts/*` · `.github/workflows/*` 만 옮기는 PR 에서도
+        # 가드가 돌아야 한다(전환 단계 5). `.claude/tests/test_spec_link_checks_scope.py` 가 루트
+        # 넷의 추적 파일이 모두 덮이는지 본다.
+        scripts/**
+        .github/**
+        # 아래 넷은 위 두 줄이 이미 덮지만 이름으로 남긴다. 판정 로직 · wiring · 공유 셋업 액션 ·
+        # 이 워크플로가 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다는 계약을 워크플로마다
+        # 이름으로 확인하는 테스트(`test_pnpm_workspace_action.py` 등)가 있다.
         scripts/ci-paths-changed.sh
         .github/workflows/_changed-paths.yml
-        # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
-        # 이 액션이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다. 추출로 새로
-        # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
         .github/actions/pnpm-workspace/action.yml
         .github/workflows/spec-link-checks.yml
 
@@ -131,8 +141,8 @@ jobs:
   # 못하는 셸 · 손 편집은 여기서 `pull.py --check` 로 잡는다. 무엇을 잡고 무엇을 못 잡는지는
   # `pull.py` 모듈 docstring 의 "보장 범위" 가 정본이다(여기에 다시 적지 않는다). 지문은 같은
   # 파일 안의 값이라 실수를 잡는 장치이지 변조 방지가 아니다(PR 이 넣은 `pull.py` 로 돈다).
-  # 네트워크와 토큰 없이 돌고 표준 라이브러리만 쓴다. 위 docs 가드는 미러를 대상에서 뺀다
-  # (`inNervMirror`).
+  # 네트워크와 토큰 없이 돌고 표준 라이브러리만 쓴다. 위 docs 가드는 미러 본문의 링크를 검사하지
+  # 않는다. 미러의 링크는 `pull.py` 가 고쳐 쓰고 `--check` 가 이동한 문서를 가리키는 링크를 잡는다.
   spec-mirror-integrity:
     needs: changes
     if: ${{ !cancelled() }}

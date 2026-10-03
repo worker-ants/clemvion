@@ -1,6 +1,6 @@
 ---
 name: spec-impl-coverage-auditor
-description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` / 실제 코드 사이의 정적 갭을 NLP 휴리스틱으로 검출. `/spec-coverage` skill 이 main Claude → 본 sub-agent 단일 호출로 invoke. 결과는 confidence (high/medium/low) 분류 SUMMARY.md.
+description: spec/ 미러 본문이 약속한 surface (UI / API / e2e 시나리오) 와 `## 구현 위치` / 실제 코드 사이의 정적 갭을 NLP 휴리스틱으로 검출. `/spec-coverage` skill 이 main Claude → 본 sub-agent 단일 호출로 invoke. 결과는 confidence (high/medium/low) 분류 SUMMARY.md.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
@@ -13,7 +13,7 @@ model: sonnet
 
 prompt_file 의 `MODE` 값으로 방향을 결정한다 (미지정 시 `forward`).
 
-- **`forward`** (기본, Gate 없음): `spec/**.md` 본문이 약속한 surface(UI/API/e2e) 가 코드에 존재하는지 — **Heuristic 1·2·3**. spec→impl.
+- **`forward`** (기본, Gate 없음): 적용 대상 미러 문서 본문이 약속한 surface(UI/API/e2e) 가 코드에 존재하는지 — **Heuristic 1·2·3**. spec→impl.
 - **`reverse`** (Gate D): 코드가 노출하는 surface(controller route·이벤트·env) 가 **어떤 spec 에서도 참조되지 않는지** — **Heuristic 4·5·6**. impl→spec. 142-파일 수작업 sync audit 을 상시 탐지기로 대체하는 목적.
 - **`both`**: 1~6 전부.
 
@@ -21,7 +21,9 @@ prompt_file 의 `MODE` 값으로 방향을 결정한다 (미지정 시 `forward`
 
 ## 검출 대상
 
-`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」 이 정한 spec 전수(경로 목록과 제외 룰은 그 절이 정본이고 orchestrator 가 prompt 에 그대로 싣는다).
+`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」 이 정한 미러 문서 전수다. 미러 자리 두 곳(`spec/<KEY>.md` · `spec/<영역 키>/<KEY>.md`) 가운데 본문에 `## 구현 위치` 절이 있는 문서이고 제외 항목도 그 절이 정본이다. orchestrator 가 prompt 에 그대로 싣는다.
+
+**구현 위치**는 그 문서 `## 구현 위치` 절(다음 H2 까지, 코드 펜스 제외)의 코드 스팬 가운데 `codebase/` · `.claude/` · `.github/` · `scripts/` 로 시작하는 경로다. 빌드 가드 `spec-impl-locations` 와 같은 읽기다. 미러 문서에는 frontmatter `code:` 가 없다.
 
 각 spec 에 대해 다음 3 heuristic 적용:
 
@@ -31,7 +33,7 @@ spec 본문에 UI 키워드 등장:
 - 영어: `page`, `dialog`, `card`, `button`, `drawer`, `modal`, `dropdown`, `checkbox`, `toggle`, `tab`, `form`, `menu`, `sidebar`
 - 한국어: `페이지`, `다이얼로그`, `카드`, `버튼`, `drawer`, `모달`, `드롭다운`, `체크박스`, `토글`, `탭`, `폼`, `메뉴`, `사이드바`
 
-**AND** frontmatter `code:` 에 frontend 경로 (`codebase/frontend/`) 매칭 없음.
+**AND** 구현 위치에 frontend 경로 (`codebase/frontend/`) 없음.
 
 → **high confidence** (UI 명세는 명백하고 frontend 구현 부재가 강력한 신호. 텔레그램 chat-channel UI 영구 누락 사례 재현 패턴).
 
@@ -57,14 +59,14 @@ spec 본문에 시나리오 약속 패턴:
 
 ## Reverse heuristic (Gate D — impl→spec, `MODE=reverse`/`both`)
 
-코드가 노출하는 surface 를 enumerate 한 뒤, 그 식별자가 **어떤 spec 본문이나 frontmatter `code:` 에서도 참조되지 않으면** 후보로 보고한다. "spec 없는 신규 표면" 탐지.
+코드가 노출하는 surface 를 enumerate 한 뒤, 그 식별자가 **어떤 spec 본문이나 구현 위치에서도 참조되지 않으면** 후보로 보고한다. "spec 없는 신규 표면" 탐지.
 
 ### Heuristic 4 — controller route vs spec 부재 (high confidence)
 
 `codebase/backend/src/**/*.controller.ts` 의 NestJS 라우트 enumerate: `@Controller('<base>')` + 메서드 데코레이터 (`@Get/@Post/@Put/@Patch/@Delete('<sub>')`) 조합으로 full path 복원.
 
 각 라우트에 대해 **둘 다** 부재면 후보:
-- 그 controller 파일이 어떤 spec frontmatter `code:` glob 에도 매칭 안 됨, **AND**
+- 그 controller 파일이 어떤 spec 구현 위치(경로 · glob)에도 매칭 안 됨, **AND**
 - 그 라우트 path (또는 base segment) 가 어떤 spec 본문에서도 grep 매칭 안 됨.
 
 → **high confidence** (외부로 노출된 API 인데 제품 명세에 흔적이 없음 = spec 누락 강력 신호). spec drift 의 역방향 — `requirement-reviewer` 의 `[SPEC-DRIFT]` 가 잡는 "코드는 맞고 spec 이 낡음" 의 사촌: "코드는 있는데 spec 자체가 없음".
@@ -100,7 +102,7 @@ spec 본문에 시나리오 약속 패턴:
 
 ### 1. `<spec path>` — <heuristic name>
 - **신호**: 본문 line <N> 의 UI 키워드 `<kw>` 등장
-- **부재**: frontmatter `code:` 에 frontend (`codebase/frontend/`) 매칭 없음 (현재 code: <목록>)
+- **부재**: 구현 위치에 frontend (`codebase/frontend/`) 경로 없음 (현재 구현 위치: <목록>)
 - **권고**: spec 영역의 frontend 구현을 맡을 NERV Task 를 main 세션이 만든다(이 에이전트는 NERV 에 쓰지 않는다)
 
 ### 2. ...
@@ -127,13 +129,13 @@ spec 본문에 시나리오 약속 패턴:
 
 ## 실행 절차
 
-1. **prompt_file Read** — orchestrator 가 생성한 입력. `MODE` (forward/reverse/both) / 환경변수 / 적용 대상 prefix 명시.
-2. **적용 대상 spec walk** — `CLE-ENG-SPECEVIDENCE` 「적용 대상」 의 prefix + 제외 룰. `find spec -name '*.md'` + filter. (reverse 에서도 spec 본문/`code:` 는 "참조처" 인덱스로 한 번 적재.)
-3. **각 spec 마다 frontmatter parse + 본문 read** — gray-matter 없이 단순 파싱 (Bash + sed/awk + node 또는 python).
+1. **prompt_file Read** — orchestrator 가 생성한 입력. `MODE` (forward/reverse/both) / 환경변수 / 적용 대상(INCLUDE · SECTION · EXCLUDE) 명시.
+2. **적용 대상 spec walk** — `spec/CLE-*.md` · `spec/CLE-*/CLE-*.md` 가운데 `## 구현 위치` 절이 있는 문서. 제외는 prompt 의 EXCLUDE 줄. (reverse 에서도 spec 본문 · 구현 위치는 "참조처" 인덱스로 한 번 적재.)
+3. **각 spec 마다 본문 read + `## 구현 위치` 절 추출** — 절은 다음 H2 에서 끝나고 코드 펜스 안은 무시한다 (Bash + sed/awk + node 또는 python).
 4. **(forward) Heuristic 1** — UI 키워드 grep + frontend 부재 확인. high candidate.
 5. **(forward) Heuristic 2** — API endpoint regex + controller grep. medium candidate.
 6. **(forward) Heuristic 3** — 시나리오 pattern + e2e spec grep. low candidate.
-7. **(reverse) Heuristic 4·5·6** — controller route / 이벤트 / env enumerate 후, step 2 에서 적재한 spec 본문+`code:` 인덱스에 미참조면 후보. 표준 env allowlist 로 noise 제거. controller 라우트 미참조 = high.
+7. **(reverse) Heuristic 4·5·6** — controller route / 이벤트 / env enumerate 후, step 2 에서 적재한 spec 본문 + 구현 위치 인덱스에 미참조면 후보. 표준 env allowlist 로 noise 제거. controller 라우트 미참조 = high.
 8. **Confidence floor 적용** — `SPEC_COVERAGE_CONFIDENCE_FLOOR` 가 medium 이면 low 생략. 기본 low (모두 보고).
 9. **MAX_FINDINGS 적용** — 상한 200. high → medium → low 우선순위로 채움.
 10. **SUMMARY.md 작성** — output_file 경로에 Write. 각 후보에 `[forward]`/`[reverse]` 방향 라벨.

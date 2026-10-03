@@ -74,11 +74,6 @@ jobs:
         # 훅 배선. test_guard_nerv_owned_paths.py 가 편집 가드의 배선을 이 파일로 판정한다.
         # 배선만 빼는 PR 은 이 파일만 고친다.
         .claude/settings.json
-        # NERV 미러 판정의 세 번째 사본. test_nerv_mirror_pull.py 의 MirrorPredicateParityTest 가
-        # 이 파일의 NERV_MIRROR 리터럴을 읽어 pull.py · consistency 오케스트레이터와 대조한다.
-        # 나머지 둘은 위 .claude/tools/** · .claude/skills/** 가 덮는다. 이 파일만 고친 PR 도
-        # 대조가 돌아야 한다.
-        codebase/frontend/src/lib/docs/__tests__/spec-links.ts
         # 워크플로 디렉토리 전체 — 세 가드가 여기에 걸린다.
         #   (a) test_e2e_exemption_paths_sync.py — e2e.yml 의 paths-ignore 를 PROJECT.md
         #       §e2e 면제 화이트리스트와 대조한다. 등재가 없으면 **paths-ignore 를 넓히는

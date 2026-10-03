@@ -3,9 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { walkTree } from "./tree-walk";
-import { collectSpecMarkdown, collectCodebaseSources } from "./spec-links";
+import { collectCodebaseSources } from "./spec-links";
 import { collectMdxFiles } from "./impl-anchor-parse";
-import { collectApplicableSpecs } from "./spec-frontmatter-parse";
+import { mirrorKeyPaths } from "./spec-keys";
 
 function write(p: string, body = "x"): void {
   fs.mkdirSync(path.dirname(p), { recursive: true });
@@ -114,17 +114,15 @@ describe("수집기 필터 배선 — 합성 트리", () => {
   beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "collector-wiring-"));
 
-    // collectSpecMarkdown — 생성형 카탈로그 제외는 **상대경로** 판정이다.
-    write(path.join(root, "spec/real.md"));
-    write(path.join(root, "spec/conventions/cafe24-api-catalog/order.md"));
-    write(
-      path.join(root, "spec/conventions/cafe24-api-catalog/order/detail.md"),
-    );
-    write(path.join(root, "spec/not-md.txt"));
-    // NERV 미러(전환 단계 1) — 루트 `CLE-*.md` · 영역 폴더 `CLE-*/` · `README.md` 는 뺀다(`inNervMirror`).
+    // mirrorKeyPaths — 키 이름(`CLE-…`) 파일만 고른다. 미러 안내 `README.md` · 키가 아닌 이름 ·
+    // 소문자 키 · `.md` 가 아닌 파일은 빠진다. 폴더 깊이는 보지 않는다.
     write(path.join(root, "spec/CLE-X.md"));
     write(path.join(root, "spec/CLE-ACCT/CLE-ACCT.md"));
+    write(path.join(root, "spec/CLE-ACCT/CLE-ACCT-SESSION.md"));
     write(path.join(root, "spec/README.md"));
+    write(path.join(root, "spec/notes/other.md"));
+    write(path.join(root, "spec/CLE-lower.md"));
+    write(path.join(root, "spec/CLE-X.txt"));
 
     // collectCodebaseSources — skip 디렉터리 4종 + 확장자.
     write(path.join(root, "codebase/frontend/src/keep.ts"));
@@ -146,34 +144,13 @@ describe("수집기 필터 배선 — 합성 트리", () => {
 
   afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  /**
-   * **두 가드는 같은 `spec/` 트리를 서로 다르게 본다.** 이 테스트를 쓰면서 발견했고
-   * (기대값을 추측으로 적었다가 둘 다 틀렸다), 통합 전후로 **동일하게 보존된** 선재
-   * 차이다. "합치는 김에 맞추는" 것은 그 통합 작업이 금지한 조용한 스코프 변경이라
-   * 고치지 않고 **차이 자체를 고정**한다.
-   *
-   * | | `spec/` 루트 파일 | 카탈로그 최상위 인덱스 | 카탈로그 중첩 필드 |
-   * |---|---|---|---|
-   * | `collectSpecMarkdown` (링크 무결성) | **본다** | **안 본다** | 안 본다 |
-   * | `collectApplicableSpecs` (frontmatter) | **안 본다** | **본다** | 안 본다 |
-   *
-   * 「`spec/` 루트 파일」은 옛 트리의 루트 파일이다. NERV 미러(`spec/README.md` · `spec/CLE-*`)는
-   * 전환 단계 1 부터 `collectSpecMarkdown` 도 보지 않는다(`inNervMirror`).
-   *
-   * 근거가 서로 다르다 — 전자는 `relPath.includes("-api-catalog/")` 라 카탈로그 **전체**를
-   * 링크 검사에서 빼고(생성물의 링크는 기계가 만든다), 후자는 `INCLUDE_PREFIXES` 로
-   * 영역 폴더만 보되 카탈로그 최상위 `<resource>.md` 는 진짜 spec 이라 남긴다
-   * (`spec/conventions/spec-impl-evidence.md §1`).
-   */
-  it("collectSpecMarkdown — 카탈로그를 **통째로** 뺀다 (최상위 인덱스 포함) · NERV 미러도 뺀다", () => {
-    expect(collectSpecMarkdown(root).map((f) => f.relPath)).toEqual([
-      "spec/real.md",
-    ]);
-  });
-
-  it("collectApplicableSpecs — 영역 폴더만 보되 카탈로그 최상위 인덱스는 **남긴다**", () => {
-    expect(collectApplicableSpecs(root).map((f) => f.relPath)).toEqual([
-      "spec/conventions/cafe24-api-catalog/order.md",
+  // 옛 트리 수집기 둘(`collectSpecMarkdown` · `collectApplicableSpecs`)은 전환 단계 5(NERV Task
+  // `CLE-T-7M4C4X`)에서 옛 트리와 함께 지웠다. `spec/` 을 훑는 수집기는 미러 키 수집기 하나다.
+  it("mirrorKeyPaths — 키 이름 파일만 고른다 (README · 키가 아닌 이름 · 소문자 · 비 .md 제외)", () => {
+    expect([...mirrorKeyPaths(path.join(root, "spec")).keys()].sort()).toEqual([
+      "CLE-ACCT",
+      "CLE-ACCT-SESSION",
+      "CLE-X",
     ]);
   });
 

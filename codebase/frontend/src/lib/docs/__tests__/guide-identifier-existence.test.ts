@@ -48,8 +48,8 @@ const root = repoRoot();
  * 발행 축의 탈출구로 쓰는 에러 코드 카탈로그 — NERV `CLE-API-ERRCODES` 의 저장소 미러
  * (저장소 루트 기준). 이 문서의 「6. 카탈로그」 절만 탈출구로 쓴다(`catalogSection`).
  *
- * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 동결됐고
- * 전환 단계 5 에서 지운다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
+ * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 전환 단계 5 에서
+ * 지웠다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
  * `pull.py --task <CLE-T-…>` 로 받는다(이 경로로 옮긴 PR 은 NERV Task `CLE-T-RXMB2X`).
  *
  * 형제 가드 `redis-fail-open-catalog` 는 NERV 표기에 묶이지 않으려고 스펙 대조를 걷었다. 이
@@ -331,8 +331,8 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     it("카탈로그는 NERV `CLE-API-ERRCODES` 의 미러를 읽는다", () => {
       // 경로 상수가 다른 미러 문서를 가리켜도 백틱 코드는 50개를 넘길 수 있다. 그래서
       // 규모 대신 미러 frontmatter 의 `id` 로 대상 문서를 고정한다.
-      // 옵션 객체 `{}` 는 gray-matter 의 내용 캐시를 우회한다(`matterNoCache` 와 같은 이유).
-      // 그 헬퍼는 단계 5 에 걷힐 옛 트리 가드 모듈(`spec-frontmatter-parse.ts`)에 있어 가져오지 않는다.
+      // 옵션 객체 `{}` 는 gray-matter 의 내용 캐시를 우회한다. 옵션 없이 부르면 내용을 키로
+      // 캐시하고, 파싱이 던진 내용도 다음 호출에서 빈 `data` 로 돌려준다.
       const { data } = matter(readErrorCodeCatalogMirror(root), {});
       expect(data.id).toBe("CLE-API-ERRCODES");
     });

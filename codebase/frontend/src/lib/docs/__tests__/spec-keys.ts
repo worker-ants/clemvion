@@ -7,7 +7,8 @@ import { walkTree } from "./tree-walk";
 // `spec:` 은 NERV 스펙 키 목록이다(CLE-UI-GUIDE 「프론트매터」, NERV 정본 전환 단계 4b).
 // 키는 저장소 미러 파일 이름(`spec/<영역 키>/<KEY>.md`, 영역 밖 문서는 `spec/<KEY>.md`)으로
 // 확인한다. 옛 트리 파일(`spec/<번호>-<영역>/…`)은 키 모양이 아니어서 섞이지 않는다.
-// 스펙 문서 자체의 프론트매터를 보는 가드(`spec-frontmatter*`)와는 다른 것이다.
+// 스펙 문서 자체의 프론트매터를 보던 옛 가드(`spec-frontmatter*`, NERV 전환 단계 5 에서 지웠다)와는
+// 다른 것이다.
 
 /**
  * 가이드가 가리킬 수 있는 미러 키의 모양. `no-internal-refs.test.ts` 의 본문 금지 패턴도

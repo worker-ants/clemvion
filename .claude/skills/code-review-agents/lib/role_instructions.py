@@ -20,9 +20,9 @@ The reviewer / checker dicts below carry, per role:
         permitting that outcome only when this flag is set.
   - (checker only) `context_label` / `context_key`
         Which subs key feeds the role's supplementary corpus (related_specs,
-        rationale_excerpts, conventions, or combined). `None` means the checker
-        has no corpus — `plan_coherence`, whose only corpus `plan/in-progress/**`
-        left in NERV cutover stage 3.
+        rationale_excerpts, conventions, or combined). Required: the last checker
+        without a corpus, `plan_coherence`, left in NERV cutover stage 5
+        (`test_agent_consistency.py` pins it).
 """
 
 
@@ -77,7 +77,7 @@ REVIEWER_INSTRUCTIONS = {
 6. **데이터 유효성**: 입력 데이터의 유효성 검증
 7. **비즈니스 로직**: 비즈니스 규칙이 코드에 정확히 반영됐는지
 8. **반환값**: 모든 경로에서 적절한 값을 반환하는지
-9. **관련 spec 본문 일치 여부 (spec fidelity)**: 변경 파일을 정의하는 스펙을 NERV 스펙 미러(`spec/CLE-*`)에서 찾는다 — 본문 `## 구현 위치` 절이 그 파일을 적은 문서가 1순위이고, 이 PR 이 함께 받은(pull) 미러 파일이 그 작업의 기준 버전이다. 동결된 옛 트리(`spec/<번호>-<영역>/`)는 근거로 쓰지 않는다. 스펙 본문(Overview 가 아니라 요구사항 ID·행위 명세·시퀀스·필드 정의) 과 코드 구현이 line-level 로 일치하는지 점검 — 함수 시그니처·필드명·에러 코드·기본값·검증 규칙·상태 전이가 spec 과 다르면 CRITICAL. 관련 스펙 문서 자체를 찾을 수 없으면 INFO (spec 누락). 스펙 자체에 결함이 의심되면 발견사항으로 명시 (수정은 NERV 스펙 초안 — 본 reviewer 는 미러를 고치지 않는다).""",
+9. **관련 spec 본문 일치 여부 (spec fidelity)**: 변경 파일을 정의하는 스펙을 NERV 스펙 미러(`spec/CLE-*`)에서 찾는다 — 본문 `## 구현 위치` 절이 그 파일을 적은 문서가 1순위이고, 이 PR 이 함께 받은(pull) 미러 파일이 그 작업의 기준 버전이다. 스펙 본문(Overview 가 아니라 요구사항 ID·행위 명세·시퀀스·필드 정의) 과 코드 구현이 line-level 로 일치하는지 점검 — 함수 시그니처·필드명·에러 코드·기본값·검증 규칙·상태 전이가 spec 과 다르면 CRITICAL. 관련 스펙 문서 자체를 찾을 수 없으면 INFO (spec 누락). 스펙 자체에 결함이 의심되면 발견사항으로 명시 (수정은 NERV 스펙 초안 — 본 reviewer 는 미러를 고치지 않는다).""",
         "scope_optional": False,
     },
     "scope": {
@@ -242,24 +242,11 @@ CHECKER_INSTRUCTIONS = {
         "perspective": "target 문서가 정식 규약(NERV 미러의 `type: convention` 문서)을 따르고 있는지 분석한다.",
         "checklist": """1. **명명 규약** — 파일·식별자·API endpoint 명명이 conventions 규칙과 일치하는가
 2. **출력 포맷 규약** — API 응답·이벤트 페이로드·에러 코드 등 출력 형식이 정식 규약(convention 문서)을 따르는가
-3. **문서 구조 규약** — Overview / 본문 / Rationale 3섹션 권장. 새 스펙은 NERV 키 규칙(`CLE-<영역>-<슬러그>`, project-planner SKILL `## 트리 규칙`)을 따른다. 미러 경로 `spec/<영역 키>/<KEY>.md` 는 `pull.py` 가 정하고, 동결된 옛 트리(`N-name.md`·`_product-overview.md`·`0-` prefix)에는 새 파일이 생기지 않는다
+3. **문서 구조 규약** — Overview / 본문 / Rationale 3섹션 권장. 새 스펙은 NERV 키 규칙(`CLE-<영역>-<슬러그>`, project-planner SKILL `## 트리 규칙`)을 따른다. 미러 경로 `spec/<영역 키>/<KEY>.md` 는 `pull.py` 가 정한다
 4. **API 문서 규약** — API 문서 도구(OpenAPI/Swagger 등)의 데코레이터·DTO 명명 패턴 준수
 5. **금지 항목** — conventions 에서 명시적으로 금지한 패턴을 답습하고 있지 않은가""",
         "context_label": "정식 규약 모음 (NERV 미러, type=convention)",
         "context_key": "conventions",
-    },
-    # 등록은 남긴다(로컬 5-checker 구성, 결정 D10). 유일한 코퍼스 `plan/in-progress/**` 가 NERV 정본
-    # 전환 단계 3 에서 없어져 `.claude.project.json` 에서 꺼 두었고, 코퍼스도 없다(`context_key` None).
-    # 진행 중 작업은 NERV Task 이고 checker 에는 NERV 도구가 없다. 다시 켜려면 Task 목록을 코퍼스로
-    # 넘기는 경로부터 만든다.
-    "plan_coherence": {
-        "ko_title": "Plan 정합성",
-        "perspective": "진행 중 작업의 미해결 결정과 target 문서가 정합한지 분석한다. 이 저장소에서는 꺼져 있고 보조 코퍼스가 없다(진행 중 작업은 NERV Task).",
-        "checklist": """1. **미해결 결정과의 충돌** — target 이 진행 중 작업에서 "결정 필요" 로 남겨둔 항목과 충돌하는 결정을 일방적으로 내리고 있지 않은가
-2. **선행 작업 미해소** — target 이 가정하는 사전 조건이 아직 해결되지 않았는가
-3. **후속 항목 누락** — target 변경이 다른 작업의 후속 항목을 무효화하거나 새로 만들어야 하는데 반영되지 않았는가""",
-        "context_label": "보조 코퍼스 없음 (진행 중 작업은 NERV Task)",
-        "context_key": None,
     },
     "naming_collision": {
         "ko_title": "신규 식별자 충돌",

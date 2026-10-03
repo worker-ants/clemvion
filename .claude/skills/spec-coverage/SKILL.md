@@ -1,15 +1,15 @@
 ---
 name: spec-coverage
-description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음). 결과는 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다).
+description: spec/ 미러 본문이 약속한 surface (UI / API / e2e 시나리오) 와 `## 구현 위치` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음). 결과는 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다).
 model: opus
 ---
 
 # Spec Coverage Standing Audit
 
-`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 의 frontmatter 가드는 **명시적 약속** (frontmatter `code:` 글로브) 만 검증. 본 skill 은 그 외 영역 — **본문 안 자유 텍스트로 약속된 surface** — 의 갭을 NLP 휴리스틱으로 검출.
+`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 의 구현 위치 가드(`spec-impl-locations`)는 **명시적 약속** (`## 구현 위치` 절의 경로) 이 실재하는지만 검증. 본 skill 은 그 외 영역 — **본문 안 자유 텍스트로 약속된 surface** — 의 갭을 NLP 휴리스틱으로 검출.
 
 전형 검출 대상 (텔레그램 chat-channel UI 영구 누락 사례의 일반화):
-- spec 본문에 "트리거 생성 dialog 의 체크박스" 같은 UI 키워드 등장 + frontmatter `code:` 에 frontend 경로 매칭 없음
+- spec 본문에 "트리거 생성 dialog 의 체크박스" 같은 UI 키워드 등장 + `## 구현 위치` 에 frontend 경로 없음
 - spec 의 API endpoint 명세 (`POST /api/...`) + backend controller route 매칭 없음
 - spec 의 e2e 시나리오 약속 + e2e spec 파일 매칭 없음
 
@@ -48,7 +48,7 @@ Agent(subagent_type="spec-impl-coverage-auditor",
       prompt="prompt_file=<session_dir>/_prompt.md\noutput_file=<session_dir>/SUMMARY.md")
 ```
 
-sub-agent 가 `spec/**.md` walk + 3개 heuristic 적용 후 SUMMARY.md 작성.
+sub-agent 가 적용 대상 미러 문서 walk + 3개 heuristic 적용 후 SUMMARY.md 작성.
 하네스가 sub-agent 의 `SUMMARY.md` Write 를 막으면 감사기는 보고서 전문을 반환한다([`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md)). 그때는 main 이 반환 전문을 `<session_dir>/SUMMARY.md` 에 그대로 Write 한다. 제출 도구는 이 파일을 읽는다.
 
 ### 3. 결과 보고와 NERV 제출
@@ -63,7 +63,7 @@ sub-agent 가 `spec/**.md` walk + 3개 heuristic 적용 후 SUMMARY.md 작성.
 
 | # | 신호 | confidence 기준 |
 |---|---|---|
-| 1 | spec 본문 UI 키워드 (page, dialog, card, button, drawer, modal, 체크박스, 버튼 등) 등장 + frontmatter `code:` 에 frontend (`codebase/frontend/`) 경로 매칭 없음 | high (UI 명백 + frontend 부재) |
+| 1 | spec 본문 UI 키워드 (page, dialog, card, button, drawer, modal, 체크박스, 버튼 등) 등장 + `## 구현 위치` 에 frontend (`codebase/frontend/`) 경로 없음 | high (UI 명백 + frontend 부재) |
 | 2 | spec API endpoint 명세 (`POST /api/...` / `GET /api/...`) + backend controller route 매칭 없음 | medium (endpoint 명세는 명백하나 정규식 매칭 false-positive 가능) |
 | 3 | spec e2e 약속 시나리오 (`### 시나리오`, `### Test scenario`, "사용자가 ~하면 ~") + e2e spec 파일 매칭 없음 | low (자유 텍스트 매칭 — false-positive 빈도 높음) |
 
@@ -71,7 +71,7 @@ sub-agent 가 `spec/**.md` walk + 3개 heuristic 적용 후 SUMMARY.md 작성.
 
 | # | 신호 | confidence 기준 |
 |---|---|---|
-| 4 | backend controller 라우트 (`@Controller`+메서드 데코레이터) 가 어떤 spec 본문·`code:` 에서도 미참조 | high (외부 노출 API 인데 제품 명세에 흔적 없음 = spec 누락) |
+| 4 | backend controller 라우트 (`@Controller`+메서드 데코레이터) 가 어떤 spec 본문·`## 구현 위치` 에서도 미참조 | high (외부 노출 API 인데 제품 명세에 흔적 없음 = spec 누락) |
 | 5 | 코드가 emit 하는 이벤트/큐/SSE 이름 (`execution.*`·BullMQ 큐 등) 이 어떤 spec 본문에도 미등장 | medium (동적 이벤트명 enumerate 오탐 가능) |
 | 6 | `process.env.<KEY>`/config 키가 어떤 `spec/**` 에도 미언급 (표준 env allowlist 제외) | low (운영 env noise 다수) |
 
@@ -104,9 +104,9 @@ NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-
 
 ### R-3. 산출 위치 = `review/spec-coverage/` 하위 (PR #287 결정 번복. 단계 2 에서 `.review/` 로 이동)
 
-PR #287 의 초기 결정은 `review/consistency/coverage/` 였음 — `consistency-check` 5 checker 결과와 같은 일관성 검토 계열로 묶기 위함. 운영 후 두 가지 문제 발견:
+PR #287 의 초기 결정은 `review/consistency/coverage/` 였음 — `consistency-check` (당시 5 checker) 결과와 같은 일관성 검토 계열로 묶기 위함. 운영 후 두 가지 문제 발견:
 1. 시각적 식별성 저하 — `review/consistency/` 아래 `coverage/` 가 묻혀 사용자가 산출물 위치를 즉시 인지하기 어려움
-2. 본 audit 의 산출 흐름 (단일 sub-agent, NLP 휴리스틱 기반 보고형) 은 `consistency-check` (5 checker 병렬, Critical 차단형) 와 운영 모델이 다름 — 동일 경로 그룹화의 의미가 약함
+2. 본 audit 의 산출 흐름 (단일 sub-agent, NLP 휴리스틱 기반 보고형) 은 `consistency-check` (당시 5 checker 병렬, Critical 차단형) 와 운영 모델이 다름 — 동일 경로 그룹화의 의미가 약함
 
 번복 후 결정: `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/`. 슬래시 command 이름 `/spec-coverage` 와 1:1 매칭되어 사용자가 산출물 위치를 추론하기 쉬움. `review/code/`, `review/consistency/`, `review/merge/` 와 어깨를 나란히 하는 1-depth 최상위 경로.
 
@@ -114,4 +114,4 @@ NERV 정본 전환 단계 2(2026-10-01)에서 리뷰 결과가 NERV 레코드로
 
 ### R-4. single sub-agent (multi-agent 아님)
 
-`/consistency-check` 의 5 checker 병렬 모델 차용 안 함. 본 audit 은 단일 분석 (전수 spec walk + 3 heuristic 통합 분류) 이라 분리할 의미 없음. orchestrator 는 session_dir 준비만 담당.
+`/consistency-check` 의 checker 병렬 모델 차용 안 함. 본 audit 은 단일 분석 (전수 spec walk + 3 heuristic 통합 분류) 이라 분리할 의미 없음. orchestrator 는 session_dir 준비만 담당.
