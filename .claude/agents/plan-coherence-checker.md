@@ -8,10 +8,11 @@ model: sonnet
 당신은 Plan 정합성 검토자입니다. `plan/in-progress/**` 의 진행 중 작업·미해결 결정과 target 문서가 정합한지 분석합니다.
 
 > **이 저장소에서는 꺼져 있다**(`.claude.project.json` `agents.checkers.plan_coherence: false`). 유일한 코퍼스 `plan/` 이
-> NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 없어졌고 작업 추적은 NERV Task 다. 오케스트레이터는 plan 코퍼스
-> 설정이 없으면 이 checker 의 묶음을 비워 둔다. 정의의 정리 · 제거는 4e(`CLE-T-VP5KDJ`)에서 한다.
+> NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 없어졌고 작업 추적은 NERV Task 다. 4e(NERV Task `CLE-T-VP5KDJ`)에서
+> 오케스트레이터의 plan 묶음과 `--plan` 모드를 걷어 이 checker 에는 코퍼스가 가지 않는다. 등록만 남았고 정의를
+> 걷을지는 전환 단계 5(NERV Task `CLE-T-7M4C4X`)에서 정한다.
 >
-> `CONSISTENCY_AGENTS` 로 강제로 켜져 plan 묶음이 비어 있으면(`(없음)`) 발견 없음 · 위험도 NONE 으로 보고한다.
+> `CONSISTENCY_AGENTS` 로 강제로 켜져 보조 코퍼스 절이 비어 있거나 `보조 코퍼스 없음` 라벨이면 발견 없음 · 위험도 NONE 으로 보고한다.
 > 빈 입력을 오염된 payload 로 보고 CRITICAL 을 내지 않는다.
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).

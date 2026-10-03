@@ -1,12 +1,12 @@
 ---
 name: consistency-checker
-description: spec / plan / 구현 착수 직전에 기존 문서들과의 위배를 사전에 검출하는 다관점 일관성 검토자입니다. 사용자가 "consistency check", "정합성 점검", "사전 검토", "spec 충돌 확인", "/consistency-check" 를 호출하거나, project-planner 가 `spec/` 에 쓰기 전, developer 가 구현에 착수하기 전에 의무 호출됩니다. 5개의 sub-agent(Cross-Spec, Rationale Continuity, Convention Compliance, Plan Coherence, Naming Collision)를 main Claude 가 Agent tool 로 병렬 호출하며, Critical 위배 발견 시 spec write·구현 착수를 차단합니다. 사용량 한도 시 `/loop /consistency-check` 와 결합해 ScheduleWakeup 으로 무한 재시도.
+description: 스펙 초안 · 구현 착수 직전 · 구현 완료 후에 기존 문서들과의 위배를 검출하는 다관점 일관성 검토자입니다. 사용자가 "consistency check", "정합성 점검", "사전 검토", "spec 충돌 확인", "/consistency-check" 를 호출하거나, project-planner 가 `spec/` 에 쓰기 전, developer 가 구현에 착수하기 전에 의무 호출됩니다. 5개의 sub-agent(Cross-Spec, Rationale Continuity, Convention Compliance, Plan Coherence, Naming Collision)를 main Claude 가 Agent tool 로 병렬 호출하며, Critical 위배 발견 시 spec write·구현 착수를 차단합니다. 사용량 한도 시 `/loop /consistency-check` 와 결합해 ScheduleWakeup 으로 무한 재시도.
 model: opus
 ---
 
 # Consistency Checker
 
-spec / plan / 구현 변경이 **저장되기 전** 단계에서 기존 문서들과의 위배를 사전 검출. 사후 코드 리뷰(`ai-review`)와 달리 **결정이 박히기 전** 동작.
+스펙 초안 · 구현 변경이 **저장되기 전** 단계에서 기존 문서들과의 위배를 사전 검출(`--impl-done` 은 구현 뒤 사후 검증). 사후 코드 리뷰(`ai-review`)와 달리 **결정이 박히기 전** 동작.
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../../docs/subagent-call-contract.md).
 
@@ -15,7 +15,7 @@ spec / plan / 구현 변경이 **저장되기 전** 단계에서 기존 문서�
 - **사전 검출**: target 문서 디스크 쓰기 전 호출이 정상.
 - **Critical = 차단**: SUMMARY.md 상단 `BLOCK: YES` 면 호출자 즉시 멈춤.
 - **출력은 markdown + NERV 레코드**: 로컬 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore, 커밋하지 않음)가 단일 결과 진입점이고, checker 리포트는 checker 마다 NERV `kind=consistency` 로 제출한다(전환 단계 2).
-- **재진입성**: plan/spec 자동 수정 안 함, 산출물 디렉토리만 누적.
+- **재진입성**: 스펙 자동 수정 안 함, 산출물 디렉토리만 누적.
 
 ## 5개 Checker
 
@@ -23,8 +23,8 @@ spec / plan / 구현 변경이 **저장되기 전** 단계에서 기존 문서�
 | --- | --- |
 | `cross-spec-checker` | 다른 영역 spec 의 데이터 모델·API·요구사항 ID 충돌 |
 | `rationale-continuity-checker` | 과거 Rationale 의 기각 결정 재도입 |
-| `convention-compliance-checker` | `spec/conventions/**` 위반 |
-| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락. **이 저장소에서는 꺼져 있다**(`.claude.project.json` 의 `agents.checkers.plan_coherence: false`). 유일한 코퍼스 `plan/` 이 전환 단계 3 에서 없어졌다. 정의 정리는 4e(NERV Task `CLE-T-VP5KDJ`) |
+| `convention-compliance-checker` | 정식 규약(미러 frontmatter `type: "convention"` 문서) 위반 |
+| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락. **이 저장소에서는 꺼져 있다**(`.claude.project.json` 의 `agents.checkers.plan_coherence: false`). 유일한 코퍼스 `plan/` 이 전환 단계 3 에서 없어졌고, 4e(NERV Task `CLE-T-VP5KDJ`)에서 오케스트레이터가 이 checker 에 넘기던 코퍼스도 걷었다. 등록만 남아 있고 정의를 걷을지는 전환 단계 5(NERV Task `CLE-T-7M4C4X`)에서 정한다 |
 | `naming-collision-checker` | 신규 식별자 기존 사용처 중복 |
 
 summary: `consistency-summary` 가 통합 + `BLOCK: YES/NO` 표기.
@@ -58,11 +58,15 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
   > **차단 가드가 아니다.** 옛 흐름에서는 draft 를 `plan/complete/` 로 옮겨 남겼다(보존된 69개 중 66개).
   > 전환 단계 3 에서 `plan/` 이 없어졌고 지금 초안의 정본은 NERV 버전이다. 이 사본은 로컬 세션의
   > 증거로만 남는다.
-- `--plan <path>` — plan draft. 전환 단계 3 에서 `plan/` 이 없어져 쓸 일이 없다. 모드 제거는 4e(`CLE-T-VP5KDJ`).
-- `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
-- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **developer REVIEW WORKFLOW 의 의무 단계** — 결과를 checker 마다 `kind=consistency` 로 NERV 에 제출하고(`task_id` 포함) 발견을 처분한다. NERV Task done 게이트(`done_gate.review_coverage`)가 그 Task 의 consistency 라운드를 요구한다. (전환 단계 2 전에는 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 spec 연결 코드 변경의 push 를 이 산출물의 세션 시각으로 막았다. 그 게이트는 걷혔다.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
+- `--impl-prep <scope>` — 구현 착수 직전. scope 는 NERV 키(`CLE-ENG-SPECEVIDENCE`) · 미러 영역 폴더(`spec/CLE-ENG/`) · 미러 파일 중 하나이고 쉼표로 여럿을 준다. 동결된 옛 트리(`spec/<번호>-<영역>/` · `spec/conventions/`)는 받지 않는다(종료 코드 2). 보통 클레임 scope 의 `spec_ids` 를 준다. 키가 로컬 미러에 없으면 종료 코드 2 로 멈추므로 먼저 `pull.py --task <Task 키>` 로 받는다.
+- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope 형식은 `--impl-prep` 와 같다. target_doc 에 대상 미러 문서 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **developer REVIEW WORKFLOW 의 의무 단계** — 결과를 checker 마다 `kind=consistency` 로 NERV 에 제출하고(`task_id` 포함) 발견을 처분한다. NERV Task done 게이트(`done_gate.review_coverage`)가 그 Task 의 consistency 라운드를 요구한다. (전환 단계 2 전에는 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 spec 연결 코드 변경의 push 를 이 산출물의 세션 시각으로 막았다. 그 게이트는 걷혔다.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
+  - **구현 위치 대조**: 미러 문서의 `## 구현 위치` 가 이 브랜치가 바꾼 파일을 덮으면 그 문서를 대상에 더하고 census 에 이유를 적는다. 옛 push 게이트의 spec-linked 검사(구현 파일을 고치면 구현 완료 검토 요구)가 하던 대조를 `--impl-done` 을 돌릴 때 되살린 것이다. 강제는 아니다. done 게이트는 consistency 라운드가 있고 통과했는지만 보고 어떤 문서를 대상으로 했는지는 보지 않는다.
+  - `--diff-path <path>` 로 구현 diff 경로를 바꾼다(여럿이면 반복, 기본 `code_areas`). 하네스만 바꾼 작업은 `--diff-path .claude` 처럼 준다. 생성된 API 카탈로그 필드 문서(`codebase/api-catalogs/*/*/**/*.md`)는 diff 에서 빼고 뺀 수만 적는다.
+- `--focus <keys>` — scope 가 영역 폴더처럼 넓을 때 그 안에서 컨텍스트 예산의 앞자리를 줄 NERV 키(쉼표). 보통 클레임 scope 의 `spec_ids`. 모든 모드에서 쓴다. scope 가 키 하나면 쓸 필요가 없다.
 
-> **NERV 미러와 대조 코퍼스 (전환 단계 1 ~ 4e)**: 오케스트레이터는 미러(`spec/README.md` · `spec/CLE-*`)를 대조 코퍼스(`related_specs` · `conventions`)에서 뺀다. 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰기 때문이다. 그래서 `--impl-prep` · `--impl-done` 의 scope 는 옛 트리 영역 경로를 준다. 미러 경로를 scope 로 주면 대상은 미러, 대조는 동결된 옛 트리가 되어 결과는 참고용이다. 코퍼스를 미러로 옮기는 일은 단계 4e 다. 그 전까지 NERV 에서 새로 쓴 스펙 · Rationale 과의 연속성은 로컬 checker 가 보지 못하고 `nerv_spec_check` 가 맡는다.
+`--plan` 모드는 없다(`plan/` 은 전환 단계 3 에서 없어졌다).
+
+> **NERV 미러와 대조 코퍼스 (전환 4e 부터)**: 대상과 대조 코퍼스 모두 미러(`pull.py` 가 쓴 `spec/<키>.md` · `spec/<영역 키>/<키>.md`)다. 정식 규약 코퍼스(`conventions`)는 frontmatter `type: "convention"` 문서, 관련 스펙 코퍼스(`related_specs`)는 그 밖의 미러 문서다. 리서치 영역(`CLE-RESEARCH`)과 미러 안내 `spec/README.md` 는 뺀다. `--spec` 초안 파일 이름이 키면 그 키의 미러 판은 코퍼스에서 빠지고 Rationale 은 남는다. 번들 순서는 브랜치가 바꾼 문서 → `--focus` 키 · 구현 위치가 바뀐 파일을 덮는 문서 → 대상 본문이 부르는 키 → 나머지다. 미러는 구현할 때 `pull.py --task` 로 받은 버전이라 NERV 의 최신 초안 · Rationale 과의 연속성은 `nerv_spec_check` 가 함께 본다.
 
 stdout 마지막 줄 = 세션 디렉토리.
 
@@ -98,7 +102,12 @@ Workflow 반환값 (항상 경로+전문):
 
 ### 3.5 NERV 제출 (main 의 의무)
 
-절차는 `code-review-agents` SKILL §4 와 같고 `kind=consistency` 만 다르다. `python3 .claude/tools/nerv_review_payload.py <session_dir>` 가 checker 리포트를 checker 별 제출 묶음으로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 묶음마다 `nerv_review_submit(kind=consistency, …)` 를 부른다(인자 · `idempotency_key` · `changeset` 은 그 절. 키의 `<mode>` 는 `spec` · `prep` · `done`). 발견은 `nerv_finding_resolve` 로 처분한다. 출력의 `warnings[]` 에 `SUMMARY.md: … 하향 …` 이 있으면 SUMMARY 가 checker 의 `[CRITICAL]` 을 낮춘 것이다 — 아래 §4 금지 조항 위반이니 SUMMARY 를 바로잡는다. NERV 판정은 checker 리포트로 서므로 SUMMARY 의 하향이 라운드를 통과시키지는 못한다. `--spec`(스펙 초안) · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다. 단 `task_id` 는 `--impl-done` 결과에만 붙인다. NERV done 게이트는 Task 에 묶인 consistency 라운드를 보므로, 구현 전 검토(`--impl-prep`)나 스펙 초안 검토(`--spec`)가 그 자리를 채우면 사후 검증 없이 done 이 된다.
+절차는 `code-review-agents` SKILL §4 와 같고 `kind=consistency` 만 다르다.
+
+- **제출**: `python3 .claude/tools/nerv_review_payload.py <session_dir>` 가 checker 리포트를 checker 별 제출 묶음으로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 묶음마다 `nerv_review_submit(kind=consistency, …)` 를 부른다(인자 · `idempotency_key` · `changeset` 은 그 절. 키의 `<mode>` 는 `spec` · `prep` · `done`). `--spec` · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다. 발견은 `nerv_finding_resolve` 로 처분한다.
+- **하향 경고**: 출력의 `warnings[]` 에 `SUMMARY.md: … 하향 …` 이 있으면 SUMMARY 가 checker 의 `[CRITICAL]` 을 낮춘 것이다. 아래 §4 금지 조항 위반이니 SUMMARY 를 바로잡는다. NERV 판정은 checker 리포트로 서므로 SUMMARY 의 하향이 라운드를 통과시키지는 못한다.
+- **`task_id` 규칙과 한계**: `task_id` 는 `--impl-done` 결과에만 붙인다. done 게이트는 Task 에 묶인 consistency 라운드를 보므로 구현 전 검토가 그 자리를 채우면 사후 검증 없이 done 이 된다. 다만 NERV 는 활성 클레임이 있으면 `task_id` 를 주지 않아도 제출을 그 Task 에 묶는다. 그래서 이 규칙만으로는 막지 못한다(2026-10-03, `CLE-T-VP5KDJ` 의 `--spec` 라운드 `01a0ff48-bb01…` 은 클레임 중이라 묶였고, 리스가 끝난 뒤 낸 `01a0ff87-a61b…` 의 첫 제출은 묶이지 않았다. `--impl-prep` · `kind=code` 는 따로 확인하지 않았다).
+- **해야 할 일**: done 을 시도하기 전에 그 Task 에 묶인 `--impl-done` 라운드가 passed 인지 확인한다. `--spec` · `--impl-prep` 라운드만 있으면 done 을 시도하지 않는다.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 ScheduleWakeup cross-turn quota 자동 재시도를 갖지 않는다. 사전 쓰기 게이트(대화형 실행)라 수용 가능 — 한도 시 사용자가 재호출하거나 `unfinished` checker 만 다시 돌린다.
 
@@ -157,7 +166,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 3. `BLOCK: NO` 일 때만 검토 요청(`nerv_spec_submit_review`). Warning 은 초안 `## Rationale` 에 노트. 저장소 `spec/` 은 쓰지 않는다(미러는 구현 PR 이 pull 한다).
 
 **developer**:
-1. `/consistency-check --impl-prep <spec/영역>` 을 구현 착수 전.
+1. `/consistency-check --impl-prep <NERV 키 · 미러 폴더>` 를 구현 착수 전(보통 클레임 scope 의 `spec_ids`).
 2. `BLOCK: YES` → 위임. Warning 은 Task 진행 기록에 남기고 진행.
 
 ## 환경변수

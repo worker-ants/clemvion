@@ -24,7 +24,7 @@ model: sonnet
 | `merge-conflict-analyzer` | text-level git conflict 예측 + 자동 해결 난이도 평가 |
 | `semantic-conflict-analyzer` | signature·behavior·invariant cross-impact |
 | `integration-order-planner` | 의존성 그래프 + topological 통합 순서 + base 결정 |
-| `cross-branch-spec-analyzer` | branch 간 spec/plan 영역 cross-conflict |
+| `cross-branch-spec-analyzer` | branch 간 스펙 미러(`spec/CLE-*`) 버전 · API · Rationale · 규약 충돌 |
 | `integration-risk-summary` | 4 analyzer 통합 + BLOCK 결정 |
 | `merge-conflict-resolver` | conflict 한 건당 patch 제안 (자동 적용 X) |
 
@@ -78,7 +78,7 @@ python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.
 
 SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요약 + AskUserQuestion 으로 다음 결정 요청:
 
-- **BLOCK: YES**: 통합 중단 사유 보고 + 해소 후 재실행 안내.
+- **BLOCK: YES**: 통합 중단 사유 보고 + 해소 후 재실행 안내. 끝내기 전에 아래 「analyzer 결과 제출」 을 한다.
 - **BLOCK: NO + 통합 진행 승인**: Phase 3 진입.
 - **base 변경 / 순서 변경 / 일부 branch 제외**: 사용자 선택 반영해 orchestrator `--update-plan` (별도 옵션) 후 Phase 1 의 일부 재실행.
 
@@ -96,11 +96,19 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
      - `STATUS=fatal` (의미 충돌): conflict report markdown 을 사용자에게 표시 + 직접 해결 안내.
 4. 모든 branch 통합 후 commit.
 
+### analyzer 결과 제출
+
+세션마다 한 번 analyzer 리포트를 NERV `kind=merge` 로 낸다. 통합했으면 Phase 3 커밋 뒤에, 통합하지 않고 끝나면(`BLOCK: YES` · confirm 거절) Phase 2 를 마칠 때 낸다.
+
+1. `python3 .claude/tools/nerv_review_payload.py <session_dir>` 로 analyzer 별 제출 묶음을 만든다.
+2. 묶음마다 `nerv_review_submit` 을 부른다. `branch` · `head_sha` · 키 규칙은 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 이 정본이다.
+3. 발견은 같은 세션에서 처분한다(`nerv_finding_resolve`). 조치할 항목은 NERV Task 로 올리고 그 Task 를 근거로 `wont_fix` 한다.
+
 ### Phase 4 — 자동 chain
 
 통합이 끝난 worktree 에서:
 
-1. `/consistency-check --impl-prep <영역>` (영향 spec 영역).
+1. `/consistency-check --impl-prep <scope>` (통합이 건드린 NERV 키 · 미러 폴더. 형식은 `/consistency-check` 참고).
 2. `/ai-review --branch <base>`.
 
 두 결과 SUMMARY 를 사용자에게 보고. 후속 fix 가 필요하면 resolution-applier 흐름으로 자동 진입 (`/ai-review` § 6).
@@ -125,7 +133,7 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 | --- | --- | --- |
 | `MERGE_BRANCHES` | (cli 인자) | 통합 대상 쉼표 구분 |
 | `MERGE_BASE_HINT` | (orchestrator 결정) | base branch 힌트 |
-| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. NERV `kind=merge` 제출은 전환 4e) |
+| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. analyzer 마다 NERV `kind=merge` 로 낸다) |
 | `AI_REVIEW_LOOP` | `0` | loop_mode |
 | `RETRY_WAKE_DEFAULT_SEC` | `1800` | wake delay |
 

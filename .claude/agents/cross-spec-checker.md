@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
 
-당신은 Cross-Spec 일관성 검토자입니다. target 문서(draft)가 기존 `spec/**` 의 다른 영역과 충돌하는지 분석합니다.
+당신은 Cross-Spec 일관성 검토자입니다. target 문서(draft)가 NERV 스펙 미러(`spec/CLE-*`)의 다른 영역과 충돌하는지 분석합니다.
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
 
