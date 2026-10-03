@@ -54,6 +54,46 @@ export function readUnionMembers(repoRoot: string): string[] {
   return out.sort();
 }
 
+/**
+ * 유니온 값 중 프로덕션 호출부가 없는 것을 낸다. 해석하지 못한 호출부(`component: null`)는
+ * 어떤 값도 배선한 것으로 치지 않는다.
+ *
+ * 판정을 순수 함수로 둔 것은 합성 입력 대조군으로 고정하기 위해서다. 실제 코퍼스에는
+ * 미배선 값이 없어서 그 분기가 관측되지 않는다.
+ */
+export function findUnwiredMembers(
+  unionMembers: readonly string[],
+  wired: readonly { component: string | null }[],
+): string[] {
+  const wiredSet = new Set(wired.map((w) => w.component));
+  return unionMembers.filter((m) => !wiredSet.has(m));
+}
+
+/**
+ * 파일 하나의 문자열 리터럴 전수 — 따옴표 문자열과 템플릿의 고정 조각.
+ *
+ * 가드가 어떤 경로도 읽지 않는다는 주장을 정적으로 확인할 때 쓴다. 경로는 문자열로만
+ * 만들 수 있고 주석은 리터럴이 아니므로, 이력으로 적은 옛 경로는 걸리지 않는다.
+ */
+export function stringLiteralsOf(fileName: string, text: string): string[] {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
+  const out: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
+      out.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 /** `src/` 하위 `.ts` 전수 (spec·dist 제외). */
 export function listProductionSources(srcDir: string): string[] {
   return collectTsFiles(srcDir);

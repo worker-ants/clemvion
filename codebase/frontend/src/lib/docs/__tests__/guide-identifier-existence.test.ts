@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import matter from "gray-matter";
 
 import { walkTree } from "./tree-walk";
 import { collectMdxFiles, repoRoot } from "./impl-anchor-parse";
@@ -36,38 +37,65 @@ const NON_EMITTED_VOCABULARY_CAP = 5;
  * `#1330` 의 문맥-게이팅 축은 **그것을 못 잡았다**(스캐너 상단의 실측표).
  *
  * 가족·위치의 근거는 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
- * 「빌드 가드」 표에 없다**(「다른 가드와의 관계」 · 「미결 사항」 에만 나온다. 등재는 NERV Task
- * `CLE-T-R2Q21Q`). 자매 `impl-anchor-existence.test.ts` 와 **방향이 같고(가이드 → 코드)
- * 표면이 다르다**.
+ * 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다.
+ * 등재는 NERV Task `CLE-T-R2Q21Q` 항목 19). 자매 `impl-anchor-existence.test.ts` 와
+ * **방향이 같고(가이드 → 코드) 표면이 다르다**.
  */
 const root = repoRoot();
 
 /**
  * 발행 축의 탈출구로 쓰는 에러 코드 카탈로그 — NERV `CLE-API-ERRCODES` 의 저장소 미러
- * (저장소 루트 기준).
+ * (저장소 루트 기준). 이 문서의 「6. 카탈로그」 절만 탈출구로 쓴다(`catalogSection`).
  *
  * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 동결됐고
- * 전환 단계 5 에서 지운다. 미러는 구현하는 PR 이 `pull.py --task` 로 받는 사본이라
- * 바꾸지 않는다(NERV Task `CLE-T-RXMB2X`).
+ * 전환 단계 5 에서 지운다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
+ * `pull.py --task <CLE-T-…>` 로 받는다(이 경로로 옮긴 PR 은 NERV Task `CLE-T-RXMB2X`).
  */
 const ERROR_CODE_CATALOG = "spec/CLE-API/CLE-API-ERRCODES.md";
 
+/** 탈출구로 인정하는 절의 제목. 미러의 다른 절(은퇴 코드 · Rationale 등)은 읽지 않는다. */
+const CATALOG_SECTION_HEADING = "## 6. 카탈로그";
+
 /**
- * 카탈로그 미러를 읽는다. 파일이 없으면 **빈 문자열이 아니라 throw** 한다.
+ * 카탈로그 미러 문서 전체를 읽는다. 파일이 없으면 **빈 문자열이 아니라 throw** 한다.
  *
  * 빈 카탈로그는 탈출구만 닫으므로 베이스라인은 그대로 통과한다. 그래서 미러가 사라진
  * 사실이 조용히 묻힌다. 종전 판은 `readFileSync` 를 맨손으로 불러 수집 단계에서
- * ENOENT 로 스위트 전체가 죽었다. 이제는 어느 파일을 어떻게 받는지 알려 준다.
+ * ENOENT 로 스위트 전체가 죽었다. 이제는 되살리는 명령을 메시지에 적는다. 미러는 저장소에
+ * 커밋돼 있으므로 지운 경우는 `git restore` 로 되돌린다.
  */
-function readErrorCodeCatalog(repo: string): string {
+function readErrorCodeCatalogMirror(repo: string): string {
   const abs = path.join(repo, ERROR_CODE_CATALOG);
   if (!fs.existsSync(abs)) {
     throw new Error(
-      `에러 코드 카탈로그 미러 ${ERROR_CODE_CATALOG} 가 없다. NERV CLE-API-ERRCODES 의 ` +
-        "미러다. python3 .claude/tools/nerv-mirror/pull.py 로 받는다.",
+      `에러 코드 카탈로그 미러 ${ERROR_CODE_CATALOG} 가 없다(NERV CLE-API-ERRCODES 의 미러). ` +
+        `지웠다면 git restore ${ERROR_CODE_CATALOG} 로 되돌린다. NERV 에서 새로 받으려면 ` +
+        "python3 .claude/tools/nerv-mirror/pull.py --task <CLE-T-…> --spec CLE-API-ERRCODES " +
+        "를 쓴다(<CLE-T-…> 는 클레임한 Task 키).",
     );
   }
   return fs.readFileSync(abs, "utf8");
+}
+
+/**
+ * 미러 본문에서 「6. 카탈로그」 절만 잘라 낸다. 제목 줄부터 다음 `## ` 제목 직전까지다.
+ *
+ * 미러 전체를 넘기면 은퇴 코드 · 예시 · Rationale 의 백틱 코드도 발행 축의 탈출구가 된다.
+ * 옛 판은 옛 트리 문서의 §1 을 읽었으므로 이 절이 그 자리다. 절 제목이 바뀌면 빈 문자열
+ * 대신 throw 한다. 빈 카탈로그는 탈출구만 조용히 닫기 때문이다.
+ */
+function catalogSection(mirrorText: string): string {
+  const lines = mirrorText.split("\n");
+  const start = lines.findIndex((l) => l.trim() === CATALOG_SECTION_HEADING);
+  if (start < 0) {
+    throw new Error(
+      `에러 코드 카탈로그 미러에 「${CATALOG_SECTION_HEADING}」 절이 없다. ` +
+        "절 제목이 바뀌었다면 CATALOG_SECTION_HEADING 을 맞춘다.",
+    );
+  }
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => l.startsWith("## "));
+  return [lines[start], ...(end < 0 ? rest : rest.slice(0, end))].join("\n");
 }
 
 /**
@@ -203,7 +231,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   // "따옴표가 토큰만 감쌌나 / 접두로만 붙나" 를 본다. 같은 `sourceTexts` 를 재사용한다.
   const quotedLiterals = collectQuotedLiterals(sourceTexts);
   const messagePrefixes = collectMessagePrefixes(sourceTexts);
-  const catalogCodes = collectCatalogCodes([readErrorCodeCatalog(root)]);
+  const catalogCodes = collectCatalogCodes([catalogSection(readErrorCodeCatalogMirror(root))]);
   const registeredNonEmitted = new Set(
     GUIDE_NON_EMITTED_VOCABULARY.map((e) => e.token),
   );
@@ -291,25 +319,54 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 셋 중 하나가 빈 집합이면 위 단언이 **아무것도 안 보고** 통과한다.
       expect(quotedLiterals.size).toBeGreaterThan(200); // 실측 다수
       expect(messagePrefixes.size).toBeGreaterThan(3);
-      expect(catalogCodes.size).toBeGreaterThan(50); // 실측 카탈로그 규모
+      expect(catalogCodes.size).toBeGreaterThan(100); // 실측 170 (「6. 카탈로그」 절, 2026-10-03)
     });
 
     it("카탈로그는 NERV `CLE-API-ERRCODES` 의 미러를 읽는다", () => {
       // 경로 상수가 다른 미러 문서를 가리켜도 백틱 코드는 50개를 넘길 수 있다. 그래서
       // 규모 대신 미러 frontmatter 의 `id` 로 대상 문서를 고정한다.
-      const head = readErrorCodeCatalog(root).split("\n---\n", 1)[0];
-      expect(head).toMatch(/^id: "CLE-API-ERRCODES"$/m);
+      const { data } = matter(readErrorCodeCatalogMirror(root), {});
+      expect(data.id).toBe("CLE-API-ERRCODES");
     });
 
     it("카탈로그 미러가 없으면 빈 카탈로그가 아니라 throw 한다", () => {
       // 빈 카탈로그는 탈출구만 닫아 베이스라인이 그대로 통과한다. 미러가 사라진 사실이
-      // 묻히지 않게 어느 파일을 어떻게 받는지 알리며 멈춰야 한다.
+      // 묻히지 않게 되살리는 명령을 알리며 멈춰야 한다.
+      //
+      // `CLE-API-ERRCODES` 만으로 단언하면 가드를 지워도 통과한다. `readFileSync` 의
+      // ENOENT 메시지에도 그 경로가 들어 있기 때문이다. 그래서 가드 메시지에만 있는
+      // 명령 조각으로 단언하고 ENOENT 가 아님을 함께 본다.
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guide-ident-catalog-"));
       try {
-        expect(() => readErrorCodeCatalog(tmp)).toThrow(/CLE-API-ERRCODES/);
+        const read = () => readErrorCodeCatalogMirror(tmp);
+        expect(read).toThrow(/pull\.py --task <CLE-T-…> --spec CLE-API-ERRCODES/);
+        expect(read).toThrow(/git restore spec\/CLE-API\/CLE-API-ERRCODES\.md/);
+        expect(read).not.toThrow(/ENOENT/);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
+    });
+
+    it("카탈로그 코드는 「6. 카탈로그」 절에서만 걷는다", () => {
+      // 미러 전체를 읽으면 은퇴 코드 · 예시 · Rationale 의 백틱 코드도 탈출구가 된다.
+      const text = [
+        "---",
+        'id: "X"',
+        "---",
+        "## 5. 은퇴 코드",
+        "`RETIRED_CODE`",
+        "## 6. 카탈로그",
+        "### 6.1 소절",
+        "`IN_CATALOG`",
+        "## 미결 사항",
+        "`AFTER_CATALOG`",
+      ].join("\n");
+      expect([...collectCatalogCodes([catalogSection(text)])]).toEqual(["IN_CATALOG"]);
+    });
+
+    it("「6. 카탈로그」 절이 없으면 throw 한다", () => {
+      // 절 제목이 바뀌면 빈 문자열이 나와 탈출구가 조용히 닫힌다. 그 대신 멈춘다.
+      expect(() => catalogSection("## 6. 코드 목록\n`X_Y`\n")).toThrow(/6\. 카탈로그/);
     });
 
     it("등록된 3종이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
@@ -471,9 +528,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 전수 실측: 인용된 «접두 전용» 중 카탈로그 등재 0종. 즉 이 필터는 현재 죽은
       // 경로다 — 그 사실을 숨기지 않고 **숫자로 고정**한다.
       //
-      // 그래도 지우지 않는 이유: 트래커의 planner 항목이 *"`CONTAINER_*` 를 §1.4 에
-      // backfill"* 을 처분안으로 담고 있고, 집행되면 이 탈출구가 발화해 등록 2종이
-      // 자동으로 불필요해진다. 지우면 그 처분안 서술이 거짓이 된다.
+      // 그래도 지우지 않는 이유: NERV Task `CLE-T-DM3AXQ` 항목 5 가 `CONTAINER_*` 를
+      // `CLE-API-ERRCODES` 「6.5」 에 등재할지 정한다. 등재되면 이 탈출구가 발화해 등록
+      // 2종이 자동으로 불필요해진다. 지우면 그 항목의 서술이 거짓이 된다.
       //
       // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다** — 그때는 등록 항목을
       // 지울 수 있다는 신호다.

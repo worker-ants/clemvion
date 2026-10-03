@@ -29,12 +29,16 @@ NERV 정본 전환 단계 4f(Task `CLE-T-RXMB2X`). 두 가드가 동결된 옛 �
 지운다.
 
 - `redis-fail-open-catalog`: `clemvion.redis.fail_open` 의 `component` 를 코드 유니온과 실제 배선 두 집합으로만
-  대조한다. 옛 트리 카탈로그 행(`spec/5-system/_product-overview.md`)을 읽던 셋째 대조는 걷었다. 스펙 정본인 NERV
-  `CLE-OBS-LOGGING` 은 표기가 달라 같은 파서로 읽지 못한다. 표와 유니온의 정합은 일관성 검토가 본다(`--impl-done`,
-  강제 아님). 스펙 트리 없이 판정하는지 테스트로 고정했다.
+  대조한다. 옛 트리 카탈로그 행(`spec/5-system/_product-overview.md`)을 읽던 셋째 대조는 걷었다. 표의 정본 NERV
+  `CLE-OBS-LOGGING` 은 사람이 고치는 문서이고 저장소 미러는 구현 PR 이 받은 스냅샷이다. 표와 유니온의 정합은 일관성
+  검토가 본다(`--impl-done`, 강제 아님). 자동 대조를 되살릴지는 NERV Task `CLE-T-DM3AXQ` 가 정한다. 가드 두 파일의
+  문자열 리터럴에 스펙 트리 경로가 없는지 정적으로 확인하고, 미배선 판정은 순수 함수 `findUnwiredMembers` 로 빼
+  합성 입력으로 고정했다.
 - `guide-identifier-existence`: 발행 축의 에러 코드 카탈로그를 옛 `spec/5-system/3-error-handling.md` 대신 미러
-  `spec/CLE-API/CLE-API-ERRCODES.md` 에서 읽는다. 미러 파일이 없으면 수집 단계의 ENOENT 대신 받는 방법을 알리며
-  멈추고, 읽은 문서가 그 키인지 frontmatter `id` 로 확인한다.
+  `spec/CLE-API/CLE-API-ERRCODES.md` 의 「6. 카탈로그」 절에서 읽는다. 문서 전체를 읽으면 은퇴 코드 · 규칙 예시
+  19종이 탈출구에 섞인다(전체 189종, 절 170종). 미러 파일이 없으면 수집 단계의 ENOENT 대신 `git restore` 와
+  `pull.py --task <CLE-T-…> --spec CLE-API-ERRCODES` 명령을 알리며 멈추고, 절 제목이 없어도 멈춘다. 읽은 문서가 그
+  키인지 frontmatter `id` 로 확인한다.
 
 ## Unreleased — 개발 흐름: 일관성 검토가 NERV 스펙 미러를 대상 · 코퍼스로 읽고 구현 위치로 대조 문서를 고른다
 
