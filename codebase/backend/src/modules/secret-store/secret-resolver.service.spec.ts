@@ -3,7 +3,10 @@ import { NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
 import { SecretStore } from './entities/secret-store.entity';
-import { SecretResolverService } from './secret-resolver.service';
+import {
+  SecretResolverService,
+  SecretWorkspaceMismatchError,
+} from './secret-resolver.service';
 
 /**
  * 단위 테스트 — DB 접근은 in-memory Map 으로 stub.
@@ -233,8 +236,9 @@ describe('SecretResolverService', () => {
 
   describe('rotate', () => {
     it('정상 — 기존 ref 의 plaintext 를 newPlaintext 로 교체', async () => {
+      const repo = createInMemoryRepository();
       const svc = new SecretResolverService(
-        createInMemoryRepository(),
+        repo,
         createConfigService(validKey),
       );
       svc.onModuleInit();
@@ -242,6 +246,8 @@ describe('SecretResolverService', () => {
       await svc.store(ref, 'ws-1', 'old');
       await svc.rotate(ref, 'ws-1', 'new');
       expect(await svc.resolve(ref)).toBe('new');
+      const row = await repo.findOne({ where: { ref } });
+      expect(row?.workspaceId).toBe('ws-1');
     });
 
     it('정상 — 미존재 ref 는 UPSERT', async () => {
@@ -253,6 +259,52 @@ describe('SecretResolverService', () => {
       const ref = 'secret://triggers/abc/bot-token.v2';
       await svc.rotate(ref, 'ws-1', 'fresh');
       expect(await svc.resolve(ref)).toBe('fresh');
+    });
+
+    // NERV Task `CLE-T-XYR067`. 종전엔 UPSERT 가 기존 행의 `workspace_id` 까지 호출자 값으로 덮어써서
+    // 다른 워크스페이스의 참조로 rotate 하면 그 비밀과 소유가 함께 넘어갔다(CLE-T-M9QKKX 의 재현).
+    it('실패 — 기존 행의 워크스페이스가 다르면 거부하고 값 · 소유를 바꾸지 않는다', async () => {
+      const repo = createInMemoryRepository();
+      const svc = new SecretResolverService(
+        repo,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      const ref = 'secret://triggers/abc/bot-token';
+      await svc.store(ref, 'ws-owner', 'owner-token');
+
+      await expect(
+        svc.rotate(ref, 'ws-other', 'attacker-token'),
+      ).rejects.toBeInstanceOf(SecretWorkspaceMismatchError);
+
+      expect(await svc.resolve(ref)).toBe('owner-token');
+      const row = await repo.findOne({ where: { ref } });
+      expect(row?.workspaceId).toBe('ws-owner');
+    });
+
+    // 호출자가 이 메시지를 화면에 보이는 필드(`chat_channel_last_error`)에 저장할 수 있다. 참조도
+    // 내부 저장 위치라 싣지 않는다(CLE-INT-SECRET 규칙 4).
+    it('실패 메시지에 평문 · 참조 · 워크스페이스 id 를 싣지 않는다', async () => {
+      const svc = new SecretResolverService(
+        createInMemoryRepository(),
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      const ref = 'secret://triggers/abc/bot-token';
+      await svc.store(ref, 'ws-owner', 'owner-token');
+
+      const err = await svc
+        .rotate(ref, 'ws-other', 'attacker-token')
+        .then(() => null)
+        .catch((err_: unknown) => err_);
+
+      expect(err).toBeInstanceOf(Error);
+      const message = (err as Error).message;
+      expect(message).not.toContain('secret://');
+      expect(message).not.toContain('attacker-token');
+      expect(message).not.toContain('owner-token');
+      expect(message).not.toContain('ws-owner');
+      expect(message).not.toContain('ws-other');
     });
   });
 

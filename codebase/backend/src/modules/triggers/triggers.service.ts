@@ -38,7 +38,11 @@ import {
 import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { chatChannelSecretRef } from '../chat-channel/chat-channel-secret-refs';
+import {
+  SecretResolverService,
+  SecretWorkspaceMismatchError,
+} from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -1309,21 +1313,16 @@ export class TriggersService {
     // 내부 필드를 막기 전에 저장된 행에는 다른 트리거의 ref 가 들어 있을 수 있고, 그 ref 로
     // `rotate` 하면 그 트리거의 비밀을 덮어쓴다(CLE-T-M9QKKX). 정상 행의 ref 는 바인더가 같은 규칙으로
     // 유도한 값이라 결과가 같다.
-    const botTokenRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'bot-token',
-    });
+    const botTokenRef = chatChannelSecretRef(trigger.id, 'botTokenRef');
     const v2Ref = buildSecretRef({
       scope: 'triggers',
       resourceId: trigger.id,
       name: 'bot-token.v2',
     });
-    const inboundSigningRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'inbound-signing',
-    });
+    const inboundSigningRef = chatChannelSecretRef(
+      trigger.id,
+      'inboundSigningRef',
+    );
 
     // 1. 기존 botToken resolve (실패 시 skip — 최초 rotation).
     let oldPlaintext: string | null = null;
@@ -1517,7 +1516,20 @@ export class TriggersService {
         name: 'notification-signing',
       });
       // ref 기존재 시 내용 회전, 부재 시 신규 생성 — rotate 가 upsert 시맨틱.
-      await this.secrets.rotate(ref, trigger.workspaceId, secretV2);
+      try {
+        await this.secrets.rotate(ref, trigger.workspaceId, secretV2);
+      } catch (err) {
+        // 기존 행이 다른 워크스페이스 소유면 재시도해도 결과가 같다. 이 트리거만 건너뛰어 나머지
+        // 트리거의 승격을 막지 않는다(NERV Task `CLE-T-XYR067`). 그 밖의 실패는 그대로 던져 job
+        // 재시도에 맡긴다(아래 testing-W-2 계약).
+        if (err instanceof SecretWorkspaceMismatchError) {
+          this.logger.error(
+            `notification secret 승격 건너뜀 — 트리거 ${trigger.id} 의 서명 비밀 행이 다른 워크스페이스 소유다. 저장된 행을 점검하세요.`,
+          );
+          continue;
+        }
+        throw err;
+      }
 
       const updatedSigning: Record<string, unknown> = {
         ...(typeof signing === 'object' && signing !== null

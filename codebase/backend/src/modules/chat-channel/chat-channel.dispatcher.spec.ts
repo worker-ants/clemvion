@@ -766,11 +766,13 @@ describe('toChatChannelEvent — execution.node.completed (chat-channel-internal
  * 두 축만 옵션으로 연다:
  *  - `renderResult` — adapter.renderNode 가 돌려줄 메시지 (기본 없음)
  *  - `lookupState`  — conversationService.lookup 이 돌려줄 상태 (기본 undefined = 대화 없음)
+ *  - `chatChannel`  — 저장된 `config.chatChannel` (기본 `{ provider: 'slack' }`)
  */
 function buildDispatcherHarness(
   opts: {
     renderResult?: ChannelMessage[];
     lookupState?: Record<string, unknown>;
+    chatChannel?: Record<string, unknown>;
   } = {},
 ) {
   const state = opts.lookupState;
@@ -794,7 +796,7 @@ function buildDispatcherHarness(
       id: 'trig-1',
       workspaceId: 'ws',
       workflowId: 'wf-1',
-      config: { chatChannel: { provider: 'slack' } },
+      config: { chatChannel: opts.chatChannel ?? { provider: 'slack' } },
       chatChannelHealth: 'healthy',
     })),
     update: jest.fn(async () => undefined),
@@ -968,5 +970,58 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       currentFieldIdx: 0,
     });
     expect(state.pendingFormModal).toBeUndefined();
+  });
+});
+
+// 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+// NERV Task `CLE-T-XYR067`. 저장된 행에 다른 트리거의 봇 토큰 참조가 남아 있어도 발송은 그 토큰을 쓰지 않는다.
+describe('ChatChannelDispatcher.handle — 저장된 시크릿 참조', () => {
+  const aiMessageEvent: ExecutionChannelEvent = {
+    executionId: 'exec-1',
+    eventType: 'execution.ai_message',
+    seq: 1,
+    payload: {
+      triggerId: 'trig-1',
+      workflowId: 'wf-1',
+      timestamp: '2026-05-28T00:00:00Z',
+      chatChannel: { conversationKey: 'D1' },
+      message: 'hi',
+    },
+  };
+  const textMessage: ChannelMessage = {
+    conversationKey: '',
+    body: { kind: 'text', text: 'hi' },
+  };
+
+  it('다른 트리거의 botTokenRef 가 저장돼 있으면 자기 트리거의 참조로 발송한다', async () => {
+    const { dispatcher, adapter } = buildDispatcherHarness({
+      renderResult: [textMessage],
+      chatChannel: {
+        provider: 'slack',
+        botTokenRef: 'secret://triggers/trig-victim/bot-token',
+        inboundSigningRef: 'secret://triggers/trig-victim/inbound-signing',
+      },
+    });
+    const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    try {
+      await callHandle(dispatcher, aiMessageEvent);
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    expect(adapter.sendMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        botTokenRef: 'secret://triggers/trig-1/bot-token',
+        inboundSigningRef: 'secret://triggers/trig-1/inbound-signing',
+      }),
+    );
+    expect(adapter.renderNode).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        botTokenRef: 'secret://triggers/trig-1/bot-token',
+      }),
+    );
   });
 });

@@ -7,8 +7,11 @@ import { rewriteTriggerConfigLocked } from './trigger-config-lock';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
+import {
+  chatChannelSecretRef,
+  readTriggerChatChannelConfig,
+} from '../chat-channel/chat-channel-secret-refs';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
-import { buildSecretRef } from '../secret-store/secret-ref';
 import {
   stripChatChannelPlaintext,
   extractInboundSigningRef,
@@ -120,17 +123,12 @@ export class ChatChannelBinderService {
       endpointPath: trigger.endpointPath,
     });
 
-    // secret store ref 생성 — spec/conventions/secret-store.md §1 URI scheme 단일 진입점.
-    const botTokenRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'bot-token',
-    });
-    const inboundSigningRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'inbound-signing',
-    });
+    // secret store ref 생성 — 두 참조를 만드는 곳은 `chatChannelSecretRef` 하나다.
+    const botTokenRef = chatChannelSecretRef(trigger.id, 'botTokenRef');
+    const inboundSigningRef = chatChannelSecretRef(
+      trigger.id,
+      'inboundSigningRef',
+    );
 
     // [쓰기 ①] secret store 에 botToken 저장 (UPSERT — 재시도 안전).
     // **PATCH 에서는 건너뛴다.** 종전에는 조건이 없어서, 값이 없으면 `?? ''` 가 빈 문자열로
@@ -173,7 +171,7 @@ export class ChatChannelBinderService {
     // [ref 보존 — 두 ref 는 **대칭**이어야 한다]
     //
     // `mergeExternalConfig` 가 `config.chatChannel` 을 **통째로 교체**하므로, 요청 바디에 없는
-    // 필드는 전부 사라진다. `botTokenRef` 는 `buildSecretRef(trigger.id)` 로 매번 재유도돼
+    // 필드는 전부 사라진다. `botTokenRef` 는 `chatChannelSecretRef(trigger.id)` 로 매번 재유도돼
     // 무조건 다시 실리는데, `inboundSigningRef` 는 종전에 *"이번 호출에서 값을 새로 썼을 때만"*
     // 실렸다. D-2 가 그 쓰기를 게이팅하자 **slack/discord PATCH 에서 그 조건이 구조적으로 항상
     // 거짓**이 되어 ref 가 사라졌고, `ChatChannelInboundAuthenticator` 는 세 provider 모두
@@ -361,11 +359,17 @@ export class ChatChannelBinderService {
    * Chat Channel adapter teardownChannel 호출 — trigger 삭제 / chatChannel 제거 시. best-effort.
    * Spec CCH-AD-03. **저장된** `config.chatChannel` 로 해제한다 — 설정을 직접 넘기는 쪽은
    * {@link teardownRegisteredChannel}.
+   *
+   * 저장된 시크릿 참조는 이 트리거의 참조로 맞춘 뒤 쓴다. 다른 트리거의 봇 토큰 참조가 남은 행을
+   * 그대로 쓰면 자기 트리거를 지울 때 그 토큰으로 상대 봇의 webhook 을 해제한다(NERV Task
+   * `CLE-T-XYR067`).
    */
   async teardownChatChannel(trigger: Trigger): Promise<void> {
-    const chatChannelCfg = (
-      trigger.config as { chatChannel?: ChatChannelConfig }
-    ).chatChannel;
+    const chatChannelCfg = readTriggerChatChannelConfig(
+      trigger,
+      this.logger,
+      'ChatChannelBinderService.teardownChatChannel',
+    );
     if (!chatChannelCfg) return;
     await this.teardownRegisteredChannel(trigger.id, chatChannelCfg);
   }

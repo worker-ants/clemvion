@@ -34,7 +34,10 @@ import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import {
+  SecretResolverService,
+  SecretWorkspaceMismatchError,
+} from '../secret-store/secret-resolver.service';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import {
   CHAT_CHANNEL_BLOCKED_FIELDS,
@@ -2827,6 +2830,45 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
     expect(patch.notificationSecretV2).toBeNull();
     expect(patch.notificationRotatedAt).toBeNull();
     expect(triggerRepo.save).not.toHaveBeenCalled();
+  });
+
+  // NERV Task `CLE-T-XYR067`. 다른 워크스페이스 소유 행은 재시도해도 결과가 같다. 그 트리거 하나가
+  // 매시 배치 전체를 멈추면 안 된다. 다른 실패는 위 testing-W-2 대로 던진다.
+  it('rotate 가 워크스페이스 불일치로 거부되면 그 트리거만 건너뛰고 나머지를 승격한다', async () => {
+    const poisoned = baseTrigger({
+      algorithm: 'sha256',
+      secretRef: CANONICAL_REF,
+    });
+    const healthy = {
+      ...baseTrigger({
+        algorithm: 'sha256',
+        secretRef: 'secret://triggers/trig-2/notification-signing',
+      }),
+      id: 'trig-2',
+    } as unknown as Trigger;
+    await build([poisoned, healthy]);
+    secrets.rotate.mockRejectedValueOnce(new SecretWorkspaceMismatchError());
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    // `mockRestore()` 는 호출 기록까지 지우므로 복원 전에 옮겨 둔다.
+    let result: { promoted: number };
+    let errorMessages: unknown[];
+    try {
+      result = await service.promoteRotatedNotificationSecrets(
+        new Date('2026-06-10T00:00:00Z').getTime(),
+      );
+      errorMessages = errorSpy.mock.calls.map((call) => call[0]);
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(result.promoted).toBe(1);
+    expect(secrets.rotate).toHaveBeenCalledTimes(2);
+    expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+    expect(errorMessages).toHaveLength(1);
+    expect(errorMessages[0]).toContain('trig-1');
   });
 
   it('legacy 평문 secret 만 보유 trigger → canonical ref 신설 + 평문 키 제거', async () => {

@@ -43,6 +43,7 @@ import { validateFormSubmission } from '../chat-channel/shared/form-mode';
 import { resolveSurfaceMismatchMessage } from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
+import { readTriggerChatChannelConfig } from '../chat-channel/chat-channel-secret-refs';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 
@@ -130,7 +131,13 @@ export class HooksService {
     //     410 Gone 이 아니라 202 Accepted + { executionId: 'ignored' } 로 조용히 무시한다
     //     (spec/5-system/15-chat-channel.md R-CC-12, §5.5 비활성 trigger 행;
     //     spec/5-system/12-webhook.md WH-EP-07 의 chatChannel 예외).
-    const chatChannelCfg = readChatChannelConfig(trigger.config);
+    //     저장된 시크릿 참조는 이 트리거의 참조로 맞춘 뒤 인증기 · 어댑터에 넘긴다
+    //     (NERV Task `CLE-T-XYR067`).
+    const chatChannelCfg = readTriggerChatChannelConfig(
+      trigger,
+      this.logger,
+      'HooksService.handleWebhook',
+    );
     if (chatChannelCfg) {
       // 비활성 chatChannel 트리거도 inbound 서명 검증은 먼저 수행한다 (R-CC-12(d):
       // 인증 실패 시 401). isActive 단락은 handleChatChannelWebhook 의 verify() 뒤에서
@@ -1126,16 +1133,6 @@ export class HooksService {
     // per_trigger — token 미동봉 (호출자가 trigger 등록 시 받은 itk_* 사용)
     return { endpoints };
   }
-}
-
-/** Trigger.config.chatChannel 추출 (HooksService 내부 헬퍼 — dispatcher 와 중복 정의 OK). */
-function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
-  if (!config || typeof config !== 'object') return null;
-  const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
-  if (!chatChannel || typeof chatChannel !== 'object') return null;
-  const provider = (chatChannel as { provider?: unknown }).provider;
-  if (typeof provider !== 'string' || provider.length === 0) return null;
-  return chatChannel as ChatChannelConfig;
 }
 
 /**

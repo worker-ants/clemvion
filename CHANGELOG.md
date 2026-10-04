@@ -23,13 +23,21 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 보안: 저장된 트리거 설정이 다른 트리거의 비밀을 쓰지 못하게 한다
+
+`CLE-T-M9QKKX` 가 요청 본문으로 시크릿 참조를 심는 입력을 막았지만, 그 전에 저장된 행에는 다른 트리거의 참조가 남아 있을 수 있었다. 메시지 발송 · 인바운드 서명 검증 · 트리거 삭제 때의 provider 해제 · 알림 서명은 저장된 참조를 그대로 써서 그 트리거의 비밀로 동작했다. 피해자 Slack 서명 비밀로 서명한 요청이 오염된 다른 워크스페이스 트리거의 인바운드 검증을 통과하는 것을 e2e 로 재현했다(NERV Task `CLE-T-XYR067`).
+
+- 저장된 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef` 는 있음 · 없음만 읽고 값은 트리거 id 로 다시 만든다. 저장값이 다르면 서버 로그에 오류를 남긴다. 자기 비밀이 없는 오염 행은 발송 실패 · 인바운드 401 · 알림 `degraded` 로 닫힌다. 정상 행은 같은 값이라 동작이 그대로다.
+- 시크릿 저장소의 `rotate` 는 기존 행의 `workspace_id` 가 호출자와 다르면 거부한다(500 `INTERNAL_ERROR`, 메시지에 참조를 싣지 않는다). 종전에는 덮어쓰며 소유까지 넘겼다. 알림 서명 시크릿 승격 배치는 그런 트리거 하나만 건너뛰고 나머지를 승격한다.
+- 운영: 배포 전에 `codebase/backend/scripts/ops/2026-10-04-trigger-secret-ref-audit.sql` 로 오염 행을 점검한다. 결과가 있으면 `2026-10-04-trigger-secret-ref-cleanup.sql` 로 정리하고 해당 트리거 소유자에게 봇 토큰 · 알림 서명 시크릿 재발급을 안내한다. 정리하지 않은 오염 행의 소유자는 봇 토큰 재발급이 500 으로 막힌다.
+
 ## Unreleased — 보안: 트리거 config 로 다른 트리거의 비밀을 덮어쓰지 못하게 한다
 
 트리거 생성 · 수정 본문의 원시 `config` 는 형식만 검사해서 `chatChannel.botTokenRef` 같은 시크릿 참조를 그대로 저장했다. 시크릿 저장소는 참조만 보고 소유 워크스페이스를 확인하지 않는다. 그래서 다른 워크스페이스 트리거의 id 를 아는 편집자가 자기 트리거 `config` 에 그 트리거의 봇 토큰 참조를 넣고 봇 토큰을 재발급하면 상대 트리거의 토큰을 덮어썼다. 그 비밀 행의 `workspace_id` 도 자기 워크스페이스로 바뀌었다. 생성과 수정 두 경로 모두 e2e 로 재현했다(NERV Task `CLE-T-M9QKKX`).
 
 - 원시 `config` 에 `chatChannel` 의 내부 필드 다섯(`botTokenRef` · `inboundSigningRef` · `inboundSigning` · `botToken` · `inboundSigningPlaintext`)이나 `notification.signing.secretRef` 가 있으면 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다. 타입 필드(top-level `chatChannel` · `notification`)는 그대로다. 응답이 이 필드들을 지우므로 정상 클라이언트는 영향이 없다.
 - 봇 토큰 재발급은 저장된 참조 대신 자기 트리거 id 로 참조를 만든다. 프로바이더 재등록(`setupChannel`)에 넘기는 설정도 같다. 그래서 이미 저장된 행에 다른 트리거의 참조가 들어 있어도 재발급은 그 비밀을 읽거나 덮어쓰지 않는다.
-- 이미 저장된 행의 읽기 경로(메시지 발송, 인바운드 서명 검증, 알림 서명)는 여전히 저장된 참조를 쓴다. 그 방어선, 시크릿 저장소의 소유 워크스페이스 확인, 운영 데이터 점검은 NERV Task `CLE-T-XYR067` 이 맡는다. 원시 `config` 의 나머지 계약(타입 키를 원시 `config` 로 받아 채널을 붙이는 경로, `config` 를 통째로 교체하는 PATCH, `interaction.triggerToken`)은 `CLE-T-EA7B5M` 이 맡는다.
+- 이미 저장된 행의 읽기 경로(메시지 발송, 인바운드 서명 검증, 알림 서명) 방어, 시크릿 저장소의 소유 워크스페이스 확인, 운영 데이터 점검은 위 항목(NERV Task `CLE-T-XYR067`)이 맡는다. 원시 `config` 의 나머지 계약(타입 키를 원시 `config` 로 받아 채널을 붙이는 경로, `config` 를 통째로 교체하는 PATCH, `interaction.triggerToken`)은 `CLE-T-EA7B5M` 이 맡는다.
 
 ## Unreleased — 개발 흐름: nullish 를 타입 밖으로 빼는 캐스트를 프로덕션 소스에서 막는다
 

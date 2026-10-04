@@ -12,6 +12,19 @@ import { isSecretRef } from './secret-ref';
 import { decryptSecret, encryptSecret, parseMasterKey } from './secret-crypto';
 
 /**
+ * `rotate` 가 다른 워크스페이스 소유의 기존 행을 만났다. 공개 오류 코드가 없는 내부 오류다
+ * (전역 필터가 `INTERNAL_ERROR` 500 으로 낸다). 메시지는 고정 문구다.
+ */
+export class SecretWorkspaceMismatchError extends Error {
+  constructor() {
+    super(
+      'SecretResolverService.rotate: 기존 비밀이 다른 워크스페이스 소유라 교체하지 않았습니다.',
+    );
+    this.name = 'SecretWorkspaceMismatchError';
+  }
+}
+
+/**
  * Secret store 의 단일 진입점.
  *
  * SoT: `spec/conventions/secret-store.md §2 SecretResolver 인터페이스`.
@@ -125,19 +138,36 @@ export class SecretResolverService implements OnModuleInit {
     await this.repository.insert({ ref, workspaceId, encrypted });
   }
 
-  /** plaintext 를 newPlaintext 로 교체 (UPSERT). */
+  /**
+   * plaintext 를 newPlaintext 로 교체 (UPSERT). 기존 행의 `workspaceId` 가 인자와 다르면
+   * {@link SecretWorkspaceMismatchError} 를 던지고 값과 소유를 바꾸지 않는다.
+   *
+   * 종전엔 기존 행의 `workspace_id` 까지 인자 값으로 덮어써서, 다른 워크스페이스의 참조로 부르면 그
+   * 비밀과 소유가 함께 넘어갔다(NERV Task `CLE-T-M9QKKX` 의 재현). 확인은 행의 값과 인자만 비교한다.
+   * 리소스 테이블을 보지 않으므로 scope 와 무관하다. 한 번 들어간 행의 `workspace_id` 는 이제 바뀌지
+   * 않으므로 확인과 갱신 사이에 그 값이 달라지는 경합은 없다.
+   *
+   * 오류 메시지에는 참조 · 워크스페이스 id 를 싣지 않는다. 호출자가 그 메시지를 화면에 보이는
+   * 필드(`chat_channel_last_error` 등)에 저장할 수 있어서다. 둘은 서버 로그에만 남긴다.
+   */
   async rotate(
     ref: string,
     workspaceId: string,
     newPlaintext: string,
   ): Promise<void> {
     this.assertRefFormat(ref);
-    const encrypted = encryptSecret(this.getKey(), ref, newPlaintext);
     const existing = await this.repository.findOne({ where: { ref } });
+    if (existing && existing.workspaceId !== workspaceId) {
+      this.logger.error(
+        `SecretResolver.rotate 거부 — 기존 행의 워크스페이스가 다르다 (ref=${ref}, stored workspace=${existing.workspaceId}, caller workspace=${workspaceId}).`,
+      );
+      throw new SecretWorkspaceMismatchError();
+    }
+    const encrypted = encryptSecret(this.getKey(), ref, newPlaintext);
     if (existing) {
       await this.repository.update(
         { ref },
-        { encrypted, workspaceId, updatedAt: new Date() },
+        { encrypted, updatedAt: new Date() },
       );
     } else {
       await this.repository.insert({ ref, workspaceId, encrypted });
