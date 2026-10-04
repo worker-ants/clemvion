@@ -25,10 +25,18 @@
 
 ## Unreleased — 개발 흐름: audit 게이트가 braces 권고(CVE-2026-93687)를 dev 전용으로 수용한다
 
-2026-10-03 공개된 GHSA-vfj7-8cjw-p6xm(`braces <=3.0.3`, high)이 CI `pnpm audit (moderate+)` 를 모든 PR 에서 깼다. 패치 버전이 없어 override 로 해소할 수 없다(NERV Task `CLE-T-NFW7DE`).
+GHSA-vfj7-8cjw-p6xm(`braces <=3.0.3`, high)이 2026-10-03 부터 CI `pnpm audit (moderate+)` 에 잡혀
+모든 PR 을 깼다(GitHub 검토 완료 2026-10-02, NVD 게시 2026-09-18). 패치 버전이 없어 override 로
+해소할 수 없다(NERV Task `CLE-T-NFW7DE`).
 
-- `pnpm-workspace.yaml` 의 `auditConfig.ignoreCves` 에 이 CVE 를 넣고 `scripts/check-pnpm-security-config.py` 의 `EXPECTED_IGNORED_CVES` 도 함께 고쳤다. 수용 근거 3종(`--prod` audit 0건, backend · frontend 이미지에 `braces` 없음, 자르지 않은 전체 경로 2개가 모두 frontend · channel-web-chat 의 devDependencies)과 해소 조건은 그 주석에 있다.
-- 다른 moderate+ 취약점은 그대로 막는다. 패치가 나오면 항목을 지운다.
+- `pnpm-workspace.yaml` 의 `auditConfig.ignoreCves` 에 이 CVE 를 넣고
+  `scripts/check-pnpm-security-config.py` 의 `EXPECTED_IGNORED_CVES` 도 함께 고쳤다. 수용 근거 3종
+  (`--prod` audit 0건, backend · frontend 이미지에 `braces` 없음, 자르지 않은 전체 경로 2개가 모두
+  frontend · channel-web-chat 의 devDependencies)과 해소 조건은 그 주석에 있다.
+- `ignoreCves` 는 경로를 가리지 않는다. 「dev 전용」 은 수용한 날의 실측이고 가드가 지키는 속성이
+  아니다. 의존성을 더하거나 올릴 때 `pnpm audit --prod` 로 다시 본다.
+- 다른 moderate+ 취약점은 그대로 막는다. braces 패치가 나오거나 `@next/eslint-plugin-next` 가
+  micromatch 경로를 걷으면 항목을 지운다.
 
 ## Unreleased — 개발 흐름: 옛 스펙 트리를 지우고 스펙의 구현 위치를 `## 구현 위치` 로 검사한다
 

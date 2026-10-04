@@ -148,12 +148,20 @@ onlyBuiltDependencies:
 #
 # 해소가 가능한데 수용하지 않는다. `#1038` 은 위 절차로 재검증해 수용 대신 실제 해소로 전환했다
 # (2.x 를 5.x 로 올려 `--prod` 0건 달성, dev 전용 1.x 경로만 남겨 수용).
+#
+# `ignoreCves` 는 경로를 가리지 않고 그 CVE 를 전역으로 지운다. 그래서 위 근거는 수용한 날의
+# 실측일 뿐이고 CI 는 다시 확인하지 않는다. 의존성을 더하거나 올릴 때 수용한 CVE 가 프로덕션
+# 트리로 들어오지 않았는지 `pnpm audit --prod` 와 `pnpm why <pkg> -r --prod` 로 다시 본다.
+#
+# 항목을 더하거나 뺄 때는 `scripts/check-pnpm-security-config.py` 의 `EXPECTED_IGNORED_CVES` 와
+# **함께** 고친다(2-place 규약).
 auditConfig:
   ignoreCves:
     # CVE-2026-93687 (GHSA-vfj7-8cjw-p6xm, braces <=3.0.3, high) — 2026-10-04 수용, NERV Task
     # `CLE-T-NFW7DE`. 깊이 중첩된 패턴에서 스택이 바닥나는 DoS 다. 패치 버전이 없어(`<0.0.0`)
     # override 로 해소할 수 없다. braces 최신판이 3.0.3 이고 `@next/eslint-plugin-next` 최신
-    # 16.3.8 도 `fast-glob` 3.3.1 을 exact 로 의존한다(2026-10-04 `npm view`). 위 3종 근거:
+    # 16.3.8 도 `fast-glob` 3.3.1 을 exact 로 의존한다(2026-10-04 `npm view`). 위 서문의 3종 근거를
+    # 이 CVE 에 이렇게 확인했다:
     #   1. `pnpm audit --prod --audit-level=moderate` → "No known vulnerabilities found".
     #   2. 이미지 실물: backend · frontend 빌드 확인 이미지(`clemvion-build-check/*:latest`)에서
     #      `find / -type d -path "*node_modules*" -name "braces*"` 결과 0줄. frontend 는
@@ -163,9 +171,11 @@ auditConfig:
     #                         > fast-glob@3.3.1 > micromatch@4.0.8 > braces@3.0.3
     #        channel-web-chat (devDependencies) > eslint-config-next > @next/eslint-plugin-next
     #                         > fast-glob@3.3.1 > micromatch@4.0.8 > braces@3.0.3
-    #      입력은 저장소의 lint 대상 경로 글롭이라 신뢰할 수 없는 패턴이 들어오지 않는다.
+    #      (보강 설명, 실측 아님) 이 경로의 입력은 저장소의 lint 대상 경로 글롭이라 외부에서 오는
+    #      패턴이 없다.
     # 해소 조건: braces 패치 버전이 나오거나 `@next/eslint-plugin-next` 가 micromatch 경로를
     # 걷으면 이 항목을 지우고 `check-pnpm-security-config.py` 의 `EXPECTED_IGNORED_CVES` 도 함께 지운다.
+    # 패치 출시를 알리는 장치는 없으므로 분기마다 `npm view braces version` 으로 다시 본다.
     #
     # 종전 이력: 2026-08-01 에 **비워 두었다.** 그때 있던 2건은 실측으로 무효가 확인돼 제거했다.
     #   - CVE-2026-53550 (js-yaml <3.15.0): 우리 override `js-yaml@>=3.0.0 <3.15.0: ^3.15.0`
@@ -177,8 +187,7 @@ auditConfig:
     #     lockfile 에 고정한 상태에서 `--audit-level=low` 로 돌려도 0건.
     #
     # 그 둘을 되살리지 않은 것이 fail-closed 다. 둘 중 하나라도 다시 보고되면 audit 잡이 빨간불을
-    # 내고 위 3종 근거로 재심사하게 된다. 항목을 더하거나 뺄 때는 `check-pnpm-security-config.py` 의
-    # `EXPECTED_IGNORED_CVES` 와 **함께** 고친다(2-place 규약).
+    # 내고 서문의 3종 근거로 재심사하게 된다.
     - CVE-2026-93687
 
 # ── peer dependency 게이트 ──────────────────────────────────────────────────

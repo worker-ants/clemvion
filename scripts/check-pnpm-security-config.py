@@ -78,9 +78,8 @@ EXPECTED_ONLY_BUILT = {
     "@swc/core",
     "@tailwindcss/oxide",
 }
-# 검토 후 수용(accept)한 CVE — 사유는 pnpm-workspace.yaml 의 auditConfig 주석 참고.
-# 항목을 더하거나 뺄 때는 그 주석과 **함께** 고친다.
-#   - CVE-2026-93687 (braces <=3.0.3, 패치 없음): dev 전용 경로만 있다(2026-10-04, NERV Task CLE-T-NFW7DE).
+# 검토 후 수용(accept)한 CVE. 사유 · 근거 · 해소 조건의 정본은 pnpm-workspace.yaml 의 auditConfig
+# 주석이다. 항목을 더하거나 뺄 때는 그 주석과 **함께** 고친다.
 EXPECTED_IGNORED_CVES: set[str] = {"CVE-2026-93687"}
 
 
