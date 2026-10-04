@@ -144,6 +144,15 @@ jobs:
         # 항목들과 동일한 실패 클래스다. 소스가 아니라 매니페스트만 등재해 스위트가 모든
         # 패키지 코드 변경마다 도는 것은 피한다.
         codebase/packages/*/package.json
+        # 의존성 핀 사유 가드(test_package_pin_reasons.py)가 읽는 나머지 매니페스트다. 루트와
+        # backend · frontend · channel-web-chat 이다. 사유 없는 exact 핀을 더하거나 `"//pin"` 을
+        # 지우는 PR 은 거의 이 파일만 고치므로, 등재가 없으면 정확히 그 PR 에서 가드가 안 돈다.
+        # 위 항목들과 같은 실패 클래스다. dependabot 의 버전 업데이트 PR 도 이 파일들을 고쳐서
+        # 그때마다 스위트가 도는 비용이 따른다. 사유 없는 핀이 들어오는 길이 그 PR 이라 감수한다.
+        # 루트 `package.json` 은 test_harness_checks_paths_coverage.py 가 강제한다. `codebase/`
+        # 아래는 그 가드가 제품 경로로 빼므로 test_package_pin_reasons.py::TriggerCoverageTest 가 맡는다.
+        package.json
+        codebase/*/package.json
 
   unittest:
     needs: changes

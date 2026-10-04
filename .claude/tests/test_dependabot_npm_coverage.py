@@ -355,7 +355,8 @@ _EXPECTED_GROUPS = {
 _GROUP_UPDATE_TYPES = {"minor", "patch"}
 # Reason-pinned deps (PROJECT.md §버전 핀 정책 (b)) reviewed as individual PRs:
 # dompurify · marked = sanitize path, three = 0.x tilde pin. react · react-dom
-# are pinned only for monorepo alignment, so they stay grouped on purpose.
+# are pinned only for monorepo alignment, and jsonwebtoken · @radix-ui/react-focus-scope
+# follow their parent's exact dependency, so they stay grouped on purpose.
 _INDIVIDUAL_PR_PINS = {"dompurify", "marked", "three"}
 
 _GROUP_LIST_ITEM = re.compile(r"""\s*(?:"([^"]*)"|'([^']*)'|([^,"'\s\]]+))\s*""")

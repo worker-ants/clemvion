@@ -66,7 +66,9 @@ updates:
     # dompurify · marked 는 sanitize 경로라서 공급망 무결성을 이유로 고정했다. three 는 0.x 라 minor 도
     # breaking 일 수 있어 tilde 로 고정했다. 그룹 PR 에 섞이면 diff 를 따로 보기 어려우므로 이 셋은 보안
     # 업데이트까지 의존성마다 따로 받는다. react · react-dom 은 핀 사유가 전역 버전 정렬이라 그룹에서
-    # 함께 오르는 편이 낫다.
+    # 함께 오르는 편이 낫다. jsonwebtoken · @radix-ui/react-focus-scope 는 상위 패키지(@nestjs/jwt ·
+    # @radix-ui/react-dialog)가 exact 로 의존하는 버전과 맞춘 핀이라 그룹에 남겨 상위 패키지와 같은 PR 로
+    # 올라가게 둔다. 하위 패키지가 먼저 나오면 혼자 올라갈 수 있으니 보장은 아니다.
     #
     # 그룹 PR 안의 한 의존성이 CI 를 깨면 그룹마다 다르게 처리한다.
     #   npm-minor-patch  그 PR 에 `@dependabot ignore <의존성 이름> minor version`(patch 면
