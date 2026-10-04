@@ -16,7 +16,8 @@ export interface MailTransporter {
  *
  * `mail.secure` 가 아니면 STARTTLS 를 강제한다(`requireTLS`). 서버가 STARTTLS 를 알리지 않거나
  * 업그레이드에 실패하면 AUTH 와 메시지를 보내기 전에 `ETLS` 로 멈춘다. 끄려면 `mail.requireTls` 가
- * `false` 여야 한다(`MAIL_REQUIRE_TLS=false`). 값이 없으면 강제한다.
+ * `false` 여야 한다(`MAIL_REQUIRE_TLS=false`). 값이 없으면 강제한다. `requireTLS` 는 `secure` 와
+ * 상관없이 넘긴다. `secure` 면 처음부터 TLS 연결이라 nodemailer 가 STARTTLS 를 시도하지 않는다.
  *
  * 예전에는 `@nestjs-modules/mailer` 가 같은 일을 했다. 2.3.x 의 타입 선언은
  * `@nestjs/common/interfaces` 를 깊게 import 해 Nest 12 에서 풀리지 않는다. 3.0.0 부터는 Nest 12 를

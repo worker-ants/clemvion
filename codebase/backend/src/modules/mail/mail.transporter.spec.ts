@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { createServer, type AddressInfo, type Server } from 'net';
+import { createServer, type AddressInfo, type Server, type Socket } from 'net';
 import * as nodemailer from 'nodemailer';
 import { MAIL_TRANSPORTER } from './mail.constants';
 import { MailModule } from './mail.module';
@@ -15,17 +15,25 @@ const configOf = (values: Record<string, unknown>): ConfigService =>
     get: jest.fn((key: string) => values[key]),
   }) as unknown as ConfigService;
 
+/** SMTP 명령 줄의 동사(대문자). */
+const verbOf = (line: string): string => line.split(' ')[0].toUpperCase();
+
 /**
  * STARTTLS 를 알리지 않는 SMTP 서버. 능동 중간자가 EHLO 응답에서 STARTTLS 를 지운 상황과 같다.
- * 받은 명령을 순서대로 남긴다(DATA 본문은 빼고).
+ * 받은 명령의 동사를 순서대로 남긴다(DATA 본문은 빼고).
  */
 async function startPlainSmtpServer(): Promise<{
   port: number;
-  commands: string[];
+  verbs: () => string[];
   close: () => Promise<void>;
 }> {
   const commands: string[] = [];
+  const sockets = new Set<Socket>();
   const server: Server = createServer((socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    // 클라이언트가 먼저 끊어도 테스트 프로세스에 처리되지 않은 에러가 남지 않게 한다.
+    socket.on('error', () => undefined);
     let buffer = '';
     let inData = false;
     socket.write('220 plain.test ESMTP\r\n');
@@ -43,36 +51,40 @@ async function startPlainSmtpServer(): Promise<{
           continue;
         }
         commands.push(line);
-        switch (line.split(' ')[0].toUpperCase()) {
-          case 'EHLO':
-            socket.write('250-plain.test\r\n250 AUTH PLAIN\r\n');
-            break;
-          case 'AUTH':
-            socket.write('235 authenticated\r\n');
-            break;
-          case 'MAIL':
-          case 'RCPT':
-            socket.write('250 ok\r\n');
-            break;
-          case 'DATA':
-            inData = true;
-            socket.write('354 go ahead\r\n');
-            break;
-          case 'QUIT':
-            socket.end('221 bye\r\n');
-            break;
-          default:
-            socket.write('502 command not implemented\r\n');
-        }
+        socket.write(replyTo(line));
+        if (verbOf(line) === 'DATA') inData = true;
+        if (verbOf(line) === 'QUIT') socket.end();
       }
     });
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return {
     port: (server.address() as AddressInfo).port,
-    commands,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    verbs: () => commands.map(verbOf),
+    close: () => {
+      for (const socket of sockets) socket.destroy();
+      return new Promise<void>((resolve) => server.close(() => resolve()));
+    },
   };
+}
+
+/** 가짜 서버의 응답. EHLO 는 AUTH 만 알리고 STARTTLS 는 알리지 않는다. */
+function replyTo(line: string): string {
+  switch (verbOf(line)) {
+    case 'EHLO':
+      return '250-plain.test\r\n250 AUTH PLAIN\r\n';
+    case 'AUTH':
+      return '235 authenticated\r\n';
+    case 'MAIL':
+    case 'RCPT':
+      return '250 ok\r\n';
+    case 'DATA':
+      return '354 go ahead\r\n';
+    case 'QUIT':
+      return '221 bye\r\n';
+    default:
+      return '502 command not implemented\r\n';
+  }
 }
 
 describe('createMailTransporter', () => {
@@ -105,6 +117,25 @@ describe('createMailTransporter', () => {
         auth: { user: 'mailer', pass: 'secret' },
       },
       { from: 'Clemvion <noreply@example.com>' },
+    );
+  });
+
+  it('secure 이고 mail.requireTls 값이 없으면 requireTLS 를 켠 채 넘긴다', () => {
+    // 465 배포의 조합이다. nodemailer 는 secure 연결에서 STARTTLS 를 다시 시도하지 않으므로
+    // requireTLS 가 켜져 있어도 동작은 같다. 값이 그대로 넘어가는지만 고정한다.
+    const spy = jest.spyOn(nodemailer, 'createTransport');
+
+    createMailTransporter(
+      configOf({
+        'mail.transport': 'smtp',
+        'mail.host': 'smtp.example.com',
+        'mail.secure': true,
+      }),
+    );
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ secure: true, requireTLS: true }),
+      expect.anything(),
     );
   });
 
@@ -147,28 +178,38 @@ describe('createMailTransporter', () => {
 
     it('기본 설정이면 자격 증명과 메일을 보내지 않고 실패한다', async () => {
       const transporter = createMailTransporter(smtpConfig(true));
+      try {
+        // 운영 로그에 남는 것은 code 가 아니라 이 message 다(MailService 는 stack 을 남긴다).
+        await expect(transporter.sendMail(message)).rejects.toMatchObject({
+          code: 'ETLS',
+          message: expect.stringContaining(
+            'Error upgrading connection with STARTTLS',
+          ) as unknown,
+        });
+      } finally {
+        transporter.close();
+      }
 
-      await expect(transporter.sendMail(message)).rejects.toMatchObject({
-        code: 'ETLS',
-      });
-      transporter.close();
-
-      const verbs = server.commands.map((c) => c.split(' ')[0].toUpperCase());
-      expect(verbs).toContain('STARTTLS');
-      expect(verbs).not.toContain('AUTH');
-      expect(verbs).not.toContain('MAIL');
+      // nodemailer 는 requireTLS 면 서버가 알리지 않아도 STARTTLS 를 시도한다. 그 시도가 실패해
+      // 멈췄다는 것(서버 사정이 아니라 requireTLS 때문)을 STARTTLS 동사로 확인한다.
+      expect(server.verbs()).toContain('STARTTLS');
+      expect(server.verbs()).not.toContain('AUTH');
+      expect(server.verbs()).not.toContain('MAIL');
     });
 
     it('MAIL_REQUIRE_TLS=false 면 평문 연결로도 보낸다', async () => {
       // 위 테스트가 서버 쪽 사정이 아니라 requireTLS 때문에 실패했다는 대조군이다.
       const transporter = createMailTransporter(smtpConfig(false));
+      try {
+        await expect(transporter.sendMail(message)).resolves.toBeDefined();
+      } finally {
+        transporter.close();
+      }
 
-      await expect(transporter.sendMail(message)).resolves.toBeDefined();
-      transporter.close();
-
-      const verbs = server.commands.map((c) => c.split(' ')[0].toUpperCase());
-      expect(verbs).toEqual(expect.arrayContaining(['AUTH', 'MAIL', 'DATA']));
-      expect(verbs).not.toContain('STARTTLS');
+      expect(server.verbs()).toEqual(
+        expect.arrayContaining(['AUTH', 'MAIL', 'DATA']),
+      );
+      expect(server.verbs()).not.toContain('STARTTLS');
     });
   });
 

@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "54e60f1b7135d1b03d5c94ee22176bfd447b889ba952e74c780c7ed32f6b3b13"
+content_hash: "7016bcc9602dc1b861de0344b6cf8d1c846e474ba4e9513e64a963ed3fb01cc4"
 read_as: "approved_fallback"
 task: "CLE-T-67BNAZ"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "00efbab6ade003a0ff51e9a5f85f82bf9291c6645e534408ecb297d5e49f03a1"
-etag: "sha256-f45d3bbd74d4eeddff3c358de6bbd77d5b5a43a97bd802be5e7309f0b7254f86"
+mirror_sha256: "48a486b7c3130d36dd6df5538fdf7cfc4c4cff14c16326b244b6315431154228"
+etag: "sha256-70a92124d0c7a628ae0d406a587ae800f7396f87096c9e9a04a07925d85a9527"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -586,7 +586,7 @@ IP 단위 요청 한도는 계정 잠금(5회 실패, 10분)과 별개의 이중
 
 | 의존 | 방향 | 쓰임 |
 | --- | --- | --- |
-| SMTP (`MailService`, `codebase/backend/src/modules/mail/mail.service.ts`, 전송기 `mail.transporter.ts`) | 내부에서 외부로 | 이메일 인증, 비밀번호 재설정, 초대 메일, 이메일 변경 확인(새 주소), 변경 통지(옛 주소). 알림 메일은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 같은 `MailService` 로 보낸다. 시스템 전역 SMTP 만 쓴다. `MAIL_TRANSPORT=smtp` 이면 `MailService` 가 보내는 모든 메일을 암호화한 연결로만 보낸다(`MAIL_SECURE` 가 `true` 가 아니면 STARTTLS 를 강제하고 `MAIL_REQUIRE_TLS=false` 로만 끈다). 워크스페이스 SMTP 통합(Send Email 노드)은 이 설정과 무관하고 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) 의 `secure` 를 따른다 |
+| SMTP (`MailService`, `codebase/backend/src/modules/mail/mail.service.ts`, 전송기 `mail.transporter.ts`) | 내부에서 외부로 | 이메일 인증, 비밀번호 재설정, 초대 메일, 이메일 변경 확인(새 주소), 변경 통지(옛 주소). 알림 메일은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 같은 `MailService` 로 보낸다. 시스템 전역 SMTP 만 쓴다. `MAIL_TRANSPORT` 가 `console` 이 아니면(보통 `smtp`) `MailService` 가 보내는 모든 메일을 암호화한 연결로만 보낸다(`MAIL_SECURE` 가 `true` 가 아니면 STARTTLS 를 강제하고 `MAIL_REQUIRE_TLS=false` 로만 끈다). 워크스페이스 SMTP 통합(Send Email 노드)은 이 설정과 무관하고 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) 의 `secure` 를 따른다 |
 | OAuth 제공자 (Google, GitHub) | 외부에서 내부로(콜백) | authorize, token, userinfo(`auth-oauth.service.ts`). 셀프 호스팅용 LDAP·SAML 은 미구현(Planned)이다([가입과 로그인](CLE-ACCT-SIGNIN.md)) |
 | 감사 로그 | 내부 참조 | 워크스페이스 컨텍스트가 있는 동작은 `audit_log`, 사용자 인증 이벤트는 `login_history`. 워크스페이스·멤버 액션(`workspace.transfer_ownership`, `workspace.created`, `workspace.updated`, `member.invited`, `member.role_changed`, `member.removed`)은 `workspaces.service.ts` 와 `workspace-invitations.service.ts` 가 남긴다. [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
 
@@ -659,6 +659,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts`
 - `codebase/backend/src/modules/mail/mail.service.ts`, `codebase/backend/src/modules/mail/mail.module.ts`, `codebase/backend/src/modules/mail/mail.transporter.ts` (SMTP 전송기와 TLS 강제)
 - `codebase/backend/src/common/config/mail.config.ts` (`MAIL_*` 해석과 운영 경고 판정), `codebase/backend/src/main.ts` (운영 경고)
+- `codebase/backend/src/modules/mail/mail.transporter.spec.ts`, `codebase/backend/src/common/config/mail.config.spec.ts` (TLS 강제 · 설정 기본값 · 운영 경고 판정 테스트)
 - `codebase/backend/src/shared/testing/user-secret-absence.ts` (`USER_SECRET_KEYS`)
 
 ## Rationale
@@ -753,4 +754,9 @@ V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP/ADD CONSTR
 
 `MAIL_REQUIRE_TLS=false` 는 정당한 용도가 있는 완화 플래그라 부팅을 거부하지 않는다. 운영(`NODE_ENV=production`)에서 SMTP 전송인데 강제를 끄고 부팅하면 경고만 남긴다. [세션과 토큰](CLE-ACCT-SESSION.md) 의 운영 환경 가드 기준(정당한 용도가 있으면 throw 가 아니라 warn)과 같다.
 
-STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 뒤 발송이 실패하므로 `MAIL_REQUIRE_TLS=false` 를 명시해야 한다. 이 실패(`ETLS`)는 일시 오류가 아니라 설정을 고칠 때까지 모든 발송에서 난다. 재설정, 초대, 통지 메일의 발송 실패는 사용자에게 드러나지 않고 서버 로그에만 남으므로 배포 뒤 `ETLS` 로그로 확인한다. `console` 전송(로컬, e2e)은 SMTP 를 쓰지 않아 영향이 없다.
+STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 뒤 발송이 실패하므로 `MAIL_REQUIRE_TLS=false` 를 명시해야 한다. 이 실패(nodemailer 코드 `ETLS`)는 일시적인 실패가 아니라 설정을 고칠 때까지 모든 발송에서 난다. 실패가 드러나는 방식은 메일마다 다르고 기존 발송 실패 규칙을 그대로 따른다.
+
+- 가입 인증 메일과 이메일 변경 확인 메일은 요청이 에러로 끝난다. 가입은 미인증 사용자 행이 남아 인증 메일 재발송으로 복구한다. 이메일 변경은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한 대로 대기 중 변경 정보를 지운다.
+- 비밀번호 재설정, 초대, 이메일 변경 통지, 알림 메일은 사용자에게 드러나지 않고 서버 로그에만 남는다. 알림 메일은 `email_sent_at` 이 비어 있다.
+
+배포 뒤에는 `Failed to send … email` 로그의 stack 에 `Error upgrading connection with STARTTLS` 가 있는지 본다. `ETLS` 는 에러 객체의 코드라 로그 문자열에는 나오지 않는다. `console` 전송(로컬, e2e)은 SMTP 를 쓰지 않아 영향이 없다.

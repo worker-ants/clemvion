@@ -163,7 +163,8 @@ CI 파이프라인에서는 `kustomize edit set image clemvion/backend=<registry
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | IAM 사용자 / MinIO 루트 |
 | `ENCRYPTION_KEY` | 정확히 32 byte hex (= 64 hex char) |
 | `INTEGRATION_ENCRYPTION_KEY` | 임의 길이, SHA-256 으로 파생됨 |
-| `MAIL_USER`, `MAIL_PASS` | `MAIL_TRANSPORT=smtp` 일 때만 |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASS` | `MAIL_TRANSPORT=smtp` 일 때만 |
+| `MAIL_REQUIRE_TLS` | 비우면 STARTTLS 를 강제한다(`MAIL_SECURE` 가 `true` 가 아닐 때). STARTTLS 를 지원하지 않는 SMTP 서버만 `false` |
 | `GOOGLE_*`, `GITHUB_*`, `SLACK_*` | OAuth 사용 시 |
 
 권장 공급 방식:

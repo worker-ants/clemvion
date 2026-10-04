@@ -44,7 +44,9 @@ describe('shouldWarnPlainSmtp', () => {
   });
 
   it.each([
-    ['운영이 아니면', 'development', plain],
+    ['개발 환경이면', 'development', plain],
+    ['테스트 환경이면', 'test', plain],
+    ['NODE_ENV 가 없으면', undefined, plain],
     ['console 전송이면', 'production', { ...plain, transport: 'console' }],
     ['암묵적 TLS(secure)면', 'production', { ...plain, secure: true }],
     ['강제가 켜져 있으면', 'production', { ...plain, requireTls: true }],
