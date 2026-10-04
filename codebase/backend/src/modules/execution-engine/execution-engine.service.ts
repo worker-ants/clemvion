@@ -181,6 +181,7 @@ import { ButtonInteractionService } from './button-interaction.service';
 // 직접 import 한다 — re-export 체인 제거(impl-done Critical 해소: `RehydrationError`
 // 단일 클래스 식별성으로 `instanceof` 일관 보장). 엔진은 내부 사용분만 값 import.
 import { RehydrationError } from './ai-conversation-helpers';
+import { findBrokenCallStackFrame } from './call-stack-frame';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {
   PARK_RELEASED,
@@ -2478,22 +2479,14 @@ export class ExecutionEngineService
           `resume_call_stack frames is empty — execution=${executionId}. 데이터 손상 또는 잘못된 호출 경로.`,
         );
       }
-      // frame 의 workflowId · invokerNodeId 는 아래 조회의 where 조건이다. 영속 데이터라 타입이
-      // 보장하지 않는다. typeorm 1 은 where 의 undefined 를 예외로 막으므로(CLE-T-91JNWW) 비어
-      // 있으면 일반 TypeORMError 로 끝나 RESUME_FAILED 경로를 탄다. 체크포인트 결손이므로 조회와
-      // 상태 전이 전에 RESUME_CHECKPOINT_MISSING 으로 분류한다(CLE-T-BV4YXZ).
-      const brokenFrame = frames.findIndex(
-        (frame) =>
-          !frame ||
-          typeof frame.workflowId !== 'string' ||
-          !frame.workflowId ||
-          typeof frame.invokerNodeId !== 'string' ||
-          !frame.invokerNodeId,
-      );
-      if (brokenFrame >= 0) {
+      // frame 의 workflowId · invokerNodeId 는 아래 조회의 where 조건이다. 비어 있으면 일반
+      // 실패 경로(finalizeResumedExecutionOutcome, 실행 failed)로 끝나므로 조회 전에 체크포인트
+      // 결손으로 분류한다. 근거는 findBrokenCallStackFrame 에 있다(CLE-T-BV4YXZ).
+      const broken = findBrokenCallStackFrame(frames);
+      if (broken) {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
-          `resume_call_stack frame[${brokenFrame}] 에 workflowId · invokerNodeId 가 없다 — execution=${executionId}. 데이터 손상.`,
+          `resume_call_stack frame[${broken.index}] 에 ${broken.missing.join(' · ')} 가 없다 — execution=${executionId}. 데이터 손상.`,
         );
       }
 

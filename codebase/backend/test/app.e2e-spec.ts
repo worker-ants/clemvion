@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Queue } from 'bullmq';
 import { Client } from 'pg';
 import request from 'supertest';
+import {
+  WORKSPACE_INVITATIONS_PRUNE_JOB,
+  WORKSPACE_INVITATIONS_PRUNER_QUEUE,
+} from '../src/modules/workspaces/jobs/workspace-invitations-pruner.service';
 
 /**
  * e2e: 초대 토큰 흐름 (NAV-UP-05) 의 end-to-end 검증.
@@ -263,14 +267,24 @@ describe('Invitation flow (e2e)', () => {
   // 세 곳이 `acceptedAt: null as never` 로 "수락되지 않은 초대" 를 고르고 있었다. typeorm 0.3 은
   // 그 조건을 빼고 조회해 수락된 행까지 다뤘다. 지금은 `IsNull()` 이고 실 Postgres 로 고정한다.
 
-  /** 초대 → 토큰으로 가입(수락)까지 하고 수락된 초대 행을 돌려준다. */
-  async function inviteAndRegister(prefix: string): Promise<InvitationRow> {
-    const email = uniqueEmail(prefix);
+  /** H 가 정리 잡의 결과를 기다리는 최대 시간 · 확인 간격 · 테스트 전체 제한 시간. */
+  const PRUNE_WAIT_MS = 20_000;
+  const PRUNE_POLL_MS = 250;
+  const PRUNE_TEST_TIMEOUT_MS = 30_000;
+
+  /** 팀 워크스페이스에 `email` 을 초대한다(owner 권한). */
+  async function invite(email: string, role = 'editor'): Promise<void> {
     await request(BASE_URL)
       .post(`/api/workspaces/${teamWorkspaceId}/invitations`)
       .set('Authorization', `Bearer ${ownerAccessToken}`)
-      .send({ email, role: 'editor' })
+      .send({ email, role })
       .expect(201);
+  }
+
+  /** 초대 → 토큰으로 가입(수락)까지 하고 수락된 초대 행을 돌려준다. */
+  async function inviteAndRegister(prefix: string): Promise<InvitationRow> {
+    const email = uniqueEmail(prefix);
+    await invite(email);
     const row = await fetchTokenForEmail(teamWorkspaceId, email);
     const registerRes = await request(BASE_URL)
       .post('/api/auth/register')
@@ -305,11 +319,7 @@ describe('Invitation flow (e2e)', () => {
       .set('Authorization', `Bearer ${ownerAccessToken}`)
       .expect(200);
 
-    await request(BASE_URL)
-      .post(`/api/workspaces/${teamWorkspaceId}/invitations`)
-      .set('Authorization', `Bearer ${ownerAccessToken}`)
-      .send({ email, role: 'viewer' })
-      .expect(201);
+    await invite(email, 'viewer');
 
     // 수락된 행은 그대로 두고 대기 중인 새 행을 만든다(옛 동작은 수락된 행의 토큰을 갈아 끼웠다).
     const rows = await db.query<InvitationRow & { role: string }>(
@@ -348,11 +358,7 @@ describe('Invitation flow (e2e)', () => {
   it('G. 대기 초대 목록에 수락된 초대가 섞이지 않는다', async () => {
     const acceptedRow = await inviteAndRegister('g-list');
     const pendingEmail = uniqueEmail('g-pending');
-    await request(BASE_URL)
-      .post(`/api/workspaces/${teamWorkspaceId}/invitations`)
-      .set('Authorization', `Bearer ${ownerAccessToken}`)
-      .send({ email: pendingEmail, role: 'editor' })
-      .expect(201);
+    await invite(pendingEmail);
 
     const list = await request(BASE_URL)
       .get(`/api/workspaces/${teamWorkspaceId}/invitations`)
@@ -365,56 +371,64 @@ describe('Invitation flow (e2e)', () => {
     expect(emails).not.toContain(acceptedRow.email);
   });
 
-  it('H. 만료 정리는 만료된 대기 초대만 지우고 수락된 초대는 남긴다', async () => {
-    const acceptedRow = await inviteAndRegister('h-prune-accepted');
-    const pendingEmail = uniqueEmail('h-prune-pending');
-    await request(BASE_URL)
-      .post(`/api/workspaces/${teamWorkspaceId}/invitations`)
-      .set('Authorization', `Bearer ${ownerAccessToken}`)
-      .send({ email: pendingEmail, role: 'editor' })
-      .expect(201);
-    const pendingRow = await fetchTokenForEmail(teamWorkspaceId, pendingEmail);
-    // 둘 다 만료시킨다 — 정리가 수락 여부로만 가르는지 본다.
-    await db.query(
-      `UPDATE workspace_invitation SET expires_at = NOW() - INTERVAL '1 day'
+  it(
+    'H. 만료 정리는 만료된 대기 초대만 지우고 수락된 초대는 남긴다',
+    async () => {
+      const acceptedRow = await inviteAndRegister('h-prune-accepted');
+      const pendingEmail = uniqueEmail('h-prune-pending');
+      await invite(pendingEmail);
+      const pendingRow = await fetchTokenForEmail(
+        teamWorkspaceId,
+        pendingEmail,
+      );
+      // 둘 다 만료시킨다 — 정리가 수락 여부로만 가르는지 본다.
+      await db.query(
+        `UPDATE workspace_invitation SET expires_at = NOW() - INTERVAL '1 day'
        WHERE id = ANY($1::uuid[])`,
-      [[acceptedRow.id, pendingRow.id]],
-    );
+        [[acceptedRow.id, pendingRow.id]],
+      );
 
-    // 정리 잡을 큐에 직접 넣는다(매일 04:00 스케줄을 기다리지 않는다). 워커는 backend 가 돈다.
-    const queue = new Queue('workspace-invitations-pruner', {
-      connection: {
-        host: process.env.REDIS_HOST ?? 'redis',
-        port: Number(process.env.REDIS_PORT ?? '6379'),
-        ...(process.env.REDIS_PASSWORD
-          ? { password: process.env.REDIS_PASSWORD }
-          : {}),
-      },
-    });
-    try {
-      await queue.add('prune-expired-invitations', {});
-      // 판정 기준은 대기 행이 지워졌다는 사실이다(잡이 돌았다는 확실한 흔적).
-      const deadline = Date.now() + 20_000;
-      let pendingLeft = 1;
-      while (Date.now() < deadline) {
-        const r = await db.query(
-          'SELECT 1 FROM workspace_invitation WHERE id = $1',
-          [pendingRow.id],
+      // 정리 잡을 큐에 직접 넣는다(매일 04:00 스케줄을 기다리지 않는다). 워커는 backend 가 돈다.
+      const queue = new Queue(WORKSPACE_INVITATIONS_PRUNER_QUEUE, {
+        connection: {
+          host: process.env.REDIS_HOST ?? 'redis',
+          port: Number(process.env.REDIS_PORT ?? '6379'),
+          ...(process.env.REDIS_PASSWORD
+            ? { password: process.env.REDIS_PASSWORD }
+            : {}),
+        },
+      });
+      try {
+        // 끝난 잡을 Redis 에 남기지 않는다(같은 큐를 쓰는 다른 테스트와 섞이지 않게).
+        await queue.add(
+          WORKSPACE_INVITATIONS_PRUNE_JOB,
+          {},
+          { removeOnComplete: true, removeOnFail: true },
         );
-        pendingLeft = r.rows.length;
-        if (pendingLeft === 0) break;
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        // 판정 기준은 대기 행이 지워졌다는 사실이다(잡이 돌았다는 확실한 흔적).
+        const deadline = Date.now() + PRUNE_WAIT_MS;
+        let pendingLeft = 1;
+        while (Date.now() < deadline) {
+          const r = await db.query(
+            'SELECT 1 FROM workspace_invitation WHERE id = $1',
+            [pendingRow.id],
+          );
+          pendingLeft = r.rows.length;
+          if (pendingLeft === 0) break;
+          await new Promise((resolve) => setTimeout(resolve, PRUNE_POLL_MS));
+        }
+        expect(pendingLeft).toBe(0);
+      } finally {
+        await queue.close();
       }
-      expect(pendingLeft).toBe(0);
-    } finally {
-      await queue.close();
-    }
 
-    const kept = await db.query(
-      'SELECT accepted_at FROM workspace_invitation WHERE id = $1',
-      [acceptedRow.id],
-    );
-    expect(kept.rows).toHaveLength(1);
-    expect(kept.rows[0].accepted_at).not.toBeNull();
-  }, 30_000);
+      const kept = await db.query(
+        'SELECT accepted_at FROM workspace_invitation WHERE id = $1',
+        [acceptedRow.id],
+      );
+      expect(kept.rows).toHaveLength(1);
+      expect(kept.rows[0].accepted_at).not.toBeNull();
+    },
+    PRUNE_TEST_TIMEOUT_MS,
+  );
 });

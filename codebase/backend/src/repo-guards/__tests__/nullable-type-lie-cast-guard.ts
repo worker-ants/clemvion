@@ -1,7 +1,8 @@
 // nullish 타입 회피 캐스트 금지 가드 — 스캔·판정 순수 로직. `null as unknown as X` 이중 캐스트와
 // 리터럴 null · undefined 를 never · any · unknown 으로 단언하는 캐스트(`findNullishEscapeOffenders`)를 본다.
 //
-// 소비처는 형제 파일 `nullable-type-lie-cast.spec.ts`. 배경·근거는 그 파일 헤더에 있다.
+// 소비처는 형제 파일 `nullable-type-lie-cast.spec.ts`. 배경·근거는 그 파일 헤더(이중 캐스트)와 맨 아래
+// describe 위 docblock(nullish 회피 캐스트)에 있다.
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드 `masked-reject-callers-guard.ts`·
 // `eslint-unicorn-peer-guard.ts` 와 동일하다.
 //
@@ -42,38 +43,38 @@ export function collectScanTargets(root: string = SRC_ROOT): string[] {
   return collectTsFiles(root);
 }
 
-/** 캐스트가 남아 있는 파일과 개수. 위반이 없으면 빈 배열. */
-export function findCastOffenders(files: string[]): CastOffender[] {
+/** 술어 하나로 파일마다 세어 1건 이상인 파일과 개수를 돌려준다. 위반이 없으면 빈 배열. */
+function findOffenders(
+  files: string[],
+  count: (src: string) => number,
+): CastOffender[] {
   const offenders: CastOffender[] = [];
   for (const file of files) {
-    const count = countNullAsUnknownAsCasts(fs.readFileSync(file, 'utf8'));
-    if (count > 0) {
+    const n = count(fs.readFileSync(file, 'utf8'));
+    if (n > 0) {
       // 크로스플랫폼 정규화 — 형제 가드(`masked-reject-callers-guard.ts`·
       // `production-build-devdep-guard.ts`) 관례와 통일(리뷰 W3, 세 자리 동시 수정).
-      offenders.push({
-        file: toPosixRelative(SRC_ROOT, file),
-        count,
-      });
+      offenders.push({ file: toPosixRelative(SRC_ROOT, file), count: n });
     }
   }
   return offenders;
+}
+
+/** `null as unknown as X` 이중 캐스트가 남아 있는 파일과 개수. 위반이 없으면 빈 배열. */
+export function findCastOffenders(files: string[]): CastOffender[] {
+  return findOffenders(files, countNullAsUnknownAsCasts);
 }
 
 /**
  * nullish 를 `never` · `any` · `unknown` 으로 단언하는 캐스트가 남은 파일과 개수.
  *
  * {@link findCastOffenders} 와 같은 대상(비-spec 소스)을 본다. 술어와 근거는
- * `countNullishEscapeCasts` 에 있다.
+ * `countNullishEscapeCasts` 에 있다. `null as unknown as X` 는 두 가드에 모두 걸린다
+ * (앞쪽 `null as unknown` 이 이 술어의 형태다). 두 가드가 같은 자리를 함께 가리키는 것은
+ * 의도다. 캐스트를 지우면 둘 다 풀린다.
  */
 export function findNullishEscapeOffenders(files: string[]): CastOffender[] {
-  const offenders: CastOffender[] = [];
-  for (const file of files) {
-    const count = countNullishEscapeCasts(fs.readFileSync(file, 'utf8'));
-    if (count > 0) {
-      offenders.push({ file: toPosixRelative(SRC_ROOT, file), count });
-    }
-  }
-  return offenders;
+  return findOffenders(files, countNullishEscapeCasts);
 }
 
 /**

@@ -5,7 +5,8 @@ import { WorkspaceInvitationsService } from '../workspace-invitations.service';
 
 export const WORKSPACE_INVITATIONS_PRUNER_QUEUE =
   'workspace-invitations-pruner';
-const PRUNE_JOB = 'prune-expired-invitations';
+/** 정리 잡 이름. e2e 가 같은 이름으로 잡을 직접 넣는다(`test/app.e2e-spec.ts`). */
+export const WORKSPACE_INVITATIONS_PRUNE_JOB = 'prune-expired-invitations';
 
 /**
  * 매일 새벽 4시(Asia/Seoul) 에 만료되고 수락되지 않은 workspace_invitation 행을 삭제한다.
@@ -47,7 +48,7 @@ export class WorkspaceInvitationsPrunerService
       `${WORKSPACE_INVITATIONS_PRUNER_QUEUE}-daily`,
       { pattern: '0 4 * * *', tz: 'Asia/Seoul' },
       {
-        name: PRUNE_JOB,
+        name: WORKSPACE_INVITATIONS_PRUNE_JOB,
         opts: {
           removeOnComplete: { age: 7 * 24 * 60 * 60 },
           removeOnFail: { age: 30 * 24 * 60 * 60 },

@@ -17016,9 +17016,9 @@ describe('ExecutionEngineService', () => {
     });
 
     // ── CASE 4b: frame 필드 결손 → RESUME_CHECKPOINT_MISSING ─────────────
-    // typeorm 1 은 where 의 undefined 를 예외로 막는다(CLE-T-91JNWW). 영속된 frame 의
-    // workflowId · invokerNodeId 가 비면 조회가 일반 TypeORMError 로 끝나 RESUME_FAILED 경로를
-    // 탔다. 체크포인트 결손이므로 조회 전에 RehydrationError 로 분류한다(CLE-T-BV4YXZ).
+    // 영속된 frame 의 workflowId · invokerNodeId 가 비면 조회가 일반 TypeORMError 로 끝나 일반
+    // 실패 경로(finalizeResumedExecutionOutcome, 실행 failed)를 탔다. 체크포인트 결손이므로 조회 전에
+    // RehydrationError 로 분류한다(CLE-T-BV4YXZ). 필드별 판정은 call-stack-frame.spec.ts 가 고정한다.
     it.each([
       [
         'innermost frame 의 invokerNodeId 없음',
@@ -17037,6 +17037,14 @@ describe('ExecutionEngineService', () => {
       ],
       ['workflowId 없음', [{ invokerNodeId: 'node-inv-a', recursionDepth: 1 }]],
       ['frame 이 객체가 아님', [null]],
+      [
+        'workflowId 빈 문자열',
+        [{ workflowId: '', invokerNodeId: 'node-inv-a', recursionDepth: 1 }],
+      ],
+      [
+        'invokerNodeId 가 문자열이 아님',
+        [{ workflowId: 'wf-top-1', invokerNodeId: 123, recursionDepth: 1 }],
+      ],
     ])(
       'Case4b: %s → 조회 없이 RESUME_CHECKPOINT_MISSING 으로 취소',
       async (_label, frames) => {
@@ -17052,12 +17060,16 @@ describe('ExecutionEngineService', () => {
         const cancelSpy = jest
           .spyOn(svcAny, 'markExecutionCancelled')
           .mockResolvedValue(undefined);
-        jest
+        const nodeFailedSpy = jest
           .spyOn(svcAny, 'markNodeExecutionFailed')
           .mockResolvedValue(undefined);
         jest
           .spyOn(svcAny, 'finalizeRehydrationCleanup')
           .mockImplementation(() => undefined);
+        const finalizeOutcomeSpy = jest.fn().mockResolvedValue(undefined);
+        (
+          service as unknown as { finalizeResumedExecutionOutcome: unknown }
+        ).finalizeResumedExecutionOutcome = finalizeOutcomeSpy;
         const statusSpy = jest
           .spyOn(svcAny, 'updateExecutionStatus')
           .mockResolvedValue(undefined);
@@ -17083,6 +17095,12 @@ describe('ExecutionEngineService', () => {
           'exec-drive-1',
           'RESUME_CHECKPOINT_MISSING',
         );
+        // 짝 노드 실행도 같은 코드로 failed 마감하고 일반 실패 경로는 타지 않는다.
+        expect(nodeFailedSpy).toHaveBeenCalledWith(
+          'ne-drive-1',
+          'RESUME_CHECKPOINT_MISSING',
+        );
+        expect(finalizeOutcomeSpy).not.toHaveBeenCalled();
         expect(driveSpy).not.toHaveBeenCalled();
         expect(mockNodeRepo.findOneBy).not.toHaveBeenCalled();
         // 상태 전이(WAITING → RUNNING) 전에 멈춘다.
