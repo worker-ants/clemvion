@@ -16,6 +16,10 @@ import {
   TriggersService,
   isEndpointPathUniqueViolation,
 } from './triggers.service';
+import {
+  assertConfigCarriesNoInternalFields,
+  CONFIG_INTERNAL_FIELDS,
+} from './trigger-config-internal-fields';
 import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
@@ -338,6 +342,33 @@ describe('TriggersService.findOneDetail', () => {
     // 비-비밀 필드 보존 + `botTokenRef` 존재에서 파생하는 플래그.
     expect(chatChannel.provider).toBe('telegram');
     expect(chatChannel.hasBotToken).toBe(true);
+  });
+
+  // CLE-T-M9QKKX — 정상 클라이언트가 GET 한 config 를 그대로 PATCH 로 보내도 원시 config 의 내부 필드
+  // 거부에 걸리지 않아야 한다. 응답 정화가 지우는 키가 거부 대상을 모두 덮는다는 관계를 여기서 묶는다.
+  it('내부 필드를 모두 담은 config 도 응답 정화를 거치면 원시 config 거부를 통과한다', async () => {
+    const config: Record<string, unknown> = {};
+    for (const { path } of CONFIG_INTERNAL_FIELDS) {
+      let node = config;
+      path.slice(0, -1).forEach((key) => {
+        node[key] = (node[key] as Record<string, unknown>) ?? {};
+        node = node[key] as Record<string, unknown>;
+      });
+      node[path[path.length - 1]] = 'secret://triggers/t1/x';
+    }
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      config,
+    } as unknown as Trigger);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(() =>
+      assertConfigCarriesNoInternalFields(result.config),
+    ).not.toThrow();
   });
 
   it('chat-channel 이 아닌 트리거도 정화를 거친다 — 조기 return 회귀 방지', async () => {
@@ -2111,20 +2142,9 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     };
   });
 
-  /**
-   * **감사 기록 — 성공/실패 양쪽.**
-   *
-   * 이 자리가 셋 중 유일하게 비어 있었다: 다른 두 회전은 `TriggersService — 감사 로깅`
-   * describe 에 회귀가 있는데 `rotateBotToken` 만 없었고, 그 결과 **감사 호출을 통째로
-   * 지우는 뮤턴트가 81건 전부 GREEN** 이었다(ai-review `12_22_23` testing CRITICAL —
-   * requirement·security 도 같은 자리를 독립 지적).
-   *
-   * 여기 두는 이유는 6단계 mock 이 이미 갖춰진 describe 라서다 — 실패 경로를 실제 단계
-   * 실패로 만들 수 있는 유일한 자리다.
-   */
   // CLE-T-M9QKKX — 저장 경계가 막기 전에 저장된 행에는 다른 트리거의 ref 가 들어 있을 수 있다.
   // 회전이 그 ref 를 믿으면 그 트리거의 비밀을 읽어 백업하고 덮어쓴다.
-  it('저장된 config 의 ref 가 다른 트리거를 가리켜도 자기 트리거의 ref 만 읽고 쓴다', async () => {
+  it('저장된 config 의 ref 가 다른 트리거를 가리켜도 그 참조로 비밀 저장소와 어댑터를 부르지 않는다', async () => {
     const FOREIGN_BOT = 'secret://triggers/other-trig/bot-token';
     const FOREIGN_SIGNING = 'secret://triggers/other-trig/inbound-signing';
     triggerRepo.findOne.mockResolvedValue({
@@ -2159,11 +2179,53 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       WORKSPACE_ID,
       ISSUED_SECRET,
     );
+    // 어댑터 입력에도 저장된 참조가 남지 않는다(Discord 어댑터는 inboundSigningRef 를 resolve 한다).
     expect(mockAdapter.setupChannel.mock.calls[0][0]).toMatchObject({
       botTokenRef: BOT_TOKEN_REF,
+      inboundSigningRef: SECRET_TOKEN_REF,
     });
+    // 재저장 델타가 행을 자기 참조로 되돌린다. 읽기 경로 방어가 없는 지금 유일한 치유 지점이다.
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: TRIGGER_ID },
+      expect.objectContaining({
+        config: expect.objectContaining({
+          chatChannel: expect.objectContaining({
+            botTokenRef: BOT_TOKEN_REF,
+            inboundSigningRef: SECRET_TOKEN_REF,
+          }),
+        }),
+      }),
+    );
   });
 
+  it('저장된 행에 inboundSigningRef 가 없으면 어댑터 입력에도 넣지 않는다(레거시 행)', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: TRIGGER_ID,
+      workspaceId: WORKSPACE_ID,
+      endpointPath: 'hook-abc',
+      config: {
+        chatChannel: { provider: 'discord', botTokenRef: BOT_TOKEN_REF },
+      },
+    } as unknown as Trigger);
+
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot');
+
+    expect(mockAdapter.setupChannel.mock.calls[0][0]).not.toHaveProperty(
+      'inboundSigningRef',
+    );
+  });
+
+  /**
+   * **감사 기록 — 성공/실패 양쪽.**
+   *
+   * 이 자리가 셋 중 유일하게 비어 있었다: 다른 두 회전은 `TriggersService — 감사 로깅`
+   * describe 에 회귀가 있는데 `rotateBotToken` 만 없었고, 그 결과 **감사 호출을 통째로
+   * 지우는 뮤턴트가 81건 전부 GREEN** 이었다(ai-review `12_22_23` testing CRITICAL —
+   * requirement·security 도 같은 자리를 독립 지적).
+   *
+   * 여기 두는 이유는 6단계 mock 이 이미 갖춰진 describe 라서다 — 실패 경로를 실제 단계
+   * 실패로 만들 수 있는 유일한 자리다.
+   */
   it('감사 — 성공 시 trigger.chat_channel_bot_token_rotated 를 남긴다', async () => {
     await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot');
 

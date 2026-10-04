@@ -18,6 +18,10 @@
 //     온다` — `update()` 를 태워 가드를 발동시킨다.
 // 둘이 같은 상수를 가리키므로 등가성이 **전이적으로** 고정된다.
 //
+// 세 번째 소비처: 원시 `config` 가드(`trigger-config-internal-fields.ts`)가 이 배열로 `config.chatChannel.*`
+// 거부 경로를 만든다. 그 가드는 원시 `config` 에 `setupChannel()` 이 돌지 않으므로 값 필드(`botToken` ·
+// `inboundSigningPlaintext`)도 생성에서 막고, 메시지는 이 파일이 아니라 자기 안내 문구를 쓴다.
+//
 // SoT: `spec/5-system/15-chat-channel.md` R-CC-21 (PATCH 는 비밀을 쓰지 않는다) ·
 //      §5.4.1 「토큰 변경 (rotation)」 행 (두-갈래 `details.field` 서술).
 //

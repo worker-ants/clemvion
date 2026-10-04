@@ -109,7 +109,11 @@ export class TriggersController {
       'webhook 또는 manual 타입 트리거를 생성합니다. schedule 타입은 Schedules API에서 자동 생성되므로 여기서는 지원하지 않습니다.',
   })
   @ApiCreatedWrappedResponse(TriggerDto, { description: '생성된 트리거 정보' })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description:
+      '입력값 검증 실패. 원시 config 에 서버가 관리하는 시크릿 참조 · 평문 필드를 실으면 ' +
+      'details.field 가 원시 config 경로("config.chatChannel.botTokenRef")인 단일 object 로 거부합니다.',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiConflictResponse({
@@ -143,7 +147,9 @@ export class TriggersController {
       '@IsEmpty() 를 통과해 서비스가 거부하므로 details 는 단일 object 이고 field 는 ' +
       'flat("botToken") 입니다, ' +
       '(2) chatChannel 이 없는 트리거에 처음 붙이려는 경우: details.field="chatChannel" ' +
-      '(최초 설정은 생성 POST 한정), (3) provider 를 바꾸려는 경우: details.field="provider".',
+      '(최초 설정은 생성 POST 한정), (3) provider 를 바꾸려는 경우: details.field="provider". ' +
+      '원시 config 에 서버가 관리하는 시크릿 참조 · 평문 필드를 실으면 details 는 단일 object 이고 ' +
+      'field 는 원시 config 경로("config.chatChannel.botTokenRef") 입니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })

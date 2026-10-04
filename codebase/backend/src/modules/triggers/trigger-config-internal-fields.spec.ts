@@ -72,8 +72,19 @@ describe('assertConfigCarriesNoInternalFields', () => {
     expect(JSON.stringify(res)).not.toContain(FOREIGN);
   });
 
+  it('내부 필드가 여럿이면 목록 순서로 첫 필드를 보고한다', () => {
+    expect(
+      rejection({
+        notification: { signing: { secretRef: FOREIGN } },
+        chatChannel: { botToken: '111:plain', botTokenRef: FOREIGN },
+      }),
+    ).toMatchObject({ details: { field: 'config.chatChannel.botTokenRef' } });
+  });
+
   it.each([
     ['config 없음', undefined],
+    ['config 가 null', null],
+    ['config 가 배열', [{ chatChannel: { botTokenRef: FOREIGN } }]],
     ['빈 config', {}],
     [
       '내부 필드가 없는 chatChannel',

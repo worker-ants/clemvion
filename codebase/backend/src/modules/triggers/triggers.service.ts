@@ -1307,7 +1307,7 @@ export class TriggersService {
 
     // 두 ref 는 저장된 `config` 를 믿지 않고 자기 트리거 id 로 유도한다. 저장 경계가 원시 `config` 의
     // 내부 필드를 막기 전에 저장된 행에는 다른 트리거의 ref 가 들어 있을 수 있고, 그 ref 로
-    // `rotate` 하면 그 트리거의 비밀을 덮어쓴다(CLE-T-M9QKKX). 정상 행의 ref 는 바이너가 같은 규칙으로
+    // `rotate` 하면 그 트리거의 비밀을 덮어쓴다(CLE-T-M9QKKX). 정상 행의 ref 는 바인더가 같은 규칙으로
     // 유도한 값이라 결과가 같다.
     const botTokenRef = buildSecretRef({
       scope: 'triggers',
@@ -1346,7 +1346,18 @@ export class TriggersService {
     // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
     // [Spec Chat Channel §5.4] **자격 증명 거부**는 BOT_TOKEN_INVALID 400, 그 밖의 실패는
     // CHAT_CHANNEL_SETUP_FAILED 502 로 변환. 판별은 adapter 가 부착한 `code` (CCA §1.1.2).
-    const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
+    //
+    // 어댑터에 넘기는 설정에도 저장된 참조를 싣지 않는다. Discord 어댑터는 `inboundSigningRef` 를
+    // resolve 해 `verify_key` 와 대조하므로 다른 트리거의 참조가 남아 있으면 그 비밀을 읽는다
+    // (NERV 발견 `01a106cf-6c26-7005-830d-8b430e6a6d15`). 저장된 행에 참조가 없으면(레거시) 전처럼
+    // 키를 넣지 않는다. 넣으면 resolve 가 NotFound 로 바뀐다.
+    const { inboundSigningRef: storedInboundSigningRef, ...storedChannel } =
+      chatChannelCfg;
+    const mergedConfig: ChatChannelConfig = {
+      ...storedChannel,
+      botTokenRef,
+      ...(storedInboundSigningRef ? { inboundSigningRef } : {}),
+    };
     const callbackUrl = buildTriggerCallbackUrl({
       baseUrl: this.configService.get<string>('app.url'),
       endpointPath: trigger.endpointPath,
