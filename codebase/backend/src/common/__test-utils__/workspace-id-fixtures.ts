@@ -57,6 +57,13 @@ export const SAME_WS = 'ffffffff-6666-4666-9666-ffffffffffff';
 export const NIL_WS = '00000000-0000-0000-0000-000000000000';
 
 /**
+ * 모양(8-4-4-4-12 hex)만 맞고 RFC 형식은 아닌 값(버전 자리 `1`, variant 자리 `1`).
+ * 가드의 `isUuidShaped` 는 통과하고 Nest 12 `ParseUUIDPipe` 는 400 으로 막는다. 가드가 파이프보다
+ * 먼저 돌므로 경로 워크스페이스로 오면 가드가 조회해 403 을 낸다(`common/utils/uuid.spec.ts` 참고).
+ */
+export const SHAPE_ONLY_WS = '11111111-1111-1111-1111-111111111111';
+
+/**
  * 값 유일성 가드 — 이 모듈의 계약은 "**이름은 역할이고 값은 불투명하되 서로 다르다**" 이고,
  * 소비 스위트들은 그 차이에만 의존한다. 값이 겹치면 cross-tenant 테스트가 "다른 워크스페이스"
  * 를 비교하는 척하면서 같은 값을 비교하게 되어 **조용히 무의미해진다**.
@@ -73,6 +80,7 @@ export const ALL_WS = [
   DECOY_WS,
   SAME_WS,
   NIL_WS,
+  SHAPE_ONLY_WS,
 ] as const;
 
 /**

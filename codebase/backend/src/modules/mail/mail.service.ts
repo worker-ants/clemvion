@@ -7,14 +7,15 @@ import type { MailTransporter } from './mail.transporter';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly frontendUrl: string;
-  private readonly transport: string;
+  /** `mail.transport` 설정값(`smtp` · `console`). 전송기 객체(`transporter`)와 다르다. */
+  private readonly transportMode: string;
 
   constructor(
     @Inject(MAIL_TRANSPORTER) private readonly transporter: MailTransporter,
     private readonly configService: ConfigService,
   ) {
     this.frontendUrl = this.configService.get<string>('app.frontendUrl') || '';
-    this.transport =
+    this.transportMode =
       this.configService.get<string>('mail.transport') ||
       MAIL_TRANSPORT_CONSOLE;
 
@@ -38,7 +39,7 @@ export class MailService {
   ): Promise<void> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
-    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(`Verification email for ${email}: ${verifyUrl}`);
     }
 
@@ -121,7 +122,7 @@ export class MailService {
     // 기가입자는 가입 페이지에서 로그인 상태/이메일 일치를 감지해 accept 흐름으로 분기.
     const acceptUrl = `${this.frontendUrl}/auth/register?invitationToken=${encodeURIComponent(token)}`;
 
-    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       // 토큰 URL 은 console transport (개발) 에서만 로그에 남긴다 — 운영 로그 집계 시스템에 토큰 누출 방지.
       this.logger.debug(`Workspace invitation for ${email}: ${acceptUrl}`);
     }
@@ -205,7 +206,7 @@ export class MailService {
   ): Promise<void> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
-    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(`Password reset email for ${email}: ${resetUrl}`);
     }
 
@@ -273,7 +274,7 @@ export class MailService {
   ): Promise<void> {
     const verifyUrl = `${this.frontendUrl}/profile/change-email/verify?token=${encodeURIComponent(token)}`;
 
-    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(
         `Email-change verification for ${newEmail}: ${verifyUrl}`,
       );
@@ -428,7 +429,7 @@ export class MailService {
     // 벨 팝오버로 알림을 확인. 전용 `/notifications` 라우트는 존재하지 않는다.
     const notificationsUrl = `${this.frontendUrl}/dashboard`;
 
-    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(
         `Notification email for ${email} (${notification.type}): ${notification.title}`,
       );

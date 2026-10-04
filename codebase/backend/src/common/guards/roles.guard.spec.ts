@@ -13,6 +13,7 @@ import {
   NIL_WS,
   OTHER_WS,
   SAME_WS,
+  SHAPE_ONLY_WS,
   TOKEN_WS,
   VICTIM_WS,
 } from '../__test-utils__/workspace-id-fixtures';
@@ -866,7 +867,7 @@ describe('RolesGuard', () => {
         },
       );
 
-      it('형식은 맞지만 RFC 밖인 nil UUID 는 조회해 403 이다 — 종전 ParseUUIDPipe 400 에서 바뀐 자리', async () => {
+      it('nil UUID 도 형식이 맞으므로 조회해 403 이다', async () => {
         const { guard, getMemberRole } = buildGuard(null);
         await expectForbidden(
           guard.canActivate(
@@ -875,6 +876,19 @@ describe('RolesGuard', () => {
           'NOT_A_MEMBER',
         );
         expect(getMemberRole).toHaveBeenCalledWith(NIL_WS, 'u1');
+      });
+
+      it('모양만 맞는 비 RFC 값은 파이프(400)보다 먼저 가드가 조회해 403 이다', async () => {
+        // Nest 12 `ParseUUIDPipe` 는 이 값을 400 으로 막지만 가드가 먼저 돈다. 가드가 형식만 보고
+        // 넘기면 파이프의 400 이 인가 판정 자리를 차지한다.
+        const { guard, getMemberRole } = buildGuard(null);
+        await expectForbidden(
+          guard.canActivate(
+            pathContext(PathTarget.prototype.memberPath, { id: SHAPE_ONLY_WS }),
+          ),
+          'NOT_A_MEMBER',
+        );
+        expect(getMemberRole).toHaveBeenCalledWith(SHAPE_ONLY_WS, 'u1');
       });
 
       it('형식이 깨진 X-Workspace-Id 헤더는 경로 라우트에서 400 을 내지 않는다 — 헤더를 쓰지 않는다', async () => {

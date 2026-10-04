@@ -4,7 +4,10 @@ import { Test } from '@nestjs/testing';
 import * as nodemailer from 'nodemailer';
 import { MAIL_TRANSPORTER } from './mail.constants';
 import { MailModule } from './mail.module';
-import { createMailTransporter } from './mail.transporter';
+import {
+  createMailTransporter,
+  type MailTransporter,
+} from './mail.transporter';
 
 const configOf = (values: Record<string, unknown>): ConfigService =>
   ({
@@ -114,5 +117,37 @@ describe('MailModule', () => {
     await moduleRef.close();
 
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('전송기를 닫다가 실패해도 모듈 종료를 막지 않는다', async () => {
+    const close = jest.fn(() => {
+      throw new Error('already closed');
+    });
+    const moduleRef = await Test.createTestingModule({
+      imports: [TestConfigModule, MailModule],
+    })
+      .overrideProvider(MAIL_TRANSPORTER)
+      .useValue({ sendMail: jest.fn(), close })
+      .compile();
+
+    await expect(moduleRef.close()).resolves.toBeUndefined();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('설정으로 실제 전송기를 만들어 주입한다', async () => {
+    // 위 두 테스트는 전송기를 바꿔 끼우므로 `useFactory` · `inject` 배선은 여기서만 확인된다.
+    const moduleRef = await Test.createTestingModule({
+      imports: [TestConfigModule, MailModule],
+    }).compile();
+
+    const transporter = moduleRef.get<MailTransporter>(MAIL_TRANSPORTER);
+    const info = (await transporter.sendMail({
+      to: 'user@example.com',
+      subject: 'hello',
+      text: 'body',
+    })) as { message: string };
+
+    expect(JSON.parse(info.message)).toMatchObject({ subject: 'hello' });
+    await moduleRef.close();
   });
 });

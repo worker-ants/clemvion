@@ -14,9 +14,10 @@ export interface MailTransporter {
  * `mail.from` 은 두 번째 인자(메시지 기본값)로 넘겨 모든 메시지의 From 이 된다.
  * `mail.transport` 가 `console` 이면 JSON 전송기를 써서 실제로 보내지 않는다.
  *
- * 예전에는 `@nestjs-modules/mailer` 가 같은 일을 했다. 우리는 그 모듈의 템플릿 · 미리보기 ·
- * 헬스 기능을 쓰지 않았고, 그 모듈의 타입 선언이 Nest 12 를 막아 걷어 냈다(NERV Task
- * CLE-T-3X627J).
+ * 예전에는 `@nestjs-modules/mailer` 가 같은 일을 했다. 2.3.x 의 타입 선언은
+ * `@nestjs/common/interfaces` 를 깊게 import 해 Nest 12 에서 풀리지 않는다. 3.0.0 부터는 Nest 12 를
+ * 지원하지만 우리는 그 모듈의 템플릿 · 미리보기 · 헬스 기능을 쓰지 않는다. 다음 Nest major 에서 같은
+ * 이유로 막히지 않도록 3.x 로 올리지 않고 nodemailer 를 직접 쓰기로 했다(NERV Task CLE-T-3X627J).
  */
 export function createMailTransporter(
   configService: ConfigService,

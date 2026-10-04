@@ -56,7 +56,8 @@ overrides:
   form-data: ^4.0.6
   # 2026-10-02: 9.x 계열에는 고친 버전이 없다(GHSA-prgh-xp8r-p3m5 · GHSA-v53p-9fqp-m79j ·
   # GHSA-g57g-f23g-4646 모두 10.0.5~10.0.9 에서 패치). 직접 의존(backend)과 함께 10 으로 올린다.
-  # `@nestjs-modules/mailer@2.3.7` 의 peer 는 `nodemailer: >=8.0.5` 라 범위 안이다.
+  # 지금 nodemailer 를 쓰는 곳은 backend 의 직접 의존뿐이다. 그때 peer 로 함께 보던
+  # `@nestjs-modules/mailer` 는 2026-10-04 NestJS 12 상향(NERV Task `CLE-T-3X627J`)에서 걷어 냈다.
   nodemailer: ^10.0.9
   next>postcss: ^8.5.18
   # GHSA-2v37-7h3g-55p8 (high). frontend 이 postcss 를 **직접** 의존하는데 그 경로가
