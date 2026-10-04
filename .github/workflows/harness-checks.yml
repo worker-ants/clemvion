@@ -116,6 +116,9 @@ jobs:
         # `test_review_gate_ci.py` 가 트리거되지 않는다 — 위 항목들과 동일한 실패 클래스.
         scripts/check-review-gate.py
         scripts/check-override-floors.py
+        # 미충족 peer 관측(test_check_unmet_peers.py). 저장소 밖 사본에서 재해소하는지를 그
+        # 테스트가 고정한다 — 이 스크립트만 고친 PR 에서도 돌아야 한다.
+        scripts/check-unmet-peers.py
         # required check skip-job 패턴의 판정자. 이 스크립트가 바뀌면
         # test_required_check_skip_jobs.py 가 돌아야 하는데, 초판이 이 등재를 빠뜨려
         # 이 저장소가 여섯 번 겪은 paths 커버리지 갭을 그 PR 이 그대로 재현했다.
@@ -213,7 +216,9 @@ jobs:
       # 2026-08-01 — 이 스위트는 원래 stdlib 전용이었다. `test_override_floors.py` 가
       # `scripts/check-override-floors.py` 를 직접 exec 하는데 그 스크립트가 모듈 최상단에서
       # `import yaml` 하므로 PyYAML 이 필요해졌다. `deps-security-checks.yml` 의 config-guard
-      # 잡과 동일한 pin 을 재사용한다(신규 외부 의존 아님).
+      # 잡과 동일한 pin 을 재사용한다(신규 외부 의존 아님). 2026-10-04 부터
+      # `test_check_unmet_peers.py` 가 exec 하는 `scripts/check-unmet-peers.py` 도 워크스페이스
+      # 목록을 읽으려고 쓴다.
       - name: Install PyYAML
         if: needs.changes.outputs.relevant != 'false'
         run: pip install "pyyaml>=6,<7"
