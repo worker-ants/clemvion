@@ -1181,9 +1181,13 @@ describe('InteractionService.getStatus', () => {
 // `conversation_thread` 재조회. 응답 동봉은 waiting 한정인데 종전엔 DB fetch 가 상태 무관이라
 // 상한 500 turn × 4000자(≒2MB) jsonb 를 폴링마다 실어 왔다.
 describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', () => {
-  /** 두 단계는 `select` 배열로 구분된다. */
+  /**
+   * 두 단계는 `select` 로 구분된다. typeorm 1 은 문자열 배열을 받지 않아 `{ 컬럼: true }` 객체로 넘기므로
+   * 값이 true 인 키를 읽는다.
+   */
   function selectOf(call: unknown): string[] {
-    return ((call as { select?: string[] }).select ?? []).slice();
+    const select = (call as { select?: Record<string, unknown> }).select ?? {};
+    return Object.keys(select).filter((k) => select[k] === true);
   }
 
   /** 구현의 리터럴을 import 하지 않고 독립 재기술한다 (black-box: 구현이 바뀌면 여기가 fail). */

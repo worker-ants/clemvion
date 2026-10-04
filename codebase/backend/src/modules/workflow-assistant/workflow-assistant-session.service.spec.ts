@@ -14,7 +14,7 @@ describe('WorkflowAssistantSessionService — llmConfigId 소속', () => {
     save: jest.fn((row: unknown) => Promise.resolve(row)),
     findOne: jest.fn(),
   };
-  const workflowRepo = { exist: jest.fn().mockResolvedValue(true) };
+  const workflowRepo = { exists: jest.fn().mockResolvedValue(true) };
   const llmService = { resolveConfig: jest.fn() };
   const service = new WorkflowAssistantSessionService(
     sessionRepo as unknown as Repository<WorkflowAssistantSession>,
@@ -28,7 +28,7 @@ describe('WorkflowAssistantSessionService — llmConfigId 소속', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    workflowRepo.exist.mockResolvedValue(true);
+    workflowRepo.exists.mockResolvedValue(true);
   });
 
   it('생성 — 다른 워크스페이스의 설정이면 resolveConfig 의 404 를 내고 저장하지 않는다', async () => {
