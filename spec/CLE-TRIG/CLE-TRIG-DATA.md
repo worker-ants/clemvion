@@ -3,18 +3,18 @@ id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "f07ec74700a9b79b40babf28cc52b8d8a37e28e273e1de21732345ccfadfeb83"
+content_hash: "772ff39a1e8eb5af77af7af1633641b10101bcd05b1e7cae157ac8ff347f15f3"
 read_as: "approved_fallback"
 task: "CLE-T-XYR067"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "7ca40ef6651575fe4687cb00cb2d155937bd19008c95a566752552c3e077d147"
-etag: "sha256-6428dc27fd261fb1880ef8e62d2b9f67dd224057610496fefb6be7c206c7dc49"
+mirror_sha256: "31b7151c0649194f6f41b7d00b7aacfa86b6f337db768ef6b02612ed7bc07c60"
+etag: "sha256-755d2491768b254a809ab35b9fb4f0b96bf681de3eb12ca37d97fe352cae2e10"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,7 +28,7 @@ etag: "sha256-6428dc27fd261fb1880ef8e62d2b9f67dd224057610496fefb6be7c206c7dc49"
 - 웹훅: 외부 HTTP 호출이 `/api/hooks/:endpointPath` 로 들어온다. 일반 웹훅과 채팅 채널 inbound(Telegram·Slack·Discord) 두 갈래로 나뉜다.
 - 스케줄: BullMQ repeatable job(job scheduler)이 Cron 표현식에 따라 직접 발사한다. DB polling 이나 sweep 은 없다.
 
-세 진입점은 모두 `ExecutionEngineService.execute(workflowId, inputData, options)` 로 모인다. 세 번째 인자는 `ExecuteOptions` 객체다. 트리거 경로는 `{ triggerId }`(웹훅은 `sourceIp`·`responseCode` 를 더한다), 수동 실행은 `{ executedBy }` 를 넘기고 호출부가 `triggerType` 을 함께 넘긴다. `execute()` 는 실행 행을 `status=pending` 으로 INSERT 한 뒤 BullMQ `execution-run` intake 큐에 작업을 발행하고 곧바로 `executionId` 를 돌려준다. 트리거 유형이 작업 우선순위를 정한다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)).
+세 진입점은 모두 `ExecutionEngineService.execute(workflowId, inputData, options)` 로 모인다. 세 번째 인자는 `ExecuteOptions` 객체다. 트리거 경로는 `{ triggerId }`(웹훅은 `sourceIp`·`responseCode` 를 더한다), 수동 실행은 `{ executedBy }` 를 넘기고 호출부가 `triggerType` 을 함께 넘긴다. 모든 경로가 실행을 시작하는 워크스페이스 `workspaceId` 도 넘긴다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기)). `execute()` 는 실행 행을 `status=pending` 으로 INSERT 한 뒤 BullMQ `execution-run` intake 큐에 작업을 발행하고 곧바로 `executionId` 를 돌려준다. 트리거 유형이 작업 우선순위를 정한다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)).
 
 범위 밖 주제는 다음 문서가 정한다.
 
@@ -75,8 +75,8 @@ erDiagram
 | notification_last_error | Text? | EIA 알림 웹훅 발송이 마지막으로 실패했을 때의 에러 메시지(잘릴 수 있음) |
 | notification_secret_v2 | Text? | EIA 알림 웹훅 HMAC 시크릿 교체 grace(24h) 동안 쓰는 새 시크릿. NOT NULL 이면 primary 시크릿(`config.notification.signing.secretRef` 가 가리키는 값)과 둘 다 검증한다. 저장 형태는 `secret://` ref 가 아니라 컬럼에 담긴 평문이고 승격하면 컬럼을 `null` 로 비운다. 이 예외의 조건과 근거는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 비대상 등재가 정한다. 교체 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | notification_rotated_at | Timestamp? | 시크릿 교체 시작 시각(grace 종료 판정용) |
-| chat_channel_health | Enum | `unknown` / `healthy` / `degraded`. 채팅 채널 어댑터의 외부 채널 호출 상태. 기본 `unknown`(CCH-SE-01). `notification_health` 와 값 집합이 같아 공용 DB 타입으로 합칠지 검토 대상이다 |
-| chat_channel_last_error | Text? | 채팅 채널 외부 호출이 마지막으로 실패했을 때의 에러 메시지(잘릴 수 있음) |
+| chat_channel_health | Enum | `unknown` / `healthy` / `degraded`. 채팅 채널 상태. 외부 채널 호출 실패, 분당 한도 초과, 트리거의 워크플로우가 다른 워크스페이스에 있을 때 `degraded` 다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 기본 `unknown`(CCH-SE-01). `notification_health` 와 값 집합이 같아 공용 DB 타입으로 합칠지 검토 대상이다 |
+| chat_channel_last_error | Text? | 채팅 채널이 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 외부 호출 실패면 그 에러 메시지이고 분당 한도 초과와 교차 행은 서버가 만든 문구다 |
 | chat_channel_setup_at | Timestamp? | `setupChannel()` 성공 시각. setup 을 하지 않았으면 NULL |
 | chat_channel_token_v2 | Text? | 봇 토큰 재발급 grace(24h) 동안 **옛** 봇 토큰을 백업한 시크릿 참조(`secret://triggers/{id}/bot-token.v2`). 토큰이 아니라 참조만 둔다. primary 로 올리는 단계는 없고 유예가 끝나면 지운다(CCH-SE-04-C). `notification_secret_v2` 와 이름 패턴은 같지만 등급(평문 대 참조)과 뜻(새 값 대 옛 값)이 다르다. 기준은 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | chat_channel_rotated_at | Timestamp? | 봇 토큰 재발급 시작 시각(grace 종료 판정용) |
@@ -219,7 +219,7 @@ sequenceDiagram
     alt 검증 실패
         Ctl-->>C: 400 INVALID_TRIGGER_PARAMETERS
     end
-    Ctl->>Eng: execute(workflowId, { ...input, __triggerSource:'manual', parameters }, { executedBy: me })
+    Ctl->>Eng: execute(workflowId, { ...input, __triggerSource:'manual', parameters }, { executedBy: me, workspaceId })
     Eng->>PG: INSERT execution (status=pending, executed_by=me, trigger_id=NULL)
 ```
 
@@ -255,7 +255,10 @@ sequenceDiagram
         AC->>PG: UPDATE auth_config SET last_used_at=now (성공 때, fire-and-forget)
     end
     Hk->>Hk: 민감 헤더 [REDACTED] 마스킹
-    Hk->>Eng: execute(workflowId, { __triggerSource:'webhook', parameters, body, headers, query, method }, { triggerId, sourceIp, responseCode:'202' })
+    Hk->>Eng: execute(workflowId, { __triggerSource:'webhook', parameters, body, headers, query, method }, { triggerId, workspaceId, sourceIp, responseCode:'202' })
+    alt 워크플로우가 트리거의 워크스페이스에 없음
+        Hk-->>Ext: 404 TRIGGER_NOT_FOUND(엔드포인트가 없을 때와 같다)
+    end
     Eng->>PG: INSERT execution (status=pending, trigger_id, source_ip, response_code)
     Eng-->>Hk: executionId
     Hk->>PG: UPDATE trigger SET last_triggered_at=now
@@ -285,7 +288,10 @@ sequenceDiagram
     alt 스케줄 없음, is_active=false, trigger.workflow_id 없음
         Proc-->>Q: 건너뜀
     end
-    Proc->>Eng: execute(workflowId, { __triggerSource:'schedule', parameters }, { triggerId: schedule.trigger_id })
+    Proc->>Eng: execute(workflowId, { __triggerSource:'schedule', parameters }, { triggerId: schedule.trigger_id, workspaceId })
+    alt 워크플로우가 스케줄의 워크스페이스에 없음
+        Proc-->>Q: 건너뜀(재시도 · schedule_failed 알림 없음, 에러 로그)
+    end
     Proc->>PG: UPDATE schedule SET last_run_at=now, next_run_at=parseCron(cron, tz)
 ```
 
@@ -306,7 +312,7 @@ sequenceDiagram
 | `parseUpdate` 가 null | 그룹·봇·지원하지 않는 update. `maybeNotifyIgnored` 로 안내한 뒤 무시(`{ executionId: 'ignored' }`) |
 | 진행 중인 실행 + 인터랙션 | `interactionService.interact` 로 같은 프로세스 안에서 전달(`text_message` → submit_message, `button_callback` → click_button) |
 | native modal | `open_form_modal` / `form_submission` 이면 어댑터가 modal 응답 JSON 을 돌려준다(`interactionHttpResponse`, 컨트롤러가 `res.json`) |
-| 새 대화 | `execute(workflowId, { __triggerSource:'webhook', chatChannel:{ provider, conversationKey, channelUserKey }, ... })` 와 `ChannelConversation` upsert |
+| 새 대화 | `execute(workflowId, { __triggerSource:'webhook', chatChannel:{ provider, conversationKey, channelUserKey }, ... }, { triggerId, workspaceId, ... })` 와 `ChannelConversation` upsert. 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `{ executionId: 'ignored' }` 와 `degraded`(REQ-CHAT-059) |
 
 이 경로의 응답 JSON·서명 검증·form modal 세부는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 과 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 정한다. 이 문서는 웹훅 진입이 `chatChannel` 유무로 두 갈래로 나뉜다는 라우팅 사실만 정한다.
 
@@ -445,7 +451,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 
 - 유일성을 전역으로 바꾼다. `(endpoint_path) UNIQUE WHERE endpoint_path IS NOT NULL` 이 V002 의 UNIQUE 를 바꾼다(V132). 기각한 대안: 비유일 보조 인덱스 + 앱 수준 중복 검사 + 가장 오래된 행 선택. 마이그레이션 위험은 없지만 동시 요청 경합을 DB 가 막지 못한다.
 - 기존 중복은 나중 것에 새 UUID 를 준다(V131). 경로가 같은 묶음마다 가장 먼저 만든 트리거(`created_at`, 같으면 `id`)만 경로를 유지하고 나머지는 `gen_random_uuid()` 로 새 경로를 받는다. 복사는 원본보다 나중에만 생길 수 있어서다. 바뀐 트리거는 id·워크스페이스 id·채팅 채널 여부만 NOTICE 로 남긴다(경로는 비밀 키라 로그에 남기지 않는다). 정상 경로로는 워크스페이스 사이 중복이 생기지 않으므로(복제·가져오기는 트리거를 옮기지 않는다, [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)) 중복이 있다면 복사 등록의 흔적이다. 기각한 대안: 중복이 있으면 마이그레이션을 실패시키는 것. 데이터를 몰래 바꾸지 않지만 배포가 막힌다.
-- 새 경로를 받은 트리거가 채팅 채널이면 provider 에 등록된 URL 은 옛 경로 그대로다. SQL 은 provider API 를 부를 수 없다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-21 이 기각한 "재등록 없는 경로 변경" 을 흉내 내지 않고 NOTICE 에 `chat_channel=true` 를 남겨 배포 운영자가 그 소유자에게 채널 설정을 다시 저장하게 한다. 재등록은 정상 경로(다시 저장 → `setupChannel`, CCH-AD-02 멱등)로 일어난다(V132 헤더의 운영 절차). 채팅 채널 상태 컬럼은 쓰지 않는다. `degraded` 는 "외부 API 호출 실패" 신호라 뜻이 닫혀 있다(R-CC-19). 그 사이 옛 경로로 오는 provider 요청은 먼저 만든 쪽이 받는다. 그쪽이 채팅 채널이면 그 트리거의 비밀로 서명을 검증해 401 로 거부되고(R-CC-12(d)), 공개 웹훅이면 경로를 아는 누구든 직접 POST 할 수 있는 URL 이라 새로 열리는 표면이 아니다. 마이그레이션 전에도 이 묶음은 조회가 한 행만 골라 한쪽만 받고 있었다.
+- 새 경로를 받은 트리거가 채팅 채널이면 provider 에 등록된 URL 은 옛 경로 그대로다. SQL 은 provider API 를 부를 수 없다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-21 이 기각한 "재등록 없는 경로 변경" 을 흉내 내지 않고 NOTICE 에 `chat_channel=true` 를 남겨 배포 운영자가 그 소유자에게 채널 설정을 다시 저장하게 한다. 재등록은 정상 경로(다시 저장 → `setupChannel`, CCH-AD-02 멱등)로 일어난다(V132 헤더의 운영 절차). 채팅 채널 상태 컬럼은 쓰지 않는다. `degraded` 는 "외부 API 호출 실패" 신호라 뜻이 닫혀 있다(R-CC-19). 2026-10-05 에 트리거의 워크플로우가 다른 워크스페이스에 있는 경우가 원인으로 더해졌다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」). 경로 변경을 `degraded` 로 알리지 않는 이 판단은 그대로다. 그 사이 옛 경로로 오는 provider 요청은 먼저 만든 쪽이 받는다. 그쪽이 채팅 채널이면 그 트리거의 비밀로 서명을 검증해 401 로 거부되고(R-CC-12(d)), 공개 웹훅이면 경로를 아는 누구든 직접 POST 할 수 있는 URL 이라 새로 열리는 표면이 아니다. 마이그레이션 전에도 이 묶음은 조회가 한 행만 골라 한쪽만 받고 있었다.
 
 정리(`DO` 블록)는 트랜잭션 문장이고 교체는 `CONCURRENTLY` 라 한 파일에 둘 수 없다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)). V131 과 V132 사이에 복사가 끼어들면 V132 가 중복 키로 실패하고 새 인덱스가 invalid 로 남는다. 그래도 옛 인덱스는 valid 그대로라 보호가 줄지 않는다. V131 본문을 수동으로 다시 돌린 뒤 V132 를 다시 실행하면 첫 DROP 이 잔재를 치우고 성공한다(실측). 그 절차는 V132 헤더에 있다.
 

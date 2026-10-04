@@ -3,18 +3,18 @@ id: "CLE-EXEC-DATA"
 title: "실행 데이터와 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "72ff71d94f5d6a40295ace1fe151a543744cc895214e531310f304d388c6e9fe"
-read_as: "approved"
-task: null
+content_hash: "eb9c81149ba26ee376b231955998ebb2ffe4c8c2e9016009804397647d17dba0"
+read_as: "approved_fallback"
+task: "CLE-T-XYR067"
 source_paths: ["spec/1-data-model.md", "spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "bab3e8e646bd5b1627ce7185c80341abc169586554a95ed47bf2dfec34f5ed82"
-etag: "sha256-6a684f3f1192cd592186909cc6aebececd3a8fce74ad3e3307442e3eef08a7a2"
+mirror_sha256: "9b02dfa057068617c1c0400e88060ae5e3cf42d8aee88631a95485b1bac1960e"
+etag: "sha256-5a342b8d359589bde42efd97b97075dee4d984194ce64321248c9522a29a0d64"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/3-execution.md`, `spec/1-data-model.md` (§2.13 Execution, §2.13.1 ExecutionNodeLog, §2.13.3 WorkflowTestDataset, §2.14 NodeExecution, Rationale "삭제 연쇄의 FK 인덱스 다섯", "Execution.execution_path → ExecutionNodeLog"), `spec/5-system/4-execution-engine.md` (§7.4 `execution_node_log` 모델) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -193,7 +193,7 @@ sequenceDiagram
   participant PG as Postgres
   participant RunQ as 시작 큐 execution-run
   participant Proc as ExecutionRunProcessor(임의 인스턴스)
-  Trig->>Eng: execute(workflowId, input, options?)
+  Trig->>Eng: execute(workflowId, input, options)
   Eng->>PG: INSERT execution (status='pending', input_data, trigger_id 또는 executed_by, re_run_of, chain_id, dry_run)
   Eng->>RunQ: add('execution-run', executionId와 input, jobId=executionId, priority)
   Eng-->>Trig: executionId 반환 (행은 아직 pending)

@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "81c9742bc7150771192ba903868f1c65474d807a253b37bff4704d746c367388"
+content_hash: "45e9292f0c7062f16b63cb3094f608c2aaf416fb39aa367bba4f17e5a4a442ec"
 read_as: "approved_fallback"
-task: "CLE-T-BV4YXZ"
+task: "CLE-T-XYR067"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "4b7188229ddd154c8bfd37b7aa9ea8b36f08a022e6877b490a7dbda6aae3aed0"
-etag: "sha256-616c63c0c6558f126be423df9ff2a8d4c1a05ce19849b50117be47d05bf725ba"
+mirror_sha256: "a264677a973076b6cab7f4c4fb04f4893d066995ce0a3d00f3f2cdb8e052443d"
+etag: "sha256-32ce5e96d269cd370d30c5b3769647e6570020f7f75dbf149b0b75ffe6221f37"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -331,7 +331,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅 IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 Rationale 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 
 **`MASKED_VALUE_RESUBMITTED` 는 수동 실행 경로 한정이다.** 다시 제출한 값뿐 아니라 사용자가 직접 입력한 마커도 대상이다(그 표면에서 마스킹 마커 세 문자열은 예약어다). 웹훅 수신과 스케줄은 외부 시스템이 쓰는 임의 페이로드라 대상이 아니다. 판정 기준은 값의 출처가 아니라 페이로드를 쓰는 주체다. 범위 근거는 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 에 있다.
@@ -521,6 +521,10 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 ### 413 `PAYLOAD_TOO_LARGE`(전역)와 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(도메인)를 함께 두는 이유
 
 둘 다 413 이지만 발행 층과 한도가 다르다. `PAYLOAD_TOO_LARGE` 는 body-parser 층의 전역 코드로 모든 라우트에 공통이다. `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 는 공개 웹훅 전용 가드가 파싱 뒤 32KB 보수 한도로 추가 제한할 때만 낸다. 일반 신규 코드는 전역 코드를 쓰고 도메인 특화 한도가 있을 때만 별도 코드를 만든다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 WH-NF-02).
+
+### `TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유 (2026-10-05)
+
+웹훅 트리거는 있으나 그 워크플로우가 트리거의 워크스페이스에 없을 때(저장 경계 이전의 교차 행)도 `TRIGGER_NOT_FOUND` 다. 규칙 6 은 새 조건에 새 코드를 만들게 한다. 이 조건은 클라이언트가 가를 조건이 아니고 엔드포인트가 없을 때와 구분하지 않는 것이 목적이다. 새 코드를 만들면 그 워크플로우가 다른 워크스페이스에 있다는 것이 드러난다. 같은 카탈로그의 `ALERT_RULE_NOT_FOUND` · `RERUN_EXECUTION_NOT_FOUND`(없거나 다른 워크스페이스는 같은 404)와 `TRIGGER_ENDPOINT_PATH_CONFLICT`(예약과 중복을 한 코드로 묶음)도 같은 방식이다. 호출자에게 보이는 뜻은 그 엔드포인트의 트리거가 없다는 것이라 §3 예외 등록부에 올리지 않는다. 근거는 [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 «없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다» 이고 동작은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) REQ-WEBHOOK-047 이 정한다(NERV Task `CLE-T-XYR067`).
 
 ### `RESUME_CHECKPOINT_MISSING` 정의에 중첩 재개의 호출 스택을 더한 이유 (2026-10-04)
 

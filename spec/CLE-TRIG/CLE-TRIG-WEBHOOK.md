@@ -3,18 +3,18 @@ id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046"]
+status: "approved"
+requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "3be8c0310ad4838e501ea25681cdd9f2d4420903617afe65562488fcd599842a"
+content_hash: "a62319e845e4da56702b60640bc0a56ff412bf463c13e418c01d2c95a5f7ce2f"
 read_as: "approved_fallback"
 task: "CLE-T-XYR067"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "a0f3a590be5b2cdee5bba5517d8cc4df0a29860ad138a06382ab7c0c0f7661dc"
-etag: "sha256-ced658088205e2a18be2e9792b16727e2c8c1a70d20c7ce570c7d184ec3c1adc"
+mirror_sha256: "36f6bfb5f26b1cf2c66b9b4e925ad59946345cc34ea28a034acb0a5d39b6b7e6"
+etag: "sha256-7d5111c55e7a9aa17e1af7a58b7ec9e67a2bd1d77b4e97b95d2f0bed90000759"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ etag: "sha256-ced658088205e2a18be2e9792b16727e2c8c1a70d20c7ce570c7d184ec3c1adc"
 - REQ-WEBHOOK-031 WHEN 사용자가 웹훅 트리거를 만들면 THE SYSTEM SHALL 워크플로우 에디터와 트리거 화면 두 곳에서 같은 `POST /api/triggers` 로 만들게 한다. (원본: WH-MG-01)
 - REQ-WEBHOOK-032 WHEN 웹훅 트리거를 만들거나 경로를 바꾸면 THE SYSTEM SHALL 생성·수정 DTO 에서 v4 UUID 형식(`@IsUUID('4')`)의 엔드포인트 경로만 받는다. (원본: WH-MG-02)
 - REQ-WEBHOOK-033 WHILE 사용자가 트리거를 비활성으로 둔 동안 THE SYSTEM SHALL 웹훅 수신으로 실행을 시작하지 않는다. (원본: WH-MG-04)
-- REQ-WEBHOOK-034 IF EIA 알림 웹훅 발송이나 채팅 채널 외부 호출이 실패해 상태가 `degraded` 가 되면 THE SYSTEM SHALL 트리거를 자동으로 비활성화하지 않는다. (원본: WH-MG-04, WH-MG-07, WH-MG-09)
+- REQ-WEBHOOK-034 IF EIA 알림 웹훅이나 채팅 채널의 상태가 `degraded` 가 되면 THE SYSTEM SHALL 트리거를 자동으로 비활성화하지 않는다. (원본: WH-MG-04, WH-MG-07, WH-MG-09)
 - REQ-WEBHOOK-035 WHEN 사용자가 호출 이력을 보면 THE SYSTEM SHALL 요청 시각·상태·응답 코드를 보여 준다. (부분 구현) (원본: WH-MG-05)
 - REQ-WEBHOOK-036 WHEN 트리거 생성·수정 요청이 `notification`·`interaction` 을 담으면 THE SYSTEM SHALL EIA 알림 웹훅과 외부 인터랙션 설정으로 저장한다. (원본: WH-MG-06)
 - REQ-WEBHOOK-037 WHEN 트리거 상세 화면을 그리면 THE SYSTEM SHALL `notificationHealth`(unknown / healthy / degraded)를 표시한다. (원본: WH-MG-07)
@@ -90,6 +90,7 @@ etag: "sha256-ced658088205e2a18be2e9792b16727e2c8c1a70d20c7ce570c7d184ec3c1adc"
 - REQ-WEBHOOK-044 IF 공개 웹훅 가드가 트리거 조회에 실패하거나 Redis 를 쓸 수 없으면 THE SYSTEM SHALL 요청을 통과시키고 조회 실패는 `error` 레벨로 로그를 남긴다.
 - REQ-WEBHOOK-045 WHEN 요청이 `/api/hooks/*` 로 오면 THE SYSTEM SHALL JWT 인증을 요구하지 않는다.
 - REQ-WEBHOOK-046 WHEN 웹훅이 실행을 시작하면 THE SYSTEM SHALL 실행에 `trigger_id`·`source_ip`·`response_code('202')` 를 기록하고 트리거의 `last_triggered_at` 을 갱신한다.
+- REQ-WEBHOOK-047 IF 채팅 채널이 아닌 웹훅 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 엔드포인트 경로에 맞는 트리거가 없을 때와 같은 `404 TRIGGER_NOT_FOUND` 로 응답한다.
 
 ## 처리 구조
 
@@ -109,6 +110,7 @@ flowchart TD
     F -- 실패 --> X4[400 INVALID_WEBHOOK_PAYLOAD]
     F --> G[민감 헤더 마스킹]
     G --> H[execute: pending 실행 생성]
+    H -- 워크플로우가 트리거의 워크스페이스에 없음 --> X1
     H --> I[last_triggered_at 갱신]
     I --> J[202 Accepted + executionId]
 ```
@@ -207,7 +209,7 @@ POST /api/hooks/:endpointPath
 | `400 Bad Request` | | 요청 본문 파싱 실패 |
 | `400 Bad Request` | `INVALID_WEBHOOK_PAYLOAD` | required 트리거 파라미터 누락, 타입 강제 변환 실패([400 응답 형식](#400-응답-형식)) |
 | `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치 모두 같은 코드다 |
-| `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다 |
+| `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다(REQ-WEBHOOK-047). 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다(REQ-CHAT-059) |
 | `405 Method Not Allowed` | | POST 가 아닌 메서드([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
 | `410 Gone` | `TRIGGER_INACTIVE` | 트리거가 비활성이다. 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다 |
 | `413 Payload Too Large` | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 공개 웹훅 본문이 32KB 초과 |
@@ -358,9 +360,10 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
    5. 유형별(`bearer_token` / `api_key` / `basic_auth` / `hmac`)로 상수 시간 비교를 한다.
    6. 성공하면 `last_used_at` 을 fire-and-forget 으로 갱신한다.
    7. 실패하면 `401 AUTH_FAILED` 이고 갱신하지 않는다.
-8. `resolveTriggerParameters(workflow, body)` 로 파라미터를 추출·검증한다. required 누락이나 변환 실패면 `400 INVALID_WEBHOOK_PAYLOAD` 이고 실행을 만들지 않는다.
+8. `resolveTriggerParameters(workflow, body)` 로 파라미터를 추출·검증한다. 파라미터 스키마는 트리거의 워크스페이스 안에서만 읽는다. 워크플로우가 그 워크스페이스에 없으면 스키마가 없는 것으로 보고 10 에서 404 가 된다. required 누락이나 변환 실패면 `400 INVALID_WEBHOOK_PAYLOAD` 이고 실행을 만들지 않는다.
 9. 민감 헤더를 `[REDACTED]` 로 가린다.
-10. `ExecutionEngineService.execute(trigger.workflowId, { __triggerSource:'webhook', parameters, body, headers, query, method }, { triggerId: trigger.id, sourceIp, responseCode: '202' })` 를 부른다.
+10. `ExecutionEngineService.execute(trigger.workflowId, { __triggerSource:'webhook', parameters, body, headers, query, method }, { triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode: '202' })` 를 부른다.
+    - 엔진은 워크플로우가 트리거의 워크스페이스에 없으면 거부한다. 이때 4 와 같은 `404 TRIGGER_NOT_FOUND`(같은 본문)로 응답하고 실행 행과 `last_triggered_at` 을 남기지 않는다(REQ-WEBHOOK-047). 저장 경계 이전에 남은 교차 행을 위한 동작이다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)).
     - 세 번째 인자로 `triggerId` 를 넘겨야 실행 행의 `trigger_id` 가 채워지고 실행 내역 화면에서 출처가 `webhook` 으로 분류된다.
     - `sourceIp`(`extractClientIpFromHeaders` 결과, 인증 IP whitelist 검증과 같은 값)와 `responseCode`(성공 경로의 실제 HTTP 코드 `202`)도 넘긴다. 둘은 실행 행의 `source_ip`/`response_code` 컬럼에 저장돼 인증 설정 사용 내역의 소스 IP·응답 코드를 채운다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)).
     - 스케줄·수동 트리거는 두 인자를 넘기지 않아 컬럼이 NULL 이다. `ExecuteOptions` 의 `triggerId` variant 에서 `sourceIp?`/`responseCode?` 는 선택이라 기존 호출자와 호환된다.
@@ -374,7 +377,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 
 - 인증은 인증 설정이 아니라 provider 별 inbound 서명 검증(`chatChannelInboundAuthenticator.verify`)으로 한다. Telegram 은 `X-Telegram-Bot-Api-Secret-Token`, Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 를 쓴다. 검증에 실패하면 401 이다.
 - 트리거가 비활성이어도 서명 검증은 먼저 한다. 통과하면 update 를 무시하고 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다. 비활성인데 410 이 아니라 202 인 이유는 Telegram 같은 provider 가 2xx 가 아닌 응답을 받으면 웹훅을 자동으로 끄거나 재시도를 쏟아내기 때문이다. 비활성이어도 인증을 하는 이유는 인증에 실패한 요청에 조용한 202 를 주면 공격자가 트리거 활성 여부를 추측할 수 있고 운영자는 인증 실패를 401 로 봐야 디버깅할 수 있기 때문이다.
-- 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, sourceIp, responseCode: '202' })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다.
+- 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode: '202' })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
 - 일부 provider 의 handshake·interactivity 응답(Slack `url_verification`·Interactivity, Discord PING·Interactivity, native modal)은 `200 OK` 와 감싸지 않은 JSON 으로 직접 응답한다(`TransformInterceptor` 우회).
 - update 파싱, 무시 대상 판정, 진행 중인 실행에 인터랙션 전달, 대화 기록은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 비활성 `202` 와 서명 실패 `401` 을 포함한 응답 계약의 기준은 [채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. 사용자에게 메시지를 보내는 outbound 응답은 이 수신 흐름 안에서 일어나지 않고 채팅 채널 쪽 비동기 경로로 처리된다.
 
@@ -396,6 +399,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 | 상황 | 처리 |
 |------|------|
 | 워크플로우가 지워짐 | 트리거의 `workflow_id` FK CASCADE 로 트리거도 지워져 404 가 된다 |
+| 트리거의 워크플로우가 다른 워크스페이스에 있음 | 저장 경계 이전에 남은 행이다. 엔드포인트가 없을 때와 같은 `404 TRIGGER_NOT_FOUND` 이고 실행을 만들지 않는다(REQ-WEBHOOK-047). 활성 확인과 인증을 통과한 뒤의 응답이다. 채팅 채널 트리거는 `202` ignored 다(REQ-CHAT-059) |
 | 실행 엔진 에러 | 500 Internal Server Error 를 응답하고 에러를 로그에 남긴다 |
 | 동시 다발 요청 | 요청마다 독립된 실행을 만들어 병렬로 실행한다 |
 

@@ -3,18 +3,18 @@ id: "CLE-EXEC-ENGINE"
 title: "실행 엔진 개요와 그래프 순회"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "51f386d4d6f7939209a245efa90db6ea235d2c7c92ac03d1329b3f706093134c"
+content_hash: "574d3635e4d3c03d08924ed247182b6819cc4d77cff77654dd99c80756f22332"
 read_as: "approved_fallback"
 task: "CLE-T-XYR067"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "6a4bcd91cffa779ee4eb2a58c2591dccb0e8554832edb8607410405f98c421a8"
-etag: "sha256-7faa6e4dacaf09342d4c91872d8b2701c37c2000afe46b2298db989615ac2801"
+mirror_sha256: "902a9c324219b5aeeea2f0e3eaee13ff90c29b019ae144007ff0f2157541d879"
+etag: "sha256-160fd807d0ee9b2b7b83291ab1a901807251c245b5991c90370c49ce57bf8696"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -239,6 +239,8 @@ import 를 옮기자 `ws.service` ↔ `gateway` ↔ `retry` ↔ `event-emitter` 
 서브 워크플로우 진입점(`executeInline`·`executeSync`·`executeAsync`)의 `assertSameWorkspace` 는 원래 호출자 워크스페이스 정보가 없으면 로그만 남기고 통과시켰다(fail-open). 이제 `callerWorkspaceId` 가 없어도 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 거부한다(fail-closed).
 
 착수 전에 운영 코드의 호출처 세 곳을 모두 따라가 워크스페이스 정보가 항상 채워진다는 것을 확인했다. 그래서 일괄 fail-closed 가 안전하다고 판단했다. 거부는 `WorkflowForbiddenWorkspaceError` 로 던지고 워크플로우 호출 노드 핸들러가 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 에러 포트에 싣는다. 노드 쪽 계약은 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 에, 에러 코드는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+
+이 절의 호출처 세 곳은 서브 워크플로우 진입점을 부르는 곳이다. 최상위 진입 `execute()` 의 워크스페이스 대조는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md#실행을-시작하는-워크스페이스를-진입-api-의-필수-옵션으로-둔다-2026-10-05) 가 정한다(2026-10-05). 그쪽은 다른 워크스페이스의 워크플로우를 없는 워크플로우와 같게 `WorkflowNotFoundError` 로 거부한다.
 
 ### 글로벌 순환 안의 입력 대기 노드를 막지 않는다
 

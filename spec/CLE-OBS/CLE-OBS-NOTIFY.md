@@ -3,18 +3,18 @@ id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051"]
+status: "approved"
+requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "dd210182281ab30cda0b92f81dc8eb39e921655925a3b600ed2bd381bae18a71"
-read_as: "approved"
-task: null
+content_hash: "a471071fedfe6be4dfc801f073a54f75f720dff0953ff4fdf6b933fff80c787c"
+read_as: "approved_fallback"
+task: "CLE-T-XYR067"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "0d853c0ad2bcc9d9fe242f10dcfa7dc8e389968657ab1ad6324cebbffdfbe83b"
-etag: "sha256-4e316010196f2b38b720d50d41786cbeeb8de2cd75ea03d09a56c20daf0da58f"
+mirror_sha256: "e907ca6426c7498394ca2268d21f1399c7d48e5e57db418fefc61dac91e726da"
+etag: "sha256-42d02efa8e39180f27e809ea7674e532f4ff0e77ace9bcfff32fc8fd01fcd10c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -51,7 +51,7 @@ etag: "sha256-4e316010196f2b38b720d50d41786cbeeb8de2cd75ea03d09a56c20daf0da58f"
 - REQ-NOTIFY-005 WHEN 발사원이 알림을 보내면 THE SYSTEM SHALL 수신자의 알림 설정을 발사원 쪽에서 읽어 알림 채널을 계산한다. (원본: data-flow/8 §1)
 - REQ-NOTIFY-006 WHEN 최상위 실행이 실패로 끝나면 THE SYSTEM SHALL 워크플로우 소유자와 실행자에게 `execution_failed` 알림을 보낸다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-007 IF 실패한 실행이 Background 본문이나 서브 워크플로우 같은 하위 실행이면 THE SYSTEM SHALL `execution_failed` 알림을 보내지 않는다. (원본: data-flow/8 §1.1)
-- REQ-NOTIFY-008 WHEN 스케줄이 실행을 시작하지 못하면 THE SYSTEM SHALL 워크플로우 소유자에게 `schedule_failed` 알림을 보낸다. (원본: data-flow/8 §1.1)
+- REQ-NOTIFY-008 WHEN 스케줄이 실행을 시작하지 못하면 THE SYSTEM SHALL 워크플로우 소유자에게 `schedule_failed` 알림을 보낸다(예외: REQ-NOTIFY-009 · 052). (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-009 IF 스케줄 대상 워크플로우에 소유자(`createdBy`)가 없으면 THE SYSTEM SHALL `schedule_failed` 알림을 건너뛴다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-010 WHEN `notifyOnFailure` 가 켜진 Background 본문이 실패하면 THE SYSTEM SHALL 워크스페이스 관리자 전원에게 `background_failed` 알림을 보낸다. (원본: data-flow/8 §1.1)
 - REQ-NOTIFY-011 WHEN 이미 가입한 비멤버를 워크스페이스에 초대하면 THE SYSTEM SHALL 그 사용자에게 인앱 채널로만 `team_invite` 알림을 보낸다. (원본: data-flow/8 §1.1)
@@ -95,6 +95,7 @@ etag: "sha256-4e316010196f2b38b720d50d41786cbeeb8de2cd75ea03d09a56c20daf0da58f"
 - REQ-NOTIFY-049 IF `failure_rate` 규칙의 평가 기간 안 실행이 5건 미만이면 THE SYSTEM SHALL 그 규칙의 평가를 건너뛴다. (원본: data-flow/9 §1.3)
 - REQ-NOTIFY-050 IF 규칙의 평가 기간 문자열을 해석할 수 없으면 THE SYSTEM SHALL 1시간(`PT1H`)으로 평가한다. (원본: data-flow/9 §1.3)
 - REQ-NOTIFY-051 WHEN 알림 채널이 `email` 인 규칙이 발사하면 THE SYSTEM SHALL 알림을 채널 `both` 로 저장한다. (원본: data-flow/9 §1.3)
+- REQ-NOTIFY-052 IF 스케줄의 연결 트리거가 가리키는 워크플로우가 스케줄의 워크스페이스에 없어 Cron 발사를 건너뛰면 THE SYSTEM SHALL REQ-NOTIFY-008 의 `schedule_failed` 알림을 보내지 않는다.
 
 ## 알림 유형
 
@@ -103,7 +104,7 @@ etag: "sha256-4e316010196f2b38b720d50d41786cbeeb8de2cd75ea03d09a56c20daf0da58f"
 | 유형 | 상태 | 발사원 | 발사 조건 | 수신자 | 알림 채널 | 딥링크 대상 |
 | --- | --- | --- | --- | --- | --- | --- |
 | `execution_failed` | 구현됨 | `ExecutionEngineService.dispatchExecutionFailedNotification` | 최상위 실행(`!parentExecutionId`)이 `failed` 로 끝남. 초기 세그먼트(`runExecution` 의 catch)와 재개 세그먼트(`finalizeResumedExecutionOutcome`) 양쪽에서 보낸다. 대부분의 실행은 재개 세그먼트에서 끝나므로 두 경로 모두 보내야 빠지지 않는다. Background 본문·서브 워크플로우 같은 하위 실행은 `background_failed` 와 겹치지 않게 뺀다 | 워크플로우 소유자와 실행자(`executedBy`). 겹치면 한 번만 | 기본 `both`. 수신자의 `executionFailedEmail === false` 면 `in_app` | `workflow` / 워크플로우 ID. 실행 단위 딥링크는 없다 |
-| `schedule_failed` | 구현됨 | `ScheduleRunnerService.dispatchScheduleFailedNotification` | 스케줄이 실행을 **시작하지 못함**(파라미터 해석·큐 등록 실패). 시작된 실행의 이후 실패는 `execution_failed` 가 맡는다 | 워크플로우 소유자(`createdBy`). 없으면 건너뛴다 | 기본 `both`. `scheduleFailedEmail === false` 면 `in_app` | `workflow` / 워크플로우 ID |
+| `schedule_failed` | 구현됨 | `ScheduleRunnerService.dispatchScheduleFailedNotification` | 스케줄이 실행을 **시작하지 못함**(파라미터 해석·큐 등록 실패). 시작된 실행의 이후 실패는 `execution_failed` 가 맡는다. 워크플로우가 스케줄의 워크스페이스에 없어 건너뛴 발사는 보내지 않는다(REQ-NOTIFY-052). 수신자인 워크플로우 소유자가 다른 워크스페이스 사람이기 때문이다([스케줄 「다른 워크스페이스의 워크플로우」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#다른-워크스페이스의-워크플로우)) | 워크플로우 소유자(`createdBy`). 없으면 건너뛴다 | 기본 `both`. `scheduleFailedEmail === false` 면 `in_app` | `workflow` / 워크플로우 ID |
 | `background_failed` | 구현됨 | `BackgroundExecutionProcessor`(`background-execution.processor.ts`) | `config.notifyOnFailure=true` 인 Background 본문 실패([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)) | 워크스페이스 관리자 전원(`findAdminUserIds`) | `in_app` | `workflow` / 워크플로우 ID. 본문 실행 귀속은 `background_run_id` 에 따로 담는다 |
 | `integration_expired` | 구현됨 | `IntegrationExpiryScanner`(`integration-expiry-scanner.service.ts`) | refresh token 이 없는 통합의 토큰 만료 7일·3일·당일 임계. 조건과 문구는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | `integrationExpiryEmail` 이 켜져 있으면 `both`, 아니면 `in_app` | `integration` / 통합 ID |
 | `integration_action_required` | 구현됨 | `IntegrationActionRequiredNotifierService.notify`(`integration-action-required-notifier.service.ts`) | 토큰 갱신 실패(`auth_failed`), transport 3회 연속 실패(`network`), 권한 범위 부족(`insufficient_scope`). 조건과 문구는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 같은 `integrationExpiryEmail` 토글로 계산(전용 토글 없음) | `integration` / 통합 ID |
@@ -542,3 +543,9 @@ V016 이 만든 `alert_rule` 이 데이터 모델 문서에 없었다. 컬럼 �
 ### `failure_rate` 에 최소 표본 5건을 둔다
 
 평가 기간 안 실행이 아주 적으면 비율 지표는 흔들림이 크다. 1건 중 1건 실패(100%)가 50% 규칙을 울리면 알림을 믿을 수 없게 된다. 표본이 5건 미만이면 평가하지 않아 이런 흔들림을 누른다. 대가로 실행이 드문 워크플로우의 실패는 비율 규칙으로 잡히지 않을 수 있다.
+
+### 교차 행 스케줄의 건너뛴 발사에는 `schedule_failed` 를 보내지 않는다 (2026-10-05)
+
+스케줄의 연결 트리거가 다른 워크스페이스의 워크플로우를 가리키면(저장 경계 이전의 교차 행) Cron 발사를 건너뛴다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 이때 `schedule_failed` 의 수신자인 워크플로우 소유자는 다른 워크스페이스 사람이다. 보내면 그 사람이 남의 스케줄 실패를 받고 알림의 `workspaceId` 는 스케줄의 워크스페이스라 맞지 않는다. 재시도해도 결과가 같아 발사마다 같은 알림이 쌓인다.
+
+스케줄 워크스페이스의 관리자 전원에게 보내는 안(REQ-NOTIFY-010 의 `background_failed` 수신자 방식)도 있다. 택하지 않았다. 교차 행은 저장 경계 이전에 남은 일회성 데이터라 운영 점검으로 찾아 정리하는 것이 맞다. 새 수신자 규칙을 두면 그 행이 사라진 뒤에도 규칙이 남는다. 그래서 «연결된 워크플로우가 없음» 과 같이 서버 에러 로그만 남긴다(NERV Task `CLE-T-XYR067`).

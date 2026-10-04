@@ -3,18 +3,18 @@ id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "6949c33fabc3f069d39635dee572e092dd7a26bfbbc6a68c9cc47e6cf3b6397c"
-read_as: "approved"
-task: null
+content_hash: "b7f06c532aeeb66b7b6c732dbe8743032f6a2f8dd0d1eb748a241b6c445e7a4a"
+read_as: "approved_fallback"
+task: "CLE-T-XYR067"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "befe013506b6912d358286a5e22750bc1272fa76289927535fc60a7f1edc5ce8"
-etag: "sha256-75f8e52955f88a045c00b207618cea2831dc71cb03ff0bb734bf3c1a36c7ac1f"
+mirror_sha256: "ec7571b145680c27a27fb981f6d424f19fd054b9c08f3adf98052106f5e053ef"
+etag: "sha256-679abbdc8a238746243f2aac77e26dfea3e02be9c59a2e9e8f3d31d7fa2354dd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -154,7 +154,7 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 
 ## 트리거 입력 파라미터 싣기
 
-엔진 진입 API 는 `execute(workflowId, input?, options?)` 다. `input` 은 트리거 종류와 상관없이 아래 모양을 따른다.
+엔진 진입 API 는 `execute(workflowId, input, options)` 다. `options` 는 필수다. `input` 은 트리거 종류와 상관없이 아래 모양을 따른다.
 
 ```typescript
 type TriggerExecutionInput = {
@@ -168,6 +168,8 @@ type TriggerExecutionInput = {
 };
 
 type ExecuteOptions = {
+  /** 실행을 시작하는 쪽의 워크스페이스. 모든 호출이 넘긴다. */
+  workspaceId: string;
   /** 수동 실행한 사용자 UUID. Execution.executed_by 컬럼에 저장한다. */
   executedBy?: string;
   /** 스케줄·웹훅 트리거 발화 때 트리거 UUID. Execution.trigger_id 컬럼에 저장한다. */
@@ -175,26 +177,34 @@ type ExecuteOptions = {
 };
 ```
 
-위 블록은 **출처를 가르는 공통 옵션**만 보인다. 실제 `ExecuteOptions` 유니온에는 모드별 메타 필드가 더 있고 각자 문서가 기준이다.
+위 블록은 모든 변형에 필수인 `workspaceId` 와 **출처를 가르는 공통 옵션**만 보인다. 실제 `ExecuteOptions` 유니온에는 모드별 메타 필드가 더 있고 각자 문서가 기준이다.
 
 - 재실행(`reRunOf`·`chainId`·`dryRun`)과 단일 노드 실행(`singleNodeId`·`previousExecutionId`)은 `executedBy` 쪽(수동 실행)에 붙는다. [재실행](CLE-EXEC-RERUN.md), [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 참고.
 - 웹훅 호출 기록(`sourceIp`·`responseCode`)은 `triggerId` 쪽에 붙는다. [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 참고.
 - 이 필드들은 모두 `Execution` 컬럼에 저장되고 큐에서 다시 읽은 뒤 `runExecution` 이 쓴다.
+- `workspaceId` 는 대조에만 쓰고 저장하지 않는다. 대조를 통과하면 `variables.__workspaceId`(`workflow.workspaceId` 에서 온다)와 같은 값이다.
 - 우선순위 계산용 `triggerType` 은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에서 정한다.
+
+**실행을 시작하는 워크스페이스**: 이 실행을 시작한 요청 · 트리거 · 스케줄이 속한 워크스페이스다. 호출부가 `workspaceId` 로 넘긴다. 엔진은 워크플로우를 읽은 뒤 그 워크플로우의 워크스페이스가 `options.workspaceId` 와 같은지 본다. 다르면 `execute()` 는 워크플로우가 없을 때와 같은 `WorkflowNotFoundError` 로 거부하고 실행 행을 만들지 않는다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다. 대조는 진입 한 곳에서만 한다. 엔진 안의 다른 읽기(재개, 실행 구동, 실패 알림 등)는 이미 만든 실행 행을 따라 워크플로우를 id 로 읽는다. 진입 경로마다 넘기는 값은 아래 표가 정한다. 거부됐을 때의 응답은 진입 경로의 문서가 정한다. 근거는 [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 이다.
+
+서브 워크플로우 호출은 이 진입 API 를 쓰지 않는다. 실행 중 노드 설정이 가리키는 워크플로우는 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 가 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 따로 막는다.
 
 공통 함수 `resolveTriggerParameters(workflow, rawValues)`:
 
-1. 워크플로우 그래프에서 `manual_trigger` 노드를 찾아 `config.parameters` 스키마를 읽는다.
+1. 워크플로우 그래프에서 `manual_trigger` 노드를 찾아 `config.parameters` 스키마를 읽는다. 호출부가 스키마를 `loadTriggerParameterSchema(nodeRepository, workflowId, workspaceId)` 로 실행을 시작하는 워크스페이스 안에서만 읽는다. 워크플로우가 그 워크스페이스에 없으면 스키마가 없는 것으로 보고 이어지는 `execute()` 가 거부한다. 다른 워크스페이스 워크플로우의 필수 파라미터로 400 을 내지 않는다.
 2. 필수 값이 없으면 `InvalidInputError` 를 던진다. 호출하는 쪽이 400 이나 실행 실패로 바꾼다.
 3. 기본값(`defaultValue`)을 채운다.
 4. `coerceToType` 으로 타입을 맞춘다(변수 선언 노드와 같은 함수).
 
 | 진입 경로 | 동작 | 기록되는 출처 |
 | --- | --- | --- |
-| 수동 실행 | 컨트롤러가 `{ parameterValues }` 를 받아 `resolveTriggerParameters` 를 거친 뒤 `{ parameters }` 와 `{ executedBy: user.sub }` 로 `execute()` 를 부른다 | `executed_by` 가 채워져 수동 실행 |
-| 웹훅 | `HooksService` 가 `body` 를 원천으로 `resolveTriggerParameters` 를 거친다. 실패하면 `400 Bad Request` 를 돌려주고 실행을 만들지 않는다. 성공하면 `{ parameters, body, headers, query, method }` 와 `{ triggerId: trigger.id }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
-| 스케줄 자동 발화 | `ScheduleRunnerService.process()` 가 `schedule.parameterValues` 를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 표현식 평가한 뒤 `resolveTriggerParameters` 를 거쳐 `{ parameters }` 와 `{ triggerId: schedule.triggerId }` 로 부른다. `$node`·`$input`·`$var` 는 쓸 수 없다 | `trigger_id` 가 채워져 스케줄 |
-| 스케줄 "지금 실행" | 사용자가 즉시 실행 버튼을 누른 경우 수동 실행과 같이 `{ executedBy: userId }` 로 부른다 | 수동 실행 |
+| 수동 실행 | 컨트롤러가 `{ parameterValues }` 를 받아 `resolveTriggerParameters` 를 거친 뒤 `{ parameters }` 와 `{ executedBy: user.sub, workspaceId }` 로 `execute()` 를 부른다. `workspaceId` 는 요청의 워크스페이스다 | `executed_by` 가 채워져 수동 실행 |
+| 단일 노드 실행 | 수동 실행과 같이 `{ executedBy: user.sub, workspaceId, singleNodeId, previousExecutionId }` 로 부른다. `workspaceId` 는 요청의 워크스페이스다 | `executed_by` 가 채워진다 |
+| 재실행 | `ExecutionsService.reRun` 이 원본 실행을 요청의 워크스페이스에서 찾은 뒤 `{ executedBy, workspaceId, reRunOf, chainId, dryRun }` 로 부른다 | `executed_by` 가 채워진다 |
+| 웹훅 | `HooksService` 가 `body` 를 원천으로 `resolveTriggerParameters` 를 거친다. 실패하면 `400 Bad Request` 를 돌려주고 실행을 만들지 않는다. 성공하면 `{ parameters, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
+| 채팅 채널 인바운드 | `HooksService` 의 채팅 채널 분기가 파라미터 해석 없이 `{ parameters: {}, chatChannel, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode: '202' }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
+| 스케줄 자동 발화 | `ScheduleRunnerService.process()` 가 `schedule.parameterValues` 를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 표현식 평가한 뒤 `resolveTriggerParameters` 를 거쳐 `{ parameters }` 와 `{ triggerId: schedule.triggerId, workspaceId }` 로 부른다. `workspaceId` 는 스케줄의 워크스페이스이고 트리거의 워크스페이스가 아니다. `$node`·`$input`·`$var` 는 쓸 수 없다 | `trigger_id` 가 채워져 스케줄 |
+| 스케줄 "지금 실행" | 사용자가 지금 실행 버튼을 누른 경우 수동 실행과 같이 `{ executedBy: userId, workspaceId }` 로 부른다. `workspaceId` 는 요청의 워크스페이스다 | 수동 실행 |
 
 출처를 가르는 규칙(우선순위와 라벨)은 [실행 내역](CLE-EXEC-HISTORY.md) 이 정한다. 분류 함수는 `deriveExecutionTrigger`(`execution-trigger.ts`)다. 민감 헤더 가리기는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
 
@@ -255,8 +265,20 @@ type ExecuteOptions = {
 - `codebase/backend/src/nodes/logic/_shared/reserved-variable-name.util.ts`
 - `codebase/backend/src/modules/executions/utils/execution-trigger.ts` (`deriveExecutionTrigger`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`execute`, park 저장)
+- `codebase/backend/src/modules/execution-engine/utils/load-trigger-parameter-schema.ts` (`loadTriggerParameterSchema`)
 
 ## Rationale
+
+### 실행을 시작하는 워크스페이스를 진입 API 의 필수 옵션으로 둔다 (2026-10-05)
+
+[데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 은 요청 본문의 참조 id 를 저장 전에 막는다. 그 전에 저장된 트리거의 `workflow_id`(스케줄은 연결 트리거를 거친다)가 다른 워크스페이스의 워크플로우를 가리키는 행은 남는다. 엔진이 워크플로우를 id 로만 읽어서(`findOneBy({ id })`) 그런 행이 발화하면 다른 워크스페이스의 워크플로우가 실행됐다. 웹훅 호출과 스케줄 «지금 실행» 이 피해자 워크플로우의 실행 행을 만드는 것을 e2e 로 재현했다(NERV Task `CLE-T-XYR067`).
+
+- **엔진 한 곳에서 본다**: 이 Task 에서 대안 둘을 검토했고 엔진 한 곳을 골랐다(사람 결정, 2026-10-05). 하나는 엔진을 두고 저장된 행이 발화하는 네 곳(웹훅 · 채팅 채널 인바운드 · cron 발화 · «지금 실행»)에서 각각 대조하는 안이다. 변경은 작지만 새 진입 경로가 대조를 빠뜨리는 것을 막을 수단이 없다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 의 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」 는 두 번째 방어선을 소비 지점 넷의 읽기 관문으로 두었다. 비밀 참조는 소비 지점이 모듈마다 흩어져 있다. 실행은 `execute()` 라는 단일 진입이 있어 한 곳에 모을 수 있다. 다른 하나는 실행 시점 방어 없이 운영 점검 SQL 로 교차 행을 찾아 사람이 정리하는 안이다. 점검과 정리 사이에 행이 계속 발화한다. 엔진이 대조하고 `workspaceId` 를 필수 옵션으로 두면 컴파일러가 호출부 일곱 곳(수동 실행 2, 재실행, «지금 실행», Cron 자동 발화, 웹훅, 채팅 채널 인바운드)과 새 호출부가 값을 빠뜨리지 못하게 한다. 어느 값을 넘길지는 컴파일러가 가르지 못한다. 진입 경로 표가 정하고 리뷰가 본다. 운영 점검은 이 방어선과 함께 둔다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)).
+- **선택 옵션으로 두지 않는다**: `workspaceId?` 로 두면 빠뜨린 호출부가 대조 없이 지나간다. 이 옵션의 뜻은 "빠뜨리면 안 된다" 이므로 필수다.
+- **없는 워크플로우와 같은 에러다**: 다른 워크스페이스의 워크플로우를 따로 알리면 그 id 의 존재가 드러난다. [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 "없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다" 를 따른다.
+- **id 로 읽은 뒤 코드에서 비교한다**: 워크스페이스를 조회 조건에 넣지 않는다. 값이 비어도 조회 예외 대신 거부로 닫힌다. 대가로 호출부 버그로 값이 빈 경우도 «없는 워크플로우» 로 보인다. [데이터 모델 개요 「조회 조건의 null · undefined」](../CLE-PLAT/CLE-PLAT-DATA.md#조회-조건의-null--undefined) 의 방향, [실행 엔진](CLE-EXEC-ENGINE.md) 의 「서브 워크플로우 워크스페이스 격리를 fail-closed 로 바꾼다」 와 같은 방향이다.
+- **서브 워크플로우 거부와 다르게 숨긴다**: 서브 워크플로우 호출의 `WORKFLOW_FORBIDDEN_WORKSPACE` 는 그 노드를 설정한 워크스페이스 안의 실행 기록에 남는다. 진입 거부는 웹훅 호출자처럼 워크스페이스 밖으로도 응답이 나간다. 그래서 진입은 없는 워크플로우와 같게 거부한다.
+- **Cron 자동 발화는 스케줄의 워크스페이스를 넘긴다**: 잡과 스케줄 조회 조건이 스케줄의 워크스페이스를 쓴다. 트리거의 워크스페이스를 넘기면 스케줄 → 트리거가 교차 행일 때 트리거 쪽 워크플로우가 이 스케줄로 돈다.
 
 ### `parentParallelConcurrency` 를 `ParallelBranchContext` 로 나눈다
 

@@ -3,18 +3,18 @@ id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033"]
+status: "approved"
+requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "83fd5d0073c59bd109ed6ae0329c555d2372c546e1dbff144bd6db80ce75b28f"
-read_as: "approved"
-task: null
+content_hash: "3fc32a32f19867f20d6b3e1e6b993c0fefde02584503c11f00a7adf5b34b8fe3"
+read_as: "approved_fallback"
+task: "CLE-T-XYR067"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "ad0f4c2e0003892d767cb70e63ac59543de8981dfc49e8beeaf13ad7fbc153c3"
-etag: "sha256-145091b97d63cff40854a9bc80c22289225bb612d9cace01bec632c90ef1ad28"
+mirror_sha256: "46417abcb6d7a0a9009e06cb951811035e07ed59e66688372c69a955d27d5a2d"
+etag: "sha256-144b223996c69c74ac1df483075137052acef9268c8667d29e4bcaf41acf58a9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,6 +67,8 @@ etag: "sha256-145091b97d63cff40854a9bc80c22289225bb612d9cace01bec632c90ef1ad28"
 - REQ-SCHED-031 WHEN Cron 이 자동으로 발사하면 THE SYSTEM SHALL 실행의 `trigger_id` 에 스케줄의 트리거 id 를 채운다.
 - REQ-SCHED-032 WHEN 스케줄을 응답하면 THE SYSTEM SHALL 연결된 트리거를 참조 수준으로 좁혀 싣고 트리거 비밀 컬럼은 싣지 않는다.
 - REQ-SCHED-033 WHEN `POST /api/schedules/preview` 가 호출되면 THE SYSTEM SHALL 받은 Cron 과 시간대로 다음 실행 시각을 계산해 돌려준다.
+- REQ-SCHED-034 IF Cron 이 발사할 때 연결된 트리거의 워크플로우가 스케줄의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 재시도와 `schedule_failed` 알림 없이 건너뛴 뒤 서버 에러 로그를 남긴다.
+- REQ-SCHED-035 IF 지금 실행(`run-now`)에서 연결된 트리거의 워크플로우가 요청의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 연결된 워크플로우가 없을 때와 같은 `400` 으로 응답한다.
 
 ## 화면 구조
 
@@ -175,7 +177,7 @@ etag: "sha256-145091b97d63cff40854a9bc80c22289225bb612d9cace01bec632c90ef1ad28"
 | POST | `/api/schedules` | 스케줄 생성. 본문 `workflowId` 는 연결 트리거의 `workflow_id` 가 된다. 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | GET | `/api/schedules/:id` | 상세 |
 | PATCH | `/api/schedules/:id` | 수정. `{ isActive }` 만 보내면 활성/비활성 토글로 동작한다. 별도 `/toggle` 라우트는 없다(`schedules.controller.ts` 의 PATCH 핸들러) |
-| POST | `/api/schedules/:id/run-now` | 지금 실행. 수동 실행으로 기록한다. 권한은 편집자 이상이다(현재 구현 `@Roles('editor')`) |
+| POST | `/api/schedules/:id/run-now` | 지금 실행. 수동 실행으로 기록한다. 권한은 편집자 이상이다(현재 구현 `@Roles('editor')`). 연결된 워크플로우가 없거나 요청의 워크스페이스에 없으면 같은 400 `VALIDATION_ERROR`(메시지 `Schedule has no associated workflow`)다(REQ-SCHED-035) |
 | DELETE | `/api/schedules/:id` | 삭제 |
 | GET | `/api/schedules/:id/preview` | 저장된 스케줄 기준 다음 N회 실행 시각 미리보기 |
 | POST | `/api/schedules/preview` | 임의 Cron 과 시간대로 다음 실행 시각을 계산한다. 스케줄을 만들기 전 화면 검증용이다(`schedules.controller.ts` 의 preview 핸들러) |
@@ -205,6 +207,15 @@ etag: "sha256-145091b97d63cff40854a9bc80c22289225bb612d9cace01bec632c90ef1ad28"
 | "지금 실행" 버튼(`SchedulesService.runNow`) | `executed_by = userId` | `manual` |
 
 Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면이 출처를 `unknown` 으로 분류한다. 그래서 반드시 채워야 한다. 분류 규칙은 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md), `execute()` 시그니처와 파라미터 seeding 은 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 가 정한다.
+
+## 다른 워크스페이스의 워크플로우
+
+두 경로 모두 실행 엔진에 실행을 시작하는 워크스페이스를 넘긴다. Cron 자동 발사는 스케줄의 워크스페이스, "지금 실행" 은 요청의 워크스페이스다. 엔진은 연결된 트리거의 워크플로우가 그 워크스페이스에 없으면 실행을 만들지 않는다. 저장 경계 이전에 남은 교차 행을 위한 동작이다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)).
+
+| 발사 경로 | 워크플로우가 그 워크스페이스에 없을 때 |
+|-----------|----------------------------------------|
+| Cron 자동 발사 | 연결된 워크플로우가 없을 때처럼 건너뛰고 서버 에러 로그를 남긴다. 재시도하지 않고 `lastRunAt` · `nextRunAt` 을 바꾸지 않는다. `schedule_failed` 알림은 보내지 않는다(REQ-SCHED-034, [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) REQ-NOTIFY-052) |
+| "지금 실행" | 연결된 워크플로우가 없을 때와 같은 400 이다. 두 경우를 구분하지 않는다(REQ-SCHED-035) |
 
 ## 미결 사항
 
