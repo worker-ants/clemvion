@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "d2b4c8ef89e4624be90dbf3f90644f08386c4d6a47460f6d83b6411f71ff51c9"
-read_as: "approved"
-task: null
+content_hash: "9eddb94c3ddd8b0698a239c19156b9c935c86805e050b9b726a6aae7e3f576d5"
+read_as: "approved_fallback"
+task: "CLE-T-BV4YXZ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "653054309b73c92958bb28aa40a750140465271941f32a1c536dd697f1b67663"
-etag: "sha256-6b39a5c0c55398a528276b205b7830c2f4fde110f0fb084da21fd7849c0e4415"
+mirror_sha256: "fab1f0e0350f56c5e767ebf2d6dcdf25b12ee5bf1906712877dacf0e51ac78fb"
+etag: "sha256-5253d3bd310fab0775113ed847ee167b50aa8100b3629e1282e3b76b20662f35"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -197,7 +197,8 @@ case A 는 다음 순서로 재개한다. case B 는 7단계의 "도착 입력�
 park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으면 `Execution.resume_call_stack` 이 NULL 이 아니다. 이때는 단일 수준 재진입 대신 `driveCallStackResume` 이 호출 스택(`resume_call_stack`)을 따라 재개한다. 2026-06-06 PR-B2b 에서 구현됐다. 호출 체인은 park 커밋 때 영속되며 컬럼은 V087 이다.
 
 1. **버전 확인**: `resume_call_stack.version` 이 `CALL_STACK_SCHEMA_VERSION` 보다 크면 `RESUME_INCOMPATIBLE_STATE` 로 안전하게 끝낸다. 롤링 배포 중 옛 인스턴스가 새 형식을 가져가는 경우를 막는다. AI 재개 체크포인트와 같은 방식이지만 **서로 다른 상수**다.
-2. **frame 단위 재진입(가장 안쪽부터, 바깥으로)**: `executeInline` 을 다시 부르지 않는다. `driveCallStackResume` 이 `frames` 를 직접 구동한다.
+2. **frame 확인**: frame 마다 `workflowId` · `invokerNodeId` 가 비어 있지 않은 문자열인지 본다. 하나라도 비면 재개 진입 claim 뒤, 조회 전에 `RESUME_CHECKPOINT_MISSING` 으로 마감한다([rehydration 실패](#rehydration-실패)). 두 값은 재개 조회의 조건이라 비면 조회가 일반 예외로 끝나 원인이 흐려진다([데이터 모델 개요 §조회 조건의 null · undefined](../CLE-PLAT/CLE-PLAT-DATA.md#조회-조건의-null--undefined)).
+3. **frame 단위 재진입(가장 안쪽부터, 바깥으로)**: `executeInline` 을 다시 부르지 않는다. `driveCallStackResume` 이 `frames` 를 직접 구동한다.
    - **가장 안쪽 frame**: 입력 대기 노드의 턴을 처리한다. 최상위와 같이 `dispatchResumeTurn` 으로 보낸다. 이어서 `driveResumeFrame` 이 그 frame 의 나머지 그래프를 `runNodeDispatchLoop` 로 진행한다.
    - **바깥 frame**: 안쪽 frame 이 끝나면 그 서브 워크플로우 출력을 부모 frame 의 호출 노드(Workflow 노드) 출력으로 넣고(`injectInvokerOutput`) `driveResumeFrame` 으로 부모 frame 의 나머지를 진행한다. `i = frames.length-2` 부터 `i=0` 까지 되풀이한다.
    - **최상위 진행**: 모든 frame 이 끝나면 `frames[0].invokerNodeId` 노드 출력을 넣고 최상위 그래프의 나머지를 진행한 뒤 실행을 `completed` 로 마감한다.
@@ -228,6 +229,7 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 | 경우 | 처리 |
 | --- | --- |
 | `NodeExecution.outputData` 가 없거나 손상 | 실행 `cancelled` + `error.code='RESUME_CHECKPOINT_MISSING'`, 짝 노드 실행 `failed` |
+| 중첩 재개의 호출 스택이 손상: frame 목록이 비었거나 frame 의 `workflowId` · `invokerNodeId` 가 비었거나 그 호출 노드 · 시작 노드가 그래프에 없음 | 실행 `cancelled` + `error.code='RESUME_CHECKPOINT_MISSING'`, 짝 노드 실행 `failed` |
 | BullMQ 시도 소진 | 실행 `cancelled` + `error.code='RESUME_FAILED'`, 짝 노드 실행 `failed` |
 | 멀티턴 AI 노드의 AI 재개 체크포인트가 **없음**(이 기능 배포 전에 들어간 입력 대기 행), **손상**(schema drift 로 `buildRetryReentryState` 재구성 실패), **미래 버전**(`schemaVersion` 이 현재 코드 `CHECKPOINT_SCHEMA_VERSION` 보다 큼, 롤링 배포 중 옛 인스턴스가 새 형식을 가져감) | 실행 `cancelled` + `error.code='RESUME_INCOMPATIBLE_STATE'`, 짝 노드 실행 `failed`. 체크포인트가 있고 버전이 맞으면 재구성에 성공해 재개하며 이 에러는 나지 않는다. |
 

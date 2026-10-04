@@ -23,6 +23,16 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: nullish 를 타입 밖으로 빼는 캐스트를 프로덕션 소스에서 막는다
+
+TypeORM 1 상향(`CLE-T-91JNWW`)에서 where 의 null · undefined 를 예외로 막았는데 초대 서비스 세 곳의 `acceptedAt: null as never` 가 타입 검사를 그대로 통과했다. 기존 가드(`nullable-type-lie-cast`)는 `null as unknown as X` 만 세서 이 형태를 못 봤다. 이제 `null` · `undefined` 를 `never` · `any` · `unknown` 으로 단언하는 캐스트를 프로덕션 소스(`src` 의 비-spec `.ts`) 전체에서 0건으로 고정한다(NERV Task `CLE-T-BV4YXZ`). 지금 0건이라 기존 코드는 바뀌지 않는다. SQL NULL 비교는 `IsNull()` 로 쓴다.
+
+- 술어 `countNullishEscapeCasts`(`common/__test-utils__/source-scan.ts`)는 주석을 빼고 세며 줄바꿈 공백도 받는다. 대조군이 잡는 형태와 잡지 않는 형태를 고정한다. 식 단언(`(x ?? null) as never`) · 꺾쇠 단언 · `null!` · 괄호로 감싼 리터럴은 범위 밖이라 잡지 않는다. 스캔 대상과 파일 순회는 기존 이중 캐스트 가드와 같다.
+
+## Unreleased — 실행: 중첩 재개의 call-stack frame 결손을 체크포인트 결손으로 분류한다
+
+중첩 서브 워크플로우 재개(`driveCallStackResume`)가 영속된 call-stack frame 의 `workflowId` · `invokerNodeId` 를 확인하지 않았다. 둘은 재개 조회의 where 조건이라 비어 있으면 TypeORM 1 에서 일반 `TypeORMError` 로 끝나 일반 실패 경로(`finalizeResumedExecutionOutcome`)를 탔다. 이제 조회와 상태 전이 전에 확인해 `RESUME_CHECKPOINT_MISSING` 으로 실행을 취소한다(빈 frame 목록 · 노드 부재와 같은 분류, NERV Task `CLE-T-BV4YXZ`). 정상 frame 의 재개는 그대로다.
+
 ## Unreleased — 개발 흐름: 미충족 peer 관측이 저장소의 lockfile 을 건드리지 않는다
 
 `scripts/check-unmet-peers.py`(주간 `deps-peer-observe`, 로컬에서도 돈다)는 lockfile 없이 재해소하려고 **저장소의** `pnpm-lock.yaml` 을 임시 위치로 치우고 그 자리에서 `pnpm install --lockfile-only` 를 돌린 뒤 되돌렸다. 실행 중에는 작업 트리의 lockfile 이 없거나 새로 해소된 판이었다. 2026-10-04 리뷰어 넷이 같은 worktree 에서 이 스크립트를 동시에 돌리는 동안 같은 worktree 의 테스트(Docker 이미지가 lockfile 을 COPY)가 돌았고 리뷰어들은 lockfile 부재 오류와 ` D pnpm-lock.yaml` 을 관측했다(NERV Task `CLE-T-DDA7V4`).

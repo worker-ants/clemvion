@@ -290,6 +290,29 @@ export function countNullAsUnknownAsCasts(src: string): number {
   return (stripComments(src).match(pattern) ?? []).length;
 }
 
+/**
+ * `null` · `undefined` 를 `never` · `any` · `unknown` 으로 단언하는 캐스트 수(주석 제외).
+ *
+ * 이 캐스트는 nullish 를 타입 검사 밖으로 뺀다. TypeORM 1 상향(NERV Task `CLE-T-91JNWW`)에서
+ * where 의 null 을 예외로 막았는데 초대 서비스 세 곳의 `acceptedAt: null as never` 가 타입 검사를
+ * 통과한 채 런타임에서만 터졌다. {@link countNullAsUnknownAsCasts} 는 `null as unknown as X` 만 세서
+ * 이 형태를 못 본다. 이 술어는 그 술어의 상위 집합이다. `null as unknown as X` 도 여기서 함께
+ * 센다(`null as unknown` 이 앞부분이다).
+ *
+ * 공백은 줄바꿈까지 받는다(prettier 가 긴 식을 줄바꿈한다). 단어 경계로 `notnull as neverland`
+ * 같은 식별자 일부는 세지 않는다.
+ *
+ * 범위는 **리터럴 `null` · `undefined` 를 직접 단언하는 형태**뿐이다. `(x ?? null) as never` 처럼
+ * 식을 단언하는 형태는 세지 않는다. 그 형태는 프로덕션에 실재하고(`retry-turn.service.ts` 의
+ * `.set()` jsonb 우회) where 가 아니라서, 넓히면 정당한 자리까지 걸린다. 꺾쇠 단언
+ * (`<never>null`), non-null 단언(`null!`), 괄호로 감싼 리터럴(`(null) as never`)도 세지 않는다.
+ * 지금 저장소에 그 형태가 없어서 넓히지 않았다. 생기면 이 술어를 넓힌다.
+ */
+export function countNullishEscapeCasts(src: string): number {
+  const pattern = /\b(?:null|undefined)\s+as\s+(?:never|any|unknown)\b/g;
+  return (stripComments(src).match(pattern) ?? []).length;
+}
+
 /** {@link countNullAsUnknownAsCasts} 의 "지점이 존재하는가" 만 필요할 때 쓰는 얇은 래퍼. */
 export function hasNullAsUnknownAsCast(src: string): boolean {
   return countNullAsUnknownAsCasts(src) > 0;
