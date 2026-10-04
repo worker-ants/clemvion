@@ -78,10 +78,9 @@ EXPECTED_ONLY_BUILT = {
     "@swc/core",
     "@tailwindcss/oxide",
 }
-# 검토 후 수용(accept)한 CVE — 사유는 pnpm-workspace.yaml 의 auditConfig 주석 참고.
-# 2026-08-01 현재 비어 있다 — 종전 2건은 실측으로 무효 확인 후 제거(사유는
-# `pnpm-workspace.yaml` 의 `auditConfig` 주석). 항목을 되살릴 때는 그 주석과 **함께** 고친다.
-EXPECTED_IGNORED_CVES: set[str] = set()
+# 검토 후 수용(accept)한 CVE. 사유 · 근거 · 해소 조건의 정본은 pnpm-workspace.yaml 의 auditConfig
+# 주석이다. 항목을 더하거나 뺄 때는 그 주석과 **함께** 고친다.
+EXPECTED_IGNORED_CVES: set[str] = {"CVE-2026-93687"}
 
 
 def _check_set(label, expected, actual, errors):

@@ -23,6 +23,33 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: 의존성 핀의 사유를 하네스 테스트가 확인한다
+
+`PROJECT.md` §버전 핀 정책 (b) · (c)는 caret 이 아닌 선언에 `"//pin"` 사유를 적게 하고 사유가 없으면 caret 으로 완화하게 한다. 이 규칙을 보는 검사는 없었다. 2026-10-02 전수 조사에서 사유 없는 exact 핀 3개와 dependabot 이 이미 올린 버전을 적은 사유 주석이 두 매니페스트의 세 곳(frontend 의 `three ~0.184.0` · `19.2.4`, channel-web-chat 의 `19.2.4`)에서 나왔다(NERV Task `CLE-T-BZ0AK9`).
+
+- 새 가드 `.claude/tests/test_package_pin_reasons.py`: 루트와 `pnpm-workspace.yaml` 이 가리키는 패키지 매니페스트에서 caret 이 아닌 선언마다 `"//pin"` 에 그 이름이 있는지, `"//pin"` 에 버전 숫자가 없는지 본다. 버전 숫자를 막는 이유는 dependabot 이 선언만 올리고 주석은 두기 때문이다.
+- 이름은 토큰 경계로 맞춘다. `react-dom` 이나 `@radix-ui/react-focus-scope` 만 적힌 사유는 `react` 핀의 사유가 아니다. `marked` 도 `mark` 의 사유가 아니다. 워크스페이스 멤버는 `test_dependabot_npm_coverage.py` 의 파서와 pnpm glob 규칙을 그대로 쓴다.
+- 가드가 읽는 매니페스트(루트 · `codebase/*/package.json`)를 `harness-checks.yml` 의 `changes.pathspecs` 에 등재했다. 사유 없는 핀은 보통 매니페스트만 고치는 PR 로 들어오므로 등재가 없으면 그 PR 에서 가드가 돌지 않는다. `TriggerCoverageTest` 와 `test_harness_checks_paths_coverage.py` 가 등재를 강제한다. dependabot 의 버전 업데이트 PR 도 이 파일을 고쳐서 그때마다 스위트가 도는 비용이 따른다.
+- `jsonwebtoken`(backend) · `@radix-ui/react-focus-scope`(frontend): 상위 패키지(`@nestjs/jwt` · `@radix-ui/react-dialog`)가 exact 로 의존하는 버전과 맞춰 한 벌로 둔다는 사유를 적고 핀을 유지했다. 두 상위 패키지 모두 내부 의존을 exact 로 고정한다(npm 레지스트리 실측). 두 핀은 상위 패키지와 같은 그룹 PR 로 올라가도록 dependabot 그룹에 남겼다. 하위 패키지의 새 버전이 먼저 나오면 혼자 올라갈 수 있으므로 그 PR 은 lockfile 에 사본이 둘 생기는지 본다.
+- `eslint-config-next`(frontend devDependency): 스캐폴드 기본값 말고는 사유가 없어 caret 으로 완화했다. channel-web-chat 은 이미 caret 이다. `pnpm-lock.yaml` 에는 이 지정자 변경 말고도 `eslint-import-resolver-typescript` 스냅샷 키의 피어 접미사가 다시 직렬화되어 있다. 해소되는 버전은 바뀌지 않았다.
+- `"//pin"` 머리말은 세 매니페스트 모두 "비-caret 핀 사유" 로 맞췄다.
+- 판별력: 고치기 전 매니페스트에서 가드가 6건(사유 없는 핀 3, 버전 숫자 3)을 잡고 고친 뒤 0건이다.
+
+## Unreleased — 개발 흐름: audit 게이트가 braces 권고(CVE-2026-93687)를 dev 전용으로 수용한다
+
+GHSA-vfj7-8cjw-p6xm(`braces <=3.0.3`, high)이 2026-10-03 부터 CI `pnpm audit (moderate+)` 에 잡혀
+모든 PR 을 깼다(GitHub 검토 완료 2026-10-02, NVD 게시 2026-09-18). 패치 버전이 없어 override 로
+해소할 수 없다(NERV Task `CLE-T-NFW7DE`).
+
+- `pnpm-workspace.yaml` 의 `auditConfig.ignoreCves` 에 이 CVE 를 넣고
+  `scripts/check-pnpm-security-config.py` 의 `EXPECTED_IGNORED_CVES` 도 함께 고쳤다. 수용 근거 3종
+  (`--prod` audit 0건, backend · frontend 이미지에 `braces` 없음, 자르지 않은 전체 경로 2개가 모두
+  frontend · channel-web-chat 의 devDependencies)과 해소 조건은 그 주석에 있다.
+- `ignoreCves` 는 경로를 가리지 않는다. 「dev 전용」 은 수용한 날의 실측이고 가드가 지키는 속성이
+  아니다. 의존성을 더하거나 올릴 때 `pnpm audit --prod` 로 다시 본다.
+- 다른 moderate+ 취약점은 그대로 막는다. braces 패치가 나오거나 `@next/eslint-plugin-next` 가
+  micromatch 경로를 걷으면 항목을 지운다.
+
 ## Unreleased — 개발 흐름: 옛 스펙 트리를 지우고 스펙의 구현 위치를 `## 구현 위치` 로 검사한다
 
 NERV 정본 전환 단계 5(Task `CLE-T-7M4C4X`). 저장소의 옛 스펙 트리 파일 138개(`spec/0-overview.md` · `1-data-model.md` ·
