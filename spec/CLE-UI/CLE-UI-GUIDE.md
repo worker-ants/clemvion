@@ -2,19 +2,19 @@
 id: "CLE-UI-GUIDE"
 title: "사용자 가이드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-GUIDE-001", "REQ-GUIDE-002", "REQ-GUIDE-003", "REQ-GUIDE-004", "REQ-GUIDE-005", "REQ-GUIDE-006", "REQ-GUIDE-007", "REQ-GUIDE-008", "REQ-GUIDE-009", "REQ-GUIDE-010", "REQ-GUIDE-011", "REQ-GUIDE-012", "REQ-GUIDE-013", "REQ-GUIDE-014", "REQ-GUIDE-015", "REQ-GUIDE-016", "REQ-GUIDE-017", "REQ-GUIDE-018", "REQ-GUIDE-019", "REQ-GUIDE-020", "REQ-GUIDE-021", "REQ-GUIDE-022", "REQ-GUIDE-023", "REQ-GUIDE-024", "REQ-GUIDE-025", "REQ-GUIDE-026", "REQ-GUIDE-027", "REQ-GUIDE-028", "REQ-GUIDE-029", "REQ-GUIDE-030", "REQ-GUIDE-031", "REQ-GUIDE-032", "REQ-GUIDE-033"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "312c3d7d7dd8a3c26743c0328a3702369af6da3f7991bdebe296e27c62183bdc"
+content_hash: "9001868367aeed85771237a6f7da70d1a5277a6f68ebb30a8872dcfa3939e0d2"
 read_as: "approved_fallback"
-task: "CLE-T-BDRZVX"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/2-navigation/13-user-guide.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "b161a02686d4c8be424bf718e5609ae58c159188ea00ab04823b48cd3172c21e"
-etag: "sha256-dceac6be9cbf3540705933b8214383b6ff0936b3af24ee7798a93350e449eb5b"
+mirror_sha256: "3bbef15884013ea3afc653d2f500ed56921cb806cbef4f43dc6bcb68fc6e41e9"
+etag: "sha256-16869de5310b403291149f812921e9e357c9e9bdeac208a445e88ea3f45c440a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/13-user-guide.md` (전체), `spec/2-navigation/_product-overview.md` (§3.11 User Guide) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -232,12 +232,12 @@ code: ["codebase/backend/src/nodes/ai", "codebase/frontend/src/components/editor
 
 ### 프론트매터 `spec:` 에 NERV 키를 쓰는 이유
 
-스펙의 정본이 NERV 로 옮겨 가면서(2026-10-01) 저장소의 옛 스펙 경로(`spec/<번호>-<영역>/…`)는 동결됐고 정본 전환 마지막 단계에서 지운다. 가이드가 옛 경로를 계속 적으면 그때 모두 끊긴다. NERV 키는 문서가 트리 안에서 자리를 옮겨도 바뀌지 않고, 저장소 미러 파일 이름이 키라서 빌드 테스트가 그대로 확인할 수 있다. 옛 문서 하나가 여러 NERV 문서로 나뉜 경우가 많아서 키는 옛 경로를 기계적으로 옮기지 않고 페이지가 다루는 내용에 맞는 문서를 고른다(2026-10-02, NERV 정본 전환 단계 4b).
+스펙의 정본이 NERV 로 옮겨 가면서(2026-10-01) 저장소의 옛 스펙 경로(`spec/<번호>-<영역>/…`)는 동결됐고 정본 전환 마지막 단계(전환 단계 5, 2026-10-03)에서 지웠다. 가이드가 옛 경로를 계속 적었다면 그때 모두 끊겼다. NERV 키는 문서가 트리 안에서 자리를 옮겨도 바뀌지 않고, 저장소 미러 파일 이름이 키라서 빌드 테스트가 그대로 확인할 수 있다. 옛 문서 하나가 여러 NERV 문서로 나뉜 경우가 많아서 키는 옛 경로를 기계적으로 옮기지 않고 페이지가 다루는 내용에 맞는 문서를 고른다(2026-10-02, NERV 정본 전환 `CLE-T-BDRZVX`).
 
-미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 파일로 확인할 수 없어서 테스트가 둔 이름 목록으로만 확인한다. 그 키가 NERV 에 실제로 있는지는 빌드가 보지 않는다. 카탈로그 영역을 미러에서 뺀 결정(결정 D4. 미러 제외는 정본 전환 단계 1, 카탈로그를 `codebase/api-catalogs/` 로 옮긴 것은 단계 4a)을 따르면서 생긴 약화다.
+미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 파일로 확인할 수 없어서 테스트가 둔 이름 목록으로만 확인한다. 그 키가 NERV 에 실제로 있는지는 빌드가 보지 않는다. 카탈로그의 정본을 저장소 `codebase/api-catalogs/` 에 두고 그 영역을 미러에서 빼기로 한 결정을 따르면서 생긴 약화다. 미러 제외는 NERV 정본 전환의 미러 도입 작업(`CLE-T-VA4YA1`, 2026-10-01)에서, 카탈로그 이동은 `CLE-T-BD48J3`(2026-10-02)에서 했다.
 
 같은 단계에서 `code:` 행의 "glob 허용" 도 지웠다. 옛 명세는 glob 을 허용한다고 적었지만 검사는 처음부터 파일 · 디렉터리 실재 확인이라 glob 은 통과한 적이 없다. 명세를 구현에 맞춘 정정이다.
 
 ### 영어 형제 파일에 프론트매터를 두지 않는 이유
 
-영어 형제 파일은 본문만 둔다는 규칙은 [다국어와 화면 문구](CLE-UI-I18N.md) 규칙 6 이 정한다. 규칙은 전부터 있었지만 가드가 없어서 프론트매터를 붙인 영어 파일 5편이 남아 있었다. 그 프론트매터는 렌더와 검색에 쓰이지 않았고 `spec:`·`code:` 도 검증 밖이라 낡아도 알 수 없었다. 프론트매터를 지우고 빌드 테스트가 다시 생기지 않게 막는다(2026-10-02, NERV 정본 전환 단계 4b).
+영어 형제 파일은 본문만 둔다는 규칙은 [다국어와 화면 문구](CLE-UI-I18N.md) 규칙 6 이 정한다. 규칙은 전부터 있었지만 가드가 없어서 프론트매터를 붙인 영어 파일 5편이 남아 있었다. 그 프론트매터는 렌더와 검색에 쓰이지 않았고 `spec:`·`code:` 도 검증 밖이라 낡아도 알 수 없었다. 프론트매터를 지우고 빌드 테스트가 다시 생기지 않게 막는다(2026-10-02, NERV 정본 전환 `CLE-T-BDRZVX`).

@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER"
 title: "OpenAPI 문서화"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "6bd0bda7d458b4931c2d9ab70e52e13b92fb7812b8537b35a2582cc153a7f164"
+content_hash: "3865a9b5183f26965a85c437c12429e4d822ad8f3d17d20423a70bbcf9d42c06"
 read_as: "approved_fallback"
-task: "CLE-T-M7K35H"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "910b1872e532faba95de765bb38a6ead94d40cfd17a46067e13bf560a44d420a"
-etag: "sha256-4bc19674c6a1031c597c292fea10f7d0461cd528878647c96a88dd3961b498fa"
+mirror_sha256: "c417bb9761b8735f0ca0b41469690cc1d0d4f701e90d23848ff65d59fa56598b"
+etag: "sha256-81daa053bf5a8f3c356cbe5678664bf70638d86dc01b536ef288acd16617cd15"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -663,14 +663,14 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 
 2026-09-05 규약화(규칙 14)는 내부 서사만 `//` 주석으로 보냈다. 저장소 내부 참조는 금지하지 않았다. 오히려 §3 보안·정책 캐비엇은 설명에 1~2문장 요약과 기준 문서 링크를 적으라고 했다. EIA `context` 의 `ConversationThreadDto` 문단도 description 이 대화 스레드 문서를 가리킨다고 적었다. 2026-10-03 에 이 두 지시를 뒤집었다. 기준 문서 링크는 바로 위 `//` 주석으로 옮겼고 공개 문장에서는 저장소 내부 참조를 금지했다(규칙 17).
 
-이 참조는 외부 소비자에게 쓸모가 없다. 옛 스펙 트리는 전환 단계 5 에서 지우므로 경로는 죽은 문자열이 된다. 외부 소비자는 NERV 스펙 키도 열어 볼 수 없다. 그래서 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 공개 문장에는 사실만 남겼다. 필요한 근거는 바로 위 `//` 주석의 키 링크로 옮겼다. 같은 변경에서 가드 `openapi-internal-ref` 를 세웠다.
+이 참조는 외부 소비자에게 쓸모가 없다. 옛 스펙 트리는 전환 단계 5 에서 지웠으므로 경로는 죽은 문자열이다. 외부 소비자는 NERV 스펙 키도 열어 볼 수 없다. 그래서 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 공개 문장에는 사실만 남겼다. 필요한 근거는 바로 위 `//` 주석의 키 링크로 옮겼다. 같은 변경에서 가드 `openapi-internal-ref` 를 세웠다.
 
 4c 가 걷은 곳은 모두 91곳(50파일)이다. 처음에는 네 형태(스펙 경로 · NERV 키 · 요구사항 ID · 옛 plan 경로)로 세 자리(DTO 필드 JSDoc · 컨트롤러 메서드 JSDoc · 데코레이터의 `description` · `summary` 문자열)를 세어 41곳을 걷었다. 옛 스펙 파일 이름 형태를 더해 2곳을 더 찾았다. 채널을 두 파일 종류의 모든 `/** */` 로 넓히고 옛 요구사항 ID 형태를 더해 48곳을 더 걷었다. 베이스라인은 0 이다.
 
 - **두 파일 종류의 `/** */` 를 모두 본다.** `*.dto.ts` · `*.controller.ts` 의 모든 `/** */` 블록(클래스 · 멤버 · 파일 수준 선언)과 두 파일 종류의 `description` · `summary` 문자열 속성을 본다. 파일 종류는 `nest-cli.json` 의 플러그인 suffix 와 같다. 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리도 같은 채널로 센다. [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 응답 DTO 파일의 `/** */` 를 한 채널로 보고 클래스 JSDoc 을 `//` 와 같게 보는 안 (A) 를 기각한 것과 같은 이유다. 쓰는 사람이 플러그인 동작을 보고 자리마다 판단하지 않아도 된다. 클래스 설명을 `@ApiSchema({ description })` 로 옮겨 적을 때 참조가 딸려 나가지도 않는다.
 - **찾는 형태는 여섯이다.** 저장소 스펙 경로(`spec/…`), 옛 스펙 파일 이름, NERV 스펙 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로(`plan/in-progress/` · `plan/complete/`)다. 옛 스펙 파일 이름은 `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)이다. 옛 트리 파일 이름은 번호로 시작하므로 가드는 번호로 시작하는 `.md` 이름(`\b\d+-[a-z][\w-]*\.md\b`)을 잡는다. 번호 없는 `README.md` 같은 이름은 잡지 않는다. 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID(`WH-SC-01` · `CCH-ERR-03`)다. 대문자 묶음 둘 이상 뒤에 두 자리 숫자가 오는 모양으로 잡는다. 옛 트리의 이런 ID 690개가 모두 두 자리라서(2026-10-03 실측) `HMAC-SHA-256` 같은 세 자리 표준 이름은 잡지 않는다. `SHA-256` 처럼 대문자 묶음이 하나인 이름도 잡지 않는다. NERV 키 패턴은 NERV Task 키(`CLE-T-…`)도 잡는다.
 - **`//` 와 `/* */` 주석은 보지 않는다.** 근거를 옮겨 적는 자리라 일부러 비워 둔다.
-- **기존 자리까지 걷었다.** §1-4 · §3 의 비소급 원칙은 내부 서사에 걸린다. 내부 참조는 기계로 판정되고 문구를 지우면 끝난다. 전환 단계 5 뒤에는 죽은 문자열이 된다. 그래서 기존 자리까지 걷었다.
+- **기존 자리까지 걷었다.** §1-4 · §3 의 비소급 원칙은 내부 서사에 걸린다. 내부 참조는 기계로 판정되고 문구를 지우면 끝난다. 전환 단계 5 에서 옛 트리를 지운 뒤로는 죽은 문자열이다. 그래서 기존 자리까지 걷었다.
 - **베이스라인은 0 이다.** 공개 문장에서 내부 참조를 빼는 일은 언제나 할 수 있다. 그래서 예외를 둘 자리가 없다.
 - **못 보는 것이 있다.** 상수나 헬퍼로 조립한 설명은 보지 못한다. 가드는 문자열 리터럴과 `+` 연결, 템플릿 리터럴의 고정 부분만 읽는다. 두 파일 종류 밖의 파일(`*.query.ts` 등)과 `example` · `@ApiTags` 같은 다른 키도 보지 않는다. 경로 없는 절 번호 인용(`[Spec EIA §4]`, 상수로 조립한 설명 속 `(spec 통합 §8 · §9.2)` 등)은 모양이 일정하지 않아 잡지 못한다. 그 인용은 남아 있고 정리는 NERV Task `CLE-T-BCS6QZ` 가 맡는다.
 - **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 그 규약 규칙 9 · 10 이 금지한 두 형태(`finding` 바로 뒤 소문자 16진 8자로 줄인 발견 ID, `.review/` 아래 code · consistency · merge · spec-coverage 경로)는 `review-citation-form` 이 `codebase/**` 의 텍스트 파일에서 본다(전환 단계 4g, 2026-10-03). 요청 DTO · 컨트롤러 JSDoc 과 `description` · `summary` 문자열도 그 범위에 든다. 그 가드가 읽는 파일, 잡는 형태, 잡지 못하는 형태는 그 규약의 [강제 범위](../CLE-ENG/CLE-ENG-REVIEWCITE.md#강제-범위) 에 있다. 규칙 17 의 「리뷰 인용은 이 목록에 없고」 는 발견 ID 와 옛 리뷰 경로처럼 Task 키가 아닌 리뷰 인용을 뜻한다. NERV Task 키(`CLE-T-…`)는 NERV 키 모양이라 규칙 17 의 여섯 형태에 든다. 그래서 Task 키 인용은 이 문서의 가드 `openapi-internal-ref` 가 NERV 키 형태로 잡는다. 그 밖의 리뷰 인용 형식(옛 리뷰 경로, 날짜 없는 시각, 전체 발견 ID)은 응답 DTO 파일 밖에서는 어느 가드도 보지 않는다(그 규약의 강제 범위).

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "705e507075c6790abe258e08d4a6da7d6749db90cdcb8d876af7b369f72e0be8"
+content_hash: "a7aeaec874058df9c0370f8716acfdbbec9e69c2af657511082baf75a1e56702"
 read_as: "approved_fallback"
-task: "CLE-T-7M4C4X"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "e965117dee809d97a9086886bb28179dac3a6d1c0191f2597fbddae1cfc6f40b"
-etag: "sha256-b9d933e9376c104b9a2dcca2deb4d24d02a5ae842d56aaab92dbc08727b1b335"
+mirror_sha256: "b97591bc91c666e988471e23ba08577f58afb683b9460633846847e858800e18"
+etag: "sha256-66d983617b3b31dc2276acbfbe0b3dab8e8be8578fd6da12cce8c78c632ddfce"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -562,9 +562,9 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 **`details[].code` 이력.** 서비스 가드 갈래는 한때 `code` 를 싣지 않았다(`#1314` 단위 테스트). `#1317`(2026-09-11)이 "`field` 를 실으면 `code` 도 싣는다" 를 배선해 지금은 두 갈래 모두 `INVALID_FIELD` 다.
 
-### R-CC-22 triggers 모듈 안의 구현 경로를 glob 으로 적는다
+### R-CC-22 triggers 모듈 안의 구현 경로를 글로브로 적는다
 
-`#1317`·`#1319`·`#1320` 이 새 파일을 만들었는데 세 번 모두 구현 위치 목록에서 빠졌고, 빠진 파일이 8개까지 늘었다. 목록에 없으면 그 파일을 고친 변경이 이 문서와 대조되지 않는다. 이 결정을 내린 2026-09-11 에는 push 리뷰 가드가 목록에 걸린 파일의 변경에 구현 완료 검토를 요구했다. 2026-10-03 에 근거를 고쳐 적었다. 그 가드는 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 없어졌다. 지금은 일관성 검토의 `--impl-done` 을 돌리면 `## 구현 위치` 가 바뀐 파일을 덮는 문서가 검토 대상에 든다(NERV Task `CLE-T-VP5KDJ`). 이 실행을 강제하는 것은 없다. NERV done 게이트는 Task 에 묶인 consistency 라운드가 있고 통과했는지만 보고 그 라운드가 이 문서를 대상으로 했는지는 보지 않는다. 대조가 강제에서 절차로 약해졌어도 목록에서 빠진 파일이 대조에서 빠진다는 점은 같아서 결정을 유지한다. 늘어날 예정인 집합은 나열이 아니라 술어로 잡는다. 통째 glob(`modules/triggers/**`)은 무관한 파일 17개를 끌어들였고, 좁은 glob 셋은 의도한 파일을 정확히 덮었다(2026-09-11 10개, 2026-09-12 `dto/**` 로 넓힌 뒤 11개, 차집합 0). [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 6 은 glob 을 허용하되 넓은 트리 glob 은 아무것도 가리키지 않는 것과 같다고 본다. 이 결정은 그 취지를 따른다. 남는 위험은 없어진 파일을 가리키던 glob 이 다른 파일에 맞는 것이고 보완은 정기 커버리지 점검이다.
+`#1317`·`#1319`·`#1320` 이 새 파일을 만들었는데 세 번 모두 구현 위치 목록에서 빠졌고, 빠진 파일이 8개까지 늘었다. 목록에 없으면 그 파일을 고친 변경이 이 문서와 대조되지 않는다. 이 결정을 내린 2026-09-11 에는 push 리뷰 가드가 목록에 걸린 파일의 변경에 구현 완료 검토를 요구했다. 2026-10-03 에 근거를 고쳐 적었다. 그 가드는 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 없어졌다. 지금은 일관성 검토의 `--impl-done` 을 돌리면 `## 구현 위치` 가 바뀐 파일을 덮는 문서가 검토 대상에 든다(NERV Task `CLE-T-VP5KDJ`). 이 실행을 강제하는 것은 없다. NERV done 게이트는 Task 에 묶인 consistency 라운드가 있고 통과했는지만 보고 그 라운드가 이 문서를 대상으로 했는지는 보지 않는다. 대조가 강제에서 절차로 약해졌어도 목록에서 빠진 파일이 대조에서 빠진다는 점은 같아서 결정을 유지한다. 늘어날 예정인 집합은 나열이 아니라 술어로 잡는다. 통째 글로브(`modules/triggers/**`)는 무관한 파일 17개를 끌어들였고, 좁은 글로브 셋은 의도한 파일을 정확히 덮었다(2026-09-11 10개, 2026-09-12 `dto/**` 로 넓힌 뒤 11개, 차집합 0). [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 · 20 은 글로브를 허용하되 넓은 트리 글로브는 아무것도 가리키지 않는 것과 같다고 본다. 이 결정은 그 취지를 따른다. 결정을 내릴 때 그 취지는 옛 규칙 6 이었고 전환 단계 5 에서 규칙 19 로 옮겼다. 남는 위험은 없어진 파일을 가리키던 글로브가 다른 파일에 맞는 것이고 보완은 정기 커버리지 점검이다.
 
 ### R-CC-23 setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다
 
@@ -580,4 +580,4 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 ### 지원·명세만·후보 세 단계를 둔 이유
 
-명세만 있는 프로바이더와 동작하는 프로바이더를 한 표에 두면 사용자가 명세만 있는 것을 고를 수 있다고 오해한다. 사용자 가이드에서도 두 단계를 나눠야 하고, 카탈로그가 단계를 드러내지 않으면 문서와 실제가 어긋난다. 문서 작성과 구현 등록의 라이프사이클을 나누는 것은 이 저장소의 표준 패턴(`status: spec-only`)과 같다.
+명세만 있는 프로바이더와 동작하는 프로바이더를 한 표에 두면 사용자가 명세만 있는 것을 고를 수 있다고 오해한다. 사용자 가이드에서도 두 단계를 나눠야 하고, 카탈로그가 단계를 드러내지 않으면 문서와 실제가 어긋난다. 문서 작성과 구현 등록의 라이프사이클을 나누는 것은 옛 스펙 트리의 표준 패턴(`status: spec-only`)과 같은 생각이다. 그 상태 값은 전환 단계 5 에서 옛 트리와 함께 걷었다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md)). 문서 단위의 구현 단계는 머리 줄의 구현 상태(구현됨 · 부분 구현 · 미구현)로 이어졌다. `spec-only` 와 `backlog` 를 가르는 세분은 없다. 프로바이더 행 단위의 세 단계는 이 문서의 카탈로그가 따로 맡는다.
