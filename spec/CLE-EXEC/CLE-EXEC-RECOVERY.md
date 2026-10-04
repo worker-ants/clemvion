@@ -3,18 +3,18 @@ id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "9eddb94c3ddd8b0698a239c19156b9c935c86805e050b9b726a6aae7e3f576d5"
+content_hash: "d16739b133f2bcbfaf01a1ddfb3e3942e80c12277364b058cf1771f88eaf4427"
 read_as: "approved_fallback"
 task: "CLE-T-BV4YXZ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "fab1f0e0350f56c5e767ebf2d6dcdf25b12ee5bf1906712877dacf0e51ac78fb"
-etag: "sha256-5253d3bd310fab0775113ed847ee167b50aa8100b3629e1282e3b76b20662f35"
+mirror_sha256: "e7c358793535ac0800f8567b72c501301898b57b73aa00730231df6ce2610fea"
+etag: "sha256-c1562973eb1684166258e745021e3ee073835784663497c319ecf9d55505c8de"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -229,12 +229,13 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 | 경우 | 처리 |
 | --- | --- |
 | `NodeExecution.outputData` 가 없거나 손상 | 실행 `cancelled` + `error.code='RESUME_CHECKPOINT_MISSING'`, 짝 노드 실행 `failed` |
-| 중첩 재개의 호출 스택이 손상: frame 목록이 비었거나 frame 의 `workflowId` · `invokerNodeId` 가 비었거나 그 호출 노드 · 시작 노드가 그래프에 없음 | 실행 `cancelled` + `error.code='RESUME_CHECKPOINT_MISSING'`, 짝 노드 실행 `failed` |
+| 중첩 재개의 호출 스택이 손상: frame 목록이 비었거나 frame 의 `workflowId` · `invokerNodeId` 가 비었거나 그 호출 노드 또는 그 frame 에서 재개를 시작할 노드(가장 안쪽은 입력 대기 노드, 바깥은 호출 노드)가 그래프에 없음 | 실행 `cancelled` + `error.code='RESUME_CHECKPOINT_MISSING'`, 짝 노드 실행 `failed` |
 | BullMQ 시도 소진 | 실행 `cancelled` + `error.code='RESUME_FAILED'`, 짝 노드 실행 `failed` |
 | 멀티턴 AI 노드의 AI 재개 체크포인트가 **없음**(이 기능 배포 전에 들어간 입력 대기 행), **손상**(schema drift 로 `buildRetryReentryState` 재구성 실패), **미래 버전**(`schemaVersion` 이 현재 코드 `CHECKPOINT_SCHEMA_VERSION` 보다 큼, 롤링 배포 중 옛 인스턴스가 새 형식을 가져감) | 실행 `cancelled` + `error.code='RESUME_INCOMPATIBLE_STATE'`, 짝 노드 실행 `failed`. 체크포인트가 있고 버전이 맞으면 재구성에 성공해 재개하며 이 에러는 나지 않는다. |
 
-- 세 경우 모두 워커 쪽 **비동기**(enqueue 뒤) 실패다. 동기 ack 가 아니라 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 사용자에게 알린다. 동기 ack 에 실리는 실패는 발행 전 사전 검증(`INVALID_EXECUTION_STATE`)뿐이다. 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
-- 채팅 채널 어댑터는 세 경우 모두(`RESUME_*` 접두 코드 전부) raw 에러 대신 대화 세션 만료 안내(`sessionExpired`)를 보낸다. 사용자의 다음 메시지는 새 대화로 시작한다(텔레그램 등). 렌더 매핑은 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 정한다.
+- 표의 경우는 모두 워커 쪽 **비동기**(enqueue 뒤) 실패다. 동기 ack 가 아니라 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 사용자에게 알린다. 동기 ack 에 실리는 실패는 발행 전 사전 검증(`INVALID_EXECUTION_STATE`)뿐이다. 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
+- 중첩 재개의 호출 스택은 두 코드가 나눠 맡는다. 버전이 지원 범위보다 크면 `RESUME_INCOMPATIBLE_STATE`([중첩 재개](#중첩-서브-워크플로우-재개) 1단계), 값이 비었거나 가리키는 노드가 없으면 `RESUME_CHECKPOINT_MISSING` 이다.
+- 채팅 채널 어댑터는 세 코드 모두(`RESUME_*` 접두 코드 전부) raw 에러 대신 대화 세션 만료 안내(`sessionExpired`)를 보낸다. 사용자의 다음 메시지는 새 대화로 시작한다(텔레그램 등). 렌더 매핑은 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 정한다.
 - 세 종결의 상태 분류(실행 `cancelled`, 노드 실행 `failed`)의 결정 근거는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 의 Rationale 에 있다.
 - **채널 전달의 선행 조건**: `RESUME_*` 안내가 외부 채널(텔레그램 등)에 실제로 닿으려면 재개 절차 3단계(routing context 재등록)가 먼저 돼 있어야 한다. 재개는 다른 프로세스나 재시작 뒤의 워커가 가져가므로 routing context 가 사라진 상태다. 재등록 없이 `cancelled` 이벤트를 발행하면 conversationKey 가 없어 채널 dispatcher 가 outbound 를 건너뛴다.
 
@@ -288,6 +289,7 @@ SIGTERM 종료를 `failed` 로 볼지 `cancelled` 로 볼지는 정의가 갈린
 - `codebase/backend/src/modules/execution-engine/continuation/continuation-execution.processor.ts` (재개 큐 소비자, 취소 경로)
 - `codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts` (재개 turn 분기)
 - `codebase/backend/src/modules/execution-engine/park-entry-dispatch.ts` (park 진입 분기)
+- `codebase/backend/src/modules/execution-engine/call-stack-frame.ts` (`findBrokenCallStackFrame`, 중첩 재개 frame 확인)
 - `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts` (안전 종료)
 - `codebase/backend/src/shared/execution-resume/**` (`ProcessTurnResult` 등 재개 공용 타입)
 
@@ -378,6 +380,12 @@ rehydration 은 "재확인 가드가 정상 경로 race 까지 막는다"(불변
 ### rehydration 실패의 종결 상태는 실행 `cancelled`, 노드 실행 `failed`
 
 rehydration 실패 3종(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)은 인프라 실패라 실행을 `cancelled` 로, 정상 완료하지 못한 짝 노드 실행을 `failed` 로 끝낸다. 상태 분류의 결정 근거와 기각한 대안은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "rehydration 실패의 종결 상태를 실행 `cancelled`, 노드 실행 `failed` 로 나눈다" 에 있다.
+
+### 호출 스택 frame 결손도 `RESUME_CHECKPOINT_MISSING` 으로 마감한다 (2026-10-04)
+
+엔진은 빈 frame 목록, 호출 노드 부재, frame 에서 재개를 시작할 노드의 부재에 이미 이 코드를 냈다. frame 의 `workflowId` · `invokerNodeId` 결손은 확인하지 않았다. TypeORM 1 이 where 의 undefined 를 예외로 막은 뒤로 그 경우는 일반 실패 경로(실행 `failed`)로 끝났다. 그래서 재개 진입 claim 뒤, 조회 전에 확인해 [rehydration 실패](#rehydration-실패) 로 옮겼다(NERV Task `CLE-T-BV4YXZ`).
+
+- **새 코드를 만들지 않았다**: 네 경우 모두 park 때 커밋한 영속 컨텍스트([체크포인트](#체크포인트))가 깨져 재구동할 수 없다는 같은 뜻이다. 종결과 채팅 채널 처리도 같다. [에러 코드 규약](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 과의 관계는 그 문서 Rationale 에 적었다.
 
 ### 영속 재개 큐와 안전 종료 (Durable Continuation)
 

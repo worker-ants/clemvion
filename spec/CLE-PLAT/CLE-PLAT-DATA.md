@@ -2,25 +2,25 @@
 id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "5eccd3a0703a9a719b68d79d8ff93bb53123e5126a7f972ea02941f9a23d4542"
+content_hash: "a598b4f297a2d7357f4c625de21ebc66f2896eb987934f2d56bcb804ac3b7379"
 read_as: "approved_fallback"
 task: "CLE-T-BV4YXZ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "5224c6408fa80009ab70e3b8c74587bce5190fe5a68e771289ba4301d4cb477c"
-etag: "sha256-92e5603f35360c03ee94a2968c53db6aa109b969ea2db818cb9b29f411a164aa"
+mirror_sha256: "b329be4bdc60833dae2482d0897c11315f7eabb6bc80eba514f0d103feb30987"
+etag: "sha256-897743dffd459d39a2a94c6c90fb6f0e894000345011f81e6d7b1edc26cd1e05"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 Clemvion 데이터베이스의 전체 지도다. 엔티티 사이의 관계, 모든 엔티티에 공통인 컬럼 규칙, 요청 본문이 보내는 참조 id 의 소속 규칙, 외래 키(FK)의 삭제 동작, 인덱스 전략을 한곳에서 정한다.
+이 문서는 Clemvion 데이터베이스의 전체 지도다. 엔티티 사이의 관계, 모든 엔티티에 공통인 컬럼 규칙, 요청 본문이 보내는 참조 id 의 소속 규칙, 조회 조건의 null · undefined 규칙, 외래 키(FK)의 삭제 동작, 인덱스 전략을 한곳에서 정한다.
 
 엔티티마다의 컬럼 상세는 이 문서가 아니라 그 엔티티를 소유한 영역 데이터 문서가 정한다. 어느 문서가 어느 엔티티를 소유하는지는 [엔티티와 소유 문서](#엔티티와-소유-문서) 표에 있다. 데이터가 어느 API·큐를 거쳐 흐르는지는 [시스템 아키텍처](CLE-PLAT-ARCH.md) 와 각 영역 데이터 문서가 다룬다. 스키마를 바꾸는 절차는 [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 이 정한다.
 
@@ -222,6 +222,17 @@ erDiagram
 
 현재 구현은 버전 복원 경로(`skipLegacyDataGates`)에서도 캔버스 저장의 참조 검사를 건너뛰지 않는다. 이 검사는 옛 데이터 호환 게이트가 아니라 워크스페이스 경계이기 때문이다(`workflows.service.ts`). 결정의 근거와 이 규칙 밖에 남긴 것은 [Rationale](#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27) 에 있다.
 
+## 조회 조건의 null · undefined
+
+TypeORM 의 find 계열(`find` · `findOne` · `findBy` · `findOneBy` · `exists` · `count` 등)과 `update` · `delete` 의 where 조건에 값이 null 이나 undefined 인 키를 넣으면 예외(`TypeORMError`)다. 조건을 빼고 조회하지 않는다. 설정은 앱 루트와 eval CLI 의 DataSource 가 명시한다(`invalidWhereValuesBehavior`, `codebase/backend/src/database/typeorm-options.ts` 의 `INVALID_WHERE_VALUES_BEHAVIOR`). 그 밖의 DataSource(일회성 스크립트, e2e)는 명시하지 않고 같은 값인 라이브러리 기본값을 따른다.
+
+- SQL 의 NULL 비교는 `IsNull()` 로 쓴다. 예: 수락되지 않은 초대는 `acceptedAt: IsNull()` 이다.
+- QueryBuilder 의 `.where()` · `.andWhere()`(객체형 조건 포함)와 raw SQL 은 이 설정의 대상이 아니다. 그쪽은 파라미터 바인딩으로 값을 넘긴다. raw SQL 결과 읽기는 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 이 정한다.
+- 리터럴 `null` · `undefined` 를 `never` · `any` · `unknown` 으로 단언하는 캐스트(`null as never` 등)는 백엔드 프로덕션 소스(`codebase/backend/src` 의 비-spec `.ts`)에 두지 않는다. 그 캐스트는 where 의 null 을 타입 검사에서 숨긴다. 가드 `nullable-type-lie-cast` 가 이 형태 하나를 막는다. 식 전체를 단언하는 형태(`(x ?? null) as never`, `{ … } as FindOptionsWhere<…>`)는 가드가 보지 않는다.
+- 영속 데이터에서 꺼낸 id 처럼 타입이 보장하지 않는 값은 실패를 분류해야 하는 자리에서 조회 전에 확인한다. 확인하지 않은 자리는 위 예외가 마지막 방어선이다. 지금 확인하는 곳은 호출 스택(`resume_call_stack`)의 frame 하나다. `workflowId` · `invokerNodeId` 가 비면 조회하지 않고 `RESUME_CHECKPOINT_MISSING` 으로 마감한다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)).
+
+근거는 [Rationale](#where-의-null--undefined-를-예외로-막는다-2026-10-04) 에 있다.
+
 ## FK 삭제 동작
 
 부모 행을 지울 때 자식 행이 어떻게 되는지를 부모별로 모은다. CASCADE 는 함께 지워지고, SET NULL 은 FK 만 비워지고, NO ACTION 은 참조하는 행이 있으면 부모 삭제를 거부한다.
@@ -403,13 +414,23 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 
 - `codebase/backend/src/modules/**/entities/*.entity.ts`
 - `codebase/backend/migrations/V*.sql`
+- `codebase/backend/src/database/typeorm-options.ts`, `codebase/backend/src/modules/knowledge-base/eval/eval-cli.module.ts` (조회 조건의 null · undefined 를 예외로)
 - 이 문서의 사실을 지키는 전용 e2e:
   - `codebase/backend/test/deletion-cascade-indexes.e2e-spec.ts` (FK 인덱스)
   - `codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts` (웹훅 경로 중복 정리 V131)
   - `codebase/backend/test/entity-schema-declarations.e2e-spec.ts` (엔티티 선언과 DB 대조)
   - `codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts` (웹훅 경로 예약 V133)
+- 조회 조건 규칙을 지키는 가드: `codebase/backend/src/repo-guards/__tests__/nullable-type-lie-cast*.ts`, `codebase/backend/src/common/__test-utils__/source-scan.ts` (`countNullishEscapeCasts`, nullish 를 타입 밖으로 빼는 캐스트)
 
 ## Rationale
+
+### where 의 null · undefined 를 예외로 막는다 (2026-10-04)
+
+TypeORM 0.3 은 where 의 null · undefined 키를 조용히 빼고 조회했다. 그래서 `{ id, workspaceId }` 의 `workspaceId` 가 undefined 면 워크스페이스 조건 없이 조회돼 범위가 넓어졌다. [참조의 소속](#참조의-소속) 이 저장 때 막는 것과 같은 종류의 경계 침범이 조회 조건에서도 값 하나로 생기는 구조다. 이것은 읽는 쪽 조건을 방어선으로 삼는다는 뜻이 아니다. 경계는 여전히 저장 때 지키고, 조회 조건은 그 경계를 넓히지 않아야 한다는 뜻이다. TypeORM 1 은 이 경우를 예외로 막는 것이 기본값이고, 1.x 상향(NERV Task `CLE-T-91JNWW`)에서 그 기본값을 따르기로 했다(사람 결정). 앱 루트와 eval CLI 에는 같은 값을 명시해 라이브러리 기본값이 바뀌어도 동작이 그대로이게 했다.
+
+0.3 동작(조건을 빼고 조회)으로 되돌리지 않은 이유는 그 동작이 실제 결함을 숨기고 있었기 때문이다. 상향하며 where 를 전수 감사했는데 초대 서비스 세 곳이 `acceptedAt: null as never` 로 "수락되지 않은 초대" 를 고르고 있었다. 0.3 은 그 조건을 빼서 수락된 초대까지 다뤘고 타입 검사는 캐스트 때문에 몰랐다. e2e 에서 초대가 500 으로 실패하며 드러났다. 세 곳은 `IsNull()` 로 고쳤고 형태는 가드가 막는다.
+
+타입이 `string` 이어도 런타임에 비는 값(영속 데이터에서 꺼낸 id 등)은 정적으로 가려낼 수 없다. DataSource 옵션 파일과 단위 가드를 구현 위치에 넣은 것은 그 둘이 이 규칙의 시행 지점이라서다. 풀 설정 변경도 이 문서와 대조되는 비용은 받아들인다. 그런 자리에서 예외는 조회 범위가 넓어지는 대신 실패로 드러나는 쪽이다. 실행 재개의 call-stack frame 은 일반 예외 대신 체크포인트 결손으로 분류하도록 조회 전에 확인한다(NERV Task `CLE-T-BV4YXZ`).
 
 ### 본문 참조 id 도 저장 전에 소속을 본다 (2026-09-27)
 

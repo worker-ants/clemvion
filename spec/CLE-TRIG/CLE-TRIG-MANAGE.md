@@ -3,7 +3,7 @@ id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052"]
 basis_superseded: false
 parent: "CLE-TRIG"
@@ -13,8 +13,8 @@ content_hash: "840adc639a1ca835e04e7343ac057dcf185e45bcfbe94ef8dfe0b87233baa6cc"
 read_as: "approved_fallback"
 task: "CLE-T-BV4YXZ"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "979158ca4df33c13bec3bd7a3d9cc2c77f20093aafa385f8f19abc50a449ede3"
-etag: "sha256-63ae185a8b159bd6dd399d1ff92da4a9e4174949c23c821e9cdfd68300ebf1cd"
+mirror_sha256: "7566f249c33c598dafc683a55f0e1fb489f86d24121bc9db9ab56f014687a882"
+etag: "sha256-511cb0de46de4e75b103ad623b28de7099809279e2da78a2a03ef6fd5fa23a1c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
