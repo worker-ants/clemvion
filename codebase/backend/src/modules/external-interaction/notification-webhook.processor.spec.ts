@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NotificationWebhookProcessor } from './notification-webhook.processor';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import {
@@ -429,7 +430,7 @@ describe('NotificationWebhookProcessor.process', () => {
   });
 
   it('secretRef resolve 실패 → markDegraded + skip (SUMMARY#15)', async () => {
-    const SECRET_REF = 'secret://triggers/trg-1/signing-secret';
+    const SECRET_REF = 'secret://triggers/trg-1/notification-signing';
     triggerRepo.findOne.mockResolvedValue(
       makeTrigger({
         config: {
@@ -447,6 +448,83 @@ describe('NotificationWebhookProcessor.process', () => {
     );
 
     await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      'trg-1',
+      expect.objectContaining({ notificationHealth: 'degraded' }),
+    );
+  });
+
+  // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+  // NERV Task `CLE-T-XYR067`. 저장된 행이 다른 트리거의 서명 비밀을 가리켜도 그 비밀로 서명하지 않는다.
+  it('secretRef 가 다른 트리거를 가리키면 자기 트리거의 참조로 resolve 하고 오류 로그를 남긴다', async () => {
+    const OWN_REF = 'secret://triggers/trg-1/notification-signing';
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: {
+              algorithm: 'hmac-sha256',
+              secretRef: 'secret://triggers/trg-victim/notification-signing',
+            },
+          },
+        },
+      }),
+    );
+    (secrets.resolve as jest.Mock).mockImplementation(async (ref: string) => {
+      if (ref === OWN_REF) return SECRET;
+      throw new Error('not found');
+    });
+    fetchSpy.mockResolvedValue({ status: 200, statusText: 'OK' });
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    // `mockRestore()` 는 호출 기록까지 지우므로 복원 전에 옮겨 둔다.
+    let errorMessages: unknown[];
+    try {
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+      errorMessages = errorSpy.mock.calls.map((call) => call[0]);
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(secrets.resolve).toHaveBeenCalledTimes(1);
+    expect(secrets.resolve).toHaveBeenCalledWith(OWN_REF);
+    expect(errorMessages).toHaveLength(1);
+    expect(errorMessages[0]).toContain('trg-1');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('secretRef 와 옛 평문이 함께 있고 자기 비밀을 못 읽으면 옛 평문으로 내려가지 않고 degraded 로 닫힌다', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: {
+              algorithm: 'hmac-sha256',
+              secretRef: 'secret://triggers/trg-victim/notification-signing',
+              secret: 'legacy-plain-secret',
+            },
+          },
+        },
+      }),
+    );
+    (secrets.resolve as jest.Mock).mockRejectedValue(new Error('not found'));
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+    } finally {
+      errorSpy.mockRestore();
+    }
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(triggerRepo.update).toHaveBeenCalledWith(

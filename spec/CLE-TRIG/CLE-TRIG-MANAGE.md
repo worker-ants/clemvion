@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "6ba7c4f0f79adf68e50460b81a26f3bbc7a064bce079466653bcf7253645a0b6"
+content_hash: "462a15a54bedb114eb7ce72f5d5740db2e154427a4139c299342fe67cb0db8bb"
 read_as: "approved_fallback"
-task: "CLE-T-M9QKKX"
+task: "CLE-T-XYR067"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "5b578a01c5dcdab7ee74ec73630abf73878149d6c83f277df34d26cadf4eb92a"
-etag: "sha256-b838164737927d9fb6b99742cc7a720f1a11535692c0d969cb4bac64c4908d61"
+mirror_sha256: "bf858660a9e56e4f1d8869ed52a96a1b90a05361c3e8658daf6032a31c508b86"
+etag: "sha256-f4b840ad5e75a7692ed5a84213fd3640eb944142c439d165bbc5f60f03946cee"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -243,7 +243,7 @@ etag: "sha256-b838164737927d9fb6b99742cc7a720f1a11535692c0d969cb4bac64c4908d61"
 - 인라인 인증 키(`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`)는 없다. 웹훅 인증은 `authConfigId` 연결로만 받는다.
 - 채팅 채널의 비밀은 PATCH 로 바꿀 수 없다. `chatChannel.botTokenRef`(ref), `chatChannel.botToken`(평문), `chatChannel.inboundSigning`, `inboundSigningPlaintext` 를 바꾸려 하면 400 `VALIDATION_ERROR` 다. 봇 토큰은 재발급 API(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)로만 바꾼다. 거부 응답의 모양과 이 규칙의 기준은 [채팅 채널 §봇 토큰 변경 단일 경로](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 다. Slack signing secret·Discord public key 회전 API 는 v1 에 정의되지 않았다.
 - `chatChannel` 이 실린 PATCH 는 사용자가 보낸 비밀을 받지도 쓰지도 않는다. `botToken` 과 Slack·Discord 의 `inboundSigningPlaintext` 는 요청 전후로 같다. `botTokenRef` 는 "통째로 교체" 규칙과 상관없이 사라지지 않는다(트리거 id 에서 다시 유도한다). Telegram 의 서버 발급 inbound signing 은 예외다. `setupChannel()` 을 다시 부를 때마다 새로 발급·저장되며 이것이 정상이다.
-- 요청 본문의 `config` 키 아래(이 문서에서 «원시 `config`». top-level `chatChannel` · `notification` 과 다른 위치)에는 [채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 의 차단 필드와 `notification.signing.secretRef` 를 실을 수 없다. 있으면 값과 상관없이(자기 트리거의 시크릿 참조여도) 400 `VALIDATION_ERROR` 다. 응답은 원시 `config` 경로를 담은 단일 object 다(예: `details: { field: 'config.chatChannel.botTokenRef', code: 'INVALID_FIELD' }`). 생성도 같다. 스케줄 유형 트리거는 `config` 를 받지 않으므로 그 거부(`details.field='type'`)가 먼저 난다. `interaction.triggerToken` 같은 다른 서버 발급 값은 이 규칙이 막지 않는다([미결 사항](#미결-사항)). 원시 `config` 에는 `setupChannel()` 과 평문 제거가 돌지 않아 평문이 JSONB 에 남는다. 시크릿 참조는 다른 트리거의 비밀을 가리킬 수 있다. 시크릿 저장소의 `resolve` · `rotate` 는 참조만 보고 소유 워크스페이스를 확인하지 않으므로, 그대로 두면 봇 토큰 재발급이 그 트리거의 비밀을 덮어쓴다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 23).
+- 요청 본문의 `config` 키 아래(이 문서에서 «원시 `config`». top-level `chatChannel` · `notification` 과 다른 위치)에는 [채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 의 차단 필드와 `notification.signing.secretRef` 를 실을 수 없다. 있으면 값과 상관없이(자기 트리거의 시크릿 참조여도) 400 `VALIDATION_ERROR` 다. 응답은 원시 `config` 경로를 담은 단일 object 다(예: `details: { field: 'config.chatChannel.botTokenRef', code: 'INVALID_FIELD' }`). 생성도 같다. 스케줄 유형 트리거는 `config` 를 받지 않으므로 그 거부(`details.field='type'`)가 먼저 난다. `interaction.triggerToken` 같은 다른 서버 발급 값은 이 규칙이 막지 않는다([미결 사항](#미결-사항)). 원시 `config` 에는 `setupChannel()` 과 평문 제거가 돌지 않아 평문이 JSONB 에 남는다. 시크릿 참조는 다른 트리거의 비밀을 가리킬 수 있다. 시크릿 저장소의 `resolve` 는 참조만 보고 `rotate` 는 같은 워크스페이스 안의 다른 트리거 행을 가리지 못한다. 그래서 그대로 두면 봇 토큰 재발급이 그 트리거의 비밀을 덮어쓴다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 23). 이미 저장된 행은 읽는 쪽이 참조를 트리거 id 로 다시 만들고([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24) `rotate` 는 다른 워크스페이스의 행을 거부한다(같은 문서 규칙 25).
 - 채팅 채널이 없는 트리거에 PATCH 로 채널을 나중에 붙이면 400(`details.field='chatChannel'`, `details.code='INVALID_FIELD'`)이다. 최초 설정은 생성 요청에서만 한다.
 - 채팅 채널 `provider` 를 바꾸면 400(`details.field='provider'`, `details.code='INVALID_FIELD'`)이다. 허용하면 다른 provider 의 토큰을 새 어댑터에 넘기게 된다.
 - 스케줄 유형 트리거 PATCH 는 `name`, `isActive` 만 받는다. `endpointPath` / `config` / `authConfigId` 등을 바꾸려 하면 400 `VALIDATION_ERROR`(`details.field='type'`, `details.code='INVALID_FIELD'`)다. 트리거와 스케줄의 동기화를 지키기 위해서다([트리거 데이터와 흐름](CLE-TRIG-DATA.md)).

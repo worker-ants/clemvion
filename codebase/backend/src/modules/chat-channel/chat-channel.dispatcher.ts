@@ -13,10 +13,10 @@ import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payloa
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
+import { readTriggerChatChannelConfig } from './chat-channel-secret-refs';
 import {
   ChannelMessage,
   ChatChannelAdapter,
-  ChatChannelConfig,
   ChatChannelInternalEvent,
   EiaAiMessageEvent,
   EiaEvent,
@@ -144,7 +144,12 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       );
       return;
     }
-    const chatChannelCfg = readChatChannelConfig(trigger.config);
+    // 저장된 시크릿 참조는 이 트리거의 참조로 맞춘 뒤 쓴다(NERV Task `CLE-T-XYR067`).
+    const chatChannelCfg = readTriggerChatChannelConfig(
+      trigger,
+      this.logger,
+      'ChatChannelDispatcher',
+    );
     if (!chatChannelCfg) {
       // listener registry 에는 있는데 config 에 chatChannel 없음 — 트리거가 chatChannel
       // 제거된 채 listener 가 stale 일 가능성.
@@ -346,7 +351,6 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-/** Trigger.config 에서 chatChannel 추출 (형식 검증 최소). */
 /**
  * sendMessage 호출 전 빈 text body guard.
  *
@@ -362,15 +366,6 @@ export function isEmptyTextBody(body: ChannelMessage['body']): boolean {
   if (body.kind === 'text') return body.text.trim().length === 0;
   if (body.kind === 'buttons') return body.text.trim().length === 0;
   return false;
-}
-
-function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
-  if (!config || typeof config !== 'object') return null;
-  const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
-  if (!chatChannel || typeof chatChannel !== 'object') return null;
-  const provider = (chatChannel as { provider?: unknown }).provider;
-  if (typeof provider !== 'string' || provider.length === 0) return null;
-  return chatChannel as ChatChannelConfig;
 }
 
 /** Execution payload 또는 input 에서 conversationKey 추출. */

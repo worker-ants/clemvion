@@ -24,6 +24,7 @@ import {
 } from '../../common/utils/ssrf-safe-url.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { isSecretRef } from '../secret-store/secret-ref';
+import { notificationSigningSecretRef } from '../triggers/notification-signing-secret-ref';
 import { OutboundNotificationRateLimiterService } from './outbound-notification-rate-limiter.service';
 
 const HTTP_TIMEOUT_MS = 10_000;
@@ -87,6 +88,9 @@ export class NotificationWebhookProcessor extends WorkerHost {
    * 중 존재하는 쪽을 resolve 해 plaintext 를 반환.
    *
    * - secretRef 가 있으면 secret store 에서 복호화. 실패 시 null 반환 → 호출자가 markDegraded.
+   *   참조 값은 저장값 대신 트리거 id 로 다시 만든다. 저장값이 다르면 오류 로그를 남긴다. 다른 트리거의
+   *   서명 비밀을 가리키는 행이 남아 있어도 그 비밀로 서명하지 않는다(NERV Task `CLE-T-XYR067`). 자기
+   *   비밀이 없으면 resolve 가 실패해 degraded 로 닫히고 legacy plaintext 로 내려가지 않는다.
    * - secretRef 없고 legacy plaintext 있으면 그대로 반환.
    *   SUMMARY#6: legacy fallback 진입 시 운영자가 마이그레이션 미완료를 추적할 수 있도록 warn 로그.
    * - 둘 다 없으면 null.
@@ -97,8 +101,15 @@ export class NotificationWebhookProcessor extends WorkerHost {
   ): Promise<string | null> {
     const secretRef = config.signing?.secretRef;
     if (typeof secretRef === 'string' && isSecretRef(secretRef)) {
+      // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+      const ownRef = notificationSigningSecretRef(triggerId);
+      if (secretRef !== ownRef) {
+        this.logger.error(
+          `NotificationWebhookProcessor: 트리거 ${triggerId} 의 저장된 notification.signing.secretRef 가 이 트리거의 참조와 달라 ${ownRef} 로 바꿔 씁니다. 저장된 행을 점검하세요.`,
+        );
+      }
       try {
-        return await this.secrets.resolve(secretRef);
+        return await this.secrets.resolve(ownRef);
       } catch (err) {
         this.logger.warn(
           `NotificationWebhookProcessor: secretRef resolve 실패 (triggerId=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,

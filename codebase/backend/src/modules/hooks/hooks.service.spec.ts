@@ -669,6 +669,47 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+    // NERV Task `CLE-T-XYR067`. 저장된 행이 다른 트리거의 참조를 가리켜도 인바운드 서명 검증과
+    // 어댑터(파싱 · 응답 발송)는 자기 트리거의 참조만 받는다.
+    it('저장된 참조가 다른 트리거를 가리키면 인증기와 어댑터에 자기 트리거의 참조를 넘긴다', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        config: {
+          chatChannel: {
+            provider: 'telegram',
+            botTokenRef: 'secret://triggers/t-victim/bot-token',
+            inboundSigningRef: 'secret://triggers/t-victim/inbound-signing',
+          },
+        },
+      } as unknown as Trigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const own = {
+        botTokenRef: 'secret://triggers/t1/bot-token',
+        inboundSigningRef: 'secret://triggers/t1/inbound-signing',
+      };
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation();
+
+      try {
+        await service.handleWebhook('abc', chatInput);
+      } finally {
+        errorSpy.mockRestore();
+      }
+
+      expect(authenticator.verify).toHaveBeenCalledWith(
+        't1',
+        expect.objectContaining(own),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(mockAdapter.parseUpdate).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining(own),
+      );
+    });
+
     // F-4 — maybeNotifyIgnored 는 sendBestEffortNotice 공유 헬퍼로 리팩터됐다. group chat →
     // groupChatRefusal 안내를 chat.id 를 conversationKey 로 발송하는지 회귀 가드 (CCH-CV-05).
     it('F-4 — parseUpdate null + group chat → groupChatRefusal 안내 발송 (conversationKey=chat.id)', async () => {

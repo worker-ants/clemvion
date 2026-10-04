@@ -38,8 +38,16 @@ import {
 import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import {
+  chatChannelSecretRef,
+  pinChatChannelSecretRefs,
+} from '../chat-channel/chat-channel-secret-refs';
+import {
+  SecretResolverService,
+  SecretWorkspaceMismatchError,
+} from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
+import { notificationSigningSecretRef } from './notification-signing-secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
@@ -909,11 +917,7 @@ export class TriggersService {
     const plaintext = (signing as { secret?: unknown }).secret;
     if (typeof plaintext !== 'string' || plaintext.length === 0) return;
 
-    const ref = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'notification-signing',
-    });
+    const ref = notificationSigningSecretRef(trigger.id);
     await this.secrets.rotate(ref, trigger.workspaceId, plaintext);
 
     const updatedSigning: Record<string, unknown> = {
@@ -1309,21 +1313,16 @@ export class TriggersService {
     // 내부 필드를 막기 전에 저장된 행에는 다른 트리거의 ref 가 들어 있을 수 있고, 그 ref 로
     // `rotate` 하면 그 트리거의 비밀을 덮어쓴다(CLE-T-M9QKKX). 정상 행의 ref 는 바인더가 같은 규칙으로
     // 유도한 값이라 결과가 같다.
-    const botTokenRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'bot-token',
-    });
+    const botTokenRef = chatChannelSecretRef(trigger.id, 'botTokenRef');
     const v2Ref = buildSecretRef({
       scope: 'triggers',
       resourceId: trigger.id,
       name: 'bot-token.v2',
     });
-    const inboundSigningRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'inbound-signing',
-    });
+    const inboundSigningRef = chatChannelSecretRef(
+      trigger.id,
+      'inboundSigningRef',
+    );
 
     // 1. 기존 botToken resolve (실패 시 skip — 최초 rotation).
     let oldPlaintext: string | null = null;
@@ -1350,13 +1349,16 @@ export class TriggersService {
     // 어댑터에 넘기는 설정에도 저장된 참조를 싣지 않는다. Discord 어댑터는 `inboundSigningRef` 를
     // resolve 해 `verify_key` 와 대조하므로 다른 트리거의 참조가 남아 있으면 그 비밀을 읽는다
     // (NERV 발견 `01a106cf-6c26-7005-830d-8b430e6a6d15`). 저장된 행에 참조가 없으면(레거시) 전처럼
-    // 키를 넣지 않는다. 넣으면 resolve 가 NotFound 로 바뀐다.
-    const { inboundSigningRef: storedInboundSigningRef, ...storedChannel } =
-      chatChannelCfg;
+    // 키를 넣지 않는다. 넣으면 resolve 가 NotFound 로 바뀐다. 저장값이 이 트리거의 참조와 다르면
+    // 읽기 경로와 같은 오류 로그를 남긴다(NERV Task `CLE-T-XYR067`).
     const mergedConfig: ChatChannelConfig = {
-      ...storedChannel,
+      ...pinChatChannelSecretRefs(
+        trigger.id,
+        chatChannelCfg,
+        this.logger,
+        'TriggersService.rotateBotToken',
+      ),
       botTokenRef,
-      ...(storedInboundSigningRef ? { inboundSigningRef } : {}),
     };
     const callbackUrl = buildTriggerCallbackUrl({
       baseUrl: this.configService.get<string>('app.url'),
@@ -1412,7 +1414,7 @@ export class TriggersService {
       // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다
       // (`/ai-review` `review/code/2026/09/14/23_38_09` side_effect·maintainability C1).
       //
-      // 두 ref 는 델타에 **포함한다** — `buildSecretRef(trigger.id, …)` 로 매번 재유도되는
+      // 두 ref 는 델타에 **포함한다** — `chatChannelSecretRef(trigger.id, …)` 로 매번 재유도되는
       // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
       (freshConfig) =>
         this.mergeIntoFreshSubKey(
@@ -1511,13 +1513,22 @@ export class TriggersService {
       }
       const signing = (notificationCfg as { signing?: unknown }).signing;
 
-      const ref = buildSecretRef({
-        scope: 'triggers',
-        resourceId: trigger.id,
-        name: 'notification-signing',
-      });
+      const ref = notificationSigningSecretRef(trigger.id);
       // ref 기존재 시 내용 회전, 부재 시 신규 생성 — rotate 가 upsert 시맨틱.
-      await this.secrets.rotate(ref, trigger.workspaceId, secretV2);
+      try {
+        await this.secrets.rotate(ref, trigger.workspaceId, secretV2);
+      } catch (err) {
+        // 기존 행이 다른 워크스페이스 소유면 재시도해도 결과가 같다. 이 트리거만 건너뛰어 나머지
+        // 트리거의 승격을 막지 않는다(NERV Task `CLE-T-XYR067`). 그 밖의 실패는 그대로 던져 job
+        // 재시도에 맡긴다(아래 testing-W-2 계약).
+        if (err instanceof SecretWorkspaceMismatchError) {
+          this.logger.error(
+            `notification secret 승격 건너뜀 — 트리거 ${trigger.id} 의 서명 비밀 행이 다른 워크스페이스 소유다. 저장된 행을 점검하세요.`,
+          );
+          continue;
+        }
+        throw err;
+      }
 
       const updatedSigning: Record<string, unknown> = {
         ...(typeof signing === 'object' && signing !== null

@@ -3,18 +3,18 @@ id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "dbcc62f80aa15ea049d7427ccf708eab41ddc1a5aa2ee010bf234c515a29c3b0"
-read_as: "approved"
-task: null
+content_hash: "3f5240920bf5eda8ae20860ebd957e4a8889735b940c149e1eb3980e1074b378"
+read_as: "approved_fallback"
+task: "CLE-T-XYR067"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "90380a3a05b59fae159d2fb07f881f6e30b4a2f9aafaffd8b26432ce08110f3a"
-etag: "sha256-3279b97240c8825a94a18b77b8cb6d0988cc50d4ac1ec3f0d6205afa94bdbba6"
+mirror_sha256: "c1bc2f3ad7b0f715bee406d9ebb541d4d956e690b4ffbd53d58f6907d64f0691"
+etag: "sha256-36a28299574b0afbf6159c973d801728054001d6397eed011171d9fe55eb04c9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -194,7 +194,7 @@ erDiagram
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | ref | TEXT | PK. 시크릿 참조 `secret://<scope>/<resourceId>/<name>` (예: `secret://triggers/{triggerId}/bot-token`). 형식은 DB CHECK 로도 막는다(V063) |
-| workspace_id | UUID | 귀속 워크스페이스. FK 가 없다(애플리케이션 수준 정리). 이 컬럼을 조건으로 지우는 경로는 없고, 트리거 단위 prefix 삭제(`deleteByPrefix`)로 정리한다. 어느 경로가 언제 지우는지는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
+| workspace_id | UUID | 귀속 워크스페이스. 처음 저장한 값에서 바뀌지 않는다. `rotate` 는 다른 워크스페이스로 부르면 거부한다([시크릿 저장소](CLE-INT-SECRET.md) 규칙 25). FK 가 없다(애플리케이션 수준 정리). 애플리케이션에는 이 컬럼을 조건으로 지우는 경로가 없다. 트리거 단위 prefix 삭제(`deleteByPrefix`)로 정리한다. 사람이 돌리는 일회성 운영 정리는 [시크릿 저장소 「교차 행 점검과 정리」](CLE-INT-SECRET.md#교차-행-점검과-정리) 에 있다. 어느 경로가 언제 지우는지는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
 | encrypted | BYTEA | `[IV(12B) ‖ AES-256-GCM ciphertext ‖ authTag(16B)]`. AAD 는 `ref`. DB 는 암호문만 본다 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 마지막 교체 시각 |

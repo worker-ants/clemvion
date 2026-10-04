@@ -61,7 +61,10 @@ function makeAdapter(): AdapterMock {
   return { teardownChannel: jest.fn(), setupChannel: jest.fn() };
 }
 
-const TELEGRAM_CFG = { provider: 'telegram', botTokenRef: 'secret://x' };
+const TELEGRAM_CFG = {
+  provider: 'telegram',
+  botTokenRef: 'secret://triggers/trig-1/bot-token',
+};
 
 function makeTrigger(config: unknown): Trigger {
   return { id: 'trig-1', workspaceId: 'ws-1', config } as unknown as Trigger;
@@ -113,6 +116,32 @@ describe('ChatChannelBinderService.teardownChatChannel', () => {
     expect(registry.get).toHaveBeenCalledWith('telegram');
     expect(adapter.teardownChannel).toHaveBeenCalledTimes(1);
     expect(adapter.teardownChannel).toHaveBeenCalledWith(TELEGRAM_CFG);
+  });
+
+  // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+  // NERV Task `CLE-T-XYR067`. 저장된 행이 다른 트리거의 봇 토큰을 가리키면 자기 트리거를 지울 때 그
+  // 토큰으로 상대 봇의 webhook 을 해제하게 된다. 해제는 자기 트리거의 참조로만 한다.
+  it('저장된 참조가 다른 트리거를 가리키면 자기 트리거의 참조로 해제하고 오류 로그를 남긴다', async () => {
+    const adapter = makeAdapter();
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const { svc } = makeBinder({ adapter, providerRegistered: true });
+
+    await svc.teardownChatChannel(
+      makeTrigger({
+        chatChannel: {
+          provider: 'telegram',
+          botTokenRef: 'secret://triggers/trig-victim/bot-token',
+        },
+      }),
+    );
+
+    expect(adapter.teardownChannel).toHaveBeenCalledWith({
+      provider: 'telegram',
+      botTokenRef: 'secret://triggers/trig-1/bot-token',
+    });
+    expect(error).toHaveBeenCalledTimes(1);
   });
 
   /**

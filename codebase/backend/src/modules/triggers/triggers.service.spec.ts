@@ -34,7 +34,10 @@ import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import {
+  SecretResolverService,
+  SecretWorkspaceMismatchError,
+} from '../secret-store/secret-resolver.service';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import {
   CHAT_CHANNEL_BLOCKED_FIELDS,
@@ -2159,9 +2162,29 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         },
       },
     } as unknown as Trigger);
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
 
-    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot');
+    // `mockRestore()` 는 호출 기록까지 지우므로 복원 전에 옮겨 둔다.
+    let errorMessages: unknown[];
+    try {
+      await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'u-bot',
+      );
+      errorMessages = errorSpy.mock.calls.map((call) => call[0]);
+    } finally {
+      errorSpy.mockRestore();
+    }
 
+    // 읽기 경로와 같은 규칙으로 저장값 불일치를 로그에 남긴다(NERV Task `CLE-T-XYR067`).
+    expect(errorMessages).toEqual([
+      expect.stringContaining('chatChannel.botTokenRef'),
+      expect.stringContaining('chatChannel.inboundSigningRef'),
+    ]);
     const touched = [
       ...secrets.resolve.mock.calls,
       ...secrets.rotate.mock.calls,
@@ -2184,7 +2207,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       botTokenRef: BOT_TOKEN_REF,
       inboundSigningRef: SECRET_TOKEN_REF,
     });
-    // 재저장 델타가 행을 자기 참조로 되돌린다. 읽기 경로 방어가 없는 지금 유일한 치유 지점이다.
+    // 재저장 델타가 행을 자기 참조로 되돌린다.
     expect(triggerRepo.update).toHaveBeenCalledWith(
       { id: TRIGGER_ID },
       expect.objectContaining({
@@ -2827,6 +2850,47 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
     expect(patch.notificationSecretV2).toBeNull();
     expect(patch.notificationRotatedAt).toBeNull();
     expect(triggerRepo.save).not.toHaveBeenCalled();
+  });
+
+  // NERV Task `CLE-T-XYR067`. 다른 워크스페이스 소유 행은 재시도해도 결과가 같다. 그 트리거 하나가
+  // 매시 배치 전체를 멈추면 안 된다. 다른 실패는 위 testing-W-2 대로 던진다.
+  it('rotate 가 워크스페이스 불일치로 거부되면 그 트리거만 건너뛰고 나머지를 승격한다', async () => {
+    const poisoned = baseTrigger({
+      algorithm: 'sha256',
+      secretRef: CANONICAL_REF,
+    });
+    const healthy = {
+      ...baseTrigger({
+        algorithm: 'sha256',
+        secretRef: 'secret://triggers/trig-2/notification-signing',
+      }),
+      id: 'trig-2',
+    } as unknown as Trigger;
+    await build([poisoned, healthy]);
+    secrets.rotate.mockRejectedValueOnce(new SecretWorkspaceMismatchError());
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    // `mockRestore()` 는 호출 기록까지 지우므로 복원 전에 옮겨 둔다.
+    let result: { promoted: number };
+    let errorMessages: unknown[];
+    try {
+      result = await service.promoteRotatedNotificationSecrets(
+        new Date('2026-06-10T00:00:00Z').getTime(),
+      );
+      errorMessages = errorSpy.mock.calls.map((call) => call[0]);
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(result.promoted).toBe(1);
+    expect(secrets.rotate).toHaveBeenCalledTimes(2);
+    expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+    // 승격된 것은 둘째 트리거다. 첫째(거부)의 v2 컬럼은 그대로 남는다.
+    expect(triggerRepo.update.mock.calls[0][0]).toEqual({ id: 'trig-2' });
+    expect(errorMessages).toHaveLength(1);
+    expect(errorMessages[0]).toContain('trig-1');
   });
 
   it('legacy 평문 secret 만 보유 trigger → canonical ref 신설 + 평문 키 제거', async () => {
@@ -3764,7 +3828,7 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
   // ── CRITICAL 회귀: 두 ref 가 **대칭으로** 살아남아야 한다 ────────────────
   //
   // D-3 테스트를 `botTokenRef` 하나만 걸었더니 **자매 ref 를 잃는 결함**을 못 잡았다.
-  // `botTokenRef` 는 `buildSecretRef(trigger.id)` 로 매번 재유도돼 무조건 실리는 반면,
+  // `botTokenRef` 는 `chatChannelSecretRef(trigger.id, 'botTokenRef')` 로 매번 재유도돼 무조건 실리는 반면,
   // `inboundSigningRef` 는 *"이번 호출에서 값을 새로 썼을 때만"* 실리게 짜여 있었다 —
   // D-2 가 그 쓰기를 게이팅하자 slack/discord PATCH 에서 그 조건이 **구조적으로 항상 거짓**이
   // 되어 ref 가 config 에서 통째로 사라졌다. 그리고 `ChatChannelInboundAuthenticator` 는
