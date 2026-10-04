@@ -3,7 +3,7 @@ id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
@@ -13,8 +13,8 @@ content_hash: "7016bcc9602dc1b861de0344b6cf8d1c846e474ba4e9513e64a963ed3fb01cc4"
 read_as: "approved_fallback"
 task: "CLE-T-67BNAZ"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "48a486b7c3130d36dd6df5538fdf7cfc4c4cff14c16326b244b6315431154228"
-etag: "sha256-70a92124d0c7a628ae0d406a587ae800f7396f87096c9e9a04a07925d85a9527"
+mirror_sha256: "e4ace8cfbd4c9f630fefea328961299663c48fa81b555e9f13698757a3855133"
+etag: "sha256-5beb408a8c6bde8614eb602d652d879a34735ddd816b4a5460251a97dc6496fa"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
