@@ -1,5 +1,5 @@
 -- 트리거 시크릿 참조 정리. NERV Task CLE-T-XYR067.
--- 근거: CLE-INT-SECRET 「교차 행 점검과 정리」 · Rationale R10(이 Task 의 NERV 초안. 승인 뒤 미러에 생긴다).
+-- 근거: CLE-INT-SECRET 「교차 행 점검과 정리」 · Rationale R10.
 --
 -- 먼저 2026-10-04-trigger-secret-ref-audit.sql 로 대상을 확인하고 결과를 보관한다. 이 파일은 한
 -- 트랜잭션에서 두 가지를 한다. RETURNING 으로 바꾼 행을 보여 준다. 끝난 뒤 점검 SQL 을 다시 돌려

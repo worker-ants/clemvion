@@ -1,5 +1,5 @@
 -- 트리거 시크릿 참조 점검 (읽기 전용). NERV Task CLE-T-XYR067.
--- 근거: CLE-INT-SECRET 「교차 행 점검과 정리」 · Rationale R10(이 Task 의 NERV 초안. 승인 뒤 미러에 생긴다).
+-- 근거: CLE-INT-SECRET 「교차 행 점검과 정리」 · Rationale R10.
 --
 -- 요청 본문의 원시 config 로 다른 트리거의 시크릿 참조를 심을 수 있던 동안(CLE-T-M9QKKX 이전)에
 -- 생겼을 수 있는 행을 찾는다. 이 파일은 아무것도 바꾸지 않는다. 정리는
