@@ -150,7 +150,23 @@ onlyBuiltDependencies:
 # (2.x 를 5.x 로 올려 `--prod` 0건 달성, dev 전용 1.x 경로만 남겨 수용).
 auditConfig:
   ignoreCves:
-    # 2026-08-01 현재 **비어 있다.** 종전 2건은 실측으로 무효가 확인돼 제거했다.
+    # CVE-2026-93687 (GHSA-vfj7-8cjw-p6xm, braces <=3.0.3, high) — 2026-10-04 수용, NERV Task
+    # `CLE-T-NFW7DE`. 깊이 중첩된 패턴에서 스택이 바닥나는 DoS 다. 패치 버전이 없어(`<0.0.0`)
+    # override 로 해소할 수 없다. 위 3종 근거:
+    #   1. `pnpm audit --prod --audit-level=moderate` → "No known vulnerabilities found".
+    #   2. 이미지 실물: backend · frontend 빌드 확인 이미지(`clemvion-build-check/*:latest`)에서
+    #      `find / -type d -path "*node_modules*" -name "braces*"` 결과 0줄. frontend 는
+    #      `micromatch*` 도 0줄이다(standalone 출력이 dev 트리를 싣지 않는다).
+    #   3. 전체 경로(`pnpm why braces -r`, lockfile 의 braces 는 3.0.3 하나뿐):
+    #        frontend         (devDependencies) > eslint-config-next > @next/eslint-plugin-next
+    #                         > fast-glob@3.3.1 > micromatch@4.0.8 > braces@3.0.3
+    #        channel-web-chat (devDependencies) > eslint-config-next > @next/eslint-plugin-next
+    #                         > fast-glob@3.3.1 > micromatch@4.0.8 > braces@3.0.3
+    #      입력은 저장소의 lint 대상 경로 글롭이라 신뢰할 수 없는 패턴이 들어오지 않는다.
+    # 해소 조건: braces 패치 버전이 나오거나 `@next/eslint-plugin-next` 가 micromatch 경로를
+    # 걷으면 이 항목을 지우고 `check-pnpm-security-config.py` 의 `EXPECTED_IGNORED_CVES` 도 함께 지운다.
+    #
+    # 종전 이력: 2026-08-01 에 **비워 두었다.** 그때 있던 2건은 실측으로 무효가 확인돼 제거했다.
     #   - CVE-2026-53550 (js-yaml <3.15.0): 우리 override `js-yaml@>=3.0.0 <3.15.0: ^3.15.0`
     #     가 gray-matter 경로를 3.15.0 으로 올려 **해소**됐다(수용이 아니라 해결).
     #   - CVE-2026-14257 (brace-expansion): 수용했던 dev 전용 1.x 경로는 그대로 있지만
@@ -159,10 +175,10 @@ auditConfig:
     #     끌어당기던 것이 상류에서 정정된 것으로 보인다. 실측: `ignoreCves: []` + 취약 버전을
     #     lockfile 에 고정한 상태에서 `--audit-level=low` 로 돌려도 0건.
     #
-    # 비워둔 것이 fail-closed 다 — 둘 중 하나라도 다시 보고되면 audit 잡이 빨간불을 내고
-    # 위 3종 근거로 재심사하게 된다. 되살릴 때는 `check-pnpm-security-config.py` 의
+    # 그 둘을 되살리지 않은 것이 fail-closed 다. 둘 중 하나라도 다시 보고되면 audit 잡이 빨간불을
+    # 내고 위 3종 근거로 재심사하게 된다. 항목을 더하거나 뺄 때는 `check-pnpm-security-config.py` 의
     # `EXPECTED_IGNORED_CVES` 와 **함께** 고친다(2-place 규약).
-    []
+    - CVE-2026-93687
 
 # ── peer dependency 게이트 ──────────────────────────────────────────────────
 #
