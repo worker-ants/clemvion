@@ -43,8 +43,8 @@ export class ScheduleTriggerRefDto {
    * 연결된 워크플로우 — **키 생략형**이다 (§5.4 기준 (b): 선택적 부가 컨텍스트).
    *
    * **생성 응답에만 없다.** `create()` 는 방금 저장한 트리거를 붙이므로 이 관계가 로드되지
-   * 않는다. 조회(`findById` 의 `relations: ['trigger','trigger.workflow']` · `findAll` 의
-   * join)와 **수정**(`update()` 가 `findById` 로 시작한다)에는 채워진다 — e2e 가 세 형태를
+   * 않는다. 조회(`findById` 는 트리거와 그 워크플로 관계를 함께 싣고 `findAll` 은
+   * join 한다)와 **수정**(`update()` 가 `findById` 로 시작한다)에는 채워진다 — e2e 가 세 형태를
    * 각각 고정한다.
    *
    * 소비처가 부재를 정상 경로로 다룬다 — `schedules/page.tsx` 는

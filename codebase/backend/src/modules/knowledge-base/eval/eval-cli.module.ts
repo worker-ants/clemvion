@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { appConfig, databaseConfig, llmConfig } from '../../../common/config';
 import { ROOT_ENTITIES } from '../../../database/root-entities';
+import { INVALID_WHERE_VALUES_BEHAVIOR } from '../../../database/typeorm-options';
 import { LlmModule } from '../../llm/llm.module';
 import { ModelConfigModule } from '../../model-config/model-config.module';
 import { RerankClientFactory } from '../../llm/rerank/rerank-client.factory';
@@ -48,6 +49,8 @@ import { RerankService } from '../search/rerank.service';
         entities: [...ROOT_ENTITIES],
         synchronize: false,
         logging: false,
+        // 앱 루트와 같은 where 처리(`database/typeorm-options.ts`). 기본값에 기대지 않고 명시한다.
+        invalidWhereValuesBehavior: INVALID_WHERE_VALUES_BEHAVIOR,
       }),
     }),
     LlmModule,

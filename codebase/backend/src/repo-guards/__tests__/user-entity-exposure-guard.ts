@@ -229,7 +229,7 @@ function userRelationInInitializer(
     }
     return null;
   }
-  // 형태 2 — 객체 리터럴 (TypeORM 0.3). **중첩까지 내려간다** —
+  // 형태 2 — 객체 리터럴 (typeorm 1 에서는 유일한 형태). **중첩까지 내려간다** —
   // `relations: { workflow: { creator: true } }` 도 `creator` 를 통째로 싣는다.
   // 최상위만 보면 배열 형태의 `'member.user'` 는 잡으면서 객체 형태의 같은 중첩은
   // 놓친다 — 이 가드가 막으려는 결함 클래스를 자신이 반복하는 자리였다
@@ -306,8 +306,8 @@ function hasProjectionFor(
  *
  * 세 형태를 본다 — TypeORM 이 관계를 지정하는 방식이 셋이기 때문이다:
  *
- * 1. `relations: [… 'creator' …]` — 배열 리터럴.
- * 2. `relations: { creator: true }` — **0.3 객체 형태.** 첫 판이 이것을 빠뜨렸는데, 하필
+ * 1. `relations: [… 'creator' …]` — 배열 리터럴. typeorm 1 에서는 컴파일되지 않는 옛 형태라 방어로만 남긴다.
+ * 2. `relations: { creator: true }` — **객체 형태**(typeorm 1 의 유일한 형태). 첫 판이 이것을 빠뜨렸는데, 하필
  *    실제 유출 지점의 자매 메서드가 이 형태를 쓰고 있었다.
  * 3. `leftJoinAndSelect('x.creator', …)` / `innerJoinAndSelect(…)` — QueryBuilder.
  *

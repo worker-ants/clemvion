@@ -5,7 +5,7 @@ import type {
 } from '../../entities/trigger.entity';
 
 // 왜 좁혔나 — `findAll` 의 `leftJoinAndSelect('t.workflow','w')` 와 `findById` 의
-// `relations: ['workflow']` 가 **Workflow 엔티티 전체**를 실어 왔고 `TriggerDto` 는 그것을
+// `relations: { workflow: true }` 가 **Workflow 엔티티 전체**를 실어 왔고 `TriggerDto` 는 그것을
 // 선언조차 하지 않았다. §5.4 응답-계약 대조를 목록·수정 경로로 넓히자 드러났다
 // (`review/code/2026/09/05/21_40_37` W1). `ScheduleDto.trigger` 와 같은 처방이다.
 // 소비처는 `triggers/page.tsx` 두 곳뿐 — `t.workflow?.id` · `t.workflow?.name`.

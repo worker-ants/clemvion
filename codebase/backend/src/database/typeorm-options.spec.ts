@@ -1,4 +1,11 @@
 import { ConfigService } from '@nestjs/config';
+import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import {
+  DataSource,
+  type DataSourceOptions,
+  EntitySchema,
+  IsNull,
+} from 'typeorm';
 import { ROOT_ENTITIES } from './root-entities';
 import {
   buildRootTypeOrmOptions,
@@ -10,23 +17,25 @@ const configOf = (values: Record<string, unknown>): ConfigService =>
     get: jest.fn((key: string) => values[key]),
   }) as unknown as ConfigService;
 
-describe('buildRootTypeOrmOptions', () => {
-  const options = buildRootTypeOrmOptions(
-    configOf({
-      'database.host': 'db',
-      'database.port': 5432,
-      'database.username': 'u',
-      'database.password': 'p',
-      'database.database': 'clemvion',
-      'database.poolMax': 20,
-      'database.poolIdleTimeoutMs': 10000,
-      'database.poolConnectionTimeoutMs': 5000,
-    }),
-  );
+const CONFIG = {
+  'database.host': 'db',
+  'database.port': 5432,
+  'database.username': 'u',
+  'database.password': 'p',
+  'database.database': 'clemvion',
+  'database.poolMax': 20,
+  'database.poolIdleTimeoutMs': 10000,
+  'database.poolConnectionTimeoutMs': 5000,
+};
 
-  it('where 의 null · undefined 는 조용히 빼지 않고 예외로 던진다', () => {
-    // typeorm 0.3 은 그 조건을 빼고 조회해 범위가 넓어졌다(예: workspaceId 가 undefined 면 전 워크스페이스).
-    // 1.x 기본값과 같지만 결정을 코드에 남기려고 명시한다(NERV Task CLE-T-91JNWW).
+describe('buildRootTypeOrmOptions', () => {
+  let options: TypeOrmModuleOptions;
+
+  beforeAll(() => {
+    options = buildRootTypeOrmOptions(configOf(CONFIG));
+  });
+
+  it('where 의 null · undefined 를 예외로 던지게 설정한다', () => {
     expect(INVALID_WHERE_VALUES_BEHAVIOR).toEqual({
       null: 'throw',
       undefined: 'throw',
@@ -54,5 +63,77 @@ describe('buildRootTypeOrmOptions', () => {
       },
     });
     expect(options.entities).toEqual([...ROOT_ENTITIES]);
+  });
+
+  describe('logging 은 NODE_ENV=development 에서만 켠다', () => {
+    const original = process.env.NODE_ENV;
+    afterEach(() => {
+      process.env.NODE_ENV = original;
+    });
+
+    it.each([
+      ['development', true],
+      ['production', false],
+      ['test', false],
+    ])('NODE_ENV=%s → logging %s', (env, expected) => {
+      process.env.NODE_ENV = env;
+      expect(buildRootTypeOrmOptions(configOf(CONFIG)).logging).toBe(expected);
+    });
+  });
+});
+
+/**
+ * 설정값이 DataSource 까지 가서 실제로 던지는지 본다. DB 에 연결하지 않고 메타데이터만 빌드해
+ * `setFindOptions`(find 계열과 같은 where 변환)로 쿼리를 만든다.
+ */
+describe('루트 옵션의 where 처리 (DataSource 메타데이터만, DB 연결 없음)', () => {
+  class MetadataOnlyDataSource extends DataSource {
+    prepareMetadata(): Promise<void> {
+      return this.buildMetadatas();
+    }
+  }
+
+  interface Probe {
+    id: string;
+    acceptedAt: Date | null;
+  }
+  const ProbeSchema = new EntitySchema<Probe>({
+    name: 'Probe',
+    tableName: 'probe',
+    columns: {
+      id: { type: 'uuid', primary: true },
+      acceptedAt: { type: 'timestamptz', nullable: true, name: 'accepted_at' },
+    },
+  });
+
+  let ds: MetadataOnlyDataSource;
+
+  beforeAll(async () => {
+    const root = buildRootTypeOrmOptions(configOf(CONFIG));
+    ds = new MetadataOnlyDataSource({
+      ...root,
+      entities: [ProbeSchema],
+    } as DataSourceOptions);
+    await ds.prepareMetadata();
+  });
+
+  const queryWith = (where: Record<string, unknown>): string =>
+    ds
+      .createQueryBuilder(ProbeSchema, 'p')
+      .setFindOptions({ where: where as never })
+      .getQuery();
+
+  it('undefined 값은 던진다', () => {
+    expect(() => queryWith({ id: undefined })).toThrow(/undefined value/i);
+  });
+
+  it('null 값은 던진다', () => {
+    expect(() => queryWith({ acceptedAt: null })).toThrow(/null value/i);
+  });
+
+  it('IsNull() 은 SQL IS NULL 이 된다', () => {
+    expect(queryWith({ acceptedAt: IsNull() })).toMatch(
+      /accepted_at"? IS NULL/i,
+    );
   });
 });

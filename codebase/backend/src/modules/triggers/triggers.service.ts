@@ -547,7 +547,7 @@ export class TriggersService {
   /**
    * `update()` 전용 — **검증에만 쓰는 가벼운 조회.**
    *
-   * `findById` 는 `relations: ['workflow']` 를 싣는데, `update()` 의 사전 검증(타입 분기 ·
+   * `findById` 는 `relations: { workflow: true }` 를 싣는데, `update()` 의 사전 검증(타입 분기 ·
    * chatChannel 설정 여부 · 인증 설정)은 그 관계를 한 번도 보지 않는다. 저장·응답에 쓰이는
    * 엔티티는 **락 안에서 다시 읽으므로**, 여기서 조인을 한 번 더 하면 PATCH 마다 같은 JOIN
    * SELECT 가 두 번 돈다 (`/ai-review` `review/code/2026/09/14/20_17_16` performance WARNING#1).

@@ -66,9 +66,7 @@ import { ExternalInteractionModule } from './modules/external-interaction/extern
 import { WebChatCorsModule } from './modules/web-chat-cors/web-chat-cors.module';
 import { ChatChannelModule } from './modules/chat-channel/chat-channel.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
-// 루트 TypeORM 옵션(엔티티 목록 포함)은 ./database/typeorm-options 에 있다. ROOT_ENTITIES 는
-// ./database/root-entities 로 분리돼 있다(eval CLI 등 경량 부트스트랩이 app.module 전체를
-// transitive import 하지 않고 entity 목록만 재사용하기 위함).
+// 루트 TypeORM 옵션(엔티티 목록 포함)은 ./database/typeorm-options 가 만든다.
 import { buildRootTypeOrmOptions } from './database/typeorm-options';
 
 // ROOT_ENTITIES 정의는 ./database/root-entities 로 이동. 기존 import 사이트

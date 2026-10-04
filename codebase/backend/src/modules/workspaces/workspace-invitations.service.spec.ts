@@ -171,8 +171,7 @@ describe('WorkspaceInvitationsService', () => {
       expect(result.invitedBy).toBe('user-1');
       expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
       expect(invitationRepo.save).toHaveBeenCalled();
-      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다. typeorm 0.3 은 `acceptedAt: null` 조건을 조용히 빼서
-      // 이미 수락된 초대까지 찾아 갱신할 수 있었다(typeorm 1 은 그 값을 예외로 던진다).
+      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다.
       expect(invitationRepo.findOne).toHaveBeenCalledWith({
         where: { workspaceId: 'ws-1', email: 'b@x.com', acceptedAt: IsNull() },
       });
@@ -688,8 +687,7 @@ describe('WorkspaceInvitationsService', () => {
       const now = new Date();
       const removed = await service.pruneExpired(now);
       expect(removed).toBe(3);
-      // 수락되지 않은(acceptedAt IS NULL) 만료 초대만 지운다. typeorm 0.3 은 `acceptedAt: null` 조건을 빼서
-      // 수락된 초대까지 만료 시각만으로 지울 수 있었다.
+      // 수락되지 않은(acceptedAt IS NULL) 만료 초대만 지운다. 수락된 초대는 감사용으로 남는다.
       expect(invitationRepo.delete).toHaveBeenCalledWith({
         acceptedAt: IsNull(),
         expiresAt: LessThan(now),

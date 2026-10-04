@@ -82,12 +82,12 @@ _STDERR_PREVIEW = 2000
 ACCEPTED: dict[tuple[str, str], str] = {
     ("typeorm", "ioredis"): (
         "typeorm 의 ioredis peer 는 **Redis query cache** 전용인데 이 저장소는 그 기능을 "
-        "켜지 않는다 — `codebase/backend/src/app.module.ts` 의 `TypeOrmModule.forRootAsync` "
-        "설정에 `cache` 키가 없다(2026-08-28 실측). 즉 typeorm 이 ioredis 를 로드하는 "
+        "켜지 않는다 — 루트 옵션 `codebase/backend/src/database/typeorm-options.ts` 의 "
+        "`buildRootTypeOrmOptions` 에 `cache` 키가 없다(2026-08-28 실측, 2026-10-04 옵션 이동 뒤 재확인). 즉 typeorm 이 ioredis 를 로드하는 "
         "코드 경로에 **도달하지 않는다**. backend 가 실제로 쓰는 ioredis 는 직접 의존 "
         "`^6.0.0` 이고 BullMQ·rate limiter·dedup·seq allocator·continuation bus·health "
         "경로다 — typeorm 과 겹치지 않는 별개 소비자다. "
-        "해제 조건: `forRootAsync` 에 `cache` 옵션이 생기면 그 즉시 재심사."
+        "해제 조건: `buildRootTypeOrmOptions` 에 `cache` 옵션이 생기면 그 즉시 재심사."
     ),
     # (묘비) `("nunjucks", "chokidar")` 는 2026-10-04 에 지웠다. nunjucks 는
     # `@nestjs-modules/mailer` 의 optionalDependencies 로 들어오던 전이 의존이었고, NestJS 12

@@ -51,7 +51,7 @@ export async function violationCreatorRelation(): Promise<unknown> {
 }
 
 /**
- * 위반 4 — **TypeORM 0.3 객체 형태.** 첫 판은 배열 리터럴만 순회해서 이 형태를 통째로
+ * 위반 4 — **객체 형태**(typeorm 1 의 유일한 형태). 첫 판은 배열 리터럴만 순회해서 이 형태를 통째로
  * 놓쳤다. 하필 실제 유출 지점의 자매 메서드가 이 형태를 쓰고 있었다.
  */
 export async function violationObjectRelations(): Promise<unknown> {
