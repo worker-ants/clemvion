@@ -53,8 +53,9 @@ import { WorkflowChannelAuthorizer } from '../workflows/workflow-channel-authori
     // refactor 02 M-7 — 채널 authorizer 집계 지점(gateway 가 이 배열을 CHANNEL_AUTHORIZER 로
     // 주입받아 handleSubscribe 가 첫 매칭 authorizer 만 호출 — gateway→도메인 서비스 역참조 제거).
     // 각 authorizer 는 자기 도메인 모듈이 provider 로 소유·export 한다(execution/background:run=
-    // Executions, workflow=Workflows, kb=KnowledgeBase; notifications 만 WS-local). NestJS 11 의
-    // `multi: true` 는 이 환경에서 배열로 집계되지 않아(last-write-wins) useFactory 로 명시 집계한다.
+    // Executions, workflow=Workflows, kb=KnowledgeBase; notifications 만 WS-local). NestJS 는
+    // Angular 식 `multi: true` 프로바이더가 없어(NestJS 12 에서도 같은 토큰을 두 번 등록하면 마지막
+    // 값만 주입된다) useFactory 로 명시 집계한다.
     // 신규 채널 = 도메인 모듈에 authorizer + export, 그리고 아래 inject 에 한 줄(gateway·handleSubscribe 무수정).
     {
       provide: CHANNEL_AUTHORIZER,

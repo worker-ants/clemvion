@@ -23,6 +23,27 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 배포: 시스템 메일을 암호화한 SMTP 연결로만 보낸다
+
+`MAIL_TRANSPORT=smtp` 이고 `MAIL_SECURE` 가 `true` 가 아니면(기본값, 포트 587) 이제 STARTTLS 를 강제한다(nodemailer `requireTLS`). 전에는 서버가 STARTTLS 를 알릴 때만 암호화했다. 그래서 능동 중간자가 EHLO 응답에서 STARTTLS 를 지우면 이메일 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 평문으로 나갔다. `@nestjs-modules/mailer` 를 쓰던 때도 같았다(사람 결정, NERV Task `CLE-T-67BNAZ`).
+
+- **배포 영향**: STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 모든 시스템 메일 발송이 실패한다(nodemailer 코드 `ETLS`). 실패가 드러나는 방식은 메일마다 다르다.
+  - 가입 인증 메일과 이메일 변경 확인 메일은 요청이 에러(500)로 끝난다. 가입은 미인증 사용자 행이 남아 같은 이메일로 다시 가입하면 409 가 나고 인증 메일 재발송으로 복구한다.
+  - 비밀번호 재설정 · 초대 · 이메일 변경 통지 · 알림 메일은 사용자에게 드러나지 않고 서버 로그에만 남는다(알림은 `email_sent_at` 이 비어 있다).
+  - 배포 뒤 `Failed to send … email` 로그의 stack 에 `Error upgrading connection with STARTTLS` 가 있는지 확인한다. 로그에는 `ETLS` 문자열이 나오지 않는다.
+- **끄는 방법**: STARTTLS 를 지원하지 않는 서버를 쓰는 배포만 새 환경 변수 `MAIL_REQUIRE_TLS=false` 로 끈다. 정확히 소문자 `false` 만 끄고 비우거나 빠뜨리거나 다른 값(`0`, `False` 등)이면 강제한다. `MAIL_SECURE=true`(암묵적 TLS, 보통 465)와 `console` 전송(로컬 · e2e)은 영향이 없다. Send Email 노드의 SMTP 통합은 통합마다 고르는 `secure`(`none` · `starttls` · `tls`)를 그대로 따른다.
+- 운영(`NODE_ENV=production`)에서 SMTP 전송인데 `MAIL_REQUIRE_TLS=false` 로 끄고 부팅하면 `[SECURITY]` 경고를 남긴다. 정당한 용도가 있어 부팅을 거부하지는 않는다(`ALLOW_PRIVATE_HOST_TARGETS` 경고와 같은 기준).
+- STARTTLS 를 알리지 않는 가짜 SMTP 서버로 테스트한다. 기본 설정은 AUTH 와 메일 명령을 보내기 전에 실패하고 `MAIL_REQUIRE_TLS=false` 면 보낸다. 설정 기본값과 운영 경고 판정도 테스트로 고정했다.
+- `README.md` · `codebase/backend/.env.example` · `k8s/base/secret.example.yaml` · `k8s/README.md` 에 `MAIL_REQUIRE_TLS` 를 적었다.
+
+## Unreleased — 의존성: mailer 경로에만 있던 overrides 5건을 걷는다
+
+`pnpm-workspace.yaml` overrides 의 `lodash` · `liquidjs` · `html-to-text` · `linkify-it` · `svgo` 를 지우고 `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 에서도 뺐다(overrides 34 → 29건, NERV Task `CLE-T-67BNAZ`). 모두 `@nestjs-modules/mailer`(NestJS 12 상향 때 제거)의 템플릿 엔진 · 미리보기 경로에 건 바닥 핀이었다. lockfile 에 대상이 0건이었고 이 다섯을 peer 로 선언한 패키지도 없어서 다른 패키지의 peer 범위를 다시 쓰지도 않았다(undici 7.x override 제거 항목과 다른 점).
+
+- 해소되는 패키지는 바뀌지 않았다. lockfile 은 overrides 블록에서 다섯 줄만 빠진다.
+- 다섯 중 하나가 다른 경로로 다시 들어오고 그 버전에 moderate 이상 권고가 있으면 `pnpm audit`(deps-security-checks)가 잡는다. 핀은 그때 그 경로에 맞춰 다시 건다.
+- 확인: 보안 baseline · 바닥 침식 검사(`check-override-floors.py`) 통과, `pnpm audit --prod` 0건, 전체 audit 은 수용한 `CVE-2026-93687` 1건만 남는다.
+
 ## Unreleased — API: 워크스페이스 초대가 대기 중인 초대만 다룬다
 
 `workspace-invitations.service.ts` 의 세 곳이 `acceptedAt: null as never` 로 "수락되지 않은 초대" 를 고르려 했다. typeorm 0.3 은 where 의 null 조건을 조용히 빼고 조회해서 의도와 다르게 동작했다. typeorm 1 상향(아래 항목)에서 이 null 이 예외가 되면서 드러났고 세 곳 모두 `IsNull()` 로 바꿨다(NERV Task `CLE-T-91JNWW`).
