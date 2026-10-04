@@ -63,8 +63,28 @@ import sys
 import tempfile
 from typing import NoReturn
 
+# 종료 코드. 1 은 "판정이 실패다"(새 미충족 · 사라진 수용 항목), 2 는 "측정하지 못했다"(설정을
+# 못 읽음 · pnpm 실행 실패 · 출력 형태 변화). 형제 가드 `check-override-floors.py` 와 같은 구분이다.
+_EXIT_VERDICT_FAIL = 1
+_EXIT_UNDECIDABLE = 2
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    print('ERROR: PyYAML 이 필요하다 — `pip install "pyyaml>=6,<7"`.', file=sys.stderr)
+    sys.exit(_EXIT_UNDECIDABLE)
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-LOCKFILE = REPO_ROOT / "pnpm-lock.yaml"
+
+# 재해소 사본에 옮기는 루트 파일. lockfile 은 일부러 뺀다 — 없어야 재해소가 일어난다.
+# `.npmrc` 는 pnpm 설정 파일이라 있으면 함께 옮긴다(지금은 node-linker · engine-strict 뿐이고 각
+# 키가 peer 판정을 바꾸는지는 재지 않았다).
+_ROOT_FILES_REQUIRED = ("package.json", "pnpm-workspace.yaml")
+_ROOT_FILES_OPTIONAL = (".npmrc",)
+
+# 사본에 옮기지 않는 해소 입력. 저장소에 생기면 사본의 해소가 실제와 갈라지므로 측정을 멈춘다.
+_UNSUPPORTED_ROOT_FILES = (".pnpmfile.cjs",)
+_UNSUPPORTED_WORKSPACE_KEYS = ("patchedDependencies",)
 
 # 재해소가 걸리는 상한. 워크스페이스 12개 · 의존성 ~2,000개 해소가 로컬에서 ~40초였고,
 # CI 러너는 그보다 느리며 레지스트리 지연도 탄다. 넉넉히 준다 — 이 잡은 주간 1회다.
@@ -106,42 +126,124 @@ _PARENT_RE = re.compile(r"(?P<name>@?[\w.-]+(?:/[\w.-]+)?)\s+(?P<version>\d[\w.+
 
 
 def _die(msg: str) -> NoReturn:
+    """측정하지 못했을 때 멈춘다(exit 2). 판정 실패(exit 1)와 구분한다."""
     print(f"\nERROR: {msg}", file=sys.stderr)
-    sys.exit(1)
+    sys.exit(_EXIT_UNDECIDABLE)
 
 
-def resolve_fresh() -> tuple[int, str]:
+def _read_workspace(repo_root: pathlib.Path) -> dict:
+    """`pnpm-workspace.yaml` 을 읽는다. 못 읽거나 매핑이 아니면 멈춘다.
+
+    손 파서를 쓰지 않는다. `test_dependabot_npm_coverage.py` 에 같은 목적의 손 파서가 있지만
+    이 스크립트는 판정 근거로 쓰므로 정본 파서(PyYAML)로 읽는다(tests README 의 PyYAML 예외와 같은 이유).
+    """
+    try:
+        data = yaml.safe_load((repo_root / "pnpm-workspace.yaml").read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        _die(f"pnpm-workspace.yaml 을 읽지 못했다: {exc}")
+    if not isinstance(data, dict):
+        _die("pnpm-workspace.yaml 이 매핑이 아니다.")
+    return data
+
+
+def _workspace_globs(workspace: dict) -> list[str]:
+    """`packages` 글로브 목록. 비었거나 문자열 목록이 아니면 멈춘다.
+
+    목록 없이 루트 매니페스트만으로 재해소하면 워크스페이스 패키지의 의존이 통째로 빠져
+    "미충족 0건" 이 나온다. 그것은 통과가 아니라 측정 실패다(fail-closed).
+    """
+    globs = workspace.get("packages")
+    if not isinstance(globs, list) or not globs or not all(isinstance(g, str) and g for g in globs):
+        _die("pnpm-workspace.yaml 의 packages 가 비었거나 문자열 목록이 아니다 — 재해소할 워크스페이스를 알 수 없다.")
+    return globs
+
+
+def stage_manifests(repo_root: pathlib.Path, dest: pathlib.Path) -> list[str]:
+    """재해소에 필요한 파일만 `dest` 로 복사하고 복사한 상대 경로를 정렬해 돌려준다.
+
+    루트 `package.json` · `pnpm-workspace.yaml` · `.npmrc` 와 워크스페이스 글로브에 걸리는
+    디렉터리의 `package.json` 만 옮긴다.
+
+    - 글로브는 `pathlib.Path.glob` 으로 푼다. pnpm(fast-glob)과 의미가 갈릴 수 있으므로 `*` 와
+      리터럴 경로 밖의 형태(`**`, 중괄호 등)가 생기면 이 함수를 다시 본다.
+    - `!` 제외 글로브는 건너뛴다. 복사한 `pnpm-workspace.yaml` 에 그대로 남아 pnpm 이 적용한다.
+    - `node_modules` 아래 매니페스트는 옮기지 않는다. `**` 글로브가 설치된 패키지까지 내려갈 수 있다.
+    - 저장소 밖을 가리키는 경로(`..`)는 멈춘다. 사본이 임시 디렉터리 밖에 쓰이면 안 된다.
+    """
+    workspace = _read_workspace(repo_root)
+    for name in _UNSUPPORTED_ROOT_FILES:
+        if (repo_root / name).exists():
+            _die(f"{name} 이 있다 — 재해소 사본에 옮기지 않는 입력이라 측정이 실제와 갈라진다.")
+    for key in _UNSUPPORTED_WORKSPACE_KEYS:
+        if key in workspace:
+            _die(f"pnpm-workspace.yaml 에 {key} 가 있다 — 재해소 사본에 옮기지 않는 입력이라 측정이 실제와 갈라진다.")
+
+    root = repo_root.resolve()
+    dest_root = dest.resolve()
+    copied: set[str] = set()
+
+    def _copy(rel: pathlib.Path) -> None:
+        src = (repo_root / rel).resolve()
+        target = (dest / rel).resolve()
+        if not src.is_relative_to(root) or not target.is_relative_to(dest_root):
+            _die(f"저장소 밖을 가리키는 경로다: {rel}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, target)
+        copied.add(rel.as_posix())
+
+    for name in _ROOT_FILES_REQUIRED:
+        if not (repo_root / name).is_file():
+            _die(f"{name} 이 없다: {repo_root / name}")
+        _copy(pathlib.Path(name))
+    for name in _ROOT_FILES_OPTIONAL:
+        if (repo_root / name).is_file():
+            _copy(pathlib.Path(name))
+
+    workspace_manifests = 0
+    for pattern in _workspace_globs(workspace):
+        if pattern.startswith("!"):
+            continue
+        for pkg_dir in sorted(repo_root.glob(pattern)):
+            manifest = pkg_dir / "package.json"
+            rel = manifest.relative_to(repo_root)
+            if not manifest.is_file() or "node_modules" in rel.parts or rel.as_posix() in copied:
+                continue
+            _copy(rel)
+            workspace_manifests += 1
+    if workspace_manifests == 0:
+        _die("워크스페이스 글로브에 걸리는 package.json 이 하나도 없다 — 루트만으로 재해소하면 0건이 나온다.")
+    return sorted(copied)
+
+
+def resolve_fresh(repo_root: pathlib.Path = REPO_ROOT) -> tuple[int, str]:
     """lockfile 없이 매니페스트만으로 재해소하고 (exit code, 출력) 을 돌려준다.
 
-    **실제 `pnpm-lock.yaml` 을 건드리지 않는다.** 임시 위치로 옮겼다가 `finally` 로
-    되돌린다 — 이 저장소는 가드가 저장소 파일을 망가뜨린 사고를 이미 겪었고
-    (`review/**` 의 리뷰어 뮤테이션 사례들), 그 교훈은 "원복을 우연에 기대지 말라" 다.
-    `git checkout` 으로 되돌리지 않는 것도 같은 이유다 — 미커밋 작업을 지운다.
-    """
-    if not LOCKFILE.exists():
-        _die(f"pnpm-lock.yaml 이 없다: {LOCKFILE}")
+    **저장소 밖 임시 디렉터리에서 돈다.** 매니페스트만 그곳으로 복사하고(`stage_manifests`)
+    거기서 `pnpm install --lockfile-only` 를 부르므로 저장소의 어떤 파일도 쓰거나 지우지 않는다.
+    필요한 것: PATH 의 `pnpm`, PyYAML. 임시 디렉터리는 `tempfile` 기본 위치라 `TMPDIR` 가
+    저장소 안을 가리키지 않는다는 전제 위에 있다.
 
+    예전에는 저장소의 `pnpm-lock.yaml` 을 임시 위치로 옮기고 그 자리에서 재해소한 뒤 `finally` 로
+    되돌렸다. 원복은 지켜졌지만 실행 중에는 작업 트리의 lockfile 이 없거나 새로 해소된 판이었다.
+    2026-10-04 같은 worktree 에서 리뷰어 넷이 이 스크립트를 동시에 돌리는 동안 테스트(Docker 이미지가
+    lockfile 을 COPY)가 돌았고 lockfile 부재가 관측됐다(NERV Task `CLE-T-DDA7V4`).
+    """
     with tempfile.TemporaryDirectory(prefix="unmet-peers-") as tmp:
-        stash = pathlib.Path(tmp) / "pnpm-lock.yaml"
-        shutil.copy2(LOCKFILE, stash)
+        work = pathlib.Path(tmp)
+        stage_manifests(repo_root, work)
         try:
-            LOCKFILE.unlink()
             proc = subprocess.run(
                 ["pnpm", "install", "--lockfile-only", "--strict-peer-dependencies"],
-                cwd=REPO_ROOT,
+                cwd=work,
                 capture_output=True,
                 text=True,
                 timeout=_RESOLVE_TIMEOUT_SEC,
             )
-            return proc.returncode, proc.stdout + proc.stderr
         except FileNotFoundError:
             _die("pnpm 을 찾을 수 없다 — PATH 를 확인하라.")
         except subprocess.TimeoutExpired:
             _die(f"재해소가 {_RESOLVE_TIMEOUT_SEC}s 안에 끝나지 않았다.")
-        finally:
-            # 성공·실패·예외 어느 경로로 나가도 원복한다. 재해소가 새로 쓴 lockfile 을
-            # 덮어써야 하므로 copy2 로 무조건 덮는다(존재 여부를 묻지 않는다).
-            shutil.copy2(stash, LOCKFILE)
+        return proc.returncode, proc.stdout + proc.stderr
 
 
 def parse_unmet(output: str) -> set[tuple[str, str]]:
@@ -212,7 +314,7 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    return 1
+    return _EXIT_VERDICT_FAIL
 
 
 if __name__ == "__main__":

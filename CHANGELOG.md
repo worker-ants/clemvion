@@ -23,6 +23,14 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: 미충족 peer 관측이 저장소의 lockfile 을 건드리지 않는다
+
+`scripts/check-unmet-peers.py`(주간 `deps-peer-observe`, 로컬에서도 돈다)는 lockfile 없이 재해소하려고 **저장소의** `pnpm-lock.yaml` 을 임시 위치로 치우고 그 자리에서 `pnpm install --lockfile-only` 를 돌린 뒤 되돌렸다. 실행 중에는 작업 트리의 lockfile 이 없거나 새로 해소된 판이었다. 2026-10-04 리뷰어 넷이 같은 worktree 에서 이 스크립트를 동시에 돌리는 동안 같은 worktree 의 테스트(Docker 이미지가 lockfile 을 COPY)가 돌았고 리뷰어들은 lockfile 부재 오류와 ` D pnpm-lock.yaml` 을 관측했다(NERV Task `CLE-T-DDA7V4`).
+
+- 이제 루트 `package.json` · `pnpm-workspace.yaml` · `.npmrc` 와 워크스페이스 글로브에 걸리는 매니페스트만 저장소 밖 임시 디렉터리로 복사해 그곳에서 재해소한다. 저장소의 파일은 읽기만 한다.
+- 측정하지 못하면 종료 코드 2 로 멈춘다(판정 실패는 1 그대로). 워크스페이스 목록(`packages`)을 읽지 못하거나, 글로브에 걸리는 매니페스트가 없거나, 경로가 저장소 밖을 가리키거나, 사본에 옮기지 않는 해소 입력(`.pnpmfile.cjs` · `patchedDependencies`)이 있으면 pnpm 을 부르기 전에 멈춘다. 예전에는 측정 실패도 1 이었다. 목록을 읽으려고 PyYAML 을 쓰며 `deps-peer-observe` 워크플로에 설치 단계를 더했다.
+- 판정(수용 항목 · 새 항목 · 사라진 항목)과 출력 형식은 그대로다. 하네스 테스트(`test_check_unmet_peers.py`)가 저장소 밖 실행 · 실행 중 lockfile 유지 · 실행 뒤 저장소 불변 · 사본 구성 · 판정 · fail-closed 를 고정한다. 판정 테스트는 운영 등재부(`ACCEPTED`)와 분리했다.
+
 ## Unreleased — 배포: 시스템 메일을 암호화한 SMTP 연결로만 보낸다
 
 `MAIL_TRANSPORT=smtp` 이고 `MAIL_SECURE` 가 `true` 가 아니면(기본값, 포트 587) 이제 STARTTLS 를 강제한다(nodemailer `requireTLS`). 전에는 서버가 STARTTLS 를 알릴 때만 암호화했다. 그래서 능동 중간자가 EHLO 응답에서 STARTTLS 를 지우면 이메일 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 평문으로 나갔다. `@nestjs-modules/mailer` 를 쓰던 때도 같았다(사람 결정, NERV Task `CLE-T-67BNAZ`).

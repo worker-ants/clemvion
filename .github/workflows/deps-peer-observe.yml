@@ -60,8 +60,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
-      # 스크립트가 lockfile 을 임시로 치우고 재해소한 뒤 되돌린다. 러너는 일회용이라
-      # 원복이 실패해도 저장소에 영향이 없지만, 같은 스크립트를 **로컬에서도** 돌리므로
-      # 원복은 스크립트 쪽에서 `finally` 로 보장한다(그 파일 주석 참조).
+      # 스크립트가 워크스페이스 목록을 읽으려고 PyYAML 을 쓴다(`test_check_unmet_peers.py` 가 이
+      # 단계의 존재와 순서를 확인한다).
+      - name: Install PyYAML
+        run: pip install "pyyaml>=6,<7"
+      # 매니페스트만 저장소 밖 임시 디렉터리로 복사해 그곳에서 재해소한다. 저장소의 lockfile 은
+      # 건드리지 않는다(NERV Task `CLE-T-DDA7V4`, 스크립트 `resolve_fresh` docstring 참조).
       - name: Check unmet peers
         run: python3 scripts/check-unmet-peers.py
