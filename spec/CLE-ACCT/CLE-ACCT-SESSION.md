@@ -3,18 +3,18 @@ id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-034", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "cf60faec8557f44a3baec2675f90d564f185a9ff3fbb051d8f600fd4a44b1483"
-read_as: "approved"
-task: null
+content_hash: "a4148c29d00617c1b66e55f1ac41197292510ae822179907e43434cb3f9a1cb8"
+read_as: "approved_fallback"
+task: "CLE-T-52JYHM"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "0af60247a12f3caa7027031632720e553a81414741181406cfe9ddae0b89c1cf"
-etag: "sha256-95a8f1a7ee67eff3b2265120fb20d38eb72e2cc353c3dc4fbfebaf9ad314e9c0"
+mirror_sha256: "bc27949c8bc9999640c2313a1c42615592a41d4b98ec1fafbc5e12373225bf29"
+etag: "sha256-c9a7d6c794edd6e69fc708f52c4914fe11f9246e5a134f27ba001d5800566bdd"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한·비활동 만료는 구현 여부 미확인) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -80,7 +80,7 @@ etag: "sha256-95a8f1a7ee67eff3b2265120fb20d38eb72e2cc353c3dc4fbfebaf9ad314e9c0"
 | 액세스 토큰 | 메모리(JS 변수) | 15분 | API 요청 인증 |
 | 리프레시 토큰 | HttpOnly·Secure 쿠키. SameSite 와 Path 는 아래 [세션 정책](#세션-정책) | 7일. 로그인 유지를 켜면 30일 | 액세스 토큰 갱신 |
 
-액세스 토큰은 `JWT_SECRET` 으로 서명한다. `NODE_ENV=production` 에서 `JWT_SECRET` 이 없거나 기본 sentinel·예시값이거나 32자 미만이면 부팅을 거부한다(`main.ts` 의 `assertProductionConfig`). 개발·테스트·e2e(`NODE_ENV≠production`)는 개발용 기본값을 허용한다. 이유는 [Rationale](#rationale) 의 production fail-closed 가드 절에 있다.
+액세스 토큰은 `JWT_SECRET` 으로 서명한다. `NODE_ENV=production` 에서 `JWT_SECRET` 이 없거나 기본 sentinel·예시값이거나 32자 미만이면 부팅을 거부한다(`main.ts` 의 `assertProductionConfig`). 개발·테스트·e2e(`NODE_ENV≠production`)는 개발용 기본값을 허용한다. 이유는 Rationale 의 [운영 환경 가드](#운영-환경-가드) 절에 있다.
 
 리프레시 토큰은 워크스페이스와 무관한 opaque UUID 다. 클레임을 담지 않는다.
 
@@ -321,7 +321,7 @@ OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-passwor
 
 비밀번호 변경(`UsersService.changePassword`)은 비밀번호 재확인(`AuthService.verifyPasswordForUser`)과 같은 두 코드를 내지만 헬퍼를 재사용하지 않는다. 순환 의존 때문이 아니다. `UsersModule` 은 이미 `forwardRef(() => AuthModule)` 을 import 하고 `UsersController` 가 그 방식으로 `AuthService` 를 주입받으므로 주입은 가능하다. 재사용하지 않는 이유는 그 헬퍼가 사용자를 다시 조회하고 `!user` 를 `PASSWORD_REQUIRED` 로 접기 때문이다. 변경 경로는 이미 조회한 사용자를 쓰므로 같은 질의가 두 번 되고, 변경 경로는 사용자 없음을 `USER_NOT_FOUND`(404)로 유지해야 한다. 세션 강제 종료·이메일 변경 재인증(`verifyReauth`)과도 별도 헬퍼이고 상태와 코드가 다르다.
 
-### production fail-closed 가드
+### 운영 환경 가드
 
 `NODE_ENV=production` 에서 핵심 비밀이나 플래그가 안전하지 않은 상태로 부팅하려 하면 바로 throw 해 기동을 거부한다(`common/config/production-guards.ts` 의 `assertProductionConfig`, `main.ts` 가 bootstrap 첫 단계에서 부른다). 대상은 다음과 같다.
 

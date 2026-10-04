@@ -3,18 +3,18 @@ id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "760d1b9d15feb09ef106d0baa12a898e730ade95f70e6f21bd2873c229197eb2"
-read_as: "approved"
-task: null
+content_hash: "96566433355e0ec4b8bb9bc93c5119c9894278ec36b95d3b35064c6001d4b959"
+read_as: "approved_fallback"
+task: "CLE-T-52JYHM"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "584a5d2e8b81871e28c57e9d064cecf6a8864875c01a702491786d9480f7f17f"
-etag: "sha256-0523a413f9d126f70733215386f6c2125aa7f1ff40b16e6b86714367c7e6c115"
+mirror_sha256: "3d38c955363e5cf6b7c7384aadcda137411aafdac791f7bcc3ef0861773b16c7"
+etag: "sha256-2fa357a20910db4fff9375e090ddfeeccf5ca4db4b31944a4d2d45099295aacc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -164,7 +164,7 @@ etag: "sha256-0523a413f9d126f70733215386f6c2125aa7f1ff40b16e6b86714367c7e6c115"
 | 멤버 (팀 워크스페이스 전용) | 역할 범례(소유자 모든 권한, 관리자 멤버 관리, 편집자 워크플로우 편집, 뷰어 읽기만), 초대 입력(이메일, 역할 선택, [초대]), 대기 중 초대 목록(이메일·역할·만료일, [재발송]·[취소]), 현재 멤버 목록(이름·이메일·역할 드롭다운·제거) | [멤버 관리](#멤버-관리) 표의 권한을 따른다 |
 | 위험 영역 | [워크스페이스 나가기], [소유자 이양], [워크스페이스 삭제] | 나가기는 소유자가 아닌 모든 멤버, 소유자 이양은 소유자만(새 소유자 이메일 재입력 확인), 삭제는 소유자만(이름 재입력 확인 필수) |
 
-역할 이름은 사전 표준(소유자·관리자·편집자·뷰어)으로 적는다. 현재 화면 라벨은 편집자를 "멤버" 로 보여 준다. 이 차이는 [용어 사전](../CLE-GLOSSARY.md) 의 결정 항목이다.
+역할 이름은 사전 표준(소유자·관리자·편집자·뷰어)으로 적는다. 현재 화면 라벨은 편집자를 "멤버" 로 보여 준다. 이 차이는 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「editor 역할의 화면 라벨」 항목(D10)이다.
 
 ### 임베드 허용 도메인
 
