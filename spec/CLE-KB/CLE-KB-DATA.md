@@ -3,18 +3,18 @@ id: "CLE-KB-DATA"
 title: "지식 저장소 데이터와 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "fedbc56f7d89186aff7d406eb0158b9256868f840fa707c07fd35da3513ce30c"
-read_as: "approved"
-task: null
+content_hash: "2040d85c90c2eb661393ac8ab3aa20aa5cb3dab3c7bbc2b712de93ef3e2d21c3"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "85985ec3f2a2c9a7dfe0e9043e72c213e8d2fd2a8f4c64d4b49c13451d417207"
-etag: "sha256-50e03f4f48afd644c2a9efbed3a5113193243bb8398b8a022bb7cb17d4cf1f3a"
+mirror_sha256: "82cd153ba943f944bff5d6b396faebc157e7edb8d747d08920bf2cccf5511f26"
+etag: "sha256-b3ba69645ffd13c80fe567982b4bcef654fca0114cf6dbdb4581be55b25c0d55"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/6-knowledge-base.md`, `spec/1-data-model.md` (§2.11 KnowledgeBase, §2.12 Document, §2.12.1~§2.12.4, Rationale «그래프 RAG 삭제 연쇄의 FK 인덱스 넷») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -378,7 +378,7 @@ sequenceDiagram
 
 ## 미결 사항
 
-- **모델 출력 차원과 저장 청크 차원이 다를 때의 기준**: 옛 데이터 모델 원문과 임베딩 파이프라인 원문, 모델 설정 원문은 `ModelConfig.dimension` 을 "차원의 단일 기준" 이라 부르고 `embedding_dimension` 을 그 값에서 채우는 파생 캐시라고 적는다. 반면 RAG 검색 원문과 데이터 흐름 원문은 `embedding_dimension` 을 적재 경로가 실제 벡터 길이로 채우는 저장 청크 차원이라고 적는다(관련: [문서 임베딩](CLE-KB-EMBED.md), [RAG 검색](CLE-KB-SEARCH.md), [모델 설정](../CLE-AI/CLE-AI-MODELS.md)). 이 문서는 [용어 사전](../CLE-GLOSSARY.md) 결정에 따라 두 값을 다른 개념으로 정의했다. 현재 구현(`embedding.service.ts`)은 벡터 길이를 저장하고 적재·검색 어디서도 `ModelConfig.dimension` 과 비교하지 않는다. 자가호스팅·Azure 처럼 두 값이 어긋날 수 있을 때 적재를 막을지, 모델 출력 차원을 참고값으로만 둘지 결정 필요.
+- **모델 출력 차원과 저장 청크 차원이 다를 때의 기준**: 옛 데이터 모델 원문과 임베딩 파이프라인 원문, 모델 설정 원문은 `ModelConfig.dimension` 을 "차원의 단일 기준" 이라 부르고 `embedding_dimension` 을 그 값에서 채우는 파생 캐시라고 적는다. 반면 RAG 검색 원문과 데이터 흐름 원문은 `embedding_dimension` 을 적재 경로가 실제 벡터 길이로 채우는 저장 청크 차원이라고 적는다(관련: [문서 임베딩](CLE-KB-EMBED.md), [RAG 검색](CLE-KB-SEARCH.md), [모델 설정](../CLE-AI/CLE-AI-MODELS.md)). 이 문서는 [용어 사전 — AI 와 지식 저장소](../CLE-GLOSSARY-AI.md) 의 「임베딩 차원」 과 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「임베딩 차원이 파생 캐시인지 실측값인지」 항목(D46)에 따라 두 값을 다른 개념으로 정의했다. 현재 구현(`embedding.service.ts`)은 벡터 길이를 저장하고 적재·검색 어디서도 `ModelConfig.dimension` 과 비교하지 않는다. 자가호스팅·Azure 처럼 두 값이 어긋날 수 있을 때 적재를 막을지, 모델 출력 차원을 참고값으로만 둘지 결정 필요.
 
 ## 구현 위치
 
@@ -386,10 +386,10 @@ sequenceDiagram
 - `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts`
 - `codebase/backend/src/modules/knowledge-base/queues/*.ts` (`document-embedding.queue.ts`, `graph-extraction.queue.ts`)
 - `codebase/backend/migrations/V021__variable_embedding_dimension.sql`
-- `codebase/backend/migrations/V022__embedding_partial_hnsw_indexes.sql`, `V023__halfvec_index_for_3072.sql`, `V030__embedding_hnsw_384_512_1024.sql`, `V031__embedding_hnsw_1536.sql`, `V032__embedding_hnsw_512.sql`, `V033__embedding_hnsw_1024.sql`
-- `codebase/backend/migrations/V024__kb_reembed_status.sql`, `V025__graph_rag.sql`, `V026__graph_extraction_status_nullable_index.sql`, `V027__relation_head_tail_index.sql`
-- `codebase/backend/migrations/V037__kb_retry_failed_status.sql`, `V038__kb_retry_failed_indexes.sql`, `V039__drop_legacy_document_embedding_status_check.sql`
-- `codebase/backend/migrations/V117`~`V120` (그래프 FK 인덱스), `V128` (`knowledge_base(workspace_id)`)
+- 차원별 임베딩 인덱스: `codebase/backend/migrations/V022__embedding_partial_hnsw_indexes.sql`, `codebase/backend/migrations/V023__halfvec_index_for_3072.sql`, `codebase/backend/migrations/V030__embedding_hnsw_384_512_1024.sql`, `codebase/backend/migrations/V031__embedding_hnsw_1536.sql`, `codebase/backend/migrations/V032__embedding_hnsw_512.sql`, `codebase/backend/migrations/V033__embedding_hnsw_1024.sql`
+- 재임베딩 상태와 그래프: `codebase/backend/migrations/V024__kb_reembed_status.sql`, `codebase/backend/migrations/V025__graph_rag.sql`, `codebase/backend/migrations/V026__graph_extraction_status_nullable_index.sql`, `codebase/backend/migrations/V027__relation_head_tail_index.sql`
+- 실패 재시도 상태: `codebase/backend/migrations/V037__kb_retry_failed_status.sql`, `codebase/backend/migrations/V038__kb_retry_failed_indexes.sql`, `codebase/backend/migrations/V039__drop_legacy_document_embedding_status_check.sql`
+- 그래프 FK 인덱스: `codebase/backend/migrations/V117`, `codebase/backend/migrations/V118`, `codebase/backend/migrations/V119`, `codebase/backend/migrations/V120`. `knowledge_base(workspace_id)` 인덱스: `codebase/backend/migrations/V128`
 
 ## Rationale
 
@@ -415,7 +415,7 @@ cross-encoder 리랭커는 chat·embedding 과 API 모양이 다르다(전용 `/
 
 ### 저장 청크 차원을 실제 벡터 길이로 정의한 이유
 
-검색이 이 값으로 캐스트하고 필터를 거는 이유는 저장된 청크와 새 질의를 같은 차원·공간에서 비교하기 위해서다. 그러려면 이 값은 모델이 내는 차원이 아니라 지금 저장된 벡터의 길이여야 한다. 그래서 적재 경로만 경쟁 없이 채운다. 임베딩 테스트로 잰 값은 미리 저장하지 않는다. 모델을 바꾼 뒤 새 모델 차원을 미리 넣으면 저장된 청크는 여전히 옛 차원·공간이라 두 가지 문제가 생긴다. 차원이 다르면 `vector_dims` 필터에서 모두 빠져 여전히 0건이다. 차원이 우연히 같으면 옛 벡터와 새 질의를 비교해 틀린 결과가 나온다. [용어 사전](../CLE-GLOSSARY.md) 은 이 구분에 따라 모델 출력 차원과 저장 청크 차원을 다른 용어로 정했다.
+검색이 이 값으로 캐스트하고 필터를 거는 이유는 저장된 청크와 새 질의를 같은 차원·공간에서 비교하기 위해서다. 그러려면 이 값은 모델이 내는 차원이 아니라 지금 저장된 벡터의 길이여야 한다. 그래서 적재 경로만 경쟁 없이 채운다. 임베딩 테스트로 잰 값은 미리 저장하지 않는다. 모델을 바꾼 뒤 새 모델 차원을 미리 넣으면 저장된 청크는 여전히 옛 차원·공간이라 두 가지 문제가 생긴다. 차원이 다르면 `vector_dims` 필터에서 모두 빠져 여전히 0건이다. 차원이 우연히 같으면 옛 벡터와 새 질의를 비교해 틀린 결과가 나온다. [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「임베딩 차원이 파생 캐시인지 실측값인지」 항목(D46)은 이 구분에 따라 모델 출력 차원과 저장 청크 차원을 다른 용어로 정했다.
 
 ### 그래프 RAG 삭제 연쇄에 FK 인덱스 넷을 둔 이유 (2026-09-18)
 

@@ -3,18 +3,18 @@ id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "dad7e839fc7c695ef3cdd9c8f02490bcd76369158a25e80fb780ae765f055cb0"
-read_as: "approved"
-task: null
+content_hash: "9063c79f1847ce5831ca7ce274f5a0f6f9fa752673e7a617fcb398f8537d47c1"
+read_as: "approved_fallback"
+task: "CLE-T-52JYHM"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "11662c86f44bed72b860472cbe1631ada41442480f0726cba9fa81ffced1689e"
-etag: "sha256-66973e2f1d3fd87617a7354901335560adca19aa37f306fdfd45a609d0c330a8"
+mirror_sha256: "bed9162ec71911ac2efc39dc9464ff3d735e2adfc478172337843e8b84b5d184"
+etag: "sha256-5ee5b79df62902822669426b512a0194e500a3d1393c4e18f326d311b46d8163"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -321,7 +321,7 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 
 ### R5. `.env.example` 에는 형식 예시만 두고 production 에서 막는다
 
-`.env.example` 의 `ENCRYPTION_KEY` 는 실제 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은 복사해 쓸 수 있는 구체적인 64-hex 값을 실었고, 그 값을 그대로 운영에 옮긴 배포는 공개 저장소의 알려진 키로 저장소 전체를 암호화해 사실상 평문 상태였다. 그래서 두 겹으로 막는다. 눈에 띄는 all-zero placeholder 와 «MUST regenerate(`openssl rand -hex 32`)» 주석이 하나이고, `NODE_ENV=production` 부팅 가드(`main.ts` 의 `assertProductionConfig`)가 키가 없거나 공개 예시 키면 기동을 거부하는 것이 둘이다. 빈 값만 막는 `SecretResolver` 초기화 검사를 보완해 «예시 키 복사» 운영 사고까지 막는다. `JWT_SECRET`·`MCP_ALLOW_INSECURE_URL` 과 함께 하나의 fail-closed 가드 블록으로 모았다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 Rationale). dev·test·e2e 는 영향이 없다(refactor 04 M-4).
+`.env.example` 의 `ENCRYPTION_KEY` 는 실제 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은 복사해 쓸 수 있는 구체적인 64-hex 값을 실었고, 그 값을 그대로 운영에 옮긴 배포는 공개 저장소의 알려진 키로 저장소 전체를 암호화해 사실상 평문 상태였다. 그래서 두 겹으로 막는다. 눈에 띄는 all-zero placeholder 와 «MUST regenerate(`openssl rand -hex 32`)» 주석이 하나이고, `NODE_ENV=production` 부팅 가드(`main.ts` 의 `assertProductionConfig`)가 키가 없거나 공개 예시 키면 기동을 거부하는 것이 둘이다. 빈 값만 막는 `SecretResolver` 초기화 검사를 보완해 «예시 키 복사» 운영 사고까지 막는다. `JWT_SECRET`·`MCP_ALLOW_INSECURE_URL` 과 함께 하나의 fail-closed 가드 블록으로 모았다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「운영 환경 가드」). dev·test·e2e 는 영향이 없다(refactor 04 M-4).
 
 ### R6. 마스터키를 LLM API 키와 함께 쓴다
 

@@ -3,24 +3,24 @@ id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "a2f24749e4790216a067dfeefcc644b07be41263b66b7f21c8b4273ee54aab54"
-read_as: "approved"
-task: null
+content_hash: "1ebdfbb26a74438e1dd63736fb2b3d724c6b63a6561eb25e999d87e0b77dfac6"
+read_as: "approved_fallback"
+task: "CLE-T-V22XN8"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "ca07487f2a3d43768910a60e36bb9f08c4520998870517ee32072e3ac08e0425"
-etag: "sha256-c06e20a9ae06458a3187683101977afa7789cd6f0a1bb6ac21e550a12a764ba6"
+mirror_sha256: "7844a4e1cc4f828ca6102440b62fbd205f4cd97d119b7b6f9312c6d79dbf6c66"
+etag: "sha256-9b19efbc88e08a7266d30abb8652bd12be36509a8f55bf9107d00b2c59146323"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}]`)를 정한다. 이 문서가 정하는 것은 넷이다.
+Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}...]`)를 정한다. 이 문서가 정하는 것은 넷이다.
 
 1. 키 형태 규칙
 2. 키에 워크스페이스 세그먼트를 넣을지 가리는 기준

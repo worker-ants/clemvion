@@ -3,18 +3,18 @@ id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "67b42fec4c806b8effb906f94a13bd1d0647b38e3b3b565c68b8a6ae27a1f4c0"
-read_as: "approved"
-task: null
+content_hash: "bb1fa1cb604c89860a41fca5b44e8482702b214a921a8eb3ddfb9c695749fe10"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "d50d3f3615142a65c3d5e696cca474b2a602be9f32892440e2238cb4956d5d0e"
-etag: "sha256-37f4be67677c31470ba516234f25b92ed264f6699670d53611974da094d9e628"
+mirror_sha256: "1b0baeb84bcc1d3500b06003d102ce131a7fa8608beab531298e3dcef6099212"
+etag: "sha256-84cb13ab2fb34ad77ecee4db8a1a26b7b4f22d4c6e27f76d21323ddf7f9eacbb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -327,6 +327,21 @@ MakeShop 에는 별도 승인 권한 범위가 없다. Cafe24 의 파트너 별�
 ## 미결 사항
 
 - **HTTP 통합의 `none` 인증 유형**: 통합 화면 정의는 HTTP 통합에서 `none`(`base_url`·`default_headers` 만)을 고를 수 있다고 적는다. [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) 정의는 `api_key`·`bearer_token`·`basic` 외의 인증 유형을 `INTEGRATION_AUTH_UNSUPPORTED` 로 처리한다. 현재 구현(`resolveHttpCredentials` 기본 분기)도 노드 정의와 같아, `none` 통합을 노드에서 쓰면 실패한다. `none` 을 허용해 노드에 행을 더할지, 화면 선택지에서 뺄지 결정이 필요하다. 같은 미결이 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#미결-사항) 에도 있어 두 문서를 함께 정한다.
+
+## 구현 위치
+
+- `codebase/backend/src/modules/integrations/services/service-registry.ts` (서비스와 인증 유형 조합, 서비스별 자격 증명 필드와 가림, 권한 범위 프리셋)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` (연결 테스트 분기, Email(SMTP) 의 `verify()`, Google · GitHub · Webhook 의 구조만 검증하는 연결 테스트)
+- `codebase/backend/src/modules/integrations/*-connection-tester.ts` (HTTP/REST · Database 연결 테스트)
+- `codebase/backend/src/modules/integrations/connection-test-codes.ts` (연결 테스트 결과 코드)
+- `codebase/backend/src/nodes/integration/http-request/http-credentials.ts` (HTTP/REST 인증 유형별 부착)
+- `codebase/backend/src/nodes/integration/send-email/smtp-host-guard.ts` (Email(SMTP) 사설 호스트 차단)
+- `codebase/backend/src/modules/mcp/mcp-test-connection.service.ts` (MCP 서버 연결 테스트)
+- `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` (Cafe24 연결 테스트와 요청 빈도 제한 처리)
+- `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts` (MakeShop 연결 테스트와 `Retry-After` 재시도)
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/auth-step.tsx` (인증 유형 선택, 자격 증명 입력, 권한 범위 선택과 경고)
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/test-step.tsx` (저장 전 연결 테스트 화면)
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/credentials-form.tsx` (서비스별 자격 증명 입력 폼)
 
 ## Rationale
 

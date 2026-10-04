@@ -3,18 +3,18 @@ id: "CLE-VISION"
 title: "Clemvion 제품 개요"
 type: "vision"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: null
 ancestors: []
 area: null
-content_hash: "f056c3be502cb511c6d1dd0b458a85aabd0b2271391553bf0c37ee39c18e6c1c"
-read_as: "approved"
-task: null
+content_hash: "8f905f61811ee5253595be57f1ee807a39befd9d6c9202c85a31370522f88443"
+read_as: "approved_fallback"
+task: "CLE-T-52JYHM"
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "86b81528c904e527dcf517ce983accbcb41ccbd05334b9ca7c0c7f502bb83ac7"
-etag: "sha256-76dbaceca1a87ffcfa1adff9355ea9bbec1f974eeb111d4e8c90c5fa690f80e0"
+mirror_sha256: "2485a6012572a6b34aafec95dd05fdb41eb27bab08cbeb8e7a397f81451eb3d1"
+etag: "sha256-fa340c5062314bd895befc98e6f0e863f25738fb449dac2dc2c4c3d2078b2d16"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)
 
@@ -112,7 +112,7 @@ Clemvion 은 AI 에이전트와 노코드 워크플로우 빌더를 합친 실�
 
 ## 용어
 
-제품 용어의 정의와 표기는 [용어 사전](CLE-GLOSSARY.md) 이 정한다. 워크플로우·노드·연결선·포트·트리거·캔버스·통합·지식 저장소·Graph RAG·실행·워크스페이스·마켓플레이스·스케줄·LLM·RAG 같은 기본 용어도 그 사전에 있다.
+제품 용어의 정의와 표기는 [용어 사전](CLE-GLOSSARY.md) 이 정한다. 사전은 표기 원칙 · 약어 · 상태값 표기를 담은 색인과 영역별 하위 문서(`CLE-GLOSSARY-*`)로 나뉜다. 워크플로우·노드·연결선·포트·트리거·캔버스·통합·지식 저장소·Graph RAG·실행·워크스페이스·마켓플레이스·스케줄·LLM·RAG 같은 기본 용어는 하위 문서에 있다. 색인의 「문서」 절이 하위 문서 목록이다.
 
 ## 문서 지도
 
@@ -120,7 +120,7 @@ Clemvion 은 AI 에이전트와 노코드 워크플로우 빌더를 합친 실�
 
 | 영역 | 다루는 것 |
 | --- | --- |
-| [용어 사전](CLE-GLOSSARY.md) | 모든 스펙 문서가 따르는 표준 용어·코드 식별자·쓰지 않는 표기·다의어 구분 |
+| [용어 사전](CLE-GLOSSARY.md) | 모든 스펙 문서가 따르는 표기 원칙 · 약어 · 상태값 표기(색인)와 영역별 하위 문서 12개. 하위 문서는 표준 용어 · 코드 식별자 · 쓰지 않는 표기와 다의어 구분 · 결정이 필요한 표기를 담는다 |
 | [플랫폼 구조](CLE-PLAT/CLE-PLAT.md) | 시스템 아키텍처, 비기능 요구사항, 데이터 모델 전반, 큐와 Redis 키, 파일 저장소처럼 여러 영역이 함께 쓰는 기반 |
 | [앱 셸과 공통 화면](CLE-UI/CLE-UI.md) | 레이아웃·내비게이션·오류 화면·사용자 가이드·다국어·브랜드처럼 모든 화면이 공유하는 틀 |
 | [API 공통 규약](CLE-API/CLE-API.md) | HTTP API·에러·OpenAPI·WebSocket·응답 마스킹처럼 모든 외부 표면이 따르는 규약 |

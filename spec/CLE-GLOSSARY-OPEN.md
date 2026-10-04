@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OPEN"
 title: "용어 사전 — 결정이 필요한 표기"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "805021ff0c4d964296b20ef5e25431b94022715f549cc5434f69bd11e085613a"
+content_hash: "c70748534266cc1c1f7493ec7522f03690ab54eb83409e74d169564544c00528"
 read_as: "approved_fallback"
-task: "CLE-T-SJAYNM"
+task: "CLE-T-V22XN8"
 source_paths: []
-mirror_sha256: "2c614681f3e659b6c6a10f06179c4318b305c5c42238aa2168dc1100e8511961"
-etag: "sha256-fa04cdcee94a2ad482123bd17d45c9100ed6351fecc405154e93e292f2e88af6"
+mirror_sha256: "99c2cae75810647b7a2d70e9ae36d2ada171f35d06e3f7453f8c0321716df462"
+etag: "sha256-1ca5c81b391f762b2c1a83bec8a391c03765dc82b6c5616a013f2de2b41588ca"
 ---
 ## 개요
 
@@ -96,4 +96,11 @@ etag: "sha256-fa04cdcee94a2ad482123bd17d45c9100ed6351fecc405154e93e292f2e88af6"
 
 ## Rationale
 
-2026-10-02 까지 이 표는 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「결정이 필요한 표기」 절이었다. 그 문서가 약 195KB 가 되어 NERV 초안 저장 한 번에 담기지 않아 영역별 문서로 나눴다. 정의는 옮기기만 했다. 표준을 고른 기준과 검토한 다른 선택은 [용어 사전](CLE-GLOSSARY.md) 의 Rationale 에 있다.
+2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「결정이 필요한 표기」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 정의 보정 (2026-10-03)
+
+NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
+
+- Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다(NERV Task `CLE-T-V22XN8`).
+- 하위 문서의 용어 행이 「(결정 항목)」 으로만 가리키던 곳에 이 표의 번호를 붙였다. NERV Task `CLE-T-V22XN8` 본문이 두 안(번호를 붙이는 안, 이 표에 「관련 용어 행」 열을 두는 안)을 제시했고 번호를 택했다. 열을 두면 용어 행이 바뀔 때마다 이 표도 고쳐야 한다. 결정이 나면 번호로 짝을 찾아 함께 고친다. 본문에서는 번호를 항목 이름과 함께 쓴다(색인 표기 원칙 10).
