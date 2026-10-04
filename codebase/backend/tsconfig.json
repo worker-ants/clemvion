@@ -13,10 +13,18 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
+    // TS 6 은 `outDir` 이 있으면 `rootDir` 을 요구한다(TS5011). ts-jest 가 이 파일로 spec 을 변환하므로
+    // 지우면 backend 스위트가 전부 실패한다. 빌드는 `tsconfig.build.json` 이 `./src` 로 덮는다.
+    "rootDir": "./",
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "skipLibCheck": true,
+    // TS 6 의 기본값은 `[]` 라 `@types/*` 를 자동으로 넣지 않는다. 전역 선언을 쓰는 것만 적는다.
+    // `multer` 는 `Express.Multer.File` 전역 타입이다.
+    "types": ["node", "jest", "multer"],
+    // TS 6 의 기본값은 `strict: true` 다. 이 저장소는 아래 개별 플래그로 운용하므로 끈다.
+    // 지우면 전체 프로그램 오류가 194건에서 1,585건이 되어 타입체크 ratchet 이 깨진다.
+    "strict": false,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,

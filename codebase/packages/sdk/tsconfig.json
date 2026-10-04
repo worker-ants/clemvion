@@ -12,6 +12,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    // TS 6 의 types 기본값은 [] 다. ts-jest 가 spec 을 타입체크하므로 jest 전역 타입을 적는다.
+    "types": ["node", "jest"],
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],

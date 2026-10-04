@@ -115,10 +115,17 @@ updates:
       # typescript-eslint 의 peer 는 지금도 `>=4.8.4 <6.1.0` 이라 TS7 을 배제한다).
       # 생태계 대응이 끝난 뒤 **사람이** 올릴 판단을 해야 한다.
       #
-      # minor/patch 는 계속 받는다 — `update-types` 로 major 만 잘라낸다. 별개 토글인
-      # security updates 도 patch 로 오는 한 영향 없다.
+      # 2026-10-04 사람이 6 으로 올렸다(NERV Task `CLE-T-8AY2KZ`). 6 은 compiler API 를 그대로
+      # 둔 마지막 JS 라인이다. 이 항목은 이제 6 → 7 을 막는다.
       #
-      # 되살릴 조건: `require('typescript').getParsedCommandLineOfConfigFile` 이 다시 함수이고
+      # minor/patch 는 계속 받는다 — `update-types` 로 major 만 잘라낸다. 별개 토글인
+      # security updates 도 patch 로 오는 한 영향 없다. typescript-eslint 가 허용하는 peer 상한을
+      # 넘는 typescript minor 가 오면 CI `--strict-peer-dependencies` 가 `npm-minor-patch` 그룹 PR 을
+      # 실패시킨다. 그때는 위 그룹 처리대로 그 PR 에 `@dependabot ignore typescript minor version` 을
+      # 남긴다. typescript-eslint 가 그 minor 를 지원하면 둘을 함께 올린다.
+      #
+      # 7 을 허용할 조건(이 항목을 지우는 조건):
+      # `require('typescript').getParsedCommandLineOfConfigFile` 이 다시 함수이고
       # 위 4개 소비자가 그 major 를 지원할 때. 회귀 가드가 그 계약을 검사한다 —
       # `codebase/frontend/src/lib/repo-guards/__tests__/typescript-toolchain.test.ts`
       - dependency-name: "typescript"
