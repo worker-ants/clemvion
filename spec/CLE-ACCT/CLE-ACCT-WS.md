@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "96566433355e0ec4b8bb9bc93c5119c9894278ec36b95d3b35064c6001d4b959"
+content_hash: "369ec799269f3e6a05709c7216ef611d21a46b68ab03966588cb0359ded7c6c9"
 read_as: "approved_fallback"
-task: "CLE-T-52JYHM"
+task: "CLE-T-3X627J"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "3d38c955363e5cf6b7c7384aadcda137411aafdac791f7bcc3ef0861773b16c7"
-etag: "sha256-2fa357a20910db4fff9375e090ddfeeccf5ca4db4b31944a4d2d45099295aacc"
+mirror_sha256: "5dc6b8372196d9fb315fc0bb948e0190641508e83038fb54b6aaedd3c5c07874"
+etag: "sha256-ff438265059a7f7ea3c82a4a1ef2ff136c10f74239c4cc9368d1d354af486d3b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -397,7 +397,7 @@ sequenceDiagram
 - `RolesGuard` 는 `@WorkspaceId()` 와 같은 방식(`ROUTE_ARGS_METADATA` 의 팩토리 identity)으로 이 소비를 알아보고 등록된 이름의 경로 값을 인가 대상으로 쓴다. 경로 값은 토큰이 확인한 적이 없으므로 멤버십을 항상 조회한다.
 - 역할 요구는 서비스 계층과 같게 `@Roles()` 로 적는다. 소유자·관리자 요구 8곳은 `@Roles('admin')`, 소유자 요구 2곳(워크스페이스 삭제 `remove`, `transferOwnership`)은 `@Roles('owner')`, 멤버면 되는 곳은 `@Roles()` 없이 둔다.
 - 컨트롤러 핸들러가 워크스페이스 ID 를 평범한 `@Param` 으로 받는 것은 저장소 가드가 금지한다. `@Param(...)` 으로 받은 파라미터 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나면 CI 가 실패한다. 허용 목록은 없다. 이름이 규칙 밖(`id` 등)이면 가드가 알아보지 못한다. 이것이 가드의 한계다.
-- Nest 는 가드를 파이프보다 먼저 돌린다. 가드가 받는 경로 값은 검증 전 원문이다. 가드는 헤더와 같은 `isUuidShaped` 로 형식만 보고, 형식이 아니면 판정하지 않고 넘긴다. 뒤의 `ParseUUIDPipe` 가 400 을 내고 핸들러는 돌지 않는다. 형식은 맞지만 RFC 밖인 값(nil UUID 등)은 가드가 멤버십을 조회해 403 이 된다.
+- Nest 는 가드를 파이프보다 먼저 돌린다. 가드가 받는 경로 값은 검증 전 원문이다. 가드는 헤더와 같은 `isUuidShaped` 로 형식만 보고, 형식이 아니면 판정하지 않고 넘긴다. 뒤의 `ParseUUIDPipe` 가 400 을 내고 핸들러는 돌지 않는다. 형식이 맞으면 파이프 범위 밖의 값이든 없는 워크스페이스든 가드가 멤버십을 조회해 403 이 된다.
 - 서비스 계층의 `assertMembership`·`assertAdmin` 검사는 남긴다. 가드 인식이 깨져 조용히 통과될 때의 두 번째 방어선이다. `leaveWorkspace`·`addMemberByEmail`·`transferOwnership` 은 워크스페이스를 조회하기 전에 인가를 먼저 한다. 트랜잭션 안에서 잠금을 잡고 다시 검사하는 곳(`leaveWorkspace`, `transferOwnership`)은 그 재검사를 두고 앞에 잠금 없는 인가를 먼저 둔다.
 
 ### 가드 거부 에러 코드
@@ -417,9 +417,10 @@ sequenceDiagram
 | 입구 | 검사 | 통과 범위 |
 | --- | --- | --- |
 | `X-Workspace-Id` 헤더 | `isUuidShaped`(`common/utils/uuid.ts`) | canonical 8-4-4-4-12 hex. 버전·variant nibble 을 보지 않는다 |
-| 워크스페이스 `:id` 경로 파라미터 | ① `RolesGuard` 의 `isUuidShaped`, ② `ParseUUIDPipe` | ① 형식이면 인가 판정(403), 아니면 넘김. ② RFC v1~v5 와 RFC variant 가 아니면 400 |
-| `:memberId`·`:invitationId` 경로 파라미터 | `ParseUUIDPipe`(`workspaces.controller.ts` 4곳) | RFC v1~v5 와 RFC variant |
+| 워크스페이스 `:id` 경로 파라미터 | ① `RolesGuard` 의 `isUuidShaped`, ② `ParseUUIDPipe` | ① 형식이면 인가 판정(403), 아니면 넘김. ② Nest `ParseUUIDPipe` 의 기본 범위(버전 1~8 과 RFC variant, nil · max UUID) 밖이면 400 `VALIDATION_ERROR` |
+| `:memberId`·`:invitationId` 경로 파라미터 | `ParseUUIDPipe`(`workspaces.controller.ts` 4곳) | Nest `ParseUUIDPipe` 의 기본 범위(버전 1~8 과 RFC variant, nil · max UUID). 밖이면 400 `VALIDATION_ERROR` |
 
+- `ParseUUIDPipe` 의 기본 범위는 Nest 버전을 따라 바뀐다. 표는 Nest 12 기준이고 `common/utils/uuid.spec.ts` 의 "ParseUUIDPipe 기본 범위 (경로 파라미터)" 가 고정한다. `isValidUuid`(버전 1~5 와 RFC variant)와는 다른 검사다.
 - 헤더 형식이 깨지면 400 `VALIDATION_ERROR`, 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED`, 비멤버면 403 `NOT_A_MEMBER` 다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 - 헤더 검사는 `@Roles()` 나 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 돈다. `@WorkspaceParam(...)` 을 쓰는 라우트는 헤더를 보지 않고 경로 값에 같은 `isUuidShaped` 를 쓴다. 둘 다 없는 전역 라우트는 헤더 형식이 깨져도 400 이 아니라 무시한다.
 - 헤더를 경로 파라미터 수준으로 조이지 않는다. 이유는 [Rationale](#rationale) 에 있다.
@@ -470,7 +471,7 @@ sequenceDiagram
 - `codebase/backend/src/modules/mail/**` (초대 메일)
 - `codebase/backend/src/common/guards/*.ts` (`RolesGuard`, `JwtAuthGuard`)
 - `codebase/backend/src/common/decorators/*.ts` (`@WorkspaceId()`, `@WorkspaceParam()`, `@Roles()`, `workspace-reflection-canary.ts`)
-- `codebase/backend/src/common/utils/workspace-context.util.ts`, `codebase/backend/src/common/utils/uuid.ts`
+- `codebase/backend/src/common/utils/workspace-context.util.ts`, `codebase/backend/src/common/utils/uuid.ts`, `codebase/backend/src/common/utils/uuid.spec.ts`(경로 파라미터 `ParseUUIDPipe` 기본 범위 고정)
 - `codebase/backend/src/repo-guards/__tests__/workspace-param-binding*.ts`, `codebase/backend/src/repo-guards/__tests__/fixtures/workspace-param-binding/**` (경로 워크스페이스 `@Param` 바인딩 금지 가드와 대조군)
 - `codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts` (`RolesGuard` 전역 등록과 핸들러별 `@Roles` 고정)
 - `codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/**`
@@ -588,6 +589,7 @@ sequenceDiagram
 - 헤더를 조이면 403 이 400 으로 바뀐다. 헤더 검사가 하는 일은 "Postgres 가 `uuid` 컬럼 값으로 파싱할 수 있는가" 하나다. 파싱할 수 있는 값을 미리 거르면 `getMemberRole` 이 정상 조회해 "그 워크스페이스 멤버가 아니다"(403)로 답해야 할 요청이 "요청이 잘못됐다"(400)가 된다. nil UUID·v7·비 RFC variant 가 바로 그 구간이다. Postgres 는 모두 받는데 `isValidUuid`(RFC v1~v5 와 variant)는 거부한다. 헤더는 인가 판정의 입력이므로 인가 결과(403)를 형식 에러(400)로 바꾸는 검사를 쓸 수 없다.
 - `:memberId`·`:invitationId` 는 인가 판정의 입력이 아니라 리소스 지목이라 엄격해도 된다. 거기서 400 을 내도 바뀔 인가 응답이 없다. 없는 리소스는 어차피 404 이고 400 과 404 는 접근 가능 여부를 드러내지 않는다.
 - 워크스페이스 `:id` 경로 파라미터는 2026-09-25 부터 인가 입력이 됐다. 그래서 가드 단계 검사는 헤더와 같은 `isUuidShaped` 이고 `ParseUUIDPipe` 는 가드 뒤에서 형식 파손만 400 으로 거른다. 없는 워크스페이스는 404 가 아니라 가드가 403 `NOT_A_MEMBER` 로 답해 존재가 새지 않는다.
+- 경로 파라미터 쪽 범위는 2026-10-04 NestJS 12 상향(NERV Task `CLE-T-3X627J`)에서 좁아졌다. Nest 11 의 `ParseUUIDPipe` 는 8-4-4-4-12 hex 모양이면 모두 받아 `isUuidShaped` 와 같았다. Nest 12 는 버전 1~8 과 RFC variant, nil · max UUID 만 받는다. 이 문서의 표는 그 전부터 "RFC v1~v5" 라고 적었는데 어느 버전과도 맞지 않았다. 그래서 `:memberId`·`:invitationId` 에 모양만 맞는 비 RFC 값을 보내면 전에는 핸들러까지 갔고(없는 리소스면 404) 이제는 400 `VALIDATION_ERROR` 다. 위 둘째 항목의 이유대로 이 변화는 접근 가능 여부를 드러내지 않는다. 워크스페이스 `:id` 는 가드가 파이프보다 먼저 판정하므로 인가 응답이 바뀌지 않는다.
 - "일관성" 을 이유로 헤더를 `ParseUUIDPipe` 수준으로 조이는 것은 회귀다. 두 검사의 경계는 단위 테스트가 고정한다. `common/utils/uuid.spec.ts` 의 "accepts UUID-shaped values that isValidUuid rejects (nil / v6+ / 비-RFC variant)" 가 경계 자체를, `common/utils/workspace-context.util.spec.ts` 의 "Postgres 가 파싱할 수 있는 값은 통과시킨다 (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)" 가 헬퍼 수준을 지킨다.
 - `test/system-status.e2e-spec.ts` 의 nil UUID 프로브는 이 검사에 닿지 않는다. `system-status` 컨트롤러에는 `@Roles()` 도 `@WorkspaceId()` 도 없어 `RolesGuard` 가 헬퍼 호출 전에 통과시킨다. 그 e2e 가 지키는 것은 "워크스페이스와 무관한 전역 라우트는 헤더를 무시한다" 는 별개 불변식이다. 진짜 회귀 감지는 위 두 단위 테스트가 한다.
 
@@ -595,7 +597,7 @@ sequenceDiagram
 
 2026-08-09 결정이다.
 
-(a) 이 검사가 필요한 이유는 실패 방향이 fail-open 이기 때문이다. `RolesGuard` 는 라우트가 워크스페이스를 쓰는지 `handlerConsumesWorkspaceId` 로 판정해 멤버십 검증 대상을 좁힌다. 2026-09-25 부터는 `@WorkspaceParam(...)` 소비도 같은 방식으로 판정한다. 이 판정은 `@nestjs/common` 의 비공개 export `ROUTE_ARGS_METADATA` 와 함수 identity 비교에 기댄다. 이 가정은 (1) Nest 내부 메타데이터 형식 변경(`@nestjs/*` 가 caret `^11.0.1` 이라 minor·patch 업그레이드로도 온다), (2) 핸들러를 감싸는 데코레이터 도입으로 `Function.name` 소실, (3) 빌드 minify·mangle 로 깨질 수 있다. 깨지면 판정이 모든 라우트에서 false 가 되어 멤버십 검증이 조용히 빠진다. cross-tenant 결함이 그대로 되살아난다. 런타임에 조용히 새는 것보다 배포가 멈추는 편이 낫다.
+(a) 이 검사가 필요한 이유는 실패 방향이 fail-open 이기 때문이다. `RolesGuard` 는 라우트가 워크스페이스를 쓰는지 `handlerConsumesWorkspaceId` 로 판정해 멤버십 검증 대상을 좁힌다. 2026-09-25 부터는 `@WorkspaceParam(...)` 소비도 같은 방식으로 판정한다. 이 판정은 `@nestjs/common` 의 비공개 export `ROUTE_ARGS_METADATA` 와 함수 identity 비교에 기댄다. 이 가정은 (1) Nest 내부 메타데이터 형식 변경(`@nestjs/*` 를 caret 범위로 선언해 minor·patch 업그레이드로도 온다), (2) 핸들러를 감싸는 데코레이터 도입으로 `Function.name` 소실, (3) 빌드 minify·mangle 로 깨질 수 있다. 깨지면 판정이 모든 라우트에서 false 가 되어 멤버십 검증이 조용히 빠진다. cross-tenant 결함이 그대로 되살아난다. 런타임에 조용히 새는 것보다 배포가 멈추는 편이 낫다.
 
 검사 대상은 라우트 목록이 아니라 "0건이 아님" 이다. 특정 라우트를 하드코딩하면 그 라우트가 정당하게 사라질 때 오탐이 나고, 결국 목록을 지우라는 압력이 된다. 판정에는 `handlerConsumesWorkspaceId` 를 그대로 부른다. 검사가 reflection 을 다시 구현하면 자기 복제본을 검사하게 되어 막으려던 파손을 통과시킨다.
 
