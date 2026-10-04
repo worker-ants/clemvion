@@ -13,6 +13,7 @@ import * as path from 'node:path';
 import {
   collectTsFiles,
   countNullAsUnknownAsCasts,
+  countNullishEscapeCasts,
   stripComments,
   stripLiterals,
   toPosixRelative,
@@ -52,6 +53,23 @@ export function findCastOffenders(files: string[]): CastOffender[] {
         file: toPosixRelative(SRC_ROOT, file),
         count,
       });
+    }
+  }
+  return offenders;
+}
+
+/**
+ * nullish 를 `never` · `any` · `unknown` 으로 단언하는 캐스트가 남은 파일과 개수.
+ *
+ * {@link findCastOffenders} 와 같은 대상(비-spec 소스)을 본다. 술어와 근거는
+ * `countNullishEscapeCasts` 에 있다.
+ */
+export function findNullishEscapeOffenders(files: string[]): CastOffender[] {
+  const offenders: CastOffender[] = [];
+  for (const file of files) {
+    const count = countNullishEscapeCasts(fs.readFileSync(file, 'utf8'));
+    if (count > 0) {
+      offenders.push({ file: toPosixRelative(SRC_ROOT, file), count });
     }
   }
   return offenders;

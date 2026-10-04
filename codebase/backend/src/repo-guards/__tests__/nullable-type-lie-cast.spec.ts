@@ -33,11 +33,13 @@ import {
 import {
   collectTsFiles,
   countNullAsUnknownAsCasts,
+  countNullishEscapeCasts,
   hasNullAsUnknownAsCast,
 } from '../../common/__test-utils__/source-scan';
 import {
   collectScanTargets,
   findCastOffenders,
+  findNullishEscapeOffenders,
   findStaleSpecCasts,
   findUntypedNullableColumns,
   SRC_ROOT,
@@ -561,5 +563,58 @@ describe('[대조군] 보고된 .file 이 SRC_ROOT 기준 상대경로인가 —
         expect(backToAbsolute(offender.file)).toBe(file);
       },
     );
+  });
+});
+
+/**
+ * nullish 를 타입 검사 밖으로 빼는 캐스트(`null as never` · `undefined as any` · `null as unknown`)가
+ * 프로덕션 소스에 없어야 한다.
+ *
+ * typeorm 1 상향(NERV Task `CLE-T-91JNWW`)에서 where 의 null · undefined 를 예외로 막았는데,
+ * 초대 서비스 세 곳이 `acceptedAt: null as never` 로 "수락되지 않은 초대" 를 고르고 있었다.
+ * 0.3 은 그 조건을 조용히 빼고 조회했고 타입 검사는 캐스트 때문에 아무것도 몰랐다. 타입 기반 감사도
+ * 캐스트 안쪽을 처음엔 보지 못했다. 그래서 형태로 막는다(NERV Task `CLE-T-BV4YXZ`).
+ *
+ * where 위치만 보지 않고 프로덕션 소스 전체에서 막는다. 지금 0건이고, where 밖이라도 nullish 를
+ * `never` · `any` · `unknown` 으로 단언하는 것은 같은 거짓말이다. SQL NULL 비교는 `IsNull()` 을 쓴다.
+ */
+describe('nullish 를 타입 밖으로 빼는 캐스트', () => {
+  const files = collectScanTargets();
+
+  it('프로덕션 소스에 없다', () => {
+    expect(findNullishEscapeOffenders(files)).toEqual([]);
+  });
+
+  describe('[대조군] 술어가 실제로 무는가', () => {
+    it.each([
+      ['null as never', 'where: { acceptedAt: null as never }'],
+      ['undefined as never', 'const id = undefined as never;'],
+      ['null as any', 'repo.findOneBy({ id: null as any });'],
+      ['undefined as unknown', 'x = undefined as unknown as string;'],
+      ['줄바꿈 공백', 'x = null\n    as never;'],
+    ])('%s 를 잡는다', (_label, src) => {
+      expect(countNullishEscapeCasts(src)).toBe(1);
+    });
+
+    it.each([
+      ['평범한 null', 'where: { acceptedAt: IsNull() }, x = null;'],
+      ['좁히는 캐스트', 'const d = value as Date | null;'],
+      ['주석 안의 언급', '// 종전엔 acceptedAt: null as never 였다'],
+      ['블록 주석', '/* null as any */ x = 1;'],
+      ['식별자 일부', 'const nullableAsNever = notnull as neverland;'],
+      // 범위 밖(술어 docstring): 식을 단언하는 형태. 프로덕션의 `.set()` jsonb 우회가 이 모양이다.
+      ['식 단언', '.set({ error: (execution.error ?? null) as never })'],
+    ])('%s 는 잡지 않는다', (_label, src) => {
+      expect(countNullishEscapeCasts(src)).toBe(0);
+    });
+
+    it('캐스트가 있는 파일을 offender 로 잡고, 없으면 통과한다', () => {
+      withFixture('const where = { acceptedAt: null as never };\n', (file) => {
+        expect(findNullishEscapeOffenders([file])).toHaveLength(1);
+      });
+      withFixture('const where = { acceptedAt: IsNull() };\n', (file) => {
+        expect(findNullishEscapeOffenders([file])).toEqual([]);
+      });
+    });
   });
 });
