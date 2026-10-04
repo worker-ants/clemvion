@@ -23,6 +23,14 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 배포: 시스템 메일을 암호화한 SMTP 연결로만 보낸다
+
+`MAIL_TRANSPORT=smtp` 이고 `MAIL_SECURE=false`(기본 포트 587)면 이제 STARTTLS 를 강제한다(nodemailer `requireTLS`). 전에는 서버가 STARTTLS 를 알릴 때만 암호화했다. 그래서 능동 중간자가 EHLO 응답에서 STARTTLS 를 지우면 이메일 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 평문으로 나갔다. `@nestjs-modules/mailer` 를 쓰던 때도 같았다(사람 결정, NERV Task `CLE-T-67BNAZ`).
+
+- **배포 영향**: STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 발송이 실패한다(`ETLS`). 그런 서버만 새 환경 변수 `MAIL_REQUIRE_TLS=false` 로 끈다. 값이 `false` 가 아니면(비우거나 빠뜨려도) 강제한다. `MAIL_SECURE=true`(암묵적 TLS, 보통 465)와 `console` 전송(로컬 · e2e)은 영향이 없다.
+- STARTTLS 를 알리지 않는 가짜 SMTP 서버로 기본 설정은 AUTH 와 메일 명령을 보내기 전에 멈추고 `MAIL_REQUIRE_TLS=false` 면 보낸다는 것을 테스트로 고정했다. 설정 기본값도 테스트로 고정했다.
+- `README.md` · `codebase/backend/.env.example` · `k8s/base/secret.example.yaml` 에 `MAIL_REQUIRE_TLS` 를 적었다.
+
 ## Unreleased — 의존성: mailer 경로에만 있던 overrides 5건을 걷는다
 
 `pnpm-workspace.yaml` overrides 의 `lodash` · `liquidjs` · `html-to-text` · `linkify-it` · `svgo` 를 지우고 `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 에서도 뺐다(overrides 34 → 29건, NERV Task `CLE-T-67BNAZ`). 모두 `@nestjs-modules/mailer`(NestJS 12 상향 때 제거)의 템플릿 엔진 · 미리보기 경로에 건 바닥 핀이었다. lockfile 에 대상이 0건이었고 이 다섯을 peer 로 선언한 패키지도 없어서 다른 패키지의 peer 범위를 다시 쓰지도 않았다(위 undici 키와 다른 점).

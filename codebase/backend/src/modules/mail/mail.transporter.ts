@@ -14,6 +14,10 @@ export interface MailTransporter {
  * `mail.from` 은 두 번째 인자(메시지 기본값)로 넘겨 모든 메시지의 From 이 된다.
  * `mail.transport` 가 `console` 이면 JSON 전송기를 써서 실제로 보내지 않는다.
  *
+ * `mail.secure` 가 아니면 STARTTLS 를 강제한다(`requireTLS`). 서버가 STARTTLS 를 알리지 않거나
+ * 업그레이드에 실패하면 AUTH 와 메시지를 보내기 전에 `ETLS` 로 멈춘다. 끄려면 `mail.requireTls` 가
+ * `false` 여야 한다(`MAIL_REQUIRE_TLS=false`). 값이 없으면 강제한다.
+ *
  * 예전에는 `@nestjs-modules/mailer` 가 같은 일을 했다. 2.3.x 의 타입 선언은
  * `@nestjs/common/interfaces` 를 깊게 import 해 Nest 12 에서 풀리지 않는다. 3.0.0 부터는 Nest 12 를
  * 지원하지만 우리는 그 모듈의 템플릿 · 미리보기 · 헬스 기능을 쓰지 않는다. 다음 Nest major 에서 같은
@@ -33,6 +37,7 @@ export function createMailTransporter(
       host: configService.get<string>('mail.host'),
       port: configService.get<number>('mail.port'),
       secure: configService.get<boolean>('mail.secure'),
+      requireTLS: configService.get<boolean>('mail.requireTls') !== false,
       auth: {
         user: configService.get<string>('mail.user'),
         pass: configService.get<string>('mail.pass'),
