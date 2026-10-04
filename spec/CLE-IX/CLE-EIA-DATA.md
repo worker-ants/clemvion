@@ -10,11 +10,11 @@ parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
 content_hash: "90130cd8871fb1804ec39964a2205997b5203d922764394f6ee8d80ad6077528"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-M9QKKX"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "7132ef41ee2203f3d90c1fb4ae5535c602c18059567c8c434669571c310c9424"
-etag: "sha256-da64f45727e4d9e93adc0ce29150bd112c841167d6880cae904bfb5319e26edd"
+mirror_sha256: "9657704daab1527d09a33ee29a665fd8f2e74bc89a1c34ba0688f794d0de69ad"
+etag: "sha256-540e181ad2f94c5dcad3bf078f4659241785b3276a2823d72f0b1635f9ebd901"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

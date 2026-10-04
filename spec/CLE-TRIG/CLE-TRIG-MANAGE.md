@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052"]
+requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "840adc639a1ca835e04e7343ac057dcf185e45bcfbe94ef8dfe0b87233baa6cc"
+content_hash: "6ba7c4f0f79adf68e50460b81a26f3bbc7a064bce079466653bcf7253645a0b6"
 read_as: "approved_fallback"
-task: "CLE-T-BV4YXZ"
+task: "CLE-T-M9QKKX"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "7566f249c33c598dafc683a55f0e1fb489f86d24121bc9db9ab56f014687a882"
-etag: "sha256-511cb0de46de4e75b103ad623b28de7099809279e2da78a2a03ef6fd5fa23a1c"
+mirror_sha256: "5b578a01c5dcdab7ee74ec73630abf73878149d6c83f277df34d26cadf4eb92a"
+etag: "sha256-b838164737927d9fb6b99742cc7a720f1a11535692c0d969cb4bac64c4908d61"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -90,6 +90,7 @@ etag: "sha256-511cb0de46de4e75b103ad623b28de7099809279e2da78a2a03ef6fd5fa23a1c"
 - REQ-TRIG-050 IF 같은 트리거를 두 요청이 동시에 지우면 THE SYSTEM SHALL 두 번째 요청에 `404 RESOURCE_NOT_FOUND` 로 응답한다.
 - REQ-TRIG-051 WHEN 트리거를 지우거나 활성 상태를 바꾸면 THE SYSTEM SHALL 감사 로그에 각각 `trigger.deleted`·`trigger.updated` 를 남긴다.
 - REQ-TRIG-052 WHILE v1 인 동안 THE SYSTEM SHALL 트리거의 `type`·`workflowId`·`httpMethod`(POST)·`contentType`(`application/json`)을 바꾸지 못하게 한다.
+- REQ-TRIG-053 IF 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `config` 키 아래에 `chatChannel` 의 차단 필드나 `notification.signing.secretRef` 가 있으면 THE SYSTEM SHALL 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다.
 
 ## 화면 구조
 
@@ -200,6 +201,7 @@ etag: "sha256-511cb0de46de4e75b103ad623b28de7099809279e2da78a2a03ef6fd5fa23a1c"
 - Slack·Discord 의 `inboundSigningPlaintext` 는 보내기 전에 클라이언트에서 hex 형식을 검사한다. 정규식의 단일 기준은 `@workflow/chat-channel-validation` 패키지이고 백엔드 `assertInboundSigningPlaintextByProvider` 도 같은 export 를 쓴다.
 - 스케줄 유형은 이 모달에서도 `POST /api/triggers` 에서도 만들 수 없다. 스케줄 화면에서 스케줄을 만들면 트리거가 자동으로 생긴다([스케줄](CLE-TRIG-SCHEDULE.md)).
 - 워크플로우 에디터에서도 같은 `POST /api/triggers` 로 트리거를 만들 수 있다. 트리거 화면은 웹훅 트리거 생성과 모든 트리거의 조회·수정·삭제를 맡는다.
+- 요청 본문의 `config` 키 아래에는 시크릿 참조 · 평문 필드를 실을 수 없다. 규칙은 [PATCH 본문 계약](#patch-본문-계약) 과 같다.
 
 ### 웹훅 URL
 
@@ -235,12 +237,13 @@ etag: "sha256-511cb0de46de4e75b103ad623b28de7099809279e2da78a2a03ef6fd5fa23a1c"
 | `isActive` | 활성 상태 |
 | `endpointPath` | 엔드포인트 경로. v4 UUID |
 | `authConfigId` | 인증 설정 연결. `null` 을 받는다. 소속 검증은 백엔드 `triggers.service` 가 `authConfigsService.findById(id, workspaceId)` 로 한다. 호출자 워크스페이스의 인증 설정이 아니면(없거나 다른 워크스페이스 소속이면 둘을 구분하지 않음) 400 `AUTH_CONFIG_NOT_FOUND`, `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) |
-| `config` | 그 밖의 JSONB 키 부분 갱신 |
+| `config` | 그 밖의 JSONB 키 부분 갱신. 시크릿 참조 · 평문 필드는 받지 않는다(아래) |
 | `notification` / `interaction` / `chatChannel` | EIA·채팅 채널 설정. `config.*` 아래가 아니라 별도 top-level 키로 받는다. 백엔드 `triggers.service`(`mergeExternalConfig`)가 `config` JSONB 안의 같은 이름 키로 합친다. 키를 보내면 그 객체를 통째로 교체한다. 부분 병합이 아니므로 전체 객체를 다시 보내야 한다. 기준은 `update-trigger.dto.ts` 와 `triggers.service.ts mergeExternalConfig` 다 |
 
 - 인라인 인증 키(`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`)는 없다. 웹훅 인증은 `authConfigId` 연결로만 받는다.
 - 채팅 채널의 비밀은 PATCH 로 바꿀 수 없다. `chatChannel.botTokenRef`(ref), `chatChannel.botToken`(평문), `chatChannel.inboundSigning`, `inboundSigningPlaintext` 를 바꾸려 하면 400 `VALIDATION_ERROR` 다. 봇 토큰은 재발급 API(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)로만 바꾼다. 거부 응답의 모양과 이 규칙의 기준은 [채팅 채널 §봇 토큰 변경 단일 경로](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 다. Slack signing secret·Discord public key 회전 API 는 v1 에 정의되지 않았다.
 - `chatChannel` 이 실린 PATCH 는 사용자가 보낸 비밀을 받지도 쓰지도 않는다. `botToken` 과 Slack·Discord 의 `inboundSigningPlaintext` 는 요청 전후로 같다. `botTokenRef` 는 "통째로 교체" 규칙과 상관없이 사라지지 않는다(트리거 id 에서 다시 유도한다). Telegram 의 서버 발급 inbound signing 은 예외다. `setupChannel()` 을 다시 부를 때마다 새로 발급·저장되며 이것이 정상이다.
+- 요청 본문의 `config` 키 아래(이 문서에서 «원시 `config`». top-level `chatChannel` · `notification` 과 다른 위치)에는 [채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 의 차단 필드와 `notification.signing.secretRef` 를 실을 수 없다. 있으면 값과 상관없이(자기 트리거의 시크릿 참조여도) 400 `VALIDATION_ERROR` 다. 응답은 원시 `config` 경로를 담은 단일 object 다(예: `details: { field: 'config.chatChannel.botTokenRef', code: 'INVALID_FIELD' }`). 생성도 같다. 스케줄 유형 트리거는 `config` 를 받지 않으므로 그 거부(`details.field='type'`)가 먼저 난다. `interaction.triggerToken` 같은 다른 서버 발급 값은 이 규칙이 막지 않는다([미결 사항](#미결-사항)). 원시 `config` 에는 `setupChannel()` 과 평문 제거가 돌지 않아 평문이 JSONB 에 남는다. 시크릿 참조는 다른 트리거의 비밀을 가리킬 수 있다. 시크릿 저장소의 `resolve` · `rotate` 는 참조만 보고 소유 워크스페이스를 확인하지 않으므로, 그대로 두면 봇 토큰 재발급이 그 트리거의 비밀을 덮어쓴다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 23).
 - 채팅 채널이 없는 트리거에 PATCH 로 채널을 나중에 붙이면 400(`details.field='chatChannel'`, `details.code='INVALID_FIELD'`)이다. 최초 설정은 생성 요청에서만 한다.
 - 채팅 채널 `provider` 를 바꾸면 400(`details.field='provider'`, `details.code='INVALID_FIELD'`)이다. 허용하면 다른 provider 의 토큰을 새 어댑터에 넘기게 된다.
 - 스케줄 유형 트리거 PATCH 는 `name`, `isActive` 만 받는다. `endpointPath` / `config` / `authConfigId` 등을 바꾸려 하면 400 `VALIDATION_ERROR`(`details.field='type'`, `details.code='INVALID_FIELD'`)다. 트리거와 스케줄의 동기화를 지키기 위해서다([트리거 데이터와 흐름](CLE-TRIG-DATA.md)).
@@ -354,6 +357,7 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 
 ## 미결 사항
 
+- **원시 `config` 의 계약**: PATCH 본문 계약 표의 `config` 행은 «부분 갱신» 이라고 적지만 구현은 요청이 `config` 를 보내면 저장된 `config` 를 통째로 교체한다. 원시 `config` 의 `chatChannel` · `notification` · `interaction` 키는 타입 필드 검사를 거치지 않아 채널을 나중에 붙이거나 `provider` 를 바꾸거나 등록 시점 알림 URL 검사를 건너뛸 수 있다(위 PATCH 본문 계약의 두 거부를 우회한다). `interaction.triggerToken` 도 클라이언트가 값을 정할 수 있다. 원시 `config` 거부는 시크릿 참조 · 평문 필드만 막는다. 그 거부 대상도 사람이 더하는 목록이라 새 참조 슬롯을 자동으로 잡지 못한다(`secret://` 값을 직접 거르는 안이 후보다). 나머지는 NERV Task `CLE-T-EA7B5M` 이 정한다.
 - **트리거 이름의 길이 상한과 유일성**: 트리거 목록 원문은 이름을 1~120자로 제한하고 워크스페이스 안에서 유일해야 하며 충돌하면 409 라고 적는다. 데이터 모델에는 유일성 제약이 없다. 현재 구현은 DTO `MaxLength(255)`·DB `varchar(255)` 이고 이름 충돌 409 경로가 없다(409 는 엔드포인트 경로 충돌뿐이다). 스케줄 이름도 `trigger.name` 이라 유일성을 넣으면 스케줄에도 영향이 있다([스케줄](CLE-TRIG-SCHEDULE.md)). 구현에 맞춰 원문을 고칠지, 유일성을 새로 구현할지 결정해야 한다.
 - **트리거 활성화·비활성화 때 채팅 채널 setup/teardown 호출 여부**: 트리거 목록 원문은 `botIdentity.username` 이 트리거 활성화 때 자동 갱신된다고 적는다. 이 서술이 맞는지는 활성화 때 `setupChannel` 을 부르는지에 달렸고, 그 결정은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#미결-사항) 의 같은 미결 사항에서 한다. 현재 구현(`TriggersService.update`)은 본문에 `chatChannel` 이 있을 때만 setup 을 부르므로 활성 토글만으로는 `botIdentity.username` 이 갱신되지 않는다. 결정이 나면 필드 권한 매트릭스의 `botIdentity.username` 행을 함께 고친다.
 
@@ -368,6 +372,7 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 - `codebase/backend/src/modules/triggers/trigger-config-lock.ts` (동시 쓰기 직렬화의 트리거 단위 advisory lock)
 - `codebase/backend/src/modules/triggers/trigger-resource-release.ts` (자원 정리의 순서·실패 정책. 네 삭제 경로와 쓰기 보상이 모두 지나는 순수 함수)
 - `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts` (위 순수 함수의 배선. 스케줄 삭제는 모듈 순환 때문에 서비스를 거치지 않고 순수 함수를 직접 부른다)
+- `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts` (원시 `config` 의 시크릿 참조 · 평문 필드 거부)
 - `codebase/backend/src/modules/triggers/dto/**`
 - `codebase/packages/chat-channel-validation/src/index.ts`
 - `codebase/backend/src/repo-guards/__tests__/endpoint-path-conflict-wrap*.ts` (409 계약을 AST 로 강제한다. `endpointPath` 를 쓰는 `save()` 는 래핑돼야 한다)
@@ -376,6 +381,7 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 - `codebase/backend/test/schedule-trigger.e2e-spec.ts` (스케줄 유형에 대한 `TriggerDto.workflow` 계약. 목록·PATCH)
 - `codebase/backend/src/shared/testing/trigger-workflow-ref*.ts` (단언의 정본: 키셋 `['id','name']`·비밀 컬럼 목록)
 - `codebase/backend/test/trigger-update-save-window.e2e-spec.ts` (PATCH 부분 저장과 CASCADE 창 롤백의 특성 테스트)
+- `codebase/backend/test/trigger-config-internal-fields.e2e-spec.ts` (원시 `config` 에 다른 트리거의 봇 토큰 참조를 심고 재발급해도 그 트리거의 비밀이 그대로인지)
 - `codebase/backend/test/trigger-deletion-releases-resources.e2e-spec.ts` (네 삭제 경로의 비밀 정리, 부모 삭제의 스케줄 작업 해제, 권한 없는 워크스페이스 삭제는 아무것도 정리하지 않음, 보상 합성)
 
 ## Rationale

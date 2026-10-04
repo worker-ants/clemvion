@@ -51,9 +51,10 @@ import type { Trigger } from './entities/trigger.entity';
  *
  * **왜 `never` 인가**: 호출부가 `throw` 없이 한 줄로 끝나야 실제로 짧아진다. 봉투를 손으로
  * 복붙하다 `details.code` 를 빠뜨리면 **컴파일 타임에 안 잡히고** 계약이 조용히 깨지는데,
- * 그 자리를 하나로 모으는 것이 이 헬퍼의 목적이다.
+ * 그 자리를 하나로 모으는 것이 이 헬퍼의 목적이다. 원시 `config` 의 내부 필드 거부
+ * (`trigger-config-internal-fields.ts`)도 같은 봉투라 export 해서 함께 쓴다.
  */
-function throwInvalidField(field: string, message: string): never {
+export function throwInvalidField(field: string, message: string): never {
   throw new BadRequestException({
     code: 'VALIDATION_ERROR',
     message,

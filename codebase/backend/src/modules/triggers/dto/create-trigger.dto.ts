@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CONFIG_INTERNAL_FIELD_PATHS } from '../trigger-config-internal-fields';
 import { NotificationConfigDto } from './notification-config.dto';
 import { InteractionConfigDto } from './interaction-config.dto';
 import { ChatChannelConfigDto } from './chat-channel-config.dto';
@@ -53,9 +54,11 @@ export class CreateTriggerDto {
   @IsBoolean()
   isActive?: boolean;
 
+  // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+  // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약)
   /** 타입별 설정값 */
   @ApiPropertyOptional({
-    description: '타입별 부가 설정값 (key-value)',
+    description: `타입별 부가 설정값 (key-value). 서버가 관리하는 시크릿 참조 · 평문 필드(${CONFIG_INTERNAL_FIELD_PATHS.join(', ')})를 실으면 400 VALIDATION_ERROR 로 거부한다.`,
     type: 'object',
     additionalProperties: true,
     example: { method: 'POST' },
