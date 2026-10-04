@@ -11,6 +11,7 @@ import { Schedule } from './entities/schedule.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import { NotificationsService } from '../notifications/notifications.service';
 
 describe('ScheduleRunnerService', () => {
@@ -113,6 +114,7 @@ describe('ScheduleRunnerService', () => {
       const result = await service.resolveScheduleParameters(
         schedule,
         'wf1',
+        'ws1',
         fixedNow,
       );
 
@@ -135,6 +137,7 @@ describe('ScheduleRunnerService', () => {
       const result = await service.resolveScheduleParameters(
         { ...schedule, parameterValues: { foo: 'bar' } },
         'wf1',
+        'ws1',
       );
       expect(result).toEqual({});
     });
@@ -144,6 +147,7 @@ describe('ScheduleRunnerService', () => {
       const result = await service.resolveScheduleParameters(
         { ...schedule, parameterValues: {} },
         'wf1',
+        'ws1',
       );
       expect(result).toEqual({});
     });
@@ -168,6 +172,7 @@ describe('ScheduleRunnerService', () => {
           parameterValues: { region: 'kr' },
         },
         'wf1',
+        'ws1',
       );
       // Validation failure → falls back to schema-less resolver which returns {}
       expect(result).toEqual({});
@@ -190,6 +195,7 @@ describe('ScheduleRunnerService', () => {
           parameterValues: { note: '{{ $forbidden.access }}' },
         },
         'wf1',
+        'ws1',
       );
       // Unknown variable → evaluate throws → we keep original string
       expect(result.note).toBe('{{ $forbidden.access }}');
@@ -273,7 +279,11 @@ describe('ScheduleRunnerService', () => {
         'wf1',
         expect.objectContaining({ parameters: expect.any(Object) }),
         // priority 3-tier(§4.3) — 정기 schedule 자동 발화는 schedule 우선순위.
-        { triggerId: 'trigger-uuid', triggerType: 'schedule' },
+        {
+          triggerId: 'trigger-uuid',
+          triggerType: 'schedule',
+          workspaceId: 'ws',
+        },
       );
       // 성공 시 lastRunAt/nextRunAt 이 갱신된 상태로 schedule row 가 저장돼야
       // 다음 cron 발화 시각이 정확히 계산된다.
@@ -303,6 +313,53 @@ describe('ScheduleRunnerService', () => {
       expect(scheduleRepo.save).not.toHaveBeenCalled();
     });
 
+    // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
+    // NERV Task `CLE-T-XYR067`. 저장 경계 이전의 교차 행이 다른 워크스페이스의 워크플로우를 이 스케줄로
+    // 돌리지 않는다.
+    describe('워크플로우가 스케줄의 워크스페이스에 없을 때', () => {
+      it('실행하지 않고 건너뛴다. 재시도 · 실패 알림 · 실행 시각 갱신이 없다', async () => {
+        scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+        nodeRepo.findOne.mockResolvedValue(null);
+        engine.execute.mockRejectedValue(new WorkflowNotFoundError('wf1'));
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          name: 'W',
+          createdBy: 'owner-other',
+        } as unknown as Workflow);
+
+        await expect(service.process(job)).resolves.toBeUndefined();
+
+        expect(notifications.notify).not.toHaveBeenCalled();
+        expect(workflowRepo.findOne).not.toHaveBeenCalled();
+        expect(scheduleRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('트리거의 워크스페이스가 아니라 스케줄의 워크스페이스로 연다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({
+          ...baseSchedule,
+          trigger: { workflowId: 'wf1', workspaceId: 'ws-other' } as never,
+        });
+        scheduleRepo.save.mockImplementation((s) =>
+          Promise.resolve(s as Schedule),
+        );
+        nodeRepo.findOne.mockResolvedValue(null);
+        engine.execute.mockResolvedValue('exec-1');
+
+        await service.process(job);
+
+        expect(engine.execute).toHaveBeenCalledWith(
+          'wf1',
+          expect.anything(),
+          expect.objectContaining({ workspaceId: 'ws' }),
+        );
+        expect(nodeRepo.findOne).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ workflow: { workspaceId: 'ws' } }),
+          }),
+        );
+      });
+    });
+
     it('발사 실패(enqueue/파라미터) 시 워크플로우 owner 에게 schedule_failed 발사 후 rethrow', async () => {
       scheduleRepo.findOne.mockResolvedValue(baseSchedule);
       nodeRepo.findOne.mockResolvedValue({
@@ -321,6 +378,10 @@ describe('ScheduleRunnerService', () => {
 
       await expect(service.process(job)).rejects.toThrow('enqueue boom');
 
+      // 수신자는 스케줄의 워크스페이스 안의 워크플로우 소유자다(NERV Task `CLE-T-XYR067`).
+      expect(workflowRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'wf1', workspaceId: 'ws' },
+      });
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceId: 'ws',

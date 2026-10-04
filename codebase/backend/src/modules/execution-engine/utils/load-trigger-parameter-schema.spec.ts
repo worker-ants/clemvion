@@ -15,9 +15,13 @@ describe('loadTriggerParameterSchema', () => {
     const findOne = jest
       .fn()
       .mockResolvedValue({ config: { parameters: [region] } });
-    await loadTriggerParameterSchema({ findOne } as any, 'wf');
+    await loadTriggerParameterSchema({ findOne } as any, 'wf', 'ws-1');
     expect(findOne).toHaveBeenCalledWith({
-      where: { workflowId: 'wf', type: NODE_TYPES.MANUAL_TRIGGER },
+      where: {
+        workflowId: 'wf',
+        type: NODE_TYPES.MANUAL_TRIGGER,
+        workflow: { workspaceId: 'ws-1' },
+      },
     });
   });
 
@@ -30,7 +34,11 @@ describe('loadTriggerParameterSchema', () => {
       type: 'manual_trigger',
       config: { parameters: [region] },
     });
-    const schema = await loadTriggerParameterSchema({ findOne } as any, 'wf');
+    const schema = await loadTriggerParameterSchema(
+      { findOne } as any,
+      'wf',
+      'ws-1',
+    );
     expect(schema).toEqual([region]);
     expect(resolveTriggerParameters(schema, {})).toEqual({ region: '인천' });
   });
@@ -38,14 +46,14 @@ describe('loadTriggerParameterSchema', () => {
   it('returns undefined when no manual trigger node exists', async () => {
     const findOne = jest.fn().mockResolvedValue(null);
     expect(
-      await loadTriggerParameterSchema({ findOne } as any, 'wf'),
+      await loadTriggerParameterSchema({ findOne } as any, 'wf', 'ws-1'),
     ).toBeUndefined();
   });
 
   it('returns undefined when the trigger has no parameters key', async () => {
     const findOne = jest.fn().mockResolvedValue({ config: { notes: '' } });
     expect(
-      await loadTriggerParameterSchema({ findOne } as any, 'wf'),
+      await loadTriggerParameterSchema({ findOne } as any, 'wf', 'ws-1'),
     ).toBeUndefined();
   });
 
@@ -53,9 +61,9 @@ describe('loadTriggerParameterSchema', () => {
     const findOne = jest
       .fn()
       .mockResolvedValue({ config: { parameters: [region] } });
-    expect(await loadTriggerParameterSchema({ findOne } as any, 'wf')).toEqual([
-      region,
-    ]);
+    expect(
+      await loadTriggerParameterSchema({ findOne } as any, 'wf', 'ws-1'),
+    ).toEqual([region]);
   });
 
   it('discards a structurally invalid schema with a warning', async () => {
@@ -64,7 +72,9 @@ describe('loadTriggerParameterSchema', () => {
     });
     const warn = jest.fn();
     expect(
-      await loadTriggerParameterSchema({ findOne } as any, 'wf', { warn }),
+      await loadTriggerParameterSchema({ findOne } as any, 'wf', 'ws-1', {
+        warn,
+      }),
     ).toBeUndefined();
     expect(warn).toHaveBeenCalledTimes(1);
   });

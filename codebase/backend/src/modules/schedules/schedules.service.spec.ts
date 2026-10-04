@@ -1,5 +1,5 @@
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { Logger } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DeleteResult, Repository } from 'typeorm';
@@ -13,6 +13,7 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
+import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 describe('SchedulesService.runNow', () => {
@@ -152,13 +153,68 @@ describe('SchedulesService.runNow', () => {
     expect(resolveMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 's1' }),
       'wf1',
+      'ws',
     );
     const executeMock = engine.execute;
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       { __triggerSource: 'schedule', parameters: { region: 'kr' } },
-      { executedBy: 'user-1' },
+      { executedBy: 'user-1', workspaceId: 'ws' },
     );
+  });
+
+  // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
+  // NERV Task `CLE-T-XYR067`. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다.
+  it('트리거의 워크플로우가 이 워크스페이스에 없으면 연결된 워크플로우가 없을 때와 같은 400 이다', async () => {
+    const scheduleRow = {
+      id: 's1',
+      workspaceId: 'ws',
+      triggerId: 't1',
+      cronExpression: '0 9 * * *',
+      timezone: 'Asia/Seoul',
+      isActive: true,
+      parameterValues: {},
+    };
+    scheduleRepo.findOne.mockResolvedValueOnce({
+      ...scheduleRow,
+      trigger: { workflowId: null },
+    } as unknown as Schedule);
+    const noWorkflow = await service
+      .runNow('s1', 'ws', 'user-1')
+      .catch((err_: unknown) => err_);
+
+    scheduleRepo.findOne.mockResolvedValueOnce({
+      ...scheduleRow,
+      trigger: { workflowId: 'wf-other' },
+    } as unknown as Schedule);
+    runner.resolveScheduleParameters.mockResolvedValue({});
+    engine.execute.mockRejectedValue(new WorkflowNotFoundError('wf-other'));
+    const crossWorkspace = await service
+      .runNow('s1', 'ws', 'user-1')
+      .catch((err_: unknown) => err_);
+
+    expect(crossWorkspace).toBeInstanceOf(BadRequestException);
+    expect((crossWorkspace as BadRequestException).getResponse()).toEqual(
+      (noWorkflow as BadRequestException).getResponse(),
+    );
+  });
+
+  it('다른 실행 에러는 400 으로 바꾸지 않는다', async () => {
+    scheduleRepo.findOne.mockResolvedValue({
+      id: 's1',
+      workspaceId: 'ws',
+      triggerId: 't1',
+      cronExpression: '0 9 * * *',
+      timezone: 'Asia/Seoul',
+      isActive: true,
+      parameterValues: {},
+      trigger: { workflowId: 'wf1' },
+    } as unknown as Schedule);
+    runner.resolveScheduleParameters.mockResolvedValue({});
+    const boom = new Error('queue down');
+    engine.execute.mockRejectedValue(boom);
+
+    await expect(service.runNow('s1', 'ws', 'user-1')).rejects.toBe(boom);
   });
 
   // C-10: findAll 이 PaginationQueryDto 의 sort/order 를 무시하고 created_at DESC 로

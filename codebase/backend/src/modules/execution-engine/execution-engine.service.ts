@@ -400,43 +400,61 @@ export interface ContinuationPublishResult {
  * 발화) 가 동시에 truthy 로 전달되는 것을 컴파일 타임에 차단한다. 두 컬럼이
  * 동시에 채워지면 deriveExecutionTrigger 분기가 manual 로 흐르며 트리거 출처
  * 정보가 손실되기 때문.
+ *
+ * 모든 변형이 `workspaceId` 를 필수로 갖는다. 실행을 여는 쪽의 워크스페이스이고, 엔진은 그
+ * 워크스페이스의 워크플로우만 연다(NERV Task `CLE-T-XYR067`). 수동 실행 · 재실행 · 스케줄 지금
+ * 실행은 요청의 워크스페이스, 웹훅 · 채팅 채널 · 스케줄 발화는 트리거의 워크스페이스를 넘긴다.
+ * 필수라서 새 호출부도 컴파일러가 강제한다.
  */
-export type ExecuteOptions =
-  | {
-      executedBy: string;
-      triggerId?: never;
-      triggerType?: never; // manual 은 executedBy 로 판정(§4.3) — 명시 불요
-      // Replay/Re-run (decision F2) — 수동 re-run 으로 생성되는 실행에만 세팅.
-      reRunOf?: string;
-      chainId?: string;
-      // dry-run re-run (RR-PL-01) — 외부 부수효과 노드가 mock 출력을 반환한다.
-      dryRun?: boolean;
-      // 단일 노드 실행 (§1.3) — 수동 실행(executedBy)으로만 진입. singleNodeId 가
-      // 세팅되면 runExecution 이 그 노드 1개만 실행하고 downstream 으로 진행하지
-      // 않는다. previousExecutionId 의 상류 출력을 입력으로 pre-seed(미지정 시
-      // 수동 입력 input 으로 대체). 두 값은 execution 컬럼으로 영속돼 큐 재조회
-      // 후 runExecution 이 읽는다(dry_run/source_ip 선례).
-      singleNodeId?: string;
-      previousExecutionId?: string;
-    }
-  | {
-      executedBy?: never;
-      triggerId: string;
-      // priority 3-tier(§4.3) — intake 큐 우선순위 계산 입력. `'webhook'`/`'schedule'`
-      // (manual 은 executedBy variant 로 판정). 호출부(webhook/chat-channel/schedule)가
-      // `Trigger.type` 을 전달; 미지정 시 execute() 가 `'webhook'` fallback.
-      // ⚠️ 실행 이력 표시용 파생 필드 `Execution.triggerSource`(5-way)와 **다른 별개 필드**
-      // 다 — 본 필드는 priority 계산 전용이고 `ExecutionRunJob` payload 에는 싣지 않는다
-      // (§9.3 경계, execute() 에서 add priority 로만 소비).
-      triggerType?: ExecutionRunTriggerType;
-      // webhook/chat-channel 발화 시 호출 메타데이터 (§A.3 호출 이력, WH-MG-05).
-      // sourceIp: hooks.service 의 extractClientIp 결과. responseCode: webhook 호출이
-      // 받는 실제 HTTP 응답 코드(성공 = '202'). 둘 다 optional → schedule 등 비-HTTP
-      // 트리거는 미전달(NULL 영속). DI/생성자 불변(추가 인자 아님).
-      sourceIp?: string;
-      responseCode?: string;
-    }
-  | { executedBy?: never; triggerId?: never; triggerType?: never };
+export type ExecuteOptions = ExecuteWorkspaceScope &
+  (
+    | {
+        executedBy: string;
+        triggerId?: never;
+        triggerType?: never; // manual 은 executedBy 로 판정(§4.3) — 명시 불요
+        // Replay/Re-run (decision F2) — 수동 re-run 으로 생성되는 실행에만 세팅.
+        reRunOf?: string;
+        chainId?: string;
+        // dry-run re-run (RR-PL-01) — 외부 부수효과 노드가 mock 출력을 반환한다.
+        dryRun?: boolean;
+        // 단일 노드 실행 (§1.3) — 수동 실행(executedBy)으로만 진입. singleNodeId 가
+        // 세팅되면 runExecution 이 그 노드 1개만 실행하고 downstream 으로 진행하지
+        // 않는다. previousExecutionId 의 상류 출력을 입력으로 pre-seed(미지정 시
+        // 수동 입력 input 으로 대체). 두 값은 execution 컬럼으로 영속돼 큐 재조회
+        // 후 runExecution 이 읽는다(dry_run/source_ip 선례).
+        singleNodeId?: string;
+        previousExecutionId?: string;
+      }
+    | {
+        executedBy?: never;
+        triggerId: string;
+        // priority 3-tier(§4.3) — intake 큐 우선순위 계산 입력. `'webhook'`/`'schedule'`
+        // (manual 은 executedBy variant 로 판정). 호출부(webhook/chat-channel/schedule)가
+        // `Trigger.type` 을 전달; 미지정 시 execute() 가 `'webhook'` fallback.
+        // ⚠️ 실행 이력 표시용 파생 필드 `Execution.triggerSource`(5-way)와 **다른 별개 필드**
+        // 다 — 본 필드는 priority 계산 전용이고 `ExecutionRunJob` payload 에는 싣지 않는다
+        // (§9.3 경계, execute() 에서 add priority 로만 소비).
+        triggerType?: ExecutionRunTriggerType;
+        // webhook/chat-channel 발화 시 호출 메타데이터 (§A.3 호출 이력, WH-MG-05).
+        // sourceIp: hooks.service 의 extractClientIp 결과. responseCode: webhook 호출이
+        // 받는 실제 HTTP 응답 코드(성공 = '202'). 둘 다 optional → schedule 등 비-HTTP
+        // 트리거는 미전달(NULL 영속). DI/생성자 불변(추가 인자 아님).
+        sourceIp?: string;
+        responseCode?: string;
+      }
+    | { executedBy?: never; triggerId?: never; triggerType?: never }
+  );
+
+/**
+ * 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
+ *
+ * 요청 본문의 참조는 저장 전에 막는다(1차 방어). 그 전에 저장된 트리거 · 스케줄의 `workflow_id`
+ * 가 다른 워크스페이스를 가리키면 엔진이 id 로만 읽어 그 워크플로우를 실행했다. `execute()` 는
+ * 이 값과 워크플로우의 워크스페이스가 다르면 없는 워크플로우와 같게 거부한다(2차 방어).
+ */
+export interface ExecuteWorkspaceScope {
+  workspaceId: string;
+}
 
 /**
  * 워크플로우 실행 엔진의 단일 진입점.
@@ -3612,14 +3630,16 @@ export class ExecutionEngineService
    */
   async execute(
     workflowId: string,
-    input?: unknown,
-    options?: ExecuteOptions,
+    input: unknown,
+    options: ExecuteOptions,
   ): Promise<string> {
-    // 1. Validate workflow exists
+    // 1. Validate workflow exists in the caller's workspace. 다른 워크스페이스의 워크플로우는 없는
+    //    워크플로우와 같게 다룬다(없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다). id 로 읽은 뒤
+    //    명시 비교해 값이 비어도 조회 예외 대신 거부로 닫는다.
     const workflow = await this.workflowRepository.findOneBy({
       id: workflowId,
     });
-    if (!workflow) {
+    if (!workflow || workflow.workspaceId !== options.workspaceId) {
       throw new WorkflowNotFoundError(workflowId);
     }
 

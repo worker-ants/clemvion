@@ -7,6 +7,7 @@ import { Schedule } from './entities/schedule.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import { NotificationsService } from '../notifications/notifications.service';
 import { sanitizeErrorMessage } from '../execution-engine/sanitize-error-message';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
@@ -52,11 +53,13 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
   async resolveScheduleParameters(
     schedule: Schedule,
     workflowId: string,
+    workspaceId: string,
     now: Date = new Date(),
   ): Promise<Record<string, unknown>> {
     const schema = await loadTriggerParameterSchema(
       this.nodeRepository,
       workflowId,
+      workspaceId,
       this.logger,
     );
     const rawValues = schedule.parameterValues ?? {};
@@ -165,13 +168,21 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       const parameters = await this.resolveScheduleParameters(
         schedule,
         workflowId,
+        workspaceId,
       );
       const executionId = await this.executionEngineService.execute(
         workflowId,
         { __triggerSource: 'schedule', parameters },
         // priority 3-tier(§4.3) — 정기 schedule 자동 발화는 최저 우선순위(schedule).
         // (사용자 "지금 실행" runNow 는 executedBy 경로라 manual 우선순위 유지.)
-        { triggerId: schedule.triggerId, triggerType: 'schedule' },
+        {
+          triggerId: schedule.triggerId,
+          triggerType: 'schedule',
+          // 엔진은 스케줄의 워크스페이스 워크플로우만 연다(NERV Task `CLE-T-XYR067`). 트리거의
+          // 워크스페이스를 쓰지 않는다. 스케줄 → 트리거가 교차 행이어도 다른 워크스페이스의
+          // 워크플로우가 이 스케줄로 돌지 않는다.
+          workspaceId,
+        },
       );
       this.logger.log(
         `Schedule ${scheduleId} triggered execution ${executionId}`,
@@ -191,6 +202,15 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       }
       await this.scheduleRepository.save(schedule);
     } catch (err) {
+      // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 재시도해도 같고,
+      // 실패 알림은 그 워크플로우의 소유자(다른 워크스페이스)에게 가므로 보내지 않는다. 연결된
+      // 워크플로우가 없을 때처럼 건너뛴다(NERV Task `CLE-T-XYR067`).
+      if (err instanceof WorkflowNotFoundError) {
+        this.logger.error(
+          `Schedule ${scheduleId} 의 워크플로우가 트리거의 워크스페이스에 없어 실행하지 않고 건너뛴다. 저장된 행을 점검하세요.`,
+        );
+        return;
+      }
       this.logger.error(
         `Failed to execute schedule ${scheduleId}: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -220,8 +240,10 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
     message: string,
   ): Promise<void> {
     try {
+      // 스케줄의 워크스페이스 안에서만 읽는다. 교차 행이면 다른 워크스페이스의 소유자에게 보내지 않고
+      // 건너뛴다(NERV Task `CLE-T-XYR067`).
       const workflow = await this.workflowRepository.findOne({
-        where: { id: workflowId },
+        where: { id: workflowId, workspaceId },
       });
       if (!workflow?.createdBy) return;
       const owner = workflow.createdBy;

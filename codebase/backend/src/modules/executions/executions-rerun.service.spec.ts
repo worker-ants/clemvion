@@ -146,7 +146,13 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       {},
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: false },
+      {
+        executedBy: 'user-1',
+        workspaceId: 'ws-1',
+        reRunOf: 'e1',
+        chainId: 'e1',
+        dryRun: false,
+      },
     );
     expect(res.reRunOf).toBe('e1');
     expect(res.chainId).toBe('e1');
@@ -214,7 +220,13 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       {},
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: true },
+      {
+        executedBy: 'user-1',
+        workspaceId: 'ws-1',
+        reRunOf: 'e1',
+        chainId: 'e1',
+        dryRun: true,
+      },
     );
     expect(res.dryRun).toBe(true);
     expect(audit.record).toHaveBeenCalledWith(
@@ -292,6 +304,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
       { __triggerSource: 'manual', parameters: { a: 1 } },
       {
         executedBy: 'user-1',
+        workspaceId: 'ws-1',
         reRunOf: 'e1',
         chainId: 'root-id',
         dryRun: false,
@@ -323,7 +336,13 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       { __triggerSource: 'manual', parameters: {} },
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: false },
+      {
+        executedBy: 'user-1',
+        workspaceId: 'ws-1',
+        reRunOf: 'e1',
+        chainId: 'e1',
+        dryRun: false,
+      },
     );
   });
 
@@ -526,7 +545,13 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       { __triggerSource: 'manual', parameters: { orderId: 'new' } },
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: false },
+      {
+        executedBy: 'user-1',
+        workspaceId: 'ws-1',
+        reRunOf: 'e1',
+        chainId: 'e1',
+        dryRun: false,
+      },
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -316,6 +316,7 @@ export class WorkflowsController {
     const schema = await loadTriggerParameterSchema(
       this.nodeRepository,
       id,
+      workspaceId,
       this.logger,
     );
     let parameters: Record<string, unknown>;
@@ -350,7 +351,7 @@ export class WorkflowsController {
     const executionId = await this.executionEngineService.execute(
       id,
       executionInput,
-      { executedBy: user.sub },
+      { executedBy: user.sub, workspaceId },
     );
     return { executionId };
   }
@@ -444,6 +445,7 @@ export class WorkflowsController {
       executionInput,
       {
         executedBy: user.sub,
+        workspaceId,
         singleNodeId: nodeId,
         previousExecutionId: body?.previousExecutionId,
       },

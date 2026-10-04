@@ -26,6 +26,7 @@ import {
   MessageTooLongError,
   FormValidationError,
   WorkflowForbiddenWorkspaceError,
+  WorkflowNotFoundError,
   ExecutionCancelledError,
 } from './workflow-errors';
 import { resolveWaitingSurface } from './waiting-surface-guard';
@@ -4342,11 +4343,47 @@ describe('ExecutionEngineService', () => {
   });
 
   it('should return execution ID immediately', async () => {
-    const result = await service.execute(workflowId, { data: 'test' });
+    const result = await service.execute(
+      workflowId,
+      { data: 'test' },
+      { workspaceId: 'ws-1' },
+    );
     expect(result).toBe(executionId);
     expect(mockWorkflowRepo.findOneBy).toHaveBeenCalledWith({ id: workflowId });
     expect(mockExecutionRepo.create).toHaveBeenCalled();
     expect(mockExecutionRepo.save).toHaveBeenCalled();
+  });
+
+  // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
+  // NERV Task `CLE-T-XYR067`. 저장 경계 이전에 저장된 트리거 · 스케줄의 workflow_id 가 다른 워크스페이스를
+  // 가리키면 엔진이 id 로만 읽어 그 워크플로우를 실행했다.
+  describe('execute() — 실행을 여는 쪽의 워크스페이스', () => {
+    it('워크플로우가 그 워크스페이스에 없으면 없는 워크플로우와 같게 거부하고 실행 행을 만들지 않는다', async () => {
+      await expect(
+        service.execute(
+          workflowId,
+          { data: 'test' },
+          { triggerId: 'trg-1', workspaceId: 'ws-other' },
+        ),
+      ).rejects.toBeInstanceOf(WorkflowNotFoundError);
+
+      expect(mockExecutionRepo.save).not.toHaveBeenCalled();
+      expect(mockExecutionRunQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('없는 워크플로우와 같은 에러 메시지다', async () => {
+      const otherWorkspace = await service
+        .execute(workflowId, {}, { executedBy: 'u1', workspaceId: 'ws-other' })
+        .catch((err_: unknown) => err_);
+      mockWorkflowRepo.findOneBy.mockResolvedValueOnce(null);
+      const missing = await service
+        .execute(workflowId, {}, { executedBy: 'u1', workspaceId: 'ws-1' })
+        .catch((err_: unknown) => err_);
+
+      expect((otherWorkspace as Error).message).toBe(
+        (missing as Error).message,
+      );
+    });
   });
 
   describe('execute() — trigger metadata persistence', () => {
@@ -4355,7 +4392,11 @@ describe('ExecutionEngineService', () => {
     // (deriveExecutionTrigger 헬퍼 + spec/2-navigation/14-execution-history.md §2.4).
 
     it('persists executedBy when options.executedBy is provided (manual run)', async () => {
-      await service.execute(workflowId, { data: 'test' }, { executedBy: 'u1' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1', executedBy: 'u1' },
+      );
       expect(mockExecutionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           workflowId,
@@ -4369,7 +4410,7 @@ describe('ExecutionEngineService', () => {
       await service.execute(
         workflowId,
         { parameters: {} },
-        { triggerId: 'trigger-uuid' },
+        { workspaceId: 'ws-1', triggerId: 'trigger-uuid' },
       );
       expect(mockExecutionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -4381,7 +4422,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('leaves both executedBy and triggerId undefined when no options are provided', async () => {
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       expect(mockExecutionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           workflowId,
@@ -4396,7 +4437,12 @@ describe('ExecutionEngineService', () => {
       await service.execute(
         workflowId,
         { parameters: {} },
-        { triggerId: 'trg-wh', sourceIp: '203.0.113.7', responseCode: '202' },
+        {
+          workspaceId: 'ws-1',
+          triggerId: 'trg-wh',
+          sourceIp: '203.0.113.7',
+          responseCode: '202',
+        },
       );
       expect(mockExecutionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -4410,7 +4456,11 @@ describe('ExecutionEngineService', () => {
 
     // schedule 등 비-HTTP 트리거·수동 실행은 두 컬럼이 NULL (회귀 없음).
     it('persists null sourceIp/responseCode when not provided (schedule/manual)', async () => {
-      await service.execute(workflowId, {}, { triggerId: 'trg-sched' });
+      await service.execute(
+        workflowId,
+        {},
+        { workspaceId: 'ws-1', triggerId: 'trg-sched' },
+      );
       expect(mockExecutionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           triggerId: 'trg-sched',
@@ -4441,7 +4491,7 @@ describe('ExecutionEngineService', () => {
       const result = await service.execute(
         workflowId,
         { data: 'test' },
-        { executedBy: 'u1' },
+        { workspaceId: 'ws-1', executedBy: 'u1' },
       );
       expect(result).toBe(executionId);
       expect(mockExecutionRunQueue.add).toHaveBeenCalledTimes(1);
@@ -4458,8 +4508,16 @@ describe('ExecutionEngineService', () => {
 
     it('수동 실행(executedBy)은 manual priority, 트리거 실행은 그보다 낮은 우선순위', async () => {
       asRecorder();
-      await service.execute(workflowId, {}, { executedBy: 'u1' });
-      await service.execute(workflowId, {}, { triggerId: 'trg-1' });
+      await service.execute(
+        workflowId,
+        {},
+        { workspaceId: 'ws-1', executedBy: 'u1' },
+      );
+      await service.execute(
+        workflowId,
+        {},
+        { workspaceId: 'ws-1', triggerId: 'trg-1' },
+      );
       const manualOpts = mockExecutionRunQueue.add.mock.calls[0][2];
       const triggerOpts = mockExecutionRunQueue.add.mock.calls[1][2];
       expect(manualOpts.priority).toBe(EXECUTION_RUN_PRIORITY.manual);
@@ -4472,15 +4530,19 @@ describe('ExecutionEngineService', () => {
       await service.execute(
         workflowId,
         {},
-        { triggerId: 't-w', triggerType: 'webhook' },
+        { workspaceId: 'ws-1', triggerId: 't-w', triggerType: 'webhook' },
       );
       await service.execute(
         workflowId,
         {},
-        { triggerId: 't-s', triggerType: 'schedule' },
+        { workspaceId: 'ws-1', triggerId: 't-s', triggerType: 'schedule' },
       );
       // triggerType 미지정 트리거 → webhook fallback (비-HTTP 방어).
-      await service.execute(workflowId, {}, { triggerId: 't-x' });
+      await service.execute(
+        workflowId,
+        {},
+        { workspaceId: 'ws-1', triggerId: 't-x' },
+      );
       const [wOpts, sOpts, fOpts] = [0, 1, 2].map(
         (i) => mockExecutionRunQueue.add.mock.calls[i][2],
       );
@@ -4497,7 +4559,7 @@ describe('ExecutionEngineService', () => {
       await service.execute(
         workflowId,
         { chatChannel: { provider: 'telegram', conversationKey: '12345' } },
-        { triggerId: 'trg-tele' },
+        { workspaceId: 'ws-1', triggerId: 'trg-tele' },
       );
       expect(
         mockWebsocketService.registerExecutionRouting,
@@ -6326,7 +6388,11 @@ describe('ExecutionEngineService', () => {
         },
       );
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(seenContexts.length).toBeGreaterThan(0);
@@ -6346,7 +6412,11 @@ describe('ExecutionEngineService', () => {
         },
       );
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(seenContexts.length).toBeGreaterThan(0);
@@ -6385,7 +6455,11 @@ describe('ExecutionEngineService', () => {
         return mockOutput({ ok: true });
       });
 
-      await service.execute(workflowId, {}, { executedBy: 'u1' });
+      await service.execute(
+        workflowId,
+        {},
+        { workspaceId: 'ws-1', executedBy: 'u1' },
+      );
       await flushPromises();
       await flushPromises();
 
@@ -6437,6 +6511,7 @@ describe('ExecutionEngineService', () => {
         workflowId,
         { manual: 'ignored-when-seeded' },
         {
+          workspaceId: 'ws-1',
           executedBy: 'u1',
           singleNodeId: 'node-2',
           previousExecutionId: 'prev-exec',
@@ -6502,6 +6577,7 @@ describe('ExecutionEngineService', () => {
         workflowId,
         {},
         {
+          workspaceId: 'ws-1',
           executedBy: 'u1',
           singleNodeId: 'node-2',
           previousExecutionId: 'prev-exec',
@@ -6529,7 +6605,7 @@ describe('ExecutionEngineService', () => {
       await service.execute(
         workflowId,
         { manual: 'value' },
-        { executedBy: 'u1', singleNodeId: 'node-1' },
+        { workspaceId: 'ws-1', executedBy: 'u1', singleNodeId: 'node-1' },
       );
       await flushPromises();
       await flushPromises();
@@ -6540,7 +6616,11 @@ describe('ExecutionEngineService', () => {
   });
 
   it('should execute all nodes in background after returning', async () => {
-    await service.execute(workflowId, { data: 'test' });
+    await service.execute(
+      workflowId,
+      { data: 'test' },
+      { workspaceId: 'ws-1' },
+    );
 
     // Wait for background execution to complete
     await flushPromises();
@@ -6559,9 +6639,9 @@ describe('ExecutionEngineService', () => {
   it('should throw if workflow not found', async () => {
     mockWorkflowRepo.findOneBy.mockResolvedValue(null);
 
-    await expect(service.execute('non-existent')).rejects.toThrow(
-      'Workflow not found',
-    );
+    await expect(
+      service.execute('non-existent', undefined, { workspaceId: 'ws-1' }),
+    ).rejects.toThrow('Workflow not found');
   });
 
   it('should handle handler errors in background without rejecting execute()', async () => {
@@ -6569,7 +6649,9 @@ describe('ExecutionEngineService', () => {
     mockNodeRepo.findBy.mockResolvedValue(customNodes);
 
     // execute() should resolve (not reject) since errors happen in background
-    const result = await service.execute(workflowId);
+    const result = await service.execute(workflowId, undefined, {
+      workspaceId: 'ws-1',
+    });
     expect(result).toBe(executionId);
 
     // Wait for background execution to fail
@@ -6595,7 +6677,11 @@ describe('ExecutionEngineService', () => {
     };
     handlerRegistry.register('test_node', tracingHandler);
 
-    await service.execute(workflowId, { initial: true });
+    await service.execute(
+      workflowId,
+      { initial: true },
+      { workspaceId: 'ws-1' },
+    );
     await flushPromises();
 
     // First node receives workflow input
@@ -6643,7 +6729,7 @@ describe('ExecutionEngineService', () => {
         presentationHandler('**안내** 메시지'),
       );
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // EIA SSE 표면용 execution.message — presentations[0] 은 위젯 classifyPresentation 입력 envelope.
@@ -6693,7 +6779,7 @@ describe('ExecutionEngineService', () => {
         })),
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -6733,7 +6819,7 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async () => mockOutput({ ok: true })),
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(
@@ -6797,7 +6883,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
       handlerRegistry.register('err_node', errHandler());
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // 노드는 FAILED 로 마킹 (회귀 전: COMPLETED).
@@ -6852,7 +6938,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
       handlerRegistry.register('abort_node', abortHandler());
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // 노드는 CANCELLED (FAILED 아님) — abort 는 실패가 아니라 취소.
@@ -6950,7 +7036,7 @@ describe('ExecutionEngineService', () => {
         });
       handlerRegistry.register('precheck_node', preCheckHandler());
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
       createContextSpy.mockRestore();
 
@@ -7010,7 +7096,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
       handlerRegistry.register('retry_abort_node', retryAbortHandler());
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // CANCELLED (FAILED 아님) — abort 는 retry 대상이 아님.
@@ -7067,7 +7153,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
       handlerRegistry.register('workflow', cancelledSubWorkflowHandler());
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // 노드는 FAILED 가 아니라 **CANCELLED 로 마감**된다.
@@ -7161,7 +7247,7 @@ describe('ExecutionEngineService', () => {
       ]);
       mockEdgeRepo.findBy.mockResolvedValue([]);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // 재시도는 `sleep` 을 끼고 도는 **detached** 실행이라 `flushPromises` 만으로는
       // 아직 일어나지 않는다 — 그 상태로 단언하면 재시도 여부와 무관하게 항상 1 이라
       // vacuous 하다(실제로 이 테스트를 처음 그렇게 썼다가 mutation 이 GREEN 으로
@@ -7247,7 +7333,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
       handlerRegistry.register('err_node', errHandler());
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // 노드는 FAILED.
@@ -7304,7 +7390,7 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async () => mockOutput({ ok: true })),
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       const okNe = lastNodeExecSave('n-ok');
@@ -7344,7 +7430,7 @@ describe('ExecutionEngineService', () => {
         ),
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       const errNe = lastNodeExecSave('n-err');
@@ -7365,7 +7451,11 @@ describe('ExecutionEngineService', () => {
 
   describe('WebSocket events', () => {
     it('should emit EXECUTION_STARTED event when execution begins', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -7376,7 +7466,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should emit EXECUTION_COMPLETED event after successful execution', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -7391,7 +7485,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should emit NODE_STARTED and NODE_COMPLETED for each node', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // 3 nodes = 3 started + 3 completed = 6 node events
@@ -7426,7 +7524,9 @@ describe('ExecutionEngineService', () => {
       );
 
       // execute() returns normally (fire-and-forget)
-      const result = await service.execute(workflowId);
+      const result = await service.execute(workflowId, undefined, {
+        workspaceId: 'ws-1',
+      });
       expect(result).toBe(executionId);
 
       await flushPromises();
@@ -7538,7 +7638,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should pause at Form node and emit waiting_for_input event', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Should emit waiting_for_input event — payload 가 startedAt (ISO) 을
@@ -7568,7 +7672,11 @@ describe('ExecutionEngineService', () => {
       // 페이지 재마운트 시 execution.snapshot reconcile (frontend) 이 이
       // 필드로 store 의 waitingInteractionType 을 set. 누락 시 Preview 탭
       // 버튼이 callback 없이 disabled 로 그려지는 회귀 발생 (PR-B Part C).
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       const saveCalls = mockNodeExecutionRepo.save.mock.calls;
@@ -7591,7 +7699,11 @@ describe('ExecutionEngineService', () => {
     it('PR-A3 — form park: Execution save 에 userVariables 객체가 포함된다 (DB 영속 통합 가드)', async () => {
       mockExecutionRepo.save.mockClear();
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // updateExecutionStatus 의 linkedNodeExec 경로는 dataSource.transaction 을
@@ -7614,7 +7726,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should resume after continueExecution and complete all nodes', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Resume with form data — Phase B (PR-B1): slow-path rehydration 으로 재개
@@ -7649,7 +7765,11 @@ describe('ExecutionEngineService', () => {
     // 직접 고정한다 — resume 경로는 runExecution 의 선형 루프와 별도 while 문이라
     // 독립적으로 회귀할 수 있다.
     it('재개 중 외부 cancel 관측 시 runNodeDispatchLoop 가 하류 노드를 dispatch 하지 않는다 (§2.3 C2)', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       armSlowPathResume(
@@ -7694,7 +7814,11 @@ describe('ExecutionEngineService', () => {
     // 늦다). 옛 배선으로 되돌리면(guarded UPDATE 대신 `executionRepository.save`)
     // 아래 두 번째 단언이 RED 가 된다 — mutation 으로 실측 검증.
     it('guarded UPDATE 가 0행 매칭(이미 terminal)이어도 stale finishedAt/durationMs 를 raw save() 로 재저장하지 않는다 (W11)', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       armSlowPathResume(
@@ -7878,7 +8002,11 @@ describe('ExecutionEngineService', () => {
         'appendPresentationInteraction',
       );
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       armSlowPathResume(
         'node-form',
@@ -7905,7 +8033,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should emit EXECUTION_RESUMED (not EXECUTION_STARTED) when resuming from form', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Clear mock to isolate resume events
@@ -7934,7 +8066,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should emit NODE_COMPLETED for the form node when resuming', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       mockWebsocketService.emitNodeEvent.mockClear();
@@ -7969,7 +8105,11 @@ describe('ExecutionEngineService', () => {
 
     it('should throw when continueAiConversation receives oversized message', async () => {
       // Set up a pending continuation first
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       const oversizedMessage = 'x'.repeat(10_001);
@@ -7986,7 +8126,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should handle cancellation of waiting execution', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Cancel the waiting execution — Phase B (PR-B1): park-release 로 코루틴이
@@ -8014,7 +8158,11 @@ describe('ExecutionEngineService', () => {
     // 후 waitForFormSubmission 을 재 invoke 해 workflow 가 정상 완료되는지 검증.
     it('Phase 2.7 — rehydration: pendingContinuations 가 비어있어도 applyContinuation → rehydrate → workflow 정상 완료', async () => {
       // 1. 정상 시작 → 폼 노드에서 WAITING_FOR_INPUT 진입.
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // 2. 첫 단계 시점의 NodeExecution(form 노드) outputData 캡처. waitFor
@@ -8426,7 +8574,11 @@ describe('ExecutionEngineService', () => {
         'appendPresentationInteraction',
       );
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       // Phase B (PR-B1) — button park-release → resume 은 §7.5 slow-path. slow-path
       // DB lookup 무장 후 detached 드라이브 완료까지 실제 타이머를 흘린다.
@@ -8458,7 +8610,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('emits waiting_for_input with interactionType="buttons" + thread snapshot', async () => {
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -8630,7 +8786,7 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
@@ -8767,7 +8923,7 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
@@ -8864,7 +9020,7 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
@@ -8935,7 +9091,7 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn).
@@ -9094,7 +9250,7 @@ describe('ExecutionEngineService', () => {
       } as unknown as NodeHandler;
       handlerRegistry.register('information_extractor', ieHandler);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // emitAiWaitingForInput 경로에서 NodeExecution save 가 호출됨.
@@ -9206,7 +9362,7 @@ describe('ExecutionEngineService', () => {
       } as unknown as NodeHandler;
       handlerRegistry.register('information_extractor', ieHandler2);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn
@@ -9275,7 +9431,7 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Phase B (exec-park D4) — 종료 turn(ai_end_conversation)도 §7.5
@@ -9382,7 +9538,7 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Phase B (exec-park D4) — error turn 도 §7.5 slow-path(processAiResumeTurn
@@ -9561,7 +9717,11 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Phase B (exec-park D4) — form_submitted turn 을 §7.5 slow-path 로 전달
@@ -9606,7 +9766,11 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Phase B (exec-park D4) — ai_message turn 을 §7.5 slow-path 로 전달
@@ -9654,7 +9818,11 @@ describe('ExecutionEngineService', () => {
       ).logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // unknown type turn 을 §7.5 slow-path 로 직접 주입 (공개 continue* 메서드는
@@ -9729,7 +9897,11 @@ describe('ExecutionEngineService', () => {
       ).logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // stale button_click 반복 — 각각 별 continuation job(turn-park)으로 도착.
@@ -9794,7 +9966,11 @@ describe('ExecutionEngineService', () => {
         interaction: 'ai_conversation',
       });
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Phase B (exec-park D4) — 각 turn 은 별 continuation job(slow-path).
@@ -9911,7 +10087,11 @@ describe('ExecutionEngineService', () => {
       ).logger;
       const warnSpy = jest.spyOn(logger, 'warn');
 
-      void service.execute(workflowId, { data: 'test' });
+      void service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       armSlowPathResume(
@@ -10038,7 +10218,7 @@ describe('ExecutionEngineService', () => {
             }),
         );
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
@@ -10075,7 +10255,7 @@ describe('ExecutionEngineService', () => {
         },
       ]);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Should still execute without error (array not spread)
@@ -10127,7 +10307,7 @@ describe('ExecutionEngineService', () => {
         },
       ]);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
@@ -10217,7 +10397,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('exposes rawConfig with pre-evaluation template strings (config arg has evaluated values)', async () => {
-      await service.execute(wf, {});
+      await service.execute(wf, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(captureSpy).toHaveBeenCalledTimes(1);
@@ -10252,7 +10432,7 @@ describe('ExecutionEngineService', () => {
         },
       );
 
-      await service.execute(wf, {});
+      await service.execute(wf, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Strict mode (TS / NestJS default) throws TypeError on frozen-property assign.
@@ -10270,7 +10450,7 @@ describe('ExecutionEngineService', () => {
       };
       mockNodeRepo.findBy.mockResolvedValue([triggerNode, literalNode]);
 
-      await service.execute(wf, {});
+      await service.execute(wf, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(captureSpy).toHaveBeenCalledTimes(1);
@@ -10348,7 +10528,7 @@ describe('ExecutionEngineService', () => {
         })),
       } as unknown as NodeHandler);
 
-      await service.execute(wf, {});
+      await service.execute(wf, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Phase B (exec-park D4) — 후속 turn 은 §7.5 slow-path(processAiResumeTurn
@@ -10467,7 +10647,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(cyclicNodes);
       mockEdgeRepo.findBy.mockResolvedValue(cyclicEdges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Switch should be called twice (first loop back, then forward)
@@ -10555,7 +10739,7 @@ describe('ExecutionEngineService', () => {
         },
       );
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Should be marked as failed due to max iteration exceeded. ai-review
@@ -10676,7 +10860,7 @@ describe('ExecutionEngineService', () => {
         },
       );
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // B should have been called 5 times (4 loops + 1 exit)
@@ -10800,7 +10984,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { initial: 'data' });
+      await service.execute(
+        workflowId,
+        { initial: 'data' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // First execution: A should receive workflowInput (not undefined)
@@ -10820,7 +11008,11 @@ describe('ExecutionEngineService', () => {
       );
       handlerRegistry.register('test_node', mockHandler);
 
-      await service.execute(workflowId, { data: 'test' });
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(mockHandler.execute).toHaveBeenCalledTimes(3);
@@ -10919,7 +11111,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       expect(routerHandler.execute).toHaveBeenCalledTimes(1);
@@ -10994,7 +11190,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       const chartInput = (chartStyleHandler.execute as jest.Mock).mock
@@ -11074,7 +11270,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(receiverHandler.execute).toHaveBeenCalledTimes(1);
@@ -11161,7 +11357,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // A executes, B is disabled (skipped), C never executes (unreachable)
@@ -11310,7 +11510,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(triggerHandler.execute).toHaveBeenCalledTimes(1);
@@ -11469,7 +11669,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
@@ -11587,7 +11787,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { items: [1, 2, 3] });
+      await service.execute(
+        workflowId,
+        { items: [1, 2, 3] },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       await flushPromises();
 
@@ -11686,7 +11890,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { items: [1, 2, 3] });
+      await service.execute(
+        workflowId,
+        { items: [1, 2, 3] },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       await flushPromises();
 
@@ -11789,9 +11997,13 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {
-        items: Array.from({ length: itemCount }, (_, i) => i),
-      });
+      await service.execute(
+        workflowId,
+        {
+          items: Array.from({ length: itemCount }, (_, i) => i),
+        },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       await flushPromises();
 
@@ -11870,7 +12082,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { items: [1, 2, 3] });
+      await service.execute(
+        workflowId,
+        { items: [1, 2, 3] },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       await flushPromises();
 
@@ -11959,7 +12175,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
       await flushPromises();
 
@@ -12100,7 +12316,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
@@ -12255,7 +12471,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -12397,7 +12613,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // breakCondition `$loop.index >= 2` becomes truthy at the END of
@@ -12542,7 +12758,7 @@ describe('ExecutionEngineService', () => {
         mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes('{{3}}'));
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
-        await service.execute(workflowId, {});
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -12560,7 +12776,7 @@ describe('ExecutionEngineService', () => {
         );
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
-        await service.execute(workflowId, {});
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
         // src returns { n: 3 } → loop count expression resolves to 3
@@ -12588,7 +12804,7 @@ describe('ExecutionEngineService', () => {
         mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes('{{3}}'));
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
-        await service.execute(workflowId, {});
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -12602,7 +12818,7 @@ describe('ExecutionEngineService', () => {
         mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes(2));
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
-        await service.execute(workflowId, {});
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(2);
@@ -12612,7 +12828,7 @@ describe('ExecutionEngineService', () => {
         mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes('3'));
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
-        await service.execute(workflowId, {});
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -12629,7 +12845,7 @@ describe('ExecutionEngineService', () => {
         mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes(undefined));
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
-        await service.execute(workflowId, {});
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
         // Body never iterates and the execution lands in FAILED status.
@@ -12765,7 +12981,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
@@ -12916,7 +13132,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       // Body called for all 3 items — second one threw, but skip continued.
@@ -13079,7 +13295,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -13179,7 +13395,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
@@ -13310,7 +13526,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
@@ -13450,7 +13666,7 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
@@ -13632,7 +13848,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Branch handlers both executed
@@ -13822,7 +14042,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
       await flushPromises();
 
@@ -13981,7 +14205,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // Both branches executed
@@ -14114,7 +14342,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // 4 branch handler invocations — confirms branchCount={{4}} is
@@ -14234,7 +14466,11 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(nodes);
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
-      await service.execute(workflowId, { start: true });
+      await service.execute(
+        workflowId,
+        { start: true },
+        { workspaceId: 'ws-1' },
+      );
       await flushPromises();
 
       // 16 branches actually fired (clamp upper bound respected).
@@ -18932,7 +19168,7 @@ describe('ExecutionEngineService', () => {
       // 단순 워크플로우를 실행해 loadAndBuildGraph → resolveMaxNodeIterations 흐름을 타게 한다.
       mockConfigService.get.mockClear();
 
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       const maxIterCalls = mockConfigService.get.mock.calls.filter(
@@ -18943,13 +19179,13 @@ describe('ExecutionEngineService', () => {
 
     it('resolveMaxNodeIterations: 두 번째 execute 에서 configService.get 재호출 없음 (인스턴스 캐시 유지)', async () => {
       // 첫 번째 실행으로 maxNodeIterationsOnce 캐시를 warm-up 한 뒤
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       mockConfigService.get.mockClear();
 
       // 두 번째 실행 — 캐시가 있으므로 MAX_NODE_ITERATIONS get 재호출 없어야 함
-      await service.execute(workflowId, {});
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await flushPromises();
 
       const maxIterCalls = mockConfigService.get.mock.calls.filter(

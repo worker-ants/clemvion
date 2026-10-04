@@ -16,6 +16,7 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { sanitizeResponseHeaders } from '../../nodes/integration/_base/sanitize-response-headers.util';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import {
   TriggerParameterValidationException,
   toTriggerParameterErrorDetails,
@@ -117,10 +118,7 @@ export class HooksService {
           });
 
     if (!trigger) {
-      throw new NotFoundException({
-        code: 'TRIGGER_NOT_FOUND',
-        message: 'Webhook endpoint not found',
-      });
+      throw webhookEndpointNotFound();
     }
 
     // 2. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
@@ -183,6 +181,7 @@ export class HooksService {
     const schema = await loadTriggerParameterSchema(
       this.nodeRepository,
       trigger.workflowId,
+      trigger.workspaceId,
       this.logger,
     );
     let parameters: Record<string, unknown>;
@@ -209,22 +208,32 @@ export class HooksService {
     //    민감 헤더 값은 저장 직전 마스킹한다 (spec 12-webhook §5.3) — 인증(§4, HMAC/IP)은
     //    위 step 3(verifyWebhookRequest)에서 raw 헤더로 이미 완료됐으므로 무영향. inputData·
     //    output.request·$trigger 전반이 이 masked 헤더를 참조한다.
-    const executionId = await this.executionEngineService.execute(
-      trigger.workflowId,
-      {
-        __triggerSource: 'webhook',
-        parameters,
-        ...input,
-        headers: sanitizeResponseHeaders(input.headers),
-      },
-      {
-        triggerId: trigger.id,
-        triggerType: 'webhook', // priority 3-tier(§4.3) — webhook 발화
-        // §A.3 호출 이력 — 소스 IP·응답 코드 영속 (WH-MG-05). 성공 경로는 202.
-        sourceIp: clientIp,
-        responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
-      },
-    );
+    let executionId: string;
+    try {
+      executionId = await this.executionEngineService.execute(
+        trigger.workflowId,
+        {
+          __triggerSource: 'webhook',
+          parameters,
+          ...input,
+          headers: sanitizeResponseHeaders(input.headers),
+        },
+        {
+          triggerId: trigger.id,
+          // 엔진은 이 워크스페이스의 워크플로우만 연다(NERV Task `CLE-T-XYR067`).
+          workspaceId: trigger.workspaceId,
+          triggerType: 'webhook', // priority 3-tier(§4.3) — webhook 발화
+          // §A.3 호출 이력 — 소스 IP·응답 코드 영속 (WH-MG-05). 성공 경로는 202.
+          sourceIp: clientIp,
+          responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
+        },
+      );
+    } catch (err) {
+      // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 엔드포인트가
+      // 없을 때와 같은 404 다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다.
+      if (err instanceof WorkflowNotFoundError) throw webhookEndpointNotFound();
+      throw err;
+    }
 
     this.logger.log(
       `Webhook ${endpointPath} triggered execution ${executionId} for workflow ${trigger.workflowId}`,
@@ -652,31 +661,48 @@ export class HooksService {
     }
 
     // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
-    const executionId = await this.executionEngineService.execute(
-      trigger.workflowId,
-      {
-        __triggerSource: 'webhook',
-        parameters: {},
-        body: input.body,
-        // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증
-        // (chatChannelInboundAuthenticator.verify)은 위에서 raw 로 이미 수행됨.
-        headers: sanitizeResponseHeaders(input.headers),
-        query: input.query,
-        method: input.method,
-        chatChannel: {
-          provider: config.provider,
-          conversationKey: update.conversationKey,
-          channelUserKey: update.channelUserKey,
+    let executionId: string;
+    try {
+      executionId = await this.executionEngineService.execute(
+        trigger.workflowId,
+        {
+          __triggerSource: 'webhook',
+          parameters: {},
+          body: input.body,
+          // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증
+          // (chatChannelInboundAuthenticator.verify)은 위에서 raw 로 이미 수행됨.
+          headers: sanitizeResponseHeaders(input.headers),
+          query: input.query,
+          method: input.method,
+          chatChannel: {
+            provider: config.provider,
+            conversationKey: update.conversationKey,
+            channelUserKey: update.channelUserKey,
+          },
         },
-      },
-      {
-        triggerId: trigger.id,
-        triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
-        // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
-        sourceIp: clientIp,
-        responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
-      },
-    );
+        {
+          triggerId: trigger.id,
+          // 엔진은 이 워크스페이스의 워크플로우만 연다(NERV Task `CLE-T-XYR067`).
+          workspaceId: trigger.workspaceId,
+          triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
+          // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
+          sourceIp: clientIp,
+          responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
+        },
+      );
+    } catch (err) {
+      // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 채팅 채널은
+      // non-2xx 가 프로바이더의 재시도 · 비활성화를 부르므로(R-CC-12) 202 ignored 로 답하고 운영
+      // 신호로 degraded 를 남긴다. 메시지는 고정 문구다.
+      if (err instanceof WorkflowNotFoundError) {
+        await this.markChatChannelDegraded(
+          trigger,
+          CHAT_CHANNEL_WORKFLOW_MISSING_ERROR,
+        );
+        return { executionId: 'ignored' };
+      }
+      throw err;
+    }
 
     await this.channelConversationService.upsert(
       trigger.id,
@@ -994,20 +1020,32 @@ export class HooksService {
     trigger: Trigger,
     limitPerMinute: number,
   ): Promise<void> {
+    // 외부 입력(conversationKey)을 lastError 에 넣지 않는다 (관리자 UI stored-XSS
+    // 표면 축소). 한도만 기록 — 어느 chat 인지는 운영 로그/메트릭 영역.
+    await this.markChatChannelDegraded(
+      trigger,
+      `Inbound rate limit exceeded (${limitPerMinute}/min)`,
+    );
+  }
+
+  /**
+   * 트리거의 `chat_channel_health` 를 `degraded` 로 갱신하고 `lastError` 를 남긴다. 이미 `degraded`
+   * 면 skip (폭주 중 중복 write 방지). best-effort — 실패는 swallow. `lastError` 에는 외부 입력을
+   * 싣지 않는다.
+   */
+  private async markChatChannelDegraded(
+    trigger: Trigger,
+    lastError: string,
+  ): Promise<void> {
     if (trigger.chatChannelHealth === 'degraded') return;
     try {
       await this.triggerRepository.update(
         { id: trigger.id },
-        {
-          chatChannelHealth: 'degraded',
-          // 외부 입력(conversationKey)을 lastError 에 넣지 않는다 (관리자 UI stored-XSS
-          // 표면 축소). 한도만 기록 — 어느 chat 인지는 운영 로그/메트릭 영역.
-          chatChannelLastError: `Inbound rate limit exceeded (${limitPerMinute}/min)`,
-        },
+        { chatChannelHealth: 'degraded', chatChannelLastError: lastError },
       );
     } catch (err) {
       this.logger.warn(
-        `chat-channel rate-limit degraded 갱신 실패 (triggerId=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+        `chat-channel degraded 갱신 실패 (triggerId=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -1174,3 +1212,21 @@ function readErrorBody(
     message: typeof message === 'string' ? message : undefined,
   };
 }
+
+/**
+ * 엔드포인트 경로에 맞는 웹훅 트리거가 없을 때의 404. 트리거는 있으나 그 워크플로우가 트리거의
+ * 워크스페이스에 없을 때도 같은 본문이다(NERV Task `CLE-T-XYR067`). 둘을 구분하지 않는다.
+ */
+function webhookEndpointNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: 'TRIGGER_NOT_FOUND',
+    message: 'Webhook endpoint not found',
+  });
+}
+
+/**
+ * 채팅 채널 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때 `chat_channel_last_error` 에 남기는
+ * 고정 문구. 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는다.
+ */
+const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
+  'Workflow not found for this trigger';
