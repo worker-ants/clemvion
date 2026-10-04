@@ -169,7 +169,7 @@ export class WorkspacesService {
   ): Promise<Array<Workspace & { role: string }>> {
     const memberships = await this.memberRepository.find({
       where: { userId },
-      relations: ['workspace'],
+      relations: { workspace: true },
     });
     return memberships
       .map((m) => Object.assign(m.workspace, { role: m.role }))
@@ -229,7 +229,7 @@ export class WorkspacesService {
     await this.assertMembership(workspaceId, requesterId);
     const members = await this.memberRepository.find({
       where: { workspaceId },
-      relations: ['user'],
+      relations: { user: true },
       // **DB 레벨 투영이다 — JS 단 매핑이 아니라.** 아래 `.map` 이 이미 응답을 좁히고
       // 있었지만, `user-entity-exposure-guard` 는 **로드 형태**만 보므로 그 자리는 보호
       // 범위 밖이었다(방어가 검출이지 강제가 아니었다). 여기서 컬럼을 좁히면 `User` 의

@@ -113,7 +113,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     const activeSchedules = await this.scheduleRepository.find({
       where: { isActive: true },
-      relations: ['trigger'],
+      relations: { trigger: true },
     });
 
     this.logger.log(
@@ -140,7 +140,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
 
     const schedule = await this.scheduleRepository.findOne({
       where: { id: scheduleId, workspaceId },
-      relations: ['trigger'],
+      relations: { trigger: true },
     });
 
     if (!schedule) {

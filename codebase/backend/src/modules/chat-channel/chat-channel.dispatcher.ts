@@ -130,13 +130,13 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     }
     const trigger = await this.triggerRepository.findOne({
       where: { id: triggerId },
-      select: [
-        'id',
-        'workspaceId',
-        'workflowId',
-        'config',
-        'chatChannelHealth',
-      ],
+      select: {
+        id: true,
+        workspaceId: true,
+        workflowId: true,
+        config: true,
+        chatChannelHealth: true,
+      },
     });
     if (!trigger) {
       this.logger.warn(

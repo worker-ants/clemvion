@@ -425,7 +425,7 @@ export class TriggersService {
     return this.assertTriggerFound(
       await this.triggerRepository.findOne({
         where: { id, workspaceId },
-        relations: ['workflow'],
+        relations: { workflow: true },
       }),
     );
   }
@@ -659,7 +659,7 @@ export class TriggersService {
         // 가 사라진다 — `TriggerDto.workflow` 가 *"생성 응답에만 없다"* 고 보장하는 자리다.
         const fresh = await m.findOne(Trigger, {
           where: { id: trigger.id, workspaceId },
-          relations: ['workflow'],
+          relations: { workflow: true },
         });
         // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
         previousInboundSigningRef =
@@ -780,7 +780,7 @@ export class TriggersService {
       // 계약 검증자도 못 잡는 자리다.
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
-        relations: ['workflow'],
+        relations: { workflow: true },
       });
       if (refreshed) result = refreshed;
     }

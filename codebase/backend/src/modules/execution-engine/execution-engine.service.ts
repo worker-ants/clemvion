@@ -1521,7 +1521,7 @@ export class ExecutionEngineService
 
     const workflow = await this.workflowRepository.findOne({
       where: { id: execution.workflowId },
-      relations: ['workspace'],
+      relations: { workspace: true },
     });
     if (!workflow) {
       throw new RehydrationError(
@@ -2952,7 +2952,7 @@ export class ExecutionEngineService
     // (b) cap 로드 — workflow.settings(wf) + workspace.settings(ws)
     const workflow = await this.workflowRepository.findOne({
       where: { id: execution.workflowId },
-      relations: ['workspace'],
+      relations: { workspace: true },
     });
     const wfCap = resolveConcurrencyCap(
       workflow?.settings,
@@ -4479,7 +4479,7 @@ export class ExecutionEngineService
       // 조회해 핸들러에 전달한다 (3 AI 핸들러가 각자 조회하면 N+1 발생).
       const workflow = await this.workflowRepository.findOne({
         where: { id: workflowId },
-        relations: ['workspace'],
+        relations: { workspace: true },
       });
       const workspaceTimezone = workflow?.workspace?.settings?.['timezone'];
       const workspaceName = workflow?.workspace?.name;

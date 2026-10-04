@@ -125,14 +125,14 @@ export class InteractionGuard implements CanActivate {
       // itk 는 trigger 단위 — execution 의 trigger_id 매칭 후 expected 토큰과 비교.
       const exec = await this.executionRepository.findOne({
         where: { id: executionId },
-        select: ['id', 'triggerId'],
+        select: { id: true, triggerId: true },
       });
       if (!exec || !exec.triggerId) {
         this.deny(req, 'EXECUTION_NOT_FOUND', 'Execution not found');
       }
       const trigger = await this.triggerRepository.findOne({
         where: { id: exec.triggerId },
-        select: ['id', 'config'],
+        select: { id: true, config: true },
       });
       const expected = readItkFromConfig(trigger?.config);
       if (!expected) {

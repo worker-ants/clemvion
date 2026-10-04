@@ -67,7 +67,7 @@ export class NodesService {
     // probe foreign-workspace rows (IDOR guard).
     const node = await this.nodeRepository.findOne({
       where: { id },
-      relations: ['workflow'],
+      relations: { workflow: true },
     });
     if (!node || node.workflow?.workspaceId !== workspaceId) {
       throw new NotFoundException({
@@ -133,7 +133,7 @@ export class NodesService {
     // Single query with workflow relation + workspace check (IDOR guard).
     const node = await this.nodeRepository.findOne({
       where: { id },
-      relations: ['workflow'],
+      relations: { workflow: true },
     });
     if (!node || node.workflow?.workspaceId !== workspaceId) {
       throw new NotFoundException({
@@ -175,7 +175,7 @@ export class NodesService {
     const batchLabels = dtos.map((d) => d.label);
     const conflicts = await this.nodeRepository.find({
       where: { workflowId, label: In(batchLabels) },
-      select: ['label'],
+      select: { label: true },
     });
     if (conflicts.length > 0) {
       throw new ConflictException({

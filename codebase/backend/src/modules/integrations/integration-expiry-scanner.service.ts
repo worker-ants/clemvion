@@ -216,7 +216,7 @@ export class IntegrationExpiryScannerService
         status: 'connected',
         lastRotatedAt: Or(LessThan(cutoff), IsNull()),
       },
-      select: ['id', 'lastRotatedAt'],
+      select: { id: true, lastRotatedAt: true },
     });
 
     if (targets.length === 0) {

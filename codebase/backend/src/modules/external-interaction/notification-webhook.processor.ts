@@ -191,7 +191,7 @@ export class NotificationWebhookProcessor extends WorkerHost {
     if (STALE_ELIGIBLE_EVENTS.has(eventType)) {
       const execution = await this.executionRepository.findOne({
         where: { id: executionId },
-        select: ['id', 'status'],
+        select: { id: true, status: true },
       });
       if (
         !execution ||

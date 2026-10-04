@@ -66,9 +66,10 @@ import { ExternalInteractionModule } from './modules/external-interaction/extern
 import { WebChatCorsModule } from './modules/web-chat-cors/web-chat-cors.module';
 import { ChatChannelModule } from './modules/chat-channel/chat-channel.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
-// ROOT_ENTITIES 는 ./database/root-entities 로 분리(eval CLI 등 경량 부트스트랩이
-// app.module 전체를 transitive import 하지 않고 entity 목록만 재사용하기 위함).
-import { ROOT_ENTITIES } from './database/root-entities';
+// 루트 TypeORM 옵션(엔티티 목록 포함)은 ./database/typeorm-options 에 있다. ROOT_ENTITIES 는
+// ./database/root-entities 로 분리돼 있다(eval CLI 등 경량 부트스트랩이 app.module 전체를
+// transitive import 하지 않고 entity 목록만 재사용하기 위함).
+import { buildRootTypeOrmOptions } from './database/typeorm-options';
 
 // ROOT_ENTITIES 정의는 ./database/root-entities 로 이동. 기존 import 사이트
 // (app.module.spec 등) 호환을 위해 여기서 re-export 한다.
@@ -101,29 +102,7 @@ export { ROOT_ENTITIES } from './database/root-entities';
     // Database
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('database.host'),
-        port: configService.get<number>('database.port'),
-        username: configService.get<string>('database.username'),
-        password: configService.get<string>('database.password'),
-        database: configService.get<string>('database.database'),
-        entities: [...ROOT_ENTITIES],
-        synchronize: false,
-        logging: process.env.NODE_ENV === 'development',
-        // M-5: node-postgres pool 튜닝을 env 로 노출 (database.config). 기본값은
-        // 현 동작(pg 기본 max=10)과 동일 — 배포 무변경. 운영이 pg_stat_activity
-        // 피크 측정 후 env 만으로 상향 가능 (max_connections 역산 필수).
-        extra: {
-          max: configService.get<number>('database.poolMax'),
-          idleTimeoutMillis: configService.get<number>(
-            'database.poolIdleTimeoutMs',
-          ),
-          connectionTimeoutMillis: configService.get<number>(
-            'database.poolConnectionTimeoutMs',
-          ),
-        },
-      }),
+      useFactory: buildRootTypeOrmOptions,
     }),
 
     // BullMQ (Redis-backed job queue for scheduled workflow execution)

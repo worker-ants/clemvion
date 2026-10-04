@@ -140,7 +140,7 @@ export class SchedulesService {
   async findById(id: string, workspaceId: string): Promise<Schedule> {
     const schedule = await this.scheduleRepository.findOne({
       where: { id, workspaceId },
-      relations: ['trigger', 'trigger.workflow'],
+      relations: { trigger: { workflow: true } },
     });
     if (!schedule) this.throwScheduleNotFound();
     return schedule;
