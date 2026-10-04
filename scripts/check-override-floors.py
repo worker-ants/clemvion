@@ -65,7 +65,7 @@ _AUDIT_TIMEOUT_SEC = 300
 
 # override 키에서 **대상 패키지명** 을 뽑아야 audit advisory 의 `module_name` 과 맞출 수 있다.
 # 키에 섞여 오는 것들:
-#   `lodash` · `next>postcss` · `a>b>c`(다단 체인) · `undici@>=7.0.0 <7.28.0`(레인지) ·
+#   `lodash` · `next>postcss` · `a>b>c`(다단 체인) · `undici@>=8.0.0 <8.10.2`(레인지) ·
 #   `@grpc/grpc-js`(scope) · `next>@types/react`(scope 자식) · `a>@scope/b>c`(scope 중간)
 #
 # 어려운 지점은 하나뿐이다: `>` 가 **체인 구분자**일 때와 **레인지의 일부**(`@>=7.0.0`)일 때를
