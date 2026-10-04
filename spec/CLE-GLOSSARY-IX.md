@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "f466c35a699417c743ebd60093930cc84f9f244bb3a08edfb44db1c8dc589890"
+content_hash: "8fd003f32a13a0c81ca99a228d18d310b04de7009c33581ab553358b59300bb1"
 read_as: "approved_fallback"
 task: "CLE-T-V22XN8"
 source_paths: []
-mirror_sha256: "f40290e4a871d09c7c35a6009092ad16bdf95c5c12ebc53ab9104efba1e91839"
-etag: "sha256-4afbf5aa84c6fa941951ed4e9c35861456fbf98ec46890a0691c28bf9bbb6101"
+mirror_sha256: "e4b97edea6ba867770b1a5659333b5d341fdd3e6c4293c62fc2ea83ed657ede9"
+etag: "sha256-bbae55cc900070256a09660bd0824600f3cb3cf12a43b48444db1ed5fdf36418"
 ---
 ## 개요
 
@@ -42,7 +42,7 @@ etag: "sha256-4afbf5aa84c6fa941951ed4e9c35861456fbf98ec46890a0691c28bf9bbb6101"
 | 실행 토큰 테이블 | `ExecutionToken`, `execution_token` | 발급한 실행 단위 토큰을 실행별로 추적하는 테이블. | 없음 | [EIA 데이터와 흐름](CLE-IX/CLE-EIA-DATA.md) |
 | 표시 메시지 이벤트 | `execution.message` | 버튼 없는 Presentation 노드 결과를 SSE 로 알리는 이벤트. AI 응답 이벤트(`execution.ai_message`)와 다르다. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
 | 대기 노드 ID | `waitingNodeId` | 입력 대기 중인 노드를 가리키는 wire 필드. 문서의 논리 표기 `node.id` 와 같은 값이다. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
-| 대기 표면 | `WaitingInteractionType` | 입력 대기 노드가 무엇을 기다리는지 나타내는 값. EIA 밖으로 나가는 값이 따로 있다. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | interactionType(이 뜻으로 단독), 인터랙션 표면 | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
+| 대기 표면 | `WaitingInteractionType` | 입력 대기 노드가 무엇을 기다리는지 나타내는 값. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | interactionType(이 뜻으로 단독), 인터랙션 표면 | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
 | 사용자 행동 기록 | `interaction_data.interactionType` | 사용자가 실제로 한 행동(form_submitted, button_click, button_continue). 대기 표면과 이름만 같은 별개 값이다. | interactionType(이 뜻으로 단독) | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
 | 인터랙션 유형 레지스트리 | interaction type registry | 여러 계층이 함께 쓰는 인터랙션 값의 단일 목록. | 없음 | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
 | 대화 스레드 | ConversationThread | 실행 동안 사용자 인터랙션과 AI 대화를 시간순으로 쌓는 기록. park 할 때 실행에 저장한다. | Conversation Thread, conversation thread, thread(본문) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
@@ -98,6 +98,10 @@ etag: "sha256-4afbf5aa84c6fa941951ed4e9c35861456fbf98ec46890a0691c28bf9bbb6101"
 ## Rationale
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「외부 상호작용과 채널」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 미러 반영 리뷰 뒤 고친 행 (2026-10-04)
+
+- 「대기 표면」: 「EIA 밖으로 나가는 값이 따로 있다」 를 지웠다. 값과 본문 표기는 그대로 색인 「상태값과 enum 표기」 를 가리킨다(색인 「정의 보정 (2026-10-03)」 의 「상태값의 정본」, 개요의 한 줄 정의 원칙). 외부에 나가는 값의 구분은 색인 행에만 적는다.
 
 ### 정의 보정 (2026-10-03)
 

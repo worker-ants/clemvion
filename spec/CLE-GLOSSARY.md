@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY"
 title: "용어 사전"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "addbc2dae303996d1deb2805643ebea783b54af1ffed7ef18f67c321ce7ebe8d"
+content_hash: "b3f34ecd644ab4bf6e9606479d64d3aa66cfa36f98428585d5ba80a35c2c83cc"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-V22XN8"
 source_paths: []
-mirror_sha256: "602608c9447515037c753e6ebd350889ad741c544f43ec4c729c624b9396d6c9"
-etag: "sha256-b466882dd413fda7383742590dd620b20bf60765e5635fd669be4192662fb78d"
+mirror_sha256: "fc7ece6036d8feaf2d0a44bb6f1fda7af497fc832a9e9569be83014e75e6ee3a"
+etag: "sha256-5769d4361cef9c4b53ae1f88c46422e5651ebe77a7fae5e1303c1af92f1a3026"
 ---
 ## 개요
 
@@ -214,7 +214,7 @@ enum 값은 백틱으로 적는다. 화면에 보이는 라벨과 본문 표기�
 | `memoryStrategy` | `manual`, `summary_buffer`, `persistent` | 없음 | 값 그대로(설명은 "수동·요약 버퍼·영속") |
 | `ModelConfig.kind` | `chat`, `embedding`, `rerank` | Chat, Embedding, Rerank | 같음 |
 | 에이전트 메모리 `kind` | `fact`, `preference`, `entity` | 사실, 선호, 엔티티 | 사실, 선호, 엔티티(메모리 종류) |
-| 대기 표면 | `form`, `buttons`, `ai_conversation`, `ai_form_render` | 없음 | 값 그대로. EIA HTTP 응답과 알림은 `ai_form_render` 를 `ai_conversation` 에 합친 세 값만 내보낸다. 채팅 채널은 네 값을 받는다. |
+| 대기 표면 | `form`, `buttons`, `ai_conversation`, `ai_form_render` | 없음 | 값 그대로. 상태 조회 응답 · SSE 이벤트 · EIA 알림 웹훅의 `interactionType` 필드에 쓸 수 있는 값은 EIA 문서([EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) · [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md))가 정한다. 경로마다 실제로 나가는 값은 [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md#미결-사항) 에 있다. 채팅 채널은 네 값을 받는다. |
 | 사용자 입력 기록 `type` | `form_submitted`, `button_click`, `button_continue`, `message_received` | 폼 제출, 버튼 클릭, 링크 이동, 없음 | 값 그대로 |
 | 항목 출처 | `presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`(+화면 `system_error`, `rag`) | 없음 | 값 그대로 |
 
@@ -282,6 +282,10 @@ enum 값은 백틱으로 적는다. 화면에 보이는 라벨과 본문 표기�
 ### 치환 목록과의 관계
 
 치환할 표기는 이 사전 표의 "쓰지 않는 표기" 열에서 뽑는다. 문맥을 보지 않고 바꿔도 되는 것은 뜻이 하나인 표기뿐이다. 한 단어가 여러 뜻이면 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 표를 보고 직접 고른다. 뽑아 둔 치환 목록 파일은 저장소에 없다(2026-10-03 확인). 처음 이 절은 그런 파일(`term_map.json`)이 있는 것처럼 적었다. 기계 치환은 단어 경계를 지켜야 한다. 예를 들어 "워크플로" 는 뒤에 "우" 가 붙지 않을 때만 바꾼다.
+
+### 미러 반영 리뷰 뒤 고친 행 (2026-10-04)
+
+- 「대기 표면」 행의 본문 표기: 2026-10-03 정의 보정 때 이 칸을 「EIA HTTP 응답과 알림은 `ai_form_render` 를 `ai_conversation` 에 합친 세 값만 내보낸다」 로 고쳤고 정의 보정 소절에는 적지 않았다. [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md#미결-사항) 는 경로마다 다르다고 적고 이것을 미결 사항으로 둔다. 그래서 EIA 문서가 `interactionType` 필드로 적는 계약 값과 경로마다 실제로 나가는 값을 갈라 적었다. 실제 값은 그 미결 사항을 가리킨다. 사전 밖의 같은 서술(인터랙션 타입 레지스트리 · 웹채팅 구조 문서)은 따로 고친다(NERV Task `CLE-T-4H77EB`). 인터랙션 타입 레지스트리의 미결 사항이 정해지면 이 칸과 앵커를 함께 고친다.
 
 ### 정의 보정 (2026-10-03)
 

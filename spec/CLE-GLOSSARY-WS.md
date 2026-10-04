@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 작업 공간"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "5562f7c598ae8ebcd0db3713500737ec3960100be223cae5cb6f7dd462ba3fe3"
+content_hash: "3ce05c495f6cf07e8c0183cf04c3feac4d9fc68a1b8f91eeeb6de7c8667a9c38"
 read_as: "approved_fallback"
 task: "CLE-T-V22XN8"
 source_paths: []
-mirror_sha256: "42e80681d73bc3ed90a4bc2f5d0f2e399968b93a0becf99d1bb732fa2b8c867e"
-etag: "sha256-fd26037ea2e0b7b40431a951113f0f75b1a688bb5cda8949a3b2bf98be34a194"
+mirror_sha256: "72c50ce510827af5f2edb365231f1731083b4fc3ef2d0e7c90cd791dde98a2a7"
+etag: "sha256-2f7f87d3b0434606400d3e7e7a081e8af13fedac5f8d99342a6258dfe9a7fe31"
 ---
 ## 개요
 
@@ -31,7 +31,7 @@ etag: "sha256-fd26037ea2e0b7b40431a951113f0f75b1a688bb5cda8949a3b2bf98be34a194"
 | 워크스페이스 | Workspace, `workspace` | 워크플로우·통합·설정 같은 리소스를 격리하는 단위. 사용자는 개인 워크스페이스 1개와 팀 워크스페이스 여러 개에 속한다. | 작업 공간, Workspace(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 개인 워크스페이스 | personal workspace, `Workspace.type=personal` | 가입할 때 자동으로 생기는 1인 워크스페이스. 삭제·나가기·초대·소유자 이양을 할 수 없다. | personal workspace(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 팀 워크스페이스 | team workspace, `Workspace.type=team` | 사용자가 만들고 멤버를 초대하는 공유 워크스페이스. | team workspace(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
-| 현재 워크스페이스 | active workspace, `activeWorkspaceId`, `X-Workspace-Id` | 화면이나 요청이 대상으로 삼는 워크스페이스. 화면은 주소의 슬러그로 정한다. 서버의 정본은 토큰 클레임(`activeWorkspaceId`)이다. 전환기에는 `X-Workspace-Id` 헤더가 있으면 그것을 먼저 쓴다. 경로로 워크스페이스를 받는 라우트는 경로 값을 쓴다. 쓸 때 어느 층의 값인지 밝힌다. | 활성 워크스페이스, 워크스페이스 컨텍스트, 세션 workspaceId | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
+| 현재 워크스페이스 | active workspace, `activeWorkspaceId`, `X-Workspace-Id` | 화면이나 요청이 대상으로 삼는 워크스페이스. 화면은 주소의 슬러그로 정한다. 서버가 정하는 방법과 우선순위는 기준 문서에 있다. 쓸 때 어느 층의 값인지 밝힌다. | 활성 워크스페이스, 워크스페이스 컨텍스트, 세션 workspaceId | [HTTP API 규약](CLE-API/CLE-API-CONV.md), [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 워크스페이스 슬러그 | slug, `Workspace.slug` | URL `/w/<slug>/…` 에 들어가는 워크스페이스 식별자. 만들 때 정하고 바꾸지 않는다. 화면 라우팅 기준이며 서버 인가 기준은 아니다. | URL slug | [레이아웃과 내비게이션](CLE-UI/CLE-UI-LAYOUT.md) |
 | 워크스페이스 설정 | workspace settings, `Workspace.settings` | 워크스페이스마다 두는 설정 키 묶음(기본 시간대, 임베드 허용 도메인, 동시 실행 제한). 관리 화면을 가리킬 때는 "워크스페이스 관리 화면" 이라고 쓴다. | 없음 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 기본 시간대 | default timezone, `Workspace.settings.timezone` | 시간대를 정하지 않은 스케줄과 AI 노드 시스템 컨텍스트가 쓰는 워크스페이스 IANA 시간대. | 기본 타임존 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
@@ -44,7 +44,7 @@ etag: "sha256-fd26037ea2e0b7b40431a951113f0f75b1a688bb5cda8949a3b2bf98be34a194"
 | 뷰어 | Viewer, `viewer` | 읽기만 할 수 있는 역할. | 조회자, Viewer(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 권한 하한 | minimum role, `@Roles()`, `RoleGate` | 화면이나 API 가 요구하는 최소 역할. 본문은 "관리자 이상" 처럼 쓴다. | Admin+, admin 이상, Editor+, editor+, editor 이상(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 권한 매트릭스 | RBAC matrix, `RolesGuard` | 리소스와 역할마다 허용 동작을 적은 표. 한 문서에만 둔다. | 역할 권한 매트릭스, RBAC 요약 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
-| 참조의 소속 | reference ownership, `assertReferenceInScope` | 요청 본문으로 받아 컬럼에 저장하는 참조 id 가 가리켜도 되는 범위. 워크스페이스 리소스는 요청자의 워크스페이스 안이어야 한다. 노드·연결선 끝점 같은 구조 참조는 같은 워크플로우 안이어야 한다. 벗어나면 서버가 저장 전에 거부한다. 요청 대상 워크스페이스를 보는 가드 검사와 다르다. | cross-workspace refs(본문) | [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) |
+| 참조의 소속 | reference ownership, `assertReferenceInScope` | 요청 본문으로 받아 컬럼에 저장하는 참조 id 가 가리켜도 되는 범위. 서버가 저장할 때 본다. 범위와 거부 시점은 기준 문서에 있다. 요청 대상 워크스페이스를 보는 가드 검사와 다르다. | cross-workspace refs(본문) | [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) |
 | 운영자 | operator | 제품을 배포하고 운영하는 사람. 워크스페이스 관리자 역할과 다르다. | 관리자 개입(이 뜻으로), 시스템 관리자 | [시스템 아키텍처](CLE-PLAT/CLE-PLAT-ARCH.md) |
 | 초대 | Invitation, `WorkspaceInvitation` | 관리자 이상이 이메일로 보내는 팀 워크스페이스 합류 요청. 기한 안에 한 번만 쓸 수 있고 받는 사람 이메일이 일치해야 한다. | invitation(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 초대 토큰 | invitation token, `invitationToken`, `token` | 초대 링크에 들어가는 일회용 토큰. | 없음 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
@@ -85,11 +85,15 @@ etag: "sha256-fd26037ea2e0b7b40431a951113f0f75b1a688bb5cda8949a3b2bf98be34a194"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「제품과 작업 공간」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
+### 미러 반영 리뷰 뒤 고친 행 (2026-10-04)
+
+- 「현재 워크스페이스」 · 「참조의 소속」: 두 정의 칸에는 2026-10-02 분할 때부터 기준 문서의 규칙(서버가 워크스페이스를 정하는 우선순위, 참조 범위와 거부 시점)이 있었다. 2026-10-03 정의 보정은 문장을 나누고 장기 기준(토큰 클레임이 정본)을 더했다. 색인 개요의 「이 사전은 이름과 한 줄 정의만 정한다」 에 맞춰 둘 다 정의 칸에서 뺐다. 화면이 주소의 슬러그로 정한다는 구분은 남겼다. 서버 쪽 규칙은 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 과 [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) 에, 참조 범위와 거부 시점은 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) 의 「참조의 소속」 절에 있다.
+
 ### 정의 보정 (2026-10-03)
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 - 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「편집자」 의 결정 항목에 번호를 붙였다. D10(editor 역할의 화면 라벨)이다.
-- 「현재 워크스페이스」 · 「참조의 소속」: 비문과 한 칸에 몰린 정보를 문장으로 나눴다. 「현재 워크스페이스」 의 옛 정의는 지금의 우선순위(헤더 먼저)만 적었다. 이번에 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 장기 기준(토큰 클레임이 정본)을 함께 적었다. 지금 인가가 헤더를 먼저 보는 것은 그대로다.
+- 「현재 워크스페이스」 · 「참조의 소속」: 비문과 한 칸에 몰린 정보를 문장으로 나눴다. 「현재 워크스페이스」 의 옛 정의는 지금의 우선순위(헤더 먼저)만 적었다. 이번에 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 장기 기준(토큰 클레임이 정본)을 함께 적었다. 지금 인가가 헤더를 먼저 보는 것은 그대로다. 2026-10-04 에 이 우선순위 설명은 정의 칸에서 뺐다(위 소절).
 - 「초대」 · 「초대 토큰」 · 「복구 코드」 · 「계정 잠금」 · 「액세스 토큰」 · 「로그인 유지」 · 「로그인 힌트 쿠키」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).

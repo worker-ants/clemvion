@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "76bfecc78d852e8d86cc660fe093e2f35528cb0abdb9bee1765364ff4213ced4"
+content_hash: "047550699d53f47930876814efcf6ac690f0795a04cf8cb8b0462c697194c69d"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-V22XN8"
 source_paths: []
-mirror_sha256: "18eaecdc90d932dd0eb55b8761cba0fa7f6078fe412083d9cc1dbd75073b6c4d"
-etag: "sha256-cb081a8139a530d3d7aa8d6b98c83baf64ff017f0f9ea643263aa692fe70153e"
+mirror_sha256: "ee5f29f09302893a3789aaf6c3b4891f22c47fed1a03785407836051a4685527"
+etag: "sha256-7d09fb166980e6599fe5acbd2efe78a0d9b788013c3e3fda80c208902d50a6be"
 ---
 ## 개요
 
@@ -186,7 +186,7 @@ etag: "sha256-cb081a8139a530d3d7aa8d6b98c83baf64ff017f0f9ea643263aa692fe70153e"
 | 상태(status) | 문서가 약속한 기능이 코드에 있는지(본문 머리 줄) | 구현 상태 |
 | 상태(status) | 옛 스펙 트리 frontmatter 의 구현 단계(전환 단계 5 에서 걷었다) | 옛 스펙 상태 |
 | 마스킹 | 나갈 때 값 패턴으로 가리기(DB 원문 보존) | 응답 마스킹 |
-| 마스킹 | 설정 리소스 비밀 필드 끝 4자만 보이기 | 필드 마스킹 |
+| 마스킹 | 설정 리소스 비밀 필드의 끝 몇 자만 보이기 | 필드 마스킹 |
 | 마스킹 | 서버 로그에서 가리기 | 로그 마스킹 |
 | 마스킹 | 웹훅 수신 헤더를 저장 전에 가리기 | 수신 헤더 마스킹 |
 | provider | AI 모델 제공 서비스 | 모델 프로바이더 |
@@ -265,7 +265,7 @@ etag: "sha256-cb081a8139a530d3d7aa8d6b98c83baf64ff017f0f9ea643263aa692fe70153e"
 | 기본(default) | 에러 처리 정책의 대체 출력 | 기본 출력 |
 | 임계 | 검색 결과 최소 관련도 | 유사도 임계값 |
 | 임계 | 알림 규칙이 비교하는 값 | 임계치 |
-| 임계 | 통합 만료 알림 시점(7일·3일·당일) | 만료 임계 |
+| 임계 | 통합 토큰 만료 시각을 기준으로 알림 · 상태 전환을 하는 시점 | 만료 임계 |
 | 서명(signing) | 메신저 요청 출처 확인 자료 | 인바운드 서명 자료 |
 | 서명(signing) | EIA 알림 웹훅 HMAC 비밀 | 알림 서명 시크릿 |
 | 서명(signing) | 인증 설정 HMAC 서명 헤더 | 서명 헤더 |
@@ -295,6 +295,10 @@ etag: "sha256-cb081a8139a530d3d7aa8d6b98c83baf64ff017f0f9ea643263aa692fe70153e"
 이 표는 영역별로 쪼개지 않았다. 여러 영역에 걸친 같은 말을 한 표에서 가르는 것이 이 표의 목적이다. 영역 문서로 나누면 그 비교가 사라진다.
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「다의어 구분」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 미러 반영 리뷰 뒤 고친 행 (2026-10-04)
+
+- 「마스킹」 · 「임계」 행의 뜻 칸에 남아 있던 수치(보이는 글자 수, 알림 시점)를 뺐다(색인 표기 원칙 14). 보이는 글자 수는 [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) · [LLM 클라이언트](CLE-AI/CLE-AI-LLM.md) · [LLM 사용량 기록](CLE-AI/CLE-AI-USAGE.md), 알림 시점은 [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) · [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 에 있다. 「알림」 의 외부 모니터링 행에 있는 PromQL 예 `[5m]` 은 코드 식의 일부라 둔다.
 
 ### 정의 보정 (2026-10-03)
 
