@@ -3,18 +3,18 @@ id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "bdebbcd242dc6939066b9799d818f030c3bb66d7859974507a955c0a61642a6b"
+content_hash: "81c9742bc7150771192ba903868f1c65474d807a253b37bff4704d746c367388"
 read_as: "approved_fallback"
 task: "CLE-T-BV4YXZ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "2fea95a6735b7d1258478a00b4e33425394e3dd85005231ec628569e17f84bbe"
-etag: "sha256-cdec9bfecfdd0ebf0b1db92438a5559e1fead2ffd64e24c50ff5641662872907"
+mirror_sha256: "4b7188229ddd154c8bfd37b7aa9ea8b36f08a022e6877b490a7dbda6aae3aed0"
+etag: "sha256-616c63c0c6558f126be423df9ff2a8d4c1a05ce19849b50117be47d05bf725ba"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -277,7 +277,7 @@ etag: "sha256-cdec9bfecfdd0ebf0b1db92438a5559e1fead2ffd64e24c50ff5641662872907"
 | `VALIDATION_ERROR` (ack) | `submit_form` 의 필드 검증 실패. ack 는 평면 `errorCode` 이고 필드별 `details[]` 가 없다. EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 메시지가 최대 길이(10000자)를 넘음. 발행 쪽 동기 검증(typed `MessageTooLongError`) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 일반 fallback. ack `error` 는 고정 일반 문자열이고 내부 메시지는 클라이언트에 보내지 않는다(서버 로그 전용) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `RESUME_CHECKPOINT_MISSING` | rehydration 때 체크포인트가 없거나 손상됨(`NodeExecution.outputData`, 중첩 재개의 호출 스택 frame). 실행이 `cancelled` 로 끝난다. ack 가 아니라 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `RESUME_CHECKPOINT_MISSING` | rehydration 때 재개에 필요한 영속 상태가 없거나 손상됨(예: `NodeExecution.outputData`, 중첩 재개의 호출 스택 frame). 실행이 `cancelled` 로 끝난다. ack 가 아니라 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RESUME_FAILED` | 재개 큐의 `RESUME_BULLMQ_ATTEMPTS` 소진. 실행이 `cancelled` 로 끝난다. 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RESUME_INCOMPATIBLE_STATE` | 멀티턴 AI 의 `_resumeCheckpoint` 가 없음(기능 배포 전에 들어간 대기 행), 손상됨(스키마 변경으로 재구성 실패), 미래 버전임(`schemaVersion` 이 현재 코드가 지원하는 버전보다 큼. 롤링 배포 중 옛 인스턴스가 새 형식을 가져간 경우). 실행이 `cancelled` 로 끝나고 채널에는 "세션 만료" 안내를 보낸다. 정상 경로(checkpoint 가 있고 버전이 호환)는 재구성해 재개하므로 생기지 않는다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RETRY_STATE_NOT_FOUND` | `retry_last_turn` 대상 행의 `_retryState` 가 없거나 만료됨(TTL 초과 또는 다른 재시도가 이미 소비) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
@@ -521,3 +521,12 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 ### 413 `PAYLOAD_TOO_LARGE`(전역)와 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(도메인)를 함께 두는 이유
 
 둘 다 413 이지만 발행 층과 한도가 다르다. `PAYLOAD_TOO_LARGE` 는 body-parser 층의 전역 코드로 모든 라우트에 공통이다. `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 는 공개 웹훅 전용 가드가 파싱 뒤 32KB 보수 한도로 추가 제한할 때만 낸다. 일반 신규 코드는 전역 코드를 쓰고 도메인 특화 한도가 있을 때만 별도 코드를 만든다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 WH-NF-02).
+
+### `RESUME_CHECKPOINT_MISSING` 정의에 중첩 재개의 호출 스택을 더한 이유 (2026-10-04)
+
+카탈로그 행은 `NodeExecution.outputData` 결손만 적었다. 엔진은 그 전부터 중첩 재개의 빈 frame 목록, 호출 노드 부재, frame 에서 재개를 시작할 노드의 부재에도 이 코드를 냈다. 2026-10-04 에 frame 의 `workflowId` · `invokerNodeId` 결손도 조회 전에 이 코드로 마감하도록 했다(NERV Task `CLE-T-BV4YXZ`, [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 「rehydration 실패」). 그래서 행을 넓혔다.
+
+- **규칙 6 의 새 조건으로 보지 않았다**: 네 경우 모두 park 때 커밋한 영속 컨텍스트가 깨져 재구동할 수 없다는 같은 뜻이다. 종결(실행 `cancelled`, 짝 노드 실행 `failed`)과 클라이언트 처리(`execution.cancelled` 의 `RESUME_*` 분기, 채팅 채널의 세션 만료 안내)도 같다. 문서가 기존 경우를 빠뜨렸던 것을 바로잡았다.
+- **§3 에 등재하지 않았다**: 이름의 `CHECKPOINT` 는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 「체크포인트」 절의 뜻이다. 그 절은 park 때 커밋하는 영속 컨텍스트를 체크포인트에 넣는다. 그 목록([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md))에 호출 스택(`Execution.resume_call_stack`)이 있다. 이름이 뜻과 어긋나지 않는다.
+- 같은 코드를 영속 상태 손상 밖의 재개 불변식 위반에도 쓴다. 맞는 처리기가 없을 때가 그 예다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) Rationale). 행의 괄호를 "예:" 로 적은 이유다.
+- 호출 스택의 버전이 지원 범위보다 크면 이 코드가 아니라 `RESUME_INCOMPATIBLE_STATE` 다. 경계는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 「rehydration 실패」 에 적었다.
