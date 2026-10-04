@@ -35,7 +35,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * |---|---|---|
  * | `POST /api/triggers` | `create` (+chatChannel 분기 재조회도 `relations` 없음) | **없음** |
  * | `GET /api/triggers` | `findAll` — `leftJoinAndSelect('t.workflow','w')` | 있음 |
- * | `GET /api/triggers/:id` | `findOneDetail` → `findById` `relations: ['workflow']` | 있음 |
+ * | `GET /api/triggers/:id` | `findOneDetail` → `findById` `relations: { workflow: true }` | 있음 |
  * | `PATCH /api/triggers/:id` | `update` — `findById` 로 시작, chatChannel 분기는 `relations` 재조회 | 있음 |
  *
  * `history`·`DELETE`·rotate 3종은 트리거 shape 가 아니라 대상 밖이다.
@@ -230,7 +230,7 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
    * **이 케이스(E)가 이 파일의 존재 이유다.**
    *
    * A~D 만 걸면 정확히 그때 깨졌던 경로를 안 무는 캐너리가 된다. `if (chatChannel)` 재조회 분기를
-   * 실제로 통과해야 하므로 `chatChannel` 을 바디에 실어 보낸다 — 그 분기의 `relations: ['workflow']`
+   * 실제로 통과해야 하므로 `chatChannel` 을 바디에 실어 보낸다 — 그 분기의 `relations: { workflow: true }`
    * 를 지우면 **이 케이스만** RED 여야 한다(A~D 는 그 분기를 타지 않는다).
    *
    * > ## 이 바디는 한때 R-CC-10 우회를 재현했다 — 2026-09-10 해소됨

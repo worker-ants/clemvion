@@ -59,7 +59,7 @@ export class SchedulesController {
   /**
    * 응답 경계에서 조인된 `trigger` 를 **참조 수준으로** 좁힌다.
    *
-   * 서비스의 조회는 `leftJoinAndSelect('s.trigger', 't')` / `relations: ['trigger']` 로
+   * 서비스의 조회는 `leftJoinAndSelect('s.trigger', 't')` / `relations: { trigger: true }` 로
    * **Trigger 엔티티 전체**를 싣는다. 거기에는 `notificationSecretV2`(평문 서명 secret,
    * 24h rotation grace 동안 non-null) 와 `chatChannelTokenV2`(secret store ref) 가 있다 —
    * `TriggersService.sanitizeForResponse` 가 트리거 자신의 응답에서 빼는 바로 그 컬럼들이

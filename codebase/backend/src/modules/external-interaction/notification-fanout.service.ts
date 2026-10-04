@@ -104,7 +104,7 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
     }
     const trigger = await this.triggerRepository.findOne({
       where: { id: triggerId },
-      select: ['id', 'workspaceId', 'workflowId', 'config'],
+      select: { id: true, workspaceId: true, workflowId: true, config: true },
     });
     if (!trigger) return;
     const notificationCfg = (trigger.config as { notification?: unknown })

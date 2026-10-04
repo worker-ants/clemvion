@@ -1,7 +1,8 @@
 /**
  * `UPDATE`/`DELETE` raw 쿼리의 `RETURNING` 행을 꺼낸다.
  *
- * **TypeORM 0.3.31 + pg 는 `UPDATE`/`DELETE` 에만 `[rows, rowCount]` 튜플을 돌려준다**
+ * **TypeORM + pg 는 `UPDATE`/`DELETE` 에만 `[rows, rowCount]` 튜플을 돌려준다** (0.3.31 실측,
+ * 1.1.1 에서도 같은 분기임을 `PostgresQueryRunner.query` 소스로 확인했다 — 2026-10-04)
  * (`PostgresQueryRunner.query` 의 `switch (raw.command)` — `SELECT`/`INSERT` 는 행 배열
  * 그대로). RETURNING 유무·파라미터 유무·트랜잭션 안팎과 **무관**하며, 실측으로 확인했다:
  *

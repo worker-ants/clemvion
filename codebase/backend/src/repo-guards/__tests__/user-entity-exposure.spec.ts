@@ -53,7 +53,7 @@ import {
  * ## 무엇을 세는가
  *
  * **호출부 축** — `User` 관계를 **투영 없이 통째로** 싣는 세 형태: `relations` 배열 ·
- * `relations` 객체(0.3, 중첩 포함) · `leftJoinAndSelect`/`inner`. `select` 로 좁힌 자리와
+ * `relations` 객체(중첩 포함) · `leftJoinAndSelect`/`inner`. `select` 로 좁힌 자리와
  * `leftJoin`(AndSelect 없음)은 세지 않는다.
  *
  * **엔티티 축** — `@ManyToOne(() => User, { eager: true })`. 이쪽은 **호출부에 아무 텍스트도

@@ -5,6 +5,7 @@ import {
   GoneException,
   NotFoundException,
 } from '@nestjs/common';
+import { IsNull, LessThan } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 
@@ -170,6 +171,10 @@ describe('WorkspaceInvitationsService', () => {
       expect(result.invitedBy).toBe('user-1');
       expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
       expect(invitationRepo.save).toHaveBeenCalled();
+      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다.
+      expect(invitationRepo.findOne).toHaveBeenCalledWith({
+        where: { workspaceId: 'ws-1', email: 'b@x.com', acceptedAt: IsNull() },
+      });
     });
 
     it('creates invitation, persists, and sends email with invitedByName', async () => {
@@ -679,9 +684,25 @@ describe('WorkspaceInvitationsService', () => {
   describe('pruneExpired', () => {
     it('delegates to delete with expiresAt < now', async () => {
       invitationRepo.delete.mockResolvedValueOnce({ affected: 3 });
-      const removed = await service.pruneExpired(new Date());
+      const now = new Date();
+      const removed = await service.pruneExpired(now);
       expect(removed).toBe(3);
-      expect(invitationRepo.delete).toHaveBeenCalled();
+      // 수락되지 않은(acceptedAt IS NULL) 만료 초대만 지운다. 수락된 초대는 감사용으로 남는다.
+      expect(invitationRepo.delete).toHaveBeenCalledWith({
+        acceptedAt: IsNull(),
+        expiresAt: LessThan(now),
+      });
+    });
+  });
+
+  describe('listPending', () => {
+    it('수락되지 않은(acceptedAt IS NULL) 초대만 최신순으로 돌려준다', async () => {
+      memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
+      await service.listPending('ws-1', 'user-1');
+      expect(invitationRepo.find).toHaveBeenCalledWith({
+        where: { workspaceId: 'ws-1', acceptedAt: IsNull() },
+        order: { createdAt: 'DESC' },
+      });
     });
   });
 });

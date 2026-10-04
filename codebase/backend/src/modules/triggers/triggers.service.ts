@@ -425,7 +425,7 @@ export class TriggersService {
     return this.assertTriggerFound(
       await this.triggerRepository.findOne({
         where: { id, workspaceId },
-        relations: ['workflow'],
+        relations: { workflow: true },
       }),
     );
   }
@@ -547,7 +547,7 @@ export class TriggersService {
   /**
    * `update()` 전용 — **검증에만 쓰는 가벼운 조회.**
    *
-   * `findById` 는 `relations: ['workflow']` 를 싣는데, `update()` 의 사전 검증(타입 분기 ·
+   * `findById` 는 `relations: { workflow: true }` 를 싣는데, `update()` 의 사전 검증(타입 분기 ·
    * chatChannel 설정 여부 · 인증 설정)은 그 관계를 한 번도 보지 않는다. 저장·응답에 쓰이는
    * 엔티티는 **락 안에서 다시 읽으므로**, 여기서 조인을 한 번 더 하면 PATCH 마다 같은 JOIN
    * SELECT 가 두 번 돈다 (`/ai-review` `review/code/2026/09/14/20_17_16` performance WARNING#1).
@@ -659,7 +659,7 @@ export class TriggersService {
         // 가 사라진다 — `TriggerDto.workflow` 가 *"생성 응답에만 없다"* 고 보장하는 자리다.
         const fresh = await m.findOne(Trigger, {
           where: { id: trigger.id, workspaceId },
-          relations: ['workflow'],
+          relations: { workflow: true },
         });
         // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
         previousInboundSigningRef =
@@ -780,7 +780,7 @@ export class TriggersService {
       // 계약 검증자도 못 잡는 자리다.
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
-        relations: ['workflow'],
+        relations: { workflow: true },
       });
       if (refreshed) result = refreshed;
     }

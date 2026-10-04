@@ -540,7 +540,7 @@ export class AuthService {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.refreshTokenRepository.findOne({
       where: { tokenHash },
-      relations: ['user'],
+      relations: { user: true },
     });
     if (stored) {
       // Revoke entire family
@@ -581,7 +581,7 @@ export class AuthService {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.refreshTokenRepository.findOne({
       where: { tokenHash },
-      relations: ['user'],
+      relations: { user: true },
     });
 
     if (!stored) {

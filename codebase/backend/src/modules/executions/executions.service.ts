@@ -669,7 +669,7 @@ export class ExecutionsService {
         const [nodeExecutions, pathRows] = await Promise.all([
           manager.find(NodeExecution, {
             where: { executionId: id },
-            relations: ['node'],
+            relations: { node: true },
             order: { startedAt: 'ASC' },
           }),
           // executionPath 는 execution_node_log 의 (execution_id, id) 순서로

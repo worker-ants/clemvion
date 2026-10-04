@@ -23,6 +23,24 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — API: 워크스페이스 초대가 대기 중인 초대만 다룬다
+
+`workspace-invitations.service.ts` 의 세 곳이 `acceptedAt: null as never` 로 "수락되지 않은 초대" 를 고르려 했다. typeorm 0.3 은 where 의 null 조건을 조용히 빼고 조회해서 의도와 다르게 동작했다. typeorm 1 상향(아래 항목)에서 이 null 이 예외가 되면서 드러났고 세 곳 모두 `IsNull()` 로 바꿨다(NERV Task `CLE-T-91JNWW`).
+
+- 초대 발급: 같은 이메일로 이미 수락된 초대 행을 찾아 토큰을 갈아 끼우던 경로가 없어졌다. 이제 대기 중인 초대만 갱신하고 없으면 새 행을 만든다. 그래서 멤버에서 빠진 사람을 다시 초대해도 새 초대가 수락 가능한 상태로 만들어진다.
+- 대기 초대 목록(`GET /api/workspaces/:id/invitations`, `listPending`): 수락된 초대가 더는 섞이지 않는다.
+- 만료 정리(`pruneExpired`): 수락된 초대는 만료 시각이 지나도 지우지 않는다. 수락 행은 감사용으로 남아 누적된다(V017 의 "accepted/expired the row stays for audit" 와 같은 방향).
+- 단위 테스트가 세 조건을 고정한다.
+
+## Unreleased — 의존성: typeorm 을 1.x 로 올리고 where 의 null · undefined 를 예외로 막는다
+
+NERV Task `CLE-T-91JNWW`, dependabot #1457 을 대신한다. backend 의 `typeorm` 을 0.3.31 에서 1.1.1 로 올렸다. `@nestjs/typeorm@12` 의 peer(`^0.3.0 || ^1.0.0-dev`)가 1.x 를 받는다.
+
+- **동작 변화**: find 계열 · `*By` · update · delete 의 where 에 null · undefined 값이 들어오면 이제 예외(`TypeORMError`)다. 0.3 은 그 조건을 조용히 빼고 조회해서 `{ id, workspaceId }` 의 `workspaceId` 가 undefined 면 워크스페이스 조건 없이 조회되는 식으로 범위가 넓어질 수 있었다. 1.x 기본값을 따르기로 했다(사람 결정). 앱 루트(`src/database/typeorm-options.ts`)와 eval CLI 의 DataSource 에 `invalidWhereValuesBehavior` 로 명시했고 일회성 스크립트는 같은 라이브러리 기본값을 쓴다. 설정값과 실제 DataSource 의 동작(undefined · null 은 던지고 `IsNull()` 은 `IS NULL`)을 테스트로 고정했다. SQL 의 NULL 비교는 `IsNull()` 로 쓴다. QueryBuilder 의 `.where()` 는 영향이 없다.
+  - 감사: TypeScript 타입 정보로 Repository · EntityManager 의 find 계열 · `*By` · update · delete 조건과 `assertReferenceInScope` 인자를 전수로 훑었다. 캐스트(`as` · `!`) 안쪽 타입과 `never` · `unknown` · `any` 도 의심 값으로 셌다. 위반은 위 초대 세 곳이었고, 남은 1곳은 바로 앞에서 값을 확인하는 non-null 단언이다. 리터럴이 아닌 where 9곳은 손으로 봤고 모두 값이 문자열인 조건이다. 타입이 `string` 이어도 런타임에 비는 값(예: jsonb 체크포인트에서 꺼낸 id)은 정적으로 가려낼 수 없다. 배포 뒤 `Undefined value encountered` · `Null value encountered` 로그를 확인한다.
+- typeorm 1 이 없앤 문자열 `select` · `relations` 37곳(src 36, e2e 1)을 객체 형식으로 바꿨다(`relations: ['trigger', 'trigger.workflow']` → `{ trigger: { workflow: true } }`). `Repository.exist` 는 `exists` 로 바꿨다. 이름이 바뀐 `PostgresConnectionOptions` 는 e2e 에서 루트의 `DataSourceOptions` 로 뽑아 쓴다. 루트 TypeORM 옵션은 `buildRootTypeOrmOptions` 로 옮겼고 값은 그대로다.
+- 점검했지만 닿지 않는 변화: one-to-many cascade remove(`@OneToMany` 2곳 모두 `cascade` 옵션 없음), `orphanedRowAction`, find `join` · `findByIds` · `onConflict` 등 제거 API(사용처 0), `TYPEORM_*` 환경 변수, 쿼리 결과 캐시 해시. `nullable: false` 관계는 이제 INNER JOIN 으로 읽지만 FK 가 있어 결과는 같다. raw `UPDATE`/`DELETE … RETURNING` 의 `[rows, rowCount]` 튜플은 1.1.1 의 `PostgresQueryRunner` 에서도 같다. typeorm 이 더는 `dotenv` 에 의존하지 않아 lockfile 에서 `dotenv@16.6.1` 이 빠졌다(backend 는 자체 `dotenv ^18` 을 쓴다). typeorm 1 의 `engines` 는 24 계열에서 `>=24.11.0` 이다(`PROJECT.md` §Node 지원 floor).
+
 ## Unreleased — 의존성: 대상 없는 undici 7.x override 를 걷어 openai 의 미충족 peer 를 없앤다
 
 `scripts/check-unmet-peers.py`(주간 관측)가 `openai → undici` 미충족 peer 를 보고하고 있었다. 상류 문제가 아니었다. openai 가 선언한 undici peer 는 `>=5 <9`(optional)인데 `pnpm-workspace.yaml` 의 `"undici@>=7.0.0 <7.29.0": ^7.29.0` override 가 그 범위를 `^7.29.0` 으로 다시 썼다. pnpm overrides 는 peer 범위에도 적용된다. 그래서 backend 의 undici(6.29, #1483 뒤 8.11.2)가 범위 밖으로 판정됐다(NERV Task `CLE-T-67BNAZ`).

@@ -67,7 +67,7 @@ describe('창 1 save — 재읽기 뒤 경합 (TypeORM + Postgres 특성)', () =
   function rereadLikeWindow1(m: DataSource['manager'], triggerId: string) {
     return m.findOne(Trigger, {
       where: { id: triggerId, workspaceId },
-      relations: ['workflow'],
+      relations: { workflow: true },
     });
   }
 

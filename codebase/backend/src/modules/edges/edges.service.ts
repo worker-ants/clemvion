@@ -101,7 +101,7 @@ export class EdgesService {
     // probe foreign-workspace rows (IDOR guard).
     const edge = await this.edgeRepository.findOne({
       where: { id },
-      relations: ['workflow'],
+      relations: { workflow: true },
     });
     if (!edge || edge.workflow?.workspaceId !== workspaceId) {
       throw new NotFoundException({

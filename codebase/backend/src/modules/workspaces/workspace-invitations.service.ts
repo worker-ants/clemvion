@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
   EntityManager,
+  IsNull,
   LessThan,
   QueryFailedError,
   Repository,
@@ -126,7 +127,7 @@ export class WorkspaceInvitationsService {
       saved = await this.dataSource.transaction(async (manager) => {
         const invitationRepo = manager.getRepository(WorkspaceInvitation);
         const pending = await invitationRepo.findOne({
-          where: { workspaceId, email: normalized, acceptedAt: null as never },
+          where: { workspaceId, email: normalized, acceptedAt: IsNull() },
         });
         if (pending) {
           pending.token = token;
@@ -394,7 +395,7 @@ export class WorkspaceInvitationsService {
   ): Promise<WorkspaceInvitation[]> {
     await this.assertAdmin(workspaceId, requesterId);
     return this.invitationRepository.find({
-      where: { workspaceId, acceptedAt: null as never },
+      where: { workspaceId, acceptedAt: IsNull() },
       order: { createdAt: 'DESC' },
     });
   }
@@ -430,7 +431,7 @@ export class WorkspaceInvitationsService {
    */
   async pruneExpired(now: Date): Promise<number> {
     const result = await this.invitationRepository.delete({
-      acceptedAt: null as never,
+      acceptedAt: IsNull(),
       expiresAt: LessThan(now),
     });
     return result.affected ?? 0;

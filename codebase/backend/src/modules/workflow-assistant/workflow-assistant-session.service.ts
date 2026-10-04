@@ -213,7 +213,7 @@ export class WorkflowAssistantSessionService {
     workflowId: string,
     workspaceId: string,
   ): Promise<void> {
-    const exists = await this.workflowRepo.exist({
+    const exists = await this.workflowRepo.exists({
       where: { id: workflowId, workspaceId },
     });
     if (!exists) {

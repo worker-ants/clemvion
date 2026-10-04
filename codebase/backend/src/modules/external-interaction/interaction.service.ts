@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { type FindOptionsSelect, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -63,22 +63,23 @@ const SSE_SEQ_PLACEHOLDER = 0;
 /**
  * `getStatus()` 1단계 조회가 읽는 컬럼 — 응답 조립에 실제로 쓰이는 것만.
  *
- * `satisfies` 로 `keyof Execution` 을 강제한다: 컬럼명을 오기하면(예: snake_case `output_data`)
- * 런타임에 `undefined` 가 되어 조용히 잘못된 응답이 나가는 대신 **컴파일이 깨진다**.
- * 반환 DTO 에 필드를 추가할 때 이 배열도 함께 늘려야 한다 —
+ * `satisfies` 로 `FindOptionsSelect<Execution>` 을 강제한다: 컬럼명을 오기하면(예: snake_case
+ * `output_data`) 런타임에 `undefined` 가 되어 조용히 잘못된 응답이 나가는 대신 **컴파일이 깨진다**.
+ * typeorm 1 은 문자열 배열 `select` 를 받지 않아 객체 형식으로 둔다.
+ * 반환 DTO 에 필드를 추가할 때 이 목록도 함께 늘려야 한다 —
  * 특히 `updatedAt` 은 `finishedAt ?? startedAt ?? new Date()` 라 누락 시 "현재 시각" 으로 침묵 회귀한다.
  *
  * `conversation_thread` 는 의도적으로 제외 — `waiting_for_input` 에서만 2단계로 읽는다.
  */
-const STATUS_PROJECTION_COLUMNS = [
-  'id',
-  'status',
-  'workflowId',
-  'startedAt',
-  'finishedAt',
-  'durationMs',
-  'outputData',
-] satisfies (keyof Execution)[];
+const STATUS_PROJECTION_COLUMNS = {
+  id: true,
+  status: true,
+  workflowId: true,
+  startedAt: true,
+  finishedAt: true,
+  durationMs: true,
+  outputData: true,
+} satisfies FindOptionsSelect<Execution>;
 
 /**
  * 공개 EIA 표면으로 나가는 `outputData` 정화 — **debug 필드 삭제 + 값 마스킹**.
@@ -235,7 +236,7 @@ export class InteractionService {
     // 명령은 비동기 dispatch — 즉시 종료 확정은 아니므로 현재 status 를 다시 읽어 반환.
     const refreshed = await this.executionRepository.findOne({
       where: { id: ctx.executionId },
-      select: ['id', 'status'],
+      select: { id: true, status: true },
     });
     return {
       executionId: ctx.executionId,
@@ -288,7 +289,7 @@ export class InteractionService {
     // execution 이 이미 종료된 경우 refresh 거부 (살아있는 execution 만 갱신).
     const execution = await this.executionRepository.findOne({
       where: { id: ctx.executionId },
-      select: ['id', 'status'],
+      select: { id: true, status: true },
     });
     if (!execution || TERMINAL_STATUSES.has(execution.status)) {
       throw new GoneException({
@@ -361,7 +362,7 @@ export class InteractionService {
       const [threadRow, nodeExec] = await Promise.all([
         this.executionRepository.findOne({
           where: { id: ctx.executionId },
-          select: ['id', 'conversationThread'],
+          select: { id: true, conversationThread: true },
         }),
         this.nodeExecutionRepository.findOne({
           where: {
@@ -369,7 +370,7 @@ export class InteractionService {
             status: NodeExecutionStatus.WAITING_FOR_INPUT,
           },
           order: { startedAt: 'DESC' },
-          relations: ['node'],
+          relations: { node: true },
         }),
       ]);
       // durable park 스냅샷 = SSE `waiting_for_input` 이 싣는 `redactThreadForPublic(context.conversationThread)`
@@ -478,7 +479,7 @@ export class InteractionService {
   private async loadAndAssertAlive(executionId: string): Promise<Execution> {
     const execution = await this.executionRepository.findOne({
       where: { id: executionId },
-      select: ['id', 'status'],
+      select: { id: true, status: true },
     });
     if (!execution) {
       throw new NotFoundException({

@@ -329,7 +329,7 @@ export class InteractionTokenService {
     }
     const tokens = await this.executionTokenRepository.find({
       where: { executionId },
-      select: ['jti', 'expAt'],
+      select: { jti: true, expAt: true },
     });
     // iext 토큰을 발급하지 않은 execution (모든 수동/스케줄 실행) 은 여기서 끝 — terminal event
     // 마다 호출되므로 불필요한 DELETE 쿼리를 피해 단일 인덱스 lookup 으로 비용을 제한한다.

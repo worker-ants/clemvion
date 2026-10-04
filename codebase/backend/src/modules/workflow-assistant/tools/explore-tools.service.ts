@@ -369,7 +369,7 @@ export class ExploreToolsService {
 
     const execution = await this.executionRepo.findOne({
       where: { id: executionId },
-      relations: ['workflow'],
+      relations: { workflow: true },
     });
     if (!execution || execution.workflow?.workspaceId !== workspaceId) {
       // workspace 밖 id 도 NOT_FOUND 로 합쳐 존재 여부 추론을 막는다.
@@ -392,7 +392,7 @@ export class ExploreToolsService {
       this.loadTimeline(execution.id),
       this.executionRepo.find({
         where: { parentExecutionId: execution.id },
-        relations: ['workflow'],
+        relations: { workflow: true },
         order: { startedAt: 'ASC' },
       }),
     ]);
@@ -450,7 +450,7 @@ export class ExploreToolsService {
     // workspace 일치가 검증됐지만, 부모 chain 은 별도 검사가 필요하다.
     const parent = await this.executionRepo.findOne({
       where: { id: execution.parentExecutionId },
-      relations: ['workflow'],
+      relations: { workflow: true },
     });
     if (!parent || parent.workflow?.workspaceId !== workspaceId) return false;
     return parent.workflowId === currentWorkflowId;
@@ -463,7 +463,7 @@ export class ExploreToolsService {
     // 담긴 실행은 잘림 플래그 없이 그대로 내려간다.
     const raw = await this.nodeExecutionRepo.find({
       where: { executionId },
-      relations: ['node'],
+      relations: { node: true },
       order: { startedAt: 'ASC' },
       take: TIMELINE_ROW_CAP + 1,
     });
@@ -494,7 +494,7 @@ export class ExploreToolsService {
     const limit = executionIds.length * (TIMELINE_ROW_CAP + 1);
     const rows = await this.nodeExecutionRepo.find({
       where: { executionId: In(executionIds) },
-      relations: ['node'],
+      relations: { node: true },
       order: { executionId: 'ASC', startedAt: 'ASC' },
       take: limit,
     });

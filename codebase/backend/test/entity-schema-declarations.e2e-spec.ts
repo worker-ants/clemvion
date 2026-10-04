@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
-import type { EntityMetadata } from 'typeorm';
-// 아래 두 타입은 typeorm 루트(`index.d.ts`)에서 export 되지 않아 서브패스로 가져온다.
-import type { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
+import type { DataSourceOptions, EntityMetadata } from 'typeorm';
+// `SqlInMemory` 는 typeorm 루트(`index.d.ts`)에서 export 되지 않아 서브패스로 가져온다.
 import type { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';
@@ -33,6 +32,12 @@ import { createDbClient } from './helpers/db';
  * 식이면 같다. 만들 수 없는 식(식 전체를 큰따옴표로 감싸 컬럼 이름이 된 것)은 그 자체로 실패다.
  * 전부 한 트랜잭션 안에서 하고 ROLLBACK 한다 — 임시 테이블도 인덱스도 남지 않는다.
  */
+
+/**
+ * Postgres 데이터 소스 옵션. typeorm 1 에서 서브패스 타입 이름이 `PostgresConnectionOptions` 에서
+ * `PostgresDataSourceOptions` 로 바뀌었다. 루트가 내보내는 `DataSourceOptions` 에서 뽑아 서브패스 이름에 기대지 않는다.
+ */
+type PostgresOptions = Extract<DataSourceOptions, { type: 'postgres' }>;
 
 /** `pg_constraint.confdeltype` · `confupdtype` 코드 → TypeORM 이 메타데이터에 채우는 이름. */
 const FK_ACTION: Readonly<Record<string, string>> = {
@@ -190,7 +195,7 @@ function reportMatch(
   }
 }
 
-function dataSourceOptions(): PostgresConnectionOptions {
+function dataSourceOptions(): PostgresOptions {
   return {
     type: 'postgres',
     host: process.env.DB_HOST ?? 'postgres',
@@ -209,7 +214,7 @@ function dataSourceOptions(): PostgresConnectionOptions {
  * 전제이지 공개 계약이 아니라, 그 전제가 깨져 DDL 을 실행하려 들면 Postgres 가 거부하게 한다. 컬럼 층 테스트와 «읽기 전용인가»
  * 테스트가 **이 한 함수**를 쓴다 — 여기서 옵션을 지우면 뒤쪽 테스트가 RED 다(컬럼 층 테스트는 탐지만 하므로 그대로 GREEN 이다).
  */
-function readOnlyDataSourceOptions(): PostgresConnectionOptions {
+function readOnlyDataSourceOptions(): PostgresOptions {
   return {
     ...dataSourceOptions(),
     // 초기화가 `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` 를 시도하지 않게 — 읽기 전용 세션이 거부하고 TypeORM 이
