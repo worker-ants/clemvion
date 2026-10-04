@@ -88,7 +88,7 @@ Client (Next.js SPA)
 | **상태 관리**     | Zustand, TanStack React Query       |
 | **캔버스**       | @xyflow/react                       |
 | **스타일링**      | Tailwind CSS, Radix UI              |
-| **Backend**   | NestJS 11, TypeScript               |
+| **Backend**   | NestJS 12, TypeScript               |
 | **ORM**       | TypeORM                             |
 | **데이터베이스**    | PostgreSQL 18                       |
 | **캐시/메시지 큐**  | Redis 7, BullMQ                     |

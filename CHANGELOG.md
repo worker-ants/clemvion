@@ -23,6 +23,28 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — API: UUID 경로 파라미터가 RFC 형식의 UUID 만 받는다
+
+NestJS 12 상향(아래 항목)으로 `ParseUUIDPipe` 의 기본 검사가 좁아졌다. Nest 11 은 8-4-4-4-12 hex 모양이면 모두 받았다. Nest 12 는 버전 자리 1~8 과 RFC variant(`8` · `9` · `a` · `b`), nil · max UUID 만 받는다. 그래서 `11111111-1111-1111-1111-111111111111` 처럼 모양만 맞는 값을 경로 파라미터로 보내면 이제 핸들러에 닿기 전에 400 이 된다. 전에는 핸들러까지 갔다.
+
+- 범위: 컨트롤러 28개 파일의 경로 파라미터 151곳(`ParseUUIDPipe` 133곳, 그 파이프를 내장한 `@WorkspaceParam()` 18곳).
+- 서버가 발급하는 ID(v4 · v7)는 영향이 없다. `X-Workspace-Id` 헤더 검사(`isUuidShaped`)는 바뀌지 않았다.
+- `common/utils/uuid.spec.ts` 에 이 범위를 고정하는 테스트를 더했다. 표본을 경계 양쪽(버전 0 · 1 · 8 · 9 · `f`, variant `7` · `8` · `b` · `c`)에 두어 다음 Nest 상향에서 경계가 움직이면 실패한다. 받는 값이 모두 `isUuidShaped` 를 통과하는지도 확인한다. 가드가 파이프보다 먼저 `isUuidShaped` 로 판정하기 때문이다.
+- `roles.guard.spec.ts` 에 모양만 맞는 비 RFC 값을 경로 워크스페이스로 보내면 가드가 조회해 403 을 내는 케이스를 더했다(파이프의 400 보다 먼저).
+
+## Unreleased — 의존성: NestJS 를 12 로 올리고 메일 발송을 nodemailer 로 바꾼다
+
+NERV Task `CLE-T-3X627J`. backend 의 `@nestjs/*` 를 12 로 올렸다(`common` · `core` · `platform-express` · `platform-socket.io` · `websockets` · `testing` 12.1.2, `swagger` 12.0.2, `bullmq` · `passport` 12.0.0, `cli` 12.0.8, `schematics` 12.0.6). `config` · `jwt` · `typeorm` 은 이미 12 였고 `throttler` 6.7.1 은 그대로다.
+
+- `@nestjs-modules/mailer` 를 걷어 내고 nodemailer 전송기를 직접 주입한다(`MAIL_TRANSPORTER`, `mail.transporter.ts`). 2.3.x 의 타입 선언은 `@nestjs/common/interfaces` 를 깊게 import 하는데 Nest 12 의 `exports` 맵에서는 이 경로가 풀리지 않는다(2026-09-24 시도에서 `mail.module.ts` 가 TS2345 로 빌드를 깼다). 3.0.0(2026-10-04 게시)부터는 Nest 12 를 지원한다. 그래도 3.x 로 올리지 않았다. 우리는 그 모듈의 템플릿 · 미리보기 · 헬스 기능을 쓰지 않고, 다음 Nest major 에서 같은 이유로 막히지 않게 하려는 것이다(사람 결정). 게시 몇 시간 뒤의 major 라는 점도 고려했다. 전송 설정(`mail.*`), `mail.from` 메시지 기본값, 종료 때 연결 닫기(실패하면 경고만 남긴다)는 그대로다. nodemailer 10 타입과 맞추려고 두었던 `defaults` 타입 단언도 없어졌다.
+- 그 모듈이 optionalDependencies 로 끌어오던 템플릿 엔진(ejs · handlebars · mjml · nunjucks · pug · liquidjs · preview-email)도 빠졌다. 설치 패키지가 290개 줄고 74개 늘었다. 그 경로의 취약점 때문에 둔 `pnpm-workspace.yaml` overrides 5건(`lodash` · `liquidjs` · `html-to-text` · `linkify-it` · `svgo`)은 덮을 대상이 없어졌다. 바닥 핀이라 남겨도 해가 없고 다시 들어오면 막으므로 이 변경에서는 두었다. 정리는 보안 baseline(`check-pnpm-security-config.py`)과 함께 NERV Task `CLE-T-67BNAZ` 에서 한다.
+- `nest build` 산출물은 여전히 CJS 다. `@nestjs/*` 12 는 전부 ESM-only 라 Node 의 `require(esm)` 로 로드된다.
+- reflection 보안 검증(fail-open 이라 테스트 수만으로 판정하지 않는다): 같은 코드로 업그레이드 전후를 재서 값이 같았다. 리뷰 뒤 가드 케이스를 하나 더해 지금은 3스위트 97/97, 뮤턴트 RED 12 · 32 다.
+  - 부트 캐너리: `@WorkspaceId()` 소비 라우트 142건 · `@WorkspaceParam()` 소비 라우트 15건(e2e Docker 이미지로 잰 부팅 로그).
+  - reflection 3스위트(`workspace.decorator.spec` · `workspace-reflection-canary.spec` · `roles.guard.spec`): 96/96.
+  - 판별 뮤턴트: `handlerConsumesWorkspaceId` → 항상 false 에서 RED 12, `workspaceParamNamesOf` → 항상 `[]` 에서 RED 31.
+- `scripts/check-unmet-peers.py` 의 수용 등재에서 `nunjucks → chokidar` 를 지웠다. nunjucks 가 트리에서 빠져 등재가 죽은 설정이 됐다.
+
 ## Unreleased — 툴체인: TypeScript 를 6 으로 올린다
 
 NestJS 12 상향의 선행 조건 하나를 푼다. `@nestjs/schematics@12` 는 모든 버전이 `typescript>=6.0.0` 을 peer 로 요구한다(NERV Task `CLE-T-8AY2KZ`). TS 6 은 고전 JS 컴파일러의 마지막 라인이라 `require('typescript')` 의 compiler API 가 그대로 있다. 7(Go 재작성판)은 계속 막는다.

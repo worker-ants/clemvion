@@ -1,3 +1,8 @@
+import {
+  type ArgumentMetadata,
+  BadRequestException,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { isUuidShaped, isValidUuid } from './uuid';
 
 describe('isValidUuid', () => {
@@ -95,5 +100,49 @@ describe('isUuidShaped', () => {
       expect(isValidUuid(value)).toBe(true);
       expect(isUuidShaped(value)).toBe(true);
     }
+  });
+});
+
+/**
+ * 경로 파라미터의 `ParseUUIDPipe`(옵션 없음)가 받는 범위를 고정한다.
+ *
+ * 이 범위는 Nest 버전을 따라 바뀐다. Nest 11 은 8-4-4-4-12 hex 모양이면 모두 받았고(`isUuidShaped`
+ * 와 같았다), Nest 12 는 버전 자리 1~8 과 RFC variant(`8` · `9` · `a` · `b`), nil · max UUID 만
+ * 받는다(NERV Task CLE-T-3X627J 에서 확인). 표본은 경계 양쪽(버전 0 · 1 · 8 · 9 · `f`, variant
+ * `7` · `8` · `b` · `c`)을 두어 다음 Nest 상향에서 경계가 움직이면 여기서 실패하게 한다.
+ *
+ * 받는 값은 모두 `isUuidShaped` 도 통과해야 한다. `RolesGuard` 는 파이프보다 먼저 `isUuidShaped`
+ * 로 판정하므로 파이프가 그 밖의 값을 받게 되면 가드가 판정하지 않은 값이 핸들러에 닿는다.
+ */
+describe('ParseUUIDPipe 기본 범위 (경로 파라미터)', () => {
+  const pipe = new ParseUUIDPipe();
+  const metadata: ArgumentMetadata = { type: 'param', data: 'id' };
+
+  it.each([
+    ['비-RFC variant 7', '11111111-1111-4111-7111-111111111111'],
+    ['비-RFC variant c', '11111111-1111-4111-c111-111111111111'],
+    ['버전 자리 0', '11111111-1111-0111-8111-111111111111'],
+    ['버전 자리 9', '11111111-1111-9111-8111-111111111111'],
+    ['버전 자리 f', '11111111-1111-f111-8111-111111111111'],
+    ['모양만 맞는 값', '11111111-1111-1111-1111-111111111111'],
+    ['nil 에서 한 글자 다른 값', '00000000-0000-0000-0000-000000000001'],
+  ])('%s 는 400 으로 막는다', async (_label, value) => {
+    expect(isUuidShaped(value)).toBe(true);
+    await expect(pipe.transform(value, metadata)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it.each([
+    ['버전 1', '8f3c6b1a-0d2e-1a7e-8c1d-2f0e5a8b1234'],
+    ['버전 4', '8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234'],
+    ['버전 7', '018f3c6b-1a0d-7e4a-ac1d-2f0e5a8b1234'],
+    ['버전 8', '8f3c6b1a-0d2e-8a7e-bc1d-2f0e5a8b1234'],
+    ['nil', '00000000-0000-0000-0000-000000000000'],
+    ['max (대문자)', 'FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'],
+    ['max (소문자)', 'ffffffff-ffff-ffff-ffff-ffffffffffff'],
+  ])('%s 는 받는다', async (_label, value) => {
+    expect(isUuidShaped(value)).toBe(true);
+    await expect(pipe.transform(value, metadata)).resolves.toBe(value);
   });
 });
