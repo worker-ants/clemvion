@@ -17015,6 +17015,81 @@ describe('ExecutionEngineService', () => {
       expect(cancelSpy).not.toHaveBeenCalled();
     });
 
+    // ── CASE 4b: frame 필드 결손 → RESUME_CHECKPOINT_MISSING ─────────────
+    // typeorm 1 은 where 의 undefined 를 예외로 막는다(CLE-T-91JNWW). 영속된 frame 의
+    // workflowId · invokerNodeId 가 비면 조회가 일반 TypeORMError 로 끝나 RESUME_FAILED 경로를
+    // 탔다. 체크포인트 결손이므로 조회 전에 RehydrationError 로 분류한다(CLE-T-BV4YXZ).
+    it.each([
+      [
+        'innermost frame 의 invokerNodeId 없음',
+        [
+          {
+            workflowId: 'wf-top-1',
+            invokerNodeId: 'node-inv-a',
+            recursionDepth: 1,
+          },
+          { workflowId: 'wf-sub-1', recursionDepth: 2 },
+        ],
+      ],
+      [
+        'top-level frame 의 invokerNodeId 빈 문자열',
+        [{ workflowId: 'wf-top-1', invokerNodeId: '', recursionDepth: 1 }],
+      ],
+      ['workflowId 없음', [{ invokerNodeId: 'node-inv-a', recursionDepth: 1 }]],
+      ['frame 이 객체가 아님', [null]],
+    ])(
+      'Case4b: %s → 조회 없이 RESUME_CHECKPOINT_MISSING 으로 취소',
+      async (_label, frames) => {
+        const svcAny = service as unknown as {
+          driveResumeFrame: (
+            ...args: unknown[]
+          ) => Promise<{ parked: boolean; output: unknown }>;
+          markExecutionCancelled: (id: string, code: string) => Promise<void>;
+          markNodeExecutionFailed: (id: string, code: string) => Promise<void>;
+          finalizeRehydrationCleanup: (id: string) => void;
+          updateExecutionStatus: (...a: unknown[]) => Promise<void>;
+        };
+        const cancelSpy = jest
+          .spyOn(svcAny, 'markExecutionCancelled')
+          .mockResolvedValue(undefined);
+        jest
+          .spyOn(svcAny, 'markNodeExecutionFailed')
+          .mockResolvedValue(undefined);
+        jest
+          .spyOn(svcAny, 'finalizeRehydrationCleanup')
+          .mockImplementation(() => undefined);
+        const statusSpy = jest
+          .spyOn(svcAny, 'updateExecutionStatus')
+          .mockResolvedValue(undefined);
+        const driveSpy = jest.spyOn(svcAny, 'driveResumeFrame');
+        mockNodeRepo.findOneBy.mockClear();
+
+        await driveSubject().driveCallStackResume(
+          mockSavedExecution,
+          mockContext,
+          {
+            node: { id: 'node-form-1', type: 'form_node' } as unknown,
+            nodeExec: mockNodeExec,
+            callStack: { version: CALL_STACK_SCHEMA_VERSION, frames },
+            persistedInteractionType: 'form',
+            isAiConversation: false,
+            resumeCheckpoint: undefined,
+            cachedOutput: undefined,
+            payload: {},
+          },
+        );
+
+        expect(cancelSpy).toHaveBeenCalledWith(
+          'exec-drive-1',
+          'RESUME_CHECKPOINT_MISSING',
+        );
+        expect(driveSpy).not.toHaveBeenCalled();
+        expect(mockNodeRepo.findOneBy).not.toHaveBeenCalled();
+        // 상태 전이(WAITING → RUNNING) 전에 멈춘다.
+        expect(statusSpy).not.toHaveBeenCalled();
+      },
+    );
+
     // ── CASE 5: ParkReleaseSignal catch 흡수 ──────────────────────────
     it('Case5: ParkReleaseSignal 이 catch 에 도달하면 흡수(return) — 전파 없음', async () => {
       const svcAny = service as unknown as {
