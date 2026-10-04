@@ -23,6 +23,14 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 의존성: mailer 경로에만 있던 overrides 5건을 걷는다
+
+`pnpm-workspace.yaml` overrides 의 `lodash` · `liquidjs` · `html-to-text` · `linkify-it` · `svgo` 를 지우고 `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 에서도 뺐다(overrides 34 → 29건, NERV Task `CLE-T-67BNAZ`). 모두 `@nestjs-modules/mailer`(NestJS 12 상향 때 제거)의 템플릿 엔진 · 미리보기 경로에 건 바닥 핀이었다. lockfile 에 대상이 0건이었고 이 다섯을 peer 로 선언한 패키지도 없어서 다른 패키지의 peer 범위를 다시 쓰지도 않았다(위 undici 키와 다른 점).
+
+- 해소되는 패키지는 바뀌지 않았다. lockfile 은 overrides 머리의 다섯 줄만 빠진다.
+- 다섯 중 하나가 다른 경로로 다시 들어오고 그 버전에 moderate 이상 권고가 있으면 `pnpm audit`(deps-security-checks)가 잡는다. 핀은 그때 그 경로에 맞춰 다시 건다.
+- 확인: 보안 baseline · 바닥 침식 검사(`check-override-floors.py`) 통과, `pnpm audit --prod` 0건, 전체 audit 은 수용한 `CVE-2026-93687` 1건만 남는다.
+
 ## Unreleased — API: 워크스페이스 초대가 대기 중인 초대만 다룬다
 
 `workspace-invitations.service.ts` 의 세 곳이 `acceptedAt: null as never` 로 "수락되지 않은 초대" 를 고르려 했다. typeorm 0.3 은 where 의 null 조건을 조용히 빼고 조회해서 의도와 다르게 동작했다. typeorm 1 상향(아래 항목)에서 이 null 이 예외가 되면서 드러났고 세 곳 모두 `IsNull()` 로 바꿨다(NERV Task `CLE-T-91JNWW`).

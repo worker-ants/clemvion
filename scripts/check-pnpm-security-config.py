@@ -35,9 +35,7 @@ except ImportError:  # pragma: no cover
 
 # 이름 → 기대 버전 범위 (값까지 정확히 대조 — 핀 약화 검출).
 EXPECTED_OVERRIDES = {
-    "lodash": "^4.18.0",
     "picomatch": "^4.0.4",
-    "liquidjs": "^10.27.1",
     "ip-address": "^10.7.1",
     "express-rate-limit": "^8.5.1",
     "protobufjs": "^7.6.5",
@@ -52,15 +50,12 @@ EXPECTED_OVERRIDES = {
     "nodemailer": "^10.0.9",
     "next>postcss": "^8.5.18",
     "nanoid": "^3.3.18",
-    "html-to-text": "^10.0.1",
     "eslint-plugin-react-hooks": "7.0.1",
     "undici@>=8.0.0 <8.10.2": "^8.10.2",
     "vite": "^8.0.16",
     "@babel/core": "^7.29.7",
     "@hono/node-server": "^2.0.5",
-    "linkify-it": "^5.0.2",
     "qs": "^6.16.0",
-    "svgo": "^4.1.0",
     "sharp": "^0.35.4",
     "@opentelemetry/propagator-jaeger": "^2.9.0",
     "js-yaml@>=4.0.0 <4.3.2": "^4.3.2",
