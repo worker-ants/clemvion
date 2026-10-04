@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MAIL_TRANSPORT_CONSOLE } from './mail.constants';
+import { MAIL_TRANSPORT_CONSOLE, MAIL_TRANSPORTER } from './mail.constants';
+import type { MailTransporter } from './mail.transporter';
 
 @Injectable()
 export class MailService {
@@ -10,7 +10,7 @@ export class MailService {
   private readonly transport: string;
 
   constructor(
-    private readonly mailerService: MailerService,
+    @Inject(MAIL_TRANSPORTER) private readonly transporter: MailTransporter,
     private readonly configService: ConfigService,
   ) {
     this.frontendUrl = this.configService.get<string>('app.frontendUrl') || '';
@@ -43,7 +43,7 @@ export class MailService {
     }
 
     try {
-      await this.mailerService.sendMail({
+      await this.transporter.sendMail({
         to: email,
         subject: 'Clemvion - 이메일 인증',
         html: this.buildVerificationHtml(name, verifyUrl),
@@ -127,7 +127,7 @@ export class MailService {
     }
 
     try {
-      await this.mailerService.sendMail({
+      await this.transporter.sendMail({
         to: email,
         subject: `Clemvion - "${workspaceName}" 워크스페이스 초대`,
         html: this.buildInvitationHtml(workspaceName, invitedByName, acceptUrl),
@@ -210,7 +210,7 @@ export class MailService {
     }
 
     try {
-      await this.mailerService.sendMail({
+      await this.transporter.sendMail({
         to: email,
         subject: 'Clemvion - 비밀번호 재설정',
         html: this.buildPasswordResetHtml(name, resetUrl),
@@ -280,7 +280,7 @@ export class MailService {
     }
 
     try {
-      await this.mailerService.sendMail({
+      await this.transporter.sendMail({
         to: newEmail,
         subject: 'Clemvion - 이메일 변경 확인',
         html: this.buildEmailChangeVerificationHtml(name, verifyUrl),
@@ -350,7 +350,7 @@ export class MailService {
     const resetUrl = `${this.frontendUrl}/reset-password`;
 
     try {
-      await this.mailerService.sendMail({
+      await this.transporter.sendMail({
         to: oldEmail,
         subject: 'Clemvion - 이메일이 변경되었습니다',
         html: this.buildEmailChangedNoticeHtml(name, newEmail, resetUrl),
@@ -435,7 +435,7 @@ export class MailService {
     }
 
     try {
-      await this.mailerService.sendMail({
+      await this.transporter.sendMail({
         to: email,
         // subject 는 이메일 헤더라 CR/LF 가 있으면 헤더 인젝션이 된다 — title 은
         // 워크플로/통합 이름 등 사용자 입력에서 유래할 수 있으므로 개행을 공백으로

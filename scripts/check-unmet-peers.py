@@ -89,12 +89,9 @@ ACCEPTED: dict[tuple[str, str], str] = {
         "경로다 — typeorm 과 겹치지 않는 별개 소비자다. "
         "해제 조건: `forRootAsync` 에 `cache` 옵션이 생기면 그 즉시 재심사."
     ),
-    ("nunjucks", "chokidar"): (
-        "nunjucks 자신이 chokidar 를 **optional peer** 로 선언한다"
-        "(`peerDependenciesMeta.chokidar.optional: true`) — 템플릿 `watch` 옵션 전용이다. "
-        "게다가 우리 코드는 nunjucks 를 부르지 않는다(`codebase/**` 참조 0건, 직접 의존도 "
-        "아님 — email-template 스택에 묶여 오는 전이 의존). 2026-08-10 실측, plan §1."
-    ),
+    # (묘비) `("nunjucks", "chokidar")` 는 2026-10-04 에 지웠다. nunjucks 는
+    # `@nestjs-modules/mailer` 의 optionalDependencies 로 들어오던 전이 의존이었고, NestJS 12
+    # 상향(NERV Task CLE-T-3X627J)에서 mailer 를 걷어 내면서 트리에서 빠졌다.
 }
 
 # `✕ unmet peer <이름>@<범위>: found <버전>` — pnpm 10 의 실제 출력에서 딴 것.

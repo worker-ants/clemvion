@@ -1,3 +1,8 @@
+import {
+  type ArgumentMetadata,
+  BadRequestException,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { isUuidShaped, isValidUuid } from './uuid';
 
 describe('isValidUuid', () => {
@@ -94,6 +99,42 @@ describe('isUuidShaped', () => {
     ]) {
       expect(isValidUuid(value)).toBe(true);
       expect(isUuidShaped(value)).toBe(true);
+    }
+  });
+});
+
+/**
+ * 경로 파라미터의 `ParseUUIDPipe`(옵션 없음)가 받는 범위를 고정한다.
+ *
+ * 이 범위는 Nest 버전을 따라 바뀐다. Nest 11 은 8-4-4-4-12 hex 모양이면 모두 받았고(`isUuidShaped`
+ * 와 같았다), Nest 12 는 버전 자리 1~8 과 RFC variant, nil · max UUID 만 받는다(NERV Task
+ * CLE-T-3X627J 에서 확인). 다음 Nest 상향에서 범위가 또 바뀌면 이 테스트가 먼저 알린다.
+ */
+describe('ParseUUIDPipe 기본 범위 (경로 파라미터)', () => {
+  const pipe = new ParseUUIDPipe();
+  const metadata: ArgumentMetadata = { type: 'param', data: 'id' };
+
+  it('RFC 형식이 아닌 UUID 모양 값은 400 으로 막는다', async () => {
+    for (const value of [
+      '11111111-1111-4111-7111-111111111111', // 비-RFC variant
+      '11111111-1111-0111-8111-111111111111', // 버전 자리 0
+      '11111111-1111-1111-1111-111111111111', // 모양만 맞는 값
+    ]) {
+      expect(isUuidShaped(value)).toBe(true);
+      await expect(pipe.transform(value, metadata)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    }
+  });
+
+  it('버전 1~8 과 nil · max UUID 는 받는다', async () => {
+    for (const value of [
+      '8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234', // v4
+      '018f3c6b-1a0d-7e4a-9c1d-2f0e5a8b1234', // v7
+      '00000000-0000-0000-0000-000000000000', // nil
+      'FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', // max
+    ]) {
+      await expect(pipe.transform(value, metadata)).resolves.toBe(value);
     }
   });
 });

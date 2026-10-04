@@ -1,17 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MAIL_TRANSPORTER } from './mail.constants';
 import { MailService } from './mail.service';
+import type { MailTransporter } from './mail.transporter';
 
 describe('MailService', () => {
   let service: MailService;
-  let mailerService: jest.Mocked<MailerService>;
+  let transporter: jest.Mocked<MailTransporter>;
 
   const createService = async (
     overrides: Record<string, unknown> = {},
   ): Promise<{
     service: MailService;
-    mailerService: jest.Mocked<MailerService>;
+    transporter: jest.Mocked<MailTransporter>;
   }> => {
     const config: Record<string, unknown> = {
       'app.frontendUrl': 'http://localhost:3000',
@@ -23,9 +24,10 @@ describe('MailService', () => {
       providers: [
         MailService,
         {
-          provide: MailerService,
+          provide: MAIL_TRANSPORTER,
           useValue: {
             sendMail: jest.fn().mockResolvedValue(undefined),
+            close: jest.fn(),
           },
         },
         {
@@ -39,14 +41,14 @@ describe('MailService', () => {
 
     return {
       service: module.get<MailService>(MailService),
-      mailerService: module.get(MailerService),
+      transporter: module.get(MAIL_TRANSPORTER),
     };
   };
 
   beforeEach(async () => {
     const result = await createService();
     service = result.service;
-    mailerService = result.mailerService;
+    transporter = result.transporter;
   });
 
   it('should be defined', () => {
@@ -61,14 +63,14 @@ describe('MailService', () => {
         'verify-token-123',
       );
 
-      expect(mailerService.sendMail).toHaveBeenCalledWith(
+      expect(transporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'test@example.com',
           subject: 'Clemvion - 이메일 인증',
         }),
       );
 
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).toContain(
         'http://localhost:3000/verify-email?token=verify-token-123',
       );
@@ -86,7 +88,7 @@ describe('MailService', () => {
         'token',
       );
 
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).not.toContain('<script>');
       expect(callArgs.html).toContain('&lt;script&gt;');
     });
@@ -98,14 +100,14 @@ describe('MailService', () => {
         'token with spaces&special=chars',
       );
 
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).toContain(
         'token=token%20with%20spaces%26special%3Dchars',
       );
     });
 
     it('should throw when mailer fails', async () => {
-      mailerService.sendMail.mockRejectedValue(new Error('SMTP error'));
+      transporter.sendMail.mockRejectedValue(new Error('SMTP error'));
 
       await expect(
         service.sendVerificationEmail('test@example.com', 'Test User', 'token'),
@@ -121,7 +123,7 @@ describe('MailService', () => {
         'dev-token',
       );
 
-      expect(result.mailerService.sendMail).toHaveBeenCalled();
+      expect(result.transporter.sendMail).toHaveBeenCalled();
     });
   });
 
@@ -133,14 +135,14 @@ describe('MailService', () => {
         'reset-token-123',
       );
 
-      expect(mailerService.sendMail).toHaveBeenCalledWith(
+      expect(transporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'test@example.com',
           subject: 'Clemvion - 비밀번호 재설정',
         }),
       );
 
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).toContain(
         'http://localhost:3000/reset-password?token=reset-token-123',
       );
@@ -158,7 +160,7 @@ describe('MailService', () => {
         'token',
       );
 
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).not.toContain('<script>');
       expect(callArgs.html).toContain('&lt;script&gt;');
     });
@@ -170,7 +172,7 @@ describe('MailService', () => {
         'token with spaces&special=chars',
       );
 
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).toContain(
         'token=token%20with%20spaces%26special%3Dchars',
       );
@@ -180,7 +182,7 @@ describe('MailService', () => {
     });
 
     it('should throw when mailer fails', async () => {
-      mailerService.sendMail.mockRejectedValue(new Error('SMTP error'));
+      transporter.sendMail.mockRejectedValue(new Error('SMTP error'));
 
       await expect(
         service.sendPasswordResetEmail(
@@ -200,7 +202,7 @@ describe('MailService', () => {
         'dev-token',
       );
 
-      expect(result.mailerService.sendMail).toHaveBeenCalled();
+      expect(result.transporter.sendMail).toHaveBeenCalled();
     });
   });
 
@@ -214,13 +216,13 @@ describe('MailService', () => {
         'change-token-abc',
       );
 
-      expect(mailerService.sendMail).toHaveBeenCalledWith(
+      expect(transporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'new@example.com',
           subject: 'Clemvion - 이메일 변경 확인',
         }),
       );
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).toContain(
         '/profile/change-email/verify?token=change-token-abc',
       );
@@ -229,7 +231,7 @@ describe('MailService', () => {
     });
 
     it('발송 실패 → throw (rethrow)', async () => {
-      mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP error'));
+      transporter.sendMail.mockRejectedValueOnce(new Error('SMTP error'));
       await expect(
         service.sendEmailChangeVerification('new@example.com', 'User', 'tok'),
       ).rejects.toThrow('SMTP error');
@@ -242,7 +244,7 @@ describe('MailService', () => {
         'User',
         'dev-token',
       );
-      expect(result.mailerService.sendMail).toHaveBeenCalled();
+      expect(result.transporter.sendMail).toHaveBeenCalled();
     });
   });
 
@@ -254,19 +256,19 @@ describe('MailService', () => {
         'new@example.com',
       );
 
-      expect(mailerService.sendMail).toHaveBeenCalledWith(
+      expect(transporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'old@example.com',
           subject: 'Clemvion - 이메일이 변경되었습니다',
         }),
       );
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).toContain('new@example.com');
       expect(callArgs.text).toContain('new@example.com');
     });
 
     it('발송 실패 → throw (rethrow)', async () => {
-      mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
+      transporter.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
       await expect(
         service.sendEmailChangedNotice(
           'old@example.com',
@@ -282,7 +284,7 @@ describe('MailService', () => {
         '<script>alert(1)</script>',
         'safe@example.com',
       );
-      const callArgs = mailerService.sendMail.mock.calls[0][0];
+      const callArgs = transporter.sendMail.mock.calls[0][0];
       expect(callArgs.html).not.toContain('<script>');
       expect(callArgs.html).toContain('&lt;script&gt;');
     });
@@ -296,8 +298,8 @@ describe('MailService', () => {
         type: 'execution_failed',
       });
 
-      expect(mailerService.sendMail).toHaveBeenCalledTimes(1);
-      const args = mailerService.sendMail.mock.calls[0][0];
+      expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+      const args = transporter.sendMail.mock.calls[0][0];
       expect(args.to).toBe('user@example.com');
       expect(args.subject).toBe('Workflow failed');
       expect(args.html).toContain('run xyz failed');
@@ -307,7 +309,7 @@ describe('MailService', () => {
     });
 
     it('console transport 이면 debug 로그 후 정상 발송', async () => {
-      const { service: consoleService, mailerService: consoleMailer } =
+      const { service: consoleService, transporter: consoleTransporter } =
         await createService({ 'mail.transport': 'console' });
       const debugSpy = jest
         .spyOn((consoleService as any).logger, 'debug')
@@ -320,7 +322,7 @@ describe('MailService', () => {
       });
 
       expect(debugSpy).toHaveBeenCalled();
-      expect(consoleMailer.sendMail).toHaveBeenCalledTimes(1);
+      expect(consoleTransporter.sendMail).toHaveBeenCalledTimes(1);
     });
 
     it('title/message 를 HTML escape (XSS 방어)', async () => {
@@ -329,7 +331,7 @@ describe('MailService', () => {
         message: '<img src=x onerror=1>',
         type: 'execution_failed',
       });
-      const args = mailerService.sendMail.mock.calls[0][0];
+      const args = transporter.sendMail.mock.calls[0][0];
       expect(args.html).not.toContain('<script>');
       expect(args.html).toContain('&lt;script&gt;');
       expect(args.html).not.toContain('<img src=x');
@@ -341,13 +343,13 @@ describe('MailService', () => {
         message: 'run xyz failed',
         type: 'execution_failed',
       });
-      const args = mailerService.sendMail.mock.calls[0][0];
+      const args = transporter.sendMail.mock.calls[0][0];
       expect(args.subject).toBe('Workflow failed Bcc: attacker@evil.com');
       expect(args.subject).not.toMatch(/[\r\n]/);
     });
 
     it('발송 실패 시 throw (호출자가 best-effort 처리)', async () => {
-      mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
+      transporter.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
       await expect(
         service.sendNotificationEmail('user@example.com', {
           title: 't',
