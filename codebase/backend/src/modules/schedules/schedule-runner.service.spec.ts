@@ -327,11 +327,32 @@ describe('ScheduleRunnerService', () => {
           createdBy: 'owner-other',
         } as unknown as Workflow);
 
-        await expect(service.process(job)).resolves.toBeUndefined();
+        const errorSpy = jest
+          .spyOn(
+            (
+              service as unknown as {
+                logger: { error: (...args: unknown[]) => void };
+              }
+            ).logger,
+            'error',
+          )
+          .mockImplementation(() => undefined);
+        let errorMessages: string[];
+        try {
+          await expect(service.process(job)).resolves.toBeUndefined();
+        } finally {
+          // mockRestore 는 호출 기록을 지우므로 단언에 쓸 값을 먼저 꺼낸다.
+          errorMessages = errorSpy.mock.calls.map((call) => String(call[0]));
+          errorSpy.mockRestore();
+        }
 
         expect(notifications.notify).not.toHaveBeenCalled();
         expect(workflowRepo.findOne).not.toHaveBeenCalled();
         expect(scheduleRepo.save).not.toHaveBeenCalled();
+        // 운영자가 찾을 수 있게 스케줄 · 워크플로우 · 워크스페이스를 서버 로그에 남긴다.
+        expect(errorMessages).toEqual([
+          expect.stringMatching(/s1.*wf1.*ws.*건너뛴다/),
+        ]);
       });
 
       it('트리거의 워크스페이스가 아니라 스케줄의 워크스페이스로 연다', async () => {

@@ -189,9 +189,29 @@ describe('HooksService', () => {
       triggerRepo.findOne.mockResolvedValue(activeTrigger);
       nodeRepo.findOne.mockResolvedValue(null);
       engine.execute.mockRejectedValue(new WorkflowNotFoundError('wf1'));
-      const crossWorkspace = await service
-        .handleWebhook('abc', input)
-        .catch((err_: unknown) => err_);
+      const warnSpy = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { warn: (...args: unknown[]) => void };
+            }
+          ).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      let crossWorkspace: unknown;
+      let warnMessages: string[];
+      try {
+        crossWorkspace = await service
+          .handleWebhook('abc', input)
+          .catch((err_: unknown) => err_);
+      } finally {
+        // mockRestore 는 호출 기록을 지우므로 단언에 쓸 값을 먼저 꺼낸다.
+        warnMessages = warnSpy.mock.calls.map((call) => String(call[0]));
+        warnSpy.mockRestore();
+      }
+      // 응답은 같고 서버 로그에만 트리거를 남긴다.
+      expect(warnMessages).toEqual([expect.stringContaining('t1')]);
 
       expect(crossWorkspace).toBeInstanceOf(NotFoundException);
       expect((crossWorkspace as NotFoundException).getResponse()).toEqual(
@@ -1031,6 +1051,21 @@ describe('HooksService', () => {
 
         expect(res).toEqual({ executionId: 'ignored' });
         expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('degraded 갱신이 실패해도 202 ignored 로 답한다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        triggerRepo.update.mockRejectedValueOnce(new Error('db down'));
+        mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
+        conversationService.lookup.mockResolvedValue(null);
+        engine.execute.mockRejectedValue(
+          new WorkflowNotFoundError(chatChannelTrigger.workflowId),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(triggerRepo.update).toHaveBeenCalledTimes(1);
       });
 
       it('다른 실행 에러는 ignored 로 삼키지 않는다', async () => {

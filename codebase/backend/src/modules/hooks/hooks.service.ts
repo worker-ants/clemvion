@@ -64,6 +64,13 @@ export interface WebhookInput {
  */
 const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
 
+/**
+ * 채팅 채널 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때 `chat_channel_last_error` 에 남기는
+ * 고정 문구. 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는다.
+ */
+const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
+  'Workflow not found for this trigger';
+
 @Injectable()
 export class HooksService {
   private readonly logger = new Logger(HooksService.name);
@@ -220,7 +227,7 @@ export class HooksService {
         },
         {
           triggerId: trigger.id,
-          // 엔진은 이 워크스페이스의 워크플로우만 연다(NERV Task `CLE-T-XYR067`).
+          // 엔진은 이 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`).
           workspaceId: trigger.workspaceId,
           triggerType: 'webhook', // priority 3-tier(§4.3) — webhook 발화
           // §A.3 호출 이력 — 소스 IP·응답 코드 영속 (WH-MG-05). 성공 경로는 202.
@@ -231,7 +238,13 @@ export class HooksService {
     } catch (err) {
       // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 엔드포인트가
       // 없을 때와 같은 404 다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다.
-      if (err instanceof WorkflowNotFoundError) throw webhookEndpointNotFound();
+      if (err instanceof WorkflowNotFoundError) {
+        // 응답은 엔드포인트가 없을 때와 같다. 운영자가 교차 행을 찾을 수 있게 서버 로그에만 남긴다.
+        this.logger.warn(
+          `Webhook trigger ${trigger.id} 의 워크플로우가 트리거의 워크스페이스에 없어 실행하지 않았다. 저장된 행을 점검하세요.`,
+        );
+        throw webhookEndpointNotFound();
+      }
       throw err;
     }
 
@@ -682,7 +695,7 @@ export class HooksService {
         },
         {
           triggerId: trigger.id,
-          // 엔진은 이 워크스페이스의 워크플로우만 연다(NERV Task `CLE-T-XYR067`).
+          // 엔진은 이 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`).
           workspaceId: trigger.workspaceId,
           triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
           // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
@@ -1030,8 +1043,8 @@ export class HooksService {
 
   /**
    * 트리거의 `chat_channel_health` 를 `degraded` 로 갱신하고 `lastError` 를 남긴다. 이미 `degraded`
-   * 면 skip (폭주 중 중복 write 방지). best-effort — 실패는 swallow. `lastError` 에는 외부 입력을
-   * 싣지 않는다.
+   * 면 skip (폭주 중 중복 write 방지). 그래서 `lastError` 에는 먼저 `degraded` 가 된 원인의 문구가
+   * 남는다. best-effort — 실패는 swallow. `lastError` 에는 외부 입력을 싣지 않는다.
    */
   private async markChatChannelDegraded(
     trigger: Trigger,
@@ -1223,10 +1236,3 @@ function webhookEndpointNotFound(): NotFoundException {
     message: 'Webhook endpoint not found',
   });
 }
-
-/**
- * 채팅 채널 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때 `chat_channel_last_error` 에 남기는
- * 고정 문구. 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는다.
- */
-const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
-  'Workflow not found for this trigger';

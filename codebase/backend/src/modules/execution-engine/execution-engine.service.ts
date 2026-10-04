@@ -401,10 +401,10 @@ export interface ContinuationPublishResult {
  * 동시에 채워지면 deriveExecutionTrigger 분기가 manual 로 흐르며 트리거 출처
  * 정보가 손실되기 때문.
  *
- * 모든 변형이 `workspaceId` 를 필수로 갖는다. 실행을 여는 쪽의 워크스페이스이고, 엔진은 그
- * 워크스페이스의 워크플로우만 연다(NERV Task `CLE-T-XYR067`). 수동 실행 · 재실행 · 스케줄 지금
- * 실행은 요청의 워크스페이스, 웹훅 · 채팅 채널 · 스케줄 발화는 트리거의 워크스페이스를 넘긴다.
- * 필수라서 새 호출부도 컴파일러가 강제한다.
+ * 모든 변형이 `workspaceId` 를 필수로 갖는다. 실행을 시작하는 쪽의 워크스페이스이고 엔진은 그
+ * 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`). 수동 실행 · 재실행 · 스케줄 지금
+ * 실행은 요청의 워크스페이스, 웹훅 · 채팅 채널은 트리거의 워크스페이스, 스케줄 cron 발화는 스케줄의
+ * 워크스페이스를 넘긴다. 필수라서 새 호출부도 컴파일러가 강제한다.
  */
 export type ExecuteOptions = ExecuteWorkspaceScope &
   (
@@ -3627,6 +3627,11 @@ export class ExecutionEngineService
    * 는 schedule/webhook 트리거 발화일 때 채운다. 두 값은 Execution 행에 저장되어
    * "최근 실행" 화면이 출처를 분류하는 데 쓰인다 (deriveExecutionTrigger).
    * 판별 유니온이라 둘이 동시에 truthy 로 전달될 수 없다.
+   *
+   * `options.workspaceId` 는 필수다. 워크플로우가 그 워크스페이스에 없으면 실행 행을 만들지 않는다.
+   *
+   * @throws WorkflowNotFoundError 워크플로우가 없거나 `options.workspaceId` 의 워크스페이스에 없을 때.
+   *   둘을 구분하지 않는다.
    */
   async execute(
     workflowId: string,
@@ -3646,37 +3651,29 @@ export class ExecutionEngineService
     // 2. Create Execution record
     // Re-run 으로 생성된 실행만 chain 정보 세팅 (decision F2). 일반 실행은 null.
     // `in` 내로잉으로 unsafe cast 회피 — reRunOf/chainId 는 executedBy variant 전용.
-    const reRunOf =
-      options && 'reRunOf' in options ? (options.reRunOf ?? null) : null;
-    const chainIdOpt =
-      options && 'chainId' in options ? (options.chainId ?? null) : null;
-    const dryRun =
-      options && 'dryRun' in options ? (options.dryRun ?? false) : false;
+    const reRunOf = 'reRunOf' in options ? (options.reRunOf ?? null) : null;
+    const chainIdOpt = 'chainId' in options ? (options.chainId ?? null) : null;
+    const dryRun = 'dryRun' in options ? (options.dryRun ?? false) : false;
     // webhook/chat-channel 트리거 호출 메타데이터 (§A.3). triggerId variant 전용 —
     // `in` 내로잉으로 unsafe cast 회피. 미전달(schedule/manual)은 NULL 영속.
-    const sourceIp =
-      options && 'sourceIp' in options ? (options.sourceIp ?? null) : null;
+    const sourceIp = 'sourceIp' in options ? (options.sourceIp ?? null) : null;
     const responseCode =
-      options && 'responseCode' in options
-        ? (options.responseCode ?? null)
-        : null;
+      'responseCode' in options ? (options.responseCode ?? null) : null;
     // 단일 노드 실행 (§1.3). executedBy variant 전용 — `in` 내로잉으로 unsafe cast
     // 회피. 미전달(일반/부분 실행)은 NULL 영속. previous_execution_id 는 입력 seed
     // 출처일 뿐 chain 관계가 아니다(re_run_of 와 분리).
     const singleNodeId =
-      options && 'singleNodeId' in options
-        ? (options.singleNodeId ?? null)
-        : null;
+      'singleNodeId' in options ? (options.singleNodeId ?? null) : null;
     const previousExecutionId =
-      options && 'previousExecutionId' in options
+      'previousExecutionId' in options
         ? (options.previousExecutionId ?? null)
         : null;
     const execution = this.executionRepository.create({
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
-      executedBy: options?.executedBy,
-      triggerId: options?.triggerId,
+      executedBy: options.executedBy,
+      triggerId: options.triggerId,
       reRunOf,
       chainId: chainIdOpt,
       dryRun,
@@ -3706,9 +3703,9 @@ export class ExecutionEngineService
     //    `manual`. 트리거 발화(triggerId)는 호출부가 전달한 `options.triggerType`
     //    (`Trigger.type`: webhook/schedule)을 쓰고, 미전달 시 `webhook` fallback(비-HTTP
     //    트리거 방어). `manual`(1) > `webhook`(2) > `schedule`(3).
-    const triggerType: ExecutionRunTriggerType = options?.executedBy
+    const triggerType: ExecutionRunTriggerType = options.executedBy
       ? 'manual'
-      : (options?.triggerType ?? 'webhook');
+      : (options.triggerType ?? 'webhook');
     await this.executionRunQueue.add(
       'execution-run',
       { executionId, input },

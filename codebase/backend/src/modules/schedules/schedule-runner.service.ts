@@ -178,7 +178,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         {
           triggerId: schedule.triggerId,
           triggerType: 'schedule',
-          // 엔진은 스케줄의 워크스페이스 워크플로우만 연다(NERV Task `CLE-T-XYR067`). 트리거의
+          // 엔진은 스케줄의 워크스페이스 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`). 트리거의
           // 워크스페이스를 쓰지 않는다. 스케줄 → 트리거가 교차 행이어도 다른 워크스페이스의
           // 워크플로우가 이 스케줄로 돌지 않는다.
           workspaceId,
@@ -202,12 +202,12 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       }
       await this.scheduleRepository.save(schedule);
     } catch (err) {
-      // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 재시도해도 같고,
+      // 연결 트리거의 워크플로우가 없거나 스케줄의 워크스페이스에 없다(저장 경계 이전의 교차 행). 재시도해도 같고,
       // 실패 알림은 그 워크플로우의 소유자(다른 워크스페이스)에게 가므로 보내지 않는다. 연결된
       // 워크플로우가 없을 때처럼 건너뛴다(NERV Task `CLE-T-XYR067`).
       if (err instanceof WorkflowNotFoundError) {
         this.logger.error(
-          `Schedule ${scheduleId} 의 워크플로우가 트리거의 워크스페이스에 없어 실행하지 않고 건너뛴다. 저장된 행을 점검하세요.`,
+          `Schedule ${scheduleId} 의 워크플로우 ${workflowId} 가 없거나 스케줄의 워크스페이스 ${workspaceId} 에 없어 실행하지 않고 건너뛴다. 저장된 행을 점검하세요.`,
         );
         return;
       }

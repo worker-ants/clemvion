@@ -4357,7 +4357,7 @@ describe('ExecutionEngineService', () => {
   // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
   // NERV Task `CLE-T-XYR067`. 저장 경계 이전에 저장된 트리거 · 스케줄의 workflow_id 가 다른 워크스페이스를
   // 가리키면 엔진이 id 로만 읽어 그 워크플로우를 실행했다.
-  describe('execute() — 실행을 여는 쪽의 워크스페이스', () => {
+  describe('execute() — 실행을 시작하는 쪽의 워크스페이스', () => {
     it('워크플로우가 그 워크스페이스에 없으면 없는 워크플로우와 같게 거부하고 실행 행을 만들지 않는다', async () => {
       await expect(
         service.execute(
@@ -4370,6 +4370,26 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.save).not.toHaveBeenCalled();
       expect(mockExecutionRunQueue.add).not.toHaveBeenCalled();
     });
+
+    // 타입은 `string` 이지만 JS 호출부나 캐스트로 빈 값이 올 수 있다. 조회 조건에 넣지 않고 명시 비교하므로
+    // 빈 값도 거부로 닫힌다. `findOneBy({ id, workspaceId })` 로 바꾸면 이 케이스가 조회 예외로 깨진다.
+    it.each([
+      ['빈 문자열', ''],
+      ['undefined', undefined as unknown as string],
+    ])(
+      'workspaceId 가 %s 이면 거부하고 실행 행을 만들지 않는다',
+      async (_label, workspaceId) => {
+        await expect(
+          service.execute(workflowId, {}, { executedBy: 'u1', workspaceId }),
+        ).rejects.toBeInstanceOf(WorkflowNotFoundError);
+
+        expect(mockWorkflowRepo.findOneBy).toHaveBeenCalledWith({
+          id: workflowId,
+        });
+        expect(mockExecutionRepo.save).not.toHaveBeenCalled();
+        expect(mockExecutionRunQueue.add).not.toHaveBeenCalled();
+      },
+    );
 
     it('없는 워크플로우와 같은 에러 메시지다', async () => {
       const otherWorkspace = await service

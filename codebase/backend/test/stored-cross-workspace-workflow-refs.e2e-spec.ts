@@ -256,37 +256,82 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
     ).send({ name: uniqueName('xexec-vf') });
     expect(victimFolder.status).toBe(201);
     const victimFolderId = (victimFolder.body.data as { id: string }).id;
-    await db.query('UPDATE workflow SET folder_id = $2 WHERE id = $1', [
-      attackerWorkflowId,
-      victimFolderId,
-    ]);
+    // 노드 구조 참조(LATERAL 분기)는 워크스페이스 대신 워크플로우 id 를 싣는다.
+    const saveOneNode = async (actor: Actor, workflowId: string) => {
+      const nodeId = randomUUID();
+      const saved = await as(
+        actor,
+        request(BASE_URL).post(`/api/workflows/${workflowId}/save`),
+      ).send({
+        nodes: [
+          {
+            id: nodeId,
+            type: 'manual_trigger',
+            category: 'trigger',
+            label: 'Start',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [],
+      });
+      expect(saved.status).toBe(200);
+      return nodeId;
+    };
+    const attackerNodeWorkflowId = await createWorkflow(attacker, 'xexec-anw');
+    const victimNodeWorkflowId = await createWorkflow(victim, 'xexec-vnw');
+    const attackerNodeId = await saveOneNode(attacker, attackerNodeWorkflowId);
+    const victimNodeId = await saveOneNode(victim, victimNodeWorkflowId);
 
-    const audit = await db.query<{
-      check_name: string;
-      row_id: string;
-      row_workspace_id: string;
-      ref_id: string;
-      ref_workspace_id: string;
-    }>(readFileSync(AUDIT_SQL, 'utf8'));
+    try {
+      await db.query('UPDATE workflow SET folder_id = $2 WHERE id = $1', [
+        attackerWorkflowId,
+        victimFolderId,
+      ]);
+      await db.query('UPDATE node SET container_id = $2 WHERE id = $1', [
+        attackerNodeId,
+        victimNodeId,
+      ]);
 
-    expect(audit.rows).toContainEqual({
-      check_name: 'trigger.workflow_id',
-      row_id: crossTriggerId,
-      row_workspace_id: attacker.workspaceId,
-      ref_id: victimWorkflowId,
-      ref_workspace_id: victim.workspaceId,
-    });
-    expect(audit.rows).toContainEqual({
-      check_name: 'workflow.folder_id',
-      row_id: attackerWorkflowId,
-      row_workspace_id: attacker.workspaceId,
-      ref_id: victimFolderId,
-      ref_workspace_id: victim.workspaceId,
-    });
-    expect(audit.rows.map((r) => r.row_id)).not.toContain(sameTriggerId);
+      const audit = await db.query<{
+        check_name: string;
+        row_id: string;
+        row_workspace_id: string;
+        ref_id: string;
+        ref_workspace_id: string;
+      }>(readFileSync(AUDIT_SQL, 'utf8'));
 
-    await db.query('UPDATE workflow SET folder_id = NULL WHERE id = $1', [
-      attackerWorkflowId,
-    ]);
+      expect(audit.rows).toContainEqual({
+        check_name: 'trigger.workflow_id',
+        row_id: crossTriggerId,
+        row_workspace_id: attacker.workspaceId,
+        ref_id: victimWorkflowId,
+        ref_workspace_id: victim.workspaceId,
+      });
+      expect(audit.rows).toContainEqual({
+        check_name: 'workflow.folder_id',
+        row_id: attackerWorkflowId,
+        row_workspace_id: attacker.workspaceId,
+        ref_id: victimFolderId,
+        ref_workspace_id: victim.workspaceId,
+      });
+      expect(audit.rows).toContainEqual({
+        check_name: 'node.container_id',
+        row_id: attackerNodeId,
+        row_workspace_id: attackerNodeWorkflowId,
+        ref_id: victimNodeId,
+        ref_workspace_id: victimNodeWorkflowId,
+      });
+      expect(audit.rows.map((r) => r.row_id)).not.toContain(sameTriggerId);
+    } finally {
+      // 단언이 실패해도 공유 DB 에 교차 행을 남기지 않는다.
+      await db.query('UPDATE workflow SET folder_id = NULL WHERE id = $1', [
+        attackerWorkflowId,
+      ]);
+      await db.query('UPDATE node SET container_id = NULL WHERE id = $1', [
+        attackerNodeId,
+      ]);
+    }
   });
 });
