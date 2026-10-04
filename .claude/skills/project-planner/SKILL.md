@@ -37,7 +37,8 @@ model: opus
 4. **초안 작성**: `nerv_spec_draft_upsert`. 기존 문서는 읽은 `content_hash` 를 `base_hash` 로 넘긴다. **저장마다 `change_summary`** 에 무엇을 왜 바꿨는지 적는다(버전에 남는 유일한 설명이다). 본문 끝 `## Rationale` 에 결정 근거를 적는다.
    - 요구사항 줄: `- REQ-<접두>-<nnn> WHEN … THE SYSTEM SHALL …`. 번호는 서버가 발급한다(`GET /api/v1/projects/clemvion/requirements/next-ref?prefix=<접두>`). 접두에 숫자를 넣지 않는다(인식되지 않는다).
    - 줄 첫머리가 요구사항 ID 모양이면 요구사항 정의로 읽힌다. Rationale · 미결 문단은 ID 로 줄을 시작하지 않는다.
-   - 새 문서의 제목 · 부모 · 타입은 만든 뒤 바꿀 수 없다. 만들기 전에 용어 사전(`CLE-GLOSSARY`)과 트리 위치를 맞춘다. 키는 `CLE-<영역>-<슬러그>`.
+   - 새 문서의 제목 · 부모 · 타입은 만든 뒤 바꿀 수 없다. 만들기 전에 용어 사전과 트리 위치를 맞춘다. 키는 `CLE-<영역>-<슬러그>`.
+     - 용어 사전은 색인(`CLE-GLOSSARY`)과 하위 문서로 나뉜다. 색인에는 표기 원칙 · 약어 · 상태값이 있고 용어 표는 하위 문서에 있다. 색인의 「문서」 절을 보고 해당 영역의 용어 표 문서를 읽는다. 다의어 구분(`CLE-GLOSSARY-POLY`)은 늘 함께 보고 결정이 필요한 표기(`CLE-GLOSSARY-OPEN`)는 필요할 때 본다.
 5. **제출 전 검토**:
    - `nerv_spec_check(spec_version_id)`: 서버의 규칙 기반 검사.
    - `/consistency-check --spec <초안 본문 파일>`: 로컬 checker 의 의미 검토. 본문은 `nerv_spec_get(basis=latest)` 로 받아 scratchpad 파일에 둔다. 결과는 `nerv_review_submit(kind=consistency)` 로 제출한다.
