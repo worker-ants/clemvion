@@ -23,6 +23,15 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 의존성: 대상 없는 undici 7.x override 를 걷어 openai 의 미충족 peer 를 없앤다
+
+`scripts/check-unmet-peers.py`(주간 관측)가 `openai → undici` 미충족 peer 를 보고하고 있었다. 상류 문제가 아니었다. openai 가 선언한 undici peer 는 `>=5 <9`(optional)인데 `pnpm-workspace.yaml` 의 `"undici@>=7.0.0 <7.29.0": ^7.29.0` override 가 그 범위를 `^7.29.0` 으로 다시 썼다. pnpm overrides 는 peer 범위에도 적용된다. 그래서 backend 의 undici(6.29, #1483 뒤 8.11.2)가 범위 밖으로 판정됐다(NERV Task `CLE-T-67BNAZ`).
+
+- 그 키를 지우고 `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 에서도 뺐다(overrides 35 → 34건). jsdom 30 이후 그 키에 걸리는 undici 7.x 는 트리에 없었다. 다시 들어오면 audit 게이트가 잡는다.
+- 지금 openai 의 peer 기록은 남은 8.x 키가 다시 쓴 `^8.10.2` 이고 8.11.2 가 그 안이다. 쓰는 곳이 없던 lockfile 의 `undici@6.29.0` 항목도 정리됐다.
+- 확인: `check-unmet-peers.py` 의 새 해소에서 미충족이 수용된 `typeorm → ioredis` 1건만 남는다. 보안 baseline · 바닥 침식 검사 · `pnpm audit` · `--frozen-lockfile --strict-peer-dependencies` 설치가 통과한다.
+- 헤더 주석에 "대상 없는 버전 레인지 override 도 다른 패키지의 peer 범위를 바꿀 수 있다" 를 적었다. 남은 대상 없는 overrides 5건(`lodash` · `liquidjs` · `html-to-text` · `linkify-it` · `svgo`)은 같은 Task 에서 따로 본다.
+
 ## Unreleased — API: UUID 경로 파라미터가 RFC 형식의 UUID 만 받는다
 
 NestJS 12 상향(아래 항목)으로 `ParseUUIDPipe` 의 기본 검사가 좁아졌다. Nest 11 은 8-4-4-4-12 hex 모양이면 모두 받았다. Nest 12 는 버전 자리 1~8 과 RFC variant(`8` · `9` · `a` · `b`), nil · max UUID 만 받는다. 그래서 `11111111-1111-1111-1111-111111111111` 처럼 모양만 맞는 값을 경로 파라미터로 보내면 이제 핸들러에 닿기 전에 400 이 된다. 전에는 핸들러까지 갔다.

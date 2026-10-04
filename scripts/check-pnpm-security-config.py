@@ -54,7 +54,6 @@ EXPECTED_OVERRIDES = {
     "nanoid": "^3.3.18",
     "html-to-text": "^10.0.1",
     "eslint-plugin-react-hooks": "7.0.1",
-    "undici@>=7.0.0 <7.29.0": "^7.29.0",
     "undici@>=8.0.0 <8.10.2": "^8.10.2",
     "vite": "^8.0.16",
     "@babel/core": "^7.29.7",
