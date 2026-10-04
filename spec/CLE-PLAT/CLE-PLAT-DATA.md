@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
 content_hash: "5eccd3a0703a9a719b68d79d8ff93bb53123e5126a7f972ea02941f9a23d4542"
 read_as: "approved_fallback"
-task: "CLE-T-7M4C4X"
+task: "CLE-T-BV4YXZ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "78c2d62e7945c99102506e586dda7433c7ff11dad117438c0335d6c2e4757aa3"
-etag: "sha256-defd4737b9223ad845c51e4570e05caf1a09ec310b2bcf15e22554670bf8ac64"
+mirror_sha256: "5224c6408fa80009ab70e3b8c74587bce5190fe5a68e771289ba4301d4cb477c"
+etag: "sha256-92e5603f35360c03ee94a2968c53db6aa109b969ea2db818cb9b29f411a164aa"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

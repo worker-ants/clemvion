@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "f4b7d1528f4ce061276a3fb88263e883811d4b60d25ae4e2d938b89abd9d3304"
+content_hash: "bdebbcd242dc6939066b9799d818f030c3bb66d7859974507a955c0a61642a6b"
 read_as: "approved_fallback"
-task: "CLE-T-RXMB2X"
+task: "CLE-T-BV4YXZ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "f6145cdd0b9f80a9e4eccda08b4e067397850f21293fbf5f837de366143a19c8"
-etag: "sha256-55991814fb9ce206f8850bc4ca0484d01ab44fc43ca8360dc72b59017f3bbe67"
+mirror_sha256: "2fea95a6735b7d1258478a00b4e33425394e3dd85005231ec628569e17f84bbe"
+etag: "sha256-cdec9bfecfdd0ebf0b1db92438a5559e1fead2ffd64e24c50ff5641662872907"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -277,7 +277,7 @@ etag: "sha256-55991814fb9ce206f8850bc4ca0484d01ab44fc43ca8360dc72b59017f3bbe67"
 | `VALIDATION_ERROR` (ack) | `submit_form` 의 필드 검증 실패. ack 는 평면 `errorCode` 이고 필드별 `details[]` 가 없다. EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 메시지가 최대 길이(10000자)를 넘음. 발행 쪽 동기 검증(typed `MessageTooLongError`) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 일반 fallback. ack `error` 는 고정 일반 문자열이고 내부 메시지는 클라이언트에 보내지 않는다(서버 로그 전용) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `RESUME_CHECKPOINT_MISSING` | rehydration 때 `NodeExecution.outputData` 가 없거나 손상됨. 실행이 `cancelled` 로 끝난다. ack 가 아니라 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `RESUME_CHECKPOINT_MISSING` | rehydration 때 체크포인트가 없거나 손상됨(`NodeExecution.outputData`, 중첩 재개의 호출 스택 frame). 실행이 `cancelled` 로 끝난다. ack 가 아니라 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RESUME_FAILED` | 재개 큐의 `RESUME_BULLMQ_ATTEMPTS` 소진. 실행이 `cancelled` 로 끝난다. 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RESUME_INCOMPATIBLE_STATE` | 멀티턴 AI 의 `_resumeCheckpoint` 가 없음(기능 배포 전에 들어간 대기 행), 손상됨(스키마 변경으로 재구성 실패), 미래 버전임(`schemaVersion` 이 현재 코드가 지원하는 버전보다 큼. 롤링 배포 중 옛 인스턴스가 새 형식을 가져간 경우). 실행이 `cancelled` 로 끝나고 채널에는 "세션 만료" 안내를 보낸다. 정상 경로(checkpoint 가 있고 버전이 호환)는 재구성해 재개하므로 생기지 않는다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RETRY_STATE_NOT_FOUND` | `retry_last_turn` 대상 행의 `_retryState` 가 없거나 만료됨(TTL 초과 또는 다른 재시도가 이미 소비) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |

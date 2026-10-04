@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "39f5eba793b6dde1c70e388941d8c86dc24629115c8d248be7ea24a8e33c94b9"
-read_as: "approved"
-task: null
+content_hash: "840adc639a1ca835e04e7343ac057dcf185e45bcfbe94ef8dfe0b87233baa6cc"
+read_as: "approved_fallback"
+task: "CLE-T-BV4YXZ"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "7c7bdf00688d0e29421f0a1e2f08920d7661bfa56b555e043313454b35abede7"
-etag: "sha256-6b4f28a0fdda34d83efefccbd4ff2c7f769593ae1061e8c2e4801b811220d6fd"
+mirror_sha256: "979158ca4df33c13bec3bd7a3d9cc2c77f20093aafa385f8f19abc50a449ede3"
+etag: "sha256-63ae185a8b159bd6dd399d1ff92da4a9e4174949c23c821e9cdfd68300ebf1cd"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -285,7 +285,7 @@ PATCH 에서 트리거가 사라지는 경우는 두 창으로 갈린다.
 `TriggerDto.workflow` 는 키 생략형이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 부재 표현 기준 (b)). (b) 로 판정한 근거는 소비자가 부재를 정상 경로로 다룬다는 점이다. 상세 매핑은 `workflow?.name ?? workflowName ?? ""` 로 읽는다(`lib/api/triggers.ts`).
 
 - 이 필드가 빠지는 응답은 생성 응답뿐이다. 목록·상세·수정 응답에는 채워진다(`update()` 는 `findById` 로 시작한다).
-- PATCH 는 일반 경로와 `chatChannel` 이 실린 경로 모두 `workflow` 를 채운다. `chatChannel` 재조회는 `relations: ['workflow']` 를 싣는다.
+- PATCH 는 일반 경로와 `chatChannel` 이 실린 경로 모두 `workflow` 를 채운다. `chatChannel` 재조회는 `workflow` 관계를 함께 싣는다.
 - e2e 가 네 반환 경로를 다섯 케이스(양성 4, 생성 음성 1)로 고정한다. PATCH 는 일반과 `chatChannel` 두 케이스다. 스케줄 쪽 자매 참조도 같은 방식으로 고정한다([스케줄](CLE-TRIG-SCHEDULE.md)).
 - 이 캐너리가 고정하는 것은 계약이 아니라 현재 구현이다. 규약은 이 필드를 키 생략형으로 선언하라고만 요구하고 어느 경로에서 빠지는지는 정하지 않는다. 생성 응답도 `workflow` 를 싣도록 바꾸는 것은 계약 위반이 아니라 추가 개선이다. 다만 지금은 캐너리의 음성 케이스가 그 변경을 RED 로 막는다. 이것은 의도한 프로세스 게이트다(이 절을 함께 고치지 않고는 동작을 바꿀 수 없다).
 - 이 참조는 `id` 와 `name` 을 담는다. 스케줄 응답의 자매 참조는 `name` 하나만 담는다. 이 차이는 의도한 것이다(스케줄 화면은 이름만 표시한다). 한쪽을 다른 쪽으로 바꾸지 않는다.
