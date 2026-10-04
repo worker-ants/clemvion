@@ -4,7 +4,7 @@ import { CHAT_CHANNEL_BLOCKED_FIELDS } from './chat-channel-rejection-messages.c
 // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
 // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약)
 // 근거: [채팅 채널 「봇 토큰 변경 단일 경로」](CLE-CHAT-CORE#봇-토큰-변경-단일-경로)
-// 위 세 곳의 규칙 23 · REQ-TRIG-053 · `details.field` 셋째 행은 NERV 초안(CLE-T-M9QKKX)이다.
+// 위 세 곳의 해당 조항: 시크릿 저장소 규칙 23 · 트리거 관리 REQ-TRIG-053 · 채팅 채널 `details.field` 표 셋째 행.
 
 /** 거부 메시지 뒤에 붙는 안내. 받은 값은 싣지 않는다. */
 const CHAT_CHANNEL_HINT =

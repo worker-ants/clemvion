@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "a598b4f297a2d7357f4c625de21ebc66f2896eb987934f2d56bcb804ac3b7379"
+content_hash: "700f81ecbbcce4fbce7134b9de1874f2fa0ffbd274dca6fcad3c75de6f615bc6"
 read_as: "approved_fallback"
 task: "CLE-T-BV4YXZ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "b329be4bdc60833dae2482d0897c11315f7eabb6bc80eba514f0d103feb30987"
-etag: "sha256-897743dffd459d39a2a94c6c90fb6f0e894000345011f81e6d7b1edc26cd1e05"
+mirror_sha256: "fe6563e301be55ebd17e82f9416114238bd14617d5ddcb9dd619232f9032162a"
+etag: "sha256-64f5e22ae29da9f5e8b672c71fa0a827fb6b0da0d094be52a33994f69a3c03c3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -448,7 +448,7 @@ TypeORM 0.3 은 where 의 null · undefined 키를 조용히 빼고 조회했다
 - **모델 설정 참조만 404**: 지식 저장소 `embeddingModelConfigId` 는 이미 `findEntity` 로 404 `MODEL_CONFIG_NOT_FOUND` 를 낸다. 같은 요청의 `rerankConfigId` 등이 400 이면 한 본문 안에서 필드마다 코드가 갈린다. 그래서 같은 검증기를 다시 쓴다.
 - **캔버스 저장의 노드 id 는 존재 신호를 준다**: 새 id 는 통과하고 이미 쓰이는 id 는 거부하므로 "있다·없다" 가 갈린다. 이 신호는 그 UUID 를 이미 가진 사람에게만 뜻이 있다. v4 UUID 라 추측할 수 없다. 대안이었던 "충돌한 id 를 서버가 조용히 새로 발급" 은 택하지 않았다. 같은 페이로드의 `containerId`·연결선이 가리키는 id 와 클라이언트가 가진 id 가 어긋나기 때문이다.
 - **실행 시점 격리와는 다른 층이다**: 서브 워크플로우 호출의 `WORKFLOW_FORBIDDEN_WORKSPACE`([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md))는 **실행 중** 노드 설정이 가리키는 워크플로우를 막는다. 이 규칙은 **저장 시점**의 요청 본문을 본다.
-- **남긴 것**: 트리거 `config` JSONB 안의 비밀 참조(`secret://…`, id 가 아닌 문자열)는 이 결정 밖이다. 이미 저장된 교차 행에 대한 실행 시점 방어선과 운영 데이터 점검도 이 결정 밖이다. 둘 다 후속 작업으로 추적한다.
+- **남긴 것**: 트리거 `config` JSONB 안의 비밀 참조(`secret://…`, id 가 아닌 문자열)는 이 결정 밖이다. 저장 경계는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 23 이 정한다(2026-10-04). 요청 본문이 그 참조를 싣지 못한다. 그 거부 응답은 단일 object 로 이 절의 배열 규칙과 다르다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 교차 행(비밀 참조를 포함한다)에 대한 실행 시점 방어선과 운영 데이터 점검은 이 결정 밖이고 NERV Task `CLE-T-XYR067` 로 추적한다.
 
 근거·실측: 옛 plan `cross-workspace-refs.md`(git 이력), e2e `codebase/backend/test/cross-workspace-references.e2e-spec.ts`(고치기 전 코드에서 거부를 기대한 18케이스가 모두 실패했다).
 

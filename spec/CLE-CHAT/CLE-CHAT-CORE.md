@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "a7aeaec874058df9c0370f8716acfdbbec9e69c2af657511082baf75a1e56702"
+content_hash: "e18ff7aeaca453b686df9b8e180fa7976670e986750b916bb5a3c6284437fbd4"
 read_as: "approved_fallback"
 task: "CLE-T-M9QKKX"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "43d6c98ca4cf740f4d93733c64c0ad1bd438a6600ae237c74fcfecadea422a40"
-etag: "sha256-fc86fabdcbf9000514921acb0f5b969eefbccc56da828678176bbfb50a95a950"
+mirror_sha256: "7413da636632f243cf32f32b9e99c51bb98749dfb4d6fd424aef7239fafcaa8f"
+etag: "sha256-ff234e93c9fcb5954aec40011eea697dd0cd836ff346361037774005179c63f2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -110,13 +110,13 @@ etag: "sha256-fc86fabdcbf9000514921acb0f5b969eefbccc56da828678176bbfb50a95a950"
 
 ### 봇 토큰과 PATCH
 
-- REQ-CHAT-048 IF PATCH 본문에 `config.chatChannel.botTokenRef` 나 `config.chatChannel.botToken` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다. (원본: 15-chat-channel §5.4.1)
+- REQ-CHAT-048 IF PATCH 본문의 `chatChannel.botTokenRef` 나 `chatChannel.botToken` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다. (원본: 15-chat-channel §5.4.1)
 - REQ-CHAT-049 IF `chatChannel` 이 없는 트리거에 PATCH 로 `chatChannel` 을 붙이려 하면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='chatChannel'`)로 거부한다. (원본: 15-chat-channel §5.4.1.2)
 - REQ-CHAT-050 IF PATCH 가 `provider` 를 다른 값으로 바꾸려 하면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='provider'`)로 거부한다. (원본: 15-chat-channel §5.4.1.2)
-- REQ-CHAT-051 IF PATCH 본문에 `config.chatChannel.inboundSigningPlaintext` 나 `inboundSigning` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다. (원본: 15-chat-channel §5.4.1.1)
+- REQ-CHAT-051 IF PATCH 본문의 `chatChannel.inboundSigningPlaintext` 나 `chatChannel.inboundSigning` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다. (원본: 15-chat-channel §5.4.1.1)
 - REQ-CHAT-052 WHEN `chatChannel` 이 실린 PATCH 를 처리하면 THE SYSTEM SHALL 시크릿 저장소의 봇 토큰과 Slack·Discord 인바운드 서명 값을 바꾸지 않는다. (원본: 15-chat-channel §5.4.1, R-CC-21)
 - REQ-CHAT-053 WHEN Telegram 트리거의 `setupChannel()` 이 새 `secret_token` 을 발급하면 THE SYSTEM SHALL 그 값을 `inboundSigningRef` 에 다시 저장한다. (원본: 15-chat-channel §5.4.1.1)
-- REQ-CHAT-054 WHEN `GET /api/triggers/:id` 가 채팅 채널 설정을 돌려주면 THE SYSTEM SHALL `hasBotToken` 파생 필드만 싣고 `botTokenRef` 와 `botToken` 평문은 싣지 않는다. (원본: 15-chat-channel §5.4.2)
+- REQ-CHAT-054 WHEN `GET /api/triggers/:id` 가 채팅 채널 설정을 돌려주면 THE SYSTEM SHALL `hasBotToken` 파생 필드만 싣고 `botTokenRef` · `inboundSigningRef` 와 `botToken` 평문은 싣지 않는다. (원본: 15-chat-channel §5.4.2)
 - REQ-CHAT-055 IF 봇 토큰 재발급 중 `setupChannel` 이 실패하면 THE SYSTEM SHALL 자격 증명 거부는 `400 BOT_TOKEN_INVALID`, 그 밖은 `502 CHAT_CHANNEL_SETUP_FAILED` 로 돌려주고 프로바이더 원문은 응답에 싣지 않는다. (원본: 15-chat-channel §5.4, R-CC-23)
 
 ### 인바운드 HTTP
@@ -252,23 +252,28 @@ sequenceDiagram
 
 | 시점 | 방식 | 토큰 변화 |
 |---|---|---|
-| 트리거 생성(`POST /api/triggers`) | 요청 본문의 `config.chatChannel.botToken` 평문을 `SecretResolver.rotate()`(UPSERT)로 저장하고 참조로 바꾼다. `setupChannel()` 의 부수 효과로 `botTokenRef` 가 생긴다. `setupChannel()` 은 생성·활성화·`chatChannel` PATCH 세 경로에서 다시 불리는 멱등 함수라서, 중복이면 에러를 던지는 `store()` 로는 두 번째 호출부터 깨진다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) | 처음 한 번 |
+| 트리거 생성(`POST /api/triggers`) | 요청 본문의 `chatChannel.botToken` 평문을 `SecretResolver.rotate()`(UPSERT)로 저장하고 참조로 바꾼다. `setupChannel()` 의 부수 효과로 `botTokenRef` 가 생긴다. `setupChannel()` 은 생성·활성화·`chatChannel` PATCH 세 경로에서 다시 불리는 멱등 함수라서, 중복이면 에러를 던지는 `store()` 로는 두 번째 호출부터 깨진다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) | 처음 한 번 |
 | 트리거 활성화(`PATCH /api/triggers/:id` 본문 `{ isActive: true }`) | 기존 `botTokenRef` 로 `setupChannel()` 을 다시 부른다. 이 재호출이 실제로 일어나는지는 정의가 갈린다. [미결 사항](#미결-사항) 을 본다 | 변경 없음 |
-| 토큰 변경 | 늘 [봇 토큰 재발급 API](#봇-토큰-재발급-api) 만 쓴다. PATCH 본문의 `config.chatChannel.botTokenRef`(참조)와 `config.chatChannel.botToken`(평문)은 모두 `400 VALIDATION_ERROR` 다. `details.field` 의 모양은 아래 표를 본다 | 24시간 유예 적용 |
+| 토큰 변경 | 늘 [봇 토큰 재발급 API](#봇-토큰-재발급-api) 만 쓴다. PATCH 본문의 `chatChannel.botTokenRef`(참조)와 `chatChannel.botToken`(평문)은 모두 `400 VALIDATION_ERROR` 다. `details.field` 의 모양은 아래 표를 본다 | 24시간 유예 적용 |
 | `chatChannel` 이 실린 PATCH(`uiMapping`, `rateLimitPerMinute` 등 편집) | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 시크릿 저장소의 봇 토큰은 바꾸지 않아 요청 전후 값이 같다. `botTokenRef` 는 설정에서 보존되는 것이 아니라 트리거 id 에서 다시 만든다(`buildSecretRef`). 이 행은 봇 토큰만 다룬다. 인바운드 서명 자료는 [인바운드 서명 자료 변경](#인바운드-서명-자료-변경) 을 본다 | 변경 없음 |
 
-PATCH 가 비밀 필드를 거부할 때 `details.field` 모양은 보낸 값의 형태에 따라 갈린다. 두 갈래 모두 `details[].code='INVALID_FIELD'` 를 싣는다. 이 동작은 단위 테스트(`trigger-dto-validation.spec.ts`)로 확인했고 HTTP 왕복은 아직 e2e 로 확인하지 않았다.
+생성 · PATCH 가 비밀 필드를 거부할 때 `details.field` 모양은 보낸 값의 형태와 위치에 따라 갈린다. 세 갈래 모두 `INVALID_FIELD` 를 싣는다(배열이면 `details[].code`, 단일 object 면 `details.code`). 첫째 · 둘째 행은 단위 테스트(`trigger-dto-validation.spec.ts`)로 확인했고 HTTP 왕복은 e2e 로 확인하지 않았다. 셋째 행은 단위 테스트(`trigger-config-internal-fields.spec.ts`)와 e2e(`trigger-config-internal-fields.e2e-spec.ts`)로 확인했다.
+
+이 문서에서 `chatChannel.<field>` 는 요청 본문의 top-level `chatChannel` 필드다. `config.chatChannel.<field>` 는 저장 위치(`Trigger.config.chatChannel`)를 뜻한다. 표의 셋째 행에서만 요청 본문의 `config` 키 아래(원시 `config`)를 뜻한다.
+
+차단 필드는 다섯이다. `botTokenRef` · `inboundSigningRef` · `inboundSigning` 은 생성 · PATCH 모두 막는 내부 필드이고 `botToken` · `inboundSigningPlaintext` 는 PATCH 에서만 막는 값 필드다. 원시 `config` 에서는 다섯 모두 생성에서도 막는다(`setupChannel()` 과 평문 제거가 돌지 않기 때문이다). 코드의 단일 기준은 `chat-channel-rejection-messages.const.ts` 의 `CHAT_CHANNEL_BLOCKED_FIELDS` 다.
 
 | 보낸 값 | 거부하는 층 | `details.field` | `details` 모양 |
 |---|---|---|---|
 | 비어 있지 않은 문자열 | 전역 `CustomValidationPipe` | 중첩 경로 `chatChannel.<field>` | 배열 |
-| `null` 이나 `''` | `@IsEmpty()` 를 통과한 뒤 서비스 가드 | 평평한 `<field>` | 단일 object |
+| `null` 이나 `''` | `@IsEmpty()` 를 통과한 뒤 서비스 가드(`chat-channel-input-rules.ts`) | 평평한 `<field>` | 단일 object |
+| 원시 `config.chatChannel.<field>` 의 어떤 값(생성 · 수정 모두) | 서비스 가드(`trigger-config-internal-fields.ts`) | 원시 `config` 경로 `config.chatChannel.<field>` | 단일 object |
 
-`details.field` 의 기준을 하나로 고르지 않는 것은 확정된 설계다. DTO 선언(전역 파이프)과 서비스 가드는 서로 다른 입력을 받으므로, 하나를 고르면 다른 입력에서 문서가 틀리게 된다.
+`details.field` 의 기준을 하나로 고르지 않는 것은 확정된 설계다. DTO 선언(전역 파이프)과 서비스 가드는 서로 다른 입력을 받으므로, 하나를 고르면 다른 입력에서 문서가 틀리게 된다. 셋째 행은 같은 필드가 요청 본문의 다른 위치(원시 `config`)에 실린 경우라 그 위치를 경로로 싣는다. 규칙은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이 정한다(2026-10-04).
 
 PATCH 로 토큰 값을 바꾸면 다음 피해가 생긴다. (a) 외부 프로바이더(Telegram)에 등록된 웹훅은 그대로라 수신이 바로 끊긴다. (b) 재발급 API 의 24시간 유예 정책과 어긋난다. (c) 감사 로그가 `trigger.updated` 와 `trigger.chat_channel_bot_token_rotated` 로 섞인다. 그래서 한 경로만 둔다. 차단 기준은 필드 이름이 아니라 "PATCH 요청자가 자기 비밀로 값을 바꾸는가" 다. 프로바이더가 등록 동작의 일부로 강제하는 재발급(Telegram `secret_token`)은 이 기준의 대상이 아니다. 근거는 R-CC-10 과 R-CC-21 에 있다.
 
-트리거 목록 화면의 PATCH 설명에는 "`config.chatChannel.botTokenRef`·`botToken` 은 PATCH 로 바꿀 수 없고 재발급 API 를 쓴다" 는 안내가 붙는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
+트리거 목록 화면의 PATCH 설명에는 "`chatChannel.botTokenRef`·`botToken` 은 PATCH 로 바꿀 수 없고 재발급 API 를 쓴다" 는 안내가 붙는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
 
 ### 채팅 채널 부착과 프로바이더 변경
 
@@ -291,7 +296,7 @@ Slack signing secret 과 Discord ed25519 public key 는 프로바이더가 발�
 |---|---|---|
 | 트리거 생성(`POST /api/triggers`) | 요청 본문의 `chatChannel.inboundSigningPlaintext` 평문을 `SecretResolver.rotate(inboundSigningRef, ws, plaintext)` 로 저장하고 본문에서 지운다. 설정에는 `inboundSigningRef` 만 둔다(SS-SE-01) | 처음 한 번 |
 | 트리거 활성화(`PATCH` 본문 `{ isActive: true }`) | Slack·Discord 는 기존 `inboundSigningRef` 를 그대로 쓴다. Telegram 은 아래 행을 본다. 재호출이 실제로 일어나는지는 [미결 사항](#미결-사항) 을 본다 | 변경 없음 |
-| 변경(Slack·Discord) | v1 에서 정하지 않았다. PATCH 본문의 `config.chatChannel.inboundSigningPlaintext`·`inboundSigning` 은 `400 VALIDATION_ERROR` 로 막는다. 생성(POST)에서만 받는다. `chatChannel` 이 실린 PATCH 는 저장된 서명 값을 바꾸지 않는다. 바꾸려면 트리거를 지우고 다시 만든다. `details.field` 모양은 봇 토큰과 같다 | v2 에서 따로 결정 |
+| 변경(Slack·Discord) | v1 에서 정하지 않았다. PATCH 본문의 `chatChannel.inboundSigningPlaintext`·`inboundSigning` 은 `400 VALIDATION_ERROR` 로 막는다. 생성(POST)에서만 받는다. `chatChannel` 이 실린 PATCH 는 저장된 서명 값을 바꾸지 않는다. 바꾸려면 트리거를 지우고 다시 만든다. `details.field` 모양은 봇 토큰과 같다 | v2 에서 따로 결정 |
 | Telegram(서버 발급) | `setupChannel()` 이 불릴 때마다 `randomBytes` 로 새 값을 만들어 `setWebhook` 의 `secret_token` 으로 등록하고, 호출자가 그 값을 `inboundSigningRef` 에 다시 저장한다. 따라서 `chatChannel` 이 실린 PATCH 는 Telegram 의 서명 값을 바꾼다. 이것은 우회가 아니라 프로바이더 등록과 한 동작이다. 저장을 건너뛰면 인바운드 서명 검증이 모두 깨진다(헤더 불일치로 401). 기준은 [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 다 | v1·v2 결정 대상이 아니다 |
 
 현재 구현은 위 표와 같다. PATCH 는 `inboundSigningPlaintext`·`inboundSigning` 을 400 으로 거부한다.
@@ -419,9 +424,10 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 ## 구현 위치
 
 - `codebase/backend/src/modules/chat-channel/**`: 모듈, 어댑터 레지스트리(`channel-adapter.registry.ts`), 트리거 단위 listener 레지스트리(`channel-listener.registry.ts`), dispatcher(`chat-channel.dispatcher.ts`), 인바운드 서명 검증(`chat-channel-inbound-authenticator.ts`), 중복 제거(`chat-channel-dedup.service.ts`), 분당 한도(`chat-channel-rate-limiter.service.ts`), 채널 대화 상태(`channel-conversation.service.ts`), `types.ts`, 공용 로직(`shared/execution-failure-classifier.ts`, `shared/form-mode.ts`, `shared/language-hint-defaults.ts`), 프로바이더별 adapter·client·parser·renderer(`providers/telegram/`, `providers/slack/`, `providers/discord/`, Slack·Discord 는 `*-signing.ts`·`*.types.ts` 추가)
-- `codebase/backend/src/modules/triggers/chat-channel-*.ts`: `chat-channel-binder.service.ts`(어댑터 setup·teardown, 시크릿 쓰기와 참조 보존), `chat-channel-input-rules.ts`(입출력 도메인 규칙 순수 함수, R-CC-21 입력 규칙과 `translateSetupChannelError`), `chat-channel-rejection-messages.const.ts`(PATCH 금지 필드와 거부 문구의 단일 기준), `chat-channel-token-rotator.service.ts`(봇 토큰 정리 매시간 워커)
+- `codebase/backend/src/modules/triggers/chat-channel-*.ts`: `chat-channel-binder.service.ts`(어댑터 setup·teardown, 시크릿 쓰기와 참조 보존), `chat-channel-input-rules.ts`(입출력 도메인 규칙 순수 함수, R-CC-21 입력 규칙과 `translateSetupChannelError`), `chat-channel-rejection-messages.const.ts`(PATCH 금지 필드와 거부 문구의 단일 기준. 원시 `config` 가드도 이 필드 목록을 쓴다), `chat-channel-token-rotator.service.ts`(봇 토큰 정리 매시간 워커)
 - `codebase/backend/src/modules/triggers/dto/**/chat-channel-*.dto.ts`: `chat-channel-config.dto.ts`(생성·수정 검증 분리), `responses/chat-channel-rotate-bot-token-response.dto.ts`
 - `codebase/backend/src/modules/triggers/trigger-callback-url*.ts`: 웹훅 콜백 URL 조립 순수 함수
+- `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`: 원시 `config` 의 내부 필드 거부(`details.field` 표 셋째 행)
 - `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기
 - `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`
@@ -560,7 +566,7 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 **세 축.** 차단 기준은 "PATCH 요청자가 자기 비밀로 값을 바꾸는가" 다. 이 축은 봇 토큰과 인바운드 서명의 자원 성격 대조(외부 등록 여부)와 직교하고, "회전 주체가 누구인가" 축과도 직교한다. 회전 주체 축은 서버 발급(Telegram)·프로바이더 발급(Slack·Discord) 구분과 같다. v2 가 인바운드 서명 회전을 정해도 봇 토큰(R-CC-10 유지)과 Telegram 서버 발급 자료(우리 정책 대상이 아니고, 휩쓸면 서명 검증이 깨진다)에는 닿지 않는다. v2 후보 A·B·C 는 Slack·Discord 축 전용이다.
 
-**`details[].code` 이력.** 서비스 가드 갈래는 한때 `code` 를 싣지 않았다(`#1314` 단위 테스트). `#1317`(2026-09-11)이 "`field` 를 실으면 `code` 도 싣는다" 를 배선해 지금은 두 갈래 모두 `INVALID_FIELD` 다.
+**`details[].code` 이력.** 서비스 가드 갈래는 한때 `code` 를 싣지 않았다(`#1314` 단위 테스트). `#1317`(2026-09-11)이 "`field` 를 실으면 `code` 도 싣는다" 를 배선해 지금은 두 갈래 모두 `INVALID_FIELD` 다. 2026-10-04 에 더한 셋째 갈래(원시 `config`)도 같은 헬퍼(`throwInvalidField`)로 `INVALID_FIELD` 를 싣는다.
 
 ### R-CC-22 triggers 모듈 안의 구현 경로를 글로브로 적는다
 
