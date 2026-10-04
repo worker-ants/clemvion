@@ -152,7 +152,8 @@ auditConfig:
   ignoreCves:
     # CVE-2026-93687 (GHSA-vfj7-8cjw-p6xm, braces <=3.0.3, high) — 2026-10-04 수용, NERV Task
     # `CLE-T-NFW7DE`. 깊이 중첩된 패턴에서 스택이 바닥나는 DoS 다. 패치 버전이 없어(`<0.0.0`)
-    # override 로 해소할 수 없다. 위 3종 근거:
+    # override 로 해소할 수 없다. braces 최신판이 3.0.3 이고 `@next/eslint-plugin-next` 최신
+    # 16.3.8 도 `fast-glob` 3.3.1 을 exact 로 의존한다(2026-10-04 `npm view`). 위 3종 근거:
     #   1. `pnpm audit --prod --audit-level=moderate` → "No known vulnerabilities found".
     #   2. 이미지 실물: backend · frontend 빌드 확인 이미지(`clemvion-build-check/*:latest`)에서
     #      `find / -type d -path "*node_modules*" -name "braces*"` 결과 0줄. frontend 는
