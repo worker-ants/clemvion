@@ -1,4 +1,5 @@
-// `null as unknown as X` 이중 캐스트 금지 가드 — 스캔·판정 순수 로직.
+// nullish 타입 회피 캐스트 금지 가드 — 스캔·판정 순수 로직. `null as unknown as X` 이중 캐스트와
+// 리터럴 null · undefined 를 never · any · unknown 으로 단언하는 캐스트(`findNullishEscapeOffenders`)를 본다.
 //
 // 소비처는 형제 파일 `nullable-type-lie-cast.spec.ts`. 배경·근거는 그 파일 헤더에 있다.
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드 `masked-reject-callers-guard.ts`·
