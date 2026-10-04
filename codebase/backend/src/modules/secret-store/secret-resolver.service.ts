@@ -12,13 +12,15 @@ import { isSecretRef } from './secret-ref';
 import { decryptSecret, encryptSecret, parseMasterKey } from './secret-crypto';
 
 /**
- * `rotate` 가 다른 워크스페이스 소유의 기존 행을 만났다. 공개 오류 코드가 없는 내부 오류다
- * (전역 필터가 `INTERNAL_ERROR` 500 으로 낸다). 메시지는 고정 문구다.
+ * `rotate` 가 다른 워크스페이스 소유의 기존 행을 만났다. 전용 에러 코드가 없는 내부 오류다
+ * (전역 필터가 `INTERNAL_ERROR` 500 으로 낸다). 메시지는 고정 문구이고 참조 · 워크스페이스는 물론
+ * «다른 워크스페이스» 라는 사실도 싣지 않는다. 채팅 채널 설정이 이 메시지를 화면에 보이는
+ * `chat_channel_last_error` 에 저장할 수 있어서다. 자세한 내용은 서버 로그에 있다.
  */
 export class SecretWorkspaceMismatchError extends Error {
   constructor() {
     super(
-      'SecretResolverService.rotate: 기존 비밀이 다른 워크스페이스 소유라 교체하지 않았습니다.',
+      'SecretResolverService.rotate: 기존 비밀 행을 교체하지 않았습니다. 서버 로그를 확인하세요.',
     );
     this.name = 'SecretWorkspaceMismatchError';
   }
@@ -144,8 +146,9 @@ export class SecretResolverService implements OnModuleInit {
    *
    * 종전엔 기존 행의 `workspace_id` 까지 인자 값으로 덮어써서, 다른 워크스페이스의 참조로 부르면 그
    * 비밀과 소유가 함께 넘어갔다(NERV Task `CLE-T-M9QKKX` 의 재현). 확인은 행의 값과 인자만 비교한다.
-   * 리소스 테이블을 보지 않으므로 scope 와 무관하다. 한 번 들어간 행의 `workspace_id` 는 이제 바뀌지
-   * 않으므로 확인과 갱신 사이에 그 값이 달라지는 경합은 없다.
+   * 리소스 테이블을 보지 않으므로 scope 와 무관하다. 애플리케이션 경로에서는 한 번 들어간 행의
+   * `workspace_id` 가 이제 바뀌지 않으므로 확인과 갱신 사이에 그 값이 달라지는 경합은 없다. 운영 SQL
+   * 이 이 컬럼을 바꾸는 경우는 이 보장 밖이다.
    *
    * 오류 메시지에는 참조 · 워크스페이스 id 를 싣지 않는다. 호출자가 그 메시지를 화면에 보이는
    * 필드(`chat_channel_last_error` 등)에 저장할 수 있어서다. 둘은 서버 로그에만 남긴다.

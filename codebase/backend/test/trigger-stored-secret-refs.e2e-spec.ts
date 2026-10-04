@@ -32,6 +32,8 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 const OPS_DIR = path.resolve(__dirname, '../scripts/ops');
 /** Slack signing secret 형식(hex 32자). 피해자 트리거만 이 값을 안다. */
 const VICTIM_SLACK_SIGNING_SECRET = 'c0ffee00c0ffee00c0ffee00c0ffee00';
+/** 참조 자리에 잘못 들어간 평문 흉내. 점검 출력에 나오면 안 된다. */
+const PLAINTEXT_IN_SLOT = '123456:e2e-plaintext-in-ref-slot';
 
 interface Actor {
   token: string;
@@ -57,6 +59,7 @@ describe('저장된 트리거 config 의 시크릿 참조 읽기 (e2e)', () => {
   let attacker: Actor;
   let victimTrigger: CreatedTrigger;
   let poisonedTriggerId: string;
+  let plaintextTriggerId: string;
   const createdTriggerIds: string[] = [];
 
   /** `scripts/ops/` 의 SQL 파일을 그대로 실행하고 문장별 결과를 돌려준다. */
@@ -212,6 +215,32 @@ describe('저장된 트리거 config 의 시크릿 참조 읽기 (e2e)', () => {
   });
 
   it('운영 점검 SQL 이 워크스페이스가 다른 비밀 행과 다른 트리거를 가리키는 참조를 찾는다', async () => {
+    // 알림 서명 슬롯도 다른 트리거를 가리키게 한다.
+    await db.query(
+      `UPDATE trigger SET config = jsonb_set(config, '{notification}', $2::jsonb) WHERE id = $1`,
+      [
+        poisonedTriggerId,
+        JSON.stringify({
+          signing: {
+            secretRef: `secret://triggers/${victimTrigger.id}/notification-signing`,
+          },
+        }),
+      ],
+    );
+    // 참조 자리에 평문이 든 행. 점검은 값을 가리고 정리는 건드리지 않는다.
+    const plaintextTrigger = await createTrigger(attacker, { config: {} });
+    plaintextTriggerId = plaintextTrigger.id;
+    await db.query(
+      `UPDATE trigger SET config = jsonb_set(config, '{chatChannel}', $2::jsonb) WHERE id = $1`,
+      [
+        plaintextTriggerId,
+        JSON.stringify({
+          provider: 'telegram',
+          botTokenRef: PLAINTEXT_IN_SLOT,
+        }),
+      ],
+    );
+
     const [mismatchedSecrets, foreignRefs] = await runOpsSql(
       '2026-10-04-trigger-secret-ref-audit.sql',
     );
@@ -226,22 +255,70 @@ describe('저장된 트리거 config 의 시크릿 참조 읽기 (e2e)', () => {
         }),
       ]),
     );
+    // 피해자 자신의 서명 비밀 행은 워크스페이스가 같아 점검 대상이 아니다.
+    expect(
+      mismatchedSecrets.rows.map((row: { ref: string }) => row.ref),
+    ).not.toContain(`secret://triggers/${victimTrigger.id}/inbound-signing`);
     const poisoned = foreignRefs.rows.filter(
       (row: { trigger_id: string }) => row.trigger_id === poisonedTriggerId,
     );
     expect(poisoned.map((row: { path: string }) => row.path).sort()).toEqual([
       'chatChannel.botTokenRef',
       'chatChannel.inboundSigningRef',
+      'notification.signing.secretRef',
     ]);
+    const plaintext = foreignRefs.rows.filter(
+      (row: { trigger_id: string }) => row.trigger_id === plaintextTriggerId,
+    );
+    expect(plaintext).toEqual([
+      expect.objectContaining({
+        path: 'chatChannel.botTokenRef',
+        stored_ref: null,
+      }),
+    ]);
+    expect(JSON.stringify(foreignRefs.rows)).not.toContain(PLAINTEXT_IN_SLOT);
   });
 
-  it('운영 정리 SQL 뒤에는 점검 결과가 비고 소유자가 다시 재발급할 수 있다', async () => {
+  it('운영 정리 SQL 은 교차 행만 고치고 다시 돌려도 바뀌는 행이 없으며 소유자가 다시 재발급할 수 있다', async () => {
+    const victimSigningRef = `secret://triggers/${victimTrigger.id}/inbound-signing`;
+    const victimSigningBefore = await secretWorkspace(victimSigningRef);
+    expect(victimSigningBefore).toBe(victim.workspaceId);
+
     await runOpsSql('2026-10-04-trigger-secret-ref-cleanup.sql');
 
+    // 교차 행은 지워지고 같은 워크스페이스의 행은 그대로다.
+    expect(
+      await secretWorkspace(`secret://triggers/${victimTrigger.id}/bot-token`),
+    ).toBeUndefined();
+    expect(await secretWorkspace(victimSigningRef)).toBe(victim.workspaceId);
+    const fixed = await db.query<{ config: Record<string, unknown> }>(
+      'SELECT config FROM trigger WHERE id = $1',
+      [poisonedTriggerId],
+    );
+    expect(fixed.rows[0].config).toMatchObject({
+      chatChannel: {
+        botTokenRef: `secret://triggers/${poisonedTriggerId}/bot-token`,
+        inboundSigningRef: `secret://triggers/${poisonedTriggerId}/inbound-signing`,
+      },
+      notification: {
+        signing: {
+          secretRef: `secret://triggers/${poisonedTriggerId}/notification-signing`,
+        },
+      },
+    });
+    // 평문이 든 슬롯은 손대지 않아 점검에 남는다.
+    const untouched = await db.query<{ config: Record<string, unknown> }>(
+      'SELECT config FROM trigger WHERE id = $1',
+      [plaintextTriggerId],
+    );
+    expect(untouched.rows[0].config).toMatchObject({
+      chatChannel: { botTokenRef: PLAINTEXT_IN_SLOT },
+    });
+
+    const mine = new Set([victimTrigger.id, poisonedTriggerId]);
     const [mismatchedSecrets, foreignRefs] = await runOpsSql(
       '2026-10-04-trigger-secret-ref-audit.sql',
     );
-    const mine = new Set([victimTrigger.id, poisonedTriggerId]);
     expect(
       mismatchedSecrets.rows.filter((row: { trigger_id: string }) =>
         mine.has(row.trigger_id),
@@ -252,14 +329,20 @@ describe('저장된 트리거 config 의 시크릿 참조 읽기 (e2e)', () => {
         mine.has(row.trigger_id),
       ),
     ).toEqual([]);
-    const fixed = await db.query<{ config: Record<string, unknown> }>(
-      'SELECT config FROM trigger WHERE id = $1',
-      [poisonedTriggerId],
-    );
-    expect(fixed.rows[0].config.chatChannel).toMatchObject({
-      botTokenRef: `secret://triggers/${poisonedTriggerId}/bot-token`,
-      inboundSigningRef: `secret://triggers/${poisonedTriggerId}/inbound-signing`,
-    });
+    expect(
+      foreignRefs.rows.filter(
+        (row: { trigger_id: string }) => row.trigger_id === plaintextTriggerId,
+      ),
+    ).toHaveLength(1);
+
+    // 두 번째 정리는 우리 행을 하나도 바꾸지 않는다.
+    const second = await runOpsSql('2026-10-04-trigger-secret-ref-cleanup.sql');
+    const touchedAgain = second
+      .flatMap((result) => result.rows ?? [])
+      .filter((row: { trigger_id?: string }) =>
+        [...mine, plaintextTriggerId].includes(row.trigger_id ?? ''),
+      );
+    expect(touchedAgain).toEqual([]);
 
     // 외부 등록은 e2e 에 mock 이 없어 실패하지만 비밀 쓰기는 그 전에 일어난다.
     await request(BASE_URL)

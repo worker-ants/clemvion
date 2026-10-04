@@ -498,4 +498,38 @@ describe('NotificationWebhookProcessor.process', () => {
     expect(errorMessages[0]).toContain('trg-1');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('secretRef 와 옛 평문이 함께 있고 자기 비밀을 못 읽으면 옛 평문으로 내려가지 않고 degraded 로 닫힌다', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: {
+              algorithm: 'hmac-sha256',
+              secretRef: 'secret://triggers/trg-victim/notification-signing',
+              secret: 'legacy-plain-secret',
+            },
+          },
+        },
+      }),
+    );
+    (secrets.resolve as jest.Mock).mockRejectedValue(new Error('not found'));
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      'trg-1',
+      expect.objectContaining({ notificationHealth: 'degraded' }),
+    );
+  });
 });

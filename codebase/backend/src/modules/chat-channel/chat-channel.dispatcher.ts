@@ -351,7 +351,6 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-/** Trigger.config 에서 chatChannel 추출 (형식 검증 최소). */
 /**
  * sendMessage 호출 전 빈 text body guard.
  *

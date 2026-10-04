@@ -27,9 +27,9 @@
 
 `CLE-T-M9QKKX` 가 요청 본문으로 시크릿 참조를 심는 입력을 막았지만, 그 전에 저장된 행에는 다른 트리거의 참조가 남아 있을 수 있었다. 메시지 발송 · 인바운드 서명 검증 · 트리거 삭제 때의 provider 해제 · 알림 서명은 저장된 참조를 그대로 써서 그 트리거의 비밀로 동작했다. 피해자 Slack 서명 비밀로 서명한 요청이 오염된 다른 워크스페이스 트리거의 인바운드 검증을 통과하는 것을 e2e 로 재현했다(NERV Task `CLE-T-XYR067`).
 
-- 저장된 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef` 는 있음 · 없음만 읽고 값은 트리거 id 로 다시 만든다. 저장값이 다르면 서버 로그에 오류를 남긴다. 자기 비밀이 없는 오염 행은 발송 실패 · 인바운드 401 · 알림 `degraded` 로 닫힌다. 정상 행은 같은 값이라 동작이 그대로다.
+- 저장된 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef` 는 있음 · 없음만 읽고 값은 트리거 id 로 다시 만든다. 저장값이 다르면 서버 로그에 오류를 남긴다. 자기 비밀이 없는 교차 행은 발송 실패 · 인바운드 401 · 알림 `degraded` 로 닫힌다. 정상 행은 같은 값이라 동작이 그대로다.
 - 시크릿 저장소의 `rotate` 는 기존 행의 `workspace_id` 가 호출자와 다르면 거부한다(500 `INTERNAL_ERROR`, 메시지에 참조를 싣지 않는다). 종전에는 덮어쓰며 소유까지 넘겼다. 알림 서명 시크릿 승격 배치는 그런 트리거 하나만 건너뛰고 나머지를 승격한다.
-- 운영: 배포 전에 `codebase/backend/scripts/ops/2026-10-04-trigger-secret-ref-audit.sql` 로 오염 행을 점검한다. 결과가 있으면 `2026-10-04-trigger-secret-ref-cleanup.sql` 로 정리하고 해당 트리거 소유자에게 봇 토큰 · 알림 서명 시크릿 재발급을 안내한다. 정리하지 않은 오염 행의 소유자는 봇 토큰 재발급이 500 으로 막힌다.
+- 운영: 배포 전에 `codebase/backend/scripts/ops/2026-10-04-trigger-secret-ref-audit.sql` 로 교차 행을 점검한다. 결과가 있으면 `2026-10-04-trigger-secret-ref-cleanup.sql` 로 정리하고 해당 트리거 소유자에게 봇 토큰 · 알림 서명 시크릿 재발급을 안내한다. 정리하지 않은 교차 행은 덮어써진 비밀 그대로 발송 · 검증에 쓰인다. 그 소유자의 봇 토큰 재발급은 500 으로 막힌다. Telegram 은 provider 에 새 서명 자료를 등록한 뒤 저장이 거부돼 인바운드가 401 이 될 수 있다(PATCH 는 `degraded`).
 
 ## Unreleased — 보안: 트리거 config 로 다른 트리거의 비밀을 덮어쓰지 못하게 한다
 

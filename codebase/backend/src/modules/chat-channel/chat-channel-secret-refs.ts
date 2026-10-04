@@ -69,9 +69,10 @@ export function pinChatChannelSecretRefs(
 }
 
 /**
- * 트리거 행의 `config.chatChannel` 을 어댑터에 넘길 모양으로 읽는다. 저장된 채팅 채널 설정을 읽어
- * 어댑터 · 인바운드 인증기에 넘기는 곳은 모두 이 함수를 거친다(아웃바운드 dispatcher, 인바운드
- * hooks, 트리거 삭제의 해제). `provider` 가 없으면 채팅 채널이 아니라고 보고 `null` 이다.
+ * 트리거 행의 `config.chatChannel` 을 어댑터에 넘길 모양으로 읽는다. 아웃바운드 dispatcher, 인바운드
+ * hooks, 트리거 삭제의 해제가 이 함수로 읽는다. 봇 토큰 재발급은 설정이 없을 때 따로 거부하므로
+ * 저장된 설정을 직접 읽고 {@link pinChatChannelSecretRefs} 를 거친다. `provider` 가 없으면 채팅
+ * 채널이 아니라고 보고 `null` 이다.
  */
 export function readTriggerChatChannelConfig(
   trigger: { id: string; config: unknown },

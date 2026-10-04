@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
 import { SecretStore } from './entities/secret-store.entity';
@@ -272,10 +272,27 @@ describe('SecretResolverService', () => {
       svc.onModuleInit();
       const ref = 'secret://triggers/abc/bot-token';
       await svc.store(ref, 'ws-owner', 'owner-token');
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
 
-      await expect(
-        svc.rotate(ref, 'ws-other', 'attacker-token'),
-      ).rejects.toBeInstanceOf(SecretWorkspaceMismatchError);
+      // `mockRestore()` 는 호출 기록까지 지우므로 복원 전에 옮겨 둔다.
+      let logged: unknown[];
+      try {
+        await expect(
+          svc.rotate(ref, 'ws-other', 'attacker-token'),
+        ).rejects.toBeInstanceOf(SecretWorkspaceMismatchError);
+        logged = errorSpy.mock.calls.map((call) => call[0]);
+      } finally {
+        errorSpy.mockRestore();
+      }
+
+      // 참조와 두 워크스페이스는 서버 로그에만 남고 평문은 남지 않는다.
+      expect(logged).toHaveLength(1);
+      expect(logged[0]).toEqual(expect.stringContaining(ref));
+      expect(logged[0]).toEqual(expect.stringContaining('ws-owner'));
+      expect(logged[0]).toEqual(expect.stringContaining('ws-other'));
+      expect(logged[0]).not.toEqual(expect.stringContaining('attacker-token'));
 
       expect(await svc.resolve(ref)).toBe('owner-token');
       const row = await repo.findOne({ where: { ref } });

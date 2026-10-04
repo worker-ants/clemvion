@@ -23,7 +23,8 @@ import {
   checkSsrfSafeUrl,
 } from '../../common/utils/ssrf-safe-url.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
-import { buildSecretRef, isSecretRef } from '../secret-store/secret-ref';
+import { isSecretRef } from '../secret-store/secret-ref';
+import { notificationSigningSecretRef } from '../triggers/notification-signing-secret-ref';
 import { OutboundNotificationRateLimiterService } from './outbound-notification-rate-limiter.service';
 
 const HTTP_TIMEOUT_MS = 10_000;
@@ -101,11 +102,7 @@ export class NotificationWebhookProcessor extends WorkerHost {
     const secretRef = config.signing?.secretRef;
     if (typeof secretRef === 'string' && isSecretRef(secretRef)) {
       // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
-      const ownRef = buildSecretRef({
-        scope: 'triggers',
-        resourceId: triggerId,
-        name: 'notification-signing',
-      });
+      const ownRef = notificationSigningSecretRef(triggerId);
       if (secretRef !== ownRef) {
         this.logger.error(
           `NotificationWebhookProcessor: 트리거 ${triggerId} 의 저장된 notification.signing.secretRef 가 이 트리거의 참조와 달라 ${ownRef} 로 바꿔 씁니다. 저장된 행을 점검하세요.`,

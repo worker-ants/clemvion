@@ -278,7 +278,7 @@
     "codebase/backend/src/modules/system-status/system-status.constants.spec.ts": 2,
     "codebase/backend/src/modules/system-status/system-status.constants.ts": 2,
     "codebase/backend/src/modules/system-status/system-status.service.ts": 1,
-    "codebase/backend/src/modules/triggers/chat-channel-binder.service.ts": 3,
+    "codebase/backend/src/modules/triggers/chat-channel-binder.service.ts": 2,
     "codebase/backend/src/modules/triggers/chat-channel-input-rules.ts": 6,
     "codebase/backend/src/modules/triggers/chat-channel-rejection-messages.const.ts": 2,
     "codebase/backend/src/modules/triggers/dto/chat-channel-config.dto.ts": 1,

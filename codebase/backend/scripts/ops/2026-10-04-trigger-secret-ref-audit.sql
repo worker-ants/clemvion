@@ -1,5 +1,5 @@
 -- 트리거 시크릿 참조 점검 (읽기 전용). NERV Task CLE-T-XYR067.
--- 근거: CLE-INT-SECRET 규칙 25 · Rationale R10.
+-- 근거: CLE-INT-SECRET 「교차 행 점검과 정리」 · Rationale R10(이 Task 의 NERV 초안. 승인 뒤 미러에 생긴다).
 --
 -- 요청 본문의 원시 config 로 다른 트리거의 시크릿 참조를 심을 수 있던 동안(CLE-T-M9QKKX 이전)에
 -- 생겼을 수 있는 행을 찾는다. 이 파일은 아무것도 바꾸지 않는다. 정리는
@@ -25,7 +25,7 @@ WHERE s.ref LIKE 'secret://triggers/%'
 ORDER BY t.id, s.ref;
 
 -- B. 트리거 config 의 참조가 그 트리거 id 로 만든 참조와 다르다.
---    읽는 쪽은 이제 이 값을 쓰지 않고 트리거 id 로 다시 만든다(규칙 24). 다른 트리거를 가리키면
+--    읽는 쪽은 이제 이 값을 쓰지 않고 트리거 id 로 다시 만든다. 다른 트리거를 가리키면
 --    그 트리거의 비밀이 노출됐을 수 있으니 양쪽 소유자에게 알린다.
 SELECT t.id           AS trigger_id,
        t.workspace_id AS trigger_workspace_id,

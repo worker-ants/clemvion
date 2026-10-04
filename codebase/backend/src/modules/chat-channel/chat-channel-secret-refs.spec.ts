@@ -1,6 +1,7 @@
 import {
   chatChannelSecretRef,
   pinChatChannelSecretRefs,
+  readTriggerChatChannelConfig,
 } from './chat-channel-secret-refs';
 import type { ChatChannelConfig } from './types';
 
@@ -78,6 +79,19 @@ describe('pinChatChannelSecretRefs', () => {
 
   // 참조가 없다는 것은 "그 비밀이 저장돼 있지 않다" 는 신호다. 인바운드 인증기는 참조가 없으면 검증을
   // 건너뛰므로 여기서 참조를 붙이면 동작이 바뀐다(chat-channel-binder.service.ts 의 [ref 보존] 주석).
+  it('빈 문자열 참조는 없는 것으로 보고 그대로 둔다', () => {
+    const logger = makeLogger();
+    const config: ChatChannelConfig = {
+      provider: 'telegram',
+      inboundSigningRef: '',
+    };
+
+    const pinned = pinChatChannelSecretRefs(OWN, config, logger, 'test');
+
+    expect(pinned.inboundSigningRef).toBe('');
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it('참조가 없으면 붙이지 않는다', () => {
     const logger = makeLogger();
     const config: ChatChannelConfig = { provider: 'discord' };
@@ -103,5 +117,45 @@ describe('pinChatChannelSecretRefs', () => {
     expect(pinned.botIdentity).toEqual({ botId: 7, username: 'bot' });
     expect(pinned.provider).toBe('telegram');
     expect(config.botTokenRef).toBe(foreign);
+  });
+});
+
+describe('readTriggerChatChannelConfig', () => {
+  it.each([
+    ['config 가 null', null],
+    ['config 가 문자열', 'oops'],
+    ['chatChannel 이 없다', {}],
+    ['chatChannel 이 객체가 아니다', { chatChannel: 'telegram' }],
+    ['provider 가 없다', { chatChannel: { botTokenRef: 'x' } }],
+    ['provider 가 빈 문자열', { chatChannel: { provider: '' } }],
+    ['provider 가 문자열이 아니다', { chatChannel: { provider: 7 } }],
+  ])('%s 면 채팅 채널이 아니라고 보고 null 이다', (_label, config) => {
+    const logger = makeLogger();
+
+    expect(
+      readTriggerChatChannelConfig({ id: OWN, config }, logger, 'test'),
+    ).toBeNull();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('채팅 채널이면 트리거 id 로 참조를 맞춘 사본을 돌려준다', () => {
+    const logger = makeLogger();
+    const stored = {
+      provider: 'slack',
+      botTokenRef: `secret://triggers/${OTHER}/bot-token`,
+    };
+
+    const read = readTriggerChatChannelConfig(
+      { id: OWN, config: { chatChannel: stored } },
+      logger,
+      'test',
+    );
+
+    expect(read).toEqual({
+      provider: 'slack',
+      botTokenRef: chatChannelSecretRef(OWN, 'botTokenRef'),
+    });
+    expect(stored.botTokenRef).toBe(`secret://triggers/${OTHER}/bot-token`);
+    expect(logger.error).toHaveBeenCalledTimes(1);
   });
 });

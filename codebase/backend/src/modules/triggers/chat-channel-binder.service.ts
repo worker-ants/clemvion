@@ -171,7 +171,7 @@ export class ChatChannelBinderService {
     // [ref 보존 — 두 ref 는 **대칭**이어야 한다]
     //
     // `mergeExternalConfig` 가 `config.chatChannel` 을 **통째로 교체**하므로, 요청 바디에 없는
-    // 필드는 전부 사라진다. `botTokenRef` 는 `chatChannelSecretRef(trigger.id)` 로 매번 재유도돼
+    // 필드는 전부 사라진다. `botTokenRef` 는 `chatChannelSecretRef(trigger.id, 'botTokenRef')` 로 매번 재유도돼
     // 무조건 다시 실리는데, `inboundSigningRef` 는 종전에 *"이번 호출에서 값을 새로 썼을 때만"*
     // 실렸다. D-2 가 그 쓰기를 게이팅하자 **slack/discord PATCH 에서 그 조건이 구조적으로 항상
     // 거짓**이 되어 ref 가 사라졌고, `ChatChannelInboundAuthenticator` 는 세 provider 모두
