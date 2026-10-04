@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
 content_hash: "840adc639a1ca835e04e7343ac057dcf185e45bcfbe94ef8dfe0b87233baa6cc"
 read_as: "approved_fallback"
-task: "CLE-T-BV4YXZ"
+task: "CLE-T-M9QKKX"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "7566f249c33c598dafc683a55f0e1fb489f86d24121bc9db9ab56f014687a882"
-etag: "sha256-511cb0de46de4e75b103ad623b28de7099809279e2da78a2a03ef6fd5fa23a1c"
+mirror_sha256: "ec3ef9d946158fc15ca05f2d7dbe69461c8626a81e32528343125d2213768ff0"
+etag: "sha256-90a133ca965fb102937371e3649535e0c5318968d95a6a376c118c4f08cbf19b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

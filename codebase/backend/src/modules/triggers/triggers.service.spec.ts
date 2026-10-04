@@ -737,6 +737,58 @@ describe('TriggersService — notification/interaction config 병합 (External I
     expect(triggerRepo.create).not.toHaveBeenCalled();
   });
 
+  // CLE-T-M9QKKX — 원시 `config` 는 `@IsObject` 뿐이라 타입 필드 검사를 지나쳤다. 판정 표는
+  // `trigger-config-internal-fields.spec.ts` 가 덮고, 여기서는 두 진입점이 저장 전에 부르는지만 본다.
+  it('create — 원시 config 의 botTokenRef 는 저장 전에 400', async () => {
+    const err = await service
+      .create(
+        'ws',
+        {
+          workflowId: 'wf-1',
+          type: 'webhook',
+          name: 'hook',
+          config: {
+            chatChannel: { botTokenRef: 'secret://triggers/other/bot-token' },
+          },
+        },
+        'u-spec',
+      )
+      .catch((err_: unknown) => err_ as BadRequestException);
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      details: { field: 'config.chatChannel.botTokenRef' },
+    });
+    expect(triggerRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('update — 원시 config 의 notification.signing.secretRef 는 저장 전에 400', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't-1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      config: {},
+    } as unknown as Trigger);
+    const err = await service
+      .update(
+        't-1',
+        'ws',
+        {
+          config: {
+            notification: {
+              signing: { secretRef: 'secret://triggers/other/x' },
+            },
+          },
+        },
+        'u-spec',
+      )
+      .catch((err_: unknown) => err_ as BadRequestException);
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      details: { field: 'config.notification.signing.secretRef' },
+    });
+    expect(triggerRepo.save).not.toHaveBeenCalled();
+  });
+
   it('create — authConfigId 가 같은 워크스페이스면 통과', async () => {
     authConfigRepo.findOne.mockResolvedValue({
       id: 'ac-1',
@@ -2070,6 +2122,48 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
    * 여기 두는 이유는 6단계 mock 이 이미 갖춰진 describe 라서다 — 실패 경로를 실제 단계
    * 실패로 만들 수 있는 유일한 자리다.
    */
+  // CLE-T-M9QKKX — 저장 경계가 막기 전에 저장된 행에는 다른 트리거의 ref 가 들어 있을 수 있다.
+  // 회전이 그 ref 를 믿으면 그 트리거의 비밀을 읽어 백업하고 덮어쓴다.
+  it('저장된 config 의 ref 가 다른 트리거를 가리켜도 자기 트리거의 ref 만 읽고 쓴다', async () => {
+    const FOREIGN_BOT = 'secret://triggers/other-trig/bot-token';
+    const FOREIGN_SIGNING = 'secret://triggers/other-trig/inbound-signing';
+    triggerRepo.findOne.mockResolvedValue({
+      id: TRIGGER_ID,
+      workspaceId: WORKSPACE_ID,
+      endpointPath: 'hook-abc',
+      config: {
+        chatChannel: {
+          provider: 'telegram',
+          botTokenRef: FOREIGN_BOT,
+          inboundSigningRef: FOREIGN_SIGNING,
+        },
+      },
+    } as unknown as Trigger);
+
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot');
+
+    const touched = [
+      ...secrets.resolve.mock.calls,
+      ...secrets.rotate.mock.calls,
+    ].map((call) => call[0]);
+    expect(touched).not.toContain(FOREIGN_BOT);
+    expect(touched).not.toContain(FOREIGN_SIGNING);
+    expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      BOT_TOKEN_REF,
+      WORKSPACE_ID,
+      NEW_TOKEN,
+    );
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      SECRET_TOKEN_REF,
+      WORKSPACE_ID,
+      ISSUED_SECRET,
+    );
+    expect(mockAdapter.setupChannel.mock.calls[0][0]).toMatchObject({
+      botTokenRef: BOT_TOKEN_REF,
+    });
+  });
+
   it('감사 — 성공 시 trigger.chat_channel_bot_token_rotated 를 남긴다', async () => {
     await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot');
 

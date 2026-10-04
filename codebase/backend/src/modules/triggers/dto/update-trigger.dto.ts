@@ -35,9 +35,11 @@ export class UpdateTriggerDto {
   @IsBoolean()
   isActive?: boolean;
 
+  // 근거: [시크릿 저장소 규칙 23](CLE-INT-SECRET), [트리거 관리 REQ-TRIG-053](CLE-TRIG-MANAGE).
   /** 타입별 설정값 */
   @ApiPropertyOptional({
-    description: '타입별 부가 설정값',
+    description:
+      '타입별 부가 설정값. 서버가 관리하는 내부 필드(chatChannel 의 botTokenRef · inboundSigningRef · inboundSigning · botToken · inboundSigningPlaintext, notification.signing.secretRef)는 실을 수 없고 실으면 400 VALIDATION_ERROR 다.',
     type: 'object',
     additionalProperties: true,
     example: { method: 'POST' },

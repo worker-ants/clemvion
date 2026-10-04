@@ -23,6 +23,14 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 보안: 트리거 config 로 다른 트리거의 비밀을 덮어쓰지 못하게 한다
+
+트리거 생성 · 수정 본문의 원시 `config` 는 형식만 검사해서 `chatChannel.botTokenRef` 같은 시크릿 참조를 그대로 저장했다. 비밀 저장소는 참조만 보고 소유 워크스페이스를 확인하지 않는다. 그래서 다른 워크스페이스 트리거의 id 를 아는 편집자가 자기 트리거 `config` 에 그 트리거의 봇 토큰 참조를 넣고 봇 토큰을 재발급하면 상대 트리거의 토큰을 덮어썼다. 그 비밀 행의 `workspace_id` 도 자기 워크스페이스로 바뀌었다. 생성과 수정 두 경로 모두 e2e 로 재현했다(NERV Task `CLE-T-M9QKKX`).
+
+- 원시 `config` 에 `chatChannel` 의 내부 필드 다섯(`botTokenRef` · `inboundSigningRef` · `inboundSigning` · `botToken` · `inboundSigningPlaintext`)이나 `notification.signing.secretRef` 가 있으면 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다. 타입 필드(top-level `chatChannel` · `notification`)는 그대로다. 응답이 이 필드들을 지우므로 정상 클라이언트는 영향이 없다.
+- 봇 토큰 재발급은 저장된 참조 대신 자기 트리거 id 로 참조를 만든다. 이미 저장된 행에 다른 트리거의 참조가 들어 있어도 그 비밀을 읽거나 덮어쓰지 않는다.
+- 이미 저장된 행의 읽기 경로(메시지 발송, 인바운드 서명 검증, 알림 서명)는 여전히 저장된 참조를 쓴다. 그 방어선과 운영 데이터 점검은 후속 작업이다.
+
 ## Unreleased — 개발 흐름: nullish 를 타입 밖으로 빼는 캐스트를 프로덕션 소스에서 막는다
 
 TypeORM 1 상향(`CLE-T-91JNWW`)에서 where 의 null · undefined 를 예외로 막았는데 초대 서비스 세 곳의 `acceptedAt: null as never` 가 타입 검사를 그대로 통과했다. 기존 가드(`nullable-type-lie-cast`)는 `null as unknown as X` 만 세서 이 형태를 못 봤다. 이제 `null` · `undefined` 를 `never` · `any` · `unknown` 으로 단언하는 캐스트를 프로덕션 소스(`src` 의 비-spec `.ts`) 전체에서 0건으로 고정한다(NERV Task `CLE-T-BV4YXZ`). 지금 0건이라 기존 코드는 바뀌지 않는다. SQL NULL 비교는 `IsNull()` 로 쓴다.

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "9063c79f1847ce5831ca7ce274f5a0f6f9fa752673e7a617fcb398f8537d47c1"
 read_as: "approved_fallback"
-task: "CLE-T-52JYHM"
+task: "CLE-T-M9QKKX"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "bed9162ec71911ac2efc39dc9464ff3d735e2adfc478172337843e8b84b5d184"
-etag: "sha256-5ee5b79df62902822669426b512a0194e500a3d1393c4e18f326d311b46d8163"
+mirror_sha256: "1f6ccd23d8e8b97f9c2d753ea1d3050219fde388a0490a958e0723a8e2a27aba"
+etag: "sha256-1a91d4b989a716deff8007bedb21653999ab0c2cb3679f49008b22cb5a0c9545"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
