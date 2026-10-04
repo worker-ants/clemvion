@@ -3,18 +3,18 @@ id: "CLE-ENG-GUIDEEVIDENCE"
 title: "사용자 가이드 근거 규약"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "7362eeb8fe282aa447f80d07c9e24a63789ced3f796948e8681a16fa9bf2d311"
-read_as: "approved"
-task: null
+content_hash: "8f048364375d7445a62b15e7eaf81124872b5f9ea70db7528616cfd92af446d2"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/conventions/user-guide-evidence.md"]
-mirror_sha256: "3428c82d7ba88379789935e7a11010349f7853bfe107d3afe7fe87bbb085aac4"
-etag: "sha256-bfd3991f9c2bd0b65b8a3aca88f4fe5175b5de2558bdb2106e39d41d6872983b"
+mirror_sha256: "fb49c378933775949545fd55496c2d27c80a36791e6c030b936acbf0c75ce772"
+etag: "sha256-925a1f49c4eef99b53162bcd2eb60f29fe72ac1d95cb805375ea65f381ac4a5f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/user-guide-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,11 +100,11 @@ etag: "sha256-bfd3991f9c2bd0b65b8a3aca88f4fe5175b5de2558bdb2106e39d41d6872983b"
 - **`nodes-coverage.test.ts`** 와는 방향이 같다(등록부 → 가이드). 열거형과 자유 서술형으로 서로 보완한다.
   - `nodes-coverage`: 백엔드 노드 등록부 → 가이드에 항목이 나온다
   - `integrations-coverage` / `triggers-coverage`: 가이드 GUI 흐름 절 → 코드 진입점 심볼
-- **`spec-code-paths.test.ts`**([스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md))와는 방향이 다르다.
-  - `spec-code-paths`: 스펙 → 구현 코드 경로(스펙 책임 추적)
+- **`spec-impl-locations.test.ts`**([스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md))와는 방향이 다르다.
+  - `spec-impl-locations`: 스펙 → 구현 코드 경로(스펙 본문 `## 구현 위치` 의 경로 실재, 스펙 책임 추적). 전환 단계 5 에서 옛 트리 frontmatter `code:` 를 보던 `spec-code-paths` 를 이 가드로 바꿨다
   - 이 가드: 가이드 → 구현 코드 심볼(가이드 진실성 추적)
   - 두 가드는 "스펙 → 코드" 와 "가이드 → 코드" 의 두 진실을 따로 검증한다.
-- **스펙 frontmatter `user_guide:`**(스펙이 가이드 페이지를 가리키는 cross-link)는 위 가드들과 방향이 반대다. 이 가드와 달리 빌드 가드가 없는 선언용 링크다. 로케일 쌍(`<name>.mdx` + `<name>.en.mdx`) 등재 기준과 가드를 두지 않는 근거는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 의 필드 정의와 Rationale R-10 이 정한다.
+- **스펙에서 가이드로 가는 링크**는 위 가드들과 방향이 반대다. 옛 스펙 frontmatter `user_guide:` 가 그 선언용 링크였고 빌드 가드가 없었다. 그 필드는 전환 단계 5 에서 옛 트리와 함께 걷었다([스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-10 · R-16). 지금 스펙 본문에는 가이드 페이지를 가리키는 고정 필드가 없다. 구현 작업이 가이드를 고쳤다는 근거는 NERV Task 의 증적 종류 `user_guide` 로 남길 수 있다.
 
 ## 사용 패턴
 
@@ -166,7 +166,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 ## 강제 경로
 
-[스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 과 이 규약은 다음 경로로 지켜진다.
+이 규약은 다음 경로로 지켜진다. 스펙 쪽 근거는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 의 `spec-impl-locations` 가 따로 지킨다.
 
 1. **빌드 가드 3건**: CI 에서 막는다(구현됨).
 2. **`user-guide-writer` 서브에이전트의 자가 검증 체크리스트**: GUI 흐름 절을 쓸 때 `<ImplAnchor>` 를 함께 두는 의무가 저장소 `.claude/agents/user-guide-writer.md` 의 작성 지침과 완료 체크리스트에 있다(구현됨).

@@ -3,18 +3,18 @@ id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "8f982ab0ce51b93df0f2ad48c27a4731f42b0cd7956d068ba272ae6bd51dca38"
-read_as: "approved"
-task: null
+content_hash: "edc1012415839aff06b2b39e2b783685ffe141d7aed39c51eab71086e79f378a"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "93df4c409308435cdc0f7322919f78ac1f19938e7842e89721439f021207d9d8"
-etag: "sha256-61af9f17ff9aeab6f33b3d2cfcbd493813736984a995ea72aea1ff049ac018c0"
+mirror_sha256: "96d6903dfdb7440f416d492ebcb9564221aa58ea3a87be867199fcccc4e0db8e"
+etag: "sha256-9d25d1029c43042219804dfcf022e727c9d4ba3e2053d16565f296a24dedcb42"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -148,7 +148,7 @@ URL 검증과 SSRF 차단은 외부 HTTP transport 에만 적용한다. 내부 M
 
 이 플래그는 운영 환경에서 절대 켜면 안 된다. 워크스페이스 관리자가 등록한 URL 을 그대로 믿게 되어 SSRF 방어면이 다시 열린다. 기본값은 `false` 이고 `codebase/backend/.env.example` 에 경고와 함께 적는다.
 
-**운영 부팅 차단(production fail-closed)**: `NODE_ENV=production` 에서 `MCP_ALLOW_INSECURE_URL=true` 이면 부팅을 거부한다(`main.ts` 의 `assertProductionConfig`, `OAUTH_STUB_MODE`·`LLM_STUB_MODE` 와 같은 형태). 부팅 가드 전체 목록은 [로그인 세션](../CLE-ACCT/CLE-ACCT-SESSION.md#production-fail-closed-가드) 에 있다. 셀프 호스팅(VPC 내부 호스트 등)에 정당한 용도가 있는 `ALLOW_PRIVATE_HOST_TARGETS`(HTTP Request·Database Query·Send Email 통합 노드 SSRF 가드의 공통 플래그, [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직))는 정책이 달라 throw 가 아니라 warn 으로 둔다. 운영에서 켜져 있으면 부팅은 하되 경고 로그를 남긴다. 분류 기준은 «절대 금지» 플래그는 throw, «정당한 용도가 있는» 플래그는 warn 이다.
+**운영 환경 가드**: `NODE_ENV=production` 에서 `MCP_ALLOW_INSECURE_URL=true` 이면 부팅을 거부한다(`main.ts` 의 `assertProductionConfig`, `OAUTH_STUB_MODE`·`LLM_STUB_MODE` 와 같은 형태). 부팅 가드 전체 목록은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 있다. 셀프 호스팅(VPC 내부 호스트 등)에 정당한 용도가 있는 `ALLOW_PRIVATE_HOST_TARGETS`(HTTP Request·Database Query·Send Email 통합 노드 SSRF 가드의 공통 플래그, [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직))는 정책이 달라 throw 가 아니라 warn 으로 둔다. 운영에서 켜져 있으면 부팅은 하되 경고 로그를 남긴다. 분류 기준은 «절대 금지» 플래그는 throw, «정당한 용도가 있는» 플래그는 warn 이다.
 
 ### 환경 변수
 
@@ -614,7 +614,7 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 
 **재개 조건**: 설정 화면 미리보기의 live `initialize` 지연이 실측으로 문제가 되면(예: 대형 카탈로그 서버에서 체감 지연) 새 plan 으로 다시 제안한다. 그때는 자격 증명 JSONB 확장만이 선택지가 아니므로 별도 캐시 테이블 + TTL, 노출 도구 목록 기반 지연 로딩 같은 대안도 함께 평가한다. 즉 이 결정은 캐시라는 아이디어를 영구히 버린 것이 아니라 지금 근거로는 이 구현 형태를 채택하지 않는다는 뜻이다.
 
-**표기 선례**: 절 단위 비채택 표기(인라인 표시 + 전용 `R-wontdo-*` Rationale 절)는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)의 `R-wontdo-rawws-rest`(2026-07-08)가 세운 방식을 따른다. 스펙 문서 단위 폐기(`status: archived`)와는 층이 다르다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md)).
+**표기 선례**: 절 단위 비채택 표기(인라인 표시 + 전용 `R-wontdo-*` Rationale 절)는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)의 `R-wontdo-rawws-rest`(2026-07-08)가 세운 방식을 따른다. 옛 스펙 트리의 문서 단위 폐기 표시(`status: archived`)와는 층이 다르다. 그 표시는 전환 단계 5 에서 옛 트리와 함께 걷었다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) R-4 · R-16).
 
 ### 에러 message 가리기는 공용 패턴을 다시 쓴다
 

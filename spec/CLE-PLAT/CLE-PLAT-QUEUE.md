@@ -3,18 +3,18 @@ id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "6bc996da44405776dfbb8c151d327fd2dcc8276d3f159a91688ceb1fec48e97e"
-read_as: "approved"
-task: null
+content_hash: "903b0d3315d4f62dd36ba03d7be9227f03c7565fc8675238663aa56b840d8cde"
+read_as: "approved_fallback"
+task: "CLE-T-V22XN8"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "0f1e102855c044a60855df25de0aadad577adee71970050397028f4a7d2a0575"
-etag: "sha256-bbb81ea32c077f7348e12bf8b9c24377444cf3981da4946486977be78c8c15f1"
+mirror_sha256: "358809ef7442a62e38a44f97cbf48a418c0339c2a8e3ca4694bfc51f15f11078"
+etag: "sha256-14f377c419556fff37cef1ccf5706a97aedb964fb86daa04b24ad0f5e7857f2c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ etag: "sha256-bbb81ea32c077f7348e12bf8b9c24377444cf3981da4946486977be78c8c15f1"
 | `document-embedding` | `knowledge-base.module.ts` | 지식 저장소 문서 업로드·재임베딩 API·실패 문서 재시도·부팅 시 처리 중 문서 회수 | `DocumentEmbeddingProcessor` (동시 처리 3) | 문서 1건 임베딩 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md). 생산자·소비자·payload 는 [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
 | `graph-extraction` | `knowledge-base.module.ts` | 임베딩 완료 hook·재추출 API·실패 문서 재시도·부팅 시 처리 중 문서 회수 | `GraphExtractionProcessor` (동시 처리 2) | 문서 1건의 엔티티·관계 추출 | [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md). 생산자·소비자·payload 는 [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
 | `agent-memory-extraction` | `agent-memory.module.ts` | `AgentMemoryService.scheduleExtraction`. AI 에이전트·정보 추출기 노드의 `memoryStrategy: 'persistent'` 가 대화 턴 경계에서 비동기로 넣는다. 핫 경로를 막지 않고, 넣기 실패는 흡수한다 | `AgentMemoryExtractionProcessor` (동시 처리 2) | 대화 턴 1건의 메모리 추출. jobId 를 `agent-memory:<workspaceId>:<scopeKey>` 로 고정해 같은 범위의 추출을 직렬화한다. 고정 jobId 는 `removeOnComplete: true` 와 짝으로 둔다. payload 는 상세 문서에 있다 | [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) |
-| `schedule-execution` | `schedules.module.ts` | `ScheduleRunnerService` (스케줄마다 반복 작업을 `upsertJobScheduler` 로 등록) | `ScheduleRunnerService` (`@Processor`) | 스케줄 1회 실행 트리거 | [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
+| `schedule-execution` | `schedules.module.ts` | `ScheduleRunnerService` (스케줄마다 job scheduler 를 `upsertJobScheduler` 로 등록) | `ScheduleRunnerService` (`@Processor`) | 스케줄 1회 실행 트리거 | [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | `alerts-evaluator` | `alerts.module.ts` | `AlertsEvaluatorService` (반복 작업 1개 `alerts-evaluator-5min`, 5분 주기 `*/5 * * * *` UTC) | 같은 서비스 | 작업 1회가 켜진(`enabled=true`) 알림 규칙 전체를 순회해 평가한다. 규칙마다 큐에 넣지 않는다 | [알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가) |
 | `integration-expiry-scanner` | `integrations.module.ts` | `IntegrationExpiryScanner` (반복 작업 4종) | 같은 모듈의 처리기 | 작업 1회가 대상 통합 전체를 일괄 처리한다. `connected-expiry`·`pending-install-ttl`·`usage-log-prune` 은 매일 `0 0 * * *` UTC, `cafe24-background-refresh` 는 6시간마다 `0 */6 * * *` UTC | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) |
 | `cafe24-token-refresh` | `integrations.module.ts` · `cafe24.module.ts` | 다섯 곳: `Cafe24ApiClient` 의 호출 직전 갱신과 401 뒤 갱신(직접 넣고 `QueueEvents` 로 완료를 기다린다), `IntegrationExpiryScanner` 의 `cafe24-background-refresh` 반복 작업과 `connected-expiry` 당일 분기, `Cafe24McpToolProvider` 의 `expired` 자가 회복 | `Cafe24TokenRefreshProcessor` | Cafe24 통합 1건 토큰 갱신. source 별 jobId 전략과 보존 옵션은 상세 문서의 갱신 큐 표가 기준이다 | [OAuth 연결과 토큰 갱신 §갱신 큐](../CLE-INT/CLE-INT-OAUTH.md#갱신-큐) |

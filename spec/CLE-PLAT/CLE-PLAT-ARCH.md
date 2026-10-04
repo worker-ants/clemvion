@@ -3,18 +3,18 @@ id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "65aae99b1e8c61d5c57516c244e3043ad4e7faf4591ef081ed98d52812d90e26"
-read_as: "approved"
-task: null
+content_hash: "5d3ef860ea875e9ad7137185b3fad8f6b358b6837d1ac88c5540fac0755aabb9"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "319ad3503541afd210d70bdf0d512e79dfd9d548cebcc24e135ca05ef830bde4"
-etag: "sha256-8205a094c8598526c4b6d83fa8fd5eb2acc82718886c261c51cef30ea47ec4d0"
+mirror_sha256: "4695348ea3a17a9b5cea22ed8a11c955cecbce2484bc99d480912e92228880fb"
+etag: "sha256-e0776f7f3e7d9e6ba2ac74af14918ce5444231fc094bfde45b4ac46942e911d2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -31,6 +31,8 @@ etag: "sha256-8205a094c8598526c4b6d83fa8fd5eb2acc82718886c261c51cef30ea47ec4d0"
 - SaaS 와 셀프 호스팅의 배포 환경 차이
 
 다루지 않는 것은 각 문서가 정한다. BullMQ 큐 전체 목록과 Redis 키 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md), 엔티티 관계와 인덱스 전략은 [데이터 모델 개요](CLE-PLAT-DATA.md), 파일 저장소의 키 규칙과 수명주기는 [파일 저장소](CLE-PLAT-STORAGE.md), 성능·보안 같은 품질 목표는 [비기능 요구사항](CLE-PLAT-NFR.md) 이 소유한다. 실행 엔진 내부 동작은 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 와 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 이 정한다.
+
+이 문서에는 `## 구현 위치` 절을 두지 않는다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 가 구성 개요 문서를 예외로 둔다. 컴포넌트마다 그 표면을 정한 문서가 구현 경로를 적는다. 큐와 Redis 는 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md), 엔티티와 마이그레이션은 [데이터 모델 개요](CLE-PLAT-DATA.md), 파일 저장소는 [파일 저장소](CLE-PLAT-STORAGE.md), 실행 엔진은 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 와 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md), 웹채팅 위젯은 [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) 가 맡는다. API 진입 계층과 핵심 API 서비스는 [API 공통 규약](../CLE-API/CLE-API.md) 영역, 통합 서비스는 [통합](../CLE-INT/CLE-INT.md) 영역, 앱 클라이언트는 [앱 셸과 공통 화면](../CLE-UI/CLE-UI.md) 영역의 문서가 맡는다. 이유는 Rationale 「구현 위치 절을 두지 않은 이유」 에 있다.
 
 ## 컴포넌트 구성
 
@@ -220,6 +222,10 @@ SaaS 와 셀프 호스팅은 같은 코드를 쓰고 설정으로 갈린다. 배
 이 표는 목표 구성이다. LDAP/SAML 은 아직 구현하지 않았다. Docker Compose 셀프 호스팅 배포, Helm Chart, 셀프 호스팅 설치·운영 문서도 미구현이다([비기능 요구사항](CLE-PLAT-NFR.md)의 NF-DP-02·03·06). 자동 롤링 업데이트와 Prometheus/Grafana 연동 가이드는 구현 여부를 적은 근거 문서가 없다.
 
 ## Rationale
+
+### 구현 위치 절을 두지 않은 이유 (2026-10-03)
+
+이 문서는 컴포넌트를 나열하는 구성 개요다. 컴포넌트마다 그 표면을 정한 문서가 있고 그 문서의 `## 구현 위치` 가 경로를 적는다. 여기에 같은 경로를 다시 적으면 두 곳을 함께 고쳐야 한다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 는 구성 개요 문서를 이 절의 예외로 둔다. 그 규약 R-16 「약해지는 곳」 이 머리 줄이 구현됨인데 절이 없는 잎 문서 5편을 짚었다. 후속 Task `CLE-T-RGZBCQ` 가 그중 이 문서는 절 없이 두기로 정했다.
 
 ### 실행 엔진: Redis 큐 + 분산 워커 풀
 

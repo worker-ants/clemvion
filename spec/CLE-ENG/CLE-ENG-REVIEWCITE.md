@@ -2,19 +2,19 @@
 id: "CLE-ENG-REVIEWCITE"
 title: "리뷰 산출물 인용 규약"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "b4e48803badcab0c5120a1fa8ead581b6ea96b9aaf26e7edda6e8e4d92b2f0f9"
+content_hash: "0e2d7cb5284822919c1e685426a03e2b818d98a560e6eb8fbd42a8b57557ca04"
 read_as: "approved_fallback"
-task: "CLE-T-M7K35H"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/conventions/review-citations.md"]
-mirror_sha256: "77f19e7f43f6d118e3565448c8f85e1da62b6fb8d66b5493a960d36f18ccbaab"
-etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
+mirror_sha256: "67f52d0a6c0288376cc4c1926a51b3f94ef9a7aa378392cc52c3ddf1148163d2"
+etag: "sha256-becec8a179d2c25b88f77a820c88e045c8c5d4165680971e678e3c899354d1ae"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/review-citations.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -29,7 +29,7 @@ etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
 범위 밖:
 
 - DTO 필드·컨트롤러의 `/** */` JSDoc 이 공개 OpenAPI 설명으로 나간다는 규칙은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한다. 이 문서는 그 자리에 리뷰 인용을 쓰지 않는다는 점만 다룬다.
-- 스펙 frontmatter `code:` 필드의 정의는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 이 정한다.
+- 스펙 본문 `## 구현 위치` 절의 정의는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 규칙 19 ~ 21 이 정한다. 옛 트리 frontmatter `code:` 의 자리다.
 
 ## 규칙
 
@@ -118,7 +118,7 @@ etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
 | 적용 범위의 스펙 문서 행 | 스펙 본문이 저장소 `spec/**` 에 있다 | 스펙 본문이 NERV 문서로 옮겨졌다(전환 단계 1). NERV 플러그인의 스펙 스킬은 저장소 `spec/**` 를 NERV 가 내보낸 읽기 전용 미러로 본다 |
 | 시행 가드(`dto-jsdoc-citation-guard.ts`) | 세 정규식이 리뷰 세션 디렉터리 이름 형태를 찾는다 | 전환 단계 4g 에서 NERV 발견 인용(`finding <ID>`)을 네 번째 형태로 더했다(강제 범위 표) |
 | Rationale «PR 번호로 전환하지 않은 이유» | 세션 경로가 git 이력으로 풀리고 라운드별 지적까지 가리킨다 | 새 리뷰에는 세션 경로가 없다. 기존 인용은 저장소 이력의 경로를 그대로 가리킨다 |
-| `code:` 의 준수 예시 | 이 규약을 지키는 파일을 스펙 frontmatter `code:` 에 적는다 | 이번 이전에서 `code:` 는 본문의 `## 구현 위치` 절로 옮겼다([스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md)) |
+| `code:` 의 준수 예시 | 이 규약을 지키는 파일을 스펙 frontmatter `code:` 에 적는다 | 이번 이전에서 `code:` 는 본문의 `## 구현 위치` 절로 옮겼다. 옛 트리 frontmatter `code:` 는 전환 단계 5 에서 걷었다. 준수 예시를 적어도 되는 예외는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 규칙 21 이 정한다 |
 
 ## 구현 위치
 
@@ -135,7 +135,7 @@ etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
 
 - `codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/jsdoc-citation*.ts`
 
-시행 코드 — 규칙 9 · 10(`review-citation-form`). `codebase/**` 텍스트 파일에서 줄인 발견 ID 와 `.review/` 아래 네 종류 디렉터리 경로가 0 인지 본다. 대조군은 테스트 안의 합성 입력과 허용 목록 낡음 검사다.
+시행 코드 — 규칙 9 · 10(`review-citation-form`). codebase 아래 텍스트 파일 전체에서 줄인 발견 ID 와 `.review/` 아래 네 종류 디렉터리 경로가 0 인지 본다. 대조군은 테스트 안의 합성 입력과 허용 목록 낡음 검사다.
 
 - `codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/codebase-mentions.ts` (공용 순회와 두 형태의 정규식)
@@ -173,7 +173,7 @@ etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
 
 ### `code:` 가 구현 경로 대신 준수 예시를 가리키는 이유
 
-[스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 은 `code:` 를 "이 스펙이 약속한 표면의 구현 경로" 로 정의한다. 이 규약은 처음에 강제하는 코드가 없었다. 주석 형태를 강제하는 가드가 없었기 때문이다. 그래서 `code:` 에 **이 규약이 처방하는 형태를 실제로 쓰는 파일**을 적었다. backend·frontend 에서 하나씩 골랐다. 이 예외는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 의 `code:` 필드 정의에 함께 적었다. 한쪽만 다시 해석하면 기준 문서가 그 사실을 모른다.
+[스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 은 `## 구현 위치` 를 "이 스펙이 약속한 표면의 구현 경로" 로 정의한다(규칙 19. 옛 트리에서는 frontmatter `code:` 였다). 이 규약은 처음에 강제하는 코드가 없었다. 주석 형태를 강제하는 가드가 없었기 때문이다. 그래서 `code:` 에 **이 규약이 처방하는 형태를 실제로 쓰는 파일**을 적었다. backend·frontend 에서 하나씩 골랐다. 이 예외는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 에 함께 적었다. 지금은 그 규약의 규칙 21 이다(옛 규칙 7). 한쪽만 다시 해석하면 기준 문서가 그 사실을 모른다.
 
 2026-09-06 부터는 한 축의 절반이 강제된다. `dto-jsdoc-citation-guard.ts` 가 "응답 DTO 의 `/** */` JSDoc 에 리뷰 인용을 쓰지 않는다" 를 AST 로 센다. 같은 위반이 세 번 났고 세 번 다 사람이 읽고 잡은 것이 계기다(`review/code/2026/09/06/12_28_02` W2). 그래서 `code:` 는 준수 예시 말고 시행 코드도 담게 됐다. 지금 구현 위치가 담는 범주는 다음과 같다.
 
@@ -185,9 +185,9 @@ etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
 | `review-citation-form.test.ts` | **시행 코드**. 규칙 9 · 10 의 `codebase/**` 행을 강제한다(2026-10-03) |
 | `codebase-mentions.ts` | 공용 모듈. 세 가드가 함께 쓰는 순회와 정규식 |
 
-frontmatter 에도 같은 구분을 인라인 YAML 주석으로 적었다(`review/consistency/2026/09/06/13_18_59` INFO#2 의 제안). 그 주석이 처음에는 `review_guard` 파서의 결함 때문에 항목을 떨어뜨렸다(그 파서는 전환 단계 2 에서 spec-linked 변경에 `--impl-done` 을 요구하던 게이트와 함께 없어졌다). 파서를 고친 경위는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) Rationale «`code:` 목록에 주석을 허용한 경위» 에 있다.
+frontmatter 에도 같은 구분을 인라인 YAML 주석으로 적었다(`review/consistency/2026/09/06/13_18_59` INFO#2 의 제안). 그 주석이 처음에는 `review_guard` 파서의 결함 때문에 항목을 떨어뜨렸다(그 파서는 전환 단계 2 에서 spec-linked 변경에 `--impl-done` 을 요구하던 게이트와 함께 없어졌다). 파서를 고친 경위는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) Rationale «`code:` 목록에 주석을 허용한 경위» 에 있다. 옛 트리 frontmatter 는 전환 단계 5 에서 걷었다. 지금은 위처럼 `## 구현 위치` 본문에서 문장으로 범주를 가른다(그 규약 규칙 21).
 
-기각한 대안: `codebase/backend/src/**` 처럼 넓은 트리를 적기. 가드는 통과하지만 이 저장소의 다른 규약 문서가 `code:` 를 좁고 구체적인 파일로 적는 관행과 어긋난다. 무엇보다 아무것도 가리키지 않는 것과 같다.
+기각한 대안: `codebase/backend/src/**` 처럼 넓은 트리를 적기. 가드는 통과하지만 이 저장소의 다른 규약 문서가 `code:` 를 좁고 구체적인 파일로 적는 관행과 어긋난다. 무엇보다 아무것도 가리키지 않는 것과 같다. 지금은 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 규칙 19 가 모든 `## 구현 위치` 에 같은 금지를 건다. 같은 이유로 이 문서의 구현 위치 문단은 시행 범위를 코드 스팬 `codebase/**` 로 적지 않고 말로 쓴다. 그 스팬은 경로 가드가 저장소 경로로 읽어 모든 codebase 파일에 맞는다(2026-10-03 정정).
 
 ### PR 번호로 전환하지 않은 이유
 

@@ -3,18 +3,18 @@ id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "c49b17719d2962172435d1aa5b1d64dee79734baa25bff51a61c399bf5b3d2a5"
-read_as: "approved"
-task: null
+content_hash: "26d04b61f2205f9ce8dc3bfa1f558da0c83c3f1c922a0d06aa226a95c83c84ed"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "a381bcbfff9f8c48e14428956c6bc421ff2c8baacc77134c64931f76dce593db"
-etag: "sha256-66d92c98f9ff8d7950381376e63a46f66deebef5b374f3843b12705f03dcce1e"
+mirror_sha256: "757be3207480ace8f65a580552d502244734af5bd5596789aa8c54fedeb53105"
+etag: "sha256-3125d44ce6e6dea096734d9ba20dcba1c2dbaf838f8e2f4995a242ad1b2da7a3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -692,6 +692,19 @@ type PresentationPayload = {
 - `toolCalls`(선택)는 그 턴에 실행한 provider 도구(지식 저장소·MCP)별 결과 메타다. 조건 도구와 일반 도구 stub 은 넣지 않는다. `status` 는 `'success' | 'error'` 이고, provider 가 예외를 던져도 핸들러가 받아 `'error'` 로 표시하며 턴은 계속한다. 대화 인스펙터 도구 배지의 권위 출처이며, WS 도구 호출 이벤트가 유실돼도 이 데이터로 복구한다.
 - 멀티턴의 `turnDebugHistory` 는 최근 `MAX_TURN_DEBUG_HISTORY = 50` 턴만 둔다(DB JSONB 비대화 방지).
 - 공통 타입: 각 `llmCalls[]` 항목은 공통 `LlmCallRecord`(`codebase/backend/src/shared/llm-tracing/llm-call-record.ts`, AI 에이전트와 정보 추출기 공유)다. `requestPayload`·`responsePayload`·`durationMs` 외에 `startedAt?`·`finishedAt?`(ISO 8601 wall-clock)도 가질 수 있고 모든 필드가 선택이다. 턴 항목은 기본 `TurnDebugEntry`(`{ turnIndex, llmCalls?, totalDurationMs? }`)에 진단 delta(`toolCalls?`·`ragSources?`·`ragDiagnostics?`·`mcpDiagnostics?`)를 더한 상위 집합이다([AI 노드 공통](CLE-NODE-AI-COMMON.md)).
+
+## 구현 위치
+
+- `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts` (설정 에코, 단일 턴 출력(정상 · 조건 · 에러), 멀티턴 입력 대기와 종결 출력, 표시물 페이로드 운반, `meta.turnDebug`)
+- `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` (멀티턴 사용자 종료와 최대 턴 도달의 진입점)
+- `codebase/backend/src/nodes/ai/ai-agent/ai-condition-evaluator.ts` (조건 매칭의 `condition.reason`)
+- `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 에러와 재개 경로)
+- `codebase/backend/src/modules/execution-engine/retry-turn.service.ts` (마지막 턴 재시도)
+- `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (재개 체크포인트와 재시도 상태 필드)
+- `codebase/backend/src/shared/conversation-thread/conversation-thread.types.ts` (표시물 페이로드 타입)
+- `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` (LLM 호출 기록 타입)
+- `codebase/frontend/src/components/editor/run-results/llm-call-trace.ts` (실행 결과 화면의 LLM 호출 기록 표시)
+- `codebase/frontend/src/components/editor/run-results/output-shape.ts` (턴별 디버그 데이터 정규화)
 
 ## Rationale
 

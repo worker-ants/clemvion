@@ -2,19 +2,19 @@
 id: "CLE-ENG-MIGRATION"
 title: "DB 마이그레이션 규약"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "3309a661710c8abb95ce6d581d7d3a5e5667b4ac3466751924a135b9442e4ccf"
+content_hash: "bd61a1ffb820911e082cef0042946cf422754dc27aa836de0ada1d55af97f1a9"
 read_as: "approved_fallback"
-task: "CLE-T-M7K35H"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "78347a846da8fcf328cb250e02be805094f43b858c50466b18eba6d4f0e6bada"
-etag: "sha256-cf5ef799aaa15c9a11452c507ff697231e7ab73bb6d9b7d79f83d543e77e68e3"
+mirror_sha256: "30d79701710e584bf5b1d5924429ea9e6d9744a0b17f469146899ef422dd20b6"
+etag: "sha256-f7e43a669557ca8441d6c8bc06a7695bb8914fd08d27de5f81d1e7ea4de5c698"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale «DB 마이그레이션 도구로 Flyway 채택») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -45,7 +45,7 @@ PostgreSQL 스키마를 바꾸는 마이그레이션(migration, `V<N>__*.sql`)�
 | 도구 | **Flyway** |
 | 버전 관리 | SQL 기반 마이그레이션 파일. 이름은 `V{version}__{description}.sql` |
 | 롤백 정책 | **forward-only**. 별도 undo 스크립트(`U{version}__...sql`)를 두지 않는다. 운영 사고에 대비한 롤백 SQL 은 각 마이그레이션 파일 하단에 `-- DOWN:` 주석으로 남긴다(`codebase/backend/migrations/README.md` §2) |
-| CI/CD 연동 | 배포 파이프라인에서 `flyway migrate` 를 자동 실행한다. 마이그레이션이 실패하면 배포를 멈춘다 |
+| CI/CD 연동 | 배포 파이프라인에서 `flyway migrate` 를 자동 실행한다. 마이그레이션이 실패하면 배포를 멈춘다. 저장소에는 배포 파이프라인이 아직 없다([비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 NF-DP-05, 부분 구현) |
 | 실행 방식 | 전용 Flyway Docker 이미지(`codebase/backend/migrations/Dockerfile`, `flyway/flyway:10-alpine`)에 `V*.sql` 과 마이그레이션별 `V*.conf` 를 COPY 한다. DB 접속 정보는 CLI 인자(`-url` / `-user` / `-password`)로 넣는다. 환경별 `flyway-{env}.conf` 파일은 쓰지 않는다 |
 | 기준선 | 최초 배포 때 `flyway baseline` 으로 기준점을 정한다 |
 
@@ -77,7 +77,7 @@ Flyway 는 부팅할 때 적용된 마이그레이션마다 SQL 내용의 checks
 
 적용된 마이그레이션의 주석에 남은 옛 스펙 경로와 지운 `plan/` 경로도 고치지 않는다. `.sql` 은 주석만 바꿔도 checksum 이 달라져 부팅이 실패한다. `.conf` 는 규칙 9(append-only)를 따라 고치지 않는다. 규칙 10 의 `migrate-repair` 는 운영 사고로 checksum 을 어쩔 수 없이 다시 맞출 때 쓴다. 주석 정리는 그 범위에 들지 않는다.
 
-이 문서에서 래칫(ratchet)은 파일별 기준값보다 늘거나 줄면 실패하는 가드를 말한다(줄면 통과하는 래칫과의 차이는 R-15). codebase 텍스트 파일에서 옛 스펙 경로나 지운 `plan/` 경로를 적은 줄은 옛 경로 래칫(`legacy-path-ratchet.test.ts`, [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 «codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다»)이 파일별로 센다. 적용된 마이그레이션(`V*.sql` · `V*.conf`)의 언급은 이 기준값에 영구히 남는다. 수치는 R-15 에 있다. 새 마이그레이션의 주석에는 옛 경로 대신 미러에 있는 문서의 NERV 키와 절 제목을 쓴다. 새 마이그레이션이 옛 경로를 적으면 래칫이 실패한다.
+아래 옛 경로 래칫은 파일별 기준값보다 늘어도 줄어도 실패하는 양방향 래칫이다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)). 줄면 통과하는 단방향 래칫과의 차이는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 에 있다. codebase 텍스트 파일에서 옛 스펙 경로나 지운 `plan/` 경로를 적은 줄은 옛 경로 래칫(`legacy-path-ratchet.test.ts`, [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 «codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다»)이 파일별로 센다. 적용된 마이그레이션(`V*.sql` · `V*.conf`)의 언급은 이 기준값에 영구히 남는다. 수치는 스펙과 구현 근거 규약 R-15 에 있다. 새 마이그레이션의 주석에는 옛 경로 대신 미러에 있는 문서의 NERV 키와 절 제목을 쓴다. 새 마이그레이션이 옛 경로를 적으면 래칫이 실패한다.
 
 ### `outOfOrder=false` 를 유지하는 이유
 

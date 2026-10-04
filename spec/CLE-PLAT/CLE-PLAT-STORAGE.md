@@ -3,18 +3,18 @@ id: "CLE-PLAT-STORAGE"
 title: "파일 저장소"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "1cdc748b6925739d9157162af86e9da1629db168a63dc1a31dec6d5fd6271350"
-read_as: "approved"
-task: null
+content_hash: "a3d2303f4c79cb1e040a100e8145ab6dc4ea37284b367ef8463b909e5b9c7877"
+read_as: "approved_fallback"
+task: "CLE-T-RGZBCQ"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md", "spec/data-flow/4-file-storage.md"]
-mirror_sha256: "ef1b2399f2bbf104fe60017007855dc8cad8f0f44cee41870217baf21663ff41"
-etag: "sha256-a6d0d44661fc403793a7adaa8c7e2c505738cdaf33d801ee68e192ff44d3ac45"
+mirror_sha256: "b60852fc816a756ca9fc14e525a4ba8206f039055a71dfc9cd93db428a83288c"
+etag: "sha256-82d5fab4e82cf6609eaeb1ceb257893ff901c557f945bb3a33797341ad24cf39"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (§2.7 Object Storage, Rationale «S3 객체 키 prefix 설계»), `spec/data-flow/4-file-storage.md` (전체), `spec/data-flow/0-overview.md` (Rationale «KB 원본 문서 S3 key 구조») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -144,6 +144,15 @@ flowchart LR
 | 의존 | 방향 |
 | --- | --- |
 | AWS S3 / MinIO | 내부 → 외부 (PUT·GET·DELETE) |
+
+## 구현 위치
+
+- `codebase/backend/src/common/services/s3.service.ts` (저장소 접근: 올리기 · 받기 · 지우기 · 일괄 삭제)
+- `codebase/backend/src/common/config/s3.config.ts` (설정 키와 기본값, 공개 주소 계산)
+- `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts` (지식 저장소 원본 문서의 키 규칙 · 올리기 · 삭제)
+- `codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts`, `codebase/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts` (파싱 단계의 원본 받기)
+- `codebase/backend/src/modules/users/users.service.ts`, `codebase/backend/src/modules/users/users.controller.ts` (프로필 이미지 키 · 크기 한도 · 교체 때 옛 객체 삭제)
+- `scripts/minio/*` (공개 읽기 정책과 배포 선행 조건)
 
 ## Rationale
 

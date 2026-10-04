@@ -3,18 +3,18 @@ id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "ff1a990076dcb363276eff2ed74c9170fbeedce2e18aa9abee67e453f23387f7"
-read_as: "approved"
-task: null
+content_hash: "2f4645bc0b7c7c9f96a608d5172fcf208b8f50a4c5f76b1ea920bdbdc562da09"
+read_as: "approved_fallback"
+task: "CLE-T-52JYHM"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c3452512e6625add3af2a5bd3069a0ef61a0f7ec85fefdd424c0acbe7f40de87"
-etag: "sha256-32ad12b1d9492b2dd0493c5c0d95c3179421335a206400e0dfd6c098c7372db6"
+mirror_sha256: "99fabfa0bb8f57211a8aeba522bf3002bd0efec4af2ffbf8442769c069ddb7da"
+etag: "sha256-5f57a39703d9687d56264fb751c04356ba9c176f35b7ebd340ad60c02500a775"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -297,4 +297,4 @@ ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 
 
 ### 컨테이너의 범위
 
-용어 사전은 "컨테이너" 를 Loop · ForEach · Map 세 노드로 정했다. 원문은 Parallel 과 Background 도 컨테이너로 불렀다. Parallel 은 캔버스 멤버십(`containerId`)이 없고 엔진 덮어쓰기만 함께 받으므로 "엔진 덮어쓰기 대상 노드" 로 부른다. Background 는 멤버십도 덮어쓰기도 없으므로 컨테이너로 부르지 않는다.
+[용어 사전 — 워크플로우 작성](../CLE-GLOSSARY-WF.md) 의 「컨테이너」 행은 컨테이너를 Loop · ForEach · Map 세 노드로 정했다(구분 표기는 [용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md), 결정은 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「컨테이너의 범위」 항목(D17)). 원문은 Parallel 과 Background 도 컨테이너로 불렀다. Parallel 은 캔버스 멤버십(`containerId`)이 없고 엔진 덮어쓰기만 함께 받으므로 "엔진 덮어쓰기 대상 노드" 로 부른다. Background 는 멤버십도 덮어쓰기도 없으므로 컨테이너로 부르지 않는다.
