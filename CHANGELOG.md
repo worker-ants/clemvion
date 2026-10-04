@@ -23,6 +23,19 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 툴체인: TypeScript 를 6 으로 올린다
+
+NestJS 12 상향을 막던 세 벽 가운데 하나를 푼다. `@nestjs/schematics@12` 는 모든 버전이 `typescript>=6.0.0` 을 peer 로 요구한다(NERV Task `CLE-T-8AY2KZ`). TS 6 은 고전 JS 컴파일러의 마지막 라인이라 `require('typescript')` 의 compiler API 가 그대로 있다. 7(Go 재작성판)은 계속 막는다.
+
+- 11개 워크스페이스의 `typescript` 를 함께 올렸다(`^6.0.3`, frontend · channel-web-chat 은 `^6`). lockfile 에서 해소 버전이 바뀐 패키지는 typescript 하나다. 나머지 줄은 피어 접미사만 다시 직렬화됐다. `@nestjs/cli@11` 이 자기 의존으로 둔 typescript 5.9.3 은 남는다. 그 CLI 는 cwd 의 typescript 를 먼저 쓰므로 빌드는 6 으로 돈다.
+- TS 6 의 기본값 변경에 맞춰 tsconfig 를 고쳤다. 판정과 산출물은 그대로 둔다.
+  - `types` 기본값이 `[]` 가 되어 `@types/*` 를 자동으로 넣지 않는다. 전역 선언을 쓰는 곳만 적었다. 내부 packages 8개는 `jest`(sdk 는 `node` 도), backend 는 `node` · `jest` · `multer`(`Express.Multer.File`)다. frontend · channel-web-chat 은 고치지 않아도 기준과 같다.
+  - `strict` 기본값이 `true` 가 됐다. backend 는 `strict` 없이 개별 플래그로 운용해 왔으므로 `"strict": false` 를 적어 기존 판정을 유지했다. 적지 않으면 전체 프로그램 오류가 194건에서 1,585건으로 늘어난다(늘어난 1,391건 가운데 1,364건이 TS2564).
+  - `outDir` 이 있으면 `rootDir` 을 적어야 한다(TS5011). backend `tsconfig.json` 에 `"rootDir": "./"` 를 넣었다. ts-jest 가 이 파일로 spec 을 변환하므로 없으면 backend 스위트 496개가 전부 실패한다. 빌드는 `tsconfig.build.json` 의 `./src` 를 그대로 쓴다.
+  - `baseUrl` 이 폐기 예정 옵션이 됐다(TS5101). backend 에서 이 옵션에 기대는 import 가 0건이라 지웠다.
+- 확인: backend 194건 · frontend 52건 타입체크 ratchet 이 기준과 같다. backend 는 TS 5.9.3 으로 같은 프로그램을 잰 결과와 오류 위치 · 코드 194건이 그대로 일치한다. `--frozen-lockfile --strict-peer-dependencies` 설치가 통과한다(typescript-eslint peer `<6.1.0` 안).
+- `.github/dependabot.yml` 의 typescript major ignore 는 그대로 두고 주석에 이번 상향을 적었다. 이 항목은 이제 6 → 7 을 막는다.
+
 ## Unreleased — 개발 흐름: 의존성 핀의 사유를 하네스 테스트가 확인한다
 
 `PROJECT.md` §버전 핀 정책 (b) · (c)는 caret 이 아닌 선언에 `"//pin"` 사유를 적게 하고 사유가 없으면 caret 으로 완화하게 한다. 이 규칙을 보는 검사는 없었다. 2026-10-02 전수 조사에서 사유 없는 exact 핀 3개와 dependabot 이 이미 올린 버전을 적은 사유 주석이 두 매니페스트의 세 곳(frontend 의 `three ~0.184.0` · `19.2.4`, channel-web-chat 의 `19.2.4`)에서 나왔다(NERV Task `CLE-T-BZ0AK9`).

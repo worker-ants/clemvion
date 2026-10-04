@@ -115,6 +115,10 @@ updates:
       # typescript-eslint 의 peer 는 지금도 `>=4.8.4 <6.1.0` 이라 TS7 을 배제한다).
       # 생태계 대응이 끝난 뒤 **사람이** 올릴 판단을 해야 한다.
       #
+      # 2026-10-04 사람이 6 으로 올렸다(NERV Task `CLE-T-8AY2KZ`). 6 은 compiler API 를 그대로
+      # 둔 마지막 JS 라인이다. 이 항목은 이제 6 → 7 을 막는다. minor 로 6.1 이 나오면 위
+      # typescript-eslint peer(`<6.1.0`)에 걸려 CI `--strict-peer-dependencies` 가 그 PR 을 실패시킨다.
+      #
       # minor/patch 는 계속 받는다 — `update-types` 로 major 만 잘라낸다. 별개 토글인
       # security updates 도 patch 로 오는 한 영향 없다.
       #
