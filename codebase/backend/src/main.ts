@@ -53,6 +53,7 @@ import {
   resolvePublicBaseUrl,
   shouldWarnPublicBaseIsPrivate,
 } from './common/config/s3.config';
+import { mailConfig, shouldWarnPlainSmtp } from './common/config/mail.config';
 
 /**
  * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
@@ -169,6 +170,17 @@ async function bootstrap() {
         `(${resolvePublicBaseUrl(process.env)}) — 아바타 업로드는 성공하지만 브라우저가 ` +
         '이미지를 가져오지 못합니다. 공개 도메인/CDN 주소로 설정하세요. ' +
         '단일 호스트·사내망 self-host 라면 무시해도 됩니다.',
+    );
+  }
+
+  // 시스템 메일의 STARTTLS 강제를 끈 운영 배포를 가시화한다. STARTTLS 를 지원하지 않는 사내
+  // 릴레이처럼 정당한 용도가 있어 throw 하지 않는다(위 두 경고와 같은 기준). 판정은
+  // `mail.config.ts` 의 순수 함수에 있다.
+  if (shouldWarnPlainSmtp(process.env.NODE_ENV, mailConfig())) {
+    logger.warn(
+      '[SECURITY] MAIL_REQUIRE_TLS=false (production) — 시스템 메일이 STARTTLS 없이 평문 SMTP 로 ' +
+        '나갈 수 있습니다. 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 노출될 수 있으니 ' +
+        'STARTTLS 를 지원하지 않는 서버를 쓰는 경우에만 끄세요.',
     );
   }
 

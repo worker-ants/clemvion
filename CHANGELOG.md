@@ -25,10 +25,11 @@
 
 ## Unreleased — 배포: 시스템 메일을 암호화한 SMTP 연결로만 보낸다
 
-`MAIL_TRANSPORT=smtp` 이고 `MAIL_SECURE=false`(기본 포트 587)면 이제 STARTTLS 를 강제한다(nodemailer `requireTLS`). 전에는 서버가 STARTTLS 를 알릴 때만 암호화했다. 그래서 능동 중간자가 EHLO 응답에서 STARTTLS 를 지우면 이메일 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 평문으로 나갔다. `@nestjs-modules/mailer` 를 쓰던 때도 같았다(사람 결정, NERV Task `CLE-T-67BNAZ`).
+`MAIL_TRANSPORT=smtp` 이고 `MAIL_SECURE` 가 `true` 가 아니면(기본값, 포트 587) 이제 STARTTLS 를 강제한다(nodemailer `requireTLS`). 전에는 서버가 STARTTLS 를 알릴 때만 암호화했다. 그래서 능동 중간자가 EHLO 응답에서 STARTTLS 를 지우면 이메일 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 평문으로 나갔다. `@nestjs-modules/mailer` 를 쓰던 때도 같았다(사람 결정, NERV Task `CLE-T-67BNAZ`).
 
-- **배포 영향**: STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 발송이 실패한다(`ETLS`). 그런 서버만 새 환경 변수 `MAIL_REQUIRE_TLS=false` 로 끈다. 값이 `false` 가 아니면(비우거나 빠뜨려도) 강제한다. `MAIL_SECURE=true`(암묵적 TLS, 보통 465)와 `console` 전송(로컬 · e2e)은 영향이 없다.
-- STARTTLS 를 알리지 않는 가짜 SMTP 서버로 기본 설정은 AUTH 와 메일 명령을 보내기 전에 멈추고 `MAIL_REQUIRE_TLS=false` 면 보낸다는 것을 테스트로 고정했다. 설정 기본값도 테스트로 고정했다.
+- **배포 영향**: STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 발송이 실패한다(`ETLS`). 재설정 · 초대 · 통지 메일 실패는 사용자에게 드러나지 않고 서버 로그에만 남으므로 배포 뒤 `ETLS` 로그를 확인한다. 그런 서버만 새 환경 변수 `MAIL_REQUIRE_TLS=false` 로 끈다. 값이 `false` 가 아니면(비우거나 빠뜨려도) 강제한다. `MAIL_SECURE=true`(암묵적 TLS, 보통 465)와 `console` 전송(로컬 · e2e)은 영향이 없다. Send Email 노드의 SMTP 통합은 통합마다 고르는 `secure`(`none` · `starttls` · `tls`)를 그대로 따른다.
+- 운영(`NODE_ENV=production`)에서 SMTP 전송인데 `MAIL_REQUIRE_TLS=false` 로 끄고 부팅하면 `[SECURITY]` 경고를 남긴다. 정당한 용도가 있어 부팅을 거부하지는 않는다(`ALLOW_PRIVATE_HOST_TARGETS` 경고와 같은 기준).
+- STARTTLS 를 알리지 않는 가짜 SMTP 서버로 기본 설정은 AUTH 와 메일 명령을 보내기 전에 멈추고 `MAIL_REQUIRE_TLS=false` 면 보낸다는 것을 테스트로 고정했다. 설정 기본값과 운영 경고 판정도 테스트로 고정했다.
 - `README.md` · `codebase/backend/.env.example` · `k8s/base/secret.example.yaml` 에 `MAIL_REQUIRE_TLS` 를 적었다.
 
 ## Unreleased — 의존성: mailer 경로에만 있던 overrides 5건을 걷는다

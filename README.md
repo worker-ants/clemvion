@@ -231,7 +231,7 @@ MAIL_TRANSPORT=console
 MAIL_HOST=smtp.example.com
 MAIL_PORT=587
 MAIL_SECURE=false
-# MAIL_SECURE=false 면 STARTTLS 를 강제한다. STARTTLS 를 지원하지 않는 SMTP 서버에서만 false 로 끈다.
+# MAIL_SECURE 가 true 가 아니면 STARTTLS 를 강제한다. STARTTLS 를 지원하지 않는 SMTP 서버에서만 false 로 끈다.
 MAIL_REQUIRE_TLS=true
 MAIL_USER=<smtp-user>
 MAIL_PASS=<smtp-password>
