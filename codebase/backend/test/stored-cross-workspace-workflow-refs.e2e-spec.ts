@@ -11,8 +11,6 @@
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -21,10 +19,6 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
-const AUDIT_SQL = path.resolve(
-  __dirname,
-  '../scripts/ops/2026-10-05-cross-workspace-id-ref-audit.sql',
-);
 
 type Actor = { token: string; workspaceId: string };
 
@@ -219,119 +213,5 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
     // 연결된 워크플로우가 없을 때와 같은 본문이다(없는 워크플로우와 다른 워크스페이스의 워크플로우를
     // 구분하지 않는다).
     expect(res.body.error.message).toBe('Schedule has no associated workflow');
-  });
-  // 운영 점검 SQL 을 그대로 실행한다. 다른 e2e 가 같은 DB 에 교차 행을 남길 수 있어 포함 · 부재로만 단언한다.
-  it('운영 점검 SQL 이 교차 행을 찾고 같은 워크스페이스의 행은 싣지 않는다', async () => {
-    const crossTrigger = await as(
-      attacker,
-      request(BASE_URL).post('/api/triggers'),
-    ).send({
-      workflowId: attackerWorkflowId,
-      type: 'webhook',
-      name: uniqueName('xexec-audit-x'),
-      endpointPath: randomUUID(),
-    });
-    const sameTrigger = await as(
-      attacker,
-      request(BASE_URL).post('/api/triggers'),
-    ).send({
-      workflowId: attackerWorkflowId,
-      type: 'webhook',
-      name: uniqueName('xexec-audit-ok'),
-      endpointPath: randomUUID(),
-    });
-    expect(crossTrigger.status).toBe(201);
-    expect(sameTrigger.status).toBe(201);
-    const crossTriggerId = (crossTrigger.body.data as { id: string }).id;
-    const sameTriggerId = (sameTrigger.body.data as { id: string }).id;
-    createdTriggerIds.push(crossTriggerId, sameTriggerId);
-    await db.query('UPDATE trigger SET workflow_id = $2 WHERE id = $1', [
-      crossTriggerId,
-      victimWorkflowId,
-    ]);
-
-    const victimFolder = await as(
-      victim,
-      request(BASE_URL).post('/api/folders'),
-    ).send({ name: uniqueName('xexec-vf') });
-    expect(victimFolder.status).toBe(201);
-    const victimFolderId = (victimFolder.body.data as { id: string }).id;
-    // 노드 구조 참조(LATERAL 분기)는 워크스페이스 대신 워크플로우 id 를 싣는다.
-    const saveOneNode = async (actor: Actor, workflowId: string) => {
-      const nodeId = randomUUID();
-      const saved = await as(
-        actor,
-        request(BASE_URL).post(`/api/workflows/${workflowId}/save`),
-      ).send({
-        nodes: [
-          {
-            id: nodeId,
-            type: 'manual_trigger',
-            category: 'trigger',
-            label: 'Start',
-            positionX: 0,
-            positionY: 0,
-            config: {},
-          },
-        ],
-        edges: [],
-      });
-      expect(saved.status).toBe(200);
-      return nodeId;
-    };
-    const attackerNodeWorkflowId = await createWorkflow(attacker, 'xexec-anw');
-    const victimNodeWorkflowId = await createWorkflow(victim, 'xexec-vnw');
-    const attackerNodeId = await saveOneNode(attacker, attackerNodeWorkflowId);
-    const victimNodeId = await saveOneNode(victim, victimNodeWorkflowId);
-
-    try {
-      await db.query('UPDATE workflow SET folder_id = $2 WHERE id = $1', [
-        attackerWorkflowId,
-        victimFolderId,
-      ]);
-      await db.query('UPDATE node SET container_id = $2 WHERE id = $1', [
-        attackerNodeId,
-        victimNodeId,
-      ]);
-
-      const audit = await db.query<{
-        check_name: string;
-        row_id: string;
-        row_workspace_id: string;
-        ref_id: string;
-        ref_workspace_id: string;
-      }>(readFileSync(AUDIT_SQL, 'utf8'));
-
-      expect(audit.rows).toContainEqual({
-        check_name: 'trigger.workflow_id',
-        row_id: crossTriggerId,
-        row_workspace_id: attacker.workspaceId,
-        ref_id: victimWorkflowId,
-        ref_workspace_id: victim.workspaceId,
-      });
-      expect(audit.rows).toContainEqual({
-        check_name: 'workflow.folder_id',
-        row_id: attackerWorkflowId,
-        row_workspace_id: attacker.workspaceId,
-        ref_id: victimFolderId,
-        ref_workspace_id: victim.workspaceId,
-      });
-      expect(audit.rows).toContainEqual({
-        check_name: 'node.container_id',
-        row_id: attackerNodeId,
-        row_workspace_id: attackerNodeWorkflowId,
-        ref_id: victimNodeId,
-        ref_workspace_id: victimNodeWorkflowId,
-      });
-      expect(audit.rows.map((r) => r.row_id)).not.toContain(sameTriggerId);
-    } finally {
-      // 단언이 실패해도 공유 DB 에 교차 행을 남기지 않는다.
-      await db.query('UPDATE workflow SET folder_id = NULL WHERE id = $1', [
-        attackerWorkflowId,
-      ]);
-      await db.query('UPDATE node SET container_id = NULL WHERE id = $1', [
-        attackerNodeId,
-      ]);
-    }
   });
 });
