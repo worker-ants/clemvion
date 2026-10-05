@@ -7,6 +7,9 @@
 // 실행됐다. 이 파일은 SQL 로 그 행을 만들고 웹훅 호출과 스케줄 «지금 실행» 을 밟는다. 고치기 전 코드에서는
 // 둘 다 피해자 워크플로우의 실행 행을 만들었다.
 //
+// 복합 FK(V141, NERV Task `CLE-T-QTRRE6`) 뒤에는 DB 도 그 행을 막는다. 엔진 대조는 저장 검사와 DB 제약을 모두
+// 지나친 행에 대한 방어선으로 남기고, 이 파일은 그 행을 복제 모드(FK 트리거를 끈다)로 만들어 잰다.
+//
 // 피해 단언(피해자 워크플로우의 실행 행 수)을 상태 코드 단언보다 먼저 둔다.
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
@@ -53,6 +56,22 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
     return (res.body.data as { id: string }).id;
   };
 
+  /** 트리거의 워크플로우를 다른 워크스페이스 것으로 바꾼다. 복제 모드는 `SET LOCAL` 이라 이 트랜잭션에서만 켜진다. */
+  const forgeCrossWorkflow = async (triggerId: string, workflowId: string) => {
+    await db.query('BEGIN');
+    try {
+      await db.query('SET LOCAL session_replication_role = replica');
+      await db.query('UPDATE trigger SET workflow_id = $2 WHERE id = $1', [
+        triggerId,
+        workflowId,
+      ]);
+      await db.query('COMMIT');
+    } catch (err) {
+      await db.query('ROLLBACK');
+      throw err;
+    }
+  };
+
   const victimExecutionCount = async (): Promise<number> => {
     const r = await db.query<{ count: string }>(
       'SELECT count(*) FROM execution WHERE workflow_id = $1',
@@ -94,10 +113,7 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
     const triggerId = (created.body.data as { id: string }).id;
     createdTriggerIds.push(triggerId);
     // 요청 본문으로는 막혔으므로 SQL 로 그 전에 저장된 행을 흉내 낸다.
-    await db.query('UPDATE trigger SET workflow_id = $2 WHERE id = $1', [
-      triggerId,
-      victimWorkflowId,
-    ]);
+    await forgeCrossWorkflow(triggerId, victimWorkflowId);
     const before = await victimExecutionCount();
 
     const res = await request(BASE_URL)
@@ -155,10 +171,7 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
     expect(created.status).toBe(201);
     const triggerId = (created.body.data as { id: string }).id;
     createdTriggerIds.push(triggerId);
-    await db.query('UPDATE trigger SET workflow_id = $2 WHERE id = $1', [
-      triggerId,
-      victimWithParam,
-    ]);
+    await forgeCrossWorkflow(triggerId, victimWithParam);
     const executionsBefore = await db.query<{ count: string }>(
       'SELECT count(*) FROM execution WHERE workflow_id = $1',
       [victimWithParam],
@@ -197,10 +210,7 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
     );
     const triggerId = linked.rows[0].trigger_id;
     createdTriggerIds.push(triggerId);
-    await db.query('UPDATE trigger SET workflow_id = $2 WHERE id = $1', [
-      triggerId,
-      victimWorkflowId,
-    ]);
+    await forgeCrossWorkflow(triggerId, victimWorkflowId);
     const before = await victimExecutionCount();
 
     const res = await as(

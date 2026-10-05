@@ -129,6 +129,8 @@ interface DbForeignKey {
   upd: string;
   cols: string[];
   refcols: string[];
+  /** `ON DELETE SET NULL (…)` 의 컬럼 목록(`confdelsetcols`). 목록이 없으면 빈 배열이다. */
+  setnull: string[];
 }
 
 type IndexDecl = EntityMetadata['indices'][number];
@@ -357,6 +359,56 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
     return a.length === b.length && a.every((c, i) => c === b[i]);
   }
 
+  /**
+   * 범위 컬럼 — 복합 FK `(참조, 범위) → (id, 범위)` 의 둘째 컬럼으로 인정하는 이름. 자식과 부모가 같은 이름으로 가진다.
+   * 엔티티는 단일 컬럼 `@ManyToOne` 을 두고 DB 는 복합 FK 를 둔다(V141). 엔티티에 복합 `@JoinColumn` 을 선언하면 TypeORM 이
+   * 관계 값으로 범위 컬럼을 덮어쓰고, 관계를 비울 때 범위 컬럼까지 NULL 로 보낸다(2026-10-05 프로브).
+   * 근거: [데이터 모델 개요 「워크스페이스 범위 참조를 복합 FK 로도 막는다」](CLE-PLAT-DATA#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)
+   */
+  const SCOPE_COLUMNS: ReadonlySet<string> = new Set([
+    'workspace_id',
+    'workflow_id',
+  ]);
+
+  type RelationColumns = Pick<
+    ForeignKeyDecl,
+    'columnNames' | 'referencedColumnNames'
+  >;
+
+  /** 관계 선언과 같은 참조인가. 컬럼이 같거나, 단일 컬럼 선언의 뒤에 같은 범위 컬럼을 하나씩 덧붙인 복합 FK 면 같다. */
+  function sameRelationColumns(
+    r: Pick<DbForeignKey, 'cols' | 'refcols'>,
+    fk: RelationColumns,
+  ): boolean {
+    if (
+      sameColumns(r.cols, fk.columnNames) &&
+      sameColumns(r.refcols, fk.referencedColumnNames)
+    ) {
+      return true;
+    }
+    if (fk.columnNames.length !== 1 || r.cols.length !== 2) return false;
+    const scope = r.cols[1];
+    return (
+      SCOPE_COLUMNS.has(scope) &&
+      sameColumns(r.cols, [fk.columnNames[0], scope]) &&
+      sameColumns(r.refcols, [fk.referencedColumnNames[0], scope])
+    );
+  }
+
+  /**
+   * 범위 컬럼을 덧붙인 복합 FK 의 SET NULL 은 참조 컬럼만 비워야 한다(`ON DELETE SET NULL (참조 컬럼)`). 범위 컬럼은 NOT NULL 이라
+   * 둘 다 비우면 부모 삭제가 실패한다. 선언 그대로의 FK 는 이 조건과 상관없다.
+   */
+  function scopedSetNullKeepsScope(
+    r: Pick<DbForeignKey, 'cols' | 'del' | 'setnull'>,
+    fk: RelationColumns,
+  ): boolean {
+    if (fk.columnNames.length !== 1 || r.cols.length !== 2 || r.del !== 'n') {
+      return true;
+    }
+    return sameColumns(r.setnull, [r.cols[0]]);
+  }
+
   it('정규화 비교가 표기 차이는 같다고, 컬럼 이름이 된 식은 만들 수 없다고 판정한다 (판별력 대조군)', async () => {
     await inRolledBackTx(async () => {
       const real = await db.query<{ def: string }>(
@@ -494,7 +546,92 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
     expect(problems).toEqual([]);
   });
 
-  it('관계 FK — 같은 컬럼 · 참조 테이블 · 참조 컬럼의 FK 가 있고 ON DELETE · ON UPDATE 가 같다', async () => {
+  it('관계 FK 대조 — 선언 그대로이거나 선두가 같고 같은 범위 컬럼을 덧붙인 복합 FK 만 같다고 보고, 그 SET NULL 은 참조 컬럼만 비워야 한다 (판별력 대조군)', () => {
+    const decl: RelationColumns = {
+      columnNames: ['workflow_id'],
+      referencedColumnNames: ['id'],
+    };
+    const cases: ReadonlyArray<[string, string[], string[], boolean]> = [
+      ['선언 그대로', ['workflow_id'], ['id'], true],
+      [
+        '워크스페이스 범위',
+        ['workflow_id', 'workspace_id'],
+        ['id', 'workspace_id'],
+        true,
+      ],
+      [
+        '워크플로우 범위',
+        ['workflow_id', 'workflow_id'],
+        ['id', 'workflow_id'],
+        true,
+      ],
+      [
+        '범위 컬럼이 아니다',
+        ['workflow_id', 'created_by'],
+        ['id', 'created_by'],
+        false,
+      ],
+      [
+        '자식 · 부모의 범위 컬럼이 다르다',
+        ['workflow_id', 'workspace_id'],
+        ['id', 'workflow_id'],
+        false,
+      ],
+      [
+        '선두가 다르다',
+        ['folder_id', 'workspace_id'],
+        ['id', 'workspace_id'],
+        false,
+      ],
+      [
+        '순서가 다르다',
+        ['workspace_id', 'workflow_id'],
+        ['workspace_id', 'id'],
+        false,
+      ],
+      [
+        '참조 컬럼이 다르다',
+        ['workflow_id', 'workspace_id'],
+        ['name', 'workspace_id'],
+        false,
+      ],
+      [
+        '컬럼이 셋이다',
+        ['workflow_id', 'workspace_id', 'workflow_id'],
+        ['id', 'workspace_id', 'workflow_id'],
+        false,
+      ],
+    ];
+    expect(
+      cases.map(([label, cols, refcols]) => [
+        label,
+        sameRelationColumns({ cols, refcols }, decl),
+      ]),
+    ).toEqual(cases.map(([label, , , same]) => [label, same]));
+
+    const scoped = ['workflow_id', 'workspace_id'];
+    const setNullCases: ReadonlyArray<[string, string, string[], boolean]> = [
+      ['참조 컬럼만 비운다', 'n', ['workflow_id'], true],
+      ['컬럼 목록이 없다(둘 다 비운다)', 'n', [], false],
+      ['범위 컬럼까지 비운다', 'n', ['workflow_id', 'workspace_id'], false],
+      ['CASCADE 는 상관없다', 'c', [], true],
+    ];
+    expect(
+      setNullCases.map(([label, del, setnull]) => [
+        label,
+        scopedSetNullKeepsScope({ cols: scoped, del, setnull }, decl),
+      ]),
+    ).toEqual(setNullCases.map(([label, , , ok]) => [label, ok]));
+    // 선언 그대로의 FK 는 SET NULL 컬럼 목록을 보지 않는다
+    expect(
+      scopedSetNullKeepsScope(
+        { cols: ['workflow_id'], del: 'n', setnull: [] },
+        decl,
+      ),
+    ).toBe(true);
+  });
+
+  it('관계 FK — 같은 컬럼 · 참조 테이블 · 참조 컬럼의 FK(또는 범위 컬럼을 덧붙인 복합 FK)가 있고 ON DELETE · ON UPDATE 가 같다', async () => {
     const problems: string[] = [];
     let checked = 0;
     // 카탈로그를 읽기만 하므로 트랜잭션으로 감싸지 않는다 — 위 셋은 임시 테이블을 만들어 ROLLBACK 이 필요했다.
@@ -507,7 +644,9 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
                 ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
                         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum ORDER BY k.ord) AS cols,
                 ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, ord)
-                        JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum ORDER BY k.ord) AS refcols
+                        JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum ORDER BY k.ord) AS refcols,
+                ARRAY(SELECT a.attname::text FROM unnest(coalesce(c.confdelsetcols, '{}'::int2[])) AS k(attnum)
+                        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum) AS setnull
            FROM pg_constraint c
           WHERE c.conrelid = $1::regclass AND c.contype = 'f'`,
         [qualified(meta.tableName)],
@@ -517,9 +656,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
         const label = describeForeignKeyDecl(meta, fk);
         const same = rows.filter(
           (r) =>
-            sameColumns(r.cols, fk.columnNames) &&
-            r.reftbl === fk.referencedTablePath &&
-            sameColumns(r.refcols, fk.referencedColumnNames),
+            sameRelationColumns(r, fk) && r.reftbl === fk.referencedTablePath,
         );
         if (same.length === 0) {
           problems.push(`${label} — 같은 FK 가 없다`);
@@ -528,7 +665,8 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
         const exact = same.filter(
           (r) =>
             FK_ACTION[r.del] === (fk.onDelete ?? 'NO ACTION') &&
-            FK_ACTION[r.upd] === (fk.onUpdate ?? 'NO ACTION'),
+            FK_ACTION[r.upd] === (fk.onUpdate ?? 'NO ACTION') &&
+            scopedSetNullKeepsScope(r, fk),
         );
         if (exact.length === 0) {
           const actual = same.map(describeDbForeignKey).join(' · ');

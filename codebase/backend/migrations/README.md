@@ -2,6 +2,8 @@
 
 PostgreSQL 스키마 마이그레이션은 [Flyway](https://flywaydb.org/) 네이밍 규약을 따른 순수 SQL 파일로 관리됩니다.
 
+**최소 PostgreSQL 15** — V141 의 복합 FK 가 `ON DELETE SET NULL (컬럼 목록)` 을 씁니다. 이 문법은 PostgreSQL 15 부터 있어 그 아래 버전에서는 V141 이 실패합니다. 근거는 NERV `CLE-PLAT-DATA` Rationale 「워크스페이스 범위 참조를 복합 FK 로도 막는다 (2026-10-05)」 입니다.
+
 ## 파일 네이밍
 
 ```

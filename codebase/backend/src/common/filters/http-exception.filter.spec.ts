@@ -174,6 +174,31 @@ describe('GlobalExceptionFilter', () => {
     error.mockRestore();
   });
 
+  it('복합 FK 위반(23503)은 500 INTERNAL_ERROR 로 가리고 제약 이름은 서버 로그에만 남긴다', () => {
+    // 저장 시점 검사를 빠뜨린 쓰기가 DB 의 범위 FK(V141, CLE-PLAT-DATA 「워크스페이스 범위 참조를 복합 FK 로도
+    // 막는다」)에 걸린 경우다. 사용자가 고칠 수 없는 서버 결함이라 새 코드 없이 500 이다.
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const { host, status, json } = mockHost();
+    const driverError = Object.assign(
+      new Error(
+        'insert or update on table "trigger" violates foreign key constraint "fk_trigger_workflow_id"',
+      ),
+      { code: '23503', constraint: 'fk_trigger_workflow_id' },
+    );
+    const err = new QueryFailedError('UPDATE trigger ...', [], driverError);
+    new GlobalExceptionFilter().catch(err, host);
+    // mockRestore 는 호출 기록을 지우므로 먼저 옮겨 둔다
+    const logged = error.mock.calls.map((c) => String(c[0]));
+    error.mockRestore();
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
+    expect(JSON.stringify(bodyOf(json))).not.toContain(
+      'fk_trigger_workflow_id',
+    );
+    expect(logged.some((m) => m.includes('fk_trigger_workflow_id'))).toBe(true);
+  });
+
   it('recognizes nested { error: { code, message, details } } envelope (API §5.3 shape)', () => {
     // interaction 모듈처럼 nested error shape 으로 throw 하는 코드도 정상 직렬화한다.
     const { host, status, json } = mockHost();

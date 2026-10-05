@@ -90,7 +90,7 @@ Client (Next.js SPA)
 | **스타일링**      | Tailwind CSS, Radix UI              |
 | **Backend**   | NestJS 12, TypeScript               |
 | **ORM**       | TypeORM                             |
-| **데이터베이스**    | PostgreSQL 18                       |
+| **데이터베이스**    | PostgreSQL 18 (최소 15)             |
 | **캐시/메시지 큐**  | Redis 7, BullMQ                     |
 | **실시간 통신**    | Socket.io                           |
 | **오브젝트 스토리지** | MinIO (Self-hosted) / AWS S3 (SaaS) |
