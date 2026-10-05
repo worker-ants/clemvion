@@ -3,18 +3,18 @@ id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "bef10bae8ff9d8d8d301e170c5fe97cde183f1b35e0884efd27231033cc67780"
-read_as: "approved"
-task: null
+content_hash: "5084b5b486f32d7bae211d713c91fd6f897b0969f9e88111e33d2cf89ac28fe5"
+read_as: "approved_fallback"
+task: "CLE-T-XYR067"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "eb370f6bdaa80c076eae96dde05417a87ad804f1afa6deee14a0c8bc6ac7ff40"
-etag: "sha256-709cd8c4b63182d498741be0bfe7643ee615fcc49c7e5b07532efe3b05568b48"
+mirror_sha256: "dc0bb08f7ec417806f6a1dcea5d02f25e9ee843599d117457e718aaf53e89cd0"
+etag: "sha256-a15f819836571101c4d048d85a09c53320363c851f426d274b1d28e8c0f879e2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -334,7 +334,7 @@ stateDiagram-v2
 |---|---|
 | `unknown` | 컬럼 기본값. 아직 setup·발송 결과가 없다 |
 | `healthy` | setup·재발급 성공 때, 또는 아웃바운드 첫 성공 때 올린다(`chat_channel_last_error=null`) |
-| `degraded` | `renderNode`·`sendMessage` 실패나 분당 한도 초과 때. 트리거를 자동으로 끄지 않는다(CCH-SE-01). 다음 성공 때 다시 `healthy` |
+| `degraded` | `renderNode`·`sendMessage` 실패, 분당 한도 초과, 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때(REQ-CHAT-059). 트리거를 자동으로 끄지 않는다(CCH-SE-01). 다음 성공 때 다시 `healthy` |
 
 ## 웹채팅 경로
 

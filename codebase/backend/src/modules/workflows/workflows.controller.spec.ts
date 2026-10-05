@@ -115,7 +115,7 @@ describe('WorkflowsController (execute endpoint)', () => {
       expect.objectContaining({
         parameters: { name: 'Alice', count: 5 },
       }),
-      { executedBy: 'u1' },
+      { executedBy: 'u1', workspaceId: 'ws' },
     );
   });
 
@@ -270,7 +270,7 @@ describe('WorkflowsController (execute endpoint)', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ parameters: { name: 'Bob' } }),
-      { executedBy: 'u1' },
+      { executedBy: 'u1', workspaceId: 'ws' },
     );
   });
 
@@ -361,6 +361,7 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
       expect.objectContaining({ __triggerSource: 'manual' }),
       {
         executedBy: 'u1',
+        workspaceId: 'ws',
         singleNodeId: 'n1',
         previousExecutionId: 'prev-1',
       },
@@ -381,7 +382,12 @@ describe('WorkflowsController (executeNode endpoint, §1.3)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ foo: 1, __triggerSource: 'manual' }),
-      { executedBy: 'u1', singleNodeId: 'n1', previousExecutionId: undefined },
+      {
+        executedBy: 'u1',
+        workspaceId: 'ws',
+        singleNodeId: 'n1',
+        previousExecutionId: undefined,
+      },
     );
   });
 

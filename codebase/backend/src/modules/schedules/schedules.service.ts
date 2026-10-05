@@ -29,10 +29,17 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { CronExpressionParser } from 'cron-parser';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import { ScheduleRunnerService } from './schedule-runner.service';
 
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const SCHEDULE_RESOURCE_TYPE = 'schedule';
+
+/**
+ * «지금 실행» 에 연결된 워크플로우가 없을 때의 400 메시지. 트리거의 워크플로우가 이 워크스페이스에
+ * 없을 때도 같은 응답이다(NERV Task `CLE-T-XYR067`).
+ */
+const SCHEDULE_HAS_NO_WORKFLOW_MESSAGE = 'Schedule has no associated workflow';
 
 @Injectable()
 export class SchedulesService {
@@ -430,22 +437,33 @@ export class SchedulesService {
     const schedule = await this.findById(id, workspaceId);
     const workflowId = this.getWorkflowIdForSchedule(schedule);
     if (!workflowId) {
-      throw new BadRequestException('Schedule has no associated workflow');
+      throw new BadRequestException(SCHEDULE_HAS_NO_WORKFLOW_MESSAGE);
     }
     const parameters =
       await this.scheduleRunnerService.resolveScheduleParameters(
         schedule,
         workflowId,
+        workspaceId,
       );
     // `runNow` runs a Schedule definition on demand — the input still carries
     // schedule-resolved parameters (`$schedule`/`$now` evaluated), so the
     // trigger source is `'schedule'` even though the executor is a user.
-    const executionId = await this.executionEngineService.execute(
-      workflowId,
-      { __triggerSource: 'schedule', parameters },
-      { executedBy: userId },
-    );
-    return { executionId };
+    try {
+      const executionId = await this.executionEngineService.execute(
+        workflowId,
+        { __triggerSource: 'schedule', parameters },
+        { executedBy: userId, workspaceId },
+      );
+      return { executionId };
+    } catch (err) {
+      // 트리거의 워크플로우가 이 워크스페이스에 없으면(저장 경계 이전의 교차 행) 연결된 워크플로우가
+      // 없을 때와 같은 응답이다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다
+      // (NERV Task `CLE-T-XYR067`).
+      if (err instanceof WorkflowNotFoundError) {
+        throw new BadRequestException(SCHEDULE_HAS_NO_WORKFLOW_MESSAGE);
+      }
+      throw err;
+    }
   }
 
   getWorkflowIdForSchedule(schedule: Schedule): string | null {

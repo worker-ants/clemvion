@@ -462,6 +462,7 @@ export class ExecutionsService {
       ? (original.inputData ?? {})
       : await this.resolveManualOverrideInput(
           original.workflowId,
+          workspaceId,
           dto.inputOverride ?? {},
         );
 
@@ -471,7 +472,13 @@ export class ExecutionsService {
     const newExecutionId = await this.executionEngineService.execute(
       original.workflowId,
       executionInput,
-      { executedBy: user.sub, reRunOf: executionId, chainId, dryRun },
+      {
+        executedBy: user.sub,
+        workspaceId,
+        reRunOf: executionId,
+        chainId,
+        dryRun,
+      },
     );
 
     // 감사 로그 (spec §11) — 실패는 swallow (audit 가 주 동작을 깨지 않음).
@@ -521,11 +528,13 @@ export class ExecutionsService {
    */
   private async resolveManualOverrideInput(
     workflowId: string,
+    workspaceId: string,
     inputOverride: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const schema = await loadTriggerParameterSchema(
       this.nodeRepository,
       workflowId,
+      workspaceId,
       this.logger,
     );
     let parameters: Record<string, unknown>;

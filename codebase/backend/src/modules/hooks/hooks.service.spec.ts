@@ -15,6 +15,7 @@ import { InteractionService } from '../external-interaction/interaction.service'
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
@@ -176,6 +177,81 @@ describe('HooksService', () => {
     );
   });
 
+  // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
+  // NERV Task `CLE-T-XYR067`. 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 엔진이 거부한다.
+  describe('트리거의 워크플로우가 트리거의 워크스페이스에 없을 때', () => {
+    it('엔드포인트가 없을 때와 같은 404 본문으로 답하고 마지막 발화 시각을 남기지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValueOnce(null);
+      const missing = await service
+        .handleWebhook('xxx', input)
+        .catch((err_: unknown) => err_);
+
+      triggerRepo.findOne.mockResolvedValue(activeTrigger);
+      nodeRepo.findOne.mockResolvedValue(null);
+      engine.execute.mockRejectedValue(new WorkflowNotFoundError('wf1'));
+      const warnSpy = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { warn: (...args: unknown[]) => void };
+            }
+          ).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      let crossWorkspace: unknown;
+      let warnMessages: string[];
+      try {
+        crossWorkspace = await service
+          .handleWebhook('abc', input)
+          .catch((err_: unknown) => err_);
+      } finally {
+        // mockRestore 는 호출 기록을 지우므로 단언에 쓸 값을 먼저 꺼낸다.
+        warnMessages = warnSpy.mock.calls.map((call) => String(call[0]));
+        warnSpy.mockRestore();
+      }
+      // 응답은 같고 서버 로그에만 트리거를 남긴다.
+      expect(warnMessages).toEqual([expect.stringContaining('t1')]);
+
+      expect(crossWorkspace).toBeInstanceOf(NotFoundException);
+      expect((crossWorkspace as NotFoundException).getResponse()).toEqual(
+        (missing as NotFoundException).getResponse(),
+      );
+      expect(engine.execute).toHaveBeenCalledWith(
+        'wf1',
+        expect.anything(),
+        expect.objectContaining({ workspaceId: 'ws' }),
+      );
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('파라미터 스키마도 트리거의 워크스페이스 안에서만 읽는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(activeTrigger);
+      nodeRepo.findOne.mockResolvedValue(null);
+      engine.execute.mockResolvedValue('exec-1');
+
+      await service.handleWebhook('abc', input);
+
+      expect(nodeRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workflowId: 'wf1',
+            workflow: { workspaceId: 'ws' },
+          }),
+        }),
+      );
+    });
+
+    it('다른 실행 에러는 404 로 바꾸지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(activeTrigger);
+      nodeRepo.findOne.mockResolvedValue(null);
+      const boom = new Error('queue down');
+      engine.execute.mockRejectedValue(boom);
+
+      await expect(service.handleWebhook('abc', input)).rejects.toBe(boom);
+    });
+  });
+
   it('throws 410 when trigger inactive', async () => {
     triggerRepo.findOne.mockResolvedValue({
       ...activeTrigger,
@@ -256,6 +332,7 @@ describe('HooksService', () => {
       // §A.3 호출 이력 — sourceIp(헤더에 IP 없음 → undefined), responseCode 202(성공).
       {
         triggerId: 't1',
+        workspaceId: 'ws',
         triggerType: 'webhook',
         sourceIp: undefined,
         responseCode: '202',
@@ -322,6 +399,7 @@ describe('HooksService', () => {
       expect.objectContaining({ __triggerSource: 'webhook' }),
       {
         triggerId: 't1',
+        workspaceId: 'ws',
         triggerType: 'webhook',
         sourceIp: '198.51.100.9',
         responseCode: '202',
@@ -490,6 +568,7 @@ describe('HooksService', () => {
       expect.objectContaining({ parameters: {} }),
       {
         triggerId: 't1',
+        workspaceId: 'ws',
         triggerType: 'webhook',
         sourceIp: undefined,
         responseCode: '202',
@@ -903,6 +982,7 @@ describe('HooksService', () => {
         // §A.3 — chat-channel inbound 도 호출 이력에 응답코드 202 영속 (헤더에 IP 없음 → undefined).
         {
           triggerId: chatChannelTrigger.id,
+          workspaceId: chatChannelTrigger.workspaceId,
           triggerType: 'webhook',
           sourceIp: undefined,
           responseCode: '202',
@@ -914,6 +994,92 @@ describe('HooksService', () => {
         expect.objectContaining({ executionId: 'exec-cc-1' }),
       );
       expect(res).toMatchObject({ executionId: 'exec-cc-1' });
+    });
+
+    // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속), R-CC-12
+    // NERV Task `CLE-T-XYR067`. non-2xx 는 프로바이더의 재시도 · 비활성화를 부르므로 202 ignored 로 답한다.
+    describe('트리거의 워크플로우가 트리거의 워크스페이스에 없을 때', () => {
+      const startUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'hello' },
+        idempotencyKey: '3001',
+        receivedAt: new Date().toISOString(),
+      };
+
+      it('202 ignored 로 답하고 고정 문구로 degraded 를 남기며 대화 상태를 만들지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
+        conversationService.lookup.mockResolvedValue(null);
+        engine.execute.mockRejectedValue(
+          new WorkflowNotFoundError(chatChannelTrigger.workflowId),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(engine.execute).toHaveBeenCalledWith(
+          chatChannelTrigger.workflowId,
+          expect.anything(),
+          expect.objectContaining({
+            workspaceId: chatChannelTrigger.workspaceId,
+          }),
+        );
+        expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+        expect(triggerRepo.update).toHaveBeenCalledWith(
+          { id: chatChannelTrigger.id },
+          {
+            chatChannelHealth: 'degraded',
+            chatChannelLastError: 'Workflow not found for this trigger',
+          },
+        );
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+      });
+
+      it('이미 degraded 면 다시 쓰지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...chatChannelTrigger,
+          chatChannelHealth: 'degraded',
+        } as unknown as Trigger);
+        mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
+        conversationService.lookup.mockResolvedValue(null);
+        engine.execute.mockRejectedValue(
+          new WorkflowNotFoundError(chatChannelTrigger.workflowId),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('degraded 갱신이 실패해도 202 ignored 로 답한다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        triggerRepo.update.mockRejectedValueOnce(new Error('db down'));
+        mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
+        conversationService.lookup.mockResolvedValue(null);
+        engine.execute.mockRejectedValue(
+          new WorkflowNotFoundError(chatChannelTrigger.workflowId),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+      });
+
+      it('다른 실행 에러는 ignored 로 삼키지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
+        conversationService.lookup.mockResolvedValue(null);
+        const boom = new Error('queue down');
+        engine.execute.mockRejectedValue(boom);
+
+        await expect(service.handleWebhook('abc', chatInput)).rejects.toBe(
+          boom,
+        );
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
     });
 
     it('chatChannel 경로도 민감 헤더를 execute inputData 에 [REDACTED] 로 마스킹 (spec 12-webhook §5.3)', async () => {

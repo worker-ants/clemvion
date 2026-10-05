@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "8fd003f32a13a0c81ca99a228d18d310b04de7009c33581ab553358b59300bb1"
+content_hash: "d33a6adf2745adeeded7802c3d6ec376e852f67ac7f4711be02daafacc97d5ad"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-XYR067"
 source_paths: []
-mirror_sha256: "e4b97edea6ba867770b1a5659333b5d341fdd3e6c4293c62fc2ea83ed657ede9"
-etag: "sha256-bbae55cc900070256a09660bd0824600f3cb3cf12a43b48444db1ed5fdf36418"
+mirror_sha256: "2f9a87a839cf74907b38ccc47afae046bf6f4aef0f1539df779d92dd83eda81e"
+etag: "sha256-8eb085a36ed95e7f7b881dd7a1b9c5b1fb39294f636c9b2b9e9da72d5f730b20"
 ---
 ## 개요
 
@@ -59,7 +59,7 @@ etag: "sha256-bbae55cc900070256a09660bd0824600f3cb3cf12a43b48444db1ed5fdf36418"
 | UI 매핑 | `uiMapping` | 노드 출력을 채널 메시지로 바꾸는 옵션 묶음(폼 모드, 시각형 노드 표시, 버튼 배치). | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 폼 모드 | `uiMapping.formMode` | 채널에서 Form 을 받는 방식. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 다단계 텍스트 시퀀스, 다단계 prompt 시퀀스 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 안내 문구 | `languageHints`, `languageLocale` | 봇이 스스로 보내는 안내 메시지와 그 기본 언어. 웹채팅 위젯 언어(`locale`)와 다르다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
-| 채널 건강도 | `chat_channel_health` | 채널 어댑터의 외부 호출 상태. 저하돼도 트리거를 끄지 않는다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
+| 채널 건강도 | `chat_channel_health` | 채팅 채널의 동작 상태. 저하돼도 트리거를 끄지 않는다. 저하 원인은 [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 채널 대화 상태 | `ChannelConversation` | 채팅방과 진행 중인 실행을 잇는 만료가 있는 Redis 값. 대화 스레드와 다르다. | conversation thread(이 뜻으로), 대화 상태(단독) | [채팅 채널 데이터와 흐름](CLE-CHAT/CLE-CHAT-DATA.md) |
 | 대화 키·채널 사용자 키 | `conversationKey`, `channelUserKey` | 채널 안의 대화와 사용자를 구분하는 키. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 채널 업데이트·채널 메시지 | `ChannelUpdate`, `ChannelMessage` | 어댑터의 입력과 출력을 공통 형태로 정한 타입. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
@@ -98,6 +98,10 @@ etag: "sha256-bbae55cc900070256a09660bd0824600f3cb3cf12a43b48444db1ed5fdf36418"
 ## Rationale
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「외부 상호작용과 채널」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 「채널 건강도」 정의를 채팅 채널의 동작 상태로 넓혔다 (2026-10-05)
+
+「채널 어댑터의 외부 호출 상태」 는 분당 한도 초과와 트리거의 워크플로우가 다른 워크스페이스에 있는 경우(NERV Task `CLE-T-XYR067`)를 담지 못한다. 원인을 정의 칸에 늘어놓지 않고 기준 문서인 [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) 을 가리킨다. 2026-10-03 정의 보정과 같은 이유다.
 
 ### 미러 반영 리뷰 뒤 고친 행 (2026-10-04)
 

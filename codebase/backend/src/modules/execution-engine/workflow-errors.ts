@@ -45,6 +45,10 @@ export abstract class ExecutionError extends Error {
 /**
  * 대상 워크플로우 정의가 존재하지 않음. `executeInline` / `executeAsync` /
  * `executeSync` / `execute` 의 진입 검증에서 발생.
+ *
+ * `execute()` 에서는 워크플로우가 실행을 시작하는 쪽의 워크스페이스에 없을 때도 이 에러다(없는 id 와
+ * 다른 워크스페이스의 id 를 구분하지 않는다). 서브 워크플로우 진입점은 다른 워크스페이스를
+ * `WorkflowForbiddenWorkspaceError` 로 따로 알린다(노드 설정 결함을 에러 포트로 드러내는 층).
  */
 export class WorkflowNotFoundError extends Error {
   readonly workflowId: string;

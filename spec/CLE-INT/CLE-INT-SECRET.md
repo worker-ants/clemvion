@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "e7d468bb95fbb2aec088638fcbc14b39b2b575f17728645da074a46da116016b"
+content_hash: "ef194cd87d198be354887fd0e9685b172849d06cb5de543fc71caedbd5a8b0b5"
 read_as: "approved_fallback"
 task: "CLE-T-XYR067"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "4227c842acf2bc7ae2fe59e41889358c35dfee894b8042fb2054b88e42ee4715"
-etag: "sha256-80c4ce7ab2393620c5a62067da5462e79bd2298d4cc589599e6de894522e57a8"
+mirror_sha256: "71e07e7200c6a91847caf32fb228cb690734a23e51db3324c6129a9bb107102c"
+etag: "sha256-19bee7dce5d7f6f56a9ac9ed447aaf0f6d17d54c94505540cfe1032641983f8b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -298,7 +298,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 ### 교차 행 점검과 정리
 
-규칙 23 이 생기기 전에 저장된 행에는 두 가지가 남아 있을 수 있다. 다른 트리거의 참조가 든 트리거 설정과, 다른 워크스페이스의 요청이 `rotate` 로 덮어쓴 비밀 행이다. 이 문서는 둘을 «교차 행» 이라 부른다. 규칙 25 를 배포하기 전에 운영자가 아래 순서로 처리한다.
+규칙 23 이 생기기 전에 저장된 행에는 두 가지가 남아 있을 수 있다. 다른 트리거의 참조가 든 트리거 설정과, 다른 워크스페이스의 요청이 `rotate` 로 덮어쓴 비밀 행이다. 이 문서는 둘을 «교차 행» 이라 부른다. id 참조의 교차 행은 [데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검) 이 따로 본다. 규칙 25 를 배포하기 전에 운영자가 아래 순서로 처리한다.
 
 1. 점검 SQL(`codebase/backend/scripts/ops/2026-10-04-trigger-secret-ref-audit.sql`)을 돌린다. 읽기 전용이다. 비밀 행의 `workspace_id` 가 트리거의 워크스페이스와 다른 행(A)과 config 참조가 트리거 id 로 만든 참조와 다른 트리거(B)를 보여 준다. 출력에 비밀 값과 평문은 없다. `secret://` 로 시작하지 않는 저장값은 빈 칸으로 보인다.
 2. 결과가 있으면 정리 SQL(`codebase/backend/scripts/ops/2026-10-04-trigger-secret-ref-cleanup.sql`)을 돌린다. 한 트랜잭션에서 A 의 행을 지우고 B 의 `secret://` 참조를 트리거 id 로 만든 값으로 맞춘다. 앱이 config 를 다시 쓸 때와 같은 트리거 단위 advisory lock 을 잡는다. 지우기 전 사본을 남기는 문장이 머리말에 있다. 끝나면 점검 SQL 을 다시 돌려 비었는지 확인한다.
@@ -387,4 +387,4 @@ R9 가 요청 본문을 막은 뒤에도 그 전에 저장된 행은 남는다. 
 - **거부가 provider 등록 뒤에 날 수 있다.** 봇 토큰 재발급, 최초 설정, Telegram 의 `chatChannel` PATCH 는 provider 에 새 서명 자료를 등록한 뒤 `inbound-signing` 을 `rotate` 한다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 이 저장을 등록과 한 동작으로 정한 이유(건너뛰면 인바운드가 모두 401)가 교차 행에서는 거부로 다시 생긴다. 등록 뒤에 거부되면 인바운드가 401 로 닫힌다. 재발급은 500 으로, 최초 설정과 PATCH 는 `degraded` 와 `chat_channel_last_error` 로 드러난다. 재발급은 그 앞에서 쓴 `bot-token.v2` 백업 행도 남긴다. ⑤ 에서 거부되면 ⑥ 이 일어나지 않아 그 백업이 유예 정리 대상이 되지 않는다(트리거 삭제 때 prefix 로 지워진다). 쓰기 순서는 규칙 11 의 «백업한 뒤 기본 참조» 를 따르므로 바꾸지 않았다. 등록 전에 대조하려면 인터페이스에 메서드를 더해야 해서 이번에는 운영 정리를 먼저 하는 순서로 막는다. 남는 상태는 닫힌 쪽이다. 채팅 채널 문서의 에러 표와 수명주기 반영은 NERV Task `CLE-T-VRBS51` 이 맡는다.
 - **반복 배치는 거부된 리소스만 건너뛴다.** 알림 서명 시크릿 승격은 실패를 다시 던져 job 재시도에 맡긴다. 워크스페이스 불일치는 재시도해도 같으므로 그 트리거만 건너뛰고 에러 로그를 남긴다. 알림 서명 비밀 행은 쓰는 쪽(설정 정규화, 승격)이 늘 트리거 id 로 참조를 만들어 왔으므로 교차 행이 생긴 경로가 없고 이 분기는 방어용이다. 만나면 그 트리거의 `notification_secret_v2` 평문과 두 키 서명이 정리 뒤 다음 승격까지 남는다([저장소 예외 필드](#저장소-예외-필드) 근거 1 · 2 의 한계).
 - **로그는 발생할 때마다 남긴다.** 교차 행이 인바운드를 받을 때마다 남지만 같은 요청이 이미 `resolve` 실패 경고를 남기므로 로그 양의 등급은 같다. 참조 불일치 로그에는 저장값을 싣지 않는다. 참조 자리에 평문이 들어 있을 수 있어서다.
-- **이번에 정하지 않은 것.** [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 따로 검토하기로 한 `rotate` 의 빈 값 가드는 이번에도 넣지 않는다. 대조하지 않는 소비 지점도 있다. 봇 토큰 유예 정리와 해지는 서버만 쓰는 `chat_channel_token_v2` 컬럼의 참조를 쓴다. `delete` · `exists` · `deleteByPrefix` 는 참조만 본다([`SecretResolver` 인터페이스](#secretresolver-인터페이스)). 채팅 채널 활성화가 `setupChannel` 을 부르게 되면([채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로)) 그 경로도 읽기 관문을 지나야 한다. 실행 시점의 트리거 · 워크플로우 워크스페이스 대조는 NERV Task `CLE-T-XYR067` 의 다음 변경이 맡는다. 원시 `config` 의 나머지 계약과 `interaction.triggerToken` 예외의 전제 (c) 는 `CLE-T-EA7B5M` 이 맡는다.
+- **이번에 정하지 않은 것.** [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 따로 검토하기로 한 `rotate` 의 빈 값 가드는 이번에도 넣지 않는다. 대조하지 않는 소비 지점도 있다. 봇 토큰 유예 정리와 해지는 서버만 쓰는 `chat_channel_token_v2` 컬럼의 참조를 쓴다. `delete` · `exists` · `deleteByPrefix` 는 참조만 본다([`SecretResolver` 인터페이스](#secretresolver-인터페이스)). 채팅 채널 활성화가 `setupChannel` 을 부르게 되면([채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로)) 그 경로도 읽기 관문을 지나야 한다. 실행 시점의 트리거 · 워크플로우 워크스페이스 대조는 [데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검) 이 정했다(2026-10-05). 원시 `config` 의 나머지 계약과 `interaction.triggerToken` 예외의 전제 (c) 는 `CLE-T-EA7B5M` 이 맡는다.
