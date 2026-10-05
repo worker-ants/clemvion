@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
 content_hash: "bd61a1ffb820911e082cef0042946cf422754dc27aa836de0ada1d55af97f1a9"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "30d79701710e584bf5b1d5924429ea9e6d9744a0b17f469146899ef422dd20b6"
-etag: "sha256-f7e43a669557ca8441d6c8bc06a7695bb8914fd08d27de5f81d1e7ea4de5c698"
+mirror_sha256: "e45424d12a52db1483566a08bb1560df67ef14a4d5f431d25f5c5a819f63340f"
+etag: "sha256-250415719d2dfed320762a628f4c2ed4bddef8c519d5e7cb884aea0d4856b61a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale «DB 마이그레이션 도구로 Flyway 채택») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

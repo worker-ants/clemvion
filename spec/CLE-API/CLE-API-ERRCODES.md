@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "45e9292f0c7062f16b63cb3094f608c2aaf416fb39aa367bba4f17e5a4a442ec"
+content_hash: "ca31fe9f56e7307c6f7419b9760363b3c6888a39805ebd897d93d2a33f60b9f3"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "a264677a973076b6cab7f4c4fb04f4893d066995ce0a3d00f3f2cdb8e052443d"
-etag: "sha256-32ce5e96d269cd370d30c5b3769647e6570020f7f75dbf149b0b75ffe6221f37"
+mirror_sha256: "37a35a18bf478665214d74bd3d3b03836078c631483a52f9e16a6bd9c70ed718"
+etag: "sha256-f07d4bdf86bbda94a6b87ad452773215f2982f7d366c6793e897b6e14e06b5c0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -442,6 +442,16 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `CANNOT_TRANSFER_PERSONAL` | 403 | personal 워크스페이스는 소유자를 이양할 수 없음. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#멤버-변경과-직접-추가) |
 | `CANNOT_REMOVE_OWNER` | 403 | 소유자를 멤버에서 제거하려 함. 현재 구현 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#멤버-변경과-직접-추가), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 
+### 6.19 AI 어시스턴트 세션 API (도메인 문서 참조)
+
+어시스턴트 세션 REST API 가 내는 코드다. 이 표의 `WORKFLOW_NOT_FOUND` 는 이 API 에서만 쓴다. 워크플로우 · 노드 · 연결선 경로의 없는 워크플로우는 404 `RESOURCE_NOT_FOUND` 이고, 어시스턴트의 탐색 도구가 모델에게 돌려주는 같은 이름의 문자열은 HTTP 응답이 아니라 도구 결과 값이다. 서브 워크플로우 노드의 `SUB_WORKFLOW_NOT_FOUND`(§6.6)와도 다른 표면이다.
+
+| 코드 | HTTP | 설명 | 정의 문서 |
+|------|--------|------|-----------|
+| `WORKFLOW_NOT_FOUND` | 404 | 세션 생성 본문이나 세션 목록 조회의 `workflowId` 가 요청의 워크스페이스에 없음. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다. 「참조의 소속」 의 예외 3 이다 | [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md#세션-rest-api), [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) |
+| `ASSISTANT_SESSION_NOT_FOUND` | 404 | 세션이 없거나 요청의 워크스페이스 세션이 아님 | [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md#세션-rest-api) |
+| `ASSISTANT_SESSION_NOT_YOURS` | 403 | 같은 워크스페이스의 다른 사용자가 만든 세션임. 다른 워크스페이스의 세션은 위 404 로 가린다 | [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md#세션-rest-api) |
+
 ## 미결 사항
 
 - **발행처가 없는 등재 코드**: `SERVICE_UNAVAILABLE`·`DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다.
@@ -534,3 +544,10 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 - **§3 에 등재하지 않았다**: 이름의 `CHECKPOINT` 는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 「체크포인트」 절의 뜻이다. 그 절은 park 때 커밋하는 영속 컨텍스트를 체크포인트에 넣는다. 그 목록([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md))에 호출 스택(`Execution.resume_call_stack`)이 있다. 이름이 뜻과 어긋나지 않는다.
 - 같은 코드를 영속 상태 손상 밖의 재개 불변식 위반에도 쓴다. 맞는 처리기가 없을 때가 그 예다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) Rationale). 행의 괄호를 "예:" 로 적은 이유다.
 - 호출 스택의 버전이 지원 범위보다 크면 이 코드가 아니라 `RESUME_INCOMPATIBLE_STATE` 다. 경계는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 「rehydration 실패」 에 적었다.
+
+### 어시스턴트 세션 코드를 도메인 참조 절로 올렸다 (2026-10-05)
+
+어시스턴트 세션 REST API 의 `WORKFLOW_NOT_FOUND` · `ASSISTANT_SESSION_NOT_FOUND` · `ASSISTANT_SESSION_NOT_YOURS` 는 구현이 이미 내던 코드인데 카탈로그에 없었다. [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 이 세션 생성 `workflowId` 를 표에 올리고 404 `WORKFLOW_NOT_FOUND` 를 예외로 적으면서(사람 결정, NERV Task `CLE-T-QTRRE6`) 같은 API 의 세 코드를 §6.19 에 함께 등재했다. 발행하는 코드는 등재한다는 규칙 8 을 따랐다.
+
+- **`WORKFLOW_NOT_FOUND` 를 `RESOURCE_NOT_FOUND` 로 바꾸지 않았다.** 이미 나가던 코드이고 이름을 바꾸면 규칙 5 의 이름 바꾸기 비용이 든다. 같은 본문의 `llmConfigId` 도 도메인 코드(404 `MODEL_CONFIG_NOT_FOUND`)라 이 API 안에서는 도메인 코드가 일관된다. 다른 워크플로우 경로의 `RESOURCE_NOT_FOUND` 와 갈리는 점은 §6.19 머리말에 적어 이 API 한정으로 묶었다.
+- **세션 코드 둘의 뜻은 구현을 따랐다.** 정의 문서가 «워크스페이스 · 사용자 경계» 를 모두 `ASSISTANT_SESSION_NOT_YOURS` 로 적었으나 구현은 다른 워크스페이스의 세션을 404 `ASSISTANT_SESSION_NOT_FOUND` 로 가린다. 없는 것과 다른 워크스페이스의 것을 구분하지 않는 규칙과 맞는 쪽이 구현이라 정의 문서를 같은 변경에서 고쳤다.

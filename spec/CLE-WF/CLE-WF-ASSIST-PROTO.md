@@ -3,18 +3,18 @@ id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "d401b3028150e3660024945f12344c38170d634de7c6a5254e378bbd4fa2c886"
-read_as: "approved"
-task: null
+content_hash: "5d5d251c55a1b23c10bbcd60c62311f781d40aa31198e4595e95bf3dd78fced7"
+read_as: "approved_fallback"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "ef4bb143840aca9698e820d7d36b373017c4caceddd1457004c40da32ab5b010"
-etag: "sha256-c4010708cc335e113fa93cd93b6490fe0ef62d7d6b2568b97e1fdd738b7980de"
+mirror_sha256: "4d31d9b2d658087145d83f9c3af5ce1c3a08de9af31467ed943c2ea71188710e"
+etag: "sha256-916b2cf420cf1f046372a72fbfb79f4d091a3fca584832d4a30da4643c176c79"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -181,8 +181,9 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `POST` | `/api/workflow-assistant/sessions/{id}/messages` | SSE 스트림. 사용자 메시지를 보내고 응답을 받는다([메시지 스트림 엔드포인트](#메시지-스트림-엔드포인트)) |
 
 - 모든 엔드포인트는 편집자(`editor`) 이상 역할이 필요하다. `workspace_id` 는 JWT 에서 넣는다.
-- 세션이 없으면 `ASSISTANT_SESSION_NOT_FOUND`, 호출자의 세션이 아니면(워크스페이스·사용자 경계) `ASSISTANT_SESSION_NOT_YOURS` 다. 사용자 안내는 [AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)에서 정한다.
+- 세션이 없거나 요청의 워크스페이스 세션이 아니면 404 `ASSISTANT_SESSION_NOT_FOUND`, 같은 워크스페이스의 다른 사용자 세션이면 403 `ASSISTANT_SESSION_NOT_YOURS` 다. 다른 워크스페이스의 세션을 없는 세션과 구분하지 않는다. 사용자 안내는 [AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)에서 정한다.
 - 보관 전용 `/archive` 엔드포인트는 없다. 보관은 일반 세션 수정으로 `status` 를 바꾼다.
+- 생성 본문의 `workflowId` 와 목록 조회(`GET /sessions?workflowId`)의 `workflowId` 는 같은 워크스페이스의 워크플로우만 받는다. 아니면 404 `WORKFLOW_NOT_FOUND` 다. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 예외 3). `GET /sessions/latest` 는 이 검사 없이 요청의 워크스페이스로 세션을 찾으므로 다른 워크스페이스의 워크플로우면 세션이 없을 때와 같은 `null` 이다.
 - 생성·수정 본문의 `llmConfigId` 는 같은 워크스페이스의 `kind=chat` 모델 설정만 받는다. 아니면 404 `MODEL_CONFIG_NOT_FOUND` 다. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
 
 ### 세션 자동 선택
@@ -220,11 +221,11 @@ AI 어시스턴트의 채팅 세션이다. 워크플로우 하나에 종속되�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `id` | UUID | PK |
-| `workspace_id` | UUID | FK → Workspace (cascade 삭제) |
-| `workflow_id` | UUID | FK → Workflow (cascade 삭제). 세션은 워크플로우 하나에 종속된다 |
+| `workspace_id` | UUID | FK → Workspace (CASCADE) |
+| `workflow_id` | UUID | FK → Workflow (CASCADE, 같은 워크스페이스). 세션은 워크플로우 하나에 종속된다 |
 | `user_id` | UUID | FK → User (CASCADE). 세션을 만든 사용자 |
 | `title` | String? | 세션 제목(첫 메시지 요약 또는 사용자 수정) |
-| `llm_config_id` | UUID? | FK → ModelConfig (SET NULL, `kind=chat`). 없으면 워크스페이스 기본 Chat 설정을 쓴다 |
+| `llm_config_id` | UUID? | FK → ModelConfig (SET NULL, 같은 워크스페이스, `kind=chat`). 없으면 워크스페이스 기본 Chat 설정을 쓴다 |
 | `status` | Enum | `active` / `archived`. `archived` 는 화면에서 숨긴다 |
 | `message_count` | Int | 메시지 수 캐시(비정규화) |
 | `last_interaction_at` | Timestamp | 마지막 메시지·도구 호출 시각. 기본값 `now()` |
@@ -247,7 +248,7 @@ AI 어시스턴트의 채팅 세션이다. 워크플로우 하나에 종속되�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `id` | UUID | PK |
-| `session_id` | UUID | FK → AssistantSession (cascade 삭제) |
+| `session_id` | UUID | FK → AssistantSession (CASCADE) |
 | `role` | Enum | `user` / `assistant` / `tool` / `system`. 실제로 저장하는 값은 `user`·`assistant` 다. `tool` 은 CHECK 가 허용하지만 지금은 행을 쓰지 않는다. `system` 은 감사·디버그용 값이며 프롬프트 빌더가 매 요청 동적으로 조립하므로 보통 저장하지 않는다. 현재 마이그레이션(V019)의 CHECK 는 `user`·`assistant`·`tool` 만 허용해 `system` 행은 저장할 수 없다 |
 | `content` | Text? | 사용자·어시스턴트 텍스트 본문 |
 | `tool_calls` | JSONB? | `role=assistant` 행과 함께 발행된 tool_call 목록. 항목마다 `{id, name, arguments, kind: 'explore'\|'plan'\|'edit', result, planStepId?}` |

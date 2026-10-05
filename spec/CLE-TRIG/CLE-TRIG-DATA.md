@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "772ff39a1e8eb5af77af7af1633641b10101bcd05b1e7cae157ac8ff347f15f3"
+content_hash: "cb20ef82dda3fb0131ffb079b4a83de8fef8c0d6ad6cb57984076623cc08685f"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "31b7151c0649194f6f41b7d00b7aacfa86b6f337db768ef6b02612ed7bc07c60"
-etag: "sha256-755d2491768b254a809ab35b9fb4f0b96bf681de3eb12ca37d97fe352cae2e10"
+mirror_sha256: "e34215efb971f39da64f415b80161aad563067bce9ad155111a4f11eb0b51abe"
+etag: "sha256-1a67b8f76add24c006d1433c898d8e6def197ac95564bcf7ff55b7a825cc2ff4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -63,13 +63,13 @@ erDiagram
 |------|------|------|
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace (CASCADE) |
-| workflow_id | UUID | FK → Workflow (CASCADE). 같은 워크스페이스의 워크플로우만 가리킨다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
+| workflow_id | UUID | FK → Workflow (CASCADE, 같은 워크스페이스). 같은 워크스페이스의 워크플로우만 가리킨다. 저장 전에 거부하고 DB 의 복합 FK 도 막는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | type | Enum | `webhook` / `schedule` / `manual`. 채팅 채널은 별도 유형이 아니라 `webhook` 트리거의 `config.chatChannel` 변형이다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)) |
 | name | String | 트리거 이름. 스케줄 유형이면 스케줄 이름도 이 값이다 |
 | is_active | Boolean | 활성 상태 |
 | config | JSONB | 트리거별 설정([config 서브 필드](#config-서브-필드)) |
 | endpoint_path | String? | 웹훅 URL 경로(`type=webhook`). 라우팅 키가 전역이라 전역에서 유일하다(V132). 한 번 쓴 경로는 그 워크스페이스 소유로 영구 예약된다([WebhookEndpointReservation](#webhookendpointreservation)) |
-| auth_config_id | UUID? | FK → AuthConfig (SET NULL). 웹훅 인증. NULL 이면 인증 없음 |
+| auth_config_id | UUID? | FK → AuthConfig (SET NULL, 같은 워크스페이스). 웹훅 인증. NULL 이면 인증 없음 |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | Enum | `unknown` / `healthy` / `degraded`. EIA 알림 웹훅 발송 상태. 기본 `unknown`(EIA-NX-07) |
 | notification_last_error | Text? | EIA 알림 웹훅 발송이 마지막으로 실패했을 때의 에러 메시지(잘릴 수 있음) |
@@ -104,6 +104,8 @@ EIA 컬럼의 동작은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md), �
 - `(endpoint_path)` UNIQUE, 전역, `WHERE endpoint_path IS NOT NULL`(V132). V002 의 `(workspace_id, endpoint_path)` UNIQUE 를 바꿨다. 그 전에 V131 이 기존 중복을 정리했다.
 - `(workflow_id)` 인덱스(V111). 워크플로우 삭제 경로(트리거 자원 정리의 열거, FK CASCADE)용이다.
 - `(auth_config_id)` 부분 인덱스(V126). 인증 설정 사용처 조회와 FK SET NULL 용이다.
+- `(id, workspace_id)` UNIQUE(V139, `uq_trigger_id_workspace_id`). 스케줄 `trigger_id` 복합 FK 의 참조 대상이다.
+- 복합 FK `fk_trigger_workflow_id`(V141) · `fk_trigger_auth_config_id`(V142). 워크플로우와 인증 설정이 트리거와 같은 워크스페이스에 있어야 한다. `auth_config_id` 의 SET NULL 은 그 컬럼만 비운다([데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
 - BEFORE 트리거 `trg_trigger_reserve_endpoint_path` 가 엔드포인트 경로 예약을 강제한다([WebhookEndpointReservation](#webhookendpointreservation)).
 
 ## WebhookEndpointReservation
@@ -133,7 +135,7 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 |------|------|------|
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace (CASCADE) |
-| trigger_id | UUID | FK → Trigger (CASCADE). NOT NULL, 1:1 |
+| trigger_id | UUID | FK → Trigger (CASCADE, 같은 워크스페이스). NOT NULL, 1:1 |
 | cron_expression | String | Cron 표현식 |
 | timezone | String | 시간대(IANA). 지정하지 않았을 때의 폴백은 [스케줄](CLE-TRIG-SCHEDULE.md) 이 정한다 |
 | is_active | Boolean | 활성 상태. 발사 여부는 이 값으로 판정한다 |
@@ -184,7 +186,7 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-`auth_config.workspace_id` 에는 조회 경로 때문에 인덱스를 뒀다([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md)).
+`auth_config.workspace_id` 에는 조회 경로 때문에 인덱스를 뒀다([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md)). `(id, workspace_id)` UNIQUE(V136, `uq_auth_config_id_workspace_id`)는 트리거 `auth_config_id` 복합 FK 의 참조 대상이다.
 
 ### config JSONB 스키마
 
@@ -361,9 +363,9 @@ sequenceDiagram
 | `trigger` | 생성 | INSERT `workspace_id, workflow_id, type, name, is_active, config, endpoint_path?, auth_config_id?` | [Trigger 제약과 인덱스](#제약과-인덱스) |
 | `webhook_endpoint_reservation` | 트리거 생성·경로 변경(DB 트리거) | INSERT `endpoint_path, workspace_id` … `ON CONFLICT DO NOTHING`. 지우지 않는다 | PK `(endpoint_path)`. 주인이 다르면 `unique_violation`(라벨 `webhook_endpoint_reservation_owner`) → 409. `(workspace_id)` 부분 인덱스(V133) |
 | `trigger` | 발사 | UPDATE `last_triggered_at` | 없음 |
-| `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` | FK CASCADE on `trigger_id` |
+| `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` | 복합 FK `(trigger_id, workspace_id)` CASCADE |
 | `schedule` | 발사 뒤 | UPDATE `last_run_at, next_run_at`(정보성 재계산, 발사를 일으키지 않음) | `(workspace_id, next_run_at)`(V110) |
-| `auth_config` | 웹훅 인증(읽기) | SELECT `type, config(복호화), ip_whitelist, is_active` | FK from `trigger.auth_config_id` |
+| `auth_config` | 웹훅 인증(읽기) | SELECT `type, config(복호화), ip_whitelist, is_active` | 복합 FK from `trigger (auth_config_id, workspace_id)` |
 | `auth_config` | 인증 성공(쓰기) | UPDATE `last_used_at`(fire-and-forget, 트랜잭션 밖) | 없음 |
 | `execution` | 진입 | INSERT([실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md)) | `trigger_id` FK SET NULL(트리거를 지워도 실행 기록 보존) |
 
@@ -430,7 +432,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 - `codebase/backend/src/modules/schedules/schedules.service.ts` (스케줄 CRUD)
 - `codebase/backend/src/modules/schedules/schedule-runner.service.ts` (`SCHEDULE_QUEUE = 'schedule-execution'` 생산자와 processor)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts` (`/api/hooks/:endpointPath` 진입)
-- `codebase/backend/src/modules/**/entities/*.entity.ts`, `codebase/backend/migrations/V*.sql` (엔티티와 스키마. V001·V002·V011·V066·V110·V111·V126·V131·V132·V133)
+- `codebase/backend/src/modules/**/entities/*.entity.ts`, `codebase/backend/migrations/V*.sql` (엔티티와 스키마. V001·V002·V011·V066·V110·V111·V126·V131·V132·V133·V136·V139·V141·V142·V145·V147)
 - `codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts` (V131 중복 정리)
 - `codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts` (V133 을 임시 스키마에서 파일 그대로 돌려 백필과 DB 트리거를 확인)
 - `codebase/backend/test/trigger-deletion-releases-resources.e2e-spec.ts` (삭제 경로별 자원 정리와 보상 합성)
@@ -486,7 +488,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 
 실측(PostgreSQL 18, V001~V110 적용, 워크스페이스당 워크플로우 5개, 워크플로우당 트리거 4개, 워밍 뒤 1회):
 
-| 트리거 수 | 열거 `SELECT id … WHERE workflow_id = ?` | CASCADE `trigger_workflow_id_fkey` | `DELETE FROM workflow` 전체 |
+| 트리거 수 | 열거 `SELECT id … WHERE workflow_id = ?` | CASCADE `trigger_workflow_id_fkey`(측정 때 이름. V141 에서 복합 FK `fk_trigger_workflow_id` 로 바뀌었다) | `DELETE FROM workflow` 전체 |
 |---|---|---|---|
 | 20,000 | Seq Scan, 0.63 ms | 0.67 ms | 2.33 ms |
 | 80,000 | Seq Scan, 2.26 ms | 2.19 ms | 3.68 ms |

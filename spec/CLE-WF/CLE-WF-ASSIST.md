@@ -3,18 +3,18 @@ id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "426489f52ec9c206d3684bc8bb1ced99f9b7f45534ae36176f9ca89cde9d5012"
-read_as: "approved"
-task: null
+content_hash: "912540b2f2d13333235a96f19572749562e34b05a1f4a3efc418515a2059ff12"
+read_as: "approved_fallback"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "402dbccdfafc22f415bb5b111f29ab71ebc5e327a164abba925eedd263ff4eb4"
-etag: "sha256-c7ef654584d277756f973b0444bde4d3f664e13a863a9e158a79306672f924e4"
+mirror_sha256: "f9ac3287f63a5914a87d935108c589b64efc678059f68bdc89d516db4d886f3a"
+etag: "sha256-1775bde512c723f6fbac832ab590de9c3af0a6da05c0812fae26c6b296c6c03e"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -249,7 +249,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 | `LLM_TIMEOUT` | LLM 호출 타임아웃(정의가 갈린다. [미결 사항](#미결-사항) 참조) | "응답이 늦어지고 있어요. 다시 시도할까요?" |
 | `ASSISTANT_TOOL_FAILED` | 편집 도구가 Shadow 검증에 실패했다 | 배지에 구체 사유([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#shadow-검증-규칙))를 보이고 LLM 이 다음 라운드에 복구를 시도한다 |
 | `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 |
-| `ASSISTANT_SESSION_NOT_YOURS` | 세션이 호출자 것이 아니다(워크스페이스·사용자 경계) | 접근 거부 |
+| `ASSISTANT_SESSION_NOT_YOURS` | 같은 워크스페이스의 다른 사용자 세션이다. 다른 워크스페이스의 세션은 `ASSISTANT_SESSION_NOT_FOUND` 로 온다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#세션-rest-api)) | 접근 거부 |
 
 아직 구현하지 않은 에러 코드 두 개가 있다(미구현).
 
