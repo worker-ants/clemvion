@@ -243,7 +243,7 @@ export const triggers = {
     healthHealthy: "정상",
     healthDegraded: "저하됨",
     healthDegradedHelp:
-      "채널 동작에 문제가 있어요. 원인은 마지막 오류에서 확인하세요. 트리거는 자동으로 비활성화되지 않아요.",
+      "채널 동작에 문제가 있어요. 원인은 마지막 오류에서 확인해요. 트리거는 자동으로 비활성화되지 않아요.",
     lastError: "마지막 오류",
     setupAt: "설정 시각",
     rotatedAt: "최근 토큰 회전 시각",
