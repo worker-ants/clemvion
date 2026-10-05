@@ -23,12 +23,12 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
-## Unreleased — 운영: 교차 행 점검 · 정리 SQL 을 걷는다
+## Unreleased — 배포: 교차 행 점검 · 정리 SQL 을 걷는다
 
-2026-10-05 운영 DB 에서 두 점검 SQL 이 모두 0 행이었다. CLE-PLAT-DATA 「저장된 교차 행 점검」 과 CLE-INT-SECRET 「교차 행 점검과 정리」 가 정한 걷는 조건(운영 환경에서 결과가 빈다)이 채워져 아래 두 항목이 더한 운영 SQL 과 그 SQL 을 돌리던 e2e 케이스를 걷는다. 실행 시점 방어선(엔진의 워크스페이스 대조, 저장된 비밀 참조의 읽기 관문, `rotate` 의 워크스페이스 대조)과 진입별 응답은 그대로다.
+2026-10-05 운영 DB 에서 두 점검 SQL 이 모두 0 행이었다. CLE-PLAT-DATA 「저장된 교차 행 점검」 과 CLE-INT-SECRET 「교차 행 점검과 정리」 가 정한 걷는 조건(운영 환경에서 결과가 빈다)이 채워졌다(운영 환경은 운영 DB 한 곳이다). 그래서 아래 두 항목이 더한 운영 SQL 세 개와 그 SQL 을 돌리던 e2e 케이스를 걷는다. 실행 시점 방어선(엔진의 워크스페이스 대조, 저장된 비밀 참조의 읽기 관문, `rotate` 의 워크스페이스 대조)과 진입별 응답은 그대로다.
 
 - 지운 파일: `codebase/backend/scripts/ops/2026-10-05-cross-workspace-id-ref-audit.sql`, `2026-10-04-trigger-secret-ref-audit.sql`, `2026-10-04-trigger-secret-ref-cleanup.sql`. 아래 두 항목의 «운영» 줄이 안내한 배포 전 점검 · 정리는 더 하지 않는다.
-- 교차 행이 다시 나타나면 커밋 `d5cb730ec` 의 SQL 을 쓴다. 비밀 참조 쪽 처리 순서는 CLE-INT-SECRET R10 에 있다.
+- 교차 행이 다시 나타나면 `git show d5cb730ec:codebase/backend/scripts/ops/<파일>` 로 세 SQL 을 꺼낸다. `2026-10-04-…` 두 파일은 `e375d75de` 가, `2026-10-05-…` 은 `d5cb730ec` 가 더했다. 비밀 참조 쪽 처리 순서는 CLE-INT-SECRET 「교차 행 점검과 정리」 에 있다. SQL 을 되살리면 그 SQL 을 돌리던 e2e 케이스(같은 커밋의 `trigger-stored-secret-refs.e2e-spec.ts` · `stored-cross-workspace-workflow-refs.e2e-spec.ts`)도 함께 되살린다.
 
 ## Unreleased — 보안: 저장된 트리거 · 스케줄이 다른 워크스페이스의 워크플로우를 실행하지 못하게 한다
 
