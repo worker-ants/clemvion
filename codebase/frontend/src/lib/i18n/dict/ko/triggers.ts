@@ -238,12 +238,12 @@ export const triggers = {
       "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch. " +
       "실행 실패 안내(CCH-ERR-*) 6 키: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
       "CCH-ERR-* 키에서 허용되는 placeholder: {statusCode} 1종.",
-    health: "Channel 건강도",
+    health: "채널 건강도",
     healthUnknown: "확인 안 됨",
     healthHealthy: "정상",
     healthDegraded: "저하됨",
     healthDegradedHelp:
-      "setupChannel/rotate/sendMessage 실패. 자동 비활성화는 하지 않아요 (CCH-SE-01) — 명시적 활성/비활성 토글만 동작.",
+      "채널 동작에 문제가 있어요. 원인은 마지막 오류에서 확인하세요. 트리거는 자동으로 비활성화되지 않아요.",
     lastError: "마지막 오류",
     setupAt: "설정 시각",
     rotatedAt: "최근 토큰 회전 시각",
