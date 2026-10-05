@@ -90,12 +90,14 @@ describe('저장된 교차 워크스페이스 워크플로우 참조의 실행 (
   }, 60_000);
 
   afterAll(async () => {
-    for (const id of createdTriggerIds) {
-      await db
-        .query('DELETE FROM trigger WHERE id = $1', [id])
-        .catch(() => undefined);
+    // 오류를 삼키지 않는다. 복제 모드로 커밋한 교차 행이 남으면 다음 실행의 composite-fk-scope V134 점검이 멈춘다
+    try {
+      await db.query('DELETE FROM trigger WHERE id = ANY($1)', [
+        createdTriggerIds,
+      ]);
+    } finally {
+      await db.end();
     }
-    await db.end();
   });
 
   it('웹훅 트리거의 workflow_id 가 다른 워크스페이스를 가리키면 트리거가 없을 때와 같은 404 이고 실행하지 않는다', async () => {

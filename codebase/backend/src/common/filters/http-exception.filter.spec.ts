@@ -175,7 +175,7 @@ describe('GlobalExceptionFilter', () => {
   });
 
   it('복합 FK 위반(23503)은 500 INTERNAL_ERROR 로 가리고 제약 이름은 서버 로그에만 남긴다', () => {
-    // 저장 시점 검사를 빠뜨린 쓰기가 DB 의 범위 FK(V141, CLE-PLAT-DATA 「워크스페이스 범위 참조를 복합 FK 로도
+    // 저장 시점 검사를 빠뜨린 쓰기가 DB 의 범위 FK(V141~V146, CLE-PLAT-DATA 「워크스페이스 범위 참조를 복합 FK 로도
     // 막는다」)에 걸린 경우다. 사용자가 고칠 수 없는 서버 결함이라 새 코드 없이 500 이다.
     const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { host, status, json } = mockHost();

@@ -95,7 +95,7 @@ OTEL 대시보드·알람의 서비스명 필터도 `idea-workflow-backend` → 
 Helm 보다 가볍고 kubectl 네이티브. CRD 도입 없이 patch 기반 환경 분리.
 
 ### Stateful 의존성 — 외부 관리형 가정
-`overlays/local` 만 in-cluster Postgres/Redis/MinIO 를 띄움. staging/prod 는 RDS / ElastiCache / S3 등을 사용한다는 전제로 endpoint 만 ConfigMap 에서 교정.
+`overlays/local` 만 in-cluster Postgres/Redis/MinIO 를 띄움. staging/prod 는 RDS / ElastiCache / S3 등을 사용한다는 전제로 endpoint 만 ConfigMap 에서 교정. 관리형 PostgreSQL 은 15 이상이어야 한다(마이그레이션 V134 가 15 미만이면 스키마를 바꾸기 전에 멈춘다).
 
 ### Secret — SealedSecrets 가정
 `base/secret.example.yaml` 은 키 스키마(=어떤 키들이 필요한지) 만 정의한 placeholder. 실 환경에서는 동일 이름의 `Secret` 을 별도로 생성:

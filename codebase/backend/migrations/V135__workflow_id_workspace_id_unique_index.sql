@@ -13,5 +13,5 @@ DROP INDEX CONCURRENTLY IF EXISTS uq_workflow_id_workspace_id;
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_workflow_id_workspace_id
   ON workflow (id, workspace_id);
 
--- DOWN: V141 DOWN 을 먼저 돌린 뒤(제약에서 떼어 낸 뒤)
+-- DOWN: V141 을 적용했다면 V141 DOWN 이 제약과 함께 이 인덱스를 지운다. V141 전이면
 --   DROP INDEX CONCURRENTLY IF EXISTS uq_workflow_id_workspace_id;

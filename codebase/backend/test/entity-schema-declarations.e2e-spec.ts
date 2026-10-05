@@ -27,6 +27,10 @@ import { createDbClient } from './helpers/db';
  * `plan/complete/entity-column-declaration-drift.md`. 그 뒤 두 테스트가 이 층의 빈칸을 막는다 — 비교기 연결이 정말 읽기 전용인가
  * (예방 계층의 회귀), 새로 선언한 기본값이 insert 뒤 돌아오는가. 근거: `plan/complete/column-guard-gaps.md`.
  *
+ * **FK 는 범위 컬럼을 덧붙인 복합 FK 도 같은 FK 로 본다** — 선두 컬럼 · 참조 테이블 · 삭제 동작이 같고 둘째 컬럼이 자식과
+ * 부모 모두 같은 범위 컬럼(`workspace_id` · `workflow_id`)이면 단일 `@ManyToOne` 선언과 같다. 그런 복합 FK 의 SET NULL 은
+ * 참조 컬럼만 비워야 한다(`sameRelationColumns` · `scopedSetNullKeepsScope`, V141~V146).
+ *
  * 부분 조건과 CHECK 식은 **문자열로 비교하지 않는다**. 선언의 식으로 임시 테이블(`LIKE` 원본)에 같은 인덱스 · 제약을
  * 실제로 만들고, Postgres 가 정규화한 정의끼리 비교한다 — 표기가 달라도(`!=` / `<>`, `IN (…)` / `= ANY (…)`) 같은
  * 식이면 같다. 만들 수 없는 식(식 전체를 큰따옴표로 감싸 컬럼 이름이 된 것)은 그 자체로 실패다.
@@ -175,7 +179,12 @@ function describeForeignKeyDecl(
 }
 
 function describeDbForeignKey(r: DbForeignKey): string {
-  return `${r.name} ${fkActions(FK_ACTION[r.del], FK_ACTION[r.upd])}`;
+  // 복합 FK 의 SET NULL 은 비우는 컬럼까지 적어야 선언과 무엇이 다른지 보인다(목록이 없으면 범위 컬럼까지 비운다)
+  const setNull =
+    r.del === 'n' && r.cols.length > 1
+      ? ` 비우는 컬럼 (${r.setnull.length > 0 ? r.setnull.join(', ') : '목록 없음 — 전부'})`
+      : '';
+  return `${r.name} (${r.cols.join(', ')}) ${fkActions(FK_ACTION[r.del], FK_ACTION[r.upd])}${setNull}`;
 }
 
 /**
@@ -361,7 +370,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
 
   /**
    * 범위 컬럼 — 복합 FK `(참조, 범위) → (id, 범위)` 의 둘째 컬럼으로 인정하는 이름. 자식과 부모가 같은 이름으로 가진다.
-   * 엔티티는 단일 컬럼 `@ManyToOne` 을 두고 DB 는 복합 FK 를 둔다(V141). 엔티티에 복합 `@JoinColumn` 을 선언하면 TypeORM 이
+   * 엔티티는 단일 컬럼 `@ManyToOne` 을 두고 DB 는 복합 FK 를 둔다(V141~V146). 엔티티에 복합 `@JoinColumn` 을 선언하면 TypeORM 이
    * 관계 값으로 범위 컬럼을 덮어쓰고, 관계를 비울 때 범위 컬럼까지 NULL 로 보낸다(2026-10-05 프로브).
    * 근거: [데이터 모델 개요 「워크스페이스 범위 참조를 복합 FK 로도 막는다」](CLE-PLAT-DATA#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)
    */
@@ -386,12 +395,15 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
     ) {
       return true;
     }
+    // 범위 컬럼을 덧붙인 모양으로 인정하는 것은 단일 컬럼 선언뿐이다
     if (fk.columnNames.length !== 1 || r.cols.length !== 2) return false;
-    const scope = r.cols[1];
+    const [childColumn, childScope] = r.cols;
+    const [parentColumn, parentScope] = r.refcols;
     return (
-      SCOPE_COLUMNS.has(scope) &&
-      sameColumns(r.cols, [fk.columnNames[0], scope]) &&
-      sameColumns(r.refcols, [fk.referencedColumnNames[0], scope])
+      childColumn === fk.columnNames[0] &&
+      parentColumn === fk.referencedColumnNames[0] &&
+      SCOPE_COLUMNS.has(childScope) &&
+      childScope === parentScope
     );
   }
 
@@ -551,63 +563,99 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
       columnNames: ['workflow_id'],
       referencedColumnNames: ['id'],
     };
-    const cases: ReadonlyArray<[string, string[], string[], boolean]> = [
-      ['선언 그대로', ['workflow_id'], ['id'], true],
-      [
-        '워크스페이스 범위',
-        ['workflow_id', 'workspace_id'],
-        ['id', 'workspace_id'],
-        true,
-      ],
-      [
-        '워크플로우 범위',
-        ['workflow_id', 'workflow_id'],
-        ['id', 'workflow_id'],
-        true,
-      ],
-      [
-        '범위 컬럼이 아니다',
-        ['workflow_id', 'created_by'],
-        ['id', 'created_by'],
-        false,
-      ],
-      [
-        '자식 · 부모의 범위 컬럼이 다르다',
-        ['workflow_id', 'workspace_id'],
-        ['id', 'workflow_id'],
-        false,
-      ],
-      [
-        '선두가 다르다',
-        ['folder_id', 'workspace_id'],
-        ['id', 'workspace_id'],
-        false,
-      ],
-      [
-        '순서가 다르다',
-        ['workspace_id', 'workflow_id'],
-        ['workspace_id', 'id'],
-        false,
-      ],
-      [
-        '참조 컬럼이 다르다',
-        ['workflow_id', 'workspace_id'],
-        ['name', 'workspace_id'],
-        false,
-      ],
-      [
-        '컬럼이 셋이다',
-        ['workflow_id', 'workspace_id', 'workflow_id'],
-        ['id', 'workspace_id', 'workflow_id'],
-        false,
-      ],
+    const containerDecl: RelationColumns = {
+      columnNames: ['container_id'],
+      referencedColumnNames: ['id'],
+    };
+    // 두 컬럼 관계 선언(지금 엔티티에는 없다)에는 범위 컬럼을 덧붙인 모양을 인정하지 않는다
+    const twoColumnDecl: RelationColumns = {
+      columnNames: ['workflow_id', 'node_id'],
+      referencedColumnNames: ['id', 'node_id'],
+    };
+    const cases: ReadonlyArray<{
+      label: string;
+      on: RelationColumns;
+      cols: string[];
+      refcols: string[];
+      same: boolean;
+    }> = [
+      {
+        label: '선언 그대로',
+        on: decl,
+        cols: ['workflow_id'],
+        refcols: ['id'],
+        same: true,
+      },
+      {
+        label: '워크스페이스 범위',
+        on: decl,
+        cols: ['workflow_id', 'workspace_id'],
+        refcols: ['id', 'workspace_id'],
+        same: true,
+      },
+      {
+        label: '워크플로우 범위',
+        on: containerDecl,
+        cols: ['container_id', 'workflow_id'],
+        refcols: ['id', 'workflow_id'],
+        same: true,
+      },
+      {
+        label: '범위 컬럼이 아니다',
+        on: decl,
+        cols: ['workflow_id', 'created_by'],
+        refcols: ['id', 'created_by'],
+        same: false,
+      },
+      {
+        label: '자식 · 부모의 범위 컬럼이 다르다',
+        on: decl,
+        cols: ['workflow_id', 'workspace_id'],
+        refcols: ['id', 'workflow_id'],
+        same: false,
+      },
+      {
+        label: '선두가 다르다',
+        on: decl,
+        cols: ['folder_id', 'workspace_id'],
+        refcols: ['id', 'workspace_id'],
+        same: false,
+      },
+      {
+        label: '순서가 다르다',
+        on: decl,
+        cols: ['workspace_id', 'workflow_id'],
+        refcols: ['workspace_id', 'id'],
+        same: false,
+      },
+      {
+        label: '참조 컬럼이 다르다',
+        on: decl,
+        cols: ['workflow_id', 'workspace_id'],
+        refcols: ['name', 'workspace_id'],
+        same: false,
+      },
+      {
+        label: '컬럼이 셋이다',
+        on: decl,
+        cols: ['workflow_id', 'workspace_id', 'workflow_id'],
+        refcols: ['id', 'workspace_id', 'workflow_id'],
+        same: false,
+      },
+      {
+        label: '두 컬럼 선언의 둘째 컬럼을 범위 컬럼으로 바꿨다',
+        on: twoColumnDecl,
+        cols: ['workflow_id', 'workspace_id'],
+        refcols: ['id', 'workspace_id'],
+        same: false,
+      },
     ];
     expect(
-      cases.map(([label, cols, refcols]) => [
+      cases.map(({ label, on, cols, refcols }) => [
         label,
-        sameRelationColumns({ cols, refcols }, decl),
+        sameRelationColumns({ cols, refcols }, on),
       ]),
-    ).toEqual(cases.map(([label, , , same]) => [label, same]));
+    ).toEqual(cases.map(({ label, same }) => [label, same]));
 
     const scoped = ['workflow_id', 'workspace_id'];
     const setNullCases: ReadonlyArray<[string, string, string[], boolean]> = [

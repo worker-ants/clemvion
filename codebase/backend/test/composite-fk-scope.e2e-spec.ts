@@ -6,13 +6,15 @@ import { Client } from 'pg';
 import { createDbClient } from './helpers/db';
 
 /**
- * e2e: 워크스페이스 · 워크플로우 범위 참조 열일곱을 DB 의 복합 FK 가 막는다(V134~V142, NERV Task `CLE-T-QTRRE6`).
+ * e2e: 워크스페이스 · 워크플로우 범위 참조 열일곱을 DB 의 복합 FK 가 막는다(V134~V147, NERV Task `CLE-T-QTRRE6`).
  * 근거: [데이터 모델 개요 「워크스페이스 범위 참조를 복합 FK 로도 막는다」](CLE-PLAT-DATA#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)
  *
  * 저장 시점 검사(`assertReferenceInScope` 등)가 첫 방어선이고 이 파일은 그 뒤의 DB 층만 본다. 서비스를 거치지 않는
  * SQL 쓰기로 교차 참조를 시도하고, 부모를 지워 삭제 동작이 그대로인지 본다. 픽스처는 한 트랜잭션 안에서 만들고
  * ROLLBACK 해 공유 e2e DB 에 남기지 않는다.
  */
+
+type SeedKey = keyof ReturnType<typeof ids>;
 
 interface ScopedFk {
   child: string;
@@ -22,6 +24,10 @@ interface ScopedFk {
   scope: 'workspace_id' | 'workflow_id';
   name: string;
   onDelete: 'CASCADE' | 'SET NULL';
+  /** 교차 쓰기를 해 볼 자식 행(`seed()` 의 키) */
+  row: SeedKey;
+  /** 그 행이 가리킬 부모 행(`seed()` 의 키). A 의 것이면 같은 범위, B 의 것이면 교차다 */
+  target: SeedKey;
 }
 
 const SCOPED_FKS: readonly ScopedFk[] = [
@@ -32,6 +38,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_trigger_workflow_id',
     onDelete: 'CASCADE',
+    row: 'trigger',
+    target: 'workflow',
   },
   {
     child: 'trigger',
@@ -40,6 +48,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_trigger_auth_config_id',
     onDelete: 'SET NULL',
+    row: 'trigger',
+    target: 'authConfig',
   },
   {
     child: 'schedule',
@@ -48,6 +58,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_schedule_trigger_id',
     onDelete: 'CASCADE',
+    row: 'schedule',
+    target: 'trigger',
   },
   {
     child: 'alert_rule',
@@ -56,6 +68,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_alert_rule_workflow_id',
     onDelete: 'CASCADE',
+    row: 'alertRule',
+    target: 'workflow',
   },
   {
     child: 'workflow',
@@ -64,6 +78,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_workflow_folder_id',
     onDelete: 'SET NULL',
+    row: 'workflow',
+    target: 'folder',
   },
   {
     child: 'folder',
@@ -72,6 +88,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_folder_parent_id',
     onDelete: 'CASCADE',
+    row: 'childFolder',
+    target: 'folder',
   },
   {
     child: 'workflow_assistant_session',
@@ -80,6 +98,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_workflow_assistant_session_workflow_id',
     onDelete: 'CASCADE',
+    row: 'session',
+    target: 'workflow',
   },
   {
     child: 'workflow_assistant_session',
@@ -88,6 +108,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_workflow_assistant_session_llm_config_id',
     onDelete: 'SET NULL',
+    row: 'session',
+    target: 'modelConfig',
   },
   {
     child: 'knowledge_base',
@@ -96,6 +118,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_knowledge_base_embedding_model_config_id',
     onDelete: 'SET NULL',
+    row: 'knowledgeBase',
+    target: 'modelConfig',
   },
   {
     child: 'knowledge_base',
@@ -104,6 +128,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_knowledge_base_extraction_llm_config_id',
     onDelete: 'SET NULL',
+    row: 'knowledgeBase',
+    target: 'modelConfig',
   },
   {
     child: 'knowledge_base',
@@ -112,6 +138,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_knowledge_base_rerank_config_id',
     onDelete: 'SET NULL',
+    row: 'knowledgeBase',
+    target: 'modelConfig',
   },
   {
     child: 'knowledge_base',
@@ -120,6 +148,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_knowledge_base_rerank_llm_config_id',
     onDelete: 'SET NULL',
+    row: 'knowledgeBase',
+    target: 'modelConfig',
   },
   {
     child: 'workflow_test_dataset',
@@ -128,6 +158,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workspace_id',
     name: 'fk_workflow_test_dataset_workflow_id',
     onDelete: 'CASCADE',
+    row: 'dataset',
+    target: 'workflow',
   },
   {
     child: 'node',
@@ -136,6 +168,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workflow_id',
     name: 'fk_node_container_id',
     onDelete: 'SET NULL',
+    row: 'node',
+    target: 'container',
   },
   {
     child: 'node',
@@ -144,6 +178,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workflow_id',
     name: 'fk_node_tool_owner_id',
     onDelete: 'SET NULL',
+    row: 'tool',
+    target: 'container',
   },
   {
     child: 'edge',
@@ -152,6 +188,8 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workflow_id',
     name: 'fk_edge_source_node_id',
     onDelete: 'CASCADE',
+    row: 'edge',
+    target: 'container',
   },
   {
     child: 'edge',
@@ -160,13 +198,16 @@ const SCOPED_FKS: readonly ScopedFk[] = [
     scope: 'workflow_id',
     name: 'fk_edge_target_node_id',
     onDelete: 'CASCADE',
+    row: 'edge',
+    // 끝점 둘을 모두 B 로 옮겨도 B 의 연결선(container → node)과 겹치지 않게 다른 노드를 가리킨다(연결선 UNIQUE)
+    target: 'tool',
   },
 ];
 
 const PARENT_UNIQUES: ReadonlyArray<{
   table: string;
   name: string;
-  scope: string;
+  scope: ScopedFk['scope'];
 }> = [
   {
     table: 'workflow',
@@ -216,7 +257,9 @@ function ids(suffix: 'a' | 'b') {
     dataset: id('cb000000'),
     node: id('cc000000'),
     container: id('cc100000'),
+    tool: id('cc200000'),
     edge: id('cd000000'),
+    edge2: id('cd100000'),
   };
 }
 const A = ids('a');
@@ -319,208 +362,25 @@ describe('워크스페이스 · 워크플로우 범위 참조의 복합 FK (e2e)
         w.container,
         w.node,
       ]);
+      // 노드 배치 CHECK(chk_node_placement)가 컨테이너와 도구 소유를 한 행에 함께 두지 못하게 해서 도구 노드를 따로 둔다
       await db.query(
-        `INSERT INTO edge (id, workflow_id, source_node_id, target_node_id) VALUES ($1, $2, $3, $4)`,
-        [w.edge, w.workflow, w.container, w.node],
+        `INSERT INTO node (id, workflow_id, type, category, label, tool_owner_id) VALUES ($1, $2, 'http_request', 'integration', 'tool', $3)`,
+        [w.tool, w.workflow, w.container],
+      );
+      await db.query(
+        `INSERT INTO edge (id, workflow_id, source_node_id, target_node_id) VALUES ($1, $2, $3, $4), ($5, $2, $4, $6)`,
+        [w.edge, w.workflow, w.container, w.node, w.edge2, w.tool],
       );
     }
   }
 
-  /** 열일곱 참조마다 A 쪽 자식 한 행의 참조 컬럼을 B 의 부모로 바꾸는 문장과 같은 범위로 되돌리는 문장. */
-  const CROSS_WRITES: ReadonlyArray<{
-    fk: string;
-    cross: [string, unknown[]];
-    same: [string, unknown[]];
-  }> = [
-    {
-      fk: 'fk_trigger_workflow_id',
-      cross: [
-        'UPDATE trigger SET workflow_id = $1 WHERE id = $2',
-        [B.workflow, A.trigger],
-      ],
-      same: [
-        'UPDATE trigger SET workflow_id = $1 WHERE id = $2',
-        [A.workflow, A.trigger],
-      ],
-    },
-    {
-      fk: 'fk_trigger_auth_config_id',
-      cross: [
-        'UPDATE trigger SET auth_config_id = $1 WHERE id = $2',
-        [B.authConfig, A.trigger],
-      ],
-      same: [
-        'UPDATE trigger SET auth_config_id = $1 WHERE id = $2',
-        [A.authConfig, A.trigger],
-      ],
-    },
-    {
-      fk: 'fk_schedule_trigger_id',
-      cross: [
-        'UPDATE schedule SET trigger_id = $1 WHERE id = $2',
-        [B.trigger, A.schedule],
-      ],
-      same: [
-        'UPDATE schedule SET trigger_id = $1 WHERE id = $2',
-        [A.trigger, A.schedule],
-      ],
-    },
-    {
-      fk: 'fk_alert_rule_workflow_id',
-      cross: [
-        'UPDATE alert_rule SET workflow_id = $1 WHERE id = $2',
-        [B.workflow, A.alertRule],
-      ],
-      same: [
-        'UPDATE alert_rule SET workflow_id = $1 WHERE id = $2',
-        [A.workflow, A.alertRule],
-      ],
-    },
-    {
-      fk: 'fk_workflow_folder_id',
-      cross: [
-        'UPDATE workflow SET folder_id = $1 WHERE id = $2',
-        [B.folder, A.workflow],
-      ],
-      same: [
-        'UPDATE workflow SET folder_id = $1 WHERE id = $2',
-        [A.folder, A.workflow],
-      ],
-    },
-    {
-      fk: 'fk_folder_parent_id',
-      cross: [
-        'UPDATE folder SET parent_id = $1 WHERE id = $2',
-        [B.folder, A.childFolder],
-      ],
-      same: [
-        'UPDATE folder SET parent_id = $1 WHERE id = $2',
-        [A.folder, A.childFolder],
-      ],
-    },
-    {
-      fk: 'fk_workflow_assistant_session_workflow_id',
-      cross: [
-        'UPDATE workflow_assistant_session SET workflow_id = $1 WHERE id = $2',
-        [B.workflow, A.session],
-      ],
-      same: [
-        'UPDATE workflow_assistant_session SET workflow_id = $1 WHERE id = $2',
-        [A.workflow, A.session],
-      ],
-    },
-    {
-      fk: 'fk_workflow_assistant_session_llm_config_id',
-      cross: [
-        'UPDATE workflow_assistant_session SET llm_config_id = $1 WHERE id = $2',
-        [B.modelConfig, A.session],
-      ],
-      same: [
-        'UPDATE workflow_assistant_session SET llm_config_id = $1 WHERE id = $2',
-        [A.modelConfig, A.session],
-      ],
-    },
-    {
-      fk: 'fk_knowledge_base_embedding_model_config_id',
-      cross: [
-        'UPDATE knowledge_base SET embedding_model_config_id = $1 WHERE id = $2',
-        [B.modelConfig, A.knowledgeBase],
-      ],
-      same: [
-        'UPDATE knowledge_base SET embedding_model_config_id = $1 WHERE id = $2',
-        [A.modelConfig, A.knowledgeBase],
-      ],
-    },
-    {
-      fk: 'fk_knowledge_base_extraction_llm_config_id',
-      cross: [
-        'UPDATE knowledge_base SET extraction_llm_config_id = $1 WHERE id = $2',
-        [B.modelConfig, A.knowledgeBase],
-      ],
-      same: [
-        'UPDATE knowledge_base SET extraction_llm_config_id = $1 WHERE id = $2',
-        [A.modelConfig, A.knowledgeBase],
-      ],
-    },
-    {
-      fk: 'fk_knowledge_base_rerank_config_id',
-      cross: [
-        'UPDATE knowledge_base SET rerank_config_id = $1 WHERE id = $2',
-        [B.modelConfig, A.knowledgeBase],
-      ],
-      same: [
-        'UPDATE knowledge_base SET rerank_config_id = $1 WHERE id = $2',
-        [A.modelConfig, A.knowledgeBase],
-      ],
-    },
-    {
-      fk: 'fk_knowledge_base_rerank_llm_config_id',
-      cross: [
-        'UPDATE knowledge_base SET rerank_llm_config_id = $1 WHERE id = $2',
-        [B.modelConfig, A.knowledgeBase],
-      ],
-      same: [
-        'UPDATE knowledge_base SET rerank_llm_config_id = $1 WHERE id = $2',
-        [A.modelConfig, A.knowledgeBase],
-      ],
-    },
-    {
-      fk: 'fk_workflow_test_dataset_workflow_id',
-      cross: [
-        'UPDATE workflow_test_dataset SET workflow_id = $1 WHERE id = $2',
-        [B.workflow, A.dataset],
-      ],
-      same: [
-        'UPDATE workflow_test_dataset SET workflow_id = $1 WHERE id = $2',
-        [A.workflow, A.dataset],
-      ],
-    },
-    {
-      fk: 'fk_node_container_id',
-      cross: [
-        'UPDATE node SET container_id = $1 WHERE id = $2',
-        [B.container, A.node],
-      ],
-      same: [
-        'UPDATE node SET container_id = $1 WHERE id = $2',
-        [A.container, A.node],
-      ],
-    },
-    // 노드 배치 CHECK(chk_node_placement)가 컨테이너와 도구 소유를 함께 두지 못하게 해서 컨테이너를 비운 뒤 잰다.
-    {
-      fk: 'fk_node_tool_owner_id',
-      cross: [
-        'UPDATE node SET container_id = NULL, tool_owner_id = $1 WHERE id = $2',
-        [B.container, A.node],
-      ],
-      same: [
-        'UPDATE node SET container_id = NULL, tool_owner_id = $1 WHERE id = $2',
-        [A.container, A.node],
-      ],
-    },
-    {
-      fk: 'fk_edge_source_node_id',
-      cross: [
-        'UPDATE edge SET source_node_id = $1 WHERE id = $2',
-        [B.container, A.edge],
-      ],
-      same: [
-        'UPDATE edge SET source_node_id = $1 WHERE id = $2',
-        [A.container, A.edge],
-      ],
-    },
-    {
-      fk: 'fk_edge_target_node_id',
-      cross: [
-        'UPDATE edge SET target_node_id = $1 WHERE id = $2',
-        [B.node, A.edge],
-      ],
-      same: [
-        'UPDATE edge SET target_node_id = $1 WHERE id = $2',
-        [A.node, A.edge],
-      ],
-    },
-  ];
+  /** A 쪽 자식 행의 참조 컬럼을 `owner` 워크스페이스의 부모로 바꾸는 문장. B 면 교차, A 면 같은 범위다. */
+  function pointAt(fk: ScopedFk, owner: typeof A): [string, unknown[]] {
+    return [
+      `UPDATE ${fk.child} SET ${fk.column} = $1 WHERE id = $2`,
+      [owner[fk.target], A[fk.row]],
+    ];
+  }
 
   it('부모 여섯에 (id, 범위 컬럼) UNIQUE 제약이 유효한 인덱스로 있다', async () => {
     const { rows } = await db.query<{
@@ -603,25 +463,21 @@ describe('워크스페이스 · 워크플로우 범위 참조의 복합 FK (e2e)
     try {
       await seed();
       const results: Array<{ fk: string; cross: unknown; same: unknown }> = [];
-      for (const w of CROSS_WRITES) {
-        const cross = await attempt(...w.cross);
-        const same = await attempt(...w.same);
+      for (const fk of SCOPED_FKS) {
+        const cross = await attempt(...pointAt(fk, B));
+        const same = await attempt(...pointAt(fk, A));
         results.push({
-          fk: w.fk,
+          fk: fk.name,
           cross: cross && { code: cross.code, constraint: cross.constraint },
           same: same && { code: same.code, message: same.message },
         });
       }
       expect(results).toEqual(
-        CROSS_WRITES.map((w) => ({
-          fk: w.fk,
-          cross: { code: '23503', constraint: w.fk },
+        SCOPED_FKS.map((fk) => ({
+          fk: fk.name,
+          cross: { code: '23503', constraint: fk.name },
           same: null,
         })),
-      );
-      // 열일곱을 빠짐없이 쟀다
-      expect(CROSS_WRITES.map((w) => w.fk).sort()).toEqual(
-        SCOPED_FKS.map((f) => f.name).sort(),
       );
     } finally {
       await db.query('ROLLBACK');
@@ -632,115 +488,157 @@ describe('워크스페이스 · 워크플로우 범위 참조의 복합 FK (e2e)
     await db.query('BEGIN');
     try {
       await seed();
-      // SET NULL — 인증 설정 · 폴더 · 모델 설정 · 컨테이너 노드
+      const gone = async (table: string, id: string) =>
+        (await db.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]))
+          .rowCount === 0;
+
+      // SET NULL — 워크스페이스 A 의 인증 설정 · 모델 설정 · 폴더 · 컨테이너 노드
       await db.query('DELETE FROM auth_config WHERE id = $1', [A.authConfig]);
       await db.query('DELETE FROM model_config WHERE id = $1', [A.modelConfig]);
-      await db.query('DELETE FROM folder WHERE id = $1', [A.childFolder]);
-      const trigger = await db.query(
-        'SELECT workspace_id, auth_config_id FROM trigger WHERE id = $1',
-        [A.trigger],
-      );
-      expect(trigger.rows).toEqual([
-        { workspace_id: A.workspace, auth_config_id: null },
-      ]);
-      const session = await db.query(
-        'SELECT workspace_id, llm_config_id FROM workflow_assistant_session WHERE id = $1',
-        [A.session],
-      );
-      expect(session.rows).toEqual([
-        { workspace_id: A.workspace, llm_config_id: null },
-      ]);
-      const kb = await db.query(
-        `SELECT workspace_id, embedding_model_config_id, extraction_llm_config_id, rerank_config_id, rerank_llm_config_id
-           FROM knowledge_base WHERE id = $1`,
-        [A.knowledgeBase],
-      );
-      expect(kb.rows).toEqual([
-        {
-          workspace_id: A.workspace,
-          embedding_model_config_id: null,
-          extraction_llm_config_id: null,
-          rerank_config_id: null,
-          rerank_llm_config_id: null,
-        },
-      ]);
       await db.query('DELETE FROM folder WHERE id = $1', [A.folder]);
-      const workflow = await db.query(
-        'SELECT workspace_id, folder_id FROM workflow WHERE id = $1',
-        [A.workflow],
-      );
-      expect(workflow.rows).toEqual([
-        { workspace_id: A.workspace, folder_id: null },
-      ]);
-      // 노드: 연결선을 먼저 치운 뒤 컨테이너를 지운다(연결선은 아래 CASCADE 에서 따로 본다)
-      await db.query('DELETE FROM edge WHERE id = $1', [A.edge]);
       await db.query('DELETE FROM node WHERE id = $1', [A.container]);
-      const node = await db.query(
-        'SELECT workflow_id, container_id FROM node WHERE id = $1',
-        [A.node],
-      );
-      expect(node.rows).toEqual([
-        { workflow_id: A.workflow, container_id: null },
-      ]);
+      const setNull = {
+        trigger: (
+          await db.query(
+            'SELECT workspace_id, auth_config_id FROM trigger WHERE id = $1',
+            [A.trigger],
+          )
+        ).rows,
+        session: (
+          await db.query(
+            'SELECT workspace_id, llm_config_id FROM workflow_assistant_session WHERE id = $1',
+            [A.session],
+          )
+        ).rows,
+        knowledgeBase: (
+          await db.query(
+            `SELECT workspace_id, embedding_model_config_id, extraction_llm_config_id, rerank_config_id, rerank_llm_config_id
+               FROM knowledge_base WHERE id = $1`,
+            [A.knowledgeBase],
+          )
+        ).rows,
+        workflow: (
+          await db.query(
+            'SELECT workspace_id, folder_id FROM workflow WHERE id = $1',
+            [A.workflow],
+          )
+        ).rows,
+        nodes: (
+          await db.query(
+            'SELECT id, workflow_id, container_id, tool_owner_id FROM node WHERE id = ANY($1) ORDER BY id',
+            [[A.node, A.tool]],
+          )
+        ).rows,
+      };
+      expect(setNull).toEqual({
+        trigger: [{ workspace_id: A.workspace, auth_config_id: null }],
+        session: [{ workspace_id: A.workspace, llm_config_id: null }],
+        knowledgeBase: [
+          {
+            workspace_id: A.workspace,
+            embedding_model_config_id: null,
+            extraction_llm_config_id: null,
+            rerank_config_id: null,
+            rerank_llm_config_id: null,
+          },
+        ],
+        workflow: [{ workspace_id: A.workspace, folder_id: null }],
+        nodes: [
+          {
+            id: A.node,
+            workflow_id: A.workflow,
+            container_id: null,
+            tool_owner_id: null,
+          },
+          {
+            id: A.tool,
+            workflow_id: A.workflow,
+            container_id: null,
+            tool_owner_id: null,
+          },
+        ],
+      });
 
-      // CASCADE — 트리거 → 스케줄, 노드 → 연결선, 워크플로우 → 나머지 자식
-      await db.query('DELETE FROM trigger WHERE id = $1', [B.trigger]);
-      expect(
-        (await db.query('SELECT 1 FROM schedule WHERE id = $1', [B.schedule]))
-          .rowCount,
-      ).toBe(0);
-      await db.query('DELETE FROM node WHERE id = $1', [B.node]);
-      expect(
-        (await db.query('SELECT 1 FROM edge WHERE id = $1', [B.edge])).rowCount,
-      ).toBe(0);
+      // CASCADE — FK 마다 그 부모만 지우고 바로 확인해 다른 연쇄와 섞이지 않게 한다
+      const cascaded: Record<string, boolean> = {};
+      // 위 SET NULL 단계의 A.folder · A.container 삭제가 낸 연쇄
+      cascaded.fk_folder_parent_id = await gone('folder', A.childFolder);
+      cascaded.fk_edge_source_node_id = await gone('edge', A.edge);
+      await db.query('DELETE FROM node WHERE id = $1', [B.tool]);
+      cascaded.fk_edge_target_node_id = await gone('edge', B.edge2);
+      await db.query('DELETE FROM trigger WHERE id = $1', [A.trigger]);
+      cascaded.fk_schedule_trigger_id = await gone('schedule', A.schedule);
+      // 트리거를 지우지 않은 워크스페이스 B 에서 워크플로우의 연쇄를 본다
       await db.query('DELETE FROM workflow WHERE id = $1', [B.workflow]);
-      for (const [table, id] of [
-        ['alert_rule', B.alertRule],
-        ['workflow_assistant_session', B.session],
-        ['workflow_test_dataset', B.dataset],
-      ] as const) {
-        expect(
-          (await db.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]))
-            .rowCount,
-        ).toBe(0);
-      }
-      await db.query('DELETE FROM folder WHERE id = $1', [B.folder]);
-      expect(
-        (await db.query('SELECT 1 FROM folder WHERE id = $1', [B.childFolder]))
-          .rowCount,
-      ).toBe(0);
+      cascaded.fk_trigger_workflow_id = await gone('trigger', B.trigger);
+      cascaded.fk_alert_rule_workflow_id = await gone(
+        'alert_rule',
+        B.alertRule,
+      );
+      cascaded.fk_workflow_assistant_session_workflow_id = await gone(
+        'workflow_assistant_session',
+        B.session,
+      );
+      cascaded.fk_workflow_test_dataset_workflow_id = await gone(
+        'workflow_test_dataset',
+        B.dataset,
+      );
+      expect(cascaded).toEqual(
+        Object.fromEntries(
+          SCOPED_FKS.filter((fk) => fk.onDelete === 'CASCADE').map((fk) => [
+            fk.name,
+            true,
+          ]),
+        ),
+      );
     } finally {
       await db.query('ROLLBACK');
     }
   });
 
-  it('V134 사전 점검은 교차 행이 없으면 통과하고 있으면 참조와 행 id 를 알리며 멈춘다', async () => {
+  it('V134 사전 점검은 교차 행이 없으면 통과하고 있으면 열일곱 참조마다 행 수와 행 id 를 알리며 멈춘다', async () => {
     await db.query('BEGIN');
     try {
       await seed();
-      // 이 DB 에 다른 e2e 가 남긴 교차 행이 없다는 전제를 먼저 확인한다. 실패하면 아래 단언이 무엇을 재는지 흐려진다
-      expect(await attempt(V134_SQL)).toBeNull();
+      // 이 DB 에 교차 행이 없다는 전제를 먼저 확인한다. 실패하면 다른 e2e 가 커밋한 교차 행이 남은 것이다
+      // (복제 모드로 교차 트리거를 만드는 stored-cross-workspace-workflow-refs 의 정리 실패 등)
+      expect((await attempt(V134_SQL))?.message ?? null).toBeNull();
 
       // FK 가 있는 지금은 교차 행을 만들 수 없다. 복제 모드는 FK 트리거를 끄므로 이 트랜잭션에서만 켜서 옛 데이터를 흉내 낸다
       await db.query('SET LOCAL session_replication_role = replica');
-      await db.query('UPDATE trigger SET workflow_id = $1 WHERE id = $2', [
-        B.workflow,
-        A.trigger,
-      ]);
-      await db.query('UPDATE edge SET source_node_id = $1 WHERE id = $2', [
-        B.container,
-        A.edge,
-      ]);
+      for (const fk of SCOPED_FKS) await db.query(...pointAt(fk, B));
       await db.query('SET LOCAL session_replication_role = origin');
 
       const err = await attempt(V134_SQL);
       expect(err?.code).toBe('P0001');
-      expect(err?.message).toContain('trigger.workflow_id');
-      expect(err?.message).toContain(A.trigger);
-      expect(err?.message).toContain('edge.source_node_id');
-      expect(err?.message).toContain(A.edge);
-      // 위반이 없는 참조는 싣지 않는다
-      expect(err?.message).not.toContain('schedule.trigger_id');
+      const reported = (err?.message ?? '')
+        .split('\n')
+        .slice(1)
+        .map((line) => line.trim())
+        .sort();
+      expect(reported).toEqual(
+        SCOPED_FKS.map(
+          (fk) =>
+            `${fk.child}.${fk.column} -> ${fk.parent}(${fk.scope}): 1 row(s), e.g. ${A[fk.row]}`,
+        ).sort(),
+      );
+    } finally {
+      await db.query('ROLLBACK');
+    }
+  });
+
+  it('V134 는 PostgreSQL 15 미만이면 스키마를 바꾸기 전에 멈춘다', async () => {
+    // e2e 서버는 15 이상이라 기준값을 올려 그 분기를 돌린다
+    const raised = V134_SQL.replace(
+      'min_server_version CONSTANT int := 150000;',
+      'min_server_version CONSTANT int := 99990000;',
+    );
+    expect(raised).not.toBe(V134_SQL);
+    await db.query('BEGIN');
+    try {
+      const err = await attempt(raised);
+      expect(err?.code).toBe('P0001');
+      expect(err?.message).toContain('PostgreSQL 15 or later is required');
     } finally {
       await db.query('ROLLBACK');
     }

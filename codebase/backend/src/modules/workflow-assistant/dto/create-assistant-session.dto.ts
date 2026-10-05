@@ -3,7 +3,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAssistantSessionDto {
   @ApiProperty({
-    description: '세션이 소속될 워크플로우 UUID',
+    description:
+      '세션이 소속될 워크플로우 UUID. 요청한 워크스페이스의 워크플로우가 아니면 404 `WORKFLOW_NOT_FOUND`',
     format: 'uuid',
   })
   @IsUUID()
