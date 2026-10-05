@@ -2,19 +2,19 @@
 id: "CLE-KB-DATA"
 title: "지식 저장소 데이터와 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "2040d85c90c2eb661393ac8ab3aa20aa5cb3dab3c7bbc2b712de93ef3e2d21c3"
+content_hash: "94494647d39d3d6200dcf5cb0ff6d33e7dcbe6ecd9291a69682822e452ca1c11"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "82cd153ba943f944bff5d6b396faebc157e7edb8d747d08920bf2cccf5511f26"
-etag: "sha256-b3ba69645ffd13c80fe567982b4bcef654fca0114cf6dbdb4581be55b25c0d55"
+mirror_sha256: "52ffeacbf6c1154520b638278257d5cb2061a8c6ae1cb3dd6057766d2edb5e86"
+etag: "sha256-87eb579291b6a1b99ede6722c604a18d30b885aa127488fa8b0c26c0f7712da8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/6-knowledge-base.md`, `spec/1-data-model.md` (§2.11 KnowledgeBase, §2.12 Document, §2.12.1~§2.12.4, Rationale «그래프 RAG 삭제 연쇄의 FK 인덱스 넷») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,14 +75,14 @@ erDiagram
 | workspace_id | UUID | FK → Workspace (CASCADE) |
 | name | String | 지식 저장소 이름 |
 | description | String? | 설명 |
-| embedding_model_config_id | UUID? | FK → ModelConfig (SET NULL, `kind=embedding`). 임베딩 모델 설정 참조(V091). 모델, 모델 프로바이더, 모델 출력 차원은 참조한 모델 설정에 있다. NULL 이면 워크스페이스 기본 Embedding 설정으로 해석한다. 유효 임베딩 모델은 API 응답의 읽기 전용 파생 값 `embeddingModel`(= 설정의 `defaultModel`)로 노출한다 |
+| embedding_model_config_id | UUID? | FK → ModelConfig (SET NULL, 같은 워크스페이스, `kind=embedding`). 임베딩 모델 설정 참조(V091). 모델, 모델 프로바이더, 모델 출력 차원은 참조한 모델 설정에 있다. NULL 이면 워크스페이스 기본 Embedding 설정으로 해석한다. 유효 임베딩 모델은 API 응답의 읽기 전용 파생 값 `embeddingModel`(= 설정의 `defaultModel`)로 노출한다 |
 | embedding_dimension | Integer? | 저장 청크 차원. 지금 저장된 청크 벡터의 실제 길이다. 아래 [임베딩 차원](#임베딩-차원) 참조 |
 | chunk_size | Integer | 청크 크기 (기본 1000) |
 | chunk_overlap | Integer | 청크 오버랩 (기본 200) |
 | document_count | Integer | 문서 수 (캐시). 업로드 때 `COUNT(*)` 로 다시 센다 |
 | reembed_status | Enum | 전체 재임베딩 재처리 잠금: `idle`(기본), `in_progress`. 원자적 비교 후 교체로 진입한다 |
 | rag_mode | Enum | 검색 모드: `vector`(기본), `graph`. 만들 때만 정하고 바꿀 수 없다. CHECK `chk_kb_rag_mode` |
-| extraction_llm_config_id | UUID? | FK → ModelConfig (SET NULL, `kind=chat`). Graph 모드의 그래프 추출 LLM. NULL 이면 워크스페이스 기본 Chat 설정 |
+| extraction_llm_config_id | UUID? | FK → ModelConfig (SET NULL, 같은 워크스페이스, `kind=chat`). Graph 모드의 그래프 추출 LLM. NULL 이면 워크스페이스 기본 Chat 설정 |
 | max_hops | Integer | Graph 검색의 최대 확장 깊이 (1 또는 2, 기본 1). CHECK `chk_kb_max_hops`. Vector 모드에서 무시 |
 | vector_seed_top_k | Integer | Graph 검색의 vector seed 개수 (기본 5). Vector 모드에서 무시 |
 | expanded_chunk_limit | Integer | Graph 확장으로 더 가져오는 청크 수의 상한 (기본 15). Vector 모드에서 무시 |
@@ -90,10 +90,10 @@ erDiagram
 | relation_count | Integer | Relation 수 (캐시). Vector 모드는 늘 0 |
 | reextract_status | Enum | 전체 그래프 재추출 재처리 잠금: `idle`(기본), `in_progress`. CHECK `chk_kb_reextract_status`. Vector 모드에서 쓰지 않음 |
 | rerank_mode | Enum | 리랭킹 모드: `off`(기본), `cross_encoder`, `cross_encoder_llm` (V082). 검색할 때만 적용하므로 나중에 바꿀 수 있고 재임베딩이 필요 없다. `off` 면 아래 `rerank_*` 컬럼을 무시한다 |
-| rerank_config_id | UUID? | FK → ModelConfig (SET NULL, `kind=rerank`). 리랭커. NULL 이면 워크스페이스 기본 리랭커, 그것도 없으면 리랭킹 끔으로 강등 |
+| rerank_config_id | UUID? | FK → ModelConfig (SET NULL, 같은 워크스페이스, `kind=rerank`). 리랭커. NULL 이면 워크스페이스 기본 리랭커, 그것도 없으면 리랭킹 끔으로 강등 |
 | rerank_candidate_k | Integer | 후보 풀: 리랭킹에 넣을 1차 후보 수 (기본 50, CHECK 1~200). `off` 에서 무시. 끔 경로의 내부 상수 `RAG_RECALL_K`(50)와 따로 돈다 |
 | rerank_score_threshold | Float? | 점수 컷 임계: 리랭킹 점수가 이보다 낮은 후보를 버린다. `off` 에서 무시. NULL 일 때의 동작은 정의가 갈린다. [RAG 검색의 미결 사항](CLE-KB-SEARCH.md#미결-사항) 참조 |
-| rerank_llm_config_id | UUID? | FK → ModelConfig (SET NULL, `kind=chat`). `cross_encoder_llm` 의 LLM 그레이딩 모델. NULL 이면 워크스페이스 기본 Chat 설정 |
+| rerank_llm_config_id | UUID? | FK → ModelConfig (SET NULL, 같은 워크스페이스, `kind=chat`). `cross_encoder_llm` 의 LLM 그레이딩 모델. NULL 이면 워크스페이스 기본 Chat 설정 |
 | created_at | Timestamp | 만든 시각 |
 | updated_at | Timestamp | 고친 시각 |
 
@@ -382,6 +382,7 @@ sequenceDiagram
 
 ## 구현 위치
 
+- `codebase/backend/migrations/V144__composite_fk_scope_model_config_not_valid.sql` (모델 설정 참조 넷의 복합 FK. SET NULL 은 참조 컬럼만 비운다)
 - `codebase/backend/src/modules/knowledge-base/entities/*.entity.ts`
 - `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts`
 - `codebase/backend/src/modules/knowledge-base/queues/*.ts` (`document-embedding.queue.ts`, `graph-extraction.queue.ts`)

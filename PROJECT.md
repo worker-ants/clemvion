@@ -17,7 +17,7 @@
 | 빌드 helper | `scripts/` | Python 검증 스크립트, setup-githooks.sh |
 
 패키지 매니저: 모두 **pnpm** (workspace 모노레포 — 루트 `pnpm-workspace.yaml` + 단일 `pnpm-lock.yaml`). 내부 패키지는 `workspace:*` 프로토콜로 참조한다. npm / yarn 직접 사용 금지. pnpm 버전은 루트 `package.json` 의 `packageManager` 필드(corepack)로 고정한다. (이전 "npm 전용" 정책에서 전환 — `file:../packages/*` 수동 링크가 유발하던 worktree node_modules/dist 수동 준비·병렬 install 손상을 workspace 가 단일 `pnpm install` 로 해소.)
-인프라: PostgreSQL 16 · Redis 7 (BullMQ) · MinIO · Flyway · Docker Compose.
+인프라: PostgreSQL(기본 이미지 18, 최소 15) · Redis 7 (BullMQ) · MinIO · Flyway · Docker Compose.
 
 ## 빌드·린트·테스트 명령
 

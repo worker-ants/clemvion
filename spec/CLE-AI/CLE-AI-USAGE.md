@@ -3,18 +3,18 @@ id: "CLE-AI-USAGE"
 title: "LLM 사용량 기록"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "4e3263d59a906b59d79c3e4c54635b165710de6d658d8f8f7e50150b9eb43752"
-read_as: "approved"
-task: null
+content_hash: "49b0b11762bbd948fa5c00557f5577a00f606713e1afc071a0173a455d04f35e"
+read_as: "approved_fallback"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "b09dc18102bee0f62a518487c60af16a00585d4436669ca90d03b4177d279d6a"
-etag: "sha256-cef7e52df6c8c52361c9330acb0d657fd7afebf392af48aa4df9708c1d630789"
+mirror_sha256: "b2624d056a0460b406b62f399df5332de34413bd71f0a41d1f02e29fed40fba5"
+etag: "sha256-9668914f18f26c93dac0d532b3047f22cafb6abce0a7e6b72db7aca004b126c1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/7-llm-usage.md`, `spec/1-data-model.md` (§2.16 ModelConfig, §2.24 LlmUsageLog) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -71,6 +71,7 @@ Chat 행은 UUID 를 유지했으므로 노드 `config.llmConfigId`·어시스�
 |------|------|------|
 | `model_config_workspace_kind_default_unique` | `(workspace_id, kind) WHERE is_default=true` partial UNIQUE (V089) | 종류별 기본 설정을 하나로 DB 에서 강제한다 |
 | V130 인덱스 | `(workspace_id, kind)` | 종류별 목록 조회와 FK CASCADE 용. 위 partial UNIQUE 는 `is_default` 조건이 없는 조회에 쓰이지 않는다 |
+| `uq_model_config_id_workspace_id` | `(id, workspace_id)` UNIQUE (V138 인덱스, V144 제약) | 어시스턴트 세션 · 지식 저장소의 모델 설정 참조 복합 FK 의 참조 대상이다([데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). `id` 가 PK 라 유일성은 이미 참이다 |
 
 ### 마이그레이션
 
@@ -86,6 +87,7 @@ Chat 행은 UUID 를 유지했으므로 노드 `config.llmConfigId`·어시스�
 | V093 | 모든 지식 저장소를 1급 Embedding 설정에 다시 연결 |
 | V094 | 지식 저장소 옛 임베딩 컬럼 `embedding_llm_config_id`·`embedding_model` 비가역 삭제([문서 임베딩](../CLE-KB/CLE-KB-EMBED.md)) |
 | V130 | `(workspace_id, kind)` 인덱스 추가 |
+| V138 · V144 | `(id, workspace_id)` UNIQUE 추가. 모델 설정을 가리키는 FK 여섯 가운데 다섯(지식 저장소 넷, 어시스턴트 세션 하나)을 같은 워크스페이스 복합 FK 로 바꿨다. LLM 사용량 기록(`LlmUsageLog`)의 `llm_config_id` 는 단일 FK 그대로다 |
 
 ### 등록과 관리 흐름
 
@@ -231,7 +233,7 @@ Chat 계열(사용량 적재):
 - `codebase/backend/src/modules/llm/llm-usage-log.service.ts` (Chat 계열 사용량 적재)
 - `codebase/backend/src/modules/llm/entities/llm-usage-log.entity.ts`
 - `codebase/backend/src/modules/llm/pricing.ts`
-- `codebase/backend/migrations/V*.sql` (V014, V018, V088~V094, V115, V116, V122, V130)
+- `codebase/backend/migrations/V*.sql` (V014, V018, V088~V094, V115, V116, V122, V130, V138, V144)
 
 ## Rationale
 

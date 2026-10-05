@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA"
 title: "실행 데이터와 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "eb9c81149ba26ee376b231955998ebb2ffe4c8c2e9016009804397647d17dba0"
+content_hash: "90889ed3e23fdcbd79d20f795ad7eb43fc7f62cbfa070357276b78d7404590c5"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-QTRRE6"
 source_paths: ["spec/1-data-model.md", "spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "9b02dfa057068617c1c0400e88060ae5e3cf42d8aee88631a95485b1bac1960e"
-etag: "sha256-5a342b8d359589bde42efd97b97075dee4d984194ce64321248c9522a29a0d64"
+mirror_sha256: "5a492ccfd32d6a975ad16b295f6cce1866f899381f32efed4aa793ce28c185f1"
+etag: "sha256-67ea221b622ec3e93d9cdfc382b6ef70775bad1f8394ea71edd6952855dddf64"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/3-execution.md`, `spec/1-data-model.md` (§2.13 Execution, §2.13.1 ExecutionNodeLog, §2.13.3 WorkflowTestDataset, §2.14 NodeExecution, Rationale "삭제 연쇄의 FK 인덱스 다섯", "Execution.execution_path → ExecutionNodeLog"), `spec/5-system/4-execution-engine.md` (§7.4 `execution_node_log` 모델) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -165,9 +165,9 @@ erDiagram
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | id | UUID | PK |
-| workflow_id | UUID | FK → Workflow (ON DELETE CASCADE). 데이터셋이 속한 워크플로우 |
-| owner_id | UUID | FK → User (ON DELETE CASCADE). 소유 사용자. 만들 때 항상 요청 사용자이며 수정·삭제 권한의 단일 기준이다. |
-| workspace_id | UUID | FK → Workspace (ON DELETE CASCADE). 워크스페이스 격리와 공유 목록 쿼리용(워크플로우의 워크스페이스를 비정규화) |
+| workflow_id | UUID | FK → Workflow (CASCADE, 같은 워크스페이스). 데이터셋이 속한 워크플로우 |
+| owner_id | UUID | FK → User (CASCADE). 소유 사용자. 만들 때 항상 요청 사용자이며 수정·삭제 권한의 단일 기준이다. |
+| workspace_id | UUID | FK → Workspace (CASCADE). 워크스페이스 격리와 공유 목록 쿼리용(워크플로우의 워크스페이스를 비정규화). 복합 FK `fk_workflow_test_dataset_workflow_id`(V141)가 워크플로우의 워크스페이스와 같게 지킨다([데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | visibility | Enum | `private`(기본, 소유자만) / `workspace`(워크스페이스에 읽기 전용 공유). 소유자가 아니면 공유본을 복제해 고친다. |
 | name | Varchar(255) | 데이터셋 이름 |
 | data | JSONB | 테스트 입력 JSON(`POST /workflows/:id/execute` 본문의 `input` 으로 쓴다). **API 표면 키는 `input`** 이다. TransformInterceptor 의 최상위 `data` 키 감싸기 휴리스틱과 부딪치지 않게 하려는 것이다(DB 컬럼은 `data`, 엔티티·DTO 속성은 `input`). |
@@ -430,7 +430,7 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 - `codebase/backend/src/modules/execution-engine/continuation/continuation-bus.service.ts` (재개 큐)
 - `codebase/backend/src/modules/execution-engine/state/state-machine.ts` (실행 상태 전이 `ALLOWED_TRANSITIONS`. 노드 실행 전이표는 코드에 없음)
 - `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts` (안전 종료 drain, `SERVER_INTERRUPTED` 표시)
-- `codebase/backend/migrations/V*.sql` (V035, V036, V067, V068, V083, V084, V085, V087, V096, V097, V098, V104, V112~V116)
+- `codebase/backend/migrations/V*.sql` (V035, V036, V067, V068, V083, V084, V085, V087, V096, V097, V098, V104, V112~V116, V141)
 - `codebase/backend/test/deletion-cascade-indexes.e2e-spec.ts` (삭제 연쇄 인덱스 가드)
 
 ## Rationale
