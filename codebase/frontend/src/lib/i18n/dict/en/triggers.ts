@@ -252,7 +252,7 @@ export const triggers: Dict["triggers"] = {
     healthHealthy: "Healthy",
     healthDegraded: "Degraded",
     healthDegradedHelp:
-      "Something is wrong with this channel. Check Last error for the cause. The trigger is not deactivated automatically.",
+      "Something is wrong with this channel. Check Last error for the cause. The trigger is not auto-disabled.",
     lastError: "Last error",
     setupAt: "Set up at",
     rotatedAt: "Last token rotation",

@@ -80,7 +80,7 @@ export interface TriggerDetail {
   };
   /** Spec EIA §7.1 — outbound notification 발송 건강도. */
   notificationHealth?: "unknown" | "healthy" | "degraded";
-  /** Spec Chat Channel §3.4 CCH-SE-01 — chat channel 외부 호출 건강도. */
+  /** 채널 건강도(CCH-SE-01). degraded 원인은 CLE-CHAT-CORE 「채널 건강도」 가 정한다. */
   chatChannelHealth?: "unknown" | "healthy" | "degraded";
   chatChannelLastError?: string | null;
   chatChannelSetupAt?: string | null;
