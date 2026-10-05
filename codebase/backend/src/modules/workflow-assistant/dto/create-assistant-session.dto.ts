@@ -2,6 +2,7 @@ import { IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAssistantSessionDto {
+  // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속)
   @ApiProperty({
     description:
       '세션이 소속될 워크플로우 UUID. 요청한 워크스페이스의 워크플로우가 아니면 404 `WORKFLOW_NOT_FOUND`',
