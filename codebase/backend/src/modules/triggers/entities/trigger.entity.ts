@@ -20,8 +20,8 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
 export type TriggerNotificationHealth = 'unknown' | 'healthy' | 'degraded';
 
 /**
- * Chat Channel 어댑터 (Telegram 등) 의 외부 채널 송수신 건강도. V062 마이그레이션이 NOT NULL
- * DEFAULT 'unknown' 으로 초기화. setupChannel/teardownChannel/sendMessage 실패 누적 시 'degraded'.
+ * 채팅 채널의 채널 건강도. V062 마이그레이션이 NOT NULL DEFAULT 'unknown' 으로 초기화.
+ * 'degraded' 가 되는 원인은 CLE-CHAT-CORE 「채널 건강도」 가 정한다.
  *
  * [Spec CCH-SE-01] 의 enum 강제 — DB 의 CHECK 제약과 일치. 자동 비활성화 금지 ([Spec WH-MG-04 /
  * EIA-NX-07] 와 동일 정책).
@@ -116,8 +116,8 @@ export class Trigger {
   notificationRotatedAt: Date | null;
 
   /**
-   * Chat Channel 어댑터의 외부 채널 송수신 건강도. V062 의 CHECK 제약이 enum 강제. setupChannel/
-   * sendMessage 누적 실패 시 'degraded' — trigger 자체는 비활성화하지 않는다 ([Spec CCH-SE-01]).
+   * 채팅 채널의 채널 건강도. V062 의 CHECK 제약이 enum 강제. 'degraded' 원인은 CLE-CHAT-CORE
+   * 「채널 건강도」 가 정하고 trigger 자체는 비활성화하지 않는다 ([Spec CCH-SE-01]).
    */
   @Column({
     name: 'chat_channel_health',

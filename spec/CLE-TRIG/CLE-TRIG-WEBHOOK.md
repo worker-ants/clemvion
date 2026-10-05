@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "a62319e845e4da56702b60640bc0a56ff412bf463c13e418c01d2c95a5f7ce2f"
+content_hash: "5122628256969a0093546e24f5630032c22f3f6ec2aeaf23cf7ec91609e04454"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "36f6bfb5f26b1cf2c66b9b4e925ad59946345cc34ea28a034acb0a5d39b6b7e6"
-etag: "sha256-7d5111c55e7a9aa17e1af7a58b7ec9e67a2bd1d77b4e97b95d2f0bed90000759"
+mirror_sha256: "be00f25827e1211dfa1b2d0009799396aabdb16dfeb1117447773b375acbb93c"
+etag: "sha256-4a5e61d28d1a4f51e7b6220bb9dcb23bce9cd4c5bf229d46743ce3461be22005"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -208,7 +208,7 @@ POST /api/hooks/:endpointPath
 |------|------|------|
 | `400 Bad Request` | | 요청 본문 파싱 실패 |
 | `400 Bad Request` | `INVALID_WEBHOOK_PAYLOAD` | required 트리거 파라미터 누락, 타입 강제 변환 실패([400 응답 형식](#400-응답-형식)) |
-| `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치 모두 같은 코드다 |
+| `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 트리거의 워크스페이스에 없는 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치 모두 같은 코드다 |
 | `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다(REQ-WEBHOOK-047). 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다(REQ-CHAT-059) |
 | `405 Method Not Allowed` | | POST 가 아닌 메서드([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
 | `410 Gone` | `TRIGGER_INACTIVE` | 트리거가 비활성이다. 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다 |
@@ -354,7 +354,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 6. 트리거가 비활성이면 `410 Gone`(`TRIGGER_INACTIVE`)이다.
 7. 인증을 검증한다(`AuthConfigsService.verifyWebhookRequest`).
    1. `trigger.auth_config_id IS NULL` 이면 통과한다. `ip_whitelist` 도 인증 설정에 딸려 있어 평가하지 않는다.
-   2. 인증 설정을 트리거의 워크스페이스 안에서 찾는다.
+   2. 인증 설정을 트리거의 워크스페이스 안에서 찾는다. 없으면 `401 AUTH_FAILED` 다. 다른 워크스페이스의 인증 설정을 가리키는 저장된 행도 여기서 막힌다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)).
    3. 인증 설정이 비활성이면 `401 AUTH_FAILED`.
    4. `ip_whitelist` 가 있으면 클라이언트 IP 를 검사한다. 맞지 않으면 401.
    5. 유형별(`bearer_token` / `api_key` / `basic_auth` / `hmac`)로 상수 시간 비교를 한다.

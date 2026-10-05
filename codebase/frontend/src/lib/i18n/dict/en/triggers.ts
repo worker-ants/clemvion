@@ -252,7 +252,7 @@ export const triggers: Dict["triggers"] = {
     healthHealthy: "Healthy",
     healthDegraded: "Degraded",
     healthDegradedHelp:
-      "setupChannel / rotate / sendMessage failed. The trigger is not auto-disabled (CCH-SE-01) — only an explicit user toggle changes activation.",
+      "Something is wrong with this channel. Check Last error for the cause. The trigger is not auto-disabled.",
     lastError: "Last error",
     setupAt: "Set up at",
     rotatedAt: "Last token rotation",

@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "047550699d53f47930876814efcf6ac690f0795a04cf8cb8b0462c697194c69d"
+content_hash: "3e6306e534cb0ac13247f41387bea38a991c6399c1acc7f124e3e89a890f79d8"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-K9S0TE"
 source_paths: []
-mirror_sha256: "ee5f29f09302893a3789aaf6c3b4891f22c47fed1a03785407836051a4685527"
-etag: "sha256-7d09fb166980e6599fe5acbd2efe78a0d9b788013c3e3fda80c208902d50a6be"
+mirror_sha256: "3c37454184baa16c2c33660cb1ad6097062566c4a138daf08c59cefaf78e7eaf"
+etag: "sha256-787d716dbc219a26b3edae5be46d51715a99163f5306c2fa9ae0d0e3568f9919"
 ---
 ## 개요
 
@@ -22,7 +22,7 @@ etag: "sha256-7d09fb166980e6599fe5acbd2efe78a0d9b788013c3e3fda80c208902d50a6be"
 
 ## 다의어 구분
 
-한 단어가 여러 뜻으로 쓰이는 경우다. 본문에서는 "구분 표기" 열의 말을 쓴다. 단어 자체를 단독으로 쓰지 않는다.
+한 단어가 여러 뜻으로 쓰이는 경우다. 본문에서는 "구분 표기" 열의 말을 쓴다. 단어 자체를 단독으로 쓰지 않는다. 다만 「교차 행」 은 그 뜻을 정한 절을 머리에 두거나 같은 문장에서 링크한 문서 안에서는 단독으로 쓴다.
 
 | 단어 | 뜻 | 구분 표기 |
 | --- | --- | --- |
@@ -273,7 +273,12 @@ etag: "sha256-7d09fb166980e6599fe5acbd2efe78a0d9b788013c3e3fda80c208902d50a6be"
 | `interactionType` | 사용자가 실제로 한 행동 | 사용자 행동 기록 |
 | 건강도(health) | 큐 상태(`healthy`, `degraded`, `down`) | 큐 건강도 |
 | 건강도(health) | 의존성 점검 API(`healthy`, `unhealthy`) | 헬스 체크 |
-| 건강도(health) | 알림 웹훅·채널 발송 상태(`unknown`, `healthy`, `degraded`) | 발송 건강도, 채널 건강도 |
+| 건강도(health) | EIA 알림 웹훅의 발송 상태(`notification_health`, 값 `unknown` · `healthy` · `degraded`) | 발송 건강도 |
+| 건강도(health) | 채팅 채널의 동작 상태(`chat_channel_health`, 값 `unknown` · `healthy` · `degraded`) | 채널 건강도 |
+| 교차 행 | 저장된 id 참조가 다른 워크스페이스의 행을 가리키는 행(노드 구조 참조와 연결선 끝점은 다른 워크플로우의 행) | id 참조 교차 행 |
+| 교차 행 | 트리거 설정에 다른 트리거의 비밀 참조가 들었거나 다른 워크스페이스의 `rotate` 가 덮어쓴 비밀 행 | 비밀 참조 교차 행 |
+| 발사 | 트리거 · 스케줄이 실행을 시작시키는 일 | 발사 |
+| 발사 | 알림을 내는 출처(발사원)가 알림을 만드는 일(재발사 억제, 마지막 발사 시각) | 알림 발사 |
 | 차원 | 모델이 내는 벡터 길이 | 모델 출력 차원 |
 | 차원 | 저장된 청크 벡터 길이 | 저장 청크 차원 |
 | 공유 | 팀 워크스페이스에 속함 | 팀 배지 |
@@ -325,3 +330,9 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「리뷰 세션」 뜻에 옛 `review/**` 디렉터리도 같은 이름이었음을 적었다. [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 옛 인용 대상을 그 이름으로 부르기 때문이다.
 - 「회수」 의 유휴 실행 행은 쓰지 않는 표기 「공개 위젯」 을 「웹채팅 위젯」 으로 바꿨다.
 - 「상태(status)」 의 스펙 상태 행은 NERV 이전 뒤 갈린 문서 상태 · 구현 상태 · 옛 스펙 상태 세 행으로 나눴다.
+
+### 「교차 행」 을 다의어로 올리고 「건강도」 의 뜻을 고쳤다 (2026-10-05)
+
+- 「교차 행」: [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검) 는 다른 워크스페이스의 행을 가리키는 id 참조를, [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md#교차-행-점검과-정리) 는 다른 트리거의 비밀 참조와 덮어써진 비밀 행을 같은 말로 부른다. 두 문서는 그 절 머리에서 뜻을 밝히므로 본문은 그대로 둔다. 두 뜻이 함께 나오는 문장에서 붙일 구분 표기를 정했다(NERV Task `CLE-T-K9S0TE`). 절 머리에서 뜻을 밝히거나 같은 문장에서 그 절을 링크한 문서 안의 단독 «교차 행» 은 표 머리말의 «단독으로 쓰지 않는다» 의 예외로 적었다.
+- 「발사」: 트리거 · 스케줄의 실행 시작과 알림 출처의 알림 생성을 행 둘로 갈랐다. 표기 표준은 [용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md) 의 「발사」 가 정한다.
+- 「건강도(health)」 의 세 번째 행: «알림 웹훅·채널 발송 상태» 는 채팅 채널을 발송 상태로 좁혔다. 두 뜻을 행 둘로 나눴다. [용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 의 「채널 건강도」 는 2026-10-05 에 채팅 채널의 동작 상태로 넓혔으므로 그 정의에 맞췄다.

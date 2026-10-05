@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-TRIG"
 title: "용어 사전 — 트리거"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "bd881d98f7530f8c5fe623d6dfbc85f123f7075b1d700694e5c70c0a5766644c"
+content_hash: "0ffbff9d2d5d79e1301d26db0594adb8c066cee9c6ca9ae29165cbbec747522d"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-K9S0TE"
 source_paths: []
-mirror_sha256: "2f13e301efd3840607d05f9aef0e362e761c97f6a11ea0d6883b0134ff4c967e"
-etag: "sha256-fa7d6c6f7dbf503b7d17f002241bc5a964cc26b044b0025dea59728d224b3cde"
+mirror_sha256: "1383ba4782d89aeb5cb32266f662ca4d9e9b765bea226447d27dc2898c3a9d2c"
+etag: "sha256-ebe46fda7ce71915161ec151a6d52dd70360d30bf208da44d6b7b90e775453bf"
 ---
 ## 개요
 
@@ -42,7 +42,9 @@ etag: "sha256-fa7d6c6f7dbf503b7d17f002241bc5a964cc26b044b0025dea59728d224b3cde"
 | 사용 내역 | usage | 인증 설정을 쓴 최근 호출과 기간별 호출 수. | 호출 이력(이 뜻으로) | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
 | 필드 마스킹 | `***<last4>` | 인증 설정·모델 설정 응답에서 비밀 필드를 끝 네 글자만 보이게 가리는 방식. 응답 마스킹과 다르다. | 없음 | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
 | 스케줄 | Schedule, `schedule` | Cron 표현식으로 워크플로우를 주기 실행하는 설정. 스케줄 유형 트리거와 1:1 로 묶이고 이름은 트리거에 있다. | Cron Job, 스케줄 관리(개념 이름으로) | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
-| Cron 표현식 | cron expression, `cron_expression` | 분·시·일·월·요일 다섯 필드로 주기를 적는 식. 표현식 언어와 다르다. | cronExpression(본문) | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
+| Cron 표현식 | cron expression, `cron_expression` | 분·시·일·월·요일 다섯 필드로 주기를 적는 식. 표현식 언어와 다르다. 본문과 화면 라벨은 «Cron» 으로 쓰고 코드 식별자는 백틱으로 쓴다. 일반 명사로서의 주기 작업(«정리 cron» 등)은 이 표기 밖이다. | cronExpression(본문), cron 표현식(소문자), 크론 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
+| 발사 | fire | 트리거 · 스케줄이 실행을 시작시키는 일. 밖으로 내보내는 «발송» 과 다르다. 알림 쪽 뜻은 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 이 가른다. | 발화(트리거 · 스케줄 뜻으로) | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
+| Cron 자동 발사 | scheduled run | 스케줄이 Cron 표현식에 따라 스스로 실행을 시작하는 일. 사용자가 누르는 «지금 실행» 과 다르다. | cron 발화, 자동 발화, 정기 실행(이 뜻으로) | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 시각 편집 | visual editor | Cron 표현식을 빈도와 시각을 골라 만드는 편집 방식. 단순한 다섯 가지 패턴만 표현한다. | 시각적 편집기, Visual | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 시간대 | timezone | 스케줄이 쓰는 IANA 시간대. | 타임존 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 다음 실행 | next run, `next_run_at` | 스케줄이 다음에 돌 예정 시각. 화면 표시용이고 실제 실행 시점은 BullMQ 스케줄러가 정한다. | 다음 실행 예정 시간, 다음 실행 시각 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
@@ -63,3 +65,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「공개 웹훅」 · 「웹훅 남용 방어」 의 「IP 호출 수 제한」 · 「IP 호출 빈도 제한」 을 표준 「요청 빈도 제한」 으로 맞췄다.
 - 「평문 보기」: 다시 가리는 시간을 정의에서 뺐다(색인 표기 원칙 14).
 - 「트리거 유형」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다. 「트리거」 의 유형 열거도 그 행을 가리킨다.
+
+### 「발사」 와 「Cron」 표기를 정했다 (2026-10-05)
+
+트리거 · 스케줄이 실행을 시작시키는 일을 문서마다 «발사» 와 «발화» 로 섞어 썼고 «Cron» 과 «cron» 도 섞였다(NERV Task `CLE-T-K9S0TE`). 2026-10-05 미러에서 «발사» 는 14편에 101번, «발화» 는 16편에 54번 나왔다. «발화» 가운데 상당수는 AI 영역의 «사용자 발화»(사람이 보낸 말)와 경고 규칙 · 포트가 걸리는 뜻이었다. 트리거 문서(트리거 관리 · 스케줄 · 트리거 데이터와 흐름)가 주로 «발사» 를 쓰고 «발화» 는 그 두 뜻과 겹치므로 «발사» 를 표준으로 정했다. 쓰지 않는 표기는 «발화(트리거 · 스케줄 뜻으로)» 로 조건을 달았다. 다른 뜻의 «발화»(사용자 발화, 경고 규칙 · 포트 · 타임아웃이 걸림, 발화 주체)는 그대로 쓴다. 본문의 «Cron» 은 [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) 이 쓰는 대문자 표기를 따른다. 이번 Task 가 고친 문서([실행 컨텍스트](CLE-EXEC/CLE-EXEC-CONTEXT.md) · [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md))는 함께 맞췄다. 남은 문서(실행 이력 · 실행 데이터 · 재실행 · 실행 상태 · AI 노드 공통)는 NERV Task `CLE-T-AGBPHW` 가 맞춘다.

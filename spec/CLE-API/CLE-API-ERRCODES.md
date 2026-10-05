@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "ca31fe9f56e7307c6f7419b9760363b3c6888a39805ebd897d93d2a33f60b9f3"
+content_hash: "f446b9af6340d89e4048c681c1fddd14f852070718d7ca6261be82c985477bcf"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "37a35a18bf478665214d74bd3d3b03836078c631483a52f9e16a6bd9c70ed718"
-etag: "sha256-f07d4bdf86bbda94a6b87ad452773215f2982f7d366c6793e897b6e14e06b5c0"
+mirror_sha256: "211ed1b46dc18a1056b87806bb64418a19fca19bf7eaab91eebf882b62c57276"
+etag: "sha256-ba906cb6173a0cf52ade868f6f084c9034f0344db024595ae3c8bcb554b265d9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-f07d4bdf86bbda94a6b87ad452773215f2982f7d366c6793e897b6e14e06b5c0"
 3. 도메인 범주가 의미 있는 코드는 `<DOMAIN>_<CONDITION>` 으로 묶는 것을 권장한다(`CAFE24_*`, `OAUTH_*`, `INTEGRATION_*`). 시스템 전역 공용 코드는 prefix 없이 쓴다.
 4. 클라이언트는 코드의 의미로 분기한다. 이름의 부분 문자열이나 `message` 문자열을 파싱해 분기하지 않는다. 코드의 정의(문서 본문)가 기준이고 이름은 그 정의를 읽히게 하는 라벨이다.
 5. 에러 코드 이름 바꾸기는 호환성을 깨는 변경이다. 이름을 더 정확하게 하려는 목적만으로 바꾸지 않는다.
-6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다.
+6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다.
 7. 규칙을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
 9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다.
@@ -330,8 +330,8 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 웹훅(`auth_config_id IS NULL`)의 IP 단위(IP 를 식별하지 못하면 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과(`PublicWebhookThrottleGuard`, 기본 분당 10) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅 IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 Rationale 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 [Rationale](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 
 **`MASKED_VALUE_RESUBMITTED` 는 수동 실행 경로 한정이다.** 다시 제출한 값뿐 아니라 사용자가 직접 입력한 마커도 대상이다(그 표면에서 마스킹 마커 세 문자열은 예약어다). 웹훅 수신과 스케줄은 외부 시스템이 쓰는 임의 페이로드라 대상이 아니다. 판정 기준은 값의 출처가 아니라 페이로드를 쓰는 주체다. 범위 근거는 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 에 있다.
@@ -534,7 +534,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 ### `TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유 (2026-10-05)
 
-웹훅 트리거는 있으나 그 워크플로우가 트리거의 워크스페이스에 없을 때(저장 경계 이전의 교차 행)도 `TRIGGER_NOT_FOUND` 다. 규칙 6 은 새 조건에 새 코드를 만들게 한다. 이 조건은 클라이언트가 가를 조건이 아니고 엔드포인트가 없을 때와 구분하지 않는 것이 목적이다. 새 코드를 만들면 그 워크플로우가 다른 워크스페이스에 있다는 것이 드러난다. 같은 카탈로그의 `ALERT_RULE_NOT_FOUND` · `RERUN_EXECUTION_NOT_FOUND`(없거나 다른 워크스페이스는 같은 404)와 `TRIGGER_ENDPOINT_PATH_CONFLICT`(예약과 중복을 한 코드로 묶음)도 같은 방식이다. 호출자에게 보이는 뜻은 그 엔드포인트의 트리거가 없다는 것이라 §3 예외 등록부에 올리지 않는다. 근거는 [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 «없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다» 이고 동작은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) REQ-WEBHOOK-047 이 정한다(NERV Task `CLE-T-XYR067`).
+웹훅 트리거는 있으나 그 워크플로우가 트리거의 워크스페이스에 없을 때(저장 경계 이전의 교차 행)도 `TRIGGER_NOT_FOUND` 다. 규칙 6 은 새 조건에 새 코드를 만들게 한다. 이 조건은 클라이언트가 가를 조건이 아니고 엔드포인트가 없을 때와 구분하지 않는 것이 목적이다. 새 코드를 만들면 그 워크플로우가 다른 워크스페이스에 있다는 것이 드러난다. 같은 카탈로그의 `ALERT_RULE_NOT_FOUND` · `RERUN_EXECUTION_NOT_FOUND`(없거나 다른 워크스페이스는 같은 404)와 `TRIGGER_ENDPOINT_PATH_CONFLICT`(예약과 중복을 한 코드로 묶음)도 같은 방식이다. 선례는 두 부류다. `ALERT_RULE_NOT_FOUND` · `RERUN_EXECUTION_NOT_FOUND` 는 요청한 리소스 자체가 없거나 다른 워크스페이스에 있는 부재다. `TRIGGER_ENDPOINT_PATH_CONFLICT` 는 부재가 아니라 두 조건(예약 · 중복)을 한 코드로 묶어 예약을 감추는 은닉이다. 이번은 요청한 트리거는 있고 연결된 리소스(트리거의 워크플로우)가 다른 워크스페이스에 있는 경우라 부재 선례를 한 칸 넓힌 해석이다. 연결된 리소스의 부재에 따로 코드를 둔 `AUTH_CONFIG_NOT_FOUND`(400)와는 시점이 다르다. 그쪽은 트리거를 저장할 때 소유자에게 알리는 코드라 소유자가 고칠 수 있게 구분해 알린다. 이쪽은 실행 때 워크스페이스 밖의 호출자에게 나가는 응답이라 감춘다. 2026-10-05 에 이 방식을 규칙 6 의 단서로 올렸다(NERV Task `CLE-T-K9S0TE`). 호출자에게 보이는 뜻은 그 엔드포인트의 트리거가 없다는 것이라 §3 예외 등록부에 올리지 않는다. 근거는 [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 «없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다» 이고 동작은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) REQ-WEBHOOK-047 이 정한다(NERV Task `CLE-T-XYR067`).
 
 ### `RESUME_CHECKPOINT_MISSING` 정의에 중첩 재개의 호출 스택을 더한 이유 (2026-10-04)
 

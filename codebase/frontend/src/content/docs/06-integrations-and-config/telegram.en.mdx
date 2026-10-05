@@ -97,9 +97,9 @@ Check `chatChannelHealth` on the trigger detail view:
 |---|---|
 | `unknown` | `setupChannel` not yet called or pending |
 | `healthy` | Bot connected normally |
-| `degraded` | `setupChannel` / `rotate-bot-token` failed or recent consecutive `sendMessage` failures. **The trigger is not auto-disabled** — only an explicit user toggle changes activation |
+| `degraded` | Something is wrong with the channel. Check **Last error** in the trigger details for the cause. **The trigger is not auto-disabled** — only an explicit user toggle changes activation |
 
-The last error message is available in `chatChannelLastError`.
+In the API response, the last error is the `chatChannelLastError` field.
 
 ## 6. Rotating the bot token (single-path)
 

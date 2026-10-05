@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "7eadd33d3f7c210bac262b203535ab7bfba9cddabec069ba860b6d3621297eb9"
+content_hash: "57b4a367c32c0c43cc41c27978f62d6beed34e2728b4934e6110eb80c7d5f49b"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "37957ac2bc5470954e0c55975b91aa99643c2038a0425537eb4022183eb8547c"
-etag: "sha256-49b1b9684b2ec0ae6e2c43595d2bc8a6143bde32d416cb9f8af49ddb055f3578"
+mirror_sha256: "0b04d323dd66db1c1d6239d3d279e825d786df828703104758f37b53c1a5afe5"
+etag: "sha256-a54a00d10803bdd387b165afa3ae2cb1a72eecb564c4f37fde24b2cbc3390006"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -24,7 +24,7 @@ etag: "sha256-49b1b9684b2ec0ae6e2c43595d2bc8a6143bde32d416cb9f8af49ddb055f3578"
 
 [External Interaction API](../CLE-IX/CLE-EIA.md) 는 웹훅, EIA 알림 웹훅, REST·SSE 표면을 제공한다. 하지만 외부 메신저와 붙이려면 사용자가 변환 계층을 직접 운영해야 한다. 채팅 채널은 그 변환 계층을 서버 안에 두고 EIA 의 소비자로 격리한 편의 계층이다. 새 트리거 유형을 만들지 않고 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 트리거의 `config.chatChannel` 옵션 하나로 동작한다.
 
-이 문서는 채팅 채널의 요구사항, 처리 흐름, 인증과 보안, 봇 토큰 재발급 API, 인바운드 HTTP 응답 계약, EIA 와의 관계, 채널 프로바이더(`provider`) 카탈로그를 정한다.
+이 문서는 채팅 채널의 요구사항, 처리 흐름, 채널 건강도, 인증과 보안, 봇 토큰 재발급 API, 인바운드 HTTP 응답 계약, EIA 와의 관계, 채널 프로바이더(`provider`) 카탈로그를 정한다.
 
 다음 주제는 다른 문서가 정한다.
 
@@ -139,7 +139,7 @@ etag: "sha256-49b1b9684b2ec0ae6e2c43595d2bc8a6143bde32d416cb9f8af49ddb055f3578"
 - 관련 REQ-CHAT-024~027: `visualNode` 는 `"text" | "photo" | "auto"`, 기본 `"auto"` 다. v1 에서 Chart 는 monospace 미니 막대 차트, Table 은 열을 맞춘 monospace 표(행 상한), Carousel 은 카드 N장을 차례로 보낸다. `text` 는 이미지 URL 을 무시한다. v2 는 `output.rendered` 스냅샷이 폐기된 뒤라 어댑터가 원본 데이터로 SSR 을 맡는다. 매트릭스는 [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 가 정한다. REQ-CHAT-026 은 세 프로바이더 모두 현재 텍스트 카드만 보낸다(Telegram·Discord 문서는 Planned, Slack 은 렌더러 코드 기준). `text` 에서 시각 메시지를 실제로 보내는지는 [미결 사항](#미결-사항) 참조. 버튼 달린 Template 도 이 대상에 넣을지는 [Template 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md#미결-사항) 에서 정한다.
 - 관련 REQ-CHAT-028: `phone` → 연락처 공유(`share_contact`)는 미구현이다. Form 의 `validation.preset`(ValidationPreset)이 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 기준 아직 없어 동작하지 않는다.
 - 관련 REQ-CHAT-029·030: wire `output` 은 [노드 출력](../CLE-NODE/CLE-NODE-OUTPUT.md)(`NodeHandlerOutput`) 전체라 도메인 값은 `output.output` 에 있다. "따로 가공하지 않는다" 는 DB 원문과 같다는 뜻이 아니다. 발행 시점에 자격 증명 패턴이 `***` 로 바뀌므로 `Bearer …` 같은 텍스트는 채널에서도 가려져 보인다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)). REQ-CHAT-019·024 도 같고, `execution.ai_message` 가 이미 받아들인 trade-off 와 같은 방향이다.
-- 관련 REQ-CHAT-031·032: 대기 간격은 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다. `degraded` 로 바꾸는 경로는 외부 API 호출 실패, 분당 한도 초과(REQ-CHAT-046), 트리거의 워크플로우가 다른 워크스페이스에 있을 때(REQ-CHAT-059) 세 가지이며 모두 자동 비활성화하지 않는다(웹훅 WH-MG-04, EIA-NX-07 과 같은 정책).
+- 관련 REQ-CHAT-031·032: 대기 간격은 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다. `degraded` 로 바꾸는 원인은 [채널 건강도](#채널-건강도) 가 정하고 모두 자동 비활성화하지 않는다(웹훅 WH-MG-04, EIA-NX-07 과 같은 정책).
 - 관련 REQ-CHAT-033·034: 서비스는 `ChatChannelDedupService` 다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. Redis 가 없는 동안에는 중복 처리가 생길 수 있다.
 - 관련 REQ-CHAT-035: 참조 형식은 `secret://triggers/{triggerId}/bot-token`·`secret://triggers/{triggerId}/inbound-signing` 이고 DB 에는 암호문(BYTEA)만 남는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
 - 관련 REQ-CHAT-036·037: Telegram 은 재발급 때 `setWebhook` 을 다시 부른다. 정리 스케줄러는 BullMQ repeatable 이고 `NotificationSecretRotatorService` 와 같은 패턴이다. 재발급은 primary 참조를 바로 새 토큰으로 바꾸고 v2 참조(`bot-token.v2`)에 옛 토큰을 24시간 백업한다. v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C).
@@ -194,7 +194,21 @@ sequenceDiagram
 - 책임은 어댑터 규약의 구분을 따른다. 분류 함수 호출과 문구 합성은 `renderNode`(순수 함수)가 맡고, 재시도와 타임아웃은 `sendMessage`(부수 효과)가 맡는다.
 - 안내 발송이 끝내 실패하면 REQ-CHAT-032 의 일반 정책에 따라 `chat_channel_health` 가 `degraded` 가 된다. 이때 원인은 `sendMessage` 의 외부 API 호출 실패다. `execution.failed` 를 받은 것 자체는 건강도를 바꾸지 않는다(R-CC-15 (d)).
 
-실행 실패 안내 정책과 어댑터 외부 API 호출 실패(REQ-CHAT-031·032)는 뜻이 다르다. 앞쪽의 자원은 실행 결과의 `output.error.code`(엔진·노드 핸들러 결과)이고, 뒤쪽의 자원은 `chat_channel_health`(어댑터 외부 호출 상태)다.
+실행 실패 안내 정책과 어댑터 외부 API 호출 실패(REQ-CHAT-031·032)는 뜻이 다르다. 앞쪽의 자원은 실행 결과의 `output.error.code`(엔진·노드 핸들러 결과)이고, 뒤쪽의 자원은 `chat_channel_health`([채널 건강도](#채널-건강도))다.
+
+## 채널 건강도
+
+채널 건강도(`chat_channel_health`)는 채팅 채널의 동작 상태다([용어 사전 — 외부 상호작용과 채널](../CLE-GLOSSARY-IX.md)). `degraded` 가 되는 원인은 아래 셋이고 이 표가 기준이다. 어느 원인도 트리거를 자동으로 비활성화하지 않는다(REQ-CHAT-032). 다음 성공 때 `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다.
+
+| 원인 | 요구사항 | `chat_channel_last_error` |
+| --- | --- | --- |
+| 어댑터 실패(렌더 `renderNode` 실패, 채널 설정 `setupChannel` 실패, 발송이 재시도 뒤에도 실패) | REQ-CHAT-031 · 032(렌더 실패는 요구사항 줄이 없는 구현 동작) | 그 에러 메시지(1024자에서 자른다). 실패할 때마다 덮어쓴다. 봇 토큰 재발급 API 의 `setupChannel` 실패는 4xx · 5xx 응답으로 돌려주고(REQ-CHAT-055) 건강도를 바꾸지 않는다 |
+| 대화 단위 분당 한도 초과 | REQ-CHAT-046 | 서버가 정한 문구 `Inbound rate limit exceeded (N/min)`(한도 값이 낀다). 이미 `degraded` 면 쓰지 않는다 |
+| 트리거의 워크플로우가 트리거의 워크스페이스에 없음 | REQ-CHAT-059 | 서버 고정 문구 `Workflow not found for this trigger`. 이미 `degraded` 면 쓰지 않는다 |
+
+뒤의 둘이 이미 `degraded` 면 쓰지 않는 것은 한도 초과가 몰릴 때 같은 쓰기를 되풀이하지 않으려는 것이다. 그래서 한도 초과나 교차 행이 나중에 와도 `chat_channel_last_error` 는 먼저 `degraded` 가 된 원인의 문구로 남는다. 어댑터 실패는 그때마다 덮어쓴다.
+
+`chat_channel_last_error` 는 트리거 상세를 볼 수 있는 워크스페이스 구성원에게 보이는 진단 표면이다. 화면은 이 값을 번역하지 않고 원문으로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). [R-CC-23](#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 이 막은 것은 재발급 API 의 에러 응답에 프로바이더 원문을 싣는 일이고 이 필드는 그 대상이 아니다. 어댑터 에러 메시지에 자격 증명이 섞일 수 있는지와 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 의 표면에 이 필드를 올릴지는 NERV Task `CLE-T-H0GF4K` 가 점검한다. 화면 도움말과 사용자 가이드는 원인을 나열하지 않고 «마지막 오류» 를 가리킨다. 원인이 늘 때마다 화면 문구가 낡지 않게 하려는 것이다.
 
 ## 인증과 보안
 
@@ -433,7 +447,7 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 - `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기
 - `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`
-- `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
+- `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/components/triggers/cards/chat-channel-card.tsx`(채널 건강도와 «마지막 오류» 표시), `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
 
 `chat-channel/` 모듈은 `external-interaction/` 모듈과 같은 facade 계층이고 둘 다 엔진 밖이다. 후속 계획(미구현): Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
 
@@ -523,7 +537,7 @@ Discord v1 은 Interactions Webhook 만 써서 `MESSAGE_CREATE` 를 받지 못�
 - (a) 분류 입력 enum 의 기준은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 이고 이 영역은 매핑 규칙만 정한다.
 - (b) 알 수 없는 코드를 조용히 넘기지 않는 것은 새 노드 분류가 빠졌을 때 로그에서 바로 알기 위해서다.
 - (c) 모르는 자리표시자(`{nodeId}` 등)는 DTO validator 가 등록 때 `400 VALIDATION_ERROR` 로 거부한다. `CustomValidationPipe.flattenErrors` 는 `details[].code` 를 모든 제약 위반에 `INVALID_FIELD` 로 고정하고, validator 의 `UNKNOWN_PLACEHOLDER:<field>:<placeholder>` 문자열을 `details[].message` 에 그대로 넣는다. 그래서 `UNKNOWN_PLACEHOLDER` 는 `details[].message` 접두로만 드러나고 최상위 코드 목록에는 올리지 않는다.
-- (d) `chat_channel_health` 는 어댑터 외부 호출 실패 신호이고(뒤에 분당 한도 초과와 교차 행이 원인으로 더해졌다. R-CC-19 · R-CC-25) 실패 안내는 실행 실패 안내라 서로 직교한다. 안내 발송 자체가 끝내 실패하면 외부 호출 실패이므로 `degraded` 가 된다.
+- (d) `chat_channel_health` 는 채널 동작 상태이고(원인은 [채널 건강도](#채널-건강도). 이 결정 때는 외부 호출 실패뿐이었고 R-CC-19 · R-CC-25 가 원인을 더했다) 실패 안내는 실행 실패 안내라 서로 직교한다. 안내 발송 자체가 끝내 실패하면 외부 호출 실패이므로 `degraded` 가 된다.
 - (e) MCP 전용 에러 코드는 아직 없다. 생기면 분류 표에 행과 안내 키를 더하고, 입력 허용 목록은 그대로 쓴다.
 
 ### R-CC-16 표시 전용 Presentation 노드와 AI 표시물을 채널로 보낸다
@@ -586,7 +600,7 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 2026-10-05 결정이다. 옛 스펙의 R-CC-24(절 번호 중복 인용 규칙)는 NERV 로 옮기지 않았고 그 번호를 다시 쓰지 않는다. 저장 경계 이전에 저장된 트리거의 `workflow_id` 는 다른 워크스페이스의 워크플로우를 가리킬 수 있다. 실행 엔진은 그런 워크플로우를 실행하지 않는다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 일반 웹훅은 이때 엔드포인트가 없을 때와 같은 404 다. 채팅 채널은 404 를 쓰지 않는다. non-2xx 는 프로바이더의 재시도와 웹훅 자동 비활성화를 부른다(R-CC-12). R-CC-12 (e) 의 404 는 엔드포인트가 없을 때의 규칙이다. 여기서는 트리거가 있다. 프로바이더가 재시도를 쏟아내거나 웹훅을 끄게 두지 않고 조용히 버린 뒤 그 워크스페이스 관리자가 트리거를 바로잡게 한다.
 
-대신 실행이 막혔다는 것을 워크스페이스 관리자가 보도록 `degraded` 를 남긴다. 분당 한도 초과(R-CC-19)가 `degraded` 의 원인을 먼저 넓혔고 이번이 세 번째 원인이다. [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 경로 변경 정리에서 «외부 API 호출 실패 신호» 로 적은 뜻도 함께 넓어진다. R-CC-19 와 같은 갱신 경로이고 이미 `degraded` 면 다시 쓰지 않는다. `chat_channel_last_error` 는 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는 고정 문구를 쓴다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다(NERV Task `CLE-T-XYR067`). `degraded` 는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 의 «다음 성공 때 다시 `healthy`» 규칙을 그대로 따른다. 정리 전에 시작된 실행의 발송이나 채널 재설정이 성공하면 `healthy` 로 돌아갈 수 있다. 교차 행이 남아 있는 동안에는 다음 인바운드가 다시 `degraded` 로 바꾼다. 이미 다른 원인으로 `degraded` 면 `chat_channel_last_error` 는 그 원인의 문구로 남는다.
+대신 실행이 막혔다는 것을 워크스페이스 관리자가 보도록 `degraded` 를 남긴다. 분당 한도 초과(R-CC-19)가 `degraded` 의 원인을 먼저 넓혔고 이번이 세 번째 원인이다. [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 경로 변경 정리의 근거로 적었던 «외부 API 호출 실패 신호» 는 2026-10-05 에 고쳐 적었다(NERV Task `CLE-T-K9S0TE`). R-CC-19 와 같은 갱신 경로이고 이미 `degraded` 면 다시 쓰지 않는다. `chat_channel_last_error` 는 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는 고정 문구를 쓴다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다(NERV Task `CLE-T-XYR067`). `degraded` 는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 의 «다음 성공 때 다시 `healthy`» 규칙을 그대로 따른다. 정리 전에 시작된 실행의 발송이나 채널 재설정이 성공하면 `healthy` 로 돌아갈 수 있다. 교차 행이 남아 있는 동안에는 다음 인바운드가 다시 `degraded` 로 바꾼다. 이미 다른 원인으로 `degraded` 면 `chat_channel_last_error` 는 그 원인의 문구로 남는다.
 
 ### 카탈로그를 v1 부터 둔 이유
 

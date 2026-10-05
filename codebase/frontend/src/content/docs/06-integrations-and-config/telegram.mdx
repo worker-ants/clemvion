@@ -110,9 +110,9 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 |---|---|
 | `unknown` | 아직 `setupChannel` 이 호출되지 않았거나 확인 전 |
 | `healthy` | 봇 연결 정상 |
-| `degraded` | `setupChannel` / `rotate-bot-token` 실패 또는 sendMessage 연속 실패. **자동 비활성화는 하지 않아요** — 사용자가 명시적으로 활성/비활성 토글해야 해요 |
+| `degraded` | 채널 동작에 문제가 있어요. 원인은 트리거 상세의 **마지막 오류** 에서 확인해요. **자동 비활성화는 하지 않아요**. 사용자가 직접 바꿀 때만 활성 상태가 바뀌어요 |
 
-`chatChannelLastError` 필드에서 마지막 오류 내용을 확인할 수 있어요.
+API 응답에서는 `chatChannelLastError` 필드가 마지막 오류예요.
 
 ## 6. Bot Token 회전 (single-path)
 

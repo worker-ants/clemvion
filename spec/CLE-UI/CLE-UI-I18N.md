@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "cdebae41708b4b1c8534b7ac118717cec63665933f8262dd3a066b58ed1ae391"
+content_hash: "f5a181ef5a79004b7bd0b8bd25d02d482877827f4af77be7aa515882baef9c15"
 read_as: "approved_fallback"
-task: "CLE-T-BDRZVX"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "0bc7850d803942b00d1db65b70192a4dc2e234f712849e73a2365c61bf790bcb"
-etag: "sha256-d43f1a401fd157ea4243582a5a6e89271549b62b68258932b7ad78640c23ae09"
+mirror_sha256: "cc8a4189a627620e31c675e418d2bee1525a2199b02c6ef57cdc5314e51d361e"
+etag: "sha256-7e4c0b34e0c86a9aa8e41ef4c399d8f50ed951dd5965ac649259a69b8e7a4758"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,6 +77,7 @@ etag: "sha256-d43f1a401fd157ea4243582a5a6e89271549b62b68258932b7ad78640c23ae09"
    - 금지: 백엔드 응답에 한국어를 직접 넣는 것. 지역화할 수 없게 된다.
    - 금지: 백엔드만 새 경고 문구(`warningRules[].message`)나 라벨을 내보내고 프론트엔드 매핑을 빠뜨리는 것.
    - 매핑이 없으면 `pickKo` 같은 폴백으로 영문이 그대로 보인다. 이것은 의도한 안전장치이지만 매핑 누락은 규칙 위반이다.
+   - 매핑 대상이 아닌 값: 트리거의 `chat_channel_last_error` 다. 서버가 저장한 진단 원문을 그대로 보여 주는 필드다. 어댑터 에러 메시지(프로바이더 응답 포함)와 서버가 정한 문구가 섞이고 값이 끼는 문구(`Inbound rate limit exceeded (N/min)`)도 있어 키로 쓸 코드가 없다. 코드로 저장하는 진단 필드는 규칙 5 를 따른다. 화면에는 보이되 번역하지 않는다. 화면은 고정폭 글꼴로 원문임을 드러내고 곁의 안내 문구만 화면 문구 사전을 거친다. 이 면제를 지키는 가드는 없다([진단 원문을 매핑하지 않는 이유](#진단-원문을-매핑하지-않는-이유-2026-10-05)).
 
 4. **백엔드 zod `ui.*` 메타도 매핑한다(원본: Principle 3-B).** 백엔드 `*ConfigSchema` 가 `z.toJSONSchema` 로 내보내는 `ui.*` 메타는 그 자체가 사용자에게 보이는 영문이다. AI 에이전트 노드의 `Presentation Tools` 그룹, `Description override`, `Defaults overlay` 라벨이 번역되지 않던 회귀를 막으려고 다음 다섯 키에도 같은 매핑 의무를 둔다.
 
@@ -131,10 +132,8 @@ etag: "sha256-d43f1a401fd157ea4243582a5a6e89271549b62b68258932b7ad78640c23ae09"
 1. **백엔드 라벨 매핑은 같은 변경 안에서 등록한다(원본: Principle 3·3-B·3-C).** 백엔드에 사용자에게 보이는 영문(경고 메시지, 노드 라벨·설명, `ui.*` 메타, 새 그래프 경고 규칙)을 더하면 같은 변경 안에서 `backend-labels.ts` 의 매핑을 등록한다. 매핑 누락을 뒤 변경에서 메우는 것을 정상 흐름으로 두지 않는다.
 
 2. **새 노드를 더하면 가이드를 함께 고친다(원본: Principle 4).** `codebase/backend/src/nodes/<cat>/<name>/` 에 새 노드 핸들러를 더하면 같은 변경 안에서 다음을 고친다.
-   1. `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx`: 카테고리 페이지에 노드 항목을 더한다.
+   1. `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx`: 카테고리 페이지에 노드 항목을 더한다. `<cat>` 은 백엔드 디렉터리 이름과 가이드 파일 이름이 다를 수 있다(백엔드 `trigger` · `integration`, 가이드 `triggers.mdx` · `integrations.mdx`).
    2. `codebase/frontend/src/content/docs/02-nodes/<cat>.en.mdx`: 영어 형제 파일. 없으면 한국어로 폴백하지만, 정식으로 더할 때는 함께 쓴다.
-
-   `<cat>` 은 백엔드 디렉터리 이름과 가이드 파일 이름이 다를 수 있다(백엔드 `trigger` · `integration`, 가이드 `triggers.mdx` · `integrations.mdx`).
    3. `dict/{ko,en}/<section>.ts`: 노드 이름·필드 이름·placeholder·도움말 문구.
    4. `backend-labels.ts`: 노드 스키마의 `z.meta({ ui: { label, hint, placeholder, ... } })` 영문 라벨이 늘어난 만큼 한국어 매핑을 보강한다.
 
@@ -209,3 +208,7 @@ etag: "sha256-d43f1a401fd157ea4243582a5a6e89271549b62b68258932b7ad78640c23ae09"
 스펙이 NERV 로 옮겨 가면서 가이드 작성자가 다루는 내부 식별자가 옛 경로에서 NERV 키(`CLE-...`)와 서버가 발급하는 요구사항 ID(`REQ-...`)로 바뀌었다. 둘 다 사용자가 열어 볼 수 없는 내부 문서를 가리키므로 옛 경로와 같은 이유로 본문에 쓰지 않는다. 옛 가드의 앵커 ID 패턴(`CCH-…`, `R-…`)은 `REQ-SESSION-001` 같은 모양을 잡지 못해서 패턴을 따로 더했다(2026-10-02, NERV 정본 전환 단계 4b).
 
 MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 있었다. 작성자가 문장의 근거 문서를 키로 적어 둘 자리라서 예외를 이 규칙에 함께 적는다. 주석은 렌더에서 빠지므로 사용자에게 보이지 않는다.
+
+### 진단 원문을 매핑하지 않는 이유 (2026-10-05)
+
+`chat_channel_last_error` 는 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 의 원인마다 다른 출처의 문구를 담는다. 어댑터 실패면 그 에러 메시지(프로바이더 응답 포함)이고 그 밖의 원인은 서버가 정한 문구다. 필드 하나에 출처 둘이 섞여 있어 필드 전체를 면제한다. 정적 키로 옮길 수 있는 고정 문구(`Workflow not found for this trigger`)도 같이 면제한다. 규칙 3 의 정적 키로는 프로바이더 메시지와 값이 끼는 문구를 잡지 못한다. 규칙 5 로 옮기려면 서버가 코드와 `params` 를 따로 저장해야 해 동작이 바뀐다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」 가 이 필드를 «화면에 보이는 필드» 로 보고 고정 문구를 고른 것과는 부딪치지 않는다. 보이되 진단용 원문이라 번역하지 않는다. 저장할 때 원문을 바꾸지 않는 점은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 «진단용 필드» 를 저장할 때 지우지 않는 것과 같다. 다만 그 문서는 나가는 시점에 마스킹하고 트리거 상세 응답은 지금 그 표면 목록에 없다. 올릴지는 NERV Task `CLE-T-H0GF4K` 가 정한다. 화면 안내 문구가 원인을 나열하지 않고 «마지막 오류» 를 가리키게 고친 것도 같은 날이다(NERV Task `CLE-T-K9S0TE`).

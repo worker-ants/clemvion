@@ -3,18 +3,18 @@ id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "ebdbbc16d76eafb1a3c3f48f4ba502b52ce60c5e2cf36d148ed4d8be8faa31a0"
-read_as: "approved"
-task: null
+content_hash: "fd0b5e227904718373c4c54cb1797248e2b9e26188d41761e17034444c0ddbf2"
+read_as: "approved_fallback"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "d009e7ebfc41c151180f2d875b8a51817a35b25928dc4c578a927a1def9338ee"
-etag: "sha256-6bae38e017e078a50d7b148414c5e05ffc95a1e0eda6d570e8cd62ed574ebb09"
+mirror_sha256: "054466e9be6f83c065396de42778a9628e5971122567f35b62ad15fa108741c7"
+etag: "sha256-7eed5026321f9a64c095102fea2ad303a4747a34d8010aadd79a1f885b3f3d22"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -663,7 +663,7 @@ R4 가 예고한 "네이티브 UI 분기" 를 실현한 것이다. capability(`s
 - (a) `text_only` → `text`: 영문 표기를 맞춘다. 운영 영향은 어댑터가 읽을 때 바꿔 흡수한다.
 - (b) `auto` 신설: v1 에서도 사용자가 미리 판단하지 않아도 합리적 기본 동작을 받게 한다.
 - (c) Chart·Table 의 `auto` 가 v2 에서도 텍스트 우선인 이유: 수치를 정확히 보여 주는 데는 PNG 보다 monospace 텍스트가 더 읽기 쉽다.
-- (d) v1 `photo` fallback 이 건강도를 바꾸지 않는 이유: `degraded` 는 외부 API 실패 신호다. v1 에 인프라가 없는 것은 사용자 에러가 아니라 정상 fallback 이다.
+- (d) v1 `photo` fallback 이 채널 건강도를 바꾸지 않는 이유: `degraded` 가 되는 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정하고 fallback 은 그 원인이 아니다. 옛 근거 «`degraded` 는 외부 API 실패 신호다» 는 원인이 늘어 낡아 2026-10-05 에 고쳐 적었다(NERV Task `CLE-T-K9S0TE`). v1 에 인프라가 없는 것은 사용자 에러가 아니라 정상 fallback 이다.
 - (e) `text` 에서 Carousel 이미지 URL 을 무시하는 이유: 사용자가 "텍스트만" 을 명시했으므로 이미지 URL 이 있어도 텍스트만 보낸다. `auto` 는 이미지 URL 이 있으면 이미지로 나눈다.
 
 이 변경은 이 규약, [채팅 채널](CLE-CHAT-CORE.md), 프로바이더 문서를 함께 고쳤다. 카탈로그는 프로바이더 목록이 아니라 enum 필드 하나의 변경이라 고치지 않았다.
