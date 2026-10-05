@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "37840729268628c769b569f72225ef6926d6f96ed6136ae38ed694fabb07e13b"
+content_hash: "1a6beb5028989082fc2780891710fa40e6776f43f701660a46d1fca646aab0c9"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "d80250aea2668356179ff805b2888cddf1cc06bee9000b8eba0a50761d958d5d"
-etag: "sha256-3e5c0dd291338257758bdf5a8c93cbdeefb221fec969d8d5ca2a487abe136604"
+mirror_sha256: "09b6a3f68eed3a9bc0e44bce4c7e9c4cabbe56cbe31baa7c697160fc05235929"
+etag: "sha256-c9e78e40bc90061da25109fcd0a25b63eb2d3b135d9a15172eab31813db2f2b0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -548,4 +548,4 @@ V016 이 만든 `alert_rule` 이 데이터 모델 문서에 없었다. 컬럼 �
 
 스케줄의 연결 트리거가 다른 워크스페이스의 워크플로우를 가리키면(저장 경계 이전의 교차 행) Cron 발사를 건너뛴다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 이때 `schedule_failed` 의 수신자인 워크플로우 소유자는 다른 워크스페이스 사람이다. 보내면 그 사람이 남의 스케줄 실패를 받고 알림의 `workspaceId` 는 스케줄의 워크스페이스라 맞지 않는다. 재시도해도 결과가 같아 발사마다 같은 알림이 쌓인다.
 
-스케줄 워크스페이스의 관리자 전원에게 보내는 안(REQ-NOTIFY-010 의 `background_failed` 수신자 방식)도 있다. 택하지 않았다. 교차 행은 저장 경계 이전에 남은 일회성 데이터라 운영 점검으로 찾아 정리하는 것이 맞다. 새 수신자 규칙을 두면 그 행이 사라진 뒤에도 규칙이 남는다. 그래서 «연결된 워크플로우가 없음» 과 같이 서버 에러 로그만 남긴다(NERV Task `CLE-T-XYR067`).
+스케줄 워크스페이스의 관리자 전원에게 보내는 안(REQ-NOTIFY-010 의 `background_failed` 수신자 방식)도 있다. 택하지 않았다. 교차 행은 저장 경계 이전에 남은 일회성 데이터라 운영 점검으로 찾아 정리하는 것이 맞다. 새 수신자 규칙을 두면 그 행이 사라진 뒤에도 규칙이 남는다. 그래서 연결된 워크플로우가 없을 때처럼 알림 없이 건너뛰고 서버 에러 로그를 남긴다(NERV Task `CLE-T-XYR067`). 연결된 워크플로우가 없을 때의 로그는 경고 등급이다. 운영 점검은 2026-10-05 에 0 행이어서 걷었다([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다-2026-10-05) 의 «점검을 걷었다»). 그 뒤로 건너뛴 스케줄은 서버 에러 로그로만 보인다. 같은 날 복합 FK 검증(V147) 뒤로는 FK 를 우회한 쓰기가 아니면 스케줄 · 트리거의 교차 행이 새로 생기지 않는다. 운영 점검이 없어졌어도 알림을 보내지 않는 결정은 유지한다. 새 교차 행이 FK 를 우회한 쓰기에서만 생겨 수신자 규칙을 둘 만큼 자주 나오지 않기 때문이다.

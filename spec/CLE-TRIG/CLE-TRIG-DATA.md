@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "cb20ef82dda3fb0131ffb079b4a83de8fef8c0d6ad6cb57984076623cc08685f"
+content_hash: "a85231ba836a26d56a787d40e04fdaf485bb0f227545870f9471ee151a45be54"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "e34215efb971f39da64f415b80161aad563067bce9ad155111a4f11eb0b51abe"
-etag: "sha256-1a67b8f76add24c006d1433c898d8e6def197ac95564bcf7ff55b7a825cc2ff4"
+mirror_sha256: "345781a747f268ab6795ec386fe6583e839b1df503cf974dc91960220523bd0a"
+etag: "sha256-c08a1a962b75ae9aadd9b460d4d5e90277710850542ba8615084894748739bb5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,8 +75,8 @@ erDiagram
 | notification_last_error | Text? | EIA 알림 웹훅 발송이 마지막으로 실패했을 때의 에러 메시지(잘릴 수 있음) |
 | notification_secret_v2 | Text? | EIA 알림 웹훅 HMAC 시크릿 교체 grace(24h) 동안 쓰는 새 시크릿. NOT NULL 이면 primary 시크릿(`config.notification.signing.secretRef` 가 가리키는 값)과 둘 다 검증한다. 저장 형태는 `secret://` ref 가 아니라 컬럼에 담긴 평문이고 승격하면 컬럼을 `null` 로 비운다. 이 예외의 조건과 근거는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 비대상 등재가 정한다. 교체 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | notification_rotated_at | Timestamp? | 시크릿 교체 시작 시각(grace 종료 판정용) |
-| chat_channel_health | Enum | `unknown` / `healthy` / `degraded`. 채팅 채널 상태. 외부 채널 호출 실패, 분당 한도 초과, 트리거의 워크플로우가 다른 워크스페이스에 있을 때 `degraded` 다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 기본 `unknown`(CCH-SE-01). `notification_health` 와 값 집합이 같아 공용 DB 타입으로 합칠지 검토 대상이다 |
-| chat_channel_last_error | Text? | 채팅 채널이 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 외부 호출 실패면 그 에러 메시지이고 분당 한도 초과와 교차 행은 서버가 만든 문구다 |
+| chat_channel_health | Enum | `unknown` / `healthy` / `degraded`. 채팅 채널의 동작 상태. `degraded` 가 되는 원인은 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 기본 `unknown`(CCH-SE-01). `notification_health` 와 값 집합이 같아 공용 DB 타입으로 합칠지 검토 대상이다 |
+| chat_channel_last_error | Text? | 채팅 채널이 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 어댑터 실패(렌더 · 발송 · 채널 설정)면 그 에러 메시지이고 그 밖의 원인은 서버가 정한 문구다. 화면은 번역하지 않고 원문 그대로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3) |
 | chat_channel_setup_at | Timestamp? | `setupChannel()` 성공 시각. setup 을 하지 않았으면 NULL |
 | chat_channel_token_v2 | Text? | 봇 토큰 재발급 grace(24h) 동안 **옛** 봇 토큰을 백업한 시크릿 참조(`secret://triggers/{id}/bot-token.v2`). 토큰이 아니라 참조만 둔다. primary 로 올리는 단계는 없고 유예가 끝나면 지운다(CCH-SE-04-C). `notification_secret_v2` 와 이름 패턴은 같지만 등급(평문 대 참조)과 뜻(새 값 대 옛 값)이 다르다. 기준은 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | chat_channel_rotated_at | Timestamp? | 봇 토큰 재발급 시작 시각(grace 종료 판정용) |
@@ -453,7 +453,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 
 - 유일성을 전역으로 바꾼다. `(endpoint_path) UNIQUE WHERE endpoint_path IS NOT NULL` 이 V002 의 UNIQUE 를 바꾼다(V132). 기각한 대안: 비유일 보조 인덱스 + 앱 수준 중복 검사 + 가장 오래된 행 선택. 마이그레이션 위험은 없지만 동시 요청 경합을 DB 가 막지 못한다.
 - 기존 중복은 나중 것에 새 UUID 를 준다(V131). 경로가 같은 묶음마다 가장 먼저 만든 트리거(`created_at`, 같으면 `id`)만 경로를 유지하고 나머지는 `gen_random_uuid()` 로 새 경로를 받는다. 복사는 원본보다 나중에만 생길 수 있어서다. 바뀐 트리거는 id·워크스페이스 id·채팅 채널 여부만 NOTICE 로 남긴다(경로는 비밀 키라 로그에 남기지 않는다). 정상 경로로는 워크스페이스 사이 중복이 생기지 않으므로(복제·가져오기는 트리거를 옮기지 않는다, [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)) 중복이 있다면 복사 등록의 흔적이다. 기각한 대안: 중복이 있으면 마이그레이션을 실패시키는 것. 데이터를 몰래 바꾸지 않지만 배포가 막힌다.
-- 새 경로를 받은 트리거가 채팅 채널이면 provider 에 등록된 URL 은 옛 경로 그대로다. SQL 은 provider API 를 부를 수 없다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-21 이 기각한 "재등록 없는 경로 변경" 을 흉내 내지 않고 NOTICE 에 `chat_channel=true` 를 남겨 배포 운영자가 그 소유자에게 채널 설정을 다시 저장하게 한다. 재등록은 정상 경로(다시 저장 → `setupChannel`, CCH-AD-02 멱등)로 일어난다(V132 헤더의 운영 절차). 채팅 채널 상태 컬럼은 쓰지 않는다. `degraded` 는 "외부 API 호출 실패" 신호라 뜻이 닫혀 있다(R-CC-19). 2026-10-05 에 트리거의 워크플로우가 다른 워크스페이스에 있는 경우가 원인으로 더해졌다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」). 경로 변경을 `degraded` 로 알리지 않는 이 판단은 그대로다. 그 사이 옛 경로로 오는 provider 요청은 먼저 만든 쪽이 받는다. 그쪽이 채팅 채널이면 그 트리거의 비밀로 서명을 검증해 401 로 거부되고(R-CC-12(d)), 공개 웹훅이면 경로를 아는 누구든 직접 POST 할 수 있는 URL 이라 새로 열리는 표면이 아니다. 마이그레이션 전에도 이 묶음은 조회가 한 행만 골라 한쪽만 받고 있었다.
+- 새 경로를 받은 트리거가 채팅 채널이면 프로바이더에 등록된 URL 은 옛 경로 그대로다. SQL 은 프로바이더 API 를 부를 수 없다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 의 「PATCH 는 비밀을 쓰지 않는다」 가 «`endpointPath` 변경의 웹훅 재등록을 끊는다» 며 기각한 안(`chatChannel` PATCH 에서 `setupChannel` 을 부르지 않는 안)을 흉내 내지 않고 NOTICE 에 `chat_channel=true` 를 남겨 배포 운영자가 그 소유자에게 채널 설정을 다시 저장하게 한다. 재등록은 정상 경로(다시 저장 → `setupChannel`, CCH-AD-02 멱등)로 일어난다(V132 헤더의 운영 절차). 채팅 채널 상태 컬럼은 쓰지 않는다. 결정 때는 그 근거로 «`degraded` 는 "외부 API 호출 실패" 신호라 뜻이 닫혀 있다» 를 적었는데 그때도 맞지 않았다. 분당 한도 초과가 2026-06-13(#572)부터 원인이었다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 의 「분당 한도 초과분은 재발송 큐 대신 건너뛰고 degraded 로 표시한다」). 2026-10-05 에는 트리거의 워크플로우가 다른 워크스페이스에 있는 경우가 더해졌다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」). 원인 목록은 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 2026-10-05 에 다시 보았고 판단은 그대로 둔다(NERV Task `CLE-T-K9S0TE`). `degraded` 는 다음 발송이나 채널 설정이 성공하면 `healthy` 로 돌아가므로([채팅 채널 데이터와 흐름 「채널 건강도」](../CLE-CHAT/CLE-CHAT-DATA.md#채널-건강도)) «소유자가 채널 설정을 다시 저장해야 한다» 는 신호로 쓰기에 맞지 않는다. 또 일회성 정리 SQL 이 상태 컬럼을 쓰면 서버의 갱신 경로 밖에서 상태가 바뀐다. 그 사이 옛 경로로 오는 프로바이더 요청은 먼저 만든 쪽이 받는다. 그쪽이 채팅 채널이면 그 트리거의 비밀로 서명을 검증해 401 로 거부되고([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 「인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」 (d)), 공개 웹훅이면 경로를 아는 누구든 직접 POST 할 수 있는 URL 이라 새로 열리는 표면이 아니다. 마이그레이션 전에도 이 묶음은 조회가 한 행만 골라 한쪽만 받고 있었다.
 
 정리(`DO` 블록)는 트랜잭션 문장이고 교체는 `CONCURRENTLY` 라 한 파일에 둘 수 없다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)). V131 과 V132 사이에 복사가 끼어들면 V132 가 중복 키로 실패하고 새 인덱스가 invalid 로 남는다. 그래도 옛 인덱스는 valid 그대로라 보호가 줄지 않는다. V131 본문을 수동으로 다시 돌린 뒤 V132 를 다시 실행하면 첫 DROP 이 잔재를 치우고 성공한다(실측). 그 절차는 V132 헤더에 있다.
 

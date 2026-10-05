@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OPEN"
 title: "용어 사전 — 결정이 필요한 표기"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "c70748534266cc1c1f7493ec7522f03690ab54eb83409e74d169564544c00528"
+content_hash: "9df82f268e9063dd364fa23121c7c848915d2ae46a0d454f2ba768676151f302"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-K9S0TE"
 source_paths: []
-mirror_sha256: "99c2cae75810647b7a2d70e9ae36d2ada171f35d06e3f7453f8c0321716df462"
-etag: "sha256-1ca5c81b391f762b2c1a83bec8a391c03765dc82b6c5616a013f2de2b41588ca"
+mirror_sha256: "d6d430757a73de4f1acc4039212f02c15b65bd9280f8180cf92baaa22e5396be"
+etag: "sha256-9e3e504751b07423c0171ccdda864abd90669b4445d05267141477e430676cac"
 ---
 ## 개요
 
@@ -83,7 +83,7 @@ etag: "sha256-1ca5c81b391f762b2c1a83bec8a391c03765dc82b6c5616a013f2de2b41588ca"
 | D55 | Cafe24·MakeShop 과 한국어 서비스명이 섞인다 | Cafe24 / 카페24 · MakeShop / Makeshop / 메이크샵 | Cafe24, MakeShop | info |
 | D56 | Cafe24 리소스와 MakeShop 섹션을 카테고리로도 부른다 | 카테고리 / Resource / 섹션 | Cafe24 리소스, MakeShop 섹션 | info |
 | D57 | "회수" 가 recall 과 reclaim 을 모두 뜻한다 | 메모리 회수(recall) / 후보 회수 / 토큰 회수 / 유휴 실행 회수 / 처리 중 문서 회수 | 메모리 회수, 후보 풀, 토큰 정리, 유휴 실행 회수, 처리 중 문서 회수 | info |
-| D58 | 건강도(health) 값 집합이 표면마다 다르다 | healthy·degraded·down(큐) / healthy·unhealthy(헬스 체크) / unknown·healthy·degraded(발송·채널) | 큐 건강도, 헬스 체크, 발송 건강도, 채널 건강도 | info |
+| D58 | 건강도(health) 값 집합이 표면마다 다르다 | healthy·degraded·down(큐) / healthy·unhealthy(헬스 체크) / unknown·healthy·degraded(발송 건강도 · 채널 건강도) | 큐 건강도, 헬스 체크, 발송 건강도, 채널 건강도 | info |
 | D59 | 현재 워크스페이스를 활성 워크스페이스로도 부른다 | 현재 워크스페이스(화면) / 활성 워크스페이스 / 워크스페이스 컨텍스트 | 현재 워크스페이스 | info |
 | D60 | 로그인 세션을 디바이스 세션으로도 부른다 | 로그인 세션(화면) / 디바이스 세션 / family | 로그인 세션 | info |
 | D61 | 데이터 흐름 문서가 2단계 인증 전환을 "TOTP fallback" 으로 적는다 | WebAuthn 우선·TOTP fallback(data-flow) / TOTP 자동 전환 금지(1-auth) | Passkey·보안 키가 있으면 그 방식만 쓰고 TOTP 로 자동 전환하지 않는다 | warning |

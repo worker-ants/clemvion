@@ -3,18 +3,18 @@ id: "CLE-OBS-LOGGING"
 title: "로깅과 헬스 체크"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "ab655b623e6590e48e6565a76a165f23336415bdf5640799b5d11a0f6507227b"
+content_hash: "e697b711b2cd27a52a7a3da576caac6869c155950dea16c1f9dacbbbf821d41c"
 read_as: "approved_fallback"
-task: "CLE-T-RXMB2X"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "e7b95cc44d4b062b860c3c96816fa8ee68dd61d1a2a0db16ebc0ec2fd657d73a"
-etag: "sha256-a7314fe52cae71c19e36bd4d2c3c737a5ca10bfcfba3afe1b3c62dd7fbd0529a"
+mirror_sha256: "ac7135b0b35db6b9b0de8880f33a7779eba3f728bcdfbf7ace2b142de6389d67"
+etag: "sha256-3c08b049eb698ffdc88e46d56527ff829b160d0d1e37a280ce9a53cb02122b82"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -225,7 +225,7 @@ probe 는 자주 불린다(준비 상태 10초, 생존 확인 30초). 성공 로
 | --- | --- | --- | --- |
 | 헬스 체크 `status` | `healthy`, `unhealthy`(Redis 미설정 `unconfigured` 포함) | 헬스 체크 | 이 문서 |
 | 큐 건강도 `health` | `healthy`, `degraded`, `down` | 큐 건강도 | [시스템 상태](CLE-OBS-STATUS.md) |
-| EIA 알림 웹훅·채팅 채널 발송 건강도 | `unknown`, `healthy`, `degraded` | 발송 건강도, 채널 건강도 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
+| EIA 알림 웹훅의 발송 건강도, 채팅 채널의 채널 건강도 | `unknown`, `healthy`, `degraded` | 발송 건강도, 채널 건강도 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 
 큐 건강도가 `unhealthy` 를 `degraded`·`down` 두 단계로 나눈 이유는 [시스템 상태](CLE-OBS-STATUS.md) 에 있다.
 

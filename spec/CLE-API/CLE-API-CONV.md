@@ -10,11 +10,11 @@ parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
 content_hash: "859a65aa764f852c8e3def6738c73f807138a2e43a78fa96ce7fd9f91a6dd651"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "1ce1340233c14afea78e54483ebaf1ad5cf6dc6dfb30bfca20b007495c1c34a2"
-etag: "sha256-82ed0645d55f13d3ae2d5205452bab22cb945bbb8073bedf98f09ca9800ba6f0"
+mirror_sha256: "28078542f7fb5d75bb6a9844075a5899f77919ebfe6eb6cb3eb86796704ee005"
+etag: "sha256-caef216ffa127a3c96f1021a98fc94a221ad102488bfc511b50c882f3fd46891"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

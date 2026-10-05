@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 작업 공간"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "3ce05c495f6cf07e8c0183cf04c3feac4d9fc68a1b8f91eeeb6de7c8667a9c38"
+content_hash: "d503f96fbfaaad1f8a5f8a8eed176586bb494fa2fd88dc9b573a82edea825bca"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-K9S0TE"
 source_paths: []
-mirror_sha256: "72c50ce510827af5f2edb365231f1731083b4fc3ef2d0e7c90cd791dde98a2a7"
-etag: "sha256-2f7f87d3b0434606400d3e7e7a081e8af13fedac5f8d99342a6258dfe9a7fe31"
+mirror_sha256: "2b170cbcdcff8d0589b46433156f76f6f6e09ce56d553ee30d78305b9249f0c5"
+etag: "sha256-5029c79183edfc89ae4bf54f8a140eb5af77491afd61d89259e264ef6c42254d"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ etag: "sha256-2f7f87d3b0434606400d3e7e7a081e8af13fedac5f8d99342a6258dfe9a7fe31"
 | 뷰어 | Viewer, `viewer` | 읽기만 할 수 있는 역할. | 조회자, Viewer(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 권한 하한 | minimum role, `@Roles()`, `RoleGate` | 화면이나 API 가 요구하는 최소 역할. 본문은 "관리자 이상" 처럼 쓴다. | Admin+, admin 이상, Editor+, editor+, editor 이상(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 권한 매트릭스 | RBAC matrix, `RolesGuard` | 리소스와 역할마다 허용 동작을 적은 표. 한 문서에만 둔다. | 역할 권한 매트릭스, RBAC 요약 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
-| 참조의 소속 | reference ownership, `assertReferenceInScope` | 요청 본문으로 받아 컬럼에 저장하는 참조 id 가 가리켜도 되는 범위. 서버가 저장할 때 본다. 범위와 거부 시점은 기준 문서에 있다. 요청 대상 워크스페이스를 보는 가드 검사와 다르다. | cross-workspace refs(본문) | [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) |
+| 참조의 소속 | reference ownership, `assertReferenceInScope` | 요청 본문으로 받아 컬럼에 저장하는 참조 id 가 가리켜도 되는 범위. 범위와 검사하는 시점 · 층은 기준 문서에 있다. 요청 대상 워크스페이스를 보는 가드 검사와 다르다. | cross-workspace refs(본문) | [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) |
 | 운영자 | operator | 제품을 배포하고 운영하는 사람. 워크스페이스 관리자 역할과 다르다. | 관리자 개입(이 뜻으로), 시스템 관리자 | [시스템 아키텍처](CLE-PLAT/CLE-PLAT-ARCH.md) |
 | 초대 | Invitation, `WorkspaceInvitation` | 관리자 이상이 이메일로 보내는 팀 워크스페이스 합류 요청. 기한 안에 한 번만 쓸 수 있고 받는 사람 이메일이 일치해야 한다. | invitation(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 초대 토큰 | invitation token, `invitationToken`, `token` | 초대 링크에 들어가는 일회용 토큰. | 없음 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
@@ -97,3 +97,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「편집자」 의 결정 항목에 번호를 붙였다. D10(editor 역할의 화면 라벨)이다.
 - 「현재 워크스페이스」 · 「참조의 소속」: 비문과 한 칸에 몰린 정보를 문장으로 나눴다. 「현재 워크스페이스」 의 옛 정의는 지금의 우선순위(헤더 먼저)만 적었다. 이번에 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 장기 기준(토큰 클레임이 정본)을 함께 적었다. 지금 인가가 헤더를 먼저 보는 것은 그대로다. 2026-10-04 에 이 우선순위 설명은 정의 칸에서 뺐다(위 소절).
 - 「초대」 · 「초대 토큰」 · 「복구 코드」 · 「계정 잠금」 · 「액세스 토큰」 · 「로그인 유지」 · 「로그인 힌트 쿠키」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
+
+### 「참조의 소속」 에서 검사 층을 뺐다 (2026-10-05)
+
+2026-10-05 에 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05) 가 범위 참조를 복합 외래 키로도 막았다(NERV Task `CLE-T-QTRRE6`). 「참조의 소속」 정의가 «서버가 저장할 때 본다» 만 적어서 DB 층이 빠져 보였다. 그 결정의 스펙 초안 검토가 짚었고(finding 01a10aa3-fc14-73ad-a139-29324f1fed98) NERV Task `CLE-T-K9S0TE` 로 넘겼다. DB 층을 정의에 더하는 대신 «서버가 저장할 때 본다» 도 빼고 «범위와 검사하는 시점 · 층은 기준 문서에 있다» 로 일반화했다. 2026-10-04 에 범위와 거부 시점을 정의 칸에서 뺀 것과 같은 방향이다. 대상 참조의 수는 기준 문서가 바뀔 때 사전을 낡게 만든다(색인 표기 원칙 14). 「복합 외래 키」 는 등재하지 않았다. 약어 `FK` 는 색인 약어 표에 있고 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) 가 첫 사용에 풀어 쓴다.

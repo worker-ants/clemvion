@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "5084b5b486f32d7bae211d713c91fd6f897b0969f9e88111e33d2cf89ac28fe5"
+content_hash: "041c40b822eef20d02172377ac8c331d5d7c8c995446b9501cda4e7475c3b709"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "dc0bb08f7ec417806f6a1dcea5d02f25e9ee843599d117457e718aaf53e89cd0"
-etag: "sha256-a15f819836571101c4d048d85a09c53320363c851f426d274b1d28e8c0f879e2"
+mirror_sha256: "d886d311d9ad4c3e4870853ffb580750b599364a57b56b93526f3be8e63b6086"
+etag: "sha256-bae040b0f8786c409dee71043a5af6b31ca41cddbe1c0480012fd4187401ca7a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -150,7 +150,7 @@ ALTER TABLE trigger
 |---|---|---|
 | `trigger` | setup·설정 | `config.chatChannel` JSON(`provider`, `botTokenRef`, `inboundSigningRef`, `botIdentity`, `uiMapping`, `rateLimitPerMinute`, `languageLocale`, `languageHints`). 평문 비밀 필드는 저장 전에 지운다(SS-SE-01) |
 | `trigger` | setup 완료 | UPDATE `chat_channel_setup_at` |
-| `trigger` | 아웃바운드 건강도 | UPDATE `chat_channel_health`(`healthy`/`degraded`), `chat_channel_last_error`(1024자에서 자른다) |
+| `trigger` | 채널 건강도 | UPDATE `chat_channel_health`(`healthy`/`degraded`), `chat_channel_last_error`(1024자에서 자른다) |
 | `trigger` | 봇 토큰 재발급 | UPDATE `chat_channel_token_v2`(v2 시크릿 참조 문자열, 토큰 아님), `chat_channel_rotated_at`. 정리 때 둘 다 NULL |
 | `trigger` | 인바운드로 새 실행 시작 | UPDATE `last_triggered_at` |
 | `secret_store` | setup·재발급·정리 | `secret://triggers/{id}/bot-token`(primary), `.../bot-token.v2`(유예 슬롯), `.../inbound-signing`(서명 검증 자료) |
@@ -224,7 +224,13 @@ sequenceDiagram
     Hk->>Int: interact(in_process_trusted)
   else 새 대화
     Hk->>Eng: execute(workflowId, chatChannel 입력)
-    Hk->>R: upsert 채널 대화 상태, TTL 7일
+    alt 워크플로우가 트리거의 워크스페이스에 없음
+      Eng-->>Hk: 없는 워크플로우로 거부
+      Hk-->>Ext: 202 ignored, chat_channel_health=degraded
+      Note over Hk,Ext: 이 분기는 여기서 끝난다. ackInteraction 과 아래 응답으로 가지 않는다
+    else 실행 시작
+      Hk->>R: upsert 채널 대화 상태, TTL 7일
+    end
   end
   Hk->>Ad: ackInteraction(update)
   Hk-->>Ext: 202 executionId
@@ -241,7 +247,7 @@ sequenceDiagram
 | `text_message`·`button_callback`·`contact_share`·`file_upload`(활성 실행) | `formState` 가 진행 중이면 다단계 질문 단계를 처리하고, 아니면 `InteractionService.interact` 로 서버 안 전달(EIA-AU-08) |
 | `open_form_modal` | 채널 대화 상태의 `pendingFormModal.fields` 와 프로바이더 openContext 로 `adapter.openFormModal`. Discord 는 웹훅 HTTP 응답 본문으로 모달을 돌려준다. `channelUserKey` 가 다르면 거부한다(그룹 안 가로채기 방어) |
 | `form_submission` | 대화 단위 Redis 잠금(`SET NX EX 30`)을 잡고 필드 허용 목록 필터와 클라이언트 쪽 검증을 한 뒤 `interact(submit_form)`. 성공하면 `pendingFormModal` 을 지운다. 실패하면 "양식 작성하기" 버튼을 다시 보내고 `pendingFormModal` 은 둔다 |
-| 새 대화(그 밖) | `execute()` 와 채널 대화 상태 저장 |
+| 새 대화(그 밖) | `execute()` 와 채널 대화 상태 저장. 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 `202 ignored` 로 끝낸다. 채널 대화 상태는 저장하지 않는다([채팅 채널](CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」) |
 
 분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅의 IP 한도(`PublicWebhookThrottleGuard`)와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 인바운드 서명 인증을 쓰므로 그 가드의 "인증 없음" 조건에 기댈 수 없다.
 
@@ -261,7 +267,7 @@ sequenceDiagram
   participant Ext as 프로바이더 API
   WS-->>D: 실행 이벤트(triggerId, conversationKey 첨부)
   D->>Reg: has(triggerId), 없으면 건너뜀
-  D->>PG: SELECT trigger(config.chatChannel, 건강도)
+  D->>PG: SELECT trigger(config.chatChannel, 채널 건강도)
   D->>Ad: renderNode(toChatChannelEvent(event), config)
   alt Form 입력 대기
     D->>R: pendingFormModal 저장 또는 formState 초기화
@@ -334,7 +340,7 @@ stateDiagram-v2
 |---|---|
 | `unknown` | 컬럼 기본값. 아직 setup·발송 결과가 없다 |
 | `healthy` | setup·재발급 성공 때, 또는 아웃바운드 첫 성공 때 올린다(`chat_channel_last_error=null`) |
-| `degraded` | `renderNode`·`sendMessage` 실패, 분당 한도 초과, 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때(REQ-CHAT-059). 트리거를 자동으로 끄지 않는다(CCH-SE-01). 다음 성공 때 다시 `healthy` |
+| `degraded` | 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 트리거를 자동으로 끄지 않는다(CCH-SE-01). 다음 성공 때 다시 `healthy` |
 
 ## 웹채팅 경로
 

@@ -3,18 +3,18 @@ id: "CLE-OBS-STATUS"
 title: "시스템 상태"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-SYSSTAT-001", "REQ-SYSSTAT-002", "REQ-SYSSTAT-003", "REQ-SYSSTAT-004", "REQ-SYSSTAT-005", "REQ-SYSSTAT-006", "REQ-SYSSTAT-007", "REQ-SYSSTAT-008", "REQ-SYSSTAT-009", "REQ-SYSSTAT-010", "REQ-SYSSTAT-011", "REQ-SYSSTAT-012", "REQ-SYSSTAT-013", "REQ-SYSSTAT-014", "REQ-SYSSTAT-015", "REQ-SYSSTAT-016", "REQ-SYSSTAT-017", "REQ-SYSSTAT-018", "REQ-SYSSTAT-019", "REQ-SYSSTAT-020", "REQ-SYSSTAT-021", "REQ-SYSSTAT-022", "REQ-SYSSTAT-023", "REQ-SYSSTAT-024", "REQ-SYSSTAT-025"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "eeb0f03206f23b8cf6493ede76145722f8de19e78703025dd88d6c178ecd00cc"
-read_as: "approved"
-task: null
+content_hash: "a6cafb6c17118dfe94816be3ecddb6406ca904f83338ec098aeee7ccd90e37d7"
+read_as: "approved_fallback"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/2-navigation/15-system-status.md", "spec/2-navigation/_product-overview.md", "spec/5-system/16-system-status-api.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "2f111dcf438489ed241ace0a663cacaa77ba9bfdf11d13d5922925b6576cd94b"
-etag: "sha256-cfb35217d6f857e8d087541e2a041206693f22711905945201b43f15601954d8"
+mirror_sha256: "ff597b66a52b00b31e298b3c5d8dc3b4bf18e12771d257a134823ebddfbdcd84"
+etag: "sha256-7915132a19ad3096dd077fa7dfa3253075a92dc52c80cf83fabbf14c19fab300"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/15-system-status.md`, `spec/5-system/16-system-status-api.md`, `spec/2-navigation/_product-overview.md` (§3.9), `spec/data-flow/9-observability.md` (§1.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -207,7 +207,7 @@ flowchart TD
 
 ### 헬스 어휘
 
-큐 건강도는 `healthy`·`degraded`·`down` 세 값이다. 의존성 점검 API(`/api/health`)의 `healthy`·`unhealthy`, EIA 알림 웹훅·채팅 채널 발송 건강도의 `unknown`·`healthy`·`degraded` 와 다른 어휘다. 세 어휘의 비교는 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 에 있다.
+큐 건강도는 `healthy`·`degraded`·`down` 세 값이다. 의존성 점검 API(`/api/health`)의 `healthy`·`unhealthy`, EIA 알림 웹훅의 발송 건강도와 채팅 채널의 채널 건강도가 쓰는 `unknown`·`healthy`·`degraded` 와 다른 어휘다. 세 어휘의 비교는 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 에 있다.
 
 ## 보안
 

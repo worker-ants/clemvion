@@ -2,19 +2,19 @@
 id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "3fc32a32f19867f20d6b3e1e6b993c0fefde02584503c11f00a7adf5b34b8fe3"
+content_hash: "e4da3e687b6292e2f8ad3d36061f2b4192fe0c92ae7ce4d5732a97d1353aa75e"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-K9S0TE"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "46417abcb6d7a0a9009e06cb951811035e07ed59e66688372c69a955d27d5a2d"
-etag: "sha256-144b223996c69c74ac1df483075137052acef9268c8667d29e4bcaf41acf58a9"
+mirror_sha256: "dee52ede2fd6a6f392eb9ae2cb46332a16ed327a3e4144c3f9cf19587d56936f"
+etag: "sha256-ff14cf0973c31edc5f10e63172a3a8778478053fc654d0b83cec3debee046ac0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -214,7 +214,7 @@ Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면�
 
 | 발사 경로 | 워크플로우가 그 워크스페이스에 없을 때 |
 |-----------|----------------------------------------|
-| Cron 자동 발사 | 연결된 워크플로우가 없을 때처럼 건너뛰고 서버 에러 로그를 남긴다. 재시도하지 않고 `lastRunAt` · `nextRunAt` 을 바꾸지 않는다. `schedule_failed` 알림은 보내지 않는다(REQ-SCHED-034, [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) REQ-NOTIFY-052) |
+| Cron 자동 발사 | 연결된 워크플로우가 없을 때처럼 건너뛰고 서버 에러 로그를 남긴다(연결된 워크플로우가 없을 때의 로그는 경고 등급이다). 재시도하지 않고 `lastRunAt` · `nextRunAt` 을 바꾸지 않는다. `schedule_failed` 알림은 보내지 않는다(REQ-SCHED-034, [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) REQ-NOTIFY-052) |
 | "지금 실행" | 연결된 워크플로우가 없을 때와 같은 400 이다. 두 경우를 구분하지 않는다(REQ-SCHED-035) |
 
 ## 미결 사항
