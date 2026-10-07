@@ -381,6 +381,35 @@ describe('TriggersService.findOneDetail', () => {
     expect(entity.notificationLastError).toBe(notificationRaw);
   });
 
+  /**
+   * 이 변경 전에는 시크릿 저장소의 «없음» 오류가 참조를 실었다(`Secret not found: secret://…`).
+   * 그렇게 저장된 옛 값이 다음 갱신 전까지 남아 있다. 값 패턴의 단독 `secret` 키워드 패턴
+   * (`secret` + `:` + 값)이 참조를 통째로 가리므로 응답에는 참조가 나가지 않는다(시크릿 저장소
+   * 「규칙」 4, NERV Task `CLE-T-H0GF4K`). 그 패턴을 좁히면 여기가 깨진다.
+   */
+  it('[캐너리] 마지막 오류에 남은 옛 시크릿 참조는 값 패턴이 가린다', async () => {
+    const stored =
+      'Telegram getMe failed: Secret not found: secret://triggers/7b0f2c1e-1111-4222-8333-944455556666/bot-token.v2';
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      chatChannelLastError: stored,
+      notificationLastError:
+        'signing: secret://triggers/t1/notification-signing',
+      config: {},
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(result.chatChannelLastError).toBe(
+      'Telegram getMe failed: Secret not found: ***',
+    );
+    expect(result.notificationLastError).toBe('signing: ***');
+  });
+
   it('자격 증명 모양이 없는 마지막 오류와 null 은 그대로 둔다', async () => {
     triggerRepo.findOne.mockResolvedValue({
       id: 't1',

@@ -205,6 +205,16 @@ describe('redactSecrets — fetch 헤더 값 검증 오류', () => {
     );
   });
 
+  // 따옴표 안은 마커가 들어 있어도 통째로 값 마커가 된다(규칙 5 의 예외, EGRESS §3.10). 다른 마커가
+  // 이 오류 원문 안에 들 일은 드물지만 동작을 고정해 둔다.
+  it('따옴표 안에 다른 마커가 있어도 값 마커 하나로 정규화한다', () => {
+    const raw =
+      'Headers.append: "Bearer [REDACTED]\nX" is an invalid header value.';
+    expect(redactSecrets(raw)).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
   it('알려진 비밀 치환을 지난 값은 같은 마커로만 바뀐다', () => {
     const stored = `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`;
     expect(redactSecrets(stored)).toBe(
