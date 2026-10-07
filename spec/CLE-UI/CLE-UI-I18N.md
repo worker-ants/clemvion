@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "f5a181ef5a79004b7bd0b8bd25d02d482877827f4af77be7aa515882baef9c15"
+content_hash: "c2dbc4d8aacf0a69806d60cb8a5e65cd614befff616743764a5aadcf175d2a7f"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "cc8a4189a627620e31c675e418d2bee1525a2199b02c6ef57cdc5314e51d361e"
-etag: "sha256-7e4c0b34e0c86a9aa8e41ef4c399d8f50ed951dd5965ac649259a69b8e7a4758"
+mirror_sha256: "569e425c2c1ba6ebc25db5d3b33d33fe0cd0e860a4583ec77e75d2ff11999f10"
+etag: "sha256-f93b4f49854bfdf087c0c7ec4b8f0c17ff9318ad093a6b31c387e1eed3a00f22"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ etag: "sha256-7e4c0b34e0c86a9aa8e41ef4c399d8f50ed951dd5965ac649259a69b8e7a4758"
    - 금지: 백엔드 응답에 한국어를 직접 넣는 것. 지역화할 수 없게 된다.
    - 금지: 백엔드만 새 경고 문구(`warningRules[].message`)나 라벨을 내보내고 프론트엔드 매핑을 빠뜨리는 것.
    - 매핑이 없으면 `pickKo` 같은 폴백으로 영문이 그대로 보인다. 이것은 의도한 안전장치이지만 매핑 누락은 규칙 위반이다.
-   - 매핑 대상이 아닌 값: 트리거의 `chat_channel_last_error` 다. 서버가 저장한 진단 원문을 그대로 보여 주는 필드다. 어댑터 에러 메시지(프로바이더 응답 포함)와 서버가 정한 문구가 섞이고 값이 끼는 문구(`Inbound rate limit exceeded (N/min)`)도 있어 키로 쓸 코드가 없다. 코드로 저장하는 진단 필드는 규칙 5 를 따른다. 화면에는 보이되 번역하지 않는다. 화면은 고정폭 글꼴로 원문임을 드러내고 곁의 안내 문구만 화면 문구 사전을 거친다. 이 면제를 지키는 가드는 없다([진단 원문을 매핑하지 않는 이유](#진단-원문을-매핑하지-않는-이유-2026-10-05)).
+   - 매핑 대상이 아닌 값: 트리거의 `chat_channel_last_error` 다. 서버가 저장한 진단 원문을 번역하지 않고 보여 주는 필드다. 자격 증명 모양은 서버가 응답에서 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)). 어댑터 에러 메시지(프로바이더 응답 포함)와 서버가 정한 문구가 섞이고 값이 끼는 문구(`Inbound rate limit exceeded (N/min)`)도 있어 키로 쓸 코드가 없다. 코드로 저장하는 진단 필드는 규칙 5 를 따른다. 화면에는 보이되 번역하지 않는다. 화면은 고정폭 글꼴로 원문임을 드러내고 곁의 안내 문구만 화면 문구 사전을 거친다. 이 면제를 지키는 가드는 없다([진단 원문을 매핑하지 않는 이유](#진단-원문을-매핑하지-않는-이유-2026-10-05)).
 
 4. **백엔드 zod `ui.*` 메타도 매핑한다(원본: Principle 3-B).** 백엔드 `*ConfigSchema` 가 `z.toJSONSchema` 로 내보내는 `ui.*` 메타는 그 자체가 사용자에게 보이는 영문이다. AI 에이전트 노드의 `Presentation Tools` 그룹, `Description override`, `Defaults overlay` 라벨이 번역되지 않던 회귀를 막으려고 다음 다섯 키에도 같은 매핑 의무를 둔다.
 
@@ -211,4 +211,4 @@ MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 �
 
 ### 진단 원문을 매핑하지 않는 이유 (2026-10-05)
 
-`chat_channel_last_error` 는 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 의 원인마다 다른 출처의 문구를 담는다. 어댑터 실패면 그 에러 메시지(프로바이더 응답 포함)이고 그 밖의 원인은 서버가 정한 문구다. 필드 하나에 출처 둘이 섞여 있어 필드 전체를 면제한다. 정적 키로 옮길 수 있는 고정 문구(`Workflow not found for this trigger`)도 같이 면제한다. 규칙 3 의 정적 키로는 프로바이더 메시지와 값이 끼는 문구를 잡지 못한다. 규칙 5 로 옮기려면 서버가 코드와 `params` 를 따로 저장해야 해 동작이 바뀐다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」 가 이 필드를 «화면에 보이는 필드» 로 보고 고정 문구를 고른 것과는 부딪치지 않는다. 보이되 진단용 원문이라 번역하지 않는다. 저장할 때 원문을 바꾸지 않는 점은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 «진단용 필드» 를 저장할 때 지우지 않는 것과 같다. 다만 그 문서는 나가는 시점에 마스킹하고 트리거 상세 응답은 지금 그 표면 목록에 없다. 올릴지는 NERV Task `CLE-T-H0GF4K` 가 정한다. 화면 안내 문구가 원인을 나열하지 않고 «마지막 오류» 를 가리키게 고친 것도 같은 날이다(NERV Task `CLE-T-K9S0TE`).
+`chat_channel_last_error` 는 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 의 원인마다 다른 출처의 문구를 담는다. 어댑터 실패면 그 에러 메시지(프로바이더 응답 포함)이고 그 밖의 원인은 서버가 정한 문구다. 필드 하나에 출처 둘이 섞여 있어 필드 전체를 면제한다. 정적 키로 옮길 수 있는 고정 문구(`Workflow not found for this trigger`)도 같이 면제한다. 규칙 3 의 정적 키로는 프로바이더 메시지와 값이 끼는 문구를 잡지 못한다. 규칙 5 로 옮기려면 서버가 코드와 `params` 를 따로 저장해야 해 동작이 바뀐다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」 가 이 필드를 «화면에 보이는 필드» 로 보고 고정 문구를 고른 것과는 부딪치지 않는다. 보이되 진단용 원문이라 번역하지 않는다. 저장할 때 원문을 바꾸지 않는 점은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 «진단용 필드» 를 저장할 때 지우지 않는 것과 같다. 시크릿 저장소 평문(봇 토큰)만은 프로바이더 API 클라이언트가 원문을 만들 때 지운다. 트리거 응답은 2026-10-05 에 그 문서의 표면 목록에 올랐고 자격 증명 모양만 가린다(NERV Task `CLE-T-H0GF4K`). 화면은 가려진 값을 번역하지 않고 그대로 보여 준다. 화면 안내 문구가 원인을 나열하지 않고 «마지막 오류» 를 가리키게 고친 것도 같은 날이다(NERV Task `CLE-T-K9S0TE`).

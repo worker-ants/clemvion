@@ -3,18 +3,18 @@ id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033"]
+status: "approved"
+requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "f4feb012b70228b130715da31df8a861a30f3c63813ca235769c403a1cff9878"
-read_as: "approved"
-task: null
+content_hash: "6c39f215f1b194069b806414fc3a268f49c8df48e226fa707c2b501420f703b1"
+read_as: "approved_fallback"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "e6942c357efc4d93eda33fdb592f33b5f6e3bf2a5421894cfaf9be362725b5cd"
-etag: "sha256-647a8edfc0323d977c53a798166d897d2b2624307c1c7cf7199f2ed8fdf22d5a"
+mirror_sha256: "f173b16b1fdde5d94418cffe4e2631b0e51454b6630b9b39477f53893fa9f23b"
+etag: "sha256-cbaa2288e233955eba5f90382fc72e843825aea05e9df80ae8096f9c7440fd0b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,6 +61,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-031 WHEN `execution.ai_message` 에 표시물이 있으면 THE SYSTEM SHALL WebSocket payload 의 `presentations[]` 를 그대로 전달한다. (원본: §6.5)
 - REQ-EIANOTI-032 WHEN `execution.completed` 를 보내면 THE SYSTEM SHALL 실행 결과 출력(`result.outputs`)을 싣는다. (원본: §6) (미구현)
 - REQ-EIANOTI-033 WHEN `waiting_for_input` 알림을 보내면 THE SYSTEM SHALL 인터랙션 안내 블록(`submitUrl`·`streamUrl`·`statusUrl`·`cancelUrl`·`token`·`expiresAt`·`expectedCommands`)을 싣는다. (원본: §6.2) (미구현)
+- REQ-EIANOTI-034 WHEN 트리거 조회 · 생성 · 수정 응답이 `notificationLastError` 를 돌려주면 THE SYSTEM SHALL 저장값은 두고 응답에서 자격 증명 모양을 가린다. ([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05))
 
 ## 구독 이벤트
 
@@ -290,7 +291,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 재시도 횟수 | 기본 5(`notification.retry.maxAttempts`). 횟수 해석은 [미결 사항](#미결-사항) |
 | 간격 | base-4 사용자 정의 backoff(1s · 4s · 16s · 64s · 256s). 워커 `settings.backoffStrategy`(`NotificationWebhookProcessor`)가 `1000·4^(attemptsMade-1)` 을 돌려주고, 작업 옵션 `backoff.type = NOTIFICATION_BACKOFF_TYPE` 이 이를 가리킨다. BullMQ 내장 `exponential` 은 base-2 뿐이라 사용자 정의 전략으로 바꿨다 |
 | 같은 이벤트 식별 | `X-Clemvion-Delivery` UUID(다시 보내도 같다) |
-| 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 실패 기록은 트리거 상세 화면에 보인다 |
+| 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | 낡은 알림 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
 
 발송 건강도(`notification_health`)는 `unknown`(확인 안 됨)·`healthy`(정상)·`degraded`(저하됨) 세 값이다. 발송 파이프라인(`NotificationFanout` → `NotificationDispatcher` → `notification-webhook` 큐 → `NotificationWebhookProcessor`)과 큐 설정은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다.

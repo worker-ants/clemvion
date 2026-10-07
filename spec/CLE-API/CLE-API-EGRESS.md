@@ -3,18 +3,18 @@ id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a1f6690b4f1f62afcb5bf47951681288f71caf4b2b15151de5d8afe981bc5fe7"
-read_as: "approved"
-task: null
+content_hash: "24fcc071e2ecb6812e5175f76d4c2a470737c03ca3aac128caf5ab03993ea026"
+read_as: "approved_fallback"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "2924496164e987c5c68d57e405073dcea917225b58145f0857253332a8d1aaec"
-etag: "sha256-06f068d9c640db3b4dba6c0de3921de3db5b19b16c5159850b1c5dca7cea4457"
+mirror_sha256: "5014ccd7ba616e7fe1bff4f95616ec4cec0190e4ae0f44341179416d2803c4cd"
+etag: "sha256-9355b8363b05a587b42fc3454850f4b2b9b865dde97492f407eb9979804ab96a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,17 +34,19 @@ etag: "sha256-06f068d9c640db3b4dba6c0de3921de3db5b19b16c5159850b1c5dca7cea4457"
 | EIA 단발 상태 조회의 `currentNode`·`context` 노출 결정과 SSE 역할 분담 | [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R17, [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
 | 웹훅 민감 헤더를 받는 시점에 지우는 규칙 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 민감 헤더 마스킹 절 | 없음 |
 
-- **비대상: 필드 마스킹(`***<last4>`).** 인증 설정·모델 설정 응답 DTO 가 저장된 자격 증명 필드를 끝 네 글자만 보이게 가리는 필드 단위 정책은 이 문서의 대상이 아니다. 기준은 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 과 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 마스킹·노출 정책이다. 이 문서는 나가는 페이로드를 훑어 값 패턴과 키 이름으로 바꾸는 메커니즘만 다룬다. 둘 다 "마스킹" 이라 혼동하기 쉬워 적어 둔다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 도 같은 콜아웃을 둔다).
+- **비대상: 필드 마스킹(`***<last4>`).** 인증 설정·모델 설정 응답 DTO 가 저장된 자격 증명 필드를 끝 네 글자만 보이게 가리는 필드 단위 정책은 이 문서의 대상이 아니다. 기준은 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 과 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 마스킹·노출 정책이다. 이 문서는 나가는 페이로드를 훑어 값 패턴과 키 이름으로 바꾸는 메커니즘만 다룬다. 둘 다 "마스킹" 이라 혼동하기 쉬워 적어 둔다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 도 같은 콜아웃을 둔다). 트리거 응답의 마지막 오류 필드는 필드 마스킹이 아니라 이 문서의 응답 마스킹(값 패턴 판정)이다(§3.10).
 - **비대상: 로그 마스킹.** 서버 로그에 자격 증명이 남지 않게 하는 규칙은 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 가 정한다.
+- **인접 정책: 알려진 비밀 치환.** 채팅 채널의 프로바이더 API 클라이언트가 실패 원문을 만들 때 그 호출에 쓴 시크릿 저장소 평문을 지우는 일은 나가는 시점 마스킹이 아니다. 이 문서는 경계만 적고(§1.1) 동작은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14 와 [채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다.
+- **잔여 갭: 알림 URL 의 자격 증명.** 트리거 응답의 `config.notification.url` 은 원문으로 나간다. 같은 응답의 마지막 오류에서는 `user:pass@` 를 가리므로 §3.5 가 막은 «같은 응답 안의 원문이 방어를 우회하는» 형태가 남아 있다(§3.10, NERV Task `CLE-T-RCQGCC`).
 - **네트워크 egress 와 무관하다.** [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 사설망 차단(SSRF guard)이 말하는 egress 는 나가는 네트워크 목적지 제한이다. 이 문서의 egress 는 응답·이벤트 페이로드가 나가는 시점을 뜻한다. 같은 단어가 두 도메인에 있다.
 
 ## 규칙
 
-1. **DB 는 원문을 보존한다.** 마스킹은 나가는 시점(egress)에만 한다. 자유 텍스트와 진단용 필드는 저장할 때 지우지 않는다.
+1. **DB 는 원문을 보존한다.** 마스킹은 나가는 시점(egress)에만 한다. 자유 텍스트와 진단용 필드는 저장할 때 지우지 않는다. 시크릿 저장소에서 푼 평문은 이 규칙이 보존하는 원문에 들지 않는다. 그 값은 원문을 만든 자리에서 지운다(§1.1). 통합 `last_error` 의 암호화와 MCP 오류의 저장 전 가림은 각 문서의 결정이다(§1.1).
 2. **마스킹 범위는 수신 인구가 정한다(boundary parity).** 같은 사람들이 받는 표면은 같은 마스킹을 받는다. 역할 게이트가 아니라 서버의 마스킹 일치에 안전성을 건다.
 3. **적용 범위는 총칭이 아니라 열거다.** "모든 읽기 경로" 로 적지 않고 표면을 이름으로 적는다(§3).
 4. **마스킹은 공유 관문에서 건다.** 새 읽기·발행 경로가 그 관문을 지나면 마스킹을 구조적으로 이어받게 한다. 호출부마다 따로 걸지 않는다.
-5. **마스킹은 한 번이다.** 뒤 단계는 앞 단계가 남긴 마커를 덮지 않는다.
+5. **마스킹은 한 번이다.** 뒤 단계는 앞 단계가 남긴 마커를 다른 마커로 덮지 않는다. 예외는 하나다. fetch 헤더 값 검증 오류의 따옴표 안은 그 안에 든 마커까지 값 마커 하나로 바꾼다(§3.10, Rationale 「트리거 응답의 마지막 오류를 표면에 올린 이유」).
 6. **`toFanoutEnvelope` 는 정한 네 단계 순서를 지키고 뒤에서 다시 마스킹하지 않는다.**
 7. **`llmCalls` 는 strip-only 다.** 외부 수신자에게는 필드째 빼고 내부 WebSocket wire 에서는 값 마스킹도 하지 않고 원문을 유지한다.
 8. **외부로 나가는 `nodeOutput` 은 fail-closed 허용 목록(allowlist)을 지난다.** 작성자가 정의한 워크플로우 출력(`result`)과 자유 형식 에러는 대상에서 뺀다.
@@ -61,6 +63,8 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 - 내부 소비처(LLM 컨텍스트 주입, park 할 때 저장하는 대화 스레드 스냅샷 `Execution.conversation_thread`, Background 본문)는 원문 텍스트를 그대로 쓴다.
 - DB `Execution.error` 도 원문을 보존한다. 서버 로그와 사후 디버깅의 진실을 남기기 위해서다.
 - 저장 시점(append) 마스킹은 채택하지 않는다. 이유는 Rationale "egress-only 를 택한 이유" 에 있다. DB 에 쌓인 원문을 줄이는 것(append 시점 마스킹)은 데이터 최소화가 요구될 때 다룰 후속 항목이다.
+- **시크릿 저장소 평문은 보존하는 원문에 들지 않는다.** 시크릿 저장소에서 푼 평문(봇 토큰 등)은 DB 와 로그에 닿으면 안 된다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14). 그래서 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)는 실패 원문을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 평문을 지운다. 이 일을 알려진 비밀 치환이라 부르고 동작은 [채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다. 값 패턴을 추측하지 않아 Rationale 「egress-only 를 택한 이유」 가 걱정한 오탐이 없다. 값 패턴 마스킹은 지금처럼 저장할 때 하지 않는다(2026-10-05, NERV Task `CLE-T-H0GF4K`).
+- **통합의 마지막 오류는 다른 결정이다.** 통합 행의 `last_error` 는 암호화해 저장하고([통합 데이터 모델](../CLE-INT/CLE-INT-DATA.md)) MCP 호출 진단의 에러 메시지는 저장 전에 자격 증명 모양을 가린다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)). 둘 다 그 문서의 결정이고 이 문서의 egress-only 와 별개다.
 
 ### 1.2 받는 시점(ingestion)과 나가는 시점(egress)이 함께 있다
 
@@ -69,21 +73,23 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 - **구조화된 시크릿 전용 필드(알려진 헤더 key)** 는 검증 뒤 원문을 남길 이유가 없어 받는 시점에 지우는 것이 옳다.
 - **자유 텍스트와 진단용 필드** 는 저장할 때 지우면 사후 디버깅의 진실이 사라져 나가는 시점이 옳다. 자유 텍스트는 대상 패턴을 미리 정할 수 없어 애초에 받는 시점에 걷어낼 수 없다.
 - 두 층은 경쟁하지 않고 **쌓인다.** 키 blacklist 가 못 잡는 값 패턴을 나가는 층이 덮는다.
-- 그래서 나가는 층은 받는 층의 마커를 덮지 않는다(§6). 덮으면 같은 헤더가 `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
+- 그래서 나가는 층은 받는 층의 마커를 덮지 않는다(§6). 덮으면 같은 헤더가 `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다. 규칙 5 의 예외 구간(헤더 값 검증 오류의 따옴표 안)은 제외한다.
+- 만든 자리의 알려진 비밀 치환(§1.1)은 받는 층과 다르게 나가는 층과 겹친다. 알려진 비밀 치환이 남긴 값 마커가 든 헤더 값 검증 오류는 나가는 층이 따옴표 안을 통째로 값 마커 하나로 바꾼다(규칙 5 의 예외, §3.10).
 
 ### 1.3 마스커의 종류
 
 | 종류 | 무엇을 가리나 | 대표 함수 |
 |---|---|---|
-| 값 패턴 | 자유 텍스트 안에 박힌 자격 증명 모양(`Bearer …`, `Authorization:` 헤더, bare JWT, 자격 증명을 담은 URI 등) | `redactSecrets`(문자열), `deepRedactSecrets`(구조화 값의 문자열 leaf), `redactSecretsInJsonString`(JSON 문자열을 파싱해 가린 뒤 다시 직렬화) |
+| 값 패턴 | 자유 텍스트 안에 박힌 자격 증명 모양(`Bearer …`, `Authorization:` 헤더, bare JWT, 자격 증명을 담은 URI, fetch 의 헤더 값 검증 오류에 실린 헤더 값 등) | `redactSecrets`(문자열), `deepRedactSecrets`(구조화 값의 문자열 leaf), `redactSecretsInJsonString`(JSON 문자열을 파싱해 가린 뒤 다시 직렬화) |
 | 키 이름 | 자격 증명 키 이름과 맞는 필드의 값 | `deepRedactSecrets` 의 키 매칭, `sanitizePayloadForWs`(WebSocket), `maskSensitiveFields`(워크플로우 AI 어시스턴트 도구) |
 | 필드 제거 | 디버그 전용 필드 자체 | `stripExternalOnlyFields`(`llmCalls` 를 깊이와 무관하게 제거) |
 | 허용 목록 | 목록 밖의 키 | `allowlistNodeOutputKeys`, `allowlistFanoutNodeOutput` |
 
 - 값 패턴과 키 이름 판정은 `sanitize-error-message.ts` 의 `SECRET_LEAK_PATTERNS`·`CREDENTIAL_KEY_PATTERN` 을 함께 쓴다. 에러 메시지 sanitizer 와 같은 기준이다.
 - `CREDENTIAL_KEY_PATTERN`(공용과 WebSocket 미러)과 값 패턴은 `token` **계열 전체**를 덮는다. bare `token` 과 `access_token`·`csrf_token`·`csrfToken`·`x-auth-token` 같은 접두형이다(2026-08-17).
-- `deepRedactSecrets` 는 정상 결과 데이터를 copy-on-change 로 보존하고 이미 마스킹된 값(`[REDACTED]`, `***`, `[REDACTED_DEPTH]`)은 다시 가리지 않는다.
+- `deepRedactSecrets` 는 정상 결과 데이터를 copy-on-change 로 보존하고 이미 마스킹된 값(`[REDACTED]`, `***`, `[REDACTED_DEPTH]`)은 다시 가리지 않는다. 값 전체가 마커일 때의 이야기다. 헤더 값 검증 오류의 따옴표 안은 마커가 들어 있어도 통째로 값 마커가 된다(규칙 5 의 예외, §3.10).
 - **값 마스킹만으로는 부족하다.** `deepRedactSecrets` 는 값과 키 패턴을 바꿀 뿐 `llmCalls` 같은 **필드 자체**는 남긴다. 그래서 외부 표면은 필드 제거(`stripExternalOnlyFields`)와 값 마스킹을 함께 건다.
+- 알려진 비밀 치환(`replaceKnownSecret`)은 나가는 마스커가 아니라 이 표와 §7 좌표계에 없다(§1.1).
 
 ## 2. 마스킹 범위를 정하는 기준
 
@@ -105,6 +111,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 | `WebsocketService.emitExecutionEvent`·`emitNodeEvent` | 모든 실행·노드 이벤트 발행(내부 WebSocket wire 와 외부 fanout) |
 | `toTerminalErrorPayload` | 종결 이벤트의 `error` |
 | `redactThreadForPublic` | 대화 스레드의 공개 표면 |
+| `TriggersService.sanitizeForResponse` | 트리거 REST 응답(§3.10 의 표면들) |
 
 새 읽기·발행 경로가 이 관문을 지나면 마스킹을 구조적으로 이어받는다. 늘어나는 것은 표면의 발견이지 마스킹을 손으로 거는 자리가 아니다.
 
@@ -173,7 +180,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - **처방**: `WebsocketService` 의 두 발행(`emitExecutionEvent`, `emitNodeEvent`)이 함께 쓰는 관문에서 가린다. `executionEventSubject.next` 호출부가 정확히 둘이라 한 곳만 고치면 자매가 갈린다. 두 경로가 같은 문을 지나게 했다. 대상은 필드 이름과 무관하게 **payload 전체**다. 대표 예시는 `error`(node.failed), `output`·`input`(node.completed), `message`(ai_message)다.
 - **내부 WebSocket wire 와 외부 fanout 양쪽**에 건다(§2.1).
 - **예외는 `llmCalls` 하나다.** 에디터 전용 원문 디버그 탈출구라 wire 에서는 원문을 유지한다(`WIRE_PRESERVED_FIELDS`). fanout 에서는 필드째 빠지므로 외부 노출은 늘지 않는다(§5).
-- 앞선 키 이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다. 값 마스커가 마커에 대해 멱등하다.
+- 앞선 키 이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다. 값 마스커가 마커에 대해 멱등하다. 값 전체가 마커일 때의 이야기이고 헤더 값 검증 오류의 따옴표 안은 예외다(규칙 5).
 - WebSocket 마스커의 깊이 상한 `MAX_SANITIZE_DEPTH` 는 REST 값 마스커의 상한과 별개 불변식이다(§7).
 - **도달 범위도 열거다.** `execution.node.*` 는 SSE 구독자에게 간다(`SseAdapter` 는 이벤트 종류를 거르지 않는다). `execution.node.completed` 만 채팅 채널이 추가로 구독한다. **EIA 알림 웹훅은 `FANOUT_EVENTS` 허용 목록 밖이라 받지 않는다.**
 - **부작용(수용)**: 워크플로우가 정당하게 자격 증명을 다루면 그 값이 발행·읽기 표면에서 `***` 로 보인다. §3.2 와 같은 판단이며 외부 EIA 단발 상태 조회는 이미 같은 마스킹을 걸고 있었다(내부에만 없었다). 참여자와 관찰자를 나눠 가리는 방식은 실제 요구가 관측되면 검토한다.
@@ -243,6 +250,35 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - 간접화(`llmConfigId`·`integrationId`)는 이미 표준이다. 남은 근본 과제는 사용자 자유 입력 자리를 어떻게 다룰지이고 훨씬 어렵다. 이 좁힌 형태로 후속 작업에 올렸다.
 - 새 핸들러와 통합이 `config` 에 시크릿 평문을 싣지 않게 하는 것은 이와 별개인 상시 불변식이다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 7).
 
+### 3.10 트리거 응답의 마지막 오류 (2026-10-05)
+
+트리거의 두 마지막 오류 필드는 실패 원인을 보여 주는 진단 원문이다. 저장값은 원문으로 두고 응답에서 값 패턴으로 가린다(NERV Task `CLE-T-H0GF4K`).
+
+| DB 컬럼 | 응답 필드 | 담는 것 | 저장할 때 자르는 길이 |
+|---|---|---|---|
+| `chat_channel_last_error` | `chatChannelLastError` | 채팅 채널 어댑터 실패(렌더 · 발송 · 채널 설정)의 원문과 서버가 정한 문구([채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도)) | 1024자 |
+| `notification_last_error` | `notificationLastError` | EIA 알림 웹훅 발송 실패의 원문과 서버가 정한 문구([EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md)) | 500자 |
+
+- **표면**: `GET /api/triggers`(목록), `GET /api/triggers/:id`(상세), `POST /api/triggers`(생성), `PATCH /api/triggers/:id`(수정) 응답이다. 모두 `TriggersService.sanitizeForResponse` 를 지난다(§2.2).
+- **비대상**: 스케줄 응답은 조인한 트리거를 `id` · `name` · `workflowId`(워크플로우를 불러왔으면 `workflow.name` 도)로 좁혀 두 필드를 싣지 않는다. 봇 토큰 재발급 · 알림 서명 시크릿 교체 응답도 이 필드를 싣지 않는다.
+- **수신 인구**: 두 GET 은 `@Roles` 게이트가 없어 뷰어를 포함한 워크스페이스 멤버가 받는다. 실행 상세(§2.1)와 같은 사람들이라 같은 값 패턴 마스커 `redactSecrets`(`codebase/backend/src/shared/utils/sanitize-error-message.ts`, 자르지 않는다)를 건다.
+- **알려진 비밀 치환과 나가는 시점 마스킹**:
+  1. 만든 자리(§1.1): 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 자기가 만든 실패 문장(fetch 예외, 재시도 소진 사유)을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 봇 토큰을 지운다. 세부는 [채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다. 프로바이더가 돌려준 4xx 본문은 실패 판별 입력이라 바꾸지 않는다. 봇 토큰에 CR · LF · NUL 이 있으면 fetch 가 `Headers.append: "Bearer <토큰 전체>" is an invalid header value.`(Discord 는 `Bot <토큰>`)로 거부해 Slack 은 토큰이 이 필드 · 로그 · 응답까지 갔다(Node 24 실측). Discord 는 지금 이 필드에 닿지 않고 로그에 남았다(합성 실패의 판별 결함은 NERV Task `CLE-T-KX2Q2N`).
+  2. 나가는 시점: `sanitizeForResponse` 가 두 필드에 `redactSecrets` 를 건다. 프로바이더가 되돌려 준 자격 증명, `user:pass@` URL(알림 URL 이 같은 응답에 원문으로 남는 동안은 부분적이다), JWT, `Authorization:` 헤더, fetch 헤더 값 검증 오류처럼 미리 알 수 없는 모양을 막는다.
+- **마커**: 알려진 비밀 치환과 나가는 시점 마스킹은 같은 값 마커를 쓴다. 저장값 `Headers.append: "Bearer ***" is an invalid header value.` 는 응답에서 `Headers.append: "***" is an invalid header value.` 가 된다. 이 패턴은 따옴표 안에 다른 마커(`[REDACTED]` 등)가 있어도 값 마커 하나로 바꾼다. 규칙 5 의 하나뿐인 예외이고 이유는 Rationale 에 있다.
+- **서명 자료**: 인바운드 서명 자료는 요청 헤더나 URL 에 싣지 않는다. Telegram `secret_token` 은 `setWebhook` 요청 본문에 있고 fetch 오류 원문은 본문을 싣지 않는다. 그래서 알려진 비밀 치환의 대상은 봇 토큰이다.
+- **로그**: 로그 경로는 이 문서의 대상이 아니다(개요 「비대상: 로그 마스킹」, [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 「로그 마스킹」). 시크릿 저장소 평문을 로그 전에 지우는 규칙은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14 가 정하고 로깅 문서가 그곳을 가리킨다.
+- **시크릿 참조**: 시크릿 저장소의 «없음» · «이미 있음» 오류는 참조를 메시지에 싣지 않는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 18). 어댑터 실패 원문으로 이 필드에 저장될 수 있어서다. 이 변경 전에 저장된 `Secret not found: secret://…` 은 값 패턴의 단독 `secret` 키워드 패턴이 참조를 통째로 가린다(응답 비노출은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4).
+- **한계**:
+  - 저장할 때 자르므로 패턴의 끝(`@`, `" is an invalid header value`)이 잘린 값은 나가는 층이 가리지 못한다. 봇 토큰은 만든 자리에서 자르기 전에 지운다.
+  - 헤더 값 검증 오류 패턴은 따옴표 안 2048자까지만 본다. 상한이 없으면 종결 문구 없는 큰 입력에서 이차 시간이 걸려서다(192KB 4.3초 → 77ms). 그보다 긴 헤더 값은 이 패턴이 가리지 않는다. 봇 토큰은 알려진 비밀 치환이 먼저 지우므로 이 상한과 무관하다(생성의 `botToken` 은 256자 상한이 있고 재발급의 `newBotToken` 은 상한이 없다. 수정(PATCH)은 봇 토큰을 받지 않는다). 한 원문에 이 오류가 둘이면 상한 안에서 그 사이 문장까지 가린다.
+  - 알려진 비밀 치환은 글자 그대로 같은 문자열만 바꾼다. 인코딩된 평문(URL 인코딩, base64)은 가리지 못한다. 나가는 층도 알려진 모양만 가린다.
+  - 이 변경 전에 저장된 값은 다음 갱신 때까지 DB 에 남는다. 응답에서는 봇 토큰이 실린 헤더 오류와 `secret:` 뒤의 시크릿 참조를 값 패턴이 가린다. DB 의 옛 값은 정리하지 않는다. 토큰이 실렸을 수 있는 트리거는 토큰을 재발급한다.
+  - 프로바이더가 돌려준 4xx 본문은 알려진 비밀 치환을 거치지 않는다. 본문에 토큰이 실리면 나가는 층의 값 패턴만 남는다.
+  - 두 필드는 `TRIGGER_RESPONSE_REDACT_COLUMNS` 에 이름으로 올라 있다. `trigger` 에 마지막 오류 같은 진단 텍스트 컬럼을 더하면 이 목록과 위 표를 함께 고친다.
+  - 제어 문자가 든 봇 토큰을 입력에서 거부하지는 않는다. 그런 토큰은 생성 · 활성화에서 `degraded` 로, 재발급에서 `502 CHAT_CHANNEL_SETUP_FAILED` 로 드러난다. 채팅 채널 R-CC-23 의 기준으로는 사용자가 고칠 입력 오류라 4xx 여야 한다. 입력 거부는 NERV Task `CLE-T-FX354C` 가 다룬다.
+- **남는 표면 `config.notification.url`**: 같은 응답의 알림 URL 은 원문으로 나간다. URL 에 `user:pass@` 가 있으면 마지막 오류에서는 가려도 이 필드에는 남는다. §3.5 가 «같은 응답 안의 원문이 방어를 우회한다» 고 보고 닫은 형태와 같다. 이번에 닫지 않은 이유는 이 필드가 편집 폼이 다시 보내는 왕복 값이라 규칙 9 와 함께 정해야 해서다. 그런 URL 은 fetch 가 요청을 만들지 않아 한 번도 발송되지 않으므로 등록에서 거부하는 안을 먼저 본다(NERV Task `CLE-T-RCQGCC`). 그때까지 알림 URL 의 userinfo 차단은 완전하지 않다. 사용자명만 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)은 마지막 오류에서도 가려지지 않는다.
+
 ## 4. 다시 쓰이는 값과 재제출 거부
 
 마스킹은 "읽혀서 다시 쓰이는 값" 과 만나면 가시성이 아니라 **데이터 무결성** 문제가 된다. 원문 문서는 이 형태를 두 번 겪었다. `Execution.inputData`(재실행 재제출)와 폼 `defaultValue` 다.
@@ -297,7 +333,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 
 두 층에서 지킨다.
 
-1. **함수 안**: `deepRedactObject` 는 자격 증명 키의 값이 **이미 마커면 덮지 않는다**(`isMaskedMarker(v) ? v : VALUE_MASK_MARKER`). 앞 층이 남긴 키 마커가 값 마커로 바뀌면 두 마커의 뜻 구분이 사라진다.
+1. **함수 안**: `deepRedactObject` 는 자격 증명 키의 값이 **이미 마커면 덮지 않는다**(`isMaskedMarker(v) ? v : VALUE_MASK_MARKER`). 앞 층이 남긴 키 마커가 값 마커로 바뀌면 두 마커의 뜻 구분이 사라진다. 키 이름 판정의 이야기다. 값 패턴 가운데 헤더 값 검증 오류 패턴만은 따옴표 안의 마커까지 값 마커로 바꾼다(규칙 5 의 예외, §3.10).
 2. **호출 순서**: `WebsocketService.toFanoutEnvelope` 은 아래 네 단계이고 **뒤에서 다시 마스킹하지 않는다.** 다시 걸면 `attachRoutingContext` 가 붙인 `chatChannel` 의 키 마커를 값 마커로 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
 
 ```mermaid
@@ -331,6 +367,8 @@ flowchart LR
 - **`maskSensitiveFields` 는 이 표에 행이 없다**(2026-08-24). 옛 소비처는 노드 설정 에코(`handler-output.adapter.ts`)와 워크플로우 AI 어시스턴트(`explore-tools.service.ts`) 둘이었는데 앞의 것이 없어졌다. 설정 에코를 표현식이 읽는데 가려져 있어 기능이 오염됐기 때문이다(§3.9). 남은 소비처는 깊이 상한이 없어 이 표의 축(깊이)에 해당하지 않는다.
 - **대신 지켜야 할 축이 하나 생겼다.** 설정 에코는 이제 나가는 시점의 `deepRedactSecrets*` **하나에만** 기대므로 그 키 축이 `DEFAULT_SENSITIVE_KEYS` 를 **포함**해야 한다. `mask-sensitive-fields.util.spec.ts` 의 포함 관계 캐너리가 정본 구현으로 그것을 단언한다(목록에서 파생하므로 목록이 넓어져도 자동으로 검사한다).
 
+값 패턴의 길이 상한(헤더 값 검증 오류 2048자)은 이 표에 없다. 넘으면 마커 없이 통과한다(§3.10). [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 가 진단 메시지를 자르는 길이와는 무관하다.
+
 ### 7.1 값이 같다고 같은 상한이 아니다
 
 표 2행과 표 4행은 둘 다 `10` 이지만 비교가 `>=` 와 `>` 라 **마커가 놓이는 최대 깊이가 한 칸 다르다**(각각 10, 11). 표 4행을 표 1행에서 재export 하지 **않은 것도 의도다.** 값을 공유하면 다음 사람이 비교 연산자까지 같다고 읽는다.
@@ -348,7 +386,7 @@ flowchart LR
 ## 구현 위치
 
 - `codebase/packages/masked-markers/src/index.ts` (`@workflow/masked-markers`: 마커 값, `MAX_MASK_DEPTH`, `isMaskedMarker`)
-- `codebase/backend/src/shared/utils/sanitize-error-message.ts` (`SECRET_LEAK_PATTERNS`, `CREDENTIAL_KEY_PATTERN`, `redactSecrets`, `deepRedactSecrets`, `MAX_REDACT_DEPTH`)
+- `codebase/backend/src/shared/utils/sanitize-error-message.ts` (`SECRET_LEAK_PATTERNS`, `CREDENTIAL_KEY_PATTERN`, `redactSecrets`, `deepRedactSecrets`, `MAX_REDACT_DEPTH`, `replaceKnownSecret`)
 - `codebase/backend/src/shared/utils/strip-external-only-fields.ts`
 - `codebase/backend/src/shared/utils/redact-stored-error.ts` (`redactStoredErrorForResponse`)
 - `codebase/backend/src/shared/utils/terminal-error-payload.ts` (`toTerminalErrorPayload`)
@@ -357,6 +395,8 @@ flowchart LR
 - `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts`
 - `codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` (`maskSensitiveFields`, `DEFAULT_SENSITIVE_KEYS`)
 - `codebase/frontend/src/lib/utils/masked-markers.ts` (`hasMaskedMarkerLeaf`)
+- `codebase/backend/src/modules/triggers/triggers.service.ts` (`sanitizeForResponse`, `TRIGGER_RESPONSE_REDACT_COLUMNS`)
+- `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts`, `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`, `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts` (알려진 비밀 치환, §1.1)
 
 ## Rationale
 
@@ -385,6 +425,8 @@ flowchart LR
 저장 시점(append) 마스킹은 LLM 에 주입하는 스레드까지 바꾼다. 게다가 보수적인 공유 패턴(특히 `Bearer\s+\S+`)이 평범한 대화에서 오탐하면 컨텍스트를 조용히 망가뜨린다. 그래서 채택하지 않았다. 웹훅 문서의 Rationale 이 든 "DB 에 남으면 유출 표면" 우려는 여기서도 유효하다. 그 대가로 얻는 진단 가치와 저울질한 결과가 egress-only 다.
 
 웹훅 문서는 표시 시점 마스킹을 기각하며 "모든 read 경로를 따로 마스킹해야 한다(whack-a-mole)" 를 근거로 들었다. 타당한 우려이고 이 작업이 그것을 실증했다(표면이 넷에서 여섯으로 늘었고 `inputData` 카브아웃 범위를 한 번 되돌렸다). 다만 여기서의 방어는 호출부를 흩어서 고치는 방식이 아니라 공유 관문으로 모으는 방식이다(§2.2). 그래서 받는 시점 층이 다루는 "알려진 헤더 key" 와 달리 미리 정할 수 없는 자유 텍스트를 나가는 시점에 다룰 수 있다.
+
+시크릿 저장소 평문을 만든 자리에서 지우는 알려진 비밀 치환은 이 결정과 별개다(§1.1, 「트리거 응답의 마지막 오류를 표면에 올린 이유」).
 
 ### 내부 WebSocket 과 채팅 채널도 가리는 이유
 
@@ -437,3 +479,26 @@ flowchart LR
 - **기각한 대안**: 값 수준 마스킹은 에디터 디버깅 가치를 해치고 부분적이다. 워크스페이스 안 뷰어·편집자 역할 게이트는 별도 RBAC 확장이 필요해 이 결정 범위를 넘는다. 여러 테넌트의 뷰어 요구가 분명해지면 다시 검토한다.
 - **2026-08-14 갱신**: 이 결정은 문서상 "모든 외부 수신자" 였으나 구현이 더 좁았다. fanout 은 최상위 필드만 지웠고(depth 1) REST 단발 상태 조회는 값 마스킹만 걸려 있어, 입력 대기의 중첩 경로 두 곳(`turnDebug.llmCalls`, `nodeOutput.meta.turnDebug[].llmCalls`)이 실제로 새고 있었다. 필드 이름 기준 깊이 무관 strip 으로 바꾸고 WebSocket fanout 과 EIA REST 가 같은 공용 유틸을 부르게 맞췄다. 같은 데이터에 출구가 셋(fanout, REST 입력 대기, REST 종결)이었고 출구를 따로 조립하면 한 번에 하나씩만 고쳐진다. 실제로 세 라운드에 걸쳐 하나씩 발견됐다. 그래서 처방을 한 곳에 두었다.
 - **2026-08-16 보강**: 위 "기각한 대안" 은 "`llmCalls` 를 값 수준 마스킹으로 **대체**한다" 에 대한 것이었고 그 근거(에디터 디버깅 가치 훼손)는 지금도 유효하다. 그와 별개로 `llmCalls` 가 아닌 자유 텍스트 필드에는 값 패턴 마스킹이 **추가**됐다(§3.6). 대체가 아니라 함께 있는 것이며 이 결정은 적용 대상이 분명해졌을 뿐 번복되지 않았다.
+
+### 트리거 응답의 마지막 오류를 표면에 올린 이유 (2026-10-05)
+
+NERV Task `CLE-T-H0GF4K` 가 채팅 채널 어댑터와 알림 발송의 실패 원문을 점검했다. Node 24 의 fetch 로 두 경로를 재현했다. Slack 봇 토큰에 CR · LF · NUL 이 있으면 헤더 값 검증 오류가 토큰 전체를 원문에 싣고 그 원문이 `chat_channel_last_error` · 서버 로그 · 트리거 응답까지 갔다. 알림 URL 에 `user:pass@` 가 있으면 fetch 가 그 URL 을 원문에 싣고 `notification_last_error` 에 남았다. 트리거 조회는 역할 게이트가 없어 뷰어도 받는다.
+
+봇 토큰은 시크릿 저장소 평문이라 응답에서만 가리면 DB 와 로그의 유출이 남는다. 그래서 두 층으로 닫았다. 클라이언트가 원문을 만든 자리에서 그 호출의 토큰을 지우고(§1.1) 응답이 값 패턴으로 나머지를 가린다(§3.10).
+
+기각한 대안(이 Task 의 점검에서 검토했다):
+
+- **저장 전 값 패턴 마스킹**: 규칙 1 과 「egress-only 를 택한 이유」 가 기각한 형태다. 진단 원문이 오탐으로 조용히 망가진다. 알려진 비밀 치환은 패턴이 아니라 값이라 이 우려가 없다. 통합 쪽의 저장 전 가림(§1.1)은 그 필드의 결정이고 이 필드에 옮겨 오지 않았다. 마지막 오류 필드는 채널 건강도의 진단 원문이라 규칙 1 을 따른다.
+- **비대상으로 적기**: 토큰이 실리는 경로를 재현했다.
+- **원인 분류 코드와 고정 문구로 좁히기**: 채팅 채널의 R-CC-25 방식이다. 프로바이더 오류 코드(`channel_not_found`, `missing_scope`, `not_in_channel` 등)가 사용자가 고칠 원인을 알려 주는데 그 정보를 잃는다. 근거는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-26 에 있다.
+- **봇 토큰 입력에서 제어 문자만 거부하기**: 이미 저장된 토큰과 다른 모양의 유입을 막지 못한다. 알려진 비밀 치환은 입력 모양과 무관하게 닫는다.
+- **두 마지막 오류 필드에만 거는 국소 userinfo 패턴**(2026-10-08 일관성 검토에서 제기): `config.notification.url` 이 같은 응답에 원문으로 남는 한 효과가 없다. 두 필드는 NERV Task `CLE-T-RCQGCC` 에서 함께 맞춘다.
+- **공유 userinfo 패턴을 사용자명만 있는 형태까지 넓히기**(구현 계획 1차에서 시도했다 철회): 이 패턴은 대화 스레드 · 실행 에러 · 재실행 입력에도 걸린다. 사용자명만 있는 URL 은 워크플로우 입력에 흔해 재제출 표면(§4)에서 부분 치환된 값이 그대로 실행될 수 있다. 알림 URL 의 자격 증명은 `config.notification.url` 과 함께 NERV Task `CLE-T-RCQGCC` 에서 다룬다.
+
+공유 마스커에 더한 헤더 값 검증 오류 패턴은 fetch 를 쓰는 다른 경로(HTTP Request 노드 등)의 오류와, MCP 진단처럼 저장 전에 가리는 경로에도 걸린다. 수량자에는 2048자 상한을 뒀다. 상한이 없으면 종결 문구 없는 큰 입력에서 이차 시간이 걸린다(§3.10 한계). 자격 증명이 아닌 사용자 헤더 값도 `***` 로 보인다. 오류 종류(`is an invalid header value`)는 남아 원인을 읽을 수 있고 헤더 값은 자격 증명일 때가 많아 이 오탐을 받아들였다.
+
+이 패턴은 따옴표 안을 통째로 값 마커 하나로 바꿔 안에 든 다른 마커도 덮는다. 규칙 5 를 이 패턴 하나에서 좁힌 이유다. 마커를 건너뛰려면 패턴이 마커 경계를 알아야 해 복잡해진다. 이 오류 원문에 다른 마커가 들 일도 드물다(알려진 비밀 치환이 남긴 값 마커 정도다). 들어도 그 구간은 가려야 할 헤더 값이다. 키 마커(`[REDACTED]`)까지 덮는 것은 알려진 부산물이다. 이 오류 문장은 받는 층을 거쳐 온 값이 아니라서 표면 사이에 마커가 갈리는 일은 생기지 않는다. 동작은 캐너리로 고정했다. MCP 클라이언트는 소비자 전용 모양을 자기 훅에 두었지만 이 패턴은 fetch 가 모든 소비자에 내는 일반 형태라 공유 목록에 둔다.
+
+같은 응답의 `config.notification.url` 은 원문으로 나간다. §3.5 가 «같은 응답 안의 원문이 방어를 우회한다» 고 보고 닫은 형태라 `notificationLastError` 의 `user:pass@` 가림은 이 필드가 남는 동안 실효가 작다. 이 필드는 편집 폼이 다시 보내는 왕복 값이라 규칙 9 와 함께 정해야 해서 §3.5 원칙의 한시 예외로 남겼다. 같은 이유(왕복 값)로 세웠다가 소비 쪽 마커 가드가 선 뒤 닫은 `inputData` 카브아웃(Rationale 「`inputData` 카브아웃을 닫은 이유」)과 같은 길을 밟는다. 해소 조건은 NERV Task `CLE-T-RCQGCC` 가 userinfo 가 든 알림 URL 을 등록에서 거부하거나 응답에서 가리는 것이다. 그때 §3.10 · 개요 · 이 문단을 같은 변경에서 고친다.
+
+2026-10-08 보강: 같은 Task 의 코드 · 일관성 검토에서 알려진 비밀 치환의 범위(클라이언트가 만든 실패 문장, 4xx 본문 제외, 양끝 공백 변형), 규칙 5 의 예외, 헤더 값 패턴의 2048자 상한을 더했다.

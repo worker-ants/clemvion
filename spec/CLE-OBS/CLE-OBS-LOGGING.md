@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING"
 title: "로깅과 헬스 체크"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "e697b711b2cd27a52a7a3da576caac6869c155950dea16c1f9dacbbbf821d41c"
+content_hash: "f26d27651fc16f2d6392aa5c357cc89f77109215932459479e915125cc343206"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "ac7135b0b35db6b9b0de8880f33a7779eba3f728bcdfbf7ace2b142de6389d67"
-etag: "sha256-3c08b049eb698ffdc88e46d56527ff829b160d0d1e37a280ce9a53cb02122b82"
+mirror_sha256: "947f5ef6f709bf6304e08cfc3ac3a4493ee3a3cd99f23d468e88e07984dfc16f"
+etag: "sha256-e2c0ec462f690eac3aa1d3941aee243dbe0494508610c72f0b1bf804eb53f40f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -108,6 +108,8 @@ flowchart LR
 - API Key, Bearer Token, 비밀번호
 - OAuth 토큰
 - 개인 식별 정보. 이메일은 일부만 가린다(`g***@example.com`)
+
+시크릿 저장소에서 푼 평문(봇 토큰 등)은 로거가 가리지 못한다. 그 값을 쓴 외부 API 호출의 실패 문장은 호출한 모듈이 로그에 남기기 전에 지운다. 대상과 의무는 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14 가 정한다.
 
 ## 에러를 감쌀 때 `Error.cause` 를 붙이는 기준
 

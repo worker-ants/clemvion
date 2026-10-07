@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "fd0b5e227904718373c4c54cb1797248e2b9e26188d41761e17034444c0ddbf2"
+content_hash: "2d69f096c410596b1842d71c240a7fcb741aae30d423b380c7a06c4f2bf895be"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "054466e9be6f83c065396de42778a9628e5971122567f35b62ad15fa108741c7"
-etag: "sha256-7eed5026321f9a64c095102fea2ad303a4747a34d8010aadd79a1f885b3f3d22"
+mirror_sha256: "a6a6c078bbfb9fe5f28167bb86c1fa4bcb8cb7e3f65a8388e305d33828f651cd"
+etag: "sha256-ab506381ed27fcb234ac0b26840dfb0e835034f769d2112f6932437bceabe0af"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -37,7 +37,7 @@ etag: "sha256-7eed5026321f9a64c095102fea2ad303a4747a34d8010aadd79a1f885b3f3d22"
 7. 제어 안내(control-plane message)를 `renderNode` 를 거치지 않고 보낼 때 호출자는 발송 직전 `escapeControlText` 로 escape 한다. `renderNode` 출력은 렌더러가 이미 escape 했으므로 `sendMessage` 가 다시 escape 하지 않는다.
 8. 실행 실패 안내는 프로바이더와 무관한 순수 함수 `classifyExecutionFailure` 하나로 분류한다. 입력은 `error.code` 와 `error.details.statusCode` 뿐이다([실행 실패 안내 분류](#실행-실패-안내-분류)).
 9. Form 입력 대기는 [Form 입력 흐름](#form-입력-흐름) 을 따른다. 네이티브 모달 조건에 맞지 않으면 모든 어댑터가 같은 다단계 질문을 쓴다.
-10. 봇 토큰과 인바운드 서명 자료는 시크릿 저장소 참조로만 들고 다닌다. 평문을 설정 JSON, 로그, metric 에 내놓지 않는다. `SetupResult.issuedInboundSigning` 한 번만 예외다.
+10. 봇 토큰과 인바운드 서명 자료는 시크릿 저장소 참조로만 들고 다닌다. 평문을 설정 JSON, 로그, metric 에 내놓지 않는다. `SetupResult.issuedInboundSigning` 한 번만 예외다. 클라이언트가 만든 실패 문장은 `chat_channel_last_error` 에 저장되고 로그에도 남는다. 그래서 프로바이더 API 클라이언트(`providers/<프로바이더>/<프로바이더>-client.ts`)는 그 문장(fetch 예외, 재시도 소진 사유)을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 봇 토큰을 지운다(알려진 비밀 치환, `replaceKnownSecret`, [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) §1.1). 지우는 대상은 토큰과 글자 그대로 같은 부분과 양끝 공백을 뗀 토큰이다(fetch 는 헤더 값 양끝 공백을 떼고 원문에 싣는다). 프로바이더가 돌려준 4xx 본문은 실패 판별(규칙 5, 「setupChannel 실패 판별」)의 입력이라 바꾸지 않는다. 호출자가 `message` 를 해석하지 않는다는 규칙과는 다른 층이다(클라이언트가 `code` 를 정하는 단계다).
 11. `sendMessage` 는 프로바이더별 고정 URL 만 부른다. 사용자가 정하는 URL 은 쓰지 않는다(SSRF 차단).
 12. `provider` 식별자는 소문자 kebab-case 이고 [어댑터 레지스트리](#어댑터-레지스트리) 에 등록한다.
 13. 인터페이스를 바꾸면 [채팅 채널](CLE-CHAT-CORE.md), 영향받는 모든 프로바이더 문서, 채널 프로바이더 카탈로그를 함께 고친다([변경 관리](#변경-관리)).
@@ -562,7 +562,7 @@ interface ChannelAdapterRegistry {
 
 ## 보안
 
-- `botTokenRef`·`inboundSigningRef` 같은 자격 증명은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 참조만 둔다(CCH-SE-03). 평문은 설정 JSON, 로그, metric 에 절대 드러내지 않는다. `SetupResult.issuedInboundSigning` 한 번 외에는 어떤 경로로도 평문이 어댑터 밖으로 나가지 않는다.
+- `botTokenRef`·`inboundSigningRef` 같은 자격 증명은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 참조만 둔다(CCH-SE-03). 평문은 설정 JSON, 로그, metric 에 절대 드러내지 않는다(실패 원문 속 토큰은 규칙 10 이 정한다). `SetupResult.issuedInboundSigning` 한 번 외에는 어떤 경로로도 평문이 어댑터 밖으로 나가지 않는다.
 - `sendMessage` 의 외부 API 호출은 프로바이더별 고정 URL 만 쓴다. 사용자가 정한 URL 은 쓰지 않는다(SSRF 차단).
 - `parseUpdate` 는 raw body 의 출처를 검증한 뒤에 부른다. 진입점 핸들러가 프로바이더별 인바운드 서명(Telegram `X-Telegram-Bot-Api-Secret-Token` 등)을 먼저 검증한다.
 

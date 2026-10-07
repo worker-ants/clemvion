@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
-requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059"]
+requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "57b4a367c32c0c43cc41c27978f62d6beed34e2728b4934e6110eb80c7d5f49b"
+content_hash: "622272e95aa85bbf92fcd0911bfb7cc352b038c1f74a6599c63db33509bffead"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "0b04d323dd66db1c1d6239d3d279e825d786df828703104758f37b53c1a5afe5"
-etag: "sha256-a54a00d10803bdd387b165afa3ae2cb1a72eecb564c4f37fde24b2cbc3390006"
+mirror_sha256: "898c8cd920688e42dd55e9fb91b5c56447dd39eb17f7906484dcf4d76a2a6b05"
+etag: "sha256-0d8d0787b8de0503b3b697a5da03d82d2989c1130d726c3a1fe9bcaaa09fc727"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -91,6 +91,8 @@ etag: "sha256-a54a00d10803bdd387b165afa3ae2cb1a72eecb564c4f37fde24b2cbc3390006"
 - REQ-CHAT-035 WHEN 봇 토큰과 인바운드 서명 자료(`inboundSigning`)를 저장하면 THE SYSTEM SHALL `SecretResolver` 가 관리하는 시크릿 저장소에 AES-256-GCM 으로 암호화해 두고 `config.chatChannel` 에는 시크릿 참조(`botTokenRef`·`inboundSigningRef`)만 둔다. (원본: CCH-SE-03)
 - REQ-CHAT-036 WHEN 봇 토큰 재발급(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)이 성공하면 THE SYSTEM SHALL 24시간 유예 동안 옛 봇 토큰도 함께 받는다. (원본: CCH-SE-04)
 - REQ-CHAT-037 WHEN 봇 토큰 재발급 뒤 24시간이 지나면 THE SYSTEM SHALL 매시간 도는 `ChatChannelTokenRotatorService` 가 v2 참조의 시크릿 저장소 행을 지우고 `chat_channel_token_v2`·`chat_channel_rotated_at` 을 NULL 로 만든다. (원본: CCH-SE-04-C)
+- REQ-CHAT-060 WHEN 트리거 조회 · 생성 · 수정 응답이 `chatChannelLastError` 를 돌려주면 THE SYSTEM SHALL 저장값은 두고 응답에서 자격 증명 모양을 가린다. (R-CC-26)
+- REQ-CHAT-061 IF 프로바이더 API 호출이 실패하면 THE SYSTEM SHALL 클라이언트가 만든 실패 문장을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 봇 토큰을 지우고 프로바이더가 돌려준 4xx 본문은 바꾸지 않는다. (R-CC-26)
 
 ### 실행 실패 안내
 
@@ -117,7 +119,7 @@ etag: "sha256-a54a00d10803bdd387b165afa3ae2cb1a72eecb564c4f37fde24b2cbc3390006"
 - REQ-CHAT-052 WHEN `chatChannel` 이 실린 PATCH 를 처리하면 THE SYSTEM SHALL 시크릿 저장소의 봇 토큰과 Slack·Discord 인바운드 서명 값을 바꾸지 않는다. (원본: 15-chat-channel §5.4.1, R-CC-21)
 - REQ-CHAT-053 WHEN Telegram 트리거의 `setupChannel()` 이 새 `secret_token` 을 발급하면 THE SYSTEM SHALL 그 값을 `inboundSigningRef` 에 다시 저장한다. (원본: 15-chat-channel §5.4.1.1)
 - REQ-CHAT-054 WHEN `GET /api/triggers/:id` 가 채팅 채널 설정을 돌려주면 THE SYSTEM SHALL `hasBotToken` 파생 필드만 싣고 `botTokenRef` · `inboundSigningRef` 와 `botToken` 평문은 싣지 않는다. (원본: 15-chat-channel §5.4.2)
-- REQ-CHAT-055 IF 봇 토큰 재발급 중 `setupChannel` 이 실패하면 THE SYSTEM SHALL 자격 증명 거부는 `400 BOT_TOKEN_INVALID`, 그 밖은 `502 CHAT_CHANNEL_SETUP_FAILED` 로 돌려주고 프로바이더 원문은 응답에 싣지 않는다. (원본: 15-chat-channel §5.4, R-CC-23)
+- REQ-CHAT-055 IF 봇 토큰 재발급 중 `setupChannel` 이 실패하면 THE SYSTEM SHALL 자격 증명 거부는 `400 BOT_TOKEN_INVALID`, 그 밖은 `502 CHAT_CHANNEL_SETUP_FAILED` 로 돌려주고 프로바이더 원문은 그 에러 응답에 싣지 않는다. (원본: 15-chat-channel §5.4, R-CC-23)
 
 ### 인바운드 HTTP
 
@@ -202,13 +204,13 @@ sequenceDiagram
 
 | 원인 | 요구사항 | `chat_channel_last_error` |
 | --- | --- | --- |
-| 어댑터 실패(렌더 `renderNode` 실패, 채널 설정 `setupChannel` 실패, 발송이 재시도 뒤에도 실패) | REQ-CHAT-031 · 032(렌더 실패는 요구사항 줄이 없는 구현 동작) | 그 에러 메시지(1024자에서 자른다). 실패할 때마다 덮어쓴다. 봇 토큰 재발급 API 의 `setupChannel` 실패는 4xx · 5xx 응답으로 돌려주고(REQ-CHAT-055) 건강도를 바꾸지 않는다 |
+| 어댑터 실패(렌더 `renderNode` 실패, 채널 설정 `setupChannel` 실패, 발송이 재시도 뒤에도 실패) | REQ-CHAT-031 · 032(렌더 실패는 요구사항 줄이 없는 구현 동작) | 그 에러 메시지(1024자에서 자른다). 봇 토큰은 프로바이더 API 클라이언트가 자기 실패 문장에서 지운다(프로바이더 4xx 본문은 그대로). 실패할 때마다 덮어쓴다. 봇 토큰 재발급 API 의 `setupChannel` 실패는 4xx · 5xx 응답으로 돌려주고(REQ-CHAT-055) 건강도를 바꾸지 않는다 |
 | 대화 단위 분당 한도 초과 | REQ-CHAT-046 | 서버가 정한 문구 `Inbound rate limit exceeded (N/min)`(한도 값이 낀다). 이미 `degraded` 면 쓰지 않는다 |
 | 트리거의 워크플로우가 트리거의 워크스페이스에 없음 | REQ-CHAT-059 | 서버 고정 문구 `Workflow not found for this trigger`. 이미 `degraded` 면 쓰지 않는다 |
 
 뒤의 둘이 이미 `degraded` 면 쓰지 않는 것은 한도 초과가 몰릴 때 같은 쓰기를 되풀이하지 않으려는 것이다. 그래서 한도 초과나 교차 행이 나중에 와도 `chat_channel_last_error` 는 먼저 `degraded` 가 된 원인의 문구로 남는다. 어댑터 실패는 그때마다 덮어쓴다.
 
-`chat_channel_last_error` 는 트리거 상세를 볼 수 있는 워크스페이스 구성원에게 보이는 진단 표면이다. 화면은 이 값을 번역하지 않고 원문으로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). [R-CC-23](#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 이 막은 것은 재발급 API 의 에러 응답에 프로바이더 원문을 싣는 일이고 이 필드는 그 대상이 아니다. 어댑터 에러 메시지에 자격 증명이 섞일 수 있는지와 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 의 표면에 이 필드를 올릴지는 NERV Task `CLE-T-H0GF4K` 가 점검한다. 화면 도움말과 사용자 가이드는 원인을 나열하지 않고 «마지막 오류» 를 가리킨다. 원인이 늘 때마다 화면 문구가 낡지 않게 하려는 것이다.
+`chat_channel_last_error` 는 트리거 상세를 볼 수 있는 워크스페이스 멤버에게 보이는 진단 표면이다. 화면은 이 값을 번역하지 않고 원문으로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 으로 자격 증명 모양만 가리고 그 밖의 원문은 진단을 위해 워크스페이스 멤버에게 보인다. 새로 저장되는 값에는 그 호출에 쓴 봇 토큰이 글자 그대로 남지 않는다. 프로바이더 API 클라이언트가 자기가 만든 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10). 프로바이더가 돌려준 4xx 본문은 바꾸지 않는다. 한계는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 에 있다. 재발급 API 의 에러 응답이 원문을 싣지 않는 것(R-CC-23)과의 관계는 [R-CC-26](#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 에 있다. 화면 도움말과 사용자 가이드는 원인을 나열하지 않고 «마지막 오류» 를 가리킨다. 원인이 늘 때마다 화면 문구가 낡지 않게 하려는 것이다.
 
 ## 인증과 보안
 
@@ -255,9 +257,9 @@ sequenceDiagram
 | 400 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | 레지스트리에 없는 프로바이더 |
 | 400 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | 트리거에 `endpointPath` 가 없다 |
 | 400 | `BOT_TOKEN_INVALID` | `setupChannel` 이 자격 증명 거부로 실패했다. 신호가 401/403 이든 `{ok:false, error:'invalid_auth'}`(HTTP 200)든 `verify_key` 불일치든 같은 분류이고, 어댑터가 `code` 로 선언한다([채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md), R-CC-23) |
-| 502 | `CHAT_CHANNEL_SETUP_FAILED` | 그 밖의 `setupChannel` 실패(프로바이더 5xx, 네트워크, 타임아웃). 클라이언트가 입력으로 고칠 수 없고 재시도 뒤에도 실패한 경우다. 우리 인프라 일시 장애인 `503` 과 구분한다 |
+| 502 | `CHAT_CHANNEL_SETUP_FAILED` | 그 밖의 `setupChannel` 실패(프로바이더 5xx, 네트워크, 타임아웃). 클라이언트가 입력으로 고칠 수 없고 재시도 뒤에도 실패한 경우다. 우리 인프라 일시 장애인 `503` 과 구분한다. 제어 문자가 든 봇 토큰도 지금은 이 행으로 온다(입력 거부는 NERV Task `CLE-T-FX354C`) |
 
-실패 응답에는 프로바이더 원문을 싣지 않는다. `message` 는 고정 문자열이고 `code` 가 판별자이며, 원본 문구는 서버 로그에만 남긴다. 에러 원문은 URL, query, DB 컬럼명, stack, API 키 조각을 흘릴 수 있다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 의 보안 게이트, R-CC-15).
+실패 응답에는 프로바이더 원문을 싣지 않는다. `message` 는 고정 문자열이고 `code` 가 판별자다. 원본 문구는 서버 로그에만 남긴다. 에러 원문은 URL, query, DB 컬럼명, stack, API 키 조각을 흘릴 수 있다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 의 보안 게이트, R-CC-15). 같은 원문을 채널 건강도의 마지막 오류에는 싣는 이유는 [R-CC-26](#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 에 있다.
 
 24시간 유예는 `chat_channel_token_v2` 컬럼과 `setWebhook` 재호출(Telegram)로 구현한다. 컬럼과 정리 흐름은 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다.
 
@@ -410,7 +412,7 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 ### 새 프로바이더 추가 절차
 
 1. 문서 작성: 기존 프로바이더 문서와 같은 구성(개요, API 호출 매핑, 명령 매핑, 노드 UI 매핑, 보안, 명령 처리, 비기능, Rationale)으로 쓴다. 이 카탈로그의 "명세만 있는 프로바이더" 에 올린다.
-2. 구현: 어댑터 구현, 레지스트리 등록, e2e 테스트를 마친다. 등록 절차는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 어댑터 레지스트리를 따른다.
+2. 구현: 어댑터 구현, 레지스트리 등록, e2e 테스트를 마친다. 프로바이더 API 클라이언트는 `providers/<프로바이더>/<프로바이더>-client.ts` 에 두고 실패 문장에 [채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10 의 알려진 비밀 치환을 건다. 클라이언트별 fetch · 알려진 비밀 치환 지점 수를 세는 테스트의 표에도 더한다. 등록 절차는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 어댑터 레지스트리를 따른다.
 3. 지원 승격: "명세만 있는 프로바이더" 에서 빼고 "지원 프로바이더" 에 `supported (v1)` 로 올린다. 프로바이더 문서의 구현 위치에 코드 경로를 적는다.
 
 ### provider 식별자 규칙
@@ -594,13 +596,26 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 4xx·5xx 경계는 누가 고칠 수 있는가로 정한다. 잘못된 토큰은 클라이언트가 고치므로 4xx, 프로바이더 장애는 재시도뿐이라 5xx 다. 전송 방식을 기준으로 삼으면 프로바이더가 방식을 바꿀 때 규칙이 조용히 틀린다. 실행 엔진의 "Redis 장애는 502 가 아니라 503" 결정과도 부딪치지 않는다. 503 사용처(`WEBAUTHN_DISABLED`, `SERVER_SHUTTING_DOWN`, `EXECUTION_ENQUEUE_FAILED`)는 모두 우리 쪽이고, 이 결정은 비어 있던 자리(외부 프로바이더 실패)를 채운다. 프로바이더 타임아웃은 두 축이 갈릴 수 있으나 지금은 재시도 뒤 일반 실패라 502 이고, 실제로 갈리면 그때 정한다. 502 는 이 저장소에서 처음 쓰여(2026-09-12 실측 0건) [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 상태 코드 카탈로그와 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 데코레이터 표에 행을 새로 둔다.
 
-같은 때 문서는 502 인데 구현은 두 분기 모두 400 을 돌려주던 결함을 찾았다(테스트가 `getStatus()` 를 보지 않았다). `#1324` 가 `BadGatewayException` 배선, `details.reason` 제거, 상태 코드 확인을 마쳤다. 예전 구현은 `details.reason: message.slice(0, 256)` 으로 프로바이더 원문을 응답에 실었는데, 실행 엔진의 보안 게이트와 R-CC-15 가 막는 것과 같은 누출이라 멈췄다. 옛 "401/403 에서 드러난다" 서술이 세 문서에 복제돼 있던 것은 다시 적지 않고 링크로 바꿨다. 남은 401/403 message fallback 의 제거 조건은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 갖는다.
+같은 때 문서는 502 인데 구현은 두 분기 모두 400 을 돌려주던 결함을 찾았다(테스트가 `getStatus()` 를 보지 않았다). `#1324` 가 `BadGatewayException` 배선, `details.reason` 제거, 상태 코드 확인을 마쳤다. 예전 구현은 `details.reason: message.slice(0, 256)` 으로 프로바이더 원문을 에러 응답 봉투에 실었다. 에러 응답 봉투에서 원문은 실행 엔진의 보안 게이트와 R-CC-15 가 막는 것과 같은 누출이라 멈췄다. 진단 필드인 채널 건강도의 마지막 오류와의 차이는 R-CC-26 에 있다. 옛 "401/403 에서 드러난다" 서술이 세 문서에 복제돼 있던 것은 다시 적지 않고 링크로 바꿨다. 남은 401/403 message fallback 의 제거 조건은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 갖는다. 프로바이더에 닿지 않는 입력 형식 오류(제어 문자가 든 봇 토큰)는 지금 502 로 간다. 위 기준으로는 4xx 여야 하고 입력 거부는 NERV Task `CLE-T-FX354C` 가 다룬다(2026-10-08 보강, R-CC-26).
 
 ### R-CC-25 워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다
 
 2026-10-05 결정이다. 옛 스펙의 R-CC-24(절 번호 중복 인용 규칙)는 NERV 로 옮기지 않았고 그 번호를 다시 쓰지 않는다. 저장 경계 이전에 저장된 트리거의 `workflow_id` 는 다른 워크스페이스의 워크플로우를 가리킬 수 있다. 실행 엔진은 그런 워크플로우를 실행하지 않는다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 일반 웹훅은 이때 엔드포인트가 없을 때와 같은 404 다. 채팅 채널은 404 를 쓰지 않는다. non-2xx 는 프로바이더의 재시도와 웹훅 자동 비활성화를 부른다(R-CC-12). R-CC-12 (e) 의 404 는 엔드포인트가 없을 때의 규칙이다. 여기서는 트리거가 있다. 프로바이더가 재시도를 쏟아내거나 웹훅을 끄게 두지 않고 조용히 버린 뒤 그 워크스페이스 관리자가 트리거를 바로잡게 한다.
 
 대신 실행이 막혔다는 것을 워크스페이스 관리자가 보도록 `degraded` 를 남긴다. 분당 한도 초과(R-CC-19)가 `degraded` 의 원인을 먼저 넓혔고 이번이 세 번째 원인이다. [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 경로 변경 정리의 근거로 적었던 «외부 API 호출 실패 신호» 는 2026-10-05 에 고쳐 적었다(NERV Task `CLE-T-K9S0TE`). R-CC-19 와 같은 갱신 경로이고 이미 `degraded` 면 다시 쓰지 않는다. `chat_channel_last_error` 는 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는 고정 문구를 쓴다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다(NERV Task `CLE-T-XYR067`). `degraded` 는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 의 «다음 성공 때 다시 `healthy`» 규칙을 그대로 따른다. 정리 전에 시작된 실행의 발송이나 채널 재설정이 성공하면 `healthy` 로 돌아갈 수 있다. 교차 행이 남아 있는 동안에는 다음 인바운드가 다시 `degraded` 로 바꾼다. 이미 다른 원인으로 `degraded` 면 `chat_channel_last_error` 는 그 원인의 문구로 남는다.
+
+### R-CC-26 마지막 오류 필드는 프로바이더 원문을 싣고 자격 증명 모양만 가린다
+
+2026-10-05 결정이다(NERV Task `CLE-T-H0GF4K`). `chat_channel_last_error` 는 어댑터 실패의 원문(프로바이더 응답 포함)을 담는다. 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 으로 자격 증명 모양만 가리고 봇 토큰은 프로바이더 API 클라이언트가 자기 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10).
+
+같은 `setupChannel` 실패 원문이 재발급 API 의 에러 응답에는 실리지 않는데(R-CC-23) 최초 설정 · 수정 경로에서는 이 필드에 저장돼 트리거 조회로 보인다. 받는 사람도 이 필드 쪽이 넓다. 트리거 조회는 뷰어도 한다. 그래도 원문을 싣는 근거는 넷이다.
+
+- (a) 대상이 다르다. R-CC-15 는 채널 밖 사용자(봇 대화 상대)에게 가는 실행 실패 안내를 다루고 실행의 `error.message` 를 그 입력에서 뺐다. R-CC-23 은 재발급 API 의 에러 응답 봉투를 다룬다. 에러 응답 봉투는 고정 `message` 와 `code` 를 싣고 원문은 서버 로그에 둔다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 이 필드는 요청에 대한 응답이 아니라 비동기 실패의 원인을 뒤에 보여 주는 도메인 진단 필드다. [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) §3.5 가 적은 대로 에러 응답 봉투와 도메인 데이터의 응답 마스킹은 강도와 대상이 다르다.
+- (b) 뷰어는 같은 종류의 원문을 이미 본다. 실행 상세도 역할 게이트 없이 노드 에러 원문(프로바이더 응답 포함)을 보여 주고 나가는 시점에 자격 증명 모양만 가린다(같은 문서 §2.1). 이 필드는 같은 사람들에게 같은 종류의 텍스트를 같은 방식으로 내보낸다.
+- (c) 이 필드에 들어오는 원문의 출처는 셋이고 어느 것도 내부 호스트를 싣지 않는다. 프로바이더 호출 실패는 클라이언트마다 고정된 API 호스트만 부른 결과다(Slack `slack.com/api`, Discord `discord.com/api/v10`, Telegram `api.telegram.org`. `sendMessage` 는 [채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 11 이 정한다). R-CC-15 가 예로 든 `ENOTFOUND api.internal.example.com` 같은 내부 호스트가 나오지 않는다. `setupChannel` 이 프로바이더에 넘기는 콜백 URL 은 트리거 상세에 이미 보이는 공개 웹훅 주소다. 렌더 실패(`renderNode`)와 채널 설정 중 우리 쪽 단계(시크릿 저장, 설정 갱신)의 실패는 우리 코드나 DB 가 만든 원문이라 속성 이름 같은 내부 구조가 실릴 수 있다. 같은 워크스페이스 멤버가 실행 상세에서 보는 종류의 텍스트라 (b) 에 따라 받아들인다. R-CC-25 가 고정 문구를 고른 것은 다른 워크스페이스의 워크플로우를 가리키는 정보(워크스페이스 경계를 넘는 정보)를 막으려는 것이다. 여기 원문은 그 트리거의 워크스페이스 안 정보다.
+- (d) 진단 가치가 크다. 프로바이더 오류 코드(`channel_not_found`, `missing_scope`, `not_in_channel` 등)가 사용자가 고칠 수 있는 원인을 알려 준다.
+
+가리는 범위는 자격 증명 모양까지다. 프로바이더 오류 문구와 호스트는 남는다. 기각한 대안: 원인 분류 코드와 고정 문구로 좁히는 안(R-CC-25 방식)은 (d) 를 잃어 고르지 않았다. 이 Task 의 점검에서 검토했다.
 
 ### 카탈로그를 v1 부터 둔 이유
 
