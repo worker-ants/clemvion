@@ -218,6 +218,19 @@ describe('redactSecrets — fetch 헤더 값 검증 오류', () => {
   ])('일반 문장은 그대로 둔다: %s', (clean) => {
     expect(redactSecrets(clean)).toBe(clean);
   });
+
+  /**
+   * 여는 모양(`Headers.x: "`)이 많고 종결 문구가 없는 입력에서 선형 시간이어야 한다. 이 패턴은
+   * 공유 `SECRET_LEAK_PATTERNS` 라 실행 응답 · 이벤트 · 대화 스레드의 사용자 텍스트도 지난다.
+   * 크기는 옛 · 새 실측으로 정했다(Node 24, 192KB): 상한 없는 `[\s\S]*` 는 4.3초, 상한 2048 은
+   * 77ms 다. 임계값 1초는 새 패턴에 여유가 크고 옛 패턴은 넘는다.
+   */
+  it('[성능] 종결 문구 없는 적대 입력 192KB 를 1초 안에 처리한다', () => {
+    const adversarial = 'Headers.a: "'.repeat(16_000);
+    const started = performance.now();
+    expect(redactSecrets(adversarial)).toBe(adversarial);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
 
 describe('replaceKnownSecret (알려진 비밀 치환)', () => {
@@ -239,6 +252,36 @@ describe('replaceKnownSecret (알려진 비밀 치환)', () => {
     );
     // 메타문자로 해석했다면 걸렸을 문자열은 그대로 남는다.
     expect(replaceKnownSecret('x aXbbbc y', token)).toBe('x aXbbbc y');
+  });
+
+  /**
+   * fetch 는 헤더 값의 양끝 HTTP 공백(SP · TAB · CR · LF)을 떼고 검증해 뗀 값을 원문에 싣는다
+   * (Node 24 실측: `Bearer xoxb-AAA\nBBBB\n` → 원문에는 `Bearer xoxb-AAA\nBBBB`). 여러 줄을
+   * 붙여 넣은 토큰이 이 모양이다. 양끝 공백을 뗀 변형도 함께 가려야 평문이 남지 않는다.
+   */
+  it.each([
+    ['끝 줄바꿈', 'xoxb-AAA\nBBBB\n', 'xoxb-AAA\nBBBB'],
+    ['끝 CRLF', 'xoxb-AAA\nBBBB\r\n', 'xoxb-AAA\nBBBB'],
+    ['끝 공백', 'xoxb-AAA\nBBBB ', 'xoxb-AAA\nBBBB'],
+    ['앞 탭', '\txoxb-AAA\nBBBB', 'xoxb-AAA\nBBBB'],
+  ])('양끝 HTTP 공백을 뗀 토큰도 가린다 (%s)', (_label, token, shown) => {
+    const raw = `Headers.append: "Bearer ${shown}" is an invalid header value.`;
+    expect(replaceKnownSecret(raw, token)).toBe(
+      `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it('긴 변형부터 바꿔 원문에 그대로 실린 토큰의 끝 공백까지 가린다', () => {
+    const token = 'xoxb-AAA\nBBBB\n';
+    expect(replaceKnownSecret(`[${token}]`, token)).toBe(
+      `[${VALUE_MASK_MARKER}]`,
+    );
+  });
+
+  it('공백뿐인 비밀은 원문을 그대로 돌려준다(쓸 수 있는 자격 증명이 아니다)', () => {
+    expect(replaceKnownSecret('fetch failed now', ' \n')).toBe(
+      'fetch failed now',
+    );
   });
 
   it('비밀이 없거나 빈 문자열이면 원문을 그대로 돌려준다', () => {

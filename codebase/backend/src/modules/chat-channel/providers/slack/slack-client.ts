@@ -131,6 +131,7 @@ export class SlackClient {
             continue;
           }
         } else if (res.status >= 400 && res.status < 500) {
+          // 프로바이더 본문은 실패 판별 입력이라 토큰 치환을 걸지 않는다(아래 실패 원문만 치환한다).
           return (await res
             .json()
             .catch(() => ({ ok: false, error: `HTTP ${res.status}` }))) as {

@@ -30,21 +30,23 @@ describe('SlackClient — 실패 원문에서 봇 토큰을 지운다', () => {
   let original: typeof fetch;
 
   beforeEach(async () => {
+    // 원문을 먼저 만든다. 전제가 깨져 여기서 던지면 아래 교체가 일어나지 않고 afterEach 도
+    // 되돌릴 것이 없다.
     const rejection = await realFetchHeaderError(`Bearer ${token}`);
     original = global.fetch;
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     (global as unknown as { fetch: jest.Mock }).fetch = jest
       .fn()
       .mockRejectedValue(rejection);
     jest.useFakeTimers();
-    warn = jest
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
   });
 
   afterEach(() => {
-    warn.mockRestore();
+    warn?.mockRestore();
     jest.useRealTimers();
-    global.fetch = original;
+    if (original) global.fetch = original;
   });
 
   it('call 경로(auth.test): 반환 error 와 로그에 토큰이 없다', async () => {
@@ -73,6 +75,39 @@ describe('SlackClient — 실패 원문에서 봇 토큰을 지운다', () => {
       `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`,
     );
     expectNoTokenInLogs(warn, parts);
+  });
+});
+
+/**
+ * 여러 줄을 붙여 넣은 토큰(끝에 줄바꿈)은 fetch 가 끝 공백을 떼고 원문에 싣는다. 정확 일치만
+ * 보면 빗나가 평문이 남던 경우다.
+ */
+describe('SlackClient — 끝에 줄바꿈이 붙은 토큰도 지운다', () => {
+  it('반환 error 와 로그에 토큰 본문이 없다', async () => {
+    const token = 'xoxb-AAA\nBBBB\n';
+    const rejection = await realFetchHeaderError(`Bearer ${token}`);
+    const original = global.fetch;
+    (global as unknown as { fetch: jest.Mock }).fetch = jest
+      .fn()
+      .mockRejectedValue(rejection);
+    jest.useFakeTimers();
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      const pending = new SlackClient().authTest(token);
+      await jest.advanceTimersByTimeAsync(10_000);
+      const res = await pending;
+
+      expect(res.error).toBe(
+        `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`,
+      );
+      expectNoTokenInLogs(warn, ['xoxb-AAA', 'BBBB']);
+    } finally {
+      warn.mockRestore();
+      jest.useRealTimers();
+      global.fetch = original;
+    }
   });
 });
 

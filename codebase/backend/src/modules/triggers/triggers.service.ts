@@ -215,7 +215,7 @@ function deleteSecretColumns(target: Record<string, unknown>): void {
 /**
  * 응답에서 값을 가릴 **진단 원문 컬럼**. 비밀 필드가 아니라 실패 원인을 담은 텍스트라 지우지
  * 않고 값 안의 자격 증명 모양만 가린다(`TRIGGER_RESPONSE_STRIP_COLUMNS` 와 갈래가 다르다).
- * 어댑터 · 알림 발송 실패 원문(프로바이더 응답 포함)이 그대로 저장되는 칸이다.
+ * 어댑터 · 알림 발송 실패 원문(프로바이더 응답 포함)이 그대로 저장되는 필드다.
  */
 const TRIGGER_RESPONSE_REDACT_COLUMNS = [
   'chatChannelLastError',
@@ -839,21 +839,21 @@ export class TriggersService {
    * `workflow` 좁히기(`narrowWorkflowRef`)와 진단 원문의 응답 마스킹(`redactDiagnosticColumns`)
    * 까지 책임마다 함수가 갈려 있다(`review/code/2026/09/06/00_00_23` W2 — 78줄 단일 메서드였다).
    *
-   * ## 진단 원문의 응답 마스킹
-   *
-   * 표의 축은 비밀 필드를 **지운다**. 마지막 오류 두 칸(`TRIGGER_RESPONSE_REDACT_COLUMNS`)은
-   * 지우지 않고 값 안의 자격 증명 모양만 `redactSecrets` 로 가린다. 비밀 필드가 아니라 실패
-   * 원인을 보여 주는 진단 텍스트라 strip 목록에 넣지 않았고, 아래 «다음 비밀 축은 선언적 SoT 로»
-   * 조건에도 해당하지 않는다. 이 조회는 역할 게이트가 없어 뷰어도 받는다. 저장값은 원문이다.
-   * 시크릿 저장소 평문(봇 토큰)은 채팅 채널 클라이언트가 원문을 만들 때 이미 지운다
-   * (`replaceKnownSecret`). 이 마스킹은 미리 알 수 없는 모양을 막는 두 번째 층이다.
-   *
    * 신규 plaintext / 내부 ref 필드를 추가할 때는 해당 상수에 키를 넣어야 정화가 걸린다
    * (destructure 대신 목록 — 누락 위험 회피).
    *
    * **엔티티를 변경하지 않는다 — 항상 새 객체를 돌려준다** (DB 저장에 영향이 없도록).
    * 조기 return 을 없앤 뒤로는 정화할 것이 없는 트리거도 새 참조를 받는다, 그러니 호출부는
    * 참조 동일성을 전제하지 말 것.
+   *
+   * ## 진단 원문의 응답 마스킹
+   *
+   * 표의 축은 비밀 필드를 **지운다**. 마지막 오류 두 필드(`TRIGGER_RESPONSE_REDACT_COLUMNS`)는
+   * 지우지 않고 값 안의 자격 증명 모양만 `redactSecrets` 로 가린다. 비밀 필드가 아니라 실패
+   * 원인을 보여 주는 진단 텍스트라 strip 목록에 넣지 않았다. 그래서 아래 절 끝의 «비밀 축이 하나
+   * 더 생기면 선언적 SoT 로 옮길 것» 에도 해당하지 않는다. 이 조회는 역할 게이트가 없어 뷰어도
+   * 받는다. 저장값은 원문이다. 시크릿 저장소 평문(봇 토큰)은 채팅 채널 클라이언트가 원문을 만들 때
+   * 이미 지운다(`replaceKnownSecret`). 이 마스킹은 미리 알 수 없는 모양을 막는 두 번째 층이다.
    *
    * ## 왜 세 목록인가 — 이 메서드가 두 번 좁게 틀렸다
    *
@@ -926,8 +926,9 @@ export class TriggersService {
       trigger,
       overrides,
     ) as T;
-    deleteSecretColumns(sanitized as unknown as Record<string, unknown>);
-    redactDiagnosticColumns(sanitized as unknown as Record<string, unknown>);
+    const target = sanitized as unknown as Record<string, unknown>;
+    deleteSecretColumns(target);
+    redactDiagnosticColumns(target);
     return sanitized;
   }
 

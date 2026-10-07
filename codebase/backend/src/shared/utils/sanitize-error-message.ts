@@ -38,7 +38,11 @@ export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
  *     패턴(`password=`)도 URL 내장 자격증명은 매칭 못 해 `https://admin:pw@host` 가 새어나갔다.
  *     userinfo 는 **scheme 보존**(자격증명 `user:pass` 만 `***`)으로 마스킹해 `scheme://***@host`
  *     가 되도록 lookbehind/lookahead 로 좁혔다 — MCP 전용으로 있던 동형 패턴을 이 SoT 로
- *     흡수(파편화 제거, `mcp-error-codes.ts`). */
+ *     흡수(파편화 제거, `mcp-error-codes.ts`).
+ *
+ * 2026-10-05 — fetch(undici) 헤더 값 검증 오류의 따옴표 안을 통째로 가리는 패턴을 추가했다
+ * (NERV Task `CLE-T-H0GF4K`). 줄바꿈을 넘어 잡는 유일한 패턴이라 길이 상한(2048)을 둬서
+ * 선형 시간을 지킨다. */
 export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // OAuth-style bearer tokens
   /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
@@ -65,10 +69,13 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   /(?<=:\/\/)[^/\s:@]+:[^/\s@]+(?=@)/gi,
   // fetch(undici) 의 헤더 값 검증 오류: `Headers.append: "<값>" is an invalid header value.`
   // 값 전체(봇 토큰 등)가 따옴표 안에 실린다. `Bearer` 패턴은 값 안의 CR · LF · NUL 에서
-  // 멈추므로 따옴표 안을 통째로 가린다. 마지막 종결 문구까지 greedy 로 잡아 값 안에 종결
-  // 문구가 끼어도 뒷부분이 남지 않는다. 결과는 `Headers.append: "***" is an invalid header value.`
+  // 멈추므로 따옴표 안을 통째로 가린다. 상한 안에서 마지막 종결 문구까지 greedy 로 잡아 값 안에
+  // 종결 문구가 끼어도 뒷부분이 남지 않는다. 결과는 `Headers.append: "***" is an invalid header value.`
   // (2026-10-05, NERV Task `CLE-T-H0GF4K`, Node 24 실측 원문).
-  /(?<=\bHeaders\.[A-Za-z]+: ")[\s\S]*(?=" is an invalid header value)/g,
+  // 상한(2048자)은 시간 복잡도 때문이다. 상한 없는 `[\s\S]*` 는 여는 모양마다 문자열 끝까지
+  // 갔다 돌아와 종결 문구 없는 적대 입력에서 이차 시간이었다(192KB 4.3초 → 상한 2048 은 77ms).
+  // 헤더 값이 2048자를 넘으면 이 패턴은 걸리지 않는다. 봇 토큰은 DTO 가 256자로 막는다.
+  /(?<=\bHeaders\.[A-Za-z]+: ")[\s\S]{0,2048}(?=" is an invalid header value)/g,
 ];
 
 /**
@@ -104,15 +111,36 @@ export function redactSecrets(raw: string): string {
  * 닿으면 안 된다. 나가는 시점의 {@link redactSecrets} 는 미리 알 수 없는 모양을 막는 두 번째
  * 층으로 따로 건다.
  *
- * `secret` 이 비었거나 문자열이 아니면 아무것도 바꾸지 않는다(빈 문자열로 쪼개면 원문 전체가
- * 깨진다). 아주 짧은 비밀은 원문의 다른 글자까지 바꿔 문장이 읽기 어려워질 수 있다. 그런 값은
- * 쓸 수 있는 자격 증명이 아니라 받아들인다.
+ * fetch 는 헤더 값의 양끝 HTTP 공백(SP · TAB · CR · LF)을 떼고 검증해 **뗀 값**을 오류 원문에
+ * 싣는다. 여러 줄을 붙여 넣은 토큰(`xoxb-…\n…\n`)이 그렇다. 그래서 원문 그대로의 비밀과 함께
+ * 양끝 공백을 뗀 변형도 가린다. 긴 변형부터 바꿔 원문에 그대로 실린 경우 끝 공백까지 가린다.
+ *
+ * `secret` 이 비었거나 공백뿐이거나 문자열이 아니면 아무것도 바꾸지 않는다(빈 문자열로 쪼개면
+ * 원문 전체가 깨진다). 아주 짧은 비밀은 원문의 다른 글자까지 바꿔 문장이 읽기 어려워질 수 있다.
+ * 그런 값은 쓸 수 있는 자격 증명이 아니라 받아들인다.
  */
 export function replaceKnownSecret(text: string, secret: string): string {
   if (typeof text !== 'string' || typeof secret !== 'string') return text;
-  if (secret.length === 0) return text;
-  return text.split(secret).join(VALUE_MASK_MARKER);
+  let out = text;
+  for (const variant of knownSecretVariants(secret)) {
+    out = out.split(variant).join(VALUE_MASK_MARKER);
+  }
+  return out;
 }
+
+/** 비밀 원문과 양끝 HTTP 공백을 뗀 변형들. 긴 것부터, 비거나 공백뿐인 것은 뺀다. */
+function knownSecretVariants(secret: string): string[] {
+  if (secret.replace(HTTP_WHITESPACE_EDGES, '').length === 0) return [];
+  const variants = new Set([
+    secret,
+    secret.replace(/[\t\n\r ]+$/, ''),
+    secret.replace(/^[\t\n\r ]+/, ''),
+    secret.replace(HTTP_WHITESPACE_EDGES, ''),
+  ]);
+  return [...variants].sort((a, b) => b.length - a.length);
+}
+
+const HTTP_WHITESPACE_EDGES = /^[\t\n\r ]+|[\t\n\r ]+$/g;
 
 /**
  * Object keys whose value is masked wholesale (regardless of the value's shape) —

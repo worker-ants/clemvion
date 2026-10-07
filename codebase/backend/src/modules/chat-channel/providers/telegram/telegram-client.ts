@@ -232,7 +232,8 @@ export class TelegramClient {
             .json()
             .catch(() => ({}))) as TelegramApiResponse<T>;
           if (res.status >= 400 && res.status < 500) {
-            // 4xx 는 재시도 무의미 — 즉시 반환.
+            // 4xx 는 재시도 무의미 — 즉시 반환. 프로바이더 본문은 실패 판별 입력이라 토큰 치환을
+            // 걸지 않는다(아래 실패 원문만 치환한다).
             return body;
           }
           lastError = new Error(
@@ -246,8 +247,9 @@ export class TelegramClient {
         clearTimeout(timer);
         lastError = err;
         // 토큰이 URL 경로에 있다. 원문이나 cause 에 URL 이 실려도 로그에 닿지 않게 지운다.
+        const cause = replaceKnownSecret(describeFetchError(err), token);
         this.logger.warn(
-          `TelegramClient.${method} attempt ${i + 1}/${attempts} 실패: ${replaceKnownSecret(describeFetchError(err), token)} (url host=${safeHost(url)})`,
+          `TelegramClient.${method} attempt ${i + 1}/${attempts} 실패: ${cause} (url host=${safeHost(url)})`,
         );
       }
       if (i < attempts - 1) {
@@ -255,16 +257,20 @@ export class TelegramClient {
         await new Promise((r) => setTimeout(r, delay));
       }
     }
+    // 로그는 cause 까지 푼 문장을, 반환값은 message 를 쓴다. 반환값은 어댑터를 거쳐
+    // `chat_channel_last_error` 에 저장된다. 둘 다 그 호출에 쓴 토큰을 지운다.
+    const cause = replaceKnownSecret(describeFetchError(lastError), token);
     this.logger.warn(
-      `TelegramClient.${method} ${attempts}회 재시도 실패: ${replaceKnownSecret(describeFetchError(lastError), token)}`,
+      `TelegramClient.${method} ${attempts}회 재시도 실패: ${cause}`,
     );
-    // 이 원문은 어댑터를 거쳐 `chat_channel_last_error` 에 저장된다. 그 호출에 쓴 토큰을 지운다.
+    const reason = replaceKnownSecret(
+      lastError instanceof Error ? lastError.message : String(lastError),
+      token,
+    );
     return {
       ok: false,
       description:
-        lastError instanceof Error
-          ? replaceKnownSecret(lastError.message, token)
-          : 'Unknown error in TelegramClient',
+        lastError instanceof Error ? reason : 'Unknown error in TelegramClient',
     };
   }
 }

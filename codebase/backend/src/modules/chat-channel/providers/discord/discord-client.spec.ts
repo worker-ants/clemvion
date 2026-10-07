@@ -71,36 +71,39 @@ describe('DiscordClient — 4xx 응답에 HTTP status 를 싣는다', () => {
  * 않지만(NERV Task `CLE-T-KX2Q2N`) 로그에는 남는다. 시크릿 저장소 평문은 로그에도 닿으면 안 된다.
  */
 describe('DiscordClient — 실패 원문에서 봇 토큰을 지운다', () => {
-  const token = 'MTAx.Yy\nZZZZ';
-  const parts = [token, 'MTAx.Yy', 'ZZZZ'];
+  const parts = ['MTAx.Yy', 'ZZZZ'];
 
-  it('반환 message 와 로그에 토큰이 없다', async () => {
-    const rejection = await realFetchHeaderError(`Bot ${token}`);
-    const original = global.fetch;
-    (global as unknown as { fetch: jest.Mock }).fetch = jest
-      .fn()
-      .mockRejectedValue(rejection);
-    jest.useFakeTimers();
-    const warn = jest
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
-    try {
-      const pending = new DiscordClient().getApplicationMe(token);
-      await jest.advanceTimersByTimeAsync(10_000);
-      const res = (await pending) as DiscordApiError;
+  // 둘째 줄: 끝 공백이 붙은 토큰은 fetch 가 끝 공백을 떼고 원문에 싣는다(정확 일치가 빗나가던 경우).
+  it.each([['MTAx.Yy\nZZZZ'], ['MTAx.Yy\nZZZZ\t ']])(
+    '반환 message 와 로그에 토큰이 없다 (%j)',
+    async (token) => {
+      const rejection = await realFetchHeaderError(`Bot ${token}`);
+      const original = global.fetch;
+      (global as unknown as { fetch: jest.Mock }).fetch = jest
+        .fn()
+        .mockRejectedValue(rejection);
+      jest.useFakeTimers();
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const pending = new DiscordClient().getApplicationMe(token);
+        await jest.advanceTimersByTimeAsync(10_000);
+        const res = (await pending) as DiscordApiError;
 
-      expect(res.message).toBe(
-        `Headers.append: "Bot ${VALUE_MASK_MARKER}" is an invalid header value.`,
-      );
-      expect(warn).toHaveBeenCalled();
-      for (const call of warn.mock.calls) {
-        const line = call.map(String).join(' ');
-        for (const part of parts) expect(line).not.toContain(part);
+        expect(res.message).toBe(
+          `Headers.append: "Bot ${VALUE_MASK_MARKER}" is an invalid header value.`,
+        );
+        expect(warn).toHaveBeenCalled();
+        for (const call of warn.mock.calls) {
+          const line = call.map(String).join(' ');
+          for (const part of parts) expect(line).not.toContain(part);
+        }
+      } finally {
+        warn.mockRestore();
+        jest.useRealTimers();
+        global.fetch = original;
       }
-    } finally {
-      warn.mockRestore();
-      jest.useRealTimers();
-      global.fetch = original;
-    }
-  });
+    },
+  );
 });
