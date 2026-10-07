@@ -410,6 +410,26 @@ describe('TriggersService.findOneDetail', () => {
     expect(result.notificationLastError).toBe('signing: ***');
   });
 
+  // 응답 마스킹은 자르지 않는다(EGRESS §3.10). 저장 칸은 1024 · 500자를 담으므로 200자에서 자르는
+  // `sanitizeLastErrorMessage` 로 바뀌면 뒤쪽 원문이 사라진다. 그 회귀를 막는다.
+  it('응답 마스킹은 자르지 않고 긴 원문 뒤쪽의 자격 증명만 가린다', async () => {
+    const prefix = `Slack chat.postMessage failed: ${'x'.repeat(300)} `;
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      chatChannelLastError: `${prefix}Authorization: Bearer xoxb-tail-secret`,
+      notificationLastError: null,
+      config: {},
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(result.chatChannelLastError).toBe(`${prefix}***`);
+  });
+
   it('자격 증명 모양이 없는 마지막 오류와 null 은 그대로 둔다', async () => {
     triggerRepo.findOne.mockResolvedValue({
       id: 't1',

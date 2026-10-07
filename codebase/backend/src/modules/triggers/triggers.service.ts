@@ -859,7 +859,7 @@ export class TriggersService {
    *
    * 처음엔 (1) 만 했고 `config.chatChannel` 이 없으면 **조기 return** 했다. 그래서
    * chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도 컬럼 쪽
-   * 비밀(3)은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가 전 컬럼을
+   * 비밀(4)은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가 전 컬럼을
    * select 하므로 로테이션 유예 중이면 `notificationSecretV2` 가 wire 로 나간다.
    * (§5.4 응답-계약 스윕이 `TriggerDto` 미선언 9필드로 검출.)
    *

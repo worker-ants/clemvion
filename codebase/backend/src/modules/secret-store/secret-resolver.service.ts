@@ -130,7 +130,10 @@ export class SecretResolverService implements OnModuleInit {
     }
   }
 
-  /** plaintext 를 새 row 로 저장. 이미 존재하는 ref 면 throw. */
+  /**
+   * plaintext 를 새 row 로 저장. 이미 존재하는 ref 면 throw. 메시지에 ref 를 싣지 않고 로그에만
+   * 남긴다([시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 18).
+   */
   async store(
     ref: string,
     workspaceId: string,

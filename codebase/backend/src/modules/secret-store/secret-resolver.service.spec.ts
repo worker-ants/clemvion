@@ -180,7 +180,7 @@ describe('SecretResolverService', () => {
 
     // 어댑터 실패 원문으로 화면에 보이는 필드(`chat_channel_last_error`)에 저장될 수 있다. 참조는
     // 내부 저장 위치라 메시지에 싣지 않고 서버 로그에만 남긴다([시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
-    // 4, NERV Task `CLE-T-H0GF4K`).
+    // 18, 응답 비노출은 규칙 4, NERV Task `CLE-T-H0GF4K`).
     it('실패 — 미존재 메시지에 참조를 싣지 않고 로그에만 남긴다', async () => {
       const svc = new SecretResolverService(
         createInMemoryRepository(),

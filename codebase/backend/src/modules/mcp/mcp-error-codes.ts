@@ -10,7 +10,7 @@
  *
  * Mirrors the codes documented in `spec/5-system/11-mcp-client.md §8.2`.
  */
-import { SECRET_LEAK_PATTERNS } from '../../shared/utils/sanitize-error-message';
+import { redactSecrets } from '../../shared/utils/sanitize-error-message';
 
 export const MCP_ERROR_CODES = {
   HTTPS_REQUIRED: 'MCP_HTTPS_REQUIRED',
@@ -37,7 +37,7 @@ export type McpErrorCode =
 export const MCP_ERROR_MESSAGE_MAX_LEN = 2048;
 
 /**
- * MCP 전용 추가 마스킹 패턴 — 공용 {@link SECRET_LEAK_PATTERNS} 가 다루지 않는
+ * MCP 전용 추가 마스킹 패턴 — 공용 `SECRET_LEAK_PATTERNS` 가 다루지 않는
  * 케이스만 담는다 (secret-redaction SoT 파편화 방지). **현재는 비어 있다.**
  *
  * 이 배열은 두 번 비워졌고 두 번 다 같은 이유였다 — 공용 SoT 가 그 형태를 흡수했다:
@@ -64,7 +64,7 @@ const MCP_EXTRA_SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [];
  *
  * **재사용**: bearer 토큰·`Authorization` 헤더·URL userinfo(`scheme://***@host`)·bare JWT·
  * labelled secret(`client_secret`/`api_key`/`password`/… + `token` **계열 전체**) 는 전부 공용
- * {@link SECRET_LEAK_PATTERNS}(여러 모듈이 이미 소비하는 SoT)가 덮는다 — 2026-08-17 기준
+ * `SECRET_LEAK_PATTERNS`(여러 모듈이 이미 소비하는 SoT)가 덮는다 — 2026-08-17 기준
  * {@link MCP_EXTRA_SECRET_PATTERNS} 는 **비어 있고** 이 함수는 사실상 공용 SoT 의 얇은
  * 래퍼다. cap 은 `sanitizeMcpErrorMessage` 가 §8.2 의 2048(공용 200 과 별개 — MCP 서버
  * 에러가 더 길 수 있음)로 적용한다.
@@ -74,10 +74,9 @@ export function redactMcpSecrets(msg: string): string {
   for (const [pattern, replacement] of MCP_EXTRA_SECRET_PATTERNS) {
     out = out.replace(pattern, replacement);
   }
-  for (const pattern of SECRET_LEAK_PATTERNS) {
-    out = out.replace(pattern, '***');
-  }
-  return out;
+  // 공용 목록을 직접 돌지 않고 `redactSecrets` 를 부른다. 목록 밖의 공용 처리(fetch 헤더 값 검증
+  // 오류, `redactInvalidHeaderValues`)까지 같은 기준으로 걸린다(NERV Task `CLE-T-H0GF4K`).
+  return redactSecrets(out);
 }
 
 /**

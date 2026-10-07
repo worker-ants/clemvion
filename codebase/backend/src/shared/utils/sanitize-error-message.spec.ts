@@ -8,6 +8,7 @@ import {
   redactSecrets,
   redactSecretsInJsonString,
   replaceKnownSecret,
+  HEADER_VALUE_ERROR_MAX_LEN,
   sanitizeLastErrorMessage,
   VALUE_MASK_MARKER,
 } from './sanitize-error-message';
@@ -235,6 +236,30 @@ describe('redactSecrets — fetch 헤더 값 검증 오류', () => {
    * 크기는 옛 · 새 실측으로 정했다(Node 24, 192KB): 상한 없는 `[\s\S]*` 는 4.3초, 상한 2048 은
    * 77ms 다. 임계값 1초는 새 패턴에 여유가 크고 옛 패턴은 넘는다.
    */
+  /**
+   * 종결 문구가 끝에 한 번 있고 여는 모양이 많은 입력. 상한 2048 의 정규식은 여는 모양마다 2048자를
+   * 읽고 되짚어 1MB 에 435ms 였다(Node 24, 2차 코드 리뷰 실측). 종결 문구 위치를 먼저 모아 한 번에
+   * 처리하면 선형이다. 임계값 250ms 는 옛 구현이 넘고 새 구현은 여유가 크다.
+   */
+  it('[성능] 종결 문구가 끝에 있는 적대 입력 1MB 를 250ms 안에 처리한다', () => {
+    const adversarial =
+      'Headers.a: "'.repeat(85_000) + '" is an invalid header value.';
+    const started = performance.now();
+    redactSecrets(adversarial);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
+  // 상한은 HEADER_VALUE_ERROR_MAX_LEN(2048)이다. 값 길이가 그 이하면 가리고 넘으면 이 패턴은 걸리지
+  // 않는다. 상한을 줄이면 긴 헤더 값이 조용히 새고 늘리면 시간이 늘어난다.
+  it('따옴표 안 값이 상한 이하면 가리고 상한을 넘으면 이 패턴은 걸리지 않는다', () => {
+    const at = `Headers.append: "${'a'.repeat(HEADER_VALUE_ERROR_MAX_LEN)}" is an invalid header value.`;
+    const over = `Headers.append: "${'a'.repeat(HEADER_VALUE_ERROR_MAX_LEN + 1)}" is an invalid header value.`;
+    expect(redactSecrets(at)).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+    expect(redactSecrets(over)).toBe(over);
+  });
+
   it('[성능] 종결 문구 없는 적대 입력 192KB 를 1초 안에 처리한다', () => {
     const adversarial = 'Headers.a: "'.repeat(16_000);
     const started = performance.now();
@@ -286,6 +311,20 @@ describe('replaceKnownSecret (알려진 비밀 치환)', () => {
     expect(replaceKnownSecret(`[${token}]`, token)).toBe(
       `[${VALUE_MASK_MARKER}]`,
     );
+  });
+
+  /**
+   * 재발급 `newBotToken` 은 길이 상한이 없다. 정규식(`[\t\n\r ]+$`)으로 양끝 공백을 떼면 긴 공백
+   * 런에서 이차 시간이라 `'x' + ' '.repeat(99_990) + 'x'` 한 호출이 17초였다(2차 코드 리뷰 실측).
+   * 양끝을 인덱스로 훑으면 선형이다.
+   */
+  it('[성능] 가운데 공백이 긴 비밀(100K)도 1초 안에 처리한다', () => {
+    const secret = `x${' '.repeat(100_000)}x`;
+    const started = performance.now();
+    expect(replaceKnownSecret(`[${secret}]`, secret)).toBe(
+      `[${VALUE_MASK_MARKER}]`,
+    );
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it('공백뿐인 비밀은 원문을 그대로 돌려준다(쓸 수 있는 자격 증명이 아니다)', () => {
