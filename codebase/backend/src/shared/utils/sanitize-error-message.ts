@@ -63,6 +63,12 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // so the uniform `***` replacement is scheme-preserving → `scheme://***@host`
   // (host/path survive; the password can't leak).
   /(?<=:\/\/)[^/\s:@]+:[^/\s@]+(?=@)/gi,
+  // fetch(undici) 의 헤더 값 검증 오류: `Headers.append: "<값>" is an invalid header value.`
+  // 값 전체(봇 토큰 등)가 따옴표 안에 실린다. `Bearer` 패턴은 값 안의 CR · LF · NUL 에서
+  // 멈추므로 따옴표 안을 통째로 가린다. 마지막 종결 문구까지 greedy 로 잡아 값 안에 종결
+  // 문구가 끼어도 뒷부분이 남지 않는다. 결과는 `Headers.append: "***" is an invalid header value.`
+  // (2026-10-05, NERV Task `CLE-T-H0GF4K`, Node 24 실측 원문).
+  /(?<=\bHeaders\.[A-Za-z]+: ")[\s\S]*(?=" is an invalid header value)/g,
 ];
 
 /**
@@ -85,6 +91,27 @@ export function redactSecrets(raw: string): string {
     masked = masked.replace(pattern, VALUE_MASK_MARKER);
   }
   return masked;
+}
+
+/**
+ * **`redactSecrets` 의 대용이 아니다.** 호출한 쪽이 이미 들고 있는 비밀(시크릿 저장소에서 푼
+ * 평문)과 글자 그대로 같은 부분을 모두 {@link VALUE_MASK_MARKER} 로 바꾼다. 값 패턴을 추측하지
+ * 않으므로 접두 없는 토큰도 가리고 오탐이 없다.
+ *
+ * 쓰는 자리는 나가는 시점이 아니라 **만든 자리**다. 외부 API 클라이언트가 실패 원문을 돌려주거나
+ * 로그에 남기기 전에 그 호출에 쓴 비밀을 지운다. 그 원문은 진단 필드(예: 트리거의
+ * `chat_channel_last_error`)에 저장되고 로그로도 가는데, 시크릿 저장소 평문은 DB 와 로그에
+ * 닿으면 안 된다. 나가는 시점의 {@link redactSecrets} 는 미리 알 수 없는 모양을 막는 두 번째
+ * 층으로 따로 건다.
+ *
+ * `secret` 이 비었거나 문자열이 아니면 아무것도 바꾸지 않는다(빈 문자열로 쪼개면 원문 전체가
+ * 깨진다). 아주 짧은 비밀은 원문의 다른 글자까지 바꿔 문장이 읽기 어려워질 수 있다. 그런 값은
+ * 쓸 수 있는 자격 증명이 아니라 받아들인다.
+ */
+export function replaceKnownSecret(text: string, secret: string): string {
+  if (typeof text !== 'string' || typeof secret !== 'string') return text;
+  if (secret.length === 0) return text;
+  return text.split(secret).join(VALUE_MASK_MARKER);
 }
 
 /**

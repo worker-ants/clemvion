@@ -84,12 +84,19 @@ export class SecretResolverService implements OnModuleInit {
     }
   }
 
-  /** ref → plaintext. 미존재 시 NotFoundException. */
+  /**
+   * ref → plaintext. 미존재 시 NotFoundException.
+   *
+   * 메시지는 고정 문구이고 참조는 서버 로그에만 남긴다. 채팅 채널 어댑터의 실패 원문으로 화면에
+   * 보이는 `chat_channel_last_error` 에 저장될 수 있어서다(`SecretWorkspaceMismatchError` 와
+   * 같은 이유, NERV Task `CLE-T-H0GF4K`). 미존재 분기에는 행이 없어 워크스페이스 id 는 모른다.
+   */
   async resolve(ref: string): Promise<string> {
     this.assertRefFormat(ref);
     const row = await this.repository.findOne({ where: { ref } });
     if (!row) {
-      throw new NotFoundException(`Secret not found: ${ref}`);
+      this.logger.warn(`SecretResolver.resolve 미존재 (ref=${ref})`);
+      throw new NotFoundException('Secret not found');
     }
     try {
       return decryptSecret(this.getKey(), ref, row.encrypted);
@@ -132,8 +139,12 @@ export class SecretResolverService implements OnModuleInit {
     this.assertRefFormat(ref);
     const existing = await this.repository.findOne({ where: { ref } });
     if (existing) {
+      // 메시지에 참조를 싣지 않는다(`resolve` 의 미존재 분기와 같다). 참조는 로그에만 남긴다.
+      this.logger.warn(
+        `SecretResolver.store 거부: 이미 존재 (ref=${ref}, workspace=${existing.workspaceId})`,
+      );
       throw new Error(
-        `SecretResolverService.store: ref 이미 존재 (${ref}) — rotate() 를 사용하세요.`,
+        'SecretResolverService.store: ref 이미 존재 — rotate() 를 사용하세요.',
       );
     }
     const encrypted = encryptSecret(this.getKey(), ref, plaintext);

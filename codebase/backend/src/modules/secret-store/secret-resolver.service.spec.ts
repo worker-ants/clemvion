@@ -178,6 +178,31 @@ describe('SecretResolverService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // 어댑터 실패 원문으로 화면에 보이는 필드(`chat_channel_last_error`)에 저장될 수 있다. 참조는
+    // 내부 저장 위치라 메시지에 싣지 않고 서버 로그에만 남긴다(CLE-INT-SECRET 규칙 4, NERV Task
+    // `CLE-T-H0GF4K`).
+    it('실패 — 미존재 메시지에 참조를 싣지 않고 로그에만 남긴다', async () => {
+      const svc = new SecretResolverService(
+        createInMemoryRepository(),
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      const ref = 'secret://triggers/abc/missing';
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const err = await svc.resolve(ref).catch((err_: unknown) => err_);
+        expect(err).toBeInstanceOf(NotFoundException);
+        expect((err as Error).message).toBe('Secret not found');
+        expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+          ref,
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
     it('실패 — 잘못된 ref 형식', async () => {
       const svc = new SecretResolverService(
         createInMemoryRepository(),
@@ -197,7 +222,23 @@ describe('SecretResolverService', () => {
       svc.onModuleInit();
       const ref = 'secret://triggers/abc/bot-token';
       await svc.store(ref, 'ws-1', 'a');
-      await expect(svc.store(ref, 'ws-1', 'b')).rejects.toThrow(/이미 존재/);
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const err = await svc
+          .store(ref, 'ws-1', 'b')
+          .then(() => null)
+          .catch((err_: unknown) => err_);
+        expect((err as Error).message).toMatch(/이미 존재/);
+        // 같은 이유로 참조는 메시지가 아니라 로그에만 남긴다.
+        expect((err as Error).message).not.toContain('secret://');
+        expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+          ref,
+        );
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     /**

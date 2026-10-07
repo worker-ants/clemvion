@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { replaceKnownSecret } from '../../../../shared/utils/sanitize-error-message';
 
 /**
  * Telegram Bot API HTTP client.
@@ -244,8 +245,9 @@ export class TelegramClient {
       } catch (err) {
         clearTimeout(timer);
         lastError = err;
+        // 토큰이 URL 경로에 있다. 원문이나 cause 에 URL 이 실려도 로그에 닿지 않게 지운다.
         this.logger.warn(
-          `TelegramClient.${method} attempt ${i + 1}/${attempts} 실패: ${describeFetchError(err)} (url host=${safeHost(url)})`,
+          `TelegramClient.${method} attempt ${i + 1}/${attempts} 실패: ${replaceKnownSecret(describeFetchError(err), token)} (url host=${safeHost(url)})`,
         );
       }
       if (i < attempts - 1) {
@@ -254,13 +256,14 @@ export class TelegramClient {
       }
     }
     this.logger.warn(
-      `TelegramClient.${method} ${attempts}회 재시도 실패: ${describeFetchError(lastError)}`,
+      `TelegramClient.${method} ${attempts}회 재시도 실패: ${replaceKnownSecret(describeFetchError(lastError), token)}`,
     );
+    // 이 원문은 어댑터를 거쳐 `chat_channel_last_error` 에 저장된다. 그 호출에 쓴 토큰을 지운다.
     return {
       ok: false,
       description:
         lastError instanceof Error
-          ? lastError.message
+          ? replaceKnownSecret(lastError.message, token)
           : 'Unknown error in TelegramClient',
     };
   }

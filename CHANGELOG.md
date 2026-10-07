@@ -23,6 +23,16 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 보안: 채팅 채널 · 알림의 마지막 오류에 봇 토큰 · 자격 증명이 실려 나가지 않는다
+
+트리거의 마지막 오류 칸(`chatChannelLastError` · `notificationLastError`)은 실패 원문을 그대로 저장하고 `GET /api/triggers` · `GET /api/triggers/:id`(뷰어도 조회한다)로 가리지 않고 내보냈다. Slack 봇 토큰에 줄바꿈 · NUL 이 섞이면 Node 의 fetch 가 헤더 값 전체를 오류 원문에 실어 토큰 평문이 DB 칸 · 서버 로그 · 응답까지 갔다. 알림 URL 에 `user:pass@` 가 있으면 그 URL 이 마지막 오류에 남았다(NERV Task `CLE-T-H0GF4K`, Node 24 로 재현).
+
+- Slack · Discord · Telegram 클라이언트가 실패 원문을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 봇 토큰을 `***` 로 바꾼다. 저장되는 마지막 오류에도 토큰이 남지 않는다.
+- 트리거 응답(목록 · 상세 · 생성 · 수정)이 두 마지막 오류 칸의 자격 증명 모양(`Bearer …`, `Authorization:` 헤더, JWT, `user:pass@` URL 등)을 가린다. 저장값은 그대로다.
+- 공유 마스커가 fetch 의 헤더 값 검증 오류(`Headers.append: "<값>" is an invalid header value.`)의 따옴표 안을 통째로 가린다. 실행 상세 · 이벤트 등 같은 마스커를 쓰는 다른 응답에도 적용된다.
+- 시크릿 저장소의 «없음» · «이미 있음» 오류 메시지에서 시크릿 참조(`secret://…`)를 뺐다. 참조는 서버 로그에만 남는다.
+- 남은 일: 알림 URL 자체(`config.notification.url`)는 같은 응답에 원문으로 나간다(NERV Task `CLE-T-RCQGCC`).
+
 ## Unreleased — 화면: 채팅 채널 건강도 안내가 원인을 나열하지 않고 마지막 오류를 가리킨다
 
 트리거 상세의 채팅 채널 카드는 `degraded` 배지 옆에 «setupChannel/rotate/sendMessage 실패» 를 늘 보여 줬다. `degraded` 의 원인은 분당 한도 초과(REQ-CHAT-046)와 트리거의 워크플로우를 그 워크스페이스에서 찾지 못하는 경우(REQ-CHAT-059)로 넓어졌는데 안내는 외부 호출 실패만 말했다(NERV Task `CLE-T-K9S0TE`).

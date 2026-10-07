@@ -7,6 +7,7 @@ import {
   MAX_REDACT_DEPTH,
   redactSecrets,
   redactSecretsInJsonString,
+  replaceKnownSecret,
   sanitizeLastErrorMessage,
   VALUE_MASK_MARKER,
 } from './sanitize-error-message';
@@ -162,6 +163,102 @@ describe('redactSecrets (mask-only)', () => {
     const first = redactSecrets(input);
     expect(redactSecrets(input)).toBe(first);
     expect(redactSecrets(input)).toBe(first);
+  });
+});
+
+/**
+ * fetch(undici) 가 헤더 값 검증에서 던지는 오류는 **헤더 값 전체**를 따옴표 안에 싣는다.
+ * 아래 원문은 Node 24 의 실제 `fetch` 로 재현한 문자열 그대로다(2026-10-05, NERV Task
+ * `CLE-T-H0GF4K`). `Bearer` 패턴은 제어 문자에서 멈춰 뒷부분을 남긴다.
+ */
+describe('redactSecrets — fetch 헤더 값 검증 오류', () => {
+  it.each([
+    [
+      'LF',
+      'Headers.append: "Bearer xoxb-AAA\nBBBB" is an invalid header value.',
+    ],
+    [
+      'CR',
+      'Headers.append: "Bearer xoxb-AAA\rBBBB" is an invalid header value.',
+    ],
+    [
+      'NUL',
+      'Headers.append: "Bearer xoxb-AAA\u0000BBBB" is an invalid header value.',
+    ],
+    [
+      'Discord Bot',
+      'Headers.append: "Bot MTAx.Yy\nZZZZ" is an invalid header value.',
+    ],
+  ])('%s 가 낀 헤더 값을 따옴표 안 통째로 가린다', (_label, raw) => {
+    const out = redactSecrets(`Slack auth.test failed: ${raw}`);
+    expect(out).toBe(
+      `Slack auth.test failed: Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it('값 안에 종결 문구가 끼어도 마지막 종결 문구까지 가린다', () => {
+    const raw =
+      'Headers.append: "Bearer xoxb-A"A\nB" is an invalid header value. BB" is an invalid header value.';
+    const out = redactSecrets(raw);
+    expect(out).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it('알려진 비밀 치환을 지난 값은 같은 마커로만 바뀐다', () => {
+    const stored = `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`;
+    expect(redactSecrets(stored)).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it.each([
+    'the proxy rejected an invalid header value', // 따옴표 · 메서드 접두가 없다
+    'Headers.append: invalid header name', // 값 오류가 아니다
+  ])('일반 문장은 그대로 둔다: %s', (clean) => {
+    expect(redactSecrets(clean)).toBe(clean);
+  });
+});
+
+describe('replaceKnownSecret (알려진 비밀 치환)', () => {
+  it('호출에 쓴 비밀과 정확히 같은 부분을 모두 마커로 바꾼다', () => {
+    const token = 'xoxb-AAA\nBBBB';
+    const out = replaceKnownSecret(
+      `Headers.append: "Bearer ${token}" is an invalid header value. (${token})`,
+      token,
+    );
+    expect(out).toBe(
+      `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value. (${VALUE_MASK_MARKER})`,
+    );
+  });
+
+  it('정규식 메타문자가 낀 비밀도 글자 그대로 비교한다', () => {
+    const token = 'a.b*c+(d)?[e]$^|\\';
+    expect(replaceKnownSecret(`x ${token} y`, token)).toBe(
+      `x ${VALUE_MASK_MARKER} y`,
+    );
+    // 메타문자로 해석했다면 걸렸을 문자열은 그대로 남는다.
+    expect(replaceKnownSecret('x aXbbbc y', token)).toBe('x aXbbbc y');
+  });
+
+  it('비밀이 없거나 빈 문자열이면 원문을 그대로 돌려준다', () => {
+    expect(replaceKnownSecret('fetch failed', '')).toBe('fetch failed');
+    expect(replaceKnownSecret('fetch failed', undefined as never)).toBe(
+      'fetch failed',
+    );
+  });
+
+  it('원문이 문자열이 아니면 그대로 돌려준다', () => {
+    expect(replaceKnownSecret(undefined as never, 'tok')).toBeUndefined();
+  });
+
+  it('값 패턴과 무관한 모양(접두 없는 토큰)도 가린다 — redactSecrets 로는 못 가린다', () => {
+    const token = '1234567890:AAH-telegram-like';
+    const raw = `request to bot${token} failed`;
+    expect(redactSecrets(raw)).toContain(token);
+    expect(replaceKnownSecret(raw, token)).toBe(
+      `request to bot${VALUE_MASK_MARKER} failed`,
+    );
   });
 });
 
