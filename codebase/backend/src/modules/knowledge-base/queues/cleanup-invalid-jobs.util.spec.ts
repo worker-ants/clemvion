@@ -320,7 +320,7 @@ describe('sweepInvalidJobs', () => {
     expect(secondCallArgs[1]).toBe(0); // start offset
   });
 
-  it('getJobs 에 BullMQ 6 상태만 넘긴다 (paused 상태는 없다)', async () => {
+  it('passes only BullMQ 6 job states to getJobs (no paused state)', async () => {
     const queue = makeQueue([[]]);
 
     await sweepInvalidJobs({
@@ -332,7 +332,6 @@ describe('sweepInvalidJobs', () => {
 
     const states = (queue.getJobs.mock.calls[0] as unknown[])[0];
     expect(states).toEqual(['waiting', 'delayed', 'failed']);
-    expect(states).not.toContain('paused');
   });
 
   it('emits per-job log line with stable grep-friendly format', async () => {

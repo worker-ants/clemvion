@@ -31,20 +31,22 @@ dependabot PR #1501(bullmq 5.81.2 → 6.3.11)이 타입 오류 2건으로 backen
 - **시스템 상태 응답은 그대로다.** `GET /api/system-status/overview` 의 `counts.paused` 는 큐가 일시 정지됐을 때 대기 job 수를
   `paused` 로 옮기고 `waiting` 을 0 으로 두어 BullMQ 5 와 같은 값을 낸다. 건강도 판정(일시 정지 → `down`)도 같다.
 - **큐 정리 스크립트**(`cleanup-invalid-queue-jobs`)는 대상 상태에서 `paused` 를 뺐다. 일시 정지한 큐의 job 이 `waiting` 으로
-  보이므로 정리 범위는 같다. 로그의 `scanning states=` 값이 `waiting,delayed,failed` 로 바뀐다.
+  보이므로 정상 상태에서는 정리 범위가 같다(예외는 아래 «배포 전 확인»). 로그의 `scanning states=` 값이
+  `waiting,delayed,failed` 로 바뀐다. 실제 Redis 에서 이 동작을 확인하는 e2e 를 더했다.
 - **큐 깊이 지표가 조금 달라진다.** `clemvion.queue.depth` 의 `state=waiting` 은 이제 일시 정지한 큐의 job 도 센다(BullMQ 5 에서는
   `paused` 목록에 있어 빠졌다). 코드에서 큐를 일시 정지하는 곳은 정리 스크립트의 `--pause-during-sweep` 하나이고 그 대상은
   지식 저장소 큐라서 이 지표가 보는 실행 큐와 겹치지 않는다.
 - 레거시 repeatable API · `Queue#client` · `debounce` 등 6 에서 없어진 API 는 쓰지 않는다(반복 작업은 이미 `upsertJobScheduler`).
-  ioredis 는 BullMQ 6 에서 optional peer 가 됐고 backend 가 직접 의존하는 ioredis 6 으로 풀린다. 그래서 BullMQ 가 쓰는
-  Redis 클라이언트가 ioredis 5 에서 6 으로, 내부 cron 파서가 cron-parser 4 에서 5 로 바뀐다. 실제 Redis 를 쓰는 backend
-  e2e 501건이 통과했다. `pg` 도 BullMQ 6 의 optional peer 라 lockfile 의 bullmq 스냅샷 키에 붙는다(backend 가 이미 직접
-  의존하는 판으로 풀린다).
+- BullMQ 가 쓰는 Redis 클라이언트가 ioredis 5 에서 6 으로, 내부 cron 파서가 cron-parser 4 에서 5 로 바뀐다. ioredis 가
+  BullMQ 6 에서 optional peer 가 되어 backend 가 직접 의존하는 판으로 풀리기 때문이다. 머지 시점의 backend e2e(실제 Redis)는
+  모두 통과했다.
 - **배포 전 확인:** BullMQ 5 에서 일시 정지된 채로 올라간 큐는 job 이 옛 `paused` 목록에 남는다. BullMQ 6 은 그 목록을 세지
-  않고(`counts.paused` · `waiting` 모두 0) 정리 스크립트도 보지 않는다. `resume()` 을 부르면 `wait` 로 옮겨진다. 배포 전에
+  않고(`counts.paused` · `waiting` 모두 0) 정리 스크립트도 보지 않는다. `resume()` 을 부르면 `wait` 로 모두 옮겨진다. 이런 큐에
+  정리 스크립트를 먼저 돌리면 sweep 이 보지 못한 옛 목록의 손상 job 을 마지막 `resume()` 이 그대로 풀어 준다. 배포 전에
   일시 정지된 큐가 없는지 확인한다. 시스템 상태 화면에서 큐 옆에 «일시정지» 가 붙은 큐(`isPaused`)가 그것이다.
-  BullMQ 5 와 6 을 쓰는 backend 가 같은 Redis 를 동시에 쓰는 경우의 호환은 확인하지 않았다. 롤링 배포보다 backend 를 한 번에
-  바꾸는 편이 안전하다.
+- BullMQ 5 와 6 을 쓰는 backend 가 같은 Redis 를 동시에 쓰는 경우와 BullMQ 5 데이터가 남은 Redis 위의 첫 기동은 확인하지
+  않았다. BullMQ 5 의 `resume()` 은 `wait` 목록을 덮어쓰므로 교체가 끝나기 전에는 정리 스크립트를 돌리지 않는다. 롤링 배포보다
+  backend 를 한 번에 바꾸는 편이 안전하다.
 - OpenAPI 의 `counts.waiting` · `counts.paused` 설명 문구를 위 합성 규칙에 맞게 고쳤다. 필드와 타입은 그대로다.
 
 ## Unreleased — 하네스: 줄 앵커 테스트가 merge 커밋을 고정 입력으로 고르지 않는다

@@ -53,11 +53,13 @@ function makeHandle(
   return {
     meta: { name, group, concurrency },
     queue: {
-      // 실제 BullMQ 처럼 요청한 상태만 돌려준다.
+      // 실제 BullMQ 처럼 요청한 상태만 돌려준다. 모르는 상태 키는 응답에 넣지 않는다.
       getJobCounts: jest.fn(async (...types: string[]) => {
         if (opts.throws) throw new Error('redis down');
         return Object.fromEntries(
-          types.map((t) => [t, full[t as keyof Counts] ?? 0]),
+          types
+            .filter((t) => t in full)
+            .map((t) => [t, full[t as keyof Counts]]),
         );
       }),
       isPaused: jest.fn(async () => {
@@ -186,6 +188,25 @@ describe('SystemStatusService.getOverview', () => {
     expect(res.queues[0].counts.waiting).toBe(4);
     expect(res.queues[0].counts.paused).toBe(0);
   });
+
+  it.each([true, false])(
+    'getJobCounts 가 상태 키를 빠뜨리면 0 으로 센다 (isPaused=%s)',
+    async (isPaused) => {
+      const handle = makeHandle('d', 'system', 1, {}, { isPaused });
+      (handle.queue.getJobCounts as jest.Mock).mockResolvedValue({} as never);
+      const service = new SystemStatusService([handle]);
+
+      const res = await service.getOverview();
+
+      expect(res.queues[0].counts).toEqual({
+        waiting: 0,
+        active: 0,
+        delayed: 0,
+        failed: 0,
+        paused: 0,
+      });
+    },
+  );
 
   it('waiting>0 && active=0 → 워커 미가동 추정 down', async () => {
     const handles = [

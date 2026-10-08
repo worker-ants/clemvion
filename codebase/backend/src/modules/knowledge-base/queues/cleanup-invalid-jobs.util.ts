@@ -10,7 +10,9 @@ type InvalidJobCandidate = Job<
  * sweep 대상 BullMQ 큐 상태. `active` 는 처리 중인 job 을 sweep 해 데이터 손상이
  * 나는 것을 막기 위해 제외, `completed` 는 어차피 자동 만료되므로 비대상.
  * BullMQ 6 부터는 paused 상태가 따로 없고 일시 정지한 큐의 job 도 `waiting` 으로 보이므로
- * 운영자가 일시 정지한 큐의 잔재도 `waiting` 으로 함께 청소된다.
+ * 운영자가 일시 정지한 큐의 잔재도 `waiting` 으로 함께 청소된다. 예외는 BullMQ 5 에서
+ * 일시 정지된 채 올라온 큐다. 그 job 은 옛 `paused` 목록에 남아 `resume()` 으로 `wait` 에
+ * 옮겨지기 전까지 이 sweep 의 대상이 아니다(CHANGELOG 의 BullMQ 6 항목 «배포 전 확인»).
  */
 export const CLEANUP_QUEUE_STATES = ['waiting', 'delayed', 'failed'] as const;
 const CLEANUP_QUEUE_STATES_MUTABLE: Array<
@@ -79,7 +81,8 @@ export function formatSummaryLine(record: CleanupSummary): string {
  *
  * 주의 — 본 함수는 큐 하나의 단위 sweep 이며, 호출자가 큐 여러 개를 순차 처리하는 경우
  * 다음 큐의 pause 직전까지 짧은 gap 이 존재한다. 호출자는 sweep 도중 비정상 종료가 발생하면
- * 잔존하는 paused 상태가 있을 수 있음을 인지해야 한다 (자동 복구 책임은 호출자에 위임).
+ * 큐가 일시 정지된 채 남을 수 있음을 인지해야 한다 (job 상태가 아니라 큐의 pause 플래그다.
+ * 자동 복구 책임은 호출자에 위임).
  */
 export async function sweepInvalidJobs(
   options: SweepOptions,
