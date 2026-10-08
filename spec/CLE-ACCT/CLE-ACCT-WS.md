@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "cac923f2710acaa17300f6fb544e702c38b9d48d316e6c69331fe22a8c89f599"
+content_hash: "af144cfa7054b80ab85bee168b2ff509ed6bfdc9743197683e8c27f2f87b1c40"
 read_as: "approved_fallback"
 task: "CLE-T-9DBM7V"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "3a4fba6b445d4cb8ff9e8bc4b2de04ad439a2aec766103070e2eb3d6d21870be"
-etag: "sha256-bab6c1e58d65d45f108ee9dc31a1fe695179aba5be98b16fb8fe5d6739a9b548"
+mirror_sha256: "76ba3c7b68b54e2381d696b069af0a81b82669a8ce9dd9cd286e73541437def8"
+etag: "sha256-87f78f4bfe64f2a7e7b6d706a395dd683fa0ff7b700e6da022fa7b6b5c43afdc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -92,11 +92,11 @@ etag: "sha256-bab6c1e58d65d45f108ee9dc31a1fe695179aba5be98b16fb8fe5d6739a9b548"
 - REQ-WSPACE-050 IF 뷰어가 워크플로우 실행을 요청하면 THE SYSTEM SHALL 403 으로 거부한다.
 - REQ-WSPACE-051 WHEN 인증된 요청이 워크스페이스 컨텍스트를 쓰면 THE SYSTEM SHALL `X-Workspace-Id` 헤더가 있으면 그 값을, 없으면 토큰의 `activeWorkspaceId` 를 현재 워크스페이스로 쓴다.
 - REQ-WSPACE-052 IF 토큰의 워크스페이스 클레임이 없거나 그 멤버십이 사라졌으면 THE SYSTEM SHALL 개인 워크스페이스, 없으면 첫 멤버십을 현재 워크스페이스로 쓴다.
-- REQ-WSPACE-053 WHEN `@Roles()` 나 `@WorkspaceId()` 를 쓰는 라우트에 요청이 헤더로 워크스페이스를 지정하면 THE SYSTEM SHALL 라우트의 `@Roles()` 유무와 상관없이 가드에서 멤버십을 확인한다.
+- REQ-WSPACE-053 WHEN 요청이 헤더로 워크스페이스를 지정하고 라우트가 `@WorkspaceId()` 를 쓰는 라우트(`@Roles()` 가 없어도 된다)이거나 경로 파라미터로 받는 워크스페이스(`@WorkspaceParam(...)`) 없이 `@Roles()` 를 쓰는 라우트이면 THE SYSTEM SHALL 가드에서 그 워크스페이스의 멤버십을 확인한다.
 - REQ-WSPACE-054 WHEN 라우트가 경로 파라미터로 워크스페이스를 받으면 THE SYSTEM SHALL 헤더·토큰이 아니라 경로 값을 인가 대상으로 삼아 멤버십을 항상 조회한다.
 - REQ-WSPACE-055 IF 요청자가 대상 워크스페이스 멤버가 아니거나 워크스페이스가 없으면 THE SYSTEM SHALL 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부한다.
 - REQ-WSPACE-056 IF 멤버의 역할이 라우트 요구 역할보다 낮으면 THE SYSTEM SHALL 403 `EDITOR_REQUIRED`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 중 요구 역할에 맞는 코드로 거부한다.
-- REQ-WSPACE-057 IF `@Roles()` 나 `@WorkspaceId()` 를 쓰는 라우트에서 `X-Workspace-Id` 헤더가 UUID 형태가 아니면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로, 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED` 로 거부한다.
+- REQ-WSPACE-057 IF `@WorkspaceId()` 를 쓰는 라우트이거나 경로 파라미터로 받는 워크스페이스(`@WorkspaceParam(...)`) 없이 `@Roles()` 를 쓰는 라우트에서 `X-Workspace-Id` 헤더가 UUID 형태가 아니면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부한다. `@Roles()` 없이 `@WorkspaceId()` 를 쓰는 라우트에서 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED` 로 거부한다.
 - REQ-WSPACE-058 WHEN 서버가 부팅하면 THE SYSTEM SHALL 워크스페이스 파라미터를 소비하는 라우트 수를 세고 0 이면 기동을 멈춘다.
 - REQ-WSPACE-059 IF 컨트롤러 핸들러가 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나는 파라미터를 `@Param` 으로 받으면 THE SYSTEM SHALL 저장소 가드로 CI 를 실패시킨다.
 
@@ -387,10 +387,10 @@ sequenceDiagram
 
 ### 멤버십 검증은 가드가 무조건 한다
 
-- `RolesGuard` 는 전역(`APP_GUARD`) 가드다. 워크스페이스 컨텍스트를 쓰는 인증 라우트라면 라우트에 `@Roles()` 가 있든 없든 헤더로 지정한 워크스페이스의 멤버십을 확인한다. `@Roles()` 는 역할 계층 비교만 통제한다.
+- `RolesGuard` 는 전역(`APP_GUARD`) 가드다. 워크스페이스 컨텍스트를 쓰는 인증 라우트라면 라우트에 `@Roles()` 가 있든 없든 헤더로 지정한 워크스페이스의 멤버십을 확인한다(경로로 워크스페이스를 받는 라우트는 아래 「경로 파라미터로 받는 워크스페이스」). `@Roles()` 는 역할 계층 비교만 통제한다.
 - 헤더가 없으면 워크스페이스 컨텍스트는 `jwt.strategy` 가 이미 멤버십을 확인한 값이라 추가 검사가 필요 없다. 검증이 필요한 경로는 헤더가 토큰 값을 덮을 때다.
-- 가드는 `@Roles()` 가 붙었거나 `@WorkspaceId()` 를 소비하는(`handlerConsumesWorkspaceId`) 라우트에서 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사한다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있어서다. 경로로 받는 워크스페이스(`@WorkspaceParam()`)는 아래 「경로 파라미터로 받는 워크스페이스」 가 다룬다.
-- 제외 대상은 (a) `@Public()` 라우트와 `request.user` 가 없는 미인증 요청(판정은 `JwtAuthGuard` 몫), (b) `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 을 하나도 쓰지 않는 라우트다. 시스템 전역 API `GET /api/system-status/overview` 가 (b) 의 예이고 헤더가 와도 멤버십을 확인하지 않는다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
+- 가드는 `@WorkspaceId()` 를 소비하는(`handlerConsumesWorkspaceId`) 라우트와 경로 파라미터로 받는 워크스페이스 없이 `@Roles()` 가 붙은 라우트에서 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사한다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있어서다. 경로로 받는 워크스페이스(`@WorkspaceParam(...)`)는 아래 「경로 파라미터로 받는 워크스페이스」 가 다룬다. 그 라우트는 검증에서 빠지는 것이 아니라 인가 대상이 경로 값으로 바뀐다. `@WorkspaceId()` 도 함께 쓸 때만 헤더 · 토큰이 가리키는 현재 워크스페이스의 멤버십을 따로 본다.
+- 제외 대상은 (a) `@Public()` 라우트와 `request.user` 가 없는 미인증 요청(판정은 `JwtAuthGuard` 몫), (b) `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트다. 시스템 전역 API `GET /api/system-status/overview` 가 (b) 의 예이고 헤더가 와도 멤버십을 확인하지 않는다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
 
 ### 경로 파라미터로 받는 워크스페이스
 
@@ -422,8 +422,8 @@ sequenceDiagram
 | `:memberId`·`:invitationId` 경로 파라미터 | `ParseUUIDPipe`(`workspaces.controller.ts` 4곳) | Nest `ParseUUIDPipe` 의 기본 범위(버전 1~8 과 RFC variant, nil · max UUID). 밖이면 400 `VALIDATION_ERROR` |
 
 - `ParseUUIDPipe` 의 기본 범위는 Nest 버전을 따라 바뀐다. 표는 Nest 12 기준이고 `common/utils/uuid.spec.ts` 의 "ParseUUIDPipe 기본 범위 (경로 파라미터)" 가 고정한다. `isValidUuid`(버전 1~5 와 RFC variant)와는 다른 검사다.
-- 헤더 형식이 깨지면 400 `VALIDATION_ERROR`, 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED`, 비멤버면 403 `NOT_A_MEMBER` 다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
-- 헤더 검사는 `@Roles()` 나 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 돈다. `@WorkspaceParam(...)` 을 쓰는 라우트는 헤더를 보지 않고 경로 값에 같은 `isUuidShaped` 를 쓴다. 둘 다 없는 전역 라우트는 헤더 형식이 깨져도 400 이 아니라 무시한다.
+- 헤더 형식이 깨지면 400 `VALIDATION_ERROR`, 비멤버면 403 `NOT_A_MEMBER` 다. 헤더와 클레임이 모두 없으면 가드가 통과시킨 뒤 `@WorkspaceId()` 가 400 `WORKSPACE_ID_REQUIRED` 를 낸다(`workspace.decorator.ts`. 예: `@Roles()` 없이 `@WorkspaceId()` 를 쓰는 라우트). 경로로 받는 워크스페이스가 없는 `@Roles()` 라우트는 `@WorkspaceId()` 를 함께 써도 가드가 먼저 돌아 위 「가드 거부 에러 코드」 의 코드 없는 거부(403, 기본 코드 `FORBIDDEN`)가 된다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+- 헤더 검사는 `@WorkspaceId()` 를 쓰는 라우트와 경로 파라미터로 받는 워크스페이스 없이 `@Roles()` 를 쓰는 라우트(모두 인증 라우트)에서만 돈다. `@WorkspaceParam(...)` 을 쓰는 라우트는 경로 값에 같은 `isUuidShaped` 를 쓰고 `@WorkspaceId()` 도 함께 쓸 때만 헤더를 본다. 세 데코레이터를 하나도 쓰지 않는 전역 라우트는 헤더 형식이 깨져도 400 이 아니라 무시한다.
 - 헤더를 경로 파라미터 수준으로 조이지 않는다. 이유는 [Rationale](#rationale) 에 있다.
 
 ### 부팅 때 가드 인식 자가 검사
@@ -471,7 +471,7 @@ sequenceDiagram
 - `codebase/backend/src/modules/auth/auth.service.ts` (`switchWorkspace`, `registerWithInvitation`, `resolveTokenWorkspaceContext`)
 - `codebase/backend/src/modules/mail/**` (초대 메일)
 - `codebase/backend/src/common/guards/*.ts` (`RolesGuard`, `JwtAuthGuard`)
-- `codebase/backend/src/common/decorators/*.ts` (`@WorkspaceId()`, `@WorkspaceParam()`, `@Roles()`, `workspace-reflection-canary.ts`)
+- `codebase/backend/src/common/decorators/*.ts` (`@WorkspaceId()`, `@WorkspaceParam(...)`, `@Roles()`, `workspace-reflection-canary.ts`)
 - `codebase/backend/src/common/utils/workspace-context.util.ts`, `codebase/backend/src/common/utils/uuid.ts`, `codebase/backend/src/common/utils/uuid.spec.ts`(경로 파라미터 `ParseUUIDPipe` 기본 범위 고정)
 - `codebase/backend/src/repo-guards/__tests__/workspace-param-binding*.ts`, `codebase/backend/src/repo-guards/__tests__/fixtures/workspace-param-binding/**` (경로 워크스페이스 `@Param` 바인딩 금지 가드와 대조군)
 - `codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts` (`RolesGuard` 전역 등록과 핸들러별 `@Roles` 고정)
@@ -551,7 +551,7 @@ sequenceDiagram
 
 가드는 요청이 도는 워크스페이스만 본다. 요청 본문의 참조 id 는 저장 때 서비스가 본다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
 
-워크스페이스와 무관한 전역 API 는 이 검증에서 뺀다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 을 하나도 쓰지 않는 라우트는 헤더가 와도 멤버십을 확인하지 않는다. 이런 라우트는 워크스페이스 값을 받을 통로가 없어 헤더를 위조해도 다른 워크스페이스 데이터에 닿지 않는다. 예외가 없으면 프런트엔드가 모든 요청에 붙이는 헤더 때문에 시스템 상태 같은 전역 API 가 헤더와 토큰의 워크스페이스가 다를 때마다 멤버십을 다시 조회하고, 헤더의 워크스페이스에 속하지 않은 사용자는 403 을 받는다. 2026-08-08 e2e 회귀(`test/system-status.e2e-spec.ts`)로 실측했다. 예외 여부는 가드가 세 데코레이터의 사용 여부를 reflection 으로 보고 정한다. 새 라우트가 `@WorkspaceId()` 를 쓰면 표시를 따로 달지 않아도 검사 대상이 되므로 위에서 기각한 라우트별 opt-in 과 달리 빠뜨려도 열리지 않는다. 다만 가드는 세 데코레이터만 알아본다. 핸들러가 `req.user.workspaceId` 를 직접 읽는 경우의 비대칭은 아래 「경로 파라미터 워크스페이스도 가드가 본다」 와 「부팅 때 가드 인식을 스스로 검사한다」 가 다룬다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있으므로 이 예외에서 뺀다.
+워크스페이스와 무관한 전역 API 는 이 검증에서 뺀다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트는 헤더가 와도 멤버십을 확인하지 않는다. 이런 라우트는 워크스페이스 값을 받을 통로가 없어 헤더를 위조해도 다른 워크스페이스 데이터에 닿지 않는다. 예외가 없으면 프런트엔드가 모든 요청에 붙이는 헤더 때문에 시스템 상태 같은 전역 API 가 헤더와 토큰의 워크스페이스가 다를 때마다 멤버십을 다시 조회하고, 헤더의 워크스페이스에 속하지 않은 사용자는 403 을 받는다. 2026-08-08 e2e 회귀(`test/system-status.e2e-spec.ts`)로 실측했다. 예외 여부는 가드가 세 데코레이터의 사용 여부를 reflection 으로 보고 정한다. 새 라우트가 `@WorkspaceId()` 를 쓰면 표시를 따로 달지 않아도 검사 대상이 되므로 위에서 기각한 라우트별 opt-in 과 달리 빠뜨려도 열리지 않는다. 다만 가드는 세 데코레이터만 알아본다. 핸들러가 `req.user.workspaceId` 를 직접 읽는 경우의 비대칭은 아래 「경로 파라미터 워크스페이스도 가드가 본다」 와 「부팅 때 가드 인식을 스스로 검사한다」 가 다룬다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있으므로 이 예외에서 뺀다.
 
 ### 경로 파라미터 워크스페이스도 가드가 본다
 
@@ -566,6 +566,8 @@ sequenceDiagram
 서비스 계층 검사는 남긴다. 이 메서드들의 HTTP 밖 호출자는 없다(그날 실측: 내부 위임 `removeMember → leaveWorkspace` 하나이고 가드를 거친 HTTP 요청 안이다). 그러니 서비스 검사가 막는 것은 다른 호출 경로가 아니라 가드 인식이 깨져 그냥 통과되는 경우다. 오라클이 있던 세 메서드도 인가를 앞으로 옮겨 두 번째 방어선에 같은 오라클이 남지 않게 했다.
 
 기각한 대안은 두 가지이고, 실측과 함께 선택지를 제시해 사용자가 결정했다. (1) 오라클 두 곳만 서비스에서 인가를 먼저 하도록 고친다: 위 결정이 74번째 라우트 문제로 기각한 라우트별 패치의 연장이다. (2) 가드가 경로 파라미터도 보되 거부에 코드를 붙이지 않는다: 경로 라우트 13곳의 거부 본문이 서비스 코드에서 `FORBIDDEN` 으로 바뀌고, 프론트엔드가 `OWNER_REQUIRED` 로 소유자 이양 토스트를 가르는 분기가 깨진다. 채택안은 아래 에러 코드 결정과 함께다. 결정 기록은 `plan/complete/spec-draft-workspace-path-guard.md` 에 있다.
+
+2026-10-08 정정이다. 경로 값이 인가 대상인 라우트에서 가드는 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사하지 않는다. `@WorkspaceId()` 도 함께 소비하는 핸들러만 그 워크스페이스의 멤버십을 본다. 핸들러가 `@WorkspaceId()` 를 소비하지 않으면 헤더 값이 핸들러로 들어갈 통로가 없으므로 2026-08-08 의 헤더 위조 방어는 약해지지 않는다. NERV Task `CLE-T-9DBM7V` 의 구현 완료 검토가 헤더 멤버십 확인과 헤더 형식 검사 요구사항이 이 라우트도 헤더를 검사하는 것처럼 읽힌다고 지적해(finding 01a11b49-4407-7024-8428-7580e3b1fa32) 두 요구사항의 범위를 이 동작에 맞췄다. 정정을 검토한 결과 `WORKSPACE_ID_REQUIRED` 설명도 실제 발생 경로에 맞췄다(finding 01a11b52-e2ff-71ec-8668-422b77249cc8 · 01a11b5b-c443-719c-b49a-5f8c202de78b). 이 코드는 가드가 통과시킨 뒤 `@WorkspaceId()` 가 던진다. 그래서 경로 파라미터로 받는 워크스페이스가 없는 `@Roles()` 라우트에서 현재 워크스페이스가 없으면 이 코드가 아니라 가드의 코드 없는 거부가 난다. 가드 동작은 바뀌지 않았다.
 
 ### 가드 거부에 에러 코드를 붙인다
 
@@ -594,7 +596,7 @@ sequenceDiagram
 - 워크스페이스 `:id` 경로 파라미터는 2026-09-25 부터 인가 입력이 됐다. 그래서 가드 단계 검사는 헤더와 같은 `isUuidShaped` 이고 `ParseUUIDPipe` 는 가드 뒤에서 형식 파손만 400 으로 거른다. 없는 워크스페이스는 404 가 아니라 가드가 403 `NOT_A_MEMBER` 로 답해 존재가 새지 않는다.
 - 경로 파라미터 쪽 범위는 2026-10-04 NestJS 12 상향(NERV Task `CLE-T-3X627J`)에서 좁아졌다. Nest 11 의 `ParseUUIDPipe` 는 8-4-4-4-12 hex 모양이면 모두 받아 `isUuidShaped` 와 같았다. Nest 12 는 버전 1~8 과 RFC variant, nil · max UUID 만 받는다. 이 문서의 표는 그 전부터 "RFC v1~v5" 라고 적었는데 어느 버전과도 맞지 않았다. 그래서 `:memberId`·`:invitationId` 에 모양만 맞는 비 RFC 값을 보내면 전에는 핸들러까지 갔고(없는 리소스면 404) 이제는 400 `VALIDATION_ERROR` 다. 위 둘째 항목의 이유대로 이 변화는 접근 가능 여부를 드러내지 않는다. 워크스페이스 `:id` 는 가드가 파이프보다 먼저 판정하므로 인가 응답이 바뀌지 않는다.
 - "일관성" 을 이유로 헤더를 `ParseUUIDPipe` 수준으로 조이는 것은 회귀다. 두 검사의 경계는 단위 테스트가 고정한다. `common/utils/uuid.spec.ts` 의 "accepts UUID-shaped values that isValidUuid rejects (nil / v6+ / 비-RFC variant)" 가 경계 자체를, `common/utils/workspace-context.util.spec.ts` 의 "Postgres 가 파싱할 수 있는 값은 통과시킨다 (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)" 가 헬퍼 수준을 지킨다.
-- `test/system-status.e2e-spec.ts` 의 nil UUID 프로브는 이 검사에 닿지 않는다. `system-status` 컨트롤러에는 `@Roles()` 도 `@WorkspaceId()` 도 없어 `RolesGuard` 가 헬퍼 호출 전에 통과시킨다. 그 e2e 가 지키는 것은 "워크스페이스와 무관한 전역 라우트는 헤더를 무시한다" 는 별개 불변식이다. 진짜 회귀 감지는 위 두 단위 테스트가 한다.
+- `test/system-status.e2e-spec.ts` 의 nil UUID 프로브는 이 검사에 닿지 않는다. `system-status` 컨트롤러에는 `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 이 하나도 없어 `RolesGuard` 가 헬퍼 호출 전에 통과시킨다. 그 e2e 가 지키는 것은 "워크스페이스와 무관한 전역 라우트는 헤더를 무시한다" 는 별개 불변식이다. 진짜 회귀 감지는 위 두 단위 테스트가 한다.
 
 ### 부팅 때 가드 인식을 스스로 검사한다
 
