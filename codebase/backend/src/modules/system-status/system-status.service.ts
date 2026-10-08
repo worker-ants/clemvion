@@ -53,7 +53,7 @@ const ZERO_RECENT: RecentFailedResult = { recent: 0, capped: false };
 
 /**
  * 전체 시스템(BullMQ 큐)의 집계 상태를 반환한다.
- * 개별 job·payload 는 노출하지 않는다 (spec/5-system/16-system-status-api.md §4).
+ * 개별 job·payload 는 노출하지 않는다([시스템 상태 「보안」](CLE-OBS-STATUS#보안)).
  */
 @Injectable()
 export class SystemStatusService {
@@ -85,7 +85,8 @@ export class SystemStatusService {
       (sum, q) => sum + q.recentFailed,
       0,
     );
-    // 보수적 OR — 하나라도 capped 면 시스템 전역 합산도 하한값일 수 있다 (spec R-5).
+    // 보수적 OR — 하나라도 capped 면 시스템 전역 합산도 하한값일 수 있다.
+    // 근거: [시스템 상태 「실패 지표를 최근 윈도우와 누적 보관으로 나눈다」](CLE-OBS-STATUS#실패-지표를-최근-윈도우와-누적-보관으로-나눈다)
     const recentFailedCapped = queues.some((q) => q.recentFailedCapped);
 
     return {
@@ -101,7 +102,7 @@ export class SystemStatusService {
 
   /**
    * 단일 큐 검사. Redis 조회 실패 시 해당 큐만 down + 0 카운트로 degrade 하고
-   * 전체 응답은 유지한다 (spec §2).
+   * 전체 응답은 유지한다([시스템 상태 「API」](CLE-OBS-STATUS#api), REQ-SYSSTAT-015).
    */
   private async inspect(
     handle: QueueHandle,
@@ -166,7 +167,7 @@ export class SystemStatusService {
   }
 
   /**
-   * 최근 윈도우(`cutoffMs` 이후) 내 실패 job 수를 센다 (spec §2).
+   * 최근 윈도우(`cutoffMs` 이후) 내 실패 job 수를 센다(REQ-SYSSTAT-020).
    *
    * BullMQ `getFailed()` 는 newest→oldest 로 반환한다. 페이지 단위로 역순 스캔하다
    * `finishedOn` 이 윈도우를 벗어나는 첫 job 에서 중단한다(이후는 모두 더 오래됨).
@@ -228,14 +229,14 @@ export class SystemStatusService {
   }
 
   /**
-   * health 파생 (spec §3, 휴리스틱):
+   * health 파생([시스템 상태 「큐 건강도 판정」](CLE-OBS-STATUS#큐-건강도-판정), 휴리스틱):
    * 1. paused → down
    * 2. waiting>0 && active=0 → down (워커 미가동 추정)
    * 3. recentFailed/delayed 임계 초과 → degraded
    * 4. 그 외 → healthy
    *
    * 규칙 3 의 실패 기준은 보관 중 누적(`counts.failed`)이 아니라 **최근 윈도우
-   * `recentFailed`** 다 — degraded 가 "지금" 문제인지를 반영하도록 (spec R-5).
+   * `recentFailed`** 다 — degraded 가 "지금" 문제인지를 반영하도록(REQ-SYSSTAT-010).
    */
   private deriveHealth(
     counts: QueueCountsDto,

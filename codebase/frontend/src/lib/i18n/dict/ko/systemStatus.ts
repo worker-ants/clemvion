@@ -1,7 +1,7 @@
 export const systemStatus = {
   title: "시스템 상태",
   systemWideBanner:
-    "이 페이지는 전체 시스템의 상태입니다. 특정 워크스페이스나 사용자 기준이 아닙니다.",
+    "이 페이지는 전체 시스템의 상태예요. 특정 워크스페이스나 사용자 기준이 아니에요.",
   refresh: "새로고침",
   overall: {
     healthy: "시스템 정상",
@@ -32,6 +32,6 @@ export const systemStatus = {
     down: "점검 필요",
   },
   loading: "상태를 불러오는 중…",
-  loadFailed: "시스템 상태를 불러오지 못했습니다.",
+  loadFailed: "시스템 상태를 불러오지 못했어요.",
   retry: "다시 시도",
 } as const;

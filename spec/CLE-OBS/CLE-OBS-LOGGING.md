@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING"
 title: "로깅과 헬스 체크"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "f26d27651fc16f2d6392aa5c357cc89f77109215932459479e915125cc343206"
+content_hash: "737023a4fa6135b32a7d16cbc59304380697915d4d60a9bf7ef541b1449f1de5"
 read_as: "approved_fallback"
-task: "CLE-T-H0GF4K"
+task: "CLE-T-9DBM7V"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "947f5ef6f709bf6304e08cfc3ac3a4493ee3a3cd99f23d468e88e07984dfc16f"
-etag: "sha256-e2c0ec462f690eac3aa1d3941aee243dbe0494508610c72f0b1bf804eb53f40f"
+mirror_sha256: "f840878fb859ab4db73329a391abc06e2f4d1a2b347b6cfb043c6cca8a1cc1b6"
+etag: "sha256-99b16d0c36814f4d1f75c7855a646e1eff0316a8d29102dd78a844847362ba53"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -257,7 +257,7 @@ probe 는 자주 불린다(준비 상태 10초, 생존 확인 30초). 성공 로
 | --- | --- | --- | --- |
 | `clemvion.execution.total` | Counter | `status`(`completed`·`failed`·`cancelled`) | 워크플로우 실행이 종료 상태로 바뀐 수. 에러율 = `rate(...{status="failed"}) / rate(...)` |
 | `clemvion.execution.errors` | Counter | `error_code` | 실패 종료를 에러 코드별로 나눈다. `status` 라벨만으로는 원인을 나눌 수 없어서 둔다 |
-| `clemvion.queue.depth` | ObservableGauge | `queue`, `state`(`waiting`·`active`·`delayed`·`failed`) | BullMQ 큐 깊이. 주기적인 observable callback 이 `getJobCounts` 로 관측한다 |
+| `clemvion.queue.depth` | ObservableGauge | `queue`, `state`(`waiting`·`active`·`delayed`·`failed`) | BullMQ 큐 깊이. 주기적인 observable callback 이 `getJobCounts` 로 관측한다. BullMQ 6 부터 일시 정지된 큐의 대기 job 도 `state=waiting` 으로 센다. 시스템 상태 API 와 달리 `paused` 를 합성하지 않는다([시스템 상태](CLE-OBS-STATUS.md#bullmq-6-에서-paused-를-합성한다)) |
 | `clemvion.llm.tokens` | Counter | `model`, `type`(`input`·`output`·`thinking`) | LLM 토큰 사용량. 모든 `LlmService.chat`·`chatStream` 이 거치는 `LlmUsageLogService.record` 한 곳에서 계측한다([LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)) |
 | `clemvion.node.duration` | Histogram(ms) | `node_type`, `status` | 노드 실행 지연. 실행이 끝날 때 그 실행의 `node_execution.duration_ms` 로 기록한다 |
 | `clemvion.redis.fail_open` | Counter | `component`(`idempotency`), `reason`(`get_failed`·`set_failed`·`serialize_failed`·`entry_corrupt`·`payload_corrupt`) | Redis 에 기대는 기능이 fail-open 으로 물러난 횟수. fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데 예전에는 뒤쪽이 경고 로그뿐이라 비율·추세로 경보를 걸 수 없었다. 경보 예: `rate(clemvion_redis_fail_open[5m]) > 0` |

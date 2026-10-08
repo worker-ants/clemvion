@@ -22,7 +22,7 @@ import { ALERTS_EVALUATOR_QUEUE } from '../alerts/alerts-evaluator.service';
 
 /**
  * 시스템 상태 화면이 모니터링하는 큐의 그룹.
- * spec: spec/2-navigation/15-system-status.md §2.3
+ * 근거: [시스템 상태 「모니터링 대상 큐」](CLE-OBS-STATUS#모니터링-대상-큐)
  */
 export type QueueGroup =
   'execution' | 'knowledge-base' | 'integration' | 'system';
@@ -38,10 +38,10 @@ export interface MonitoredQueue {
 /**
  * continuation·execution-run worker 의 concurrency 는 env 로 조정 가능 (기본 1). 두 값 모두
  * 각 큐 모듈이 소유한 **canonical resolver** 를 재사용해 파싱을 일원화한다(MAINT#9) — 종전
- * inline `Number(env) || 1` 은 spec §11 이 문서화한 "비양수·비정수·비숫자→1 fallback" 계약과
+ * inline `Number(env) || 1` 은 큐 워커 스펙이 문서화한 "비양수·비정수·비숫자→1 fallback" 계약과
  * 어긋나(공학표기·소수 등을 loose 하게 수용) 있었다. resolver 는 정규식 선검증으로 그 계약을
  * 그대로 구현한다. 다른 큐는 worker 옵션의 정적 기본값을 반영.
- * SoT: spec/5-system/4-execution-engine.md §11 + spec/data-flow/0-overview.md §4 큐 카탈로그.
+ * SoT: [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER) · [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE)
  */
 const continuationConcurrency = resolveContinuationWorkerConcurrency();
 
@@ -50,7 +50,7 @@ const executionRunConcurrency = resolveExecutionRunWorkerConcurrency();
 
 /**
  * 모니터링 대상 큐 레지스트리.
- * 큐 추가/삭제 시 data-flow/0-overview.md §4 카탈로그를 먼저 갱신하고 본 표를 동기화한다.
+ * 큐 추가/삭제 시 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE) 카탈로그를 먼저 갱신하고 본 표를 동기화한다.
  * 또한 `test/system-status.e2e-spec.ts` 의 `EXPECTED_QUEUE_NAMES` 목록도 함께 갱신할 것.
  */
 export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
@@ -97,36 +97,56 @@ export const SYSTEM_STATUS_QUEUE_NAMES: readonly string[] =
 export const MONITORED_QUEUE_HANDLES = 'MONITORED_QUEUE_HANDLES';
 
 /**
- * health 파생 임계값 (env 로 조정 가능). spec §3.
+ * 시스템 상태 환경 변수를 양의 유한한 수로 읽는다. 미설정 · 빈 값 · 숫자가 아닌 값 · 0 · 음수 ·
+ * 무한대(`Infinity`, `1e999`)는 기본값으로 대신한다. `integer` 면 정수가 아닌 값도 기본값이다(개수를
+ * 뜻하는 값).
+ * 근거: [시스템 상태 「큐 건강도 판정」](CLE-OBS-STATUS#큐-건강도-판정) (REQ-SYSSTAT-021).
+ *
+ * 값은 `Number()` 로 읽으므로 앞뒤 공백과 지수 표기(`2e3`)도 숫자로 받는다. 위 concurrency resolver 는
+ * 큐 워커 스펙의 «양의 정수만» 계약을 따라 정규식으로 먼저 거른다. 이 값들의 계약은 숫자가 아닌 값만
+ * 거르라고 하므로 같은 검사를 두지 않는다.
+ */
+function readPositiveEnv(
+  name: string,
+  fallback: number,
+  opts: { integer?: boolean } = {},
+): number {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  if (opts.integer && !Number.isInteger(value)) return fallback;
+  return value;
+}
+
+/**
+ * health 파생 임계값 (env 로 조정 가능).
+ * - `SYSTEM_STATUS_FAILED_THRESHOLD`: 최근 윈도우 실패 수가 이 값 이상이면 `degraded`. 기본 1.
+ * - `SYSTEM_STATUS_DELAYED_THRESHOLD`: `delayed` 가 이 값 이상이면 `degraded`. 기본 50.
  *
  * 함수 형태로 제공해 테스트 격리(jest.resetModules 없이 process.env 변경 후
  * 즉시 반영)와 런타임 반영을 보장한다. 성능 영향은 무시 가능.
  */
 export function getFailedDegradedThreshold(): number {
-  return Number(process.env.SYSTEM_STATUS_FAILED_THRESHOLD) || 1;
+  return readPositiveEnv('SYSTEM_STATUS_FAILED_THRESHOLD', 1);
 }
 export function getDelayedDegradedThreshold(): number {
-  return Number(process.env.SYSTEM_STATUS_DELAYED_THRESHOLD) || 50;
+  return readPositiveEnv('SYSTEM_STATUS_DELAYED_THRESHOLD', 50);
 }
 
 /**
  * `recentFailed` 산정 윈도우(분). `finishedOn >= now - window` 인 실패 job 만 집계한다.
- * env `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`, 기본 60. spec §2·§3 / R-5.
+ * env `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`, 기본 60.
  */
 export function getFailedWindowMinutes(): number {
-  // Math.max(1, …): 음수·0 입력 시 cutoff 가 미래가 되는 것을 방지(최소 1분).
-  return Math.max(
-    1,
-    Number(process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES) || 60,
-  );
+  return readPositiveEnv('SYSTEM_STATUS_FAILED_WINDOW_MINUTES', 60);
 }
 
 /**
  * 큐당 `getFailed()` 역순 스캔 상한. 캡 도달 시 스캔을 멈추고 `recentFailed` 는
  * 하한값으로 간주한다 (UI 는 "N+" 표기). env `SYSTEM_STATUS_FAILED_SCAN_CAP`, 기본 1000.
- * 상수 비용을 포기하는 대신 비용 상한을 보장한다 (spec R-5).
+ * 상수 비용을 포기하는 대신 비용 상한을 보장한다.
  */
 export function getFailedScanCap(): number {
-  // Math.max(1, …): 음수·0 입력 시 스캔이 0 회가 되어 recentFailed 가 항상 0 이 되는 것을 방지(최소 1).
-  return Math.max(1, Number(process.env.SYSTEM_STATUS_FAILED_SCAN_CAP) || 1000);
+  return readPositiveEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', 1000, {
+    integer: true,
+  });
 }
