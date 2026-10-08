@@ -83,9 +83,14 @@ def _is_shallow_boundary(sha, cwd=None) -> bool:
     grafted = len(_git("rev-list", "--parents", "-n", "1", sha, cwd=cwd).split()) <= 1
     if not grafted:
         return False
-    return any(
-        line.startswith("parent ")
-        for line in _git("cat-file", "commit", sha, cwd=cwd).split("\n")
+    return _parent_count(sha, cwd=cwd) > 0
+
+
+def _parent_count(sha, cwd=None) -> int:
+    """`parent` headers in the raw commit object — unaffected by shallow grafts."""
+    return sum(
+        1 for line in _git("cat-file", "commit", sha, cwd=cwd).split("\n")
+        if line.startswith("parent ")
     )
 
 
@@ -157,10 +162,25 @@ def pick_commit_fixture(cwd=None) -> str:
     was stopped; CI's harness job has 15. Selection therefore also requires at
     most `MAX_FIXTURE_FILES` files. `CommitFixtureSelectionTest._make_bulk_repo`
     pins it, for the same reason as the other purpose-built fixtures.
+
+    Sixth variant, 2026-10-08 — the **overlapping merge**. The second variant's
+    filter (an empty combined diff) only catches merges whose sides touched
+    different files. When both sides changed the same file, that file differs
+    from each parent, `--name-only` lists it, and the merge sails through.
+    `--prepare --commit` then emits `@@@` combined hunks, which are deliberately
+    left without a gutter (`test_combined_merge_diff_is_left_verbatim`), so
+    `checked` lands at 0. Found on PR #1507's merge ref: the branch and `main`
+    had both changed `codebase/backend/package.json` and `pnpm-lock.yaml`
+    (dependabot merges), so CI went RED while every local run stayed green.
+    Selection therefore skips every commit with more than one parent — the
+    invariant `test_a_merge_commit_is_never_selected` already names.
+    `CommitFixtureSelectionTest._make_overlapping_merge_repo` pins it.
     """
     log = _git("log", "-n", str(FIXTURE_SEARCH_DEPTH), "--format=%H", cwd=cwd)
     for sha in filter(None, (line.strip() for line in log.split("\n"))):
         if _is_shallow_boundary(sha, cwd=cwd):
+            continue
+        if _parent_count(sha, cwd=cwd) > 1:
             continue
         files = {
             f for f in _git(
@@ -713,6 +733,66 @@ class CommitFixtureSelectionTest(unittest.TestCase):
             len(self._git(repo, "log", "-1", "--format=%P", picked).split()), 1,
             "the fixture search selected a merge commit; `--prepare` finds no "
             "files there and writes no prompts",
+        )
+
+    # -- sixth variant: overlapping merge (2026-10-08) ---------------------------
+    #
+    # The clean merge above is filtered by its empty combined diff. A merge where
+    # BOTH sides touched the same file is not: that file differs from each parent,
+    # so `--name-only` lists it and the old filter let the merge through. Found on
+    # PR #1507's merge ref — the branch and `main` had both changed
+    # `codebase/backend/package.json` and `pnpm-lock.yaml` — where `--prepare
+    # --commit` produced only `@@@` combined hunks (deliberately left without a
+    # gutter) and `checked` landed at 0.
+
+    def _make_overlapping_merge_repo(self):
+        """A merge whose sides changed DIFFERENT lines of the SAME file."""
+        import os
+
+        repo, git = self._new_repo()
+        path = os.path.join(repo, "f.txt")
+
+        def write(lines):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("".join(f"{line}\n" for line in lines))
+
+        # Untouched lines between the two edited ranges keep git from treating
+        # adjacent hunks as a conflict.
+        base = [f"f{i}" for i in range(240)]
+        write(base)
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        git("checkout", "-qb", "side")
+        write([f"SIDE{i}" if i < 100 else line for i, line in enumerate(base)])
+        git("commit", "-qam", "side-change")
+        git("checkout", "-q", "main")
+        write([f"MAIN{i}" if i >= 140 else line for i, line in enumerate(base)])
+        git("commit", "-qam", "main-change")
+        git("merge", "--no-ff", "-q", "-m", "merge side", "side")
+        return repo
+
+    def test_the_overlapping_merge_has_a_combined_diff(self):
+        """Non-vacuity: the merge must list the file in its combined diff, or
+        the old filter would already have skipped it and the test below would
+        pass for the wrong reason."""
+        repo = self._make_overlapping_merge_repo()
+        self.assertEqual(
+            len(self._git(repo, "log", "-1", "--format=%P").split()), 2,
+            "HEAD is not a merge commit — the fixture repo was built wrong",
+        )
+        names = [f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            "HEAD").split("\n") if f]
+        self.assertEqual(names, ["f.txt"], "the combined diff does not list the shared file")
+
+    def test_an_overlapping_merge_is_never_selected(self):
+        repo = self._make_overlapping_merge_repo()
+        picked = pick_commit_fixture(cwd=repo)
+        self.assertTrue(picked, "nothing was selected at all")
+        self.assertEqual(
+            len(self._git(repo, "log", "-1", "--format=%P", picked).split()), 1,
+            "the fixture search selected a merge whose combined diff is not "
+            "empty; `--prepare` writes only `@@@` hunks there and annotates nothing",
         )
 
     def test_the_selected_commit_has_files_prepare_can_see(self):

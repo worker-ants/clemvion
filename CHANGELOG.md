@@ -23,6 +23,19 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 줄 앵커 테스트가 merge 커밋을 고정 입력으로 고르지 않는다
+
+`test_line_anchors` 의 `test_diff_blocks_are_annotated_and_correct` 는 최근 커밋 하나를 골라 리뷰 프롬프트를 만들고
+diff 줄 번호를 원본과 대조한다. 이 고르는 함수(`pick_commit_fixture`)가 combined diff 가 빈 merge 만 걸렀다. PR 브랜치와
+`main` 이 같은 파일을 바꿨으면 GitHub 의 PR merge 커밋은 combined diff 에 그 파일이 남아 고정 입력으로 뽑혔다. 그 diff 는
+`@@@` hunk 라 줄 번호를 달지 않으므로 대조할 줄이 0개가 되어 harness-checks 가 빨개졌다(로컬은 merge 커밋이 없어 통과).
+PR #1507(bullmq 6)이 `main` 의 dependabot 머지와 `package.json` · `pnpm-lock.yaml` 을 함께 바꿔 드러났다(NERV Task `CLE-T-4RHTPR`).
+
+- `pick_commit_fixture` 가 parent 가 둘 이상인 커밋은 모두 건너뛴다. 기존 테스트 이름(`test_a_merge_commit_is_never_selected`)이
+  말하던 불변식과 같다.
+- 양쪽이 같은 파일의 다른 줄을 바꾼 merge 를 목적 저장소로 만들어 고르지 않는다는 테스트와 그 merge 가 실제로 combined
+  diff 를 갖는다는 전제 테스트를 더했다.
+
 ## Unreleased — 의존성: proxy-addr · source-map-js 하한을 올리고 sprintf-js 를 트리에서 뺀다
 
 2026-10-08 공지된 권고 셋이 main 의 `pnpm audit (moderate+)` 를 막아 dependabot PR 세 건(#1500 · #1501 · #1502)이
