@@ -23,6 +23,26 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 의존성: proxy-addr · source-map-js 하한을 올리고 sprintf-js 를 트리에서 뺀다
+
+2026-10-08 공지된 권고 셋이 main 의 `pnpm audit (moderate+)` 를 막아 dependabot PR 세 건(#1500 · #1501 · #1502)이
+모두 실패했다(NERV Task `CLE-T-NC8BS7`). 셋 다 프로덕션 경로가 있어 수용하지 않고 해소했다. 고친 뒤 moderate 이상은
+0 건이다(이미 수용한 braces 1 건 제외). `pnpm audit --prod` 도 0 건이다.
+
+- **proxy-addr 2.0.7 → 2.0.8(backend > express, critical)**: GHSA-jqcg-44mw-7w3h. 신뢰 프록시를 IPv4-mapped IPv6
+  서브넷(`::ffff:10.0.0.0/8` 같은 짧은 prefix)으로 적으면 모든 IPv4 주소가 프록시로 신뢰되는 결함이다. backend 는
+  `trust proxy` 를 홉 수 `1` 로 두고 서브넷을 쓰지 않아 이 결함에 걸리지 않았다. 동작은 바뀌지 않았고 audit 을 풀려고
+  올렸다. express 의 선언 `^2.0.7` 안이다.
+- **source-map-js 1.2.1 → 1.2.2(high)**: GHSA-68fv-2mgg-jv7q. 프로덕션 경로는 frontend > @tailwindcss/postcss 다.
+  소비처 넷이 모두 `^1.2.1` 을 선언한다.
+- **sprintf-js 제거(moderate)**: GHSA-hp3w-g68c-fv3c 는 패치 버전이 없다. 유일한 경로 js-yaml@3 > argparse@1 에
+  `js-yaml@3>argparse: ^2.0.1` override 를 걸어 argparse 2(의존성 없음)로 바꿨다. js-yaml@3 의 선언 범위를 벗어나지만
+  js-yaml@3 라이브러리는 argparse 를 쓰지 않고 CLI 만 쓴다. 그 CLI 는 워크스페이스 패키지의 `.bin` 에 없고 gray-matter ·
+  @istanbuljs/load-nyc-config 의 비공개 `.bin` 에만 있다. argparse 2.0.1 의 옛 API 호환층 덕에 CLI 도 폐기 경고만 내고
+  돈다. frontend 의 gray-matter(js-yaml@3)는 그대로 동작한다. 걷는 조건과 다시 볼 때 확인할 것은 override 주석에 적었다.
+- `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 에 세 핀을 함께 넣었다.
+- lockfile 의 `eslint-plugin-import` 스냅샷 키가 다시 직렬화됐다(peer 접미사 표기만 바뀌고 해소 버전은 그대로다).
+
 ## Unreleased — 보안: 채팅 채널 · 알림의 마지막 오류에 봇 토큰 · 자격 증명이 실려 나가지 않는다
 
 트리거의 마지막 오류 칸(`chatChannelLastError` · `notificationLastError`)은 실패 원문을 그대로 저장하고 `GET /api/triggers` · `GET /api/triggers/:id`(뷰어도 조회한다)로 가리지 않고 내보냈다. Slack 봇 토큰에 줄바꿈 · NUL 이 섞이면 Node 의 fetch 가 헤더 값 전체를 오류 원문에 실어 토큰 평문이 DB 칸 · 서버 로그 · 응답까지 갔다. 알림 URL 에 `user:pass@` 가 있으면 그 URL 이 마지막 오류에 남았다(NERV Task `CLE-T-H0GF4K`, Node 24 로 재현).

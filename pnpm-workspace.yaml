@@ -107,6 +107,36 @@ overrides:
   # GHSA-2gc4-cqfq-p2gv (high) — backend > socket.io@4.8.3 > engine.io. socket.io 의 선언이
   # `~6.6.0` 이라 `^` 가 아니라 `~` 로 둔다(socket.io-parser 와 같은 이유).
   "engine.io": ~6.6.10
+  # proxy-addr · source-map-js · `js-yaml@3>argparse` 는 2026-10-08 에 더했다(NERV Task `CLE-T-NC8BS7`).
+  # GHSA-jqcg-44mw-7w3h (critical) — backend > express@5.2.1 > proxy-addr, **프로덕션** 경로다.
+  # 2.0.8 에서 패치됐다. express 의 선언이 `^2.0.7` 이라 그 범위 안에서 올린다
+  # (실측: `npm view express@5.2.1 dependencies.proxy-addr`). 결함은 신뢰 서브넷 판정에만 있고
+  # backend 는 `trust proxy` 를 홉 수 `1` 로 둔다(`main.ts`).
+  proxy-addr: ^2.0.8
+  # GHSA-68fv-2mgg-jv7q (high) — 소비처 넷(postcss · css-tree · @eslint/css-tree ·
+  # @tailwindcss/node)이 모두 `^1.2.1` 을 선언하고 1.2.2 에서 패치됐다. frontend > @tailwindcss/postcss
+  # 경로가 프로덕션이다.
+  source-map-js: ^1.2.2
+  # GHSA-hp3w-g68c-fv3c (moderate) — sprintf-js 는 패치 버전이 없다(`<=1.1.3`, 최신 1.1.3).
+  # 들어오는 길은 js-yaml@3 > argparse@1 하나이고 frontend > gray-matter 경로가 **프로덕션**이라
+  # 수용(`auditConfig.ignoreCves`)하지 않고 argparse 를 2.x 로 올려 sprintf-js 를 트리에서 뺀다.
+  # argparse 2 에는 의존성이 없다. 이 항목은 보안 하한이 아니라 sprintf-js 를 트리에서 빼려는 것이다.
+  # 이 override 는 js-yaml@3 의 선언 `^1.0.7` 을 벗어난다. 그래도 되는 근거(2026-10-08 실측):
+  #   - js-yaml@3.15.2 의 라이브러리(`index.js` · `lib/**`)는 argparse 를 require 하지 않는다.
+  #     argparse 를 쓰는 곳은 CLI `bin/js-yaml.js` 하나다.
+  #   - 그 CLI 는 워크스페이스 패키지의 `.bin` 에 없다. pnpm 이 gray-matter ·
+  #     @istanbuljs/load-nyc-config 의 비공개 `node_modules/.bin` 에 shim 을 두지만 두 패키지는
+  #     라이브러리만 쓴다.
+  #   - argparse 2.0.1 에는 옛 API 호환층이 있어 CLI 도 폐기 경고만 내고 그대로 돈다
+  #     (YAML → JSON 변환 exit 0).
+  # 그래서 키를 `js-yaml@3>` 로 좁혔다. argparse@1 API 를 실제로 쓰는 다른 소비처가 생겨도 이
+  # override 는 그 경로에 걸리지 않는다.
+  # 걷는 조건: sprintf-js 패치가 나오거나 js-yaml@3 소비처(gray-matter · @istanbuljs/load-nyc-config)가
+  # 트리에서 사라지면 이 키와 `check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 항목,
+  # `.claude/tests/test_override_floors.py` 의 `argparse` 단언을 함께 지운다.
+  # 다시 볼 때: lockfile 의 js-yaml 3.x 가 바뀌면 그 판의 `lib/**` 에 argparse require 가 없는지
+  # `grep -rn argparse node_modules/.pnpm/js-yaml@3.*/node_modules/js-yaml/lib` 로 확인한다.
+  "js-yaml@3>argparse": ^2.0.1
 
 # pnpm v10 은 lifecycle(build) script 를 기본 차단한다 (pnpm 10 정규 위치 — package.json
 # `pnpm.onlyBuiltDependencies` 에서 이전). 네이티브/바이너리 빌드가 필요한 패키지만 허용.

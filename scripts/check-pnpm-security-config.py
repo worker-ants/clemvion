@@ -64,6 +64,9 @@ EXPECTED_OVERRIDES = {
     "brace-expansion@>=2.0.0 <3.0.0": "^5.0.12",
     "brace-expansion@>=3.0.0 <5.0.12": "^5.0.12",
     "engine.io": "~6.6.10",
+    "proxy-addr": "^2.0.8",
+    "source-map-js": "^1.2.2",
+    "js-yaml@3>argparse": "^2.0.1",
 }
 EXPECTED_ONLY_BUILT = {
     "isolated-vm",

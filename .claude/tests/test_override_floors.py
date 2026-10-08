@@ -232,6 +232,9 @@ class OverrideTargetExtractionTest(unittest.TestCase):
         self.assertEqual(self.mod.override_target("a>@scope/b"), "@scope/b")
         self.assertEqual(self.mod.override_target("parent@1.0.0>child"), "child")
         self.assertEqual(self.mod.override_target("parent@>=1.0.0>child"), "child")
+        # 부모 선택자가 연산자 없는 메이저 숫자인 형태(`js-yaml@3>argparse`, 2026-10-08 CLE-T-NC8BS7).
+        # 숫자 뒤 `>` 를 레인지로 읽으면 `js-yaml` 이 대상이 돼 argparse 권고를 놓친다.
+        self.assertEqual(self.mod.override_target("js-yaml@3>argparse"), "argparse")
         # 2차 리뷰가 실패를 재현한 정확한 조합 — 중간 scope + 리프의 scope+레인지.
         self.assertEqual(
             self.mod.override_target("a>@scope/b>@scope/c@>=1.0.0"), "@scope/c"
@@ -261,6 +264,8 @@ class OverrideTargetExtractionTest(unittest.TestCase):
         self.assertGreaterEqual(len(targets.get("brace-expansion", [])), 2)
         # scope 패키지가 이름 그대로 살아있어야 한다.
         self.assertIn("@grpc/grpc-js", targets)
+        # 부모를 메이저 숫자로 고른 키도 리프로 풀려야 한다(`js-yaml@3>argparse`).
+        self.assertIn("argparse", targets)
 
 
 class ClassificationTest(unittest.TestCase):
