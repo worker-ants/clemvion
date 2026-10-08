@@ -25,7 +25,7 @@
 
 ## Unreleased — 시스템 상태: 잘못된 환경 변수를 기본값으로 대신하고 화면 문구를 해요체로 바꾼다
 
-승인된 시스템 상태 스펙(CLE-OBS-STATUS v2)의 REQ-SYSSTAT-021 에 코드를 맞췄다(NERV Task `CLE-T-9DBM7V`).
+승인된 시스템 상태 스펙(CLE-OBS-STATUS v3)의 REQ-SYSSTAT-021 에 코드를 맞췄다(NERV Task `CLE-T-9DBM7V`).
 
 - **환경 변수 보정:** `SYSTEM_STATUS_FAILED_THRESHOLD` · `SYSTEM_STATUS_DELAYED_THRESHOLD` ·
   `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` · `SYSTEM_STATUS_FAILED_SCAN_CAP` 에 음수, 0, 숫자가 아닌 값, 무한대(`Infinity`)가
