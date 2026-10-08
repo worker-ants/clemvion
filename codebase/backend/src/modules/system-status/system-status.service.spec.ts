@@ -1,6 +1,8 @@
 import { SystemStatusService, QueueHandle } from './system-status.service';
 import {
   MonitoredQueue,
+  getDelayedDegradedThreshold,
+  getFailedDegradedThreshold,
   getFailedWindowMinutes,
   getFailedScanCap,
 } from './system-status.constants';
@@ -606,27 +608,54 @@ describe('SystemStatusService.getOverview', () => {
   });
 });
 
-describe('failed window/scan-cap getter 가드', () => {
-  it.each([
-    ['SYSTEM_STATUS_FAILED_WINDOW_MINUTES', getFailedWindowMinutes, 60],
-    ['SYSTEM_STATUS_FAILED_SCAN_CAP', getFailedScanCap, 1000],
-  ])('%s: 빈/NaN/0 은 기본값, 음수는 1 로 클램프', (env, getter, dflt) => {
+// REQ-SYSSTAT-021: 음수, 0, 숫자가 아닌 값은 기본값으로 대신한다.
+describe('환경 변수 getter 가드 (REQ-SYSSTAT-021)', () => {
+  const withEnv = (env: string, value: string | undefined, fn: () => void) => {
     const prev = process.env[env];
     try {
-      delete process.env[env];
-      expect(getter()).toBe(dflt); // 미설정 → 기본값
+      if (value === undefined) delete process.env[env];
+      else process.env[env] = value;
+      fn();
+    } finally {
+      if (prev === undefined) delete process.env[env];
+      else process.env[env] = prev;
+    }
+  };
 
-      process.env[env] = 'abc';
-      expect(getter()).toBe(dflt); // NaN → 기본값
+  it.each([
+    ['SYSTEM_STATUS_FAILED_THRESHOLD', getFailedDegradedThreshold, 1],
+    ['SYSTEM_STATUS_DELAYED_THRESHOLD', getDelayedDegradedThreshold, 50],
+    ['SYSTEM_STATUS_FAILED_WINDOW_MINUTES', getFailedWindowMinutes, 60],
+    ['SYSTEM_STATUS_FAILED_SCAN_CAP', getFailedScanCap, 1000],
+  ])(
+    '%s: 미설정 · 빈 값 · 숫자 아님 · 0 · 음수는 기본값, 양수는 그 값',
+    (env, getter, dflt) => {
+      for (const bad of [undefined, '', 'abc', '0', '-5', '-0.5']) {
+        withEnv(env, bad, () => expect(getter()).toBe(dflt));
+      }
+      withEnv(env, '30', () => expect(getter()).toBe(30));
+    },
+  );
 
-      process.env[env] = '0';
-      expect(getter()).toBe(dflt); // 0 은 falsy → 기본값 (0 분/0 스캔은 무의미)
+  it('스캔 상한은 개수라서 정수가 아니면 기본값이다', () => {
+    withEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', '0.5', () =>
+      expect(getFailedScanCap()).toBe(1000),
+    );
+    withEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', '2.5', () =>
+      expect(getFailedScanCap()).toBe(1000),
+    );
+  });
 
-      process.env[env] = '-5';
-      expect(getter()).toBe(1); // 음수 → Math.max 클램프 1
-
-      process.env[env] = '30';
-      expect(getter()).toBe(30); // 정상값 반영
+  it('음수 실패 임계값이 모든 큐를 degraded 로 만들지 않는다', async () => {
+    const env = 'SYSTEM_STATUS_FAILED_THRESHOLD';
+    const prev = process.env[env];
+    process.env[env] = '-5';
+    try {
+      const service = new SystemStatusService([
+        makeHandle('a', 'execution', 1, { active: 1 }),
+      ]);
+      const res = await service.getOverview();
+      expect(res.queues[0].health).toBe('healthy');
     } finally {
       if (prev === undefined) delete process.env[env];
       else process.env[env] = prev;

@@ -23,6 +23,19 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 시스템 상태: 잘못된 환경 변수를 기본값으로 대신하고 화면 문구를 해요체로 바꾼다
+
+승인된 시스템 상태 스펙(CLE-OBS-STATUS v2)의 REQ-SYSSTAT-021 에 코드를 맞췄다(NERV Task `CLE-T-9DBM7V`).
+
+- **환경 변수 보정:** `SYSTEM_STATUS_FAILED_THRESHOLD` · `SYSTEM_STATUS_DELAYED_THRESHOLD` ·
+  `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` · `SYSTEM_STATUS_FAILED_SCAN_CAP` 에 음수, 0, 숫자가 아닌 값이 들어오면 기본값(1 · 50 ·
+  60 · 1000)을 쓴다. 스캔 상한은 개수라서 정수가 아닌 값도 기본값이다.
+  - 예전에는 임계값 음수가 그대로 쓰여 음수 실패 임계값이면 모든 큐가 `degraded` 로 판정됐다.
+  - 윈도우와 스캔 상한의 음수는 기본값이 아니라 1 이 됐다.
+  - 이 값들을 음수로 둔 배포가 있다면 건강도 판정과 최근 실패 수가 달라진다.
+- **화면 문구:** 시스템 상태 화면의 안내 배너와 불러오기 실패 문구(한국어)를 해요체로 바꿨다.
+- 함께 승인된 CLE-ACCT-WS v3 · CLE-OBS-LOGGING v3 · CLE-AI-MEMORY v1 을 `spec/` 미러에 반영했다(서술 정정).
+
 ## Unreleased — 의존성: backend 의 BullMQ 를 5 에서 6 으로 올린다
 
 dependabot PR #1501(bullmq 5.81.2 → 6.3.11)이 타입 오류 2건으로 backend 빌드부터 실패했다. BullMQ 6 은 `paused` job 상태를

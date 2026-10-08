@@ -20,8 +20,8 @@ export class QueueCountsDto {
   @ApiProperty({ example: 0, description: '재시도 소진 후 실패한 job 수' })
   failed: number;
 
-  // BullMQ 6 에는 paused job 상태가 없어 서비스가 합성한다. 규칙은 system-status.service.ts
-  // 의 inspect 에 적었다. 스펙 본문 반영은 NERV Task CLE-T-9DBM7V 가 맡고 그때 이 주석도 고친다.
+  // BullMQ 6 에는 paused job 상태가 없어 서비스가 합성한다(system-status.service.ts 의 inspect).
+  // 근거: [시스템 상태 「BullMQ 6 에서 `paused` 를 합성한다」](CLE-OBS-STATUS#bullmq-6-에서-paused-를-합성한다)
   @ApiProperty({
     example: 0,
     description:

@@ -2,7 +2,7 @@
   "_note": "legacy-path-ratchet.test.ts 의 기준값. 손으로 고치지 말고 그 파일 머리의 명령으로 다시 쓴다.",
   "spec": {
     "codebase/api-catalogs/README.md": 2,
-    "codebase/backend/.env.example": 15,
+    "codebase/backend/.env.example": 14,
     "codebase/backend/eslint.config.mjs": 1,
     "codebase/backend/migrations/V001__initial_schema.sql": 1,
     "codebase/backend/migrations/V002__indexes.sql": 1,
@@ -276,8 +276,6 @@
     "codebase/backend/src/modules/secret-store/secret-resolver.service.ts": 2,
     "codebase/backend/src/modules/secret-store/secret-store.module.ts": 1,
     "codebase/backend/src/modules/system-status/system-status.constants.spec.ts": 2,
-    "codebase/backend/src/modules/system-status/system-status.constants.ts": 2,
-    "codebase/backend/src/modules/system-status/system-status.service.ts": 1,
     "codebase/backend/src/modules/triggers/chat-channel-binder.service.ts": 2,
     "codebase/backend/src/modules/triggers/chat-channel-input-rules.ts": 6,
     "codebase/backend/src/modules/triggers/chat-channel-rejection-messages.const.ts": 2,
