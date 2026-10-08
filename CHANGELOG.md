@@ -23,6 +23,21 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 의존성: backend 의 BullMQ 를 5 에서 6 으로 올린다
+
+dependabot PR #1501(bullmq 5.81.2 → 6.3.11)이 타입 오류 2건으로 backend 빌드부터 실패했다. BullMQ 6 은 `paused` job 상태를
+`JobType` 과 `getJobCounts()` 에서 없앴고 일시 정지한 큐의 job 을 `waiting` 으로 센다(NERV Task `CLE-T-HPZCK2`).
+
+- **시스템 상태 응답은 그대로다.** `GET /api/system-status/overview` 의 `counts.paused` 는 큐가 일시 정지됐을 때 대기 job 수를
+  `paused` 로 옮기고 `waiting` 을 0 으로 두어 BullMQ 5 와 같은 값을 낸다. 건강도 판정(일시 정지 → `down`)도 같다.
+- **큐 정리 스크립트**(`cleanup-invalid-queue-jobs`)는 대상 상태에서 `paused` 를 뺐다. 일시 정지한 큐의 job 이 `waiting` 으로
+  보이므로 정리 범위는 같다. 로그의 `scanning states=` 값이 `waiting,delayed,failed` 로 바뀐다.
+- **큐 깊이 지표가 조금 달라진다.** `clemvion.queue.depth` 의 `state=waiting` 은 이제 일시 정지한 큐의 job 도 센다(BullMQ 5 에서는
+  `paused` 목록에 있어 빠졌다). 코드에서 큐를 일시 정지하는 곳은 정리 스크립트의 `--pause-during-sweep` 하나이고 그 대상은
+  지식 저장소 큐라서 이 지표가 보는 실행 큐와 겹치지 않는다.
+- 레거시 repeatable API · `Queue#client` · `debounce` 등 6 에서 없어진 API 는 쓰지 않는다(반복 작업은 이미 `upsertJobScheduler`).
+  ioredis 는 BullMQ 6 에서 optional peer 가 됐고 backend 가 직접 의존하는 ioredis 6 으로 풀린다.
+
 ## Unreleased — 의존성: proxy-addr · source-map-js 하한을 올리고 sprintf-js 를 트리에서 뺀다
 
 2026-10-08 공지된 권고 셋이 main 의 `pnpm audit (moderate+)` 를 막아 dependabot PR 세 건(#1500 · #1501 · #1502)이

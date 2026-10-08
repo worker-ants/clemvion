@@ -9,14 +9,10 @@ type InvalidJobCandidate = Job<
 /**
  * sweep 대상 BullMQ 큐 상태. `active` 는 처리 중인 job 을 sweep 해 데이터 손상이
  * 나는 것을 막기 위해 제외, `completed` 는 어차피 자동 만료되므로 비대상.
- * `paused` 는 운영자가 일시 정지한 큐의 잔재까지 청소할 수 있게 포함.
+ * BullMQ 6 부터는 paused 상태가 따로 없고 일시 정지한 큐의 job 도 `waiting` 으로 보이므로
+ * 운영자가 일시 정지한 큐의 잔재도 `waiting` 으로 함께 청소된다.
  */
-export const CLEANUP_QUEUE_STATES = [
-  'waiting',
-  'delayed',
-  'failed',
-  'paused',
-] as const;
+export const CLEANUP_QUEUE_STATES = ['waiting', 'delayed', 'failed'] as const;
 const CLEANUP_QUEUE_STATES_MUTABLE: Array<
   (typeof CLEANUP_QUEUE_STATES)[number]
 > = [...CLEANUP_QUEUE_STATES];

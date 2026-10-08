@@ -339,7 +339,7 @@ describe('sweepInvalidJobs', () => {
 
     // Header + per-job + tail
     expect(lines[0]).toBe(
-      '[document-embedding] scanning states=waiting,delayed,failed,paused',
+      '[document-embedding] scanning states=waiting,delayed,failed',
     );
     expect(lines).toContain(
       '  jobId=jid-1 name=job-jid-1 ts=1700000000000 attempts=0 payloadKeys=[documentId,knowledgeBaseId]',
