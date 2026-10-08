@@ -320,6 +320,20 @@ describe('sweepInvalidJobs', () => {
     expect(secondCallArgs[1]).toBe(0); // start offset
   });
 
+  it('passes only BullMQ 6 job states to getJobs (no paused state)', async () => {
+    const queue = makeQueue([[]]);
+
+    await sweepInvalidJobs({
+      name: 'document-embedding',
+      queue: queue as unknown as Queue,
+      apply: false,
+      pauseDuringSweep: false,
+    });
+
+    const states = (queue.getJobs.mock.calls[0] as unknown[])[0];
+    expect(states).toEqual(['waiting', 'delayed', 'failed']);
+  });
+
   it('emits per-job log line with stable grep-friendly format', async () => {
     const invalid = makeJob('jid-1', undefined, { knowledgeBaseId: 'kb-1' });
     const queue = makeQueue([[invalid]]);
@@ -339,7 +353,7 @@ describe('sweepInvalidJobs', () => {
 
     // Header + per-job + tail
     expect(lines[0]).toBe(
-      '[document-embedding] scanning states=waiting,delayed,failed,paused',
+      '[document-embedding] scanning states=waiting,delayed,failed',
     );
     expect(lines).toContain(
       '  jobId=jid-1 name=job-jid-1 ts=1700000000000 attempts=0 payloadKeys=[documentId,knowledgeBaseId]',

@@ -4,7 +4,11 @@ import type { QueueGroup } from '../system-status.constants';
 export type QueueHealth = 'healthy' | 'degraded' | 'down';
 
 export class QueueCountsDto {
-  @ApiProperty({ example: 0, description: '대기 중인 job 수' })
+  @ApiProperty({
+    example: 0,
+    description:
+      '대기 중인 job 수. 큐가 일시 정지된 동안에는 0 이고 대기 job 은 paused 로 센다',
+  })
   waiting: number;
 
   @ApiProperty({ example: 1, description: '처리 중인 job 수' })
@@ -16,7 +20,13 @@ export class QueueCountsDto {
   @ApiProperty({ example: 0, description: '재시도 소진 후 실패한 job 수' })
   failed: number;
 
-  @ApiProperty({ example: 0, description: 'paused 상태 job 수' })
+  // BullMQ 6 에는 paused job 상태가 없어 서비스가 합성한다. 규칙은 system-status.service.ts
+  // 의 inspect 에 적었다. 스펙 본문 반영은 NERV Task CLE-T-9DBM7V 가 맡고 그때 이 주석도 고친다.
+  @ApiProperty({
+    example: 0,
+    description:
+      '큐가 일시 정지된 동안 처리를 기다리는 job 수. 일시 정지되지 않은 큐는 0',
+  })
   paused: number;
 }
 

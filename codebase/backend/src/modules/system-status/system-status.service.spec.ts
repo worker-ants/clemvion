@@ -5,12 +5,12 @@ import {
   getFailedScanCap,
 } from './system-status.constants';
 
+/** BullMQ 6 `getJobCounts` 가 셀 수 있는 상태. paused 상태는 없다. */
 type Counts = {
   waiting: number;
   active: number;
   delayed: number;
   failed: number;
-  paused: number;
 };
 
 /** getFailed mock 용 최소 Job 형태 (newest→oldest 순서로 전달). */
@@ -47,16 +47,20 @@ function makeHandle(
     active: 0,
     delayed: 0,
     failed: 0,
-    paused: 0,
     ...counts,
   };
   const failedJobs = opts.failedJobs ?? [];
   return {
     meta: { name, group, concurrency },
     queue: {
-      getJobCounts: jest.fn(async () => {
+      // 실제 BullMQ 처럼 요청한 상태만 돌려준다. 모르는 상태 키는 응답에 넣지 않는다.
+      getJobCounts: jest.fn(async (...types: string[]) => {
         if (opts.throws) throw new Error('redis down');
-        return full;
+        return Object.fromEntries(
+          types
+            .filter((t) => t in full)
+            .map((t) => [t, full[t as keyof Counts]]),
+        );
       }),
       isPaused: jest.fn(async () => {
         if (opts.throws) throw new Error('redis down');
@@ -127,6 +131,82 @@ describe('SystemStatusService.getOverview', () => {
     expect(b.health).toBe('down');
     expect(res.overall).toBe('down');
   });
+
+  // bullmq 6 은 paused job 상태가 없고 일시 정지 큐의 대기 job 을 `waiting` 으로 센다.
+  // 응답의 `counts.paused` 는 bullmq 5 와 같은 값이 되도록 서비스가 합성한다.
+  it('getJobCounts 에 paused 상태를 넘기지 않는다 (bullmq 6 JobType 에 없다)', async () => {
+    const handle = makeHandle('a', 'execution', 1, { active: 1 });
+    const service = new SystemStatusService([handle]);
+
+    await service.getOverview();
+
+    const args = (handle.queue.getJobCounts as jest.Mock).mock.calls[0];
+    expect(args).not.toContain('paused');
+    expect([...args].sort()).toEqual([
+      'active',
+      'delayed',
+      'failed',
+      'waiting',
+    ]);
+  });
+
+  it('일시 정지 큐는 대기 job 을 paused 로 보고하고 waiting 은 0 이다', async () => {
+    const handles = [
+      makeHandle(
+        'b',
+        'system',
+        3,
+        { waiting: 4, active: 2 },
+        { isPaused: true },
+      ),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].counts.paused).toBe(4);
+    expect(res.queues[0].counts.waiting).toBe(0);
+    // 일시 정지 중에도 이미 처리 중인 job 은 active 로 남는다.
+    expect(res.queues[0].counts.active).toBe(2);
+    expect(res.queues[0].health).toBe('down');
+  });
+
+  it('일시 정지되지 않은 큐는 대기 job 을 waiting 으로 두고 paused 는 0 이다', async () => {
+    const handles = [
+      makeHandle(
+        'c',
+        'system',
+        1,
+        { waiting: 4, active: 1 },
+        { isPaused: false },
+      ),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].counts.waiting).toBe(4);
+    expect(res.queues[0].counts.paused).toBe(0);
+  });
+
+  it.each([true, false])(
+    'getJobCounts 가 상태 키를 빠뜨리면 0 으로 센다 (isPaused=%s)',
+    async (isPaused) => {
+      const handle = makeHandle('d', 'system', 1, {}, { isPaused });
+      (handle.queue.getJobCounts as jest.Mock).mockResolvedValue({} as never);
+      const service = new SystemStatusService([handle]);
+
+      const res = await service.getOverview();
+
+      expect(res.queues[0].counts).toEqual({
+        waiting: 0,
+        active: 0,
+        delayed: 0,
+        failed: 0,
+        paused: 0,
+      });
+    },
+  );
 
   it('waiting>0 && active=0 → 워커 미가동 추정 down', async () => {
     const handles = [
@@ -286,7 +366,6 @@ describe('SystemStatusService.getOverview', () => {
           active: 1,
           delayed: 0,
           failed: 0,
-          paused: 0,
         })),
         isPaused: jest.fn(async () => false),
         getFailed,

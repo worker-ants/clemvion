@@ -11,7 +11,8 @@ import { registerAndLogin } from './helpers/auth';
  * 검증 영역:
  *   1) 미인증 → 401 (전역 JWT 가드)
  *   2) 인증 → 200, {data:{generatedAt,overall,totalFailed,totalRecentFailed,recentFailedCapped,failedWindowMinutes,queues}} 형태 + EXPECTED_QUEUE_NAMES 기준 큐 enumerate
- *   3) 각 큐 항목 구조(counts/recentFailed/recentFailedCapped/health/group/utilization) 정합
+ *   3) 각 큐 항목 구조(counts/recentFailed/recentFailedCapped/health/group/utilization) 정합과
+ *      일시 정지 여부에 따른 counts.waiting/paused 배분
  *   4) 시스템 전역 API — X-Workspace-Id 유무가 결과 큐 집합에 영향 없음
  *
  * 실 BullMQ root 연결이 떠 있는 e2e 인프라에서만 의미가 있다.
@@ -119,6 +120,9 @@ describe('System Status API (e2e)', () => {
       expect(typeof q.counts.delayed).toBe('number');
       expect(typeof q.counts.failed).toBe('number');
       expect(typeof q.counts.paused).toBe('number');
+      // 대기 job 은 큐가 일시 정지됐으면 paused 로, 아니면 waiting 으로만 센다(BullMQ 6 합성).
+      // e2e 인프라는 큐를 일시 정지하지 않으므로 합성 규칙 자체는 단위 테스트가 검증한다.
+      expect(q.isPaused ? q.counts.waiting : q.counts.paused).toBe(0);
       expect(typeof q.recentFailed).toBe('number');
       expect(typeof q.recentFailedCapped).toBe('boolean');
       // recentFailed 는 보관 중 누적(failed)을 초과할 수 없다 (윈도우 부분집합)
