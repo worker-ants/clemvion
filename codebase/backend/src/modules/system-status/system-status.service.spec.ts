@@ -608,57 +608,130 @@ describe('SystemStatusService.getOverview', () => {
   });
 });
 
-// REQ-SYSSTAT-021: 음수, 0, 숫자가 아닌 값은 기본값으로 대신한다.
+// REQ-SYSSTAT-021: 음수, 0, 숫자가 아닌 값, 무한대는 기본값으로 대신한다.
 describe('환경 변수 getter 가드 (REQ-SYSSTAT-021)', () => {
-  const withEnv = (env: string, value: string | undefined, fn: () => void) => {
+  /** env 하나를 바꿔 fn 을 실행하고(비동기면 끝날 때까지 기다린 뒤) 원래 값으로 되돌린다. */
+  const withEnv = async (
+    env: string,
+    value: string | undefined,
+    fn: () => unknown,
+  ): Promise<void> => {
     const prev = process.env[env];
     try {
       if (value === undefined) delete process.env[env];
       else process.env[env] = value;
-      fn();
+      await fn();
     } finally {
       if (prev === undefined) delete process.env[env];
       else process.env[env] = prev;
     }
   };
 
-  it.each([
-    ['SYSTEM_STATUS_FAILED_THRESHOLD', getFailedDegradedThreshold, 1],
-    ['SYSTEM_STATUS_DELAYED_THRESHOLD', getDelayedDegradedThreshold, 50],
-    ['SYSTEM_STATUS_FAILED_WINDOW_MINUTES', getFailedWindowMinutes, 60],
-    ['SYSTEM_STATUS_FAILED_SCAN_CAP', getFailedScanCap, 1000],
-  ])(
-    '%s: 미설정 · 빈 값 · 숫자 아님 · 0 · 음수는 기본값, 양수는 그 값',
-    (env, getter, dflt) => {
-      for (const bad of [undefined, '', 'abc', '0', '-5', '-0.5']) {
-        withEnv(env, bad, () => expect(getter()).toBe(dflt));
-      }
-      withEnv(env, '30', () => expect(getter()).toBe(30));
+  const GETTERS = [
+    {
+      env: 'SYSTEM_STATUS_FAILED_THRESHOLD',
+      getter: getFailedDegradedThreshold,
+      dflt: 1,
     },
-  );
+    {
+      env: 'SYSTEM_STATUS_DELAYED_THRESHOLD',
+      getter: getDelayedDegradedThreshold,
+      dflt: 50,
+    },
+    {
+      env: 'SYSTEM_STATUS_FAILED_WINDOW_MINUTES',
+      getter: getFailedWindowMinutes,
+      dflt: 60,
+    },
+    {
+      env: 'SYSTEM_STATUS_FAILED_SCAN_CAP',
+      getter: getFailedScanCap,
+      dflt: 1000,
+    },
+  ];
+  // 'Infinity' · '1e999' 는 Number() 가 무한대로 읽는 값이다.
+  const BAD_VALUES = [
+    undefined,
+    '',
+    'abc',
+    '0',
+    '-5',
+    '-0.5',
+    'Infinity',
+    '1e999',
+  ];
 
-  it('스캔 상한은 개수라서 정수가 아니면 기본값이다', () => {
-    withEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', '0.5', () =>
-      expect(getFailedScanCap()).toBe(1000),
+  it.each(
+    GETTERS.flatMap((g) =>
+      BAD_VALUES.map((bad) => ({
+        ...g,
+        bad,
+        label: bad === undefined ? '(미설정)' : `'${bad}'`,
+      })),
+    ),
+  )('$env=$label 은 기본값 $dflt', async ({ env, getter, dflt, bad }) => {
+    await withEnv(env, bad, () => expect(getter()).toBe(dflt));
+  });
+
+  it.each(GETTERS)('$env: 양수는 그 값', async ({ env, getter }) => {
+    await withEnv(env, '30', () => expect(getter()).toBe(30));
+  });
+
+  it('Number() 가 숫자로 읽는 지수 표기와 앞뒤 공백은 받는다', async () => {
+    await withEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', '2e3', () =>
+      expect(getFailedScanCap()).toBe(2000),
     );
-    withEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', '2.5', () =>
-      expect(getFailedScanCap()).toBe(1000),
+    await withEnv('SYSTEM_STATUS_FAILED_WINDOW_MINUTES', ' 5 ', () =>
+      expect(getFailedWindowMinutes()).toBe(5),
     );
   });
 
-  it('음수 실패 임계값이 모든 큐를 degraded 로 만들지 않는다', async () => {
-    const env = 'SYSTEM_STATUS_FAILED_THRESHOLD';
-    const prev = process.env[env];
-    process.env[env] = '-5';
-    try {
+  it.each(['0.5', '2.5'])(
+    '스캔 상한은 개수라서 정수가 아닌 %s 도 기본값이다',
+    async (value) => {
+      await withEnv('SYSTEM_STATUS_FAILED_SCAN_CAP', value, () =>
+        expect(getFailedScanCap()).toBe(1000),
+      );
+    },
+  );
+
+  it('정수 검사는 스캔 상한에만 건다', async () => {
+    await withEnv('SYSTEM_STATUS_FAILED_WINDOW_MINUTES', '0.5', () =>
+      expect(getFailedWindowMinutes()).toBe(0.5),
+    );
+    await withEnv('SYSTEM_STATUS_FAILED_THRESHOLD', '2.5', () =>
+      expect(getFailedDegradedThreshold()).toBe(2.5),
+    );
+  });
+
+  it('실패 임계값이 음수면 기본값 1 로 판정한다', async () => {
+    await withEnv('SYSTEM_STATUS_FAILED_THRESHOLD', '-5', async () => {
       const service = new SystemStatusService([
         makeHandle('a', 'execution', 1, { active: 1 }),
+        makeHandle(
+          'b',
+          'execution',
+          1,
+          { active: 1, failed: 1 },
+          { failedJobs: recentJobs(1) },
+        ),
       ]);
       const res = await service.getOverview();
-      expect(res.queues[0].health).toBe('healthy');
-    } finally {
-      if (prev === undefined) delete process.env[env];
-      else process.env[env] = prev;
-    }
+      // 예전 코드는 음수를 그대로 써서 실패가 없는 a 도 degraded 였다.
+      expect(res.queues.find((q) => q.name === 'a')!.health).toBe('healthy');
+      expect(res.queues.find((q) => q.name === 'b')!.health).toBe('degraded');
+    });
+  });
+
+  it('지연 임계값이 음수면 기본값 50 으로 판정한다', async () => {
+    await withEnv('SYSTEM_STATUS_DELAYED_THRESHOLD', '-5', async () => {
+      const service = new SystemStatusService([
+        makeHandle('a', 'execution', 1, { active: 1, delayed: 49 }),
+        makeHandle('b', 'execution', 1, { active: 1, delayed: 50 }),
+      ]);
+      const res = await service.getOverview();
+      expect(res.queues.find((q) => q.name === 'a')!.health).toBe('healthy');
+      expect(res.queues.find((q) => q.name === 'b')!.health).toBe('degraded');
+    });
   });
 });

@@ -97,12 +97,14 @@ export const SYSTEM_STATUS_QUEUE_NAMES: readonly string[] =
 export const MONITORED_QUEUE_HANDLES = 'MONITORED_QUEUE_HANDLES';
 
 /**
- * 시스템 상태 환경 변수를 양수로 읽는다. 미설정 · 빈 값 · 숫자가 아닌 값 · 0 · 음수는 기본값으로
- * 대신한다. `integer` 면 정수가 아닌 값도 기본값이다(개수를 뜻하는 값).
+ * 시스템 상태 환경 변수를 양의 유한한 수로 읽는다. 미설정 · 빈 값 · 숫자가 아닌 값 · 0 · 음수 ·
+ * 무한대(`Infinity`, `1e999`)는 기본값으로 대신한다. `integer` 면 정수가 아닌 값도 기본값이다(개수를
+ * 뜻하는 값).
  * 근거: [시스템 상태 「큐 건강도 판정」](CLE-OBS-STATUS#큐-건강도-판정) (REQ-SYSSTAT-021).
  *
- * 예전에는 임계값이 `Number(env) || 기본값` 이라 음수가 그대로 통과했고(음수 실패 임계값이면 모든
- * 큐가 `degraded`), 윈도우 · 스캔 상한은 `Math.max(1, …)` 라 음수가 기본값이 아니라 1 이 됐다.
+ * 값은 `Number()` 로 읽으므로 앞뒤 공백과 지수 표기(`2e3`)도 숫자로 받는다. 위 concurrency resolver 는
+ * 큐 워커 스펙의 «양의 정수만» 계약을 따라 정규식으로 먼저 거른다. 이 값들의 계약은 숫자가 아닌 값만
+ * 거르라고 하므로 같은 검사를 두지 않는다.
  */
 function readPositiveEnv(
   name: string,
@@ -117,6 +119,8 @@ function readPositiveEnv(
 
 /**
  * health 파생 임계값 (env 로 조정 가능).
+ * - `SYSTEM_STATUS_FAILED_THRESHOLD`: 최근 윈도우 실패 수가 이 값 이상이면 `degraded`. 기본 1.
+ * - `SYSTEM_STATUS_DELAYED_THRESHOLD`: `delayed` 가 이 값 이상이면 `degraded`. 기본 50.
  *
  * 함수 형태로 제공해 테스트 격리(jest.resetModules 없이 process.env 변경 후
  * 즉시 반영)와 런타임 반영을 보장한다. 성능 영향은 무시 가능.

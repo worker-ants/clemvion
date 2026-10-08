@@ -85,7 +85,8 @@ export class SystemStatusService {
       (sum, q) => sum + q.recentFailed,
       0,
     );
-    // 보수적 OR — 하나라도 capped 면 시스템 전역 합산도 하한값일 수 있다(CLE-OBS-STATUS Rationale 「실패 지표를 최근 윈도우와 누적 보관으로 나눈다」).
+    // 보수적 OR — 하나라도 capped 면 시스템 전역 합산도 하한값일 수 있다.
+    // 근거: [시스템 상태 「실패 지표를 최근 윈도우와 누적 보관으로 나눈다」](CLE-OBS-STATUS#실패-지표를-최근-윈도우와-누적-보관으로-나눈다)
     const recentFailedCapped = queues.some((q) => q.recentFailedCapped);
 
     return {

@@ -4,7 +4,7 @@ The **System Status** page (sidebar menu) gives you a real-time overview of the 
 
 ### Overall status header
 
-The card at the top summarises the worst queue state across all 12 monitored queues.
+The card at the top summarises the worst queue state across all 17 monitored queues.
 
 | Indicator | Meaning |
 |-----------|---------|
@@ -19,14 +19,14 @@ Two failure metrics are shown side by side in the header.
 
 ### Queue group cards
 
-The 12 BullMQ queues are grouped into four sections.
+The 17 BullMQ queues are grouped into four sections.
 
 | Group | Queues |
 |-------|--------|
-| Execution | background-execution, execution-continuation |
+| Execution | execution-run, background-execution, execution-continuation |
 | Knowledge Base | document-embedding, graph-extraction |
-| Integration | notification-webhook, cafe24-token-refresh |
-| System | schedule-execution, login-history-pruner, notification-secret-rotator, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator |
+| Integration | notification-webhook, cafe24-token-refresh, makeshop-token-refresh |
+| System | schedule-execution, login-history-pruner, workspace-invitations-pruner, notification-secret-rotator, terminal-revoke-reconcile, webchat-idle-reaper, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator |
 
 Each queue card shows:
 
@@ -48,7 +48,7 @@ Queue health is determined in the following priority order (heuristic, based on 
 3. **Recent failures or delays above threshold** (recent-window failure count ≥ threshold, or `delayed ≥ 50`) → 🟡 Degraded
 4. Otherwise → 🟢 Healthy
 
-> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Note that `SYSTEM_STATUS_FAILED_THRESHOLD` now compares against **recent-window failures** — retained historical failures alone no longer trigger a degraded state. Once recent failures clear, the queue automatically returns to healthy. The window length is controlled by `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` (default 60 minutes). If a queue has a very large number of failures, only up to a scan cap (`SYSTEM_STATUS_FAILED_SCAN_CAP`, default 1000) are counted, so the "recent failures" figure may be a lower bound. In that case a "+" suffix (e.g. `1000+`) marks the value as a lower bound. Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
+> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Note that `SYSTEM_STATUS_FAILED_THRESHOLD` now compares against **recent-window failures** — retained historical failures alone no longer trigger a degraded state. Once recent failures clear, the queue automatically returns to healthy. The window length is controlled by `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` (default 60 minutes). A negative, zero, non-numeric, or infinite (`Infinity`) value in any of these four variables falls back to the default, and the scan cap also falls back when it is not an integer. If a queue has a very large number of failures, only up to a scan cap (`SYSTEM_STATUS_FAILED_SCAN_CAP`, default 1000) are counted, so the "recent failures" figure may be a lower bound. In that case a "+" suffix (e.g. `1000+`) marks the value as a lower bound. Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
 
 ## What this page does not show
 

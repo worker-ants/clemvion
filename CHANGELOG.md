@@ -28,13 +28,15 @@
 승인된 시스템 상태 스펙(CLE-OBS-STATUS v2)의 REQ-SYSSTAT-021 에 코드를 맞췄다(NERV Task `CLE-T-9DBM7V`).
 
 - **환경 변수 보정:** `SYSTEM_STATUS_FAILED_THRESHOLD` · `SYSTEM_STATUS_DELAYED_THRESHOLD` ·
-  `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` · `SYSTEM_STATUS_FAILED_SCAN_CAP` 에 음수, 0, 숫자가 아닌 값이 들어오면 기본값(1 · 50 ·
-  60 · 1000)을 쓴다. 스캔 상한은 개수라서 정수가 아닌 값도 기본값이다.
+  `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` · `SYSTEM_STATUS_FAILED_SCAN_CAP` 에 음수, 0, 숫자가 아닌 값, 무한대(`Infinity`)가
+  들어오면 기본값(1 · 50 · 60 · 1000)을 쓴다. 스캔 상한은 개수라서 정수가 아닌 값도 기본값이다.
   - 예전에는 임계값 음수가 그대로 쓰여 음수 실패 임계값이면 모든 큐가 `degraded` 로 판정됐다.
   - 윈도우와 스캔 상한의 음수는 기본값이 아니라 1 이 됐다.
-  - 이 값들을 음수로 둔 배포가 있다면 건강도 판정과 최근 실패 수가 달라진다.
+  - 예전에는 `Infinity` 가 그대로 쓰였다. 임계값이면 그 판정이 꺼졌고 윈도우면 보관된 실패를 모두 셌고 스캔 상한이면
+    실패 집합을 끝까지 훑었다.
+  - 윈도우의 0 과 1 사이 값(예: `0.5`)은 예전에 1 분으로 올렸고 이제는 그대로 쓴다.
+  - 이 값들을 음수나 `Infinity` 로 둔 배포가 있다면 건강도 판정과 최근 실패 수가 달라진다.
 - **화면 문구:** 시스템 상태 화면의 안내 배너와 불러오기 실패 문구(한국어)를 해요체로 바꿨다.
-- 함께 승인된 CLE-ACCT-WS v3 · CLE-OBS-LOGGING v3 · CLE-AI-MEMORY v1 을 `spec/` 미러에 반영했다(서술 정정).
 
 ## Unreleased — 의존성: backend 의 BullMQ 를 5 에서 6 으로 올린다
 

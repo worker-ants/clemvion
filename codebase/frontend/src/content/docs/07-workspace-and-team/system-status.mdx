@@ -33,39 +33,39 @@ code: [
 
 ### 큐 그룹 카드
 
-12개 BullMQ 큐를 4개 그룹으로 묶어 카드 형태로 표시해요.
+17개 BullMQ 큐를 4개 그룹으로 묶어 카드 형태로 표시해요.
 
 | 그룹 | 큐 |
 |------|----|
-| 실행 (Execution) | background-execution, execution-continuation |
+| 실행 (Execution) | execution-run, background-execution, execution-continuation |
 | 지식베이스 (Knowledge Base) | document-embedding, graph-extraction |
-| 알림·통합 (Integration) | notification-webhook, cafe24-token-refresh |
-| 스케줄·시스템 (System) | schedule-execution, login-history-pruner, notification-secret-rotator, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator |
+| 알림·통합 (Integration) | notification-webhook, cafe24-token-refresh, makeshop-token-refresh |
+| 스케줄·시스템 (System) | schedule-execution, login-history-pruner, workspace-invitations-pruner, notification-secret-rotator, terminal-revoke-reconcile, webchat-idle-reaper, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator |
 
 각 큐 카드에는 다음 정보가 표시돼요.
 
 - **health 신호등**: 큐 단위 상태 (정상 / 일부 지연 / 점검 필요).
 - **카운트**: 대기(waiting) · 처리중(active) · 지연(delayed) · **실패(최근 윈도우)**(recentFailed). 카드 하단에는 **누적 보관** 실패 수가 참고용으로 별도 표시돼요.
 - **포화도 게이지**: `처리중 / concurrency` 비율. 실행·지식베이스·통합 그룹에만 표시.
-- **정기 작업** 라벨: 스케줄·시스템 그룹(cron 큐) 에는 대신 라벨이 표시됩니다.
+- **정기 작업** 라벨: 스케줄·시스템 그룹(cron 큐)에는 게이지 대신 라벨이 표시돼요.
 
 ### 자동 갱신
 
-페이지는 **5초마다 자동으로 갱신**돼요. 에러가 발생하면 자동 갱신이 중단되고 "상태를 불러오지 못했습니다" 메시지와 재시도 버튼이 나타납니다. 우측 상단의 **새로고침** 버튼으로 즉시 갱신할 수도 있어요.
+페이지는 **5초마다 자동으로 갱신**돼요. 에러가 발생하면 자동 갱신이 중단되고 "시스템 상태를 불러오지 못했어요." 메시지와 재시도 버튼이 나타나요. 우측 상단의 **새로고침** 버튼으로 즉시 갱신할 수도 있어요.
 
 ## health 판정 기준
 
-큐 단위 health 는 다음 우선순위로 결정됩니다 (휴리스틱, 단일 스냅샷 기반).
+큐 단위 health 는 다음 우선순위로 결정돼요 (휴리스틱, 단일 스냅샷 기반).
 
 1. **일시 중지 상태** (`isPaused = true`) → 🔴 점검 필요
 2. **대기 중인데 처리중 없음** (`waiting > 0`, `active = 0`) → 🔴 점검 필요 (워커 미가동 추정)
 3. **최근 실패·지연 임계 초과** (최근 윈도우 실패 수 ≥ 임계값 또는 `delayed ≥ 50`) → 🟡 일부 지연
 4. 그 외 → 🟢 정상
 
-> 임계값은 환경변수(`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`)로 조정 가능해요. 3번 판정의 실패 기준은 **최근 윈도우 실패 수**예요 — 보관 중 누적 실패만으로는 더 이상 🟡로 판정되지 않아요. 최근 실패가 사라지면 자동으로 🟢 정상으로 복귀해요. 최근 윈도우 길이는 `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`(기본 60분)로 조정할 수 있어요. 한 큐에 실패가 아주 많이 쌓인 경우 스캔 상한(`SYSTEM_STATUS_FAILED_SCAN_CAP`, 기본 1000건)까지만 세므로 "최근 실패" 수치가 실제보다 낮은 하한값일 수 있어요. 이때는 수치 뒤에 "+"(예: `1000+`)가 붙어 하한값임을 알려줘요. 2번 판정은 단일 스냅샷 기반 휴리스틱이라 잠깐 idle 한 순간에 오탐이 발생할 수 있어요.
+> 임계값은 환경변수(`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`)로 조정 가능해요. 3번 판정의 실패 기준은 **최근 윈도우 실패 수**예요 — 보관 중 누적 실패만으로는 더 이상 🟡로 판정되지 않아요. 최근 실패가 사라지면 자동으로 🟢 정상으로 복귀해요. 최근 윈도우 길이는 `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`(기본 60분)로 조정할 수 있어요. 네 환경변수에 음수, 0, 숫자가 아닌 값, 무한대(`Infinity`)를 넣으면 기본값이 쓰여요. 스캔 상한은 정수가 아닌 값도 기본값으로 바뀌어요. 한 큐에 실패가 아주 많이 쌓인 경우 스캔 상한(`SYSTEM_STATUS_FAILED_SCAN_CAP`, 기본 1000건)까지만 세므로 "최근 실패" 수치가 실제보다 낮은 하한값일 수 있어요. 이때는 수치 뒤에 "+"(예: `1000+`)가 붙어 하한값임을 알려줘요. 2번 판정은 단일 스냅샷 기반 휴리스틱이라 잠깐 idle 한 순간에 오탐이 발생할 수 있어요.
 
 ## 이 페이지에서 볼 수 없는 것
 
-- **개별 job 상세 · payload · jobId**: 집계 카운트만 노출합니다.
-- **워크스페이스별 분리**: 시스템 전역 집계이므로 특정 워크스페이스/사용자 귀속이 불가능합니다.
-- **throughput 시계열**: v1 범위 밖입니다.
+- **개별 job 상세 · payload · jobId**: 집계 카운트만 보여 줘요.
+- **워크스페이스별 분리**: 시스템 전역 집계라서 특정 워크스페이스나 사용자로 나눠 볼 수 없어요.
+- **throughput 시계열**: v1 범위 밖이에요.
