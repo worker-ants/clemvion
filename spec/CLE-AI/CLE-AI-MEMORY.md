@@ -3,18 +3,18 @@ id: "CLE-AI-MEMORY"
 title: "에이전트 메모리"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-MEMORY-001", "REQ-MEMORY-002", "REQ-MEMORY-003", "REQ-MEMORY-004", "REQ-MEMORY-005", "REQ-MEMORY-006", "REQ-MEMORY-007", "REQ-MEMORY-008", "REQ-MEMORY-009", "REQ-MEMORY-010", "REQ-MEMORY-011", "REQ-MEMORY-012", "REQ-MEMORY-013", "REQ-MEMORY-014", "REQ-MEMORY-015", "REQ-MEMORY-016", "REQ-MEMORY-017", "REQ-MEMORY-018", "REQ-MEMORY-019", "REQ-MEMORY-020", "REQ-MEMORY-021", "REQ-MEMORY-022", "REQ-MEMORY-023", "REQ-MEMORY-024", "REQ-MEMORY-025", "REQ-MEMORY-026", "REQ-MEMORY-027", "REQ-MEMORY-028", "REQ-MEMORY-029", "REQ-MEMORY-030", "REQ-MEMORY-031", "REQ-MEMORY-032", "REQ-MEMORY-033", "REQ-MEMORY-034", "REQ-MEMORY-035", "REQ-MEMORY-036", "REQ-MEMORY-037", "REQ-MEMORY-038", "REQ-MEMORY-039", "REQ-MEMORY-040", "REQ-MEMORY-041", "REQ-MEMORY-042", "REQ-MEMORY-043", "REQ-MEMORY-044", "REQ-MEMORY-045", "REQ-MEMORY-046", "REQ-MEMORY-047", "REQ-MEMORY-048", "REQ-MEMORY-049", "REQ-MEMORY-050", "REQ-MEMORY-051", "REQ-MEMORY-052", "REQ-MEMORY-053"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "28cf3dab6ec97b7923054b522414e334be73bd903db603815f2827a0cb9d58ed"
-read_as: "approved"
-task: null
+content_hash: "193fc1f9650475b2235635d7f8188ae9b9d5b9c09abf05525d6a71c1ce302f69"
+read_as: "approved_fallback"
+task: "CLE-T-9DBM7V"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "9ab453ae1a81bba1a86b0f7aa074ca546383f8aee4eca61c75bd51c1b687e71b"
-etag: "sha256-cf6e2f4cda196439f509c4ddff4e29d4eff7db2451bec5f50652ff76d878e70a"
+mirror_sha256: "259316b09c47837bbef33fb7114b9e1879e019d16bcd866e8b047850a482d9d5"
+etag: "sha256-dab0b4ea80e225b13646daec3ce14dca4734bf114fdedb8e6c998f776dbe75ce"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -486,7 +486,7 @@ cross-origin(웹채팅 위젯, 외부 앱)에서 브라우저는 기본으로 �
 
 ### 관리 화면을 노드 에디터 밖 별도 화면으로 둔 이유
 
-메모리는 메모리 범위 키(`memoryKey ?? execution_id`) 단위로 실행을 가로질러 쌓이므로 특정 워크플로우나 노드에 속하지 않는다. 그래서 노드 에디터 안이 아니라 지식 저장소·시스템 상태처럼 워크스페이스 수준 관리 화면으로 둔다.
+메모리는 메모리 범위 키(`memoryKey ?? execution_id`) 단위로 실행을 가로질러 쌓이므로 특정 워크플로우나 노드에 속하지 않는다. 그래서 노드 에디터 안이 아니라 지식 저장소처럼 워크스페이스 수준 관리 화면으로 둔다.
 
 ### 조회는 뷰어 이상, 삭제는 편집자 이상으로 둔 이유
 

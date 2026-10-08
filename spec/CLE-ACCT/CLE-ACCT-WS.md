@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "369ec799269f3e6a05709c7216ef611d21a46b68ab03966588cb0359ded7c6c9"
+content_hash: "cac923f2710acaa17300f6fb544e702c38b9d48d316e6c69331fe22a8c89f599"
 read_as: "approved_fallback"
-task: "CLE-T-3X627J"
+task: "CLE-T-9DBM7V"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "5dc6b8372196d9fb315fc0bb948e0190641508e83038fb54b6aaedd3c5c07874"
-etag: "sha256-ff438265059a7f7ea3c82a4a1ef2ff136c10f74239c4cc9368d1d354af486d3b"
+mirror_sha256: "3a4fba6b445d4cb8ff9e8bc4b2de04ad439a2aec766103070e2eb3d6d21870be"
+etag: "sha256-bab6c1e58d65d45f108ee9dc31a1fe695179aba5be98b16fb8fe5d6739a9b548"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -92,11 +92,11 @@ etag: "sha256-ff438265059a7f7ea3c82a4a1ef2ff136c10f74239c4cc9368d1d354af486d3b"
 - REQ-WSPACE-050 IF 뷰어가 워크플로우 실행을 요청하면 THE SYSTEM SHALL 403 으로 거부한다.
 - REQ-WSPACE-051 WHEN 인증된 요청이 워크스페이스 컨텍스트를 쓰면 THE SYSTEM SHALL `X-Workspace-Id` 헤더가 있으면 그 값을, 없으면 토큰의 `activeWorkspaceId` 를 현재 워크스페이스로 쓴다.
 - REQ-WSPACE-052 IF 토큰의 워크스페이스 클레임이 없거나 그 멤버십이 사라졌으면 THE SYSTEM SHALL 개인 워크스페이스, 없으면 첫 멤버십을 현재 워크스페이스로 쓴다.
-- REQ-WSPACE-053 WHEN 요청이 헤더로 워크스페이스를 지정하면 THE SYSTEM SHALL 라우트의 `@Roles()` 유무와 상관없이 가드에서 멤버십을 확인한다.
+- REQ-WSPACE-053 WHEN `@Roles()` 나 `@WorkspaceId()` 를 쓰는 라우트에 요청이 헤더로 워크스페이스를 지정하면 THE SYSTEM SHALL 라우트의 `@Roles()` 유무와 상관없이 가드에서 멤버십을 확인한다.
 - REQ-WSPACE-054 WHEN 라우트가 경로 파라미터로 워크스페이스를 받으면 THE SYSTEM SHALL 헤더·토큰이 아니라 경로 값을 인가 대상으로 삼아 멤버십을 항상 조회한다.
 - REQ-WSPACE-055 IF 요청자가 대상 워크스페이스 멤버가 아니거나 워크스페이스가 없으면 THE SYSTEM SHALL 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부한다.
 - REQ-WSPACE-056 IF 멤버의 역할이 라우트 요구 역할보다 낮으면 THE SYSTEM SHALL 403 `EDITOR_REQUIRED`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 중 요구 역할에 맞는 코드로 거부한다.
-- REQ-WSPACE-057 IF `X-Workspace-Id` 헤더가 UUID 형태가 아니면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로, 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED` 로 거부한다.
+- REQ-WSPACE-057 IF `@Roles()` 나 `@WorkspaceId()` 를 쓰는 라우트에서 `X-Workspace-Id` 헤더가 UUID 형태가 아니면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로, 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED` 로 거부한다.
 - REQ-WSPACE-058 WHEN 서버가 부팅하면 THE SYSTEM SHALL 워크스페이스 파라미터를 소비하는 라우트 수를 세고 0 이면 기동을 멈춘다.
 - REQ-WSPACE-059 IF 컨트롤러 핸들러가 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나는 파라미터를 `@Param` 으로 받으면 THE SYSTEM SHALL 저장소 가드로 CI 를 실패시킨다.
 
@@ -389,7 +389,8 @@ sequenceDiagram
 
 - `RolesGuard` 는 전역(`APP_GUARD`) 가드다. 워크스페이스 컨텍스트를 쓰는 인증 라우트라면 라우트에 `@Roles()` 가 있든 없든 헤더로 지정한 워크스페이스의 멤버십을 확인한다. `@Roles()` 는 역할 계층 비교만 통제한다.
 - 헤더가 없으면 워크스페이스 컨텍스트는 `jwt.strategy` 가 이미 멤버십을 확인한 값이라 추가 검사가 필요 없다. 검증이 필요한 경로는 헤더가 토큰 값을 덮을 때다.
-- 가드가 라우트의 워크스페이스 사용 여부를 판정할 때는 `@WorkspaceId()` 소비를 본다(`handlerConsumesWorkspaceId`). 제외 대상은 (a) `@Public()` 라우트와 `request.user` 가 없는 미인증 요청(판정은 `JwtAuthGuard` 몫), (b) 워크스페이스 컨텍스트를 쓰지 않는 라우트다.
+- 가드는 `@Roles()` 가 붙었거나 `@WorkspaceId()` 를 소비하는(`handlerConsumesWorkspaceId`) 라우트에서 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사한다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있어서다. 경로로 받는 워크스페이스(`@WorkspaceParam()`)는 아래 「경로 파라미터로 받는 워크스페이스」 가 다룬다.
+- 제외 대상은 (a) `@Public()` 라우트와 `request.user` 가 없는 미인증 요청(판정은 `JwtAuthGuard` 몫), (b) `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 을 하나도 쓰지 않는 라우트다. 시스템 전역 API `GET /api/system-status/overview` 가 (b) 의 예이고 헤더가 와도 멤버십을 확인하지 않는다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
 
 ### 경로 파라미터로 받는 워크스페이스
 
@@ -549,6 +550,8 @@ sequenceDiagram
 기각한 대안은 73개 라우트에 `@Roles('viewer')` 를 붙이는 것이다. opt-in 모델의 연장이라 74번째 라우트에서 같은 누락이 다시 생긴다. 이 저장소에서 이미 최소 두 번 일어났다. 원 보안 리뷰도 구조적 해소를 권고했다. 구현과 전수 목록은 `plan/complete/auth-workspace-membership-guard.md` 에 있다.
 
 가드는 요청이 도는 워크스페이스만 본다. 요청 본문의 참조 id 는 저장 때 서비스가 본다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
+
+워크스페이스와 무관한 전역 API 는 이 검증에서 뺀다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 을 하나도 쓰지 않는 라우트는 헤더가 와도 멤버십을 확인하지 않는다. 이런 라우트는 워크스페이스 값을 받을 통로가 없어 헤더를 위조해도 다른 워크스페이스 데이터에 닿지 않는다. 예외가 없으면 프런트엔드가 모든 요청에 붙이는 헤더 때문에 시스템 상태 같은 전역 API 가 헤더와 토큰의 워크스페이스가 다를 때마다 멤버십을 다시 조회하고, 헤더의 워크스페이스에 속하지 않은 사용자는 403 을 받는다. 2026-08-08 e2e 회귀(`test/system-status.e2e-spec.ts`)로 실측했다. 예외 여부는 가드가 세 데코레이터의 사용 여부를 reflection 으로 보고 정한다. 새 라우트가 `@WorkspaceId()` 를 쓰면 표시를 따로 달지 않아도 검사 대상이 되므로 위에서 기각한 라우트별 opt-in 과 달리 빠뜨려도 열리지 않는다. 다만 가드는 세 데코레이터만 알아본다. 핸들러가 `req.user.workspaceId` 를 직접 읽는 경우의 비대칭은 아래 「경로 파라미터 워크스페이스도 가드가 본다」 와 「부팅 때 가드 인식을 스스로 검사한다」 가 다룬다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있으므로 이 예외에서 뺀다.
 
 ### 경로 파라미터 워크스페이스도 가드가 본다
 
