@@ -21,7 +21,7 @@ export class QueueCountsDto {
   failed: number;
 
   // BullMQ 6 에는 paused job 상태가 없다. 서비스가 일시 정지 큐의 대기 job 수로 합성한다
-  // (CLE-OBS-STATUS, system-status.service.ts 의 inspect).
+  // (system-status.service.ts 의 inspect). 이 합성 규칙은 아직 스펙 본문에 없다.
   @ApiProperty({
     example: 0,
     description:

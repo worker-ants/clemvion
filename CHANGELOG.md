@@ -36,7 +36,16 @@ dependabot PR #1501(bullmq 5.81.2 → 6.3.11)이 타입 오류 2건으로 backen
   `paused` 목록에 있어 빠졌다). 코드에서 큐를 일시 정지하는 곳은 정리 스크립트의 `--pause-during-sweep` 하나이고 그 대상은
   지식 저장소 큐라서 이 지표가 보는 실행 큐와 겹치지 않는다.
 - 레거시 repeatable API · `Queue#client` · `debounce` 등 6 에서 없어진 API 는 쓰지 않는다(반복 작업은 이미 `upsertJobScheduler`).
-  ioredis 는 BullMQ 6 에서 optional peer 가 됐고 backend 가 직접 의존하는 ioredis 6 으로 풀린다.
+  ioredis 는 BullMQ 6 에서 optional peer 가 됐고 backend 가 직접 의존하는 ioredis 6 으로 풀린다. 그래서 BullMQ 가 쓰는
+  Redis 클라이언트가 ioredis 5 에서 6 으로, 내부 cron 파서가 cron-parser 4 에서 5 로 바뀐다. 실제 Redis 를 쓰는 backend
+  e2e 501건이 통과했다. `pg` 도 BullMQ 6 의 optional peer 라 lockfile 의 bullmq 스냅샷 키에 붙는다(backend 가 이미 직접
+  의존하는 판으로 풀린다).
+- **배포 전 확인:** BullMQ 5 에서 일시 정지된 채로 올라간 큐는 job 이 옛 `paused` 목록에 남는다. BullMQ 6 은 그 목록을 세지
+  않고(`counts.paused` · `waiting` 모두 0) 정리 스크립트도 보지 않는다. `resume()` 을 부르면 `wait` 로 옮겨진다. 배포 전에
+  일시 정지된 큐가 없는지 확인한다. 시스템 상태 화면에서 큐 옆에 «일시정지» 가 붙은 큐(`isPaused`)가 그것이다.
+  BullMQ 5 와 6 을 쓰는 backend 가 같은 Redis 를 동시에 쓰는 경우의 호환은 확인하지 않았다. 롤링 배포보다 backend 를 한 번에
+  바꾸는 편이 안전하다.
+- OpenAPI 의 `counts.waiting` · `counts.paused` 설명 문구를 위 합성 규칙에 맞게 고쳤다. 필드와 타입은 그대로다.
 
 ## Unreleased — 의존성: proxy-addr · source-map-js 하한을 올리고 sprintf-js 를 트리에서 뺀다
 

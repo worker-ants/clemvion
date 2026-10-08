@@ -114,16 +114,18 @@ export class SystemStatusService {
         handle.queue.getJobCounts('waiting', 'active', 'delayed', 'failed'),
         handle.queue.isPaused(),
       ]);
-      // bullmq 6 에는 paused job 상태가 없고 일시 정지 큐의 대기 job 도 `waiting` 으로 센다.
-      // 응답의 `paused` 는 bullmq 5 와 같은 값이 되도록 여기서 합성한다. 큐가 일시
-      // 정지됐으면 대기 job 을 `paused` 로 옮기고 `waiting` 은 0 으로 둔다.
-      const queued = raw.waiting ?? 0;
+      // BullMQ 6 에는 paused job 상태가 없고 일시 정지 큐의 대기 job 도 `waiting` 으로 센다.
+      // 응답의 `paused` 는 여기서 합성한다. 큐가 일시 정지됐으면 대기 job 을 `paused` 로
+      // 옮기고 `waiting` 은 0 으로 둔다. 두 조회 사이에 정지 · 재개가 일어나면 한 번은
+      // 배분이 어긋날 수 있지만 같은 `isPaused` 로 counts · health 를 만들어 한 응답 안에서는
+      // 모순이 없고 다음 폴링에서 맞춰진다.
+      const rawWaiting = raw.waiting ?? 0;
       const counts: QueueCountsDto = {
-        waiting: isPaused ? 0 : queued,
+        waiting: isPaused ? 0 : rawWaiting,
         active: raw.active ?? 0,
         delayed: raw.delayed ?? 0,
         failed: raw.failed ?? 0,
-        paused: isPaused ? queued : 0,
+        paused: isPaused ? rawWaiting : 0,
       };
 
       // recentFailed 는 보관 집합(failed)의 부분집합이므로 failed===0 이면 0 이다.

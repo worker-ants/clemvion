@@ -119,6 +119,12 @@ describe('System Status API (e2e)', () => {
       expect(typeof q.counts.delayed).toBe('number');
       expect(typeof q.counts.failed).toBe('number');
       expect(typeof q.counts.paused).toBe('number');
+      // 대기 job 은 큐가 일시 정지됐으면 paused 로, 아니면 waiting 으로만 센다(BullMQ 6 합성).
+      if (q.isPaused) {
+        expect(q.counts.waiting).toBe(0);
+      } else {
+        expect(q.counts.paused).toBe(0);
+      }
       expect(typeof q.recentFailed).toBe('number');
       expect(typeof q.recentFailedCapped).toBe('boolean');
       // recentFailed 는 보관 중 누적(failed)을 초과할 수 없다 (윈도우 부분집합)

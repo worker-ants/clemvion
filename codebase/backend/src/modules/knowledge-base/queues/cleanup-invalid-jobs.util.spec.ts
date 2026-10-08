@@ -320,6 +320,21 @@ describe('sweepInvalidJobs', () => {
     expect(secondCallArgs[1]).toBe(0); // start offset
   });
 
+  it('getJobs 에 BullMQ 6 상태만 넘긴다 (paused 상태는 없다)', async () => {
+    const queue = makeQueue([[]]);
+
+    await sweepInvalidJobs({
+      name: 'document-embedding',
+      queue: queue as unknown as Queue,
+      apply: false,
+      pauseDuringSweep: false,
+    });
+
+    const states = (queue.getJobs.mock.calls[0] as unknown[])[0];
+    expect(states).toEqual(['waiting', 'delayed', 'failed']);
+    expect(states).not.toContain('paused');
+  });
+
   it('emits per-job log line with stable grep-friendly format', async () => {
     const invalid = makeJob('jid-1', undefined, { knowledgeBaseId: 'kb-1' });
     const queue = makeQueue([[invalid]]);

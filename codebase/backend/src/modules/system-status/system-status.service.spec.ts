@@ -5,12 +5,12 @@ import {
   getFailedScanCap,
 } from './system-status.constants';
 
+/** BullMQ 6 `getJobCounts` 가 셀 수 있는 상태. paused 상태는 없다. */
 type Counts = {
   waiting: number;
   active: number;
   delayed: number;
   failed: number;
-  paused: number;
 };
 
 /** getFailed mock 용 최소 Job 형태 (newest→oldest 순서로 전달). */
@@ -47,16 +47,18 @@ function makeHandle(
     active: 0,
     delayed: 0,
     failed: 0,
-    paused: 0,
     ...counts,
   };
   const failedJobs = opts.failedJobs ?? [];
   return {
     meta: { name, group, concurrency },
     queue: {
-      getJobCounts: jest.fn(async () => {
+      // 실제 BullMQ 처럼 요청한 상태만 돌려준다.
+      getJobCounts: jest.fn(async (...types: string[]) => {
         if (opts.throws) throw new Error('redis down');
-        return full;
+        return Object.fromEntries(
+          types.map((t) => [t, full[t as keyof Counts] ?? 0]),
+        );
       }),
       isPaused: jest.fn(async () => {
         if (opts.throws) throw new Error('redis down');
@@ -137,12 +139,24 @@ describe('SystemStatusService.getOverview', () => {
     await service.getOverview();
 
     const args = (handle.queue.getJobCounts as jest.Mock).mock.calls[0];
-    expect(args).toEqual(['waiting', 'active', 'delayed', 'failed']);
+    expect(args).not.toContain('paused');
+    expect([...args].sort()).toEqual([
+      'active',
+      'delayed',
+      'failed',
+      'waiting',
+    ]);
   });
 
   it('일시 정지 큐는 대기 job 을 paused 로 보고하고 waiting 은 0 이다', async () => {
     const handles = [
-      makeHandle('b', 'system', 1, { waiting: 4 }, { isPaused: true }),
+      makeHandle(
+        'b',
+        'system',
+        3,
+        { waiting: 4, active: 2 },
+        { isPaused: true },
+      ),
     ];
     const service = new SystemStatusService(handles);
 
@@ -150,6 +164,8 @@ describe('SystemStatusService.getOverview', () => {
 
     expect(res.queues[0].counts.paused).toBe(4);
     expect(res.queues[0].counts.waiting).toBe(0);
+    // 일시 정지 중에도 이미 처리 중인 job 은 active 로 남는다.
+    expect(res.queues[0].counts.active).toBe(2);
     expect(res.queues[0].health).toBe('down');
   });
 
@@ -329,7 +345,6 @@ describe('SystemStatusService.getOverview', () => {
           active: 1,
           delayed: 0,
           failed: 0,
-          paused: 0,
         })),
         isPaused: jest.fn(async () => false),
         getFailed,
