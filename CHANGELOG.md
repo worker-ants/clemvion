@@ -31,15 +31,17 @@
 
 - **proxy-addr 2.0.7 → 2.0.8(backend > express, critical)**: GHSA-jqcg-44mw-7w3h. 신뢰 프록시를 IPv4-mapped IPv6
   서브넷(`::ffff:10.0.0.0/8` 같은 짧은 prefix)으로 적으면 모든 IPv4 주소가 프록시로 신뢰되는 결함이다. backend 는
-  `trust proxy` 를 홉 수 `1` 로 두고 서브넷을 쓰지 않아 이 결함에 걸리지 않았다. 동작은 바뀌지 않고 audit 을 풀려고
-  올린다. express 의 선언 `^2.0.7` 안이다.
+  `trust proxy` 를 홉 수 `1` 로 두고 서브넷을 쓰지 않아 이 결함에 걸리지 않았다. 동작은 바뀌지 않았고 audit 을 풀려고
+  올렸다. express 의 선언 `^2.0.7` 안이다.
 - **source-map-js 1.2.1 → 1.2.2(high)**: GHSA-68fv-2mgg-jv7q. 프로덕션 경로는 frontend > @tailwindcss/postcss 다.
   소비처 넷이 모두 `^1.2.1` 을 선언한다.
 - **sprintf-js 제거(moderate)**: GHSA-hp3w-g68c-fv3c 는 패치 버전이 없다. 유일한 경로 js-yaml@3 > argparse@1 에
   `js-yaml@3>argparse: ^2.0.1` override 를 걸어 argparse 2(의존성 없음)로 바꿨다. js-yaml@3 의 선언 범위를 벗어나지만
-  js-yaml@3 라이브러리는 argparse 를 쓰지 않고 CLI 만 쓴다. 그 CLI 는 어디에도 링크되지 않는다. frontend 의
-  gray-matter(js-yaml@3)는 그대로 동작한다.
+  js-yaml@3 라이브러리는 argparse 를 쓰지 않고 CLI 만 쓴다. 그 CLI 는 워크스페이스 패키지의 `.bin` 에 없고 gray-matter ·
+  @istanbuljs/load-nyc-config 의 비공개 `.bin` 에만 있다. argparse 2.0.1 의 옛 API 호환층 덕에 CLI 도 폐기 경고만 내고
+  돈다. frontend 의 gray-matter(js-yaml@3)는 그대로 동작한다. 걷는 조건과 다시 볼 때 확인할 것은 override 주석에 적었다.
 - `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 에 세 핀을 함께 넣었다.
+- lockfile 의 `eslint-plugin-import` 스냅샷 키가 다시 직렬화됐다(peer 접미사 표기만 바뀌고 해소 버전은 그대로다).
 
 ## Unreleased — 보안: 채팅 채널 · 알림의 마지막 오류에 봇 토큰 · 자격 증명이 실려 나가지 않는다
 
