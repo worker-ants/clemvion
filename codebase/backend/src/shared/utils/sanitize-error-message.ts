@@ -38,7 +38,12 @@ export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
  *     패턴(`password=`)도 URL 내장 자격증명은 매칭 못 해 `https://admin:pw@host` 가 새어나갔다.
  *     userinfo 는 **scheme 보존**(자격증명 `user:pass` 만 `***`)으로 마스킹해 `scheme://***@host`
  *     가 되도록 lookbehind/lookahead 로 좁혔다 — MCP 전용으로 있던 동형 패턴을 이 SoT 로
- *     흡수(파편화 제거, `mcp-error-codes.ts`). */
+ *     흡수(파편화 제거, `mcp-error-codes.ts`).
+ *
+ * 2026-10-05 — fetch(undici) 헤더 값 검증 오류의 따옴표 안을 통째로 가리는 처리를 더했다
+ * (NERV Task `CLE-T-H0GF4K`). 정규식이 아니라 {@link redactInvalidHeaderValues} 함수다. 종결
+ * 문구까지 임의 길이를 훑어야 해서 정규식으로는 적대 입력에서 시간이 커졌다. `redactSecrets` 가 이
+ * 목록 다음에 부르므로 이 목록을 직접 돌던 소비처는 `redactSecrets` 를 쓴다. */
 export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // OAuth-style bearer tokens
   /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
@@ -65,6 +70,78 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   /(?<=:\/\/)[^/\s:@]+:[^/\s@]+(?=@)/gi,
 ];
 
+/** {@link redactInvalidHeaderValues} 가 가리는 따옴표 안 값의 최대 길이. 넘으면 가리지 않는다. */
+export const HEADER_VALUE_ERROR_MAX_LEN = 2048;
+
+const HEADER_VALUE_ERROR_OPEN = /\bHeaders\.[A-Za-z]+: "/g;
+const HEADER_VALUE_ERROR_CLOSE = '" is an invalid header value';
+
+/**
+ * fetch(undici) 의 헤더 값 검증 오류 `Headers.append: "<값>" is an invalid header value.` 에서
+ * 따옴표 안 값을 통째로 {@link VALUE_MASK_MARKER} 로 바꾼다(2026-10-05, NERV Task `CLE-T-H0GF4K`,
+ * Node 24 실측 원문). 값 전체(봇 토큰 등)가 실리는데 `Bearer` 패턴은 값 안의 CR · LF · NUL 에서
+ * 멈춰 뒷부분이 남는다.
+ *
+ * 여는 모양 하나에 대해 길이 상한 안의 **마지막** 종결 문구까지 가린다. 값 안에 종결 문구가 끼어도
+ * 뒷부분이 남지 않는다. 따옴표 안에 다른 마커가 있어도 값 마커 하나가 된다(응답 자격 증명 마스킹
+ * 규칙 5 의 예외).
+ *
+ * 정규식이 아니라 함수인 이유는 시간이다. 종결 문구를 lookahead 로 찾는 정규식은 여는 모양마다
+ * 상한까지 읽고 되짚었다. 상한이 없을 때 192KB 4.3초(이차), 상한 2048 에서도 1MB 435ms 였다.
+ * 여기서는 종결 문구가 없으면 바로 돌려주고, 있으면 위치를 한 번 모아 여는 모양마다 이진 탐색한다.
+ *
+ * 값이 {@link HEADER_VALUE_ERROR_MAX_LEN} 을 넘으면 가리지 않는다. 봇 토큰은 채팅 채널
+ * 클라이언트가 원문을 만들 때 {@link replaceKnownSecret} 으로 먼저 지운다(재발급 토큰은 길이 상한이
+ * 없다).
+ */
+export function redactInvalidHeaderValues(raw: string): string {
+  if (typeof raw !== 'string' || !raw.includes(HEADER_VALUE_ERROR_CLOSE)) {
+    return raw;
+  }
+  const closes: number[] = [];
+  for (
+    let at = raw.indexOf(HEADER_VALUE_ERROR_CLOSE);
+    at !== -1;
+    at = raw.indexOf(HEADER_VALUE_ERROR_CLOSE, at + 1)
+  ) {
+    closes.push(at);
+  }
+  let out = '';
+  let cursor = 0;
+  const open = new RegExp(HEADER_VALUE_ERROR_OPEN.source, 'g');
+  for (let m = open.exec(raw); m !== null; m = open.exec(raw)) {
+    const valueStart = m.index + m[0].length;
+    if (valueStart < cursor) continue;
+    const close = lastWithin(
+      closes,
+      valueStart,
+      valueStart + HEADER_VALUE_ERROR_MAX_LEN,
+    );
+    if (close === -1) continue;
+    out += raw.slice(cursor, valueStart) + VALUE_MASK_MARKER;
+    cursor = close;
+    open.lastIndex = close;
+  }
+  return out + raw.slice(cursor);
+}
+
+/** 오름차순 `sorted` 에서 `[from, to]` 안의 가장 큰 값. 없으면 -1. */
+function lastWithin(sorted: number[], from: number, to: number): number {
+  let lo = 0;
+  let hi = sorted.length - 1;
+  let found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] <= to) {
+      found = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return found !== -1 && sorted[found] >= from ? sorted[found] : -1;
+}
+
 /**
  * Mask secret-shaped tokens in `raw` using {@link SECRET_LEAK_PATTERNS}, without
  * length truncation. Safe to call with non-string or empty values — returns the
@@ -84,7 +161,64 @@ export function redactSecrets(raw: string): string {
   for (const pattern of SECRET_LEAK_PATTERNS) {
     masked = masked.replace(pattern, VALUE_MASK_MARKER);
   }
-  return masked;
+  return redactInvalidHeaderValues(masked);
+}
+
+/**
+ * **`redactSecrets` 의 대용이 아니다.** 호출한 쪽이 이미 들고 있는 비밀(시크릿 저장소에서 푼
+ * 평문)과 글자 그대로 같은 부분을 모두 {@link VALUE_MASK_MARKER} 로 바꾼다. 값 패턴을 추측하지
+ * 않으므로 접두 없는 토큰도 가리고 오탐이 없다.
+ *
+ * 쓰는 자리는 나가는 시점이 아니라 **만든 자리**다. 외부 API 클라이언트가 실패 원문을 돌려주거나
+ * 로그에 남기기 전에 그 호출에 쓴 비밀을 지운다. 그 원문은 진단 필드(예: 트리거의
+ * `chat_channel_last_error`)에 저장되고 로그로도 가는데, 시크릿 저장소 평문은 DB 와 로그에
+ * 닿으면 안 된다. 나가는 시점의 {@link redactSecrets} 는 미리 알 수 없는 모양을 막는 두 번째
+ * 층으로 따로 건다.
+ *
+ * fetch 는 헤더 값의 양끝 HTTP 공백(SP · TAB · CR · LF)을 떼고 검증해 **뗀 값**을 오류 원문에
+ * 싣는다. 여러 줄을 붙여 넣은 토큰(`xoxb-…\n…\n`)이 그렇다. 그래서 원문 그대로의 비밀과 함께
+ * 양끝 공백을 뗀 변형도 가린다. 긴 변형부터 바꿔 원문에 그대로 실린 경우 끝 공백까지 가린다.
+ *
+ * `secret` 이 비었거나 공백뿐이거나 문자열이 아니면 아무것도 바꾸지 않는다(빈 문자열로 쪼개면
+ * 원문 전체가 깨진다). 아주 짧은 비밀은 원문의 다른 글자까지 바꿔 문장이 읽기 어려워질 수 있다.
+ * 그런 값은 쓸 수 있는 자격 증명이 아니라 받아들인다.
+ *
+ * 한계: 글자 그대로 같은 문자열(과 양끝 공백 변형)만 바꾼다. URL 인코딩이나 base64 처럼 바뀐
+ * 평문은 가리지 못한다(응답 자격 증명 마스킹 §3.10).
+ */
+export function replaceKnownSecret(text: string, secret: string): string {
+  if (typeof text !== 'string' || typeof secret !== 'string') return text;
+  let out = text;
+  for (const variant of knownSecretVariants(secret)) {
+    out = out.split(variant).join(VALUE_MASK_MARKER);
+  }
+  return out;
+}
+
+/**
+ * 비밀 원문과 양끝 HTTP 공백을 뗀 변형들. 긴 것부터, 비거나 공백뿐인 것은 뺀다.
+ *
+ * 양끝은 인덱스로 훑는다. `[\t\n\r ]+$` 같은 정규식은 가운데 공백 런이 길면 이차 시간이라 길이
+ * 상한이 없는 재발급 토큰(100K 공백)에서 한 호출이 17초였다.
+ */
+function knownSecretVariants(secret: string): string[] {
+  let start = 0;
+  let end = secret.length;
+  while (start < end && isHttpWhitespace(secret.charCodeAt(start))) start++;
+  while (end > start && isHttpWhitespace(secret.charCodeAt(end - 1))) end--;
+  if (start === end) return [];
+  const variants = new Set([
+    secret,
+    secret.slice(0, end),
+    secret.slice(start),
+    secret.slice(start, end),
+  ]);
+  return [...variants].sort((a, b) => b.length - a.length);
+}
+
+/** HTTP 헤더 값 양끝에서 fetch 가 떼는 공백: SP · TAB · LF · CR. */
+function isHttpWhitespace(code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
 }
 
 /**

@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "405632a89f675847b10bee0bcffa1c661f64f86f69949f97afc20b17dfc32dc7"
+content_hash: "693648724483b00f73e8118077f9076fd788e0381a86f06f5cfce1c38ab761d7"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "02a44a793c9908ed0e75fa35aedd315c071b4f439ad348729e2b33c007988b7a"
-etag: "sha256-e1ff0a131bde6b5a69772eb6cb2a106938c67069ea72723622142241443404ab"
+mirror_sha256: "89ad8aba680a118a1033f2622e12cd4e30ebf94699faec52cdac6a46f1615f94"
+etag: "sha256-1451b1d132567ad2ff021d5d037f88f4e6aa59a416381cc0b296f5bb148a3c77"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,11 +49,11 @@ etag: "sha256-e1ff0a131bde6b5a69772eb6cb2a106938c67069ea72723622142241443404ab"
 11. 비밀 교체도 `rotate()`(UPSERT)로 쓴다. 채팅 채널 봇 토큰 재발급은 옛 토큰을 `bot-token.v2` 참조에 `rotate` 로 백업한 뒤 기본 참조(`bot-token`)를 새 토큰으로 `rotate` 한다([봇 토큰 재발급](#봇-토큰-재발급)). `.v2` 참조에 새 값을 쓰는 교체는 현재 없다.
 12. `deleteByPrefix` 의 prefix 는 `secret://` 로 시작해야 한다. LIKE 메타문자(`%`·`_`·`\`)가 들어 있으면 throw 한다. 구현은 `ref LIKE :prefix` 에 `` `${prefix}%` `` 를 바인딩하고 `ESCAPE` 절을 두지 않는다. `ESCAPE` 절이 없다는 것도 계약의 일부다.
 13. `secret_store.workspace_id` 를 조건으로 지우는 경로는 두지 않는다. 워크스페이스 삭제도 트리거 단위 prefix 로 정리한다. 인터페이스에 워크스페이스 단위 삭제가 없고, 백엔드를 규약 변경 없이 바꿀 수 있어야 하기 때문이다. 워크스페이스 삭제가 정리할 트리거를 빠짐없이 모으는 방법은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 사람이 돌리는 일회성 운영 SQL 은 이 규칙의 대상이 아니다(R10).
-14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. (원본: SS-SE-01)
+14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. 외부 API 호출이 실패해 호출한 모듈이 만든 실패 문장에 평문이 실리면 그 모듈이 문장을 만든 자리에서 지운다(알려진 비밀 치환). 지금은 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 한다([채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10). 평문으로 외부 API 를 부르는 모듈이 늘면 이 목록에 더한다. (원본: SS-SE-01)
 15. `store`·`rotate` 를 부를 때마다 12바이트 IV 를 새로 발급한다. IV 재사용은 금지한다. AES-GCM 에서 nonce 재사용은 치명적이다. (원본: SS-SE-02)
 16. AAD 는 `ref` 다(`setAAD(Buffer.from(ref))`). 다른 참조의 암호문을 이 행에 덮어쓰는 행 간 교체 공격은 복호화 실패로 끝나야 한다. (원본: SS-SE-03)
 17. 마스터키가 설정되지 않았거나 빈 값이면 부팅을 멈춘다(`SecretResolver` 모듈 초기화에서 throw). `NODE_ENV=production` 에서는 공개 `.env.example` 예시 키가 그대로 설정된 경우에도 부팅을 거부한다. 64-hex 가 아닌 값은 거부하지 않고 SHA-256 으로 키를 만든다([마스터키](#마스터키)). (원본: SS-SE-04)
-18. v1 은 DB 행 단위 감사 로그를 지원하지 않는다. `resolve` 가 실패하면 애플리케이션 로거가 참조와 `workspaceId` 만 남기고 평문은 남기지 않는다. 규칙 24 의 참조 불일치와 규칙 25 의 거부도 애플리케이션 로거에만 남기고 평문은 남기지 않는다. (원본: SS-SE-05)
+18. v1 은 DB 행 단위 감사 로그를 지원하지 않는다. `resolve` 가 실패하면 애플리케이션 로거가 참조와 `workspaceId` 만 남기고 평문은 남기지 않는다. 규칙 24 의 참조 불일치와 규칙 25 의 거부도 애플리케이션 로거에만 남기고 평문은 남기지 않는다. `resolve` · `store` · `rotate` 가 던지는 예외 메시지는 참조를 싣지 않고 참조는 애플리케이션 로거에만 남긴다. 예외 메시지가 어댑터 실패 원문으로 화면에 보이는 필드(`chat_channel_last_error`)에 저장될 수 있어서다. 미존재 분기에는 행이 없어 `workspaceId` 는 남기지 못한다. 응답 비노출 자체는 규칙 4 가 정한다. (원본: SS-SE-05)
 19. `resolve(ref)` 결과는 호출자가 쓴 뒤 GC 에 맡긴다. `Buffer.fill(0)` 같은 강제 삭제는 v1 에 적용하지 않고 v2 선택지로 둔다(권장). (원본: SS-SE-06)
 20. 소비 모듈은 원칙상 구체 클래스(`SecretResolverService`)가 아닌 추상 인터페이스에 의존한다. v1 은 NestJS DI 편의를 위해 구체 클래스를 직접 주입해도 된다. 구현체가 하나뿐이라 바꿀 일이 없고, abstract class 를 쓰면 injection token 설정이 더 필요하며, `deleteByPrefix` 를 포함한 메서드 시그니처가 아직 안정되지 않았기 때문이다. 백엔드가 둘 이상이 되면 `ISecretResolver` 를 추출하고 소비 모듈의 injection token 과 테스트 mock 을 인터페이스 기반으로 바꾼다. 현재 구현의 소비 모듈은 `triggers`·`chat-channel`·`external-interaction`·`schedules` 다.
 21. `SecretResolver` 인터페이스를 바꾸는 변경은 모든 호출 모듈을 같은 변경에서 함께 고친다.
@@ -111,10 +111,10 @@ EIA 알림 웹훅 HMAC 서명 시크릿을 교체하는 24시간 유예 동안 *
 
 ```typescript
 interface SecretResolver {
-  /** ref 로 plaintext 조회. 미존재 시 throw. 정상 동작 경로에서만 호출 (config 가 ref 를 보유) */
+  /** ref 로 plaintext 조회. 미존재 시 throw (메시지에 ref 를 싣지 않는다, 규칙 18). 정상 동작 경로에서만 호출 (config 가 ref 를 보유) */
   resolve(ref: string): Promise<string>;
 
-  /** plaintext 를 ref 로 저장. 이미 존재하면 throw (대신 rotate 사용) */
+  /** plaintext 를 ref 로 저장. 이미 존재하면 throw (메시지에 ref 를 싣지 않는다, 규칙 18. 대신 rotate 사용) */
   store(ref: string, workspaceId: string, plaintext: string): Promise<void>;
 
   /** ref 의 plaintext 를 newPlaintext 로 교체 (UPSERT 의미). 기존 행의 workspace_id 가 인자와 다르면 throw 하고 바꾸지 않는다 (규칙 25) */
@@ -319,6 +319,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 ## 구현 위치
 
 - `codebase/backend/src/modules/secret-store/**`
+- 규칙 14 의 알려진 비밀 치환: `codebase/backend/src/shared/utils/sanitize-error-message.ts`(`replaceKnownSecret`), 채팅 채널 클라이언트 `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts` · `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts` · `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
 - 규칙 23 의 시행: `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`(원시 `config` 거부), `codebase/backend/src/modules/triggers/triggers.service.ts`(`rotateBotToken` 의 참조 유도)
 - 저장소 예외 필드의 응답 부재 단언(규칙 4 · 6): `codebase/backend/src/shared/testing/trigger-workflow-ref.ts`, `codebase/backend/src/shared/testing/schedule-trigger-ref.ts`
 - 규칙 24 의 시행: `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts`(참조 유도와 읽기 관문), `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts`(알림 서명 참조 유도). 관문을 쓰는 곳: `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`, `codebase/backend/src/modules/hooks/hooks.service.ts`, `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`, `codebase/backend/src/modules/triggers/triggers.service.ts`(봇 토큰 재발급, 알림 서명 승격), `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts`(알림 서명)
@@ -394,3 +395,11 @@ R9 가 요청 본문을 막은 뒤에도 그 전에 저장된 행은 남는다. 
 - **로그는 발생할 때마다 남긴다.** 교차 행이 인바운드를 받을 때마다 남지만 같은 요청이 이미 `resolve` 실패 경고를 남기므로 로그 양의 등급은 같다. 참조 불일치 로그에는 저장값을 싣지 않는다. 참조 자리에 평문이 들어 있을 수 있어서다.
 - **이번에 정하지 않은 것.** [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 따로 검토하기로 한 `rotate` 의 빈 값 가드는 이번에도 넣지 않는다. 대조하지 않는 소비 지점도 있다. 봇 토큰 유예 정리와 해지는 서버만 쓰는 `chat_channel_token_v2` 컬럼의 참조를 쓴다. `delete` · `exists` · `deleteByPrefix` 는 참조만 본다([`SecretResolver` 인터페이스](#secretresolver-인터페이스)). 채팅 채널 활성화가 `setupChannel` 을 부르게 되면([채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로)) 그 경로도 읽기 관문을 지나야 한다. 실행 시점의 트리거 · 워크플로우 워크스페이스 대조는 [데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검) 이 정했다(2026-10-05). 원시 `config` 의 나머지 계약과 `interaction.triggerToken` 예외의 전제 (c) 는 `CLE-T-EA7B5M` 이 맡는다.
 - **점검과 정리를 걷었다 (2026-10-05).** PR #1493~#1495 를 배포한 뒤 운영 DB 에서 점검 SQL 이 0 행이었다(사람 보고). 운영 환경은 운영 DB 한 곳이고(사람 확인) 셀프 호스팅 배포는 아직 없다. 정리할 행이 없어 정리 SQL 은 돌리지 않았다. 위 순서는 배포 전에 점검하도록 정했지만 실제 점검은 배포 뒤였다. 0 행이어서 정리와 재발급이 필요 없었다. 위 «정리 SQL 은 규칙 3 · 13 밖의 일회성 절차다» 가 정한 걷는 조건(점검이 모든 운영 환경에서 비면 걷는다)이 채워져 두 SQL 과 그 SQL 을 돌리던 e2e 케이스를 걷었다(NERV Task `CLE-T-N0RHDZ`). 위 «교차 행의 소유자는 정리 뒤에 다시 쓴다» 와 «운영 정리를 먼저 하는 순서» 는 그때의 결정이고 설계는 바뀌지 않았다. 백업 복원 등으로 교차 행이 다시 나타나면 같은 순서를 따른다. 두 SQL(`2026-10-04-trigger-secret-ref-audit.sql` · `-cleanup.sql`)은 저장소에는 없고 커밋 `d5cb730ec` 에서 꺼낸다. «정리 뒤 소유자가 다시 재발급할 수 있다» 를 확인하던 e2e 케이스도 함께 걷었으므로 그 순서를 지금 확인하는 테스트는 없다. 다른 문서가 이 절 제목으로 링크하므로 절 이름 「교차 행 점검과 정리」 는 그대로 두었다.
+
+### R11. 실패 문장의 평문과 예외 메시지의 참조를 만든 자리에서 지운다 (2026-10-05)
+
+NERV Task `CLE-T-H0GF4K` 가 채팅 채널의 마지막 오류 필드를 점검하다 두 경로를 찾았다. Slack 봇 토큰에 CR · LF · NUL 이 있으면 fetch 의 헤더 검증 오류가 토큰 전체를 원문에 실었고 그 원문이 `chat_channel_last_error` 와 로그로 갔다(규칙 14 위반). `resolve` 의 «없음» 오류가 참조를 실어 같은 필드에 저장될 수 있었다(규칙 4).
+
+- 규칙 14 를 «평문을 내보내지 않는다» 에서 «실패 문장을 만든 자리에서 지운다» 는 의무까지 넓혔다. 저장된 뒤에 가리면 DB 와 로그의 유출이 남는다. 지우는 쪽은 그 호출에 쓴 평문을 들고 있는 모듈뿐이라 그 모듈에 의무를 둔다. 값을 알고 지우므로 패턴 오탐이 없다.
+- 규칙 18 에 예외 메시지가 참조를 싣지 않는다는 문장을 더했다. `rotate` 의 거부(규칙 25)가 이미 그렇게 했고 `resolve` · `store` 를 맞췄다.
+- 응답 쪽의 두 번째 층(값 패턴으로 가리기)은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다. 이 변경 전에 저장된 `chat_channel_last_error` 에 남은 값은 그 문서의 「트리거 응답의 마지막 오류」 한계가 다룬다.

@@ -115,7 +115,11 @@ export class TriggerDto {
   @ApiProperty({ enum: ['unknown', 'healthy', 'degraded'], example: 'healthy' })
   chatChannelHealth: TriggerChatChannelHealth;
 
-  /** chat-channel 마지막 오류 메시지 (없으면 `null`) */
+  // 근거: [응답 자격 증명 마스킹 「트리거 응답의 마지막 오류」](CLE-API-EGRESS#310-트리거-응답의-마지막-오류-2026-10-05), NERV Task `CLE-T-H0GF4K`
+  /**
+   * chat-channel 마지막 오류 메시지 (없으면 `null`). 자격 증명 모양은 `***` 로 가려서 내보낸다.
+   * 저장된 원문과 다를 수 있다.
+   */
   @ApiProperty({ nullable: true, type: String })
   chatChannelLastError: string | null;
 
@@ -131,7 +135,11 @@ export class TriggerDto {
   @ApiProperty({ enum: ['unknown', 'healthy', 'degraded'], example: 'healthy' })
   notificationHealth: TriggerNotificationHealth;
 
-  /** outbound notification 마지막 오류 메시지 (없으면 `null`) */
+  // 근거: [응답 자격 증명 마스킹 「트리거 응답의 마지막 오류」](CLE-API-EGRESS#310-트리거-응답의-마지막-오류-2026-10-05), NERV Task `CLE-T-H0GF4K`
+  /**
+   * outbound notification 마지막 오류 메시지 (없으면 `null`). 자격 증명 모양은 `***` 로
+   * 가려서 내보낸다. 저장된 원문과 다를 수 있다.
+   */
   @ApiProperty({ nullable: true, type: String })
   notificationLastError: string | null;
 

@@ -3,18 +3,18 @@ id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "90130cd8871fb1804ec39964a2205997b5203d922764394f6ee8d80ad6077528"
+content_hash: "6bc03e85090979fa92d53509b42532c42db36e925e0496819bf159cc57824349"
 read_as: "approved_fallback"
-task: "CLE-T-M9QKKX"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "9657704daab1527d09a33ee29a665fd8f2e74bc89a1c34ba0688f794d0de69ad"
-etag: "sha256-540e181ad2f94c5dcad3bf078f4659241785b3276a2823d72f0b1635f9ebd901"
+mirror_sha256: "606ddde5103e9364a16e669d5cc44f354f9a33e81412f982a045273e27174970"
+etag: "sha256-0d6f5ee607473338a4aedfa56a067c7f7db19fa533b9865c56f74c51df943d76"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,7 +49,7 @@ External Interaction API(EIA)는 워크플로우 실행을 외부 시스템과 �
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `notification_health` | VARCHAR(16) NOT NULL DEFAULT `'unknown'` | 발송 건강도. `unknown`·`healthy`·`degraded` |
-| `notification_last_error` | TEXT NULL | 마지막 발송 실패나 폭주 사유(500자로 자름) |
+| `notification_last_error` | TEXT NULL | 마지막 발송 실패나 폭주 사유(500자로 자름). 응답에서는 자격 증명 모양을 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | `notification_secret_v2` | TEXT NULL | 시크릿 교체 유예(24시간) 동안 쓰는 새 서명 시크릿의 평문 |
 | `notification_rotated_at` | TIMESTAMPTZ NULL | 시크릿 교체 시각 |
 

@@ -51,6 +51,7 @@ import { notificationSigningSecretRef } from './notification-signing-secret-ref'
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import { redactSecrets } from '../../shared/utils/sanitize-error-message';
 import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import {
@@ -176,7 +177,7 @@ function stripChatChannelSecrets(
   return out;
 }
 
-/** 축 2 — `config.interaction`. 발급된 평문 `triggerToken` 을 뺀다. */
+/** 축 3 — `config.interaction`. 발급된 평문 `triggerToken` 을 뺀다. */
 function stripInteractionSecrets(
   interaction: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -184,7 +185,7 @@ function stripInteractionSecrets(
 }
 
 /**
- * 축 3 — `config.notification.signing`. 감싸는 `notification` 을 통째로 새로 만들어
+ * 축 2 — `config.notification.signing`. 감싸는 `notification` 을 통째로 새로 만들어
  * 돌려준다 (원본을 제자리에서 고치지 않는다).
  */
 function stripNotificationSigningSecrets(
@@ -208,6 +209,27 @@ function stripNotificationSigningSecrets(
 function deleteSecretColumns(target: Record<string, unknown>): void {
   for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
     delete target[column];
+  }
+}
+
+/**
+ * 응답에서 값을 가릴 **진단 원문 컬럼**. 비밀 필드가 아니라 실패 원인을 담은 텍스트라 지우지
+ * 않고 값 안의 자격 증명 모양만 가린다(`TRIGGER_RESPONSE_STRIP_COLUMNS` 와 갈래가 다르다).
+ * 어댑터 · 알림 발송 실패 원문(프로바이더 응답 포함)이 그대로 저장되는 필드다.
+ */
+const TRIGGER_RESPONSE_REDACT_COLUMNS = [
+  'chatChannelLastError',
+  'notificationLastError',
+] as const satisfies readonly (keyof Trigger)[];
+
+/**
+ * 진단 원문의 응답 마스킹. `redactSecrets`(값 패턴)를 걸어 자격 증명 모양만 `***` 로 바꾼다.
+ * 자르지 않는다. **제자리 변형**이라 정화 *사본*에만 부른다. 저장값은 원문으로 남는다.
+ */
+function redactDiagnosticColumns(target: Record<string, unknown>): void {
+  for (const column of TRIGGER_RESPONSE_REDACT_COLUMNS) {
+    const value = target[column];
+    if (typeof value === 'string') target[column] = redactSecrets(value);
   }
 }
 
@@ -800,9 +822,11 @@ export class TriggersService {
   }
 
   /**
-   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 **네 곳**을 모두 덮는다.
+   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 **네 곳**을 모두 덮고 진단 원문의
+   * 자격 증명 모양을 가린다.
    *
-   * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01]
+   * 근거: [채팅 채널 「인증과 보안」](CLE-CHAT-CORE#인증과-보안),
+   * [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙), [응답 자격 증명 마스킹 「규칙」](CLE-API-EGRESS#규칙)
    *
    * | 축 | 어디 | 목록 | 정화 함수 |
    * |---|---|---|---|
@@ -812,8 +836,8 @@ export class TriggersService {
    * | 4 | `trigger` 행의 **엔티티 컬럼** | `TRIGGER_RESPONSE_STRIP_COLUMNS` | `deleteSecretColumns` |
    *
    * **이 메서드는 얇은 오케스트레이터다** — 축마다 이름 있는 순수 함수를 부르고, 조인된
-   * `workflow` 좁히기(`narrowWorkflowRef`)까지 다섯 책임이 각자 함수로 갈려 있다
-   * (`review/code/2026/09/06/00_00_23` W2 — 78줄 단일 메서드였다).
+   * `workflow` 좁히기(`narrowWorkflowRef`)와 진단 원문의 응답 마스킹(`redactDiagnosticColumns`)
+   * 까지 책임마다 함수가 갈려 있다(`review/code/2026/09/06/00_00_23` W2 — 78줄 단일 메서드였다).
    *
    * 신규 plaintext / 내부 ref 필드를 추가할 때는 해당 상수에 키를 넣어야 정화가 걸린다
    * (destructure 대신 목록 — 누락 위험 회피).
@@ -822,11 +846,20 @@ export class TriggersService {
    * 조기 return 을 없앤 뒤로는 정화할 것이 없는 트리거도 새 참조를 받는다, 그러니 호출부는
    * 참조 동일성을 전제하지 말 것.
    *
+   * ## 진단 원문의 응답 마스킹
+   *
+   * 표의 축은 비밀 필드를 **지운다**. 마지막 오류 두 필드(`TRIGGER_RESPONSE_REDACT_COLUMNS`)는
+   * 지우지 않고 값 안의 자격 증명 모양만 `redactSecrets` 로 가린다. 비밀 필드가 아니라 실패
+   * 원인을 보여 주는 진단 텍스트라 strip 목록에 넣지 않았다. 그래서 아래 절 끝의 «비밀 축이 하나
+   * 더 생기면 선언적 SoT 로 옮길 것» 에도 해당하지 않는다. 이 조회는 역할 게이트가 없어 뷰어도
+   * 받는다. 저장값은 원문이다. 시크릿 저장소 평문(봇 토큰)은 채팅 채널 클라이언트가 원문을 만들 때
+   * 이미 지운다(`replaceKnownSecret`). 이 마스킹은 미리 알 수 없는 모양을 막는 두 번째 층이다.
+   *
    * ## 왜 세 목록인가 — 이 메서드가 두 번 좁게 틀렸다
    *
    * 처음엔 (1) 만 했고 `config.chatChannel` 이 없으면 **조기 return** 했다. 그래서
    * chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도 컬럼 쪽
-   * 비밀(3)은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가 전 컬럼을
+   * 비밀(4)은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가 전 컬럼을
    * select 하므로 로테이션 유예 중이면 `notificationSecretV2` 가 wire 로 나간다.
    * (§5.4 응답-계약 스윕이 `TriggerDto` 미선언 9필드로 검출.)
    *
@@ -893,7 +926,9 @@ export class TriggersService {
       trigger,
       overrides,
     ) as T;
-    deleteSecretColumns(sanitized as unknown as Record<string, unknown>);
+    const target = sanitized as unknown as Record<string, unknown>;
+    deleteSecretColumns(target);
+    redactDiagnosticColumns(target);
     return sanitized;
   }
 

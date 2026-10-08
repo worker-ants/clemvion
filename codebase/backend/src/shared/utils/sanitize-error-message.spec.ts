@@ -7,6 +7,8 @@ import {
   MAX_REDACT_DEPTH,
   redactSecrets,
   redactSecretsInJsonString,
+  replaceKnownSecret,
+  HEADER_VALUE_ERROR_MAX_LEN,
   sanitizeLastErrorMessage,
   VALUE_MASK_MARKER,
 } from './sanitize-error-message';
@@ -162,6 +164,193 @@ describe('redactSecrets (mask-only)', () => {
     const first = redactSecrets(input);
     expect(redactSecrets(input)).toBe(first);
     expect(redactSecrets(input)).toBe(first);
+  });
+});
+
+/**
+ * fetch(undici) 가 헤더 값 검증에서 던지는 오류는 **헤더 값 전체**를 따옴표 안에 싣는다.
+ * 아래 원문은 Node 24 의 실제 `fetch` 로 재현한 문자열 그대로다(2026-10-05, NERV Task
+ * `CLE-T-H0GF4K`). `Bearer` 패턴은 제어 문자에서 멈춰 뒷부분을 남긴다.
+ */
+describe('redactSecrets — fetch 헤더 값 검증 오류', () => {
+  it.each([
+    [
+      'LF',
+      'Headers.append: "Bearer xoxb-AAA\nBBBB" is an invalid header value.',
+    ],
+    [
+      'CR',
+      'Headers.append: "Bearer xoxb-AAA\rBBBB" is an invalid header value.',
+    ],
+    [
+      'NUL',
+      'Headers.append: "Bearer xoxb-AAA\u0000BBBB" is an invalid header value.',
+    ],
+    [
+      'Discord Bot',
+      'Headers.append: "Bot MTAx.Yy\nZZZZ" is an invalid header value.',
+    ],
+  ])('%s 가 낀 헤더 값을 따옴표 안 통째로 가린다', (_label, raw) => {
+    const out = redactSecrets(`Slack auth.test failed: ${raw}`);
+    expect(out).toBe(
+      `Slack auth.test failed: Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it('값 안에 종결 문구가 끼어도 마지막 종결 문구까지 가린다', () => {
+    const raw =
+      'Headers.append: "Bearer xoxb-A"A\nB" is an invalid header value. BB" is an invalid header value.';
+    const out = redactSecrets(raw);
+    expect(out).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  // 따옴표 안은 마커가 들어 있어도 통째로 값 마커가 된다(규칙 5 의 예외, EGRESS §3.10). 다른 마커가
+  // 이 오류 원문 안에 들 일은 드물지만 동작을 고정해 둔다.
+  it('따옴표 안에 다른 마커가 있어도 값 마커 하나로 정규화한다', () => {
+    const raw =
+      'Headers.append: "Bearer [REDACTED]\nX" is an invalid header value.';
+    expect(redactSecrets(raw)).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it('알려진 비밀 치환을 지난 값은 같은 마커로만 바뀐다', () => {
+    const stored = `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`;
+    expect(redactSecrets(stored)).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it.each([
+    'the proxy rejected an invalid header value', // 따옴표 · 메서드 접두가 없다
+    'Headers.append: invalid header name', // 값 오류가 아니다
+  ])('일반 문장은 그대로 둔다: %s', (clean) => {
+    expect(redactSecrets(clean)).toBe(clean);
+  });
+
+  /**
+   * 여는 모양(`Headers.x: "`)이 많고 종결 문구가 없는 입력에서 선형 시간이어야 한다. 이 패턴은
+   * 공유 `SECRET_LEAK_PATTERNS` 라 실행 응답 · 이벤트 · 대화 스레드의 사용자 텍스트도 지난다.
+   * 크기는 옛 · 새 실측으로 정했다(Node 24, 192KB): 상한 없는 `[\s\S]*` 는 4.3초, 상한 2048 은
+   * 77ms 다. 임계값 1초는 새 패턴에 여유가 크고 옛 패턴은 넘는다.
+   */
+  /**
+   * 종결 문구가 끝에 한 번 있고 여는 모양이 많은 입력. 상한 2048 의 정규식은 여는 모양마다 2048자를
+   * 읽고 되짚어 1MB 에 435ms 였다(Node 24, 2차 코드 리뷰 실측). 종결 문구 위치를 먼저 모아 한 번에
+   * 처리하면 선형이다. 임계값 250ms 는 옛 구현이 넘고 새 구현은 여유가 크다.
+   */
+  it('[성능] 종결 문구가 끝에 있는 적대 입력 1MB 를 250ms 안에 처리한다', () => {
+    const adversarial =
+      'Headers.a: "'.repeat(85_000) + '" is an invalid header value.';
+    const started = performance.now();
+    redactSecrets(adversarial);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
+  // 상한은 HEADER_VALUE_ERROR_MAX_LEN(2048)이다. 값 길이가 그 이하면 가리고 넘으면 이 패턴은 걸리지
+  // 않는다. 상한을 줄이면 긴 헤더 값이 조용히 새고 늘리면 시간이 늘어난다.
+  it('따옴표 안 값이 상한 이하면 가리고 상한을 넘으면 이 패턴은 걸리지 않는다', () => {
+    const at = `Headers.append: "${'a'.repeat(HEADER_VALUE_ERROR_MAX_LEN)}" is an invalid header value.`;
+    const over = `Headers.append: "${'a'.repeat(HEADER_VALUE_ERROR_MAX_LEN + 1)}" is an invalid header value.`;
+    expect(redactSecrets(at)).toBe(
+      `Headers.append: "${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+    expect(redactSecrets(over)).toBe(over);
+  });
+
+  it('[성능] 종결 문구 없는 적대 입력 192KB 를 1초 안에 처리한다', () => {
+    const adversarial = 'Headers.a: "'.repeat(16_000);
+    const started = performance.now();
+    expect(redactSecrets(adversarial)).toBe(adversarial);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+});
+
+describe('replaceKnownSecret (알려진 비밀 치환)', () => {
+  it('호출에 쓴 비밀과 정확히 같은 부분을 모두 마커로 바꾼다', () => {
+    const token = 'xoxb-AAA\nBBBB';
+    const out = replaceKnownSecret(
+      `Headers.append: "Bearer ${token}" is an invalid header value. (${token})`,
+      token,
+    );
+    expect(out).toBe(
+      `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value. (${VALUE_MASK_MARKER})`,
+    );
+  });
+
+  it('정규식 메타문자가 낀 비밀도 글자 그대로 비교한다', () => {
+    const token = 'a.b*c+(d)?[e]$^|\\';
+    expect(replaceKnownSecret(`x ${token} y`, token)).toBe(
+      `x ${VALUE_MASK_MARKER} y`,
+    );
+    // 메타문자로 해석했다면 걸렸을 문자열은 그대로 남는다.
+    expect(replaceKnownSecret('x aXbbbc y', token)).toBe('x aXbbbc y');
+  });
+
+  /**
+   * fetch 는 헤더 값의 양끝 HTTP 공백(SP · TAB · CR · LF)을 떼고 검증해 뗀 값을 원문에 싣는다
+   * (Node 24 실측: `Bearer xoxb-AAA\nBBBB\n` → 원문에는 `Bearer xoxb-AAA\nBBBB`). 여러 줄을
+   * 붙여 넣은 토큰이 이 모양이다. 양끝 공백을 뗀 변형도 함께 가려야 평문이 남지 않는다.
+   */
+  it.each([
+    ['끝 줄바꿈', 'xoxb-AAA\nBBBB\n', 'xoxb-AAA\nBBBB'],
+    ['끝 CRLF', 'xoxb-AAA\nBBBB\r\n', 'xoxb-AAA\nBBBB'],
+    ['끝 공백', 'xoxb-AAA\nBBBB ', 'xoxb-AAA\nBBBB'],
+    ['앞 탭', '\txoxb-AAA\nBBBB', 'xoxb-AAA\nBBBB'],
+  ])('양끝 HTTP 공백을 뗀 토큰도 가린다 (%s)', (_label, token, shown) => {
+    const raw = `Headers.append: "Bearer ${shown}" is an invalid header value.`;
+    expect(replaceKnownSecret(raw, token)).toBe(
+      `Headers.append: "Bearer ${VALUE_MASK_MARKER}" is an invalid header value.`,
+    );
+  });
+
+  it('긴 변형부터 바꿔 원문에 그대로 실린 토큰의 끝 공백까지 가린다', () => {
+    const token = 'xoxb-AAA\nBBBB\n';
+    expect(replaceKnownSecret(`[${token}]`, token)).toBe(
+      `[${VALUE_MASK_MARKER}]`,
+    );
+  });
+
+  /**
+   * 재발급 `newBotToken` 은 길이 상한이 없다. 정규식(`[\t\n\r ]+$`)으로 양끝 공백을 떼면 긴 공백
+   * 런에서 이차 시간이라 `'x' + ' '.repeat(99_990) + 'x'` 한 호출이 17초였다(2차 코드 리뷰 실측).
+   * 양끝을 인덱스로 훑으면 선형이다.
+   */
+  it('[성능] 가운데 공백이 긴 비밀(100K)도 1초 안에 처리한다', () => {
+    const secret = `x${' '.repeat(100_000)}x`;
+    const started = performance.now();
+    expect(replaceKnownSecret(`[${secret}]`, secret)).toBe(
+      `[${VALUE_MASK_MARKER}]`,
+    );
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it('공백뿐인 비밀은 원문을 그대로 돌려준다(쓸 수 있는 자격 증명이 아니다)', () => {
+    expect(replaceKnownSecret('fetch failed now', ' \n')).toBe(
+      'fetch failed now',
+    );
+  });
+
+  it('비밀이 없거나 빈 문자열이면 원문을 그대로 돌려준다', () => {
+    expect(replaceKnownSecret('fetch failed', '')).toBe('fetch failed');
+    expect(replaceKnownSecret('fetch failed', undefined as never)).toBe(
+      'fetch failed',
+    );
+  });
+
+  it('원문이 문자열이 아니면 그대로 돌려준다', () => {
+    expect(replaceKnownSecret(undefined as never, 'tok')).toBeUndefined();
+  });
+
+  it('값 패턴과 무관한 모양(접두 없는 토큰)도 가린다 — redactSecrets 로는 못 가린다', () => {
+    const token = '1234567890:AAH-telegram-like';
+    const raw = `request to bot${token} failed`;
+    expect(redactSecrets(raw)).toContain(token);
+    expect(replaceKnownSecret(raw, token)).toBe(
+      `request to bot${VALUE_MASK_MARKER} failed`,
+    );
   });
 });
 

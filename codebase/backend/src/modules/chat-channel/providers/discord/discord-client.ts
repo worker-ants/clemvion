@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { replaceKnownSecret } from '../../../../shared/utils/sanitize-error-message';
 import type {
   DiscordApiError,
   DiscordApplication,
@@ -140,17 +141,19 @@ export class DiscordClient {
         await new Promise((r) => setTimeout(r, delay));
       }
     }
+    // fetch 의 헤더 검증 오류는 헤더 값(`Bot <토큰>`)을 원문에 싣는다. 로그와 반환값에 쓰기
+    // 전에 그 호출에 쓴 토큰을 지운다. 4xx 본문(위에서 바로 반환)은 건드리지 않는다.
+    const reason = replaceKnownSecret(
+      lastError instanceof Error ? lastError.message : String(lastError),
+      botToken,
+    );
     this.logger.warn(
-      `DiscordClient.${method} ${path} 3회 재시도 실패: ${
-        lastError instanceof Error ? lastError.message : String(lastError)
-      }`,
+      `DiscordClient.${method} ${path} 3회 재시도 실패: ${reason}`,
     );
     return {
       ok: false,
       message:
-        lastError instanceof Error
-          ? lastError.message
-          : 'Unknown error in DiscordClient',
+        lastError instanceof Error ? reason : 'Unknown error in DiscordClient',
     };
   }
 }

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { replaceKnownSecret } from '../../../../shared/utils/sanitize-error-message';
 import type {
   SlackAuthTestResult,
   SlackChatPostMessageResult,
@@ -130,6 +131,7 @@ export class SlackClient {
             continue;
           }
         } else if (res.status >= 400 && res.status < 500) {
+          // 프로바이더 본문은 실패 판별 입력이라 토큰 치환을 걸지 않는다(아래 실패 원문만 치환한다).
           return (await res
             .json()
             .catch(() => ({ ok: false, error: `HTTP ${res.status}` }))) as {
@@ -149,17 +151,17 @@ export class SlackClient {
         await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
       }
     }
-    this.logger.warn(
-      `SlackClient.filesUploadV2 3회 재시도 실패: ${
-        lastError instanceof Error ? lastError.message : String(lastError)
-      }`,
+    // fetch 의 헤더 검증 오류는 헤더 값(`Bearer <토큰>`)을 원문에 싣는다. 이 원문은 로그와
+    // `chat_channel_last_error` 로 가므로 그 호출에 쓴 토큰을 먼저 지운다(`call` 과 같다).
+    const reason = replaceKnownSecret(
+      lastError instanceof Error ? lastError.message : String(lastError),
+      botToken,
     );
+    this.logger.warn(`SlackClient.filesUploadV2 3회 재시도 실패: ${reason}`);
     return {
       ok: false,
       error:
-        lastError instanceof Error
-          ? lastError.message
-          : 'Unknown error in filesUploadV2',
+        lastError instanceof Error ? reason : 'Unknown error in filesUploadV2',
     };
   }
 
@@ -235,17 +237,18 @@ export class SlackClient {
         await new Promise((r) => setTimeout(r, delay));
       }
     }
-    this.logger.warn(
-      `SlackClient.${method} 3회 재시도 실패: ${
-        lastError instanceof Error ? lastError.message : String(lastError)
-      }`,
+    // fetch 의 헤더 검증 오류는 헤더 값(`Bearer <토큰>`)을 원문에 싣는다. 이 원문은 로그와
+    // `chat_channel_last_error` 로 가므로 그 호출에 쓴 토큰을 먼저 지운다. 4xx 본문(위에서 바로
+    // 반환)의 `error` 코드는 자격 증명 거부 판별 입력이라 건드리지 않는다.
+    const reason = replaceKnownSecret(
+      lastError instanceof Error ? lastError.message : String(lastError),
+      botToken,
     );
+    this.logger.warn(`SlackClient.${method} 3회 재시도 실패: ${reason}`);
     return {
       ok: false,
       error:
-        lastError instanceof Error
-          ? lastError.message
-          : 'Unknown error in SlackClient',
+        lastError instanceof Error ? reason : 'Unknown error in SlackClient',
     } as unknown as T;
   }
 }

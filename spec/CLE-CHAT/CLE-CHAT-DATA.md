@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "041c40b822eef20d02172377ac8c331d5d7c8c995446b9501cda4e7475c3b709"
+content_hash: "7f55a3c5fe5e48fb81fdf786a1fa686487ca5b27c27a716ccc57b9a0305118b1"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-H0GF4K"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "d886d311d9ad4c3e4870853ffb580750b599364a57b56b93526f3be8e63b6086"
-etag: "sha256-bae040b0f8786c409dee71043a5af6b31ca41cddbe1c0480012fd4187401ca7a"
+mirror_sha256: "7bc50ed60979f8f79c9d8d0553e301a04543333241d0c1a2256da07b0bc4a349"
+etag: "sha256-6dec5713d24e0a8e644ffca04ebf836481195e433051ad85653e90a4b8ddc1f1"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -150,7 +150,7 @@ ALTER TABLE trigger
 |---|---|---|
 | `trigger` | setup·설정 | `config.chatChannel` JSON(`provider`, `botTokenRef`, `inboundSigningRef`, `botIdentity`, `uiMapping`, `rateLimitPerMinute`, `languageLocale`, `languageHints`). 평문 비밀 필드는 저장 전에 지운다(SS-SE-01) |
 | `trigger` | setup 완료 | UPDATE `chat_channel_setup_at` |
-| `trigger` | 채널 건강도 | UPDATE `chat_channel_health`(`healthy`/`degraded`), `chat_channel_last_error`(1024자에서 자른다) |
+| `trigger` | 채널 건강도 | UPDATE `chat_channel_health`(`healthy`/`degraded`), `chat_channel_last_error`(1024자에서 자른다. 봇 토큰은 프로바이더 API 클라이언트가 먼저 지운다) |
 | `trigger` | 봇 토큰 재발급 | UPDATE `chat_channel_token_v2`(v2 시크릿 참조 문자열, 토큰 아님), `chat_channel_rotated_at`. 정리 때 둘 다 NULL |
 | `trigger` | 인바운드로 새 실행 시작 | UPDATE `last_triggered_at` |
 | `secret_store` | setup·재발급·정리 | `secret://triggers/{id}/bot-token`(primary), `.../bot-token.v2`(유예 슬롯), `.../inbound-signing`(서명 검증 자료) |

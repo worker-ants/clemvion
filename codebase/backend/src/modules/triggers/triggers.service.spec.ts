@@ -347,6 +347,109 @@ describe('TriggersService.findOneDetail', () => {
     expect(chatChannel.hasBotToken).toBe(true);
   });
 
+  /**
+   * 마지막 오류 칸의 응답 마스킹(NERV Task `CLE-T-H0GF4K`). 두 칸은 진단 원문이라 저장값은 그대로
+   * 두고 나가는 응답에서 자격 증명 모양만 가린다. 이 조회는 역할 게이트가 없어 뷰어도 받는다.
+   */
+  it('응답에서 두 마지막 오류 칸의 자격 증명 모양을 가리고 엔티티 원본은 바꾸지 않는다', async () => {
+    const chatRaw =
+      'Slack auth.test failed: Headers.append: "Bearer xoxb-AAA\nBBBB" is an invalid header value.';
+    const notificationRaw =
+      'network: Request cannot be constructed from a URL that includes credentials: https://user:s3cretpass@hooks.example.com/in';
+    const entity = {
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      chatChannelLastError: chatRaw,
+      notificationLastError: notificationRaw,
+      config: {},
+    } as unknown as Trigger;
+    triggerRepo.findOne.mockResolvedValue(entity);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(result.chatChannelLastError).toBe(
+      'Slack auth.test failed: Headers.append: "***" is an invalid header value.',
+    );
+    expect(result.notificationLastError).toBe(
+      'network: Request cannot be constructed from a URL that includes credentials: https://***@hooks.example.com/in',
+    );
+    // 저장값(엔티티)은 그대로다. 응답만 새 객체로 가린다.
+    expect(entity.chatChannelLastError).toBe(chatRaw);
+    expect(entity.notificationLastError).toBe(notificationRaw);
+  });
+
+  /**
+   * 이 변경 전에는 시크릿 저장소의 «없음» 오류가 참조를 실었다(`Secret not found: secret://…`).
+   * 그렇게 저장된 옛 값이 다음 갱신 전까지 남아 있다. 값 패턴의 단독 `secret` 키워드 패턴
+   * (`secret` + `:` + 값)이 참조를 통째로 가리므로 응답에는 참조가 나가지 않는다(시크릿 저장소
+   * 「규칙」 4, NERV Task `CLE-T-H0GF4K`). 그 패턴을 좁히면 여기가 깨진다.
+   */
+  it('[캐너리] 마지막 오류에 남은 옛 시크릿 참조는 값 패턴이 가린다', async () => {
+    const stored =
+      'Telegram getMe failed: Secret not found: secret://triggers/7b0f2c1e-1111-4222-8333-944455556666/bot-token.v2';
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      chatChannelLastError: stored,
+      notificationLastError:
+        'signing: secret://triggers/t1/notification-signing',
+      config: {},
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(result.chatChannelLastError).toBe(
+      'Telegram getMe failed: Secret not found: ***',
+    );
+    expect(result.notificationLastError).toBe('signing: ***');
+  });
+
+  // 응답 마스킹은 자르지 않는다(EGRESS §3.10). 저장 칸은 1024 · 500자를 담으므로 200자에서 자르는
+  // `sanitizeLastErrorMessage` 로 바뀌면 뒤쪽 원문이 사라진다. 그 회귀를 막는다.
+  it('응답 마스킹은 자르지 않고 긴 원문 뒤쪽의 자격 증명만 가린다', async () => {
+    const prefix = `Slack chat.postMessage failed: ${'x'.repeat(300)} `;
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      chatChannelLastError: `${prefix}Authorization: Bearer xoxb-tail-secret`,
+      notificationLastError: null,
+      config: {},
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(result.chatChannelLastError).toBe(`${prefix}***`);
+  });
+
+  it('자격 증명 모양이 없는 마지막 오류와 null 은 그대로 둔다', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      chatChannelLastError: 'Slack chat.postMessage failed: channel_not_found',
+      notificationLastError: null,
+      config: {},
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect(result.chatChannelLastError).toBe(
+      'Slack chat.postMessage failed: channel_not_found',
+    );
+    expect(result.notificationLastError).toBeNull();
+  });
+
   // CLE-T-M9QKKX — 정상 클라이언트가 GET 한 config 를 그대로 PATCH 로 보내도 원시 config 의 내부 필드
   // 거부에 걸리지 않아야 한다. 응답 정화가 지우는 키가 거부 대상을 모두 덮는다는 관계를 여기서 묶는다.
   it('내부 필드를 모두 담은 config 도 응답 정화를 거치면 원시 config 거부를 통과한다', async () => {
@@ -570,6 +673,30 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
     expect(row).not.toHaveProperty('chatChannelTokenV2');
     // 조인된 workflow 는 참조 2필드로 좁혀진다 — `description` 은 남지 않는다.
     expect(Object.keys(row.workflow as object).sort()).toEqual(['id', 'name']);
+  });
+
+  // 목록 경로도 같은 관문을 지난다(`findOneDetail` 과 다른 코드 경로). NERV Task `CLE-T-H0GF4K`.
+  it('목록 응답에서도 두 마지막 오류 칸의 자격 증명 모양을 가린다', async () => {
+    mockQb([
+      {
+        id: 'c-trig',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'chat',
+        chatChannelLastError:
+          'Slack chat.postMessage failed: Authorization: Bearer xoxb-leak',
+        notificationLastError:
+          'network: Request cannot be constructed from a URL that includes credentials: https://u:pw@h/x',
+      } as unknown as Trigger,
+    ]);
+
+    const page = await service.findAll('ws', {} as never);
+    const row = (page.data as unknown as Record<string, unknown>[])[0];
+
+    expect(row.chatChannelLastError).toBe('Slack chat.postMessage failed: ***');
+    expect(row.notificationLastError).toBe(
+      'network: Request cannot be constructed from a URL that includes credentials: https://***@h/x',
+    );
   });
 
   it('여러 schedule 행을 단일 IN 배치로 enrichment 하고 webhook 행은 건드리지 않는다 (N+1 회피)', async () => {
