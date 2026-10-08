@@ -32,9 +32,9 @@ diff 줄 번호를 원본과 대조한다. 이 고르는 함수(`pick_commit_fix
 PR #1507(bullmq 6)이 `main` 의 dependabot 머지와 `package.json` · `pnpm-lock.yaml` 을 함께 바꿔 드러났다(NERV Task `CLE-T-4RHTPR`).
 
 - `pick_commit_fixture` 가 parent 가 둘 이상인 커밋은 모두 건너뛴다. 기존 테스트 이름(`test_a_merge_commit_is_never_selected`)이
-  말하던 불변식과 같다.
-- 양쪽이 같은 파일의 다른 줄을 바꾼 merge 를 목적 저장소로 만들어 고르지 않는다는 테스트와 그 merge 가 실제로 combined
-  diff 를 갖는다는 전제 테스트를 더했다.
+  말하던 불변식과 같다. parent 수는 커밋 객체의 헤더만 읽어 센다(shallow graft · 메시지 본문에 속지 않는다).
+- 양쪽이 같은 파일의 맞닿은 줄을 바꾼 merge 를 목적 저장소로 만들어 고르지 않는다는 테스트를 더했다. 그 merge 가 parent
+  수 말고 다른 조건(combined diff 목록, `@@@` hunk, 줄 수 임계값, 내용)을 모두 통과한다는 전제 테스트도 함께 둔다.
 
 ## Unreleased — 의존성: proxy-addr · source-map-js 하한을 올리고 sprintf-js 를 트리에서 뺀다
 
