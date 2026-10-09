@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "693648724483b00f73e8118077f9076fd788e0381a86f06f5cfce1c38ab761d7"
+content_hash: "8c867c1228b312688add9679e390db701a8856c6d1b788adf6c0890077b26bf4"
 read_as: "approved_fallback"
-task: "CLE-T-H0GF4K"
+task: "CLE-T-M6PERB"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "89ad8aba680a118a1033f2622e12cd4e30ebf94699faec52cdac6a46f1615f94"
-etag: "sha256-1451b1d132567ad2ff021d5d037f88f4e6aa59a416381cc0b296f5bb148a3c77"
+mirror_sha256: "8bf2a7117b2fab9e2b1f0687b52755584cb11cf71a1f58bd55c3ba957ffe8d8b"
+etag: "sha256-f17ad822b261cbda80a57576c920cc2c67f068fdd5d9db7c5274baa209548e81"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,17 +39,22 @@ etag: "sha256-1451b1d132567ad2ff021d5d037f88f4e6aa59a416381cc0b296f5bb148a3c77"
 1. 시크릿 참조는 `secret://<scope>/<resourceId>/<name>` 형식이다. `scope` 는 자원 namespace 로 lower-case kebab-case(예: `triggers`, `oauth-clients`)다. `resourceId` 는 UUID v4 또는 다른 스펙이 정한 ID 형식이다. `name` 은 자원 안 비밀 이름으로 lower-case kebab-case(예: `bot-token`, `inbound-signing`, `notification-signing`, `bot-token.v2`)다. DB 도 같은 형식을 CHECK 로 막는다([저장 백엔드](#저장-백엔드)).
 2. `name` 끝의 `.v2` 는 같은 자원의 24시간 유예용 변형이다. 현재 쓰는 곳은 채팅 채널 봇 토큰 재발급([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) CCH-SE-04)뿐이다. EIA 알림 서명 시크릿 교체는 `.v2` 참조를 쓰지 않는다([저장소 예외 필드](#저장소-예외-필드)).
 3. 도메인 모듈은 비밀을 `SecretResolver` 로 읽고 쓴다. 예외는 [저장소 예외 필드](#저장소-예외-필드) 에 올린 필드뿐이며, 예외를 올릴 때 그 필드만의 근거를 적는다.
-4. 저장소 예외 필드는 **저장 위치**의 예외일 뿐 **노출**의 예외가 아니다. 저장소 밖에 사는 필드(`AuthConfig.config` 자격 증명, `Trigger.config.interaction.triggerToken`, `Trigger.notification_secret_v2`)와 시크릿 참조(`Trigger.chat_channel_token_v2`, `config.*.botTokenRef`, `config.*.inboundSigningRef`, `config.notification.signing.secretRef`)는 응답 DTO 에 선언해서도, 응답 바디에 실어서도 안 된다. 참조도 대상이다. 평문은 아니지만 내부 저장 위치를 드러낸다.
-5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다.
+4. 저장소 예외 필드는 **저장 위치**의 예외일 뿐 **노출**의 예외가 아니다. 저장소 밖에 사는 필드(`AuthConfig.config` 자격 증명, `Trigger.config.interaction.triggerToken`, `Trigger.notification_secret_v2`)와 시크릿 참조(`Trigger.chat_channel_token_v2`, `config.*.botTokenRef`, `config.*.inboundSigningRef`, `config.notification.signing.secretRef`)는 응답 DTO 에 선언해서도, 응답 바디에 실어서도 안 된다. 참조도 대상이다. 평문은 아니지만 내부 저장 위치를 드러낸다. 이 금지의 예외는 아래 응답뿐이다. 이 응답들은 이 규약이 이름 붙인 필드의 값이나 이름 붙인 참조가 가리키는 값의 평문을 한 번 싣는다. 평문 보기를 빼면 모두 그 값을 만든 바로 그 응답이다. 새 면제는 이 목록에 응답을 더해야 생긴다. 응답 모양은 각 응답을 소유한 문서가 정한다.
+   - 트리거 생성 응답과 PATCH 응답 가운데 서버가 첫 알림 서명 시크릿을 발급한 응답은 그 평문을 `data.secrets.notificationSigningSecret` 에 싣는다([트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api)).
+   - 시크릿 교체(`rotate-secret`) 응답은 `Trigger.notification_secret_v2` 에 들어가는 새 알림 서명 시크릿을 `data.secret` 에 싣는다.
+   - 트리거 단위 토큰 재발급(`revoke-token`) 응답은 `Trigger.config.interaction.triggerToken` 에 들어가는 새 `itk_*` 를 `data.token` 에 싣는다.
+   - 인증 설정 생성 · 키 재생성 응답은 평문 `config` 를 싣는다([외부 호출 인증 설정 「필드 마스킹과 평문 보기」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#필드-마스킹과-평문-보기)).
+   - 인증 설정 평문 보기(`POST /api/auth-configs/:id/reveal`) 응답은 평문 `config` 를 싣는다. 값을 만든 응답이 아닌 유일한 항목이다. 비밀번호 재확인과 감사 기록을 거친 요청에만 한 번 싣는다([외부 호출 인증 설정 「평문 보기 흐름」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#평문-보기-흐름)).
+5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다. 규칙 4 의 예외 응답도 이 검증을 받는다. 그래서 평문을 싣는 필드는 그 응답의 DTO 에 선언한다. 같은 DTO 가 평문을 싣지 않는 응답에도 쓰이면 그 필드는 선택 필드로 선언하고 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b) 사유를 적는다.
 6. 엔티티를 그대로 반환하는 경로에서는 응답 경계에서 지운다. 컬럼 수준 `select: false` 는 쓰지 않는다. 그 컬럼을 읽는 내부 경로(교체 승격, 정리 스윕)가 예외 없이 `undefined` 를 받아 조용히 오작동하기 때문이다.
-7. 트리거를 만들 때(알림 웹훅·채팅 채널 설정 포함) 비밀 저장은 `rotate(ref, workspaceId, plaintext)` 를 쓴다. UPSERT 라 같은 워크스페이스에서 설정을 다시 시도해도 안전하다(다른 워크스페이스의 행은 규칙 25). `store()` 도 결과는 같지만 같은 참조가 이미 있을 때의 동작(덮어쓰기 또는 throw)이 백엔드 구현에 따라 달라질 수 있다.
+7. 트리거를 만들 때(알림 웹훅·채팅 채널 설정 포함)와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때 비밀 저장은 `rotate(ref, workspaceId, plaintext)` 를 쓴다. UPSERT 라 같은 워크스페이스에서 설정을 다시 시도해도 안전하다(다른 워크스페이스의 행은 규칙 25). `store()` 도 결과는 같지만 같은 참조가 이미 있을 때의 동작(덮어쓰기 또는 throw)이 백엔드 구현에 따라 달라질 수 있다.
 8. 트리거 행이 없어질 때(트리거·스케줄·워크플로우·워크스페이스 삭제) 그 트리거의 모든 참조를 `deleteByPrefix('secret://triggers/{id}/')` 로 한꺼번에 지운다. 행 삭제가 커밋된 **뒤에** 지운다. provider 정리 작업이 이 비밀을 읽으므로 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다. DB FK 가 없으므로 애플리케이션 책임이다. 개별 `delete()` 보다 prefix 삭제를 쓴다.
-9. 트리거 락 밖에서 비밀을 쓴 뒤 락 안 재기록이 행 부재로 실패하면 `deleteByPrefix('secret://triggers/{id}/')` 로 되돌린다. 규칙 8 과 짝이다. 행이 없으므로 prefix 전체를 지워도 안전하다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
+9. 트리거 락 밖에서 비밀을 쓴 뒤 락 안 재기록이 행 부재로 실패하면 `deleteByPrefix('secret://triggers/{id}/')` 로 되돌린다. 트리거 락 안에서 행을 다시 읽은 뒤 비밀을 쓴 경우(PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기, 시크릿 승격)도 저장이 행 부재로 실패하면 같이 되돌린다. 워크플로우 · 워크스페이스 삭제의 FK CASCADE 는 이 락을 거치지 않아 락 안에서도 행이 사라질 수 있다. 규칙 8 과 짝이다. 행이 없으므로 prefix 전체를 지워도 안전하다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
 10. 외부 API 호출 직전(메시지 전송, HMAC 서명 등)에는 매번 `resolve(ref)` 로 값을 가져온다. 캐싱 여부는 `SecretResolver` 내부가 정한다.
 11. 비밀 교체도 `rotate()`(UPSERT)로 쓴다. 채팅 채널 봇 토큰 재발급은 옛 토큰을 `bot-token.v2` 참조에 `rotate` 로 백업한 뒤 기본 참조(`bot-token`)를 새 토큰으로 `rotate` 한다([봇 토큰 재발급](#봇-토큰-재발급)). `.v2` 참조에 새 값을 쓰는 교체는 현재 없다.
 12. `deleteByPrefix` 의 prefix 는 `secret://` 로 시작해야 한다. LIKE 메타문자(`%`·`_`·`\`)가 들어 있으면 throw 한다. 구현은 `ref LIKE :prefix` 에 `` `${prefix}%` `` 를 바인딩하고 `ESCAPE` 절을 두지 않는다. `ESCAPE` 절이 없다는 것도 계약의 일부다.
 13. `secret_store.workspace_id` 를 조건으로 지우는 경로는 두지 않는다. 워크스페이스 삭제도 트리거 단위 prefix 로 정리한다. 인터페이스에 워크스페이스 단위 삭제가 없고, 백엔드를 규약 변경 없이 바꿀 수 있어야 하기 때문이다. 워크스페이스 삭제가 정리할 트리거를 빠짐없이 모으는 방법은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 사람이 돌리는 일회성 운영 SQL 은 이 규칙의 대상이 아니다(R10).
-14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. 외부 API 호출이 실패해 호출한 모듈이 만든 실패 문장에 평문이 실리면 그 모듈이 문장을 만든 자리에서 지운다(알려진 비밀 치환). 지금은 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 한다([채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10). 평문으로 외부 API 를 부르는 모듈이 늘면 이 목록에 더한다. (원본: SS-SE-01)
+14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. 저장소 예외 필드(규칙 3) 밖에서 알려진 예외가 하나 남아 있다. 요청 본문의 `config` 키 아래(원시 `config`)로 들어온 평문 `notification.signing.secret` 은 서버가 그 `config` 를 먼저 저장한 뒤 시크릿 저장소로 옮긴다. 그래서 옮기기 전이나 옮기다 실패하면 트리거 `config` JSONB 에 평문이 남는다. 이 예외는 NERV Task `CLE-T-EA7B5M` 이 맡는다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)). 외부 API 호출이 실패해 호출한 모듈이 만든 실패 문장에 평문이 실리면 그 모듈이 문장을 만든 자리에서 지운다(알려진 비밀 치환). 지금은 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 한다([채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10). 평문으로 외부 API 를 부르는 모듈이 늘면 이 목록에 더한다. (원본: SS-SE-01)
 15. `store`·`rotate` 를 부를 때마다 12바이트 IV 를 새로 발급한다. IV 재사용은 금지한다. AES-GCM 에서 nonce 재사용은 치명적이다. (원본: SS-SE-02)
 16. AAD 는 `ref` 다(`setAAD(Buffer.from(ref))`). 다른 참조의 암호문을 이 행에 덮어쓰는 행 간 교체 공격은 복호화 실패로 끝나야 한다. (원본: SS-SE-03)
 17. 마스터키가 설정되지 않았거나 빈 값이면 부팅을 멈춘다(`SecretResolver` 모듈 초기화에서 throw). `NODE_ENV=production` 에서는 공개 `.env.example` 예시 키가 그대로 설정된 경우에도 부팅을 거부한다. 64-hex 가 아닌 값은 거부하지 않고 SHA-256 으로 키를 만든다([마스터키](#마스터키)). (원본: SS-SE-04)
@@ -59,7 +64,7 @@ etag: "sha256-1451b1d132567ad2ff021d5d037f88f4e6aa59a416381cc0b296f5bb148a3c77"
 21. `SecretResolver` 인터페이스를 바꾸는 변경은 모든 호출 모듈을 같은 변경에서 함께 고친다.
 22. 새 비밀 종류(예: `oauth-client-secret`)를 더할 때는 [참조 예시](#참조-예시) 표에 새 `name` 행을 더하고, 호출 모듈의 스펙 본문에 참조 형식을 적는다. 리소스 설정에 참조를 두는 슬롯이면 규칙 23 의 거부 대상과 규칙 24 의 읽기 관문(채팅 채널은 `chat-channel-secret-refs.ts`, 알림 서명은 `notification-signing-secret-ref.ts`)에도 더한다.
 23. 리소스 설정에 두는 시크릿 참조(예: `Trigger.config` 의 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef`)는 서버가 그 리소스 id 로 만들어 쓴다. 요청 본문으로 받지 않는다. 값이 자기 리소스의 참조여도 거부한다. 저장된 참조로 비밀을 쓰는 경로도 저장값 대신 리소스 id 로 참조를 다시 만든다(규칙 24). 트리거의 거부 대상과 응답 모양은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 근거는 [R9 「리소스 설정의 시크릿 참조는 요청 본문으로 받지 않는다」](#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 에 있다.
-24. 저장된 리소스 설정의 시크릿 참조로 비밀을 읽거나 쓰는 경로는 저장값의 있음 · 없음만 읽고 참조는 그 리소스 id 로 다시 만든다. 트리거에서는 봇 토큰 재발급, 메시지 발송, 인바운드 서명 검증, 트리거 삭제 때의 provider 해제, 알림 서명이다. 채팅 채널 참조는 비어 있지 않은 값이면 있다고 본다. 알림 서명 참조는 `secret://` 형식의 문자열이면 있다고 본다. 저장값과 다시 만든 참조를 정확히 비교하는 것은 에러 로그를 남기려는 것이고 쓰는 참조는 저장값과 상관없이 다시 만든 값이다. 로그에 저장값은 싣지 않는다. 읽기 관문은 없는 참조를 붙이지 않고 있는 참조를 지우지 않는다. 봇 토큰 재발급은 새 토큰을 쓰므로 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다. 자기 비밀이 없으면 `resolve` 가 실패해 닫힌다. 그때의 응답은 채팅 채널과 EIA 알림 웹훅 문서가 정한 실패 경로(발송 실패, 인바운드 401, 알림 `degraded`)다. 알림 서명은 참조가 있으면 옛 평문 `signing.secret` 으로 내려가지 않는다. 근거는 [R10 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」](#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 에 있다.
+24. 저장된 리소스 설정의 시크릿 참조로 비밀을 읽거나 쓰는 경로는 저장값의 있음 · 없음만 읽고 참조는 그 리소스 id 로 다시 만든다. 트리거에서는 봇 토큰 재발급, 메시지 발송, 인바운드 서명 검증, 트리거 삭제 때의 provider 해제, 알림 서명이다. 채팅 채널 참조는 비어 있지 않은 값이면 있다고 본다. 알림 서명 참조는 `secret://` 형식의 문자열이면 있다고 본다. 트리거 PATCH 가 EIA 알림 웹훅 설정을 실을 때도 이 판정을 쓴다. 있으면 참조를 트리거 id 로 다시 만들어 싣는다. 없을 때 그 행에 옛 평문 `signing.secret` 이 있으면 그 평문을 시크릿 저장소로 옮긴다. 둘 다 없을 때만 첫 알림 서명 시크릿을 발급한다([트리거 생성](#트리거-생성) 아래 PATCH 문단). 저장값과 다시 만든 참조를 정확히 비교하는 것은 에러 로그를 남기려는 것이고 쓰는 참조는 저장값과 상관없이 다시 만든 값이다. 로그에 저장값은 싣지 않는다. 읽기 관문은 없는 참조를 붙이지 않고 있는 참조를 지우지 않는다. 봇 토큰 재발급은 새 토큰을 쓰므로 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다. 자기 비밀이 없으면 `resolve` 가 실패해 닫힌다. 그때의 응답은 채팅 채널과 EIA 알림 웹훅 문서가 정한 실패 경로(발송 실패, 인바운드 401, 알림 `degraded`)다. 알림 서명은 참조가 있으면 옛 평문 `signing.secret` 으로 내려가지 않는다. 근거는 [R10 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」](#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 에 있다.
 25. `rotate` 는 기존 행의 `workspace_id` 가 인자와 다르면 거부하고 값과 `workspace_id` 를 바꾸지 않는다. 대조는 행의 값과 인자만 본다. 이 거부 전용 에러 코드는 만들지 않는다. HTTP 응답은 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 예외 메시지는 참조와 워크스페이스 id 가 없는 고정 문구라 화면에 보이는 필드에 저장돼도 내부 위치가 드러나지 않는다. 참조와 두 워크스페이스 id 는 서버 로그에만 남긴다. 반복 배치는 거부된 리소스만 건너뛰고 나머지를 처리한다. 교차 행이 있으면 그 비밀의 진짜 소유자가 하는 재발급도 이 거부로 막힌다. 그때의 처리는 [교차 행 점검과 정리](#교차-행-점검과-정리) 에 있다. 근거는 R10 에 있다.
 
 ## 참조 예시
@@ -69,7 +74,7 @@ etag: "sha256-1451b1d132567ad2ff021d5d037f88f4e6aa59a416381cc0b296f5bb148a3c77"
 | `secret://triggers/{triggerId}/bot-token` | 채팅 채널 어댑터의 봇 토큰. provider 공통(Telegram bot token, Slack `xoxb-*`, Discord bot token 등) |
 | `secret://triggers/{triggerId}/bot-token.v2` | 봇 토큰 재발급 24시간 유예용 |
 | `secret://triggers/{triggerId}/inbound-signing` | 채팅 채널 inbound 웹훅 출처 검증 자료(provider 공통 슬롯). Telegram 은 서버가 발급한 공유 비밀(`setWebhook.secret_token`, 어댑터가 randomBytes 로 발급), Slack 은 Slack 이 발급한 HMAC-SHA256 signing secret(사용자 입력), Discord 는 Discord 가 발급한 ed25519 application public key(사용자 입력)다. 검증 알고리즘 분기는 백엔드의 provider 별 책임이고 슬롯은 하나다. 기준은 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) |
-| `secret://triggers/{triggerId}/notification-signing` | EIA 알림 웹훅 HMAC 서명 시크릿 |
+| `secret://triggers/{triggerId}/notification-signing` | EIA 알림 웹훅 HMAC 서명 시크릿. 첫 값은 서버가 발급한 `wsk_*` 다(트리거 생성 때, PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때). 호출자가 원시 `config` 의 옛 키 `signing.secret` 으로 평문을 보내면 발급하지 않고 그 값을 넣는다. 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) |
 | `secret://triggers/{triggerId}/notification-signing.v2` | 예약만 된 참조다. 현재 구현은 쓰지 않는다. 유예 기간의 새 서명 시크릿은 `Trigger.notification_secret_v2` 컬럼에 평문으로 두고, 승격할 때 기준 참조(`notification-signing`)를 교체한다 |
 
 ## 저장소 예외 필드
@@ -92,7 +97,7 @@ etag: "sha256-1451b1d132567ad2ff021d5d037f88f4e6aa59a416381cc0b296f5bb148a3c77"
 
 이 항목을 «평문 보관 일반의 선례» 로 인용하면 안 된다. (a)~(c) 를 함께 만족하지 않는 필드가 이 문단을 근거로 예외를 얻는 것이 이 등재의 실패 모드다.
 
-같은 `Trigger.config` 안의 `notification.signing.secretRef` 는 `SecretResolver` 를 거친다. 한 객체 안의 이 비대칭은 의도한 것이고 (a)~(c) 가 그 이유다. 서명 시크릿은 사용자가 입력하는 HMAC 비밀이라 (c) 를 만족하지 않는다. 표면 서술은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 기준이다.
+같은 `Trigger.config` 안의 `notification.signing.secretRef` 는 `SecretResolver` 를 거친다. 한 객체 안의 이 비대칭은 의도한 것이고 (a)~(c) 가 그 이유다. 서명 시크릿의 첫 값은 서버가 발급한다(트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때). 다만 호출자가 원시 `config` 의 옛 키 `signing.secret` 으로 평문을 보내면 서버는 발급하지 않고 그 값을 쓴다. 이 평문 경로는 R9 가 «원시 `config` 의 다른 계약» 으로 남긴 동작이다. 그래서 값 공간이 서버가 발급한 값으로 닫혀 있지 않아 (c) 를 만족하지 않는다. 표면 서술은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 기준이다.
 
 ### `Trigger.notification_secret_v2` (2026-09-05 결정)
 
@@ -201,7 +206,9 @@ const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]).toStrin
 
 ### 다른 백엔드로 바꾸기
 
-`SecretResolver` 인터페이스는 PostgreSQL 과 묶여 있지 않다. AWS Secrets Manager 나 HashiCorp Vault 가 필요해지면 `AwsSecretsManagerResolver`·`VaultResolver` 같은 구현을 더하고 `ConfigModule` 에서 환경별로 바꾼다. 이 규약은 바뀌지 않는다.
+`SecretResolver` 인터페이스는 PostgreSQL 과 묶여 있지 않다. AWS Secrets Manager 나 HashiCorp Vault 가 필요해지면 `AwsSecretsManagerResolver`·`VaultResolver` 같은 구현을 더하고 `ConfigModule` 에서 환경별로 바꾼다. 인터페이스와 이 규약의 규칙은 바뀌지 않는다. 다만 아래 경로는 예외다.
+
+다만 트리거 설정 잠금 안에서 시크릿 저장소에 쓰는 경로(PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기, 시크릿 승격)는 백엔드가 같은 DB 의 테이블이라는 전제에 기댄다. 잠금 안에서는 HTTP 호출을 하지 않기 때문이다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 외부 백엔드로 바꾸면 이 경로를 다시 설계한다.
 
 ## 사용 패턴
 
@@ -210,11 +217,18 @@ const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]).toStrin
 ```typescript
 async createTrigger(dto: CreateTriggerDto, workspaceId: string) {
   const trigger = await this.repo.save({ ...dto, workspaceId });
-  if (dto.notification?.signing?.secret) {
-    const ref = `secret://triggers/${trigger.id}/notification-signing`;
-    await this.secrets.rotate(ref, workspaceId, dto.notification.signing.secret);
-    trigger.config.notification.signing = { algorithm: dto.notification.signing.algorithm, secretRef: ref };
+  // top-level notification 과 원시 config 를 합친 EIA 알림 웹훅 설정
+  const notification = trigger.config.notification;
+  if (notification) {
+    // 원시 config 의 옛 키 signing.secret 으로 평문이 왔으면 그 값을 쓰고 발급하지 않는다.
+    const supplied = notification.signing?.secret;
+    const issued = supplied ? undefined : `wsk_${randomBytes(32).toString('hex')}`;
+    const ref = notificationSigningSecretRef(trigger.id);  // 참조를 만드는 곳은 하나다(R10)
+    await this.secrets.rotate(ref, workspaceId, issued ?? supplied);  // 규칙 7
+    // 평문은 config 에 남기지 않는다. secretRef 만 보관한다.
+    trigger.config.notification.signing = { algorithm: notification.signing?.algorithm, secretRef: ref };
     await this.repo.save(trigger);
+    // issued 는 이 생성 응답에만 한 번 싣는다(규칙 4). 응답 모양은 트리거 관리 문서가 정한다.
   }
   if (dto.chatChannel?.botToken) {
     const ref = buildSecretRef({ scope: 'triggers', resourceId: trigger.id, name: 'bot-token' });
@@ -232,6 +246,8 @@ async createTrigger(dto: CreateTriggerDto, workspaceId: string) {
   }
 }
 ```
+
+PATCH 가 EIA 알림 웹훅 설정(`notification`)을 실으면 트리거 설정 잠금 안에서 다시 읽은 행의 `signing.secretRef` 를 규칙 24 로 판정한다. 있으면 행의 값을 복사하지 않고 `notificationSigningSecretRef(triggerId)` 로 다시 만들어 싣는다. 채팅 채널 `botTokenRef` 를 트리거 id 로 다시 만드는 것과 같은 방식이다. 없으면(값이 없거나 `secret://` 형식이 아니면) 그 행의 옛 평문 `signing.secret` 을 본다. 옛 평문이 있으면 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다. 통째 교체로 옛 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 둘 다 없으면 위와 같은 분기로 발급한다. EIA 알림 웹훅 설정을 처음 붙일 때가 이 경우다. 판정과 시크릿 저장소 쓰기는 같은 잠금 안에서 한다. 저장이 행 부재로 실패하면 규칙 9 대로 되돌린다. 평문은 그 PATCH 응답에만 한 번 싣는다(규칙 4). 발급 조건은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. 응답 모양은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다.
 
 ### 외부 API 호출
 
@@ -321,8 +337,9 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 - `codebase/backend/src/modules/secret-store/**`
 - 규칙 14 의 알려진 비밀 치환: `codebase/backend/src/shared/utils/sanitize-error-message.ts`(`replaceKnownSecret`), 채팅 채널 클라이언트 `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts` · `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts` · `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
 - 규칙 23 의 시행: `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`(원시 `config` 거부), `codebase/backend/src/modules/triggers/triggers.service.ts`(`rotateBotToken` 의 참조 유도)
+- 규칙 4 의 면제 응답 DTO: `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts`
 - 저장소 예외 필드의 응답 부재 단언(규칙 4 · 6): `codebase/backend/src/shared/testing/trigger-workflow-ref.ts`, `codebase/backend/src/shared/testing/schedule-trigger-ref.ts`
-- 규칙 24 의 시행: `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts`(참조 유도와 읽기 관문), `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts`(알림 서명 참조 유도). 관문을 쓰는 곳: `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`, `codebase/backend/src/modules/hooks/hooks.service.ts`, `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`, `codebase/backend/src/modules/triggers/triggers.service.ts`(봇 토큰 재발급, 알림 서명 승격), `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts`(알림 서명)
+- 규칙 24 의 시행: `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts`(참조 유도와 읽기 관문), `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts`(알림 서명 참조 유도. 생성 · PATCH 의 첫 발급과 옛 평문 옮기기도 이 유도를 쓴다). 관문을 쓰는 곳: `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`, `codebase/backend/src/modules/hooks/hooks.service.ts`, `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`, `codebase/backend/src/modules/triggers/triggers.service.ts`(봇 토큰 재발급, 알림 서명 승격), `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts`(알림 서명)
 - 규칙 24 의 읽기 관문과 규칙 25 의 `rotate` 대조(저장된 교차 행): `codebase/backend/test/trigger-stored-secret-refs.e2e-spec.ts`
 
 ## Rationale
@@ -355,7 +372,7 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 
 ### R7. 저장소 예외 필드도 응답에는 나가지 않는다고 규범으로 적는다
 
-2026-09-05 전까지 «이 컬럼들이 응답에 나가면 안 된다» 는 요구가 스펙 어디에도 규범 문장으로 없었고(실측 0건), 실제로 두 엔드포인트에서 나가고 있었다. `notification_secret_v2` 예외를 올릴 때도 예외의 대상은 «컬럼에 평문으로 보관» 이지 «응답에 실어도 된다» 가 아니었다. 그래서 규칙 4~6 으로 경계를 규범으로 적었다. 이후 `#1291` 이 응답 경계 스트립을 세웠고 두 단언 자리가 부재를 고정한다. 같은 컬럼 목록이 EIA 문서에도 있으면 한쪽만 고쳐 다른 쪽이 낡으므로, 목록은 이 규약에 두고 EIA 문서는 링크한다.
+2026-09-05 전까지 «이 컬럼들이 응답에 나가면 안 된다» 는 요구가 스펙 어디에도 규범 문장으로 없었고(실측 0건), 실제로 두 엔드포인트에서 나가고 있었다. `notification_secret_v2` 예외를 올릴 때도 예외의 대상은 «컬럼에 평문으로 보관» 이지 «응답에 실어도 된다» 가 아니었다. 그래서 규칙 4~6 으로 경계를 규범으로 적었다. 이후 `#1291` 이 응답 경계 스트립을 세웠고 두 단언 자리가 부재를 고정한다. 같은 컬럼 목록이 EIA 문서에도 있으면 한쪽만 고쳐 다른 쪽이 낡으므로, 목록은 이 규약에 두고 EIA 문서는 링크한다. 값을 한 번 보여 주는 응답의 면제는 규칙 4 의 목록과 R12 가 정한다.
 
 ### R8. `deleteByPrefix` 는 LIKE 메타문자를 이스케이프하지 않고 거부한다 (2026-08-09)
 
@@ -403,3 +420,14 @@ NERV Task `CLE-T-H0GF4K` 가 채팅 채널의 마지막 오류 필드를 점검�
 - 규칙 14 를 «평문을 내보내지 않는다» 에서 «실패 문장을 만든 자리에서 지운다» 는 의무까지 넓혔다. 저장된 뒤에 가리면 DB 와 로그의 유출이 남는다. 지우는 쪽은 그 호출에 쓴 평문을 들고 있는 모듈뿐이라 그 모듈에 의무를 둔다. 값을 알고 지우므로 패턴 오탐이 없다.
 - 규칙 18 에 예외 메시지가 참조를 싣지 않는다는 문장을 더했다. `rotate` 의 거부(규칙 25)가 이미 그렇게 했고 `resolve` · `store` 를 맞췄다.
 - 응답 쪽의 두 번째 층(값 패턴으로 가리기)은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다. 이 변경 전에 저장된 `chat_channel_last_error` 에 남은 값은 그 문서의 「트리거 응답의 마지막 오류」 한계가 다룬다.
+
+### R12. 첫 알림 서명 시크릿을 서버가 발급한다 (2026-10-09)
+
+NERV Task `CLE-T-M6PERB` 의 재검토에서 첫 알림 서명 시크릿을 언제 누가 만드는지 정했다(사용자 결정, 2026-10-09). 서버는 `config.notification` 이 있는 트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때 `wsk_<64hex>` 를 발급한다. 호출자가 원시 `config` 로 평문 `signing.secret` 을 보냈으면 그 값을 쓰고 발급하지 않는다. 이 결정은 [External Interaction API 「트리거 등록과 웹훅 응답」](../CLE-IX/CLE-EIA.md#트리거-등록과-웹훅-응답) 의 요구사항(승인 전 초안)을 따른다. 발급 동작은 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 이 정한다. 응답 모양은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 함께 제시한 다른 안과 결정 이력은 그 Task 의 결정 기록에 있다. 이 규약은 그 결정에 맞춰 아래를 고쳤다.
+
+- **비대칭의 근거를 고쳤다.** 「`Trigger.config.interaction.triggerToken`」 끝 단락은 서명 시크릿이 사용자가 입력하는 HMAC 비밀이라 (c) 를 만족하지 않는다고 적었다. 첫 값을 서버가 발급하면 이 이유는 맞지 않는다. 결론은 그대로다. 호출자 평문을 받는 원시 `config` 경로가 남아 있어 값 공간이 닫혀 있지 않기 때문이다. `itk_*` 에도 원시 `config` 경로가 있지만 그 경로는 NERV Task `CLE-T-EA7B5M` 이 닫기로 한 틈이다. 서명 시크릿의 평문 경로는 R9 가 범위에서 뺀 원시 `config` 계약이고 바꿀지는 같은 Task 가 정한다. 그 계약이 바뀌면 이 근거를 다시 본다.
+- **일회성 응답을 규칙 4 의 금지에서 목록으로 뺐다.** 규칙 4 를 문장대로 읽으면 저장소 밖에 사는 필드의 새 값을 한 번 보여 주는 응답도 금지에 걸린다. 시크릿 교체(`rotate-secret`) 응답의 새 시크릿은 `notification_secret_v2` 에 들어가는 값이다. 트리거 단위 토큰 재발급(`revoke-token`) 응답의 `itk_*` 는 `config.interaction.triggerToken` 에 들어가는 값이다. 인증 설정의 생성 · 키 재생성 · 평문 보기 응답은 `AuthConfig.config` 자격 증명의 평문을 싣는다([외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)). 이 응답들은 이번 결정 전부터 있었다. 이 규약에는 그 근거가 없었다. 생성 · PATCH 응답이 첫 서명 시크릿을 싣게 되면서 이 경계를 적어 둘 필요가 생겼다. 이 Task 의 앞선 초안은 면제를 «서버가 새 비밀을 만든 응답» 이라는 일반형으로 적었다. 그 초안의 일관성 검토는 일반형이 다른 발급 응답까지 면제로 읽히게 하고 응답-계약 검증(규칙 5)과도 이어지지 않는다고 짚었다. 그래서 면제를 «이 규약이 이름 붙인 값을 그 값을 만든 바로 그 응답에 한 번 싣는 것» 으로 좁히고 대상 응답을 열거했다. 새 면제는 목록에 응답을 더해야 생긴다. 평문 보기는 값을 만든 응답이 아니다. 그래도 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 이 비밀번호 재확인과 감사 기록을 조건으로 정한 경로라 목록에 넣었다. 빼면 이 규칙이 그 문서와 부딪친다. 면제 응답도 응답-계약 검증을 받으므로 평문을 싣는 필드의 DTO 선언 방법을 규칙 5 에 적었다. 그 밖의 응답에 이 필드와 참조를 싣지 않는다는 금지는 그대로다.
+- **규칙 14 에 알려진 예외를 적었다.** [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 은 원시 `config` 의 평문 `signing.secret` 이 시크릿 저장소로 옮겨지기 전이나 옮기다 실패하면 JSONB 에 남는다고 적는다. 이 규약에는 그 예외가 없어 «DB 는 항상 암호문만 본다» 가 실제보다 넓게 읽혔다. 예외를 닫는 일은 NERV Task `CLE-T-EA7B5M` 이 맡는다.
+- **사용 패턴 · 참조 표 · 규칙 7 을 맞췄다.** 「트리거 생성」 예시는 호출자가 보낸 평문이 있을 때만 참조를 만들었다. 서버 발급 분기를 더했다. 참조는 R10 이 정한 대로 `notificationSigningSecretRef` 로 만든다. 규칙 7 은 PATCH 가 처음 붙일 때의 저장도 `rotate` 로 하게 넓혔다. 알림 서명 비밀 행은 트리거가 없어질 때 prefix 로만 지우므로(규칙 8) 설정을 뗐다가 다시 붙이면 같은 참조에 옛 행이 남아 있을 수 있다.
+- **PATCH 는 알림 서명 참조를 행에서 복사하지 않고 다시 만든다.** PATCH 는 트리거 설정 잠금 안에서 다시 읽은 행의 알림 서명 참조를 규칙 24 로 판정해 있음 · 없음만 쓴다. 있으면 참조를 트리거 id 로 다시 만들어 싣는다. 규칙 23 · 24 가 저장값 대신 리소스 id 로 참조를 만들게 하는 것과 같은 방식이다. 저장 경계가 막기 전의 행에는 다른 값이 있을 수 있다(R10). 판정이 규칙 24 와 다르면 `secret://` 형식이 아닌 값이 든 옛 행에서 PATCH 는 «있음» 으로 보고 발급하지 않는다. 발송 쪽은 같은 행을 «없음» 으로 보므로 주 시크릿이 없는 상태가 남는다. 판정과 발급 쓰기는 같은 잠금 안에서 한다. 동시 PATCH 두 건이 잠금 밖에서 각자 발급하면 한쪽 응답의 평문은 저장소에 남지 않는다. 잠금 안에서도 워크플로우 · 워크스페이스 삭제로 행이 사라질 수 있어서 규칙 9 의 되돌리기를 잠금 안 쓰기까지 넓혔다. 참조가 없는 행에 옛 평문 `signing.secret` 이 남아 있으면 PATCH 는 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다. 통째 교체로 그 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 이 방식은 사용자에게 묻지 않고 기본값으로 정해 알렸다.
+- **잠금 안 시크릿 저장소 쓰기는 백엔드 교체의 예외다.** PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기와 시크릿 승격은 트리거 설정 잠금 안에서 시크릿 저장소에 쓴다. 잠금 안에서 HTTP 호출을 하지 않는다는 제약은 Cafe24 토큰 갱신이 같은 잠금을 기각한 이유에서 왔다. 잠금을 쥔 채 HTTP 요청을 하면 DB 커넥션 점유가 길어진다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 지금 백엔드는 같은 DB 의 테이블이라 이 쓰기에 HTTP 호출이 없다. 외부 백엔드를 들이면 이 경로들은 잠금 밖 쓰기와 되돌리기(규칙 9)로 다시 설계한다. 그래서 규칙 13 이 기대는 «백엔드를 규약 변경 없이 바꿀 수 있다» 는 이 경로들에는 그대로 성립하지 않는다. 「다른 백엔드로 바꾸기」 에 이 예외를 적었다. 이 전제도 사용자에게 묻지 않고 기본값으로 정해 알렸다.
