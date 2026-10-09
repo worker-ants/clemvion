@@ -45,7 +45,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "d=\"$CLAUDE_PROJECT_DIR/.claude/hooks\"; if [ -f \"$d/pretooluse_bash.py\" ]; then exec python3 \"$d/pretooluse_bash.py\"; fi; p=$(cat); printf '%s' \"$p\" | python3 \"$d/guard_default_branch_bash.py\"; printf '%s' \"$p\" | python3 \"$d/normalize_worktree_branch.py\"; printf '%s' \"$p\" | python3 \"$d/guard_review_before_push.py\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_default_branch_bash.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/normalize_worktree_branch.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_review_before_push.py\""
           }
         ]
       }
