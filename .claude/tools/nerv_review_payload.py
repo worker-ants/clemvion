@@ -8,6 +8,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저
 main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
 
     python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency|merge|spec_coverage]
+                                                 [--keep-info]
 
 출력(JSON):
     {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
@@ -40,6 +41,12 @@ kind 마다 리포트가 다르다(전환 4e 에서 merge · spec_coverage 를 �
     로 싣는다. info 라서 라운드를 막지 않는다. main 은 후보를 Task 로 올리거나 처분한다.
 리포트 형식은 리뷰어 · checker 정의(`.claude/agents/*.md` §출력 형식)가 정본이다:
 `- **[CRITICAL|WARNING|INFO]** 제목` 아래 `위치:` · `상세:` · `제안:` 하위 항목, `### 요약`, `### 위험도`.
+kind=code · consistency 의 INFO 는 발견으로 내지 않고 그 역할 묶음의 `summary` 끝에 제목과 위치만 싣는다
+(NERV Task `CLE-T-ZTTHXD`). 열린 발견은 처분할 때까지 다른 브랜치의 제출 응답에 `carried_over` 로 따라붙고,
+처분 도구는 한 번에 한 건만 받는다. 그래서 INFO 를 발견으로 내면 라운드마다 처분 호출이 십여 번 늘거나,
+열어 두면 응답이 커진다. 게이트는 INFO 를 보지 않는다. 예외로 `[SPEC-DRIFT]`(`tags: ["spec_drift"]`)
+INFO 는 스펙 초안으로 처분해야 해서 발견으로 남긴다. 옮긴 수는 출력의 `info_in_summary` 다. 예전처럼
+모두 발견으로 내려면 `--keep-info` 를 준다. INFO 의 본문 · 제안은 세션 디렉터리의 역할 리포트에 남는다.
 `- **[SEV] 제목**` 처럼 굵게가 제목까지 감싼 줄도 발견으로 읽는다. 그 밖에 심각도 표지가 있는 줄은
 `warnings` 에 줄 번호와 함께 남긴다. 조용히 버리면 발견이 빠진 채 라운드가 passed 가 된다.
 """
@@ -103,6 +110,8 @@ MAX_TITLE = 300
 MAX_BODY = 4000
 MAX_SUGGESTION = 2000
 MAX_SUMMARY = 1000
+MAX_INFO_NOTE = 2000
+INFO_TO_SUMMARY_KINDS = ("code", "consistency")
 
 
 def _cap(text: str, limit: int) -> str:
@@ -177,6 +186,29 @@ def _finding(severity: str, title: str, block: list[str], role: str) -> dict:
     if line:
         out["line"] = line
     return out
+
+
+def fold_info(submission: dict) -> int:
+    """`[SPEC-DRIFT]` 이 아닌 INFO 를 발견에서 빼서 `summary` 끝에 제목 · 위치로 싣는다. 옮긴 수를 낸다."""
+    keep, moved = [], []
+    for f in submission["findings"]:
+        if f["severity"] == "info" and "spec_drift" not in (f.get("tags") or []):
+            moved.append(f)
+        else:
+            keep.append(f)
+    if not moved:
+        return 0
+    items = []
+    for f in moved:
+        where = f.get("file", "")
+        if where and f.get("line"):
+            where += f":{f['line']}"
+        items.append(f"{f['title']} ({where})" if where else f["title"])
+    note = _cap(f"참고(INFO) {len(moved)}건: " + " · ".join(items), MAX_INFO_NOTE)
+    base = submission.get("summary", "")
+    submission["summary"] = f"{base}\n\n{note}" if base else note
+    submission["findings"] = keep
+    return len(moved)
 
 
 def parse_report(text: str, role: str) -> tuple[dict, list[str]]:
@@ -355,7 +387,7 @@ def _build_spec_coverage(session_dir: str, kind: str) -> dict:
                    warnings=coverage_count_warnings(text, submission["findings"]))
 
 
-def build(session_dir: str, kind: str | None = None) -> dict:
+def build(session_dir: str, kind: str | None = None, *, keep_info: bool = False) -> dict:
     if not os.path.isdir(session_dir):
         raise SystemExit(f"nerv_review_payload: 세션 디렉터리가 없다 — {session_dir}")
     kind = kind or kind_of(session_dir)
@@ -371,6 +403,7 @@ def build(session_dir: str, kind: str | None = None) -> dict:
     submissions: list[dict] = []
     errors: list[str] = []
     warnings: list[str] = []
+    info_moved = 0
 
     state = _load_json(os.path.join(session_dir, "_retry_state.json"))
     roles = _roles(session_dir, state)
@@ -394,6 +427,8 @@ def build(session_dir: str, kind: str | None = None) -> dict:
             warnings.append(f"{name}: 비어 있다 — 제출하지 않는다")
             continue
         submission, w = parse_report(text, role)
+        if not keep_info and kind in INFO_TO_SUMMARY_KINDS:
+            info_moved += fold_info(submission)
         submissions.append(submission)
         warnings.extend(w)
         # 위험도는 HIGH 인데 막는 발견이 하나도 안 읽혔으면 형식이 어긋나 발견이 빠졌을 공산이 크다.
@@ -428,16 +463,20 @@ def build(session_dir: str, kind: str | None = None) -> dict:
         paths = [f.get("file_path") if isinstance(f, dict) else f for f in files]
         if all(isinstance(x, str) and x for x in paths):
             changeset = paths
-    return _result(kind, session_dir, submissions=submissions, missing=missing, errors=errors,
-                   warnings=warnings, changeset=changeset)
+    out = _result(kind, session_dir, submissions=submissions, missing=missing, errors=errors,
+                  warnings=warnings, changeset=changeset)
+    out["info_in_summary"] = info_moved
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
     ap.add_argument("session_dir")
     ap.add_argument("--kind", choices=KINDS)
+    ap.add_argument("--keep-info", action="store_true",
+                    help="INFO 도 발견으로 낸다(기본은 [SPEC-DRIFT] 가 아닌 INFO 를 summary 에 싣는다)")
     args = ap.parse_args(argv)
-    out = build(args.session_dir, args.kind)
+    out = build(args.session_dir, args.kind, keep_info=args.keep_info)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
     # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
