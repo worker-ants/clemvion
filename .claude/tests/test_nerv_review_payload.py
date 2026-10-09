@@ -11,6 +11,29 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
   - 역할은 상태 파일의 `subagent_invocations` 가 정한다. 목록에 없는 `*.md` 는 내지 않는다.
   - kind=code 에서 상태 파일이 없거나, 낼 묶음이 없으면 exit 1 — 조용히 통과하지 않는다.
   - 세션 경로에서 kind 를 읽는다(`.review/<kind>/<Y>/<m>/<d>/<H_M_S>`).
+
+클래스별 목록. `.claude/tests/README.md` 의 카탈로그 행은 요약이고 이 목록이 정본이다. 클래스를 더하면 여기를 먼저 고친다.
+
+  - ParseReportTest — 리포트 → 발견(심각도 · 제목 · 위치 → file/line · 상세 → body · 제안) · 위험도 · 요약. 발견 0건도
+    제출이다. `**[SEV] 제목**` 과 `**[SEV]:** 제목` 은 발견이고 `[CRITICAL/HIGH]` · `[ CRITICAL ]` · `**CRITICAL**` 같은
+    근사 표지는 경고다. `[SPEC-DRIFT]` 는 `tags: [spec_drift]` · `area: spec`. 긴 필드는 상한으로 자른다.
+  - BuildTest — 역할 · 강제 역할(`report_paths` 로 푼다. `/` 로 끝나는 `output_file` 도 역할을 낸다) · 빈 리포트 ·
+    HIGH 위험도인데 막는 발견이 없으면 오류 · `NERV_REQUIRED_ROLES` 가 router 상수와 같다(소스에서 읽는다) · code 세션의
+    상태 파일 없음은 오류이고 다른 kind 는 모든 리포트로 대체 · merge 는 analyzer 마다 제출 · spec_coverage 는 감사기
+    `SUMMARY.md` 의 후보를 info 발견(`confidence:<tier>` 태그)으로 내고 정의의 예시가 파싱되며 후보 수가 어긋나면 경고 ·
+    `changeset` 은 `meta.json` · kind 는 경로나 `--kind` · 세션이 없거나 kind 를 못 정하면 `SessionError`(`SystemExit` 로
+    바꾸는 곳은 `main` 하나).
+  - OutFileTest(NERV Task `CLE-T-CD9131`) — `--out` 이 `nerv-recorder` 가 그대로 낼 문서를 쓰고 stdout 에는 요약만 낸다
+    (발견 본문 없음). SHA 는 git 이 푼 전체 값이고 풀지 못한 값은 오류다(`--base` · `--head` · 공통 조상 없음 · `git diff`
+    실패 · 세션이 저장소 밖). 멱등 키는 내용 해시를 따른다. git 은 세션의 저장소에서 돈다. `base_sha` 는 merge-base. 한글
+    경로는 C-quote 되지 않는다. 로컬 `--branch` 에 닿지 않는 `--head` 는 풀 방법을 말하는 오류. 도구에 `git`/`subprocess`
+    호출이 없다. `--out` 은 인자 오류(exit 2)를 뺀 모든 종료에서 이번 실행의 결과만 남기고(시작 때 지우는 호출이 main 에
+    걸려 있는지는 build 를 터뜨려 본다), 이 도구의 문서가 아닌 파일은 거절한다.
+  - OutDocSharedTest — `_shared/out_doc.py`: `begin`(지움 · 거절) · `write`(통째로 바꿔 넣음) · `failure` · `write_or_note` ·
+    `VERSION`.
+  - RealSessionShapeTest — 파서의 하위 항목 이름이 모든 리뷰어 · checker · analyzer 정의의 출력 형식과 같다.
+  - InfoFoldTest(NERV Task `CLE-T-ZTTHXD`) — code · consistency 의 INFO 는 `summary` 끝에 제목 · 위치로 접는다. `[SPEC-DRIFT]`
+    INFO 는 발견으로 남고 merge 는 INFO 를 그대로 둔다. `--keep-info` 는 옛 모양. 노트 상한.
 """
 
 from __future__ import annotations
@@ -26,6 +49,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import _harness
 
@@ -440,13 +464,31 @@ class BuildTest(unittest.TestCase):
                 self.assertEqual(tool.build(str(d))["kind"], kind)
         odd = self.tmp / "odd"
         odd.mkdir()
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(tool.SessionError):
             tool.build(str(odd))
         self.assertEqual(tool.build(str(odd), "consistency")["kind"], "consistency")
 
     def test_a_missing_session_dir_is_an_error(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(tool.SessionError):
             tool.build(str(self.tmp / "nope"))
+
+    def test_the_library_raises_its_own_error_and_only_main_turns_it_into_an_exit(self):
+        # `build` 는 호출 방식과 상관없이 같은 예외로 실패한다. `SystemExit` 로의 변환은 `--out` 이 없을 때 `main` 한 곳이다.
+        odd = self.tmp / "odd2"
+        odd.mkdir()
+        with self.assertRaises(SystemExit) as cm:
+            tool.main([str(odd)])
+        self.assertIsInstance(cm.exception.code, str)
+        self.assertIn("kind 를 정하지 못했다", cm.exception.code)
+        with self.assertRaises(SystemExit) as cm:
+            tool.main([str(self.tmp / "nope")])
+        self.assertIn("세션 디렉터리가 없다", cm.exception.code)
+        # 라이브러리 안에서 부른 `sys.exit(2)` 는 오류 문구가 되지 않는다. 전용 예외만 문구로 바뀐다.
+        with mock.patch.object(tool, "build", side_effect=SystemExit(2)), self.assertRaises(SystemExit) as cm:
+            tool.main([str(odd), "--out", str(self.tmp / "o.json"), "--branch", "b", "--base", "x", "--head", "y",
+                       "--mode", "review"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertFalse((self.tmp / "o.json").exists())
 
 
 class OutFileTest(unittest.TestCase):
@@ -625,6 +667,8 @@ class OutFileTest(unittest.TestCase):
                          "--mode", "review")
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertTrue(any("--branch" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
+        # 막는 것으로 끝나지 않고 풀 방법을 말한다(로컬 브랜치가 뒤처진 올바른 제출도 여기서 막힌다).
+        self.assertTrue(any("그 브랜치의 끝" in e and "따라잡" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
         self.assertFalse(json.loads(self.out.read_text())["ok"])
         # 로컬에 없는 브랜치 이름("feature")은 검사하지 않는다 — 다른 테스트가 그 경로로 통과한다.
         r = self.run_cli("--out", str(self.out), "--branch", "main", "--base", self.base, "--head", "HEAD",
@@ -641,6 +685,56 @@ class OutFileTest(unittest.TestCase):
         source = TOOL_PATH.read_text(encoding="utf-8")
         self.assertNotIn("subprocess", source)
         self.assertNotIn('"git"', source)
+
+    # -- `attach_submit` 의 오류 분기 -------------------------------------------------------------
+
+    def errors_of(self, r):
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        return json.loads(r.stdout)["errors"]
+
+    def test_an_unknown_base_is_an_error_naming_the_flag(self):
+        errors = self.errors_of(self.run_cli(*self.submit_args(base="no-such-ref")))
+        self.assertTrue(any(e.startswith("--base no-such-ref") for e in errors), errors)
+        self.assertFalse(any(e.startswith("--head") for e in errors), errors)
+        self.assertFalse(json.loads(self.out.read_text())["ok"])
+
+    def test_two_histories_without_a_common_ancestor_are_an_error(self):
+        # 부모가 없는 커밋(빈 트리). merge-base 가 rc 1 을 내는 경우다.
+        orphan = _harness.git_in(self.repo, "commit-tree", "-m", "orphan",
+                                 "4b825dc642cb6eb9a060e54bf8d69288fbee4904").stdout.strip()
+        errors = self.errors_of(self.run_cli(*self.submit_args(base=orphan)))
+        self.assertTrue(any("공통 조상" in e for e in errors), errors)
+        doc = json.loads(self.out.read_text())
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("submit", doc)
+
+    def test_a_failing_git_diff_for_the_changeset_is_reported_with_its_reason(self):
+        def fail(base_ref, cwd, *, head, on_error, **_):
+            on_error("boom: bad object")
+            return []
+        out = tool.build(str(self.sd))
+        with mock.patch.object(tool.git_probe, "branch_diff_files", side_effect=fail):
+            doc = tool.attach_submit(out, branch="feature", base=self.base, head="HEAD", mode="review", task=None,
+                                     run=1, changeset=None)
+        self.assertFalse(doc["ok"])
+        self.assertTrue(any("git diff 가 실패했다" in e and "boom: bad object" in e for e in doc["errors"]), doc["errors"])
+        self.assertNotIn("submit", doc)
+
+    def test_a_session_outside_any_repository_says_so_instead_of_blaming_the_values(self):
+        # git 은 세션 디렉터리에서 돈다. 프로세스 cwd 가 저장소여도 세션이 저장소 밖이면 값이 아니라 위치가 문제다.
+        outside = self.tmp / "plain" / ".review" / "code" / "2026" / "10" / "01" / "13_00_00"
+        outside.mkdir(parents=True)
+        for name in ("security.md", "scope.md", "_retry_state.json"):
+            (outside / name).write_text((self.sd / name).read_text(encoding="utf-8"), encoding="utf-8")
+        out = self.tmp / "outside.json"
+        env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(self.tmp)}
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(outside), "--out", str(out), "--branch", "feature",
+                            "--base", self.base, "--head", "HEAD", "--mode", "review"],
+                           cwd=self.repo, capture_output=True, text=True, timeout=60, env=env)
+        errors = self.errors_of(r)
+        self.assertTrue(any("git 저장소 안에 있어야 한다" in e for e in errors), errors)
+        self.assertFalse(any("커밋으로 풀지 못했다" in e for e in errors), errors)
+        self.assertFalse(json.loads(out.read_text())["ok"])
 
     # -- `--out` 은 어떻게 끝나든 이번 실행의 결과만 남긴다 --------------------------------------------
 
@@ -688,11 +782,61 @@ class OutFileTest(unittest.TestCase):
         r = self.run_cli("--out", str(self.out), "--branch", "feature")
         self.assertEqual(r.returncode, 2)
 
+    def test_an_argument_error_leaves_the_previous_file_as_the_documented_exception(self):
+        # `out_doc` 규칙의 유일한 예외. 인자 오류는 `begin` 보다 먼저라서 앞 실행의 파일이 그대로 남는다. 보장 문장들이 이 예외를
+        # 적고 있으니, 예외가 사라지거나 넓어지면(인자 오류가 파일을 지우거나 쓰면) 문서를 같이 고치게 이 테스트가 깨진다.
+        self.stale_out()
+        before = self.out.read_bytes()
+        r = self.run_cli("--out", str(self.out), "--branch", "feature")  # --base · --head · --mode 가 없다
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(self.out.read_bytes(), before)
+        r = self.run_cli(*self.submit_args("--mode", "nope")[:-3], "--mode", "nope")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(self.out.read_bytes(), before)
+
     def test_an_unwritable_out_path_is_reported_not_a_traceback(self):
         r = self.run_cli(*self.submit_args()[2:], "--out", str(self.tmp / "no-such-dir" / "p.json"))
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertNotIn("Traceback", r.stderr)
         self.assertTrue(any("--out" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
+
+    def test_the_previous_file_is_removed_before_the_build_so_a_crash_leaves_no_stale_document(self):
+        # `build` 가 잡히지 않는 예외로 죽는 경우(리포트 파일 읽기 권한 오류 등). 이때 `--out` 에 앞 실행의 ok:true 가 남으면
+        # 기록 에이전트가 읽는다. 시작할 때 지우는 호출이 이 보장의 전부다(`out_doc` 의 함수 테스트는 main 이 그것을 먼저 부르는지 보지 못한다).
+        self.stale_out()
+        with mock.patch.object(tool, "build", side_effect=RuntimeError("boom")), self.assertRaises(RuntimeError):
+            tool.main([str(self.sd), *self.submit_args()])
+        self.assertFalse(self.out.exists())
+
+    def test_a_file_that_is_not_an_out_document_is_refused_and_kept(self):
+        # `--out` 을 입력 파일로 잘못 줘도 실행이 실패하면서 그 파일이 사라지면 안 된다. 인자 오류(exit 2)로 거절한다.
+        notes = self.sd / "notes.txt"
+        notes.write_text("내 메모\n", encoding="utf-8")
+        for target in (self.sd / "security.md", self.sd / "_retry_state.json", notes, self.sd):
+            with self.subTest(target=target.name):
+                before = None if target.is_dir() else target.read_bytes()
+                r = self.run_cli(*self.submit_args()[2:], "--out", str(target))
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertIn("이 도구가 쓴 --out 문서가 아니다", r.stderr)
+                self.assertTrue(target.exists())
+                if before is not None:
+                    self.assertEqual(target.read_bytes(), before)
+        self.assertFalse(self.out.exists())
+
+    def test_the_documents_carry_the_shared_version(self):
+        out = tool.build(str(self.sd))
+        with mock.patch.object(tool.out_doc, "VERSION", 7):
+            self.assertEqual(tool.attach_submit(out, branch="feature", base=self.base, head="HEAD", mode="review",
+                                                task=None, run=1, changeset=None)["version"], 7)
+            self.assertEqual(tool._failed_doc("code", str(self.sd), "x")["version"], 7)
+
+    def test_a_failure_document_has_every_key_the_summary_reads(self):
+        # 키를 손으로 다시 적지 않고 `_result` 에서 만든다. `brief` 가 읽는 키가 하나 늘어도 실패 경로에서 KeyError 가 나지 않는다.
+        doc = tool._failed_doc(None, str(self.sd), "x")
+        self.assertEqual(doc["errors"], ["x"])
+        self.assertFalse(doc["ok"])
+        self.assertEqual(set(tool._result("code", str(self.sd))) - {"errors"} - set(doc), set())
+        self.assertEqual(tool.brief(doc, "p")["errors"], ["x"])
 
 
 class OutDocSharedTest(unittest.TestCase):
@@ -703,12 +847,48 @@ class OutDocSharedTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.out_doc = tool.out_doc
 
-    def test_clear_removes_the_previous_file_and_tolerates_a_missing_one(self):
+    def test_begin_removes_the_previous_out_document_and_tolerates_a_missing_one(self):
         path = self.tmp / "p.json"
-        path.write_text("{}", encoding="utf-8")
-        self.out_doc.clear(str(path))
+        self.assertIsNone(self.out_doc.begin(str(path)))  # 없어도 그대로 지나간다
+        path.write_text(json.dumps({"version": 1, "ok": True}), encoding="utf-8")
+        self.assertIsNone(self.out_doc.begin(str(path)))
         self.assertFalse(path.exists())
-        self.out_doc.clear(str(path))  # 없어도 그대로 지나간다
+        path.write_text(json.dumps(self.out_doc.failure(["x"])), encoding="utf-8")  # 실패 문서도 이 도구의 문서다
+        self.assertIsNone(self.out_doc.begin(str(path)))
+        self.assertFalse(path.exists())
+
+    def test_begin_refuses_anything_that_is_not_an_out_document_and_leaves_it_alone(self):
+        shapes = {
+            "입력 파일(ok 가 없다)": json.dumps({"version": 1, "dispositions": []}).encode(),
+            "version 이 없다": json.dumps({"ok": True}).encode(),
+            "다른 version": json.dumps({"version": 2, "ok": True}).encode(),
+            "ok 가 불리언이 아니다": json.dumps({"version": 1, "ok": "yes"}).encode(),
+            "객체가 아니다": b"[1, 2]",
+            "JSON 이 아니다": "# 리뷰 리포트\n".encode(),
+            "UTF-8 이 아니다": b"\xff\xfe\x00bad",
+            "빈 파일": b"",
+        }
+        for label, body in shapes.items():
+            with self.subTest(label):
+                path = self.tmp / "q.json"
+                path.write_bytes(body)
+                reason = self.out_doc.begin(str(path))
+                self.assertIn("이 도구가 쓴 --out 문서가 아니다", reason or "")
+                self.assertEqual(path.read_bytes(), body)
+        directory = self.tmp / "dir"
+        directory.mkdir()
+        self.assertIn("--out 문서가 아니다", self.out_doc.begin(str(directory)) or "")
+        self.assertTrue(directory.is_dir())
+
+    def test_the_version_is_the_one_the_recorder_checks(self):
+        self.assertEqual(self.out_doc.VERSION, 1)  # nerv-recorder 규칙 4: version 이 1 이 아니면 아무것도 부르지 않는다
+        self.assertEqual(self.out_doc.failure(["x"])["version"], self.out_doc.VERSION)
+
+    def test_write_or_note_reports_a_failed_write_instead_of_raising(self):
+        self.assertIsNone(self.out_doc.write_or_note(str(self.tmp / "ok.json"), {"ok": True}))
+        note = self.out_doc.write_or_note(str(self.tmp / "no-such-dir" / "p.json"), {"ok": True})
+        self.assertIn("--out 을 쓰지 못했다", note or "")
+        self.assertEqual(sorted(os.listdir(self.tmp)), ["ok.json"])
 
     def test_write_replaces_the_file_whole_and_leaves_no_temporary_one(self):
         path = self.tmp / "p.json"
@@ -728,6 +908,7 @@ class OutDocSharedTest(unittest.TestCase):
     def test_failure_documents_are_not_ok_and_carry_the_tool_specific_keys(self):
         doc = self.out_doc.failure(["x"], dispositions=[])
         self.assertEqual(doc, {"version": 1, "ok": False, "dispositions": [], "errors": ["x"]})
+        self.assertEqual(self.out_doc.failure([], a=1)["errors"], [])
 
 
 class RealSessionShapeTest(unittest.TestCase):

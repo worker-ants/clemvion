@@ -1,5 +1,13 @@
 {
   "autoCompactWindow": 300000,
+  "permissions": {
+    "deny": [
+      "Read(./.mcp.json)",
+      "Read(./.claude/settings.local.json)",
+      "Read(**/.mcp.json)",
+      "Read(**/.claude/settings.local.json)"
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/statusline.sh\""

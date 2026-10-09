@@ -32,7 +32,7 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
 
   - 처분 · 제안의 `finding_id` 는 `_nerv_findings.json` 에 있어야 하고 한 번씩만 나온다.
   - `fixed` 는 리뷰한 브랜치(`_nerv_findings.json` 의 `branch`, 이 저장소에 없으면 HEAD)에서 닿는 커밋의
-    전체 해시를 `commit_sha` 로 단다.
+    전체 해시(SHA-1 저장소에서는 40자)를 `commit_sha` 로 단다. 전체 해시의 정의는 `git_probe.is_full_commit_id` 하나다.
   - critical 발견은 `wont_fix` · `dismissed` 로 처분하지 않는다(사람 승인이 필요하다).
   - `spec_change` 는 applier 가 쓰지 않는다. 스펙 결함은 `spec_proposals` 로 넘기고 main 이 NERV 초안을
     저장한 뒤 `spec_change` 로 처분한다. 초안을 쓸 수 없으면 main 이 `escalated(spec)` 로 넘긴다.
@@ -65,9 +65,12 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
   - `unknown` 이 있으면 `ok: false` 이고 `dispositions` 는 비어 있다.
   - `items` 는 처분마다 `<발견 ID 끝 8자> <resolution> <severity>` 한 줄이다. main 이 분포를 본다.
   - 처분 문서를 만들 수 없는 실패(NERV 읽기 실패 · 설정 누락 · 인계 파일 문제)도 `{"version": 1, "ok": false,
-    "errors": [...], "dispositions": [], ...}` 를 `--out` 에 쓰고 exit 1 이다. 시작할 때 앞 실행의 파일을
-    지우므로 `--out` 에는 늘 이번 실행의 결과만 있다(`_shared/out_doc.py`. `nerv_review_payload.py --out` 도
-    같은 규칙이다). exit 가 0 이 아니면 그 파일을 기록 서브에이전트에 넘기지 않는다.
+    "errors": [...], "dispositions": [], ...}` 를 `--out` 에 쓰고 exit 1 이다. 인자를 검사한 뒤 시작할 때 앞
+    실행의 파일을 지우므로 인자 오류(exit 2)를 뺀 모든 종료에서 `--out` 에는 이번 실행의 결과만 있다
+    (`_shared/out_doc.py`. `nerv_review_payload.py --out` 도 같은 규칙이다). 인자 오류는 세션 디렉터리가 없을 때를
+    포함하고, 문서를 쓰지도 지우지도 않아서 앞 실행의 파일이 그대로 남는다. 그래서 exit 가 0 일 때만 그 파일을 기록
+    서브에이전트에 넘긴다. `--out` 이 이미 있는 파일인데 이 도구가 쓴 문서가 아니면(`_dispositions.json` · 사용자
+    파일) 지우지 않고 인자 오류로 거절한다.
 
 출력은 JSON 이고, 문제가 있으면 exit 1 이다. 이 도구는 NERV 를 읽기만 한다(`_shared/nerv_read.py`).
 `fetch` · `pending` 은 NERV 를 읽으므로 `NERV_SERVER` · `NERV_TOKEN`(선택 `NERV_PROJECT`)이 필요하다.
@@ -102,7 +105,6 @@ RESOLVE_FIELDS = ("finding_id", "resolution", "commit_sha", "escalate_reason", "
 ESCALATE_REASONS = ("user-decision", "infra", "e2e-fail-3x", "sensitive-fix", "spec")
 SEVERITIES = ("critical", "warning", "info")
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-_FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 _PROPOSAL = re.compile(r"^_spec-proposal-[a-z0-9-]+\.md$")
 
 
@@ -194,15 +196,7 @@ def _ancestor_target(branch, cwd: str) -> str:
     """fixed 커밋이 닿아야 하는 곳. 리뷰한 브랜치가 이 저장소에 있으면 그것, 없으면 HEAD.
 
     워크트리는 ref 를 공유하므로 짝 워크트리에서 다른 브랜치를 리뷰해도 브랜치 이름이 풀린다."""
-    if isinstance(branch, str) and branch and not branch.startswith("-"):
-        rc, _, _ = git_probe._run_git(["rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], cwd)
-        if rc == 0:
-            return f"refs/heads/{branch}"
-    return "HEAD"
-
-
-def _is_ancestor(sha: str, target: str, cwd: str) -> bool:
-    return git_probe.is_ancestor(sha, target, cwd)
+    return f"refs/heads/{branch}" if git_probe.local_branch_tip(branch, cwd) is not None else "HEAD"
 
 
 class _Claims:
@@ -241,9 +235,9 @@ def _check_disposition(d, where: str, claims: _Claims, target: str, cwd: str) ->
         errors.append(f"{where}: rationale 이 없다")
     if res == "fixed":
         sha = d.get("commit_sha")
-        if not isinstance(sha, str) or not _FULL_SHA.match(sha):
+        if not git_probe.is_full_commit_id(sha):
             errors.append(f"{where}: fixed 는 40자 commit_sha 를 단다 — {sha!r}")
-        elif not _is_ancestor(sha, target, cwd):
+        elif not git_probe.is_ancestor(sha, target, cwd):
             errors.append(f"{where}: commit_sha {sha[:12]} 가 리뷰한 브랜치({target})에서 닿지 않는다")
     if res == "escalated" and d.get("escalate_reason") not in ESCALATE_REASONS:
         errors.append(f"{where}: escalated 는 escalate_reason 을 단다({', '.join(ESCALATE_REASONS)})")
@@ -347,7 +341,7 @@ def resolve_document(session_dir: str, branch: str, out: dict) -> dict:
             row["severity"] = severity.get(d["finding_id"])
             row["idempotency_key"] = resolve_key(d)
             rows.append(row)
-    doc = {"version": VERSION, "ok": ok, "branch": branch, "dispositions": rows,
+    doc = {"version": out_doc.VERSION, "ok": ok, "branch": branch, "dispositions": rows,
            "already_recorded": out["already_recorded"], "unknown": out["unknown"]}
     if errors:
         doc["errors"] = errors
@@ -372,6 +366,15 @@ def resolve_brief(doc: dict, path: str) -> dict:
     return out
 
 
+def _write_resolve_out(path: str, doc: dict) -> dict:
+    """처분 문서를 `--out` 에 쓰고 stdout 요약을 돌려준다. 못 썼으면 요약의 `ok` 를 false 로 두고 사유를 덧붙인다."""
+    note = out_doc.write_or_note(path, doc)
+    summary = resolve_brief(doc, path)
+    if note:
+        summary = {**summary, "ok": False, "errors": [*summary.get("errors", []), note]}
+    return summary
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
     ap.add_argument("command", choices=("fetch", "check", "pending"))
@@ -386,7 +389,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.out and args.command != "pending":
         ap.error("--out 은 pending 에만 준다")
     if args.out:
-        out_doc.clear(args.out)
+        refusal = out_doc.begin(args.out)  # 인자 검사 뒤: 앞 실행의 문서를 치운다. 이 도구의 문서가 아닌 파일은 건드리지 않는다
+        if refusal:
+            ap.error(refusal)
     try:
         if args.command == "check":
             out = check(args.session_dir)
@@ -398,19 +403,14 @@ def main(argv: list[str] | None = None) -> int:
                 out = pending(args.session_dir, args.branch, client)
                 if args.out:
                     doc = resolve_document(args.session_dir, args.branch, out)
-                    out_doc.write(args.out, doc)
-                    out = resolve_brief(doc, args.out)
+                    out = _write_resolve_out(args.out, doc)
     except (HandoffError, nerv_read.NervReadError, OSError) as exc:
         message = str(exc)
         out = {"ok": False, "errors": [message]}
         if args.out:
             # 처분 문서를 만들 수 없는 실패(NERV 읽기 · 설정 · 인계 파일). `--out` 에는 앞 실행의 문서가 아니라 이번 실패를 남긴다.
-            failed = out_doc.failure([message], branch=args.branch, dispositions=[], already_recorded=[], unknown=[])
-            try:
-                out_doc.write(args.out, failed)
-                out = resolve_brief(failed, args.out)
-            except OSError as werr:
-                out["errors"].append(f"--out 을 쓰지 못했다 — {werr.strerror or werr}")
+            out = _write_resolve_out(args.out, out_doc.failure(
+                [message], branch=args.branch, dispositions=[], already_recorded=[], unknown=[]))
     json.dump(out, sys.stdout, ensure_ascii=False, indent=None if args.out else 1)
     sys.stdout.write("\n")
     return 0 if out.get("ok") else 1
