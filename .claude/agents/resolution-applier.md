@@ -163,9 +163,12 @@ spec 항목이 있으면:
     {"finding_id": "<전체 ID>", "resolution": "dismissed", "rationale": "<오탐인 근거>"}
   ],
   "spec_proposals": [{"finding_id": "<전체 ID>", "file": "_spec-proposal-<area>.md"}],
-  "tests": {"lint": "pass", "unit": "pass", "build": "pass", "e2e": "pass", "e2e_log": "<경로>"}
+  "tests": {"lint": "pass", "unit": "pass", "build": "not_run", "e2e": "pass", "e2e_log": "<경로>"}
 }
 ```
+
+applier 는 build 를 돌리지 않는다(fix 마다 lint · unit, 마지막에 e2e). `tests.build` 는 늘 `not_run` 으로 적는다.
+main 은 이 값을 보고 fix 뒤 build 를 직접 돌린다(developer SKILL REVIEW WORKFLOW 6).
 
 `resolution` 은 `fixed` · `dismissed` · `wont_fix` · `escalated` 중 하나다. `spec_change` 는 쓰지 않는다. 반환하기 전에 검사한다:
 

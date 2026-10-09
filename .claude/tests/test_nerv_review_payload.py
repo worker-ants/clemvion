@@ -490,5 +490,75 @@ class RealSessionShapeTest(unittest.TestCase):
                 self.assertIn("### 위험도", text)
 
 
+
+class InfoFoldTest(unittest.TestCase):
+    """kind=code · consistency 의 INFO 는 발견 대신 summary 에 싣는다(NERV Task `CLE-T-ZTTHXD`).
+
+    열린 발견은 다른 브랜치의 제출 응답에 `carried_over` 로 따라붙고 처분은 한 건씩이라, INFO 를 발견으로
+    내면 처분 호출이 늘거나 응답이 커진다. `[SPEC-DRIFT]` INFO 는 스펙 초안 처분이 필요해 남긴다.
+    """
+
+    setUp = BuildTest.setUp
+    run_cli = BuildTest.run_cli
+
+    def security(self, out):
+        return next(s for s in out["submissions"] if s["reviewer"]["role"] == "security")
+
+    def test_plain_info_moves_to_summary_and_blocking_findings_stay(self):
+        out = tool.build(str(self.sd))
+        sec = self.security(out)
+        self.assertEqual([f["severity"] for f in sec["findings"]], ["critical", "warning"])
+        self.assertIn("참고(INFO) 1건: 참고 사항", sec["summary"])
+        self.assertTrue(sec["summary"].startswith("보안 관점에서 한 건이 막는다."))
+        self.assertEqual(out["info_in_summary"], 1)
+
+    def test_spec_drift_info_stays_a_finding(self):
+        (self.sd / "scope.md").write_text(
+            "- **[INFO]** [SPEC-DRIFT] 스펙 문장이 낡았다\n  - 위치: `a.ts:3`\n"
+            "- **[INFO]** 그냥 참고\n  - 위치: `b.ts:9`\n### 위험도\nLOW\n", encoding="utf-8")
+        scope = next(s for s in tool.build(str(self.sd))["submissions"] if s["reviewer"]["role"] == "scope")
+        self.assertEqual([(f["severity"], f.get("tags")) for f in scope["findings"]], [("info", ["spec_drift"])])
+        self.assertEqual(scope["summary"], "참고(INFO) 1건: 그냥 참고 (b.ts:9)")
+
+    def test_keep_info_restores_the_old_shape(self):
+        sec = self.security(tool.build(str(self.sd), keep_info=True))
+        self.assertEqual([f["severity"] for f in sec["findings"]], ["critical", "warning", "info"])
+        self.assertNotIn("참고(INFO)", sec["summary"])
+        r = self.run_cli("--keep-info")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["info_in_summary"], 0)
+
+    def test_merge_kind_keeps_info_findings(self):
+        sd = self.tmp / ".review" / "merge" / "2026" / "10" / "01" / "12_00_00"
+        sd.mkdir(parents=True)
+        (sd / "semantic.md").write_text("- **[INFO]** 통합 참고\n### 위험도\nLOW\n", encoding="utf-8")
+        out = tool.build(str(sd))
+        self.assertEqual(out["kind"], "merge")
+        self.assertEqual([f["severity"] for f in out["submissions"][0]["findings"]], ["info"])
+        self.assertEqual(out["info_in_summary"], 0)
+
+    def test_long_summary_keeps_both_caps(self):
+        """요약 자체가 상한까지 차도 INFO 줄이 잘려 나가지 않는다. 합계는 두 상한의 합 안이다."""
+        many = "".join(f"- **[INFO]** 참고 {i}\n" for i in range(5))
+        (self.sd / "scope.md").write_text(many + "### 요약\n" + "가" * 3000 + "\n### 위험도\nLOW\n",
+                                          encoding="utf-8")
+        scope = next(s for s in tool.build(str(self.sd))["submissions"] if s["reviewer"]["role"] == "scope")
+        base, note = scope["summary"].split("\n\n", 1)
+        self.assertEqual(len(base), tool.MAX_SUMMARY)
+        self.assertTrue(note.startswith("참고(INFO) 5건: "))
+        self.assertLessEqual(len(scope["summary"]), tool.MAX_SUMMARY + 2 + tool.MAX_INFO_NOTE)
+
+    def test_every_kind_reports_the_count(self):
+        self.assertIn("info_in_summary", tool._result("spec_coverage", str(self.sd)))
+
+    def test_note_is_capped(self):
+        many = "".join(f"- **[INFO]** {'긴 제목 ' * 20}{i}\n" for i in range(40))
+        (self.sd / "scope.md").write_text(many + "### 위험도\nLOW\n", encoding="utf-8")
+        scope = next(s for s in tool.build(str(self.sd))["submissions"] if s["reviewer"]["role"] == "scope")
+        self.assertEqual(scope["findings"], [])
+        self.assertLessEqual(len(scope["summary"]), tool.MAX_INFO_NOTE)
+        self.assertTrue(scope["summary"].startswith("참고(INFO) 40건: "))
+
+
 if __name__ == "__main__":
     unittest.main()

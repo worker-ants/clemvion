@@ -26,7 +26,7 @@ main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분�
        {"finding_id": "...", "resolution": "escalated",
         "escalate_reason": "user-decision|infra|e2e-fail-3x|sensitive-fix|spec", "rationale": "..."}],
      "spec_proposals": [{"finding_id": "...", "file": "_spec-proposal-<area>.md"}],
-     "tests": {"lint": "pass", "unit": "pass", "build": "pass", "e2e": "pass|fail|skipped",
+     "tests": {"lint": "pass", "unit": "pass", "build": "not_run", "e2e": "pass|fail|skipped",
                "e2e_log": "<경로>"}}
 
   - 처분 · 제안의 `finding_id` 는 `_nerv_findings.json` 에 있어야 하고 한 번씩만 나온다.
