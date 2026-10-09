@@ -76,6 +76,8 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 - **탐색은 위임한다**: 파일 여러 개를 훑는 조사는 `Explore` 서브에이전트에 맡기고 결론만 받는다. 메인에서 직접 읽을 때는
   `grep` · `sed -n` 을 Bash 호출 하나로 묶는다.
 - **기다릴 때는 알림을 쓴다**: Workflow · 백그라운드 명령은 완료 알림을 기다린다. `until` · `sleep` 폴링 루프로 기다리지 않는다.
+  기다리는 동안 NERV 클레임을 해제하지 않는다. 리뷰 단계의 `in_review` 전이, NERV Stop 훅에 막혔을 때, 깨어난 뒤
+  클레임 확인은 developer SKILL §REVIEW WORKFLOW 「기다리는 동안의 클레임」을 따른다.
 - **효과는 잰다**: `python3 .claude/tools/usage_report.py --since <YYYY-MM-DD>` 가 평균 컨텍스트 · 구성별 비용 · 작업당 라운드를 낸다.
 
 ## Skill 체계
@@ -117,6 +119,7 @@ auxiliary Python 스크립트(예: `.claude/skills/**/scripts/*orchestrator*.py`
 
 - 범위가 커 보이거나 사용자가 이번 턴에 말하지 않았다는 이유로 미루지 않는다.
 - **예외 — 사람 승인 대기**: critical 을 dismissed · wont_fix 로 낮추는 처분이나 스펙 초안 검토 요청처럼 NERV 가 사람 승인(A3)을 요구하는 지점에서 기다리는 것은 미루기가 아니다. 그 동안 세션은 `awaiting_input` 이다. 기다리는 이유를 사용자에게 알리고 그 외 할 일은 끝낸다.
-- 자동 트리거일 때는 Workflow 의 비동기 간극을 피하려고 `code-review-agents` SKILL 의 평문 Agent fan-out 경로를 쓸 수 있다.
+- 대화형 세션은 Workflow 를 띄우고 완료 알림을 기다린다. 알림을 기다리느라 턴을 끝내는 것은 미루기가 아니다.
+  턴이 끝나면 세션도 끝나는 비대화형 실행(`claude -p`)은 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓴다.
 
 Sub-agent 호출 규약(prompt_file/output_file/STATUS 라인) + 한도 무한 재시도 정책: [`.claude/docs/subagent-call-contract.md`](.claude/docs/subagent-call-contract.md).

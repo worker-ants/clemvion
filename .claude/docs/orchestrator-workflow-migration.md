@@ -252,6 +252,17 @@ analysis found five compounding pressures, all pushing the same way:
 - **SKILL sync (remedy 3).** developer SKILL §REVIEW WORKFLOW drops "자동으로",
   spells out the async hops (fire → await notification → read SUMMARY → explicit
   `resolution-applier` call → ESCALATE branch), and adds a Definition of Done.
+- **Async gap revisited (2026-10-09, NERV Task `CLE-T-T03809`).** Remedy 2 and
+  the SKILL sync told the session not to end its turn until the Workflow
+  notification arrived. In interactive sessions the notification re-invokes the
+  session, so ending the turn while a Workflow runs no longer drops the
+  follow-up (observed several times on 2026-10-09). Holding the turn open pushed
+  the model into polling loops, or into releasing its NERV claim when the NERV
+  Stop hook blocked the turn-end. The developer SKILL now lets a session end its
+  turn only to wait for a notification. The push gate, the NERV done gate and the
+  Definition of Done still require the review and its fixes to finish.
+  Non-interactive `claude -p` runs end with the turn, so they keep the
+  plain-Agent fan-out.
 
 <a id="bgisolation"></a>
 ### §bgIsolation — the bg-session write block, and the remedy

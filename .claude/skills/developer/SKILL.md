@@ -96,7 +96,9 @@ model: opus
 > **Workflow 경유라 "비싸 보여" 호출을 망설일 필요 없다** — 구현 완료 후 자동 review/fix 는 상시
 > 승인된 강제 의무이지 "사용자가 추론하게 한 scale" 이 아니다 (CLAUDE.md §외부 LLM 호출 정책).
 > 예외는 사람 승인 대기(critical 을 낮추는 처분 · 스펙 초안 검토 요청)뿐이다. 그 동안 세션은
-> `awaiting_input` 이다.
+> `awaiting_input` 이다. 리뷰 Workflow · 백그라운드 명령의 완료 알림을 기다리느라 턴을 끝내는 것은
+> 미루기가 아니다. 알림이 오면 같은 흐름을 이어 간다. 기다리는 동안 NERV 클레임을 다루는 법은 아래
+> 1단계 「기다리는 동안의 클레임」이 정본이다.
 >
 > **리뷰 결과는 NERV 레코드다**(전환 단계 2, 결정 D7 · D9). 로컬 산출물(`.review/`)은 커밋하지 않는다.
 > NERV 쓰기(제출 · 처분)는 main 세션의 MCP 호출로만 한다.
@@ -108,7 +110,27 @@ model: opus
    router 가 변경 성격에 맞는 reviewer 부분집합만 활성화하되, 바뀐 파일이 하나라도 있으면 NERV 필수
    6역할(security · requirement · scope · side_effect · maintainability · testing)은 router 가 끄지
    못한다. 하네스 · 문서만 바꾼 Task 도 같다(done 게이트가 passed 라운드를 요구한다).
-   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전까지 **턴을 끝내지 않는다.** 기다리는 동안 `until` · `sleep` 폴링 루프를 돌리지 않는다. 알림이 오면 이어서 한다. 비동기 간극 없이 가려면 자동 트리거 시 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓸 수 있다.
+   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전에는 **리뷰를 마친 것으로 다루지 않는다.** 기다리는 동안 `until` · `sleep` 폴링 루프를 돌리지 않는다.
+     - 할 일이 없으면 아래 「기다리는 동안의 클레임」대로 턴을 끝내고 알림을 기다린다. 대화형 세션은 완료 알림이 세션을 다시 깨운다(2026-10-09 여러 번 확인).
+     - 비대화형 실행(`claude -p`)은 턴이 끝나면 세션도 끝난다. 이때는 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓴다.
+   - **기다리는 동안의 클레임** (정본. CLAUDE.md 와 `code-review-agents` SKILL 은 이 항목을 가리킨다. 근거와 관찰은 NERV Task `CLE-T-T03809`)
+     - 기다리는 동안 클레임을 해제하지 않는다. 해제하면 Task 가 `ready` 로 돌아가 다른 세션이 가져갈 수 있다.
+       해제는 작업을 마쳤거나 다른 세션에 넘길 때만 한다.
+     - 리뷰 Workflow 를 띄우기 직전에 `nerv_task_heartbeat(lease_seconds=1800, progress=<기다리는 대상>)` 로 리스를 채우고
+       `nerv_task_update(status=in_review)` 를 부른다. 1800초는 NERV 가 받는 리스 상한이다. 전이가 실패하면 Workflow 를
+       띄우지 않고 클레임부터 되찾는다. NERV Stop 훅은 Task 가 `claimed` · `in_progress` 일 때만 턴 종료를 막으므로
+       `in_review` 에서는 막히지 않는다.
+     - 지적 수정 · 처분 · 테스트 재확인도 `in_review` 에서 이어 하고 그대로 done 으로 넘긴다. 처분 커밋이 아닌 구현을
+       새로 하게 되면 `in_progress` 로 되돌린다.
+     - 그 밖의 대기(백그라운드 명령, 사람의 답)에서도 턴을 끝내기 전에 같은 heartbeat 로 리스를 채우고 `progress` 에
+       무엇을 기다리는지 적는다. Stop 훅이 「클레임을 해제한 뒤 끝낸다」며 막으면 해제하지 않고 다시 끝낸다. 이 훅은 한 번
+       막은 뒤 이어지는 종료는 막지 않는다. NERV 가 heartbeat 의 대기 선언(`awaiting`)을 배포하면 이 절차를 그 선언으로
+       바꾼다(NERV Task `CLE-T-AZ99JC`).
+     - 턴이 끝난 세션은 heartbeat 를 보내지 못하므로 리스는 길어야 30분이다. 리스가 지나면 클레임이 닫히고
+       `claimed` · `in_progress` 인 Task 는 `ready` 로 돌아간다. `in_review` 는 상태가 남고 `nerv_task_next` 에도 다시
+       나오지 않지만 키를 아는 세션은 누구나 클레임할 수 있다.
+     - 그래서 알림을 받으면 먼저 `nerv_task_heartbeat` 로 클레임이 살아 있는지 확인한다. 실패하면 `nerv_task_claim` 으로
+       되찾는다. 다른 세션이 이미 가져갔으면 이어 하지 않고 사용자에게 알린다.
    - **`--impl-done` 도 함께 띄운다**: 5 의 post-impl 일관성 검토를 리뷰와 같은 턴에 띄운다. 두 Workflow 는 서로 기다리지 않는다.
 2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록(로컬)하고 전체 위험도·Critical/Warning 수를 확인.
 3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다(제출 도우미,
@@ -154,7 +176,8 @@ model: opus
 
 ### 완료 정의 (Definition of Done)
 
-구현 작업은 아래를 **모두** 만족해야 "완료" 다. 하나라도 빠지면 미완 — 턴을 끝내지 않는다.
+구현 작업은 아래를 **모두** 만족해야 "완료" 다. 하나라도 빠지면 미완이다. 완료 알림이나 사람 승인을 기다리는 동안이
+아니면 턴을 끝내지 않는다.
 
 - [ ] TEST WORKFLOW (lint·unit·build·e2e) 통과
 - [ ] `/ai-review` 실행 + 역할별 `kind=code` 제출(필수 6역할과 변경 종류에 따른 강제 리뷰어 포함, `task_id`)
