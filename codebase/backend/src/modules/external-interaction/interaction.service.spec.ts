@@ -481,9 +481,22 @@ describe('InteractionService.interact — 재개 큐 적재 실패', () => {
     },
   ];
 
-  it.each(RESUME_COMMANDS)(
-    '$dto.command — 토큰으로 인증한 호출은 queued:false 면 503 EXECUTION_ENQUEUE_FAILED',
-    async ({ dto, engineMethod }) => {
+  // 503 과 202 가 토큰 종류에 걸리지 않는다 — 두 family(`iext_*` · `itk_*`) 모두 같은 계약이다. 한 종류로만 보면
+  // 분기가 토큰 종류에 기대도록 바뀌어도 알 수 없다.
+  const TOKEN_FAMILIES: Array<{
+    family: string;
+    ctx: InteractionRequestContext;
+  }> = [
+    { family: 'iext', ctx: IEXT_CTX },
+    { family: 'itk', ctx: ITK_CTX },
+  ];
+  const RESUME_CASES = RESUME_COMMANDS.flatMap((c) =>
+    TOKEN_FAMILIES.map((t) => ({ ...c, ...t })),
+  );
+
+  it.each(RESUME_CASES)(
+    '$dto.command ($family) — 토큰으로 인증한 호출은 queued:false 면 503 EXECUTION_ENQUEUE_FAILED',
+    async ({ dto, engineMethod, ctx }) => {
       const { service, repo, engine } = makeMocks();
       repo.findOne.mockResolvedValue(makeExecution());
       engine[engineMethod].mockResolvedValueOnce({
@@ -491,7 +504,7 @@ describe('InteractionService.interact — 재개 큐 적재 실패', () => {
         jobId: null,
       });
       const err = await service
-        .interact(ITK_CTX, dto)
+        .interact(ctx, dto)
         .catch((err_: unknown) => err_);
       expect(err).toBeInstanceOf(ServiceUnavailableException);
       expect((err as ServiceUnavailableException).getStatus()).toBe(503);
@@ -504,16 +517,16 @@ describe('InteractionService.interact — 재개 큐 적재 실패', () => {
     },
   );
 
-  it.each(RESUME_COMMANDS)(
-    '$dto.command — queued:true 면 202 그대로',
-    async ({ dto, engineMethod }) => {
+  it.each(RESUME_CASES)(
+    '$dto.command ($family) — queued:true 면 202 그대로',
+    async ({ dto, engineMethod, ctx }) => {
       const { service, repo, engine } = makeMocks();
       repo.findOne.mockResolvedValue(makeExecution());
       engine[engineMethod].mockResolvedValueOnce({
         queued: true,
         jobId: 'job-1',
       });
-      await expect(service.interact(IEXT_CTX, dto)).resolves.toMatchObject({
+      await expect(service.interact(ctx, dto)).resolves.toMatchObject({
         accepted: true,
       });
     },

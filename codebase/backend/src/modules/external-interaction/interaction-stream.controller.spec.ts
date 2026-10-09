@@ -19,11 +19,14 @@ describe('InteractionStreamController.stream — 트리거 단위 토큰 무효 
   function openStream(ctx: ExternalInteractionRequestContext): {
     adapter: SseAdapter;
     end: jest.Mock;
+    subject: Subject<ExecutionChannelEvent>;
   } {
     const subject = new Subject<ExecutionChannelEvent>();
     const adapter = new SseAdapter({
       executionEvents$: subject.asObservable(),
     } as unknown as WebsocketService);
+    // 실행 이벤트 구독을 연다 — 이벤트를 `subject.next` 로 흘려 보내는 테스트가 쓴다.
+    adapter.onModuleInit();
     const controller = new InteractionStreamController(adapter);
     const end = jest.fn();
     const res = {
@@ -39,7 +42,7 @@ describe('InteractionStreamController.stream — 트리거 단위 토큰 무효 
       on: jest.fn(),
     } as unknown as RequestWithInteraction;
     controller.stream(ctx.executionId, req, res);
-    return { adapter, end };
+    return { adapter, end, subject };
   }
 
   it('트리거 단위 토큰으로 연 스트림은 그 트리거를 닫으면 응답을 끝낸다', () => {
@@ -71,8 +74,86 @@ describe('InteractionStreamController.stream — 트리거 단위 토큰 무효 
       tokenFamily: 'itk',
       triggerId: 'trg-1',
     });
+    // 사전 조건 — heartbeat 타이머가 실제로 돌고 있었다. 이게 없으면 아래 0 은 «처음부터 없었다» 와 구분되지 않는다.
+    expect(jest.getTimerCount()).toBe(1);
     adapter.closeTriggerTokenStreams(['trg-1']);
     expect(jest.getTimerCount()).toBe(0);
+  });
+});
+
+// 스트림 컨트롤러의 정리를 `end` 하나로 뽑으면서 terminal 이벤트 뒤 자동 종료도 같은 `end` 를 쓰게 됐다. 그 경로를
+// 지켜 둔다: `setImmediate(end)` 를 비워도 다른 테스트는 모두 통과했다.
+describe('InteractionStreamController.stream — terminal 이벤트 뒤 자동 종료', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  function openStreamWithEvents(): {
+    adapter: SseAdapter;
+    end: jest.Mock;
+    emit: (eventType: string) => void;
+  } {
+    const subject = new Subject<ExecutionChannelEvent>();
+    const adapter = new SseAdapter({
+      executionEvents$: subject.asObservable(),
+    } as unknown as WebsocketService);
+    adapter.onModuleInit();
+    const controller = new InteractionStreamController(adapter);
+    const end = jest.fn();
+    const res = {
+      setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
+      write: jest.fn(() => true),
+      end,
+      status: jest.fn(() => ({ json: jest.fn(), end: jest.fn() })),
+    } as unknown as Response;
+    const req = {
+      interaction: {
+        executionId: 'exec-1',
+        tokenFamily: 'iext',
+        triggerId: null,
+      },
+      query: {},
+      on: jest.fn(),
+    } as unknown as RequestWithInteraction;
+    controller.stream('exec-1', req, res);
+    let seq = 0;
+    return {
+      adapter,
+      end,
+      emit: (eventType) =>
+        subject.next({
+          executionId: 'exec-1',
+          eventType,
+          seq: ++seq,
+          payload: {},
+        } as ExecutionChannelEvent),
+    };
+  }
+
+  it.each(['execution.completed', 'execution.failed', 'execution.cancelled'])(
+    '%s 를 보내면 응답을 한 번 끝내고 구독을 해제하고 heartbeat 를 멈춘다',
+    (eventType) => {
+      const { adapter, end, emit } = openStreamWithEvents();
+      expect(adapter.subscriberCount('exec-1')).toBe(1);
+      expect(jest.getTimerCount()).toBe(1);
+
+      emit(eventType);
+      // `setImmediate(end)` — 이벤트를 쓴 직후가 아니라 다음 턴에 끝낸다.
+      expect(end).not.toHaveBeenCalled();
+      jest.runOnlyPendingTimers();
+
+      expect(end).toHaveBeenCalledTimes(1);
+      expect(adapter.subscriberCount('exec-1')).toBe(0);
+      expect(jest.getTimerCount()).toBe(0);
+    },
+  );
+
+  it('terminal 이 아닌 이벤트는 응답을 끝내지 않는다 (대조군)', () => {
+    const { adapter, end, emit } = openStreamWithEvents();
+    emit('execution.started');
+    jest.runOnlyPendingTimers();
+    expect(end).not.toHaveBeenCalled();
+    expect(adapter.subscriberCount('exec-1')).toBe(1);
   });
 });
 
