@@ -10,6 +10,7 @@ import {
   ForbiddenException,
   GoneException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { InteractionRequestContext } from './interaction.guard';
 import {
@@ -450,6 +451,107 @@ describe('InteractionService.interact', () => {
     await expect(
       service.interact(IEXT_CTX, { command: 'cancel' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+// 근거: [EIA 데이터와 흐름 「인바운드 명령과 재개」](CLE-EIA-DATA#인바운드-명령과-재개),
+// [에러 코드 규약과 카탈로그](CLE-API-ERRCODES) 의 `EXECUTION_ENQUEUE_FAILED`. 종전엔 `queued:false` 여도 202 를 내
+// 24시간 멱등 캐시에 넣었다. 503 은 캐시 대상(2xx·409·410)이 아니라 같은 키로 다시 보내면 새로 처리된다.
+describe('InteractionService.interact — 재개 큐 적재 실패', () => {
+  const NODE_ID = '550e8400-e29b-41d4-a716-446655440000';
+  const RESUME_COMMANDS: Array<{
+    dto: InteractDto;
+    engineMethod: keyof ExecutionEngineMocks;
+  }> = [
+    {
+      dto: { command: 'submit_form', nodeId: NODE_ID, data: { a: 1 } },
+      engineMethod: 'continueExecution',
+    },
+    {
+      dto: { command: 'click_button', nodeId: NODE_ID, buttonId: 'b1' },
+      engineMethod: 'continueButtonClick',
+    },
+    {
+      dto: { command: 'submit_message', nodeId: NODE_ID, message: 'hi' },
+      engineMethod: 'continueAiConversation',
+    },
+    {
+      dto: { command: 'end_conversation', nodeId: NODE_ID },
+      engineMethod: 'endAiConversation',
+    },
+  ];
+
+  // 503 과 202 가 토큰 종류에 걸리지 않는다 — 두 family(`iext_*` · `itk_*`) 모두 같은 계약이다. 한 종류로만 보면
+  // 분기가 토큰 종류에 기대도록 바뀌어도 알 수 없다.
+  const TOKEN_FAMILIES: Array<{
+    family: string;
+    ctx: InteractionRequestContext;
+  }> = [
+    { family: 'iext', ctx: IEXT_CTX },
+    { family: 'itk', ctx: ITK_CTX },
+  ];
+  const RESUME_CASES = RESUME_COMMANDS.flatMap((c) =>
+    TOKEN_FAMILIES.map((t) => ({ ...c, ...t })),
+  );
+
+  it.each(RESUME_CASES)(
+    '$dto.command ($family) — 토큰으로 인증한 호출은 queued:false 면 503 EXECUTION_ENQUEUE_FAILED',
+    async ({ dto, engineMethod, ctx }) => {
+      const { service, repo, engine } = makeMocks();
+      repo.findOne.mockResolvedValue(makeExecution());
+      engine[engineMethod].mockResolvedValueOnce({
+        queued: false,
+        jobId: null,
+      });
+      const err = await service
+        .interact(ctx, dto)
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(ServiceUnavailableException);
+      expect((err as ServiceUnavailableException).getStatus()).toBe(503);
+      expect((err as ServiceUnavailableException).getResponse()).toEqual({
+        error: {
+          code: 'EXECUTION_ENQUEUE_FAILED',
+          message: expect.any(String),
+        },
+      });
+    },
+  );
+
+  it.each(RESUME_CASES)(
+    '$dto.command ($family) — queued:true 면 202 그대로',
+    async ({ dto, engineMethod, ctx }) => {
+      const { service, repo, engine } = makeMocks();
+      repo.findOne.mockResolvedValue(makeExecution());
+      engine[engineMethod].mockResolvedValueOnce({
+        queued: true,
+        jobId: 'job-1',
+      });
+      await expect(service.interact(ctx, dto)).resolves.toMatchObject({
+        accepted: true,
+      });
+    },
+  );
+
+  // 내부 신뢰 호출(채팅 채널 인바운드)은 503 을 던지지 않는다. 던지면 웹훅을 보낸 채널 프로바이더에게 5xx 가 나간다.
+  // 그 응답은 채팅 채널 「인바운드 HTTP 응답 계약」 이 따로 정한다.
+  it('내부 신뢰 호출은 queued:false 여도 던지지 않는다', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValue(makeExecution());
+    engine.continueAiConversation.mockResolvedValueOnce({
+      queued: false,
+      jobId: null,
+    });
+    const INTERNAL_CTX: InteractionRequestContext = {
+      executionId: 'exec-1',
+      triggerId: 'trg-1',
+      scope: 'in_process_trusted',
+    };
+    await expect(
+      service.interact(INTERNAL_CTX, {
+        command: 'submit_message',
+        message: '안녕하세요',
+      } as InteractDto),
+    ).resolves.toMatchObject({ accepted: true });
   });
 });
 

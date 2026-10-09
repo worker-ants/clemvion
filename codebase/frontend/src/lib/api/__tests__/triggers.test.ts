@@ -113,6 +113,26 @@ describe("triggersApi mutations — single PATCH path (R-4)", () => {
     });
   });
 
+  // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) — 서버가 첫 알림 서명 시크릿을 발급한 PATCH 응답에만
+  // `data.secrets.notificationSigningSecret` 이 있다.
+  it("update returns the one-time notification signing secret when the server issued one", async () => {
+    patchMock.mockResolvedValue(
+      fakeAxios({
+        data: { id: "t1", secrets: { notificationSigningSecret: "wsk_x" } },
+      }),
+    );
+    await expect(
+      triggersApi.update("t1", { notification: { url: "https://a" } }),
+    ).resolves.toEqual({ issuedNotificationSigningSecret: "wsk_x" });
+  });
+
+  it("update returns no secret when the response has no secrets key", async () => {
+    patchMock.mockResolvedValue(fakeAxios({ data: { id: "t1" } }));
+    await expect(triggersApi.update("t1", { isActive: true })).resolves.toEqual(
+      {},
+    );
+  });
+
   it("create POSTs /triggers with the body", async () => {
     postMock.mockResolvedValue(fakeAxios({}));
     await triggersApi.create({

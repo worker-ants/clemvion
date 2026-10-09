@@ -219,6 +219,7 @@ describe('InteractionGuard', () => {
         id: 'trg-1',
         config: {
           interaction: {
+            enabled: true,
             tokenStrategy: 'per_trigger',
             triggerToken: 'itk_correct',
           },
@@ -233,6 +234,43 @@ describe('InteractionGuard', () => {
       response: { error: { code: 'TOKEN_INVALID' } },
     });
   });
+
+  // 인터랙션을 끈 트리거는 저장된 `itk_*` 가 맞아도 거부한다. 다시 켜면 같은 토큰이 다시 통한다
+  // (CLE-T-M6PERB 결정 기록, 2026-10-09 사용자 결정).
+  it.each([
+    ['enabled:false', { enabled: false }],
+    ['enabled 없음', {}],
+  ])(
+    'itk family — 인터랙션이 꺼진 트리거(%s)면 토큰이 맞아도 TOKEN_INVALID',
+    async (_label, enabledPart) => {
+      const verifyPerTrigger = jest.fn().mockReturnValue(true);
+      const { guard } = makeGuard({
+        verifyPerTrigger,
+        executionFindOne: jest.fn().mockResolvedValue({
+          id: 'exec-1',
+          triggerId: 'trg-1',
+        }),
+        triggerFindOne: jest.fn().mockResolvedValue({
+          id: 'trg-1',
+          config: {
+            interaction: {
+              ...enabledPart,
+              tokenStrategy: 'per_trigger',
+              triggerToken: 'itk_secret',
+            },
+          },
+        }),
+      });
+      const ctx = makeContext(
+        { executionId: 'exec-1' },
+        { authorization: 'Bearer itk_secret' },
+      );
+      await expect(guard.canActivate(ctx as never)).rejects.toMatchObject({
+        response: { error: { code: 'TOKEN_INVALID' } },
+      });
+      expect(verifyPerTrigger).not.toHaveBeenCalled();
+    },
+  );
 
   it('Unknown family prefix → TOKEN_INVALID', async () => {
     const { guard } = makeGuard({});

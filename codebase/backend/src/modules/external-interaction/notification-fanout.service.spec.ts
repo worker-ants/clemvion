@@ -170,6 +170,63 @@ describe('NotificationFanout — terminal revoke 게이트 [EIA-AU-04]', () => {
   });
 });
 
+// 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리) — 저장한 `retry.maxAttempts` 를
+// 발송 큐의 `attempts` 로 넘긴다. 종전엔 읽지 않고 5회로 고정했다.
+describe('NotificationFanout — retry.maxAttempts 를 발송 큐에 넘긴다', () => {
+  function subscribedTrigger(retry?: unknown) {
+    return {
+      id: 'trg-1',
+      workflowId: 'wf-1',
+      config: {
+        notification: {
+          events: ['execution.completed'],
+          ...(retry === undefined ? {} : { retry }),
+        },
+      },
+    };
+  }
+
+  it('저장한 maxAttempts 를 attempts 로 넘긴다', async () => {
+    const { fanout, dispatcher } = makeFanout({
+      triggerRepository: {
+        findOne: jest
+          .fn()
+          .mockResolvedValue(subscribedTrigger({ maxAttempts: 3 })),
+      },
+    });
+    await invoke(fanout, event('execution.completed', { triggerId: 'trg-1' }));
+    expect(dispatcher.enqueue).toHaveBeenCalledWith(expect.anything(), {
+      attempts: 3,
+    });
+  });
+
+  it('retry 가 없으면 기본 5회를 넘긴다', async () => {
+    const { fanout, dispatcher } = makeFanout({
+      triggerRepository: {
+        findOne: jest.fn().mockResolvedValue(subscribedTrigger()),
+      },
+    });
+    await invoke(fanout, event('execution.completed', { triggerId: 'trg-1' }));
+    expect(dispatcher.enqueue).toHaveBeenCalledWith(expect.anything(), {
+      attempts: 5,
+    });
+  });
+
+  it('maxAttempts 0 은 1회(큐 재시도 없음)로 넘긴다', async () => {
+    const { fanout, dispatcher } = makeFanout({
+      triggerRepository: {
+        findOne: jest
+          .fn()
+          .mockResolvedValue(subscribedTrigger({ maxAttempts: 0 })),
+      },
+    });
+    await invoke(fanout, event('execution.completed', { triggerId: 'trg-1' }));
+    expect(dispatcher.enqueue).toHaveBeenCalledWith(expect.anything(), {
+      attempts: 1,
+    });
+  });
+});
+
 describe('NotificationFanout — 구독 라이프사이클', () => {
   it('onModuleInit → executionEvents$ 1회 구독', () => {
     const { fanout, websocketService } = makeFanout({});

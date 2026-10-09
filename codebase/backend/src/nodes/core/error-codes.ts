@@ -77,8 +77,8 @@ export const ErrorCode = {
   // spec/5-system/3-error-handling.md §1.4. The two MUST be branched explicitly
   // (e.g. chat-channel/shared/execution-failure-classifier.ts).
   EXECUTION_TIME_LIMIT_EXCEEDED: 'EXECUTION_TIME_LIMIT_EXCEEDED',
-  // Continuation ack — client-safe boundary codes (spec/5-system/4-execution-engine.md
-  // §7.5.2). These surface in the WS continuation ack's flat `errorCode` field.
+  // Continuation boundary codes (spec/5-system/4-execution-engine.md §7.5.2). EXECUTION_INTERNAL_ERROR
+  // and EXECUTION_MESSAGE_TOO_LONG surface in the WS continuation ack's flat `errorCode` field.
   //  - EXECUTION_INTERNAL_ERROR: generic fallback for any NON-typed error reaching the
   //    continuation ack builder. The internal `error.message`/stack is logged server-side
   //    only and NEVER sent to the client (leak-block security gate) — the ack carries a
@@ -86,8 +86,12 @@ export const ErrorCode = {
   //  - EXECUTION_MESSAGE_TOO_LONG: `submit_message` exceeded the max message length
   //    (publisher-side sync validation, typed `MessageTooLongError`).
   //  - EXECUTION_ENQUEUE_FAILED: continuation publish (BullMQ enqueue) failed — Redis
-  //    dependency outage. Surfaced synchronously as `queued:false`; the REST `stop()`
-  //    WAITING cancel path maps it to 503 (retryable upstream failure). C-1 (06-concurrency).
+  //    dependency outage. Surfaced synchronously as `queued:false`. It is an HTTP-only code:
+  //    the WS continuation ack does NOT carry it (CLE-API-ERRCODES §6.7). The HTTP entry points
+  //    map it to 503 (retryable upstream failure): REST `stop()` WAITING cancel path, and the
+  //    External Interaction API `/interact` resume commands + `/cancel` (token-authenticated
+  //    calls only; the trusted in-process chat-channel inbound call does not throw).
+  //    C-1 (06-concurrency).
   EXECUTION_INTERNAL_ERROR: 'EXECUTION_INTERNAL_ERROR',
   EXECUTION_MESSAGE_TOO_LONG: 'EXECUTION_MESSAGE_TOO_LONG',
   EXECUTION_ENQUEUE_FAILED: 'EXECUTION_ENQUEUE_FAILED',

@@ -23,6 +23,52 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 트리거: PATCH 가 서버가 만든 EIA 값을 지키고 첫 알림 서명 시크릿을 서버가 발급한다
+
+승인된 트리거 · EIA 스펙(CLE-TRIG-MANAGE v5 · CLE-TRIG-DATA v5 · CLE-TRIG-WEBHOOK v3 · CLE-EIA-DATA v2 ·
+CLE-EIA-NOTIFY v2 · CLE-INT-SECRET v8)에 코드를 맞췄다(NERV Task `CLE-T-M6PERB`).
+
+- **첫 알림 서명 시크릿 발급:** `notification` 을 실어 트리거를 만들거나 PATCH 가 `notification` 을 처음 붙이면 서버가
+  `wsk_<64hex>` 를 발급해 시크릿 저장소에 넣는다. 평문은 그 응답의 `data.secrets.notificationSigningSecret` 에 한 번만
+  실린다. 발급하지 않은 응답에는 `secrets` 키가 없다.
+  - 예전에는 생성 때 발급하지 않았다. 호출자가 시크릿을 보내지 않은 트리거는 주 시크릿이 없어 알림을 보낼 때마다
+    `notificationHealth` 가 `degraded` 가 됐다.
+  - 참조 없이 옛 평문 `signing.secret` 만 남은 행은 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다.
+- **PATCH 가 서버가 만든 값을 지운 문제:** `notification` · `interaction` 을 통째로 교체하면서 알림 서명 시크릿
+  참조(`signing.secretRef`)와 트리거 단위 토큰(`interaction.triggerToken`)이 지워졌다. 이제 시크릿 참조는 늘 남기고
+  트리거 id 로 다시 만든다. 트리거 단위 토큰은 PATCH 결과의 전략이 `per_trigger` 일 때만 남기고 다른 전략으로 바꾸면 지운다.
+  다시 `per_trigger` 로 돌아와도 옛 토큰은 살아나지 않으니 `revoke-token` 으로 새로 받아야 한다.
+- **끈 인터랙션의 트리거 단위 토큰:** `interaction.enabled` 가 `true` 가 아니면 `itk_*` 로 부른 `/api/external/executions/*` 를
+  `401 TOKEN_INVALID` 로 거부한다. 토큰은 지우지 않으므로 다시 켜면 같은 토큰이 통한다. 예전에는 가드가 `enabled` 를 보지 않아
+  끈 트리거에서도 `itk_*` 가 통했다(콘솔에서 끄면 PATCH 가 토큰까지 지워 막혔을 뿐이다).
+- **시크릿 교체와 승격:** `rotate-secret` 이 트리거 설정 잠금을 잡는다. 승격은 잠금 안에서 새 시크릿이 처음 고른 값과
+  같을 때만 한다. 예전에는 승격 대상을 고른 뒤 그사이 다시 교체되면 방금 받은 새 시크릿이 승격되지 않고 지워질 수 있었다.
+- **트리거 화면:** 외부 인터랙션 카드에서 저장할 때 서버가 시크릿을 발급하면 평문을 한 번 보여 준다(가려 두고 60초 뒤
+  지운다). 트리거 삭제 확인 문구(한국어)를 해요체로 바꿨다.
+
+## Unreleased — EIA 알림 웹훅: `retry.maxAttempts` 를 발송 시도 횟수로 쓴다
+
+알림 웹훅 발송이 트리거 설정의 `notification.retry.maxAttempts` 를 큐 작업의 시도 횟수로 쓴다(NERV Task `CLE-T-M6PERB`).
+값은 첫 시도를 포함한 총 시도 횟수다. 기본 5, 상한 10이고 0 은 1(다시 보내지 않음)로 본다. 예전에는 설정과 상관없이
+5회로 고정했다. `maxAttempts` 를 5 가 아닌 값으로 저장한 트리거는 이 변경 뒤 시도 횟수가 달라진다. 트리거 화면의 표시 이름도
+«재시도 횟수» 에서 «최대 시도 횟수» 로 바꿨다.
+
+## Unreleased — EIA 인터랙션: 명령을 큐에 넣지 못하면 503 으로 응답한다
+
+`POST /api/external/executions/:id/interact` 의 재개 명령(`submit_form` · `click_button` · `submit_message` ·
+`end_conversation`)이 재개 큐에 들어가지 못하면 503 `EXECUTION_ENQUEUE_FAILED` 로 응답한다(NERV Task `CLE-T-M6PERB`).
+예전에는 202 `accepted:true` 를 내고 24시간 멱등 캐시에 넣었다. 그래서 같은 `Idempotency-Key` 로 다시 보내도 캐시된 202 가
+돌아오고 명령은 끝내 적재되지 않았다. 503 은 멱등 캐시에 넣지 않으므로 다시 보내면 새로 처리한다. 채팅 채널 인바운드처럼
+내부 신뢰 호출로 부른 명령은 예전과 같다. OpenAPI 에도 `/interact` 와 `/cancel` 의 503 응답을 선언했다.
+
+## Unreleased — EIA SSE: 트리거 단위 토큰이 무효가 되면 그 토큰으로 연 스트림을 닫는다
+
+트리거 단위 토큰(`itk_*`)으로 연 `GET /api/external/executions/:id/stream` 스트림을 서버가 닫는다(NERV Task `CLE-T-M6PERB`).
+닫는 경우는 `revoke-token` 재발급, PATCH 로 전략을 `per_trigger` 밖으로 바꾸기, PATCH 로 인터랙션 끄기, 트리거 삭제(스케줄
+삭제와 워크플로우 · 워크스페이스 삭제의 연쇄 포함)다. 예전에는 토큰이 무효가 된 뒤에도 이미 연 스트림이 이벤트를 계속 받았다. 지금은 그 요청을
+처리한 서버 인스턴스에 붙은 스트림만 닫는다. 여러 인스턴스로 넓히는 일은 NERV Task `CLE-T-Z35F7P` 가 맡는다. 실행 단위
+토큰(`iext_*`)으로 연 스트림은 만료나 갱신으로 닫지 않는다.
+
 ## Unreleased — 시스템 상태: 잘못된 환경 변수를 기본값으로 대신하고 화면 문구를 해요체로 바꾼다
 
 승인된 시스템 상태 스펙(CLE-OBS-STATUS v3)의 REQ-SYSSTAT-021 에 코드를 맞췄다(NERV Task `CLE-T-9DBM7V`).

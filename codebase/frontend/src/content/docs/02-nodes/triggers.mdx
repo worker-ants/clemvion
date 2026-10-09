@@ -224,7 +224,11 @@ POST /api/triggers
 ```
 </Example>
 
-응답에서 `notification.secret`(`wsk_*`)과, `tokenStrategy="per_trigger"`인 경우의 `interaction.triggerToken`(`itk_*`)은 **생성 시점에 단 한 번만 평문으로 노출**돼요. 이후 모든 조회 응답에서는 마스킹되니, 그 자리에서 안전하게 저장하세요.
+`notification` 을 실어 트리거를 만들면 서버가 알림 서명 시크릿(`wsk_*`)을 발급해요. 평문은 생성 응답의 `data.secrets.notificationSigningSecret` 에 **한 번만** 실려요. 나중에 PATCH 로 `notification` 을 처음 붙일 때도 같은 자리에 한 번 실려요. 이후 조회 응답에는 실리지 않으니 받은 자리에서 안전하게 저장하세요. 트리거 화면에서 저장했다면 외부 인터랙션 카드가 평문을 한 번 보여 줘요. 이 값은 60초 뒤 화면에서 사라져요.
+
+이미 시크릿이 있는 트리거는 PATCH 로 `notification` 을 바꿔도 시크릿이 그대로예요. 시크릿을 바꾸려면 아래 시크릿 교체를 쓰세요.
+
+`tokenStrategy="per_trigger"` 의 트리거 단위 토큰(`itk_*`)은 생성 응답에 실리지 않아요. `per_trigger` 로 설정한 뒤 `POST /api/triggers/:id/interaction/revoke-token` 을 부르면 응답의 `data.token` 에 평문이 한 번 실려요.
 
 ### Outbound Notification 동작
 
@@ -232,12 +236,13 @@ POST /api/triggers
 - 서명은 Stripe-style이에요 — `X-Clemvion-Signature: t=<unix>,v1=<hex>` 형태로 헤더에 동봉돼요. 검증 측은 `timestamp ± 5분` 이내, timing-safe 비교를 권장해요.
 - 같은 이벤트의 재시도는 동일한 `X-Clemvion-Delivery: <uuid>` 헤더를 유지해요. 클라이언트는 이 UUID로 dedup하면 돼요 (at-least-once 보장).
 - 페이로드의 `seq`는 execution 안에서 단조 증가하는 카운터예요. SSE 스트림의 이벤트 `id`와 같은 값을 공유해요 — 두 채널을 동시에 구독해도 정렬·dedup 가능.
-- 전송은 2xx만 성공으로 봐요. 그 외 / 타임아웃 (10초) → 지수 백오프 (기본 5회: 1s · 4s · 16s · 64s · 256s) 재시도.
+- 전송은 2xx만 성공으로 봐요. 그 외 응답이나 타임아웃(10초)이면 1초에서 시작해 4배씩 늘어나는 간격(1s · 4s · 16s · 64s …)으로 다시 보내요.
+- `retry.maxAttempts` 는 첫 시도를 포함한 총 시도 횟수예요. 기본 5, 최대 10이고 0은 1(다시 보내지 않음)로 봐요.
 - 최종 실패 시 트리거의 `notificationHealth` 가 `degraded`로 바뀌고 트리거 상세 화면에 표시돼요. **트리거 본체는 자동으로 비활성화되지 않아요** — 워크플로우 실행은 계속 받아요. 사용자가 직접 비활성화 토글을 눌러야 멈춰요.
 - URL은 `https://`만 허용해요 (개발 환경에서 `ALLOW_HTTP_HOOKS=1`일 때만 예외). 사설 IP·메타데이터 IP·loopback은 SSRF 방지로 차단돼요.
 
 <Callout type="note">
-시크릿이 유출됐다고 의심되면 `POST /api/triggers/:id/notification/rotate-secret`으로 회전할 수 있어요. 새 시크릿이 만들어진 뒤 24시간 동안은 old/new 둘 다 유효 — 외부 시스템이 새 시크릿으로 전환할 여유 시간이에요.
+시크릿이 유출됐다고 의심되면 `POST /api/triggers/:id/notification/rotate-secret`으로 회전할 수 있어요. 새 시크릿이 만들어진 뒤 24시간 동안은 old/new 둘 다 유효 — 외부 시스템이 새 시크릿으로 전환할 여유 시간이에요. 이 24시간 안에 다시 교체하면 앞서 받은 새 시크릿은 이번 값으로 바뀌고 24시간도 그때부터 다시 세어요.
 </Callout>
 
 ### Webhook 호출 응답이 바뀌어요 (interaction 활성화 시)
@@ -266,7 +271,7 @@ POST /api/triggers
 ```
 </Example>
 
-외부 시스템은 이 token으로 곧장 SSE 스트림을 열거나 인터랙션 명령을 보낼 수 있어요. `per_trigger` 전략을 골랐다면 token이 응답에 동봉되지 않아요 — 트리거 생성 시 받은 `itk_*`를 호출자가 이미 갖고 있다는 전제예요.
+외부 시스템은 이 token으로 곧장 SSE 스트림을 열거나 인터랙션 명령을 보낼 수 있어요. `per_trigger` 전략을 골랐다면 token이 응답에 동봉되지 않아요 — `revoke-token` 으로 받은 `itk_*`를 호출자가 이미 갖고 있다는 전제예요.
 
 ### Inbound 명령
 
@@ -301,6 +306,7 @@ Idempotency-Key: <client-uuid>   // 권장
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 |
 | `410 Gone` | `EXECUTION_TERMINATED` | 이미 종료된 execution |
 | `429 Too Many Requests` | `RATE_LIMITED` | execution 당 분당 60건(명령 제출) 또는 분당 120건(상태 조회 `GET`) 초과. 응답의 `Retry-After` 헤더로 재시도 대기 시간을 안내해요. 위 [응답 코드](#응답-코드)의 인스턴스 전역 100 req/min 한도와는 별개로, execution 단위로 추가 적용돼요 |
+| `503 Service Unavailable` | `EXECUTION_ENQUEUE_FAILED` | 명령을 실행 큐에 넣지 못했어요. 이 응답은 `Idempotency-Key` 캐시에 남지 않으니 같은 키로 다시 보내면 새로 처리돼요 |
 
 ### Inbound 이벤트 스트림 (SSE)
 
@@ -318,6 +324,8 @@ Last-Event-Id: 42         # 재연결 시
 - 5분 버퍼가 만료된 경우 `execution.replay_unavailable` 이 한 번 발송돼요 — 그때는 `GET /api/external/executions/:id` 로 현재 상태를 다시 조회하세요.
   이 재조회 응답에도 종결 이벤트와 **같은 `durationMs`** 가 들어 있어요 — 종결 이벤트를 놓쳤어도 소요 시간을 잃지 않아요 (종결 전에는 `null`).
 - execution 당 동시 SSE 연결은 기본 3개로 제한돼요.
+- `per_trigger` 토큰(`itk_*`)으로 연 스트림은 그 토큰이 무효가 되면 서버가 닫아요. 토큰 재발급, 다른 전략으로 바꾸기, 인터랙션 끄기, 트리거 삭제가 그 경우예요. 다시 연결할 때는 새 토큰을 쓰세요. 지금은 그 요청을 처리한 서버 인스턴스에 붙은 스트림만 닫아요.
+- `per_execution` 토큰으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않아요.
 
 브라우저 EventSource API는 `Authorization` 헤더를 보낼 수 없으므로, SSE에 한해 `?token=<jwt>` 쿼리 파라미터도 받아요 (다른 endpoint는 항상 Bearer 헤더).
 
@@ -325,7 +333,7 @@ Last-Event-Id: 42         # 재연결 시
 
 <FieldTable rows={[
   { name: "per_execution (기본)", required: false, type: "단명 JWT (`iext_*`)", description: "execution 1건 단위로 발급돼요. 기본 TTL 1시간, 만료 30분 전부터 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능. execution 이 종료되면 즉시 무효화돼요. 가장 안전한 기본값이에요.", default: "기본" },
-  { name: "per_trigger", required: false, type: "영구 토큰 (`itk_*`)", description: "트리거가 만드는 모든 execution 에 같은 토큰을 사용해요. 다수의 동시 execution 을 다루는 봇(Telegram, Slack 등) 에 편해요. 트리거 삭제 시 자동 무효화되고, `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 회전도 가능해요.", default: "선택" }
+  { name: "per_trigger", required: false, type: "영구 토큰 (`itk_*`)", description: "트리거가 만드는 모든 execution 에 같은 토큰을 사용해요. 다수의 동시 execution 을 다루는 봇(Telegram, Slack 등) 에 편해요. 토큰은 `POST /api/triggers/:id/interaction/revoke-token` 으로 받고 같은 경로로 바꿔요. 트리거를 지우면 자동으로 무효가 돼요. 다른 전략으로 바꾸면 토큰이 지워지고 다시 `per_trigger` 로 돌아와도 되살아나지 않으니 새로 받으세요. 인터랙션을 끄면 토큰은 남지만 끈 동안은 거부돼요. 다시 켜면 같은 토큰을 쓸 수 있어요.", default: "선택" }
 ]} />
 
 <Callout type="warn">

@@ -14,6 +14,7 @@ import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
 import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
+import { INTERACTION_STREAM_CLOSER } from '../external-interaction/interaction-stream-closer';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 describe('SchedulesService.runNow', () => {
@@ -116,6 +117,16 @@ describe('SchedulesService.runNow', () => {
             deleteByPrefix: jest.fn((prefix: string) => {
               triggerLockEvents.push(`deleteByPrefix:${prefix}`);
               return Promise.resolve(0);
+            }),
+          },
+        },
+        {
+          // 트리거 단위 토큰 SSE 스트림 닫기 포트 — 비밀 삭제 뒤라는 순서를 같은 배열로 본다.
+          provide: INTERACTION_STREAM_CLOSER,
+          useValue: {
+            closeTriggerTokenStreams: jest.fn((ids: readonly string[]) => {
+              triggerLockEvents.push(`close-streams:${ids.join(',')}`);
+              return 0;
             }),
           },
         },
@@ -848,6 +859,9 @@ describe('SchedulesService.runNow', () => {
         'lock:trigger-config:trig-del',
         'delete:trig-del',
         'deleteByPrefix:secret://triggers/trig-del/',
+        // 트리거가 사라지면 그 트리거 단위 토큰도 무효다 — 그 토큰으로 연 SSE 스트림을 닫는다
+        // ([트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제), 네 삭제 경로 모두).
+        'close-streams:trig-del',
       ]);
       expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
       // 방어적 `scheduleRepository.remove(schedule)` — CASCADE 가 이미 지운 자리라 0행

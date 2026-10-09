@@ -9,6 +9,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
@@ -19,7 +20,7 @@ import {
   acquireTriggerConfigLock,
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from '../triggers/trigger-config-lock';
-import { deleteTriggerSecretsAfterCommit } from '../triggers/trigger-resource-release';
+import { cleanUpDeletedTriggersAfterCommit } from '../triggers/trigger-resource-release';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
@@ -57,6 +58,8 @@ export class SchedulesService {
     private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunnerService: ScheduleRunnerService,
     private readonly secrets: SecretResolverService,
+    // SSE 스트림 닫기 포트를 지연 해석한다 — `interaction-stream-closer.ts` 참조.
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -376,12 +379,17 @@ export class SchedulesService {
           );
           throw err;
         });
-      // **커밋된 뒤에** 그 트리거의 비밀을 지운다(spec 트리거 목록 §4.3). 스케줄 트리거도
-      // `notification` 서명 비밀을 가질 수 있다 — DTO 에 타입 제한이 없다. `TriggerResourceReleaserService`
-      // 를 쓰지 않는 이유는 모듈 순환(`TriggersModule → SchedulesModule`)이라 정책 함수를 직접 부른다.
-      await deleteTriggerSecretsAfterCommit(
-        this.secrets,
-        this.logger,
+      // **커밋된 뒤에** 그 트리거의 비밀을 지우고(spec 트리거 목록 §4.3) 그 트리거 단위 토큰으로 연 SSE 스트림을
+      // 닫는다. 스케줄 트리거도 `notification` 서명 비밀을 가질 수 있다 — DTO 에 타입 제한이 없다.
+      // `TriggerResourceReleaserService` 를 쓰지 않는 이유는 모듈 순환(`TriggersModule → SchedulesModule`)이라
+      // 정책 함수를 직접 부른다. 그 서비스의 `releaseSecretsAfterCommit` 과 같은 함수다 — 네 삭제 경로가 같은
+      // 순서를 지나게 한다.
+      await cleanUpDeletedTriggersAfterCommit(
+        {
+          secrets: this.secrets,
+          moduleRef: this.moduleRef,
+          logger: this.logger,
+        },
         [triggerId],
         'SchedulesService.remove',
       );

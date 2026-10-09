@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { Logger, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { SecretStore } from './entities/secret-store.entity';
 import {
   SecretResolverService,
@@ -300,6 +300,67 @@ describe('SecretResolverService', () => {
       const ref = 'secret://triggers/abc/bot-token.v2';
       await svc.rotate(ref, 'ws-1', 'fresh');
       expect(await svc.resolve(ref)).toBe('fresh');
+    });
+
+    // 트리거 설정 잠금을 쥔 트랜잭션 안에서 부르는 호출부(`TriggersService`)가 매니저를 넘긴다. 넘기지 않으면
+    // 풀에서 연결을 하나 더 빌린다(NERV Task `CLE-T-M6PERB`, ai-review W1).
+    describe('manager 를 넘기면 호출자의 트랜잭션 안에서 읽고 쓴다', () => {
+      function managerOver(repo: Repository<SecretStore>): {
+        manager: EntityManager;
+        getRepository: jest.Mock;
+      } {
+        const getRepository = jest.fn(() => repo);
+        return {
+          manager: { getRepository } as unknown as EntityManager,
+          getRepository,
+        };
+      }
+
+      it('주입된 저장소를 건드리지 않고 매니저의 저장소로 쓴다', async () => {
+        const injected = createInMemoryRepository();
+        const inTx = createInMemoryRepository();
+        const { manager, getRepository } = managerOver(inTx);
+        const svc = new SecretResolverService(
+          injected,
+          createConfigService(validKey),
+        );
+        svc.onModuleInit();
+        const ref = 'secret://triggers/abc/notification-signing';
+        await svc.rotate(ref, 'ws-1', 'first', manager);
+        await svc.rotate(ref, 'ws-1', 'second', manager);
+        expect(getRepository).toHaveBeenCalledWith(SecretStore);
+        // 두 번째 호출은 첫 호출이 같은 저장소에 넣은 행을 보고 갱신한다.
+        expect(await inTx.findOne({ where: { ref } })).toMatchObject({
+          ref,
+          workspaceId: 'ws-1',
+        });
+        expect(await injected.findOne({ where: { ref } })).toBeNull();
+      });
+
+      it('다른 워크스페이스의 기존 행은 매니저로도 거부한다', async () => {
+        const inTx = createInMemoryRepository();
+        const { manager } = managerOver(inTx);
+        const svc = new SecretResolverService(
+          createInMemoryRepository(),
+          createConfigService(validKey),
+        );
+        svc.onModuleInit();
+        const ref = 'secret://triggers/abc/notification-signing';
+        await svc.rotate(ref, 'ws-owner', 'owner', manager);
+        const errorSpy = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+        try {
+          await expect(
+            svc.rotate(ref, 'ws-other', 'attacker', manager),
+          ).rejects.toBeInstanceOf(SecretWorkspaceMismatchError);
+        } finally {
+          errorSpy.mockRestore();
+        }
+        expect((await inTx.findOne({ where: { ref } }))?.workspaceId).toBe(
+          'ws-owner',
+        );
+      });
     });
 
     // NERV Task `CLE-T-XYR067`. 종전엔 UPSERT 가 기존 행의 `workspace_id` 까지 호출자 값으로 덮어써서

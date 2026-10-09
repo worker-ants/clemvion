@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "f446b9af6340d89e4048c681c1fddd14f852070718d7ca6261be82c985477bcf"
+content_hash: "ecc07338bbbadf6ba5c5b4cfc76a60f6ddbe6057ec8320b832368ca5379ecab2"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-M6PERB"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "211ed1b46dc18a1056b87806bb64418a19fca19bf7eaab91eebf882b62c57276"
-etag: "sha256-ba906cb6173a0cf52ade868f6f084c9034f0344db024595ae3c8bcb554b265d9"
+mirror_sha256: "683a207dbe9eb10dd45d26fce1d1436edee36d3c5675bbfc25789f6932a46456"
+etag: "sha256-1bfda9285bd94992bb449af6c30596bd5e94720be18ec5e86f3f5aae0132d282"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -267,7 +267,7 @@ etag: "sha256-ba906cb6173a0cf52ade868f6f084c9034f0344db024595ae3c8bcb554b265d9"
 
 ### 6.7 WebSocket 명령: 재개 명령과 마지막 턴 재시도 (도메인 문서 참조)
 
-주로 WebSocket ack 에 싣는 코드다. 일부(`SERVER_SHUTTING_DOWN`, `EXECUTION_ENQUEUE_FAILED`)는 REST 실행 제어 진입점에서 HTTP 503 으로도 쓴다(행마다 적는다). 설계 원칙은 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) Rationale 의 `SERVER_SHUTTING_DOWN` 503 선례다. 적용 명령 범위와 ack 형태는 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 이 정한다.
+주로 WebSocket ack 에 싣는 코드다. 일부(`SERVER_SHUTTING_DOWN`, `EXECUTION_ENQUEUE_FAILED`)는 HTTP 진입점에서 503 으로 쓴다(진입점은 행마다 적는다). `EXECUTION_ENQUEUE_FAILED` 는 ack 에 싣지 않고 HTTP 진입점에서만 쓴다. 설계 원칙은 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) Rationale 의 `SERVER_SHUTTING_DOWN` 503 선례다. 적용 명령 범위와 ack 형태는 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 이 정한다.
 
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
@@ -284,7 +284,7 @@ etag: "sha256-ba906cb6173a0cf52ade868f6f084c9034f0344db024595ae3c8bcb554b265d9"
 | `NODE_NOT_RETRYABLE` | 대상 노드가 재시도 가능한 에러로 끝나지 않음(`outputData.output.error.details.retryable === false`, 정상 종결, 조건 종결 등) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운이 끝나기 전에 호출함(서버 쪽 강제) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `SERVER_SHUTTING_DOWN` | 서버가 SIGTERM 을 받은 뒤 새 실행을 시작할 수 없음. HTTP 진입점은 503 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `EXECUTION_ENQUEUE_FAILED` | REST `POST /executions/:id/stop` 의 입력 대기 취소 경로에서 재개 메시지 발행(BullMQ `queue.add`) 자체가 실패함. `publish` 가 `queued:false`(Redis 장애 등으로 큐에 들어가지 못함)를 돌려준 경우다. HTTP 진입점은 503 이고 실행은 입력 대기 상태를 유지한다(`failed` 아님). 다시 시도를 권한다. `SERVER_SHUTTING_DOWN` 503 선례와 같은 형태이고 큐에 들어간 뒤 재개가 실패하는 워커 쪽 비동기 실패(`RESUME_*`)와 구분한다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `EXECUTION_ENQUEUE_FAILED` | 입력 대기 실행에 보내는 취소와 재개 명령(REST `POST /executions/:id/stop`, External Interaction API `/interact` 의 재개 명령 4종과 `cancel`)에서 재개 메시지 발행(BullMQ `queue.add`) 자체가 실패함. `publish` 가 `queued:false`(Redis 장애 등으로 큐에 들어가지 못함)를 돌려준 경우다. HTTP 진입점은 503 이고 실행은 입력 대기 상태를 유지한다(`failed` 아님). 다시 시도를 권한다. 이 코드를 내는 HTTP 진입점은 REST `stop` 과 토큰으로 인증한 External Interaction API 호출(`/interact`, 별칭 `POST .../cancel`)이다. 내부 신뢰 호출(`in_process_trusted`, 채팅 채널 인바운드)의 재개 명령은 이 코드를 내지 않는다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). EIA REST 의 503 은 멱등 캐시에 넣지 않는다(§6.9). WebSocket 재개 명령 4종은 이 코드를 싣지 않는다. 같은 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 알린다. `SERVER_SHUTTING_DOWN` 503 선례와 같은 형태이고 큐에 들어간 뒤 재개가 실패하는 워커 쪽 비동기 실패(`RESUME_*`)와 구분한다 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면), [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개) |
 
 ### 6.8 WebSocket 전송 (도메인 문서 참조)
 
@@ -318,7 +318,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `TOKEN_REVOKED` · `TOKEN_SCOPE_MISMATCH` · `TOKEN_AUDIENCE_MISMATCH` | 401 | 인터랙션 토큰(`iext_*`, `itk_*`) **검증** 실패. 모든 토큰 검증 실패는 정보 노출을 줄이려고 401 하나로 돌려준다. 여기서 "검증 실패" 는 `InteractionGuard` 가 핸들러 전에 판정하는 집합이고 위 `TOKEN_REFRESH_FORBIDDEN` 은 그 뒤 서비스 계층 판정이라 대상이 아니다. §6.2 의 워크스페이스 JWT 층 `TOKEN_INVALID`·`TOKEN_EXPIRED` 와 같은 문자열도 쓰지만 진입점(`/api/external/*`)과 토큰 family 로 층이 갈린다 | 폐기는 종결 시 즉시 무효화한다(최소 한 번, EIA-RL-06) | [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R14 |
 | `TOO_MANY_CONNECTIONS` | 429 | 실행당 SSE 동시 연결 상한 초과. 429 기본 `RATE_LIMITED` 와 별개인 EIA SSE 전용 코드 | | [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) |
 
-`VALIDATION_ERROR`(`submit_form` 필드 검증), `EXECUTION_NOT_FOUND`(404), `TOKEN_INVALID`·`TOKEN_EXPIRED`(401)는 표준 코드를 그대로 다시 쓴다(EIA 전용 아님). `/interact` 의 빈도 제한 초과는 `RATE_LIMITED`(429)다.
+`VALIDATION_ERROR`(`submit_form` 필드 검증), `EXECUTION_NOT_FOUND`(404), `TOKEN_INVALID`·`TOKEN_EXPIRED`(401), `EXECUTION_ENQUEUE_FAILED`(503, §6.7)는 표준 코드를 그대로 다시 쓴다(EIA 전용 아님). `EXECUTION_ENQUEUE_FAILED` 는 입력 대기 실행에 보낸 `/interact` 명령(재개 명령 4종과 `cancel`, 별칭 `POST .../cancel` 포함)이 재개 큐에 들어가지 못했을 때(`queued:false`) 낸다. 이 503 은 멱등 캐시(2xx·409·410)에 넣지 않으므로 같은 멱등 키로 다시 보내면 새로 처리한다. `/interact` 의 빈도 제한 초과는 `RATE_LIMITED`(429)다.
 
 ### 6.10 웹훅 수신 (도메인 문서 참조)
 
@@ -551,3 +551,14 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 - **`WORKFLOW_NOT_FOUND` 를 `RESOURCE_NOT_FOUND` 로 바꾸지 않았다.** 이미 나가던 코드이고 이름을 바꾸면 규칙 5 의 이름 바꾸기 비용이 든다. 같은 본문의 `llmConfigId` 도 도메인 코드(404 `MODEL_CONFIG_NOT_FOUND`)라 이 API 안에서는 도메인 코드가 일관된다. 다른 워크플로우 경로의 `RESOURCE_NOT_FOUND` 와 갈리는 점은 §6.19 머리말에 적어 이 API 한정으로 묶었다.
 - **세션 코드 둘의 뜻은 구현을 따랐다.** 정의 문서가 «워크스페이스 · 사용자 경계» 를 모두 `ASSISTANT_SESSION_NOT_YOURS` 로 적었으나 구현은 다른 워크스페이스의 세션을 404 `ASSISTANT_SESSION_NOT_FOUND` 로 가린다. 없는 것과 다른 워크스페이스의 것을 구분하지 않는 규칙과 맞는 쪽이 구현이라 정의 문서를 같은 변경에서 고쳤다.
+
+### `EXECUTION_ENQUEUE_FAILED` 를 EIA `/interact` 재개 명령에도 쓴다 (2026-10-09)
+
+이 코드의 행은 처음에 REST `POST /executions/:id/stop` 의 입력 대기 취소만 적었다. EIA `/interact` 의 `cancel` 과 그 별칭 `POST .../cancel` 도 같은 `ExecutionsService.stop` 을 불러 이미 이 코드를 냈다. 지금 코드에서 재개 명령 4종은 발행 결과(`queued`)를 보지 않고 202 `accepted:true` 를 낸다. 이 202 는 24시간 멱등 캐시에 들어간다. 그러면 같은 멱등 키로 다시 보내도 캐시된 202 가 돌아오고 명령은 끝내 재개 큐에 들어가지 못한다. 그래서 재개 명령 4종도 `cancel` 과 같이 503 `EXECUTION_ENQUEUE_FAILED` 로 응답하게 정했다. 이 결정은 사용자에게 묻지 않고 기본값으로 정해 알린 뒤 진행했다(2026-10-09). 503 은 멱등 캐시 대상(2xx·409·410)이 아니므로 다시 보내면 새로 처리한다. 반영은 NERV Task `CLE-T-M6PERB` 이고 코드도 같은 Task 에서 고친다. 승인 직후 같은 Task 에서 코드와 미러를 한 PR 로 내기로 해서(사용자 결정, 2026-10-09) 이 문서의 행에는 `(미구현)` 을 붙이지 않았다. 이 전제가 깨져 코드가 같은 PR 에 들어가지 못하면 이 행과 같은 Task 가 고친 요구사항 줄에 `(미구현)` 을 붙이는 초안을 다시 낸다. 결정 이력은 그 Task 의 결정 기록에 있다.
+
+- **새 코드를 만들지 않았다.** 조건의 뜻이 REST `stop` 과 같다. 두 경우 모두 발행 자체가 실패했고 실행은 입력 대기에 남는다. 클라이언트가 할 일도 다시 보내기 하나다. 그래서 규칙 6 의 새 조건이 아니다.
+- **표면마다 코드를 나누지 않았다.** §6 머리말은 같은 뜻이라도 표면마다 다른 코드를 쓴다고 적는다. 그러나 EIA `cancel` 은 REST `stop` 과 같은 서비스 메서드를 부르므로 이 코드는 이미 두 표면에서 나가고 있었다. 재개 명령에 EIA 전용 코드를 주면 `/interact` 한 표면 안에서 같은 조건이 두 코드로 갈린다.
+- **WebSocket 재개 명령은 바꾸지 않았다.** 이 경로의 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 바로 돌아간다. ack 는 요청마다 한 번 보내는 응답이라 어디에도 저장하지 않는다. 그래서 클라이언트는 실패를 보고 다시 보낼 수 있다. EIA REST 는 2xx 응답을 멱등 캐시에 넣으므로 실패를 2xx 로 알리면 재시도로 바로잡을 수 없다. 이 차이 때문에 EIA REST 만 HTTP 상태 코드(503)로 실패를 알린다.
+- **내부 신뢰 호출은 이 코드를 내지 않는다.** 채팅 채널 인바운드는 서버 안에서 내부 신뢰 호출(`in_process_trusted`)로 같은 재개 명령을 부른다. 이 경로가 503 을 던지면 웹훅을 보낸 채널 프로바이더에게 5xx 가 나간다. 그 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 따로 정한다. 그래서 503 은 HTTP 진입점의 응답으로 한정했다. 이 범위는 사용자에게 묻지 않고 기본값으로 정해 알렸다.
+- **승인 전 초안 두 편의 WebSocket 서술은 코드와 다르다.** [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 과 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 은 승인 전 초안이다. 두 문서는 WebSocket 재개 명령의 `queued:false` 를 성공 ack 의 필드로 적는다. 코드(`websocket.gateway.ts`)는 `queued:false` 일 때 실패 ack(`success:false`)를 보낸다. 이 카탈로그는 코드를 따랐다. 두 문서의 정정은 NERV Task `CLE-T-EMB0YG` 가 맡는다.
+- **이 코드를 만든 근거가 넓어졌다.** [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 Rationale 「발행 실패를 `queued:false` 하나로 알린다 (C-1·M-7)」 은 취소가 WebSocket ack 경로가 아니라 REST 중지 진입점이라서 이 코드로 표기한다고 적는다. 이 코드는 이미 `/interact` 의 `cancel` 에서 나갔고 이번 결정으로 재개 명령 4종에도 쓴다. ack 가 아닌 HTTP 진입점이라는 근거는 `/interact` 에도 그대로 맞는다. «REST 중지 진입점» 으로 좁힌 그 서술의 정정도 `CLE-T-EMB0YG` 가 맡는다.

@@ -306,3 +306,86 @@ describe('SseAdapter', () => {
     expect(pushed[0].payload.customField).toBe('preserved');
   });
 });
+
+// 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰) — 트리거 단위 토큰이 무효가 되면
+// (재발급 · 전략 변경으로 지움 · 트리거 삭제) 그 토큰으로 연 SSE 스트림을 서버가 닫는다. 실행 단위 토큰으로
+// 연 스트림은 닫지 않는다. 같은 서버 인스턴스의 구독자만 닫는다(NERV Task `CLE-T-Z35F7P` 가 넓힌다).
+describe('SseAdapter.closeTriggerTokenStreams', () => {
+  function makeClosable(
+    executionId: string,
+    tokenFamily: 'iext' | 'itk',
+    triggerId: string | null,
+  ): { sub: SseSubscriber; pushed: ExecutionChannelEvent[]; close: jest.Mock } {
+    const { sub, pushed } = makeSub(executionId);
+    const close = jest.fn();
+    return { sub: { ...sub, tokenFamily, triggerId, close }, pushed, close };
+  }
+
+  it('지정한 트리거의 itk 스트림만 닫고 닫은 수를 돌려준다', () => {
+    const { ws } = makeWs();
+    const adapter = new SseAdapter(ws);
+    const itk1 = makeClosable('exec-a', 'itk', 'trg-1');
+    const itk2 = makeClosable('exec-b', 'itk', 'trg-2');
+    const iextSameTrigger = makeClosable('exec-a', 'iext', 'trg-1');
+    adapter.subscribe(itk1.sub);
+    adapter.subscribe(itk2.sub);
+    adapter.subscribe(iextSameTrigger.sub);
+
+    expect(adapter.closeTriggerTokenStreams(['trg-1'])).toBe(1);
+
+    expect(itk1.close).toHaveBeenCalledTimes(1);
+    expect(itk2.close).not.toHaveBeenCalled();
+    expect(iextSameTrigger.close).not.toHaveBeenCalled();
+    expect(adapter.subscriberCount('exec-a')).toBe(1);
+    expect(adapter.subscriberCount('exec-b')).toBe(1);
+  });
+
+  it('닫은 구독자에게는 이후 이벤트를 보내지 않는다', () => {
+    const { ws, subject } = makeWs();
+    const adapter = new SseAdapter(ws);
+    adapter.onModuleInit();
+    const itk = makeClosable('exec-a', 'itk', 'trg-1');
+    adapter.subscribe(itk.sub);
+    adapter.closeTriggerTokenStreams(['trg-1']);
+    subject.next(ev('exec-a', 'execution.node_completed', 1));
+    expect(itk.pushed).toHaveLength(0);
+    adapter.onModuleDestroy();
+  });
+
+  it('여러 트리거를 한 번에 닫는다', () => {
+    const { ws } = makeWs();
+    const adapter = new SseAdapter(ws);
+    const a = makeClosable('exec-a', 'itk', 'trg-1');
+    const b = makeClosable('exec-a', 'itk', 'trg-1');
+    const c = makeClosable('exec-c', 'itk', 'trg-3');
+    adapter.subscribe(a.sub);
+    adapter.subscribe(b.sub);
+    adapter.subscribe(c.sub);
+    expect(adapter.closeTriggerTokenStreams(['trg-1', 'trg-3'])).toBe(3);
+    expect(adapter.subscriberCount('exec-a')).toBe(0);
+    expect(adapter.subscriberCount('exec-c')).toBe(0);
+  });
+
+  it('close 가 던져도 나머지 스트림을 계속 닫는다', () => {
+    const { ws } = makeWs();
+    const adapter = new SseAdapter(ws);
+    const bad = makeClosable('exec-a', 'itk', 'trg-1');
+    bad.close.mockImplementation(() => {
+      throw new Error('socket gone');
+    });
+    const good = makeClosable('exec-b', 'itk', 'trg-1');
+    adapter.subscribe(bad.sub);
+    adapter.subscribe(good.sub);
+    expect(adapter.closeTriggerTokenStreams(['trg-1'])).toBe(2);
+    expect(good.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('빈 목록이면 아무것도 닫지 않는다', () => {
+    const { ws } = makeWs();
+    const adapter = new SseAdapter(ws);
+    const itk = makeClosable('exec-a', 'itk', 'trg-1');
+    adapter.subscribe(itk.sub);
+    expect(adapter.closeTriggerTokenStreams([])).toBe(0);
+    expect(itk.close).not.toHaveBeenCalled();
+  });
+});

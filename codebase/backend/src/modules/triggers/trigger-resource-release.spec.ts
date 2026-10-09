@@ -1,4 +1,7 @@
+import type { ModuleRef } from '@nestjs/core';
+import { INTERACTION_STREAM_CLOSER } from '../external-interaction/interaction-stream-closer';
 import {
+  cleanUpDeletedTriggersAfterCommit,
   deleteTriggerSecretsAfterCommit,
   triggerSecretPrefix,
   undoAbsentTriggerWrite,
@@ -68,6 +71,90 @@ describe('trigger-resource-release', () => {
 
       await deleteTriggerSecretsAfterCommit(secrets, logger, [], 'T');
 
+      expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
+    });
+  });
+
+  // 삭제 경로 넷(트리거 · 스케줄 · 워크플로 · 워크스페이스)이 모두 이 함수를 지난다. 순서가 갈리거나 한 곳이 빠지면 무효가
+  // 된 토큰으로 연 SSE 스트림이 살아남는다.
+  describe('cleanUpDeletedTriggersAfterCommit', () => {
+    function makeCleanup(
+      opts: { failFor?: string; closerThrows?: boolean } = {},
+    ) {
+      const { events, secrets, logger } = makeDeps(opts);
+      const closer = {
+        closeTriggerTokenStreams: jest.fn((ids: readonly string[]) => {
+          events.push(`close:${ids.join(',')}`);
+          if (opts.closerThrows) throw new Error('close boom');
+          return ids.length;
+        }),
+      };
+      const get = jest.fn((token: unknown) => {
+        expect(token).toBe(INTERACTION_STREAM_CLOSER);
+        return closer;
+      });
+      const moduleRef = { get } as unknown as Pick<ModuleRef, 'get'>;
+      return { events, secrets, logger, closer, moduleRef, get };
+    }
+
+    it('비밀을 지운 뒤에 같은 트리거들의 스트림을 닫는다', async () => {
+      const { events, secrets, logger, moduleRef } = makeCleanup();
+
+      await cleanUpDeletedTriggersAfterCommit(
+        { secrets, logger, moduleRef },
+        ['a', 'b'],
+        'T',
+      );
+
+      expect(events).toEqual([
+        'delete:secret://triggers/a/',
+        'delete:secret://triggers/b/',
+        'close:a,b',
+      ]);
+    });
+
+    it('비밀 삭제가 실패해도 스트림은 닫는다 — 행은 이미 지워졌다', async () => {
+      const { events, secrets, logger, moduleRef } = makeCleanup({
+        failFor: 'a',
+      });
+
+      await cleanUpDeletedTriggersAfterCommit(
+        { secrets, logger, moduleRef },
+        ['a'],
+        'T',
+      );
+
+      expect(events.filter((e) => e.startsWith('close:'))).toEqual(['close:a']);
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('스트림 닫기가 던져도 호출자에게 던지지 않고 error 로 남긴다', async () => {
+      const { secrets, logger, moduleRef } = makeCleanup({
+        closerThrows: true,
+      });
+
+      await expect(
+        cleanUpDeletedTriggersAfterCommit(
+          { secrets, logger, moduleRef },
+          ['a'],
+          'T',
+        ),
+      ).resolves.toBeUndefined();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('close boom'),
+      );
+    });
+
+    it('빈 목록이면 포트를 찾지도 않는다', async () => {
+      const { secrets, logger, moduleRef, get } = makeCleanup();
+
+      await cleanUpDeletedTriggersAfterCommit(
+        { secrets, logger, moduleRef },
+        [],
+        'T',
+      );
+
+      expect(get).not.toHaveBeenCalled();
       expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
     });
   });

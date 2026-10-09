@@ -64,6 +64,14 @@ describe('TriggerResourceReleaserService', () => {
         return Promise.resolve(0);
       }),
     };
+    // SSE 스트림 닫기 포트(`interaction-stream-closer.ts`)를 `ModuleRef` 로 지연 해석한다.
+    const closer = {
+      closeTriggerTokenStreams: jest.fn((ids: readonly string[]) => {
+        events.push(`close-streams:${ids.join(',')}`);
+        return 0;
+      }),
+    };
+    const moduleRef = { get: jest.fn(() => closer) };
     const service = new TriggerResourceReleaserService(
       triggerRepository as never,
       scheduleRepository as never,
@@ -71,9 +79,12 @@ describe('TriggerResourceReleaserService', () => {
       binder as never,
       listenerRegistry as never,
       secrets as never,
+      moduleRef as never,
     );
     return {
       service,
+      closer,
+      moduleRef,
       events,
       triggerRepository,
       scheduleRepository,
@@ -81,6 +92,51 @@ describe('TriggerResourceReleaserService', () => {
       listenerRegistry,
     };
   }
+
+  // 근거: [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제) — 행 삭제가
+  // 커밋된 뒤 비밀을 지우고 그 트리거들의 `itk_*` 로 연 SSE 스트림을 닫는다(best-effort). 트리거 · 워크플로 ·
+  // 워크스페이스 삭제가 모두 이 메서드를 지난다.
+  describe('releaseSecretsAfterCommit', () => {
+    it('비밀을 지운 뒤 같은 트리거들의 SSE 스트림을 닫는다', async () => {
+      const { service, events } = make({});
+      await service.releaseSecretsAfterCommit(['t1', 't2'], 'caller');
+      expect(events).toEqual([
+        'delete:secret://triggers/t1/',
+        'delete:secret://triggers/t2/',
+        'close-streams:t1,t2',
+      ]);
+    });
+
+    it('닫기 포트를 찾지 못해도 던지지 않는다', async () => {
+      const { service, moduleRef } = make({});
+      moduleRef.get.mockImplementation(() => {
+        throw new Error('not found');
+      });
+      await expect(
+        service.releaseSecretsAfterCommit(['t1'], 'caller'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  // `TriggersService` 가 재발급 · 전략 변경 PATCH 뒤에 부른다. `ModuleRef` 를 이 서비스 한 곳에만 둔다.
+  describe('closeTriggerTokenStreams', () => {
+    it('포트를 지연 해석해 닫을 트리거를 넘긴다', () => {
+      const { service, closer, moduleRef } = make({});
+      service.closeTriggerTokenStreams(['t1'], 'caller');
+      expect(moduleRef.get).toHaveBeenCalledTimes(1);
+      expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+    });
+
+    it('닫기 포트를 찾지 못해도 던지지 않는다', () => {
+      const { service, moduleRef } = make({});
+      moduleRef.get.mockImplementation(() => {
+        throw new Error('not found');
+      });
+      expect(() =>
+        service.closeTriggerTokenStreams(['t1'], 'caller'),
+      ).not.toThrow();
+    });
+  });
 
   describe('releaseExternalForParent', () => {
     it('부모 밑 트리거마다 teardown · listener unregister(chat-channel R8) 를 하고, schedule job 을 해제한다', async () => {

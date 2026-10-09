@@ -145,6 +145,11 @@ export interface TriggerUpdateBody {
   chatChannel?: Record<string, unknown>;
 }
 
+/** `triggersApi.update` 의 결과. 서버가 첫 알림 서명 시크릿을 발급했을 때만 평문이 있다. */
+export interface TriggerUpdateResult {
+  issuedNotificationSigningSecret?: string;
+}
+
 export const triggersApi = {
   /** `GET /triggers` — 필터·페이지네이션. 페이지 응답을 표준 `PagedResult` 로 정규화. */
   list: async (
@@ -176,9 +181,24 @@ export const triggersApi = {
     await apiClient.post("/triggers", body);
   },
 
-  /** `PATCH /triggers/:id` — 단일 편집 경로(R-4). 부분 바디 전달. */
-  update: async (id: string, body: TriggerUpdateBody): Promise<void> => {
-    await apiClient.patch(`/triggers/${id}`, body);
+  /**
+   * `PATCH /triggers/:id` — 단일 편집 경로(R-4). 부분 바디 전달.
+   *
+   * 서버가 첫 알림 서명 시크릿을 발급한 응답에만 `data.secrets.notificationSigningSecret` 이 실린다
+   * (EIA 알림 웹훅 설정을 처음 붙일 때). 서버는 다시 보여 주지 않으므로 호출부가 한 번 보여 줘야 한다.
+   * 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api)
+   */
+  update: async (
+    id: string,
+    body: TriggerUpdateBody,
+  ): Promise<TriggerUpdateResult> => {
+    const res = await apiClient.patch<{
+      data?: { secrets?: { notificationSigningSecret?: unknown } };
+    }>(`/triggers/${id}`, body);
+    const secret = res?.data?.data?.secrets?.notificationSigningSecret;
+    return typeof secret === "string"
+      ? { issuedNotificationSigningSecret: secret }
+      : {};
   },
 
   /** `DELETE /triggers/:id` — 트리거 삭제 (Spec §3). cascade(schedule·notification·interaction)는 backend. */

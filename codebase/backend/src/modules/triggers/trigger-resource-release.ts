@@ -1,6 +1,7 @@
 import type { ModuleRef } from '@nestjs/core';
 import type { EntityManager } from 'typeorm';
 
+import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { buildSecretRefPrefix } from '../secret-store/secret-ref';
 import type { SecretResolverService } from '../secret-store/secret-resolver.service';
 
@@ -67,6 +68,33 @@ export async function deleteTriggerSecretsAfterCommit(
       );
     }
   }
+}
+
+/**
+ * 트리거 행 삭제가 **커밋된 뒤** 하는 정리 — 비밀을 지우고, 그 트리거들의 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을
+ * 닫는다. **던지지 않는다.** 순서는 이 순서다: 삭제 경로 넷(트리거 · 스케줄 · 워크플로 · 워크스페이스)이 모두 이 함수를
+ * 지난다. 한 곳이 빠지거나 순서가 갈리면 무효가 된 토큰으로 연 스트림이 살아남는 보안 회귀가 된다.
+ *
+ * 스트림 닫기는 best-effort 라 못 닫아도 삭제 결과는 그대로다(`closeTriggerTokenStreams` 참조). 포트는 `ModuleRef` 로
+ * 지연 해석한다.
+ * 근거: [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제)
+ */
+export async function cleanUpDeletedTriggersAfterCommit(
+  deps: {
+    secrets: SecretDeleter;
+    moduleRef: Pick<ModuleRef, 'get'>;
+    logger: ErrorLogger;
+  },
+  triggerIds: readonly string[],
+  caller: string,
+): Promise<void> {
+  await deleteTriggerSecretsAfterCommit(
+    deps.secrets,
+    deps.logger,
+    triggerIds,
+    caller,
+  );
+  closeTriggerTokenStreams(deps.moduleRef, triggerIds, deps.logger, caller);
 }
 
 /**
@@ -176,7 +204,10 @@ export interface TriggerResourceReleasePort {
     manager: EntityManager,
     parent: TriggerParent,
   ): Promise<LockedParentTriggers>;
-  /** {@link deleteTriggerSecretsAfterCommit} — 커밋 뒤에 부른다. 던지지 않는다. */
+  /**
+   * {@link deleteTriggerSecretsAfterCommit} 뒤 그 트리거들의 트리거 단위 토큰으로 연 SSE 스트림을 닫는다
+   * (`interaction-stream-closer.ts`, best-effort). 커밋 뒤에 부른다. 던지지 않는다.
+   */
   releaseSecretsAfterCommit(
     triggerIds: readonly string[],
     caller: string,

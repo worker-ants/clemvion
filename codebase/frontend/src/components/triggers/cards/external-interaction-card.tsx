@@ -69,6 +69,9 @@ export function ExternalInteractionCard({
   // Rotate / revoke result dialogs (1회만 표시)
   const [rotateResult, setRotateResult] = useState<string | null>(null);
   const [revokeResult, setRevokeResult] = useState<string | null>(null);
+  // 저장 응답에 실린 첫 알림 서명 시크릿(1회만 표시). EIA 알림 웹훅 설정을 처음 붙이면 서버가 발급한다.
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어)
+  const [issuedSecret, setIssuedSecret] = useState<string | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -85,7 +88,14 @@ export function ExternalInteractionCard({
         enabled: interactionEnabled,
         tokenStrategy: strategy,
       };
-      await triggersApi.update(trigger.id, patchBody);
+      const { issuedNotificationSigningSecret } = await triggersApi.update(
+        trigger.id,
+        patchBody,
+      );
+      // 평문은 이 상태에만 둔다. mutation 결과(`data`)로 돌려주면 60초 뒤 상자를 지워도 캐시에 남는다.
+      if (issuedNotificationSigningSecret) {
+        setIssuedSecret(issuedNotificationSigningSecret);
+      }
     },
     onSuccess: () => {
       toast.success(t("triggers.externalInteraction.saveSucceeded"));
@@ -359,6 +369,15 @@ export function ExternalInteractionCard({
           <Button size="sm" variant="outline" onClick={handleRotateSecret}>
             {t("triggers.externalInteraction.notificationSecretRotate")}
           </Button>
+        )}
+
+        {/* 저장 응답의 첫 알림 서명 시크릿 (마스킹 + 클릭 노출 + 60s 자동 소거) */}
+        {issuedSecret && (
+          <SecretRevealBox
+            title={t("triggers.externalInteraction.issuedNotificationSigningSecret")}
+            secret={issuedSecret}
+            onDismiss={() => setIssuedSecret(null)}
+          />
         )}
 
         {/* Secret rotation result (마스킹 + 클릭 노출 + 60s 자동 소거) */}

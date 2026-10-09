@@ -45,13 +45,14 @@ export const triggers = {
     title: "트리거 삭제",
     button: "삭제",
     typeNameToConfirm: "확인을 위해 트리거 이름 '{{name}}'을(를) 입력해 주세요",
-    cascadeWarning: "연결된 스케줄도 함께 삭제됩니다",
+    cascadeWarning: "연결된 스케줄도 함께 삭제돼요",
     confirm: {
-      webhook: "이 트리거를 삭제하면 {{url}} 로 들어오는 모든 호출이 즉시 404 가 됩니다.",
+      webhook:
+        "이 트리거를 삭제하면 {{url}} 로 들어오는 모든 호출이 즉시 404 가 돼요.",
       schedule:
-        "이 트리거를 삭제하면 연결된 스케줄도 함께 삭제됩니다 (Cron: {{cron}}). 다음 실행 예정: {{nextRunAt}}.",
+        "이 트리거를 삭제하면 연결된 스케줄도 함께 삭제돼요 (Cron: {{cron}}). 다음 실행 예정: {{nextRunAt}}.",
       manual:
-        "이 트리거에 연결된 워크플로 ({{workflowName}}) 는 보존되며, 트리거를 통한 외부 실행 진입점만 사라집니다.",
+        "이 트리거에 연결된 워크플로우 ({{workflowName}}) 는 보존되며 트리거를 통한 외부 실행 진입점만 사라져요.",
     },
   },
   activated: "트리거를 활성화했어요",
@@ -143,7 +144,7 @@ export const triggers = {
       "트리거가 시작한 워크플로우의 인터랙션 노드 (Form / 버튼 / AI Multi-Turn) 에 외부 시스템이 응답할 수 있게 설정합니다.",
     notification: "Notification Webhook (Outbound)",
     notificationDescription:
-      "워크플로우 이벤트를 외부 URL 로 push. HMAC-SHA256 서명. 5회 자동 재시도.",
+      "워크플로우 이벤트를 외부 URL 로 push. HMAC-SHA256 서명. 실패하면 첫 시도를 포함해 기본 5회까지 보내요.",
     notificationUrl: "수신 URL",
     notificationEvents: "구독 이벤트",
     notificationSecretRotate: "시크릿 교체",
@@ -175,6 +176,7 @@ export const triggers = {
     rotateSucceeded: "새 secret 을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     rotateFailed: "Secret 회전에 실패했어요",
     rotateNewSecret: "새 secret (1회만 표시)",
+    issuedNotificationSigningSecret: "새 알림 서명 시크릿 (1회만 표시)",
     revokeConfirm: "기존 per-trigger 토큰은 즉시 무효화돼요. 진행할까요?",
     revokeSucceeded: "새 토큰을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     revokeFailed: "토큰 재발급에 실패했어요",
@@ -190,7 +192,7 @@ export const triggers = {
     // [R-7] EIA 카드 read 모드 dt 라벨 i18n 추가
     eventsLabel: "이벤트",
     algorithmLabel: "알고리즘",
-    retryAttemptsLabel: "재시도 횟수",
+    retryAttemptsLabel: "최대 시도 횟수",
     endpointsLabel: "엔드포인트",
   },
   // [Spec Chat Channel §4.1 / §5.4 + spec 2-trigger-list §2.3.1 / R-8]

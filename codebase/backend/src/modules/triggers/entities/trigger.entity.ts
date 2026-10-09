@@ -74,8 +74,9 @@ export class Trigger {
   lastTriggeredAt: Date | null;
 
   /**
-   * Outbound notification 발송 건강도. [Spec EIA §3.1 EIA-NX-07] — 5회 연속 실패 시 'degraded'
-   * 로 갱신되지만 trigger 자체는 비활성화되지 않는다 (R6).
+   * Outbound notification 발송 건강도. 마지막 시도까지 실패하면 'degraded' 로 갱신되지만 trigger 자체는
+   * 비활성화되지 않는다 (R6). 시도 횟수는 `notification.retry.maxAttempts` 다(기본 5, 상한 10).
+   * 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리) REQ-EIANOTI-009.
    *
    * V059 마이그레이션의 CHECK 제약이 enum 값을 강제하므로 DB 레벨에서 invalid 값 입력 차단.
    */
