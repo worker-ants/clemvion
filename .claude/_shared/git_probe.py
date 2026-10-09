@@ -47,6 +47,7 @@ guard now derives the set from the modules themselves instead. `branch_guard`'s
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 
 
@@ -205,7 +206,7 @@ def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str,
 
 
 def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
-                      on_error=None) -> list[str]:
+                      on_error=None, head: str = "HEAD") -> list[str]:
     """Repo-relative paths this branch changed against `base_ref`. `[]` on failure.
 
     The fourth git probe to be shared, and the first that was duplicated between
@@ -239,6 +240,11 @@ def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
     keeps logging through its own `debug_log` rather than this module inventing a
     logging channel. Failure is otherwise silent and empty, as before.
 
+    `head` is `HEAD` unless the caller names the commit it reviewed. The NERV
+    payload tool (`nerv_review_payload.py`) does: its `--head` is the commit the
+    review ran on, which is not always the checkout's HEAD, and it used to run
+    its own two-dot `git diff` for that (NERV Task `CLE-T-CD9131`).
+
     **"Empty on any failure" is enforced HERE, not in `_run_git_raw`**, and the
     difference matters. Both copies this function absorbed wrapped their git call
     in `except Exception`; narrowing that during the extraction was a silent
@@ -252,19 +258,52 @@ def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
     """
     try:
         rc, out, err = _run_git_raw(
-            ["diff", "--no-renames", "--name-only", f"{base_ref}...HEAD"],
+            ["diff", "--no-renames", "--name-only", f"{base_ref}...{head}"],
             cwd, timeout=timeout,
         )
     except Exception as exc:  # noqa: BLE001 — see "empty on any failure" above
         if on_error is not None:
-            on_error(f"{base_ref}...HEAD: {type(exc).__name__}: {exc}"[:240])
+            on_error(f"{base_ref}...{head}: {type(exc).__name__}: {exc}"[:240])
         return []
     if rc != 0:
         if on_error is not None:
             reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"
-            on_error(f"{base_ref}...HEAD: {reason}")
+            on_error(f"{base_ref}...{head}: {reason}")
         return []
     return [line for line in out.split("\n") if line]
+
+
+_FULL_COMMIT_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+def resolve_commit(rev: str, cwd: str) -> str | None:
+    """`rev` as the full commit hash git resolves it to, or None.
+
+    The NERV payload tool records `base_sha` / `head_sha` and builds an idempotency key from them, so a
+    short or guessed value must not pass: only what `rev-parse` itself printed counts, and only when it
+    is a commit (`^{commit}` peels tags). A `rev` that starts with `-` is refused instead of being handed
+    to git as an option.
+    """
+    if not isinstance(rev, str) or not rev or rev.startswith("-"):
+        return None
+    rc, out, _ = _run_git(["rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"], cwd)
+    return out if rc == 0 and _FULL_COMMIT_RE.fullmatch(out) else None
+
+
+def merge_base(a: str, b: str, cwd: str) -> str | None:
+    """Full hash of the best common ancestor of two commits, or None (no common history, or git failed)."""
+    if not a or not b or a.startswith("-") or b.startswith("-"):
+        return None
+    rc, out, _ = _run_git(["merge-base", a, b], cwd)
+    return out if rc == 0 and _FULL_COMMIT_RE.fullmatch(out) else None
+
+
+def is_ancestor(sha: str, target: str, cwd: str) -> bool:
+    """True when `sha` is `target` or reachable from it."""
+    if not sha or not target or sha.startswith("-") or target.startswith("-"):
+        return False
+    rc, _, _ = _run_git(["merge-base", "--is-ancestor", sha, target], cwd)
+    return rc == 0
 
 
 def diff_text(base_ref: str, cwd: str, pathspecs: list[str] | None = None, *,
