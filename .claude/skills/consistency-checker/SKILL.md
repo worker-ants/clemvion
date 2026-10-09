@@ -97,7 +97,7 @@ Workflow 반환값 (항상 경로+전문):
 
 **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **로컬 SUMMARY 의 유일한 경로가 main 의 이 Write** 다. 그 다음 반환의 `block` (또는 기록한 SUMMARY 상단)으로 `BLOCK: YES/NO` 판정.
 
-### 3.5 NERV 제출 (main 의 의무)
+### 3.5 NERV 제출
 
 절차는 `code-review-agents` SKILL §4 와 같고 `kind=consistency` 만 다르다.
 

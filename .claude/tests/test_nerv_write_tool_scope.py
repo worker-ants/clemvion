@@ -2,15 +2,22 @@
 """NERV 쓰기 도구는 기록 서브에이전트 `nerv-recorder` 하나에만 준다(결정 D9 개정, NERV Task `CLE-T-CD9131`).
 
 리뷰어 · checker · analyzer · applier 가 NERV 에 직접 쓰면 제출과 처분이 main 의 검사(제출 도구의 `ok`,
-인계 도구의 `check`)를 건너뛴다. `nerv-recorder` 는 셸이 없어야 세션 환경의 `NERV_TOKEN` 에 닿지 않고, 파일
+인계 도구의 `check`)를 건너뛴다. `nerv-recorder` 는 셸이 없어야 환경 변수 `NERV_TOKEN` 을 읽지 못하고, 파일
 쓰기 도구가 없어야 저장소를 바꾸지 못한다. 에이전트 정의에 `tools` 가 없으면 main 의 도구를 모두 물려받아
 NERV MCP 쓰기 도구까지 갖게 되므로 모든 정의가 도구를 적어야 한다.
 
-frontmatter 의 `tools` 는 두 모양을 읽는다. 한 줄 쉼표 목록(`tools: Read, Bash`)과 YAML 목록(`tools:` 아래 `- Read`)이다.
+이 테스트가 보장하는 범위는 도구 목록까지다. `Read` 에는 경로 제한이 없어서 `nerv-recorder` 는 토큰이 든 설정
+파일을 읽을 수 있고, 막는 장치는 정의의 규칙 문장 하나다. 그 문장이 있는지는 보지만 지켜지는지는 보지 못한다.
+`settings.json` 에 `permissions.deny` 가 없는 동안에는 정의가 그 사실을 적어야 한다.
+
+frontmatter 의 `tools` 는 한 줄 쉼표 목록(`tools: Read, Bash`)으로 적는다. 저장소의 정의 전부가 그 모양이고, 파서는
+YAML 목록(`tools:` 아래 `- Read`)도 읽지만 Claude Code 로더가 그 모양을 같은 뜻으로 읽는지 이 테스트는 증명하지
+못한다. 로더가 읽지 못하면 에이전트는 모든 도구를 물려받고 테스트는 초록인 채로 가드가 꺼진다.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 
@@ -79,6 +86,13 @@ class ToolScopeTest(unittest.TestCase):
     def test_the_recorder_exists(self):
         self.assertIn(RECORDER, self.agents)
 
+    def test_every_agent_writes_tools_as_one_comma_separated_line(self):
+        # YAML 목록은 파서만 읽는다. 로더가 같은 뜻으로 읽는지는 증명되지 않았고, 틀리면 에이전트가 모든 도구를 받는다.
+        for name, (_, text) in self.agents.items():
+            front = frontmatter(text) or ""
+            with self.subTest(agent=name):
+                self.assertRegex(front, r"(?m)^tools:[ \t]*\S", f"{name}.md 의 tools 가 한 줄 쉼표 목록이 아니다")
+
     def test_every_agent_declares_its_tools(self):
         for name, (tools, _) in self.agents.items():
             with self.subTest(agent=name):
@@ -108,14 +122,40 @@ class ToolScopeTest(unittest.TestCase):
         self.assertTrue(any(x.rstrip(".").endswith("읽지 않는다") for x in sentences), sentences)
 
 
+    def test_the_recorder_does_not_claim_more_than_the_tools_enforce(self):
+        # `Read` 는 경로를 좁히지 못한다. 설정에 deny 규칙이 없으면 정의는 토큰 파일을 읽을 수 없다고 말하지 못한다.
+        settings = json.loads((_harness.REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        deny = (settings.get("permissions") or {}).get("deny") or []
+        token_files = (".claude/settings.local.json", ".mcp.json")
+        blocked = all(any(rule.startswith("Read") and f in rule for rule in deny) for f in token_files)
+        if blocked:
+            self.skipTest("settings.json 이 두 토큰 파일의 읽기를 막는다 — 정의가 남은 위험을 적을 필요가 없다")
+        _, text = self.agents[RECORDER]
+        claude_md = (_harness.REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("막는 장치는 아래 규칙 1 하나다", text, "deny 규칙이 없는데 정의가 남은 위험을 적지 않았다")
+        for name, body in ((f"{RECORDER}.md", text), ("CLAUDE.md", claude_md)):
+            with self.subTest(doc=name):
+                # 환경 변수에 닿지 않는다는 말은 맞다. 다만 토큰 파일까지 막는다는 말로 읽히면 안 된다.
+                self.assertNotRegex(body, r"`NERV_TOKEN` 에 닿지\s+않", f"{name} 가 토큰 격리를 실제보다 넓게 적었다")
+        section = claude_md.split("## Skill 체계", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(".mcp.json", section, "CLAUDE.md 가 Read 로 닿는 토큰 파일을 적지 않았다")
+
+
 class GovernanceTest(unittest.TestCase):
-    def test_claude_md_names_both_exceptions(self):
+    def skill_section(self):
         text = (_harness.REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-        bullet = next((line for line in text.split("\n")
-                       if line.startswith("- **NERV 쓰기는 main 세션의 MCP 호출로만 한다**")), None)
-        self.assertIsNotNone(bullet, "CLAUDE.md 에 NERV 쓰기 규칙 줄이 없다")
-        self.assertIn(RECORDER, bullet)
-        self.assertIn("nerv:nerv-spec-writer", bullet)
+        self.assertIn("## Skill 체계", text)
+        return text.split("## Skill 체계", 1)[1].split("\n## ", 1)[0]
+
+    def test_claude_md_names_both_writers(self):
+        # 규칙 제목을 문자열로 찾지 않는다. 제목 문구를 고칠 때마다 테스트가 깨지는 결합을 피한다.
+        section = self.skill_section()
+        self.assertIn(RECORDER, section)
+        self.assertIn("nerv:nerv-spec-writer", section)
+
+    def test_claude_md_does_not_keep_the_old_main_only_title(self):
+        # 리뷰 기록은 이제 `nerv-recorder` 가 한다. 제목이 "main 세션의 MCP 호출로만" 이면 본문과 반대다.
+        self.assertNotIn("NERV 쓰기는 main 세션의 MCP 호출로만 한다", self.skill_section())
 
 
 if __name__ == "__main__":

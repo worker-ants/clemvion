@@ -25,19 +25,20 @@ Claude Code 의 설정·자동화·역할별 skill·sub-agent definition 이 모
 
 ## Agent 레지스트리 (소속 flow 별)
 
-31개 `agents/<name>.md` 는 모두 main Claude 의 `Agent` tool 로만 invoke 된다. 아래는 "어느 흐름이 부르는가 / 언제 부르는가" 로 분류한 인덱스다. perspective·checklist 같은 내용 카탈로그는 각 흐름의 README/SKILL 이 SSOT (마지막 열).
+31개 `agents/<name>.md` 는 모두 main Claude 의 `Agent` tool 로만 invoke 된다(`nerv-recorder` 는 도구가 `Read` 와 NERV 리뷰 기록 도구뿐이다). 아래는 "어느 흐름이 부르는가 / 언제 부르는가" 로 분류한 인덱스다. perspective·checklist 같은 내용 카탈로그는 각 흐름의 README/SKILL 이 SSOT (마지막 열).
 
 | 소속 흐름 (trigger) | agents | 부르는 시점 | 내용 SSOT |
 |---|---|---|---|
 | `/ai-review` (code-review-agents) | 14 reviewer + `review-router` + `code-review-summary` | router 가 부분집합 선별 → 병렬 reviewer → summary 수렴 | [`skills/code-review-agents/README.md`](skills/code-review-agents/README.md) |
 | `/ai-review` §6 자동 후속 | `resolution-applier` | NERV 에 제출한 라운드에 열린 Critical/Warning 이 있을 때만 | [`agents/resolution-applier.md`](agents/resolution-applier.md) |
+| 리뷰 기록 (`/ai-review` §4 · §6, `/consistency-check` · `/merge-coordinate` · `/spec-coverage` 의 제출) | `nerv-recorder` | 제출 문서(`nerv_review_payload.py --out`)나 처분 문서(`nerv_review_handoff.py pending --out`)가 `ok: true` 로 만들어졌을 때 | [`agents/nerv-recorder.md`](agents/nerv-recorder.md) |
 | `/consistency-check` (consistency-checker) | 4 checker + `consistency-summary` | spec/구현 착수 전 병렬 → summary | [`skills/consistency-checker/SKILL.md`](skills/consistency-checker/SKILL.md) |
 | `/merge-coordinate` (merge-coordinator) | 4 analyzer + `integration-risk-summary` | Phase 1 병렬 분석 → summary | [`skills/merge-coordinator/SKILL.md`](skills/merge-coordinator/SKILL.md) |
 | `/merge-coordinate` (조건부) | `merge-conflict-resolver` | Phase 3 에서 **conflict 한 건당** 만 | [`skills/merge-coordinator/SKILL.md`](skills/merge-coordinator/SKILL.md) §Phase 3 |
 | `/spec-coverage` (spec-coverage) | `spec-impl-coverage-auditor` | 수동 standing audit | [`skills/spec-coverage/SKILL.md`](skills/spec-coverage/SKILL.md) |
 | `developer` §4 DOCUMENTATION (조건부) | `user-guide-writer` | user-guide 작성·갱신 필요 + `agents.writers.user_guide` enabled 시 | [`../PROJECT.md`](../PROJECT.md) §유저 가이드 파일 컨벤션 |
 
-- **enable 토글**: reviewer/checker/writer 는 `.claude.project.json` 의 `agents.{reviewers,checkers,writers}` 로 부분 disable. analyzer·summary·router·resolution-applier·auditor 는 토글 대상 아님 (흐름 고정 구성).
+- **enable 토글**: reviewer/checker/writer 는 `.claude.project.json` 의 `agents.{reviewers,checkers,writers}` 로 부분 disable. analyzer·summary·router·resolution-applier·nerv-recorder·auditor 는 토글 대상 아님 (흐름 고정 구성).
 - **registry drift 가드**: 위 reviewer/checker 목록 ↔ `role_instructions.py` ↔ `.claude.project.json` ↔ code-review README 표의 일치는 [`tests/test_agent_consistency.py`](tests/test_agent_consistency.py) 가 검증.
 
 ## 차단 정책 (요약)

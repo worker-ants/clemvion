@@ -36,7 +36,7 @@ checker 4개는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은
 
 ## 산출물
 
-로컬 산출물은 `.review/consistency/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 checker 마다 NERV `kind=consistency` 로 제출한다(`python3 .claude/tools/nerv_review_payload.py <session_dir>`).
+로컬 산출물은 `.review/consistency/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 checker 마다 NERV `kind=consistency` 로 제출한다(제출 문서를 만드는 도구 인자와 `nerv-recorder` 위임은 `code-review-agents` SKILL §4, 이 명령의 단계는 위 「실행 절차」 4번).
 
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>.md` — checker 별 상세
