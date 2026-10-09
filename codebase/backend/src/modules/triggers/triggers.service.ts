@@ -14,7 +14,6 @@ import { ConfigService } from '@nestjs/config';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
-import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import {
   isPostgresUniqueViolation,
   pgErrorConstraint,
@@ -53,6 +52,8 @@ import { notificationSigningSecretRef } from './notification-signing-secret-ref'
 import {
   decideNotificationSigning,
   newNotificationSigningSecret,
+  notificationWithSigningRef,
+  signingWithRef,
 } from './notification-signing-secret';
 import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -92,6 +93,13 @@ export interface TriggerIssuedSecrets {
 export type TriggerWithIssuedSecrets = Trigger & {
   secrets?: TriggerIssuedSecrets;
 };
+
+/** `settleNotificationSigning` 의 결과. 저장할 `config` 와, 발급했으면 일회성 평문, 시크릿 저장소에 썼는지. */
+interface SettledNotificationSigning {
+  config: Record<string, unknown>;
+  issuedSecret?: string;
+  wroteSecret: boolean;
+}
 
 /**
  * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] 응답에서 strip 해야 하는
@@ -655,10 +663,12 @@ export class TriggersService {
    * 않은 트리거에는 주 시크릿이 없었다.
    *
    * **판정 · 시크릿 저장소 쓰기 · `config` 쓰기를 한 트리거 설정 잠금 안에서, 같은 트랜잭션으로 한다.** PATCH 와
-   * 같은 규율이다(판정을 잠금 밖에서 하면 동시 요청이 각자 발급해 한쪽 응답의 평문이 쓸모없어진다). 시크릿 쓰기가
-   * 이 트랜잭션의 매니저를 쓰므로 풀 연결을 더 빌리지 않고 던지면 함께 롤백된다. 던지지 않고 행만 사라진 경우는
-   * 되돌려지지 않는다 — FK CASCADE 는 advisory lock 을 거치지 않아 `config` 쓰기가 0행일 수 있고, 그때는 시크릿 쓰기가
-   * 이미 커밋된 뒤라 비밀을 되돌린다(시크릿 저장소 규칙 9).
+   * 같은 규율이다(판정을 잠금 밖에서 하면 동시 요청이 각자 발급해 한쪽 응답의 평문이 쓸모없어진다). 잠금 · 재읽기 ·
+   * 0행 판정은 `rewriteTriggerConfigLocked` 가 하고, 시크릿 쓰기는 그 트랜잭션의 매니저로 한다. 그래서 풀 연결을 더
+   * 빌리지 않고 쓰기가 던지면 시크릿 쓰기도 함께 롤백된다.
+   *
+   * 던지지 않고 행만 사라진 경우는 롤백되지 않는다. FK CASCADE 는 advisory lock 을 거치지 않아 `config` 쓰기가 0행일
+   * 수 있고, 그때는 시크릿 쓰기가 이미 커밋됐으므로 커밋 뒤 비밀을 되돌린다(시크릿 저장소 규칙 9).
    */
   private async settleCreatedNotificationSigning(
     saved: Trigger,
@@ -668,32 +678,24 @@ export class TriggersService {
     if (!savedNotification || typeof savedNotification !== 'object') {
       return undefined;
     }
-    let wroteSecret = false;
-    const outcome = await this.triggerRepository.manager.transaction(
-      async (m) => {
-        await acquireTriggerConfigLock(m, saved.id);
-        const fresh = await m.findOne(Trigger, { where: { id: saved.id } });
-        if (!fresh) return { written: false as const };
-        const settled = await this.settleNotificationSigning(
-          m,
+    // 병합이 잠금 안에서 부르는 콜백이라 결과를 바깥으로 꺼낼 자리가 필요하다. 잠금 · 재읽기 · 부재 처리 ·
+    // 0행 판정은 `rewriteTriggerConfigLocked` 가 한다.
+    const result: { settled?: SettledNotificationSigning } = {};
+    const wrote = await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      saved.id,
+      async (freshConfig, { manager, fresh }) => {
+        result.settled = await this.settleNotificationSigning(
+          manager,
           fresh,
-          fresh.config ?? {},
+          freshConfig,
         );
-        wroteSecret = settled.wroteSecret;
-        const { affected } = await m.update(Trigger, { id: saved.id }, {
-          config: settled.config,
-        } as QueryDeepPartialEntity<Trigger>);
-        return (affected ?? 0) > 0
-          ? {
-              written: true as const,
-              config: settled.config,
-              issuedSecret: settled.issuedSecret,
-            }
-          : { written: false as const };
+        return result.settled.config;
       },
     );
-    if (!outcome.written) {
-      if (wroteSecret) {
+    if (!wrote || !result.settled) {
+      // 행이 사라졌다. 시크릿을 쓴 뒤였으면 커밋 뒤 되돌린다(시크릿 저장소 규칙 9). 쓰기 전이었으면 되돌릴 것이 없다.
+      if (result.settled?.wroteSecret) {
         await this.resourceReleaser.undoAbsentWrite(
           saved.id,
           undefined,
@@ -703,8 +705,8 @@ export class TriggersService {
       return undefined;
     }
     // 호출부가 이 엔티티를 응답에 쓰므로 in-memory 도 맞춰 둔다.
-    saved.config = outcome.config;
-    return outcome.issuedSecret;
+    saved.config = result.settled.config;
+    return result.settled.issuedSecret;
   }
 
   /**
@@ -728,11 +730,7 @@ export class TriggersService {
     manager: EntityManager,
     fresh: Trigger,
     nextConfig: Record<string, unknown>,
-  ): Promise<{
-    config: Record<string, unknown>;
-    issuedSecret?: string;
-    wroteSecret: boolean;
-  }> {
+  ): Promise<SettledNotificationSigning> {
     const ref = notificationSigningSecretRef(fresh.id);
     const decision = decideNotificationSigning(
       (fresh.config as { notification?: unknown } | null)?.notification,
@@ -749,21 +747,11 @@ export class TriggersService {
       issuedSecret = newNotificationSigningSecret();
       await this.secrets.rotate(ref, fresh.workspaceId, issuedSecret, manager);
     }
-    const nextNotification = (nextConfig.notification ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const nextSigning: Record<string, unknown> = {
-      ...((nextNotification.signing as Record<string, unknown> | undefined) ??
-        {}),
-      secretRef: ref,
-    };
-    // 옛 평문 키는 남기지 않는다 — 평문은 시크릿 저장소에만 둔다(규칙 14).
-    delete nextSigning.secret;
     return {
+      // 옛 평문 키는 남기지 않는다 — 평문은 시크릿 저장소에만 둔다(규칙 14).
       config: {
         ...nextConfig,
-        notification: { ...nextNotification, signing: nextSigning },
+        notification: notificationWithSigningRef(nextConfig.notification, ref),
       },
       issuedSecret,
       wroteSecret: decision.kind !== 'rederive',
@@ -810,6 +798,58 @@ export class TriggersService {
       config: { ...nextConfig, interaction: nextInteraction },
       dropped: hasStoredToken,
     };
+  }
+
+  /**
+   * PATCH 가 `interaction` · `notification` 을 실었을 때 **서버가 만드는 두 값**을 잠금 안에서 정한다.
+   *
+   * top-level `interaction` · `notification` 은 두 값을 입력으로 받지 않으므로(받으면 전역 검증 파이프가 400) 통째
+   * 교체가 그대로 지우던 자리다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약).
+   *
+   * - `interaction` → {@link settleTriggerToken}. 토큰을 지웠으면 `droppedTriggerToken` 으로 알려 커밋 뒤 스트림을 닫게 한다.
+   * - `notification` → {@link settleNotificationSigning}. 첫 시크릿을 발급했으면 `issuedSecret` 으로 일회성 평문을 돌려준다.
+   *   `notification: null` 은 객체가 아니라 서명을 얹을 자리가 없다 — 껍데기를 만들어 시크릿을 발급하지 않고 종전처럼
+   *   그 값을 저장한다.
+   *
+   * 요청이 싣지 않은 쪽은 건드리지 않는다. 이 함수는 `m` 으로 시크릿 저장소에 쓸 수 있으므로 잠금을 쥔 트랜잭션
+   * 안에서만 부른다.
+   *
+   * @param input.config 요청을 병합한 뒤의 `config`. 그 위에 두 값을 얹은 새 `config` 를 돌려준다.
+   * @param input.requestedInteraction 요청 바디의 `interaction`. 싣지 않았으면 `undefined`.
+   * @param input.requestedNotification 요청 바디의 `notification`. 싣지 않았으면 `undefined`.
+   */
+  private async applyServerManagedEiaValues(
+    m: EntityManager,
+    target: Trigger,
+    input: {
+      config: Record<string, unknown>;
+      requestedInteraction: unknown;
+      requestedNotification: unknown;
+    },
+  ): Promise<{
+    config: Record<string, unknown>;
+    issuedSecret?: string;
+    droppedTriggerToken: boolean;
+  }> {
+    let config = input.config;
+    let droppedTriggerToken = false;
+    let issuedSecret: string | undefined;
+    if (input.requestedInteraction !== undefined) {
+      const settled = this.settleTriggerToken(target, config);
+      config = settled.config;
+      droppedTriggerToken = settled.dropped;
+    }
+    const nextNotification = config.notification;
+    if (
+      input.requestedNotification !== undefined &&
+      typeof nextNotification === 'object' &&
+      nextNotification !== null
+    ) {
+      const settled = await this.settleNotificationSigning(m, target, config);
+      config = settled.config;
+      issuedSecret = settled.issuedSecret;
+    }
+    return { config, issuedSecret, droppedTriggerToken };
   }
 
   /**
@@ -920,121 +960,108 @@ export class TriggersService {
     // 예외로 알림 서명 시크릿의 첫 발급 · 옛 평문 이전은 이 잠금 안에서 시크릿 저장소에 쓴다. 지금 백엔드는
     // 같은 DB 의 `secret_store` 테이블이라 HTTP 호출이 아니다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
     // 이 트랜잭션의 매니저로 써서 풀 연결을 더 빌리지 않고, 저장이 실패하면 시크릿 쓰기도 함께 롤백된다.
-    let issuedSecret: string | undefined;
-    let droppedTriggerToken = false;
-    const saved = await this.triggerRepository.manager
-      .transaction(async (m) => {
-        await acquireTriggerConfigLock(m, trigger.id);
-        // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 요청이 `config` 를 통째로 보냈으면
-        // 그것이 사용자의 의도이므로 그대로 쓰고, 아니면 **재읽은 행**을 기준으로 삼는다.
-        //
-        // **`findById` 와 같은 관계를 싣는다.** 아래에서 이 엔티티가 저장 대상이자 응답의
-        // 원본이 되므로, 관계를 빼고 읽으면 `chatChannel` 없는 PATCH 응답에서만 `workflow`
-        // 가 사라진다 — `TriggerDto.workflow` 가 *"생성 응답에만 없다"* 고 보장하는 자리다.
-        const fresh = await m.findOne(Trigger, {
-          where: { id: trigger.id, workspaceId },
-          relations: { workflow: true },
-        });
-        // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
-        previousInboundSigningRef =
-          extractInboundSigningRef(fresh?.config) ?? previousInboundSigningRef;
-        // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
-        const baseConfig = this.stripInlineAuthKeys(
-          config ?? fresh?.config ?? trigger.config ?? {},
-        );
-        let mergedConfig = this.mergeExternalConfig(
-          baseConfig,
-          notification,
-          interaction,
-          safeChatChannel,
-        );
-        // **재읽은 행이 저장의 기준이다 — 저장 대상 자체는 아래에서 부분 객체로 좁힌다.**
-        // 요청 시작 시점의 `trigger` 를 기준으로 삼으면 `config` 밖의 컬럼
-        // (`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·
-        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아갔다**.
-        // 같은 락을 공유하는 형제 창(`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를
-        // 이 저장이 조용히 덮는 것이었다
-        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2). 그 뒤 «재읽은
-        // 엔티티를 통째로 저장» 으로 막았는데 락 **밖** 쓰기에는 뚫려 있었고, 지금은 아래
-        // «저장 대상은 이 요청이 바꾸는 필드뿐» 이 두 경로를 함께 막는다.
-        //
-        // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
-        // **INSERT** 한다 — 그 사이 삭제된 트리거를 같은 id 로 되살리는 것이다. 삭제 경로는 외부 해제
-        // (BullMQ job · provider teardown · listener)를 행 삭제 **전에** 끝내고 비밀은 커밋 **뒤에**
-        // 지우므로(spec 트리거 목록 §4.3), 되살아난 행은 그 어느 것도 되돌리지 못한 **고아**가 된다.
-        //
-        // 이 경로는 이 PR 이 만든 것이 아니다 — `origin/main` 의 `save(trigger)` 도 같은 호출
-        // 형태다. 다만 이 PR 이 형제 세 창을 «행이 없으면 쓰지 않고 `false`» 로 만들어 **비대칭**
-        // 이 생겼고, 여기는 이미 재읽기를 하고 있으니 같은 규율로 닫는 것이 자연스럽다
-        // (`/ai-review` `review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
-        // **반환값을 받는다** — 메서드 호출은 타입을 좁혀 주지 않는다(assertion 함수가
-        // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
-        const target = this.assertTriggerFound(fresh);
-        // **서버가 만든 EIA 값은 재읽은 행을 보고 정한다**(NERV Task `CLE-T-M6PERB`). top-level
-        // `interaction` · `notification` 은 두 값을 입력으로 받지 않으므로(받으면 전역 검증 파이프가 400) 통째
-        // 교체가 그대로 지우던 자리다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약).
-        if (interaction !== undefined) {
-          const settled = this.settleTriggerToken(target, mergedConfig);
-          mergedConfig = settled.config;
-          droppedTriggerToken = settled.dropped;
-        }
-        // `notification: null` 은 객체가 아니라 서명을 얹을 자리가 없다 — 껍데기를 만들어 시크릿을 발급하지 않고
-        // 종전처럼 그 값을 저장한다.
-        const nextNotification = mergedConfig.notification;
-        if (
-          notification !== undefined &&
-          typeof nextNotification === 'object' &&
-          nextNotification !== null
-        ) {
-          const settled = await this.settleNotificationSigning(
-            m,
-            target,
-            mergedConfig,
+    const { saved, issuedSecret, droppedTriggerToken } =
+      await this.triggerRepository.manager
+        .transaction(async (m) => {
+          await acquireTriggerConfigLock(m, trigger.id);
+          // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 요청이 `config` 를 통째로 보냈으면
+          // 그것이 사용자의 의도이므로 그대로 쓰고, 아니면 **재읽은 행**을 기준으로 삼는다.
+          //
+          // **`findById` 와 같은 관계를 싣는다.** 아래에서 이 엔티티가 저장 대상이자 응답의
+          // 원본이 되므로, 관계를 빼고 읽으면 `chatChannel` 없는 PATCH 응답에서만 `workflow`
+          // 가 사라진다 — `TriggerDto.workflow` 가 *"생성 응답에만 없다"* 고 보장하는 자리다.
+          const fresh = await m.findOne(Trigger, {
+            where: { id: trigger.id, workspaceId },
+            relations: { workflow: true },
+          });
+          // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
+          previousInboundSigningRef =
+            extractInboundSigningRef(fresh?.config) ??
+            previousInboundSigningRef;
+          // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
+          const baseConfig = this.stripInlineAuthKeys(
+            config ?? fresh?.config ?? trigger.config ?? {},
           );
-          mergedConfig = settled.config;
-          issuedSecret = settled.issuedSecret;
-        }
-        // **저장 대상은 이 요청이 바꾸는 필드뿐이다 — 재읽은 엔티티를 통째로 넘기지 않는다.**
-        //
-        // `save` 는 저장 시점에 DB 행을 다시 읽고 **엔티티와 다른 컬럼만** UPDATE 한다. 재읽은
-        // 엔티티를 통째로 넘기면, 재읽기 **뒤에** 락 밖에서 커밋된 컬럼
-        // (`rotateNotificationSecret` 의 `notificationSecretV2`, 웹훅 인입의 `lastTriggeredAt`,
-        // cron 의 `chatChannelTokenV2` null-write, 스케줄 편집의 `name`·`isActive`)이 «엔티티와
-        // 다르다» 로 잡혀 **옛 값으로 되써진다.** `#1334` 가 «이론적 TOCTOU» 로 유예한 자리였는데,
-        // 실제 Postgres 에 TypeORM 을 붙여 재현하니 두 컬럼이 그대로 `null` 로 되돌아갔다
-        // (`test/trigger-update-save-window.e2e-spec.ts` ②).
-        //
-        // 부분 객체면 넘기지 않은 컬럼이 `undefined` 라 비교에서 빠진다(같은 파일 ②b 실측). 락을
-        // 공유하는 형제 창이 커밋한 컬럼도 마찬가지로 보호된다 — 종전엔 «재읽은 값을 그대로
-        // 다시 싣는다» 로 막았는데, 싣지 않는 편이 타이밍과 무관하게 막는다.
-        //
-        // **동사는 `save` 그대로다.** `update` + 재조회로 바꿨다가 반환 엔티티·subscriber·
-        // `endpointPath` UNIQUE 충돌 경로가 함께 달라져 되돌린 이력이 위 주석에 있다.
-        //
-        // **응답은 재읽은 엔티티에 이 요청의 변경을 얹은 것이다 — `save` 반환값을 덮지 않는다.**
-        //
-        // 부분 객체 `save` 의 반환값은 DB 를 다시 읽은 값이 **아니다**. 넘기지 않은 nullable
-        // 컬럼을 전부 `null` 로 채워 돌려주고 실값은 `updatedAt` 뿐이다 — DB 에 `v2-B` 가 있는데
-        // 반환값의 `notificationSecretV2` 는 `null` 이었다(실측). 한때 그 반환값을 통째로
-        // `Object.assign` 했더니 `endpointPath` 가 `null` 로 덮여 `chatChannel` PATCH 가 전부
-        // `CHAT_CHANNEL_ENDPOINT_REQUIRED` 400 이 됐다(e2e 가 잡았고 단위는 mock 이라 못 봤다).
-        // 위 `defined` 가 막으려던 «로드된 값을 덮는다» 와 같은 함정이다.
-        //
-        // 그래서 반환값에서는 `updatedAt` 하나만 취한다. 재읽기 **뒤** 락 밖에서 커밋된 컬럼은
-        // 이 응답에 보이지 않는다 — DB 는 보존되고(위) 응답만 한 박자 늦은 읽기다.
-        // **저장과 응답이 같은 객체를 쓴다** — 둘을 따로 적으면 필드를 더할 때 한쪽만 고쳐
-        // «DB 에 쓴 값» 과 «응답에 얹은 값» 이 조용히 갈린다.
-        const patch = { ...defined, config: mergedConfig };
-        const written = await m.save(Trigger, { id: target.id, ...patch });
-        Object.assign(target, patch);
-        // 실제 TypeORM 은 `@UpdateDateColumn` 이라 늘 채워 돌려준다. 가드는 **단위 대역**이
-        // 넘긴 객체를 그대로 돌려줄 때(`updatedAt` 없음) 재읽은 값을 `undefined` 로 지우지
-        // 않으려는 것이다 — 위 `defined` 와 같은 이유다.
-        if (written.updatedAt) target.updatedAt = written.updatedAt;
-        return target;
-      })
-      // 시크릿 저장소 쓰기가 이 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌릴 것이 없다.
-      .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
+          let mergedConfig = this.mergeExternalConfig(
+            baseConfig,
+            notification,
+            interaction,
+            safeChatChannel,
+          );
+          // **재읽은 행이 저장의 기준이다 — 저장 대상 자체는 아래에서 부분 객체로 좁힌다.**
+          // 요청 시작 시점의 `trigger` 를 기준으로 삼으면 `config` 밖의 컬럼
+          // (`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·
+          // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아갔다**.
+          // 같은 락을 공유하는 형제 창(`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를
+          // 이 저장이 조용히 덮는 것이었다
+          // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2). 그 뒤 «재읽은
+          // 엔티티를 통째로 저장» 으로 막았는데 락 **밖** 쓰기에는 뚫려 있었고, 지금은 아래
+          // «저장 대상은 이 요청이 바꾸는 필드뿐» 이 두 경로를 함께 막는다.
+          //
+          // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
+          // **INSERT** 한다 — 그 사이 삭제된 트리거를 같은 id 로 되살리는 것이다. 삭제 경로는 외부 해제
+          // (BullMQ job · provider teardown · listener)를 행 삭제 **전에** 끝내고 비밀은 커밋 **뒤에**
+          // 지우므로(spec 트리거 목록 §4.3), 되살아난 행은 그 어느 것도 되돌리지 못한 **고아**가 된다.
+          //
+          // 이 경로는 이 PR 이 만든 것이 아니다 — `origin/main` 의 `save(trigger)` 도 같은 호출
+          // 형태다. 다만 이 PR 이 형제 세 창을 «행이 없으면 쓰지 않고 `false`» 로 만들어 **비대칭**
+          // 이 생겼고, 여기는 이미 재읽기를 하고 있으니 같은 규율로 닫는 것이 자연스럽다
+          // (`/ai-review` `review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
+          // **반환값을 받는다** — 메서드 호출은 타입을 좁혀 주지 않는다(assertion 함수가
+          // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
+          const target = this.assertTriggerFound(fresh);
+          // **서버가 만든 EIA 값은 재읽은 행을 보고 정한다**(NERV Task `CLE-T-M6PERB`).
+          const eia = await this.applyServerManagedEiaValues(m, target, {
+            config: mergedConfig,
+            requestedInteraction: interaction,
+            requestedNotification: notification,
+          });
+          mergedConfig = eia.config;
+          // **저장 대상은 이 요청이 바꾸는 필드뿐이다 — 재읽은 엔티티를 통째로 넘기지 않는다.**
+          //
+          // `save` 는 저장 시점에 DB 행을 다시 읽고 **엔티티와 다른 컬럼만** UPDATE 한다. 재읽은
+          // 엔티티를 통째로 넘기면, 재읽기 **뒤에** 락 밖에서 커밋된 컬럼
+          // (`rotateNotificationSecret` 의 `notificationSecretV2`, 웹훅 인입의 `lastTriggeredAt`,
+          // cron 의 `chatChannelTokenV2` null-write, 스케줄 편집의 `name`·`isActive`)이 «엔티티와
+          // 다르다» 로 잡혀 **옛 값으로 되써진다.** `#1334` 가 «이론적 TOCTOU» 로 유예한 자리였는데,
+          // 실제 Postgres 에 TypeORM 을 붙여 재현하니 두 컬럼이 그대로 `null` 로 되돌아갔다
+          // (`test/trigger-update-save-window.e2e-spec.ts` ②).
+          //
+          // 부분 객체면 넘기지 않은 컬럼이 `undefined` 라 비교에서 빠진다(같은 파일 ②b 실측). 락을
+          // 공유하는 형제 창이 커밋한 컬럼도 마찬가지로 보호된다 — 종전엔 «재읽은 값을 그대로
+          // 다시 싣는다» 로 막았는데, 싣지 않는 편이 타이밍과 무관하게 막는다.
+          //
+          // **동사는 `save` 그대로다.** `update` + 재조회로 바꿨다가 반환 엔티티·subscriber·
+          // `endpointPath` UNIQUE 충돌 경로가 함께 달라져 되돌린 이력이 위 주석에 있다.
+          //
+          // **응답은 재읽은 엔티티에 이 요청의 변경을 얹은 것이다 — `save` 반환값을 덮지 않는다.**
+          //
+          // 부분 객체 `save` 의 반환값은 DB 를 다시 읽은 값이 **아니다**. 넘기지 않은 nullable
+          // 컬럼을 전부 `null` 로 채워 돌려주고 실값은 `updatedAt` 뿐이다 — DB 에 `v2-B` 가 있는데
+          // 반환값의 `notificationSecretV2` 는 `null` 이었다(실측). 한때 그 반환값을 통째로
+          // `Object.assign` 했더니 `endpointPath` 가 `null` 로 덮여 `chatChannel` PATCH 가 전부
+          // `CHAT_CHANNEL_ENDPOINT_REQUIRED` 400 이 됐다(e2e 가 잡았고 단위는 mock 이라 못 봤다).
+          // 위 `defined` 가 막으려던 «로드된 값을 덮는다» 와 같은 함정이다.
+          //
+          // 그래서 반환값에서는 `updatedAt` 하나만 취한다. 재읽기 **뒤** 락 밖에서 커밋된 컬럼은
+          // 이 응답에 보이지 않는다 — DB 는 보존되고(위) 응답만 한 박자 늦은 읽기다.
+          // **저장과 응답이 같은 객체를 쓴다** — 둘을 따로 적으면 필드를 더할 때 한쪽만 고쳐
+          // «DB 에 쓴 값» 과 «응답에 얹은 값» 이 조용히 갈린다.
+          const patch = { ...defined, config: mergedConfig };
+          const written = await m.save(Trigger, { id: target.id, ...patch });
+          Object.assign(target, patch);
+          // 실제 TypeORM 은 `@UpdateDateColumn` 이라 늘 채워 돌려준다. 가드는 **단위 대역**이
+          // 넘긴 객체를 그대로 돌려줄 때(`updatedAt` 없음) 재읽은 값을 `undefined` 로 지우지
+          // 않으려는 것이다 — 위 `defined` 와 같은 이유다.
+          if (written.updatedAt) target.updatedAt = written.updatedAt;
+          return {
+            saved: target,
+            issuedSecret: eia.issuedSecret,
+            droppedTriggerToken: eia.droppedTriggerToken,
+          };
+        })
+        // 시크릿 저장소 쓰기가 이 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌릴 것이 없다.
+        .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // 전략이 바뀌어 토큰을 지웠으면 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
     if (droppedTriggerToken) {
       this.closeTriggerTokenStreams([saved.id], 'TriggersService.update');
@@ -1231,11 +1258,7 @@ export class TriggersService {
     const ref = notificationSigningSecretRef(trigger.id);
     await this.secrets.rotate(ref, trigger.workspaceId, plaintext);
 
-    const updatedSigning: Record<string, unknown> = {
-      ...(signing as Record<string, unknown>),
-      secretRef: ref,
-    };
-    delete updatedSigning.secret;
+    const updatedSigning = signingWithRef(signing, ref);
     const normalizedNotification = {
       ...(notificationCfg as Record<string, unknown>),
       signing: updatedSigning,
@@ -1898,25 +1921,14 @@ export class TriggersService {
           throw err;
         }
         wroteSecret = true;
-        const signing = (notificationCfg as { signing?: unknown }).signing;
-        const updatedSigning: Record<string, unknown> = {
-          ...(typeof signing === 'object' && signing !== null
-            ? (signing as Record<string, unknown>)
-            : {}),
-          secretRef: ref,
-        };
         // legacy 평문 키는 제거 — 평문은 DB config 에 남기지 않는다.
-        delete updatedSigning.secret;
         const { affected } = await m.update(
           Trigger,
           { id: triggerId },
           {
             config: {
               ...fresh.config,
-              notification: {
-                ...(notificationCfg as Record<string, unknown>),
-                signing: updatedSigning,
-              },
+              notification: notificationWithSigningRef(notificationCfg, ref),
             },
             notificationSecretV2: null,
             notificationRotatedAt: null,

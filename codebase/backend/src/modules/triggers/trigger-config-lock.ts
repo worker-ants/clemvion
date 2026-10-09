@@ -137,17 +137,26 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * - 창 1(`TriggersService.update()`) — `save(entity)` 의 계약(반환 엔티티·subscriber·`endpointPath` UNIQUE
  *   충돌 경로)을 보존해야 한다.
- * - 알림 서명 시크릿의 판정과 시크릿 저장소 쓰기를 같은 잠금 안에서 해야 하는 자리 — 생성의
- *   `settleCreatedNotificationSigning`, 승격의 `promoteOneLocked`(NERV Task `CLE-T-M6PERB`). 이 함수의 `merge` 는
- *   동기라 그 안에서 시크릿 저장소에 쓸 수 없다. 지금 백엔드는 같은 DB 의 `secret_store` 테이블이라 아래 «외부
- *   호출을 락 안에 두지 않는다» 제약에 걸리지 않는다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
- *   다만 **잠금을 쥔 트랜잭션의 매니저를 `SecretResolverService.rotate` 에 넘겨야 한다.** 넘기지 않으면 풀에서 연결을
- *   하나 더 빌려 잠금 보유자가 연결 둘을 쥔다 — 같은 트리거를 기다리는 요청이 풀을 채우면 서로 기다리는 정체가 된다.
+ * - 승격(`promoteOneLocked`) — 재읽은 행을 보고 «쓰지 않고 건너뜀» · «컬럼만 비움» · «config 와 컬럼을 함께 씀» 으로
+ *   갈린다. `merge` 는 config 하나만 돌려주므로 그 갈래를 표현하지 못한다.
  * - 시크릿 교체(`rotateNotificationSecret`)는 `config` 를 쓰지 않지만 승격과 같은 컬럼을 쓰므로 같은 락을 잡는다.
  *
  * > **호출부를 세어 적지 않는다.** 한때 «창 2·3·4» 라고 못박아 뒀는데, 그 뒤 세 자리가 더
  * > 전환되면서 그 문장이 **과소 서술**이 됐다 — 같은 문장을 세 라운드에 걸쳐 «과대» 방향으로
- * > 고쳤다가 이번엔 반대 방향으로 틀린 것이다. 목록은 낡고 규칙은 안 낡는다.
+ * > 고쳤다가 이번엔 반대 방향으로 틀린 것이다. 목록은 낡고 규칙은 안 낡는다. 위 목록은 «왜 이 함수를 거치지
+ * > 못하는가» 의 예시이지 전수가 아니다.
+ *
+ * ## 잠금 안에서 시크릿 저장소에 쓸 때
+ *
+ * 알림 서명 시크릿의 첫 발급 · 옛 평문 이전 · 승격은 판정과 시크릿 쓰기, `config` 쓰기를 같은 잠금 안에서 한다.
+ * 지금 백엔드는 같은 DB 의 `secret_store` 테이블이라 아래 «외부 호출을 락 안에 두지 않는다» 제약에 걸리지 않는다
+ * ([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
+ *
+ * 다만 **잠금을 쥔 트랜잭션의 매니저를 `SecretResolverService.rotate` 에 넘겨야 한다.** 넘기지 않으면 풀에서 연결을
+ * 하나 더 빌려 잠금 보유자가 연결 둘을 쥔다 — 같은 트리거를 기다리는 요청이 풀을 채우면 서로 기다리는 정체가 된다.
+ * `merge` 가 `async` 일 수 있고 두 번째 인자로 그 매니저를 받는 것은 이 때문이다(생성의 첫 발급이 쓴다).
+ *
+ * ## 이 함수가 없던 때의 결함
  *
  * 네 자리가 «읽기 → (외부 호출) → 쓰기» 를 락 없이 이어 붙이고, 쓰기는 읽은 시점의
  * **in-memory 스냅샷**으로 `config` 를 통째로 재구성한다. 동시 PATCH 가 겹치면 나중에
@@ -182,7 +191,9 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * @param merge 락 안에서 읽은 **커밋된 최신** `config` 를 받아 새 `config` 를 만든다.
  *   호출부는 여기서 «presence 게이트» 를 **다시 계산**해야 한다 — 락 밖에서 만든 값을 그대로
- *   넣으면 이 함수가 막으려는 결함이 그대로 재발한다.
+ *   넣으면 이 함수가 막으려는 결함이 그대로 재발한다. 두 번째 인자는 잠금을 쥔 트랜잭션의 매니저와 재읽은 행이다.
+ *   `async` 로 시크릿 저장소에 쓸 때는 이 매니저를 넘겨 같은 트랜잭션에서 쓴다. 던지면 트랜잭션이 롤백되고
+ *   예외가 그대로 나간다.
  * @param columns `config` 와 함께 쓸 «이번 호출의 결과» 컬럼(health·setupAt·lastError 등).
  *   이들은 머지 대상이 **아니다** — 이번 호출이 산출한 값이 곧 정답이다.
  * @returns 트리거가 그 사이 삭제됐으면 `false` (쓰기 skip).
@@ -195,8 +206,9 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *   | `rotateBotToken` (동기 요청) | **404 + 감사 미기록** — 위와 같은 이유 |
  *   | `revokePerTriggerToken` (동기 요청) | **404** — 위와 같은 이유 |
  *   | binder 성공/실패 경로 (저장 **뒤**의 best-effort 후속) | **`false` 로 감춘다** — 이미 응답이 나갔고, 실패를 던지면 성공한 저장을 되돌리는 것처럼 보인다 |
+ *   | 생성의 첫 알림 서명 시크릿 (저장 **뒤**의 후속 단계) | **`false` 로 돌려 받아 호출부가 시크릿 쓰기를 되돌린다** — 응답에 평문을 싣지 않는다 |
  *   | `normalizeNotificationSecretRef` (요청 안의 정규화 부수 단계) | **관측하지 않는다** — 후속 등재분(9라운드 INFO#6) |
- *   | `promoteRotatedNotificationSecrets` (cron, 같은 락을 인라인으로) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
+ *   | `promoteOneLocked` (`promoteRotatedNotificationSecrets` cron 이 부른다. 같은 락을 인라인으로) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
  *
  *   `cleanupRotatedChatChannelTokens` 는 **이 표에 없다** — 이 함수를 거치지 않고 컬럼만
  *   직접 갱신하기 때문이다(`config` 미접촉). 한때 «cron 두 곳» 으로 묶어 적었는데, 그러면
@@ -207,7 +219,10 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
 export async function rewriteTriggerConfigLocked(
   manager: EntityManager,
   triggerId: string,
-  merge: (freshConfig: Trigger['config']) => Trigger['config'],
+  merge: (
+    freshConfig: Trigger['config'],
+    locked: { manager: EntityManager; fresh: Trigger },
+  ) => Trigger['config'] | Promise<Trigger['config']>,
   columns: QueryDeepPartialEntity<Trigger> = {},
 ): Promise<boolean> {
   return manager.transaction(async (m) => {
@@ -236,7 +251,7 @@ export async function rewriteTriggerConfigLocked(
     // 단언» 과는 다른 축이다 — 여기서 null 여부는 `fresh.config ?? {}` 가 이미 좁혔다.)
     const patch = {
       ...columns,
-      config: merge(fresh.config ?? {}),
+      config: await merge(fresh.config ?? {}, { manager: m, fresh }),
     } as QueryDeepPartialEntity<Trigger>;
     // **0행이면 그 사이 행이 사라졌다 — 락을 잡고 있어도 가능하다.**
     //

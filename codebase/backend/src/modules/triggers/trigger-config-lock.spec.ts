@@ -101,11 +101,64 @@ describe('rewriteTriggerConfigLocked', () => {
 
   it('머지 콜백은 **재읽은 행의** config 를 받는다', async () => {
     const { manager } = makeManager({ config: { fromDb: true } });
-    const merge = jest.fn((c: Trigger['config']) => ({ ...c, added: 1 }));
+    const merge = jest.fn((c: Trigger['config'], _locked: unknown) => ({
+      ...c,
+      added: 1,
+    }));
 
     await rewriteTriggerConfigLocked(manager, TRIGGER_ID, merge);
 
-    expect(merge).toHaveBeenCalledWith({ fromDb: true });
+    expect(merge).toHaveBeenCalledWith({ fromDb: true }, expect.anything());
+  });
+
+  // 시크릿 저장소 쓰기를 잠금 안에서 하는 호출부(생성의 첫 알림 서명 시크릿)가 쓴다. 그 쓰기는 잠금을 쥔
+  // 트랜잭션의 매니저로 해야 풀 연결을 더 빌리지 않는다(NERV Task `CLE-T-M6PERB`).
+  describe('머지 콜백의 두 번째 인자와 async 머지', () => {
+    it('잠금을 쥔 바로 그 트랜잭션 매니저와 재읽은 행을 넘긴다', async () => {
+      const fresh = { id: TRIGGER_ID, config: { fromDb: true } };
+      const { manager, query } = makeManager(fresh);
+      const merge = jest.fn(
+        (
+          c: Trigger['config'],
+          _locked: { manager: EntityManager; fresh: Trigger },
+        ) => c,
+      );
+
+      await rewriteTriggerConfigLocked(manager, TRIGGER_ID, merge);
+
+      const locked = merge.mock.calls[0][1];
+      expect(locked.fresh).toBe(fresh);
+      // 락을 잡은 `query` 를 가진 매니저다 — 다른 연결의 매니저가 아니다.
+      expect((locked.manager as unknown as { query: unknown }).query).toBe(
+        query,
+      );
+    });
+
+    it('async 머지의 결과를 기다려 쓴다', async () => {
+      const { manager, update } = makeManager({ config: {} });
+
+      await rewriteTriggerConfigLocked(manager, TRIGGER_ID, async () => {
+        await Promise.resolve();
+        return { merged: 'async' };
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        Trigger,
+        { id: TRIGGER_ID },
+        { config: { merged: 'async' } },
+      );
+    });
+
+    it('async 머지가 던지면 쓰지 않고 그대로 던진다', async () => {
+      const { manager, update } = makeManager({ config: {} });
+
+      await expect(
+        rewriteTriggerConfigLocked(manager, TRIGGER_ID, () =>
+          Promise.reject(new Error('secret write failed')),
+        ),
+      ).rejects.toThrow('secret write failed');
+      expect(update).not.toHaveBeenCalled();
+    });
   });
 
   // **제목이 말하는 두 값을 실제로 둘 다 건다.** 종전엔 제목만 «null·undefined» 이고
@@ -117,11 +170,11 @@ describe('rewriteTriggerConfigLocked', () => {
     ['null', null],
   ])('config 가 %s 면 빈 객체로 좁혀 넘긴다', async (_label, config) => {
     const { manager } = makeManager({ config });
-    const merge = jest.fn((c: Trigger['config']) => c);
+    const merge = jest.fn((c: Trigger['config'], _locked: unknown) => c);
 
     await rewriteTriggerConfigLocked(manager, TRIGGER_ID, merge);
 
-    expect(merge).toHaveBeenCalledWith({});
+    expect(merge).toHaveBeenCalledWith({}, expect.anything());
   });
 
   it('columns 와 config 를 함께 쓰되 **config 가 뒤에** 온다', async () => {

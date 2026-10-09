@@ -1,6 +1,8 @@
 import {
   decideNotificationSigning,
   newNotificationSigningSecret,
+  notificationWithSigningRef,
+  signingWithRef,
 } from './notification-signing-secret';
 
 // 근거: [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
@@ -63,5 +65,70 @@ describe('newNotificationSigningSecret', () => {
     expect(newNotificationSigningSecret()).not.toBe(
       newNotificationSigningSecret(),
     );
+  });
+});
+
+const REF = 'secret://triggers/t1/notification-signing';
+
+describe('signingWithRef', () => {
+  it('참조를 싣고 옛 평문 키를 뺀다', () => {
+    expect(
+      signingWithRef({ algorithm: 'hmac-sha256', secret: 'legacy' }, REF),
+    ).toEqual({ algorithm: 'hmac-sha256', secretRef: REF });
+  });
+
+  it('저장된 다른 참조를 주어진 참조로 바꾼다(행의 값을 복사하지 않는다)', () => {
+    expect(
+      signingWithRef(
+        { secretRef: 'secret://triggers/OTHER/notification-signing' },
+        REF,
+      ),
+    ).toEqual({ secretRef: REF });
+  });
+
+  it('없음 · 문자열 · 배열은 빈 설정으로 본다', () => {
+    expect(signingWithRef(undefined, REF)).toEqual({ secretRef: REF });
+    expect(signingWithRef('abc', REF)).toEqual({ secretRef: REF });
+    expect(signingWithRef(['x'], REF)).toEqual({ secretRef: REF });
+  });
+
+  it('입력 객체를 바꾸지 않는다', () => {
+    const input = { secret: 'legacy' };
+    signingWithRef(input, REF);
+    expect(input).toEqual({ secret: 'legacy' });
+  });
+});
+
+describe('notificationWithSigningRef', () => {
+  it('나머지 키는 그대로 두고 signing 만 바꾼다', () => {
+    expect(
+      notificationWithSigningRef(
+        {
+          url: 'https://x.example/cb',
+          events: ['execution.completed'],
+          signing: { algorithm: 'hmac-sha256', secret: 'legacy' },
+        },
+        REF,
+      ),
+    ).toEqual({
+      url: 'https://x.example/cb',
+      events: ['execution.completed'],
+      signing: { algorithm: 'hmac-sha256', secretRef: REF },
+    });
+  });
+
+  it('signing 이 없으면 만든다', () => {
+    expect(
+      notificationWithSigningRef({ url: 'https://x.example' }, REF),
+    ).toEqual({
+      url: 'https://x.example',
+      signing: { secretRef: REF },
+    });
+  });
+
+  it('notification 이 객체가 아니면 signing 만 가진 객체를 돌려준다', () => {
+    expect(notificationWithSigningRef(null, REF)).toEqual({
+      signing: { secretRef: REF },
+    });
   });
 });
