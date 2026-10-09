@@ -3,18 +3,18 @@ id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "d74e63c44aa262ed2619e69f0043aeeb42cd1c1871dce20cee6bd6a3a579af5d"
-read_as: "approved"
-task: null
+content_hash: "32e41a814d9e87f790352ecd47ea361c3cff281de9a1db110cd21aeb631c9ea4"
+read_as: "approved_fallback"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "70635afd5efb0271eff1cd39ae891db5c60ddd99e8766cd0ef86dfae99e9d3ff"
-etag: "sha256-247b001f37590672a085b71e54bdf421e050d7fdd636c7fe1133086ec2cbe9ef"
+mirror_sha256: "0264baacab06c3b5182ddf69a541a7f327e3d165cff23615f158273a17fe4108"
+etag: "sha256-411f0674d4f5bf740f2962b34f0c90455a0552fd90711f9a5e8280e20b041be3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,6 +53,8 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 | errorPolicy | `stop` / `skip` / `continue` | | `stop` | 반복 중 항목 에러 정책. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) |
 
 코드 기준: `codebase/backend/src/nodes/logic/map/map.schema.ts` (export `mapNodeConfigSchema`)
+
+설정 패널은 이 노드의 `config.errorPolicy` 를 에러 처리 정책(`config.errorHandling.policy`)으로 옮기지 않고 저장할 때 지우지도 않는다([노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정) 의 REQ-NODEUI-041, [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유)).
 
 ## 설정 화면
 
@@ -176,7 +178,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 
 ## 에러
 
-Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 검증 단계의 사전 검증 에러이고 컨테이너 본문 에러는 항목 에러 정책으로 흡수하거나 컨테이너 실패로 전파한다. 노드 경고 규칙 메시지는 영문 원문이 기준이고 캔버스는 프론트엔드 i18n 으로 한국어를 렌더링한다.
+Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 검증 단계의 사전 검증 에러이고 컨테이너 본문 에러는 항목 에러 정책으로 흡수하거나 컨테이너 실패로 전파한다. 노드 경고 규칙 메시지는 영문 원문이 기준이고 캔버스에서는 프론트엔드 다국어 매핑이 한국어로 보여 준다.
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
@@ -198,10 +200,10 @@ Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 �
 
 ## 미결 사항
 
-- **엔진 덮어쓰기 규칙이 노드 출력 규약과 갈린다** (critical): 핸들러가 배열을 반환해도 엔진이 완료 시점에 덮어쓴다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 `null` 이 아닌 값을 반환하면 덮어쓰지 않는다고 적는다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
-- **배열 아닌 입력의 처리가 노드 출력 규약과 갈린다** (critical): 이 문서는 원시값까지 모든 비배열을 `[]` 로 대체한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 숫자·문자열이면 에러를 던지라고 정한다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
-- **항목 에러 정책이 저장할 때 지워질 수 있다** (critical): 설정 패널 저장 코드가 노드 종류와 상관없이 `config.errorPolicy` 를 지운다. 자세한 내용은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 있다.
+- **엔진 덮어쓰기 규칙이 노드 출력 규약과 갈린다** (critical): 핸들러가 배열을 반환해도 엔진이 완료 시점에 덮어쓴다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 `null` 이 아닌 값을 반환하면 덮어쓰지 않는다고 적는다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다. 결정에 따라 REQ-MAP-006 · 007 이 바뀔 수 있다. 정리는 NERV Task `CLE-T-3HJ8MM` 이 맡는다.
+- **배열 아닌 입력의 처리가 노드 출력 규약과 갈린다** (critical): 이 문서는 원시값까지 모든 비배열을 `[]` 로 대체한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 숫자·문자열이면 에러를 던지라고 정한다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다. 결정에 따라 REQ-MAP-004 가 바뀔 수 있다. 정리는 NERV Task `CLE-T-3HJ8MM` 이 맡는다.
 - **설정 요약 형식이 원문끼리 갈린다** (warning): 이 문서의 `{inputField}` 는 옛 캔버스 문서의 형식이고 현재 구현(`map.schema.ts` 의 `summaryTemplate`)과 같다. Logic 공통 원문은 `{N} mappings` 를 적었지만 Map 설정에는 매핑 개수를 담는 필드가 없다. 결정 항목은 [Logic 노드 공통 미결 사항](CLE-NODE-LOGIC-COMMON.md#미결-사항) 의 "Map · Background 의 설정 요약 형식" 에 모았다.
+- **에러 처리 정책의 동적 에러 포트와 REQ-MAP-018** (warning): [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#요구사항) 의 REQ-NODEUI-012 는 에러 처리 정책이 `route_to_error_port` 면 노드에 동적 에러 포트를 만든다고 정한다. 이 포트와 REQ-MAP-018(에러 포트 없음)의 관계는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 미결 사항의 「Logic 노드에 에러 처리 정책이 적용되는가」 항목에서 정한다.
 
 ## 구현 위치
 
@@ -216,3 +218,9 @@ Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 �
 Map 과 ForEach 는 같은 실행기를 쓰지만 뜻이 다르다. ForEach 는 항목마다의 부수 효과이고 Map 은 변환 결과 수집이다. 그래서 Map 은 컬렉션 키를 `mapped` 로 따로 둔다. 네 엔진 덮어쓰기 대상 노드는 컬렉션 키가 모두 다르다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)).
 
 시작 시점 배열을 엔진 내부 표현으로 두는 결정(D2)과 실패 표현을 ForEach 와 다르게 두는 결정(D3)은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
+
+### 설정 패널이 항목 에러 정책을 지우지 않는다 (2026-10-10)
+
+2026-10-10 에 설정 패널이 항목 에러 정책을 지우던 결함을 고쳤다(NERV Task `CLE-T-V0JAG1`). 결정과 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
+
+항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸는 안은 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요해서 기각했다.

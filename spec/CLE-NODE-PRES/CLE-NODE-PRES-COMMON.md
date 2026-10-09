@@ -3,18 +3,18 @@ id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "498e468732566e48553142424918ab399c81671e808e1d7fb772a85d0a1be371"
-read_as: "approved"
-task: null
+content_hash: "dc93d8604d0f6f51e26075d530a812a87cce75366c599f9a39d6500103041f8c"
+read_as: "approved_fallback"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2e8c2d172e4dc8b17f03258967d535154234c1d72b40f6653478374c2bf5617e"
-etag: "sha256-6e3bb1de38d216d827512ad3b91a29caf37ab8c2c3c17622b2a896ded206c8d6"
+mirror_sha256: "04f0fc581ec1f0a092fcd2eb2f753c57b458a488ce62ec1b1e2b70209d32c714"
+etag: "sha256-1d70effe9d90cee70d64b93cb36b9ba5011b98a597399c8d13a0caaee9423bd5"
 ---
 > 구현 상태: 구현됨 (대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출은 미구현) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -363,7 +363,7 @@ zod 를 JSON Schema 로 바꾸는 일은 단일 유틸(`zodToToolParams`)이 맡
 
 사용자가 `PresentationToolDef.description` 에 값을 넣으면 위 기본 문구 대신 그 값을 LLM 에 보여 준다. 워크플로우 도메인(예: "전자상거래 상품 카드 표시")에 맞춘 안내를 줄 수 있다.
 
-`render_chart` 기본 문구는 차트 유형 다섯 가지를 적는다. Chart 노드 실행이 받는 유형 목록은 정의가 갈린다([Chart 노드](CLE-NODE-CHART.md) 미결 사항).
+`render_chart` 기본 문구는 차트 유형 다섯 가지를 적는다. Chart 노드 실행도 같은 다섯 유형(`bar`·`line`·`area`·`pie`·`donut`)을 받는다([Chart 노드](CLE-NODE-CHART.md#차트-유형은-다섯-가지가-정본이고-실행-검증이-스키마-목록을-그대로-쓴다)).
 
 ### defaults 덮어쓰기 규칙
 

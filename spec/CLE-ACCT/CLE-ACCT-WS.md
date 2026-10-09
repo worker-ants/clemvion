@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
-requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059"]
+requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "af144cfa7054b80ab85bee168b2ff509ed6bfdc9743197683e8c27f2f87b1c40"
+content_hash: "39355ab08e1bcde563a5b06bb9ee8652fda0a06c694936da3c0b5ec45f519684"
 read_as: "approved_fallback"
 task: "CLE-T-V0JAG1"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "e87aa0ea7cef3aa54aa6c9c44057d01ce722e956dd1aed052e5e4ba3d9b05e30"
-etag: "sha256-359d3dcb37267c199e9da7ca04aefab4139473f7122a8bca0b70904894a12ed4"
+mirror_sha256: "6cd520a7d08b1915490e671b35fbeae32d8c11bcbd302c57fe94ba692effb769"
+etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -99,6 +99,7 @@ etag: "sha256-359d3dcb37267c199e9da7ca04aefab4139473f7122a8bca0b70904894a12ed4"
 - REQ-WSPACE-057 IF `@WorkspaceId()` 를 쓰는 라우트이거나 경로 파라미터로 받는 워크스페이스(`@WorkspaceParam(...)`) 없이 `@Roles()` 를 쓰는 라우트에서 `X-Workspace-Id` 헤더가 UUID 형태가 아니면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부한다. `@Roles()` 없이 `@WorkspaceId()` 를 쓰는 라우트에서 헤더와 클레임이 모두 없으면 400 `WORKSPACE_ID_REQUIRED` 로 거부한다.
 - REQ-WSPACE-058 WHEN 서버가 부팅하면 THE SYSTEM SHALL 워크스페이스 파라미터를 소비하는 라우트 수를 세고 0 이면 기동을 멈춘다.
 - REQ-WSPACE-059 IF 컨트롤러 핸들러가 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나는 파라미터를 `@Param` 으로 받으면 THE SYSTEM SHALL 저장소 가드로 CI 를 실패시킨다.
+- REQ-WSPACE-060 WHEN 초대 메일을 보내면 THE SYSTEM SHALL 메일 링크를 `/register?invitationToken=<url 인코딩된 토큰>` 으로 만든다.
 
 ## 워크스페이스 종류와 생성
 
@@ -277,7 +278,7 @@ sequenceDiagram
 ```
 
 1. 관리자 이상이 `POST /api/workspaces/:id/invitations { email, role }` 을 보낸다. 서버는 토큰을 만들고 `expiresAt = now + 7일` 로 메일을 보낸다.
-2. 받는 사람이 메일 링크를 누르면 프론트엔드 가입 페이지가 초대 토큰 쿼리와 함께 열린다. 링크 경로는 정의가 갈린다. [미결 사항](#미결-사항) 참조. 가입 페이지의 메타 조회와 입력란 고정은 아래 [초대 가입 화면](#초대-가입-화면) 에 있다.
+2. 받는 사람이 메일 링크를 누르면 프론트엔드 가입 페이지가 초대 토큰 쿼리와 함께 열린다. 메일 링크는 `/register?invitationToken=<초대 토큰>` 이다(`mail.service.ts` 의 `sendWorkspaceInvitationEmail`). 이미 발송된 옛 링크 `/auth/register?invitationToken=…` 은 로그인 여부와 상관없이 프론트엔드 proxy 가 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다([세션과 토큰](CLE-ACCT-SESSION.md#공개-경로와-가드)). 가입 페이지의 메타 조회와 입력란 고정은 아래 [초대 가입 화면](#초대-가입-화면) 에 있다.
 3. 가입을 제출받으면 서버가 (a) 토큰이 있고 만료되지 않았고 쓰이지 않았는지, (b) 토큰 이메일과 가입 이메일이 같은지 본다. (c) 맞으면 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다. (d) 불일치나 만료면 가입 자체를 거부하고 사용자 행을 만들지 않는다.
 4. 가입에 성공하면 인증 메일 없이 자동 로그인하고 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다.
 
@@ -460,9 +461,9 @@ sequenceDiagram
 ## 미결 사항
 
 - **관리자가 관리자 역할을 부여할 수 있는가**: 인증 명세의 권한 매트릭스와 프로필 원문의 역할 표는 "관리자 역할 부여" 를 소유자 전용으로 정하고, 인증 명세는 "그대로 Owner 전용이다" 라고 다시 강조한다. 반면 워크스페이스 데이터 흐름과 프로필 원문의 멤버 관리 표는 역할 변경을 관리자 이상에게 주고 소유자 역할만 막는다. 초대와 직접 추가도 관리자 이상이 `role=admin` 을 지정할 수 있다(관련: [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 현재 구현(`workspaces.service.ts` 의 `updateMemberRole`, `addMemberByEmail`)은 `assertAdmin` 뒤 소유자 역할만 막아 관리자가 다른 멤버를 관리자로 올리거나 관리자로 직접 추가할 수 있다. 소유자 전용이 맞으면 역할 변경·초대·직접 추가에 관리자 부여 제한을 넣어야 하고, 허용이 맞으면 매트릭스 행을 고쳐야 한다. 결정 필요.
-- **초대 메일 링크 경로 `/auth/register` 와 실제 가입 경로 `/register`**: 인증 명세의 초대 흐름과 가입 화면 원문의 초대 절은 초대 메일 링크가 `/auth/register?invitationToken=` 으로 간다고 적는다. 같은 가입 화면 원문의 라우트 가드 절은 `(auth)` route group 이라 `/auth` 접두사가 붙지 않고 실제 경로와 proxy 공개 경로가 `/register` 라고 정한다(관련: [세션과 토큰](CLE-ACCT-SESSION.md), [알림](../CLE-OBS/CLE-OBS-NOTIFY.md)). 현재 구현은 메일 링크를 `/auth/register?invitationToken=` 으로 만들고(`mail.service.ts` 의 `acceptUrl`) 프론트엔드에는 `/register` 라우트만 있다. `/auth/register` 라우트·rewrite·redirect 가 없어 로그인하지 않은 받는 사람은 `/login` 으로, 로그인한 사용자는 옛 경로 흡수 라우트로 빠질 가능성이 크다(원문 분석 관찰, 실동작 미검증). 인증·재설정 메일은 `/verify-email`·`/reset-password` 로 접두사가 없다. 메일 링크와 문서를 `/register` 로 고칠지, `/auth/register` 호환 redirect 를 둘지 결정 필요.
 - **개인 워크스페이스의 기본 시간대와 설정이 없을 때의 폴백**: 가입 화면 원문은 개인 워크스페이스를 만들 때 시간대를 "브라우저 타임존(Accept-Language 헤더에서 추론) 또는 UTC" 로 채운다고 적는다. 데이터 모델은 그런 컬럼 없이 `settings.timezone` 이 없으면 서버 기본 `process.env.TZ`, 없으면 `UTC` 이고 AI 노드 시스템 컨텍스트와 스케줄 기본 시간대가 이 값을 쓴다고 적는다. 스케줄 원문은 `settings.timezone` 다음 `'Asia/Seoul'` 로 폴백한다고 적는다(관련: [스케줄 §미결 사항](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#미결-사항), [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)). 현재 구현의 `createPersonalWorkspace` 는 `settings={}` 로 만든다. Accept-Language 헤더로는 시간대를 추론할 수도 없다. 기본값 하나를 정할지, 스케줄과 AI 가 서로 다른 폴백을 써도 되는지 결정 필요.
 - **초대 요청 한도 초과 코드 `rate_limited`**: 초대 에러 표와 에러 코드 예외 목록은 초대 429 를 소문자 `rate_limited` 로 적고 예외 등록 코드로 올려 둔다. 원문 분석에 따르면 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾸며, 백엔드·프론트엔드 소스에 `'rate_limited'` 문자열은 0건이다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 같은 표에서 발행처 없는 `forbidden` 을 뺀 선례가 있다. 표와 예외 목록에서 `rate_limited` 를 빼고 `RATE_LIMITED` 로 적을지 결정 필요.
+- **로그인하지 않은 기존 가입자가 초대 가입 링크를 열 때**: 초대 메일 링크는 받는 사람이 가입했는지와 상관없이 `/register?invitationToken=…` 이다. 로그인하지 않은 기존 가입자가 이 링크를 열면 가입 폼이 보인다. 이메일 입력란은 초대 이메일로 채워지고 읽기 전용으로 잠긴다. 초대 흐름에서는 입력란의 이메일 중복 확인을 건너뛴다(`register-form.tsx`). 제출하면 서버가 이메일 중복을 초대 처리보다 먼저 확인해 409 `RESOURCE_CONFLICT`(`Email already registered`)로 거부한다(`auth.service.ts` 의 `register`). 화면에는 그 메시지가 토스트로 표시된다. 가입 폼 아래 로그인 링크는 `/login` 으로만 가고 초대 토큰과 `redirect` 를 넘기지 않는다. 로그인 화면은 로그인 뒤 `/dashboard` 로 이동한다(`login-form.tsx`). 그래서 이 사용자는 로그인한 뒤에도 수락 페이지로 돌아오지 않는다. 선택지는 세 가지다. (a) 토큰 이메일이 이미 가입된 이메일이면 가입 화면이 로그인 화면으로 보내고 로그인 뒤 `/invitations/accept?token=…` 로 돌려보낸다. (b) 기존 가입자에게 보내는 초대 메일은 처음부터 수락 페이지 링크를 쓴다. (c) 현행을 유지한다. 결정 필요.
 
 ## 구현 위치
 
@@ -479,6 +480,7 @@ sequenceDiagram
 - `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**`
 - `codebase/frontend/src/components/workspace/**`
 - `codebase/frontend/src/components/auth/register-form.tsx` (초대 토큰 가입 분기)
+- `codebase/frontend/src/proxy.ts` (옛 초대 링크 `/auth/register` 리다이렉트)
 - `codebase/frontend/src/lib/stores/workspace-store.ts`
 - `codebase/frontend/src/lib/api/workspaces.ts`, `codebase/frontend/src/lib/api/invitations.ts`
 - `codebase/frontend/src/lib/workspace/href.ts`
@@ -514,6 +516,22 @@ sequenceDiagram
 - 초대 관리 화면이 대기 중 초대의 재발송·취소를 위해 토큰을 조회한다.
 
 해시로 바꾸는 보안 이득이 위협 모델에 비해 작아 원래 값 저장을 유지한다. DB 유출을 전제한 방어는 이메일 일치 강제(1차)와 만료(2차)가 맡는다.
+
+### 초대 메일 링크는 `/register` 로 보내고 옛 경로는 리다이렉트한다
+
+2026-10-10 결정이다(NERV Task `CLE-T-V0JAG1`). 초대 메일 링크가 `/auth/register?invitationToken=…` 으로 나가고 있었다. 가입 화면은 `(auth)` 라우트 그룹이라 실제 경로가 `/register` 이고 `/auth/register` 라우트는 없었다. 그래서 로그인하지 않은 받는 사람은 proxy 가 `/login` 으로 보냈다. v4 미결 사항의 두 선택지(링크를 `/register` 로 고친다, 옛 경로를 호환 리다이렉트한다)를 모두 채택했다.
+
+메일 링크를 실제 경로 `/register` 로 고치고 옛 경로 리다이렉트도 둔다. 두 조치는 서로 배타적이지 않다. 새 메일은 바로 가입 화면으로 간다. 이미 발송된 메일도 초대가 만료되기 전까지 쓸 수 있다. 다른 인증 메일(`/verify-email`, `/reset-password`)도 접두사가 없어 초대 메일 링크가 같은 형식이 된다.
+
+받는 사람은 대개 로그인하지 않은 상태다. 그래서 리다이렉트를 `has_session` 검사 뒤에 두면 `/login` 으로 먼저 간다. 로그인한 사용자는 `/register` 로 간 뒤 가입 화면의 기존 `has_session` 판정에 따라 수락 페이지에 닿는다([초대 가입 화면](#초대-가입-화면)).
+
+기각한 대안은 하나다.
+
+- 메일 링크만 고친다: 이미 발송된 메일의 링크가 계속 `/login` 으로 간다.
+
+채택하지 않은 선택지도 하나 있다.
+
+- `/auth/register` 라우트를 새로 만든다: 가입 화면은 `(auth)` 라우트 그룹의 `/register` 하나인데 같은 화면에 진입점이 하나 더 생긴다. 로그인하지 않은 받는 사람이 그 경로에 닿으려면 `proxy.ts` 의 공개 경로 목록 `publicPaths` 에도 경로를 더해야 한다. 리다이렉트는 화면 라우트를 늘리지 않는 URL 별칭이다.
 
 ### 멤버 관리에서 관리자는 삭제(D)까지 할 수 있다
 
