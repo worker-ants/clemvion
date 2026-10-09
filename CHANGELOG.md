@@ -23,6 +23,30 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 메인 세션 컨텍스트에 상한을 두고 사용량을 재는 도구를 더한다
+
+2026-10-09 세션 기록 실측에서 메인 세션 호출의 평균 컨텍스트가 51만 토큰이었고 메인 비용의 79% 가 그 컨텍스트를
+다시 읽는 캐시 읽기였다(NERV Task `CLE-T-ZTTHXD`). 상한이 없어 한 세션이 작업 여러 개를 이어 가며 1M 끝까지 자랐다.
+
+- `.claude/settings.json` 에 `autoCompactWindow: 300000` 을 두어 메인 세션이 30만 토큰에서 자동 압축된다.
+- CLAUDE.md 「세션과 컨텍스트」: NERV Task 하나에 세션 하나, 여러 파일 조사는 Explore 에 맡긴다, 폴링 루프 대신 완료 알림을 기다린다.
+- `.claude/tools/usage_report.py`: 세션 기록만 읽어 평균 컨텍스트 · 구성별 상대 비용 · 워크트리당 Workflow 호출 수를 낸다.
+  같은 잣대로 개선 전후를 비교하는 용도다.
+
+## Unreleased — 하네스: 리뷰 INFO 를 요약에 접고 impl-prep 을 조건부로 바꾸고 리뷰 대기를 겹친다
+
+리뷰 라운드마다 INFO 가 약 11건 나왔고 메인 세션이 한 건씩 처분했다. 열린 발견은 다른 브랜치의 제출 응답에
+`carried_over` 로 따라붙어 응답도 커졌다. 착수 전 일관성 검토(`--impl-prep`)는 어떤 게이트도 따로 보지 않는데
+모든 Task 에서 돌았고, 리뷰 · 일관성 검토 · e2e 는 순서대로 기다렸다.
+
+- `nerv_review_payload.py`: kind=code · consistency 의 INFO 를 발견 대신 역할 `summary` 끝에 제목 · 위치만 싣는다.
+  `[SPEC-DRIFT]` INFO 는 발견으로 남는다. `--keep-info` 로 예전 형태를 낼 수 있고 출력의 `info_in_summary` 가 옮긴 수다.
+- `--impl-prep` 은 클레임 스펙이 기준 브랜치 대비 바뀌었거나, 구현 상태가 「구현됨」이 아니거나, Task 가 스펙 표면을
+  건드릴 때만 돈다. 생략하면 Task 본문에 근거를 적는다. done 게이트의 consistency 라운드는 `--impl-done` 이 채운다.
+- `--impl-done` 과 e2e 를 `/ai-review` 와 함께 띄운다. e2e 실패는 Workflow 가 끝난 뒤 고친다. resolution-applier 결과가
+  온전하면 fix 뒤에는 build 만 다시 돈다(applier 는 build 를 돌리지 않아 `tests.build` 는 `not_run` 이다).
+- 하네스에 규칙 · 가드를 더하는 PR 은 막을 사고와 작업당 비용을 적는다.
+
 ## Unreleased — 트리거: PATCH 가 서버가 만든 EIA 값을 지키고 첫 알림 서명 시크릿을 서버가 발급한다
 
 승인된 트리거 · EIA 스펙(CLE-TRIG-MANAGE v5 · CLE-TRIG-DATA v5 · CLE-TRIG-WEBHOOK v3 · CLE-EIA-DATA v2 ·
