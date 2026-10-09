@@ -1181,7 +1181,7 @@ export class HooksService {
         endpoints,
       };
     }
-    // per_trigger — token 미동봉 (호출자가 trigger 등록 시 받은 itk_* 사용)
+    // per_trigger — token 미동봉. 호출자는 `revoke-token` 으로 받은 itk_* 를 쓴다(생성 응답에는 itk_* 가 없다).
     return { endpoints };
   }
 }

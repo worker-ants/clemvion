@@ -106,7 +106,9 @@ export class TriggersController {
   @ApiOperation({
     summary: '트리거 생성',
     description:
-      'webhook 또는 manual 타입 트리거를 생성합니다. schedule 타입은 Schedules API에서 자동 생성되므로 여기서는 지원하지 않습니다.',
+      'webhook 또는 manual 타입 트리거를 생성합니다. schedule 타입은 Schedules API에서 자동 생성되므로 여기서는 지원하지 않습니다. ' +
+      'notification 을 실어 만들면 서버가 알림 서명 시크릿(wsk_*)을 발급해 시크릿 저장소에 넣고, 평문은 이 응답의 data.secrets.notificationSigningSecret 에 한 번만 싣습니다. ' +
+      '이후 응답에는 실리지 않으며 발급하지 않은 응답에는 secrets 키가 없습니다. 잃어버리면 rotate-secret 으로 새로 받습니다.',
   })
   @ApiCreatedWrappedResponse(TriggerDto, { description: '생성된 트리거 정보' })
   @ApiBadRequestResponse({
@@ -133,6 +135,9 @@ export class TriggersController {
     summary: '트리거 수정',
     description:
       '트리거의 이름·활성 상태·설정·엔드포인트 경로·인증 설정을 수정합니다. ' +
+      'notification · interaction 은 통째로 교체하지만 서버가 만든 값(notification.signing.secretRef, interaction.triggerToken)은 요청으로 받지 않고 서버가 정합니다. ' +
+      'notification 을 처음 붙이는 요청이 서버가 알림 서명 시크릿을 처음 발급하면 평문이 data.secrets.notificationSigningSecret 에 한 번만 실립니다. ' +
+      'interaction.tokenStrategy 가 per_trigger 가 아니게 되면 저장된 트리거 단위 토큰(itk_*)을 지우고 그 토큰으로 연 SSE 스트림을 닫습니다. ' +
       'schedule 타입 트리거는 name·isActive 만 수정할 수 있으며, 그 외 필드(endpointPath, config, authConfigId, notification, interaction, chatChannel)를 포함하면 400 VALIDATION_ERROR 를 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
@@ -217,7 +222,7 @@ export class TriggersController {
   @ApiOperation({
     summary: 'Outbound notification secret 회전',
     description:
-      '새 HMAC secret 을 발급하고 trigger 의 `notification_secret_v2` 컬럼에 저장합니다. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉) — 외부 검증자가 새 secret 으로 미배포 상태여도 기존 secret 으로 통과 가능. grace 종료 후 scheduled job 이 v2 → primary 로 승격. 응답의 `secret` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
+      '새 HMAC secret 을 발급하고 trigger 의 `notification_secret_v2` 컬럼에 저장합니다. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉) — 외부 검증자가 새 secret 으로 미배포 상태여도 기존 secret 으로 통과 가능. grace 종료 후 scheduled job 이 v2 → primary 로 승격. 유예 중 다시 호출하면 앞의 새 secret 을 덮어쓰고 24h 를 다시 셉니다. 응답의 `secret` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkWrappedResponse(NotificationRotateSecretDto, {
@@ -248,7 +253,7 @@ export class TriggersController {
   @ApiOperation({
     summary: 'Per-trigger interaction token (itk_*) 재발급',
     description:
-      'trigger 의 `config.interaction.tokenStrategy === "per_trigger"` 일 때만 호출 가능. 기존 itk_* 는 즉시 무효화되고 새 itk_* 가 발급됩니다. 응답의 `token` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
+      'trigger 의 `config.interaction.tokenStrategy === "per_trigger"` 일 때만 호출 가능. 기존 itk_* 는 즉시 무효화되고(그 토큰으로 연 SSE 스트림은 서버가 닫습니다) 새 itk_* 가 발급됩니다. 응답의 `token` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkWrappedResponse(InteractionRevokeTokenDto, {

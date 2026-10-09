@@ -43,6 +43,8 @@ const TERMINAL_EVENT_TYPES = new Set([
  * - `Last-Event-Id` 헤더 (또는 `?lastEventId=` query) → SseAdapter 가 5분 buffer 에서 누락분 replay
  * - 15초 heartbeat (`: heartbeat` comment) — proxy idle timeout 회피
  * - terminal event (`completed`/`failed`/`cancelled`) 발송 후 자동 종료
+ * - `itk_*` 로 연 스트림은 그 트리거 단위 토큰이 무효가 되면(재발급 · 전략 변경 · 트리거 삭제) 서버가 응답을 끝낸다.
+ *   닫힘을 알리는 이벤트는 없다. 새 토큰으로 다시 연결한다. 옛 토큰으로 다시 연결하면 가드가 401 로 거부한다.
  * - execution 당 동시 구독 한도 3 — 초과 시 즉시 종료 + `event: error` 1회 발송
  */
 @ApiTags('External Interaction')
@@ -57,7 +59,7 @@ export class InteractionStreamController {
   @ApiOperation({
     summary: '실행 이벤트 SSE 스트림',
     description:
-      '실행의 라이브 이벤트를 Server-Sent Events 로 수신. Last-Event-Id 로 5분 buffer 에서 누락분 재전송. terminal 이벤트 발송 후 자동 종료. EventSource 사용 시 토큰을 ?token= 쿼리로도 받아준다.',
+      '실행의 라이브 이벤트를 Server-Sent Events 로 수신. Last-Event-Id 로 5분 buffer 에서 누락분 재전송. terminal 이벤트 발송 후 자동 종료. 트리거 단위 토큰(itk_*)으로 연 스트림은 그 토큰이 무효가 되면(재발급 · 전략 변경 · 트리거 삭제) 서버가 응답을 끝낸다 — 새 토큰으로 다시 연결한다(옛 토큰은 401). EventSource 사용 시 토큰을 ?token= 쿼리로도 받아준다.',
   })
   @ApiParam({ name: 'executionId', format: 'uuid' })
   @ApiProduces('text/event-stream')

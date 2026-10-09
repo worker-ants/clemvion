@@ -2,7 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 // `POST /api/triggers/:id/notification/rotate-secret` · `:id/interaction/revoke-token` 의 응답과 생성 · 수정 응답의 `secrets`
 // 블록. 모두 서버가 그 응답에서 만든 비밀을 **평문으로 한 번만** 돌려준다 — 서버는 다시 보여 주지 않는다
-// (`triggers.controller.ts` 의 `@ApiOperation` 설명). 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 규칙 4 · 5,
+// (`triggers.controller.ts` 의 네 엔드포인트 `@ApiOperation` 설명이 각각 같은 말을 한다).
+// 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 규칙 4 · 5,
 // [트리거 관리 「API」](CLE-TRIG-MANAGE#api).
 //
 // 키가 갈린다 — 생성 · 수정 응답의 `data` 는 트리거 리소스라 일회성 값을 `data.secrets` 아래에 두고, 교체 ·

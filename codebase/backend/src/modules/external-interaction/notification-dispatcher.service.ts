@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
 import {
+  DEFAULT_NOTIFICATION_ATTEMPTS,
   NOTIFICATION_WEBHOOK_QUEUE,
   NOTIFICATION_BACKOFF_TYPE,
   NotificationWebhookJob,
@@ -32,7 +33,8 @@ export class NotificationDispatcher {
    * 새 delivery 를 큐에 적재. `deliveryId` 가 명시되지 않으면 UUID v4 자동 생성.
    * BullMQ jobId = deliveryId 로 자동 dedup — 같은 deliveryId 로 재 enqueue 해도 1건만 실행.
    *
-   * 재시도 정책 ([Spec EIA §6.6]): 총 시도 default 5 회, base-4 backoff (1s / 4s / 16s / 64s / 256s) —
+   * 재시도 정책 ([EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리)): 총 시도 default 5 회,
+   * base-4 backoff (1s · 4s · 16s · 64s …; 재시도 간격 수는 총 시도 횟수보다 하나 적다) —
    * worker `settings.backoffStrategy` 가 계산하는 custom 전략(`NOTIFICATION_BACKOFF_TYPE`).
    * `NotificationFanout` 이 트리거의 `retry.maxAttempts` 를 `notificationAttemptsFromRetry` 로 바꿔
    * `attempts` 로 넘긴다(첫 시도를 포함한 총 시도 횟수).
@@ -58,8 +60,8 @@ export class NotificationDispatcher {
     };
     await this.queue.add(`notify:${job.eventType}`, payload, {
       jobId: deliveryId, // dedup
-      attempts: opts.attempts ?? 5,
-      // base-4 custom backoff (1s·4s·16s·64s·256s, Spec EIA §6.6). 지연 계산은
+      attempts: opts.attempts ?? DEFAULT_NOTIFICATION_ATTEMPTS,
+      // base-4 custom backoff (1s · 4s · 16s · 64s …, CLE-EIA-NOTIFY#재시도와-실패-처리). 지연 계산은
       // worker(NotificationWebhookProcessor)의 settings.backoffStrategy 가 담당.
       backoff: { type: NOTIFICATION_BACKOFF_TYPE },
       removeOnComplete: { age: 24 * 60 * 60, count: 1000 }, // 24h

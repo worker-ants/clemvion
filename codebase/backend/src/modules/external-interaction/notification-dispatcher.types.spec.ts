@@ -1,3 +1,7 @@
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+
+import { NotificationRetryDto } from '../triggers/dto/notification-config.dto';
 import {
   DEFAULT_NOTIFICATION_ATTEMPTS,
   MAX_NOTIFICATION_ATTEMPTS,
@@ -46,5 +50,42 @@ describe('notificationAttemptsFromRetry', () => {
       notificationAttemptsFromRetry({ maxAttempts: Number.POSITIVE_INFINITY }),
     ).toBe(5);
     expect(notificationAttemptsFromRetry('retry')).toBe(5);
+  });
+});
+
+/**
+ * 상한과 기본값의 출처가 둘이다 — 발송 쪽 상수(이 모듈)와 입력 검증 쪽 DTO(`@Max` · OpenAPI). DTO 가 이 모듈의 상수를
+ * 가져오면 `triggers` 가 `external-interaction` 에 기대는 방향이 하나 더 생겨서 상수를 공유하지 않는다. 대신 둘이 같은
+ * 값임을 이 테스트가 고정한다. 한쪽만 바꾸면 DTO 는 통과시키는데 발송 단계에서 조용히 잘리는 값이 생긴다.
+ */
+describe('notification.retry.maxAttempts — DTO 와 발송 상수의 일치', () => {
+  /** `@ApiProperty*` 가 속성마다 쓰는 메타데이터 키(`@nestjs/swagger` 의 `DECORATORS.API_MODEL_PROPERTIES`). */
+  const API_MODEL_PROPERTIES = 'swagger/apiModelProperties';
+
+  function errorsFor(maxAttempts: unknown): string[] {
+    const dto = plainToInstance(NotificationRetryDto, { maxAttempts });
+    return validateSync(dto).flatMap((e) => Object.keys(e.constraints ?? {}));
+  }
+
+  it('DTO 는 발송 상한까지 받고 그 위는 거부한다', () => {
+    expect(errorsFor(MAX_NOTIFICATION_ATTEMPTS)).toEqual([]);
+    expect(errorsFor(MAX_NOTIFICATION_ATTEMPTS + 1)).toContain('max');
+  });
+
+  it('DTO 는 0 까지 받고 그 아래는 거부한다 — 0 은 발송에서 1 로 본다', () => {
+    expect(errorsFor(0)).toEqual([]);
+    expect(errorsFor(-1)).toContain('min');
+    expect(notificationAttemptsFromRetry({ maxAttempts: 0 })).toBe(1);
+  });
+
+  it('OpenAPI 가 광고하는 상한과 기본값이 발송 상수와 같다', () => {
+    const meta = Reflect.getMetadata(
+      API_MODEL_PROPERTIES,
+      NotificationRetryDto.prototype,
+      'maxAttempts',
+    ) as { maximum?: number; default?: number; minimum?: number };
+    expect(meta.maximum).toBe(MAX_NOTIFICATION_ATTEMPTS);
+    expect(meta.default).toBe(DEFAULT_NOTIFICATION_ATTEMPTS);
+    expect(meta.minimum).toBe(0);
   });
 });

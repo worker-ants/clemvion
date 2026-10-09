@@ -25,8 +25,8 @@
 
 ## Unreleased — 트리거: PATCH 가 서버가 만든 EIA 값을 지키고 첫 알림 서명 시크릿을 서버가 발급한다
 
-승인된 트리거 · EIA 스펙(CLE-TRIG-MANAGE v5 · CLE-TRIG-DATA v5 · CLE-EIA-NOTIFY v2 · CLE-INT-SECRET v8)에 코드를 맞췄다
-(NERV Task `CLE-T-M6PERB`).
+승인된 트리거 · EIA 스펙(CLE-TRIG-MANAGE v5 · CLE-TRIG-DATA v5 · CLE-TRIG-WEBHOOK v3 · CLE-EIA-DATA v2 ·
+CLE-EIA-NOTIFY v2 · CLE-INT-SECRET v8)에 코드를 맞췄다(NERV Task `CLE-T-M6PERB`).
 
 - **첫 알림 서명 시크릿 발급:** `notification` 을 실어 트리거를 만들거나 PATCH 가 `notification` 을 처음 붙이면 서버가
   `wsk_<64hex>` 를 발급해 시크릿 저장소에 넣는다. 평문은 그 응답의 `data.secrets.notificationSigningSecret` 에 한 번만
@@ -56,7 +56,7 @@
 `end_conversation`)이 재개 큐에 들어가지 못하면 503 `EXECUTION_ENQUEUE_FAILED` 로 응답한다(NERV Task `CLE-T-M6PERB`).
 예전에는 202 `accepted:true` 를 내고 24시간 멱등 캐시에 넣었다. 그래서 같은 `Idempotency-Key` 로 다시 보내도 캐시된 202 가
 돌아오고 명령은 끝내 적재되지 않았다. 503 은 멱등 캐시에 넣지 않으므로 다시 보내면 새로 처리한다. 채팅 채널 인바운드처럼
-내부 신뢰 호출로 부른 명령은 예전과 같다.
+내부 신뢰 호출로 부른 명령은 예전과 같다. OpenAPI 에도 `/interact` 와 `/cancel` 의 503 응답을 선언했다.
 
 ## Unreleased — EIA SSE: 트리거 단위 토큰이 무효가 되면 그 토큰으로 연 스트림을 닫는다
 

@@ -55,7 +55,8 @@ function truncate(msg: string, max: number): string {
  * HTTP POST (10s timeout) → 결과에 따라 health 갱신.
  *
  * BullMQ 가 attempts/backoff 로 재시도를 자동 관리한다. 본 process() 가 throw 하면 BullMQ 가
- * base-4 custom backoff 로 재시도 (default 5회, 1s·4s·16s·64s·256s — §6.6). 최종 실패 시
+ * base-4 custom backoff 로 재시도 (총 시도 default 5회, 재시도 간격은 1s·4s·16s·64s 처럼 총 시도 횟수보다
+ * 하나 적다 — CLE-EIA-NOTIFY#재시도와-실패-처리). 최종 실패 시
  * `notification_health='degraded'` + `notification_last_error` 갱신, trigger 자체는
  * 비활성화하지 않음 ([Spec EIA §R6]).
  *

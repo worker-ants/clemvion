@@ -19,6 +19,7 @@ import {
   ApiNotFoundResponse,
   ApiOperation,
   ApiParam,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
@@ -67,7 +68,7 @@ export class InteractionController {
   @ApiOperation({
     summary: '인터랙션 명령 제출',
     description:
-      '실행 중인 워크플로우의 waiting_for_input 노드에 사용자 응답을 전달합니다. command 종류: submit_form / click_button / submit_message / end_conversation / cancel. Idempotency-Key 헤더로 24h 안전 재시도. 본 endpoint 는 비동기 — 응답은 즉시 202 Accepted 이며 실제 진행 상태는 SSE 스트림으로 받습니다.',
+      '실행 중인 워크플로우의 waiting_for_input 노드에 사용자 응답을 전달합니다. command 종류: submit_form / click_button / submit_message / end_conversation / cancel. Idempotency-Key 헤더로 24h 안전 재시도. 본 endpoint 는 비동기 — 명령을 재개 큐에 넣으면 202 Accepted 로 응답하고 실제 진행 상태는 SSE 스트림으로 받습니다. 큐에 넣지 못하면 503 EXECUTION_ENQUEUE_FAILED 이며 이 응답은 멱등 캐시에 남지 않으므로 같은 Idempotency-Key 로 다시 보내면 됩니다.',
   })
   @ApiParam({ name: 'executionId', format: 'uuid' })
   @ApiAcceptedWrappedResponse(InteractAckDto)
@@ -89,6 +90,10 @@ export class InteractionController {
   @ApiTooManyRequestsResponse({
     description:
       'RATE_LIMITED — execution 당 분당 60건(interact 버킷, /cancel 포함) 초과. `Retry-After`(잔여 윈도우 초) 헤더 동봉. §8.4.',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'EXECUTION_ENQUEUE_FAILED — 재개 명령 4종(submit_form / click_button / submit_message / end_conversation)을 재개 큐에 넣지 못함(Redis 장애 등). 실행은 입력 대기 상태를 유지하고 멱등 캐시에 남지 않으므로 같은 Idempotency-Key 로 다시 보내면 새로 처리합니다.',
   })
   async interact(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
@@ -113,7 +118,7 @@ export class InteractionController {
   @ApiOperation({
     summary: '실행 취소',
     description:
-      'interact 의 command=cancel 과 동치인 편의 alias. 응답은 비동기 (202 Accepted) — 실제 취소 확정은 SSE 의 execution.cancelled 로.',
+      'interact 의 command=cancel 과 동치인 편의 alias. 취소 명령을 큐에 넣으면 202 Accepted — 실제 취소 확정은 SSE 의 execution.cancelled 로. 큐에 넣지 못하면 503 EXECUTION_ENQUEUE_FAILED.',
   })
   @ApiParam({ name: 'executionId', format: 'uuid' })
   @ApiAcceptedWrappedResponse(InteractAckDto)
@@ -123,6 +128,10 @@ export class InteractionController {
   @ApiTooManyRequestsResponse({
     description:
       'RATE_LIMITED — interact 버킷(분당 60) 공유. `Retry-After` 헤더 동봉. §8.4.',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'EXECUTION_ENQUEUE_FAILED — 취소 명령을 재개 큐에 넣지 못함(Redis 장애 등). 실행은 입력 대기 상태를 유지하므로 다시 보내면 됩니다.',
   })
   async cancel(
     @Param('executionId', new ParseUUIDPipe()) _executionId: string,
