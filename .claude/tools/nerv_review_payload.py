@@ -106,12 +106,15 @@ _LOCATION_RE = re.compile(r"`([^`\s]+?)(?::(\d+)(?:[-~]\d+)?)?`")
 _RISK_RE = re.compile(r"\b(NONE|LOW|MEDIUM|HIGH|CRITICAL)\b")
 _RISK_MAP = {"NONE": "low", "LOW": "low", "MEDIUM": "medium", "HIGH": "high", "CRITICAL": "high"}
 
+# 길이 상한은 이 도구가 정한 값이다(NERV 서버 한도가 아니다). 2026-10-09 실측으로 NERV 는 1,000자가 넘는
+# summary 를 받았다. 접힌 INFO 가 있으면 summary 는 요약(MAX_SUMMARY) + 빈 줄 + INFO 노트(MAX_INFO_NOTE)까지 간다.
 MAX_TITLE = 300
 MAX_BODY = 4000
 MAX_SUGGESTION = 2000
 MAX_SUMMARY = 1000
 MAX_INFO_NOTE = 2000
 INFO_TO_SUMMARY_KINDS = ("code", "consistency")
+SPEC_DRIFT_TAG = "spec_drift"
 
 
 def _cap(text: str, limit: int) -> str:
@@ -176,7 +179,7 @@ def _finding(severity: str, title: str, block: list[str], role: str) -> dict:
     }
     # 구현이 아니라 스펙이 낡은 발견(requirement-reviewer 의 `[SPEC-DRIFT]`)은 NERV 분류에 그대로 싣는다.
     if _SPEC_DRIFT_RE.search(title):
-        out["tags"] = ["spec_drift"]
+        out["tags"] = [SPEC_DRIFT_TAG]
         out["area"] = "spec"
     suggestion = "\n".join(x for x in fields.get("제안", []) if x).strip()
     if suggestion:
@@ -188,14 +191,15 @@ def _finding(severity: str, title: str, block: list[str], role: str) -> dict:
     return out
 
 
+def _is_foldable_info(finding: dict) -> bool:
+    return finding["severity"] == "info" and SPEC_DRIFT_TAG not in (finding.get("tags") or [])
+
+
 def fold_info(submission: dict) -> int:
     """`[SPEC-DRIFT]` 이 아닌 INFO 를 발견에서 빼서 `summary` 끝에 제목 · 위치로 싣는다. 옮긴 수를 낸다."""
     keep, moved = [], []
     for f in submission["findings"]:
-        if f["severity"] == "info" and "spec_drift" not in (f.get("tags") or []):
-            moved.append(f)
-        else:
-            keep.append(f)
+        (moved if _is_foldable_info(f) else keep).append(f)
     if not moved:
         return 0
     items = []
@@ -364,13 +368,13 @@ def _roles(session_dir: str, state) -> dict[str, str] | None:
 
 
 def _result(kind: str, session_dir: str, *, submissions=(), missing=(), errors=(), warnings=(),
-            changeset=None) -> dict:
+            changeset=None, info_in_summary: int = 0) -> dict:
     """`build` 가 돌려주는 모양. 모든 kind 가 이 한 곳에서 만든다."""
     out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir)}
     if changeset:
         out["changeset"] = list(changeset)
     out.update({"submissions": list(submissions), "missing_forced": list(missing),
-                "errors": list(errors), "warnings": list(warnings)})
+                "errors": list(errors), "warnings": list(warnings), "info_in_summary": info_in_summary})
     return out
 
 
@@ -464,8 +468,7 @@ def build(session_dir: str, kind: str | None = None, *, keep_info: bool = False)
         if all(isinstance(x, str) and x for x in paths):
             changeset = paths
     out = _result(kind, session_dir, submissions=submissions, missing=missing, errors=errors,
-                  warnings=warnings, changeset=changeset)
-    out["info_in_summary"] = info_moved
+                  warnings=warnings, changeset=changeset, info_in_summary=info_moved)
     return out
 
 

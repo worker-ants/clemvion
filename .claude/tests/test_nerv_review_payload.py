@@ -537,6 +537,20 @@ class InfoFoldTest(unittest.TestCase):
         self.assertEqual([f["severity"] for f in out["submissions"][0]["findings"]], ["info"])
         self.assertEqual(out["info_in_summary"], 0)
 
+    def test_long_summary_keeps_both_caps(self):
+        """요약 자체가 상한까지 차도 INFO 줄이 잘려 나가지 않는다. 합계는 두 상한의 합 안이다."""
+        many = "".join(f"- **[INFO]** 참고 {i}\n" for i in range(5))
+        (self.sd / "scope.md").write_text(many + "### 요약\n" + "가" * 3000 + "\n### 위험도\nLOW\n",
+                                          encoding="utf-8")
+        scope = next(s for s in tool.build(str(self.sd))["submissions"] if s["reviewer"]["role"] == "scope")
+        base, note = scope["summary"].split("\n\n", 1)
+        self.assertEqual(len(base), tool.MAX_SUMMARY)
+        self.assertTrue(note.startswith("참고(INFO) 5건: "))
+        self.assertLessEqual(len(scope["summary"]), tool.MAX_SUMMARY + 2 + tool.MAX_INFO_NOTE)
+
+    def test_every_kind_reports_the_count(self):
+        self.assertIn("info_in_summary", tool._result("spec_coverage", str(self.sd)))
+
     def test_note_is_capped(self):
         many = "".join(f"- **[INFO]** {'긴 제목 ' * 20}{i}\n" for i in range(40))
         (self.sd / "scope.md").write_text(many + "### 위험도\nLOW\n", encoding="utf-8")
