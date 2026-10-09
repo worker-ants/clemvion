@@ -20,7 +20,7 @@ model: sonnet
 
 **백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리됐는지 확인** — 셸 `cd` 만으로는 부족하다. 부모 bg 세션이 isolate 되지 않으면 harness `worktree.bgIsolation` 가드가 **Workflow sub-agent (reviewer·summary·resolution-applier) 의 공유 체크아웃 write 를 전부 차단**한다. 미격리 bg 세션에서 본 skill 을 돌리면 reviewer output_file·SUMMARY·후속 fix write 가 막히므로, 먼저 `EnterWorktree` 로 부모 세션을 격리한 뒤 진행한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md).)
 
-> **자동 트리거(구현 완료 후) vs 대화형 호출**: `developer` 의 REVIEW WORKFLOW 가 자동으로 본 skill 을 트리거한 경우, 이는 **상시 승인된 강제 의무**이지 사용자가 추론하게 한 비싼 scale 이 아니다 (CLAUDE.md §외부 LLM 호출 정책 — standing opt-in). Workflow 의 "명시 opt-in 시에만" 가드 때문에 미루지 말 것. 비동기 task-notification 간극을 피하고 싶으면 자동 트리거 시 §5 평문 Agent fan-out 경로를 택할 수 있다 — 한 번에 완주하고 SUMMARY 를 같은 흐름에서 받는다. 사용자가 직접 `/ai-review` 를 친 대화형 호출은 Workflow 경로(§2)가 자연스럽다.
+> **자동 트리거(구현 완료 후) vs 대화형 호출**: `developer` 의 REVIEW WORKFLOW 가 자동으로 본 skill 을 트리거한 경우, 이는 **상시 승인된 강제 의무**이지 사용자가 추론하게 한 비싼 scale 이 아니다 (CLAUDE.md §외부 LLM 호출 정책 — standing opt-in). Workflow 의 "명시 opt-in 시에만" 가드 때문에 미루지 말 것. 대화형 세션은 자동 트리거든 사용자가 직접 친 `/ai-review` 든 Workflow 경로(§2)를 띄우고 완료 알림을 기다린다. 턴이 끝나면 세션도 끝나는 비대화형 실행(`claude -p`)은 §5 평문 Agent fan-out 경로로 한 번에 완주하고 SUMMARY 를 같은 흐름에서 받는다.
 
 ### 1. 세션 준비 (model 호출 없음)
 
@@ -51,7 +51,7 @@ stdout 마지막 줄 = 세션 디렉토리 절대경로. **`--prepare` 는 chang
 
 ### 2. Workflow 실행 (Route → Review → Summary, 기본 경로)
 
-Task 를 클레임한 세션이면 Workflow 를 띄우기 직전에 Task 를 `in_review` 로 둔다. 완료 알림을 기다리느라 턴을 끝내도 NERV Stop 훅이 막지 않고 클레임도 유지된다(developer SKILL §REVIEW WORKFLOW 「리뷰 대기와 클레임」).
+Task 를 클레임한 세션이면 Workflow 를 띄우기 직전에 heartbeat 로 리스를 채우고 Task 를 `in_review` 로 둔다. 순서 · 실패 처리 · 리스가 지난 뒤의 동작은 developer SKILL §REVIEW WORKFLOW 「기다리는 동안의 클레임」이 정본이다.
 
 `--prepare` 가 만든 `_retry_state.json` 은 model-free manifest (경로뿐). 짧게 Read 해 매니페스트를 추출하고 `Workflow` tool 에 넘긴다 — router 호출·선별·reviewer fan-out·STATUS 추적·수렴을 Workflow 가 결정적으로 처리 (옛 step 2.5 라우터 → `--apply-routing` → fan-out → `--update` → summary 수작업 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책).
 
