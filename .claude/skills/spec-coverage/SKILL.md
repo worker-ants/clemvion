@@ -54,7 +54,7 @@ sub-agent 가 적용 대상 미러 문서 walk + 3개 heuristic 적용 후 SUMMA
 ### 3. 결과 보고와 NERV 제출
 
 1. SUMMARY.md 상단 30라인 Read → 후보 갯수 (high/medium/low) 요약 → 사용자에게 보고한다.
-2. `python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_nerv_payload.json --mode audit …` 로 제출 문서를 만들고 `nerv-recorder` 에 넘겨 낸다(인자 · 키는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」). `warnings[]` 가 있으면 내지 않고 감사기 출력 형식부터 확인한다.
+2. `python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_nerv_payload.json --mode audit …` 로 제출 문서를 만들고 `nerv-recorder` 에 넘겨 낸 뒤 `nerv_record_verify.py submit <session_dir>/_nerv_payload.json` 으로 기록을 대조한다(인자 · 키는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」, 대조 결과 처리는 같은 §4 의 2 「반환 뒤 대조」). `warnings[]` 가 있으면 내지 않고 감사기 출력 형식부터 확인한다.
 3. 같은 세션 안에서 후보를 모두 처분한다. 사용자가 picking 한 후보는 NERV Task 로 올리고 그 Task 를 근거로 `wont_fix`, 나머지는 `dismissed` 로 닫는다. 열린 채 두면 이후 모든 제출 응답에 `carried_over` 로 따라붙는다.
 
 ## 검출 heuristic

@@ -136,7 +136,8 @@ model: opus
 2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록(로컬)하고 전체 위험도·Critical/Warning 수를 확인.
 3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다. 제출 도우미
    (`nerv_review_payload.py --out`)가 쓴 제출 문서를 `nerv-recorder` 에 넘기고 반환의 `ROUND_BLOCK` 으로
-   라운드를 본다. 마지막에 `nerv_review_handoff.py fetch` 로 처리할 발견을 `<session_dir>/_nerv_findings.json` 에 받는다.
+   라운드를 본다. 반환의 `DONE` 수는 믿지 않고 `nerv_record_verify.py submit` 으로 기록을 대조한다. 마지막에
+   `nerv_review_handoff.py fetch` 로 처리할 발견을 `<session_dir>/_nerv_findings.json` 에 받는다.
 4. **Critical/Warning > 0 → `resolution-applier` 호출 (main 의 명시적 의무)** — 자동으로 따라오지 않는다. main 이 직접 한 줄로 위임한다:
 
    ```
@@ -145,9 +146,9 @@ model: opus
 
    applier 는 코드를 고쳐 발견마다 커밋하고, **처분 목록**(`<session_dir>/_dispositions.json`)을 돌려준다.
    NERV 에는 쓰지 않는다(결정 D9). main 은 `nerv_review_handoff.py check` 로 검사하고 `pending --out` 이
-   쓴 처분 문서를 `nerv-recorder` 에 넘겨 기록한다(`code-review-agents` SKILL §6). 고친 것은 `fixed` +
-   `commit_sha`, 고치지 않는 것은 `wont_fix`/`dismissed` + 근거, 사람 판단이 필요한 것은 `escalated` +
-   `escalate_reason`. critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 반환
+   쓴 처분 문서를 `nerv-recorder` 에 넘겨 기록하고 `nerv_record_verify.py resolve` 로 대조한다
+   (`code-review-agents` SKILL §6). 고친 것은 `fixed` + `commit_sha`, 고치지 않는 것은 `wont_fix`/`dismissed` +
+   근거, 사람 판단이 필요한 것은 `escalated` + `escalate_reason`. critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 반환
    STATUS 의 `ESCALATE` 분기 (SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 —
    처리하기 전엔 턴을 끝내지 않는다. INFO 는 제출 도구(`nerv_review_payload.py`)가 발견 대신 역할 요약에 싣는다. 처분할 INFO 는 `[SPEC-DRIFT]` 뿐이고, applier 가 남긴 그 INFO(`left_to_main`)는 main 이 처분한다(SKILL §4-6).
    - **라운드 뒤 커밋** — push 게이트는 라운드 head 이후의 `codebase/**` 커밋이 code · consistency 라운드의

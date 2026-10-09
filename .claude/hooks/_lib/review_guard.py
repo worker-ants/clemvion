@@ -81,9 +81,10 @@ _default_branch = _git_probe._default_branch
 _current_branch = _git_probe._current_branch
 
 CODE_PREFIX = "codebase/"
-N1_PATH = "/api/v1/projects/{project}/gates/reviews/check"
-# N1 에 함께 묻는 kind. code 는 판정, consistency 는 라운드 이후 커밋의 설명에만 쓴다.
-N1_KINDS = ("code", "consistency")
+# N1 경로와 kind 의 정의는 `_shared/nerv_read.py` 하나다(`nerv_record_verify.py` 도 같은 값을 쓴다).
+# code 는 판정, consistency 는 라운드 이후 커밋의 설명에만 쓴다.
+N1_PATH = _nerv_read.N1_PATH
+N1_KINDS = _nerv_read.N1_KINDS
 # 강제 리뷰어 규칙의 정본(판정 2b). 표준 라이브러리만 쓰는 모듈이라 경로로 불러온다(`_lib` 이름이 훅
 # 패키지와 겹치므로 `sys.path` 로 들이지 않는다).
 _ROUTER_SAFETY = os.path.join(_CLAUDE_DIR, "skills", "code-review-agents", "lib", "router_safety.py")

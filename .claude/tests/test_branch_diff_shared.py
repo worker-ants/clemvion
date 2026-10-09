@@ -28,6 +28,26 @@ orchestrator in-process collides on the name `_lib` (the hook suites put
 `.claude/hooks/_lib` on `sys.path` and `from _lib import project_config` then
 resolves to the wrong package). Standalone runs would pass while `discover`
 fails, so this must not be "fixed" by running the file on its own.
+
+Classes. The README catalog row is a summary; this list is the catalog, so keep THIS list complete.
+
+  - BothOrchestratorsSeeTheSameFilesTest — both orchestrators' entry points against one fixture agree (ordinary
+    changeset, leading-space path, trailing space in the last position, non-ASCII path, unresolvable base).
+  - ThreeDotIsNotNegotiableTest — `A...HEAD` against a base that has advanced.
+  - SharedProbeContractTest — the raw/trimmed split (`_run_git` still trims for the scalar callers, the raw runner keeps
+    stdout verbatim) and the failure reasons `on_error` receives.
+  - NamedCommitProbesTest (NERV Task `CLE-T-CD9131`) — the probes `nerv_review_payload.py` and `nerv_review_handoff.py`
+    use instead of their own `git` calls: `resolve_commit` returns only the full hash git printed, an option-looking
+    revision never reaches git (git is not called at all; `merge_base` also differs in result), `merge_base` is the fork
+    point, `is_ancestor`, `is_full_commit_id` (the one definition of a full hash), `local_branch_tip`, `in_work_tree`,
+    and `branch_diff_files(…, head=…)` diffing a named commit three-dot.
+  - UndecodableGitOutputTest — a path git cannot round-trip does not crash the caller; where "empty on any failure"
+    applies (`branch_diff_files`) and where it deliberately does not (`_run_git_raw`/`_run_git`).
+  - TheWorktreeProbeSeesWhatIsNotCommittedYetTest / TheWorktreeProbeKeepsNonAsciiPaths — `worktree_changed_files` and
+    `_porcelain_path` on real repositories (what `test_plan_guard.py` pinned before NERV cutover stage 3).
+  - TheDiffTextProbeCarriesTheHardeningTest — `diff_text` and its orchestrator call site.
+  - GitProbesAreNotReDuplicatedTest — compares the guards' ASTs and fails on any function whose body is identical in two
+    of them.
 """
 
 from __future__ import annotations
@@ -345,6 +365,74 @@ class NamedCommitProbesTest(unittest.TestCase):
         self.assertTrue(gp.is_ancestor(feat, feat, repo))
         self.assertFalse(gp.is_ancestor(feat, main, repo))
         self.assertFalse(gp.is_ancestor("-h", main, repo))
+
+    def test_an_option_looking_revision_never_reaches_git(self):
+        """"옵션처럼 보이는 값은 git 에 넘기지 않는다"는 약속을 세 함수가 각각 지키는지.
+
+        `resolve_commit` 은 값 뒤에 `^{commit}` 을 붙이고 `is_ancestor` 는 git 이 스스로 거절해서, 가드를 지워도 결과가
+        같다(`None` · `False`). 결과로는 가드를 가를 수 없으므로 git 호출 자체가 없었는지를 본다. `merge_base` 는 결과로도
+        갈린다(아래 테스트: `--octopus` 를 지우면 해시가 나온다).
+        """
+        from unittest import mock
+        gp = self._probe()
+        repo, fork, feat, main = self._repo()
+        with mock.patch.object(gp, "_run_git", wraps=gp._run_git) as run:
+            for bad in ("-h", "--all", "--octopus", "", None):
+                with self.subTest(rev=bad):
+                    self.assertIsNone(gp.resolve_commit(bad, repo))
+                    self.assertIsNone(gp.merge_base(bad, feat, repo))
+                    self.assertIsNone(gp.merge_base(feat, bad, repo))
+                    self.assertFalse(gp.is_ancestor(bad, feat, repo))
+                    self.assertFalse(gp.is_ancestor(feat, bad, repo))
+            self.assertEqual(run.call_count, 0)
+            # 같은 모양의 정상 입력은 git 까지 간다 — 위 단언이 "아무것도 안 부르는 함수" 를 통과시키지 않는다.
+            self.assertEqual(gp.resolve_commit("feat", repo), feat)
+            self.assertEqual(gp.merge_base(main, feat, repo), fork)
+            self.assertTrue(gp.is_ancestor(fork, feat, repo))
+            self.assertEqual(run.call_count, 3)
+
+    def test_merge_base_refuses_the_option_that_changes_its_meaning(self):
+        gp = self._probe()
+        repo, fork, feat, main = self._repo()
+        # 가드가 없었다면 이 호출은 `git merge-base --octopus <main>` 이 되어 main 의 해시를 돌려준다.
+        self.assertEqual(_harness.git_in(repo, "merge-base", "--octopus", main).stdout.strip(), main)
+        self.assertIsNone(gp.merge_base("--octopus", main, repo))
+        self.assertIsNone(gp.merge_base(main, "--octopus", repo))
+
+    def test_full_commit_ids_have_one_definition(self):
+        gp = self._probe()
+        for good in ("a" * 40, "0123456789abcdef" * 4, "f" * 64):
+            with self.subTest(value=good):
+                self.assertTrue(gp.is_full_commit_id(good))
+        for bad in ("a" * 39, "a" * 41, "A" * 40, "g" * 40, "", None, 40, "a" * 40 + "\n"):
+            with self.subTest(value=bad):
+                self.assertFalse(gp.is_full_commit_id(bad))
+        repo, _, feat, _ = self._repo()
+        self.assertTrue(gp.is_full_commit_id(gp.resolve_commit("feat", repo)))
+
+    def test_local_branch_tip_is_the_tip_of_a_branch_that_exists_here(self):
+        gp = self._probe()
+        repo, _, feat, main = self._repo()
+        self.assertEqual(gp.local_branch_tip("feat", repo), feat)
+        self.assertEqual(gp.local_branch_tip("main", repo), main)
+        for unknown in ("no-such-branch", "", None, 7):
+            with self.subTest(branch=unknown):
+                self.assertIsNone(gp.local_branch_tip(unknown, repo))
+        # 브랜치 이름만 본다. 같은 이름의 태그나 해시 문자열은 로컬 브랜치가 아니다.
+        _harness.git_in(repo, "tag", "only-a-tag", feat)
+        self.assertIsNone(gp.local_branch_tip("only-a-tag", repo))
+        self.assertIsNone(gp.local_branch_tip(feat, repo))
+
+    def test_in_work_tree_tells_a_repository_from_a_plain_directory(self):
+        from unittest import mock
+        gp = self._probe()
+        repo, _, _, _ = self._repo()
+        self.assertTrue(gp.in_work_tree(repo))
+        plain = os.path.join(os.path.dirname(repo), "plain")
+        os.mkdir(plain)
+        with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": os.path.dirname(repo)}):
+            self.assertFalse(gp.in_work_tree(plain))
+            self.assertFalse(gp.in_work_tree(os.path.join(plain, "no-such-dir")))
 
     def test_branch_diff_files_can_name_the_reviewed_commit(self):
         gp = self._probe()

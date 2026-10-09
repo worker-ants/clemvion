@@ -294,15 +294,18 @@ class FakeNervServer:
     shape a fake can take without weakening the client.
 
     ``item`` is the kind=code entry of the response (``items[0]``); ``status`` and
-    ``raw`` override the response wholesale. ``requests`` records ``(path, auth)``
-    for every call so a test can assert what was asked and that a token was sent.
+    ``raw`` override the response wholesale. ``route`` answers per request instead:
+    it takes the request path and returns ``(status, body bytes)``, for a tool that
+    reads more than one endpoint. ``requests`` records ``(path, auth)`` for every
+    call so a test can assert what was asked and that a token was sent.
     """
 
     def __init__(self, item: dict | None = None, *, status: int = 200,
-                 raw: bytes | None = None):
+                 raw: bytes | None = None, route=None):
         self.item = item if item is not None else {"kind": "code", "state": "uncovered"}
         self.status = status
         self.raw = raw
+        self.route = route
         self.requests: list[tuple[str, str]] = []
         self._server = None
         self._thread = None
@@ -322,9 +325,14 @@ class FakeNervServer:
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):  # noqa: N802 — http.server's naming
                 fake.requests.append((self.path, self.headers.get("Authorization", "")))
-                body = fake.raw if fake.raw is not None else _json.dumps(
-                    {"branch": "x", "head_sha": None, "items": [fake.item]}).encode()
-                self.send_response(fake.status)
+                status = fake.status
+                if fake.route is not None:
+                    status, body = fake.route(self.path)
+                elif fake.raw is not None:
+                    body = fake.raw
+                else:
+                    body = _json.dumps({"branch": "x", "head_sha": None, "items": [fake.item]}).encode()
+                self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()

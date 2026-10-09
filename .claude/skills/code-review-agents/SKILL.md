@@ -108,8 +108,8 @@ python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_
     --branch <브랜치> --base <merge-base> --head <리뷰한 커밋> --mode <mode> --task <클레임한 Task 키>
 ```
 
-1. 도구는 제출 문서를 `--out` 파일에 쓰고 stdout 에는 요약(역할 · 심각도별 발견 수 · `errors` · `warnings`)만 낸다. **exit 가 0 이 아니면 기록 서브에이전트를 부르지 않는다.** exit 1 이면 요약의 `errors` · `missing_forced` 를 먼저 푼다. 강제 역할 리포트가 빠졌으면 그 reviewer 를 다시 돌린다. 그대로 내면 라운드가 `missing_roles` 로 남는다. 도구는 시작할 때 앞 실행의 `--out` 파일을 지우고, 문서를 만들 수 없는 실패(세션 없음 · kind 미정)도 `ok: false` 문서로 쓴다. 그래서 `--out` 에는 늘 이번 실행의 결과만 있다. 제출 문서 형식의 정본은 도구 docstring 이다.
-   - `--base` · `--head` 는 git 이 풀 수 있는 값(`origin/main`, `HEAD`)을 준다. 도구가 세션 디렉터리의 저장소에서 전체 SHA 로 풀고, `base_sha` 는 둘의 merge-base 로 싣는다(`origin/main` 이 앞서 나가 있어도 `changeset` 에 역삭제가 섞이지 않는다). `--branch` 가 로컬 브랜치로 풀리면 `--head` 가 거기에 닿아야 한다. 짧은 SHA 를 손으로 늘리지 않는다.
+1. 도구는 제출 문서를 `--out` 파일에 쓰고 stdout 에는 요약(역할 · 심각도별 발견 수 · `errors` · `warnings`)만 낸다. **exit 가 0 이 아니면 기록 서브에이전트를 부르지 않는다.** exit 1 이면 요약의 `errors` · `missing_forced` 를 먼저 푼다. 강제 역할 리포트가 빠졌으면 그 reviewer 를 다시 돌린다. 그대로 내면 라운드가 `missing_roles` 로 남는다. `--out` 의 낡은 문서 처리(앞 실행의 파일을 지운다 · exit 2 만 예외다)는 `_shared/out_doc.py` docstring 이 정본이다. 호출자가 지킬 것은 exit 가 0 일 때만 그 파일을 기록 서브에이전트에 넘기는 것 하나다. 제출 문서 형식의 정본은 도구 docstring 이다.
+   - `--base` · `--head` 는 git 이 풀 수 있는 값(`origin/main`, `HEAD`)을 준다. 도구가 세션 디렉터리의 저장소에서 전체 SHA 로 풀고, `base_sha` 는 둘의 merge-base 로 싣는다(`origin/main` 이 앞서 나가 있어도 `changeset` 에 역삭제가 섞이지 않는다). `--branch` 가 로컬 브랜치로 풀리면 `--head` 가 거기에 닿아야 한다. 그래서 `--branch` 는 `--head` 가 속한 브랜치로 준다(리뷰한 체크아웃의 브랜치와 `HEAD` 면 늘 맞는다). 명시 SHA 나 `origin/<브랜치>` 를 줄 때는 로컬 브랜치가 거기까지 와 있어야 하고, 아니면 도구가 오류로 막는다. 세션 디렉터리는 이 저장소 안에 있어야 한다(git 이 거기서 돈다). 짧은 SHA 를 손으로 늘리지 않는다.
    - `--mode` 는 코드 리뷰면 `review`, 일관성 검토면 `spec` · `prep` · `done`(각각 `--spec` · `--impl-prep` · `--impl-done`), merge 세션이면 `coordinate`, spec_coverage 세션이면 `audit` 이다. 도구가 역할마다 `idempotency_key`(`<task>:<kind>:<mode>:<head 앞 9자>:<role>:<내용 해시 8자>[:n]`)를 만든다. Task 가 없는 제출(merge · spec_coverage)은 `--task` 를 빼면 `<task>` 자리에 세션 디렉터리 시각(`<YYYYMMDD>-<hhmmss>`)이 들어간다. 키에 그 역할 묶음(요약 · 발견)의 해시가 들어 있다. 같은 문서를 다시 내면(중간에 끊겨 다시 부를 때) 같은 키라서 재전송으로 한 번만 기록되고, 리포트나 스펙 초안을 고쳐 다시 검토하면 head 가 그대로여도 새 키라서 새 제출로 기록된다. 내용이 같은데 새 제출로 내려면 `--run 2` · `--run 3` 을 준다.
    - `changeset` 은 `--changeset`, 세션 `meta.json`, `git diff --name-only <base_sha>...<head_sha>` 순으로 채운다.
 2. 기록 서브에이전트에 넘긴다. main 은 제출 문서를 읽지 않는다.
@@ -123,6 +123,20 @@ python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_
    - `partial`: `ERROR` 줄의 역할을 확인하고 고친 뒤 같은 파일로 다시 부른다. 이미 낸 역할은 멱등 키 덕분에 한 번만 기록된다.
    - `fatal`: 제출 문서에 문제가 있다. 도구를 다시 돌린다.
    - `rate_limit` · `network`: 같은 파일로 다시 부른다(`rate_limit` 은 `RESET_HINT` 뒤에).
+   - **반환 뒤 대조.** 기록 서브에이전트가 `fatal` 이 아닌 상태로 돌아오면 main 이 NERV 의 기록을 다시 읽어 문서와 대조한다. 반환의 `DONE` 수는 믿지 않는다. 첫 실사용에서 제출 9묶음을 내고 `DONE=8/8` 로, 처분 16건을 모두 기록하고 `DONE=15/15` 로 보고했다. 4.5KB 본문의 "뮤턴트" 를 "뷰턴트" 로 바꿔 보내기도 했다(NERV Task `CLE-T-CD9131`).
+
+     ```bash
+     python3 .claude/tools/nerv_record_verify.py submit <session_dir>/_nerv_payload.json
+     python3 .claude/tools/nerv_record_verify.py resolve <session_dir>/_nerv_resolve.json   # §6 의 2
+     ```
+
+     stdout 은 JSON 한 줄(`missing` · `altered` · `unverified` · `errors`)이고 본문 전문은 싣지 않는다. 형식과 한계의 정본은 도구 docstring 이다.
+     - exit 0: 끝이다. `unverified`(응답에 역할 정보나 필드가 없다 · `merge` · `spec_coverage` 제출의 역할 대조 · `--approval-pending` 으로 넘긴 처분)는 막지 않는다. 이 대조는 문서에 있는 기록만 본다. 기록 서브에이전트가 문서에 없는 발견을 닫거나 제출을 더해도 탐지하지 못한다(도구 docstring 「한계」. 막는 장치는 `nerv-recorder.md` 의 규칙 2 · 3 이다).
+     - exit 1 `missing`: 같은 파일로 기록 서브에이전트를 한 번 더 부르고 다시 대조한다. 멱등 키라서 이미 낸 것은 다시 기록되지 않는다. 그래도 `missing` 이면 main 이 그 항목만 직접 MCP 로 기록한다. 직접 기록이 `idempotency_mismatch` 로 거부되면 앞 제출이 그 역할 묶음을 바꿔 보낸 것이다(제목이 바뀐 발견은 `missing` 으로 나온다). 사용자에게 알린다.
+     - exit 1 `altered`(submit): 기록 서브에이전트를 다시 부르지 않는다. 같은 키로 다른 내용을 보내면 `idempotency_mismatch` 로 거부된다. `body` · `suggestion` 의 글자 변형이면 기록을 그대로 두고 발견 ID 와 필드를 Task heartbeat `progress` 에 남긴다. 원문은 세션 디렉터리에 있다. `severity` · `file` · `line` · `category` 가 바뀌었으면 사용자에게 알린다.
+     - exit 1 `altered`(resolve): 기록 서브에이전트도 main 도 그 처분을 다시 기록하지 않는다. 처분의 멱등 키는 처분 인자의 해시여서, 인자가 바뀐 채 기록된 처분에 올바른 인자를 같은 키로 보내면 submit 과 같은 이유로 `idempotency_mismatch` 로 거부될 수 있다. 이미 처분된 발견을 다시 처분할 수 있는지도 확인하지 않았다. 기록은 그대로 두고 발견 ID 와 필드를 사용자에게 알린다. `rationale` 의 글자 변형이면 Task heartbeat `progress` 에도 남긴다. 원문은 세션 디렉터리의 처분 문서에 있다.
+     - `APPROVAL` 줄로 보고된 처분(resolve): 사람 승인 전에는 NERV 에 처분이 붙지 않으므로 대조가 `missing` 이 된다. 그 발견은 다시 기록하지 않고(승인 요청이 중복된다) ID 를 `--approval-pending <ID>[,<ID>…]` 로 넘겨 대조한다. 그 처분은 `missing` 이 아니라 `unverified` 에 남는다. 승인 뒤 같은 파일로 다시 대조하면 비교한다.
+     - exit 3: 대조하지 못한 사유(`errors`)를 사용자에게 알린다. 기록을 다시 시도하지 않는다.
    - **기록 서브에이전트를 쓸 수 없는 세션**(Agent 목록에 `nerv-recorder` 가 없다. 정의는 세션을 시작할 때 읽힌다)은 main 이 직접 낸다. 제출 문서의 `submissions[]` 마다 아래처럼 부른다.
 
      ```
@@ -149,9 +163,9 @@ python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_
 
 같은 도구가 `.review/merge/…` · `.review/spec-coverage/…` 세션도 제출 묶음으로 바꾼다(kind 는 세션 경로에서 읽는다). 인자는 위 2 와 같고 다른 점만 적는다.
 
-- **merge**(`/merge-coordinate`): analyzer 리포트 하나가 역할 하나다(`merge_conflict_analyzer` · `semantic_conflict_analyzer` · `integration_order_planner` · `cross_branch_spec_analyzer`). 제출은 세션마다 한 번 한다. 통합했으면 Phase 3 커밋 뒤에 내고 `head_sha` 는 그 통합 커밋이다. 통합하지 않고 끝나면(`BLOCK: YES` · confirm 거절) Phase 2 를 마칠 때 내고 `head_sha` 는 그 시점 격리 worktree 의 HEAD(통합 전 base tip)다. `branch` 는 두 경우 모두 격리 worktree 의 브랜치(`integrate-*`)다. `base_sha` 는 base 브랜치의 커밋이다. 키의 `<mode>` 는 `coordinate` 다. 통합을 맡은 NERV Task 가 있으면 `task_id` 를 붙인다.
+- **merge**(`/merge-coordinate`): analyzer 리포트 하나가 역할 하나다(`merge_conflict_analyzer` · `semantic_conflict_analyzer` · `integration_order_planner` · `cross_branch_spec_analyzer`). 제출은 세션마다 한 번 한다. 통합했으면 Phase 3 커밋 뒤에 내고 `head_sha` 는 그 통합 커밋이다. 통합하지 않고 끝나면(`BLOCK: YES` · confirm 거절) Phase 2 를 마칠 때 내고 `head_sha` 는 그 시점 격리 worktree 의 HEAD(통합 전 base tip)다. `branch` 는 두 경우 모두 격리 worktree 의 브랜치(`integrate-*`)이고 `--head` 는 그 브랜치의 끝이다. `base_sha` 는 base 브랜치의 커밋이다. 키의 `<mode>` 는 `coordinate` 다. 통합을 맡은 NERV Task 가 있으면 `task_id` 를 붙인다.
 - **spec_coverage**(`/spec-coverage`)
-  - 제출: 감사기 `SUMMARY.md` 하나가 역할 `spec_coverage` 하나이고 후보 하나가 info 발견 하나다(태그 `confidence:<신뢰도>` · 방향). info 라 라운드를 막지 않는다. 키의 `<mode>` 는 `audit` 다. 도구가 요약의 후보 수보다 적게 읽으면 `warnings[]` 로 알린다. 그때는 감사기 출력 형식을 확인하고 내지 않는다.
+  - 제출: `--branch` 는 감사한 체크아웃의 브랜치(보통 `main`)이고 `--head` 는 감사한 커밋이다. `--head origin/main` 을 주려면 로컬 `main` 이 거기까지 와 있어야 한다(아니면 도구가 막는다). 감사기 `SUMMARY.md` 하나가 역할 `spec_coverage` 하나이고 후보 하나가 info 발견 하나다(태그 `confidence:<신뢰도>` · 방향). info 라 라운드를 막지 않는다. 키의 `<mode>` 는 `audit` 다. 도구가 요약의 후보 수보다 적게 읽으면 `warnings[]` 로 알린다. 그때는 감사기 출력 형식을 확인하고 내지 않는다.
   - 처분: 제출한 세션이 같은 세션 안에서 모두 처분한다. 사람이 고른 후보는 NERV Task 로 올리고 그 Task 를 근거로 `wont_fix`, 나머지는 `dismissed` 로 닫는다. 열린 채 두면 이후 모든 제출 응답에 `carried_over` 로 따라붙는다.
 
 **라운드 뒤 커밋.** push 게이트는 라운드 head 이후의 `codebase/**` 커밋을 두 경우에 새 라운드 없이 통과시킨다. code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하는 경우다(e2e 실패 뒤 후속 수정). 한 커밋이 발견 여럿을 고치면 `finding <ID> · <ID>` 처럼 `finding` 이 든 한 문단에 전체 ID 를 나열한다. 빈 줄로 나뉜 다른 문단의 ID 는 인용으로 세지 않는다. merge 커밋은 충돌을 손으로 푼 `codebase/**` 변경이 있으면 센다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed` 처분과 인용은 main 의 자기 신고이고 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤 변경이 처분한 발견의 범위를 넘으면 새 라운드를 낸다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다.
@@ -222,13 +236,13 @@ STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS
 main 의 기록 순서:
 
 1. `python3 .claude/tools/nerv_review_handoff.py check <session_dir>` — exit 1 이면 기록하지 않고 같은 session_dir 로 applier 를 다시 부른다(처분 파일은 applier 가 쓴다).
-2. `python3 .claude/tools/nerv_review_handoff.py pending <session_dir> --branch <브랜치> --out <session_dir>/_nerv_resolve.json` 이 기록할 처분만 파일에 쓰고 요약(건수 · 처분별 `<ID 끝 8자> <resolution> <severity>`)을 낸다. NERV 에 이미 기록된 처분은 빠진다. 사람이 NERV 에서 바꾼 처분도 덮지 않는다. applier 재호출 · wake 뒤에도 같다. 도구가 쓰기 전에 처분 목록에 `check` 의 검사를 건다(처분이 없는 발견을 세는 검사만 뺀다). 통과하지 못한 목록은 `ok: false` 문서가 되고 요약의 `errors` 에 사유가 있다. **exit 가 0 이 아니면 기록 서브에이전트를 부르지 않는다.** `errors` 를 읽고 applier 를 다시 부르거나 NERV 설정을 고친다. 도구가 시작할 때 앞 실행의 `--out` 파일을 지우므로 낡은 문서가 넘어가지 않는다. exit 0 이면 그 파일을 기록 서브에이전트에 넘긴다.
+2. `python3 .claude/tools/nerv_review_handoff.py pending <session_dir> --branch <브랜치> --out <session_dir>/_nerv_resolve.json` 이 기록할 처분만 파일에 쓰고 요약(건수 · 처분별 `<ID 끝 8자> <resolution> <severity>`)을 낸다. NERV 에 이미 기록된 처분은 빠진다. 사람이 NERV 에서 바꾼 처분도 덮지 않는다. applier 재호출 · wake 뒤에도 같다. 도구가 쓰기 전에 처분 목록에 `check` 의 검사를 건다(처분이 없는 발견을 세는 검사만 뺀다). 통과하지 못한 목록은 `ok: false` 문서가 되고 요약의 `errors` 에 사유가 있다. **exit 가 0 이 아니면 기록 서브에이전트를 부르지 않는다.** `errors` 를 읽고 applier 를 다시 부르거나 NERV 설정을 고친다. 낡은 문서 처리는 §4 의 1 과 같다(`_shared/out_doc.py`). exit 0 이면 그 파일을 기록 서브에이전트에 넘긴다.
 
    ```
    Agent(subagent_type="nerv-recorder", prompt="resolve_file=<session_dir>/_nerv_resolve.json")
    ```
 
-   처분 문서에는 `nerv_finding_resolve` 인자(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`)와 멱등 키가 있다. 반환은 `STATUS=… MODE=resolve DONE=… APPROVAL=<n> OPEN_BLOCKING=<n>` 한 줄과 `APPROVAL` · `ERROR` 줄이다. `APPROVAL` 줄은 critical 을 낮추는 처분이라 사람 승인(A3)을 기다린다는 뜻이다. 그 동안 세션은 `awaiting_input` 이다. `OPEN_BLOCKING` 은 이 브랜치에 남은 열린 critical · warning 수다(`escalated` 처분도 열린 채로 남는다). 기록 서브에이전트를 쓸 수 없는 세션은 main 이 처분 문서의 `dispositions[]` 마다 `nerv_finding_resolve` 를 직접 부른다(§4 의 2 와 같은 조건).
+   처분 문서에는 `nerv_finding_resolve` 인자(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`)와 멱등 키가 있다. 반환은 `STATUS=… MODE=resolve DONE=… APPROVAL=<n> OPEN_BLOCKING=<n>` 한 줄과 `APPROVAL` · `ERROR` 줄이다. `APPROVAL` 줄은 critical 을 낮추는 처분이라 사람 승인(A3)을 기다린다는 뜻이다. 그 동안 세션은 `awaiting_input` 이다. `OPEN_BLOCKING` 은 이 브랜치에 남은 열린 critical · warning 수다(`escalated` 처분도 열린 채로 남는다). 반환의 `DONE` 수는 믿지 않는다. 반환 뒤 `python3 .claude/tools/nerv_record_verify.py resolve <session_dir>/_nerv_resolve.json [--approval-pending <APPROVAL 줄의 발견 ID>,…]` 으로 대조하고 결과는 §4 의 2 「반환 뒤 대조」 대로 처리한다. 기록 서브에이전트를 쓸 수 없는 세션은 main 이 처분 문서의 `dispositions[]` 마다 `nerv_finding_resolve` 를 직접 부른다(§4 의 2 와 같은 조건).
 3. `spec_proposals` 는 아래 `spec` 행대로, `left_to_main`(발견으로 낸 INFO. 보통 `[SPEC-DRIFT]`)은 §4-6 대로 처분한다. main 이 정한 이 처분 몇 건은 main 이 `nerv_finding_resolve` 를 직접 부른다.
 4. `tests` 는 Task 증적(`evidence` kind=test)으로 옮긴다.
 5. push 한다. 게이트 조건은 §4 "라운드 뒤 커밋".

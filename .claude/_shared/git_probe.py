@@ -276,31 +276,69 @@ def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
 _FULL_COMMIT_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 
+def is_full_commit_id(value) -> bool:
+    """True when `value` is a whole commit hash (40 hex, or 64 in a SHA-256 repository).
+
+    The one definition of "full SHA": `resolve_commit` accepts only what matches it, and the handoff tool
+    (`nerv_review_handoff.py`) checks a disposition's `commit_sha` with it instead of a pattern of its own.
+    """
+    return isinstance(value, str) and _FULL_COMMIT_RE.fullmatch(value) is not None
+
+
+def _option_like(*revs) -> bool:
+    """True when any of `revs` is empty, not a string, or starts with `-`.
+
+    git would read such a value as an option, not a revision. Every probe below that takes a caller-supplied
+    revision stops here instead of handing it over. Today's callers pass hashes `rev-parse` already printed, so
+    this is depth, but it is the promise the docstrings make and one helper keeps the three from drifting.
+    (`resolve_commit` appends `^{commit}`, so a leading `-` never forms a real option there and no input tells the
+    guard from git's own refusal. The tests assert that git is not called at all.)
+    """
+    return any(not isinstance(r, str) or not r or r.startswith("-") for r in revs)
+
+
 def resolve_commit(rev: str, cwd: str) -> str | None:
     """`rev` as the full commit hash git resolves it to, or None.
 
     The NERV payload tool records `base_sha` / `head_sha` and builds an idempotency key from them, so a
     short or guessed value must not pass: only what `rev-parse` itself printed counts, and only when it
-    is a commit (`^{commit}` peels tags). A `rev` that starts with `-` is refused instead of being handed
-    to git as an option.
+    is a commit (`^{commit}` peels tags). A `rev` that looks like an option is refused instead of being handed
+    to git (`_option_like`).
     """
-    if not isinstance(rev, str) or not rev or rev.startswith("-"):
+    if _option_like(rev):
         return None
     rc, out, _ = _run_git(["rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"], cwd)
-    return out if rc == 0 and _FULL_COMMIT_RE.fullmatch(out) else None
+    return out if rc == 0 and is_full_commit_id(out) else None
+
+
+def local_branch_tip(branch: str, cwd: str) -> str | None:
+    """Full hash of the local branch `branch` (`refs/heads/<branch>`), or None when this repository has no such branch.
+
+    Worktrees share refs, so a branch checked out in a sibling worktree resolves here too. Both NERV review tools
+    ask this question (is the named branch a local one, and where is its tip); they used to answer it twice.
+    """
+    if not isinstance(branch, str) or not branch:
+        return None
+    return resolve_commit(f"refs/heads/{branch}", cwd)
+
+
+def in_work_tree(cwd: str) -> bool:
+    """True when `cwd` is inside a git work tree. Tells "the session is not in a repository" from "that value is bad"."""
+    rc, out, _ = _run_git(["rev-parse", "--is-inside-work-tree"], cwd)
+    return rc == 0 and out == "true"
 
 
 def merge_base(a: str, b: str, cwd: str) -> str | None:
     """Full hash of the best common ancestor of two commits, or None (no common history, or git failed)."""
-    if not a or not b or a.startswith("-") or b.startswith("-"):
+    if _option_like(a, b):
         return None
     rc, out, _ = _run_git(["merge-base", a, b], cwd)
-    return out if rc == 0 and _FULL_COMMIT_RE.fullmatch(out) else None
+    return out if rc == 0 and is_full_commit_id(out) else None
 
 
 def is_ancestor(sha: str, target: str, cwd: str) -> bool:
     """True when `sha` is `target` or reachable from it."""
-    if not sha or not target or sha.startswith("-") or target.startswith("-"):
+    if _option_like(sha, target):
         return False
     rc, _, _ = _run_git(["merge-base", "--is-ancestor", sha, target], cwd)
     return rc == 0

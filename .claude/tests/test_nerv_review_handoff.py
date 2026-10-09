@@ -8,10 +8,29 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`). 두 LLM 이 손으로 옮
     사유 · critical 하향 금지 · 제안 파일 이름과 존재 · critical/warning 전수 처분).
   - `pending` — NERV 에 이미 기록된 처분은 다시 내지 않는다.
   - CLI — 문제가 있으면 exit 1, 실물 `pull.Nerv` 로 loopback 가짜 서버를 읽는다.
+
+클래스별 목록. `.claude/tests/README.md` 의 카탈로그 행은 요약이고 이 목록이 정본이다. 클래스를 더하면 여기를 먼저 고친다.
+
+  - FetchTest — 커서를 따라 열린 발견을 모두 읽는다(순회 자체는 `_shared/nerv_read.py` 의 것이다). 필드 이름을 인계 스키마로
+    바꾼다. escalated 는 뺀다. 응답 이상 · 끝나지 않는 커서는 `HandoffError`.
+  - CheckTest — `_dispositions.json` 불변식 전부(전체 ID · 한 번씩 · resolution · rationale · fixed 의 전체 해시와 도달성 ·
+    escalate_reason · critical 하향 거부 · 제안 파일 이름 · 전수 처분). fixed 는 리뷰한 브랜치 기준으로 판정하고 없으면
+    HEAD. 전체 해시의 정의는 `git_probe` 하나다.
+  - PendingTest — NERV 에 이미 기록된 처분은 다시 내지 않는다. 모르는 ID 는 `unknown` 이고 exit 1.
+  - PendingOutTest(NERV Task `CLE-T-CD9131`) — `pending --out` 이 `nerv_finding_resolve` 인자 · 심각도 · 멱등 키만 쓴다
+    (인자가 바뀌면 키도 바뀐다). 요약은 근거 문장 없이 `<ID 끝 8자> <resolution> <severity>`. `check` 를 통과하지 못한
+    목록은 `ok: false`. 덜 모인 목록은 통과한 것만 기록한다. NERV 설정 없음 · 읽기 실패 · 인계 파일 없음 · 쓸 수 없는 경로는
+    앞 실행의 파일을 `ok: false` 문서나 보고된 오류로 바꾼다.
+  - OutPathTest — 입력 파일을 `--out` 으로 줘도 거절하고 지키며(exit 2) `pending` 이 죽어도 앞 문서가 남지 않는다.
+    앞 문서를 지우지 못하면 NERV 를 읽기 전에 거절한다(exit 2). 문서 `version` 은 `out_doc.VERSION`. 도구에 자체 git 호출이 없다.
+  - CliTest — 문제가 있으면 exit 1, `fetch` 는 `--branch` 필요, loopback 서버로 REST 경로와 인증 헤더 확인, 설정 누락은 크래시가
+    아니라 오류.
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -159,6 +178,25 @@ class CheckTest(_SessionCase):
                 self.write_dispositions(dispositions)
                 errors = self.errors()
                 self.assertTrue(any(needle in e for e in errors), errors)
+
+    def test_a_full_hash_is_whatever_git_probe_says_it_is(self):
+        # "전체 해시" 의 정의는 `git_probe.is_full_commit_id` 하나다. SHA-256 길이(64자)는 형식 검사를 지나 도달성에서 걸린다.
+        # 40자만 받는 자체 패턴이 남아 있으면 같은 값이 "40자" 오류로 먼저 걸린다.
+        ok_warn = {"finding_id": WARN, "resolution": "wont_fix", "rationale": "근거"}
+        self.write_dispositions([self.fixed(CRIT, "ab" * 32), ok_warn])
+        errors = self.errors()
+        self.assertTrue(any("닿지 않는다" in e for e in errors), errors)
+        self.assertFalse(any("40자" in e for e in errors), errors)
+        self.write_dispositions([self.fixed(CRIT, "AB" * 20), ok_warn])  # 대문자는 git 이 내는 모양이 아니다
+        self.assertTrue(any("40자" in e for e in self.errors()))
+
+    def test_the_reviewed_branch_target_is_resolved_through_git_probe(self):
+        _harness.git_in(self.repo, "branch", "reviewed")
+        cwd = str(self.sd)
+        self.assertEqual(tool._ancestor_target("reviewed", cwd), "refs/heads/reviewed")
+        for unknown in ("no-such-branch", "", None, 7):
+            with self.subTest(branch=unknown):
+                self.assertEqual(tool._ancestor_target(unknown, cwd), "HEAD")
 
     def test_escalated_with_a_reason_and_critical_escalation_pass(self):
         self.write_dispositions([
@@ -406,6 +444,69 @@ class PendingOutTest(_SessionCase):
                            capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 2)
         self.assertFalse(self.out.exists())
+
+
+class OutPathTest(_SessionCase):
+    """`--out` 이 낡은 문서를 치우는 규칙(`_shared/out_doc.py`)을 이 도구가 어떻게 거는지."""
+
+    def setUp(self):
+        super().setUp()
+        self.out = self.sd / "_nerv_resolve.json"
+        self.write_findings(item(WARN, "warning"))
+        self.write_dispositions([self.fixed(WARN)])
+
+    def run_pending(self, target):
+        env = {"NERV_SERVER": "http://127.0.0.1:9", "NERV_TOKEN": "tok-9", "PATH": os.environ.get("PATH", "")}
+        return subprocess.run([sys.executable, str(TOOL_PATH), "pending", str(self.sd), "--branch", "feature",
+                               "--out", str(target)], capture_output=True, text=True, timeout=60, env=env)
+
+    def test_the_input_files_are_refused_as_an_out_path_and_survive(self):
+        # `--out` 을 입력 파일로 잘못 주면 NERV 읽기가 실패하는 실행에서 applier 가 쓴 처분 파일이 사라졌다.
+        for name in ("_dispositions.json", "_nerv_findings.json"):
+            with self.subTest(name=name):
+                target = self.sd / name
+                before = target.read_bytes()
+                r = self.run_pending(target)
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertIn("이 도구가 쓴 --out 문서가 아니다", r.stderr)
+                self.assertEqual(target.read_bytes(), before)
+
+    def test_a_previous_file_that_cannot_be_removed_is_refused_before_any_work(self):
+        # 지우지 못하는 디렉터리에는 쓰지도 못해서 앞 실행의 ok:true 문서가 남는다. NERV 를 읽기 전에 exit 2 로 끝낸다.
+        self.out.write_text(json.dumps({"version": 1, "ok": True, "dispositions": []}), encoding="utf-8")
+        before = self.out.read_bytes()
+        err = io.StringIO()
+        with mock.patch.object(tool.out_doc.os, "unlink", side_effect=PermissionError(13, "Permission denied")), \
+                mock.patch.object(tool.nerv_read, "client_from_env", side_effect=AssertionError("NERV 를 읽었다")), \
+                contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as caught:
+            tool.main(["pending", str(self.sd), "--branch", "feature", "--out", str(self.out)])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("지우지 못했다", err.getvalue())
+        self.assertEqual(self.out.read_bytes(), before)
+
+    def test_the_previous_file_is_removed_before_the_work_so_a_crash_leaves_no_stale_document(self):
+        # `pending` 이 잡히지 않는 예외로 죽는 경우. 시작할 때 지우는 호출이 없으면 앞 실행의 ok:true 문서가 남는다.
+        self.out.write_text(json.dumps({"version": 1, "ok": True, "dispositions": []}), encoding="utf-8")
+        with mock.patch.object(tool.nerv_read, "client_from_env", return_value=FakeClient()), \
+                mock.patch.object(tool, "pending", side_effect=RuntimeError("boom")), \
+                self.assertRaises(RuntimeError):
+            tool.main(["pending", str(self.sd), "--branch", "feature", "--out", str(self.out)])
+        self.assertFalse(self.out.exists())
+
+    def test_the_documents_carry_the_shared_version(self):
+        # 입력 파일의 VERSION 과 `--out` 문서의 version 은 다른 것이다. 문서는 `out_doc.VERSION` 을 쓴다.
+        out = {"ok": True, "pending": [self.fixed(WARN)], "already_recorded": [], "unknown": []}
+        with mock.patch.object(tool.out_doc, "VERSION", 7), mock.patch.object(tool, "VERSION", 1):
+            self.assertEqual(tool.resolve_document(str(self.sd), "feature", out)["version"], 7)
+
+    def test_the_tool_has_no_git_calls_of_its_own(self):
+        # git 호출은 `_shared/git_probe` 의 공개 함수로만 한다. 비공개 `_run_git` 을 직접 부르거나 `git` 인자를 손으로 조립하면
+        # 같은 질문("이 이름이 로컬 브랜치인가")이 도구마다 다른 구현이 된다.
+        source = TOOL_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("subprocess", source)
+        self.assertNotIn('"git"', source)
+        self.assertNotRegex(source, r"git_probe\._")
+        self.assertNotIn("_FULL_SHA", source)
 
 
 class CliTest(_SessionCase):
