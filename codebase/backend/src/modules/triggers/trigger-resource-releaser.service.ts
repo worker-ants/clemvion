@@ -18,7 +18,7 @@ import {
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from './trigger-config-lock';
 import {
-  deleteTriggerSecretsAfterCommit,
+  cleanUpDeletedTriggersAfterCommit,
   LockedParentTriggers,
   TriggerParent,
   TriggerResourceReleasePort,
@@ -116,15 +116,26 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     triggerIds: readonly string[],
     caller: string,
   ): Promise<void> {
-    await deleteTriggerSecretsAfterCommit(
-      this.secrets,
-      this.logger,
+    // 비밀 삭제 뒤 그 트리거들의 트리거 단위 토큰으로 연 SSE 스트림을 닫는다. 닫을 트리거는 비밀 삭제가 쓰는
+    // 열거를 그대로 쓰고 새 조회를 더하지 않는다. 스케줄 삭제도 같은 함수를 부른다.
+    await cleanUpDeletedTriggersAfterCommit(
+      { secrets: this.secrets, moduleRef: this.moduleRef, logger: this.logger },
       triggerIds,
       caller,
     );
-    // 트리거가 사라지면 그 트리거 단위 토큰도 무효가 된다 — 그 토큰으로 연 SSE 스트림을 닫는다(best-effort,
-    // 이 서버 인스턴스만). 닫을 트리거는 비밀 삭제가 쓰는 열거를 그대로 쓰고 새 조회를 더하지 않는다.
-    // 근거: [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제)
+  }
+
+  /**
+   * 트리거 단위 토큰이 무효가 된 트리거들의 SSE 스트림을 닫는다(best-effort, 던지지 않는다). 재발급(`revoke-token`)과
+   * PATCH 가 전략을 바꿔 토큰을 지울 때 `TriggersService` 가 커밋 **뒤에** 부른다. 삭제 경로는 이 메서드가 아니라
+   * {@link releaseSecretsAfterCommit} 이 닫는다.
+   *
+   * 포트를 지연 해석하는 `ModuleRef` 를 이 서비스 한 곳에만 둔다 — `TriggersService` 가 직접 쥐지 않게 한다.
+   */
+  closeTriggerTokenStreams(
+    triggerIds: readonly string[],
+    caller: string,
+  ): void {
     closeTriggerTokenStreams(this.moduleRef, triggerIds, this.logger, caller);
   }
 

@@ -118,6 +118,26 @@ describe('TriggerResourceReleaserService', () => {
     });
   });
 
+  // `TriggersService` 가 재발급 · 전략 변경 PATCH 뒤에 부른다. `ModuleRef` 를 이 서비스 한 곳에만 둔다.
+  describe('closeTriggerTokenStreams', () => {
+    it('포트를 지연 해석해 닫을 트리거를 넘긴다', () => {
+      const { service, closer, moduleRef } = make({});
+      service.closeTriggerTokenStreams(['t1'], 'caller');
+      expect(moduleRef.get).toHaveBeenCalledTimes(1);
+      expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+    });
+
+    it('닫기 포트를 찾지 못해도 던지지 않는다', () => {
+      const { service, moduleRef } = make({});
+      moduleRef.get.mockImplementation(() => {
+        throw new Error('not found');
+      });
+      expect(() =>
+        service.closeTriggerTokenStreams(['t1'], 'caller'),
+      ).not.toThrow();
+    });
+  });
+
   describe('releaseExternalForParent', () => {
     it('부모 밑 트리거마다 teardown · listener unregister(chat-channel R8) 를 하고, schedule job 을 해제한다', async () => {
       const { service, events, triggerRepository } = make({

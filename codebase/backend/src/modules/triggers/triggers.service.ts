@@ -11,7 +11,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import {
@@ -55,7 +54,6 @@ import {
   notificationWithSigningRef,
   signingWithRef,
 } from './notification-signing-secret';
-import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
@@ -332,20 +330,7 @@ export class TriggersService {
     private readonly scheduleRunner: ScheduleRunnerService,
     private readonly chatChannelBinder: ChatChannelBinderService,
     private readonly resourceReleaser: TriggerResourceReleaserService,
-    // SSE 스트림 닫기 포트를 지연 해석한다 — `interaction-stream-closer.ts` 참조.
-    private readonly moduleRef: ModuleRef,
   ) {}
-
-  /**
-   * 트리거 단위 토큰이 무효가 된 트리거들의 SSE 스트림을 닫는다. 커밋 뒤에 부르고 best-effort 다.
-   * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰)
-   */
-  private closeTriggerTokenStreams(
-    triggerIds: readonly string[],
-    caller: string,
-  ): void {
-    closeTriggerTokenStreams(this.moduleRef, triggerIds, this.logger, caller);
-  }
 
   async findAll(
     workspaceId: string,
@@ -1064,7 +1049,10 @@ export class TriggersService {
         .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // 전략이 바뀌어 토큰을 지웠으면 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
     if (droppedTriggerToken) {
-      this.closeTriggerTokenStreams([saved.id], 'TriggersService.update');
+      this.resourceReleaser.closeTriggerTokenStreams(
+        [saved.id],
+        'TriggersService.update',
+      );
     }
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
     // 마이그레이션, chatChannel setup)는 전부 실패할 수 있는 외부 호출이라, 그 뒤로 미루면
@@ -1608,7 +1596,7 @@ export class TriggersService {
     });
     // 옛 토큰으로 연 SSE 스트림을 닫는다 — 이 서버 인스턴스의 구독자만(best-effort).
     // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) 의 `revoke-token` 행, REQ-TRIG-041.
-    this.closeTriggerTokenStreams(
+    this.resourceReleaser.closeTriggerTokenStreams(
       [trigger.id],
       'TriggersService.revokePerTriggerToken',
     );

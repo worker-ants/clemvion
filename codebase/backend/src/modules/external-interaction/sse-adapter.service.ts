@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { WebsocketService } from '../websocket/websocket.service';
+import type { InteractionStreamCloserPort } from './interaction-stream-closer';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 const BUFFER_RETENTION_MS = 5 * 60 * 1000; // 5분 (Spec EIA §3.5 EIA-NF-03)
@@ -61,7 +62,9 @@ export interface SseSubscriber {
  * v1 은 single-instance in-memory — 분산 SSE fan-out 은 follow-up.
  */
 @Injectable()
-export class SseAdapter implements OnModuleInit, OnModuleDestroy {
+export class SseAdapter
+  implements OnModuleInit, OnModuleDestroy, InteractionStreamCloserPort
+{
   private readonly logger = new Logger(SseAdapter.name);
   private readonly buffers = new Map<string, BufferedEntry[]>();
   private readonly subscribers = new Map<string, Set<SseSubscriber>>();

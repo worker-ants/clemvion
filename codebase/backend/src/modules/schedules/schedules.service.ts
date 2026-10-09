@@ -20,8 +20,7 @@ import {
   acquireTriggerConfigLock,
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from '../triggers/trigger-config-lock';
-import { deleteTriggerSecretsAfterCommit } from '../triggers/trigger-resource-release';
-import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
+import { cleanUpDeletedTriggersAfterCommit } from '../triggers/trigger-resource-release';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
@@ -380,22 +379,18 @@ export class SchedulesService {
           );
           throw err;
         });
-      // **커밋된 뒤에** 그 트리거의 비밀을 지운다(spec 트리거 목록 §4.3). 스케줄 트리거도
-      // `notification` 서명 비밀을 가질 수 있다 — DTO 에 타입 제한이 없다. `TriggerResourceReleaserService`
-      // 를 쓰지 않는 이유는 모듈 순환(`TriggersModule → SchedulesModule`)이라 정책 함수를 직접 부른다.
-      await deleteTriggerSecretsAfterCommit(
-        this.secrets,
-        this.logger,
+      // **커밋된 뒤에** 그 트리거의 비밀을 지우고(spec 트리거 목록 §4.3) 그 트리거 단위 토큰으로 연 SSE 스트림을
+      // 닫는다. 스케줄 트리거도 `notification` 서명 비밀을 가질 수 있다 — DTO 에 타입 제한이 없다.
+      // `TriggerResourceReleaserService` 를 쓰지 않는 이유는 모듈 순환(`TriggersModule → SchedulesModule`)이라
+      // 정책 함수를 직접 부른다. 그 서비스의 `releaseSecretsAfterCommit` 과 같은 함수다 — 네 삭제 경로가 같은
+      // 순서를 지나게 한다.
+      await cleanUpDeletedTriggersAfterCommit(
+        {
+          secrets: this.secrets,
+          moduleRef: this.moduleRef,
+          logger: this.logger,
+        },
         [triggerId],
-        'SchedulesService.remove',
-      );
-      // 트리거가 사라지면 그 트리거 단위 토큰도 무효다 — 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
-      // `TriggerResourceReleaserService.releaseSecretsAfterCommit` 와 같은 순서다(위 비밀 삭제와 같은 이유로
-      // 그 서비스를 쓰지 않는다). 근거: [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제)
-      closeTriggerTokenStreams(
-        this.moduleRef,
-        [triggerId],
-        this.logger,
         'SchedulesService.remove',
       );
       // 스케줄 행은 위 트리거 삭제의 FK CASCADE(`schedule.trigger_id`, `onDelete: 'CASCADE'`)가 이미
