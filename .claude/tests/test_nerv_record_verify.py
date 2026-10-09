@@ -286,7 +286,7 @@ class ResolveTest(unittest.TestCase):
         self.records = [
             record(1, f, status="fixed", resolution_kind="fixed", resolution_rationale="고쳤다",
                    resolution_commit=FIX_SHA),
-            record(2, f, status="wont_fix", resolution_kind="wont_fix", resolution_rationale="다음 Task 로 넘긴다"),
+            record(2, f, status="wont_fix", resolution_kind="deferred", resolution_rationale="다음 Task 로 넘긴다"),
             record(3, f, status="open", resolution_kind="escalated", resolution_rationale="도커"),
         ]
 
@@ -297,6 +297,17 @@ class ResolveTest(unittest.TestCase):
         out = self.run_doc()
         self.assertEqual(out, {"ok": True, "mode": "resolve", "checked": 3, "missing": [], "altered": [],
                                "unverified": [], "errors": []})
+
+    def test_recorded_name_of_wont_fix_is_deferred(self):
+        # 실제 NERV 는 wont_fix 처분을 resolution_kind "deferred" 로 기록한다. 같은 이름으로 기록돼도 일치로 본다.
+        for kind in ("deferred", "wont_fix"):
+            with self.subTest(kind=kind):
+                records = [self.records[0], dict(self.records[1], resolution_kind=kind), self.records[2]]
+                self.assertEqual(self.run_doc(records)["altered"], [])
+        # 이름을 바꿔 읽는 것이 다른 처분을 가리지 않는다.
+        self.doc["dispositions"][1]["resolution"] = "dismissed"
+        (line,) = self.run_doc()["altered"]
+        self.assertEqual(line, f'{fid(2)[-8:]} resolution "dismissed" != "wont_fix"')
 
     def test_each_field_is_compared(self):
         long_reason = "근거 " * 300

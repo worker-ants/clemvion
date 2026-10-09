@@ -28,7 +28,9 @@
     고른다. 찾으면 severity · body(기록의 `detail_md`) · suggestion(`suggestion_md`) · file(`file_path`) ·
     line(`line_start`) · category 를 비교한다. 제목으로 찾지 못하면 `missing` 이다.
 `resolve` 가 보는 것: 같은 발견 목록에서 처분의 `finding_id` 기록을 찾아 resolution(기록의 `resolution_kind`) ·
-rationale(`resolution_rationale`) · commit_sha(`resolution_commit`)를 비교한다. 기록이 없거나 처분이 붙지 않았으면
+rationale(`resolution_rationale`) · commit_sha(`resolution_commit`)를 비교한다. NERV 는 `wont_fix` 처분을
+`resolution_kind` `deferred` 로 기록하므로 비교 전에 `RECORDED_RESOLUTION` 으로 처분 이름으로 바꾼다(2026-10-09
+조회에서 `status=wont_fix` 발견 1,502건이 모두 `deferred` 였다). 기록이 없거나 처분이 붙지 않았으면
 (`resolution_kind` 가 null 이거나 비었으면) `missing` 이다. 기록에 `resolution_kind` 키가 아예 없으면 처분이 붙었는지
 알 수 없으므로 그 처분은 `unverified` 로 두고 `missing` 으로 세지 않는다(응답 스키마가 바뀌었을 때 처분을 모두 기록하고도
 거짓 `missing` 으로 기록 서브에이전트를 다시 부르는 일을 막는다).
@@ -113,6 +115,8 @@ RESOLVE_FIELDS = (
     ("rationale", "resolution_rationale"),
     ("commit_sha", "resolution_commit"),
 )
+# 기록의 `resolution_kind` → `nerv_finding_resolve` 의 resolution. 여기 없는 값은 이름이 같다.
+RECORDED_RESOLUTION = {"deferred": "wont_fix"}
 
 EXIT_OK, EXIT_MISMATCH, EXIT_UNVERIFIABLE = 0, 1, 3
 
@@ -346,6 +350,8 @@ def verify_resolve(doc: dict, client, approval_pending: list[str] | tuple[str, .
             else:
                 report.missing.append(_short_id(fid))
             continue
+        kind = _text(record.get("resolution_kind"))
+        record = dict(record, resolution_kind=RECORDED_RESOLUTION.get(kind, kind))
         for field, a, b in diff_fields(d, record, RESOLVE_FIELDS, report):
             report.altered.append(_altered_line(fid, None, field, a, b))
     return report
