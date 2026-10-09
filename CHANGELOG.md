@@ -27,7 +27,7 @@
 
 초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route
 group 이라 실제 경로가 `/register` 이고 `/auth/register` 라우트는 없었다. 그래서 로그인하지 않은 받는 사람은 인증
-proxy 에 걸려 `/login` 으로 튕겼고 초대 가입 화면에 닿지 못했다(NERV 발견 `01a0e542-19b9-7216-893a-9a25374cff3d`).
+proxy 에 걸려 `/login` 으로 튕겼고 초대 가입 화면에 닿지 못했다(NERV 발견 `01a0e542-19b9-7216-893a-9257d820e72e`).
 
 - 메일 링크를 `/register?invitationToken=…` 으로 만든다(`mail.service.ts`).
 - 이미 발송된 메일을 위해 프런트엔드 proxy 가 `/auth/register` 를 쿼리를 그대로 둔 채 `/register` 로 redirect 한다.
