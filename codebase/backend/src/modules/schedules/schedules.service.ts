@@ -9,6 +9,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
@@ -20,6 +21,7 @@ import {
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from '../triggers/trigger-config-lock';
 import { deleteTriggerSecretsAfterCommit } from '../triggers/trigger-resource-release';
+import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
@@ -57,6 +59,8 @@ export class SchedulesService {
     private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunnerService: ScheduleRunnerService,
     private readonly secrets: SecretResolverService,
+    // SSE 스트림 닫기 포트를 지연 해석한다 — `interaction-stream-closer.ts` 참조.
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -383,6 +387,15 @@ export class SchedulesService {
         this.secrets,
         this.logger,
         [triggerId],
+        'SchedulesService.remove',
+      );
+      // 트리거가 사라지면 그 트리거 단위 토큰도 무효다 — 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
+      // `TriggerResourceReleaserService.releaseSecretsAfterCommit` 와 같은 순서다(위 비밀 삭제와 같은 이유로
+      // 그 서비스를 쓰지 않는다). 근거: [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제)
+      closeTriggerTokenStreams(
+        this.moduleRef,
+        [triggerId],
+        this.logger,
         'SchedulesService.remove',
       );
       // 스케줄 행은 위 트리거 삭제의 FK CASCADE(`schedule.trigger_id`, `onDelete: 'CASCADE'`)가 이미

@@ -38,6 +38,15 @@ export interface SseSubscriber {
   executionId: string;
   /** 본 구독자에게 push 할 채널 (Subject). 종료 시 complete. */
   push: (event: ExecutionChannelEvent) => void;
+  /**
+   * 스트림을 연 토큰 family. `itk` 이고 `triggerId` 가 있으면 {@link SseAdapter.closeTriggerTokenStreams}
+   * 의 대상이다. 없으면(테스트 대역 등) 닫기 대상이 아니다.
+   */
+  tokenFamily?: 'iext' | 'itk';
+  /** `itk` 스트림의 트리거 id. `iext` 는 `null`. */
+  triggerId?: string | null;
+  /** 서버가 스트림을 끝낼 때 부른다 — 응답 종료와 heartbeat 정리. 구독 해제는 어댑터가 한다. */
+  close?: () => void;
 }
 
 /**
@@ -175,6 +184,41 @@ export class SseAdapter implements OnModuleInit, OnModuleDestroy {
     if (set.size === 0) {
       this.subscribers.delete(subscriber.executionId);
     }
+  }
+
+  /**
+   * 트리거 단위 토큰(`itk_*`)이 무효가 된 트리거들의 스트림을 닫는다 — `InteractionStreamCloserPort` 구현.
+   *
+   * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰). 새 이벤트 이름은 만들지 않고
+   * 응답을 끝낸다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 실행 단위 토큰으로 연
+   * 스트림은 대상이 아니다. 이 서버 인스턴스의 구독자만 닫는다(NERV Task `CLE-T-Z35F7P`).
+   *
+   * 한 구독자의 `close` 가 던져도 나머지를 계속 닫는다. 구독 해제를 먼저 해 두므로 던진 구독자도 더는
+   * 이벤트를 받지 않는다.
+   */
+  closeTriggerTokenStreams(triggerIds: readonly string[]): number {
+    if (triggerIds.length === 0) return 0;
+    const targets = new Set(triggerIds);
+    // 해제가 맵과 집합을 지우므로 복사본을 돈다.
+    const matched = Array.from(this.subscribers.values())
+      .flatMap((set) => Array.from(set))
+      .filter(
+        (s) =>
+          s.tokenFamily === 'itk' &&
+          typeof s.triggerId === 'string' &&
+          targets.has(s.triggerId),
+      );
+    for (const subscriber of matched) {
+      this.unsubscribe(subscriber);
+      try {
+        subscriber.close?.();
+      } catch (err) {
+        this.logger.warn(
+          `SseAdapter close 실패 (id=${subscriber.id}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return matched.length;
   }
 
   /**

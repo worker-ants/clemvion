@@ -55,9 +55,10 @@ export class NotificationSigningDto {
  * Outbound notification 의 재시도 정책.
  */
 export class NotificationRetryDto {
-  /** 재시도 최대 횟수 (default 5, max 10). */
+  /** 첫 시도를 포함한 총 시도 횟수 (default 5, max 10). 0 은 1(재시도 없음)로 본다. */
   @ApiPropertyOptional({
-    description: 'HTTP 2xx 가 아닐 때 재시도 최대 횟수.',
+    description:
+      '첫 시도를 포함한 총 시도 횟수. HTTP 2xx 가 아니면 남은 횟수만큼 다시 보낸다. 0 은 1(재시도 없음)로 본다.',
     minimum: 0,
     maximum: 10,
     default: 5,

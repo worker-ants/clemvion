@@ -149,7 +149,7 @@ export const triggers: Dict["triggers"] = {
       "Allow external systems to respond to interactive nodes (Form / Buttons / AI Multi-Turn) in workflows started by this trigger.",
     notification: "Notification Webhook (Outbound)",
     notificationDescription:
-      "Pushes workflow events to an external URL. HMAC-SHA256 signed. 5 automatic retries.",
+      "Pushes workflow events to an external URL. HMAC-SHA256 signed. On failure, sends up to 5 attempts by default, including the first.",
     notificationUrl: "Destination URL",
     notificationEvents: "Subscribed events",
     notificationSecretRotate: "Rotate secret",
@@ -182,6 +182,7 @@ export const triggers: Dict["triggers"] = {
       "New secret issued. Distribute to your external system immediately.",
     rotateFailed: "Secret rotation failed",
     rotateNewSecret: "New secret (shown once)",
+    issuedNotificationSecret: "New notification signing secret (shown once)",
     revokeConfirm:
       "The existing per-trigger token will be invalidated immediately. Proceed?",
     revokeSucceeded:
@@ -199,7 +200,7 @@ export const triggers: Dict["triggers"] = {
     // [R-7] EIA card read-mode dt labels i18n
     eventsLabel: "Events",
     algorithmLabel: "Algorithm",
-    retryAttemptsLabel: "Retry attempts",
+    retryAttemptsLabel: "Max attempts",
     endpointsLabel: "Endpoints",
   },
   // [Spec Chat Channel §4.1 / §5.4 + spec 2-trigger-list §2.3.1 / R-8]

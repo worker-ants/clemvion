@@ -132,10 +132,16 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * ## 왜 필요한가
  *
- * **배선**: `trigger.config` 를 다시 쓰는 자리는 **창 1 하나를 빼고 전부** 이 함수를 지난다.
- * 창 1(`TriggersService.update()`)만 예외다 — `save(entity)` 의 계약(반환 엔티티·subscriber·
- * `endpointPath` UNIQUE 충돌 경로)을 보존해야 해서 같은 락을 **인라인으로** 잡는다.
- * `acquireTriggerConfigLock` 은 공유하지만 이 함수는 거치지 않는다.
+ * **배선**: `trigger.config` 를 다시 쓰는 자리는 아래 예외를 빼고 전부 이 함수를 지난다. 예외는 같은 락을
+ * **인라인으로** 잡는다 — `acquireTriggerConfigLock` 은 공유하지만 이 함수는 거치지 않는다.
+ *
+ * - 창 1(`TriggersService.update()`) — `save(entity)` 의 계약(반환 엔티티·subscriber·`endpointPath` UNIQUE
+ *   충돌 경로)을 보존해야 한다.
+ * - 알림 서명 시크릿의 판정과 시크릿 저장소 쓰기를 같은 잠금 안에서 해야 하는 자리 — 생성의
+ *   `settleCreatedNotificationSigning`, 승격의 `promoteOneLocked`(NERV Task `CLE-T-M6PERB`). 이 함수의 `merge` 는
+ *   동기라 그 안에서 시크릿 저장소에 쓸 수 없다. 지금 백엔드는 같은 DB 의 `secret_store` 테이블이라 아래 «외부
+ *   호출을 락 안에 두지 않는다» 제약에 걸리지 않는다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
+ * - 시크릿 교체(`rotateNotificationSecret`)는 `config` 를 쓰지 않지만 승격과 같은 컬럼을 쓰므로 같은 락을 잡는다.
  *
  * > **호출부를 세어 적지 않는다.** 한때 «창 2·3·4» 라고 못박아 뒀는데, 그 뒤 세 자리가 더
  * > 전환되면서 그 문장이 **과소 서술**이 됐다 — 같은 문장을 세 라운드에 걸쳐 «과대» 방향으로
@@ -188,7 +194,7 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *   | `revokePerTriggerToken` (동기 요청) | **404** — 위와 같은 이유 |
  *   | binder 성공/실패 경로 (저장 **뒤**의 best-effort 후속) | **`false` 로 감춘다** — 이미 응답이 나갔고, 실패를 던지면 성공한 저장을 되돌리는 것처럼 보인다 |
  *   | `normalizeNotificationSecretRef` (요청 안의 정규화 부수 단계) | **관측하지 않는다** — 후속 등재분(9라운드 INFO#6) |
- *   | `promoteRotatedNotificationSecrets` (cron) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
+ *   | `promoteRotatedNotificationSecrets` (cron, 같은 락을 인라인으로) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
  *
  *   `cleanupRotatedChatChannelTokens` 는 **이 표에 없다** — 이 함수를 거치지 않고 컬럼만
  *   직접 갱신하기 때문이다(`config` 미접촉). 한때 «cron 두 곳» 으로 묶어 적었는데, 그러면

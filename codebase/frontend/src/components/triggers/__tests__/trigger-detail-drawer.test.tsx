@@ -351,6 +351,48 @@ describe("TriggerDetailDrawer", () => {
     });
   });
 
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어) 외부 인터랙션 카드 —
+  // 저장 응답에 실린 첫 알림 서명 시크릿 평문을 한 번 보여 준다. 서버는 다시 보여 주지 않는다.
+  it("External Interaction 저장 응답에 첫 알림 서명 시크릿이 있으면 한 번 보여 준다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    apiPatchMock.mockResolvedValueOnce({
+      data: {
+        data: {
+          id: "t-1",
+          secrets: { notificationSigningSecret: "wsk_issued_once" },
+        },
+      },
+    });
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("New notification signing secret (shown once)"),
+    ).toBeInTheDocument();
+    // 가려 둔 채로 보여 준다 — «표시» 를 눌러야 평문이 보인다.
+    expect(screen.queryByText("wsk_issued_once")).not.toBeInTheDocument();
+  });
+
+  it("External Interaction 저장 응답에 시크릿이 없으면 상자를 띄우지 않는다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    apiPatchMock.mockResolvedValueOnce({ data: { data: { id: "t-1" } } });
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(
+      screen.queryByText("New notification signing secret (shown once)"),
+    ).not.toBeInTheDocument();
+  });
+
   it("External Interaction 저장 실패 시 error toast 를 띄우고 edit 모드를 유지한다", async () => {
     mockApi(WEBHOOK_TRIGGER, []);
     apiPatchMock.mockRejectedValueOnce(new Error("boom"));

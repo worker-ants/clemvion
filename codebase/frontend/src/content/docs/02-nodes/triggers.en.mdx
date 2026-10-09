@@ -213,7 +213,11 @@ POST /api/triggers
 ```
 </Example>
 
-The response returns `notification.secret` (`wsk_*`) and, for `tokenStrategy="per_trigger"`, `interaction.triggerToken` (`itk_*`) **in plaintext exactly once** at creation. They are masked in every subsequent read, so store them safely right away.
+When you create a trigger with `notification`, the server issues a notification signing secret (`wsk_*`). The plaintext appears **exactly once**, in the create response at `data.secrets.notificationSigningSecret`. When a later PATCH attaches `notification` for the first time, the plaintext appears once in the same place. No later response carries it, so store it safely right away. If you saved from the trigger screen, the External Interaction card shows the plaintext once and clears it after 60 seconds.
+
+Once a trigger has a secret, a PATCH that changes `notification` keeps the same secret. Use secret rotation below to change it.
+
+The per-trigger token (`itk_*`) for `tokenStrategy="per_trigger"` is not in the create response. After setting `per_trigger`, call `POST /api/triggers/:id/interaction/revoke-token`; its response carries the plaintext once at `data.token`.
 
 ### How outbound Notification works
 
@@ -221,12 +225,13 @@ The response returns `notification.secret` (`wsk_*`) and, for `tokenStrategy="pe
 - Signing is Stripe-style — `X-Clemvion-Signature: t=<unix>,v1=<hex>` header. Verifiers should require `timestamp ± 5 minutes` and use timing-safe comparison.
 - Retries for the same event keep the same `X-Clemvion-Delivery: <uuid>` header. Dedupe on this UUID (delivery is at-least-once).
 - The payload's `seq` is a monotonic counter inside the execution and shares the same value with the SSE stream's `id` field — so you can subscribe to both channels and still order + dedupe correctly.
-- 2xx is the only success. Anything else / timeout (10s) → exponential backoff (default 5 attempts: 1s · 4s · 16s · 64s · 256s).
+- 2xx is the only success. On any other response or a timeout (10s), the server resends with delays that start at 1s and grow 4x each time (1s · 4s · 16s · 64s …).
+- `retry.maxAttempts` is the total number of attempts, including the first. The default is 5 and the maximum is 10; 0 is treated as 1 (no resend).
 - After the final retry fails, the trigger's `notificationHealth` flips to `degraded` and the trigger detail panel shows the state. **The trigger itself is not auto-disabled** — workflow execution keeps accepting webhooks. You toggle it off explicitly if that's what you want.
 - URLs must be `https://` (dev exception with `ALLOW_HTTP_HOOKS=1`). Private IPs, metadata IPs, and loopback are blocked as SSRF protection.
 
 <Callout type="note">
-If a secret is suspected leaked, rotate it via `POST /api/triggers/:id/notification/rotate-secret`. The old and new secrets both work for 24 hours, giving the external system a grace window to switch over.
+If a secret is suspected leaked, rotate it via `POST /api/triggers/:id/notification/rotate-secret`. The old and new secrets both work for 24 hours, giving the external system a grace window to switch over. Rotating again within those 24 hours replaces the earlier new secret with the latest one and restarts the 24-hour window.
 </Callout>
 
 ### The webhook response changes (when interaction is enabled)
@@ -255,7 +260,7 @@ With `interaction.enabled = true` + `tokenStrategy = "per_execution"`, the webho
 ```
 </Example>
 
-With this token in hand, the caller can open the SSE stream or send interaction commands immediately. If you chose `per_trigger`, no token is included in the response — the assumption is that the caller already holds the `itk_*` minted at trigger creation.
+With this token in hand, the caller can open the SSE stream or send interaction commands immediately. If you chose `per_trigger`, no token is included in the response — the assumption is that the caller already holds the `itk_*` it received from `revoke-token`.
 
 ### Inbound commands
 
@@ -290,6 +295,7 @@ Key error responses:
 | `409 Conflict` | `STATE_MISMATCH` | Command does not match current node / execution state |
 | `410 Gone` | `EXECUTION_TERMINATED` | Execution already finished |
 | `429 Too Many Requests` | `RATE_LIMITED` | More than 60 command submissions per minute, or more than 120 status lookups (`GET`) per minute, per execution. The response includes a `Retry-After` header telling you when to retry. This applies on top of — not instead of — the instance-wide 100 req/min limit described in [Response codes](#response-codes) above |
+| `503 Service Unavailable` | `EXECUTION_ENQUEUE_FAILED` | The command could not be queued. This response is not stored in the `Idempotency-Key` cache, so resending with the same key is processed fresh |
 
 ### Inbound event stream (SSE)
 
@@ -307,6 +313,8 @@ Last-Event-Id: 42         # on reconnect
 - If the 5-minute buffer has expired, the server emits `execution.replay_unavailable` once — at that point, fall back to `GET /api/external/executions/:id` for the current state.
   That response carries the **same `durationMs`** as the terminal event, so a missed terminal event doesn't lose the duration (`null` before the run finishes).
 - Concurrent SSE connections per execution are capped at 3 by default.
+- A stream opened with a per-trigger token (`itk_*`) is closed by the server when that token stops being valid: on token reissue, on switching to another strategy, or on trigger deletion. Reconnect with the new token. For now, only streams attached to the server instance that handled that request are closed.
+- A stream opened with a per-execution token stays open when the token expires or is refreshed.
 
 Browser `EventSource` cannot send custom headers, so SSE additionally accepts a `?token=<jwt>` query parameter. Every other endpoint requires the `Authorization: Bearer` header.
 
@@ -314,7 +322,7 @@ Browser `EventSource` cannot send custom headers, so SSE additionally accepts a 
 
 <FieldTable rows={[
   { name: "per_execution (default)", required: false, type: "Short-lived JWT (`iext_*`)", description: "Issued per execution. Default TTL is 1h, refreshable via `POST /api/external/executions/:id/refresh-token` within 30min of expiry. Invalidated the moment the execution terminates. Safest default.", default: "Default" },
-  { name: "per_trigger", required: false, type: "Long-lived token (`itk_*`)", description: "Same token reused across every execution the trigger spawns. Convenient for bots that juggle many concurrent runs (Telegram, Slack, etc.). Auto-invalidated when the trigger is deleted; rotate manually with `POST /api/triggers/:id/interaction/revoke-token`.", default: "Optional" }
+  { name: "per_trigger", required: false, type: "Long-lived token (`itk_*`)", description: "Same token reused across every execution the trigger spawns. Convenient for bots that juggle many concurrent runs (Telegram, Slack, etc.). Get the token from `POST /api/triggers/:id/interaction/revoke-token` and use the same endpoint to replace it. Deleting the trigger invalidates it. Switching to another strategy deletes the token, and switching back to `per_trigger` does not restore it, so get a new one.", default: "Optional" }
 ]} />
 
 <Callout type="warn">

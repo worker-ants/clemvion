@@ -10,6 +10,7 @@ import { Trigger } from '../triggers/entities/trigger.entity';
 import { WebsocketService } from '../websocket/websocket.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 import { NotificationDispatcher } from './notification-dispatcher.service';
+import { notificationAttemptsFromRetry } from './notification-dispatcher.types';
 import { InteractionTokenService } from './interaction-token.service';
 
 const TERMINAL_EVENTS = new Set<string>([
@@ -118,20 +119,29 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
         )
       : false;
     if (!subscribed) return;
-    await this.dispatcher.enqueue({
-      triggerId: trigger.id,
-      eventType: event.eventType,
-      executionId: event.executionId,
-      workflowId: trigger.workflowId,
-      eventBody: {
-        type: event.eventType,
-        executionId: event.executionId,
+    await this.dispatcher.enqueue(
+      {
         triggerId: trigger.id,
+        eventType: event.eventType,
+        executionId: event.executionId,
         workflowId: trigger.workflowId,
-        seq: event.seq,
-        payload: event.payload,
-        timestamp: new Date().toISOString(),
+        eventBody: {
+          type: event.eventType,
+          executionId: event.executionId,
+          triggerId: trigger.id,
+          workflowId: trigger.workflowId,
+          seq: event.seq,
+          payload: event.payload,
+          timestamp: new Date().toISOString(),
+        },
       },
-    });
+      // 사용자가 저장한 `retry.maxAttempts` 를 총 시도 횟수로 넘긴다(NERV Task `CLE-T-M6PERB`). 종전엔 넘기지
+      // 않아 dispatcher 기본값 5 로 고정됐다.
+      {
+        attempts: notificationAttemptsFromRetry(
+          (notificationCfg as { retry?: unknown }).retry,
+        ),
+      },
+    );
   }
 }

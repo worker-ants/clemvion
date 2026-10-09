@@ -26,6 +26,7 @@ import { TerminalRevokeReconcilerService } from './terminal-revoke-reconciler.se
 import { TERMINAL_REVOKE_RECONCILE_QUEUE } from './terminal-revoke-reconciler.types';
 import { WebChatIdleReaperService } from './webchat-idle-reaper.service';
 import { WEBCHAT_IDLE_REAPER_QUEUE } from './webchat-idle-reaper.types';
+import { INTERACTION_STREAM_CLOSER } from './interaction-stream-closer';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 /**
@@ -68,6 +69,12 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     NotificationWebhookProcessor,
     NotificationFanout,
     SseAdapter,
+    // 트리거 단위 토큰이 무효가 될 때 SSE 스트림을 닫는 포트. 트리거 · 스케줄 모듈이 import 없이
+    // `ModuleRef.get(TOKEN, { strict: false })` 로 찾는 입구다(`interaction-stream-closer.ts`).
+    {
+      provide: INTERACTION_STREAM_CLOSER,
+      useExisting: SseAdapter,
+    },
     InteractionGuard,
     InteractionRateLimitGuard,
     InteractionRateLimiterService,

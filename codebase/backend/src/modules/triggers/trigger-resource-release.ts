@@ -176,7 +176,10 @@ export interface TriggerResourceReleasePort {
     manager: EntityManager,
     parent: TriggerParent,
   ): Promise<LockedParentTriggers>;
-  /** {@link deleteTriggerSecretsAfterCommit} — 커밋 뒤에 부른다. 던지지 않는다. */
+  /**
+   * {@link deleteTriggerSecretsAfterCommit} 뒤 그 트리거들의 트리거 단위 토큰으로 연 SSE 스트림을 닫는다
+   * (`interaction-stream-closer.ts`, best-effort). 커밋 뒤에 부른다. 던지지 않는다.
+   */
   releaseSecretsAfterCommit(
     triggerIds: readonly string[],
     caller: string,

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 
@@ -10,6 +11,7 @@ import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { Workspace } from '../workspaces/entities/workspace.entity';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
+import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { Trigger } from './entities/trigger.entity';
 import {
   setLocalLockTimeout,
@@ -45,6 +47,8 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     private readonly chatChannelBinder: ChatChannelBinderService,
     private readonly channelListenerRegistry: ChannelListenerRegistry,
     private readonly secrets: SecretResolverService,
+    // SSE 스트림 닫기 포트를 지연 해석한다 — `interaction-stream-closer.ts` 참조.
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -118,6 +122,10 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       triggerIds,
       caller,
     );
+    // 트리거가 사라지면 그 트리거 단위 토큰도 무효가 된다 — 그 토큰으로 연 SSE 스트림을 닫는다(best-effort,
+    // 이 서버 인스턴스만). 닫을 트리거는 비밀 삭제가 쓰는 열거를 그대로 쓰고 새 조회를 더하지 않는다.
+    // 근거: [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA#트리거-삭제와-자원-해제)
+    closeTriggerTokenStreams(this.moduleRef, triggerIds, this.logger, caller);
   }
 
   /**

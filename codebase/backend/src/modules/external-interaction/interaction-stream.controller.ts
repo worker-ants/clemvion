@@ -111,22 +111,30 @@ export class InteractionStreamController {
       }
     }, HEARTBEAT_MS);
 
+    // 응답을 끝낸다 — terminal 이벤트 뒤와 트리거 단위 토큰 무효 때 같은 정리를 쓴다.
+    const end = (): void => {
+      this.sseAdapter.unsubscribe(subscriber);
+      clearInterval(heartbeat);
+      try {
+        res.end();
+      } catch {
+        // 이미 종료된 응답.
+      }
+    };
+
     const subscriber: SseSubscriber = {
       id: randomUUID(),
       executionId,
+      // 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰) — `itk_*` 로 연 스트림은 그
+      // 토큰이 무효가 되면 서버가 닫는다(`SseAdapter.closeTriggerTokenStreams` 가 `close` 를 부른다).
+      tokenFamily: ctx.tokenFamily,
+      triggerId: ctx.triggerId ?? null,
+      close: end,
       push: (event: ExecutionChannelEvent) => {
         writeSseFrame(res, event);
         if (TERMINAL_EVENT_TYPES.has(event.eventType)) {
           // terminal — 잠시 후 자동 종료.
-          setImmediate(() => {
-            this.sseAdapter.unsubscribe(subscriber);
-            clearInterval(heartbeat);
-            try {
-              res.end();
-            } catch {
-              // 이미 종료된 응답.
-            }
-          });
+          setImmediate(end);
         }
       },
     };

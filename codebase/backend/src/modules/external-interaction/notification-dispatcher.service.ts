@@ -32,9 +32,10 @@ export class NotificationDispatcher {
    * 새 delivery 를 큐에 적재. `deliveryId` 가 명시되지 않으면 UUID v4 자동 생성.
    * BullMQ jobId = deliveryId 로 자동 dedup — 같은 deliveryId 로 재 enqueue 해도 1건만 실행.
    *
-   * 재시도 정책 ([Spec EIA §6.6]): default 5 회, base-4 backoff (1s / 4s / 16s / 64s / 256s) —
+   * 재시도 정책 ([Spec EIA §6.6]): 총 시도 default 5 회, base-4 backoff (1s / 4s / 16s / 64s / 256s) —
    * worker `settings.backoffStrategy` 가 계산하는 custom 전략(`NOTIFICATION_BACKOFF_TYPE`).
-   * 호출자가 trigger 의 retry config 를 미리 읽고 attempts 를 override 할 수 있다.
+   * `NotificationFanout` 이 트리거의 `retry.maxAttempts` 를 `notificationAttemptsFromRetry` 로 바꿔
+   * `attempts` 로 넘긴다(첫 시도를 포함한 총 시도 횟수).
    *
    * Redis / BullMQ 가 미가용 (queue 없음) 시 fail-open 으로 로그만 남기고 skip. notification 은
    * 트리거의 부수 기능이므로 enqueue 실패가 워크플로우 실행 자체에 영향 주지 않도록 격리.
