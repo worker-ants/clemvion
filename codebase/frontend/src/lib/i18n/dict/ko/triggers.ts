@@ -176,7 +176,7 @@ export const triggers = {
     rotateSucceeded: "새 secret 을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     rotateFailed: "Secret 회전에 실패했어요",
     rotateNewSecret: "새 secret (1회만 표시)",
-    issuedNotificationSecret: "새 알림 서명 시크릿 (1회만 표시)",
+    issuedNotificationSigningSecret: "새 알림 서명 시크릿 (1회만 표시)",
     revokeConfirm: "기존 per-trigger 토큰은 즉시 무효화돼요. 진행할까요?",
     revokeSucceeded: "새 토큰을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     revokeFailed: "토큰 재발급에 실패했어요",

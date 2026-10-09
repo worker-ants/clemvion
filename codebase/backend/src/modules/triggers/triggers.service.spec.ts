@@ -5224,6 +5224,50 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       );
     });
 
+    // 인터랙션을 끄면 가드가 `itk_*` 를 거부한다. 토큰은 남기고(다시 켜면 같은 토큰이 통한다) 이미 연 스트림은
+    // 커밋 뒤 닫는다(CLE-T-M6PERB 결정 기록, 2026-10-09 사용자 결정).
+    it('per_trigger 그대로 인터랙션을 끄면 토큰은 남기고 커밋 뒤 그 토큰으로 연 스트림을 닫는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: {
+            enabled: true,
+            tokenStrategy: 'per_trigger',
+            triggerToken: 'itk_old',
+          },
+        }),
+      );
+      await service.update(
+        't1',
+        'ws',
+        { interaction: { enabled: false, tokenStrategy: 'per_trigger' } },
+        'u',
+      );
+      expect(savedConfig().interaction).toEqual({
+        enabled: false,
+        tokenStrategy: 'per_trigger',
+        triggerToken: 'itk_old',
+      });
+      expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+      expect(callOrder(triggerRepo.save)).toBeLessThan(
+        callOrder(closer.closeTriggerTokenStreams),
+      );
+    });
+
+    it('토큰이 없는 행은 인터랙션을 꺼도 닫을 스트림이 없다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: { enabled: true, tokenStrategy: 'per_trigger' },
+        }),
+      );
+      await service.update(
+        't1',
+        'ws',
+        { interaction: { enabled: false, tokenStrategy: 'per_trigger' } },
+        'u',
+      );
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+    });
+
     // `tokenStrategy` 를 생략한 PATCH 도 결과 전략이 `per_trigger` 가 아니다. 스펙은 «결과 전략이 per_trigger 일 때만
     // 이어받는다» 이므로 토큰을 지우고 스트림을 닫는다.
     it('tokenStrategy 를 생략한 PATCH 는 결과 전략이 per_trigger 가 아니라서 토큰을 지운다', async () => {

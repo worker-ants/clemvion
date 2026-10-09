@@ -38,6 +38,9 @@ CLE-EIA-NOTIFY v2 · CLE-INT-SECRET v8)에 코드를 맞췄다(NERV Task `CLE-T-
   참조(`signing.secretRef`)와 트리거 단위 토큰(`interaction.triggerToken`)이 지워졌다. 이제 시크릿 참조는 늘 남기고
   트리거 id 로 다시 만든다. 트리거 단위 토큰은 PATCH 결과의 전략이 `per_trigger` 일 때만 남기고 다른 전략으로 바꾸면 지운다.
   다시 `per_trigger` 로 돌아와도 옛 토큰은 살아나지 않으니 `revoke-token` 으로 새로 받아야 한다.
+- **끈 인터랙션의 트리거 단위 토큰:** `interaction.enabled` 가 `true` 가 아니면 `itk_*` 로 부른 `/api/external/executions/*` 를
+  `401 TOKEN_INVALID` 로 거부한다. 토큰은 지우지 않으므로 다시 켜면 같은 토큰이 통한다. 예전에는 가드가 `enabled` 를 보지 않아
+  끈 트리거에서도 `itk_*` 가 통했다(콘솔에서 끄면 PATCH 가 토큰까지 지워 막혔을 뿐이다).
 - **시크릿 교체와 승격:** `rotate-secret` 이 트리거 설정 잠금을 잡는다. 승격은 잠금 안에서 새 시크릿이 처음 고른 값과
   같을 때만 한다. 예전에는 승격 대상을 고른 뒤 그사이 다시 교체되면 방금 받은 새 시크릿이 승격되지 않고 지워질 수 있었다.
 - **트리거 화면:** 외부 인터랙션 카드에서 저장할 때 서버가 시크릿을 발급하면 평문을 한 번 보여 준다(가려 두고 60초 뒤
@@ -61,8 +64,8 @@ CLE-EIA-NOTIFY v2 · CLE-INT-SECRET v8)에 코드를 맞췄다(NERV Task `CLE-T-
 ## Unreleased — EIA SSE: 트리거 단위 토큰이 무효가 되면 그 토큰으로 연 스트림을 닫는다
 
 트리거 단위 토큰(`itk_*`)으로 연 `GET /api/external/executions/:id/stream` 스트림을 서버가 닫는다(NERV Task `CLE-T-M6PERB`).
-닫는 경우는 `revoke-token` 재발급, PATCH 로 전략을 `per_trigger` 밖으로 바꾸기, 트리거 삭제(스케줄 삭제와 워크플로우 ·
-워크스페이스 삭제의 연쇄 포함)다. 예전에는 토큰이 무효가 된 뒤에도 이미 연 스트림이 이벤트를 계속 받았다. 지금은 그 요청을
+닫는 경우는 `revoke-token` 재발급, PATCH 로 전략을 `per_trigger` 밖으로 바꾸기, PATCH 로 인터랙션 끄기, 트리거 삭제(스케줄
+삭제와 워크플로우 · 워크스페이스 삭제의 연쇄 포함)다. 예전에는 토큰이 무효가 된 뒤에도 이미 연 스트림이 이벤트를 계속 받았다. 지금은 그 요청을
 처리한 서버 인스턴스에 붙은 스트림만 닫는다. 여러 인스턴스로 넓히는 일은 NERV Task `CLE-T-Z35F7P` 가 맡는다. 실행 단위
 토큰(`iext_*`)으로 연 스트림은 만료나 갱신으로 닫지 않는다.
 

@@ -23,8 +23,9 @@ export type InteractionTokenStrategy = 'per_execution' | 'per_trigger';
  * Trigger 의 inbound interaction 채널 설정. config JSONB 의 `interaction` 서브 필드.
  * [Spec EIA §4 / §7.1].
  *
- * 비활성 (enabled=false 또는 미지정) 시 webhook 응답에 interaction 필드 미동봉,
- * `/api/external/executions/*` 호출도 토큰 검증 단계에서 거부.
+ * 비활성 (enabled=false 또는 미지정) 시 webhook 응답에 interaction 필드 미동봉(새 `iext_*` 도 발급하지 않는다),
+ * 트리거 단위 토큰(`itk_*`)으로 부른 `/api/external/executions/*` 는 토큰 검증 단계에서 거부한다. 이미 발급된
+ * `iext_*` 는 실행에 묶인 단명 토큰이라 끄기와 상관없이 만료 · 실행 종료까지 쓸 수 있다.
  */
 export class InteractionConfigDto {
   /** 채널 활성화 여부. */

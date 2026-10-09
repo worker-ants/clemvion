@@ -370,7 +370,7 @@ export function ExternalInteractionCard({
         {/* 저장 응답의 첫 알림 서명 시크릿 (마스킹 + 클릭 노출 + 60s 자동 소거) */}
         {issuedSecret && (
           <SecretRevealBox
-            title={t("triggers.externalInteraction.issuedNotificationSecret")}
+            title={t("triggers.externalInteraction.issuedNotificationSigningSecret")}
             secret={issuedSecret}
             onDismiss={() => setIssuedSecret(null)}
           />

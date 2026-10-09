@@ -313,7 +313,7 @@ Last-Event-Id: 42         # on reconnect
 - If the 5-minute buffer has expired, the server emits `execution.replay_unavailable` once — at that point, fall back to `GET /api/external/executions/:id` for the current state.
   That response carries the **same `durationMs`** as the terminal event, so a missed terminal event doesn't lose the duration (`null` before the run finishes).
 - Concurrent SSE connections per execution are capped at 3 by default.
-- A stream opened with a per-trigger token (`itk_*`) is closed by the server when that token stops being valid: on token reissue, on switching to another strategy, or on trigger deletion. Reconnect with the new token. For now, only streams attached to the server instance that handled that request are closed.
+- A stream opened with a per-trigger token (`itk_*`) is closed by the server when that token stops being valid: on token reissue, on switching to another strategy, on turning interaction off, or on trigger deletion. Reconnect with the new token. For now, only streams attached to the server instance that handled that request are closed.
 - A stream opened with a per-execution token stays open when the token expires or is refreshed.
 
 Browser `EventSource` cannot send custom headers, so SSE additionally accepts a `?token=<jwt>` query parameter. Every other endpoint requires the `Authorization: Bearer` header.
@@ -322,7 +322,7 @@ Browser `EventSource` cannot send custom headers, so SSE additionally accepts a 
 
 <FieldTable rows={[
   { name: "per_execution (default)", required: false, type: "Short-lived JWT (`iext_*`)", description: "Issued per execution. Default TTL is 1h, refreshable via `POST /api/external/executions/:id/refresh-token` within 30min of expiry. Invalidated the moment the execution terminates. Safest default.", default: "Default" },
-  { name: "per_trigger", required: false, type: "Long-lived token (`itk_*`)", description: "Same token reused across every execution the trigger spawns. Convenient for bots that juggle many concurrent runs (Telegram, Slack, etc.). Get the token from `POST /api/triggers/:id/interaction/revoke-token` and use the same endpoint to replace it. Deleting the trigger invalidates it. Switching to another strategy deletes the token, and switching back to `per_trigger` does not restore it, so get a new one.", default: "Optional" }
+  { name: "per_trigger", required: false, type: "Long-lived token (`itk_*`)", description: "Same token reused across every execution the trigger spawns. Convenient for bots that juggle many concurrent runs (Telegram, Slack, etc.). Get the token from `POST /api/triggers/:id/interaction/revoke-token` and use the same endpoint to replace it. Deleting the trigger invalidates it. Switching to another strategy deletes the token, and switching back to `per_trigger` does not restore it, so get a new one. Turning interaction off keeps the token but rejects it while off; turn it back on and the same token works again.", default: "Optional" }
 ]} />
 
 <Callout type="warn">

@@ -182,7 +182,7 @@ export const triggers: Dict["triggers"] = {
       "New secret issued. Distribute to your external system immediately.",
     rotateFailed: "Secret rotation failed",
     rotateNewSecret: "New secret (shown once)",
-    issuedNotificationSecret: "New notification signing secret (shown once)",
+    issuedNotificationSigningSecret: "New notification signing secret (shown once)",
     revokeConfirm:
       "The existing per-trigger token will be invalidated immediately. Proceed?",
     revokeSucceeded:

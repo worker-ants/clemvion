@@ -242,7 +242,7 @@ POST /api/triggers
 - URL은 `https://`만 허용해요 (개발 환경에서 `ALLOW_HTTP_HOOKS=1`일 때만 예외). 사설 IP·메타데이터 IP·loopback은 SSRF 방지로 차단돼요.
 
 <Callout type="note">
-시크릿이 유출됐다고 의심되면 `POST /api/triggers/:id/notification/rotate-secret`으로 회전할 수 있어요. 새 시크릿이 만들어진 뒤 24시간 동안은 old/new 둘 다 유효 — 외부 시스템이 새 시크릿으로 전환할 여유 시간이에요. 이 24시간 안에 다시 회전하면 앞서 받은 새 시크릿은 이번 값으로 바뀌고 24시간도 그때부터 다시 세요.
+시크릿이 유출됐다고 의심되면 `POST /api/triggers/:id/notification/rotate-secret`으로 회전할 수 있어요. 새 시크릿이 만들어진 뒤 24시간 동안은 old/new 둘 다 유효 — 외부 시스템이 새 시크릿으로 전환할 여유 시간이에요. 이 24시간 안에 다시 교체하면 앞서 받은 새 시크릿은 이번 값으로 바뀌고 24시간도 그때부터 다시 세어요.
 </Callout>
 
 ### Webhook 호출 응답이 바뀌어요 (interaction 활성화 시)
@@ -324,7 +324,7 @@ Last-Event-Id: 42         # 재연결 시
 - 5분 버퍼가 만료된 경우 `execution.replay_unavailable` 이 한 번 발송돼요 — 그때는 `GET /api/external/executions/:id` 로 현재 상태를 다시 조회하세요.
   이 재조회 응답에도 종결 이벤트와 **같은 `durationMs`** 가 들어 있어요 — 종결 이벤트를 놓쳤어도 소요 시간을 잃지 않아요 (종결 전에는 `null`).
 - execution 당 동시 SSE 연결은 기본 3개로 제한돼요.
-- `per_trigger` 토큰(`itk_*`)으로 연 스트림은 그 토큰이 무효가 되면 서버가 닫아요. 토큰 재발급, 다른 전략으로 바꾸기, 트리거 삭제가 그 경우예요. 다시 연결할 때는 새 토큰을 쓰세요. 지금은 그 요청을 처리한 서버 인스턴스에 붙은 스트림만 닫아요.
+- `per_trigger` 토큰(`itk_*`)으로 연 스트림은 그 토큰이 무효가 되면 서버가 닫아요. 토큰 재발급, 다른 전략으로 바꾸기, 인터랙션 끄기, 트리거 삭제가 그 경우예요. 다시 연결할 때는 새 토큰을 쓰세요. 지금은 그 요청을 처리한 서버 인스턴스에 붙은 스트림만 닫아요.
 - `per_execution` 토큰으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않아요.
 
 브라우저 EventSource API는 `Authorization` 헤더를 보낼 수 없으므로, SSE에 한해 `?token=<jwt>` 쿼리 파라미터도 받아요 (다른 endpoint는 항상 Bearer 헤더).
@@ -333,7 +333,7 @@ Last-Event-Id: 42         # 재연결 시
 
 <FieldTable rows={[
   { name: "per_execution (기본)", required: false, type: "단명 JWT (`iext_*`)", description: "execution 1건 단위로 발급돼요. 기본 TTL 1시간, 만료 30분 전부터 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능. execution 이 종료되면 즉시 무효화돼요. 가장 안전한 기본값이에요.", default: "기본" },
-  { name: "per_trigger", required: false, type: "영구 토큰 (`itk_*`)", description: "트리거가 만드는 모든 execution 에 같은 토큰을 사용해요. 다수의 동시 execution 을 다루는 봇(Telegram, Slack 등) 에 편해요. 토큰은 `POST /api/triggers/:id/interaction/revoke-token` 으로 받고 같은 경로로 바꿔요. 트리거를 지우면 자동으로 무효가 돼요. 다른 전략으로 바꾸면 토큰이 지워지고 다시 `per_trigger` 로 돌아와도 되살아나지 않으니 새로 받으세요.", default: "선택" }
+  { name: "per_trigger", required: false, type: "영구 토큰 (`itk_*`)", description: "트리거가 만드는 모든 execution 에 같은 토큰을 사용해요. 다수의 동시 execution 을 다루는 봇(Telegram, Slack 등) 에 편해요. 토큰은 `POST /api/triggers/:id/interaction/revoke-token` 으로 받고 같은 경로로 바꿔요. 트리거를 지우면 자동으로 무효가 돼요. 다른 전략으로 바꾸면 토큰이 지워지고 다시 `per_trigger` 로 돌아와도 되살아나지 않으니 새로 받으세요. 인터랙션을 끄면 토큰은 남지만 끈 동안은 거부돼요. 다시 켜면 같은 토큰을 쓸 수 있어요.", default: "선택" }
 ]} />
 
 <Callout type="warn">

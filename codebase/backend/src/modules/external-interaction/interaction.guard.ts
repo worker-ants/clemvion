@@ -199,10 +199,18 @@ function extractToken(req: RequestWithInteraction): string | null {
   return null;
 }
 
+/**
+ * 트리거 설정에서 지금 받을 수 있는 `itk_*` 를 꺼낸다. 받을 수 없으면 `null` 이다.
+ *
+ * 인터랙션이 켜져 있고(`enabled === true`) 전략이 `per_trigger` 일 때만 저장된 토큰을 돌려준다. 인터랙션을 끄면
+ * PATCH 는 토큰을 남기므로(다시 켜면 같은 토큰이 통한다) 끈 동안은 여기서 거부한다(CLE-T-M6PERB 결정 기록,
+ * 2026-10-09 사용자 결정).
+ */
 function readItkFromConfig(config: unknown): string | null {
   if (!config || typeof config !== 'object') return null;
   const interaction = (config as { interaction?: unknown }).interaction;
   if (!interaction || typeof interaction !== 'object') return null;
+  if ((interaction as { enabled?: unknown }).enabled !== true) return null;
   const tokenStrategy = (interaction as { tokenStrategy?: unknown })
     .tokenStrategy;
   if (tokenStrategy !== 'per_trigger') return null;

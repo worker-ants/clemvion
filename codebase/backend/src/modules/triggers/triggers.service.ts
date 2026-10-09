@@ -749,12 +749,16 @@ export class TriggersService {
    * 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약). 결과 전략이 `per_trigger` 면
    * 잠금 안에서 다시 읽은 행의 토큰을 이어받고 아니면 지운다. 다른 전략으로 바꾼 동안 남겨 두면 `per_trigger` 로
    * 되돌릴 때 이미 폐기했다고 여긴 영구 토큰이 재발급 없이 다시 유효해진다. 지웠으면 커밋 뒤 그 토큰으로 연 SSE
-   * 스트림을 닫아야 하므로 `dropped` 로 알린다.
+   * 스트림을 닫아야 하므로 `closeStreams` 로 알린다.
+   *
+   * 토큰을 이어받아도 인터랙션을 껐으면(`enabled !== true`) 가드가 그 토큰을 거부한다. 그래서 이미 연 스트림도
+   * 커밋 뒤 닫도록 `closeStreams` 로 알린다. 토큰 값은 남기므로 다시 켜면 같은 토큰이 통한다(CLE-T-M6PERB 결정 기록,
+   * 2026-10-09 사용자 결정).
    */
   private settleTriggerToken(
     fresh: Trigger,
     nextConfig: Record<string, unknown>,
-  ): { config: Record<string, unknown>; dropped: boolean } {
+  ): { config: Record<string, unknown>; closeStreams: boolean } {
     const storedToken = (
       (fresh.config as { interaction?: { triggerToken?: unknown } } | null)
         ?.interaction ?? {}
@@ -766,7 +770,7 @@ export class TriggersService {
     // 알려 커밋 뒤 스트림을 닫게 한다.
     const requested = nextConfig.interaction;
     if (typeof requested !== 'object' || requested === null) {
-      return { config: nextConfig, dropped: hasStoredToken };
+      return { config: nextConfig, closeStreams: hasStoredToken };
     }
     const nextInteraction: Record<string, unknown> = {
       ...(requested as Record<string, unknown>),
@@ -775,13 +779,13 @@ export class TriggersService {
       nextInteraction.triggerToken = storedToken;
       return {
         config: { ...nextConfig, interaction: nextInteraction },
-        dropped: false,
+        closeStreams: nextInteraction.enabled !== true,
       };
     }
     delete nextInteraction.triggerToken;
     return {
       config: { ...nextConfig, interaction: nextInteraction },
-      dropped: hasStoredToken,
+      closeStreams: hasStoredToken,
     };
   }
 
@@ -791,7 +795,7 @@ export class TriggersService {
    * top-level `interaction` · `notification` 은 두 값을 입력으로 받지 않으므로(받으면 전역 검증 파이프가 400) 통째
    * 교체가 그대로 지우던 자리다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약).
    *
-   * - `interaction` → {@link settleTriggerToken}. 토큰을 지웠으면 `droppedTriggerToken` 으로 알려 커밋 뒤 스트림을 닫게 한다.
+   * - `interaction` → {@link settleTriggerToken}. 토큰을 지웠거나 인터랙션을 껐으면 `closeTokenStreams` 로 알려 커밋 뒤 스트림을 닫게 한다.
    * - `notification` → {@link settleNotificationSigning}. 첫 시크릿을 발급했으면 `issuedSecret` 으로 일회성 평문을 돌려준다.
    *   `notification: null` 은 객체가 아니라 서명을 얹을 자리가 없다 — 껍데기를 만들어 시크릿을 발급하지 않고 종전처럼
    *   그 값을 저장한다.
@@ -814,15 +818,15 @@ export class TriggersService {
   ): Promise<{
     config: Record<string, unknown>;
     issuedSecret?: string;
-    droppedTriggerToken: boolean;
+    closeTokenStreams: boolean;
   }> {
     let config = input.config;
-    let droppedTriggerToken = false;
+    let closeTokenStreams = false;
     let issuedSecret: string | undefined;
     if (input.requestedInteraction !== undefined) {
       const settled = this.settleTriggerToken(target, config);
       config = settled.config;
-      droppedTriggerToken = settled.dropped;
+      closeTokenStreams = settled.closeStreams;
     }
     const nextNotification = config.notification;
     if (
@@ -834,7 +838,7 @@ export class TriggersService {
       config = settled.config;
       issuedSecret = settled.issuedSecret;
     }
-    return { config, issuedSecret, droppedTriggerToken };
+    return { config, issuedSecret, closeTokenStreams };
   }
 
   /**
@@ -945,7 +949,7 @@ export class TriggersService {
     // 예외로 알림 서명 시크릿의 첫 발급 · 옛 평문 이전은 이 잠금 안에서 시크릿 저장소에 쓴다. 지금 백엔드는
     // 같은 DB 의 `secret_store` 테이블이라 HTTP 호출이 아니다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
     // 이 트랜잭션의 매니저로 써서 풀 연결을 더 빌리지 않고, 저장이 실패하면 시크릿 쓰기도 함께 롤백된다.
-    const { saved, issuedSecret, droppedTriggerToken } =
+    const { saved, issuedSecret, closeTokenStreams } =
       await this.triggerRepository.manager
         .transaction(async (m) => {
           await acquireTriggerConfigLock(m, trigger.id);
@@ -1042,13 +1046,13 @@ export class TriggersService {
           return {
             saved: target,
             issuedSecret: eia.issuedSecret,
-            droppedTriggerToken: eia.droppedTriggerToken,
+            closeTokenStreams: eia.closeTokenStreams,
           };
         })
         // 시크릿 저장소 쓰기가 이 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌릴 것이 없다.
         .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // 전략이 바뀌어 토큰을 지웠으면 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
-    if (droppedTriggerToken) {
+    if (closeTokenStreams) {
       this.resourceReleaser.closeTriggerTokenStreams(
         [saved.id],
         'TriggersService.update',
@@ -1868,7 +1872,7 @@ export class TriggersService {
    * - 잠금 안에서도 행이 사라질 수 있다(FK CASCADE 는 advisory lock 을 거치지 않는다). 쓰기가 0행이면 커밋 뒤
    *   시크릿 저장소에 쓴 것을 되돌린다(시크릿 저장소 규칙 9). cron 이라 알릴 상대가 없고 «승격했다» 고 세지 않는다.
    *
-   * 승격은 평문을 설정에 쓰지 않는다 — 정식 참조 내용을 바꾸고 `signing.secretRef` 를 연결한다(리뷰 C3).
+   * 승격은 평문을 설정에 쓰지 않는다 — 정식 참조 내용을 바꾸고 `signing.secretRef` 를 연결한다.
    */
   private async promoteOneLocked(
     triggerId: string,
