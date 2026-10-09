@@ -13,7 +13,7 @@ model: opus
 ## 절대 원칙
 
 - **Worktree 강제**: main 워크트리에서는 작업 시작 안 함 ([`.claude/docs/worktree-policy.md`](../../docs/worktree-policy.md)).
-- **사전 일관성 검토**: 구현 착수 전 `/consistency-check --impl-prep <scope>` 의무(`<scope>` 는 NERV 키 · 미러 폴더 · 미러 파일, 보통 클레임 scope 의 `spec_ids`. 형식은 `/consistency-check`). Critical 발견 시 즉시 멈춤.
+- **사전 일관성 검토**: 클레임한 스펙이 새로 들어오거나 바뀐 Task 는 구현 착수 전 `/consistency-check --impl-prep <scope>` 를 돈다(`<scope>` 는 NERV 키 · 미러 폴더 · 미러 파일, 보통 클레임 scope 의 `spec_ids`. 형식은 `/consistency-check`. 조건은 §작업 워크플로 3). Critical 발견 시 즉시 멈춤.
 - **기획은 위임, 스펙 결함은 초안으로**: 신규 정의·대규모 개정은 `project-planner` 위임. 구현 중 발견한 스펙 결함은 NERV 초안(`/nerv:spec edit`)이나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다. 저장소 `spec/` 은 NERV 미러라 직접 고치지 않는다.
 - **스펙 선독**: 관련 스펙 문서 전체(Overview / 본문 / Rationale) 를 먼저 읽고 영향 범위·side-effect 파악. NERV 스펙은 **작업 기준 버전**으로 읽는다(`nerv_spec_get(spec_id, task=<Task 키>)`, 응답의 `read_as` 확인).
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
@@ -41,7 +41,12 @@ model: opus
    - **백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리한다** — 셸 `cd` 만으로는 부족하다. `/ai-review`·`/consistency-check` 가 native `Workflow` 로 sub-agent 를 띄울 때, 부모 bg 세션이 `EnterWorktree` 툴로 isolate 되지 않았으면 harness `worktree.bgIsolation` 가드가 **모든 workflow sub-agent 의 공유 체크아웃 write 를 차단**한다 (reviewer output·SUMMARY·`resolution-applier` 의 코드 fix 까지). 즉 셸 `cd` 로만 들어간 bg 세션은 review/fix 가 구조적으로 막혀 "미루기" 의 빌미가 된다. `EnterWorktree` 로 들어가면 9단계 REVIEW WORKFLOW 의 fix write 까지 정상 동작한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md) §bgIsolation.)
 1. **스펙 분석** — 클레임한 Task 의 NERV 스펙을 작업 기준 버전으로(`nerv_spec_get(spec_id, task=<Task 키>)`) + 재진입이면 Task `handoff_note` · 진행 기록. 저장소 `spec/` 미러는 주변 문서 grep 용이다(구현된 스펙의 스냅샷이라 최신본이 아닐 수 있다).
 2. **모호성 해소** — 공백·충돌은 사용자와 정의. 스펙 정의 필요 시 `project-planner` 위임.
-3. **사전 일관성 검토** — `/consistency-check --impl-prep <scope>`(scope 가 영역 폴더면 `--focus <클레임 spec_ids>` 를 더한다). 클레임 스펙이 아직 미러에 없으면 키를 찾지 못해 종료 코드 2 로 멈추므로 6 의 `pull.py --task <Task 키>` 를 먼저 돌린다. Critical → 즉시 중단. Warning → Task 본문에 적고(여러 건이면 목록으로) 진행.
+3. **사전 일관성 검토** — 6 의 `pull.py --task <Task 키>` 를 먼저 돌린 뒤 `git status --short spec/` 로 판단한다.
+   - **돈다**: 클레임 scope 의 스펙 파일이 새로 생겼거나 바뀌었다(이번 Task 가 처음 구현하는 스펙이거나, 마지막 구현 뒤 스펙이 고쳐졌다).
+     `/consistency-check --impl-prep <scope>`(scope 가 영역 폴더면 `--focus <클레임 spec_ids>` 를 더한다). Critical → 즉시 중단. Warning → Task 본문에 적고(여러 건이면 목록으로) 진행.
+   - **건너뛴다**: 클레임 scope 에 스펙이 없거나 받은 스펙이 미러와 같다(의존성 갱신, 하네스, 스펙이 그대로인 버그 수정). Task 본문에 「impl-prep 생략: <사유>」 한 줄을 남긴다.
+     done 게이트가 요구하는 consistency 라운드는 REVIEW WORKFLOW 5 의 `--impl-done` 이 채운다.
+   - 근거: 2026-10-09 실측으로 작업당 consistency-check 가 평균 3.9회(한 번에 약 9분) 돌았고, 어떤 게이트도 impl-prep 라운드를 따로 보지 않는다(NERV Task `CLE-T-ZTTHXD`).
 4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리. **partial-implementation 분리**: spec 의 일부만 구현하고 나머지 surface 가 남아있는 경우, 본 PR 머지 전 남은 surface 를 NERV Task 로 만들고 스펙 본문의 구현 상태 표시는 NERV 초안으로 고친다. 구현한 경로는 같은 초안의 `## 구현 위치` 에 적는다(SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「규칙」). 자가 체크리스트는 `PROJECT.md §DOCUMENTATION 단계 종료 사전 체크리스트` 마지막 항목.
 5. **테스트 선작성** — TDD.
 6. **구현** — 스펙과 테스트 기준.
@@ -60,6 +65,8 @@ model: opus
 4. e2e
 
 **각 단계는 [`.claude/tools/run-test.sh <stage>`](../../docs/test-wrapper.md) 호출 — 통과 시 stdout 한 줄, 실패 시 한 줄 + 마지막 30줄 + 실패 마커**. raw 명령 직접 호출 금지 (main ctx 폭주). 실제 명령은 `.claude/test-stages.sh` 에서 정의.
+
+**e2e 는 리뷰와 함께 돈다**: lint · unit · build 가 통과해 커밋했으면 e2e 를 백그라운드(`run_in_background`)로 띄우고 바로 REVIEW WORKFLOW 1 로 넘어간다. 둘 다 끝나야 REVIEW WORKFLOW 3 이후로 간다. e2e 가 실패해 코드를 고치면 그 커밋은 처분 커밋이 아니라서 push 게이트가 HEAD 로 리뷰를 다시 요구한다(REVIEW WORKFLOW 4 「라운드 뒤 커밋」). 실패가 드문 대신 기다림이 길어서 함께 돌리는 쪽을 기본으로 한다(NERV Task `CLE-T-ZTTHXD`).
 
 > **순서 근거**: e2e 는 build 후 docker 이미지가 보통 필요. build 실패를 먼저 잡으면 docker 빌드 시간 낭비 회피.
 
@@ -94,7 +101,8 @@ model: opus
    router 가 변경 성격에 맞는 reviewer 부분집합만 활성화하되, 바뀐 파일이 하나라도 있으면 NERV 필수
    6역할(security · requirement · scope · side_effect · maintainability · testing)은 router 가 끄지
    못한다. 하네스 · 문서만 바꾼 Task 도 같다(done 게이트가 passed 라운드를 요구한다).
-   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전까지 **턴을 끝내지 않는다.** 비동기 간극 없이 가려면 자동 트리거 시 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓸 수 있다.
+   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전까지 **턴을 끝내지 않는다.** 기다리는 동안 `until` · `sleep` 폴링 루프를 돌리지 않는다. 알림이 오면 이어서 한다. 비동기 간극 없이 가려면 자동 트리거 시 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓸 수 있다.
+   - **`--impl-done` 도 함께 띄운다**: 5 의 post-impl 일관성 검토를 리뷰와 같은 턴에 띄운다. 두 Workflow 는 서로 기다리지 않는다.
 2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록(로컬)하고 전체 위험도·Critical/Warning 수를 확인.
 3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다(제출 도우미,
    `nerv_review_submit` 인자, 재제출, `round_block`). 마지막에 `nerv_review_handoff.py fetch` 로
@@ -111,7 +119,7 @@ model: opus
    `commit_sha`, 고치지 않는 것은 `wont_fix`/`dismissed` + 근거, 사람 판단이 필요한 것은 `escalated` +
    `escalate_reason`. critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 반환
    STATUS 의 `ESCALATE` 분기 (SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 —
-   처리하기 전엔 턴을 끝내지 않는다. applier 가 남긴 INFO(`left_to_main`)는 main 이 처분한다(SKILL §4-6).
+   처리하기 전엔 턴을 끝내지 않는다. INFO 는 제출 도구(`nerv_review_payload.py`)가 발견 대신 역할 요약에 싣는다. 처분할 INFO 는 `[SPEC-DRIFT]` 뿐이고, applier 가 남긴 그 INFO(`left_to_main`)는 main 이 처분한다(SKILL §4-6).
    - **라운드 뒤 커밋** — push 게이트는 라운드 head 이후의 `codebase/**` 커밋이 code · consistency 라운드의
      `fixed` 처분 `commit_sha` 이거나, 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하면 새 라운드
      없이 통과시킨다(발견 여럿이면 `finding <ID> · <ID>` 를 한 문단에). fix 커밋은 다시 리뷰되지 않는다.
@@ -128,11 +136,15 @@ model: opus
    여부와 무관하게 Task 마다 돈다. 미러 문서의 `## 구현 위치` 가 바꾼 파일을 덮으면 그 문서가 대상에 더해진다
    (`--impl-done` 을 돌릴 때만. done 게이트는 라운드의 존재와 판정만 본다). 하네스 · 문서만 바꾼 Task 는 바꾼
    문서가 서술하는 스펙 키를 scope 로 주고 `--diff-path .claude` 처럼 구현 diff 경로를 준다.
-   - **순서**: 코드 리뷰 fix 를 먼저 끝내고 돌린다. 리뷰 fix 가 spec 연결 코드를 바꾸면 먼저 돌린
-     consistency 라운드가 옛 코드를 본 셈이다.
-6. **조치 끝나면 TEST WORKFLOW 재수행.** 결과(e2e 포함)는 Task 증적(`evidence` kind=test, `locator` 에
-   로그 경로나 명령)으로 남긴다. applier 가 넘긴 `tests` 도 같이 옮긴다. e2e 를 보류해야 하면
-   `nerv_question_create` 로 사람에게 묻는다.
+   - **순서**: 1 의 `/ai-review` 와 함께 띄운다(대기 시간을 겹친다). 리뷰 fix 가 스펙에 연결된 동작(테스트 · 문서 ·
+     주석이 아닌 코드 경로)을 바꿨으면 먼저 돈 consistency 라운드가 옛 코드를 본 셈이므로 fix 뒤에 `--impl-done` 을
+     한 번 더 돌린다. fix 가 없거나 테스트 · 문서 · 주석만 고쳤으면 다시 돌리지 않는다. 예전에는 늘 fix 를 마친 뒤에
+     돌려서 fix 가 스펙 연결 동작을 바꾸지 않는 라운드에서도 기다림이 겹치지 않았다(NERV Task `CLE-T-ZTTHXD`).
+6. **조치 끝나면 테스트를 다시 확인한다.** `resolution-applier` 는 fix 마다 lint · unit 을, 마지막에 e2e 를 돌리지만
+   build 는 돌리지 않는다. 그래서 applier 의 `tests` 에 lint · unit · e2e 통과가 있고 그 뒤 main 이 코드를 더
+   고치지 않았으면 main 은 build 만 돌린다. main 이 직접 고쳤거나 applier 결과에 실패 · 생략이 있으면 TEST WORKFLOW 를
+   처음부터 다시 돈다. 결과(e2e 포함)는 Task 증적(`evidence` kind=test, `locator` 에 로그 경로나 명령)으로 남긴다.
+   applier 가 넘긴 `tests` 도 같이 옮긴다. e2e 를 보류해야 하면 `nerv_question_create` 로 사람에게 묻는다.
 
 ### 완료 정의 (Definition of Done)
 
@@ -140,10 +152,10 @@ model: opus
 
 - [ ] TEST WORKFLOW (lint·unit·build·e2e) 통과
 - [ ] `/ai-review` 실행 + 역할별 `kind=code` 제출(필수 6역할과 변경 종류에 따른 강제 리뷰어 포함, `task_id`)
-- [ ] 모든 발견 처분(`nerv_finding_resolve`). 라운드가 N1 판정 `passed`. 게이트가 보는 것은 critical · warning 이지만 INFO 도 처분한다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다
+- [ ] 모든 발견 처분(`nerv_finding_resolve`). 라운드가 N1 판정 `passed`. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙으므로 발견으로 낸 INFO(`[SPEC-DRIFT]`, 또는 `--keep-info` 로 낸 것)도 처분한다
 - [ ] SPEC-DRIFT 발견사항은 NERV 스펙 초안(`/consistency-check --spec` → `/nerv:spec edit` 초안 · 검토 요청)으로 처리하고 `spec_change` 처분, 또는 사용자 escalate
 - [ ] `/consistency-check --impl-done <scope>` 결과를 checker 마다 `kind=consistency` 로 제출하고 처분
-- [ ] fix 가 있었으면 TEST WORKFLOW 재통과
+- [ ] fix 가 있었으면 REVIEW WORKFLOW 6 대로 테스트 재통과(applier 결과가 온전하면 build 만)
 - [ ] (codebase 변경 시) push 게이트 통과 — 라운드 뒤 커밋은 모두 처분 커밋이거나 fixed 발견을 인용
 - [ ] Task done 전이(`nerv_task_update(status=done)`): 증적(`evidence`)과 `spec_impact`(바꾼 스펙 키 목록 또는 `none`)를 함께 낸다. done 게이트가 거부하면 우회하지 않고 사유를 사용자에게 보고한다. 그다음 `nerv_task_release(reason=done)`
 

@@ -65,7 +65,7 @@ model: opus
 
 기획이 끝나면 사용자에게 다음 둘 중 하나 안내:
 
-1. **즉시 구현 시작**: 승인된 스펙으로 Task 를 만들거나 기존 Task 를 쓴다. `developer` 가 `/nerv:next` 로 클레임하고 `/consistency-check --impl-prep` 부터 시작한다.
+1. **즉시 구현 시작**: 승인된 스펙으로 Task 를 만들거나 기존 Task 를 쓴다. `developer` 가 `/nerv:next` 로 클레임하고, 스펙이 새로 들어오거나 바뀌었으면 `/consistency-check --impl-prep` 부터 시작한다.
 2. **승인 대기**: 사람이 승인한 뒤 Task 를 ready 로 올린다.
 
 본 skill 안에서는 구현·테스트·빌드 직접 수행 절대 금지.

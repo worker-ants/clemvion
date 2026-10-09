@@ -46,13 +46,11 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 통합 검토 결과 | NERV 리뷰 레코드 `kind=merge` — analyzer 마다 `nerv_review_submit`. 로컬 `.review/merge/<…>/` 는 커밋하지 않는다. 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 |
 | Spec-impl coverage standing audit 결과 | 로컬 `.review/spec-coverage/<…>/`(커밋하지 않는다). NERV `kind=spec_coverage` 로 내고(후보마다 info 발견, 라운드를 막지 않는다) 조치할 후보는 호출한 main 세션이 NERV Task 로 올린다. 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 (slash `/spec-coverage` 산출. 근거 모델: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md), 절차: [`spec-coverage` SKILL](.claude/skills/spec-coverage/SKILL.md)) |
 
-> **리뷰 결과는 저장소 파일이 아니다**(NERV 정본 전환 단계 2, 2026-10-01). 옛 `review/` 는 단계 3 에서 지웠다(원문은 git 이력).
-> 오케스트레이터는 `.review/` 에 쓰고, `.claude/tools/nerv_review_payload.py` 가 그 역할 리포트를 제출 묶음으로 바꾼다.
-> 처리 인계 파일(`_nerv_findings.json` · `_dispositions.json`)은 `.claude/tools/nerv_review_handoff.py` 가 만들고 검사한다. 절차의 정본은 `code-review-agents` SKILL §4 · §6 이다.
-> 결정 번호(D1~D12) · NERV API 번호(N1 등) · 승인 정책(A3)은 NERV 정본 전환 계획의 번호다. 계획은 전환 Task(`CLE-T-0EZEYF` ~ `CLE-T-7M4C4X`) 본문이 링크한다.
->
-> **작업 추적은 NERV Task 다**(NERV 정본 전환 단계 3, 2026-10-01). 저장소 `plan/` 은 지웠고(원문은 git 이력) `guard_nerv_owned_paths.py` 훅이
-> 그 아래 새 파일을 막는다. 진행 메모 · 체크리스트 · 후속 항목은 Task 본문과 heartbeat · handoff 에 남긴다.
+> **리뷰 결과와 작업 추적은 NERV 에 있다.** 저장소에는 `review/` · `plan/` 이 없고 `guard_nerv_owned_paths.py` 훅이 `plan/` 아래 새 파일을 막는다.
+> 진행 메모 · 체크리스트 · 후속 항목은 Task 본문과 heartbeat · handoff 에 남긴다. 오케스트레이터는 `.review/` 에 쓰고
+> `.claude/tools/nerv_review_payload.py` 가 역할 리포트를 제출 묶음으로, `.claude/tools/nerv_review_handoff.py` 가 처리 인계 파일
+> (`_nerv_findings.json` · `_dispositions.json`)을 만든다. 절차의 정본은 `code-review-agents` SKILL §4 · §6 이다.
+> 결정 번호(D1~D12) · NERV API 번호(N1 등) · 승인 정책(A3)은 NERV 정본 전환 계획의 번호다(전환 Task `CLE-T-0EZEYF` ~ `CLE-T-7M4C4X` 본문이 링크한다).
 > Spec 문서 3섹션 구성 (Overview / 본문 / Rationale): 각 SKILL.md 참고.
 >
 > **`spec/` 미러는 손으로 고치지 않는다.** `.claude/tools/nerv-mirror/pull.py` 만 쓴다. 도구 편집은 `guard_nerv_owned_paths.py` 훅이 막고,
@@ -67,6 +65,19 @@ SDD(Spec-Driven Development) + TDD. 테스트는 unit / integration / e2e 3계�
 실제 명령·인프라·면제 화이트리스트·e2e 작성 패턴: [`PROJECT.md`](PROJECT.md).
 Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/developer/SKILL.md).
 
+## 세션과 컨텍스트
+
+토큰 비용의 절반 이상은 메인 세션이 도구를 부를 때마다 대화 전체를 다시 읽는 데서 나온다. 2026-10-09 실측으로 메인 호출의
+평균 컨텍스트가 51만 토큰이었고 메인 비용의 79% 가 캐시 읽기였다(NERV Task `CLE-T-ZTTHXD`).
+
+- **컨텍스트 상한**: `.claude/settings.json` 의 `autoCompactWindow`(300,000 토큰)에서 자동 압축된다. 값을 올리지 않는다.
+- **Task 하나에 세션 하나**: Task 를 done 으로 넘기거나 release 한 세션에서 다음 Task 를 클레임하지 않고 새 세션을 연다.
+  중간에 끊으면 `state_note` 로 인계하고, 다음 세션은 `nerv_task_get` 으로 이어 받는다.
+- **탐색은 위임한다**: 파일 여러 개를 훑는 조사는 `Explore` 서브에이전트에 맡기고 결론만 받는다. 메인에서 직접 읽을 때는
+  `grep` · `sed -n` 을 Bash 호출 하나로 묶는다.
+- **기다릴 때는 알림을 쓴다**: Workflow · 백그라운드 명령은 완료 알림을 기다린다. `until` · `sleep` 폴링 루프로 기다리지 않는다.
+- **효과는 잰다**: `python3 .claude/tools/usage_report.py --since <YYYY-MM-DD>` 가 평균 컨텍스트 · 구성별 비용 · 작업당 라운드를 낸다.
+
 ## Skill 체계
 
 | 역할 | Skill | 쓰기 권한 |
@@ -80,11 +91,11 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 - **NERV 쓰기는 main 세션의 MCP 호출로만 한다** — 리뷰 제출 · 발견 처분 · Task 갱신 모두. 예외는 스펙 초안 서브에이전트(`nerv:nerv-spec-writer`)의 초안 쓰기 하나다. 훅 · CI · 스크립트는 REST 로 읽기만 한다. 리뷰 서브에이전트(`resolution-applier` 등)는 처분 목록을 돌려주고 main 이 기록한다(결정 D9). 이 서브에이전트들에는 NERV MCP 도구가 없다. 다만 Bash 로 NERV REST 에 닿을 수 있고 세션 환경에 `NERV_TOKEN` 이 있다. 그 경로를 막는 "네트워크 · 토큰 금지" 규칙은 지금 `resolution-applier` 정의에만 있다. 리뷰어 · checker · analyzer 정의에 같은 규칙을 넣는 일은 NERV Task `CLE-T-MGN4NZ` 가 맡는다. 토큰 값은 커밋하지도 출력하지도 않는다.
 
 - **스펙은 NERV 초안으로 고친다** — 누구나 초안을 쓰고(`/nerv:spec new|edit`), **승인은 사람**이 한다. 기획 주도의 신규 정의 · 대규모 개정은 `project-planner`, 구현 중 발견한 스펙 결함은 `developer` 도 초안을 쓴다. `codebase/` 변경 → `developer`.
-  > 옛 "§자기-반증형 소정정"(developer 가 `spec/` 을 직접 고칠 수 있는 좁은 예외)은 이 규칙에 흡수돼 없어졌다(2026-09-29 결정 D8 안 A). 반증한 사람이 곧 초안을 쓸 수 있으므로 예외가 필요 없다.
 - 구현 중 스펙과 부딪치면 추측으로 진행하지 않는다. 초안을 쓰거나 리뷰 발견(`area=spec`)으로 올리고, 막히면 `nerv_task_update(status=blocked, blocked_reason=spec_conflict)`.
-- 스펙 초안은 **저장 뒤 검토 요청 전에** 검토한다: `nerv_spec_check` + 로컬 `/consistency-check --spec <초안 본문 파일>`(`nerv_spec_get(basis=latest)` 본문을 scratchpad 에 둔 파일). 로컬 결과는 `kind=consistency` 로 제출한다. Critical 이면 검토 요청하지 않는다. `developer` 는 구현 착수 직전 `consistency-check --impl-prep` 의무. Critical 발견 시 차단.
+- 스펙 초안은 **저장 뒤 검토 요청 전에** 검토한다: `nerv_spec_check` + 로컬 `/consistency-check --spec <초안 본문 파일>`(`nerv_spec_get(basis=latest)` 본문을 scratchpad 에 둔 파일). 로컬 결과는 `kind=consistency` 로 제출한다. Critical 이면 검토 요청하지 않는다. `developer` 는 클레임한 스펙이 새로 들어오거나 바뀐 Task 에서 구현 착수 직전 `consistency-check --impl-prep` 을 돈다(조건은 developer SKILL §작업 워크플로 3). Critical 발견 시 차단.
 - **harness(`.claude/**`) 는 두 축으로 갈린다** — 코드·테스트·도구(`hooks/`·`tools/`·`tests/`)는 `developer`, **거버넌스 문서**(`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`, 서브에이전트 정의 `.claude/agents/**`, 슬래시 명령 `.claude/commands/**`)는 `project-planner`. 역할 정의를 그 역할 자신이 고치는 것을 막는 경계다. 실행 절차 문서 `PROJECT.md` 는 두 역할이 함께 고친다. `.claude/worktrees/**` 는 각 세션의 작업 트리이며 `integrate-*` 만 `merge-coordinator` 소유(위 표).
-- **push 게이트는 `codebase/**` 만 본다** — push 훅과 CI `review-gate` 는 `codebase/**` 를 바꾼 브랜치에 passed 상태의 NERV `kind=code` 라운드를 요구한다. 그 라운드에는 변경 종류에 따라 붙는 강제 리뷰어(documentation · dependency · database · api_contract)의 리포트도 있어야 한다(판정 규칙: `.claude/hooks/_lib/review_guard.py`, 요약은 `PROJECT.md` §NERV 리뷰 게이트). harness-only 변경은 push 가 막히지 않으므로 **검증은 `python3 -m pytest .claude/tests -q` 가 대신한다** (선례 `051c7e7c1` 이 그 명령으로 검증했다). 다만 NERV Task 의 done 게이트(`done_gate.review_coverage: ["code","consistency"]`)는 변경 영역과 무관하게 **그 Task 에 묶인** code · consistency 라운드가 N1 판정 `passed` 이기를 요구한다. 그래서 harness Task 도 리뷰를 돌려 `task_id` 를 붙여 제출한다. router 는 바뀐 파일이 있으면 늘 필수 6역할을 돌리므로 harness Task 의 라운드도 역할이 빠지지 않는다. 이 비대칭을 적지 않으면 "harness 도 push 게이트가 본다" 는 보장을 문서가 구현보다 넓게 말하게 된다.
+- **하네스 변경에는 예산을 둔다** — 하네스(`.claude/**` · `CLAUDE.md` · `PROJECT.md`)에 규칙이나 가드를 더하는 PR 은 본문에 두 가지를 적는다. 막으려는 실제 사고(Task · PR · 세션 근거)와 작업마다 더하는 비용(단계 · 서브에이전트 · 대기 시간)이다. 분기마다 정리 Task 를 하나 만들어 그동안 걸린 적 없는 규칙 · 가드를 지울 후보로 올린다. 2026-10-09 실측으로 워크플로 실행의 39% 가 하네스 · 거버넌스 작업이었다.
+- **push 게이트는 `codebase/**` 만 본다** — push 훅과 CI `review-gate` 는 `codebase/**` 를 바꾼 브랜치에 passed 상태의 NERV `kind=code` 라운드를 요구한다. 그 라운드에는 변경 종류에 따라 붙는 강제 리뷰어(documentation · dependency · database · api_contract)의 리포트도 있어야 한다(판정 규칙: `.claude/hooks/_lib/review_guard.py`, 요약은 `PROJECT.md` §NERV 리뷰 게이트). harness-only 변경은 push 가 막히지 않으므로 **검증은 `python3 -m pytest .claude/tests -q` 가 대신한다**. 다만 NERV Task 의 done 게이트(`done_gate.review_coverage: ["code","consistency"]`)는 변경 영역과 무관하게 **그 Task 에 묶인** code · consistency 라운드가 N1 판정 `passed` 이기를 요구한다. 그래서 harness Task 도 리뷰를 돌려 `task_id` 를 붙여 제출한다. router 는 바뀐 파일이 있으면 늘 필수 6역할을 돌리므로 harness Task 의 라운드도 역할이 빠지지 않는다.
 - **push 게이트는 NERV 가 답할 때만 막는다(fail-open)** — NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN` 이 없으면 push 훅은 통과시키고 배너로 센다. CI `review-gate` 는 토큰 · 주소 설정 문제만 실패로 보고 장애는 통과시킨다. 리뷰 뒤 fix 커밋은 다시 리뷰되지 않는다(처분은 자기 신고다). 설정 · 판정 규칙: `PROJECT.md` §NERV 리뷰 게이트, `code-review-agents` SKILL §4.
 
 **보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 결과는 로컬 `.review/spec-coverage/**` 에 남고 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다). 근거 모델은 [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 이다.
@@ -102,11 +113,10 @@ auxiliary Python 스크립트(예: `.claude/skills/**/scripts/*orchestrator*.py`
 
 ### 구현 완료 후 자동 review/fix 는 상시 승인된 강제 의무 (standing opt-in)
 
-`Workflow` tool 의 일반 가드는 "사용자가 명시적으로 multi-agent orchestration 에 opt-in 했을 때만 호출" 하라고 한다. 이는 **임의 작업에 대한 비용 보호**다. 그러나 **구현(`developer`) 완료 후의 `/ai-review`(로컬 fan-out) + 역할별 NERV 제출 + critical/warning fix · 처분은 그 가드의 예외** — 본 프로젝트가 **상시 사전 승인한 강제 단계**다 (developer SKILL §REVIEW WORKFLOW. push 훅과 CI `review-gate` 가 NERV 라운드로, NERV done 게이트가 Task 마다 강제한다). 따라서:
+`Workflow` tool 의 opt-in 가드는 임의 작업의 비용 보호다. **구현(`developer`) 완료 후의 `/ai-review` · 역할별 NERV 제출 · critical/warning fix(`resolution-applier`) · 처분(`nerv_finding_resolve`)은 이 프로젝트가 상시 승인한 강제 단계라 그 가드의 예외다**(developer SKILL §REVIEW WORKFLOW. push 훅 · CI `review-gate` · NERV done 게이트가 강제한다).
 
-- 구현이 끝나면 `/ai-review` 를 "범위가 커 보인다 / 사용자가 이번 턴에 명시 안 했다" 는 이유로 미루지 않는다. 이 자동 리뷰는 "추론된 scale" 이 아니라 **명시 규약**이므로 Workflow opt-in 가드에 걸리지 않는다.
-- 마찬가지로 Critical/Warning 에 대한 `resolution-applier` fix 와 main 의 `nerv_finding_resolve` 처분도 같은 턴의 강제 의무다.
+- 범위가 커 보이거나 사용자가 이번 턴에 말하지 않았다는 이유로 미루지 않는다.
 - **예외 — 사람 승인 대기**: critical 을 dismissed · wont_fix 로 낮추는 처분이나 스펙 초안 검토 요청처럼 NERV 가 사람 승인(A3)을 요구하는 지점에서 기다리는 것은 미루기가 아니다. 그 동안 세션은 `awaiting_input` 이다. 기다리는 이유를 사용자에게 알리고 그 외 할 일은 끝낸다.
-- **자동 트리거(구현 완료 후) 시에는** Workflow 의 비동기 간극을 피하기 위해 `code-review-agents` SKILL 의 **fallback 평문 Agent fan-out 경로**를 선택할 수 있다 — 사용자가 명시적으로 `/ai-review` 를 친 경우(대화형)는 Workflow 경로가 자연스럽다.
+- 자동 트리거일 때는 Workflow 의 비동기 간극을 피하려고 `code-review-agents` SKILL 의 평문 Agent fan-out 경로를 쓸 수 있다.
 
 Sub-agent 호출 규약(prompt_file/output_file/STATUS 라인) + 한도 무한 재시도 정책: [`.claude/docs/subagent-call-contract.md`](.claude/docs/subagent-call-contract.md).
