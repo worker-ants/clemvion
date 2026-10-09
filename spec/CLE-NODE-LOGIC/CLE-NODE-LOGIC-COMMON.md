@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "2f4645bc0b7c7c9f96a608d5172fcf208b8f50a4c5f76b1ea920bdbdc562da09"
+content_hash: "070bf42e213d0f11bafbdffeef9810cf6cb8001bd9ae172bc5b9c33e50ff628f"
 read_as: "approved_fallback"
-task: "CLE-T-52JYHM"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "99fabfa0bb8f57211a8aeba522bf3002bd0efec4af2ffbf8442769c069ddb7da"
-etag: "sha256-5f57a39703d9687d56264fb751c04356ba9c176f35b7ebd340ad60c02500a775"
+mirror_sha256: "ee27d4bcbc60f8b3227cdb0bc1c079d686f2f1294fed7aec82810d59c72bde57"
+etag: "sha256-e276e59e22075167b27b9df88c24412a197f95ba317688649393a180c6b47719"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -91,7 +91,7 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 | `body` | 출력 | 컨테이너 본문 진입점. 반복 회차마다 첫 노드로 데이터를 넘긴다 |
 | `done` | 출력 | 반복이 끝난 뒤 모은 결과를 다음 노드로 넘긴다 |
 
-1. `emit` 포트에는 본문 노드가 정확히 1개 연결돼야 한다. 0개면 `CONTAINER_MISSING_EMIT`, 2개 이상이면 `CONTAINER_MULTIPLE_EMIT` 로 실행이 실패한다.
+1. `emit` 포트에는 본문 노드가 정확히 1개 연결돼야 한다. 연결된 본문 노드가 없으면 에러 메시지가 `CONTAINER_MISSING_EMIT:` 으로 시작하는 에러로 실행이 실패한다. 본문 밖 노드만 `emit` 에 연결된 경우도 같다. 본문 노드가 2개 이상 연결되면 에러 메시지가 `CONTAINER_MULTIPLE_EMIT:` 으로 시작하는 에러로 실행이 실패한다. 두 이름은 `ErrorCode` enum 값이 아니고 에러 메시지의 접두사다(`execution-engine.service.ts`).
 2. 컨테이너 본문 안에는 되돌아가는 연결선(순환)과 블로킹 노드(form / buttons / ai_conversation)를 둘 수 없다.
 3. 캔버스는 이 세 노드를 컨테이너로 렌더링한다. 렌더링 형태와 멤버십(`containerId`) 규칙은 [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md) 가 정한다.
 4. 실행 중에는 컨테이너 헤더에 현재 진행 인덱스를 표시한다(예: "Iteration 3/10", "Item 2/5"). 이 표시의 구현 여부는 [미결 사항](#미결-사항) 에 적었다.
@@ -105,8 +105,8 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 
 1. `config.errorPolicy` 는 ForEach · Map · Parallel 전용이다. Loop 에는 이 필드가 없다.
 2. 일반 노드의 에러 처리 정책은 별개 설정인 `config.errorHandling.{policy, retryConfig, defaultOutput}` (5값 enum)이다. 자세한 규칙은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.
-3. 한 노드에서 `config.errorPolicy` 와 `config.errorHandling` 을 같이 쓰지 않는다. Parallel 이 `config.errorPolicy` 를 비워 두었을 때의 대체 규칙은 [Parallel 노드](CLE-NODE-PARALLEL.md) 가 정한다.
-4. 설정 패널이 저장할 때 `config.errorPolicy` 를 지우는 문제가 있다. [미결 사항](#미결-사항) 참조.
+3. 한 노드에서 `config.errorPolicy` 와 `config.errorHandling` 을 같은 뜻으로 섞어 쓰지 않는다. ForEach · Map · Parallel 에는 두 키가 함께 있을 수 있다. 현재 구현은 이 세 노드의 `config.errorHandling` 을 그 노드의 핸들러 호출이 실패할 때만 적용한다. 반복 회차나 병렬 분기를 실행하는 단계에서 그 노드 자신이 실패하면 `config.errorHandling` 을 적용하지 않는다. 다만 Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다([Parallel 노드](CLE-NODE-PARALLEL.md)). 자세한 동작은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다. Logic 노드에 에러 처리 정책을 허용할지는 [미결 사항](#미결-사항) 에 있다.
+4. 설정 패널은 ForEach · Map · Parallel 의 `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않는다. 저장할 때 지우지도 않는다. 다른 노드에서 이 키를 옛 키로 보고 옮기는 규칙과 결정 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 
 **Map / ForEach** — `stop` / `skip` / `continue` (`map.schema.ts`, `foreach.schema.ts`):
 
@@ -236,7 +236,6 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하는데도 엔진이 덮
 
 ## 미결 사항
 
-- **항목 에러 정책이 저장할 때 지워질 수 있다** (critical): 이 문서는 `config.errorPolicy` 를 ForEach · Map · Parallel 의 현행 설정으로 쓴다. [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 의 에러 처리 정책 절은 flat `config.errorPolicy` 를 `errorHandling` 으로 옮길 옛 키로 보고 조건 없이 로드 때 옮긴다고 적는다. 현재 구현은 설정 패널 저장 코드(`node-settings-panel.tsx`)가 노드 종류와 상관없이 `config.errorPolicy` 를 지우고 로드 때 `skip` 을 `skip_node` 로 바꾼다. 실제 저장 흐름에서 컨테이너 값이 사라지는지는 확인하지 않았다. Parallel 의 `errorHandling.policy` 대체 규칙이 이 소실을 가리고 있을 수도 있다. 마이그레이션 범위에서 ForEach · Map · Parallel 을 빼는지 키 이름을 바꾸는지 결정 필요. 같은 항목이 [노드 포트와 설정 패널 미결 사항](../CLE-WF/CLE-WF-NODEPANEL.md#미결-사항) 에도 있다. (관련: [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md))
 - **엔진 덮어쓰기 규칙이 노드 출력 규약과 갈린다** (critical): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 컨테이너 절은 "핸들러가 `output: null` 을 반환하면 엔진이 반드시 덮어쓰고 `null` 이 아닌 값을 반환하면 덮어쓰지 않는다" 고 적는다. 이 문서와 [ForEach 노드](CLE-NODE-FOREACH.md) · [Map 노드](CLE-NODE-MAP.md) 는 핸들러가 `items[]` 를 반환해도 엔진이 완료 시점에 덮어쓴다고 적는다. 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)은 ForEach · Map 도 덮어쓴다. 규약 쪽을 "엔진 덮어쓰기 대상 노드는 반환값과 무관하게 덮어쓴다" 로 고칠지 결정 필요.
 - **비배열·원시값 입력 처리가 노드 출력 규약과 갈린다** (critical): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절은 배열이 와야 할 자리가 `null`/`undefined` 면 `[]` 로 대체하고 숫자·문자열이면 에러를 던지라고 정한다. 노드별 현행 서술은 다음과 같고 대부분 그 절을 근거로 인용한다. 문자열이 들어오면 규약대로는 실패하고 노드 문서대로는 조용히 0회 실행된다. 규약에 노드별 예외를 적을지 노드 문서와 구현을 규약에 맞출지 결정 필요.
 
@@ -261,6 +260,8 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하는데도 엔진이 덮
 - **실행 중 컨테이너 헤더의 진행 인덱스** (info): 이 문서와 Loop · Map 문서는 실행 중 헤더에 "Iteration 3/10" 같은 진행 인덱스를 보인다고 적는다. [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md) 의 컨테이너 절에는 이 요소가 없고 프론트엔드 캔버스 코드에서도 찾지 못했다. 캔버스 문서에 정의할지 미구현으로 표시할지 결정 필요.
 - **컨테이너 완료 출력의 `meta.durationMs`** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 `meta.durationMs` 를 모든 노드 공통으로 둔다. [ForEach 노드](CLE-NODE-FOREACH.md) 는 완료 출력 `meta` 에 `durationMs` 가 없다고 적고 [Map 노드](CLE-NODE-MAP.md) · [Loop 노드](CLE-NODE-LOOP.md) 는 있다고 적는다. 같은 실행 코드를 쓰는 ForEach 와 Map 이 다르게 적혀 있다. 컨테이너 예외를 규약에 적을지 결정 필요.
 - **`skip` 과 `continue` 의 차이** (info): 노드 PRD 는 건너뛰기와 계속을 다른 정책으로 보여 준다. ForEach · Map 문서에서 두 값의 결과 형태는 같고 이 문서는 `continue` 가 노드 실행 기록에도 에러를 남긴다는 차이만 적는다. 관측할 수 있는 차이를 더 적을지 하나로 합칠지 결정 필요.
+- **완료 출력의 `port` 가 노드 출력 규약 Principle 5 와 맞지 않는다** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 5 는 `port: undefined` 를 노드 정의상 출력이 1개인 노드에, `port: string[]` 을 Parallel 핸들러와 텍스트 분류기에 둔다. Loop · ForEach · Map 은 출력 포트가 `body` 와 `done` 둘인데 완료 출력에 `port` 가 없다. 이 문서의 [노드 출력 사용 패턴](#노드-출력-사용-패턴) 표는 Parallel 이 끝날 때 `'done'` 을 싣는다고 적지만 구현은 배열 `['done']` 을 싣는다. 두 사실 모두 `execution-engine.service.ts` 의 컨테이너 완료 처리와 Parallel 완료 처리에서 확인했다. 규약과 이 문서 가운데 어느 쪽을 고칠지 결정 필요.
+- **노드 출력 규약을 가리키는 인용이 낡았다** (info): [반복 결과 출력 구조](#반복-결과-출력-구조) 는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 "컨테이너 출력 절" 을 가리킨다. 그 문서에는 이 이름의 절이 없고 해당 내용은 [Principle 9](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-9-컨테이너와-parallel-의-출력-덮어쓰기) 에 있다. 첫 미결 사항이 옮긴 규약 문장("`null` 이 아닌 값을 반환하면 덮어쓰지 않는다")도 지금 Principle 9 의 9.1 과 다르다. 지금 9.1 은 핸들러가 `null` 이 아닌 값을 돌려줄 때 엔진이 덮어쓰는지를 정의가 갈리는 사항으로 둔다. 두 인용을 지금 규약 기준으로 고칠지 결정 필요.
 
 ## 구현 위치
 
@@ -269,6 +270,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하는데도 엔진이 덮
 - `codebase/backend/src/nodes/logic/*/*.schema.ts`
 - `codebase/backend/src/nodes/core/condition-evaluator.util.ts` (조건 평가, `compileUserRegex`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (엔진 덮어쓰기)
+- `codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx` (`ITEM_ERROR_POLICY_NODE_TYPES`: 레거시 평면 키 이전에서 뺄 노드 유형)
 
 ## Rationale
 
@@ -280,15 +282,15 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하는데도 엔진이 덮
 
 길이 200자 제한만으로는 ReDoS 를 막지 못한다. 200자 안에서도 `(a+)+$` 같은 지수 백트래킹 패턴을 만들 수 있고 이런 패턴은 워커를 무기한 붙잡을 수 있다. 그래서 `safe-regex` 검사를 1차 방어로 두고 길이 제한은 분석 비용과 남은 위험을 줄이는 2차 방어로 둔다. 같은 정책을 If/Else · Switch · Filter 가 따로 적던 것을 이 문서 한 곳으로 모으고 구현도 단일 헬퍼 `compileUserRegex` 로 모았다.
 
-### 시작 시점 배열을 엔진 내부 표현으로 둔다 (D2 결정)
+### 시작 시점 배열을 엔진 내부 표현으로 둔다
 
-ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 밖으로 드러나는 형태는 `{ <컬렉션 키>, count }` 다. 핸들러 시그니처와 외부 노출 형태가 다른 것은 의도한 설계다. 노드 출력 5필드를 깨지 않고 나눠 줄 데이터를 엔진에 넘기는 방법이 이것이기 때문이다.
+ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 밖으로 드러나는 형태는 `{ <컬렉션 키>, count }` 다. 핸들러 시그니처와 외부 노출 형태가 다른 것은 의도한 설계다. 노드 출력 5필드를 깨지 않고 나눠 줄 데이터를 엔진에 넘기는 방법이 이것이기 때문이다. [ForEach 노드](CLE-NODE-FOREACH.md) · [Map 노드](CLE-NODE-MAP.md) · [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 은 이 결정을 "D2 결정" 으로 가리킨다.
 
-기각한 대안(B안)은 핸들러가 `null` 을 반환하고 별도 엔진 내부 채널로 배열을 넘기는 방식이다. 동작은 같은데 5필드 계약을 바꾸는 비용이 더 커서 채택하지 않았다.
+기각한 대안은 핸들러가 `null` 을 반환하고 별도 엔진 내부 채널로 배열을 넘기는 방식이다. 동작은 같은데 5필드 계약을 바꾸는 비용이 더 커서 채택하지 않았다.
 
-### ForEach 와 Map 의 실패 표현을 다르게 둔다 (D3 결정)
+### ForEach 와 Map 의 실패 표현을 다르게 둔다
 
-항목 에러 정책이 `skip` / `continue` 일 때 ForEach 는 `output.items[i] = null` 자리와 별도 `output.skipped[]` 배열로 실패를 나누고 Map 은 `output.mapped[i] = { _skipped: true, error }` 로 같은 배열 안에 표시한다. 두 노드의 의미가 다르기 때문이다.
+항목 에러 정책이 `skip` / `continue` 일 때 ForEach 는 `output.items[i] = null` 자리와 별도 `output.skipped[]` 배열로 실패를 나누고 Map 은 `output.mapped[i] = { _skipped: true, error }` 로 같은 배열 안에 표시한다. 두 노드의 의미가 다르기 때문이다. [ForEach 노드](CLE-NODE-FOREACH.md) · [Map 노드](CLE-NODE-MAP.md) 는 이 결정을 "D3 결정" 으로 가리킨다.
 
 - **Map** 은 "같은 타입으로 바꾼 배열" 계약이다. 다음 노드가 `mapped.map(...)` 처럼 배열 전체를 한 번에 다루므로 실패 항목도 같은 배열에 두는 편이 자연스럽다. `_skipped` 표시로 정상과 실패를 가른다.
 - **ForEach** 는 "독립 항목 반복" 계약이다. 반복 회차가 서로 독립이므로 성공과 실패가 한 배열에 섞이지 않는 편이 뜻이 분명하다. `items[]` 에는 성공과 `null` 만, `skipped[]` 에는 실패만 둔다.

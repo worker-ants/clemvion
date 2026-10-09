@@ -257,7 +257,7 @@
     "codebase/backend/src/modules/llm/llm-model-config.controller.spec.ts": 1,
     "codebase/backend/src/modules/llm/llm.service.spec.ts": 1,
     "codebase/backend/src/modules/llm/llm.service.ts": 4,
-    "codebase/backend/src/modules/mail/mail.service.ts": 3,
+    "codebase/backend/src/modules/mail/mail.service.ts": 2,
     "codebase/backend/src/modules/mcp/mcp-client.service.ts": 3,
     "codebase/backend/src/modules/mcp/mcp-error-codes.ts": 1,
     "codebase/backend/src/modules/mcp/mcp-test-connection.service.ts": 1,

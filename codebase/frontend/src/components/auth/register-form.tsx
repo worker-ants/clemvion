@@ -102,7 +102,7 @@ function RegisterFormInner({
   const showOauth = showGoogle || showGithub;
 
   useEffect(() => {
-    // 이미 로그인한 사용자가 초대 링크(/auth/register?invitationToken=…)로 온 경우 —
+    // 이미 로그인한 사용자가 초대 링크(/register?invitationToken=…)로 온 경우 —
     // register 폼은 미가입자 가입 경로이므로, §1.5.3 수락 확인 페이지로 보낸다
     // (V-09 진입 경로). 미로그인 사용자만 아래 가입 폼을 사용한다.
     //

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-034", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039"]
+requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-034", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "a4148c29d00617c1b66e55f1ac41197292510ae822179907e43434cb3f9a1cb8"
+content_hash: "9befc6f20f6cf8dc907be1a199488e0a6d6ff667bb8925ac8ff8f76409dd9092"
 read_as: "approved_fallback"
-task: "CLE-T-52JYHM"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "bc27949c8bc9999640c2313a1c42615592a41d4b98ec1fafbc5e12373225bf29"
-etag: "sha256-c9a7d6c794edd6e69fc708f52c4914fe11f9246e5a134f27ba001d5800566bdd"
+mirror_sha256: "179e052cef1bd7b0bfe439978219868e8a7dc5e7651c3360e370c82c9d3276d3"
+etag: "sha256-6ec46826a35efe5465002efd94e46b945ffc32fbd9a5dd222289ce69320a1f4f"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한·비활동 만료는 구현 여부 미확인) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,7 +50,7 @@ etag: "sha256-c9a7d6c794edd6e69fc708f52c4914fe11f9246e5a134f27ba001d5800566bdd"
 - REQ-SESSION-015 WHEN 리프레시 쿠키를 설정하거나 지우면 THE SYSTEM SHALL 같은 Path `/api/auth` 를 쓴다.
 - REQ-SESSION-016 WHEN 리프레시 쿠키 Domain 을 정하면 THE SYSTEM SHALL `FRONTEND_URL`·`APP_URL` hostname 의 공통 상위 도메인을 자동으로 쓰고, 같은 host·localhost·IP·공통 도메인 없음이면 Domain 을 지정하지 않는다.
 - REQ-SESSION-017 WHEN 리프레시 쿠키 SameSite 를 정하면 THE SYSTEM SHALL `COOKIE_SAMESITE` 값을 쓰고 설정이 없거나 알 수 없는 값이면 `none` 을 쓴다.
-- REQ-SESSION-018 WHEN 세션·감사용 클라이언트 IP 를 읽으면 THE SYSTEM SHALL `TRUST_CF_CONNECTING_IP=true` 일 때만 `CF-Connecting-IP` 를 1순위로 쓰고 이어서 `X-Forwarded-For` 첫 IP, `req.ip`, `req.socket.remoteAddress` 순으로 쓴다.
+- REQ-SESSION-018 WHEN 세션·감사용 클라이언트 IP 를 읽으면 THE SYSTEM SHALL `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 `CF-Connecting-IP` 를 1순위로 쓰고 이어서 `X-Forwarded-For` 첫 IP, `req.ip`, `req.socket.remoteAddress` 순으로 쓴다.
 - REQ-SESSION-019 WHEN 공개 웹훅 요청 한도·`ip_whitelist` 용 IP 를 읽으면 THE SYSTEM SHALL 헤더 기반 순서(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백을 쓰지 않는다.
 - REQ-SESSION-020 WHEN 리프레시 토큰을 발급하면 THE SYSTEM SHALL 발급 시점의 IP·User-Agent·기기 라벨을 기록하고 갱신 때마다 마지막 사용 시각과 IP 를 갱신한다.
 - REQ-SESSION-021 WHEN 사용자가 세션 목록을 조회하면 THE SYSTEM SHALL 로그인 세션 단위로 가장 최신 행의 메타데이터를 보여 주고 요청 쿠키와 맞는 세션에 `isCurrent` 를 표시한다. (현재 세션 식별은 [미결 사항](#미결-사항))
@@ -72,6 +72,7 @@ etag: "sha256-c9a7d6c794edd6e69fc708f52c4914fe11f9246e5a134f27ba001d5800566bdd"
 - REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 프론트엔드 JS 가 `has_session=1` 쿠키(non-httpOnly, path=/, max-age 30일, SameSite=Lax)를 설정한다.
 - REQ-SESSION-038 WHEN 로그인에 성공하면 THE SYSTEM SHALL `redirect` 파라미터가 있으면 그 URL 로, 없으면 `/dashboard` 로 보낸다.
 - REQ-SESSION-039 WHEN 사용자가 `/profile/sessions` 를 열면 THE SYSTEM SHALL 활성 로그인 세션 목록과 "현재" 배지, 개별 종료와 일괄 종료 버튼을 보여 준다.
+- REQ-SESSION-040 WHEN 요청 경로가 `/auth/register`(끝 슬래시 포함)이면 THE SYSTEM SHALL 공개 경로 판정과 `has_session` 검사보다 먼저 쿼리를 보존한 채 `/register` 로 리다이렉트한다.
 
 ## 토큰
 
@@ -126,7 +127,7 @@ etag: "sha256-c9a7d6c794edd6e69fc708f52c4914fe11f9246e5a134f27ba001d5800566bdd"
 | 이메일 변경 시 | `POST /api/users/me/email-change/verify` 가 성공하면 비밀번호 변경과 같게 모든 세션을 무효화하고 현재 기기에 다시 발급한다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않아 현재 세션을 식별할 수 없다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 기존 enum 값을 다시 쓰므로 DB CHECK·마이그레이션이 필요 없다 |
 | 현재 세션 식별 | 서버가 요청의 리프레시 쿠키 해시를 조회해 `isCurrent` 로 응답한다. 원래 토큰은 JS 에 노출하지 않는다. 쿠키 Path 와의 충돌은 [미결 사항](#미결-사항) |
 | 메타데이터 | 발급 시점의 IP·User-Agent·기기 라벨과 마지막 사용 시각·IP 를 리프레시 토큰 행에 기록한다 |
-| 클라이언트 IP | `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP=true` 일 때만 1순위로 쓴다(기본 off, 위조 가능한 헤더). off 면 `X-Forwarded-For` 첫 IP, `req.ip`(trust proxy), `req.socket.remoteAddress` 순이다. 이 네 단계 순서는 세션·감사 IP 경로(`extractClientIp(req)`)에만 쓴다. 웹훅 요청 한도·`ip_whitelist` 경로는 헤더 기반(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백이 없다(`extractClientIpFromHeaders`). 헤더로 IP 를 알 수 없으면 공개 웹훅 요청 한도는 거부하지 않고 단일 공유 버킷의 완화 한도를 쓴다. `ip_whitelist` 는 반대로 거부한다. Cloudflare(Tunnel 포함) 뒤에 배포할 때만 켠다 |
+| 클라이언트 IP | `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 1순위로 쓴다(기본 off, 위조 가능한 헤더). off 면 `X-Forwarded-For` 첫 IP, `req.ip`(trust proxy), `req.socket.remoteAddress` 순이다. 이 네 단계 순서는 세션·감사 IP 경로(`extractClientIp(req)`)에만 쓴다. 웹훅 요청 한도·`ip_whitelist` 경로는 헤더 기반(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백이 없다(`extractClientIpFromHeaders`). 헤더로 IP 를 알 수 없으면 공개 웹훅 요청 한도는 거부하지 않고 단일 공유 버킷의 완화 한도를 쓴다. `ip_whitelist` 는 반대로 거부한다. Cloudflare(Tunnel 포함) 뒤에 배포할 때만 켠다 |
 | 리프레시 쿠키 Domain | `FRONTEND_URL`·`APP_URL` hostname 에서 자동으로 정한다(`common/config/app.config.ts` 의 `computeCookieDomain`). 같은 host·localhost·IP 면 Domain 을 지정하지 않는다(백엔드 origin 한정). 공통 상위 도메인이 있으면(예: `api.x.com`·`app.x.com`) `.x.com` 이다. 공통 도메인이 없으면 지정하지 않고 cross-origin 은 `withCredentials` 에 맡긴다. 별도 환경 변수는 없다 |
 | 리프레시 쿠키 SameSite | `COOKIE_SAMESITE` 환경 변수. 기본 `none` 이다. 프론트와 API 의 사이트 경계(eTLD+1)가 다른 cross-site 배포를 지원하기 위해서다. `lax`·`strict` 면 그 배포에서 쿠키가 붙지 않아 세션이 끊긴다. 같은 사이트 배포는 `lax` 나 `strict` 로 조인다. 알 수 없는 값은 `none` 으로 처리한다 |
 | 리프레시 쿠키 Path | `/api/auth` 로 한정한다. refresh·login·logout 같은 auth 엔드포인트에만 쿠키가 붙어 노출 표면이 줄어든다. 설정과 삭제는 같은 Path 를 써야 한다 |
@@ -222,7 +223,7 @@ sequenceDiagram
 
 | 층 | 구현 | 동작 |
 | --- | --- | --- |
-| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<path>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다 |
+| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<path>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다. 공개 경로 판정과 `has_session` 검사보다 먼저 옛 초대 링크 경로 `/auth/register`(끝 슬래시 포함)를 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다. 이 리다이렉트는 `has_session` 쿠키 유무와 상관없다. 이유는 [워크스페이스와 멤버](CLE-ACCT-WS.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다) 의 Rationale 에 있다 |
 | 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준의 최종 가드. 미인증이면 원래 URL 을 `redirect` 파라미터에 담아 `/login` 으로 보낸다 |
 
 ### 로그인 힌트 쿠키
@@ -243,8 +244,8 @@ sequenceDiagram
 | POST | `/api/auth/refresh` | 토큰 갱신. 리프레시 쿠키 사용, 본문 없음. 응답 `{ accessToken }` 과 새 리프레시 쿠키. 쿠키 없음 401, 재사용·동시 회전 401 `TOKEN_INVALID`, 단순 만료 401 `TOKEN_EXPIRED`, 허용 목록 밖 `Origin` 403 |
 | POST | `/api/auth/logout` | 로그아웃. 호출한 기기의 로그인 세션 전체를 무효화한다. 쿠키가 없어도 200 |
 | GET | `/api/users/me/sessions` | 활성 로그인 세션 목록. 로그인 세션 단위, `isCurrent` 포함. 응답 `{ data: { items: [...] } }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
-| POST | `/api/users/me/sessions/:familyId/revoke` | 로그인 세션 하나 강제 종료. 그 `family_id` 전체를 무효화한다. 본문에 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 갱신된 세션 목록. IP 당 분당 10회. 현재 세션 400 `CANNOT_REVOKE_CURRENT_SESSION`, 남의 세션·없는 세션 404, 재인증 수단 없음 403 `REAUTH_NOT_AVAILABLE`. 일부 CDN·프록시가 DELETE 본문을 지우는 문제를 피하려고 DELETE 대신 POST `/revoke` 를 쓴다(`sessions.controller.ts`) |
-| POST | `/api/users/me/sessions/revoke-others` | 현재 세션을 뺀 나머지 세션 일괄 종료. 비밀번호 또는 TOTP 로 계정 재인증. IP 당 분당 5회 |
+| POST | `/api/users/me/sessions/:familyId/revoke` | 로그인 세션 하나 강제 종료. 그 `family_id` 전체를 무효화한다. 본문에 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 갱신된 세션 목록. 분당 10회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다. 현재 세션 400 `CANNOT_REVOKE_CURRENT_SESSION`, 남의 세션·없는 세션 404, 재인증 수단 없음 403 `REAUTH_NOT_AVAILABLE`. 일부 CDN·프록시가 DELETE 본문을 지우는 문제를 피하려고 DELETE 대신 POST `/revoke` 를 쓴다(`sessions.controller.ts`) |
+| POST | `/api/users/me/sessions/revoke-others` | 현재 세션을 뺀 나머지 세션 일괄 종료. 비밀번호 또는 TOTP 로 계정 재인증. 분당 5회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다 |
 
 로그인 이력 조회 `GET /api/users/me/login-history` 는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다. 세션 API 는 `SessionsController`(`@Controller('users/me')`)에 있다.
 

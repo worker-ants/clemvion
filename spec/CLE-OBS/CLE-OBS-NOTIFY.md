@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "1a6beb5028989082fc2780891710fa40e6776f43f701660a46d1fca646aab0c9"
+content_hash: "3031462d66f8d066acfbaeb779ff0239bc11077fb019f9220a49ba499e9aee5b"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "09b6a3f68eed3a9bc0e44bce4c7e9c4cabbe56cbe31baa7c697160fc05235929"
-etag: "sha256-c9e78e40bc90061da25109fcd0a25b63eb2d3b135d9a15172eab31813db2f2b0"
+mirror_sha256: "b9f14bd6f1c7690d3f16902422bd263177183f59e05f53f46d137ec1864a6652"
+etag: "sha256-696899d7fa5ab2d5cda01813321a082e0ad6e0d48992c77b781111ca51138c9e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -89,8 +89,8 @@ etag: "sha256-c9e78e40bc90061da25109fcd0a25b63eb2d3b135d9a15172eab31813db2f2b0"
 - REQ-NOTIFY-043 WHEN 알림 규칙에 워크플로우를 지정하지 않으면 THE SYSTEM SHALL 워크스페이스 전체를 감시한다. (원본: 9-user-profile §6.3)
 - REQ-NOTIFY-044 WHEN 5분 주기가 돌아오면 THE SYSTEM SHALL 켜진 알림 규칙 전체를 한 번에 평가한다. (원본: NF-OB-05, data-flow/9 §1.3)
 - REQ-NOTIFY-045 WHILE 서버 인스턴스가 여럿인 동안 THE SYSTEM SHALL 알림 규칙 평가 반복 작업을 하나만 등록해 전역에서 한 번 실행한다. (원본: data-flow/9 §1.3)
-- REQ-NOTIFY-046 WHEN 규칙의 관측값이 임계값보다 크면 THE SYSTEM SHALL 워크스페이스 관리자에게 `alert_<type>` 알림을 보내고 `last_triggered_at` 을 갱신한다. (원본: data-flow/9 §1.3)
-- REQ-NOTIFY-047 IF 관측값이 임계값과 같거나 작으면 THE SYSTEM SHALL 알림을 보내지 않는다. (원본: data-flow/9 §1.3)
+- REQ-NOTIFY-046 WHEN 규칙의 관측값이 임계치보다 크면 THE SYSTEM SHALL 워크스페이스 관리자에게 `alert_<type>` 알림을 보내고 `last_triggered_at` 을 갱신한다. (원본: data-flow/9 §1.3)
+- REQ-NOTIFY-047 IF 관측값이 임계치와 같거나 작으면 THE SYSTEM SHALL 알림을 보내지 않는다. (원본: data-flow/9 §1.3)
 - REQ-NOTIFY-048 WHILE 규칙이 마지막 발사 뒤 평가 기간 안에 있는 동안 THE SYSTEM SHALL 그 규칙의 알림을 다시 보내지 않는다. (원본: data-flow/9 §3)
 - REQ-NOTIFY-049 IF `failure_rate` 규칙의 평가 기간 안 실행이 5건 미만이면 THE SYSTEM SHALL 그 규칙의 평가를 건너뛴다. (원본: data-flow/9 §1.3)
 - REQ-NOTIFY-050 IF 규칙의 평가 기간 문자열을 해석할 수 없으면 THE SYSTEM SHALL 1시간(`PT1H`)으로 평가한다. (원본: data-flow/9 §1.3)
@@ -253,7 +253,7 @@ stateDiagram-v2
 - 조회(`GET`)는 저장값이 없는 키에 기본값을 채워 돌려준다. 현재 구현은 `integrationExpiryEmail` 이 없으면 `false`, `executionFailedEmail`·`scheduleFailedEmail` 이 없으면 `true` 로 채운다. 수정(`PATCH`)은 보낸 키만 합친다.
 - 통합 알림 노티파이어는 `notification_preferences.integrationExpiryEmail === true` 일 때만 이메일을 붙인다. 표의 "인앱" 은 기본 상태이고 "이메일은 켜야 받는다" 는 켠 뒤에 닿는 채널이다. 통합 알림의 채널 규칙은 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) 과 같다.
 - 실행 실패·스케줄 실패는 발사원이 `resolveOptOutEmailChannels` 로 수신자의 토글을 반영한다.
-- **팀 초대의 이메일은 초대 링크 이메일이다.** 기존 가입자(비멤버)를 초대하면 이메일은 수락 토큰을 담은 초대 링크 이메일(`MailService.sendWorkspaceInvitationEmail`)이 보낸다. `team_invite` 알림 행은 `in_app`(벨)으로만 저장한다. 알림 행을 `both` 로 두면 토큰 없는 범용 알림 이메일이 초대 링크 이메일과 겹치기 때문이다. 그래서 이 행의 "인앱 + 이메일" 은 제품 수준에서 맞다(벨 알림과 초대 링크 이메일이 둘 다 닿는다). 이메일을 보내는 주체가 알림 파이프라인이 아니라 초대 흐름일 뿐이다([Rationale](#팀-초대-알림은-인앱-채널로만-보낸다)).
+- **팀 초대의 이메일은 초대 링크 이메일이다.** 기존 가입자(비멤버)를 초대하면 이메일은 수락 토큰을 담은 초대 링크 이메일(`MailService.sendWorkspaceInvitationEmail`)이 보낸다. `team_invite` 알림 행은 `in_app`(벨)으로만 저장한다. 알림 행을 `both` 로 두면 토큰 없는 범용 알림 이메일이 초대 링크 이메일과 겹치기 때문이다. 그래서 이 행의 "인앱 + 이메일" 은 제품 수준에서 맞다(인앱 알림과 초대 링크 이메일이 둘 다 닿는다). 이메일을 보내는 주체가 알림 파이프라인이 아니라 초대 흐름일 뿐이다([Rationale](#팀-초대-알림은-인앱-채널로만-보낸다)).
 
 범위와 빈칸:
 
@@ -272,14 +272,14 @@ stateDiagram-v2
 
 ## 알림 규칙
 
-알림 규칙은 워크스페이스 단위 규칙이다. 실패율·평균 실행 시간·LLM 비용이 임계값을 넘으면 인앱 알림을 보낸다. [알림 설정](#알림-설정) 의 이메일 토글과는 별개다(NF-OB-05).
+알림 규칙은 워크스페이스 단위 규칙이다. 실패율·평균 실행 시간·LLM 비용이 임계치를 넘으면 인앱 알림을 보낸다. [알림 설정](#알림-설정) 의 이메일 토글과는 별개다(NF-OB-05).
 
 ### 화면 (`/profile/alerts`)
 
 | 항목 | 내용 |
 | --- | --- |
-| 규칙 목록 | 현재 워크스페이스의 모든 규칙. 유형(실패율·실행 시간·LLM 비용), 임계값, 평가 기간, 활성 상태 열. 멤버 누구나 볼 수 있다 |
-| 생성 폼 | 관리자 이상에게만 보인다(`useHasRole("admin")`). 유형 선택, 임계값 숫자 입력, 평가 기간(ISO 8601 기간, 폼 기본값 `PT1H`) |
+| 규칙 목록 | 현재 워크스페이스의 모든 규칙. 유형(실패율·실행 시간·LLM 비용), 임계치, 평가 기간, 활성 상태 열. 멤버 누구나 볼 수 있다 |
+| 생성 폼 | 관리자 이상에게만 보인다(`useHasRole("admin")`). 유형 선택, 임계치 숫자 입력, 평가 기간(ISO 8601 기간, 폼 기본값 `PT1H`) |
 | 활성 토글·삭제 | 관리자 이상 전용 행 동작. 관리자 미만에게는 활성 상태를 읽기 전용 배지로만 보인다 |
 
 ### API
@@ -289,7 +289,7 @@ stateDiagram-v2
 | 메서드 | 경로 | 권한 | 설명 |
 | --- | --- | --- | --- |
 | GET | `/api/alerts` | 멤버 | 현재 워크스페이스의 알림 규칙 목록 |
-| POST | `/api/alerts` | 관리자 이상 | 규칙 생성. 본문: `type`(`failure_rate` 실패율 %, `duration` 평균 실행 시간 ms, `llm_cost` 누적 LLM 비용 USD), `threshold`(number, 0 이상, 단위는 유형별), `window?`(ISO 8601 기간, 예 `PT1H`. 없으면 모듈 기본값), `channel?`(`in_app` 또는 `email`, 기본 `in_app`), `workflowId?`(UUID. 없으면 워크스페이스 전체 감시), `enabled?`(기본 `true`). `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
+| POST | `/api/alerts` | 관리자 이상 | 규칙 생성. 본문: `type`(`failure_rate` 실패율 %, `duration` 평균 실행 시간 ms, `llm_cost` 누적 LLM 비용 USD), `threshold`(number, 0 이상, 단위는 유형별), `window?`(ISO 8601 기간, 예 `PT1H`. 없으면 모듈 기본값), `channel?`(`in_app` 또는 `email`, 기본 `in_app`), `workflowId?`(UUID. 없으면 워크스페이스 전체 감시), `enabled?`(기본 `true`). `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`, `details[].code='INVALID_FIELD'`)다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | PATCH | `/api/alerts/:id` | 관리자 이상 | 부분 수정(`threshold`·`window`·`channel`·`enabled`). 현재 워크스페이스에 없으면 404 `ALERT_RULE_NOT_FOUND` |
 | DELETE | `/api/alerts/:id` | 관리자 이상 | 영구 삭제(204 No Content). 현재 워크스페이스에 없으면 404 `ALERT_RULE_NOT_FOUND` |
 
@@ -312,7 +312,7 @@ sequenceDiagram
   Eval->>PG: SELECT alert_rule WHERE enabled=true
   loop 규칙마다
     Eval->>PG: 평가 기간 안 지표 집계
-    alt 임계값 초과이고 재발사 억제 기간이 아님
+    alt 임계치 초과이고 재발사 억제 기간이 아님
       Eval->>Noti: createMany(관리자별, in_app 또는 both)
       Eval->>PG: UPDATE alert_rule SET last_triggered_at=now
     end
@@ -326,7 +326,7 @@ sequenceDiagram
 평가와 발사의 세부 규칙:
 
 - **최소 표본**: `failure_rate` 는 평가 기간 안 전체 실행이 **5건 미만**이면 평가하지 않는다(`computeFailureRate` 에서 `total < 5` 면 `null`). 1건 중 1건 실패가 50% 규칙을 울리지 않게 한다. 사용자에게는 "알림이 안 온다" 로 보일 수 있다.
-- **초과 판정은 엄격하다**: `observed <= threshold` 면 보내지 않는다(`evaluateRule`). 임계값과 정확히 같은 관측값은 알림을 보내지 않는다.
+- **초과 판정은 엄격하다**: `observed <= threshold` 면 보내지 않는다(`evaluateRule`). 임계치와 정확히 같은 관측값은 알림을 보내지 않는다.
 - **평가 기간 해석**: `rule.window` 는 자체 최소 정규식 파서(`parseIso8601Duration`)로 해석한다. `P?D` 와 `PT?H?M?S` 조합을 지원한다. 해석할 수 없는 문자열이면 알리지 않고 1시간(`PT1H`)으로 평가한다.
 - **채널 매핑**: 규칙의 `channel='email'` 은 발사 때 알림 채널 `both`(인앱 + 이메일)가 된다. 이메일만 보내는 경로는 없다.
 - **재발사 억제**: 규칙의 `last_triggered_at` 이 평가 기간 안이면 다시 보내지 않는다(`isInCooldown`). 규칙에 상태 머신은 없고 `enabled` 토글만 있다.
@@ -391,7 +391,7 @@ sequenceDiagram
 | workspace_id | UUID | FK → Workspace (CASCADE) |
 | workflow_id | UUID? | FK → Workflow (CASCADE, 같은 워크스페이스). **NULL 이면 워크스페이스 전체 규칙**. 값이 있으면 같은 워크스페이스의 워크플로우만 가리킨다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | type | Enum | `failure_rate` / `duration` / `llm_cost` |
-| threshold | Numeric(12,4) | 임계값. **응답에는 문자열로 실린다.** 엔티티를 그대로 내보내는 경로라 TypeORM 의 numeric 표현이 그대로 나간다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md)). 쓰기는 `number` 를 받는다 |
+| threshold | Numeric(12,4) | 임계치. **응답에는 문자열로 실린다.** 엔티티를 그대로 내보내는 경로라 TypeORM 의 numeric 표현이 그대로 나간다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md)). 쓰기는 `number` 를 받는다 |
 | window_iso | String | 평가 기간(window, ISO 8601 기간). 기본 `PT1H` |
 | channel | Enum | `in_app` / `email`. 기본 `in_app`. **`Notification.channel` 과 값 범위가 다르다.** 그쪽은 `both` 를 포함한 세 값이라 그대로 대응하지 않는다 |
 | enabled | Boolean | 평가 대상 여부. 기본 true |
@@ -423,6 +423,7 @@ sequenceDiagram
 - **이메일 수신 거부 링크**: 원문 이메일 알림 절(9-user-profile §5.3)은 이메일 하단에 수신 거부 링크를 둔다고 적고 미구현 표시가 없다. 원문 데이터 흐름은 알림 이메일을 제목·본문·버튼 링크로 된 범용 템플릿 하나로만 적는다. 현재 구현의 메일·알림 모듈에는 수신 거부 처리가 없다. 수신 거부 링크를 구현할지, 요구에서 뺄지 결정이 필요하다.
 - **이메일 설정 키의 기본 방향**: 원문 알림 설정 절과 현재 구현은 키마다 방향이 다르다. `integrationExpiryEmail` 은 켜야 받는 opt-in(기본 꺼짐)이고 `executionFailedEmail`·`scheduleFailedEmail` 은 꺼야 안 받는 opt-out(기본 켜짐)이다. 원문 데이터 흐름의 Rationale 은 "`integrationExpiryEmail` 키만 쓰며 이메일 opt-in 의 기본은 false" 라고 적어 키 하나·opt-in 하나만 있는 것처럼 읽힌다. 새 키를 더할 때 기본 방향을 무엇으로 정할지(유형마다 정할지, 공통 규칙을 둘지) 규칙이 없다. 결정이 필요하다.
 - **전체 알림 페이지와 팝오버 구성**: 원문 알림 센터 절(9-user-profile §5.2)은 벨 드롭다운에 최근 알림 최대 10개와 "View all" 링크를 두고 유형·읽음 필터와 페이지네이션이 있는 전체 알림 페이지를 둔다고 적는다. 원문 레이아웃(§3.1)은 필터 칩·개별 읽음과 닫기·딥링크가 있는 팝오버만 정의하고 전체 알림 페이지를 말하지 않는다. 현재 구현은 팝오버가 최근 10건을 불러오고 전체 알림 페이지 라우트가 없다. 전체 알림 페이지를 만들지, 요구에서 뺄지 결정이 필요하다.
+- **읽음 · 삭제 API 와 상태 토글 규약**: [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §12.1 은 Boolean 토글을 `PATCH /:id { field: value }` 로 정하고 적용 대상에 인앱 알림의 `is_read` 를 든다. 현재 구현은 읽음을 전용 경로(`PATCH /api/notifications/:id/read`, `POST /api/notifications/mark-all-read`)로 받는다(`notifications.controller.ts`). 읽음 · 삭제 API 를 §12.1 예외로 등록할지 `PATCH /:id { is_read }` 로 바꿀지 정한다(NERV Task `CLE-T-3HJ8MM`). 결정이 필요하다.
 
 ## 구현 위치
 
@@ -470,7 +471,7 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 `is_deleted BOOLEAN` 대신 `dismissed_at` 을 고른 이유는 시각도 함께 남아 정보가 더 많고 "닫힌 뒤 N일" 같은 보존·분석 정책에도 시각 컬럼이 자연스러워서다. 별도 `notification_dismissals` 테이블은 두지 않는다. `is_read` 와 같은 행을 한 트랜잭션에서 고치는 일관성 이점이 사라지고 JOIN 비용이 생긴다. 닫기는 행마다 0~1번 일어나는 1:1 관계라 테이블을 따로 둘 가치가 없다.
 
-`(user_id, is_read, created_at DESC)` 인덱스는 부분 인덱스(`WHERE dismissed_at IS NULL`)로 바꿔 목록과 읽지 않은 수 조회에 그대로 쓴다. 보이는 알림이 닫힌 알림보다 대개 훨씬 적어 인덱스가 작아지는 이점도 있다. V056 은 `executeInTransaction=false` 로 `CREATE INDEX CONCURRENTLY ... WHERE dismissed_at IS NULL` 을 먼저 만들고 옛 인덱스를 `DROP INDEX CONCURRENTLY` 로 지웠다. 이 순서는 V056 당시의 것이다. 이후 옛 인덱스를 먼저 지우는 순서가 규약이 됐다. `CREATE INDEX CONCURRENTLY IF NOT EXISTS` 는 이름만 보고 `indisvalid` 를 보지 않아 빌드가 실패한 뒤 다시 돌리면 쓸 수 있는 인덱스가 0개가 될 수 있기 때문이다. 새로 쓰는 인덱스 교체는 [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 을 따른다. V056 자체는 append-only 라 고치지 않는다.
+`(user_id, is_read, created_at DESC)` 인덱스는 부분 인덱스(`WHERE dismissed_at IS NULL`)로 바꿔 목록과 읽지 않은 수 조회에 그대로 쓴다. 보이는 알림이 닫힌 알림보다 대개 훨씬 적어 인덱스가 작아지는 이점도 있다. V056 은 `executeInTransaction=false` 로 `CREATE INDEX CONCURRENTLY ... WHERE dismissed_at IS NULL` 을 먼저 만들고 옛 인덱스를 `DROP INDEX CONCURRENTLY` 로 지웠다. V056 에는 `CREATE` 앞의 잔재 정리 단계가 없다. 지금 규약은 `CREATE` 앞에 `DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>` 을 두어 새 인덱스 이름의 invalid 잔재를 먼저 지운다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 규칙 13, `codebase/backend/migrations/README.md` §5). `CREATE INDEX CONCURRENTLY IF NOT EXISTS` 는 이름만 보고 `indisvalid` 를 보지 않는다. 그래서 빌드가 실패해 invalid 잔재가 남은 뒤 정리 없이 다시 돌리면 `CREATE` 는 건너뛰고 옛 인덱스만 지워져 쓸 수 있는 인덱스가 0개가 된다. V056 자체는 append-only 라 고치지 않는다.
 
 ### 중복 방지에 닫힌 알림도 센다
 
@@ -493,7 +494,7 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 1. **코드베이스 관례상 `DELETE` 는 행 삭제다.** 행을 지우지 않는 `dismissed_at` 갱신에 같은 동사를 쓰면 API 를 쓰는 쪽이 "알림이 사라졌다 = 행이 사라졌다" 로 오해할 수 있다.
 2. **`DELETE` 응답 본문 호환성**: 일부 HTTP 클라이언트와 API 게이트웨이는 `DELETE` 응답 본문을 무시하거나 없앤다. 닫기 응답에는 `dismissedAt` 이나 `affected` 가 있어야 클라이언트가 낙관적 갱신을 고치지 않고 반영할 수 있다.
-3. **API 계약 정합성**: 단건 상태 변경을 `PATCH` 로 통일할지가 아직 정해지지 않았다. 이때 새 엔드포인트에 `DELETE` 를 들이면 알림 모듈의 동사 정책이 다른 모듈의 결정과 어긋날 수 있다. `POST` 동작 엔드포인트는 어느 쪽으로 정해지든 맞는 보수적 선택이다. `PATCH` 로 정해지더라도 닫기는 별개 동작이라 영향이 없다(`mark-all-read` 가 `POST` 인 것과 같은 이유).
+3. **API 계약 정합성**: [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §12.1 은 Boolean 토글을 `PATCH /:id { field }` 로 정하지만 읽음은 전용 경로로 구현돼 있다. 이때 새 엔드포인트에 `DELETE` 를 들이면 알림 모듈의 동사 정책이 다른 모듈의 결정과 어긋날 수 있다. `POST` 동작 엔드포인트는 [미결 사항](#미결-사항) 이 어느 쪽으로 정해지든 맞는 보수적 선택이다. `PATCH` 로 정해지더라도 닫기는 별개 동작이라 영향이 없다(`mark-all-read` 가 `POST` 인 것과 같은 이유).
 4. **`mark-all-read` 와 동사를 맞춘다**: 모두 읽음이 이미 `POST /notifications/mark-all-read` 이므로 모두 닫기도 `POST /notifications/dismiss-all` 로 맞추면 클라이언트 SDK 가 두 동작을 같은 방식으로 부른다.
 
 `PATCH /notifications/:id` + 본문 `{ dismissed: true }` 도 쓰지 않는다. 읽음 처리(`PATCH /:id/read`)와 차원이 다른 동작을 한 엔드포인트에 묶어 의도가 흐려지고 본문의 부분 수정 뜻과 동작 뜻이 섞인다.
@@ -512,7 +513,7 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 기존 가입자(비멤버)를 팀에 초대하면 `WorkspaceInvitationsService.invite()` 가 이메일을 보낼 수 있는 발송 두 가지를 차례로 한다.
 
-1. `dispatchEmail` → `MailService.sendWorkspaceInvitationEmail`: **수락 토큰을 담은 초대 링크 이메일**. 제목은 `Clemvion - "<ws>" 워크스페이스 초대`, 버튼은 "초대 수락하기" 로 초대 가입 경로(`invitationToken` 쿼리 포함)를 가리킨다. 기존 가입자도 이 링크로 로그인하면 이메일 일치가 확인돼 수락 흐름으로 간다. 원문은 이 링크를 `/auth/register?invitationToken=…` 으로 적는다. 실제 가입 경로(`/register`)와 어긋나는 이 문제는 [워크스페이스와 멤버 §미결 사항](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 초대 메일 링크 경로 항목에서 정한다.
+1. `dispatchEmail` → `MailService.sendWorkspaceInvitationEmail`: **수락 토큰을 담은 초대 링크 이메일**. 제목은 `Clemvion - "<ws>" 워크스페이스 초대`, 버튼은 "초대 수락하기" 로 초대 가입 경로(`invitationToken` 쿼리 포함)를 가리킨다. 이미 로그인한 기존 가입자가 이 링크를 열면 가입 폼 대신 수락 페이지로 간다([REQ-WSPACE-034](../CLE-ACCT/CLE-ACCT-WS.md)). 로그인하지 않은 기존 가입자의 경로는 [워크스페이스](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 미결 사항이다. 링크는 `/register?invitationToken=…` 이다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미가입자-가입-경로)).
 2. `dispatchTeamInviteNotification` → `team_invite` 알림 행: 벨(`in_app`)과, 채널이 `email`·`both` 면 `MailService.sendNotificationEmail`. 뒤쪽은 **토큰 없는 범용 알림 템플릿**이다. 제목은 알림 제목(`워크스페이스 초대`), 버튼은 "알림 보기" 로 `/dashboard` 를 가리킨다.
 
 초기 구현은 알림 설정 표의 "팀 초대 = 인앱 + 이메일" 을 글자 그대로 읽어 알림 행을 `both` 로 보냈다. 그 결과 기존 가입자는 **제목이 비슷한 이메일 2통**을 받았다. 하필 두 번째(알림 이메일)는 수락 토큰이 없어 `/dashboard` 로만 안내하는 **기능이 더 약한** 쪽이었다. 사용자가 그 이메일을 먼저 열면 수락 경로를 찾지 못해 헷갈린다.
@@ -520,15 +521,15 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 **결정: 알림 행을 `in_app` 으로 낮춘다.** 채널별 책임을 나눈다.
 
 - **이메일 채널**은 초대 링크 이메일(위 1)이 혼자 맡는다. 수락 토큰을 담은 유일한 이메일이고 기능적으로 맞는 발송이다. 알림 설정 표가 팀 초대에 요구하는 "이메일" 은 이 이메일로 채워진다.
-- **인앱(벨) 채널**은 `team_invite` 알림 행이 맡는다. 로그인한 기존 가입자가 앱 안에서 초대를 알아보도록 벨 알림을 남긴다.
+- **인앱(벨) 채널**은 `team_invite` 알림 행이 맡는다. 로그인한 기존 가입자가 앱 안에서 초대를 알아보도록 인앱 알림을 남긴다.
 
 검토한 대안:
 
 - **(a) 그대로 두기(`both`, 2통)**: 표를 글자 그대로 지키고 코드 변경이 없다. 하지만 중복과 혼란이 남고 약한 이메일이 겹쳐 채택하지 않았다.
 - **(b) 기존 가입자에게 초대 링크 이메일을 보내지 않기**: 이메일은 1통이 된다. 하지만 빠지는 것이 **수락 토큰을 담은 유일한 이메일**이다. 남는 알림 이메일에는 토큰이 없다. 인앱 알림 행도 `resource_id` 로 초대 ID 만 갖고 토큰이 없으며 딥링크도 `workspace_invitation` 을 매핑하지 않는다. 이메일로 수락할 길이 사라지는 기능 후퇴라 기각했다.
-- **(c) `in_app` 으로 낮추기**: 채택. 중복 이메일을 없애면서 기능적으로 맞는 초대 링크 이메일과 벨 알림을 모두 지키고 (b) 와 달리 수락 경로를 깨지 않는다. 코드 변경은 `channel: 'both'` 를 `'in_app'` 으로 바꾼 것뿐이다.
+- **(c) `in_app` 으로 낮추기**: 채택. 중복 이메일을 없애면서 기능적으로 맞는 초대 링크 이메일과 인앱 알림을 모두 지키고 (b) 와 달리 수락 경로를 깨지 않는다. 코드 변경은 `channel: 'both'` 를 `'in_app'` 으로 바꾼 것뿐이다.
 
-표의 "팀 초대 | 인앱 + 이메일" 은 **제품 수준에서 맞다**(사용자는 여전히 벨 알림과 이메일을 모두 받는다). 다만 그 이메일이 알림 행의 이메일 채널이 아니라 초대 링크 이메일임을 표 아래에 적어 두었다. 나중에 알림 설정의 채널 켜고 끄기가 구현돼 사용자가 팀 초대 이메일을 끄는 기능이 필요해지면 초대 링크 이메일을 그 설정과 묶을지는 그때 따로 정한다.
+표의 "팀 초대 | 인앱 + 이메일" 은 **제품 수준에서 맞다**(사용자는 여전히 인앱 알림과 이메일을 모두 받는다). 다만 그 이메일이 알림 행의 이메일 채널이 아니라 초대 링크 이메일임을 표 아래에 적어 두었다. 나중에 알림 설정의 채널 켜고 끄기가 구현돼 사용자가 팀 초대 이메일을 끄는 기능이 필요해지면 초대 링크 이메일을 그 설정과 묶을지는 그때 따로 정한다.
 
 ### 알림 규칙 컬럼 정의를 한 곳에 둔다 (2026-08-31)
 

@@ -6,7 +6,7 @@ import {
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { ButtonDef } from '../_shared/button.types.js';
-import { chartMetadata } from './chart.schema.js';
+import { CHART_TYPES, chartMetadata } from './chart.schema.js';
 
 export class ChartHandler implements NodeHandler {
   metadata = chartMetadata;
@@ -19,7 +19,7 @@ export class ChartHandler implements NodeHandler {
     // rejected explicitly.
     const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
 
-    const validTypes = ['bar', 'line', 'pie'];
+    const validTypes: readonly string[] = CHART_TYPES;
     if (
       config.chartType !== undefined &&
       (typeof config.chartType !== 'string' ||

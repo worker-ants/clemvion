@@ -3,18 +3,18 @@ id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "bb9e052efe24f1d1099546cd751b3225279a699607a8ea73b30f6c06b8c79d2f"
-read_as: "approved"
-task: null
+content_hash: "964b41bce7eb819967a7e48e32d2b9eaee48be7a19fd2ff1929a7f467f8bf1dc"
+read_as: "approved_fallback"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ffacd936f3a571ae4f6c2c8541e19e771b34361af8e0e35aebbcd0e9ed294f2b"
-etag: "sha256-2ce36913c540e9e3351bbaf14285ac54fa85bd24037ed6b5c6d52243460546e9"
+mirror_sha256: "bfc9768961c22f30ebae2faf93e0eb57485cf880003626eede50bd8d054e830b"
+etag: "sha256-8f697da939d274c7b12538ce17740f554b16a9d7f3478584d393f2a123ec7dc0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,6 +58,8 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 | errorPolicy | `stop` / `skip` / `continue` | | `stop` | 항목 에러 정책. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) |
 
 코드 기준: `codebase/backend/src/nodes/logic/foreach/foreach.schema.ts` (export `foreachNodeConfigSchema`)
+
+설정 패널은 이 노드의 `config.errorPolicy` 를 에러 처리 정책(`config.errorHandling.policy`)으로 옮기지 않고 저장할 때 지우지도 않는다([노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정) 의 REQ-NODEUI-041, [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유)).
 
 빈 입력과 `null` 입력: `arrayField` 해석 결과가 배열이 아니면 `[]` 로 처리한다. 이 처리는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
@@ -232,8 +234,8 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 
 - **엔진 덮어쓰기 규칙이 노드 출력 규약과 갈린다** (critical): 핸들러가 배열을 반환해도 엔진이 완료 시점에 덮어쓴다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 `null` 이 아닌 값을 반환하면 덮어쓰지 않는다고 적는다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
 - **배열 아닌 입력의 처리가 노드 출력 규약과 갈린다** (critical): 이 문서는 원시값까지 모든 비배열을 `[]` 로 대체한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 숫자·문자열이면 에러를 던지라고 정한다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
-- **항목 에러 정책이 저장할 때 지워질 수 있다** (critical): 설정 패널 저장 코드가 노드 종류와 상관없이 `config.errorPolicy` 를 지운다. 자세한 내용은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 있다.
 - **시작 시점 설정 에코에 `errorPolicy` 가 빠져 있다** (info): 시작 시점 예시의 `config` 에는 `arrayField` 만 있다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 설정 에코 규칙은 `foreach.errorPolicy` 를 보강할 누락 필드로 든다. Loop 의 `breakCondition` 과 함께 예외로 둘지 보강할지 결정 필요([Loop 노드](CLE-NODE-LOOP.md)).
+- **에러 처리 정책의 동적 에러 포트와 REQ-FOREACH-021** (warning): [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#요구사항) 의 REQ-NODEUI-012 는 에러 처리 정책이 `route_to_error_port` 면 노드에 동적 에러 포트를 만든다고 정한다. 이 포트와 REQ-FOREACH-021(에러 포트 없음)의 관계는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 미결 사항의 「Logic 노드에 에러 처리 정책이 적용되는가」 항목에서 정한다.
 
 ## 구현 위치
 
@@ -254,3 +256,9 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 ### 캔버스에서 그룹 박스로 그리지 않는다
 
 노드 요구사항 ND-FE-05 는 ForEach 를 "자식 노드를 배치할 수 있는 확장 가능 그룹 박스" 로 그린다고 적었다. 캔버스는 시각 containment 를 쓰지 않기로 정했다. 컨테이너는 일반 노드와 같은 크기로 그리고 자식 노드는 캔버스 어디에나 놓는다. 자식 노드의 소속은 `containerId` 와 자식 헤더 아래 `in <컨테이너 레이블>` 배지로만 나타낸다([워크플로우 에디터와 캔버스 §시각 표현](../CLE-WF/CLE-WF-EDITOR.md#시각-표현)). REQ-FOREACH-005 는 [Loop 노드](CLE-NODE-LOOP.md) 의 REQ-LOOP-006 과 같이 이 결정에 맞춰 적었다.
+
+### 설정 패널이 항목 에러 정책을 지우지 않는다 (2026-10-10)
+
+2026-10-10 에 설정 패널이 항목 에러 정책을 지우던 결함을 고쳤다(NERV Task `CLE-T-V0JAG1`). 결정과 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
+
+항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸는 안은 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요해서 기각했다.

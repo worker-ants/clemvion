@@ -10,14 +10,21 @@ import { useLocaleStore } from "@/lib/stores/locale-store";
  * (`{ policy, retryConfig?, defaultOutput? }`) 으로 저장하고, 레거시 flat
  * `errorPolicy` 를 마이그레이션하며, Retry / Use-Default-Output 입력을 노출하는지.
  */
-function seedNode(config: Record<string, unknown>) {
+function seedNode(
+  config: Record<string, unknown>,
+  node: { type: string; label: string; category: string } = {
+    type: "code",
+    label: "Code",
+    category: "data",
+  },
+) {
   useEditorStore.setState({
     nodes: [
       {
         id: "n1",
         type: "default",
         position: { x: 0, y: 0 },
-        data: { type: "code", label: "Code", config, category: "data" },
+        data: { ...node, config },
       },
     ] as never,
     edges: [],
@@ -101,5 +108,43 @@ describe("NodeSettingsPanel — error handling", () => {
       policy: "use_default_output",
       defaultOutput: { fallback: true },
     });
+  });
+
+  /**
+   * ForEach · Map · Parallel 의 `config.errorPolicy` 는 레거시 키가 아니라 현행 항목 에러 정책이다
+   * (CLE-NODE-LOGIC-COMMON 항목 에러 정책). 설정 패널이 이를 노드 에러 처리 정책으로 옮기거나
+   * 저장할 때 지우면 사용자가 고른 항목 정책이 사라진다.
+   */
+  describe("container item error policy (config.errorPolicy)", () => {
+    const containers = [
+      { type: "foreach", label: "ForEach", itemPolicy: "skip" },
+      { type: "map", label: "Map", itemPolicy: "continue" },
+      { type: "parallel", label: "Parallel", itemPolicy: "cancel-others-on-fail" },
+    ];
+
+    it.each(containers)(
+      "$type: does not migrate errorPolicy into the node error policy",
+      ({ type, label, itemPolicy }) => {
+        seedNode({ errorPolicy: itemPolicy }, { type, label, category: "logic" });
+        render(<NodeSettingsPanel />);
+        expect(screen.getByDisplayValue("Stop Workflow")).toBeDefined();
+        expect(screen.queryByDisplayValue("Skip Node")).toBeNull();
+      },
+    );
+
+    it.each(containers)(
+      "$type: keeps errorPolicy on save",
+      async ({ type, label, itemPolicy }) => {
+        const user = userEvent.setup();
+        seedNode({ errorPolicy: itemPolicy }, { type, label, category: "logic" });
+        render(<NodeSettingsPanel />);
+
+        await user.click(screen.getByText("Save Changes"));
+
+        const cfg = savedConfig();
+        expect(cfg.errorPolicy).toBe(itemPolicy);
+        expect(cfg.errorHandling).toEqual({ policy: "stop_workflow" });
+      },
+    );
   });
 });

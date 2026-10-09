@@ -10,8 +10,22 @@ const publicPaths = [
   "/callback",
 ];
 
+/**
+ * 초대 메일의 옛 링크. 가입 화면은 `(auth)` route group 이라 실제 경로가 `/register` 인데
+ * 메일이 `/auth/register?invitationToken=…` 으로 나간 적이 있다. 이미 발송된 메일이 `/login` 으로
+ * 튕기지 않도록 쿼리를 보존해 `/register` 로 보낸다(CLE-ACCT-WS 초대 메일 링크).
+ */
+const LEGACY_INVITE_REGISTER_PATHS = new Set(["/auth/register", "/auth/register/"]);
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (LEGACY_INVITE_REGISTER_PATHS.has(pathname)) {
+    // nextUrl.clone() 은 원래 경로의 끝 슬래시를 다시 붙이므로 새 URL 로 만든다.
+    const registerUrl = new URL("/register", request.url);
+    registerUrl.search = request.nextUrl.search;
+    return NextResponse.redirect(registerUrl);
+  }
 
   // Allow public paths
   if (publicPaths.some((path) => pathname.startsWith(path))) {

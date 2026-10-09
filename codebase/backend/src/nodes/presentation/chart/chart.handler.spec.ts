@@ -1,4 +1,5 @@
 import { ChartHandler } from './chart.handler.js';
+import { chartConfigSchema } from './chart.schema.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -31,21 +32,41 @@ describe('ChartHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should accept line and pie chart types', () => {
-      expect(
-        handler.validate({
-          chartType: 'line',
+    // 설정 스키마 enum · 프런트엔드 렌더러 · REQ-CHART-001 이 받는 다섯 유형을 실행 검증도 받는다.
+    // 예전 핸들러는 `bar`·`line`·`pie` 만 받아 `area`·`donut` 노드가 실행 전에 막혔다.
+    it.each(['bar', 'line', 'area', 'pie', 'donut'])(
+      'should accept chartType %s',
+      (chartType) => {
+        const result = handler.validate({
+          chartType,
           xAxis: { field: 'x' },
           yAxis: { field: 'y' },
-        }).valid,
-      ).toBe(true);
-      expect(
-        handler.validate({
-          chartType: 'pie',
+        });
+        expect(result.errors).toEqual([]);
+        expect(result.valid).toBe(true);
+      },
+    );
+
+    it('should agree with the config schema enum on which chartType is valid', () => {
+      const schemaChartType = chartConfigSchema.shape.chartType;
+      for (const chartType of [
+        'bar',
+        'line',
+        'area',
+        'pie',
+        'donut',
+        'scatter',
+      ]) {
+        const handlerValid = handler.validate({
+          chartType,
           xAxis: { field: 'x' },
           yAxis: { field: 'y' },
-        }).valid,
-      ).toBe(true);
+        }).valid;
+        expect([chartType, handlerValid]).toEqual([
+          chartType,
+          schemaChartType.safeParse(chartType).success,
+        ]);
+      }
     });
 
     it('should reject missing chartType', () => {
@@ -63,7 +84,7 @@ describe('ChartHandler', () => {
       expect(result.valid).toBe(false);
       // Handler-only enum guard fires for an invalid (non-listed) chartType.
       expect(result.errors).toContain(
-        'chartType is required and must be one of: bar, line, pie',
+        'chartType is required and must be one of: bar, line, pie, donut, area',
       );
     });
 
