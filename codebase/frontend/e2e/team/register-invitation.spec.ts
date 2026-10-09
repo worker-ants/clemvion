@@ -44,6 +44,38 @@ test.describe("Register page — invitation token flow", () => {
     await expect(emailInput).toHaveAttribute("readonly", "");
   });
 
+  // 이미 발송된 초대 메일의 옛 링크(`/auth/register?invitationToken=…`)는 proxy 가 쿼리를 보존해
+  // `/register` 로 보낸다. 예전에는 로그인하지 않은 받는 사람이 `/login` 으로 튕겼다(CLE-ACCT-WS).
+  test("옛 초대 링크 /auth/register → /register 초대 가입 화면", async ({
+    page,
+  }) => {
+    await page.route(`**/api/invitations/${VALID_TOKEN}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            workspaceName: "Team Alpha",
+            invitedByName: "Alice",
+            email: "invited@example.com",
+            role: "editor",
+            expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        }),
+      });
+    });
+
+    await page.goto(`/auth/register?invitationToken=${VALID_TOKEN}`);
+
+    await expect(page).toHaveURL(
+      new RegExp(`/register\\?invitationToken=${VALID_TOKEN}$`),
+    );
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.getByLabel(/이메일|Email/)).toHaveValue(
+      "invited@example.com",
+    );
+  });
+
   test("410 expired → 에러 배너 + submit 비활성화", async ({ page }) => {
     // InvitationBanner 는 state.message 우선 → fallback i18n. mock 의 message 필드를
     // 비워 i18n("auth.register.invitationGone" = "이 초대는 만료되었거나 이미 사용...")
