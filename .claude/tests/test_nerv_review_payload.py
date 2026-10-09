@@ -449,6 +449,287 @@ class BuildTest(unittest.TestCase):
             tool.build(str(self.tmp / "nope"))
 
 
+class OutFileTest(unittest.TestCase):
+    """`--out` — 기록 서브에이전트(`nerv-recorder`)가 그대로 낼 제출 인자를 파일에 쓴다(NERV Task `CLE-T-CD9131`).
+
+    main 은 묶음 전문을 읽지 않고 짧은 요약만 받는다. SHA 는 git 이 풀어 준 전체 값만 싣고, 멱등 키는
+    도구가 code-review-agents SKILL §4 형식으로 만든다. LLM 이 옮겨 적다 틀리는 자리를 없앤다.
+    """
+
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = _harness.make_temp_git_repo(self.tmp / "repo")
+        self.base = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+        (self.repo / "codebase").mkdir()
+        (self.repo / "codebase" / "a.ts").write_text("a\n", encoding="utf-8")
+        _harness.git_in(self.repo, "add", "-A")
+        _harness.git_in(self.repo, "commit", "-qm", "change")
+        self.head = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+        self.sd = self.repo / ".review" / "code" / "2026" / "10" / "01" / "12_00_00"
+        self.sd.mkdir(parents=True)
+        (self.sd / "security.md").write_text(REPORT, encoding="utf-8")
+        (self.sd / "scope.md").write_text("### 위험도\nLOW\n", encoding="utf-8")
+        (self.sd / "_retry_state.json").write_text(json.dumps({
+            "agents_forced": ["security", "scope"],
+            "subagent_invocations": [{"name": "security", "output_file": "security.md"},
+                                     {"name": "scope", "output_file": "scope.md"}],
+        }), encoding="utf-8")
+        self.out = self.sd / "_nerv_payload.json"
+
+    def run_cli(self, *args):
+        return subprocess.run([sys.executable, str(TOOL_PATH), str(self.sd), *args], cwd=self.repo,
+                              capture_output=True, text=True, timeout=60)
+
+    def submit_args(self, *extra, base=None, head=None):
+        return ["--out", str(self.out), "--branch", "feature", "--base", base or self.base[:7],
+                "--head", head or "HEAD", "--mode", "review", *extra]
+
+    def test_writes_ready_to_send_arguments_and_prints_a_short_summary(self):
+        r = self.run_cli(*self.submit_args("--task", "CLE-T-ABC123"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertTrue(doc["ok"])
+        self.assertEqual(doc["submit"], {"kind": "code", "branch": "feature", "base_sha": self.base,
+                                         "head_sha": self.head, "changeset": ["codebase/a.ts"],
+                                         "task_id": "CLE-T-ABC123"})
+        keys = {s["reviewer"]["role"]: s["idempotency_key"] for s in doc["submissions"]}
+        prefix = f"CLE-T-ABC123:code:review:{self.head[:9]}"
+        self.assertEqual(set(keys), {"scope", "security"})
+        for role, key in keys.items():
+            self.assertRegex(key, rf"^{re.escape(prefix)}:{role}:[0-9a-f]{{8}}$")
+        summary = json.loads(r.stdout)
+        self.assertEqual(summary["out"], str(self.out))
+        self.assertEqual(summary["roles"], ["scope", "security"])
+        self.assertEqual(summary["findings"], {"critical": 1, "warning": 1})
+        self.assertEqual(summary["info_in_summary"], 1)
+        # 발견 본문은 요약에 싣지 않는다. main 이 묶음 전문을 읽지 않게 하는 것이 이 모드의 목적이다.
+        self.assertNotIn("submissions", summary)
+        self.assertNotIn("토큰이 로그에 남는다", r.stdout)
+
+    def test_a_rerun_and_a_session_without_a_task_get_their_keys(self):
+        r = self.run_cli(*self.submit_args("--run", "2"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertIsNone(doc["submit"]["task_id"])
+        self.assertRegex(doc["submissions"][0]["idempotency_key"],
+                         rf"^20261001-120000:code:review:{self.head[:9]}:scope:[0-9a-f]{{8}}:2$")
+
+    def test_changeset_prefers_the_flag_then_meta_then_git(self):
+        (self.sd / "meta.json").write_text(json.dumps({"files": [{"file_path": "m.ts"}]}), encoding="utf-8")
+        self.assertEqual(self.run_cli(*self.submit_args()).returncode, 0)
+        self.assertEqual(json.loads(self.out.read_text())["submit"]["changeset"], ["m.ts"])
+        r = self.run_cli(*self.submit_args("--changeset", "spec/X/X.md", "--changeset", "y.md"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(json.loads(self.out.read_text())["submit"]["changeset"], ["spec/X/X.md", "y.md"])
+
+    def test_an_empty_changeset_is_an_error(self):
+        r = self.run_cli(*self.submit_args(base="HEAD"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("changeset", json.loads(r.stdout)["errors"][-1])
+        self.assertFalse(json.loads(self.out.read_text())["ok"])
+
+    def test_an_unknown_revision_is_an_error_not_a_guess(self):
+        r = self.run_cli(*self.submit_args(head="0123456789abcdef0123456789abcdef01234567"))
+        self.assertEqual(r.returncode, 1)
+        self.assertTrue(any("--head" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
+        doc = json.loads(self.out.read_text())
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("submit", doc)
+
+    def test_a_failed_build_is_written_as_not_ok(self):
+        (self.sd / "scope.md").unlink()
+        r = self.run_cli(*self.submit_args())
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(json.loads(r.stdout)["missing_forced"], ["scope"])
+        self.assertFalse(json.loads(self.out.read_text())["ok"])
+
+    def test_out_needs_the_submit_context(self):
+        r = self.run_cli("--out", str(self.out), "--branch", "feature")
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse(self.out.exists())
+        r = self.run_cli(*self.submit_args("--mode", "nope"))
+        self.assertEqual(r.returncode, 2)
+
+    def test_without_out_the_old_stdout_shape_stays(self):
+        r = self.run_cli()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("submissions", json.loads(r.stdout))
+        self.assertFalse(self.out.exists())
+
+
+    # -- 멱등 키는 내용을 따른다 ------------------------------------------------------------------
+
+    def keys(self, *args):
+        r = self.run_cli(*self.submit_args(*args))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        return {s["reviewer"]["role"]: s["idempotency_key"] for s in doc["submissions"]}
+
+    def test_the_same_files_get_the_same_keys_so_a_resend_is_one_record(self):
+        self.assertEqual(self.keys("--task", "CLE-T-ABC123"), self.keys("--task", "CLE-T-ABC123"))
+
+    def test_an_edited_report_on_the_same_head_gets_a_new_key(self):
+        # 스펙 초안 검토처럼 head 가 그대로인데 입력이 바뀌는 재검토. `--run` 을 잊어도 앞 제출의 재전송으로 묶이지 않는다.
+        before = self.keys()
+        (self.sd / "security.md").write_text(REPORT.replace("마스킹한다.", "마스킹하고 길이를 줄인다."), encoding="utf-8")
+        after = self.keys()
+        self.assertNotEqual(before["security"], after["security"])
+        self.assertEqual(before["scope"], after["scope"])
+
+    def test_run_still_forces_a_new_key_for_the_same_content(self):
+        self.assertNotEqual(self.keys()["scope"], self.keys("--run", "2")["scope"])
+
+    # -- git 은 세션 디렉터리의 저장소에서 돈다 ------------------------------------------------------
+
+    def test_git_runs_in_the_session_repository_not_the_process_cwd(self):
+        # 셸 cwd 가 다른 체크아웃으로 빠진 상황(중첩 worktree). 그 저장소의 HEAD 가 head_sha 로 들어가면 안 된다.
+        other = _harness.make_temp_git_repo(self.tmp / "other")
+        (other / "z.txt").write_text("z\n", encoding="utf-8")
+        _harness.git_in(other, "add", "-A")
+        _harness.git_in(other, "commit", "-qm", "other")
+        other_head = _harness.git_in(other, "rev-parse", "HEAD").stdout.strip()
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(self.sd), *self.submit_args(base=self.base)],
+                           cwd=other, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        submit = json.loads(self.out.read_text(encoding="utf-8"))["submit"]
+        self.assertEqual(submit["head_sha"], self.head)
+        self.assertNotEqual(submit["head_sha"], other_head)
+        self.assertEqual(submit["changeset"], ["codebase/a.ts"])
+
+    def test_base_is_the_merge_base_so_a_base_that_moved_on_adds_no_reverse_deletions(self):
+        # base 브랜치가 분기점 뒤로 앞서 나갔다. 2점 diff 였다면 그 변경이 changeset 에 역삭제로 섞였다.
+        _harness.git_in(self.repo, "checkout", "-q", "-b", "moved", self.base)
+        (self.repo / "moved.txt").write_text("m\n", encoding="utf-8")
+        _harness.git_in(self.repo, "add", "moved.txt")
+        _harness.git_in(self.repo, "commit", "-qm", "moved on")
+        _harness.git_in(self.repo, "checkout", "-q", "main")
+        r = self.run_cli(*self.submit_args(base="moved"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        submit = json.loads(self.out.read_text(encoding="utf-8"))["submit"]
+        self.assertEqual(submit["base_sha"], self.base)
+        self.assertEqual(submit["changeset"], ["codebase/a.ts"])
+
+    def test_a_non_ascii_path_is_not_c_quoted_in_the_changeset(self):
+        (self.repo / "codebase" / "한글.ts").write_text("k\n", encoding="utf-8")
+        _harness.git_in(self.repo, "add", "codebase")
+        _harness.git_in(self.repo, "commit", "-qm", "korean name")
+        r = self.run_cli(*self.submit_args())
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("codebase/한글.ts", json.loads(self.out.read_text(encoding="utf-8"))["submit"]["changeset"])
+
+    def test_a_head_that_the_named_local_branch_does_not_contain_is_an_error(self):
+        _harness.git_in(self.repo, "checkout", "-q", "-b", "elsewhere", self.base)
+        _harness.git_in(self.repo, "checkout", "-q", "main")
+        r = self.run_cli("--out", str(self.out), "--branch", "elsewhere", "--base", self.base, "--head", "HEAD",
+                         "--mode", "review")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertTrue(any("--branch" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
+        self.assertFalse(json.loads(self.out.read_text())["ok"])
+        # 로컬에 없는 브랜치 이름("feature")은 검사하지 않는다 — 다른 테스트가 그 경로로 통과한다.
+        r = self.run_cli("--out", str(self.out), "--branch", "main", "--base", self.base, "--head", "HEAD",
+                         "--mode", "review")
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_a_revision_that_looks_like_an_option_is_not_handed_to_git(self):
+        self.assertIsNone(tool.git_probe.resolve_commit("-h", str(self.repo)))
+        self.assertIsNone(tool.git_probe.resolve_commit("", str(self.repo)))
+        self.assertEqual(tool.git_probe.resolve_commit("HEAD", str(self.repo)), self.head)
+
+    def test_the_tool_has_no_git_calls_of_its_own(self):
+        # git 호출은 `_shared/git_probe` 하나로 모은다. 복사본은 어긋난다(quotePath · 디코딩 · 3점 diff).
+        source = TOOL_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("subprocess", source)
+        self.assertNotIn('"git"', source)
+
+    # -- `--out` 은 어떻게 끝나든 이번 실행의 결과만 남긴다 --------------------------------------------
+
+    def stale_out(self):
+        self.out.write_text(json.dumps({"version": 1, "ok": True, "stale": True}), encoding="utf-8")
+
+    def test_a_failure_before_the_document_exists_still_replaces_the_previous_file(self):
+        # kind 를 정하지 못하는 세션(.review/<kind>/… 밖). 앞 실행의 ok:true 문서가 남으면 기록 에이전트가 읽는다.
+        plain = self.tmp / "plain"
+        plain.mkdir()
+        (plain / "x.md").write_text("### 요약\n없다\n", encoding="utf-8")
+        self.stale_out()
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(plain), *self.submit_args()], cwd=self.repo,
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("stale", doc)
+        self.assertTrue(any("kind" in e for e in doc["errors"]), doc)
+        self.assertEqual(doc["submissions"], [])
+        summary = json.loads(r.stdout)
+        self.assertFalse(summary["ok"])
+        self.assertTrue(summary["errors"])
+
+    def test_a_missing_session_directory_replaces_the_previous_file(self):
+        self.stale_out()
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(self.tmp / "nope"), *self.submit_args()],
+                           cwd=self.repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("stale", doc)
+        self.assertTrue(any("세션 디렉터리" in e for e in doc["errors"]), doc)
+
+    def test_a_build_that_reports_errors_replaces_the_previous_file(self):
+        self.stale_out()
+        r = self.run_cli(*self.submit_args(head="0123456789abcdef0123456789abcdef01234567"))
+        self.assertEqual(r.returncode, 1)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("stale", doc)
+
+    def test_an_argument_error_is_exit_2_and_the_recorder_is_not_called_on_it(self):
+        # 인자 오류(argparse)는 문서를 쓰지 않는다. 종료 코드가 0 이 아니면 기록 에이전트를 부르지 않는 것이 규칙이다.
+        r = self.run_cli("--out", str(self.out), "--branch", "feature")
+        self.assertEqual(r.returncode, 2)
+
+    def test_an_unwritable_out_path_is_reported_not_a_traceback(self):
+        r = self.run_cli(*self.submit_args()[2:], "--out", str(self.tmp / "no-such-dir" / "p.json"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertTrue(any("--out" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
+
+
+class OutDocSharedTest(unittest.TestCase):
+    """`_shared/out_doc.py` — `--out` 문서를 쓰는 규칙 하나. 제출 도구와 처분 도구가 같이 쓴다."""
+
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.out_doc = tool.out_doc
+
+    def test_clear_removes_the_previous_file_and_tolerates_a_missing_one(self):
+        path = self.tmp / "p.json"
+        path.write_text("{}", encoding="utf-8")
+        self.out_doc.clear(str(path))
+        self.assertFalse(path.exists())
+        self.out_doc.clear(str(path))  # 없어도 그대로 지나간다
+
+    def test_write_replaces_the_file_whole_and_leaves_no_temporary_one(self):
+        path = self.tmp / "p.json"
+        path.write_text("OLD", encoding="utf-8")
+        self.out_doc.write(str(path), {"ok": True, "n": "한글"})
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"ok": True, "n": "한글"})
+        self.assertEqual(os.listdir(self.tmp), ["p.json"])
+
+    def test_a_document_that_cannot_be_serialised_keeps_the_old_file_and_leaves_nothing_behind(self):
+        path = self.tmp / "p.json"
+        path.write_text("OLD", encoding="utf-8")
+        with self.assertRaises(TypeError):
+            self.out_doc.write(str(path), {"bad": object()})
+        self.assertEqual(path.read_text(encoding="utf-8"), "OLD")
+        self.assertEqual(os.listdir(self.tmp), ["p.json"])
+
+    def test_failure_documents_are_not_ok_and_carry_the_tool_specific_keys(self):
+        doc = self.out_doc.failure(["x"], dispositions=[])
+        self.assertEqual(doc, {"version": 1, "ok": False, "dispositions": [], "errors": ["x"]})
+
+
 class RealSessionShapeTest(unittest.TestCase):
     """리뷰어 정의가 문서로 정한 형식이 실제 정의 파일과 맞는지 — 형식이 바뀌면 이 도구도 바뀐다."""
 

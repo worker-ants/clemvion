@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """리뷰 처리 인계 파일 두 개를 만들고 검사한다 — main 세션과 `resolution-applier` 사이.
 
-NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 발견과 처분은 NERV 레코드다. NERV 쓰기는
-main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분을 파일로 돌려주고 main 이 기록한다.
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 발견과 처분은 NERV 레코드다. applier 에는
+NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일로 돌려주고, 기록은 main 이 부르는 기록
+서브에이전트 `nerv-recorder` 가 한다(D9 개정, NERV Task `CLE-T-CD9131`).
 두 파일은 LLM 이 손으로 옮겨 적지 않게 이 도구가 만들고 검사한다. 파일 형식의 정본은 이 docstring 이다.
 
     python3 .claude/tools/nerv_review_handoff.py fetch   <session_dir> --branch <b>
@@ -41,10 +42,32 @@ main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분�
     읽지 않는다.
   - critical · warning 발견은 처분이나 제안 중 하나에 있어야 한다. info 는 `left_to_main` 으로 알린다.
 
-`pending` — `_dispositions.json` 의 처분 중 NERV 에서 아직 열려 있고 처분이 붙지 않은 것만 낸다. main 은
-이것만 `nerv_finding_resolve` 로 기록한다. applier 를 다시 부르거나 처분을 다시 기록할 때 이미 기록된
+`pending` — `_dispositions.json` 의 처분 중 NERV 에서 아직 열려 있고 처분이 붙지 않은 것만 낸다. 기록하는
+쪽(`nerv-recorder`, 그것을 쓸 수 없는 세션은 main)은 이것만 `nerv_finding_resolve` 로 기록한다. applier 를 다시 부르거나 처분을 다시 기록할 때 이미 기록된
 처분(사람이 NERV 에서 바꾼 것 포함)을 덮지 않는다. `_nerv_findings.json` 에 없는 ID 나 전체 ID 가
 아닌 값은 "이미 기록됨" 으로 섞지 않고 `unknown` 으로 내며 exit 1 이다(`check` 를 먼저 돌린다).
+
+`pending --out <file>` 은 그 처분을 기록 서브에이전트 `nerv-recorder` 가 그대로 낼 문서로 쓰고 stdout 에는
+요약(`pending` · `by_resolution` · `items` · `already_recorded` · `unknown`)만 낸다. main 이 근거 문장까지 읽지
+않게 하려는 모드다(NERV Task `CLE-T-CD9131`):
+
+    {"version": 1, "ok": true, "branch": "...", "dispositions": [
+      {"finding_id": "...", "resolution": "fixed", "commit_sha": "<40자>", "rationale": "...",
+       "severity": "critical", "idempotency_key": "resolve:<finding_id>:fixed:<12자>"}],
+     "already_recorded": ["..."], "unknown": []}
+
+  - 처분마다 `nerv_finding_resolve` 인자(`finding_id` · `resolution` · `commit_sha` · `escalate_reason` ·
+    `rationale`)만 남긴다. `severity` 는 `_nerv_findings.json` 에서 붙인다(critical 을 낮추는 처분은 사람
+    승인을 받는다). 멱등 키는 그 인자의 해시라서 같은 처분을 다시 보내도 한 번만 기록된다.
+  - 처분 목록은 쓰기 전에 `check` 의 검사를 모두 통과해야 한다(처분이 없는 발견을 세는 검사만 뺀다. 덜 모인
+    목록에서 통과한 처분까지 막지 않으려는 것이다). 근거 · 40자 해시 · 브랜치 도달성 · critical 하향 거부를 main 이
+    눈으로 다시 보지 않아도 되게 한다. 통과하지 못하면 `ok: false` 이고 `errors` 에 사유가 있다.
+  - `unknown` 이 있으면 `ok: false` 이고 `dispositions` 는 비어 있다.
+  - `items` 는 처분마다 `<발견 ID 끝 8자> <resolution> <severity>` 한 줄이다. main 이 분포를 본다.
+  - 처분 문서를 만들 수 없는 실패(NERV 읽기 실패 · 설정 누락 · 인계 파일 문제)도 `{"version": 1, "ok": false,
+    "errors": [...], "dispositions": [], ...}` 를 `--out` 에 쓰고 exit 1 이다. 시작할 때 앞 실행의 파일을
+    지우므로 `--out` 에는 늘 이번 실행의 결과만 있다(`_shared/out_doc.py`. `nerv_review_payload.py --out` 도
+    같은 규칙이다). exit 가 0 이 아니면 그 파일을 기록 서브에이전트에 넘기지 않는다.
 
 출력은 JSON 이고, 문제가 있으면 exit 1 이다. 이 도구는 NERV 를 읽기만 한다(`_shared/nerv_read.py`).
 `fetch` · `pending` 은 NERV 를 읽으므로 `NERV_SERVER` · `NERV_TOKEN`(선택 `NERV_PROJECT`)이 필요하다.
@@ -54,6 +77,7 @@ main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분�
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -63,7 +87,7 @@ import urllib.parse
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
-from _shared import git_probe, nerv_read  # noqa: E402
+from _shared import git_probe, nerv_read, out_doc  # noqa: E402
 
 VERSION = 1
 FINDINGS_FILE = "_nerv_findings.json"
@@ -73,6 +97,8 @@ PAGE_LIMIT = 100
 MAX_PAGES = 50  # 5,000건. 커서가 돌면 여기서 끊는다
 
 RESOLUTIONS = ("fixed", "wont_fix", "dismissed", "escalated")
+# `pending --out` 이 처분마다 남기는 `nerv_finding_resolve` 인자.
+RESOLVE_FIELDS = ("finding_id", "resolution", "commit_sha", "escalate_reason", "rationale")
 ESCALATE_REASONS = ("user-decision", "infra", "e2e-fail-3x", "sensitive-fix", "spec")
 SEVERITIES = ("critical", "warning", "info")
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -176,8 +202,7 @@ def _ancestor_target(branch, cwd: str) -> str:
 
 
 def _is_ancestor(sha: str, target: str, cwd: str) -> bool:
-    rc, _, _ = git_probe._run_git(["merge-base", "--is-ancestor", sha, target], cwd)
-    return rc == 0
+    return git_probe.is_ancestor(sha, target, cwd)
 
 
 class _Claims:
@@ -246,7 +271,12 @@ def _list_field(doc: dict, key: str, errors: list[str], *, required: bool) -> li
     return value
 
 
-def check(session_dir: str) -> dict:
+def check(session_dir: str, *, coverage: bool = True) -> dict:
+    """`_dispositions.json` 을 검사한다. `coverage=False` 면 "처분이 없다" 만 빼고 같은 검사를 한다.
+
+    `pending --out` 이 쓴다. 기록 서브에이전트에 넘기는 처분은 전부 이 검사를 통과한 것이어야 하지만(근거 · 40자
+    해시 · 브랜치 도달성 · critical 하향 거부), 처분이 아직 덜 모인 목록(applier 가 중간에 끝난 경우)에서 이미
+    통과한 처분까지 막지는 않는다."""
     findings_doc = _load(session_dir, FINDINGS_FILE)
     disp_doc = _load(session_dir, DISPOSITIONS_FILE)
     severity = {f["finding_id"]: f.get("severity") for f in findings_doc.get("findings") or []
@@ -262,9 +292,10 @@ def check(session_dir: str) -> dict:
     for n, p in enumerate(proposals):
         _check_proposal(p, f"spec_proposals[{n}]", claims, session_dir)
 
-    for fid, sev in severity.items():
-        if fid not in claims.seen and sev in ("critical", "warning"):
-            errors.append(f"{fid} ({sev}) 의 처분이 없다")
+    if coverage:
+        for fid, sev in severity.items():
+            if fid not in claims.seen and sev in ("critical", "warning"):
+                errors.append(f"{fid} ({sev}) 의 처분이 없다")
     left = [fid for fid, sev in severity.items() if fid not in claims.seen and sev not in ("critical", "warning")]
     return {"ok": not errors, "errors": errors, "left_to_main": left,
             "dispositions": len(dispositions), "spec_proposals": len(proposals)}
@@ -290,16 +321,72 @@ def pending(session_dir: str, branch: str, client) -> dict:
     return out
 
 
+def resolve_key(d: dict) -> str:
+    """처분 하나의 `nerv_finding_resolve` 멱등 키. 기록할 인자가 같으면 같은 키다."""
+    payload = json.dumps({k: d.get(k) for k in RESOLVE_FIELDS}, ensure_ascii=False, sort_keys=True)
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+    return f"resolve:{d.get('finding_id')}:{d.get('resolution')}:{digest}"
+
+
+def resolve_document(session_dir: str, branch: str, out: dict) -> dict:
+    """`pending` 결과 → 기록 서브에이전트(`nerv-recorder`)가 그대로 낼 처분 문서.
+
+    처분마다 `nerv_finding_resolve` 인자만 남기고 발견의 심각도와 멱등 키를 붙인다. 처분 목록은 여기서 `check`
+    (처분이 없는 발견을 세는 검사만 뺀다)를 통과해야 한다. main 은 이 문서의 근거 문장을 읽지 않으므로 검사를
+    선행 단계의 SKILL 문장에만 맡기지 않는다. `ok` 가 false 면 처분을 싣지 않는다(기록 서브에이전트는 아무것도
+    기록하지 않는다)."""
+    verdict = check(session_dir, coverage=False)
+    severity = {f.get("finding_id"): f.get("severity")
+                for f in _load(session_dir, FINDINGS_FILE).get("findings") or [] if isinstance(f, dict)}
+    ok = bool(out["ok"] and verdict["ok"])
+    errors = list(out.get("errors") or []) + list(verdict["errors"])
+    rows = []
+    if ok:
+        for d in out["pending"]:
+            row = {k: d[k] for k in RESOLVE_FIELDS if d.get(k) is not None}
+            row["severity"] = severity.get(d["finding_id"])
+            row["idempotency_key"] = resolve_key(d)
+            rows.append(row)
+    doc = {"version": VERSION, "ok": ok, "branch": branch, "dispositions": rows,
+           "already_recorded": out["already_recorded"], "unknown": out["unknown"]}
+    if errors:
+        doc["errors"] = errors
+    return doc
+
+
+def resolve_brief(doc: dict, path: str) -> dict:
+    """`pending --out` 이 stdout 에 내는 요약. 근거 문장은 싣지 않는다.
+
+    `items` 는 처분마다 `<발견 ID 끝 8자> <resolution> <severity>` 한 줄이다. main 이 근거 문장 없이도 어느
+    발견이 어떻게 처분되는지(critical 이 낮아지지는 않는지) 볼 수 있게 한다. UUIDv7 은 앞자리가 같은 분에 생긴
+    발견끼리 겹치므로 끝 8자를 쓴다."""
+    by: dict[str, int] = {}
+    for d in doc["dispositions"]:
+        by[d["resolution"]] = by.get(d["resolution"], 0) + 1
+    out = {"ok": doc["ok"], "out": path, "pending": len(doc["dispositions"]), "by_resolution": by,
+           "items": [f"{str(d['finding_id'])[-8:]} {d['resolution']} {d.get('severity')}"
+                     for d in doc["dispositions"]],
+           "already_recorded": len(doc["already_recorded"]), "unknown": doc["unknown"]}
+    if doc.get("errors"):
+        out["errors"] = doc["errors"]
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
     ap.add_argument("command", choices=("fetch", "check", "pending"))
     ap.add_argument("session_dir")
     ap.add_argument("--branch")
+    ap.add_argument("--out", help="pending 만: 처분 문서를 이 파일에 쓰고 stdout 에는 건수만 낸다(nerv-recorder 입력)")
     args = ap.parse_args(argv)
     if not os.path.isdir(args.session_dir):
         ap.error(f"세션 디렉터리가 없다 — {args.session_dir}")
     if args.command != "check" and not args.branch:
         ap.error(f"{args.command} 는 --branch 가 필요하다")
+    if args.out and args.command != "pending":
+        ap.error("--out 은 pending 에만 준다")
+    if args.out:
+        out_doc.clear(args.out)
     try:
         if args.command == "check":
             out = check(args.session_dir)
@@ -309,9 +396,22 @@ def main(argv: list[str] | None = None) -> int:
                 out = fetch(args.session_dir, args.branch, client)
             else:
                 out = pending(args.session_dir, args.branch, client)
-    except (HandoffError, nerv_read.NervReadError) as exc:
-        out = {"ok": False, "errors": [str(exc)]}
-    json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+                if args.out:
+                    doc = resolve_document(args.session_dir, args.branch, out)
+                    out_doc.write(args.out, doc)
+                    out = resolve_brief(doc, args.out)
+    except (HandoffError, nerv_read.NervReadError, OSError) as exc:
+        message = str(exc)
+        out = {"ok": False, "errors": [message]}
+        if args.out:
+            # 처분 문서를 만들 수 없는 실패(NERV 읽기 · 설정 · 인계 파일). `--out` 에는 앞 실행의 문서가 아니라 이번 실패를 남긴다.
+            failed = out_doc.failure([message], branch=args.branch, dispositions=[], already_recorded=[], unknown=[])
+            try:
+                out_doc.write(args.out, failed)
+                out = resolve_brief(failed, args.out)
+            except OSError as werr:
+                out["errors"].append(f"--out 을 쓰지 못했다 — {werr.strerror or werr}")
+    json.dump(out, sys.stdout, ensure_ascii=False, indent=None if args.out else 1)
     sys.stdout.write("\n")
     return 0 if out.get("ok") else 1
 

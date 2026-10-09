@@ -6,7 +6,7 @@ model: sonnet
 
 # Code Review Agents
 
-전문 관점 reviewer sub-agent (디폴트 14개; 프로젝트별 `agents.reviewers` 토글로 부분 disable 가능) 가 격리 컨텍스트에서 병렬 리뷰를 수행하고, `code-review-summary` sub-agent 가 결과를 단일 SUMMARY.md 로 통합합니다(로컬 `.review/code/<…>/`, 커밋하지 않음). main 이 역할 리포트를 NERV 에 `kind=code` 로 역할마다 제출하고(결정 D7), Critical/Warning 발견 시 `resolution-applier` sub-agent 가 fix + e2e 를 처리해 처분 목록을 돌려주면 main 이 `nerv_finding_resolve` 로 기록합니다(결정 D9. NERV 쓰기는 main 만 한다). 사용자 결정이 필요한 순간만 main 으로 escalate 합니다.
+전문 관점 reviewer sub-agent (디폴트 14개; 프로젝트별 `agents.reviewers` 토글로 부분 disable 가능) 가 격리 컨텍스트에서 병렬 리뷰를 수행하고, `code-review-summary` sub-agent 가 결과를 단일 SUMMARY.md 로 통합합니다(로컬 `.review/code/<…>/`, 커밋하지 않음). 기록 서브에이전트 `nerv-recorder` 가 역할 리포트를 NERV 에 `kind=code` 로 역할마다 제출하고(결정 D7), Critical/Warning 발견 시 `resolution-applier` sub-agent 가 fix + e2e 를 처리해 처분 목록을 돌려주면 `nerv-recorder` 가 `nerv_finding_resolve` 로 기록합니다(결정 D9 개정. NERV 쓰기는 main 과 기록 서브에이전트만 한다). 사용자 결정이 필요한 순간만 main 으로 escalate 합니다.
 
 > **프로젝트별 reviewer 토글**: `.claude.project.json` 의 `agents.reviewers.<name>: false` 로 특정 reviewer 비활성. 예: 유저 가이드 매트릭스(PROJECT.md §변경 시 동반 갱신) 가 없는 프로젝트는 `agents.reviewers.user_guide_sync: false`. 디폴트는 전부 활성화 — 키 누락·`true` 면 enabled. 일회성 override 는 `REVIEW_AGENTS` env (project_config 보다 우선).
 
@@ -97,31 +97,45 @@ Workflow 반환값 (ai-review.js 가 항상 경로+전문을 함께 반환):
 
 > **재시도 정책 차이**: Workflow 경로는 옛 cross-turn ScheduleWakeup quota 자동 재시도를 갖지 않는다. `unfinished` reviewer 는 main 이 재실행하거나 `/loop` (fallback 경로)로 처리. 한도 상황의 무한 재시도가 꼭 필요하면 아래 fallback 경로 사용.
 
-### 4. NERV 제출 (main 의 의무)
+### 4. NERV 제출
 
 리뷰 결과의 정본은 NERV 리뷰 레코드다(전환 단계 2). push 훅과 CI `review-gate` 는 NERV 라운드만 본다. **이 절이 제출 절차의 정본이다.** developer SKILL · `/ai-review` · consistency-checker SKILL 은 이 절을 가리킨다.
 
+제출은 기록 서브에이전트 `nerv-recorder` 가 하고 main 은 결과 몇 줄만 받는다(결정 D9 개정, NERV Task `CLE-T-CD9131`). 제출 묶음 전문과 응답의 `carried_over` 가 main 컨텍스트에 쌓이지 않게 하려는 것이다.
+
 ```bash
-python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 묶음 JSON
+python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_nerv_payload.json \
+    --branch <브랜치> --base <merge-base> --head <리뷰한 커밋> --mode <mode> --task <클레임한 Task 키>
 ```
 
-1. exit 1 이면 `errors` · `missing_forced` 를 먼저 푼다. 강제 역할 리포트가 빠졌으면 그 reviewer 를 다시 돌린다. 그대로 내면 라운드가 `missing_roles` 로 남는다.
-2. `submissions[]` 마다 `nerv_review_submit` 을 부른다.
+1. 도구는 제출 문서를 `--out` 파일에 쓰고 stdout 에는 요약(역할 · 심각도별 발견 수 · `errors` · `warnings`)만 낸다. **exit 가 0 이 아니면 기록 서브에이전트를 부르지 않는다.** exit 1 이면 요약의 `errors` · `missing_forced` 를 먼저 푼다. 강제 역할 리포트가 빠졌으면 그 reviewer 를 다시 돌린다. 그대로 내면 라운드가 `missing_roles` 로 남는다. 도구는 시작할 때 앞 실행의 `--out` 파일을 지우고, 문서를 만들 수 없는 실패(세션 없음 · kind 미정)도 `ok: false` 문서로 쓴다. 그래서 `--out` 에는 늘 이번 실행의 결과만 있다. 제출 문서 형식의 정본은 도구 docstring 이다.
+   - `--base` · `--head` 는 git 이 풀 수 있는 값(`origin/main`, `HEAD`)을 준다. 도구가 세션 디렉터리의 저장소에서 전체 SHA 로 풀고, `base_sha` 는 둘의 merge-base 로 싣는다(`origin/main` 이 앞서 나가 있어도 `changeset` 에 역삭제가 섞이지 않는다). `--branch` 가 로컬 브랜치로 풀리면 `--head` 가 거기에 닿아야 한다. 짧은 SHA 를 손으로 늘리지 않는다.
+   - `--mode` 는 코드 리뷰면 `review`, 일관성 검토면 `spec` · `prep` · `done`(각각 `--spec` · `--impl-prep` · `--impl-done`), merge 세션이면 `coordinate`, spec_coverage 세션이면 `audit` 이다. 도구가 역할마다 `idempotency_key`(`<task>:<kind>:<mode>:<head 앞 9자>:<role>:<내용 해시 8자>[:n]`)를 만든다. Task 가 없는 제출(merge · spec_coverage)은 `--task` 를 빼면 `<task>` 자리에 세션 디렉터리 시각(`<YYYYMMDD>-<hhmmss>`)이 들어간다. 키에 그 역할 묶음(요약 · 발견)의 해시가 들어 있다. 같은 문서를 다시 내면(중간에 끊겨 다시 부를 때) 같은 키라서 재전송으로 한 번만 기록되고, 리포트나 스펙 초안을 고쳐 다시 검토하면 head 가 그대로여도 새 키라서 새 제출로 기록된다. 내용이 같은데 새 제출로 내려면 `--run 2` · `--run 3` 을 준다.
+   - `changeset` 은 `--changeset`, 세션 `meta.json`, `git diff --name-only <base_sha>...<head_sha>` 순으로 채운다.
+2. 기록 서브에이전트에 넘긴다. main 은 제출 문서를 읽지 않는다.
 
    ```
-   nerv_review_submit(kind=code, branch=<브랜치>, base_sha=<merge-base>, head_sha=<리뷰한 커밋>,
-                      changeset=<출력의 changeset>, reviewer=<묶음의 reviewer>,
-                      findings=<묶음의 findings>, summary=<묶음의 summary>,
-                      task_id=<클레임한 Task 키>, idempotency_key=<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n])
+   Agent(subagent_type="nerv-recorder", prompt="submit_file=<session_dir>/_nerv_payload.json")
    ```
 
-   - `idempotency_key` 의 `<mode>` 는 코드 리뷰면 `review`, 일관성 검토면 `spec` · `prep` · `done`(각각 `--spec` · `--impl-prep` · `--impl-done`), merge 세션이면 `coordinate`, spec_coverage 세션이면 `audit` 이다. Task 가 없는 제출(merge · spec_coverage)은 `<task>` 자리에 세션 디렉터리 시각(`<YYYYMMDD>-<hhmmss>`)을 쓴다. 같은 head 에서 같은 모드를 다시 돌려 내면 끝에 실행 번호 `:2` · `:3` 을 붙인다. 모드나 실행 번호가 없으면 같은 head 의 다른 검토가 같은 키를 써서 재전송으로 묶인다.
+   반환은 `STATUS=… MODE=submit DONE=<성공>/<전체> ROUND_BLOCK=… BLOCKING=…` 한 줄과 `ERROR` 줄이다(형식의 정본은 [`nerv-recorder.md`](../../agents/nerv-recorder.md) §반환 형식).
+   - `success`: 다음 단계로 간다.
+   - `partial`: `ERROR` 줄의 역할을 확인하고 고친 뒤 같은 파일로 다시 부른다. 이미 낸 역할은 멱등 키 덕분에 한 번만 기록된다.
+   - `fatal`: 제출 문서에 문제가 있다. 도구를 다시 돌린다.
+   - `rate_limit` · `network`: 같은 파일로 다시 부른다(`rate_limit` 은 `RESET_HINT` 뒤에).
+   - **기록 서브에이전트를 쓸 수 없는 세션**(Agent 목록에 `nerv-recorder` 가 없다. 정의는 세션을 시작할 때 읽힌다)은 main 이 직접 낸다. 제출 문서의 `submissions[]` 마다 아래처럼 부른다.
+
+     ```
+     nerv_review_submit(kind=submit.kind, branch=submit.branch, base_sha=submit.base_sha,
+                        head_sha=submit.head_sha, changeset=submit.changeset, task_id=submit.task_id,
+                        reviewer=묶음.reviewer, findings=묶음.findings, summary=묶음.summary,
+                        idempotency_key=묶음.idempotency_key)
+     ```
 
    - 필수 6역할(security · requirement · scope · side_effect · maintainability · testing)은 발견 0건이어도 낸다. NERV 정책 `review_roles.code` 가 역할 리포트로 센다. router 는 바뀐 파일이 하나라도 있으면 이 6역할을 강제한다(하네스 · 문서만 바꾼 Task 도 done 게이트에 passed 라운드가 필요하다). `REVIEW_AGENTS` 로 직접 고를 때는 6역할과 변경 종류에 따라 붙는 강제 리뷰어(§5)를 넣는다.
-   - `changeset` 이 출력에 없으면 `git diff --name-only <base_sha>..<head_sha>` 로 채운다.
-   - 같은 커밋 · 같은 `changeset` 이면 한 라운드로 모인다(응답의 `merged_into_existing_session`). `changeset` 이 다르면 같은 커밋이라도 새 라운드가 생긴다. N1 판정은 같은 head 의 라운드들에서 낸 역할을 합쳐 센다(실측 2026-10-01). 역할마다 같은 `changeset` 을 넘긴다. 중간에 끊기면 남은 역할부터 같은 규칙의 키로 낸다. `idempotency_key` 는 같은 제출의 재전송을 묶는 NERV 인자다.
-3. `warnings[]` 가 있으면 해당 리포트를 읽는다. 형식 밖의 심각도 표지라면 빠진 발견을 그 역할로 한 번 더 낸다(키 끝에 실행 번호). 목록 밖의 `*.md` 는 역할 리포트가 아니므로 내지 않는다.
-4. 이번 라운드가 막는지는 마지막 응답의 `round_block` · `blocking_findings` 로 본다. `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 다른 브랜치의 열린 발견이고 앞 50건만 담는다.
+   - 같은 커밋 · 같은 `changeset` 이면 한 라운드로 모인다(응답의 `merged_into_existing_session`). `changeset` 이 다르면 같은 커밋이라도 새 라운드가 생긴다. N1 판정은 같은 head 의 라운드들에서 낸 역할을 합쳐 센다(실측 2026-10-01). 도구는 모든 역할에 같은 `changeset` 을 싣는다. 중간에 끊기면 같은 제출 문서로 다시 부른다. `idempotency_key` 는 같은 제출의 재전송을 묶는 NERV 인자다.
+3. 요약에 `warnings[]` 가 있으면 해당 리포트를 읽는다. 형식 밖의 심각도 표지라면 그 줄을 정의 형식으로 고치고 제출 문서를 다시 만들어 낸다(묶음 내용이 바뀌어 키가 새로 정해진다). 같은 커밋 · 같은 `changeset` 이라 같은 라운드에 모이고 이미 낸 발견은 지문으로 합쳐진다. 목록 밖의 `*.md` 는 역할 리포트가 아니므로 내지 않는다.
+4. 이번 라운드가 막는지는 반환의 `ROUND_BLOCK` · `BLOCKING` 으로 본다. 기록 서브에이전트가 마지막 응답의 `round_block` · `blocking_findings` 를 옮긴 값이다. 응답의 `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 다른 브랜치의 열린 발견이고 앞 50건만 담는다.
 5. 처리할 발견을 인계 파일로 받는다. 발견 ID 를 손으로 옮겨 적지 않는다.
 
    ```bash
@@ -199,7 +213,7 @@ Agent(subagent_type="resolution-applier",
       prompt="session_dir=<session_dir>")
 ```
 
-resolution-applier 는 `_nerv_findings.json` 의 발견을 분류 · 코드 fix · spec 제안 · e2e 까지 자기 컨텍스트 안에서 수행하고, **처분 목록** `<session_dir>/_dispositions.json` 을 쓴다. NERV 에는 쓰지 않는다(결정 D9). 파일 형식은 `.claude/tools/nerv_review_handoff.py` docstring 이 정본이다. main 으로 돌아오는 건 확장 STATUS 한 줄:
+resolution-applier 는 `_nerv_findings.json` 의 발견을 분류 · 코드 fix · spec 제안 · e2e 까지 자기 컨텍스트 안에서 수행하고, **처분 목록** `<session_dir>/_dispositions.json` 을 쓴다. NERV 에는 쓰지 않는다(결정 D9. 기록은 `nerv-recorder` 가 한다). 파일 형식은 `.claude/tools/nerv_review_handoff.py` docstring 이 정본이다. main 으로 돌아오는 건 확장 STATUS 한 줄:
 
 ```
 STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS_SPEC=<path> DISPOSITIONS=<path> RESET_HINT=<sec>
@@ -208,8 +222,14 @@ STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS
 main 의 기록 순서:
 
 1. `python3 .claude/tools/nerv_review_handoff.py check <session_dir>` — exit 1 이면 기록하지 않고 같은 session_dir 로 applier 를 다시 부른다(처분 파일은 applier 가 쓴다).
-2. `python3 .claude/tools/nerv_review_handoff.py pending <session_dir> --branch <브랜치>` 가 낸 처분만 `nerv_finding_resolve` 로 기록한다(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`). NERV 에 이미 기록된 처분은 건너뛴다. 사람이 NERV 에서 바꾼 처분도 덮지 않는다. applier 재호출 · wake 뒤에도 같다.
-3. `spec_proposals` 는 아래 `spec` 행대로, `left_to_main`(발견으로 낸 INFO. 보통 `[SPEC-DRIFT]`)은 §4-6 대로 처분한다.
+2. `python3 .claude/tools/nerv_review_handoff.py pending <session_dir> --branch <브랜치> --out <session_dir>/_nerv_resolve.json` 이 기록할 처분만 파일에 쓰고 요약(건수 · 처분별 `<ID 끝 8자> <resolution> <severity>`)을 낸다. NERV 에 이미 기록된 처분은 빠진다. 사람이 NERV 에서 바꾼 처분도 덮지 않는다. applier 재호출 · wake 뒤에도 같다. 도구가 쓰기 전에 처분 목록에 `check` 의 검사를 건다(처분이 없는 발견을 세는 검사만 뺀다). 통과하지 못한 목록은 `ok: false` 문서가 되고 요약의 `errors` 에 사유가 있다. **exit 가 0 이 아니면 기록 서브에이전트를 부르지 않는다.** `errors` 를 읽고 applier 를 다시 부르거나 NERV 설정을 고친다. 도구가 시작할 때 앞 실행의 `--out` 파일을 지우므로 낡은 문서가 넘어가지 않는다. exit 0 이면 그 파일을 기록 서브에이전트에 넘긴다.
+
+   ```
+   Agent(subagent_type="nerv-recorder", prompt="resolve_file=<session_dir>/_nerv_resolve.json")
+   ```
+
+   처분 문서에는 `nerv_finding_resolve` 인자(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`)와 멱등 키가 있다. 반환은 `STATUS=… MODE=resolve DONE=… APPROVAL=<n> OPEN_BLOCKING=<n>` 한 줄과 `APPROVAL` · `ERROR` 줄이다. `APPROVAL` 줄은 critical 을 낮추는 처분이라 사람 승인(A3)을 기다린다는 뜻이다. 그 동안 세션은 `awaiting_input` 이다. `OPEN_BLOCKING` 은 이 브랜치에 남은 열린 critical · warning 수다(`escalated` 처분도 열린 채로 남는다). 기록 서브에이전트를 쓸 수 없는 세션은 main 이 처분 문서의 `dispositions[]` 마다 `nerv_finding_resolve` 를 직접 부른다(§4 의 2 와 같은 조건).
+3. `spec_proposals` 는 아래 `spec` 행대로, `left_to_main`(발견으로 낸 INFO. 보통 `[SPEC-DRIFT]`)은 §4-6 대로 처분한다. main 이 정한 이 처분 몇 건은 main 이 `nerv_finding_resolve` 를 직접 부른다.
 4. `tests` 는 Task 증적(`evidence` kind=test)으로 옮긴다.
 5. push 한다. 게이트 조건은 §4 "라운드 뒤 커밋".
 

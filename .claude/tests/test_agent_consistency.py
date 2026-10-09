@@ -57,6 +57,7 @@ STANDALONE_AGENTS = {
     "consistency-summary",
     "spec-impl-coverage-auditor",
     "user-guide-writer",
+    "nerv-recorder",
 }
 
 

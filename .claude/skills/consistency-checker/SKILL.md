@@ -97,13 +97,13 @@ Workflow 반환값 (항상 경로+전문):
 
 **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **로컬 SUMMARY 의 유일한 경로가 main 의 이 Write** 다. 그 다음 반환의 `block` (또는 기록한 SUMMARY 상단)으로 `BLOCK: YES/NO` 판정.
 
-### 3.5 NERV 제출 (main 의 의무)
+### 3.5 NERV 제출
 
 절차는 `code-review-agents` SKILL §4 와 같고 `kind=consistency` 만 다르다.
 
-- **제출**: `python3 .claude/tools/nerv_review_payload.py <session_dir>` 가 checker 리포트를 checker 별 제출 묶음으로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 묶음마다 `nerv_review_submit(kind=consistency, …)` 를 부른다(인자 · `idempotency_key` · `changeset` 은 그 절. 키의 `<mode>` 는 `spec` · `prep` · `done`). `--spec` · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다. 발견은 `nerv_finding_resolve` 로 처분한다.
+- **제출**: `python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_nerv_payload.json --branch … --base … --head … --mode <spec|prep|done>` 가 checker 리포트를 checker 별 제출 문서로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 그 파일을 `Agent(subagent_type="nerv-recorder", prompt="submit_file=<파일>")` 에 넘긴다(인자 · `idempotency_key` · `changeset` · 기록 서브에이전트를 쓸 수 없는 세션은 그 절). `--spec` · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다. 발견 처분도 그 SKILL §6 과 같다(`pending --out` → `nerv-recorder`).
 - **하향 경고**: 출력의 `warnings[]` 에 `SUMMARY.md: … 하향 …` 이 있으면 SUMMARY 가 checker 의 `[CRITICAL]` 을 낮춘 것이다. 아래 §4 금지 조항 위반이니 SUMMARY 를 바로잡는다. NERV 판정은 checker 리포트로 서므로 SUMMARY 의 하향이 라운드를 통과시키지는 못한다.
-- **`task_id` 규칙과 한계**: `task_id` 는 `--impl-done` 결과에만 붙인다. done 게이트는 Task 에 묶인 consistency 라운드를 보므로 구현 전 검토가 그 자리를 채우면 사후 검증 없이 done 이 된다. 다만 NERV 는 활성 클레임이 있으면 `task_id` 를 주지 않아도 제출을 그 Task 에 묶는다. 그래서 이 규칙만으로는 막지 못한다(2026-10-03, `CLE-T-VP5KDJ` 의 `--spec` 라운드 `01a0ff48-bb01…` 은 클레임 중이라 묶였고, 리스가 끝난 뒤 낸 `01a0ff87-a61b…` 의 첫 제출은 묶이지 않았다. `--impl-prep` · `kind=code` 는 따로 확인하지 않았다).
+- **`task_id` 규칙과 한계**: `task_id` 는 `--impl-done` 결과에만 붙인다(도구의 `--task` 는 `--mode done` 일 때만 준다). done 게이트는 Task 에 묶인 consistency 라운드를 보므로 구현 전 검토가 그 자리를 채우면 사후 검증 없이 done 이 된다. 다만 NERV 는 활성 클레임이 있으면 `task_id` 를 주지 않아도 제출을 그 Task 에 묶는다. 그래서 이 규칙만으로는 막지 못한다(2026-10-03, `CLE-T-VP5KDJ` 의 `--spec` 라운드 `01a0ff48-bb01…` 은 클레임 중이라 묶였고, 리스가 끝난 뒤 낸 `01a0ff87-a61b…` 의 첫 제출은 묶이지 않았다. `--impl-prep` · `kind=code` 는 따로 확인하지 않았다).
 - **해야 할 일**: done 을 시도하기 전에 그 Task 에 묶인 `--impl-done` 라운드가 passed 인지 확인한다. `--spec` · `--impl-prep` 라운드만 있으면 done 을 시도하지 않는다.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 ScheduleWakeup cross-turn quota 자동 재시도를 갖지 않는다. 사전 쓰기 게이트(대화형 실행)라 수용 가능 — 한도 시 사용자가 재호출하거나 `unfinished` checker 만 다시 돌린다.

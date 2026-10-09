@@ -101,7 +101,8 @@ model: opus
 > 1단계 「기다리는 동안의 클레임」이 정본이다.
 >
 > **리뷰 결과는 NERV 레코드다**(전환 단계 2, 결정 D7 · D9). 로컬 산출물(`.review/`)은 커밋하지 않는다.
-> NERV 쓰기(제출 · 처분)는 main 세션의 MCP 호출로만 한다.
+> 제출 · 처분은 기록 서브에이전트 `nerv-recorder` 가 하고 main 은 결과 몇 줄만 받는다(D9 개정, NERV Task
+> `CLE-T-CD9131`). Task 갱신 · heartbeat 는 main 이 한다.
 
 0. **커밋 먼저** — 리뷰할 코드를 커밋한다. 라운드는 커밋(`head_sha`)에 묶인다. 커밋하지 않은 변경은
    라운드가 덮지 못한다.
@@ -133,9 +134,9 @@ model: opus
        되찾는다. 다른 세션이 이미 가져갔으면 이어 하지 않고 사용자에게 알린다.
    - **`--impl-done` 도 함께 띄운다**: 5 의 post-impl 일관성 검토를 리뷰와 같은 턴에 띄운다. 두 Workflow 는 서로 기다리지 않는다.
 2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록(로컬)하고 전체 위험도·Critical/Warning 수를 확인.
-3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다(제출 도우미,
-   `nerv_review_submit` 인자, 재제출, `round_block`). 마지막에 `nerv_review_handoff.py fetch` 로
-   처리할 발견을 `<session_dir>/_nerv_findings.json` 에 받는다.
+3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다. 제출 도우미
+   (`nerv_review_payload.py --out`)가 쓴 제출 문서를 `nerv-recorder` 에 넘기고 반환의 `ROUND_BLOCK` 으로
+   라운드를 본다. 마지막에 `nerv_review_handoff.py fetch` 로 처리할 발견을 `<session_dir>/_nerv_findings.json` 에 받는다.
 4. **Critical/Warning > 0 → `resolution-applier` 호출 (main 의 명시적 의무)** — 자동으로 따라오지 않는다. main 이 직접 한 줄로 위임한다:
 
    ```
@@ -143,8 +144,8 @@ model: opus
    ```
 
    applier 는 코드를 고쳐 발견마다 커밋하고, **처분 목록**(`<session_dir>/_dispositions.json`)을 돌려준다.
-   NERV 에는 쓰지 않는다(결정 D9). main 은 `nerv_review_handoff.py check` 로 검사하고 `pending` 이 낸
-   처분만 `nerv_finding_resolve` 로 기록한다(`code-review-agents` SKILL §6). 고친 것은 `fixed` +
+   NERV 에는 쓰지 않는다(결정 D9). main 은 `nerv_review_handoff.py check` 로 검사하고 `pending --out` 이
+   쓴 처분 문서를 `nerv-recorder` 에 넘겨 기록한다(`code-review-agents` SKILL §6). 고친 것은 `fixed` +
    `commit_sha`, 고치지 않는 것은 `wont_fix`/`dismissed` + 근거, 사람 판단이 필요한 것은 `escalated` +
    `escalate_reason`. critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 반환
    STATUS 의 `ESCALATE` 분기 (SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 —

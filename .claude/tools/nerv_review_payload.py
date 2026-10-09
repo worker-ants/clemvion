@@ -4,11 +4,37 @@
 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저장소 파일이 아니라 NERV 리뷰
 레코드다. 오케스트레이터는 지금처럼 세션 디렉터리(`.review/<kind>/<시각>/`, gitignore 대상)에
 역할마다 `<role>.md` 를 남긴다. 이 도구는 그 리포트를 읽어 역할별 제출 묶음을 JSON 으로 낸다.
-제출은 main 세션이 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별 제출 · D9 NERV 쓰기는
-main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
+제출은 기록 서브에이전트 `nerv-recorder` 가 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별
+제출 · D9 개정, NERV Task `CLE-T-CD9131`). 기록 서브에이전트를 쓸 수 없는 세션은 main 이 직접 낸다.
+이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
 
     python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency|merge|spec_coverage]
                                                  [--keep-info]
+    python3 .claude/tools/nerv_review_payload.py <session_dir> --out <file> --branch <b> --base <rev>
+                                                 --head <rev> --mode <review|spec|prep|done|coordinate|audit>
+                                                 [--task <KEY>] [--run <n>] [--changeset <path> ...]
+
+`--out` 을 주면 제출 문서를 그 파일에 쓰고 stdout 에는 짧은 요약(역할 · 심각도별 발견 수 · 오류 · 경고)만
+낸다. main 이 묶음 전문을 읽지 않게 하려는 모드다. 문서에는 `nerv-recorder` 가 그대로 낼 값이 다 있다.
+  - `submit`: `kind` · `branch` · `base_sha` · `head_sha` · `changeset` · `task_id`. SHA 는 `git rev-parse`
+    가 풀어 준 전체 값이다. 풀지 못하면 오류이고 짧은 SHA 를 늘리지 않는다. git 은 모두 세션 디렉터리의
+    저장소에서 돌린다(도구를 부른 셸의 작업 디렉터리가 아니다. 셸이 다른 체크아웃으로 빠져 있어도 같은 값이 나온다).
+  - `base_sha` 는 `--base` 와 `--head` 의 merge-base 다. `--base origin/main` 처럼 앞서 나간 브랜치를 줘도
+    base 쪽에 새로 들어온 변경이 `changeset` 에 역삭제로 섞이지 않는다.
+  - `--branch` 가 이 저장소의 로컬 브랜치로 풀리면 `--head` 가 그 브랜치에 닿아야 한다. 다른 브랜치의 커밋이
+    이 브랜치의 라운드로 묶이는 것을 막는다. 로컬에 없는 브랜치 이름이면 검사하지 않는다.
+  - 역할 묶음마다 `idempotency_key`: `<task>:<kind>:<mode>:<head 앞 9자>:<role>:<내용 해시 8자>[:n]`. Task 가
+    없으면 task 자리에 세션 시각(`<YYYYMMDD>-<hhmmss>`)을 쓰고, `--run` 이 2 이상이면 `:<n>` 을 붙인다.
+    내용 해시는 그 묶음(reviewer · summary · findings)의 해시다. 같은 파일을 다시 내면 같은 키라서 NERV 가
+    재전송으로 묶고, 리포트를 고쳐 다시 내거나 스펙 초안을 고쳐 다시 검토하면(head 가 그대로여도) 키가
+    바뀌어 새 제출로 기록된다. 내용이 같은데 새 제출로 내려면 `--run` 을 준다.
+  - `changeset` 은 `--changeset`, 세션 `meta.json`, `git diff --name-only <base_sha>...<head_sha>` 순으로 채운다.
+    셋 다 비면 오류다.
+  - 오류가 있거나 강제 역할이 빠졌으면 `ok: false` 로 쓰고 `submit` 을 싣지 않는다. exit 1 이다.
+  - 문서를 만들 수 없는 실패(세션 디렉터리 없음 · kind 미정)도 `{"version": 1, "ok": false, "errors": [...]}`
+    를 `--out` 에 쓰고 exit 1 이다. 시작할 때 앞 실행의 파일을 지우므로 `--out` 에는 늘 이번 실행의 결과만
+    있다(`_shared/out_doc.py`. `nerv_review_handoff.py pending --out` 도 같은 규칙이다). exit 가 0 이 아니면
+    그 파일을 기록 에이전트에 넘기지 않는다.
 
 출력(JSON):
     {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
@@ -18,10 +44,10 @@ main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않�
                       "category": "security"}]}],
      "missing_forced": [], "errors": [], "warnings": []}
 
-main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`
-(`<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n]`, 형식의 정본은 code-review-agents SKILL §4). `changeset` 은 세션 `meta.json` 의 `files` 에서 경로만 뽑은
-것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수 없으면 키가 없고, main 이
-`git diff --name-only <base>..<head>` 로 채운다).
+`--out` 없이 부르면 위 모양을 stdout 에 내고, 제출하는 쪽이 `branch` · `base_sha` · `head_sha`(리뷰한 커밋) ·
+`task_id` · `idempotency_key`(형식의 정본은 code-review-agents SKILL §4)를 붙인다. `changeset` 은 세션
+`meta.json` 의 `files` 에서 경로만 뽑은 것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수
+없으면 키가 없고, 제출하는 쪽이 `git diff --name-only <base>..<head>` 로 채운다).
 
 역할은 세션 `_retry_state.json` 의 `subagent_invocations` 가 정한다. 그 목록에 없는 `*.md`(예: 처리
 중에 생긴 제안 파일)는 역할 리포트가 아니므로 내지 않고 `warnings` 에 남긴다. `errors` 가 있거나
@@ -54,6 +80,7 @@ INFO 는 스펙 초안으로 처분해야 해서 발견으로 남긴다. 옮긴 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -62,9 +89,11 @@ import sys
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
-from _shared import block_integrity, report_paths  # noqa: E402
+from _shared import block_integrity, git_probe, out_doc, report_paths  # noqa: E402
 
 KINDS = ("code", "consistency", "merge", "spec_coverage")
+# 멱등 키의 mode 자리(code-review-agents SKILL §4).
+MODES = ("review", "spec", "prep", "done", "coordinate", "audit")
 # NERV 정책 `review_roles.code` 의 필수 역할. router 가 늘 강제하지만 `REVIEW_AGENTS` 로 좁히면 빠질 수
 # 있어 kind=code 에서 빠지면 경고한다(라운드가 `missing_roles` 로 남는다).
 NERV_REQUIRED_ROLES = ("security", "requirement", "scope", "side_effect", "maintainability", "testing")
@@ -472,18 +501,144 @@ def build(session_dir: str, kind: str | None = None, *, keep_info: bool = False)
     return out
 
 
+def session_stamp(session_dir: str) -> str | None:
+    """세션 경로 `.review/<kind>/<Y>/<m>/<d>/<H_M_S>` → `<YYYYMMDD>-<hhmmss>`. Task 가 없는 멱등 키의 앞자리다."""
+    parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)[-4:]
+    if len(parts) == 4 and re.fullmatch(r"\d{4}", parts[0]) and all(re.fullmatch(r"\d{2}", p) for p in parts[1:3]) \
+            and re.fullmatch(r"\d{2}_\d{2}_\d{2}", parts[3]):
+        return "".join(parts[:3]) + "-" + parts[3].replace("_", "")
+    return None
+
+
+def content_digest(sub: dict) -> str:
+    """역할 묶음 내용(reviewer · summary · findings)의 해시 앞 8자. 멱등 키에 들어가 내용이 바뀌면 키도 바뀐다."""
+    payload = json.dumps(sub, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+
+
+def attach_submit(out: dict, *, branch: str, base: str, head: str, mode: str, task: str | None,
+                  run: int, changeset: list[str] | None) -> dict:
+    """`build` 결과에 제출 머리(`submit`)와 역할마다 멱등 키를 붙여 기록 서브에이전트가 그대로 낼 문서를 만든다.
+
+    SHA 는 git 이 풀어 준 전체 값만 싣는다. git 은 세션 디렉터리의 저장소에서 돌린다(`_shared/git_probe`).
+    바꾸지 못한 값이 있으면 `submit` 을 싣지 않고 `ok` 를 false 로 둔다.
+    기록 서브에이전트(`nerv-recorder`)는 `ok` 가 false 이거나 `submit` 이 없으면 아무것도 내지 않는다."""
+    errors = list(out["errors"])
+    cwd = out["session_dir"]
+    head_sha = git_probe.resolve_commit(head, cwd)
+    base_tip = git_probe.resolve_commit(base, cwd)
+    base_sha = None
+    if base_tip is None:
+        errors.append(f"--base {base}: 커밋으로 풀지 못했다 — git rev-parse 가 아는 값을 준다")
+    if head_sha is None:
+        errors.append(f"--head {head}: 커밋으로 풀지 못했다 — git rev-parse 가 아는 값을 준다")
+    if base_tip and head_sha:
+        base_sha = git_probe.merge_base(base_tip, head_sha, cwd)
+        if base_sha is None:
+            errors.append(f"--base {base} 와 --head {head} 의 공통 조상을 찾지 못했다")
+    if head_sha and _branch_mismatch(branch, head_sha, cwd):
+        errors.append(f"--head {head} 가 --branch {branch} 에 닿지 않는다 — 다른 브랜치의 커밋을 이 브랜치의 라운드로 내지 않는다")
+    files = list(changeset) if changeset else out.get("changeset")
+    if not files and base_sha and head_sha:
+        probe_errors: list[str] = []
+        files = git_probe.branch_diff_files(base_sha, cwd, head=head_sha, on_error=probe_errors.append)
+        errors.extend(f"changeset: git diff 가 실패했다 — {e}" for e in probe_errors)
+    if base_sha and head_sha and not files:
+        errors.append("changeset 이 비었다 — --changeset 으로 주거나 base...head 에 바뀐 파일이 있는지 확인한다")
+    slot = task or session_stamp(out["session_dir"])
+    if slot is None:
+        errors.append("멱등 키의 앞자리를 정하지 못했다 — --task 를 주거나 .review/<kind>/<Y>/<m>/<d>/<H_M_S> 세션을 준다")
+    doc: dict = {"version": 1, "ok": False, **out, "errors": errors}
+    if errors or out["missing_forced"]:
+        return doc
+    suffix = f":{run}" if run > 1 else ""
+    for sub in doc["submissions"]:
+        sub["idempotency_key"] = (f"{slot}:{out['kind']}:{mode}:{head_sha[:9]}:{sub['reviewer']['role']}"
+                                  f":{content_digest(sub)}{suffix}")
+    doc["submit"] = {"kind": out["kind"], "branch": branch, "base_sha": base_sha, "head_sha": head_sha,
+                     "changeset": files, "task_id": task}
+    doc["ok"] = True
+    return doc
+
+
+def _branch_mismatch(branch: str, head_sha: str, cwd: str) -> bool:
+    """`branch` 가 이 저장소의 로컬 브랜치인데 `head_sha` 가 거기서 닿지 않으면 True. 로컬에 없으면 False(검사하지 않는다)."""
+    tip = git_probe.resolve_commit(f"refs/heads/{branch}", cwd)
+    return tip is not None and not git_probe.is_ancestor(head_sha, tip, cwd)
+
+
+def brief(doc: dict, out_path: str) -> dict:
+    """`--out` 을 쓸 때 stdout 에 내는 짧은 요약. 발견 본문은 싣지 않는다."""
+    counts: dict[str, int] = {}
+    for sub in doc["submissions"]:
+        for f in sub["findings"]:
+            counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+    return {"ok": doc["ok"], "out": out_path, "kind": doc["kind"],
+            "head_sha": (doc.get("submit") or {}).get("head_sha"),
+            "roles": sorted(s["reviewer"]["role"] for s in doc["submissions"]),
+            "findings": counts, "info_in_summary": doc["info_in_summary"],
+            "missing_forced": doc["missing_forced"], "errors": doc["errors"], "warnings": doc["warnings"]}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
     ap.add_argument("session_dir")
     ap.add_argument("--kind", choices=KINDS)
     ap.add_argument("--keep-info", action="store_true",
                     help="INFO 도 발견으로 낸다(기본은 [SPEC-DRIFT] 가 아닌 INFO 를 summary 에 싣는다)")
+    ap.add_argument("--out", help="제출 문서를 이 파일에 쓰고 stdout 에는 요약만 낸다(nerv-recorder 입력)")
+    ap.add_argument("--branch")
+    ap.add_argument("--base", help="리뷰 기준 커밋(rev). git 이 전체 SHA 로 푼다")
+    ap.add_argument("--head", help="리뷰한 커밋(rev). git 이 전체 SHA 로 푼다")
+    ap.add_argument("--mode", choices=MODES, help="멱등 키의 mode 자리")
+    ap.add_argument("--task", help="NERV Task 키. 없으면 멱등 키 앞자리에 세션 시각을 쓴다")
+    ap.add_argument("--run", type=int, default=1, help="같은 head 를 다시 낼 때의 차수(2 부터 키에 붙는다)")
+    ap.add_argument("--changeset", action="append", help="바뀐 파일. 여러 번 준다. 없으면 meta.json, 그다음 git diff")
     args = ap.parse_args(argv)
-    out = build(args.session_dir, args.kind, keep_info=args.keep_info)
-    json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+    if args.out:
+        absent = [f"--{n}" for n in ("branch", "base", "head", "mode") if not getattr(args, n)]
+        if absent:
+            ap.error(f"--out 에는 {' '.join(absent)} 도 준다")
+        if args.run < 1:
+            ap.error("--run 은 1 이상이다")
+    if args.out:
+        out_doc.clear(args.out)
+    try:
+        out = build(args.session_dir, args.kind, keep_info=args.keep_info)
+    except SystemExit as exc:
+        if not args.out:
+            raise
+        # 세션 디렉터리가 없거나 kind 를 정하지 못했다. 문서를 만들 수 없어도 `--out` 에는 이번 실행의 결과를 남긴다.
+        return _write_out(args.out, _failed_doc(args.kind, args.session_dir, str(exc.code)))
+    if not args.out:
+        json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+        # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
+        return 1 if out["missing_forced"] or out["errors"] else 0
+    doc = attach_submit(out, branch=args.branch, base=args.base, head=args.head, mode=args.mode,
+                        task=args.task, run=args.run, changeset=args.changeset)
+    return _write_out(args.out, doc)
+
+
+def _failed_doc(kind: str | None, session_dir: str, message: str) -> dict:
+    """`build` 가 문서를 못 만들었을 때의 `--out` 문서. 요약(`brief`)이 읽는 키를 비워서 채운다."""
+    return out_doc.failure([message], kind=kind, session_dir=session_dir, changeset=None, submissions=[],
+                           missing_forced=[], info_in_summary=0, warnings=[])
+
+
+def _write_out(path: str, doc: dict) -> int:
+    """`--out` 문서를 쓰고 요약을 stdout 에 낸다. 못 쓰면 그 사실을 알리고 실패한다."""
+    try:
+        out_doc.write(path, doc)
+    except OSError as exc:
+        brief_out = dict(brief(doc, path), ok=False)
+        brief_out["errors"] = [*brief_out["errors"], f"--out 을 쓰지 못했다 — {exc.strerror or exc}"]
+        json.dump(brief_out, sys.stdout, ensure_ascii=False)
+        sys.stdout.write("\n")
+        return 1
+    json.dump(brief(doc, path), sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
-    # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
-    return 1 if out["missing_forced"] or out["errors"] else 0
+    return 0 if doc["ok"] else 1
 
 
 if __name__ == "__main__":

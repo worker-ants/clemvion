@@ -236,6 +236,178 @@ class PendingTest(_SessionCase):
         self.assertEqual(out["already_recorded"], [])
 
 
+class PendingOutTest(_SessionCase):
+    """`pending --out` — 기록 서브에이전트(`nerv-recorder`)가 그대로 낼 처분 인자를 파일에 쓴다(NERV Task `CLE-T-CD9131`).
+
+    main 은 처분 전문을 읽지 않고 건수 요약만 받는다."""
+
+    def setUp(self):
+        super().setUp()
+        self.out = self.sd / "_nerv_resolve.json"
+
+    def run_pending(self, open_items):
+        body = json.dumps({"items": open_items, "next_cursor": None}).encode()
+        with _harness.FakeNervServer(raw=body) as server:
+            env = {"NERV_SERVER": server.url, "NERV_TOKEN": "tok-9", "PATH": os.environ.get("PATH", "")}
+            return subprocess.run([sys.executable, str(TOOL_PATH), "pending", str(self.sd), "--branch", "feature",
+                                   "--out", str(self.out)], capture_output=True, text=True, timeout=60, env=env)
+
+    def test_writes_only_resolve_arguments_with_keys_and_prints_counts(self):
+        self.write_findings(item(CRIT, "critical"), item(WARN, "warning"), item(INFO, "info"))
+        self.write_dispositions([
+            self.fixed(CRIT),
+            {"finding_id": WARN, "resolution": "escalated", "escalate_reason": "infra",
+             "rationale": "도커가 죽었다", "note": "applier 메모"},
+            {"finding_id": INFO, "resolution": "wont_fix", "rationale": "이미 닫힘"},
+        ])
+        r = self.run_pending([item(CRIT, "critical"), item(WARN, "warning")])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertTrue(doc["ok"])
+        self.assertEqual(doc["branch"], "feature")
+        rows = {d["finding_id"]: d for d in doc["dispositions"]}
+        self.assertEqual(set(rows), {CRIT, WARN})
+        self.assertEqual(set(rows[CRIT]), {"finding_id", "resolution", "commit_sha", "rationale", "severity",
+                                           "idempotency_key"})
+        self.assertEqual(rows[CRIT]["severity"], "critical")
+        self.assertEqual(rows[WARN]["escalate_reason"], "infra")
+        self.assertNotIn("note", rows[WARN])
+        self.assertRegex(rows[CRIT]["idempotency_key"], rf"^resolve:{CRIT}:fixed:[0-9a-f]{{12}}$")
+        self.assertEqual(doc["already_recorded"], [INFO])
+        summary = json.loads(r.stdout)
+        # items 는 끝 8자를 쓴다. UUIDv7 은 앞자리가 같은 분의 발견끼리 겹친다(이 픽스처도 앞 8자가 같다).
+        self.assertEqual(summary, {"ok": True, "out": str(self.out), "pending": 2,
+                                   "by_resolution": {"escalated": 1, "fixed": 1},
+                                   "items": [f"{CRIT[-8:]} fixed critical", f"{WARN[-8:]} escalated warning"],
+                                   "already_recorded": 1, "unknown": []})
+        self.assertNotIn("도커가 죽었다", r.stdout)
+
+    def test_unknown_ids_write_a_not_ok_file_with_nothing_to_record(self):
+        self.write_findings(item(CRIT, "critical"))
+        self.write_dispositions([self.fixed(CRIT), self.fixed(CRIT[:8])])
+        r = self.run_pending([item(CRIT, "critical")])
+        self.assertEqual(r.returncode, 1, r.stdout)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertEqual(doc["dispositions"], [])
+        self.assertEqual(json.loads(r.stdout)["unknown"], [CRIT[:8]])
+
+    def test_the_key_follows_the_recorded_arguments(self):
+        a = self.fixed(CRIT)
+        self.assertEqual(tool.resolve_key(a), tool.resolve_key(dict(a, note="무시되는 필드")))
+        self.assertNotEqual(tool.resolve_key(a), tool.resolve_key(dict(a, rationale="다른 근거")))
+        self.assertNotEqual(tool.resolve_key(a), tool.resolve_key(dict(a, commit_sha="cd" * 20)))
+
+    # -- 처분 목록은 `check` 를 통과해야 문서가 된다 ------------------------------------------------
+
+    def test_a_disposition_that_check_rejects_is_not_written_for_the_recorder(self):
+        # main 은 근거 문장을 읽지 않는다. critical 을 낮추는 처분 · 엉뚱한 해시가 검증 없이 NERV 로 가면 안 된다.
+        self.write_findings(item(CRIT, "critical"), item(WARN, "warning"))
+        self.write_dispositions([
+            {"finding_id": CRIT, "resolution": "dismissed", "rationale": "오탐이다"},
+            self.fixed(WARN, sha="cd" * 20),
+        ])
+        r = self.run_pending([item(CRIT, "critical"), item(WARN, "warning")])
+        self.assertEqual(r.returncode, 1, r.stdout)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertEqual(doc["dispositions"], [])
+        joined = " ".join(doc["errors"])
+        self.assertIn("critical 발견을 dismissed", joined)
+        self.assertIn("닿지 않는다", joined)
+        summary = json.loads(r.stdout)
+        self.assertFalse(summary["ok"])
+        self.assertEqual(summary["pending"], 0)
+        self.assertTrue(summary["errors"])
+
+    def test_a_missing_rationale_or_reason_is_rejected_too(self):
+        self.write_findings(item(WARN, "warning"), item(INFO, "info"))
+        self.write_dispositions([
+            {"finding_id": WARN, "resolution": "escalated", "rationale": "사유 없음"},
+            {"finding_id": INFO, "resolution": "wont_fix"},
+        ])
+        r = self.run_pending([item(WARN, "warning"), item(INFO, "info")])
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertFalse(json.loads(self.out.read_text(encoding="utf-8"))["ok"])
+
+    def test_a_list_that_is_not_complete_yet_still_records_what_passed(self):
+        # applier 가 중간에 끝나 warning 하나의 처분이 아직 없다. 통과한 처분까지 막지는 않는다(처분이 없는 발견은 `check` 의 몫이다).
+        self.write_findings(item(CRIT, "critical"), item(WARN, "warning"))
+        self.write_dispositions([self.fixed(CRIT)])
+        r = self.run_pending([item(CRIT, "critical"), item(WARN, "warning")])
+        self.assertEqual(r.returncode, 0, r.stdout)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertTrue(doc["ok"])
+        self.assertEqual([d["finding_id"] for d in doc["dispositions"]], [CRIT])
+        self.assertEqual(tool.check(str(self.sd))["ok"], False)
+
+    # -- 실패해도 `--out` 에는 이번 실행의 결과만 남는다 ---------------------------------------------
+
+    def stale_out(self):
+        self.out.write_text(json.dumps({"version": 1, "ok": True, "stale": True, "dispositions": [
+            {"finding_id": WARN, "resolution": "fixed", "idempotency_key": "old"}]}), encoding="utf-8")
+
+    def run_pending_without_nerv(self):
+        return subprocess.run([sys.executable, str(TOOL_PATH), "pending", str(self.sd), "--branch", "feature",
+                               "--out", str(self.out)], capture_output=True, text=True, timeout=60,
+                              env={"PATH": os.environ.get("PATH", "")})
+
+    def test_no_nerv_configuration_replaces_the_previous_file_with_a_not_ok_one(self):
+        self.write_findings(item(WARN, "warning"))
+        self.write_dispositions([self.fixed(WARN)])
+        self.stale_out()
+        r = self.run_pending_without_nerv()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("stale", doc)
+        self.assertEqual(doc["dispositions"], [])
+        self.assertIn("NERV_SERVER", " ".join(doc["errors"]))
+        summary = json.loads(r.stdout)
+        self.assertFalse(summary["ok"])
+        self.assertEqual(summary["out"], str(self.out))
+
+    def test_a_failing_nerv_read_replaces_the_previous_file(self):
+        self.write_findings(item(WARN, "warning"))
+        self.write_dispositions([self.fixed(WARN)])
+        self.stale_out()
+        with _harness.FakeNervServer(raw=b"not json") as server:
+            env = {"NERV_SERVER": server.url, "NERV_TOKEN": "tok-9", "PATH": os.environ.get("PATH", "")}
+            r = subprocess.run([sys.executable, str(TOOL_PATH), "pending", str(self.sd), "--branch", "feature",
+                                "--out", str(self.out)], capture_output=True, text=True, timeout=60, env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("stale", doc)
+
+    def test_a_missing_handoff_file_replaces_the_previous_file(self):
+        self.stale_out()  # _nerv_findings.json 도 _dispositions.json 도 없다
+        body = json.dumps({"items": [], "next_cursor": None}).encode()
+        with _harness.FakeNervServer(raw=body) as server:
+            env = {"NERV_SERVER": server.url, "NERV_TOKEN": "tok-9", "PATH": os.environ.get("PATH", "")}
+            r = subprocess.run([sys.executable, str(TOOL_PATH), "pending", str(self.sd), "--branch", "feature",
+                                "--out", str(self.out)], capture_output=True, text=True, timeout=60, env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("stale", doc)
+
+    def test_an_unwritable_out_path_is_reported_not_a_traceback(self):
+        self.write_findings(item(WARN, "warning"))
+        self.write_dispositions([self.fixed(WARN)])
+        self.out = self.tmp / "no-such-dir" / "r.json"
+        r = self.run_pending([item(WARN, "warning")])
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("--out", " ".join(json.loads(r.stdout)["errors"]))
+
+    def test_out_is_only_for_pending(self):
+        r = subprocess.run([sys.executable, str(TOOL_PATH), "check", str(self.sd), "--out", str(self.out)],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse(self.out.exists())
+
+
 class CliTest(_SessionCase):
     def run_cli(self, *args, env=None):
         return subprocess.run([sys.executable, str(TOOL_PATH), *args], capture_output=True, text=True,

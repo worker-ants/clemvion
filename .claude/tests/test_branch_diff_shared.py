@@ -291,6 +291,73 @@ class SharedProbeContractTest(unittest.TestCase):
         self.assertIn("main", seen[0])
 
 
+class NamedCommitProbesTest(unittest.TestCase):
+    """The probes the NERV payload tool (`nerv_review_payload.py`) uses for `--base` / `--head` / `--branch`
+    (NERV Task `CLE-T-CD9131`). It used to run its own `git`, with none of the hardening above and a two-dot
+    diff, and ran it in the PROCESS cwd instead of the session's repository."""
+
+    def _probe(self):
+        import sys
+        if str(_harness.CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import git_probe
+        return git_probe
+
+    def _repo(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        repo = _harness.make_temp_git_repo(os.path.join(tmp, "r"), branch="main")
+        fork = _harness.git_in(repo, "rev-parse", "HEAD").stdout.strip()
+        _harness.git_in(repo, "checkout", "-qb", "feat")
+        with open(os.path.join(repo, "mine.ts"), "w", encoding="utf-8") as f:
+            f.write("mine\n")
+        _harness.git_in(repo, "add", "mine.ts")
+        _harness.git_in(repo, "commit", "-qm", "feat")
+        feat = _harness.git_in(repo, "rev-parse", "HEAD").stdout.strip()
+        _harness.git_in(repo, "checkout", "-q", "main")
+        with open(os.path.join(repo, "theirs.ts"), "w", encoding="utf-8") as f:
+            f.write("theirs\n")
+        _harness.git_in(repo, "add", "theirs.ts")
+        _harness.git_in(repo, "commit", "-qm", "base moved")
+        main = _harness.git_in(repo, "rev-parse", "HEAD").stdout.strip()
+        return str(repo), fork, feat, main
+
+    def test_resolve_commit_returns_only_what_git_printed_in_full(self):
+        gp = self._probe()
+        repo, fork, feat, _ = self._repo()
+        self.assertEqual(gp.resolve_commit("feat", repo), feat)
+        self.assertEqual(gp.resolve_commit(fork[:7], repo), fork)
+        for bad in ("no-such-ref", "", "-h", "--all", None):
+            with self.subTest(rev=bad):
+                self.assertIsNone(gp.resolve_commit(bad, repo))
+
+    def test_merge_base_is_the_fork_point_not_the_moved_base(self):
+        gp = self._probe()
+        repo, fork, feat, main = self._repo()
+        self.assertEqual(gp.merge_base(main, feat, repo), fork)
+        self.assertIsNone(gp.merge_base("-h", feat, repo))
+        self.assertIsNone(gp.merge_base("no-such-ref", feat, repo))
+
+    def test_is_ancestor(self):
+        gp = self._probe()
+        repo, fork, feat, main = self._repo()
+        self.assertTrue(gp.is_ancestor(fork, feat, repo))
+        self.assertTrue(gp.is_ancestor(feat, feat, repo))
+        self.assertFalse(gp.is_ancestor(feat, main, repo))
+        self.assertFalse(gp.is_ancestor("-h", main, repo))
+
+    def test_branch_diff_files_can_name_the_reviewed_commit(self):
+        gp = self._probe()
+        repo, fork, feat, main = self._repo()
+        # HEAD is `main` here. Naming `feat` as the head must diff `feat`, three-dot, against the fork point.
+        self.assertEqual(gp.branch_diff_files(fork, repo), ["theirs.ts"])
+        self.assertEqual(gp.branch_diff_files(fork, repo, head=feat), ["mine.ts"])
+        self.assertEqual(gp.branch_diff_files(main, repo, head=feat), ["mine.ts"])  # 3-dot: no reverse deletions
+        seen = []
+        self.assertEqual(gp.branch_diff_files("no-such-ref", repo, head=feat, on_error=seen.append), [])
+        self.assertIn("no-such-ref...", seen[0])
+
+
 class UndecodableGitOutputTest(unittest.TestCase):
     """`text=True` decodes as strict UTF-8, and that broke the failure contract.
 

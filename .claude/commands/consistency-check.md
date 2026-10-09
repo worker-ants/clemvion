@@ -17,7 +17,7 @@ checker 4개는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은
 3. **SUMMARY 기록 + BLOCK 결정**: **반드시** 반환의 `summary_markdown` 을 `summary_output` 에 Write 한다 (`summary_written` 값과 **무관하게 멱등 persist** — 하네스가 `SUMMARY.md` **basename** Write 를 어떤 sub-agent 에게도 허용하지 않고(terminal 여부와 무관 — `subagent-call-contract.md §7` 실측표) workflow 스크립트는 FS 접근이 없으므로, 로컬 SUMMARY 의 **유일한** 경로가 main 의 이 Write 다. 판정 근거는 아니다(판정은 NERV 레코드다)). 그 다음 반환의 `block` (YES/NO) 으로 판정. 반환의 `unfinished[]` 가 있으면 해당 checker 만 재실행.
    - **BLOCK: YES** → Critical 위배. 호출자(planner/developer)에게 즉시 보고하고 작업 차단. (`developer` skill 안에서 호출되면 그 작업을 멈춘다.)
    - **BLOCK: NO** → Warning/Info 만 사용자에게 보여주고 진행.
-4. **NERV 제출**: checker 마다 `kind=consistency` 로 낸다. 절차는 SKILL §3.5(인자는 `code-review-agents` SKILL §4). 발견은 `nerv_finding_resolve` 로 처분한다.
+4. **NERV 제출**: checker 마다 `kind=consistency` 로 낸다. 절차는 SKILL §3.5(도구 인자와 `nerv-recorder` 위임은 `code-review-agents` SKILL §4). 발견은 `nerv_finding_resolve` 로 처분한다.
 
 ## 모드 (택일 필수)
 
@@ -36,7 +36,7 @@ checker 4개는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은
 
 ## 산출물
 
-로컬 산출물은 `.review/consistency/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 checker 마다 NERV `kind=consistency` 로 제출한다(`python3 .claude/tools/nerv_review_payload.py <session_dir>`).
+로컬 산출물은 `.review/consistency/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 checker 마다 NERV `kind=consistency` 로 제출한다(제출 문서를 만드는 도구 인자와 `nerv-recorder` 위임은 `code-review-agents` SKILL §4, 이 명령의 단계는 위 「실행 절차」 4번).
 
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>.md` — checker 별 상세

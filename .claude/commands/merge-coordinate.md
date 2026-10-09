@@ -75,7 +75,7 @@ Phase 1 반환의 `block` 으로 판정 (SUMMARY.md 전문 재Read 불필요):
 
 ## 산출물
 
-로컬 산출물은 `.review/merge/` 아래에 쓰고 커밋하지 않는다(gitignore). analyzer 리포트는 `python3 .claude/tools/nerv_review_payload.py <session_dir>` 로 묶어 analyzer 마다 NERV `kind=merge` 로 낸다(시점은 SKILL 「analyzer 결과 제출」, 인자는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」). SUMMARY 는 사용자에게 보고하고 조치할 항목은 NERV Task 로 올린다.
+로컬 산출물은 `.review/merge/` 아래에 쓰고 커밋하지 않는다(gitignore). analyzer 리포트는 analyzer 마다 NERV `kind=merge` 로 낸다(시점은 SKILL 「analyzer 결과 제출」, 도구 인자와 `nerv-recorder` 위임은 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」). SUMMARY 는 사용자에게 보고하고 조치할 항목은 NERV Task 로 올린다.
 
 - `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 + BLOCK 결정
 - `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<analyzer>.md` — 4 analyzer 별 상세
