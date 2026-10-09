@@ -115,7 +115,9 @@ RESOLVE_FIELDS = (
     ("rationale", "resolution_rationale"),
     ("commit_sha", "resolution_commit"),
 )
-# 기록의 `resolution_kind` → `nerv_finding_resolve` 의 resolution. 여기 없는 값은 이름이 같다.
+# 기록의 `resolution_kind` → `nerv_finding_resolve` 의 resolution. 2026-10-09 프로젝트 전체 조회에서 이름이 다른 것은
+# 이것뿐이었다. fixed · dismissed 는 같은 상태와 이름이고, spec_change 는 status fixed, escalated 는 status open 에
+# 같은 이름으로 기록돼 있었다.
 RECORDED_RESOLUTION = {"deferred": "wont_fix"}
 
 EXIT_OK, EXIT_MISMATCH, EXIT_UNVERIFIABLE = 0, 1, 3
