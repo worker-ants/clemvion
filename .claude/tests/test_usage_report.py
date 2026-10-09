@@ -7,7 +7,7 @@
   - 한 API 응답이 내용 블록마다 여러 줄로 기록돼도 `message.id` 로 한 번만 센다.
   - 비용 가중치(캐시 읽기 0.1 · 1시간 캐시 쓰기 2 · 출력 5)와 모델 배수(Sonnet 0.6).
   - 서브에이전트 분류: `agentType` 과 Workflow 실행 기록의 `workflowName`.
-  - 워크트리당 라운드 수와 `--since` 필터, 다른 저장소 폴더(접두만 같은 이름) 제외.
+  - 워크트리당 Workflow 호출 수와 `--since` 필터, 다른 저장소 폴더(접두만 같은 이름) 제외.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ class UsageReportTest(unittest.TestCase):
         self.assertEqual(s["main"]["max_context"], 700_000)
         self.assertEqual(s["main"]["avg_context"], 400_000)
         self.assertEqual(s["main"]["compactions"], 1)
-        self.assertEqual(s["main"]["share_calls_ge_600k"], 50.0)
+        self.assertEqual(s["main"]["share_calls_high_context"], 50.0)
 
     def test_weights_and_model_factor(self):
         s = self.summary(since=tool.to_epoch("2026-09-15"))
@@ -116,11 +116,11 @@ class UsageReportTest(unittest.TestCase):
         usage = {"cache_creation_input_tokens": 400}
         self.assertEqual(tool.weighted_cost(usage, "claude-haiku-4-5"), 400 * 1.25 * 0.2)
 
-    def test_rounds_per_worktree_and_durations(self):
+    def test_runs_per_worktree_and_durations(self):
         s = self.summary()
-        self.assertEqual(s["rounds_per_worktree"]["code_review"],
+        self.assertEqual(s["runs_per_worktree"]["code_review"],
                          {"worktrees": 1, "mean": 2.0, "median": 2, "max": 2})
-        self.assertEqual(s["rounds_per_worktree"]["consistency"]["mean"], 1.0)
+        self.assertEqual(s["runs_per_worktree"]["consistency"]["mean"], 1.0)
         self.assertEqual(s["workflows"]["code_review"]["median"], 11.0)
 
     def test_since_filter_and_prefix_boundary(self):
@@ -143,6 +143,82 @@ class UsageReportTest(unittest.TestCase):
         self.assertIn("메인 세션 호출", buf.getvalue())
         self.assertEqual(tool.main(["--projects-dir", self.root, "--prefix=" + PREFIX,
                                     "--since", "10/01"]), 2)
+
+
+
+class ClassificationAndBoundaryTest(unittest.TestCase):
+    """분류 갈래 · 필터 · 경계값(코드 리뷰 발견 `01a11ffb-715c-726a-b31c-714d25a57809`)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="usage-report-cls-")
+        self.addCleanup(shutil.rmtree, self.root)
+        self.d = os.path.join(self.root, PREFIX)
+
+    def agent(self, sid, name, agent_type, ts="2026-10-01T00:00:10Z", **usage):
+        path = os.path.join(self.d, sid, "subagents", name + ".jsonl")
+        write_jsonl(path, [user("x", ts=ts), assistant(name, ts=ts, model="claude-opus-5-5", **usage)])
+        if agent_type is not None:
+            with open(path[:-6] + ".meta.json", "w") as fh:
+                json.dump({"agentType": agent_type}, fh)
+
+    def test_every_agent_type_branch(self):
+        write_jsonl(os.path.join(self.d, "s1.jsonl"), [user("x"), assistant("m", input_tokens=1)])
+        for name, kind in (("a1", "resolution-applier"), ("a2", "Explore"), ("a3", "general-purpose"),
+                           ("a4", "cross-spec-checker"), ("a5", "consistency-summary"),
+                           ("a6", "review-router"), ("a7", "mystery-agent"), ("a8", None)):
+            self.agent("s1", name, kind, input_tokens=10)
+        s = tool.summarize(tool.collect(self.root, PREFIX))
+        self.assertEqual(s["agents"], {"code_review": 1, "consistency": 2, "resolution": 1,
+                                       "explore": 2, "other": 2})
+        self.assertEqual(s["cost"]["explore"], 20)
+
+    def test_filtered_session_drops_its_workflow_agents_too(self):
+        write_jsonl(os.path.join(self.d, "old.jsonl"),
+                    [user("x", ts="2026-09-01T00:00:00Z"), assistant("o", ts="2026-09-01T00:00:01Z", input_tokens=1)])
+        write_jsonl(os.path.join(self.d, "old", "subagents", "workflows", "wf_9", "agent-c.jsonl"),
+                    [user("x"), assistant("c", model="claude-opus-5-5", output_tokens=100)])
+        os.makedirs(os.path.join(self.d, "old", "workflows"))
+        with open(os.path.join(self.d, "old", "workflows", "wf_9.json"), "w") as fh:
+            json.dump({"runId": "wf_9", "workflowName": "consistency-check", "timestamp": "2026-09-01T00:00:02Z"}, fh)
+        self.assertEqual(tool.summarize(tool.collect(self.root, PREFIX))["cost"]["consistency"], 500)
+        newer = tool.summarize(tool.collect(self.root, PREFIX, since=tool.to_epoch("2026-09-15")))
+        self.assertEqual(newer["cost"]["consistency"], 0)
+
+    def test_bucket_and_window_boundaries(self):
+        self.assertEqual(tool.bucket_of(199_999), "<200k")
+        self.assertEqual(tool.bucket_of(200_000), "200-400k")
+        self.assertEqual(tool.bucket_of(10**7), ">=800k")
+        day = tool.to_epoch("2026-10-01")
+        self.assertTrue(tool.in_window(day, day, None))
+        self.assertFalse(tool.in_window(day, None, day))
+        self.assertFalse(tool.in_window(None, day, None))
+        self.assertTrue(tool.in_window(None, None, None))
+
+    def test_long_sessions_and_high_context_share(self):
+        many = [user("x")] + [assistant(f"m{i}", cache_read_input_tokens=tool.HIGH_CONTEXT_TOKENS)
+                              for i in range(tool.LONG_SESSION_CALLS + 1)]
+        write_jsonl(os.path.join(self.d, "long.jsonl"), many)
+        write_jsonl(os.path.join(self.d, "short.jsonl"),
+                    [user("x"), assistant("z", cache_read_input_tokens=tool.HIGH_CONTEXT_TOKENS - 1)])
+        main = tool.summarize(tool.collect(self.root, PREFIX))["main"]
+        self.assertEqual(main["long_sessions"], 1)
+        self.assertGreater(main["cost_share_of_long_sessions"], 99.0)
+        self.assertLess(main["cost_share_of_long_sessions"], 100.0)
+        self.assertEqual(main["share_calls_high_context"],
+                         round(100 * (tool.LONG_SESSION_CALLS + 1) / (tool.LONG_SESSION_CALLS + 2), 1))
+
+    def test_session_without_api_calls_is_not_counted(self):
+        write_jsonl(os.path.join(self.d, "busy.jsonl"), [user("x"), assistant("b", input_tokens=1)])
+        write_jsonl(os.path.join(self.d, "idle.jsonl"), [user("only a prompt")])
+        self.assertEqual(tool.summarize(tool.collect(self.root, PREFIX))["sessions"], 1)
+
+    def test_unknown_model_and_non_object_lines(self):
+        self.assertEqual(tool.model_factor("some-new-model"), 1.0)
+        path = os.path.join(self.d, "odd.jsonl")
+        os.makedirs(self.d, exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write("[]\n\"text\"\nnot json\n" + json.dumps(assistant("q", input_tokens=7)) + "\n")
+        self.assertEqual(tool.scan_transcript(path)["calls"], 1)
 
 
 if __name__ == "__main__":
