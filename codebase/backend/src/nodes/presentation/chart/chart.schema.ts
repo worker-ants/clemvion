@@ -78,10 +78,13 @@ const yAxisSchema = z
   })
   .passthrough();
 
+/** 차트 유형 허용 목록. 설정 · 출력 스키마 enum 과 `ChartHandler.validate` 가 함께 쓴다. */
+export const CHART_TYPES = ['bar', 'line', 'pie', 'donut', 'area'] as const;
+
 export const chartConfigSchema = z
   .object({
     chartType: z
-      .enum(['bar', 'line', 'pie', 'donut', 'area'])
+      .enum(CHART_TYPES)
       .default('bar')
       .meta({ ui: { label: 'Chart Type', widget: 'select' } }),
     dataField: z
@@ -127,7 +130,7 @@ export const chartInputSchema = z.unknown();
 
 export const chartOutputSchema = z.object({
   type: z.literal('chart'),
-  chartType: z.enum(['bar', 'line', 'pie', 'donut', 'area']),
+  chartType: z.enum(CHART_TYPES),
   title: z.string().optional(),
   data: z.array(z.record(z.string(), z.unknown())),
 });

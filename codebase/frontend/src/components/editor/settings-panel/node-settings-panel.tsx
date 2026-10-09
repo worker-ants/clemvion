@@ -34,6 +34,13 @@ const LEGACY_POLICY_MAP: Record<string, string> = {
   error_port: "route_to_error_port",
 };
 
+/**
+ * `config.errorPolicy` 를 현행 항목 에러 정책으로 쓰는 노드(CLE-NODE-LOGIC-COMMON 항목 에러 정책).
+ * 이 노드들의 `errorPolicy` 는 레거시 키가 아니므로 노드 에러 처리 정책으로 옮기지도, 저장할 때
+ * 지우지도 않는다. 값 편집은 각 노드 설정 폼(`logic-configs.tsx`)이 맡는다.
+ */
+const ITEM_ERROR_POLICY_NODE_TYPES = new Set(["foreach", "map", "parallel"]);
+
 export function NodeSettingsPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
@@ -159,7 +166,9 @@ function SettingsTab({
   );
   // Error handling — persisted as the engine's nested `errorHandling`
   // contract `{ policy, retryConfig?, defaultOutput? }`. Legacy flat
-  // `config.errorPolicy` (short values) is migrated on load.
+  // `config.errorPolicy` (short values) is migrated on load, except on
+  // nodes whose `errorPolicy` is the current item error policy.
+  const usesItemErrorPolicy = ITEM_ERROR_POLICY_NODE_TYPES.has(nodeData.type);
   const initialErrorHandling = nodeData.config?.errorHandling as
     | {
         policy?: string;
@@ -167,10 +176,11 @@ function SettingsTab({
         defaultOutput?: unknown;
       }
     | undefined;
+  const legacyPolicy = usesItemErrorPolicy
+    ? undefined
+    : LEGACY_POLICY_MAP[(nodeData.config?.errorPolicy as string) ?? ""];
   const [policy, setPolicy] = useState<string>(
-    initialErrorHandling?.policy ??
-      LEGACY_POLICY_MAP[(nodeData.config?.errorPolicy as string) ?? ""] ??
-      "stop_workflow",
+    initialErrorHandling?.policy ?? legacyPolicy ?? "stop_workflow",
   );
   const [maxRetries, setMaxRetries] = useState<number>(
     initialErrorHandling?.retryConfig?.maxRetries ?? 3,
@@ -235,9 +245,10 @@ function SettingsTab({
     useEditorStore.setState((state) => ({
       nodes: state.nodes.map((n) => {
         if (n.id !== nodeId) return n;
-        // Drop the legacy flat `errorPolicy` key in favour of `errorHandling`.
+        // Drop the legacy flat `errorPolicy` key in favour of `errorHandling`,
+        // but keep it on nodes that use it as the item error policy.
         const restConfig: Record<string, unknown> = { ...nodeConfig };
-        delete restConfig.errorPolicy;
+        if (!usesItemErrorPolicy) delete restConfig.errorPolicy;
         return {
           ...n,
           data: {
@@ -263,6 +274,7 @@ function SettingsTab({
     maxRetries,
     retryInterval,
     defaultOutputText,
+    usesItemErrorPolicy,
     t,
   ]);
 

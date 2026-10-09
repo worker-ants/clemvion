@@ -23,6 +23,32 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
+
+초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route
+group 이라 실제 경로가 `/register` 이고 `/auth/register` 라우트는 없었다. 그래서 로그인하지 않은 받는 사람은 인증
+proxy 에 걸려 `/login` 으로 튕겼고 초대 가입 화면에 닿지 못했다(NERV 발견 `01a0e542-19b9-7216-893a-9a25374cff3d`).
+
+- 메일 링크를 `/register?invitationToken=…` 으로 만든다(`mail.service.ts`).
+- 이미 발송된 메일을 위해 프런트엔드 proxy 가 `/auth/register` 를 쿼리를 그대로 둔 채 `/register` 로 redirect 한다.
+
+## Unreleased — ForEach · Map · Parallel 의 항목 에러 정책이 저장할 때 지워지지 않는다
+
+노드 설정 패널은 `config.errorPolicy` 를 노드 유형과 상관없이 옛 평면 키로 보고, 불러올 때 노드 에러 처리 정책으로
+옮기고 저장할 때 지웠다. ForEach · Map · Parallel 에서는 이 키가 현행 항목 에러 정책이라서 설정 패널에서 저장하면
+사용자가 고른 `skip` · `continue` · `cancel-others-on-fail` 이 사라지고 기본값(`stop`)으로 돌아갔다. ForEach 의 `skip` 은
+노드 에러 처리 정책 "노드 건너뛰기" 로 잘못 옮겨지기도 했다(NERV 발견 `01a0e5a1-1149-72f4-9f4f-366b02ef7c96`).
+
+- 세 노드에서는 `errorPolicy` 를 옮기지도 지우지도 않는다. 다른 노드의 옛 키 이전은 그대로다.
+
+## Unreleased — Chart 노드가 area · donut 유형을 실행 검증에서 받는다
+
+Chart 노드의 설정 스키마 · 프런트엔드 렌더러 · 유저 가이드는 `bar` · `line` · `pie` · `donut` · `area` 다섯 유형을
+받는데 실행 검증(`ChartHandler.validate`)은 `bar` · `line` · `pie` 만 받았다. 그래서 `area` · `donut` 을 고른 노드는
+실행 전에 검증 오류로 막혔다(NERV 발견 `01a0e5a1-1150-75a8-8291-dddd4223b28b`).
+
+- 실행 검증이 스키마의 유형 목록(`CHART_TYPES`)을 그대로 쓴다. 다섯 유형을 모두 받는다.
+
 ## Unreleased — 하네스: 리뷰 제출 · 발견 처분을 기록 서브에이전트에 맡긴다
 
 main 세션이 리뷰 라운드를 NERV 에 직접 기록하면 제출 묶음 전문과 응답이 main 컨텍스트에 쌓였다. 응답마다 다른

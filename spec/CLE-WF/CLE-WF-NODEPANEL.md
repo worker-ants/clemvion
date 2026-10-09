@@ -10,11 +10,11 @@ parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
 content_hash: "d3c75161e32c6ad8e323540ab1eba7be9c7fb283bb498dda003db4a6d9c19a29"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "ddbb424f5607dca796ce218a3146d959921b2d0dfc755e65a13242cfcf15246f"
-etag: "sha256-454fbc11396e32b7bec7fc353682c00206e83d4aa4704395571c798a71b8ae9b"
+mirror_sha256: "f355f50fbd964e9ae223f32eefeb65495dea12a6bcab7f6a61727d81a6ccc35e"
+etag: "sha256-6775cc53d782bc2c15a7de7c46f971c74ef18cf947d20dde37ccfd2f1b24915c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` (§5 ED-SP-01·02·05~08) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

@@ -206,6 +206,41 @@ describe('MailService', () => {
     });
   });
 
+  describe('sendWorkspaceInvitationEmail', () => {
+    // 가입 화면은 `(auth)` route group 이라 실제 경로가 `/register` 다. `/auth/register` 는
+    // 프론트엔드에 라우트가 없어 받는 사람이 로그인 화면으로 튕겼다(CLE-ACCT-WS 초대 메일 링크).
+    it('초대 링크는 /register 가입 화면으로 가고 토큰을 쿼리로 담는다', async () => {
+      await service.sendWorkspaceInvitationEmail(
+        'invitee@example.com',
+        'Acme',
+        'Owner',
+        'invite-token-123',
+      );
+
+      const callArgs = transporter.sendMail.mock.calls[0][0];
+      const expected =
+        'http://localhost:3000/register?invitationToken=invite-token-123';
+      expect(callArgs.html).toContain(expected);
+      expect(callArgs.text).toContain(expected);
+      expect(callArgs.html).not.toContain('/auth/register');
+      expect(callArgs.text).not.toContain('/auth/register');
+    });
+
+    it('초대 토큰을 URL 인코딩한다', async () => {
+      await service.sendWorkspaceInvitationEmail(
+        'invitee@example.com',
+        'Acme',
+        null,
+        'token with spaces&special=chars',
+      );
+
+      const callArgs = transporter.sendMail.mock.calls[0][0];
+      expect(callArgs.text).toContain(
+        'invitationToken=token%20with%20spaces%26special%3Dchars',
+      );
+    });
+  });
+
   // W4 — 신규 메서드 2개 테스트
 
   describe('sendEmailChangeVerification', () => {

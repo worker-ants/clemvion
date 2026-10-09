@@ -118,9 +118,10 @@ export class MailService {
     invitedByName: string | null,
     token: string,
   ): Promise<void> {
-    // spec/5-system/1-auth.md §1.5.2 — 메일 링크는 회원가입 페이지로 직행한다.
+    // CLE-ACCT-WS 미가입자 가입 경로 — 메일 링크는 회원가입 페이지로 직행한다.
     // 기가입자는 가입 페이지에서 로그인 상태/이메일 일치를 감지해 accept 흐름으로 분기.
-    const acceptUrl = `${this.frontendUrl}/auth/register?invitationToken=${encodeURIComponent(token)}`;
+    // 가입 화면은 `(auth)` route group 이라 실제 경로가 `/register` 다(`/auth` 접두사 없음).
+    const acceptUrl = `${this.frontendUrl}/register?invitationToken=${encodeURIComponent(token)}`;
 
     if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       // 토큰 URL 은 console transport (개발) 에서만 로그에 남긴다 — 운영 로그 집계 시스템에 토큰 누출 방지.

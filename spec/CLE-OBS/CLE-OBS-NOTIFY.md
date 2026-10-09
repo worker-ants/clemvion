@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
 content_hash: "1a6beb5028989082fc2780891710fa40e6776f43f701660a46d1fca646aab0c9"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "09b6a3f68eed3a9bc0e44bce4c7e9c4cabbe56cbe31baa7c697160fc05235929"
-etag: "sha256-c9e78e40bc90061da25109fcd0a25b63eb2d3b135d9a15172eab31813db2f2b0"
+mirror_sha256: "4e99f5676e2a29515ca8e5adff4b08f22ff5fff1bb16ff955f28706e1f3dacab"
+etag: "sha256-8359e5815219e070d6161079a07c2b7bf778374f8edede26eff55a91ff78845e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

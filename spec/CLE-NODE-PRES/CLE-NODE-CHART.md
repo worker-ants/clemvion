@@ -10,11 +10,11 @@ parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
 content_hash: "db82b15a9a474520dc4bead19005d658ced9c578e6e740b7907a173c0b63bcd2"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "adca69f105ea7d383670653f8d30c262b01a73ace8fd405c2b29fd498698237b"
-etag: "sha256-3630f64661772975af029844bb4a686d6cea73bb1178e270187a4976558159c8"
+mirror_sha256: "786610e5e4bfc9e10c3ed0474788884f9b8aaaedc71f1ef26ab71a500f1d659f"
+etag: "sha256-3eeebfd44a3e67a9a110fb71b9aff7ec6631a86bbe0114041e4a6a30e81ab1e5"
 ---
 > 구현 상태: 부분 구현 (`area`·`donut` 유형은 실행 검증에서 거부됨, [미결 사항](#미결-사항) 참조) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

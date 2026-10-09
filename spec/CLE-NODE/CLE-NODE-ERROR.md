@@ -10,11 +10,11 @@ parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
 content_hash: "144d7cc1a0e6443fd6776d7e900d1d204e31e7aad1c2bb0b122d679670cf3dd3"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-V0JAG1"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "fb9c57498d4f967a1a534edef2f8d495825cc0abc9a76000a5e22a44aa42672b"
-etag: "sha256-7733fdd165a5d468537d721bebe44f07f206a7ee4d8294138213f5fe508bd33e"
+mirror_sha256: "aa51a68cbf39252bdec85a1921c4752e41ca05bc0f712b0845ba6cf092013d7c"
+etag: "sha256-4710febd60553fe937078d245d80224df7daccad8bc7bbd2146b6751c14b86d4"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
