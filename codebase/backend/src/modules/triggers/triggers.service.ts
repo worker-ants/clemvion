@@ -485,6 +485,26 @@ export class TriggersService {
     });
   }
 
+  /** `config.interaction` 이 객체이고 전략이 `per_trigger` 인가. 트리거 단위 토큰은 이때만 의미가 있다. */
+  private isPerTriggerInteraction(
+    interaction: unknown,
+  ): interaction is Record<string, unknown> {
+    return (
+      typeof interaction === 'object' &&
+      interaction !== null &&
+      (interaction as { tokenStrategy?: unknown }).tokenStrategy ===
+        'per_trigger'
+    );
+  }
+
+  private throwNotPerTriggerStrategy(): never {
+    throw new BadRequestException({
+      code: 'NOT_PER_TRIGGER_STRATEGY',
+      message:
+        'Trigger 의 interaction.tokenStrategy 가 "per_trigger" 가 아닙니다.',
+    });
+  }
+
   async findById(id: string, workspaceId: string): Promise<Trigger> {
     return this.assertTriggerFound(
       await this.triggerRepository.findOne({
@@ -768,9 +788,15 @@ export class TriggersService {
     ).triggerToken;
     const hasStoredToken =
       typeof storedToken === 'string' && storedToken.length > 0;
+    // 요청 본문의 `interaction: null` 은 검증을 통과해(`@IsOptional()`) 여기까지 온다. 객체가 아니면 그 값을
+    // 그대로 저장한다(종전 동작) — 빈 객체로 바꿔 저장하지 않는다. 저장된 토큰은 그 값과 함께 사라지므로 지웠다고
+    // 알려 커밋 뒤 스트림을 닫게 한다.
+    const requested = nextConfig.interaction;
+    if (typeof requested !== 'object' || requested === null) {
+      return { config: nextConfig, dropped: hasStoredToken };
+    }
     const nextInteraction: Record<string, unknown> = {
-      ...((nextConfig.interaction as Record<string, unknown> | undefined) ??
-        {}),
+      ...(requested as Record<string, unknown>),
     };
     if (nextInteraction.tokenStrategy === 'per_trigger' && hasStoredToken) {
       nextInteraction.triggerToken = storedToken;
@@ -952,7 +978,14 @@ export class TriggersService {
           mergedConfig = settled.config;
           droppedTriggerToken = settled.dropped;
         }
-        if (notification !== undefined) {
+        // `notification: null` 은 객체가 아니라 서명을 얹을 자리가 없다 — 껍데기를 만들어 시크릿을 발급하지 않고
+        // 종전처럼 그 값을 저장한다.
+        const nextNotification = mergedConfig.notification;
+        if (
+          notification !== undefined &&
+          typeof nextNotification === 'object' &&
+          nextNotification !== null
+        ) {
           const settled = await this.settleNotificationSigning(
             m,
             target,
@@ -1504,21 +1537,13 @@ export class TriggersService {
     const trigger = await this.findById(id, workspaceId);
     const interactionCfg = (trigger.config as { interaction?: unknown })
       .interaction;
-    if (
-      !interactionCfg ||
-      typeof interactionCfg !== 'object' ||
-      (interactionCfg as { tokenStrategy?: unknown }).tokenStrategy !==
-        'per_trigger'
-    ) {
-      throw new BadRequestException({
-        code: 'NOT_PER_TRIGGER_STRATEGY',
-        message:
-          'Trigger 의 interaction.tokenStrategy 가 "per_trigger" 가 아닙니다.',
-      });
+    // 잠금 밖 선조회라 빨리 거절하는 용도다. 판정의 기준은 아래 잠금 안 재읽기다.
+    if (!this.isPerTriggerInteraction(interactionCfg)) {
+      this.throwNotPerTriggerStrategy();
     }
     const newToken = `itk_${randomBytes(32).toString('hex')}`;
     const updated = {
-      ...(interactionCfg as Record<string, unknown>),
+      ...interactionCfg,
       triggerToken: newToken,
     };
     trigger.config = { ...trigger.config, interaction: updated };
@@ -1529,13 +1554,26 @@ export class TriggersService {
       trigger.id,
       // 재읽은 `config.interaction` **위에** 새 토큰만 얹는다 — 스냅샷을 통째로 대입하면
       // 그 사이 커밋된 `enabled`·`appearance` 등이 되돌아간다(위 C1 과 같은 클래스).
-      (freshConfig) =>
-        this.mergeIntoFreshSubKey(
+      //
+      // **전략도 잠금 안에서 다시 확인한다.** 위 선조회 뒤 PATCH 가 전략을 바꾸고 토큰을 지웠으면, 확인 없이
+      // 얹은 토큰이 `per_trigger` 가 아닌 설정에 남는다. 이후 `per_trigger` 로 돌아오는 PATCH 가 그 토큰을
+      // 이어받아 «다시 `per_trigger` 로 바꿔도 옛 토큰은 살아나지 않는다» 는 불변식이 깨진다.
+      // 던지면 이 트랜잭션이 롤백되고 아무것도 쓰지 않는다.
+      (freshConfig) => {
+        if (
+          !this.isPerTriggerInteraction(
+            (freshConfig as { interaction?: unknown }).interaction,
+          )
+        ) {
+          this.throwNotPerTriggerStrategy();
+        }
+        return this.mergeIntoFreshSubKey(
           freshConfig,
           'interaction',
           { triggerToken: newToken },
           updated,
-        ),
+        );
+      },
     );
     if (!wroteInteraction) this.throwTriggerNotFound();
     await this.recordAudit({

@@ -39,6 +39,7 @@ import {
   SecretWorkspaceMismatchError,
 } from '../secret-store/secret-resolver.service';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
+import type { InteractionConfigDto } from './dto/interaction-config.dto';
 import type { NotificationConfigDto } from './dto/notification-config.dto';
 import { INTERACTION_STREAM_CLOSER } from '../external-interaction/interaction-stream-closer';
 import {
@@ -4859,13 +4860,51 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(events.filter((e) => e.startsWith('deleteByPrefix:'))).toEqual([]);
   });
 
-  it('revokePerTriggerToken — 재읽은 행에 그 키가 아예 없으면 fallback 으로 쓴다', async () => {
+  it('mergeIntoFreshSubKey — 재읽은 행에 그 키가 아예 없으면 fallback 으로 쓴다', async () => {
     // `mergeIntoFreshSubKey` 의 `fallback` 분기 — 네 호출부 어느 fixture 도 이 자리를
     // 행사하지 않아, 분기를 지워도 147건이 전부 GREEN 이었다(리뷰가 뮤테이션으로 실측:
     // `review/code/2026/09/15/00_07_52` testing W1). 「판별 못 하는 fixture」의 다섯 번째다.
     //
-    // 재읽은 `config` 에 `interaction` 키가 **없는** 상태를 만든다 — 그러면 기준은
-    // 요청 시작 시점 값(`updated`)이어야 하고, 새 토큰이 그 위에 실려야 한다.
+    // 재읽은 `config` 에 `notification` 키가 **없는** 상태를 만든다 — 그러면 기준은
+    // 요청 시작 시점 값(`normalizedNotification`)이어야 하고, 정규화한 `signing` 이 그 위에 실려야 한다.
+    //
+    // 이 분기는 한때 `revokePerTriggerToken` 으로 행사했다. 지금 그 경로는 잠금 안에서 전략을 다시 확인하고
+    // `interaction` 키가 없는 행을 400 으로 거절하므로(아래 두 번째 테스트) 이 분기에 닿지 않는다.
+    const legacy = row({
+      chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+      notification: {
+        url: 'https://snapshot.example/cb',
+        signing: { algorithm: 'hmac-sha256', secret: 'plain-legacy' },
+      },
+    });
+    const { service, repo } = await makeService([
+      () => legacy,
+      () =>
+        row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } }),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(legacy);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { notification?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.notification)
+      .pop();
+    // fallback 이 기준이 됐다 — 스냅샷의 필드가 실렸다.
+    expect(patch?.config?.notification?.url).toBe(
+      'https://snapshot.example/cb',
+    );
+    expect(
+      (patch?.config?.notification?.signing as Record<string, unknown>)
+        .secretRef,
+    ).toBe('secret://triggers/trig-l/notification-signing');
+  });
+
+  it('revokePerTriggerToken — 재읽은 행에 interaction 이 아예 없으면 400 이고 쓰지 않는다', async () => {
+    // 잠금 밖 선조회 뒤 다른 요청이 `interaction` 을 지웠다. 스냅샷으로 되살려 토큰을 써 넣지 않는다.
     const { service, repo } = await makeService([
       () =>
         row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } }),
@@ -4874,18 +4913,12 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       withInteraction({ appearance: 'from-snapshot' }),
     );
 
-    await service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1');
-
-    const patch = repo.update.mock.calls
-      .map(
-        ([, pt]) =>
-          pt as { config?: { interaction?: Record<string, unknown> } },
-      )
-      .filter((pt) => pt.config?.interaction)
-      .pop();
-    // fallback 이 기준이 됐다 — 스냅샷의 필드가 실렸다.
-    expect(patch?.config?.interaction?.appearance).toBe('from-snapshot');
-    expect(patch?.config?.interaction?.triggerToken).toMatch(/^itk_/);
+    await expect(
+      service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1'),
+    ).rejects.toMatchObject({
+      response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
+    });
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
   it('revokePerTriggerToken — 그 사이 삭제되면 404', async () => {
@@ -5190,6 +5223,43 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
     });
 
+    // `@IsOptional()` 이라 `interaction: null` 이 검증을 통과한다. 종전엔 그 null 을 그대로 저장했다.
+    it('interaction: null 은 빈 객체로 바꾸지 않고 그대로 저장하며 토큰이 사라졌으니 스트림을 닫는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: {
+            enabled: true,
+            tokenStrategy: 'per_trigger',
+            triggerToken: 'itk_old',
+          },
+        }),
+      );
+      await service.update(
+        't1',
+        'ws',
+        { interaction: null as unknown as InteractionConfigDto },
+        'u',
+      );
+      expect(savedConfig().interaction).toBeNull();
+      expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+    });
+
+    it('interaction: null 이어도 저장된 토큰이 없었으면 스트림을 닫지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: { enabled: true, tokenStrategy: 'per_execution' },
+        }),
+      );
+      await service.update(
+        't1',
+        'ws',
+        { interaction: null as unknown as InteractionConfigDto },
+        'u',
+      );
+      expect(savedConfig().interaction).toBeNull();
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+    });
+
     it('이어받는 값은 잠금 안에서 다시 읽은 행의 것이다', async () => {
       triggerRepo.findOne.mockResolvedValue(
         stored({
@@ -5352,6 +5422,21 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(issued(result)).toMatch(/^wsk_[a-f0-9]{64}$/);
     });
 
+    // `@IsOptional()` 이라 `notification: null` 이 검증을 통과한다. 종전엔 그 null 을 그대로 저장했다.
+    // `(next ?? {})` 로 껍데기를 만들면 지우려던 설정이 `{ signing }` 으로 남고 시크릿까지 발급된다.
+    it('notification: null 은 껍데기를 만들지도 시크릿을 발급하지도 않고 그대로 저장한다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored({}));
+      const result = await service.update(
+        't1',
+        'ws',
+        { notification: null as unknown as NotificationConfigDto },
+        'u',
+      );
+      expect(secrets.rotate).not.toHaveBeenCalled();
+      expect(savedConfig().notification).toBeNull();
+      expect(result).not.toHaveProperty('secrets');
+    });
+
     it('notification 을 싣지 않은 PATCH 는 발급하지 않는다', async () => {
       triggerRepo.findOne.mockResolvedValue(stored({}));
       const result = await service.update('t1', 'ws', { name: 'renamed' }, 'u');
@@ -5484,6 +5569,48 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       );
       await service.revokePerTriggerToken('t1', 'ws', 'u');
       expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+    });
+
+    // 선조회(`findById`)는 잠금 밖이다. 그 뒤 PATCH 가 전략을 바꾸고 토큰을 지웠으면 재발급이 새 토큰을
+    // `per_trigger` 가 아닌 설정에 써 넣어, 나중에 `per_trigger` 로 돌아올 때 되살아난다.
+    it('revoke-token 은 잠금 안에서 전략이 바뀐 것을 보면 400 이고 쓰지도 닫지도 않는다', async () => {
+      const perTrigger = stored({
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_trigger',
+          triggerToken: 'itk_old',
+        },
+      });
+      await build({
+        freshFindOne: () =>
+          Promise.resolve(
+            stored({
+              interaction: { enabled: true, tokenStrategy: 'per_execution' },
+            }),
+          ),
+      });
+      triggerRepo.findOne.mockResolvedValue(perTrigger);
+      await expect(
+        service.revokePerTriggerToken('t1', 'ws', 'u'),
+      ).rejects.toMatchObject({
+        response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
+      });
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+    });
+
+    it('revoke-token 은 per_trigger 가 아닌 설정이면 잠금 없이 400 이다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: { enabled: true, tokenStrategy: 'per_execution' },
+        }),
+      );
+      await expect(
+        service.revokePerTriggerToken('t1', 'ws', 'u'),
+      ).rejects.toMatchObject({
+        response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
+      });
+      expect(locks).toHaveLength(0);
     });
 
     it('삭제는 커밋 뒤 그 트리거의 itk 스트림을 닫는다', async () => {
