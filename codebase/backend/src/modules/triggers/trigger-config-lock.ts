@@ -141,6 +141,8 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *   `settleCreatedNotificationSigning`, 승격의 `promoteOneLocked`(NERV Task `CLE-T-M6PERB`). 이 함수의 `merge` 는
  *   동기라 그 안에서 시크릿 저장소에 쓸 수 없다. 지금 백엔드는 같은 DB 의 `secret_store` 테이블이라 아래 «외부
  *   호출을 락 안에 두지 않는다» 제약에 걸리지 않는다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
+ *   다만 **잠금을 쥔 트랜잭션의 매니저를 `SecretResolverService.rotate` 에 넘겨야 한다.** 넘기지 않으면 풀에서 연결을
+ *   하나 더 빌려 잠금 보유자가 연결 둘을 쥔다 — 같은 트리거를 기다리는 요청이 풀을 채우면 서로 기다리는 정체가 된다.
  * - 시크릿 교체(`rotateNotificationSecret`)는 `config` 를 쓰지 않지만 승격과 같은 컬럼을 쓰므로 같은 락을 잡는다.
  *
  * > **호출부를 세어 적지 않는다.** 한때 «창 2·3·4» 라고 못박아 뒀는데, 그 뒤 세 자리가 더

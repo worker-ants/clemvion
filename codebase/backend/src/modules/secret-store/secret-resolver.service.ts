@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { SecretStore } from './entities/secret-store.entity';
 import { isSecretRef } from './secret-ref';
 import { decryptSecret, encryptSecret, parseMasterKey } from './secret-crypto';
@@ -166,14 +166,23 @@ export class SecretResolverService implements OnModuleInit {
    *
    * 오류 메시지에는 참조 · 워크스페이스 id 를 싣지 않는다. 호출자가 그 메시지를 화면에 보이는
    * 필드(`chat_channel_last_error` 등)에 저장할 수 있어서다. 둘은 서버 로그에만 남긴다.
+   *
+   * @param manager 호출자가 이미 연 트랜잭션의 매니저. 주면 읽기와 쓰기를 그 트랜잭션 안에서 한다.
+   *   트리거 설정 잠금(advisory lock)을 쥔 트랜잭션 안에서 부를 때 넘긴다 — 생략하면 풀에서 연결을 하나 더
+   *   빌려 잠금 보유자가 연결 둘을 쥐고, 같은 트리거를 기다리는 요청이 풀을 채우면 서로 기다린다. 넘기면 시크릿
+   *   쓰기가 호출자의 커밋 · 롤백을 함께 따른다(NERV Task `CLE-T-M6PERB`).
    */
   async rotate(
     ref: string,
     workspaceId: string,
     newPlaintext: string,
+    manager?: EntityManager,
   ): Promise<void> {
     this.assertRefFormat(ref);
-    const existing = await this.repository.findOne({ where: { ref } });
+    const repository = manager
+      ? manager.getRepository(SecretStore)
+      : this.repository;
+    const existing = await repository.findOne({ where: { ref } });
     if (existing && existing.workspaceId !== workspaceId) {
       this.logger.error(
         `SecretResolver.rotate 거부 — 기존 행의 워크스페이스가 다르다 (ref=${ref}, stored workspace=${existing.workspaceId}, caller workspace=${workspaceId}).`,
@@ -182,12 +191,9 @@ export class SecretResolverService implements OnModuleInit {
     }
     const encrypted = encryptSecret(this.getKey(), ref, newPlaintext);
     if (existing) {
-      await this.repository.update(
-        { ref },
-        { encrypted, updatedAt: new Date() },
-      );
+      await repository.update({ ref }, { encrypted, updatedAt: new Date() });
     } else {
-      await this.repository.insert({ ref, workspaceId, encrypted });
+      await repository.insert({ ref, workspaceId, encrypted });
     }
   }
 

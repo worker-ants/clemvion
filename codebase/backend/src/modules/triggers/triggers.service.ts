@@ -13,7 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import {
   isPostgresUniqueViolation,
@@ -634,10 +634,11 @@ export class TriggersService {
    * (`issue`). 종전의 `normalizeNotificationSecretRef` 는 평문 이전만 했고 발급하지 않아 호출자가 평문을 보내지
    * 않은 트리거에는 주 시크릿이 없었다.
    *
-   * **판정 · 시크릿 저장소 쓰기 · `config` 쓰기를 한 트리거 설정 잠금 안에서 한다.** PATCH 와 같은 규율이다
-   * (판정을 잠금 밖에서 하면 동시 요청이 각자 발급해 한쪽 응답의 평문이 쓸모없어진다). 잠금 안에서도 행이
-   * 사라질 수 있어(FK CASCADE 는 advisory lock 을 거치지 않는다) `config` 쓰기가 0행이면 커밋 뒤 비밀을 되돌린다
-   * (시크릿 저장소 규칙 9).
+   * **판정 · 시크릿 저장소 쓰기 · `config` 쓰기를 한 트리거 설정 잠금 안에서, 같은 트랜잭션으로 한다.** PATCH 와
+   * 같은 규율이다(판정을 잠금 밖에서 하면 동시 요청이 각자 발급해 한쪽 응답의 평문이 쓸모없어진다). 시크릿 쓰기가
+   * 이 트랜잭션의 매니저를 쓰므로 풀 연결을 더 빌리지 않고 던지면 함께 롤백된다. 던지지 않고 행만 사라진 경우는
+   * 되돌려지지 않는다 — FK CASCADE 는 advisory lock 을 거치지 않아 `config` 쓰기가 0행일 수 있고, 그때는 시크릿 쓰기가
+   * 이미 커밋된 뒤라 비밀을 되돌린다(시크릿 저장소 규칙 9).
    */
   private async settleCreatedNotificationSigning(
     saved: Trigger,
@@ -654,6 +655,7 @@ export class TriggersService {
         const fresh = await m.findOne(Trigger, { where: { id: saved.id } });
         if (!fresh) return { written: false as const };
         const settled = await this.settleNotificationSigning(
+          m,
           fresh,
           fresh.config ?? {},
         );
@@ -695,11 +697,15 @@ export class TriggersService {
    * | `migrate` | 행의 옛 평문을 정식 참조에 쓴다 | `secretRef` 를 싣고 옛 평문 키를 뺀다 |
    * | `issue` | 새 `wsk_*` 를 정식 참조에 쓴다 | 위와 같다. 평문을 `issuedSecret` 으로 돌려준다 |
    *
+   * @param manager 설정 잠금을 쥔 트랜잭션의 매니저. 시크릿 저장소 쓰기를 같은 트랜잭션에서 하려고
+   *   `SecretResolverService.rotate` 에 넘긴다 — 넘기지 않으면 풀에서 연결을 하나 더 빌려 잠금 보유자가 연결 둘을
+   *   쥔다. 같은 트랜잭션이므로 뒤따르는 `config` 쓰기가 실패하면 시크릿 쓰기도 함께 롤백된다.
    * @param fresh 판정의 기준이 되는 행(잠금 안 재읽기). 저장된 `notification` 을 여기서 읽는다.
    * @param nextConfig 저장할 `config`. 그 `notification` 위에 `signing` 을 얹는다. PATCH 면 요청 바디로
    *   통째로 바뀐 값이고 생성이면 저장된 값 그대로다.
    */
   private async settleNotificationSigning(
+    manager: EntityManager,
     fresh: Trigger,
     nextConfig: Record<string, unknown>,
   ): Promise<{
@@ -713,10 +719,15 @@ export class TriggersService {
     );
     let issuedSecret: string | undefined;
     if (decision.kind === 'migrate') {
-      await this.secrets.rotate(ref, fresh.workspaceId, decision.plaintext);
+      await this.secrets.rotate(
+        ref,
+        fresh.workspaceId,
+        decision.plaintext,
+        manager,
+      );
     } else if (decision.kind === 'issue') {
       issuedSecret = newNotificationSigningSecret();
-      await this.secrets.rotate(ref, fresh.workspaceId, issuedSecret);
+      await this.secrets.rotate(ref, fresh.workspaceId, issuedSecret, manager);
     }
     const nextNotification = (nextConfig.notification ?? {}) as Record<
       string,
@@ -773,35 +784,6 @@ export class TriggersService {
       config: { ...nextConfig, interaction: nextInteraction },
       dropped: hasStoredToken,
     };
-  }
-
-  /**
-   * 잠금 안에서 시크릿 저장소에 쓴 뒤 요청이 실패했을 때 — 행이 사라졌으면 그 트리거의 비밀을 되돌린다
-   * (시크릿 저장소 규칙 9). 행이 남아 있으면 지우지 않는다 — 정식 참조 하나를 덮어쓴 것이라 다음 저장이 같은
-   * 참조를 다시 싣는다. 원래 오류를 가리지 않도록 이 정리의 실패는 남기기만 한다.
-   */
-  private async undoSecretWriteIfTriggerAbsent(
-    triggerId: string,
-    caller: string,
-  ): Promise<void> {
-    try {
-      const present = await this.triggerRepository.exists({
-        where: { id: triggerId },
-      });
-      if (!present) {
-        await this.resourceReleaser.undoAbsentWrite(
-          triggerId,
-          undefined,
-          caller,
-        );
-      }
-    } catch (err) {
-      this.logger.warn(
-        `${caller}: 알림 서명 시크릿 되돌리기 확인 실패(trigger=${triggerId}) — ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
   }
 
   /**
@@ -911,8 +893,8 @@ export class TriggersService {
     // `setupChatChannel` 은 저장 **뒤**에 온다 (`trigger-config-lock.ts` JSDoc 의 제약).
     // 예외로 알림 서명 시크릿의 첫 발급 · 옛 평문 이전은 이 잠금 안에서 시크릿 저장소에 쓴다. 지금 백엔드는
     // 같은 DB 의 `secret_store` 테이블이라 HTTP 호출이 아니다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
+    // 이 트랜잭션의 매니저로 써서 풀 연결을 더 빌리지 않고, 저장이 실패하면 시크릿 쓰기도 함께 롤백된다.
     let issuedSecret: string | undefined;
-    let wroteSigningSecret = false;
     let droppedTriggerToken = false;
     const saved = await this.triggerRepository.manager
       .transaction(async (m) => {
@@ -972,12 +954,12 @@ export class TriggersService {
         }
         if (notification !== undefined) {
           const settled = await this.settleNotificationSigning(
+            m,
             target,
             mergedConfig,
           );
           mergedConfig = settled.config;
           issuedSecret = settled.issuedSecret;
-          wroteSigningSecret = settled.wroteSecret;
         }
         // **저장 대상은 이 요청이 바꾸는 필드뿐이다 — 재읽은 엔티티를 통째로 넘기지 않는다.**
         //
@@ -1018,16 +1000,8 @@ export class TriggersService {
         if (written.updatedAt) target.updatedAt = written.updatedAt;
         return target;
       })
-      .catch(async (err: unknown) => {
-        // 잠금 안에서 시크릿 저장소에 썼는데 저장이 실패했다 — 행이 사라졌으면 되돌린다(시크릿 저장소 규칙 9).
-        if (wroteSigningSecret) {
-          await this.undoSecretWriteIfTriggerAbsent(
-            trigger.id,
-            'TriggersService.update',
-          );
-        }
-        return this.rethrowEndpointPathConflict(err);
-      });
+      // 시크릿 저장소 쓰기가 이 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌릴 것이 없다.
+      .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // 전략이 바뀌어 토큰을 지웠으면 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
     if (droppedTriggerToken) {
       this.closeTriggerTokenStreams([saved.id], 'TriggersService.update');
@@ -1841,6 +1815,7 @@ export class TriggersService {
    *   DB 에 계속 남는다(`[SUMMARY W-2]`).
    * - 다른 워크스페이스 소유의 저장소 행이면 이 트리거만 건너뛴다(NERV Task `CLE-T-XYR067`). 그 밖의 실패는
    *   던져 job 재시도에 맡긴다.
+   * - 시크릿 저장소 쓰기는 이 트랜잭션의 매니저로 한다 — 풀 연결을 더 빌리지 않고 던지면 함께 롤백된다.
    * - 잠금 안에서도 행이 사라질 수 있다(FK CASCADE 는 advisory lock 을 거치지 않는다). 쓰기가 0행이면 커밋 뒤
    *   시크릿 저장소에 쓴 것을 되돌린다(시크릿 저장소 규칙 9). cron 이라 알릴 상대가 없고 «승격했다» 고 세지 않는다.
    *
@@ -1874,7 +1849,7 @@ export class TriggersService {
         const ref = notificationSigningSecretRef(triggerId);
         try {
           // ref 가 있으면 내용 교체, 없으면 신규 생성 — rotate 가 upsert 시맨틱.
-          await this.secrets.rotate(ref, fresh.workspaceId, pickedV2);
+          await this.secrets.rotate(ref, fresh.workspaceId, pickedV2, m);
         } catch (err) {
           if (err instanceof SecretWorkspaceMismatchError) {
             this.logger.error(

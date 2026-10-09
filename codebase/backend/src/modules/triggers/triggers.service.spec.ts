@@ -2968,10 +2968,12 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
     );
 
     expect(result.promoted).toBe(1);
+    // 네 번째 인자는 설정 잠금을 쥔 트랜잭션의 매니저다(풀 연결을 더 빌리지 않는다).
     expect(secrets.rotate).toHaveBeenCalledWith(
       CANONICAL_REF,
       'ws-1',
       'wsk_newsecret',
+      expect.objectContaining({ query: expect.any(Function) }),
     );
     // 승격은 **락 안 재작성**이라 `m.update` → `repo.update` 로 위임돼 온다.
     const patch = triggerRepo.update.mock.calls[0][1] as {
@@ -3036,10 +3038,12 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       new Date('2026-06-10T00:00:00Z').getTime(),
     );
 
+    // 네 번째 인자는 설정 잠금을 쥔 트랜잭션의 매니저다(풀 연결을 더 빌리지 않는다).
     expect(secrets.rotate).toHaveBeenCalledWith(
       CANONICAL_REF,
       'ws-1',
       'wsk_newsecret',
+      expect.objectContaining({ query: expect.any(Function) }),
     );
     const patch = triggerRepo.update.mock.calls[0][1] as {
       config: { notification: { signing: Record<string, unknown> } };
@@ -5100,6 +5104,26 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       .secrets?.notificationSigningSecret;
   }
 
+  /**
+   * `SecretResolverService.rotate` 의 네 번째 인자 — 호출자의 트랜잭션 매니저. 모양으로 거른다
+   * (대역 매니저는 `query` · `findOne` · `update` 를 가진 객체다).
+   */
+  const TX_MANAGER = expect.objectContaining({
+    query: expect.any(Function),
+    update: expect.any(Function),
+  });
+
+  /** 시크릿 쓰기에 넘긴 매니저가 설정 잠금(`pg_advisory_xact_lock`)을 잡은 바로 그 매니저인가. */
+  function rotateManagerHoldsTheLock(callIndex = 0): boolean {
+    const manager = secrets.rotate.mock.calls[callIndex][3] as {
+      query: jest.Mock;
+    };
+    return manager.query.mock.calls.some(
+      ([sql]) =>
+        typeof sql === 'string' && sql.includes('pg_advisory_xact_lock'),
+    );
+  }
+
   describe('PATCH 의 interaction — 트리거 단위 토큰', () => {
     beforeEach(() => build());
 
@@ -5248,9 +5272,16 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       );
       const secret = issued(result);
       expect(secret).toMatch(/^wsk_[a-f0-9]{64}$/);
-      expect(secrets.rotate).toHaveBeenCalledWith(REF, 'ws', secret);
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        REF,
+        'ws',
+        secret,
+        TX_MANAGER,
+      );
       // 판정과 시크릿 저장소 쓰기는 같은 트리거 설정 잠금 안이다.
       expect(lockedAtRotate).toHaveLength(1);
+      // 그리고 같은 트랜잭션이다 — 풀 연결을 하나 더 빌리지 않는다.
+      expect(rotateManagerHoldsTheLock()).toBe(true);
       expect(savedConfig().notification).toEqual({
         ...NOTIFICATION,
         signing: { secretRef: REF },
@@ -5276,7 +5307,12 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         { notification: NOTIFICATION },
         'u',
       );
-      expect(secrets.rotate).toHaveBeenCalledWith(REF, 'ws', 'legacy-plain');
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        REF,
+        'ws',
+        'legacy-plain',
+        TX_MANAGER,
+      );
       expect(result).not.toHaveProperty('secrets');
       expect(savedConfig().notification).toEqual({
         ...NOTIFICATION,
@@ -5295,7 +5331,12 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         'u',
       );
       expect(issued(result)).toMatch(/^wsk_[a-f0-9]{64}$/);
-      expect(secrets.rotate).not.toHaveBeenCalledWith(REF, 'ws', '');
+      expect(secrets.rotate).not.toHaveBeenCalledWith(
+        REF,
+        'ws',
+        '',
+        expect.anything(),
+      );
     });
 
     it('참조가 secret:// 형식이 아니면 없는 것으로 보고 발급한다(규칙 24)', async () => {
@@ -5318,28 +5359,18 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(result).not.toHaveProperty('secrets');
     });
 
-    it('발급한 뒤 행이 사라져 저장하지 못하면 그 트리거의 비밀을 되돌린다(규칙 9)', async () => {
+    // 시크릿 쓰기가 설정 잠금을 쥔 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌리는 코드가 없다.
+    // 풀에서 연결을 하나 더 빌려 쓰면(매니저를 넘기지 않으면) 이 보장이 사라지고 고아 시크릿이 남는다.
+    it('저장이 실패하면 던지고 비밀을 따로 지우지 않는다(같은 트랜잭션이라 롤백된다)', async () => {
       triggerRepo.findOne.mockResolvedValue(stored({}));
       (triggerRepo.save as jest.Mock).mockRejectedValueOnce(
         new Error('insert or update on table violates foreign key'),
       );
-      (
-        triggerRepo as unknown as { exists: jest.Mock }
-      ).exists.mockResolvedValue(false);
       await expect(
         service.update('t1', 'ws', { notification: NOTIFICATION }, 'u'),
       ).rejects.toThrow();
-      expect(secrets.deleteByPrefix).toHaveBeenCalledWith(
-        'secret://triggers/t1/',
-      );
-    });
-
-    it('발급한 뒤 저장이 실패해도 행이 남아 있으면 비밀을 지우지 않는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(stored({}));
-      (triggerRepo.save as jest.Mock).mockRejectedValueOnce(new Error('boom'));
-      await expect(
-        service.update('t1', 'ws', { notification: NOTIFICATION }, 'u'),
-      ).rejects.toThrow('boom');
+      expect(secrets.rotate).toHaveBeenCalledTimes(1);
+      expect(rotateManagerHoldsTheLock()).toBe(true);
       expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
     });
   });
@@ -5374,7 +5405,13 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       );
       const secret = issued(result);
       expect(secret).toMatch(/^wsk_[a-f0-9]{64}$/);
-      expect(secrets.rotate).toHaveBeenCalledWith(REF, 'ws', secret);
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        REF,
+        'ws',
+        secret,
+        TX_MANAGER,
+      );
+      expect(rotateManagerHoldsTheLock()).toBe(true);
       expect(locks).toHaveLength(1);
       expect(triggerRepo.update).toHaveBeenCalledWith(
         { id: 't1' },
@@ -5422,7 +5459,12 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         },
         'u',
       );
-      expect(secrets.rotate).toHaveBeenCalledWith(REF, 'ws', 'caller-plain');
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        REF,
+        'ws',
+        'caller-plain',
+        TX_MANAGER,
+      );
       expect(result).not.toHaveProperty('secrets');
     });
   });
@@ -5525,8 +5567,14 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       });
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(1);
-      expect(secrets.rotate).toHaveBeenCalledWith(REF, 'ws', 'wsk_picked');
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        REF,
+        'ws',
+        'wsk_picked',
+        TX_MANAGER,
+      );
       expect(lockedAtRotate).toHaveLength(1);
+      expect(rotateManagerHoldsTheLock()).toBe(true);
       expect(triggerRepo.update).toHaveBeenCalledWith(
         { id: 't1' },
         expect.objectContaining({
