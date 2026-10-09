@@ -11,9 +11,10 @@
                                   → 모두 완료 → code-review-summary sub-agent → SUMMARY.md
                                   → 남음 + /loop → ScheduleWakeup → turn 종료
                                   → nerv-recorder 가 역할마다 NERV 에 제출(nerv_review_submit)
+                                  → nerv_record_verify.py 로 기록 대조
                                   → 열린 발견 → 자동 후속(resolution-applier)
                                     (분류 → 코드 수정 · 스펙 제안 → e2e → _dispositions.json
-                                     → nerv-recorder 가 nerv_finding_resolve 로 처분)
+                                     → nerv-recorder 가 nerv_finding_resolve 로 처분 → 기록 대조)
 ```
 
 제출과 자동 후속 흐름은 SKILL.md §4 · §6 참고. 인계 파일 형식은 `.claude/tools/nerv_review_handoff.py` docstring 이 정본이다. 안전 가드(consistency-check `BLOCK: YES`, e2e 누적 3회 실패, DB 마이그레이션·외부 API 계약 변경 등) 가 발화되면 자동 진행 중단 + 사용자 보고.

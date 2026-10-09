@@ -123,6 +123,19 @@ python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_
    - `partial`: `ERROR` 줄의 역할을 확인하고 고친 뒤 같은 파일로 다시 부른다. 이미 낸 역할은 멱등 키 덕분에 한 번만 기록된다.
    - `fatal`: 제출 문서에 문제가 있다. 도구를 다시 돌린다.
    - `rate_limit` · `network`: 같은 파일로 다시 부른다(`rate_limit` 은 `RESET_HINT` 뒤에).
+   - **반환 뒤 대조.** 기록 서브에이전트가 `fatal` 이 아닌 상태로 돌아오면 main 이 NERV 의 기록을 다시 읽어 문서와 대조한다. 반환의 `DONE` 수는 믿지 않는다. 첫 실사용에서 제출 9묶음을 내고 `DONE=8/8` 로, 처분 16건을 모두 기록하고 `DONE=15/15` 로 보고했다. 4.5KB 본문의 "뮤턴트" 를 "뷰턴트" 로 바꿔 보내기도 했다(NERV Task `CLE-T-CD9131`).
+
+     ```bash
+     python3 .claude/tools/nerv_record_verify.py submit <session_dir>/_nerv_payload.json
+     python3 .claude/tools/nerv_record_verify.py resolve <session_dir>/_nerv_resolve.json   # §6 의 2
+     ```
+
+     stdout 은 JSON 한 줄(`missing` · `altered` · `unverified` · `errors`)이고 본문 전문은 싣지 않는다. 형식과 한계의 정본은 도구 docstring 이다.
+     - exit 0: 끝이다. `unverified`(응답에 역할 정보나 필드가 없다)는 막지 않는다.
+     - exit 1 `missing`: 같은 파일로 기록 서브에이전트를 한 번 더 부르고 다시 대조한다. 멱등 키라서 이미 낸 것은 다시 기록되지 않는다. 그래도 `missing` 이면 main 이 그 항목만 직접 MCP 로 기록한다. 직접 기록이 `idempotency_mismatch` 로 거부되면 앞 제출이 그 역할 묶음을 바꿔 보낸 것이다(제목이 바뀐 발견은 `missing` 으로 나온다). 사용자에게 알린다.
+     - exit 1 `altered`(submit): 기록 서브에이전트를 다시 부르지 않는다. 같은 키로 다른 내용을 보내면 `idempotency_mismatch` 로 거부된다. `body` · `suggestion` 의 글자 변형이면 기록을 그대로 두고 발견 ID 와 필드를 Task heartbeat `progress` 에 남긴다. 원문은 세션 디렉터리에 있다. `severity` · `file` · `line` · `category` 가 바뀌었으면 사용자에게 알린다.
+     - exit 1 `altered`(resolve): main 이 그 처분을 `nerv_finding_resolve` 로 직접 다시 기록하고 다시 대조한다.
+     - exit 3: 대조하지 못한 사유(`errors`)를 사용자에게 알린다. 기록을 다시 시도하지 않는다.
    - **기록 서브에이전트를 쓸 수 없는 세션**(Agent 목록에 `nerv-recorder` 가 없다. 정의는 세션을 시작할 때 읽힌다)은 main 이 직접 낸다. 제출 문서의 `submissions[]` 마다 아래처럼 부른다.
 
      ```
@@ -228,7 +241,7 @@ main 의 기록 순서:
    Agent(subagent_type="nerv-recorder", prompt="resolve_file=<session_dir>/_nerv_resolve.json")
    ```
 
-   처분 문서에는 `nerv_finding_resolve` 인자(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`)와 멱등 키가 있다. 반환은 `STATUS=… MODE=resolve DONE=… APPROVAL=<n> OPEN_BLOCKING=<n>` 한 줄과 `APPROVAL` · `ERROR` 줄이다. `APPROVAL` 줄은 critical 을 낮추는 처분이라 사람 승인(A3)을 기다린다는 뜻이다. 그 동안 세션은 `awaiting_input` 이다. `OPEN_BLOCKING` 은 이 브랜치에 남은 열린 critical · warning 수다(`escalated` 처분도 열린 채로 남는다). 기록 서브에이전트를 쓸 수 없는 세션은 main 이 처분 문서의 `dispositions[]` 마다 `nerv_finding_resolve` 를 직접 부른다(§4 의 2 와 같은 조건).
+   처분 문서에는 `nerv_finding_resolve` 인자(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`)와 멱등 키가 있다. 반환은 `STATUS=… MODE=resolve DONE=… APPROVAL=<n> OPEN_BLOCKING=<n>` 한 줄과 `APPROVAL` · `ERROR` 줄이다. `APPROVAL` 줄은 critical 을 낮추는 처분이라 사람 승인(A3)을 기다린다는 뜻이다. 그 동안 세션은 `awaiting_input` 이다. `OPEN_BLOCKING` 은 이 브랜치에 남은 열린 critical · warning 수다(`escalated` 처분도 열린 채로 남는다). 반환의 `DONE` 수는 믿지 않는다. 반환 뒤 `python3 .claude/tools/nerv_record_verify.py resolve <session_dir>/_nerv_resolve.json` 으로 대조하고 결과는 §4 의 2 「반환 뒤 대조」 대로 처리한다. 기록 서브에이전트를 쓸 수 없는 세션은 main 이 처분 문서의 `dispositions[]` 마다 `nerv_finding_resolve` 를 직접 부른다(§4 의 2 와 같은 조건).
 3. `spec_proposals` 는 아래 `spec` 행대로, `left_to_main`(발견으로 낸 INFO. 보통 `[SPEC-DRIFT]`)은 §4-6 대로 처분한다. main 이 정한 이 처분 몇 건은 main 이 `nerv_finding_resolve` 를 직접 부른다.
 4. `tests` 는 Task 증적(`evidence` kind=test)으로 옮긴다.
 5. push 한다. 게이트 조건은 §4 "라운드 뒤 커밋".

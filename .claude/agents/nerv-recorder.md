@@ -119,5 +119,8 @@ ERROR <finding_id>: <코드> <메시지 첫 줄>
 - `rate_limit` · `network`: 규칙 6 에서 멈췄다. `DONE` 은 멈추기 전까지 성공한 수다.
 - 성공한 제출이 없으면 `ROUND_BLOCK=unknown` 이다. `OPEN_BLOCKING` 을 세지 못했으면 `unknown` 이다.
 
+main 이 반환 뒤 `nerv_record_verify.py` 로 대조한다. 반환의 수는 참고용이다. 첫 실사용에서 `DONE` 수가 실제 기록과
+어긋났고 본문 한 글자가 바뀌어 기록됐다(NERV Task `CLE-T-CD9131`, `code-review-agents` SKILL §4 의 2 「반환 뒤 대조」).
+
 호출 규약의 공통 항목(STATUS 값의 뜻)은 [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md) 를 따른다.
 입력이 `prompt_file` · `output_file` 이 아니고 결과 파일을 쓰지 않는 점이 다르다(같은 문서 §3.1 카탈로그).
