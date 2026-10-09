@@ -88,13 +88,17 @@ export function ExternalInteractionCard({
         enabled: interactionEnabled,
         tokenStrategy: strategy,
       };
-      return triggersApi.update(trigger.id, patchBody);
-    },
-    onSuccess: (result) => {
-      toast.success(t("triggers.externalInteraction.saveSucceeded"));
-      if (result.issuedNotificationSigningSecret) {
-        setIssuedSecret(result.issuedNotificationSigningSecret);
+      const { issuedNotificationSigningSecret } = await triggersApi.update(
+        trigger.id,
+        patchBody,
+      );
+      // 평문은 이 상태에만 둔다. mutation 결과(`data`)로 돌려주면 60초 뒤 상자를 지워도 캐시에 남는다.
+      if (issuedNotificationSigningSecret) {
+        setIssuedSecret(issuedNotificationSigningSecret);
       }
+    },
+    onSuccess: () => {
+      toast.success(t("triggers.externalInteraction.saveSucceeded"));
       setEditing(false);
       onSaved();
     },

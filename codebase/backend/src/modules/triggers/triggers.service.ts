@@ -1591,6 +1591,13 @@ export class TriggersService {
       },
     );
     if (!wroteInteraction) this.throwTriggerNotFound();
+    // 옛 토큰으로 연 SSE 스트림을 닫는다 — 이 서버 인스턴스의 구독자만(best-effort).
+    // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) 의 `revoke-token` 행, REQ-TRIG-041.
+    // 새 토큰을 쓴 트랜잭션이 커밋된 직후에 닫는다. 감사 기록을 기다린 뒤에 닫으면 옛 토큰 스트림이 그만큼 더 열려 있다.
+    this.resourceReleaser.closeTriggerTokenStreams(
+      [trigger.id],
+      'TriggersService.revokePerTriggerToken',
+    );
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1598,12 +1605,6 @@ export class TriggersService {
       resourceId: trigger.id,
       type: trigger.type,
     });
-    // 옛 토큰으로 연 SSE 스트림을 닫는다 — 이 서버 인스턴스의 구독자만(best-effort).
-    // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) 의 `revoke-token` 행, REQ-TRIG-041.
-    this.resourceReleaser.closeTriggerTokenStreams(
-      [trigger.id],
-      'TriggersService.revokePerTriggerToken',
-    );
     return { token: newToken };
   }
 

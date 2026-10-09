@@ -5095,6 +5095,7 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let secrets: { rotate: jest.Mock; deleteByPrefix: jest.Mock };
   let closer: { closeTriggerTokenStreams: jest.Mock };
+  let auditRecord: jest.Mock;
   let locks: string[];
 
   async function build(txOptions: TransactionMockOptions = {}): Promise<void> {
@@ -5121,6 +5122,9 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
     secrets = moduleRef.get(SecretResolverService);
+    auditRecord = (
+      moduleRef.get(AuditLogsService) as unknown as { record: jest.Mock }
+    ).record;
   }
 
   function stored(config: Record<string, unknown>): Trigger {
@@ -5718,6 +5722,10 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       // 쓰기보다 앞서도 호출 여부만 보는 단언은 통과한다.
       expect(callOrder(triggerRepo.update)).toBeLessThan(
         callOrder(closer.closeTriggerTokenStreams),
+      );
+      // 감사 기록을 기다리지 않고 커밋 직후 닫는다 — 옛 토큰 스트림이 열려 있는 창을 줄인다.
+      expect(callOrder(closer.closeTriggerTokenStreams)).toBeLessThan(
+        callOrder(auditRecord),
       );
     });
 
