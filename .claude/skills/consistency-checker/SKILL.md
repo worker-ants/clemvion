@@ -1,6 +1,6 @@
 ---
 name: consistency-checker
-description: 스펙 초안 · 구현 착수 직전 · 구현 완료 후에 기존 문서들과의 위배를 검출하는 다관점 일관성 검토자입니다. 사용자가 "consistency check", "정합성 점검", "사전 검토", "spec 충돌 확인", "/consistency-check" 를 호출하거나, project-planner 가 `spec/` 에 쓰기 전, developer 가 새로 들어오거나 바뀐 스펙을 구현하기 전에 호출됩니다. 4개의 sub-agent(Cross-Spec, Rationale Continuity, Convention Compliance, Naming Collision)를 main Claude 가 Agent tool 로 병렬 호출하며, Critical 위배 발견 시 spec write·구현 착수를 차단합니다. 사용량 한도 시 `/loop /consistency-check` 와 결합해 ScheduleWakeup 으로 무한 재시도.
+description: 스펙 초안 · 구현 착수 직전 · 구현 완료 후에 기존 문서들과의 위배를 검출하는 다관점 일관성 검토자입니다. 사용자가 "consistency check", "정합성 점검", "사전 검토", "spec 충돌 확인", "/consistency-check" 를 호출하거나, project-planner 가 `spec/` 에 쓰기 전, developer 가 새로 들어오거나 바뀌었거나 아직 다 구현되지 않은 스펙을 구현하기 전에 호출됩니다. 4개의 sub-agent(Cross-Spec, Rationale Continuity, Convention Compliance, Naming Collision)를 main Claude 가 Agent tool 로 병렬 호출하며, Critical 위배 발견 시 spec write·구현 착수를 차단합니다. 사용량 한도 시 `/loop /consistency-check` 와 결합해 ScheduleWakeup 으로 무한 재시도.
 model: opus
 ---
 
@@ -163,7 +163,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 3. `BLOCK: NO` 일 때만 검토 요청(`nerv_spec_submit_review`). Warning 은 초안 `## Rationale` 에 노트. 저장소 `spec/` 은 쓰지 않는다(미러는 구현 PR 이 pull 한다).
 
 **developer**:
-1. `/consistency-check --impl-prep <NERV 키 · 미러 폴더>` 를 구현 착수 전(보통 클레임 scope 의 `spec_ids`). 클레임 스펙이 새로 들어오거나 바뀐 Task 에서만 돈다. 조건과 생략 기록은 developer SKILL §작업 워크플로 3 이 정본이다.
+1. `/consistency-check --impl-prep <NERV 키 · 미러 폴더>` 를 구현 착수 전(보통 클레임 scope 의 `spec_ids`). 클레임 스펙이 새로 들어오거나 바뀌었거나 아직 다 구현되지 않은 Task 에서 돈다. 조건과 생략 기록은 developer SKILL §작업 워크플로 3 이 정본이다.
 2. `BLOCK: YES` → 위임. Warning 은 Task 진행 기록에 남기고 진행.
 
 ## 환경변수
