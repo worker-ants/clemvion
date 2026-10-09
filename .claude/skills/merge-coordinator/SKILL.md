@@ -100,8 +100,8 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 
 세션마다 한 번 analyzer 리포트를 NERV `kind=merge` 로 낸다. 통합했으면 Phase 3 커밋 뒤에, 통합하지 않고 끝나면(`BLOCK: YES` · confirm 거절) Phase 2 를 마칠 때 낸다.
 
-1. `python3 .claude/tools/nerv_review_payload.py <session_dir>` 로 analyzer 별 제출 묶음을 만든다.
-2. 묶음마다 `nerv_review_submit` 을 부른다. `branch` · `head_sha` · 키 규칙은 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 이 정본이다.
+1. `python3 .claude/tools/nerv_review_payload.py <session_dir> --out <session_dir>/_nerv_payload.json --mode coordinate …` 로 analyzer 별 제출 문서를 만든다.
+2. 그 파일을 `Agent(subagent_type="nerv-recorder", prompt="submit_file=<파일>")` 에 넘긴다. `branch` · `head_sha` · 키 규칙은 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 이, 도구 인자와 기록 서브에이전트를 쓸 수 없는 세션은 같은 §4 의 1 · 2 가 정본이다.
 3. 발견은 같은 세션에서 처분한다(`nerv_finding_resolve`). 조치할 항목은 NERV Task 로 올리고 그 Task 를 근거로 `wont_fix` 한다.
 
 ### Phase 4 — 자동 chain

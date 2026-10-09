@@ -50,7 +50,8 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
 404, 강제 리뷰어 규칙 `router_safety.py` 를 불러오거나 쓰지 못함)는 일시 장애와 구분한다. CI 는 설정 문제를 `--enforce` 에서 실패로 본다. 비밀이 빠진 백스톱은
 초록인 채로 영원히 꺼져 있기 때문이다.
 
-NERV 쓰기는 이 모듈이 하지 않는다. 리뷰 제출과 처분은 main 세션의 MCP 호출로만 한다(`CLAUDE.md`).
+NERV 쓰기는 이 모듈이 하지 않는다. 리뷰 제출과 처분은 MCP 호출로만 한다. 기록 서브에이전트 `nerv-recorder` 가
+하고, 그것을 쓸 수 없는 세션은 main 이 한다(`CLAUDE.md`).
 읽기는 `.claude/_shared/nerv_read.py` 가 만든 `pull.py` 의 `Nerv` 클라이언트를 쓴다(curl, `-K -` 로
 토큰 전달).
 """

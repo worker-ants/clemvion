@@ -23,6 +23,23 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 리뷰 제출 · 발견 처분을 기록 서브에이전트에 맡긴다
+
+main 세션이 리뷰 라운드를 NERV 에 직접 기록하면 제출 묶음 전문과 응답이 main 컨텍스트에 쌓였다. 응답마다 다른
+브랜치의 열린 발견(`carried_over`)이 약 9KB씩 붙어 라운드 하나에 100KB 를 넘었고, 이후 main 의 모든 호출이 그
+내용을 다시 읽었다. 2026-10-09 실측으로 main 의 리뷰 조율 호출은 전체 비용의 6.3% 였다(NERV Task `CLE-T-CD9131`).
+
+- 새 서브에이전트 `nerv-recorder` 가 리뷰 제출과 발견 처분을 기록하고 main 에는 라운드 상태 몇 줄만 돌려준다.
+  도구는 `Read` 와 리뷰 기록 MCP 도구 셋뿐이다. 셸이 없어서 세션 환경의 `NERV_TOKEN` 에 닿지 않는다.
+- 결정 D9 「NERV 쓰기는 main 세션의 MCP 호출로만 한다」의 예외에 `nerv-recorder` 를 더했다. 이 서브에이전트를
+  쓸 수 없는 세션(정의가 들어오기 전에 시작한 세션)은 main 이 직접 낸다.
+- `nerv_review_payload.py --out` 이 제출 문서를 파일에 쓰고 stdout 에는 요약만 낸다. SHA 는 git 이 풀어 준 전체
+  값이고 역할마다 멱등 키도 도구가 만든다. LLM 이 옮겨 적다 틀리던 자리를 없앴다.
+- `nerv_review_handoff.py pending --out` 이 처분 문서를 같은 방식으로 쓴다. 멱등 키는 처분 인자의 해시다.
+- 새 하네스 테스트 `test_nerv_write_tool_scope.py` 가 모든 에이전트 정의에 `tools` 가 있는지, NERV 도구를 가진
+  에이전트가 `nerv-recorder` 하나뿐인지 검사한다.
+- `usage_report.py` 가 main 이 NERV 기록 도구를 부른 응답 수와 main 비용에서 그 비중을 낸다.
+
 ## Unreleased — 하네스: 리뷰 Workflow 를 기다리는 동안 NERV 클레임을 풀지 않는다
 
 NERV Stop 훅은 클레임한 Task 가 `claimed` · `in_progress` 면 턴 종료를 한 번 막고 「클레임을 해제한 뒤 끝낸다」고

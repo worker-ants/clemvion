@@ -4,11 +4,25 @@
 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저장소 파일이 아니라 NERV 리뷰
 레코드다. 오케스트레이터는 지금처럼 세션 디렉터리(`.review/<kind>/<시각>/`, gitignore 대상)에
 역할마다 `<role>.md` 를 남긴다. 이 도구는 그 리포트를 읽어 역할별 제출 묶음을 JSON 으로 낸다.
-제출은 main 세션이 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별 제출 · D9 NERV 쓰기는
-main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
+제출은 기록 서브에이전트 `nerv-recorder` 가 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별
+제출 · D9 개정, NERV Task `CLE-T-CD9131`). 기록 서브에이전트를 쓸 수 없는 세션은 main 이 직접 낸다.
+이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
 
     python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency|merge|spec_coverage]
                                                  [--keep-info]
+    python3 .claude/tools/nerv_review_payload.py <session_dir> --out <file> --branch <b> --base <rev>
+                                                 --head <rev> --mode <review|spec|prep|done|coordinate|audit>
+                                                 [--task <KEY>] [--run <n>] [--changeset <path> ...]
+
+`--out` 을 주면 제출 문서를 그 파일에 쓰고 stdout 에는 짧은 요약(역할 · 심각도별 발견 수 · 오류 · 경고)만
+낸다. main 이 묶음 전문을 읽지 않게 하려는 모드다. 문서에는 `nerv-recorder` 가 그대로 낼 값이 다 있다.
+  - `submit`: `kind` · `branch` · `base_sha` · `head_sha` · `changeset` · `task_id`. SHA 는 `git rev-parse`
+    가 풀어 준 전체 값이다(작업 디렉터리의 저장소 기준). 풀지 못하면 오류이고 짧은 SHA 를 늘리지 않는다.
+  - 역할 묶음마다 `idempotency_key`: `<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n]`. Task 가 없으면 task
+    자리에 세션 시각(`<YYYYMMDD>-<hhmmss>`)을 쓰고, `--run` 이 2 이상이면 `:<n>` 을 붙인다.
+  - `changeset` 은 `--changeset`, 세션 `meta.json`, `git diff --name-only <base>..<head>` 순으로 채운다.
+    셋 다 비면 오류다.
+  - 오류가 있거나 강제 역할이 빠졌으면 `ok: false` 로 쓰고 `submit` 을 싣지 않는다. exit 1 이다.
 
 출력(JSON):
     {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
@@ -18,10 +32,10 @@ main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않�
                       "category": "security"}]}],
      "missing_forced": [], "errors": [], "warnings": []}
 
-main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`
-(`<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n]`, 형식의 정본은 code-review-agents SKILL §4). `changeset` 은 세션 `meta.json` 의 `files` 에서 경로만 뽑은
-것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수 없으면 키가 없고, main 이
-`git diff --name-only <base>..<head>` 로 채운다).
+`--out` 없이 부르면 위 모양을 stdout 에 내고, 제출하는 쪽이 `branch` · `base_sha` · `head_sha`(리뷰한 커밋) ·
+`task_id` · `idempotency_key`(형식의 정본은 code-review-agents SKILL §4)를 붙인다. `changeset` 은 세션
+`meta.json` 의 `files` 에서 경로만 뽑은 것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수
+없으면 키가 없고, 제출하는 쪽이 `git diff --name-only <base>..<head>` 로 채운다).
 
 역할은 세션 `_retry_state.json` 의 `subagent_invocations` 가 정한다. 그 목록에 없는 `*.md`(예: 처리
 중에 생긴 제안 파일)는 역할 리포트가 아니므로 내지 않고 `warnings` 에 남긴다. `errors` 가 있거나
@@ -57,6 +71,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +80,8 @@ if _CLAUDE_DIR not in sys.path:
 from _shared import block_integrity, report_paths  # noqa: E402
 
 KINDS = ("code", "consistency", "merge", "spec_coverage")
+# 멱등 키의 mode 자리(code-review-agents SKILL §4).
+MODES = ("review", "spec", "prep", "done", "coordinate", "audit")
 # NERV 정책 `review_roles.code` 의 필수 역할. router 가 늘 강제하지만 `REVIEW_AGENTS` 로 좁히면 빠질 수
 # 있어 kind=code 에서 빠지면 경고한다(라운드가 `missing_roles` 로 남는다).
 NERV_REQUIRED_ROLES = ("security", "requirement", "scope", "side_effect", "maintainability", "testing")
@@ -472,18 +489,112 @@ def build(session_dir: str, kind: str | None = None, *, keep_info: bool = False)
     return out
 
 
+def _git(*args: str) -> str | None:
+    """작업 디렉터리의 저장소에서 git 을 돌려 stdout 을 돌려준다. 실패하면 None."""
+    try:
+        r = subprocess.run(["git", *args], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def _full_sha(rev: str) -> str | None:
+    """`rev` 를 git 이 풀어 준 전체 커밋 SHA 로 바꾼다. 짧은 SHA 를 손으로 늘리지 않는다."""
+    out = _git("rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}")
+    sha = out.strip() if out else ""
+    return sha if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha) else None
+
+
+def session_stamp(session_dir: str) -> str | None:
+    """세션 경로 `.review/<kind>/<Y>/<m>/<d>/<H_M_S>` → `<YYYYMMDD>-<hhmmss>`. Task 가 없는 멱등 키의 앞자리다."""
+    parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)[-4:]
+    if len(parts) == 4 and re.fullmatch(r"\d{4}", parts[0]) and all(re.fullmatch(r"\d{2}", p) for p in parts[1:3]) \
+            and re.fullmatch(r"\d{2}_\d{2}_\d{2}", parts[3]):
+        return "".join(parts[:3]) + "-" + parts[3].replace("_", "")
+    return None
+
+
+def attach_submit(out: dict, *, branch: str, base: str, head: str, mode: str, task: str | None,
+                  run: int, changeset: list[str] | None) -> dict:
+    """`build` 결과에 제출 머리(`submit`)와 역할마다 멱등 키를 붙여 기록 서브에이전트가 그대로 낼 문서를 만든다.
+
+    SHA 는 git 이 풀어 준 전체 값만 싣는다. 바꾸지 못한 값이 있으면 `submit` 을 싣지 않고 `ok` 를 false 로 둔다.
+    기록 서브에이전트(`nerv-recorder`)는 `ok` 가 false 이거나 `submit` 이 없으면 아무것도 내지 않는다."""
+    errors = list(out["errors"])
+    base_sha, head_sha = _full_sha(base), _full_sha(head)
+    if base_sha is None:
+        errors.append(f"--base {base}: 커밋으로 풀지 못했다 — git rev-parse 가 아는 값을 준다")
+    if head_sha is None:
+        errors.append(f"--head {head}: 커밋으로 풀지 못했다 — git rev-parse 가 아는 값을 준다")
+    files = list(changeset) if changeset else out.get("changeset")
+    if not files and base_sha and head_sha:
+        diff = _git("diff", "--name-only", f"{base_sha}..{head_sha}")
+        files = [x for x in (diff or "").splitlines() if x.strip()]
+    if base_sha and head_sha and not files:
+        errors.append("changeset 이 비었다 — --changeset 으로 주거나 base..head 에 바뀐 파일이 있는지 확인한다")
+    slot = task or session_stamp(out["session_dir"])
+    if slot is None:
+        errors.append("멱등 키의 앞자리를 정하지 못했다 — --task 를 주거나 .review/<kind>/<Y>/<m>/<d>/<H_M_S> 세션을 준다")
+    doc: dict = {"version": 1, "ok": False, **out, "errors": errors}
+    if errors or out["missing_forced"]:
+        return doc
+    suffix = f":{run}" if run > 1 else ""
+    for sub in doc["submissions"]:
+        sub["idempotency_key"] = f"{slot}:{out['kind']}:{mode}:{head_sha[:9]}:{sub['reviewer']['role']}{suffix}"
+    doc["submit"] = {"kind": out["kind"], "branch": branch, "base_sha": base_sha, "head_sha": head_sha,
+                     "changeset": files, "task_id": task}
+    doc["ok"] = True
+    return doc
+
+
+def brief(doc: dict, out_path: str) -> dict:
+    """`--out` 을 쓸 때 stdout 에 내는 짧은 요약. 발견 본문은 싣지 않는다."""
+    counts: dict[str, int] = {}
+    for sub in doc["submissions"]:
+        for f in sub["findings"]:
+            counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+    return {"ok": doc["ok"], "out": out_path, "kind": doc["kind"],
+            "head_sha": (doc.get("submit") or {}).get("head_sha"),
+            "roles": sorted(s["reviewer"]["role"] for s in doc["submissions"]),
+            "findings": counts, "info_in_summary": doc["info_in_summary"],
+            "missing_forced": doc["missing_forced"], "errors": doc["errors"], "warnings": doc["warnings"]}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
     ap.add_argument("session_dir")
     ap.add_argument("--kind", choices=KINDS)
     ap.add_argument("--keep-info", action="store_true",
                     help="INFO 도 발견으로 낸다(기본은 [SPEC-DRIFT] 가 아닌 INFO 를 summary 에 싣는다)")
+    ap.add_argument("--out", help="제출 문서를 이 파일에 쓰고 stdout 에는 요약만 낸다(nerv-recorder 입력)")
+    ap.add_argument("--branch")
+    ap.add_argument("--base", help="리뷰 기준 커밋(rev). git 이 전체 SHA 로 푼다")
+    ap.add_argument("--head", help="리뷰한 커밋(rev). git 이 전체 SHA 로 푼다")
+    ap.add_argument("--mode", choices=MODES, help="멱등 키의 mode 자리")
+    ap.add_argument("--task", help="NERV Task 키. 없으면 멱등 키 앞자리에 세션 시각을 쓴다")
+    ap.add_argument("--run", type=int, default=1, help="같은 head 를 다시 낼 때의 차수(2 부터 키에 붙는다)")
+    ap.add_argument("--changeset", action="append", help="바뀐 파일. 여러 번 준다. 없으면 meta.json, 그다음 git diff")
     args = ap.parse_args(argv)
+    if args.out:
+        absent = [f"--{n}" for n in ("branch", "base", "head", "mode") if not getattr(args, n)]
+        if absent:
+            ap.error(f"--out 에는 {' '.join(absent)} 도 준다")
+        if args.run < 1:
+            ap.error("--run 은 1 이상이다")
     out = build(args.session_dir, args.kind, keep_info=args.keep_info)
-    json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+    if not args.out:
+        json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+        # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
+        return 1 if out["missing_forced"] or out["errors"] else 0
+    doc = attach_submit(out, branch=args.branch, base=args.base, head=args.head, mode=args.mode,
+                        task=args.task, run=args.run, changeset=args.changeset)
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    json.dump(brief(doc, args.out), sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
-    # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
-    return 1 if out["missing_forced"] or out["errors"] else 0
+    return 0 if doc["ok"] else 1
 
 
 if __name__ == "__main__":

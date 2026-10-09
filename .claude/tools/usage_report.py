@@ -31,7 +31,12 @@ Claude Code 가 남기는 세션 기록만 읽고 아무것도 쓰지 않는다.
 서브에이전트 분류: Workflow 안의 에이전트는 실행 기록의 `workflowName` 으로(`ai-review*` → 코드 리뷰,
 `consistency-check*` → 일관성), Agent 서브에이전트는 `agentType` 으로(`*-reviewer` · `review-router` ·
 `code-review-summary` → 코드 리뷰, `*-checker` · `consistency-summary` → 일관성, `resolution-applier`,
-`Explore` · `general-purpose` · `Plan` → 탐색, 그 밖은 기타) 나눈다.
+`nerv-recorder` → NERV 기록, `Explore` · `general-purpose` · `Plan` → 탐색, 그 밖은 기타) 나눈다.
+
+메인의 NERV 기록 호출: 메인 세션 응답 가운데 NERV 리뷰 기록 도구(`nerv_review_submit` ·
+`nerv_finding_resolve` · `nerv_finding_list`, MCP 서버 접두는 따지지 않는다)를 부른 응답의 수와 그 비용이
+메인 비용에서 차지하는 비중이다. 기록 전용 서브에이전트(NERV Task `CLE-T-CD9131`)로 이 호출을 옮긴 효과를
+잰다. 그 응답이 쓴 비용만 세고, 다음 응답이 도구 결과를 읽는 비용은 세지 않는다.
 
 기간: `--since` · `--until` 은 세션의 첫 기록 시각으로 거른다. 걸러진 세션의 서브에이전트는 세지 않는다.
 Workflow 실행 시간과 작업 단위 호출 수는 실행 기록의 시각으로 거른다.
@@ -61,8 +66,10 @@ CTX_BUCKETS = ((200_000, "<200k"), (400_000, "200-400k"), (600_000, "400-600k"),
                (800_000, "600-800k"), (None, ">=800k"))
 HIGH_CONTEXT_TOKENS = 600_000   # 이 컨텍스트 이상에서 일어난 호출의 비율을 따로 낸다
 LONG_SESSION_CALLS = 1000       # 호출이 이보다 많은 세션을 「긴 세션」으로 센다
-CATEGORIES = ("code_review", "consistency", "resolution", "explore", "other")
+CATEGORIES = ("code_review", "consistency", "resolution", "recording", "explore", "other")
 EXPLORE_TYPES = {"Explore", "general-purpose", "Plan", "claude"}
+# 메인이 부르면 「NERV 기록 호출」로 세는 도구. MCP 도구 이름은 `mcp__<서버>__<도구>` 다.
+RECORDING_TOOLS = {"nerv_review_submit", "nerv_finding_resolve", "nerv_finding_list"}
 WORKTREE_RE = re.compile(r"\.claude/worktrees/([\w.-]+?)/")
 
 
@@ -108,11 +115,25 @@ def parse_ts(value) -> float | None:
         return None
 
 
+def uses_recording_tool(msg: dict) -> bool:
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(isinstance(b, dict) and b.get("type") == "tool_use"
+               and str(b.get("name", "")).rsplit("__", 1)[-1] in RECORDING_TOOLS for b in content)
+
+
 def scan_transcript(path: str) -> dict:
-    """한 jsonl 의 API 응답을 `message.id` 로 한 번씩 세어 합친다."""
+    """한 jsonl 의 API 응답을 `message.id` 로 한 번씩 세어 합친다.
+
+    한 응답은 내용 블록마다 줄이 나뉜다. 비용은 첫 줄에서 세고, 도구 호출은 그 응답의 어느 줄에 있어도 센다.
+    """
     seen: set = set()
+    cost_of: dict = {}
+    recording: set = set()
     out = {"calls": 0, "cost": 0.0, "ctx_sum": 0, "ctx_max": 0, "high_ctx_calls": 0,
-           "buckets": Counter(), "compactions": 0, "start": None, "end": None}
+           "buckets": Counter(), "compactions": 0, "start": None, "end": None,
+           "recording_calls": 0, "recording_cost": 0.0}
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             try:
@@ -133,16 +154,22 @@ def scan_transcript(path: str) -> dict:
             msg = rec.get("message") or {}
             usage = msg.get("usage")
             key = msg.get("id") or rec.get("requestId") or rec.get("uuid")
+            if uses_recording_tool(msg):
+                recording.add(key)
             if not isinstance(usage, dict) or key in seen:
                 continue
             seen.add(key)
             ctx = context_size(usage)
             out["calls"] += 1
-            out["cost"] += weighted_cost(usage, msg.get("model"))
+            cost_of[key] = weighted_cost(usage, msg.get("model"))
+            out["cost"] += cost_of[key]
             out["ctx_sum"] += ctx
             out["ctx_max"] = max(out["ctx_max"], ctx)
             out["high_ctx_calls"] += ctx >= HIGH_CONTEXT_TOKENS
             out["buckets"][bucket_of(ctx)] += 1
+    counted = recording & cost_of.keys()
+    out["recording_calls"] = len(counted)
+    out["recording_cost"] = sum(cost_of[k] for k in counted)
     return out
 
 
@@ -212,6 +239,8 @@ def classify_agent_type(agent_type: str | None) -> str:
     t = agent_type or ""
     if t == "resolution-applier":
         return "resolution"
+    if t == "nerv-recorder":
+        return "recording"
     if t.endswith("-reviewer") or t in ("review-router", "code-review-summary"):
         return "code_review"
     if t.endswith("-checker") or t == "consistency-summary":
@@ -324,7 +353,9 @@ def summarize(data: dict) -> dict:
                  "compactions": sum(s["compactions"] for s in sessions),
                  "long_session_calls": LONG_SESSION_CALLS,
                  "long_sessions": len(long_sessions),
-                 "cost_share_of_long_sessions": pct(sum(s["cost"] for s in long_sessions), main_cost)},
+                 "cost_share_of_long_sessions": pct(sum(s["cost"] for s in long_sessions), main_cost),
+                 "nerv_recording_calls": sum(s["recording_calls"] for s in sessions),
+                 "nerv_recording_cost_share": pct(sum(s["recording_cost"] for s in sessions), main_cost)},
         "workflows": {"code_review": minutes("code_review"), "consistency": minutes("consistency")},
         "runs_per_worktree": {"code_review": dist("code_review"), "consistency": dist("consistency")},
     }
@@ -340,7 +371,8 @@ def render(summary: dict) -> str:
     c, sh, mn = summary["cost"], summary["cost_share"], summary["main"]
     wf, rw = summary["workflows"], summary["runs_per_worktree"]
     labels = {"main": "메인 세션", "code_review": "코드 리뷰 에이전트", "consistency": "일관성 에이전트",
-              "resolution": "resolution-applier", "explore": "탐색 에이전트", "other": "기타 에이전트"}
+              "resolution": "resolution-applier", "recording": "nerv-recorder",
+              "explore": "탐색 에이전트", "other": "기타 에이전트"}
     lines = [f"기간 {day(summary['period'][0])} ~ {day(summary['period'][1])} · 세션 {summary['sessions']}개",
              f"상대 비용(Opus 입력 토큰 환산) 합계 {m(summary['cost_total'])}"]
     for key in ("main", *CATEGORIES):
@@ -351,6 +383,7 @@ def render(summary: dict) -> str:
         f"  컨텍스트 {mn['high_context_tokens']:,} 토큰 이상 호출 {mn['share_calls_high_context']}% · "
         f"자동 compact {mn['compactions']}번 · {mn['long_session_calls']:,}번 넘게 호출한 세션 "
         f"{mn['long_sessions']}개(메인 비용의 {mn['cost_share_of_long_sessions']}%)",
+        f"  메인의 NERV 기록 호출 {mn['nerv_recording_calls']:,}번(메인 비용의 {mn['nerv_recording_cost_share']}%)",
         f"Workflow ai-review {wf['code_review']['runs']}회(중앙값 {wf['code_review']['median']}분, "
         f"합 {wf['code_review']['total_hours']}h) · consistency-check {wf['consistency']['runs']}회"
         f"(중앙값 {wf['consistency']['median']}분, 합 {wf['consistency']['total_hours']}h)",

@@ -449,6 +449,113 @@ class BuildTest(unittest.TestCase):
             tool.build(str(self.tmp / "nope"))
 
 
+class OutFileTest(unittest.TestCase):
+    """`--out` — 기록 서브에이전트(`nerv-recorder`)가 그대로 낼 제출 인자를 파일에 쓴다(NERV Task `CLE-T-CD9131`).
+
+    main 은 묶음 전문을 읽지 않고 짧은 요약만 받는다. SHA 는 git 이 풀어 준 전체 값만 싣고, 멱등 키는
+    도구가 code-review-agents SKILL §4 형식으로 만든다. LLM 이 옮겨 적다 틀리는 자리를 없앤다.
+    """
+
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = _harness.make_temp_git_repo(self.tmp / "repo")
+        self.base = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+        (self.repo / "codebase").mkdir()
+        (self.repo / "codebase" / "a.ts").write_text("a\n", encoding="utf-8")
+        _harness.git_in(self.repo, "add", "-A")
+        _harness.git_in(self.repo, "commit", "-qm", "change")
+        self.head = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+        self.sd = self.repo / ".review" / "code" / "2026" / "10" / "01" / "12_00_00"
+        self.sd.mkdir(parents=True)
+        (self.sd / "security.md").write_text(REPORT, encoding="utf-8")
+        (self.sd / "scope.md").write_text("### 위험도\nLOW\n", encoding="utf-8")
+        (self.sd / "_retry_state.json").write_text(json.dumps({
+            "agents_forced": ["security", "scope"],
+            "subagent_invocations": [{"name": "security", "output_file": "security.md"},
+                                     {"name": "scope", "output_file": "scope.md"}],
+        }), encoding="utf-8")
+        self.out = self.sd / "_nerv_payload.json"
+
+    def run_cli(self, *args):
+        return subprocess.run([sys.executable, str(TOOL_PATH), str(self.sd), *args], cwd=self.repo,
+                              capture_output=True, text=True, timeout=60)
+
+    def submit_args(self, *extra, base=None, head=None):
+        return ["--out", str(self.out), "--branch", "feature", "--base", base or self.base[:7],
+                "--head", head or "HEAD", "--mode", "review", *extra]
+
+    def test_writes_ready_to_send_arguments_and_prints_a_short_summary(self):
+        r = self.run_cli(*self.submit_args("--task", "CLE-T-ABC123"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertTrue(doc["ok"])
+        self.assertEqual(doc["submit"], {"kind": "code", "branch": "feature", "base_sha": self.base,
+                                         "head_sha": self.head, "changeset": ["codebase/a.ts"],
+                                         "task_id": "CLE-T-ABC123"})
+        keys = {s["reviewer"]["role"]: s["idempotency_key"] for s in doc["submissions"]}
+        prefix = f"CLE-T-ABC123:code:review:{self.head[:9]}"
+        self.assertEqual(keys, {"scope": prefix + ":scope", "security": prefix + ":security"})
+        summary = json.loads(r.stdout)
+        self.assertEqual(summary["out"], str(self.out))
+        self.assertEqual(summary["roles"], ["scope", "security"])
+        self.assertEqual(summary["findings"], {"critical": 1, "warning": 1})
+        self.assertEqual(summary["info_in_summary"], 1)
+        # 발견 본문은 요약에 싣지 않는다. main 이 묶음 전문을 읽지 않게 하는 것이 이 모드의 목적이다.
+        self.assertNotIn("submissions", summary)
+        self.assertNotIn("토큰이 로그에 남는다", r.stdout)
+
+    def test_a_rerun_and_a_session_without_a_task_get_their_keys(self):
+        r = self.run_cli(*self.submit_args("--run", "2"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertIsNone(doc["submit"]["task_id"])
+        self.assertEqual(doc["submissions"][0]["idempotency_key"],
+                         f"20261001-120000:code:review:{self.head[:9]}:scope:2")
+
+    def test_changeset_prefers_the_flag_then_meta_then_git(self):
+        (self.sd / "meta.json").write_text(json.dumps({"files": [{"file_path": "m.ts"}]}), encoding="utf-8")
+        self.assertEqual(self.run_cli(*self.submit_args()).returncode, 0)
+        self.assertEqual(json.loads(self.out.read_text())["submit"]["changeset"], ["m.ts"])
+        r = self.run_cli(*self.submit_args("--changeset", "spec/X/X.md", "--changeset", "y.md"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(json.loads(self.out.read_text())["submit"]["changeset"], ["spec/X/X.md", "y.md"])
+
+    def test_an_empty_changeset_is_an_error(self):
+        r = self.run_cli(*self.submit_args(base="HEAD"))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("changeset", json.loads(r.stdout)["errors"][-1])
+        self.assertFalse(json.loads(self.out.read_text())["ok"])
+
+    def test_an_unknown_revision_is_an_error_not_a_guess(self):
+        r = self.run_cli(*self.submit_args(head="0123456789abcdef0123456789abcdef01234567"))
+        self.assertEqual(r.returncode, 1)
+        self.assertTrue(any("--head" in e for e in json.loads(r.stdout)["errors"]), r.stdout)
+        doc = json.loads(self.out.read_text())
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("submit", doc)
+
+    def test_a_failed_build_is_written_as_not_ok(self):
+        (self.sd / "scope.md").unlink()
+        r = self.run_cli(*self.submit_args())
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(json.loads(r.stdout)["missing_forced"], ["scope"])
+        self.assertFalse(json.loads(self.out.read_text())["ok"])
+
+    def test_out_needs_the_submit_context(self):
+        r = self.run_cli("--out", str(self.out), "--branch", "feature")
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse(self.out.exists())
+        r = self.run_cli(*self.submit_args("--mode", "nope"))
+        self.assertEqual(r.returncode, 2)
+
+    def test_without_out_the_old_stdout_shape_stays(self):
+        r = self.run_cli()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("submissions", json.loads(r.stdout))
+        self.assertFalse(self.out.exists())
+
+
 class RealSessionShapeTest(unittest.TestCase):
     """리뷰어 정의가 문서로 정한 형식이 실제 정의 파일과 맞는지 — 형식이 바뀌면 이 도구도 바뀐다."""
 

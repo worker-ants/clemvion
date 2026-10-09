@@ -38,11 +38,12 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 
 ### 3.1 확장 sub-agent 카탈로그
 
-기본 4필드 STATUS 라인 / markdown output 규약에서 벗어나는 sub-agent 는 현재 둘뿐이다. 본 카탈로그는 "어디를 봐야 하는지" 만 가리킨다 — 형식의 SSOT 는 각 definition 본문이다.
+기본 4필드 STATUS 라인 / markdown output 규약에서 벗어나는 sub-agent 는 현재 셋이다. 본 카탈로그는 "어디를 봐야 하는지" 만 가리킨다 — 형식의 SSOT 는 각 definition 본문이다.
 
 | sub-agent | 벗어나는 점 | SSOT |
 |---|---|---|
-| [`resolution-applier`](../agents/resolution-applier.md) | STATUS 라인에 `ITEMS` / `E2E` / `ESCALATE` / `NEEDS_SPEC` / `DISPOSITIONS` 추가 필드. 입력은 `session_dir=` 한 줄(세션의 `_nerv_findings.json` 을 읽는다). NERV 에 쓰지 않고 처분 목록을 돌려준다 — 기록은 main 의 `nerv_finding_resolve`(결정 D9). | `resolution-applier.md` §반환 형식 + §ESCALATE 매트릭스 |
+| [`resolution-applier`](../agents/resolution-applier.md) | STATUS 라인에 `ITEMS` / `E2E` / `ESCALATE` / `NEEDS_SPEC` / `DISPOSITIONS` 추가 필드. 입력은 `session_dir=` 한 줄(세션의 `_nerv_findings.json` 을 읽는다). NERV 에 쓰지 않고 처분 목록을 돌려준다 — 기록은 `nerv-recorder` 의 `nerv_finding_resolve`(결정 D9 개정). | `resolution-applier.md` §반환 형식 + §ESCALATE 매트릭스 |
+| [`nerv-recorder`](../agents/nerv-recorder.md) | 입력은 `submit_file=` 또는 `resolve_file=` 한 줄이고 결과 파일을 쓰지 않는다(파일 쓰기 도구가 없다). 반환은 STATUS 라인(`MODE` · `DONE` · `ROUND_BLOCK` · `BLOCKING` 또는 `APPROVAL` · `OPEN_BLOCKING`)과 그 아래 `APPROVAL` · `ERROR` 줄이다. STATUS 값에 `partial` 이 있다. | `nerv-recorder.md` §반환 형식 |
 | [`review-router`](../agents/review-router.md) | `output_file` 가 markdown 이 아니라 **JSON**. STATUS 의 `ISSUES` 자리를 `selected_count` 의미로 재사용. | `review-router.md` §출력 형식 |
 
 `code-review-summary` / `consistency-summary` / `integration-risk-summary` 은 입력만 `session_dir=` 한 줄이고 (§1 에 명시) 반환 라인은 기본 4필드 그대로라 확장이 아니다.

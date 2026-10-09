@@ -236,6 +236,73 @@ class PendingTest(_SessionCase):
         self.assertEqual(out["already_recorded"], [])
 
 
+class PendingOutTest(_SessionCase):
+    """`pending --out` — 기록 서브에이전트(`nerv-recorder`)가 그대로 낼 처분 인자를 파일에 쓴다(NERV Task `CLE-T-CD9131`).
+
+    main 은 처분 전문을 읽지 않고 건수 요약만 받는다."""
+
+    def setUp(self):
+        super().setUp()
+        self.out = self.sd / "_nerv_resolve.json"
+
+    def run_pending(self, open_items):
+        body = json.dumps({"items": open_items, "next_cursor": None}).encode()
+        with _harness.FakeNervServer(raw=body) as server:
+            env = {"NERV_SERVER": server.url, "NERV_TOKEN": "tok-9", "PATH": os.environ.get("PATH", "")}
+            return subprocess.run([sys.executable, str(TOOL_PATH), "pending", str(self.sd), "--branch", "feature",
+                                   "--out", str(self.out)], capture_output=True, text=True, timeout=60, env=env)
+
+    def test_writes_only_resolve_arguments_with_keys_and_prints_counts(self):
+        self.write_findings(item(CRIT, "critical"), item(WARN, "warning"), item(INFO, "info"))
+        self.write_dispositions([
+            self.fixed(CRIT),
+            {"finding_id": WARN, "resolution": "escalated", "escalate_reason": "infra",
+             "rationale": "도커가 죽었다", "note": "applier 메모"},
+            {"finding_id": INFO, "resolution": "wont_fix", "rationale": "이미 닫힘"},
+        ])
+        r = self.run_pending([item(CRIT, "critical"), item(WARN, "warning")])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertTrue(doc["ok"])
+        self.assertEqual(doc["branch"], "feature")
+        rows = {d["finding_id"]: d for d in doc["dispositions"]}
+        self.assertEqual(set(rows), {CRIT, WARN})
+        self.assertEqual(set(rows[CRIT]), {"finding_id", "resolution", "commit_sha", "rationale", "severity",
+                                           "idempotency_key"})
+        self.assertEqual(rows[CRIT]["severity"], "critical")
+        self.assertEqual(rows[WARN]["escalate_reason"], "infra")
+        self.assertNotIn("note", rows[WARN])
+        self.assertRegex(rows[CRIT]["idempotency_key"], rf"^resolve:{CRIT}:fixed:[0-9a-f]{{12}}$")
+        self.assertEqual(doc["already_recorded"], [INFO])
+        summary = json.loads(r.stdout)
+        self.assertEqual(summary, {"ok": True, "out": str(self.out), "pending": 2,
+                                   "by_resolution": {"escalated": 1, "fixed": 1}, "already_recorded": 1,
+                                   "unknown": []})
+        self.assertNotIn("도커가 죽었다", r.stdout)
+
+    def test_unknown_ids_write_a_not_ok_file_with_nothing_to_record(self):
+        self.write_findings(item(CRIT, "critical"))
+        self.write_dispositions([self.fixed(CRIT), self.fixed(CRIT[:8])])
+        r = self.run_pending([item(CRIT, "critical")])
+        self.assertEqual(r.returncode, 1, r.stdout)
+        doc = json.loads(self.out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertEqual(doc["dispositions"], [])
+        self.assertEqual(json.loads(r.stdout)["unknown"], [CRIT[:8]])
+
+    def test_the_key_follows_the_recorded_arguments(self):
+        a = self.fixed(CRIT)
+        self.assertEqual(tool.resolve_key(a), tool.resolve_key(dict(a, note="무시되는 필드")))
+        self.assertNotEqual(tool.resolve_key(a), tool.resolve_key(dict(a, rationale="다른 근거")))
+        self.assertNotEqual(tool.resolve_key(a), tool.resolve_key(dict(a, commit_sha="cd" * 20)))
+
+    def test_out_is_only_for_pending(self):
+        r = subprocess.run([sys.executable, str(TOOL_PATH), "check", str(self.sd), "--out", str(self.out)],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse(self.out.exists())
+
+
 class CliTest(_SessionCase):
     def run_cli(self, *args, env=None):
         return subprocess.run([sys.executable, str(TOOL_PATH), *args], capture_output=True, text=True,

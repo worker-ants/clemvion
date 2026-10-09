@@ -7,7 +7,7 @@
 클라이언트는 `.claude/tools/nerv-mirror/pull.py` 의 `Nerv` 다(curl, `-K -` 로 토큰 전달, loopback
 밖의 http 거부). 환경 값 해석도 `pull.load_env` 하나에 둔다(두 곳에 두면 빈 `NERV_PROJECT` 같은
 값에 서로 다르게 반응한다). 이 모듈은 pull.py 를 불러와 오류를 나눠 주기만 한다. **읽기만 한다.** NERV 쓰기는
-main 세션의 MCP 호출로만 한다(`CLAUDE.md`). 토큰 값은 오류 메시지에 싣지 않는다.
+MCP 호출로만 한다(main 세션과 기록 서브에이전트 `nerv-recorder`, `CLAUDE.md`). 토큰 값은 오류 메시지에 싣지 않는다.
 """
 
 from __future__ import annotations

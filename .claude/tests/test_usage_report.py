@@ -7,6 +7,7 @@
   - 한 API 응답이 내용 블록마다 여러 줄로 기록돼도 `message.id` 로 한 번만 센다.
   - 비용 가중치(캐시 읽기 0.1 · 1시간 캐시 쓰기 2 · 출력 5)와 모델 배수(Sonnet 0.6).
   - 서브에이전트 분류: `agentType` 과 Workflow 실행 기록의 `workflowName`.
+  - 메인이 NERV 리뷰 기록 도구(제출 · 처분 · 발견 목록)를 부른 호출 수와 그 비용 비중.
   - 워크트리당 Workflow 호출 수와 `--since` 필터, 다른 저장소 폴더(접두만 같은 이름) 제외.
 """
 
@@ -110,7 +111,7 @@ class UsageReportTest(unittest.TestCase):
         # Workflow 에이전트는 실행 기록 이름으로 일관성: 100 × 5 × 0.6 = 300
         self.assertEqual(s["cost"]["consistency"], 300)
         self.assertEqual(s["agents"], {"code_review": 1, "consistency": 1, "resolution": 0,
-                                       "explore": 0, "other": 0})
+                                       "recording": 0, "explore": 0, "other": 0})
 
     def test_unknown_cache_split_counts_as_5m(self):
         usage = {"cache_creation_input_tokens": 400}
@@ -146,6 +147,58 @@ class UsageReportTest(unittest.TestCase):
 
 
 
+def tool_use(mid, name, ts="2026-10-01T00:00:20Z", **usage):
+    """도구를 부른 응답의 한 줄. 실제 기록은 내용 블록마다 줄이 나뉘고 같은 `message.id` 를 쓴다."""
+    rec = assistant(mid, ts=ts, **usage)
+    rec["message"]["content"] = [{"type": "tool_use", "id": "t-" + mid, "name": name, "input": {}}]
+    return rec
+
+
+class RecordingCallsTest(unittest.TestCase):
+    """메인이 NERV 리뷰 기록 도구를 부른 호출(NERV Task `CLE-T-CD9131`, 개선안 R8 의 측정)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="usage-report-rec-")
+        self.addCleanup(shutil.rmtree, self.root)
+        self.d = os.path.join(self.root, PREFIX)
+
+    def test_main_calls_that_use_nerv_review_tools_are_counted(self):
+        text_then_tool = assistant("m2", cache_read_input_tokens=1000)
+        text_then_tool["message"]["content"] = [{"type": "text", "text": "제출한다"}]
+        write_jsonl(os.path.join(self.d, "s1.jsonl"), [
+            user("x"),
+            assistant("m1", input_tokens=100),
+            # 첫 줄은 글, 같은 응답의 둘째 줄이 도구 호출이다. 비용은 첫 줄에서 한 번만 센다.
+            text_then_tool, tool_use("m2", "mcp__nerv__nerv_review_submit", cache_read_input_tokens=1000),
+            tool_use("m3", "mcp__plugin_nerv_nerv__nerv_finding_resolve", input_tokens=200),
+            tool_use("m4", "mcp__nerv__nerv_finding_list", input_tokens=300),
+            # 기록이 아닌 NERV 도구 · 이름만 비슷한 도구는 세지 않는다.
+            tool_use("m5", "mcp__nerv__nerv_task_heartbeat", input_tokens=400),
+            tool_use("m6", "Bash", input_tokens=500),
+            tool_use("m7", "mcp__other__nerv_review_submit_draft", input_tokens=600),
+        ])
+        s = tool.summarize(tool.collect(self.root, PREFIX))
+        self.assertEqual(s["main"]["calls"], 7)
+        self.assertEqual(s["main"]["nerv_recording_calls"], 3)
+        # 메인 비용 100 + 100 + 200 + 300 + 400 + 500 + 600 = 2,200 중 기록 호출 100 + 200 + 300 = 600
+        self.assertEqual(s["main"]["nerv_recording_cost_share"], 27.3)
+
+    def test_recorder_agent_calls_are_not_main_calls(self):
+        write_jsonl(os.path.join(self.d, "s1.jsonl"), [user("x"), assistant("m1", input_tokens=10)])
+        path = os.path.join(self.d, "s1", "subagents", "agent-r1.jsonl")
+        write_jsonl(path, [user("x"), tool_use("r1", "mcp__nerv__nerv_review_submit", input_tokens=10)])
+        with open(path[:-6] + ".meta.json", "w") as fh:
+            json.dump({"agentType": "nerv-recorder"}, fh)
+        s = tool.summarize(tool.collect(self.root, PREFIX))
+        self.assertEqual(s["main"]["nerv_recording_calls"], 0)
+        self.assertEqual(s["agents"]["recording"], 1)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            tool.main(["--projects-dir", self.root, "--prefix=" + PREFIX])
+        self.assertIn("NERV 기록 호출 0번", buf.getvalue())
+        self.assertIn("nerv-recorder", buf.getvalue())
+
+
 class ClassificationAndBoundaryTest(unittest.TestCase):
     """분류 갈래 · 필터 · 경계값(코드 리뷰 발견 `01a11ffb-715c-726a-b31c-714d25a57809`)."""
 
@@ -165,11 +218,12 @@ class ClassificationAndBoundaryTest(unittest.TestCase):
         write_jsonl(os.path.join(self.d, "s1.jsonl"), [user("x"), assistant("m", input_tokens=1)])
         for name, kind in (("a1", "resolution-applier"), ("a2", "Explore"), ("a3", "general-purpose"),
                            ("a4", "cross-spec-checker"), ("a5", "consistency-summary"),
-                           ("a6", "review-router"), ("a7", "mystery-agent"), ("a8", None)):
+                           ("a6", "review-router"), ("a7", "mystery-agent"), ("a8", None),
+                           ("a9", "nerv-recorder")):
             self.agent("s1", name, kind, input_tokens=10)
         s = tool.summarize(tool.collect(self.root, PREFIX))
         self.assertEqual(s["agents"], {"code_review": 1, "consistency": 2, "resolution": 1,
-                                       "explore": 2, "other": 2})
+                                       "recording": 1, "explore": 2, "other": 2})
         self.assertEqual(s["cost"]["explore"], 20)
 
     def test_filtered_session_drops_its_workflow_agents_too(self):
