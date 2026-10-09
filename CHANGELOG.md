@@ -1,7 +1,18 @@
 # Changelog
 
 > **무엇이 항목을 만드는가** — 2026-09-25 성문화(옛 plan `changelog-criteria.md`, git 이력). 새 항목은 맨 위에
-> `## Unreleased — <무엇이 바뀌었나>` 로 쓴다(접두 필수). 한 PR 이 서로 다른 변경을 둘 이상 담으면 항목도 둘 이상이다.
+> `## Unreleased — 하네스: 리뷰 Workflow 를 기다리는 동안 NERV 클레임을 풀지 않는다
+
+NERV Stop 훅은 클레임한 Task 가 `claimed` · `in_progress` 면 턴 종료를 한 번 막고 「클레임을 해제한 뒤 끝낸다」고
+안내한다. 그래서 리뷰 Workflow(한 번에 10~17분)를 기다리던 세션이 클레임을 풀었고, Task 가 `ready` 로 돌아가 다른
+세션이 가져갈 수 있었다(NERV Task `CLE-T-T03809`).
+
+- 리뷰 Workflow 를 띄우기 직전에 heartbeat 로 리스를 채우고 Task 를 `in_review` 로 둔다. Stop 훅이 막지 않고,
+  리스가 만료돼도 `in_review` 는 `ready` 로 돌아가지 않는다. 같은 세션은 다시 클레임할 수 있다.
+- 그 밖의 대기에서 Stop 훅에 막히면 해제하지 않고 무엇을 기다리는지 한 줄 남긴 뒤 다시 끝낸다. 두 번째 종료는 막히지 않는다.
+- 비대화형 실행(`claude -p`)은 턴이 끝나면 세션도 끝나므로 평문 Agent fan-out 경로를 쓴다.
+
+## Unreleased — <무엇이 바뀌었나>` 로 쓴다(접두 필수). 한 PR 이 서로 다른 변경을 둘 이상 담으면 항목도 둘 이상이다.
 >
 > **항목을 낸다**
 >

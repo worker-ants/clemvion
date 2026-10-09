@@ -98,6 +98,12 @@ model: opus
 > 예외는 사람 승인 대기(critical 을 낮추는 처분 · 스펙 초안 검토 요청)뿐이다. 그 동안 세션은
 > `awaiting_input` 이다.
 >
+> **기다리는 동안 클레임을 풀지 않는다.** 리뷰 Workflow · 백그라운드 명령 · 사람의 답을 기다리느라 턴을 끝낼 때
+> NERV Stop 훅이 「클레임을 해제한 뒤 끝낸다」며 막으면, 해제하지 않고 무엇을 기다리는지 한 줄 남긴 뒤 다시 끝낸다.
+> 두 번째 종료는 서버가 막지 않는다(`stop_hook_active`). 해제하면 Task 가 `ready` 로 돌아가 다른 세션이 가져갈 수
+> 있다. 작업을 마쳤거나 다른 세션에 넘길 때만 상태를 남기고 해제한다. 리뷰 단계는 아래 「리뷰 대기와 클레임」대로
+> `in_review` 로 두면 막히지도 않는다.
+>
 > **리뷰 결과는 NERV 레코드다**(전환 단계 2, 결정 D7 · D9). 로컬 산출물(`.review/`)은 커밋하지 않는다.
 > NERV 쓰기(제출 · 처분)는 main 세션의 MCP 호출로만 한다.
 
@@ -108,7 +114,12 @@ model: opus
    router 가 변경 성격에 맞는 reviewer 부분집합만 활성화하되, 바뀐 파일이 하나라도 있으면 NERV 필수
    6역할(security · requirement · scope · side_effect · maintainability · testing)은 router 가 끄지
    못한다. 하네스 · 문서만 바꾼 Task 도 같다(done 게이트가 passed 라운드를 요구한다).
-   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전까지 **턴을 끝내지 않는다.** 기다리는 동안 `until` · `sleep` 폴링 루프를 돌리지 않는다. 알림이 오면 이어서 한다. 비동기 간극 없이 가려면 자동 트리거 시 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓸 수 있다.
+   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전에는 **리뷰를 마친 것으로 다루지 않는다.** 기다리는 동안 `until` · `sleep` 폴링 루프를 돌리지 않는다. 할 일이 없으면 아래 「리뷰 대기와 클레임」대로 턴을 끝내고 알림을 기다린다. 대화형 세션은 완료 알림이 세션을 다시 깨운다. 비대화형 실행(`claude -p`)은 턴이 끝나면 세션도 끝나므로 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓴다.
+   - **리뷰 대기와 클레임**: Workflow 를 띄우기 직전에 `nerv_task_heartbeat`(리스를 1800초로 채운다)와 `nerv_task_update(status=in_review)` 를 부른다.
+     NERV Stop 훅은 클레임한 Task 가 `claimed` · `in_progress` 일 때만 턴 종료를 막는다. 리스가 만료돼도 `in_review` 는
+     `ready` 로 돌아가지 않아 다른 세션이 가져가지 못하고, 같은 세션은 `nerv_task_claim` 으로 되찾는다(NERV
+     `TASK_RECLAIMABLE_STATUSES`). 지적 수정 · 처분 · 테스트 재확인도 `in_review` 에서 이어 하고 그대로 done 으로 넘긴다.
+     리뷰 뒤 처분 커밋이 아닌 구현을 새로 하게 되면 `in_progress` 로 되돌린다. 근거와 관찰은 NERV Task `CLE-T-T03809`.
    - **`--impl-done` 도 함께 띄운다**: 5 의 post-impl 일관성 검토를 리뷰와 같은 턴에 띄운다. 두 Workflow 는 서로 기다리지 않는다.
 2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록(로컬)하고 전체 위험도·Critical/Warning 수를 확인.
 3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다(제출 도우미,

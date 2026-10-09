@@ -76,6 +76,8 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 - **탐색은 위임한다**: 파일 여러 개를 훑는 조사는 `Explore` 서브에이전트에 맡기고 결론만 받는다. 메인에서 직접 읽을 때는
   `grep` · `sed -n` 을 Bash 호출 하나로 묶는다.
 - **기다릴 때는 알림을 쓴다**: Workflow · 백그라운드 명령은 완료 알림을 기다린다. `until` · `sleep` 폴링 루프로 기다리지 않는다.
+  기다리는 동안에는 NERV 클레임을 풀지 않는다. 리뷰 단계는 Task 를 `in_review` 로 두고, Stop 훅에 막히면 무엇을 기다리는지
+  한 줄 남긴 뒤 다시 끝낸다(developer SKILL §REVIEW WORKFLOW 「리뷰 대기와 클레임」).
 - **효과는 잰다**: `python3 .claude/tools/usage_report.py --since <YYYY-MM-DD>` 가 평균 컨텍스트 · 구성별 비용 · 작업당 라운드를 낸다.
 
 ## Skill 체계

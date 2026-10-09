@@ -51,6 +51,8 @@ stdout 마지막 줄 = 세션 디렉토리 절대경로. **`--prepare` 는 chang
 
 ### 2. Workflow 실행 (Route → Review → Summary, 기본 경로)
 
+Task 를 클레임한 세션이면 Workflow 를 띄우기 직전에 Task 를 `in_review` 로 둔다. 완료 알림을 기다리느라 턴을 끝내도 NERV Stop 훅이 막지 않고 클레임도 유지된다(developer SKILL §REVIEW WORKFLOW 「리뷰 대기와 클레임」).
+
 `--prepare` 가 만든 `_retry_state.json` 은 model-free manifest (경로뿐). 짧게 Read 해 매니페스트를 추출하고 `Workflow` tool 에 넘긴다 — router 호출·선별·reviewer fan-out·STATUS 추적·수렴을 Workflow 가 결정적으로 처리 (옛 step 2.5 라우터 → `--apply-routing` → fan-out → `--update` → summary 수작업 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책).
 
 ```text
