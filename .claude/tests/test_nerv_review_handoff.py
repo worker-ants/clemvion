@@ -11,8 +11,8 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`). 두 LLM 이 손으로 옮
 
 클래스별 목록. `.claude/tests/README.md` 의 카탈로그 행은 요약이고 이 목록이 정본이다. 클래스를 더하면 여기를 먼저 고친다.
 
-  - FetchTest — 커서를 따라 열린 발견을 모두 읽는다. 필드 이름을 인계 스키마로 바꾼다. escalated 는 뺀다. 응답 이상 · 끝나지
-    않는 커서는 `HandoffError`.
+  - FetchTest — 커서를 따라 열린 발견을 모두 읽는다(순회 자체는 `_shared/nerv_read.py` 의 것이다). 필드 이름을 인계 스키마로
+    바꾼다. escalated 는 뺀다. 응답 이상 · 끝나지 않는 커서는 `HandoffError`.
   - CheckTest — `_dispositions.json` 불변식 전부(전체 ID · 한 번씩 · resolution · rationale · fixed 의 전체 해시와 도달성 ·
     escalate_reason · critical 하향 거부 · 제안 파일 이름 · 전수 처분). fixed 는 리뷰한 브랜치 기준으로 판정하고 없으면
     HEAD. 전체 해시의 정의는 `git_probe` 하나다.
@@ -22,13 +22,15 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`). 두 LLM 이 손으로 옮
     목록은 `ok: false`. 덜 모인 목록은 통과한 것만 기록한다. NERV 설정 없음 · 읽기 실패 · 인계 파일 없음 · 쓸 수 없는 경로는
     앞 실행의 파일을 `ok: false` 문서나 보고된 오류로 바꾼다.
   - OutPathTest — 입력 파일을 `--out` 으로 줘도 거절하고 지키며(exit 2) `pending` 이 죽어도 앞 문서가 남지 않는다.
-    문서 `version` 은 `out_doc.VERSION`. 도구에 자체 git 호출이 없다.
+    앞 문서를 지우지 못하면 NERV 를 읽기 전에 거절한다(exit 2). 문서 `version` 은 `out_doc.VERSION`. 도구에 자체 git 호출이 없다.
   - CliTest — 문제가 있으면 exit 1, `fetch` 는 `--branch` 필요, loopback 서버로 REST 경로와 인증 헤더 확인, 설정 누락은 크래시가
     아니라 오류.
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -468,6 +470,19 @@ class OutPathTest(_SessionCase):
                 self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
                 self.assertIn("이 도구가 쓴 --out 문서가 아니다", r.stderr)
                 self.assertEqual(target.read_bytes(), before)
+
+    def test_a_previous_file_that_cannot_be_removed_is_refused_before_any_work(self):
+        # 지우지 못하는 디렉터리에는 쓰지도 못해서 앞 실행의 ok:true 문서가 남는다. NERV 를 읽기 전에 exit 2 로 끝낸다.
+        self.out.write_text(json.dumps({"version": 1, "ok": True, "dispositions": []}), encoding="utf-8")
+        before = self.out.read_bytes()
+        err = io.StringIO()
+        with mock.patch.object(tool.out_doc.os, "unlink", side_effect=PermissionError(13, "Permission denied")), \
+                mock.patch.object(tool.nerv_read, "client_from_env", side_effect=AssertionError("NERV 를 읽었다")), \
+                contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as caught:
+            tool.main(["pending", str(self.sd), "--branch", "feature", "--out", str(self.out)])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("지우지 못했다", err.getvalue())
+        self.assertEqual(self.out.read_bytes(), before)
 
     def test_the_previous_file_is_removed_before_the_work_so_a_crash_leaves_no_stale_document(self):
         # `pending` 이 잡히지 않는 예외로 죽는 경우. 시작할 때 지우는 호출이 없으면 앞 실행의 ok:true 문서가 남는다.

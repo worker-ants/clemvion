@@ -65,12 +65,10 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
   - `unknown` 이 있으면 `ok: false` 이고 `dispositions` 는 비어 있다.
   - `items` 는 처분마다 `<발견 ID 끝 8자> <resolution> <severity>` 한 줄이다. main 이 분포를 본다.
   - 처분 문서를 만들 수 없는 실패(NERV 읽기 실패 · 설정 누락 · 인계 파일 문제)도 `{"version": 1, "ok": false,
-    "errors": [...], "dispositions": [], ...}` 를 `--out` 에 쓰고 exit 1 이다. 인자를 검사한 뒤 시작할 때 앞
-    실행의 파일을 지우므로 인자 오류(exit 2)를 뺀 모든 종료에서 `--out` 에는 이번 실행의 결과만 있다
-    (`_shared/out_doc.py`. `nerv_review_payload.py --out` 도 같은 규칙이다). 인자 오류는 세션 디렉터리가 없을 때를
-    포함하고, 문서를 쓰지도 지우지도 않아서 앞 실행의 파일이 그대로 남는다. 그래서 exit 가 0 일 때만 그 파일을 기록
-    서브에이전트에 넘긴다. `--out` 이 이미 있는 파일인데 이 도구가 쓴 문서가 아니면(`_dispositions.json` · 사용자
-    파일) 지우지 않고 인자 오류로 거절한다.
+    "errors": [...], "dispositions": [], ...}` 를 `--out` 에 쓰고 exit 1 이다. 낡은 문서를 남기지 않는 규칙(앞 실행의
+    파일을 지운다 · exit 2 만 예외다 · exit 가 0 일 때만 기록 서브에이전트에 넘긴다 · 이 도구의 문서가 아닌 파일은
+    거절한다)의 정본은 `_shared/out_doc.py` docstring 이다. `nerv_review_payload.py --out` 도 같다. 세션 디렉터리가
+    없을 때는 인자 오류(exit 2)다.
 
 출력은 JSON 이고, 문제가 있으면 exit 1 이다. 이 도구는 NERV 를 읽기만 한다(`_shared/nerv_read.py`).
 `fetch` · `pending` 은 NERV 를 읽으므로 `NERV_SERVER` · `NERV_TOKEN`(선택 `NERV_PROJECT`)이 필요하다.
@@ -85,7 +83,6 @@ import json
 import os
 import re
 import sys
-import urllib.parse
 
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _CLAUDE_DIR not in sys.path:
@@ -95,9 +92,6 @@ from _shared import git_probe, nerv_read, out_doc  # noqa: E402
 VERSION = 1
 FINDINGS_FILE = "_nerv_findings.json"
 DISPOSITIONS_FILE = "_dispositions.json"
-FINDINGS_PATH = "/api/v1/projects/{project}/findings"
-PAGE_LIMIT = 100
-MAX_PAGES = 50  # 5,000건. 커서가 돌면 여기서 끊는다
 
 RESOLUTIONS = ("fixed", "wont_fix", "dismissed", "escalated")
 # `pending --out` 이 처분마다 남기는 `nerv_finding_resolve` 인자.
@@ -116,31 +110,10 @@ class HandoffError(Exception):
 
 def open_findings(client, branch: str) -> list[dict]:
     """이 브랜치의 열린 발견 전부(커서를 따라간다). 처분이 붙은 것(escalated)도 섞여 있다."""
-    items: list[dict] = []
-    cursor = None
-    for _ in range(MAX_PAGES):
-        query = {"branch": branch, "status": "open", "limit": str(PAGE_LIMIT)}
-        if cursor:
-            query["cursor"] = cursor
-        path = FINDINGS_PATH.format(project=client.project) + "?" + urllib.parse.urlencode(query)
-        try:
-            status, body = client.get(path)
-        except Exception as exc:  # noqa: BLE001 — 전송 실패
-            raise HandoffError(f"NERV 발견 목록을 읽지 못했다 — {type(exc).__name__}: {exc}") from exc
-        if status != 200:
-            raise HandoffError(f"NERV 발견 목록 응답 {status}")
-        try:
-            doc = json.loads(body)
-        except ValueError as exc:
-            raise HandoffError("NERV 발견 목록 응답이 JSON 이 아니다") from exc
-        page = doc.get("items") if isinstance(doc, dict) else None
-        if not isinstance(page, list):
-            raise HandoffError("NERV 발견 목록 응답에 items 가 없다")
-        items.extend(x for x in page if isinstance(x, dict))
-        cursor = doc.get("next_cursor")
-        if not cursor:
-            return items
-    raise HandoffError(f"NERV 발견 목록이 {MAX_PAGES} 쪽을 넘는다 — 끊는다")
+    try:
+        return nerv_read.branch_findings(client, branch, "open")
+    except nerv_read.NervRequestError as exc:
+        raise HandoffError(str(exc)) from exc
 
 
 def unresolved_findings(client, branch: str) -> list[dict]:
@@ -368,11 +341,7 @@ def resolve_brief(doc: dict, path: str) -> dict:
 
 def _write_resolve_out(path: str, doc: dict) -> dict:
     """처분 문서를 `--out` 에 쓰고 stdout 요약을 돌려준다. 못 썼으면 요약의 `ok` 를 false 로 두고 사유를 덧붙인다."""
-    note = out_doc.write_or_note(path, doc)
-    summary = resolve_brief(doc, path)
-    if note:
-        summary = {**summary, "ok": False, "errors": [*summary.get("errors", []), note]}
-    return summary
+    return out_doc.write_with_summary(path, doc, resolve_brief(doc, path))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -389,9 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out and args.command != "pending":
         ap.error("--out 은 pending 에만 준다")
     if args.out:
-        refusal = out_doc.begin(args.out)  # 인자 검사 뒤: 앞 실행의 문서를 치운다. 이 도구의 문서가 아닌 파일은 건드리지 않는다
-        if refusal:
-            ap.error(refusal)
+        out_doc.begin_or_exit(ap, args.out)  # 인자 검사 뒤: 앞 실행의 문서를 치운다. 이 도구의 문서가 아닌 파일은 건드리지 않는다
     try:
         if args.command == "check":
             out = check(args.session_dir)

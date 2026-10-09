@@ -35,11 +35,9 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저
     셋 다 비면 오류다.
   - 오류가 있거나 강제 역할이 빠졌으면 `ok: false` 로 쓰고 `submit` 을 싣지 않는다. exit 1 이다.
   - 문서를 만들 수 없는 실패(세션 디렉터리 없음 · kind 미정)도 `{"version": 1, "ok": false, "errors": [...]}`
-    를 `--out` 에 쓰고 exit 1 이다. 인자를 검사한 뒤 시작할 때 앞 실행의 파일을 지우므로 인자 오류(exit 2)를
-    뺀 모든 종료에서 `--out` 에는 이번 실행의 결과만 있다(`_shared/out_doc.py`. `nerv_review_handoff.py pending
-    --out` 도 같은 규칙이다). 인자 오류는 문서를 쓰지도 지우지도 않아서 앞 실행의 파일이 그대로 남는다. 그래서
-    exit 가 0 일 때만 그 파일을 기록 에이전트에 넘긴다. `--out` 이 이미 있는 파일인데 이 도구가 쓴 문서가
-    아니면(입력 파일 · 사용자 파일) 지우지 않고 인자 오류로 거절한다.
+    를 `--out` 에 쓰고 exit 1 이다. 낡은 문서를 남기지 않는 규칙(앞 실행의 파일을 지운다 · exit 2 만 예외다 · exit 가
+    0 일 때만 기록 에이전트에 넘긴다 · 이 도구의 문서가 아닌 파일은 거절한다)의 정본은 `_shared/out_doc.py`
+    docstring 이다. `nerv_review_handoff.py pending --out` 도 같다.
 
 출력(JSON):
     {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
@@ -637,9 +635,7 @@ def main(argv: list[str] | None = None) -> int:
             ap.error(f"--out 에는 {' '.join(absent)} 도 준다")
         if args.run < 1:
             ap.error("--run 은 1 이상이다")
-        refusal = out_doc.begin(args.out)  # 인자 검사 뒤: 앞 실행의 문서를 치운다. 이 도구의 문서가 아닌 파일은 건드리지 않는다
-        if refusal:
-            ap.error(refusal)
+        out_doc.begin_or_exit(ap, args.out)  # 인자 검사 뒤: 앞 실행의 문서를 치운다. 이 도구의 문서가 아닌 파일은 건드리지 않는다
     try:
         out = build(args.session_dir, args.kind, keep_info=args.keep_info)
     except SessionError as exc:
@@ -665,10 +661,7 @@ def _failed_doc(kind: str | None, session_dir: str, message: str) -> dict:
 
 def _write_out(path: str, doc: dict) -> int:
     """`--out` 문서를 쓰고 요약을 stdout 에 낸다. 못 쓰면 그 사실을 알리고 실패한다."""
-    note = out_doc.write_or_note(path, doc)
-    summary = brief(doc, path)
-    if note:
-        summary = {**summary, "ok": False, "errors": [*summary["errors"], note]}
+    summary = out_doc.write_with_summary(path, doc, brief(doc, path))
     json.dump(summary, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0 if summary["ok"] else 1

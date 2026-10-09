@@ -28,9 +28,9 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
     실패 · 세션이 저장소 밖). 멱등 키는 내용 해시를 따른다. git 은 세션의 저장소에서 돈다. `base_sha` 는 merge-base. 한글
     경로는 C-quote 되지 않는다. 로컬 `--branch` 에 닿지 않는 `--head` 는 풀 방법을 말하는 오류. 도구에 `git`/`subprocess`
     호출이 없다. `--out` 은 인자 오류(exit 2)를 뺀 모든 종료에서 이번 실행의 결과만 남기고(시작 때 지우는 호출이 main 에
-    걸려 있는지는 build 를 터뜨려 본다), 이 도구의 문서가 아닌 파일은 거절한다.
-  - OutDocSharedTest — `_shared/out_doc.py`: `begin`(지움 · 거절) · `write`(통째로 바꿔 넣음) · `failure` · `write_or_note` ·
-    `VERSION`.
+    걸려 있는지는 build 를 터뜨려 본다), 이 도구의 문서가 아닌 파일과 지우지 못하는 앞 문서는 거절한다(exit 2).
+  - OutDocSharedTest — `_shared/out_doc.py`: `begin`(지움 · 거절 · 못 지우면 거절) · `begin_or_exit` · `write`(통째로 바꿔
+    넣음) · `failure` · `write_or_note` · `write_with_summary` · `VERSION`.
   - RealSessionShapeTest — 파서의 하위 항목 이름이 모든 리뷰어 · checker · analyzer 정의의 출력 형식과 같다.
   - InfoFoldTest(NERV Task `CLE-T-ZTTHXD`) — code · consistency 의 INFO 는 `summary` 끝에 제목 · 위치로 접는다. `[SPEC-DRIFT]`
     INFO 는 발견으로 남고 merge 는 INFO 를 그대로 둔다. `--keep-info` 는 옛 모양. 노트 상한.
@@ -38,7 +38,10 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
 
 from __future__ import annotations
 
+import argparse
 import ast
+import contextlib
+import io
 import json
 import os
 import re
@@ -808,6 +811,20 @@ class OutFileTest(unittest.TestCase):
             tool.main([str(self.sd), *self.submit_args()])
         self.assertFalse(self.out.exists())
 
+    def test_a_previous_file_that_cannot_be_removed_is_refused_instead_of_left_to_the_write(self):
+        # 지우지 못하는 디렉터리에는 쓰지도 못한다. 모르는 척 진행하면 앞 실행의 ok:true 문서가 exit 1 뒤에도 남는다.
+        # 그래서 시작 때 거절하고(exit 2) 문서 규칙의 예외(파일은 그대로, 호출자는 exit 가 0 이 아니면 부르지 않는다)에 들어간다.
+        self.stale_out()
+        before = self.out.read_bytes()
+        err = io.StringIO()
+        with mock.patch.object(tool.out_doc.os, "unlink", side_effect=PermissionError(13, "Permission denied")), \
+                contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as caught:
+            tool.main([str(self.sd), *self.submit_args()])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("지우지 못했다", err.getvalue())
+        self.assertIn("Permission denied", err.getvalue())
+        self.assertEqual(self.out.read_bytes(), before)
+
     def test_a_file_that_is_not_an_out_document_is_refused_and_kept(self):
         # `--out` 을 입력 파일로 잘못 줘도 실행이 실패하면서 그 파일이 사라지면 안 된다. 인자 오류(exit 2)로 거절한다.
         notes = self.sd / "notes.txt"
@@ -883,6 +900,47 @@ class OutDocSharedTest(unittest.TestCase):
     def test_the_version_is_the_one_the_recorder_checks(self):
         self.assertEqual(self.out_doc.VERSION, 1)  # nerv-recorder 규칙 4: version 이 1 이 아니면 아무것도 부르지 않는다
         self.assertEqual(self.out_doc.failure(["x"])["version"], self.out_doc.VERSION)
+
+    def test_begin_refuses_a_previous_document_it_cannot_remove_and_keeps_it(self):
+        # 못 지우는 이유(디렉터리 권한)는 쓰기에도 걸린다. 삼키고 None 을 돌려주면 낡은 `ok: true` 가 남은 채 통과한다.
+        path = self.tmp / "p.json"
+        body = json.dumps({"version": 1, "ok": True})
+        path.write_text(body, encoding="utf-8")
+        with mock.patch.object(self.out_doc.os, "unlink", side_effect=PermissionError(13, "Permission denied")):
+            reason = self.out_doc.begin(str(path))
+        self.assertIn("지우지 못했다", reason or "")
+        self.assertIn("Permission denied", reason or "")
+        self.assertEqual(path.read_text(encoding="utf-8"), body)
+
+    def test_begin_tolerates_a_file_that_vanished_between_the_check_and_the_remove(self):
+        path = self.tmp / "p.json"
+        path.write_text(json.dumps({"version": 1, "ok": True}), encoding="utf-8")
+        with mock.patch.object(self.out_doc.os, "unlink", side_effect=FileNotFoundError(2, "No such file")):
+            self.assertIsNone(self.out_doc.begin(str(path)))
+
+    def test_begin_or_exit_ends_a_refusal_as_an_argument_error(self):
+        ap = argparse.ArgumentParser(prog="t")
+        stray = self.tmp / "notes.txt"
+        stray.write_text("내 메모\n", encoding="utf-8")
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit) as caught:
+            self.out_doc.begin_or_exit(ap, str(stray))
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("이 도구가 쓴 --out 문서가 아니다", err.getvalue())
+        self.assertEqual(stray.read_text(encoding="utf-8"), "내 메모\n")
+        self.assertIsNone(self.out_doc.begin_or_exit(ap, str(self.tmp / "none.json")))  # 없으면 지나간다
+
+    def test_write_with_summary_merges_a_failed_write_into_the_summary(self):
+        ok = self.tmp / "ok.json"
+        summary = {"ok": True, "n": 1}
+        self.assertEqual(self.out_doc.write_with_summary(str(ok), {"ok": True}, summary), summary)
+        bad = str(self.tmp / "no-such-dir" / "p.json")
+        for before in ({"ok": True, "errors": ["앞"]}, {"ok": True}):  # `errors` 키가 없는 요약도 받는다
+            with self.subTest(keys=sorted(before)):
+                merged = self.out_doc.write_with_summary(bad, {"ok": True}, before)
+                self.assertFalse(merged["ok"])
+                self.assertEqual(merged["errors"][:-1], before.get("errors", []))
+                self.assertIn("--out 을 쓰지 못했다", merged["errors"][-1])
+                self.assertTrue(before["ok"])  # 받은 요약은 바꾸지 않는다
 
     def test_write_or_note_reports_a_failed_write_instead_of_raising(self):
         self.assertIsNone(self.out_doc.write_or_note(str(self.tmp / "ok.json"), {"ok": True}))

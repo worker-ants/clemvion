@@ -6,11 +6,18 @@ NERV Task `CLE-T-CD9131`. 기록 서브에이전트는 반환의 건수를 틀�
   - SubmitTest — 역할은 문서 head 의 N1 라운드 `roles.reported` 로, 발견은 브랜치의 모든 상태 · 모든 쪽에서 제목으로 찾아
     필드 여섯 개(severity · body · suggestion · file · line · category)를 비교한다. 같은 제목이 여럿이면 head → 전부 일치 →
     category 순으로 고른다. 바뀐 값은 처음 달라지는 곳의 발췌만 싣고 본문 전문은 싣지 않는다. 응답에 없는 키와 역할 정보는
-    `unverified` 이고 막지 않는다.
+    `unverified` 이고 막지 않는다. N1 에 물어 본 적 없는 kind(`merge` · `spec_coverage`)는 N1 을 부르지 않고 역할 대조만
+    `unverified` 로 둔다.
   - ResolveTest — 처분마다 resolution · rationale · commit_sha 를 비교한다. 기록이 없거나 처분이 붙지 않았으면 missing.
+    `resolution_kind` 키가 응답에 아예 없으면 missing 이 아니라 `unverified`. `--approval-pending` 으로 보고된 처분은 기록이
+    없어도 missing 이 아니다(기록이 있으면 비교한다). 문서에 없는 기록은 보지 않는다(문서화한 한계를 고정한다).
+  - ReadFailureTest — 읽기가 실패하는 네 모양(전송 예외 · JSON 아님 · `items` 없음 · 끝나지 않는 커서)이 모두
+    `NervRequestError` 이고 CLI 에서는 exit 3 이다. 이것이 새면 파이썬 트레이스백과 exit 1 이 나와 호출자가 `missing` 으로
+    읽고 기록 에이전트를 불필요하게 다시 부른다.
   - CliTest — 종료 코드(0 일치 · 1 불일치 · 2 인자 · 3 대조 불가)와 JSON 한 줄. 문서 형식 문제는 NERV 설정보다 먼저 알린다.
-    실물 `pull.Nerv` 로 루프백 가짜 서버의 두 경로를 읽고, 오류 출력에 토큰이 없다.
-  - SharedPathTest — REST 경로가 인계 도구 · push 게이트의 것과 같다.
+    실물 `pull.Nerv` 로 루프백 가짜 서버의 두 경로를 읽고, 오류 출력에 토큰이 없다. `--approval-pending` 은 resolve 에만 준다.
+  - SharedReadTest — REST 경로 · 쪽수 상한 · 순회가 `_shared/nerv_read.py` 하나에 있고 인계 도구 · 대조 도구 · push 게이트가
+    복사본을 갖지 않는다.
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ import _harness
 
 TOOL_PATH = _harness.CLAUDE_DIR / "tools" / "nerv_record_verify.py"
 tool = _harness.load_module_by_path("nerv_record_verify_under_test", TOOL_PATH)
+nerv_read = tool.nerv_read  # 도구가 `.claude` 를 import 경로에 올려 불러온 `_shared.nerv_read`
 
 BRANCH = "feature"
 HEAD = "ab" * 20
@@ -81,16 +89,22 @@ class FakeNerv:
 
     project = "clemvion"
 
-    def __init__(self, records=(), n1=None, *, page_size=100, n1_status=200, findings_status=200):
+    def __init__(self, records=(), n1=None, *, page_size=100, n1_status=200, findings_status=200,
+                 findings_raw=None, endless_cursor=False, raise_on=None):
         self.records = list(records)
         self.n1 = n1
         self.page_size = page_size
         self.n1_status = n1_status
         self.findings_status = findings_status
+        self.findings_raw = findings_raw  # 발견 목록 요청에 200 으로 이 본문을 그대로 돌려준다
+        self.endless_cursor = endless_cursor  # 발견 목록이 늘 같은 `next_cursor` 를 돌려준다
+        self.raise_on = raise_on  # 이 접미 경로를 부르면 전송 예외를 던진다
         self.calls: list[str] = []
 
     def get(self, path):
         self.calls.append(path)
+        if self.raise_on and urllib.parse.urlsplit(path).path.endswith(self.raise_on):
+            raise OSError("curl 을 실행하지 못했다")
         return self.answer(path)
 
     def answer(self, path):
@@ -102,6 +116,10 @@ class FakeNerv:
         if parts.path == "/api/v1/projects/clemvion/findings":
             if self.findings_status != 200:
                 return self.findings_status, b'{"ok": false}'
+            if self.findings_raw is not None:
+                return 200, self.findings_raw
+            if self.endless_cursor:
+                return 200, json.dumps({"items": [], "next_cursor": "again"}).encode()
             rows = [r for r in self.records if r["status"] == query["status"][0]
                     and r["branch"] == query["branch"][0]]
             start = int(query.get("cursor", ["0"])[0])
@@ -157,6 +175,21 @@ class SubmitTest(unittest.TestCase):
                 self.assertEqual(len(out["unverified"]), 1)
                 self.assertTrue(out["unverified"][0].startswith("roles: "), out)
                 self.assertIn(needle, out["unverified"][0])
+
+    def test_a_kind_n1_is_not_asked_about_skips_the_role_check_and_still_compares_findings(self):
+        # 저장소는 N1 에 code · consistency 만 물어 왔다. 다른 kind 를 400 으로 거절하면 발견 대조까지 exit 3 이 된다.
+        for kind in ("merge", "spec_coverage"):
+            with self.subTest(kind=kind):
+                self.doc["submit"]["kind"] = kind
+                out = self.run_doc(n1=None)
+                self.assertEqual(self.nerv.queries("/gates/reviews/check"), [])
+                self.assertTrue(out["ok"], out)
+                self.assertEqual(len(out["unverified"]), 1)
+                self.assertTrue(out["unverified"][0].startswith("roles: "), out)
+                self.assertIn(f"kind={kind}", out["unverified"][0])
+                # 발견 대조는 그대로 돈다.
+                altered = self.run_doc([record(1, self.a, detail_md="바뀐 본문"), record(2, self.b)], n1=None)
+                self.assertEqual(len(altered["altered"]), 1, altered)
 
     def test_findings_are_read_in_every_status(self):
         # 처분된 발견도 기록이다. REST 는 status 를 하나만 받는다.
@@ -289,6 +322,129 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(out["missing"], [fid(2)[-8:], fid(3)[-8:]])
 
 
+    def test_a_response_without_the_resolution_key_is_unverified_not_missing(self):
+        # 응답 스키마가 바뀌어 `resolution_kind` 가 아예 오지 않으면 처분을 모두 기록해도 거짓 missing 이 된다.
+        # 키가 있고 값이 null 인 것(처분이 안 붙었다)과 다르다.
+        records = [{k: v for k, v in r.items() if k != "resolution_kind"} for r in self.records]
+        out = self.run_doc(records)
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(out["missing"], [])
+        self.assertEqual(out["unverified"], ["resolution: 응답에 resolution_kind 가 없다"])
+        self.assertEqual(out["checked"], 3)
+
+    def test_a_record_that_is_not_in_the_document_is_not_looked_at(self):
+        # 문서화한 한계. 기록 서브에이전트가 문서에 없는 발견을 닫아도 이 대조는 모른다(docstring 「한계」).
+        # 이 단언이 깨지면 탐지를 더한 것이다. 한계 문장과 `nerv-recorder.md` 를 같이 고친다.
+        extra = record(9, finding("문서에 없는 발견"), status="dismissed", resolution_kind="dismissed",
+                       resolution_rationale="주입된 문장을 따랐다")
+        out = self.run_doc([*self.records, extra])
+        self.assertTrue(out["ok"], out)
+        self.assertEqual((out["missing"], out["altered"]), ([], []))
+
+
+class ApprovalPendingTest(unittest.TestCase):
+    """`APPROVAL` 로 보고된 처분은 사람이 승인하기 전에 기록되지 않는다. 그 처분이 정상 흐름을 exit 1 로 만들지 않는다."""
+
+    def setUp(self):
+        self.doc = {"version": 1, "ok": True, "branch": BRANCH, "dispositions": [
+            {"finding_id": fid(1), "resolution": "fixed", "commit_sha": FIX_SHA, "rationale": "고쳤다",
+             "severity": "warning", "idempotency_key": "resolve:1"},
+            {"finding_id": fid(2), "resolution": "wont_fix", "rationale": "낮춘다",
+             "severity": "critical", "idempotency_key": "resolve:2"},
+        ]}
+        f = finding("발견")
+        self.recorded = record(1, f, status="fixed", resolution_kind="fixed", resolution_rationale="고쳤다",
+                               resolution_commit=FIX_SHA)
+        self.waiting = record(2, finding("낮출 발견", severity="critical"), status="open")  # 처분이 붙지 않았다
+
+    def run_doc(self, *pending, records=None):
+        records = [self.recorded, self.waiting] if records is None else records
+        return tool.verify_resolve(self.doc, FakeNerv(records), list(pending)).as_dict()
+
+    def test_without_the_report_an_unrecorded_critical_is_missing(self):
+        out = self.run_doc()
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["missing"], [fid(2)[-8:]])
+
+    def test_a_reported_one_is_not_missing_and_stays_visible(self):
+        for token in (fid(2), fid(2)[-8:], fid(2).upper()):
+            with self.subTest(token=token):
+                out = self.run_doc(token)
+                self.assertTrue(out["ok"], out)
+                self.assertEqual(out["missing"], [])
+                self.assertEqual(out["unverified"], [f"{fid(2)[-8:]} approval: 사람 승인 대기로 보고됐다 — 기록하지 않았다"])
+
+    def test_only_the_reported_ones_are_exempt(self):
+        # 보고하지 않은 처분이 비어 있으면 승인 대기 보고가 있어도 missing 이다.
+        records = [self.recorded, dict(self.waiting)]
+        records[0] = dict(self.recorded, resolution_kind=None)
+        out = self.run_doc(fid(2), records=records)
+        self.assertEqual(out["missing"], [fid(1)[-8:]])
+
+    def test_a_reported_one_that_is_recorded_is_compared_like_any_other(self):
+        recorded = dict(self.waiting, resolution_kind="dismissed", resolution_rationale="다르게 기록됐다")
+        out = self.run_doc(fid(2), records=[self.recorded, recorded])
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["missing"], [])
+        self.assertTrue(any(line.startswith(f"{fid(2)[-8:]} resolution ") for line in out["altered"]), out)
+
+    def test_an_id_that_is_not_in_the_document_is_noted_and_exempts_nothing(self):
+        out = self.run_doc("deadbeef")
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["missing"], [fid(2)[-8:]])
+        self.assertIn("approval: 문서에 없는 ID deadbeef", out["unverified"])
+
+
+class ReadFailureTest(unittest.TestCase):
+    """읽기가 실패하면 `NervRequestError`(CLI 에서는 exit 3)다. 새면 트레이스백과 exit 1 이 나와 `missing` 으로 읽힌다."""
+
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.a = finding("가드가 없다")
+        self.doc = payload({"testing": [self.a]})
+        self.doc_path = self.tmp / "_nerv_payload.json"
+        self.doc_path.write_text(json.dumps(self.doc, ensure_ascii=False), encoding="utf-8")
+
+    def cases(self):
+        n1 = n1_item(["testing"])
+        rec = [record(1, self.a)]
+        return {
+            "전송 예외(N1)": FakeNerv(rec, n1, raise_on="/gates/reviews/check"),
+            "전송 예외(발견 목록)": FakeNerv(rec, n1, raise_on="/findings"),
+            "JSON 이 아니다": FakeNerv(rec, n1, findings_raw=b"<html>502</html>"),
+            "items 가 없다": FakeNerv(rec, n1, findings_raw=b'{"count": 1}'),
+            "items 가 목록이 아니다": FakeNerv(rec, n1, findings_raw=b'{"items": {"a": 1}}'),
+            "끝나지 않는 커서": FakeNerv(rec, n1, endless_cursor=True),
+        }
+
+    def test_every_failed_read_raises_the_request_error(self):
+        for label, nerv in self.cases().items():
+            with self.subTest(label), self.assertRaises(nerv_read.NervRequestError):
+                tool.verify_submit(self.doc, nerv)
+
+    def test_a_cursor_that_never_ends_is_cut_at_the_page_limit(self):
+        nerv = FakeNerv([], n1_item(["testing"]), endless_cursor=True)
+        with self.assertRaises(nerv_read.NervRequestError) as caught:
+            tool.verify_submit(self.doc, nerv)
+        self.assertIn(str(nerv_read.MAX_PAGES), str(caught.exception))
+        self.assertEqual(len(nerv.queries("/findings")), nerv_read.MAX_PAGES)
+
+    def test_the_cli_exits_three_with_the_reason_and_no_traceback(self):
+        for label, nerv in self.cases().items():
+            with self.subTest(label):
+                out = io.StringIO()
+                with mock.patch.object(tool.nerv_read, "client_from_env", return_value=nerv), \
+                        contextlib.redirect_stdout(out):
+                    code = tool.main(["submit", str(self.doc_path)])
+                self.assertEqual(code, 3, out.getvalue())
+                report = json.loads(out.getvalue())
+                self.assertFalse(report["ok"])
+                self.assertEqual(report["checked"], 0)
+                self.assertEqual(len(report["errors"]), 1)
+                self.assertIn("NERV", report["errors"][0])
+
+
 class CliTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
@@ -375,6 +531,25 @@ class CliTest(unittest.TestCase):
     def test_usage_errors_exit_two(self):
         self.assertEqual(self.run_cli("submit", str(self.tmp / "none.json")).returncode, 2)
         self.assertEqual(self.run_cli("check", str(self.doc_path)).returncode, 2)
+        # 승인 대기 보고는 처분 대조에만 있다.
+        self.assertEqual(self.run_cli("submit", str(self.doc_path), "--approval-pending", "deadbeef").returncode, 2)
+
+    def test_approval_pending_ids_are_passed_to_the_resolve_check(self):
+        doc = {"version": 1, "ok": True, "branch": BRANCH, "dispositions": [
+            {"finding_id": fid(2), "resolution": "wont_fix", "rationale": "낮춘다", "severity": "critical"},
+            {"finding_id": fid(3), "resolution": "dismissed", "rationale": "낮춘다", "severity": "critical"}]}
+        self.write(doc)
+        waiting = [record(n, finding(f"낮출 발견 {n}", severity="critical")) for n in (2, 3)]
+        code, stdout = self.run_main(FakeNerv(waiting), "resolve", str(self.doc_path))
+        self.assertEqual(code, 1, stdout)
+        # 쉼표로 이어 줘도 되고 여러 번 줘도 된다.
+        code, stdout = self.run_main(FakeNerv(waiting), "resolve", str(self.doc_path), "--approval-pending",
+                                     f"{fid(2)[-8:]},{fid(3)[-8:]}")
+        self.assertEqual(code, 0, stdout)
+        code, stdout = self.run_main(FakeNerv(waiting), "resolve", str(self.doc_path), "--approval-pending",
+                                     fid(2)[-8:], "--approval-pending", fid(3))
+        self.assertEqual(code, 0, stdout)
+        self.assertEqual(len(json.loads(stdout)["unverified"]), 2)
 
     def test_over_the_wire_with_the_real_client(self):
         nerv = FakeNerv([record(1, self.a, detail_md="다른 본문")], n1_item(["testing"]))
@@ -397,14 +572,34 @@ class CliTest(unittest.TestCase):
         self.assertNotIn("tok-secret-9", r.stdout + r.stderr)
 
 
-class SharedPathTest(unittest.TestCase):
-    def test_rest_paths_match_the_other_readers(self):
+class SharedReadTest(unittest.TestCase):
+    """NERV 읽기의 경로 · 쪽수 상한 · 커서 순회는 `_shared/nerv_read.py` 에만 있다. 상수만 같게 맞추던 복사본을 없앴다."""
+
+    TOOLS = {"record_verify": TOOL_PATH, "review_handoff": _harness.CLAUDE_DIR / "tools" / "nerv_review_handoff.py"}
+
+    def test_consumers_use_the_shared_definitions(self):
         from _lib import review_guard
 
-        handoff = _harness.load_module_by_path("nerv_review_handoff_for_verify",
-                                               _harness.CLAUDE_DIR / "tools" / "nerv_review_handoff.py")
-        self.assertEqual(tool.N1_PATH, review_guard.N1_PATH)
-        self.assertEqual(tool.FINDINGS_PATH, handoff.FINDINGS_PATH)
+        self.assertEqual(review_guard.N1_PATH, nerv_read.N1_PATH)
+        self.assertEqual(review_guard.N1_KINDS, nerv_read.N1_KINDS)
+        self.assertTrue(nerv_read.FINDINGS_PATH.endswith("/findings"))
+
+    def test_the_tools_keep_no_copy_of_the_constants_or_the_cursor_loop(self):
+        for name, path in self.TOOLS.items():
+            module = tool if path == TOOL_PATH else _harness.load_module_by_path(f"nerv_{name}_for_shared_read", path)
+            with self.subTest(tool=name):
+                for const in ("FINDINGS_PATH", "N1_PATH", "PAGE_LIMIT", "MAX_PAGES"):
+                    self.assertFalse(hasattr(module, const), const)
+                self.assertNotIn("next_cursor", path.read_text(encoding="utf-8"))
+
+    def test_one_loop_serves_both_tools(self):
+        # 인계 도구는 같은 순회를 쓰되 오류를 자기 계약(`HandoffError`)으로 옮긴다.
+        handoff = _harness.load_module_by_path("nerv_review_handoff_for_loop", self.TOOLS["review_handoff"])
+        pages = FakeNerv([record(n, finding(f"발견 {n}")) for n in range(1, 6)], page_size=2)
+        self.assertEqual(len(handoff.open_findings(pages, BRANCH)), 5)
+        self.assertEqual(len(pages.queries("/findings")), 3)
+        with self.assertRaises(handoff.HandoffError):
+            handoff.open_findings(FakeNerv(endless_cursor=True), BRANCH)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
 그래서 main 은 반환의 수를 믿지 않고 이 도구로 NERV 의 기록과 문서를 대조한다.
 
     python3 .claude/tools/nerv_record_verify.py submit  <nerv_review_payload.py --out 문서>
-    python3 .claude/tools/nerv_record_verify.py resolve <nerv_review_handoff.py pending --out 문서>
+    python3 .claude/tools/nerv_record_verify.py resolve <nerv_review_handoff.py pending --out 문서> [--approval-pending ID,...]
 
 입력 문서 형식의 정본은 두 도구의 docstring 이다. 이 도구는 그중 다음 값만 쓴다.
   - submit: `version` · `ok` · `submit{kind, branch, head_sha}` · `submissions[{reviewer{role}, findings[{severity,
@@ -18,7 +18,9 @@
   - 역할. N1(`GET /api/v1/projects/<p>/gates/reviews/check?branch=&kind=&head_sha=`)에 문서의 branch · kind ·
     head 를 물어 그 head 의 라운드를 받는다. 문서의 역할이 모두 그 항목의 `roles.reported` 에 있어야 한다.
     `head_sha` 를 넘기므로 같은 브랜치에 그 뒤 라운드가 생겼어도 문서의 head 라운드를 본다. 응답에 그 kind 의
-    항목이나 `roles.reported` 가 없으면 역할 대조는 `unverified` 로 두고 막지 않는다.
+    항목이나 `roles.reported` 가 없으면 역할 대조는 `unverified` 로 두고 막지 않는다. 저장소에서 N1 에 물어 본
+    kind 는 `code` · `consistency` 뿐이다(`nerv_read.N1_KINDS`). `merge` · `spec_coverage` 제출은 N1 이 그 kind 에
+    어떻게 답하는지 확인하지 않았으므로 N1 을 부르지 않고 역할 대조를 `unverified` 로 둔다. 발견 대조는 그대로 한다.
   - 발견. 브랜치의 발견을 상태 네 가지(open · fixed · dismissed · wont_fix)로 따로 읽는다(`GET /api/v1/projects/
     <p>/findings?branch=&status=`, 커서를 따라간다). 이 REST 는 `status` 를 하나만 받는다. `all` 은 400 이었고
     `status` 를 빼면 처분된 발견이 나오지 않았다(2026-10-09). 문서의 발견마다 같은 `title` 의 기록을 찾는다.
@@ -27,7 +29,15 @@
     line(`line_start`) · category 를 비교한다. 제목으로 찾지 못하면 `missing` 이다.
 `resolve` 가 보는 것: 같은 발견 목록에서 처분의 `finding_id` 기록을 찾아 resolution(기록의 `resolution_kind`) ·
 rationale(`resolution_rationale`) · commit_sha(`resolution_commit`)를 비교한다. 기록이 없거나 처분이 붙지 않았으면
-(`resolution_kind` 가 비었으면) `missing` 이다.
+(`resolution_kind` 가 null 이거나 비었으면) `missing` 이다. 기록에 `resolution_kind` 키가 아예 없으면 처분이 붙었는지
+알 수 없으므로 그 처분은 `unverified` 로 두고 `missing` 으로 세지 않는다(응답 스키마가 바뀌었을 때 처분을 모두 기록하고도
+거짓 `missing` 으로 기록 서브에이전트를 다시 부르는 일을 막는다).
+
+`--approval-pending <ID>[,<ID>...]`(resolve 만, 여러 번 줄 수 있다)는 기록 서브에이전트가 `APPROVAL` 줄로 보고한 발견이다.
+critical 을 낮추는 처분은 사람이 승인하기 전에는 기록되지 않으므로 이 목록에 있는 처분은 기록이 없어도 `missing` 이
+아니고 `unverified` 에 `<ID 끝 8자> approval: ...` 로 남는다. 기록이 있으면 일반 처분처럼 비교한다. ID 는 전체 값이나
+끝 8자다. 문서에 없는 ID 도 `unverified` 에 남긴다. 이 목록은 처분이 기록됐는지 확인하는 일을 면제할 뿐이어서, 보고한
+쪽이 사람 승인을 기다리는 처분이 맞는지는 이 도구가 가리지 못한다.
 
 값은 양끝 공백만 무시하고 비교한다(빈 값과 null 은 같다). 그 밖의 정규화(줄바꿈 형식 등)는 하지 않는다.
 응답의 기록에 비교할 필드의 키가 아예 없으면 그 필드는 비교하지 않고 `unverified` 에 남긴다.
@@ -42,12 +52,13 @@ rationale(`resolution_rationale`) · commit_sha(`resolution_commit`)를 비교�
       missing     `role:<역할>` · `<역할> "<제목 앞 40자>"` · `<발견 ID 끝 8자>`
       altered     `<발견 ID 끝 8자> [<역할>] <필드> "<문서 발췌>" != "<기록 발췌>"`. 발췌는 처음 달라지는 위치 앞뒤
                   20자다. 발견 ID 는 끝 8자를 쓴다(앞 8자는 UUIDv7 이라 같은 분의 발견끼리 겹친다).
-      unverified  `roles: <사유>` · `<필드>: 응답에 <키> 가 없다`
+      unverified  `roles: <사유>` · `<필드>: 응답에 <키> 가 없다` · `<발견 ID 끝 8자> approval: <사유>`
   - `ok` 는 missing · altered · errors 가 모두 비었을 때만 true 다. unverified 는 `ok` 를 바꾸지 않는다.
 
 종료 코드: 0 모두 일치(unverified 만 있어도 0), 1 불일치(missing 또는 altered), 2 인자 오류(모드 · 없는 파일),
-3 대조하지 못함(NERV 설정 누락 · 읽기 실패 · 문서가 JSON 이 아니거나 `version` 이 1 이 아니거나 `ok` 가 true 가
-아니거나 필수 값이 없음). 3 이면 `errors` 에 사유가 있다. 오류 문장에 토큰을 싣지 않는다.
+3 대조하지 못함(NERV 설정 누락 · 읽기 실패(전송 실패 · 200 이 아님 · JSON 이 아님 · `items` 없음 · 끝나지 않는 커서) ·
+문서가 JSON 이 아니거나 `version` 이 1 이 아니거나 `ok` 가 true 가 아니거나 필수 값이 없음). 3 이면 `errors` 에 사유가
+있다. 오류 문장에 토큰을 싣지 않는다.
 
 한계(실제 동작 그대로):
   - 발견은 제목으로 짝을 찾는다. 제목이 바뀌어 기록되면 altered 가 아니라 missing 으로 나온다.
@@ -60,10 +71,14 @@ rationale(`resolution_rationale`) · commit_sha(`resolution_commit`)를 비교�
   - 역할 요약(`summary`) · 위험도 · 태그와 처분의 `escalate_reason` 은 비교하지 않는다. 앞의 둘과 `escalate_reason` 은
     발견 목록 응답에 없다.
   - 사람이 NERV 에서 처분을 바꿨으면 resolve 대조에서 altered 로 나온다. 이 도구는 누가 바꿨는지 가리지 않는다.
+  - **문서에 없는 기록은 보지 않는다.** 이 도구는 문서에 있는 발견 · 처분이 기록과 같은지만 확인한다. 기록 서브에이전트가
+    리뷰 대상 글에 심어진 문장을 따라 문서에 없는 발견을 `nerv_finding_resolve` 로 닫거나 문서에 없는 제출을 더해도
+    `ok: true` 다. 이 도구가 읽는 발견 필드에는 처분 시각이 없어서 이번 실행이 붙인 처분과 앞서 있던 처분을 가를 수
+    없다. 그 위험을 막는 장치는 기록 서브에이전트 정의의 규칙 2 · 3 이고 이 대조는 그 장치가 아니다(`nerv-recorder.md`).
 
-NERV 는 읽기만 한다(`_shared/nerv_read.py`. `NERV_SERVER` · `NERV_TOKEN`, 선택 `NERV_PROJECT`). 발견 목록의 경로와
-필드 이름은 `nerv_review_handoff.py` 의 `open_findings` · `_normalize` 와, N1 경로는 `hooks/_lib/review_guard.py`
-의 `N1_PATH` 와 같다.
+NERV 는 읽기만 한다(`_shared/nerv_read.py`. `NERV_SERVER` · `NERV_TOKEN`, 선택 `NERV_PROJECT`). 발견 목록 · N1 의
+경로와 목록을 끝까지 읽는 순회는 그 모듈 하나에 있고 `nerv_review_handoff.py` · `hooks/_lib/review_guard.py` 도 같은
+것을 쓴다. 이 도구가 따로 갖는 것은 기록 필드 이름의 대응(`SUBMIT_FIELDS` · `RESOLVE_FIELDS`)뿐이다.
 """
 
 from __future__ import annotations
@@ -79,12 +94,8 @@ if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import nerv_read, out_doc  # noqa: E402
 
-FINDINGS_PATH = "/api/v1/projects/{project}/findings"
-N1_PATH = "/api/v1/projects/{project}/gates/reviews/check"
 # REST `status` 가 받는 값 전부(2026-10-09 400 응답의 `allowed`). escalated 처분은 open 에 남는다.
 STATUSES = ("open", "fixed", "dismissed", "wont_fix")
-PAGE_LIMIT = 100
-MAX_PAGES = 50  # 상태 하나에 5,000건. 커서가 돌면 여기서 끊는다
 CONTEXT = 20  # 발췌의 앞뒤 글자 수
 TITLE_SHOWN = 40
 
@@ -185,46 +196,21 @@ def _altered_line(fid, role: str | None, field: str, a: str, b: str) -> str:
 
 # -- NERV 읽기 --------------------------------------------------------------------------
 
-def _get_json(client, path: str, what: str):
-    try:
-        status, body = client.get(path)
-    except Exception as exc:  # noqa: BLE001 — 전송 실패(curl 없음 · 시간 초과 등)
-        raise VerifyError(f"NERV {what}을 읽지 못했다 — {type(exc).__name__}: {exc}") from exc
-    if status != 200:
-        raise VerifyError(f"NERV {what} 응답 {status}")
-    try:
-        return json.loads(body)
-    except ValueError as exc:
-        raise VerifyError(f"NERV {what} 응답이 JSON 이 아니다") from exc
-
-
 def branch_findings(client, branch: str) -> list[dict]:
-    """이 브랜치의 발견 전부(상태 네 가지, 커서를 따라간다)."""
+    """이 브랜치의 발견 전부(상태 네 가지, 커서를 따라간다). 읽지 못하면 `nerv_read.NervRequestError`."""
     items: list[dict] = []
     for status in STATUSES:
-        cursor = None
-        for _ in range(MAX_PAGES):
-            query = {"branch": branch, "status": status, "limit": str(PAGE_LIMIT)}
-            if cursor:
-                query["cursor"] = cursor
-            path = FINDINGS_PATH.format(project=client.project) + "?" + urllib.parse.urlencode(query)
-            doc = _get_json(client, path, "발견 목록")
-            page = doc.get("items") if isinstance(doc, dict) else None
-            if not isinstance(page, list):
-                raise VerifyError("NERV 발견 목록 응답에 items 가 없다")
-            items.extend(x for x in page if isinstance(x, dict))
-            cursor = doc.get("next_cursor")
-            if not cursor:
-                break
-        else:
-            raise VerifyError(f"NERV 발견 목록({status})이 {MAX_PAGES} 쪽을 넘는다 — 끊는다")
+        items.extend(nerv_read.branch_findings(client, branch, status))
     return items
 
 
 def round_roles(client, branch: str, kind: str, head: str):
     """N1 이 이 head 의 라운드로 돌려주는 `roles.reported`. 알 수 없으면 `(None, 사유)`."""
+    if kind not in nerv_read.N1_KINDS:
+        # N1 에 물어 본 적이 없는 kind 다. 400 으로 거절하면 발견 대조까지 exit 3 으로 막히므로 묻지 않는다.
+        return None, f"kind={kind} 는 N1 에 물어 보지 않는다({' · '.join(nerv_read.N1_KINDS)} 만)"
     query = urllib.parse.urlencode({"branch": branch, "kind": kind, "head_sha": head})
-    doc = _get_json(client, N1_PATH.format(project=client.project) + "?" + query, "리뷰 판정")
+    doc = nerv_read.get_json(client, nerv_read.N1_PATH.format(project=client.project) + "?" + query, "리뷰 판정")
     items = doc.get("items") if isinstance(doc, dict) else None
     matching = [i for i in items if isinstance(i, dict) and i.get("kind") == kind] if isinstance(items, list) else []
     item = matching[0] if matching else None
@@ -333,16 +319,32 @@ def verify_submit(doc: dict, client) -> Report:
     return report
 
 
-def verify_resolve(doc: dict, client) -> Report:
+def _is_pending(fid: str, tokens: list[str]) -> bool:
+    """`--approval-pending` 의 값 중 이 처분을 가리키는 것이 있는가. 전체 ID 이거나 끝 8자다."""
+    return any(fid == t or (len(t) == 8 and fid.endswith(t)) for t in tokens)
+
+
+def verify_resolve(doc: dict, client, approval_pending: list[str] | tuple[str, ...] = ()) -> Report:
     report = Report("resolve")
     branch, rows = _dispositions(doc)
+    tokens = [t for t in (_text(x).lower() for x in approval_pending) if t]
+    known = {_text(d.get("finding_id")).lower() for d in rows}
+    for t in tokens:
+        if not any(_is_pending(fid, [t]) for fid in known):
+            report.unverify(f"approval: 문서에 없는 ID {t}")
     by_id = {_text(r.get("id")).lower(): r for r in branch_findings(client, branch)}
     for d in rows:
         report.checked += 1
         fid = _text(d.get("finding_id")).lower()
         record = by_id.get(fid)
+        if record is not None and "resolution_kind" not in record:
+            report.unverify("resolution: 응답에 resolution_kind 가 없다")
+            continue
         if record is None or not _text(record.get("resolution_kind")):
-            report.missing.append(_short_id(fid))
+            if _is_pending(fid, tokens):
+                report.unverify(f"{_short_id(fid)} approval: 사람 승인 대기로 보고됐다 — 기록하지 않았다")
+            else:
+                report.missing.append(_short_id(fid))
             continue
         for field, a, b in diff_fields(d, record, RESOLVE_FIELDS, report):
             report.altered.append(_altered_line(fid, None, field, a, b))
@@ -356,14 +358,20 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
     ap.add_argument("mode", choices=tuple(MODES))
     ap.add_argument("doc", help="nerv_review_payload.py --out 문서(submit) 또는 nerv_review_handoff.py pending --out 문서(resolve)")
+    ap.add_argument("--approval-pending", action="append", default=[], metavar="ID[,ID...]",
+                    help="resolve 만: 기록 서브에이전트가 APPROVAL 줄로 보고한 발견 ID(전체 또는 끝 8자). 기록이 없어도 missing 으로 세지 않는다")
     args = ap.parse_args(argv)
     if not os.path.isfile(args.doc):
         ap.error(f"문서가 없다 — {args.doc}")
+    if args.approval_pending and args.mode != "resolve":
+        ap.error("--approval-pending 은 resolve 에만 준다")
+    pending = [t for value in args.approval_pending for t in value.split(",")]
     parse, verify = MODES[args.mode]
     try:
         doc = load_document(args.doc)
         parse(doc)  # 문서 형식 문제를 NERV 설정 문제보다 먼저 알린다
-        report = verify(doc, nerv_read.client_from_env())
+        client = nerv_read.client_from_env()
+        report = verify(doc, client, pending) if args.mode == "resolve" else verify(doc, client)
     except (VerifyError, nerv_read.NervReadError) as exc:
         report = Report(args.mode)
         report.errors.append(str(exc))
