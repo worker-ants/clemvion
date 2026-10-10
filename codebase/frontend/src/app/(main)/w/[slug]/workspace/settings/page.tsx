@@ -21,12 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -584,6 +579,11 @@ function MembersTab({ workspaceId }: MembersTabProps) {
   const assignableRoles = isOwner
     ? ROLE_OPTIONS
     : ROLE_OPTIONS.filter((r) => r !== "admin");
+  // 소유자가 아닌 관리자에게 관리자 멤버는 읽기 전용이다. 셀렉트 노출과 배지 안내가 이 판정 하나를 본다.
+  const isAdminRoleLocked = (member: WorkspaceMemberSummary) =>
+    adminMode && !isOwner && member.role === "admin";
+  const canEditRole = (member: WorkspaceMemberSummary) =>
+    adminMode && member.role !== "owner" && !isAdminRoleLocked(member);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("editor");
 
@@ -882,9 +882,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                         {m.email}
                       </td>
                       <td className="py-2 pr-4">
-                        {adminMode &&
-                        m.role !== "owner" &&
-                        (isOwner || m.role !== "admin") ? (
+                        {canEditRole(m) ? (
                           <select
                             value={m.role}
                             onChange={(e) =>
@@ -905,7 +903,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                           <Badge
                             variant="outline"
                             title={
-                              adminMode && m.role === "admin"
+                              isAdminRoleLocked(m)
                                 ? t("workspace.adminRoleOwnerOnly")
                                 : undefined
                             }
@@ -920,9 +918,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() =>
-                              removeMemberMutation.mutate(m.id)
-                            }
+                            onClick={() => removeMemberMutation.mutate(m.id)}
                             title={t("workspace.removeTooltip")}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -972,7 +968,9 @@ function DangerZoneTab({
     queryFn: () => workspacesApi.listMembers(workspaceId),
     enabled: transferEligible,
   });
-  const candidates = (membersQuery.data ?? []).filter((m) => m.role !== "owner");
+  const candidates = (membersQuery.data ?? []).filter(
+    (m) => m.role !== "owner",
+  );
   const transferTarget = candidates.find((m) => m.id === transferTargetId);
 
   const leaveMutation = useMutation({
@@ -1138,10 +1136,7 @@ function DangerZoneTab({
             <DialogDescription>{t("workspace.leaveConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setLeaveDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setLeaveDialogOpen(false)}>
               {t("common.cancel")}
             </Button>
             <Button
