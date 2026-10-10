@@ -291,13 +291,17 @@ export class HooksService {
    * Chat Channel inbound 처리 — Spec §3.1 / CCH-AD-04 / CCH-AD-06.
    *
    * 1. provider 별 adapter 조회
-   * 2. (Telegram) X-Telegram-Bot-Api-Secret-Token 헤더 검증
-   * 3. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
-   * 4. ChannelConversation 조회 — execution 상태별 분기 (CCH-CV-03): (a) waiting_for_input →
-   *    interact() in-process 호출, (b) running/pending → executionStillRunning 안내 + ignored
-   *    (대기 큐 미적재, R9), (c) terminal/없음 → 새 execution 시작
-   *    그 외에는 새 execution 시작 (또는 /cancel 명령 처리)
-   * 5. ackInteraction (button_callback 등)
+   * 2. provider 별 inbound 서명 검증 (Telegram secret token · Slack signing secret · Discord Ed25519)
+   * 3. 꺼진 트리거면 202 ignored. Slack url_verification · Discord PING handshake 는 답한다.
+   * 4. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
+   * 5. 재도착 억제(CCH-SE-02) · 분당 rate limit(CCH-NF-03), `/help` 안내
+   * 6. ChannelConversation 조회 — `/cancel` 처리, 폼 모달 명령, 활성 execution 이 있을 때의 입력
+   *    (CCH-CV-03): (a) waiting_for_input → interact() in-process 호출, (b) running/pending →
+   *    executionStillRunning 안내 + ignored (대기 큐 미적재, R9)
+   * 7. **워크플로우가 꺼져 있으면 202 ignored** — 새 실행을 시작하는 입력만 막는다. 위 6 의 처리는
+   *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`).
+   * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
+   * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
    *
    * 본 메서드는 200ms 안에 202 Accepted 응답해야 함 (WH-NF-01). 무거운 작업은 fire-and-forget.
    */
@@ -362,19 +366,6 @@ export class HooksService {
     // 등록 시 1회 + 주기적. type=1 → { type: 1 } 200 응답.
     if (config.provider === 'discord' && isDiscordPing(input.body)) {
       return { executionId: 'ignored', discordPing: true };
-    }
-
-    // 워크플로우를 끄면 채팅 채널로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 응답은 꺼진
-    // 트리거와 같은 202 ignored 다. 위의 handshake 에는 답한다. 워크플로우를 꺼 둔 채 채널을
-    // 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
-    if (
-      await isWorkflowInactive(
-        this.workflowRepository,
-        trigger.workflowId,
-        trigger.workspaceId,
-      )
-    ) {
-      return { executionId: 'ignored' };
     }
 
     const parsed = await adapter.parseUpdate(input.body, config);
@@ -703,6 +694,24 @@ export class HooksService {
       }
       await adapter.ackInteraction(update, config);
       return { executionId: state.executionId! };
+    }
+
+    // 워크플로우를 끄면 채팅 채널로 새 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 막는 것은
+    // 새 실행 시작뿐이라 이 관문은 새 실행을 시작하는 자리(아래 `/start` 취소 · `execute()`) 바로
+    // 앞에 둔다. 위의 `/help` · `/cancel` · 대기 실행으로 가는 입력(답장 · 버튼 · 폼)은 워크플로우가
+    // 꺼져 있어도 처리한다. 이미 진행 중인 실행은 끝까지 진행된다. 응답은 꺼진 트리거와 같은 202
+    // ignored 다. 활성 실행이 있는 대화의 `/start` 도 여기서 끝나므로 기존 실행을 취소하지 않는다.
+    // handshake(Slack url_verification · Discord PING)는 위에서 이미 답했다. 워크플로우를 꺼 둔 채
+    // 채널을 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
+    // dedup claim 은 풀지 않는다. rate limit 으로 ignored 가 되는 경로와 같다.
+    if (
+      await isWorkflowInactive(
+        this.workflowRepository,
+        trigger.workflowId,
+        trigger.workspaceId,
+      )
+    ) {
+      return { executionId: 'ignored' };
     }
 
     // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).

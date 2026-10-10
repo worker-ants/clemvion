@@ -16,6 +16,9 @@ import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
  * 실행 중지 경로로 `cancelled` 가 되고 새 실행이 생긴다. 대화 상태는 더 이상 옛 실행을 가리키지 않는다.
  * 옛 실행의 종결 이벤트가 새 실행의 매핑을 지우지 않는 것은 단위 테스트
  * (`channel-conversation.service.spec.ts` 의 `clearExecutionIdIfMatches`)가 고정한다.
+ *
+ * 워크플로우가 꺼져 있으면(NERV Task `CLE-T-XRWFMJ`) `/start` 는 새 실행을 시작하지 못하고
+ * 그 앞의 기존 실행 취소도 하지 않는다. 202 ignored 이고 옛 실행은 그대로 `running` 이다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -45,15 +48,17 @@ describe('Telegram /start 재시작 (e2e)', () => {
     await db.end();
   });
 
-  it('running 실행이 있는 대화에 /start → 옛 실행은 cancelled, 새 실행이 시작된다', async () => {
-    const setup = await setupChatChannelTrigger({ db, provider: 'telegram' });
+  /** 워크플로우에 manual_trigger 노드를 두고, 대화 상태가 `running` 실행을 가리키게 한다. */
+  async function seedRunningConversation(
+    setup: Awaited<ReturnType<typeof setupChatChannelTrigger>>,
+    chatId: number,
+    userId: number,
+  ): Promise<{ oldExecutionId: string; key: string }> {
     await db.query(
       `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
        VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
       [randomUUID(), setup.workflowId, JSON.stringify({ parameters: [] })],
     );
-    const chatId = 71001;
-    const userId = 81001;
     const oldExecutionId = randomUUID();
     await db.query(
       `INSERT INTO execution (id, workflow_id, status, started_at)
@@ -74,23 +79,81 @@ describe('Telegram /start 재시작 (e2e)', () => {
       'EX',
       600,
     );
+    return { oldExecutionId, key };
+  }
+
+  function postStart(endpointPath: string, chatId: number, userId: number) {
+    return request(BASE_URL)
+      .post(`/api/hooks/${endpointPath}`)
+      .set('x-forwarded-for', nextE2eClientIp())
+      .set('content-type', 'application/json')
+      .send(
+        JSON.stringify({
+          update_id: Math.floor(Date.now() / 1000),
+          message: {
+            message_id: 1,
+            chat: { id: chatId, type: 'private' },
+            from: { id: userId, is_bot: false },
+            text: '/start',
+          },
+        }),
+      );
+  }
+
+  it('꺼진 워크플로우의 대화에 /start → 202 ignored, 옛 실행은 running 그대로이고 새 실행이 없다', async () => {
+    const setup = await setupChatChannelTrigger({ db, provider: 'telegram' });
+    const chatId = 71002;
+    const userId = 81002;
+    const { oldExecutionId, key } = await seedRunningConversation(
+      setup,
+      chatId,
+      userId,
+    );
+    await db.query('UPDATE workflow SET is_active = false WHERE id = $1', [
+      setup.workflowId,
+    ]);
 
     try {
-      const res = await request(BASE_URL)
-        .post(`/api/hooks/${setup.endpointPath}`)
-        .set('x-forwarded-for', nextE2eClientIp())
-        .set('content-type', 'application/json')
-        .send(
-          JSON.stringify({
-            update_id: Math.floor(Date.now() / 1000),
-            message: {
-              message_id: 1,
-              chat: { id: chatId, type: 'private' },
-              from: { id: userId, is_bot: false },
-              text: '/start',
-            },
-          }),
-        );
+      const res = await postStart(setup.endpointPath, chatId, userId);
+
+      expect(res.status).toBe(202);
+      expect(res.body.data.executionId).toBe('ignored');
+
+      const old = await db.query<{ status: string }>(
+        'SELECT status FROM execution WHERE id = $1',
+        [oldExecutionId],
+      );
+      expect(old.rows[0]?.status).toBe('running');
+      const count = await db.query<{ n: string }>(
+        'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
+        [setup.workflowId],
+      );
+      expect(Number(count.rows[0].n)).toBe(1);
+      const raw = await redis.get(key);
+      expect(
+        (JSON.parse(raw as string) as { executionId: string | null })
+          .executionId,
+      ).toBe(oldExecutionId);
+    } finally {
+      await redis.del(key);
+      await db
+        .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+        .catch(() => undefined);
+    }
+  });
+
+  it('running 실행이 있는 대화에 /start → 옛 실행은 cancelled, 새 실행이 시작된다', async () => {
+    const setup = await setupChatChannelTrigger({ db, provider: 'telegram' });
+    const chatId = 71001;
+    const userId = 81001;
+    const { oldExecutionId, key } = await seedRunningConversation(
+      setup,
+      chatId,
+      userId,
+    );
+
+    try {
+      const res = await postStart(setup.endpointPath, chatId, userId);
 
       expect(res.status).toBe(202);
       const newExecutionId = res.body.data.executionId as string;

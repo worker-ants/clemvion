@@ -88,6 +88,7 @@ describe('HooksService', () => {
             lookup: jest.fn().mockResolvedValue(null),
             upsert: jest.fn().mockResolvedValue(undefined),
             updateExecutionId: jest.fn().mockResolvedValue(undefined),
+            clearExecutionIdIfMatches: jest.fn().mockResolvedValue(true),
             acquireLock: jest.fn().mockResolvedValue(true),
             releaseLock: jest.fn().mockResolvedValue(undefined),
           },
@@ -1021,8 +1022,34 @@ describe('HooksService', () => {
         } as Workflow);
       });
 
-      it('서명 검증 뒤 { executionId: "ignored" } 로 답하고 update 를 해석하지 않는다', async () => {
+      const updateOf = (
+        command: unknown,
+        idempotencyKey = '3001',
+      ): Record<string, unknown> => ({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command,
+        idempotencyKey,
+        receivedAt: new Date().toISOString(),
+      });
+      const activeState = {
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: '2026-10-10T00:00:00.000Z',
+        lastUpdateAt: '2026-10-10T00:00:00.000Z',
+      };
+      const executionsOf = () =>
+        moduleRef.get(ExecutionsService) as {
+          stop: jest.Mock;
+          executionRepository: { findOne: jest.Mock };
+        };
+
+      it('활성 실행이 없을 때의 첫 메시지는 서명 검증 뒤 { executionId: "ignored" } 로 답하고 실행하지 않는다', async () => {
         triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({ kind: 'text_message', text: 'hi' }),
+        );
 
         const res = await service.handleWebhook('abc', chatInput);
 
@@ -1031,9 +1058,118 @@ describe('HooksService', () => {
         expect(workflowRepo.findOne).toHaveBeenCalledWith(
           expect.objectContaining({ where: { id: 'wf1', workspaceId: 'ws' } }),
         );
-        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
         expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
         expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('활성 실행이 없을 때의 /start 도 ignored 로 답하고 실행하지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'start' }));
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+      });
+
+      // 막는 것은 새 실행 시작뿐이다. 이미 진행 중인 실행은 끝까지 진행되므로 그 실행이 기다리는
+      // 입력은 워크플로우가 꺼져 있어도 전달한다(사용자 가이드 triggers 의 약속).
+      it('활성 실행이 입력을 기다리면 일반 메시지를 그 실행에 전달하고 새 실행은 시작하지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({ kind: 'text_message', text: 'my answer' }),
+        );
+        conversationService.lookup.mockResolvedValue(activeState);
+        executionsOf().executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(interactionService.interact).toHaveBeenCalledWith(
+          expect.objectContaining({
+            executionId: 'exec-active',
+            scope: 'in_process_trusted',
+          }),
+          expect.objectContaining({
+            command: 'submit_message',
+            message: 'my answer',
+          }),
+        );
+        expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(res).toEqual({ executionId: 'exec-active' });
+      });
+
+      it('활성 실행이 입력을 기다리면 버튼 콜백도 그 실행에 전달한다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({
+            kind: 'button_callback',
+            callbackData: 'btn-1',
+            callbackQueryId: 'cbq-1',
+          }),
+        );
+        conversationService.lookup.mockResolvedValue(activeState);
+        executionsOf().executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(interactionService.interact).toHaveBeenCalledWith(
+          expect.objectContaining({ executionId: 'exec-active' }),
+          expect.objectContaining({ command: 'click_button' }),
+        );
+        expect(engine.execute).not.toHaveBeenCalled();
+      });
+
+      it('활성 실행이 있는 대화의 /start 는 기존 실행을 취소하지 않고 ignored 로 답한다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'start' }));
+        conversationService.lookup.mockResolvedValue(activeState);
+        const executions = executionsOf();
+        executions.executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(executions.stop).not.toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+      });
+
+      it('/cancel 은 동작한다 — 활성 실행을 취소한다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'cancel' }));
+        conversationService.lookup.mockResolvedValue(activeState);
+        const executions = executionsOf();
+        executions.executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(executions.stop).toHaveBeenCalledWith('exec-active');
+        expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+        expect(res).toEqual({ executionId: 'exec-active' });
+      });
+
+      it('/help 는 안내를 보낸다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({ kind: 'text_message', text: '/help' }),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(mockAdapter.sendMessage).toHaveBeenCalled();
+        expect(workflowRepo.findOne).not.toHaveBeenCalled();
       });
 
       it('서명 검증이 실패하면 ignored 로 우회하지 않고 전파한다', async () => {
@@ -1073,6 +1209,9 @@ describe('HooksService', () => {
       });
 
       it('handshake 가 아닌 Slack · Discord 요청은 ignored 로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({ kind: 'text_message', text: 'hi' }),
+        );
         for (const provider of ['slack', 'discord']) {
           triggerRepo.findOne.mockResolvedValue(providerTrigger(provider));
 
@@ -1080,7 +1219,6 @@ describe('HooksService', () => {
 
           expect(res).toEqual({ executionId: 'ignored' });
         }
-        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
         expect(engine.execute).not.toHaveBeenCalled();
       });
     });
