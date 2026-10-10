@@ -20,6 +20,7 @@ export const workspace = {
   roleAdmin: "관리자",
   roleMember: "멤버",
   roleViewer: "뷰어",
+  adminRoleOwnerOnly: "관리자 역할은 소유자만 주거나 바꿀 수 있어요.",
   removeMember: "멤버 제거",
   removeMemberConfirm: "{{name}}님을 워크스페이스에서 제거할까요?",
   memberRemoved: "멤버를 제거했어요",

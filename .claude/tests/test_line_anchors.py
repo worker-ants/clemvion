@@ -181,6 +181,17 @@ def pick_commit_fixture(cwd=None) -> str:
     Selection therefore skips every commit with more than one parent — the
     invariant `test_a_merge_commit_is_never_selected` already names.
     `CommitFixtureSelectionTest._make_overlapping_merge_repo` pins it.
+
+    Seventh variant, 2026-10-10 — the **mostly-deletion** commit. The third
+    variant's filter only asks whether *some* path still resolves; the line
+    count kept summing the removed paths. `c3f920d7f` deleted `CHANGELOG.md`
+    (5,196 lines) and edited three small files, so it cleared the threshold on
+    lines that can never reach the prompt and passed the resolvable-path check
+    on the three survivors — 15 annotated lines against `> 20`, RED for a commit
+    that never touched the gutter. The count therefore leaves removed paths out
+    (`--diff-filter=d`), and a deletion-only commit now fails the threshold
+    before the resolvable-path check is reached.
+    `CommitFixtureSelectionTest._make_mostly_deletion_repo` pins it.
     """
     log = _git("log", "-n", str(FIXTURE_SEARCH_DEPTH), "--format=%H", cwd=cwd)
     for sha in filter(None, (line.strip() for line in log.split("\n"))):
@@ -198,7 +209,11 @@ def pick_commit_fixture(cwd=None) -> str:
         if not files or len(files) > MAX_FIXTURE_FILES:
             continue
         changed = 0
-        for row in _git("show", "--numstat", "--format=", sha, cwd=cwd).split("\n"):
+        # Seventh variant: a removed path resolves to no source at `sha`, so its
+        # lines can never reach `checked` — `--diff-filter=d` leaves it out.
+        for row in _git(
+            "show", "--numstat", "--format=", "--diff-filter=d", sha, cwd=cwd
+        ).split("\n"):
             cols = row.split("\t")
             # "-" marks a binary file; it contributes no gutter lines.
             if len(cols) >= 3 and cols[2] in files:
@@ -848,6 +863,69 @@ class CommitFixtureSelectionTest(unittest.TestCase):
             any(self._git(repo, "show", f"{picked}:{f}").strip() for f in names),
             "the selected commit resolves to no content at all",
         )
+
+    def _make_mostly_deletion_repo(self):
+        """HEAD removes a large file and makes a small edit to one that stays.
+
+        The small edit is what slips past the third variant: one path still
+        resolves at HEAD, so only the line count can reject this commit.
+        """
+        import os
+
+        repo, run = self._new_repo()
+
+        def write(name, lines):
+            with open(os.path.join(repo, name), "w", encoding="utf-8") as fh:
+                fh.write("".join(f"{line}\n" for line in lines))
+
+        keep = [f"keep{i}" for i in range(120)]
+        write("keep.txt", keep)
+        write("big.txt", [f"big{i}" for i in range(400)])
+        run("add", "-A")
+        run("commit", "-qm", "base with content")
+        run("rm", "-q", "big.txt")
+        keep[10] = "edited"
+        write("keep.txt", keep)
+        run("add", "-A")
+        run("commit", "-qm", "large deletion, small edit")
+        return repo, run
+
+    def test_the_repo_really_is_mostly_deletion(self):
+        """Non-vacuity: HEAD clears the old count, keeps a resolvable path, and
+        falls under the threshold once removed paths are left out."""
+        repo, run = self._make_mostly_deletion_repo()
+        head = run("rev-parse", "HEAD").strip()
+
+        def count(*extra):
+            total = 0
+            for row in run("show", "--numstat", "--format=", *extra, head).split("\n"):
+                cols = row.split("\t")
+                if len(cols) >= 3:
+                    total += sum(int(c) for c in cols[:2] if c.isdigit())
+            return total
+
+        self.assertGreaterEqual(
+            count(), MIN_FIXTURE_CHANGED_LINES,
+            "HEAD does not clear the old count — the shape under test never existed",
+        )
+        self.assertTrue(
+            run("show", f"{head}:keep.txt").strip(),
+            "no path resolves at HEAD — the third variant would reject it, not the count",
+        )
+        self.assertLess(count("--diff-filter=d"), MIN_FIXTURE_CHANGED_LINES)
+
+    def test_a_mostly_deletion_commit_is_never_selected(self):
+        repo, run = self._make_mostly_deletion_repo()
+        head = run("rev-parse", "HEAD").strip()
+        base = run("rev-parse", "HEAD~1").strip()
+        picked = pick_commit_fixture(cwd=repo)
+        self.assertNotEqual(
+            picked, head,
+            "the fixture search counted the lines of a removed file; they resolve "
+            "to no source, so the gutter test goes RED for a change that never "
+            "touched the gutter",
+        )
+        self.assertEqual(picked, base)
 
     def _make_shallow_repo(self):
         """A depth-1 clone — exactly what `actions/checkout` produces by default.

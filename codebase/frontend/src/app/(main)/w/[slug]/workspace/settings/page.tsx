@@ -577,6 +577,18 @@ function MembersTab({ workspaceId }: MembersTabProps) {
   const t = useT();
   const queryClient = useQueryClient();
   const adminMode = useHasRole("admin");
+  // 관리자 역할을 주거나 거두는 일은 소유자만 할 수 있다. 소유자가 아닌 관리자는 편집자와 뷰어
+  // 사이만 바꾸고, 관리자 멤버의 역할은 읽기 전용으로 본다. 서버는 403 OWNER_REQUIRED 로 막는다
+  // (NERV CLE-ACCT-WS, CLE-T-0W7CA7).
+  const isOwner = useHasRole("owner");
+  const assignableRoles = isOwner
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((r) => r !== "admin");
+  // 소유자가 아닌 관리자에게 관리자 멤버는 읽기 전용이다. 셀렉트 노출과 배지 안내가 이 판정 하나를 본다.
+  const isAdminRoleLocked = (member: WorkspaceMemberSummary) =>
+    adminMode && !isOwner && member.role === "admin";
+  const canEditRole = (member: WorkspaceMemberSummary) =>
+    adminMode && member.role !== "owner" && !isAdminRoleLocked(member);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("editor");
 
@@ -723,7 +735,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                   }
                   className="h-9 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-sm"
                 >
-                  {ROLE_OPTIONS.map((r) => (
+                  {assignableRoles.map((r) => (
                     <option key={r} value={r}>
                       {t(roleLabelKey(r))}
                     </option>
@@ -739,6 +751,11 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                 {t("workspace.inviteButton")}
               </Button>
             </form>
+            {!isOwner && (
+              <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("workspace.adminRoleOwnerOnly")}
+              </p>
+            )}
           </CardContent>
         </Card>
       </RoleGate>
@@ -870,7 +887,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                         {m.email}
                       </td>
                       <td className="py-2 pr-4">
-                        {adminMode && m.role !== "owner" ? (
+                        {canEditRole(m) ? (
                           <select
                             value={m.role}
                             onChange={(e) =>
@@ -881,14 +898,21 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                             }
                             className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
                           >
-                            {ROLE_OPTIONS.map((r) => (
+                            {assignableRoles.map((r) => (
                               <option key={r} value={r}>
                                 {t(roleLabelKey(r))}
                               </option>
                             ))}
                           </select>
                         ) : (
-                          <Badge variant="outline">
+                          <Badge
+                            variant="outline"
+                            title={
+                              isAdminRoleLocked(m)
+                                ? t("workspace.adminRoleOwnerOnly")
+                                : undefined
+                            }
+                          >
                             {t(roleLabelKey(m.role))}
                           </Badge>
                         )}

@@ -65,11 +65,17 @@ ALTER TABLE document
            OR graph_extraction_status IN ('pending','processing','completed','error'))
   NOT VALID;
 
--- 2) 별도 마이그레이션 또는 같은 파일에서 VALIDATE — SHARE UPDATE EXCLUSIVE 만 잡고
+-- 2) 별도 마이그레이션 파일에서 VALIDATE — SHARE UPDATE EXCLUSIVE 만 잡고
 --    기존 row 를 백그라운드에서 검증 (DML 영향 적음)
 ALTER TABLE document
   VALIDATE CONSTRAINT chk_doc_graph_extraction_status;
 ```
+
+> **트랜잭션 경계** — Flyway 는 파일 하나를 트랜잭션 하나로 실행합니다.
+>
+> - 1) 의 `ADD ... NOT VALID` 가 잡은 `ACCESS EXCLUSIVE` 는 커밋까지 남습니다.
+> - 같은 파일에서 2) 를 돌리면 전체 스캔 내내 테이블이 막혀 `NOT VALID` 로 나눈 이점이 없습니다.
+> - 그래서 2) 는 다음 번호 파일로 나눕니다(예: V149 → V150).
 
 `UNIQUE` 제약은 `CREATE UNIQUE INDEX CONCURRENTLY` 후 `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE USING INDEX` 패턴을 사용합니다. 마이그레이션 파일에 `CREATE INDEX CONCURRENTLY` 가 들어가면 Flyway 가 트랜잭션 모드에서 실행하지 못하므로 동봉된 `.conf` 파일에 `executeInTransaction=false` 를 설정하세요 (V022 / V023 / V026 참고).
 

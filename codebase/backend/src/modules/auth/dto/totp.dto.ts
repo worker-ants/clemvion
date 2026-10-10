@@ -24,4 +24,11 @@ export class Disable2faDto {
   @IsString()
   @MinLength(8)
   password: string;
+
+  @ApiProperty({
+    description: 'Authenticator 앱이 표시한 6자리 코드 또는 복구 코드',
+  })
+  @IsString()
+  @Length(6, 32)
+  code: string;
 }

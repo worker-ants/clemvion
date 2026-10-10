@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "859a65aa764f852c8e3def6738c73f807138a2e43a78fa96ce7fd9f91a6dd651"
+content_hash: "bafb7264f54d22465cd639455a864b050c649b719761951bfea83b66dcdd7a71"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-ERAJ7P"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "28078542f7fb5d75bb6a9844075a5899f77919ebfe6eb6cb3eb86796704ee005"
-etag: "sha256-caef216ffa127a3c96f1021a98fc94a221ad102488bfc511b50c882f3fd46891"
+mirror_sha256: "9bd3feedecc40e1a7a9b1091a0607d206dbc6f4e874bee523166c7f7f3345b3a"
+etag: "sha256-46e0f2fc9d8e71e70a182c9285fe0425de8ae700de11aa222295efa1f0115af7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -84,7 +84,8 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 | **자원 액션**: `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 자원이 아니라 동사(구)다. 앞 경로가 가리키는 자원에 가하는 동작이다. 케밥 케이스 복합 동사구도 포함한다(`run-now`, `transfer-ownership`, `set-default`). 목적어는 경로에 두고 액션 이름에 넣지 않는다. `/workflows/:id/nodes/:nodeId/execute` 가 맞고 `/workflows/:id/execute-node` 는 틀리다. Boolean 상태 필드의 단순 토글에는 이 형태를 쓰지 않는다(§12.1) | `/executions/:id/stop`, `/schedules/:id/run-now`, `/workflows/:id/nodes/:nodeId/execute` |
 | **예외: RPC 형태 하위 채널 액션** `/api/{resource}/{id}/{channel}/{action}`. 자원 자체가 아닌 하위 채널에 가하는 부수 동작(`rotate-*`, `revoke-*`, `disable-*`, `switch` 등)이다. URL 만으로 자원·채널·동작을 식별할 수 있어야 해서 허용한다. 자원 액션에 `{channel}` 이 하나 더 끼는 자매 형태다 | `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch` |
 | **예외: 인증 family 전용 네임스페이스** `/api/external/{resource}`. 로그인 세션·워크스페이스 인증이 아니라 실행 단위 토큰(per_execution token, `iext_*`) 같은 인터랙션 토큰으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체와 호출하는 쪽이 달라 경로를 나눈다. 규칙 위반이 아니라 명시한 예외다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md), 요청 빈도 제한은 §7, 부재 표현은 §5.5 | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
-| **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 세션 발급·파기, 비밀번호 재설정, 2FA 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
+| **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
+| **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
 
 ### 2.3 워크스페이스 스코핑
 
@@ -93,8 +94,8 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 - 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다. `jwt.strategy` 가 멤버십을 검증한 뒤 그 값을 `request.user.workspaceId` 로 채택한다.
 - 워크스페이스 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 한다.
 - **전환기 하위 호환(header-first)**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터와 `RolesGuard` 가 그 워크스페이스를 먼저 쓴다. 헤더가 없으면 토큰 클레임을 쓴다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 기준이 된다.
-- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. 헤더와 토큰 컨텍스트를 쓰지 않는다(2026-09-25). 가드가 경로 값도 검증하는 근거는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 에 있다.
-- 결정 우선순위·전환 흐름·마이그레이션의 단일 기준은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 워크스페이스 전환 절이다.
+- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. 헤더와 토큰 컨텍스트를 쓰지 않는다(2026-09-25). 가드가 경로 값도 검증하는 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#경로-파라미터-워크스페이스도-가드가-본다) 의 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」에 있다.
+- 결정 우선순위·전환 흐름·마이그레이션의 단일 기준은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#전환-api-와-토큰) 의 「전환 API 와 토큰」 절과 [「API 인가」](../CLE-ACCT/CLE-ACCT-WS.md#api-인가) 절이다.
 - 구현 상태: 구현됨(2026-07-07). `jwt.strategy` 는 토큰 클레임을 `activeWorkspaceId ?? workspaceId` 로 이중으로 읽고 그 멤버십을 검증해 현재 워크스페이스를 확정한다. 데코레이터와 `RolesGuard` 는 전환기 동안 헤더를 먼저 본다.
 
 ```
@@ -274,17 +275,18 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 인증 API (`POST /api/auth/register`, `POST /api/auth/login`) | 10 req/min (IP 기준). 라우트별 `@Throttle` 이다 | 같음 |
 | 계정 확인·복구 (`POST /api/auth/forgot-password`, `POST /api/auth/resend-verification`, `POST /api/auth/check-email`) | 5 req/min (IP 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
 | 초대 토큰 메타 조회 (`GET /api/invitations/:token`) | 30 req/min (공개 라우트라 IP 기준). 토큰 추측을 막는다. 동작 정의는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) | 같음 |
-| 로그인 세션 강제 종료 (`POST /api/users/me/sessions/:familyId/revoke`, `POST /api/users/me/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로). 집계 키는 정의가 갈린다([미결 사항](#미결-사항)). 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
-| 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min. 동작 정의는 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) | 같음 |
+| 로그인 세션 강제 종료 (`POST /api/auth/sessions/:familyId/revoke`, `POST /api/auth/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로, 사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
+| 2단계 인증 끄기 (`POST /api/auth/2fa/disable`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 초대 발송·provider probe 와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
+| 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min (사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-변경) | 같음 |
 | 웹훅 수신 | 100 req/min (전역 throttler `default`) | 같음 |
 | 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 트리거) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
 | 파일 업로드 (지식 저장소 문서, 아바타) | 전역 100 req/min 을 그대로 따른다. `POST /api/knowledge-bases/:id/documents` 와 `POST /api/users/me/avatar` 둘 다 별도 `@Throttle` 이 없다 | 같음 |
-| Provider probe API (`POST /api/model-configs/preview-models`, `POST /api/model-configs/:id/test`, `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준). 실시간 provider 호출 비용과 provider 쪽 속도 제한을 보호하는 `@Throttle` 이다. 세 핸들러가 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE` 을 함께 쓴다 | 같음 |
+| Provider probe API (`POST /api/model-configs/preview-models`, `POST /api/model-configs/:id/test`, `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준). 실시간 provider 호출 비용과 provider 쪽 속도 제한을 보호하는 `@Throttle` 이다. 세 핸들러가 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE`(`SENSITIVE_ACTION_THROTTLE` 의 별칭)을 함께 쓴다 | 같음 |
 | 지식 저장소 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`) | 3 req/min (사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) | 같음 |
 | 지식 저장소 실패 문서 재시도 (`POST /api/knowledge-bases/:id/retry-failed`) | 3 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
 | 임베딩 테스트 (`POST /api/knowledge-bases/embedding-probe`) | 30 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
 | 재실행 (`POST /api/executions/:id/re-run`) | 10 req/min (사용자 기준). `@Throttle`(60초에 10회). 넘으면 `429 RATE_LIMITED`. 동작 정의는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) | 같음 |
-| 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. provider probe 와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다 | 같음 |
+| 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. provider probe·2단계 인증 끄기와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다 | 같음 |
 | External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절 | `Retry-After` |
 | External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
 | 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 CCH-NF-03 | 없음 (위 콜아웃) |
@@ -461,7 +463,6 @@ Content-Type: application/json
 
 ## 미결 사항
 
-- **전역 한도의 집계 키**: 이 문서는 인증된 요청을 사용자로, 인증되지 않은 요청을 IP 로 센다고 정하고(§7) 현재 구현도 같다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 은 전역 한도를 IP 당 분당 100건으로, [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 은 로그인 세션 강제 종료 한도를 IP 당으로 적는다. [External Interaction API](../CLE-IX/CLE-EIA.md) 도 전역 가드의 카운트 기준을 IP 로 적은 원문을 미결로 남겼다. EIA 경로는 `@Public()` 이라 현재 구현에서도 IP 로 센다(§7 키 결정 규칙). 인증된 라우트의 한도를 사용자 기준으로 읽을지 IP 기준으로 읽을지 결정이 필요하다. 라우트별 한도 수치는 §7 표에 모았다.
 - **`204` 삭제 응답의 건수 헤더**: [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 의 범위 삭제(`DELETE /api/agent-memories?scopeKey=`)가 프로젝트 첫 커스텀 응답 헤더 `X-Deleted-Count` 를 쓴다. `204` 라 본문이 없어 실제 삭제 행 수를 헤더로 싣고(0 가능, 멱등 삭제) cross-origin 에서 읽히도록 CORS `exposedHeaders` 에 넣는다. 그 문서는 이 방식을 이 규약의 공통 규칙(멱등 DELETE 와 커스텀 건수 헤더)으로 올리는 일을 별도 작업으로 넘겼다. 공통 규칙으로 올릴지 결정이 필요하다.
 - **자원을 만들지 않는 POST 의 성공 코드**: §6 은 `200` 을 조회·수정에, `201` 을 생성에 배정한다. 저장소에는 `@HttpCode(200)` 을 단 액션 POST 가 여럿 있고 OAuth 시작(설치 대기 통합 행 생성)이나 초대 수락(멤버십 행 생성)처럼 부수적으로 행을 만드는 POST 도 `200` 이다. [OpenAPI 문서화](CLE-API-SWAGGER.md) 는 광고한 코드와 실제 코드의 짝만 강제하고 어느 코드가 맞는지는 정하지 않는다고 스스로 적는다. §6 에 "액션 POST(자원 생성 없음 또는 부수 생성) = `200`" 행을 둘지 결정이 필요하다.
 
@@ -473,6 +474,7 @@ Content-Type: application/json
 - `codebase/backend/src/common/swagger/error-response.dto.ts`
 - `codebase/backend/src/common/interceptors/transform.interceptor.ts` (성공 응답 `{ data }` 래핑과 pass-through)
 - `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 throttle 키 결정)
+- `codebase/backend/src/common/constants/throttle.ts` (§7 의 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`)
 - `codebase/backend/src/common/utils/throttler-skip.ts` (`NODE_ENV=test` skip)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`
@@ -534,3 +536,68 @@ Content-Type: application/json
 SSE `execution.waiting_for_input` 이벤트도 `conversationThread` 를 값이 있을 때만 싣는다. [External Interaction API](../CLE-IX/CLE-EIA.md) 는 REST `context` 를 SSE wire 와 같은 형식으로 유지하는 것을 명시 계약으로 두고 웹채팅 위젯이 두 표면에 같은 파서(`parseWaitingForInput`)를 쓰는 것이 그 계약 위에 서 있다. `conversationThread` 만 REST 에서 `null` 로 정규화하면 두 표면의 형식이 갈려 파서를 함께 쓸 수 없다. 응답 안의 겉보기 일관성을 얻는 대신 표면 사이의 실제 일관성을 잃는 교환이다.
 
 그래서 이 경우는 §5.5 기준 (a)(다른 표면과의 wire 일치)의 원형 사례이고 정규화 대상이 아니라 규칙의 근거 사례로 둔다. 소비 쪽 안전성은 따로 확인했다. 위젯의 `threadToMessages` 가 optional chaining(`!thread?.turns?.length`)으로 `undefined` 와 `null` 을 함께 건너뛴다.
+
+### 로그인 세션 강제 종료 한도를 사용자 기준으로 적은 이유 (2026-10-10)
+
+두 라우트는 로그인한 사용자만 부른다. 그래서 §7 키 결정 규칙대로 `UserThrottlerGuard` 가 `user:<sub>` 키로 센다(`user-throttler.guard.ts`).
+
+- 한때 이 행은 집계 키를 미결로 남겼다. [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 같은 한도를 IP 당으로 적어 두 문서가 갈렸기 때문이다.
+- 세션 문서가 v2 에서 집계 키를 이 문서 §7 로 넘겼다. 이 행까지 미결로 두면 두 문서가 서로 상대에게 미루게 된다. 그래서 구현대로 사용자 기준이라고 적었다.
+- [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 은 같은 한도를 IP 당으로 적었고 그 어긋남을 미결 사항 「전역 한도의 집계 키」에 남겼다(2026-10-10 닫힘, 아래 「전역 한도의 집계 키 미결을 닫았다」). 같은 초안 묶음에서 그 문서도 사용자 기준으로 고쳤다.
+
+### 세션 API 를 `/api/auth/sessions` 에 둔 이유 (2026-10-10)
+
+Task CLE-T-ERAJ7P 의 결정이다.
+
+로그인 세션 목록과 강제 종료가 `/api/users/me/sessions` 에 있을 때는 리프레시 쿠키가 요청에 붙지 않았다. 쿠키의 Path 가 `/api/auth` 이기 때문이다. 그래서 서버가 현재 로그인 세션을 가려내지 못했다. 세 라우트를 `/api/auth/sessions…` 로 옮겼고 옛 경로는 별칭 없이 지웠다(404). 결함과 결정의 상세는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「세션 API 를 리프레시 쿠키 Path 아래로 옮겼다」에 있다.
+
+새 경로는 §2.2 의 기존 행 어디에도 맞지 않는다.
+
+- `/api/auth/{action}` 예외는 인증 상태 전이와 그 전이에 필요한 capability 조회를 위한 것이다. 세션 목록은 자원이다.
+- 쿠키가 필요 없는 본인 소유 자원은 `users/me` 에 둔다(로그인 이력 조회). 세션 목록과 강제 종료는 리프레시 쿠키가 있어야 현재 로그인 세션을 가린다.
+
+`/api/auth` 아래에는 본인 소유 자원인 Passkey credential 라우트(`/api/auth/2fa/webauthn/credentials[/:id]`)도 있다. 그 라우트는 `/api/auth/{action}` 예외의 2단계 인증 등록 · 해제 묶음으로 설명되는 기존 예외이고 이 예외 행과는 근거가 다르다.
+
+그래서 §2.2 에 예외 행을 따로 두었다. 예외의 근거는 "현재 로그인 세션을 리프레시 쿠키로 가려야 한다" 하나로 좁혔다. 앞으로 `/api/auth` 아래에 자원 라우트를 더하려면 이 근거가 그 라우트에도 맞는지 먼저 본다.
+
+`revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다.
+
+기각한 대안은 네 가지다.
+
+- `/api/auth/{action}` 예외의 문구를 넓혀 세션 라우트를 넣는 안. "인증과 관련된 것은 모두 `/api/auth`" 로 읽히게 돼 예외의 경계가 사라진다.
+- 리프레시 쿠키 Path 를 `/api` 로 넓혀 세션 라우트를 `/api/users/me/sessions` 에 두는 안. 모든 API 요청에 리프레시 쿠키가 붙는다.
+- 액세스 토큰에 로그인 세션 클레임을 넣어 쿠키 없이 현재 세션을 가리는 안. 토큰 계약과 토큰을 발급하는 모든 경로를 바꿔야 한다.
+- 옛 경로를 별칭으로 남기는 안. 옛 경로로 온 요청은 여전히 현재 세션을 가려내지 못한다.
+
+### §7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)
+
+Task CLE-T-75TDTN 의 결정이다.
+
+`POST /api/auth/2fa/disable` 은 비밀번호를 확인한 뒤 TOTP 코드나 TOTP 복구 코드를 한 번 더 확인한다. 인증 코드 추측을 막으려고 `@Throttle(SENSITIVE_ACTION_THROTTLE)` 로 분당 10회를 걸었다. 로그인한 사용자만 부르는 라우트라 §7 키 결정 규칙대로 사용자 기준으로 센다. §7 표가 요청 빈도 제한 수치의 단일 기준이므로 라우트별 `@Throttle` 을 더하면 이 표에도 행을 더한다.
+
+기각한 대안은 두 가지다.
+
+- 전역 100 req/min 에 맡기는 안. 비밀번호를 아는 공격자가 6자리 코드를 분당 100회까지 시도할 수 있다.
+- 이 라우트 전용 상수를 새로 두는 안. 이 라우트의 의도는 "전역보다 엄격한 민감 동작" 이라 공통 등급 상수의 의도와 같다. 상수의 주석도 정책이 갈릴 때만 분리하라고 적는다.
+
+### 전역 한도의 집계 키 미결을 닫았다 (2026-10-10)
+
+Task CLE-T-ERAJ7P 에서 바뀐 사실이다.
+
+이 미결은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 이 전역 한도와 로그인 세션 강제 종료 한도를 IP 당으로 적어 §7 과 어긋난다는 내용이었다. 「로그인 세션 강제 종료 한도를 사용자 기준으로 적은 이유」 절의 마지막 항목은 한때 그 문서가 아직 IP 당으로 적는다고 했다. 같은 초안 묶음에서 그 문서도 사용자 기준으로 고쳤으므로 그 항목도 그에 맞게 고쳤다.
+
+- 같은 Task 의 그 문서 개정 초안이 요청 빈도 제한 표에 집계 키 열을 더했다. 인증한 요청은 사용자(`user:<sub>`)로 세고 `@Public` 라우트는 IP 로 센다고 적는다. 세션 강제 종료 두 라우트도 사용자 기준이다.
+- 이것은 §7 키 결정 규칙과 같다. 두 문서가 같은 규칙을 적으므로 정할 것이 남지 않아 미결 항목을 지웠다.
+- [External Interaction API](../CLE-IX/CLE-EIA.md) 가 남긴 미결은 이 문서와 어긋나지 않는다. EIA 인바운드 경로는 `@Public()` 이라 §7 규칙대로 IP 로 센다. 그 미결의 정리는 EIA 문서가 한다.
+
+기각한 대안은 미결을 그대로 두는 안이다. 두 문서가 이미 같은 규칙을 적는데 미결이 남으면 아직 정해지지 않은 것처럼 읽힌다.
+
+### 이메일 변경 행의 소유 문서를 바로잡았다 (2026-10-10)
+
+Task CLE-T-ERAJ7P 에서 바뀐 사실이다.
+
+§7 의 이메일 변경 요청·재발송 행은 동작 정의를 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) 로 가리켰다. 이메일 변경의 API·재인증·토큰 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 「이메일 변경」 절이 정한다. 그래서 링크를 그 절로 바꿨다. 두 라우트는 `/api/users/me/*` 의 JWT 인증 라우트라 §7 키 결정 규칙대로 사용자 기준이다. 그 사실과 라우트별 `@Throttle` 이라는 점도 행에 적었다.
+
+### §2.3 의 워크스페이스 인가 링크를 바로잡았다 (2026-10-10)
+
+§2.3 은 경로 파라미터 예외의 근거와 현재 워크스페이스 결정의 단일 기준을 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 으로 가리켰다. 그 규칙과 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 「전환 API 와 토큰」 · 「API 인가」 절과 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」가 정하므로 링크를 그쪽으로 바꿨다.

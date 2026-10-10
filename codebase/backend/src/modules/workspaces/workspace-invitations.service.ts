@@ -28,7 +28,11 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
-import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
+import {
+  assertMayChangeAdminRole,
+  isAdminRole,
+  type WorkspaceRoleName,
+} from '../../common/constants/workspace-roles';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -73,7 +77,10 @@ export class WorkspaceInvitationsService {
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
-  /** Admin+ invites an email address to a team workspace. */
+  /**
+   * Admin+ invites an email address to a team workspace. 관리자 역할로 초대하거나 대기 중인 관리자
+   * 초대를 다른 역할로 덮어쓰는 것은 owner 만 한다(NERV CLE-ACCT-WS 「관리자 역할 규칙」).
+   */
   async invite(
     workspaceId: string,
     email: string,
@@ -81,7 +88,7 @@ export class WorkspaceInvitationsService {
     requesterId: string,
   ): Promise<WorkspaceInvitation> {
     const normalized = email.trim().toLowerCase();
-    await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.requireAdminRole(workspaceId, requesterId);
 
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
@@ -98,6 +105,7 @@ export class WorkspaceInvitationsService {
         message: '팀 워크스페이스에서만 초대할 수 있습니다.',
       });
     }
+    assertMayChangeAdminRole(requesterRole, role);
 
     const existingUser = await this.userRepository.findOne({
       where: { email: normalized },
@@ -126,10 +134,14 @@ export class WorkspaceInvitationsService {
     try {
       saved = await this.dataSource.transaction(async (manager) => {
         const invitationRepo = manager.getRepository(WorkspaceInvitation);
+        // 대기 초대를 잠그고 읽는다 — 잠그지 않으면 «지금 역할» 을 읽은 사이 소유자가 admin 으로 올린 초대를 `save` 가
+        // 되돌린다. 대기 초대가 없으면 잠글 행이 없고, 동시 INSERT 는 아래 부분 UNIQUE 위반 처리가 맡는다.
         const pending = await invitationRepo.findOne({
           where: { workspaceId, email: normalized, acceptedAt: IsNull() },
+          lock: { mode: 'pessimistic_write' },
         });
         if (pending) {
+          assertMayChangeAdminRole(requesterRole, pending.role);
           pending.token = token;
           pending.role = role;
           pending.invitedBy = requesterId;
@@ -531,25 +543,42 @@ export class WorkspaceInvitationsService {
   }
 
   /**
+   * Admin 이상인지 검사만 한다(반환값 없음). 요청자 역할이 필요 없는 호출처(`resend` · `listPending` · `revoke`)가 쓰고,
+   * 필요한 호출처는 `requireAdminRole` 을 쓴다. 이 서비스의 거부 코드는 소문자 `admin_required` 라서 워크스페이스 서비스의
+   * 같은 이름 검사와 합치지 않았다.
+   */
+  private async assertAdmin(
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.requireAdminRole(workspaceId, userId);
+  }
+
+  /**
+   * Admin 이상인지 검사하고 요청자의 역할을 돌려준다. 관리자 역할을 건드리는 초대는 이 역할로
+   * `assertMayChangeAdminRole`(소유자 전용)을 이어서 판정한다.
+   *
    * HTTP 경로에서 이 분기는 닿지 않는다 — 초대 라우트는 `@Roles('admin')` 라 `RolesGuard` 가 경로
    * 워크스페이스로 먼저 막는다(비멤버 `NOT_A_MEMBER` · 역할 미달 `ADMIN_REQUIRED`). 이 검사는 가드
    * 인식이 깨졌을 때의 **두 번째 선**이라 남긴다 — 소문자 `admin_required` 는 이 선에서만 나간다
    * (`spec/conventions/error-codes.md` §3 註 · `spec/data-flow/12-workspace.md` §Rationale "경로
    * 파라미터 워크스페이스도 가드가 본다").
    */
-  private async assertAdmin(
+  private async requireAdminRole(
     workspaceId: string,
     userId: string,
-  ): Promise<void> {
+  ): Promise<WorkspaceRoleName> {
     const member = await this.memberRepository.findOne({
       where: { workspaceId, userId },
     });
-    if (!member || !ADMIN_ROLES.has(member.role)) {
+    const role = member?.role;
+    if (!role || !isAdminRole(role)) {
       throw new ForbiddenException({
         code: 'admin_required',
         message: 'Admin 이상의 권한이 필요합니다.',
       });
     }
+    return role;
   }
 }
 

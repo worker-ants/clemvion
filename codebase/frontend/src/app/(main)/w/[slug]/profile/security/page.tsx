@@ -22,6 +22,7 @@ export default function SecurityPage() {
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [disablePassword, setDisablePassword] = useState("");
+  const [disableCode, setDisableCode] = useState("");
 
   const setupMutation = useMutation({
     mutationFn: () => authApi.setup2fa(),
@@ -45,10 +46,14 @@ export default function SecurityPage() {
   });
 
   const disableMutation = useMutation({
-    mutationFn: (password: string) => authApi.disable2fa(password),
+    // 비활성화에는 비밀번호와 TOTP 코드(또는 복구 코드)가 함께 필요하다
+    // (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
+    mutationFn: ({ password, code }: { password: string; code: string }) =>
+      authApi.disable2fa(password, code),
     onSuccess: () => {
       toast.success(t("profile.security.disableSuccess"));
       setDisablePassword("");
+      setDisableCode("");
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
     onError: () => toast.error(t("profile.security.disableFailedDetail")),
@@ -87,7 +92,15 @@ export default function SecurityPage() {
                   toast.error(t("profile.security.passwordRequired"));
                   return;
                 }
-                disableMutation.mutate(disablePassword);
+                const trimmedCode = disableCode.trim();
+                if (!trimmedCode) {
+                  toast.error(t("profile.security.disableCodeRequired"));
+                  return;
+                }
+                disableMutation.mutate({
+                  password: disablePassword,
+                  code: trimmedCode,
+                });
               }}
               className="flex flex-col gap-2 sm:flex-row sm:items-center"
             >
@@ -96,6 +109,15 @@ export default function SecurityPage() {
                 placeholder={t("profile.security.accountPasswordPlaceholder")}
                 value={disablePassword}
                 onChange={(e) => setDisablePassword(e.target.value)}
+                className="sm:max-w-xs"
+              />
+              {/* 복구 코드에는 영문이 섞여 있어 숫자 키패드(inputMode numeric)를 쓰지 않는다. */}
+              <Input
+                type="text"
+                autoComplete="one-time-code"
+                placeholder={t("profile.security.disableCodePlaceholder")}
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value)}
                 className="sm:max-w-xs"
               />
               <Button

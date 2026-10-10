@@ -150,8 +150,15 @@ export const authApi = {
       code,
     }),
 
-  disable2fa: (password: string) =>
-    apiClient.post<{ data: { ok: boolean } }>("/auth/2fa/disable", { password }),
+  /**
+   * 2FA 비활성화. 비밀번호와 함께 현재 TOTP 6자리 코드나 복구 코드를 받는다
+   * (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
+   */
+  disable2fa: (password: string, code: string) =>
+    apiClient.post<{ data: { ok: boolean } }>("/auth/2fa/disable", {
+      password,
+      code,
+    }),
 
   logout: () => apiClient.post("/auth/logout"),
 
