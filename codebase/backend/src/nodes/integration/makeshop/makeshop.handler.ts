@@ -56,8 +56,7 @@ interface MakeshopPageQuery {
 }
 
 type MakeshopPaginationResolution =
-  | { ok: true; query: MakeshopPageQuery }
-  | { ok: false; message: string };
+  { ok: true; query: MakeshopPageQuery } | { ok: false; message: string };
 
 /** 정수 하나를 읽는다. 없으면 `undefined`, 정수가 아니면 `null` 이다. 식이 풀린 값은 숫자 문자열일 수 있다. */
 function readPaginationInt(value: unknown): number | undefined | null {
@@ -88,10 +87,7 @@ export function resolveMakeshopPagination(
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, message: 'pagination must be an object' };
   }
-  const { limit: rawLimit, offset: rawOffset } = raw as Record<
-    string,
-    unknown
-  >;
+  const { limit: rawLimit, offset: rawOffset } = raw as Record<string, unknown>;
   const limit = readPaginationInt(rawLimit);
   if (limit === null || (limit !== undefined && limit <= 0)) {
     return {

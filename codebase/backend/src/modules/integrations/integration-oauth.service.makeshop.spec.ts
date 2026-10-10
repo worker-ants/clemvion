@@ -226,7 +226,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
             client_secret: 'mk-client-secret',
           },
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(err).toBeInstanceOf(BadRequestException);
       const message = (err as BadRequestException).getResponse() as {
         message: string;

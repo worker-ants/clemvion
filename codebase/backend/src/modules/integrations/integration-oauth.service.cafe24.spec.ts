@@ -1972,9 +1972,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(saved.status).toBe('connected');
       expect(saved.reinstallRequestedAt).toBeNull();
       expect(saved.installToken).toBe('some-install-token');
-      expect((saved.credentials as Record<string, unknown>).access_token).not.toBe(
-        'old-access',
-      );
+      expect(
+        (saved.credentials as Record<string, unknown>).access_token,
+      ).not.toBe('old-access');
     });
 
     /**

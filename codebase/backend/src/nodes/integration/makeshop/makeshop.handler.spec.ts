@@ -73,7 +73,10 @@ describe('MakeshopHandler', () => {
   describe('validate', () => {
     // CLE-T-XVS8H7 — MakeShop 은 offset 이 아니라 page 로 넘긴다. 숫자로 적은 값만 저장 시점에 거른다(식은 실행 때 본다).
     it.each([
-      [{ limit: 50, offset: 30 }, /pagination\.offset must be a multiple of pagination\.limit/],
+      [
+        { limit: 50, offset: 30 },
+        /pagination\.offset must be a multiple of pagination\.limit/,
+      ],
       [{ offset: 50 }, /pagination\.offset requires pagination\.limit/],
     ])('rejects pagination %j', (pagination, message) => {
       const r = handler.validate({
@@ -325,12 +328,27 @@ describe('MakeshopHandler', () => {
         .query;
 
     it.each([
-      [{ limit: 50, offset: 0 }, { limit: 50, page: 1 }],
-      [{ limit: 50, offset: 50 }, { limit: 50, page: 2 }],
-      [{ limit: 50, offset: 100 }, { limit: 50, page: 3 }],
-      [{ limit: 1, offset: 9 }, { limit: 1, page: 10 }],
+      [
+        { limit: 50, offset: 0 },
+        { limit: 50, page: 1 },
+      ],
+      [
+        { limit: 50, offset: 50 },
+        { limit: 50, page: 2 },
+      ],
+      [
+        { limit: 50, offset: 100 },
+        { limit: 50, page: 3 },
+      ],
+      [
+        { limit: 1, offset: 9 },
+        { limit: 1, page: 10 },
+      ],
       [{ offset: 0 }, { page: 1 }],
-      [{ limit: '20', offset: '40' }, { limit: 20, page: 3 }],
+      [
+        { limit: '20', offset: '40' },
+        { limit: 20, page: 3 },
+      ],
     ])('%j → query %j (offset 은 보내지 않는다)', async (pagination, query) => {
       const result = await run(pagination);
       expect(result.port).toBe('success');
@@ -363,9 +381,15 @@ describe('MakeshopHandler', () => {
       [{ limit: 50, offset: 49 }, /multiple of pagination\.limit/],
       [{ offset: 50 }, /requires pagination\.limit/],
       [{ limit: 0, offset: 0 }, /pagination\.limit must be a positive integer/],
-      [{ limit: 50, offset: -50 }, /pagination\.offset must be a non-negative integer/],
+      [
+        { limit: 50, offset: -50 },
+        /pagination\.offset must be a non-negative integer/,
+      ],
       [{ limit: 2.5 }, /pagination\.limit must be a positive integer/],
-      [{ limit: 50, offset: 'abc' }, /pagination\.offset must be a non-negative integer/],
+      [
+        { limit: 50, offset: 'abc' },
+        /pagination\.offset must be a non-negative integer/,
+      ],
     ])(
       '%j → MAKESHOP_INVALID_PAGINATION, 호출 · 통합 조회 없이 error 포트',
       async (pagination, message) => {

@@ -1108,7 +1108,8 @@ describe('IntegrationsService', () => {
             integrationId: 'int-1',
             appUrl:
               'https://app.example.com/api/3rd-party/cafe24/install/PreservedToken123456__',
-            callbackUrl: 'https://app.example.com/api/3rd-party/cafe24/callback',
+            callbackUrl:
+              'https://app.example.com/api/3rd-party/cafe24/callback',
           });
           // 판정한 행에만 · 바꾸는 컬럼만 쓴다. 상태와 사유는 건드리지 않는다.
           expect(integrationRepo.save).not.toHaveBeenCalled();

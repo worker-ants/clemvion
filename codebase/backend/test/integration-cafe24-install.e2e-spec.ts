@@ -27,6 +27,8 @@ type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
  *   - mall_id 불일치 (recovery fall-through 후에도) → 403
  *   - **B-1-3 nonce replay**: 동일 (mall_id, timestamp, hmac) 두 번째 호출
  *     → 400 CAFE24_INSTALL_REPLAY (Redis nonce cache)
+ *   - **재설치 대기 표시** (CLE-T-NNENG8): 설치가 끝난 행은 App URL 이 상세 화면으로 보내다가
+ *     `:id/reauthorize` · `:id/request-scopes` 가 `reinstall_requested_at` 을 남기면 authorize URL 로 보낸다
  *
  * 검증 안 함 (별 e2e 로 분리):
  *   - OAuth callback 의 외부 token exchange — Cafe24 token endpoint 를 mock 해야
@@ -118,6 +120,158 @@ describe('Cafe24 install endpoint (e2e)', () => {
     );
     return r.rows[0].id;
   }
+
+  async function insertPrivateIntegration(opts: {
+    mallId: string;
+    installToken: string;
+    status: 'connected' | 'error' | 'expired';
+  }): Promise<string> {
+    // 설치가 끝난 Cafe24 Private 행. credentials 는 insertPendingInstall 과 같은 이유로 평문 JSONB 다.
+    const credentials = {
+      mall_id: opts.mallId,
+      app_type: 'private',
+      client_id: 'e2e-client-id',
+      client_secret: clientSecret,
+      scopes: ['mall.read_product'],
+    };
+    const r = await db.query<{ id: string }>(
+      `INSERT INTO integration
+        (workspace_id, service_type, auth_type, name, scope, status,
+         mall_id, install_token, install_token_issued_at,
+         credentials, created_by)
+       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', $3,
+         $4, $5, NOW(), $6::jsonb, $7)
+       RETURNING id`,
+      [
+        workspaceId,
+        uniqueName('cafe24-reinstall'),
+        opts.status,
+        opts.mallId,
+        opts.installToken,
+        JSON.stringify(credentials),
+        owner.userId,
+      ],
+    );
+    return r.rows[0].id;
+  }
+
+  /** 매 호출마다 다른 timestamp 를 써서 nonce replay 가드를 피한다. */
+  let tsOffset = 0;
+  function signedInstallQuery(mallId: string): string {
+    tsOffset += 1;
+    const ts = (Math.floor(Date.now() / 1000) - tsOffset).toString();
+    const base = `mall_id=${mallId}&timestamp=${ts}&user_id=admin&user_name=John`;
+    const hmac = computeHmac(buildHmacMessage(base), clientSecret);
+    return `${base}&hmac=${encodeURIComponent(hmac)}`;
+  }
+
+  async function readMark(id: string): Promise<Date | null> {
+    const r = await db.query<{ reinstall_requested_at: Date | null }>(
+      'SELECT reinstall_requested_at FROM integration WHERE id = $1',
+      [id],
+    );
+    return r.rows[0].reinstall_requested_at;
+  }
+
+  describe('reinstall request mark (CLE-T-NNENG8)', () => {
+    it.each(['connected', 'error'] as const)(
+      '%s row: App URL goes to the detail page until reauthorize leaves the mark, then to the authorize URL',
+      async (status) => {
+        const mallId = 'mall-' + randomBytes(4).toString('hex');
+        const installToken = makeInstallToken();
+        const id = await insertPrivateIntegration({
+          mallId,
+          installToken,
+          status,
+        });
+
+        const before = await request(BASE_URL)
+          .get(`/api/3rd-party/cafe24/install/${installToken}`)
+          .query(signedInstallQuery(mallId));
+        expect(before.status).toBe(302);
+        expect(before.headers.location).not.toContain('oauth/authorize');
+        expect(before.headers.location).toContain(id);
+
+        const reauth = await request(BASE_URL)
+          .post(`/api/integrations/${id}/reauthorize`)
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .set('X-Workspace-Id', workspaceId);
+        expect(reauth.status).toBe(200);
+        expect(reauth.body.data).toEqual(
+          expect.objectContaining({
+            mode: 'cafe24_private_pending',
+            integrationId: id,
+            appUrl: expect.stringContaining(`/install/${installToken}`),
+          }),
+        );
+        expect(reauth.body.data.scopesAdded).toBeUndefined();
+
+        // 표시만 남고 상태 · 사유는 그대로다.
+        const row = await db.query<{
+          status: string;
+          reinstall_requested_at: Date | null;
+        }>(
+          'SELECT status, reinstall_requested_at FROM integration WHERE id = $1',
+          [id],
+        );
+        expect(row.rows[0].status).toBe(status);
+        expect(row.rows[0].reinstall_requested_at).toBeInstanceOf(Date);
+
+        const after = await request(BASE_URL)
+          .get(`/api/3rd-party/cafe24/install/${installToken}`)
+          .query(signedInstallQuery(mallId));
+        expect(after.status).toBe(302);
+        expect(after.headers.location).toContain('oauth/authorize');
+        expect(after.headers.location).toContain(`${mallId}.cafe24api.com`);
+
+        // 통합 조회 응답에도 표시가 실린다.
+        const got = await request(BASE_URL)
+          .get(`/api/integrations/${id}`)
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .set('X-Workspace-Id', workspaceId);
+        expect(got.status).toBe(200);
+        expect(typeof got.body.data.reinstallRequestedAt).toBe('string');
+      },
+    );
+
+    it('request-scopes merges scopes and leaves the mark on a connected row', async () => {
+      const mallId = 'mall-' + randomBytes(4).toString('hex');
+      const installToken = makeInstallToken();
+      const id = await insertPrivateIntegration({
+        mallId,
+        installToken,
+        status: 'connected',
+      });
+
+      const res = await request(BASE_URL)
+        .post(`/api/integrations/${id}/request-scopes`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({ scopes: ['mall.read_order'] });
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual(
+        expect.objectContaining({
+          mode: 'cafe24_private_pending',
+          scopesAdded: ['mall.read_order'],
+        }),
+      );
+      expect(await readMark(id)).toBeInstanceOf(Date);
+    });
+
+    it('pending_install row: reauthorize leaves no mark (begin keeps rejecting)', async () => {
+      const mallId = 'mall-' + randomBytes(4).toString('hex');
+      const installToken = makeInstallToken();
+      const id = await insertPendingInstall({ mallId, installToken });
+
+      const res = await request(BASE_URL)
+        .post(`/api/integrations/${id}/reauthorize`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', workspaceId);
+      expect(res.status).toBe(400);
+      expect(res.body?.error?.code).toBe('CAFE24_PRIVATE_APP_USE_TEST_RUN');
+      expect(await readMark(id)).toBeNull();
+    });
+  });
 
   describe('happy path', () => {
     let mallId: string;
