@@ -64,6 +64,17 @@ jobs:
         # 색인 frontmatter 테스트가 이 디렉터리를 읽는다. 카탈로그만 바꾼 PR(생성기 재실행 등)도
         # 그 대조를 돌려야 한다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
+        # 운영 부팅 가드의 예시 키 대조. `production-guards.spec.ts` 의 마지막 describe 가 저장소에
+        # 커밋된 예시 파일의 ENCRYPTION_KEY · INTEGRATION_ENCRYPTION_KEY 값이 거부 목록에 다 있는지
+        # 읽는다. `codebase/backend/.env.example` 만 위 `codebase/backend/**` 에 들어 있고, 아래 세
+        # 파일은 밖이라 예시값만 바꾼 PR 이 이 잡을 건너뛰었다
+        # (`.claude/tests/test_backend_example_key_ci_coverage.py`). 디렉터리가 아니라 파일 단위로만
+        # 등재한다 — 무관한 k8s 매니페스트 변경마다 backend 잡이 돌지 않게 한다.
+        # 루트 `README.md` 도 그 spec 이 읽지만 일부러 뺐다. README 를 고칠 때마다 backend 잡이
+        # 도는 비용이 크다. README 예시값 대조는 backend 변경이 있는 PR 에서만 돈다.
+        k8s/base/secret.example.yaml
+        k8s/overlays/local/secret.yaml
+        docker-compose.e2e.yml
         pnpm-lock.yaml
         pnpm-workspace.yaml
         # 판정 규칙이 사는 공유 코어. 엔트리포인트는 설정만 담으므로 **동작을 바꾸는 것은
