@@ -68,7 +68,7 @@ import { Roles } from '../../common/guards/roles.guard';
 const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 
 // 멤버 직접 추가 · 역할 변경 · 초대의 403 — Admin 요구(가드)와 관리자 역할을 주고 빼는 요청의 Owner 요구(서비스).
-// NERV CLE-ACCT-WS 역할 권한표. 세 라우트가 같은 문장을 쓴다.
+// NERV CLE-ACCT-WS 「관리자 역할 규칙」. 세 라우트가 같은 문장을 쓴다.
 const FORBIDDEN_ADMIN_OR_ADMIN_ROLE_OWNER_ONLY = forbiddenWithService(
   forbiddenForRole('admin'),
   `관리자 역할을 주거나 빼는 요청은 Owner 만 가능(${ADMIN_ROLE_CHANGE_REQUIRES_OWNER.code} — 서비스 판정)`,
@@ -338,7 +338,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '이메일로 멤버 추가',
     description:
-      '이미 가입된 사용자를 즉시 멤버로 추가합니다. 미가입자에게는 `POST /workspaces/:id/invitations` 의 초대 토큰 흐름을 사용하세요.',
+      '이미 가입된 사용자를 즉시 멤버로 추가합니다. 미가입자에게는 `POST /workspaces/:id/invitations` 의 초대 토큰 흐름을 사용하세요. 관리자 역할로 추가하는 요청은 Owner 만 할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(MemberRoleDto, { description: '추가된 멤버 정보' })
@@ -464,7 +464,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '미가입자 초대(Admin+)',
     description:
-      '이메일로 초대 토큰을 발송합니다. 동일 이메일의 대기 중 초대가 있으면 기존 토큰을 무효화하고 새 토큰으로 재발급합니다.',
+      '이메일로 초대 토큰을 발송합니다. 동일 이메일의 대기 중 초대가 있으면 기존 토큰을 무효화하고 새 토큰으로 재발급합니다. 관리자 역할 초대와 관리자 대기 초대 덮어쓰기는 Owner 만 할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(InvitationCreatedDto, {

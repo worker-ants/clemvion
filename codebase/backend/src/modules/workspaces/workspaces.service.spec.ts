@@ -1061,8 +1061,8 @@ describe('WorkspacesService', () => {
   });
 
   /**
-   * NERV CLE-ACCT-WS 역할 권한표 — 관리자 역할을 주고 빼는 일(역할 변경 · 직접 추가)은 owner 만 한다.
-   * 에디터 · 뷰어 사이의 변경은 그대로 관리자 이상이다(CLE-T-0W7CA7, 발견 01a0e542-19b6-755c-ad55-49c907b87cd1).
+   * NERV CLE-ACCT-WS 「관리자 역할 규칙」 — 관리자 역할을 주고 빼는 일(역할 변경 · 직접 추가)은 owner 만 한다.
+   * 에디터 · 뷰어 사이의 변경은 그대로 관리자 이상이다(CLE-T-0W7CA7, finding 01a0e542-19b6-755c-ad55-49c907b87cd1).
    */
   describe('관리자 역할을 주고 빼는 일은 owner 만 한다', () => {
     const REQUESTER = 'user-requester';

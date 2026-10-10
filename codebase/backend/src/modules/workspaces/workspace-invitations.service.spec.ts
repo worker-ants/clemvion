@@ -111,7 +111,7 @@ describe('WorkspaceInvitationsService', () => {
     });
 
     /**
-     * NERV CLE-ACCT-WS 역할 권한표 — 관리자 역할로 초대하는 것은 owner 만 한다. 대기 중인 관리자 초대를 다른
+     * NERV CLE-ACCT-WS 「관리자 역할 규칙」 — 관리자 역할로 초대하는 것은 owner 만 한다. 대기 중인 관리자 초대를 다른
      * 역할로 덮어쓰는 것도 관리자 역할을 빼는 일이라 owner 만 한다(CLE-T-0W7CA7).
      */
     describe('관리자 역할 초대는 owner 만 한다', () => {

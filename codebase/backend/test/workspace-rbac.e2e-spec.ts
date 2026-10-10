@@ -276,7 +276,7 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   /**
-   * NERV CLE-ACCT-WS 역할 권한표 — 관리자 역할을 주고 빼는 일은 owner 만 한다(CLE-T-0W7CA7).
+   * NERV CLE-ACCT-WS 「관리자 역할 규칙」 — 관리자 역할을 주고 빼는 일은 owner 만 한다(CLE-T-0W7CA7).
    * 관리자도 에디터 · 뷰어 사이의 변경은 그대로 할 수 있다. 거부된 요청은 DB 를 바꾸지 않는다.
    */
   it('K. 관리자 역할 부여 · 회수 · 관리자 초대 · 직접 추가는 owner 만 — admin 은 403 OWNER_REQUIRED', async () => {

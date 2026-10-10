@@ -91,7 +91,7 @@ export const ROLE_REQUIRED: Readonly<
 };
 
 /**
- * 소유자가 아닌 멤버가 관리자 역할을 주거나 빼려 할 때의 거부(NERV CLE-ACCT-WS 역할 권한표).
+ * 소유자가 아닌 멤버가 관리자 역할을 주거나 빼려 할 때의 거부(NERV CLE-ACCT-WS 「관리자 역할 규칙」).
  * 역할 변경 · 직접 추가 · 초대가 같은 본문을 낸다. 코드는 가드의 owner 미달과 같은 `OWNER_REQUIRED` 이고
  * 문장은 이 동작에 맞춘 고유 문구다. 예외에 넘길 때는 `NOT_A_MEMBER` 처럼 펼쳐서 넘긴다.
  */
@@ -101,7 +101,7 @@ export const ADMIN_ROLE_CHANGE_REQUIRES_OWNER: WorkspaceRoleRejection = {
 };
 
 /**
- * 관리자 역할을 주거나 빼는 변경은 소유자만 한다(NERV CLE-ACCT-WS 역할 권한표). `touchedRoles` 는 그 변경이 건드리는
+ * 관리자 역할을 주거나 빼는 변경은 소유자만 한다(NERV CLE-ACCT-WS 「관리자 역할 규칙」). `touchedRoles` 는 그 변경이 건드리는
  * 역할이다 — 역할 변경이면 대상의 지금 역할과 새 역할, 직접 추가 · 초대면 새 역할, 대기 중인 초대를 덮어쓰면 그 초대의 지금
  * 역할이다. 하나라도 admin 이고 요청자가 owner 가 아니면 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER` 로 거부한다.
  * 규칙과 거부 본문을 서비스마다 다시 쓰지 않게 이 함수 하나가 가진다. 역할 값이 없는 칸(`null` · `undefined`)은 건드리지 않은

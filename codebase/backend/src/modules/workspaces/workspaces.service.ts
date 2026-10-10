@@ -262,7 +262,7 @@ export class WorkspacesService {
 
   /**
    * 이메일로 기존 가입 사용자 멤버 추가(Admin+). 미가입자는 별도 초대 흐름(2nd 컷).
-   * 관리자 역할로 추가하는 것은 owner 만 한다(NERV CLE-ACCT-WS 역할 권한표).
+   * 관리자 역할로 추가하는 것은 owner 만 한다(NERV CLE-ACCT-WS 「관리자 역할 규칙」).
    */
   async addMemberByEmail(
     workspaceId: string,
@@ -319,7 +319,7 @@ export class WorkspacesService {
   /**
    * 멤버 역할 변경(Admin+). owner 부여/박탈은 차단.
    * 관리자 역할을 주거나 빼는 변경(대상의 지금 역할이나 새 역할이 admin)은 owner 만 한다
-   * (NERV CLE-ACCT-WS 역할 권한표). 관리자가 자기 역할을 바꾸는 것도 여기에 걸린다.
+   * (NERV CLE-ACCT-WS 「관리자 역할 규칙」). 관리자가 자기 역할을 바꾸는 것도 여기에 걸린다.
    */
   async updateMemberRole(
     workspaceId: string,
