@@ -53,7 +53,7 @@ model: opus
      `/consistency-check --impl-prep <scope>`(scope 가 영역 폴더면 `--focus <클레임 spec_ids>` 를 더한다). Critical → 즉시 중단. Warning → Task 본문에 적고(여러 건이면 목록으로) 진행.
    - **건너뛴다**: 클레임 scope 에 스펙이 없거나, 받은 스펙이 미러와 같고 구현 상태가 「구현됨」이며 Task 가 그 표면 밖을 건드린다(의존성 갱신, 하네스, 스펙이 그대로인 버그 수정). Task 본문에 「impl-prep 생략: <사유와 확인한 근거>」 한 줄을 남긴다(예: 「미러 변경 없음, CLE-X 구현됨, 의존성 갱신」).
      done 게이트가 요구하는 consistency 라운드는 REVIEW WORKFLOW 5 의 `--impl-done` 이 채운다.
-   - 근거: 어떤 게이트도 impl-prep 라운드를 따로 보지 않는다. 2026-10-09 실측으로 작업당 consistency-check 호출이 평균 3.9회 · 중앙값 1회(모든 모드 합, 한 번에 약 9분)였다(NERV Task `CLE-T-ZTTHXD`). impl-prep 이 Critical 을 미리 잡은 선례(`CHANGELOG.md` 의 `ED-AI-37` 항목)가 있어서 스펙 표면을 건드리는 Task 는 계속 돈다.
+   - 근거: 어떤 게이트도 impl-prep 라운드를 따로 보지 않는다. 2026-10-09 실측으로 작업당 consistency-check 호출이 평균 3.9회 · 중앙값 1회(모든 모드 합, 한 번에 약 9분)였다(NERV Task `CLE-T-ZTTHXD`). impl-prep 이 Critical 을 미리 잡은 선례(`ED-AI-37`, PR #1204)가 있어서 스펙 표면을 건드리는 Task 는 계속 돈다.
 4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리. **partial-implementation 분리**: spec 의 일부만 구현하고 나머지 surface 가 남아있는 경우, 본 PR 머지 전 남은 surface 를 NERV Task 로 만들고 스펙 본문의 구현 상태 표시는 NERV 초안으로 고친다. 구현한 경로는 같은 초안의 `## 구현 위치` 에 적는다(SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「규칙」). 자가 체크리스트는 `PROJECT.md §DOCUMENTATION 단계 종료 사전 체크리스트` 마지막 항목.
 5. **테스트 선작성** — TDD.
 6. **구현** — 스펙과 테스트 기준.
