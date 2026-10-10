@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "51f12f4978266354824e32a5b91294960dfcd11c93d1b66935bac815d4774a6c"
 read_as: "approved_fallback"
-task: "CLE-T-2V7SBC"
+task: "CLE-T-NNENG8"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "2cdf8c7262592266cbc785c14d0a54fe4bc3555f4673285db19a2dcf823dfc2c"
-etag: "sha256-07a0b2b533686a2d22f1f00c19ab68647895d55bdaeead290ebb05a629f64c06"
+mirror_sha256: "ea16030b8b46064643612c60d35d134045136e97dd1a4bfa8a9b4934f7b3d976"
+etag: "sha256-1f1eb00cf47d3049a516ed3a616426fe66babdcb830da4552995d90cc39b9a5d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

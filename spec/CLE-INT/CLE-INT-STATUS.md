@@ -10,11 +10,11 @@ parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "68b42be4ae575a8df75fa2052dd02fad7a0b65fcdd2f060cfa85e99f818dc459"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-NNENG8"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "1493fe8cbe4f7fb60f3992588ea8cb51030b7bd447c77d90004952e586c0e5a8"
-etag: "sha256-f9954a6e931773b20d04272c65f9b945d6a0531fd0690d785910fc711a52e63d"
+mirror_sha256: "62957fcbcbcc8bcbcc173e1f9c3127e3d1fa86118723ae380e3348585a509b51"
+etag: "sha256-7d72eff900ae8a2de29999b88a2b14d9f5ac0db6b4c79bc5f910344bbcd06911"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
