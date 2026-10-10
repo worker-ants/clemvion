@@ -2,7 +2,7 @@
  * Upstream cancellation wiring shared by the integration nodes that own a
  * per-request `AbortController` (HTTP Request · Cafe24 · MakeShop).
  *
- * NERV CLE-EXEC-CANCEL §fetch 자체 타임아웃과의 연쇄: the request keeps its own
+ * [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄): the request keeps its own
  * controller for its timeout and the execution's `context.abortSignal` is
  * linked into it, so either one stops the request. The listener on the
  * execution-wide signal must be removed when the request settles; a request
@@ -42,9 +42,11 @@ export function linkUpstreamAbort(
  * True when `err` looks like an `AbortError`. Matches on `name` instead of
  * `instanceof Error`: a real `fetch` rejects with a DOMException that may come
  * from another realm (jest's VM sandbox), and `instanceof Error` would miss it.
- * This is the single check the integration nodes use for an abort. The engine's
- * `isAbortError` (`execution-engine.service.ts`) decides the same way, and a
- * change to either has to be mirrored in the other.
+ * HTTP Request · Cafe24 · MakeShop use this check for an abort. The engine's
+ * `isAbortError` (`execution-engine.service.ts`) decides the same way. The two
+ * stay separate so node modules do not import the execution-engine module, and
+ * `abort-error-parity.spec.ts` next to the engine fails when their verdicts
+ * drift apart.
  */
 export function isAbortErrorLike(err: unknown): boolean {
   return (
@@ -57,7 +59,7 @@ export function isAbortErrorLike(err: unknown): boolean {
 /**
  * True when `err` is an AbortError caused by the execution being cancelled.
  * The caller rethrows it so the engine records the node as `cancelled`
- * (CLE-EXEC-CANCEL rule 19). An AbortError while `upstream` is still open came
+ * ([노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19). An AbortError while `upstream` is still open came
  * from the request's own timeout and keeps the caller's transport-failure
  * mapping.
  *

@@ -240,12 +240,12 @@ export class MakeshopHandler
           path,
           query,
           body,
-          // node-cancellation.md §4 — let a cancelled execution stop the
+          // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — let a cancelled execution stop the
           // in-flight HTTP call instead of waiting out the per-call timeout.
           signal: context.abortSignal,
         });
       } catch (err) {
-        // node-cancellation.md §5.1 — a cancelled node must reach the engine as
+        // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19 — a cancelled node must reach the engine as
         // an AbortError. Mapping it here would return `port:'error'` +
         // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
         // runs and the node is recorded `failed` with no
@@ -341,7 +341,7 @@ export class MakeshopHandler
         port: 'success',
       };
     } catch (err) {
-      // node-cancellation.md §5.1 — a cancelled node must reach the engine as
+      // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19 — a cancelled node must reach the engine as
       // an AbortError. Mapping it here would return `port:'error'` +
       // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
       // runs and the node is recorded `failed` with no

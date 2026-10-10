@@ -1692,8 +1692,8 @@ describe('HttpRequestHandler', () => {
       expect(result.output.responseHeaders).toBeUndefined();
     });
 
-    describe('cancellation — context.abortSignal cascade (NERV CLE-EXEC-CANCEL)', () => {
-      // CLE-EXEC-CANCEL rule 19 (finding 01a0e599-78b6-7714-a5c1-ba2c658d1888):
+    describe('cancellation — context.abortSignal cascade (CLE-EXEC-CANCEL 「fetch 자체 타임아웃과의 연쇄」)', () => {
+      // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19 (finding 01a0e599-78b6-7714-a5c1-ba2c658d1888):
       // an AbortError caused by the execution being cancelled is rethrown so the
       // engine records the node as `cancelled`. It never reaches the error port,
       // and the node's own timeout keeps HTTP_TRANSPORT_FAILED.

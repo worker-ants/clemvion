@@ -570,14 +570,14 @@ describe('MakeshopHandler', () => {
     });
   });
 
-  // node-cancellation.md §4 — the handler is the only place that knows the
+  // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — the handler is the only place that knows the
   // execution's abortSignal; if it stops forwarding it, the client's cascade
   // becomes dead code and nothing else fails. Pinned here for that reason.
-  describe('abortSignal forwarding (node-cancellation §4)', () => {
+  describe('abortSignal forwarding (CLE-EXEC-CANCEL 「fetch 자체 타임아웃과의 연쇄」)', () => {
     it('rethrows AbortError so the ENGINE can classify the node as cancelled', async () => {
       // The client rethrows AbortError (bypassing its transport wrapper), but
       // that only matters if the handler lets it through too. Swallowing it here
-      // maps to `port:'error'` + `*_TRANSPORT_FAILED`, and §5.1's `cancelled`
+      // maps to `port:'error'` + `*_TRANSPORT_FAILED`, and rule 19's `cancelled`
       // classification in `executeNode` is never reached — so the node is
       // recorded `failed` and no `execution.node.cancelled` event fires.
       //

@@ -4,7 +4,7 @@ import {
   linkUpstreamAbort,
 } from './abort-cascade.util.js';
 
-// NERV CLE-EXEC-CANCEL §fetch 자체 타임아웃과의 연쇄 — the helper HTTP Request ·
+// [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — the helper HTTP Request ·
 // Cafe24 · MakeShop share to wire the execution's `context.abortSignal` into the
 // controller each call already owns for its own timeout.
 describe('linkUpstreamAbort', () => {

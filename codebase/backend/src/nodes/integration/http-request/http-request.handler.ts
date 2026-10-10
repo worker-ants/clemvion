@@ -424,7 +424,7 @@ export class HttpRequestHandler
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
-    // NERV CLE-EXEC-CANCEL §fetch 자체 타임아웃과의 연쇄: 실행 취소 신호(context.abortSignal)를
+    // [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄): 노드 취소 신호(context.abortSignal)를
     // 이 요청의 controller 에 잇는다. 지금 이 신호를 만드는 곳은 Parallel cancel-others-on-fail
     // 하나다(규칙 9). 사용자 실행 중지는 신호를 만들지 않아 진행 중인 fetch 를 끊지 않는다.
     // 리스너는 응답 본문까지 읽은 뒤 아래 finally 에서 뗀다. 성공한 요청은 controller 를
@@ -525,7 +525,7 @@ export class HttpRequestHandler
       };
     } catch (err: unknown) {
       clearTimeout(timeoutId);
-      // CLE-EXEC-CANCEL 규칙 19: 실행 취소로 생긴 AbortError 는 error 포트로 보내지 않고 다시 던진다.
+      // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) 규칙 19: 노드 취소 신호로 생긴 AbortError 는 error 포트로 보내지 않고 다시 던진다.
       // 엔진이 노드를 cancelled 로 기록한다. 끝난 호출이 아니므로 활동 로그도 남기지 않는다(Cafe24 ·
       // MakeShop 과 같다). 노드 자체 타임아웃의 AbortError 는 upstream 이 열려 있어서 아래
       // HTTP_TRANSPORT_FAILED 로 간다.

@@ -65,7 +65,7 @@ export interface MakeshopCallOptions {
   timeoutMs?: number;
   /**
    * The execution's `context.abortSignal`, cascaded into this call's own
-   * timeout controller (node-cancellation.md §4). Absent for callers outside a
+   * timeout controller ([노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄)). Absent for callers outside a
    * node run (connection tests, token refresh) — the timeout still applies.
    */
   signal?: AbortSignal;
@@ -847,7 +847,7 @@ export class MakeshopApiClient {
     const timeoutMs = opts.timeoutMs ?? 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    // node-cancellation.md §4 — cascade the execution's abortSignal into the
+    // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — cascade the execution's abortSignal into the
     // controller this request watches, so a cancelled execution stops the
     // in-flight call instead of waiting out `timeoutMs`. An already-aborted
     // upstream aborts before the round trip.
@@ -875,7 +875,7 @@ export class MakeshopApiClient {
       });
     } catch (err) {
       // A cancelled execution is not a transport fault. Two things follow, and
-      // both were wrong before: (1) §5.1 — the engine only classifies a node
+      // both were wrong before: (1) rule 19 — the engine only classifies a node
       // `cancelled` if AbortError reaches it, so wrapping it here would surface
       // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
       // let three cancelled sibling branches demote a healthy integration to
