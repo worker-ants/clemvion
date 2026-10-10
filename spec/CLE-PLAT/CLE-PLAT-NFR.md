@@ -2,19 +2,19 @@
 id: "CLE-PLAT-NFR"
 title: "비기능 요구사항"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047"]
+requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047", "REQ-NFR-048"]
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "bf78d7541e39adc43eb85ec5e15bd9d1babe1e7514f4f20c68b7db2e954f285f"
+content_hash: "96317d7d3d16f8c760c81fca703083630dce23486fbe36d398619650a14f5b65"
 read_as: "approved_fallback"
 task: "CLE-T-ERAJ7P"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "dfc65c7e9f57bcf8d0309de7fcc9971355ef5abea78a1f19e70f2186d8b84411"
-etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
+mirror_sha256: "7388530b2509785b4b27aca5235b525d37fdb177d86fbb1b62a9c38dbe68cb4b"
+etag: "sha256-707171a2d9656c75cb17af0b295d26ffdd579cb1e22c215aeead0cb5144511c7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
 
 이 문서는 기능 하나에 속하지 않고 제품 전체가 지켜야 하는 품질 목표를 정한다. 성능·보안·확장성·가용성·관측성·국제화와 접근성·배포와 운영의 일곱 갈래다. 각 요구사항은 원문 ID(`NF-*`)를 함께 적는다.
 
-요구사항 줄 끝의 괄호에는 원문 ID 와 우선순위(필수·권장)를 적는다. 구현하지 않은 요구는 `(미구현)`, 일부만 구현한 요구는 `(부분 구현)` 을 붙인다. 표시가 없는 요구는 원문에서 구현 완료(✅)다. 소유 문서에 구현 여부를 다시 확인해야 한다고 적힌 요구는 줄 끝에 그 문서 링크를 단다.
+요구사항 줄 끝의 괄호에는 원문 ID 와 우선순위(필수·권장)를 적는다. 구현하지 않은 요구는 `(미구현)`, 일부만 구현한 요구는 `(부분 구현)` 을 붙인다. 표시가 없는 요구는 원문에서 구현 완료(✅)다. `(미구현)` · `(부분 구현)` 뒤에는 콜론을 찍고 사유를 덧붙일 수 있다. 사유가 소유 문서의 미결 사항이면 그 문서 링크를 단다.
 
 범위 밖:
 
@@ -50,7 +50,8 @@ etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
 - REQ-NFR-010 WHEN 데이터를 주고받으면 THE SYSTEM SHALL TLS 1.2 이상으로 전송 구간을 암호화한다. (원본: NF-SC-04, 필수)
 - REQ-NFR-011 WHEN 요청을 처리하면 THE SYSTEM SHALL CSRF·XSS·SQL Injection 등 OWASP Top 10 위협에 대응한다. (원본: NF-SC-05, 필수)
 - REQ-NFR-012 WHEN 주요 액션이 일어나면 THE SYSTEM SHALL 감사 로그에 기록한다. (원본: NF-SC-06, 필수)
-- REQ-NFR-013 WHILE 로그인 세션이 유지되는 동안 THE SYSTEM SHALL 세션 유효 기간과 동시 세션 수를 제한한다. (원본: NF-SC-07, 필수) (동시 세션 제한은 구현 여부 미확인: [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 미결 사항)
+- REQ-NFR-013 WHILE 로그인 세션이 유지되는 동안 THE SYSTEM SHALL 액세스 토큰과 리프레시 토큰의 유효 기간을 제한한다. (원본: NF-SC-07, 필수)
+- REQ-NFR-048 WHILE 로그인 세션이 유지되는 동안 THE SYSTEM SHALL 한 사용자의 동시 로그인 세션 수를 제한한다. (원본: NF-SC-07, 필수) (미구현: 한도 값과 설정 주체는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항) 미결 사항)
 - REQ-NFR-014 WHEN 운영자가 셀프 호스팅으로 배포하면 THE SYSTEM SHALL 셀프 호스팅 보안 가이드를 제공한다. (원본: NF-SC-08, 필수) (미구현)
 - REQ-NFR-015 WHEN 워크플로우를 실행하면 THE SYSTEM SHALL 악의적인 노드로부터 시스템을 보호하도록 실행을 샌드박싱한다. (원본: NF-SC-09, 필수)
 - REQ-NFR-016 WHEN 사용자가 2단계 인증을 켜면 THE SYSTEM SHALL TOTP 와 Passkey·보안 키 두 방식을 지원한다. (원본: NF-SC-10, 권장)
@@ -108,7 +109,9 @@ etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
 ### 보안
 
 - **역할 기반 접근 제어(NF-SC-02)**: 워크플로우·트리거·스케줄·통합·모델 설정·지식 저장소·인증 설정·폴더에 역할 가드를 적용했다. 워크스페이스 멤버 관리는 관리자와 소유자로 나눴고, 소유자 이양을 지원한다. 권한 매트릭스는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 가 정한다.
-- **동시 세션 제한(NF-SC-07)**: 세션 정책은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 정한다. 구현 여부는 [미결 사항](#미결-사항) 을 본다.
+- **로그인 세션 유효 기간과 동시 로그인 세션 제한(NF-SC-07)**: 세션 정책은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 정한다. 이 원문 요구는 부분 구현이다(2026-10-10 코드 확인).
+  - 유효 기간 제한은 구현돼 있다. 값은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 을 본다. 리프레시 토큰은 토큰 회전 때마다 그 시점부터 수명을 다시 센다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는 문제는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항) 에 있다. 유효 기간을 제한한다는 요구의 판정에는 영향이 없다.
+  - 동시 로그인 세션 수 제한은 미구현이다. 초과 시 가장 오래된 로그인 세션을 끝내는 동작도 없다. 구현 요구는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 REQ-SESSION-033 이 소유한다. 한도 값과 설정 주체는 후속 NERV Task `CLE-T-VBQV4H` 가 정한다.
 - **2단계 인증(NF-SC-10)**: TOTP 와 Passkey·보안 키(WebAuthn, 여러 개 등록 가능)를 지원한다. 방식마다 복구 코드 10개를 따로 발급한다. Passkey·보안 키를 우선하고 TOTP 로 자동 전환하지 않는다. 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다.
 - **샌드박싱(NF-SC-09)**: 샌드박싱 정책은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 와 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 가 정한다.
 
@@ -140,7 +143,6 @@ etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
 
 ## 미결 사항
 
-- **동시 세션 제한의 구현 여부(NF-SC-07)**: 원문 요구사항 표는 구현 완료(✅)로 적는다. [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 세션 정책은 동시 세션 기본 5개(관리자 설정 가능), 초과 시 가장 오래된 세션 종료, 30일 비활동 만료를 약속한다. 분석 단계에서 인증·세션 서비스 코드에서 세션 수 제한과 비활동 만료 로직을 찾지 못했다(실행 확인은 하지 않았다). 리프레시 토큰 수명이 7일(로그인 유지 시 30일)이라 30일 비활동 만료는 뜻이 거의 없다. 구현 여부를 확인하고, 미구현이면 이 요구의 상태와 세션 정책을 함께 고쳐야 한다. "관리자 설정" 의 주체(운영자 환경 변수인지 워크스페이스 관리자인지)도 정해야 한다.
 - **워크플로우 수준 자동 재시도의 근거(NF-AV-02)**: 원문 요구사항 표는 구현 완료(✅)로 적는다. [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 은 트리거·스케줄 자동 실행에 워크플로우 설정의 재시도(기본 0, 최대 5)를 약속한다. 그러나 워크플로우 설정(`Workflow.settings`)에는 재시도 키가 없고, 시작 큐(`execution-run`)는 `attempts:1` 이라 애플리케이션 수준 재시도를 하지 않는다([비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md)). 분석 단계에서 워크플로우 수준 재시도 구현을 찾지 못했다. 소유 문서가 이 기능을 미구현으로 표시하므로 이 문서도 요구 상태를 부분 구현으로 낮췄다. 이 요구를 노드 수준 재시도 기준으로 다시 쓸지 워크플로우 수준 재시도를 구현할지 결정 필요.
 
 ## 구현 위치
@@ -159,3 +161,24 @@ etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
 ### 관측 대상을 둘로 나눈 이유
 
 실행 수와 LLM 사용량은 OTel 메트릭과 DB 집계 기반 통계 API 양쪽에서 볼 수 있다. 둘은 역할이 다르다. OTel·Prometheus 는 Grafana 대시보드와 알람 규칙에 쓰는 실시간 rate·gauge 지표이고, 통계 API 는 워크스페이스 단위 정확 집계·기간 필터·차트를 주는 제품 분석과 과거 추세의 기준이다. OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터의 기준이 아니다. 자세한 근거는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 에 있다.
+
+### NF-SC-07 을 두 요구로 나눈 이유
+
+2026-10-10, NERV Task `CLE-T-ERAJ7P` 의 결정이다.
+
+원문 표는 NF-SC-07 을 구현 완료(✅)로 적었다. v1 은 REQ-NFR-013 하나에 로그인 세션 유효 기간과 동시 로그인 세션 수를 함께 담고, 동시 로그인 세션 부분에 "구현 여부 미확인" 이라고 적었다. 미결 사항에서 구현 여부를 확인하라고 남겼다.
+
+로그인 세션 코드(`auth.service.ts`, `sessions.service.ts`)를 확인한 결과는 다음과 같다.
+
+- 액세스 토큰과 리프레시 토큰의 유효 기간 제한은 구현돼 있다.
+- 동시 로그인 세션 수 제한과 초과 시 가장 오래된 로그인 세션을 끝내는 동작은 없다.
+
+그래서 유효 기간 제한은 REQ-NFR-013 에 남겨 구현됨으로 두었다. 동시 로그인 세션 수 제한은 새 요구 REQ-NFR-048 로 빼고 미구현으로 적었다. 새 번호는 끝번호(REQ-NFR-047) 다음이고, 읽는 흐름을 위해 REQ-NFR-013 바로 아래에 두었다. 한도 값과 설정 주체는 후속 NERV Task `CLE-T-VBQV4H` 가 정한다. "구현 여부 미확인" 은 구현 상태 어휘(구현됨·부분 구현·미구현)에 없어서 지웠다.
+
+[세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 은 같은 Task 에서 30일 비활동 만료를 지웠다. 리프레시 토큰이 토큰 회전 때마다 수명을 다시 세므로 비활동 만료가 토큰 만료보다 먼저 걸리는 경우가 없기 때문이다. 이 문서의 요구는 비활동 만료를 따로 약속하지 않아서 고칠 요구가 없다.
+
+기각한 대안은 세 가지다.
+
+- 한 요구에 두 동작을 그대로 두고 "(부분 구현)" 을 붙이는 안. 두 동작의 구현 상태가 다르고 후속 Task 가 한쪽만 맡아서 ID 를 나눴다.
+- 요구 전체를 미구현으로 적는 안. 유효 기간 제한은 구현돼 있어 사실과 다르다.
+- 동시 로그인 세션 제한을 "계획" 으로 표시하는 안. "계획" 은 구현 상태 어휘에 없다.

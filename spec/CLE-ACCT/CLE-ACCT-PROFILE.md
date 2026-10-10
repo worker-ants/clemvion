@@ -3,20 +3,20 @@ id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025"]
+status: "approved"
+requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "8386c5bf04fc025029a52fc0c26b1db5b1e88c92c33f692e5bb9372c635290f5"
+content_hash: "88ec82be0bcae112cf9fa894edd0ad800806dfe0a8f23520cb5e5d946ec797c2"
 read_as: "approved_fallback"
 task: "CLE-T-E7MF3Q"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "76ce78832b1fb28cbf5bba11f93fad45eebbac5314eef60db4837b3863f01850"
-etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
+mirror_sha256: "880c50d9b13a934a2ff8deaa8bac95e06ca1de09886b26f366b77f936989947e"
+etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
 ---
-> 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목과 테마 `system` 선택 UI 는 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -56,10 +56,11 @@ etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
 - REQ-PROFILE-019 IF 아바타 파일이 없거나 비어 있으면 THE SYSTEM SHALL 400 `FILE_REQUIRED` 로 거부한다.
 - REQ-PROFILE-020 IF 아바타 파일이 2MB 를 넘으면 THE SYSTEM SHALL 413 `PAYLOAD_TOO_LARGE` 로 거부한다.
 - REQ-PROFILE-021 WHEN 사용자가 UI 언어를 바꾸면 THE SYSTEM SHALL `ko` 나 `en` 으로 저장한다.
-- REQ-PROFILE-022 WHEN 사용자가 테마를 바꾸면 THE SYSTEM SHALL 라이트·다크 테마를 저장하고 바로 적용한다. (원본: NAV-UP-06)
-- REQ-PROFILE-023 WHEN 저장된 테마가 `system` 이면 THE SYSTEM SHALL 프론트엔드가 `prefers-color-scheme` 로 OS 색상 모드를 따른다. (부분 구현, [미결 사항](#미결-사항))
+- REQ-PROFILE-022 WHEN 사용자가 테마를 바꾸면 THE SYSTEM SHALL 라이트·다크·시스템 가운데 고른 값을 저장하고 바로 적용한다. (원본: NAV-UP-06, system 추가)
+- REQ-PROFILE-023 WHEN 저장된 테마가 `system` 이면 THE SYSTEM SHALL 테마를 적용하는 순간의 `prefers-color-scheme` 값에 따라 라이트나 다크로 그린다.
 - REQ-PROFILE-024 WHEN 클라이언트가 `GET /api/users/me` 를 호출하면 THE SYSTEM SHALL 확인 대기 중인 새 이메일을 `pendingEmail` 로 싣고 없으면 null 을 싣는다.
 - REQ-PROFILE-025 WHEN 사용자가 보안 카드의 링크를 누르면 THE SYSTEM SHALL `/profile/security` 나 `/profile/sessions` 로 이동한다.
+- REQ-PROFILE-026 IF 프로필 수정 요청의 테마가 `light`·`dark`·`system` 밖의 값이면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 저장된 테마를 바꾸지 않는다.
 
 ## 사이드바 사용자 영역
 
@@ -121,8 +122,16 @@ etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
 | 이름 | 가능 | 인라인 토글 | 표시 이름 |
 | 이메일 | 별도 변경 | 전용 페이지 `/profile/change-email` | 계정 재인증과 새 이메일 확인 메일로 바꾼다. 확정되면 모든 세션을 끊고 현재 기기에 다시 발급한다 |
 | 언어 | 가능 | 인라인 토글 | UI 언어 `ko`·`en` |
-| 테마 | 가능 | 인라인 토글. 라이브 미리보기는 임시 상태로 격리 | Light·Dark·System. `system` 은 OS 색상 모드를 따르며 프론트엔드가 `prefers-color-scheme` 로 적용한다. 선택 UI 노출은 Planned 이고 저장 가능 여부는 [미결 사항](#미결-사항) |
+| 테마 | 가능 | 인라인 토글. 라이브 미리보기는 임시 상태로 격리 | Light·Dark·System 세 버튼. 저장 값은 `light`·`dark`·`system` 이다. `system` 을 그리는 방식은 아래 [테마](#테마) |
 | 비밀번호 | 가능 | 전용 페이지 `/profile/change-password` | 현재 비밀번호 확인 뒤 새 비밀번호 입력 |
+
+### 테마
+
+- 저장 값은 `light`·`dark`·`system` 세 가지이고 기본값은 `light` 다. 컬럼 제약은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 User 표에 있다.
+- 화면은 `<html>` 의 `.light`·`.dark` 클래스 하나로 테마를 그린다. `system` 은 적용하는 순간 `prefers-color-scheme` 로 OS 색상 모드를 읽어 둘 가운데 하나로 바꾼다.
+- Tailwind 의 `dark:` 와 로고도 OS 설정이 아니라 이 클래스를 따른다. 근거는 [브랜드](../CLE-UI/CLE-UI-BRAND.md) 의 Rationale 「로고 자리에 `theme="auto"` 를 쓰고 전용 어두운 배경을 두지 않는 이유」 다.
+- 적용한 뒤 OS 색상 모드가 바뀌어도 다시 읽지 않는다. 테마를 다시 적용할 때 그 순간의 값을 읽는다.
+- 저장한 테마는 `/profile` 을 열 때와 환경설정 카드에서 바꿀 때 화면에 적용된다(`profile/page.tsx`, `lib/stores/theme-store.ts`). `/profile` 밖의 화면에서 앱을 새로 열면 기본값 라이트로 그린다. 이 공백은 [미결 사항](#미결-사항) 에 있다.
 
 ### 보안 카드가 가리키는 화면
 
@@ -144,9 +153,9 @@ etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
 | 버튼 | 하단 | [취소], [변경] | `POST /api/users/me/change-password` |
 
 - 이 페이지는 diff 미리보기 모달을 생략한다. 마스킹된 값이라 보여 줄 것이 없다. 현재 비밀번호가 1차 인증 역할을 한다.
-- 변경에 성공하면 서버가 사용자의 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. 응답 `{ accessToken }` 으로 새 액세스 토큰을 준다. 클라이언트는 이 토큰으로 메모리의 액세스 토큰(`auth-store`)을 바꾸고, 리프레시 쿠키는 `Set-Cookie` 로 자동으로 바뀐다. 이어서 `/profile` 로 이동해 성공 토스트를 보여 준다. 재로그인 화면으로 보내지 않는다. 세션 처리 규칙과 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
+- 변경에 성공하면 서버가 사용자의 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. 응답 `{ data: { accessToken } }` 으로 새 액세스 토큰을 준다. 클라이언트는 이 토큰으로 메모리의 액세스 토큰(`auth-store`)을 바꾸고, 리프레시 쿠키는 `Set-Cookie` 로 자동으로 바뀐다. 이어서 `/profile` 로 이동해 성공 토스트를 보여 준다. 재로그인 화면으로 보내지 않는다. 세션 처리 규칙과 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
 - OAuth 전용 계정(비밀번호 없음)은 현재 비밀번호 확인 단계에서 `PASSWORD_REQUIRED`(401)로 막힌다. 화면은 비밀번호를 추가하는 경로, 곧 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 비밀번호 재설정(재설정 요청 뒤 재설정 실행)을 안내한다. 이 안내의 기준은 이 절이다.
-- 현재 비밀번호가 틀리면 `PASSWORD_INVALID`(401), 사용자가 없으면 `USER_NOT_FOUND`(404)다. 코드 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
+- 현재 비밀번호가 틀리면 `PASSWORD_INVALID`(401), 사용자가 없으면 `USER_NOT_FOUND`(404)다. `PASSWORD_INVALID` 의 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다. `USER_NOT_FOUND` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 를 본다.
 - 비밀번호 변경은 감사 로그 `user.password_changed` 로 남는다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)).
 
 ## 아바타
@@ -164,31 +173,35 @@ etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
 | GET | `/api/users/me` | 내 프로필 조회. 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 을 싣는다. 확인 대기 중인 새 이메일이고 없으면 null 이다 |
-| PATCH | `/api/users/me` | 프로필 수정(이름, `avatarUrl`, 언어, 테마). 이메일은 바꾸지 않는다. 이메일은 `/api/users/me/email-change/*` 별도 흐름이다 |
+| PATCH | `/api/users/me` | 프로필 수정(이름, `avatarUrl`, 언어, 테마). 테마는 `light`·`dark`·`system` 만 받고 다른 값은 400 `VALIDATION_ERROR` 로 거부하며 저장된 값을 바꾸지 않는다. 이메일은 바꾸지 않는다. 이메일은 `/api/users/me/email-change/*` 별도 흐름이다 |
 | POST | `/api/users/me/avatar` | 아바타 이미지 파일 업로드. `multipart/form-data` 의 `file` 필드, 최대 2MB, 확장자 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외). 성공하면 200 과 `PATCH /api/users/me` 와 같은 프로필 봉투. 파일 없음·빈 내용 400 `FILE_REQUIRED`, 확장자 불허 400 `INVALID_FILE_TYPE`, 크기 초과 413 `PAYLOAD_TOO_LARGE` |
-| POST | `/api/users/me/change-password` | 비밀번호 변경. 성공하면 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. `{ accessToken }` 을 돌려주고 리프레시 쿠키를 바꾼다. 비밀번호 없음 401 `PASSWORD_REQUIRED`, 불일치 401 `PASSWORD_INVALID`, 사용자 없음 404 `USER_NOT_FOUND` |
+| POST | `/api/users/me/change-password` | 비밀번호 변경. 성공하면 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. `{ data: { accessToken } }` 을 돌려주고 리프레시 쿠키를 바꾼다. 비밀번호 없음 401 `PASSWORD_REQUIRED`, 불일치 401 `PASSWORD_INVALID`, 사용자 없음 404 `USER_NOT_FOUND` |
 
-`/api/users/me` 아래의 다른 엔드포인트는 소유 문서가 정한다.
+`/api/users/me` 아래의 다른 엔드포인트와 프로필 하위 화면이 부르는 세션 API 는 소유 문서가 정한다.
 
 | 경로 | 문서 |
 | --- | --- |
 | `/api/users/me/email-change/request`·`verify`·`resend`·`cancel` | [가입과 로그인](CLE-ACCT-SIGNIN.md) |
-| `/api/users/me/sessions`, `/api/users/me/sessions/:familyId/revoke`, `/api/users/me/sessions/revoke-others` | [세션과 토큰](CLE-ACCT-SESSION.md) |
 | `/api/users/me/login-history` | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
+| `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` | [세션과 토큰](CLE-ACCT-SESSION.md) |
+
+세션 API 는 `/api/users/me` 가 아니라 `/api/auth/sessions` 아래에 있다. 현재 세션을 가리는 리프레시 쿠키의 Path 가 `/api/auth` 라서 그 아래에 두었다. 로그인 이력은 쿠키가 필요 없어 `/api/users/me` 아래에 남았다.
 
 2단계 인증 설정 API 는 `/api/auth/2fa/*` 이고 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다. 알림 목록·알림 설정(`/api/notifications/*`)과 알림 규칙(`/api/alerts`) API 는 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md), 워크스페이스·초대 API 는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
 
 ## 미결 사항
 
-- **테마 `system` 값을 저장할 수 있는가**: 데이터 모델과 DB CHECK(`V001__initial_schema.sql` 의 `CHECK (theme IN ('light', 'dark'))`)는 테마를 `light`·`dark` 두 값으로 제한한다. 제품 요구사항 NAV-UP-06 도 라이트·다크만 적는다. 반면 프로필 원문은 백엔드 `UpdateMeDto.USER_THEMES` 가 `['light','dark','system']` 을 받아 저장·반환한다고 적는다(관련: [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 이후 마이그레이션에 CHECK 변경이 없어 `system` 을 저장하면 DB 제약 위반이 날 수 있다. `system` 을 지원하면 CHECK 를 바꾸는 마이그레이션과 데이터 모델 갱신이 필요하고, 지원하지 않으면 DTO 를 되돌려야 한다. 결정 필요.
+- **저장한 테마를 앱을 열 때 적용하는가**: 지금은 `/profile` 을 열 때와 환경설정 카드에서 바꿀 때만 저장한 테마를 화면에 적용한다. 앱 전체에 테마를 적용하는 공급자가 없어서, `/profile` 밖의 화면에서 새로 고치면 다크나 시스템을 저장한 사용자도 라이트로 본다. `system` 을 고른 사용자의 화면이 OS 색상 모드 변경을 따라가지 않는 것도 같은 자리에서 정할 일이다. 로그인 뒤 모든 화면에 저장한 테마를 적용하는 요구를 더할지, 더한다면 OS 변경도 따라갈지 결정 필요.
 
 ## 구현 위치
 
 - `codebase/frontend/src/components/layout/sidebar.tsx` (사용자 영역과 팝업)
-- `codebase/frontend/src/app/(main)/w/[slug]/profile/**` (`/profile`, `change-password`, 카드 컴포넌트)
+- `codebase/frontend/src/app/(main)/w/[slug]/profile/**` (`/profile`, `change-password`, 카드 컴포넌트. 환경설정 카드는 `components/profile-preferences-card.tsx`)
 - `codebase/frontend/src/lib/stores/theme-store.ts`, `codebase/frontend/src/lib/stores/locale-store.ts`
-- `codebase/frontend/src/lib/api/users.ts`
-- `codebase/backend/src/modules/users/**` (`/api/users/me`, 아바타 업로드, 비밀번호 변경)
+- `codebase/frontend/src/lib/api/users.ts`, `codebase/frontend/src/lib/api/sessions.ts`
+- `codebase/backend/src/modules/users/**` (`/api/users/me`, 아바타 업로드, 비밀번호 변경. 테마 허용 값은 `dto/update-me.dto.ts` 의 `USER_THEMES`)
+- `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (테마 CHECK `chk_user_theme`. V149 가 `NOT VALID` 로 걸고 V150 이 검증한 뒤 옛 제약을 지운다)
+- `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 범위 밖 값 거부)
 
 ## Rationale
 
@@ -207,3 +220,20 @@ etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
 - 모든 편집을 모달로 처리: 환경설정처럼 자주 만지는 항목까지 매번 모달이 떠 마찰이 크다.
 - 모든 항목을 전용 페이지로: 환경설정과 이름까지 라우트로 나누면 이동과 뒤로 가기 비용이 가치보다 크다. 위험 수준에 비례한 마찰이 더 합리적이다.
 - 한 페이지에 섹션별 Save 버튼: 폼이 기본으로 켜져 무방비라는 핵심 문제를 풀지 못한다.
+
+### 테마 `system` 값을 저장하게 했다
+
+2026-10-10 결정이다(NERV Task `CLE-T-E7MF3Q`, 리뷰 발견 `01a0e542-19bb-75af-9f64-5529605f2b98`). 이 문서의 예전 미결 사항 «테마 `system` 값을 저장할 수 있는가» 를 닫는다. 환경설정 카드에는 System 선택지가 이미 있었고 DTO 도 `system` 을 받았다. DB CHECK 만 `light`·`dark` 로 남아 있어서 System 을 저장하면 500 이 났다.
+
+| 안 | 채택·기각 이유 |
+| --- | --- |
+| CHECK 를 넓혀 `system` 을 저장한다 | 채택. 화면과 DTO 가 이미 받는 값을 DB 도 받게 한다. 마이그레이션 방식은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 에 있다 |
+| DTO 와 화면에서 `system` 을 뺀다 | 기각. OS 색상 모드를 따르는 선택지를 잃는다. 제품 요구사항 NAV-UP-06 이 라이트·다크만 적은 것은 시스템 값을 막으려던 것이 아니라 적지 않은 것으로 봤다 |
+
+시스템 테마 요구(REQ-PROFILE-023)는 지금 구현의 범위로 적었다. 구현은 테마를 적용하는 순간 OS 색상 모드를 한 번 읽어 `.light`·`.dark` 클래스 하나로 바꾼다. 화면이 이 클래스만 따르는 것은 [브랜드](../CLE-UI/CLE-UI-BRAND.md) 의 결정과 같다. 예전 문장 «OS 색상 모드를 따른다» 는 OS 설정이 바뀌면 화면도 따라 바뀐다고 읽힐 수 있어서 좁혔다. 실시간으로 따라갈지는 [미결 사항](#미결-사항) 에서 테마 적용 시점과 함께 정한다.
+
+범위 밖 값의 400 거부는 새 요구(REQ-PROFILE-026)로 따로 적었다. 예전에는 DTO 를 지난 `system` 이 DB 에서 500 으로 실패했다. 그래서 허용 값 밖의 값은 DTO 가 먼저 막고 저장된 값을 건드리지 않는다는 점을 요구로 남긴다.
+
+### 세션 API 경로를 고쳤다
+
+2026-10-10 변경이다(NERV Task `CLE-T-ERAJ7P`). API 소유 표의 세션 경로를 `/api/users/me/sessions*` 에서 `/api/auth/sessions*` 로 바꿨다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 예전 경로에는 쿠키가 실리지 않았고, 서버가 현재 세션을 가리지 못했다. 쿠키 Path 를 넓히는 안과 예전 경로를 별칭으로 남기는 안을 기각한 이유는 [세션과 토큰](CLE-ACCT-SESSION.md#세션-api-를-리프레시-쿠키-path-아래로-옮겼다) 의 Rationale 「세션 API 를 리프레시 쿠키 Path 아래로 옮겼다」 에 있다. 로그인 이력은 쿠키가 필요 없어 `/api/users/me/login-history` 에 남겼다.
