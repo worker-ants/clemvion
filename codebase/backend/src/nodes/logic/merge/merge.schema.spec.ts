@@ -97,7 +97,7 @@ describe('mergeNodeConfigSchema.timeout', () => {
   });
 });
 
-// ADR R-wontdo-async-fanin 으로 fan-in barrier 를 만들지 않기로 했으므로
+// fan-in barrier 를 무기한 미뤘으므로(CLE-NODE-MERGE Rationale, 2026-07-17)
 // 경고 문구가 나중 단계에서 값이 반영된다고 안내하지 않는다.
 describe('merge dormant warning messages', () => {
   const message = (id: string) =>

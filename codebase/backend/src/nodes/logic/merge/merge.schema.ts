@@ -96,9 +96,10 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
       when: '!strategy',
       message: 'Merge strategy must be selected.',
     },
-    // W-8: timeout / partialOnTimeout 는 schema 에 남아 있지만 영구 dormant 다.
-    // 엔진은 모든 선행 노드가 끝난 뒤에 Merge 를 실행하고, ADR
-    // R-wontdo-async-fanin 으로 fan-in barrier 는 만들지 않기로 했다. handler 는
+    // W-8: timeout / partialOnTimeout 는 schema 에 남아 있지만 동작하지 않는다
+    // (dormant). 엔진은 모든 선행 노드가 끝난 뒤에 Merge 를 실행하고, fan-in
+    // barrier 는 CLE-NODE-MERGE Rationale «비동기 fan-in barrier 활성화를 재검토
+    // 과제로 미룬다 (2026-07-17)» 로 무기한 미뤘다. handler 는
     // warn 로그만 남기고 결과에 영향이 없다. 값을 둔 채로 두면 "barrier 가
     // 동작한다" 고 오인할 수 있어 캔버스 배지와 실행 전 검증에서 막는다
     // (severity 생략 = blocking, REQ-MERGE-016).
