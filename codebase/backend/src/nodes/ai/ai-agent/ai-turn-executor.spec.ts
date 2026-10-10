@@ -1189,11 +1189,13 @@ describe('AiTurnExecutor', () => {
   // 호출을 건너뛴다. 단일 턴 · 멀티턴 첫 턴 · resume 턴 모두 값이 전달돼야 한다.
   describe('ProviderExecCtx.dryRun (re-run dry-run guard)', () => {
     const recordingProvider = () => {
-      const execute = jest.fn(async (call: { id: string }) => ({
-        toolCallId: call.id,
-        content: '{}',
-        status: 'success' as const,
-      }));
+      const execute = jest.fn(
+        async (call: { id: string }, _ctx?: { dryRun?: boolean }) => ({
+          toolCallId: call.id,
+          content: '{}',
+          status: 'success' as const,
+        }),
+      );
       return {
         execute,
         provider: {
@@ -1263,7 +1265,7 @@ describe('AiTurnExecutor', () => {
         undefined,
         { mode: 'multi_turn', systemPrompt: 'sys' },
         dryContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect((result._resumeState as { dryRun?: unknown }).dryRun).toBe(true);
     });
