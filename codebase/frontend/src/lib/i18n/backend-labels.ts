@@ -416,10 +416,10 @@ export const WARNING_KO: Record<string, string> = {
   "LLM provider or model must be selected (auto-handled by the canvas when a workspace default provider is configured).":
     "LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).",
   "Merge strategy must be selected.": "Merge strategy 를 선택해야 합니다.",
-  "Merge partialOnTimeout is dormant in Phase P1 — only takes effect alongside the Phase P2 barrier.":
-    "Merge partialOnTimeout 은 Phase P1 에서는 동작하지 않아요 — Phase P2 의 barrier 가 도입되면 그때 함께 효과가 적용돼요.",
-  "Merge timeout is dormant in Phase P1 — value is logged but no barrier is enforced. The Phase P2 barrier will honor it.":
-    "Merge timeout 은 Phase P1 에서는 동작하지 않아요 — 값은 로그에만 남고 barrier 가 강제되지 않아요. Phase P2 의 barrier 가 도입되면 이 값을 따라요.",
+  "Merge partialOnTimeout has no effect — Merge never times out, so there are no partial inputs to merge. Turn it off.":
+    "Merge partialOnTimeout 은 동작하지 않습니다. Merge 에는 타임아웃이 없어서 일부만 병합할 입력도 없습니다. 이 설정을 끄세요.",
+  "Merge timeout has no effect — Merge runs only after every connected input has finished, so there is nothing to wait for. Set it to 0.":
+    "Merge timeout 은 동작하지 않습니다. Merge 는 연결된 입력이 모두 끝난 뒤에 실행되어 기다릴 대상이 없습니다. 0 으로 설정하세요.",
   "Mode must be either static or dynamic.": "Mode 는 static 또는 dynamic 이어야 합니다.",
   "Multi Turn mode requires System Prompt.": "Multi Turn 모드에서는 System Prompt 가 필요합니다.",
   "Operation must be selected.": "Operation 을 선택해야 합니다.",

@@ -1,5 +1,10 @@
 import { MergeHandler } from './merge.handler.js';
+import { mergeNodeComponent } from './merge.component';
+import { mergeNodeMetadata } from './merge.schema';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { HandlerDependencies } from '../../core/node-component.interface';
+import { NodeComponentRegistry } from '../../core/node-component.registry';
+import { NodeHandlerRegistry } from '../../core/node-handler.registry';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('MergeHandler', () => {
@@ -98,6 +103,61 @@ describe('MergeHandler', () => {
       });
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(2);
+    });
+  });
+
+  // CLE-T-AGDM92 결정: timeout 기본값 0, 필드 유지, dormant 경고는 blocking 유지.
+  // 새 노드와 가져오기는 레지스트리의 기본값 경로를 지나므로 그 경로로 검증한다.
+  describe('validate — default config and dormant fields', () => {
+    let registry: NodeComponentRegistry;
+
+    const dormantMessage = (id: string): string => {
+      const rule = mergeNodeMetadata.warningRules?.find((r) => r.id === id);
+      if (!rule) throw new Error(`missing warning rule ${id}`);
+      return rule.message;
+    };
+
+    beforeEach(() => {
+      registry = new NodeComponentRegistry(new NodeHandlerRegistry());
+      registry.bootstrap([mergeNodeComponent], {} as HandlerDependencies);
+    });
+
+    it('accepts the default config shipped for new canvas nodes', () => {
+      const definition = registry
+        .listDefinitions()
+        .find((d) => d.metadata.type === 'merge');
+      if (!definition) throw new Error('merge definition missing');
+      expect(definition.defaultConfig).toMatchObject({ timeout: 0 });
+      expect(handler.validate(definition.defaultConfig)).toEqual({
+        valid: true,
+        errors: [],
+      });
+    });
+
+    it('accepts an imported node whose timeout is filled by the schema default', () => {
+      const config = registry.applyConfigDefaults('merge', {
+        strategy: 'wait_all',
+      });
+      expect(config.timeout).toBe(0);
+      expect(handler.validate(config)).toEqual({ valid: true, errors: [] });
+    });
+
+    it('blocks timeout > 0 with the dormant warning', () => {
+      const result = handler.validate({ strategy: 'wait_all', timeout: 300 });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual([dormantMessage('merge:timeout-dormant')]);
+    });
+
+    it('blocks partialOnTimeout=true with the dormant warning', () => {
+      const result = handler.validate({
+        strategy: 'wait_all',
+        timeout: 0,
+        partialOnTimeout: true,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual([
+        dormantMessage('merge:partial-on-timeout-dormant'),
+      ]);
     });
   });
 

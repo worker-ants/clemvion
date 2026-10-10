@@ -608,7 +608,7 @@ export function MergeConfig({ config, onChange }: { config: Config; onChange: On
       />
       <NumberField
         label={t("nodeConfigs.flow.timeoutSeconds")}
-        value={(config.timeout as number) ?? 300}
+        value={(config.timeout as number) ?? 0}
         onChange={(v) => onChange({ ...config, timeout: v })}
         min={0}
         hint={t("nodeConfigs.flow.zeroNoTimeout")}

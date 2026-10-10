@@ -82,21 +82,21 @@ export class MergeHandler implements NodeHandler {
       partialOnTimeout,
     } = config as unknown as MergeConfig;
 
-    // Phase P1 runs on a sequential engine where all predecessors are
-    // already resolved before Merge executes, so a barrier is unnecessary.
-    // Surface a warning so operators notice the config is dormant until
-    // Phase P2 introduces true per-branch arrival tracking.
+    // The engine runs Merge only after every predecessor has resolved, and
+    // ADR R-wontdo-async-fanin rules out a per-branch fan-in barrier, so
+    // `timeout` / `partialOnTimeout` are permanently dormant. validate()
+    // blocks them through the warning rules; this log covers callers that
+    // reach execute() without validating.
     if (typeof timeout === 'number' && timeout > 0) {
       this.logger.warn(
-        `Merge node timeout=${timeout}s is configured but will take effect in Phase P2 ` +
-          `(real-time fan-in barrier). In Phase P1 all predecessors are already resolved ` +
-          `before Merge runs, so this setting is dormant.`,
+        `Merge node timeout=${timeout}s is configured but has no effect: all ` +
+          `predecessors are already resolved before Merge runs.`,
       );
     }
     if (partialOnTimeout === true) {
       this.logger.warn(
-        `Merge node partialOnTimeout=true is configured but only applies alongside the ` +
-          `Phase P2 barrier timeout. In Phase P1 this setting is dormant.`,
+        `Merge node partialOnTimeout=true is configured but has no effect: ` +
+          `Merge never times out.`,
       );
     }
 
@@ -116,9 +116,10 @@ export class MergeHandler implements NodeHandler {
     //  - skippedKeys: prototype-pollution drops surfaced for merge_object
     //    (Principle 3 — silent failure 해소). Always present (empty array for
     //    other formats) so consumers don't need conditional guards.
-    //  - dormantFields: P1-dormant config fields (`timeout` > 0,
+    //  - dormantFields: dormant config fields (`timeout` > 0,
     //    `partialOnTimeout=true`) that were configured but have no runtime
-    //    effect until the Phase P2 fan-in barrier ships. Mirrors the warn log.
+    //    effect (no fan-in barrier, ADR R-wontdo-async-fanin). Mirrors the
+    //    warn log.
     //    Always present (empty array when none) for consumer simplicity.
     // `meta.durationMs` is injected by the engine, not here.
 

@@ -10,11 +10,11 @@ parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
 content_hash: "c9689c40ca1a93c22cbce4c54952b98597664714e6355e14813d6b98aab0e856"
-read_as: "approved"
-task: null
+read_as: "task_basis"
+task: "CLE-T-HSHW71"
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "1616847a67dc2a460c97edbcbb6ae45ce2230b1e342d7d220fa5feed541a258c"
-etag: "sha256-ff0c238ca10bc8de4c225ed3e05c8bed5e4c05cdfbe18f370f0768983aa77e3a"
+mirror_sha256: "04146ee9ce40c5cef3ebaea076235682b391bfba52f2d2fe431b7916fd104d4b"
+etag: "sha256-792cdae867ae471669733ea2239b4a19e2de8aa8f5d26621d10f452bb36d0ab6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
