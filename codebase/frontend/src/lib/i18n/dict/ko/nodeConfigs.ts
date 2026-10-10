@@ -211,7 +211,8 @@ export const nodeConfigs = {
     makeshopFieldsBooleanHint: "값: true / false (표현식 사용 가능)",
     makeshopFieldsDefaultHint: "기본값: {{ value }}",
     makeshopPagination: "페이지네이션 (선택)",
-    makeshopPaginationHint: "선택한 작업이 페이지네이션을 지원할 때 적용됩니다",
+    makeshopPaginationHint:
+      "MakeShop 은 페이지 번호로 조회해요. Offset 은 Limit 의 배수여야 하고 page = Offset / Limit + 1 로 바뀌어요. 선택한 작업이 페이지네이션을 지원할 때만 적용돼요.",
     makeshopLimit: "Limit (최대 개수)",
     makeshopOffset: "Offset (시작 위치)",
     makeshopResources: {

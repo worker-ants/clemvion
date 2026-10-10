@@ -213,7 +213,8 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     makeshopFieldsBooleanHint: "true / false (expression allowed)",
     makeshopFieldsDefaultHint: "Default: {{ value }}",
     makeshopPagination: "Pagination (optional)",
-    makeshopPaginationHint: "Used when the chosen operation is paginated",
+    makeshopPaginationHint:
+      "MakeShop pages by page number: Offset must be a multiple of Limit and becomes page = Offset / Limit + 1. Applies only when the chosen operation is paginated.",
     makeshopLimit: "Limit",
     makeshopOffset: "Offset",
     makeshopResources: {
