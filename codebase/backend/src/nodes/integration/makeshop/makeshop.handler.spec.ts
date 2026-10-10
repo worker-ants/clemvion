@@ -570,14 +570,14 @@ describe('MakeshopHandler', () => {
     });
   });
 
-  // node-cancellation.md §4 — the handler is the only place that knows the
+  // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — the handler is the only place that knows the
   // execution's abortSignal; if it stops forwarding it, the client's cascade
   // becomes dead code and nothing else fails. Pinned here for that reason.
-  describe('abortSignal forwarding (node-cancellation §4)', () => {
+  describe('abortSignal forwarding (CLE-EXEC-CANCEL 「fetch 자체 타임아웃과의 연쇄」)', () => {
     it('rethrows AbortError so the ENGINE can classify the node as cancelled', async () => {
       // The client rethrows AbortError (bypassing its transport wrapper), but
       // that only matters if the handler lets it through too. Swallowing it here
-      // maps to `port:'error'` + `*_TRANSPORT_FAILED`, and §5.1's `cancelled`
+      // maps to `port:'error'` + `*_TRANSPORT_FAILED`, and rule 19's `cancelled`
       // classification in `executeNode` is never reached — so the node is
       // recorded `failed` and no `execution.node.cancelled` event fires.
       //
@@ -601,6 +601,49 @@ describe('MakeshopHandler', () => {
           makeContext(),
         ),
       ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    // The shared `isAbortErrorLike` matches on `name`, so an AbortError that is
+    // not an `Error` instance (another realm's DOMException under jest's VM)
+    // passes through too. The old `instanceof Error` check dropped it into
+    // `*_TRANSPORT_FAILED`. One test per catch: the API call has its own catch,
+    // and a failure before it reaches only the outer one.
+    it('rethrows an AbortError that is not an Error instance (API call)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const foreign = { name: 'AbortError', message: 'aborted' };
+      expect(foreign instanceof Error).toBe(false);
+      apiClient.call.mockRejectedValue(foreign);
+
+      await expect(
+        handler.execute(
+          null,
+          {
+            integrationId: 'id',
+            resource: 'product',
+            operation: 'get-product',
+            fields: {},
+          },
+          makeContext(),
+        ),
+      ).rejects.toBe(foreign);
+    });
+
+    it('rethrows an AbortError that is not an Error instance (before the API call)', async () => {
+      const foreign = { name: 'AbortError', message: 'aborted' };
+      integrationsService.getForExecution.mockRejectedValue(foreign);
+
+      await expect(
+        handler.execute(
+          null,
+          {
+            integrationId: 'id',
+            resource: 'product',
+            operation: 'get-product',
+            fields: {},
+          },
+          makeContext(),
+        ),
+      ).rejects.toBe(foreign);
     });
 
     it('still maps ordinary transport failures to the error port', async () => {
