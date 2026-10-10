@@ -142,9 +142,16 @@ def save_metadata(session_dir, meta):
 def truncate_to_budget(text, budget, suffix="\n\n... (truncated due to size limit) ..."):
     """Truncate `text` so the result fits within `budget` characters.
 
-    A budget of 0 or negative means unlimited.
+    A budget of 0 or negative means unlimited. A `text` within the budget comes back unchanged.
+    A longer one is cut so that it ends with `suffix` and is exactly `budget` characters long.
+
+    When `budget` is shorter than `suffix` the marker cannot fit, so the text is cut to `budget`
+    characters without it. It used to append the whole suffix anyway (`"x" * 100` with budget 10
+    came back 39 characters long). The orchestrators' default budgets are 131,072 and 262,144
+    characters, so only an environment override that small reaches this case.
     """
     if budget <= 0 or len(text) <= budget:
         return text
-    keep = max(budget - len(suffix), 0)
-    return text[:keep] + suffix
+    if budget < len(suffix):
+        return text[:budget]
+    return text[:budget - len(suffix)] + suffix
