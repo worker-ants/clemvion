@@ -28,6 +28,26 @@ code: [
 
 > 두 방식 모두 활성화해 두는 걸 권장해요 — 휴대폰 분실·인증기 고장 시 다른 채널로 로그인할 수 있어요.
 
+## TOTP 끄기
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/profile/security/page.tsx"
+  symbol="SecurityPage"
+  describes="프로필 → 보안의 2FA 비활성 폼 (계정 비밀번호 + 인증 코드)"
+/>
+
+TOTP 가 켜져 있으면 [프로필 → 보안](/profile/security) 의 2FA 카드에 비활성 폼이 나타나요. 비밀번호만으로는 끌 수 없고, 입력란 두 개를 모두 채워야 해요.
+
+1. **계정 비밀번호** 를 입력해요.
+2. **6자리 코드 또는 복구 코드** 를 입력해요. Authenticator 앱에 표시된 6자리 코드를 넣거나, 앱을 쓸 수 없으면 TOTP 복구 코드 하나를 넣어요.
+3. **2FA 비활성** 을 눌러요.
+
+- 코드가 맞지 않으면 요청이 거부되고 2FA 는 켜진 채로 남아요.
+- 복구 코드를 쓰면 로그인할 때처럼 그 코드는 사용 처리되어 다시 쓸 수 없어요.
+- 끄고 나면 TOTP 비밀키와 남은 복구 코드가 모두 삭제돼요. 다시 켜면 새 복구 코드 10개를 받아요.
+- Passkey 와 Passkey 복구 코드는 TOTP 와 별개라서 그대로 유지돼요.
+
 ## Passkey 등록하기
 
 1. [프로필 → 보안](/profile/security) 진입 → **Passkey · 보안 키** 카드에서 기기 이름(선택) 입력 후 **Passkey 등록** 클릭.

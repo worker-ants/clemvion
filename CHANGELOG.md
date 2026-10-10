@@ -1,7 +1,51 @@
 # Changelog
 
 > **무엇이 항목을 만드는가** — 2026-09-25 성문화(옛 plan `changelog-criteria.md`, git 이력). 새 항목은 맨 위에
-> `## Unreleased — <무엇이 바뀌었나>` 로 쓴다(접두 필수). 한 PR 이 서로 다른 변경을 둘 이상 담으면 항목도 둘 이상이다.
+> `## Unreleased — 관리자 역할은 워크스페이스 소유자만 주고 바꾼다
+
+관리자(admin)가 다른 멤버를 관리자로 올리거나 다른 관리자를 편집자 · 뷰어로 내릴 수 있었고 관리자 역할로 초대하거나
+직접 추가할 수도 있었다. 스펙의 역할 권한표는 관리자 역할을 주고 빼는 일을 소유자 권한으로 정했지만 서버는 admin
+이상이면 받았다(NERV 발견 `01a0e542-19b6-755c-ad55-49c907b87cd1`).
+
+- 소유자가 아닌 멤버가 역할 변경 · 직접 추가 · 초대로 관리자 역할을 주거나 관리자의 역할을 바꾸면 `403 OWNER_REQUIRED`
+  를 받는다. 관리자가 자기 역할을 바꾸는 것도 같다. 대기 중인 관리자 초대를 소유자가 아닌 멤버가 다른 역할로 다시
+  보내는 것도 막는다.
+- 편집자 ↔ 뷰어 변경, 편집자 · 뷰어 초대, 멤버 내보내기와 소유권 이전 규칙은 그대로다.
+- 멤버 탭에서 소유자가 아닌 관리자에게는 관리자 선택지가 보이지 않고 관리자 멤버의 역할은 읽기 전용 배지로 보인다.
+- 이미 있는 관리자와 대기 중인 관리자 초대는 바꾸지 않는다.
+
+## Unreleased — 세션 목록 · 세션 종료 API 를 `/api/auth/sessions` 로 옮긴다
+
+현재 세션은 refresh cookie 로 가리는데 그 쿠키는 `Path=/api/auth` 다. 세션 API 가 `/api/users/me/sessions` 에 있어서
+브라우저가 쿠키를 보내지 않았다. 그래서 세션 목록의 `isCurrent` 가 늘 false 였고 「다른 세션 모두 종료」는 늘 400 이었다.
+현재 세션을 개별 종료하지 못하게 막는 검사도 동작하지 않았다(NERV 발견 `01a0e542-19b8-7261-8b30-2c62dccb56dc` ·
+`01a0e542-19b9-7216-893a-9a25374cff3d`).
+
+- `GET /api/auth/sessions`, `POST /api/auth/sessions/:familyId/revoke`, `POST /api/auth/sessions/revoke-others` 로
+  옮겼다. 예전 `/api/users/me/sessions…` 경로는 남기지 않는다(404). 쿠키 Path 는 넓히지 않았다.
+- 로그인 이력 `GET /api/users/me/login-history` 는 쿠키가 필요 없어 그대로다.
+- 프론트엔드 세션 화면은 새 경로를 쓴다. 세션 API 의 401 은 예전처럼 한 번 refresh 하고 다시 보낸다.
+
+## Unreleased — 2FA 를 끌 때 비밀번호와 함께 인증 코드를 받는다
+
+`POST /api/auth/2fa/disable` 은 비밀번호만 받았다. 비밀번호가 새면 2FA 도 끌 수 있었다(NERV 발견
+`01a0e542-19ba-707d-9bd5-4138e8f9d546`).
+
+- 요청 본문에 `code` 가 필수다. Authenticator 앱의 6자리 코드나 복구 코드를 받는다. 복구 코드는 로그인과 같이 쓰면 소모된다.
+- 코드가 없거나 형식이 틀리면 400, 코드가 틀리면 `401 TOTP_INVALID` 이고 2FA 는 켜진 채로 남는다.
+- 이 엔드포인트에 민감 동작 throttle(분당 10회)을 건다.
+- 프로필 → 보안 화면의 2FA 해제 폼에 코드 입력란을 더했다. 설정 · 로그인 흐름은 그대로다.
+
+## Unreleased — 테마 설정에 `system` 을 저장한다
+
+`PATCH /api/users/me` 는 `theme` 으로 `light` · `dark` · `system` 을 받았지만 DB CHECK 제약이 `light` · `dark` 만
+허용해서 `system` 을 보내면 500 이 났다(NERV 발견 `01a0e542-19bb-75af-9f64-5529605f2b98`).
+
+- 마이그레이션 `V148__user_theme_allow_system.sql` 이 `user.theme` CHECK 를 `light` · `dark` · `system` 으로 넓힌다.
+  새 제약을 `NOT VALID` 로 붙이고 `VALIDATE` 한 뒤 옛 제약을 지운다. 기존 행은 바뀌지 않는다.
+- 프론트엔드 테마 토글은 이번에 바꾸지 않았다.
+
+## Unreleased — <무엇이 바뀌었나>` 로 쓴다(접두 필수). 한 PR 이 서로 다른 변경을 둘 이상 담으면 항목도 둘 이상이다.
 >
 > **항목을 낸다**
 >
