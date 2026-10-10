@@ -132,7 +132,10 @@ export class TotpService {
     }
   }
 
-  /** 2FA 비활성. 호출 전에 비밀번호와 코드 재확인은 컨트롤러에서 수행. */
+  /**
+   * 2FA 비활성. 이 메서드는 아무것도 확인하지 않는다 — 비밀번호 → 코드 재확인은 `AuthService.disableTwoFactor` 가 순서를
+   * 지키며 부른다. 다른 경로에서 이 메서드만 부르면 재인증이 빠진다.
+   */
   async disable(userId: string): Promise<void> {
     await this.usersService.update(userId, {
       twoFactorEnabled: false,

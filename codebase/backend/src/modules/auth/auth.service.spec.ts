@@ -21,6 +21,7 @@ import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
+import { TotpService } from './totp.service';
 
 function sha256(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -47,6 +48,7 @@ describe('AuthService', () => {
     revokeAllFamilies: jest.Mock;
     reauthenticate: jest.Mock;
   };
+  let totpService: { verifyForDisable: jest.Mock; disable: jest.Mock };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -191,6 +193,14 @@ describe('AuthService', () => {
             reauthenticate: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          // 2FA 해제의 재인증 순서(비밀번호 → 코드 → 해제)를 AuthService.disableTwoFactor 가 지킨다.
+          provide: TotpService,
+          useValue: {
+            verifyForDisable: jest.fn().mockResolvedValue(undefined),
+            disable: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -204,6 +214,7 @@ describe('AuthService', () => {
     mockDataSource = module.get(DataSource);
     loginHistoryService = module.get(LoginHistoryService);
     sessionsService = module.get(SessionsService);
+    totpService = module.get(TotpService);
   });
 
   it('should be defined', () => {
@@ -596,6 +607,72 @@ describe('AuthService', () => {
       await expect(
         service.verifyPasswordForUser('user-uuid', 'CorrectP@ss1'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('disableTwoFactor — 비밀번호 → 코드 → 해제 순서', () => {
+    /** 비밀번호 확인이 사용자를 읽는 순간을 `order` 에 남긴다(비밀번호 확인이 가장 먼저인지 보려는 것). */
+    async function withPasswordUser(order: string[] = []): Promise<void> {
+      const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
+      usersService.findById.mockImplementation(() => {
+        order.push('password');
+        return Promise.resolve({ ...mockUser, passwordHash: hash } as User);
+      });
+    }
+
+    it('비밀번호와 코드가 모두 맞으면 비밀번호 → 코드 → 해제 순서로 끈다', async () => {
+      const order: string[] = [];
+      await withPasswordUser(order);
+      totpService.verifyForDisable.mockImplementation(() => {
+        order.push('code');
+        return Promise.resolve();
+      });
+      totpService.disable.mockImplementation(() => {
+        order.push('disable');
+        return Promise.resolve();
+      });
+
+      await expect(
+        service.disableTwoFactor('user-uuid', 'CorrectP@ss1', '123456'),
+      ).resolves.toBeUndefined();
+
+      expect(order).toEqual(['password', 'code', 'disable']);
+      expect(totpService.verifyForDisable).toHaveBeenCalledWith(
+        'user-uuid',
+        '123456',
+      );
+      expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
+    });
+
+    it('비밀번호가 틀리면 401 PASSWORD_INVALID 이고 코드는 보지 않아 복구 코드를 소모하지 않는다', async () => {
+      await withPasswordUser();
+
+      await expect(
+        service.disableTwoFactor('user-uuid', 'WrongP@ss1', 'abcd-efgh-ijkl'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_INVALID' },
+      });
+      expect(totpService.verifyForDisable).not.toHaveBeenCalled();
+      expect(totpService.disable).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 맞아도 코드가 틀리면 401 TOTP_INVALID 이고 2FA 는 켜진 채로 남는다', async () => {
+      await withPasswordUser();
+      totpService.verifyForDisable.mockRejectedValue(
+        new UnauthorizedException({
+          code: 'TOTP_INVALID',
+          message: '인증 코드가 올바르지 않습니다.',
+        }),
+      );
+
+      await expect(
+        service.disableTwoFactor('user-uuid', 'CorrectP@ss1', '000000'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'TOTP_INVALID' },
+      });
+      expect(totpService.disable).not.toHaveBeenCalled();
     });
   });
 

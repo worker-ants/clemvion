@@ -41,6 +41,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
+      disableTwoFactor: jest.fn(),
       switchWorkspace: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
@@ -446,9 +447,8 @@ describe('AuthController', () => {
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
-    it('records user.2fa_disabled (with ipAddress) on disable2fa after password reconfirm', async () => {
-      authService.verifyPasswordForUser.mockResolvedValue(undefined);
-      totpService.disable.mockResolvedValue(undefined);
+    it('records user.2fa_disabled (with ipAddress) on disable2fa after password and code reconfirm', async () => {
+      authService.disableTwoFactor.mockResolvedValue(undefined);
 
       await controller.disable2fa(
         payload,
@@ -456,15 +456,13 @@ describe('AuthController', () => {
         mock2faReq,
       );
 
-      expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
+      // 재인증 순서는 AuthService.disableTwoFactor 한 메서드가 지킨다(auth.service.spec 이 고정).
+      expect(authService.disableTwoFactor).toHaveBeenCalledWith(
         'user-uuid',
         'OldP@ssw0rd1',
-      );
-      expect(totpService.verifyForDisable).toHaveBeenCalledWith(
-        'user-uuid',
         '123456',
       );
-      expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
+      expect(totpService.disable).not.toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
         userId: 'user-uuid',
@@ -477,7 +475,7 @@ describe('AuthController', () => {
     });
 
     it('does not record an audit log when disable2fa password is wrong', async () => {
-      authService.verifyPasswordForUser.mockRejectedValue(
+      authService.disableTwoFactor.mockRejectedValue(
         new UnauthorizedException({
           code: 'PASSWORD_INVALID',
           message: '비밀번호가 일치하지 않습니다.',
@@ -491,15 +489,11 @@ describe('AuthController', () => {
           mock2faReq,
         ),
       ).rejects.toThrow(UnauthorizedException);
-      // 비밀번호가 틀리면 코드는 보지 않는다 — 복구 코드를 헛되이 소모하지 않는다.
-      expect(totpService.verifyForDisable).not.toHaveBeenCalled();
-      expect(totpService.disable).not.toHaveBeenCalled();
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
-    it('비밀번호가 맞아도 코드가 틀리면 끄지 않고 감사 로그도 남기지 않는다', async () => {
-      authService.verifyPasswordForUser.mockResolvedValue(undefined);
-      totpService.verifyForDisable.mockRejectedValue(
+    it('비밀번호가 맞아도 코드가 틀리면 감사 로그를 남기지 않는다', async () => {
+      authService.disableTwoFactor.mockRejectedValue(
         new UnauthorizedException({
           code: 'TOTP_INVALID',
           message: '인증 코드가 올바르지 않습니다.',
@@ -513,7 +507,6 @@ describe('AuthController', () => {
           mock2faReq,
         ),
       ).rejects.toThrow(UnauthorizedException);
-      expect(totpService.disable).not.toHaveBeenCalled();
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 

@@ -345,13 +345,9 @@ export class AuthController {
     @Body() dto: Disable2faDto,
     @Req() req: Express.Request,
   ) {
-    // [refactor 02 C-3] 비밀번호 재확인은 AuthService 로 이관 (레이어 정렬,
-    // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
-    await this.authService.verifyPasswordForUser(user.sub, dto.password);
-    // 비밀번호만으로는 끄지 않는다. 로그인 2단계와 같은 코드를 함께 확인한다
-    // (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
-    await this.totpService.verifyForDisable(user.sub, dto.code);
-    await this.totpService.disable(user.sub);
+    // 재인증 순서(비밀번호 → 코드 → 해제)는 AuthService 한 메서드가 지킨다. 비밀번호만으로는 끄지 않는다
+    // (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN). 에러 코드·메시지·401 shape 은 각 확인이 내는 그대로다.
+    await this.authService.disableTwoFactor(user.sub, dto.password, dto.code);
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
     // ipAddress 동반(포렌식, data-flow §1.1).
     await this.auditLogsService.record({
