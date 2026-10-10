@@ -16,6 +16,10 @@ import { parseJwtExp } from '../../../modules/integrations/jwt-exp.js';
 import { normalizeCafe24IsoTimezone } from '../../../modules/integrations/cafe24-token-utils.js';
 import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
 import {
+  isUpstreamAbort,
+  linkUpstreamAbort,
+} from '../_base/abort-cascade.util.js';
+import {
   extractCafe24ScopeTokens,
   pickRestrictedApprovalScopes,
 } from './metadata/restricted-approval.js';
@@ -1226,15 +1230,7 @@ export class Cafe24ApiClient {
     // execution-wide signal — and `executeWithRateLimit` recurses on 429/401, so
     // retries multiply them.
     const upstream = opts.signal;
-    let onUpstreamAbort: (() => void) | undefined;
-    if (upstream) {
-      if (upstream.aborted) {
-        controller.abort();
-      } else {
-        onUpstreamAbort = () => controller.abort();
-        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
-      }
-    }
+    const unlinkUpstream = linkUpstreamAbort(controller, upstream);
 
     let response: Response;
     try {
@@ -1257,20 +1253,12 @@ export class Cafe24ApiClient {
       // `error(network)`. `upstream.aborted` is what separates a cancellation
       // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
       // its counter. Same shape as `database-query.handler.ts`.
-      if (
-        err instanceof Error &&
-        err.name === 'AbortError' &&
-        upstream?.aborted
-      ) {
-        throw err;
-      }
+      if (isUpstreamAbort(err, upstream)) throw err;
       await this.recordNetworkFailure(integration, err);
       throw new Cafe24TransportFailedError(err);
     } finally {
       clearTimeout(timer);
-      if (upstream && onUpstreamAbort) {
-        upstream.removeEventListener('abort', onUpstreamAbort);
-      }
+      unlinkUpstream();
     }
 
     const respHeaders = readHeaderMap(response.headers);

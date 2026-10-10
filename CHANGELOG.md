@@ -23,6 +23,27 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — HTTP Request 노드가 실행 취소를 cancelled 로 기록한다
+
+실행이 취소되면(Parallel 의 `cancel-others-on-fail`, 사용자 Stop) HTTP Request 노드는 진행 중인 요청을 끊었지만
+그때 난 `AbortError` 를 전송 실패로 바꿔 error 포트로 보냈다. 그래서 멈춘 분기의 HTTP 노드가 `cancelled` 가 아니라
+`HTTP_TRANSPORT_FAILED` 로 error 포트에 라우팅된 것으로 기록됐다. 연동 인증 요청이면 활동 로그에도 실패가 남았다
+(NERV 발견 `01a0e599-78b6-7714-a5c1-ba2c658d1888`).
+
+- 실행 취소로 생긴 `AbortError` 는 다시 던진다. 엔진이 노드 실행을 `cancelled` 로 기록한다. 활동 로그는 남기지
+  않는다. Cafe24 · MakeShop 노드와 같은 처리다.
+- 응답 본문을 읽다가 취소된 경우도 같다. 전에는 JSON 응답이면 본문을 `null` 로 두고 success 포트로 갔다.
+- 노드의 `timeout` 으로 끊긴 요청은 지금처럼 `HTTP_TRANSPORT_FAILED` 로 error 포트에 간다.
+
+## Unreleased — HTTP Request 노드가 요청마다 취소 리스너를 남기지 않는다
+
+HTTP Request 노드는 실행 취소 신호에 단 리스너를 요청의 controller 가 abort 될 때만 뗐다. 성공한 요청은 controller 를
+abort 하지 않으므로 리스너가 떼어지지 않았다. 반복 안에서 HTTP 노드를 돌리면 요청 수만큼 리스너가 쌓였다.
+
+- 요청이 끝나면(성공 · 실패 · 취소) 응답 본문까지 읽은 뒤 리스너를 뗀다.
+- 취소 신호를 요청에 잇는 코드는 HTTP Request · Cafe24 · MakeShop 이 함께 쓰는 헬퍼 하나로 모았다
+  (`nodes/integration/_base/abort-cascade.util.ts`). Cafe24 · MakeShop 의 동작은 그대로다.
+
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 
 초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route

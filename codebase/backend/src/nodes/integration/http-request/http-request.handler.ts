@@ -15,6 +15,10 @@ import { ErrorCode } from '../../core/error-codes.js';
 import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
 import { isDryRun, buildDryRunMock } from '../../core/dry-run.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
+import {
+  isUpstreamAbort,
+  linkUpstreamAbort,
+} from '../_base/abort-cascade.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
@@ -420,27 +424,12 @@ export class HttpRequestHandler
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
-    // parallel-p2 결정 A + H (2026-05-30 — SoT: spec/conventions/
-    // node-cancellation.md): context.abortSignal 이 set 되어 있으면 자기 fetch
-    // controller 에 cascade abort 시켜 외부 cancellation (Parallel cancel-
-    // others-on-fail / 향후 Workflow timeout / 사용자 cancel) 을 즉시 반영.
+    // NERV CLE-EXEC-CANCEL §fetch 자체 타임아웃과의 연쇄: 실행 취소 신호(context.abortSignal)를
+    // 이 요청의 controller 에 잇는다. Parallel cancel-others-on-fail · 사용자 취소가 진행 중인
+    // fetch 를 바로 끊는다. 리스너는 응답 본문까지 읽은 뒤 아래 finally 에서 뗀다. 성공한 요청은
+    // controller 를 abort 하지 않으므로 controller 의 abort 이벤트에 정리를 걸면 리스너가 남는다.
     const upstream = context.abortSignal;
-    if (upstream) {
-      if (upstream.aborted) {
-        controller.abort();
-      } else {
-        const onUpstreamAbort = () => controller.abort();
-        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
-        // controller 가 timeout / 완료로 abort 될 때 listener 해제 — 메모리
-        // 누수 방지. controller.signal 의 abort 이벤트는 timeout 또는
-        // upstream abort 모두에서 발화하므로 한 곳에서 cleanup.
-        controller.signal.addEventListener(
-          'abort',
-          () => upstream.removeEventListener('abort', onUpstreamAbort),
-          { once: true },
-        );
-      }
-    }
+    const unlinkUpstream = linkUpstreamAbort(controller, upstream);
     // Follow redirects manually so that a redirect to an internal host does
     // not bypass `assertSafeOutboundUrl` — `followRedirectsSafely` honours up to
     // `MAX_REDIRECT_HOPS` and re-validates each target (shared with the
@@ -469,7 +458,12 @@ export class HttpRequestHandler
 
       let responseData: unknown;
       if (responseType === 'json') {
-        responseData = await res.json().catch(() => null);
+        // 파싱할 수 없는 본문은 null 이다. 본문을 읽다가 실행이 취소된 것은 null 로 삼키지 않고
+        // 아래 catch 로 올려 취소로 처리한다.
+        responseData = await res.json().catch((err: unknown) => {
+          if (isUpstreamAbort(err, upstream)) throw err;
+          return null;
+        });
       } else if (responseType === 'text') {
         responseData = await res.text();
       } else {
@@ -530,6 +524,11 @@ export class HttpRequestHandler
       };
     } catch (err: unknown) {
       clearTimeout(timeoutId);
+      // CLE-EXEC-CANCEL 규칙 19: 실행 취소로 생긴 AbortError 는 error 포트로 보내지 않고 다시 던진다.
+      // 엔진이 노드를 cancelled 로 기록한다. 끝난 호출이 아니므로 활동 로그도 남기지 않는다(Cafe24 ·
+      // MakeShop 과 같다). 노드 자체 타임아웃의 AbortError 는 upstream 이 열려 있어서 아래
+      // HTTP_TRANSPORT_FAILED 로 간다.
+      if (isUpstreamAbort(err, upstream)) throw err;
       const durationMs = Date.now() - start;
       // redirect hop 의 SSRF 차단은 IntegrationError(HTTP_BLOCKED)로 승격돼 이 catch
       // 에 도달한다 — transport 실패로 오분류하지 말고 그 code/message(일반화)를 보존.
@@ -585,6 +584,8 @@ export class HttpRequestHandler
         meta: { statusCode: 0, durationMs },
         port: 'error',
       };
+    } finally {
+      unlinkUpstream();
     }
   }
 }

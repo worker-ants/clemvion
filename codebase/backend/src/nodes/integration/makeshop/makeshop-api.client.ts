@@ -14,6 +14,10 @@ import {
 import { sanitizeLastErrorMessage } from '../../../modules/integrations/integration-oauth.service.js';
 import { parseJwtExp } from '../../../modules/integrations/jwt-exp.js';
 import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
+import {
+  isUpstreamAbort,
+  linkUpstreamAbort,
+} from '../_base/abort-cascade.util.js';
 
 /**
  * Optional DI tokens for swapping the network / sleep primitives in tests.
@@ -854,15 +858,7 @@ export class MakeshopApiClient {
     // execution-wide signal — and `executeWithRetry` recurses on 429/401, so
     // retries multiply them.
     const upstream = opts.signal;
-    let onUpstreamAbort: (() => void) | undefined;
-    if (upstream) {
-      if (upstream.aborted) {
-        controller.abort();
-      } else {
-        onUpstreamAbort = () => controller.abort();
-        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
-      }
-    }
+    const unlinkUpstream = linkUpstreamAbort(controller, upstream);
 
     let response: Response;
     try {
@@ -881,20 +877,12 @@ export class MakeshopApiClient {
       // `error(network)`. `upstream.aborted` is what separates a cancellation
       // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
       // its counter. Same shape as `database-query.handler.ts`.
-      if (
-        err instanceof Error &&
-        err.name === 'AbortError' &&
-        upstream?.aborted
-      ) {
-        throw err;
-      }
+      if (isUpstreamAbort(err, upstream)) throw err;
       await this.recordNetworkFailure(integration, err);
       throw new MakeshopTransportFailedError(err);
     } finally {
       clearTimeout(timer);
-      if (upstream && onUpstreamAbort) {
-        upstream.removeEventListener('abort', onUpstreamAbort);
-      }
+      unlinkUpstream();
     }
 
     const respHeaders = readHeaderMap(response.headers);
