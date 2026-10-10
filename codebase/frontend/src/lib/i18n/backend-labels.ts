@@ -417,9 +417,9 @@ export const WARNING_KO: Record<string, string> = {
     "LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).",
   "Merge strategy must be selected.": "Merge strategy 를 선택해야 합니다.",
   "Merge partialOnTimeout has no effect — Merge never times out, so there are no partial inputs to merge. Turn it off.":
-    "Merge partialOnTimeout 은 동작하지 않습니다. Merge 에는 타임아웃이 없어서 일부만 병합할 입력도 없습니다. 이 설정을 끄세요.",
+    "Merge partialOnTimeout 은 동작하지 않아요. Merge 에는 타임아웃이 없어서 일부만 병합할 입력도 없어요. 이 설정을 꺼 주세요.",
   "Merge timeout has no effect — Merge runs only after every connected input has finished, so there is nothing to wait for. Set it to 0.":
-    "Merge timeout 은 동작하지 않습니다. Merge 는 연결된 입력이 모두 끝난 뒤에 실행되어 기다릴 대상이 없습니다. 0 으로 설정하세요.",
+    "Merge timeout 은 동작하지 않아요. Merge 는 연결된 입력이 모두 끝난 뒤에 실행돼서 기다릴 대상이 없어요. 0 으로 설정해 주세요.",
   "Mode must be either static or dynamic.": "Mode 는 static 또는 dynamic 이어야 합니다.",
   "Multi Turn mode requires System Prompt.": "Multi Turn 모드에서는 System Prompt 가 필요합니다.",
   "Operation must be selected.": "Operation 을 선택해야 합니다.",
