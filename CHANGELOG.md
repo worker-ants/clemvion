@@ -63,10 +63,10 @@
 `PATCH /api/users/me` 는 `theme` 으로 `light` · `dark` · `system` 을 받았지만 DB CHECK 제약이 `light` · `dark` 만
 허용해서 `system` 을 보내면 500 이 났다(NERV 발견 `01a0e542-19bb-75af-9f64-5529605f2b98`).
 
-- 마이그레이션 `V148__user_theme_allow_system.sql` 이 `user.theme` CHECK 를 `light` · `dark` · `system` 으로 넓힌다.
-  새 제약을 `NOT VALID` 로 붙이고 `VALIDATE` 한 뒤 옛 제약을 지운다. 기존 행은 바뀌지 않는다. 같은 이름의 `.conf`
-  (`executeInTransaction=false`)로 문장마다 따로 커밋해서 `NOT VALID` 추가의 잠금이 전체 검증 동안 남지 않고,
-  잠금을 3초 안에 못 잡으면 마이그레이션이 실패한다(`flyway repair` 뒤 다시 배포한다).
+- 마이그레이션 `V148__user_theme_allow_system.sql` · `V149__user_theme_allow_system_validate.sql` 이 `user.theme`
+  CHECK 를 `light` · `dark` · `system` 으로 넓힌다. V148 이 새 제약을 `NOT VALID` 로 붙이고 V149 가 `VALIDATE` 한 뒤
+  옛 제약을 지운다. 기존 행은 바뀌지 않는다. 파일을 둘로 나눠서 `NOT VALID` 추가의 잠금이 전체 검증 동안 남지 않는다.
+  두 파일 모두 잠금을 3초 안에 못 잡으면 롤백되고 실패 행이 남지 않으므로 다시 배포하면 된다.
 - 프론트엔드 테마 토글은 이번에 바꾸지 않았다.
 
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다

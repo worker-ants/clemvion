@@ -65,13 +65,13 @@ ALTER TABLE document
            OR graph_extraction_status IN ('pending','processing','completed','error'))
   NOT VALID;
 
--- 2) 별도 마이그레이션(또는 .conf 로 트랜잭션을 끈 같은 파일)에서 VALIDATE — SHARE UPDATE EXCLUSIVE 만 잡고
+-- 2) 별도 마이그레이션 파일에서 VALIDATE — SHARE UPDATE EXCLUSIVE 만 잡고
 --    기존 row 를 백그라운드에서 검증 (DML 영향 적음)
 ALTER TABLE document
   VALIDATE CONSTRAINT chk_doc_graph_extraction_status;
 ```
 
-> **트랜잭션 경계** — Flyway 는 `.conf` 가 없으면 파일 하나를 트랜잭션 하나로 실행합니다. 1) 의 `ADD ... NOT VALID` 가 잡은 `ACCESS EXCLUSIVE` 는 커밋까지 남으므로, 같은 파일(같은 트랜잭션)에서 2) 를 돌리면 전체 스캔 내내 테이블이 막혀 `NOT VALID` 로 나눈 이점이 없습니다. 2) 를 같은 파일에 두려면 같은 이름의 `.conf` 에 `executeInTransaction=false` 를 두어 문장마다 따로 커밋하게 하거나(V052 · V070 · V148), 2) 를 다음 번호 파일로 나눕니다(V141~V146 → V147). 트랜잭션을 끄면 중간 실패 때 일부만 적용되므로 `ADD` 앞에 `DROP CONSTRAINT IF EXISTS <새 제약>` 을 두어 같은 파일을 다시 돌려도 안전하게 합니다.
+> **트랜잭션 경계** — Flyway 는 파일 하나를 트랜잭션 하나로 실행합니다. 1) 의 `ADD ... NOT VALID` 가 잡은 `ACCESS EXCLUSIVE` 는 커밋까지 남으므로, 같은 파일(같은 트랜잭션)에서 2) 를 돌리면 전체 스캔 내내 테이블이 막혀 `NOT VALID` 로 나눈 이점이 없습니다. 그래서 2) 는 다음 번호 파일로 나눕니다(V141~V146 → V147, V148 → V149). 같은 이름의 `V<번호>__<이름>.conf` 에 `executeInTransaction=false` 를 두는 방법은 쓰지 않았습니다. V148 을 쓸 때 `flyway/flyway:10-alpine` 으로 중간에 실패하는 파일을 돌려 보니 `V<번호>__<이름>.conf` 는 적용되지 않아 앞 문장이 롤백됐고, `V<번호>__<이름>.sql.conf` 일 때만 커밋됐습니다(2026-10-10).
 
 `UNIQUE` 제약은 `CREATE UNIQUE INDEX CONCURRENTLY` 후 `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE USING INDEX` 패턴을 사용합니다. 마이그레이션 파일에 `CREATE INDEX CONCURRENTLY` 가 들어가면 Flyway 가 트랜잭션 모드에서 실행하지 못하므로 동봉된 `.conf` 파일에 `executeInTransaction=false` 를 설정하세요 (V022 / V023 / V026 참고).
 
