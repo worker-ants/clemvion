@@ -763,9 +763,12 @@ def _deliver_to_model(text: str) -> None:
             return
         text = text.strip("\n")
         if text.strip():
-            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                                     "additionalContext": text}},
-                             ensure_ascii=False))
+            envelope = {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                               "additionalContext": text}}
+            try:
+                print(json.dumps(envelope, ensure_ascii=False))
+            except UnicodeEncodeError:
+                print(json.dumps(envelope))
     except Exception:  # noqa: BLE001 — reporting must never break the guard.
         traceback.print_exc(file=sys.stderr)
 

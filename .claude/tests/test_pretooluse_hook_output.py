@@ -26,7 +26,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
+import _harness  # also puts .claude/hooks on sys.path for the next import
 from _lib import hook_output
 
 _NOTE = "⚠️  세션X: 하향 감지"
@@ -76,6 +76,22 @@ class EnvelopeTest(unittest.TestCase):
         buf = io.StringIO()
         self.assertTrue(hook_output.emit_context("\nbanner\n\n", stream=buf))
         self.assertEqual(_harness.pretooluse_context(buf.getvalue()), "banner")
+
+    def test_a_stream_that_cannot_encode_gets_the_ascii_form(self):
+        """인코딩 오류로 envelope 를 잃지 않는다. 그러면 모델에 닿는 유일한 길이 끊긴다.
+
+        UTF-8 이 아닌 stdout 과, `surrogateescape` 로 읽은 git 메시지의 짝 없는 서로게이트가 그 경우다.
+        이스케이프한 형태도 객체 하나이고 판독기가 원문을 그대로 돌려받는다.
+        """
+        for encoding, text in (("ascii", "배너 ⚠️"), ("utf-8", "git: \udcff")):
+            with self.subTest(encoding=encoding):
+                raw = io.BytesIO()
+                stream = io.TextIOWrapper(raw, encoding=encoding, newline="\n")
+                self.assertTrue(hook_output.emit_context(text, stream=stream))
+                stream.flush()
+                out = raw.getvalue().decode("ascii")
+                self.assertEqual(out.count("\n"), 1, out)
+                self.assertEqual(_harness.pretooluse_context(out), text)
 
 
 class ReaderRejectsWhatClaudeCodeDropsTest(unittest.TestCase):
@@ -204,6 +220,42 @@ class PushHookSpeaksInOneObjectTest(unittest.TestCase):
         self.assertEqual(without.returncode, 0, without.stderr)
         self.assertEqual(_harness.pretooluse_context(without.stdout), _NOTE)
         self.assertEqual(without.stdout, with_module.stdout)
+
+
+class FallbackMatchesTheModuleInProcessTest(unittest.TestCase):
+    """`_deliver_to_model` 의 폴백 사본이 경계 입력에서도 모듈과 같은 바이트를 낸다.
+
+    위 서브프로세스 비교는 배너가 든 입력 하나만 본다. 여기서는 빈 텍스트, 앞뒤 개행,
+    인코딩할 수 없는 stdout 까지 모듈 경로와 폴백 경로를 나란히 돌린다.
+    """
+
+    _TEXTS = ("", "\n", "  \n\t", "\nbanner\n\n", "배너 ⚠️\n둘째 줄", "git: \udcff", "a\u2028b")
+
+    def setUp(self):
+        self.hook = _harness.load_module_by_path(
+            "push_guard_fallback_probe", _harness.HOOKS_DIR / "guard_review_before_push.py")
+        self.assertIsNotNone(self.hook.hook_output, "모듈 경로를 비교하려면 hook_output 이 로드돼야 한다")
+
+    def _deliver(self, text: str, encoding: str, *, fallback: bool) -> bytes:
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding=encoding, newline="\n")
+        err = io.StringIO()
+        with contextlib.ExitStack() as stack:
+            if fallback:
+                stack.enter_context(mock.patch.object(self.hook, "hook_output", None))
+            stack.enter_context(contextlib.redirect_stdout(stream))
+            stack.enter_context(contextlib.redirect_stderr(err))
+            self.hook._deliver_to_model(text)
+        stream.flush()
+        self.assertEqual(err.getvalue(), "", "전달이 예외로 끝났다")
+        return raw.getvalue()
+
+    def test_same_bytes_on_every_boundary_input(self):
+        for encoding in ("utf-8", "ascii"):
+            for text in self._TEXTS:
+                with self.subTest(encoding=encoding, text=text):
+                    module = self._deliver(text, encoding, fallback=False)
+                    self.assertEqual(self._deliver(text, encoding, fallback=True), module)
 
 
 class _ClosedStdout:

@@ -305,8 +305,8 @@ class PayloadSurfacesTheContradictionTest(unittest.TestCase):
 class AdvisoryReachesTheModelTest(unittest.TestCase):
     """On ALLOW only the PreToolUse JSON envelope reaches the model — and this fires on ALLOW.
 
-    The push hook documents the rule for its own fail-open banner: "a banner on
-    the wrong stream is a banner nobody reads". The first version of this
+    The push hook documents the rule for its own fail-open banner: "A banner on
+    the wrong channel is a banner nobody reads". The first version of this
     backstop hardcoded `sys.stderr` inside the gate, which put every advisory on
     the stream the model ignores in exactly the case the advisory exists for.
     The next one printed plain stdout, which on a PreToolUse exit 0 reaches only

@@ -580,6 +580,16 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
             capture_output=True, text=True, env=env, timeout=10, cwd=self.tmp,
         )
 
+    @staticmethod
+    def _model_text(r):
+        """모델이 읽는 쪽: 막았으면 stderr, 통과시켰으면 PreToolUse envelope.
+
+        `r.stdout + r.stderr` 부분 문자열 단언은 평문 stdout 으로 퇴행해도 통과한다.
+        """
+        if r.returncode == 2:
+            return r.stderr
+        return _harness.pretooluse_context(r.stdout)
+
     def _break_every_lib_module(self):
         """`_lib` 의 세 모듈을 전부 import 불가로 만든다 — 최악의 경우."""
         for name in ("review_guard.py", "failopen_state.py", "hook_output.py"):
@@ -597,7 +607,7 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         # 그리고 이 명령을 **push 로 알아봤어야** 한다. 게이트가 죽었으니 차단은
         # 못 하지만, fail-open 을 소리 내어 보고하는 것이 그 증거다.
         self.assertIn(
-            "fail-open", r.stdout + r.stderr,
+            "fail-open", self._model_text(r),
             "push 로 인식하지 못해 게이트 경로에 아예 들어가지 않았다 — 탐지가 "
             "`_lib` 과 함께 죽었다는 뜻이다",
         )
@@ -619,7 +629,7 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         self._break_every_lib_module()
         r = self._run(_MULTILINE_PUSH)
         self.assertIn(r.returncode, (0, 2))
-        self.assertIn("fail-open", r.stdout + r.stderr)
+        self.assertIn("fail-open", self._model_text(r))
 
 
 class SuiteLeavesNoRealStateTest(unittest.TestCase):

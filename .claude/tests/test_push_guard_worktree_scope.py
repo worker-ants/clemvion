@@ -254,8 +254,10 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         # `return 2` is the one path that looks "successful". Asserting only the
         # exit code stays green if the banner is dropped, which is what review
         # 10_47_09 WARNING 4 pointed out.
-        self.assertIn("fail-open", r.stdout + r.stderr)
-        self.assertIn("REVIEW", r.stdout + r.stderr)
+        # exit 2: the refusal and the banner travel on stderr, nothing on stdout.
+        self.assertIn("fail-open", r.stderr)
+        self.assertIn("REVIEW", r.stderr)
+        self.assertEqual(r.stdout, "")
 
     def test_degradation_is_counted_once_per_gate_not_per_target(self):
         """Scoping must not inflate #999's fail-open streak counter.
