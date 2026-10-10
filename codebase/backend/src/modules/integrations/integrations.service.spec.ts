@@ -1054,6 +1054,133 @@ describe('IntegrationsService', () => {
       );
     });
 
+    /**
+     * CLE-T-NNENG8 — Cafe24 Private 은 우리 서버가 OAuth 를 시작하지 못한다. 재인증은 재설치 요청 표시를 남기고
+     * App URL 을 돌려준다. 사용자가 Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로 보낸다.
+     */
+    describe('Cafe24 Private', () => {
+      const privateCreds = {
+        mall_id: 'gehrig0301',
+        app_type: 'private',
+        client_id: 'cid',
+        client_secret: 'csec',
+        access_token: 't',
+        refresh_token: 'r',
+        scopes: ['mall.read_product'],
+      };
+      let originalAppUrl: string | undefined;
+      beforeEach(() => {
+        originalAppUrl = process.env.APP_URL;
+        process.env.APP_URL = 'https://app.example.com';
+      });
+      afterEach(() => {
+        if (originalAppUrl === undefined) delete process.env.APP_URL;
+        else process.env.APP_URL = originalAppUrl;
+      });
+
+      it.each([
+        ['connected', null],
+        ['error', 'auth_failed'],
+        ['expired', 'token_expired'],
+      ] as const)(
+        'status=%s — begin 을 부르지 않고 재설치 요청 표시를 남긴 뒤 cafe24_private_pending 을 돌려준다',
+        async (status, statusReason) => {
+          integrationRepo.findOne.mockResolvedValue(
+            makeIntegration({
+              serviceType: 'cafe24',
+              authType: 'oauth2',
+              credentials: privateCreds,
+              installToken: 'PreservedToken123456__',
+              status,
+              statusReason,
+            }),
+          );
+          const before = Date.now();
+          const result = await service.reauthorize(
+            'int-1',
+            'ws-1',
+            'user-1',
+            'editor',
+          );
+          expect(oauthServiceMock.begin).not.toHaveBeenCalled();
+          expect(result).toEqual({
+            mode: 'cafe24_private_pending',
+            integrationId: 'int-1',
+            appUrl:
+              'https://app.example.com/api/3rd-party/cafe24/install/PreservedToken123456__',
+            callbackUrl: 'https://app.example.com/api/3rd-party/cafe24/callback',
+          });
+          // 판정한 행에만 · 바꾸는 컬럼만 쓴다. 상태와 사유는 건드리지 않는다.
+          expect(integrationRepo.save).not.toHaveBeenCalled();
+          expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+          const [where, changes] = integrationRepo.update.mock.calls[0] as [
+            Record<string, unknown>,
+            Record<string, unknown>,
+          ];
+          expect(where).toEqual({
+            id: 'int-1',
+            workspaceId: 'ws-1',
+            scope: 'personal',
+          });
+          expect(Object.keys(changes)).toEqual(['reinstallRequestedAt']);
+          expect(changes.reinstallRequestedAt).toBeInstanceOf(Date);
+          expect(
+            (changes.reinstallRequestedAt as Date).getTime(),
+          ).toBeGreaterThanOrEqual(before);
+        },
+      );
+
+      it('판정한 행이 그 사이 바뀌어 아무 행도 쓰지 못하면 404', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: privateCreds,
+            installToken: 'PreservedToken123456__',
+          }),
+        );
+        integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
+        await expect(
+          service.reauthorize('int-1', 'ws-1', 'user-1', 'editor'),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+      });
+
+      it('설치 대기 행은 지금처럼 begin 으로 넘긴다(begin 이 테스트 실행 안내로 거부한다)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: privateCreds,
+            installToken: 'PreservedToken123456__',
+            status: 'pending_install',
+          }),
+        );
+        await service.reauthorize('int-1', 'ws-1', 'user-1', 'editor');
+        expect(oauthServiceMock.begin).toHaveBeenCalledWith(
+          expect.objectContaining({ mode: 'reauthorize', service: 'cafe24' }),
+        );
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('install_token 이 없는 행(설치 시간 초과)은 begin 으로 넘긴다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: privateCreds,
+            installToken: null,
+            status: 'expired',
+            statusReason: 'install_timeout',
+          }),
+        );
+        await service.reauthorize('int-1', 'ws-1', 'user-1', 'editor');
+        expect(oauthServiceMock.begin).toHaveBeenCalledWith(
+          expect.objectContaining({ mode: 'reauthorize', service: 'cafe24' }),
+        );
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+      });
+    });
+
     it('records integration.reauthorized audit on non-OAuth reset', async () => {
       integrationRepo.findOne.mockResolvedValue(
         makeIntegration({
@@ -1762,6 +1889,47 @@ describe('IntegrationsService', () => {
         const saved = integrationRepo.save.mock.calls[0][0] as Integration;
         const creds = saved.credentials;
         expect(creds.scopes).toEqual(['mall.read_product', 'mall.read_store']);
+        // CLE-T-NNENG8 — 재설치 요청 표시를 함께 남겨 App URL 이 OAuth 로 보내게 한다.
+        expect(saved.reinstallRequestedAt).toBeInstanceOf(Date);
+        expect(saved.status).toBe('connected');
+      } finally {
+        if (original === undefined) delete process.env.APP_URL;
+        else process.env.APP_URL = original;
+      }
+    });
+
+    it('cafe24 Private 설치 대기 행 — scope 만 합치고 재설치 요청 표시는 남기지 않는다(App URL 이 이미 OAuth 로 보낸다)', async () => {
+      const original = process.env.APP_URL;
+      process.env.APP_URL = 'https://app.example.com';
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          status: 'pending_install',
+          credentials: {
+            mall_id: 'gehrig0301',
+            app_type: 'private',
+            client_id: 'cid',
+            client_secret: 'csec',
+            scopes: ['mall.read_product'],
+          },
+          installToken: 'PreservedToken123456__',
+        }),
+      );
+      integrationRepo.save = jest
+        .fn()
+        .mockImplementation((e: Integration) => Promise.resolve(e));
+      try {
+        const result = await service.requestScopes(
+          'int-1',
+          'ws-1',
+          'user-1',
+          'member',
+          { scopes: ['mall.read_store'] },
+        );
+        expect(result).toMatchObject({ mode: 'cafe24_private_pending' });
+        const saved = integrationRepo.save.mock.calls[0][0] as Integration;
+        expect(saved.reinstallRequestedAt ?? null).toBeNull();
       } finally {
         if (original === undefined) delete process.env.APP_URL;
         else process.env.APP_URL = original;

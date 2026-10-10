@@ -154,6 +154,13 @@ export class IntegrationDto {
   @ApiProperty({ format: 'date-time', nullable: true, type: String })
   lastRotatedAt: string | null;
 
+  /**
+   * Cafe24 Private 재설치 요청 시각 — 권한 추가 · 재인증이 남기고 App URL 로 OAuth 를 마치면 `null` 로 돌아간다.
+   * 값이 있으면 상세 화면이 Cafe24 에서 「테스트 실행」을 누르라고 안내한다. 그 외 통합은 늘 `null`.
+   */
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  reinstallRequestedAt: string | null;
+
   /** 최종 사용 시각 (없으면 `null`) */
   @ApiProperty({ format: 'date-time', nullable: true, type: String })
   lastUsedAt: string | null;

@@ -35,6 +35,7 @@ import {
 import {
   buildCafe24InstallUrl,
   buildMakeshopInstallUrl,
+  buildOauthCallbackUrl,
 } from './third-party-oauth.constants';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import {
@@ -354,6 +355,35 @@ export function buildIntegrationMeta(
   // appType needs no context — install URL is the only ctx-dependent field.
   const { appType } = buildDerivedFields(entity, undefined, credsUnreadable);
   return { appType };
+}
+
+/**
+ * App URL 이 있는 Cafe24 Private 통합인가 — 권한 추가 · 재인증이 begin 대신 App URL 안내(`cafe24_private_pending`)로
+ * 가는 조건이다. install_token 이 없는 행(설치 시간 초과)은 App URL 이 없어 이 경로를 탈 수 없다.
+ */
+function isCafe24PrivateWithInstallToken(
+  entity: Integration,
+): entity is Integration & { installToken: string } {
+  return (
+    entity.serviceType === 'cafe24' &&
+    entity.credentials.app_type === 'private' &&
+    typeof entity.installToken === 'string' &&
+    entity.installToken.length > 0
+  );
+}
+
+/** 권한 추가 · 재인증이 돌려주는 Cafe24 Private App URL 안내. 권한 추가는 여기에 `scopesAdded` 를 더한다. */
+function buildCafe24PrivatePendingResult(
+  integrationId: string,
+  installToken: string,
+): Extract<BeginResult, { mode: 'cafe24_private_pending' }> {
+  const appBaseUrl = getAppBaseUrl();
+  return {
+    mode: 'cafe24_private_pending',
+    integrationId,
+    appUrl: buildCafe24InstallUrl(appBaseUrl, installToken),
+    callbackUrl: buildOauthCallbackUrl(appBaseUrl, 'cafe24'),
+  };
 }
 
 export type PublicIntegration = Omit<
@@ -1360,27 +1390,22 @@ export class IntegrationsService {
     // (Private 은 우리 서버가 OAuth 를 시작 못 함). 대신 기존 install_token
     // 을 그대로 두고 `credentials.scopes` 만 merge 갱신한 뒤,
     // 사용자에게 Cafe24 Developers 에서 권한 추가 후 "테스트 실행" 재호출
-    // 안내. 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
-    // "Cafe24 Private request-scopes 흐름" 항.
+    // 안내. 설치 대기가 아닌 행에는 재설치 요청 표시를 함께 남긴다 — App URL 이
+    // 그 표시를 보고 OAuth 로 보낸다(설치 대기 행은 표시 없이도 OAuth 로 간다).
+    // NERV CLE-INT-OAUTH Rationale, Task CLE-T-NNENG8.
     const creds = entity.credentials;
-    if (
-      entity.serviceType === 'cafe24' &&
-      creds.app_type === 'private' &&
-      typeof entity.installToken === 'string' &&
-      entity.installToken.length > 0
-    ) {
+    if (isCafe24PrivateWithInstallToken(entity)) {
       entity.credentials = {
         ...entity.credentials,
         scopes: mergedScopes,
       };
+      if (entity.status !== 'pending_install') {
+        entity.reinstallRequestedAt = new Date();
+      }
       await this.integrationRepository.save(entity);
 
-      const appBaseUrl = getAppBaseUrl();
       return {
-        mode: 'cafe24_private_pending',
-        integrationId: entity.id,
-        appUrl: `${appBaseUrl}/api/3rd-party/cafe24/install/${entity.installToken}`,
-        callbackUrl: `${appBaseUrl}/api/3rd-party/cafe24/callback`,
+        ...buildCafe24PrivatePendingResult(entity.id, entity.installToken),
         scopesAdded,
       };
     }
@@ -1484,6 +1509,23 @@ export class IntegrationsService {
         details: { mode: 'reset' },
       });
       return { authUrl: '', state: '' };
+    }
+
+    // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다(begin 은 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 거부한다). 재설치
+    // 요청 표시를 남기고 App URL 을 돌려준다. 사용자가 Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로
+    // 보낸다. 설치 대기 행은 App URL 이 이미 OAuth 로 보내므로 begin 의 안내를 그대로 쓴다. install_token 이 없는 행(설치
+    // 시간 초과)은 App URL 이 없어 삭제 후 재등록만 남는다. 상태 · 사유는 그대로 둔다 — 실행은 기존 토큰으로 계속 돈다.
+    // NERV CLE-INT-OAUTH · CLE-INT-MANAGE, Task CLE-T-NNENG8.
+    if (
+      isCafe24PrivateWithInstallToken(entity) &&
+      entity.status !== 'pending_install'
+    ) {
+      const { affected } = await this.integrationRepository.update(
+        this.judgedRow(entity),
+        { reinstallRequestedAt: new Date() },
+      );
+      if (affected === 0) this.throwIntegrationNotFound();
+      return buildCafe24PrivatePendingResult(entity.id, entity.installToken);
     }
 
     const existingScopes = Array.isArray(entity.credentials.scopes)

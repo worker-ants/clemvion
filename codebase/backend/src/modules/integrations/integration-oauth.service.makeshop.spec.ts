@@ -185,9 +185,37 @@ describe('IntegrationOAuthService — MakeShop', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('rejects reauthorize mode (must reinstall from ShopStore)', async () => {
-      await expect(
-        service.begin({
+    // CLE-T-NNENG8 — ShopStore 재설치는 기존 행을 되살리지 않는다(App URL 이 설치 대기가 아닌 행을 상세 화면으로
+    // 보낸다). 그래서 거부 문구는 재설치가 아니라 삭제 후 재등록을 안내한다.
+    it.each(['reauthorize', 'request_scopes'] as const)(
+      'rejects %s mode — 삭제 후 다시 등록하라고 안내한다',
+      async (mode) => {
+        await expect(
+          service.begin({
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            service: 'makeshop',
+            scopes: ['store.read'],
+            mode,
+            providerMeta: {
+              client_id: 'mk-client-id',
+              client_secret: 'mk-client-secret',
+            },
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'MAKESHOP_USE_SHOPSTORE_INSTALL',
+            message: expect.stringMatching(
+              /delete the integration and register it again/,
+            ),
+          },
+        });
+      },
+    );
+
+    it('거부 문구는 기존 행을 되살리는 재설치를 안내하지 않는다', async () => {
+      const err = await service
+        .begin({
           workspaceId: 'ws-1',
           userId: 'u-1',
           service: 'makeshop',
@@ -197,8 +225,13 @@ describe('IntegrationOAuthService — MakeShop', () => {
             client_id: 'mk-client-id',
             client_secret: 'mk-client-secret',
           },
-        }),
-      ).rejects.toThrow(BadRequestException);
+        })
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      const message = (err as BadRequestException).getResponse() as {
+        message: string;
+      };
+      expect(message.message).not.toMatch(/reinstall the app/);
     });
 
     it('creates a pending_install integration and returns makeshop_pending_install', async () => {
@@ -499,6 +532,30 @@ describe('IntegrationOAuthService — MakeShop', () => {
       const url = await service.handleMakeshopInstall(INSTALL_TOKEN, query);
       expect(url).toBe('https://app.example.com/integrations/mk-connected');
     });
+
+    // CLE-T-NNENG8 — ShopStore 에서 앱을 다시 설치해도 설치 대기가 아닌 행은 OAuth 를 다시 타지 않는다. 오류가 된
+    // 행도 상세 화면으로 갈 뿐 되살아나지 않으므로 복구 경로는 삭제 후 재등록이다. 재설치 요청 표시도 보지 않는다.
+    it.each(['error', 'expired'] as const)(
+      'status=%s 행도 ShopStore 재설치로 되살아나지 않는다 — state 를 만들지 않고 상세 화면으로 보낸다',
+      async (status) => {
+        oauthMock.env.frontendUrl = 'https://app.example.com';
+        const row = {
+          ...buildFakeMakeshopIntegration({
+            id: 'mk-broken',
+            status,
+            mallId: 'myshop',
+          }),
+          reinstallRequestedAt: new Date('2026-10-10T00:00:00.000Z'),
+        };
+        integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+
+        const query = makeInstallQuery('myshop', 'mk-client-secret');
+        const url = await service.handleMakeshopInstall(INSTALL_TOKEN, query);
+        expect(url).toBe('https://app.example.com/integrations/mk-broken');
+        expect(stateRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
 
     // W-3 — V072 통일 인덱스명(`idx_integration_workspace_service_mall`)을 사용하는
     // race-backstop catch 분기 검증. in-memory 사전 체크가 통과한 후 동시 save() 가

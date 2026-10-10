@@ -105,6 +105,18 @@ export class Integration {
   @Column({ name: 'last_rotated_at', type: 'timestamptz', nullable: true })
   lastRotatedAt: Date | null;
 
+  /**
+   * Cafe24 Private 재설치 요청 시각(V151). 권한 추가 · 재인증이 남기고, App URL(`handleInstall`)이 이 값을 보면 설치 대기가
+   * 아닌 행도 OAuth authorize 로 보낸다. 콜백 성공이 NULL 로 비운다. 상태(`status`)와 사유(`status_reason`)는 건드리지
+   * 않는다 — NERV CLE-INT-DATA · CLE-INT-OAUTH, Task CLE-T-NNENG8.
+   */
+  @Column({
+    name: 'reinstall_requested_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  reinstallRequestedAt: Date | null;
+
   @Column({
     name: 'last_error',
     type: 'jsonb',

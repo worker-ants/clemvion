@@ -440,6 +440,22 @@ describe('IntegrationOAuthService', () => {
       expect(integrationRepo.save).toHaveBeenCalledTimes(1);
     });
 
+    it('재설치 요청 표시가 있는 행(설치 흐름)도 재판정하지 않는다 — 인가는 표시를 남길 때 봤고 커밋은 App URL 의 HMAC 이 인가한다', async () => {
+      dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+      integrationRepo.findOne.mockResolvedValue(
+        rowOf({
+          createdBy: 'u-2',
+          reinstallRequestedAt: new Date('2026-10-10T00:00:00.000Z'),
+        }),
+      );
+      await serviceWithRole('viewer').handleCallback('google', {
+        code: 'code',
+        state: 'abc',
+      });
+      expect(getMemberRole).not.toHaveBeenCalled();
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+    });
+
     it('역할을 조회할 수 없으면(WorkspacesService 미주입) Organization 재판정은 거부한다 — fail-closed', async () => {
       dataSource.query.mockResolvedValue(stateOf('reauthorize'));
       integrationRepo.findOne.mockResolvedValue(rowOf({}));
@@ -859,6 +875,36 @@ describe('IntegrationOAuthService', () => {
       >;
       expect(saved.status).toBe('error');
       expect(saved.statusReason).toBe('auth_failed');
+    });
+
+    // CLE-T-NNENG8 — 재설치 요청 표시가 있는 행은 기존 토큰이 아직 살아 있다. 새 코드 교환이 실패해도 상태와 표시를
+    // 보존해 사용자가 App URL 로 다시 시도하게 한다.
+    it('재설치 요청 표시가 있는 connected 행은 OAUTH_TOKEN_EXCHANGE_FAILED 에도 상태와 표시를 보존한다', async () => {
+      const requestedAt = new Date('2026-10-10T00:00:00.000Z');
+      integrationRepo.findOne.mockResolvedValue({
+        id: 'int-2',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+        reinstallRequestedAt: requestedAt,
+      });
+      await service.markIntegrationCallbackError(
+        'int-2',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'denied',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.status).toBe('connected');
+      expect(saved.statusReason).toBeNull();
+      expect(saved.reinstallRequestedAt).toBe(requestedAt);
+      expect((saved.lastError as { code: string }).code).toBe(
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+      );
     });
 
     it('preserves connected status on non-token-exchange errors (state expired)', async () => {

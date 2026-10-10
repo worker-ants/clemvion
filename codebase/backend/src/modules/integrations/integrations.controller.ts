@@ -582,7 +582,7 @@ export class IntegrationsController {
   @ApiOperation({
     summary: '재인증(reauthorize) 시작',
     description:
-      '만료되었거나 오류 상태인 OAuth 통합에 대해 재인증 플로우를 트리거합니다.',
+      '만료되었거나 오류 상태인 OAuth 통합에 대해 재인증 플로우를 트리거합니다. Cafe24 Private 통합은 재설치 요청을 기록하고 App URL 안내(`cafe24_private_pending`)를 반환합니다. Cafe24 에서 「테스트 실행」을 누르면 OAuth 가 진행됩니다. MakeShop 통합은 재인증할 수 없어 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거부합니다. 삭제 후 다시 등록해야 합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
@@ -611,7 +611,7 @@ export class IntegrationsController {
   @ApiOperation({
     summary: '추가 스코프 요청',
     description:
-      '기존 OAuth 통합에 추가 스코프를 요청합니다. provider가 incremental auth를 지원해야 합니다.',
+      '기존 OAuth 통합에 추가 스코프를 요청합니다. provider가 incremental auth를 지원해야 합니다. Cafe24 Private 통합은 스코프를 저장하고 재설치 요청을 기록한 뒤 App URL 안내(`cafe24_private_pending`)를 반환합니다. MakeShop 통합은 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거부합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
