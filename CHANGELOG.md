@@ -69,6 +69,31 @@
   두 파일 모두 잠금을 3초 안에 못 잡으면 롤백되고 실패 행이 남지 않으므로 다시 배포하면 된다.
 - 프론트엔드 테마 토글은 이번에 바꾸지 않았다.
 
+## Unreleased — HTTP Request 노드가 취소된 요청을 cancelled 로 기록한다
+
+Parallel 의 `cancel-others-on-fail` 이 실행 중인 분기를 멈추면 HTTP Request 노드는 진행 중인 요청을 끊었지만
+그때 난 `AbortError` 를 전송 실패로 바꿔 error 포트로 보냈다. 그래서 멈춘 분기의 HTTP 노드가 `cancelled` 가 아니라
+`HTTP_TRANSPORT_FAILED` 로 error 포트에 라우팅된 것으로 기록됐다. 연동 인증 요청이면 활동 로그에도 실패가 남았다
+(NERV 발견 `01a0e599-78b6-7714-a5c1-ba2c658d1888`).
+
+- 노드 취소 신호(`abortSignal`)로 생긴 `AbortError` 는 다시 던진다. 엔진이 노드 실행을 `cancelled` 로 기록한다.
+  활동 로그는 남기지 않는다. Cafe24 · MakeShop 노드와 같은 처리다.
+- 응답 본문을 읽다가 취소된 경우도 같다. 전에는 JSON 응답이면 본문을 `null` 로 두고 success 포트로 갔다.
+- 노드의 `timeout` 으로 끊긴 요청은 지금처럼 `HTTP_TRANSPORT_FAILED` 로 error 포트에 간다.
+
+## Unreleased — HTTP Request 노드가 요청마다 취소 리스너를 남기지 않는다
+
+HTTP Request 노드는 노드 취소 신호(`abortSignal`)에 단 리스너를 요청의 controller 가 abort 될 때만 뗐다.
+성공한 요청은 controller 를 abort 하지 않으므로 리스너가 떼어지지 않았다. 반복 안에서 HTTP 노드를 돌리면 요청 수만큼
+리스너가 쌓였다.
+
+- 요청이 끝나면(성공 · 실패 · 취소) 응답 본문까지 읽은 뒤 리스너를 뗀다.
+- 취소 신호를 요청에 잇는 코드와 취소 에러 판정은 HTTP Request · Cafe24 · MakeShop 이 함께 쓰는 헬퍼 하나로 모았다
+  (`nodes/integration/_base/abort-cascade.util.ts`). Cafe24 · MakeShop 은 이 요청의 리스너 누수가 원래 없었고 그 동작은
+  그대로다. 달라지는 것은 취소 에러를 알아보는 방법 하나다. 전에는 `Error` 인스턴스이면서 이름이 `AbortError` 일 때만 취소로
+  봤고 지금은 이름만 본다. 다른 realm 에서 온 `DOMException` 을 놓치지 않으려는 것이다. 운영 Node 의 `fetch` 는
+  `Error` 를 상속한 `DOMException` 을 던지므로 운영 동작은 같고, jest VM 같은 환경에서만 결과가 다르다.
+
 ## Unreleased — 기본 설정 Merge 노드가 실행된다
 
 Merge 노드 `timeout` 의 스키마 기본값이 `300` 이었다. 새 노드(팔레트 · 워크플로우 어시스턴트)와 가져온 노드가 이 값을

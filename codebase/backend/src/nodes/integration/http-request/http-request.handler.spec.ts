@@ -1692,48 +1692,59 @@ describe('HttpRequestHandler', () => {
       expect(result.output.responseHeaders).toBeUndefined();
     });
 
-    describe('cancellation — context.abortSignal cascade (parallel-p2 결정 A + H)', () => {
-      it('already-aborted upstream signal aborts the fetch immediately', async () => {
+    describe('cancellation — context.abortSignal cascade (CLE-EXEC-CANCEL 「fetch 자체 타임아웃과의 연쇄」)', () => {
+      // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19 (finding 01a0e599-78b6-7714-a5c1-ba2c658d1888):
+      // an AbortError caused by the execution being cancelled is rethrown so the
+      // engine records the node as `cancelled`. It never reaches the error port,
+      // and the node's own timeout keeps HTTP_TRANSPORT_FAILED.
+      const abortError = () =>
+        Object.assign(new Error('aborted'), { name: 'AbortError' });
+      const okResponse = (overrides: Record<string, unknown> = {}) => ({
+        ok: true,
+        status: 200,
+        text: jest.fn().mockResolvedValue('ok'),
+        json: jest.fn().mockResolvedValue({}),
+        headers: { get: jest.fn().mockReturnValue(null) },
+        ...overrides,
+      });
+      const withUpstream = (upstream: AbortController): ExecutionContext => ({
+        ...context,
+        abortSignal: upstream.signal,
+      });
+      type ErrorResult = { port: string; output: { error: { code: string } } };
+
+      it('already-aborted upstream: aborts the fetch and rethrows the AbortError', async () => {
         let observedSignal: AbortSignal | undefined;
         global.fetch = jest
           .fn()
           .mockImplementation((_url, init: RequestInit) => {
             observedSignal = init.signal as AbortSignal | undefined;
-            return Promise.reject(
-              Object.assign(new Error('aborted'), { name: 'AbortError' }),
-            );
+            return Promise.reject(abortError());
           });
 
         const upstream = new AbortController();
         upstream.abort();
-        const cancellingContext: ExecutionContext = {
-          ...context,
-          abortSignal: upstream.signal,
-        };
 
         await expect(
           handler.execute(
             null,
             { method: 'GET', url: 'https://api.example.com/ping' },
-            cancellingContext,
+            withUpstream(upstream),
           ),
-        ).resolves.toBeDefined();
+        ).rejects.toMatchObject({ name: 'AbortError' });
 
         expect(observedSignal).toBeDefined();
         expect(observedSignal!.aborted).toBe(true);
       });
 
-      it('upstream abort fired during fetch cascades to the fetch controller', async () => {
+      it('upstream abort fired during fetch cascades and rethrows instead of HTTP_TRANSPORT_FAILED', async () => {
         let observedSignal: AbortSignal | undefined;
         global.fetch = jest
           .fn()
           .mockImplementation((_url, init: RequestInit) => {
             observedSignal = init.signal as AbortSignal | undefined;
             return new Promise((_, reject) => {
-              const failAsAborted = () =>
-                reject(
-                  Object.assign(new Error('aborted'), { name: 'AbortError' }),
-                );
+              const failAsAborted = () => reject(abortError());
               // **이미 aborted 인 signal 도 즉시 reject 한다** — 실제 `fetch` 의 동작이다.
               //
               // 종전에는 `addEventListener('abort', …)` 만 달았다. 이미 abort 된 signal 에
@@ -1755,21 +1766,214 @@ describe('HttpRequestHandler', () => {
           });
 
         const upstream = new AbortController();
-        const cancellingContext: ExecutionContext = {
-          ...context,
-          abortSignal: upstream.signal,
-        };
-
         const exec = handler.execute(
           null,
           { method: 'GET', url: 'https://api.example.com/long' },
-          cancellingContext,
+          withUpstream(upstream),
         );
         // fire upstream abort after handler.execute started
         setTimeout(() => upstream.abort(), 10);
-        await expect(exec).resolves.toBeDefined();
+        await expect(exec).rejects.toMatchObject({ name: 'AbortError' });
 
         expect(observedSignal!.aborted).toBe(true);
+      });
+
+      it('own timeout while upstream is open stays on the error port as HTTP_TRANSPORT_FAILED', async () => {
+        // Only the node's controller aborts here. That is the node timeout
+        // (REQ-HTTP-009), outside the cancellation contract.
+        global.fetch = jest.fn().mockImplementation(
+          (_url, init: RequestInit) =>
+            new Promise((_, reject) => {
+              init.signal!.addEventListener('abort', () =>
+                reject(abortError()),
+              );
+            }),
+        );
+        const upstream = new AbortController();
+
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/slow', timeout: 20 },
+          withUpstream(upstream),
+        )) as unknown as ErrorResult;
+
+        expect(upstream.signal.aborted).toBe(false);
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+      });
+
+      it('a non-abort failure keeps its transport mapping even after cancellation', async () => {
+        // Only an AbortError marks the node cancelled. Anything else that lands
+        // after the cancel keeps the mapping it would have had.
+        global.fetch = jest
+          .fn()
+          .mockRejectedValue(new TypeError('fetch failed'));
+        const upstream = new AbortController();
+        upstream.abort();
+
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/x' },
+          withUpstream(upstream),
+        )) as unknown as ErrorResult;
+
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+      });
+
+      it('upstream abort during the JSON body read is rethrown, not swallowed as a null body', async () => {
+        const upstream = new AbortController();
+        global.fetch = jest.fn().mockResolvedValue(
+          okResponse({
+            json: jest.fn().mockImplementation(() => {
+              upstream.abort();
+              return Promise.reject(abortError());
+            }),
+          }),
+        );
+
+        await expect(
+          handler.execute(
+            null,
+            {
+              method: 'GET',
+              url: 'https://api.example.com/x',
+              responseType: 'json',
+            },
+            withUpstream(upstream),
+          ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+      });
+
+      it('an unparsable JSON body with upstream open still yields a null response', async () => {
+        global.fetch = jest.fn().mockResolvedValue(
+          okResponse({
+            json: jest.fn().mockRejectedValue(new SyntaxError('bad json')),
+          }),
+        );
+
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/x',
+            responseType: 'json',
+          },
+          withUpstream(new AbortController()),
+        )) as unknown as { port: string; output: { response: unknown } };
+
+        expect(result.port).toBe('success');
+        expect(result.output.response).toBeNull();
+      });
+
+      it('upstream abort during a text body read is rethrown', async () => {
+        const upstream = new AbortController();
+        global.fetch = jest.fn().mockResolvedValue(
+          okResponse({
+            text: jest.fn().mockImplementation(() => {
+              upstream.abort();
+              return Promise.reject(abortError());
+            }),
+          }),
+        );
+
+        await expect(
+          handler.execute(
+            null,
+            {
+              method: 'GET',
+              url: 'https://api.example.com/x',
+              responseType: 'text',
+            },
+            withUpstream(upstream),
+          ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+      });
+
+      it('a cancelled integration request writes no activity log', async () => {
+        // Same as Cafe24 · MakeShop: a cancel is neither success nor failure of
+        // the external call (REQ-HTTP-029 counts finished calls only).
+        const logUsage = jest.fn().mockResolvedValue(undefined);
+        const service = {
+          getForExecution: jest.fn().mockResolvedValue({
+            id: 'int-1',
+            name: 'API',
+            serviceType: 'http',
+            authType: 'bearer_token',
+            status: 'connected',
+            credentials: { token: 't' },
+          }),
+          logUsage,
+        };
+        global.fetch = jest.fn().mockRejectedValue(abortError());
+        const upstream = new AbortController();
+        upstream.abort();
+
+        await expect(
+          new HttpRequestHandler(service as never).execute(
+            null,
+            {
+              method: 'GET',
+              url: 'https://api.example.com/x',
+              authentication: 'integration',
+              integrationId: 'int-1',
+            },
+            {
+              ...withUpstream(upstream),
+              nodeExecutionId: 'ne-1',
+              variables: { __workspaceId: 'ws-1' },
+            },
+          ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+
+        expect(service.getForExecution).toHaveBeenCalled();
+        expect(logUsage).not.toHaveBeenCalled();
+      });
+
+      it('removes its upstream listener once a successful request settles', async () => {
+        // A request that succeeds never aborts its own controller, so cleanup
+        // hung off that controller leaked one listener per call on the
+        // execution-wide signal.
+        let observedSignal: AbortSignal | undefined;
+        global.fetch = jest
+          .fn()
+          .mockImplementation((_url, init: RequestInit) => {
+            observedSignal = init.signal as AbortSignal | undefined;
+            return Promise.resolve(okResponse());
+          });
+        const upstream = new AbortController();
+        const add = jest.spyOn(upstream.signal, 'addEventListener');
+        const remove = jest.spyOn(upstream.signal, 'removeEventListener');
+
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/data' },
+          withUpstream(upstream),
+        )) as unknown as { port: string };
+
+        expect(result.port).toBe('success');
+        expect(add).toHaveBeenCalledTimes(1);
+        expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0][1]);
+        // A cancel that lands after the node finished no longer reaches it.
+        upstream.abort();
+        expect(observedSignal!.aborted).toBe(false);
+      });
+
+      it('removes its upstream listener after a transport failure', async () => {
+        global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+        const upstream = new AbortController();
+        const add = jest.spyOn(upstream.signal, 'addEventListener');
+        const remove = jest.spyOn(upstream.signal, 'removeEventListener');
+
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/data' },
+          withUpstream(upstream),
+        )) as unknown as ErrorResult;
+
+        expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+        expect(add).toHaveBeenCalledTimes(1);
+        expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0][1]);
       });
 
       it('no upstream signal — fetch controller behaves as today (no regression)', async () => {

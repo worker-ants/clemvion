@@ -12,6 +12,7 @@ import {
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
+import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
@@ -252,21 +253,21 @@ export class Cafe24Handler
           path,
           query,
           body,
-          // node-cancellation.md §4 — let a cancelled execution stop the
+          // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — let a cancelled execution stop the
           // in-flight HTTP call instead of waiting out the per-call timeout.
           signal: context.abortSignal,
         });
       } catch (err) {
-        // node-cancellation.md §5.1 — a cancelled node must reach the engine as
+        // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19 — a cancelled node must reach the engine as
         // an AbortError. Mapping it here would return `port:'error'` +
         // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
         // runs and the node is recorded `failed` with no
-        // `execution.node.cancelled` event. Usage is logged first (above/below
-        // as in the ordinary path), then the error passes through untouched.
+        // `execution.node.cancelled` event. The error passes through untouched
+        // and no usage is logged, because the call never finished.
         // Only a real AbortError — not `abortSignal.aborted` — so unrelated
         // failures keep their D4 mapping. Same shape as
         // `database-query.handler.ts`.
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (isAbortErrorLike(err)) {
           throw err;
         }
         const durationMs = Date.now() - started;
@@ -353,16 +354,16 @@ export class Cafe24Handler
         port: 'success',
       };
     } catch (err) {
-      // node-cancellation.md §5.1 — a cancelled node must reach the engine as
+      // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) rule 19 — a cancelled node must reach the engine as
       // an AbortError. Mapping it here would return `port:'error'` +
       // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
       // runs and the node is recorded `failed` with no
-      // `execution.node.cancelled` event. Usage is logged first (above/below
-      // as in the ordinary path), then the error passes through untouched.
+      // `execution.node.cancelled` event. The error passes through untouched
+      // and no usage is logged, because the call never finished.
       // Only a real AbortError — not `abortSignal.aborted` — so unrelated
       // failures keep their D4 mapping. Same shape as
       // `database-query.handler.ts`.
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (isAbortErrorLike(err)) {
         throw err;
       }
       // D4 — pre-flight throws (CAFE24_UNKNOWN_OPERATION / CAFE24_MISSING_FIELDS

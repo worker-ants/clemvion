@@ -389,7 +389,7 @@
     "codebase/backend/src/nodes/integration/database-query/database-query.schema.ts": 1,
     "codebase/backend/src/nodes/integration/http-request/http-redirect.ts": 2,
     "codebase/backend/src/nodes/integration/http-request/http-request.handler.spec.ts": 1,
-    "codebase/backend/src/nodes/integration/http-request/http-request.handler.ts": 2,
+    "codebase/backend/src/nodes/integration/http-request/http-request.handler.ts": 1,
     "codebase/backend/src/nodes/integration/http-request/http-request.schema.ts": 1,
     "codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.spec.ts": 1,
     "codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts": 1,
