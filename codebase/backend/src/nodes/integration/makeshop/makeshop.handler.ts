@@ -174,22 +174,10 @@ export class MakeshopHandler
     ) {
       errors.push('fields must be an object');
     }
-    // 숫자로 적은 pagination 만 저장 시점에 본다. 식(`{{ … }}`)은 실행 때 `resolveMakeshopPagination` 이 본다.
-    const pagination = config.pagination;
-    if (
-      pagination !== undefined &&
-      pagination !== null &&
-      typeof pagination === 'object' &&
-      !Array.isArray(pagination)
-    ) {
-      const { limit, offset } = pagination as Record<string, unknown>;
-      const isLiteral = (v: unknown) =>
-        v === undefined || v === null || typeof v === 'number';
-      if (isLiteral(limit) && isLiteral(offset)) {
-        const resolved = resolveMakeshopPagination(pagination);
-        if (!resolved.ok) errors.push(resolved.message);
-      }
-    }
+    // pagination 은 여기서 보지 않는다. `validate()` 는 저장 시점이 아니라 엔진이 실행 직전에 부르는 사전 검증이라(실패하면
+    // `INVALID_NODE_CONFIG`) 여기서 거절하면 규칙을 어긴 설정이 `MAKESHOP_INVALID_PAGINATION` error 포트 대신 노드 실패가
+    // 된다. 페이지네이션을 쓰지 않는 operation 에 남은 값도 마찬가지다. 리터럴이든 식이든 규칙 위반은 `execute()` 의 2c
+    // 단계(`resolveMakeshopPagination`)가 `operation.paginated` 일 때만 본다.
     return { valid: errors.length === 0, errors };
   }
 
@@ -454,7 +442,7 @@ export class MakeshopHandler
         throw err;
       }
       // D4 — pre-flight throws (MAKESHOP_UNKNOWN_OPERATION / MAKESHOP_MISSING_FIELDS
-      // / MAKESHOP_INVALID_SHOP_UID / INTEGRATION_* / INTEGRATION_SERVICE_UNAVAILABLE)
+      // / MAKESHOP_INVALID_PAGINATION / MAKESHOP_INVALID_SHOP_UID / INTEGRATION_* / INTEGRATION_SERVICE_UNAVAILABLE)
       // all funnel through here into port:'error'.
       const durationMs = Date.now() - started;
       const code =

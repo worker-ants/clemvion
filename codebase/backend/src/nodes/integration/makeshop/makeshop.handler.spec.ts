@@ -71,25 +71,30 @@ describe('MakeshopHandler', () => {
   });
 
   describe('validate', () => {
-    // CLE-T-XVS8H7 — MakeShop 은 offset 이 아니라 page 로 넘긴다. 숫자로 적은 값만 저장 시점에 거른다(식은 실행 때 본다).
+    // CLE-T-XVS8H7 — MakeShop 은 offset 이 아니라 page 로 넘긴다. `validate()` 는 pagination 을 보지 않는다. 엔진이 실행
+    // 직전에 부르는 사전 검증이라(실패하면 `INVALID_NODE_CONFIG`) 여기서 거절하면 규칙을 어긴 설정이 약속한
+    // `MAKESHOP_INVALID_PAGINATION` error 포트로 가지 못한다. 리터럴이든 식이든 `execute()` 가 본다.
     it.each([
-      [
-        { limit: 50, offset: 30 },
-        /pagination\.offset must be a multiple of pagination\.limit/,
-      ],
-      [{ offset: 50 }, /pagination\.offset requires pagination\.limit/],
-    ])('rejects pagination %j', (pagination, message) => {
-      const r = handler.validate({
-        integrationId: 'id',
-        resource: 'product',
-        operation: 'get-product',
-        pagination,
-      });
-      expect(r.valid).toBe(false);
-      expect(r.errors).toEqual(
-        expect.arrayContaining([expect.stringMatching(message)]),
-      );
-    });
+      { limit: 50, offset: 30 },
+      { offset: 50 },
+      { limit: 0 },
+      { limit: 2.5 },
+      { limit: 50, offset: 'abc' },
+      'abc',
+      [],
+    ])(
+      'does not look at pagination %j (execute() rules on it)',
+      (pagination) => {
+        const r = handler.validate({
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'get-product',
+          pagination,
+        });
+        expect(r.valid).toBe(true);
+        expect(r.errors).toEqual([]);
+      },
+    );
 
     it.each([
       { limit: 50, offset: 100 },
@@ -301,8 +306,9 @@ describe('MakeshopHandler', () => {
   // 그대로 두고 핸들러가 page = offset / limit + 1 로 바꿔 보낸다.
   describe('execute — pagination (offset → page)', () => {
     async function run(
-      pagination: Record<string, unknown> | undefined,
+      pagination: unknown,
       fields: Record<string, unknown> = {},
+      operation = 'get-product',
     ) {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       apiClient.call.mockResolvedValue({
@@ -316,7 +322,7 @@ describe('MakeshopHandler', () => {
         {
           integrationId: 'id',
           resource: 'product',
-          operation: 'get-product',
+          operation,
           fields,
           ...(pagination === undefined ? {} : { pagination }),
         },
@@ -375,6 +381,46 @@ describe('MakeshopHandler', () => {
       const result = await run({ limit: 50, offset: 100 });
       expect(result.config.pagination).toEqual({ limit: 50, offset: 100 });
     });
+
+    // 페이지네이션이 없는 operation 은 pagination 을 읽지 않는다 — 목록 operation 에서 쓰던 값이 operation 을 바꾼 뒤에도
+    // 남을 수 있다(편집기는 지우지 않고 입력란만 숨긴다). 규칙을 어긴 값이어도 호출은 성공하고 limit · page 는 가지 않는다.
+    it.each([
+      { limit: 50, offset: 30 },
+      { offset: 50 },
+      { limit: 0, offset: 0 },
+      'abc',
+      [],
+    ])(
+      '페이지네이션이 없는 operation 에서는 pagination %j 를 보지 않는다',
+      async (pagination) => {
+        const result = await run(
+          pagination,
+          { type: 'BRAND', name: 'Acme' },
+          'post-brand-create',
+        );
+        expect(result.port).toBe('success');
+        expect(apiClient.call).toHaveBeenCalledTimes(1);
+        expect(sentQuery()).toEqual({});
+        expect(sentQuery()).not.toHaveProperty('limit');
+        expect(sentQuery()).not.toHaveProperty('page');
+        expect(sentQuery()).not.toHaveProperty('offset');
+      },
+    );
+
+    it.each([['abc'], [[]], [42], [true]])(
+      'pagination %j 은 객체가 아니라 MAKESHOP_INVALID_PAGINATION',
+      async (pagination) => {
+        const result = await run(pagination);
+        expect(result.port).toBe('error');
+        const output = result.output as {
+          error: { code: string; message: string };
+        };
+        expect(output.error.code).toBe('MAKESHOP_INVALID_PAGINATION');
+        expect(output.error.message).toMatch(/pagination must be an object/);
+        expect(apiClient.call).not.toHaveBeenCalled();
+        expect(integrationsService.getForExecution).not.toHaveBeenCalled();
+      },
+    );
 
     it.each([
       [{ limit: 50, offset: 30 }, /multiple of pagination\.limit/],
