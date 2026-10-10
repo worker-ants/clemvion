@@ -264,7 +264,7 @@ describe('Schedule trigger (e2e)', () => {
     expect(row!.nextRunAt).toBeDefined();
     expect(row!.nextRunAt).not.toBeNull();
 
-    // **목록 경로**의 계약 대조 — CHANGELOG 가 지목한 유출 경로 둘 중 트리거 쪽이고,
+    // **목록 경로**의 계약 대조 — PR #1291 이 막은 유출 경로 둘(트리거 · 스케줄) 중 트리거 쪽이고,
     // 종전엔 생성(POST) 한 곳만 대조하고 있었다 (`review/code/2026/09/05/21_40_37` W1).
     // 여기서 걸리는 것: `notificationSecretV2`·`chatChannelTokenV2` 가 다시 실리면
     // `TriggerDto` 미선언 키로 잡힌다.

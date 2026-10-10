@@ -205,8 +205,9 @@ describe('toTerminalErrorPayload — secret 마스킹 (egress 초크포인트)',
 
   /**
    * **잔여 갭 캐너리** — JSDoc 이 실측표로 "이건 못 잡는다" 고 선언한 것을 테스트로 고정한다.
-   * 나중에 `SECRET_LEAK_PATTERNS` 가 넓어지면 이 테스트가 깨지고, 그때 표와 CHANGELOG 의
-   * "잔여 갭" 서술도 같이 고쳐야 한다는 신호가 된다 (`10_19_30` testing INFO7).
+   * 나중에 `SECRET_LEAK_PATTERNS` 가 넓어지면 이 테스트가 깨지고, 그때 JSDoc 의 실측표
+   * (「무엇을 **못** 잡는지」)도 같이 고쳐야 한다는 신호가 된다 (`10_19_30` testing INFO7).
+   * 잔여 갭은 마스킹을 들인 PR #1177 이 처음 밝혔다.
    */
   it('자격증명 **없는** 연결 문자열·호스트명은 통과한다 (선언한 잔여 갭)', () => {
     const plain = 'connect failed: postgres://db.internal:5432/prod';

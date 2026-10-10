@@ -369,7 +369,7 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
   });
 });
 
-// `durationMs` wire 변환 (2026-08-15). CHANGELOG 가 breaking 으로 고지한 계약인데
+// `durationMs` wire 변환 (2026-08-15, PR #1171). 수신자에게 고지한 wire 계약인데
 // 이 경계에 회귀 테스트가 없었다 (`10_34_51` testing W4). 세 상태를 각각 고정한다.
 describe('toChatChannelEvent — durationMs 전파', () => {
   const mk = (status: 'completed' | 'failed' | 'cancelled', extra: object) =>

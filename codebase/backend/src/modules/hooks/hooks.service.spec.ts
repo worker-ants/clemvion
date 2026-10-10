@@ -922,7 +922,7 @@ describe('HooksService', () => {
      * 실측했다: 이 call site 만 종전 `save(trigger)` 로 되돌려도 `hooks.service.spec.ts`
      * 전건이 GREEN (`review/code/2026/09/14/19_44_08` testing CRITICAL#2).
      *
-     * 더 나쁜 것은, 그때 내가 plan·CHANGELOG 에 *"뮤턴트 두 방향 모두 RED 를 확인했다"* 고
+     * 더 나쁜 것은, 그때 내가 이 작업(PR #1334)의 기록에 *"뮤턴트 두 방향 모두 RED 를 확인했다"* 고
      * 적었다는 점이다. 내 뮤턴트 스크립트는 **두 자리 중 하나만** 건드렸다 — 측정 범위가
      * 문장보다 좁았다. 그리고 하필 빠진 쪽이 주석 자신이 *"PATCH 경합보다 훨씬 잦다"* 고
      * 적은 **더 위험한 경로**다.

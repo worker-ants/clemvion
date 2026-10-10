@@ -69,7 +69,7 @@
 | Trigger | Forced reviewers | 근거 |
 |---|---|---|
 | 소스 파일 (44 확장자) 또는 그 밖의 모든 변경 파일 | **security, requirement, scope, side_effect, maintainability, testing** | 코드 변경의 핵심 6관점은 router 판단 무관하게 항상 점검. NERV 정책 `review_roles.code` 가 변경 종류와 무관하게 코드 라운드마다 이 6역할을 요구한다(하네스 · 문서만 바꾼 Task 도 done 게이트에 passed 라운드가 필요하다). `REVIEW_AGENTS` 로 직접 고른 경우는 그 선택을 따른다 |
-| `package.json`/`package-lock.json`/`requirements*.txt`/`Pipfile`/`pyproject.toml`/`go.mod`/`Cargo.toml` 등 | dependency + documentation | dependency 변경은 보통 README/CHANGELOG 갱신 동반 |
+| `package.json`/`package-lock.json`/`requirements*.txt`/`Pipfile`/`pyproject.toml`/`go.mod`/`Cargo.toml` 등 | dependency + documentation | dependency 변경은 보통 README 등 문서 갱신 동반 |
 | 문서 파일 (`*.md`, `*.txt`, `*.rst`, `*.adoc`, `LICENSE`, `NOTICE`, `AUTHORS`, `CHANGELOG`, `README` 등) | documentation | |
 | `**/migrations/*`, `*.sql`, `**/prisma/schema*` | database | 마이그레이션·스키마 안전성 |
 | `**/openapi*.{yml,yaml,json}`, `**/swagger*.{yml,yaml,json}` | api_contract | API 계약 변경 |
