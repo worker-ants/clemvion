@@ -112,6 +112,27 @@ describe('assertProductionConfig', () => {
         ).toThrow(/\bENCRYPTION_KEY/);
       }
     });
+    it.each([' ', '   ', '\n', ' \t\n '])(
+      'throws when whitespace-only (%p)',
+      (v) => {
+        expect(() =>
+          assertProductionConfig(prodEnv({ ENCRYPTION_KEY: v })),
+        ).toThrow(/\bENCRYPTION_KEY/);
+      },
+    );
+    // `.env` 에 옮기다 앞뒤 공백 · 끝 개행이 붙은 예시 키도 거부 목록을 빠져나가면 안 된다.
+    it.each(['{key}\n', ' {key} ', '\t{key}\r\n'])(
+      'throws for a known example key padded with whitespace (%p)',
+      (template) => {
+        for (const bad of KNOWN_EXAMPLE_ENCRYPTION_KEYS) {
+          expect(() =>
+            assertProductionConfig(
+              prodEnv({ ENCRYPTION_KEY: template.replace('{key}', bad) }),
+            ),
+          ).toThrow(/\bENCRYPTION_KEY/);
+        }
+      },
+    );
     // INFO-12: 유효한 non-example 키는 통과해야 함 (JWT_SECRET 의 긍정 케이스와 대칭).
     it('passes for a valid non-example key', () => {
       expect(() =>
@@ -143,6 +164,21 @@ describe('assertProductionConfig', () => {
         ).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
       }
     });
+    // `.env` 에 옮기다 앞뒤 공백 · 끝 개행이 붙은 예시값도 거부 목록을 빠져나가면 안 된다.
+    it.each(['{key}\n', ' {key} ', '\t{key}\r\n'])(
+      'throws for a known example value padded with whitespace (%p)',
+      (template) => {
+        for (const bad of INSECURE_INTEGRATION_ENCRYPTION_KEYS) {
+          expect(() =>
+            assertProductionConfig(
+              prodEnv({
+                INTEGRATION_ENCRYPTION_KEY: template.replace('{key}', bad),
+              }),
+            ),
+          ).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
+        }
+      },
+    );
     it('also rejects the public ENCRYPTION_KEY example keys', () => {
       for (const bad of KNOWN_EXAMPLE_ENCRYPTION_KEYS) {
         expect(INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(bad)).toBe(true);
@@ -174,6 +210,17 @@ describe('assertProductionConfig', () => {
       expect(() =>
         assertProductionConfig(
           prodEnv({ INTEGRATION_ENCRYPTION_KEY: VALID_INTEGRATION_ENC }),
+        ),
+      ).not.toThrow();
+    });
+    // 조회에만 `trim()` 을 쓴다 — 예시값이 아닌 키는 앞뒤 공백이 있어도 거부하지 않는다
+    // (transformer 가 읽는 키 값 자체를 가드가 바꾸거나 판정에서 달리 보지 않는다).
+    it('passes for a non-example key that has surrounding whitespace', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({
+            INTEGRATION_ENCRYPTION_KEY: ` ${VALID_INTEGRATION_ENC}\n`,
+          }),
         ),
       ).not.toThrow();
     });

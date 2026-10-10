@@ -52,7 +52,8 @@ export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * production 에서 거부되는 INTEGRATION_ENCRYPTION_KEY 값. 저장소에 커밋된 예시 · 로컬 · e2e 설정의
- * 값이다. `ENCRYPTION_KEY` 예시 키도 함께 막는다(두 키 자리에 서로의 예시값을 넣는 실수).
+ * 값이다. `ENCRYPTION_KEY` 예시 키도 함께 막는다(INTEGRATION_ENCRYPTION_KEY 자리에 ENCRYPTION_KEY
+ * 예시값을 넣는 실수). 반대로 ENCRYPTION_KEY 자리에 이 Set 의 나머지 값을 넣는 경우는 막지 않는다.
  * **동기화 의무**: 예시 파일의 INTEGRATION_ENCRYPTION_KEY 값을 바꾸면 *옛 값을 지우지 말고* 새 값을
  * 더한다. 예시 파일 목록과 값 대조는 `production-guards.spec.ts` 가 한다.
  */
@@ -64,6 +65,15 @@ export const INSECURE_INTEGRATION_ENCRYPTION_KEYS: ReadonlySet<string> =
     'local-integration-key', // k8s/overlays/local/secret.yaml
     '0123456789abcdef0123456789abcdef', // docker-compose.e2e.yml
   ]);
+
+/**
+ * 예시값 목록 조회 — 원문과 `trim()` 한 값을 모두 본다. `.env` · Secret 에 옮기다 앞뒤 공백이나
+ * 끝 개행이 붙은 예시값(`' REPLACE_ME '` 등)이 거부 목록을 빠져나가지 않게 한다. 값을 다듬는 것은
+ * 조회에만 쓴다 — transformer 등 실제 키 사용처가 읽는 값은 바꾸지 않는다.
+ */
+function isListedExample(set: ReadonlySet<string>, value: string): boolean {
+  return set.has(value) || set.has(value.trim());
+}
 
 /**
  * .env boolean 토글이 ON 인지 — 정확히 문자열 `'true'` 또는 `'1'` 만 ON 으로 본다.
@@ -145,7 +155,11 @@ export function assertProductionConfig(
   // 사실상 평문이므로 부팅 거부. (빈 값은 SecretResolver init 에서도 throw 되나, 여기서
   // 예시 키 케이스까지 부팅 초기에 일괄 차단한다.)
   const encryptionKey = env.ENCRYPTION_KEY;
-  if (!encryptionKey || KNOWN_EXAMPLE_ENCRYPTION_KEYS.has(encryptionKey)) {
+  if (
+    !encryptionKey ||
+    encryptionKey.trim() === '' ||
+    isListedExample(KNOWN_EXAMPLE_ENCRYPTION_KEYS, encryptionKey)
+  ) {
     fail(
       'ENCRYPTION_KEY 가 미설정이거나 공개 예시 키입니다 — `openssl rand -hex 32` 로 ' +
         '운영용 키를 새로 생성하세요 (예시 키는 사실상 평문).',
@@ -161,7 +175,7 @@ export function assertProductionConfig(
   if (
     !integrationKey ||
     integrationKey.trim() === '' ||
-    INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(integrationKey)
+    isListedExample(INSECURE_INTEGRATION_ENCRYPTION_KEYS, integrationKey)
   ) {
     fail(
       'INTEGRATION_ENCRYPTION_KEY 가 미설정이거나 공개 예시 값입니다 — 이 키가 없으면 통합 ' +
