@@ -494,7 +494,7 @@ describe('Webhook trigger (e2e)', () => {
       .post('/api/workflows')
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId)
-      .send({ name: uniqueName('hook-b3') });
+      .send({ name: uniqueName('hook-b3'), isActive: true });
     const wfId = (wf.body.data as { id: string }).id;
     // 자동 생성된 manual_trigger 노드에 required string + optional number 파라미터 주입
     // (number 는 coerce 실패 경로 검증용 — required 아님이라 누락은 통과).
