@@ -37,14 +37,13 @@ import { extractClientIp } from './utils/client-ip';
 
 import Express from 'express';
 
-/**
- * URL 네임스페이스 메모 (NERV CLE-ACCT-SESSION · CLE-API-CONV §7)
- *   세션 API 는 `/api/auth/sessions` 아래에 둔다. 현재 세션은 refresh cookie 로 가리는데 그 쿠키가
- *   `Path=/api/auth` 라서(`utils/refresh-cookie.ts`) 브라우저는 그 밖 경로에 쿠키를 보내지 않는다.
- *   예전 경로 `/api/users/me/sessions` 에서는 `isCurrent` 가 늘 false 였고 다른 세션 종료는 늘 400,
- *   현재 세션 종료 차단은 동작하지 않았다(CLE-T-ERAJ7P). 쿠키 Path 를 넓히는 대신 경로를 옮겼다.
- *   로그인 이력은 쿠키가 필요 없어 `/api/users/me/login-history` 에 그대로 둔다.
- */
+// URL 네임스페이스 메모 (NERV CLE-ACCT-SESSION · CLE-API-CONV §7)
+//   세션 API 는 `/api/auth/sessions` 아래에 둔다. 현재 세션은 refresh cookie 로 가리는데 그 쿠키가
+//   `Path=/api/auth` 라서(`utils/refresh-cookie.ts`) 브라우저는 그 밖 경로에 쿠키를 보내지 않는다.
+//   예전 경로 `/api/users/me/sessions` 에서는 `isCurrent` 가 늘 false 였고 다른 세션 종료는 늘 400,
+//   현재 세션 종료 차단은 동작하지 않았다(CLE-T-ERAJ7P). 쿠키 Path 를 넓히는 대신 경로를 옮겼다.
+//   로그인 이력은 쿠키가 필요 없어 `/api/users/me/login-history` 에 그대로 둔다.
+//   이 메모는 `//` 로 둔다. JSDoc 은 Swagger 플러그인이 공개 OpenAPI 문장으로 싣는다.
 @ApiTags('Sessions')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)

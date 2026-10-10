@@ -214,7 +214,7 @@ describe('TotpService', () => {
           () => {
             throw new Error('expected rejection');
           },
-          (e: unknown) => e,
+          (err_: unknown) => err_,
         );
         expect(err).toBeInstanceOf(UnauthorizedException);
         expect((err as UnauthorizedException).getResponse()).toEqual(

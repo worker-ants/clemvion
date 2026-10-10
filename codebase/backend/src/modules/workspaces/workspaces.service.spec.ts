@@ -1103,7 +1103,7 @@ describe('WorkspacesService', () => {
         () => {
           throw new Error('expected rejection');
         },
-        (e: unknown) => e,
+        (err: unknown) => err,
       );
     }
 

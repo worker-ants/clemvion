@@ -67,10 +67,8 @@ import { Roles } from '../../common/guards/roles.guard';
 // `SENSITIVE_ACTION_THROTTLE`; 라우트 의미는 이 별칭으로 표현한다.
 const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 
-/**
- * 멤버 직접 추가 · 역할 변경 · 초대의 403 — Admin 요구(가드)와 관리자 역할을 주고 빼는 요청의 Owner 요구(서비스).
- * NERV CLE-ACCT-WS 역할 권한표. 세 라우트가 같은 문장을 쓴다.
- */
+// 멤버 직접 추가 · 역할 변경 · 초대의 403 — Admin 요구(가드)와 관리자 역할을 주고 빼는 요청의 Owner 요구(서비스).
+// NERV CLE-ACCT-WS 역할 권한표. 세 라우트가 같은 문장을 쓴다.
 const FORBIDDEN_ADMIN_OR_ADMIN_ROLE_OWNER_ONLY = forbiddenWithService(
   forbiddenForRole('admin'),
   `관리자 역할을 주거나 빼는 요청은 Owner 만 가능(${ADMIN_ROLE_CHANGE_REQUIRES_OWNER.code} — 서비스 판정)`,

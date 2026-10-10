@@ -295,7 +295,7 @@ describe('Session revocation (e2e)', () => {
    * 통일 여부는 planner 항목으로 등재돼 있다.
    */
   it('F. 커서 id 가 비-UUID 여도 500 이 아니라 200 + 1페이지 (22P02 마스킹 회귀)', async () => {
-    const { cookieA, accessTokenA } = await setupUser('sess-f');
+    const { accessTokenA } = await setupUser('sess-f');
 
     // 날짜·구분자는 **멀쩡하고** id 만 파싱 불가 — 이 조합이 종전에 `lh.id`(uuid 컬럼)까지
     // 흘러 22P02 → 500 이 됐다.
