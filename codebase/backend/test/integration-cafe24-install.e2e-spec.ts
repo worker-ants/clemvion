@@ -269,7 +269,7 @@ describe('Cafe24 install endpoint (e2e)', () => {
         .set('X-Workspace-Id', workspaceId);
       // 설치 대기 행은 begin 으로 넘어가 400 으로 거절된다(화면은 버튼을 막는다). 코드는 고정하지 않는다:
       // `:id/reauthorize` 가 begin 에 mall_id 를 넘기지 않아 지금은 CAFE24_INVALID_MALL_ID 가 먼저 난다
-      // (이번 변경 전부터 있던 결함, 후속 Task 로 고친다).
+      // (이번 변경 전부터 있던 결함, NERV Task CLE-T-WB7JPC 가 고친다).
       expect(res.status).toBe(400);
       expect(await readMark(id)).toBeNull();
     });
