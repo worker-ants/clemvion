@@ -6,7 +6,7 @@ A workspace is the unit that bundles your workflows, integrations, and knowledge
 | --- | ------------------ | --------------- |
 | Members | 1 (you) | Many |
 | Auto-created | Yes — on first sign-up + email verification | Created manually |
-| Member management | Not applicable | Admin+ invites / changes roles / removes |
+| Member management | Not applicable | Admin+ invites / changes roles / removes (only the Owner grants or changes the Admin role) |
 | Shared-workflow badge | None | `Team` badge on every workflow |
 | Owner transfer / delete | Not applicable (leaving = deleting your account) | Owner can transfer or delete |
 
@@ -22,8 +22,8 @@ A workspace is the unit that bundles your workflows, integrations, and knowledge
 
 | Role | Summary |
 | ---- | ------- |
-| **Owner** | All permissions + workspace delete · ownership transfer |
-| **Admin** | Invite/remove members, change settings, full resource CRUD |
+| **Owner** | All permissions + grant/change the Admin role + workspace delete · ownership transfer |
+| **Admin** | Invite/remove members, change settings, full resource CRUD (except granting or changing the Admin role) |
 | **Editor** | Workflows/triggers/schedules CRUD + execution |
 | **Viewer** | Read-only on all resources |
 
@@ -31,12 +31,29 @@ Integrations are an exception to this table. An integration created with Persona
 
 The full role/permission matrix is available in the workspace settings screen.
 
+### Only the Owner grants or changes the Admin role
+
+Promoting a member to Admin or moving an Admin to another role is **Owner-only**.
+
+- **Owner only**: change a member to Admin, change an Admin to another role, invite someone as Admin (including re-inviting over a pending Admin invitation with a different role).
+- **Admins can still**: change members between Editor and Viewer, invite Editors and Viewers, and remove members (removal rules are unchanged).
+- Existing Admins and pending Admin invitations are left as they are and are not changed by this rule.
+
 ## Inviting members
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/page.tsx"
+  symbol="MembersTab"
+  describes="Workspace settings → Members tab: invite form and member role list"
+/>
 
 Use the `[email@…] [Role ▼] [Invite]` form on the **Workspace settings → Members** tab. Two paths:
 
 - **Already signed up** — They're added as a member immediately, and notified.
 - **Not yet signed up** — A 7-day invitation token is emailed. The moment they finish signing up, they're auto-joined to the workspace.
+
+If you are an Admin but not the Owner, the **Admin** option does not appear in the invite role list or in the member role dropdowns, and an Admin member's role is shown as a read-only badge. A note under the form reads "Only the owner can grant or change the admin role."
 
 The pending-invitations list shows expiry time. Each row supports:
 

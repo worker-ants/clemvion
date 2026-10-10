@@ -1,5 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  THROTTLER_LIMIT,
+  THROTTLER_TTL,
+} from '@nestjs/throttler/dist/throttler.constants';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
@@ -7,6 +11,7 @@ import { TotpService } from './totp.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import type { JwtPayload } from '../../common/decorators';
+import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -36,6 +41,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
+      disableTwoFactor: jest.fn(),
       switchWorkspace: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
@@ -49,7 +55,8 @@ describe('AuthController', () => {
       setup: jest.fn(),
       verifyAndEnable: jest.fn(),
       verifyForLogin: jest.fn(),
-      disable: jest.fn(),
+      verifyForDisable: jest.fn(),
+      disableUnchecked: jest.fn(),
     } as unknown as jest.Mocked<TotpService>;
 
     auditLogsService = {
@@ -440,21 +447,22 @@ describe('AuthController', () => {
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
-    it('records user.2fa_disabled (with ipAddress) on disable2fa after password reconfirm', async () => {
-      authService.verifyPasswordForUser.mockResolvedValue(undefined);
-      totpService.disable.mockResolvedValue(undefined);
+    it('records user.2fa_disabled (with ipAddress) on disable2fa after password and code reconfirm', async () => {
+      authService.disableTwoFactor.mockResolvedValue(undefined);
 
       await controller.disable2fa(
         payload,
-        { password: 'OldP@ssw0rd1' },
+        { password: 'OldP@ssw0rd1', code: '123456' },
         mock2faReq,
       );
 
-      expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
+      // 재인증 순서는 AuthService.disableTwoFactor 한 메서드가 지킨다(auth.service.spec 이 고정).
+      expect(authService.disableTwoFactor).toHaveBeenCalledWith(
         'user-uuid',
         'OldP@ssw0rd1',
+        '123456',
       );
-      expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
+      expect(totpService.disableUnchecked).not.toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
         userId: 'user-uuid',
@@ -467,7 +475,7 @@ describe('AuthController', () => {
     });
 
     it('does not record an audit log when disable2fa password is wrong', async () => {
-      authService.verifyPasswordForUser.mockRejectedValue(
+      authService.disableTwoFactor.mockRejectedValue(
         new UnauthorizedException({
           code: 'PASSWORD_INVALID',
           message: '비밀번호가 일치하지 않습니다.',
@@ -475,10 +483,41 @@ describe('AuthController', () => {
       );
 
       await expect(
-        controller.disable2fa(payload, { password: 'WrongPass!' }, mock2faReq),
+        controller.disable2fa(
+          payload,
+          { password: 'WrongPass!', code: '123456' },
+          mock2faReq,
+        ),
       ).rejects.toThrow(UnauthorizedException);
-      expect(totpService.disable).not.toHaveBeenCalled();
       expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 맞아도 코드가 틀리면 감사 로그를 남기지 않는다', async () => {
+      authService.disableTwoFactor.mockRejectedValue(
+        new UnauthorizedException({
+          code: 'TOTP_INVALID',
+          message: '인증 코드가 올바르지 않습니다.',
+        }),
+      );
+
+      await expect(
+        controller.disable2fa(
+          payload,
+          { password: 'OldP@ssw0rd1', code: '000000' },
+          mock2faReq,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('2fa/disable 은 민감 tier(분당 10회) throttle 을 건다', () => {
+      const handler = AuthController.prototype.disable2fa;
+      expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
+        SENSITIVE_ACTION_THROTTLE.default.limit,
+      );
+      expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
+        SENSITIVE_ACTION_THROTTLE.default.ttl,
+      );
     });
   });
 });

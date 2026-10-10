@@ -111,9 +111,9 @@ describe('TotpService', () => {
     });
   });
 
-  describe('disable', () => {
+  describe('disableUnchecked', () => {
     it('2FA secret·복구 코드·활성 플래그를 모두 초기화한다', async () => {
-      await service.disable('user-1');
+      await service.disableUnchecked('user-1');
       expect(usersService.update).toHaveBeenCalledWith('user-1', {
         twoFactorEnabled: false,
         twoFactorSecret: null,
@@ -149,6 +149,86 @@ describe('TotpService', () => {
     it('2FA 비활성 사용자면 false', async () => {
       const user = makeUser({ twoFactorEnabled: false });
       expect(await service.verifyForLogin(user, '123456')).toBe(false);
+    });
+  });
+
+  /**
+   * 2FA 해제 전 코드 확인 — 로그인 2단계와 같은 코드(6자리 TOTP 또는 TOTP 복구 코드)를 받는다
+   * (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
+   */
+  describe('verifyForDisable', () => {
+    const TOTP_INVALID = {
+      code: 'TOTP_INVALID',
+      message: '인증 코드가 올바르지 않습니다.',
+    };
+
+    it('유효한 TOTP 코드면 통과한다', async () => {
+      usersService.findById.mockResolvedValue(
+        makeUser({
+          twoFactorEnabled: true,
+          twoFactorSecret: RFC6238_SECRET_B32,
+        }),
+      );
+      const code = generateSync({ secret: RFC6238_SECRET_B32 });
+
+      await expect(
+        service.verifyForDisable('user-1', code),
+      ).resolves.toBeUndefined();
+    });
+
+    it('복구 코드면 통과하고 그 코드를 소비한다', async () => {
+      const recovery = 'abcd-efgh-ijkl';
+      const hash = createHash('sha256').update(recovery).digest('hex');
+      usersService.findById.mockResolvedValue(
+        makeUser({
+          twoFactorEnabled: true,
+          twoFactorSecret: RFC6238_SECRET_B32,
+          totpRecoveryCodes: [hash, 'other'],
+        }),
+      );
+
+      await expect(
+        service.verifyForDisable('user-1', recovery),
+      ).resolves.toBeUndefined();
+      expect(usersService.update).toHaveBeenCalledWith('user-1', {
+        totpRecoveryCodes: ['other'],
+      });
+    });
+
+    it.each([
+      ['틀린 6자리 코드', { twoFactorEnabled: true }, '000000'],
+      ['모르는 복구 코드', { twoFactorEnabled: true }, 'zzzz-zzzz-zzzz'],
+      ['2FA 가 꺼진 사용자', { twoFactorEnabled: false }, 'VALID'],
+    ] as Array<[string, Partial<User>, string]>)(
+      '%s 면 401 TOTP_INVALID',
+      async (_label, over, code) => {
+        usersService.findById.mockResolvedValue(
+          makeUser({ twoFactorSecret: RFC6238_SECRET_B32, ...over }),
+        );
+        const input =
+          code === 'VALID'
+            ? generateSync({ secret: RFC6238_SECRET_B32 })
+            : code;
+
+        const err = await service.verifyForDisable('user-1', input).then(
+          () => {
+            throw new Error('expected rejection');
+          },
+          (err_: unknown) => err_,
+        );
+        expect(err).toBeInstanceOf(UnauthorizedException);
+        expect((err as UnauthorizedException).getResponse()).toEqual(
+          TOTP_INVALID,
+        );
+      },
+    );
+
+    it('사용자가 없으면 401 TOTP_INVALID', async () => {
+      usersService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.verifyForDisable('user-1', '123456'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
   });
 

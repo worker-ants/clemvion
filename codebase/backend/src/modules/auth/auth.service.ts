@@ -30,6 +30,7 @@ import { LoginHistoryService } from './login-history.service';
 import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
 import { SessionsService } from './sessions.service';
+import { TotpService } from './totp.service';
 
 export type { AuthContext };
 
@@ -53,6 +54,7 @@ export class AuthService {
     private readonly dataSource: DataSource,
     private readonly loginHistory: LoginHistoryService,
     private readonly sessionsService: SessionsService,
+    private readonly totpService: TotpService,
   ) {}
 
   // ========== PASSWORD RE-VERIFICATION (레이어 정렬 — refactor 02 C-3) ==========
@@ -84,6 +86,22 @@ export class AuthService {
         message: '비밀번호가 일치하지 않습니다.',
       });
     }
+  }
+
+  /**
+   * 2FA 를 끈다. 비밀번호 재확인 → 인증 코드 확인 → 해제 순서를 이 메서드 하나가 지킨다 — 순서가 컨트롤러의 호출 순서에만
+   * 있으면 다른 호출자가 `TotpService.disableUnchecked` 만 불러 재인증을 건너뛴다. 비밀번호가 틀리면 코드는 보지 않아 복구 코드를
+   * 헛되이 소모하지 않고, 코드가 틀리면 2FA 는 켜진 채로 남는다. 실패는 각 확인이 내는 401(`PASSWORD_REQUIRED` ·
+   * `PASSWORD_INVALID` · `TOTP_INVALID`) 그대로다(NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
+   */
+  async disableTwoFactor(
+    userId: string,
+    plainPassword: string,
+    code: string,
+  ): Promise<void> {
+    await this.verifyPasswordForUser(userId, plainPassword);
+    await this.totpService.verifyForDisable(userId, code);
+    await this.totpService.disableUnchecked(userId);
   }
 
   // ========== REGISTER ==========

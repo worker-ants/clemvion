@@ -7,6 +7,7 @@ import {
   registerAndLogin,
   createTeamWorkspace,
   inviteAndAccept,
+  postInvitation,
 } from './helpers/auth';
 import {
   assertMatchesContract,
@@ -26,6 +27,7 @@ import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
  *   - viewer 는 write 차단 (`@Roles('editor')` 가드)
  *   - owner 만 워크스페이스 삭제 가능 (service-level OWNER_REQUIRED, 트랜잭션 락 보유)
  *   - owner 역할은 멤버 추가/변경으로 부여할 수 없음 (CANNOT_ASSIGN_OWNER)
+ *   - 관리자 역할을 주고 빼는 일(역할 변경 · 직접 추가 · 초대)은 owner 만 한다 (OWNER_REQUIRED)
  *   - owner 이전 후 옛 owner 는 editor 로 강등
  *   - model-config 과금 action-POST(`:id/test`·`preview-models`)는 Editor+ 게이트,
  *     조회 GET(`:id/models`)은 Viewer+ 허용 (spec §3·R-7)
@@ -271,6 +273,141 @@ describe('Workspace RBAC (e2e)', () => {
       [memberRow.rows[0].id],
     );
     expect(stillEditor.rows[0].role).toBe('editor');
+  });
+
+  /**
+   * NERV CLE-ACCT-WS 「관리자 역할 규칙」 — 관리자 역할을 주고 빼는 일은 owner 만 한다(CLE-T-0W7CA7).
+   * 관리자도 에디터 · 뷰어 사이의 변경은 그대로 할 수 있다. 거부된 요청은 DB 를 바꾸지 않는다.
+   */
+  it('K. 관리자 역할 부여 · 회수 · 관리자 초대 · 직접 추가는 owner 만 — admin 은 403 OWNER_REQUIRED', async () => {
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-k-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('K'),
+    );
+    // owner 는 관리자 역할로 초대할 수 있다(inviteAndAccept 가 201 이 아니면 던진다).
+    const admin = await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-k-adm'),
+      'admin',
+      db,
+    );
+    const admin2 = await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-k-adm2'),
+      'admin',
+      db,
+    );
+    const editor = await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-k-edt'),
+      'editor',
+      db,
+    );
+    const outsider = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-k-out'),
+      db,
+    );
+
+    async function memberId(userId: string): Promise<string> {
+      const row = await db.query<{ id: string }>(
+        'SELECT id FROM workspace_member WHERE workspace_id = $1 AND user_id = $2',
+        [ws, userId],
+      );
+      return row.rows[0].id;
+    }
+    async function roleOf(id: string): Promise<string> {
+      const row = await db.query<{ role: string }>(
+        'SELECT role FROM workspace_member WHERE id = $1',
+        [id],
+      );
+      return row.rows[0].role;
+    }
+    function patchRole(token: string, id: string, role: string) {
+      return request(BASE_URL)
+        .patch(`/api/workspaces/${ws}/members/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ role });
+    }
+    function expectOwnerOnly(res: request.Response): void {
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('OWNER_REQUIRED');
+      expect(res.body.error.message).toBe(
+        '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+      );
+    }
+
+    const editorId = await memberId(editor.userId);
+    const admin2Id = await memberId(admin2.userId);
+
+    // admin → 승격 · 강등 · 관리자 초대 · 관리자 직접 추가 모두 거부, DB 그대로.
+    expectOwnerOnly(await patchRole(admin.accessToken, editorId, 'admin'));
+    expect(await roleOf(editorId)).toBe('editor');
+
+    expectOwnerOnly(await patchRole(admin.accessToken, admin2Id, 'editor'));
+    expect(await roleOf(admin2Id)).toBe('admin');
+
+    const invitedEmail = uniqueEmail('rbac-k-inv');
+    expectOwnerOnly(
+      await postInvitation(
+        BASE_URL,
+        admin.accessToken,
+        ws,
+        invitedEmail,
+        'admin',
+      ),
+    );
+    const invitations = await db.query(
+      'SELECT 1 FROM workspace_invitation WHERE workspace_id = $1 AND email = $2',
+      [ws, invitedEmail],
+    );
+    expect(invitations.rowCount).toBe(0);
+
+    const directAdd = await request(BASE_URL)
+      .post(`/api/workspaces/${ws}/members`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ email: outsider.email, role: 'admin' });
+    expectOwnerOnly(directAdd);
+    const outsiderRows = await db.query(
+      'SELECT 1 FROM workspace_member WHERE workspace_id = $1 AND user_id = $2',
+      [ws, outsider.userId],
+    );
+    expect(outsiderRows.rowCount).toBe(0);
+
+    // admin 의 에디터 · 뷰어 사이 변경은 그대로 허용.
+    expect(
+      (await patchRole(admin.accessToken, editorId, 'viewer')).status,
+    ).toBe(200);
+    expect(await roleOf(editorId)).toBe('viewer');
+
+    // owner 는 승격 · 강등 · 관리자 직접 추가를 할 수 있다.
+    expect((await patchRole(owner.accessToken, editorId, 'admin')).status).toBe(
+      200,
+    );
+    expect(await roleOf(editorId)).toBe('admin');
+    expect(
+      (await patchRole(owner.accessToken, admin2Id, 'editor')).status,
+    ).toBe(200);
+    expect(await roleOf(admin2Id)).toBe('editor');
+
+    const ownerAdd = await request(BASE_URL)
+      .post(`/api/workspaces/${ws}/members`)
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .send({ email: outsider.email, role: 'admin' });
+    expect(ownerAdd.status).toBe(201);
+    expect(ownerAdd.body.data.role).toBe('admin');
   });
 
   it('E. transfer-ownership — 옛 owner 는 editor 로 강등, 새 owner 가 워크스페이스 삭제 가능', async () => {

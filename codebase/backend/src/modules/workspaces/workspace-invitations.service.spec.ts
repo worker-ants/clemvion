@@ -110,6 +110,96 @@ describe('WorkspaceInvitationsService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
+    /**
+     * NERV CLE-ACCT-WS 「관리자 역할 규칙」 — 관리자 역할로 초대하는 것은 owner 만 한다. 대기 중인 관리자 초대를 다른
+     * 역할로 덮어쓰는 것도 관리자 역할을 빼는 일이라 owner 만 한다(CLE-T-0W7CA7).
+     */
+    describe('관리자 역할 초대는 owner 만 한다', () => {
+      const OWNER_ONLY = {
+        code: 'OWNER_REQUIRED',
+        message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+      };
+
+      function arrange(requesterRole: string, pendingRole?: string): void {
+        memberRepo.findOne.mockResolvedValueOnce({ role: requesterRole });
+        workspaceRepo.findOne.mockResolvedValueOnce({
+          id: 'ws-1',
+          name: 'Team',
+          type: 'team',
+        });
+        userRepo.findOne
+          .mockResolvedValueOnce(null) // existingUser (invitee)
+          .mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
+        invitationRepo.findOne.mockResolvedValueOnce(
+          pendingRole
+            ? {
+                id: 'inv-1',
+                token: 'old-token',
+                email: 'b@x.com',
+                role: pendingRole,
+                invitedBy: 'owner-1',
+                expiresAt: new Date(Date.now() + 1000),
+              }
+            : null,
+        );
+      }
+
+      async function rejection(promise: Promise<unknown>): Promise<unknown> {
+        return promise.then(
+          () => {
+            throw new Error('expected rejection');
+          },
+          (err: unknown) => err,
+        );
+      }
+
+      it('admin 요청자의 admin 초대는 403 OWNER_REQUIRED 이고 초대를 만들지 않는다', async () => {
+        arrange('admin');
+
+        const err = await rejection(
+          service.invite('ws-1', 'b@x.com', 'admin', 'user-1'),
+        );
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toEqual(OWNER_ONLY);
+        expect(invitationRepo.save).not.toHaveBeenCalled();
+        expect(mailService.sendWorkspaceInvitationEmail).not.toHaveBeenCalled();
+        expect(auditLogs.record).not.toHaveBeenCalled();
+      });
+
+      it('admin 요청자가 대기 중인 admin 초대를 editor 로 덮어쓰면 403 OWNER_REQUIRED', async () => {
+        arrange('admin', 'admin');
+
+        const err = await rejection(
+          service.invite('ws-1', 'b@x.com', 'editor', 'user-1'),
+        );
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toEqual(OWNER_ONLY);
+        expect(invitationRepo.save).not.toHaveBeenCalled();
+        expect(mailService.sendWorkspaceInvitationEmail).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['owner', 'admin', undefined],
+        ['owner', 'editor', 'admin'],
+        ['admin', 'editor', undefined],
+        ['admin', 'viewer', 'editor'],
+      ] as Array<[string, 'admin' | 'editor' | 'viewer', string | undefined]>)(
+        '%s 요청자의 %s 초대(대기 초대 역할 %s)는 만든다',
+        async (requesterRole, role, pendingRole) => {
+          arrange(requesterRole, pendingRole);
+
+          const result = await service.invite(
+            'ws-1',
+            'b@x.com',
+            role,
+            'user-1',
+          );
+          expect(result.role).toBe(role);
+          expect(invitationRepo.save).toHaveBeenCalled();
+        },
+      );
+    });
+
     it('rejects when workspace is not a team workspace', async () => {
       memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
       workspaceRepo.findOne.mockResolvedValueOnce({
@@ -171,9 +261,10 @@ describe('WorkspaceInvitationsService', () => {
       expect(result.invitedBy).toBe('user-1');
       expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
       expect(invitationRepo.save).toHaveBeenCalled();
-      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다.
+      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다. 읽은 역할을 동시 변경이 덮어쓰지 못하게 잠그고 읽는다.
       expect(invitationRepo.findOne).toHaveBeenCalledWith({
         where: { workspaceId: 'ws-1', email: 'b@x.com', acceptedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
       });
     });
 

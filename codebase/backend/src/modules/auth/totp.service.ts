@@ -117,8 +117,27 @@ export class TotpService {
     return { recoveryCodes: codes };
   }
 
-  /** 2FA 비활성. 호출 전에 비밀번호 재확인은 컨트롤러에서 수행. */
-  async disable(userId: string): Promise<void> {
+  /**
+   * 2FA 해제 전 코드 확인. 로그인 2단계와 같은 코드(6자리 TOTP 또는 TOTP 복구 코드)를 받고,
+   * 복구 코드는 로그인과 같이 소비한다. 틀리면 401 TOTP_INVALID
+   * (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
+   */
+  async verifyForDisable(userId: string, code: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user || !(await this.verifyForLogin(user, code))) {
+      throw new UnauthorizedException({
+        code: 'TOTP_INVALID',
+        message: '인증 코드가 올바르지 않습니다.',
+      });
+    }
+  }
+
+  /**
+   * 2FA 비활성. 이 메서드는 아무것도 확인하지 않는다 — 비밀번호 → 코드 재확인은 `AuthService.disableTwoFactor` 가 순서를
+   * 지키며 부른다. 다른 경로에서 이 메서드만 부르면 재인증이 빠진다. 그래서 이름에 `Unchecked` 를 두고, `AuthModule` 이
+   * `TotpService` 를 export 하지 않아 다른 모듈은 주입받지 못한다.
+   */
+  async disableUnchecked(userId: string): Promise<void> {
     await this.usersService.update(userId, {
       twoFactorEnabled: false,
       twoFactorSecret: null,

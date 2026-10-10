@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 작업 공간"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "d503f96fbfaaad1f8a5f8a8eed176586bb494fa2fd88dc9b573a82edea825bca"
+content_hash: "ca171488fa595bb741e27333ad2c7a060d4ef92be13f836601d0d4752162c12c"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-0W7CA7"
 source_paths: []
-mirror_sha256: "2b170cbcdcff8d0589b46433156f76f6f6e09ce56d553ee30d78305b9249f0c5"
-etag: "sha256-5029c79183edfc89ae4bf54f8a140eb5af77491afd61d89259e264ef6c42254d"
+mirror_sha256: "87517297a4cd166814d77c630cece92a2d854da294006da011e5cf4b3df8d27f"
+etag: "sha256-6915b16027491fee20d30623cc9b1035a8ca8e9f9fcae211ffd0888454ed88e9"
 ---
 ## 개요
 
@@ -39,14 +39,14 @@ etag: "sha256-5029c79183edfc89ae4bf54f8a140eb5af77491afd61d89259e264ef6c42254d"
 | 멤버 ID | member id, `workspace_member.id` | 멤버 관련 API 와 소유자 이양이 받는 식별자. 사용자 ID(`user.id`)와 다르다. | 없음 | [계정과 워크스페이스 데이터 흐름](CLE-ACCT/CLE-ACCT-DATA.md) |
 | 역할 | Role, `WorkspaceMember.role` | 워크스페이스 안 권한 등급. 소유자·관리자·편집자·뷰어 네 단계이고 위 역할은 아래 역할 권한을 모두 포함한다. | 권한 레벨 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 소유자 | Owner, `owner` | 워크스페이스를 삭제하거나 소유권을 넘길 수 있는 최상위 역할. | Owner(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
-| 관리자 | Admin, `admin` | 멤버와 워크스페이스 설정을 관리하는 역할. 제품을 운영하는 사람은 "운영자" 로 쓴다. | Admin(본문), 어드민, 관리자(운영자 뜻으로) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
+| 관리자 | Admin, `admin` | 멤버와 워크스페이스 설정을 관리하는 역할. 관리자 역할을 주고받는 규칙은 [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) 에 있다. 제품을 운영하는 사람은 "운영자" 로 쓴다. | Admin(본문), 어드민, 관리자(운영자 뜻으로) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 편집자 | Editor, `editor` | 워크플로우·트리거·스케줄을 만들고 실행하는 역할. 현재 화면 라벨은 "멤버" 다(결정 항목 D10). | Editor(본문), 멤버(역할 이름으로) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 뷰어 | Viewer, `viewer` | 읽기만 할 수 있는 역할. | 조회자, Viewer(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 권한 하한 | minimum role, `@Roles()`, `RoleGate` | 화면이나 API 가 요구하는 최소 역할. 본문은 "관리자 이상" 처럼 쓴다. | Admin+, admin 이상, Editor+, editor+, editor 이상(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 권한 매트릭스 | RBAC matrix, `RolesGuard` | 리소스와 역할마다 허용 동작을 적은 표. 한 문서에만 둔다. | 역할 권한 매트릭스, RBAC 요약 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 참조의 소속 | reference ownership, `assertReferenceInScope` | 요청 본문으로 받아 컬럼에 저장하는 참조 id 가 가리켜도 되는 범위. 범위와 검사하는 시점 · 층은 기준 문서에 있다. 요청 대상 워크스페이스를 보는 가드 검사와 다르다. | cross-workspace refs(본문) | [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) |
 | 운영자 | operator | 제품을 배포하고 운영하는 사람. 워크스페이스 관리자 역할과 다르다. | 관리자 개입(이 뜻으로), 시스템 관리자 | [시스템 아키텍처](CLE-PLAT/CLE-PLAT-ARCH.md) |
-| 초대 | Invitation, `WorkspaceInvitation` | 관리자 이상이 이메일로 보내는 팀 워크스페이스 합류 요청. 기한 안에 한 번만 쓸 수 있고 받는 사람 이메일이 일치해야 한다. | invitation(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
+| 초대 | Invitation, `WorkspaceInvitation` | 관리자 이상이 이메일로 보내는 팀 워크스페이스 합류 요청. 관리자 역할을 주고받는 규칙은 [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) 에 있다. 기한 안에 한 번만 쓸 수 있고 받는 사람 이메일이 일치해야 한다. | invitation(본문) | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 초대 토큰 | invitation token, `invitationToken`, `token` | 초대 링크에 들어가는 일회용 토큰. | 없음 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 멤버 직접 추가 | add member, `POST /api/workspaces/:id/members` | 이미 가입한 사용자를 메일 없이 바로 멤버로 넣는 경로. 초대와 다른 합류 경로다. | 가입 사용자 즉시 추가 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 소유자 이양 | transfer ownership, `transfer-ownership` | 현재 소유자가 다른 멤버에게 소유자 역할을 넘기는 동작. 기존 소유자는 관리자가 된다. | 소유권 이전, Owner 이양, 양도 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
@@ -59,7 +59,7 @@ etag: "sha256-5029c79183edfc89ae4bf54f8a140eb5af77491afd61d89259e264ef6c42254d"
 | 복구 코드 | recovery code, `totp_recovery_codes`, `webauthn_recovery_codes` | 2단계 인증 수단을 잃었을 때 쓰는 일회용 코드. TOTP 와 Passkey 가 코드 묶음을 따로 쓴다. | 백업 코드 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 챌린지 토큰 | `challengeToken` | 비밀번호를 통과한 뒤 2단계 인증 검증을 부를 때 쓰는 단기 토큰. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 계정 잠금 | account lock, `ACCOUNT_LOCKED` | 로그인이 연속으로 정한 횟수만큼 실패하면 한동안 로그인을 막는 상태. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| 이메일 변경 | email change, `pendingEmail` | 계정 재인증, 새 주소 확인 메일, 링크 확인 순서로 로그인 이메일을 바꾸는 절차. 확정되면 다른 로그인 세션을 모두 끊는다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| 이메일 변경 | email change, `pendingEmail` | 계정 재인증, 새 주소 확인 메일, 링크 확인 순서로 로그인 이메일을 바꾸는 절차. 확정되면 모든 로그인 세션을 끊고 현재 기기에는 로그인 세션을 새로 발급한다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 비밀번호 재설정 | password reset | 로그인하지 못할 때 메일 링크로 비밀번호를 새로 정하는 절차. 로그인한 상태에서 바꾸는 것은 "비밀번호 변경" 이다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 로그인 세션 | login session, refresh token family, `family_id` | 기기 하나의 로그인 상태. 리프레시 토큰이 바뀌어도 `family_id` 가 같으면 같은 세션이다. 목록·강제 종료·재사용 감지가 이 단위로 동작한다. | 디바이스 세션, family(본문), 세션(단독) | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 액세스 토큰 | access token, `accessToken` | API 호출에 쓰는 수명이 짧은 JWT. | Access Token(본문) | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
@@ -67,8 +67,8 @@ etag: "sha256-5029c79183edfc89ae4bf54f8a140eb5af77491afd61d89259e264ef6c42254d"
 | 토큰 회전 | refresh token rotation | 리프레시 토큰을 쓸 때마다 새 토큰을 주고 옛 토큰을 바로 무효로 만드는 동작. 옛 토큰이 다시 쓰이면 세션 전체를 끊는다. | 회전(단독) | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 로그인 유지 | remember me, `rememberMe` | 켜면 리프레시 토큰 수명이 길어지는 로그인 옵션. | Remember me, remember-me | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 세션 강제 종료 | session revoke | 사용자가 특정 로그인 세션이나 다른 모든 세션을 끝내는 동작. | 세션 revoke | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
-| 계정 재인증 | reauthentication, `verifyReauth` | 세션 강제 종료나 이메일 변경 전에 비밀번호 또는 TOTP 로 본인임을 다시 확인하는 절차. 실패하면 `REAUTH_REQUIRED` 를 낸다. | 재인증(단독), step-up | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
-| 비밀번호 재확인 | password re-check, `verifyPasswordForUser` | 2단계 인증 끄기·복구 코드 재발급·인증 설정 평문 보기처럼 비밀번호만 받는 본인 확인. 계정 재인증과 에러 코드가 다르다. | 재인증(이 뜻으로) | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
+| 계정 재인증 | reauthentication, `verifyReauth` | 세션 강제 종료나 이메일 변경 전에 비밀번호 또는 TOTP 로 본인임을 다시 확인하는 절차. 자격 증명이 모자라면 `REAUTH_REQUIRED` 를 낸다. 다른 실패 코드는 기준 문서에 있다. | 재인증(단독), step-up | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
+| 비밀번호 재확인 | password re-check, `verifyPasswordForUser` | 비밀번호만 받아 확인하는 본인 확인 단계(`verifyPasswordForUser`). 쓰는 동작과 에러 코드는 기준 문서에 있다. | 재인증(이 뜻으로) | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 로그인 힌트 쿠키 | `has_session` | 프론트 서버가 로그인 여부를 미리 짐작하는 쿠키. 인증 수단이 아니다. | 없음 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 내 프로필 | profile | 이름·비밀번호·언어·테마·보안 설정을 바꾸는 화면. | 없음 | [내 프로필](CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | 사용자 가이드 | User Guide, `/docs` | 앱 안에서 보는 한국어·영어 사용 설명서. | 유저 가이드, 사용자 매뉴얼, 매뉴얼, User Guide(본문) | [사용자 가이드](CLE-UI/CLE-UI-GUIDE.md) |
@@ -101,3 +101,21 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 ### 「참조의 소속」 에서 검사 층을 뺐다 (2026-10-05)
 
 2026-10-05 에 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05) 가 범위 참조를 복합 외래 키로도 막았다(NERV Task `CLE-T-QTRRE6`). 「참조의 소속」 정의가 «서버가 저장할 때 본다» 만 적어서 DB 층이 빠져 보였다. 그 결정의 스펙 초안 검토가 짚었고(finding 01a10aa3-fc14-73ad-a139-29324f1fed98) NERV Task `CLE-T-K9S0TE` 로 넘겼다. DB 층을 정의에 더하는 대신 «서버가 저장할 때 본다» 도 빼고 «범위와 검사하는 시점 · 층은 기준 문서에 있다» 로 일반화했다. 2026-10-04 에 범위와 거부 시점을 정의 칸에서 뺀 것과 같은 방향이다. 대상 참조의 수는 기준 문서가 바뀔 때 사전을 낡게 만든다(색인 표기 원칙 14). 「복합 외래 키」 는 등재하지 않았다. 약어 `FK` 는 색인 약어 표에 있고 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) 가 첫 사용에 풀어 쓴다.
+
+### 「비밀번호 재확인」 을 한 줄 정의로 줄였다 (2026-10-10)
+
+2026-10-10 에 2단계 인증(TOTP) 끄기가 비밀번호와 인증 코드를 함께 받게 됐다(NERV Task `CLE-T-75TDTN`). 「비밀번호 재확인」 정의는 2단계 인증 끄기를 비밀번호만 받는 본인 확인의 예로 들고 있어서 이 변경과 맞지 않았다. 처음 초안은 예를 「Passkey 복구 코드 재발급」 으로 좁히고 2단계 인증 끄기가 비밀번호와 인증 코드를 함께 받는다는 문장을 더했다. 같은 날 초안 일관성 검토가 이 문장들이 기준 문서의 규칙이라고 짚었다. 2026-10-04 · 10-05 선례(정의 칸에서 규칙을 뺀다)에 따라 정의를 «비밀번호만 받아 확인하는 본인 확인 단계» 로 줄였다. 이 단계를 쓰는 동작과 에러 코드는 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) 과 [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) 에 있다. 2단계 인증 끄기가 이 단계를 거친 뒤 인증 코드를 따로 확인한다는 것은 [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다.
+
+기각한 대안은 둘이다.
+
+- 2단계 인증 끄기를 「계정 재인증」 의 예로 옮긴다: 계정 재인증(`verifyReauth`)은 비밀번호와 TOTP 중 하나만 받는다. 2단계 인증 끄기는 둘을 모두 받는다. 옮기면 두 용어의 구분이 흐려진다.
+- 쓰는 동작의 예와 2단계 인증 끄기 문장을 정의에 남긴다(처음 초안): 색인 개요의 「이 사전은 이름과 한 줄 정의만 정한다」 에 어긋난다. 이번처럼 기준 문서의 동작이 바뀌면 정의가 틀린 말이 된다.
+
+### 「관리자」 · 「초대」 에 관리자 역할 규칙의 위치를 적었다 (2026-10-10)
+
+2026-10-10 에 관리자 역할 값을 바꾸는 동작을 소유자 전용으로 정했다(NERV Task `CLE-T-0W7CA7`, [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙)). 「초대」 정의는 «관리자 이상이 이메일로 보내는» 만 적어서 관리자가 어떤 역할로든 초대할 수 있다고 읽혔다. 처음 초안은 「관리자」 와 「초대」 에 규칙 문장을 더했다. 같은 날 초안 일관성 검토가 이 문장들이 2026-10-04 · 10-05 선례(정의 칸에서 규칙을 뺀다)와 어긋난다고 짚었다. 그래서 두 행 모두 «관리자 역할을 주고받는 규칙은 [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) 에 있다» 로 일반화했다. 「초대」 는 이 문장으로 하한(관리자 이상)만 보고 모든 역할을 초대할 수 있다고 읽지 않게 한다.
+
+기각한 대안은 둘이다.
+
+- 규칙 문장을 정의에 둔다(처음 초안): 색인 개요의 「이 사전은 이름과 한 줄 정의만 정한다」 에 어긋난다. 동작마다의 결과는 [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) 에 있고 그쪽이 바뀌면 사전도 함께 고쳐야 한다.
+- 「소유자」 정의에도 같은 안내를 적는다: 같은 안내가 여러 행에 있으면 한쪽만 고쳐질 수 있다. 제약을 받는 「관리자」 와 오해가 생긴 「초대」 에만 적었다.

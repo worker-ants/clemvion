@@ -4,7 +4,9 @@ const REFRESH_COOKIE_NAME = 'refreshToken';
 // 04 M-5 — refresh 쿠키를 auth 라우트(`/api/auth/*`)로 한정해 표면을 축소한다
 // (전역 prefix 'api' + `@Controller('auth')`). 다른 엔드포인트는 모두 Bearer access
 // token 기반이라 쿠키가 불필요하다. set/clear 가 동일 path 를 써야 clear 가 동작한다.
-const COOKIE_PATH = '/api/auth';
+// 현재 세션을 쿠키로 가리는 세션 API(`sessions.controller.ts`)도 그래서 이 Path 아래에 둔다.
+export const REFRESH_COOKIE_PATH = '/api/auth';
+const COOKIE_PATH = REFRESH_COOKIE_PATH;
 const REMEMBER_ME_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 

@@ -3,20 +3,20 @@ id: "CLE-RESEARCH-COMPETITORS"
 title: "경쟁 분석: n8n · Flowise"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-RESEARCH"
 ancestors: ["CLE-VISION", "CLE-RESEARCH"]
 area: "CLE-RESEARCH"
-content_hash: "58cb8524c8373a840d30024bbc331c4e9e1aca82e89862a1aff119d5f1f06c61"
-read_as: "approved"
-task: null
+content_hash: "4414430fd2eeaf95be102f97d6d6a1f5bb57dedf95e15b66708e8194e89aa491"
+read_as: "approved_fallback"
+task: "CLE-T-0W7CA7"
 source_paths: []
-mirror_sha256: "7795e65fd658b04946f38fa2874a6558399c6ba55068382417fbfcb49763e2d6"
-etag: "sha256-776663b46380e07bf727227bc455d067792686a65d79e5e7a125cee535435f5a"
+mirror_sha256: "bb1eea5a6e5e356a33b7ead0a2920923dd282b7048d3ae531e1dde240c0d4eb8"
+etag: "sha256-027025d118fa990a235f736405b6a97fca83a81d742c0b9d2cc2785cf49b9d9b"
 ---
-> 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 · 2026-10-10 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -107,9 +107,9 @@ Clemvion 의 기반 요건은 **AI 와 워크플로우의 범용 통합을 신�
 
 v1 이 놓친 강점이다. n8n · Dify 커뮤니티 에디션보다 앞선다.
 
-- **인증 깊이**: WebAuthn(Passkey · FIDO2)과 TOTP 2단계 인증, refresh family rotation, 토큰 재사용을 감지하면 family 전체 revoke, 동시 세션 제한을 갖췄다. 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 과 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 에 있다.
-- **코드로 강제하는 RBAC**: Owner · Admin · Editor · Viewer 4단계다. `@Roles` 와 `@WorkspaceId` 가드를 15개 모듈에 적용했고 reveal 권한은 관리자 이상으로 분리했다. 규칙은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 에 있다.
-- **감사 로그와 운영 가시성**: 감사 로그 8 카테고리(90일), 로그인 이력(180일), 시스템 상태 API, 알림 규칙, OTel 트레이스를 갖췄다. 규칙은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md), [알림](../CLE-OBS/CLE-OBS-NOTIFY.md), [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 에 있다.
+- **인증 깊이**: WebAuthn(Passkey · FIDO2)과 TOTP 2단계 인증을 갖췄다. 같은 로그인 세션의 리프레시 토큰을 한 묶음으로 두고 토큰을 회전한다. 재사용을 감지하면 그 로그인 세션을 끊는다. 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 과 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 에 있다. **현재**: 동시 로그인 세션 수 제한은 구현되지 않았다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항), 후속 NERV Task `CLE-T-VBQV4H`).
+- **코드로 강제하는 RBAC**: 소유자 · 관리자 · 편집자 · 뷰어 4단계다. `@Roles` 와 `@WorkspaceId` 가드를 15개 모듈에 적용했고 reveal 권한은 관리자 이상으로 분리했다. 규칙은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 에 있다.
+- **감사 로그와 운영 가시성**: 감사 로그 8 카테고리(2026-06-03 기준), 로그인 이력(180일), 시스템 상태 API, 알림 규칙, OTel 트레이스를 갖췄다. 규칙은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md), [알림](../CLE-OBS/CLE-OBS-NOTIFY.md), [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 에 있다. **현재**: 감사 로그 보관 정리는 구현되지 않았다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)).
 - **DB 마이그레이션 규율**: Flyway 마이그레이션 70개, CI 버전 충돌 가드, NOT VALID/VALIDATE 2단계 적용. n8n 대비 강점이다. 규칙은 [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 에 있다.
 - **시크릿**: AES-256-GCM(IV + authTag, AAD) 시크릿 저장소와 `secret://` URI 를 쓴다. 규칙은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 에 있다.
 - **버전 기록**: 저장할 때마다 불변 jsonb 스냅샷을 남기고 diff 와 복원을 지원한다. 규칙은 [버전 기록](../CLE-WF/CLE-WF-VERSION.md) 에 있다.
@@ -319,3 +319,7 @@ v2.3 까지는 "한국 커머스 버티컬 수직 통합" 을 코어이자 진�
 ### 후속 액션 목록을 현재 상태 표로 바꿨다 (2026-07-16 교정)
 
 원문 체크리스트는 다른 계획으로 넘기는 위임 목록이었다. 2026-07-16 실측에서 P0-1 은 대부분 구현됐다. P2-3 은 해소됐다. P0-2 · P0-2b · P0-3 · P1-3 은 다른 계획이 소유하고 있었다. 체크 표시만 보고 우선순위를 판단하면 끝난 일을 다시 쫓게 된다. 그래서 목록을 현재 상태와 기준 문서가 함께 보이는 표로 바꿨다. 원문 체크리스트가 링크하던 보안 계획 파일은 실존한 적이 없는 파일이라 옮기지 않았다.
+
+### 강점에서 동시 로그인 세션 제한을 뺐다 (2026-10-10)
+
+원문은 「인증 깊이」 강점에 동시 세션 수 제한을 함께 적었다. 2026-10-10 에 코드를 확인하니 한 사용자의 로그인 세션 수를 세거나 한도를 넘는 로그인 세션을 끊는 코드가 없었다. 그래서 강점 문장에서 이 기능을 빼고 **현재** 표시로 미구현 상태를 적었다. 이 판단은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항과 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 구현 상태에 맞췄다. 구현은 후속 NERV Task `CLE-T-VBQV4H` 로 추적한다.

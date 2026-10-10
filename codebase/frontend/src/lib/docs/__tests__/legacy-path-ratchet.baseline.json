@@ -480,7 +480,6 @@
     "codebase/backend/test/re-run.e2e-spec.ts": 1,
     "codebase/backend/test/schedule-trigger.e2e-spec.ts": 2,
     "codebase/backend/test/secret-store-like-prefix.e2e-spec.ts": 1,
-    "codebase/backend/test/session-revocation.e2e-spec.ts": 1,
     "codebase/backend/test/system-status.e2e-spec.ts": 1,
     "codebase/backend/test/trigger-deletion-releases-resources.e2e-spec.ts": 2,
     "codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts": 1,

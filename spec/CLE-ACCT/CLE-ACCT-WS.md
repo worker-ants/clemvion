@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
-requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060"]
+requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "39355ab08e1bcde563a5b06bb9ee8652fda0a06c694936da3c0b5ec45f519684"
+content_hash: "773c80e0eee64a008eabc8e0ac4f0fd3416f877e93ae6f46bce4737ff016069e"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-0W7CA7"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "6cd520a7d08b1915490e671b35fbeae32d8c11bcbd302c57fe94ba692effb769"
-etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
+mirror_sha256: "c4b45fa22d8037322b7f8fcc038354cf576cec628afbfebc9ed9a2ef633c8924"
+etag: "sha256-dbeb447b557cb3e21c34817a59a126bde9e71f9e0efa5485da79604905ffc21e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,6 +100,11 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 - REQ-WSPACE-058 WHEN 서버가 부팅하면 THE SYSTEM SHALL 워크스페이스 파라미터를 소비하는 라우트 수를 세고 0 이면 기동을 멈춘다.
 - REQ-WSPACE-059 IF 컨트롤러 핸들러가 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나는 파라미터를 `@Param` 으로 받으면 THE SYSTEM SHALL 저장소 가드로 CI 를 실패시킨다.
 - REQ-WSPACE-060 WHEN 초대 메일을 보내면 THE SYSTEM SHALL 메일 링크를 `/register?invitationToken=<url 인코딩된 토큰>` 으로 만든다.
+- REQ-WSPACE-061 IF 소유자가 아닌 멤버가 대상 멤버의 현재 역할이나 새 역할이 관리자인 역할 변경을 요청하면 THE SYSTEM SHALL 대상이 요청자 자신이어도 역할을 바꾸지 않고 403 `OWNER_REQUIRED` 로 거부한다.
+- REQ-WSPACE-062 IF 소유자가 아닌 멤버가 직접 추가나 초대에서 관리자 역할을 지정하면 THE SYSTEM SHALL 멤버십이나 초대를 만들지 않고 403 `OWNER_REQUIRED` 로 거부한다.
+- REQ-WSPACE-063 IF 소유자가 아닌 멤버가 관리자 역할로 대기 중인 초대가 있는 이메일을 다시 초대하면 THE SYSTEM SHALL 그 대기 중 초대를 바꾸지 않고 403 `OWNER_REQUIRED` 로 거부한다.
+- REQ-WSPACE-064 WHEN 초대를 수락하거나 초대 토큰으로 가입하면 THE SYSTEM SHALL 초대를 보낸 사람의 지금 역할을 다시 확인하지 않고 초대 행의 역할로 멤버십을 만든다.
+- REQ-WSPACE-065 IF 소유자가 아닌 관리자가 멤버 탭을 열면 THE SYSTEM SHALL 초대와 역할 변경의 역할 선택지에서 관리자를 빼고 관리자 멤버의 역할을 읽기 전용 배지로 보여 준다.
 
 ## 워크스페이스 종류와 생성
 
@@ -133,7 +138,7 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 
 ### 팀 워크스페이스 생성
 
-`POST /api/workspaces { name }` 으로 만든다. 서버는 종류를 `team` 으로 고정하고 슬러그를 `team-<uuid 앞 8자>` 로 만든다(`createTeam`). 요청자는 소유자 멤버가 되고 `settings` 는 빈 객체로 시작한다. 응답은 201 `{ workspace }` 다.
+`POST /api/workspaces { name }` 으로 만든다. 서버는 종류를 `team` 으로 고정하고 슬러그를 `team-<uuid 앞 8자>` 로 만든다(`createTeam`). 요청자는 소유자 멤버가 되고 `settings` 는 빈 객체로 시작한다. 응답은 201 이고 `data` 에 `{ id, name, type, slug }` 가 온다.
 
 ## 워크스페이스 전환
 
@@ -162,7 +167,7 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 | 탭 | 들어가는 요소 | 동작과 권한 |
 | --- | --- | --- |
 | 개요 | Name 입력, Slug(읽기 전용), Type(개인·팀), 내 Role, 임베드 허용 도메인 섹션 | 이름과 임베드 허용 도메인은 관리자 이상만 편집한다. 그 밖의 역할에는 읽기 전용으로 보인다 |
-| 멤버 (팀 워크스페이스 전용) | 역할 범례(소유자 모든 권한, 관리자 멤버 관리, 편집자 워크플로우 편집, 뷰어 읽기만), 초대 입력(이메일, 역할 선택, [초대]), 대기 중 초대 목록(이메일·역할·만료일, [재발송]·[취소]), 현재 멤버 목록(이름·이메일·역할 드롭다운·제거) | [멤버 관리](#멤버-관리) 표의 권한을 따른다 |
+| 멤버 (팀 워크스페이스 전용) | 역할 범례(소유자 모든 권한, 관리자 멤버 관리, 편집자 워크플로우 편집, 뷰어 읽기만), 초대 입력(이메일, 역할 선택, [초대]), 대기 중 초대 목록(이메일·역할·만료일, [재발송]·[취소]), 현재 멤버 목록(이름·이메일·역할 드롭다운·제거) | [멤버 관리](#멤버-관리) 표의 권한을 따른다. 소유자가 아닌 관리자에게는 역할 선택지에 관리자가 없고 관리자 멤버의 역할은 읽기 전용 배지로 보인다([관리자 역할 규칙](#관리자-역할-규칙)) |
 | 위험 영역 | [워크스페이스 나가기], [소유자 이양], [워크스페이스 삭제] | 나가기는 소유자가 아닌 모든 멤버, 소유자 이양은 소유자만(새 소유자 이메일 재입력 확인), 삭제는 소유자만(이름 재입력 확인 필수) |
 
 역할 이름은 사전 표준(소유자·관리자·편집자·뷰어)으로 적는다. 현재 화면 라벨은 편집자를 "멤버" 로 보여 준다. 이 차이는 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「editor 역할의 화면 라벨」 항목(D10)이다.
@@ -197,15 +202,46 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 
 | 동작 | 권한 | 설명 |
 | --- | --- | --- |
-| 초대 | 관리자 이상 | 이메일로 초대 토큰을 보낸다. 받는 사람은 가입 페이지나 수락 페이지에서 합류한다. [초대](#초대) |
-| 초대 재발송 | 관리자 이상 | 대기 중 초대의 토큰을 새로 발급하고 메일을 다시 보낸다. 만료도 재발급 시점부터 다시 7일이다 |
-| 초대 취소 | 관리자 이상 | 대기 중(`acceptedAt IS NULL`) 초대만 취소한다. 행을 물리 삭제한다 |
-| 직접 추가 | 관리자 이상 | 이미 가입한 사용자를 이메일로 메일 없이 바로 멤버로 넣는다 |
-| 역할 변경 | 관리자 이상 | 드롭다운으로 역할을 바꾼다. 소유자 역할을 주거나 뺏는 것은 소유자 이양으로만 한다. 관리자가 관리자 역할을 줄 수 있는지는 [미결 사항](#미결-사항) |
-| 제거 | 관리자 이상 | 확인 다이얼로그 뒤 멤버를 제거한다. 소유자는 제거할 수 없다. 자기 자신은 나가기로 넘긴다 |
+| 초대 | 관리자 이상. 관리자 역할 초대는 소유자 | 이메일로 초대 토큰을 보낸다. 받는 사람은 가입 페이지나 수락 페이지에서 합류한다. [초대](#초대) |
+| 초대 재발송 | 관리자 이상 | 대기 중 초대의 토큰을 새로 발급하고 메일을 다시 보낸다. 만료도 재발급 시점부터 다시 7일이다. 관리자 역할 초대도 관리자 이상이 재발송한다 |
+| 초대 취소 | 관리자 이상 | 대기 중(`acceptedAt IS NULL`) 초대만 취소한다. 행을 물리 삭제한다. 관리자 역할 초대도 관리자 이상이 취소한다 |
+| 직접 추가 | 관리자 이상. 관리자 역할 추가는 소유자 | 이미 가입한 사용자를 이메일로 메일 없이 바로 멤버로 넣는다 |
+| 역할 변경 | 관리자 이상. 관리자 역할이 걸리면 소유자 | 드롭다운으로 역할을 바꾼다. 대상의 지금 역할이나 새 역할이 관리자면 소유자만 바꾼다. 관리자가 자기 역할을 바꾸는 것도 같다. 소유자 역할을 주거나 뺏는 것은 소유자 이양으로만 한다. [관리자 역할 규칙](#관리자-역할-규칙) |
+| 제거 | 관리자 이상 | 확인 다이얼로그 뒤 멤버를 제거한다. 관리자도 제거할 수 있다. 소유자는 제거할 수 없다. 자기 자신은 나가기로 넘긴다 |
 | 나가기 | 본인 | 스스로 탈퇴한다. 유일한 소유자는 막는다. 먼저 다른 소유자를 정하거나 삭제로 간다 |
 | 워크스페이스 삭제 | 소유자 | 이름 재입력 확인 뒤 삭제한다 |
 | 소유자 이양 | 소유자 | 같은 워크스페이스의 소유자 아닌 멤버 중 한 명을 고르고 그 사람 이메일을 다시 입력해 확인한다 |
+
+### 관리자 역할 규칙
+
+관리자 역할 값을 바꾸는 동작은 소유자만 한다. 관리자로 올리기와 관리자에서 내리기, `role=admin` 직접 추가와 초대, 관리자 역할 대기 초대의 덮어쓰기가 여기에 든다. 누가 관리자인지는 소유자가 정한다는 규칙이다.
+
+멤버십을 끝내는 동작은 이 규칙에 들지 않는다. 관리자인 멤버의 제거는 2026-07-28 결정대로 관리자 이상이 한다. 나가기는 멤버 본인이 한다. 같은 기준으로 관리자가 자기 역할을 낮추는 역할 변경은 역할 값을 바꾸므로 403 `OWNER_REQUIRED` 다. 같은 관리자가 나가는 것은 멤버십을 끝내므로 된다.
+
+제거 후 낮은 역할로 재추가하면 결과는 강등과 같다. 제거하면 그 사람이 멤버 목록에서 사라지고 감사 로그(`member.removed`)에 남으므로 이 경로는 받아들인다. 강등은 막으면서 이 경로를 두는 이유는 [Rationale](#관리자-역할을-주고-빼는-일은-소유자만-한다) 에 있다.
+
+아래 표는 동작과 조건마다 요청자 역할별 결과를 정한다. 편집자와 뷰어는 라우트 가드가 먼저 403 `ADMIN_REQUIRED` 로 막으므로 표에 없다.
+
+| 동작 | 관리자 역할이 걸리는 조건 | 소유자 | 소유자가 아닌 관리자 |
+| --- | --- | --- | --- |
+| 역할 변경 | 대상의 지금 역할이나 새 역할이 관리자다. 대상이 요청자 자신이어도 같다 | 허용 | 403 `OWNER_REQUIRED` |
+| 역할 변경 | 편집자와 뷰어 사이만 바꾼다 | 허용 | 허용 |
+| 직접 추가 | `role=admin` | 허용 | 403 `OWNER_REQUIRED` |
+| 초대 | `role=admin` | 허용 | 403 `OWNER_REQUIRED` |
+| 초대 | 같은 이메일에 관리자 역할로 대기 중인 초대가 있다. 새 초대의 역할과 상관없다 | 허용. 대기 행을 덮어쓴다 | 403 `OWNER_REQUIRED`. 대기 행은 그대로다 |
+| 초대 재발송·취소 | 대기 중인 초대의 역할이 관리자다 | 허용 | 허용 |
+| 멤버 제거 | 대상이 관리자다 | 허용 | 허용 |
+
+- 역할 변경으로 소유자 역할을 주거나 빼는 것은 소유자도 할 수 없다(`OWNER_ROLE_PROTECTED`). 소유자 역할은 소유자 이양으로만 옮긴다.
+- 판정은 서비스 계층이 한다(`WorkspacesService` 의 `updateMemberRole` · `addMemberByEmail`, `WorkspaceInvitationsService` 의 `invite`). 가드는 관리자 이상인지만 본다. 관리자 역할 규칙은 요청 본문의 역할과 대상 멤버의 지금 역할을 봐야 해서 가드가 판정할 수 없다.
+- 규칙과 거부 본문은 공용 함수 `assertMayChangeAdminRole`(`common/constants/workspace-roles.ts`) 한 곳에 있다. e2e `workspace-rbac.e2e-spec.ts` 가 경로를 고정한다. 역할 변경은 대상 멤버 행을 잠근 트랜잭션 안에서 지금 역할을 읽고 판정 · 저장한다(`pessimistic_write`). 요청자의 역할은 잠그지 않고 읽는다. 이유는 [Rationale](#관리자-역할-판정의-요청자-역할은-잠그지-않고-읽는다) 에 있다.
+- 거부 본문은 403 `{ code: "OWNER_REQUIRED", message: "관리자 역할은 소유자만 주거나 뺄 수 있습니다." }` 다(`workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 코드는 가드의 소유자 미달과 같고 문구만 이 동작에 맞췄다. 새 에러 코드를 만들지 않은 이유는 [Rationale](#rationale) 에 있다.
+- 역할 변경은 대상 멤버 조회(`MEMBER_NOT_FOUND`), 소유자 보호(`OWNER_ROLE_PROTECTED`), 관리자 역할 규칙 순으로 검사한다.
+- 직접 추가는 워크스페이스 종류(`WORKSPACE_TYPE_MISMATCH`), 소유자 지정(`CANNOT_ASSIGN_OWNER`), 관리자 역할 규칙, 가입 여부(`USER_NOT_FOUND`), 멤버 여부(`ALREADY_A_MEMBER`) 순으로 검사한다.
+- 초대는 워크스페이스 종류(`workspace_type_mismatch`), `role=admin` 검사, 멤버 여부(`already_a_member`) 순으로 검사한다. 대기 초대 덮어쓰기 검사는 대기 행을 읽는 트랜잭션 안에서 한다.
+- 이미 관리자인 멤버와 관리자 역할로 대기 중인 초대는 소급해 바꾸지 않는다. 초대 수락과 초대 가입은 초대를 보낸 사람의 지금 역할을 다시 보지 않고 초대 행의 역할로 멤버십을 만든다. 정리가 필요하면 소유자가 역할 변경이나 초대 취소로 한다.
+- 관리자는 다른 관리자를 멤버에서 제거할 수 있다. 제거된 사람을 관리자로 다시 들이는 직접 추가와 초대는 소유자만 한다.
+- 멤버 탭은 소유자가 아닌 관리자에게 초대 역할 선택과 역할 드롭다운에서 관리자를 뺀다. 관리자 멤버의 역할은 드롭다운 대신 읽기 전용 배지로 보인다. 초대 입력 아래와 그 배지의 툴팁에 "관리자 역할은 소유자만 주거나 바꿀 수 있어요." 안내가 나온다. 화면 제한은 편의 기능이고 경계는 서버의 403 이다.
 
 ### 직접 추가
 
@@ -214,19 +250,20 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 | 상황 | 결과 |
 | --- | --- |
 | `role=owner` 지정 | 403 `CANNOT_ASSIGN_OWNER` |
+| 소유자가 아닌 요청자가 `role=admin` 지정 | 403 `OWNER_REQUIRED`. [관리자 역할 규칙](#관리자-역할-규칙) |
 | 가입하지 않은 이메일 | 404 `USER_NOT_FOUND`. 미가입자는 초대를 쓴다 |
 | 이미 멤버 | 409 `ALREADY_A_MEMBER` |
 | 팀이 아닌 워크스페이스 | 403 `WORKSPACE_TYPE_MISMATCH` |
 
-이 경로는 `WorkspacesService` 가 코드를 내므로 `UPPER_SNAKE_CASE` 를 쓴다. 초대 흐름의 소문자 `already_a_member`·`workspace_type_mismatch` 와 뜻은 같지만 다른 wire 코드다. 모듈과 표기 관례가 달라 일부러 나눴고 합치지 않는다.
+이 경로는 `WorkspacesService` 가 코드를 내므로 `UPPER_SNAKE_CASE` 를 쓴다. 초대 흐름의 소문자 `already_a_member`·`workspace_type_mismatch` 와 뜻은 같지만 별개 코드다. 모듈과 표기 관례가 달라 일부러 나눴고 합치지 않는다.
 
 ### 역할 변경·제거·소유자 이양
 
 | 동작 | 권한 | 규칙 |
 | --- | --- | --- |
-| `PATCH /api/workspaces/:id/members/:memberId { role }` | 소유자·관리자 | `workspace_member.role` 을 바꾼다. 대상의 현재 역할이 소유자이거나 부여하려는 역할이 소유자면 무조건 `OWNER_ROLE_PROTECTED` 로 막는다. 소유자 부여·박탈은 소유자 이양으로만 한다 |
+| `PATCH /api/workspaces/:id/members/:memberId { role }` | 소유자·관리자. 관리자 역할이 걸리면 소유자 | `workspace_member.role` 을 바꾼다. 대상의 현재 역할이 소유자이거나 부여하려는 역할이 소유자면 무조건 `OWNER_ROLE_PROTECTED` 로 막는다. 소유자 부여·박탈은 소유자 이양으로만 한다. 그다음 대상의 현재 역할이나 새 역할이 관리자면 소유자만 바꿀 수 있고 그 밖의 요청자는 403 `OWNER_REQUIRED` 다. 대상이 요청자 자신이어도 같다 |
 | `POST /api/workspaces/:id/transfer-ownership { newOwnerMemberId }` | 소유자(`@Roles('owner')` 가드와 서비스 재검증) | 한 트랜잭션에서 (1) 현재 소유자를 관리자로, (2) 대상 멤버를 소유자로, (3) `workspace.owner_id` 를 대상 사용자로 바꾼다. 자기 자신을 지정하면 400 `TARGET_IS_SELF`, 대상이 이미 소유자면 409 `TARGET_ALREADY_OWNER`, 개인 워크스페이스는 이양할 수 없다(`CANNOT_TRANSFER_PERSONAL`). `newOwnerMemberId` 는 사용자 ID 가 아니라 멤버 ID 다 |
-| `DELETE /api/workspaces/:id/members/:memberId` | 소유자·관리자 | 멤버십을 지운다. 소유자는 제거할 수 없다(`CANNOT_REMOVE_OWNER`). 자기 자신 제거는 나가기(`leaveWorkspace`)로 넘겨 유일 소유자 보호 같은 공통 가드를 받는다 |
+| `DELETE /api/workspaces/:id/members/:memberId` | 소유자·관리자 | 멤버십을 지운다. 관리자도 제거할 수 있다. 소유자는 제거할 수 없다(`CANNOT_REMOVE_OWNER`). 자기 자신 제거는 나가기(`leaveWorkspace`)로 넘겨 유일 소유자 보호 같은 공통 가드를 받는다 |
 
 이 표에 나온 거부 코드의 HTTP 상태(현재 구현)는 [계정과 워크스페이스 데이터 흐름 §멤버 변경과 직접 추가](CLE-ACCT-DATA.md#멤버-변경과-직접-추가) 에 모았다.
 
@@ -239,7 +276,7 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 
 ## 초대
 
-초대는 관리자 이상이 이메일로 보내는 팀 워크스페이스 합류 요청이다. 받는 사람이 가입했는지와 상관없이 같은 초대 API 를 쓴다. 미가입자는 초대 링크로 가입하면서 합류하고, 이미 가입한 사용자는 수락 페이지에서 합류한다. 이미 가입한 사용자를 메일 없이 바로 넣는 것은 [직접 추가](#직접-추가) 다.
+초대는 관리자 이상이 이메일로 보내는 팀 워크스페이스 합류 요청이다. 관리자 역할로 초대하는 것은 소유자만 한다([관리자 역할 규칙](#관리자-역할-규칙)). 받는 사람이 가입했는지와 상관없이 같은 초대 API 를 쓴다. 미가입자는 초대 링크로 가입하면서 합류하고, 이미 가입한 사용자는 수락 페이지에서 합류한다. 이미 가입한 사용자를 메일 없이 바로 넣는 것은 [직접 추가](#직접-추가) 다.
 
 ### 토큰 정책
 
@@ -249,10 +286,10 @@ etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
 | 저장 | DB 에 토큰 원래 값을 저장한다(`WorkspaceInvitation.token`, UNIQUE) | URL 로 조회할 때 바로 찾는다 |
 | 만료 | 발급 시점 + 7일 | 만료되면 410 |
 | 사용 횟수 | 1회. 수락 트랜잭션이 `acceptedAt` 을 채우면서 사용 처리한다 | 동시 수락 경쟁은 `UPDATE … WHERE accepted_at IS NULL RETURNING …` 으로 직렬화한다. 진 쪽은 410 이다 |
-| 재발송 | 같은 행의 토큰을 새 값으로 바꾸고 만료를 다시 7일로 잡는다 | 한 초대 행은 항상 유효 토큰이 0~1개다. 옛 토큰은 더 이상 조회되지 않아 `invitation_not_found`(404)가 된다 |
-| 같은 이메일 중복 초대 | 새 초대가 들어오면 기존 대기 중 행의 토큰·역할·초대자·만료를 바꾼다 | 여러 토큰이 동시에 살아 있지 않게 한다. 대기 중 초대 목록에도 한 이메일에 한 줄만 있다 |
+| 재발송 | 같은 행의 토큰을 새 값으로 바꾸고 만료를 다시 7일로 잡는다 | 한 초대 행은 항상 유효 토큰이 0~1개다. 옛 토큰은 더 이상 조회되지 않아 `invitation_not_found`(404)가 된다. 관리자 역할 초대도 관리자 이상이 재발송하고 초대에 적힌 역할은 바뀌지 않는다 |
+| 같은 이메일 중복 초대 | 새 초대가 들어오면 기존 대기 중 행의 토큰·역할·초대자·만료를 바꾼다. 대기 행의 역할이 관리자면 소유자만 바꿀 수 있다 | 여러 토큰이 동시에 살아 있지 않게 한다. 대기 중 초대 목록에도 한 이메일에 한 줄만 있다. 소유자가 아닌 요청자는 403 `OWNER_REQUIRED` 이고 대기 행은 그대로다 |
 | 이메일 일치 강제 | 수락·가입 때 `토큰.email == 로그인·가입 사용자 이메일` 을 강제한다. 다르면 400 | 토큰이 새도 다른 사용자가 워크스페이스에 들어오지 못한다 |
-| 초대 역할 | `admin`·`editor`·`viewer`. 소유자는 초대 역할로 줄 수 없다 | 관리자 역할 초대 가능 여부는 [미결 사항](#미결-사항) |
+| 초대 역할 | `admin`·`editor`·`viewer`. 소유자는 초대 역할로 줄 수 없다. `admin` 은 소유자만 지정한다 | 소유자가 아닌 요청자가 `admin` 을 지정하면 403 `OWNER_REQUIRED`. [관리자 역할 규칙](#관리자-역할-규칙) |
 | 발송 채널 | 시스템 SMTP(`codebase/backend/src/modules/mail/`)만 쓴다. 워크스페이스 SMTP 통합은 쓰지 않는다 | 이유는 [Rationale](#rationale) |
 | 발송 실패 | 초대 행을 되돌리지 않고 에러 로그만 남긴다 | 관리자가 재발송할 수 있다 |
 | 요청 한도 | 초대 발급·재발송 분당 10건(`INVITATION_THROTTLE`, `workspaces.controller.ts`). 공개 토큰 메타 조회 분당 30건 | 이메일 폭탄과 토큰 열거를 막는다 |
@@ -277,7 +314,7 @@ sequenceDiagram
   S-->>R: 액세스 토큰 + 리프레시 쿠키, 초대 워크스페이스로 진입
 ```
 
-1. 관리자 이상이 `POST /api/workspaces/:id/invitations { email, role }` 을 보낸다. 서버는 토큰을 만들고 `expiresAt = now + 7일` 로 메일을 보낸다.
+1. 관리자 이상이 `POST /api/workspaces/:id/invitations { email, role }` 을 보낸다. `role=admin` 은 소유자만 보낼 수 있다. 서버는 토큰을 만들고 `expiresAt = now + 7일` 로 메일을 보낸다.
 2. 받는 사람이 메일 링크를 누르면 프론트엔드 가입 페이지가 초대 토큰 쿼리와 함께 열린다. 메일 링크는 `/register?invitationToken=<초대 토큰>` 이다(`mail.service.ts` 의 `sendWorkspaceInvitationEmail`). 이미 발송된 옛 링크 `/auth/register?invitationToken=…` 은 로그인 여부와 상관없이 프론트엔드 proxy 가 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다([세션과 토큰](CLE-ACCT-SESSION.md#공개-경로와-가드)). 가입 페이지의 메타 조회와 입력란 고정은 아래 [초대 가입 화면](#초대-가입-화면) 에 있다.
 3. 가입을 제출받으면 서버가 (a) 토큰이 있고 만료되지 않았고 쓰이지 않았는지, (b) 토큰 이메일과 가입 이메일이 같은지 본다. (c) 맞으면 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다. (d) 불일치나 만료면 가입 자체를 거부하고 사용자 행을 만들지 않는다.
 4. 가입에 성공하면 인증 메일 없이 자동 로그인하고 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다.
@@ -287,7 +324,7 @@ sequenceDiagram
 1. 메일 링크를 누르면 프론트엔드가 토큰 메타를 조회한다.
 2. 로그인해 있고 본인 이메일이 토큰 이메일과 같으면 수락 페이지에 [수락] 버튼을 보여 준다.
 3. `POST /api/workspaces/invitations/accept { token }`. 서버는 토큰이 유효하고 본인 이메일이 토큰 이메일과 같은지 확인한 뒤 멤버십 추가와 `acceptedAt` 갱신을 한 트랜잭션에서 한다. 이미 멤버면 멤버십 추가는 건너뛴다.
-4. 응답(200 `{ workspace }`)을 받으면 프론트엔드가 그 워크스페이스로 전환한다.
+4. 응답(200, `data` 는 `{ workspaceId, role }`)을 받으면 프론트엔드가 그 워크스페이스로 전환한다.
 
 토큰 이메일과 로그인 사용자 이메일이 다르면 수락 페이지에 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내와 로그아웃 버튼만 보여 준다.
 
@@ -322,9 +359,10 @@ sequenceDiagram
 | 대기 초대 부분 UNIQUE 경합 | 409 | `invitation_already_pending` |
 | 수락된 초대의 재발송·취소 | 409 | `invitation_already_accepted` |
 | 권한 부족 (발송·재발송·취소) | 403 | `ADMIN_REQUIRED`. 비멤버는 `NOT_A_MEMBER` |
+| 소유자가 아닌 요청자의 관리자 역할 초대, 관리자 역할 대기 초대 덮어쓰기 | 403 | `OWNER_REQUIRED` |
 | 요청 한도 초과 | 429 | 원문은 `rate_limited`. 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 
-초대 흐름 코드는 에러 코드 표기 규칙(`UPPER_SNAKE_CASE`)과 달리 `lower_snake_case` 다. v1 출시 때 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR_CODES`)가 `code` 값으로 바로 분기하므로 이름을 바꾸면 API 호환이 깨진다. "이름을 더 정확하게 하려고 바꾸지는 않는다" 는 규칙에 따라 예외 등록 코드(historical artifact)로 유지한다. 새 코드는 이 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다. 권한 부족은 `RolesGuard` 가 `ADMIN_REQUIRED` 로 먼저 거부해 이 예외에 들지 않는다. 예외 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 관리한다.
+초대 흐름 코드는 에러 코드 표기 규칙(`UPPER_SNAKE_CASE`)과 달리 `lower_snake_case` 다. v1 출시 때 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR_CODES`)가 `code` 값으로 바로 분기하므로 이름을 바꾸면 API 호환이 깨진다. "이름을 더 정확하게 하려고 바꾸지는 않는다" 는 규칙에 따라 예외 등록 코드(historical artifact)로 유지한다. 새 코드는 이 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다. 권한 부족은 `RolesGuard` 가 `ADMIN_REQUIRED` 로 먼저 거부해 이 예외에 들지 않는다. 관리자 역할 초대의 소유자 전용 거부도 서비스 계층이 대문자 `OWNER_REQUIRED` 로 내므로 이 예외에 들지 않는다. 예외 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 관리한다.
 
 ## 역할과 권한
 
@@ -332,8 +370,8 @@ sequenceDiagram
 
 | 역할 | 설명 |
 | --- | --- |
-| 소유자(Owner, `owner`) | 워크스페이스 소유자. 모든 권한과 워크스페이스 삭제, 소유자 이양 |
-| 관리자(Admin, `admin`) | 멤버 관리, 설정 변경, 모든 리소스 CRUD |
+| 소유자(Owner, `owner`) | 워크스페이스 소유자. 모든 권한과 워크스페이스 삭제, 소유자 이양, 관리자 역할 부여·회수 |
+| 관리자(Admin, `admin`) | 멤버 관리, 설정 변경, 모든 리소스 CRUD. 관리자 역할을 주거나 빼는 일은 하지 않는다 |
 | 편집자(Editor, `editor`) | 워크플로우·트리거·스케줄 CRUD 와 실행 |
 | 뷰어(Viewer, `viewer`) | 읽기 전용 |
 
@@ -348,7 +386,7 @@ sequenceDiagram
 | 워크스페이스 설정 | CRUD | RU | R | R |
 | 워크스페이스 삭제 | D | — | — | — |
 | 멤버 관리 † | CRUD | CRUD | R | R |
-| 관리자 역할 부여 | ✅ | 정의가 갈린다([미결 사항](#미결-사항)) | — | — |
+| 관리자 역할 부여·회수 | ✅ | — | — | — |
 | 워크플로우 | CRUD | CRUD | CRUD | R |
 | 워크플로우 실행 | ✅ | ✅ | ✅ | — |
 | 폴더 | CRUD | CRUD | CRUD | R |
@@ -367,7 +405,7 @@ sequenceDiagram
 | 마켓플레이스 설치 | ✅ | ✅ | ✅ | — |
 | 감사 로그 | R | R | — | — |
 
-- † 관리자의 멤버 삭제는 대상이 소유자면 거부된다(`CANNOT_REMOVE_OWNER`). 역할 권한이 아니라 대상 조건이라 각주로 적는다. 자기 자신 제거는 나가기로 넘긴다. "멤버를 제거할 수 있다" 와 "관리자 역할을 줄 수 있다" 는 다른 권한이다.
+- † 관리자의 멤버 관리에는 대상 조건이 붙는다. 역할 권한이 아니라 대상 조건이라 각주로 적는다. 대상이 소유자면 제거와 역할 변경이 거부된다(`CANNOT_REMOVE_OWNER`, `OWNER_ROLE_PROTECTED`). 관리자 역할이 걸린 직접 추가·초대·역할 변경은 소유자만 한다(`OWNER_REQUIRED`, [관리자 역할 규칙](#관리자-역할-규칙)). 관리자는 다른 관리자를 제거할 수 있다. 자기 자신 제거는 나가기로 넘긴다. "멤버를 제거할 수 있다" 와 "관리자 역할을 줄 수 있다" 는 다른 권한이다.
 - ‡ 통합(개인)의 "자기 것" 에서 본인의 정의(`created_by`), 남의 개인 통합을 없는 통합처럼 다루는 규칙, 아직 강제되지 않는 부분은 [통합 관리 §권한](../CLE-INT/CLE-INT-MANAGE.md#권한) 이 정한다. 뷰어의 생성·수정·삭제는 라우트 가드(`@Roles('editor')`)에 막혀 이 표보다 좁다. 노드 실행 시점에는 소유자를 아직 검사하지 않는다.
 - ※ 시스템 상태는 큐 적체 집계만 보여 주는 시스템 전역 읽기 API(`/api/system-status/overview`)라 워크스페이스 경계가 없다. 개별 job·payload·워크스페이스 식별자를 드러내지 않으므로 모든 역할이 똑같이 읽기만 한다(별도 관리자 가드 없음). [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md).
 - 워크스페이스 설정·멤버 관리의 편집자·뷰어 R 은 조회 권한이다. 변경 권한 관점의 요약에서는 편집자·뷰어가 둘 다 변경할 수 없다고 적는다.
@@ -412,7 +450,21 @@ sequenceDiagram
 - 상태 코드는 모두 403 이다. `@Roles('viewer')` 는 멤버십과 같다. 여러 역할을 주면 가장 낮은 역할이 요구 역할이다. 메시지는 서비스 계층과 같은 한국어다.
 - 이 표는 경로 라우트뿐 아니라 `@Roles()` 가 붙은 모든 라우트와 헤더 위조 거부에 적용된다.
 - 비멤버는 요구 역할과 상관없이 `NOT_A_MEMBER` 다. 부재와 비멤버도 구분하지 않는다. `getMemberRole` 이 `workspace_member` 만 보므로 둘 다 `NOT_A_MEMBER` 이고, 이것이 경로 라우트에서 워크스페이스 존재가 새는 것을 가드 층에서 막는다.
+- `OWNER_REQUIRED` 는 가드 밖에서도 난다. 관리자 역할을 주거나 빼는 요청은 가드를 통과한 뒤 서비스 계층이 같은 코드로 거부한다. 문구는 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 로 가드의 «Owner 권한이 필요합니다.» 와 다르다([관리자 역할 규칙](#관리자-역할-규칙)).
 - 코드를 붙이지 않는 가드 거부 두 자리가 남는다. 미인증 요청이 `@Roles()` 라우트에 닿는 경우(`JwtAuthGuard` 가 먼저 401 을 내므로 실제로 닿지 않는다)와 `@Roles()` 라우트에 워크스페이스 컨텍스트가 전혀 없는 경우(가입 직후에도 토큰이 개인 워크스페이스를 갖는다)다. 도달 경로가 없어 범위 밖이다.
+
+### 워크스페이스를 찾지 못할 때
+
+`WORKSPACE_NOT_FOUND` 는 두 자리에서 난다. 자리마다 상태 코드와 뜻이 다르다.
+
+| 발행 자리 | 상태 | 조건 | 메시지 |
+| --- | --- | --- | --- |
+| 워크스페이스 관리 경로(`WorkspacesService`) | 404 | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행을 읽었는데 없다. 이름 변경, 설정 조회 · 변경, 삭제, 나가기, 소유자 이양, 직접 추가가 이렇게 검사한다 | `워크스페이스를 찾을 수 없습니다.` |
+| 액세스 토큰 검증(`jwt.strategy`) | 401 | 토큰은 유효한데 현재 워크스페이스로 쓸 곳이 없다. 클레임이 가리키는 워크스페이스의 멤버십, 개인 워크스페이스, 첫 멤버십이 모두 없다 | `No workspace found for user` |
+
+- 관리 경로는 인가를 먼저 한다. 비멤버와 없는 워크스페이스는 그 단계에서 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부된다([가드 거부 에러 코드](#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워진다. 그래서 404 는 사실상 인가와 조회 사이에 다른 요청이 그 워크스페이스를 지운 경합에서만 난다.
+- 토큰 검증의 401 은 액세스 토큰으로 인증하는 모든 요청에서 날 수 있다. 예를 들어 초대로 가입해 개인 워크스페이스가 없는 사용자가 유일한 팀 워크스페이스에서 나가면 그 뒤 요청은 이 401 이 된다. 토큰 클레임을 대신할 워크스페이스를 찾는 순서는 [전환 API 와 토큰](#전환-api-와-토큰) 과 같다.
+- 한 코드가 두 상태와 두 뜻으로 쓰이는 점은 [미결 사항](#미결-사항) 에 있다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 
 ### `X-Workspace-Id` 형식 검사
 
@@ -433,26 +485,28 @@ sequenceDiagram
 
 ## API
 
+설명 칸의 응답은 `{ data }` 봉투 안의 내용만 적는다.
+
 | 메서드 | 경로 | 권한 | 설명 |
 | --- | --- | --- | --- |
 | GET | `/api/workspaces` | 로그인 | 내 워크스페이스 목록. 슬러그를 싣는다 |
-| POST | `/api/workspaces` | 로그인 | 팀 워크스페이스 생성. 본문 `{ name }`. 요청자가 소유자. 201 `{ workspace }` |
+| POST | `/api/workspaces` | 로그인 | 팀 워크스페이스 생성. 본문 `{ name }`. 요청자가 소유자. 201 `{ id, name, type, slug }` |
 | PATCH | `/api/workspaces/:id` | 관리자 이상 | 이름 변경 전용. 본문 `{ name: string }`(2~100자) |
-| GET | `/api/workspaces/:id/settings` | 멤버(뷰어 포함) | 설정 조회. 응답 `{ interactionAllowedOrigins: string[]; timezone?: string }`. 비멤버 403 `NOT_A_MEMBER` |
-| PATCH | `/api/workspaces/:id/settings` | 관리자 이상 | 설정 변경. 본문 키는 모두 선택: `interactionAllowedOrigins?: string[]`, `timezone?: string`, `maxConcurrentExecutions?: number`. 보낸 키만 부분 병합한다. 키별 검증은 [워크스페이스 설정](#워크스페이스-설정) 과 [임베드 허용 도메인](#임베드-허용-도메인). 응답 200 `{ data: workspace }`. 권한 부족 403 `ADMIN_REQUIRED` |
+| GET | `/api/workspaces/:id/settings` | 멤버(뷰어 포함) | 설정 조회. 응답 `{ interactionAllowedOrigins: string[]; timezone?: string; maxConcurrentExecutions?: number }`. 비멤버 403 `NOT_A_MEMBER` |
+| PATCH | `/api/workspaces/:id/settings` | 관리자 이상 | 설정 변경. 본문 키는 모두 선택: `interactionAllowedOrigins?: string[]`, `timezone?: string`, `maxConcurrentExecutions?: number`. 보낸 키만 부분 병합한다. 키별 검증은 [워크스페이스 설정](#워크스페이스-설정) 과 [임베드 허용 도메인](#임베드-허용-도메인). 응답 200 `{ id, name, type, slug, settings }`. 권한 부족 403 `ADMIN_REQUIRED` |
 | DELETE | `/api/workspaces/:id` | 소유자 | 팀 워크스페이스 삭제. 트랜잭션 처리 |
 | POST | `/api/workspaces/:id/leave` | 본인 | 스스로 탈퇴. 유일한 소유자는 막는다 |
 | POST | `/api/workspaces/:id/transfer-ownership` | 소유자 | 소유자 이양. 본문 `{ newOwnerMemberId }`(멤버 ID). 대상은 소유자가 아닌 멤버. 트랜잭션 안에서 역할 교환과 `ownerId` 동기화 |
 | GET | `/api/workspaces/:id/members` | 멤버 | 멤버 목록 |
-| POST | `/api/workspaces/:id/members` | 관리자 이상 | 이미 가입한 사용자 직접 추가. 본문 `{ email, role }` |
-| PATCH | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 역할 변경. 본문 `{ role }` |
-| DELETE | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 멤버 제거. 자기 자신이면 나가기로 넘긴다 |
+| POST | `/api/workspaces/:id/members` | 관리자 이상 | 이미 가입한 사용자 직접 추가. 본문 `{ email, role }`. `role=admin` 은 소유자만(403 `OWNER_REQUIRED`) |
+| PATCH | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 역할 변경. 본문 `{ role }`. 대상의 지금 역할이나 새 역할이 관리자면 소유자만(403 `OWNER_REQUIRED`) |
+| DELETE | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 멤버 제거. 관리자도 제거할 수 있다. 자기 자신이면 나가기로 넘긴다 |
 | GET | `/api/workspaces/:id/invitations` | 관리자 이상 | 대기 중 초대 목록 |
-| POST | `/api/workspaces/:id/invitations` | 관리자 이상 | 초대 토큰 발송. 본문 `{ email, role }`. 같은 이메일에 대기 중 초대가 있으면 그 행의 토큰을 바꾼다. 201 `{ invitation }`. 분당 10건 |
-| POST | `/api/workspaces/:id/invitations/:invitationId/resend` | 관리자 이상 | 초대 재발송. 토큰 교체, 만료 재시작. 분당 10건 |
-| DELETE | `/api/workspaces/:id/invitations/:invitationId` | 관리자 이상 | 초대 취소. `acceptedAt IS NULL` 인 행만 |
+| POST | `/api/workspaces/:id/invitations` | 관리자 이상 | 초대 토큰 발송. 본문 `{ email, role }`. 같은 이메일에 대기 중 초대가 있으면 그 행의 토큰을 바꾼다. `role=admin` 이나 관리자 역할 대기 초대 덮어쓰기는 소유자만(403 `OWNER_REQUIRED`). 201 `{ id, email, role, expiresAt }`. 분당 10건 |
+| POST | `/api/workspaces/:id/invitations/:invitationId/resend` | 관리자 이상 | 초대 재발송. 토큰 교체, 만료 재시작. 관리자 역할 초대도 같다. 분당 10건 |
+| DELETE | `/api/workspaces/:id/invitations/:invitationId` | 관리자 이상 | 초대 취소. `acceptedAt IS NULL` 인 행만. 관리자 역할 초대도 같다 |
 | GET | `/api/invitations/:token` | 공개(인증 불요) | 초대 토큰 메타 조회. 가입 페이지 입력란 채우기용. 응답 `{ workspaceName, invitedByName, email, expiresAt, role }`. 없음 404, 만료·사용됨 410. 분당 30건 |
-| POST | `/api/workspaces/invitations/accept` | 로그인 | 초대 수락. 본문 `{ token }`. 본인 이메일과 토큰 이메일이 같아야 한다. 200 `{ workspace }` |
+| POST | `/api/workspaces/invitations/accept` | 로그인 | 초대 수락. 본문 `{ token }`. 본인 이메일과 토큰 이메일이 같아야 한다. 200 `{ workspaceId, role }` |
 | POST | `/api/auth/workspaces/:id/switch` | 로그인(`JwtAuthGuard`) | 워크스페이스 전환. `:id` 는 `ParseUUIDPipe`. 비멤버 403 `NOT_A_MEMBER`. 액세스 토큰만 `activeWorkspaceId=:id` 로 재발급하고 리프레시 쿠키는 그대로다. 응답 `{ accessToken }` |
 
 - 컨트롤러는 두 개다. `workspaces.controller.ts`(`@Controller('workspaces')`)가 생성·멤버·초대 발급·수락 등 대부분을 받고, `invitations.controller.ts`(`@Controller('invitations')`)가 공개 토큰 메타 조회 하나를 받는다.
@@ -460,22 +514,25 @@ sequenceDiagram
 
 ## 미결 사항
 
-- **관리자가 관리자 역할을 부여할 수 있는가**: 인증 명세의 권한 매트릭스와 프로필 원문의 역할 표는 "관리자 역할 부여" 를 소유자 전용으로 정하고, 인증 명세는 "그대로 Owner 전용이다" 라고 다시 강조한다. 반면 워크스페이스 데이터 흐름과 프로필 원문의 멤버 관리 표는 역할 변경을 관리자 이상에게 주고 소유자 역할만 막는다. 초대와 직접 추가도 관리자 이상이 `role=admin` 을 지정할 수 있다(관련: [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 현재 구현(`workspaces.service.ts` 의 `updateMemberRole`, `addMemberByEmail`)은 `assertAdmin` 뒤 소유자 역할만 막아 관리자가 다른 멤버를 관리자로 올리거나 관리자로 직접 추가할 수 있다. 소유자 전용이 맞으면 역할 변경·초대·직접 추가에 관리자 부여 제한을 넣어야 하고, 허용이 맞으면 매트릭스 행을 고쳐야 한다. 결정 필요.
 - **개인 워크스페이스의 기본 시간대와 설정이 없을 때의 폴백**: 가입 화면 원문은 개인 워크스페이스를 만들 때 시간대를 "브라우저 타임존(Accept-Language 헤더에서 추론) 또는 UTC" 로 채운다고 적는다. 데이터 모델은 그런 컬럼 없이 `settings.timezone` 이 없으면 서버 기본 `process.env.TZ`, 없으면 `UTC` 이고 AI 노드 시스템 컨텍스트와 스케줄 기본 시간대가 이 값을 쓴다고 적는다. 스케줄 원문은 `settings.timezone` 다음 `'Asia/Seoul'` 로 폴백한다고 적는다(관련: [스케줄 §미결 사항](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#미결-사항), [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)). 현재 구현의 `createPersonalWorkspace` 는 `settings={}` 로 만든다. Accept-Language 헤더로는 시간대를 추론할 수도 없다. 기본값 하나를 정할지, 스케줄과 AI 가 서로 다른 폴백을 써도 되는지 결정 필요.
 - **초대 요청 한도 초과 코드 `rate_limited`**: 초대 에러 표와 에러 코드 예외 목록은 초대 429 를 소문자 `rate_limited` 로 적고 예외 등록 코드로 올려 둔다. 원문 분석에 따르면 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾸며, 백엔드·프론트엔드 소스에 `'rate_limited'` 문자열은 0건이다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 같은 표에서 발행처 없는 `forbidden` 을 뺀 선례가 있다. 표와 예외 목록에서 `rate_limited` 를 빼고 `RATE_LIMITED` 로 적을지 결정 필요.
 - **로그인하지 않은 기존 가입자가 초대 가입 링크를 열 때**: 초대 메일 링크는 받는 사람이 가입했는지와 상관없이 `/register?invitationToken=…` 이다. 로그인하지 않은 기존 가입자가 이 링크를 열면 가입 폼이 보인다. 이메일 입력란은 초대 이메일로 채워지고 읽기 전용으로 잠긴다. 초대 흐름에서는 입력란의 이메일 중복 확인을 건너뛴다(`register-form.tsx`). 제출하면 서버가 이메일 중복을 초대 처리보다 먼저 확인해 409 `RESOURCE_CONFLICT`(`Email already registered`)로 거부한다(`auth.service.ts` 의 `register`). 화면에는 그 메시지가 토스트로 표시된다. 가입 폼 아래 로그인 링크는 `/login` 으로만 가고 초대 토큰과 `redirect` 를 넘기지 않는다. 로그인 화면은 로그인 뒤 `/dashboard` 로 이동한다(`login-form.tsx`). 그래서 이 사용자는 로그인한 뒤에도 수락 페이지로 돌아오지 않는다. 선택지는 세 가지다. (a) 토큰 이메일이 이미 가입된 이메일이면 가입 화면이 로그인 화면으로 보내고 로그인 뒤 `/invitations/accept?token=…` 로 돌려보낸다. (b) 기존 가입자에게 보내는 초대 메일은 처음부터 수락 페이지 링크를 쓴다. (c) 현행을 유지한다. 결정 필요.
+- **`WORKSPACE_NOT_FOUND` 의 두 상태**: 워크스페이스 관리 경로는 이 코드를 404 로 내고 액세스 토큰 검증은 401 로 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 한 코드가 두 상태와 두 뜻으로 쓰인다. 401 경로에 별도 코드를 줄지는 NERV Task `CLE-T-3P4ENZ` 에서 정한다. 결정 필요.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/workspaces.service.ts` (워크스페이스 CRUD, 멤버 관리, 설정)
 - `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts` (초대 발급·수락·재발송·취소, 공개 메타 조회)
 - `codebase/backend/src/modules/auth/auth.service.ts` (`switchWorkspace`, `registerWithInvitation`, `resolveTokenWorkspaceContext`)
+- `codebase/backend/src/modules/auth/strategies/jwt.strategy.ts` (토큰 클레임 해석과 대체 순서, 쓸 워크스페이스가 없을 때의 401 `WORKSPACE_NOT_FOUND`)
 - `codebase/backend/src/modules/mail/**` (초대 메일)
 - `codebase/backend/src/common/guards/*.ts` (`RolesGuard`, `JwtAuthGuard`)
+- `codebase/backend/src/common/constants/workspace-roles.ts` (가드와 서비스가 함께 쓰는 거부 본문 `NOT_A_MEMBER` · `ROLE_REQUIRED` · `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
 - `codebase/backend/src/common/decorators/*.ts` (`@WorkspaceId()`, `@WorkspaceParam(...)`, `@Roles()`, `workspace-reflection-canary.ts`)
 - `codebase/backend/src/common/utils/workspace-context.util.ts`, `codebase/backend/src/common/utils/uuid.ts`, `codebase/backend/src/common/utils/uuid.spec.ts`(경로 파라미터 `ParseUUIDPipe` 기본 범위 고정)
 - `codebase/backend/src/repo-guards/__tests__/workspace-param-binding*.ts`, `codebase/backend/src/repo-guards/__tests__/fixtures/workspace-param-binding/**` (경로 워크스페이스 `@Param` 바인딩 금지 가드와 대조군)
 - `codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts` (`RolesGuard` 전역 등록과 핸들러별 `@Roles` 고정)
+- `codebase/backend/test/workspace-rbac.e2e-spec.ts` (역할별 인가와 관리자 역할 규칙 e2e)
 - `codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/**`
 - `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**`
 - `codebase/frontend/src/components/workspace/**`
@@ -545,6 +602,38 @@ sequenceDiagram
 
 기각한 대안은 "멤버 관리" 행을 멤버 초대·멤버 제거·역할 변경으로 나누는 것이다. 더 정밀해지지만 매트릭스가 길어지고 다른 리소스 행과 입도가 어긋난다. 소유자 대상 제약은 역할 권한이 아니라 대상 조건이라 표가 아니라 각주가 맞는 자리다.
 
+### 관리자 역할을 주고 빼는 일은 소유자만 한다
+
+2026-10-10 결정이다(NERV Task `CLE-T-0W7CA7`, finding 01a0e542-19b6-755c-ad55-49c907b87cd1). v5 미결 사항 「관리자가 관리자 역할을 부여할 수 있는가」를 소유자 전용으로 닫고 미결 항목을 지웠다. 원문 인증 명세의 권한 매트릭스와 프로필 원문의 역할 표는 처음부터 "관리자 역할 부여" 를 소유자 전용으로 적었다. 구현과 데이터 흐름 문서는 역할 변경·초대·직접 추가를 관리자 이상에게 주고 소유자 역할만 막았다. 그래서 관리자가 다른 멤버를 관리자로 올리거나 관리자로 직접 추가·초대할 수 있었다. v5 의 미결 문장 "현재 구현은 관리자가 다른 멤버를 관리자로 올릴 수 있다" 는 이 결정으로 더는 맞지 않는다. 매트릭스 쪽을 기준으로 구현을 고쳤다.
+
+규칙의 범위는 관리자 역할 값을 바꾸는 동작이다. 관리자로 올리기와 관리자에서 내리기(관리자 자신의 역할 변경 포함), `role=admin` 직접 추가와 초대, 관리자 역할 대기 초대의 덮어쓰기가 여기에 든다. 같은 이메일을 다시 초대하면 대기 행의 역할이 바뀌므로 덮어쓰기를 범위에 넣었다. 넣지 않으면 관리자가 재초대로 관리자 초대를 편집자 초대로 바꿀 수 있다. 멤버십을 끝내는 동작은 범위 밖이다. 관리자인 멤버의 제거는 2026-07-28 결정대로 관리자 이상이 한다. 나가기는 멤버 본인이 한다. 관리자의 자기 강등이 403 인데 나가기는 되는 것도 이 기준에서 나온다. 강등은 역할 값을 바꾸고 나가기는 멤버십을 끝낸다. 동작마다 결과는 [관리자 역할 규칙](#관리자-역할-규칙) 표가 정한다.
+
+기각한 대안은 다음과 같다.
+
+- 관리자에게도 관리자 부여를 허용하고 매트릭스를 고친다: 관리자 한 명이 소유자 모르게 관리자를 늘릴 수 있다. 관리자는 멤버 관리와 설정 변경, 인증 설정 평문 보기까지 하는 역할이라 그 구성은 소유자가 정해야 한다.
+- 부여만 막고 회수(강등)는 관리자에게 둔다: 강등은 사람을 멤버로 남긴 채 권한만 바꾼다. 멤버 목록에서 사람이 빠지지 않으므로 소유자가 알아채기 어렵다. 그러면 소유자가 정한 관리자 구성이 소유자 모르게 바뀐다. 관리자끼리 서로 강등할 수도 있다.
+- 멤버 제거도 소유자 전용으로 넓힌다: 위 「멤버 관리에서 관리자는 삭제(D)까지 할 수 있다」(2026-07-28) 결정을 뒤집는다. 제거는 멤버십을 끝내는 별개 동작이다. 대상이 멤버 목록에서 사라지고 감사 로그에 멤버 제거로 남아 드러난다. 제거된 사람을 관리자로 다시 들이는 일은 소유자만 하므로 제거로 관리자를 늘릴 수는 없다. 관리자가 다른 관리자를 제거한 뒤 낮은 역할로 다시 추가하거나 초대하면 결과는 강등과 같다. 이 경로는 제거가 멤버 목록과 감사 로그(`member.removed`)에 드러나 소유자가 알아챌 수 있으므로 받아들였다. 그래서 2026-07-28 결정은 그대로 두었다. 그 결정이 기각한 "멤버 관리" 행 분리도 다시 꺼내지 않았다. 관리자 역할 조건은 이미 있던 관리자 역할 부여 행(이번에 「관리자 역할 부여·회수」 로 이름을 넓혔다)과 † 각주에 대상 조건으로 적었다.
+- 초대 재발송과 취소도 소유자 전용으로 한다: 재발송은 토큰과 만료만 새로 잡고 초대에 적힌 역할과 받는 사람을 바꾸지 않는다. 취소는 권한을 주지 않는다. 둘 다 새 권한을 만들지 않는다.
+- 새 에러 코드를 만든다: 새 코드는 `OWNER_REQUIRED` 와 뜻이 같은 쌍둥이가 된다. 클라이언트가 할 일도 소유자에게 맡기는 것으로 같다. 초대 모듈의 소문자 관례를 따른 코드도 만들지 않았다. 새 코드는 예외 등록 코드를 선례로 삼지 않는다. 코드 결정의 근거는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에도 적었다.
+- 가드에서 판정한다(라우트를 `@Roles('owner')` 로 나눈다): 같은 라우트에서 편집자와 뷰어 사이 변경은 관리자에게 열어 두어야 한다. 판정에는 요청 본문의 역할과 대상 멤버의 지금 역할이 필요하다. 그래서 서비스 계층에서 판정한다.
+
+이미 관리자인 멤버와 관리자 역할로 대기 중인 초대는 소급해 바꾸지 않았다. 소급하면 이미 합류한 관리자의 권한이 예고 없이 바뀐다. 대기 초대는 소유자가 대기 목록에서 취소할 수 있다. 초대 수락이 초대를 보낸 사람의 지금 역할을 다시 보지 않는 것도 같은 이유로 그대로 두었다.
+
+프론트엔드가 `OWNER_REQUIRED` 로 토스트를 가르는 곳은 소유자 이양 대화 상자뿐이다. 초대와 역할 변경은 서버 문구를 그대로 보여 주므로 같은 코드를 다시 써도 이양 안내가 잘못 뜨지 않는다. 화면은 소유자가 아닌 관리자에게 관리자 선택지를 숨기고 관리자 멤버를 읽기 전용 배지로 보여 준다. 화면 제한은 편의 기능이고 경계는 서버 판정이다.
+
+### 관리자 역할 판정의 요청자 역할은 잠그지 않고 읽는다
+
+2026-10-10 결정이다. 역할 변경(`updateMemberRole`), 직접 추가(`addMemberByEmail`), 초대(`invite`)는 요청자의 역할을 트랜잭션 밖에서 잠그지 않고 읽는다. 그 값으로 «관리자 역할은 소유자만» 을 판정한다([관리자 역할 규칙](#관리자-역할-규칙)). 잠그는 행은 요청자 행이 아니다. 역할 변경은 대상 멤버 행만 `pessimistic_write` 로 잠근다. 초대는 같은 이메일의 대기 초대 행만 잠근다. 직접 추가는 트랜잭션을 쓰지 않는다.
+
+요청자의 역할은 판정한 뒤 저장하기 전에 바뀔 수 있다. 그래도 관리자 역할을 주고 뺄 수 있는 사람이 늘지 않는다.
+
+- 소유자 이양과 겹칠 때: 방금 관리자로 내려간 옛 소유자의 관리자 부여가 통과할 수 있다. 소유자의 역할은 소유자 이양으로만 바뀌고 이양은 소유자 본인이 요청한다. 그래서 겹치는 두 요청은 같은 사람(옛 소유자)의 것이다. 결과는 관리자를 먼저 주고 이양한 것과 같고 그 순서는 규칙이 허용한다.
+- 소유자가 관리자를 내리는 요청과 겹칠 때: 내려가는 관리자는 판정 시점에 관리자여도 관리자 역할을 주거나 빼지 못한다. 그래서 이 규칙의 판정 결과는 같다.
+
+기각한 대안은 하나다.
+
+- 트랜잭션 안에서 요청자 행도 잠근다: 두 멤버가 서로를 대상으로 역할을 동시에 바꾸면 두 요청이 요청자 → 대상 순으로 잠그다 교착이 생길 수 있다. 위 두 경우에서 보듯 잠가서 막을 결과도 없다.
+
 ### 모델 설정은 편집자 CRUD, 인증 설정은 편집자 R 이다
 
 모델 설정(`/api/model-configs`)은 provider·모델·파라미터 같은 AI 모델 설정이라 워크플로우 구축의 일부로 편집자가 직접 관리한다. 코드의 `@Roles('editor')` 와 맞다. 반면 인증 설정은 외부 인증 자격 증명이라 편집자를 R 로 좁힌다. 통합(조직)도 외부 자격 증명이라 같은 논리로 편집자 R 이다. 두 리소스의 민감도 차이를 반영한 의도적인 권한 분리다.
@@ -565,7 +654,7 @@ sequenceDiagram
 
 그래서 멤버십 검증을 라우트 데코레이터에서 떼어 가드가 무조건 하게 했다. `@Roles()` 는 역할 계층 비교만 통제한다. 헤더 우선 순서는 그대로다. 바뀐 것은 헤더로 들어온 값의 검증 시점이 라우트별 opt-in 에서 가드 무조건으로 옮겨진 것이고, "멤버십 검증이 인증 진입점 한 곳으로 모인다" 는 목표를 헤더 제거를 기다리지 않고 앞당긴 것이다. 토큰 우선으로 되돌아간 것이 아니다.
 
-기각한 대안은 73개 라우트에 `@Roles('viewer')` 를 붙이는 것이다. opt-in 모델의 연장이라 74번째 라우트에서 같은 누락이 다시 생긴다. 이 저장소에서 이미 최소 두 번 일어났다. 원 보안 리뷰도 구조적 해소를 권고했다. 구현과 전수 목록은 `plan/complete/auth-workspace-membership-guard.md` 에 있다.
+기각한 대안은 73개 라우트에 `@Roles('viewer')` 를 붙이는 것이다. opt-in 모델의 연장이라 74번째 라우트에서 같은 누락이 다시 생긴다. 이 저장소에서 이미 최소 두 번 일어났다. 원 보안 리뷰도 구조적 해소를 권고했다. 구현과 전수 목록은 git 이력에 있다.
 
 가드는 요청이 도는 워크스페이스만 본다. 요청 본문의 참조 id 는 저장 때 서비스가 본다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
 
@@ -583,7 +672,7 @@ sequenceDiagram
 
 서비스 계층 검사는 남긴다. 이 메서드들의 HTTP 밖 호출자는 없다(그날 실측: 내부 위임 `removeMember → leaveWorkspace` 하나이고 가드를 거친 HTTP 요청 안이다). 그러니 서비스 검사가 막는 것은 다른 호출 경로가 아니라 가드 인식이 깨져 그냥 통과되는 경우다. 오라클이 있던 세 메서드도 인가를 앞으로 옮겨 두 번째 방어선에 같은 오라클이 남지 않게 했다.
 
-기각한 대안은 두 가지이고, 실측과 함께 선택지를 제시해 사용자가 결정했다. (1) 오라클 두 곳만 서비스에서 인가를 먼저 하도록 고친다: 위 결정이 74번째 라우트 문제로 기각한 라우트별 패치의 연장이다. (2) 가드가 경로 파라미터도 보되 거부에 코드를 붙이지 않는다: 경로 라우트 13곳의 거부 본문이 서비스 코드에서 `FORBIDDEN` 으로 바뀌고, 프론트엔드가 `OWNER_REQUIRED` 로 소유자 이양 토스트를 가르는 분기가 깨진다. 채택안은 아래 에러 코드 결정과 함께다. 결정 기록은 `plan/complete/spec-draft-workspace-path-guard.md` 에 있다.
+기각한 대안은 두 가지이고, 실측과 함께 선택지를 제시해 사용자가 결정했다. (1) 오라클 두 곳만 서비스에서 인가를 먼저 하도록 고친다: 위 결정이 74번째 라우트 문제로 기각한 라우트별 패치의 연장이다. (2) 가드가 경로 파라미터도 보되 거부에 코드를 붙이지 않는다: 경로 라우트 13곳의 거부 본문이 서비스 코드에서 `FORBIDDEN` 으로 바뀌고, 프론트엔드가 `OWNER_REQUIRED` 로 소유자 이양 토스트를 가르는 분기가 깨진다. 채택안은 아래 에러 코드 결정과 함께다. 결정 기록은 git 이력에 있다.
 
 2026-10-08 정정이다. 경로 값이 인가 대상인 라우트에서 가드는 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사하지 않는다. `@WorkspaceId()` 도 함께 소비하는 핸들러만 그 워크스페이스의 멤버십을 본다. 핸들러가 `@WorkspaceId()` 를 소비하지 않으면 헤더 값이 핸들러로 들어갈 통로가 없으므로 2026-08-08 의 헤더 위조 방어는 약해지지 않는다. NERV Task `CLE-T-9DBM7V` 의 구현 완료 검토가 헤더 멤버십 확인과 헤더 형식 검사 요구사항이 이 라우트도 헤더를 검사하는 것처럼 읽힌다고 지적해(finding 01a11b49-4407-7024-8428-7580e3b1fa32) 두 요구사항의 범위를 이 동작에 맞췄다. 정정을 검토한 결과 `WORKSPACE_ID_REQUIRED` 설명도 실제 발생 경로에 맞췄다(finding 01a11b52-e2ff-71ec-8668-422b77249cc8 · 01a11b5b-c443-719c-b49a-5f8c202de78b). 이 코드는 가드가 통과시킨 뒤 `@WorkspaceId()` 가 던진다. 그래서 경로 파라미터로 받는 워크스페이스가 없는 `@Roles()` 라우트에서 현재 워크스페이스가 없으면 이 코드가 아니라 가드의 코드 없는 거부가 난다. 가드 동작은 바뀌지 않았다.
 
@@ -591,7 +680,7 @@ sequenceDiagram
 
 2026-09-25 결정이다. 앞선 결정들은 가드 거부에 코드를 정하지 않았다. 새 경로에만 코드를 붙이면 같은 실패가 경로에 따라 다른 본문을 낸다는 이유였다. 코드를 정하지 않은 403 은 전역 필터가 기본값 `FORBIDDEN` 으로 채운다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 경로 라우트를 가드로 옮기면 그 라우트들이 서비스에서 내던 코드(`NOT_A_MEMBER`, `ADMIN_REQUIRED`, `OWNER_REQUIRED`)가 `FORBIDDEN` 으로 바뀐다. 그래서 가드의 모든 멤버십·역할 거부에 코드를 함께 붙였다.
 
-적용 범위는 전역이다. `RolesGuard` 는 `APP_GUARD` 라 경로 라우트 15곳만이 아니라 `@Roles()` 가 붙은 모든 라우트와 헤더 위조 거부에 적용된다. 결정 당시 `@Roles()` 라우트는 `editor` 63, `admin` 9, `owner` 3, `viewer` 4 로 합 79였고, 이 변경이 경로 라우트에 `admin` 8, `owner` 1 을 붙여 합 88이 됐다(AST 로 다시 셌다). 그 라우트들의 역할·멤버십 거부 wire 코드가 `FORBIDDEN` 에서 위 코드로 바뀌었고 상태 코드는 403 그대로다.
+적용 범위는 전역이다. `RolesGuard` 는 `APP_GUARD` 라 경로 라우트 15곳만이 아니라 `@Roles()` 가 붙은 모든 라우트와 헤더 위조 거부에 적용된다. 결정 당시 `@Roles()` 라우트는 `editor` 63, `admin` 9, `owner` 3, `viewer` 4 로 합 79였고, 이 변경이 경로 라우트에 `admin` 8, `owner` 1 을 붙여 합 88이 됐다(AST 로 다시 셌다). 그 라우트들의 역할·멤버십 거부 에러 코드가 `FORBIDDEN` 에서 위 코드로 바뀌었고 상태 코드는 403 그대로다.
 
 비멤버에게 어떤 코드를 줄지 두 규칙을 견줬다. (가) "라우트 요구 역할의 코드" 는 비멤버도 관리자 라우트에서 `ADMIN_REQUIRED` 를 받는다. (나) "비멤버는 항상 `NOT_A_MEMBER`, 멤버의 역할 미달만 역할 코드" 다. (가) 는 경로 라우트의 서비스 시절 본문을 비멤버까지 그대로 두지만, 헤더 위조 거부가 `editor` 라우트 63곳에서 `EDITOR_REQUIRED` 가 된다. 비멤버에게 "편집자 권한이 필요하다" 는 틀린 말이고, 프론트엔드가 "이 워크스페이스에 더는 속하지 않는다" 를 알아챌 단일 신호를 잃는다. 그래서 (나) 를 택했다. 대가로 경로 라우트 중 관리자·소유자 요구 10곳에서 비멤버가 받는 코드가 `ADMIN_REQUIRED`·`OWNER_REQUIRED` 에서 `NOT_A_MEMBER` 로 바뀌었다. 비멤버는 그 화면에 닿지 않고, 멤버가 받는 본문은 모두 보존된다.
 

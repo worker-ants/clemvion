@@ -12,6 +12,26 @@ You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as
 
 > Enabling both is recommended — if you lose your phone or break an authenticator, the other channel still works.
 
+## Turning off TOTP
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/profile/security/page.tsx"
+  symbol="SecurityPage"
+  describes="Profile → Security: the 2FA disable form (account password + verification code)"
+/>
+
+While TOTP is on, the 2FA card on [Profile → Security](/profile/security) shows a disable form. The password alone is not enough — fill in both fields.
+
+1. Enter your **account password**.
+2. Enter a **6-digit code or recovery code**. Use the current 6-digit code from your authenticator app, or one TOTP recovery code if you cannot use the app.
+3. Click **Disable 2FA**.
+
+- If the code is wrong, the request is rejected and 2FA stays on.
+- A recovery code used here is consumed, just like at sign-in, and cannot be used again.
+- After TOTP is off, the TOTP secret and any remaining recovery codes are deleted. Turning it on again issues 10 new recovery codes.
+- Passkeys and their recovery codes are separate from TOTP and stay as they are.
+
 ## Registering a Passkey
 
 1. Open [Profile → Security](/profile/security) → in the **Passkey · Security Key** card, optionally enter a device name and click **Register Passkey**.

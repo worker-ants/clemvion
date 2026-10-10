@@ -96,7 +96,7 @@ const ACTIVE_SESSIONS = [
 test.describe("Profile sessions page", () => {
   test("활성 세션 목록 + 현재 세션 표시", async ({ page }) => {
     await mockAuth(page);
-    await page.route("**/api/users/me/sessions", async (route) => {
+    await page.route("**/api/auth/sessions", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -126,7 +126,7 @@ test.describe("Profile sessions page", () => {
     await mockAuth(page);
 
     let revoked = false;
-    await page.route("**/api/users/me/sessions", async (route) => {
+    await page.route("**/api/auth/sessions", async (route) => {
       // SessionListDto: 외부 wrapper 까지 합쳐 `{ data: { items: SessionDto[] } }`
       const body = revoked
         ? { data: { items: [ACTIVE_SESSIONS[0]] } }
@@ -137,7 +137,7 @@ test.describe("Profile sessions page", () => {
         body: JSON.stringify(body),
       });
     });
-    await page.route("**/api/users/me/sessions/*/revoke", async (route) => {
+    await page.route("**/api/auth/sessions/*/revoke", async (route) => {
       revoked = true;
       await route.fulfill({
         status: 200,

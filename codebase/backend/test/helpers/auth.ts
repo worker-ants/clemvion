@@ -82,7 +82,36 @@ export async function createTeamWorkspace(
   return (res.body.data as { id: string }).id;
 }
 
-export type WorkspaceRole = 'owner' | 'editor' | 'viewer';
+export type WorkspaceRole = 'owner' | 'admin' | 'editor' | 'viewer';
+
+/**
+ * 초대 요청을 보내고 응답을 그대로 돌려준다. 거부 응답을 단언하는 테스트가 쓴다.
+ *
+ * invitation 엔드포인트는 1분당 10건 throttler 가 걸려있어, e2e suite 들의
+ * 누적 invitation 이 한도를 넘으면 429 가 나온다. 최대 3회 backoff 재시도로
+ * throttle window 가 회전하길 기다린다 (총 최대 ~30s 대기).
+ */
+export async function postInvitation(
+  baseUrl: string,
+  requesterToken: string,
+  workspaceId: string,
+  inviteeEmail: string,
+  role: Exclude<WorkspaceRole, 'owner'>,
+): Promise<request.Response> {
+  const inviteOnce = () =>
+    request(baseUrl)
+      .post(`/api/workspaces/${workspaceId}/invitations`)
+      .set('Authorization', `Bearer ${requesterToken}`)
+      .send({ email: inviteeEmail, role });
+
+  let inviteRes = await inviteOnce();
+  const backoffs = [3_000, 8_000, 20_000];
+  for (let i = 0; i < backoffs.length && inviteRes.status === 429; i++) {
+    await new Promise((r) => setTimeout(r, backoffs[i]));
+    inviteRes = await inviteOnce();
+  }
+  return inviteRes;
+}
 
 /**
  * 초대 1건을 만들고 그 초대 id 를 돌려준다. 토큰은 돌려주지 않는다 — 필요하면 호출자가
@@ -95,21 +124,13 @@ export async function createInvitation(
   inviteeEmail: string,
   role: Exclude<WorkspaceRole, 'owner'>,
 ): Promise<string> {
-  // invitation 엔드포인트는 1분당 10건 throttler 가 걸려있어, e2e suite 들의
-  // 누적 invitation 이 한도를 넘으면 429 가 나온다. 최대 3회 backoff 재시도로
-  // throttle window 가 회전하길 기다린다 (총 최대 ~30s 대기).
-  const inviteOnce = () =>
-    request(baseUrl)
-      .post(`/api/workspaces/${workspaceId}/invitations`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ email: inviteeEmail, role });
-
-  let inviteRes = await inviteOnce();
-  const backoffs = [3_000, 8_000, 20_000];
-  for (let i = 0; i < backoffs.length && inviteRes.status === 429; i++) {
-    await new Promise((r) => setTimeout(r, backoffs[i]));
-    inviteRes = await inviteOnce();
-  }
+  const inviteRes = await postInvitation(
+    baseUrl,
+    ownerToken,
+    workspaceId,
+    inviteeEmail,
+    role,
+  );
   if (inviteRes.status !== 201) {
     throw new Error(
       `invite failed: ${inviteRes.status} ${JSON.stringify(inviteRes.body)}`,
@@ -208,4 +229,52 @@ export function extractRefreshCookie(
   if (!setCookieHeader) return null;
   const match = setCookieHeader.find((c) => c.startsWith('refreshToken='));
   return match ? match.split(';')[0] : null;
+}
+
+/**
+ * refresh cookie 의 `이름=값` 과 `Path` 속성. 브라우저처럼 Path 가 맞는 요청에만
+ * 쿠키를 붙이려고 둘을 함께 들고 다닌다.
+ */
+export interface BrowserCookie {
+  pair: string;
+  path: string;
+}
+
+/**
+ * refresh cookie 를 Path 속성과 함께 꺼낸다. Path 가 없으면 브라우저 동작을 흉내 낼
+ * 수 없으므로 던진다.
+ *
+ * supertest agent 의 cookie jar 는 http 위에서 Secure 쿠키를 보내지 않아서 쓰지 않는다.
+ */
+export function extractRefreshBrowserCookie(
+  setCookieHeader: string[] | undefined,
+): BrowserCookie {
+  const match = setCookieHeader?.find((c) => c.startsWith('refreshToken='));
+  if (!match) throw new Error('no refresh cookie in Set-Cookie');
+  const [pair, ...attrs] = match.split(';').map((s) => s.trim());
+  const pathAttr = attrs.find((a) => a.toLowerCase().startsWith('path='));
+  if (!pathAttr) throw new Error('refresh cookie has no Path attribute');
+  return { pair, path: pathAttr.slice('path='.length) };
+}
+
+/** RFC 6265 §5.1.4 path-match 규칙. */
+export function cookiePathMatches(
+  cookiePath: string,
+  requestPath: string,
+): boolean {
+  if (requestPath === cookiePath) return true;
+  if (!requestPath.startsWith(cookiePath)) return false;
+  return cookiePath.endsWith('/') || requestPath[cookiePath.length] === '/';
+}
+
+/**
+ * 브라우저가 `requestPath` 로 보낼 Cookie 헤더 값. Path 가 맞지 않으면 브라우저는
+ * 쿠키를 보내지 않으므로 undefined 를 돌려준다.
+ */
+export function browserCookieFor(
+  cookie: BrowserCookie,
+  requestPath: string,
+): string | undefined {
+  const pathOnly = requestPath.split('?')[0];
+  return cookiePathMatches(cookie.path, pathOnly) ? cookie.pair : undefined;
 }

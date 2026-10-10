@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
+import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
 import {
   ApiTags,
   ApiOperation,
@@ -322,27 +323,31 @@ export class AuthController {
   @Post('2fa/disable')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  // 6자리 코드 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
+  @Throttle(SENSITIVE_ACTION_THROTTLE)
   @ApiOperation({
     summary: '2FA 비활성',
     description:
-      '비밀번호 재확인 후 2FA를 비활성화하고 복구 코드를 폐기합니다.',
+      '비밀번호와 인증 코드(Authenticator 앱의 6자리 코드 또는 복구 코드)를 모두 확인한 뒤 2FA를 비활성화하고 복구 코드를 폐기합니다. 복구 코드로 확인하면 그 코드는 소비됩니다.',
   })
   @ApiOkWrappedResponse(TotpDisableResultDto, {
     description: '2FA 비활성화 완료',
   })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 (비밀번호 또는 코드 누락 포함)',
+  })
   @ApiUnauthorizedResponse({
-    description: '인증 실패, 토큰 만료, 또는 비밀번호 불일치',
+    description:
+      '인증 실패, 토큰 만료, 비밀번호 불일치, 또는 인증 코드 불일치(TOTP_INVALID)',
   })
   async disable2fa(
     @CurrentUser() user: JwtPayload,
     @Body() dto: Disable2faDto,
     @Req() req: Express.Request,
   ) {
-    // [refactor 02 C-3] 비밀번호 재확인은 AuthService 로 이관 (레이어 정렬,
-    // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
-    await this.authService.verifyPasswordForUser(user.sub, dto.password);
-    await this.totpService.disable(user.sub);
+    // 재인증 순서(비밀번호 → 코드 → 해제)는 AuthService 한 메서드가 지킨다. 비밀번호만으로는 끄지 않는다
+    // (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN). 에러 코드·메시지·401 shape 은 각 확인이 내는 그대로다.
+    await this.authService.disableTwoFactor(user.sub, dto.password, dto.code);
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속.
     // ipAddress 동반(포렌식, data-flow §1.1).
     await this.auditLogsService.record({

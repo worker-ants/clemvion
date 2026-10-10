@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DeleteResult, FindOperator } from 'typeorm';
@@ -11,6 +11,7 @@ import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import type { WorkspaceRole } from './dto/add-member.dto';
 
 describe('WorkspacesService', () => {
   let service: WorkspacesService;
@@ -1055,6 +1056,233 @@ describe('WorkspacesService', () => {
           },
         });
         expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  /**
+   * NERV CLE-ACCT-WS 「관리자 역할 규칙」 — 관리자 역할을 주고 빼는 일(역할 변경 · 직접 추가)은 owner 만 한다.
+   * 에디터 · 뷰어 사이의 변경은 그대로 관리자 이상이다(CLE-T-0W7CA7, finding 01a0e542-19b6-755c-ad55-49c907b87cd1).
+   */
+  describe('관리자 역할을 주고 빼는 일은 owner 만 한다', () => {
+    const REQUESTER = 'user-requester';
+    const OWNER_ONLY = {
+      code: 'OWNER_REQUIRED',
+      message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+    };
+
+    /** 요청자 role 조회(userId)와 대상 멤버 조회(id)를 호출 순서가 아니라 where 로 가른다. */
+    function mockMembers(
+      requesterRole: string,
+      target?: { id: string; role: string },
+    ): void {
+      memberRepo.findOne.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.userId === REQUESTER) {
+            return Promise.resolve({ role: requesterRole });
+          }
+          if (target && where.id === target.id) {
+            return Promise.resolve({
+              ...target,
+              userId: 'user-target',
+              workspaceId: 'ws-uuid-1',
+            });
+          }
+          return Promise.resolve(null);
+        },
+      );
+    }
+
+    function userRepo(): { findOne: jest.Mock } {
+      return (service as unknown as { userRepository: { findOne: jest.Mock } })
+        .userRepository;
+    }
+
+    async function rejection(promise: Promise<unknown>): Promise<unknown> {
+      return promise.then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (err: unknown) => err,
+      );
+    }
+
+    const adminTouching: Array<[string, WorkspaceRole, WorkspaceRole]> = [
+      ['editor → admin', 'editor', 'admin'],
+      ['viewer → admin', 'viewer', 'admin'],
+      ['admin → editor', 'admin', 'editor'],
+      ['admin → viewer', 'admin', 'viewer'],
+    ];
+
+    it.each([
+      ...adminTouching,
+      ['admin → admin', 'admin', 'admin'] as [
+        string,
+        WorkspaceRole,
+        WorkspaceRole,
+      ],
+    ])(
+      'updateMemberRole — admin 요청자의 %s 는 403 OWNER_REQUIRED 이고 저장 · 감사하지 않는다',
+      async (_label, from, to) => {
+        mockMembers('admin', { id: 'mem-t', role: from });
+
+        const err = await rejection(
+          service.updateMemberRole('ws-uuid-1', 'mem-t', to, REQUESTER),
+        );
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toEqual(OWNER_ONLY);
+        expect(memberRepo.save).not.toHaveBeenCalled();
+        expect(getAudit().record).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(adminTouching)(
+      'updateMemberRole — owner 요청자의 %s 는 저장한다',
+      async (_label, from, to) => {
+        mockMembers('owner', { id: 'mem-t', role: from });
+
+        await service.updateMemberRole('ws-uuid-1', 'mem-t', to, REQUESTER);
+        expect(memberRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'mem-t', role: to }),
+        );
+      },
+    );
+
+    it.each([
+      ['editor → viewer', 'editor', 'viewer'],
+      ['viewer → editor', 'viewer', 'editor'],
+    ] as Array<[string, WorkspaceRole, WorkspaceRole]>)(
+      'updateMemberRole — admin 요청자의 %s 는 그대로 허용한다',
+      async (_label, from, to) => {
+        mockMembers('admin', { id: 'mem-t', role: from });
+
+        await service.updateMemberRole('ws-uuid-1', 'mem-t', to, REQUESTER);
+        expect(memberRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'mem-t', role: to }),
+        );
+      },
+    );
+
+    it('updateMemberRole — 대상 행은 트랜잭션 안에서 pessimistic_write 로 읽고 저장한다(요청자 조회는 무락)', async () => {
+      mockMembers('admin', { id: 'mem-t', role: 'editor' });
+      // 트랜잭션 안에서 일어난 호출만 모은다 — 잠그지 않은 읽기 뒤의 `save` 는 동시 변경을 덮어쓴다.
+      const manager = (
+        memberRepo as unknown as { manager: { transaction: jest.Mock } }
+      ).manager;
+      const inTx: string[] = [];
+      let inside = false;
+      const wrapped = manager.transaction.getMockImplementation()!;
+      manager.transaction.mockImplementation(async (cb: unknown) => {
+        inside = true;
+        try {
+          return await wrapped(cb);
+        } finally {
+          inside = false;
+        }
+      });
+      const read = memberRepo.findOne.getMockImplementation()!;
+      memberRepo.findOne.mockImplementation((opts: unknown) => {
+        const { where } = opts as { where: Record<string, unknown> };
+        inTx.push(`findOne:${where.userId ? 'requester' : 'target'}:${inside}`);
+        return read(opts);
+      });
+      memberRepo.save.mockImplementation((data: unknown) => {
+        inTx.push(`save:${inside}`);
+        return Promise.resolve(data);
+      });
+
+      await service.updateMemberRole('ws-uuid-1', 'mem-t', 'viewer', REQUESTER);
+
+      expect(inTx).toEqual([
+        'findOne:requester:false',
+        'findOne:target:true',
+        'save:true',
+      ]);
+      expect(memberRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'mem-t', workspaceId: 'ws-uuid-1' },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const requesterCall = memberRepo.findOne.mock.calls.find(
+        ([opts]) => (opts as { where: { userId?: string } }).where.userId,
+      )![0] as Record<string, unknown>;
+      expect(requesterCall.lock).toBeUndefined();
+      // 감사는 커밋 뒤에 남긴다.
+      expect(getAudit().record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGED,
+          resourceId: 'mem-t',
+          details: {
+            from: 'editor',
+            to: 'viewer',
+            memberUserId: 'user-target',
+          },
+        }),
+      );
+    });
+
+    it('updateMemberRole — 대상이 사라졌으면 잠금 안에서 404 MEMBER_NOT_FOUND 이고 저장하지 않는다', async () => {
+      mockMembers('admin');
+
+      await expect(
+        service.updateMemberRole('ws-uuid-1', 'mem-gone', 'viewer', REQUESTER),
+      ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    it('updateMemberRole — owner 대상 · owner 부여는 요청자가 owner 여도 OWNER_ROLE_PROTECTED 로 남는다', async () => {
+      mockMembers('owner', { id: 'mem-t', role: 'editor' });
+
+      await expect(
+        service.updateMemberRole('ws-uuid-1', 'mem-t', 'owner', REQUESTER),
+      ).rejects.toMatchObject({ response: { code: 'OWNER_ROLE_PROTECTED' } });
+    });
+
+    it('addMemberByEmail — admin 요청자가 admin 으로 추가하면 403 OWNER_REQUIRED 이고 사용자를 조회하지 않는다', async () => {
+      mockMembers('admin');
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      const err = await rejection(
+        service.addMemberByEmail(
+          'ws-uuid-1',
+          'added@example.com',
+          'admin',
+          REQUESTER,
+        ),
+      );
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).getResponse()).toEqual(OWNER_ONLY);
+      expect(userRepo().findOne).not.toHaveBeenCalled();
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['owner', 'admin'],
+      ['admin', 'editor'],
+      ['admin', 'viewer'],
+    ] as Array<[string, WorkspaceRole]>)(
+      'addMemberByEmail — %s 요청자는 %s 로 추가할 수 있다',
+      async (requesterRole, role) => {
+        mockMembers(requesterRole);
+        workspaceRepo.findOne.mockResolvedValue({
+          ...mockWorkspace,
+          type: 'team',
+        });
+        userRepo().findOne.mockResolvedValue({ id: 'user-added' });
+        memberRepo.save.mockResolvedValue({ id: 'mem-added' });
+
+        await service.addMemberByEmail(
+          'ws-uuid-1',
+          'added@example.com',
+          role,
+          REQUESTER,
+        );
+        expect(memberRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: 'user-added', role }),
+        );
       },
     );
   });

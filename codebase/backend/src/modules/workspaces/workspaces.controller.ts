@@ -35,7 +35,10 @@ import {
   forbiddenWithService,
 } from '../../common/swagger';
 import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
-import { ROLE_REQUIRED } from '../../common/constants/workspace-roles';
+import {
+  ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
+  ROLE_REQUIRED,
+} from '../../common/constants/workspace-roles';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -63,6 +66,13 @@ import { Roles } from '../../common/guards/roles.guard';
 // 초대 발송·재발송(email-bombing) 방지 — 분당 10회. 값 SoT 는 공통 상수
 // `SENSITIVE_ACTION_THROTTLE`; 라우트 의미는 이 별칭으로 표현한다.
 const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
+
+// 멤버 직접 추가 · 역할 변경 · 초대의 403 — Admin 요구(가드)와 관리자 역할을 주고 빼는 요청의 Owner 요구(서비스).
+// NERV CLE-ACCT-WS 「관리자 역할 규칙」. 세 라우트가 같은 문장을 쓴다.
+const FORBIDDEN_ADMIN_OR_ADMIN_ROLE_OWNER_ONLY = forbiddenWithService(
+  forbiddenForRole('admin'),
+  `관리자 역할을 주거나 빼는 요청은 Owner 만 가능(${ADMIN_ROLE_CHANGE_REQUIRES_OWNER.code} — 서비스 판정)`,
+);
 
 /** 삭제 · 이양의 403 — Owner 요구(가드)와 개인 워크스페이스 거부(서비스). 두 라우트가 같은 문장을 쓴다. */
 const FORBIDDEN_OWNER_OR_PERSONAL = forbiddenWithService(
@@ -328,7 +338,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '이메일로 멤버 추가',
     description:
-      '이미 가입된 사용자를 즉시 멤버로 추가합니다. 미가입자에게는 `POST /workspaces/:id/invitations` 의 초대 토큰 흐름을 사용하세요.',
+      '이미 가입된 사용자를 즉시 멤버로 추가합니다. 미가입자에게는 `POST /workspaces/:id/invitations` 의 초대 토큰 흐름을 사용하세요. 관리자 역할로 추가하는 요청은 Owner 만 할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(MemberRoleDto, { description: '추가된 멤버 정보' })
@@ -337,7 +347,7 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: forbiddenForRole('admin'),
+    description: FORBIDDEN_ADMIN_OR_ADMIN_ROLE_OWNER_ONLY,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 속한 멤버' })
@@ -359,7 +369,8 @@ export class WorkspacesController {
   @Roles('admin')
   @ApiOperation({
     summary: '멤버 역할 변경',
-    description: '지정한 멤버의 역할(role)을 변경합니다. Admin+ 권한 필요.',
+    description:
+      '지정한 멤버의 역할(role)을 변경합니다. Admin+ 권한 필요. 관리자 역할을 주거나 빼는 변경은 Owner 만 할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiParam({ name: 'memberId', description: '멤버 UUID', format: 'uuid' })
@@ -367,7 +378,7 @@ export class WorkspacesController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: forbiddenForRole('admin'),
+    description: FORBIDDEN_ADMIN_OR_ADMIN_ROLE_OWNER_ONLY,
   })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async updateMember(
@@ -453,7 +464,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '미가입자 초대(Admin+)',
     description:
-      '이메일로 초대 토큰을 발송합니다. 동일 이메일의 대기 중 초대가 있으면 기존 토큰을 무효화하고 새 토큰으로 재발급합니다.',
+      '이메일로 초대 토큰을 발송합니다. 동일 이메일의 대기 중 초대가 있으면 기존 토큰을 무효화하고 새 토큰으로 재발급합니다. 관리자 역할 초대와 관리자 대기 초대 덮어쓰기는 Owner 만 할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(InvitationCreatedDto, {
@@ -462,7 +473,7 @@ export class WorkspacesController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: forbiddenForRole('admin'),
+    description: FORBIDDEN_ADMIN_OR_ADMIN_ROLE_OWNER_ONLY,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 워크스페이스 멤버인 이메일' })

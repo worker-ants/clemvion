@@ -66,6 +66,8 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     SessionsService,
     LoginHistoryPrunerService,
   ],
-  exports: [AuthService, TotpService, LoginHistoryService, WebAuthnModule],
+  // `TotpService` 는 export 하지 않는다 — `disableUnchecked` 가 재인증을 확인하지 않아, 이 모듈 밖에서 주입받으면 2FA 해제의
+  // 재인증(`AuthService.disableTwoFactor`)을 건너뛸 수 있다.
+  exports: [AuthService, LoginHistoryService, WebAuthnModule],
 })
 export class AuthModule {}
