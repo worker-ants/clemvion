@@ -41,13 +41,30 @@ def read_payload(stream=None) -> dict:
 
 
 def payload_cwd(payload) -> str | None:
-    """The directory a hook should judge: the input's `cwd` when it is a non-empty string, else None.
+    """The directory a hook should judge: the input's `cwd` when it names an existing directory by an
+    absolute path, else None.
 
     None makes `branch_guard.evaluate()` fall back to `os.getcwd()`, the behaviour before hooks
     read their input. Kept in one place so the three default-branch hooks cannot drift on what
     counts as a usable `cwd`.
+
+    **A `cwd` that cannot be judged is treated like no `cwd` at all**, so the answer is the process
+    directory's, which is the main checkout. That covers a value that is not a string, an empty
+    string, a relative path, a path that does not exist (a session whose worktree was deleted) and a
+    path that is not a directory. The other choice, passing such a value on, makes `evaluate()` call
+    git in a directory it cannot enter: it reports "not inside a git repository" and allows. The
+    guard would then go quiet exactly when the session's location is lost, and Write/Edit on the
+    default branch of the main worktree would pass. Falling back keeps what the guard did before it
+    read its input, and its refusal tells the session to create a worktree. A relative path is not
+    resolved against the process directory either: the harness sends absolute paths, so a relative
+    one is malformed, and resolving it would silently pick whichever directory the process sits in.
+
+    An existing absolute directory is taken as it is, including one outside any git repository.
+    `evaluate()` allows that ("not inside a git repository"): there is no default branch to protect.
     """
     if not isinstance(payload, dict):
         return None
     cwd = payload.get("cwd")
-    return cwd if isinstance(cwd, str) and cwd else None
+    if not isinstance(cwd, str) or not cwd:
+        return None
+    return cwd if os.path.isabs(cwd) and os.path.isdir(cwd) else None

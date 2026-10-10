@@ -66,6 +66,8 @@ class _Fixture(unittest.TestCase):
         # Python 은 UTF-8 로캘에서 stdin 을 strict 로, C 로캘에서 surrogateescape 로 읽는다. UTF-8 이 아닌
         # 입력이 UnicodeDecodeError 를 내는 쪽(strict)으로 고정해야 로캘과 상관없이 같은 경로를 잰다.
         env["PYTHONIOENCODING"] = "utf-8:strict"
+        # 저장소 밖 디렉터리를 주는 케이스가 위쪽 어딘가의 저장소를 찾아 그것으로 판정되지 않게 한다.
+        env["GIT_CEILING_DIRECTORIES"] = self.tmp
         # 바이트로 보낸다. UTF-8 이 아닌 입력을 그대로 넣으려면 text 모드를 쓸 수 없다.
         raw = stdin.encode("utf-8") if isinstance(stdin, str) else stdin
         proc = subprocess.run([sys.executable, str(_harness.HOOKS_DIR / hook)], input=raw,
@@ -129,6 +131,59 @@ class ProcessCwdFallbackTest(_Fixture):
                                                           stdin=self.payload(hook, cwd=bad)))
 
 
+class UnusableCwdTest(_Fixture):
+    """`cwd` 가 문자열이지만 판정에 쓸 수 없는 경우(없는 경로 · 디렉터리가 아님 · 상대 경로)는 프로세스 디렉터리로 판정한다.
+
+    그대로 넘기면 `evaluate()` 가 들어갈 수 없는 디렉터리에서 git 을 돌려 「저장소 밖」으로 통과시킨다. 세션의
+    작업 트리가 지워진 뒤처럼 위치를 잃은 순간에 보호가 조용해지므로, 고치기 전과 같은 쪽(프로세스 디렉터리)으로
+    되돌린다. 실제 디렉터리인데 저장소 밖이면 판정할 기본 브랜치가 없으니 통과한다.
+    """
+
+    def assertJudgedByTheProcessDirectory(self, hook: str, cwd: str, *, main: bool = True, worktree: bool = True):
+        if main:
+            with self.subTest(hook=hook, cwd=cwd, process="main"):
+                self.assertFires(hook, self.run_hook(hook, process_cwd=self.main,
+                                                     stdin=self.payload(hook, cwd=cwd)))
+        if worktree:
+            with self.subTest(hook=hook, cwd=cwd, process="worktree"):
+                self.assertSilent(hook, self.run_hook(hook, process_cwd=self.worktree,
+                                                      stdin=self.payload(hook, cwd=cwd)))
+
+    def test_a_cwd_that_does_not_exist_is_judged_by_the_process_directory(self):
+        gone = os.path.join(self.tmp, "deleted-worktree")
+        self.assertFalse(os.path.exists(gone))
+        for hook in HOOKS:
+            self.assertJudgedByTheProcessDirectory(hook, gone)
+
+    def test_a_cwd_that_is_a_file_is_judged_by_the_process_directory(self):
+        # linked worktree 의 `.git` 은 디렉터리가 아니라 `gitdir: ...` 한 줄짜리 파일이다.
+        a_file = os.path.join(self.worktree, ".git")
+        self.assertTrue(os.path.isfile(a_file))
+        for hook in HOOKS:
+            self.assertJudgedByTheProcessDirectory(hook, a_file)
+
+    def test_a_relative_cwd_is_judged_by_the_process_directory_not_resolved_against_it(self):
+        # 상대 경로를 프로세스 디렉터리 기준으로 풀면 `../wt` 는 main 에서 worktree 를, `../main` 은 worktree 에서
+        # main 을 가리킨다. 풀지 않으니 두 방향 모두 프로세스 디렉터리의 판정이 나온다.
+        self.assertTrue(os.path.samefile(os.path.join(self.main, "..", "wt"), self.worktree))
+        for hook in HOOKS:
+            with self.subTest(hook=hook, cwd="../wt", process="main"):
+                self.assertFires(hook, self.run_hook(hook, process_cwd=self.main,
+                                                     stdin=self.payload(hook, cwd="../wt")))
+            with self.subTest(hook=hook, cwd="../main", process="worktree"):
+                self.assertSilent(hook, self.run_hook(hook, process_cwd=self.worktree,
+                                                      stdin=self.payload(hook, cwd="../main")))
+
+    def test_an_existing_directory_outside_any_repository_is_allowed(self):
+        outside = os.path.join(self.tmp, "outside")
+        os.makedirs(outside, exist_ok=True)
+        for hook in HOOKS:
+            with self.subTest(hook=hook):
+                # 프로세스는 막는 곳에 있다. 폴백했다면 여기서 막는다.
+                self.assertSilent(hook, self.run_hook(hook, process_cwd=self.main,
+                                                      stdin=self.payload(hook, cwd=outside)))
+
+
 class UnreadableInputTest(_Fixture):
     """입력을 읽지 못하면 고치기 전과 같다. 판정은 프로세스 디렉터리이고 입력이 없는 것처럼 다룬다."""
 
@@ -159,8 +214,9 @@ class HookInputTest(unittest.TestCase):
     """세 훅이 입력을 읽고 판정 디렉터리를 꺼내는 규칙. `_lib/hook_input.py` 한 곳에 두어 셋이 갈리지 않게 한다."""
 
     def test_only_a_non_empty_string_is_taken(self):
-        self.assertEqual(hook_input.payload_cwd({"cwd": "/w"}), "/w")
-        for payload in ({}, {"cwd": ""}, {"cwd": None}, {"cwd": 0}, {"cwd": ["/w"]}, {"cwd": {"p": "/w"}}):
+        here = os.path.dirname(os.path.abspath(__file__))
+        self.assertEqual(hook_input.payload_cwd({"cwd": here}), here)
+        for payload in ({}, {"cwd": ""}, {"cwd": None}, {"cwd": 0}, {"cwd": [here]}, {"cwd": {"p": here}}):
             with self.subTest(payload=payload):
                 self.assertIsNone(hook_input.payload_cwd(payload))
 
@@ -168,6 +224,14 @@ class HookInputTest(unittest.TestCase):
         for payload in (None, [], "cwd", 3):
             with self.subTest(payload=payload):
                 self.assertIsNone(hook_input.payload_cwd(payload))
+
+    def test_a_cwd_that_cannot_be_judged_is_not_taken(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        self.assertEqual(hook_input.payload_cwd({"cwd": here}), here)
+        for cwd in (os.path.join(here, "no-such-directory"), os.path.abspath(__file__), "tests", ".", "..",
+                    "bad\0path"):
+            with self.subTest(cwd=cwd):
+                self.assertIsNone(hook_input.payload_cwd({"cwd": cwd}))
 
     def test_an_object_is_read_as_it_is(self):
         self.assertEqual(hook_input.read_payload(io.StringIO('{"cwd": "/w", "n": 1}')), {"cwd": "/w", "n": 1})
