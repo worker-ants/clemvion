@@ -23,6 +23,15 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# 세션 디렉터리 이름은 다른 오케스트레이터와 같은 하네스 공용 모듈이 정한다.
+# 세 오케스트레이터와 같은 import 로 읽으려고 `.claude/` 를 sys.path 에 넣는다. 이 스크립트는 lib/ 를 쓰지 않아서
+# skill 경로는 넣지 않는다. `not in` 검사가 있어서 테스트가 이 모듈을 다시 읽어도 경로가 쌓이지 않는다.
+_CLAUDE_DIR = str(Path(__file__).resolve().parents[3])  # .claude/
+if _CLAUDE_DIR not in sys.path:
+    sys.path.insert(0, _CLAUDE_DIR)
+
+from _shared import session  # noqa: E402
+
 VALID_MODES = ("forward", "reverse", "both")
 
 # 적용 대상의 정본(`CLE-ENG-SPECEVIDENCE` 「적용 대상」)과 그 목록. 포함 목록과 제외 항목은 정본과
@@ -52,10 +61,11 @@ def repo_root() -> Path:
 
 
 def session_dir(root: Path) -> Path:
-    now = datetime.now(timezone.utc)
-    base = root / ".review" / "spec-coverage" / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d") / now.strftime("%H_%M_%S")
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    """세션 디렉터리 `.review/spec-coverage/<Y>/<m>/<d>/<H_M_S>[_<n>]` 를 만든다.
+
+    이름은 다른 오케스트레이터와 같은 `create_session_dir` 가 정한다. 같은 초에 또 돌면 `_2` · `_3` 을 받는다.
+    이름의 시각은 로컬 시각이다. `meta.json` 의 `created_utc` 는 UTC 다."""
+    return Path(session.create_session_dir(str(root / ".review" / "spec-coverage")))
 
 
 def env_summary() -> dict:

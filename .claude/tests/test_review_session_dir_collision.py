@@ -15,29 +15,33 @@
 일부만 리뷰된다" 로 보였다. 병렬 Claude 세션 두 개도 같은 방식으로 충돌한다.
 
 `_harness` 의 fresh-interpreter 규약을 따르지 않는다 — 여기서 쓰는 것은
-orchestrator 가 아니라 `lib/session.py` 이고, 그 모듈은 `_lib` 이름 충돌과 무관하다.
+orchestrator 가 아니라 `_shared/session.py` 이고, 그 모듈은 `_lib` 이름 충돌과 무관하다.
+
+`EveryOrchestratorNamesItsSessionHereTest` 는 오케스트레이터 소스를 읽는다. `_shared/session.py` 가 `_N` 을 붙여도
+이름을 따로 만드는 오케스트레이터는 그 보호를 받지 못한다.
 """
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import os
 import shutil
 import tempfile
+import textwrap
 import unittest
+import warnings
 from datetime import datetime
 from unittest import mock
 
 import _harness
 from _harness import REPO_ROOT
 
-SESSION_PY = (
-    REPO_ROOT / ".claude" / "skills" / "code-review-agents" / "lib" / "session.py"
-)
+SESSION_PY = REPO_ROOT / ".claude" / "_shared" / "session.py"
 
 
 def _load_session_module():
-    spec = importlib.util.spec_from_file_location("_cr_session", SESSION_PY)
+    spec = importlib.util.spec_from_file_location("_shared_session", SESSION_PY)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -152,6 +156,113 @@ class SameSecondSessionsGetDistinctDirectoriesTest(unittest.TestCase):
             b = self.session.create_session_dir(self.tmp, subdir="consistency")
         self.assertNotEqual(a, b)
         self.assertIn("consistency", a)
+
+
+def _session_naming(src: str) -> dict[str, bool]:
+    """오케스트레이터 소스가 세션 이름을 어디서 받는지 세 가지로 판정한다.
+
+    문자열 포함으로 보면 주석 `# was session.create_session_dir(` 한 줄만 있어도 호출이 있다고 판정됐다(코드 리뷰
+    `CLE-T-XM6YV0` 의 W1). 그래서 구문 트리로 본다. 주석은 파싱할 때 사라지고 docstring 은 따로 뺀다."""
+    with warnings.catch_warnings():
+        # consistency 오케스트레이터 docstring 의 `\`` 같은 이스케이프 경고는 이 판정과 무관하다.
+        warnings.simplefilter("ignore", (DeprecationWarning, SyntaxWarning))
+        tree = ast.parse(src)
+    nodes = list(ast.walk(tree))
+    docstrings = set()
+    for node in nodes:
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                docstrings.add(id(first.value))
+    return {
+        "imports _shared.session": any(
+            isinstance(n, ast.ImportFrom) and n.module == "_shared"
+            and any(a.name == "session" and a.asname is None for a in n.names)
+            for n in nodes
+        ),
+        "calls session.create_session_dir": any(
+            isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "create_session_dir"
+            and isinstance(n.func.value, ast.Name) and n.func.value.id == "session"
+            for n in nodes
+        ),
+        "formats %H_%M_%S itself": any(
+            isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and "%H_%M_%S" in n.value and id(n) not in docstrings
+            for n in nodes
+        ),
+    }
+
+
+class EveryOrchestratorNamesItsSessionHereTest(unittest.TestCase):
+    """오케스트레이터는 모두 이 모듈의 `create_session_dir` 로 세션 이름을 받는다(NERV Task `CLE-T-XM6YV0`).
+
+    spec-coverage 는 2026-10-10 까지 `%H_%M_%S` 이름을 `exist_ok=True` 로 직접 만들어서 같은 초의 두 실행이 한
+    디렉터리를 같이 썼다(`CLE-T-B866CD`). 소스를 구문 트리로 읽어 세 가지를 본다. `from _shared import session` 이
+    있다. `session.create_session_dir(...)` 호출이 있다. docstring 밖의 문자열에 `%H_%M_%S` 가 없다. 주석과
+    docstring 은 판정에 들어가지 않는다. 다른 형식으로 이름을 직접 만드는 코드, 형식 문자열을 쪼개 이어 붙인 코드,
+    호출 결과를 버리는 코드는 잡지 못한다. 오케스트레이터마다 인자와 저장소 준비가 달라서 동작으로 대조하지 않았다."""
+
+    EXPECTED_ORCHESTRATORS = {
+        "code_review_orchestrator.py",
+        "consistency_orchestrator.py",
+        "merge_coordinator_orchestrator.py",
+        "spec_coverage_orchestrator.py",
+    }
+    EXPECTED = {
+        "imports _shared.session": True,
+        "calls session.create_session_dir": True,
+        "formats %H_%M_%S itself": False,
+    }
+
+    def test_every_orchestrator_takes_its_session_name_from_the_shared_module(self):
+        found = sorted((REPO_ROOT / ".claude" / "skills").glob("*/scripts/*orchestrator*.py"))
+        # 글롭이 비거나 일부만 잡으면 아래 반복이 아무것도 보지 않고 초록이 된다. 빠진 이름을 메시지에 남긴다.
+        self.assertEqual(self.EXPECTED_ORCHESTRATORS - {p.name for p in found}, set())
+        for path in found:
+            with self.subTest(orchestrator=path.name):
+                self.assertEqual(_session_naming(path.read_text(encoding="utf-8")), self.EXPECTED)
+
+    def test_a_comment_or_docstring_does_not_stand_in_for_code(self):
+        # 코드 리뷰에서 문자열 판정을 통과한 뮤턴트다. 호출을 직접 만든 이름으로 바꾸고 주석에 옛 호출만 남겼다.
+        bypass = textwrap.dedent('''
+            """이름은 session.create_session_dir( 가 정한다. 예전에는 %H_%M_%S 로 만들었다."""
+            import os
+            from _shared import session
+
+            def session_dir(root, stamp):
+                # was session.create_session_dir(root)
+                name = os.path.join(root, stamp)  # 예전 형식 %H_%M_%S
+                os.makedirs(name, exist_ok=True)
+                return name
+            ''')
+        self.assertEqual(_session_naming(bypass), {
+            "imports _shared.session": True,
+            "calls session.create_session_dir": False,
+            "formats %H_%M_%S itself": False,
+        })
+
+    def test_a_path_loaded_alias_or_an_own_time_format_is_caught(self):
+        # 옛 spec-coverage 는 경로로 읽은 모듈을 `_session` 으로 불렀다. 그 호출은 공용 모듈 호출로 치지 않는다.
+        cases = {
+            "strftime": 'return root / datetime.now().strftime("%Y/%m/%d/%H_%M_%S")',
+            "f-string": 'return root / f"{datetime.now():%H_%M_%S}"',
+        }
+        for label, line in cases.items():
+            with self.subTest(form=label):
+                src = textwrap.dedent(f'''
+                    from datetime import datetime
+                    _session = load_by_path("session.py")
+
+                    def session_dir(root):
+                        _session.create_session_dir(root)
+                        {line}
+                    ''')
+                self.assertEqual(_session_naming(src), {
+                    "imports _shared.session": False,
+                    "calls session.create_session_dir": False,
+                    "formats %H_%M_%S itself": True,
+                })
 
 
 if __name__ == "__main__":

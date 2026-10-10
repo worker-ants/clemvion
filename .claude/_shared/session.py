@@ -1,4 +1,10 @@
-"""Session-level utilities: output directories, metadata, logging, truncation."""
+"""Session-level utilities: output directories, metadata, logging, truncation.
+
+Every orchestrator under `.claude/skills/*/scripts/` imports this as
+`from _shared import session`. Standard library only, no relative imports:
+tests load this file by path (`spec_from_file_location`), and a relative import
+would fail there with an error that does not point here.
+"""
 
 import json
 import os
@@ -29,13 +35,16 @@ def make_debug_logger(log_file_path):
 
 
 def create_session_dir(output_dir, subdir=None):
-    """Create `output_dir/[<subdir>/]<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` and return the path.
+    """Create `output_dir/[<subdir>/]<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/` and return the path.
 
     The nested layout (year/month/day/HH_MM_SS) keeps any single directory
     bounded in size — flat timestamp directories had become impractical to
     list (`ls`) as review history accumulated. The old committed
     `review/<timestamp>/` tree left the repository in NERV cutover stage 3 (NERV
     Task `CLE-T-FN2JWK`); this function governs local `.review/` sessions.
+    Every orchestrator names its session here; one that made its own name would
+    lose the `_N` suffix below (`test_review_session_dir_collision.py` checks the
+    orchestrator sources). The stamp is local time (`datetime.now()`).
 
     **The name is second-resolution, so two sessions in the same second collide.**
     That is not hypothetical. The shape it was first measured on no longer
@@ -54,8 +63,11 @@ def create_session_dir(output_dir, subdir=None):
 
     So the create is ATOMIC (`exist_ok=False`) and a taken name falls through to
     `<hh>_<mm>_<ss>_2`, `_3`, …. Atomic matters for the parallel case: two
-    processes cannot both believe they won. Nothing parses this directory name —
-    the guards walk the tree looking for `SUMMARY.md` — so the suffix is free.
+    processes cannot both believe they won. The guards walk the tree looking for
+    `SUMMARY.md` and do not read the name. One reader does:
+    `.claude/tools/nerv_review_payload.py` `session_stamp()` turns the name into
+    the idempotency-key prefix and keeps the suffix (`13_40_14_2` →
+    `…-134014-2`). Change the name shape there too.
 
     On exhaustion it returns the plain path with `exist_ok=True`, i.e. the old
     behaviour. Losing a session directory is bad; refusing to run a review at all

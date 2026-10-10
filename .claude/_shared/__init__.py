@@ -9,4 +9,8 @@ and `.claude/skills/_lib` already shadow each other in any interpreter that impo
 (only the test process does; production hooks and orchestrators are separate processes).
 Adding a third `_lib` would deepen that ambiguity. Tests load this via
 `_harness.load_module_by_path`, which sidesteps package naming entirely.
+
+It also holds logic the skill orchestrators must not disagree on among themselves:
+`session.create_session_dir` names every `.review/` session, so the same-second
+`_N` suffix cannot be lost by one orchestrator naming its own.
 """

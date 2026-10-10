@@ -37,7 +37,7 @@ main Claude
 /loop /merge-coordinate 123 456
 
 # wake 사이클 (자동 발화)
-/loop /merge-coordinate --resume /abs/path/to/.review/merge/.../HH_MM_SS
+/loop /merge-coordinate --resume /abs/path/to/.review/merge/.../HH_MM_SS[_N]
 ```
 
 ## 6개 sub-agent
@@ -63,7 +63,7 @@ resolver 의 patch 본문은 응답이 아닌 `output_file` 에 기록.
 ```
 .review/
 └── merge/
-    └── 2026/05/15/13_30_00/
+    └── 2026/05/15/13_30_00/              ← 같은 초의 다음 세션은 13_30_00_2/
         ├── _prompts/
         │   ├── merge_conflict_analyzer.md
         │   ├── semantic_conflict_analyzer.md
@@ -147,7 +147,7 @@ ai-review · consistency-check 와 동일. ScheduleWakeup delay = `last_reset_hi
 
 ## 기존 skill 활용 지점
 
-- **lib 재사용**: `code-review-agents/lib/session.py` (세션 디렉토리·meta·logger), `code-review-agents/lib/role_instructions.py` (ANALYZER_INSTRUCTIONS dict 추가) 그대로 import.
+- **공용 모듈 재사용**: `.claude/_shared/session.py` (세션 디렉토리·meta·logger), `code-review-agents/lib/role_instructions.py` (ANALYZER_INSTRUCTIONS dict 추가) 그대로 import.
 - **자동 chain**: Phase 3 마지막에 `code_review_orchestrator.py --prepare --range <base>..HEAD` 와 `consistency_orchestrator.py --impl-prep <scope>`(NERV 키 · 미러 폴더) 를 sub-process 로 실행. main 이 각 SUMMARY 검사.
 - **공통 규약**: STATUS 반환 한 줄, output_file Write, `_retry_state.json` 스키마, `--resume`, `/loop` ScheduleWakeup, nested ISO 산출물 경로 — 모두 동일.
 

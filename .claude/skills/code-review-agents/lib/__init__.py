@@ -1,11 +1,16 @@
-"""Shared library for AI-agent orchestrators (code-review-agents, consistency-checker).
+"""Shared library for the AI-agent orchestrators under `.claude/skills/`.
 
 Public modules:
-  - session: session directory, metadata, debug logger, truncation utilities
+  - role_instructions: role-specific prompt bodies (reviewers, checkers, analyzers)
+  - router_safety: forced-include rules for review-router
+  - line_anchors: true-source line anchors for reviewer prompt payloads
 
 Consumers from outside `code-review-agents` import this via:
     sys.path.insert(0, "<repo>/.claude/skills/code-review-agents")
-    from lib import session
+    from lib.role_instructions import CHECKER_INSTRUCTIONS
+
+Session directories (`create_session_dir`) moved to `.claude/_shared/session.py`
+on 2026-10-10 so every orchestrator reads them the same way.
 
 The `agent_runner` and `summary` modules that previously lived here invoked
 `claude -p` directly. They were removed when the pipeline moved to

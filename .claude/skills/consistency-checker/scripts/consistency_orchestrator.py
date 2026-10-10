@@ -50,7 +50,6 @@ sys.path.insert(0, CODE_REVIEW_SKILL)
 sys.path.insert(0, SKILLS_DIR)
 sys.path.insert(0, CLAUDE_DIR)
 
-from lib import session  # noqa: E402
 from lib.role_instructions import CHECKER_INSTRUCTIONS  # noqa: E402
 from _lib import project_config  # noqa: E402
 
@@ -66,6 +65,7 @@ from _lib import project_config  # noqa: E402
 from _shared import block_integrity as _block_integrity  # noqa: E402
 from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
+from _shared import session  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
