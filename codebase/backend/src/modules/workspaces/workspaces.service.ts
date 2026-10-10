@@ -23,8 +23,10 @@ import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-rel
 import {
   ADMIN_ROLES,
   assertMayChangeAdminRole,
+  isAdminRole,
   NOT_A_MEMBER,
   ROLE_REQUIRED,
+  type WorkspaceRoleName,
 } from '../../common/constants/workspace-roles';
 
 @Injectable()
@@ -270,7 +272,7 @@ export class WorkspacesService {
   ): Promise<WorkspaceMember> {
     // 인가가 조회보다 먼저다 — 거꾸로면 비관리자가 워크스페이스의 존재 · 유형을 구분한다
     // (`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다").
-    const requesterRole = await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.requireAdminRole(workspaceId, requesterId);
     await this.assertWorkspaceType(workspaceId, 'team');
     if (role === 'owner') {
       throw new ForbiddenException({
@@ -325,7 +327,7 @@ export class WorkspacesService {
     role: WorkspaceRole,
     requesterId: string,
   ): Promise<WorkspaceMember> {
-    const requesterRole = await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.requireAdminRole(workspaceId, requesterId);
     // 대상 행을 잠그고 그 안에서 판정 · 저장한다. 잠그지 않으면 «지금 역할» 을 읽은 뒤 동시에 바뀐 값을 `save` 가 덮어쓴다
     // (관리자의 editor → viewer 가 그 사이 소유자가 올린 admin 을 되돌리는 식). `leaveWorkspace` · `transferOwnership`
     // 과 같은 모양이다. 요청자 역할은 위에서 무락으로 읽는다(인가가 조회보다 먼저다).
@@ -984,16 +986,27 @@ export class WorkspacesService {
     if (!role) this.throwNotAMember();
   }
 
-  /** Admin 이상인지 검사하고 요청자의 역할을 돌려준다(owner 전용 판정이 이어서 쓴다). */
+  /** Admin 이상인지 검사한다. 요청자 역할이 필요하면 `requireAdminRole` 을 쓴다. */
   private async assertAdmin(
     workspaceId: string,
     userId: string,
-  ): Promise<string> {
+  ): Promise<void> {
+    await this.requireAdminRole(workspaceId, userId);
+  }
+
+  /**
+   * Admin 이상인지 검사하고 요청자의 역할을 돌려준다. 관리자 역할을 건드리는 변경은 이 역할로
+   * `assertMayChangeAdminRole`(소유자 전용)을 이어서 판정한다.
+   */
+  private async requireAdminRole(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceRoleName> {
     const role = await this.getMemberRole(workspaceId, userId);
     // 비멤버는 요구 역할과 무관하게 NOT_A_MEMBER — `RolesGuard` 와 같은 규칙(`12-workspace.md`
     // §Rationale "가드 거부의 오류 코드" 규칙 (나)). 두 선이 같은 실패에 같은 답을 낸다.
     if (!role) this.throwNotAMember();
-    if (!ADMIN_ROLES.has(role)) this.throwAdminRequired();
+    if (!isAdminRole(role)) this.throwAdminRequired();
     return role;
   }
 

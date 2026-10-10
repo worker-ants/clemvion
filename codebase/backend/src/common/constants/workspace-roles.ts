@@ -52,6 +52,11 @@ export const ADMIN_ROLES: ReadonlySet<string> = new Set(
   ),
 );
 
+/** Admin 이상(admin · owner)인지. 참이면 `role` 을 `WorkspaceRoleName` 으로 좁힌다. */
+export function isAdminRole(role: string): role is WorkspaceRoleName {
+  return ADMIN_ROLES.has(role);
+}
+
 /** 거부 본문 — `ForbiddenException` 에 넘기는 `{ code, message }`. */
 export interface WorkspaceRoleRejection {
   readonly code: string;

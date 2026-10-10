@@ -29,8 +29,9 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import {
-  ADMIN_ROLES,
   assertMayChangeAdminRole,
+  isAdminRole,
+  type WorkspaceRoleName,
 } from '../../common/constants/workspace-roles';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -87,7 +88,7 @@ export class WorkspaceInvitationsService {
     requesterId: string,
   ): Promise<WorkspaceInvitation> {
     const normalized = email.trim().toLowerCase();
-    const requesterRole = await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.requireAdminRole(workspaceId, requesterId);
 
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
@@ -541,8 +542,17 @@ export class WorkspaceInvitationsService {
     }
   }
 
+  /** Admin 이상인지 검사한다. 요청자 역할이 필요하면 `requireAdminRole` 을 쓴다. */
+  private async assertAdmin(
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.requireAdminRole(workspaceId, userId);
+  }
+
   /**
-   * Admin 이상인지 검사하고 요청자의 역할을 돌려준다(owner 전용 판정이 이어서 쓴다).
+   * Admin 이상인지 검사하고 요청자의 역할을 돌려준다. 관리자 역할을 건드리는 초대는 이 역할로
+   * `assertMayChangeAdminRole`(소유자 전용)을 이어서 판정한다.
    *
    * HTTP 경로에서 이 분기는 닿지 않는다 — 초대 라우트는 `@Roles('admin')` 라 `RolesGuard` 가 경로
    * 워크스페이스로 먼저 막는다(비멤버 `NOT_A_MEMBER` · 역할 미달 `ADMIN_REQUIRED`). 이 검사는 가드
@@ -550,20 +560,21 @@ export class WorkspaceInvitationsService {
    * (`spec/conventions/error-codes.md` §3 註 · `spec/data-flow/12-workspace.md` §Rationale "경로
    * 파라미터 워크스페이스도 가드가 본다").
    */
-  private async assertAdmin(
+  private async requireAdminRole(
     workspaceId: string,
     userId: string,
-  ): Promise<string> {
+  ): Promise<WorkspaceRoleName> {
     const member = await this.memberRepository.findOne({
       where: { workspaceId, userId },
     });
-    if (!member || !ADMIN_ROLES.has(member.role)) {
+    const role = member?.role;
+    if (!role || !isAdminRole(role)) {
       throw new ForbiddenException({
         code: 'admin_required',
         message: 'Admin 이상의 권한이 필요합니다.',
       });
     }
-    return member.role;
+    return role;
   }
 }
 

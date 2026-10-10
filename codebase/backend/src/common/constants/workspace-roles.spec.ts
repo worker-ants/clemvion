@@ -3,6 +3,7 @@ import {
   ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
   ADMIN_ROLES,
   assertMayChangeAdminRole,
+  isAdminRole,
   lowestRequiredRole,
   NOT_A_MEMBER,
   ROLE_REQUIRED,
@@ -43,6 +44,12 @@ describe('workspace-roles — 가드와 서비스가 보는 단일 역할 서열
 
   it('ADMIN_ROLES 는 서열에서 파생된다 — admin 이상(admin · owner)', () => {
     expect([...ADMIN_ROLES].sort()).toEqual(['admin', 'owner']);
+  });
+
+  it('isAdminRole 은 admin · owner 만 참이다(계층 밖 문자열 · 프로토타입 키는 거짓)', () => {
+    expect(
+      ['owner', 'admin', 'editor', 'viewer', 'toString', ''].map(isAdminRole),
+    ).toEqual([true, true, false, false, false, false]);
   });
 
   it('역할 미달 본문은 요구 역할마다 있고 viewer 는 비멤버와 같다', () => {
