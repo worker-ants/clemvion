@@ -49,6 +49,81 @@ function stringifyPathValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** `pagination` 을 바꾼 MakeShop 목록 API query — `limit` · `page` 만 있다. */
+interface MakeshopPageQuery {
+  limit?: number;
+  page?: number;
+}
+
+type MakeshopPaginationResolution =
+  | { ok: true; query: MakeshopPageQuery }
+  | { ok: false; message: string };
+
+/** 정수 하나를 읽는다. 없으면 `undefined`, 정수가 아니면 `null` 이다. 식이 풀린 값은 숫자 문자열일 수 있다. */
+function readPaginationInt(value: unknown): number | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'number') return Number.isInteger(value) ? value : null;
+  if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  return null;
+}
+
+/**
+ * 노드 설정의 `pagination.{limit,offset}` 을 MakeShop 목록 API 의 `limit` · `page` 로 바꾼다. MakeShop 은 offset 을 받지
+ * 않고 page 번호로 넘긴다. 그래서 page = offset / limit + 1 이고 offset 은 보내지 않는다.
+ *
+ * - offset 이 없으면 page 를 만들지 않는다(`fields.page` 가 그대로 간다).
+ * - offset 0 은 limit 이 없어도 첫 page 다.
+ * - limit 없는 0 초과 offset 은 page 를 셀 수 없어 거절한다.
+ * - limit 의 배수가 아닌 offset 은 그 위치에서 시작하는 page 가 없어 거절한다. 내림하면 적은 위치보다 앞 항목이 섞여
+ *   다음 page 와 겹치거나 빠진다.
+ *
+ * NERV CLE-NODE-MAKESHOP, Task CLE-T-XVS8H7.
+ */
+export function resolveMakeshopPagination(
+  raw: unknown,
+): MakeshopPaginationResolution {
+  if (raw === undefined || raw === null) return { ok: true, query: {} };
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, message: 'pagination must be an object' };
+  }
+  const { limit: rawLimit, offset: rawOffset } = raw as Record<
+    string,
+    unknown
+  >;
+  const limit = readPaginationInt(rawLimit);
+  if (limit === null || (limit !== undefined && limit <= 0)) {
+    return {
+      ok: false,
+      message: `pagination.limit must be a positive integer (got ${JSON.stringify(rawLimit)})`,
+    };
+  }
+  const offset = readPaginationInt(rawOffset);
+  if (offset === null || (offset !== undefined && offset < 0)) {
+    return {
+      ok: false,
+      message: `pagination.offset must be a non-negative integer (got ${JSON.stringify(rawOffset)})`,
+    };
+  }
+  const limitPart = limit === undefined ? {} : { limit };
+  if (offset === undefined) return { ok: true, query: limitPart };
+  if (offset === 0) return { ok: true, query: { ...limitPart, page: 1 } };
+  if (limit === undefined) {
+    return {
+      ok: false,
+      message: `pagination.offset requires pagination.limit (offset ${offset}) — MakeShop pages by page number (page = offset / limit + 1)`,
+    };
+  }
+  if (offset % limit !== 0) {
+    return {
+      ok: false,
+      message: `pagination.offset must be a multiple of pagination.limit (offset ${offset}, limit ${limit}) — MakeShop pages by page number (page = offset / limit + 1)`,
+    };
+  }
+  return { ok: true, query: { limit, page: offset / limit + 1 } };
+}
+
 /**
  * MakeShop node handler — drives every MakeShop Shop API call through the
  * MakeshopApiClient using the metadata table. spec/4-nodes/4-integration/
@@ -102,6 +177,22 @@ export class MakeshopHandler
         Array.isArray(config.fields))
     ) {
       errors.push('fields must be an object');
+    }
+    // 숫자로 적은 pagination 만 저장 시점에 본다. 식(`{{ … }}`)은 실행 때 `resolveMakeshopPagination` 이 본다.
+    const pagination = config.pagination;
+    if (
+      pagination !== undefined &&
+      pagination !== null &&
+      typeof pagination === 'object' &&
+      !Array.isArray(pagination)
+    ) {
+      const { limit, offset } = pagination as Record<string, unknown>;
+      const isLiteral = (v: unknown) =>
+        v === undefined || v === null || typeof v === 'number';
+      if (isLiteral(limit) && isLiteral(offset)) {
+        const resolved = resolveMakeshopPagination(pagination);
+        if (!resolved.ok) errors.push(resolved.message);
+      }
     }
     return { valid: errors.length === 0, errors };
   }
@@ -205,6 +296,19 @@ export class MakeshopHandler
         );
       }
 
+      // 2c. pagination → MakeShop `limit` · `page` (offset 은 보내지 않는다). 통합을 읽기 전에 거른다.
+      let pageQuery: MakeshopPageQuery = {};
+      if (operation.paginated) {
+        const resolved = resolveMakeshopPagination(pagination);
+        if (!resolved.ok) {
+          throw new IntegrationError(
+            'MAKESHOP_INVALID_PAGINATION',
+            `${resolved.message} (for ${resource}.${operationId})`,
+          );
+        }
+        pageQuery = resolved.query;
+      }
+
       // 3. Integration resolve (status='connected', serviceType='makeshop').
       const integration = await this.resolveIntegration(
         integrationId,
@@ -229,7 +333,7 @@ export class MakeshopHandler
       const { path, query, body } = this.buildRequestParts(
         operation,
         fields,
-        pagination,
+        pageQuery,
       );
 
       // 6. Execute via MakeshopApiClient (auto refresh + 429 retry + mutex).
@@ -390,7 +494,7 @@ export class MakeshopHandler
   private buildRequestParts(
     operation: MakeshopOperationMetadata,
     fields: Record<string, unknown>,
-    pagination: { limit?: number; offset?: number } | undefined,
+    pageQuery: MakeshopPageQuery,
   ): {
     path: string;
     query: Record<string, unknown>;
@@ -423,11 +527,10 @@ export class MakeshopHandler
       }
     }
 
-    // Pagination always travels on query (spec §8 — `pagination.{limit,offset}`).
-    if (pagination && operation.paginated) {
-      if (pagination.limit !== undefined) query.limit = pagination.limit;
-      if (pagination.offset !== undefined) query.offset = pagination.offset;
-    }
+    // Pagination always travels on query. `pagination.{limit,offset}` 은 `resolveMakeshopPagination` 이 `limit` · `page`
+    // 로 바꿔 두었고, 만든 값이 `fields.limit` · `fields.page` 를 덮는다.
+    if (pageQuery.limit !== undefined) query.limit = pageQuery.limit;
+    if (pageQuery.page !== undefined) query.page = pageQuery.page;
 
     // Path placeholder hard-fail — a leftover `{...}` means a required path
     // field was not supplied or metadata location='path' is wrong.

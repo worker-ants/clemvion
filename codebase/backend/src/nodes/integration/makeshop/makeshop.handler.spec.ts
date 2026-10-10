@@ -71,6 +71,39 @@ describe('MakeshopHandler', () => {
   });
 
   describe('validate', () => {
+    // CLE-T-XVS8H7 — MakeShop 은 offset 이 아니라 page 로 넘긴다. 숫자로 적은 값만 저장 시점에 거른다(식은 실행 때 본다).
+    it.each([
+      [{ limit: 50, offset: 30 }, /pagination\.offset must be a multiple of pagination\.limit/],
+      [{ offset: 50 }, /pagination\.offset requires pagination\.limit/],
+    ])('rejects pagination %j', (pagination, message) => {
+      const r = handler.validate({
+        integrationId: 'id',
+        resource: 'product',
+        operation: 'get-product',
+        pagination,
+      });
+      expect(r.valid).toBe(false);
+      expect(r.errors).toEqual(
+        expect.arrayContaining([expect.stringMatching(message)]),
+      );
+    });
+
+    it.each([
+      { limit: 50, offset: 100 },
+      { limit: 50, offset: 0 },
+      { offset: 0 },
+      { limit: 20 },
+      { limit: '{{ $vars.size }}', offset: '{{ $vars.from }}' },
+    ])('accepts pagination %j', (pagination) => {
+      const r = handler.validate({
+        integrationId: 'id',
+        resource: 'product',
+        operation: 'get-product',
+        pagination,
+      });
+      expect(r.valid).toBe(true);
+    });
+
     it('rejects missing integrationId / resource / operation', () => {
       const r = handler.validate({});
       expect(r.valid).toBe(false);
@@ -261,6 +294,94 @@ describe('MakeshopHandler', () => {
     });
   });
 
+  // CLE-T-XVS8H7 — MakeShop 목록 API 는 offset 을 받지 않고 page 를 받는다. 노드 설정의 `pagination.{limit,offset}` 은
+  // 그대로 두고 핸들러가 page = offset / limit + 1 로 바꿔 보낸다.
+  describe('execute — pagination (offset → page)', () => {
+    async function run(
+      pagination: Record<string, unknown> | undefined,
+      fields: Record<string, unknown> = {},
+    ) {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        body: { list: [] },
+        headers: {},
+        retries: 0,
+      });
+      return handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'get-product',
+          fields,
+          ...(pagination === undefined ? {} : { pagination }),
+        },
+        makeContext(),
+      );
+    }
+    const sentQuery = (): Record<string, unknown> =>
+      (apiClient.call.mock.calls[0][1] as { query: Record<string, unknown> })
+        .query;
+
+    it.each([
+      [{ limit: 50, offset: 0 }, { limit: 50, page: 1 }],
+      [{ limit: 50, offset: 50 }, { limit: 50, page: 2 }],
+      [{ limit: 50, offset: 100 }, { limit: 50, page: 3 }],
+      [{ limit: 1, offset: 9 }, { limit: 1, page: 10 }],
+      [{ offset: 0 }, { page: 1 }],
+      [{ limit: '20', offset: '40' }, { limit: 20, page: 3 }],
+    ])('%j → query %j (offset 은 보내지 않는다)', async (pagination, query) => {
+      const result = await run(pagination);
+      expect(result.port).toBe('success');
+      expect(sentQuery()).toEqual(query);
+      expect(sentQuery()).not.toHaveProperty('offset');
+    });
+
+    it('offset 이 없으면 page 를 만들지 않는다 — fields.page 가 그대로 간다', async () => {
+      await run({ limit: 20 }, { page: '4' });
+      expect(sentQuery()).toEqual({ limit: 20, page: '4' });
+    });
+
+    it('pagination 이 만든 limit · page 가 fields.limit · fields.page 보다 우선한다', async () => {
+      await run({ limit: 50, offset: 50 }, { limit: '10', page: '9' });
+      expect(sentQuery()).toEqual({ limit: 50, page: 2 });
+    });
+
+    it('pagination 이 없으면 fields 의 limit · page 를 그대로 보낸다', async () => {
+      await run(undefined, { limit: '10', page: '9' });
+      expect(sentQuery()).toEqual({ limit: '10', page: '9' });
+    });
+
+    it('설정 에코는 사용자가 적은 offset 을 그대로 둔다', async () => {
+      const result = await run({ limit: 50, offset: 100 });
+      expect(result.config.pagination).toEqual({ limit: 50, offset: 100 });
+    });
+
+    it.each([
+      [{ limit: 50, offset: 30 }, /multiple of pagination\.limit/],
+      [{ limit: 50, offset: 49 }, /multiple of pagination\.limit/],
+      [{ offset: 50 }, /requires pagination\.limit/],
+      [{ limit: 0, offset: 0 }, /pagination\.limit must be a positive integer/],
+      [{ limit: 50, offset: -50 }, /pagination\.offset must be a non-negative integer/],
+      [{ limit: 2.5 }, /pagination\.limit must be a positive integer/],
+      [{ limit: 50, offset: 'abc' }, /pagination\.offset must be a non-negative integer/],
+    ])(
+      '%j → MAKESHOP_INVALID_PAGINATION, 호출 · 통합 조회 없이 error 포트',
+      async (pagination, message) => {
+        const result = await run(pagination);
+        expect(result.port).toBe('error');
+        const output = result.output as {
+          error: { code: string; message: string };
+        };
+        expect(output.error.code).toBe('MAKESHOP_INVALID_PAGINATION');
+        expect(output.error.message).toMatch(message);
+        expect(apiClient.call).not.toHaveBeenCalled();
+        expect(integrationsService.getForExecution).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   describe('execute — runtime', () => {
     it('happy path — dispatches to ApiClient with parsed metadata, returns success envelope', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
@@ -285,10 +406,11 @@ describe('MakeshopHandler', () => {
 
       // ApiClient invoked with metadata-driven path / query / method.
       const callArgs = apiClient.call.mock.calls[0];
+      // pagination 이 있으면 limit · page 는 그것에서 만든다(offset 0 → page 1). offset 은 보내지 않는다(CLE-T-XVS8H7).
       expect(callArgs[1]).toEqual({
         method: 'GET',
         path: 'product',
-        query: { limit: 50, page: '1', offset: 0 },
+        query: { limit: 50, page: 1 },
         body: undefined,
       });
 
