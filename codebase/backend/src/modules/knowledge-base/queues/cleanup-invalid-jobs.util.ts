@@ -12,13 +12,8 @@ type InvalidJobCandidate = Job<
  * BullMQ 6 부터는 paused 상태가 따로 없고 일시 정지한 큐의 job 도 `waiting` 으로 보이므로
  * 운영자가 일시 정지한 큐의 잔재도 `waiting` 으로 함께 청소된다. 예외는 BullMQ 5 에서
  * 일시 정지된 채 올라온 큐다. 그 job 은 옛 `paused` 목록에 남아 `resume()` 으로 `wait` 에
- * 옮겨지기 전까지 이 sweep 의 대상이 아니다.
- *
- * **배포 전 확인**(BullMQ 6 으로 올린 PR #1507, NERV Task `CLE-T-HPZCK2`): 그런 큐에 이 스크립트를
- * `--pause-during-sweep` 로 먼저 돌리면 sweep 이 보지 못한 옛 목록의 손상 job 을 마지막 `resume()` 이
- * 그대로 `wait` 로 풀어 준다. 그래서 배포 전에 일시 정지된 큐가 없는지 본다. 시스템 상태 화면에서
- * «일시정지» 가 붙은 큐(`isPaused`)가 그것이다. BullMQ 5 의 `resume()` 은 `wait` 목록을 덮어쓰므로
- * BullMQ 5 와 6 을 쓰는 backend 가 같은 Redis 를 함께 쓰는 동안에는 이 스크립트를 돌리지 않는다.
+ * 옮겨지기 전까지 이 sweep 의 대상이 아니다. 이 예외가 운영에 주는 영향과 배포 전 확인은
+ * `scripts/cleanup-invalid-queue-jobs.ts` 머리의 「운영 절차」에 적었다.
  */
 export const CLEANUP_QUEUE_STATES = ['waiting', 'delayed', 'failed'] as const;
 const CLEANUP_QUEUE_STATES_MUTABLE: Array<
