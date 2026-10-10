@@ -1,6 +1,6 @@
 ---
 name: spec-coverage
-description: spec/ 미러 본문이 약속한 surface (UI / API / e2e 시나리오) 와 `## 구현 위치` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음). 결과는 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다).
+description: spec/ 미러 본문이 약속한 surface (UI / API / e2e 시나리오) 와 `## 구현 위치` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/SUMMARY.md`(커밋하지 않음). 결과는 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다).
 model: opus
 ---
 
@@ -18,7 +18,7 @@ model: opus
 - **수동 호출만** (사용자 결정 ⑤ 옵션 A) — GitHub Actions cron 도입 안 함. NLP 휴리스틱 false-positive 부담 > 자동화 가치
 - **CI 차단 아님** — 후보 보고만. 사용자가 picking 해 NERV Task 로 올린다(`nerv_task_create`)
 - **현재 main 상태 전수 분석** — PR diff 기반 아님. spec 적용 대상 ([`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md)) 전수 walk
-- **출력은 markdown**: 로컬 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore) 단일 결과 진입점. 결과는 NERV `kind=spec_coverage` 로 낸다. `python3 .claude/tools/nerv_review_payload.py <session_dir> --out … --mode audit …` 가 SUMMARY 의 후보 하나를 info 발견 하나로 바꾼 제출 문서(역할 `spec_coverage`)를 만들고, `nerv-recorder` 가 `nerv_review_submit` 으로 낸다(아래 §3 의 2 · 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」). info 라 라운드를 막지 않는다. 조치할 후보는 `nerv_task_create` 로 올린다
+- **출력은 markdown**: 로컬 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/SUMMARY.md`(gitignore. 시각은 로컬 시각이고 같은 초에 세션을 또 만들면 `_2` · `_3` 이 붙는다) 단일 결과 진입점. 결과는 NERV `kind=spec_coverage` 로 낸다. `python3 .claude/tools/nerv_review_payload.py <session_dir> --out … --mode audit …` 가 SUMMARY 의 후보 하나를 info 발견 하나로 바꾼 제출 문서(역할 `spec_coverage`)를 만들고, `nerv-recorder` 가 `nerv_review_submit` 으로 낸다(아래 §3 의 2 · 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」). info 라 라운드를 막지 않는다. 조치할 후보는 `nerv_task_create` 로 올린다
 
 호출 규약·STATUS 라인: [`.claude/docs/subagent-call-contract.md`](../../docs/subagent-call-contract.md).
 
@@ -79,9 +79,9 @@ sub-agent 가 적용 대상 미러 문서 walk + 3개 heuristic 적용 후 SUMMA
 
 ## 출력 위치
 
-- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`
-- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompt.md` (orchestrator 가 만든 입력)
-- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json`
+- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/SUMMARY.md`
+- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/_prompt.md` (orchestrator 가 만든 입력)
+- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/meta.json`
 
 모두 gitignore 대상이라 커밋하지 않는다(NERV 정본 전환 단계 2). NERV 에는 `kind=spec_coverage` 로 낸다(위 「출력은 markdown」).
 

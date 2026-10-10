@@ -10,7 +10,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
   - 강제 역할의 리포트가 빠지면 exit 1 — 그대로 내면 라운드가 `missing_roles` 로 남는다.
   - 역할은 상태 파일의 `subagent_invocations` 가 정한다. 목록에 없는 `*.md` 는 내지 않는다.
   - kind=code 에서 상태 파일이 없거나, 낼 묶음이 없으면 exit 1 — 조용히 통과하지 않는다.
-  - 세션 경로에서 kind 를 읽는다(`.review/<kind>/<Y>/<m>/<d>/<H_M_S>`).
+  - 세션 경로에서 kind 를 읽는다(`.review/<kind>/<Y>/<m>/<d>/<H_M_S>[_<n>]`).
 
 클래스별 목록. `.claude/tests/README.md` 의 카탈로그 행은 요약이고 이 목록이 정본이다. 클래스를 더하면 여기를 먼저 고친다.
 
@@ -26,9 +26,12 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
   - OutFileTest(NERV Task `CLE-T-CD9131`) — `--out` 이 `nerv-recorder` 가 그대로 낼 문서를 쓰고 stdout 에는 요약만 낸다
     (발견 본문 없음). SHA 는 git 이 푼 전체 값이고 풀지 못한 값은 오류다(`--base` · `--head` · 공통 조상 없음 · `git diff`
     실패 · 세션이 저장소 밖). 멱등 키는 내용 해시를 따른다. git 은 세션의 저장소에서 돈다. `base_sha` 는 merge-base. 한글
-    경로는 C-quote 되지 않는다. 로컬 `--branch` 에 닿지 않는 `--head` 는 풀 방법을 말하는 오류. 도구에 `git`/`subprocess`
+    경로는 C-quote 되지 않는다. 로컬 `--branch` 에 닿지 않는 `--head` 는 풀 방법을 말하는 오류. Task 없이 시각 모양이 아닌 세션을 내면 키 없이 `ok:false` 다. 도구에 `git`/`subprocess`
     호출이 없다. `--out` 은 인자 오류(exit 2)를 뺀 모든 종료에서 이번 실행의 결과만 남기고(시작 때 지우는 호출이 main 에
     걸려 있는지는 build 를 터뜨려 본다), 이 도구의 문서가 아닌 파일과 지우지 못하는 앞 문서는 거절한다(exit 2).
+  - SessionStampTest — Task 가 없는 멱등 키의 앞자리. 같은 초의 두 번째 세션(`12_00_00_2`)도 앞자리를 얻고 접미사가
+    남는다(`20261001-120000-2`). 시각 모양이 아닌 이름은 None 이다. 세션을 만드는 `create_session_dir` 가 같은 초에 낸
+    이름을 모두 받아 서로 다른 앞자리로 바꾸고 kind 도 읽는다.
   - OutDocSharedTest — `_shared/out_doc.py`: `begin`(지움 · 거절 · 못 지우면 거절) · `begin_or_exit` · `write`(통째로 바꿔
     넣음) · `failure` · `write_or_note` · `write_with_summary` · `VERSION`.
   - RealSessionShapeTest — 파서의 하위 항목 이름이 모든 리뷰어 · checker · analyzer 정의의 출력 형식과 같다.
@@ -465,6 +468,10 @@ class BuildTest(unittest.TestCase):
                 d = self.tmp / ".review" / name / "2026" / "10" / "01" / "12_00_00"
                 d.mkdir(parents=True)
                 self.assertEqual(tool.build(str(d))["kind"], kind)
+        # 같은 초의 두 번째 세션. kind 는 마지막 조각이 아니라 그 위 네 번째 조각에서 읽는다.
+        suffixed = self.tmp / ".review" / "consistency" / "2026" / "10" / "01" / "12_00_00_2"
+        suffixed.mkdir(parents=True)
+        self.assertEqual(tool.build(str(suffixed))["kind"], "consistency")
         odd = self.tmp / "odd"
         odd.mkdir()
         with self.assertRaises(tool.SessionError):
@@ -559,6 +566,45 @@ class OutFileTest(unittest.TestCase):
         self.assertIsNone(doc["submit"]["task_id"])
         self.assertRegex(doc["submissions"][0]["idempotency_key"],
                          rf"^20261001-120000:code:review:{self.head[:9]}:scope:[0-9a-f]{{8}}:2$")
+
+    def test_a_same_second_session_gets_its_own_key_prefix(self):
+        # 2026-10-10 실측: consistency 오케스트레이터를 같은 초에 다시 돌려 생긴 `13_40_14_2` 세션이 `ok:false`
+        # ("멱등 키의 앞자리를 정하지 못했다")로 막혔다. 앞자리를 얻어야 하고, 같은 초의 첫 세션과 키가 갈려야 한다.
+        second = self.sd.parent / "12_00_00_2"
+        shutil.copytree(self.sd, second)
+        out2 = second / "_nerv_payload.json"
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(second), "--out", str(out2), "--branch", "feature",
+                            "--base", self.base[:7], "--head", "HEAD", "--mode", "review"],
+                           cwd=self.repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        doc2 = json.loads(out2.read_text(encoding="utf-8"))
+        self.assertTrue(doc2["ok"], doc2["errors"])
+        key2 = {s["reviewer"]["role"]: s["idempotency_key"] for s in doc2["submissions"]}["scope"]
+        self.assertRegex(key2, rf"^20261001-120000-2:code:review:{self.head[:9]}:scope:[0-9a-f]{{8}}$")
+        # 리포트가 같아도 다른 세션이다. 앞 세션의 재전송으로 묶이면 이 세션의 제출이 기록되지 않는다.
+        key1 = self.keys()["scope"]
+        self.assertTrue(key1.startswith("20261001-120000:"), key1)
+        self.assertNotEqual(key1, key2)
+
+    def test_a_session_name_that_is_not_a_time_is_refused_without_a_task(self):
+        # 앞자리를 정하지 못하면 키를 만들지 않고 `ok:false` 로 멈춘다. 이 배선이 빠지면 `None:code:review:…` 키가 조용히 나간다.
+        odd = self.sd.parent / "12_00_00_x"
+        shutil.copytree(self.sd, odd)
+        out = odd / "_nerv_payload.json"
+        base = [sys.executable, str(TOOL_PATH), str(odd), "--out", str(out), "--branch", "feature",
+                "--base", self.base[:7], "--head", "HEAD", "--mode", "review"]
+        r = subprocess.run(base, cwd=self.repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("submit", doc)
+        self.assertTrue(any("앞자리" in e for e in doc["errors"]), doc["errors"])
+        self.assertTrue(doc["submissions"])  # 공허 방지: 낼 묶음은 있었다
+        self.assertFalse([s for s in doc["submissions"] if "idempotency_key" in s])
+        # 같은 세션도 `--task` 를 주면 앞자리가 Task 키라 낸다.
+        r = subprocess.run([*base, "--task", "CLE-T-ABC123"], cwd=self.repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(json.loads(out.read_text(encoding="utf-8"))["ok"])
 
     def test_changeset_prefers_the_flag_then_meta_then_git(self):
         (self.sd / "meta.json").write_text(json.dumps({"files": [{"file_path": "m.ts"}]}), encoding="utf-8")
@@ -967,6 +1013,43 @@ class OutDocSharedTest(unittest.TestCase):
         doc = self.out_doc.failure(["x"], dispositions=[])
         self.assertEqual(doc, {"version": 1, "ok": False, "dispositions": [], "errors": ["x"]})
         self.assertEqual(self.out_doc.failure([], a=1)["errors"], [])
+
+
+class SessionStampTest(unittest.TestCase):
+    """Task 가 없는 멱등 키의 앞자리(`session_stamp`). 세션 이름은 `_shared/session.py` 가 정한다."""
+
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def stamp(self, name: str, day=("2026", "10", "10")):
+        return tool.session_stamp(str(self.tmp / ".review" / "consistency" / Path(*day) / name))
+
+    def test_plain_and_suffixed_names(self):
+        for name, want in (("13_40_14", "20261010-134014"), ("13_40_14_2", "20261010-134014-2"),
+                           ("13_40_14_12", "20261010-134014-12")):
+            with self.subTest(name=name):
+                self.assertEqual(self.stamp(name), want)
+
+    def test_names_that_are_not_a_session_time_have_no_stamp(self):
+        for name in ("13_40_14_", "13_40_14_x", "13_40_14_0", "13_40_14_2_3", "13_40_1", "1340_14", "SUMMARY.md"):
+            with self.subTest(name=name):
+                self.assertIsNone(self.stamp(name))
+        self.assertIsNone(self.stamp("13_40_14", day=("2026", "10", "1")))
+        self.assertIsNone(self.stamp("13_40_14_2", day=("26", "10", "10")))
+
+    def test_every_name_the_session_factory_makes_in_one_second_gets_a_distinct_stamp(self):
+        # 이름을 만드는 쪽과 읽는 쪽을 맞물린다. 만드는 쪽이 모양을 바꾸면 여기서 깨진다.
+        factory = _harness.load_module_by_path(
+            "shared_session_for_stamp", _harness.CLAUDE_DIR / "_shared" / "session.py")
+        clock = mock.MagicMock(wraps=factory.datetime)
+        clock.now.return_value = factory.datetime(2026, 10, 10, 13, 40, 14)
+        with mock.patch.object(factory, "datetime", clock):
+            dirs = [factory.create_session_dir(str(self.tmp / ".review" / "consistency")) for _ in range(3)]
+        self.assertEqual(len(set(dirs)), 3, dirs)  # 공허 방지: 같은 초에 세 이름이 실제로 생겼다
+        self.assertEqual([tool.session_stamp(d) for d in dirs],
+                         ["20261010-134014", "20261010-134014-2", "20261010-134014-3"])
+        self.assertEqual({tool.kind_of(d) for d in dirs}, {"consistency"})
 
 
 class RealSessionShapeTest(unittest.TestCase):

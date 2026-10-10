@@ -12,10 +12,16 @@
 전환 단계 5 에서 감사 대상을 옛 트리에서 미러로 옮겼다. 포함 목록과 함께 `## 구현 위치` 조건과
 제외 항목(미러 안내 · 카탈로그 영역)도 정본과 대조한다. 그 전에는 EXCLUDE 줄이 템플릿 문장이라
 정본과 갈라져도 알 수 없었다.
+
+`SameSecondSessionTest` 는 세션 디렉터리를 본다. 같은 초에 두 번 돌면 두 번째가 `_2` 를 받고 앞 실행의
+파일이 남는다. 새 이름은 제출 도구(`nerv_review_payload.py`)가 서로 다른 앞자리와 `spec_coverage` 로 읽는다.
 """
 
 from __future__ import annotations
 
+import io
+import json
+import os
 import re
 import shutil
 import sys
@@ -29,6 +35,8 @@ import _harness
 ORCH_PATH = (_harness.CLAUDE_DIR / "skills" / "spec-coverage" / "scripts"
              / "spec_coverage_orchestrator.py")
 orch = _harness.load_module_by_path("spec_coverage_orchestrator_under_test", ORCH_PATH)
+payload = _harness.load_module_by_path("nerv_review_payload_for_spec_coverage",
+                                       _harness.CLAUDE_DIR / "tools" / "nerv_review_payload.py")
 
 SOT = _harness.REPO_ROOT / "spec" / "CLE-ENG" / "CLE-ENG-SPECEVIDENCE.md"
 
@@ -104,6 +112,47 @@ class SpecCoveragePromptTest(unittest.TestCase):
 
     def test_the_direction_reaches_the_prompt(self):
         self.assertIn("MODE=both", self.prompt)
+
+
+class SameSecondSessionTest(unittest.TestCase):
+    """같은 초에 두 번 돌면 세션 디렉터리를 따로 받는다(NERV Task `CLE-T-B866CD`).
+
+    옛 `session_dir()` 는 `%H_%M_%S` 이름을 `exist_ok=True` 로 만들어 두 실행이 한 디렉터리를 같이 썼고 뒤
+    실행이 앞 실행의 `_prompt.md` · `meta.json` 을 덮었다. 시계를 멈춘다. 실제 시계로 두 번 부르면 초가 넘어가
+    결함이 살아 있어도 초록이다."""
+
+    def setUp(self):
+        self.root = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+
+    def run_main(self, mode: str) -> Path:
+        out = io.StringIO()
+        with mock.patch.object(orch, "repo_root", lambda: self.root), \
+                mock.patch.object(sys, "argv", ["spec_coverage_orchestrator.py", "--mode", mode]), \
+                mock.patch("sys.stdout", out):
+            self.assertEqual(orch.main(), 0)
+        return Path(out.getvalue().splitlines()[-1])
+
+    def test_two_runs_in_the_same_second_keep_their_own_files(self):
+        session_mod = orch.session
+        clock = mock.MagicMock(wraps=session_mod.datetime)
+        clock.now.return_value = session_mod.datetime(2026, 10, 10, 13, 40, 14)
+        with mock.patch.object(session_mod, "datetime", clock):
+            first = self.run_main("forward")
+            second = self.run_main("reverse")
+        self.assertEqual(first.relative_to(self.root).parts,
+                         (".review", "spec-coverage", "2026", "10", "10", "13_40_14"))
+        self.assertEqual(second, first.parent / "13_40_14_2")
+        # 앞 실행의 파일이 남는다. 원래 피해는 이름이 아니라 덮인 파일이었다.
+        for d, direction in ((first, "forward"), (second, "reverse")):
+            with self.subTest(session=d.name):
+                meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+                self.assertEqual((meta["direction"], meta["session_dir"]), (direction, str(d)))
+                self.assertIn(f"- MODE={direction}\n", (d / "_prompt.md").read_text(encoding="utf-8"))
+        # 제출 도구가 두 세션을 서로 다른 멱등 키 앞자리와 spec_coverage 로 읽는다.
+        self.assertEqual([payload.session_stamp(str(d)) for d in (first, second)],
+                         ["20261010-134014", "20261010-134014-2"])
+        self.assertEqual({payload.kind_of(str(d)) for d in (first, second)}, {"spec_coverage"})
 
 
 if __name__ == "__main__":

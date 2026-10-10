@@ -112,7 +112,7 @@
     └── 2026/
         └── 05/
             └── 15/
-                └── 03_00_00/                ← <hh>_<mm>_<ss>
+                └── 03_00_00/                ← <hh>_<mm>_<ss>[_<n>] (시각은 로컬 시각이고 같은 초에 세션을 또 만들면 `_2` · `_3` 이 붙는다)
                     ├── _prompts/
                     │   ├── security.md      ← orchestrator 가 작성한 reviewer 입력
                     │   ├── performance.md
@@ -132,13 +132,13 @@
                     └── _spec-proposal-<area>.md ← 스펙 결함 제안(main 이 NERV 초안으로 옮긴다)
 ```
 
-> 세션 디렉터리의 부모는 `./.review/code` 이고 gitignore 대상이라 커밋하지 않는다. 결과의 정본은 NERV 리뷰 레코드다(NERV 정본 전환 단계 2, `CLAUDE.md` §정보 저장 위치). 일관성 검토(`/consistency-check`) 도 동일하게 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 로 떨어진다. nested 형식은 누적된 세션 수가 한 디렉토리 안에서 폭주하지 않도록 한 단계 분리하기 위함이다. `REVIEW_OUTPUT_DIR` / `CONSISTENCY_OUTPUT_DIR` 로 prefix(`./.review/code`, `./.review/consistency`) 만 바꾸고 내부 nested 분할은 `lib.session.create_session_dir` 가 관리한다.
+> 세션 디렉터리의 부모는 `./.review/code` 이고 gitignore 대상이라 커밋하지 않는다. 결과의 정본은 NERV 리뷰 레코드다(NERV 정본 전환 단계 2, `CLAUDE.md` §정보 저장 위치). 일관성 검토(`/consistency-check`) 도 동일하게 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/` 로 떨어진다. nested 형식은 누적된 세션 수가 한 디렉토리 안에서 폭주하지 않도록 한 단계 분리하기 위함이다. `REVIEW_OUTPUT_DIR` / `CONSISTENCY_OUTPUT_DIR` 로 prefix(`./.review/code`, `./.review/consistency`) 만 바꾸고 내부 nested 분할은 `.claude/_shared/session.py` 의 `create_session_dir` 가 관리한다.
 
 ## `_retry_state.json` 스키마
 
 ```jsonc
 {
-  "session_dir": "/abs/path/to/.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>",
+  "session_dir": "/abs/path/to/.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]",
   "summary_subagent_type": "code-review-summary",
   "summary_output_file": "/abs/.../SUMMARY.md",
   "router_subagent_type": "review-router",
@@ -230,7 +230,7 @@ ScheduleWakeup delay:
 | 변수 | 기본값 | 의미 |
 | --- | --- | --- |
 | `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분 |
-| `REVIEW_OUTPUT_DIR` | `./.review/code` | 세션 디렉토리 부모 (nested ISO 분할은 lib.session 이 담당) |
+| `REVIEW_OUTPUT_DIR` | `./.review/code` | 세션 디렉토리 부모 (nested ISO 분할은 `_shared/session.py` 가 담당) |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 |
 | `REVIEW_MAX_FILE_SIZE` | `55296` | 개별 파일 컨텐츠 상한 (자). 라인번호 게이트 도입 전 51200 → 게이트 오버헤드(+8%) 만큼 상향. |
 | `REVIEW_MAX_PROMPT_SIZE` | `141557` | reviewer 1명분 prompt body 상한 (자). 게이트 도입 전 131072 → +8%. 게이트는 리뷰 대상 코드가 아니라 메타데이터이므로, 상한을 그대로 두면 reviewer 가 보는 **코드량**이 조용히 줄어든다. |
@@ -263,4 +263,4 @@ orchestrator 가 `/tmp/code-review-agents-log.txt` 에 prepare 단계의 이벤�
 | prompt 출처 | `prompts/agents/<role>.md` | `.claude/agents/<role>-reviewer.md` system prompt |
 | 호출 인자 | `--cli ...` | `--prepare ...` (옛 `--cli` 는 deprecated alias) |
 
-결과 디렉토리는 `./.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<role>.md` 로 떨어진다. 옛 `review/` 아래 누적 데이터는 NERV 정본 전환 단계 3 에서 지웠다(원문은 git 이력).
+결과 디렉토리는 `./.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/<role>.md` 로 떨어진다. 옛 `review/` 아래 누적 데이터는 NERV 정본 전환 단계 3 에서 지웠다(원문은 git 이력).

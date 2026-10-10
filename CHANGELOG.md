@@ -23,58 +23,39 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
-## Unreleased — 관리자 역할은 워크스페이스 소유자만 주고 바꾼다
+## Unreleased — 하네스: 오케스트레이터가 세션 이름을 직접 만들면 테스트가 막는다
 
-관리자(admin)가 다른 멤버를 관리자로 올리거나 다른 관리자를 편집자 · 뷰어로 내릴 수 있었고 관리자 역할로 초대하거나
-직접 추가할 수도 있었다. 스펙의 역할 권한표는 관리자 역할을 주고 빼는 일을 소유자 권한으로 정했지만 서버는 admin
-이상이면 받았다(NERV 발견 `01a0e542-19b6-755c-ad55-49c907b87cd1`).
+같은 초 세션에 `_2` · `_3` 을 붙이는 보호는 `create_session_dir` 에만 있다. 세션 이름을 직접 만드는 오케스트레이터는
+그 보호를 받지 못한다. spec-coverage 가 그 모양이었다(아래 항목, NERV Task `CLE-T-B866CD`). 그런데 이를 잡는 검사가
+없었다(NERV Task `CLE-T-XM6YV0`).
 
-- 소유자가 아닌 멤버가 역할 변경 · 직접 추가 · 초대로 관리자 역할을 주거나 관리자의 역할을 바꾸면 `403 OWNER_REQUIRED`
-  를 받는다. 관리자가 자기 역할을 바꾸는 것도 같다. 대기 중인 관리자 초대를 소유자가 아닌 멤버가 다른 역할로 다시
-  보내는 것도 막는다.
-- 편집자 ↔ 뷰어 변경, 편집자 · 뷰어 초대, 멤버 내보내기와 소유권 이전 규칙은 그대로다.
-- 멤버 탭에서 소유자가 아닌 관리자에게는 관리자 선택지가 보이지 않고 관리자 멤버의 역할은 읽기 전용 배지로 보인다.
-- 이미 있는 관리자와 대기 중인 관리자 초대는 바꾸지 않는다.
+- `create_session_dir` 를 담은 모듈을 `.claude/skills/code-review-agents/lib/session.py` 에서 하네스 공용 패키지
+  `.claude/_shared/session.py` 로 옮겼다. 네 오케스트레이터가 모두 `from _shared import session` 으로 읽는다.
+  spec-coverage 의 경로 로더와 그 오류 메시지 테스트는 없앴다.
+- `test_review_session_dir_collision.py` 가 `.claude/skills/*/scripts/*orchestrator*.py` 를 모두 구문 트리로 읽는다.
+  공용 모듈을 읽는지, `session.create_session_dir` 를 부르는지, `%H_%M_%S` 이름을 직접 만들지 않는지 본다. 주석과
+  docstring 은 판정에 들어가지 않는다. 다른 형식으로 이름을 직접 만드는 코드는 잡지 못한다.
+- 오케스트레이터 SKILL · README · 슬래시 명령 일부의 세션 경로에 같은 초 접미사 `[_<n>]` 와 로컬 시각 기준을 적었다.
 
-## Unreleased — 세션 목록 · 세션 종료 API 를 `/api/auth/sessions` 로 옮긴다
+## Unreleased — 하네스: `/spec-coverage` 를 같은 초에 두 번 돌려도 앞 실행의 입력이 남는다
 
-현재 세션은 refresh cookie 로 가리는데 그 쿠키는 `Path=/api/auth` 다. 세션 API 가 `/api/users/me/sessions` 에 있어서
-브라우저가 쿠키를 보내지 않았다. 그래서 세션 목록의 `isCurrent` 가 늘 false 였고 「다른 세션 모두 종료」는 늘 400 이었다.
-현재 세션을 개별 종료하지 못하게 막는 검사도 동작하지 않았다(NERV 발견 `01a0e542-19b8-7261-8b30-2c62dccb56dc` ·
-`01a0e542-19b9-7216-893a-9a25374cff3d`).
+`spec_coverage_orchestrator.py` 는 세션 디렉터리를 `HH_MM_SS` 이름으로 `exist_ok=True` 로 만들었다. 같은 초에 두 번
+돌면 두 실행이 한 디렉터리를 같이 썼고 뒤 실행이 앞 실행의 `_prompt.md` · `meta.json` 을 덮었다. 다른 세 오케스트레이터
+(코드 리뷰 · consistency · merge)는 이미 `create_session_dir` 로 `_2` · `_3` 을 붙였다(NERV Task `CLE-T-B866CD`).
 
-- `GET /api/auth/sessions`, `POST /api/auth/sessions/:familyId/revoke`, `POST /api/auth/sessions/revoke-others` 로
-  옮겼다. 예전 `/api/users/me/sessions…` 경로는 남기지 않는다(404). 쿠키 Path 는 넓히지 않았다.
-- 로그인 이력 `GET /api/users/me/login-history` 는 쿠키가 필요 없어 그대로다.
-- 프론트엔드 세션 화면은 새 경로를 쓴다. 세션 API 의 401 은 예전처럼 한 번 refresh 하고 다시 보낸다.
-- 배포: 프론트엔드와 백엔드를 함께 배포한다. 백엔드만 먼저 나가거나 브라우저에 예전 번들이 남아 있으면 세션 화면이
-  404 를 받는다. 예전 경로에 별칭을 두지 않은 것은 이 API 를 이 저장소의 프론트엔드만 부른다는 전제에서다.
+- spec-coverage 도 `create_session_dir` 로 이름을 받는다. 같은 초의 두 번째 실행은 `13_40_14_2` 에 쓴다.
+- 디렉터리 이름의 시각이 UTC 에서 로컬 시각으로 바뀐다. 다른 오케스트레이터와 같다. `meta.json` 의 `created_utc` 는
+  그대로 UTC 다.
 
-## Unreleased — 2FA 를 끌 때 비밀번호와 함께 인증 코드를 받는다
+## Unreleased — 하네스: 같은 초에 만든 리뷰 세션도 NERV 제출 문서를 만든다
 
-`POST /api/auth/2fa/disable` 은 비밀번호만 받았다. 비밀번호가 새면 2FA 도 끌 수 있었다(NERV 발견
-`01a0e542-19ba-707d-9bd5-4138e8f9d546`).
+리뷰 오케스트레이터는 같은 초에 세션을 또 만들면 디렉터리 이름에 `_2` · `_3` 을 붙인다(`13_40_14_2`).
+`nerv_review_payload.py` 는 Task 없이 낼 때 멱등 키 앞자리를 세션 이름에서 읽는데, 마지막 조각을 `HH_MM_SS` 모양으로만
+받았다. 그래서 접미사 세션은 `ok:false`("멱등 키의 앞자리를 정하지 못했다")로 막혔다. 2026-10-10 consistency `--spec`
+세션을 같은 초에 다시 돌렸을 때 드러났고, 세션을 접미사 없는 이름으로 복사해서 냈다(NERV Task `CLE-T-6SKVRM`).
 
-- 요청 본문에 `code` 가 필수다. Authenticator 앱의 6자리 코드나 복구 코드를 받는다. 복구 코드는 로그인과 같이 쓰면 소모된다.
-- 코드가 없거나 형식이 틀리면 400, 코드가 틀리면 `401 TOTP_INVALID` 이고 2FA 는 켜진 채로 남는다.
-- 이 엔드포인트에 민감 동작 throttle(분당 10회)을 건다.
-- 프로필 → 보안 화면의 2FA 해제 폼에 코드 입력란을 더했다. 설정 · 로그인 흐름은 그대로다.
-- 2FA 가 켜져 있지 않으면 확인할 코드가 없어서 `401 TOTP_INVALID` 다. 설정을 시작만 하고 확인하지 않은 상태도
-  같다. 이 상태는 로그인에 영향이 없고 설정을 다시 시작하면 secret 을 새로 받는다.
-- Authenticator 와 복구 코드를 모두 잃은 사용자는 로그인 2단계처럼 해제도 스스로 하지 못한다. 계정 복구 지원 경로는
-  이번 범위 밖이다.
-- 배포: 프론트엔드와 백엔드를 함께 배포한다. 예전 번들은 `code` 없이 보내서 해제 요청이 400 을 받는다.
-
-## Unreleased — 테마 설정에 `system` 을 저장한다
-
-`PATCH /api/users/me` 는 `theme` 으로 `light` · `dark` · `system` 을 받았지만 DB CHECK 제약이 `light` · `dark` 만
-허용해서 `system` 을 보내면 500 이 났다(NERV 발견 `01a0e542-19bb-75af-9f64-5529605f2b98`).
-
-- 마이그레이션 `V149__user_theme_allow_system.sql` · `V150__user_theme_allow_system_validate.sql` 이 `user.theme`
-  CHECK 를 `light` · `dark` · `system` 으로 넓힌다. V149 가 새 제약을 `NOT VALID` 로 붙이고 V150 이 `VALIDATE` 한 뒤
-  옛 제약을 지운다. 기존 행은 바뀌지 않는다. 파일을 둘로 나눠서 `NOT VALID` 추가의 잠금이 전체 검증 동안 남지 않는다.
-  두 파일 모두 잠금을 3초 안에 못 잡으면 롤백되고 실패 행이 남지 않으므로 다시 배포하면 된다.
-- 프론트엔드 테마 토글은 이번에 바꾸지 않았다.
+- 접미사 세션도 앞자리를 얻고 접미사가 남는다(`20261010-134014-2`). 같은 초의 두 세션이 같은 키로 묶이지 않는다.
+- 접미사 없는 세션의 앞자리는 그대로다(`20261010-134014`). `--task` 를 주면 앞자리는 지금처럼 Task 키다.
 
 ## Unreleased — basic_auth · hmac 웹훅 인증이 빈 기대값을 받아들이지 않는다
 
