@@ -89,17 +89,17 @@ describe('User theme (e2e)', () => {
   });
 
   it('허용 목록 밖 값은 DB 에서도 23514 로 거부된다', async () => {
-    let err: { code?: string; constraint?: string } | null = null;
-    try {
-      await db.query('UPDATE "user" SET theme = $1 WHERE id = $2', [
-        'sepia',
-        userId,
-      ]);
-    } catch (e) {
-      err = e as { code?: string; constraint?: string };
-    }
+    const rejection = await db
+      .query('UPDATE "user" SET theme = $1 WHERE id = $2', ['sepia', userId])
+      .then(
+        () => null,
+        (err: unknown) => err as { code?: string; constraint?: string },
+      );
     // null 이면 DB 가 쓰기를 받았다는 뜻이다
-    expect(err).not.toBeNull();
-    expect(err).toMatchObject({ code: '23514', constraint: 'chk_user_theme' });
+    expect(rejection).not.toBeNull();
+    expect(rejection).toMatchObject({
+      code: '23514',
+      constraint: 'chk_user_theme',
+    });
   });
 });
