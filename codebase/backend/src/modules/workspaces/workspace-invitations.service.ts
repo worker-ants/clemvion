@@ -542,7 +542,11 @@ export class WorkspaceInvitationsService {
     }
   }
 
-  /** Admin 이상인지 검사한다. 요청자 역할이 필요하면 `requireAdminRole` 을 쓴다. */
+  /**
+   * Admin 이상인지 검사만 한다(반환값 없음). 요청자 역할이 필요 없는 호출처(`resend` · `listPending` · `revoke`)가 쓰고,
+   * 필요한 호출처는 `requireAdminRole` 을 쓴다. 이 서비스의 거부 코드는 소문자 `admin_required` 라서 워크스페이스 서비스의
+   * 같은 이름 검사와 합치지 않았다.
+   */
   private async assertAdmin(
     workspaceId: string,
     userId: string,

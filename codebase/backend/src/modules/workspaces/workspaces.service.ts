@@ -884,7 +884,7 @@ export class WorkspacesService {
     // `CANNOT_REMOVE_OWNER` 를 받는데, 그것은 «대상이 owner 만 아니면 가능하다» 는 거짓 함의를
     // 준다 — editor 는 누구도 제거할 수 없다. 인가를 끝내고 대상 조건을 보는 것이 형제 둘의
     // 순서와도 같다.
-    if (!ADMIN_ROLES.has(requesterRole)) this.throwAdminRequired();
+    if (!isAdminRole(requesterRole)) this.throwAdminRequired();
     // 무락 읽기 위의 **이른** 가드라 이것만으로는 부족하고, 아래 DELETE 의 `role: Not('owner')`
     // 술어가 뒤를 받는다(동시 `transferOwnership`).
     if (member.role === 'owner') this.throwCannotRemoveOwner();
@@ -986,7 +986,10 @@ export class WorkspacesService {
     if (!role) this.throwNotAMember();
   }
 
-  /** Admin 이상인지 검사한다. 요청자 역할이 필요하면 `requireAdminRole` 을 쓴다. */
+  /**
+   * Admin 이상인지 검사만 한다(반환값 없음). `assertMembership` 과 짝을 이루는 이름이라 남겼고, 이 파일의 주석과 테스트가
+   * «assertAdmin 을 어디에 두는가» 를 이 이름으로 가리킨다. 요청자 역할이 필요한 호출처는 `requireAdminRole` 을 쓴다.
+   */
   private async assertAdmin(
     workspaceId: string,
     userId: string,
