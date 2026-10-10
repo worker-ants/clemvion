@@ -6444,6 +6444,49 @@ describe('ExecutionEngineService', () => {
         expect(ctx.variables['__workspaceTimezone']).toBe('');
       }
     });
+
+    // 재실행 dry-run 임시 가드 — 실행 시작이 만드는 `context.variables.__dryRun` 이
+    // `Execution.dryRun` 에서 오는지 고정한다(rehydration 쪽은 위 별도 케이스). provider
+    // 가드 3종과 resume 재유도가 전부 이 값을 입력으로 삼아서, 이 연결이 끊기면 쇼핑몰
+    // 쓰기를 막는 안전장치가 조용히 열린다.
+    it.each([
+      ['true', true, true],
+      ['false', false, false],
+      ['미지정', undefined, false],
+    ])(
+      'execute dryRun=%s → handler context 의 __dryRun 이 불리언으로 주입된다',
+      async (_label, dryRun, expected) => {
+        // 기본 create mock 은 입력과 무관한 고정 row 를 돌려준다. 입력이 row 에 실려야
+        // execute() → 큐 → runExecution 경로가 그 값을 읽는다.
+        const base = mockExecutionRepo.create() as Partial<Execution>;
+        mockExecutionRepo.create.mockImplementationOnce(
+          (entity: Partial<Execution>) => ({ ...base, ...entity }),
+        );
+        const seenContexts: ExecutionContext[] = [];
+        (mockHandler.execute as jest.Mock).mockImplementation(
+          async (
+            input: unknown,
+            _config: unknown,
+            context: ExecutionContext,
+          ) => {
+            seenContexts.push(context);
+            return mockOutput({ processed: true, input });
+          },
+        );
+
+        await service.execute(
+          workflowId,
+          { data: 'test' },
+          { workspaceId: 'ws-1', executedBy: 'u1', dryRun },
+        );
+        await flushPromises();
+
+        expect(seenContexts.length).toBeGreaterThan(0);
+        for (const ctx of seenContexts) {
+          expect(ctx.variables['__dryRun']).toBe(expected);
+        }
+      },
+    );
   });
 
   describe('선형 경로 외부 cancel 전파 (node-cancellation §5.1 — 기전 규명)', () => {
@@ -8379,6 +8422,54 @@ describe('ExecutionEngineService', () => {
       // 시스템 변수도 공존해야 함 (충돌 없음).
       expect(ctx.variables['__workspaceId']).toBe('ws-rehydrate-w2');
     });
+
+    // 재실행 dry-run 임시 가드 — resume 경로가 만드는 `context.variables.__dryRun` 이
+    // `Execution.dryRun` 에서 오는지 고정한다. provider 가드 3종과 resume 재유도가 전부
+    // 이 값을 입력으로 삼으므로, 이 연결이 끊기면 가드가 조용히 열린다. 컬럼 NULL(배포 이전
+    // row)은 false 로 닫는다.
+    it.each([
+      ['true', true, true],
+      ['false', false, false],
+      ['undefined', undefined, false],
+    ])(
+      'rehydration — Execution.dryRun=%s → context.variables.__dryRun 이 불리언으로 복원된다',
+      async (label, dryRun, expected) => {
+        const rehydrateExecId = `exec-dryrun-rehydrate-${label}`;
+        type RehydrateSubject = {
+          rehydrateContext: (
+            execution: unknown,
+            waitingNodeExec: unknown,
+          ) => Promise<{ variables: Record<string, unknown> }>;
+          contextService: { deleteContext: (id: string) => void };
+        };
+        const subject = service as unknown as RehydrateSubject;
+        subject.contextService.deleteContext(rehydrateExecId);
+
+        mockWorkflowRepo.findOne.mockResolvedValueOnce({
+          ...mockWorkflow,
+          workspaceId: 'ws-rehydrate-dry',
+          workspace: { id: 'ws-rehydrate-dry', name: 'D', settings: {} },
+        });
+        mockExecutionNodeLogRepo.find.mockResolvedValueOnce([]);
+
+        const ctx = await subject.rehydrateContext(
+          {
+            id: rehydrateExecId,
+            workflowId,
+            status: ExecutionStatus.WAITING_FOR_INPUT,
+            recursionDepth: 0,
+            dryRun,
+            conversationThread: null,
+            userVariables: {},
+          },
+          { id: 'ne-dry-form', nodeId: 'node-form', outputData: null },
+        );
+
+        // 불리언 그대로여야 한다. `undefined` 로 새면 `=== true` 가드는 닫혀 있어도
+        // 이 값을 그대로 쓰는 소비자가 생기면 달라진다.
+        expect(ctx.variables['__dryRun']).toBe(expected);
+      },
+    );
 
     // perf #1 — rehydration 의 per-node findOne N+1 을 단일 In() 배치 조회로
     // 교체한 회귀 가드. 의미론 고정: (a) findOne 미사용 + find 1회, (b) 같은
