@@ -26,7 +26,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
   - OutFileTest(NERV Task `CLE-T-CD9131`) — `--out` 이 `nerv-recorder` 가 그대로 낼 문서를 쓰고 stdout 에는 요약만 낸다
     (발견 본문 없음). SHA 는 git 이 푼 전체 값이고 풀지 못한 값은 오류다(`--base` · `--head` · 공통 조상 없음 · `git diff`
     실패 · 세션이 저장소 밖). 멱등 키는 내용 해시를 따른다. git 은 세션의 저장소에서 돈다. `base_sha` 는 merge-base. 한글
-    경로는 C-quote 되지 않는다. 로컬 `--branch` 에 닿지 않는 `--head` 는 풀 방법을 말하는 오류. 도구에 `git`/`subprocess`
+    경로는 C-quote 되지 않는다. 로컬 `--branch` 에 닿지 않는 `--head` 는 풀 방법을 말하는 오류. Task 없이 시각 모양이 아닌 세션을 내면 키 없이 `ok:false` 다. 도구에 `git`/`subprocess`
     호출이 없다. `--out` 은 인자 오류(exit 2)를 뺀 모든 종료에서 이번 실행의 결과만 남기고(시작 때 지우는 호출이 main 에
     걸려 있는지는 build 를 터뜨려 본다), 이 도구의 문서가 아닌 파일과 지우지 못하는 앞 문서는 거절한다(exit 2).
   - SessionStampTest — Task 가 없는 멱등 키의 앞자리. 같은 초의 두 번째 세션(`12_00_00_2`)도 앞자리를 얻고 접미사가
@@ -585,6 +585,26 @@ class OutFileTest(unittest.TestCase):
         key1 = self.keys()["scope"]
         self.assertTrue(key1.startswith("20261001-120000:"), key1)
         self.assertNotEqual(key1, key2)
+
+    def test_a_session_name_that_is_not_a_time_is_refused_without_a_task(self):
+        # 앞자리를 정하지 못하면 키를 만들지 않고 `ok:false` 로 멈춘다. 이 배선이 빠지면 `None:code:review:…` 키가 조용히 나간다.
+        odd = self.sd.parent / "12_00_00_x"
+        shutil.copytree(self.sd, odd)
+        out = odd / "_nerv_payload.json"
+        base = [sys.executable, str(TOOL_PATH), str(odd), "--out", str(out), "--branch", "feature",
+                "--base", self.base[:7], "--head", "HEAD", "--mode", "review"]
+        r = subprocess.run(base, cwd=self.repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads(out.read_text(encoding="utf-8"))
+        self.assertFalse(doc["ok"])
+        self.assertNotIn("submit", doc)
+        self.assertTrue(any("앞자리" in e for e in doc["errors"]), doc["errors"])
+        self.assertTrue(doc["submissions"])  # 공허 방지: 낼 묶음은 있었다
+        self.assertFalse([s for s in doc["submissions"] if "idempotency_key" in s])
+        # 같은 세션도 `--task` 를 주면 앞자리가 Task 키라 낸다.
+        r = subprocess.run([*base, "--task", "CLE-T-ABC123"], cwd=self.repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(json.loads(out.read_text(encoding="utf-8"))["ok"])
 
     def test_changeset_prefers_the_flag_then_meta_then_git(self):
         (self.sd / "meta.json").write_text(json.dumps({"files": [{"file_path": "m.ts"}]}), encoding="utf-8")
