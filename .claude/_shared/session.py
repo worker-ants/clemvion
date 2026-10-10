@@ -8,6 +8,7 @@ would fail there with an error that does not point here.
 
 import json
 import os
+import re
 from datetime import datetime
 
 # How many `<hh>_<mm>_<ss>[_N]` names to try before giving up and reusing the
@@ -17,6 +18,12 @@ from datetime import datetime
 # was removed on 2026-08-10 — see `code_review_orchestrator._warn_large_changeset`.
 # Collisions between concurrent sessions remain, which is why this still exists.)
 _MAX_SESSION_NAME_ATTEMPTS = 50
+
+# The last component `create_session_dir` makes: `<hh>_<mm>_<ss>`, then `_2`, `_3`, … from the
+# second session in the same second. `parse_session_dir` reads it; keep the two together.
+_SESSION_NAME_RE = re.compile(r"(\d{2})_(\d{2})_(\d{2})(?:_([1-9]\d*))?")
+_YEAR_RE = re.compile(r"\d{4}")
+_TWO_DIGITS_RE = re.compile(r"\d{2}")
 
 
 def make_debug_logger(log_file_path):
@@ -64,10 +71,10 @@ def create_session_dir(output_dir, subdir=None):
     So the create is ATOMIC (`exist_ok=False`) and a taken name falls through to
     `<hh>_<mm>_<ss>_2`, `_3`, …. Atomic matters for the parallel case: two
     processes cannot both believe they won. The guards walk the tree looking for
-    `SUMMARY.md` and do not read the name. One reader does:
-    `.claude/tools/nerv_review_payload.py` `session_stamp()` turns the name into
-    the idempotency-key prefix and keeps the suffix (`13_40_14_2` →
-    `…-134014-2`). Change the name shape there too.
+    `SUMMARY.md` and do not read the name. The one reader is `parse_session_dir`
+    below; `.claude/tools/nerv_review_payload.py` `session_stamp()` turns its
+    parts into the idempotency-key prefix and keeps the suffix (`13_40_14_2` →
+    `…-134014-2`). Change the name shape in both functions of this module.
 
     On exhaustion it returns the plain path with `exist_ok=True`, i.e. the old
     behaviour. Losing a session directory is bad; refusing to run a review at all
@@ -99,6 +106,26 @@ def create_session_dir(output_dir, subdir=None):
     session_dir = os.path.join(day_dir, stamp)
     os.makedirs(session_dir, exist_ok=True)
     return session_dir
+
+
+def parse_session_dir(session_dir):
+    """Read the path `create_session_dir` made: `…/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]`.
+
+    Returns `(year, month, day, hh, mm, ss, n)` as the strings in the path (leading zeros kept),
+    with `n` None for the plain name. Returns None when the last four components do not have that
+    shape. Only those four are read; what sits above them (`.review/<kind>/[<subdir>/]`) is the
+    caller's business.
+    """
+    parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)[-4:]
+    if len(parts) != 4:
+        return None
+    year, month, day, name = parts
+    if not (_YEAR_RE.fullmatch(year) and _TWO_DIGITS_RE.fullmatch(month) and _TWO_DIGITS_RE.fullmatch(day)):
+        return None
+    m = _SESSION_NAME_RE.fullmatch(name)
+    if m is None:
+        return None
+    return (year, month, day, *m.groups())
 
 
 def save_metadata(session_dir, meta):

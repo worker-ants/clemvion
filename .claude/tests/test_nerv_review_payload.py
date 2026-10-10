@@ -1051,6 +1051,21 @@ class SessionStampTest(unittest.TestCase):
                          ["20261010-134014", "20261010-134014-2", "20261010-134014-3"])
         self.assertEqual({tool.kind_of(d) for d in dirs}, {"consistency"})
 
+    def test_the_tool_reads_names_through_the_shared_parser(self):
+        # 이름 해석은 이름을 만드는 `_shared/session.py` 한 곳에 있다. 이 도구가 정규식을 다시 들이면 두 사본이
+        # 갈릴 수 있다. 문자열 포함 대신 구문 트리로 본다(주석 · docstring 은 판정에 들지 않는다).
+        factory = _harness.load_module_by_path(
+            "shared_session_for_parser", _harness.CLAUDE_DIR / "_shared" / "session.py")
+        tree = ast.parse((_harness.CLAUDE_DIR / "tools" / "nerv_review_payload.py").read_text(encoding="utf-8"))
+        stamp_fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "session_stamp")
+        self.assertTrue(any(
+            isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "parse_session_dir"
+            and isinstance(n.func.value, ast.Name) and n.func.value.id == "session"
+            for n in ast.walk(stamp_fn)), "session_stamp 가 session.parse_session_dir 를 부르지 않는다")
+        copies = [n.lineno for n in ast.walk(tree)
+                  if isinstance(n, ast.Constant) and n.value == factory._SESSION_NAME_RE.pattern]
+        self.assertEqual(copies, [], f"세션 이름 정규식 사본: {copies}행")
+
 
 class RealSessionShapeTest(unittest.TestCase):
     """리뷰어 정의가 문서로 정한 형식이 실제 정의 파일과 맞는지 — 형식이 바뀌면 이 도구도 바뀐다."""
