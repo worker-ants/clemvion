@@ -371,8 +371,8 @@ describe("ExecutionDetailPage - Re-run entry point (spec §10.1)", () => {
     expect(rerunButton()).toBeDisabled();
   });
 
-  it("reRunOf 가 있으면 chain badge 와 원본 링크를 표시", async () => {
-    setupAuth("editor", "user-me");
+  /** root 실행과 그 dry-run 재실행(본 실행 exec-1)으로 이뤄진 길이 2 chain. */
+  function mockRerunChain(executedBy: string) {
     const root = {
       id: "exec-root",
       workflowId: "wf-1",
@@ -397,13 +397,18 @@ describe("ExecutionDetailPage - Re-run entry point (spec §10.1)", () => {
     };
     mockGetById.mockResolvedValue(
       makeExecution({
-        executedBy: "user-me",
+        executedBy,
         reRunOf: "exec-root",
         chainId: "exec-root",
         dryRun: true,
       }),
     );
     mockGetChain.mockResolvedValue([root, me]);
+  }
+
+  it("reRunOf 가 있으면 chain badge 와 원본 링크를 표시", async () => {
+    setupAuth("editor", "user-me");
+    mockRerunChain("user-me");
     await renderPage();
     await screen.findByText("Completed");
     // "#1-th re-run" (root 제외, 재실행 목록 1번째) + dry-run suffix
@@ -411,5 +416,16 @@ describe("ExecutionDetailPage - Re-run entry point (spec §10.1)", () => {
     expect(screen.getByText("#exec-root")).toBeDefined();
     // chain 길이 2 → View chain 드롭다운
     expect(screen.getByText(/View chain \(2\)/)).toBeDefined();
+  });
+
+  // chain 조회는 Viewer 도 쓴다(백엔드 200). 재실행만 Editor 이상이라 버튼이 꺼진다.
+  it("viewer 는 타인 실행에서도 chain badge · View chain 을 보고 Re-run 은 disabled", async () => {
+    setupAuth("viewer", "user-me");
+    mockRerunChain("user-other");
+    await renderPage();
+    await screen.findByText("Completed");
+    expect(await screen.findByText(/#1-th re-run/)).toBeDefined();
+    expect(screen.getByText(/View chain \(2\)/)).toBeDefined();
+    expect(rerunButton()).toBeDisabled();
   });
 });

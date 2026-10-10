@@ -22,6 +22,7 @@ import {
  *   C. dryRun=true (부수효과 노드 없는 워크플로) → 201 dryRun=true (assertDryRunSupported 통과)
  *   D. GET chain → started_at ASC 로 original + re-run 모두 반환, chainId 공유
  *   E. cross-workspace re-run → 404 RERUN_EXECUTION_NOT_FOUND (IDOR / ID enumeration 차단)
+ *   F. Viewer → 남이 시작한 실행의 chain 200, re-run 은 403 EDITOR_REQUIRED (RR-PL-06)
  *
  * dry-run 노드 출력(`_dryRun: true`) 주의:
  *   `_dryRun: true` mock 출력은 INTEGRATION(외부 부수효과) 노드가 dry-run 모드일 때만
@@ -326,8 +327,43 @@ describe('Execution Re-run (e2e)', () => {
       .set('X-Workspace-Id', otherWs);
     expect(chain.status).toBe(404);
     expect(chain.body.error.code).toBe('RERUN_EXECUTION_NOT_FOUND');
+  }, 60_000);
 
-    // inviteAndAccept 헬퍼 import 유지(다른 RBAC 시나리오 확장 지점). lint no-unused 회피.
-    void inviteAndAccept;
+  it('F. Viewer → 남이 시작한 실행의 chain 200, re-run 403 EDITOR_REQUIRED', async () => {
+    // owner 가 시작한 실행과 그 re-run 1건으로 chain = [original, rerun].
+    const { executionId } = await createAndRunWorkflow();
+    const rr = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/re-run`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ useOriginalInput: true });
+    expect(rr.status).toBe(201);
+
+    const viewer = await inviteAndAccept(
+      BASE_URL,
+      ownerToken,
+      workspaceId,
+      uniqueEmail('rerun-view'),
+      'viewer',
+      db,
+    );
+
+    // chain 조회는 실행 상세 조회와 같은 권한이라 Viewer 도 받는다.
+    const chain = await request(BASE_URL)
+      .get(`/api/executions/${rr.body.data.id}/chain`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(chain.status).toBe(200);
+    const ids = (chain.body.data as Array<{ id: string }>).map((it) => it.id);
+    expect(ids).toEqual([executionId, rr.body.data.id]);
+
+    // 재실행은 Editor 이상만 한다(RR-PL-06). RolesGuard 가 서비스 진입 전에 막는다.
+    const viewerRerun = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/re-run`)
+      .set('Authorization', `Bearer ${viewer.accessToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ useOriginalInput: true });
+    expect(viewerRerun.status).toBe(403);
+    expect(viewerRerun.body.error.code).toBe('EDITOR_REQUIRED');
   }, 60_000);
 });

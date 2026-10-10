@@ -23,6 +23,17 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — Viewer 도 재실행 chain 을 조회한다
+
+`GET /api/executions/:id/chain` 이 남이 시작한 실행이면 워크스페이스 owner · admin 이 아닌 멤버에게
+403 `RERUN_PERMISSION_DENIED` 를 냈다. 실행 상세 조회는 Viewer 를 포함한 멤버 전원에게 열려 있어 chain 만 막을
+이유가 없었다(NERV 발견 `01a0e599-78b8-71f9-b59a-8c1abe73a21c`).
+
+- chain 조회 권한을 실행 상세 조회와 같게 맞췄다. 워크스페이스 멤버면 역할 · 시작자와 관계없이 200 이다.
+  OpenAPI 의 403 설명도 멤버가 아닐 때(`FORBIDDEN_NOT_A_MEMBER`)만 남겼다.
+- 재실행 권한(Editor 이상, 남의 실행은 owner · admin)은 그대로다. 실행 상세 화면에서 Viewer 는 chain 배지와
+  View chain 목록을 보고 재실행 버튼은 비활성으로 본다.
+
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 
 초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route

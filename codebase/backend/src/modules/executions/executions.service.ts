@@ -596,15 +596,13 @@ export class ExecutionsService {
 
   /**
    * 같은 chain 의 모든 실행을 started_at ASC 로 반환 (spec §8.2). nodeExecutions
-   * 는 생략(목록 용).
-   * @param user 인증 사용자 — RR-PL-06 권한 판정용 (타인 실행은 owner/admin 한정).
+   * 는 생략(목록 용). 조회 권한은 실행 상세 조회와 같아서 워크스페이스 멤버면
+   * 역할 · 실행자와 무관하게 받는다. 재실행 권한(RR-PL-06)은 reRun 만 본다.
    * @throws NotFoundException RERUN_EXECUTION_NOT_FOUND (미존재/타 워크스페이스)
-   * @throws ForbiddenException RERUN_PERMISSION_DENIED (RR-PL-06)
    */
   async getChain(
     executionId: string,
     workspaceId: string,
-    user: JwtPayload,
   ): Promise<ResponseExecution[]> {
     const exec = await this.executionRepository
       .createQueryBuilder('e')
@@ -615,17 +613,6 @@ export class ExecutionsService {
       throw new NotFoundException({
         code: 'RERUN_EXECUTION_NOT_FOUND',
         message: 'Execution not found',
-      });
-    }
-    // RR-PL-06 — chain 조회 권한은 re-run 과 동일: 타인 실행은 대상 워크스페이스 owner/admin 만.
-    if (
-      exec.executedBy &&
-      exec.executedBy !== user.sub &&
-      !(await this.isOwnerOrAdmin(workspaceId, user.sub))
-    ) {
-      throw new ForbiddenException({
-        code: 'RERUN_PERMISSION_DENIED',
-        message: 'You do not have permission to view this execution chain',
       });
     }
     const rootId = exec.chainId ?? exec.id;
