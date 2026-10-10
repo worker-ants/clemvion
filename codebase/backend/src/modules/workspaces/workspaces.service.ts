@@ -21,8 +21,8 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
 import {
-  ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
   ADMIN_ROLES,
+  assertMayChangeAdminRole,
   NOT_A_MEMBER,
   ROLE_REQUIRED,
 } from '../../common/constants/workspace-roles';
@@ -278,9 +278,7 @@ export class WorkspacesService {
         message: 'owner 역할은 직접 부여할 수 없습니다.',
       });
     }
-    if (role === 'admin' && requesterRole !== 'owner') {
-      throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
-    }
+    assertMayChangeAdminRole(requesterRole, role);
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) {
       throw new NotFoundException({
@@ -338,12 +336,7 @@ export class WorkspacesService {
         message: 'owner 역할은 별도 양도 흐름이 필요합니다.',
       });
     }
-    if (
-      (member.role === 'admin' || role === 'admin') &&
-      requesterRole !== 'owner'
-    ) {
-      throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
-    }
+    assertMayChangeAdminRole(requesterRole, member.role, role);
     const previousRole = member.role;
     member.role = role;
     const saved = await this.memberRepository.save(member);

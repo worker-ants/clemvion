@@ -29,8 +29,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import {
-  ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
   ADMIN_ROLES,
+  assertMayChangeAdminRole,
 } from '../../common/constants/workspace-roles';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -104,10 +104,7 @@ export class WorkspaceInvitationsService {
         message: '팀 워크스페이스에서만 초대할 수 있습니다.',
       });
     }
-    const requesterIsOwner = requesterRole === 'owner';
-    if (role === 'admin' && !requesterIsOwner) {
-      throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
-    }
+    assertMayChangeAdminRole(requesterRole, role);
 
     const existingUser = await this.userRepository.findOne({
       where: { email: normalized },
@@ -140,11 +137,7 @@ export class WorkspaceInvitationsService {
           where: { workspaceId, email: normalized, acceptedAt: IsNull() },
         });
         if (pending) {
-          if (pending.role === 'admin' && !requesterIsOwner) {
-            throw new ForbiddenException({
-              ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
-            });
-          }
+          assertMayChangeAdminRole(requesterRole, pending.role);
           pending.token = token;
           pending.role = role;
           pending.invitedBy = requesterId;

@@ -1,3 +1,5 @@
+import { ForbiddenException } from '@nestjs/common';
+
 /**
  * 워크스페이스 역할 서열 — `RolesGuard` 의 `@Roles()` 판정과 서비스 계층의 Admin 판정이 **같은 표**를 본다.
  *
@@ -92,3 +94,22 @@ export const ADMIN_ROLE_CHANGE_REQUIRES_OWNER: WorkspaceRoleRejection = {
   code: ROLE_REQUIRED.owner.code,
   message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
 };
+
+/**
+ * 관리자 역할을 주거나 빼는 변경은 소유자만 한다(NERV CLE-ACCT-WS 역할 권한표). `touchedRoles` 는 그 변경이 건드리는
+ * 역할이다 — 역할 변경이면 대상의 지금 역할과 새 역할, 직접 추가 · 초대면 새 역할, 대기 중인 초대를 덮어쓰면 그 초대의 지금
+ * 역할이다. 하나라도 admin 이고 요청자가 owner 가 아니면 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER` 로 거부한다.
+ * 규칙과 거부 본문을 서비스마다 다시 쓰지 않게 이 함수 하나가 가진다. 역할 값이 없는 칸(`null` · `undefined`)은 건드리지 않은
+ * 것으로 본다.
+ */
+export function assertMayChangeAdminRole(
+  requesterRole: string,
+  ...touchedRoles: ReadonlyArray<string | null | undefined>
+): void {
+  if (
+    touchedRoles.includes('admin') &&
+    workspaceRoleLevel(requesterRole) < WORKSPACE_ROLE_LEVEL.owner
+  ) {
+    throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
+  }
+}

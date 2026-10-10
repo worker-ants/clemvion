@@ -1,5 +1,8 @@
+import { ForbiddenException } from '@nestjs/common';
 import {
+  ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
   ADMIN_ROLES,
+  assertMayChangeAdminRole,
   lowestRequiredRole,
   NOT_A_MEMBER,
   ROLE_REQUIRED,
@@ -50,5 +53,57 @@ describe('workspace-roles — 가드와 서비스가 보는 단일 역할 서열
     expect(
       (['editor', 'admin', 'owner'] as const).map((r) => ROLE_REQUIRED[r].code),
     ).toEqual(['EDITOR_REQUIRED', 'ADMIN_REQUIRED', 'OWNER_REQUIRED']);
+  });
+
+  describe('assertMayChangeAdminRole — 관리자 역할을 주거나 빼는 변경은 owner 만', () => {
+    const rejection = () => {
+      try {
+        assertMayChangeAdminRole('admin', 'admin');
+      } catch (err) {
+        return err as ForbiddenException;
+      }
+      throw new Error('expected rejection');
+    };
+
+    it.each([
+      ['admin', ['admin']],
+      ['admin', ['editor', 'admin']],
+      ['admin', ['admin', 'viewer']],
+      ['editor', ['admin']],
+      ['superadmin', ['admin']],
+    ])(
+      '요청자 %s 가 %j 를 건드리면 403 OWNER_REQUIRED',
+      (requester, touched) => {
+        expect(() => assertMayChangeAdminRole(requester, ...touched)).toThrow(
+          ForbiddenException,
+        );
+        const body = rejection().getResponse() as Record<string, unknown>;
+        expect(body).toEqual({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
+        expect(body.code).toBe(ROLE_REQUIRED.owner.code);
+      },
+    );
+
+    it.each([
+      ['owner', ['admin']],
+      ['owner', ['admin', 'admin']],
+      ['admin', ['editor']],
+      ['admin', ['viewer', 'editor']],
+      ['admin', []],
+      ['admin', [null, undefined]],
+    ] as Array<[string, Array<string | null | undefined>]>)(
+      '요청자 %s 가 %j 를 건드리면 통과한다',
+      (requester, touched) => {
+        expect(() =>
+          assertMayChangeAdminRole(requester, ...touched),
+        ).not.toThrow();
+      },
+    );
+
+    it('거부 본문은 호출마다 새 객체다 — 공유 상수가 요청 사이에 새지 않는다', () => {
+      const first = rejection().getResponse();
+      const second = rejection().getResponse();
+      expect(first).not.toBe(ADMIN_ROLE_CHANGE_REQUIRES_OWNER);
+      expect(first).not.toBe(second);
+    });
   });
 });
