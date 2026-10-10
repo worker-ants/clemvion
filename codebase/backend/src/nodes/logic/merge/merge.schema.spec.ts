@@ -111,3 +111,23 @@ describe('merge dormant warning messages', () => {
     },
   );
 });
+
+// 설정 패널의 hint 도 경고와 같은 사실을 안내한다. 기다리거나 일부만 병합하는
+// 동작이 있는 것처럼 읽히면 캔버스 경고와 어긋난다.
+describe('merge dormant field hints', () => {
+  const hint = (field: 'timeout' | 'partialOnTimeout') =>
+    (
+      mergeNodeConfigSchema.shape[field].meta() as
+        { ui?: { hint?: string } } | undefined
+    )?.ui?.hint ?? '';
+
+  it.each(['timeout', 'partialOnTimeout'] as const)(
+    '%s hint says the field has no effect',
+    (field) => {
+      expect(hint(field)).toMatch(/no effect/i);
+      expect(hint(field)).not.toMatch(
+        /wait indefinitely|when timeout elapses/i,
+      );
+    },
+  );
+});

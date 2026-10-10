@@ -45,7 +45,7 @@ export const mergeNodeConfigSchema = z
         ui: {
           label: 'Timeout (seconds)',
           widget: 'number',
-          hint: '0 = no timeout (wait indefinitely)',
+          hint: 'No effect — Merge runs after every input has finished. Keep it 0.',
         },
       }),
     partialOnTimeout: z
@@ -55,7 +55,7 @@ export const mergeNodeConfigSchema = z
         ui: {
           label: 'Partial on Timeout',
           widget: 'checkbox',
-          hint: 'Merge arrived inputs when timeout elapses',
+          hint: 'No effect — Merge never times out. Keep it off.',
         },
       }),
   })

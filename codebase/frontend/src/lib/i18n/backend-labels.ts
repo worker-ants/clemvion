@@ -238,8 +238,10 @@ const HINT_KO: Record<string, string> = {
     "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요.",
   "Registered embedding model config used for memory recall/extraction (its provider/model). Recall and storage use the same config so dimensions match. Empty = workspace default embedding config.":
     "메모리 회수/추출에 쓰는 등록된 임베딩 모델 설정이에요(그 설정의 제공자/모델로 임베딩해요). 회수와 저장이 같은 설정을 써서 차원이 일치해요. 비우면 워크스페이스 기본 임베딩 설정을 써요.",
-  "Merge arrived inputs when timeout elapses":
-    "타임아웃 발생 시 도착한 입력들을 병합",
+  "No effect — Merge runs after every input has finished. Keep it 0.":
+    "동작하지 않아요. Merge 는 입력이 모두 끝난 뒤에 실행돼요. 0 으로 두세요.",
+  "No effect — Merge never times out. Keep it off.":
+    "동작하지 않아요. Merge 에는 타임아웃이 없어요. 꺼 두세요.",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",
   "No operations defined": "정의된 작업이 없습니다",
   "Number of chunks to retrieve": "가져올 청크 수",
