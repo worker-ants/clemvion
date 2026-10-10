@@ -80,7 +80,7 @@ OAuth 버튼을 누르기 전에 다음 정보가 필요해요. Cafe24 는 URL �
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/security-tab.tsx"
   symbol="reauthorizeDisabledReason"
   describes="통합 상세 보안 탭의 재인증 버튼과 비활성 판정"
 />
@@ -88,7 +88,7 @@ OAuth 버튼을 누르기 전에 다음 정보가 필요해요. Cafe24 는 URL �
 <ImplAnchor
   kind="ui-entry"
   file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/scope-tab.tsx"
-  symbol="isRequestScopesDisabled"
+  symbol="requestScopesDisabledReason"
   describes="통합 상세 권한 탭의 권한 요청 버튼 비활성 판정"
 />
 
@@ -106,7 +106,8 @@ OAuth 버튼을 누르기 전에 다음 정보가 필요해요. Cafe24 는 URL �
 5. [Cafe24 Developers](https://developers.cafe24.com) 에서 해당 앱의 **테스트 실행** 버튼을 눌러요.
 6. 동의 화면이 열려요. 동의하면 새 토큰으로 바뀌고 안내가 사라져요. 권한을 추가했다면 새 권한이 포함된 토큰으로 바뀌어요.
 
-- 테스트 실행을 마치기 전까지는 지금 토큰이 그대로 쓰이고 통합 상태(`connected` · `error` · `expired`)도 바뀌지 않아요.
+- 테스트 실행을 마치기 전까지는 토큰과 통합 상태(`connected` · `error` · `expired`)가 바뀌지 않아요. `connected` 이면 지금 토큰으로 계속 실행되고 `error` · `expired` 이면 노드가 실행되지 않아요.
+- 요청은 24시간 동안 유효해요. 그 안에 테스트 실행을 누르지 않으면 안내가 사라지고 App URL 도 동의 화면으로 이어지지 않아요. 이때는 **재인증** 이나 **권한 요청** 을 다시 눌러요.
 - 동의 단계에서 오류가 나면 안내가 그대로 남아 있어요. 다시 **테스트 실행** 을 누르면 돼요.
 
 <Callout type="warn">설치 시간이 지나 만료된 Private 통합과 App URL 이 없는 Private 통합은 재인증과 권한 요청이 막혀 있어요. 버튼 아래에 안내가 표시되고 통합을 삭제한 뒤 다시 등록해야 해요.</Callout>

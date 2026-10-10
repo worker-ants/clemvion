@@ -10,13 +10,24 @@ import {
   type IntegrationDto,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
-import { type TFunction } from "@/lib/i18n";
-import { isRequestScopesDisabled } from "@/lib/integrations/reauthorize";
+import { type TFunction, type TranslationKey } from "@/lib/i18n";
+import {
+  requestScopesDisabledReason,
+  type RequestScopesDisabledReason,
+} from "@/lib/integrations/reauthorize";
 import { openOAuthPopup } from "./open-oauth-popup";
 import {
   ApprovalRequiredBadge,
   RestrictedScopeNotice,
 } from "@/components/integrations/approval-required-badge";
+
+const REQUEST_SCOPES_DISABLED_HINT_KEYS: Record<
+  RequestScopesDisabledReason,
+  TranslationKey
+> = {
+  makeshop: "integrations.requestScopesDisabledMakeshop",
+  no_app_url: "integrations.requestScopesDisabledNoAppUrl",
+};
 
 function readRequiresApproval(
   lastError: IntegrationDto["lastError"],
@@ -61,14 +72,13 @@ export function ScopeTab({
   // 함수 사용 — 백엔드가 details 를 omit 한 케이스도 깨끗히 처리.
   const requiresApprovalFromError = readRequiresApproval(integration.lastError);
   // MakeShop 은 권한 추가 경로가 없고(삭제 후 재등록), App URL 이 없는 Cafe24
-  // Private 행은 재설치를 마칠 수 없다. NERV CLE-INT-OAUTH · CLE-T-NNENG8.
-  const requestDisabledHint = isRequestScopesDisabled(integration)
-    ? t(
-        integration.serviceType === "makeshop"
-          ? "integrations.requestScopesDisabledMakeshop"
-          : "integrations.requestScopesDisabledInstallTimeout",
-      )
-    : null;
+  // Private 행은 재설치를 마칠 수 없다. 사유마다 문구가 다르다.
+  // NERV CLE-INT-OAUTH · CLE-T-NNENG8.
+  const disabledReason = requestScopesDisabledReason(integration);
+  const requestDisabledHint =
+    disabledReason === null
+      ? null
+      : t(REQUEST_SCOPES_DISABLED_HINT_KEYS[disabledReason]);
 
   const [selected, setSelected] = useState<string[]>([]);
   const [cafe24Pending, setCafe24Pending] = useState<{

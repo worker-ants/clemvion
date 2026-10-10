@@ -33,6 +33,19 @@ describe("ReinstallRequestedNotice", () => {
     expect(notice).toHaveTextContent(`요청 시각: ${formatDate(at, "datetime")}`);
   });
 
+  // 표시가 붙는 행은 connected · error · expired 셋이고 error · expired 행은 실행이 막혀 있다. 그래서 안내는 지금 토큰으로
+  // 실행이 계속된다고 말하지 않는다. 표시는 24시간 동안만 유효하다는 것을 알린다.
+  it.each([
+    ["ko", /지금 토큰|실행돼요/, /24시간/],
+    ["en", /current token|keep using/, /24 hours/],
+  ] as const)("%s — 실행이 계속된다고 말하지 않고 유효 기간을 알린다", (locale, forbidden, validity) => {
+    useLocaleStore.setState({ locale });
+    render(<Shell reinstallRequestedAt="2026-10-10T03:04:05.000Z" />);
+    const notice = screen.getByRole("status");
+    expect(notice.textContent).not.toMatch(forbidden);
+    expect(notice.textContent).toMatch(validity);
+  });
+
   it("영어 로케일에서도 같은 안내를 보여 준다", () => {
     useLocaleStore.setState({ locale: "en" });
     render(<Shell reinstallRequestedAt="2026-10-10T03:04:05.000Z" />);

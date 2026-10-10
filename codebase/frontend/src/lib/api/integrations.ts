@@ -100,8 +100,10 @@ export interface IntegrationDto {
   /**
    * Cafe24 Private 재설치 대기 표시 시각. 권한 추가 · 재인증이 남기고 콜백이
    * 성공하면 `null` 로 돌아간다. 값이 있으면 상세 화면이 Cafe24 Developers 의
-   * '테스트 실행' 안내를 띄운다. 그 외 통합은 항상 `null`. 옛 응답에는 없을 수
-   * 있어 optional 이다. NERV CLE-INT-OAUTH · CLE-T-NNENG8.
+   * '테스트 실행' 안내를 띄운다. 표시는 남긴 뒤 24시간 동안만 유효하고, 서버가
+   * 만료를 판정해 그 뒤에는 `null` 을 보낸다(화면은 이 값만 본다). 그 외 통합은
+   * 항상 `null`. 서버는 늘 `string | null` 을 보낸다. optional 로 둔 것은 이
+   * 필드가 없는 테스트 픽스처가 많아서다. NERV CLE-INT-OAUTH · CLE-T-NNENG8.
    */
   reinstallRequestedAt?: string | null;
   /**

@@ -319,9 +319,11 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
       renderFn();
     });
 
+    // 사유가 다르면 문구도 다르다 — MakeShop 문구가 섞이지 않는다.
     expect(
-      screen.getByText(/has no App URL, so it can't be granted new scopes/),
+      screen.getByText(/has no App URL, so a scope request can't be made/),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/MakeShop integrations can't be granted/)).toBeNull();
     expect(getCheckbox("Write product")).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Request scopes" }),
@@ -335,6 +337,7 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     });
 
     expect(screen.queryByText(/can't be granted new scopes/)).toBeNull();
+    expect(screen.queryByText(/a scope request can't be made/)).toBeNull();
     await userEvent.click(getCheckbox("Write product"));
     expect(
       screen.getByRole("button", { name: "Request scopes" }),

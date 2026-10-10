@@ -5,6 +5,7 @@ import {
   isRequestScopesDisabled,
   pickErrorMessage,
   reauthorizeDisabledReason,
+  requestScopesDisabledReason,
 } from "../reauthorize";
 import type { IntegrationDto } from "@/lib/api/integrations";
 
@@ -138,8 +139,30 @@ describe("reauthorizeDisabledReason", () => {
       "install_timeout",
     ],
     [row({ serviceType: "makeshop" }), "makeshop"],
+    // App URL 이 없는 Cafe24 Private 은 `connected` 여도 있다(옛 행) — 설치 시간 초과와 사유가 다르다.
     [
       row({
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: null,
+      }),
+      "no_app_url",
+    ],
+    [
+      row({
+        status: "error",
+        statusReason: "auth_failed",
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: null,
+      }),
+      "no_app_url",
+    ],
+    // 설치 시간 초과가 먼저다 — 그 행도 App URL 이 없지만 사용자에게는 만료 사유를 말한다.
+    [
+      row({
+        status: "expired",
+        statusReason: INSTALL_TIMEOUT_REASON,
         serviceType: "cafe24",
         meta: { appType: "private" },
         appUrl: null,
@@ -148,6 +171,20 @@ describe("reauthorizeDisabledReason", () => {
     ],
   ] as const)("%# → %s", (integration, reason) => {
     expect(reauthorizeDisabledReason(integration)).toBe(reason);
+  });
+
+  it("install_timeout 은 expired + install_timeout 사유에만 쓴다", () => {
+    const reasons = [
+      row({ status: "connected" }),
+      row({ status: "expired", statusReason: "token_expired" }),
+      row({ status: "error", statusReason: INSTALL_TIMEOUT_REASON }),
+      row({
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: null,
+      }),
+    ].map((r) => reauthorizeDisabledReason(r));
+    expect(reasons).not.toContain("install_timeout");
   });
 
   it("agrees with isReauthorizeDisabled", () => {
@@ -195,6 +232,59 @@ describe("isRequestScopesDisabled", () => {
     }),
   ])("keeps request-scopes available (%#)", (integration) => {
     expect(isRequestScopesDisabled(integration)).toBe(false);
+  });
+});
+
+describe("requestScopesDisabledReason", () => {
+  it("returns null when request-scopes is available", () => {
+    expect(requestScopesDisabledReason(row({}))).toBeNull();
+    expect(
+      requestScopesDisabledReason(
+        row({
+          serviceType: "cafe24",
+          meta: { appType: "private" },
+          appUrl: "https://x/install/t",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("makeshop — no scope request path", () => {
+    expect(requestScopesDisabledReason(row({ serviceType: "makeshop" }))).toBe(
+      "makeshop",
+    );
+  });
+
+  it.each(["connected", "error", "expired"] as const)(
+    "Cafe24 Private (%s) without an App URL → no_app_url",
+    (status) => {
+      expect(
+        requestScopesDisabledReason(
+          row({
+            status,
+            serviceType: "cafe24",
+            meta: { appType: "private" },
+            appUrl: null,
+          }),
+        ),
+      ).toBe("no_app_url");
+    },
+  );
+
+  it("agrees with isRequestScopesDisabled", () => {
+    const rows = [
+      row({}),
+      row({ serviceType: "makeshop" }),
+      row({ serviceType: "cafe24", meta: { appType: "private" }, appUrl: null }),
+      row({
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: "https://x/install/t",
+      }),
+    ];
+    for (const r of rows) {
+      expect(isRequestScopesDisabled(r)).toBe(requestScopesDisabledReason(r) !== null);
+    }
   });
 });
 

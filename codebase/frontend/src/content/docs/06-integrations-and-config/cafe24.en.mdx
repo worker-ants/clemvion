@@ -68,7 +68,7 @@ You can reauthorize a connected Private-app integration or add scopes to it. Unl
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/security-tab.tsx"
   symbol="reauthorizeDisabledReason"
   describes="Reauthorize button on the Security tab of the integration detail page, and when it is disabled"
 />
@@ -76,7 +76,7 @@ You can reauthorize a connected Private-app integration or add scopes to it. Unl
 <ImplAnchor
   kind="ui-entry"
   file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/scope-tab.tsx"
-  symbol="isRequestScopesDisabled"
+  symbol="requestScopesDisabledReason"
   describes="Request scopes button on the Scope tab of the integration detail page, and when it is disabled"
 />
 
@@ -94,7 +94,8 @@ You can reauthorize a connected Private-app integration or add scopes to it. Unl
 5. On [Cafe24 Developers](https://developers.cafe24.com), click **Test Run (테스트 실행)** on the app.
 6. The consent screen opens. After you approve, the integration switches to the new token and the notice disappears. If you added scopes, the new token includes them.
 
-- Until you finish the test run, the current token stays in use and the integration status (`connected` · `error` · `expired`) does not change.
+- Until you finish the test run, the token and the integration status (`connected` · `error` · `expired`) do not change. A `connected` integration keeps running with the current token. An `error` or `expired` integration does not run nodes.
+- The request stays valid for 24 hours. If you do not click Test Run within that time, the notice disappears and the App URL no longer leads to the consent screen. Click **Reauthorize** or **Request scopes** again.
 - If consent fails, the notice stays. Click **Test Run** again.
 
 <Callout type="warn">A Private integration that expired because the install timed out, and a Private integration with no App URL, cannot be reauthorized or granted new scopes. A hint appears under the buttons: delete the integration and register it again.</Callout>
