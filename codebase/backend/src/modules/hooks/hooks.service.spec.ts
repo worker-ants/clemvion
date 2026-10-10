@@ -1146,7 +1146,7 @@ describe('HooksService', () => {
         expect(conversationService.upsert).not.toHaveBeenCalled();
       });
 
-      it('/cancel 은 동작한다 — 활성 실행을 취소한다', async () => {
+      it('/cancel 은 동작한다 — 활성 실행을 취소하고 대화가 아직 그 실행을 가리킬 때만 매핑을 비운다', async () => {
         triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
         mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'cancel' }));
         conversationService.lookup.mockResolvedValue(activeState);
@@ -1158,6 +1158,10 @@ describe('HooksService', () => {
         const res = await service.handleWebhook('abc', chatInput);
 
         expect(executions.stop).toHaveBeenCalledWith('exec-active');
+        expect(
+          conversationService.clearExecutionIdIfMatches,
+        ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
+        expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
         expect(mockAdapter.ackInteraction).toHaveBeenCalled();
         expect(res).toEqual({ executionId: 'exec-active' });
       });
@@ -2562,6 +2566,42 @@ describe('HooksService', () => {
       // interact 가 호출되면 안 됨.
       expect(interactionService.interact).not.toHaveBeenCalled();
       expect(res).toMatchObject({ executionId: 'exec-active' });
+    });
+
+    // 근거: NERV Task `CLE-T-V4WVF2`. `/cancel` 은 대화가 읽은 실행을 아직 가리킬 때만 매핑을 비운다.
+    // 취소하는 사이 `/start` 가 대화를 새 실행에 이었다면 그 매핑을 지우지 않는다(compare-and-set).
+    it('/cancel — 활성 실행을 취소하고 무조건 덮어쓰지 않고 읽은 실행과 일치할 때만 매핑을 비운다', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'cancel' },
+        idempotencyKey: '2002',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: '2026-10-10T00:00:00.000Z',
+        lastUpdateAt: '2026-10-10T00:00:00.000Z',
+      });
+      const executions = moduleRef.get(ExecutionsService) as {
+        stop: jest.Mock;
+        executionRepository: { findOne: jest.Mock };
+      };
+      executions.executionRepository.findOne.mockResolvedValue({
+        status: 'running',
+      });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(executions.stop).toHaveBeenCalledWith('exec-active');
+      expect(
+        conversationService.clearExecutionIdIfMatches,
+      ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
+      expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
+      expect(res).toEqual({ executionId: 'exec-active' });
     });
 
     // 근거: NERV Task `CLE-T-V4WVF2`. 활성 실행 중에 온 /start 는 명령이 먼저다(CCH-CV-02/03).

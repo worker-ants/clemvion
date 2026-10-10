@@ -240,7 +240,14 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
         trigger.id,
         conversationKey,
       );
-      if (state) {
+      if (state && state.executionId !== event.executionId) {
+        // 대화가 이 실행을 가리키지 않는다. `/start` 나 `/cancel` 이 이 실행을 끊고 대화를 다른 실행에
+        // 잇거나 비웠는데 이 실행의 폼 이벤트가 늦게 온 경우다. 그 상태는 다른 실행의 것이라 덮어쓰지
+        // 않는다(NERV Task `CLE-T-V4WVF2`).
+        this.logger.debug(
+          `form 대기 상태 갱신 생략 — 대화가 다른 실행을 가리킨다 (event=${event.executionId}, state=${state.executionId ?? 'null'}, trigger=${trigger.id})`,
+        );
+      } else if (state) {
         const modalMsg = messages.find((m) => m.body.kind === 'form_modal');
         if (modalMsg) {
           const modalFormConfig = (modalMsg.body as { formConfig: unknown })

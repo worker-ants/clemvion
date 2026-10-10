@@ -452,14 +452,16 @@ export class HooksService {
     const hasActiveExecution =
       state?.executionId != null && activeStatus !== null;
 
-    // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop.
+    // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop. 매핑은 읽은 실행을 가리킬 때만
+    // 비운다. 취소하는 사이 `/start` 가 대화를 새 실행에 이었다면 그 매핑을 지우지 않는다
+    // (NERV Task `CLE-T-V4WVF2`).
     if (update.command.kind === 'cancel') {
       if (hasActiveExecution) {
         await this.executionsService.stop(state.executionId!);
-        await this.channelConversationService.updateExecutionId(
+        await this.channelConversationService.clearExecutionIdIfMatches(
           trigger.id,
           update.conversationKey,
-          null,
+          state.executionId!,
         );
       }
       await adapter.ackInteraction(update, config);

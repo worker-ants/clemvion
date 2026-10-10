@@ -979,6 +979,60 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
     });
     expect(state.pendingFormModal).toBeUndefined();
   });
+
+  // 근거: NERV Task `CLE-T-V4WVF2`. `/start` 가 이 실행을 취소하고 대화를 새 실행에 이었거나 `/cancel` 이
+  // 매핑을 비운 뒤 이 실행의 폼 이벤트가 늦게 올 수 있다. 그 상태는 다른 실행의 것이라 덮어쓰지 않는다.
+  describe('대화가 이 이벤트의 실행을 가리키지 않으면', () => {
+    const formModalMsg: ChannelMessage = {
+      conversationKey: '',
+      body: {
+        kind: 'form_modal',
+        openLabel: '양식 작성하기',
+        formConfig: {
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      },
+    };
+    const stateOf = (executionId: string | null): Record<string, unknown> => ({
+      executionId,
+      threadId: 'default',
+      channelUserKey: 'U1',
+      startedAt: '2026-05-28T00:00:00Z',
+      lastUpdateAt: '2026-05-28T00:00:00Z',
+    });
+
+    it.each([
+      ['다른 실행(exec-new)', 'exec-new'],
+      ['비워진 매핑(null)', null],
+    ])(
+      '%s 을 가리키면 pendingFormModal · formState 를 고치지 않고 저장도 하지 않는다',
+      async (_label, executionId) => {
+        const lookupState = stateOf(executionId);
+        const { dispatcher, upsert } = buildDispatcherHarness({
+          renderResult: [formModalMsg],
+          lookupState,
+        });
+
+        await callHandle(dispatcher, formEvent);
+
+        expect(lookupState.pendingFormModal).toBeUndefined();
+        expect(lookupState.formState).toBeUndefined();
+        expect(lookupState.executionId).toBe(executionId);
+        expect(upsert).not.toHaveBeenCalled();
+      },
+    );
+
+    it('폼 안내 메시지는 그대로 보낸다 — 상태만 건드리지 않는다', async () => {
+      const { dispatcher, adapter } = buildDispatcherHarness({
+        renderResult: [formModalMsg],
+        lookupState: stateOf('exec-new'),
+      });
+
+      await callHandle(dispatcher, formEvent);
+
+      expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)

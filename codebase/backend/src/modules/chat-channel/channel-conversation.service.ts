@@ -114,9 +114,9 @@ export class ChannelConversationService {
   }
 
   /**
-   * 활성 executionId 만 갱신 (terminal 후 null 로 비우거나, 새 execution 으로 교체).
-   * lookup-then-upsert 의 atomic 변형 — race condition 가능성은 동일 conversation 의 동시 도착이
-   * 드물어 (CCH-NF-03 의 분당 60 cap) 큰 문제 아님.
+   * 활성 executionId 를 **무조건** 새 값으로 바꾼다 (lookup-then-upsert). 읽은 뒤 다른 요청이 대화를
+   * 바꿔도 덮어쓴다. executionId 를 비우는 호출(`/cancel` · 실행의 종결 이벤트)은 이 메서드가 아니라
+   * `clearExecutionIdIfMatches` 를 쓴다. 지금 운영 코드의 호출자는 없다.
    */
   async updateExecutionId(
     triggerId: string,
