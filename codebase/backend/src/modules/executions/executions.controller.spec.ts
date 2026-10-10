@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ExecutionsController } from './executions.controller';
+import { ROLES_KEY } from '../../common/guards/roles.guard';
 import {
   InvalidExecutionStateError,
   FormValidationError,
@@ -323,21 +324,21 @@ describe('ExecutionsController', () => {
   });
 
   describe('getChain (decision F2)', () => {
-    const user = {
-      sub: 'user-1',
-      email: 'u@e.com',
-      workspaceId: 'ws-1',
-      role: 'editor',
-    };
-
-    it('forwards id / workspaceId / user to the service', async () => {
-      const result = await controller.getChain('exec-1', 'ws-1', user as never);
+    it('forwards id / workspaceId to the service', async () => {
+      const result = await controller.getChain('exec-1', 'ws-1');
       expect(mockExecutionsService.getChain).toHaveBeenCalledWith(
         'exec-1',
         'ws-1',
-        user,
       );
       expect(result).toEqual([{ id: 'exec-1' }]);
+    });
+
+    // chain 조회는 Viewer 도 쓴다. `@Roles` 가 붙으면 RolesGuard 가 Viewer 를
+    // EDITOR_REQUIRED 로 막는다. 재실행 라우트는 Editor 이상을 유지한다(RR-PL-06).
+    it('has no @Roles so a Viewer passes RolesGuard (re-run keeps editor)', () => {
+      const proto = ExecutionsController.prototype;
+      expect(Reflect.getMetadata(ROLES_KEY, proto.getChain)).toBeUndefined();
+      expect(Reflect.getMetadata(ROLES_KEY, proto.reRun)).toEqual(['editor']);
     });
   });
 });

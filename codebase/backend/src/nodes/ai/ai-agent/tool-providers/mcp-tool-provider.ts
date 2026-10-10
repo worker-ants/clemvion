@@ -31,6 +31,7 @@ import {
   ProviderCleanupCtx,
   ProviderExecCtx,
 } from './agent-tool-provider.interface';
+import { buildDryRunSkippedToolResult } from './dry-run-tool-result';
 
 const SID_LENGTHS = [8, 12, 32] as const;
 const SEP = '__';
@@ -424,6 +425,16 @@ export class McpToolProvider implements AgentToolProvider {
         'MCP_UNKNOWN_TOOL',
         `Tool "${parsed.toolNameSanitized}" not exposed by server "${entry.integrationName}"`,
       );
+    }
+
+    // dry-run 재실행 임시 가드 — tools/call 은 서버에 보내지 않는다. 위 메타 도구
+    // (resources/prompts)는 프로토콜상 읽기 전용이라 그대로 보낸다.
+    if (ctx.dryRun) {
+      return buildDryRunSkippedToolResult(call.id, 'mcp_tool', {
+        integrationId: entry.integrationId,
+        server: entry.integrationName,
+        tool: originalName,
+      });
     }
 
     const callStartedAt = Date.now();

@@ -23,6 +23,37 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — dry-run 재실행에서 AI 에이전트가 MCP 도구를 실제로 부르지 않는다
+
+dry-run 재실행은 외부 부수효과 노드를 모의 출력으로 바꾸지만 AI 에이전트의 도구 호출은 dry-run 여부를 몰랐다.
+그래서 dry-run 중에도 외부 MCP 서버의 `tools/call` 과 Cafe24 · MakeShop 내부 브리지의 쓰기 operation 이
+실제로 나가 쇼핑몰 데이터가 바뀔 수 있었다(NERV 발견 `01a0e5a0-434d-76ff-867b-bbcb31190c32`, 처분은 후속
+CLE-T-G62XJS).
+
+- 도구 실행 컨텍스트 `ProviderExecCtx` 에 `dryRun` 을 더했다. 단일 턴, 멀티턴 첫 턴, 재개 · 재시도 턴이 모두
+  `variables.__dryRun` 에서 값을 받는다. 재개 턴 값은 checkpoint 에 영속하지 않고 엔진이 다시 구한다.
+- dry-run 이면 외부 MCP `tools/call` 과 Cafe24 · MakeShop 브리지의 모든 operation 이 외부 호출 없이 성공
+  결과를 돌려준다. 본문은 통합 노드 dry-run mock 과 같은 모양(`_dryRun` · `skippedReason` · `wouldHaveCalled`)에
+  `executed: false` 와 «실행하지 않았으니 다시 부르지 말라» 안내를 더한 것이다. 활동 로그 · MCP 진단 `errors[]` 는
+  남기지 않는다.
+- 임시 가드라 읽기 operation(GET)도 막는다. 노드처럼 GET 을 통과시키는 분류와 모의 응답은 후속 CLE-T-G62XJS 가
+  맡는다. MCP resources · prompts 메타 도구와 kb_* 도구는 읽기 전용이라 그대로 부른다.
+- 알려진 한계: Workflow 노드의 비동기(`async`) 모드로 시작한 자식 실행은 dry-run 을 이어받지 않는다. 자식 실행이
+  `__dryRun=false` 로 돌아서 그 안의 AI 에이전트는 MCP 도구를 실제로 부른다. 이번 변경으로 생긴 구멍이 아니라
+  이전부터 있던 결함이고 후속 CLE-T-Y2F1NG 가 고친다. 그때까지 비동기 모드 Workflow 노드가 든 워크플로는 dry-run
+  재실행에 쓰지 않는다.
+
+## Unreleased — Viewer 도 재실행 chain 을 조회한다
+
+`GET /api/executions/:id/chain` 이 남이 시작한 실행이면 워크스페이스 owner · admin 이 아닌 멤버에게
+403 `RERUN_PERMISSION_DENIED` 를 냈다. 실행 상세 조회는 Viewer 를 포함한 멤버 전원에게 열려 있어 chain 만 막을
+이유가 없었다(NERV 발견 `01a0e599-78b8-71f9-b59a-8c1abe73a21c`).
+
+- chain 조회 권한을 실행 상세 조회와 같게 맞췄다. 워크스페이스 멤버면 역할 · 시작자와 관계없이 200 이다.
+  OpenAPI 의 403 설명도 멤버가 아닐 때(`FORBIDDEN_NOT_A_MEMBER`)만 남겼다.
+- 재실행 권한(Editor 이상, 남의 실행은 owner · admin)은 그대로다. 실행 상세 화면에서 Viewer 는 chain 배지와
+  View chain 목록을 보고 재실행 버튼은 비활성으로 본다.
+
 ## Unreleased — 하네스: 리뷰 게이트가 양쪽이 같은 파일의 다른 줄을 고친 깨끗한 merge 를 세지 않는다
 
 push 훅과 CI `review-gate` 는 라운드 뒤 merge 커밋에 손으로 푼 `codebase/**` 변경이 있으면 그 merge 를 라운드 뒤
