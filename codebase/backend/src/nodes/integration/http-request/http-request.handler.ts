@@ -425,9 +425,10 @@ export class HttpRequestHandler
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
     // NERV CLE-EXEC-CANCEL §fetch 자체 타임아웃과의 연쇄: 실행 취소 신호(context.abortSignal)를
-    // 이 요청의 controller 에 잇는다. Parallel cancel-others-on-fail · 사용자 취소가 진행 중인
-    // fetch 를 바로 끊는다. 리스너는 응답 본문까지 읽은 뒤 아래 finally 에서 뗀다. 성공한 요청은
-    // controller 를 abort 하지 않으므로 controller 의 abort 이벤트에 정리를 걸면 리스너가 남는다.
+    // 이 요청의 controller 에 잇는다. 지금 이 신호를 만드는 곳은 Parallel cancel-others-on-fail
+    // 하나다(규칙 9). 사용자 실행 중지는 신호를 만들지 않아 진행 중인 fetch 를 끊지 않는다.
+    // 리스너는 응답 본문까지 읽은 뒤 아래 finally 에서 뗀다. 성공한 요청은 controller 를
+    // abort 하지 않으므로 controller 의 abort 이벤트에 정리를 걸면 리스너가 남는다.
     const upstream = context.abortSignal;
     const unlinkUpstream = linkUpstreamAbort(controller, upstream);
     // Follow redirects manually so that a redirect to an internal host does

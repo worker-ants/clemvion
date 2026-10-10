@@ -41,7 +41,10 @@ export function linkUpstreamAbort(
  *
  * Matches on `name` instead of `instanceof Error`: a real `fetch` rejects with
  * a DOMException that may come from another realm (the engine's
- * `isAbortError` checks the same way).
+ * `isAbortError` checks the same way). Unlike the engine's `isAbortError`,
+ * which looks at the error alone, this also requires `upstream` to be aborted.
+ * Using `isAbortError` here would classify the request's own timeout as a
+ * cancellation.
  */
 export function isUpstreamAbort(
   err: unknown,

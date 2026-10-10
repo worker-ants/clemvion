@@ -261,8 +261,8 @@ export class Cafe24Handler
         // an AbortError. Mapping it here would return `port:'error'` +
         // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
         // runs and the node is recorded `failed` with no
-        // `execution.node.cancelled` event. Usage is logged first (above/below
-        // as in the ordinary path), then the error passes through untouched.
+        // `execution.node.cancelled` event. The error passes through untouched
+        // and no usage is logged, because the call never finished.
         // Only a real AbortError — not `abortSignal.aborted` — so unrelated
         // failures keep their D4 mapping. Same shape as
         // `database-query.handler.ts`.
@@ -357,8 +357,8 @@ export class Cafe24Handler
       // an AbortError. Mapping it here would return `port:'error'` +
       // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
       // runs and the node is recorded `failed` with no
-      // `execution.node.cancelled` event. Usage is logged first (above/below
-      // as in the ordinary path), then the error passes through untouched.
+      // `execution.node.cancelled` event. The error passes through untouched
+      // and no usage is logged, because the call never finished.
       // Only a real AbortError — not `abortSignal.aborted` — so unrelated
       // failures keep their D4 mapping. Same shape as
       // `database-query.handler.ts`.

@@ -25,7 +25,7 @@
 
 ## Unreleased — HTTP Request 노드가 실행 취소를 cancelled 로 기록한다
 
-실행이 취소되면(Parallel 의 `cancel-others-on-fail`, 사용자 Stop) HTTP Request 노드는 진행 중인 요청을 끊었지만
+Parallel 의 `cancel-others-on-fail` 이 실행 중인 분기를 멈추면 HTTP Request 노드는 진행 중인 요청을 끊었지만
 그때 난 `AbortError` 를 전송 실패로 바꿔 error 포트로 보냈다. 그래서 멈춘 분기의 HTTP 노드가 `cancelled` 가 아니라
 `HTTP_TRANSPORT_FAILED` 로 error 포트에 라우팅된 것으로 기록됐다. 연동 인증 요청이면 활동 로그에도 실패가 남았다
 (NERV 발견 `01a0e599-78b6-7714-a5c1-ba2c658d1888`).
