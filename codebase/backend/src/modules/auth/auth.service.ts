@@ -90,7 +90,7 @@ export class AuthService {
 
   /**
    * 2FA 를 끈다. 비밀번호 재확인 → 인증 코드 확인 → 해제 순서를 이 메서드 하나가 지킨다 — 순서가 컨트롤러의 호출 순서에만
-   * 있으면 다른 호출자가 `TotpService.disable` 만 불러 재인증을 건너뛴다. 비밀번호가 틀리면 코드는 보지 않아 복구 코드를
+   * 있으면 다른 호출자가 `TotpService.disableUnchecked` 만 불러 재인증을 건너뛴다. 비밀번호가 틀리면 코드는 보지 않아 복구 코드를
    * 헛되이 소모하지 않고, 코드가 틀리면 2FA 는 켜진 채로 남는다. 실패는 각 확인이 내는 401(`PASSWORD_REQUIRED` ·
    * `PASSWORD_INVALID` · `TOTP_INVALID`) 그대로다(NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
    */
@@ -101,7 +101,7 @@ export class AuthService {
   ): Promise<void> {
     await this.verifyPasswordForUser(userId, plainPassword);
     await this.totpService.verifyForDisable(userId, code);
-    await this.totpService.disable(userId);
+    await this.totpService.disableUnchecked(userId);
   }
 
   // ========== REGISTER ==========

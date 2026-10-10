@@ -48,7 +48,7 @@ describe('AuthService', () => {
     revokeAllFamilies: jest.Mock;
     reauthenticate: jest.Mock;
   };
-  let totpService: { verifyForDisable: jest.Mock; disable: jest.Mock };
+  let totpService: { verifyForDisable: jest.Mock; disableUnchecked: jest.Mock };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -198,7 +198,7 @@ describe('AuthService', () => {
           provide: TotpService,
           useValue: {
             verifyForDisable: jest.fn().mockResolvedValue(undefined),
-            disable: jest.fn().mockResolvedValue(undefined),
+            disableUnchecked: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
@@ -627,7 +627,7 @@ describe('AuthService', () => {
         order.push('code');
         return Promise.resolve();
       });
-      totpService.disable.mockImplementation(() => {
+      totpService.disableUnchecked.mockImplementation(() => {
         order.push('disable');
         return Promise.resolve();
       });
@@ -641,7 +641,7 @@ describe('AuthService', () => {
         'user-uuid',
         '123456',
       );
-      expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
+      expect(totpService.disableUnchecked).toHaveBeenCalledWith('user-uuid');
     });
 
     it('비밀번호가 틀리면 401 PASSWORD_INVALID 이고 코드는 보지 않아 복구 코드를 소모하지 않는다', async () => {
@@ -654,7 +654,7 @@ describe('AuthService', () => {
         response: { code: 'PASSWORD_INVALID' },
       });
       expect(totpService.verifyForDisable).not.toHaveBeenCalled();
-      expect(totpService.disable).not.toHaveBeenCalled();
+      expect(totpService.disableUnchecked).not.toHaveBeenCalled();
     });
 
     it('비밀번호가 맞아도 코드가 틀리면 401 TOTP_INVALID 이고 2FA 는 켜진 채로 남는다', async () => {
@@ -672,7 +672,7 @@ describe('AuthService', () => {
         status: 401,
         response: { code: 'TOTP_INVALID' },
       });
-      expect(totpService.disable).not.toHaveBeenCalled();
+      expect(totpService.disableUnchecked).not.toHaveBeenCalled();
     });
   });
 

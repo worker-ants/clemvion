@@ -56,7 +56,7 @@ describe('AuthController', () => {
       verifyAndEnable: jest.fn(),
       verifyForLogin: jest.fn(),
       verifyForDisable: jest.fn(),
-      disable: jest.fn(),
+      disableUnchecked: jest.fn(),
     } as unknown as jest.Mocked<TotpService>;
 
     auditLogsService = {
@@ -462,7 +462,7 @@ describe('AuthController', () => {
         'OldP@ssw0rd1',
         '123456',
       );
-      expect(totpService.disable).not.toHaveBeenCalled();
+      expect(totpService.disableUnchecked).not.toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
         userId: 'user-uuid',

@@ -134,9 +134,10 @@ export class TotpService {
 
   /**
    * 2FA 비활성. 이 메서드는 아무것도 확인하지 않는다 — 비밀번호 → 코드 재확인은 `AuthService.disableTwoFactor` 가 순서를
-   * 지키며 부른다. 다른 경로에서 이 메서드만 부르면 재인증이 빠진다.
+   * 지키며 부른다. 다른 경로에서 이 메서드만 부르면 재인증이 빠진다. 그래서 이름에 `Unchecked` 를 두고, `AuthModule` 이
+   * `TotpService` 를 export 하지 않아 다른 모듈은 주입받지 못한다.
    */
-  async disable(userId: string): Promise<void> {
+  async disableUnchecked(userId: string): Promise<void> {
     await this.usersService.update(userId, {
       twoFactorEnabled: false,
       twoFactorSecret: null,

@@ -111,9 +111,9 @@ describe('TotpService', () => {
     });
   });
 
-  describe('disable', () => {
+  describe('disableUnchecked', () => {
     it('2FA secret·복구 코드·활성 플래그를 모두 초기화한다', async () => {
-      await service.disable('user-1');
+      await service.disableUnchecked('user-1');
       expect(usersService.update).toHaveBeenCalledWith('user-1', {
         twoFactorEnabled: false,
         twoFactorSecret: null,
