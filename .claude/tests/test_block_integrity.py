@@ -303,15 +303,17 @@ class PayloadSurfacesTheContradictionTest(unittest.TestCase):
 
 
 class AdvisoryReachesTheModelTest(unittest.TestCase):
-    """On ALLOW the harness injects stdout, not stderr — and this fires on ALLOW.
+    """On ALLOW only the PreToolUse JSON envelope reaches the model — and this fires on ALLOW.
 
     The push hook documents the rule for its own fail-open banner: "a banner on
     the wrong stream is a banner nobody reads". The first version of this
     backstop hardcoded `sys.stderr` inside the gate, which put every advisory on
     the stream the model ignores in exactly the case the advisory exists for.
+    The next one printed plain stdout, which on a PreToolUse exit 0 reaches only
+    Claude Code's debug log (`.claude/hooks/_lib/hook_output.py`).
     """
 
-    def test_push_hook_prints_notes_on_stdout_when_allowing(self):
+    def test_push_hook_delivers_notes_as_context_when_allowing(self):
         import io
         import contextlib
         PG = _harness.load_module_by_path(
@@ -322,8 +324,8 @@ class AdvisoryReachesTheModelTest(unittest.TestCase):
         outcome.notes.append("⚠️  세션X: 하향 감지")
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            PG._report_notes(outcome, 0)
-        self.assertIn("하향 감지", out.getvalue())
+            PG._report(outcome, 0)
+        self.assertIn("하향 감지", _harness.pretooluse_context(out.getvalue()))
         self.assertEqual(err.getvalue(), "")
 
     def test_push_hook_prints_notes_on_stderr_when_blocking(self):
@@ -337,7 +339,7 @@ class AdvisoryReachesTheModelTest(unittest.TestCase):
         outcome.notes.append("⚠️  세션X: 하향 감지")
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            PG._report_notes(outcome, 2)
+            PG._report(outcome, 2)
         self.assertIn("하향 감지", err.getvalue())
         self.assertEqual(out.getvalue(), "")
 
@@ -385,7 +387,7 @@ class NotesReachThePushHookTest(unittest.TestCase):
             f.write(self._STUB)
         return tmp, hooks
 
-    def test_push_hook_surfaces_notes_on_stdout(self):
+    def test_push_hook_surfaces_notes_to_the_model(self):
         import json as _json
         import subprocess
         import sys as _sys
@@ -397,7 +399,7 @@ class NotesReachThePushHookTest(unittest.TestCase):
             env={**os.environ, "CLAUDE_PROJECT_DIR": tmp}, cwd=tmp,
         )
         self.assertEqual(r.returncode, 0)
-        self.assertIn("하향 감지", r.stdout)
+        self.assertIn("하향 감지", _harness.pretooluse_context(r.stdout))
         # Pins the reason it passed. Without this the ALLOW path and the
         # crash-then-fail-open path are indistinguishable from stdout alone.
         self.assertNotIn("Traceback", r.stderr)

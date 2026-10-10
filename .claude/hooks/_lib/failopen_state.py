@@ -14,7 +14,9 @@ are the safety net that made the move checkable.
 Two things differ per hook and are therefore parameters, not assumptions:
 
 * **Which stream the banner goes to.** The push hook picks by exit code — on
-  exit 2 the harness reads stderr, on exit 0 it injects stdout. The Stop hook
+  exit 2 the harness reads stderr; on exit 0 plain stdout only reaches Claude
+  Code's debug log, so the push hook passes a buffer here and wraps what it
+  collects in the PreToolUse JSON envelope (`hook_output.py`). The Stop hook
   (retired in NERV cutover stage 3) could not do that: its stdout carried the
   `{"decision": ...}` JSON protocol, so it always reported on stderr. The push
   hook is the only caller now; the parameter stays for the next one.

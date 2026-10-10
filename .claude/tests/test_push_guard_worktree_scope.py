@@ -125,6 +125,9 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.hook = os.path.join(self.hooks_dir, "guard_review_before_push.py")
         shutil.copy(HOOK_SRC, self.hook)
         self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"), _REVIEW_STUB)
+        # The allow-path banner's JSON envelope, as in production.
+        shutil.copy(_harness.HOOKS_DIR / "_lib" / "hook_output.py",
+                    os.path.join(self.hooks_dir, "_lib", "hook_output.py"))
 
     def _write(self, path, content):
         with open(path, "w", encoding="utf-8") as f:
@@ -284,8 +287,9 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             streak = json.load(fh)["streak"]
         self.assertEqual(streak, 1, "two failing targets must count as ONE gate")
         # …and the banner must name the gate exactly once, not once per target.
+        context = _harness.pretooluse_context(r.stdout)
         self.assertEqual(
-            r.stdout.count("REVIEW gate"), 1, f"gate listed more than once:\n{r.stdout}"
+            context.count("REVIEW gate"), 1, f"gate listed more than once:\n{context}"
         )
 
     def test_bare_push_from_another_worktree_is_scoped_by_path(self):
@@ -371,7 +375,7 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             script=crashing,
         )
         self.assertEqual(r.returncode, 0, "still fails OPEN")
-        self.assertIn("TARGET_SELECTION", r.stdout, r.stdout + r.stderr)
+        self.assertIn("TARGET_SELECTION", _harness.pretooluse_context(r.stdout), r.stdout + r.stderr)
         streak = os.path.join(
             self.tmp, ".claude", "state", "push_guard_failopen.json"
         )

@@ -68,6 +68,42 @@ def load_module_by_path(name: str, path: Path) -> ModuleType:
     return module
 
 
+def pretooluse_context(stdout: str) -> str:
+    """What an exit-0 PreToolUse hook's stdout puts in front of the model.
+
+    Claude Code delivers only `hookSpecificOutput.additionalContext` from a
+    single JSON object. Plain text and a second object reach the debug log only
+    (measured; see `.claude/hooks/_lib/hook_output.py`). A substring check on raw
+    stdout passes for both of those, so it cannot tell a delivered banner from a
+    dropped one. Use this instead: it fails the test unless stdout is empty or
+    exactly one such object without a permission decision, and returns the
+    context ("" for empty stdout).
+    """
+    if stdout == "":
+        return ""
+    text = stdout.strip()
+    if not (text.startswith("{") and text.endswith("}")):
+        raise AssertionError(f"PreToolUse stdout is plain text; Claude Code drops it:\n{stdout!r}")
+    try:
+        obj = json.loads(text)
+    except ValueError as exc:
+        raise AssertionError(
+            f"PreToolUse stdout is not ONE JSON object; Claude Code drops all of it:\n{stdout!r}"
+        ) from exc
+    if not isinstance(obj, dict) or set(obj) != {"hookSpecificOutput"}:
+        raise AssertionError(f"unexpected top-level keys: {obj!r}")
+    hso = obj["hookSpecificOutput"]
+    if not isinstance(hso, dict) or hso.get("hookEventName") != "PreToolUse":
+        raise AssertionError(f"hookEventName must be PreToolUse: {obj!r}")
+    if "permissionDecision" in hso:
+        # "allow" would skip the permission prompt: a guard must not approve.
+        raise AssertionError(f"a guard's context must not carry a permission decision: {obj!r}")
+    context = hso.get("additionalContext")
+    if not isinstance(context, str) or not context.strip():
+        raise AssertionError(f"additionalContext must be non-empty text: {obj!r}")
+    return context
+
+
 # Shapes a `VAR=value` assignment's VALUE can take. Both guards skip such a
 # prefix before looking at the real command, both had the same regex, and both
 # regressed the same way — twice — by narrowing that value's alternatives. Their

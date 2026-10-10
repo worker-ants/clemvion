@@ -32,8 +32,9 @@ the NERV done gate (evidence + `spec_impact`) replaces it.
 Fail-open is OBSERVED, not silent (policy decision 2026-07-23,
 harness-guard-followups §E). When a gate cannot answer — its module failed to
 import, `evaluate_*()` raised, or push detection itself blew up — the push is
-still allowed, but the hook prints an explicit "this push was not checked"
-banner and records the CONSECUTIVE count in
+still allowed, but the hook emits an explicit "this push was not checked"
+banner (to the model — see `_report` for which channel) and records the
+CONSECUTIVE count in
 `.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
 Only a push where EVERY gate in `_ALL_GATES` answered clears the counter. A
 blocking answer counts: the gate worked. A BYPASS_* skip and a non-push are
@@ -47,6 +48,7 @@ changing anything here.
 from __future__ import annotations
 
 import inspect
+import io
 import json
 import os
 import re
@@ -76,6 +78,14 @@ try:
     import failopen_state  # noqa: E402
 except Exception:  # noqa: BLE001
     failopen_state = None
+
+# Same reasoning, for the channel itself: the allow-path banner only reaches the
+# model inside the PreToolUse JSON envelope. `_deliver_to_model` keeps a local
+# copy of that envelope for when this import fails.
+try:
+    import hook_output  # noqa: E402
+except Exception:  # noqa: BLE001
+    hook_output = None
 
 
 # ---------------------------------------------------------------------------
@@ -734,19 +744,65 @@ _GATE_REVIEW = "REVIEW"
 _ALL_GATES = frozenset({_GATE_REVIEW})
 
 
-def _report_notes(outcome, exit_code: int) -> None:
+def _deliver_to_model(text: str) -> None:
+    """Allow path: hand `text` to the model as ONE PreToolUse JSON object.
+
+    One object, because a second `print` of its own envelope would make stdout
+    two JSON objects, and Claude Code then delivers neither (measured, see
+    `_lib/hook_output.py`). Callers collect first and call this once.
+
+    The fallback writes the same envelope when `hook_output` failed to import.
+    Losing a helper module must not cost the banner (the reason
+    `failopen_state` has a fallback too); plain stdout would be that loss, since
+    it only reaches the debug log. `test_pretooluse_hook_output.py` pins that
+    both paths produce the same bytes.
+    """
+    try:
+        if hook_output is not None:
+            hook_output.emit_context(text)
+            return
+        text = text.strip("\n")
+        if text.strip():
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                                     "additionalContext": text}},
+                             ensure_ascii=False))
+    except Exception:  # noqa: BLE001 — reporting must never break the guard.
+        traceback.print_exc(file=sys.stderr)
+
+
+def _report(outcome, exit_code: int) -> None:
+    """Route the fail-open banner and gate notes to whoever reads this exit code.
+
+    exit 2: plain text on stderr. Claude reads it as the refusal reason, next to
+    the block message, as before.
+    exit 0: everything goes into a buffer, then out as one PreToolUse JSON
+    object. Plain stdout on exit 0 lands in Claude Code's debug log only, so
+    until 2026-10-10 this banner and these notes never reached the model
+    (NERV Task `CLE-T-QBNJ81`). That was the silent fail-open §E exists to
+    prevent. Buffering keeps `failopen_state.report` stream-agnostic and keeps
+    the stdout to a single object even when both reporters have something.
+    """
+    if exit_code == 2:
+        _report_fail_open(outcome, sys.stderr)
+        _report_notes(outcome, sys.stderr)
+        return
+    buf = io.StringIO()
+    _report_fail_open(outcome, buf)
+    _report_notes(outcome, buf)
+    _deliver_to_model(buf.getvalue())
+
+
+def _report_notes(outcome, stream) -> None:
     """Surface gate advisories that did not change the verdict.
 
-    Same stream rule as `_report_fail_open`, for the same reason: on exit 2 the
-    harness reads stderr, on exit 0 it injects stdout into the model's context.
     These advisories exist for the allow path — the downgrade backstop fires when
-    a session the gate is *trusting* contradicts its own checkers — so putting
-    them on stderr would file them exactly where nothing reads them.
+    a session the gate is *trusting* contradicts its own checkers — so `_report`
+    must hand them to the model on exit 0, not leave them where nothing reads
+    them.
     """
     notes = getattr(outcome, "notes", None)
     if not notes:
         return
-    stream = sys.stderr if exit_code == 2 else sys.stdout
     try:
         for note in notes:
             print(note, file=stream)
@@ -754,22 +810,18 @@ def _report_notes(outcome, exit_code: int) -> None:
         pass
 
 
-def _report_fail_open(outcome, exit_code: int) -> None:
+def _report_fail_open(outcome, stream) -> None:
     """Announce (and count) any gate that could not answer.
 
-    Channel depends on the exit code, because that decides what the harness
-    surfaces: on exit 2 the refusal is read from stderr, while on exit 0 it is
-    STDOUT that gets injected into the model's context (the same reasoning
-    `guard_default_branch_bash.py` documents for its never-blocking reminder).
-    A banner on the wrong stream is a banner nobody reads, which would quietly
-    undo the whole point of this policy. The Stop hook cannot make the same
-    choice — its stdout is a JSON protocol — which is why the stream is the
-    caller's decision and not baked into `failopen_state.report`.
+    `stream` is `_report`'s choice, because the exit code decides what reaches
+    the model: stderr on exit 2, the JSON envelope on exit 0. A banner on the
+    wrong channel is a banner nobody reads, which would quietly undo the whole
+    point of this policy. That is why the stream is the caller's decision and
+    not baked into `failopen_state.report`.
 
     The counting/reset rules and their two previous wrong versions are
     documented in `_lib/failopen_state.py`.
     """
-    stream = sys.stderr if exit_code == 2 else sys.stdout
     if failopen_state is None:
         # Degraded reporting: no counter, but never silence.
         try:
@@ -863,8 +915,8 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
             continue
         answered = True
         # Advisories ride on the decision, not on a `print` inside the gate: the
-        # stream depends on this hook's exit code, and these fire on the ALLOW
-        # path where only stdout reaches the model.
+        # channel depends on this hook's exit code, and these fire on the ALLOW
+        # path where only the JSON envelope `_report` writes reaches the model.
         notes = getattr(outcome, "notes", None)
         if notes is None:
             # `_Outcome` may come from `failopen_state` (which predates this
@@ -958,8 +1010,7 @@ def main() -> int:
         outcome.degraded.append(("DETECTION", f"{type(exc).__name__}: {exc}"))
         return 0
     finally:
-        _report_fail_open(outcome, exit_code)
-        _report_notes(outcome, exit_code)
+        _report(outcome, exit_code)
 
 
 if __name__ == "__main__":
