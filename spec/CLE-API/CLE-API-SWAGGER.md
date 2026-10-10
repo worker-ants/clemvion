@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER"
 title: "OpenAPI 문서화"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "3865a9b5183f26965a85c437c12429e4d822ad8f3d17d20423a70bbcf9d42c06"
+content_hash: "3757d016f00d980cb0ae269a84655f2dd16fbc5552db41eb383a7a2b15820adb"
 read_as: "approved_fallback"
 task: "CLE-T-RSF163"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "7d28bfbca8160fd9be453d8671d6c14a3f0928691817a6ef9ff06f1d1c54648a"
-etag: "sha256-5c45c825811a0f86dcfeaa2dbfd9b5fc10b167d04ebe34b1ba53809a48438254"
+mirror_sha256: "f2366161be9352b528d11aaa8ce92f1c23e3d29e386c00b85b11b4c326aae42c"
+etag: "sha256-3d07b82e64304b1be6b82c70f2d752a5536f110bfe633c302963f8d02883ef94"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -404,7 +404,7 @@ DTO `description` 은 "한 줄로 읽히는가" 가 기준이지 글자 수가 �
 - 엔티티(`entities/*.entity.ts`)를 그대로 노출하지 말고 API 응답 형태에 맞춘 별도 DTO 를 만든다. 비밀값(credentials, passwordHash 등)은 가리거나 뺀다.
 - 겹치는 필드는 `@nestjs/swagger` 의 `PickType`·`OmitType`·`PartialType` 으로 재사용할 수 있다.
 
-**무엇이 이 규칙을 강제하나**: 정적 가드(`swagger-dto-contract-guard.ts`)는 선언끼리만 대조하므로 "엔티티를 그대로 노출했다" 는 사실 자체는 보지 못한다. 그 축은 런타임 짝인 `response-contract.ts` 가 맡는다. 실제 응답에 **스키마가 선언하지 않은 키**가 있으면 위반으로 보고한다. 실사례로 `GET /api/audit-logs` 가 3필드를 광고하면서 `User` 엔티티 26키(`passwordHash`, 2FA 복구 코드, 계정 탈취 토큰 포함)를 내보내고 있었다(`CHANGELOG.md`). 이 검증자들의 경계는 [HTTP API 규약](CLE-API-CONV.md) 의 부재 표현 검증 층 표에 인벤토리로 둔다. **개수를 적지 않는다.** 축이 늘 때마다 숫자를 고쳐야 하는 자리를 만들지 않기 위해서다.
+**무엇이 이 규칙을 강제하나**: 정적 가드(`swagger-dto-contract-guard.ts`)는 선언끼리만 대조하므로 "엔티티를 그대로 노출했다" 는 사실 자체는 보지 못한다. 그 축은 런타임 짝인 `response-contract.ts` 가 맡는다. 실제 응답에 **스키마가 선언하지 않은 키**가 있으면 위반으로 보고한다. 실사례로 `GET /api/audit-logs` 가 3필드를 광고하면서 `User` 엔티티 26키(`passwordHash`, 2FA 복구 코드, 계정 탈취 토큰 포함)를 내보내고 있었다(PR #1288 이 고쳤다). 이 검증자들의 경계는 [HTTP API 규약](CLE-API-CONV.md) 의 부재 표현 검증 층 표에 인벤토리로 둔다. **개수를 적지 않는다.** 축이 늘 때마다 숫자를 고쳐야 하는 자리를 만들지 않기 위해서다.
 
 **응답 DTO 클래스 이름은 저장소 전체에서 유일해야 한다.**
 
