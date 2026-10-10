@@ -3,18 +3,18 @@ id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044"]
+status: "approved"
+requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "267ffaf607947cd9320b82df148d7b040205be69dd68049dddfd03232bbb6e17"
-read_as: "approved"
-task: null
+content_hash: "9e0bed0619a7230245a6f419b9037eae788a2de34bfc9e2d3eeb1b4915cc8626"
+read_as: "approved_fallback"
+task: "CLE-T-GN2THF"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "82ab3a3f394748f033ecd7372731cf59362708b8499e57aaa092c0971c21d57d"
-etag: "sha256-cf9eb416a9a0972789a38006da0440470a1bf34df6c347f09eef43ae0e3d8bea"
+mirror_sha256: "7ab2cb12f8bc18c0c72ae0ce0ddc60ff5dcea51e3fa244c877c268dbffa878ad"
+etag: "sha256-cea8c4ac9b78f142bff2e5cd08cfc2feacad4ff6849031387483701dec1c9564"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,6 +77,7 @@ etag: "sha256-cf9eb416a9a0972789a38006da0440470a1bf34df6c347f09eef43ae0e3d8bea"
 - REQ-EXHIST-042 IF 화면 폭이 768px 이상 1279px 이하면 THE SYSTEM SHALL 노드 결과의 좌우 2분할을 세로로 쌓는다.
 - REQ-EXHIST-043 IF 화면 폭이 768px 미만이면 THE SYSTEM SHALL 모든 영역을 세로로 쌓고 테이블을 카드형 목록으로 바꾼다.
 - REQ-EXHIST-044 WHEN 뷰어가 실행 상세의 설정 탭을 열면 THE SYSTEM SHALL 응답 마스킹을 거친 설정 에코를 보여 준다.
+- REQ-EXHIST-045 IF 워크스페이스 멤버(뷰어 포함)에게 재실행 권한이 없으면 THE SYSTEM SHALL 체인 배지와 "View chain" 드롭다운을 권한이 있을 때와 같은 조건으로 표시한다. (체인 조회 권한: REQ-RERUN-047)
 
 ## 화면과 경로
 
@@ -249,13 +250,25 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 | 요소 | 표시 조건 | 동작 |
 | --- | --- | --- |
-| `[⟳ Re-run]` 버튼 | 항상 표시 | 권한이 없으면 비활성화하고 툴팁 `history.rerun.permissionDenied` 를 단다(정책 RR-PL-06). 누르면 재실행 모달을 연다 |
+| `[⟳ Re-run]` 버튼 | 항상 표시 | 권한이 없으면 비활성화하고 툴팁 `history.rerun.permissionDenied` 를 단다. 재실행은 편집자 이상만 할 수 있다([재실행](CLE-EXEC-RERUN.md)). 누르면 재실행 모달을 연다. 역할별 동작은 [역할별 표시](#역할별-표시) 참조 |
 | 체인 배지 | `execution.reRunOf != null` | "#N-th re-run · 원본: <ID>". dry-run 이면 "· dry-run" 을 붙인다. 원본 ID 를 누르면 **같은 탭**에서 원본 상세로 이동한다(`<Link href>`, `target=_blank` 없음). 재실행 **모달**의 원본 ID 링크는 새 탭이다. 체인 배지는 내비게이션이라 같은 탭, 모달은 편집 맥락을 지키려고 새 탭이다(의도한 구분) |
-| `[View chain (N) ▼]` 드롭다운 | 체인의 실행이 2개 이상 | 누르면 `GET /api/executions/:id/chain` 응답을 펼친다. 항목마다 ID, 시작 시각, 최종 상태, dry-run 여부를 보여 준다. 권한이 없을 때 드롭다운을 어떻게 보일지는 정해져 있지 않다([재실행](CLE-EXEC-RERUN.md) 의 미결 사항) |
+| `[View chain (N) ▼]` 드롭다운 | 체인의 실행이 2개 이상 | 누르면 `GET /api/executions/:id/chain` 응답을 펼친다. 항목마다 ID, 시작 시각, 최종 상태, dry-run 여부를 보여 준다. 재실행 권한이 없는 멤버(뷰어 포함)에게도 같은 조건으로 보인다([역할별 표시](#역할별-표시)) |
 
 모달에서 "재실행" 을 누르면 `POST /api/executions/:executionId/re-run` 응답의 새 실행 ID 로 `/w/<slug>/workflows/:workflowId/executions/:newId` 로 이동한다. i18n 키와 에러 매핑은 [재실행](CLE-EXEC-RERUN.md) 에 있다.
 
 실행 상세 화면에는 에디터 실행 결과 드로어와 같은 모양으로 Background 본문 실행 결과 섹션도 표시된다([에디터 실행과 디버깅](CLE-EXEC-RUN.md)).
+
+#### 역할별 표시
+
+체인 배지와 `[View chain (N) ▼]` 드롭다운은 실행 상세를 볼 수 있는 워크스페이스 멤버 모두에게 같은 조건으로 보인다. 재실행 버튼은 역할과 원본 실행의 시작자를 함께 보고 켠다(`canReRun`). 재실행은 편집자 이상만 할 수 있다. 버튼을 켜는 자세한 기준은 [재실행](CLE-EXEC-RERUN.md) 이 정한다.
+
+| 역할 | 체인 배지 · 드롭다운 | `[⟳ Re-run]` 버튼 |
+| --- | --- | --- |
+| 뷰어 | 보인다 | 늘 비활성. 툴팁 `history.rerun.permissionDenied` 를 단다 |
+| 편집자 | 보인다 | 자기가 시작한 실행과 시작자가 없는 자동 실행에서 활성. 남이 시작한 실행에서는 비활성이고 툴팁을 단다 |
+| 소유자 · 관리자 | 보인다 | 활성 |
+
+체인 조회 API 의 권한은 [API](#api) 절에 있다.
 
 ## 진입점
 
@@ -276,6 +289,8 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 | GET | `/api/executions/:executionId/chain` | 같은 체인의 모든 실행을 시간순으로 반환 | EH-DETAIL-11. 명세는 [재실행](CLE-EXEC-RERUN.md) |
 
 `GET /api/executions/:id` 는 따로 `@Roles` 게이트가 없어 워크스페이스 멤버 전원(뷰어 포함)이 조회한다. 응답의 `Execution.error`·`nodeExecutions[].error`·`config` 등은 응답 단계에서 마스킹된다. 기준은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이다.
+
+체인 조회(`GET /api/executions/:executionId/chain`)와 재실행(`POST /api/executions/:executionId/re-run`)의 권한은 [재실행](CLE-EXEC-RERUN.md) 이 정한다. 체인 배지와 `[View chain (N) ▼]` 드롭다운은 실행 상세를 볼 수 있는 멤버 모두에게 같은 조건으로 보인다. 재실행 권한은 이 표시 조건에 들어가지 않는다([역할별 표시](#역할별-표시)).
 
 **목록 API 쿼리 파라미터**
 
@@ -366,6 +381,8 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 ## 구현 위치
 
 - `codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/**` (실행 목록·상세 화면)
+- `codebase/frontend/src/lib/executions/can-rerun.ts` (재실행 버튼 활성 판정 `canReRun`)
+- `codebase/backend/src/modules/executions/executions.controller.ts` (목록·상세·재실행·체인 조회 라우트와 역할 게이트. 체인 조회 권한의 근거)
 - `codebase/backend/src/modules/executions/executions.service.ts` (목록·상세 조회, 출처 분류, 노드 수 배치 집계)
 - `codebase/backend/src/modules/executions/dto/responses/execution-response.dto.ts`
 - `codebase/backend/src/modules/executions/dto/query-execution.dto.ts`
@@ -395,10 +412,12 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 - 안전 전제는 "두 마스커의 키 기준이 어긋나지 않는다" 이고 `mask-sensitive-fields.util.spec.ts` 의 포함 관계 캐너리가 `DEFAULT_SENSITIVE_KEYS` 를 직접 돌며 확인한다.
 - 이 변경의 대가(같은 워크스페이스 안 노드 사이 자격 증명 전달, 생성 시점 한 곳의 안전에서 출구마다 지켜야 하는 안전으로 바뀐 점)와, 그 문제가 실제로 남는 표면이 HTTP Request 노드의 `authentication='custom'` 뿐이라는 분석은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 다룬다. 새 출구를 여는 사람은 그 문서를 읽어야 한다.
 
+같은 전제 위에 체인 조회도 뷰어에게 열려 있다([재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 의 Rationale 참조).
+
 ### EH-DETAIL-06(단일 노드)과 EH-DETAIL-12(여러 노드, v2)를 나눈다
 
 원래 EH-DETAIL-06 하나가 서로 다른 두 요구를 가리켰다. (a) 단일 AI 에이전트 노드의 미리보기 탭(구현 완료)과 (b) 여러 노드를 가로지르는 대화 스레드 재구성 보기(v2, 미구현)다. 한 ID 가 완료와 미해결을 동시에 뜻해 요구사항 ID 로 상태를 판정하는 도구가 잘못 판단할 수 있었다. 또 대화 스레드 규약은 "EH-DETAIL-06 의 재구성 정책에 맡긴다" 고 했는데 그 정책이 어디에도 없어 가리키는 곳이 없었다. 그래서 여러 노드 재구성에 새 ID EH-DETAIL-12(v2)를 주고 참조를 옮겼으며 EH-DETAIL-06 은 단일 노드 범위(구현됨)로 고정했다. 실행 내역 요구사항은 모두 구현돼 이 문서는 구현됨 상태를 유지한다. v2 항목 EH-DETAIL-12 는 [Clemvion 제품 개요](../CLE-VISION.md) 의 로드맵에서 추적한다. 여러 노드 재구성 보기의 모델은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 의 v2 로드맵에 있다.
 
 ### 재실행 버튼과 체인 표시의 설계 결정은 재실행 문서에 둔다
 
-재실행 버튼과 체인 추적의 설계 결정은 [재실행](CLE-EXEC-RERUN.md) 의 Rationale 이 기준이다. 이 문서는 화면 배치만 정한다.
+재실행 버튼과 체인 추적의 설계 결정은 [재실행](CLE-EXEC-RERUN.md) 의 Rationale 이 기준이다. 뷰어에게도 체인을 보이고 재실행 버튼만 막기로 한 결정(2026-10-10)의 근거도 [재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 에 있다. 이 문서는 화면 배치만 정한다.
