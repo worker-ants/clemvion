@@ -11,7 +11,7 @@ a rule about the default branch, so it sits here and `branch_guard` keeps only t
 Four other hooks (`guard_nerv_owned_paths`, `normalize_worktree_branch`,
 `guard_review_before_push`, `lint_mermaid_posttooluse`) still carry their own
 `_read_payload` with a different body; moving them is a separate change (NERV Task
-`CLE-T-QY5AZ3` follow-up).
+`CLE-T-9XNXHD`).
 """
 
 from __future__ import annotations
