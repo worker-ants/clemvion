@@ -2,9 +2,18 @@
 **and** has the origin default branch checked out.
 
 This module is consumed by:
-  - .claude/hooks/guard_default_branch_edit.py    (PreToolUse hook)
+  - .claude/hooks/guard_default_branch_edit.py    (PreToolUse hook, Write/Edit)
+  - .claude/hooks/guard_default_branch_bash.py    (PreToolUse hook, Bash)
   - .claude/hooks/guard_default_branch_prompt.py  (UserPromptSubmit hook)
   - .githooks/pre-commit                          (via `python3 -m`)
+
+The three hooks judge the directory the hook input names (`hook_input.payload_cwd`),
+not their own process directory. The harness starts hooks from the main checkout
+(`$CLAUDE_PROJECT_DIR`), so a session working in a linked worktree still has a
+hook process sitting on the default branch. Judging `os.getcwd()` there blocked
+Edit/Write and fired both reminders in every worktree session the app created
+(2026-10-10, NERV Task `CLE-T-QY5AZ3`). `guard_nerv_owned_paths.py` and
+`normalize_worktree_branch.py` already read the input `cwd` first.
 
 Policy:
   - BLOCK when both:

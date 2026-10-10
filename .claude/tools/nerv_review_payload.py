@@ -93,7 +93,7 @@ import sys
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
-from _shared import block_integrity, git_probe, out_doc, report_paths  # noqa: E402
+from _shared import block_integrity, git_probe, out_doc, report_paths, session  # noqa: E402
 
 KINDS = ("code", "consistency", "merge", "spec_coverage")
 # 멱등 키의 mode 자리(code-review-agents SKILL §4).
@@ -115,8 +115,6 @@ _COVERAGE_DIRECTION_RE = re.compile(r"\[(forward|reverse)\]", re.I)
 # 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>[_<n>]` 에 쓴다.
 _DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
              "spec-coverage": "spec_coverage"}
-# 세션 디렉터리의 마지막 조각. 같은 초의 두 번째 세션부터 `_2` · `_3` 이 붙는다(`_shared/session.py`).
-_SESSION_TIME_RE = re.compile(r"(\d{2})_(\d{2})_(\d{2})(?:_([1-9]\d*))?")
 # 리포트가 아닌 세션 파일. `_` 로 시작하는 파일(상태 · 프롬프트)도 뺀다.
 _NOT_REPORTS = {"SUMMARY.md", "RESOLUTION.md", "README.md"}
 
@@ -515,15 +513,12 @@ def session_stamp(session_dir: str) -> str | None:
     """세션 경로 `.review/<kind>/<Y>/<m>/<d>/<H_M_S>[_<n>]` → `<YYYYMMDD>-<hhmmss>[-<n>]`. Task 가 없는 멱등 키의 앞자리다.
 
     같은 초에 세션을 또 만들면 `create_session_dir` 가 `_2` · `_3` 을 붙인다. 접미사를 키에 남겨야 같은 초의
-    두 세션이 같은 키로 묶이지 않는다."""
-    parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)[-4:]
-    if len(parts) != 4 or not re.fullmatch(r"\d{4}", parts[0]) or not all(re.fullmatch(r"\d{2}", p) for p in parts[1:3]):
+    두 세션이 같은 키로 묶이지 않는다. 경로는 이름을 만드는 모듈(`session.parse_session_dir`)이 읽는다."""
+    parsed = session.parse_session_dir(session_dir)
+    if parsed is None:
         return None
-    m = _SESSION_TIME_RE.fullmatch(parts[3])
-    if m is None:
-        return None
-    hh, mm, ss, n = m.groups()
-    return "".join(parts[:3]) + f"-{hh}{mm}{ss}" + (f"-{n}" if n else "")
+    year, month, day, hh, mm, ss, n = parsed
+    return f"{year}{month}{day}-{hh}{mm}{ss}" + (f"-{n}" if n else "")
 
 
 def content_digest(sub: dict) -> str:

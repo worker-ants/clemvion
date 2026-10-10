@@ -30,7 +30,6 @@ import shutil
 import tempfile
 import textwrap
 import unittest
-import warnings
 from datetime import datetime
 from unittest import mock
 
@@ -158,15 +157,46 @@ class SameSecondSessionsGetDistinctDirectoriesTest(unittest.TestCase):
         self.assertIn("consistency", a)
 
 
+class SessionNameRoundTripTest(unittest.TestCase):
+    """이름을 만드는 `create_session_dir` 와 읽는 `parse_session_dir` 는 같은 모듈에 있다(NERV Task `CLE-T-QY5AZ3`).
+
+    읽는 쪽은 `nerv_review_payload.session_stamp()` 안에 따로 있었다. 만드는 쪽이 모양을 바꾸면 여기서 깨진다."""
+
+    def setUp(self):
+        self.session = _load_session_module()
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_every_name_made_in_one_second_reads_back_with_its_suffix(self):
+        clock = mock.MagicMock(wraps=datetime)
+        clock.now.return_value = datetime(2026, 10, 10, 9, 5, 3)
+        with mock.patch.object(self.session, "datetime", clock):
+            dirs = [self.session.create_session_dir(self.tmp, subdir=sub) for sub in (None, None, None, "x")]
+        self.assertEqual(len(set(dirs)), 4, dirs)  # 공허 방지: 같은 초에 이름이 실제로 갈렸다
+        self.assertEqual([self.session.parse_session_dir(d) for d in dirs], [
+            ("2026", "10", "10", "09", "05", "03", None),
+            ("2026", "10", "10", "09", "05", "03", "2"),
+            ("2026", "10", "10", "09", "05", "03", "3"),
+            ("2026", "10", "10", "09", "05", "03", None),
+        ])
+
+    def test_paths_that_are_not_a_session_have_no_parts(self):
+        base = os.path.join(self.tmp, "2026", "10", "10")
+        for name in ("13_40_14_", "13_40_14_x", "13_40_14_0", "13_40_14_2_3", "13_40_1", "1340_14", "SUMMARY.md"):
+            with self.subTest(name=name):
+                self.assertIsNone(self.session.parse_session_dir(os.path.join(base, name)))
+        for day in (("2026", "10", "1"), ("26", "10", "10"), ("2026", "1x", "10")):
+            with self.subTest(day=day):
+                self.assertIsNone(self.session.parse_session_dir(os.path.join(self.tmp, *day, "13_40_14")))
+        self.assertIsNone(self.session.parse_session_dir("13_40_14"))
+
+
 def _session_naming(src: str) -> dict[str, bool]:
     """오케스트레이터 소스가 세션 이름을 어디서 받는지 세 가지로 판정한다.
 
     문자열 포함으로 보면 주석 `# was session.create_session_dir(` 한 줄만 있어도 호출이 있다고 판정됐다(코드 리뷰
     `CLE-T-XM6YV0` 의 W1). 그래서 구문 트리로 본다. 주석은 파싱할 때 사라지고 docstring 은 따로 뺀다."""
-    with warnings.catch_warnings():
-        # consistency 오케스트레이터 docstring 의 `\`` 같은 이스케이프 경고는 이 판정과 무관하다.
-        warnings.simplefilter("ignore", (DeprecationWarning, SyntaxWarning))
-        tree = ast.parse(src)
+    tree = ast.parse(src)
     nodes = list(ast.walk(tree))
     docstrings = set()
     for node in nodes:

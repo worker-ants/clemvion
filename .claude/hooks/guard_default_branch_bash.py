@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook — soft reminder when a *mutating* Bash command is
+r"""PreToolUse hook — soft reminder when a *mutating* Bash command is
 about to run on the default branch of the main worktree.
 
 Registered in `.claude/settings.json` for the `Bash` matcher. Unlike
@@ -51,7 +51,6 @@ Policy lives in `_lib/branch_guard.py`. Override with
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
@@ -62,6 +61,7 @@ sys.path.insert(0, THIS_DIR)
 
 try:
     from _lib.branch_guard import evaluate  # noqa: E402
+    from _lib.hook_input import payload_cwd, read_payload  # noqa: E402
 except Exception:
     traceback.print_exc(file=sys.stderr)
     sys.exit(0)
@@ -159,16 +159,6 @@ _MUTATING = re.compile(
 )
 
 
-def _read_payload() -> dict:
-    raw = sys.stdin.read()
-    if not raw.strip():
-        return {}
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-
-
 # Command separators. The anchored pattern above only ever sees the first token,
 # so `git add -A && git commit -m "x"` used to slip past entirely — and chained
 # commands are the common shape, which made this hook miss precisely the moment
@@ -226,8 +216,12 @@ def main() -> int:
     if os.environ.get("BYPASS_DEFAULT_BRANCH_GUARD") == "1":
         return 0
 
+    # Input first: the directory to judge comes from it (`payload_cwd`), because
+    # this process runs from the main checkout whatever worktree the session is in.
+    payload = read_payload()
+
     try:
-        decision = evaluate()
+        decision = evaluate(payload_cwd(payload))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         return 0
@@ -235,7 +229,6 @@ def main() -> int:
     if not decision.blocked:
         return 0  # safe location; stay silent.
 
-    payload = _read_payload()
     tool_input = payload.get("tool_input") or payload.get("input") or {}
     command = tool_input.get("command") or ""
 

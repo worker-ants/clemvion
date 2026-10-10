@@ -8,6 +8,7 @@ would fail there with an error that does not point here.
 
 import json
 import os
+import re
 from datetime import datetime
 
 # How many `<hh>_<mm>_<ss>[_N]` names to try before giving up and reusing the
@@ -18,16 +19,66 @@ from datetime import datetime
 # Collisions between concurrent sessions remain, which is why this still exists.)
 _MAX_SESSION_NAME_ATTEMPTS = 50
 
+# The last component `create_session_dir` makes: `<hh>_<mm>_<ss>`, then `_2`, `_3`, … from the
+# second session in the same second. `parse_session_dir` reads it; keep the two together.
+_SESSION_NAME_RE = re.compile(r"(\d{2})_(\d{2})_(\d{2})(?:_([1-9]\d*))?")
+_YEAR_RE = re.compile(r"\d{4}")
+_TWO_DIGITS_RE = re.compile(r"\d{2}")
+
+
+# `.claude/_shared/session.py` → the root of the checkout this module lives in.
+_CHECKOUT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Moves every orchestrator's debug log to another directory when set to a non-empty value.
+# The test harness sets it to a temporary directory (`.claude/tests/_harness.py`) so a test run
+# does not append to the checkout's real logs.
+LOG_DIR_ENV = "ORCHESTRATOR_LOG_DIR"
+
+# `O_NOFOLLOW` is POSIX. Where it does not exist the open simply follows links, as before.
+_LOG_OPEN_FLAGS = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+
+
+def debug_log_path(name):
+    """`<checkout>/.review/logs/<name>.log`, where an orchestrator keeps its debug log.
+
+    The logs used to be fixed names under `/tmp` (`/tmp/code-review-agents-log.txt` and two more).
+    `/tmp` is shared by every user of the machine, so anyone could create that name first, as a
+    symlink to another file or as a file of their own, and the orchestrator appended to it.
+    `.review/` belongs to the checkout, is gitignored and already holds the session directories,
+    so each worktree now keeps its own log (NERV Task `CLE-T-QY5AZ3`).
+
+    `ORCHESTRATOR_LOG_DIR` (`LOG_DIR_ENV`), when non-empty, replaces `<checkout>/.review/logs`.
+    The variable is read when this function is called, and each orchestrator calls it while it is
+    being imported, so it has to be set before an orchestrator is loaded. The path is made absolute
+    at that moment, so a later `chdir` does not move the log. Before the variable existed a test run
+    appended its fixture sessions (temporary-directory paths) to the checkout's real log, which now
+    holds the debug record of the actual `--prepare` runs of that worktree.
+    """
+    log_dir = os.environ.get(LOG_DIR_ENV)
+    if log_dir:
+        log_dir = os.path.abspath(log_dir)
+    else:
+        log_dir = os.path.join(_CHECKOUT_ROOT, ".review", "logs")
+    return os.path.join(log_dir, f"{name}.log")
+
 
 def make_debug_logger(log_file_path):
     """Return a function that appends timestamped messages to log_file_path.
+
+    A missing parent directory is created, and a new file is created `0o600`. The open uses
+    `O_NOFOLLOW`: when the last path component is a symlink the open fails and the message is
+    dropped instead of being appended to whatever the link points to.
 
     Failures during logging are silently ignored — logging must never crash the orchestrator.
     """
     def _log(message):
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            with open(log_file_path, "a") as f:
+            parent = os.path.dirname(log_file_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            fd = os.open(log_file_path, _LOG_OPEN_FLAGS, 0o600)
+            with open(fd, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] {message}\n")
         except Exception:
             pass
@@ -64,10 +115,10 @@ def create_session_dir(output_dir, subdir=None):
     So the create is ATOMIC (`exist_ok=False`) and a taken name falls through to
     `<hh>_<mm>_<ss>_2`, `_3`, …. Atomic matters for the parallel case: two
     processes cannot both believe they won. The guards walk the tree looking for
-    `SUMMARY.md` and do not read the name. One reader does:
-    `.claude/tools/nerv_review_payload.py` `session_stamp()` turns the name into
-    the idempotency-key prefix and keeps the suffix (`13_40_14_2` →
-    `…-134014-2`). Change the name shape there too.
+    `SUMMARY.md` and do not read the name. The one reader is `parse_session_dir`
+    below; `.claude/tools/nerv_review_payload.py` `session_stamp()` turns its
+    parts into the idempotency-key prefix and keeps the suffix (`13_40_14_2` →
+    `…-134014-2`). Change the name shape in both functions of this module.
 
     On exhaustion it returns the plain path with `exist_ok=True`, i.e. the old
     behaviour. Losing a session directory is bad; refusing to run a review at all
@@ -101,6 +152,26 @@ def create_session_dir(output_dir, subdir=None):
     return session_dir
 
 
+def parse_session_dir(session_dir):
+    """Read the path `create_session_dir` made: `…/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]`.
+
+    Returns `(year, month, day, hh, mm, ss, n)` as the strings in the path (leading zeros kept),
+    with `n` None for the plain name. Returns None when the last four components do not have that
+    shape. Only those four are read; what sits above them (`.review/<kind>/[<subdir>/]`) is the
+    caller's business.
+    """
+    parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)[-4:]
+    if len(parts) != 4:
+        return None
+    year, month, day, name = parts
+    if not (_YEAR_RE.fullmatch(year) and _TWO_DIGITS_RE.fullmatch(month) and _TWO_DIGITS_RE.fullmatch(day)):
+        return None
+    m = _SESSION_NAME_RE.fullmatch(name)
+    if m is None:
+        return None
+    return (year, month, day, *m.groups())
+
+
 def save_metadata(session_dir, meta):
     """Write a JSON metadata dict to `<session_dir>/meta.json` (UTF-8, pretty-printed)."""
     meta_file = os.path.join(session_dir, "meta.json")
@@ -115,9 +186,16 @@ def save_metadata(session_dir, meta):
 def truncate_to_budget(text, budget, suffix="\n\n... (truncated due to size limit) ..."):
     """Truncate `text` so the result fits within `budget` characters.
 
-    A budget of 0 or negative means unlimited.
+    A budget of 0 or negative means unlimited. A `text` within the budget comes back unchanged.
+    A longer one is cut so that it ends with `suffix` and is exactly `budget` characters long.
+
+    When `budget` is shorter than `suffix` the marker cannot fit, so the text is cut to `budget`
+    characters without it. It used to append the whole suffix anyway (`"x" * 100` with budget 10
+    came back 39 characters long). The orchestrators' default budgets are 131,072 and 262,144
+    characters, so only an environment override that small reaches this case.
     """
     if budget <= 0 or len(text) <= budget:
         return text
-    keep = max(budget - len(suffix), 0)
-    return text[:keep] + suffix
+    if budget < len(suffix):
+        return text[:budget]
+    return text[:budget - len(suffix)] + suffix

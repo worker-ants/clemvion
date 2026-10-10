@@ -41,7 +41,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 진행 중 작업 | NERV Task — 클레임(`nerv_task_claim`) 뒤 진행은 `nerv_task_heartbeat` 의 progress, 인계는 `handoff_note` · 릴리스 `state_note` 에 남긴다. 새 작업은 `nerv_task_create` |
 | 완료된 작업 | NERV Task `done` — done 게이트가 증적 · `spec_impact` · Task 에 묶인 code · consistency 라운드를 요구한다 |
 | 리서치·분석 산출물 (작업 아님) | NERV `CLE-RESEARCH` 영역 문서(미러 `spec/CLE-RESEARCH/`). 경쟁 분석·기술 조사 등 "참조되는" 문서이고 요구사항을 정하지 않는다 |
-| 코드 리뷰 결과 | NERV 리뷰 레코드 `kind=code` — 역할마다 `nerv_review_submit`, 발견 처분은 `nerv_finding_resolve`. 로컬 산출물 `.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 는 커밋하지 않는다 |
+| 코드 리뷰 결과 | NERV 리뷰 레코드 `kind=code` — 역할마다 `nerv_review_submit`, 발견 처분은 `nerv_finding_resolve`. 로컬 산출물 `.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/` 는 커밋하지 않는다(같은 초에 세션을 또 만들면 `_2` · `_3` 이 붙는다) |
 | 일관성 검토 결과 | NERV 리뷰 레코드 `kind=consistency`(checker 마다 제출). 로컬 `.review/consistency/<…>/` |
 | 통합 검토 결과 | NERV 리뷰 레코드 `kind=merge` — analyzer 마다 `nerv_review_submit`. 로컬 `.review/merge/<…>/` 는 커밋하지 않는다. 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 |
 | Spec-impl coverage standing audit 결과 | 로컬 `.review/spec-coverage/<…>/`(커밋하지 않는다). NERV `kind=spec_coverage` 로 내고(후보마다 info 발견, 라운드를 막지 않는다) 조치할 후보는 호출한 main 세션이 NERV Task 로 올린다. 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 (slash `/spec-coverage` 산출. 근거 모델: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md), 절차: [`spec-coverage` SKILL](.claude/skills/spec-coverage/SKILL.md)) |

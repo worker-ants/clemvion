@@ -176,4 +176,4 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 | `AI_REVIEW_LOOP` | `0` | `1` → loop_mode=true |
 | `DISABLE_CONSISTENCY_CHECK` | `0` | `1` 이면 비활성화 |
 
-세션 디렉토리 스키마·디버그 로그 위치: `./README.md`.
+세션 디렉토리 스키마는 [`/consistency-check` 「산출물」](../../commands/consistency-check.md#산출물)에 있다. 디버그 로그는 `.review/logs/consistency-checker.log` 다(체크아웃마다 따로 생기고 gitignore 대상이다. `ORCHESTRATOR_LOG_DIR` 를 주면 그 디렉터리에 쓴다).

@@ -67,7 +67,7 @@ from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 from _shared import session  # noqa: E402
 
-DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
+DEBUG_LOG_FILE = session.debug_log_path("consistency-checker")
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 
 # Derived, not restated: `_shared/block_integrity` needs the same list to know
@@ -675,7 +675,7 @@ def _count_diff_files(diff_text):
 
 
 def _folded(items):
-    """`- \`x\`` 줄들. `_SCOPE_HITS_DISPLAY_LIMIT` 를 넘으면 정확한 나머지 수로 접는다."""
+    """항목마다 `    - <항목>` 한 줄. `_SCOPE_HITS_DISPLAY_LIMIT` 를 넘으면 정확한 나머지 수로 접는다."""
     shown = "".join(f"    - {x}\n" for x in items[:_SCOPE_HITS_DISPLAY_LIMIT])
     if len(items) > _SCOPE_HITS_DISPLAY_LIMIT:
         shown += f"    - … 외 {len(items) - _SCOPE_HITS_DISPLAY_LIMIT}건\n"

@@ -143,7 +143,7 @@ ai-review · consistency-check 와 동일. ScheduleWakeup delay = `last_reset_hi
 
 ## 디버그 로그
 
-`/tmp/merge-coordinator-log.txt` 에 orchestrator 의 prepare/resume 이벤트 기록. model 호출 자체는 main session 의 transcript 에 남는다.
+체크아웃의 `.review/logs/merge-coordinator.log` 에 orchestrator 의 prepare/resume 이벤트 기록. 워크트리마다 따로 쌓인다. 환경 변수 `ORCHESTRATOR_LOG_DIR` 가 비어 있지 않으면 그 디렉터리의 `merge-coordinator.log` 에 쌓인다(세 orchestrator 가 같이 따른다. 하네스 테스트가 이 변수로 로그를 임시 디렉터리에 돌린다). 예전 경로 `/tmp/merge-coordinator-log.txt` 는 쓰지 않는다. model 호출 자체는 main session 의 transcript 에 남는다.
 
 ## 기존 skill 활용 지점
 

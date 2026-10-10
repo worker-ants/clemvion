@@ -18,7 +18,6 @@ edits anything, without nagging on every conversational turn.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
@@ -29,6 +28,7 @@ sys.path.insert(0, THIS_DIR)
 
 try:
     from _lib.branch_guard import evaluate  # noqa: E402
+    from _lib.hook_input import payload_cwd, read_payload  # noqa: E402
 except Exception:
     traceback.print_exc(file=sys.stderr)
     sys.exit(0)
@@ -50,16 +50,6 @@ _WORK_PATTERNS = [
 _WORK_RE = re.compile("|".join(_WORK_PATTERNS), re.IGNORECASE)
 
 
-def _read_payload() -> dict:
-    raw = sys.stdin.read()
-    if not raw.strip():
-        return {}
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-
-
 def _looks_like_work(prompt: str) -> bool:
     if not prompt:
         return False
@@ -70,8 +60,12 @@ def main() -> int:
     if os.environ.get("BYPASS_DEFAULT_BRANCH_GUARD") == "1":
         return 0
 
+    # Input first: the directory to judge comes from it (`payload_cwd`), because
+    # this process runs from the main checkout whatever worktree the session is in.
+    payload = read_payload()
+
     try:
-        decision = evaluate()
+        decision = evaluate(payload_cwd(payload))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         return 0
@@ -79,7 +73,6 @@ def main() -> int:
     if not decision.blocked:
         return 0  # safe location; stay silent.
 
-    payload = _read_payload()
     prompt = payload.get("prompt") or ""
     if not _looks_like_work(prompt):
         return 0  # not a work request; don't nag.
