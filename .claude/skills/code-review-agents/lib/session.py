@@ -36,6 +36,9 @@ def create_session_dir(output_dir, subdir=None):
     list (`ls`) as review history accumulated. The old committed
     `review/<timestamp>/` tree left the repository in NERV cutover stage 3 (NERV
     Task `CLE-T-FN2JWK`); this function governs local `.review/` sessions.
+    All four orchestrators (code review, consistency, merge, spec-coverage) name
+    their sessions here. spec-coverage made its own name until 2026-10-10 and
+    shared one directory between two runs in the same second.
 
     **The name is second-resolution, so two sessions in the same second collide.**
     That is not hypothetical. The shape it was first measured on no longer

@@ -23,6 +23,16 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: `/spec-coverage` 를 같은 초에 두 번 돌려도 앞 실행의 입력이 남는다
+
+`spec_coverage_orchestrator.py` 는 세션 디렉터리를 `HH_MM_SS` 이름으로 `exist_ok=True` 로 만들었다. 같은 초에 두 번
+돌면 두 실행이 한 디렉터리를 같이 썼고 뒤 실행이 앞 실행의 `_prompt.md` · `meta.json` 을 덮었다. 다른 세 오케스트레이터
+(코드 리뷰 · consistency · merge)는 이미 `create_session_dir` 로 `_2` · `_3` 을 붙였다(NERV Task `CLE-T-B866CD`).
+
+- spec-coverage 도 `create_session_dir` 로 이름을 받는다. 같은 초의 두 번째 실행은 `13_40_14_2` 에 쓴다.
+- 디렉터리 이름의 시각이 UTC 에서 로컬 시각으로 바뀐다. 다른 오케스트레이터와 같다. `meta.json` 의 `created_utc` 는
+  그대로 UTC 다.
+
 ## Unreleased — 하네스: 같은 초에 만든 리뷰 세션도 NERV 제출 문서를 만든다
 
 리뷰 오케스트레이터는 같은 초에 세션을 또 만들면 디렉터리 이름에 `_2` · `_3` 을 붙인다(`13_40_14_2`).

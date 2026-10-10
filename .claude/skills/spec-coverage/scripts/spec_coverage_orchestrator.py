@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
@@ -51,11 +52,25 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
+def _load_session_lib():
+    """다른 오케스트레이터가 쓰는 `code-review-agents/lib/session.py` 를 경로로 읽는다.
+
+    그쪽은 `sys.path` 에 스킬 디렉터리를 넣고 `from lib import session` 으로 읽는다. 이 모듈은 테스트
+    프로세스 안에서도 불려서(`test_spec_coverage_prompt.py`) `sys.path` 를 바꾸지 않는다."""
+    path = Path(__file__).resolve().parents[2] / "code-review-agents" / "lib" / "session.py"
+    spec = importlib.util.spec_from_file_location("spec_coverage_session_lib", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_session = _load_session_lib()
+
+
 def session_dir(root: Path) -> Path:
-    now = datetime.now(timezone.utc)
-    base = root / ".review" / "spec-coverage" / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d") / now.strftime("%H_%M_%S")
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    """`.review/spec-coverage/<Y>/<m>/<d>/<H_M_S>[_<n>]`. 이름은 다른 오케스트레이터와 같은 `create_session_dir`
+    가 정한다. 같은 초에 또 돌면 `_2` · `_3` 을 받는다. 시각은 로컬 시각이다(`meta.json` 의 `created_utc` 는 UTC)."""
+    return Path(_session.create_session_dir(str(root / ".review" / "spec-coverage")))
 
 
 def env_summary() -> dict:
