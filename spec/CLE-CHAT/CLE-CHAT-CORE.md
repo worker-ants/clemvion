@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
 content_hash: "622272e95aa85bbf92fcd0911bfb7cc352b038c1f74a6599c63db33509bffead"
 read_as: "approved_fallback"
-task: "CLE-T-H0GF4K"
+task: "CLE-T-V4WVF2"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "898c8cd920688e42dd55e9fb91b5c56447dd39eb17f7906484dcf4d76a2a6b05"
-etag: "sha256-0d8d0787b8de0503b3b697a5da03d82d2989c1130d726c3a1fe9bcaaa09fc727"
+mirror_sha256: "1ac4fa617ed85ed18c6544582157a1262d3403dce04026885b3aaf643ed3b8c8"
+etag: "sha256-7e622be9953a0b4d07f91a6b46c8a25d86e4743d04ca7829328b36d09d205540"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

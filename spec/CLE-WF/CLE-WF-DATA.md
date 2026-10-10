@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
 content_hash: "cdd14bae146ce8e604bddf20ddb27cf2a64c3829e46386858e75ae517234d093"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "841bdf082058b05b40e1135dfc343d1cf1dee72b7e473eacdaa8de295c53d8c2"
-etag: "sha256-a891062abfd9e539017d0f66a05dd3b8752b456500d8af20b200bb814e015051"
+mirror_sha256: "5ed450fd082305b3b8b06d64955a174f6696dc5a10d8c4beb49fb6a10adbae7d"
+etag: "sha256-deb035807a597f170502fbd931b3f08851ea76de7e33be3701db035406658951"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

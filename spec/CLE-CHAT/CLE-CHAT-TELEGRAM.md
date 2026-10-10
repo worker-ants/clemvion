@@ -10,11 +10,11 @@ parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
 content_hash: "bca47ff1935cf4aaccbd4e47aef4786db6c8e448e7e21b4c80bdbcb9fa127ff3"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-V4WVF2"
 source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "3cce8b23ff6277538f70cfdcf9085c5afc52de33a87874a0de91a0b158b4efbd"
-etag: "sha256-d09ee1dfae7fc86e2c8014ac4cecad52ad4dacb33b8e6ff9ca18b25ca900a8e7"
+mirror_sha256: "0e48b5081528c2d719a86d140b9a1aee3184bf4894a78cdec4c5e4b44e86d110"
+etag: "sha256-72f933f64109005479d21b12bab53a882409b0a316586ee153d421535b754676"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

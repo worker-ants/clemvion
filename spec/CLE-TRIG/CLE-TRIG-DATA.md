@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
 content_hash: "ab1ee9075ab93e215e75be4d152520b03dbff01e85df43c36aaa697235b9af33"
 read_as: "approved_fallback"
-task: "CLE-T-2V7SBC"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "34f02005cc231594a5456bd5363acdc7a28703c4185b9aec02444dfd139d30ad"
-etag: "sha256-122f5a38d53ba53d5e8693d6c8174cafd8d9eb39acbf4c8e29ea35a22353daeb"
+mirror_sha256: "0d6f9a711dccb46ca1acb0027fa2f6b1683a8302aa078a9796103092be9be543"
+etag: "sha256-9d9c90930e36165fbf75ac235a43209c27bcac168beb49bf22a02a24f144220f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

@@ -10,11 +10,11 @@ parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
 content_hash: "05cbbeff938eeb828baee99498618facd39f9cea8aecd96f4521c627202a1192"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-V4WVF2"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "7d9c21a53662dbc7560649487b56fb0395a42d6aaf07bec990a8219747fdf690"
-etag: "sha256-48bafdbfb3e6fc5625e46a62421b8be1cee0737aa6479efb652dd09c2020ec71"
+mirror_sha256: "de5b82c65dd3993a9b630d2c786815d87945f1ec76d35d9a500bef5f769db478"
+etag: "sha256-a7f9b9b7d0c63625f56dace84953e520e9e042ad00042553e2e5025e01f6b5ca"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

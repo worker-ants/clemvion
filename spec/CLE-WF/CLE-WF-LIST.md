@@ -10,11 +10,11 @@ parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
 content_hash: "5591281afd4797596f03f3ad1f931fc946acdad75a6179ca6e12e337a09bc362"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "7b19392763f2070e63ae3d66f342d2483f4f30414260365c501186e385293c4f"
-etag: "sha256-b7e64616d6610bd30d2171a00ccb1b0eba0c584c5eb5d22f45d421e90ad1efd7"
+mirror_sha256: "c69a924152ca3a34af8d012a3fb94bb61590b368ab12060fb197fe17867e616e"
+etag: "sha256-26433b84e1c4dd99f73b729cad31c509b33608f0f7273f5525deaa171e70f3ff"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
