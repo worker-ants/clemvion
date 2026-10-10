@@ -185,29 +185,42 @@ class UnusableCwdTest(_Fixture):
 
 
 class UnreadableInputTest(_Fixture):
-    """입력을 읽지 못하면 고치기 전과 같다. 판정은 프로세스 디렉터리이고 입력이 없는 것처럼 다룬다."""
+    """입력을 읽지 못하면 입력이 없는 것처럼 다룬다. 판정은 프로세스 디렉터리가 한다.
 
-    def test_broken_json_keeps_the_previous_behaviour(self):
-        # `b"\xff"` 는 UTF-8 로 읽히지 않는다. 고치기 전 edit 훅은 막는 곳에서만 입력을 읽었고 strict
-        # 로 읽으면 UnicodeDecodeError 로 죽어 통과시켰다(exit 1). 지금은 입력이 없는 것처럼 막는다.
-        for stdin in ("{not json", "", b"\xff"):
+    세 훅 모두 같은 규칙이다(`hook_input.read_payload`). 대부분은 고치기 전에도 이렇게 동작했고, UTF-8 이 아닌
+    입력만 달라졌다. 그 케이스는 바뀐 동작이라 따로 이름을 붙였다.
+    """
+
+    def assertReadsAsNoInput(self, stdin: str | bytes):
+        """입력이 없는 것과 같은 결과다. 프로세스가 막는 곳(main)에 있으면 edit 만 막고, 아니면 셋 다 조용하다.
+
+        세 훅을 막는 곳에서 모두 돌린다. 막지 않는 곳에서는 훅이 입력의 나머지를 보기 전에 끝나서, 읽은 값이
+        객체가 아닐 때의 방어가 있어도 없어도 같은 결과가 나온다.
+        """
+        # edit 는 무엇을 고치려는지 몰라도 막는다. prompt · bash 는 볼 문장 · 명령이 없어 조용하다.
+        edit = "guard_default_branch_edit.py"
+        proc = self.run_hook(edit, process_cwd=self.main, stdin=stdin)
+        self.assertFires(edit, proc)
+        self.assertIn("(unknown tool) on (target unknown)", proc.stderr)
+        for hook in ("guard_default_branch_prompt.py", "guard_default_branch_bash.py"):
+            self.assertSilent(hook, self.run_hook(hook, process_cwd=self.main, stdin=stdin))
+        for hook in HOOKS:
+            self.assertSilent(hook, self.run_hook(hook, process_cwd=self.worktree, stdin=stdin))
+
+    def test_empty_or_unparsable_input_is_judged_by_the_process_directory(self):
+        for stdin in ("{not json", ""):
             with self.subTest(stdin=stdin):
-                # edit 는 대상을 몰라도 막는다. prompt · bash 는 볼 문장 · 명령이 없어 조용하다.
-                proc = self.run_hook("guard_default_branch_edit.py", process_cwd=self.main, stdin=stdin)
-                self.assertFires("guard_default_branch_edit.py", proc)
-                self.assertIn("(unknown tool) on (target unknown)", proc.stderr)
-                for hook in ("guard_default_branch_prompt.py", "guard_default_branch_bash.py"):
-                    self.assertSilent(hook, self.run_hook(hook, process_cwd=self.main, stdin=stdin))
-                for hook in HOOKS:
-                    self.assertSilent(hook, self.run_hook(hook, process_cwd=self.worktree, stdin=stdin))
+                self.assertReadsAsNoInput(stdin)
+
+    def test_non_utf8_input_is_now_read_as_empty_not_a_crash(self):
+        # 바뀐 동작이다. `b"\xff"` 는 UTF-8 로 읽히지 않는다. 고치기 전 edit 훅은 막는 곳에서만 입력을 읽었고 strict
+        # 로 읽으면 UnicodeDecodeError 로 죽어 통과시켰다(exit 1). 지금은 입력이 없는 것처럼 읽어 막는다.
+        self.assertReadsAsNoInput(b"\xff")
 
     def test_json_that_is_not_an_object_reads_as_an_empty_payload(self):
         for stdin in ("[]", '"x"', "3"):
             with self.subTest(stdin=stdin):
-                proc = self.run_hook("guard_default_branch_edit.py", process_cwd=self.main, stdin=stdin)
-                self.assertFires("guard_default_branch_edit.py", proc)
-                for hook in HOOKS:
-                    self.assertSilent(hook, self.run_hook(hook, process_cwd=self.worktree, stdin=stdin))
+                self.assertReadsAsNoInput(stdin)
 
 
 class HookInputTest(unittest.TestCase):
