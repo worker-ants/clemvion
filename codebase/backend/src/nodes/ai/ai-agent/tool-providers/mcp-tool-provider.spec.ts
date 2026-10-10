@@ -986,6 +986,96 @@ describe('McpToolProvider', () => {
         expect(parsed.error).toBe('INVALID_TOOL_ARGUMENTS');
       });
     });
+
+    // 재실행 「dry-run」 임시 가드 — tools/call 은 외부 서버에 보내지 않는다.
+    describe('dry-run re-run (ctx.dryRun)', () => {
+      const dryCtx = {
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+        dryRun: true,
+      };
+      let logUsage: jest.Mock;
+
+      beforeEach(() => {
+        logUsage = jest.fn().mockResolvedValue(undefined);
+        (integrations as unknown as { logUsage: jest.Mock }).logUsage =
+          logUsage;
+      });
+
+      it('does not send tools/call and returns a not-executed result', async () => {
+        const session = makeSession();
+        mcpClient.connect.mockResolvedValue(session);
+        await provider.buildTools(dryCtx);
+
+        const result = await provider.execute(
+          {
+            id: 'tc-1',
+            name: 'mcp_aaaaaaaa__echo',
+            arguments: JSON.stringify({ msg: 'hi' }),
+          },
+          dryCtx,
+        );
+
+        expect(session.callTool).not.toHaveBeenCalled();
+        expect(logUsage).not.toHaveBeenCalled();
+        expect(result.toolCallId).toBe('tc-1');
+        expect(result.status).toBe('success');
+        expect(result.mcpErrorDelta).toBeUndefined();
+        const parsed = JSON.parse(result.content);
+        expect(parsed).toMatchObject({
+          _dryRun: true,
+          executed: false,
+          wouldHaveCalled: {
+            kind: 'mcp_tool',
+            integrationId: integration.id,
+            tool: 'echo',
+          },
+        });
+        expect(parsed.message).toMatch(/dry-run/);
+      });
+
+      it('still forwards resources/prompts meta tools (read-only by protocol)', async () => {
+        const session = makeSession({
+          capabilities: { tools: {}, resources: {} },
+          listResources: jest.fn().mockResolvedValue({
+            resources: [{ uri: 'file://a.txt', name: 'a.txt' }],
+          }),
+        });
+        mcpClient.connect.mockResolvedValue(session);
+        await provider.buildTools(dryCtx);
+
+        const result = await provider.execute(
+          {
+            id: 'tc-2',
+            name: 'mcp_aaaaaaaa__list_resources',
+            arguments: '{}',
+          },
+          dryCtx,
+        );
+
+        expect(session.listResources).toHaveBeenCalled();
+        expect(JSON.parse(result.content).resources[0].uri).toBe(
+          'file://a.txt',
+        );
+      });
+
+      it('keeps MCP_UNKNOWN_TOOL for a tool the server does not expose', async () => {
+        const session = makeSession();
+        mcpClient.connect.mockResolvedValue(session);
+        await provider.buildTools(dryCtx);
+
+        const result = await provider.execute(
+          { id: 'tc-3', name: 'mcp_aaaaaaaa__missing', arguments: '{}' },
+          dryCtx,
+        );
+
+        expect(session.callTool).not.toHaveBeenCalled();
+        expect(JSON.parse(result.content).error).toBe('MCP_UNKNOWN_TOOL');
+      });
+    });
   });
 
   describe('cleanup', () => {

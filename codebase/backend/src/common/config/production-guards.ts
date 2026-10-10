@@ -35,17 +35,48 @@ export const INSECURE_JWT_SECRETS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * production 에서 거부되는 ENCRYPTION_KEY 값 — 공개 저장소의 `.env.example` 에 실렸던/실리는
- * 복붙 가능 예시 키. 이 값을 그대로 운영에 쓰면 secret store 전체가 사실상 평문이 된다.
- * **동기화 의무**: `.env.example` 의 ENCRYPTION_KEY placeholder 를 바꾸면 *옛 값을 이 Set 에서
- * 제거하지 말고* 새 placeholder 를 추가한다 — 옛 예시 키로 운영 중인 배포도 계속 차단해야 한다.
+ * production 에서 거부되는 ENCRYPTION_KEY 값 — 공개 저장소에 커밋된 예시 키(`.env.example` ·
+ * k8s 예시 · 로컬 overlay · e2e compose · 루트 README). 이 값을 그대로 운영에 쓰면 secret store
+ * 전체가 사실상 평문이 된다.
+ * **동기화 의무**: 예시 파일의 ENCRYPTION_KEY 값을 바꾸면 *옛 값을 이 Set 에서 제거하지 말고* 새
+ * 값을 추가한다 — 옛 예시 키로 운영 중인 배포도 계속 차단해야 한다. 예시 파일 목록과 값 대조는
+ * `production-guards.spec.ts` 가 한다.
  */
 export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
   // 현 `.env.example` placeholder (all-zero). since 2026-06.
   '0000000000000000000000000000000000000000000000000000000000000000',
   // 옛 `.env.example` 예시 키 (~2026-06) — 그 값으로 운영 중인 배포도 차단.
+  // 지금은 k8s/overlays/local · docker-compose.e2e.yml 이 이 값을 쓴다.
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  'REPLACE_ME_32_BYTE_HEX', // k8s/base/secret.example.yaml
+  '<32-byte-hex>', // 루트 README.md 예시
 ]);
+
+/**
+ * production 에서 거부되는 INTEGRATION_ENCRYPTION_KEY 값. `KNOWN_EXAMPLE_ENCRYPTION_KEYS` 의 상위
+ * 집합이다. 저장소에 커밋된 예시 · 로컬 · e2e 설정의 값이다. `ENCRYPTION_KEY` 예시 키도 함께
+ * 막는다(INTEGRATION_ENCRYPTION_KEY 자리에 ENCRYPTION_KEY 예시값을 넣는 실수). 반대로
+ * ENCRYPTION_KEY 자리에 이 Set 의 나머지 값을 넣는 경우는 막지 않는다.
+ * **동기화 의무**: 예시 파일의 INTEGRATION_ENCRYPTION_KEY 값을 바꾸면 *옛 값을 지우지 말고* 새 값을
+ * 더한다. 예시 파일 목록과 값 대조는 `production-guards.spec.ts` 가 한다.
+ */
+export const INSECURE_INTEGRATION_ENCRYPTION_KEYS: ReadonlySet<string> =
+  new Set([
+    ...KNOWN_EXAMPLE_ENCRYPTION_KEYS,
+    'change-me-to-a-32-byte-secret', // codebase/backend/.env.example
+    'REPLACE_ME', // k8s/base/secret.example.yaml
+    'local-integration-key', // k8s/overlays/local/secret.yaml
+    '0123456789abcdef0123456789abcdef', // docker-compose.e2e.yml
+  ]);
+
+/**
+ * 예시값 목록 조회 — 원문과 `trim()` 한 값을 모두 본다. `.env` · Secret 에 옮기다 앞뒤 공백이나
+ * 끝 개행이 붙은 예시값(`' REPLACE_ME '` 등)이 거부 목록을 빠져나가지 않게 한다. 값을 다듬는 것은
+ * 조회에만 쓴다 — transformer 등 실제 키 사용처가 읽는 값은 바꾸지 않는다.
+ */
+function isListedExample(set: ReadonlySet<string>, value: string): boolean {
+  return set.has(value) || set.has(value.trim());
+}
 
 /**
  * .env boolean 토글이 ON 인지 — 정확히 문자열 `'true'` 또는 `'1'` 만 ON 으로 본다.
@@ -127,10 +158,32 @@ export function assertProductionConfig(
   // 사실상 평문이므로 부팅 거부. (빈 값은 SecretResolver init 에서도 throw 되나, 여기서
   // 예시 키 케이스까지 부팅 초기에 일괄 차단한다.)
   const encryptionKey = env.ENCRYPTION_KEY;
-  if (!encryptionKey || KNOWN_EXAMPLE_ENCRYPTION_KEYS.has(encryptionKey)) {
+  if (
+    !encryptionKey ||
+    encryptionKey.trim() === '' ||
+    isListedExample(KNOWN_EXAMPLE_ENCRYPTION_KEYS, encryptionKey)
+  ) {
     fail(
       'ENCRYPTION_KEY 가 미설정이거나 공개 예시 키입니다 — `openssl rand -hex 32` 로 ' +
         '운영용 키를 새로 생성하세요 (예시 키는 사실상 평문).',
+    );
+  }
+
+  // INTEGRATION_ENCRYPTION_KEY 는 통합 자격 증명 · 인증 설정 컬럼 transformer
+  // (`credentials-transformer.ts`)의 키다. 키가 없으면 transformer 가 경고만 남기고 평문으로
+  // 저장하므로 운영 부팅을 거부한다. 예시값도 공개된 값이라 같이 거부한다. 길이 하한은 두지
+  // 않는다 — transformer 가 SHA-256 으로 키를 만들어 길이를 받고, 이미 그 키로 암호화한 행은
+  // 키를 바꾸면 복호화되지 않는다. 메시지에는 키 값을 싣지 않는다.
+  const integrationKey = env.INTEGRATION_ENCRYPTION_KEY;
+  if (
+    !integrationKey ||
+    integrationKey.trim() === '' ||
+    isListedExample(INSECURE_INTEGRATION_ENCRYPTION_KEYS, integrationKey)
+  ) {
+    fail(
+      'INTEGRATION_ENCRYPTION_KEY 가 미설정이거나 공개 예시 값입니다 — 이 키가 없으면 통합 ' +
+        '자격 증명과 인증 설정이 평문으로 저장됩니다. `openssl rand -hex 32` 로 운영용 키를 ' +
+        '새로 생성하세요.',
     );
   }
 

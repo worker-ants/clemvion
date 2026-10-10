@@ -315,18 +315,14 @@ export class ExecutionsController {
     description: 'chain 내 실행 목록 (nodeExecutions 생략)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({
-    description: forbiddenWithService(
-      FORBIDDEN_NOT_A_MEMBER,
-      'RR-PL-06 미충족(RERUN_PERMISSION_DENIED — 서비스 판정)',
-    ),
-  })
+  // `@Roles` 를 붙이지 않는다. 실행 상세 조회처럼 Viewer 를 포함한 멤버가 모두
+  // 조회한다. 재실행(RR-PL-06, Editor 이상)은 위 reRun 라우트만 막는다.
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
   async getChain(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @CurrentUser() user: JwtPayload,
   ) {
-    return this.executionsService.getChain(id, workspaceId, user);
+    return this.executionsService.getChain(id, workspaceId);
   }
 }

@@ -12,8 +12,11 @@ const logger = new Logger('IntegrationCredentialsTransformer');
 /**
  * AES-256-GCM ValueTransformer for sensitive JSONB credentials.
  * Stored format (base64 of): version(1B) || iv(12B) || authTag(16B) || ciphertext
- * Falls back to passthrough when INTEGRATION_ENCRYPTION_KEY is absent in dev,
- * but logs a warning once per process.
+ * Falls back to passthrough (plaintext) when INTEGRATION_ENCRYPTION_KEY is absent,
+ * and logs a warning once per process. That fallback is reachable only outside
+ * production: `assertProductionConfig()` (common/config/production-guards.ts)
+ * refuses to boot with NODE_ENV=production when the key is unset or a public
+ * example value. Rows written in plaintext are still read back as-is.
  *
  * **Non-throwing contract**: `decryptJson()` never throws. On any failure
  * (auth tag mismatch, invalid base64, truncated envelope, JSON.parse error,
@@ -46,7 +49,7 @@ function getKey(): Buffer | null {
   if (!raw) {
     if (!warnedMissingKey) {
       logger.warn(
-        'INTEGRATION_ENCRYPTION_KEY is not set — credentials are stored unencrypted. Set a 32+ byte secret for production.',
+        'INTEGRATION_ENCRYPTION_KEY is not set — credentials are stored unencrypted. This is allowed only outside production (NODE_ENV=production refuses to boot without the key).',
       );
       warnedMissingKey = true;
     }

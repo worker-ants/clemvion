@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "a947a57cccccf5c1354f6bab459b240722a32e1adbfb861a4e40530692d15c7b"
+content_hash: "795eaefd177e31273d60ebaf87c04f1b8121d4d42750472a0209115a5eb34dde"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-2V7SBC"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "238a1a66a3ea38d4f47372b4833898385685c172156e2a8af45078794950ee82"
-etag: "sha256-81d0ff37ee250621607f1aab1f2bcdc0701f9b86f7281f743840c40e59464ded"
+mirror_sha256: "15f53bcf3adc252d0bd3eb09850f89e346c5c1d45399531dc76b7efa0118f754"
+etag: "sha256-bbe2255ad1a9aaefc6082b2dd3ae404df28af3522824cea326751621016e0ca9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -161,7 +161,7 @@ flowchart LR
 | WebSocket | Socket.IO. 실행 상태·노드 이벤트·지식 저장소 진행률·Background 실행 이벤트를 보낸다. 보내는 곳은 `WebsocketService` 하나다. 같은 서비스의 `executionEvents$` 스트림을 EIA SSE 어댑터(`SseAdapter`)·채팅 채널 디스패처(`ChatChannelDispatcher`)·EIA 알림 발송기(`NotificationDispatcher`)가 구독한다 |
 | SSE | `text/event-stream` 을 두 곳에서 쓴다. ① 워크플로우 AI 어시스턴트 스트리밍(WebSocket 을 거치지 않고 컨트롤러가 직접 쓴다, [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md)) ② External Interaction API 이벤트 스트림([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) |
 | 인증 | JWT 액세스 토큰 + 회전하는 리프레시 토큰(`refresh_token` 테이블). Bearer 헤더 또는 쿠키로 받는다 |
-| 시크릿 | 시크릿 저장소(`secret_store` 테이블)가 도메인을 가로지르는 비밀의 공통 저장소다. 트리거 설정 JSONB 의 참조 슬롯에는 평문 대신 시크릿 참조(`secret://…`)를 둔다. 값은 `ENCRYPTION_KEY` 기반 AES-256-GCM 으로 암호화한다. 이 참조 슬롯을 읽고 쓰는 곳은 `SecretResolver` 하나다. 모든 비밀이 이 저장소를 거치지는 않는다. 저장소 밖에 두는 필드(인증 설정 자격 증명, 트리거 단위 인터랙션 토큰, 알림 서명 시크릿의 유예 값)는 [시크릿 저장소 §저장소 예외 필드](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 가 정한다. 통합 자격 증명도 이 저장소를 쓰지 않고 통합 엔티티 컬럼에서 따로 암호화한다([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)) |
+| 시크릿 | 시크릿 저장소(`secret_store` 테이블)가 도메인을 가로지르는 비밀의 공통 저장소다. 트리거 설정 JSONB 의 참조 슬롯에는 평문 대신 시크릿 참조(`secret://…`)를 둔다. 값은 마스터키(`ENCRYPTION_KEY`) 기반 AES-256-GCM 으로 암호화한다. 이 참조 슬롯을 읽고 쓰는 곳은 `SecretResolver` 하나다. 모든 비밀이 이 저장소를 거치지는 않는다. 저장소 밖에 두는 필드(인증 설정 자격 증명, 트리거 단위 인터랙션 토큰, 알림 서명 시크릿의 유예 값)는 [시크릿 저장소 「저장소 예외 필드」](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 가 정한다. 통합 자격 증명과 인증 설정 자격 증명은 이 저장소를 쓰지 않고 컬럼 transformer 가 따로 암호화한다. 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)는 마스터키(`ENCRYPTION_KEY`)와 별개다. 운영 환경 가드(`assertProductionConfig`)가 두 키를 모두 검사한다([통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화), [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키)) |
 
 ### 영역별 데이터 문서
 
