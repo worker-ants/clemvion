@@ -243,7 +243,7 @@ ScheduleWakeup delay:
 
 ## 디버그 로그
 
-orchestrator 가 체크아웃의 `.review/logs/code-review-agents.log` 에 prepare 단계의 이벤트(파일 수집, prompt 사이즈, 대형 changeset 안내) 를 기록한다. 워크트리마다 따로 쌓인다. 예전 경로 `/tmp/code-review-agents-log.txt` 는 쓰지 않는다. model 호출 자체는 main session 의 transcript 에 남는다.
+orchestrator 가 체크아웃의 `.review/logs/code-review-agents.log` 에 prepare 단계의 이벤트(파일 수집, prompt 사이즈, 대형 changeset 안내) 를 기록한다. 워크트리마다 따로 쌓인다. 환경 변수 `ORCHESTRATOR_LOG_DIR` 가 비어 있지 않으면 그 디렉터리의 `code-review-agents.log` 에 쌓인다(세 orchestrator 가 같이 따른다. 하네스 테스트가 이 변수로 로그를 임시 디렉터리에 돌린다). 예전 경로 `/tmp/code-review-agents-log.txt` 는 쓰지 않는다. model 호출 자체는 main session 의 transcript 에 남는다.
 
 ## Ctrl+C 동작
 

@@ -17,10 +17,14 @@ would collide. So:
 
 from __future__ import annotations
 
+import atexit
 import importlib.util
 import json
+import os
 import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -33,6 +37,18 @@ HOOKS_DIR = CLAUDE_DIR / "hooks"
 # hooks package. Done once, at import time, before any test imports them.
 if str(HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(HOOKS_DIR))
+
+# The orchestrators append to `<checkout>/.review/logs/<name>.log`, and tests load them in process
+# or run them as subprocesses. Left alone, every test run wrote fixture sessions (temporary-directory
+# paths) into the real log of the worktree it ran in, mixing them with the record of the actual
+# `--prepare` runs. Every test module imports this one first. A subprocess inherits the variable,
+# so one that loads an orchestrator directly logs into this directory; one that imports this module
+# again (the fresh-interpreter snippets below) makes a directory of its own and removes it on exit.
+# Either way nothing reaches the checkout. The variable is assigned, not defaulted: a value left in
+# the caller's shell must not send test output somewhere the caller reads.
+LOG_DIR = tempfile.mkdtemp(prefix="orchestrator-logs-")
+os.environ["ORCHESTRATOR_LOG_DIR"] = LOG_DIR
+atexit.register(shutil.rmtree, LOG_DIR, True)
 
 
 def load_module_by_path(name: str, path: Path) -> ModuleType:

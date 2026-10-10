@@ -13,8 +13,11 @@ import json
 import os
 import shutil
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import _harness
 
@@ -155,8 +158,11 @@ class OrchestratorsLogInTheCheckoutTest(unittest.TestCase):
     }
 
     def test_debug_log_path_is_under_the_checkouts_review_directory(self):
-        self.assertEqual(session.debug_log_path("x"),
-                         str(_harness.REPO_ROOT / ".review" / "logs" / "x.log"))
+        # 하네스는 로그 디렉터리를 임시 디렉터리로 돌려 두므로(`_harness.LOG_DIR`) 환경 변수를 치우고 기본값을 본다.
+        with mock.patch.dict(os.environ):
+            os.environ.pop(session.LOG_DIR_ENV, None)
+            self.assertEqual(session.debug_log_path("x"),
+                             str(_harness.REPO_ROOT / ".review" / "logs" / "x.log"))
 
     def test_each_orchestrator_takes_its_log_path_from_the_shared_module(self):
         # 구문 트리로 본다. 주석에 옛 `/tmp/...` 가 남아 있어도 판정은 대입문만 본다.
@@ -171,6 +177,92 @@ class OrchestratorsLogInTheCheckoutTest(unittest.TestCase):
                 self.assertIsInstance(call.func, ast.Attribute)
                 self.assertEqual((ast.unparse(call.func), [ast.literal_eval(a) for a in call.args]),
                                  ("session.debug_log_path", [name]))
+
+
+class DebugLogDirOverrideTest(unittest.TestCase):
+    """`ORCHESTRATOR_LOG_DIR` 가 로그 디렉터리를 옮긴다. 테스트가 실제 체크아웃의 로그를 쓰지 않게 하는 수단이다."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def log_path(self, value):
+        with mock.patch.dict(os.environ):
+            if value is None:
+                os.environ.pop(session.LOG_DIR_ENV, None)
+            else:
+                os.environ[session.LOG_DIR_ENV] = value
+            return session.debug_log_path("x")
+
+    def test_a_directory_in_the_variable_replaces_the_checkouts_log_directory(self):
+        self.assertEqual(self.log_path(self.tmp), os.path.join(self.tmp, "x.log"))
+
+    def test_an_empty_variable_means_the_default(self):
+        self.assertEqual(self.log_path(""), self.log_path(None))
+
+    def test_a_relative_directory_is_made_absolute_when_the_path_is_read(self):
+        old = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, old)
+        path = self.log_path("rel")
+        self.assertEqual(path, os.path.join(self.tmp, "rel", "x.log"))
+        os.chdir(old)
+        self.assertEqual(path, os.path.join(self.tmp, "rel", "x.log"))  # 한 번 읽은 값은 cwd 를 따라가지 않는다
+
+    def test_a_log_written_through_the_override_lands_there(self):
+        path = self.log_path(os.path.join(self.tmp, "logs"))
+        session.make_debug_logger(path)("hello")
+        with open(os.path.join(self.tmp, "logs", "x.log"), encoding="utf-8") as f:
+            self.assertIn("hello", f.read())
+
+
+class TestRunsLogOutsideTheCheckoutTest(unittest.TestCase):
+    """테스트를 돌려도 실제 체크아웃의 `.review/logs` 에 로그가 쌓이지 않는다.
+
+    세 오케스트레이터는 import 할 때 로그 경로를 정한다. 그 경로가 어디로 가는지를, 테스트가 하는 대로 새
+    인터프리터에서 오케스트레이터를 불러 확인한다. 하네스(`_harness`)가 환경 변수를 안 돌려 두거나 오케스트레이터가
+    경로를 환경 변수 밖에서 정하면 RED 다. 이 확인이 없으면 테스트를 돌릴 때마다 임시 디렉터리 경로를 담은 줄이 실제
+    로그에 섞여, 그 워크트리의 실제 `--prepare` 기록을 읽기 어려워진다.
+    """
+
+    CHECKOUT_LOGS = os.path.join(str(_harness.REPO_ROOT), ".review", "logs")
+
+    def inside_checkout_logs(self, path: str) -> bool:
+        logs = os.path.realpath(self.CHECKOUT_LOGS)
+        return os.path.commonpath([os.path.realpath(path), logs]) == logs
+
+    def probe(self, rel: str) -> dict:
+        orch = _harness.CLAUDE_DIR / "skills" / rel
+        preamble = _harness.orchestrator_preamble(orch)
+        # 오케스트레이터를 불러온 인터프리터 안에서 로그를 쓰고 읽는다. 이 인터프리터도 `_harness` 를 불러 제 임시
+        # 디렉터리를 만들고 끝날 때 지우므로, 밖에서 읽으면 이미 없다.
+        return _harness.run_in_orchestrator(preamble, """
+            orch.debug_log("log-isolation probe")
+            with open(orch.DEBUG_LOG_FILE, encoding="utf-8") as f:
+                emit({"path": orch.DEBUG_LOG_FILE, "text": f.read()})
+        """)
+
+    def test_the_harness_points_the_log_directory_at_a_temporary_one(self):
+        self.assertEqual(os.environ.get("ORCHESTRATOR_LOG_DIR"), _harness.LOG_DIR)
+        self.assertTrue(os.path.isdir(_harness.LOG_DIR))
+        self.assertFalse(self.inside_checkout_logs(_harness.LOG_DIR), _harness.LOG_DIR)
+
+    def test_each_orchestrator_logs_into_a_temporary_directory_not_into_the_checkout(self):
+        for rel in OrchestratorsLogInTheCheckoutTest.ORCHESTRATORS:
+            with self.subTest(orchestrator=rel):
+                got = self.probe(rel)
+                self.assertFalse(self.inside_checkout_logs(got["path"]), got["path"])
+                self.assertEqual(os.path.basename(os.path.dirname(got["path"]))[:len("orchestrator-logs-")],
+                                 "orchestrator-logs-", got["path"])
+                self.assertIn("log-isolation probe", got["text"])
+
+    def test_a_subprocess_that_does_not_load_the_harness_inherits_the_directory(self):
+        # 오케스트레이터를 `_harness` 없이 직접 띄우는 테스트(`python orchestrator.py --prepare ...`)도 같은 디렉터리를 쓴다.
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); from _shared import session; "
+                "print(session.debug_log_path('x'))")
+        proc = subprocess.run([sys.executable, "-c", code, str(_harness.CLAUDE_DIR)],
+                              capture_output=True, text=True, timeout=30, check=True)
+        self.assertEqual(proc.stdout.strip(), os.path.join(_harness.LOG_DIR, "x.log"))
 
 
 if __name__ == "__main__":

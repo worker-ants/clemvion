@@ -29,6 +29,11 @@ _TWO_DIGITS_RE = re.compile(r"\d{2}")
 # `.claude/_shared/session.py` → the root of the checkout this module lives in.
 _CHECKOUT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Moves every orchestrator's debug log to another directory when set to a non-empty value.
+# The test harness sets it to a temporary directory (`.claude/tests/_harness.py`) so a test run
+# does not append to the checkout's real logs.
+LOG_DIR_ENV = "ORCHESTRATOR_LOG_DIR"
+
 # `O_NOFOLLOW` is POSIX. Where it does not exist the open simply follows links, as before.
 _LOG_OPEN_FLAGS = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
 
@@ -41,8 +46,20 @@ def debug_log_path(name):
     symlink to another file or as a file of their own, and the orchestrator appended to it.
     `.review/` belongs to the checkout, is gitignored and already holds the session directories,
     so each worktree now keeps its own log (NERV Task `CLE-T-QY5AZ3`).
+
+    `ORCHESTRATOR_LOG_DIR` (`LOG_DIR_ENV`), when non-empty, replaces `<checkout>/.review/logs`.
+    The variable is read when this function is called, and each orchestrator calls it while it is
+    being imported, so it has to be set before an orchestrator is loaded. The path is made absolute
+    at that moment, so a later `chdir` does not move the log. Before the variable existed a test run
+    appended its fixture sessions (temporary-directory paths) to the checkout's real log, which now
+    holds the debug record of the actual `--prepare` runs of that worktree.
     """
-    return os.path.join(_CHECKOUT_ROOT, ".review", "logs", f"{name}.log")
+    log_dir = os.environ.get(LOG_DIR_ENV)
+    if log_dir:
+        log_dir = os.path.abspath(log_dir)
+    else:
+        log_dir = os.path.join(_CHECKOUT_ROOT, ".review", "logs")
+    return os.path.join(log_dir, f"{name}.log")
 
 
 def make_debug_logger(log_file_path):
