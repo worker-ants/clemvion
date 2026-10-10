@@ -470,7 +470,7 @@ class DecisionTableTest(_RepoCase):
         """양쪽이 같은 파일의 다른 줄을 고쳐 git 이 합친 merge 에는 이 merge 가 들인 코드가 없다.
 
         `--cc --name-only` 는 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서 옛 규칙은 이 merge 를
-        손으로 푼 merge 로 셌다(PR #1520 의 merge 2de17c2f1, NERV Task `CLE-T-QT69YT`). 두 번째 경우는 고친 줄이
+        손으로 푼 merge 로 셌다(PR #1520 의 merge, NERV Task `CLE-T-QT69YT`). 두 번째 경우는 고친 줄이
         2줄 떨어져 있다. 기본 context(3줄)에서는 두 변경이 한 hunk 로 묶이고, 그 hunk 는 두 부모와 각각 다른
         줄을 담아 `--cc` 도 머리 줄을 낸다. context 0 으로 봐야 세지 않는다."""
         for i, (ours, theirs) in enumerate([({5: "F5"}, {25: "M25"}), ({10: "F10"}, {12: "M12"})]):
