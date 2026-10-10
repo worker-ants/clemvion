@@ -142,6 +142,20 @@ describe('MergeHandler', () => {
       expect(handler.validate(config)).toEqual({ valid: true, errors: [] });
     });
 
+    // 옛 기본값 시절에 내보낸 JSON 은 `timeout: 300` 을 적어 둔다. 가져오기는 적힌 값을
+    // 바꾸지 않으므로 그 노드는 dormant 경고로 막히고 캔버스에 드러난다(V148 은 저장된 행만 고친다).
+    it('keeps an explicit timeout 300 from an old export, so the dormant warning still blocks it', () => {
+      const config = registry.applyConfigDefaults('merge', {
+        strategy: 'wait_all',
+        timeout: 300,
+      });
+      expect(config.timeout).toBe(300);
+      expect(handler.validate(config)).toEqual({
+        valid: false,
+        errors: [dormantMessage('merge:timeout-dormant')],
+      });
+    });
+
     it('blocks timeout > 0 with the dormant warning', () => {
       const result = handler.validate({ strategy: 'wait_all', timeout: 300 });
       expect(result.valid).toBe(false);
