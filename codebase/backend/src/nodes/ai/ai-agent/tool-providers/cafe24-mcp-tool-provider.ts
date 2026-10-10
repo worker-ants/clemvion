@@ -18,6 +18,7 @@ import {
 import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
+import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
 import {
   buildOperationJsonSchema,
   makeEnabledToolsFilter,
@@ -465,6 +466,17 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       } else {
         body[k] = v;
       }
+    }
+
+    // dry-run 재실행 임시 가드 — 읽기 · 쓰기 모두 Cafe24 API 를 부르지 않는다.
+    // 통합 노드처럼 GET 을 통과시키는 분류와 모의 응답은 후속 CLE-T-G62XJS 몫이다.
+    // 외부 호출이 없으므로 logUsage 도 남기지 않는다.
+    if (ctx.dryRun) {
+      return buildDryRunSkippedToolResult(call.id, 'cafe24_tool', {
+        operation: operation.id,
+        method: operation.method,
+        resource,
+      });
     }
 
     const startedAt = Date.now();

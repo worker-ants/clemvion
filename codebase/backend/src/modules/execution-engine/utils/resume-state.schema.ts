@@ -119,6 +119,9 @@ export const resumeStateSchema = z
     // 노드 단위 context-binding — 재개 시 대기/재시도 NodeExecution row id 로
     // 재유도(persist 금지). resume 턴 통합 usage-log attribution 에 필요(#501).
     nodeExecutionId: z.string(),
+    // dry-run 재실행 여부 — context.variables.__dryRun 에서 재유도(persist 금지).
+    // resume 턴 provider-tool 실행의 ProviderExecCtx.dryRun 이 된다.
+    dryRun: z.boolean(),
     maxTurns: z.number(),
     maxToolCalls: z.number(),
     conditions: z.array(z.unknown()),
@@ -154,6 +157,7 @@ export const CREDENTIAL_CONTEXT_FIELDS = [
   'nodeId',
   'workflowId',
   'nodeExecutionId',
+  'dryRun',
   'maxTurns',
   'maxToolCalls',
   'conditions',

@@ -66,6 +66,101 @@ k8s 예시(`REPLACE_ME_32_BYTE_HEX`)나 README 예시(`<32-byte-hex>`) 그대로
 - OAuth 일시 행(`integration_oauth_state` · `integration_oauth_preview`): 진행 중인 연결 흐름이 실패한다. 연결을
   처음부터 다시 시작한다.
 
+## Unreleased — dry-run 재실행에서 AI 에이전트가 MCP 도구를 실제로 부르지 않는다
+
+dry-run 재실행은 외부 부수효과 노드를 모의 출력으로 바꾸지만 AI 에이전트의 도구 호출은 dry-run 여부를 몰랐다.
+그래서 dry-run 중에도 외부 MCP 서버의 `tools/call` 과 Cafe24 · MakeShop 내부 브리지의 쓰기 operation 이
+실제로 나가 쇼핑몰 데이터가 바뀔 수 있었다(NERV 발견 `01a0e5a0-434d-76ff-867b-bbcb31190c32`, 처분은 후속
+CLE-T-G62XJS).
+
+- 도구 실행 컨텍스트 `ProviderExecCtx` 에 `dryRun` 을 더했다. 단일 턴, 멀티턴 첫 턴, 재개 · 재시도 턴이 모두
+  `variables.__dryRun` 에서 값을 받는다. 재개 턴 값은 checkpoint 에 영속하지 않고 엔진이 다시 구한다.
+- dry-run 이면 외부 MCP `tools/call` 과 Cafe24 · MakeShop 브리지의 모든 operation 이 외부 호출 없이 성공
+  결과를 돌려준다. 본문은 통합 노드 dry-run mock 과 같은 모양(`_dryRun` · `skippedReason` · `wouldHaveCalled`)에
+  `executed: false` 와 «실행하지 않았으니 다시 부르지 말라» 안내를 더한 것이다. 활동 로그 · MCP 진단 `errors[]` 는
+  남기지 않는다.
+- 임시 가드라 읽기 operation(GET)도 막는다. 노드처럼 GET 을 통과시키는 분류와 모의 응답은 후속 CLE-T-G62XJS 가
+  맡는다. MCP resources · prompts 메타 도구와 kb_* 도구는 읽기 전용이라 그대로 부른다.
+- 알려진 한계: Workflow 노드의 비동기(`async`) 모드로 시작한 자식 실행은 dry-run 을 이어받지 않는다. 자식 실행이
+  `__dryRun=false` 로 돌아서 그 안의 AI 에이전트는 MCP 도구를 실제로 부른다. 이번 변경으로 생긴 구멍이 아니라
+  이전부터 있던 결함이고 후속 CLE-T-Y2F1NG 가 고친다. 그때까지 비동기 모드 Workflow 노드가 든 워크플로는 dry-run
+  재실행에 쓰지 않는다.
+
+## Unreleased — Viewer 도 재실행 chain 을 조회한다
+
+`GET /api/executions/:id/chain` 이 남이 시작한 실행이면 워크스페이스 owner · admin 이 아닌 멤버에게
+403 `RERUN_PERMISSION_DENIED` 를 냈다. 실행 상세 조회는 Viewer 를 포함한 멤버 전원에게 열려 있어 chain 만 막을
+이유가 없었다(NERV 발견 `01a0e599-78b8-71f9-b59a-8c1abe73a21c`).
+
+- chain 조회 권한을 실행 상세 조회와 같게 맞췄다. 워크스페이스 멤버면 역할 · 시작자와 관계없이 200 이다.
+  OpenAPI 의 403 설명도 멤버가 아닐 때(`FORBIDDEN_NOT_A_MEMBER`)만 남겼다.
+- 재실행 권한(Editor 이상, 남의 실행은 owner · admin)은 그대로다. 실행 상세 화면에서 Viewer 는 chain 배지와
+  View chain 목록을 보고 재실행 버튼은 비활성으로 본다.
+
+## Unreleased — 하네스: 리뷰 게이트가 양쪽이 같은 파일의 다른 줄을 고친 깨끗한 merge 를 세지 않는다
+
+push 훅과 CI `review-gate` 는 라운드 뒤 merge 커밋에 손으로 푼 `codebase/**` 변경이 있으면 그 merge 를 라운드 뒤
+변경으로 센다. 판정에 쓴 `git diff-tree --cc --name-only` 는 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서
+브랜치와 `main` 이 같은 파일의 서로 다른 줄을 고쳐 git 이 자동으로 합친 merge 도 손으로 푼 merge 로 세졌다. PR #1520
+세션이 `main` 을 merge 하자 게이트 검사(`scripts/check-review-gate.py`)가 그 merge 를 막는 커밋으로 잡아 드러났다(NERV
+Task `CLE-T-QT69YT`).
+
+- merge 커밋은 combined diff(`git diff-tree --cc -U0`)에 `codebase/**` hunk 가 남을 때만 센다. 충돌을 풀며 쓴 줄,
+  양쪽 줄을 이어 붙인 해소, merge 에 끼워 넣은 줄이나 파일은 지금처럼 센다.
+- context 는 0 이다. 기본 3줄이면 몇 줄 떨어진 양쪽 변경이 한 hunk 로 묶여 깨끗한 merge 가 계속 세진다.
+- 충돌 hunk 를 한쪽 그대로 두고 푼 merge 는 이제 세지 않는다. hunk 마다 한쪽 부모와 같아서 그 merge 가 들인 코드가
+  없다. 옛 판정은 같은 파일의 다른 줄에 상대 쪽 변경이 섞였을 때만 이 merge 를 셌다.
+- 깨끗이 합쳐진 merge 중 세지는 모양이 셋 남는다. 한쪽이 줄을 지우고 상대가 두 줄 안쪽을 고친 경우(삭제 10 · 수정
+  12 는 세고 수정 10 · 삭제 12 는 세지 않는다), 한쪽은 모드만 다른 쪽은 내용만 바꾼 파일, 한쪽이 옮긴 파일을 다른
+  쪽이 옛 경로로 고친 경우다. 막는 방향의 오탐이라 게이트가 열리지는 않고, 테스트가 이 모양을 고정한다.
+- 합친 파일에서 merge 커밋이 줄을 지우거나 바꾸거나 파일을 지우거나 모드를 바꾼 경우도 센다는 테스트를 더했다.
+- 로컬 체크아웃의 모든 ref 에 있는 merge 커밋 227개를 두 판정으로 대조했다(2026-10-10). 옛 판정이 센 5개는 모두
+  combined diff 에 hunk 가 없었고 새 판정은 하나도 세지 않는다.
+
+## Unreleased — HTTP Request 노드가 취소된 요청을 cancelled 로 기록한다
+
+Parallel 의 `cancel-others-on-fail` 이 실행 중인 분기를 멈추면 HTTP Request 노드는 진행 중인 요청을 끊었지만
+그때 난 `AbortError` 를 전송 실패로 바꿔 error 포트로 보냈다. 그래서 멈춘 분기의 HTTP 노드가 `cancelled` 가 아니라
+`HTTP_TRANSPORT_FAILED` 로 error 포트에 라우팅된 것으로 기록됐다. 연동 인증 요청이면 활동 로그에도 실패가 남았다
+(NERV 발견 `01a0e599-78b6-7714-a5c1-ba2c658d1888`).
+
+- 노드 취소 신호(`abortSignal`)로 생긴 `AbortError` 는 다시 던진다. 엔진이 노드 실행을 `cancelled` 로 기록한다.
+  활동 로그는 남기지 않는다. Cafe24 · MakeShop 노드와 같은 처리다.
+- 응답 본문을 읽다가 취소된 경우도 같다. 전에는 JSON 응답이면 본문을 `null` 로 두고 success 포트로 갔다.
+- 노드의 `timeout` 으로 끊긴 요청은 지금처럼 `HTTP_TRANSPORT_FAILED` 로 error 포트에 간다.
+
+## Unreleased — HTTP Request 노드가 요청마다 취소 리스너를 남기지 않는다
+
+HTTP Request 노드는 노드 취소 신호(`abortSignal`)에 단 리스너를 요청의 controller 가 abort 될 때만 뗐다.
+성공한 요청은 controller 를 abort 하지 않으므로 리스너가 떼어지지 않았다. 반복 안에서 HTTP 노드를 돌리면 요청 수만큼
+리스너가 쌓였다.
+
+- 요청이 끝나면(성공 · 실패 · 취소) 응답 본문까지 읽은 뒤 리스너를 뗀다.
+- 취소 신호를 요청에 잇는 코드와 취소 에러 판정은 HTTP Request · Cafe24 · MakeShop 이 함께 쓰는 헬퍼 하나로 모았다
+  (`nodes/integration/_base/abort-cascade.util.ts`). Cafe24 · MakeShop 은 이 요청의 리스너 누수가 원래 없었고 그 동작은
+  그대로다. 달라지는 것은 취소 에러를 알아보는 방법 하나다. 전에는 `Error` 인스턴스이면서 이름이 `AbortError` 일 때만 취소로
+  봤고 지금은 이름만 본다. 다른 realm 에서 온 `DOMException` 을 놓치지 않으려는 것이다. 운영 Node 의 `fetch` 는
+  `Error` 를 상속한 `DOMException` 을 던지므로 운영 동작은 같고, jest VM 같은 환경에서만 결과가 다르다.
+
+## Unreleased — 기본 설정 Merge 노드가 실행된다
+
+Merge 노드 `timeout` 의 스키마 기본값이 `300` 이었다. 새 노드(팔레트 · 워크플로우 어시스턴트)와 가져온 노드가 이 값을
+그대로 받았다. 그런데 `timeout` 은 동작하지 않는 필드라(`CLE-NODE-MERGE` Rationale «비동기 fan-in barrier 활성화를
+재검토 과제로 미룬다 (2026-07-17)») 값이 0 보다 크면 경고 규칙
+`merge:timeout-dormant` 가 차단으로 평가되고, 엔진이 실행 전 검증에서 `INVALID_NODE_CONFIG` 로 노드를 멈췄다. 저장은
+막히지 않아서 기본 설정 그대로 둔 Merge 노드는 캔버스에 경고만 뜨고 실행하면 실패했다(NERV 발견
+`01a0e5a1-114d-7256-9024-f3899651dea4`, Task `CLE-T-AGDM92` · `CLE-T-HSHW71`).
+
+- 기본값을 `0` 으로 바꾸고 스키마가 음수를 거부한다(`.nonnegative()`). 필드와 경고 severity(차단)는 그대로다.
+- 경고 문구가 «Phase P2 barrier 가 값을 반영한다» 고 안내하던 것을 «동작하지 않으니 0 으로 두라 / 끄라» 로 고쳤다.
+  한국어 매핑(`WARNING_KO`)과 사용자 가이드의 기본값 · 설명도 같이 고쳤다.
+- 설정 패널의 `timeout` · `partialOnTimeout` 도움말도 기다림 · 부분 병합을 안내하던 것을 «동작하지 않으니 0 으로 두라 /
+  꺼 두라» 로 고쳤다(`HINT_KO` 포함). Workflow 노드와 같이 쓰는 `0 = no timeout (wait indefinitely)` 문구는 그대로다.
+- **DB 마이그레이션 V148**: 저장된 Merge 노드 가운데 `timeout` 이 정확히 `300` 인 행만 `0` 으로 바꾼다. 다른 값은
+  사용자가 넣은 값이라 그대로 두고 캔버스 경고로 보인다. 워크플로우 버전 스냅샷은 바꾸지 않는다. 되돌리지 않는다.
+- 옛 기본값 시절에 내보낸 워크플로우 JSON 에 `"timeout": 300` 이 적혀 있으면 가져온 노드에도 300 이 남는다. 가져오기는
+  적힌 값을 바꾸지 않으므로 이 노드는 캔버스 경고로 보이고 `timeout` 을 0 으로 바꾸면 실행된다.
+
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 
 초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route

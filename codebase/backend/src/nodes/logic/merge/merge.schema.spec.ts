@@ -1,5 +1,5 @@
 import { evaluateWarnings } from '@workflow/node-summary';
-import { mergeNodeMetadata } from './merge.schema';
+import { mergeNodeConfigSchema, mergeNodeMetadata } from './merge.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('mergeNodeMetadata.warningRules', () => {
@@ -69,4 +69,65 @@ describe('evaluateMetadataBlockingErrors integration (merge)', () => {
       }),
     ).toEqual([]);
   });
+
+  // CLE-T-AGDM92: 기본값이 dormant 경고를 켜면 새 Merge 노드가 실행 전 검증에서 막힌다.
+  it('returns [] for the schema default config', () => {
+    expect(
+      evaluateMetadataBlockingErrors(
+        mergeNodeMetadata,
+        mergeNodeConfigSchema.parse({}),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('mergeNodeConfigSchema.timeout', () => {
+  it('defaults to 0 (no timeout)', () => {
+    expect(mergeNodeConfigSchema.parse({}).timeout).toBe(0);
+  });
+
+  it('rejects a negative timeout', () => {
+    expect(mergeNodeConfigSchema.safeParse({ timeout: -1 }).success).toBe(
+      false,
+    );
+  });
+
+  it('accepts 0', () => {
+    expect(mergeNodeConfigSchema.safeParse({ timeout: 0 }).success).toBe(true);
+  });
+});
+
+// fan-in barrier 를 무기한 미뤘으므로(CLE-NODE-MERGE Rationale, 2026-07-17)
+// 경고 문구가 나중 단계에서 값이 반영된다고 안내하지 않는다.
+describe('merge dormant warning messages', () => {
+  const message = (id: string) =>
+    mergeNodeMetadata.warningRules?.find((r) => r.id === id)?.message ?? '';
+
+  it.each(['merge:timeout-dormant', 'merge:partial-on-timeout-dormant'])(
+    '%s does not promise a future phase',
+    (id) => {
+      expect(message(id)).not.toBe('');
+      expect(message(id)).not.toMatch(/Phase P\d|will honor|takes effect/i);
+    },
+  );
+});
+
+// 설정 패널의 hint 도 경고와 같은 사실을 안내한다. 기다리거나 일부만 병합하는
+// 동작이 있는 것처럼 읽히면 캔버스 경고와 어긋난다.
+describe('merge dormant field hints', () => {
+  const hint = (field: 'timeout' | 'partialOnTimeout') =>
+    (
+      mergeNodeConfigSchema.shape[field].meta() as
+        { ui?: { hint?: string } } | undefined
+    )?.ui?.hint ?? '';
+
+  it.each(['timeout', 'partialOnTimeout'] as const)(
+    '%s hint says the field has no effect',
+    (field) => {
+      expect(hint(field)).toMatch(/no effect/i);
+      expect(hint(field)).not.toMatch(
+        /wait indefinitely|when timeout elapses/i,
+      );
+    },
+  );
 });

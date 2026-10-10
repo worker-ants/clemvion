@@ -922,9 +922,7 @@ describe('ExecutionsService', () => {
       chainQB.getMany = jest.fn().mockResolvedValue([root]);
       executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
 
-      const rows = await service.getChain('eM3', 'ws1', {
-        sub: 'u1',
-      } as never);
+      const rows = await service.getChain('eM3', 'ws1');
       expect(rows[0].error).toEqual(MASKED);
     });
 
@@ -1194,7 +1192,7 @@ describe('ExecutionsService', () => {
       chainQB.getMany = jest.fn().mockResolvedValue([root]);
       executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
 
-      const rows = await service.getChain('eD3', 'ws1', { sub: 'u1' } as never);
+      const rows = await service.getChain('eD3', 'ws1');
       expect(JSON.stringify(rows[0].outputData)).not.toContain(
         'sk-live-abc123',
       );
@@ -1413,7 +1411,7 @@ describe('ExecutionsService', () => {
       chainQB.getMany = jest.fn().mockResolvedValue([root]);
       executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
 
-      const rows = await service.getChain('eD8', 'ws1', { sub: 'u1' } as never);
+      const rows = await service.getChain('eD8', 'ws1');
       const in8 = JSON.stringify(rows[0].inputData);
       expect(in8).not.toContain('admin:pw');
       expect(in8).toContain('***'); // 음성 단독은 필드 소실에도 통과한다

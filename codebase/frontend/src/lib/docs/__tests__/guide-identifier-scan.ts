@@ -367,17 +367,17 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
 }[] = [
   {
     token: "MAKESHOP_UNRESOLVED_PATH_PARAM",
-    where: "makeshop.handler.ts:436 — 일반 `Error` 메시지 접두",
+    where: "makeshop.handler.ts:437 — 일반 `Error` 메시지 접두",
     why: "catch 가 `err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED'` 라 `output.error.code` 에는 공용 fallback 이 들어간다. 가이드는 이미 '전용 코드가 없어요 … 코드가 아니라 메시지를 봐야 해요' 라고 정확히 적고 있어 문장 수정이 아니라 등록이 맞다.",
   },
   {
     token: "CONTAINER_MISSING_EMIT",
-    where: "execution-engine.service.ts:7149·7153 — 템플릿 리터럴 메시지 접두",
+    where: "execution-engine.service.ts:7155·7159 — 템플릿 리터럴 메시지 접두",
     why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(옛 트래커 항목. 카탈로그 등재와 함께 NERV Task `CLE-T-DM3AXQ` 항목 5 에서 정한다).",
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
-    where: "execution-engine.service.ts:7158 — 형제 접두",
+    where: "execution-engine.service.ts:7164 — 형제 접두",
     why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
   },
 ];

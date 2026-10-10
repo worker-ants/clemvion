@@ -34,8 +34,10 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
      설명에도 쓰지 않는다(push 판정이 consistency 상태에 기대지 않기 때문이다). 4 가 처분 커밋을
      설명의 근거로 쓰므로 이 검사가 먼저다.
   4. 라운드 head 이후 `codebase/**` 를 바꾼 커밋은 모두 설명돼야 한다. 기준 브랜치에서 들어온
-     커밋은 뺀다. merge 커밋은 모든 부모와 다른 `codebase/**` 파일이 있을 때만 센다(`git diff-tree
-     --cc`. 충돌을 손으로 푼 코드 · evil merge). 설명된 커밋은 둘 중 하나다.
+     커밋은 뺀다. merge 커밋은 combined diff(`git diff-tree --cc -U0`)에 `codebase/**` hunk 가 남을
+     때만 센다(충돌을 풀며 쓴 코드 · evil merge). 양쪽이 같은 파일의 다른 줄을 고쳐 git 이 합친 merge 는
+     대체로 세지 않는다. 깨끗이 합쳐졌는데도 세는 모양이 셋 남는다(`_commits_after` docstring 의 "알려진
+     과다 계수"). 설명된 커밋은 둘 중 하나다.
        - code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 다.
        - 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용한다(e2e 실패 뒤 후속 수정처럼
          처분 하나에 커밋이 여럿인 경우).
@@ -278,12 +280,32 @@ def _settle(fixes: list[_Fix], head_sha: str, cwd: str) -> tuple[dict[str, str],
 def _commits_after(round_head: str, head_sha: str, base: str, cwd: str) -> list[str]:
     """라운드 head 이후 이 브랜치가 `codebase/**` 를 바꾼 커밋. 기준 브랜치에서 온 커밋은 뺀다.
 
-    merge 커밋은 `--cc` 로 모든 부모와 다른 파일만 본다. 기준 브랜치를 merge 한 깨끗한 merge 는 빈
-    출력이라 세지 않고, 충돌을 손으로 푼 코드 · merge 에 끼워 넣은 코드는 센다."""
+    merge 커밋은 combined diff(`--cc`)에 `codebase/**` hunk 가 남을 때만 센다. git 은 어느 한 부모와 같은
+    hunk 를 거르고 파일의 hunk 가 모두 걸러지면 그 파일의 머리 줄(`diff --cc <경로>`)을 내지 않는다. 그래서
+    양쪽이 같은 파일의 다른 줄을 고쳐 git 이 합친 merge 와 충돌 hunk 를 한쪽 그대로 두고 푼 merge 는 세지
+    않는다. 충돌을 풀며 쓴 줄 · 양쪽 줄을 이어 붙인 해소 · merge 에 끼우거나 바꾸거나 지운 줄 · 새 파일 ·
+    파일 삭제 · 모드 변경은 센다.
+
+    context 는 0 이다. 기본 3줄이면 몇 줄 떨어진 양쪽 변경이 한 hunk 로 묶여 깨끗한 merge 도 머리 줄이
+    나온다. `--name-only` 는 hunk 를 거르지 않고 모든 부모와 다른 파일을 내서 깨끗한 merge 도 셌다(NERV Task
+    `CLE-T-QT69YT`).
+
+    알려진 과다 계수 — 깨끗이 합쳐졌는데도 머리 줄이 나와 세는 모양이 셋 남는다. 막는 방향의 오탐이라 게이트가
+    열리지는 않는다. 셋 모두 `test_review_guard.py` 가 고정하고, 판정을 정교화하면 그 테스트를 뒤집는다.
+      - 한쪽이 줄을 지우고 상대가 두 줄 안쪽을 고쳤다. git 이 삭제된 줄을 다음 결과 줄에 붙여 두 변경이 한
+        hunk 로 묶인다. 방향에 따라 갈린다(삭제 10 · 수정 12 는 세고 수정 10 · 삭제 12 는 세지 않는다).
+      - 한쪽은 모드만, 다른 쪽은 내용만 바꾼 파일.
+      - 한쪽이 파일을 옮기고 다른 쪽이 옛 경로를 고쳐 git 이 새 경로에 합친 파일.
+    정교화하려면 `git merge-tree --write-tree <부모1> <부모2>` 가 충돌 없이 끝나고 그 tree 의 `codebase/` 가 merge 의
+    tree 와 같으면 세지 않는 방법이 있다. 이 명령은 git 2.38 이상이 필요하고 2026-10-10 에 CI 는 2.55, 로컬은 2.54
+    였다. 지금 넣지 않은 이유는 둘이다. 그 명령을 쓰면 읽기만 하던 게이트가 저장소에 객체를 쓴다. 세 모양은 막는 쪽
+    오탐이고 로컬 저장소의 merge 커밋 227개 가운데 해당하는 것이 없었다(2026-10-10). 이 모양으로 PR 이 막힌 사례가
+    나오면 다시 본다."""
     rng = [f"{round_head}..{head_sha}", "--not", base]
     after = _git_lines(["rev-list", "--no-merges", *rng, "--", CODE_PREFIX], cwd)
     for merge in _git_lines(["rev-list", "--merges", *rng], cwd):
-        if _git_lines(["diff-tree", "--cc", "--no-commit-id", "--name-only", "-r", merge, "--", CODE_PREFIX], cwd):
+        patch = _git_text(["diff-tree", "--cc", "-U0", "--no-commit-id", "-r", merge, "--", CODE_PREFIX], cwd)
+        if any(ln.startswith("diff --cc ") for ln in patch.splitlines()):
             after.append(merge)
     return after
 

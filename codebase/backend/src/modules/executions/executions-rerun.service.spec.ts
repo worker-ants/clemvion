@@ -620,7 +620,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         },
       ];
       getManyQueue = [[{ id: 'root' }, { id: 'e2' }]];
-      const rows = await service.getChain('e2', 'ws-1', user);
+      const rows = await service.getChain('e2', 'ws-1');
       expect(rows).toHaveLength(2);
     });
 
@@ -634,29 +634,36 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         },
       ];
       getManyQueue = [[{ id: 'e-root' }]];
-      const rows = await service.getChain('e-root', 'ws-1', user);
+      const rows = await service.getChain('e-root', 'ws-1');
       expect(rows).toHaveLength(1);
     });
 
-    it('throws RERUN_PERMISSION_DENIED for another user (non owner/admin)', async () => {
-      getOneQueue = [
-        {
-          id: 'e2',
-          workflow: { workspaceId: 'ws-1' },
-          chainId: null,
-          executedBy: 'someone-else',
-        },
-      ];
-      await expect(service.getChain('e2', 'ws-1', user)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
-    });
+    // 조회 권한은 실행 상세 조회와 같다(워크스페이스 멤버면 된다). 재실행 권한
+    // (RR-PL-06)과 달리 Viewer 도, 다른 사람이 시작한 실행도 막지 않는다.
+    it.each(['viewer', 'editor'])(
+      'returns another user chain to a %s without RERUN_PERMISSION_DENIED',
+      async (role) => {
+        workspaces.getMemberRole.mockResolvedValue(role);
+        getOneQueue = [
+          {
+            id: 'e2',
+            workflow: { workspaceId: 'ws-1' },
+            chainId: 'root',
+            executedBy: 'someone-else',
+          },
+        ];
+        getManyQueue = [[{ id: 'root' }, { id: 'e2' }]];
+        const rows = await service.getChain('e2', 'ws-1');
+        expect(rows.map((r) => r.id)).toEqual(['root', 'e2']);
+        expect(workspaces.getMemberRole).not.toHaveBeenCalled();
+      },
+    );
 
     it('throws RERUN_EXECUTION_NOT_FOUND for another workspace', async () => {
       getOneQueue = [
         { id: 'e2', workflow: { workspaceId: 'OTHER' }, chainId: null },
       ];
-      await expect(service.getChain('e2', 'ws-1', user)).rejects.toBeInstanceOf(
+      await expect(service.getChain('e2', 'ws-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });

@@ -3,20 +3,20 @@ id: "CLE-EXEC-RERUN"
 title: "재실행"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042"]
+status: "approved"
+requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-043", "REQ-RERUN-044", "REQ-RERUN-045", "REQ-RERUN-046", "REQ-RERUN-047"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "cd859f09bc542dcc3ef88183dbc21f4c8e5c535cedfbb722388d6be4d0e97b00"
-read_as: "approved"
-task: null
+content_hash: "5616bf98b3687fee21992060dbe56e63aa9a3e8985fa7fefc6a46372d3be6964"
+read_as: "approved_fallback"
+task: "CLE-T-GN2THF"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "9888ba94710ea929c135e794bb13e668754e257b4323241f47e41656dd88849d"
-etag: "sha256-66cd8ccf7ab74ec7c206d8d2775f9b6eb03d616aa9924cd5b4a726c1173b5c6a"
+mirror_sha256: "c5772fc2eb08e2bcd82198330033ee60b89db6c287d07eaac84f8720d1b9cef3"
+etag: "sha256-5ee521b9ae51143bc7083a01e435224993c1ffcd4067870f7f6db026a8b7e373"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현(REQ-RERUN-028 미구현, [미결 사항](#미결-사항)) · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -58,7 +58,7 @@ etag: "sha256-66cd8ccf7ab74ec7c206d8d2775f9b6eb03d616aa9924cd5b4a726c1173b5c6a"
 - REQ-RERUN-014 IF 호출자가 워크스페이스 멤버가 아니면 THE SYSTEM SHALL `403 NOT_A_MEMBER` 로 거부한다. (원본: RR-PL-06)
 - REQ-RERUN-015 IF 호출자가 뷰어면 THE SYSTEM SHALL `403 EDITOR_REQUIRED` 로 거부한다. (원본: RR-PL-06)
 - REQ-RERUN-016 IF 원본이 다른 사용자가 시작한 실행이고 호출자가 소유자나 관리자가 아니면 THE SYSTEM SHALL `403 RERUN_PERMISSION_DENIED` 로 거부한다. (원본: RR-PL-06)
-- REQ-RERUN-017 IF 원본 실행의 `executed_by` 가 NULL 이면 THE SYSTEM SHALL 편집자 이상이면 누구에게나 재실행과 체인 조회를 허용한다. (원본: RR-PL-06)
+- REQ-RERUN-017 IF 원본 실행의 `executed_by` 가 NULL 이면 THE SYSTEM SHALL 편집자 이상이면 누구에게나 재실행을 허용한다. (원본: RR-PL-06)
 - REQ-RERUN-018 WHILE dry-run 모드인 동안 THE SYSTEM SHALL 일반 재실행과 같은 권한 조건을 적용한다. (원본: RR-PL-06)
 - REQ-RERUN-019 IF 사용자에게 재실행 권한이 없으면 THE SYSTEM SHALL 실행 상세 화면의 재실행 버튼을 비활성화하고 툴팁으로 안내한다. (원본: RR-PL-06)
 - REQ-RERUN-020 IF 사용자에게 재실행 권한이 없으면 THE SYSTEM SHALL 실행 결과 드로어의 재실행 버튼을 숨긴다.
@@ -69,7 +69,7 @@ etag: "sha256-66cd8ccf7ab74ec7c206d8d2775f9b6eb03d616aa9924cd5b4a726c1173b5c6a"
 - REQ-RERUN-025 IF dry-run 요청인데 워크플로우에 `supportsDryRun` 이 true 가 아닌 부수효과 노드가 있으면 THE SYSTEM SHALL `400 RERUN_DRY_RUN_NOT_APPLICABLE` 로 재실행 전체를 거부한다.
 - REQ-RERUN-026 IF 워크플로우에 dry-run 을 지원하지 않는 노드가 있으면 THE SYSTEM SHALL 모달의 dry-run 토글을 비활성화하고 툴팁으로 안내한다.
 - REQ-RERUN-027 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 노드의 LLM 호출은 그대로 한다.
-- REQ-RERUN-028 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 에이전트가 부르는 부수효과 도구에 모의 응답을 돌려준다.
+- REQ-RERUN-028 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 에이전트가 부르는 부수효과 도구에 모의 응답을 돌려준다. (미구현)
 - REQ-RERUN-029 WHEN dry-run 실행 결과를 표시하면 THE SYSTEM SHALL 노드 카드에 `🧪 dry-run` 배지를 달고 `_dryRun: true` 가 있는 출력을 강조한다.
 - REQ-RERUN-030 WHEN 실행 상세 화면이 dry-run 실행을 표시하면 THE SYSTEM SHALL `_dryRun` 표시가 없는 노드에도 `Execution.dry_run` 으로 배지를 단다.
 - REQ-RERUN-031 WHEN 재실행이 만들어지면 THE SYSTEM SHALL `201` 과 함께 새 실행을 `reRunOf`·`chainId`·`dryRun` 을 포함해 돌려준다.
@@ -84,6 +84,11 @@ etag: "sha256-66cd8ccf7ab74ec7c206d8d2775f9b6eb03d616aa9924cd5b4a726c1173b5c6a"
 - REQ-RERUN-040 WHEN 재실행하면 THE SYSTEM SHALL 트리거를 다시 발화하지 않고 수동 경로로 진행하며 `executed_by` 를 호출자로, `trigger_id` 를 NULL 로 채운다.
 - REQ-RERUN-041 WHEN 모달이 새 실행 ID 를 받으면 THE SYSTEM SHALL 실행 상세 화면에서는 새 실행 상세 경로로 이동한다.
 - REQ-RERUN-042 WHEN 사용자가 모달의 원본 실행 ID 를 누르면 THE SYSTEM SHALL 새 탭에서 원본 실행 상세를 연다.
+- REQ-RERUN-043 WHILE dry-run 모드인 동안 AI 에이전트가 같은 실행 컨텍스트 안에서 MCP 도구(외부 MCP 서버 도구와 Cafe24 · MakeShop 내부 MCP 브리지 도구)를 부르면 THE SYSTEM SHALL 외부 호출 없이 `_dryRun: true` 와 `executed: false` 가 든 `success` 결과를 LLM 에 돌려준다. (임시 가드)
+- REQ-RERUN-044 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 에이전트의 MCP 메타 도구(`list_resources` · `read_resource` · `list_prompts` · `get_prompt`)와 내장 `kb_*` · `render_*` 도구는 그대로 실행한다.
+- REQ-RERUN-045 WHEN dry-run 실행의 AI 에이전트가 멀티턴 재개 턴이나 마지막 턴 재시도로 다시 들어가면 THE SYSTEM SHALL AI 재개 체크포인트(`_resumeCheckpoint`)가 아닌 실행 컨텍스트의 `variables.__dryRun` 에서 dry-run 여부를 다시 구해 REQ-RERUN-043 의 가드를 이어 적용한다.
+- REQ-RERUN-046 WHEN REQ-RERUN-043 의 가드가 도구 호출을 건너뛰면 THE SYSTEM SHALL 통합 활동 로그와 `mcpDiagnostics.errors[]` 를 남기지 않는다.
+- REQ-RERUN-047 WHEN 워크스페이스 멤버가 체인 조회를 요청하면 THE SYSTEM SHALL 멤버의 역할과 원본 실행의 시작자와 상관없이 조회를 허용한다.
 
 ## 결정 요약
 
@@ -94,7 +99,7 @@ etag: "sha256-66cd8ccf7ab74ec7c206d8d2775f9b6eb03d616aa9924cd5b4a726c1173b5c6a"
 | C. 부분 재실행 | **C1**: v1 은 워크플로우 전체만 | `RR-PL-03` |
 | D. 멀티턴 노드 처리 | **D1**: 사용자가 새로 입력(새 멀티턴 세션) | `RR-PL-04` |
 | E. 체인 추적 모델 | **E3**: `re_run_of` 자기 참조 FK 와 `chain_id` UUID 둘 다. 체인 깊이 32 제한 | `RR-PL-05` |
-| F. 권한 | 원본 실행 시작자이면서 워크스페이스 편집자 이상. dry-run 도 같다 | `RR-PL-06` |
+| F. 권한 | 재실행은 원본 실행 시작자이면서 워크스페이스 편집자 이상. dry-run 도 같다. 체인 조회 권한은 REQ-RERUN-047 이고 워크스페이스 멤버 전원이다(실행 상세 조회와 같다) | `RR-PL-06`(재실행 권한) |
 | G. AI 어시스턴트 | **G1**: 재실행을 트리거하지 않는다(읽기 전용 정책 유지) | `RR-PL-07` |
 
 정책마다 근거는 [Rationale](#rationale) 에 있다.
@@ -157,11 +162,11 @@ v1 은 워크플로우 전체만 재실행한다. 실패한 노드부터 이어 
 
 거부하는 층은 둘이다. 첫 조건은 `RolesGuard` 가 막는다(라우트 `@Roles('editor')`, 비멤버는 `NOT_A_MEMBER`, 뷰어는 `EDITOR_REQUIRED`). 둘째 조건은 서비스가 `RERUN_PERMISSION_DENIED` 로 막는다. 가드 거부 에러 코드의 근거는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 에 있다.
 
-**`executed_by = NULL` 인 자동 실행(트리거·스케줄·웹훅)**: 시작자가 없는 자동 실행은 "다른 사람의 실행" 이 아니다. 그래서 워크스페이스 편집자 이상이면 누구나 재실행과 체인 조회를 할 수 있다(워크스페이스 자원으로 취급). 소유자·관리자로 더 좁혀야 한다면 후속 정책 결정이 필요하다. 현재 구현(`executions.service.ts` 의 reRun·getChain)은 이 정책을 따른다.
+**`executed_by = NULL` 인 자동 실행(트리거·스케줄·웹훅)**: 시작자가 없는 자동 실행은 "다른 사람의 실행" 이 아니다. 그래서 워크스페이스 편집자 이상이면 누구나 재실행할 수 있다(워크스페이스 자원으로 취급). 소유자·관리자로 더 좁혀야 한다면 후속 정책 결정이 필요하다. 현재 구현(`executions.service.ts` 의 reRun)은 이 정책을 따른다.
 
 위 조건은 dry-run 에도 똑같이 적용한다. 안전한 방식이라도 다른 사용자의 실행 흐름을 자동으로 재현하면 정보가 드러날 위험이 있다.
 
-권한이 없으면 화면은 버튼을 비활성화하고 툴팁으로 안내한다(실행 결과 드로어는 숨긴다, [진입점](#진입점)). 백엔드도 같은 가드를 적용하고 허가되지 않은 호출에 `RERUN_PERMISSION_DENIED` 를 돌려준다.
+재실행 권한이 없으면 화면은 재실행 버튼을 비활성화하고 툴팁으로 안내한다(실행 결과 드로어는 숨긴다, [진입점](#진입점)). 화면의 판정(`canReRun`)은 역할과 원본 실행의 시작자를 함께 본다. 백엔드도 같은 조건을 적용하고 허가되지 않은 재실행 요청에 `EDITOR_REQUIRED` 나 `RERUN_PERMISSION_DENIED` 를 돌려준다.
 
 ### RR-PL-07 AI 어시스턴트 비트리거 (G1)
 
@@ -174,6 +179,10 @@ AI 어시스턴트의 읽기 전용 도구(`get_workflow_executions`, `get_execu
 3. 실행 상세 화면으로 가는 딥 링크를 준다. 링크 형식은 [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#재실행-요청-처리) 에 있다.
 
 사용자가 "AI 에게 재실행 권한 부여" 를 명시적으로 켜는 신뢰 단계를 도입한 뒤 G2 를 별도 계획으로 검토한다. 이 문서 범위 밖이다.
+
+### 체인 조회 권한 (REQ-RERUN-047)
+
+체인 조회(`GET /api/executions/:executionId/chain`)의 권한은 실행 상세 조회(`GET /api/executions/:id`, [실행 내역](CLE-EXEC-HISTORY.md))와 같다(2026-10-10). [RR-PL-06](#rr-pl-06-권한-f) 은 재실행 권한만 정하고 이 라우트에는 적용하지 않는다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 비멤버는 `RolesGuard` 가 `NOT_A_MEMBER` 로 막는다. 그래서 실행 상세 화면의 체인 배지와 "View chain" 드롭다운은 뷰어를 포함한 멤버 모두에게 보인다. 재실행 권한이 없는 사용자에게는 재실행 버튼만 비활성화된다. 근거는 [Rationale](#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 에 있다.
 
 ## dry-run
 
@@ -194,7 +203,9 @@ AI 어시스턴트의 읽기 전용 도구(`get_workflow_executions`, `get_execu
 
 - Logic, Flow, Data, AI(LLM 호출은 외부지만 워크플로우 결과 재현에 필요하다, [LLM 호출](#llm-호출)), Presentation(UI 렌더), Trigger(이미 발화된 뒤의 재실행이라 트리거는 다시 발화하지 않는다)
 
-분류 기준은 노드 메타 `category`([노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md))와 노드별 boolean 메타 `supportsDryRun` 이다. 모든 부수효과 노드는 v1 에서 `supportsDryRun: true` 를 기본으로 제공한다. 각 핸들러가 모의 출력을 돌려줄 수 있어야 한다. 모달의 "외부 호출 노드 N개" 집계도 이 메타로 센다. 위 표의 노드 목록은 이 메타에서 나온다. 현재 구현에서 `supportsDryRun: true` 를 선언한 노드 스키마는 위 다섯 노드뿐이다(각 노드의 `*.schema.ts`). 부수효과 노드를 새로 더하면 이 표도 함께 고친다.
+AI 에이전트 노드 자체는 그대로 실행한다. 이 노드가 부르는 MCP 도구는 [LLM 호출](#llm-호출) 의 임시 가드를 따른다.
+
+분류 기준은 노드 메타 `category`([노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md))와 노드별 boolean 메타 `supportsDryRun` 이다. 모든 부수효과 노드는 v1 에서 `supportsDryRun: true` 를 기본으로 제공한다. 각 핸들러가 모의 출력을 돌려줄 수 있어야 한다. 모달의 "외부 호출 노드 N개" 집계도 이 메타로 센다. AI 에이전트의 MCP 도구는 이 집계에 들지 않는다([미결 사항](#미결-사항)). 위 표의 노드 목록은 이 메타에서 나온다. 현재 구현에서 `supportsDryRun: true` 를 선언한 노드 스키마는 위 다섯 노드뿐이다(각 노드의 `*.schema.ts`). 부수효과 노드를 새로 더하면 이 표도 함께 고친다.
 
 ### 동작
 
@@ -202,7 +213,7 @@ AI 어시스턴트의 읽기 전용 도구(`get_workflow_executions`, `get_execu
 
 - 핸들러가 `isDryRun(context)` 이고 자기 노드가 부수효과 노드면:
   - 외부 호출을 **하지 않는다**.
-  - 출력으로 모의 객체를 돌려준다.
+  - 모의 객체를 노드 출력의 `output` 값으로 돌려준다.
 
     ```json
     {
@@ -217,7 +228,7 @@ AI 어시스턴트의 읽기 전용 도구(`get_workflow_executions`, `get_execu
     }
     ```
 
-  - 노드 실행 상태는 `completed` 다(건너뜀이 아니다, 흐름은 정상으로 진행). 노드 실행 행의 `outputData` 에 이 모의 객체를 그대로 저장한다.
+  - 노드 실행 상태는 `completed` 다(건너뜀이 아니다, 흐름은 정상으로 진행). 노드 실행 행의 `outputData.output` 에 이 모의 객체를 그대로 저장한다. 그래서 판정 키는 `outputData.output._dryRun` 이다.
 - 부수효과 노드인데 `supportsDryRun !== true` 인 노드가 워크플로우에 하나라도 있으면 재실행 서비스가 들어가기 전 사전 점검(`assertDryRunSupported`)에서 `RERUN_DRY_RUN_NOT_APPLICABLE`(400)로 재실행 전체를 거부한다. 권장 UX 는 모달 단계에서 미리 찾아 dry-run 토글을 비활성화하고 툴팁으로 안내하는 것이다. v1 의 부수효과 노드는 모두 `supportsDryRun: true` 라 정상 워크플로우는 통과한다.
 
 ### LLM 호출
@@ -227,14 +238,41 @@ AI 노드(AI 에이전트, 텍스트 분류기, 정보 추출기)의 LLM 호출�
 - LLM 응답이 하류 분기 결정에 바로 쓰인다(예: AI 에이전트의 도구 선택, 텍스트 분류기의 카테고리).
 - LLM 호출은 보통 부수효과가 아니다. 응답을 받을 뿐 외부 시스템 상태를 바꾸지 않는다.
 
-단, AI 에이전트가 부르는 도구 가운데 부수효과 카테고리에 드는 도구(예: HTTP Request 도구, Send Email 도구)는 dry-run 때 모의 응답을 돌려준다. LLM 에는 모의 결과가 전달되고 LLM 은 그것으로 다음 턴을 진행한다. 이 동작이 실제로 구현됐는지는 확인이 필요하다. [미결 사항](#미결-사항) 참조.
+AI 에이전트가 부르는 도구는 목표 동작과 현재 동작이 다르다. 아래에 나눠 적는다.
+
+**목표 동작(REQ-RERUN-028, 미구현)**: AI 에이전트가 부르는 도구 가운데 부수효과가 있는 도구는 dry-run 때 모의 응답을 돌려준다. LLM 에는 모의 결과가 전달되고 LLM 은 그것으로 다음 턴을 진행한다. 도구마다 부수효과를 나누는 기준과 모의 응답의 모양은 후속 Task CLE-T-G62XJS 가 정한다.
+
+AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-연결-입력-경로-제거)). 그래서 HTTP Request 노드나 Send Email 노드는 AI 에이전트의 도구가 되지 않는다. AI 에이전트가 외부 시스템에 닿는 도구는 MCP 도구다. 외부 MCP 서버의 도구와 Cafe24 · MakeShop 내부 MCP 브리지의 operation 이 여기에 든다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)).
+
+**현재 동작: 임시 가드(2026-10-10)**: 모의 응답이 들어갈 때까지 dry-run 실행에서는 MCP 도구를 외부로 부르지 않는다(REQ-RERUN-043~046). 막는 대상은 외부 MCP 서버의 도구 호출(`tools/call`)과 Cafe24 · MakeShop 내부 MCP 브리지의 모든 operation 이다. 브리지의 GET operation 도 막는다. 대상 도구를 부르면 외부 호출 없이 `success` 상태이고 `executed: false` 인 결과를 LLM 에 돌려준다. 건너뛴 호출도 `turnDebug[].toolCalls` 에 `success` 로 남고 `maxToolCalls` 에 센다. 결과의 모양, `wouldHaveCalled` 의 필드, 활동 로그와 진단 집계 규칙은 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행) 의 「dry-run 재실행」 절이 정한다.
+
+- 도구 이름 · 인자 검증 실패(`INVALID_TOOL_ARGUMENTS`, `CAFE24_MISSING_FIELDS` 등)와 알 수 없는 도구(`MCP_UNKNOWN_TOOL`, `CAFE24_UNKNOWN_OPERATION` 등)는 dry-run 확인보다 먼저 판정해 평소대로 보고한다. 외부 MCP 도구의 인자 검증은 JSON 파싱뿐이다(`inputSchema` 검증 미구현, [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#미결-사항) 의 미결 사항).
+- MCP 메타 도구(`list_resources` · `read_resource` · `list_prompts` · `get_prompt`)는 읽기 전용이라 막지 않는다. 내장 `kb_*`(지식 저장소 검색)와 `render_*`(표시) 도구도 외부 시스템 상태를 바꾸지 않아 그대로 실행한다.
+- 도구 목록 구성(`buildTools`) 단계는 dry-run 에서도 평소처럼 돈다. 가드는 도구 실행(`execute`) 단계에만 있다. 이 단계에서 나가는 외부 호출은 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 이 다룬다([미결 사항](#미결-사항)).
+- 가드는 같은 실행 컨텍스트 안에서만 동작한다. 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않는다([미결 사항](#미결-사항)).
+
+**dry-run 여부를 넘기는 길**: 도구 프로바이더 실행 문맥(`ProviderExecCtx`)의 `dryRun` 으로 넘긴다. 값은 턴마다 다음에서 구한다.
+
+| 턴 | 값의 출처 |
+| --- | --- |
+| 단일 턴 | `isDryRun(context)`(`variables.__dryRun === true`) |
+| 멀티턴 재개 턴 | 엔진이 다시 만든 `_resumeState.dryRun` |
+| 마지막 턴 재시도 재진입 | 엔진이 다시 만든 `_resumeState.dryRun` |
+
+멀티턴 첫 진입은 LLM 을 부르지 않아 도구 호출이 없다.
+
+엔진은 `_resumeState` 를 다시 만들 때(`buildRetryReentryState`, 재개와 재시도가 함께 쓴다) `dryRun` 을 AI 재개 체크포인트에서 읽지 않는다. 실행 컨텍스트의 `variables.__dryRun` 에서 다시 구한다. `variables.__dryRun` 은 입력 대기 뒤 `Execution.dry_run` 으로 복원된다([동작](#동작)). 그래서 값의 출처는 실행 행 하나다. `dryRun` 은 AI 재개 체크포인트에 넣지 않는 컨텍스트 필드 목록(`CREDENTIAL_CONTEXT_FIELDS`)에 들어 있다.
+
+**GET 과잉 차단**: 임시 가드는 부수효과 분류 없이 MCP 도구를 모두 막는다. 그래서 브리지의 GET operation 도 막혀 노드 dry-run 과 동작이 다르다. [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 와 [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) 는 dry-run 에서도 GET 을 그대로 부른다([부수효과 노드 분류](#부수효과-노드-분류)). CLE-T-G62XJS 가 부수효과 분류와 모의 응답을 넣으면 이 차이는 없어진다. 근거는 [Rationale](#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 에 있다.
+
+**배지**: 가드 결과의 `_dryRun: true` 는 LLM 에 돌려주는 도구 결과 본문에 있다. AI 에이전트 노드 출력의 `output` 에는 `_dryRun` 이 없다. 그래서 이 노드의 배지는 [결과 표시](#결과-표시) 의 비부수효과 노드 규칙을 따른다.
 
 ### 결과 표시
 
 실행 결과 드로어와 실행 상세 화면은 dry-run 으로 실행된 노드 실행을 눈에 띄게 구분한다.
 
 - 노드 카드에 `🧪 dry-run` 배지를 단다.
-- 출력 JSON 에 `_dryRun: true` 가 있으면 자동으로 강조한다.
+- 노드 출력의 `output` 에 `_dryRun: true` 가 있으면(`outputData.output._dryRun`) 출력을 자동으로 강조한다.
 - 체인 배지에도 "dry-run" 을 붙인다(`#3-th re-run · dry-run`).
 
 **배지 판정 범위**: `_dryRun` 표시는 실제로 모의 처리한 노드(`supportsDryRun` 부수효과 노드)의 출력에만 들어간다. 그래서 **실행 상세 화면**은 노드별 `_dryRun` 표시에 더해 실행 수준의 **`Execution.dry_run`** 도 함께 반영한다. 표시가 없는 비부수효과 노드(Logic·Flow·Data·AI 등)도 dry-run 실행에 속하면 배지를 단다. "이 실행 전체가 dry-run 이었다" 를 개별 노드 상세에서도 알 수 있게 하려는 것이다. **에디터 실행 결과 드로어**는 실행 수준 플래그를 받지 않아 노드 표시로만 판정한다. 두 화면의 차이는 의도한 비대칭이다.
@@ -274,11 +312,13 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 ```typescript
 {
   ...Execution,           // 기본 실행 응답
-  reRunOf: string;        // 직계 부모 실행 ID
-  chainId: string;        // 체인 루트 실행 ID
+  reRunOf: string;        // 직계 부모 실행 ID. 재실행 직후의 행이라 null 이 아니다
+  chainId: string;        // 체인 루트 실행 ID. 재실행 직후의 행이라 null 이 아니다
   dryRun: boolean;        // 이 실행이 dry-run 인지
 }
 ```
+
+기본 실행 응답에서 `reRunOf` · `chainId` 의 타입은 `string | null` 이다. 재실행 응답은 방금 만든 재실행 행이라 두 필드에 늘 값이 있다.
 
 **에러 코드**
 
@@ -300,9 +340,20 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 
 같은 체인의 모든 실행을 시간순으로 돌려준다. 실행 상세 화면의 체인 배지가 쓴다.
 
-**응답**: `Execution[]`. 체인의 모든 행을 `started_at ASC` 로 정렬한다. 항목 모양은 위 재실행 응답과 같다(단 `nodeExecutions` 는 뺀다).
+**응답 200**: `{ data: Execution[] }`. 배열을 `data` 로 감싸는 모양은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md#5-2-공용-래퍼-헬퍼) 의 배열 응답 헬퍼(`ApiOkWrappedArrayResponse`)를 따른다. `data` 는 체인의 모든 행을 `started_at ASC` 로 정렬한 배열이다. 항목은 위 재실행 응답과 같은 필드를 담고 `nodeExecutions` 는 뺀다. 다만 체인 루트(원본) 실행도 항목에 들어가므로 `reRunOf` · `chainId` 는 null 일 수 있다. 항목은 실행 상세 응답과 같은 마스킹 관문(`toResponseExecution`)을 거친다.
 
-**권한**: 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+```typescript
+{
+  data: Array<{
+    ...Execution,              // 기본 실행 응답(nodeExecutions 제외)
+    reRunOf: string | null;    // 직계 부모 실행 ID. 체인 루트(원본)면 null
+    chainId: string | null;    // 체인 루트 실행 ID. 체인 루트(원본)면 null
+    dryRun: boolean;           // 이 실행이 dry-run 인지
+  }>;
+}
+```
+
+**권한**: 워크스페이스 멤버(REQ-RERUN-047, 실행 상세 조회와 같다). 멤버의 역할과 원본 실행의 시작자는 보지 않는다. RR-PL-06 은 이 라우트에 적용하지 않는다([체인 조회 권한](#체인-조회-권한-req-rerun-047)).
 
 **에러 코드**
 
@@ -310,7 +361,6 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 | --- | --- | --- |
 | 401 | `AUTH_REQUIRED` | 인증 토큰이 없거나 만료됨 |
 | 403 | `NOT_A_MEMBER` | 헤더로 지정한 워크스페이스의 멤버가 아님(`RolesGuard`. 이 라우트는 `@Roles()` 없이 `@WorkspaceId()` 만 쓴다) |
-| 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 미충족(다른 사용자의 실행이고 소유자·관리자가 아님) |
 | 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 가 없거나 다른 워크스페이스의 실행 |
 
 ## 데이터 모델
@@ -349,7 +399,7 @@ flowchart LR
 
 ### dry-run 표시
 
-- **노드 실행**: dry-run 으로 실행된 노드 실행은 `outputData._dryRun === true` 로 알아본다. 화면은 이 키로 배지를 단다.
+- **노드 실행**: dry-run 으로 실행된 노드 실행은 `outputData.output._dryRun === true` 로 알아본다. 모의 객체가 노드 출력의 `output` 값이기 때문이다. 화면은 이 키로 배지를 단다. 화면의 판정(`result-detail.tsx` 의 `isDryRunOutput`)은 최상위 `_dryRun` 도 보지만 모의 객체가 실리는 곳은 `output` 이다.
 - **실행**: 부모 실행 행에는 `dry_run: boolean` 컬럼이 있다(V068, `NOT NULL DEFAULT false`).
 
 두 표시는 역할이 다르다. 노드 실행의 `_dryRun` 은 결과 표시용이고 실행의 `dry_run` 은 실행 제어용(엔진 주입과 복원)이다. 다만 **실행 상세 화면 배지**는 `Execution.dry_run` 을 표시 목적으로도 쓴다. `_dryRun` 표시가 없는 비부수효과 노드도 dry-run 실행에 속하면 배지를 달기 위해서다. 실행 상세에서는 제어와 표시를 겸하고 에디터 드로어는 노드 표시만 쓴다. 구현과 테스트는 `result-detail.tsx`, `execution-detail-waiting.test.tsx` 에 있다.
@@ -398,7 +448,7 @@ flowchart LR
 
 ### 체인 표시
 
-실행 상세 화면 요약 카드에 체인 정보를 표시한다. 화면 배치는 [실행 내역](CLE-EXEC-HISTORY.md) 이 정한다.
+실행 상세 화면 요약 카드에 체인 정보를 표시한다. 화면 배치는 [실행 내역](CLE-EXEC-HISTORY.md) 이 정한다. 체인 배지와 드롭다운은 REQ-RERUN-047([체인 조회 권한](#체인-조회-권한-req-rerun-047))을 따르므로 뷰어를 포함한 워크스페이스 멤버 모두에게 보인다.
 
 | 요소 | 표시 조건 | 내용 |
 | --- | --- | --- |
@@ -450,7 +500,7 @@ flowchart LR
 
 ## rate limit
 
-사용자당 분당 10회다. 넘으면 429 로 거부하고 에러 코드는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 의 공통 정책대로 429 기본 코드 `RATE_LIMITED` 다. 현재 구현은 라우트의 `@Throttle`(60초에 10회)이고 사용자 단위로 센다. 이 라우트별 한도를 §7 표에 올릴지는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#미결-사항) 의 미결 사항을 따른다.
+한도의 단일 기준은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) §7 표다. 이 문서의 요구사항은 REQ-RERUN-038 이다. 한도를 넘으면 §7 의 공통 정책대로 429 기본 코드 `RATE_LIMITED` 로 거부한다. 현재 구현은 라우트의 `@Throttle` 이고 사용자 단위로 센다.
 
 ## AI 어시스턴트와의 관계
 
@@ -507,26 +557,38 @@ C3(single-node debug, 단일 노드만 실행)는 2026-06-15 에 재실행 체�
 
 | 항목 | 정책 |
 | --- | --- |
-| 권한 | RR-PL-06. 원본 시작자이면서 워크스페이스 편집자 이상 |
+| 권한 | 재실행은 RR-PL-06 이다(워크스페이스 편집자 이상이면서 원본 시작자이거나 소유자·관리자). 체인 조회는 REQ-RERUN-047 이고 워크스페이스 멤버 전원이다(실행 상세 조회와 같다) |
 | 감사 로그 | `execution.re_run` 이벤트([감사 로그](#감사-로그)) |
-| rate limit | 사용자당 분당 10회([rate limit](#rate-limit)) |
+| rate limit | [rate limit](#rate-limit) 절(REQ-RERUN-038) |
 | 관측 | 노드 실행의 dry-run 표시와 체인 배지로 재실행 트래픽을 일반 수동 실행과 구분할 수 있다 |
-| 회귀 방지 | 단위·통합·e2e 테스트가 다음을 지킨다. 입력 같음·수정·dry-run 경우, 권한 거부(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `RERUN_PERMISSION_DENIED`), 삭제된 워크플로우(`RERUN_WORKFLOW_DELETED`), 체인 깊이 32 초과(`RERUN_CHAIN_DEPTH_EXCEEDED`), 멀티턴 노드 새 세션(RR-PL-04), AI 어시스턴트 비트리거(RR-PL-07) |
+| 회귀 방지 | 단위·통합·e2e 테스트가 다음을 지킨다. 입력 같음·수정·dry-run 경우, 재실행 권한 거부(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `RERUN_PERMISSION_DENIED`), 체인 조회의 뷰어 허용(남이 시작한 실행도 200), 삭제된 워크플로우(`RERUN_WORKFLOW_DELETED`), 체인 깊이 32 초과(`RERUN_CHAIN_DEPTH_EXCEEDED`), 멀티턴 노드 새 세션(RR-PL-04), AI 어시스턴트 비트리거(RR-PL-07), dry-run 에서 AI 에이전트의 MCP 도구를 외부로 부르지 않음(단일 턴 · 재개 턴 · 마지막 턴 재시도 재진입) |
 
 ## 미결 사항
 
-- **체인 조회 권한**: 체인 조회(`GET /api/executions/:executionId/chain`) 본문은 "권한은 RR-PL-06 과 같다"(편집자 이상이면서 시작자이거나 소유자·관리자)고 적는다. 같은 절의 에러 표는 라우트에 `@Roles()` 가 없고 `@WorkspaceId()` 만 있다고 적어 뷰어도 가드를 통과하며 `EDITOR_REQUIRED` 행이 없다. 현재 구현도 `@Roles` 없이 서비스에서 `RERUN_PERMISSION_DENIED` 만 판정한다. 실행 상세 화면은 뷰어도 볼 수 있으므로([실행 내역](CLE-EXEC-HISTORY.md)), 뷰어나 다른 사람의 실행에서 체인 배지와 "View chain" 드롭다운을 어떻게 보일지(숨김, 비활성, 403 안내)도 정해져 있지 않다. 뷰어의 체인 조회를 허용할지 결정이 필요하다.
-- **dry-run 때 AI 에이전트 도구의 모의 응답**: [LLM 호출](#llm-호출) 은 AI 에이전트가 부르는 부수효과 도구가 dry-run 에서 모의 응답을 준다고 적는다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에는 dry-run 언급이 없고 도구로 쓰인 노드가 핸들러 경로를 타서 `__dryRun` 을 보는지 확인하지 못했다. AI 에이전트 문서에 dry-run 동작을 적을지, 이 절을 실제 동작에 맞출지 결정이 필요하다.
+- **dry-run 때 AI 에이전트 도구의 모의 응답**: 부수효과가 있는 도구에만 모의 응답을 주는 목표 동작(REQ-RERUN-028)은 아직 구현되지 않았다. 지금은 2026-10-10 에 들어간 임시 가드가 대신한다. 이 가드는 MCP 도구를 외부로 부르지 않는다([LLM 호출](#llm-호출), REQ-RERUN-043~046). 목표 동작은 후속 Task CLE-T-G62XJS 가 맡는다. 그 Task 가 도구마다 부수효과를 나누는 기준, 모의 응답의 모양, 브리지의 GET operation 을 다시 통과시킬지를 정한다. 그때까지 브리지의 GET operation 도 막힌다. 외부 MCP 도구의 분류는 [향후 확장](#향후-확장) 표의 A4(노드별 재실행 정책 메타)와 같이 검토한다.
+- **도구 목록 구성 단계의 외부 호출**: 임시 가드는 도구 실행(`execute`) 단계에만 있다. 도구 목록 구성(`buildTools`) 단계는 dry-run 재실행에서도 평소대로 돈다. 이 단계에서 나가는 외부 호출과 그 결과로 바뀌는 상태는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 의 「dry-run 재실행의 도구 목록 구성 단계」가 정본이다. 담당 Task 는 CLE-T-8B66BK 다.
+- **비동기 서브 워크플로우 자식 실행의 dry-run 상속**: dry-run 여부는 실행 컨텍스트의 `variables.__dryRun` 과 실행 행의 `dry_run` 으로만 전해진다. 비동기 서브 워크플로우로 시작한 자식 실행은 이 값을 물려받지 않는다. 그래서 dry-run 재실행이어도 자식 실행의 부수효과 노드와 AI 에이전트 도구는 외부를 그대로 부른다. 2026-10-10 임시 가드 이전부터 있던 차이다. 동기 서브 워크플로우가 값을 물려받는지는 확인 필요다. Background 노드 본문 실행도 같은 갭이 있는지 확인이 필요하다. 자식 실행에 dry-run 을 넘길지, REQ-RERUN-025 의 원칙(안전하게 dry-run 할 수 없으면 재실행 전체를 거부한다)대로 서브 워크플로우가 있는 워크플로우의 dry-run 을 거부할지 결정이 필요하다. 담당 Task 는 CLE-T-Y2F1NG 다.
+- **재실행 모달의 외부 호출 집계와 MCP 도구**: 모달의 "외부 호출 노드 N개" 는 `supportsDryRun: true` 인 노드만 센다(`rerun-modal.tsx`). AI 에이전트에 연결된 MCP 서버와 Cafe24 · MakeShop 도구는 세지 않는다. 그래서 dry-run 을 끈 일반 재실행에서 AI 에이전트가 외부 데이터를 바꿀 수 있어도 모달 안내에는 드러나지 않는다. 안내에 MCP 도구를 넣을지 결정이 필요하다.
+- **dry-run 재실행의 메모리 추출**: 메모리 전략이 `persistent` 인 AI 에이전트 · 정보 추출기는 추출한 메모리를 `agent_memory` 에 쓴다([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)). dry-run 재실행에서도 `agent_memory` 에 저장한다. 메모리 관리 코드(`ai-memory-manager.ts`, `agent-memory-extraction` 큐)에 dry-run 분기가 없다. dry-run 에서 이 저장을 막을지 결정이 필요하다. 담당 Task 는 CLE-T-C9GF9F 다.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/executions/executions.controller.ts` (`POST :id/re-run`, `GET :id/chain`)
-- `codebase/backend/src/modules/executions/executions.service.ts` (reRun, getChain, 권한, `computeChainDepth`, `assertDryRunSupported`)
+- `codebase/backend/src/modules/executions/executions.controller.ts` (`POST :id/re-run`, `GET :id/chain` 의 getChain. 체인 조회 라우트는 `@Roles` 없이 멤버 전원이 조회한다)
+- `codebase/backend/src/modules/executions/executions.service.ts` (reRun 과 재실행 권한, getChain, `computeChainDepth`, `assertDryRunSupported`)
 - `codebase/backend/src/modules/executions/dto/re-run.dto.ts`
 - `codebase/backend/migrations/V067__execution_re_run_chain.sql`
 - `codebase/backend/migrations/V068__execution_dry_run.sql`
 - `codebase/backend/src/nodes/core/dry-run.util.ts` (`isDryRun`, `buildDryRunMock`)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts` (`ProviderExecCtx.dryRun`)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (`buildDryRunSkippedToolResult`)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts` (외부 MCP 도구의 dry-run 임시 가드)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 브리지 도구의 dry-run 임시 가드)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 브리지 도구의 dry-run 임시 가드)
+- `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts` (턴마다 `dryRun` 을 도구 프로바이더에 넘긴다)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`buildRetryReentryState` 의 `dryRun` 재유도)
+- `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (`CREDENTIAL_CONTEXT_FIELDS` 의 `dryRun`)
 - `codebase/frontend/src/components/executions/rerun-modal.tsx`
+- `codebase/frontend/src/lib/executions/can-rerun.ts` (`canReRun`, 재실행 버튼 판정)
 
 ## Rationale
 
@@ -534,7 +596,7 @@ C3(single-node debug, 단일 노드만 실행)는 2026-06-15 에 재실행 체�
 
 - A1(확인 모달만)은 결제 노드처럼 운영 사고 가능성이 큰 경우의 안전판이 약하다. 사용자가 모달을 무심코 넘기면 결제가 그대로 다시 일어난다.
 - A4(노드별 재실행 정책 메타)는 가장 정밀하지만 모든 노드 스키마 확장, 마이그레이션, 워크플로우 작성자에게 새 메타 필드 노출이 필요해 v1 비용이 크다. v2 이후의 진화 경로로 둔다.
-- A5 는 노드 카테고리 메타만으로 부수효과 노드를 나누고(카테고리는 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 에 이미 있다), dry-run 을 토글로 줘 사용자가 디버그 의도와 운영 의도를 분명히 나누게 한다. 추가 스키마 비용은 노드의 `supportsDryRun: boolean` 과 핸들러의 dry-run 분기(`variables.__dryRun` 확인, 출력 `_dryRun`)뿐이라 면적이 작다.
+- A5 는 노드 카테고리 메타만으로 부수효과 노드를 나누고(카테고리는 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 에 이미 있다), dry-run 을 토글로 줘 사용자가 디버그 의도와 운영 의도를 분명히 나누게 한다. 추가 스키마 비용은 노드의 `supportsDryRun: boolean` 과 핸들러의 dry-run 분기(`variables.__dryRun` 확인, 노드 실행 출력 `outputData.output._dryRun`)뿐이라 면적이 작다.
 
 ### 왜 B2(원본 미리보기와 편집)가 기본인가
 
@@ -558,7 +620,7 @@ E1(`re_run_of` 만)은 직계 부모 조회는 빠르지만 체인 전체 조회
 
 ### 실행에 `dry_run` 컬럼을 둔다
 
-초안에서는 이 컬럼을 v2 이후로 미뤘다. dry-run 을 게이트가 아니라 완전한 구현으로 채택하면서 두 제약 때문에 v1 컬럼으로 정했다.
+초안에서는 이 컬럼을 v2 이후로 미뤘다. dry-run 을 게이트가 아니라 완전한 구현으로 채택하면서(도구 모의 응답은 REQ-RERUN-028 로 아직 남아 있다) 두 제약 때문에 v1 컬럼으로 정했다.
 
 - 엔진은 **첫 노드 실행 전** `createContext` 때 `variables.__dryRun` 을 넣어야 한다. 이 값은 노드 실행이 하나도 없을 때 정해져야 하므로 노드 실행의 `_dryRun` 으로는 알 수 없다. 실행 단위 플래그가 먼저 있어야 한다.
 - 입력 대기 뒤 **rehydration** 경로에서도 같은 dry-run 모드를 복원해야 하므로 메모리 플래그가 아니라 **영속 컬럼**이어야 한다.
@@ -577,8 +639,42 @@ AI 어시스턴트의 읽기 전용 정책([AI 어시스턴트 도구](../CLE-WF
 
 ### `INVALID_TRIGGER_PARAMETERS` 만 `RERUN_` 접두가 없다
 
-형제 네 코드(권한, 체인 깊이, 워크플로우 삭제, dry-run 부적용)는 재실행 **고유** 실패라 경로 이름을 붙였다. 이 코드는 반대로 수동 실행(`POST /workflows/:id/execute`)·저장(`POST /workflows/:id/save`) 경로와 **같은 검증 실패를 같은 코드로 내기 위한** 것이다. 경로별 접두를 붙이면 통일이 의미 없어진다. 2026-08-22 이전에는 이 자리가 `INVALID_INPUT` 이었다. 이름 변경 이력은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+형제 코드(권한, 체인 깊이, 워크플로우 삭제, dry-run 부적용 등)는 재실행 **고유** 실패라 경로 이름을 붙였다. 이 코드는 반대로 수동 실행(`POST /workflows/:id/execute`)·저장(`POST /workflows/:id/save`) 경로와 **같은 검증 실패를 같은 코드로 내기 위한** 것이다. 경로별 접두를 붙이면 통일이 의미 없어진다. 2026-08-22 이전에는 이 자리가 `INVALID_INPUT` 이었다. 이름 변경 이력은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 
 ### 입력 데이터 마스킹을 예외로 두지 않고 마커를 막는다 (2026-08-20)
 
 2026-08-20 이전에는 `Execution.inputData` 만 응답 마스킹에서 뺐다. 마스킹하면 모달이 미리 채운 `'***'` 가 새 실행의 실제 입력값이 되기 때문이다. 이제는 이 컬럼도 마스킹하고 대신 모달이 마커를 미리 채우지 않으며 서버가 마커 재전송을 거부한다([마스킹된 입력 처리](#마스킹된-입력-처리)). 마스킹 정책의 근거는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 에 있다.
+
+### dry-run 에서 AI 에이전트의 MCP 도구를 막는다 (2026-10-10)
+
+**문제**: 이전 판의 [LLM 호출](#llm-호출) 은 AI 에이전트가 부르는 부수효과 도구가 dry-run 때 모의 응답을 준다고 적었다. 실제로는 도구 프로바이더 실행 문맥에 dry-run 표시가 없었다. 그래서 dry-run 재실행에서도 외부 MCP 서버의 도구와 Cafe24 · MakeShop 내부 MCP 브리지의 쓰기 operation 이 실제로 불렸다. "외부 호출 없이 흐름만" 보려고 dry-run 을 켠 사용자의 쇼핑몰 데이터가 바뀔 수 있었다. 이 차이는 finding 01a0e5a0-434d-76ff-867b-bbcb31190c32 로 올라왔다. 2026-10-10 에 사람이 아래 셋 가운데서 골랐다.
+
+| 선택지 | 내용 | 결정 |
+| --- | --- | --- |
+| 1 | 도구 프로바이더에 dry-run 을 넘기고 부수효과 도구에만 모의 응답을 준다 | 목표로 채택했다. 도구마다 부수효과를 나누는 기준과 응답 모양을 정해야 해서 후속 Task CLE-T-G62XJS 로 나눴다 |
+| 2 | dry-run 에서 MCP 도구 호출을 막는다 | 1 이 들어갈 때까지 쓰는 임시 가드로 먼저 넣었다(CLE-T-8BX1HK) |
+| 3 | 문서만 실제 동작에 맞추고 경고한다 | 실제 쇼핑몰 데이터가 바뀌는 위험이 그대로 남아 2026-10-10 결정 때 기각했다 |
+
+**가드 범위**: 가드는 같은 실행 컨텍스트에서 LLM 이 고른 도구 호출의 실행(`execute`) 단계를 막는다. 업무 데이터를 외부 시스템에 쓰는 위험이 가장 큰 경로라서 이 단계를 막는다. 가드 밖에 남은 경로는 셋이고 [미결 사항](#미결-사항) 과 Task 로 추적한다. (a) 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않는다(CLE-T-Y2F1NG). (b) 도구 목록 구성(`buildTools`) 단계의 목록 조회와 `expired` 통합의 토큰 갱신(CLE-T-8B66BK). (c) `persistent` 메모리 추출의 저장(CLE-T-C9GF9F). 이 셋을 남긴 것은 선택지 3 을 기각한 판단과 어긋나지 않는다. 세 경로는 가드 이전부터 있던 갭이다. 또 업무 데이터를 외부에 쓰지 않거나(목록 조회 · 토큰 갱신 · 내부 메모리 저장) 특정 구성에서만 생긴다(비동기 서브 워크플로우로 시작한 자식 실행). 그래서 이번 가드에 넣지 않고 Task 로 추적한다.
+
+**GET 도 막는다**: 임시 가드에는 도구마다 읽기와 쓰기를 가르는 분류가 아직 없다. 그래서 MCP 도구를 모두 막고 브리지의 GET operation 도 함께 막힌다. 노드 dry-run 은 Cafe24 · MakeShop 의 GET 을 그대로 부르므로 노드와 도구의 동작이 다르다. 안전을 위해 재현 충실도(GET 도 실제로 부르지 않음)를 일시적으로 낮춘 것이다. CLE-T-G62XJS 가 부수효과 분류와 모의 응답을 넣으면 이 넓은 차단을 풀고 충실도를 되돌린다.
+
+**에러가 아닌 `success` 로 돌려준다**: 에러로 돌려주면 LLM 이 도구 실패로 보고 같은 도구를 다시 부르거나 사용자에게 실패를 알릴 수 있다. 그래서 결과 상태는 `success` 로 두고 본문에 `executed: false` 와 이번 실행에서 다시 부르지 말라는 안내를 넣었다. 실패 모양을 쓰지 않은 것은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법) Rationale 이 `render_form` 제출 결과에서 `rendered: false` 를 기각한 것과 같은 이유다. LLM 이 그 값을 실패로 읽고 같은 도구를 다시 부를 수 있다. 실패가 아니므로 새 에러 코드는 만들지 않았다. 건너뛴 호출이 활동 로그를 남기지 않는 이유는 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10) 의 Rationale 에 있다. 노드 경로(REQ-CAFENODE-035)와 다르게 정한 이유도 거기 있다.
+
+**메타 도구와 `kb_*` · `render_*` 는 막지 않는다**: MCP resources · prompts 메타 도구는 MCP 프로토콜이 읽기 전용으로 정한 요청이다. 도구 분류가 없어도 외부 상태를 바꾸지 않는다는 것을 안다. 이 판단은 프로토콜을 지키는 서버를 전제하고 지키지 않는 서버의 부수효과는 이 가드가 막지 않는다. 반면 `tools/call` 은 서버가 무엇을 하는지 알 수 없다. `kb_*` 는 워크스페이스 안 지식 저장소를 검색하고 `render_*` 는 화면 표시용 결과만 만든다. 둘 다 외부 시스템에 닿지 않는다.
+
+**재개 · 재진입 턴은 컨텍스트에서 다시 구한다**: 멀티턴 재개 턴과 마지막 턴 재시도는 엔진이 `_resumeState` 를 다시 만들어 이어 간다. 실행 컨텍스트에 묶인 값(워크스페이스 ID, 노드 실행 ID 등)은 AI 재개 체크포인트에 영속하지 않고 엔진이 컨텍스트에서 다시 구한다는 기존 규칙이 있다(`CREDENTIAL_CONTEXT_FIELDS`). dry-run 여부도 실행 행의 `dry_run` 에서 복원되는 컨텍스트 값이라 같은 규칙을 따랐다. 첫 턴은 `isDryRun(context)` 로 구하고 재개 턴은 엔진이 다시 만든 `_resumeState.dryRun` 을 쓴다.
+
+**도구 예시를 MCP 도구로 바꿨다**: 이전 판의 [LLM 호출](#llm-호출) 은 부수효과 도구의 예로 HTTP Request 도구와 Send Email 도구를 들었다. 노드를 도구로 연결하던 입력 경로가 제거돼 AI 에이전트에는 그런 도구가 없다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-연결-입력-경로-제거)). 그래서 2026-10-10 개정에서 예시를 MCP 도구로 바꿨다.
+
+### 체인 조회 권한은 실행 상세 조회와 같다 (2026-10-10)
+
+**문제**: 이전 판의 체인 조회 본문은 권한이 RR-PL-06 과 같다고 적었다. 같은 절의 에러 표와 구현은 라우트에 `@Roles()` 가 없어 뷰어도 가드를 통과했고 서비스가 `RERUN_PERMISSION_DENIED` 만 판정했다. 실행 상세 화면은 뷰어도 보는데 체인 배지와 "View chain" 드롭다운을 뷰어에게 어떻게 보일지도 정해지지 않았다. 이 차이는 finding 01a0e599-78b8-71f9-b59a-8c1abe73a21c 로 올라왔다. 2026-10-10 에 사람이 «뷰어의 체인 조회 허용» 을 골랐다.
+
+**기각한 대안 1: 라우트에 `@Roles('editor')` 를 단다**: 2026-10-10 결정 때 문서대로 막는 안으로 검토했다. 체인 조회는 읽기만 하는 기능이고 뷰어도 실행 상세를 본다. 같은 화면의 체인 배지만 뷰어에게 막을 이유가 없어 기각했다.
+
+**기각한 대안 2: 뷰어만 예외로 허용한다**: 같은 결정 때 RR-PL-06 은 그대로 두고 뷰어만 풀어 주는 안으로 검토했다. 이 안이면 시작자가 아닌 편집자는 403 을 받고 뷰어는 200 을 받는다. 권한이 높은 역할이 더 적게 보는 역전이 생겨 기각했다.
+
+**채택**: 체인 조회 권한을 실행 상세 조회(`GET /api/executions/:id`)와 같게 둔다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 체인의 항목은 멤버가 실행 상세에서 이미 하나씩 열 수 있는 실행이다. 체인 조회는 그 목록을 한 번에 돌려줄 뿐이라 새로 드러나는 정보가 없다. RR-PL-06 이 dry-run 에도 권한을 거는 근거(다른 사용자의 실행 흐름을 자동으로 재현하면 정보가 드러난다)는 재실행에만 해당한다. 체인 조회는 흐름을 재현하지 않는다.
+
+**전제**: 응답 마스킹은 `toResponseExecution` 관문이 역할과 무관하게 적용한다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)). 이 전제가 바뀌면 체인 조회 권한도 다시 본다. 재실행 권한(RR-PL-06)은 이 결정으로 바뀌지 않는다.
