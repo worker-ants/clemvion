@@ -10,18 +10,21 @@ import {
   isFlagOn,
   isSwaggerEnabled,
   INSECURE_JWT_SECRETS,
+  INSECURE_INTEGRATION_ENCRYPTION_KEYS,
   KNOWN_EXAMPLE_ENCRYPTION_KEYS,
 } from './production-guards';
 
 const VALID_JWT = 'a-real-long-random-production-jwt-secret-0123456789';
 const VALID_ENC =
   'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+const VALID_INTEGRATION_ENC = 'a-real-random-production-integration-key-42';
 
 function prodEnv(over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
     JWT_SECRET: VALID_JWT,
     ENCRYPTION_KEY: VALID_ENC,
+    INTEGRATION_ENCRYPTION_KEY: VALID_INTEGRATION_ENC,
     ...over,
   };
 }
@@ -36,6 +39,7 @@ describe('assertProductionConfig', () => {
           LLM_STUB_MODE: 'true',
           JWT_SECRET: 'dev-jwt-secret',
           ENCRYPTION_KEY: '',
+          INTEGRATION_ENCRYPTION_KEY: '',
           MCP_ALLOW_INSECURE_URL: 'true',
         }),
       ).not.toThrow();
@@ -94,24 +98,83 @@ describe('assertProductionConfig', () => {
     it('throws when unset', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ ENCRYPTION_KEY: undefined })),
-      ).toThrow(/ENCRYPTION_KEY/);
+      ).toThrow(/\bENCRYPTION_KEY/);
     });
     it('throws when empty string', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ ENCRYPTION_KEY: '' })),
-      ).toThrow(/ENCRYPTION_KEY/);
+      ).toThrow(/\bENCRYPTION_KEY/);
     });
     it('throws for each known public example key', () => {
       for (const bad of KNOWN_EXAMPLE_ENCRYPTION_KEYS) {
         expect(() =>
           assertProductionConfig(prodEnv({ ENCRYPTION_KEY: bad })),
-        ).toThrow(/ENCRYPTION_KEY/);
+        ).toThrow(/\bENCRYPTION_KEY/);
       }
     });
     // INFO-12: 유효한 non-example 키는 통과해야 함 (JWT_SECRET 의 긍정 케이스와 대칭).
     it('passes for a valid non-example key', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ ENCRYPTION_KEY: VALID_ENC })),
+      ).not.toThrow();
+    });
+  });
+
+  // INTEGRATION_ENCRYPTION_KEY 는 통합 자격 증명 · 인증 설정 컬럼 transformer 의 키다. 키가 없으면
+  // transformer 가 평문으로 저장하므로 운영 부팅을 막는다(finding 01a0e59c-eea2-7590-953c-2899ba1c5ad4).
+  // 메시지에 `INTEGRATION_ENCRYPTION_KEY` 가 들어가 위 블록의 정규식은 단어 경계(\b)로 좁혔다.
+  describe('INTEGRATION_ENCRYPTION_KEY', () => {
+    it('throws when unset', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ INTEGRATION_ENCRYPTION_KEY: undefined }),
+        ),
+      ).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
+    });
+    it.each(['', '   '])('throws when empty or blank (%p)', (v) => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ INTEGRATION_ENCRYPTION_KEY: v })),
+      ).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
+    });
+    it('throws for each known example value', () => {
+      for (const bad of INSECURE_INTEGRATION_ENCRYPTION_KEYS) {
+        expect(() =>
+          assertProductionConfig(prodEnv({ INTEGRATION_ENCRYPTION_KEY: bad })),
+        ).toThrow(/INTEGRATION_ENCRYPTION_KEY/);
+      }
+    });
+    it('also rejects the public ENCRYPTION_KEY example keys', () => {
+      for (const bad of KNOWN_EXAMPLE_ENCRYPTION_KEYS) {
+        expect(INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(bad)).toBe(true);
+      }
+    });
+    it('does not echo the rejected value in the error message', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({
+            INTEGRATION_ENCRYPTION_KEY: 'change-me-to-a-32-byte-secret',
+          }),
+        ),
+      ).toThrow(
+        expect.objectContaining({
+          message: expect.not.stringContaining('change-me-to-a-32-byte-secret'),
+        }),
+      );
+    });
+    // 길이 하한은 두지 않는다 — transformer 가 SHA-256 으로 키를 만들어 길이를 받고, 이미 짧은 키로
+    // 암호화한 운영 행은 키를 바꾸면 복호화되지 않는다.
+    it('passes for a short but non-example key (no minimum length)', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ INTEGRATION_ENCRYPTION_KEY: 'short-key' }),
+        ),
+      ).not.toThrow();
+    });
+    it('passes for a valid non-example key', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ INTEGRATION_ENCRYPTION_KEY: VALID_INTEGRATION_ENC }),
+        ),
       ).not.toThrow();
     });
   });
@@ -274,5 +337,66 @@ describe('blacklist Set sync — .env.example & jwt.config.ts', () => {
     );
     expect(placeholder).toBeDefined();
     expect(KNOWN_EXAMPLE_ENCRYPTION_KEYS.has(placeholder!)).toBe(true);
+  });
+
+  it('INSECURE_INTEGRATION_ENCRYPTION_KEYS contains the .env.example INTEGRATION_ENCRYPTION_KEY placeholder', () => {
+    const placeholder = parseEnvExampleValue(
+      envExampleContent,
+      'INTEGRATION_ENCRYPTION_KEY',
+    );
+    expect(placeholder).toBeDefined();
+    expect(INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(placeholder!)).toBe(true);
+  });
+});
+
+// 저장소에 커밋된 예시 · 로컬 · e2e 설정의 두 키 값이 운영 가드의 예시값 집합에 다 들어 있는지 본다.
+// 누가 이 값을 그대로 운영에 복사해도 부팅이 막혀야 한다. 파일에 키 줄을 더하거나 값을 바꾸면
+// 집합도 함께 고쳐야 이 테스트가 통과한다(옛 값은 집합에서 지우지 않는다).
+describe('example key values committed in the repo are all rejected in production', () => {
+  const REPO_ROOT = path.resolve(__dirname, '../../../../..');
+  // `KEY=value` (dotenv · README) 와 `KEY: value` / `KEY: "value"` (YAML) 를 함께 받는다.
+  const keyLine = (key: string) =>
+    new RegExp(`^[ \\t]*${key}[ \\t]*[=:][ \\t]*"?([^"\\s#]+)"?`, 'gm');
+  const FILES = [
+    'codebase/backend/.env.example',
+    'k8s/base/secret.example.yaml',
+    'k8s/overlays/local/secret.yaml',
+    'docker-compose.e2e.yml',
+    'README.md',
+  ];
+
+  function valuesOf(content: string, key: string): string[] {
+    return [...content.matchAll(keyLine(key))].map((m) => m[1]);
+  }
+
+  it.each(FILES)('%s', (rel) => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+    const encValues = valuesOf(content, 'ENCRYPTION_KEY');
+    const integrationValues = valuesOf(content, 'INTEGRATION_ENCRYPTION_KEY');
+    // 파일마다 두 키가 한 줄 이상 잡혀야 한다 — 정규식이 아무것도 못 잡아 통과하는 것을 막는다.
+    expect(encValues.length).toBeGreaterThan(0);
+    expect(integrationValues.length).toBeGreaterThan(0);
+    for (const v of encValues) {
+      expect({
+        key: 'ENCRYPTION_KEY',
+        value: v,
+        rejected: KNOWN_EXAMPLE_ENCRYPTION_KEYS.has(v),
+      }).toEqual({
+        key: 'ENCRYPTION_KEY',
+        value: v,
+        rejected: true,
+      });
+    }
+    for (const v of integrationValues) {
+      expect({
+        key: 'INTEGRATION_ENCRYPTION_KEY',
+        value: v,
+        rejected: INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(v),
+      }).toEqual({
+        key: 'INTEGRATION_ENCRYPTION_KEY',
+        value: v,
+        rejected: true,
+      });
+    }
   });
 });

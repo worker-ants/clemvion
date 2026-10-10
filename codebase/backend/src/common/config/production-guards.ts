@@ -44,8 +44,26 @@ export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
   // 현 `.env.example` placeholder (all-zero). since 2026-06.
   '0000000000000000000000000000000000000000000000000000000000000000',
   // 옛 `.env.example` 예시 키 (~2026-06) — 그 값으로 운영 중인 배포도 차단.
+  // k8s/overlays/local · docker-compose.e2e.yml 도 이 값을 쓴다.
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  'REPLACE_ME_32_BYTE_HEX', // k8s/base/secret.example.yaml
+  '<32-byte-hex>', // 루트 README.md 예시
 ]);
+
+/**
+ * production 에서 거부되는 INTEGRATION_ENCRYPTION_KEY 값. 저장소에 커밋된 예시 · 로컬 · e2e 설정의
+ * 값이다. `ENCRYPTION_KEY` 예시 키도 함께 막는다(두 키 자리에 서로의 예시값을 넣는 실수).
+ * **동기화 의무**: 예시 파일의 INTEGRATION_ENCRYPTION_KEY 값을 바꾸면 *옛 값을 지우지 말고* 새 값을
+ * 더한다. 예시 파일 목록과 값 대조는 `production-guards.spec.ts` 가 한다.
+ */
+export const INSECURE_INTEGRATION_ENCRYPTION_KEYS: ReadonlySet<string> =
+  new Set([
+    ...KNOWN_EXAMPLE_ENCRYPTION_KEYS,
+    'change-me-to-a-32-byte-secret', // codebase/backend/.env.example
+    'REPLACE_ME', // k8s/base/secret.example.yaml
+    'local-integration-key', // k8s/overlays/local/secret.yaml
+    '0123456789abcdef0123456789abcdef', // docker-compose.e2e.yml
+  ]);
 
 /**
  * .env boolean 토글이 ON 인지 — 정확히 문자열 `'true'` 또는 `'1'` 만 ON 으로 본다.
@@ -131,6 +149,24 @@ export function assertProductionConfig(
     fail(
       'ENCRYPTION_KEY 가 미설정이거나 공개 예시 키입니다 — `openssl rand -hex 32` 로 ' +
         '운영용 키를 새로 생성하세요 (예시 키는 사실상 평문).',
+    );
+  }
+
+  // INTEGRATION_ENCRYPTION_KEY 는 통합 자격 증명 · 인증 설정 컬럼 transformer
+  // (`credentials-transformer.ts`)의 키다. 키가 없으면 transformer 가 경고만 남기고 평문으로
+  // 저장하므로 운영 부팅을 거부한다. 예시값도 공개된 값이라 같이 거부한다. 길이 하한은 두지
+  // 않는다 — transformer 가 SHA-256 으로 키를 만들어 길이를 받고, 이미 그 키로 암호화한 행은
+  // 키를 바꾸면 복호화되지 않는다. 메시지에는 키 값을 싣지 않는다.
+  const integrationKey = env.INTEGRATION_ENCRYPTION_KEY;
+  if (
+    !integrationKey ||
+    integrationKey.trim() === '' ||
+    INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(integrationKey)
+  ) {
+    fail(
+      'INTEGRATION_ENCRYPTION_KEY 가 미설정이거나 공개 예시 값입니다 — 이 키가 없으면 통합 ' +
+        '자격 증명과 인증 설정이 평문으로 저장됩니다. `openssl rand -hex 32` 로 운영용 키를 ' +
+        '새로 생성하세요.',
     );
   }
 

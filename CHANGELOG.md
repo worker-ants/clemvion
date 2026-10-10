@@ -23,6 +23,26 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 운영 환경은 INTEGRATION_ENCRYPTION_KEY 없이 기동하지 않는다
+
+통합 자격 증명 · 인증 설정 컬럼 다섯 곳(`integration.credentials` · `integration.last_error` ·
+`integration_oauth_state.provider_meta` · `integration_oauth_preview.credentials` · `auth_config.config`)은
+`INTEGRATION_ENCRYPTION_KEY` 로 암호화한다. 그런데 키가 없으면 transformer 가 경고만 남기고 평문으로 저장했고,
+production 부팅 가드(`assertProductionConfig`)는 `ENCRYPTION_KEY` 만 봤다. 그래서 운영에 키를 빠뜨려도 서버가 떠서
+OAuth 토큰 · API 키가 평문으로 쌓일 수 있었다(NERV 발견 `01a0e59c-eea2-7590-953c-2899ba1c5ad4`).
+
+- `NODE_ENV=production` 에서 `INTEGRATION_ENCRYPTION_KEY` 가 미설정 · 공백이거나 저장소에 커밋된 예시값
+  (`.env.example` · k8s 예시 · 로컬 overlay · e2e compose · README)이면 기동을 거부한다. 길이 하한은 두지 않는다.
+- `ENCRYPTION_KEY` 가드도 k8s 예시(`REPLACE_ME_32_BYTE_HEX`)와 README 예시(`<32-byte-hex>`) 값을 함께 거부한다.
+- 두 키는 그대로 둔다. 합치지 않고 기존 암호문을 다시 암호화하지 않는다. 비운영에서 키를 비우면 지금처럼 경고 뒤
+  평문으로 저장한다.
+- 단위 테스트가 저장소 예시 파일의 두 키 값이 모두 거부 목록에 있는지 대조한다. 예시값을 바꾸면 목록도 함께 고쳐야
+  한다.
+
+**배포 전 확인**: 운영 env 에 `INTEGRATION_ENCRYPTION_KEY` 가 실제 값으로 들어 있는지 본다. 지금까지 키 없이 돌던
+배포라면 위 다섯 컬럼에 평문 행이 남아 있을 수 있다. 이 변경은 그 행을 다시 암호화하지 않는다. 예시값으로 돌던
+배포가 키를 바꾸면 그 키로 암호화한 행은 `needs_reauth` 가 되어 다시 연결해야 한다.
+
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 
 초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route

@@ -32,7 +32,8 @@ npm run start:dev
 - `S3_*` - MinIO/S3 스토리지 설정
 - `MAIL_*` - 이메일 발송 설정 (SMTP)
 - `APP_*` - 앱 포트, URL 설정
-- `ENCRYPTION_KEY` - 크레덴셜 암호화 키
+- `ENCRYPTION_KEY` - 시크릿 저장소 · LLM 프로바이더 키 암호화 키
+- `INTEGRATION_ENCRYPTION_KEY` - 통합 자격 증명 · 인증 설정(AuthConfig) 암호화 키. 비운영에서 비워 두면 평문으로 저장하고 경고를 남긴다
 
 ## 배포 주의 — 기동을 멈추는 검사
 
@@ -43,7 +44,8 @@ npm run start:dev
 `NODE_ENV=production` 에서 다음 중 하나라도 해당하면 부팅을 즉시 거부합니다. 운영용 무작위 secret 을 반드시 설정하세요 (`openssl rand -hex 32` 등). 비-production 에서는 no-op 입니다.
 
 - `JWT_SECRET` 가 미설정·예시/기본값이거나 32자 미만 (CWE-521)
-- `ENCRYPTION_KEY` 가 미설정이거나 공개 `.env.example` 예시 키
+- `ENCRYPTION_KEY` 가 미설정이거나 공개 예시 키(`.env.example` · k8s 예시 · README)
+- `INTEGRATION_ENCRYPTION_KEY` 가 미설정 · 공백이거나 공개 예시 값(`.env.example` · k8s 예시 · e2e compose · README). 이 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장된다
 - `OAUTH_STUB_MODE=true` 또는 `LLM_STUB_MODE=true` (비보안 stub)
 - `MCP_ALLOW_INSECURE_URL=true` (SSRF 방어 우회)
 

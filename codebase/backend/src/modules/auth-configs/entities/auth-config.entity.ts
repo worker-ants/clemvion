@@ -30,8 +30,9 @@ export class AuthConfig {
 
   // AES-256-GCM 으로 암호화된 JSONB. Webhook Bearer Token / API Key 같은 민감
   // 인증 자격증명을 평문 저장하지 않는다 (Integration.credentials 와 동일 패턴).
-  // 키 부재 시 transformer 가 평문 fallback + warn — production 에서는 반드시
-  // INTEGRATION_ENCRYPTION_KEY 설정 필요.
+  // 키(INTEGRATION_ENCRYPTION_KEY)가 없으면 transformer 가 경고를 남기고 평문으로 저장한다.
+  // 이 동작은 비운영에서만 생긴다. production 은 키가 없거나 예시값이면 부팅하지 않는다
+  // (common/config/production-guards.ts).
   @Column({
     type: 'jsonb',
     default: {},
