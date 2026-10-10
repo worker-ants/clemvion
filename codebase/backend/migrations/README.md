@@ -71,7 +71,7 @@ ALTER TABLE document
   VALIDATE CONSTRAINT chk_doc_graph_extraction_status;
 ```
 
-> **트랜잭션 경계** — Flyway 는 파일 하나를 트랜잭션 하나로 실행합니다. 1) 의 `ADD ... NOT VALID` 가 잡은 `ACCESS EXCLUSIVE` 는 커밋까지 남으므로, 같은 파일(같은 트랜잭션)에서 2) 를 돌리면 전체 스캔 내내 테이블이 막혀 `NOT VALID` 로 나눈 이점이 없습니다. 그래서 2) 는 다음 번호 파일로 나눕니다(V141~V146 → V147, V148 → V149). 같은 이름의 `V<번호>__<이름>.conf` 에 `executeInTransaction=false` 를 두는 방법은 쓰지 않았습니다. V148 을 쓸 때 `flyway/flyway:10-alpine` 으로 중간에 실패하는 파일을 돌려 보니 `V<번호>__<이름>.conf` 는 적용되지 않아 앞 문장이 롤백됐고, `V<번호>__<이름>.sql.conf` 일 때만 커밋됐습니다(2026-10-10).
+> **트랜잭션 경계** — Flyway 는 파일 하나를 트랜잭션 하나로 실행합니다. 1) 의 `ADD ... NOT VALID` 가 잡은 `ACCESS EXCLUSIVE` 는 커밋까지 남으므로, 같은 파일(같은 트랜잭션)에서 2) 를 돌리면 전체 스캔 내내 테이블이 막혀 `NOT VALID` 로 나눈 이점이 없습니다. 그래서 2) 는 다음 번호 파일로 나눕니다(V141~V146 → V147, V148 → V149). 같은 이름의 `V<번호>__<이름>.conf` 에 `executeInTransaction=false` 를 두는 방법은 쓰지 않았습니다. V148 을 쓸 때 `flyway/flyway:10-alpine` 으로 중간에 실패하는 파일을 한 번 돌려 보니 `V<번호>__<이름>.conf` 는 적용되지 않아 앞 문장이 롤백됐고, `V<번호>__<이름>.sql.conf` 일 때만 커밋됐습니다(2026-10-10, 재현 전 관찰). 이 관찰이 맞으면 아래 `UNIQUE` 문단과 §4 의 `.conf` 안내도 적용되지 않습니다. 재현과 기존 `.conf` · 가드 · CLE-ENG-MIGRATION 정리는 CLE-T-NYFE78 에서 합니다. 그때까지 이 문서의 `.conf` 안내는 그대로 둡니다.
 
 `UNIQUE` 제약은 `CREATE UNIQUE INDEX CONCURRENTLY` 후 `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE USING INDEX` 패턴을 사용합니다. 마이그레이션 파일에 `CREATE INDEX CONCURRENTLY` 가 들어가면 Flyway 가 트랜잭션 모드에서 실행하지 못하므로 동봉된 `.conf` 파일에 `executeInTransaction=false` 를 설정하세요 (V022 / V023 / V026 참고).
 
@@ -107,6 +107,8 @@ CREATE INDEX idx_foo_bar ON foo(bar);
 운영 환경에 extension 이 미리 설치되어 있어야 마이그레이션이 통과합니다. K8s / Docker 이미지에 `postgres-15-pgvector` 같이 extension 포함 이미지를 사용하거나, DBA 가 `CREATE EXTENSION` 을 사전 실행하세요.
 
 ### 4. 비-트랜잭션 모드 (`.conf`)
+
+> 이 절의 `.conf` 이름이 Flyway 에 실제로 적용되는지는 CLE-T-NYFE78 에서 확인합니다(§1 「트랜잭션 경계」 노트).
 
 `CREATE INDEX CONCURRENTLY` / `REINDEX CONCURRENTLY` 등 트랜잭션 안에서 실행할 수 없는 명령은 동일 이름의 `.conf` 파일을 같이 추가합니다.
 
