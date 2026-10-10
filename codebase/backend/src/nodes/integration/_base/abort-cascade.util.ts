@@ -14,9 +14,15 @@ const noop = (): void => {};
 
 /**
  * Aborts `controller` when `upstream` aborts and returns the function that
- * removes the listener. Call it in a `finally` once the request (body read
- * included) has settled. An upstream that is already aborted aborts the
- * controller immediately and adds no listener.
+ * removes the listener. Call it in a `finally`. An upstream that is already
+ * aborted aborts the controller immediately and adds no listener.
+ *
+ * The caller decides when the listener comes off, and that is also how far a
+ * cancellation reaches. HTTP Request reads the response body inside its `try`
+ * and unlinks afterwards, so a cancellation during the body read still aborts
+ * the read. The Cafe24 and MakeShop clients unlink as soon as `fetchImpl`
+ * returns the headers and read the body afterwards (`safeReadJson`, which
+ * swallows every error), so a cancellation during their body read is not seen.
  */
 export function linkUpstreamAbort(
   controller: AbortController,
@@ -33,27 +39,35 @@ export function linkUpstreamAbort(
 }
 
 /**
+ * True when `err` looks like an `AbortError`. Matches on `name` instead of
+ * `instanceof Error`: a real `fetch` rejects with a DOMException that may come
+ * from another realm (jest's VM sandbox), and `instanceof Error` would miss it.
+ * This is the single check the integration nodes use for an abort. The engine's
+ * `isAbortError` (`execution-engine.service.ts`) decides the same way, and a
+ * change to either has to be mirrored in the other.
+ */
+export function isAbortErrorLike(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+/**
  * True when `err` is an AbortError caused by the execution being cancelled.
  * The caller rethrows it so the engine records the node as `cancelled`
  * (CLE-EXEC-CANCEL rule 19). An AbortError while `upstream` is still open came
  * from the request's own timeout and keeps the caller's transport-failure
  * mapping.
  *
- * Matches on `name` instead of `instanceof Error`: a real `fetch` rejects with
- * a DOMException that may come from another realm (the engine's
- * `isAbortError` checks the same way). Unlike the engine's `isAbortError`,
- * which looks at the error alone, this also requires `upstream` to be aborted.
- * Using `isAbortError` here would classify the request's own timeout as a
- * cancellation.
+ * Unlike the engine's `isAbortError`, which looks at the error alone, this also
+ * requires `upstream` to be aborted. Using `isAbortError` here would classify
+ * the request's own timeout as a cancellation.
  */
 export function isUpstreamAbort(
   err: unknown,
   upstream: AbortSignal | undefined,
 ): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { name?: unknown }).name === 'AbortError' &&
-    upstream?.aborted === true
-  );
+  return isAbortErrorLike(err) && upstream?.aborted === true;
 }

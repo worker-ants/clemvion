@@ -41,8 +41,11 @@ HTTP Request 노드는 실행 취소 신호에 단 리스너를 요청의 contro
 abort 하지 않으므로 리스너가 떼어지지 않았다. 반복 안에서 HTTP 노드를 돌리면 요청 수만큼 리스너가 쌓였다.
 
 - 요청이 끝나면(성공 · 실패 · 취소) 응답 본문까지 읽은 뒤 리스너를 뗀다.
-- 취소 신호를 요청에 잇는 코드는 HTTP Request · Cafe24 · MakeShop 이 함께 쓰는 헬퍼 하나로 모았다
-  (`nodes/integration/_base/abort-cascade.util.ts`). Cafe24 · MakeShop 의 동작은 그대로다.
+- 취소 신호를 요청에 잇는 코드와 취소 오류 판정은 HTTP Request · Cafe24 · MakeShop 이 함께 쓰는 헬퍼 하나로 모았다
+  (`nodes/integration/_base/abort-cascade.util.ts`). Cafe24 · MakeShop 은 이 요청의 리스너 누수가 원래 없었고 그 동작은
+  그대로다. 달라지는 것은 취소 오류를 알아보는 방법 하나다. 전에는 `Error` 인스턴스이면서 이름이 `AbortError` 일 때만 취소로
+  봤고 지금은 이름만 본다. 다른 realm 에서 온 `DOMException` 을 놓치지 않으려는 것이다. 운영 Node 의 `fetch` 는
+  `Error` 를 상속한 `DOMException` 을 던지므로 운영 동작은 같고, jest VM 같은 환경에서만 결과가 다르다.
 
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 

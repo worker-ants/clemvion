@@ -12,6 +12,7 @@ import {
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
+import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
   MakeshopApiClient,
   MakeshopAuthFailedError,
@@ -253,7 +254,7 @@ export class MakeshopHandler
         // Only a real AbortError — not `abortSignal.aborted` — so unrelated
         // failures keep their D4 mapping. Same shape as
         // `database-query.handler.ts`.
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (isAbortErrorLike(err)) {
           throw err;
         }
         const durationMs = Date.now() - started;
@@ -349,7 +350,7 @@ export class MakeshopHandler
       // Only a real AbortError — not `abortSignal.aborted` — so unrelated
       // failures keep their D4 mapping. Same shape as
       // `database-query.handler.ts`.
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (isAbortErrorLike(err)) {
         throw err;
       }
       // D4 — pre-flight throws (MAKESHOP_UNKNOWN_OPERATION / MAKESHOP_MISSING_FIELDS

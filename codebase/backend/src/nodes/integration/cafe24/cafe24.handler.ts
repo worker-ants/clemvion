@@ -12,6 +12,7 @@ import {
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
+import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
@@ -266,7 +267,7 @@ export class Cafe24Handler
         // Only a real AbortError — not `abortSignal.aborted` — so unrelated
         // failures keep their D4 mapping. Same shape as
         // `database-query.handler.ts`.
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (isAbortErrorLike(err)) {
           throw err;
         }
         const durationMs = Date.now() - started;
@@ -362,7 +363,7 @@ export class Cafe24Handler
       // Only a real AbortError — not `abortSignal.aborted` — so unrelated
       // failures keep their D4 mapping. Same shape as
       // `database-query.handler.ts`.
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (isAbortErrorLike(err)) {
         throw err;
       }
       // D4 — pre-flight throws (CAFE24_UNKNOWN_OPERATION / CAFE24_MISSING_FIELDS

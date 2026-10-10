@@ -1229,6 +1229,11 @@ export class Cafe24ApiClient {
     // never fires and every completed call would leave a listener on the
     // execution-wide signal — and `executeWithRateLimit` recurses on 429/401, so
     // retries multiply them.
+    //
+    // The listener comes off as soon as `fetchImpl` returns the headers, and the
+    // body is read after that (`safeReadJson` swallows every error), so a
+    // cancellation DURING the body read is not seen here. HTTP Request reads the
+    // body before it unlinks and does see it.
     const upstream = opts.signal;
     const unlinkUpstream = linkUpstreamAbort(controller, upstream);
 
