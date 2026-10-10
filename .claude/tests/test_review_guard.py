@@ -430,6 +430,87 @@ class DecisionTableTest(_RepoCase):
         d = self.evaluate(FakeClient(code_item("passed", self.c1)))
         self.assertFalse(d.blocked, d.reason)
 
+    @staticmethod
+    def _lines(edits):
+        """30줄 원본에 `{줄 번호: 내용}` 을 덮어쓴 본문. 내용에 줄바꿈을 넣으면 그 자리에 줄이 늘어난다."""
+        return "".join(f"{edits.get(n, f'line {n}')}\n" for n in range(1, 31))
+
+    def _merge_main_editing_one_file(self, ours, theirs, resolved=None, rel="codebase/shared/s.ts"):
+        """feature 와 main 이 같은 파일을 고친 뒤 feature 로 main 을 merge 한다.
+
+        파일은 main 에 먼저 생기고 merge 로 feature 에 들어온다. feature 쪽 변경 커밋(`ours`)이 라운드 head 다.
+        `resolved` 가 없으면 git 이 합친 그대로 커밋하고, 있으면 그 본문으로 merge 커밋을 만든다(충돌을 손으로
+        풀거나 git 이 합친 파일에 줄을 끼운다). (라운드 head, merge 커밋, 충돌 여부)를 돌려준다."""
+        self.git("checkout", "-q", "main")
+        self.commit(rel, self._lines({}))
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-edit", "main")
+        round_head = self.commit(rel, self._lines(ours))
+        self.git("checkout", "-q", "main")
+        self.commit(rel, self._lines(theirs))
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        conflicted = _harness.git_in(self.repo, "merge", "-q", "--no-commit", "main", check=False).returncode != 0
+        self.assertFalse(conflicted and resolved is None, "충돌이 났는데 풀 본문을 주지 않았다")
+        if resolved is not None:
+            (self.repo / rel).write_text(self._lines(resolved), encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "merge main")
+        return round_head, self.git("rev-parse", "HEAD"), conflicted
+
+    def _counted_by_name_only(self, merge):
+        """옛 규칙(`--cc --name-only`)이 세던 파일. 새 테스트가 옛 규칙에서 막히던 모양인지 확인한다."""
+        return self.git("diff-tree", "--cc", "--no-commit-id", "--name-only", "-r", merge, "--", "codebase/")
+
+    def test_a_clean_merge_of_other_lines_in_the_same_file_does_not_count(self):
+        """양쪽이 같은 파일의 다른 줄을 고쳐 git 이 합친 merge 에는 이 merge 가 들인 코드가 없다.
+
+        `--cc --name-only` 는 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서 옛 규칙은 이 merge 를
+        손으로 푼 merge 로 셌다(PR #1520 의 merge 2de17c2f1, NERV Task `CLE-T-QT69YT`). 두 번째 경우는 고친 줄이
+        2줄 떨어져 있다. 기본 context(3줄)에서는 두 변경이 한 hunk 로 묶이고, 그 hunk 는 두 부모와 각각 다른
+        줄을 담아 `--cc` 도 머리 줄을 낸다. context 0 으로 봐야 세지 않는다."""
+        for i, (ours, theirs) in enumerate([({5: "F5"}, {25: "M25"}), ({10: "F10"}, {12: "M12"})]):
+            with self.subTest(ours=ours, theirs=theirs):
+                rel = f"codebase/shared/clean{i}.ts"
+                round_head, merge, conflicted = self._merge_main_editing_one_file(ours, theirs, rel=rel)
+                self.assertFalse(conflicted)
+                self.assertEqual(self._counted_by_name_only(merge), rel)
+                d = self.evaluate(FakeClient(code_item("passed", round_head)))
+                self.assertFalse(d.blocked, d.reason)
+
+    def test_a_conflict_resolved_with_lines_of_its_own_blocks(self):
+        """충돌을 손으로 풀며 어느 부모에도 없는 줄을 쓰거나 양쪽 줄을 이어 붙이면 그 merge 가 들인 코드다."""
+        for i, resolved in enumerate([{10: "RESOLVED"}, {10: "F10\nM10"}]):
+            with self.subTest(resolved=resolved):
+                round_head, merge, conflicted = self._merge_main_editing_one_file(
+                    {10: "F10"}, {10: "M10"}, resolved, rel=f"codebase/shared/conflict{i}.ts")
+                self.assertTrue(conflicted)
+                d = self.evaluate(FakeClient(code_item("passed", round_head)))
+                self.assertTrue(d.blocked)
+                self.assertIn(merge[:12], d.reason)
+
+    def test_code_slipped_into_an_auto_merged_file_blocks(self):
+        """git 이 합친 파일에 merge 커밋에서 줄을 끼워도 센다. 파일이 아니라 hunk 를 보고 거른다."""
+        round_head, merge, conflicted = self._merge_main_editing_one_file(
+            {5: "F5"}, {20: "M20"}, {5: "F5", 20: "M20", 25: "EVIL"})
+        self.assertFalse(conflicted)
+        d = self.evaluate(FakeClient(code_item("passed", round_head)))
+        self.assertTrue(d.blocked)
+        self.assertIn(merge[:12], d.reason)
+
+    def test_a_conflict_resolved_by_keeping_one_side_does_not_count(self):
+        """충돌 hunk 를 한쪽 그대로 두고 푼 merge 는 hunk 마다 한쪽 부모와 같다. 이 merge 가 들인 코드가 없다.
+
+        다른 줄에서 상대 쪽 변경과 합쳐져 파일은 두 부모와 모두 다르므로 옛 규칙은 이 merge 를 셌다. 남은 코드는
+        라운드가 본 이 브랜치 쪽이거나 기준 브랜치 쪽이다."""
+        round_head, merge, conflicted = self._merge_main_editing_one_file(
+            {2: "F2", 10: "F10"}, {10: "M10", 28: "M28"}, {2: "F2", 10: "F10", 28: "M28"})
+        self.assertTrue(conflicted)
+        self.assertEqual(self._counted_by_name_only(merge), "codebase/shared/s.ts")
+        d = self.evaluate(FakeClient(code_item("passed", round_head)))
+        self.assertFalse(d.blocked, d.reason)
+
     def test_a_follow_up_commit_citing_a_fixed_finding_passes(self):
         """e2e 실패 뒤 후속 수정 — 처분은 commit_sha 하나만 받으므로 메시지 인용으로 묶는다."""
         c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")

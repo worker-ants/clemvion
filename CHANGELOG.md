@@ -23,6 +23,21 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 리뷰 게이트가 양쪽이 같은 파일의 다른 줄을 고친 깨끗한 merge 를 세지 않는다
+
+push 훅과 CI `review-gate` 는 라운드 뒤 merge 커밋에 손으로 푼 `codebase/**` 변경이 있으면 그 merge 를 라운드 뒤
+변경으로 센다. 판정에 쓴 `git diff-tree --cc --name-only` 는 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서
+브랜치와 `main` 이 같은 파일의 서로 다른 줄을 고쳐 git 이 자동으로 합친 merge 도 손으로 푼 merge 로 세졌고 push 와
+CI 가 막혔다. PR #1520 이 `main` 을 merge 하다 드러났다(NERV Task `CLE-T-QT69YT`).
+
+- merge 커밋은 combined diff(`git diff-tree --cc -U0`)에 `codebase/**` hunk 가 남을 때만 센다. 충돌을 풀며 쓴 줄,
+  양쪽 줄을 이어 붙인 해소, merge 에 끼워 넣은 줄이나 파일은 지금처럼 센다.
+- context 는 0 이다. 기본 3줄이면 몇 줄 떨어진 양쪽 변경이 한 hunk 로 묶여 깨끗한 merge 가 계속 세진다.
+- 충돌 hunk 를 한쪽 그대로 두고 푼 merge 는 이제 세지 않는다. hunk 마다 한쪽 부모와 같아서 그 merge 가 들인 코드가
+  없다. 옛 판정은 같은 파일의 다른 줄에 상대 쪽 변경이 섞였을 때만 이 merge 를 셌다.
+- 로컬 체크아웃의 모든 ref 에 있는 merge 커밋 226개를 두 판정으로 대조했다(2026-10-10). 옛 판정이 센 4개는 모두
+  combined diff 에 hunk 가 없었다.
+
 ## Unreleased — HTTP Request 노드가 취소된 요청을 cancelled 로 기록한다
 
 Parallel 의 `cancel-others-on-fail` 이 실행 중인 분기를 멈추면 HTTP Request 노드는 진행 중인 요청을 끊었지만
