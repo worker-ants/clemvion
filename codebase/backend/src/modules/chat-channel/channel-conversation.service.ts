@@ -5,17 +5,6 @@ import { RedisConnectionProvider } from '../../common/redis/redis-connection.pro
 import { ChannelConversationState } from './types';
 
 /**
- * Chat Channel ConversationState 의 Redis CRUD.
- *
- * Spec §4.3 (15-chat-channel.md):
- *   key:   chat-channel:{triggerId}:{conversationKey}
- *   value: ChannelConversationState (JSON)
- *   TTL:   7일 (사용자 이탈 시 자동 만료)
- *
- * Redis 미가용 시 graceful degradation — lookup 은 null, upsert 는 noop (워크플로우 실행 자체
- * 차단 회피). 본 케이스에서는 매 update 가 새 execution 으로 처리됨 (fallback).
- */
-/**
  * 저장된 값이 읽은 값과 같을 때만 새 값으로 바꾼다(compare-and-set). JSON 을 Lua 에서 다시 만들지
  * 않고 문자열 그대로 비교한다. cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을
  * 망가뜨린다.
@@ -26,6 +15,17 @@ const COMPARE_AND_SET_SCRIPT =
 /** compare-and-set 이 다른 쓰기에 밀렸을 때 다시 읽는 횟수 상한. */
 const COMPARE_AND_SET_MAX_ATTEMPTS = 3;
 
+/**
+ * Chat Channel ConversationState 의 Redis CRUD.
+ *
+ * Spec §4.3 (15-chat-channel.md):
+ *   key:   chat-channel:{triggerId}:{conversationKey}
+ *   value: ChannelConversationState (JSON)
+ *   TTL:   7일 (사용자 이탈 시 자동 만료)
+ *
+ * Redis 미가용 시 graceful degradation — lookup 은 null, upsert 는 noop (워크플로우 실행 자체
+ * 차단 회피). 본 케이스에서는 매 update 가 새 execution 으로 처리됨 (fallback).
+ */
 @Injectable()
 export class ChannelConversationService {
   private readonly logger = new Logger(ChannelConversationService.name);

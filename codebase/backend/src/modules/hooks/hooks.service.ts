@@ -1271,10 +1271,6 @@ export class HooksService {
 }
 
 /**
- * Slack Events API url_verification envelope 여부 — controller 가 challenge 응답을 200 OK 로
- * 반환하기 위한 분기. Spec [providers/slack §3.1].
- */
-/**
  * `ExecutionsService.stop` 이 취소할 실행이 없어서 거부했는지 본다. 이미 종결 상태면 400
  * `INVALID_STATE`, 실행 행이 없으면 404 다.
  */
@@ -1289,6 +1285,10 @@ function isAlreadyStoppedError(err: unknown): boolean {
   );
 }
 
+/**
+ * Slack Events API url_verification envelope 여부 — controller 가 challenge 응답을 200 OK 로
+ * 반환하기 위한 분기. Spec [providers/slack §3.1].
+ */
 function isSlackUrlVerification(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 'url_verification';
