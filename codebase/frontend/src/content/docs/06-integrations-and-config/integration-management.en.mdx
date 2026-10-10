@@ -50,13 +50,21 @@ Click `[+ Add Integration]` in the top-right of [Integrations](/integrations). P
 The detail page tabs cover almost every operational task.
 
 <FieldTable rows={[
-  { name: "Overview", type: "Tab", required: "Always", description: "`Test connection`, rename alias, and re-auth from Quick actions." },
-  { name: "Security", type: "Tab", required: "Always", description: "Non-OAuth integrations: `Rotate credentials` form. The new values replace the old only after the connection test passes." },
+  { name: "Overview", type: "Tab", required: "Always", description: "Run `Test connection` and rename the alias." },
+  { name: "Security", type: "Tab", required: "Always", description: "OAuth integrations: the `Reauthorize` button refreshes the token. Non-OAuth integrations: the `Rotate credentials` form, where the new values replace the old only after the connection test passes." },
   { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red." },
   { name: "Usage", type: "Tab", required: "Always", description: "Lists workflows and nodes referencing this integration. `Open in editor` jumps you straight there." },
   { name: "Activity", type: "Tab", required: "Always", description: "Shows the last 7 days of call history with API, status, duration, and error columns. The `API` column shows which endpoint was called. Cafe24 integrations display a human-friendly operation label; other services show the HTTP method and path as-is. If neither is available, it shows `—`. When the integration isn't connected (`error` · `expired` · `pending_install`), new calls aren't recorded, so a warning banner appears above the list with a `View status` button to check and reconnect on the Overview tab." },
   { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. Deleting an Organization integration requires Admin or above; deleting your own Personal integration requires being its creator with the Editor role or above (Viewers can't delete even their own). Switching scope always requires Admin or above. When it's still in use, deletion is blocked and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
 ]} />
+
+<Callout type="note">
+How reauthorizing and adding scopes (Request scopes) work depends on the provider.
+
+- **Google, GitHub, and Cafe24 Public apps**: a popup opens and you authenticate again on the provider's consent screen.
+- **Cafe24 Private apps**: no popup opens. After you submit the request, a notice appears below the detail page header and you finish by clicking **Test Run** in Cafe24 Developers. See the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24) for the steps. If the integration expired because the install timed out, or it has no App URL, delete it and register it again.
+- **MakeShop**: reauthorizing and adding scopes are not supported. Both buttons are disabled, so delete the integration and register it again. See the [MakeShop integration guide](/docs/06-integrations-and-config/makeshop).
+</Callout>
 
 <Callout type="note">
 What a connection test checks depends on the service.

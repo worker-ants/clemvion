@@ -65,7 +65,7 @@ Connect 를 누르면 통합이 **연결 대기(pending)** 상태로 생성되�
 2. **Resource** — 상점설정 / 상품 / 주문 / 회원 / 혜택 / 게시판 / CPIK 중 선택
 3. **Operation** — 선택한 리소스의 작업 드롭다운에서 선택. 사람 친화 라벨로 표시돼요
 4. **필드** — 선택한 작업의 필수/선택 필드가 자동으로 펼쳐져요. 모든 값은 `{{ $input.x }}` 같은 표현식을 지원해요
-5. (작업이 페이지네이션을 지원하면) **Limit / Offset** 입력이 추가로 나와요
+5. (작업이 페이지네이션을 지원하면) **Limit / Offset** 입력이 추가로 나와요. MakeShop 은 페이지 번호로 조회하므로 Offset 은 Limit 의 배수로 입력해요. 실행할 때 page = Offset / Limit + 1 로 바뀌어 전달돼요. 예를 들어 Limit 50, Offset 100 이면 3페이지예요. 배수가 아니면 호출하기 전에 error 포트로 `MAKESHOP_INVALID_PAGINATION` 이 나와요
 
 MakeShop 은 Cafe24 와 달리 **별도 승인이 필요한 권한 표시(⚠)가 없어요** — 모든 작업이 동일하게 노출돼요.
 
@@ -88,14 +88,37 @@ MakeShop 은 `refresh_token` 을 지원하는 **자동 갱신 가능(refresh-cap
 | 상황 | 동작 |
 |---|---|
 | `refresh_token` 보유 + `access_token` 만료 | 시스템이 자동으로 `access_token` 을 갱신해요. **만료 알림이 발송되지 않아요.** |
-| 자동 갱신 실패 (refresh_token 무효 등) | 통합 상태가 `error` 로 전환되고 `integration_action_required` 알림이 발송돼요. [통합 관리](/integrations) 에서 재인증하거나 앱을 재설치해야 해요. |
+| 자동 갱신 실패 (refresh_token 무효 등) | 통합 상태가 `error` 로 전환되고 `integration_action_required` 알림이 발송돼요. MakeShop 통합은 재인증할 수 없으므로 [통합 관리](/integrations) 에서 통합을 삭제한 뒤 다시 등록해야 해요. |
 | `refresh_token` 없이 `access_token` 만료 | 통합 상태가 `expired` 로 전환되고 `integration_expired` 알림이 발송돼요. |
 
-<Callout type="note">refresh_token 을 보유한 MakeShop 통합은 access_token 이 만료되어도 사이드바 배지나 알림이 뜨지 않아요. 시스템이 백그라운드에서 자동 갱신하고 있는 거예요. 자동 갱신에 실패한 경우에만 알림과 함께 재인증이 필요하다는 안내가 표시돼요.</Callout>
+<Callout type="note">refresh_token 을 보유한 MakeShop 통합은 access_token 이 만료되어도 사이드바 배지나 알림이 뜨지 않아요. 시스템이 백그라운드에서 자동 갱신하고 있는 거예요. 자동 갱신에 실패한 경우에만 알림이 와요. 이때는 통합을 삭제한 뒤 다시 등록해야 해요.</Callout>
+
+### 재인증과 권한 추가는 지원하지 않아요
+
+MakeShop 통합은 재인증과 권한 추가(권한 요청)를 모두 지원하지 않아요. 통합 상세 화면에서 **보안** 탭의 **재인증** 버튼과 **권한** 탭의 **권한 요청** 버튼이 비활성으로 표시되고 이유가 함께 안내돼요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx"
+  symbol="reauthorizeDisabledReason"
+  describes="통합 상세 보안 탭의 재인증 버튼과 MakeShop 비활성 사유 안내"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/scope-tab.tsx"
+  symbol="isRequestScopesDisabled"
+  describes="통합 상세 권한 탭의 권한 요청 버튼과 MakeShop 비활성 사유 안내"
+/>
+
+복구하는 방법은 하나예요. 통합을 삭제한 뒤 다시 등록해요. 권한이 더 필요하면 필요한 권한을 모두 체크해서 등록해요. 다시 등록하면 새 App URL 을 파트너센터에 넣고 ShopStore 에서 앱을 설치하는 처음 흐름을 그대로 밟아요.
+
+<Callout type="warn">ShopStore 에서 앱을 다시 설치해도 이미 연결된 통합(연결됨 · 오류 · 만료 상태)은 복구되지 않아요. 설치 링크는 그 통합의 상세 화면으로만 이동해요. 설치가 아직 끝나지 않은 연결 대기(`pending_install`) 통합은 ShopStore 에서 앱을 설치하면 그대로 진행돼요.</Callout>
 
 ## 자주 묻는 질문
 
 - **shop_uid 를 어디서 입력하나요?** — 입력하지 않아요. 앱을 설치할 때 자동으로 전달돼요.
 - **연결이 안 돼요** — App URL / Redirect URI 가 파트너센터에 정확히 등록됐는지, 끝의 설치 토큰까지 빠짐없이 복사됐는지 확인하세요. URL 이 한 글자라도 다르면 HMAC 검증이 실패해 호출이 거부돼요.
-- **재인증은 어떻게 하나요?** — MakeShop 통합은 이 화면에서 재인증할 수 없어요. ShopStore 에서 앱을 다시 설치하면 OAuth 흐름이 다시 시작돼요.
-- **만료 알림이 안 왔는데 왜 연결이 끊겼나요?** — 자동 갱신이 성공하는 동안에는 알림이 오지 않아요. 자동 갱신 실패 시에는 `integration_action_required` 알림이 발송돼요. 재인증 방법은 위 항목을 참고해요.
+- **재인증은 어떻게 하나요?** — MakeShop 통합은 재인증할 수 없어요. 통합을 삭제한 뒤 다시 등록해요. ShopStore 에서 앱을 다시 설치해도 이미 연결된 통합은 복구되지 않아요.
+- **권한을 더 추가하고 싶어요** — MakeShop 통합은 권한을 추가할 수 없어요. 필요한 권한을 모두 체크해서 통합을 삭제한 뒤 다시 등록해요.
+- **만료 알림이 안 왔는데 왜 연결이 끊겼나요?** — 자동 갱신이 성공하는 동안에는 알림이 오지 않아요. 자동 갱신 실패 시에는 `integration_action_required` 알림이 발송돼요. 복구 방법은 위 항목을 참고해요.

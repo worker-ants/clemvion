@@ -61,13 +61,21 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 상세 페이지의 탭에서 거의 모든 운영 작업을 할 수 있어요.
 
 <FieldTable rows={[
-  { name: "Overview", type: "탭", required: "항상", description: "Quick actions에서 `Test connection` · 별칭 편집 · 재인증을 바로 실행해요." },
-  { name: "Security", type: "탭", required: "항상", description: "비OAuth 연동은 `Rotate credentials` 폼에서 새 값으로 교체해요. 연결 테스트에 성공해야 실제 저장이 커밋돼요." },
+  { name: "Overview", type: "탭", required: "항상", description: "`Test connection` 과 별칭 편집을 바로 실행해요." },
+  { name: "Security", type: "탭", required: "항상", description: "OAuth 연동은 `재인증` 버튼으로 토큰을 갱신해요. 비OAuth 연동은 `Rotate credentials` 폼에서 새 값으로 교체해요. 연결 테스트에 성공해야 실제 저장이 커밋돼요." },
   { name: "Scope & Permissions", type: "탭", required: "OAuth", description: "현재 scope를 확인하고 추가 scope를 요청해요. `insufficient_scope` 에러일 때 누락 항목이 빨간 배지로 표시돼요." },
   { name: "Usage", type: "탭", required: "항상", description: "연동을 참조하는 워크플로우·노드 목록이 나와요. `Open in editor` 링크로 바로 이동해요." },
   { name: "Activity", type: "탭", required: "항상", description: "최근 7일간 호출 기록을 API · 상태 · 소요 · 오류 열로 확인해요. `API` 열에는 어떤 endpoint 가 호출됐는지 표시돼요. Cafe24 통합은 operation 라벨을, 그 외 서비스는 HTTP 메서드와 경로를 그대로 보여줘요. 두 값이 모두 없으면 `—` 로 표시해요. 연동이 연결 안 됨(`error` · `expired` · `pending_install`) 상태면 새 호출이 기록되지 않아 목록 위에 경고 배너가 뜨고, `상태 확인` 버튼으로 Overview 탭에서 상태 확인·재연결할 수 있어요." },
   { name: "Danger zone", type: "탭", required: "Admin · 본인", description: "삭제와 Personal ↔ Organization 범위 전환을 해요. Organization 통합의 삭제는 Admin 이상만, 자신이 만든 Personal 통합의 삭제는 Editor 이상인 만든 사람이 할 수 있고(Viewer 는 자기 것도 삭제할 수 없어요), 범위 전환은 언제나 Admin 이상만 할 수 있어요. 사용처가 있으면 삭제가 차단되고, 삭제 차단 다이얼로그가 열려 사용 중인 워크플로우·노드 목록과 각 워크플로우로 가는 바로가기 링크를 보여줘요. AI Agent의 MCP 서버로 참조되는 노드는 `MCP` 배지로 표시돼요." }
 ]} />
+
+<Callout type="note">
+재인증과 권한 추가(권한 요청)가 동작하는 방식은 제공자마다 달라요.
+
+- **Google · GitHub · Cafe24 Public 앱**: 팝업이 열리고 제공자의 동의 화면에서 다시 인증해요.
+- **Cafe24 Private 앱**: 팝업이 열리지 않아요. 요청을 남기면 상세 화면 머리글 아래에 안내가 뜨고 Cafe24 Developers 에서 **테스트 실행** 을 눌러야 끝나요. 순서는 [Cafe24 통합](/docs/06-integrations-and-config/cafe24) 에서 확인해요. 설치 시간이 지나 만료된 통합과 App URL 이 없는 통합은 삭제한 뒤 다시 등록해요.
+- **MakeShop**: 재인증과 권한 추가를 지원하지 않아요. 두 버튼이 비활성이고 통합을 삭제한 뒤 다시 등록해야 해요. 자세한 내용은 [MakeShop 통합](/docs/06-integrations-and-config/makeshop) 에서 확인해요.
+</Callout>
 
 <Callout type="note">
 연결 테스트가 확인하는 범위는 서비스마다 달라요.
