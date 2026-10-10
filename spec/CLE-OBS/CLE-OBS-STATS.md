@@ -3,18 +3,18 @@ id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "110aabdbcee40057ef591496f5656b1fa4dfa74ba8c98f0b9cad21eef75b35e9"
-read_as: "approved"
-task: null
+content_hash: "34280c00ed4dedb37f5d9cccae74a3d448927166feeed76ca1f0d0279607c008"
+read_as: "approved_fallback"
+task: "CLE-T-RSF163"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "9b95fd571ca7a92d3ad75e0c31fe22a2a5ebb5f578a8230555da4115c69514e1"
-etag: "sha256-f31fc7d83ad1bf41b5ded32181c3a758fed1dc8880435733b3bc38bc33967e63"
+mirror_sha256: "f18212dd441767f09d762300c90bd75de6405e844681317fc1b804f37d9b6249"
+etag: "sha256-136d3d3c809d3d3787c1871cd024f9a4fc1aa719a4c71245f2cae22f63f9ee17"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -179,7 +179,7 @@ etag: "sha256-f31fc7d83ad1bf41b5ded32181c3a758fed1dc8880435733b3bc38bc33967e63"
 
 `completed` 만 남긴 이유: `finalizeStalledExhausted` 가 `FAILED` 로 끝나서 실패 상태도 오염된다. 오염되지 않은 상태는 `completed` 하나뿐이다.
 
-부수 효과로 지표 정의가 좁아졌다. 예전에 들어가던 정상 실패와 사용자 중단(stop) 취소의 실제 소요 시간이 평균에서 빠진다. 사용자에게 보이는 숫자가 바뀌므로 CHANGELOG 에 알렸다.
+부수 효과로 지표 정의가 좁아졌다. 예전에 들어가던 정상 실패와 사용자 중단(stop) 취소의 실제 소요 시간이 평균에서 빠진다. 사용자에게 보이는 숫자가 바뀌는 변경이다(PR #1171).
 
 원문 통계 명세는 이 한정이 "요약과 워크플로우별(§2.4)" 두 집계에 걸린다고 적었다. §2.4 는 노드별 통계라 번호가 틀렸다. 한정이 걸리는 워크플로우별 집계는 상위 워크플로우(§2.3)다. 이 문서는 바로잡은 쪽으로 적는다.
 

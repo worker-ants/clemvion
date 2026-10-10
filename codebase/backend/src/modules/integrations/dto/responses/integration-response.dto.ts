@@ -158,13 +158,11 @@ export class IntegrationDto {
   @ApiProperty({ format: 'date-time', nullable: true, type: String })
   lastUsedAt: string | null;
 
-  /**
-   * 연속 네트워크 실패 횟수 — health 판정의 내부 카운터다.
-   *
-   * **프런트엔드 참조가 0곳**이라 유일하게 소비되지 않는 필드다. 그래도 선언하는 것은
-   * 이미 나가고 있어서이고, 빼는 것은 wire 변경(파괴적)이라 CHANGELOG 를 동반해야
-   * 한다 — 별도 항목으로 트래커에 남긴다.
-   */
+  // **프런트엔드 참조가 0곳**이라 유일하게 소비되지 않는 필드다. 그래도 선언하는 것은
+  // 이미 응답에 나가고 있어서다(PR #1291 이 선언을 실제 응답에 맞췄다). 빼면 wire 가 바뀌는
+  // 파괴적 변경이라 이 선언과 따로 다룬다. 아래 JSDoc 은 `@nestjs/swagger` 플러그인이 공개
+  // OpenAPI `description` 으로 내보내므로 이 사정은 일반 주석에 둔다.
+  /** 연속 네트워크 실패 횟수 — health 판정의 내부 카운터다. */
   @ApiProperty({ example: 0 })
   consecutiveNetworkFailures: number;
 }

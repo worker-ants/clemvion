@@ -339,8 +339,8 @@ export class SchedulesService {
     // (`/ai-review` `review/code/2026/09/15/00_38_16` database W1).
     //
     // schedule 타입 트리거는 `chatChannel` 을 가질 수 없어 인입 서명 fail-open 으로는 이어지지
-    // 않지만, 정합성 결함은 같은 클래스다. 그리고 «삭제도 같은 락을 잡는다» 는 내 CHANGELOG
-    // 문장이 경로 하나만 덮고 있었다.
+    // 않지만, 정합성 결함은 같은 클래스다. 그리고 이 작업(PR #1334)의 기록에 처음 적은
+    // «삭제도 같은 락을 잡는다» 는 문장이 경로 하나만 덮고 있었다.
     if (schedule.triggerId) {
       const triggerId = schedule.triggerId;
       await this.triggerRepository.manager
