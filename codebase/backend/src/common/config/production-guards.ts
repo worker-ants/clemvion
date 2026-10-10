@@ -35,25 +35,28 @@ export const INSECURE_JWT_SECRETS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * production 에서 거부되는 ENCRYPTION_KEY 값 — 공개 저장소의 `.env.example` 에 실렸던/실리는
- * 복붙 가능 예시 키. 이 값을 그대로 운영에 쓰면 secret store 전체가 사실상 평문이 된다.
- * **동기화 의무**: `.env.example` 의 ENCRYPTION_KEY placeholder 를 바꾸면 *옛 값을 이 Set 에서
- * 제거하지 말고* 새 placeholder 를 추가한다 — 옛 예시 키로 운영 중인 배포도 계속 차단해야 한다.
+ * production 에서 거부되는 ENCRYPTION_KEY 값 — 공개 저장소에 커밋된 예시 키(`.env.example` ·
+ * k8s 예시 · 로컬 overlay · e2e compose · 루트 README). 이 값을 그대로 운영에 쓰면 secret store
+ * 전체가 사실상 평문이 된다.
+ * **동기화 의무**: 예시 파일의 ENCRYPTION_KEY 값을 바꾸면 *옛 값을 이 Set 에서 제거하지 말고* 새
+ * 값을 추가한다 — 옛 예시 키로 운영 중인 배포도 계속 차단해야 한다. 예시 파일 목록과 값 대조는
+ * `production-guards.spec.ts` 가 한다.
  */
 export const KNOWN_EXAMPLE_ENCRYPTION_KEYS: ReadonlySet<string> = new Set([
   // 현 `.env.example` placeholder (all-zero). since 2026-06.
   '0000000000000000000000000000000000000000000000000000000000000000',
   // 옛 `.env.example` 예시 키 (~2026-06) — 그 값으로 운영 중인 배포도 차단.
-  // k8s/overlays/local · docker-compose.e2e.yml 도 이 값을 쓴다.
+  // 지금은 k8s/overlays/local · docker-compose.e2e.yml 이 이 값을 쓴다.
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   'REPLACE_ME_32_BYTE_HEX', // k8s/base/secret.example.yaml
   '<32-byte-hex>', // 루트 README.md 예시
 ]);
 
 /**
- * production 에서 거부되는 INTEGRATION_ENCRYPTION_KEY 값. 저장소에 커밋된 예시 · 로컬 · e2e 설정의
- * 값이다. `ENCRYPTION_KEY` 예시 키도 함께 막는다(INTEGRATION_ENCRYPTION_KEY 자리에 ENCRYPTION_KEY
- * 예시값을 넣는 실수). 반대로 ENCRYPTION_KEY 자리에 이 Set 의 나머지 값을 넣는 경우는 막지 않는다.
+ * production 에서 거부되는 INTEGRATION_ENCRYPTION_KEY 값. `KNOWN_EXAMPLE_ENCRYPTION_KEYS` 의 상위
+ * 집합이다. 저장소에 커밋된 예시 · 로컬 · e2e 설정의 값이다. `ENCRYPTION_KEY` 예시 키도 함께
+ * 막는다(INTEGRATION_ENCRYPTION_KEY 자리에 ENCRYPTION_KEY 예시값을 넣는 실수). 반대로
+ * ENCRYPTION_KEY 자리에 이 Set 의 나머지 값을 넣는 경우는 막지 않는다.
  * **동기화 의무**: 예시 파일의 INTEGRATION_ENCRYPTION_KEY 값을 바꾸면 *옛 값을 지우지 말고* 새 값을
  * 더한다. 예시 파일 목록과 값 대조는 `production-guards.spec.ts` 가 한다.
  */

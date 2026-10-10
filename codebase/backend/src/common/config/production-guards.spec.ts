@@ -179,7 +179,7 @@ describe('assertProductionConfig', () => {
         }
       },
     );
-    it('also rejects the public ENCRYPTION_KEY example keys', () => {
+    it('INSECURE_INTEGRATION_ENCRYPTION_KEYS is a superset of KNOWN_EXAMPLE_ENCRYPTION_KEYS', () => {
       for (const bad of KNOWN_EXAMPLE_ENCRYPTION_KEYS) {
         expect(INSECURE_INTEGRATION_ENCRYPTION_KEYS.has(bad)).toBe(true);
       }
