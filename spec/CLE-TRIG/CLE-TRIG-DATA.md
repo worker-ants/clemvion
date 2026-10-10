@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "8621c414dd20581ea6f8d4967d9ca1c9c16104bf6e6e084a4bc8d1de57014cc8"
+content_hash: "ab1ee9075ab93e215e75be4d152520b03dbff01e85df43c36aaa697235b9af33"
 read_as: "approved_fallback"
-task: "CLE-T-M6PERB"
+task: "CLE-T-2V7SBC"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "50a7de3622daf6c59e585cf56b8907636181ac5df29efcf5a1eca40e53a49e81"
-etag: "sha256-703abc52b40189cf2e9626e9b639162e030d3c1bd0e6374cf599c8ed32bca9ed"
+mirror_sha256: "34f02005cc231594a5456bd5363acdc7a28703c4185b9aec02444dfd139d30ad"
+etag: "sha256-122f5a38d53ba53d5e8693d6c8174cafd8d9eb39acbf4c8e29ea35a22353daeb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -185,7 +185,7 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 | workspace_id | UUID | FK → Workspace (CASCADE) |
 | name | String | 인증 설정 이름 |
 | type | Enum | `api_key` / `bearer_token` / `basic_auth` / `hmac` |
-| config | JSONB(암호화) | 인증 설정 상세. AES-256-GCM 으로 암호화한다. 유형별 스키마는 아래 표, 필드 마스킹은 [외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md) |
+| config | JSONB(암호화) | 인증 설정 상세. 운영 환경에서 새로 쓰는 값은 AES-256-GCM 으로 암호화한다([통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화)). 유형별 스키마는 아래 표, 필드 마스킹은 [외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md) |
 | ip_whitelist | String[]? | 허용 IP 목록. 각 항목은 단일 IP 또는 CIDR(예: `10.0.0.0/8`, `2001:db8::/32`; 단일 IP 는 `/32`·`/128` 호스트로 취급). 저장(create/update) 때 항목마다 형식을 검증하고 단일 IP·CIDR(IPv4·IPv6)이 아니면 400 으로 거부한다. 런타임 평가와 같은 수용 기준이다. 웹훅 수신 때 `auth_config_id` 가 연결된 트리거에만 시행한다([웹훅](CLE-TRIG-WEBHOOK.md)) |
 | is_active | Boolean | 활성 상태. `false` 면 연결된 웹훅 호출은 401 `AUTH_FAILED` |
 | last_used_at | Timestamp? | 마지막 사용 시각. 웹훅 인증 성공 때 fire-and-forget 으로 갱신한다 |
@@ -207,7 +207,7 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 
 비밀 값 접두사는 `wfk_`(API 키), `wft_`(Bearer 토큰), `whs_`(HMAC 시크릿)다. 로그와 디버깅에서 접두사로 자격 증명 종류를 알아보되 평문 자체는 가린다. 인증 설정 밖의 비밀·토큰 접두사(`wsk_` EIA 알림 웹훅 HMAC 시크릿, `iext_` 실행 단위 인터랙션 JWT, `itk_` 트리거 단위 토큰)는 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정한다.
 
-`config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이라 인증 설정은 쓰지 않는다. transformer 가 읽는 키 환경 변수 이름은 정의가 갈린다([미결 사항](#미결-사항)).
+`config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이라 인증 설정은 쓰지 않는다. transformer 가 읽는 키는 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 다. 키가 없을 때의 동작과 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
 
 ## 진입 흐름
 
@@ -426,13 +426,12 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 | 의존 | 방향 | 내용 |
 |------|------|------|
 | 실행 도메인 | 교차 참조 | 모든 트리거가 마지막에 들어가는 곳([실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md)) |
-| 인증 설정 | 웹훅 인증 | API Key / Bearer / Basic / HMAC. 자격 증명은 AES-256-GCM 암호화. 인증 성공 때 `last_used_at` 갱신 |
+| 인증 설정 | 웹훅 인증 | API Key / Bearer / Basic / HMAC. 운영 환경에서 새로 쓰는 자격 증명은 AES-256-GCM 으로 암호화한다([통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화)). 인증 성공 때 `last_used_at` 갱신 |
 | 시크릿 저장소 | 트리거 비밀 | `secret://triggers/<id>/` 아래 채팅 채널 비밀. 트리거 삭제 커밋 뒤 정리([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
 
 ## 미결 사항
 
 - **워크플로우 비활성 상태가 트리거 발사를 막는지**: [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) 의 `workflow.is_active` 절, [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md), [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) 는 워크플로우를 비활성화하면 웹훅·스케줄 트리거가 멈춘다고 적는다. 이 문서의 원문 흐름은 웹훅은 `trigger.is_active`, 스케줄은 `schedule.is_active` 만 검사한다. 현재 구현도 `hooks.service.ts` 와 `schedule-runner` 가 트리거·스케줄 플래그만 보고 `workflow.isActive` 관문은 없다(코드 grep 기준). 워크플로우 활성 상태를 발사 관문으로 둘지(그러면 구현과 이 문서를 고친다), 표시용으로 둘지(그러면 워크플로우 쪽 문서의 약속을 고친다) 결정해야 한다.
-- **인증 설정 암호화 키 환경 변수 이름**: 원문 데이터 모델과 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 저장소 예외 필드 콜아웃은 인증 설정과 통합 `credentials` 가 `ENCRYPTION_KEY` 를 쓴다고 적는다. 시크릿 저장소의 다른 절은 `INTEGRATION_ENCRYPTION_KEY` 를 적는다. 현재 구현(`auth-config.entity.ts`, `credentials-transformer.ts`)은 `INTEGRATION_ENCRYPTION_KEY` 를 읽고 키가 없으면 평문으로 저장하며 경고를 남긴다. 운영자가 설정할 이름이 문서마다 달라 키 회전·백업 범위 판단이 흔들린다. 이름을 코드에 맞출지, 두 키를 하나로 합칠지 결정해야 한다. 두 키의 현재 사용처 전체는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#미결-사항) 의 같은 미결에 있고, 결정은 그 문서와 함께 한다.
 
 ## 구현 위치
 
@@ -535,7 +534,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 - `none` 을 넣지 않는다: 인증 설정 유형에는 `none` 이 없다. 인증 없음은 `Trigger.auth_config_id IS NULL` 로 나타내고 `type='none'` 인 인증 설정 행은 의미가 없다. 통합의 `auth_type='none'`(통합은 있지만 자격 증명이 필요 없는 공용 MCP 서버 등)과는 다른 개념이다. 인증 설정은 "행 없음 = 인증 없음", 통합은 "행 있음 + auth_type=none" 이다. 두 도메인이 같은 단어를 다른 뜻으로 쓰지 않도록 인증 설정에는 `none` 을 두지 않는다.
 - Bearer 토큰 자동 발급만 허용하는 근거는 [외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md) 에 있다.
 - TypeScript 타입 이름을 나눈다: 인증 설정 유형(`api_key`/`bearer_token`/`basic_auth`/`hmac`)과 통합 `auth_type`(`oauth2`/`api_key`/`bearer_token`/`basic`/…)은 일부 문자열(`api_key`/`bearer_token`)이 겹치지만 별개 도메인이다. 코드에서는 `AuthConfigType` 과 `IntegrationAuthType` 유니온을 따로 정의해 섞이지 않게 한다. 특히 Basic 인증은 인증 설정이 `basic_auth`(inbound 웹훅용), 통합이 `basic`(외부 서비스 연결용)으로 일부러 다르게 쓴다. 두 도메인의 자원 성격이 다르다.
-- transformer 를 함께 쓴다: 인증 설정 `config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이고 인증 설정은 자기 테이블 컬럼 transformer 라 이 체계를 쓰지 않는다.
+- transformer 를 함께 쓴다: 인증 설정 `config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이고 인증 설정은 자기 테이블 컬럼 transformer 라 이 체계를 쓰지 않는다. 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다. 이 transformer 의 키를 시크릿 저장소의 마스터키와 따로 두는 이유는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - `ip_whitelist` 를 저장 때 검증한다: 잘못된 IP·CIDR 이 DB 에 들어가면 런타임 평가에서 조용히 fail-closed 불일치로만 드러나, 설정한 사람이 의도와 다른 차단을 디버깅하기 어렵다. 그래서 저장 때 형식을 검증해 400 으로 일찍 돌려준다. 검증 기준은 런타임 `AuthConfigsService.parseIp` 와 같은 `ip-address`(`Address4`/`Address6.isValid`)를 다시 쓴다. 저장 때 검증을 통과한 값은 런타임이 늘 파싱할 수 있어 저장과 평가의 수용 범위가 어긋나지 않는다. class-validator 의 `@IsIP` 는 CIDR 를 거부하므로 단일 IP 와 CIDR 를 함께 받는 커스텀 `@IsIpOrCidr` 를 쓴다.
 
 ### 웹훅 202 응답 모양을 지금 코드에 맞춘 결정 (2026-10-09)
