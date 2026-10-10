@@ -42,8 +42,10 @@
  *     `--pause-during-sweep` 로 먼저 돌리면 sweep 이 놓친 손상 job 을 마지막 `resume()` 이
  *     그대로 `wait` 로 풀어 준다. 그래서 배포 전에 일시 정지된 큐가 없는지 본다.
  *     시스템 상태 화면에서 «일시정지» 가 붙은 큐(`isPaused`)가 그것이다.
- *   - BullMQ 5 의 `resume()` 은 `wait` 목록을 덮어쓴다. BullMQ 5 와 6 을 쓰는 backend 가 같은
- *     Redis 를 함께 쓰는 동안에는 이 스크립트를 돌리지 않는다.
+ *   - BullMQ 5 와 6 을 쓰는 backend 가 같은 Redis 를 함께 쓰는 경우와 BullMQ 5 데이터가 남은
+ *     Redis 위의 첫 기동은 확인하지 않았다. BullMQ 5 의 `resume()` 은 `wait` 목록을 덮어쓰므로
+ *     backend 교체가 끝나기 전에는 이 스크립트를 돌리지 않는다. 롤링 배포보다 backend 를 한 번에
+ *     바꾸는 편이 안전하다.
  *   - `npm run cleanup:queue-jobs:apply` 는 `--pause-during-sweep` 를 고정해서 부르므로
  *     위 두 항목은 이 npm script 에도 그대로 걸린다.
  *
