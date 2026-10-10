@@ -717,7 +717,11 @@ export class HooksService {
     // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
     // 기존 실행을 실행 중지 경로(CLE-EXEC-CANCEL)로 취소한 뒤 아래에서 새로 시작한다.
     if (update.command.kind === 'start' && hasActiveExecution) {
-      await this.stopForRestart(state.executionId!);
+      await this.stopForRestart(
+        trigger.id,
+        parsed.idempotencyKey,
+        state.executionId!,
+      );
     }
 
     // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
@@ -787,9 +791,18 @@ export class HooksService {
    *
    * 상태를 읽은 뒤 실행이 먼저 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로
    * 그대로 새로 시작한다. 그 밖의 실패(취소를 큐에 넣지 못한 503 등)는 전파한다. 옛 실행을 남긴 채
-   * 새 실행을 시작하면 대기 실행이 쌓인다. 프로바이더는 non-2xx 를 받으면 다시 보낸다.
+   * 새 실행을 시작하면 대기 실행이 쌓인다.
+   *
+   * 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낸다. 그 재전송이 되살아나도록 오류를 전파하기
+   * 전에 update 의 dedup 선점을 푼다. 풀지 않으면 30초 동안 재전송이 `ignored` 로 끝나 `/start` 가
+   * 유실된다. 새 실행을 시작하다 실패하는 경로(`execute()`)는 선점을 풀지 않는다. 기존 동작이라 이번
+   * 변경에서 바꾸지 않았다.
    */
-  private async stopForRestart(executionId: string): Promise<void> {
+  private async stopForRestart(
+    triggerId: string,
+    idempotencyKey: string,
+    executionId: string,
+  ): Promise<void> {
     try {
       await this.executionsService.stop(executionId);
     } catch (err) {
@@ -799,6 +812,7 @@ export class HooksService {
         );
         return;
       }
+      await this.chatChannelDedup.release(triggerId, idempotencyKey);
       throw err;
     }
   }

@@ -17,7 +17,10 @@ import {
 } from './chat-channel-dedup.service';
 
 function makeRedis(setImpl?: jest.Mock) {
-  return { set: setImpl ?? jest.fn().mockResolvedValue('OK') };
+  return {
+    set: setImpl ?? jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+  };
 }
 
 function makeService(redis: unknown): ChatChannelDedupService {
@@ -89,5 +92,59 @@ describe('ChatChannelDedupService (CCH-SE-02)', () => {
     const redis = makeRedis();
     expect(await makeService(redis).claim('trig-1', '')).toBe(true);
     expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  describe('release()', () => {
+    it('선점 키를 지운다 — 같은 update 의 재전송이 다시 통과한다', async () => {
+      const seen = new Set<string>();
+      const redis = {
+        set: jest.fn().mockImplementation((key: string) => {
+          if (seen.has(key)) return Promise.resolve(null);
+          seen.add(key);
+          return Promise.resolve('OK');
+        }),
+        del: jest.fn().mockImplementation((key: string) => {
+          seen.delete(key);
+          return Promise.resolve(1);
+        }),
+      };
+      const svc = makeService(redis);
+
+      expect(await svc.claim('trig-1', 'update-42')).toBe(true);
+      expect(await svc.claim('trig-1', 'update-42')).toBe(false);
+      await svc.release('trig-1', 'update-42');
+      expect(redis.del).toHaveBeenCalledWith(
+        makeChatDedupKey('trig-1', 'update-42'),
+      );
+      // 풀면 같은 update 가 다시 선점된다. 다른 update 의 선점은 건드리지 않는다.
+      expect(await svc.claim('trig-1', 'update-42')).toBe(true);
+    });
+
+    it('Redis 미주입 → noop', async () => {
+      const svc = new ChatChannelDedupService(undefined, undefined);
+      await expect(svc.release('trig-1', 'update-42')).resolves.toBeUndefined();
+    });
+
+    it('빈 idempotencyKey → Redis 를 부르지 않는다 (claim 이 선점하지 않은 키)', async () => {
+      const redis = makeRedis();
+      await makeService(redis).release('trig-1', '');
+      expect(redis.del).not.toHaveBeenCalled();
+    });
+
+    it('Redis 에러 → 삼키고 warn 을 남긴다', async () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        const redis = makeRedis();
+        redis.del.mockRejectedValue(new Error('ECONNRESET'));
+        await expect(
+          makeService(redis).release('trig-1', 'update-42'),
+        ).resolves.toBeUndefined();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('dedup 해제 실패'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 });

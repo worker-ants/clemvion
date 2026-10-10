@@ -101,7 +101,10 @@ describe('HooksService', () => {
         {
           provide: ChatChannelDedupService,
           // default: 최초 도착(true) — CCH-SE-02 재도착 케이스에서 override.
-          useValue: { claim: jest.fn().mockResolvedValue(true) },
+          useValue: {
+            claim: jest.fn().mockResolvedValue(true),
+            release: jest.fn().mockResolvedValue(undefined),
+          },
         },
         {
           provide: InteractionService,
@@ -2704,6 +2707,68 @@ describe('HooksService', () => {
         ).rejects.toBeInstanceOf(ServiceUnavailableException);
         expect(engine.execute).not.toHaveBeenCalled();
         expect(conversationService.upsert).not.toHaveBeenCalled();
+      });
+
+      // 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낸다. 선점이 남아 있으면 재전송이 dedup 에
+      // 막혀 `/start` 가 유실된다(재전송은 2001 같은 update id 그대로 온다).
+      it('취소가 503 으로 실패하면 update 의 dedup 선점을 풀어 재전송이 다시 처리된다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        executionsService.executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+        executionsService.stop.mockRejectedValueOnce(
+          new ServiceUnavailableException({
+            code: 'EXECUTION_ENQUEUE_FAILED',
+            message: 'Cancel could not be queued',
+          }),
+        );
+        // 실제 서비스처럼 선점 상태를 기억하는 dedup.
+        const claimed = new Set<string>();
+        const dedup = moduleRef.get(ChatChannelDedupService) as {
+          claim: jest.Mock;
+          release: jest.Mock;
+        };
+        dedup.claim.mockImplementation((triggerId: string, key: string) => {
+          const id = `${triggerId}:${key}`;
+          if (claimed.has(id)) return Promise.resolve(false);
+          claimed.add(id);
+          return Promise.resolve(true);
+        });
+        dedup.release.mockImplementation((triggerId: string, key: string) => {
+          claimed.delete(`${triggerId}:${key}`);
+          return Promise.resolve();
+        });
+
+        await expect(
+          service.handleWebhook('abc', chatInput),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+        expect(dedup.release).toHaveBeenCalledWith('t1', '2001');
+
+        // 프로바이더의 재전송 — 이번에는 취소가 통과한다.
+        const retry = await service.handleWebhook('abc', chatInput);
+
+        expect(executionsService.stop).toHaveBeenCalledTimes(2);
+        expect(retry).toEqual({ executionId: 'exec-new', status: 'pending' });
+      });
+
+      it('취소 거부가 INVALID_STATE · 404 라 삼킬 때는 선점을 풀지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        executionsService.executionRepository.findOne.mockResolvedValue({
+          status: 'running',
+        });
+        executionsService.stop.mockRejectedValue(
+          new BadRequestException({
+            code: 'INVALID_STATE',
+            message: "Cannot stop execution with status 'completed'",
+          }),
+        );
+        const dedup = moduleRef.get(ChatChannelDedupService) as {
+          release: jest.Mock;
+        };
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(dedup.release).not.toHaveBeenCalled();
       });
 
       it('기존 실행이 이미 끝났으면 취소하지 않고 새로 시작한다', async () => {
