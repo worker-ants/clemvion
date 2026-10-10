@@ -228,8 +228,8 @@ Split's output does not include other fields from the source. Reference them dir
 <FieldTable rows={[
   {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "Merge strategy. `wait_all` waits for all inputs, `first` takes whichever arrives first, `append` collects in arrival order.", default: "wait_all"},
   {name: "outputFormat", required: false, type: "`array` / `merge_object` / `indexed`", description: "Output shape. Use `merge_object` for a shallow object merge.", default: "array"},
-  {name: "timeout", required: false, type: "integer (seconds)", description: "Has no effect. Merge runs only after every connected input has finished, so there is nothing to wait for. A value above `0` shows a warning on the canvas and blocks the workflow from running.", default: "0"},
-  {name: "partialOnTimeout", required: false, type: "boolean", description: "Has no effect. Merge never times out, so there are no partial inputs to merge. Setting it to true shows a warning on the canvas and blocks the workflow from running.", default: "false"}
+  {name: "timeout", required: false, type: "integer (seconds)", description: "Has no effect. Merge runs only after every connected input has finished, so there is nothing to wait for. A value above `0` shows a warning on the canvas, and the run fails at this node.", default: "0"},
+  {name: "partialOnTimeout", required: false, type: "boolean", description: "Has no effect. Merge never times out, so there are no partial inputs to merge. Setting it to true shows a warning on the canvas, and the run fails at this node.", default: "false"}
 ]} />
 
 ### Example

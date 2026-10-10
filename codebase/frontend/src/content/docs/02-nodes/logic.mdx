@@ -239,8 +239,8 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 <FieldTable rows={[
   {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "병합 전략이에요. `wait_all`은 전부 대기, `first`는 가장 빠른 하나, `append`는 도착 순 배열로 모아요.", default: "wait_all"},
   {name: "outputFormat", required: false, type: "`array` / `merge_object` / `indexed`", description: "출력 구조예요. 객체 얕은 병합이 필요하면 `merge_object`를 써요.", default: "array"},
-  {name: "timeout", required: false, type: "integer(초)", description: "동작하지 않는 설정이에요. Merge는 연결된 입력이 모두 끝난 뒤에 실행되어서 기다릴 일이 없어요. `0`보다 큰 값을 두면 캔버스에 경고가 표시되고 워크플로우 실행이 막혀요.", default: "0"},
-  {name: "partialOnTimeout", required: false, type: "boolean", description: "동작하지 않는 설정이에요. Merge에는 타임아웃이 없어서 일부 입력만 병합하는 경우가 없어요. true로 두면 캔버스에 경고가 표시되고 워크플로우 실행이 막혀요.", default: "false"}
+  {name: "timeout", required: false, type: "integer(초)", description: "동작하지 않는 설정이에요. Merge는 연결된 입력이 모두 끝난 뒤에 실행되어서 기다릴 일이 없어요. `0`보다 큰 값을 두면 캔버스에 경고가 표시되고 실행하면 이 노드에서 오류로 멈춰요.", default: "0"},
+  {name: "partialOnTimeout", required: false, type: "boolean", description: "동작하지 않는 설정이에요. Merge에는 타임아웃이 없어서 일부 입력만 병합하는 경우가 없어요. true로 두면 캔버스에 경고가 표시되고 실행하면 이 노드에서 오류로 멈춰요.", default: "false"}
 ]} />
 
 ### 예시
