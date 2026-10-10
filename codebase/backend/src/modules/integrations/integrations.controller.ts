@@ -588,7 +588,10 @@ export class IntegrationsController {
   @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
     description: OAUTH_BEGIN_RESULT_DESCRIPTION,
   })
-  @ApiBadRequestResponse({ description: 'OAuth 기반 통합이 아님' })
+  @ApiBadRequestResponse({
+    description:
+      'OAuth 기반 통합이 아님, 또는 MakeShop 통합(`MAKESHOP_USE_SHOPSTORE_INSTALL` — 삭제 후 다시 등록)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
@@ -618,7 +621,8 @@ export class IntegrationsController {
     description: OAUTH_BEGIN_RESULT_DESCRIPTION,
   })
   @ApiBadRequestResponse({
-    description: '입력값 검증 실패 또는 incremental auth 미지원',
+    description:
+      '입력값 검증 실패, incremental auth 미지원, 또는 MakeShop 통합(`MAKESHOP_USE_SHOPSTORE_INSTALL`)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })

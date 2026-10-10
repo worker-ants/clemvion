@@ -108,7 +108,8 @@ export class Integration {
   /**
    * Cafe24 Private 재설치 요청 시각(V151). 권한 추가 · 재인증이 남기고, App URL(`handleInstall`)이 이 값을 보면 설치 대기가
    * 아닌 행도 OAuth authorize 로 보낸다. 콜백 성공이 NULL 로 비운다. 상태(`status`)와 사유(`status_reason`)는 건드리지
-   * 않는다 — NERV CLE-INT-DATA · CLE-INT-OAUTH, Task CLE-T-NNENG8.
+   * 않는다. 표시는 24시간 동안만 유효하다 — 읽는 쪽은 이 컬럼을 직접 보지 않고 `reinstall-request.ts` 의 술어를 거친다
+   * (만료된 값은 DB 에 남아도 없는 것으로 읽는다). NERV CLE-INT-DATA · CLE-INT-OAUTH, Task CLE-T-NNENG8.
    */
   @Column({
     name: 'reinstall_requested_at',

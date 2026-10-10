@@ -497,6 +497,62 @@ describe('IntegrationsService', () => {
     // 응답 DTO 전용 derived 필드. `ServiceDefinition.supportsTokenAutoRefresh`
     // 에서 매 응답 시점에 계산되며 DB 컬럼이 아니다.
     // -----------------------------------------------------------------
+    // CLE-T-NNENG8 — 재설치 요청 표시는 24시간 동안만 유효하다(`isReinstallRequestActive`). 응답은 유효할 때만 값을 싣고
+    // 만료됐으면 `null` 이다 — 상세 화면의 안내 배너는 이 값만 보므로 판정을 서버 한곳에서 한다.
+    describe('reinstallRequestedAt', () => {
+      const HOUR = 60 * 60 * 1000;
+      const MINUTE = 60 * 1000;
+      const cafe24Private = (reinstallRequestedAt: Date | null) =>
+        makeIntegration({
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          credentials: {
+            mall_id: 'myshop',
+            app_type: 'private',
+            client_id: 'cid',
+            client_secret: 'csec',
+          },
+          reinstallRequestedAt,
+        });
+
+      it('표시가 없으면 null 이다', async () => {
+        integrationRepo.findOne.mockResolvedValue(cafe24Private(null));
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
+        expect(result.reinstallRequestedAt).toBeNull();
+      });
+
+      it('표시가 23시간 59분 지났으면 그 시각을 싣는다', async () => {
+        const at = new Date(Date.now() - (24 * HOUR - MINUTE));
+        integrationRepo.findOne.mockResolvedValue(cafe24Private(at));
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
+        expect(result.reinstallRequestedAt).toBe(at);
+      });
+
+      it('표시가 24시간을 넘었으면 값이 남아 있어도 null 이다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          cafe24Private(new Date(Date.now() - (24 * HOUR + MINUTE))),
+        );
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
+        expect(result.reinstallRequestedAt).toBeNull();
+      });
+
+      it('복호화하지 못한 행(credentials_unreadable)도 같은 규칙을 따른다', async () => {
+        const fresh = new Date(Date.now() - HOUR);
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: { __unreadable: true } as never,
+            reinstallRequestedAt: fresh,
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
+        // 읽을 수 없는 행이어도 표시 자체는 평문 컬럼이다.
+        expect(result.credentialsStatus).toBe('needs_reauth');
+        expect(result.reinstallRequestedAt).toBe(fresh);
+      });
+    });
+
     describe('autoRefresh', () => {
       it('returns true for cafe24 (refresh_token + auto-refresh worker)', async () => {
         integrationRepo.findOne.mockResolvedValue(
@@ -1843,7 +1899,7 @@ describe('IntegrationsService', () => {
      * 으로 거부됨. requestScopes 는 이 경로를 우회하고 기존 install_token
      * 을 재사용하는 `cafe24_private_pending` 응답을 반환한다.
      */
-    it('cafe24 Private — bypasses begin and returns cafe24_private_pending with merged scopes saved', async () => {
+    it('cafe24 Private — bypasses begin and returns cafe24_private_pending with merged scopes written', async () => {
       const original = process.env.APP_URL;
       process.env.APP_URL = 'https://app.example.com';
       const integration = makeIntegration({
@@ -1861,10 +1917,8 @@ describe('IntegrationsService', () => {
         installToken: 'PreservedToken123456__',
       });
       integrationRepo.findOne.mockResolvedValue(integration);
-      integrationRepo.save = jest
-        .fn()
-        .mockImplementation((e: Integration) => Promise.resolve(e));
       try {
+        const before = Date.now();
         const result = await service.requestScopes(
           'int-1',
           'ws-1',
@@ -1885,14 +1939,65 @@ describe('IntegrationsService', () => {
           callbackUrl: 'https://app.example.com/api/3rd-party/cafe24/callback',
           scopesAdded: ['mall.read_store'],
         });
-        // credentials.scopes is merged + saved.
-        expect(integrationRepo.save).toHaveBeenCalledTimes(1);
-        const saved = integrationRepo.save.mock.calls[0][0] as Integration;
-        const creds = saved.credentials;
+        // credentials.scopes 는 합쳐서 쓰되, 판정한 행에만 · 바꾸는 컬럼만 `update` 한다 — 엔티티 전체 `save()` 는 그
+        // 사이 회전된 토큰(`credentials`)이나 `logUsage` 의 `lastUsedAt` 을 옛 값으로 되돌린다(lost update).
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+        const [where, changes] = integrationRepo.update.mock.calls[0] as [
+          Record<string, unknown>,
+          Record<string, unknown>,
+        ];
+        expect(where).toEqual({
+          id: 'int-1',
+          workspaceId: 'ws-1',
+          scope: 'personal',
+        });
+        expect(Object.keys(changes).sort()).toEqual([
+          'credentials',
+          'reinstallRequestedAt',
+        ]);
+        const creds = changes.credentials as Record<string, unknown>;
         expect(creds.scopes).toEqual(['mall.read_product', 'mall.read_store']);
-        // CLE-T-NNENG8 — 재설치 요청 표시를 함께 남겨 App URL 이 OAuth 로 보내게 한다.
-        expect(saved.reinstallRequestedAt).toBeInstanceOf(Date);
-        expect(saved.status).toBe('connected');
+        // 합치지 않는 자격 증명 필드는 그대로 싣는다.
+        expect(creds.refresh_token).toBe('r');
+        // CLE-T-NNENG8 — 재설치 요청 표시를 함께 남겨 App URL 이 OAuth 로 보내게 한다. 상태 · 사유는 건드리지 않는다.
+        expect(changes.reinstallRequestedAt).toBeInstanceOf(Date);
+        expect(
+          (changes.reinstallRequestedAt as Date).getTime(),
+        ).toBeGreaterThanOrEqual(before);
+        expect(changes).not.toHaveProperty('status');
+      } finally {
+        if (original === undefined) delete process.env.APP_URL;
+        else process.env.APP_URL = original;
+      }
+    });
+
+    it('cafe24 Private — 판정한 행이 그 사이 바뀌어 아무 행도 쓰지 못하면 404', async () => {
+      const original = process.env.APP_URL;
+      process.env.APP_URL = 'https://app.example.com';
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          credentials: {
+            mall_id: 'gehrig0301',
+            app_type: 'private',
+            client_id: 'cid',
+            client_secret: 'csec',
+            scopes: ['mall.read_product'],
+          },
+          installToken: 'PreservedToken123456__',
+        }),
+      );
+      integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
+      try {
+        await expect(
+          service.requestScopes('int-1', 'ws-1', 'user-1', 'member', {
+            scopes: ['mall.read_store'],
+          }),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        // 행이 지워졌을 때 `save` 가 INSERT 를 시도하지 않는다.
+        expect(integrationRepo.save).not.toHaveBeenCalled();
       } finally {
         if (original === undefined) delete process.env.APP_URL;
         else process.env.APP_URL = original;
@@ -1917,9 +2022,6 @@ describe('IntegrationsService', () => {
           installToken: 'PreservedToken123456__',
         }),
       );
-      integrationRepo.save = jest
-        .fn()
-        .mockImplementation((e: Integration) => Promise.resolve(e));
       try {
         const result = await service.requestScopes(
           'int-1',
@@ -1929,8 +2031,16 @@ describe('IntegrationsService', () => {
           { scopes: ['mall.read_store'] },
         );
         expect(result).toMatchObject({ mode: 'cafe24_private_pending' });
-        const saved = integrationRepo.save.mock.calls[0][0] as Integration;
-        expect(saved.reinstallRequestedAt ?? null).toBeNull();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+        const changes = integrationRepo.update.mock.calls[0][1] as Record<
+          string,
+          unknown
+        >;
+        expect(Object.keys(changes)).toEqual(['credentials']);
+        expect((changes.credentials as Record<string, unknown>).scopes).toEqual(
+          ['mall.read_product', 'mall.read_store'],
+        );
       } finally {
         if (original === undefined) delete process.env.APP_URL;
         else process.env.APP_URL = original;

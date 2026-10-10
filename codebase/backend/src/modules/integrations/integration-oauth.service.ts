@@ -32,6 +32,11 @@ import {
   integrationNotFoundError,
   isIntegrationVisibleTo,
 } from './integration-visibility';
+import {
+  isCafe24PrivateRow,
+  isInstallFlowRow,
+  isReinstallRequestActive,
+} from './reinstall-request';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
   IntegrationOAuthState,
@@ -404,9 +409,11 @@ export class IntegrationOAuthService {
    * 모자란다(`spec/2-navigation/4-integration.md` §8 판정 규칙 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은
    * 판정: 보이는가 → Organization 이면 Admin).
    *
-   * `pending_install` 행과 재설치 요청 표시(`reinstallRequestedAt`)가 있는 행은 보지 않는다 — 설치 흐름(App URL 의
-   * install_token + HMAC 이 인가)이 만든 state 라 `userId` 가 요청자가 아니라 생성자다(`persistReauthorizeState`).
-   * 표시를 남긴 요청자의 인가는 표시를 남길 때(`:id/reauthorize` · `:id/request-scopes`) 이미 봤다. 사용자가 이런 행에
+   * `pending_install` 행과, 유효한 재설치 요청 표시(`reinstallRequestedAt`)가 있는 **Cafe24 Private** 행은 보지 않는다 —
+   * 설치 흐름(App URL 의 install_token + HMAC 이 인가)이 만든 state 라 `userId` 가 요청자가 아니라 생성자다
+   * (`persistReauthorizeState`). 표시를 남긴 요청자의 인가는 표시를 남길 때(`:id/reauthorize` · `:id/request-scopes`) 이미
+   * 봤다. 표시에는 24시간 유효 기간이 있다(`isReinstallRequestActive`) — 그 뒤에는 요청자가 강등됐을 수 있어 다시 본다.
+   * Public · MakeShop 행은 표시가 있어도 다시 본다(표시를 남기는 입구가 Cafe24 Private 뿐이다). 사용자가 이런 행에
    * 재인증을 시작하는 입구는 begin 이 막는다(cafe24 private · makeshop 은 `mode: 'new'` 만).
    */
   private async assertRequesterStillAllowed(
@@ -415,7 +422,11 @@ export class IntegrationOAuthService {
     manager: EntityManager,
   ): Promise<void> {
     if (integration.status === 'pending_install') return;
-    if (integration.reinstallRequestedAt) return;
+    if (
+      isCafe24PrivateRow(integration) &&
+      isReinstallRequestActive(integration)
+    )
+      return;
     if (!isIntegrationVisibleTo(integration, record.userId)) {
       throw integrationNotFoundError();
     }
@@ -844,6 +855,8 @@ export class IntegrationOAuthService {
         integration.tokenExpiresAt = exchange.tokenExpiresAt;
         integration.lastRotatedAt = new Date();
         // 재설치 요청 표시는 콜백이 성공해야 지운다 — 이후 App URL 재호출(「앱으로 가기」)은 다시 상세 화면으로 간다.
+        // 표시를 읽는 판정과 24시간 유효 기간은 `reinstall-request.ts` 한 곳이 정한다. 만료된 표시를 따로 지우지는
+        // 않는다(값이 남아도 술어가 무시한다).
         integration.reinstallRequestedAt = null;
         // install_token 은 callback 성공 시 **보존** — Cafe24 의 "앱으로
         // 가기" 등 post-install navigation 이 같은 App URL 을 재호출하므로
@@ -1049,11 +1062,11 @@ export class IntegrationOAuthService {
       } else if (
         integration.status === 'connected' &&
         errorCode === 'OAUTH_TOKEN_EXCHANGE_FAILED' &&
-        !integration.reinstallRequestedAt
+        !isReinstallRequestActive(integration)
       ) {
         // §10.4: reauthorize code-exchange failure on a connected row.
-        // 재설치 요청 표시가 있는 행은 제외한다 — 기존 토큰은 아직 살아 있고, 상태와 표시를 남겨 두면 사용자가
-        // App URL 로 다시 시도할 수 있다(CLE-T-NNENG8).
+        // 유효한 재설치 요청 표시가 있는 행은 제외한다 — 기존 토큰은 아직 살아 있고, 상태와 표시를 남겨 두면 사용자가
+        // App URL 로 다시 시도할 수 있다(CLE-T-NNENG8). 만료된 표시는 없는 것으로 본다.
         integration.status = 'error';
         integration.statusReason = 'auth_failed';
       } else if (
@@ -1627,13 +1640,13 @@ export class IntegrationOAuthService {
         'Request (mall_id, timestamp, hmac) tuple has been seen within the 10-minute window — refusing replay.',
     });
 
-    // status 분기 — pending_install 과 재설치 요청 표시가 있는 행만 OAuth authorize 로 진입.
+    // status 분기 — pending_install 과 유효한 재설치 요청 표시(24시간)가 있는 행만 OAuth authorize 로 진입.
     // 그 밖의 connected/error/expired 는 post-install navigation 으로 간주 (카페24
     // 쇼핑몰 관리자의 "앱으로 가기" 버튼 등). HMAC 이 통과했다는 건
     // Cafe24 가 호출한 정당한 요청임을 의미하므로 우리 frontend 의 통합
     // 상세 페이지로 안내. 재설치 요청 표시는 권한 추가 · 재인증이 남긴다(CLE-T-NNENG8).
     // 근거: NERV CLE-INT-OAUTH Rationale "Cafe24 App URL 재호출 흐름".
-    if (target.status !== 'pending_install' && !target.reinstallRequestedAt) {
+    if (!isInstallFlowRow(target)) {
       const redirectUrl = this.buildIntegrationDetailRedirectUrl(target.id);
       this.logger.log(
         `Cafe24 post-install navigation: mall=${query.mall_id} integration=${target.id} status=${target.status} → redirect to ${redirectUrl}`,
@@ -2084,7 +2097,7 @@ export class IntegrationOAuthService {
       // SEC H-2: 회복 성공 로그도 UUID/tokenPrefix 제거. mall_id + status 만
       // 으로 운영 진단 충분.
       this.logger.log(
-        `[cafe24-install-recovery] recovered: mall_id=${query.mall_id} status=${row.status} → falling through to ${row.status === 'pending_install' ? 'OAuth authorize' : 'post-install navigation'}`,
+        `[cafe24-install-recovery] recovered: mall_id=${query.mall_id} status=${row.status} → falling through to ${isInstallFlowRow(row) ? 'OAuth authorize' : 'post-install navigation'}`,
       );
       return row;
     }

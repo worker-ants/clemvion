@@ -1519,7 +1519,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         integrationRepo.findOne.mockResolvedValue(
           makePendingRow({
             status,
-            reinstallRequestedAt: new Date('2026-10-10T00:00:00.000Z'),
+            reinstallRequestedAt: new Date(Date.now() - 60 * 60 * 1000),
           }),
         );
         oauthMock.env.frontendUrl = 'https://app.example.com';
@@ -1549,11 +1549,70 @@ describe('IntegrationOAuthService — Cafe24', () => {
       },
     );
 
+    /**
+     * 표시에는 24시간 유효 기간이 있다(`reinstall-request.ts`) — 설치 대기 TTL 과 같은 창이다. 경계 안(23시간 59분)은
+     * OAuth 로, 넘으면 표시가 없는 것과 같이 상세 화면으로 보낸다. 값은 DB 에 남아 있어도 읽는 쪽이 무시한다.
+     */
+    it('재설치 요청 표시가 23시간 59분 지났으면 아직 Cafe24 authorize 로 보낸다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makePendingRow({
+          status: 'connected',
+          reinstallRequestedAt: new Date(
+            Date.now() - (24 * 60 * 60 * 1000 - 60 * 1000),
+          ),
+        }),
+      );
+      oauthMock.env.frontendUrl = 'https://app.example.com';
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      const url = await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+
+      expect(url).toContain(
+        'https://priv-shop.cafe24api.com/api/v2/oauth/authorize',
+      );
+      expect(stateRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['connected', 'error', 'expired'] as const)(
+      'status=%s — 재설치 요청 표시가 24시간을 넘었으면 없는 것으로 보고 상세 화면으로 보낸다(state 를 만들지 않는다)',
+      async (status) => {
+        integrationRepo.findOne.mockResolvedValue(
+          makePendingRow({
+            status,
+            reinstallRequestedAt: new Date(
+              Date.now() - (24 * 60 * 60 * 1000 + 60 * 1000),
+            ),
+          }),
+        );
+        oauthMock.env.frontendUrl = 'https://app.example.com';
+        const validTs = Math.floor(Date.now() / 1000);
+        const rawQuery = buildRawQuery(validTs);
+        const params = new URLSearchParams(rawQuery);
+
+        const url = await service.handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        });
+
+        expect(url).toBe('https://app.example.com/integrations/integration-1');
+        expect(stateRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
     it('재설치 요청 표시가 있어도 HMAC 이 틀리면 거부한다', async () => {
       integrationRepo.findOne.mockResolvedValue(
         makePendingRow({
           status: 'connected',
-          reinstallRequestedAt: new Date('2026-10-10T00:00:00.000Z'),
+          reinstallRequestedAt: new Date(Date.now() - 60 * 60 * 1000),
         }),
       );
       const validTs = Math.floor(Date.now() / 1000);
@@ -1924,7 +1983,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           scopes: ['mall.read_product', 'mall.read_store'],
         },
         installToken: 'some-install-token',
-        reinstallRequestedAt: new Date('2026-10-10T00:00:00.000Z'),
+        reinstallRequestedAt: new Date(Date.now() - 60 * 60 * 1000),
         statusReason: null,
         lastError: null,
         tokenExpiresAt: null,
