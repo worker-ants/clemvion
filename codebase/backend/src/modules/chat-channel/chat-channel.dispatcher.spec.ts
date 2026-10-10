@@ -781,6 +781,7 @@ function buildDispatcherHarness(
     lookup: jest.fn(async () => state),
     upsert,
     updateExecutionId: jest.fn(async () => undefined),
+    clearExecutionIdIfMatches: jest.fn(async () => true),
   };
   const adapter = {
     provider: 'slack',
@@ -808,7 +809,14 @@ function buildDispatcherHarness(
     conversationService as never,
     triggerRepository as never,
   );
-  return { dispatcher, adapter, state, upsert, triggerRepository };
+  return {
+    dispatcher,
+    adapter,
+    state,
+    upsert,
+    triggerRepository,
+    conversationService,
+  };
 }
 
 /**
@@ -1023,5 +1031,68 @@ describe('ChatChannelDispatcher.handle — 저장된 시크릿 참조', () => {
         botTokenRef: 'secret://triggers/trig-1/bot-token',
       }),
     );
+  });
+});
+
+// 근거: NERV Task `CLE-T-V4WVF2`. /start 가 기존 실행을 취소하고 새 실행을 대화에 이은 뒤 옛 실행의
+// 종결 이벤트가 늦게 와도 새 실행의 매핑을 지우면 안 된다. 대화가 아직 그 실행을 가리킬 때만 비운다.
+describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정리', () => {
+  function buildTerminalEvent(
+    eventType: string,
+    payload: Record<string, unknown> = {},
+  ): ExecutionChannelEvent {
+    return {
+      executionId: 'exec-old',
+      eventType,
+      seq: 9,
+      payload: {
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        timestamp: '2026-10-10T00:00:00Z',
+        chatChannel: { conversationKey: 'D1' },
+        ...payload,
+      },
+    } as ExecutionChannelEvent;
+  }
+
+  it.each([
+    ['execution.completed', { status: 'completed', result: {} }],
+    [
+      'execution.failed',
+      { status: 'failed', error: { code: 'NODE_FAILED', message: 'x' } },
+    ],
+    [
+      'execution.cancelled',
+      { status: 'cancelled', result: { cancelledBy: 'user' } },
+    ],
+  ])(
+    '%s 는 대화가 그 실행을 가리킬 때만 매핑을 비운다',
+    async (eventType, payload) => {
+      const { dispatcher, conversationService } = buildDispatcherHarness();
+
+      await callHandle(dispatcher, buildTerminalEvent(eventType, payload));
+
+      expect(
+        conversationService.clearExecutionIdIfMatches,
+      ).toHaveBeenCalledWith('trig-1', 'D1', 'exec-old');
+      expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
+    },
+  );
+
+  it('종결이 아닌 이벤트는 매핑을 건드리지 않는다', async () => {
+    const { dispatcher, conversationService } = buildDispatcherHarness();
+
+    await callHandle(
+      dispatcher,
+      buildTerminalEvent('execution.ai_message', {
+        message: 'hi',
+        nodeId: 'n1',
+      }),
+    );
+
+    expect(
+      conversationService.clearExecutionIdIfMatches,
+    ).not.toHaveBeenCalled();
+    expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
   });
 });

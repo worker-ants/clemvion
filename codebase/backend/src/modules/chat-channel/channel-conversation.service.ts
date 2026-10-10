@@ -15,6 +15,17 @@ import { ChannelConversationState } from './types';
  * Redis 미가용 시 graceful degradation — lookup 은 null, upsert 는 noop (워크플로우 실행 자체
  * 차단 회피). 본 케이스에서는 매 update 가 새 execution 으로 처리됨 (fallback).
  */
+/**
+ * 저장된 값이 읽은 값과 같을 때만 새 값으로 바꾼다(compare-and-set). JSON 을 Lua 에서 다시 만들지
+ * 않고 문자열 그대로 비교한다. cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을
+ * 망가뜨린다.
+ */
+const COMPARE_AND_SET_SCRIPT =
+  "if redis.call('get',KEYS[1])==ARGV[1] then redis.call('set',KEYS[1],ARGV[2],'EX',ARGV[3]) return 1 else return 0 end";
+
+/** compare-and-set 이 다른 쓰기에 밀렸을 때 다시 읽는 횟수 상한. */
+const COMPARE_AND_SET_MAX_ATTEMPTS = 3;
+
 @Injectable()
 export class ChannelConversationService {
   private readonly logger = new Logger(ChannelConversationService.name);
@@ -117,6 +128,56 @@ export class ChannelConversationService {
     state.executionId = executionId;
     state.lastUpdateAt = new Date().toISOString();
     await this.upsert(triggerId, conversationKey, state);
+  }
+
+  /**
+   * 대화가 아직 `executionId` 를 가리킬 때만 executionId 를 비운다. 실행의 종결 이벤트가 쓴다.
+   *
+   * `/start` 는 기존 실행을 취소하고 새 실행을 대화에 잇는다(NERV Task `CLE-T-V4WVF2`). 옛 실행의
+   * 종결 이벤트는 그 뒤에 올 수 있다. 무조건 비우면 새 실행의 매핑이 지워져 다음 메시지가 대기 중인
+   * 새 실행으로 가지 않고 또 다른 실행을 시작한다. 읽은 값과 저장된 값을 비교해 바꾸므로 읽은 뒤에
+   * 다른 요청이 새 실행을 이어도 덮어쓰지 않는다.
+   *
+   * Redis 미가용 · 오류 시 false (graceful degradation). 비우지 못한 executionId 는 이미 종결된
+   * 실행을 가리키므로 다음 메시지가 활성 실행 없음으로 판정한다.
+   *
+   * @returns 비웠으면 true.
+   */
+  async clearExecutionIdIfMatches(
+    triggerId: string,
+    conversationKey: string,
+    executionId: string,
+  ): Promise<boolean> {
+    if (!this.redis) return false;
+    const key = this.buildKey(triggerId, conversationKey);
+    try {
+      for (let attempt = 0; attempt < COMPARE_AND_SET_MAX_ATTEMPTS; attempt++) {
+        const raw = await this.redis.get(key);
+        if (!raw) return false;
+        const state = JSON.parse(raw) as ChannelConversationState;
+        if (state.executionId !== executionId) return false;
+        state.executionId = null;
+        state.lastUpdateAt = new Date().toISOString();
+        const swapped = await this.redis.eval(
+          COMPARE_AND_SET_SCRIPT,
+          1,
+          key,
+          raw,
+          JSON.stringify(state),
+          ChannelConversationService.TTL_SEC,
+        );
+        if (swapped === 1) return true;
+      }
+      this.logger.warn(
+        `ChannelConversationService.clearExecutionIdIfMatches — 동시 쓰기가 이어져 비우지 못했다 (trigger=${triggerId}, execution=${executionId})`,
+      );
+      return false;
+    } catch (err) {
+      this.logger.warn(
+        `ChannelConversationService.clearExecutionIdIfMatches 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
   }
 
   /**

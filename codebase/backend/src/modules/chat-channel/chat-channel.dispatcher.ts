@@ -308,16 +308,18 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // terminal event 면 conversation 의 activeExecution 비우기.
+    // terminal event 면 conversation 의 activeExecution 비우기. 대화가 아직 이 실행을 가리킬 때만
+    // 비운다. /start 가 이 실행을 취소하고 새 실행을 이은 뒤 이 이벤트가 늦게 올 수 있다
+    // (NERV Task `CLE-T-V4WVF2`).
     if (
       event.eventType === 'execution.completed' ||
       event.eventType === 'execution.failed' ||
       event.eventType === 'execution.cancelled'
     ) {
-      await this.conversationService.updateExecutionId(
+      await this.conversationService.clearExecutionIdIfMatches(
         trigger.id,
         conversationKey,
-        null,
+        event.executionId,
       );
     }
 

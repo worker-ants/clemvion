@@ -45,14 +45,24 @@ class MockRedis {
     return this.store.delete(key) ? 1 : 0;
   }
 
-  /** releaseLock 의 안전 해제 Lua 모사: token 일치 시에만 del. */
+  /**
+   * Lua 모사. 두 스크립트를 인자 수로 가른다.
+   *  - releaseLock: (key, token) → token 일치 시에만 del.
+   *  - clearExecutionIdIfMatches: (key, 읽은 값, 새 값, ttlSec) → 값이 그대로일 때만 set.
+   */
   async eval(
     _script: string,
     _numKeys: number,
     key: string,
-    token: string,
+    ...args: Array<string | number>
   ): Promise<number> {
-    if ((await this.get(key)) === token) {
+    if (args.length === 3) {
+      const [expected, next, ttlSec] = args;
+      if ((await this.get(key)) !== expected) return 0;
+      await this.set(key, String(next), 'EX', Number(ttlSec));
+      return 1;
+    }
+    if ((await this.get(key)) === args[0]) {
       return this.store.delete(key) ? 1 : 0;
     }
     return 0;
@@ -176,6 +186,125 @@ describe('ChannelConversationService', () => {
       await expect(
         service.updateExecutionId(triggerId, 'non-existent', 'exec-xyz'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // 근거: NERV Task `CLE-T-V4WVF2`. 옛 실행의 종결 이벤트가 /start 로 이은 새 실행의 매핑을 지우지 않게 한다.
+  describe('clearExecutionIdIfMatches()', () => {
+    it('대화가 그 실행을 가리키면 executionId 만 비우고 true 를 돌려준다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(true);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBeNull();
+      expect(result?.channelUserKey).toBe('user-9999');
+    });
+
+    it('대화가 다른 실행을 가리키면 그대로 두고 false 를 돌려준다', async () => {
+      await service.upsert(triggerId, conversationKey, {
+        ...state,
+        executionId: 'exec-new',
+      });
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(false);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-new');
+    });
+
+    it('읽은 뒤 다른 요청이 새 실행으로 바꿨으면 덮어쓰지 않는다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const realGet = redis.get.bind(redis);
+      let raced = false;
+      jest.spyOn(redis, 'get').mockImplementation(async (key: string) => {
+        const value = await realGet(key);
+        if (!raced) {
+          raced = true;
+          await service.upsert(triggerId, conversationKey, {
+            ...state,
+            executionId: 'exec-new',
+          });
+        }
+        return value;
+      });
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(false);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-new');
+    });
+
+    it('읽은 뒤 같은 실행의 다른 필드만 바뀌었으면 다시 읽어 비운다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const realGet = redis.get.bind(redis);
+      let raced = false;
+      jest.spyOn(redis, 'get').mockImplementation(async (key: string) => {
+        const value = await realGet(key);
+        if (!raced) {
+          raced = true;
+          await service.upsert(triggerId, conversationKey, {
+            ...state,
+            lastUpdateAt: '2026-05-22T02:00:00.000Z',
+          });
+        }
+        return value;
+      });
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(true);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBeNull();
+    });
+
+    it('conversation 이 없으면 false', async () => {
+      await expect(
+        service.clearExecutionIdIfMatches(triggerId, 'none', 'exec-abc'),
+      ).resolves.toBe(false);
+    });
+
+    it('Redis 미가용 시 false (graceful degradation)', async () => {
+      const degradedService = new ChannelConversationService();
+      await expect(
+        degradedService.clearExecutionIdIfMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+        ),
+      ).resolves.toBe(false);
+    });
+
+    it('Redis 오류는 삼키고 false', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      jest.spyOn(redis, 'eval').mockRejectedValueOnce(new Error('down'));
+
+      await expect(
+        service.clearExecutionIdIfMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+        ),
+      ).resolves.toBe(false);
     });
   });
 
