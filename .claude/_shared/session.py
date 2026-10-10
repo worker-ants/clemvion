@@ -26,15 +26,42 @@ _YEAR_RE = re.compile(r"\d{4}")
 _TWO_DIGITS_RE = re.compile(r"\d{2}")
 
 
+# `.claude/_shared/session.py` → the root of the checkout this module lives in.
+_CHECKOUT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# `O_NOFOLLOW` is POSIX. Where it does not exist the open simply follows links, as before.
+_LOG_OPEN_FLAGS = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+
+
+def debug_log_path(name):
+    """`<checkout>/.review/logs/<name>.log`, where an orchestrator keeps its debug log.
+
+    The logs used to be fixed names under `/tmp` (`/tmp/code-review-agents-log.txt` and two more).
+    `/tmp` is shared by every user of the machine, so anyone could create that name first, as a
+    symlink to another file or as a file of their own, and the orchestrator appended to it.
+    `.review/` belongs to the checkout, is gitignored and already holds the session directories,
+    so each worktree now keeps its own log (NERV Task `CLE-T-QY5AZ3`).
+    """
+    return os.path.join(_CHECKOUT_ROOT, ".review", "logs", f"{name}.log")
+
+
 def make_debug_logger(log_file_path):
     """Return a function that appends timestamped messages to log_file_path.
+
+    A missing parent directory is created, and a new file is created `0o600`. The open uses
+    `O_NOFOLLOW`: when the last path component is a symlink the open fails and the message is
+    dropped instead of being appended to whatever the link points to.
 
     Failures during logging are silently ignored — logging must never crash the orchestrator.
     """
     def _log(message):
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            with open(log_file_path, "a") as f:
+            parent = os.path.dirname(log_file_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            fd = os.open(log_file_path, _LOG_OPEN_FLAGS, 0o600)
+            with open(fd, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] {message}\n")
         except Exception:
             pass

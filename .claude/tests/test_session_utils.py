@@ -8,9 +8,11 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import shutil
+import stat
 import tempfile
 import unittest
 
@@ -106,6 +108,69 @@ class DebugLoggerUnwritableTest(unittest.TestCase):
             lines = f.read().splitlines()
         self.assertEqual([ln.split("] ", 1)[1] for ln in lines], ["first", "second"])
         self.assertRegex(lines[0], r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\] ")
+
+
+@unittest.skipUnless(hasattr(os, "O_NOFOLLOW") and hasattr(os, "symlink"), "POSIX 전용")
+class DebugLoggerDoesNotFollowSymlinksTest(unittest.TestCase):
+    """디버그 로그는 `/tmp` 의 고정 이름이었다. 다른 사용자가 같은 이름의 링크를 먼저 만들어 두면 로그가 링크가
+    가리키는 파일에 붙었다(NERV Task `CLE-T-QY5AZ3`)."""
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_a_symlink_at_the_log_path_is_not_followed(self):
+        victim = os.path.join(self.tmp, "victim.txt")
+        with open(victim, "w", encoding="utf-8") as f:
+            f.write("victim\n")
+        path = os.path.join(self.tmp, "log.txt")
+        os.symlink(victim, path)
+        session.make_debug_logger(path)("leaked")
+        with open(victim, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "victim\n")
+        self.assertTrue(os.path.islink(path))
+
+    def test_a_dangling_symlink_does_not_create_its_target(self):
+        target = os.path.join(self.tmp, "created-through-link.txt")
+        path = os.path.join(self.tmp, "log.txt")
+        os.symlink(target, path)
+        session.make_debug_logger(path)("leaked")
+        self.assertFalse(os.path.exists(target))
+
+    def test_a_new_log_is_private_and_its_directory_is_made(self):
+        path = os.path.join(self.tmp, "logs", "deep", "x.log")
+        old = os.umask(0o022)
+        try:
+            session.make_debug_logger(path)("hello")
+        finally:
+            os.umask(old)
+        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+
+
+class OrchestratorsLogInTheCheckoutTest(unittest.TestCase):
+    ORCHESTRATORS = {
+        "code-review-agents/scripts/code_review_orchestrator.py": "code-review-agents",
+        "consistency-checker/scripts/consistency_orchestrator.py": "consistency-checker",
+        "merge-coordinator/scripts/merge_coordinator_orchestrator.py": "merge-coordinator",
+    }
+
+    def test_debug_log_path_is_under_the_checkouts_review_directory(self):
+        self.assertEqual(session.debug_log_path("x"),
+                         str(_harness.REPO_ROOT / ".review" / "logs" / "x.log"))
+
+    def test_each_orchestrator_takes_its_log_path_from_the_shared_module(self):
+        # 구문 트리로 본다. 주석에 옛 `/tmp/...` 가 남아 있어도 판정은 대입문만 본다.
+        for rel, name in self.ORCHESTRATORS.items():
+            with self.subTest(orchestrator=rel):
+                tree = ast.parse((_harness.CLAUDE_DIR / "skills" / rel).read_text(encoding="utf-8"))
+                values = [n.value for n in ast.walk(tree) if isinstance(n, ast.Assign)
+                          and any(isinstance(t, ast.Name) and t.id == "DEBUG_LOG_FILE" for t in n.targets)]
+                self.assertEqual(len(values), 1, values)
+                call = values[0]
+                self.assertIsInstance(call, ast.Call)
+                self.assertIsInstance(call.func, ast.Attribute)
+                self.assertEqual((ast.unparse(call.func), [ast.literal_eval(a) for a in call.args]),
+                                 ("session.debug_log_path", [name]))
 
 
 if __name__ == "__main__":

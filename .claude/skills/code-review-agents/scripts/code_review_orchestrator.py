@@ -53,7 +53,7 @@ from _shared import report_paths as _report_paths_lib  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 from _shared import session  # noqa: E402
 
-DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
+DEBUG_LOG_FILE = session.debug_log_path("code-review-agents")
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 
 # Size caps, in characters (not bytes — Korean text is 3 bytes/char in UTF-8,

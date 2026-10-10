@@ -143,7 +143,7 @@ ai-review · consistency-check 와 동일. ScheduleWakeup delay = `last_reset_hi
 
 ## 디버그 로그
 
-`/tmp/merge-coordinator-log.txt` 에 orchestrator 의 prepare/resume 이벤트 기록. model 호출 자체는 main session 의 transcript 에 남는다.
+체크아웃의 `.review/logs/merge-coordinator.log` 에 orchestrator 의 prepare/resume 이벤트 기록. 워크트리마다 따로 쌓인다. 예전 경로 `/tmp/merge-coordinator-log.txt` 는 쓰지 않는다. model 호출 자체는 main session 의 transcript 에 남는다.
 
 ## 기존 skill 활용 지점
 

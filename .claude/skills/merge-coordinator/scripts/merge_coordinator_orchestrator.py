@@ -43,7 +43,7 @@ from _lib import project_config  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 from _shared import session  # noqa: E402
 
-DEBUG_LOG_FILE = "/tmp/merge-coordinator-log.txt"
+DEBUG_LOG_FILE = session.debug_log_path("merge-coordinator")
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 
 # Analyzers registered up-front (summary is the last entry, handled separately

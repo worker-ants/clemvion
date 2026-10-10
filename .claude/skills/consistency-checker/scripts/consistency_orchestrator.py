@@ -67,7 +67,7 @@ from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 from _shared import session  # noqa: E402
 
-DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
+DEBUG_LOG_FILE = session.debug_log_path("consistency-checker")
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 
 # Derived, not restated: `_shared/block_integrity` needs the same list to know
