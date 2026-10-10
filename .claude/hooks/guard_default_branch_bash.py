@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook — soft reminder when a *mutating* Bash command is
+r"""PreToolUse hook — soft reminder when a *mutating* Bash command is
 about to run on the default branch of the main worktree.
 
 Registered in `.claude/settings.json` for the `Bash` matcher. Unlike

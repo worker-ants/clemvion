@@ -30,7 +30,6 @@ import shutil
 import tempfile
 import textwrap
 import unittest
-import warnings
 from datetime import datetime
 from unittest import mock
 
@@ -197,10 +196,7 @@ def _session_naming(src: str) -> dict[str, bool]:
 
     문자열 포함으로 보면 주석 `# was session.create_session_dir(` 한 줄만 있어도 호출이 있다고 판정됐다(코드 리뷰
     `CLE-T-XM6YV0` 의 W1). 그래서 구문 트리로 본다. 주석은 파싱할 때 사라지고 docstring 은 따로 뺀다."""
-    with warnings.catch_warnings():
-        # consistency 오케스트레이터 docstring 의 `\`` 같은 이스케이프 경고는 이 판정과 무관하다.
-        warnings.simplefilter("ignore", (DeprecationWarning, SyntaxWarning))
-        tree = ast.parse(src)
+    tree = ast.parse(src)
     nodes = list(ast.walk(tree))
     docstrings = set()
     for node in nodes:

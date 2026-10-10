@@ -675,7 +675,7 @@ def _count_diff_files(diff_text):
 
 
 def _folded(items):
-    """`- \`x\`` 줄들. `_SCOPE_HITS_DISPLAY_LIMIT` 를 넘으면 정확한 나머지 수로 접는다."""
+    """항목마다 `    - <항목>` 한 줄. `_SCOPE_HITS_DISPLAY_LIMIT` 를 넘으면 정확한 나머지 수로 접는다."""
     shown = "".join(f"    - {x}\n" for x in items[:_SCOPE_HITS_DISPLAY_LIMIT])
     if len(items) > _SCOPE_HITS_DISPLAY_LIMIT:
         shown += f"    - … 외 {len(items) - _SCOPE_HITS_DISPLAY_LIMIT}건\n"
