@@ -19,7 +19,6 @@ default branch.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import traceback
@@ -30,23 +29,12 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
 
 try:
-    from _lib.branch_guard import evaluate, hook_cwd  # noqa: E402
+    from _lib.branch_guard import evaluate  # noqa: E402
+    from _lib.hook_input import payload_cwd, read_payload  # noqa: E402
 except Exception:
     # Import failure must not break the session — fail open.
     traceback.print_exc(file=sys.stderr)
     sys.exit(0)
-
-
-def _read_payload() -> dict:
-    """The hook input as a dict. Anything unreadable reads as `{}`, the same as no input."""
-    try:
-        raw = sys.stdin.read()
-        if not raw.strip():
-            return {}
-        payload = json.loads(raw)
-    except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError are ValueErrors
-        return {}
-    return payload if isinstance(payload, dict) else {}
 
 
 def _describe_target(payload: dict) -> str:
@@ -66,12 +54,12 @@ def main() -> int:
     if os.environ.get("BYPASS_DEFAULT_BRANCH_GUARD") == "1":
         return 0
 
-    # Input first: the directory to judge comes from it (`hook_cwd`), because
+    # Input first: the directory to judge comes from it (`payload_cwd`), because
     # this process runs from the main checkout whatever worktree the session is in.
-    payload = _read_payload()
+    payload = read_payload()
 
     try:
-        decision = evaluate(hook_cwd(payload))
+        decision = evaluate(payload_cwd(payload))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         return 0  # fail open on internal error

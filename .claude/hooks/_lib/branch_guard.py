@@ -7,8 +7,8 @@ This module is consumed by:
   - .claude/hooks/guard_default_branch_prompt.py  (UserPromptSubmit hook)
   - .githooks/pre-commit                          (via `python3 -m`)
 
-The three hooks judge the directory the hook input names (`hook_cwd`), not
-their own process directory. The harness starts hooks from the main checkout
+The three hooks judge the directory the hook input names (`hook_input.payload_cwd`),
+not their own process directory. The harness starts hooks from the main checkout
 (`$CLAUDE_PROJECT_DIR`), so a session working in a linked worktree still has a
 hook process sitting on the default branch. Judging `os.getcwd()` there blocked
 Edit/Write and fired both reminders in every worktree session the app created
@@ -65,18 +65,6 @@ def _is_main_worktree(repo_root: str) -> bool:
 
 _current_branch = _git_probe._current_branch
 _origin_default_branch = _git_probe._origin_default_branch
-
-
-def hook_cwd(payload) -> str | None:
-    """The directory a hook should judge: the input's `cwd` when it is a non-empty string, else None.
-
-    None makes `evaluate()` fall back to `os.getcwd()`, the behaviour before hooks read their input.
-    Kept here so the three default-branch hooks cannot drift on what counts as a usable `cwd`.
-    """
-    if not isinstance(payload, dict):
-        return None
-    cwd = payload.get("cwd")
-    return cwd if isinstance(cwd, str) and cwd else None
 
 
 def evaluate(cwd: str | None = None) -> GuardDecision:

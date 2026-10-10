@@ -13,6 +13,8 @@ resolution-applier 의 쓰기가 막혔고 UserPromptSubmit 훅도 같은 경고
 
 from __future__ import annotations
 
+import ast
+import io
 import json
 import os
 import shutil
@@ -23,6 +25,7 @@ import unittest
 
 import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
 from _lib import branch_guard as bg
+from _lib import hook_input
 
 HOOKS = ("guard_default_branch_edit.py", "guard_default_branch_prompt.py",
          "guard_default_branch_bash.py")
@@ -152,19 +155,72 @@ class UnreadableInputTest(_Fixture):
                     self.assertSilent(hook, self.run_hook(hook, process_cwd=self.worktree, stdin=stdin))
 
 
-class HookCwdTest(unittest.TestCase):
-    """세 훅이 입력에서 판정 디렉터리를 꺼내는 규칙. 한 곳에 두어 셋이 갈리지 않게 한다."""
+class HookInputTest(unittest.TestCase):
+    """세 훅이 입력을 읽고 판정 디렉터리를 꺼내는 규칙. `_lib/hook_input.py` 한 곳에 두어 셋이 갈리지 않게 한다."""
 
     def test_only_a_non_empty_string_is_taken(self):
-        self.assertEqual(bg.hook_cwd({"cwd": "/w"}), "/w")
+        self.assertEqual(hook_input.payload_cwd({"cwd": "/w"}), "/w")
         for payload in ({}, {"cwd": ""}, {"cwd": None}, {"cwd": 0}, {"cwd": ["/w"]}, {"cwd": {"p": "/w"}}):
             with self.subTest(payload=payload):
-                self.assertIsNone(bg.hook_cwd(payload))
+                self.assertIsNone(hook_input.payload_cwd(payload))
 
     def test_a_payload_that_is_not_a_dict_has_no_cwd(self):
         for payload in (None, [], "cwd", 3):
             with self.subTest(payload=payload):
-                self.assertIsNone(bg.hook_cwd(payload))
+                self.assertIsNone(hook_input.payload_cwd(payload))
+
+    def test_an_object_is_read_as_it_is(self):
+        self.assertEqual(hook_input.read_payload(io.StringIO('{"cwd": "/w", "n": 1}')), {"cwd": "/w", "n": 1})
+
+    def test_anything_that_is_not_a_readable_object_reads_as_empty(self):
+        for raw in ("", "  \n", "{not json", "[]", '"x"', "3", "null"):
+            with self.subTest(raw=raw):
+                self.assertEqual(hook_input.read_payload(io.StringIO(raw)), {})
+
+    def test_a_stream_that_cannot_be_decoded_or_read_reads_as_empty(self):
+        # 실제 stdin 이 UTF-8 이 아닌 바이트에서 내는 오류(`UnicodeDecodeError`)와 읽기 실패(`OSError`).
+        class Broken:
+            def __init__(self, exc):
+                self.exc = exc
+
+            def read(self):
+                raise self.exc
+
+        for exc in (UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"), OSError("closed")):
+            with self.subTest(exc=type(exc).__name__):
+                self.assertEqual(hook_input.read_payload(Broken(exc)), {})
+
+    def test_a_programming_error_in_the_stream_is_not_swallowed(self):
+        # 좁게 잡는다. `ValueError` · `OSError` 밖의 예외는 입력 문제가 아니라 버그이므로 그대로 올라온다.
+        class Buggy:
+            def read(self):
+                raise RuntimeError("bug")
+
+        with self.assertRaises(RuntimeError):
+            hook_input.read_payload(Buggy())
+
+    def test_without_a_stream_it_reads_the_current_stdin(self):
+        # 호출 시점의 `sys.stdin` 을 읽는다(import 시점에 묶지 않는다). 훅은 stdin 을 이 경로로 읽는다.
+        old, sys.stdin = sys.stdin, io.StringIO('{"cwd": "/w"}')
+        try:
+            self.assertEqual(hook_input.read_payload(), {"cwd": "/w"})
+        finally:
+            sys.stdin = old
+
+
+class HooksShareTheInputRulesTest(unittest.TestCase):
+    """세 훅이 입력 규칙을 제 사본으로 다시 들이지 않는다. 사본이 셋이면 규칙을 고칠 때마다 셋을 같이 고쳐야 한다."""
+
+    def test_no_hook_defines_its_own_read_payload_or_cwd_rule(self):
+        for hook in HOOKS:
+            with self.subTest(hook=hook):
+                tree = ast.parse((_harness.HOOKS_DIR / hook).read_text(encoding="utf-8"))
+                defined = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+                self.assertFalse(defined & {"_read_payload", "read_payload", "hook_cwd", "payload_cwd"}, defined)
+                imported = {(n.module, a.name) for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)
+                            for a in n.names}
+                self.assertIn(("_lib.hook_input", "read_payload"), imported)
+                self.assertIn(("_lib.hook_input", "payload_cwd"), imported)
 
 
 if __name__ == "__main__":
