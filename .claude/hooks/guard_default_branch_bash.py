@@ -5,8 +5,11 @@ about to run on the default branch of the main worktree.
 Registered in `.claude/settings.json` for the `Bash` matcher. Unlike
 the Write/Edit guard (which blocks), this guard NEVER blocks: false
 positives on Bash command classification are too easy. Instead it
-prints a reminder to stdout once per session (which the harness
-injects into the model's context) and lets the command through.
+emits a reminder once per session and lets the command through. The
+reminder goes out as `hookSpecificOutput.additionalContext` JSON
+(`_lib/hook_output.py`): on a PreToolUse exit 0, plain stdout only reaches
+Claude Code's debug log, so the plain `print` this hook used until
+2026-10-10 never reached the model (NERV Task `CLE-T-QBNJ81`).
 
 Rationale: the existing Write/Edit guard only catches violations at
 the very last step — after the model has often spent many tool calls
@@ -62,6 +65,7 @@ sys.path.insert(0, THIS_DIR)
 try:
     from _lib.branch_guard import evaluate  # noqa: E402
     from _lib.hook_input import payload_cwd, read_payload  # noqa: E402
+    from _lib.hook_output import emit_context  # noqa: E402
 except Exception:
     traceback.print_exc(file=sys.stderr)
     sys.exit(0)
@@ -239,22 +243,19 @@ def main() -> int:
     if _already_warned(session_id):
         return 0  # already reminded this session.
 
+    # Facts, not commands, and no `<system-reminder>` tag of our own: Claude Code
+    # wraps additionalContext in one, and the hooks reference warns that text
+    # framed as out-of-band instructions can trip prompt-injection defenses.
     reminder = (
-        "<system-reminder>\n"
-        "⚠️ main 워크트리 default branch 에서 mutating Bash 명령을 실행하려 합니다.\n"
-        "이 명령 자체는 차단되지 않지만, 곧 Write/Edit/git commit 단계에서\n"
-        "PreToolUse 가드(.claude/hooks/guard_default_branch_edit.py) 와\n"
-        "pre-commit 훅이 차단합니다. 누적된 컨텍스트가 낭비되기 전에\n"
-        "지금 worktree 를 만드세요.\n"
-        "\n"
-        "**즉시 실행**:\n"
-        "  .claude/tools/ensure-worktree.sh <task_name>\n"
-        "  cd <printed path>\n"
-        "\n"
-        "이 reminder 는 세션당 1회만 표시됩니다.\n"
-        "</system-reminder>"
+        "guard_default_branch_bash.py: 이 Bash 명령은 main 워크트리의 기본 브랜치에서 "
+        "상태를 바꾸는 명령으로 분류됐다. 이 안내는 명령을 막지 않는다.\n"
+        "이 체크아웃에서 이어지는 Write · Edit 는 guard_default_branch_edit.py 가, "
+        "git commit 은 pre-commit 훅이 막는다.\n"
+        "이 프로젝트의 작업 위치는 `.claude/tools/ensure-worktree.sh <task_name>` 으로 "
+        "만드는 워크트리다. 스크립트 출력의 마지막 줄이 그 워크트리로 옮기는 `cd` 명령이다.\n"
+        "이 안내는 세션마다 한 번 나온다."
     )
-    print(reminder)
+    emit_context(reminder)
     _mark_warned(session_id)
     return 0
 

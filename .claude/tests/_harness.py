@@ -68,6 +68,68 @@ def load_module_by_path(name: str, path: Path) -> ModuleType:
     return module
 
 
+def pretooluse_context(stdout: str) -> str:
+    """What an exit-0 PreToolUse hook's stdout puts in front of the model.
+
+    Claude Code delivers only `hookSpecificOutput.additionalContext` from a
+    single JSON object. Plain text and a second object reach the debug log only
+    (measured; see `.claude/hooks/_lib/hook_output.py`). A substring check on raw
+    stdout passes for both of those, so it cannot tell a delivered banner from a
+    dropped one. Use this instead: it fails the test unless stdout is empty or
+    exactly one such object without a permission decision, and returns the
+    context ("" for empty stdout).
+    """
+    if stdout == "":
+        return ""
+    text = stdout.strip()
+    if not (text.startswith("{") and text.endswith("}")):
+        raise AssertionError(f"PreToolUse stdout is plain text; Claude Code drops it:\n{stdout!r}")
+    try:
+        obj = json.loads(text)
+    except ValueError as exc:
+        raise AssertionError(
+            f"PreToolUse stdout is not ONE JSON object; Claude Code drops all of it:\n{stdout!r}"
+        ) from exc
+    if not isinstance(obj, dict) or set(obj) != {"hookSpecificOutput"}:
+        raise AssertionError(f"unexpected top-level keys: {obj!r}")
+    hso = obj["hookSpecificOutput"]
+    if not isinstance(hso, dict) or hso.get("hookEventName") != "PreToolUse":
+        raise AssertionError(f"hookEventName must be PreToolUse: {obj!r}")
+    if "permissionDecision" in hso:
+        # "allow" would skip the permission prompt: a guard must not approve.
+        raise AssertionError(f"a guard's context must not carry a permission decision: {obj!r}")
+    context = hso.get("additionalContext")
+    if not isinstance(context, str) or not context.strip():
+        raise AssertionError(f"additionalContext must be non-empty text: {obj!r}")
+    return context
+
+
+# Where the push hook's target selection starts. Every test that needs target selection to crash
+# (to make TARGET_SELECTION a degraded check) injects a `raise` right after this line, and used to
+# carry its own copy of the string: a signature change in the hook then broke four places by hand.
+_PUSH_TARGETS_DEF = "def _push_targets(command: str, cwd: str) -> list[str]:\n"
+
+
+def break_push_targets(hook_source: str, message: str = "simulated target selection failure") -> str:
+    """Return `hook_source` (`guard_review_before_push.py`) with `_push_targets` raising at once.
+
+    The gates still run on the cwd, so the push hook reaches the §E fail-open report with
+    TARGET_SELECTION degraded. Fails the test when the signature moved: a silent no-op would leave
+    every caller asserting on a hook that was never broken.
+    """
+    broken = hook_source.replace(
+        _PUSH_TARGETS_DEF,
+        _PUSH_TARGETS_DEF + f"    raise RuntimeError({message!r})\n",
+        1,
+    )
+    if broken == hook_source:
+        raise AssertionError(
+            "the injection point moved: `_push_targets` no longer has this signature in the hook; "
+            "update _PUSH_TARGETS_DEF in _harness.py"
+        )
+    return broken
+
+
 # Shapes a `VAR=value` assignment's VALUE can take. Both guards skip such a
 # prefix before looking at the real command, both had the same regex, and both
 # regressed the same way — twice — by narrowing that value's alternatives. Their
