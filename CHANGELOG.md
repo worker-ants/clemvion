@@ -38,6 +38,10 @@ CLE-T-G62XJS).
   남기지 않는다.
 - 임시 가드라 읽기 operation(GET)도 막는다. 노드처럼 GET 을 통과시키는 분류와 모의 응답은 후속 CLE-T-G62XJS 가
   맡는다. MCP resources · prompts 메타 도구와 kb_* 도구는 읽기 전용이라 그대로 부른다.
+- 알려진 한계: Workflow 노드의 비동기(`async`) 모드로 시작한 자식 실행은 dry-run 을 이어받지 않는다. 자식 실행이
+  `__dryRun=false` 로 돌아서 그 안의 AI 에이전트는 MCP 도구를 실제로 부른다. 이번 변경으로 생긴 구멍이 아니라
+  이전부터 있던 결함이고 후속 CLE-T-Y2F1NG 가 고친다. 그때까지 비동기 모드 Workflow 노드가 든 워크플로는 dry-run
+  재실행에 쓰지 않는다.
 
 ## Unreleased — Viewer 도 재실행 chain 을 조회한다
 
