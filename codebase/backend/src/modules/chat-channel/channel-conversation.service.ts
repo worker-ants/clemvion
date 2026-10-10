@@ -9,11 +9,18 @@ import { ChannelConversationState } from './types';
  * 않고 문자열 그대로 비교한다. cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을
  * 망가뜨린다.
  */
-const COMPARE_AND_SET_SCRIPT =
+export const COMPARE_AND_SET_SCRIPT =
   "if redis.call('get',KEYS[1])==ARGV[1] then redis.call('set',KEYS[1],ARGV[2],'EX',ARGV[3]) return 1 else return 0 end";
 
 /** compare-and-set 이 다른 쓰기에 밀렸을 때 다시 읽는 횟수 상한. */
 const COMPARE_AND_SET_MAX_ATTEMPTS = 3;
+
+/**
+ * `acquireLock` 으로 잡은 lock 을 소유자(token)가 맞을 때만 지운다. TTL 이 지나 다른 요청이 잡은 lock 을
+ * 잘못 지우지 않으려는 것이다. 테스트의 Redis 모사가 스크립트 문자열로 분기하도록 내보낸다.
+ */
+export const RELEASE_LOCK_SCRIPT =
+  "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end";
 
 /**
  * Chat Channel ConversationState 의 Redis CRUD.
@@ -223,12 +230,7 @@ export class ChannelConversationService {
     if (!this.redis) return;
     const lockKey = this.buildLockKey(triggerId, conversationKey);
     try {
-      await this.redis.eval(
-        "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
-        1,
-        lockKey,
-        token,
-      );
+      await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
     } catch (err) {
       this.logger.warn(
         `ChannelConversationService.releaseLock 실패 (TTL 로 자연 만료): ${err instanceof Error ? err.message : String(err)}`,

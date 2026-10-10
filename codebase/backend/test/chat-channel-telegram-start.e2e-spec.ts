@@ -4,6 +4,7 @@ import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 
+import { ChannelConversationService } from '../src/modules/chat-channel/channel-conversation.service';
 import { createDbClient } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
@@ -19,6 +20,11 @@ import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
  *
  * 워크플로우가 꺼져 있으면(NERV Task `CLE-T-XRWFMJ`) `/start` 는 새 실행을 시작하지 못하고
  * 그 앞의 기존 실행 취소도 하지 않는다. 202 ignored 이고 옛 실행은 그대로 `running` 이다.
+ *
+ * 대화 매핑을 비우는 compare-and-set 은 Lua 스크립트라 단위 테스트의 Redis 모사로는 스크립트가
+ * 실제로 도는지 알 수 없다. 여기서 실제 Redis 로 일치 · 불일치 경로를 확인한다(`/cancel` 요청과
+ * `ChannelConversationService` 직접 호출). 채팅 채널 listener 는 e2e 에서 등록되지 않아(Telegram
+ * setWebhook 이 막힌다) 실행 종결 이벤트가 dispatcher 를 거쳐 매핑을 비우는 경로는 여기서 보지 못한다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -82,7 +88,12 @@ describe('Telegram /start 재시작 (e2e)', () => {
     return { oldExecutionId, key };
   }
 
-  function postStart(endpointPath: string, chatId: number, userId: number) {
+  function postText(
+    endpointPath: string,
+    chatId: number,
+    userId: number,
+    text: string,
+  ) {
     return request(BASE_URL)
       .post(`/api/hooks/${endpointPath}`)
       .set('x-forwarded-for', nextE2eClientIp())
@@ -94,7 +105,7 @@ describe('Telegram /start 재시작 (e2e)', () => {
             message_id: 1,
             chat: { id: chatId, type: 'private' },
             from: { id: userId, is_bot: false },
-            text: '/start',
+            text,
           },
         }),
       );
@@ -114,7 +125,7 @@ describe('Telegram /start 재시작 (e2e)', () => {
     ]);
 
     try {
-      const res = await postStart(setup.endpointPath, chatId, userId);
+      const res = await postText(setup.endpointPath, chatId, userId, '/start');
 
       expect(res.status).toBe(202);
       expect(res.body.data.executionId).toBe('ignored');
@@ -153,7 +164,7 @@ describe('Telegram /start 재시작 (e2e)', () => {
     );
 
     try {
-      const res = await postStart(setup.endpointPath, chatId, userId);
+      const res = await postText(setup.endpointPath, chatId, userId, '/start');
 
       expect(res.status).toBe(202);
       const newExecutionId = res.body.data.executionId as string;
@@ -171,17 +182,117 @@ describe('Telegram /start 재시작 (e2e)', () => {
       );
       expect(fresh.rowCount).toBe(1);
 
-      // 새 실행이 곧 끝나면 종결 이벤트가 매핑을 비울 수 있다(null). 옛 실행만 아니면 된다.
+      // 대화는 새 실행에 이어진다. 새 실행이 곧 끝나 종결 이벤트가 매핑을 비웠다면 null 이다. 어느 쪽이든
+      // 옛 실행을 가리키면 안 된다.
       const raw = await redis.get(key);
       const stored = raw
         ? (JSON.parse(raw) as { executionId: string | null }).executionId
         : null;
-      expect(stored).not.toBe(oldExecutionId);
+      expect([newExecutionId, null]).toContain(stored);
     } finally {
       await redis.del(key);
       await db
         .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
         .catch(() => undefined);
     }
+  });
+
+  // 근거: NERV Task `CLE-T-V4WVF2`. `/cancel` 도 대화가 읽은 실행을 가리킬 때만 매핑을 비운다. 실제 Redis 의
+  // Lua compare-and-set 이 일치 경로에서 값을 바꾸는지 본다.
+  it('/cancel → 옛 실행은 cancelled, 대화 매핑은 실제 Redis 의 compare-and-set 으로 비워진다', async () => {
+    const setup = await setupChatChannelTrigger({ db, provider: 'telegram' });
+    const chatId = 71003;
+    const userId = 81003;
+    const { oldExecutionId, key } = await seedRunningConversation(
+      setup,
+      chatId,
+      userId,
+    );
+
+    try {
+      const res = await postText(setup.endpointPath, chatId, userId, '/cancel');
+
+      expect(res.status).toBe(202);
+      expect(res.body.data.executionId).toBe(oldExecutionId);
+      const old = await db.query<{ status: string }>(
+        'SELECT status FROM execution WHERE id = $1',
+        [oldExecutionId],
+      );
+      expect(old.rows[0]?.status).toBe('cancelled');
+
+      const raw = await redis.get(key);
+      const stored = JSON.parse(raw as string) as {
+        executionId: string | null;
+        channelUserKey: string;
+      };
+      expect(stored.executionId).toBeNull();
+      expect(stored.channelUserKey).toBe(String(userId));
+    } finally {
+      await redis.del(key);
+      await db
+        .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+        .catch(() => undefined);
+    }
+  });
+
+  describe('ChannelConversationService.clearExecutionIdIfMatches — 실제 Redis (Lua)', () => {
+    const triggerId = randomUUID();
+    const cleanup: string[] = [];
+
+    afterAll(async () => {
+      if (cleanup.length > 0) await redis.del(...cleanup);
+    });
+
+    const seed = async (chatId: number, executionId: string) => {
+      const key = conversationKeyOf(triggerId, chatId);
+      cleanup.push(key);
+      // 빈 배열을 가진 값이다. Lua 에서 JSON 을 다시 만들면 cjson 이 빈 배열을 객체로 바꾼다.
+      const raw = JSON.stringify({
+        executionId,
+        threadId: 'default',
+        channelUserKey: 'u1',
+        startedAt: '2026-10-10T00:00:00.000Z',
+        lastUpdateAt: '2026-10-10T00:00:00.000Z',
+        pendingFormModal: { nodeId: 'n1', fields: [] },
+      });
+      await redis.set(key, raw, 'EX', 600);
+      return { key, raw };
+    };
+
+    it('일치하면 executionId 만 null 로 바꾸고 나머지 값과 TTL(7일)을 새로 건다', async () => {
+      const { key } = await seed(72001, 'exec-a');
+      const service = new ChannelConversationService(undefined, redis);
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        '72001',
+        'exec-a',
+      );
+
+      expect(cleared).toBe(true);
+      const stored = JSON.parse((await redis.get(key)) as string) as {
+        executionId: string | null;
+        pendingFormModal: { fields: unknown };
+      };
+      expect(stored.executionId).toBeNull();
+      // 문자열 그대로 비교해 바꾸므로 빈 배열이 객체로 변하지 않는다.
+      expect(Array.isArray(stored.pendingFormModal.fields)).toBe(true);
+      expect(await redis.ttl(key)).toBeGreaterThan(600);
+    });
+
+    it('대화가 다른 실행을 가리키면 값과 TTL 을 건드리지 않는다', async () => {
+      const { key, raw } = await seed(72002, 'exec-new');
+      const service = new ChannelConversationService(undefined, redis);
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        '72002',
+        'exec-old',
+      );
+
+      expect(cleared).toBe(false);
+      expect(await redis.get(key)).toBe(raw);
+      expect(await redis.ttl(key)).toBeLessThanOrEqual(600);
+    });
   });
 });

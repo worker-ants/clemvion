@@ -5,7 +5,12 @@
  * Spec §4.3 (15-chat-channel.md) — Redis key `chat-channel:{triggerId}:{conversationKey}`,
  * TTL 7일, graceful degradation (Redis 미가용 시 null 반환 / noop).
  */
-import { ChannelConversationService } from './channel-conversation.service';
+import { Logger } from '@nestjs/common';
+import {
+  ChannelConversationService,
+  COMPARE_AND_SET_SCRIPT,
+  RELEASE_LOCK_SCRIPT,
+} from './channel-conversation.service';
 import { ChannelConversationState } from './types';
 
 /** 인메모리 Redis mock — ioredis 대체 */
@@ -46,26 +51,33 @@ class MockRedis {
   }
 
   /**
-   * Lua 모사. 두 스크립트를 인자 수로 가른다.
-   *  - releaseLock: (key, token) → token 일치 시에만 del.
-   *  - clearExecutionIdIfMatches: (key, 읽은 값, 새 값, ttlSec) → 값이 그대로일 때만 set.
+   * Lua 모사. 서비스가 내보낸 스크립트 문자열로 분기한다. 인자 수로 가르면 스크립트가 바뀌어도
+   * 모사는 그대로 통과하므로, 모르는 스크립트는 던진다.
+   *  - RELEASE_LOCK_SCRIPT: (key, token) → token 일치 시에만 del.
+   *  - COMPARE_AND_SET_SCRIPT: (key, 읽은 값, 새 값, ttlSec) → 값이 그대로일 때만 set.
+   *
+   * 이 모사는 스크립트 *문자열이 어느 쪽인지* 만 고정한다. 실제 Lua 의 일치 · 불일치 경로는 e2e
+   * (`chat-channel-telegram-start.e2e-spec.ts`)가 실제 Redis 로 확인한다.
    */
   async eval(
-    _script: string,
+    script: string,
     _numKeys: number,
     key: string,
     ...args: Array<string | number>
   ): Promise<number> {
-    if (args.length === 3) {
+    if (script === COMPARE_AND_SET_SCRIPT) {
       const [expected, next, ttlSec] = args;
       if ((await this.get(key)) !== expected) return 0;
       await this.set(key, String(next), 'EX', Number(ttlSec));
       return 1;
     }
-    if ((await this.get(key)) === args[0]) {
-      return this.store.delete(key) ? 1 : 0;
+    if (script === RELEASE_LOCK_SCRIPT) {
+      if ((await this.get(key)) === args[0]) {
+        return this.store.delete(key) ? 1 : 0;
+      }
+      return 0;
     }
-    return 0;
+    throw new Error(`MockRedis.eval: 모르는 스크립트 ${script}`);
   }
 
   async quit(): Promise<void> {}
@@ -275,6 +287,33 @@ describe('ChannelConversationService', () => {
       expect(cleared).toBe(true);
       const result = await service.lookup(triggerId, conversationKey);
       expect(result?.executionId).toBeNull();
+    });
+
+    // 같은 대화에 쓰기가 계속 이어지면 재시도 상한(3회)에서 포기한다. 상한이 없으면 루프가 끝나지 않고,
+    // 상한이 빗나가면(4회 · 0회) 재시도 횟수 약속이 깨진다.
+    it('compare-and-set 이 3번 모두 밀리면 포기하고 false 를 돌려주며 warn 을 남긴다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const evalSpy = jest.spyOn(redis, 'eval').mockResolvedValue(0);
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        const cleared = await service.clearExecutionIdIfMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+        );
+
+        expect(cleared).toBe(false);
+        expect(evalSpy).toHaveBeenCalledTimes(3);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('동시 쓰기가 이어져 비우지 못했다'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+        evalSpy.mockRestore();
+      }
+      // 비우지 못했으니 매핑은 그대로다.
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-abc');
     });
 
     it('conversation 이 없으면 false', async () => {
