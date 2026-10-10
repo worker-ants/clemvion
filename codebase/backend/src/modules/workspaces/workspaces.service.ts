@@ -326,28 +326,36 @@ export class WorkspacesService {
     requesterId: string,
   ): Promise<WorkspaceMember> {
     const requesterRole = await this.assertAdmin(workspaceId, requesterId);
-    const member = await this.memberRepository.findOne({
-      where: { id: memberId, workspaceId },
-    });
-    if (!member) this.throwMemberNotFound();
-    if (member.role === 'owner' || role === 'owner') {
-      throw new ForbiddenException({
-        code: 'OWNER_ROLE_PROTECTED',
-        message: 'owner 역할은 별도 양도 흐름이 필요합니다.',
+    // 대상 행을 잠그고 그 안에서 판정 · 저장한다. 잠그지 않으면 «지금 역할» 을 읽은 뒤 동시에 바뀐 값을 `save` 가 덮어쓴다
+    // (관리자의 editor → viewer 가 그 사이 소유자가 올린 admin 을 되돌리는 식). `leaveWorkspace` · `transferOwnership`
+    // 과 같은 모양이다. 요청자 역할은 위에서 무락으로 읽는다(인가가 조회보다 먼저다).
+    const { saved, previousRole } =
+      await this.memberRepository.manager.transaction(async (manager) => {
+        const memRepo = manager.getRepository(WorkspaceMember);
+        const member = await memRepo.findOne({
+          where: { id: memberId, workspaceId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!member) this.throwMemberNotFound();
+        if (member.role === 'owner' || role === 'owner') {
+          throw new ForbiddenException({
+            code: 'OWNER_ROLE_PROTECTED',
+            message: 'owner 역할은 별도 양도 흐름이 필요합니다.',
+          });
+        }
+        assertMayChangeAdminRole(requesterRole, member.role, role);
+        const previousRole = member.role;
+        member.role = role;
+        return { saved: await memRepo.save(member), previousRole };
       });
-    }
-    assertMayChangeAdminRole(requesterRole, member.role, role);
-    const previousRole = member.role;
-    member.role = role;
-    const saved = await this.memberRepository.save(member);
-    // 감사 로그(best-effort). 역할 변경 전/후를 details 에 남긴다.
+    // 감사 로그(best-effort). 역할 변경 전/후를 details 에 남긴다. 커밋 뒤에 기록한다.
     await this.auditLogsService.record({
       workspaceId,
       userId: requesterId,
       action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGED,
       resourceType: 'member',
       resourceId: memberId,
-      details: { from: previousRole, to: role, memberUserId: member.userId },
+      details: { from: previousRole, to: role, memberUserId: saved.userId },
     });
     return saved;
   }

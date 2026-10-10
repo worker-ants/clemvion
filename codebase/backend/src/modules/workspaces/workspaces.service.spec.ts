@@ -1163,6 +1163,73 @@ describe('WorkspacesService', () => {
       },
     );
 
+    it('updateMemberRole — 대상 행은 트랜잭션 안에서 pessimistic_write 로 읽고 저장한다(요청자 조회는 무락)', async () => {
+      mockMembers('admin', { id: 'mem-t', role: 'editor' });
+      // 트랜잭션 안에서 일어난 호출만 모은다 — 잠그지 않은 읽기 뒤의 `save` 는 동시 변경을 덮어쓴다.
+      const manager = (
+        memberRepo as unknown as { manager: { transaction: jest.Mock } }
+      ).manager;
+      const inTx: string[] = [];
+      let inside = false;
+      const wrapped = manager.transaction.getMockImplementation()!;
+      manager.transaction.mockImplementation(async (cb: unknown) => {
+        inside = true;
+        try {
+          return await wrapped(cb);
+        } finally {
+          inside = false;
+        }
+      });
+      const read = memberRepo.findOne.getMockImplementation()!;
+      memberRepo.findOne.mockImplementation((opts: unknown) => {
+        const { where } = opts as { where: Record<string, unknown> };
+        inTx.push(`findOne:${where.userId ? 'requester' : 'target'}:${inside}`);
+        return read(opts);
+      });
+      memberRepo.save.mockImplementation((data: unknown) => {
+        inTx.push(`save:${inside}`);
+        return Promise.resolve(data);
+      });
+
+      await service.updateMemberRole('ws-uuid-1', 'mem-t', 'viewer', REQUESTER);
+
+      expect(inTx).toEqual([
+        'findOne:requester:false',
+        'findOne:target:true',
+        'save:true',
+      ]);
+      expect(memberRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'mem-t', workspaceId: 'ws-uuid-1' },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const requesterCall = memberRepo.findOne.mock.calls.find(
+        ([opts]) => (opts as { where: { userId?: string } }).where.userId,
+      )![0] as Record<string, unknown>;
+      expect(requesterCall.lock).toBeUndefined();
+      // 감사는 커밋 뒤에 남긴다.
+      expect(getAudit().record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGED,
+          resourceId: 'mem-t',
+          details: {
+            from: 'editor',
+            to: 'viewer',
+            memberUserId: 'user-target',
+          },
+        }),
+      );
+    });
+
+    it('updateMemberRole — 대상이 사라졌으면 잠금 안에서 404 MEMBER_NOT_FOUND 이고 저장하지 않는다', async () => {
+      mockMembers('admin');
+
+      await expect(
+        service.updateMemberRole('ws-uuid-1', 'mem-gone', 'viewer', REQUESTER),
+      ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
     it('updateMemberRole — owner 대상 · owner 부여는 요청자가 owner 여도 OWNER_ROLE_PROTECTED 로 남는다', async () => {
       mockMembers('owner', { id: 'mem-t', role: 'editor' });
 

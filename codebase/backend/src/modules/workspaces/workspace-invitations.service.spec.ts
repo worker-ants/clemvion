@@ -261,9 +261,10 @@ describe('WorkspaceInvitationsService', () => {
       expect(result.invitedBy).toBe('user-1');
       expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
       expect(invitationRepo.save).toHaveBeenCalled();
-      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다.
+      // 대기 중(acceptedAt IS NULL)인 초대만 덮어쓴다. 읽은 역할을 동시 변경이 덮어쓰지 못하게 잠그고 읽는다.
       expect(invitationRepo.findOne).toHaveBeenCalledWith({
         where: { workspaceId: 'ws-1', email: 'b@x.com', acceptedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
       });
     });
 

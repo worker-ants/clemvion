@@ -133,8 +133,11 @@ export class WorkspaceInvitationsService {
     try {
       saved = await this.dataSource.transaction(async (manager) => {
         const invitationRepo = manager.getRepository(WorkspaceInvitation);
+        // 대기 초대를 잠그고 읽는다 — 잠그지 않으면 «지금 역할» 을 읽은 사이 소유자가 admin 으로 올린 초대를 `save` 가
+        // 되돌린다. 대기 초대가 없으면 잠글 행이 없고, 동시 INSERT 는 아래 부분 UNIQUE 위반 처리가 맡는다.
         const pending = await invitationRepo.findOne({
           where: { workspaceId, email: normalized, acceptedAt: IsNull() },
+          lock: { mode: 'pessimistic_write' },
         });
         if (pending) {
           assertMayChangeAdminRole(requesterRole, pending.role);
