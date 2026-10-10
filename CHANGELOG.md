@@ -27,8 +27,9 @@
 
 push 훅과 CI `review-gate` 는 라운드 뒤 merge 커밋에 손으로 푼 `codebase/**` 변경이 있으면 그 merge 를 라운드 뒤
 변경으로 센다. 판정에 쓴 `git diff-tree --cc --name-only` 는 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서
-브랜치와 `main` 이 같은 파일의 서로 다른 줄을 고쳐 git 이 자동으로 합친 merge 도 손으로 푼 merge 로 세졌고 push 와
-CI 가 막혔다. PR #1520 이 `main` 을 merge 하다 드러났다(NERV Task `CLE-T-QT69YT`).
+브랜치와 `main` 이 같은 파일의 서로 다른 줄을 고쳐 git 이 자동으로 합친 merge 도 손으로 푼 merge 로 세졌다. PR #1520
+세션이 `main` 을 merge 하자 게이트 검사(`scripts/check-review-gate.py`)가 그 merge 를 막는 커밋으로 잡아 드러났다(NERV
+Task `CLE-T-QT69YT`).
 
 - merge 커밋은 combined diff(`git diff-tree --cc -U0`)에 `codebase/**` hunk 가 남을 때만 센다. 충돌을 풀며 쓴 줄,
   양쪽 줄을 이어 붙인 해소, merge 에 끼워 넣은 줄이나 파일은 지금처럼 센다.
@@ -39,8 +40,8 @@ CI 가 막혔다. PR #1520 이 `main` 을 merge 하다 드러났다(NERV Task `C
   12 는 세고 수정 10 · 삭제 12 는 세지 않는다), 한쪽은 모드만 다른 쪽은 내용만 바꾼 파일, 한쪽이 옮긴 파일을 다른
   쪽이 옛 경로로 고친 경우다. 막는 방향의 오탐이라 게이트가 열리지는 않고, 테스트가 이 모양을 고정한다.
 - 합친 파일에서 merge 커밋이 줄을 지우거나 바꾸거나 파일을 지우거나 모드를 바꾼 경우도 센다는 테스트를 더했다.
-- 로컬 체크아웃의 모든 ref 에 있는 merge 커밋 226개를 두 판정으로 대조했다(2026-10-10). 옛 판정이 센 4개는 모두
-  combined diff 에 hunk 가 없었다.
+- 로컬 체크아웃의 모든 ref 에 있는 merge 커밋 227개를 두 판정으로 대조했다(2026-10-10). 옛 판정이 센 5개는 모두
+  combined diff 에 hunk 가 없었고 새 판정은 하나도 세지 않는다.
 
 ## Unreleased — HTTP Request 노드가 취소된 요청을 cancelled 로 기록한다
 
