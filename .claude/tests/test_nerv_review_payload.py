@@ -1041,7 +1041,7 @@ class SessionStampTest(unittest.TestCase):
     def test_every_name_the_session_factory_makes_in_one_second_gets_a_distinct_stamp(self):
         # 이름을 만드는 쪽과 읽는 쪽을 맞물린다. 만드는 쪽이 모양을 바꾸면 여기서 깨진다.
         factory = _harness.load_module_by_path(
-            "cr_session_for_stamp", _harness.CLAUDE_DIR / "_shared" / "session.py")
+            "shared_session_for_stamp", _harness.CLAUDE_DIR / "_shared" / "session.py")
         clock = mock.MagicMock(wraps=factory.datetime)
         clock.now.return_value = factory.datetime(2026, 10, 10, 13, 40, 14)
         with mock.patch.object(factory, "datetime", clock):

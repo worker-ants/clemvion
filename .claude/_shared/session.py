@@ -1,8 +1,9 @@
 """Session-level utilities: output directories, metadata, logging, truncation.
 
 Every orchestrator under `.claude/skills/*/scripts/` imports this as
-`from _shared import session`. It lived in `code-review-agents/lib/` until
-2026-10-10, which left spec-coverage loading it by path.
+`from _shared import session`. Standard library only, no relative imports:
+tests load this file by path (`spec_from_file_location`), and a relative import
+would fail there with an error that does not point here.
 """
 
 import json

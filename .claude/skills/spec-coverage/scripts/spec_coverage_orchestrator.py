@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # 세션 디렉터리 이름은 다른 오케스트레이터와 같은 하네스 공용 모듈이 정한다.
+# 세 오케스트레이터와 같은 import 로 읽으려고 `.claude/` 를 sys.path 에 넣는다. 이 스크립트는 lib/ 를 쓰지 않아서
+# skill 경로는 넣지 않는다. `not in` 검사가 있어서 테스트가 이 모듈을 다시 읽어도 경로가 쌓이지 않는다.
 _CLAUDE_DIR = str(Path(__file__).resolve().parents[3])  # .claude/
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)

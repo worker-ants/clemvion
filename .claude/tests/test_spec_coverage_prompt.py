@@ -134,10 +134,10 @@ class SameSecondSessionTest(unittest.TestCase):
         return Path(out.getvalue().splitlines()[-1])
 
     def test_two_runs_in_the_same_second_keep_their_own_files(self):
-        lib = orch.session
-        clock = mock.MagicMock(wraps=lib.datetime)
-        clock.now.return_value = lib.datetime(2026, 10, 10, 13, 40, 14)
-        with mock.patch.object(lib, "datetime", clock):
+        session_mod = orch.session
+        clock = mock.MagicMock(wraps=session_mod.datetime)
+        clock.now.return_value = session_mod.datetime(2026, 10, 10, 13, 40, 14)
+        with mock.patch.object(session_mod, "datetime", clock):
             first = self.run_main("forward")
             second = self.run_main("reverse")
         self.assertEqual(first.relative_to(self.root).parts,

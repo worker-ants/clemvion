@@ -31,11 +31,11 @@
 
 - `create_session_dir` 를 담은 모듈을 `.claude/skills/code-review-agents/lib/session.py` 에서 하네스 공용 패키지
   `.claude/_shared/session.py` 로 옮겼다. 네 오케스트레이터가 모두 `from _shared import session` 으로 읽는다.
-  spec-coverage 의 경로 로더는 없앴다.
-- `test_review_session_dir_collision.py` 가 `.claude/skills/*/scripts/*orchestrator*.py` 를 모두 읽는다. 공용 모듈을
-  읽는지, `create_session_dir` 를 부르는지, `%H_%M_%S` 이름을 직접 만들지 않는지 본다. 소스 검사라서 다른 형식으로
-  이름을 직접 만드는 코드는 잡지 못한다.
-- 세션 경로 문서(오케스트레이터 SKILL · README · 슬래시 명령)에 같은 초 접미사 `[_<n>]` 와 로컬 시각 기준을 적었다.
+  spec-coverage 의 경로 로더와 그 오류 메시지 테스트는 없앴다.
+- `test_review_session_dir_collision.py` 가 `.claude/skills/*/scripts/*orchestrator*.py` 를 모두 구문 트리로 읽는다.
+  공용 모듈을 읽는지, `session.create_session_dir` 를 부르는지, `%H_%M_%S` 이름을 직접 만들지 않는지 본다. 주석과
+  docstring 은 판정에 들어가지 않는다. 다른 형식으로 이름을 직접 만드는 코드는 잡지 못한다.
+- 오케스트레이터 SKILL · README · 슬래시 명령 일부의 세션 경로에 같은 초 접미사 `[_<n>]` 와 로컬 시각 기준을 적었다.
 
 ## Unreleased — 하네스: `/spec-coverage` 를 같은 초에 두 번 돌려도 앞 실행의 입력이 남는다
 
