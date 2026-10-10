@@ -17,7 +17,14 @@ export class AlertRuleDto {
   })
   type: string;
 
-  // 이 필드가 왜 문자열인지의 **경위**(2026-09-04 정정)는 CHANGELOG 에 있다. 아래 JSDoc 은
+  // **경위**(2026-09-04 정정, PR #1284): OpenAPI 는 이 필드를 `number` 로 문서화했지만 wire 는
+  // 처음부터 문자열이었다. 컬럼이 `numeric(12,4)` 이고 TypeORM 은 정밀도를 지키려고 numeric 을
+  // 문자열로 넘기는데, 당시 이 엔드포인트는 엔티티를 그대로 돌려줬다. 유일한 소비자인
+  // `codebase/frontend/src/lib/api/alerts.ts` 는 이미 읽기 타입을 `string`, 쓰기 DTO 를 `number` 로
+  // 나눠 두었다. 그래서 wire 는 그대로 두고 문서를 사실에 맞췄다. numeric 을 숫자로 내보내면
+  // 정밀도를 지키려는 컬럼 타입의 뜻이 없어진다.
+  //
+  // 아래 JSDoc 은
   // `nest-cli.json` 의 `@nestjs/swagger` 플러그인이 **공개 OpenAPI `description` 으로 내보내므로**
   // 소비자에게 필요한 것만 적는다 — 내부 서사를 넣으면 API 문서에 그대로 실린다
   // (`--impl-done 20_05_42` W1).

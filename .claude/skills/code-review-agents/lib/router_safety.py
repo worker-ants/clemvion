@@ -228,7 +228,7 @@ _ENV_PATTERNS = [
 # `reviewers_tuple` lists all reviewers a matching change forces; a single
 # trigger can force multiple reviewers (e.g. package files force both
 # `dependency` and `documentation` — package changes usually need a
-# README/CHANGELOG update reviewed in the same PR).
+# README or other doc update reviewed in the same PR).
 #
 # Decided with the user on 2026-05-16 after observing the router could
 # drop reviewers in pure-docs / domain-specific paths. The `security`
@@ -237,7 +237,7 @@ _ENV_PATTERNS = [
 # auth keyword rule became redundant.
 _RULES: list[tuple[tuple[str, ...], list[str], str]] = [
     (("dependency", "documentation"), _PACKAGE_PATTERNS,
-     "패키지 매니페스트·lockfile 변경 — dependency 영향 + README/CHANGELOG 동반 갱신 점검"),
+     "패키지 매니페스트·lockfile 변경 — dependency 영향 + 문서 동반 갱신 점검"),
 
     (("documentation",), _DOC_PATTERNS,
      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경"),

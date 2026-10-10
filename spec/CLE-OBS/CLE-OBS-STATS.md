@@ -10,11 +10,11 @@ parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
 content_hash: "110aabdbcee40057ef591496f5656b1fa4dfa74ba8c98f0b9cad21eef75b35e9"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-RSF163"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "9b95fd571ca7a92d3ad75e0c31fe22a2a5ebb5f578a8230555da4115c69514e1"
-etag: "sha256-f31fc7d83ad1bf41b5ded32181c3a758fed1dc8880435733b3bc38bc33967e63"
+mirror_sha256: "6b615feaad7494b7b5001cca2be333dbfa2fdc6c65016cb7ebd9a9f8303a2c69"
+etag: "sha256-f9ee207390fd958d81b7a869596e8959709d77c0be9c0592f1c4f04bd89f8d55"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

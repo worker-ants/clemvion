@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
 content_hash: "3865a9b5183f26965a85c437c12429e4d822ad8f3d17d20423a70bbcf9d42c06"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-RSF163"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "c417bb9761b8735f0ca0b41469690cc1d0d4f701e90d23848ff65d59fa56598b"
-etag: "sha256-81daa053bf5a8f3c356cbe5678664bf70638d86dc01b536ef288acd16617cd15"
+mirror_sha256: "7d28bfbca8160fd9be453d8671d6c14a3f0928691817a6ef9ff06f1d1c54648a"
+etag: "sha256-5c45c825811a0f86dcfeaa2dbfd9b5fc10b167d04ebe34b1ba53809a48438254"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
