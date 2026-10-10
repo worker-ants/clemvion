@@ -54,6 +54,50 @@ CLE-T-G62XJS).
 - 재실행 권한(Editor 이상, 남의 실행은 owner · admin)은 그대로다. 실행 상세 화면에서 Viewer 는 chain 배지와
   View chain 목록을 보고 재실행 버튼은 비활성으로 본다.
 
+## Unreleased — HTTP Request 노드가 취소된 요청을 cancelled 로 기록한다
+
+Parallel 의 `cancel-others-on-fail` 이 실행 중인 분기를 멈추면 HTTP Request 노드는 진행 중인 요청을 끊었지만
+그때 난 `AbortError` 를 전송 실패로 바꿔 error 포트로 보냈다. 그래서 멈춘 분기의 HTTP 노드가 `cancelled` 가 아니라
+`HTTP_TRANSPORT_FAILED` 로 error 포트에 라우팅된 것으로 기록됐다. 연동 인증 요청이면 활동 로그에도 실패가 남았다
+(NERV 발견 `01a0e599-78b6-7714-a5c1-ba2c658d1888`).
+
+- 노드 취소 신호(`abortSignal`)로 생긴 `AbortError` 는 다시 던진다. 엔진이 노드 실행을 `cancelled` 로 기록한다.
+  활동 로그는 남기지 않는다. Cafe24 · MakeShop 노드와 같은 처리다.
+- 응답 본문을 읽다가 취소된 경우도 같다. 전에는 JSON 응답이면 본문을 `null` 로 두고 success 포트로 갔다.
+- 노드의 `timeout` 으로 끊긴 요청은 지금처럼 `HTTP_TRANSPORT_FAILED` 로 error 포트에 간다.
+
+## Unreleased — HTTP Request 노드가 요청마다 취소 리스너를 남기지 않는다
+
+HTTP Request 노드는 노드 취소 신호(`abortSignal`)에 단 리스너를 요청의 controller 가 abort 될 때만 뗐다.
+성공한 요청은 controller 를 abort 하지 않으므로 리스너가 떼어지지 않았다. 반복 안에서 HTTP 노드를 돌리면 요청 수만큼
+리스너가 쌓였다.
+
+- 요청이 끝나면(성공 · 실패 · 취소) 응답 본문까지 읽은 뒤 리스너를 뗀다.
+- 취소 신호를 요청에 잇는 코드와 취소 에러 판정은 HTTP Request · Cafe24 · MakeShop 이 함께 쓰는 헬퍼 하나로 모았다
+  (`nodes/integration/_base/abort-cascade.util.ts`). Cafe24 · MakeShop 은 이 요청의 리스너 누수가 원래 없었고 그 동작은
+  그대로다. 달라지는 것은 취소 에러를 알아보는 방법 하나다. 전에는 `Error` 인스턴스이면서 이름이 `AbortError` 일 때만 취소로
+  봤고 지금은 이름만 본다. 다른 realm 에서 온 `DOMException` 을 놓치지 않으려는 것이다. 운영 Node 의 `fetch` 는
+  `Error` 를 상속한 `DOMException` 을 던지므로 운영 동작은 같고, jest VM 같은 환경에서만 결과가 다르다.
+
+## Unreleased — 기본 설정 Merge 노드가 실행된다
+
+Merge 노드 `timeout` 의 스키마 기본값이 `300` 이었다. 새 노드(팔레트 · 워크플로우 어시스턴트)와 가져온 노드가 이 값을
+그대로 받았다. 그런데 `timeout` 은 동작하지 않는 필드라(`CLE-NODE-MERGE` Rationale «비동기 fan-in barrier 활성화를
+재검토 과제로 미룬다 (2026-07-17)») 값이 0 보다 크면 경고 규칙
+`merge:timeout-dormant` 가 차단으로 평가되고, 엔진이 실행 전 검증에서 `INVALID_NODE_CONFIG` 로 노드를 멈췄다. 저장은
+막히지 않아서 기본 설정 그대로 둔 Merge 노드는 캔버스에 경고만 뜨고 실행하면 실패했다(NERV 발견
+`01a0e5a1-114d-7256-9024-f3899651dea4`, Task `CLE-T-AGDM92` · `CLE-T-HSHW71`).
+
+- 기본값을 `0` 으로 바꾸고 스키마가 음수를 거부한다(`.nonnegative()`). 필드와 경고 severity(차단)는 그대로다.
+- 경고 문구가 «Phase P2 barrier 가 값을 반영한다» 고 안내하던 것을 «동작하지 않으니 0 으로 두라 / 끄라» 로 고쳤다.
+  한국어 매핑(`WARNING_KO`)과 사용자 가이드의 기본값 · 설명도 같이 고쳤다.
+- 설정 패널의 `timeout` · `partialOnTimeout` 도움말도 기다림 · 부분 병합을 안내하던 것을 «동작하지 않으니 0 으로 두라 /
+  꺼 두라» 로 고쳤다(`HINT_KO` 포함). Workflow 노드와 같이 쓰는 `0 = no timeout (wait indefinitely)` 문구는 그대로다.
+- **DB 마이그레이션 V148**: 저장된 Merge 노드 가운데 `timeout` 이 정확히 `300` 인 행만 `0` 으로 바꾼다. 다른 값은
+  사용자가 넣은 값이라 그대로 두고 캔버스 경고로 보인다. 워크플로우 버전 스냅샷은 바꾸지 않는다. 되돌리지 않는다.
+- 옛 기본값 시절에 내보낸 워크플로우 JSON 에 `"timeout": 300` 이 적혀 있으면 가져온 노드에도 300 이 남는다. 가져오기는
+  적힌 값을 바꾸지 않으므로 이 노드는 캔버스 경고로 보이고 `timeout` 을 0 으로 바꾸면 실행된다.
+
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 
 초대 메일의 "초대 수락하기" 링크가 `/auth/register?invitationToken=…` 으로 나갔다. 가입 화면은 `(auth)` route

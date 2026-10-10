@@ -238,8 +238,10 @@ const HINT_KO: Record<string, string> = {
     "지속 메모리가 이 일수가 지나면 만료돼요. 비우면 만료되지 않아요.",
   "Registered embedding model config used for memory recall/extraction (its provider/model). Recall and storage use the same config so dimensions match. Empty = workspace default embedding config.":
     "메모리 회수/추출에 쓰는 등록된 임베딩 모델 설정이에요(그 설정의 제공자/모델로 임베딩해요). 회수와 저장이 같은 설정을 써서 차원이 일치해요. 비우면 워크스페이스 기본 임베딩 설정을 써요.",
-  "Merge arrived inputs when timeout elapses":
-    "타임아웃 발생 시 도착한 입력들을 병합",
+  "No effect — Merge runs after every input has finished. Keep it 0.":
+    "동작하지 않아요. Merge 는 입력이 모두 끝난 뒤에 실행돼요. 0 으로 두세요.",
+  "No effect — Merge never times out. Keep it off.":
+    "동작하지 않아요. Merge 에는 타임아웃이 없어요. 꺼 두세요.",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",
   "No operations defined": "정의된 작업이 없습니다",
   "Number of chunks to retrieve": "가져올 청크 수",
@@ -416,10 +418,10 @@ export const WARNING_KO: Record<string, string> = {
   "LLM provider or model must be selected (auto-handled by the canvas when a workspace default provider is configured).":
     "LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).",
   "Merge strategy must be selected.": "Merge strategy 를 선택해야 합니다.",
-  "Merge partialOnTimeout is dormant in Phase P1 — only takes effect alongside the Phase P2 barrier.":
-    "Merge partialOnTimeout 은 Phase P1 에서는 동작하지 않아요 — Phase P2 의 barrier 가 도입되면 그때 함께 효과가 적용돼요.",
-  "Merge timeout is dormant in Phase P1 — value is logged but no barrier is enforced. The Phase P2 barrier will honor it.":
-    "Merge timeout 은 Phase P1 에서는 동작하지 않아요 — 값은 로그에만 남고 barrier 가 강제되지 않아요. Phase P2 의 barrier 가 도입되면 이 값을 따라요.",
+  "Merge partialOnTimeout has no effect — Merge never times out, so there are no partial inputs to merge. Turn it off.":
+    "Merge partialOnTimeout 은 동작하지 않아요. Merge 에는 타임아웃이 없어서 일부만 병합할 입력도 없어요. 이 설정을 꺼 주세요.",
+  "Merge timeout has no effect — Merge runs only after every connected input has finished, so there is nothing to wait for. Set it to 0.":
+    "Merge timeout 은 동작하지 않아요. Merge 는 연결된 입력이 모두 끝난 뒤에 실행돼서 기다릴 대상이 없어요. 0 으로 설정해 주세요.",
   "Mode must be either static or dynamic.": "Mode 는 static 또는 dynamic 이어야 합니다.",
   "Multi Turn mode requires System Prompt.": "Multi Turn 모드에서는 System Prompt 가 필요합니다.",
   "Operation must be selected.": "Operation 을 선택해야 합니다.",

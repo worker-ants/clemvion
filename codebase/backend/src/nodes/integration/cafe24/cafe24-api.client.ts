@@ -16,6 +16,10 @@ import { parseJwtExp } from '../../../modules/integrations/jwt-exp.js';
 import { normalizeCafe24IsoTimezone } from '../../../modules/integrations/cafe24-token-utils.js';
 import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
 import {
+  isUpstreamAbort,
+  linkUpstreamAbort,
+} from '../_base/abort-cascade.util.js';
+import {
   extractCafe24ScopeTokens,
   pickRestrictedApprovalScopes,
 } from './metadata/restricted-approval.js';
@@ -67,7 +71,7 @@ export interface Cafe24CallOptions {
   timeoutMs?: number;
   /**
    * The execution's `context.abortSignal`, cascaded into this call's own
-   * timeout controller (node-cancellation.md §4). Absent for callers outside a
+   * timeout controller ([노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄)). Absent for callers outside a
    * node run (connection tests, token refresh) — the timeout still applies.
    */
   signal?: AbortSignal;
@@ -1215,7 +1219,7 @@ export class Cafe24ApiClient {
     const timeoutMs = opts.timeoutMs ?? 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    // node-cancellation.md §4 — cascade the execution's abortSignal into the
+    // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — cascade the execution's abortSignal into the
     // controller this request watches, so a cancelled execution stops the
     // in-flight call instead of waiting out `timeoutMs`. An already-aborted
     // upstream aborts before the round trip.
@@ -1225,16 +1229,13 @@ export class Cafe24ApiClient {
     // never fires and every completed call would leave a listener on the
     // execution-wide signal — and `executeWithRateLimit` recurses on 429/401, so
     // retries multiply them.
+    //
+    // The listener comes off as soon as `fetchImpl` returns the headers, and the
+    // body is read after that (`safeReadJson` swallows every error), so a
+    // cancellation DURING the body read is not seen here. HTTP Request reads the
+    // body before it unlinks and does see it.
     const upstream = opts.signal;
-    let onUpstreamAbort: (() => void) | undefined;
-    if (upstream) {
-      if (upstream.aborted) {
-        controller.abort();
-      } else {
-        onUpstreamAbort = () => controller.abort();
-        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
-      }
-    }
+    const unlinkUpstream = linkUpstreamAbort(controller, upstream);
 
     let response: Response;
     try {
@@ -1250,27 +1251,19 @@ export class Cafe24ApiClient {
       // 실패하더라도 본 throw 는 그대로 진행 — caller 가 transport 오류로
       // 처리. 카운터 갱신 실패는 best-effort.
       // A cancelled execution is not a transport fault. Two things follow, and
-      // both were wrong before: (1) §5.1 — the engine only classifies a node
+      // both were wrong before: (1) rule 19 — the engine only classifies a node
       // `cancelled` if AbortError reaches it, so wrapping it here would surface
       // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
       // let three cancelled sibling branches demote a healthy integration to
       // `error(network)`. `upstream.aborted` is what separates a cancellation
       // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
       // its counter. Same shape as `database-query.handler.ts`.
-      if (
-        err instanceof Error &&
-        err.name === 'AbortError' &&
-        upstream?.aborted
-      ) {
-        throw err;
-      }
+      if (isUpstreamAbort(err, upstream)) throw err;
       await this.recordNetworkFailure(integration, err);
       throw new Cafe24TransportFailedError(err);
     } finally {
       clearTimeout(timer);
-      if (upstream && onUpstreamAbort) {
-        upstream.removeEventListener('abort', onUpstreamAbort);
-      }
+      unlinkUpstream();
     }
 
     const respHeaders = readHeaderMap(response.headers);
