@@ -297,7 +297,10 @@ def _commits_after(round_head: str, head_sha: str, base: str, cwd: str) -> list[
       - 한쪽은 모드만, 다른 쪽은 내용만 바꾼 파일.
       - 한쪽이 파일을 옮기고 다른 쪽이 옛 경로를 고쳐 git 이 새 경로에 합친 파일.
     정교화하려면 `git merge-tree --write-tree <부모1> <부모2>` 가 충돌 없이 끝나고 그 tree 의 `codebase/` 가 merge 의
-    tree 와 같으면 세지 않는 방법이 있다(git 2.38 이상이라 CI 의 git 버전부터 확인해야 한다)."""
+    tree 와 같으면 세지 않는 방법이 있다. 이 명령은 git 2.38 이상이 필요하고 2026-10-10 에 CI 는 2.55, 로컬은 2.54
+    였다. 지금 넣지 않은 이유는 둘이다. 그 명령을 쓰면 읽기만 하던 게이트가 저장소에 객체를 쓴다. 세 모양은 막는 쪽
+    오탐이고 로컬 저장소의 merge 커밋 227개 가운데 해당하는 것이 없었다(2026-10-10). 이 모양으로 PR 이 막힌 사례가
+    나오면 다시 본다."""
     rng = [f"{round_head}..{head_sha}", "--not", base]
     after = _git_lines(["rev-list", "--no-merges", *rng, "--", CODE_PREFIX], cwd)
     for merge in _git_lines(["rev-list", "--merges", *rng], cwd):
