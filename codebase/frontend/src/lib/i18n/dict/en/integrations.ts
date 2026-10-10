@@ -92,8 +92,18 @@ export const integrations: Dict["integrations"] = {
   reauthorizeSection: "Reauthorize",
   reauthorizeHint: "Open the provider in a new window to refresh tokens.",
   reauthorizeBtn: "Reauthorize",
-  reauthorizeDisabledHint:
-    "Reauthorize is unavailable for Cafe24 Private apps (use \"Test Run\" in Cafe24 Developers) or for integrations expired via install_timeout (delete and re-register).",
+  reauthorizeDisabledPendingInstall:
+    "You can't reauthorize an integration that hasn't finished installing. Complete the install first.",
+  reauthorizeDisabledInstallTimeout:
+    "This integration expired because the install timed out, so it can't be reauthorized. Delete it and register it again.",
+  reauthorizeDisabledMakeshop:
+    "MakeShop integrations can't be reauthorized. If something goes wrong, delete the integration and register it again. Reinstalling the app from the shop does not restore an existing integration.",
+  reauthorizeHintCafe24Private:
+    "Request a reinstall, then click \"Test run\" in Cafe24 Developers to refresh the token.",
+  cafe24ReinstallRequestedTitle: "Click \"Test run\" in Cafe24 Developers",
+  cafe24ReinstallRequestedDesc:
+    "Reinstall requested. Click \"Test run\" on your app in Cafe24 Developers to open the consent screen; once you approve, the integration switches to the new token. Until then, runs keep using the current token.",
+  cafe24ReinstallRequestedAt: "Requested at: {{at}}",
   reauthorizeOpened: "Reauthorization window opened",
   integrationReset: "Integration reset",
   reauthorizeFailedToast: "Failed to start reauthorization",
@@ -112,6 +122,10 @@ export const integrations: Dict["integrations"] = {
   requestScopesBtn: "Request scopes",
   scopeRequestOpened: "Scope request window opened",
   requestScopesFailed: "Failed to request scopes",
+  requestScopesDisabledMakeshop:
+    "MakeShop integrations can't be granted new scopes. If you need more, delete the integration and register it again with the scopes you need.",
+  requestScopesDisabledInstallTimeout:
+    "This Cafe24 Private integration has no App URL, so it can't be granted new scopes. Delete it and register it again.",
   cafe24PrivateScopeRequestTitle:
     "Grant the additional scopes in Cafe24 Developers",
   cafe24PrivateScopeRequestDesc:

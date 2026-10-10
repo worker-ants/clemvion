@@ -11,6 +11,7 @@ import {
   type ServiceDefinition,
 } from "@/lib/api/integrations";
 import { type TFunction } from "@/lib/i18n";
+import { isRequestScopesDisabled } from "@/lib/integrations/reauthorize";
 import { openOAuthPopup } from "./open-oauth-popup";
 import {
   ApprovalRequiredBadge,
@@ -59,6 +60,15 @@ export function ScopeTab({
   // `IntegrationDto.lastError` 의 union 분기를 안전하게 좁히기 위해 type guard
   // 함수 사용 — 백엔드가 details 를 omit 한 케이스도 깨끗히 처리.
   const requiresApprovalFromError = readRequiresApproval(integration.lastError);
+  // MakeShop 은 권한 추가 경로가 없고(삭제 후 재등록), App URL 이 없는 Cafe24
+  // Private 행은 재설치를 마칠 수 없다. NERV CLE-INT-OAUTH · CLE-T-NNENG8.
+  const requestDisabledHint = isRequestScopesDisabled(integration)
+    ? t(
+        integration.serviceType === "makeshop"
+          ? "integrations.requestScopesDisabledMakeshop"
+          : "integrations.requestScopesDisabledInstallTimeout",
+      )
+    : null;
 
   const [selected, setSelected] = useState<string[]>([]);
   const [cafe24Pending, setCafe24Pending] = useState<{
@@ -78,8 +88,10 @@ export function ScopeTab({
       } else if ("mode" in res && res.mode === "cafe24_private_pending") {
         setCafe24Pending({ scopesAdded: res.scopesAdded });
         toast.info(t("integrations.cafe24PrivateScopeRequestTitle"));
-        // pending 상태는 cafe24 측 후속 작업이 끝나야 token 이 갱신되므로
-        // 지금 onChanged() 로 refetch 해도 변화 없음 — 의도적으로 생략.
+        // 서버가 scope 병합과 재설치 대기 표시(reinstallRequestedAt)를 저장했다.
+        // 다시 읽어 상세 화면의 재설치 대기 안내를 띄운다. 토큰은 Cafe24 의
+        // '테스트 실행' 뒤 콜백에서 바뀐다.
+        onChanged();
       } else {
         toast.error(t("integrations.requestScopesFailed"));
       }
@@ -201,6 +213,11 @@ export function ScopeTab({
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           {t("integrations.requestScopesHint")}
         </p>
+        {requestDisabledHint && (
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            {requestDisabledHint}
+          </p>
+        )}
         <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
           {allOptions.length === 0 ? (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
@@ -219,7 +236,7 @@ export function ScopeTab({
                     checked={selected.includes(s.value)}
                     onChange={() => toggle(s.value)}
                     className="mt-0.5"
-                    disabled={isGranted}
+                    disabled={isGranted || requestDisabledHint !== null}
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 font-medium">
@@ -251,7 +268,11 @@ export function ScopeTab({
         <div className="flex justify-end">
           <Button
             onClick={() => requestMutation.mutate()}
-            disabled={selected.length === 0 || requestMutation.isPending}
+            disabled={
+              selected.length === 0 ||
+              requestMutation.isPending ||
+              requestDisabledHint !== null
+            }
           >
             {requestMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

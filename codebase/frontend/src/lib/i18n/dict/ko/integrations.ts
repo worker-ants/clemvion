@@ -90,8 +90,18 @@ export const integrations = {
   reauthorizeSection: "재인증",
   reauthorizeHint: "새 창에서 제공자에 로그인해 토큰을 갱신해요.",
   reauthorizeBtn: "재인증",
-  reauthorizeDisabledHint:
-    "재인증 불가 — Cafe24 Private 앱은 Cafe24 Developers 에서 '테스트 실행'을 다시 누르세요. install_timeout 으로 만료된 통합은 삭제 후 재등록이 필요해요.",
+  reauthorizeDisabledPendingInstall:
+    "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요.",
+  reauthorizeDisabledInstallTimeout:
+    "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 삭제한 뒤 다시 등록해 주세요.",
+  reauthorizeDisabledMakeshop:
+    "MakeShop 통합은 재인증할 수 없어요. 문제가 생기면 통합을 삭제한 뒤 다시 등록해 주세요. 상점에서 앱을 다시 설치해도 기존 통합은 복구되지 않아요.",
+  reauthorizeHintCafe24Private:
+    "재설치를 요청한 뒤 Cafe24 Developers 에서 '테스트 실행'을 누르면 토큰이 갱신돼요.",
+  cafe24ReinstallRequestedTitle: "Cafe24 Developers 에서 '테스트 실행'을 눌러 주세요",
+  cafe24ReinstallRequestedDesc:
+    "재설치를 요청했어요. Cafe24 Developers 의 앱 화면에서 '테스트 실행'을 누르면 동의 화면이 열려요. 동의하면 새 토큰으로 바뀌고 그 전까지는 지금 토큰으로 실행돼요.",
+  cafe24ReinstallRequestedAt: "요청 시각: {{at}}",
   reauthorizeOpened: "재인증 창을 열었어요",
   integrationReset: "통합을 초기화했어요",
   reauthorizeFailedToast: "재인증을 시작하지 못했어요",
@@ -110,6 +120,10 @@ export const integrations = {
   requestScopesBtn: "권한 요청",
   scopeRequestOpened: "권한 요청 창을 열었어요",
   requestScopesFailed: "권한 요청에 실패했어요",
+  requestScopesDisabledMakeshop:
+    "MakeShop 통합은 권한을 추가할 수 없어요. 권한이 더 필요하면 통합을 삭제한 뒤 필요한 권한으로 다시 등록해 주세요.",
+  requestScopesDisabledInstallTimeout:
+    "App URL 이 없는 Cafe24 Private 통합은 권한을 추가할 수 없어요. 삭제한 뒤 다시 등록해 주세요.",
   cafe24PrivateScopeRequestTitle:
     "Cafe24 Developers 에서 권한을 추가해 주세요",
   cafe24PrivateScopeRequestDesc:

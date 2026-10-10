@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   INSTALL_TIMEOUT_REASON,
   isReauthorizeDisabled,
+  isRequestScopesDisabled,
   pickErrorMessage,
+  reauthorizeDisabledReason,
 } from "../reauthorize";
 import type { IntegrationDto } from "@/lib/api/integrations";
 
@@ -45,17 +47,51 @@ describe("isReauthorizeDisabled", () => {
     ).toBe(true);
   });
 
-  it("disables every Cafe24 Private integration even when connected", () => {
+  // CLE-T-NNENG8 — Cafe24 Private 재인증은 재설치 요청을 남기고 App URL 로 끝낸다. App URL 이 있어야 한다.
+  it.each(["connected", "error", "expired"] as const)(
+    "enables Cafe24 Private (%s) when the App URL exists — reinstall request",
+    (status) => {
+      expect(
+        isReauthorizeDisabled(
+          row({
+            status,
+            serviceType: "cafe24",
+            meta: { appType: "private" },
+            appUrl: "https://app.example.com/api/3rd-party/cafe24/install/tok",
+          }),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("disables Cafe24 Private without an App URL (install_token gone)", () => {
     expect(
       isReauthorizeDisabled(
         row({
           status: "connected",
           serviceType: "cafe24",
           meta: { appType: "private" },
+          appUrl: null,
         }),
       ),
     ).toBe(true);
   });
+
+  // CLE-T-NNENG8 — MakeShop 은 재인증 · 권한 추가를 받지 않는다. 복구는 삭제 후 재등록이다.
+  it.each(["connected", "error", "expired"] as const)(
+    "disables MakeShop (%s) — delete and re-register only",
+    (status) => {
+      expect(
+        isReauthorizeDisabled(
+          row({
+            status,
+            serviceType: "makeshop",
+            appUrl: "https://app.example.com/api/3rd-party/makeshop/install/tok",
+          }),
+        ),
+      ).toBe(true);
+    },
+  );
 
   it("does NOT disable connected Cafe24 Public (env-based OAuth)", () => {
     expect(
@@ -83,6 +119,82 @@ describe("isReauthorizeDisabled", () => {
         row({ status: "connected", serviceType: "google" }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("reauthorizeDisabledReason", () => {
+  it("returns null when reauthorize is available", () => {
+    expect(reauthorizeDisabledReason(row({}))).toBeNull();
+  });
+
+  it.each([
+    [row({ status: "pending_install" }), "pending_install"],
+    [
+      row({ status: "pending_install", serviceType: "makeshop" }),
+      "pending_install",
+    ],
+    [
+      row({ status: "expired", statusReason: INSTALL_TIMEOUT_REASON }),
+      "install_timeout",
+    ],
+    [row({ serviceType: "makeshop" }), "makeshop"],
+    [
+      row({
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: null,
+      }),
+      "install_timeout",
+    ],
+  ] as const)("%# → %s", (integration, reason) => {
+    expect(reauthorizeDisabledReason(integration)).toBe(reason);
+  });
+
+  it("agrees with isReauthorizeDisabled", () => {
+    const rows = [
+      row({}),
+      row({ status: "pending_install" }),
+      row({ serviceType: "makeshop" }),
+      row({ serviceType: "cafe24", meta: { appType: "private" }, appUrl: null }),
+      row({
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: "https://x/install/t",
+      }),
+    ];
+    for (const r of rows) {
+      expect(isReauthorizeDisabled(r)).toBe(reauthorizeDisabledReason(r) !== null);
+    }
+  });
+});
+
+describe("isRequestScopesDisabled", () => {
+  it("disables MakeShop — no scope request path", () => {
+    expect(isRequestScopesDisabled(row({ serviceType: "makeshop" }))).toBe(true);
+  });
+
+  it("disables Cafe24 Private without an App URL", () => {
+    expect(
+      isRequestScopesDisabled(
+        row({
+          serviceType: "cafe24",
+          meta: { appType: "private" },
+          appUrl: null,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    row({ serviceType: "google" }),
+    row({ serviceType: "cafe24", meta: { appType: "public" } }),
+    row({
+      serviceType: "cafe24",
+      meta: { appType: "private" },
+      appUrl: "https://x/install/t",
+    }),
+  ])("keeps request-scopes available (%#)", (integration) => {
+    expect(isRequestScopesDisabled(integration)).toBe(false);
   });
 });
 

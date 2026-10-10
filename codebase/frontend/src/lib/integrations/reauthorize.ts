@@ -8,33 +8,69 @@ import type { IntegrationDto } from "@/lib/api/integrations";
  */
 export const INSTALL_TIMEOUT_REASON = "install_timeout";
 
+/** Why the Reauthorize action is unavailable — selects the hint copy. */
+export type ReauthorizeDisabledReason =
+  | "pending_install"
+  | "install_timeout"
+  | "makeshop";
+
+/** Cafe24 Private app integration (`meta.appType === "private"`). */
+export function isCafe24Private(integration: IntegrationDto): boolean {
+  return (
+    integration.serviceType === "cafe24" &&
+    integration.meta?.appType === "private"
+  );
+}
+
 /**
- * Whether the Reauthorize action is disabled for this integration.
+ * Why the Reauthorize action is unavailable, or `null` when it is available.
  *
- * Cafe24 Private apps have no reauthorize entry point — re-auth must come
- * from Cafe24 Developers "테스트 실행". `pending_install` rows (any provider)
- * and `expired` rows with `install_timeout` cannot be reauthorized either.
+ * - `pending_install` rows (any provider) must finish the install first.
+ * - `expired` rows with `install_timeout`, and Cafe24 Private rows without an
+ *   App URL (install_token gone), can only be deleted and re-registered.
+ * - MakeShop integrations cannot be reauthorized at all — reinstalling the app
+ *   from ShopStore does not restore an existing row, so recovery is delete and
+ *   re-register.
  *
- * Mirrors spec/2-navigation/4-integration.md §4.2 Reauthorize 비활성 조건.
- * Lives in `lib/integrations` rather than the badge UI module so other
- * surfaces (detail page, list ⋮ menu) can reuse without depending on a
- * presentational component.
+ * Cafe24 Private with an App URL is available: the server records a reinstall
+ * request and the user finishes it with "테스트 실행" in Cafe24 Developers.
+ * NERV CLE-INT-MANAGE · CLE-INT-OAUTH, Task CLE-T-NNENG8.
  */
-export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
-  if (integration.status === "pending_install") return true;
+export function reauthorizeDisabledReason(
+  integration: IntegrationDto,
+): ReauthorizeDisabledReason | null {
+  if (integration.status === "pending_install") return "pending_install";
   if (
     integration.status === "expired" &&
     integration.statusReason === INSTALL_TIMEOUT_REASON
   ) {
-    return true;
+    return "install_timeout";
   }
-  if (
-    integration.serviceType === "cafe24" &&
-    integration.meta?.appType === "private"
-  ) {
-    return true;
+  if (integration.serviceType === "makeshop") return "makeshop";
+  if (isCafe24Private(integration) && !integration.appUrl) {
+    return "install_timeout";
   }
-  return false;
+  return null;
+}
+
+/**
+ * Whether the Reauthorize action is disabled for this integration — see
+ * {@link reauthorizeDisabledReason}. Lives in `lib/integrations` rather than
+ * the badge UI module so other surfaces (detail page, list ⋮ menu) can reuse
+ * without depending on a presentational component.
+ */
+export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
+  return reauthorizeDisabledReason(integration) !== null;
+}
+
+/**
+ * Whether "Request scopes" is disabled. MakeShop has no scope request path
+ * (delete and re-register with the scopes you need), and a Cafe24 Private row
+ * without an App URL cannot finish one. NERV CLE-INT-OAUTH, Task CLE-T-NNENG8.
+ */
+export function isRequestScopesDisabled(integration: IntegrationDto): boolean {
+  if (integration.serviceType === "makeshop") return true;
+  return isCafe24Private(integration) && !integration.appUrl;
 }
 
 /**

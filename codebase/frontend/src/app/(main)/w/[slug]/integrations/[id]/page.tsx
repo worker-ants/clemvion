@@ -30,7 +30,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { isReauthorizeDisabled } from "@/lib/integrations/reauthorize";
+import {
+  isCafe24Private,
+  reauthorizeDisabledReason,
+  type ReauthorizeDisabledReason,
+} from "@/lib/integrations/reauthorize";
 import { CredentialsForm } from "../_shared/credentials-form";
 import {
   useT,
@@ -43,6 +47,7 @@ import { tryTranslateLabel } from "./activity-label";
 import { ActivityDisconnectedBanner } from "./activity-disconnected-banner";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
+import { ReinstallRequestedNotice } from "./reinstall-requested-notice";
 import { openOAuthPopup } from "./open-oauth-popup";
 import { UsageNodeList } from "./usage-node-list";
 import { DangerTab } from "./danger-tab";
@@ -159,6 +164,11 @@ export default function IntegrationDetailPage({
           </div>
         </div>
       </header>
+
+      <ReinstallRequestedNotice
+        reinstallRequestedAt={integration.reinstallRequestedAt}
+        t={t}
+      />
 
       <nav className="flex flex-wrap gap-1 border-b border-[hsl(var(--border))]">
         {TABS.map((key) => (
@@ -409,6 +419,15 @@ function InfoRow({
 
 // ---------------- Security ----------------
 
+const REAUTHORIZE_DISABLED_HINT_KEYS: Record<
+  ReauthorizeDisabledReason,
+  TranslationKey
+> = {
+  pending_install: "integrations.reauthorizeDisabledPendingInstall",
+  install_timeout: "integrations.reauthorizeDisabledInstallTimeout",
+  makeshop: "integrations.reauthorizeDisabledMakeshop",
+};
+
 function SecurityTab({
   integration,
   variant,
@@ -421,6 +440,11 @@ function SecurityTab({
   t: TFunction;
 }) {
   const isOAuth = integration.authType === "oauth2";
+  const disabledReason = reauthorizeDisabledReason(integration);
+  const disabledHint =
+    disabledReason === null
+      ? undefined
+      : t(REAUTHORIZE_DISABLED_HINT_KEYS[disabledReason]);
 
   const reauthorize = useMutation({
     mutationFn: () => integrationsApi.reauthorize(integration.id),
@@ -428,6 +452,9 @@ function SecurityTab({
       if ("authUrl" in res && res.authUrl) {
         openOAuthPopup(res.authUrl);
         toast.success(t("integrations.reauthorizeOpened"));
+      } else if ("mode" in res && res.mode === "cafe24_private_pending") {
+        toast.info(t("integrations.cafe24ReinstallRequestedTitle"));
+        onChanged();
       } else {
         toast.success(t("integrations.integrationReset"));
         onChanged();
@@ -466,17 +493,17 @@ function SecurityTab({
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{t("integrations.reauthorizeSection")}</h3>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {t("integrations.reauthorizeHint")}
+            {t(
+              isCafe24Private(integration)
+                ? "integrations.reauthorizeHintCafe24Private"
+                : "integrations.reauthorizeHint",
+            )}
           </p>
           <Button
             variant="outline"
             onClick={() => reauthorize.mutate()}
-            disabled={reauthorize.isPending || isReauthorizeDisabled(integration)}
-            title={
-              isReauthorizeDisabled(integration)
-                ? t("integrations.reauthorizeDisabledHint")
-                : undefined
-            }
+            disabled={reauthorize.isPending || disabledReason !== null}
+            title={disabledHint}
           >
             {reauthorize.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -485,9 +512,9 @@ function SecurityTab({
             )}
             {t("integrations.reauthorizeBtn")}
           </Button>
-          {isReauthorizeDisabled(integration) && (
+          {disabledHint && (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {t("integrations.reauthorizeDisabledHint")}
+              {disabledHint}
             </p>
           )}
         </section>
