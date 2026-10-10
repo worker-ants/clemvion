@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants';
 import { SessionsController } from './sessions.controller';
 import { SessionsService } from './sessions.service';
 import { LoginHistoryService } from './login-history.service';
 import type { SessionDto } from './dto/responses/session.dto';
 import type { LoginHistoryPageDto } from './dto/responses/login-history.dto';
+import { REFRESH_COOKIE_PATH } from './utils/refresh-cookie';
 
 const sample: SessionDto = {
   familyId: 'fam-1',
@@ -43,6 +45,45 @@ describe('SessionsController', () => {
     controller = module.get(SessionsController);
     sessionsService = module.get(SessionsService);
     loginHistoryService = module.get(LoginHistoryService);
+  });
+
+  /**
+   * 현재 세션은 refresh cookie 로 가린다. 세션 라우트가 쿠키 Path 밖에 있으면 브라우저가 쿠키를 보내지
+   * 않아 `isCurrent` · 현재 세션 종료 차단 · 다른 세션 종료가 모두 깨진다(CLE-T-ERAJ7P). 이 테스트는
+   * 경로 선언만 고정하고, 브라우저 쿠키 규칙까지는 `test/session-revocation.e2e-spec.ts` 가 본다.
+   */
+  describe('세션 라우트는 refresh cookie Path 안에 있다', () => {
+    const GLOBAL_PREFIX = 'api'; // main.ts 의 setGlobalPrefix
+
+    function fullPath(handler: keyof SessionsController): string {
+      const base = Reflect.getMetadata(
+        PATH_METADATA,
+        SessionsController,
+      ) as string;
+      const route = Reflect.getMetadata(
+        PATH_METADATA,
+        SessionsController.prototype[handler],
+      ) as string;
+      return (
+        '/' +
+        [GLOBAL_PREFIX, base, route]
+          .filter((seg) => seg && seg !== '/')
+          .join('/')
+      );
+    }
+
+    it.each(['listSessions', 'revokeSession', 'revokeOtherSessions'] as const)(
+      '%s',
+      (handler) => {
+        expect(fullPath(handler)).toMatch(
+          new RegExp(`^${REFRESH_COOKIE_PATH}/`),
+        );
+      },
+    );
+
+    it('로그인 이력은 쿠키가 필요 없어 /api/users/me 아래에 남는다', () => {
+      expect(fullPath('getLoginHistory')).toBe('/api/users/me/login-history');
+    });
   });
 
   describe('listSessions', () => {

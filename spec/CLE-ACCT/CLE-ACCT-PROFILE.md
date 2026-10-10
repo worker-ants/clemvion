@@ -10,11 +10,11 @@ parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "8386c5bf04fc025029a52fc0c26b1db5b1e88c92c33f692e5bb9372c635290f5"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-E7MF3Q"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "2ada5667242b0c915881c6e10057b57193d538c549b9de693c0df7c6e3319a7d"
-etag: "sha256-271b8acd57df3cc3bc3548d323ee03b9f9102a06341ef1b5039f10dc520c7a72"
+mirror_sha256: "76ce78832b1fb28cbf5bba11f93fad45eebbac5314eef60db4837b3863f01850"
+etag: "sha256-7ba11291ff78c8375369244e0dbbcab42baa7ecf2848f039e52a2395223b6033"
 ---
 > 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목과 테마 `system` 선택 UI 는 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

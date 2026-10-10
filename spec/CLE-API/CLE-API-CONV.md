@@ -3,18 +3,18 @@ id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "859a65aa764f852c8e3def6738c73f807138a2e43a78fa96ce7fd9f91a6dd651"
+content_hash: "c2ce579686e3f39d0a69295456d91f30670edd7ec32a811cbc1fdc410908feb1"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-ERAJ7P"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "28078542f7fb5d75bb6a9844075a5899f77919ebfe6eb6cb3eb86796704ee005"
-etag: "sha256-caef216ffa127a3c96f1021a98fc94a221ad102488bfc511b50c882f3fd46891"
+mirror_sha256: "e3c0429a3a77c6a393304314b4371bc25389d3b7652d70d755fc619043e7c396"
+etag: "sha256-2db862a6ffe774e235b15f8488a5a5519eece56fb67652836955669dbd6cc3f6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -274,7 +274,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 인증 API (`POST /api/auth/register`, `POST /api/auth/login`) | 10 req/min (IP 기준). 라우트별 `@Throttle` 이다 | 같음 |
 | 계정 확인·복구 (`POST /api/auth/forgot-password`, `POST /api/auth/resend-verification`, `POST /api/auth/check-email`) | 5 req/min (IP 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
 | 초대 토큰 메타 조회 (`GET /api/invitations/:token`) | 30 req/min (공개 라우트라 IP 기준). 토큰 추측을 막는다. 동작 정의는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) | 같음 |
-| 로그인 세션 강제 종료 (`POST /api/users/me/sessions/:familyId/revoke`, `POST /api/users/me/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로). 집계 키는 정의가 갈린다([미결 사항](#미결-사항)). 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
+| 로그인 세션 강제 종료 (`POST /api/users/me/sessions/:familyId/revoke`, `POST /api/users/me/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로, 사용자 기준). 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
 | 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min. 동작 정의는 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) | 같음 |
 | 웹훅 수신 | 100 req/min (전역 throttler `default`) | 같음 |
 | 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 트리거) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
@@ -461,7 +461,7 @@ Content-Type: application/json
 
 ## 미결 사항
 
-- **전역 한도의 집계 키**: 이 문서는 인증된 요청을 사용자로, 인증되지 않은 요청을 IP 로 센다고 정하고(§7) 현재 구현도 같다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 은 전역 한도를 IP 당 분당 100건으로, [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 은 로그인 세션 강제 종료 한도를 IP 당으로 적는다. [External Interaction API](../CLE-IX/CLE-EIA.md) 도 전역 가드의 카운트 기준을 IP 로 적은 원문을 미결로 남겼다. EIA 경로는 `@Public()` 이라 현재 구현에서도 IP 로 센다(§7 키 결정 규칙). 인증된 라우트의 한도를 사용자 기준으로 읽을지 IP 기준으로 읽을지 결정이 필요하다. 라우트별 한도 수치는 §7 표에 모았다.
+- **전역 한도의 집계 키**: 이 문서는 인증된 요청을 사용자로, 인증되지 않은 요청을 IP 로 센다고 정하고(§7) 현재 구현도 같다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 은 전역 한도를 IP 당 분당 100건으로, 로그인 세션 강제 종료 한도(`sessions/:familyId/revoke` · `sessions/revoke-others`)를 IP 당 분당 10회 · 5회로 적는다. [External Interaction API](../CLE-IX/CLE-EIA.md) 도 전역 가드의 카운트 기준을 IP 로 적은 원문을 미결로 남겼다. EIA 경로는 `@Public()` 이라 현재 구현에서도 IP 로 센다(§7 키 결정 규칙). 인증된 라우트의 한도를 사용자 기준으로 읽을지 IP 기준으로 읽을지 결정이 필요하다. 라우트별 한도 수치는 §7 표에 모았다.
 - **`204` 삭제 응답의 건수 헤더**: [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 의 범위 삭제(`DELETE /api/agent-memories?scopeKey=`)가 프로젝트 첫 커스텀 응답 헤더 `X-Deleted-Count` 를 쓴다. `204` 라 본문이 없어 실제 삭제 행 수를 헤더로 싣고(0 가능, 멱등 삭제) cross-origin 에서 읽히도록 CORS `exposedHeaders` 에 넣는다. 그 문서는 이 방식을 이 규약의 공통 규칙(멱등 DELETE 와 커스텀 건수 헤더)으로 올리는 일을 별도 작업으로 넘겼다. 공통 규칙으로 올릴지 결정이 필요하다.
 - **자원을 만들지 않는 POST 의 성공 코드**: §6 은 `200` 을 조회·수정에, `201` 을 생성에 배정한다. 저장소에는 `@HttpCode(200)` 을 단 액션 POST 가 여럿 있고 OAuth 시작(설치 대기 통합 행 생성)이나 초대 수락(멤버십 행 생성)처럼 부수적으로 행을 만드는 POST 도 `200` 이다. [OpenAPI 문서화](CLE-API-SWAGGER.md) 는 광고한 코드와 실제 코드의 짝만 강제하고 어느 코드가 맞는지는 정하지 않는다고 스스로 적는다. §6 에 "액션 POST(자원 생성 없음 또는 부수 생성) = `200`" 행을 둘지 결정이 필요하다.
 
@@ -534,3 +534,11 @@ Content-Type: application/json
 SSE `execution.waiting_for_input` 이벤트도 `conversationThread` 를 값이 있을 때만 싣는다. [External Interaction API](../CLE-IX/CLE-EIA.md) 는 REST `context` 를 SSE wire 와 같은 형식으로 유지하는 것을 명시 계약으로 두고 웹채팅 위젯이 두 표면에 같은 파서(`parseWaitingForInput`)를 쓰는 것이 그 계약 위에 서 있다. `conversationThread` 만 REST 에서 `null` 로 정규화하면 두 표면의 형식이 갈려 파서를 함께 쓸 수 없다. 응답 안의 겉보기 일관성을 얻는 대신 표면 사이의 실제 일관성을 잃는 교환이다.
 
 그래서 이 경우는 §5.5 기준 (a)(다른 표면과의 wire 일치)의 원형 사례이고 정규화 대상이 아니라 규칙의 근거 사례로 둔다. 소비 쪽 안전성은 따로 확인했다. 위젯의 `threadToMessages` 가 optional chaining(`!thread?.turns?.length`)으로 `undefined` 와 `null` 을 함께 건너뛴다.
+
+### 로그인 세션 강제 종료 한도를 사용자 기준으로 적은 이유 (2026-10-10)
+
+두 라우트는 로그인한 사용자만 부른다. 그래서 §7 키 결정 규칙대로 `UserThrottlerGuard` 가 `user:<sub>` 키로 센다(`user-throttler.guard.ts`).
+
+- 한때 이 행은 집계 키를 미결로 남겼다. [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 같은 한도를 IP 당으로 적어 두 문서가 갈렸기 때문이다.
+- 세션 문서가 v2 에서 집계 키를 이 문서 §7 로 넘겼다. 이 행까지 미결로 두면 두 문서가 서로 상대에게 미루게 된다. 그래서 구현대로 사용자 기준이라고 적었다.
+- [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 은 아직 IP 당으로 적는다. 그 어긋남은 미결 사항 「전역 한도의 집계 키」에 남긴다.

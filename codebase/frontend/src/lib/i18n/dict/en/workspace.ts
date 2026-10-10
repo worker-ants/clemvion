@@ -22,6 +22,7 @@ export const workspace: Dict["workspace"] = {
   roleAdmin: "Admin",
   roleMember: "Member",
   roleViewer: "Viewer",
+  adminRoleOwnerOnly: "Only the owner can grant or change the admin role.",
   removeMember: "Remove member",
   removeMemberConfirm: "Remove {{name}} from the workspace?",
   memberRemoved: "Member removed",

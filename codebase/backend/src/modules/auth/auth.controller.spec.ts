@@ -1,5 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  THROTTLER_LIMIT,
+  THROTTLER_TTL,
+} from '@nestjs/throttler/dist/throttler.constants';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
@@ -7,6 +11,7 @@ import { TotpService } from './totp.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import type { JwtPayload } from '../../common/decorators';
+import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -49,6 +54,7 @@ describe('AuthController', () => {
       setup: jest.fn(),
       verifyAndEnable: jest.fn(),
       verifyForLogin: jest.fn(),
+      verifyForDisable: jest.fn(),
       disable: jest.fn(),
     } as unknown as jest.Mocked<TotpService>;
 
@@ -446,13 +452,17 @@ describe('AuthController', () => {
 
       await controller.disable2fa(
         payload,
-        { password: 'OldP@ssw0rd1' },
+        { password: 'OldP@ssw0rd1', code: '123456' },
         mock2faReq,
       );
 
       expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
         'user-uuid',
         'OldP@ssw0rd1',
+      );
+      expect(totpService.verifyForDisable).toHaveBeenCalledWith(
+        'user-uuid',
+        '123456',
       );
       expect(totpService.disable).toHaveBeenCalledWith('user-uuid');
       expect(auditLogsService.record).toHaveBeenCalledWith({
@@ -475,10 +485,46 @@ describe('AuthController', () => {
       );
 
       await expect(
-        controller.disable2fa(payload, { password: 'WrongPass!' }, mock2faReq),
+        controller.disable2fa(
+          payload,
+          { password: 'WrongPass!', code: '123456' },
+          mock2faReq,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+      // 비밀번호가 틀리면 코드는 보지 않는다 — 복구 코드를 헛되이 소모하지 않는다.
+      expect(totpService.verifyForDisable).not.toHaveBeenCalled();
+      expect(totpService.disable).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 맞아도 코드가 틀리면 끄지 않고 감사 로그도 남기지 않는다', async () => {
+      authService.verifyPasswordForUser.mockResolvedValue(undefined);
+      totpService.verifyForDisable.mockRejectedValue(
+        new UnauthorizedException({
+          code: 'TOTP_INVALID',
+          message: '인증 코드가 올바르지 않습니다.',
+        }),
+      );
+
+      await expect(
+        controller.disable2fa(
+          payload,
+          { password: 'OldP@ssw0rd1', code: '000000' },
+          mock2faReq,
+        ),
       ).rejects.toThrow(UnauthorizedException);
       expect(totpService.disable).not.toHaveBeenCalled();
       expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('2fa/disable 은 민감 tier(분당 10회) throttle 을 건다', () => {
+      const handler = AuthController.prototype.disable2fa;
+      expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
+        SENSITIVE_ACTION_THROTTLE.default.limit,
+      );
+      expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
+        SENSITIVE_ACTION_THROTTLE.default.ttl,
+      );
     });
   });
 });

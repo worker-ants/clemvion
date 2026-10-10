@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
 content_hash: "bf78d7541e39adc43eb85ec5e15bd9d1babe1e7514f4f20c68b7db2e954f285f"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-ERAJ7P"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "f85cd8c41acad9bfb69ab1baeedacb26eaadc601f1e2d7e35ac8126d88468a62"
-etag: "sha256-65375bfeb26ab6dd246d1c4e728a8d1f10259c6fecce6a00ccda77cc09dee3b5"
+mirror_sha256: "dfc65c7e9f57bcf8d0309de7fcc9971355ef5abea78a1f19e70f2186d8b84411"
+etag: "sha256-598d65cf206c13666be125d2262ffafdbd98830c1f62ae8dc1672b513d9c3511"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

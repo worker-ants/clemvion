@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "39355ab08e1bcde563a5b06bb9ee8652fda0a06c694936da3c0b5ec45f519684"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-0W7CA7"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "6cd520a7d08b1915490e671b35fbeae32d8c11bcbd302c57fe94ba692effb769"
-etag: "sha256-b3bba42ff7f6c996f31cf3057666c682b17fec82101df9f1ba1304171d679ed9"
+mirror_sha256: "90be0e826b14803d60193b8011a706eea5672bb8d9f6c41f3dcbbc33e9300c20"
+etag: "sha256-910623e45dfebedaf9120c024e1146a69ef3c3c411945e4f65b008a3e94a6e90"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

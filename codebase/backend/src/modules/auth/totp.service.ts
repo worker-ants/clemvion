@@ -117,7 +117,22 @@ export class TotpService {
     return { recoveryCodes: codes };
   }
 
-  /** 2FA 비활성. 호출 전에 비밀번호 재확인은 컨트롤러에서 수행. */
+  /**
+   * 2FA 해제 전 코드 확인. 로그인 2단계와 같은 코드(6자리 TOTP 또는 TOTP 복구 코드)를 받고,
+   * 복구 코드는 로그인과 같이 소비한다. 틀리면 401 TOTP_INVALID
+   * (NERV CLE-ACCT-SIGNIN, CLE-T-75TDTN).
+   */
+  async verifyForDisable(userId: string, code: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user || !(await this.verifyForLogin(user, code))) {
+      throw new UnauthorizedException({
+        code: 'TOTP_INVALID',
+        message: '인증 코드가 올바르지 않습니다.',
+      });
+    }
+  }
+
+  /** 2FA 비활성. 호출 전에 비밀번호와 코드 재확인은 컨트롤러에서 수행. */
   async disable(userId: string): Promise<void> {
     await this.usersService.update(userId, {
       twoFactorEnabled: false,

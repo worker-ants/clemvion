@@ -8,6 +8,7 @@
  *   `INVITATION_THROTTLE` 별칭).
  * - provider probe (`preview-models`·`:id/test`·`:id/models`) — 실시간 과금 provider
  *   호출 비용·속도제한 보호 (`llm-model-config.controller`, `PROVIDER_PROBE_THROTTLE` 별칭).
+ * - 2FA 해제 (`POST /auth/2fa/disable`) — 6자리 인증 코드 추측 방지 (`auth.controller`).
  *
  * 정책 SoT: `spec/5-system/2-api-convention.md §7 Rate Limiting`. 특정 라우트의 정책이
  * 갈리면 이 상수를 공유하지 말고 라우트별 자체 `@Throttle` 로 분리한다.

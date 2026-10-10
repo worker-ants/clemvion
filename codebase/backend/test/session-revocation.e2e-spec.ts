@@ -3,7 +3,13 @@ import { Client } from 'pg';
 import request from 'supertest';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
-import { TEST_PASSWORD, extractRefreshCookie } from './helpers/auth';
+import {
+  TEST_PASSWORD,
+  browserCookieFor,
+  cookiePathMatches,
+  extractRefreshBrowserCookie,
+  type BrowserCookie,
+} from './helpers/auth';
 import {
   assertMatchesContract,
   contractForDto,
@@ -15,29 +21,77 @@ import { LoginHistoryPageDto } from '../src/modules/auth/dto/responses/login-his
 /**
  * e2e: 사용자 세션(refresh token family) 라이프사이클을 실 인프라에서 검증.
  *
- * spec: spec/2-navigation/9-user-profile.md §sessions (auth-sessions 작업의 산출물).
- * 본인 인증(비밀번호 또는 TOTP) 없이 revoke 불가, 단일 revoke 와 revoke-others 가
- * 각각 family 단위로 refresh 토큰을 무효화하는지 확인.
+ * NERV CLE-ACCT-SESSION 「세션 목록과 강제 종료」. 본인 인증(비밀번호 또는 TOTP) 없이
+ * revoke 불가, 단일 revoke 와 revoke-others 가 각각 family 단위로 refresh 토큰을
+ * 무효화하는지 확인.
+ *
+ * **쿠키는 브라우저처럼 붙인다.** refresh cookie 는 `Path=/api/auth` 라서 브라우저는 그
+ * 아래 경로에만 쿠키를 보낸다. 예전 테스트는 Cookie 헤더를 모든 요청에 손으로 붙여서
+ * 세션 API 가 `/api/users/me/sessions` 에 있을 때 현재 세션 판별이 늘 실패하는 것을
+ * 보지 못했다(CLE-T-ERAJ7P). 여기서는 `browserCookieFor` 로 Path 가 맞는 요청에만 붙인다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
+const SESSIONS = '/api/auth/sessions';
 
-async function loginAndGetCookie(
+function browserGet(path: string, accessToken: string, cookie: BrowserCookie) {
+  const req = request(BASE_URL)
+    .get(path)
+    .set('Authorization', `Bearer ${accessToken}`);
+  const header = browserCookieFor(cookie, path);
+  return header ? req.set('Cookie', header) : req;
+}
+
+function browserPost(
+  path: string,
+  accessToken: string,
+  cookie: BrowserCookie,
+  body: object,
+) {
+  const req = request(BASE_URL)
+    .post(path)
+    .set('Authorization', `Bearer ${accessToken}`);
+  const header = browserCookieFor(cookie, path);
+  return (header ? req.set('Cookie', header) : req).send(body);
+}
+
+function refreshAsBrowser(cookie: BrowserCookie) {
+  const path = '/api/auth/refresh';
+  const header = browserCookieFor(cookie, path);
+  if (!header)
+    throw new Error(`refresh cookie Path ${cookie.path} misses ${path}`);
+  return request(BASE_URL).post(path).set('Cookie', header);
+}
+
+async function login(
   email: string,
-  password: string,
   userAgent: string,
-): Promise<string> {
+): Promise<{ cookie: BrowserCookie; accessToken: string }> {
   const res = await request(BASE_URL)
     .post('/api/auth/login')
     .set('User-Agent', userAgent)
-    .send({ email, password });
+    .send({ email, password: TEST_PASSWORD });
   expect(res.status).toBe(200);
-  const cookie = extractRefreshCookie(
-    res.headers['set-cookie'] as unknown as string[],
-  );
-  if (!cookie) throw new Error('no refresh cookie issued at login');
-  return cookie;
+  return {
+    cookie: extractRefreshBrowserCookie(
+      res.headers['set-cookie'] as unknown as string[],
+    ),
+    accessToken: (res.body.data as { accessToken: string }).accessToken,
+  };
 }
+
+describe('cookiePathMatches (RFC 6265 §5.1.4)', () => {
+  it.each([
+    ['/api/auth', '/api/auth', true],
+    ['/api/auth', '/api/auth/sessions', true],
+    ['/api/auth', '/api/authx', false],
+    ['/api/auth', '/api/users/me/sessions', false],
+    ['/api/auth/', '/api/auth/refresh', true],
+    ['/', '/api/users/me/sessions', true],
+  ])('Path=%s, 요청 %s → %s', (cookiePath, requestPath, expected) => {
+    expect(cookiePathMatches(cookiePath, requestPath)).toBe(expected);
+  });
+});
 
 describe('Session revocation (e2e)', () => {
   let db: Client;
@@ -54,11 +108,24 @@ describe('Session revocation (e2e)', () => {
     await db.end();
   });
 
+  async function familyOf(email: string, userAgent: string): Promise<string> {
+    const { rows } = await db.query<{ family_id: string }>(
+      `SELECT DISTINCT rt.family_id FROM refresh_token rt
+         JOIN "user" u ON u.id = rt.user_id
+        WHERE u.email = $1 AND rt.user_agent = $2`,
+      [email, userAgent],
+    );
+    expect(rows).toHaveLength(1);
+    return rows[0].family_id;
+  }
+
   async function setupUser(prefix: string): Promise<{
     email: string;
-    cookieA: string;
-    cookieB: string;
+    cookieA: BrowserCookie;
+    cookieB: BrowserCookie;
     accessTokenA: string;
+    familyA: string;
+    familyB: string;
   }> {
     const email = uniqueEmail(prefix);
     await request(BASE_URL)
@@ -74,33 +141,27 @@ describe('Session revocation (e2e)', () => {
       email,
     ]);
 
-    const loginA = await request(BASE_URL)
-      .post('/api/auth/login')
-      .set('User-Agent', 'e2e-device-A/1.0')
-      .send({ email, password: TEST_PASSWORD });
-    const cookieA = extractRefreshCookie(
-      loginA.headers['set-cookie'] as unknown as string[],
-    )!;
-    const accessTokenA = (loginA.body.data as { accessToken: string })
-      .accessToken;
+    const a = await login(email, 'e2e-device-A/1.0');
+    const b = await login(email, 'e2e-device-B/2.0');
 
-    const cookieB = await loginAndGetCookie(
+    // 테스트가 브라우저와 같은 Path 를 전제하는지 고정한다. Path 가 넓어지면 아래
+    // 단언들은 이 버그 없이도 통과하므로 여기서 먼저 멈춘다.
+    expect(a.cookie.path).toBe('/api/auth');
+    expect(a.cookie.pair).not.toBe(b.cookie.pair);
+    return {
       email,
-      TEST_PASSWORD,
-      'e2e-device-B/2.0',
-    );
-
-    expect(cookieA).not.toBe(cookieB);
-    return { email, cookieA, cookieB, accessTokenA };
+      cookieA: a.cookie,
+      cookieB: b.cookie,
+      accessTokenA: a.accessToken,
+      familyA: await familyOf(email, 'e2e-device-A/1.0'),
+      familyB: await familyOf(email, 'e2e-device-B/2.0'),
+    };
   }
 
   it('A. 두 기기 로그인 → 활성 세션 2건, 현재 세션 isCurrent=true', async () => {
-    const { cookieA, accessTokenA } = await setupUser('sess-a');
+    const { cookieA, accessTokenA, familyA } = await setupUser('sess-a');
 
-    const list = await request(BASE_URL)
-      .get('/api/users/me/sessions')
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
+    const list = await browserGet(SESSIONS, accessTokenA, cookieA);
     expect(list.status).toBe(200);
     const sessions = list.body.data.items as Array<{
       familyId: string;
@@ -112,110 +173,86 @@ describe('Session revocation (e2e)', () => {
     assertMatchesContract(sessions[0], sessionContract);
 
     const currents = sessions.filter((s) => s.isCurrent);
-    expect(currents.length).toBe(1);
+    expect(currents.map((s) => s.familyId)).toEqual([familyA]);
   });
 
   it('B. revoke without password → 401/400 (재인증 누락)', async () => {
-    const { cookieA, accessTokenA } = await setupUser('sess-b');
+    const { cookieA, accessTokenA, familyB } = await setupUser('sess-b');
 
-    const list = await request(BASE_URL)
-      .get('/api/users/me/sessions')
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
-    const targetFamilyId = (
-      list.body.data.items as Array<{ familyId: string; isCurrent: boolean }>
-    ).find((s) => !s.isCurrent)!.familyId;
-
-    const noAuth = await request(BASE_URL)
-      .post(`/api/users/me/sessions/${targetFamilyId}/revoke`)
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA)
-      .send({}); // 비번/TOTP 없음
+    const noAuth = await browserPost(
+      `${SESSIONS}/${familyB}/revoke`,
+      accessTokenA,
+      cookieA,
+      {}, // 비번/TOTP 없음
+    );
     expect([400, 401]).toContain(noAuth.status);
   });
 
   it('C. 단일 revoke → 해당 family refresh 401, 다른 family 는 계속 동작', async () => {
-    const { cookieA, cookieB, accessTokenA } = await setupUser('sess-c');
+    const { cookieA, cookieB, accessTokenA, familyB } =
+      await setupUser('sess-c');
 
-    const list = await request(BASE_URL)
-      .get('/api/users/me/sessions')
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
-    const targetFamilyId = (
-      list.body.data.items as Array<{ familyId: string; isCurrent: boolean }>
-    ).find((s) => !s.isCurrent)!.familyId; // cookieB 의 family
-
-    const revoke = await request(BASE_URL)
-      .post(`/api/users/me/sessions/${targetFamilyId}/revoke`)
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA)
-      .send({ password: TEST_PASSWORD });
+    const revoke = await browserPost(
+      `${SESSIONS}/${familyB}/revoke`,
+      accessTokenA,
+      cookieA,
+      { password: TEST_PASSWORD },
+    );
     expect(revoke.status).toBe(200);
 
     // 옛 cookieB 로 refresh 시도 → 401.
-    const refresh = await request(BASE_URL)
-      .post('/api/auth/refresh')
-      .set('Cookie', cookieB);
-    expect(refresh.status).toBe(401);
+    expect((await refreshAsBrowser(cookieB)).status).toBe(401);
 
     // cookieA refresh 는 정상.
-    const refreshA = await request(BASE_URL)
-      .post('/api/auth/refresh')
-      .set('Cookie', cookieA);
-    expect(refreshA.status).toBe(200);
+    expect((await refreshAsBrowser(cookieA)).status).toBe(200);
+  });
+
+  it('C2. 현재 세션 revoke → 400 CANNOT_REVOKE_CURRENT_SESSION, 현재 세션은 유지', async () => {
+    const { cookieA, accessTokenA, familyA } = await setupUser('sess-c2');
+
+    const revoke = await browserPost(
+      `${SESSIONS}/${familyA}/revoke`,
+      accessTokenA,
+      cookieA,
+      { password: TEST_PASSWORD },
+    );
+    expect(revoke.status).toBe(400);
+    expect(revoke.body.error?.code).toBe('CANNOT_REVOKE_CURRENT_SESSION');
+
+    expect((await refreshAsBrowser(cookieA)).status).toBe(200);
   });
 
   it('D. revoke-others → 현재 세션만 남고 나머지 모두 무효', async () => {
-    const { cookieA, cookieB, accessTokenA } = await setupUser('sess-d');
+    const { email, cookieA, cookieB, accessTokenA, familyA } =
+      await setupUser('sess-d');
 
     // 추가 세션 1개 더 (총 3 family).
-    const { email } = await (async () => {
-      // Reuse: pull email back. setupUser returns it; but reuse 이미 setupUser
-      // 결과를 받았으므로 단순화: 별도 로그인.
-      const list = await request(BASE_URL)
-        .get('/api/users/me/sessions')
-        .set('Authorization', `Bearer ${accessTokenA}`)
-        .set('Cookie', cookieA);
-      const userRow = list.body.data.items as Array<{ familyId: string }>;
-      expect(userRow.length).toBeGreaterThanOrEqual(2);
-      const userEmail = (
-        await db.query<{ email: string }>(
-          `SELECT u.email FROM "user" u
-             JOIN refresh_token rt ON rt.user_id = u.id
-             WHERE rt.family_id = $1
-             LIMIT 1`,
-          [userRow[0].familyId],
-        )
-      ).rows[0].email;
-      return { email: userEmail };
-    })();
+    const c = await login(email, 'e2e-device-C/3.0');
 
-    await loginAndGetCookie(email, TEST_PASSWORD, 'e2e-device-C/3.0');
-
-    const before = await request(BASE_URL)
-      .get('/api/users/me/sessions')
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
+    const before = await browserGet(SESSIONS, accessTokenA, cookieA);
     expect(
       (before.body.data.items as Array<unknown>).length,
     ).toBeGreaterThanOrEqual(3);
 
-    const revokeOthers = await request(BASE_URL)
-      .post('/api/users/me/sessions/revoke-others')
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA)
-      .send({ password: TEST_PASSWORD });
+    const revokeOthers = await browserPost(
+      `${SESSIONS}/revoke-others`,
+      accessTokenA,
+      cookieA,
+      { password: TEST_PASSWORD },
+    );
     expect(revokeOthers.status).toBe(200);
 
-    const after = revokeOthers.body.data.items as Array<{ isCurrent: boolean }>;
-    expect(after.length).toBe(1);
-    expect(after[0].isCurrent).toBe(true);
+    const after = revokeOthers.body.data.items as Array<{
+      familyId: string;
+      isCurrent: boolean;
+    }>;
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ familyId: familyA, isCurrent: true });
 
-    // 옛 cookieB → 401.
-    const refreshB = await request(BASE_URL)
-      .post('/api/auth/refresh')
-      .set('Cookie', cookieB);
-    expect(refreshB.status).toBe(401);
+    // 옛 cookieB · cookieC → 401, cookieA 는 정상.
+    expect((await refreshAsBrowser(cookieB)).status).toBe(401);
+    expect((await refreshAsBrowser(c.cookie)).status).toBe(401);
+    expect((await refreshAsBrowser(cookieA)).status).toBe(200);
   });
 
   // regression: void → await race (fix-login-history-race).
@@ -226,10 +263,11 @@ describe('Session revocation (e2e)', () => {
   it('E. login-history 가 login_success 이벤트를 시간 역순으로 노출', async () => {
     const { cookieA, accessTokenA } = await setupUser('sess-e');
 
-    const hist = await request(BASE_URL)
-      .get('/api/users/me/login-history')
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
+    const hist = await browserGet(
+      '/api/users/me/login-history',
+      accessTokenA,
+      cookieA,
+    );
     expect(hist.status).toBe(200);
     // LoginHistoryPageDto = { items: LoginHistoryItem[], nextCursor: string | null }
     // 외부 wrapping 까지 합치면 res.body.data.items 가 배열.
@@ -264,8 +302,7 @@ describe('Session revocation (e2e)', () => {
     const res = await request(BASE_URL)
       .get('/api/users/me/login-history')
       .query({ cursor: '2026-05-01T00:00:00.000Z|not-a-uuid' })
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
+      .set('Authorization', `Bearer ${accessTokenA}`);
 
     expect(res.status).toBe(200);
     const items = res.body.data.items as Array<{ event: string }>;
@@ -277,8 +314,7 @@ describe('Session revocation (e2e)', () => {
     const first = await request(BASE_URL)
       .get('/api/users/me/login-history')
       .query({ limit: 1 })
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
+      .set('Authorization', `Bearer ${accessTokenA}`);
     expect(first.status).toBe(200);
     const nextCursor = first.body.data.nextCursor as string | null;
     expect(nextCursor).toBeTruthy();
@@ -286,8 +322,7 @@ describe('Session revocation (e2e)', () => {
     const second = await request(BASE_URL)
       .get('/api/users/me/login-history')
       .query({ limit: 1, cursor: nextCursor })
-      .set('Authorization', `Bearer ${accessTokenA}`)
-      .set('Cookie', cookieA);
+      .set('Authorization', `Bearer ${accessTokenA}`);
     expect(second.status).toBe(200);
     const firstId = (first.body.data.items as Array<{ id: string }>)[0].id;
     const secondId = (second.body.data.items as Array<{ id: string }>)[0].id;

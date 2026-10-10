@@ -21,6 +21,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
 import {
+  ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
   ADMIN_ROLES,
   NOT_A_MEMBER,
   ROLE_REQUIRED,
@@ -257,7 +258,10 @@ export class WorkspacesService {
     }));
   }
 
-  /** 이메일로 기존 가입 사용자 멤버 추가(Admin+). 미가입자는 별도 초대 흐름(2nd 컷). */
+  /**
+   * 이메일로 기존 가입 사용자 멤버 추가(Admin+). 미가입자는 별도 초대 흐름(2nd 컷).
+   * 관리자 역할로 추가하는 것은 owner 만 한다(NERV CLE-ACCT-WS 역할 권한표).
+   */
   async addMemberByEmail(
     workspaceId: string,
     email: string,
@@ -266,13 +270,16 @@ export class WorkspacesService {
   ): Promise<WorkspaceMember> {
     // 인가가 조회보다 먼저다 — 거꾸로면 비관리자가 워크스페이스의 존재 · 유형을 구분한다
     // (`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다").
-    await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.assertAdmin(workspaceId, requesterId);
     await this.assertWorkspaceType(workspaceId, 'team');
     if (role === 'owner') {
       throw new ForbiddenException({
         code: 'CANNOT_ASSIGN_OWNER',
         message: 'owner 역할은 직접 부여할 수 없습니다.',
       });
+    }
+    if (role === 'admin' && requesterRole !== 'owner') {
+      throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
     }
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) {
@@ -309,14 +316,18 @@ export class WorkspacesService {
     return savedMember;
   }
 
-  /** 멤버 역할 변경(Admin+). owner 부여/박탈은 차단. */
+  /**
+   * 멤버 역할 변경(Admin+). owner 부여/박탈은 차단.
+   * 관리자 역할을 주거나 빼는 변경(대상의 지금 역할이나 새 역할이 admin)은 owner 만 한다
+   * (NERV CLE-ACCT-WS 역할 권한표). 관리자가 자기 역할을 바꾸는 것도 여기에 걸린다.
+   */
   async updateMemberRole(
     workspaceId: string,
     memberId: string,
     role: WorkspaceRole,
     requesterId: string,
   ): Promise<WorkspaceMember> {
-    await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.assertAdmin(workspaceId, requesterId);
     const member = await this.memberRepository.findOne({
       where: { id: memberId, workspaceId },
     });
@@ -326,6 +337,12 @@ export class WorkspacesService {
         code: 'OWNER_ROLE_PROTECTED',
         message: 'owner 역할은 별도 양도 흐름이 필요합니다.',
       });
+    }
+    if (
+      (member.role === 'admin' || role === 'admin') &&
+      requesterRole !== 'owner'
+    ) {
+      throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
     }
     const previousRole = member.role;
     member.role = role;
@@ -966,15 +983,17 @@ export class WorkspacesService {
     if (!role) this.throwNotAMember();
   }
 
+  /** Admin 이상인지 검사하고 요청자의 역할을 돌려준다(owner 전용 판정이 이어서 쓴다). */
   private async assertAdmin(
     workspaceId: string,
     userId: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const role = await this.getMemberRole(workspaceId, userId);
     // 비멤버는 요구 역할과 무관하게 NOT_A_MEMBER — `RolesGuard` 와 같은 규칙(`12-workspace.md`
     // §Rationale "가드 거부의 오류 코드" 규칙 (나)). 두 선이 같은 실패에 같은 답을 낸다.
     if (!role) this.throwNotAMember();
     if (!ADMIN_ROLES.has(role)) this.throwAdminRequired();
+    return role;
   }
 
   private async assertWorkspaceType(

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "9befc6f20f6cf8dc907be1a199488e0a6d6ff667bb8925ac8ff8f76409dd9092"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-ERAJ7P"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "179e052cef1bd7b0bfe439978219868e8a7dc5e7651c3360e370c82c9d3276d3"
-etag: "sha256-6ec46826a35efe5465002efd94e46b945ffc32fbd9a5dd222289ce69320a1f4f"
+mirror_sha256: "5d7764640eeade310b22b9c119353d17597cd53ac980ae8ac8cd2a9e8c3e5570"
+etag: "sha256-a0c28dae55c16288a6b33802db2d1734d9e53382c78727d664ad8448156220b4"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한·비활동 만료는 구현 여부 미확인) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

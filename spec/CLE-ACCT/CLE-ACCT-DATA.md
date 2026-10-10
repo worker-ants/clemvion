@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "7016bcc9602dc1b861de0344b6cf8d1c846e474ba4e9513e64a963ed3fb01cc4"
 read_as: "approved_fallback"
-task: "CLE-T-67BNAZ"
+task: "CLE-T-E7MF3Q"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "e4ace8cfbd4c9f630fefea328961299663c48fa81b555e9f13698757a3855133"
-etag: "sha256-5beb408a8c6bde8614eb602d652d879a34735ddd816b4a5460251a97dc6496fa"
+mirror_sha256: "e36a3862bf7f8d4768c24e9a549234c13c6f1fb1cdf8d2ef4446784dffb82398"
+etag: "sha256-fc2ace344392b77ab3e420af653560ef26589ffe54d9475adf920f2b9b41c5f2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

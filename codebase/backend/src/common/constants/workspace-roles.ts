@@ -82,3 +82,13 @@ export const ROLE_REQUIRED: Readonly<
   admin: { code: 'ADMIN_REQUIRED', message: 'Admin 이상의 권한이 필요합니다.' },
   owner: { code: 'OWNER_REQUIRED', message: 'Owner 권한이 필요합니다.' },
 };
+
+/**
+ * 소유자가 아닌 멤버가 관리자 역할을 주거나 빼려 할 때의 거부(NERV CLE-ACCT-WS 역할 권한표).
+ * 역할 변경 · 직접 추가 · 초대가 같은 본문을 낸다. 코드는 가드의 owner 미달과 같은 `OWNER_REQUIRED` 이고
+ * 문장은 이 동작에 맞춘 고유 문구다. 예외에 넘길 때는 `NOT_A_MEMBER` 처럼 펼쳐서 넘긴다.
+ */
+export const ADMIN_ROLE_CHANGE_REQUIRES_OWNER: WorkspaceRoleRejection = {
+  code: ROLE_REQUIRED.owner.code,
+  message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+};

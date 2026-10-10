@@ -28,7 +28,10 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
-import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
+import {
+  ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
+  ADMIN_ROLES,
+} from '../../common/constants/workspace-roles';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -73,7 +76,10 @@ export class WorkspaceInvitationsService {
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
-  /** Admin+ invites an email address to a team workspace. */
+  /**
+   * Admin+ invites an email address to a team workspace. 관리자 역할로 초대하거나 대기 중인 관리자
+   * 초대를 다른 역할로 덮어쓰는 것은 owner 만 한다(NERV CLE-ACCT-WS 역할 권한표).
+   */
   async invite(
     workspaceId: string,
     email: string,
@@ -81,7 +87,7 @@ export class WorkspaceInvitationsService {
     requesterId: string,
   ): Promise<WorkspaceInvitation> {
     const normalized = email.trim().toLowerCase();
-    await this.assertAdmin(workspaceId, requesterId);
+    const requesterRole = await this.assertAdmin(workspaceId, requesterId);
 
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
@@ -97,6 +103,10 @@ export class WorkspaceInvitationsService {
         code: 'workspace_type_mismatch',
         message: '팀 워크스페이스에서만 초대할 수 있습니다.',
       });
+    }
+    const requesterIsOwner = requesterRole === 'owner';
+    if (role === 'admin' && !requesterIsOwner) {
+      throw new ForbiddenException({ ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER });
     }
 
     const existingUser = await this.userRepository.findOne({
@@ -130,6 +140,11 @@ export class WorkspaceInvitationsService {
           where: { workspaceId, email: normalized, acceptedAt: IsNull() },
         });
         if (pending) {
+          if (pending.role === 'admin' && !requesterIsOwner) {
+            throw new ForbiddenException({
+              ...ADMIN_ROLE_CHANGE_REQUIRES_OWNER,
+            });
+          }
           pending.token = token;
           pending.role = role;
           pending.invitedBy = requesterId;
@@ -537,10 +552,11 @@ export class WorkspaceInvitationsService {
    * (`spec/conventions/error-codes.md` §3 註 · `spec/data-flow/12-workspace.md` §Rationale "경로
    * 파라미터 워크스페이스도 가드가 본다").
    */
+  /** Admin 이상인지 검사하고 요청자의 역할을 돌려준다(owner 전용 판정이 이어서 쓴다). */
   private async assertAdmin(
     workspaceId: string,
     userId: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const member = await this.memberRepository.findOne({
       where: { workspaceId, userId },
     });
@@ -550,6 +566,7 @@ export class WorkspaceInvitationsService {
         message: 'Admin 이상의 권한이 필요합니다.',
       });
     }
+    return member.role;
   }
 }
 

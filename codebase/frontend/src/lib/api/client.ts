@@ -113,6 +113,32 @@ export async function ensureFreshAccessToken(): Promise<string | null> {
   return getAccessToken();
 }
 
+/**
+ * `/auth/` 아래에서 refresh 재시도를 허용하는 경로 접두사.
+ *
+ * `/auth/` 아래의 401 은 대개 자격 증명 실패(비밀번호 · 인증 코드 불일치, refresh 실패)라서
+ * refresh 를 시도하면 안 된다. 세션 관리 API 는 refresh 쿠키의 Path(`/api/auth`) 안에 있으려고
+ * `/auth` 아래로 옮겼을 뿐 일반 JWT API 다. 그래서 여기서 받은 401 은 대개 access token 만료이고
+ * refresh 로 복구한다. 세션 폐기의 재인증 실패(비밀번호 · TOTP 불일치)도 401 이라 refresh 뒤 한 번 더
+ * 보내고 같은 401 로 끝난다. `/users/me/sessions` 에 있던 때와 같은 동작이다
+ * (NERV CLE-ACCT-SESSION, CLE-T-ERAJ7P).
+ */
+const REFRESH_RETRY_AUTH_PREFIXES = ["/auth/sessions"] as const;
+
+/**
+ * 401 응답을 받았을 때 refresh 후 재시도를 건너뛸 요청인지 판정한다.
+ * `/auth/` 를 포함한 URL 은 건너뛰고, `REFRESH_RETRY_AUTH_PREFIXES` 아래 경로만 예외로 재시도한다.
+ */
+export function skipsRefreshRetry(url: string | undefined): boolean {
+  if (!url?.includes("/auth/")) return false;
+  return !REFRESH_RETRY_AUTH_PREFIXES.some(
+    (prefix) =>
+      url === prefix ||
+      url.startsWith(`${prefix}/`) ||
+      url.startsWith(`${prefix}?`),
+  );
+}
+
 // Response interceptor: handle 401 and auto-refresh
 apiClient.interceptors.response.use(
   (response) => response,
@@ -122,7 +148,7 @@ apiClient.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      !originalRequest.url?.includes("/auth/") &&
+      !skipsRefreshRetry(originalRequest.url) &&
       !sessionRestoreInProgress
     ) {
       originalRequest._retry = true;
