@@ -80,6 +80,8 @@ Manual Trigger는 입력 포트가 없고, 출력 포트 `out` 1개를 포함해
 
 <Callout type="note">
 웹훅과 스케줄 설정은 사이드바의 Triggers/Schedules 메뉴에서 관리해요. 캔버스의 Manual Trigger에 파라미터 스키마를 먼저 잘 정의해 두면, 세 트리거 모두가 같은 계약을 따라 동작해요.
+
+워크플로우를 끄면 웹훅 · 스케줄 · 채팅 채널로는 실행이 시작되지 않아요. 이미 진행 중인 실행은 그대로 끝까지 진행되고, 에디터에서 직접 실행하는 것도 그대로 할 수 있어요.
 </Callout>
 
 ## Webhook 트리거 자세히
@@ -147,7 +149,7 @@ HMAC을 쓰면 서버가 본문 원본 바이트로 서명을 검증해요. 외�
 | `400 Bad Request` | 본문 파싱 실패, 또는 `required` 파라미터 누락·타입 변환 실패. 응답 본문에 누락 필드 목록이 들어 있어요. **Execution은 생성되지 않아요**. |
 | `401 Unauthorized` | 인증 실패. |
 | `404 Not Found` | 해당 `endpoint_path`의 트리거가 존재하지 않아요. |
-| `410 Gone` | 트리거가 비활성 상태예요. 트리거 상세에서 다시 활성화해야 받을 수 있어요. |
+| `410 Gone` | 트리거나 워크플로우가 꺼져 있어요. 트리거가 꺼져 있으면 `TRIGGER_INACTIVE`, 워크플로우가 꺼져 있으면 `WORKFLOW_INACTIVE` 코드가 와요. 꺼진 쪽을 다시 켜야 받을 수 있어요. |
 | `413 Payload Too Large` | **공개 webhook:** 본문 32KB 초과 (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**인증 webhook:** 본문 1MB 초과 (`PAYLOAD_TOO_LARGE`). |
 | `429 Too Many Requests` | 인스턴스 전역 글로벌 100 req/min rate limit 초과. 응답에 `Retry-After` 헤더로 재시도 대기 시간을 안내해요. |
 

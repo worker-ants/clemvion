@@ -12,11 +12,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { sanitizeResponseHeaders } from '../../nodes/integration/_base/sanitize-response-headers.util';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
+import { isWorkflowInactive } from '../execution-engine/utils/is-workflow-inactive';
 import {
   TriggerParameterValidationException,
   toTriggerParameterErrorDetails,
@@ -80,6 +82,8 @@ export class HooksService {
     private readonly triggerRepository: Repository<Trigger>,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly tokenService: InteractionTokenService,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
@@ -160,6 +164,21 @@ export class HooksService {
       throw new GoneException({
         code: 'TRIGGER_INACTIVE',
         message: 'Webhook trigger is inactive',
+      });
+    }
+
+    // 워크플로우를 끄면 웹훅으로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 꺼진 트리거와 같은
+    // 자리(인증 전)에서 410 으로 답하고 코드로 원인을 가른다.
+    if (
+      await isWorkflowInactive(
+        this.workflowRepository,
+        trigger.workflowId,
+        trigger.workspaceId,
+      )
+    ) {
+      throw new GoneException({
+        code: 'WORKFLOW_INACTIVE',
+        message: 'Workflow of this webhook trigger is inactive',
       });
     }
 
@@ -343,6 +362,19 @@ export class HooksService {
     // 등록 시 1회 + 주기적. type=1 → { type: 1 } 200 응답.
     if (config.provider === 'discord' && isDiscordPing(input.body)) {
       return { executionId: 'ignored', discordPing: true };
+    }
+
+    // 워크플로우를 끄면 채팅 채널로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 응답은 꺼진
+    // 트리거와 같은 202 ignored 다. 위의 handshake 에는 답한다. 워크플로우를 꺼 둔 채 채널을
+    // 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
+    if (
+      await isWorkflowInactive(
+        this.workflowRepository,
+        trigger.workflowId,
+        trigger.workspaceId,
+      )
+    ) {
+      return { executionId: 'ignored' };
     }
 
     const parsed = await adapter.parseUpdate(input.body, config);
@@ -673,6 +705,12 @@ export class HooksService {
       return { executionId: state.executionId! };
     }
 
+    // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
+    // 기존 실행을 실행 중지 경로(CLE-EXEC-CANCEL)로 취소한 뒤 아래에서 새로 시작한다.
+    if (update.command.kind === 'start' && hasActiveExecution) {
+      await this.stopForRestart(state.executionId!);
+    }
+
     // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
     let executionId: string;
     try {
@@ -733,6 +771,27 @@ export class HooksService {
 
     await adapter.ackInteraction(update, config);
     return { executionId, status: 'pending' as const };
+  }
+
+  /**
+   * /start 로 다시 시작하기 전에 대화의 기존 실행을 취소한다(NERV Task `CLE-T-V4WVF2`).
+   *
+   * 상태를 읽은 뒤 실행이 먼저 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로
+   * 그대로 새로 시작한다. 그 밖의 실패(취소를 큐에 넣지 못한 503 등)는 전파한다. 옛 실행을 남긴 채
+   * 새 실행을 시작하면 대기 실행이 쌓인다. 프로바이더는 non-2xx 를 받으면 다시 보낸다.
+   */
+  private async stopForRestart(executionId: string): Promise<void> {
+    try {
+      await this.executionsService.stop(executionId);
+    } catch (err) {
+      if (isAlreadyStoppedError(err)) {
+        this.logger.log(
+          `/start — 기존 실행 ${executionId} 이 이미 끝나 취소 없이 새로 시작한다`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 
   /**
@@ -1190,6 +1249,21 @@ export class HooksService {
  * Slack Events API url_verification envelope 여부 — controller 가 challenge 응답을 200 OK 로
  * 반환하기 위한 분기. Spec [providers/slack §3.1].
  */
+/**
+ * `ExecutionsService.stop` 이 취소할 실행이 없어서 거부했는지 본다. 이미 종결 상태면 400
+ * `INVALID_STATE`, 실행 행이 없으면 404 다.
+ */
+function isAlreadyStoppedError(err: unknown): boolean {
+  if (err instanceof NotFoundException) return true;
+  if (!(err instanceof BadRequestException)) return false;
+  const response = err.getResponse();
+  return (
+    typeof response === 'object' &&
+    response !== null &&
+    (response as { code?: unknown }).code === 'INVALID_STATE'
+  );
+}
+
 function isSlackUrlVerification(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 'url_verification';

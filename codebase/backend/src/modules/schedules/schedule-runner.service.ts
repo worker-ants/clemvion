@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { sanitizeErrorMessage } from '../execution-engine/sanitize-error-message';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { isWorkflowInactive } from '../execution-engine/utils/is-workflow-inactive';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import { evaluate } from '@workflow/expression-engine';
 import { CronExpressionParser } from 'cron-parser';
@@ -160,6 +161,17 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
     if (!workflowId) {
       this.logger.warn(
         `Schedule ${scheduleId} has no associated workflow, skipping`,
+      );
+      return;
+    }
+
+    // 워크플로우를 끄면 스케줄로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 꺼진 스케줄처럼
+    // 건너뛴다. 스케줄의 워크스페이스 안에서 찾는다(`execute()` 에 넘기는 값과 같다).
+    if (
+      await isWorkflowInactive(this.workflowRepository, workflowId, workspaceId)
+    ) {
+      this.logger.log(
+        `Schedule ${scheduleId} 의 워크플로우 ${workflowId} 가 꺼져 있어 건너뛴다`,
       );
       return;
     }

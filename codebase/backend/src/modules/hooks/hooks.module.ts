@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { Workspace } from '../workspaces/entities/workspace.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
@@ -16,7 +17,7 @@ import { AuthConfigsModule } from '../auth-configs/auth-configs.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Node, Workspace]),
+    TypeOrmModule.forFeature([Trigger, Node, Workspace, Workflow]),
     ExecutionEngineModule,
     forwardRef(() => ExternalInteractionModule),
     forwardRef(() => ExecutionsModule),

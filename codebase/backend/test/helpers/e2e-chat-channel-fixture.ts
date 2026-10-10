@@ -25,10 +25,12 @@ import type { Client } from 'pg';
  *   비어있으면 401 응답하는 signing-required path 검증 대상.
  * - Discord: trigger.config 에 `inboundSigningRef` 미설정 — signing skip
  *   (legacy) path 검증 대상. PR #283 의 v1 결정사항.
+ * - Telegram: trigger.config 에 `inboundSigningRef` 미설정 — secret_token 검증을 건너뛴다.
+ *   인입 흐름(대화 상태 · 실행 시작)을 보는 e2e 가 쓴다.
  */
 export async function setupChatChannelTrigger(args: {
   db: Client;
-  provider: 'slack' | 'discord';
+  provider: 'slack' | 'discord' | 'telegram';
   ownerEmailVerified?: boolean;
 }): Promise<{
   workspaceId: string;
@@ -53,7 +55,7 @@ export async function setupChatChannelTrigger(args: {
     [
       userId,
       `${slug}-e2e-${userId.slice(0, 8)}@e2e.local`,
-      `${provider === 'slack' ? 'Slack' : 'Discord'} E2E`,
+      `${provider.charAt(0).toUpperCase()}${provider.slice(1)} E2E`,
       passwordHash,
       ownerEmailVerified,
     ],
