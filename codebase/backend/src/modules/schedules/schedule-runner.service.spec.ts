@@ -31,7 +31,12 @@ describe('ScheduleRunnerService', () => {
         ScheduleRunnerService,
         {
           provide: getRepositoryToken(Schedule),
-          useValue: { find: jest.fn(), findOne: jest.fn(), save: jest.fn() },
+          useValue: {
+            find: jest.fn(),
+            findOne: jest.fn(),
+            save: jest.fn(),
+            update: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(Node),
@@ -538,7 +543,7 @@ describe('ScheduleRunnerService', () => {
     // 근거: NERV Task `CLE-T-XRWFMJ`. 워크플로우를 끄면 스케줄로 실행이 생기지 않는다.
     // 꺼진 스케줄과 같이 건너뛴다.
     describe('스케줄의 워크플로우가 꺼져 있을 때', () => {
-      it('실행하지 않고 건너뛴다. 실패 알림 · 실행 시각 갱신이 없다', async () => {
+      it('실행하지 않고 건너뛴다. 실패 알림 · 마지막 실행 시각 갱신이 없다', async () => {
         scheduleRepo.findOne.mockResolvedValue({ ...baseSchedule });
         workflowRepo.findOne.mockResolvedValue({
           id: 'wf1',
@@ -550,6 +555,56 @@ describe('ScheduleRunnerService', () => {
         expect(engine.execute).not.toHaveBeenCalled();
         expect(scheduleRepo.save).not.toHaveBeenCalled();
         expect(notifications.notify).not.toHaveBeenCalled();
+        for (const [, patch] of scheduleRepo.update.mock.calls) {
+          expect(patch).not.toHaveProperty('lastRunAt');
+        }
+      });
+
+      it('다음 실행 시각만 다음 cron 발화로 옮긴다 — 지난 시각에 머물지 않는다', async () => {
+        const stale = new Date('2020-01-01T00:00:00Z');
+        scheduleRepo.findOne.mockResolvedValue({
+          ...baseSchedule,
+          nextRunAt: stale,
+        });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+        const before = Date.now();
+
+        await service.process(job);
+
+        expect(scheduleRepo.update).toHaveBeenCalledTimes(1);
+        const [criteria, patch] = scheduleRepo.update.mock.calls[0] as [
+          unknown,
+          { nextRunAt: Date | null },
+        ];
+        expect(criteria).toEqual({ id: 's1', workspaceId: 'ws' });
+        expect(Object.keys(patch)).toEqual(['nextRunAt']);
+        expect(patch.nextRunAt).toBeInstanceOf(Date);
+        // `*/5 * * * *` 이므로 지금 뒤 5분 안이다.
+        expect(patch.nextRunAt!.getTime()).toBeGreaterThan(before);
+        expect(patch.nextRunAt!.getTime()).toBeLessThanOrEqual(
+          Date.now() + 5 * 60_000,
+        );
+      });
+
+      it('cron 을 해석하지 못하면 다음 실행 시각을 null 로 둔다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({
+          ...baseSchedule,
+          cronExpression: 'not-a-cron',
+        });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+
+        await service.process(job);
+
+        expect(scheduleRepo.update).toHaveBeenCalledWith(
+          { id: 's1', workspaceId: 'ws' },
+          { nextRunAt: null },
+        );
       });
 
       it('워크플로우는 스케줄의 워크스페이스 안에서 찾는다', async () => {
