@@ -21,7 +21,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -918,7 +923,9 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => removeMemberMutation.mutate(m.id)}
+                            onClick={() =>
+                              removeMemberMutation.mutate(m.id)
+                            }
                             title={t("workspace.removeTooltip")}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -968,9 +975,7 @@ function DangerZoneTab({
     queryFn: () => workspacesApi.listMembers(workspaceId),
     enabled: transferEligible,
   });
-  const candidates = (membersQuery.data ?? []).filter(
-    (m) => m.role !== "owner",
-  );
+  const candidates = (membersQuery.data ?? []).filter((m) => m.role !== "owner");
   const transferTarget = candidates.find((m) => m.id === transferTargetId);
 
   const leaveMutation = useMutation({
@@ -1136,7 +1141,10 @@ function DangerZoneTab({
             <DialogDescription>{t("workspace.leaveConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLeaveDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setLeaveDialogOpen(false)}
+            >
               {t("common.cancel")}
             </Button>
             <Button
