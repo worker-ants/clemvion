@@ -44,8 +44,8 @@ npm run start:dev
 `NODE_ENV=production` 에서 다음 중 하나라도 해당하면 부팅을 즉시 거부합니다. 운영용 무작위 secret 을 반드시 설정하세요 (`openssl rand -hex 32` 등). 비-production 에서는 no-op 입니다.
 
 - `JWT_SECRET` 가 미설정·예시/기본값이거나 32자 미만 (CWE-521)
-- `ENCRYPTION_KEY` 가 미설정이거나 공개 예시 키(`.env.example` · k8s 예시 · README)
-- `INTEGRATION_ENCRYPTION_KEY` 가 미설정 · 공백이거나 공개 예시 값(`.env.example` · k8s 예시 · e2e compose · README). 이 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장된다
+- `ENCRYPTION_KEY` 가 미설정 · 공백이거나 저장소에 커밋된 예시 키(전체 목록은 `src/common/config/production-guards.ts`)
+- `INTEGRATION_ENCRYPTION_KEY` 가 미설정 · 공백이거나 저장소에 커밋된 예시 값(전체 목록은 같은 파일). 이 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장된다
 - `OAUTH_STUB_MODE=true` 또는 `LLM_STUB_MODE=true` (비보안 stub)
 - `MCP_ALLOW_INSECURE_URL=true` (SSRF 방어 우회)
 
