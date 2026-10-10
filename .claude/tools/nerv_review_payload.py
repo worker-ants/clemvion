@@ -115,7 +115,7 @@ _COVERAGE_DIRECTION_RE = re.compile(r"\[(forward|reverse)\]", re.I)
 # 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>[_<n>]` 에 쓴다.
 _DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
              "spec-coverage": "spec_coverage"}
-# 세션 디렉터리의 마지막 조각. 같은 초의 두 번째 세션부터 `_2` · `_3` 이 붙는다(`code-review-agents/lib/session.py`).
+# 세션 디렉터리의 마지막 조각. 같은 초의 두 번째 세션부터 `_2` · `_3` 이 붙는다(`_shared/session.py`).
 _SESSION_TIME_RE = re.compile(r"(\d{2})_(\d{2})_(\d{2})(?:_([1-9]\d*))?")
 # 리포트가 아닌 세션 파일. `_` 로 시작하는 파일(상태 · 프롬프트)도 뺀다.
 _NOT_REPORTS = {"SUMMARY.md", "RESOLUTION.md", "README.md"}

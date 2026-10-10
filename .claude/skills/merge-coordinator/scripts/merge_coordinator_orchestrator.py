@@ -2,15 +2,15 @@
 """Merge Coordinator Orchestrator — prepare + resume.
 
 Collects branch / PR metadata for `/merge-coordinate` and writes:
-  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<analyzer>.md
+  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/_prompts/<analyzer>.md
         per-analyzer role-specific input (perspective + checklist + branches)
-  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json
+  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/_retry_state.json
         same schema as code-review-agents / consistency-checker:
           {session_dir, summary_subagent_type, summary_output_file,
            subagent_invocations[], agents_pending/success/fatal,
            agent_history, rate_limit_episodes, total_wait_sec,
            wake_history, last_reset_hint_sec, loop_mode}
-  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json
+  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/meta.json
         {branches[], base_hint, mode, timestamp}
 
 Prints the session directory absolute path on stdout.
@@ -38,10 +38,10 @@ sys.path.insert(0, CODE_REVIEW_SKILL)
 sys.path.insert(0, SKILLS_DIR)
 sys.path.insert(0, CLAUDE_DIR)
 
-from lib import session  # noqa: E402
 from lib.role_instructions import ANALYZER_INSTRUCTIONS  # noqa: E402
 from _lib import project_config  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
+from _shared import session  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/merge-coordinator-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)

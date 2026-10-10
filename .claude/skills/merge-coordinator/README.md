@@ -147,7 +147,7 @@ ai-review · consistency-check 와 동일. ScheduleWakeup delay = `last_reset_hi
 
 ## 기존 skill 활용 지점
 
-- **lib 재사용**: `code-review-agents/lib/session.py` (세션 디렉토리·meta·logger), `code-review-agents/lib/role_instructions.py` (ANALYZER_INSTRUCTIONS dict 추가) 그대로 import.
+- **lib 재사용**: `.claude/_shared/session.py` (세션 디렉토리·meta·logger), `code-review-agents/lib/role_instructions.py` (ANALYZER_INSTRUCTIONS dict 추가) 그대로 import.
 - **자동 chain**: Phase 3 마지막에 `code_review_orchestrator.py --prepare --range <base>..HEAD` 와 `consistency_orchestrator.py --impl-prep <scope>`(NERV 키 · 미러 폴더) 를 sub-process 로 실행. main 이 각 SUMMARY 검사.
 - **공통 규약**: STATUS 반환 한 줄, output_file Write, `_retry_state.json` 스키마, `--resume`, `/loop` ScheduleWakeup, nested ISO 산출물 경로 — 모두 동일.
 

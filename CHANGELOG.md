@@ -23,6 +23,20 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 오케스트레이터가 세션 이름을 직접 만들면 테스트가 막는다
+
+같은 초 세션에 `_2` · `_3` 을 붙이는 보호는 `create_session_dir` 에만 있다. 세션 이름을 직접 만드는 오케스트레이터는
+그 보호를 받지 못한다. spec-coverage 가 그 모양이었다(아래 항목, NERV Task `CLE-T-B866CD`). 그런데 이를 잡는 검사가
+없었다(NERV Task `CLE-T-XM6YV0`).
+
+- `create_session_dir` 를 담은 모듈을 `.claude/skills/code-review-agents/lib/session.py` 에서 하네스 공용 패키지
+  `.claude/_shared/session.py` 로 옮겼다. 네 오케스트레이터가 모두 `from _shared import session` 으로 읽는다.
+  spec-coverage 의 경로 로더는 없앴다.
+- `test_review_session_dir_collision.py` 가 `.claude/skills/*/scripts/*orchestrator*.py` 를 모두 읽는다. 공용 모듈을
+  읽는지, `create_session_dir` 를 부르는지, `%H_%M_%S` 이름을 직접 만들지 않는지 본다. 소스 검사라서 다른 형식으로
+  이름을 직접 만드는 코드는 잡지 못한다.
+- 세션 경로 문서(오케스트레이터 SKILL · README · 슬래시 명령)에 같은 초 접미사 `[_<n>]` 와 로컬 시각 기준을 적었다.
+
 ## Unreleased — 하네스: `/spec-coverage` 를 같은 초에 두 번 돌려도 앞 실행의 입력이 남는다
 
 `spec_coverage_orchestrator.py` 는 세션 디렉터리를 `HH_MM_SS` 이름으로 `exist_ok=True` 로 만들었다. 같은 초에 두 번

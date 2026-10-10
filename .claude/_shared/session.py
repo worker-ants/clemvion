@@ -1,7 +1,8 @@
 """Session-level utilities: output directories, metadata, logging, truncation.
 
-Standard library only, and no relative imports: `spec_coverage_orchestrator.py`
-loads this file by path (`importlib`) rather than as the `lib` package.
+Every orchestrator under `.claude/skills/*/scripts/` imports this as
+`from _shared import session`. It lived in `code-review-agents/lib/` until
+2026-10-10, which left spec-coverage loading it by path.
 """
 
 import json
@@ -33,7 +34,7 @@ def make_debug_logger(log_file_path):
 
 
 def create_session_dir(output_dir, subdir=None):
-    """Create `output_dir/[<subdir>/]<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` and return the path.
+    """Create `output_dir/[<subdir>/]<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/` and return the path.
 
     The nested layout (year/month/day/HH_MM_SS) keeps any single directory
     bounded in size — flat timestamp directories had become impractical to
@@ -41,7 +42,8 @@ def create_session_dir(output_dir, subdir=None):
     `review/<timestamp>/` tree left the repository in NERV cutover stage 3 (NERV
     Task `CLE-T-FN2JWK`); this function governs local `.review/` sessions.
     Every orchestrator names its session here; one that made its own name would
-    lose the `_N` suffix below. The stamp is local time (`datetime.now()`).
+    lose the `_N` suffix below (`test_review_session_dir_collision.py` checks the
+    orchestrator sources). The stamp is local time (`datetime.now()`).
 
     **The name is second-resolution, so two sessions in the same second collide.**
     That is not hypothetical. The shape it was first measured on no longer

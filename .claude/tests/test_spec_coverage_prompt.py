@@ -15,7 +15,6 @@
 
 `SameSecondSessionTest` 는 세션 디렉터리를 본다. 같은 초에 두 번 돌면 두 번째가 `_2` 를 받고 앞 실행의
 파일이 남는다. 새 이름은 제출 도구(`nerv_review_payload.py`)가 서로 다른 앞자리와 `spec_coverage` 로 읽는다.
-`SessionLibLoaderTest` 는 그 이름을 정하는 세션 라이브러리를 읽지 못할 때 경로가 든 오류로 멈추는지 본다.
 """
 
 from __future__ import annotations
@@ -135,7 +134,7 @@ class SameSecondSessionTest(unittest.TestCase):
         return Path(out.getvalue().splitlines()[-1])
 
     def test_two_runs_in_the_same_second_keep_their_own_files(self):
-        lib = orch._session
+        lib = orch.session
         clock = mock.MagicMock(wraps=lib.datetime)
         clock.now.return_value = lib.datetime(2026, 10, 10, 13, 40, 14)
         with mock.patch.object(lib, "datetime", clock):
@@ -154,16 +153,6 @@ class SameSecondSessionTest(unittest.TestCase):
         self.assertEqual([payload.session_stamp(str(d)) for d in (first, second)],
                          ["20261010-134014", "20261010-134014-2"])
         self.assertEqual({payload.kind_of(str(d)) for d in (first, second)}, {"spec_coverage"})
-
-
-class SessionLibLoaderTest(unittest.TestCase):
-    """세션 라이브러리를 읽지 못하면 경로가 든 `ImportError` 로 멈춘다. 검사가 없으면 `module_from_spec(None)` 이
-    원인을 알 수 없는 `AttributeError` 를 낸다."""
-
-    def test_an_unloadable_session_library_names_its_path(self):
-        with mock.patch.object(orch.importlib.util, "spec_from_file_location", return_value=None):
-            with self.assertRaisesRegex(ImportError, r"code-review-agents/lib/session\.py"):
-                orch._load_session_lib()
 
 
 if __name__ == "__main__":

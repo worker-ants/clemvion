@@ -38,11 +38,13 @@ checker 4개는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은
 
 로컬 산출물은 `.review/consistency/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 checker 마다 NERV `kind=consistency` 로 제출한다(제출 문서를 만드는 도구 인자와 `nerv-recorder` 위임은 `code-review-agents` SKILL §4, 이 명령의 단계는 위 「실행 절차」 4번).
 
-- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
-- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>.md` — checker 별 상세
-- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal 상태
-- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
-- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — 모드·target·checker 명단
+`<session>` 은 `<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]` 이다. 시각은 로컬 시각이고 같은 초에 세션을 또 만들면 `_2` · `_3` 이 붙는다.
+
+- `.review/consistency/<session>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
+- `.review/consistency/<session>/<checker>.md` — checker 별 상세
+- `.review/consistency/<session>/_retry_state.json` — pending/success/fatal 상태
+- `.review/consistency/<session>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
+- `.review/consistency/<session>/meta.json` — 모드·target·checker 명단
 
 ## 환경변수
 

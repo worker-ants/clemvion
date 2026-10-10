@@ -15,7 +15,10 @@
 일부만 리뷰된다" 로 보였다. 병렬 Claude 세션 두 개도 같은 방식으로 충돌한다.
 
 `_harness` 의 fresh-interpreter 규약을 따르지 않는다 — 여기서 쓰는 것은
-orchestrator 가 아니라 `lib/session.py` 이고, 그 모듈은 `_lib` 이름 충돌과 무관하다.
+orchestrator 가 아니라 `_shared/session.py` 이고, 그 모듈은 `_lib` 이름 충돌과 무관하다.
+
+`EveryOrchestratorNamesItsSessionHereTest` 는 오케스트레이터 소스를 읽는다. 이 모듈이 `_N` 을 붙여도
+이름을 따로 만드는 오케스트레이터는 그 보호를 받지 못한다.
 """
 
 from __future__ import annotations
@@ -31,9 +34,7 @@ from unittest import mock
 import _harness
 from _harness import REPO_ROOT
 
-SESSION_PY = (
-    REPO_ROOT / ".claude" / "skills" / "code-review-agents" / "lib" / "session.py"
-)
+SESSION_PY = REPO_ROOT / ".claude" / "_shared" / "session.py"
 
 
 def _load_session_module():
@@ -152,6 +153,43 @@ class SameSecondSessionsGetDistinctDirectoriesTest(unittest.TestCase):
             b = self.session.create_session_dir(self.tmp, subdir="consistency")
         self.assertNotEqual(a, b)
         self.assertIn("consistency", a)
+
+
+class EveryOrchestratorNamesItsSessionHereTest(unittest.TestCase):
+    """오케스트레이터는 모두 이 모듈의 `create_session_dir` 로 세션 이름을 받는다(NERV Task `CLE-T-XM6YV0`).
+
+    spec-coverage 는 2026-10-10 까지 `%H_%M_%S` 이름을 `exist_ok=True` 로 직접 만들어서 같은 초의 두 실행이 한
+    디렉터리를 같이 썼다(`CLE-T-B866CD`). 소스에서 세 가지를 본다. 공용 모듈을 읽는다. `create_session_dir` 를
+    부른다. 시각 이름 형식 `%H_%M_%S` 가 없다. 다른 형식으로 이름을 직접 만드는 코드는 잡지 못한다.
+    오케스트레이터마다 인자와 저장소 준비가 달라서 동작으로 대조하지 않았다."""
+
+    KNOWN = {
+        "code_review_orchestrator.py",
+        "consistency_orchestrator.py",
+        "merge_coordinator_orchestrator.py",
+        "spec_coverage_orchestrator.py",
+    }
+
+    def test_every_orchestrator_takes_its_session_name_from_the_shared_module(self):
+        found = sorted((REPO_ROOT / ".claude" / "skills").glob("*/scripts/*orchestrator*.py"))
+        # 글롭이 비거나 일부만 잡으면 아래 반복이 아무것도 보지 않고 초록이 된다.
+        self.assertLessEqual(self.KNOWN, {p.name for p in found})
+        for path in found:
+            src = path.read_text(encoding="utf-8")
+            with self.subTest(orchestrator=path.name):
+                # 소스 전문 대신 세 가지 판정만 비교해서 실패 메시지를 짧게 둔다.
+                self.assertEqual(
+                    {
+                        "imports _shared.session": "from _shared import session" in src,
+                        "calls create_session_dir": "session.create_session_dir(" in src,
+                        "formats %H_%M_%S itself": "%H_%M_%S" in src,
+                    },
+                    {
+                        "imports _shared.session": True,
+                        "calls create_session_dir": True,
+                        "formats %H_%M_%S itself": False,
+                    },
+                )
 
 
 if __name__ == "__main__":

@@ -39,7 +39,6 @@ sys.path.insert(0, _CLAUDE_DIR)
 
 from lib import line_anchors  # noqa: E402
 from lib import router_safety  # noqa: E402
-from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
 from _lib import project_config  # noqa: E402
@@ -52,6 +51,7 @@ from _lib import project_config  # noqa: E402
 from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import report_paths as _report_paths_lib  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
+from _shared import session  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)

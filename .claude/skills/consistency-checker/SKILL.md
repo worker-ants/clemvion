@@ -14,7 +14,7 @@ model: opus
 
 - **사전 검출**: target 문서 디스크 쓰기 전 호출이 정상.
 - **Critical = 차단**: SUMMARY.md 상단 `BLOCK: YES` 면 호출자 즉시 멈춤.
-- **출력은 markdown + NERV 레코드**: 로컬 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore, 커밋하지 않음)가 단일 결과 진입점이고, checker 리포트는 checker 마다 NERV `kind=consistency` 로 제출한다(전환 단계 2).
+- **출력은 markdown + NERV 레코드**: 로컬 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/SUMMARY.md`(gitignore, 커밋하지 않음. 시각은 로컬 시각이고 같은 초에 세션을 또 만들면 `_2` · `_3` 이 붙는다)가 단일 결과 진입점이고, checker 리포트는 checker 마다 NERV `kind=consistency` 로 제출한다(전환 단계 2).
 - **재진입성**: 스펙 자동 수정 안 함, 산출물 디렉토리만 누적.
 
 ## Checker 4개

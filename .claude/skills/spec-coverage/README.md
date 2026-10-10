@@ -30,7 +30,7 @@ python3 .claude/skills/spec-coverage/scripts/spec_coverage_orchestrator.py
 # → last stdout line = session dir; then invoke spec-impl-coverage-auditor on it
 ```
 
-Output: `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` (gitignored, not committed),
+Output: `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>[_<n>]/SUMMARY.md` (gitignored, not committed; local time, and a second run in the same second gets `_2`),
 findings classified **high / medium / low** confidence.
 
 ## Reading the report — false positives are expected

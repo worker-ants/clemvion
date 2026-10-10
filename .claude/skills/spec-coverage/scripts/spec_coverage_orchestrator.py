@@ -17,12 +17,18 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# 세션 디렉터리 이름은 다른 오케스트레이터와 같은 하네스 공용 모듈이 정한다.
+_CLAUDE_DIR = str(Path(__file__).resolve().parents[3])  # .claude/
+if _CLAUDE_DIR not in sys.path:
+    sys.path.insert(0, _CLAUDE_DIR)
+
+from _shared import session  # noqa: E402
 
 VALID_MODES = ("forward", "reverse", "both")
 
@@ -52,30 +58,12 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
-def _load_session_lib():
-    """다른 오케스트레이터가 쓰는 `code-review-agents/lib/session.py` 를 경로로 읽는다.
-
-    그쪽은 `sys.path` 에 스킬 디렉터리를 넣고 `from lib import session` 으로 읽는다. 이 모듈은 테스트
-    프로세스 안에서도 불린다(`test_spec_coverage_prompt.py`). 그래서 `sys.path` 를 바꿔 pytest 프로세스에
-    최상위 `lib` 이름을 남기지 않는다. 읽지 못하면 import 시점에 경로가 든 `ImportError` 로 멈춘다."""
-    path = Path(__file__).resolve().parents[2] / "code-review-agents" / "lib" / "session.py"
-    spec = importlib.util.spec_from_file_location("spec_coverage_session_lib", path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load the session library from {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-_session = _load_session_lib()
-
-
 def session_dir(root: Path) -> Path:
     """세션 디렉터리 `.review/spec-coverage/<Y>/<m>/<d>/<H_M_S>[_<n>]` 를 만든다.
 
     이름은 다른 오케스트레이터와 같은 `create_session_dir` 가 정한다. 같은 초에 또 돌면 `_2` · `_3` 을 받는다.
     이름의 시각은 로컬 시각이다. `meta.json` 의 `created_utc` 는 UTC 다."""
-    return Path(_session.create_session_dir(str(root / ".review" / "spec-coverage")))
+    return Path(session.create_session_dir(str(root / ".review" / "spec-coverage")))
 
 
 def env_summary() -> dict:
