@@ -61,7 +61,7 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
 
 try:
-    from _lib.branch_guard import evaluate  # noqa: E402
+    from _lib.branch_guard import evaluate, hook_cwd  # noqa: E402
 except Exception:
     traceback.print_exc(file=sys.stderr)
     sys.exit(0)
@@ -160,13 +160,15 @@ _MUTATING = re.compile(
 
 
 def _read_payload() -> dict:
-    raw = sys.stdin.read()
-    if not raw.strip():
-        return {}
+    """The hook input as a dict. Anything unreadable reads as `{}`, the same as no input."""
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
+        raw = sys.stdin.read()
+        if not raw.strip():
+            return {}
+        payload = json.loads(raw)
+    except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError are ValueErrors
         return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 # Command separators. The anchored pattern above only ever sees the first token,
@@ -226,8 +228,12 @@ def main() -> int:
     if os.environ.get("BYPASS_DEFAULT_BRANCH_GUARD") == "1":
         return 0
 
+    # Input first: the directory to judge comes from it (`hook_cwd`), because
+    # this process runs from the main checkout whatever worktree the session is in.
+    payload = _read_payload()
+
     try:
-        decision = evaluate()
+        decision = evaluate(hook_cwd(payload))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         return 0
@@ -235,7 +241,6 @@ def main() -> int:
     if not decision.blocked:
         return 0  # safe location; stay silent.
 
-    payload = _read_payload()
     tool_input = payload.get("tool_input") or payload.get("input") or {}
     command = tool_input.get("command") or ""
 
