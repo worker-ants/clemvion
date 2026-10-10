@@ -744,6 +744,54 @@ describe('MakeshopMcpToolProvider', () => {
         'MAKESHOP_MCP_TOOL_ARGS_INVALID',
       );
     });
+
+    // 재실행 「dry-run」 임시 가드 — 쓰기든 읽기든 MakeShop API 를 부르지 않는다.
+    // GET 통과와 모의 응답은 후속 Task(CLE-T-G62XJS) 몫이다.
+    describe('dry-run re-run (ctx.dryRun)', () => {
+      const dryCtx = {
+        config: {},
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+        dryRun: true,
+      };
+
+      it.each([
+        [
+          'write (POST)',
+          'post_point_give',
+          'post-point-give',
+          'POST',
+          {
+            datas: [{ id: 'm1', point: 100 }],
+          },
+        ],
+        ['read (GET)', 'get_product', 'get-product', 'GET', { limit: '10' }],
+      ])(
+        'does not call MakeshopApiClient for a %s operation',
+        async (_label, token, op, method, args) => {
+          await setup();
+
+          const res = await provider.execute(
+            makeCall(`mcp_${SID}__${token}`, args),
+            dryCtx,
+          );
+
+          expect(apiClient.call).not.toHaveBeenCalled();
+          expect(integrationsService.logUsage).not.toHaveBeenCalled();
+          expect(res.status).toBe('success');
+          expect(res.mcpErrorDelta).toBeUndefined();
+          const parsed = JSON.parse(res.content);
+          expect(parsed).toMatchObject({
+            _dryRun: true,
+            executed: false,
+            wouldHaveCalled: { kind: 'makeshop_tool', operation: op, method },
+          });
+          expect(parsed.message).toMatch(/dry-run/);
+        },
+      );
+    });
   });
 
   describe('cleanup', () => {

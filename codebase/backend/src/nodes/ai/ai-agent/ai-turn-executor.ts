@@ -67,6 +67,7 @@ import type {
 } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import { LlmCallRecord } from '../../../shared/llm-tracing/llm-call-record';
 import { truncateForErrorDetails } from '../../core/error-codes';
+import { isDryRun } from '../../core/dry-run.util';
 
 import type { AiAgentEndReason } from '@workflow/ai-end-reason';
 /**
@@ -781,6 +782,8 @@ export class AiTurnExecutor {
     workspaceId: string;
     config: Record<string, unknown>;
     turnIndex: number;
+    /** dry-run 재실행 여부 — {@link ProviderExecCtx.dryRun} 로 그대로 넘긴다. */
+    dryRun?: boolean;
   }): Promise<{ result: AgentToolResult; trace: ToolCallTrace }> {
     const { provider, call, executionId, nodeId, turnIndex } = args;
     const startedAt = Date.now();
@@ -811,6 +814,7 @@ export class AiTurnExecutor {
         executionId,
         nodeExecutionId: args.nodeExecutionId,
         workflowId: args.workflowId,
+        dryRun: args.dryRun,
       });
       status = result.status ?? 'success';
       error = result.error;
@@ -893,6 +897,8 @@ export class AiTurnExecutor {
     workspaceId: string;
     config: Record<string, unknown>;
     turnIndex: number;
+    /** dry-run 재실행 여부 — 각 provider 호출의 ctx.dryRun. */
+    dryRun?: boolean;
     ragGroup: RagAccumulatorGroup;
     /**
      * MCP 진단 누적기 — 본 batch 가 실행한 `mcp_*` 호출을 종류별(tool/resource_read/
@@ -948,6 +954,7 @@ export class AiTurnExecutor {
           workspaceId: args.workspaceId,
           config: args.config,
           turnIndex: args.turnIndex,
+          dryRun: args.dryRun,
         }),
       ),
     );
@@ -1771,6 +1778,7 @@ export class AiTurnExecutor {
           workspaceId,
           config,
           turnIndex: 1,
+          dryRun: isDryRun(context),
           ragGroup,
           mcpDiagnosticsAcc,
           toolCallTraces,
@@ -2081,6 +2089,9 @@ export class AiTurnExecutor {
       nodeId: context.nodeId,
       nodeExecutionId: context.nodeExecutionId,
       workflowId: context.workflowId,
+      // dry-run 재실행 여부. resume 턴 provider-tool 실행이 ctx.dryRun 으로 쓴다.
+      // context-binding 값이라 checkpoint 에 영속하지 않고 engine 이 재유도한다.
+      dryRun: isDryRun(context),
       // ConversationThread mutation 단일 진입점이 service.append* 인데,
       // multi-turn 후속 turn 은 ExecutionContext 가 직접 주입되지 않으므로
       // 첫 turn 시점의 thread reference 를 state 에 보관해 다음 turn 에서도
@@ -2865,6 +2876,8 @@ export class AiTurnExecutor {
           workspaceId,
           config: turnConfig,
           turnIndex: turnCount,
+          // engine 이 재구성 state 에 context.variables.__dryRun 을 재유도해 싣는다.
+          dryRun: resumeState.dryRun === true,
           ragGroup,
           mcpDiagnosticsAcc,
           toolCallTraces,

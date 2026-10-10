@@ -153,6 +153,16 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 
 실행 이력 목록의 **Nodes 열**은 `완료/전체` 형식으로 노드 실행 집계를 표시해요. 실패한 노드가 있으면 `(N failed)` 보조 표기가 함께 나와요. 예: `3/5` (전체 5개 중 3개 완료), `3/5 (1 failed)` (1개 실패 포함).
 
+### 재실행 chain 과 dry-run
+
+재실행으로 시작한 실행은 원본 실행과 같은 chain 으로 묶여요. 실행 상세 페이지에는 몇 번째 재실행인지 보여 주는 chain 배지와 **chain 보기** 목록이 나와요. Viewer 도 chain 을 볼 수 있어요. 재실행 버튼은 Editor 이상만 누를 수 있고, 다른 사람이 시작한 실행은 Owner·Admin 만 재실행해요.
+
+재실행 창에서 **dry-run 모드**를 켜면 외부 시스템을 바꾸지 않고 흐름만 확인해요. HTTP 요청, 메일 발송, DB 쓰기, Cafe24·MakeShop 쓰기 노드는 실제로 호출하지 않고 모의 결과를 내요.
+
+<Callout type="warning">
+  dry-run 에서는 AI 에이전트의 MCP 도구(Cafe24·MakeShop 도구 포함)도 호출하지 않아요. 도구는 «실행하지 않았다» 는 결과를 받기 때문에 에이전트의 답이 실제 실행과 다를 수 있어요. 지식 베이스 검색은 그대로 해요.
+</Callout>
+
 ## 노드별 입출력 확인 팁
 
 - **Copy 버튼**: 상세 뷰의 Input/Output 탭에서 `Copy Input`, `Copy Output` 버튼으로 JSON을 복사할 수 있어요. 그대로 Run with Input에 붙여넣으면 재현 실험이 쉬워요.

@@ -1184,4 +1184,122 @@ describe('AiTurnExecutor', () => {
       expect(mockLlmService.chat).not.toHaveBeenCalled();
     });
   });
+
+  // 재실행 dry-run 임시 가드 — provider 는 ProviderExecCtx.dryRun 을 보고 MCP 도구
+  // 호출을 건너뛴다. 단일 턴 · 멀티턴 첫 턴 · resume 턴 모두 값이 전달돼야 한다.
+  describe('ProviderExecCtx.dryRun (re-run dry-run guard)', () => {
+    const recordingProvider = () => {
+      const execute = jest.fn(async (call: { id: string }) => ({
+        toolCallId: call.id,
+        content: '{}',
+        status: 'success' as const,
+      }));
+      return {
+        execute,
+        provider: {
+          key: 'mcp',
+          matches: (n: string) => n.startsWith('mcp_'),
+          buildTools: async () => [
+            {
+              name: 'mcp_abcd1234__do',
+              description: 'd',
+              parameters: { type: 'object', properties: {} },
+            },
+          ],
+          execute,
+        },
+      };
+    };
+    const toolCallThenStop = () =>
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [{ id: 't1', name: 'mcp_abcd1234__do', arguments: {} }],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'done',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+    const dryContext = makeExecutionContext({
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      variables: { __workspaceId: 'ws-1', __dryRun: true },
+    });
+
+    it.each([
+      ['dry-run', dryContext, true],
+      ['normal run', baseContext, false],
+    ])(
+      'single-turn passes dryRun to provider.execute on a %s',
+      async (_label, context, expected) => {
+        const { provider, execute } = recordingProvider();
+        toolCallThenStop();
+        const executor = buildExecutor({ toolProviders: [provider] });
+
+        await executor.executeSingleTurn(
+          undefined,
+          {
+            mode: 'single_turn',
+            systemPrompt: 'sys',
+            userPrompt: 'Hi',
+            mcpServers: [{ integrationId: 'i-a' }],
+          },
+          context,
+        );
+
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(execute.mock.calls[0][1]).toMatchObject({ dryRun: expected });
+      },
+    );
+
+    it('multi-turn first turn carries dryRun into _resumeState', async () => {
+      const executor = buildExecutor();
+      const result = (await executor.executeMultiTurn(
+        undefined,
+        { mode: 'multi_turn', systemPrompt: 'sys' },
+        dryContext,
+      )) as Record<string, unknown>;
+
+      expect((result._resumeState as { dryRun?: unknown }).dryRun).toBe(true);
+    });
+
+    it.each([
+      [true, true],
+      [undefined, false],
+    ])(
+      'resume turn with state.dryRun=%s passes dryRun=%s to provider.execute',
+      async (stateDryRun, expected) => {
+        const { provider, execute } = recordingProvider();
+        toolCallThenStop();
+        const executor = buildExecutor({ toolProviders: [provider] });
+
+        await executor.processMultiTurnMessage('go', {
+          llmConfigId: 'cfg-1',
+          model: 'gpt-4o',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          knowledgeBases: [],
+          conditions: [],
+          mcpServers: [{ integrationId: 'i-a' }],
+          presentationTools: [],
+          messages: [{ role: 'system', content: 'sys' }],
+          turnCount: 0,
+          toolCalls: 0,
+          ragSources: [],
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          memoryStrategy: 'manual',
+          ...(stateDryRun === undefined ? {} : { dryRun: stateDryRun }),
+        });
+
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(execute.mock.calls[0][1]).toMatchObject({ dryRun: expected });
+      },
+    );
+  });
 });

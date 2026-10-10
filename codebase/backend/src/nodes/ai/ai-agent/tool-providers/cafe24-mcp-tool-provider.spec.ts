@@ -951,6 +951,69 @@ describe('Cafe24McpToolProvider', () => {
       expect(res.status).toBe('error');
       expect(JSON.parse(res.content).error.code).toBe('CAFE24_MCP_NO_SESSION');
     });
+
+    // 재실행 「dry-run」 임시 가드 — 쓰기든 읽기든 Cafe24 API 를 부르지 않는다.
+    // GET 통과와 모의 응답은 후속 Task(CLE-T-G62XJS) 몫이다.
+    describe('dry-run re-run (ctx.dryRun)', () => {
+      const dryCtx = {
+        config: {},
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+        dryRun: true,
+      };
+
+      it.each([
+        [
+          'write (POST)',
+          'product_create',
+          'POST',
+          {
+            product_name: 'P',
+            price: '1000',
+            supply_price: '800',
+          },
+        ],
+        ['read (GET)', 'product_list', 'GET', { shop_no: 1 }],
+      ])(
+        'does not call Cafe24ApiClient for a %s operation',
+        async (_label, op, method, args) => {
+          const { sid } = await setup();
+
+          const res = await provider.execute(
+            makeCall(`mcp_${sid}__${op}`, args),
+            dryCtx,
+          );
+
+          expect(apiClient.call).not.toHaveBeenCalled();
+          expect(integrationsService.logUsage).not.toHaveBeenCalled();
+          expect(res.status).toBe('success');
+          expect(res.mcpErrorDelta).toBeUndefined();
+          const parsed = JSON.parse(res.content);
+          expect(parsed).toMatchObject({
+            _dryRun: true,
+            executed: false,
+            wouldHaveCalled: { kind: 'cafe24_tool', operation: op, method },
+          });
+          expect(parsed.message).toMatch(/dry-run/);
+        },
+      );
+
+      it('still reports CAFE24_MISSING_FIELDS before the dry-run skip', async () => {
+        const { sid } = await setup();
+
+        const res = await provider.execute(
+          makeCall(`mcp_${sid}__product_create`, { product_name: 'P' }),
+          dryCtx,
+        );
+
+        expect(apiClient.call).not.toHaveBeenCalled();
+        expect(JSON.parse(res.content).error.code).toBe(
+          'CAFE24_MISSING_FIELDS',
+        );
+      });
+    });
   });
 
   describe('cleanup', () => {

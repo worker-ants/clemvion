@@ -143,6 +143,16 @@ The Dashboard's Recent Executions widget and the Workflow List's context menu (`
 
 The **Nodes column** in the execution history list shows node run aggregates as `completed/total`. If any nodes failed, a `(N failed)` annotation appears alongside. For example: `3/5` (3 of 5 completed), `3/5 (1 failed)` (1 node failed).
 
+### Re-run chains and dry-run
+
+A run started with Re-run joins the same chain as the original run. The execution detail page shows a chain badge with the re-run number and a **View chain** list. Viewers can see the chain too. Only Editors and above can press **Re-run**, and only Owners and Admins can re-run a run someone else started.
+
+Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead.
+
+<Callout type="warning">
+  In dry-run, the AI Agent's MCP tools (including Cafe24·MakeShop tools) are not called either. The tool gets a "not executed" result, so the agent's answer may differ from a real run. Knowledge base search still runs.
+</Callout>
+
 ## Tips for inspecting per-node I/O
 
 - **Copy buttons**: the Input/Output tabs expose `Copy Input` and `Copy Output` buttons. Paste the JSON straight into Run with Input to reproduce a run.

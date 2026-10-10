@@ -15149,6 +15149,30 @@ describe('ExecutionEngineService', () => {
       expect(resumeState.nodeExecutionId).toBe('ne-attr-1');
     });
 
+    // 재실행 dry-run 임시 가드 — resume 턴 provider-tool 실행도 dry-run 을 알아야 MCP
+    // 도구를 실제로 부르지 않는다. dryRun 은 checkpoint 에 영속하지 않는 context-binding
+    // 값이라 context.variables.__dryRun 에서 재유도한다(checkpoint 에 값이 남아도 무시).
+    it.each([
+      [true, { __workspaceId: 'ws-1', __dryRun: true }],
+      [false, { __workspaceId: 'ws-1' }],
+    ])(
+      'buildRetryReentryState re-derives dryRun=%s from context.variables.__dryRun',
+      (expected, initialVariables) => {
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext('exec-dry-1', 'wf-1', {
+          initialVariables,
+        });
+        const { resumeState } = cp.buildRetryReentryState(
+          { id: 'exec-dry-1', workflowId: 'wf-1', startedAt: new Date() },
+          { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
+          ctx,
+          { messages: [], turnCount: 1, dryRun: !expected },
+          { resumeMode: true },
+        );
+        expect(resumeState.dryRun).toBe(expected);
+      },
+    );
+
     it('buildRetryReentryState applies defensive defaults for a legacy checkpoint missing core fields', () => {
       const cp = cpSubject();
       const ctx = cp.contextService.createContext('exec-a2a-2', 'wf-1', {

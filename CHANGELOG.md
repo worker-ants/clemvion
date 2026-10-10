@@ -23,6 +23,22 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — dry-run 재실행에서 AI 에이전트가 MCP 도구를 실제로 부르지 않는다
+
+dry-run 재실행은 외부 부수효과 노드를 모의 출력으로 바꾸지만 AI 에이전트의 도구 호출은 dry-run 여부를 몰랐다.
+그래서 dry-run 중에도 외부 MCP 서버의 `tools/call` 과 Cafe24 · MakeShop 내부 브리지의 쓰기 operation 이
+실제로 나가 쇼핑몰 데이터가 바뀔 수 있었다(NERV 발견 `01a0e5a0-434d-76ff-867b-bbcb31190c32`, 처분은 후속
+CLE-T-G62XJS).
+
+- 도구 실행 컨텍스트 `ProviderExecCtx` 에 `dryRun` 을 더했다. 단일 턴, 멀티턴 첫 턴, 재개 · 재시도 턴이 모두
+  `variables.__dryRun` 에서 값을 받는다. 재개 턴 값은 checkpoint 에 영속하지 않고 엔진이 다시 구한다.
+- dry-run 이면 외부 MCP `tools/call` 과 Cafe24 · MakeShop 브리지의 모든 operation 이 외부 호출 없이 성공
+  결과를 돌려준다. 본문은 통합 노드 dry-run mock 과 같은 모양(`_dryRun` · `skippedReason` · `wouldHaveCalled`)에
+  `executed: false` 와 «실행하지 않았으니 다시 부르지 말라» 안내를 더한 것이다. 활동 로그 · MCP 진단 `errors[]` 는
+  남기지 않는다.
+- 임시 가드라 읽기 operation(GET)도 막는다. 노드처럼 GET 을 통과시키는 분류와 모의 응답은 후속 CLE-T-G62XJS 가
+  맡는다. MCP resources · prompts 메타 도구와 kb_* 도구는 읽기 전용이라 그대로 부른다.
+
 ## Unreleased — Viewer 도 재실행 chain 을 조회한다
 
 `GET /api/executions/:id/chain` 이 남이 시작한 실행이면 워크스페이스 owner · admin 이 아닌 멤버에게
