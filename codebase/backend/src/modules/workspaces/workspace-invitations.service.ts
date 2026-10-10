@@ -542,13 +542,14 @@ export class WorkspaceInvitationsService {
   }
 
   /**
+   * Admin 이상인지 검사하고 요청자의 역할을 돌려준다(owner 전용 판정이 이어서 쓴다).
+   *
    * HTTP 경로에서 이 분기는 닿지 않는다 — 초대 라우트는 `@Roles('admin')` 라 `RolesGuard` 가 경로
    * 워크스페이스로 먼저 막는다(비멤버 `NOT_A_MEMBER` · 역할 미달 `ADMIN_REQUIRED`). 이 검사는 가드
    * 인식이 깨졌을 때의 **두 번째 선**이라 남긴다 — 소문자 `admin_required` 는 이 선에서만 나간다
    * (`spec/conventions/error-codes.md` §3 註 · `spec/data-flow/12-workspace.md` §Rationale "경로
    * 파라미터 워크스페이스도 가드가 본다").
    */
-  /** Admin 이상인지 검사하고 요청자의 역할을 돌려준다(owner 전용 판정이 이어서 쓴다). */
   private async assertAdmin(
     workspaceId: string,
     userId: string,
