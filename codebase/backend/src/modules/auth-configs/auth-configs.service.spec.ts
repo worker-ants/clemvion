@@ -619,6 +619,98 @@ describe('AuthConfigsService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    // 키를 바꿔 복호화하지 못한 행은 transformer 가 `{__unreadable: true, ...}` 센티넬을 돌려준다
+    // (`credentials-transformer.ts` non-throwing 계약). 검증 쪽이 이것을 빈 기대값으로 읽어
+    // 빈 자격 증명을 받아들이면 안 된다.
+    describe('빈 기대값 · 복호화하지 못한 설정 → 401', () => {
+      const emptyBasic = Buffer.from(':').toString('base64'); // `Og==`
+
+      it.each([
+        ['username · password 둘 다 빈 문자열', { username: '', password: '' }],
+        ['password 만 빈 문자열', { username: 'u', password: '' }],
+        ['username 만 빈 문자열', { username: '', password: 'p' }],
+        ['username · password 키 없음', {}],
+      ])('basic_auth: %s 이면 `:` 자격 증명을 거부', async (_label, config) => {
+        const ac = await seed('basic_auth', config);
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { authorization: `Basic ${emptyBasic}` },
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('basic_auth: password 만 빈 설정은 올바른 username 에 빈 password 로도 거부', async () => {
+        const ac = await seed('basic_auth', { username: 'u', password: '' });
+        const b64 = Buffer.from('u:').toString('base64');
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { authorization: `Basic ${b64}` },
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+      });
+
+      it('basic_auth: __unreadable 센티넬 설정이면 `:` 자격 증명을 거부', async () => {
+        const ac = await seed('basic_auth', { username: 'u', password: 'p' });
+        ac.config = { __unreadable: true, __original_ciphertext: 'enc:v1:xx' };
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { authorization: `Basic ${emptyBasic}` },
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('hmac: secret 이 빈 문자열이면 빈 키로 계산한 서명을 거부', async () => {
+        const ac = await seed('hmac', {});
+        ac.config = {
+          secret: '',
+          header: 'X-Hub-Signature-256',
+          algorithm: 'sha256',
+        };
+        const rawBody = Buffer.from('{"a":1}');
+        const sig = `sha256=${crypto.createHmac('sha256', '').update(rawBody).digest('hex')}`;
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { 'x-hub-signature-256': sig },
+            rawBody,
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('hmac: __unreadable 센티넬 설정이면 빈 키로 계산한 서명을 거부', async () => {
+        const ac = await seed('hmac', {});
+        ac.config = { __unreadable: true, __original_ciphertext: 'enc:v1:xx' };
+        const rawBody = Buffer.from('{"a":1}');
+        const sig = `sha256=${crypto.createHmac('sha256', '').update(rawBody).digest('hex')}`;
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { 'x-hub-signature-256': sig },
+            rawBody,
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('bearer_token · api_key: __unreadable 센티넬 설정이면 빈 값 헤더도 거부 (기존 규칙 고정)', async () => {
+        const bearer = await seed('bearer_token', {});
+        bearer.config = { __unreadable: true };
+        await expect(
+          service.verifyWebhookRequest(bearer.id, WS, {
+            headers: { authorization: 'Bearer ' },
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+        const apiKey = await seed('api_key', {});
+        apiKey.config = { __unreadable: true };
+        await expect(
+          service.verifyWebhookRequest(apiKey.id, WS, {
+            headers: { 'x-api-key': '' },
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+      });
+    });
+
     it('hmac: 올바른 서명 → 통과', async () => {
       const ac = await seed('hmac', {
         header: 'X-Hub-Signature-256',

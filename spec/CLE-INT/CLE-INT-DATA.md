@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "a7d7047a8996868deb4970f3d2538174f46d91b4c9fde81c4eaca53a432f08ba"
+content_hash: "51f12f4978266354824e32a5b91294960dfcd11c93d1b66935bac815d4774a6c"
 read_as: "approved_fallback"
-task: "CLE-T-N0RHDZ"
+task: "CLE-T-2V7SBC"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "3cc7eabfaed853af33fae46688834294b36b87249b31b75e3792344e64386bc8"
-etag: "sha256-d54affdb95fb6d121f566672f41361c5c4c905a5e5346a3e228010e87c9317bb"
+mirror_sha256: "2cdf8c7262592266cbc785c14d0a54fe4bc3555f4673285db19a2dcf823dfc2c"
+etag: "sha256-07a0b2b533686a2d22f1f00c19ab68647895d55bdaeead290ebb05a629f64c06"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,7 +66,7 @@ erDiagram
 | token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
 | last_used_at | Timestamp? | 마지막으로 노드 실행에서 쓴 시각(캐시) |
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
-| last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다. `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
+| last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다([암호화](#암호화)). `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
 | created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
@@ -230,10 +230,51 @@ erDiagram
 
 ## 암호화
 
-- `integration.credentials` 는 TypeORM 컬럼 transformer(`credentials-transformer.ts`)가 ORM 경계에서 AES-256-GCM 으로 암호화·복호화한다. 응답을 만들 때는 컨트롤러·DTO 단계에서 `credentials` 를 가린다.
-- 같은 transformer 를 `integration.last_error`, `integration_oauth_state.provider_meta`, `integration_oauth_preview.credentials` 에도 쓴다. 콜백 전 임시 보관 단계에서도 토큰과 `client_secret` 이 평문으로 닿는 곳이 없다.
-- 복호화에 실패하면(키 교체 등) 행을 지우지 않는다. 응답에서는 그 행을 `credentialsStatus='needs_reauth'` 로 드러내고, 노드 실행은 `IntegrationCredentialsUnreadableError` 로 멈춘다([노드 실행의 통합 사용](#노드-실행의-통합-사용)).
-- 암호화 키 이름과 키가 없을 때의 동작은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)로 아래 다섯 JSONB 컬럼을 암호화한다. TypeORM 컬럼 transformer(`credentials-transformer.ts`)가 ORM 경계에서 AES-256-GCM 으로 암호화하고 복호화한다. 이 키와 transformer 동작의 규범은 이 절 한 곳에 둔다.
+
+| 컬럼 | 담는 값 |
+| --- | --- |
+| `integration.credentials` | 통합 자격 증명 |
+| `integration.last_error` | 최근 호출 실패 요약. OAuth 응답 본문에 토큰 일부가 섞일 수 있다 |
+| `integration_oauth_state.provider_meta` | 콜백까지 들고 가는 클라이언트 자격 증명과 PKCE `code_verifier` |
+| `integration_oauth_preview.credentials` | 새 OAuth 연결의 콜백이 받은 토큰 |
+| `auth_config.config` | 인증 설정 자격 증명. 인증 설정 엔티티가 같은 transformer 를 가져다 쓴다([트리거 데이터와 흐름 「AuthConfig」](../CLE-TRIG/CLE-TRIG-DATA.md#authconfig)) |
+
+### 키
+
+- transformer 는 환경 변수 값을 SHA-256 으로 해시해 32바이트 키를 만든다. 64자 hex 값도 원시 바이트로 쓰지 않고 해시한다.
+- 그래서 키 길이에 하한을 두지 않는다. 운영 키로는 32바이트 이상의 무작위 값을 권한다(예: `openssl rand -hex 32`).
+- 이 키는 시크릿 저장소의 마스터키(`ENCRYPTION_KEY`)와 별개다. 마스터키는 64자 hex 면 원시 32바이트로 쓰고 그 밖의 문자열은 SHA-256 으로 만든다([시크릿 저장소 「마스터키」](CLE-INT-SECRET.md#마스터키)). 그래서 64자 hex 문자열을 두 키에 함께 넣으면 실제 키가 다르다. 그 밖의 문자열이면 두 키 모두 SHA-256 으로 만들어 실제 키가 같다.
+- 값을 쓸 때마다 12바이트 IV 를 새로 만든다. AAD 는 쓰지 않아서 암호문이 행에 묶이지 않는다. 시크릿 저장소는 AAD 로 암호문을 참조에 묶는다.
+
+### 키가 없을 때
+
+- `NODE_ENV=production` 에서 키가 없거나 공백뿐이거나 공개 예시 값이면 서버가 기동하지 않는다. 앞뒤에 공백이 붙은 공개 예시 값도 같다.
+- 공개 예시 값은 `.env.example` 과 배포 예시 파일에 실린 자리표시 값이다. 목록의 정본은 `production-guards.ts` 의 `INSECURE_INTEGRATION_ENCRYPTION_KEYS` 다.
+- 이 검사는 부팅 때 환경 변수를 보는 검사다. `main.ts` 가 부르는 운영 환경 가드(`assertProductionConfig`, `production-guards.ts`)가 검사한다. 요청 경로의 transformer 는 키 때문에 예외를 던지지 않는다.
+- 운영 환경 밖에서 키가 없으면 transformer 가 프로세스마다 경고를 한 번 남기고 값을 평문 JSON 으로 저장한다.
+- 그래서 암호화가 보장되는 범위는 운영 환경에서 새로 쓰는 값이다.
+
+### 이미 저장된 값
+
+- 평문으로 저장된 행(키 없이 쓴 행과 옛 행)은 그대로 읽힌다. 키가 있는 환경에서 그 컬럼을 다음에 쓸 때 암호화된다.
+- 서버는 평문 행을 일괄로 다시 암호화하지 않는다. 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
+- 복호화는 예외를 던지지 않는다. 값을 읽지 못하면 복호화 불가 표식(`__unreadable: true` 인 객체)을 돌려준다. 키가 다를 때(키 교체 등), 암호문이 깨졌을 때, 암호문인데 키가 없을 때, 저장된 내용을 JSON 으로 해석하지 못할 때다.
+- 인증 태그 검증에 실패했거나(키가 맞지 않거나 암호문이 깨진 경우) 복호화한 내용이나 평문 문자열을 JSON 으로 해석하지 못해 표식이 된 값은 원래 저장값을 표식에 함께 담는다. 이 값을 다시 저장하면 원래 저장값이 그대로 저장된다.
+- 암호문인데 키가 없거나(운영 환경 밖) 봉투 길이나 버전이 맞지 않아 표식이 된 값은 원래 값을 담지 않는다. 이 값을 다시 저장하면 표식 자체가 저장된다. 키가 있으면 표식을 암호화해 저장하고 키가 없으면 평문 JSON 으로 저장한다.
+- 복호화하지 못한 행은 지우지 않는다. 그 행이 어떻게 드러나는지는 컬럼마다 다르다.
+
+| 컬럼 | 복호화하지 못한 행 |
+| --- | --- |
+| `integration.credentials` | 응답에서 `credentialsStatus='needs_reauth'`(`status='error'`, `statusReason='credentials_unreadable'`)로 드러난다. 노드 실행은 `IntegrationCredentialsUnreadableError` 로 멈춘다([노드 실행의 통합 사용](#노드-실행의-통합-사용)). 사용자가 통합을 다시 연결한다 |
+| `integration.last_error` | 응답의 `lastError` 가 `null` 이다(`integrations.service.ts` 의 `toPublic`) |
+| `auth_config.config` | `needs_reauth` 같은 표시가 없다. 그 설정을 쓰는 웹훅 인증은 요청을 401 `AUTH_FAILED` 로 거부한다. 복호화 불가 표식에는 기대값(`username` · `password` · `token` · `key` · `secret`)이 없다. 웹훅 인증의 판정은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다. 복구 방법은 [미결 사항](#미결-사항) 에 있다 |
+| `integration_oauth_state.provider_meta` · `integration_oauth_preview.credentials` | 짧게 쓰고 버리는 행이다. 진행 중인 연결 흐름이 실패하므로 사용자가 연결을 처음부터 다시 시작한다 |
+
+### 그 밖의 규칙
+
+- 응답을 만들 때는 컨트롤러·DTO 단계에서 `credentials` 를 가린다.
+- 운영 환경에서는 콜백 전 임시 보관 단계에서도 토큰과 `client_secret` 이 DB 에 평문으로 남지 않는다.
 - 평문으로 두는 값: `install_token` 은 App URL 경로에 공개로 들어가는 식별자라 암호화 대상이 아니다. `status_reason` 은 분류 코드만 담아 평문이다. `mall_id` 는 조회용 평문 투영이다.
 
 ## 데이터 흐름
@@ -413,7 +454,9 @@ sequenceDiagram
 
 ## 미결 사항
 
-- **통합 암호화 키 이름과 키 미설정 시 동작**: 시크릿 저장소 규약의 저장소 예외 설명과 인증 설정(AuthConfig) 데이터 정의는 통합 자격 증명이 `ENCRYPTION_KEY` 를 쓴다고 적는다. 같은 규약의 마스터키 절은 `INTEGRATION_ENCRYPTION_KEY` 를 같은 패턴의 다른 키로 적는다(관련: [시크릿 저장소](CLE-INT-SECRET.md), [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md)). 현재 구현(`credentials-transformer.ts`)은 `INTEGRATION_ENCRYPTION_KEY` 를 읽고 SHA-256 으로 32바이트 키를 만든다. 키가 없으면 경고를 한 번 남기고 자격 증명을 암호화하지 않은 채 저장한다. 이 평문 저장 동작은 어느 스펙에도 없다. 운영자가 설정할 환경 변수 이름, 두 키를 합칠지, 키가 없을 때 평문 저장을 허용할지를 정해야 한다.
+- **재암호화 스크립트의 키 길이 하한**: `auth_config.config` 의 평문 행을 암호화하는 1회용 스크립트 `codebase/backend/src/scripts/encrypt-auth-config.ts`(백엔드 `package.json` 스크립트 `encrypt-auth-config`)는 키가 32자 미만이면 실행을 거부한다. 운영 환경 가드(`assertProductionConfig`)에는 길이 하한이 없어서 두 기준이 맞지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
+- **평문 행과 공개 예시 값 행의 재암호화**: 평문으로 저장된 행과 공개 예시 값으로 암호화된 행을 다시 암호화할 수단이 없다. 위 스크립트는 `auth_config.config` 의 평문 행만 암호화하고 나머지 네 컬럼에는 이런 스크립트가 없다. 공개 예시 값으로 암호화된 행은 키를 바꾸면 복호화되지 않는다. 재암호화 방법은 NERV Task `CLE-T-C6GCKV` 가 정한다.
+- **복호화하지 못한 인증 설정의 복구**: 키가 바뀌어 복호화하지 못한 인증 설정은 키 재생성으로 고쳐지지 않는다. 표식이 담긴 설정을 저장하면 옛 암호문이 그대로 다시 저장된다. 재생성 응답에는 저장되지 않은 새 키가 실린다. 지금은 사용자가 인증 설정을 새로 만들어 트리거에 다시 연결해야 한다. 재생성 결함은 NERV Task `CLE-T-SAMVX8` 이 고친다.
 
 ## 구현 위치
 
@@ -423,6 +466,10 @@ sequenceDiagram
 - `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너)
 - `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림)
 - `codebase/backend/src/modules/integrations/services/credentials-transformer.ts` (자격 증명 컬럼 암호화)
+- `codebase/backend/src/modules/auth-configs/entities/auth-config.entity.ts` (같은 transformer 를 쓰는 인증 설정 엔티티)
+- `codebase/backend/src/common/config/production-guards.ts` (통합 암호화 키를 검사하는 운영 환경 가드 `assertProductionConfig` 와 공개 예시 값 목록 `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
+- `codebase/backend/src/main.ts` (운영 환경 가드를 부르는 곳)
+- `codebase/backend/src/scripts/encrypt-auth-config.ts` (`auth_config.config` 평문 행을 암호화하는 1회용 스크립트)
 - `codebase/backend/src/modules/integrations/entities/` (엔티티)
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (클라이언트의 토큰 갱신·상태 전이, 갱신 큐 워커)
 - `codebase/backend/src/modules/secret-store/**` (시크릿 저장소)
@@ -431,7 +478,7 @@ sequenceDiagram
 
 ### 자격 증명을 컬럼 단위로 암호화한다
 
-평문으로 저장하면 DB 덤프나 복제본이 새어 나갈 때 외부 시스템 자격 증명이 통째로 노출된다. TypeORM 컬럼 transformer 를 쓰면 ORM 경계에서 암호화와 복호화가 자동으로 일어난다. 같은 transformer 를 OAuth state 의 `provider_meta` 와 미리보기 토큰의 자격 증명에도 적용해 콜백 전 임시 보관 단계도 막는다.
+평문으로 저장하면 DB 덤프나 복제본이 새어 나갈 때 외부 시스템 자격 증명이 통째로 노출된다. TypeORM 컬럼 transformer 를 쓰면 ORM 경계에서 암호화와 복호화가 자동으로 일어난다. 같은 transformer 를 통합 OAuth state 의 `provider_meta` 와 미리보기 토큰의 자격 증명에도 적용해 콜백 전 임시 보관 단계도 막는다. 이 키를 시크릿 저장소의 마스터키와 따로 두는 이유와 운영 환경에서 키 없이 기동하지 않게 한 이유는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 
 ### `last_error` 도 암호화한다
 

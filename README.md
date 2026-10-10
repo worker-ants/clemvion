@@ -238,10 +238,13 @@ MAIL_PASS=<smtp-password>
 MAIL_FROM=noreply@example.com    # 배포 환경에서는 실제 발신 도메인으로 교체
 
 # Security
-# 일반 암호화 (32-byte hex / 64 hex chars). 빈 값이면 암호화 비활성 (dev 전용).
+# Secret Store · LLM 프로바이더 API 키 암호화 (32-byte hex / 64 hex chars). 빈 값이면 Secret Store 는
+# 부팅에 실패하고 LLM 프로바이더 키 저장은 400 ENCRYPTION_KEY_MISSING 으로 거부된다(평문으로 저장하지 않는다).
+# NODE_ENV=production 은 미설정이거나 예시값이면 부팅을 거부한다.
 ENCRYPTION_KEY=<32-byte-hex>
-# Integration 자격증명(OAuth refresh token / API key / DB password 등)을 AES-256-GCM 으로
-# 암호화. 누락 시 평문 저장 + 부팅 경고. 운영에서는 반드시 설정 (분실 시 기존 행 복호화 불가).
+# Integration 자격증명(OAuth refresh token / API key / DB password 등)과 인증 설정(AuthConfig)을
+# AES-256-GCM 으로 암호화. NODE_ENV=production 은 미설정이거나 예시값이면 부팅을 거부한다.
+# 비운영에서 비워 두면 평문으로 저장하고 경고를 남긴다. 분실하거나 바꾸면 기존 행을 복호화할 수 없다.
 INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>
 # Swagger UI(/docs)는 non-production 에서만 노출. production 디버깅용 강제 노출(opt-in,
 # 무인증 노출 위험 복귀)은 ENABLE_SWAGGER_IN_PROD=true.
@@ -325,7 +328,7 @@ docker build -f codebase/backend/migrations/Dockerfile -t clemvion/migrate .
 
 ### 런타임 환경변수 (k8s ConfigMap/Secret)
 
-**Backend** — `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `APP_PORT`(기본 3011), `APP_URL`, `FRONTEND_URL`, `ENCRYPTION_KEY`, `INTEGRATION_ENCRYPTION_KEY`, `HEALTH_CHECK_LOG`(기본 `false` — 프로브 성공 로그 억제; `true` 로 설정하면 `/api/health`, `/api/health/live` 성공 요청도 로그에 남김). 자세한 항목은 `codebase/backend/.env`의 키를 참고. `OAUTH_STUB_MODE=true`는 `NODE_ENV=production`과 함께 쓰면 부트스트랩이 거부합니다 (보안 가드).
+**Backend** — `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `APP_PORT`(기본 3011), `APP_URL`, `FRONTEND_URL`, `ENCRYPTION_KEY`, `INTEGRATION_ENCRYPTION_KEY`, `HEALTH_CHECK_LOG`(기본 `false` — 프로브 성공 로그 억제; `true` 로 설정하면 `/api/health`, `/api/health/live` 성공 요청도 로그에 남김). 자세한 항목은 `codebase/backend/.env`의 키를 참고. `OAUTH_STUB_MODE=true`는 `NODE_ENV=production`과 함께 쓰면 부트스트랩이 거부합니다 (보안 가드). `ENCRYPTION_KEY` · `INTEGRATION_ENCRYPTION_KEY` 도 `NODE_ENV=production` 에서 미설정이거나 예시값이면 부트스트랩이 거부합니다.
 
 **Frontend** — `INTERNAL_API_URL` (예: `http://backend.<ns>.svc:3011/api`) 을 Server Component fetch 경로로 권장. `PORT`/`HOSTNAME`은 Dockerfile 기본값 사용.
 

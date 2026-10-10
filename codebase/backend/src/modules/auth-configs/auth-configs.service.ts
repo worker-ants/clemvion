@@ -512,6 +512,12 @@ export class AuthConfigsService {
     const passwd = idx >= 0 ? decoded.slice(idx + 1) : '';
     const expectedUser = (ac.config.username as string) ?? '';
     const expectedPass = (ac.config.password as string) ?? '';
+    // 기대값이 비어 있으면 거부 — `Authorization: Basic Og==`(`:`)가 빈 값끼리 일치해 통과하는
+    // 것을 막는다. 키를 바꿔 복호화하지 못한 설정(`__unreadable` 센티넬)도 여기서 닫힌다
+    // (`verifyBearer` · `verifyApiKey` 와 같은 규칙).
+    if (!expectedUser || !expectedPass) {
+      throw this.authFailed();
+    }
     const userOk = this.constantTimeEquals(username, expectedUser);
     const passOk = this.constantTimeEquals(passwd, expectedPass);
     if (!userOk || !passOk) {
@@ -529,7 +535,9 @@ export class AuthConfigsService {
     }
     const signature = ctx.headers[headerName] ?? '';
     const secret = (ac.config.secret as string) ?? '';
-    if (!signature || !ctx.rawBody) {
+    // 빈 secret 의 HMAC 은 누구나 계산할 수 있으므로 거부한다. 복호화하지 못한 설정
+    // (`__unreadable` 센티넬)도 여기서 닫힌다.
+    if (!signature || !ctx.rawBody || !secret) {
       throw this.authFailed();
     }
     const expected = `${algorithm}=${crypto

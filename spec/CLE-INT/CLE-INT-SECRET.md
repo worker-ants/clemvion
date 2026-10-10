@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "8c867c1228b312688add9679e390db701a8856c6d1b788adf6c0890077b26bf4"
+content_hash: "2a9ebd79b477b5afbf152bf6debce5c3057da5bddceafb460dc0cba87f0d16a7"
 read_as: "approved_fallback"
-task: "CLE-T-M6PERB"
+task: "CLE-T-2V7SBC"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "8bf2a7117b2fab9e2b1f0687b52755584cb11cf71a1f58bd55c3ba957ffe8d8b"
-etag: "sha256-f17ad822b261cbda80a57576c920cc2c67f068fdd5d9db7c5274baa209548e81"
+mirror_sha256: "7824fb465cef83ff1132ae0b11929c66a1f22506b9c7c2c24beb28c301a96b4c"
+etag: "sha256-c666515c70e37f9aa0ce09693868cb2313606ece6009b06b89a525b44c4375e9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -54,10 +54,10 @@ etag: "sha256-f17ad822b261cbda80a57576c920cc2c67f068fdd5d9db7c5274baa209548e81"
 11. 비밀 교체도 `rotate()`(UPSERT)로 쓴다. 채팅 채널 봇 토큰 재발급은 옛 토큰을 `bot-token.v2` 참조에 `rotate` 로 백업한 뒤 기본 참조(`bot-token`)를 새 토큰으로 `rotate` 한다([봇 토큰 재발급](#봇-토큰-재발급)). `.v2` 참조에 새 값을 쓰는 교체는 현재 없다.
 12. `deleteByPrefix` 의 prefix 는 `secret://` 로 시작해야 한다. LIKE 메타문자(`%`·`_`·`\`)가 들어 있으면 throw 한다. 구현은 `ref LIKE :prefix` 에 `` `${prefix}%` `` 를 바인딩하고 `ESCAPE` 절을 두지 않는다. `ESCAPE` 절이 없다는 것도 계약의 일부다.
 13. `secret_store.workspace_id` 를 조건으로 지우는 경로는 두지 않는다. 워크스페이스 삭제도 트리거 단위 prefix 로 정리한다. 인터페이스에 워크스페이스 단위 삭제가 없고, 백엔드를 규약 변경 없이 바꿀 수 있어야 하기 때문이다. 워크스페이스 삭제가 정리할 트리거를 빠짐없이 모으는 방법은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 사람이 돌리는 일회성 운영 SQL 은 이 규칙의 대상이 아니다(R10).
-14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. 저장소 예외 필드(규칙 3) 밖에서 알려진 예외가 하나 남아 있다. 요청 본문의 `config` 키 아래(원시 `config`)로 들어온 평문 `notification.signing.secret` 은 서버가 그 `config` 를 먼저 저장한 뒤 시크릿 저장소로 옮긴다. 그래서 옮기기 전이나 옮기다 실패하면 트리거 `config` JSONB 에 평문이 남는다. 이 예외는 NERV Task `CLE-T-EA7B5M` 이 맡는다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)). 외부 API 호출이 실패해 호출한 모듈이 만든 실패 문장에 평문이 실리면 그 모듈이 문장을 만든 자리에서 지운다(알려진 비밀 치환). 지금은 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 한다([채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10). 평문으로 외부 API 를 부르는 모듈이 늘면 이 목록에 더한다. (원본: SS-SE-01)
+14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. 저장소 예외 필드(규칙 3) 밖에서 알려진 예외가 하나 남아 있다. 요청 본문의 `config` 키 아래(원시 `config`)로 들어온 평문 `notification.signing.secret` 은 서버가 그 `config` 를 먼저 저장한 뒤 시크릿 저장소로 옮긴다. 그래서 옮기기 전이나 옮기다 실패하면 트리거 `config` JSONB 에 평문이 남는다. 이 예외는 NERV Task `CLE-T-EA7B5M` 이 맡는다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)). 외부 API 호출이 실패해 호출한 모듈이 만든 실패 문장에 평문이 실리면 그 모듈이 문장을 만든 자리에서 지운다(알려진 비밀 치환). 지금은 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 한다([채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10). 평문으로 외부 API 를 부르는 모듈이 늘면 이 목록에 더한다. «DB 는 항상 암호문만 본다» 는 시크릿 저장소(`secret_store`)가 다루는 비밀에 적용된다. 통합 암호화 키로 암호화하는 컬럼에 평문이 남을 수 있는 범위는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 가 정한다. (원본: SS-SE-01)
 15. `store`·`rotate` 를 부를 때마다 12바이트 IV 를 새로 발급한다. IV 재사용은 금지한다. AES-GCM 에서 nonce 재사용은 치명적이다. (원본: SS-SE-02)
 16. AAD 는 `ref` 다(`setAAD(Buffer.from(ref))`). 다른 참조의 암호문을 이 행에 덮어쓰는 행 간 교체 공격은 복호화 실패로 끝나야 한다. (원본: SS-SE-03)
-17. 마스터키가 설정되지 않았거나 빈 값이면 부팅을 멈춘다(`SecretResolver` 모듈 초기화에서 throw). `NODE_ENV=production` 에서는 공개 `.env.example` 예시 키가 그대로 설정된 경우에도 부팅을 거부한다. 64-hex 가 아닌 값은 거부하지 않고 SHA-256 으로 키를 만든다([마스터키](#마스터키)). (원본: SS-SE-04)
+17. 마스터키가 설정되지 않았거나 빈 값이면 부팅을 멈춘다(`SecretResolver` 모듈 초기화에서 throw). `NODE_ENV=production` 에서는 운영 환경 가드(`assertProductionConfig`)가 키가 없거나 공백뿐이거나 공개 예시 값이면 기동을 거부한다. 앞뒤에 공백이 붙은 공개 예시 값도 거부한다. 공개 예시 값 목록의 정본은 `production-guards.ts` 의 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` 다. 64-hex 가 아닌 값은 거부하지 않고 SHA-256 으로 키를 만든다([마스터키](#마스터키)). (원본: SS-SE-04)
 18. v1 은 DB 행 단위 감사 로그를 지원하지 않는다. `resolve` 가 실패하면 애플리케이션 로거가 참조와 `workspaceId` 만 남기고 평문은 남기지 않는다. 규칙 24 의 참조 불일치와 규칙 25 의 거부도 애플리케이션 로거에만 남기고 평문은 남기지 않는다. `resolve` · `store` · `rotate` 가 던지는 예외 메시지는 참조를 싣지 않고 참조는 애플리케이션 로거에만 남긴다. 예외 메시지가 어댑터 실패 원문으로 화면에 보이는 필드(`chat_channel_last_error`)에 저장될 수 있어서다. 미존재 분기에는 행이 없어 `workspaceId` 는 남기지 못한다. 응답 비노출 자체는 규칙 4 가 정한다. (원본: SS-SE-05)
 19. `resolve(ref)` 결과는 호출자가 쓴 뒤 GC 에 맡긴다. `Buffer.fill(0)` 같은 강제 삭제는 v1 에 적용하지 않고 v2 선택지로 둔다(권장). (원본: SS-SE-06)
 20. 소비 모듈은 원칙상 구체 클래스(`SecretResolverService`)가 아닌 추상 인터페이스에 의존한다. v1 은 NestJS DI 편의를 위해 구체 클래스를 직접 주입해도 된다. 구현체가 하나뿐이라 바꿀 일이 없고, abstract class 를 쓰면 injection token 설정이 더 필요하며, `deleteByPrefix` 를 포함한 메서드 시그니처가 아직 안정되지 않았기 때문이다. 백엔드가 둘 이상이 되면 `ISecretResolver` 를 추출하고 소비 모듈의 injection token 과 테스트 mock 을 인터페이스 기반으로 바꾼다. 현재 구현의 소비 모듈은 `triggers`·`chat-channel`·`external-interaction`·`schedules` 다.
@@ -66,6 +66,7 @@ etag: "sha256-f17ad822b261cbda80a57576c920cc2c67f068fdd5d9db7c5274baa209548e81"
 23. 리소스 설정에 두는 시크릿 참조(예: `Trigger.config` 의 `chatChannel.botTokenRef` · `chatChannel.inboundSigningRef` · `notification.signing.secretRef`)는 서버가 그 리소스 id 로 만들어 쓴다. 요청 본문으로 받지 않는다. 값이 자기 리소스의 참조여도 거부한다. 저장된 참조로 비밀을 쓰는 경로도 저장값 대신 리소스 id 로 참조를 다시 만든다(규칙 24). 트리거의 거부 대상과 응답 모양은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 근거는 [R9 「리소스 설정의 시크릿 참조는 요청 본문으로 받지 않는다」](#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 에 있다.
 24. 저장된 리소스 설정의 시크릿 참조로 비밀을 읽거나 쓰는 경로는 저장값의 있음 · 없음만 읽고 참조는 그 리소스 id 로 다시 만든다. 트리거에서는 봇 토큰 재발급, 메시지 발송, 인바운드 서명 검증, 트리거 삭제 때의 provider 해제, 알림 서명이다. 채팅 채널 참조는 비어 있지 않은 값이면 있다고 본다. 알림 서명 참조는 `secret://` 형식의 문자열이면 있다고 본다. 트리거 PATCH 가 EIA 알림 웹훅 설정을 실을 때도 이 판정을 쓴다. 있으면 참조를 트리거 id 로 다시 만들어 싣는다. 없을 때 그 행에 옛 평문 `signing.secret` 이 있으면 그 평문을 시크릿 저장소로 옮긴다. 둘 다 없을 때만 첫 알림 서명 시크릿을 발급한다([트리거 생성](#트리거-생성) 아래 PATCH 문단). 저장값과 다시 만든 참조를 정확히 비교하는 것은 에러 로그를 남기려는 것이고 쓰는 참조는 저장값과 상관없이 다시 만든 값이다. 로그에 저장값은 싣지 않는다. 읽기 관문은 없는 참조를 붙이지 않고 있는 참조를 지우지 않는다. 봇 토큰 재발급은 새 토큰을 쓰므로 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다. 자기 비밀이 없으면 `resolve` 가 실패해 닫힌다. 그때의 응답은 채팅 채널과 EIA 알림 웹훅 문서가 정한 실패 경로(발송 실패, 인바운드 401, 알림 `degraded`)다. 알림 서명은 참조가 있으면 옛 평문 `signing.secret` 으로 내려가지 않는다. 근거는 [R10 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」](#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 에 있다.
 25. `rotate` 는 기존 행의 `workspace_id` 가 인자와 다르면 거부하고 값과 `workspace_id` 를 바꾸지 않는다. 대조는 행의 값과 인자만 본다. 이 거부 전용 에러 코드는 만들지 않는다. HTTP 응답은 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 예외 메시지는 참조와 워크스페이스 id 가 없는 고정 문구라 화면에 보이는 필드에 저장돼도 내부 위치가 드러나지 않는다. 참조와 두 워크스페이스 id 는 서버 로그에만 남긴다. 반복 배치는 거부된 리소스만 건너뛰고 나머지를 처리한다. 교차 행이 있으면 그 비밀의 진짜 소유자가 하는 재발급도 이 거부로 막힌다. 그때의 처리는 [교차 행 점검과 정리](#교차-행-점검과-정리) 에 있다. 근거는 R10 에 있다.
+26. 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 표의 컬럼을 암호화하는 키다. 통합 자격 증명과 인증 설정 자격 증명이 그 표에 든다. 이 키는 마스터키(`ENCRYPTION_KEY`)와 별개다. 키를 만드는 방식, 운영 환경 가드(`assertProductionConfig`)의 검사, 적용 컬럼의 규범은 그 절에 있다. 근거는 [R13 「통합 암호화 키를 마스터키와 따로 둔다」](#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 
 ## 참조 예시
 
@@ -83,7 +84,7 @@ etag: "sha256-f17ad822b261cbda80a57576c920cc2c67f068fdd5d9db7c5274baa209548e81"
 
 ### `AuthConfig.config`
 
-인증 설정([외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md))의 자격 증명은 `auth-configs` 모듈의 컬럼 transformer(AES-256-GCM)가 직접 암호화·복호화한다. `secret://` 통합 대상이 아니다. 근거는 «다른 메커니즘으로 동등하게 암호화된다» 이다. 응답 마스킹 정책의 단일 기준도 이 규약이 아니라 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이다. 이 transformer 가 쓰는 키 이름은 [미결 사항](#미결-사항) 에 있다.
+인증 설정([외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md))의 자격 증명은 통합 자격 증명과 같은 컬럼 transformer(`credentials-transformer.ts`, AES-256-GCM)가 직접 암호화·복호화한다. `secret://` 통합 대상이 아니다. 근거는 «다른 메커니즘으로 암호화된다» 이다. 두 메커니즘의 보호 수준이 같지는 않다. 시크릿 저장소는 AAD 로 암호문을 참조에 묶고(규칙 16) transformer 는 묶지 않는다. 키도 다르다. transformer 는 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 를 쓴다(규칙 26). 키 동작과 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 가 정한다. 응답 마스킹 정책의 단일 기준도 이 규약이 아니라 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이다.
 
 ### `Trigger.config.interaction.triggerToken` (2026-08-16 결정)
 
@@ -196,11 +197,11 @@ const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]).toStrin
 
 ### 마스터키
 
-- 환경 변수 `ENCRYPTION_KEY` 를 쓴다. LLM API 키 암호화(`crypto.util.ts`)와 같은 키다.
+- 환경 변수 `ENCRYPTION_KEY` 를 쓴다. LLM API 키 암호화(`crypto.util.ts`)와 같은 키다. 통합 자격 증명과 인증 설정 컬럼의 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)는 이 키와 별개다(규칙 26).
 - 정확히 64자 hex 면 `Buffer.from(rawHex, 'hex')` 로 그대로 쓴다(`.env.example` 의 표준 형식).
-- 그 밖의 문자열은 SHA-256 으로 키를 만든다. 통합 자격 증명 transformer(`credentials-transformer.ts`)와 같은 방식이며 e2e 와 짧은 키를 받아 준다.
+- 그 밖의 문자열은 SHA-256 으로 키를 만든다. e2e 와 짧은 키도 받으려는 것이다. 통합 암호화 키의 transformer 는 64자 hex 도 SHA-256 으로 만들므로 이 방식과 다르다([통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화)).
 - 설정되지 않았거나 빈 문자열이면 부팅 때 `SecretResolver` 모듈 초기화에서 throw 한다.
-- `.env.example` 의 값은 형식 예시(all-zero placeholder)일 뿐 실제 키가 아니다. 운영자는 `openssl rand -hex 32` 로 새로 만든다. `NODE_ENV=production` 에서 키가 없거나 공개 예시 키(현재 all-zero, 옛 `0123…` 예시)가 그대로면 `main.ts` 의 `assertProductionConfig` 가 부팅을 거부한다. dev·test·e2e 는 영향이 없다.
+- `.env.example` 의 값은 형식 예시(all-zero placeholder)일 뿐 실제 키가 아니다. 운영자는 `openssl rand -hex 32` 로 새로 만든다. `NODE_ENV=production` 에서 키가 없거나 공백뿐이거나 공개 예시 값이면 `main.ts` 가 부르는 운영 환경 가드(`assertProductionConfig`, `production-guards.ts`)가 기동을 거부한다. 앞뒤에 공백이 붙은 공개 예시 값도 거부한다. 공개 예시 값 목록의 정본은 `production-guards.ts` 의 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` 다. dev·test·e2e 는 영향이 없다.
 - 마스터키는 애플리케이션 메모리 안에만 있다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 나가지 않는다.
 - 셀프 호스팅 운영자가 키를 직접 보관한다(docker-compose `env_file`, kubernetes secret, AWS Parameter Store 등).
 
@@ -329,12 +330,12 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 ## 미결 사항
 
-- **통합·인증 설정 자격 증명 암호화 키 이름**: 이 규약의 `AuthConfig.config` 예외 설명(원문)과 인증 설정 데이터 정의는 인증 설정과 통합 자격 증명 transformer 가 `ENCRYPTION_KEY` 를 쓴다고 적는다. 같은 규약의 마스터키 절은 통합 자격 증명 transformer 를 `INTEGRATION_ENCRYPTION_KEY` 를 쓰는 다른 키로 적는다(관련: [통합 데이터와 흐름](CLE-INT-DATA.md), [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md)). 현재 구현을 정리하면 키가 둘이다. `ENCRYPTION_KEY` 는 이 저장소, LLM API 키 암호화, 운영 부팅 가드(`production-guards.ts`)가 읽는다. `INTEGRATION_ENCRYPTION_KEY` 는 `credentials-transformer.ts` 가 읽는다. 인증 설정 엔티티도 이 transformer 를 가져다 쓰므로(`auth-config.entity.ts`) 통합 자격 증명·`last_error`·OAuth 일시 테이블·인증 설정 자격 증명이 모두 `INTEGRATION_ENCRYPTION_KEY` 를 쓴다. 이 키가 없으면 transformer 는 경고를 한 번 남기고 평문으로 저장하고, 운영 부팅 가드는 이 키를 검사하지 않는다. 두 키가 다르면 운영 키 교체와 백업 범위 판단이 달라진다. 키 이름, 두 키를 합칠지, 키가 없을 때 평문 저장을 허용할지 결정이 필요하다.
-- **통합 자격 증명과 이 저장소의 관계**: 이 규약은 도메인 모듈이 `SecretResolver` 를 거치고 예외는 [저장소 예외 필드](#저장소-예외-필드) 뿐이라고 정한다. 그런데 통합 자격 증명(`Integration.credentials`, Cafe24·OAuth·MCP 토큰 포함)은 컬럼 transformer 로 저장하고 예외 목록에도 없다([통합 데이터와 흐름](CLE-INT-DATA.md)). 원문 서두는 «향후 cafe24·OAuth 등» 도 `SecretResolver` 를 거친다고 적고, Rationale R2 는 OAuth client secret 과 Cafe24 토큰을 옮겨 올 가능성을 적는다. 방향은 이관 쪽이지만 시점과 범위를 정한 계획은 원문에 없다. 예외로 올린다면 `AuthConfig.config` 처럼 «다른 메커니즘으로 동등하게 암호화된다» 를 근거로 삼게 되는데, 키가 없을 때 평문으로 저장하는 동작(위 미결)이 남아 있으면 그 근거가 서지 않는다. 예외로 올리고 근거를 적을지, 저장소로 옮길 계획을 세울지 결정이 필요하다.
+- **통합 자격 증명과 이 저장소의 관계**: 이 규약은 도메인 모듈이 `SecretResolver` 를 거치고 예외는 [저장소 예외 필드](#저장소-예외-필드) 뿐이라고 정한다. 그런데 통합 자격 증명(`Integration.credentials`, Cafe24·OAuth·MCP 토큰 포함)은 컬럼 transformer 로 저장하고 예외 목록에도 없다([통합 데이터와 흐름](CLE-INT-DATA.md)). 원문 서두는 «향후 cafe24·OAuth 등» 도 `SecretResolver` 를 거친다고 적고, Rationale R2 는 OAuth client secret 과 Cafe24 토큰을 옮겨 올 가능성을 적는다. 방향은 이관 쪽이지만 시점과 범위를 정한 계획은 원문에 없다. 예외로 올린다면 `AuthConfig.config` 처럼 «다른 메커니즘으로 암호화된다» 를 근거로 삼게 된다. 그 메커니즘이 암호화를 보장하는 범위는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 가 정한다. 근거를 적는다면 이 범위도 함께 적어야 한다. 예외로 올리고 근거를 적을지, 저장소로 옮길 계획을 세울지 결정이 필요하다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/secret-store/**`
+- 규칙 17 · 26 의 운영 환경 가드: `codebase/backend/src/common/config/production-guards.ts`(`assertProductionConfig`, 공개 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS`), 가드를 부르는 곳 `codebase/backend/src/main.ts`
 - 규칙 14 의 알려진 비밀 치환: `codebase/backend/src/shared/utils/sanitize-error-message.ts`(`replaceKnownSecret`), 채팅 채널 클라이언트 `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts` · `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts` · `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
 - 규칙 23 의 시행: `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`(원시 `config` 거부), `codebase/backend/src/modules/triggers/triggers.service.ts`(`rotateBotToken` 의 참조 유도)
 - 규칙 4 의 면제 응답 DTO: `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts`
@@ -364,11 +365,11 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 
 ### R5. `.env.example` 에는 형식 예시만 두고 production 에서 막는다
 
-`.env.example` 의 `ENCRYPTION_KEY` 는 실제 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은 복사해 쓸 수 있는 구체적인 64-hex 값을 실었고, 그 값을 그대로 운영에 옮긴 배포는 공개 저장소의 알려진 키로 저장소 전체를 암호화해 사실상 평문 상태였다. 그래서 두 겹으로 막는다. 눈에 띄는 all-zero placeholder 와 «MUST regenerate(`openssl rand -hex 32`)» 주석이 하나이고, `NODE_ENV=production` 부팅 가드(`main.ts` 의 `assertProductionConfig`)가 키가 없거나 공개 예시 키면 기동을 거부하는 것이 둘이다. 빈 값만 막는 `SecretResolver` 초기화 검사를 보완해 «예시 키 복사» 운영 사고까지 막는다. `JWT_SECRET`·`MCP_ALLOW_INSECURE_URL` 과 함께 하나의 fail-closed 가드 블록으로 모았다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「운영 환경 가드」). dev·test·e2e 는 영향이 없다(refactor 04 M-4).
+`.env.example` 의 `ENCRYPTION_KEY` 는 실제 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은 복사해 쓸 수 있는 구체적인 64-hex 값을 실었고, 그 값을 그대로 운영에 옮긴 배포는 공개 저장소의 알려진 키로 저장소 전체를 암호화해 사실상 평문 상태였다. 그래서 두 겹으로 막는다. 눈에 띄는 all-zero placeholder 와 «MUST regenerate(`openssl rand -hex 32`)» 주석이 하나이고, `NODE_ENV=production` 에서 `main.ts` 가 부르는 운영 환경 가드(`assertProductionConfig`, `production-guards.ts`)가 키가 없거나 공백뿐이거나 공개 예시 값이면 기동을 거부하는 것이 둘이다. 빈 값만 막는 `SecretResolver` 초기화 검사를 보완해 «예시 값 복사» 운영 사고까지 막는다. `JWT_SECRET`·`MCP_ALLOW_INSECURE_URL` 과 함께 하나의 fail-closed 가드 블록으로 모았다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「운영 환경 가드」). dev·test·e2e 는 영향이 없다(refactor 04 M-4).
 
 ### R6. 마스터키를 LLM API 키와 함께 쓴다
 
-기존 `ENCRYPTION_KEY` 의 사용처(LLM API 키)와 이 저장소의 사용처(외부 provider 비밀)는 같은 신뢰 영역이다. 둘 다 외부 API 자격 증명 평문이다. 도메인을 나눠 얻는 이득보다 운영 단순화 이득이 크다. 도메인 분리가 필요해지면 별도 `ENCRYPTION_KEY_SECRET_STORE` 환경 변수를 검토한다.
+기존 `ENCRYPTION_KEY` 의 사용처(LLM API 키)와 이 저장소의 사용처(외부 provider 비밀)는 같은 신뢰 영역이다. 둘 다 외부 API 자격 증명 평문이다. 도메인을 나눠 얻는 이득보다 운영 단순화 이득이 크다. 도메인 분리가 필요해지면 별도 `ENCRYPTION_KEY_SECRET_STORE` 환경 변수를 검토한다. 이 이름은 아직 도입하지 않은 후보 이름이다. 통합 암호화 키는 구현 이력으로 이미 따로 있다. 두 키를 합치지 않은 이유는 [R13 「통합 암호화 키를 마스터키와 따로 둔다」](#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 
 ### R7. 저장소 예외 필드도 응답에는 나가지 않는다고 규범으로 적는다
 
@@ -431,3 +432,30 @@ NERV Task `CLE-T-M6PERB` 의 재검토에서 첫 알림 서명 시크릿을 언�
 - **사용 패턴 · 참조 표 · 규칙 7 을 맞췄다.** 「트리거 생성」 예시는 호출자가 보낸 평문이 있을 때만 참조를 만들었다. 서버 발급 분기를 더했다. 참조는 R10 이 정한 대로 `notificationSigningSecretRef` 로 만든다. 규칙 7 은 PATCH 가 처음 붙일 때의 저장도 `rotate` 로 하게 넓혔다. 알림 서명 비밀 행은 트리거가 없어질 때 prefix 로만 지우므로(규칙 8) 설정을 뗐다가 다시 붙이면 같은 참조에 옛 행이 남아 있을 수 있다.
 - **PATCH 는 알림 서명 참조를 행에서 복사하지 않고 다시 만든다.** PATCH 는 트리거 설정 잠금 안에서 다시 읽은 행의 알림 서명 참조를 규칙 24 로 판정해 있음 · 없음만 쓴다. 있으면 참조를 트리거 id 로 다시 만들어 싣는다. 규칙 23 · 24 가 저장값 대신 리소스 id 로 참조를 만들게 하는 것과 같은 방식이다. 저장 경계가 막기 전의 행에는 다른 값이 있을 수 있다(R10). 판정이 규칙 24 와 다르면 `secret://` 형식이 아닌 값이 든 옛 행에서 PATCH 는 «있음» 으로 보고 발급하지 않는다. 발송 쪽은 같은 행을 «없음» 으로 보므로 주 시크릿이 없는 상태가 남는다. 판정과 발급 쓰기는 같은 잠금 안에서 한다. 동시 PATCH 두 건이 잠금 밖에서 각자 발급하면 한쪽 응답의 평문은 저장소에 남지 않는다. 잠금 안에서도 워크플로우 · 워크스페이스 삭제로 행이 사라질 수 있어서 규칙 9 의 되돌리기를 잠금 안 쓰기까지 넓혔다. 참조가 없는 행에 옛 평문 `signing.secret` 이 남아 있으면 PATCH 는 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다. 통째 교체로 그 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 이 방식은 사용자에게 묻지 않고 기본값으로 정해 알렸다.
 - **잠금 안 시크릿 저장소 쓰기는 백엔드 교체의 예외다.** PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기와 시크릿 승격은 트리거 설정 잠금 안에서 시크릿 저장소에 쓴다. 잠금 안에서 HTTP 호출을 하지 않는다는 제약은 Cafe24 토큰 갱신이 같은 잠금을 기각한 이유에서 왔다. 잠금을 쥔 채 HTTP 요청을 하면 DB 커넥션 점유가 길어진다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 지금 백엔드는 같은 DB 의 테이블이라 이 쓰기에 HTTP 호출이 없다. 외부 백엔드를 들이면 이 경로들은 잠금 밖 쓰기와 되돌리기(규칙 9)로 다시 설계한다. 그래서 규칙 13 이 기대는 «백엔드를 규약 변경 없이 바꿀 수 있다» 는 이 경로들에는 그대로 성립하지 않는다. 「다른 백엔드로 바꾸기」 에 이 예외를 적었다. 이 전제도 사용자에게 묻지 않고 기본값으로 정해 알렸다.
+
+### R13. 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 를 마스터키와 따로 두고 production 에서 키 없이 기동하지 않는다 (2026-10-10)
+
+이 규약과 통합 · 트리거 데이터 문서는 통합 자격 증명과 인증 설정의 암호화 키 이름을 서로 다르게 적었고 미결로 남겼다. 구현은 `INTEGRATION_ENCRYPTION_KEY` 를 읽었다. 키가 없으면 경고만 남기고 평문으로 저장했다. 운영 환경 가드(`assertProductionConfig`)는 이 키를 검사하지 않았다. 그래서 운영 환경에서도 OAuth 토큰과 API 키가 평문으로 쌓일 수 있었다(finding 01a0e59c-eea2-7590-953c-2899ba1c5ad4). NERV Task `CLE-T-2V7SBC` 에서 사용자가 아래와 같이 정했다(2026-10-10).
+
+- 두 키를 그대로 둔다. `ENCRYPTION_KEY` 는 이 저장소와 LLM API 키를 암호화하는 마스터키다. `INTEGRATION_ENCRYPTION_KEY` 는 통합 자격 증명과 인증 설정 컬럼 transformer 의 키다(규칙 26).
+- `NODE_ENV=production` 에서 통합 암호화 키가 없거나 공백뿐이거나 공개 예시 값이면 기동하지 않는다. 부팅 때 환경 변수를 검사하는 운영 환경 가드(`assertProductionConfig`)가 막는다. 요청 경로에서는 예외를 던지지 않는다.
+- 운영 환경 밖에서는 지금처럼 키가 없으면 경고를 남기고 평문으로 저장한다. 평문 저장은 운영 환경 밖에서만 허용한다고 문서에 적는다.
+- 이미 평문으로 저장된 행은 그대로 읽는다. 서버가 일괄로 다시 암호화하지 않는다.
+- 키 길이에 하한을 두지 않는다. transformer 가 SHA-256 으로 키를 만들어 어떤 길이든 받는다. 32바이트 이상의 무작위 값은 권고로 둔다.
+
+동작의 규범은 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 한 곳에 둔다. 공개 예시 값 목록은 스펙에 옮기지 않는다. 정본은 `production-guards.ts` 의 `INSECURE_INTEGRATION_ENCRYPTION_KEYS` 이고 그 단위 테스트가 저장소의 예시 파일 값과 대조한다.
+
+- **기동을 막는 기준과 배포 영향.** 운영 환경 가드는 정당한 용도가 없는 설정만 기동을 막는다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「운영 환경 가드」). 키가 없는 운영 설정은 새로 쓰는 자격 증명을 평문으로 저장하므로 이 기준에 따라 막는다. 그래서 통합과 인증 설정을 쓰지 않는 운영 배포도 이 키를 설정해야 한다. `.env.example` 과 k8s 예시 Secret(`k8s/base/secret.example.yaml`)에는 이미 이 키 이름이 있다.
+- **요구사항과의 관계.** [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-009 와 [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-012 가 요구하는 암호화는 지금 운영 환경에서 새로 쓰는 값에만 보장된다. 요구사항 문구의 범위를 좁히는 일은 후속 NERV Task `CLE-T-KQ37NJ` 가 맡는다.
+- **키 길이에 하한을 두지 않는 이유.** 하한을 넣으면 짧은 키로 운영 중인 환경은 키를 바꿔야 한다. 키를 바꾸면 옛 키로 암호화한 행은 복호화되지 않는다. `JWT_SECRET` 은 서명에 쓰는 키라 하한을 둔다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
+- **저장소 예외 근거를 고친 경위.** [저장소 예외 필드](#저장소-예외-필드) 의 `AuthConfig.config` 근거는 «동등하게 암호화된다» 였다. transformer 는 AAD 를 쓰지 않고 운영 환경 밖에서는 평문으로 저장하므로 «다른 메커니즘으로 암호화된다» 로 고쳤다.
+
+견준 안과 택하지 않은 이유는 다음과 같다.
+
+- **두 키를 하나로 합친다.** 두 키는 키를 만드는 방식이 다르다. `ENCRYPTION_KEY` 는 64자 hex 면 원시 32바이트로 쓰고 통합 암호화 키는 늘 SHA-256 으로 만든다. 그래서 64자 hex 문자열을 두 키에 함께 넣으면 실제 키가 다르다. 그 밖의 문자열이면 두 키 모두 SHA-256 으로 만들어 실제 키가 같다. 합치면 실제 키가 바뀌는 쪽의 기존 암호문을 모두 다시 암호화해야 한다. 이 재암호화 작업이 커서 택하지 않았다.
+- **운영 환경에서도 평문 저장을 허용한다.** OAuth 토큰과 API 키가 평문으로 쌓인다(finding 01a0e59c-eea2-7590-953c-2899ba1c5ad4).
+
+이번에 정하지 않은 것도 있다.
+
+- 부팅이나 마이그레이션 때 평문 행을 자동으로 다시 암호화할지는 정하지 않는다. 방법과 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
+- 운영 환경 밖에서도 키가 없으면 기동을 멈출지(규칙 17 의 마스터키 처리와 같게)는 결정 때 견주지 않았다. 운영 환경 밖은 지금 동작(경고 후 평문 저장)을 유지했다. 두 키의 처리가 다른 이유는 따로 정하지 않았다. transformer 는 키가 없어도 동작하도록 만들어져 있다.
