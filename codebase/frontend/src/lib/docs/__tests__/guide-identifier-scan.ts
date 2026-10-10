@@ -372,12 +372,12 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   },
   {
     token: "CONTAINER_MISSING_EMIT",
-    where: "execution-engine.service.ts:7154·7158 — 템플릿 리터럴 메시지 접두",
+    where: "execution-engine.service.ts:7155·7159 — 템플릿 리터럴 메시지 접두",
     why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(옛 트래커 항목. 카탈로그 등재와 함께 NERV Task `CLE-T-DM3AXQ` 항목 5 에서 정한다).",
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
-    where: "execution-engine.service.ts:7163 — 형제 접두",
+    where: "execution-engine.service.ts:7164 — 형제 접두",
     why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
   },
 ];

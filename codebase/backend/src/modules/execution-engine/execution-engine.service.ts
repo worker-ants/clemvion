@@ -116,6 +116,7 @@ import {
   ResumableMessageSource,
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
+import { isDryRun } from '../../nodes/core/dry-run.util';
 import {
   type ChatChannelRoutingInfo,
   ExecutionEventType,
@@ -5534,7 +5535,7 @@ export class ExecutionEngineService
       // context.variables.__dryRun 에서 재유도한다. resume 턴 provider-tool 실행이
       // ProviderExecCtx.dryRun 으로 써서 MCP 도구를 실제로 부르지 않는다
       // ([재실행](CLE-EXEC-RERUN) 의 dry-run 절).
-      dryRun: context.variables?.__dryRun === true,
+      dryRun: isDryRun(context),
       llmConfigId: resolvedConfig.llmConfigId,
       maxTurns: resolvedConfig.maxTurns ?? 20,
       maxToolCalls: resolvedConfig.maxToolCalls ?? 10,

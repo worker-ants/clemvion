@@ -782,8 +782,12 @@ export class AiTurnExecutor {
     workspaceId: string;
     config: Record<string, unknown>;
     turnIndex: number;
-    /** dry-run 재실행 여부 — {@link ProviderExecCtx.dryRun} 로 그대로 넘긴다. */
-    dryRun?: boolean;
+    /**
+     * dry-run 재실행 여부 — {@link ProviderExecCtx.dryRun} 로 그대로 넘긴다.
+     * 필수다. 빠뜨리면 컴파일이 막아서, 새 호출부가 값을 안 넘긴 채 MCP 도구를 실제로
+     * 부르게 되는 일이 없다(`undefined` 는 "실제 실행"으로 읽힌다).
+     */
+    dryRun: boolean;
   }): Promise<{ result: AgentToolResult; trace: ToolCallTrace }> {
     const { provider, call, executionId, nodeId, turnIndex } = args;
     const startedAt = Date.now();
@@ -897,8 +901,8 @@ export class AiTurnExecutor {
     workspaceId: string;
     config: Record<string, unknown>;
     turnIndex: number;
-    /** dry-run 재실행 여부 — 각 provider 호출의 ctx.dryRun. */
-    dryRun?: boolean;
+    /** dry-run 재실행 여부 — 각 provider 호출의 ctx.dryRun. 필수(위 runProviderTool 참조). */
+    dryRun: boolean;
     ragGroup: RagAccumulatorGroup;
     /**
      * MCP 진단 누적기 — 본 batch 가 실행한 `mcp_*` 호출을 종류별(tool/resource_read/
