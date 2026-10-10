@@ -54,8 +54,11 @@ def create_session_dir(output_dir, subdir=None):
 
     So the create is ATOMIC (`exist_ok=False`) and a taken name falls through to
     `<hh>_<mm>_<ss>_2`, `_3`, …. Atomic matters for the parallel case: two
-    processes cannot both believe they won. Nothing parses this directory name —
-    the guards walk the tree looking for `SUMMARY.md` — so the suffix is free.
+    processes cannot both believe they won. The guards walk the tree looking for
+    `SUMMARY.md` and do not read the name. One reader does:
+    `.claude/tools/nerv_review_payload.py` `session_stamp()` turns the name into
+    the idempotency-key prefix and keeps the suffix (`13_40_14_2` →
+    `…-134014-2`). Change the name shape there too.
 
     On exhaustion it returns the plain path with `exist_ok=True`, i.e. the old
     behaviour. Losing a session directory is bad; refusing to run a review at all

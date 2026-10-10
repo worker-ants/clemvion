@@ -28,6 +28,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저
     브랜치를 따라잡는다.
   - 역할 묶음마다 `idempotency_key`: `<task>:<kind>:<mode>:<head 앞 9자>:<role>:<내용 해시 8자>[:n]`. Task 가
     없으면 task 자리에 세션 시각(`<YYYYMMDD>-<hhmmss>`)을 쓰고, `--run` 이 2 이상이면 `:<n>` 을 붙인다.
+    같은 초에 만든 세션은 디렉터리 이름에 `_<n>` 이 붙고(`13_40_14_2`) 시각도 `-<n>` 으로 끝난다(`20261010-134014-2`).
     내용 해시는 그 묶음(reviewer · summary · findings)의 해시다. 같은 파일을 다시 내면 같은 키라서 NERV 가
     재전송으로 묶고, 리포트를 고쳐 다시 내거나 스펙 초안을 고쳐 다시 검토하면(head 가 그대로여도) 키가
     바뀌어 새 제출로 기록된다. 내용이 같은데 새 제출로 내려면 `--run` 을 준다.
@@ -111,9 +112,11 @@ _COVERAGE_FIELD_RE = re.compile(r"^\s*[-*]\s+\*\*(" + "|".join(_COVERAGE_FIELDS)
 # 요약의 후보 수(`- 후보 high: 3`). 읽은 후보 수와 맞춰 본다.
 _COVERAGE_COUNT_RE = re.compile(r"^\s*[-*]?\s*후보\s+(high|medium|low)\s*[:：]\s*(\d+)", re.I)
 _COVERAGE_DIRECTION_RE = re.compile(r"\[(forward|reverse)\]", re.I)
-# 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>` 에 쓴다.
+# 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>[_<n>]` 에 쓴다.
 _DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
              "spec-coverage": "spec_coverage"}
+# 세션 디렉터리의 마지막 조각. 같은 초의 두 번째 세션부터 `_2` · `_3` 이 붙는다(`code-review-agents/lib/session.py`).
+_SESSION_TIME_RE = re.compile(r"(\d{2})_(\d{2})_(\d{2})(?:_([1-9]\d*))?")
 # 리포트가 아닌 세션 파일. `_` 로 시작하는 파일(상태 · 프롬프트)도 뺀다.
 _NOT_REPORTS = {"SUMMARY.md", "RESOLUTION.md", "README.md"}
 
@@ -376,7 +379,7 @@ def parse_coverage_summary(text: str) -> dict:
 
 def kind_of(session_dir: str) -> str | None:
     parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)
-    # 시각 경로(<Y>/<m>/<d>/<H_M_S>) 바로 위가 kind 디렉터리다.
+    # 시각 경로(<Y>/<m>/<d>/<H_M_S>[_<n>]) 바로 위가 kind 디렉터리다. 마지막 조각의 모양은 보지 않는다.
     if len(parts) >= 5:
         return _DIR_KIND.get(parts[-5])
     return None
@@ -509,12 +512,18 @@ def build(session_dir: str, kind: str | None = None, *, keep_info: bool = False)
 
 
 def session_stamp(session_dir: str) -> str | None:
-    """세션 경로 `.review/<kind>/<Y>/<m>/<d>/<H_M_S>` → `<YYYYMMDD>-<hhmmss>`. Task 가 없는 멱등 키의 앞자리다."""
+    """세션 경로 `.review/<kind>/<Y>/<m>/<d>/<H_M_S>[_<n>]` → `<YYYYMMDD>-<hhmmss>[-<n>]`. Task 가 없는 멱등 키의 앞자리다.
+
+    같은 초에 세션을 또 만들면 `create_session_dir` 가 `_2` · `_3` 을 붙인다. 접미사를 키에 남겨야 같은 초의
+    두 세션이 같은 키로 묶이지 않는다."""
     parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)[-4:]
-    if len(parts) == 4 and re.fullmatch(r"\d{4}", parts[0]) and all(re.fullmatch(r"\d{2}", p) for p in parts[1:3]) \
-            and re.fullmatch(r"\d{2}_\d{2}_\d{2}", parts[3]):
-        return "".join(parts[:3]) + "-" + parts[3].replace("_", "")
-    return None
+    if len(parts) != 4 or not re.fullmatch(r"\d{4}", parts[0]) or not all(re.fullmatch(r"\d{2}", p) for p in parts[1:3]):
+        return None
+    m = _SESSION_TIME_RE.fullmatch(parts[3])
+    if m is None:
+        return None
+    hh, mm, ss, n = m.groups()
+    return "".join(parts[:3]) + f"-{hh}{mm}{ss}" + (f"-{n}" if n else "")
 
 
 def content_digest(sub: dict) -> str:
@@ -584,7 +593,7 @@ def attach_submit(out: dict, *, branch: str, base: str, head: str, mode: str, ta
     errors += changeset_errors
     slot = task or session_stamp(cwd)
     if slot is None:
-        errors.append("멱등 키의 앞자리를 정하지 못했다 — --task 를 주거나 .review/<kind>/<Y>/<m>/<d>/<H_M_S> 세션을 준다")
+        errors.append("멱등 키의 앞자리를 정하지 못했다 — --task 를 주거나 .review/<kind>/<Y>/<m>/<d>/<H_M_S>[_<n>] 세션을 준다")
     doc: dict = {"version": out_doc.VERSION, "ok": False, **out, "errors": [*out["errors"], *errors]}
     if doc["errors"] or out["missing_forced"]:
         return doc
