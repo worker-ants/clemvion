@@ -5,7 +5,7 @@ section: "05-run-and-debug"
 order: 2
 summary: "이 페이지에서는 실행 이력 조회, 타임라인 사용법, 노드별 I/O 확인, 에러 메시지 해석을 설명해요."
 summary_en: "How to inspect execution history, use the timeline, check per-node I/O, and read error messages."
-spec: ["CLE-EXEC-HISTORY", "CLE-EXEC-RUN"]
+spec: ["CLE-EXEC-HISTORY", "CLE-EXEC-RUN", "CLE-EXEC-RERUN"]
 code: ["codebase/frontend/src/components/editor/run-results", "codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions", "codebase/backend/src/modules/executions"]
 ---
 
@@ -159,8 +159,8 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 
 재실행 창에서 **dry-run 모드**를 켜면 외부 시스템을 바꾸지 않고 흐름만 확인해요. HTTP 요청, 메일 발송, DB 쓰기, Cafe24·MakeShop 쓰기 노드는 실제로 호출하지 않고 모의 결과를 내요.
 
-<Callout type="warning">
-  dry-run 에서는 AI 에이전트의 MCP 도구(Cafe24·MakeShop 도구 포함)도 호출하지 않아요. 도구는 «실행하지 않았다» 는 결과를 받기 때문에 에이전트의 답이 실제 실행과 다를 수 있어요. 지식 베이스 검색은 그대로 해요.
+<Callout type="warn">
+  dry-run 에서는 AI 에이전트의 MCP 도구(Cafe24·MakeShop 도구 포함)도 호출하지 않아요. 도구는 «실행하지 않았다» 는 결과를 받기 때문에 에이전트의 답이 실제 실행과 다를 수 있어요. 지식 저장소 검색은 그대로 해요.
 </Callout>
 
 ## 노드별 입출력 확인 팁

@@ -149,8 +149,8 @@ A run started with Re-run joins the same chain as the original run. The executio
 
 Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead.
 
-<Callout type="warning">
-  In dry-run, the AI Agent's MCP tools (including Cafe24·MakeShop tools) are not called either. The tool gets a "not executed" result, so the agent's answer may differ from a real run. Knowledge base search still runs.
+<Callout type="warn">
+  In dry-run, the AI Agent's MCP tools (including Cafe24·MakeShop tools) are not called either. The tool gets a "not executed" result, so the agent's answer may differ from a real run. Knowledge Base search still runs.
 </Callout>
 
 ## Tips for inspecting per-node I/O
