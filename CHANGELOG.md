@@ -23,6 +23,19 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — basic_auth · hmac 웹훅 인증이 빈 기대값을 받아들이지 않는다
+
+`basic_auth` 인증 설정은 저장된 `username` · `password` 가 비어 있으면 빈 자격 증명을 받아들였다.
+`Authorization: Basic Og==`(`:`) 요청이 빈 값끼리 일치해 통과했다. `hmac` 도 `secret` 이 비어 있으면 빈 키로 계산한
+서명이 맞았고, 빈 키 HMAC 은 누구나 계산할 수 있다. `bearer_token` · `api_key` 는 기대값이 비면 이미 거부했다.
+DTO 설명은 `username` · `password` 를 사용자 입력 필수로 적지만 서버가 값을 검사하지 않아 비어 있는 설정을 만들 수
+있었다. 운영 키를 바꿔 복호화하지 못한 `auth_config.config` 도 빈 설정으로 읽혀 같은 경로가 열렸다(NERV 발견
+`01a123b1-7141-775b-b67d-b668ab2d5c42`).
+
+- `basic_auth` 는 기대 `username` 이나 `password` 가 비어 있으면, `hmac` 은 `secret` 이 비어 있으면 401
+  `AUTH_FAILED` 로 거부한다. 복호화하지 못한 설정(`__unreadable`)을 쓰는 웹훅 인증도 이 규칙으로 거부된다.
+- `username` · `password` 를 모두 채운 `basic_auth` 와 자동 발급된 `hmac` secret 은 영향이 없다.
+
 ## Unreleased — 운영 환경은 INTEGRATION_ENCRYPTION_KEY 없이 기동하지 않는다
 
 통합 자격 증명 · 인증 설정 컬럼 다섯 곳(`integration.credentials` · `integration.last_error` ·
@@ -40,8 +53,16 @@ OAuth 토큰 · API 키가 평문으로 쌓일 수 있었다(NERV 발견 `01a0e5
   한다.
 
 **배포 전 확인**: 운영 env 에 `INTEGRATION_ENCRYPTION_KEY` 가 실제 값으로 들어 있는지 본다. 지금까지 키 없이 돌던
-배포라면 위 다섯 컬럼에 평문 행이 남아 있을 수 있다. 이 변경은 그 행을 다시 암호화하지 않는다. 예시값으로 돌던
-배포가 키를 바꾸면 그 키로 암호화한 행은 `needs_reauth` 가 되어 다시 연결해야 한다.
+배포라면 위 다섯 컬럼에 평문 행이 남아 있을 수 있다. 이 변경은 그 행을 다시 암호화하지 않는다.
+
+예시값으로 돌던 배포가 키를 바꾸면 그 키로 암호화한 행은 읽을 수 없게 된다. 컬럼마다 드러나는 모습이 다르다.
+
+- 통합(`integration`): `needs_reauth` 로 표시된다. 다시 연결해야 한다.
+- 인증 설정(`auth_config.config`): `needs_reauth` 표시가 없다. 그 설정을 쓰는 웹훅 인증은 모두 401 로 거부된다. 읽을
+  수 없는 행은 저장해도 옛 암호문이 그대로 남아서 재발급으로 고쳐지지 않는다. 인증 설정을 새로 만들어 트리거에 다시
+  연결해야 한다.
+- OAuth 일시 행(`integration_oauth_state` · `integration_oauth_preview`): 진행 중인 연결 흐름이 실패한다. 연결을
+  처음부터 다시 시작한다.
 
 ## Unreleased — 워크스페이스 초대 메일 링크가 가입 화면으로 간다
 

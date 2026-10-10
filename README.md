@@ -238,7 +238,9 @@ MAIL_PASS=<smtp-password>
 MAIL_FROM=noreply@example.com    # 배포 환경에서는 실제 발신 도메인으로 교체
 
 # Security
-# 일반 암호화 (32-byte hex / 64 hex chars). 빈 값이면 암호화 비활성 (dev 전용).
+# Secret Store · LLM 프로바이더 API 키 암호화 (32-byte hex / 64 hex chars). 빈 값이면 Secret Store 는
+# 부팅에 실패하고 LLM 프로바이더 키 저장은 400 ENCRYPTION_KEY_MISSING 으로 거부된다(평문으로 저장하지 않는다).
+# NODE_ENV=production 은 미설정이거나 예시값이면 부팅을 거부한다.
 ENCRYPTION_KEY=<32-byte-hex>
 # Integration 자격증명(OAuth refresh token / API key / DB password 등)과 인증 설정(AuthConfig)을
 # AES-256-GCM 으로 암호화. NODE_ENV=production 은 미설정이거나 예시값이면 부팅을 거부한다.
