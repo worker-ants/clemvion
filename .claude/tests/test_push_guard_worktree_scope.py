@@ -356,14 +356,7 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         crashing = os.path.join(self.hooks_dir, "hook_crash_targets_observed.py")
         with open(self.hook, encoding="utf-8") as fh:
             src = fh.read()
-        marker = "def _push_targets(command: str, cwd: str) -> list[str]:"
-        self.assertIn(marker, src, "hook shape changed — update this patch point")
-        self._write(
-            crashing,
-            src.replace(
-                marker, marker + '\n    raise RuntimeError("boom")', 1
-            ),
-        )
+        self._write(crashing, _harness.break_push_targets(src, "boom"))
         shutil.copy(
             _harness.HOOKS_DIR / "_lib" / "failopen_state.py",
             os.path.join(self.hooks_dir, "_lib", "failopen_state.py"),
@@ -410,14 +403,7 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         crashing = os.path.join(self.hooks_dir, "hook_crashing_targets.py")
         with open(self.hook, encoding="utf-8") as f:
             src = f.read()
-        marker = "def _push_targets(command: str, cwd: str) -> list[str]:"
-        self.assertIn(marker, src, "hook shape changed — update this patch point")
-        src = src.replace(
-            marker,
-            marker + '\n    raise RuntimeError("simulated target-selection failure")',
-            1,
-        )
-        self._write(crashing, src)
+        self._write(crashing, _harness.break_push_targets(src, "simulated target-selection failure"))
 
         r = self._run(
             f"git push origin {self.side_branch}",

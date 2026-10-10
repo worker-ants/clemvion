@@ -15,6 +15,7 @@ envelope 로 읽는다. 평문이나 객체 두 개면 그 자리에서 실패�
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
@@ -23,29 +24,29 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
 from _lib import hook_output
 
 _NOTE = "⚠️  세션X: 하향 감지"
 
-# 정상 판정에 note 하나를 싣는 게이트 스텁. 실제 `ReviewDecision` 처럼 `push_blocks` 를 둔다.
+# 정상 판정을 내는 게이트 스텁. 실제 `ReviewDecision` 처럼 `push_blocks` 를 둔다.
 # 없으면 훅이 AttributeError 로 fail-open 경로에 들어가 엉뚱한 이유로 통과한다.
-_REVIEW_STUB = (
-    "from dataclasses import dataclass\n"
-    "@dataclass\n"
-    "class _D:\n"
-    "    blocked: bool = False\n"
-    "    reason: str = 'clean'\n"
-    f"    notes: tuple = ({_NOTE!r},)\n"
-    "    @property\n"
-    "    def push_blocks(self):\n"
-    "        return self.blocked\n"
-    "def evaluate_review(cwd=None, **_kw):\n"
-    "    return _D()\n"
-)
-
-_TARGETS_DEF = "def _push_targets(command: str, cwd: str) -> list[str]:\n"
+def _review_stub(notes: tuple = ()) -> str:
+    return (
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class _D:\n"
+        "    blocked: bool = False\n"
+        "    reason: str = 'clean'\n"
+        f"    notes: tuple = {notes!r}\n"
+        "    @property\n"
+        "    def push_blocks(self):\n"
+        "        return self.blocked\n"
+        "def evaluate_review(cwd=None, **_kw):\n"
+        "    return _D()\n"
+    )
 
 
 class EnvelopeTest(unittest.TestCase):
@@ -99,6 +100,32 @@ class ReaderRejectsWhatClaudeCodeDropsTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             _harness.pretooluse_context(json.dumps(obj))
 
+    def test_a_second_top_level_key(self):
+        # `systemMessage` 등을 같이 실은 객체는 envelope 하나가 아니다.
+        obj = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "x"},
+               "systemMessage": "y"}
+        with self.assertRaises(AssertionError):
+            _harness.pretooluse_context(json.dumps(obj))
+
+    def test_another_hook_event_name(self):
+        obj = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                      "additionalContext": "x"}}
+        with self.assertRaises(AssertionError):
+            _harness.pretooluse_context(json.dumps(obj))
+
+    def test_context_that_is_not_non_empty_text(self):
+        for value in ("", "  \n", 123, None, ["x"]):
+            with self.subTest(additionalContext=value):
+                obj = {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                              "additionalContext": value}}
+                with self.assertRaises(AssertionError):
+                    _harness.pretooluse_context(json.dumps(obj))
+
+    def test_a_missing_context(self):
+        obj = {"hookSpecificOutput": {"hookEventName": "PreToolUse"}}
+        with self.assertRaises(AssertionError):
+            _harness.pretooluse_context(json.dumps(obj))
+
     def test_empty_stdout_is_no_context(self):
         self.assertEqual(_harness.pretooluse_context(""), "")
 
@@ -110,23 +137,21 @@ class PushHookSpeaksInOneObjectTest(unittest.TestCase):
     대상 선정을 깨서 TARGET_SELECTION 을 degraded 로 만들고, 게이트 스텁은 note 를 싣는다.
     """
 
-    def _run(self, *, with_hook_output: bool) -> subprocess.CompletedProcess:
+    def _run(self, *, with_hook_output: bool, break_targets: bool = True,
+             notes: tuple = (_NOTE,)) -> subprocess.CompletedProcess:
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         hooks = os.path.join(tmp, "hooks")
         shutil.copytree(str(_harness.HOOKS_DIR), hooks,
                         ignore=shutil.ignore_patterns("__pycache__"))
         with open(os.path.join(hooks, "_lib", "review_guard.py"), "w", encoding="utf-8") as f:
-            f.write(_REVIEW_STUB)
+            f.write(_review_stub(notes))
         hook = os.path.join(hooks, "guard_review_before_push.py")
-        with open(hook, encoding="utf-8") as f:
-            source = f.read()
-        broken = source.replace(
-            _TARGETS_DEF,
-            _TARGETS_DEF + '    raise RuntimeError("simulated target selection failure")\n', 1)
-        self.assertNotEqual(broken, source, "주입 지점이 옮겨졌다")
-        with open(hook, "w", encoding="utf-8") as f:
-            f.write(broken)
+        if break_targets:
+            with open(hook, encoding="utf-8") as f:
+                source = f.read()
+            with open(hook, "w", encoding="utf-8") as f:
+                f.write(_harness.break_push_targets(source))
         if not with_hook_output:
             os.unlink(os.path.join(hooks, "_lib", "hook_output.py"))
         env = {k: v for k, v in os.environ.items() if k != "BYPASS_REVIEW_GUARD"}
@@ -156,6 +181,67 @@ class PushHookSpeaksInOneObjectTest(unittest.TestCase):
         self.assertEqual(without.returncode, 0, without.stderr)
         self.assertIn("fail-open", _harness.pretooluse_context(without.stdout))
         self.assertEqual(without.stdout, with_module.stdout)
+
+
+    def test_nothing_to_say_is_silent_on_both_paths(self):
+        """할 말이 없는 push 는 모듈 경로에서도 폴백에서도 바이트 단위로 조용하다.
+
+        `hook_output.emit_context` 는 빈 텍스트를 찍지 않는다. 폴백 사본의 같은 가드가 빠지면
+        `hook_output.py` 가 깨진 환경에서 깨끗한 push 마다 빈 `additionalContext` envelope 가 나간다.
+        """
+        for with_module in (True, False):
+            with self.subTest(with_hook_output=with_module):
+                r = self._run(with_hook_output=with_module, break_targets=False, notes=())
+                self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_fallback_still_delivers_a_note_alone(self):
+        """위 침묵이 훅이 죽어서 생긴 것이 아님을 보이는 대조군이다.
+
+        대상 선정을 깨지 않아도 note 하나만 있으면 두 경로가 같은 envelope 를 낸다.
+        """
+        with_module = self._run(with_hook_output=True, break_targets=False)
+        without = self._run(with_hook_output=False, break_targets=False)
+        self.assertEqual(without.returncode, 0, without.stderr)
+        self.assertEqual(_harness.pretooluse_context(without.stdout), _NOTE)
+        self.assertEqual(without.stdout, with_module.stdout)
+
+
+class _ClosedStdout:
+    """stdout 을 읽던 쪽이 먼저 닫혔을 때처럼 쓰기마다 `BrokenPipeError` 를 낸다."""
+
+    def write(self, _data):
+        raise BrokenPipeError("stdout closed")
+
+    def flush(self):
+        raise BrokenPipeError("stdout closed")
+
+
+class DeliveryFailureStaysInsideTheHookTest(unittest.TestCase):
+    """envelope 를 못 내보내도 리포팅이 가드를 깨뜨리지 않는다.
+
+    `_report` 는 `main()` 의 `finally` 에서 불린다. 거기서 예외가 나가면 훅이 exit 1 로 죽고
+    배너는 사라지고 traceback 만 남는다. `_deliver_to_model` 의 `except Exception` 이 막는다.
+    """
+
+    def setUp(self):
+        self.hook = _harness.load_module_by_path(
+            "push_guard_delivery_probe", _harness.HOOKS_DIR / "guard_review_before_push.py")
+
+    def _report_with_closed_stdout(self) -> str:
+        outcome = self.hook._Outcome()
+        outcome.notes = [_NOTE]
+        err = io.StringIO()
+        with contextlib.redirect_stdout(_ClosedStdout()), contextlib.redirect_stderr(err):
+            self.hook._report(outcome, 0)  # 예외가 나가면 여기서 테스트가 실패한다
+        return err.getvalue()
+
+    def test_module_path_swallows_the_error_and_leaves_a_traceback(self):
+        self.assertIsNotNone(self.hook.hook_output, "모듈 경로를 검증하려면 hook_output 이 로드돼야 한다")
+        self.assertIn("BrokenPipeError", self._report_with_closed_stdout())
+
+    def test_fallback_path_swallows_the_error_and_leaves_a_traceback(self):
+        with mock.patch.object(self.hook, "hook_output", None):
+            self.assertIn("BrokenPipeError", self._report_with_closed_stdout())
 
 
 class DefaultBranchReminderReachesTheModelTest(unittest.TestCase):

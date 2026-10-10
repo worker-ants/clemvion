@@ -312,15 +312,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         the PLAN gate is gone."""
         with open(self.hook, encoding="utf-8") as fh:
             source = fh.read()
-        broken = source.replace(
-            "def _push_targets(command: str, cwd: str) -> list[str]:\n",
-            "def _push_targets(command: str, cwd: str) -> list[str]:\n"
-            '    raise RuntimeError("simulated target selection failure")\n',
-            1,
-        )
-        self.assertNotEqual(broken, source, "the injection point moved")
         with open(self.hook, "w", encoding="utf-8") as fh:
-            fh.write(broken)
+            fh.write(_harness.break_push_targets(source))
 
     def test_two_degraded_checks_count_once_and_name_both(self):
         self._break_target_selection()
