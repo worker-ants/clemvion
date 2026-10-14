@@ -83,9 +83,14 @@ class _Fixture(unittest.TestCase):
         if hook == "guard_default_branch_edit.py":
             self.assertEqual(proc.returncode, 2, proc.stderr)
             self.assertIn("BLOCKED", proc.stderr)
-        else:
+        elif hook == "guard_default_branch_prompt.py":
+            # UserPromptSubmit: plain stdout is injected as context.
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn("<system-reminder>", proc.stdout)
+        else:
+            # PreToolUse: only the JSON envelope reaches the model (`_lib/hook_output.py`).
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("ensure-worktree.sh", _harness.pretooluse_context(proc.stdout))
 
     def assertSilent(self, hook: str, proc: subprocess.CompletedProcess):
         self.assertEqual(proc.returncode, 0, proc.stderr)
