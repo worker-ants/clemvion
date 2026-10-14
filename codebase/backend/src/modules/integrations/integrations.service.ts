@@ -19,6 +19,7 @@ import {
   isIntegrationVisibleTo,
   type IntegrationModifyAction,
 } from './integration-visibility';
+import { isReinstallRequestActive } from './reinstall-request';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
@@ -35,6 +36,7 @@ import {
 import {
   buildCafe24InstallUrl,
   buildMakeshopInstallUrl,
+  buildOauthCallbackUrl,
 } from './third-party-oauth.constants';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import {
@@ -264,6 +266,19 @@ type DerivedEntityInput = Pick<Integration, 'serviceType' | 'credentials'> & {
   installToken?: Integration['installToken'];
 };
 
+/**
+ * 행에 install_token 이 있는가 — App URL(`appUrl`)의 유무와 같다. 파생 필드 두 서비스(cafe24 · makeshop)와
+ * {@link isCafe24PrivateWithInstallToken} 가 같은 판정을 쓴다. 프런트엔드는 이 판정을 응답의 `appUrl` 유무로
+ * 읽는다(`reauthorize.ts` 의 `no_app_url`) — 조건을 바꾸면 그쪽의 비활성 사유도 함께 본다.
+ */
+function hasInstallToken<T extends { installToken?: string | null }>(
+  entity: T,
+): entity is T & { installToken: string } {
+  return (
+    typeof entity.installToken === 'string' && entity.installToken.length > 0
+  );
+}
+
 type IntegrationDerivedFn = (
   entity: DerivedEntityInput,
   ctx?: IntegrationDerivedContext,
@@ -289,12 +304,7 @@ export const INTEGRATION_DERIVED_REGISTRY = new Map<
       const appType =
         appTypeRaw === 'public' || appTypeRaw === 'private' ? appTypeRaw : null;
       let appUrl: string | null = null;
-      if (
-        appType === 'private' &&
-        ctx &&
-        typeof entity.installToken === 'string' &&
-        entity.installToken.length > 0
-      ) {
+      if (appType === 'private' && ctx && hasInstallToken(entity)) {
         appUrl = buildCafe24InstallUrl(ctx.appBaseUrl, entity.installToken);
       }
       return { appType, appUrl };
@@ -310,11 +320,7 @@ export const INTEGRATION_DERIVED_REGISTRY = new Map<
     'makeshop',
     (entity, ctx): Partial<IntegrationDerivedFields> => {
       let appUrl: string | null = null;
-      if (
-        ctx &&
-        typeof entity.installToken === 'string' &&
-        entity.installToken.length > 0
-      ) {
+      if (ctx && hasInstallToken(entity)) {
         appUrl = buildMakeshopInstallUrl(ctx.appBaseUrl, entity.installToken);
       }
       return { appType: null, appUrl };
@@ -354,6 +360,34 @@ export function buildIntegrationMeta(
   // appType needs no context — install URL is the only ctx-dependent field.
   const { appType } = buildDerivedFields(entity, undefined, credsUnreadable);
   return { appType };
+}
+
+/**
+ * App URL 이 있는 Cafe24 Private 통합인가 — 권한 추가 · 재인증이 begin 대신 App URL 안내(`cafe24_private_pending`)로
+ * 가는 조건이다. install_token 이 없는 행(설치 시간 초과)은 App URL 이 없어 이 경로를 탈 수 없다.
+ */
+function isCafe24PrivateWithInstallToken(
+  entity: Integration,
+): entity is Integration & { installToken: string } {
+  return (
+    entity.serviceType === 'cafe24' &&
+    entity.credentials.app_type === 'private' &&
+    hasInstallToken(entity)
+  );
+}
+
+/** 권한 추가 · 재인증이 돌려주는 Cafe24 Private App URL 안내. 권한 추가는 여기에 `scopesAdded` 를 더한다. */
+function buildCafe24PrivatePendingResult(
+  integrationId: string,
+  installToken: string,
+): Extract<BeginResult, { mode: 'cafe24_private_pending' }> {
+  const appBaseUrl = getAppBaseUrl();
+  return {
+    mode: 'cafe24_private_pending',
+    integrationId,
+    appUrl: buildCafe24InstallUrl(appBaseUrl, installToken),
+    callbackUrl: buildOauthCallbackUrl(appBaseUrl, 'cafe24'),
+  };
 }
 
 export type PublicIntegration = Omit<
@@ -666,6 +700,33 @@ export class IntegrationsService {
     scope: string;
   } {
     return { id: row.id, workspaceId: row.workspaceId, scope: row.scope };
+  }
+
+  /**
+   * Cafe24 Private 의 재설치 요청 표시를 남긴다 — `:id/reauthorize` · `:id/request-scopes` 가 같은 방식으로 쓴다.
+   *
+   * 판정한 행에만 · 바꾸는 컬럼만 `update` 한다(`judgedRow`). 엔티티 전체를 `save` 하면 읽은 뒤 다른 요청이 바꾼 컬럼을
+   * 옛 값으로 되돌린다(`logUsage` 의 `lastUsedAt`, 콜백이 회전한 `credentials`). Cafe24 는 refresh_token 을 회전하므로
+   * 옛 `credentials` 가 되살아나면 통합이 끊긴다. 행이 그 사이 지워졌거나 scope 가 바뀌었으면 0행이고 404 로 끝낸다.
+   *
+   * 설치 대기 행은 표시를 남기지 않는다 — App URL 이 표시 없이도 OAuth 로 보낸다. `extra` 만 있으면 그것만 쓴다
+   * (`request-scopes` 의 `credentials` 병합). 바꿀 컬럼이 없으면 쓰지 않는다. `credentials` transformer 는 `update` 에도
+   * 걸린다(`rotate` 주석). 타입은 `rotate` 의 changes 와 같은 이유로 넓힌다.
+   */
+  private async markReinstallRequested(
+    entity: Integration,
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    const changes: Record<string, unknown> = { ...extra };
+    if (entity.status !== 'pending_install') {
+      changes.reinstallRequestedAt = new Date();
+    }
+    if (Object.keys(changes).length === 0) return;
+    const { affected } = await this.integrationRepository.update(
+      this.judgedRow(entity),
+      changes,
+    );
+    if (affected === 0) this.throwIntegrationNotFound();
   }
 
   /** 조건부 쓰기 뒤 응답용으로 다시 읽는다 — `updated_at` 은 DB 가 정한다(rotate 와 같은 이유). */
@@ -1360,27 +1421,17 @@ export class IntegrationsService {
     // (Private 은 우리 서버가 OAuth 를 시작 못 함). 대신 기존 install_token
     // 을 그대로 두고 `credentials.scopes` 만 merge 갱신한 뒤,
     // 사용자에게 Cafe24 Developers 에서 권한 추가 후 "테스트 실행" 재호출
-    // 안내. 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
-    // "Cafe24 Private request-scopes 흐름" 항.
+    // 안내. 설치 대기가 아닌 행에는 재설치 요청 표시를 함께 남긴다 — App URL 이
+    // 그 표시를 보고 OAuth 로 보낸다(설치 대기 행은 표시 없이도 OAuth 로 간다).
+    // NERV CLE-INT-OAUTH Rationale, Task CLE-T-NNENG8.
     const creds = entity.credentials;
-    if (
-      entity.serviceType === 'cafe24' &&
-      creds.app_type === 'private' &&
-      typeof entity.installToken === 'string' &&
-      entity.installToken.length > 0
-    ) {
-      entity.credentials = {
-        ...entity.credentials,
-        scopes: mergedScopes,
-      };
-      await this.integrationRepository.save(entity);
+    if (isCafe24PrivateWithInstallToken(entity)) {
+      await this.markReinstallRequested(entity, {
+        credentials: { ...entity.credentials, scopes: mergedScopes },
+      });
 
-      const appBaseUrl = getAppBaseUrl();
       return {
-        mode: 'cafe24_private_pending',
-        integrationId: entity.id,
-        appUrl: `${appBaseUrl}/api/3rd-party/cafe24/install/${entity.installToken}`,
-        callbackUrl: `${appBaseUrl}/api/3rd-party/cafe24/callback`,
+        ...buildCafe24PrivatePendingResult(entity.id, entity.installToken),
         scopesAdded,
       };
     }
@@ -1484,6 +1535,21 @@ export class IntegrationsService {
         details: { mode: 'reset' },
       });
       return { authUrl: '', state: '' };
+    }
+
+    // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다(begin 은 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 거부한다). 재설치
+    // 요청 표시를 남기고 App URL 을 돌려준다. 사용자가 Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로
+    // 보낸다. 설치 대기 행은 App URL 이 이미 OAuth 로 보내므로 begin 의 안내를 그대로 쓴다. install_token 이 없는 행(설치
+    // 시간 초과)은 App URL 이 없어 삭제 후 재등록만 남는다. 상태 · 사유는 그대로 둔다 — connected 행은 기존 토큰으로 계속
+    // 실행되고 error · expired 행은 OAuth 가 끝날 때까지 실행되지 않는다(`INTEGRATION_NOT_CONNECTED`). 표시는 24시간
+    // 동안만 유효하다(`isReinstallRequestActive`).
+    // NERV CLE-INT-OAUTH · CLE-INT-MANAGE, Task CLE-T-NNENG8.
+    if (
+      isCafe24PrivateWithInstallToken(entity) &&
+      entity.status !== 'pending_install'
+    ) {
+      await this.markReinstallRequested(entity);
+      return buildCafe24PrivatePendingResult(entity.id, entity.installToken);
     }
 
     const existingScopes = Array.isArray(entity.credentials.scopes)
@@ -1618,6 +1684,11 @@ export class IntegrationsService {
     void _installToken;
     void _installTokenIssuedAt;
     const appUrl = derived.appUrl;
+    // 재설치 요청 표시는 유효할 때만 싣는다(24시간 — `isReinstallRequestActive`). 만료된 표시는 값이 DB 에 남아 있어도
+    // `null` 이다 — 상세 화면의 안내 배너는 이 값만 보므로 판정을 서버 한곳에서 한다.
+    const reinstallRequestedAt = isReinstallRequestActive(entity)
+      ? entity.reinstallRequestedAt
+      : null;
     // autoRefresh — derived from service registry, not a DB column. Computed
     // once per response. credsUnreadable 분기에서도 service 정의 기반이라
     // 일관된 값. spec/2-navigation/4-integration.md §9.1 + Rationale.
@@ -1636,6 +1707,7 @@ export class IntegrationsService {
         credentialsStatus: 'needs_reauth',
         meta,
         appUrl,
+        reinstallRequestedAt,
         autoRefresh,
       };
     }
@@ -1650,6 +1722,7 @@ export class IntegrationsService {
       credentialsStatus: 'ok',
       meta,
       appUrl,
+      reinstallRequestedAt,
       autoRefresh,
     };
   }

@@ -153,6 +153,10 @@ describe('MakeShop begin + catalog (e2e)', () => {
         });
       expect(res.status).toBe(400);
       expect(res.body?.error?.code).toBe('MAKESHOP_USE_SHOPSTORE_INSTALL');
+      // 복구는 삭제 후 재등록이다. ShopStore 재설치는 기존 통합을 되살리지 않는다(CLE-T-NNENG8).
+      expect(res.body?.error?.message).toMatch(
+        /delete the integration and register it again/,
+      );
     });
 
     it('begin idempotency — same (workspace, client_id) reuses the pending row', async () => {

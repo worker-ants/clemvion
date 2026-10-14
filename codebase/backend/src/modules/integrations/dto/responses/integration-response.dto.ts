@@ -154,6 +154,14 @@ export class IntegrationDto {
   @ApiProperty({ format: 'date-time', nullable: true, type: String })
   lastRotatedAt: string | null;
 
+  /**
+   * Cafe24 Private 재설치 요청 시각 — 권한 추가 · 재인증이 남기고 App URL 로 OAuth 를 마치면 `null` 로 돌아간다.
+   * 값이 있으면 상세 화면이 Cafe24 에서 「테스트 실행」을 누르라고 안내한다. 표시는 남긴 뒤 24시간 동안만 유효하다 —
+   * 그 뒤에는 서버가 `null` 로 내려 준다(DB 값은 남는다). 그 외 통합은 늘 `null`.
+   */
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  reinstallRequestedAt: string | null;
+
   /** 최종 사용 시각 (없으면 `null`) */
   @ApiProperty({ format: 'date-time', nullable: true, type: String })
   lastUsedAt: string | null;
@@ -292,7 +300,11 @@ export class PreviewTestResultDto {
  * 2. Cafe24 Private 흐름: `OAuthBeginCafe24PendingResultDto`
  *    = `{ mode: 'cafe24_private_pending', integrationId, appUrl,
  *    callbackUrl, scopesAdded? }`. Cafe24 가 OAuth flow 를 시작하므로
- *    우리는 사용자에게 등록할 URL 만 반환.
+ *    우리는 사용자에게 등록할 URL 만 반환. 새 등록(`oauth/begin`)은 새
+ *    pending_install 행의 URL 이고, 이미 설치를 마친 통합의
+ *    재인증(`:id/reauthorize`) · 권한 추가(`:id/request-scopes`)는 재설치 요청
+ *    (`reinstall_requested_at`)을 남기고 같은 App URL 을 돌려준다. 사용자가
+ *    Cafe24 에서 「테스트 실행」을 누르면 그 URL 이 OAuth 로 보낸다.
  *
  * Swagger 표현 — 두 분기를 명시적으로 보여주기 위해 controller 가
  * `ApiOkWrappedOneOfResponse([Popup, Cafe24Pending], ...)` 를 사용해
@@ -313,12 +325,16 @@ export class OAuthBeginCafe24PendingResultDto {
   @ApiProperty({
     enum: ['cafe24_private_pending'],
     description:
-      'Cafe24 Private 앱 install 흐름. 일반 흐름에서는 본 DTO 가 아닌 OAuthBeginPopupResultDto 가 반환된다.',
+      'Cafe24 Private 앱 install 흐름 — 새 등록의 설치 안내 또는 기존 통합의 재설치 요청 안내(재인증 · 권한 추가). 일반 흐름에서는 본 DTO 가 아닌 OAuthBeginPopupResultDto 가 반환된다.',
   })
   mode!: 'cafe24_private_pending';
 
-  /** 새로 생성된 pending_install integration ID. */
-  @ApiProperty({ format: 'uuid' })
+  /** 대상 통합 ID. 새 등록은 새 pending_install 행, 재인증 · 권한 추가는 기존 행. */
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      '대상 통합 ID. 새 등록은 새 pending_install 행, 재인증 · 권한 추가는 기존 행',
+  })
   integrationId!: string;
 
   /**

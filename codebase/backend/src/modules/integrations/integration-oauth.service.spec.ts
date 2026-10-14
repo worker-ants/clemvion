@@ -440,6 +440,112 @@ describe('IntegrationOAuthService', () => {
       expect(integrationRepo.save).toHaveBeenCalledTimes(1);
     });
 
+    // CLE-T-NNENG8 — 재설치 요청 표시로 재판정을 건너뛰는 것은 Cafe24 Private 행뿐이고 표시가 유효한 24시간 동안만이다.
+    // 표시를 남기는 입구가 Cafe24 Private 뿐이라 다른 행에 표시가 있으면 우회 시도로 보고 다시 본다.
+    describe('재설치 요청 표시 — Cafe24 Private 행에 한정하고 24시간 안에서만 건너뛴다', () => {
+      type Allowed = {
+        assertRequesterStillAllowed(
+          integration: unknown,
+          record: { workspaceId: string; userId: string; mode: string },
+          manager: unknown,
+        ): Promise<void>;
+      };
+      const HOUR = 60 * 60 * 1000;
+      const MINUTE = 60 * 1000;
+      const record = {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        mode: 'reauthorize',
+      };
+      const run = (
+        role: string | null,
+        integration: Record<string, unknown>,
+      ): Promise<void> =>
+        (
+          serviceWithRole(role) as unknown as Allowed
+        ).assertRequesterStillAllowed(integration, record, {});
+      /** Organization · 남이 만든 행 — 요청자(u-1, viewer)가 재판정을 받으면 ADMIN_REQUIRED 로 막힌다. */
+      const orgRow = (overrides: Record<string, unknown>) =>
+        rowOf({
+          scope: 'organization',
+          createdBy: 'u-2',
+          serviceType: 'cafe24',
+          credentials: { app_type: 'private' },
+          ...overrides,
+        });
+      const rejectsAdminRequired = (p: Promise<void>) =>
+        expect(p).rejects.toMatchObject({
+          response: { code: 'ADMIN_REQUIRED' },
+        });
+
+      it('Cafe24 Private 행의 유효한 표시(23시간 59분)는 재판정하지 않는다 — 인가는 표시를 남길 때 봤고 커밋은 App URL 의 HMAC 이 인가한다', async () => {
+        await expect(
+          run(
+            'viewer',
+            orgRow({
+              reinstallRequestedAt: new Date(Date.now() - (24 * HOUR - MINUTE)),
+            }),
+          ),
+        ).resolves.toBeUndefined();
+        expect(getMemberRole).not.toHaveBeenCalled();
+      });
+
+      it('Cafe24 Private 행이라도 표시가 24시간을 넘었으면 다시 본다', async () => {
+        await rejectsAdminRequired(
+          run(
+            'viewer',
+            orgRow({
+              reinstallRequestedAt: new Date(Date.now() - (24 * HOUR + MINUTE)),
+            }),
+          ),
+        );
+        expect(getMemberRole).toHaveBeenCalled();
+      });
+
+      it('표시가 없는 Cafe24 Private 행은 다시 본다', async () => {
+        await rejectsAdminRequired(
+          run('viewer', orgRow({ reinstallRequestedAt: null })),
+        );
+      });
+
+      it.each([
+        [
+          'Cafe24 Public',
+          { serviceType: 'cafe24', credentials: { app_type: 'public' } },
+        ],
+        ['MakeShop', { serviceType: 'makeshop', credentials: {} }],
+        ['Google', { serviceType: 'google', credentials: {} }],
+      ])('%s 행은 유효한 표시가 있어도 다시 본다', async (_name, overrides) => {
+        await rejectsAdminRequired(
+          run(
+            'viewer',
+            orgRow({
+              ...overrides,
+              reinstallRequestedAt: new Date(Date.now() - HOUR),
+            }),
+          ),
+        );
+        expect(getMemberRole).toHaveBeenCalled();
+      });
+
+      it('표시가 있는 Google 행의 콜백도 커밋하지 않는다(handleCallback 경유)', async () => {
+        dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({
+            createdBy: 'u-2',
+            reinstallRequestedAt: new Date(Date.now() - HOUR),
+          }),
+        );
+        await expect(
+          serviceWithRole('viewer').handleCallback('google', {
+            code: 'code',
+            state: 'abc',
+          }),
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      });
+    });
+
     it('역할을 조회할 수 없으면(WorkspacesService 미주입) Organization 재판정은 거부한다 — fail-closed', async () => {
       dataSource.query.mockResolvedValue(stateOf('reauthorize'));
       integrationRepo.findOne.mockResolvedValue(rowOf({}));
@@ -846,6 +952,59 @@ describe('IntegrationOAuthService', () => {
         status: 'connected',
         statusReason: null,
         lastError: null,
+      });
+      await service.markIntegrationCallbackError(
+        'int-2',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'denied',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.status).toBe('error');
+      expect(saved.statusReason).toBe('auth_failed');
+    });
+
+    // CLE-T-NNENG8 — 재설치 요청 표시가 있는 행은 기존 토큰이 아직 살아 있다. 새 코드 교환이 실패해도 상태와 표시를
+    // 보존해 사용자가 App URL 로 다시 시도하게 한다.
+    it('재설치 요청 표시가 있는 connected 행은 OAUTH_TOKEN_EXCHANGE_FAILED 에도 상태와 표시를 보존한다', async () => {
+      const requestedAt = new Date(Date.now() - 60 * 60 * 1000);
+      integrationRepo.findOne.mockResolvedValue({
+        id: 'int-2',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+        reinstallRequestedAt: requestedAt,
+      });
+      await service.markIntegrationCallbackError(
+        'int-2',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'denied',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.status).toBe('connected');
+      expect(saved.statusReason).toBeNull();
+      expect(saved.reinstallRequestedAt).toBe(requestedAt);
+      expect((saved.lastError as { code: string }).code).toBe(
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+      );
+    });
+
+    it('24시간이 지난 재설치 요청 표시는 없는 것으로 본다 — connected 행이 OAUTH_TOKEN_EXCHANGE_FAILED 로 error(auth_failed) 가 된다', async () => {
+      integrationRepo.findOne.mockResolvedValue({
+        id: 'int-2',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+        reinstallRequestedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
       });
       await service.markIntegrationCallbackError(
         'int-2',

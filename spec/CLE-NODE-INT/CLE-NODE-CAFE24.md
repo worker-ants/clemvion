@@ -3,18 +3,18 @@ id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "8fb545e7e2921c065e6b6ee925cde2a0ebf5a81055195154b2e1f27a3fb228ee"
-read_as: "approved"
-task: null
+content_hash: "5545465489392a939e60c241b209049472eccae278e335c15e0ea997043ca9e5"
+read_as: "approved_fallback"
+task: "CLE-T-NNENG8"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "111d9ffca8ed50b46603c6c1f36473bf20cfcde988e5a7a0cabb2790ee6a4b8a"
-etag: "sha256-d88d4b46ba5c96770d17c11a419f00bd6fb07537b035a70d93fd006c7b8c3628"
+mirror_sha256: "ed8bbdc2d1410f90df9baa7b90b57fe196e04773a726fc0810a223bc26d8bdbd"
+etag: "sha256-ead46f6145ba95528357caebf612cca23a4c91ba333ce4c63e5f702181a91682"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -390,7 +390,7 @@ Cafe24 API 4xx·5xx 응답:
 2. 활동 로그의 `error.code` 에도 같은 코드를 남긴다.
 3. 통합 상태를 `error` 로, 사유를 `auth_failed` 또는 `insufficient_scope` 로 한 번의 UPDATE 로 바꾼다. 통합 관리 화면에 "Need attention" 이 보이게 된다. 전이 조건과 사유 값은 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)이 정한다.
 
-격하한 뒤 `error → connected` 로 자동으로 돌아가지 않는다. 사용자가 통합 재인증으로 되돌린다. Cafe24 Private 앱은 통합 재인증 진입점이 없어 삭제 후 다시 등록하는 것이 유일한 복구다([OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#cafe24-private-이-오류가-되면-삭제-후-재등록만-된다)). 자동으로 돌아가지 않게 한 것은 시각 경쟁으로 상태가 뒤바뀌지 않게 하려는 정책이다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)의 인증 실패 전환 정책과 같다.
+격하한 뒤 `error → connected` 로 자동으로 돌아가지 않는다. 사용자가 통합 재인증으로 되돌린다. Cafe24 Private 앱은 우리 서버가 OAuth 를 시작할 수 없어 통합 재인증이 [재설치 대기 표시](../CLE-INT/CLE-INT-OAUTH.md#재설치-대기-표시)만 남긴다. 사용자가 24시간 안에 Cafe24 Developers 에서 "테스트 실행" 을 누르면 App URL 이 OAuth 인가로 보내고 콜백이 성공하면 `connected` 로 돌아간다. 그때까지 통합은 `error` 그대로라 노드는 `INTEGRATION_NOT_CONNECTED` 로 끝난다. App URL 이 없는(설치 토큰이 없는) Private 통합만 삭제 후 다시 등록해야 한다([OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#cafe24-private-이-오류가-되면-삭제-후-재등록만-된다)). 자동으로 돌아가지 않게 한 것은 시각 경쟁으로 상태가 뒤바뀌지 않게 하려는 정책이다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)의 인증 실패 전환 정책과 같다.
 
 ## 캔버스 요약
 
@@ -443,7 +443,7 @@ MCP 쪽 호출도 같은 활동 로그(`IntegrationUsageLog`)에 기록한다([M
 | `expired` + `status_reason='install_timeout'` | 뺀다(`install_token` 이 NULL 이라 갱신 불가). `mcpDiagnostics.serverSummaries[].skipReason='expired_install_timeout'` |
 | `expired` + 리프레시 토큰 있음 + 사유가 `install_timeout` 아님 | 큐를 거쳐 1회 토큰 갱신(`refreshViaQueue`)을 시도한다. 갱신 결과로 통합이 `connected` 로 돌아와 도구 등록을 이어 가는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조. 갱신에 실패하면 `error(auth_failed)` 로 바뀌고 뺀다(`skipReason='expired_refresh_failed'`) |
 | `expired` + 리프레시 토큰 없음 | 뺀다(`skipReason='expired_no_refresh_token'`). 이상 케이스라 사용자의 통합 재인증이 필요하다 |
-| `error(*)` | 뺀다(`skipReason='error'`). 외부에서 명시적으로 통합 재인증하는 것이 정식 복구다(위 "인증 실패 처리") |
+| `error(*)` | 뺀다(`skipReason='error'`). 외부에서 명시적으로 통합 재인증하는 것이 정식 복구다. App URL 이 없는 Cafe24 Private 통합은 삭제 후 다시 등록한다(위 "인증 실패 처리") |
 
 빼는지와 그 이유는 모두 AI 에이전트 노드의 `meta.mcpDiagnostics.serverSummaries[]` 에 남는다. 사용자는 "통합이 보이지 않는" 원인을 바로 알 수 있다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 진단).
 
@@ -510,7 +510,7 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 
 ### 식별 전략
 
-App URL 경로의 `:installToken` 으로 통합 **한 행**을 조회한다. 상태와 무관하다(`pending_install`·`connected`·`error(*)`·`expired` 모두 대상). 조회한 행의 `client_secret` 으로 HMAC 을 **한 번만** 검증한다. 메모리에서 후보를 훑으며 HMAC 을 여러 번 시험하는 방식 대신 이렇게 해서 중복 시나리오와 O(N) 비용을 함께 없앤다.
+App URL 경로의 `:installToken` 으로 통합 **한 행**을 조회한다. 상태와 무관하다(`pending_install`·`connected`·`error(*)`·`expired` 모두 대상). 조회한 행의 `client_secret` 으로 HMAC 을 **한 번만** 검증한다. 메모리에서 후보를 훑으며 HMAC 을 여러 번 시험하는 방식 대신 이렇게 해서 중복 시나리오와 O(N) 비용을 함께 없앤다. 검증을 통과한 행을 OAuth 인가로 보낼지 프런트엔드 상세 화면으로 보낼지는 행의 상태와 [재설치 대기 표시](../CLE-INT/CLE-INT-OAUTH.md#재설치-대기-표시)로 정한다. 설치 대기이거나 유효한 재설치 대기 표시가 있으면 OAuth 인가로 보내고 그 밖이면 상세 화면으로 보낸다. 그래서 오류·만료됨 행도 통합 재인증 뒤 "테스트 실행" 으로 복구할 수 있다. 분기 규칙은 [OAuth 연결과 토큰 갱신 §설치 엔드포인트](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url)가 정한다.
 
 - 한 행 조회가 실패하면 `install_token` 불일치 회복 흐름(`tryRecoverByMallId`)이 좁은 대체 경로로 동작한다. `mall_id` 가 같은 후보(상한 `RECOVERY_CANDIDATE_LIMIT=5`)의 `client_secret` 으로 HMAC 을 한 번씩 시험한다. 정확히 1개가 통과하면 그 행으로 진행하고, 0개나 여러 개면 회복을 포기한다. 보안 전제와 DoS 보호는 [OAuth 연결과 토큰 갱신 Rationale](../CLE-INT/CLE-INT-OAUTH.md#설치-토큰-불일치-회복-흐름)에 있다.
 - 응답 코드: 회복 흐름 뒤에도 토큰이 없으면 `404 CAFE24_INSTALL_INVALID_TOKEN`, HMAC 불일치는 `403 CAFE24_INSTALL_INVALID_HMAC`, timestamp 윈도우 초과는 `400 CAFE24_INSTALL_REPLAY`, 파라미터 누락은 `400 CAFE24_INSTALL_MISSING_PARAMS`, 같은 IP 의 조회·HMAC 실패가 `INSTALL_FAIL_THRESHOLD` 를 넘으면 `429 CAFE24_INSTALL_RATE_LIMITED` 다.

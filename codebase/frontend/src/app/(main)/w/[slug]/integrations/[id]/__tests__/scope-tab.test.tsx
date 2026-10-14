@@ -61,7 +61,7 @@ function buildIntegration(overrides: Partial<IntegrationDto> = {}): IntegrationD
     lastRotatedAt: null,
     lastError: null,
     meta: { appType: "private" },
-    appUrl: null,
+    appUrl: "https://example.com/api/3rd-party/cafe24/install/abc",
     createdBy: "user-1",
     createdAt: "2000-01-01T00:00:00Z",
     updatedAt: "2000-01-01T00:00:00Z",
@@ -163,9 +163,9 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     expect(alert).toHaveTextContent("mall.write_product");
     expect(alert).toHaveTextContent("mall.read_order");
     expect(toastInfoMock).toHaveBeenCalledTimes(1);
-    // pending 분기는 onChanged() 호출하지 않는다 — 실제 token 갱신은 cafe24
-    // 측 후속 작업 후이므로 refetch 해도 변화 없음
-    expect(onChanged).not.toHaveBeenCalled();
+    // 서버가 scope 병합과 재설치 대기 표시를 저장했으므로 다시 읽어 상세 화면의
+    // 재설치 대기 안내를 띄운다. 토큰은 Cafe24 '테스트 실행' 뒤에 바뀐다.
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
   it("renders the alert without the scopes list when scopesAdded is empty", async () => {
@@ -285,6 +285,63 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     expect(
       screen.getByRole("button", { name: "Request scopes" }),
     ).toBeDisabled();
+  });
+
+  it("disables scope requests for MakeShop and tells the user to delete and re-register", async () => {
+    const { render: renderFn } = renderScopeTab({
+      integration: buildIntegration({
+        id: "int-makeshop-1",
+        serviceType: "makeshop",
+        credentials: { scopes: ["mall.read_product"] },
+        meta: { appType: null },
+        appUrl: "https://example.com/api/3rd-party/makeshop/install/xyz",
+      }),
+    });
+    await act(async () => {
+      renderFn();
+    });
+
+    expect(
+      screen.getByText(/MakeShop integrations can't be granted new scopes/),
+    ).toBeInTheDocument();
+    expect(getCheckbox("Write product")).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Request scopes" }),
+    ).toBeDisabled();
+    expect(requestScopesMock).not.toHaveBeenCalled();
+  });
+
+  it("disables scope requests for a Cafe24 Private row without an App URL", async () => {
+    const { render: renderFn } = renderScopeTab({
+      integration: buildIntegration({ appUrl: null }),
+    });
+    await act(async () => {
+      renderFn();
+    });
+
+    // 사유가 다르면 문구도 다르다 — MakeShop 문구가 섞이지 않는다.
+    expect(
+      screen.getByText(/has no App URL, so a scope request can't be made/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/MakeShop integrations can't be granted/)).toBeNull();
+    expect(getCheckbox("Write product")).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Request scopes" }),
+    ).toBeDisabled();
+  });
+
+  it("keeps scope requests enabled for a Cafe24 Private row with an App URL", async () => {
+    const { render: renderFn } = renderScopeTab({});
+    await act(async () => {
+      renderFn();
+    });
+
+    expect(screen.queryByText(/can't be granted new scopes/)).toBeNull();
+    expect(screen.queryByText(/a scope request can't be made/)).toBeNull();
+    await userEvent.click(getCheckbox("Write product"));
+    expect(
+      screen.getByRole("button", { name: "Request scopes" }),
+    ).toBeEnabled();
   });
 
   it("renders the non-OAuth fallback when authType is not oauth2", async () => {

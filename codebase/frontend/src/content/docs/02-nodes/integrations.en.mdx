@@ -257,8 +257,19 @@ If this is your first time, register the integration from **sidebar → Integrat
   {name: "resource", required: true, type: "enum", description: "MakeShop section — one of 7 values: `shop`, `product`, `order`, `member`, `benefit`, `board`, `cpik`.", default: "-"},
   {name: "operation", required: true, type: "string", description: "Operation identifier for the selected resource — e.g. `get-product`, `get-order-1`, `post-cart-create`. The metadata table fills the dropdown automatically.", default: "-"},
   {name: "fields", required: false, type: "Record<string, unknown>", description: "Input fields for the selected operation. Expression `{{ }}` allowed.", default: "{}"},
-  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset? }`. Meaningful only when the operation supports pagination.", default: "-"}
+  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset? }`. Meaningful only when the operation supports pagination. MakeShop does not accept an offset, so at run time it is converted to `page = offset / limit + 1` and sent as `limit` and `page`. See the rules below.", default: "-"}
 ]} />
+
+**How pagination becomes a MakeShop call**
+
+The MakeShop API pages by page number (`page`) instead of an offset. The node config keeps `limit` and `offset` as they are. At run time they are converted to `page = offset / limit + 1`, and only `limit` and `page` are sent. `offset` is never sent to MakeShop.
+
+- An `offset` of `0` means `page` 1. For example, `limit: 50, offset: 100` is page 3.
+- If you leave `offset` out, no `page` is sent.
+- `offset` must be a multiple of `limit`. If `offset` is greater than 0 and `limit` is missing or `offset` is not a multiple, the node routes to the `error` port with `MAKESHOP_INVALID_PAGINATION` before any call is made.
+- The same code is returned when `limit` is not a positive integer, or when `offset` is negative or not an integer. The message includes the cause and the value.
+- If you put `limit` or `page` directly in `fields`, the value computed from pagination wins.
+- In the editor, changing Offset also saves the Limit shown on screen (default 50).
 
 ### Ports
 
@@ -287,9 +298,25 @@ If this is your first time, register the integration from **sidebar → Integrat
 ```
 </Example>
 
+<Example title="Fetch page 3 of MakeShop orders">
+```ts
+// config — MakeShop receives limit=50, page=3 (offset is not sent)
+{
+  integrationId: "…",
+  resource: "order",
+  operation: "get-order-1",
+  fields: {
+    InquiryTimeFrom: "2026-10-01 00:00:00",
+    InquiryTimeTo: "2026-10-02 00:00:00"
+  },
+  pagination: { limit: 50, offset: 100 }
+}
+```
+</Example>
+
 The error port's `code` splits by how the call failed — `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` by status, `MAKESHOP_AUTH_FAILED` for expired auth, `MAKESHOP_RATE_LIMITED` for throttling, and `MAKESHOP_TRANSPORT_FAILED` for network errors. The Cafe24 node works the same way; its list is in the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24).
 
-Those seven are failures **after the call went out**. When the configuration is wrong and no call is ever built, the codes are separate: unknown operation (`MAKESHOP_UNKNOWN_OPERATION`), missing required input (`MAKESHOP_MISSING_FIELDS`), and malformed shop identifier (`MAKESHOP_INVALID_SHOP_UID`). These clear by fixing the node's configuration.
+Those seven are failures **after the call went out**. When the configuration is wrong and no call is ever built, the codes are separate: unknown operation (`MAKESHOP_UNKNOWN_OPERATION`), missing required input (`MAKESHOP_MISSING_FIELDS`), invalid pagination settings (`MAKESHOP_INVALID_PAGINATION`), and malformed shop identifier (`MAKESHOP_INVALID_SHOP_UID`). These clear by fixing the node's configuration.
 
 <Callout type="note">
   **An unresolved path variable has no dedicated code.** `code` carries the shared integration-node fallback `INTEGRATION_CALL_FAILED`, and which placeholder was left empty appears in `message` as `MAKESHOP_UNRESOLVED_PATH_PARAM: operation '...' has unresolved path placeholder(s): ...`. **Read the message, not the code.**
