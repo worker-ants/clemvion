@@ -2,19 +2,19 @@
 id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035"]
+requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035", "REQ-SCHED-036", "REQ-SCHED-037", "REQ-SCHED-038", "REQ-SCHED-039"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "e4da3e687b6292e2f8ad3d36061f2b4192fe0c92ae7ce4d5732a97d1353aa75e"
+content_hash: "bb8cffc0ca94277eb78a3ee8325f8e50c104ab7e42a791910586d4d91ec9785f"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "dee52ede2fd6a6f392eb9ae2cb46332a16ed327a3e4144c3f9cf19587d56936f"
-etag: "sha256-ff14cf0973c31edc5f10e63172a3a8778478053fc654d0b83cec3debee046ac0"
+mirror_sha256: "7276eb3c46873d3238416235d3e5c215fc4014e0d082a907616f81870d0cf62d"
+etag: "sha256-29adffa417c679839698be55bfc7c073c953c5f546d388e301eda425e9080d39"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -69,6 +69,10 @@ etag: "sha256-ff14cf0973c31edc5f10e63172a3a8778478053fc654d0b83cec3debee046ac0"
 - REQ-SCHED-033 WHEN `POST /api/schedules/preview` 가 호출되면 THE SYSTEM SHALL 받은 Cron 과 시간대로 다음 실행 시각을 계산해 돌려준다.
 - REQ-SCHED-034 IF Cron 이 발사할 때 연결된 트리거의 워크플로우가 스케줄의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 재시도와 `schedule_failed` 알림 없이 건너뛴 뒤 서버 에러 로그를 남긴다.
 - REQ-SCHED-035 IF 지금 실행(`run-now`)에서 연결된 트리거의 워크플로우가 요청의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 연결된 워크플로우가 없을 때와 같은 `400` 으로 응답한다.
+- REQ-SCHED-036 IF Cron 이 발사할 때 연결된 트리거의 워크플로우가 꺼져 있으면(`workflow.is_active=false`) THE SYSTEM SHALL 실행을 만들지 않고 재시도와 `schedule_failed` 알림 없이 그 발화를 건너뛴 뒤 로그를 남긴다.
+- REQ-SCHED-037 WHEN 워크플로우가 꺼져 있어 발화를 건너뛰면 THE SYSTEM SHALL 스케줄 활성 상태와 BullMQ job scheduler 를 그대로 두고 다음 Cron 발화에서 워크플로우 활성 상태를 다시 확인한다.
+- REQ-SCHED-038 WHEN 꺼진 워크플로우를 다시 켜면 THE SYSTEM SHALL 다음 Cron 발화부터 실행하고 꺼져 있는 동안 건너뛴 발화는 보충하지 않는다.
+- REQ-SCHED-039 WHEN 사용자가 지금 실행(`run-now`)을 요청하면 THE SYSTEM SHALL 워크플로우가 꺼져 있어도 수동 실행으로 시작한다.
 
 ## 화면 구조
 
@@ -217,11 +221,21 @@ Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면�
 | Cron 자동 발사 | 연결된 워크플로우가 없을 때처럼 건너뛰고 서버 에러 로그를 남긴다(연결된 워크플로우가 없을 때의 로그는 경고 등급이다). 재시도하지 않고 `lastRunAt` · `nextRunAt` 을 바꾸지 않는다. `schedule_failed` 알림은 보내지 않는다(REQ-SCHED-034, [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) REQ-NOTIFY-052) |
 | "지금 실행" | 연결된 워크플로우가 없을 때와 같은 400 이다. 두 경우를 구분하지 않는다(REQ-SCHED-035) |
 
+## 꺼진 워크플로우
+
+워크플로우가 꺼져 있으면(`workflow.is_active=false`) Cron 자동 발사로 실행이 생기지 않는다. 웹훅 · 채팅 채널과 함께 쓰는 확인 규칙(확인 순서, 워크스페이스 범위, 관문을 거치지 않는 경로)은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
+
+| 발사 경로 | 워크플로우가 꺼져 있을 때 |
+|-----------|---------------------------|
+| Cron 자동 발사 | 스케줄 비활성 확인과 워크플로우 미연결 확인 다음에 본다. 워크플로우는 스케줄의 워크스페이스 안에서 찾는다. 꺼져 있으면 실행을 만들지 않고 로그만 남긴 뒤 job 을 정상 완료한다. 재시도하지 않고 `lastRunAt` · `nextRunAt` 을 바꾸지 않으며 `schedule_failed` 알림을 보내지 않는다(REQ-SCHED-036). 스케줄과 BullMQ job scheduler 는 그대로 두므로 다음 Cron 발화에서 다시 본다(REQ-SCHED-037). 워크플로우를 켜면 다음 발화부터 실행되고 꺼져 있는 동안 건너뛴 발화는 보충하지 않는다(REQ-SCHED-038) |
+| "지금 실행" | 확인하지 않는다. 사용자가 직접 시작하는 수동 실행이라 워크플로우가 꺼져 있어도 실행한다(REQ-SCHED-039) |
+
+워크플로우가 스케줄의 워크스페이스에 없으면 이 확인은 통과하고 [다른 워크스페이스의 워크플로우](#다른-워크스페이스의-워크플로우) 의 규칙을 따른다.
+
 ## 미결 사항
 
 - **스케줄 기본 시간대 폴백**: 스케줄 원문과 현재 구현(`SchedulesService.resolveTimezone`)은 명시값 → 워크스페이스 `settings.timezone` → `'Asia/Seoul'` 순으로 대체한다. DB 기본값도 `'Asia/Seoul'` 이다. 반면 데이터 모델의 `Workspace.settings.timezone` 서술은 워크스페이스 시간대가 없으면 서버 `process.env.TZ` → `UTC` 로 대체하고 스케줄 기본 시간대도 이 값을 따른다고 적는다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 은 AI 시스템 컨텍스트만 `process.env.TZ` → `UTC` 이고 스케줄 시간대는 별개라고 적는다. 개인 워크스페이스를 만들 때 브라우저 시간대로 채운다는 서술도 있으나 현재 구현은 `settings={}` 로 만든다. 데이터 모델을 따르면 Cron 발사 시각이 9시간 달라질 수 있다. 스케줄과 AI 컨텍스트가 서로 다른 기본값을 써도 되는지 결정해야 한다. 워크스페이스 시간대의 기준 문서인 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 에 같은 미결이 있고 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 도 이 결정을 따르므로 세 문서를 함께 정한다.
 - **지금 실행 버튼의 노출 권한**: 스케줄 원문은 지금 실행(Run) 버튼의 권한을 적지 않는다. 권한 매트릭스([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md))는 뷰어의 워크플로우 실행을 막고 백엔드 `run-now` 도 `@Roles('editor')` 다. 현재 프런트엔드는 Run 버튼을 RoleGate 밖에 두어 뷰어가 누르면 403 을 받는다. 화면 노출을 편집자 이상으로 맞출지 결정해야 한다.
-- **워크플로우 비활성 상태가 스케줄 발사를 막는지**: 정의가 갈린다. 두 입장과 현재 구현은 [트리거 데이터와 흐름](CLE-TRIG-DATA.md) 의 미결 사항에 적는다.
 
 ## 구현 위치
 
@@ -229,7 +243,8 @@ Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면�
 - `codebase/frontend/src/lib/utils/cron-to-visual.ts`
 - `codebase/backend/src/modules/schedules/schedules.controller.ts`
 - `codebase/backend/src/modules/schedules/schedules.service.ts`
-- `codebase/backend/src/modules/schedules/schedule-runner.service.ts`
+- `codebase/backend/src/modules/schedules/schedule-runner.service.ts` (Cron 발화 처리 `process`. 워크플로우 활성 관문도 여기서 부른다)
+- `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문 `isWorkflowInactive`. 웹훅 · 채팅 채널과 함께 쓴다)
 - `codebase/backend/src/modules/schedules/schedules.module.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`
 - `codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts`
@@ -237,6 +252,8 @@ Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면�
 - `codebase/backend/src/modules/schedules/dto/**`
 - `codebase/backend/test/schedule-trigger.e2e-spec.ts` (응답 형태 네 가지를 양성 3과 생성 음성 대조 1로 고정)
 - `codebase/backend/src/shared/testing/schedule-trigger-ref*.ts` (위 e2e 단언의 정본: 좁힌 참조 키셋과 비밀 컬럼 목록)
+- `codebase/backend/src/modules/schedules/schedule-runner.service.spec.ts` (꺼진 워크플로우의 발화를 건너뛴다)
+- `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts` (꺼진 워크플로우는 job 이 와도 실행하지 않고 켜면 실행한다)
 
 ## Rationale
 
@@ -254,3 +271,11 @@ Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면�
 
 - 스케줄 → 트리거(`/triggers?triggerId=`): 트리거 상세 패널을 자동으로 연다. 상세 패널은 트리거 id 로 단건 리소스를 바로 조회하므로 목록 로드나 페이지와 상관없이 언제나 열 수 있다([트리거 관리](CLE-TRIG-MANAGE.md)).
 - 트리거 → 스케줄(`/schedules?triggerId=`): 목록을 서버 `?triggerId=` 필터로 그 트리거의 스케줄로 좁히고 행을 강조·스크롤한다. 서버 필터라 페이지 위치와 상관없이 대상을 찾는다. 패널 자동 열기 대신 목록 필터와 강조를 고른 이유는 두 가지다. 스케줄 편집은 다음 실행·활성 상태 같은 목록 맥락 안에서 하는 편이 자연스럽다. 그리고 "전체 보기" 해제 경로를 분명히 둘 수 있다. 편집 대화상자는 자동으로 열지 않는다.
+
+### 꺼진 워크플로우의 발화를 건너뛰고 스케줄은 그대로 둔다 (2026-10-10)
+
+워크플로우를 끄면 Cron 자동 발사로 실행이 생기지 않는다. 이 미결은 사용자가 2026-10-10 에 정했다(NERV Task `CLE-T-XRWFMJ`). 결정과 기각한 대안은 [트리거 데이터와 흐름](CLE-TRIG-DATA.md#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 이 기준이다. 이 절은 스케줄 쪽 선택만 적는다.
+
+- 발화 때 확인한다. 워크플로우를 꺼도 스케줄의 활성 상태와 BullMQ job scheduler 는 바뀌지 않는다. 스케줄의 활성 상태는 사용자가 스케줄 화면이나 트리거 화면에서 정한 값으로 남는다. 그래서 워크플로우를 다시 켜면 다른 조작 없이 다음 발화부터 돈다. 꺼져 있는 동안 건너뛴 발화는 보충하지 않는다.
+- 건너뛴 발화는 꺼진 스케줄을 건너뛸 때와 같이 다룬다. 재시도하지 않고 `schedule_failed` 알림도 보내지 않으며 job 은 정상 완료로 끝난다.
+- "지금 실행" 은 사용자가 직접 시작하는 수동 실행이라 관문을 거치지 않는다. 편집기 수동 실행이 꺼진 워크플로우도 실행하는 것([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md))과 같다.

@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "bafb7264f54d22465cd639455a864b050c649b719761951bfea83b66dcdd7a71"
+content_hash: "759bf9fbab37b0387e86136229e6f4b63e7558b70c5da3d83c8bedc8b9936109"
 read_as: "approved_fallback"
-task: "CLE-T-ERAJ7P"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "9bd3feedecc40e1a7a9b1091a0607d206dbc6f4e874bee523166c7f7f3345b3a"
-etag: "sha256-46e0f2fc9d8e71e70a182c9285fe0425de8ae700de11aa222295efa1f0115af7"
+mirror_sha256: "c6e881bd8c1ae783731c19613f0e2e23bb523c0824574de4c731628e9e1ece9e"
+etag: "sha256-877ed6157b516951ae9671ddd0e99970b1c7f913ab15fce8e750bc1e35bab0ea"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -255,7 +255,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 403 | Forbidden | 권한 없음 |
 | 404 | Not Found | 리소스 없음 |
 | 409 | Conflict | 리소스 충돌 (중복 생성 등) |
-| 410 | Gone | 리소스가 존재했으나 사라졌거나 비활성이다. 처음부터 없는 `404` 와 구분한다. 비활성 웹훅 트리거 `TRIGGER_INACTIVE`([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)) · 종료된 실행에 대한 명령 `EXECUTION_TERMINATED`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) · 만료되거나 사용된 초대 `invitation_expired`·`invitation_already_used`([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)). **예외**: `config.chatChannel` 트리거는 비활성이어도 `410` 이 아니라 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). `410` 에는 기본 에러 코드가 없다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) |
+| 410 | Gone | 리소스가 존재했으나 사라졌거나 비활성이다. 처음부터 없는 `404` 와 구분한다. 비활성 웹훅 트리거 `TRIGGER_INACTIVE`([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)) · 트리거의 워크플로우가 꺼진 웹훅 `WORKFLOW_INACTIVE`([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md#워크플로우-활성-상태)) · 종료된 실행에 대한 명령 `EXECUTION_TERMINATED`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) · 만료되거나 사용된 초대 `invitation_expired`·`invitation_already_used`([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)). **예외**: `config.chatChannel` 트리거는 `410` 대신 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. 트리거가 꺼져 있으면 모든 인입이 그렇다. 워크플로우만 꺼져 있으면 새 실행을 시작하는 인입만 그렇고 진행 중인 대화는 이어진다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md#워크플로우-활성-상태)). `410` 에는 기본 에러 코드가 없다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) |
 | 413 | Payload Too Large | 요청 본문이 body-parser 한도를 넘었다. 코드 `PAYLOAD_TOO_LARGE`. 웹훅 본문 크기 정책은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | 422 | Unprocessable Entity | 비즈니스 로직 에러 |
 | 429 | Too Many Requests | 요청 빈도 제한 초과 |
@@ -387,7 +387,9 @@ flowchart TD
   A[URL 에서 endpoint_path 추출] --> B{트리거 조회}
   B -- 없음 --> B1[404]
   B -- 비활성 --> B2[410 Gone]
-  B -- 활성 --> C{인증 설정 연결 여부}
+  B -- 활성 --> W{워크플로우 활성 여부}
+  W -- 꺼짐 --> W2[410 Gone - WORKFLOW_INACTIVE]
+  W -- 켜짐 --> C{인증 설정 연결 여부}
   C -- 연결 안 됨 --> E[공개 수신]
   C -- 연결됨 --> D{AuthConfig 기준 인증}
   D -- 실패 --> D1[401]
@@ -397,7 +399,7 @@ flowchart TD
   G --> H[202 즉시 응답]
 ```
 
-1. URL 에서 `endpoint_path` 를 뽑아 트리거를 찾는다. 없으면 `404`, 비활성이면 `410 Gone` 이다.
+1. URL 에서 `endpoint_path` 를 뽑아 트리거를 찾는다. 없으면 `404`, 비활성이면 `410 Gone` 이다. 트리거는 켜져 있어도 그 워크플로우가 꺼져 있으면 `410 Gone`(`WORKFLOW_INACTIVE`)이다. 이 검사는 인증보다 앞이다.
 2. `Trigger.auth_config_id` 가 가리키는 인증 설정(AuthConfig)으로 인증한다. 연결된 인증 설정이 없으면 공개 수신이고 인증에 실패하면 `401` 이다.
 3. 페이로드를 파싱한다(`application/json`, `application/x-www-form-urlencoded`).
 4. 실행(Execution)을 만들고 실행 엔진 큐에 넣는다.
@@ -601,3 +603,7 @@ Task CLE-T-ERAJ7P 에서 바뀐 사실이다.
 ### §2.3 의 워크스페이스 인가 링크를 바로잡았다 (2026-10-10)
 
 §2.3 은 경로 파라미터 예외의 근거와 현재 워크스페이스 결정의 단일 기준을 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 으로 가리켰다. 그 규칙과 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 「전환 API 와 토큰」 · 「API 인가」 절과 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」가 정하므로 링크를 그쪽으로 바꿨다.
+
+### 410 행과 웹훅 처리 흐름에 `WORKFLOW_INACTIVE` 를 더했다 (2026-10-10)
+
+NERV Task `CLE-T-XRWFMJ` 의 결정이다. 웹훅 트리거가 켜져 있어도 그 워크플로우가 꺼져 있으면 `410 Gone` 과 `WORKFLOW_INACTIVE` 를 돌려준다. 채팅 채널 트리거는 새 실행을 시작하려 할 때만 `202` ignored 로 막고 진행 중인 대화는 이어진다. 결정과 기각한 대안은 [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md#꺼진-워크플로우는-외부-이벤트로-실행하지-않는다-2026-10-10) 에 있다. 이 문서는 §6 의 `410` 행과 §11.3 의 요약 흐름에 그 분기를 더했다.

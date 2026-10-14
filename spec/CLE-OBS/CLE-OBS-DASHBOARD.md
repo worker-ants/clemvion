@@ -3,18 +3,18 @@ id: "CLE-OBS-DASHBOARD"
 title: "대시보드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-DASH-001", "REQ-DASH-002", "REQ-DASH-003", "REQ-DASH-004", "REQ-DASH-005", "REQ-DASH-006", "REQ-DASH-007", "REQ-DASH-008", "REQ-DASH-009", "REQ-DASH-010", "REQ-DASH-011", "REQ-DASH-012", "REQ-DASH-013", "REQ-DASH-014", "REQ-DASH-015", "REQ-DASH-016", "REQ-DASH-017", "REQ-DASH-018"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "57f146ac47813aa41eb619888d9d844e653890129de09d5d0ab9103a20ec615b"
+content_hash: "bdbe192fd3f2755531d947edf8051a0096ef2ad82f0ab2b3b1fab563cf054eef"
 read_as: "approved_fallback"
 task: "CLE-T-XRWFMJ"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "6e189750edc49e2c63d57374e937f990ff6dfd41e29320c8e4ce8adf628c7e8d"
-etag: "sha256-ed352cdbec05450ca80c4ab79786792f24bddae36e78bcef8abf8d39a562e83e"
+mirror_sha256: "f3c0e1bb90b982eed87b10830f946c949d8e924f28831661d0fbcebbcdabb8ca"
+etag: "sha256-8f5d96da305b460f8ccedaf6d5c1b761eb3c07813064f9addfb44fba90fdd582"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/0-dashboard.md`, `spec/data-flow/9-observability.md` (§1.2 의 대시보드 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ etag: "sha256-ed352cdbec05450ca80c4ab79786792f24bddae36e78bcef8abf8d39a562e83e"
 | 카드 | 표시 내용 | 설명 |
 | --- | --- | --- |
 | Total Workflows | 전체 워크플로우 수 | 워크스페이스 안 모든 워크플로우 개수 |
-| Active | 활성 워크플로우 수 | 워크플로우 활성 토글(`isActive = true`)이 켜진 워크플로우 개수. 이 토글이 트리거 발사를 막는지는 다른 문서의 미결 사항이다([트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항)) |
+| Active | 활성 워크플로우 수 | 워크플로우 활성 토글(`isActive = true`)이 켜진 워크플로우 개수. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄로 새 실행이 시작되지 않는다([트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)) |
 | Runs (7d) | 최근 7일 실행 수 | 직전 7일 대비 증감률(`runs7dChangePercent`)을 카드 아래에 함께 보인다. 직전 7일 실행이 0건이면 증감률을 보이지 않는다 |
 | Success Rate | 최근 7일 성공률(%) | 성공률 정의는 [통계 §지표 정의](CLE-OBS-STATS.md#지표-정의) 를 따른다. 분모는 상태와 상관없는 최근 7일 전체 실행 수다(실행 중·대기 중·취소됨 포함). 카드에는 정수로 반올림해 보인다 |
 

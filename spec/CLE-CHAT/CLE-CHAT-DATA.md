@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "7f55a3c5fe5e48fb81fdf786a1fa686487ca5b27c27a716ccc57b9a0305118b1"
+content_hash: "11f9ddf283216af842158a47eeddf30991655bf2137ab8001051b0b182baa85a"
 read_as: "approved_fallback"
-task: "CLE-T-H0GF4K"
+task: "CLE-T-V4WVF2"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "7bc50ed60979f8f79c9d8d0553e301a04543333241d0c1a2256da07b0bc4a349"
-etag: "sha256-6dec5713d24e0a8e644ffca04ebf836481195e433051ad85653e90a4b8ddc1f1"
+mirror_sha256: "91e15b4528bcacf981acc9e4a0d67e5333cf0543b157ea491a2b3fc91cc9cee1"
+etag: "sha256-fff054de8c86c39eeb42d75d63a56fe77dff9ec9cc3265dfe5e6d3cf35fbb612"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,7 +175,7 @@ TTL: 7일(저장할 때마다 갱신, 사용자가 떠나면 자동 만료)
 ```
 
 - 대화 키(`conversationKey`)는 프로바이더마다 다르다. Telegram 은 `chat_id`, Slack 은 DM 채널 ID(`channel_id`, 1:1 DM 이라 `thread_ts` 는 쓰지 않는다, [Slack 어댑터](CLE-CHAT-SLACK.md)), 후보인 카카오는 `user_id` 다.
-- 같은 `triggerId + conversationKey` 의 다음 메시지는 활성 실행이 있으면 전달하고 없으면 새 실행을 시작한다.
+- 같은 `triggerId + conversationKey` 의 다음 메시지는 활성 실행이 있으면 전달하고 없으면 새 실행을 시작한다. `/start` 는 예외로 활성 실행이 있어도 그 실행을 취소하고 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062).
 - 키는 콜론으로 나눈 계층형이라 다른 모듈 접두와 겹치지 않는다.
 - `channelUserKey` 는 이 Redis 값에만 둔다. `ConversationThread` 에는 필드를 더하지 않고, 여러 사용자 대화(v2) 때 다시 논의한다.
 - `formState` 와 `pendingFormModal` 은 서로 배타적이다([상태 전이](#상태-전이)).
@@ -184,9 +184,9 @@ TTL: 7일(저장할 때마다 갱신, 사용자가 떠나면 자동 만료)
 
 | key·큐 | 쓰는 쪽 | 읽는 쪽 | 내용 |
 |---|---|---|---|
-| `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장), `ChatChannelDispatcher`(`pendingFormModal`·`executionId` 갱신) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다 |
+| `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장, `/cancel` 의 `executionId` 정리), `ChatChannelDispatcher`(그 실행을 가리킬 때만 `pendingFormModal`·`formState` 갱신, 종결 이벤트의 `executionId` 정리) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다. `executionId` 를 비우는 쓰기는 compare-and-set 이다([아웃바운드 흐름](#아웃바운드-흐름)) |
 | `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit` | `form_submission` 처리(`SET NX EX 30`) | 같다 | 네이티브 모달 중복 제출 방지 잠금. Lua 로 소유권을 확인하고 푼다. Redis 가 없으면 통과 |
-| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거(CCH-SE-02). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn |
+| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(`DEL`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거(CCH-SE-02). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 오류로 응답할 때는 그 키를 지워 프로바이더의 재전송을 받는다. 지우지 못하면 warn 을 남기고 TTL 로 풀린다 |
 | `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume`(`INCR`+`EXPIRE NX`) | 같다 | 대화 단위 분당 한도(CCH-NF-03). TTL 60초(fixed-window). 넘치면 건너뛰고 `degraded`. Redis 가 없으면 통과 |
 | `chat-channel-token-rotator`(BullMQ) | repeatable job scheduler(`0 * * * *`) | `ChatChannelTokenRotatorService` | payload 없음. 매시간 정리 |
 
@@ -205,6 +205,7 @@ sequenceDiagram
   participant Ad as 채널 어댑터
   participant R as Redis 채널 대화 상태
   participant Int as InteractionService
+  participant X as ExecutionsService
   participant Eng as 실행 엔진
   Ext->>Hk: POST /api/hooks/:endpointPath
   Hk->>Auth: verify(trigger, headers, rawBody)
@@ -220,16 +221,24 @@ sequenceDiagram
   Hk->>Ad: parseUpdate(raw), null 이면 안내 뒤 202 ignored
   Hk->>Ad: enrichInbound (Slack 파일 정보 보강)
   Hk->>R: lookup(triggerId, conversationKey)
-  alt 활성 실행과 인터랙션 명령
+  alt 활성 실행과 /start 가 아닌 인터랙션 명령
     Hk->>Int: interact(in_process_trusted)
-  else 새 대화
-    Hk->>Eng: execute(workflowId, chatChannel 입력)
-    alt 워크플로우가 트리거의 워크스페이스에 없음
-      Eng-->>Hk: 없는 워크플로우로 거부
-      Hk-->>Ext: 202 ignored, chat_channel_health=degraded
-      Note over Hk,Ext: 이 분기는 여기서 끝난다. ackInteraction 과 아래 응답으로 가지 않는다
-    else 실행 시작
-      Hk->>R: upsert 채널 대화 상태, TTL 7일
+  else 새 실행을 시작할 update(새 대화, /start)
+    alt 워크플로우가 꺼짐
+      Hk-->>Ext: 202 ignored, 채널 대화 상태와 기존 실행은 그대로
+      Note over Hk,Ext: 이 분기도 여기서 끝난다. ackInteraction 과 아래 응답으로 가지 않는다
+    else 워크플로우가 켜짐
+      opt 활성 실행이 있는 대화의 /start
+        Hk->>X: stop(기존 실행)
+      end
+      Hk->>Eng: execute(workflowId, chatChannel 입력)
+      alt 워크플로우가 트리거의 워크스페이스에 없음
+        Eng-->>Hk: 없는 워크플로우로 거부
+        Hk-->>Ext: 202 ignored, chat_channel_health=degraded
+        Note over Hk,Ext: 이 분기는 여기서 끝난다. ackInteraction 과 아래 응답으로 가지 않는다
+      else 실행 시작
+        Hk->>R: upsert 채널 대화 상태, TTL 7일
+      end
     end
   end
   Hk->>Ad: ackInteraction(update)
@@ -238,16 +247,19 @@ sequenceDiagram
 
 서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다(R-CC-12). 새 대화의 `execute()` 입력에는 `__triggerSource:'webhook'` 과 `chatChannel:{provider, conversationKey, channelUserKey}` 가 들어가고 `trigger.last_triggered_at` 을 갱신한다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)).
 
+관문의 전체 순서와 꺼진 트리거·꺼진 워크플로우가 막는 범위의 차이는 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 워크플로우가 꺼져 있으면 새 실행을 시작할 update(새 대화, `/start`)만 `202 ignored` 로 끝나고 채널 대화 상태, 채널 건강도, 중복 제거 키는 그대로다. 활성 실행이 있는 대화의 입력과 `/cancel`·`/help` 는 워크플로우가 꺼져 있어도 아래 표대로 처리한다.
+
 `ChannelUpdate.command` 종류별 처리는 다음과 같다(`hooks.service.ts`).
 
 | command | 처리와 저장 |
 |---|---|
 | `text_message` 가 `/help` | 대화 조회 전에 정적 안내를 `adapter.sendMessage` 로 보내고 `202 ignored`(실행 없음) |
-| `cancel` | 활성 실행이 있으면 `executionsService.stop` 하고 채널 대화 상태의 `executionId` 를 null 로 |
+| `cancel` | 활성 실행이 있으면 `executionsService.stop` 하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 null 로 바꾼다(compare-and-set, [아웃바운드 흐름](#아웃바운드-흐름) 의 종결 이벤트 정리와 같다) |
 | `text_message`·`button_callback`·`contact_share`·`file_upload`(활성 실행) | `formState` 가 진행 중이면 다단계 질문 단계를 처리하고, 아니면 `InteractionService.interact` 로 서버 안 전달(EIA-AU-08) |
 | `open_form_modal` | 채널 대화 상태의 `pendingFormModal.fields` 와 프로바이더 openContext 로 `adapter.openFormModal`. Discord 는 웹훅 HTTP 응답 본문으로 모달을 돌려준다. `channelUserKey` 가 다르면 거부한다(그룹 안 가로채기 방어) |
 | `form_submission` | 대화 단위 Redis 잠금(`SET NX EX 30`)을 잡고 필드 허용 목록 필터와 클라이언트 쪽 검증을 한 뒤 `interact(submit_form)`. 성공하면 `pendingFormModal` 을 지운다. 실패하면 "양식 작성하기" 버튼을 다시 보내고 `pendingFormModal` 은 둔다 |
-| 새 대화(그 밖) | `execute()` 와 채널 대화 상태 저장. 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 `202 ignored` 로 끝낸다. 채널 대화 상태는 저장하지 않는다([채팅 채널](CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」) |
+| `start`(활성 실행) | 워크플로우가 꺼져 있으면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다. 켜져 있으면 기존 실행을 `executionsService.stop` 으로 취소하고(이미 끝났거나 없으면 취소 없이 진행) 새 대화와 같이 `execute()` 한 뒤 채널 대화 상태를 새 실행으로 다시 저장한다(`startedAt` 은 그대로). 취소가 그 밖의 오류로 실패하면 그 update 의 `cc:dedup:` 키를 지우고 새 실행 없이 오류로 응답한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064) |
+| 새 대화(그 밖) | 워크플로우가 꺼져 있으면 실행 없이 `202 ignored` 로 끝내고 채널 대화 상태와 채널 건강도를 바꾸지 않는다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-066). 켜져 있으면 `execute()` 와 채널 대화 상태 저장. 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 `202 ignored` 로 끝낸다. 채널 대화 상태는 저장하지 않는다([채팅 채널](CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」) |
 
 분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅의 IP 한도(`PublicWebhookThrottleGuard`)와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 인바운드 서명 인증을 쓰므로 그 가드의 "인증 없음" 조건에 기댈 수 없다.
 
@@ -270,14 +282,17 @@ sequenceDiagram
   D->>PG: SELECT trigger(config.chatChannel, 채널 건강도)
   D->>Ad: renderNode(toChatChannelEvent(event), config)
   alt Form 입력 대기
-    D->>R: pendingFormModal 저장 또는 formState 초기화
+    D->>R: 대화 상태 조회
+    opt 대화 상태가 그 실행을 가리킴
+      D->>R: pendingFormModal 저장 또는 formState 초기화
+    end
   end
   loop 메시지마다
     D->>Ad: sendMessage(message, config)
     Ad->>Ext: 프로바이더 API 호출
   end
   alt 종결 이벤트
-    D->>R: executionId 를 null 로
+    D->>R: executionId 가 그 실행일 때만 null 로, compare-and-set
   end
   alt 렌더나 발송 실패
     D->>PG: health=degraded, last_error 기록
@@ -288,6 +303,8 @@ sequenceDiagram
 
 - **라우팅 키**: 이벤트의 `triggerId` 와 `chatChannel.conversationKey` 다. `HooksService` 가 `execute()` 입력에 넣은 값이 WebsocketService 의 라우팅 문맥 레지스트리를 거쳐 fanout 봉투에 자동으로 붙는다. 둘 중 하나라도 없으면 건너뛴다(수동 실행은 채널 대상이 아니다).
 - **빈 텍스트**: 본문이 빈 텍스트 메시지는 조용히 건너뛰고 warn 을 남긴다.
+- **Form 입력 대기의 대화 상태 갱신**: Form 대기(`interactionType=form`)의 `execution.waiting_for_input` 이 오면 채널 대화 상태를 조회한다. 그 `executionId` 가 이벤트의 실행을 가리킬 때만 렌더 결과에 따라 `pendingFormModal` 이나 `formState` 를 바꿔 다시 저장한다. 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 건너뛰고 debug 로그만 남긴다. `/start`·`/cancel` 이 끊은 옛 실행의 Form 대기 이벤트가 늦게 와도 새 실행의 폼 대기 상태를 덮어쓰지 않게 하려는 것이다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-069). 렌더한 메시지는 이 조건과 관계없이 보낸다. 이 저장은 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 덮어쓸 수 있다.
+- **종결 이벤트의 대화 상태 정리**: completed·failed·cancelled 가 오면 채널 대화 상태의 `executionId` 가 그 이벤트의 실행을 가리킬 때만 비운다(`clearExecutionIdIfMatches`). 저장된 JSON 문자열을 읽어 `executionId` 를 확인한 뒤, 저장된 값이 읽은 문자열과 같을 때만 새 값으로 바꾸는 Lua 스크립트를 부른다(TTL 7일도 다시 건다). 다른 쓰기에 밀리면 다시 읽고 최대 3회까지 시도한다. 키가 없거나 다른 실행을 가리키면 바꾸지 않는다. Redis 를 쓸 수 없거나 오류가 나거나 3회 모두 밀리면 warn 을 남기고 비우지 않는다. 그때 남은 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-065). `/cancel` 의 정리도 같은 메서드를 쓴다.
 - **트리거 단위 레지스트리**: `setupChatChannel` 이 성공하면 등록한다. 재시작 때는 `chat-channel.module.ts` 의 `onApplicationBootstrap` 이 활성 채팅 채널 트리거를 DB 에서 한꺼번에 복원한다(`bulkRegister`). 미등록 트리거의 이벤트는 DB 왕복 없이 건너뛴다.
 - **자동 비활성화 없음**: 실패해도 `degraded` 만 기록하고 트리거를 끄지 않는다(CCH-SE-01).
 
@@ -328,11 +345,12 @@ stateDiagram-v2
 | 전이 | 계기 |
 |---|---|
 | 없음 → 활성 | 새 대화에서 `execute()` 직후 저장(`executionId` 설정) |
-| `executionId` → null | 종결 이벤트(completed·failed·cancelled) 도착 때 dispatcher 가 비움, `/cancel` 처리 때 |
-| `formState` ↔ `pendingFormModal` | 서로 배타적이다. Form 입력 대기 렌더 결과가 `form_modal` 이면 `pendingFormModal` 을 저장하고 `formState` 를 지운다. 다단계 질문(`form_prompt`)이면 `formState` 를 초기화하고 `pendingFormModal` 을 지운다 |
+| `executionId` → 새 실행 | 활성 실행이 있는 대화의 `/start` 가 기존 실행을 취소하고 새 실행을 시작한 직후 다시 저장 |
+| `executionId` → null | 종결 이벤트(completed·failed·cancelled)가 오면 dispatcher 가, `/cancel` 을 처리하면 `HooksService` 가 비운다. 둘 다 `executionId` 가 그 실행을 가리킬 때만 비운다(compare-and-set) |
+| `formState` ↔ `pendingFormModal` | 서로 배타적이다. Form 입력 대기 이벤트가 오고 조회한 대화 상태가 그 이벤트의 실행을 가리킬 때만 바꾼다. 렌더 결과가 `form_modal` 이면 `pendingFormModal` 을 저장하고 `formState` 를 지운다. 다단계 질문(`form_prompt`)이면 `formState` 를 초기화하고 `pendingFormModal` 을 지운다 |
 | 소멸 | TTL 7일 만료(사용자 이탈)나 명시적 `clear` |
 
-상태가 남아 있는 동안 같은 `conversationKey` 의 다음 update 는 같은 실행의 재개(서버 안 `interact`)로 흐르고, 만료되거나 실행이 끝나면 새 실행이 시작된다. 멀티턴 대화의 park·재개를 잇는 고리다. 실행 쪽 대기·재개 모델은 [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) 을 본다.
+상태가 남아 있는 동안 같은 `conversationKey` 의 다음 update 는 같은 실행의 재개(서버 안 `interact`)로 흐르고, 만료되거나 실행이 끝나면 새 실행이 시작된다. `/start` 는 예외로 기존 실행을 취소하고 새 실행으로 바꾼다. 멀티턴 대화의 park·재개를 잇는 고리다. 실행 쪽 대기·재개 모델은 [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) 을 본다.
 
 ### 채널 건강도
 
@@ -370,9 +388,10 @@ stateDiagram-v2
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율)
-- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD 와 Form 제출 잠금
-- `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율, 워크플로우 꺼짐 관문, `/start` 의 기존 실행 취소 `stopForRestart`)
+- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD, `executionId` 의 compare-and-set 정리(`clearExecutionIdIfMatches`), Form 제출 잠금
+- `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 인바운드 중복 제거 선점(`claim`)과 해제(`release`)
+- `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`), Form 대기 상태 갱신 가드, 종결 이벤트의 대화 상태 정리
 - `codebase/backend/src/modules/triggers/chat-channel-token-rotator.service.ts`: `chat-channel-token-rotator` 큐(매시간 정리, 정리 로직과 같은 triggers 모듈)
 - `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`: `setupChatChannel`·`teardownChatChannel`(어댑터 바인딩, 시크릿 쓰기와 참조 보존)
 - `codebase/backend/src/modules/triggers/triggers.service.ts`: `rotateBotToken`·`cleanupRotatedChatChannelTokens`
@@ -383,6 +402,12 @@ stateDiagram-v2
 ### 대화 상태를 Redis 에만 둔다
 
 채널 대화 상태는 "지금 이 채팅방이 어느 실행에 이어져 있는가" 라는 휘발성 라우팅 정보다. TTL 7일이 곧 이탈 정리 정책이다. Redis 를 쓸 수 없어도 워크플로우 실행 자체는 막지 않는다. update 마다 새 실행으로 넘어가는 것이 의도한 기능 저하다. 영속이 필요한 것은 채널 설정, 토큰 참조, 건강도뿐이라 `trigger` 컬럼으로 충분하다.
+
+### executionId 는 그 실행을 가리킬 때만 비운다
+
+2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). `/start` 가 기존 실행을 취소하고 새 실행을 대화에 이으면 옛 실행의 `execution.cancelled` 가 그 뒤에 올 수 있다. 종결 이벤트가 `executionId` 를 무조건 비우면 새 실행의 매핑이 지워지고, 다음 메시지는 입력 대기 중인 새 실행으로 가지 않고 또 다른 실행을 시작한다. 그래서 읽은 값의 `executionId` 가 그 실행일 때만 비운다. 읽은 뒤 다른 요청이 대화를 새 실행에 이었을 수 있으므로 저장된 값이 읽은 문자열과 같을 때만 바꾸고, 다르면 다시 읽는다. JSON 을 Lua 안에서 다시 만들지 않고 문자열 그대로 비교한다. Redis Lua 의 cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을 망가뜨린다. 결정의 근거는 [채팅 채널](CLE-CHAT-CORE.md) R-CC-27 에 있다.
+
+Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 Form 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다. 이 갱신은 조회한 값을 고쳐 다시 저장하므로 compare-and-set 이 아니다. 남는 경합은 [채팅 채널](CLE-CHAT-CORE.md) R-CC-27 의 미룬 문제에 있다.
 
 ### chat_channel_token_v2 에 토큰이 아니라 참조를 둔다
 

@@ -3,18 +3,18 @@ id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "05cbbeff938eeb828baee99498618facd39f9cea8aecd96f4521c627202a1192"
+content_hash: "f081ecaf289e7e042280cef488fcc2d9761c2f6e9722b5281980c65c30c3fd6c"
 read_as: "approved_fallback"
 task: "CLE-T-V4WVF2"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "de5b82c65dd3993a9b630d2c786815d87945f1ec76d35d9a500bef5f769db478"
-etag: "sha256-a7f9b9b7d0c63625f56dace84953e520e9e042ad00042553e2e5025e01f6b5ca"
+mirror_sha256: "2af2f40e4ef850791201271902acbfd4b6a5b283b2e841aee2fb722f7c3dc90e"
+etag: "sha256-895424ead9a252acdf5752af3d1c28c1689304db40f73e4e796ce50e699f8d51"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -63,8 +63,8 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-025 IF `X-Signature-Ed25519` 가 `X-Signature-Timestamp` 와 raw body 에 대해 저장된 public key 로 검증되지 않으면 THE SYSTEM SHALL `401` 로 답한다. (원본: discord §6)
 - REQ-DISCORD-026 IF `X-Signature-Timestamp` 가 현재 시각 ±5분 밖이면 THE SYSTEM SHALL `401` 로 답한다. (원본: discord §6)
 - REQ-DISCORD-027 IF 트리거 생성 때 `inboundSigningPlaintext` 가 `^[a-f0-9]{64}$` 에 맞지 않으면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='inboundSigningPlaintext'`, `details.code='INVALID_FIELD'`)로 거부한다. (원본: discord §6)
-- REQ-DISCORD-028 WHEN 활성 실행이 없을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 를 즉시 응답이나 후속 메시지로 안내한다. (원본: discord §7)
-- REQ-DISCORD-029 WHEN 활성 실행이 있을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 기존 실행을 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: discord §7)
+- REQ-DISCORD-028 WHEN 활성 실행이 없을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 를 즉시 응답이나 후속 메시지로 안내한다. (원본: discord §7) (부분 구현 — CLE-T-0400J6)
+- REQ-DISCORD-029 WHEN 활성 실행이 있을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: discord §7) (부분 구현 — CLE-T-0400J6)
 - REQ-DISCORD-030 WHEN `/<prefix> cancel` 이 오면 THE SYSTEM SHALL 활성 실행에 EIA `cancel` 을 부르고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: discord §7)
 - REQ-DISCORD-031 WHEN `/<prefix> help` 가 오면 THE SYSTEM SHALL EIA 를 부르지 않고 `languageHints.help`(없으면 기본 문구)로 바로 답한다. (원본: discord §4, §7) (부분 구현)
 - REQ-DISCORD-032 WHEN `POST /channels/{id}/messages` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다. (원본: discord §8)
@@ -78,7 +78,8 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - 관련 REQ-DISCORD-011~013: 두 입력 경로는 함께 있다. "Reply" 버튼 모달이 v1 기본 UX 이고 `/<prefix> reply` 는 숙련 사용자용 보조 옵션이다. 자유 DM 텍스트 답장은 v2 Gateway 에서 된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
 - 관련 REQ-DISCORD-020: [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 `validation.preset` 이 아직 없다. Discord 에는 연락처 공유에 해당하는 기능이 없다.
 - 관련 REQ-DISCORD-022·023: 현재 구현은 이미지 메시지를 caption(없으면 `fallbackText`) `content` 로만 보내 실제 이미지를 첨부하지 않고, Carousel 카드도 모두 텍스트로 보낸다(embeds 호출처 없음).
-- 관련 REQ-DISCORD-029·031: 활성 실행 중 `/start` 와 help 경로는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- 관련 REQ-DISCORD-028·029: 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 새로 시작한다. 트리거의 워크플로우가 꺼져 있으면 `/<prefix> start` 는 새 실행을 시작하지 않고 버리며, 활성 실행이 있어도 그 실행을 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
+- 관련 REQ-DISCORD-031: help 경로는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 - 관련 REQ-DISCORD-032·035: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기는 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다(`discord-client.ts`).
 - 관련 REQ-DISCORD-034: 현재 구현은 `429` 의 `Retry-After` 대기만 한다. bucket 단위 큐는 확인되지 않았다.
 
@@ -134,7 +135,7 @@ Body: [
 
 Interactions Endpoint URL 은 Developer Portal 의 application 정적 설정이라 어댑터가 API 로 등록·해제하지 않는다. 사용자 가이드가 `${BASE_URL}/api/hooks/${trigger.endpointPath}` 입력을 안내한다(Slack R-S-2 와 같은 생각).
 
-PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 번, 그 뒤 주기적으로 보낸다. `parseUpdate` 가 `null` 을 돌려주고 호출자가 `{ type: 1 }` JSON 을 `200 OK` 로 답한다. Discord 는 PING 에 `200 + { type: 1 }` 만 성공으로 보므로 [채팅 채널](CLE-CHAT-CORE.md) 인바운드 응답 계약의 `202` 정책에 대한 명시적 예외다(R-D-8).
+PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 번, 그 뒤 주기적으로 보낸다. `parseUpdate` 가 `null` 을 돌려주고 호출자가 `{ type: 1 }` JSON 을 `200 OK` 로 답한다. Discord 는 PING 에 `200 + { type: 1 }` 만 성공으로 보므로 [채팅 채널](CLE-CHAT-CORE.md) 인바운드 응답 계약의 `202` 정책에 대한 명시적 예외다(R-D-8). 트리거의 워크플로우가 꺼져 있어도 답한다. 워크플로우를 꺼 둔 채 Interactions Endpoint URL 을 등록해도 실패하지 않게 하려는 것이다. 트리거가 꺼져 있으면 PING 에 답하지 않고 `202`·`{ executionId: 'ignored' }` 다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-067, R-CC-28).
 
 ### teardownChannel
 
@@ -294,14 +295,14 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 - DM 밖 `channel.type` 은 진입점에서 `channel.type !== 1` 로 막고 `groupChatRefusal` 안내 뒤 버린다(CCH-CV-05).
 - 봇 멤버(`member.user.bot === true`, DM `user.bot === true`)도 무시한다.
 
-인바운드 HTTP 응답 정책은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이다. Discord 예외는 두 가지다. (1) PING(`type: 1`)은 `200 OK + { type: 1 }` JSON 이 필수다. (2) Interactivity ack 는 3초 안에 `200 OK + { type: 5 | 6 }` 이고 `202` 를 인정하지 않는다. 두 예외는 [setupChannel](#setupchannel), [버튼](#버튼), [Form](#form) 에 적혀 있다.
+인바운드 HTTP 응답 정책은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이다. Discord 예외는 두 가지다. (1) PING(`type: 1`)은 `200 OK + { type: 1 }` JSON 이 필수다. (2) Interactivity ack 는 3초 안에 `200 OK + { type: 5 | 6 }` 이고 `202` 를 인정하지 않는다. 두 예외는 [setupChannel](#setupchannel), [버튼](#버튼), [Form](#form) 에 적혀 있다. 트리거의 워크플로우가 꺼져 있어도 PING 에는 답한다. 새 실행을 시작할 update(`/<prefix> start` 와 활성 실행이 없는 대화의 입력)는 `202 + { executionId: 'ignored' }` 로 버리고, 진행 중인 대화의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다(REQ-CHAT-066~068, R-CC-28).
 
 ## 명령 처리
 
 | 사용자 입력 | 어댑터 처리 |
 |---|---|
-| `/<prefix> start`(활성 실행 없음) | 새 실행 시작, ack `{ type: 4, data: { content: languageHints.executionStarted } }` 나 deferred 뒤 후속 메시지 |
-| `/<prefix> start`(활성 실행 있음) | 기존 실행을 취소(`cancel`)하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." [미결 사항](#미결-사항) 참조 |
+| `/<prefix> start`(활성 실행 없음) | 새 실행 시작, ack `{ type: 4, data: { content: languageHints.executionStarted } }` 나 deferred 뒤 후속 메시지. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| `/<prefix> start`(활성 실행 있음) | 기존 실행을 실행 중지 경로로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 꺼져 있으면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
 | `/<prefix> cancel` | 활성 실행에 EIA `cancel`. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." |
 | `/<prefix> help` | 봇 기본 도움말(v1 정적, `languageHints.help` 나 기본 문구). [미결 사항](#미결-사항) 참조 |
 | `/<prefix> reply <message>` | 멀티턴 AI 진행 중이면 EIA `submit_message` |
@@ -318,7 +319,6 @@ DM 첫 메시지로 자동 시작하는 것(Telegram `/start` 와 같은 뜻)은
 
 ## 미결 사항
 
-- **활성 실행 중 `/start`**: 이 문서의 명령 처리 표는 활성 실행이 있어도 `/start` 면 기존 실행을 취소하고 새로 시작한다고 정한다. [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-CV-03 은 `/start` 예외가 없다. 결정 필요.
 - **help 명령 경로**: 명령 매핑은 `help` 하위 명령을 어댑터가 바로 답한다고 적지만, `ChannelUpdate` 에 help kind 가 없고 현재 구현은 파서가 `null` 을 돌려준다. `HooksService` 의 도움말 분기는 텍스트가 정확히 `/help` 일 때만 탄다. [Slack 어댑터](CLE-CHAT-SLACK.md) 에도 같은 문제가 있다. help 를 정식 kind 로 둘지 결정 필요.
 - **Chart·Carousel 입력 모양**: 매트릭스의 Chart 입력(`output.payload.{title, series, labels}`)과 Carousel 카드 이미지 URL 이 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md)·[Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md) 출력과 다르다. [Presentation 노드 공통 §미결 사항](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#미결-사항) 과 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md#미결-사항) 의 미결 사항과 함께 결정 필요.
 
@@ -331,7 +331,8 @@ DM 첫 메시지로 자동 시작하는 것(Telegram `/start` 와 같은 뜻)은
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts`
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 꺼짐 포함)과 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소)
+- `codebase/backend/src/modules/hooks/hooks.service.spec.ts`: 세 프로바이더의 활성 실행 중 start 명령
 - `codebase/packages/chat-channel-validation/src/index.ts`
 - `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `chat-channel-trigger-create.e2e-spec.ts`
 - `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
@@ -387,3 +388,7 @@ Slack R-S-8 과 같은 생각이다. Discord 의 두 경우(PING, Interactivity 
 ### R-D-9 file 필드 한계는 프로바이더 문서에 적고 Form 은 바꾸지 않는다
 
 Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구현 한계로 지원하지 않는다. Form 에 `unsupportedProviders: ["discord"]` 같은 필드를 더하면 Form 이 프로바이더 한계를 알아야 하는 의존성 역전이 생긴다. file 필드를 자동으로 외부 저장소 URL 입력으로 바꾸면 사용자 의도와 다르게 동작해 헷갈린다. 추상화를 앞세우고 프로바이더 한계는 프로바이더 문서의 Rationale 에 적으며, 구현 단계에서 경고 UI 로 안내한다.
+
+### R-D-10 활성 실행 중 start 명령은 기존 실행을 취소하고 새로 시작한다
+
+2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). 명령 처리 표는 활성 실행이 있어도 `/<prefix> start` 면 기존 실행을 취소하고 새로 시작한다고 적었는데, [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-CV-03 에는 `/start` 예외가 없었다. 채팅 채널 문서에 명령 우선 규칙(REQ-CHAT-062~065)을 두어 이 표를 정본으로 맞췄다. 근거는 [채팅 채널](CLE-CHAT-CORE.md) R-CC-27 에 있다. Discord 는 v1 에서 자유 DM 텍스트를 받지 못하므로(R-D-3) [Slack 어댑터](CLE-CHAT-SLACK.md) R-S-10 같은 DM 텍스트 구분이 필요 없다. 이 결정으로 미결 «활성 실행 중 `/start`» 를 닫았다.

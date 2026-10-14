@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "ab1ee9075ab93e215e75be4d152520b03dbff01e85df43c36aaa697235b9af33"
+content_hash: "04760e8bacaf26896db8dbaf6e1949fdcd1b25aee58b5067646a86271a9dcda0"
 read_as: "approved_fallback"
 task: "CLE-T-XRWFMJ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "0d6f9a711dccb46ca1acb0027fa2f6b1683a8302aa078a9796103092be9be543"
-etag: "sha256-9d9c90930e36165fbf75ac235a43209c27bcac168beb49bf22a02a24f144220f"
+mirror_sha256: "28f4af44565c344381cbe337581888e4661120568b0952fb9e8d96af690d27ed"
+etag: "sha256-4ef82696d8040b23481be4a96199d517038a0be8ce29c5a5f975a078e236e60d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -29,6 +29,8 @@ etag: "sha256-9d9c90930e36165fbf75ac235a43209c27bcac168beb49bf22a02a24f144220f"
 - 스케줄: BullMQ job scheduler 가 Cron 표현식에 따라 직접 발사한다. DB polling 이나 sweep 은 없다.
 
 세 진입점은 모두 `ExecutionEngineService.execute(workflowId, inputData, options)` 로 모인다. 세 번째 인자는 `ExecuteOptions` 객체다. 트리거 경로는 `{ triggerId }`(웹훅은 `sourceIp`·`responseCode` 를 더한다), 수동 실행은 `{ executedBy }` 를 넘기고 호출부가 `triggerType` 을 함께 넘긴다. 모든 경로가 실행을 시작하는 워크스페이스 `workspaceId` 도 넘긴다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기)). `execute()` 는 실행 행을 `status=pending` 으로 INSERT 한 뒤 BullMQ 시작 큐(`execution-run`)에 작업을 발행하고 곧바로 `executionId` 를 돌려준다. 트리거 유형이 작업 우선순위를 정한다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)).
+
+웹훅과 스케줄 진입점은 `execute()` 를 부르기 전에 워크플로우 활성 상태를 확인하고 꺼진 워크플로우로는 새 실행을 만들지 않는다. 채팅 채널의 진행 중인 대화는 이어지고 수동 실행은 꺼진 워크플로우도 실행한다([워크플로우 활성 관문](#워크플로우-활성-관문)).
 
 범위 밖 주제는 다음 문서가 정한다.
 
@@ -256,6 +258,10 @@ sequenceDiagram
     alt 일반 웹훅이고 is_active=false
         Hk-->>Ext: 410 TRIGGER_INACTIVE
     end
+    Hk->>PG: SELECT workflow (id, is_active) WHERE id=trigger.workflow_id AND workspace_id=trigger.workspace_id
+    alt 워크플로우가 꺼짐(is_active=false)
+        Hk-->>Ext: 410 WORKFLOW_INACTIVE
+    end
     alt auth_config_id IS NOT NULL
         Hk->>AC: verifyWebhookRequest(authConfigId, workspaceId, headers, rawBody, clientIp)
         AC->>PG: SELECT auth_config (config 복호화)
@@ -272,6 +278,8 @@ sequenceDiagram
     Hk->>PG: UPDATE trigger SET last_triggered_at=now
     Hk-->>Ext: 202 { data: { executionId, message, status?, interaction? } }
 ```
+
+트리거가 켜져 있어도 워크플로우가 꺼져 있으면 `410 WORKFLOW_INACTIVE` 다. 이 확인은 인증 설정 조회보다 앞이라 실행 행, `trigger.last_triggered_at`, 인증 설정 `last_used_at` 이 바뀌지 않는다. 워크플로우는 트리거의 워크스페이스 안에서만 찾는다. 거기에 없으면 이 확인을 통과하고 뒤의 `execute()` 가 404 로 거부한다. 채팅 채널 · 스케줄과 함께 쓰는 규칙은 [워크플로우 활성 관문](#워크플로우-활성-관문) 이 정한다.
 
 202 응답 본문의 모양은 [웹훅 「수신 API」](CLE-TRIG-WEBHOOK.md#수신-api) 가 정한다. 트리거의 `config.interaction.enabled` 가 참이면 `HooksService` 가 결과에 `status` 와 `interaction` 을 더한다. `HooksController` 는 `HooksService` 가 돌려준 결과에 `message` 를 더한다. 전역 `TransformInterceptor` 가 그 결과를 `{ data }` 로 감싼다. 실행 단위 토큰의 발급과 저장은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#토큰-발급) 이 정한다. 채팅 채널 분기의 Slack challenge · Discord PING 응답과 네이티브 모달 응답은 감싸지 않고 그대로 보낸다. 이 문서의 다른 곳에 적은 `{ executionId: 'ignored' }` 는 `data` 감싸기와 `message` 를 뺀 줄임 표기다.
 
@@ -296,6 +304,10 @@ sequenceDiagram
     alt 스케줄 없음, is_active=false, trigger.workflow_id 없음
         Proc-->>Q: 건너뜀
     end
+    Proc->>PG: SELECT workflow (id, is_active) WHERE id=trigger.workflow_id AND workspace_id
+    alt 워크플로우가 꺼짐(is_active=false)
+        Proc-->>Q: 건너뜀(로그, job 정상 완료)
+    end
     Proc->>Eng: execute(workflowId, { __triggerSource:'schedule', parameters }, { triggerId: schedule.trigger_id, workspaceId })
     alt 워크플로우가 스케줄의 워크스페이스에 없음
         Proc-->>Q: 건너뜀(재시도 · schedule_failed 알림 없음, 에러 로그)
@@ -307,23 +319,46 @@ sequenceDiagram
 - 마지막 UPDATE 는 `execute()` 가 `executionId` 를 돌려준 뒤에만 한다. 건너뛰거나 실행을 시작하지 못하면 `last_run_at` · `next_run_at` 을 바꾸지 않는다.
 - `next_run_at` 은 발사를 일으키지 않는다. 발사는 BullMQ job scheduler 가 전부 맡고 `next_run_at` 은 processor 가 실행을 마친 뒤 화면 표시용으로 다시 계산해 저장하는 정보성 컬럼이다.
 - processor 는 `trigger.is_active` 를 직접 보지 않고 `schedule.is_active` 만 확인한다. 양방향 동기화가 트리거 쪽 토글도 `schedule.is_active` 에 반영하므로 어느 화면에서 토글해도 발사가 일관되게 제어된다.
+- processor 는 그다음 워크플로우 활성 상태를 스케줄의 워크스페이스 안에서 확인한다. 꺼져 있으면 실행을 만들지 않고 로그만 남긴 뒤 job 을 정상 완료한다. 재시도와 `schedule_failed` 알림은 없다. 스케줄 행과 job scheduler 는 그대로 두므로 다음 Cron tick 에 다시 확인하고 워크플로우를 켜면 다음 발화부터 실행된다. 꺼져 있는 동안 건너뛴 발화는 보충하지 않는다([워크플로우 활성 관문](#워크플로우-활성-관문)).
 - `trigger_id` 를 넘겨야 실행 내역 화면이 출처를 `schedule` 로 분류한다([스케줄](CLE-TRIG-SCHEDULE.md)).
 
 ### 채팅 채널 분기
 
-`trigger.config.chatChannel` 이 있으면 웹훅 진입은 `handleChatChannelWebhook` 로 가서 일반 흐름의 `is_active` 410 관문, 인증 설정 인증, 트리거 파라미터 스키마 검증을 거치지 않는다. 대신 채널 프로바이더별 인바운드 서명으로 검증한다(Telegram `X-Telegram-Bot-Api-Secret-Token`, Slack `X-Slack-Signature`, Discord `X-Signature-Ed25519`). 비활성 트리거도 서명 검증을 먼저 하고(실패하면 401), 통과하면 `202` 와 `{ executionId: 'ignored' }` 로 조용히 무시한다.
+`trigger.config.chatChannel` 이 있으면 웹훅 진입은 `handleChatChannelWebhook` 로 가서 일반 흐름의 `is_active` 410 관문, 인증 설정 인증, 트리거 파라미터 스키마 검증을 거치지 않는다. 대신 채널 프로바이더별 인바운드 서명으로 검증한다(Telegram `X-Telegram-Bot-Api-Secret-Token`, Slack `X-Slack-Signature`, Discord `X-Signature-Ed25519`). 비활성 트리거도 서명 검증을 먼저 하고(실패하면 401), 통과하면 `202` 와 `{ executionId: 'ignored' }` 로 조용히 무시한다. 워크플로우가 꺼져 있으면 새 실행을 시작하는 자리에서만 같은 `202` 로 답한다. handshake 와 진행 중인 대화는 워크플로우가 꺼져 있어도 처리한다(아래 표).
 
 | 단계 | 처리(`hooks.service.ts` `handleChatChannelWebhook`) |
 |------|----------------------------------------------------|
 | 채널 어댑터 조회 | `channelAdapterRegistry.get(config.provider)`. 지원하지 않으면 400 |
 | 인바운드 인증 | `chatChannelInboundAuthenticator.verify(trigger.id, config, headers, rawBody)`(채널 프로바이더별 서명) |
+| 트리거 활성 확인 | 트리거가 꺼져 있으면 `{ executionId: 'ignored' }`. handshake 를 포함해 아래 단계를 하나도 하지 않는다 |
 | handshake | Slack `url_verification` 은 challenge 응답, Discord PING(type=1)은 `{ type: 1 }` 응답. 둘 다 실행 없이 바로 돌려준다 |
 | `parseUpdate` 가 null | 그룹·봇·지원하지 않는 update. `maybeNotifyIgnored` 로 안내한 뒤 무시(`{ executionId: 'ignored' }`) |
 | 진행 중인 실행 + 인터랙션 | `interactionService.interact` 로 같은 프로세스 안에서 전달(`text_message` → submit_message, `button_callback` → click_button) |
 | native modal | `open_form_modal` / `form_submission` 이면 어댑터가 modal 응답 JSON 을 돌려준다(`interactionHttpResponse`, 컨트롤러가 `res.json`) |
-| 새 대화 | `execute(workflowId, { __triggerSource:'webhook', chatChannel:{ provider, conversationKey, channelUserKey }, ... }, { triggerId, workspaceId, ... })` 와 `ChannelConversation` upsert. 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `{ executionId: 'ignored' }` 와 `degraded`([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)) |
+| 워크플로우 활성 확인 | 새 실행을 시작하기 직전에 확인한다. 워크플로우가 꺼져 있으면 `{ executionId: 'ignored' }` 로 답하고 실행을 만들지 않는다. 앞의 단계(update 파싱, 중복 억제, rate limit, `/help`, 대화 조회, `/cancel`, 진행 중인 실행으로의 전달)는 워크플로우가 꺼져 있어도 한다. `/start` 의 기존 실행 취소보다 앞이다([워크플로우 활성 관문](#워크플로우-활성-관문)) |
+| 새 대화 | `execute(workflowId, { __triggerSource:'webhook', chatChannel:{ provider, conversationKey, channelUserKey }, ... }, { triggerId, workspaceId, ... })` 와 `ChannelConversation` upsert. 활성 실행이 있을 때 온 `/start` 면 기존 실행을 먼저 취소한다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `{ executionId: 'ignored' }` 와 `degraded`([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)) |
 
 이 경로의 응답 JSON·서명 검증·form modal 세부는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 과 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 정한다. 이 문서는 웹훅 진입이 `chatChannel` 유무로 두 갈래로 나뉜다는 라우팅 사실만 정한다.
+
+### 워크플로우 활성 관문
+
+워크플로우가 꺼져 있으면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 생기지 않는다. 응답은 트리거가 꺼졌을 때와 같은 규칙을 따른다. 세 경로 모두 공용 함수 `isWorkflowInactive(repo, workflowId, workspaceId)` 로 확인한다. 결정의 배경은 [Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다.
+
+| 경로 | 확인 위치 | 트리거가 꺼졌을 때 | 워크플로우가 꺼졌을 때 |
+|------|-----------|--------------------|------------------------|
+| 일반 웹훅 | 트리거 활성 확인 바로 뒤. 인증 설정 인증 · IP 화이트리스트 · 파라미터 검증 · 실행 생성보다 앞 | `410 Gone`, `TRIGGER_INACTIVE` | `410 Gone`, `WORKFLOW_INACTIVE`(메시지 `Workflow of this webhook trigger is inactive`) |
+| 채팅 채널 인입 | 새 실행을 시작하기 직전. 서명 검증 · 꺼진 트리거 확인 · handshake · update 파싱 · 중복 억제 · rate limit · `/help` · 대화 조회 · `/cancel` · 진행 중인 실행으로의 전달 다음이고 `/start` 의 기존 실행 취소와 `execute()` 보다 앞 | 서명 검증 직후 `202` 와 `{ executionId: 'ignored' }`. handshake 를 포함해 모든 update 를 무시하므로 진행 중인 대화도 끊긴다 | 새 실행만 막는다. 활성 실행이 없을 때 온 첫 메시지와 `/start` 는 `202` 와 `{ executionId: 'ignored' }`. handshake 에 답하고 진행 중인 대화는 이어진다 |
+| 스케줄 발사 | 스케줄 비활성 확인 · 워크플로우 미연결 확인 다음. `execute()` 보다 앞 | 토글이 job scheduler 를 해제한다. 이미 들어온 작업은 `schedule.is_active=false` 로 건너뛴다 | 건너뛴다. 로그만 남기고 job 을 정상 완료한다 |
+
+- 꺼져 있을 때 남지 않는 것: 실행 행, `trigger.last_triggered_at` 갱신, 호출 이력, 스케줄 `last_run_at` · `next_run_at` 갱신, `schedule_failed` 알림. 일반 웹훅은 인증을 하지 않으므로 인증 설정 `last_used_at` 도 바뀌지 않는다.
+- 채팅 채널은 새 실행을 시작하는 경우만 막는다. 막히는 것은 활성 실행이 없을 때 온 첫 메시지와 `/start` 다. 활성 실행이 있을 때 온 `/start` 도 ignored 이고 기존 실행은 취소하지 않는다. 관문이 `/start` 의 기존 실행 취소보다 앞이기 때문이다.
+- 진행 중인 대화는 워크플로우를 꺼도 이어진다. 대기 중인 실행으로 답장 · 버튼 · 폼 제출을 전달하고 `/cancel` 과 `/help` 도 동작한다. 실행이 아직 입력 대기에 이르지 않았으면 처리 중 안내를 보낸다. update 파싱, 중복 억제, rate limit, 무시 안내 메시지도 워크플로우가 켜져 있을 때와 같다.
+- 꺼진 트리거는 다르다. 서명 검증 직후 모든 update 를 ignored 로 답하므로 진행 중인 대화도 끊긴다. 대기 중인 실행이 있어도 메시지를 전달하지 않는다.
+- handshake: Slack `url_verification` challenge 와 Discord PING(type 1)에는 워크플로우가 꺼져 있어도 답한다. 꺼진 트리거는 지금처럼 handshake 보다 먼저 ignored 로 답한다.
+- 스케줄: 스케줄 행과 BullMQ job scheduler 는 그대로 둔다. 다음 Cron tick 에 다시 확인하므로 워크플로우를 켜면 다음 발화부터 실행된다. 꺼져 있는 동안 건너뛴 발화는 보충하지 않는다.
+- 조회 범위: 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. `execute()` 에 넘기는 워크스페이스와 같은 값이다. 그 워크스페이스에 없으면 관문은 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다. 일반 웹훅은 404 `TRIGGER_NOT_FOUND`, 채팅 채널은 `202` ignored 와 `degraded`, 스케줄은 에러 로그를 남기고 건너뛴다.
+- 관문을 거치지 않는 경로: 편집기 수동 실행(`POST /api/workflows/:id/execute`), 재실행, 스케줄 "지금 실행"(`POST /api/schedules/:id/run-now`), External Interaction API 의 진행 중 실행 명령, 채팅 채널의 진행 중인 대화(대기 중인 실행으로의 전달, `/cancel`). 이미 진행 중인 실행은 워크플로우를 꺼도 취소하지 않는다.
+- 워크플로우는 꺼진 상태로 만들어진다([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)). 웹훅 · 채팅 채널 · 스케줄로 돌리려면 워크플로우를 켜야 한다.
 
 ## 트리거 삭제와 자원 해제
 
@@ -371,6 +406,7 @@ sequenceDiagram
 | `trigger` | 생성 | INSERT `workspace_id, workflow_id, type, name, is_active, config, endpoint_path?, auth_config_id?` | [Trigger 제약과 인덱스](#제약과-인덱스) |
 | `webhook_endpoint_reservation` | 트리거 생성·경로 변경(DB 트리거) | INSERT `endpoint_path, workspace_id` … `ON CONFLICT DO NOTHING`. 지우지 않는다 | PK `(endpoint_path)`. 주인이 다르면 `unique_violation`(라벨 `webhook_endpoint_reservation_owner`) → 409. `(workspace_id)` 부분 인덱스(V133) |
 | `trigger` | 발사 | UPDATE `last_triggered_at` | 없음 |
+| `workflow` | 웹훅 · 채팅 채널 · 스케줄 진입(워크플로우 활성 관문) | SELECT `id, is_active` WHERE `id` 와 `workspace_id`(실행을 시작하는 쪽의 워크스페이스) | PK `(id)` |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` | 복합 FK `(trigger_id, workspace_id)` CASCADE |
 | `schedule` | 발사 뒤 | UPDATE `last_run_at, next_run_at`(정보성 재계산, 발사를 일으키지 않음) | `(workspace_id, next_run_at)`(V110) |
 | `auth_config` | 웹훅 인증(읽기) | SELECT `type, config(복호화), ip_whitelist, is_active` | 복합 FK from `trigger (auth_config_id, workspace_id)` |
@@ -413,7 +449,7 @@ stateDiagram-v2
 | `true` | 웹훅 라우팅이 켜져 있다. 스케줄은 BullMQ job scheduler 에 등록돼 있다 |
 | `false` | 일반 웹훅 호출은 `410 Gone`(`TRIGGER_INACTIVE`)이다. 없는 트리거의 404 와 구분된다. 채팅 채널 트리거는 410 이 아니라 inbound 서명 검증 뒤 `202` 와 `{ executionId: 'ignored' }` 다. 스케줄은 스케줄 API 나 트리거 API 로 토글하면 `removeJob` 으로 BullMQ 작업을 해제한다 |
 
-스케줄과의 활성 상태 동기화는 양방향이다([트리거와 스케줄 동기화](#트리거와-스케줄-동기화)). 워크플로우 활성 상태(`workflow.is_active`)가 이 판정에 끼는지는 [미결 사항](#미결-사항)에 적는다.
+스케줄과의 활성 상태 동기화는 양방향이다([트리거와 스케줄 동기화](#트리거와-스케줄-동기화)). 워크플로우 활성 상태(`workflow.is_active`)는 이 값과 따로 본다. 트리거가 켜져 있어도 워크플로우가 꺼져 있으면 웹훅 · 채팅 채널 · 스케줄로 새 실행이 생기지 않는다. 워크플로우를 꺼도 트리거와 스케줄의 `is_active` 는 바뀌지 않는다([워크플로우 활성 관문](#워크플로우-활성-관문)).
 
 ### 다음 실행 계산
 
@@ -431,14 +467,16 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 
 ## 미결 사항
 
-- **워크플로우 비활성 상태가 트리거 발사를 막는지**: [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) 의 `workflow.is_active` 절, [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md), [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) 는 워크플로우를 비활성화하면 웹훅·스케줄 트리거가 멈춘다고 적는다. 이 문서의 원문 흐름은 웹훅은 `trigger.is_active`, 스케줄은 `schedule.is_active` 만 검사한다. 현재 구현도 `hooks.service.ts` 와 `schedule-runner` 가 트리거·스케줄 플래그만 보고 `workflow.isActive` 관문은 없다(코드 grep 기준). 워크플로우 활성 상태를 발사 관문으로 둘지(그러면 구현과 이 문서를 고친다), 표시용으로 둘지(그러면 워크플로우 쪽 문서의 약속을 고친다) 결정해야 한다.
+지금 남은 미결은 없다. 워크플로우 비활성 상태가 트리거 발사를 막는지는 2026-10-10 에 정했다. 규칙은 [워크플로우 활성 관문](#워크플로우-활성-관문), 근거는 [Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (트리거 CRUD, `syncScheduleActivation()`, 삭제 전 `removeJob`)
 - `codebase/backend/src/modules/schedules/schedules.service.ts` (스케줄 CRUD)
-- `codebase/backend/src/modules/schedules/schedule-runner.service.ts` (`SCHEDULE_QUEUE = 'schedule-execution'` 생산자와 processor)
+- `codebase/backend/src/modules/schedules/schedule-runner.service.ts` (`SCHEDULE_QUEUE = 'schedule-execution'` 생산자와 processor. processor `process` 의 워크플로우 활성 관문)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts` (`/api/hooks/:endpointPath` 진입)
+- `codebase/backend/src/modules/hooks/hooks.service.ts` (일반 웹훅 `handleWebhook` 과 채팅 채널 `handleChatChannelWebhook` 의 워크플로우 활성 관문. 채팅 채널은 새 실행을 시작하기 직전에 확인한다)
+- `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문 `isWorkflowInactive(repo, workflowId, workspaceId)`. 부르는 곳은 일반 웹훅, 채팅 채널, 스케줄 processor 세 곳이다)
 - `codebase/backend/src/modules/triggers/entities/trigger.entity.ts`, `codebase/backend/src/modules/triggers/entities/webhook-endpoint-reservation.entity.ts`, `codebase/backend/src/modules/schedules/entities/schedule.entity.ts`, `codebase/backend/src/modules/auth-configs/entities/auth-config.entity.ts` (엔티티 네 개)
 - 트리거 테이블 마이그레이션: `codebase/backend/migrations/V001`(세 테이블 생성), `codebase/backend/migrations/V002`, `codebase/backend/migrations/V059`, `codebase/backend/migrations/V061`, `codebase/backend/migrations/V062`, `codebase/backend/migrations/V066`, `codebase/backend/migrations/V102`, `codebase/backend/migrations/V103`, `codebase/backend/migrations/V111`, `codebase/backend/migrations/V126`, `codebase/backend/migrations/V131`, `codebase/backend/migrations/V132`, `codebase/backend/migrations/V133`(엔드포인트 경로 예약 테이블과 DB 트리거), `codebase/backend/migrations/V139`, `codebase/backend/migrations/V141`, `codebase/backend/migrations/V142`, `codebase/backend/migrations/V145`, `codebase/backend/migrations/V147`
 - 스케줄 테이블 마이그레이션: `codebase/backend/migrations/V011`, `codebase/backend/migrations/V106`, `codebase/backend/migrations/V110`
@@ -446,6 +484,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 - `codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts` (V131 중복 정리)
 - `codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts` (V133 을 임시 스키마에서 파일 그대로 돌려 백필과 DB 트리거를 확인)
 - `codebase/backend/test/trigger-deletion-releases-resources.e2e-spec.ts` (삭제 경로별 자원 정리와 보상 합성)
+- 워크플로우 활성 관문 테스트: `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.spec.ts`, `codebase/backend/src/modules/hooks/hooks.service.spec.ts`, `codebase/backend/src/modules/schedules/schedule-runner.service.spec.ts`, `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts` (일반 웹훅 410, 채팅 채널 202 ignored, 워크플로우가 꺼져 있을 때의 Discord PING 응답, 스케줄 건너뜀. 켜면 다시 실행된다)
 
 ## Rationale
 
@@ -542,3 +581,22 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. 실행 직후 재계�
 이 문서는 웹훅 202 응답을 `message` 없이 `{ executionId }` 와 인터랙션 블록으로 적어 코드와 달랐다. 응답 모양은 지금 코드에 맞춘다. NERV Task `CLE-T-M6PERB` 에서 사용자에게 묻지 않고 기본값으로 정해 알린 뒤 진행했다(2026-10-09, 그 Task 의 결정 기록).
 
 모양과 그 근거의 기준은 [웹훅](CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 의 「웹훅 202 응답 모양을 지금 코드에 맞춘다」 다. 이 문서는 `message` 를 더하는 곳과 `{ data }` 로 감싸는 곳만 적는다. 같은 모양을 여러 문서에 자세히 적으면 저마다 두 번째 기준이 된다.
+
+### 꺼진 워크플로우를 실행 관문으로 둔 결정 (2026-10-10)
+
+`workflow.is_active` 의 뜻을 문서마다 다르게 적었다. [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) 의 상태 전이와 [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md) 는 워크플로우를 끄면 웹훅 · 스케줄이 멈춘다고 적었다. 이 문서의 흐름과 구현은 트리거 · 스케줄 플래그만 봤다. 제품 안내 문서(UI 둘러보기)도 "비활성 상태에서는 트리거가 들어와도 실행되지 않아요" 라고 적는다. 이 문서의 옛 미결 항목은 [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) 도 같은 약속을 한다고 적었지만 대시보드는 활성 워크플로우 수를 셀 뿐이고 이 결정을 이 문서로 미뤘다. 결정은 NERV Task `CLE-T-XRWFMJ` 에서 했다.
+
+결정(2026-10-10 사용자):
+
+- 워크플로우 활성 상태를 실행 관문으로 둔다. 꺼진 워크플로우는 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행을 만들지 않는다. 응답은 트리거가 꺼졌을 때와 같은 규칙을 따른다. 일반 웹훅은 `410 Gone`, 채팅 채널은 `202` ignored, 스케줄은 건너뜀이다. 채팅 채널은 새 실행을 시작하는 자리에서만 막는다(아래 "진행 중인 대화를 막지 않는 이유").
+- 일반 웹훅의 코드는 `TRIGGER_INACTIVE` 를 다시 쓰지 않고 새로 둔 `WORKFLOW_INACTIVE` 다. 호출자와 운영자가 트리거와 워크플로우 가운데 무엇을 켜야 하는지 응답만 보고 안다.
+- 기각한 대안: 워크플로우 활성 상태를 표시용 플래그로 보고 워크플로우 쪽 문서의 약속만 고치는 안. 구현을 바꾸지 않아도 되지만 화면 문구대로 사용자는 워크플로우를 끄면 실행이 멈춘다고 생각한다. 그 상태로 두면 사용자가 끈 워크플로우가 외부 호출과 스케줄로 계속 돈다.
+- 영향: 워크플로우는 꺼진 상태로 만들어진다. 그래서 꺼 둔 채 외부 호출이나 스케줄로 돌던 워크플로우는 배포 뒤 멈춘다. 사용자 공지는 배포 PR 본문에 싣는다.
+
+handshake 에 답하는 이유(2026-10-10 사용자 결정): 채팅 채널에서 워크플로우 확인은 Slack `url_verification` 과 Discord PING 응답 다음이다. 워크플로우는 꺼진 상태로 만들어지므로 워크플로우를 꺼 둔 채 채널을 연결하는 일이 흔하다. 프로바이더는 URL 을 등록할 때 이 handshake 를 보내고(Discord 는 그 뒤에도 주기적으로 보낸다) 맞는 답을 받지 못하면 URL 등록이 실패한다. handshake 는 실행을 만들지 않으므로 답해도 관문의 목적에 어긋나지 않는다. 꺼진 트리거의 순서는 이번 결정으로 바꾸지 않았다. 꺼진 트리거는 지금처럼 handshake 보다 먼저 ignored 로 답한다.
+
+진행 중인 대화를 막지 않는 이유(2026-10-10 코드 리뷰 뒤): 처음 구현은 handshake 응답 바로 뒤에서 워크플로우를 확인해 꺼진 트리거처럼 대기 중인 실행으로의 전달까지 막았다. 코드 리뷰(W1)에서 이 동작이 NERV Task `CLE-T-XRWFMJ` 의 범위 "이미 진행 중인 실행은 취소하지 않는다" 와 어긋난다는 지적이 나와 확인 자리를 새 실행을 시작하는 곳으로 옮겼다. 대기 중인 실행은 사용자 입력을 받아야 다음 단계로 넘어간다. 입력을 버리면 그 실행은 timeout 까지 멈춰 있으므로 사실상 취소와 같다. 일반 웹훅으로 시작한 실행도 External Interaction API 로 입력을 받고 그 경로는 관문을 거치지 않는다. 채팅 채널만 진행 중인 실행을 막으면 두 경로의 동작이 달라진다. 그래서 막는 것은 관문의 목표대로 새 실행이 생기는 경우뿐이다. 활성 실행이 있을 때 온 `/start` 도 새 실행을 시작하는 명령이라 막는다. 관문이 기존 실행 취소보다 앞이라 기존 실행은 그대로 남는다. 기각한 대안: handshake 바로 뒤에서 막아 꺼진 트리거와 똑같이 처리하는 안. 확인 자리가 하나로 단순하지만 위 이유로 진행 중인 실행이 멈춘다. 꺼진 트리거의 순서는 이번 결정의 범위 밖이라 바꾸지 않았다. 그래서 꺼진 트리거는 지금처럼 진행 중인 대화도 끊는다.
+
+워크스페이스 안에서만 찾는 이유: 관문은 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. 저장 경계 이전에 남은 교차 행은 트리거와 워크플로우의 워크스페이스가 다르다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 워크스페이스를 가리지 않고 찾으면 그런 행에서 다른 워크스페이스 워크플로우의 활성 상태가 응답으로 샌다. 꺼져 있으면 410, 켜져 있으면 404 로 갈리기 때문이다. 그래서 그 워크스페이스에 없으면 관문을 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다(NERV Task `CLE-T-XYR067`). `execute()` 에 넘기는 워크스페이스와 같은 값이라 두 확인의 범위가 어긋나지 않는다.
+
+관문 밖에 둔 것: 이미 진행 중인 실행은 취소하지 않는다. 채팅 채널의 진행 중인 대화도 이어진다. 사용자가 직접 시작하는 실행(편집기 수동 실행, 재실행, 스케줄 "지금 실행")과 External Interaction API 의 진행 중 실행 명령은 관문을 거치지 않는다. 수동 실행은 꺼진 워크플로우도 실행한다는 [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) 의 규칙을 그대로 둔다.

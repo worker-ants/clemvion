@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WF"
 title: "용어 사전 — 워크플로우 작성"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "250072c2da31da332560db169c2860e893d8ea7d82492476c30196cdb16a4514"
+content_hash: "19bf2a7d5df0fbb392ee44172f7c448a248c70a39ebca2914461c3e9aaa3feb4"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-XRWFMJ"
 source_paths: []
-mirror_sha256: "e17e6addafdfa7b79f78c5216d67340f008b86c57344a79e123d5ccbab769cb6"
-etag: "sha256-372004515265a002de2c9f84ef19dd5126a77cec8d5f0b43c69c59583aad152c"
+mirror_sha256: "986692ace11d430d80441223cfdef93aca1cc0600f7ee702a427ef52d737400a"
+etag: "sha256-67f3f9e772972cf7bff6acc9edadafd1e1d592c2f7b61db508f79ecd329482ff"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-372004515265a002de2c9f84ef19dd5126a77cec8d5f0b43c69c59583aad152c"
 | 표준 용어 | 영문 · 코드 식별자 | 정의 | 쓰지 않는 표기 | 기준 문서 |
 | --- | --- | --- | --- | --- |
 | 워크플로우 | Workflow, `workflow` | 노드와 연결선으로 만든 자동화 단위. 트리거나 수동 실행으로 돈다. | 워크플로, 작업 흐름, Workflow(본문) | [워크플로우 데이터와 저장 흐름](CLE-WF/CLE-WF-DATA.md) |
-| 워크플로우 활성 상태 | active, `workflow.is_active` | 활성·비활성 두 값. 비활성 워크플로우는 스케줄·웹훅 트리거로 시작하지 않고 수동 실행만 된다. | Active/Inactive(본문) | [워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) |
+| 워크플로우 활성 상태 | active, `workflow.is_active` | 활성·비활성 두 값. 비활성 워크플로우는 웹훅·채팅 채널·스케줄로 새 실행이 시작되지 않는다. 진행 중인 실행은 이어지고 수동 실행·재실행은 된다. | Active/Inactive(본문) | [워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) |
 | 폴더 | Folder, `folder` | 워크플로우를 묶는 계층 폴더. 정한 깊이까지 중첩하고 순환을 막는다. 지금은 목록 필터로만 쓴다. | 컬렉션(폴더 뜻으로) | [워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) |
 | 태그 | tag | 워크플로우에 붙이는 자유 라벨. 목록 필터에 쓴다. | 없음 | [워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) |
 | 소유 필터 | ownership filter, `mine`, `shared`, `all` | 팀 워크스페이스 목록에서 내가 만든 워크플로우와 남이 만든 워크플로우를 거르는 필터. "공유된 워크플로우" 는 작성자가 내가 아닌 워크플로우를 고르는 필터 값 이름이다. 팀 배지가 따르는 "공유" 정의는 팀 워크스페이스 단위다([워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) Rationale). | 없음 | [워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) |
@@ -112,3 +112,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「노드 메모」 · 「컨테이너」 · 「계획 카드」 의 결정 항목에 번호를 붙였다. D48(노드 메모 저장 필드), D17(컨테이너의 범위), D38(계획 카드의 화면 제목)이다.
 - 「소유 필터」: 「공유된 워크플로우」 는 필터 값 이름이고 팀 배지가 따르는 「공유」 정의는 팀 워크스페이스 단위라고 적었다([워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) Rationale).
 - 「폴더」 · 「시작 가이드 카드」 · 「자동 이어서 진행」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
+
+### 워크플로우 활성 상태 정의 (2026-10-10)
+
+NERV Task `CLE-T-XRWFMJ` 에서 꺼진 워크플로우의 실행 관문을 정했다. 그 결정대로 「워크플로우 활성 상태」 정의에 채팅 채널을 더했다. 막히는 것은 새 실행이고 진행 중인 실행은 이어진다는 점과 재실행도 된다는 점을 함께 적었다. 이전 정의는 구현과 달랐다. 구현이 워크플로우 활성 상태를 보지 않아 꺼 둔 워크플로우도 스케줄 · 웹훅으로 돌았다. 경로별 동작은 [워크플로우 데이터와 저장 흐름 §워크플로우 활성 상태](CLE-WF/CLE-WF-DATA.md#워크플로우-활성-상태) 가 정한다.
