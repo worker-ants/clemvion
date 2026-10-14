@@ -229,6 +229,11 @@ describe('꺼진 워크플로우의 실행 관문 (e2e)', () => {
     expect(created.status).toBe(201);
     const scheduleId = created.body.data.id as string;
     await setWorkflowActive(workflowId, false);
+    // 건너뛴 발화도 "다음 실행" 을 다음 cron 발화로 옮기는지 보려고 지난 시각을 넣어 둔다.
+    await db.query(
+      `UPDATE schedule SET next_run_at = '2020-01-01T00:00:00Z' WHERE id = $1`,
+      [scheduleId],
+    );
 
     const jobOpts = { removeOnComplete: false, removeOnFail: false };
     const skipped = await scheduleQueue.add(
@@ -238,6 +243,11 @@ describe('꺼진 워크플로우의 실행 관문 (e2e)', () => {
     );
     expect(await waitForJobEnd(skipped)).toBe('completed');
     expect(await executionCount(workflowId)).toBe(0);
+    const afterSkip = await db.query<{ moved: boolean; last: Date | null }>(
+      `SELECT next_run_at > NOW() AS moved, last_run_at AS last FROM schedule WHERE id = $1`,
+      [scheduleId],
+    );
+    expect(afterSkip.rows[0]).toEqual({ moved: true, last: null });
 
     await setWorkflowActive(workflowId, true);
     const fired = await scheduleQueue.add(
