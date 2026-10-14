@@ -3,18 +3,18 @@ id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046"]
+status: "approved"
+requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "dbc896d9840dc50eacb235de1d97c4a3fedd5a11a3d23fa38f90b7542de45962"
+content_hash: "54e427a2d6f22e0b7b4c2fe2f208b78453a577815ed65d0fc90d84a5f100dd3c"
 read_as: "approved_fallback"
 task: "CLE-T-NNENG8"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "4b1df66bd1f918cd02d9b04e4a2e3300c7b1b9391ffc29a9ece034509bc69245"
-etag: "sha256-84bfdd27544000256abf636c8ebeb2c0e1bbc35fa93b92f098c8e3919905c1a7"
+mirror_sha256: "812e8ec4a3d767098dca5d87cf102d394dc01902b024590779987732c22e1c17"
+etag: "sha256-9bc5430d9cd3c200665190fc7e0b0a75b52558f234dff9f08fc3767c1fb0605f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,7 +28,7 @@ etag: "sha256-84bfdd27544000256abf636c8ebeb2c0e1bbc35fa93b92f098c8e3919905c1a7"
 
 - 서비스별 자격 증명 필드와 연결 테스트가 서비스마다 무엇을 확인하는지는 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 이 정한다.
 - OAuth 연결·설치 흐름, 권한 탭, 통합 재인증(reauthorize)과 추가 권한 요청(request scopes), 토큰 자동 갱신은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다.
-- 상태 전이, 상태 표시, 주의 필요 판정, 만료 스캐너와 알림은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 정한다.
+- 상태 전이, 상태 표시, 주의 필요 판정, 재설치 대기 표시와 상태의 관계, 만료 스캐너와 알림은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 정한다.
 - 엔티티 컬럼, 활동 로그(activity log) 채우기 규칙, 암호화는 [통합 데이터와 흐름](CLE-INT-DATA.md) 이 정한다.
 - 통합 노드의 핸들러 계약과 노드 에러 코드는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md), MCP 서버 통합의 도구 노출은 [MCP 클라이언트](CLE-INT-MCP.md) 가 정한다.
 - 같은 제품 요구사항 문서의 지식 저장소와 마켓플레이스 요구사항은 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) 와 [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md) 에 있다.
@@ -81,6 +81,10 @@ etag: "sha256-84bfdd27544000256abf636c8ebeb2c0e1bbc35fa93b92f098c8e3919905c1a7"
 - REQ-INTMGMT-044 WHEN OAuth 통합 재인증이 콜백으로 끝나면 THE SYSTEM SHALL `integration.reauthorized` 감사 로그를 남긴다. (미구현)
 - REQ-INTMGMT-045 WHEN 노드 설정 패널에서 통합을 고르면 THE SYSTEM SHALL 서비스 유형으로 거른 통합 선택기를 보이고 해당 유형 통합이 없으면 만들기 링크를 보인다.
 - REQ-INTMGMT-046 IF 노드에 저장된 통합이 삭제됐으면 THE SYSTEM SHALL `{id앞8자}… (missing)` 옵션을 더해 값을 보존한다.
+- REQ-INTMGMT-047 WHEN 통합 조회 응답을 만들면 THE SYSTEM SHALL 재설치 대기 표시를 `reinstallRequestedAt`(ISO 8601 시각 또는 `null`)으로 싣고 남긴 지 24시간이 지난 표시는 `null` 로 싣는다.
+- REQ-INTMGMT-048 WHILE 통합 조회 응답의 `reinstallRequestedAt` 이 `null` 이 아닌 동안 THE SYSTEM SHALL 상세 화면 머리 아래에 «테스트 실행» 을 누르라는 안내와 요청 시각을 info 톤으로 보인다.
+- REQ-INTMGMT-049 WHEN 보안 탭이 통합 재인증 버튼을 막으면 THE SYSTEM SHALL 설치 대기, 설치 기한 만료, App URL 없음, MakeShop 가운데 해당하는 이유의 안내 문구를 버튼 아래에 보인다.
+- REQ-INTMGMT-050 WHEN 통합 재인증 응답이 `cafe24_private_pending` 이면 THE SYSTEM SHALL 팝업을 열지 않고 info 토스트를 보인 뒤 통합을 다시 조회한다.
 
 ## 라우트
 
@@ -198,7 +202,19 @@ stateDiagram-v2
 | 제목 | 그 아래 | 상태 아이콘, 별칭 | |
 | 메타 라인 | 제목 아래 | `<인증 유형> · <공개 범위> · <상태 배지> · <Last used …>` | 자동 갱신 보조 라벨은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
 | 생성 정보 | 메타 아래 | `Created by @<user>, <date>` | |
+| 재설치 대기 안내 | 머리 아래, 탭 위 | 제목, 설명, 요청 시각 | `reinstallRequestedAt` 이 `null` 이 아닐 때만 보인다. [재설치 대기 안내](#재설치-대기-안내) |
 | 탭 | 본문 위 | `Overview`·`Security`·`Scope & Permissions`·`Usage`·`Activity`·`Danger zone` | 앵커(`#security`, `#usage` 등)로 전환 |
+
+### 재설치 대기 안내
+
+통합에 재설치 대기 표시(`IntegrationDto.reinstallRequestedAt`)가 있으면 머리와 탭 사이에 인라인 안내를 보인다. 지금 표시가 생기는 통합은 Cafe24 Private 뿐이다. 표시의 뜻과 상태와의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md#재설치-대기-표시), 남기고 지우는 규칙은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시) 이 정한다.
+
+- 톤은 info(파랑)다. 표시는 상태가 아니라 다음에 할 일을 알리는 안내라서 상태 배지와 따로 둔다. 오류·만료됨 같은 상태 문제는 상태 배지가 경고 톤으로 따로 보인다.
+- 제목: "Cafe24 Developers 에서 '테스트 실행'을 눌러 주세요" / `Click "Test run" in Cafe24 Developers`
+- 설명: "재설치를 요청했어요. Cafe24 Developers 의 앱 화면에서 '테스트 실행'을 누르면 동의 화면이 열려요. 동의하면 새 토큰으로 바뀌어요. 요청은 24시간 동안 유효해요." / `Reinstall requested. Click "Test run" on your app in Cafe24 Developers to open the consent screen; once you approve, the integration switches to the new token. The request stays valid for 24 hours.` 그 전까지 지금 토큰으로 실행된다는 문장은 넣지 않는다. 오류·만료됨 행은 콜백이 성공하기 전까지 노드 실행이 계속 막힌다.
+- 요청 시각: "요청 시각: <시각>" / "Requested at: <시각>". 시각은 `formatDate(…, "datetime")` 로 보인다.
+- 콜백이 성공하면 표시가 지워져 다음 조회부터 안내가 사라진다. 표시는 남긴 시각부터 24시간 동안만 유효하다. 24시간 안에 «테스트 실행» 을 하지 않으면 응답의 `reinstallRequestedAt` 이 `null` 이 되어 안내도 사라진다. 다시 하려면 통합 재인증이나 추가 권한 요청을 다시 누른다.
+- 안내 영역은 `role="status"` 다. 탭 위에 있어 어느 탭을 열어도 보인다.
 
 ### 개요 탭
 
@@ -215,13 +231,25 @@ stateDiagram-v2
 | 블록 | 설명 |
 | --- | --- |
 | Authentication | 인증 유형과 현재 자격 증명 메타(예: `Token preview: xoxb-****4f2a`). 원본 값은 복호화해 보이지 않는다 |
-| Reauthorize (OAuth) | `[Reauthorize]` → `POST /api/integrations/:id/reauthorize` 로 `authUrl` 을 받아 팝업 OAuth → 성공하면 연결됨으로 돌아온다. 비활성 조건: 설치 대기(외부 «테스트 실행»·앱 설치 재호출이 정식), `status='expired' AND status_reason='install_timeout'`(설치 기한 만료, 삭제 후 재등록 권장), `service_type='cafe24' AND credentials.app_type='private'` 인 모든 경우(우리 서버가 OAuth 를 시작할 수 없다). MakeShop 통합은 begin 이 재인증을 거절하므로([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)) 버튼을 둘지와 오류 뒤 복구 경로가 [통합 상태와 만료 알림](CLE-INT-STATUS.md#미결-사항) 의 미결 사항이다 |
+| Reauthorize (OAuth) | `[Reauthorize]` → `POST /api/integrations/:id/reauthorize`. 응답에 `authUrl` 이 있으면 팝업 OAuth 를 열고 성공하면 연결됨으로 돌아온다. Cafe24 Private 은 응답이 `cafe24_private_pending` 이라 팝업 없이 info 토스트("Cafe24 Developers 에서 '테스트 실행'을 눌러 주세요")를 보이고 통합을 다시 조회한다. 다시 조회한 화면에 [재설치 대기 안내](#재설치-대기-안내)가 나온다. Cafe24 Private 의 버튼 위 설명은 "재설치를 요청한 뒤 Cafe24 Developers 에서 '테스트 실행'을 누르면 토큰이 갱신돼요." 다. 비활성 조건은 아래 표 |
 | Rotate credentials (OAuth 아님) | 인라인 폼. 기존 값은 가리고 토글로 교체 폼을 열어 새 값을 넣으면 `POST /api/integrations/:id/rotate` 가 안에서 연결 테스트를 하고 성공할 때만 저장한다. 실패하면 기존 자격 증명을 유지한다. 폼 필드는 서비스 스키마와 같다. 서버는 테스트가 성공하기 전까지 기존 자격 증명을 건드리지 않는다 |
 | Last rotated | `last_rotated_at` 상대 시간과 절대 시간 |
 
+통합 재인증 버튼은 아래 조건에서 막고 버튼 아래에 이유별 안내 문구를 보인다(`reauthorizeDisabledReason`). 위 행부터 판정해 처음 맞는 이유를 쓴다.
+
+| 이유 값 | 조건 | 막는 이유 | 안내 문구 |
+| --- | --- | --- | --- |
+| `pending_install` | 설치 대기(서비스 무관) | 설치가 끝나지 않았다. 외부 «테스트 실행»·앱 설치가 정식 경로다 | "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요." |
+| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 삭제 후 재등록한다 | "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 삭제한 뒤 다시 등록해 주세요." |
+| `makeshop` | MakeShop 통합 | 서버가 재인증을 시작할 수 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 삭제 후 재등록한다 | "MakeShop 통합은 재인증할 수 없어요. 문제가 생기면 통합을 삭제한 뒤 다시 등록해 주세요. 상점에서 앱을 다시 설치해도 기존 통합은 복구되지 않아요." |
+| `no_app_url` | App URL(`appUrl`)이 없는 Cafe24 Private 통합 | 설치 토큰이 없어 «테스트 실행» 이 이 행으로 돌아올 수 없다. 삭제 후 재등록한다 | "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요." |
+
+- 설치를 마치고 App URL 이 있는 Cafe24 Private 통합은 버튼이 활성이다. 서버는 재설치 대기 표시만 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시)). 표시가 남아 있어도 버튼은 활성이고 다시 누르면 새 시각으로 표시를 다시 남긴다.
+- 화면에서 막는 것과 별개로 서버도 거절한다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합의 `:id/reauthorize` 는 400 이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
+
 ### 권한 탭
 
-OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다.
+OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 통합 재인증의 비활성 이유가 `makeshop`·`no_app_url` 인 통합(MakeShop 통합과 App URL 이 없는 Cafe24 Private 통합)은 권한 요청 버튼도 막고 삭제 후 재등록 안내를 보인다(`isRequestScopesDisabled`). 추가 권한 요청이 `cafe24_private_pending` 으로 끝나면 통합을 다시 조회하므로 재설치 대기 표시가 남은 경우 [재설치 대기 안내](#재설치-대기-안내)가 바로 나온다.
 
 ### 사용 탭
 
@@ -297,8 +325,9 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 >
 > [Close] [Open Workflow A →]
 
-- 서버의 `DELETE /api/integrations/:id` 도 같은 조건을 확인해 409 를 돌려준다. 본문은 `{ code: 'INTEGRATION_IN_USE', usages: [...] }` 다.
+- 서버의 `DELETE /api/integrations/:id` 도 같은 조건을 확인해 409 `INTEGRATION_IN_USE` 를 돌려준다. 사용처 목록은 에러 봉투의 `details.usages` 에 싣는다. 사전 조회와 삭제 사이에 사용처가 생겨 409 가 오면 화면은 그 목록으로 같은 차단 다이얼로그를 띄우고 목록이 없으면 토스트로 알린다. 현재 구현은 이 목록을 응답에 싣지 못한다([미결 사항](#미결-사항)).
 - 통합을 MCP 도구로 참조하는 AI 에이전트 노드도 차단 대상이다. 쓰이고 있는 MCP 통합을 실수로 지워 AI 에이전트가 실행 중에 깨지는 것을 막는다. 다이얼로그의 MCP 노드 행에도 `MCP` 배지를 붙인다.
+- 삭제 후 재등록으로 복구하는 통합(MakeShop, 설치 토큰이 없는 Cafe24 Private)은 이 차단 때문에 노드의 통합 참조를 먼저 비우거나 바꿔야 지울 수 있다. 다시 등록한 뒤에는 노드에서 새 통합을 다시 고른다. 순서와 이유는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 이 정한다.
 
 통합이 만료됨이나 오류가 되면 그 통합을 참조하는 모든 노드는 워크플로우 에디터에서 경고 배지(🟡·🔴)와 tooltip "Integration needs attention — open settings" 를 보인다. 노드 설정 패널에는 통합 상세로 가는 바로가기 링크를 둔다.
 
@@ -350,7 +379,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 
 ## API
 
-응답 봉투는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 을 따른다. 성공은 `{ data: ... }` 또는 `{ data: ..., pagination: ... }`, 실패는 `{ code, message, details? }` 다.
+응답 봉투는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 을 따른다. 성공은 `{ data: ... }` 또는 `{ data: ..., pagination: ... }` 이고 실패는 에러 응답 봉투 `{ error: { code, message, requestId, details? } }` 다. 봉투 필드의 뜻과 `details` 를 싣는 규칙은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다.
 
 ### 목록과 CRUD
 
@@ -370,7 +399,9 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 - **`autoRefresh: boolean`**: 자동 갱신 표시. 백엔드 서비스 레지스트리의 `ServiceDefinition.supportsTokenAutoRefresh`(`service-registry.ts`)에서 파생한다. 현재 `cafe24`·`google`·`makeshop`(auth-code + refresh)이 true, 그 밖(`github` 포함)은 false 다. 사이드바 카운트, 주의 필요 배너, `Expiring`·`Attention` 칩, 상세 헤더·개요의 분기 신호이고 권한과 상관없이 모든 인증 요청에 싣는다. Google 이 true 인 문제는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
 - 두 파생 값의 서비스별 계산은 `buildIntegrationMeta` 의 Cafe24 하드코딩에서 `Map<serviceType, fn>` 서비스 레지스트리 방식으로 일반화됐다(C-6, 구현 완료).
 
-`IntegrationDto` 는 파생 값 외에 엔티티 컬럼 투영 다섯 개도 싣는다: `mallId`·`tokenExpiresAt`·`lastRotatedAt`·`lastUsedAt`·`consecutiveNetworkFailures`. 이 컬럼들의 뜻과 마이그레이션은 [통합 데이터와 흐름](CLE-INT-DATA.md) 이 기준이다. 그 컬럼들이 관여하는 상태 전이와 스캐너 판정은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 기준이다. `consecutiveNetworkFailures` 는 health 판정의 내부 카운터이고 프런트엔드 참조가 0곳(2026-09-10 재측정)이라 노출 중단을 별도 트래커(`plan/in-progress/spec-draft-nullable-notation-followups.md`)에서 추적한다. 새 소비자를 만들지 않는다.
+`IntegrationDto` 는 파생 값 외에 엔티티 컬럼 투영 여섯 개도 싣는다: `mallId`·`tokenExpiresAt`·`lastRotatedAt`·`reinstallRequestedAt`·`lastUsedAt`·`consecutiveNetworkFailures`. 이 컬럼들의 뜻과 마이그레이션은 [통합 데이터와 흐름](CLE-INT-DATA.md) 이 기준이다. 그 컬럼들이 관여하는 상태 전이와 스캐너 판정은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 기준이다. `consecutiveNetworkFailures` 는 health 판정의 내부 카운터이고 프런트엔드 참조가 0곳(2026-09-10 재측정)이라 노출 중단을 별도 트래커(`plan/in-progress/spec-draft-nullable-notation-followups.md`)에서 추적한다. 새 소비자를 만들지 않는다.
+
+`reinstallRequestedAt: string | null` 은 재설치 대기 표시(`reinstall_requested_at`, V151)다. ISO 8601 시각이고 표시가 없거나 남긴 지 24시간이 지났으면 `null` 이다. 서버는 24시간이 지난 값을 컬럼에 남겨 두지만 응답에는 싣지 않는다. 지금은 Cafe24 Private 통합에만 값이 생기고 그 밖의 통합은 늘 `null` 이다. 상세 화면의 [재설치 대기 안내](#재설치-대기-안내)가 이 값을 쓴다.
 
 ### 인증·교체·권한
 
@@ -383,9 +414,9 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | GET | `/api/3rd-party/makeshop/install/:installToken` | MakeShop App URL. 같은 문서 |
 | GET | `/api/3rd-party/:provider/callback` | OAuth 콜백. `:provider ∈ {cafe24, google, github, makeshop}`. 같은 문서 |
 | POST | `/api/integrations/preview-test` | 저장 전 연결 테스트 |
-| POST | `/api/integrations/:id/reauthorize` | 통합 재인증 `authUrl` 발급. 같은 문서 |
+| POST | `/api/integrations/:id/reauthorize` | 통합 재인증. OAuth 통합은 `authUrl` 을 발급하고 OAuth 가 아닌 통합은 바로 연결됨으로 되돌린다. 설치 토큰이 있고 설치 대기가 아닌 Cafe24 Private 통합은 재설치 대기 표시만 남기고(이미 있으면 새 시각으로 덮어쓴다) `{ mode: 'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 을 돌려준다. 추가 권한 요청의 Private 응답과 같은 모양이고 `scopesAdded` 만 없다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합은 400 으로 거절한다. 같은 문서 |
 | POST | `/api/integrations/:id/rotate` | OAuth 가 아닌 자격 증명 교체. 본문은 새 자격 증명 객체. 안에서 테스트하고 성공할 때만 저장. `oauth2` 는 `INTEGRATION_ROTATE_UNSUPPORTED` |
-| POST | `/api/integrations/:id/request-scopes` | 추가 권한 요청. 본문 `{ scopes: string[] }`. 응답 분기는 같은 문서 |
+| POST | `/api/integrations/:id/request-scopes` | 추가 권한 요청. 본문 `{ scopes: string[] }`. 설치 토큰이 있는 Cafe24 Private 통합은 OAuth 없이 권한 범위를 합쳐 저장하고 설치 대기가 아니면 재설치 대기 표시를 남긴 뒤(이미 있으면 새 시각으로 덮어쓴다) `{ mode: 'cafe24_private_pending', integrationId, appUrl, callbackUrl, scopesAdded: string[] }` 를 돌려준다. 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합은 400 으로 거절한다. 그 밖의 응답 분기는 같은 문서 |
 | PATCH | `/api/integrations/:id/scope` | 공개 범위 전환(관리자) |
 
 같은 «서비스 식별자» 개념인데 두 엔드포인트가 필드명을 다르게 쓴다. `oauth/begin` 은 `OAuthBeginDto.service`, `preview-test` 는 `PreviewTestDto.serviceType` 이다. 두 DTO 가 따로 발전한 결과이며 `service` 이름 변경은 별도 breaking change 범위다.
@@ -439,7 +470,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 
 | 코드 | HTTP | 뜻 |
 | --- | --- | --- |
-| `INTEGRATION_IN_USE` | 409 | 사용처가 있어 삭제를 막았다. 본문에 `usages` |
+| `INTEGRATION_IN_USE` | 409 | 사용처가 있어 삭제를 막았다. 사용처 목록은 `details.usages` 에 싣는다. 현재 구현은 목록을 싣지 못한다([미결](#미결-사항)) |
 | `INTEGRATION_NAME_TAKEN` | 409 | 워크스페이스에 같은 이름의 통합이 있다(`integration_workspace_name_unique`, 공개 범위 무관). 생성과 별칭 수정이 낸다. 겹친 쪽이 남의 개인 통합이어도 난다(아래 Rationale 의 받아들인 잔여) |
 | `INTEGRATION_TEST_FAILED` | [미결](#미결-사항) | 연결 테스트 실패. 무엇을 확인하는지는 서비스마다 다르다([서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md)). HTTP 는 `base_url` 이 401·403 을 돌려줄 때만 자격 증명 거부를 안다 |
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스 유형·인증 유형 조합. 생성과 저장 전 연결 테스트가 공유하는 `IntegrationsService.validateServiceAuthType` 이 서비스 레지스트리(`findVariant`)에 없는 조합을 거부한다. 메시지 `Unsupported service/auth combination: {serviceType}/{authType}` |
@@ -451,8 +482,8 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `OAUTH_PREVIEW_INVALID` · `OAUTH_PREVIEW_EXPIRED` · `OAUTH_PREVIEW_MISMATCH` | 400 | 미리보기 토큰이 없거나 남의 것 · 10분 경과 · 서비스 유형 불일치 |
 | `INSUFFICIENT_SCOPE` | 403 | 권한 부족. 노드 실행 중 감지하면 통합 상태도 `error(insufficient_scope)` 로 바뀐다. `details.missingScopes: string[]`(Cafe24 응답에서 뽑은 누락 권한 범위)와, Cafe24 만 `details.requiresCafe24Approval?: string[]`(누락 권한과 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1·§2 명단 전체의 교집합)를 싣는다. §2 항목은 권한 범위 자체(`mall.read_store`·`mall.write_store`)가 일반 사용 가능이라 교집합은 대개 §1 항목에서 생긴다. 다른 서비스는 이 필드를 뺀다. 프런트엔드는 비어 있지 않으면 «이 권한은 카페24 별도 승인이 필요해요» 를 더 보인다. 새 코드 없이 필드만 더한 보강이다. 노드 실행 중 403 의 노드 출력 코드는 [미결](#미결-사항) |
 | `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 상점의 Cafe24 통합이 있다(앱 유형 무관). 두 경로와 이름의 유래는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
-| `CAFE24_PRIVATE_APP_USE_TEST_RUN` | | Cafe24 Private 통합에 OAuth 재인증을 요청했다. «테스트 실행» 이 정식 경로다 |
-| `MAKESHOP_USE_SHOPSTORE_INSTALL` | | MakeShop 통합에 `new` 외 모드로 begin 을 요청했다 |
+| `CAFE24_PRIVATE_APP_USE_TEST_RUN` | 400 | Cafe24 Private 통합에 `oauth/begin` 을 `new` 외 모드로 요청했다. 통합 재인증과 추가 권한 요청은 begin 을 거치지 않고 재설치 대기 표시를 남기며 OAuth 는 «테스트 실행» 이 App URL 을 거쳐 마친다. 2026-10-10 에 낼 자리가 좁아졌지만 뜻이 같아 이름을 유지했다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
+| `MAKESHOP_USE_SHOPSTORE_INSTALL` | 400 | MakeShop 통합에 `oauth/begin` 을 `new` 외 모드로 요청했다. MakeShop 은 통합 재인증과 추가 권한 요청이 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 복구는 삭제 후 재등록이다. 이름을 유지한 이유는 같은 문서의 Rationale |
 | `MAKESHOP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 `shop_uid` 의 연결됨 MakeShop 통합이 있다 |
 | `CAFE24_INSTALL_MISSING_PARAMS` | 400 | App URL 호출에 `mall_id`·`timestamp`·`hmac` 누락 |
 | `CAFE24_INSTALL_INVALID_TOKEN` | 404 | App URL 의 설치 토큰이 없다(삭제, 24시간 만료, 회복 실패) |
@@ -498,23 +529,27 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 
 `integration.reauthorized` 는 모든 재인증을 포괄하지 않는다. OAuth 제공자가 없는 통합의 reset 경로 전용이다. `reauthorize()` 가 상태를 연결됨으로 되돌리는 즉시 `details.mode='reset'` 으로 기록한다. OAuth 통합의 재인증은 `reauthorize()` 가 `oauth/begin` 에 맡기기만 하므로 시작 시점에 기록하지 않고 이어지는 콜백 완료도 현재 기록하지 않는다. OAuth 재인증 완료는 현재 감사 커버리지의 빈틈이다. 확장할 때 콜백 성공 지점에서 기록한다.
 
+Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통합 재인증과 추가 권한 요청이 재설치 대기 표시를 남길 때도, 그 뒤 «테스트 실행» 콜백이 표시를 지우고 자격 증명을 바꿀 때도 감사 로그를 남기지 않는다. `integration.reauthorized` 는 여전히 reset 경로에서만 남는다(Task CLE-T-NNENG8).
+
 ## 미결 사항
 
 - **`INTEGRATION_TEST_FAILED` 의 HTTP 상태**: 통합 화면 정의의 에러 카탈로그는 422 로 적는다. [MCP 클라이언트](CLE-INT-MCP.md) 는 자격 증명 교체 경로에서 `BadRequestException`(400)으로 적는다. 현재 구현(`integrations.service.ts` rotate)은 400 이고 컨트롤러 Swagger 도 400 응답 설명에 이 코드를 적는다. 통합 화면 Rationale 도 이 서비스의 다른 throw 가 모두 400 이라고 적는다. API 계약이라 한쪽으로 정해야 한다. 422 로 가면 코드와 MCP 클라이언트 정의를 함께 바꾼다.
 - **노드 실행 중 403 의 에러 코드**: [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 는 403 을 `output.error.code=CAFE24_AUTH_FAILED` 로 내고 상태를 `auth_failed` 또는 `insufficient_scope` 로 바꾼다고 적는다. 이 문서의 에러 코드 표와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) 는 노드 실행 중 403 이 `INSUFFICIENT_SCOPE` 와 `details.missingScopes`·`requiresCafe24Approval` 을 낸다고 적는다. 워크플로우 작성자가 분기할 코드가 문서마다 다르다. 현재 구현에서 `CAFE24_INSUFFICIENT_SCOPE` 는 연결 테스트용으로 보인다(미확인). 노드 출력 코드와 `requiresCafe24Approval` 이 실리는 자리(`last_error.details` 로 보인다)를 확정해야 한다.
 - **MCP 서버 통합의 개인 공개 범위**: [MCP 클라이언트](CLE-INT-MCP.md) 는 MCP 통합의 기본값이 조직이고 개인 등록을 지원하지 않는다고 적는다. 이 문서의 추가 화면·권한 규칙과 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 에는 MCP 예외가 없어 모든 서비스가 개인을 고를 수 있다. MCP 전용 제한은 코드에서 찾지 못했다(미확인). MCP 개인 등록을 막을지 결정이 필요하다.
 - **뷰어의 자기 개인 통합 쓰기**: 이 문서의 권한 표와 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 역할 매트릭스는 개인 통합을 역할과 상관없이 «자기 것» 으로 두어, 뷰어도 자기 개인 통합을 생성·별칭 수정·자격 증명 교체·삭제할 수 있다(REQ-INTMGMT-035). 라우트 가드(`@Roles('editor')`)와 요구사항 NAV-IN-07 의 완료 서술은 이 쓰기 경로를 편집자 이상으로 막는다. [제품 비전](../CLE-VISION.md) 은 라우트 가드 사실만 적고 판단을 이 문서와 역할 매트릭스에 맡겼다. 원문은 이 차이를 후속 작업의 «아직 강제되지 않는 것» 으로 적는다. 뷰어에게 개인 통합 쓰기를 여는 것이 의도인지 확정하고, 의도라면 가드를 개인 통합에 한해 넓히고 아니라면 매트릭스를 좁혀야 한다.
+- **삭제 차단 409 의 사용처 목록**: 이 문서는 `DELETE` 의 409 `INTEGRATION_IN_USE` 가 에러 봉투의 `details.usages` 에 사용처 목록을 싣는다고 정한다(REQ-INTMGMT-019). 현재 구현(`integrations.service.ts` 의 삭제 경로)은 목록을 예외 객체 최상위의 `usages` 에 담는다. 전역 예외 필터(`http-exception.filter.ts`)는 `code`·`message`·`details` 만 봉투로 옮기므로 목록이 응답에서 빠진다. 화면(`danger-tab.tsx`)도 응답 본문 최상위의 `usages` 를 읽어 경합으로 409 가 오면 늘 토스트로 끝난다. 삭제 전 `usages` 조회로 차단 다이얼로그를 띄우는 정상 흐름은 영향이 없다. 서버는 `details.usages` 로 싣고 화면은 `error.details.usages` 를 읽도록 함께 고쳐야 한다.
 
 ## 구현 위치
 
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx`
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx`
-- `codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/**`
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/**` (`reinstall-requested-notice.tsx`: 재설치 대기 안내, `scope-tab.tsx`: 권한 탭)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/*.tsx`
-- `codebase/frontend/src/lib/integrations/*.ts`
+- `codebase/frontend/src/lib/integrations/*.ts` (`reauthorize.ts`: `reauthorizeDisabledReason`·`isRequestScopesDisabled`)
 - `codebase/frontend/src/lib/api/integrations.ts`
 - `codebase/frontend/src/lib/api/integration-error-codes.ts`
-- `codebase/backend/src/modules/integrations/**`
+- `codebase/backend/src/modules/integrations/**` (`integrations.service.ts`: `reauthorize`·`requestScopes`, `dto/responses/integration-response.dto.ts`: `reinstallRequestedAt`)
+- `codebase/backend/src/common/filters/http-exception.filter.ts` (에러 응답 봉투)
 
 ## Rationale
 
@@ -546,6 +581,8 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 컬럼 다섯 개의 뜻과 마이그레이션은 데이터 문서가 이미 모두 갖고 있어 복제하지 않는다. 옮기면 두 자리가 갈리는 원인이 하나 늘 뿐이다. 다만 기준을 데이터 문서에 통째로 넘기지도 않았다. 초안은 «뜻·**전이 규칙**·마이그레이션은 데이터 문서가 기준» 이라 적었는데 `--spec` 이 반증했다(`review/consistency/2026/09/10/10_47_01` W1). 데이터 문서의 `consecutive_network_failures` 행 자신이 전이 규칙은 상태 전이 문서라고 되짚기 때문이다. 좁은 인벤토리 주장을 고치다 반대 방향의 넓은 주장을 만들 뻔해서 범위를 뜻·마이그레이션으로 좁히고 전이 축은 상태 문서로 명시했다. 에러 코드 표 쪽이 아닌 이유는 좁은 인벤토리 주장이 실제로 있는 자리가 상세 API 행이라서다.
 
 이 경계 문장에는 유지 비용이 있다. `consecutiveNetworkFailures` 가 실제로 제거되면 여기 문장과 DTO JSDoc(`integration-response.dto.ts` 의 그 필드 주석) 두 자리를 함께 지워야 하고 그 사실을 트래커에도 적었다. 그래도 두는 이유는 경계 문장이 없으면 다음 프런트엔드 작업자가 그 필드를 소비할 수 있고 그러면 제거가 파괴적 변경이 되어 그 항목이 영영 닫히지 못하기 때문이다.
+
+2026-10-10 에 재설치 대기 표시 `reinstallRequestedAt` 이 더해져 컬럼 투영은 여섯 개가 됐다(Task CLE-T-NNENG8). 경계 문장도 함께 고쳤다.
 
 ### 사용처 추적에 AI 에이전트 MCP 참조를 넣는다
 
@@ -590,3 +627,12 @@ Cafe24 «앱으로 가기»·«테스트 실행» 의 HMAC 실패 에러 페이�
 - **throttle**: 분당 60회. 상점 식별자 정규식이 프런트엔드에서 먼저 걸러 백엔드 호출이 줄어든다. 무차별 열거의 비용은 회당 SQL 한 번과 JWT 검증으로 낮지만 throttle 이 마지막 방어다.
 
 폐기한 «전방위 O(N) `mall_id` 스캔 + HMAC 대조» 와 다르다. precheck 는 평문 `mall_id` 컬럼의 인덱스(V072)로 한 번에 몇 행만 가져온다. `mall_id` 가 NULL 인 옛 행을 위한 대체 쿼리만 backfill 이 끝나기 전까지 임시로 더 부르고 backfill 이 끝나면 없앤다(구현 주석 `findAllCafe24RowsForMall`).
+
+### Cafe24 Private 통합 재인증을 열고 MakeShop 은 막는다 (2026-10-10)
+
+이전에는 Cafe24 Private 통합의 통합 재인증 버튼을 모든 경우에 막았다. 우리 서버가 OAuth 를 시작할 수 없어서다. MakeShop 은 begin 이 재인증을 거절하는데도 버튼을 둘지와 오류 뒤 복구 경로가 미결이었다. Task CLE-T-NNENG8 에서 두 서비스를 다르게 정했다(2026-10-10 사용자 결정).
+
+- **Cafe24 Private 은 App URL 이 남아 있으면 버튼을 연다.** 서버가 재설치 대기 표시를 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다. 응답에 `authUrl` 이 없어 열 팝업이 없으므로 화면은 토스트와 재설치 대기 안내로 다음 할 일을 알린다.
+- **MakeShop 은 버튼을 막는다.** ShopStore 재설치가 설치를 마친 통합을 되살리지 않아 복구 경로가 삭제 후 재등록뿐이다. 두 서비스를 다르게 정한 이유와 기각한 선택지는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 에 있다.
+- **비활성 안내는 이유마다 따로 보인다.** 이유마다 사용자가 할 일이 다르다. 설치 대기는 설치를 마치면 된다. 설치 기한이 지난 행과 App URL 이 없는 행은 둘 다 삭제 후 재등록해야 하지만 문구를 나눈다. App URL 이 없는 행이 모두 설치 기한이 지난 행은 아니어서 «설치 시간이 지나 만료» 라는 문구가 맞지 않는다(코드 리뷰 결과, Task CLE-T-NNENG8). MakeShop 은 상점에서 앱을 다시 설치해도 복구되지 않는다는 점까지 알아야 한다.
+- **재설치 대기 안내는 상태 배지와 따로 info 톤으로 둔다.** 표시는 상태가 아니라서 상태 배지로 보일 수 없다. 안내는 다음에 할 일을 알리는 것이고 오류·만료됨 같은 상태 문제는 상태 배지가 이미 경고 톤으로 보인다. 그래서 안내에 경고 톤을 겹치지 않는다. 처음 초안은 «표시가 있어도 지금 토큰으로 실행이 계속된다» 를 이유로 들고 안내 설명에도 그 문장을 넣었다. 오류·만료됨 행은 콜백이 성공할 때까지 노드 실행이 막히므로 코드 리뷰에서 그 문장을 뺐다. 권한 탭의 인라인 안내는 요청 직후 그 탭에만 보이고 다음 요청 때 초기화된다. 표시는 콜백이 성공하거나 24시간이 지날 때까지 남으므로 탭 위에 따로 둔다.

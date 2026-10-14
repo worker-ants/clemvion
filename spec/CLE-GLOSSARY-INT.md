@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "84792356481739968cac43221dd1d8c227e50b26b949e7681763cefd97f493e1"
+content_hash: "939ed740611e3c22137e9813cdd7a632d2280b822d17d1f208a0d95297873e60"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-NNENG8"
 source_paths: []
-mirror_sha256: "68f28379898915a3cada53ce14ddc760a1e6697296045f96bd243075184c39f5"
-etag: "sha256-95238950b05b58d9a59b135b03a25c6c5626c698111a57a6d1e9381c4d1038d6"
+mirror_sha256: "80cb61d421d180bcb68216d63ffb6d607fb81f445672af62971032e500dbfc92"
+etag: "sha256-8e6cd3d2031d18622c7eed12df9874252da949f7a60efece86784b415eab2132"
 ---
 ## 개요
 
@@ -59,6 +59,7 @@ etag: "sha256-95238950b05b58d9a59b135b03a25c6c5626c698111a57a6d1e9381c4d1038d6"
 | 설치 시간 초과 | `install_timeout` | 정한 기한 안에 설치가 끝나지 않아 만료된 사유. Cafe24 Private 앱과 MakeShop 에 모두 적용한다. | 없음 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
 | Cafe24 앱 유형 | `app_type`: public, private | Public 앱은 서버가 가진 공용 클라이언트를, Private 앱은 사용자가 입력한 클라이언트를 쓴다. | 미심사 앱, 비공개 앱, 앱스토어 등록 앱 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 테스트 실행(Cafe24) | Test run | Cafe24 개발자 센터에서 Private 앱 설치를 시작하는 버튼. 에디터의 실행과 다르다. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
+| 재설치 대기 표시 | reinstall request mark, `reinstall_requested_at` | 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청을 하면 남기는 시각 값. 표시가 유효한 동안 App URL 이 OAuth 인가로 보낸다. 정한 기간이 지나면 없는 것으로 본다. 통합 상태 값이 아니고 설치 대기(`pending_install`)와 다르다. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 상점 식별자 | store identifier, `mall_id` | 외부 쇼핑몰의 상점 ID. Cafe24 는 `mall_id`, MakeShop 은 `shop_uid` 값을 같은 `mall_id` 컬럼에 둔다. | store-identifier, 매장 식별자 | [통합 데이터와 흐름](CLE-INT/CLE-INT-DATA.md) |
 | 중복 사전 감지 | precheck | 상점 식별자를 입력할 때 같은 상점 통합이 이미 있는지 미리 알려 주는 조회. | 없음 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 통합 선택기 | `IntegrationSelector` | 노드 설정 패널의 통합 선택 드롭다운. | Integration 선택 드롭다운 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
@@ -108,3 +109,10 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 정의에서 기준 문서의 수치(만료 임계 · 보존 기간 · 수명 · 횟수 · 토큰 길이 · 분류 개수)를 뺐다(색인 표기 원칙 14).
 - 「통합 상태」 · 「상태 사유」 · 「카탈로그 상태」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.
 - 개요에 카탈로그 키 링크가 저장소 미러에 없는 NERV 사본을 가리킨다고 적었다.
+
+### 용어 추가 (2026-10-10)
+
+NERV Task `CLE-T-NNENG8` 에서 Cafe24 Private 통합의 재인증과 추가 권한 요청이 행에 시각 값을 남기게 되어 「재설치 대기 표시」 를 더했다.
+
+- 설치 대기(`pending_install`)와 이름이 비슷해 정의에 둘이 다르다고 적었다. 설치 대기는 통합 상태 값이고 재설치 대기 표시는 상태와 따로 두는 컬럼이다.
+- 유효 기간은 정의에 적지 않았다(색인 표기 원칙 14). 값은 기준 문서 [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md#재설치-대기-표시) 에 있다.

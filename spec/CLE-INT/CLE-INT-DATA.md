@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "51f12f4978266354824e32a5b91294960dfcd11c93d1b66935bac815d4774a6c"
+content_hash: "8d80780ab94d683803e9fcf0db8b73dfd315717e974407d3519388cdebca8233"
 read_as: "approved_fallback"
 task: "CLE-T-NNENG8"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "ea16030b8b46064643612c60d35d134045136e97dd1a4bfa8a9b4934f7b3d976"
-etag: "sha256-1f1eb00cf47d3049a516ed3a616426fe66babdcb830da4552995d90cc39b9a5d"
+mirror_sha256: "5bc7991ad15fe18fd8e6ddbef80b31413b429c5e03dcfb2b39a9c040a1928df2"
+etag: "sha256-4df57dc68627bf8dae9752ca9fd4fc24ff6247ff875e4ca733e965b58a57d3aa"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,6 +66,7 @@ erDiagram
 | token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
 | last_used_at | Timestamp? | 마지막으로 노드 실행에서 쓴 시각(캐시) |
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
+| reinstall_requested_at | Timestamp? | 재설치 대기 표시(reinstall request mark). 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청이 들어온 시각이고 사용자가 Cafe24 «테스트 실행» 으로 OAuth 를 마치기를 기다린다는 뜻이다. App URL 이 이 값을 보고 OAuth 로 보낸다. 상태·상태 사유와 따로 둔 컬럼이라 표시를 남겨도 상태·상태 사유·자격 증명은 바뀌지 않는다. 남긴 시각부터 24시간 동안만 유효하고 그 뒤에는 서버가 표시가 없는 것으로 본다. 콜백이 성공할 때만 NULL 로 지운다(자격 증명 교체와 같은 트랜잭션). 24시간이 지난 값은 지우지 않고 판정에서 무시한다. 다시 요청하면 새 시각으로 덮어쓴다. 설치 대기 행과 그 밖의 서비스 유형은 늘 NULL 이다. 상태 모델과의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md#재설치-대기-표시), 남기고 지우는 규칙은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시). `TIMESTAMPTZ NULL`, V151 |
 | last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다([암호화](#암호화)). `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
 | created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`) |
 | created_at | Timestamp | 생성 시각 |
@@ -76,7 +77,7 @@ erDiagram
 - `UNIQUE(workspace_id, name)`: 워크스페이스 안에서 별칭은 하나뿐이다. 공개 범위와 상관없다.
 - 상점 식별자 유일성: 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 의 통합은 최대 1행이다. Cafe24 는 앱 유형과 상관없다. 한 상점에 Public 앱 통합과 Private 앱 통합을 함께 두면 토큰과 웹훅 처리 주체가 갈려 사용자 혼란과 회계 충돌이 생기므로 금지한다. 서로 다른 서비스 유형이 같은 `mall_id` 값을 쓰는 것은 괜찮다.
 
-응답 전용 값: `IntegrationDto` 는 DB 컬럼이 아닌 두 값 `autoRefresh`·`appUrl` 을 응답 시점에 계산해 싣는다. 정의는 [통합 관리](CLE-INT-MANAGE.md) 의 API 절이 소유한다. 복호화에 실패한 행을 응답에서 `statusReason='credentials_unreadable'` 로 표시하는 규칙도 DB 저장값이 아니다([통합 상태와 만료 알림](CLE-INT-STATUS.md)).
+응답 전용 값: `IntegrationDto` 는 DB 컬럼이 아닌 두 값 `autoRefresh`·`appUrl` 을 응답 시점에 계산해 싣는다. 정의는 [통합 관리](CLE-INT-MANAGE.md) 의 API 절이 소유한다. 복호화에 실패한 행을 응답에서 `statusReason='credentials_unreadable'` 로 표시하는 규칙도 DB 저장값이 아니다([통합 상태와 만료 알림](CLE-INT-STATUS.md)). `reinstall_requested_at` 은 컬럼 값을 `reinstallRequestedAt`(ISO 8601 또는 `null`)으로 내보낸다. 남긴 지 24시간이 지난 값은 `null` 로 내보낸다.
 
 ### 활동 로그 (`integration_usage_log`)
 
@@ -126,7 +127,7 @@ erDiagram
 | id | UUID | PK |
 | state | VARCHAR(64) | 인가 요청 식별값. `UNIQUE` |
 | workspace_id | UUID | 요청한 워크스페이스. FK → Workspace (CASCADE) |
-| user_id | UUID | 요청한 사용자. FK → User (CASCADE) |
+| user_id | UUID | 요청한 사용자. 설치 흐름(App URL)이 만든 행은 요청자가 아니라 통합 생성자(`created_by`)다. FK → User (CASCADE) |
 | provider | VARCHAR(32) | OAuth 제공자 |
 | service_type | VARCHAR(50) | 서비스 유형 |
 | mode | VARCHAR(32) | `new` / `reauthorize` / `request_scopes` (`OAuthStateMode`). DB CHECK 가 세 값만 받는다 |
@@ -226,7 +227,7 @@ erDiagram
 | integration_oauth_state | `(expires_at)` | 만료 행 정리 (V009) |
 | integration_oauth_preview | `(expires_at)` | 만료 행 정리 (V009) |
 
-`api_*` 컬럼에는 아직 인덱스가 없다. 메서드·경로별 필터(예: «5xx 응답만»)가 필요해질 때 더한다.
+`api_*` 컬럼에는 아직 인덱스가 없다. 메서드·경로별 필터(예: «5xx 응답만»)가 필요해질 때 더한다. `reinstall_requested_at` 에도 인덱스가 없다. App URL 은 설치 토큰으로 한 행을 찾은 뒤 이 값을 읽기만 하고 이 컬럼으로 거르는 조회가 없다.
 
 ## 암호화
 
@@ -329,15 +330,17 @@ sequenceDiagram
       Svc-->>C: previewToken (통합 행은 생성 요청이 만든다)
     else mode reauthorize 또는 request_scopes
       Svc->>PG: SELECT integration FOR UPDATE
-      Note over Svc,PG: 커밋 직전 인가 재판정 (설치 대기 행 제외)<br/>실패하면 롤백
-      Svc->>PG: UPDATE credentials, status connected, status_reason·last_error NULL, token_expires_at, last_rotated_at
+      Note over Svc,PG: 커밋 직전 인가 재판정 (설치 대기 행과 재설치 대기 표시가 유효한 Cafe24 Private 행 제외)<br/>실패하면 롤백
+      Svc->>PG: UPDATE credentials, status connected, status_reason·last_error·reinstall_requested_at NULL, token_expires_at, last_rotated_at
     end
   end
 ```
 
-- 통합 재인증과 설치 대기 행은 자격 증명을 통째로 바꾸고, 추가 권한 요청은 기존 자격 증명에 합치고 권한 범위를 갱신한다. 설치 토큰은 보존한다.
-- 콜백이 실패하면(토큰 교환 실패 등) state 를 소비한 뒤 식별된 행에 `markIntegrationCallbackError` 가 `status_reason`(`normalizeStatusReason` 으로 union 정규화)과 `last_error={code,message,at}` 을 기록한다. 상태를 바꾸는지는 실패 종류와 행의 현재 상태에 따라 다르다. 연결됨 행의 통합 재인증 토큰 교환 실패는 `error(auth_failed)` 로 바뀌고, 설치 대기 행과 state 단계 실패는 상태를 보존한다. 표는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑이 소유한다.
+- 통합 재인증과 설치 대기 행은 자격 증명을 통째로 바꾸고, 추가 권한 요청은 기존 자격 증명에 합치고 권한 범위를 갱신한다. 설치 토큰은 보존한다. 재설치 대기 표시(`reinstall_requested_at`)는 같은 UPDATE 에서 지운다.
+- 콜백이 실패하면(토큰 교환 실패 등) state 를 소비한 뒤 식별된 행에 `markIntegrationCallbackError` 가 `status_reason`(`normalizeStatusReason` 으로 union 정규화)과 `last_error={code,message,at}` 을 기록한다. 상태를 바꾸는지는 실패 종류와 행의 현재 상태에 따라 다르다. 연결됨 행의 통합 재인증 토큰 교환 실패는 `error(auth_failed)` 로 바뀐다. 재설치 대기 표시가 유효한 행, 설치 대기 행, state 단계 실패는 상태를 보존한다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 콜백 실패는 재설치 대기 표시를 지우지 않는다. 표는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑이 소유한다.
 - 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고, 같은 수집 경로가 `last_error` 에 `RESOURCE_NOT_FOUND` 또는 `ADMIN_REQUIRED` 를 기록한다. 상태는 보존한다.
+- 설치 대기 행과, 재설치 대기 표시가 유효한 Cafe24 Private 행은 커밋 직전 인가 재판정을 하지 않는다. 이 행의 state 는 App URL(설치 토큰과 HMAC 이 인가한다)이 만들어 `user_id` 가 요청자가 아니라 통합 생성자다. 표시를 남긴 요청자의 인가는 표시를 남길 때 이미 확인했다. 재판정하면 관리자가 요청한 조직 통합의 재설치가 생성자 기준으로 `ADMIN_REQUIRED` 가 되어 실패한다. Cafe24 Public 행과 MakeShop 행은 표시 값과 관계없이 재판정하고 표시를 남긴 지 24시간이 지난 Cafe24 Private 행도 재판정한다.
+- 설치 토큰이 있는 Cafe24 Private 행의 통합 재인증과 추가 권한 요청은 `oauth/begin` 을 거치지 않고 state 도 만들지 않는다. 통합 재인증은 판정한 행 조건으로 `reinstall_requested_at` 만 현재 시각으로 UPDATE 하고 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 추가 권한 요청은 `credentials.scopes` 를 합쳐 저장하면서 설치 대기가 아니면 같은 값을 쓴다. 이미 표시가 있으면 새 시각으로 덮어써 24시간을 다시 센다. 상태·상태 사유·토큰은 그대로다. state 는 사용자가 «테스트 실행» 을 눌러 App URL 이 불릴 때 생긴다([Cafe24 Private 앱 설치](#cafe24-private-앱-설치)).
 - 자격 증명 교체(`POST /api/integrations/:id/rotate`)는 OAuth 흐름이 아니다. 연결 테스트를 통과하면 자격 증명을 합치고 `last_rotated_at` 을 갱신하며 연결됨으로 되돌린다.
 - 자격 증명 교체와 통합 삭제 직후 `IntegrationsService` 는 `IntegrationCacheBus.publish(integrationId)` 로 Redis pub/sub 채널 `integration:cache:invalidate` 에 알린다. 모든 인스턴스의 로컬 자격 증명 캐시(예: Database Query 연결 풀)가 바로 비워져 교체 전 자격 증명으로 남은 연결을 끊는다. pub/sub 을 받지 못해도 핸들러의 자격 증명 해시 비교가 캐시를 비운다. 상세는 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md).
 
@@ -361,18 +364,18 @@ sequenceDiagram
     Svc->>PG: 같은 mall_id 의 cafe24 행 최대 5개로 HMAC 대조, 정확히 1개면 그 행으로 진행
   end
   Svc->>Svc: HMAC 검증, nonce 재사용 검사 (Redis)
-  alt 설치 대기가 아님
+  alt 설치 대기도 아니고 유효한 재설치 대기 표시도 없음 (24시간 지난 표시 포함)
     Svc-->>CDev: 302 → /integrations/:id
-  else 설치 대기
-    Svc->>PG: INSERT integration_oauth_state (mode reauthorize, integration_id, provider_meta 암호화)
+  else 설치 대기이거나 유효한 재설치 대기 표시가 있음
+    Svc->>PG: INSERT integration_oauth_state (mode reauthorize, integration_id, user_id 는 통합 생성자, provider_meta 암호화)
     Svc-->>CDev: 302 → Cafe24 인가 URL
     Prov-->>Svc: 콜백 code, state
     Svc->>PG: state 소비, 토큰 교환, UPDATE integration (행 잠금)
-    Note over Svc,PG: 성공: connected, 설치 토큰 보존<br/>실패: status_reason·last_error 기록, 설치 대기와 설치 토큰 유지
+    Note over Svc,PG: 성공: connected, 설치 토큰 보존, reinstall_requested_at NULL<br/>실패: status_reason·last_error 기록, 설치 토큰·재설치 대기 표시 유지, 상태는 위 콜백 실패 규칙
   end
 ```
 
-가드 순서와 에러 코드, rate limit 은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 설치 엔드포인트 절이 소유한다.
+설치를 마친 행은 재설치 대기 표시가 유효할 때만 App URL 이 OAuth 로 보낸다. 표시가 없거나 남긴 지 24시간이 지났으면 «앱으로 가기» 같은 App URL 재호출은 상세 화면으로 간다. 가드 순서와 에러 코드, rate limit 은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 설치 엔드포인트 절이 소유한다.
 
 #### MakeShop 설치
 
@@ -405,6 +408,8 @@ sequenceDiagram
 
 MakeShop 에는 설치 토큰 불일치 회복이 없다. 조회에 실패하면 바로 404 다.
 
+MakeShop 에는 재설치 대기 표시가 없다. 설치를 마친 행은 상점에서 ShopStore 앱을 다시 설치해도 상세 화면으로 갈 뿐 자격 증명이 바뀌지 않는다. 그래서 오류가 된 MakeShop 통합의 복구는 삭제 후 재등록이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)).
+
 ### 노드 실행의 통합 사용
 
 통합 노드 핸들러의 공통 베이스는 `IntegrationHandlerBase` 다. 핸들러 계약과 에러 코드는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 이 정한다.
@@ -436,10 +441,11 @@ sequenceDiagram
 - 토큰 만료가 가깝거나 지난 것은 조회 실패 조건이 아니다. Cafe24·MakeShop 클라이언트가 호출 직전에 토큰을 갱신하고, 401 을 받으면 갱신 뒤 다시 시도한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
 - `logUsage` 는 예외를 던지지 않는다. 기록 실패가 노드 실행을 깨지 않도록 삼킨다. `nodeExecutionId` 가 없으면 행을 쓰지 않는다.
 - Cafe24·MakeShop 의 인증 실패와 네트워크 실패로 인한 오류 전이는 `logUsage` 가 아니라 각 클라이언트의 `markAuthFailed`·`recordNetworkFailure` 가 한다. 노드 실행 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
+- 재설치 대기 표시는 실행 경로가 보지 않는다. 표시가 있는 연결됨 행은 기존 토큰으로 계속 실행된다. 표시가 있는 오류·만료됨 행은 위 상태 검사에서 막힌다.
 
 ### 만료 스캐너
 
-만료 스캐너는 `integration-expiry-scanner` 큐 위의 네 작업으로 통합 상태와 알림, 활동 로그 보존, Cafe24 백그라운드 갱신을 처리한다. 대상 조건과 동작은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 소유한다. 쓰는 테이블은 `integration`(상태·사유·설치 토큰 UPDATE), `integration_expiry_dispatch`(임계 선점 INSERT), `integration_usage_log`(90일 경과 DELETE), `notification`(인앱 알림 INSERT)이다.
+만료 스캐너는 `integration-expiry-scanner` 큐 위의 네 작업으로 통합 상태와 알림, 활동 로그 보존, Cafe24 백그라운드 갱신을 처리한다. 대상 조건과 동작은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 소유한다. 쓰는 테이블은 `integration`(상태·사유·설치 토큰 UPDATE), `integration_expiry_dispatch`(임계 선점 INSERT), `integration_usage_log`(90일 경과 DELETE), `notification`(인앱 알림 INSERT)이다. `reinstall_requested_at` 은 읽지도 쓰지도 않는다. 24시간이 지난 값도 지우지 않는다.
 
 ### Redis 와 외부 대상
 
@@ -460,8 +466,8 @@ sequenceDiagram
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그)
-- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth begin·콜백·설치)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그, `reauthorize`·`requestScopes` 의 재설치 대기 표시)
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth begin·콜백·설치, `handleInstall` 의 재설치 대기 분기, `assertRequesterStillAllowed`, `markIntegrationCallbackError`)
 - `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**` 설치·콜백 엔드포인트)
 - `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너)
 - `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림)
@@ -471,6 +477,7 @@ sequenceDiagram
 - `codebase/backend/src/main.ts` (운영 환경 가드를 부르는 곳)
 - `codebase/backend/src/scripts/encrypt-auth-config.ts` (`auth_config.config` 평문 행을 암호화하는 1회용 스크립트)
 - `codebase/backend/src/modules/integrations/entities/` (엔티티)
+- `codebase/backend/migrations/V151__integration_reinstall_requested_at.sql` (재설치 대기 표시 컬럼)
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (클라이언트의 토큰 갱신·상태 전이, 갱신 큐 워커)
 - `codebase/backend/src/modules/secret-store/**` (시크릿 저장소)
 
@@ -509,3 +516,7 @@ OAuth 응답 본문에 토큰 일부가 섞일 수 있다. 그래서 `last_error
 ### 상점 식별자를 평문 컬럼으로 복제하고 인덱스를 하나로 합쳤다
 
 `mall_id` 가 암호화 JSONB 안에만 있으면 SQL 로 거를 수 없어 중복 검사가 복호화 후 메모리 비교가 되고, 조회와 INSERT 사이의 경쟁도 막을 수 없다. 평문 컬럼(V045)과 부분 UNIQUE 인덱스를 두면 DB 가 중복을 거부한다. 처음에는 서비스별 인덱스(V046 cafe24, V071 makeshop)였으나 서비스 유형을 키에 넣은 인덱스 하나(V072)로 합쳤다. 새 서비스를 더할 때 인덱스와 마이그레이션이 필요 없다. 옛 행의 NULL 은 부분 인덱스 비교에서 빠지므로 새 행과 충돌하지 않고, 다음 저장 때 채워진다.
+
+### 재설치 대기 표시를 상태와 따로 둔 시각 컬럼으로 둔다 (2026-10-10)
+
+Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서(Task CLE-T-NNENG8) «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 저장할 자리가 필요했다. `status`·`status_reason` 과 따로 둔 nullable 시각 컬럼 `reinstall_requested_at`(V151)을 택했다. 시각이라 화면이 요청 시각을 보이고 서버가 24시간 유효 기간을 판정할 수 있다. 상태 컬럼을 쓰지 않으므로 만료 스캐너, 주의 필요 술어, 노드 실행 가드가 바뀌지 않는다. 지난 값은 지우지 않고 판정할 때 시각을 비교하므로 정리 작업도 없다. 설치 대기 재사용, 연결됨의 새 상태 사유, 새 상태 값을 기각한 이유와 24시간 유효 기간을 둔 이유는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 Rationale «재설치 대기 표시는 상태와 따로 둔 컬럼이다» 에 있다.
