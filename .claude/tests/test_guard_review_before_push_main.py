@@ -115,11 +115,21 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         # nothing.
         shutil.copy(_harness.HOOKS_DIR / "_lib" / "failopen_state.py",
                     os.path.join(self.hooks_dir, "_lib", "failopen_state.py"))
+        # Same for the JSON envelope. Without it the hook takes its fallback
+        # envelope, which `test_pretooluse_hook_output.py` covers on its own.
+        shutil.copy(_harness.HOOKS_DIR / "_lib" / "hook_output.py",
+                    os.path.join(self.hooks_dir, "_lib", "hook_output.py"))
         self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"), _REVIEW_STUB)
 
     def _write(self, path, content):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    @staticmethod
+    def _ctx(r):
+        """What the model receives on an allow (exit 0). A raw `r.stdout` substring
+        check also passes for plain text, which Claude Code drops."""
+        return _harness.pretooluse_context(r.stdout)
 
     def _run(self, command="", *, payload=None, raw_stdin=None, seam_out=None,
              review="clean", bypass_review=False):
@@ -268,14 +278,14 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
     def test_import_failure_is_announced_and_counted(self):
         r = self._run(_PUSH, review="import_error")
         self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
-        self.assertIn("fail-open", r.stdout)
-        self.assertIn("REVIEW gate", r.stdout)
+        self.assertIn("fail-open", self._ctx(r))
+        self.assertIn("REVIEW gate", self._ctx(r))
         self.assertEqual(self._streak(), 1)
 
     def test_evaluate_exception_is_announced_and_counted(self):
         r = self._run(_PUSH, review="raise")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("fail-open", r.stdout)
+        self.assertIn("fail-open", self._ctx(r))
         self.assertEqual(self._streak(), 1)
 
     def test_consecutive_fail_opens_accumulate_and_escalate(self):
@@ -286,12 +296,12 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             self.assertEqual(self._streak(), expected)
             if expected < 3:
                 self.assertNotIn(
-                    "‼️", r.stdout,
+                    "‼️", self._ctx(r),
                     f"streak {expected} must not escalate yet — one blip and a "
                     "dead gate have to read differently",
                 )
         self.assertIn(
-            "‼️", r.stdout,
+            "‼️", self._ctx(r),
             "a sustained streak must escalate — one blip and a dead gate must "
             "not read the same",
         )
@@ -302,15 +312,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         the PLAN gate is gone."""
         with open(self.hook, encoding="utf-8") as fh:
             source = fh.read()
-        broken = source.replace(
-            "def _push_targets(command: str, cwd: str) -> list[str]:\n",
-            "def _push_targets(command: str, cwd: str) -> list[str]:\n"
-            '    raise RuntimeError("simulated target selection failure")\n',
-            1,
-        )
-        self.assertNotEqual(broken, source, "the injection point moved")
         with open(self.hook, "w", encoding="utf-8") as fh:
-            fh.write(broken)
+            fh.write(_harness.break_push_targets(source))
 
     def test_two_degraded_checks_count_once_and_name_both(self):
         self._break_target_selection()
@@ -320,8 +323,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             self._streak(), 1,
             "the streak counts PUSHES with degradation, not degraded checks",
         )
-        self.assertIn("REVIEW gate", r.stdout)
-        self.assertIn("TARGET_SELECTION", r.stdout)
+        self.assertIn("REVIEW gate", self._ctx(r))
+        self.assertIn("TARGET_SELECTION", self._ctx(r))
         with open(self._streak_file(), encoding="utf-8") as fh:
             gates = {entry["gate"] for entry in json.load(fh)["gates"]}
         self.assertEqual(gates, {"REVIEW", "TARGET_SELECTION"})
@@ -340,7 +343,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         would drown the signal this exists to produce."""
         r = self._run(_PUSH, review="blocked", bypass_review=True)
         self.assertEqual(r.returncode, 0)
-        self.assertNotIn("fail-open", r.stdout)
+        self.assertNotIn("fail-open", self._ctx(r))
         self.assertFalse(os.path.exists(self._streak_file()))
 
     def test_bypassing_an_actually_broken_gate_is_still_not_counted(self):
@@ -350,7 +353,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         r = self._run(_PUSH, review="import_error",
                       bypass_review=True)
         self.assertEqual(r.returncode, 0)
-        self.assertNotIn("fail-open", r.stdout)
+        self.assertNotIn("fail-open", self._ctx(r))
         self.assertFalse(os.path.exists(self._streak_file()))
 
     def test_bypass_does_not_clear_an_existing_streak(self):
@@ -415,29 +418,30 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
 
         r = self._run(_PUSH)
         self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
-        self.assertIn("DETECTION", r.stdout)
+        self.assertIn("DETECTION", self._ctx(r))
         self.assertEqual(self._streak(), 1)
 
     def test_banner_goes_to_the_stream_the_harness_actually_surfaces(self):
         """A banner on the wrong stream is a banner nobody reads.
 
-        The harness injects STDOUT into the model's context on exit 0 (the
-        rationale `guard_default_branch_bash.py` documents for its
-        never-blocking reminder), while on exit 2 the refusal is read from
-        stderr. So the channel has to follow the exit code, and both directions
-        are pinned here — an earlier version always used stderr, which would
-        have quietly undone the whole point of this policy on the common path.
+        On exit 0 only the PreToolUse JSON envelope reaches the model (plain
+        stdout lands in Claude Code's debug log — `_lib/hook_output.py`), while
+        on exit 2 the refusal is read from stderr. So the channel has to follow
+        the exit code, and both directions are pinned here — an earlier version
+        always used stderr, and until 2026-10-10 the allow path printed plain
+        stdout; either quietly undoes the whole point of this policy on the
+        common path.
         """
         allowed = self._run(_PUSH, review="import_error")
         self.assertEqual(allowed.returncode, 0)
-        self.assertIn("fail-open", allowed.stdout)
+        self.assertIn("fail-open", self._ctx(allowed))
         self.assertNotIn("fail-open", allowed.stderr)
 
         self._break_target_selection()
         blocked = self._run(_PUSH, review="blocked")
         self.assertEqual(blocked.returncode, 2)
         self.assertIn("fail-open", blocked.stderr)
-        self.assertNotIn("fail-open", blocked.stdout)
+        self.assertEqual(blocked.stdout, "", "exit 2: nothing on stdout, the refusal is stderr")
 
     def test_a_blocking_answer_still_proves_the_gate_works(self):
         """With one gate, a push it BLOCKS is still a push it ANSWERED: the gate
@@ -471,7 +475,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             "a failed state write must not change the guard's verdict",
         )
         self.assertIn(
-            "fail-open", r.stdout,
+            "fail-open", self._ctx(r),
             "the banner is the PRIMARY signal and must survive a failed write",
         )
 
@@ -487,7 +491,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         os.unlink(os.path.join(self.hooks_dir, "_lib", "failopen_state.py"))
         r = self._run(_PUSH, review="import_error")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("fail-open", r.stdout)
+        self.assertIn("fail-open", self._ctx(r))
         self.assertFalse(os.path.exists(self._streak_file()),
                          "no module → no counter, by design")
 
@@ -516,8 +520,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
                     "evaluate_review = None\n")
         r = self._run(_PUSH)
         self.assertEqual(r.returncode, 0)
-        self.assertIn("imported but evaluate_review is None", r.stdout)
-        self.assertNotIn("failed to import", r.stdout)
+        self.assertIn("imported but evaluate_review is None", self._ctx(r))
+        self.assertNotIn("failed to import", self._ctx(r))
         self.assertEqual(self._degraded_reasons(),
                          ["_lib/review_guard.py imported but evaluate_review is None"])
 
@@ -526,8 +530,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
                     "raise RuntimeError('very specific')\n")
         r = self._run(_PUSH)
         self.assertEqual(r.returncode, 0)
-        self.assertIn("failed to import", r.stdout)
-        self.assertIn("very specific", r.stdout)
+        self.assertIn("failed to import", self._ctx(r))
+        self.assertIn("very specific", self._ctx(r))
         [reason] = self._degraded_reasons()
         self.assertIn("RuntimeError: very specific", reason)
 
@@ -576,9 +580,19 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
             capture_output=True, text=True, env=env, timeout=10, cwd=self.tmp,
         )
 
+    @staticmethod
+    def _model_text(r):
+        """모델이 읽는 쪽: 막았으면 stderr, 통과시켰으면 PreToolUse envelope.
+
+        `r.stdout + r.stderr` 부분 문자열 단언은 평문 stdout 으로 퇴행해도 통과한다.
+        """
+        if r.returncode == 2:
+            return r.stderr
+        return _harness.pretooluse_context(r.stdout)
+
     def _break_every_lib_module(self):
-        """`_lib` 의 두 모듈을 전부 import 불가로 만든다 — 최악의 경우."""
-        for name in ("review_guard.py", "failopen_state.py"):
+        """`_lib` 의 세 모듈을 전부 import 불가로 만든다 — 최악의 경우."""
+        for name in ("review_guard.py", "failopen_state.py", "hook_output.py"):
             self._write(name, "raise RuntimeError('_lib is broken')\n")
 
     def test_a_push_is_still_recognised_when_every_gate_import_fails(self):
@@ -593,7 +607,7 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         # 그리고 이 명령을 **push 로 알아봤어야** 한다. 게이트가 죽었으니 차단은
         # 못 하지만, fail-open 을 소리 내어 보고하는 것이 그 증거다.
         self.assertIn(
-            "fail-open", r.stdout + r.stderr,
+            "fail-open", self._model_text(r),
             "push 로 인식하지 못해 게이트 경로에 아예 들어가지 않았다 — 탐지가 "
             "`_lib` 과 함께 죽었다는 뜻이다",
         )
@@ -615,7 +629,7 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         self._break_every_lib_module()
         r = self._run(_MULTILINE_PUSH)
         self.assertIn(r.returncode, (0, 2))
-        self.assertIn("fail-open", r.stdout + r.stderr)
+        self.assertIn("fail-open", self._model_text(r))
 
 
 class SuiteLeavesNoRealStateTest(unittest.TestCase):

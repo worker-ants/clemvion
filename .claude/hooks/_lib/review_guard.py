@@ -130,8 +130,8 @@ class GateMisconfigured(GateUnavailable):
 class ReviewDecision:
     blocked: bool
     reason: str  # 사람이 읽는 이유. stderr · CI 로그에 그대로 나간다.
-    # 판정을 바꾸지 않는 참고. 필드로 두는 이유: push 훅은 차단(exit 2)이면 stderr, 통과(exit 0)면
-    # stdout 을 모델에 보여 준다. 출력 스트림은 호출자가 고른다.
+    # 판정을 바꾸지 않는 참고. 필드로 두는 이유: push 훅은 차단(exit 2)이면 stderr 로, 통과(exit 0)면
+    # PreToolUse JSON envelope(`_lib/hook_output.py`)로 모델에 보여 준다. 출력 채널은 호출자가 고른다.
     notes: tuple[str, ...] = ()
 
     @property
