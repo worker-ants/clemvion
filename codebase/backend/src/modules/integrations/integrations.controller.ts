@@ -582,7 +582,7 @@ export class IntegrationsController {
   @ApiOperation({
     summary: '재인증(reauthorize) 시작',
     description:
-      '만료되었거나 오류 상태인 OAuth 통합에 대해 재인증 플로우를 트리거합니다. Cafe24 Private 통합은 재설치 요청을 기록하고 App URL 안내(`cafe24_private_pending`)를 반환합니다. Cafe24 에서 「테스트 실행」을 누르면 OAuth 가 진행됩니다. MakeShop 통합은 재인증할 수 없어 400 으로 거부합니다. 삭제 후 다시 등록해야 합니다. 에러 코드는 정하지 않습니다.',
+      'OAuth 통합의 재인증을 시작합니다. Cafe24 Private 은 재설치 요청을 기록하고 App URL 안내(`cafe24_private_pending`)를 반환합니다. 설치 대기·설치 토큰 없는 Cafe24 Private 과 MakeShop 은 400 입니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
@@ -590,7 +590,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      'OAuth 기반 통합이 아님, 또는 MakeShop 통합(삭제 후 다시 등록)',
+      'MakeShop 통합(MAKESHOP_CREDENTIALS_REQUIRED), 설치 대기 Cafe24 Private 통합(CAFE24_PRIVATE_APP_USE_TEST_RUN), 설치 토큰이 없는 Cafe24 Private 통합(CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING), 상점 · 앱 유형이 없는 옛 Cafe24 통합(CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE). 모두 삭제 후 다시 등록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
@@ -614,7 +614,7 @@ export class IntegrationsController {
   @ApiOperation({
     summary: '추가 스코프 요청',
     description:
-      '기존 OAuth 통합에 추가 스코프를 요청합니다. provider가 incremental auth를 지원해야 합니다. Cafe24 Private 통합은 스코프를 저장하고 재설치 요청을 기록한 뒤 App URL 안내(`cafe24_private_pending`)를 반환합니다. MakeShop 통합은 400 으로 거부합니다. 에러 코드는 정하지 않습니다.',
+      'OAuth 통합에 추가 스코프를 요청합니다. 설치 토큰이 있는 Cafe24 Private 은 스코프를 저장하고 App URL 안내(`cafe24_private_pending`)를 반환합니다. 토큰 없는 Cafe24 Private 과 MakeShop 은 400 입니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
@@ -622,7 +622,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패, incremental auth 미지원, 또는 MakeShop 통합(삭제 후 다시 등록)',
+      '입력값 검증 실패, OAuth 기반 통합이 아님(INTEGRATION_SCOPE_UNSUPPORTED), MakeShop 통합(MAKESHOP_CREDENTIALS_REQUIRED), 설치 토큰이 없는 Cafe24 Private 통합(CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING), 상점 · 앱 유형이 없는 옛 Cafe24 통합(CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })

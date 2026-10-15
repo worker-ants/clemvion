@@ -19,7 +19,10 @@ import {
   isIntegrationVisibleTo,
   type IntegrationModifyAction,
 } from './integration-visibility';
-import { isReinstallRequestActive } from './reinstall-request';
+import {
+  isCafe24PrivateRow,
+  isReinstallRequestActive,
+} from './reinstall-request';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
@@ -374,6 +377,47 @@ function isCafe24PrivateWithInstallToken(
     entity.credentials.app_type === 'private' &&
     hasInstallToken(entity)
   );
+}
+
+/**
+ * App URL 안내로 보내지 못한 Cafe24 Private 행을 begin 전에 거절한다. begin 은 Private 의 OAuth 를 시작하지 못하고,
+ * 저장된 자격 증명을 받지 않으므로 그대로 넘기면 원인과 상관없는 코드(`CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`)가 난다.
+ * install_token 이 없는 행(설치 시간 초과 · 토큰 보존 전 옛 행)은 App URL 이 없어 삭제 후 재등록만 남는다. 설치 대기 행은
+ * App URL 이 이미 OAuth 로 보내므로 「테스트 실행」을 안내한다. 권한 추가는 설치 토큰이 있는 행을 늘 App URL 안내로 보내므로
+ * 여기에는 설치 토큰이 없는 행만 온다.
+ * 근거: [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](CLE-INT-OAUTH#통합-재인증과-추가-권한-요청),
+ * Rationale 「begin 으로 갈 수 없는 Cafe24 Private 행은 서비스가 먼저 거절한다 (2026-10-15)」.
+ */
+function assertNotUnroutableCafe24Private(entity: Integration): void {
+  if (!isCafe24PrivateRow(entity)) return;
+  if (!hasInstallToken(entity)) {
+    throw new BadRequestException({
+      code: 'CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING',
+      message:
+        'This private Cafe24 integration has no install token (App URL) — delete it and register it again',
+    });
+  }
+  throw new BadRequestException({
+    code: 'CAFE24_PRIVATE_APP_USE_TEST_RUN',
+    message:
+      'Private Cafe24 apps cannot be reauthorized via this endpoint — trigger "테스트 실행" on Cafe24 Developers to restart the install flow',
+  });
+}
+
+/**
+ * `:id/reauthorize` · `:id/request-scopes` 가 begin 에 넘길 Cafe24 상점 식별자와 앱 유형. begin 의 Cafe24 검증은 상점(`mall_id`)과 앱 유형
+ * (`app_type`)을 `providerMeta` 에서 읽는다. 다른 서비스는 메타를 넘기지 않는다.
+ * 근거: [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](CLE-INT-OAUTH#통합-재인증과-추가-권한-요청),
+ * Rationale 「`:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다 (2026-10-15)」.
+ */
+function buildCafe24BeginMeta(
+  entity: Integration,
+): Record<string, unknown> | undefined {
+  if (entity.serviceType !== 'cafe24') return undefined;
+  return {
+    mall_id: entity.credentials.mall_id,
+    app_type: entity.credentials.app_type,
+  };
 }
 
 /** 권한 추가 · 재인증이 돌려주는 Cafe24 Private App URL 안내. 권한 추가는 여기에 `scopesAdded` 를 더한다. */
@@ -1424,7 +1468,6 @@ export class IntegrationsService {
     // 안내. 설치 대기가 아닌 행에는 재설치 요청 표시를 함께 남긴다 — App URL 이
     // 그 표시를 보고 OAuth 로 보낸다(설치 대기 행은 표시 없이도 OAuth 로 간다).
     // NERV CLE-INT-OAUTH Rationale, Task CLE-T-NNENG8.
-    const creds = entity.credentials;
     if (isCafe24PrivateWithInstallToken(entity)) {
       await this.markReinstallRequested(entity, {
         credentials: { ...entity.credentials, scopes: mergedScopes },
@@ -1436,18 +1479,11 @@ export class IntegrationsService {
       };
     }
 
-    // For cafe24 Public + other OAuth providers (Google/GitHub etc.), we
-    // still need to carry mall_id / app_type into begin's providerMeta so
-    // the cafe24 begin validation doesn't reject with CAFE24_INVALID_MALL_ID.
-    // Without this passthrough the user got "mall_id is required" even though
-    // the integration has it in credentials (2026-05-15 사용자 보고).
-    const providerMeta: Record<string, unknown> | undefined =
-      entity.serviceType === 'cafe24'
-        ? {
-            mall_id: creds.mall_id,
-            app_type: creds.app_type,
-          }
-        : undefined;
+    assertNotUnroutableCafe24Private(entity);
+
+    // Cafe24 Public 은 begin 의 검증이 상점을 providerMeta 에서 읽는다 — 빠뜨리면 credentials 에 mall_id 가 있어도
+    // `CAFE24_INVALID_MALL_ID` 로 거절된다(2026-05-15 사용자 보고).
+    const providerMeta = buildCafe24BeginMeta(entity);
 
     return this.oauthService.begin({
       workspaceId,
@@ -1537,10 +1573,9 @@ export class IntegrationsService {
       return { authUrl: '', state: '' };
     }
 
-    // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다(begin 은 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 거부한다). 재설치
-    // 요청 표시를 남기고 App URL 을 돌려준다. 사용자가 Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로
-    // 보낸다. 설치 대기 행은 App URL 이 이미 OAuth 로 보내므로 begin 의 안내를 그대로 쓴다. install_token 이 없는 행(설치
-    // 시간 초과)은 App URL 이 없어 삭제 후 재등록만 남는다. 상태 · 사유는 그대로 둔다 — connected 행은 기존 토큰으로 계속
+    // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다. 재설치 요청 표시를 남기고 App URL 을 돌려준다. 사용자가
+    // Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로 보낸다. 설치 대기 행과 install_token 이 없는 행
+    // (설치 시간 초과)은 아래 `assertNotUnroutableCafe24Private` 가 begin 전에 거절한다. 상태 · 사유는 그대로 둔다 — connected 행은 기존 토큰으로 계속
     // 실행되고 error · expired 행은 OAuth 가 끝날 때까지 실행되지 않는다(`INTEGRATION_NOT_CONNECTED`). 표시는 24시간
     // 동안만 유효하다(`isReinstallRequestActive`).
     // NERV CLE-INT-OAUTH · CLE-INT-MANAGE, Task CLE-T-NNENG8.
@@ -1557,6 +1592,9 @@ export class IntegrationsService {
       : (service.scopes?.filter((s) => s.recommended).map((s) => s.value) ??
         []);
 
+    assertNotUnroutableCafe24Private(entity);
+    const providerMeta = buildCafe24BeginMeta(entity);
+
     return this.oauthService.begin({
       workspaceId,
       userId,
@@ -1564,6 +1602,7 @@ export class IntegrationsService {
       scopes: existingScopes,
       mode: 'reauthorize',
       integrationId: entity.id,
+      ...(providerMeta ? { providerMeta } : {}),
     });
   }
 

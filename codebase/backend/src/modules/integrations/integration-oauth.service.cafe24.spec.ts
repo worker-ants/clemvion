@@ -242,6 +242,48 @@ describe('IntegrationOAuthService — Cafe24', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // CLE-T-WB7JPC — begin 의 Private 분기는 자격 증명 검사가 모드 검사보다 앞이다. REQ-INTOAUTH-013 의
+    // 「client_id · client_secret 을 갖춘 요청」 조건이 이 순서다. `:id/reauthorize` · `:id/request-scopes` 는 begin 전에
+    // Private 행을 거절하므로 이 순서에 기대지 않는다.
+    it.each(['reauthorize', 'request_scopes'] as const)(
+      'private app — mode=%s 라도 client_id/secret 이 없으면 CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED 가 먼저다',
+      async (mode) => {
+        const error = await service
+          .begin({
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            service: 'cafe24',
+            scopes: ['mall.read_product'],
+            mode,
+            integrationId: 'int-1',
+            providerMeta: { mall_id: 'myshop', app_type: 'private' },
+          })
+          .catch((err: Error) => err);
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED',
+        );
+        expect(stateRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it('private app — mode=new 는 client_id/secret 이 없으면 CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED', async () => {
+      const error = await service
+        .begin({
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          service: 'cafe24',
+          scopes: [],
+          mode: 'new',
+          providerMeta: { mall_id: 'myshop', app_type: 'private' },
+        })
+        .catch((err: Error) => err);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED',
+      );
+    });
+
     it('public app rejects when CAFE24_CLIENT_ID env is missing', async () => {
       oauthMock.env.cafe24.clientId = '';
       await expect(
@@ -744,6 +786,67 @@ describe('IntegrationOAuthService — Cafe24', () => {
         /^https:\/\/pub-shop\.cafe24api\.com\/api\/v2\/oauth\/authorize\?/,
       );
       expect(stateRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    // CLE-T-WB7JPC — 통합 재인증 · 추가 권한 요청은 대상 통합 자신을 중복으로 보지 않는다. 그렇지 않으면 연결됨
+    // Public 통합의 두 요청이 자기 행 때문에 409 로 막힌다.
+    it.each(['reauthorize', 'request_scopes'] as const)(
+      'mode=%s — 대상 통합 자신이 연결됨이어도 막지 않고 authorize URL 을 돌려준다',
+      async (mode) => {
+        integrationRepo.find = jest.fn().mockResolvedValue([
+          buildFakeCafe24Integration({
+            id: 'target-public',
+            status: 'connected',
+            mallId: 'pub-shop',
+            appType: 'public',
+          }),
+        ]);
+
+        const result = await service.begin({
+          ...publicBeginParams(),
+          mode,
+          integrationId: 'target-public',
+        });
+
+        expect((result as { authUrl: string }).authUrl).toMatch(
+          /^https:\/\/pub-shop\.cafe24api\.com\/api\/v2\/oauth\/authorize\?/,
+        );
+        expect(stateRepo.save).toHaveBeenCalledTimes(1);
+        expect(stateRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode,
+            integrationId: 'target-public',
+            providerMeta: { mall_id: 'pub-shop', app_type: 'public' },
+          }),
+        );
+      },
+    );
+
+    it('mode=reauthorize — 대상이 아닌 연결됨 행이 같은 상점에 있으면 여전히 409', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeCafe24Integration({
+          id: 'other-connected',
+          status: 'connected',
+          mallId: 'pub-shop',
+          appType: 'public',
+        }),
+      ]);
+
+      const error = await service
+        .begin({
+          ...publicBeginParams(),
+          mode: 'reauthorize',
+          integrationId: 'target-public',
+        })
+        .catch((err: Error) => err);
+      expect(
+        (error as { response?: { code?: string; integrationId?: string } })
+          .response,
+      ).toMatchObject({
+        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+        integrationId: 'other-connected',
+      });
+      expect(stateRepo.save).not.toHaveBeenCalled();
     });
 
     it('proceeds when no cafe24 row exists for this mall', async () => {

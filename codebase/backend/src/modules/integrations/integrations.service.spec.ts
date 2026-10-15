@@ -1085,6 +1085,43 @@ describe('IntegrationsService', () => {
       // OAuth 경로는 begin() 으로 위임만 하고 audit 를 남기지 않는다 — 실제 재인증
       // 완료(콜백)에서 기록되며, integration.reauthorized 는 non-OAuth reset 전용.
       expect(auditLogsService.record).not.toHaveBeenCalled();
+      // Cafe24 가 아닌 서비스에는 서비스 정보를 싣지 않는다.
+      expect(oauthServiceMock.begin.mock.calls[0][0]).not.toHaveProperty(
+        'providerMeta',
+      );
+    });
+
+    /**
+     * CLE-T-WB7JPC — begin 의 cafe24 분기는 providerMeta.mall_id 를 먼저 검사한다. 옛 코드는 재인증에서 providerMeta 를
+     * 넘기지 않아 Cafe24 Public 재인증이 `CAFE24_INVALID_MALL_ID` 로 거절됐다(추가 권한 요청은 2026-05-15 에 고침).
+     */
+    it('Cafe24 Public — credentials 의 mall_id · app_type 을 providerMeta 로 begin 에 넘긴다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          status: 'error',
+          statusReason: 'auth_failed',
+          credentials: {
+            mall_id: 'gehrig0301',
+            app_type: 'public',
+            access_token: 't',
+            refresh_token: 'r',
+            scopes: ['mall.read_product', 'mall.read_order'],
+          },
+        }),
+      );
+      await service.reauthorize('int-1', 'ws-1', 'user-1', 'editor');
+      expect(oauthServiceMock.begin).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        service: 'cafe24',
+        scopes: ['mall.read_product', 'mall.read_order'],
+        mode: 'reauthorize',
+        integrationId: 'int-1',
+        providerMeta: { mall_id: 'gehrig0301', app_type: 'public' },
+      });
+      expect(integrationRepo.update).not.toHaveBeenCalled();
     });
 
     it('resets status for non-OAuth integrations', async () => {
@@ -1202,7 +1239,9 @@ describe('IntegrationsService', () => {
         ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
       });
 
-      it('설치 대기 행은 지금처럼 begin 으로 넘긴다(begin 이 테스트 실행 안내로 거부한다)', async () => {
+      // 재설치 대기 표시를 남길 수 없는 Private 행은 begin 을 부르지 않고 서비스가 거절한다. begin 으로 넘기면
+      // 원인과 상관없는 코드(`CAFE24_INVALID_MALL_ID` · `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`)가 났다(Task CLE-T-WB7JPC).
+      it('설치 대기 행은 begin 을 부르지 않고 CAFE24_PRIVATE_APP_USE_TEST_RUN 으로 거절한다', async () => {
         integrationRepo.findOne.mockResolvedValue(
           makeIntegration({
             serviceType: 'cafe24',
@@ -1212,30 +1251,47 @@ describe('IntegrationsService', () => {
             status: 'pending_install',
           }),
         );
-        await service.reauthorize('int-1', 'ws-1', 'user-1', 'editor');
-        expect(oauthServiceMock.begin).toHaveBeenCalledWith(
-          expect.objectContaining({ mode: 'reauthorize', service: 'cafe24' }),
-        );
+        const error = await service
+          .reauthorize('int-1', 'ws-1', 'user-1', 'editor')
+          .catch((err: Error) => err);
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error).toMatchObject({
+          response: { code: 'CAFE24_PRIVATE_APP_USE_TEST_RUN' },
+        });
+        expect(oauthServiceMock.begin).not.toHaveBeenCalled();
         expect(integrationRepo.update).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
       });
 
-      it('install_token 이 없는 행(설치 시간 초과)은 begin 으로 넘긴다', async () => {
-        integrationRepo.findOne.mockResolvedValue(
-          makeIntegration({
-            serviceType: 'cafe24',
-            authType: 'oauth2',
-            credentials: privateCreds,
-            installToken: null,
-            status: 'expired',
-            statusReason: 'install_timeout',
-          }),
-        );
-        await service.reauthorize('int-1', 'ws-1', 'user-1', 'editor');
-        expect(oauthServiceMock.begin).toHaveBeenCalledWith(
-          expect.objectContaining({ mode: 'reauthorize', service: 'cafe24' }),
-        );
-        expect(integrationRepo.update).not.toHaveBeenCalled();
-      });
+      it.each([
+        ['expired', 'install_timeout'],
+        ['connected', null],
+        ['pending_install', null],
+      ] as const)(
+        'install_token 이 없는 행(status=%s)은 begin 을 부르지 않고 CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING 으로 거절한다',
+        async (status, statusReason) => {
+          integrationRepo.findOne.mockResolvedValue(
+            makeIntegration({
+              serviceType: 'cafe24',
+              authType: 'oauth2',
+              credentials: privateCreds,
+              installToken: null,
+              status,
+              statusReason,
+            }),
+          );
+          const error = await service
+            .reauthorize('int-1', 'ws-1', 'user-1', 'editor')
+            .catch((err: Error) => err);
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect(error).toMatchObject({
+            response: { code: 'CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING' },
+          });
+          expect(oauthServiceMock.begin).not.toHaveBeenCalled();
+          expect(integrationRepo.update).not.toHaveBeenCalled();
+          expect(integrationRepo.save).not.toHaveBeenCalled();
+        },
+      );
     });
 
     it('records integration.reauthorized audit on non-OAuth reset', async () => {
@@ -1891,6 +1947,39 @@ describe('IntegrationsService', () => {
           providerMeta: { mall_id: 'gehrig0301', app_type: 'public' },
         }),
       );
+    });
+
+    // 설치 토큰이 없는 Private 행(설치 시간 초과 등)은 재설치 요청 표시를 남길 곳도 begin 으로 갈 길도 없다.
+    // begin 을 부르지 않고 서비스가 거절한다(Task CLE-T-WB7JPC).
+    it('cafe24 Private 에 install_token 이 없으면 begin 을 부르지 않고 CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING 으로 거절한다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          status: 'expired',
+          statusReason: 'install_timeout',
+          credentials: {
+            mall_id: 'gehrig0301',
+            app_type: 'private',
+            client_id: 'cid',
+            client_secret: 'csec',
+            scopes: ['mall.read_product'],
+          },
+          installToken: null,
+        }),
+      );
+      const error = await service
+        .requestScopes('int-1', 'ws-1', 'user-1', 'member', {
+          scopes: ['mall.read_store'],
+        })
+        .catch((err: Error) => err);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error).toMatchObject({
+        response: { code: 'CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING' },
+      });
+      expect(oauthServiceMock.begin).not.toHaveBeenCalled();
+      expect(integrationRepo.update).not.toHaveBeenCalled();
+      expect(integrationRepo.save).not.toHaveBeenCalled();
     });
 
     /**

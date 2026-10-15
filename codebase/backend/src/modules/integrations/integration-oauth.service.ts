@@ -550,9 +550,13 @@ export class IntegrationOAuthService {
         // "Cafe24 Public 흐름의 begin-time 사전 가드 추가". 코드 재사용:
         // private 흐름과 동일한 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` —
         // spec line 725 가 이미 "app_type 무관" 으로 정의해 의미상 정합.
+        // `new` 가 아닌 모드(통합 재인증 · 추가 권한 요청)는 대상 통합 자신을 빼고 본다 — 연결됨 통합의 재인증이 자기
+        // 자신과 맞아 409 가 나던 결함(Task CLE-T-WB7JPC).
+        // 근거: [OAuth 연결과 토큰 갱신 「Cafe24 Public 흐름에도 begin 사전 검사를 둔다」](CLE-INT-OAUTH#cafe24-public-흐름에도-begin-사전-검사를-둔다)
         const existingConnected = await this.findConnectedCafe24MallIntegration(
           params.workspaceId,
           meta.mall_id,
+          params.mode !== 'new' ? params.integrationId : undefined,
         );
         if (existingConnected) {
           throw new ConflictException({
@@ -2182,15 +2186,21 @@ export class IntegrationOAuthService {
 
   /**
    * Return the first `connected` cafe24 row for `(workspaceId, mallId)`,
-   * or null if none exists. Used by both public-flow and private-flow
-   * begin pre-checks to block duplicate adds before any OAuth round-trip.
+   * or null if none exists. Used by the public-flow begin pre-check to
+   * block duplicate adds before any OAuth round-trip. `excludeIntegrationId`
+   * 는 재인증 · 추가 권한 요청의 대상 통합이다 — 그 행은 중복으로 세지 않는다.
    */
   private async findConnectedCafe24MallIntegration(
     workspaceId: string,
     mallId: string,
+    excludeIntegrationId?: string,
   ): Promise<Integration | null> {
     const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
-    return all.find((row) => row.status === 'connected') ?? null;
+    return (
+      all.find(
+        (row) => row.status === 'connected' && row.id !== excludeIntegrationId,
+      ) ?? null
+    );
   }
 
   /**
