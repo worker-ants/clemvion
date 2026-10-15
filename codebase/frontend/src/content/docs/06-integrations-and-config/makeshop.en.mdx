@@ -54,7 +54,7 @@ Drop a `MakeShop` node on the canvas and in its config panel:
 2. **Resource** — choose Store settings / Product / Order / Member / Benefit / Board / CPIK.
 3. **Operation** — pick from the resource's operation dropdown. Shown with human-friendly labels.
 4. **Fields** — the chosen operation's required/optional fields expand automatically. Every value supports expressions like `{{ $input.x }}`.
-5. (When the operation is paginated) **Limit / Offset** inputs appear as well.
+5. (When the operation is paginated) **Limit / Offset** inputs appear as well. MakeShop pages by page number, so enter an Offset that is a multiple of Limit. At run time it is converted to page = Offset / Limit + 1. For example, Limit 50 with Offset 100 is page 3. If the Offset is not a multiple, the node routes to the `error` port with `MAKESHOP_INVALID_PAGINATION` before any call is made.
 
 Unlike Cafe24, MakeShop has **no partner-approval markers (⚠)** — every operation is exposed the same way.
 
@@ -77,14 +77,37 @@ MakeShop is a **refresh-capable** integration that supports `refresh_token`. Thi
 | Situation | Behaviour |
 |---|---|
 | Has `refresh_token` + `access_token` expired | The system automatically renews the `access_token`. **No expiry notification is sent.** |
-| Automatic renewal fails (e.g. refresh_token invalidated) | The integration status transitions to `error` and an `integration_action_required` alert is sent. Reauthorize from [Integrations](/integrations) or reinstall the app. |
+| Automatic renewal fails (e.g. refresh_token invalidated) | The integration status transitions to `error` and an `integration_action_required` alert is sent. MakeShop integrations cannot be reauthorized, so delete the integration from [Integrations](/integrations) and register it again. |
 | `access_token` expires without a `refresh_token` | The integration status transitions to `expired` and an `integration_expired` alert is sent. |
 
-<Callout type="note">A MakeShop integration that holds a refresh_token will not show a sidebar badge or send a notification when the access_token expires — the system is renewing it automatically in the background. A notification and reauthorization prompt appear only if automatic renewal fails.</Callout>
+<Callout type="note">A MakeShop integration that holds a refresh_token will not show a sidebar badge or send a notification when the access_token expires — the system is renewing it automatically in the background. A notification is sent only if automatic renewal fails. In that case, delete the integration and register it again.</Callout>
+
+### Reauthorizing and adding scopes are not supported
+
+MakeShop integrations support neither reauthorization nor adding scopes (Request scopes). On the integration detail page, the **Reauthorize** button on the **Security** tab and the **Request scopes** button on the **Scope** tab are disabled, with the reason shown next to them.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/security-tab.tsx"
+  symbol="reauthorizeDisabledReason"
+  describes="Reauthorize button on the Security tab of the integration detail page, and the MakeShop disabled reason"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/scope-tab.tsx"
+  symbol="requestScopesDisabledReason"
+  describes="Request scopes button on the Scope tab of the integration detail page, and the MakeShop disabled reason"
+/>
+
+There is only one way to recover: delete the integration and register it again. If you need more scopes, register it again with every scope you need ticked. Registering again repeats the original flow: put the new App URL into MakeShop Partner Center and install the app from ShopStore.
+
+<Callout type="warn">Reinstalling the app from ShopStore does not restore an integration that has already finished installing (connected, error, or expired). The install link only takes you to that integration's detail page. An integration still waiting for its first install (`pending_install`) continues when you install the app from ShopStore.</Callout>
 
 ## FAQ
 
 - **Where do I enter shop_uid?** — You don't. It arrives automatically when the app is installed.
 - **It won't connect** — Verify the App URL / Redirect URI are registered exactly in Partner Center, including the trailing install token. A single mismatched character fails HMAC verification and the call is rejected.
-- **How do I reauthorize?** — MakeShop integrations cannot be reauthorized from this screen. Reinstall the app from ShopStore to restart the OAuth flow.
-- **I didn't receive an expiry notification — why was my connection disrupted?** — No notification is sent while automatic renewal is succeeding. An `integration_action_required` alert is sent only when automatic renewal fails. See the reauthorization entry above.
+- **How do I reauthorize?** — MakeShop integrations cannot be reauthorized. Delete the integration and register it again. Reinstalling the app from ShopStore does not restore an integration that is already connected.
+- **I need more scopes** — MakeShop integrations cannot be granted new scopes. Tick every scope you need, delete the integration, and register it again.
+- **I didn't receive an expiry notification — why was my connection disrupted?** — No notification is sent while automatic renewal is succeeding. An `integration_action_required` alert is sent only when automatic renewal fails. See the recovery entry above.

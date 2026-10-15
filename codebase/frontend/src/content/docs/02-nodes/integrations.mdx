@@ -268,8 +268,19 @@ To/CC/BCC는 배열과 쉼표 구분 문자열 모두 허용해요. 내부적으
   {name: "resource", required: true, type: "enum", description: "MakeShop 섹션이에요. 7개 값 중 하나: `shop`, `product`, `order`, `member`, `benefit`, `board`, `cpik`.", default: "-"},
   {name: "operation", required: true, type: "string", description: "선택한 `resource` 의 operation 식별자예요. 예: `get-product`, `get-order-1`, `post-cart-create`. 메타데이터 테이블이 자동으로 드롭다운을 채워요.", default: "-"},
   {name: "fields", required: false, type: "Record<string, unknown>", description: "선택한 operation 의 입력 필드 값이에요. 표현식 `{{ }}` 사용 가능해요.", default: "{}"},
-  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset? }` 형태예요. 페이지네이션을 지원하는 operation 에서만 의미가 있어요.", default: "-"}
+  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset? }` 형태예요. 페이지네이션을 지원하는 operation 에서만 의미가 있어요. MakeShop 은 offset 을 받지 않아서 실행할 때 `page = offset / limit + 1` 로 바꿔 `limit` · `page` 로 보내요. 규칙은 아래 설명을 확인해요.", default: "-"}
 ]} />
+
+**pagination 이 MakeShop 호출로 바뀌는 방식**
+
+MakeShop API 는 offset 대신 페이지 번호(`page`)로 조회해요. 노드 설정은 `limit` · `offset` 그대로 두고 실행할 때 `page = offset / limit + 1` 로 바꿔 `limit` · `page` 만 보내요. `offset` 은 MakeShop 에 보내지 않아요.
+
+- `offset` 이 `0` 이면 `page` 는 1이에요. 예를 들어 `limit: 50, offset: 100` 은 3페이지예요.
+- `offset` 을 적지 않으면 `page` 를 보내지 않아요.
+- `offset` 은 `limit` 의 배수여야 해요. `offset` 이 0보다 큰데 `limit` 이 없거나 배수가 아니면 호출하기 전에 error 포트로 `MAKESHOP_INVALID_PAGINATION` 이 나와요.
+- `limit` 이 양의 정수가 아니거나 `offset` 이 음수이거나 정수가 아닐 때도 같은 코드예요. 메시지에 원인과 값이 들어 있어요.
+- `fields` 에 `limit` · `page` 를 직접 넣어도 pagination 에서 계산한 값이 이겨요.
+- 에디터에서 Offset 을 바꾸면 화면에 보이는 Limit 기본값 50 이 함께 저장돼요.
 
 ### 포트
 
@@ -298,9 +309,25 @@ To/CC/BCC는 배열과 쉼표 구분 문자열 모두 허용해요. 내부적으
 ```
 </Example>
 
+<Example title="MakeShop 주문 목록 3페이지 가져오기">
+```ts
+// config (MakeShop 에는 limit=50, page=3 으로 전달돼요. offset 은 보내지 않아요)
+{
+  integrationId: "…",
+  resource: "order",
+  operation: "get-order-1",
+  fields: {
+    InquiryTimeFrom: "2026-10-01 00:00:00",
+    InquiryTimeTo: "2026-10-02 00:00:00"
+  },
+  pagination: { limit: 50, offset: 100 }
+}
+```
+</Example>
+
 error 포트의 `code` 는 실패한 방식에 따라 갈려요 — 상태 코드별로 `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX`, 인증 만료는 `MAKESHOP_AUTH_FAILED`, 요청 한도는 `MAKESHOP_RATE_LIMITED`, 네트워크 오류는 `MAKESHOP_TRANSPORT_FAILED` 예요. Cafe24 노드도 같은 방식이고, 목록은 [Cafe24 통합 가이드](/docs/06-integrations-and-config/cafe24)에 있어요.
 
-위 일곱은 **호출이 나간 뒤**의 실패예요. 설정이 잘못돼 **호출 자체가 만들어지지 않은** 경우는 따로 갈려요 — 없는 operation(`MAKESHOP_UNKNOWN_OPERATION`), 필수 입력 누락(`MAKESHOP_MISSING_FIELDS`), 쇼핑몰 식별자 형식 오류(`MAKESHOP_INVALID_SHOP_UID`). 이쪽은 노드 설정을 고쳐야 풀려요.
+위 일곱은 **호출이 나간 뒤**의 실패예요. 설정이 잘못돼 **호출 자체가 만들어지지 않은** 경우는 따로 갈려요 — 없는 operation(`MAKESHOP_UNKNOWN_OPERATION`), 필수 입력 누락(`MAKESHOP_MISSING_FIELDS`), 페이지네이션 설정 오류(`MAKESHOP_INVALID_PAGINATION`), 쇼핑몰 식별자 형식 오류(`MAKESHOP_INVALID_SHOP_UID`). 이쪽은 노드 설정을 고쳐야 풀려요.
 
 <Callout type="note">
   **경로 변수가 안 채워진 경우는 전용 코드가 없어요.** `code` 에는 통합 노드 공용 fallback 인 `INTEGRATION_CALL_FAILED` 가 들어가고, 어떤 자리가 비었는지는 `message` 에 `MAKESHOP_UNRESOLVED_PATH_PARAM: operation '...' has unresolved path placeholder(s): ...` 형태로 적혀요. **코드가 아니라 메시지를 봐야 해요.**

@@ -98,6 +98,15 @@ export interface IntegrationDto {
    */
   appUrl: string | null;
   /**
+   * Cafe24 Private 재설치 대기 표시 시각. 권한 추가 · 재인증이 남기고 콜백이
+   * 성공하면 `null` 로 돌아간다. 값이 있으면 상세 화면이 Cafe24 Developers 의
+   * '테스트 실행' 안내를 띄운다. 표시는 남긴 뒤 24시간 동안만 유효하고, 서버가
+   * 만료를 판정해 그 뒤에는 `null` 을 보낸다(화면은 이 값만 본다). 그 외 통합은
+   * 항상 `null`. 서버는 늘 `string | null` 을 보낸다. optional 로 둔 것은 이
+   * 필드가 없는 테스트 픽스처가 많아서다. NERV CLE-INT-OAUTH · CLE-T-NNENG8.
+   */
+  reinstallRequestedAt?: string | null;
+  /**
    * 자동 갱신 가능 통합 식별자 (derived 가상 필드 — 백엔드
    * `ServiceDefinition.supportsTokenAutoRefresh` 에서 매 응답 시점에 계산.
    * DB 컬럼 아님). 현재 cafe24·google 만 true, github 포함 그 외는 false.

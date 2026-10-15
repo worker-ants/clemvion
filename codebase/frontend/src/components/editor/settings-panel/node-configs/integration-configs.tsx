@@ -895,10 +895,17 @@ export function MakeshopConfig({
                 <NumberField
                   label={t("nodeConfigs.integration.makeshopOffset")}
                   value={pagination.offset ?? 0}
+                  // 서버는 offset 을 page = offset / limit + 1 로 바꾸고 limit 없는
+                  // offset 은 거절한다. 화면에 보이는 limit 기본값을 함께 저장한다.
+                  // NERV CLE-NODE-MAKESHOP · CLE-T-XVS8H7.
                   onChange={(v) =>
                     onChange({
                       ...config,
-                      pagination: { ...pagination, offset: v },
+                      pagination: {
+                        ...pagination,
+                        limit: pagination.limit ?? 50,
+                        offset: v,
+                      },
                     })
                   }
                   min={0}

@@ -16,6 +16,8 @@ const RESOURCE_ENUM = z.enum(
 
 // spec §1 — pagination is standardised `{ limit?, offset? }`, separate from
 // `fields`. cursor pagination support is unconfirmed (§9.7) — limit/offset only.
+// MakeShop 목록 API 는 offset 을 받지 않는다. 핸들러가 page = offset / limit + 1 로 바꿔 보낸다
+// (`resolveMakeshopPagination`, CLE-T-XVS8H7). offset 은 limit 의 배수여야 한다.
 export const makeshopPaginationSchema = z
   .object({
     limit: z.number().int().positive().optional(),
