@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH"
 title: "OAuth 연결과 토큰 갱신"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054"]
+requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "2191163c026361785e68d780a30a9305553a046a6ab60ee392fcb005a303d7df"
+content_hash: "144d3577e41b8b3c1b8810d05cb31e85c8b9f6f4ee1d94c10527abf135a81715"
 read_as: "approved_fallback"
-task: "CLE-T-NNENG8"
+task: "CLE-T-WB7JPC"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "4920398da75f9740d37f88cff86a6c661a5054c3dfea45532c93e17992201bdd"
-etag: "sha256-31b2c1a49a726608f433572f6d83607fd7f17d113dff5759ff4e01079ec5015b"
+mirror_sha256: "db4fee80d2794e42649f147d6e486ff6c9b9b004f982a495205d02e5775ac900"
+etag: "sha256-45e97af71fa2ca8ee32dc28c5ced6a74f12d23194ec3941e365781436ac36cc8"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -51,7 +51,7 @@ etag: "sha256-31b2c1a49a726608f433572f6d83607fd7f17d113dff5759ff4e01079ec5015b"
 - REQ-INTOAUTH-008 WHEN 사용자가 MakeShop 통합을 제출하면 THE SYSTEM SHALL 팝업 없이 설치 대기 통합을 만들고 설치 안내 화면을 보인다.
 - REQ-INTOAUTH-009 WHILE 설정·설치 안내 화면이 열려 있는 동안 THE SYSTEM SHALL 그 통합을 3초마다 조회하고 연결됨이 되면 토스트를 띄운 뒤 상세 화면으로 이동한다.
 - REQ-INTOAUTH-010 WHEN 안내 화면의 조회가 10분을 넘기면 THE SYSTEM SHALL 조회를 멈추고 «아직 대기 중» 안내를 보이며 재진입하거나 창에 포커스가 오면 다시 조회한다.
-- REQ-INTOAUTH-011 IF 같은 워크스페이스에 같은 상점 식별자의 연결됨 Cafe24 통합이 있으면 THE SYSTEM SHALL Cafe24 `oauth/begin` 을 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 거절한다.
+- REQ-INTOAUTH-011 IF 같은 워크스페이스에 같은 상점 식별자의 연결됨 Cafe24 통합이 있고 그 통합이 `new` 가 아닌 모드의 대상 통합(`integrationId`)이 아니면 THE SYSTEM SHALL Cafe24 `oauth/begin` 을 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 거절한다.
 - REQ-INTOAUTH-012 WHEN Cafe24 Private `oauth/begin` 에 같은 상점의 Private 설치 대기 행이 있으면 THE SYSTEM SHALL 새 행을 만들지 않고 그 행을 설치 토큰째 재사용한다.
 - REQ-INTOAUTH-013 IF `oauth/begin` 이 `client_id`·`client_secret` 을 갖춘 Cafe24 Private 요청을 `new` 가 아닌 모드(`reauthorize`·`request_scopes`)로 받으면 THE SYSTEM SHALL 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 거절한다.
 - REQ-INTOAUTH-014 WHEN App URL 호출의 HMAC 검증이 통과하고 통합이 설치 대기이면 THE SYSTEM SHALL OAuth state 를 만들고 인가 URL 로 302 한다.
@@ -95,6 +95,9 @@ etag: "sha256-31b2c1a49a726608f433572f6d83607fd7f17d113dff5759ff4e01079ec5015b"
 - REQ-INTOAUTH-052 IF 통합이 MakeShop 이거나 App URL 이 없는 Cafe24 Private 이면 THE SYSTEM SHALL 권한 탭의 권한 요청 버튼을 비활성으로 두고 이유 안내를 보인다.
 - REQ-INTOAUTH-053 WHEN 재설치 대기 표시를 남긴 지 24시간이 지나면 THE SYSTEM SHALL App URL 분기와 콜백 처리에서 그 표시를 없는 것으로 판정한다.
 - REQ-INTOAUTH-054 WHEN 재설치 대기 표시가 이미 있는 통합에 통합 재인증이나 추가 권한 요청을 하면 THE SYSTEM SHALL 표시를 새 시각으로 덮어써 유효 기간을 다시 센다.
+- REQ-INTOAUTH-055 IF 설치 토큰이 없는 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청을 하면 THE SYSTEM SHALL `oauth/begin` 처리를 거치지 않고 400 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 으로 거절한다.
+- REQ-INTOAUTH-056 IF 설치 대기이고 설치 토큰이 있는 Cafe24 Private 통합에 통합 재인증을 요청하면 THE SYSTEM SHALL `oauth/begin` 처리를 거치지 않고 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 거절한다.
+- REQ-INTOAUTH-057 WHEN 사용자가 Cafe24 Public 통합에 통합 재인증이나 추가 권한 요청을 하면 THE SYSTEM SHALL 그 통합의 `credentials.mall_id`·`credentials.app_type` 을 `oauth/begin` 처리에 넘겨 그 상점의 인가 URL 을 발급한다.
 
 ## OAuth 연결 흐름
 
@@ -103,8 +106,8 @@ etag: "sha256-31b2c1a49a726608f433572f6d83607fd7f17d113dff5759ff4e01079ec5015b"
 | 진입점 | mode | 설명 |
 | --- | --- | --- |
 | `POST /api/integrations/oauth/begin` | 본문의 `mode` 를 그대로 쓴다. `request-scopes` 표기는 `request_scopes` 로 바꾼다 | Cafe24 Private 과 MakeShop 은 `mode='new'` 만 받는다. 본문에 `client_id`·`client_secret` 을 갖춘 요청의 그 밖의 모드는 Cafe24 Private 이 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN`, MakeShop 이 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. 외부 마켓이 흐름을 시작하기 때문이다. Cafe24 Private 의 재인증과 추가 권한은 아래 두 진입점이 [재설치 대기 표시](#재설치-대기-표시)로 처리한다. MakeShop 은 재인증과 추가 권한 경로가 없고 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](#makeshop-은-삭제-후-재등록으로만-복구한다)) |
-| `POST /api/integrations/:id/reauthorize` | `reauthorize` | 안에서 `begin(mode='reauthorize', integrationId)` 를 부른다. OAuth 가 아닌 통합은 OAuth 왕복 없이 바로 연결됨으로 되돌린다. 설치 토큰이 있고 설치 대기가 아닌 Cafe24 Private 통합은 begin 을 부르지 않고 재설치 대기 표시만 남긴다 |
-| `POST /api/integrations/:id/request-scopes` | `request_scopes` | 기존 권한 범위와 새 권한 범위를 합친 뒤 begin 을 부른다. 설치 토큰이 있는 Cafe24 Private 은 begin 을 부르지 않고 `credentials.scopes` 만 합쳐 저장하며 설치 대기가 아니면 재설치 대기 표시를 남긴다 |
+| `POST /api/integrations/:id/reauthorize` | `reauthorize` | 안에서 `begin(mode='reauthorize', integrationId)` 를 부른다. OAuth 가 아닌 통합은 OAuth 왕복 없이 바로 연결됨으로 되돌린다. 설치 토큰이 있고 설치 대기가 아닌 Cafe24 Private 통합은 begin 을 부르지 않고 재설치 대기 표시만 남긴다. 그 밖의 Cafe24 Private 통합도 begin 을 부르지 않고 400 으로 거절한다. Cafe24 Public 통합은 행의 `credentials.mall_id`·`credentials.app_type` 을 begin 에 넘긴다 |
+| `POST /api/integrations/:id/request-scopes` | `request_scopes` | 기존 권한 범위와 새 권한 범위를 합친 뒤 begin 을 부른다. 설치 토큰이 있는 Cafe24 Private 은 begin 을 부르지 않고 `credentials.scopes` 만 합쳐 저장하며 설치 대기가 아니면 재설치 대기 표시를 남긴다. 설치 토큰이 없는 Cafe24 Private 은 begin 을 부르지 않고 400 으로 거절한다. Cafe24 Public 은 통합 재인증과 같게 행의 `mall_id`·`app_type` 을 넘긴다 |
 
 설치 우선 흐름에서는 App URL 이 `mode='reauthorize'` state 를 만든다. 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 행이 그 대상이다([설치 엔드포인트](#설치-엔드포인트-app-url)).
 
@@ -123,10 +126,10 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 
 - `appUrl` 은 Cafe24 Private 이 `${APP_URL}/api/3rd-party/cafe24/install/:installToken`, MakeShop 이 `${APP_URL}/api/3rd-party/makeshop/install/:installToken` 이다. `installToken` 은 이 begin 이 발급한 16바이트 base64url(22자, `^[A-Za-z0-9_-]{22}$`) 설치 토큰이다. 사용자는 이 주소를 외부 콘솔의 App URL 칸에 그대로 등록한다.
 - Cafe24 흐름(Public·Private)에 들어오면 같은 `(workspaceId, mall_id)` 의 Cafe24 통합을 먼저 본다.
-  - Public: 연결됨 행이 있으면 begin 을 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 바로 거절한다. Public 은 begin 에서 행을 만들지 않으므로 이 사전 검사가 없으면 사용자가 OAuth 동의까지 마친 뒤에야 충돌을 알게 된다.
-  - Private: 연결됨 행이 있으면 같은 코드로 거절한다. `app_type='private'` 인 설치 대기 행이 있으면 새 행을 만들지 않고 그 행을 재사용하며 설치 토큰을 보존한다(멱등 begin).
+  - Public: 연결됨 행이 있으면 begin 을 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 바로 거절한다. Public 은 begin 에서 행을 만들지 않으므로 이 사전 검사가 없으면 사용자가 OAuth 동의까지 마친 뒤에야 충돌을 알게 된다. `new` 가 아닌 모드(`reauthorize`·`request_scopes`)에서는 `integrationId` 가 가리키는 대상 통합 자신을 중복으로 보지 않는다. 대상이 아닌 연결됨 행이 있으면 같은 409 로 거절한다.
+  - Private: 연결됨 행이 있으면 같은 코드로 거절한다. `app_type='private'` 인 설치 대기 행이 있으면 새 행을 만들지 않고 그 행을 재사용하며 설치 토큰을 보존한다(멱등 begin). `new` 가 아닌 모드는 이 검사에 닿지 않는다. 자격 증명을 갖춘 요청은 REQ-INTOAUTH-013 이 먼저 거절하고, `:id/reauthorize`·`:id/request-scopes` 는 REQ-INTOAUTH-055·056 대로 begin 전에 거절한다.
   - 만료됨·오류 행은 begin 에서 막지 않는다. 최종 생성 단계에서 상점 식별자 UNIQUE(V072)가 경쟁 상황의 마지막 방어로 같은 409 를 낸다. 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 통합은 최대 1행이므로 사용자는 기존 통합을 쓰거나 지우고 다시 등록한다.
-- `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 두 경로에서 같은 코드로 나온다. begin 의 사전 SELECT(연결됨 행만 차단)와, `POST /api/integrations` 최종 생성에서 `idx_integration_workspace_service_mall` 위반(`23505`)을 `throwIfUniqueViolation` 이 서비스 유형이 cafe24 인 분기로 바꾼 것이다. 앱 유형과 상관없이 쓴다. 이름의 `PRIVATE` 는 옛 이름이 남은 것이고 뜻은 «같은 상점의 Cafe24 통합이 이미 있다» 다. 클라이언트는 이름이 아니라 이 뜻으로 분기한다(아래 Rationale).
+- `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 두 경로에서 같은 코드로 나온다. begin 의 사전 SELECT(연결됨 행만 차단하고 `new` 가 아닌 모드의 대상 통합은 뺀다)와, `POST /api/integrations` 최종 생성에서 `idx_integration_workspace_service_mall` 위반(`23505`)을 `throwIfUniqueViolation` 이 서비스 유형이 cafe24 인 분기로 바꾼 것이다. 앱 유형과 상관없이 쓴다. 이름의 `PRIVATE` 는 옛 이름이 남은 것이고 뜻은 «같은 상점의 Cafe24 통합이 이미 있다» 다. 클라이언트는 이름이 아니라 이 뜻으로 분기한다(아래 Rationale).
 - MakeShop 은 begin 시점에 `shop_uid` 를 모르므로 같은 `(워크스페이스, client_id)` 의 설치 대기 행을 재사용하고 상점 중복은 설치 콜백에서 `MAKESHOP_ALREADY_CONNECTED`(409)로 막는다.
 
 ### 제공자별 설정
@@ -139,7 +142,7 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 | MakeShop | `https://auth.makeshop.com/oauth/authorize` (`response_type=code`, PKCE S256) | `POST https://auth.makeshop.com/oauth/token` (Basic `client_id:client_secret`) | 공백 | 사용자 체크박스 결과 | 있음. refresh token 이 매번 새 값으로 바뀐다 |
 
 - **Cafe24 의 권한 범위는 콤마로 구분한다.** RFC 6749 §3.3 의 공백 구분이 아니라 `mall.read_product,mall.write_order` 처럼 보낸다. 공백이나 `+` 로 보내면 권한 범위가 하나여도 `invalid_scope` 로 거부된다. Cafe24 공식 예제(`developers.cafe24.com`)와 `cafe24-app/cafe24_app_sample` 의 `StoreToken.java#getCodeRedirectUrl` 이 모두 콤마를 쓴다. 다른 제공자는 공백 구분을 유지한다.
-- **Cafe24 의 토큰 URL 은 `mall_id` 에 따라 바뀐다.** begin 이 사용자가 입력한 `mall_id` 를 통합 OAuth state 의 `provider_meta`(암호화, V041)에 넣어 콜백의 토큰 교환까지 가져간다. `new`·`reauthorize`·`request_scopes` 모두 같다. MakeShop 은 같은 자리에 `shop_uid`, 클라이언트 자격 증명, PKCE `code_verifier` 를 넣는다. `code_verifier` 는 자격 증명에 저장하지 않는다.
+- **Cafe24 의 토큰 URL 은 `mall_id` 에 따라 바뀐다.** begin 이 사용자가 입력한 `mall_id` 를 통합 OAuth state 의 `provider_meta`(암호화, V041)에 넣어 콜백의 토큰 교환까지 가져간다. `new`·`reauthorize`·`request_scopes` 모두 같다. `reauthorize`·`request_scopes` 에서는 `:id/reauthorize`·`:id/request-scopes` 가 행의 `credentials.mall_id`·`credentials.app_type` 을 begin 에 넘긴다(`client_id`·`client_secret` 은 넘기지 않는다). 값이 없거나 형식이 틀린 옛 행은 begin 이 400 `CAFE24_INVALID_MALL_ID`·`CAFE24_INVALID_APP_TYPE` 으로 거절한다. MakeShop 은 같은 자리에 `shop_uid`, 클라이언트 자격 증명, PKCE `code_verifier` 를 넣는다. `code_verifier` 는 자격 증명에 저장하지 않는다.
 - **Cafe24 토큰 응답은 `expires_in` 이 아니라 `expires_at`(ISO8601)을 준다.** 대신 `access_token` 이 JWT 라 `exp` 로도 만료 시각을 알 수 있다. 만료 시각 해석은 [토큰 자동 갱신](#토큰-자동-갱신) 의 규칙을 따른다.
 - 통합용 콜백(`/api/3rd-party/:provider/callback`)은 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 다르다. Google Cloud Console, GitHub OAuth App, Cafe24 개발자 센터에는 두 redirect URI 를 모두 등록한다.
 
@@ -372,8 +375,10 @@ GET /api/3rd-party/:provider/callback
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| POST | `/api/integrations/:id/reauthorize` | OAuth 통합 재인증용 `authUrl` 을 발급한다. OAuth 가 아닌 통합은 바로 연결됨으로 되돌린다. 설치 토큰이 있고 설치 대기가 아닌 Cafe24 Private 통합은 재설치 대기 표시를 남기고(이미 있으면 새 시각으로 덮어쓴다) `cafe24_private_pending` 을 돌려준다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합은 400 으로 거절한다 |
-| POST | `/api/integrations/:id/request-scopes` | 추가 권한 요청. 본문 `{ scopes: string[] }`. 응답은 아래 두 갈래다. 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합은 400 으로 거절한다 |
+| POST | `/api/integrations/:id/reauthorize` | OAuth 통합 재인증용 `authUrl` 을 발급한다. OAuth 가 아닌 통합은 바로 연결됨으로 되돌린다. 설치 토큰이 있고 설치 대기가 아닌 Cafe24 Private 통합은 재설치 대기 표시를 남기고(이미 있으면 새 시각으로 덮어쓴다) `cafe24_private_pending` 을 돌려준다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합은 400 으로 거절한다. Cafe24 Private 의 코드는 설치 토큰이 없으면 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING`, 설치 대기이면 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 이다([에러 코드](CLE-INT-MANAGE.md#에러-코드)) |
+| POST | `/api/integrations/:id/request-scopes` | 추가 권한 요청. 본문 `{ scopes: string[] }`. 응답은 아래 두 갈래다. 설치 토큰이 없는 Cafe24 Private 통합(`CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING`)과 MakeShop 통합은 400 으로 거절한다 |
+
+두 엔드포인트는 가시성과 관리자 판정(404·403)을 먼저 한다. 위 400 거절은 그 판정을 통과한 요청에만 한다.
 
 추가 권한 요청 응답은 백엔드가 제공자에 따라 모양을 정하고 프런트엔드는 모양만 보고 화면을 나눈다.
 
@@ -474,7 +479,8 @@ Cafe24 의 `access_token`·`refresh_token` 은 JWT 다. 그래서 JWT `exp` clai
 ## 미결 사항
 
 - **`oauth/begin` 요청 본문 필드 표기**: 이 문서의 예시와 데이터 흐름 정의는 본문 필드를 `mall_id`·`app_type`·`client_id`·`client_secret` 으로 적는다. 현재 구현(`OAuthBeginDto`)과 프런트엔드는 `mallId`·`appType`·`clientId`·`clientSecret` 을 쓰고 같은 화면 정의의 precheck 쿼리도 `mallId` 다. 문서대로 보내는 클라이언트는 필드가 무시되거나 거부될 수 있다. API 계약의 표기를 정해야 한다.
-- **`:id/reauthorize`·`:id/request-scopes` 가 begin 에 서비스 정보를 넘기지 않는다**: `/:id/reauthorize` 가 Cafe24 행의 `mall_id`·`app_type` 을 begin 에 넘기지 않아 Cafe24 Public 재인증이 `CAFE24_INVALID_MALL_ID` 로 거절된다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 행의 재인증도 같은 코드로 거절된다. 추가 권한 요청은 2026-05-15 에 같은 문제를 고쳤지만 재인증은 빠졌다. 후속 Task 로 고친다. 같은 원인으로 MakeShop 통합의 `:id/reauthorize`·`:id/request-scopes` 는 begin 에 클라이언트 자격 증명이 넘어가지 않아 `MAKESHOP_USE_SHOPSTORE_INSTALL` 이 아닌 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절된다. 설치 토큰이 없는 Cafe24 Private 의 추가 권한 요청도 `client_id`·`client_secret` 이 넘어가지 않아 `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED` 로 거절된다. 그래서 REQ-INTOAUTH-049·050 은 400 만 정하고 코드를 정하지 않는다. 화면은 이 행들의 버튼을 막는다.
+- **MakeShop 통합의 `:id/reauthorize`·`:id/request-scopes` 가 begin 에 클라이언트 자격 증명을 넘기지 않는다**: 그래서 두 요청은 `MAKESHOP_USE_SHOPSTORE_INSTALL` 이 아닌 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절된다. REQ-INTOAUTH-049·050 은 MakeShop 통합의 코드를 정하지 않고 400 만 정한다. 화면은 이 통합의 두 버튼을 막는다. [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) Rationale 은 이 두 요청이 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절된다고 적어 지금 동작과 다르다. 이 항목을 정할 때 함께 맞춘다. 같은 항목에 있던 Cafe24 부분(Cafe24 Public 통합 재인증의 `CAFE24_INVALID_MALL_ID`, 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 행이 받던 원인과 다른 코드)은 2026-10-15 에 정했다(Task CLE-T-WB7JPC, [begin 으로 갈 수 없는 Cafe24 Private 행은 서비스가 먼저 거절한다](#begin-으로-갈-수-없는-cafe24-private-행은-서비스가-먼저-거절한다-2026-10-15)).
+- **`new` 가 아닌 모드의 `oauth/begin` 이 대상 통합과 다른 상점 식별자를 받아도 거절하지 않는다**: `oauth/begin` 을 직접 부르는 클라이언트가 `integrationId` 로 상점 A 의 통합을 가리키고 본문에 상점 B 를 실으면, 상점 B 의 연결됨 행이 없는 한 begin 이 통과하고 콜백이 상점 B 의 토큰을 상점 A 행에 쓸 수 있다. `:id/reauthorize`·`:id/request-scopes` 는 행의 값을 넘기므로 해당하지 않는다. 2026-10-15 의 대상 제외와 상관없이 전부터 있던 틈이다. 본문 값과 대상 행 값이 다르면 거절할지, 본문 값을 무시할지 정해야 한다.
 
 ## 구현 위치
 
@@ -567,6 +573,32 @@ Cafe24 Private 과 달리 재설치 대기 표시(선택지 ①)를 두지 않�
 
 비용: 삭제 후 재등록은 그 통합을 쓰는 노드의 참조를 먼저 바꿔야 하고 사용처가 남아 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다. 기존 행이 남아 있으면 새 등록의 설치가 409 `MAKESHOP_ALREADY_CONNECTED` 로 막히므로 순서는 사용처 교체, 삭제, 재등록이다([설치 엔드포인트](#설치-엔드포인트-app-url) 의 가드 ⑨ 설명). 이 결정으로 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 MakeShop 오류 복구 미결 사항을 닫았다.
 
+### begin 으로 갈 수 없는 Cafe24 Private 행은 서비스가 먼저 거절한다 (2026-10-15)
+
+Task CLE-T-WB7JPC 에서 정했다. 재설치 대기 표시 경로를 타지 못하는 Cafe24 Private 행은 두 가지다. 통합 재인증을 받은 설치 대기 행과, 통합 재인증이나 추가 권한 요청을 받은 설치 토큰 없는 행이다. 이 행들은 begin 으로 넘어가 원인과 상관없는 코드로 거절됐다. `:id/reauthorize` 는 상점 식별자를 넘기지 않아 `CAFE24_INVALID_MALL_ID` 가 났다. `:id/request-scopes` 는 `client_id`·`client_secret` 을 넘기지 않아 begin 본문 누락을 뜻하는 `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED` 가 났다.
+
+이제 `IntegrationsService` 가 begin 을 부르기 전에 이 행들을 거절한다. 거절은 가시성과 관리자 판정(404·403)을 통과한 요청에만 하므로 남의 개인 통합의 상태가 드러나지 않는다. begin 의 Cafe24 Private 분기와 모드 검사는 바꾸지 않는다. REQ-INTOAUTH-013 의 «`client_id`·`client_secret` 을 갖춘 요청» 조건과 진입점 표의 `oauth/begin` 설명은 그대로 맞다. `:id/reauthorize` 가 begin 의 거절에 기대지 않는다는 2026-10-10 변경 이력과도 맞는다. 기각한 선택지는 둘이다.
+
+- begin 의 Cafe24 Private 분기에서 모드 검사를 자격 증명 검사보다 앞에 둔다: `oauth/begin` 을 직접 부르는 클라이언트가 받는 코드가 바뀐다. 2026-10-10 에 REQ-INTOAUTH-013 에 넣은 조건을 Cafe24 만 다시 빼야 해서 같은 조건을 쓰는 MakeShop(REQ-INTOAUTH-043)과 어긋난다.
+- 저장된 `client_id`·`client_secret` 을 begin 에 넘겨 REQ-INTOAUTH-013 의 거절로 보낸다: 거절을 받으려고 비밀값을 복호화해 넘기게 되어 비밀값이 지나가는 자리가 늘어난다. 설치 토큰이 없는 행도 «테스트 실행» 을 하라는 코드를 받게 된다.
+
+코드는 행의 상태에 맞춰 나눈다.
+
+- 설치 대기 행은 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 이다. 이 행은 설치 토큰과 App URL 이 살아 있어 «테스트 실행» 으로 설치를 마치는 것이 정식 경로다. 코드의 뜻과 같다(REQ-INTOAUTH-056).
+- 설치 토큰이 없는 행은 새 코드 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 이다. App URL 이 없어 «테스트 실행» 이 이 행으로 돌아오지 못하고 복구는 삭제 후 재등록이다. 뜻이 다르므로 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 규칙 6 대로 새 코드를 둔다. 이름은 규칙 1 대로 조건(설치 토큰 없음)을 적는다. `USE_TEST_RUN` 같은 행동 지시형 이름은 규칙 1 에 맞지 않지만 호환 때문에 유지하는 이름이라 새 코드의 본보기로 삼지 않는다. 조건은 행에 설치 토큰이 저장돼 있지 않은 것이다. App URL 의 404 `CAFE24_INSTALL_INVALID_TOKEN`(경로의 설치 토큰으로 행을 찾지 못함)과는 다른 조건이다. 통합 재인증과 추가 권한 요청이 같은 조건에 같은 코드를 낸다(REQ-INTOAUTH-055).
+
+MakeShop 통합은 이번 범위에서 뺐다. 화면이 두 버튼을 막고 있고, 어느 코드로 거절할지는 MakeShop 코드 정리와 함께 [미결 사항](#미결-사항) 에서 정한다.
+
+Task 를 만들 때는 두 행 모두 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 을 쓰려 했다. 구현 착수 전 일관성 검토가 설치 토큰 없는 행에는 그 코드의 정의가 맞지 않는다고 짚어 나눴다. 프런트엔드는 이 코드들로 분기하지 않고 행의 상태와 `appUrl` 유무로 버튼을 막으므로 새 코드를 두는 부담이 적다.
+
+상태 코드는 400 으로 둔다. 입력이 아니라 행의 상태 때문에 거절하므로 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 으로는 409·422 도 맞을 수 있다. 그래도 begin 의 `*_USE_TEST_RUN` 거절과 REQ-INTOAUTH-049·050 이 이미 400 이고, 클라이언트는 상태 코드가 아니라 버튼 비활성으로 이 행들을 다룬다. 바꾸면 계약만 흔들린다. 새 코드만 422 로 두는 안도 기각했다. 같은 두 엔드포인트의 같은 종류 거절(설치 대기 · MakeShop)이 400 이라 클라이언트가 상태 코드로 나눌 수 없게 된다. [통합 관리](CLE-INT-MANAGE.md) 의 설치 대기 연결 테스트가 200 과 `success:false` 를 쓰는 것은 결과 카드를 그리려는 별개 결정이다.
+
+### `:id/reauthorize`·`:id/request-scopes` 는 Cafe24 상점 식별자와 앱 유형을 같은 함수로 만든다 (2026-10-15)
+
+Task CLE-T-WB7JPC 에서 정했다. `:id/reauthorize` 가 Cafe24 통합의 상점 식별자와 앱 유형을 begin 에 넘기지 않아 Cafe24 Public 통합 재인증이 400 `CAFE24_INVALID_MALL_ID` 로 거절됐다. 추가 권한 요청은 2026-05-15 사용자 보고로 같은 누락을 고쳤지만 통합 재인증은 그때 빠졌다. 같은 누락이 다시 생기지 않게 두 엔드포인트가 begin 에 넘길 상점 식별자와 앱 유형(`credentials.mall_id`·`credentials.app_type`)을 한 함수에서 만든다. 세 mode 모두 상점 식별자를 `provider_meta` 로 콜백까지 가져간다는 [제공자별 설정](#제공자별-설정) 의 내용을 지킨 것이고 새 결정은 아니다.
+
+begin 이 `integrationId` 의 행에서 두 값을 직접 채우는 안은 기각했다. begin 은 새 연결의 `oauth/begin` 엔드포인트이기도 해서 본문이 두 값의 원천이다. `oauth/begin` 엔드포인트도 `integrationId` 의 행으로 권한을 판정하지만 두 값은 읽지 않는다. 행에서 채우게 하면 같은 값의 원천이 본문과 행 둘이 되어 어느 쪽을 믿을지 정해야 한다. `:id/*` 는 `IntegrationsService` 가 행을 이미 읽고 가시성과 관리자 권한을 판정했으므로 거기서 넘기는 편이 단순하다. 직접 `oauth/begin` 이 대상 통합과 다른 상점 식별자를 싣는 경우는 [미결 사항](#미결-사항) 에 둔다.
+
 ### 설치 토큰 불일치 회복 흐름
 
 운영 사용자가 새 통합을 등록하고 App URL 을 등록했는데 «테스트 실행» 에서 404 `CAFE24_INSTALL_INVALID_TOKEN` 을 받았다. 폼을 여러 번 제출하면서(예: `client_secret` 오타 수정) 멱등 begin 의 자격 증명 변경 분기가 설치 토큰을 다시 발급해, 그 사이 등록한 옛 URL 이 낡았다. 옛 동작은 단호한 404 라 사용자가 상세 화면의 App URL 을 보고 Cafe24 쪽을 직접 고쳐야 했고 운영 문의가 많았다. 그래서 [설치 엔드포인트](#설치-엔드포인트-app-url) 의 회복 분기를 두었다.
@@ -590,6 +622,8 @@ Public 흐름은 begin 에서 통합 행을 만들지 않아, 상점 식별자 �
 - **마지막 방어 확장**: `throwIfUniqueViolation` 이 `idx_integration_workspace_service_mall`(V072) 위반을 서비스 유형별 코드로 바꾼다. 사전 검사를 통과한 뒤의 동시 INSERT 와 최종 생성 시점 충돌도 같은 409 가 된다.
 - **다른 상태를 begin 에서 막지 않는 이유**: 설치 대기는 Private 의 멱등 begin(같은 행을 재사용해 설치 토큰 보존)과 맞아야 한다. Public 은 begin 에서 행을 만들지 않으므로 설치 대기가 있어도 begin 은 영향이 없고 최종 생성에서 UNIQUE 가 막는다. 만료됨·오류는 사용자의 재연결 의도를 반영해 begin 진입은 허용하되, 한 워크스페이스에 같은 상점 통합이 최대 1행이라는 불변식은 최종 생성에서 UNIQUE 가 지킨다(사용자는 기존 행을 먼저 지워야 한다). 결과적으로 연결됨이 아닌 모든 상태의 충돌은 같은 409 로 바뀌어 클라이언트 분기가 하나다.
 
+**2026-10-15 보완(Task CLE-T-WB7JPC)**: 이 사전 검사는 새 연결을 전제로 만들어 모드를 가리지 않았다. `:id/reauthorize` 가 상점 식별자를 begin 에 넘기게 되자 연결됨 Cafe24 Public 통합의 통합 재인증이 그 통합 자신과 충돌해 409 가 났다. 추가 권한 요청은 2026-05-15 부터 상점 식별자를 넘겨 왔으므로 연결됨 Public 통합에서 이미 같은 409 를 내고 있었다. 그래서 `new` 가 아닌 모드에서는 `integrationId` 의 대상 통합을 중복 검사에서 뺀다. 대상이 아닌 연결됨 행이 있으면 여전히 409 다. 한 워크스페이스에서 같은 상점의 Cafe24 행은 UNIQUE(V072)로 하나뿐이다. 그래서 대상이 아닌 행과 충돌하는 경우는 `mall_id` 컬럼이 비어 `credentials.mall_id` 로 비교하는 전환기의 옛 행 정도다. 대상 제외는 본문의 상점 식별자가 대상 통합의 상점과 같을 때만 효과가 있다. 다른 상점을 실은 요청은 그 상점의 연결됨 행과 비교되어 전과 같다. 사전 검사를 `new` 에만 두는 안은 기각했다. 그 안에서는 대상이 아닌 연결됨 행이 있어도 통합 재인증이 콜백까지 진행된다. 콜백은 대상 행의 자격 증명만 바꾸므로 같은 상점을 가리키는 연결됨 행이 둘 남는다.
+
 ### 상점 중복 검사는 평문 `mall_id` 컬럼으로 한다
 
 begin 은 메모리 사전 검사(연결됨이면 409, 설치 대기면 재사용)와 평문 `mall_id` 컬럼의 부분 UNIQUE(V072)를 함께 쓴다. 두 검사를 모두 통과한 동시 INSERT 는 `23505` 로 바뀌어 같은 409 가 된다. V045 이전에는 `mall_id` 가 암호화 JSONB 안에만 있어 복호화 뒤 메모리 비교(O(N))를 했고 조회와 INSERT 사이에 경쟁 창이 있었다. 전환기 동안 begin 의 메모리 비교는 `credentials.mall_id` 대체를 둔다. 컬럼과 인덱스를 둔 이유는 [통합 데이터와 흐름](CLE-INT-DATA.md) 의 Rationale 에 있다.
@@ -609,8 +643,10 @@ Public 흐름에도 이 코드를 쓰면서 `CAFE24_MALL_ALREADY_CONNECTED` 로 
 2026-10-10(Task CLE-T-NNENG8)에 두 코드가 나오는 조건이 좁아졌다. 설치 토큰이 있는 Cafe24 Private 행의 `:id/reauthorize`·`:id/request-scopes` 는 begin 을 부르지 않고 재설치 대기 표시를 남기므로 이 거절에 닿지 않는다. MakeShop 코드의 메시지에는 재인증과 권한 추가가 안 되고 ShopStore 재설치로도 기존 통합이 되살아나지 않으니 삭제 후 재등록하라는 안내를 넣었다. 그래도 두 이름은 바꾸지 않는다.
 
 - [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 규칙 5 대로 이름을 바꾸면 호환이 깨진다.
-- «이 서비스는 begin 의 이 모드를 받지 않는다» 는 뜻은 그대로이고 나오는 조건만 좁아졌다. MakeShop 의 새 등록은 여전히 ShopStore 설치로 끝나 이름의 뜻과도 맞는다.
+- «이 통합은 이 요청으로 OAuth 를 시작하지 않는다» 는 뜻은 그대로이고 나오는 조건만 좁아졌다. MakeShop 의 새 등록은 여전히 ShopStore 설치로 끝나 이름의 뜻과도 맞는다.
 - 통합 도메인 에러 코드는 아직 그 카탈로그 밖에 있다. 등록은 그 문서의 미결 사항에서 한다.
+
+2026-10-15(Task CLE-T-WB7JPC)부터 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 은 설치 대기 Cafe24 Private 통합의 `:id/reauthorize` 에서도 나온다. begin 이 아니라 `IntegrationsService` 가 내지만 «이 통합은 이 요청으로 OAuth 를 시작하지 않는다. 설치는 «테스트 실행» 으로 마친다» 는 뜻이 같다. 설치 토큰이 없는 행은 뜻이 달라 새 코드를 쓴다([begin 으로 갈 수 없는 Cafe24 Private 행은 서비스가 먼저 거절한다](#begin-으로-갈-수-없는-cafe24-private-행은-서비스가-먼저-거절한다-2026-10-15)).
 
 ### Cafe24 Public 앱은 환경 변수가 있을 때만 보인다
 
@@ -693,3 +729,11 @@ JWT `exp` 결정 뒤에도 두 결함이 남았다.
 - REQ-INTOAUTH-043: `client_id`·`client_secret` 을 갖춘 `oauth/begin` 요청이라는 조건, 400, 삭제 후 재등록 안내를 더했다.
 
 새 요구사항은 REQ-INTOAUTH-044 부터다.
+
+### 요구사항 변경 이력 (2026-10-15, Task CLE-T-WB7JPC)
+
+다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
+
+- REQ-INTOAUTH-011: `new` 가 아닌 모드의 대상 통합(`integrationId`)을 중복 검사에서 뺐다. 대상이 아닌 연결됨 행은 그대로 409 다.
+
+새로 더한 요구사항은 REQ-INTOAUTH-055~057 이다. REQ-INTOAUTH-049·050 은 그대로 두고 Cafe24 Private 통합의 코드를 REQ-INTOAUTH-055·056 에 정했다. MakeShop 통합의 코드는 [미결 사항](#미결-사항)에 남는다.

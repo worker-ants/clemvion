@@ -123,8 +123,10 @@ describe('Cafe24 install endpoint (e2e)', () => {
 
   async function insertPrivateIntegration(opts: {
     mallId: string;
-    installToken: string;
+    /** null 이면 설치 토큰이 없는 행(설치 시간 초과 · 토큰 보존 전에 연결된 옛 행)이다. */
+    installToken: string | null;
     status: 'connected' | 'error' | 'expired';
+    statusReason?: string;
   }): Promise<string> {
     // 설치가 끝난 Cafe24 Private 행. credentials 는 insertPendingInstall 과 같은 이유로 평문 JSONB 다.
     const credentials = {
@@ -136,18 +138,54 @@ describe('Cafe24 install endpoint (e2e)', () => {
     };
     const r = await db.query<{ id: string }>(
       `INSERT INTO integration
-        (workspace_id, service_type, auth_type, name, scope, status,
+        (workspace_id, service_type, auth_type, name, scope, status, status_reason,
          mall_id, install_token, install_token_issued_at,
          credentials, created_by)
-       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', $3,
-         $4, $5, NOW(), $6::jsonb, $7)
+       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', $3, $4,
+         $5, $6::varchar, CASE WHEN $6::varchar IS NULL THEN NULL ELSE NOW() END,
+         $7::jsonb, $8)
        RETURNING id`,
       [
         workspaceId,
         uniqueName('cafe24-reinstall'),
         opts.status,
+        opts.statusReason ?? null,
         opts.mallId,
         opts.installToken,
+        JSON.stringify(credentials),
+        owner.userId,
+      ],
+    );
+    return r.rows[0].id;
+  }
+
+  async function insertPublicIntegration(opts: {
+    mallId: string;
+    status: 'connected' | 'error';
+    statusReason?: string;
+  }): Promise<string> {
+    // Cafe24 Public 행. 자격 증명은 우리 앱의 CAFE24_CLIENT_ID 를 쓰므로 행에는 토큰과 권한 범위만 있다.
+    // credentials 는 insertPendingInstall 과 같은 이유로 평문 JSONB 다.
+    const credentials = {
+      mall_id: opts.mallId,
+      app_type: 'public',
+      access_token: 'e2e-access-token',
+      refresh_token: 'e2e-refresh-token',
+      scopes: ['mall.read_product', 'mall.read_order'],
+    };
+    const r = await db.query<{ id: string }>(
+      `INSERT INTO integration
+        (workspace_id, service_type, auth_type, name, scope, status, status_reason,
+         mall_id, credentials, created_by)
+       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', $3, $4,
+         $5, $6::jsonb, $7)
+       RETURNING id`,
+      [
+        workspaceId,
+        uniqueName('cafe24-public'),
+        opts.status,
+        opts.statusReason ?? null,
+        opts.mallId,
         JSON.stringify(credentials),
         owner.userId,
       ],
@@ -267,11 +305,149 @@ describe('Cafe24 install endpoint (e2e)', () => {
         .post(`/api/integrations/${id}/reauthorize`)
         .set('Authorization', `Bearer ${owner.accessToken}`)
         .set('X-Workspace-Id', workspaceId);
-      // 설치 대기 행은 begin 으로 넘어가 400 으로 거절된다(화면은 버튼을 막는다). 코드는 고정하지 않는다:
-      // `:id/reauthorize` 가 begin 에 mall_id 를 넘기지 않아 지금은 CAFE24_INVALID_MALL_ID 가 먼저 난다
-      // (이번 변경 전부터 있던 결함, NERV Task CLE-T-WB7JPC 가 고친다).
+      // 설치 대기 행은 서비스가 begin 전에 테스트 실행 안내로 거절한다(화면은 버튼을 막는다). 재인증이 begin 에
+      // mall_id 를 넘기지 않던 때는 CAFE24_INVALID_MALL_ID 가 먼저 났다(Task CLE-T-WB7JPC).
       expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('CAFE24_PRIVATE_APP_USE_TEST_RUN');
       expect(await readMark(id)).toBeNull();
+    });
+
+    // 설치 토큰이 없는 행은 App URL 이 없어 표시를 남겨도 「테스트 실행」이 이 통합으로 돌아오지 못한다. 서비스가 begin
+    // 전에 거절한다. begin 으로 넘기면 CAFE24_INVALID_MALL_ID · CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED 처럼 원인과
+    // 상관없는 코드가 났다(Task CLE-T-WB7JPC).
+    it.each(['reauthorize', 'request-scopes'] as const)(
+      'install_token 이 없는 행: %s 는 설치 토큰 없음으로 거절되고 행을 바꾸지 않는다',
+      async (action) => {
+        const mallId = 'mall-' + randomBytes(4).toString('hex');
+        const id = await insertPrivateIntegration({
+          mallId,
+          installToken: null,
+          status: 'expired',
+          statusReason: 'install_timeout',
+        });
+
+        const req = request(BASE_URL)
+          .post(`/api/integrations/${id}/${action}`)
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .set('X-Workspace-Id', workspaceId);
+        const res =
+          action === 'request-scopes'
+            ? await req.send({ scopes: ['mall.read_order'] })
+            : await req;
+        expect(res.status).toBe(400);
+        // 오류 봉투에는 data 가 없다 — 화면이 App URL 안내로 오해하지 않는다.
+        expect(res.body).toEqual({
+          error: expect.objectContaining({
+            code: 'CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING',
+            message: expect.any(String),
+          }),
+        });
+        expect(await readMark(id)).toBeNull();
+        const row = await db.query<{
+          status: string;
+          status_reason: string | null;
+          credentials: { scopes?: string[] };
+        }>(
+          'SELECT status, status_reason, credentials FROM integration WHERE id = $1',
+          [id],
+        );
+        expect(row.rows[0].status).toBe('expired');
+        expect(row.rows[0].status_reason).toBe('install_timeout');
+        expect(row.rows[0].credentials.scopes).toEqual(['mall.read_product']);
+      },
+    );
+  });
+
+  /**
+   * Cafe24 Public 통합 재인증(Task CLE-T-WB7JPC). 재인증이 begin 에 mall_id 를 넘기지 않아 CAFE24_INVALID_MALL_ID 로
+   * 거절되던 결함과, begin 의 상점 중복 사전 검사가 연결됨인 대상 통합 자신을 잡아 409 를 내던 결함을 고정한다.
+   * authorize URL 은 우리 앱의 CAFE24_CLIENT_ID(docker-compose.e2e.yml 의 e2e 전용 값)로 만든다.
+   */
+  describe('Cafe24 Public reauthorize (CLE-T-WB7JPC)', () => {
+    it.each([
+      ['connected', undefined],
+      ['error', 'auth_failed'],
+    ] as const)(
+      '%s row: reauthorize returns the mall-specific authorize URL and leaves the row as is',
+      async (status, statusReason) => {
+        const mallId = 'mall-' + randomBytes(4).toString('hex');
+        const id = await insertPublicIntegration({
+          mallId,
+          status,
+          statusReason,
+        });
+
+        const res = await request(BASE_URL)
+          .post(`/api/integrations/${id}/reauthorize`)
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .set('X-Workspace-Id', workspaceId);
+        expect(res.status).toBe(200);
+        const authUrl = new URL(res.body.data.authUrl as string);
+        expect(authUrl.origin).toBe(`https://${mallId}.cafe24api.com`);
+        expect(authUrl.pathname).toBe('/api/v2/oauth/authorize');
+        expect(authUrl.searchParams.get('state')).toBe(res.body.data.state);
+        expect(authUrl.searchParams.get('scope')).toBe(
+          'mall.read_product,mall.read_order',
+        );
+
+        // begin 이 남긴 OAuth state 는 그 통합의 재인증이다.
+        const state = await db.query<{
+          mode: string;
+          integration_id: string;
+        }>(
+          'SELECT mode, integration_id FROM integration_oauth_state WHERE state = $1',
+          [res.body.data.state],
+        );
+        expect(state.rows[0]).toEqual({
+          mode: 'reauthorize',
+          integration_id: id,
+        });
+
+        // 콜백 전이라 행은 그대로다.
+        const row = await db.query<{
+          status: string;
+          status_reason: string | null;
+          reinstall_requested_at: Date | null;
+        }>(
+          'SELECT status, status_reason, reinstall_requested_at FROM integration WHERE id = $1',
+          [id],
+        );
+        expect(row.rows[0]).toEqual({
+          status,
+          status_reason: statusReason ?? null,
+          reinstall_requested_at: null,
+        });
+      },
+    );
+
+    it('connected row: request-scopes returns the mall-specific authorize URL with merged scopes', async () => {
+      const mallId = 'mall-' + randomBytes(4).toString('hex');
+      const id = await insertPublicIntegration({ mallId, status: 'connected' });
+
+      const res = await request(BASE_URL)
+        .post(`/api/integrations/${id}/request-scopes`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({ scopes: ['mall.read_store'] });
+      expect(res.status).toBe(200);
+      const authUrl = new URL(res.body.data.authUrl as string);
+      expect(authUrl.origin).toBe(`https://${mallId}.cafe24api.com`);
+      expect(authUrl.pathname).toBe('/api/v2/oauth/authorize');
+      expect(authUrl.searchParams.get('scope')).toBe(
+        'mall.read_product,mall.read_order,mall.read_store',
+      );
+
+      const state = await db.query<{
+        mode: string;
+        integration_id: string;
+      }>(
+        'SELECT mode, integration_id FROM integration_oauth_state WHERE state = $1',
+        [res.body.data.state],
+      );
+      expect(state.rows[0]).toEqual({
+        mode: 'request_scopes',
+        integration_id: id,
+      });
     });
   });
 
