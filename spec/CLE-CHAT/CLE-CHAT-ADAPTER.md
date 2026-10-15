@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "2d69f096c410596b1842d71c240a7fcb741aae30d423b380c7a06c4f2bf895be"
+content_hash: "0ce75d81293444a067e47feb7076e3ee0879ac5bfa92d92d2d43d9cd685f5776"
 read_as: "approved_fallback"
-task: "CLE-T-H0GF4K"
+task: "CLE-T-W11BQ9"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "a6a6c078bbfb9fe5f28167bb86c1fa4bcb8cb7e3f65a8388e305d33828f651cd"
-etag: "sha256-ab506381ed27fcb234ac0b26840dfb0e835034f769d2112f6932437bceabe0af"
+mirror_sha256: "d7b7d4bd742d07f7ee614c313df2c0f3f73899e5951ce9d7eed6256fc12b9f63"
+etag: "sha256-1f91fc77323d7057ba3f06c69f2a3842822ef4753121e711fb3ae3da601477db"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -59,12 +59,12 @@ interface ChatChannelAdapter {
   readonly supportsNativeForm: boolean;
 
   /**
-   * 트리거 생성·활성화 때 부른다. 외부 채널의 webhook·long-poll 등록.
+   * 트리거 생성, chatChannel 이 실린 PATCH, 봇 토큰 재발급 때 부른다. 트리거를 켤 때는 부르지 않는다. 외부 채널의 webhook·long-poll 등록.
    * @returns 어댑터별 setup 결과(예: bot identity). 일부는 config 에 캐시한다.
    */
   setupChannel(config: ChatChannelConfig, callbackUrl: string): Promise<SetupResult>;
 
-  /** 트리거 비활성화·삭제 때 부른다. 외부 hook 해제. 부분 실패는 허용한다. */
+  /** 트리거 행을 없앨 때 부른다(트리거 · 워크플로우 · 워크스페이스 삭제, 등록하는 사이 행이 사라졌을 때의 보상). 트리거를 끌 때는 부르지 않는다. 외부 hook 해제. 부분 실패는 허용한다. */
   teardownChannel(config: ChatChannelConfig): Promise<void>;
 
   /**

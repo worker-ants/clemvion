@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "55b546e050acc55d51314b23eb27a45ea4fec5de96773e93832118cc5a7557f7"
-read_as: "approved"
-task: null
+content_hash: "c71871ff14b9131798bc8ec4b0c1563116b87456c135900e0257e45ed9719791"
+read_as: "approved_fallback"
+task: "CLE-T-W11BQ9"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "cf4573e52b8b8f68f47ac41115fcbf7c868f3ad5cb2c6e510986e0b54d10bf47"
-etag: "sha256-d4e1769b9547e3e99013a1a4b9ab75d33dde2231c03a4ab12dcb479174709225"
+mirror_sha256: "aa50eb31ee8589c287d23810bb9a64f39ffcf18878aed6e4e225e6d15ee5c196"
+etag: "sha256-cd24ad62031b2e115eb24d1a3f5d274e34b28c7a121003d5af79e94ac2a2e26d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -168,6 +168,7 @@ sequenceDiagram
 - **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
 - **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다.
 - **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다.
+- **Telegram 인바운드 서명의 서버 재발급에는 전용 감사 액션이 없다.** Telegram 어댑터는 `setupChannel()` 이 불릴 때마다 `secret_token` 을 새로 만들어 등록한다. 서버는 그 값을 다시 저장한다([채팅 채널 「인바운드 서명 자료 변경」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-서명-자료-변경)). 이 재발급은 사용자가 고른 자격 증명 교체가 아니라 프로바이더 등록의 일부라서 위 세 교체 감사 액션의 대상이 아니다. 재발급을 일으킨 요청의 감사 액션(`trigger.created`, `trigger.updated`, `trigger.chat_channel_bot_token_rotated`)이 그 기록을 겸한다. 감사 로그 조회에서 서명 재발급만 따로 거를 수는 없다(알려진 한계, [Rationale](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다)).
 - **모델 설정 레거시 행**: 모델 설정 통합(2026-08-01) 전에 `llm_config.*`·`rerank_config.*` 로 남은 행은 append-only 로 보존하고 다시 쓰지 않는다. 모델 설정 감사를 조회할 때는 두 집합(`model_config.*` 또는 `llm_config.*`·`rerank_config.*`)을 OR 로 묶는다.
 - **남은 커버리지 갭**: `workflow.executed` 외에 알림 규칙 CRUD 를 맡는 `alerts` 모듈이 감사 로그를 남기지 않는다(`AuditLogsService` 를 가져다 쓰지 않는다). 알림 규칙 평가가 알림을 보낼 때도 감사 행은 없다([알림](CLE-OBS-NOTIFY.md)).
 
@@ -334,6 +335,12 @@ sequenceDiagram
 예전에는 세 문서가 감사 액션 목록을 따로 들고 각자 기준이라고 적었다. 인증 명세의 감사 절은 카탈로그(구현됨·예정 목록)를, 감사 데이터 흐름 문서는 현재 기록되는 감사 액션과 기록 위치를, 명명 규약 문서는 resource 별 분류와 구현 상태를 들고 있었다. 감사 액션을 하나 더할 때마다 세 곳을 고쳐야 했고 실제로 어긋났다. 데이터 흐름 문서의 외부 의존 표와 시퀀스 그림은 2026-08-01 CRUD 확장 전의 4개 서비스만 적고 "그 외 도메인은 감사 기록 없음" 이라 했다. 이제 목록은 이 문서의 카탈로그 한 곳에만 두고 명명 규약은 [감사 action 명명](CLE-OBS-AUDITNAME.md) 이 맡는다. 구현의 기준은 여전히 코드의 `AUDIT_ACTIONS` union 이다.
 
 기록 위치도 한정해서 적는다. 예전에는 감사 로그를 "모든 도메인 서비스가 부르는 공통 관심사" 로 적었다. 실제로 기록하는 곳은 카탈로그에 적은 서비스와 컨트롤러뿐이라 그 서술은 버렸다.
+
+### Telegram 서버 발급 서명에 전용 감사 액션을 두지 않는다
+
+NERV Task `CLE-T-W11BQ9` 에서 정했다. 2026-09-10 의 consistency 검토가 Telegram 인바운드 서명의 서버 재발급이 감사 액션 카탈로그 밖에 있다고 짚었다.
+
+기각한 대안은 전용 감사 액션이다. [감사 action 명명](CLE-OBS-AUDITNAME.md) 은 무엇이 교체됐는지 `details` 를 열어야 알 수 있는 액션을 피한다. 그 원칙은 사용자가 고른 자격 증명 교체를 대상으로 한다. 이 재발급은 사용자가 고른 교체가 아니고 프로바이더 등록에 딸린 결과다. 회전 주체와 PATCH 비밀을 나누는 기준은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-21 의 「세 축」 이다. 재발급을 일으킨 요청의 감사 액션이 이미 남으므로 같은 사건을 두 번 적게 된다. 대가는 조회 필터로 서명 재발급만 고를 수 없다는 점이다.
 
 ### 레거시 감사 액션 행은 고치지 않는다
 

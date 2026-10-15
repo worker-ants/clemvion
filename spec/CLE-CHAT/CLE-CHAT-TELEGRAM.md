@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "f6aaf099bc0a64f13faa3af4543986336686e292f501e422a14e02babef99a62"
+content_hash: "ea62685bb30da23cc373dfdb24ac15aa1c4e900df0145d285fd409a793f262f3"
 read_as: "approved_fallback"
-task: "CLE-T-V4WVF2"
+task: "CLE-T-W11BQ9"
 source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "2c38ceaa5e7248c5f0976b95fdfb3e3034069d2a12ef86953f741efac329acfa"
-etag: "sha256-7d1aa04a18160001ce567c92071d44ec7168b3cef51ca5608076bf44d0ce49ed"
+mirror_sha256: "5bcc187147a614232dccd62a3124d4363aa273ecfc4d45bd1fd878262823bae9"
+etag: "sha256-95cf1a54683bed4f7ed93c4436df1f2eca6b6af940236aefa686740bd983d72b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -36,7 +36,7 @@ etag: "sha256-7d1aa04a18160001ce567c92071d44ec7168b3cef51ca5608076bf44d0ce49ed"
 
 - REQ-TGRAM-001 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `setWebhook`(`url`, `secret_token`, `allowed_updates: ["message", "callback_query"]`, `drop_pending_updates: true`)으로 웹훅을 등록하고 `getMe` 결과를 `config.chatChannel.botIdentity` 에 캐시한다. (원본: telegram §3.1)
 - REQ-TGRAM-002 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL 32자 `secret_token` 을 새로 만들어 `SetupResult.issuedInboundSigning` 으로 한 번만 돌려준다. (원본: telegram §3.1, §6)
-- REQ-TGRAM-003 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `deleteWebhook`(`drop_pending_updates: true`)을 부르고 실패해도 트리거 비활성화를 막지 않는다. (원본: telegram §3.2)
+- REQ-TGRAM-003 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `deleteWebhook`(`drop_pending_updates: true`)을 부르고 실패해도 트리거 삭제를 막지 않는다. (원본: telegram §3.2)
 - REQ-TGRAM-004 WHEN Telegram update 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `update.update_id` 를 중복 제거 키로 쓴다. (원본: telegram §4)
 - REQ-TGRAM-005 IF `message.chat.type` 이 `group`·`supergroup`·`channel` 이면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `languageHints.groupChatRefusal` 안내를 보낸 뒤 update 를 버린다. (원본: telegram §4, §6, CCH-CV-05)
 - REQ-TGRAM-006 IF `message.from.is_bot === true` 이면 THE SYSTEM SHALL 안내 없이 update 를 버린다. (원본: telegram §4, §6)
@@ -112,7 +112,7 @@ POST https://api.telegram.org/bot{token}/deleteWebhook
 { "drop_pending_updates": true }
 ```
 
-부분 실패해도 트리거 비활성화를 막지 않는다. 다음 setup 때 새 토큰으로 다시 등록되면 낡은 웹훅은 저절로 무효가 된다.
+부분 실패해도 트리거 삭제를 막지 않는다. 남은 웹훅은 삭제된 트리거의 주소를 가리키므로 그 update 는 `404` 로 끝난다([채팅 채널](CLE-CHAT-CORE.md) R-CC-12). 같은 봇으로 새 트리거를 만들면 setup 이 웹훅을 새 주소로 덮어쓴다.
 
 ## 명령 매핑
 
