@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "f268c0aa6e593060c361d1ef2bb11238a0d99d0598ee7f7508cdedcbe3bcf4bc"
-read_as: "approved"
-task: null
+content_hash: "8bc3fc2dfe6152a8b54d1cffa85dfeb89e8ed803aac8713e3d1ad2de2d933739"
+read_as: "approved_fallback"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4fe45291f5acbd19bceceeb9a8a1367e73b1f7c271d2c9c222b8c779ebf22064"
-etag: "sha256-d90cbe8d7fa83fd8672662e079036ee39fd063365ba25f3f55ae57b18f3c246f"
+mirror_sha256: "cc2b237eea58199e7bb5c1c46f859e6383f7bb3068eae6f91a14b80cd569561b"
+etag: "sha256-f9f6cdcf0597b7af8920ff72ee2becd9636566c7c2c1d7af31fe4c97f447e7e5"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -94,6 +94,8 @@ etag: "sha256-d90cbe8d7fa83fd8672662e079036ee39fd063365ba25f3f55ae57b18f3c246f"
 | Timeout | 맨 아래 | 숫자 입력(초, 0 은 무제한) | 동기 호출에서만 보인다. |
 
 삭제되거나 비활성인 워크플로우를 가리키면(`workflowId` 는 있고 `workflowName` 은 없음) 캔버스에 `⚠ Missing workflow` 배지가 보인다(`warnWhen: 'workflowId && !workflowName'`).
+
+런타임 호출(동기 호출의 `executeInline`, 비동기 호출의 `executeAsync`)은 [워크플로우 활성 관문](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)을 거치지 않는다. 그래서 대상 워크플로우가 비활성이어도 실행된다. 에디터의 `⚠ Missing workflow` 배지는 설정 화면의 안내일 뿐이고 런타임 실행 여부와는 상관없다.
 
 셀렉터가 후보를 거르는 것과 별개로, 엔진은 실행 때 워크스페이스 격리를 강제한다(W-6).
 

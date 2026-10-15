@@ -2,19 +2,19 @@
 id: "CLE-TRIG"
 title: "트리거"
 type: "area"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "ace3b9c19a936470ed866174cbac91ffd3de6bfa566ce2b3f1eb1cd4862dc84c"
+content_hash: "90eebebcc21294d43bdae4ce12926e82c28cd4edc30bf05b6fe5a7832d38b6df"
 read_as: "approved_fallback"
 task: "CLE-T-XRWFMJ"
 source_paths: []
-mirror_sha256: "1eefb4fd5a5d799d6cc01c73e90d44f5aaf843115732643b85a9f7bae980a354"
-etag: "sha256-21fc29873811bcba72121172e6a2c432ad792af3c4b3f1dfbf2d268f974e2418"
+mirror_sha256: "bfb6cf701f6205514e4379543932a403ac79d94410e1eb034dddc9a92d879097"
+etag: "sha256-474b802fd0fa09c288f9163c99e645eb78fbcdc8a996600240bcdd1b026d32b4"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -24,7 +24,7 @@ etag: "sha256-21fc29873811bcba72121172e6a2c432ad792af3c4b3f1dfbf2d268f974e2418"
 
 세 진입점은 모두 실행 엔진의 `execute()` 로 모인다. 웹훅은 외부 HTTP 요청으로, 스케줄은 Cron 표현식에 따라 BullMQ 가 발사해서, 수동은 사용자가 화면이나 API 로 바로 실행해서 워크플로우를 시작한다. 외부 호출자가 웹훅을 부를 때 쓰는 인증 설정(AuthConfig)도 이 영역에 속한다.
 
-워크플로우를 끄면 웹훅 · 채팅 채널 · 스케줄로 새 실행이 생기지 않는다(2026-10-10 결정). 채팅 채널의 진행 중인 대화는 이어지고 수동 실행은 꺼진 워크플로우도 실행한다. 경로별 응답과 확인 자리는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
+워크플로우가 비활성이면 웹훅 · 채팅 채널 · 스케줄로 새 실행이 생기지 않는다(2026-10-10 결정). 채팅 채널의 진행 중인 대화는 이어지고 수동 실행은 비활성 워크플로우도 실행한다. 경로별 응답, 확인 순서, 관문을 거치지 않는 경로는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 
 이 영역이 다루지 않는 것은 다음과 같다.
 
@@ -45,8 +45,9 @@ etag: "sha256-21fc29873811bcba72121172e6a2c432ad792af3c4b3f1dfbf2d268f974e2418"
 
 ## 영역의 미결 사항
 
-영역 문서들에 흩어진 결정 필요 항목 가운데 여러 문서에 걸치는 것은 다음 한 가지다.
+영역 문서들에 흩어진 결정 필요 항목 가운데 여러 문서에 걸치는 것은 다음 두 가지다.
 
 - 스케줄 시간대를 지정하지 않았을 때의 기본값: [스케줄](CLE-TRIG-SCHEDULE.md) 의 미결 사항
+- 비활성 트리거가 Slack `url_verification` · Discord PING handshake 에 답하지 않는 문제: [트리거 데이터와 흐름](CLE-TRIG-DATA.md#미결-사항) 의 미결 사항. 순서를 바꾸면 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 인바운드 응답 계약도 함께 고친다
 
 워크플로우를 비활성화하면 웹훅 · 스케줄 트리거 발사가 멈추는지는 2026-10-10 에 정해 미결에서 뺐다([개요](#개요)).

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "216d629b71289b00e296c3bf6e70c806dc3bf1085bc8780332ffc3d77c851bd3"
+content_hash: "f6aaf099bc0a64f13faa3af4543986336686e292f501e422a14e02babef99a62"
 read_as: "approved_fallback"
 task: "CLE-T-V4WVF2"
 source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "49acfb0e93802d7737ddbcc4caf6e6308981d7daeef31a1bbd9aafbd96cd8f79"
-etag: "sha256-253afd28e3a24c4a1ff50c75ae6781885b6ab916a4d1c8e8673c7547c2f55ca9"
+mirror_sha256: "2c38ceaa5e7248c5f0976b95fdfb3e3034069d2a12ef86953f741efac329acfa"
+etag: "sha256-7d1aa04a18160001ce567c92071d44ec7168b3cef51ca5608076bf44d0ce49ed"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -57,9 +57,9 @@ etag: "sha256-253afd28e3a24c4a1ff50c75ae6781885b6ab916a4d1c8e8673c7547c2f55ca9"
 - REQ-TGRAM-021 WHEN `execution.cancelled` 의 `error.code` 가 `RESUME_` 로 시작하면 THE SYSTEM SHALL 일반 취소 안내 대신 `languageHints.sessionExpired` 를 보낸다. (원본: telegram §5.7)
 - REQ-TGRAM-022 WHEN 재개 명령이 `STATE_MISMATCH` 로 거부되면 THE SYSTEM SHALL `escapeControlText` 로 escape 한 `languageHints.surfaceMismatch` 를 보내고 발송 실패는 흡수한다. (원본: telegram §5.8)
 - REQ-TGRAM-023 IF `X-Telegram-Bot-Api-Secret-Token` 헤더가 없거나 저장한 값과 다르면 THE SYSTEM SHALL `401` 로 답하고 워크플로우를 시작하지 않는다. (원본: telegram §6)
-- REQ-TGRAM-024 WHEN 활성 실행이 없는 대화에 `/start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 안내를 보낸다. (원본: telegram §7) (부분 구현 — CLE-T-0400J6)
-- REQ-TGRAM-025 WHEN 활성 실행이 있는 대화에 `/start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: telegram §7) (부분 구현 — CLE-T-0400J6)
-- REQ-TGRAM-026 WHEN `/cancel` 이 오면 THE SYSTEM SHALL 활성 실행에 EIA `cancel` 을 부르고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: telegram §7)
+- REQ-TGRAM-024 WHEN 활성 실행이 없는 대화에 `/start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 안내를 보낸다. (원본: telegram §7) (부분 구현)
+- REQ-TGRAM-025 WHEN 활성 실행이 있는 대화에 `/start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: telegram §7) (부분 구현)
+- REQ-TGRAM-026 WHEN `/cancel` 이 오면 THE SYSTEM SHALL 활성 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: telegram §7) (부분 구현)
 - REQ-TGRAM-027 WHEN `/help` 가 오면 THE SYSTEM SHALL 대화 조회 전에 `languageHints.help`(없으면 기본 문구)를 보내고 워크플로우는 시작하지 않는다. (원본: telegram §7)
 - REQ-TGRAM-028 IF `/start`·`/cancel`·`/help` 가 아닌 `/` 명령이 오면 THE SYSTEM SHALL 무시한다. (원본: telegram §7)
 - REQ-TGRAM-029 WHEN `sendMessage` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다. (원본: telegram §8)
@@ -70,7 +70,8 @@ etag: "sha256-253afd28e3a24c4a1ff50c75ae6781885b6ab916a4d1c8e8673c7547c2f55ca9"
 
 - 관련 REQ-TGRAM-013·014: 전화번호 preset 은 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 아직 없다(스키마, 서버 정규식, 어댑터 힌트 모두 없음). Form 의 `type` enum 자체는 바꾸지 않는다.
 - 관련 REQ-TGRAM-018·019: 현재 구현(`telegram.adapter.ts` 의 `image` 분기, `renderCarouselFallback`)은 이미지 메시지를 caption·`fallbackText` 텍스트로 보내고 Carousel 카드도 모두 텍스트로 보낸다. multipart 업로드와 SSR PNG 인프라가 없다.
-- 관련 REQ-TGRAM-024·025: 활성 실행 중 `/start` 의 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 새로 시작한다. 트리거의 워크플로우가 꺼져 있으면 두 경우 모두 새 실행을 시작하지 않고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
+- 관련 REQ-TGRAM-024·025: 활성 실행 중 `/start` 의 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 새로 시작한다. 트리거의 워크플로우가 비활성이면 두 경우 모두 새 실행을 시작하지 않고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
+- 관련 REQ-TGRAM-026: 취소는 `/start` 와 같은 실행 중지 경로(`ExecutionsService.stop`)를 쓴다. EIA `cancel` 도 같은 `stop` 을 부르므로 취소 동작은 같다([채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 취소한 뒤의 대화 상태 정리는 REQ-CHAT-065 를 따른다. 활성 실행이 없을 때의 안내는 아직 보내지 않고 ack 만 한다(현재 구현, `hooks.service.ts`).
 - 관련 REQ-TGRAM-029·031: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기 간격은 1초, 2초 두 번이다(`telegram-client.ts` `call`, 구현됨). 중복 제거는 `ChatChannelDedupService` 가 `String(update_id)` 로 한다(구현됨).
 
 ## Bot API 호출 매핑
@@ -137,7 +138,7 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 
 - `execution.ai_message.message` 를 `sendMessage`(`parse_mode=MarkdownV2`, Bot API 규칙대로 escape)로 보낸다.
 - 4096자(Telegram 메시지 한도)를 넘으면 단어·문장 경계로 나눈다. 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
-- 응답 직전에 `sendChatAction(action=typing)` 을 한 번 보낸다(5초 뒤 자동 만료). `telegram-message.renderer.ts` 의 `renderAiMessage` 가 본문이 있는 `ai_message` 에서 텍스트 앞에 `{ kind: 'typing' }` 메시지를 넣고, 어댑터 `sendMessage` 의 `typing` 분기가 `sendChatAction` 으로 보낸다. 긴 실행 동안 주기적으로 보내는 typing 은 [채팅 채널](CLE-CHAT-CORE.md) R9 의 v2 검토 항목이다.
+- 응답 직전에 `sendChatAction(action=typing)` 을 한 번 보낸다(5초 뒤 자동 만료). `telegram-message.renderer.ts` 의 `renderAiMessage` 가 본문이 있는 `ai_message` 에서 텍스트 앞에 `{ kind: 'typing' }` 메시지를 넣고, 어댑터 `sendMessage` 의 `typing` 분기가 `sendChatAction` 으로 보낸다. 긴 실행 동안 주기적으로 보내는 typing 은 [채팅 채널 「R9 처리 중 메시지는 큐에 쌓지 않고 바로 안내한다」](CLE-CHAT-CORE.md#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 의 v2 검토 항목이다.
 - 사용자 답장(`text_message`)은 EIA `submit_message` 로 보낸다.
 
 ### 버튼
@@ -228,15 +229,15 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 - `setWebhook` 의 `secret_token` 은 등록 때 무작위로 만든다(`crypto.randomBytes(24).toString('base64url')`, 32자). 평문은 `SetupResult.issuedInboundSigning` 에 한 번만 드러나고 호출자가 시크릿 저장소에 저장한 뒤 참조만 `inboundSigningRef` 에 둔다. Telegram 은 모든 update 에 `X-Telegram-Bot-Api-Secret-Token` 헤더를 붙인다. 진입점이 `SecretResolver.resolve(inboundSigningRef)` 로 값을 꺼내 헤더와 같은지 확인한다. 다르면 `401` 이고 어댑터는 `null` 을 돌려준다(워크플로우를 시작하지 않는다).
 - 그룹·채널 update 는 진입점에서 `chat.type` 으로 막고 `groupChatRefusal` 안내 뒤 버린다(CCH-CV-05).
 - 다른 봇이 보낸 메시지(`from.is_bot === true`)도 무시한다.
-- 인바운드 HTTP 응답 정책(인증, 비활성 트리거, 그룹 대화, 미지원 update, 내부 에러)은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 요점은 `202 Accepted` 고정, 인증 실패만 `401`, 엔드포인트 미존재만 `404` 이고 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. 트리거의 워크플로우가 꺼져 있으면 새 실행을 시작할 update(활성 실행이 없는 대화의 메시지, `/start`)만 `202 + { executionId: 'ignored' }` 로 버리고 진행 중인 대화의 입력과 `/cancel`·`/help` 는 그대로 처리한다(REQ-CHAT-066·068). 활성 실행 중 `/start` 의 기존 실행 취소가 실패하면 그 오류로 응답한다(REQ-CHAT-064).
+- 인바운드 HTTP 응답 정책(인증, 비활성 트리거, 그룹 대화, 미지원 update, 내부 에러)은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 요점은 기본이 `202 Accepted` 이고 인증 실패는 `401`, 엔드포인트 미존재는 `404` 이며 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. 트리거의 워크플로우가 비활성이면 새 실행을 시작할 update(활성 실행이 없는 대화의 메시지, `/start`)만 `202 + { executionId: 'ignored' }` 로 버리고 진행 중인 대화의 입력과 `/cancel`·`/help` 는 그대로 처리한다(REQ-CHAT-066·068). 활성 실행 중 `/start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다(REQ-CHAT-064). 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다.
 
 ## 명령 처리
 
 | 사용자 입력 | 어댑터 처리 |
 |---|---|
 | `/start`(활성 실행 없음) | 새 실행 시작, `languageHints.executionStarted` 안내. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
-| `/start`(활성 실행 있음) | 기존 실행을 실행 중지 경로로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 꺼져 있으면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
-| `/cancel` | 활성 실행에 EIA `cancel`. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." |
+| `/start`(활성 실행 있음) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| `/cancel` | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." 안내. 이 안내는 아직 보내지 않는다 |
 | `/help` | v1 정적 도움말(`languageHints.help` 나 기본 문구). `parseTelegramUpdate` 의 `readCommand` 가 `/help` 를 `text_message` 로 통과시키고(`/start`·`/cancel` 밖의 다른 `/` 명령은 `null`), `HooksService` 가 대화 조회 전에 `/help` 인지 검사해 안내한다. 워크플로우는 시작하지 않는다 |
 | 그 밖의 명령(`/...`) | 무시. v1 은 `/start`·`/cancel`·`/help` 만 처리한다 |
 
@@ -285,4 +286,4 @@ LLM 응답은 일반 Markdown 이지만 Telegram MarkdownV2 는 추가 escape(`_
 
 ### R6 활성 실행 중 /start 의 규칙은 채팅 채널 문서가 정한다
 
-2026-10-10 에 명령 우선 규칙을 [채팅 채널](CLE-CHAT-CORE.md) R-CC-27 로 정했다(NERV Task `CLE-T-V4WVF2`). 세 프로바이더에 같은 규칙이라 시스템 문서에 두고 이 문서는 명령 이름과 안내 문구만 정한다. 이 결정으로 이 문서의 미결 «활성 실행 중 `/start`» 를 닫았다.
+2026-10-10 에 명령 우선 규칙을 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 로 정했다(NERV Task `CLE-T-V4WVF2`). 세 프로바이더에 같은 규칙이라 시스템 문서에 두고 이 문서는 명령 이름과 안내 문구만 정한다. 이 결정으로 이 문서의 미결 «활성 실행 중 `/start`» 를 닫았다.

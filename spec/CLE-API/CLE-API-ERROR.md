@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "cef3f48b9cb14f655f2d361376cb26754ef074f0bdd43be0d9f76895c1e55997"
+content_hash: "9c16844568ccad8408e4f18e58107d9da05d3511fe1aecf1d9709a492b3a9c7a"
 read_as: "approved_fallback"
 task: "CLE-T-XRWFMJ"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "e5bf3b9a45d225bf9245845da41b7bdfb01b29815469aad5025b8d0374116177"
-etag: "sha256-8679df1f3e0c7363f44f17f07e6946299b64a27be1cb3dbd947d7635b8724b47"
+mirror_sha256: "aec578e1ecd5453d50274a88d6107638af38ed8a4d987ed6b2e9fba11684b8fd"
+etag: "sha256-9a65cce198eeeefea281c39af29cab5cc35df4ad7e013bfcc579fbd693f1bd55"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -277,7 +277,7 @@ HTTP 상태 코드 표에 `410 Gone` 을 등재하면서 §2.2 기본값 목록�
 
 **기각한 대안**: 필터에 `case 410` 을 더하고 그 값을 문서화하는 것. 현재 발행 지점이 모두 도메인 코드를 명시하므로(`TRIGGER_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_*`) 새 기본값은 도달하지 않는 코드를 하나 늘릴 뿐이다. 대신 "명시 의무" 를 규약으로 적어 누락이 리뷰에서 보이게 했다.
 
-2026-10-10 에 더한 웹훅 발행 지점 `WORKFLOW_INACTIVE`(트리거의 워크플로우가 꺼져 있음, NERV Task `CLE-T-XRWFMJ`)도 코드를 명시한다([에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)).
+2026-10-10 에 더한 웹훅 발행 지점 `WORKFLOW_INACTIVE`(트리거의 워크플로우가 비활성인 경우, NERV Task `CLE-T-XRWFMJ`)도 코드를 명시한다([에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)).
 
 ### 4xx http-error `message` 를 고정 문구로 바꾸는 이유 (CWE-209)
 
