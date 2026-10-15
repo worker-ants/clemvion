@@ -372,23 +372,23 @@ export function buildIntegrationMeta(
 function isCafe24PrivateWithInstallToken(
   entity: Integration,
 ): entity is Integration & { installToken: string } {
-  return (
-    entity.serviceType === 'cafe24' &&
-    entity.credentials.app_type === 'private' &&
-    hasInstallToken(entity)
-  );
+  return isCafe24PrivateRow(entity) && hasInstallToken(entity);
 }
 
 /**
- * App URL 안내로 보내지 못한 Cafe24 Private 행을 begin 전에 거절한다. begin 은 Private 의 OAuth 를 시작하지 못하고,
- * 저장된 자격 증명을 받지 않으므로 그대로 넘기면 원인과 상관없는 코드(`CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`)가 난다.
- * install_token 이 없는 행(설치 시간 초과 · 토큰 보존 전 옛 행)은 App URL 이 없어 삭제 후 재등록만 남는다. 설치 대기 행은
- * App URL 이 이미 OAuth 로 보내므로 「테스트 실행」을 안내한다. 권한 추가는 설치 토큰이 있는 행을 늘 App URL 안내로 보내므로
- * 여기에는 설치 토큰이 없는 행만 온다.
+ * Cafe24 Private 행이면 begin 을 부르기 전에 거절한다. Private 이 아닌 행은 아무것도 하지 않고 돌아온다.
+ *
+ * **호출 전제**: App URL 안내로 보낼 수 있는 Private 행(`isCafe24PrivateWithInstallToken`)은 호출부가 먼저 처리해 이미 빠졌다.
+ * 그래서 여기 오는 Private 행은 설치 토큰이 없는 행이거나(권한 추가 · 재인증 공통) 설치 대기 행(재인증만)이다. 이 호출을 앞의
+ * 분기보다 위로 옮기면 정상 흐름이 막힌다.
+ *
+ * begin 은 Private 의 OAuth 를 시작하지 못하고 저장된 자격 증명을 받지 않으므로 그대로 넘기면 원인과 상관없는 코드
+ * (`CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED`)가 난다. install_token 이 없는 행(설치 시간 초과 · 토큰 보존 전 옛 행)은
+ * App URL 이 없어 삭제 후 재등록만 남는다. 설치 대기 행은 App URL 이 이미 OAuth 로 보내므로 「테스트 실행」을 안내한다.
  * 근거: [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](CLE-INT-OAUTH#통합-재인증과-추가-권한-요청),
  * Rationale 「begin 으로 갈 수 없는 Cafe24 Private 행은 서비스가 먼저 거절한다 (2026-10-15)」.
  */
-function assertNotUnroutableCafe24Private(entity: Integration): void {
+function rejectCafe24PrivateRowBeforeBegin(entity: Integration): void {
   if (!isCafe24PrivateRow(entity)) return;
   if (!hasInstallToken(entity)) {
     throw new BadRequestException({
@@ -1479,7 +1479,7 @@ export class IntegrationsService {
       };
     }
 
-    assertNotUnroutableCafe24Private(entity);
+    rejectCafe24PrivateRowBeforeBegin(entity);
 
     // Cafe24 Public 은 begin 의 검증이 상점을 providerMeta 에서 읽는다 — 빠뜨리면 credentials 에 mall_id 가 있어도
     // `CAFE24_INVALID_MALL_ID` 로 거절된다(2026-05-15 사용자 보고).
@@ -1575,7 +1575,7 @@ export class IntegrationsService {
 
     // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다. 재설치 요청 표시를 남기고 App URL 을 돌려준다. 사용자가
     // Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로 보낸다. 설치 대기 행과 install_token 이 없는 행
-    // (설치 시간 초과)은 아래 `assertNotUnroutableCafe24Private` 가 begin 전에 거절한다. 상태 · 사유는 그대로 둔다 — connected 행은 기존 토큰으로 계속
+    // (설치 시간 초과)은 아래 `rejectCafe24PrivateRowBeforeBegin` 호출이 begin 전에 거절한다. 상태 · 사유는 그대로 둔다 — connected 행은 기존 토큰으로 계속
     // 실행되고 error · expired 행은 OAuth 가 끝날 때까지 실행되지 않는다(`INTEGRATION_NOT_CONNECTED`). 표시는 24시간
     // 동안만 유효하다(`isReinstallRequestActive`).
     // NERV CLE-INT-OAUTH · CLE-INT-MANAGE, Task CLE-T-NNENG8.
@@ -1592,7 +1592,7 @@ export class IntegrationsService {
       : (service.scopes?.filter((s) => s.recommended).map((s) => s.value) ??
         []);
 
-    assertNotUnroutableCafe24Private(entity);
+    rejectCafe24PrivateRowBeforeBegin(entity);
     const providerMeta = buildCafe24BeginMeta(entity);
 
     return this.oauthService.begin({
