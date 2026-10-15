@@ -56,8 +56,9 @@ class MockRedis {
    *  - RELEASE_LOCK_SCRIPT: (key, token) → token 일치 시에만 del.
    *  - COMPARE_AND_SET_SCRIPT: (key, 읽은 값, 새 값, ttlSec) → 값이 그대로일 때만 set.
    *
-   * 이 모사는 스크립트 *문자열이 어느 쪽인지* 만 고정한다. 실제 Lua 의 일치 · 불일치 경로는 e2e
-   * (`chat-channel-telegram-start.e2e-spec.ts`)가 실제 Redis 로 확인한다.
+   * 이 모사는 스크립트 *문자열이 어느 쪽인지* 만 고정하고 비교는 JS 로 다시 구현한다. 실제 Lua 의
+   * 일치 · 불일치 경로는 e2e(`chat-channel-telegram-start.e2e-spec.ts`)가 실제 Redis 로 스크립트를
+   * 돌려 확인한다(불일치는 스크립트 직접 호출과 읽은 뒤 다른 쓰기가 끼는 경합 재현).
    */
   async eval(
     script: string,

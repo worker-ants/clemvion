@@ -4,7 +4,11 @@ import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 
-import { ChannelConversationService } from '../src/modules/chat-channel/channel-conversation.service';
+import {
+  ChannelConversationService,
+  COMPARE_AND_SET_SCRIPT,
+  RELEASE_LOCK_SCRIPT,
+} from '../src/modules/chat-channel/channel-conversation.service';
 import { createDbClient } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
@@ -22,9 +26,12 @@ import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
  * 그 앞의 기존 실행 취소도 하지 않는다. 202 ignored 이고 옛 실행은 그대로 `running` 이다.
  *
  * 대화 매핑을 비우는 compare-and-set 은 Lua 스크립트라 단위 테스트의 Redis 모사로는 스크립트가
- * 실제로 도는지 알 수 없다. 여기서 실제 Redis 로 일치 · 불일치 경로를 확인한다(`/cancel` 요청과
- * `ChannelConversationService` 직접 호출). 채팅 채널 listener 는 e2e 에서 등록되지 않아(Telegram
- * setWebhook 이 막힌다) 실행 종결 이벤트가 dispatcher 를 거쳐 매핑을 비우는 경로는 여기서 보지 못한다.
+ * 실제로 도는지 알 수 없다. 여기서 실제 Redis 로 스크립트를 돌린다. 일치 경로는 `/cancel` 요청과
+ * `ChannelConversationService` 직접 호출로, 불일치 경로는 스크립트 직접 호출과 "읽은 뒤 다른 쓰기가
+ * 끼는" 경합 재현으로 본다. 서비스는 읽은 값의 executionId 가 다르면 스크립트를 부르지 않으므로
+ * 불일치 경로는 서비스 호출만으로는 닿지 않는다. 채팅 채널 listener 는 e2e 에서 등록되지 않아
+ * (Telegram setWebhook 이 막힌다) 실행 종결 이벤트가 dispatcher 를 거쳐 매핑을 비우는 경로는 여기서
+ * 보지 못한다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -293,6 +300,95 @@ describe('Telegram /start 재시작 (e2e)', () => {
       expect(cleared).toBe(false);
       expect(await redis.get(key)).toBe(raw);
       expect(await redis.ttl(key)).toBeLessThanOrEqual(600);
+    });
+
+    it('스크립트는 저장값이 읽은 값과 다르면 0 을 돌려주고 값과 TTL 을 두지 않는다', async () => {
+      const { key, raw } = await seed(72003, 'exec-new');
+
+      const swapped = await redis.eval(
+        COMPARE_AND_SET_SCRIPT,
+        1,
+        key,
+        'stale-read',
+        'next-value',
+        ChannelConversationService.TTL_SEC,
+      );
+
+      expect(swapped).toBe(0);
+      expect(await redis.get(key)).toBe(raw);
+      expect(await redis.ttl(key)).toBeLessThanOrEqual(600);
+    });
+
+    it('읽은 뒤 다른 쓰기가 끼면 덮어쓰지 않는다 — 다시 읽어 다른 실행이면 그대로 둔다', async () => {
+      const { key } = await seed(72004, 'exec-a');
+      // `/start` 가 그 사이 대화를 새 실행에 이은 값이다.
+      const relinked = JSON.stringify({
+        executionId: 'exec-new',
+        threadId: 'default',
+        channelUserKey: 'u1',
+        startedAt: '2026-10-10T00:00:00.000Z',
+        lastUpdateAt: '2026-10-10T00:00:01.000Z',
+      });
+      let reads = 0;
+      const evalResults: unknown[] = [];
+      // 첫 읽기 직후에 값을 바꾸고, 스크립트 호출은 실제 Redis 로 보낸다.
+      const racingRedis = {
+        get: async (k: string) => {
+          const value = await redis.get(k);
+          reads += 1;
+          if (reads === 1) await redis.set(k, relinked, 'EX', 600);
+          return value;
+        },
+        eval: async (
+          script: string,
+          numKeys: number,
+          ...args: Array<string | number>
+        ) => {
+          const result = await redis.eval(script, numKeys, ...args);
+          evalResults.push(result);
+          return result;
+        },
+      };
+      const service = new ChannelConversationService(
+        undefined,
+        racingRedis as unknown as Redis,
+      );
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        '72004',
+        'exec-a',
+      );
+
+      expect(cleared).toBe(false);
+      // 실제 Lua 가 불일치로 0 을 돌려줬고, 다시 읽은 값은 다른 실행이라 스크립트를 또 부르지 않았다.
+      expect(evalResults).toEqual([0]);
+      expect(reads).toBe(2);
+      expect(await redis.get(key)).toBe(relinked);
+    });
+  });
+
+  describe('ChannelConversationService.releaseLock — 실제 Redis (Lua)', () => {
+    const triggerId = randomUUID();
+    const lockKey = `chat-channel-lock:${triggerId}:72005:formsubmit`;
+
+    afterAll(async () => {
+      await redis.del(lockKey);
+    });
+
+    it('token 이 다르면 lock 을 두고, 같으면 지운다', async () => {
+      const service = new ChannelConversationService(undefined, redis);
+      expect(await service.acquireLock(triggerId, '72005', 'token-a')).toBe(
+        true,
+      );
+
+      await service.releaseLock(triggerId, '72005', 'token-b');
+      expect(await redis.get(lockKey)).toBe('token-a');
+
+      await service.releaseLock(triggerId, '72005', 'token-a');
+      expect(await redis.get(lockKey)).toBeNull();
+      // 서비스가 보낸 스크립트가 이 파일이 확인한 문자열이다.
+      expect(RELEASE_LOCK_SCRIPT).toContain("redis.call('del',KEYS[1])");
     });
   });
 });

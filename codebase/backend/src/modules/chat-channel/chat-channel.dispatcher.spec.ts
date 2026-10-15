@@ -980,7 +980,8 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
   });
 
   // 근거: NERV Task `CLE-T-V4WVF2`. `/start` 가 이 실행을 취소하고 대화를 새 실행에 이었거나 `/cancel` 이
-  // 매핑을 비운 뒤 이 실행의 폼 이벤트가 늦게 올 수 있다. 그 상태는 다른 실행의 것이라 덮어쓰지 않는다.
+  // 매핑을 비운 뒤 이 실행의 폼 이벤트가 늦게 올 수 있다. 읽은 시점에 다른 실행을 가리키면 덮어쓰지
+  // 않는다. 읽은 뒤 쓰기 전에 끼는 경합은 이 테스트가 다루지 않는다(NERV Task `CLE-T-CVJXDE`).
   describe('대화가 이 이벤트의 실행을 가리키지 않으면', () => {
     const formModalMsg: ChannelMessage = {
       conversationKey: '',

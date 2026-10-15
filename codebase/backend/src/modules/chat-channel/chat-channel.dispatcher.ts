@@ -241,9 +241,10 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
         conversationKey,
       );
       if (state && state.executionId !== event.executionId) {
-        // 대화가 이 실행을 가리키지 않는다. `/start` 나 `/cancel` 이 이 실행을 끊고 대화를 다른 실행에
-        // 잇거나 비웠는데 이 실행의 폼 이벤트가 늦게 온 경우다. 그 상태는 다른 실행의 것이라 덮어쓰지
-        // 않는다(NERV Task `CLE-T-V4WVF2`).
+        // 읽은 시점에 대화가 이 실행을 가리키지 않는다. `/start` 나 `/cancel` 이 이 실행을 끊고 대화를
+        // 다른 실행에 잇거나 비웠는데 이 실행의 폼 이벤트가 늦게 온 경우다. 그 상태는 다른 실행의 것이라
+        // 덮어쓰지 않는다(NERV Task `CLE-T-V4WVF2`). 읽은 뒤 아래 upsert 전에 다른 요청이 대화를 바꾸는
+        // 경합은 막지 않는다. 종결 이벤트처럼 compare-and-set 으로 바꾸는 일은 NERV Task `CLE-T-CVJXDE`.
         this.logger.debug(
           `form 대기 상태 갱신 생략 — 대화가 다른 실행을 가리킨다 (event=${event.executionId}, state=${state.executionId ?? 'null'}, trigger=${trigger.id})`,
         );
