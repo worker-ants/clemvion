@@ -590,7 +590,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      'MakeShop 통합(MAKESHOP_CREDENTIALS_REQUIRED), 설치 대기 Cafe24 Private 통합(CAFE24_PRIVATE_APP_USE_TEST_RUN), 설치 토큰이 없는 Cafe24 Private 통합(CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING), 상점 · 앱 유형이 없는 옛 Cafe24 통합(CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE). 모두 삭제 후 다시 등록',
+      '코드마다 처방이 다릅니다. CAFE24_PRIVATE_APP_USE_TEST_RUN(설치 대기 Cafe24 Private 통합)은 Cafe24 개발자 센터에서 「테스트 실행」을 누릅니다. CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합도 삭제 후 다시 등록하며, 지금은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되지만 이 코드는 고정 계약이 아니어서 바뀔 수 있습니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
@@ -622,7 +622,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패, OAuth 기반 통합이 아님(INTEGRATION_SCOPE_UNSUPPORTED), MakeShop 통합(MAKESHOP_CREDENTIALS_REQUIRED), 설치 토큰이 없는 Cafe24 Private 통합(CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING), 상점 · 앱 유형이 없는 옛 Cafe24 통합(CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE)',
+      '입력값 검증 실패, OAuth 기반 통합이 아님(INTEGRATION_SCOPE_UNSUPPORTED). CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합도 삭제 후 다시 등록하며, 지금은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되지만 이 코드는 고정 계약이 아니어서 바뀔 수 있습니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
