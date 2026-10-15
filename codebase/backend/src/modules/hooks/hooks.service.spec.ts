@@ -87,7 +87,6 @@ describe('HooksService', () => {
           useValue: {
             lookup: jest.fn().mockResolvedValue(null),
             upsert: jest.fn().mockResolvedValue(undefined),
-            updateExecutionId: jest.fn().mockResolvedValue(undefined),
             clearExecutionIdIfMatches: jest.fn().mockResolvedValue(true),
             acquireLock: jest.fn().mockResolvedValue(true),
             releaseLock: jest.fn().mockResolvedValue(undefined),
@@ -1161,7 +1160,7 @@ describe('HooksService', () => {
         expect(
           conversationService.clearExecutionIdIfMatches,
         ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
-        expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
         expect(mockAdapter.ackInteraction).toHaveBeenCalled();
         expect(res).toEqual({ executionId: 'exec-active' });
       });
@@ -2600,7 +2599,7 @@ describe('HooksService', () => {
       expect(
         conversationService.clearExecutionIdIfMatches,
       ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
-      expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
+      expect(conversationService.upsert).not.toHaveBeenCalled();
       expect(res).toEqual({ executionId: 'exec-active' });
     });
 

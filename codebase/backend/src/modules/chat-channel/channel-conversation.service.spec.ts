@@ -174,33 +174,6 @@ describe('ChannelConversationService', () => {
     });
   });
 
-  describe('updateExecutionId()', () => {
-    it('존재하는 conversation 의 executionId 만 갱신', async () => {
-      await service.upsert(triggerId, conversationKey, state);
-      await service.updateExecutionId(
-        triggerId,
-        conversationKey,
-        'exec-updated',
-      );
-      const result = await service.lookup(triggerId, conversationKey);
-      expect(result?.executionId).toBe('exec-updated');
-      expect(result?.channelUserKey).toBe('user-9999'); // 나머지 필드 유지
-    });
-
-    it('executionId 를 null 로 초기화 (cancel 후 대화 종료)', async () => {
-      await service.upsert(triggerId, conversationKey, state);
-      await service.updateExecutionId(triggerId, conversationKey, null);
-      const result = await service.lookup(triggerId, conversationKey);
-      expect(result?.executionId).toBeNull();
-    });
-
-    it('conversation 없으면 noop', async () => {
-      await expect(
-        service.updateExecutionId(triggerId, 'non-existent', 'exec-xyz'),
-      ).resolves.toBeUndefined();
-    });
-  });
-
   // 근거: NERV Task `CLE-T-V4WVF2`. 옛 실행의 종결 이벤트가 /start 로 이은 새 실행의 매핑을 지우지 않게 한다.
   describe('clearExecutionIdIfMatches()', () => {
     it('대화가 그 실행을 가리키면 executionId 만 비우고 true 를 돌려준다', async () => {

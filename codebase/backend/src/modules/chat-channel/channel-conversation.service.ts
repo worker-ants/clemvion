@@ -121,23 +121,6 @@ export class ChannelConversationService {
   }
 
   /**
-   * 활성 executionId 를 **무조건** 새 값으로 바꾼다 (lookup-then-upsert). 읽은 뒤 다른 요청이 대화를
-   * 바꿔도 덮어쓴다. executionId 를 비우는 호출(`/cancel` · 실행의 종결 이벤트)은 이 메서드가 아니라
-   * `clearExecutionIdIfMatches` 를 쓴다. 지금 운영 코드의 호출자는 없다.
-   */
-  async updateExecutionId(
-    triggerId: string,
-    conversationKey: string,
-    executionId: string | null,
-  ): Promise<void> {
-    const state = await this.lookup(triggerId, conversationKey);
-    if (!state) return;
-    state.executionId = executionId;
-    state.lastUpdateAt = new Date().toISOString();
-    await this.upsert(triggerId, conversationKey, state);
-  }
-
-  /**
    * 대화가 아직 `executionId` 를 가리킬 때만 executionId 를 비운다. 실행의 종결 이벤트가 쓴다.
    *
    * `/start` 는 기존 실행을 취소하고 새 실행을 대화에 잇는다(NERV Task `CLE-T-V4WVF2`). 옛 실행의

@@ -780,7 +780,6 @@ function buildDispatcherHarness(
   const conversationService = {
     lookup: jest.fn(async () => state),
     upsert,
-    updateExecutionId: jest.fn(async () => undefined),
     clearExecutionIdIfMatches: jest.fn(async () => true),
   };
   const adapter = {
@@ -1129,7 +1128,7 @@ describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정
       expect(
         conversationService.clearExecutionIdIfMatches,
       ).toHaveBeenCalledWith('trig-1', 'D1', 'exec-old');
-      expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
+      expect(conversationService.upsert).not.toHaveBeenCalled();
     },
   );
 
@@ -1147,6 +1146,6 @@ describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정
     expect(
       conversationService.clearExecutionIdIfMatches,
     ).not.toHaveBeenCalled();
-    expect(conversationService.updateExecutionId).not.toHaveBeenCalled();
+    expect(conversationService.upsert).not.toHaveBeenCalled();
   });
 });
