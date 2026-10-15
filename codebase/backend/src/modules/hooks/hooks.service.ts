@@ -1275,12 +1275,13 @@ export class HooksService {
 }
 
 /**
- * `ExecutionsService.stop` 이 취소할 실행이 없어서 거부했는지 본다. 이미 종결 상태면 400
- * `INVALID_STATE`, 실행 행이 없으면 404 다.
+ * `ExecutionsService.stop` 이 취소할 실행이 없어서 거부했는지 본다. 실행 행이 없으면 404 이고 이미
+ * 종결 상태면 `INVALID_STATE` 다. 카탈로그(CLE-API-ERRCODES)는 `INVALID_STATE` 를 422 로 정하는데
+ * 지금 구현은 400 을 던진다(NERV Task `CLE-T-B9CRCF`). 그래서 HTTP 상태가 아니라 응답의 `code` 로 판정한다.
  */
 function isAlreadyStoppedError(err: unknown): boolean {
   if (err instanceof NotFoundException) return true;
-  if (!(err instanceof BadRequestException)) return false;
+  if (!(err instanceof HttpException)) return false;
   const response = err.getResponse();
   return (
     typeof response === 'object' &&

@@ -14,13 +14,13 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
  *   그래서 꺼진 워크플로우로 오는 새 시작 입력도 이 단계의 외부 호출과 Redis · DB 쓰기를 탄다.
  * - 스케줄: `ScheduleRunnerService.process` — job 을 받은 뒤 건너뛴다.
  *
- * 거치지 않는 경로는 사람이 직접 시작하거나 이미 시작된 실행에 쓰는 것이다. 편집기 수동 실행 ·
+ * 거치지 않는 경로는 사람이 직접 시작하거나 이미 시작된 실행에 쓰는 것이다. 에디터 수동 실행 ·
  * 재실행 · 스케줄 "지금 실행"(`SchedulesService.runNow`) · External Interaction 의 진행 중 실행 명령은
  * 워크플로우가 꺼져 있어도 동작한다.
  *
- * Rationale: 엔진 `execute()` 에 백스톱을 두는 안은 택하지 않았다. 편집기 수동 실행 · 재실행이 같은
- * `execute()` 를 쓰므로 호출자를 가르는 인자가 필요하고 범위가 커진다. 이번에는 이 호출 규칙과 호출
- * 지점을 문서에 남기는 것으로 처리했다.
+ * Rationale: 엔진 `execute()` 에 백스톱을 두는 안은 택하지 않았다. 일반 웹훅은 인증보다 먼저, 채팅
+ * 채널은 `/start` 의 기존 실행 취소보다 먼저 막아야 하는데 `execute()` 는 둘 다 지난 뒤에 불린다.
+ * 근거와 기각한 대안은 CLE-TRIG-DATA Rationale 「왜 엔진이 아니라 호출부에서 확인하는가」 에 있다.
  *
  * `workspaceId` 는 실행을 시작하는 쪽의 워크스페이스다(`execute()` 에 넘기는 값과 같다). 워크플로우가
  * 그 워크스페이스에 없으면 `false` 다. 그 경우의 거부는 뒤의 `execute()` 가 한다(NERV Task

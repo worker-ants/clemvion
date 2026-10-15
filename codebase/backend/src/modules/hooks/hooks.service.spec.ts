@@ -8,6 +8,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { HooksService, WebhookInput } from './hooks.service';
@@ -2687,6 +2688,15 @@ describe('HooksService', () => {
         [
           '그사이 끝나 INVALID_STATE',
           new BadRequestException({
+            code: 'INVALID_STATE',
+            message: "Cannot stop execution with status 'completed'",
+          }),
+        ],
+        [
+          // 카탈로그(CLE-API-ERRCODES)는 INVALID_STATE 를 422 로 정한다. 구현이 400 에서 422 로 바뀌어도
+          // 같게 판정하는지 본다(NERV Task `CLE-T-B9CRCF`).
+          '그사이 끝나 카탈로그대로 422 INVALID_STATE',
+          new UnprocessableEntityException({
             code: 'INVALID_STATE',
             message: "Cannot stop execution with status 'completed'",
           }),
