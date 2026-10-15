@@ -358,6 +358,7 @@ describe('ScheduleRunnerService', () => {
           expect.objectContaining({ select: { id: true, isActive: true } }),
         );
         expect(scheduleRepo.save).not.toHaveBeenCalled();
+        expect(scheduleRepo.update).not.toHaveBeenCalled();
         // 운영자가 찾을 수 있게 스케줄 · 워크플로우 · 워크스페이스를 서버 로그에 남긴다.
         expect(errorMessages).toEqual([
           expect.stringMatching(/s1.*wf1.*ws.*건너뛴다/),
@@ -555,9 +556,41 @@ describe('ScheduleRunnerService', () => {
         expect(engine.execute).not.toHaveBeenCalled();
         expect(scheduleRepo.save).not.toHaveBeenCalled();
         expect(notifications.notify).not.toHaveBeenCalled();
-        for (const [, patch] of scheduleRepo.update.mock.calls) {
-          expect(patch).not.toHaveProperty('lastRunAt');
+        expect(scheduleRepo.update).toHaveBeenCalledTimes(1);
+        expect(scheduleRepo.update.mock.calls[0][1]).not.toHaveProperty(
+          'lastRunAt',
+        );
+      });
+
+      it('다음 실행 시각을 옮기지 못해도 job 을 실패시키지 않는다 — 건너뛴 발화는 재시도하지 않는다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({ ...baseSchedule });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+        scheduleRepo.update.mockRejectedValue(new Error('db down'));
+        const warnSpy = jest
+          .spyOn(
+            (
+              service as unknown as {
+                logger: { warn: (...args: unknown[]) => void };
+              }
+            ).logger,
+            'warn',
+          )
+          .mockImplementation(() => undefined);
+        let warnMessages: string[];
+        try {
+          await expect(service.process(job)).resolves.toBeUndefined();
+        } finally {
+          // mockRestore 는 호출 기록을 지우므로 단언에 쓸 값을 먼저 꺼낸다.
+          warnMessages = warnSpy.mock.calls.map((call) => String(call[0]));
+          warnSpy.mockRestore();
         }
+
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(notifications.notify).not.toHaveBeenCalled();
+        expect(warnMessages).toEqual([expect.stringMatching(/s1.*db down/)]);
       });
 
       it('다음 실행 시각만 다음 cron 발화로 옮긴다 — 지난 시각에 머물지 않는다', async () => {
@@ -645,6 +678,7 @@ describe('ScheduleRunnerService', () => {
 
       expect(engine.execute).not.toHaveBeenCalled();
       expect(scheduleRepo.save).not.toHaveBeenCalled();
+      expect(scheduleRepo.update).not.toHaveBeenCalled();
     });
 
     it('skips when schedule has no associated workflow (no engine call, no save)', async () => {
@@ -657,6 +691,7 @@ describe('ScheduleRunnerService', () => {
 
       expect(engine.execute).not.toHaveBeenCalled();
       expect(scheduleRepo.save).not.toHaveBeenCalled();
+      expect(scheduleRepo.update).not.toHaveBeenCalled();
     });
   });
 });
