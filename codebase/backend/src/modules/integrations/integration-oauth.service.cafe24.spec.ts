@@ -268,6 +268,37 @@ describe('IntegrationOAuthService — Cafe24', () => {
       },
     );
 
+    // CLE-T-WB7JPC — REQ-INTOAUTH-013 의 본 분기. client_id · client_secret 을 갖춘 Private 요청이 `new` 가 아닌 모드로
+    // 오면 거절한다. `:id/reauthorize` · `:id/request-scopes` 는 Private 행을 begin 전에 거절하므로 이 분기에 닿는 길은
+    // 클라이언트가 자격 증명을 직접 실은 `POST oauth/begin` 하나뿐이다. 위 순서 테스트는 이 분기를 지나치지 못한다.
+    it.each(['reauthorize', 'request_scopes'] as const)(
+      'private app — mode=%s 이고 client_id/secret 을 갖춰도 CAFE24_PRIVATE_APP_USE_TEST_RUN, 행도 state 도 만들지 않는다',
+      async (mode) => {
+        const error = await service
+          .begin({
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            service: 'cafe24',
+            scopes: ['mall.read_product'],
+            mode,
+            integrationId: 'int-1',
+            providerMeta: {
+              mall_id: 'myshop',
+              app_type: 'private',
+              client_id: 'private-client-id',
+              client_secret: 'private-client-secret',
+            },
+          })
+          .catch((err: Error) => err);
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'CAFE24_PRIVATE_APP_USE_TEST_RUN',
+        );
+        expect(stateRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
     it('private app — mode=new 는 client_id/secret 이 없으면 CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED', async () => {
       const error = await service
         .begin({
@@ -846,6 +877,55 @@ describe('IntegrationOAuthService — Cafe24', () => {
         code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
         integrationId: 'other-connected',
       });
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    // 대상 통합 제외는 `reauthorize` · `request_scopes` 에서만 적용한다. 컨트롤러는 `mode=new` 일 때 `integrationId` 를 인가
+    // 판정에 쓰지 않으므로, 이 값이 같은 상점의 연결됨 행 id 여도 중복 검사에서 빠져서는 안 된다(CLE-T-WB7JPC).
+    it('mode=new — integrationId 가 같은 상점의 연결됨 행 id 여도 대상 제외를 적용하지 않고 409', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeCafe24Integration({
+          id: 'existing-public-connected',
+          status: 'connected',
+          mallId: 'pub-shop',
+          appType: 'public',
+        }),
+      ]);
+
+      const error = await service
+        .begin({
+          ...publicBeginParams(),
+          integrationId: 'existing-public-connected',
+        })
+        .catch((err: Error) => err);
+      expect(
+        (error as { response?: { code?: string; integrationId?: string } })
+          .response,
+      ).toMatchObject({
+        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+        integrationId: 'existing-public-connected',
+      });
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    // 컨트롤러가 `POST oauth/begin` 의 `mode=reauthorize` 에서 `integrationId` 를 빼도 통과시킨다. 제외할 대상이 없으면
+    // 연결됨 행은 모두 중복이다.
+    it('mode=reauthorize — integrationId 가 없으면 제외할 대상이 없어 연결됨 행이 409', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeCafe24Integration({
+          id: 'existing-public-connected',
+          status: 'connected',
+          mallId: 'pub-shop',
+          appType: 'public',
+        }),
+      ]);
+
+      const error = await service
+        .begin({ ...publicBeginParams(), mode: 'reauthorize' })
+        .catch((err: Error) => err);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+      );
       expect(stateRepo.save).not.toHaveBeenCalled();
     });
 
