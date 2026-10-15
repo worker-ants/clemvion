@@ -9,7 +9,9 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
  * 새 진입점을 만들면 여기에 더한다. 지금 호출하는 곳은 셋이다.
  * - 일반 웹훅: `HooksService.handleWebhook` — 꺼진 트리거 검사 바로 뒤, 인증 앞. 410 `WORKFLOW_INACTIVE`.
  * - 채팅 채널: `HooksService.handleChatChannelWebhook` — 새 실행을 시작하기 직전. 202 ignored.
- *   이미 진행 중인 실행으로 가는 입력과 `/cancel` · `/help` 는 이 관문 앞에서 처리한다.
+ *   이미 진행 중인 실행으로 가는 입력과 `/cancel` · `/help` 는 이 관문 앞에서 처리한다. 관문 앞의
+ *   미지원 update 안내 · 재도착 억제(dedup) · rate limit · 첨부 보강(`enrichInbound`)도 그대로 거친다.
+ *   그래서 꺼진 워크플로우로 오는 새 시작 입력도 이 단계의 외부 호출과 Redis · DB 쓰기를 탄다.
  * - 스케줄: `ScheduleRunnerService.process` — job 을 받은 뒤 건너뛴다.
  *
  * 거치지 않는 경로는 사람이 직접 시작하거나 이미 시작된 실행에 쓰는 것이다. 편집기 수동 실행 ·

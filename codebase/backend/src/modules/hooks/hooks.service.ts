@@ -298,8 +298,9 @@ export class HooksService {
    * 6. ChannelConversation 조회 — `/cancel` 처리, 폼 모달 명령, 활성 execution 이 있을 때의 입력
    *    (CCH-CV-03): (a) waiting_for_input → interact() in-process 호출, (b) running/pending →
    *    executionStillRunning 안내 + ignored (대기 큐 미적재, R9)
-   * 7. **워크플로우가 꺼져 있으면 202 ignored** — 새 실행을 시작하는 입력만 막는다. 위 6 의 처리는
-   *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`).
+   * 7. **워크플로우가 꺼져 있으면 202 ignored** — 새 실행을 시작하는 입력만 막는다. 위 4~6 의 처리는
+   *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`). 그래서 꺼진 워크플로우로 오는 새 시작
+   *    입력도 미지원 update 안내 · dedup · rate limit · `enrichInbound` 를 거친 뒤 여기서 끝난다.
    * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
    * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
    *
@@ -706,6 +707,9 @@ export class HooksService {
     // handshake(Slack url_verification · Discord PING)는 위에서 이미 답했다. 워크플로우를 꺼 둔 채
     // 채널을 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
     // dedup claim 은 풀지 않는다. rate limit 으로 ignored 가 되는 경로와 같다.
+    // 이 관문이 뒤에 있어서 꺼진 워크플로우로 오는 새 시작 입력도 위의 미지원 update 안내 · dedup ·
+    // rate limit(한도를 넘으면 트리거 health 를 degraded 로 쓴다) · `enrichInbound`(Slack `files.info`
+    // 같은 외부 호출)를 모두 거친다. 대기 실행으로 가는 입력과 같은 순서를 지키려는 것이다.
     if (
       await isWorkflowInactive(
         this.workflowRepository,
