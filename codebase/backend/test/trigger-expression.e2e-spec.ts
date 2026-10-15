@@ -69,7 +69,8 @@ describe('$trigger / $env expression injection (e2e)', () => {
       .post('/api/workflows')
       .set(authHeader())
       .set('X-Workspace-Id', workspaceId)
-      .send({ name: uniqueName('trigexpr-wf') });
+      // 꺼진 워크플로우는 웹훅으로 실행되지 않는다(NERV Task `CLE-T-XRWFMJ`). 생성 기본값이 꺼짐이라 켜서 만든다.
+      .send({ name: uniqueName('trigexpr-wf'), isActive: true });
     expect(res.status).toBe(201);
     return res.body.data.id as string;
   }

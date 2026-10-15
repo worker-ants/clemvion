@@ -12,11 +12,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { sanitizeResponseHeaders } from '../../nodes/integration/_base/sanitize-response-headers.util';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
+import { isWorkflowInactive } from '../execution-engine/utils/is-workflow-inactive';
 import {
   TriggerParameterValidationException,
   toTriggerParameterErrorDetails,
@@ -80,6 +82,8 @@ export class HooksService {
     private readonly triggerRepository: Repository<Trigger>,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly tokenService: InteractionTokenService,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
@@ -160,6 +164,21 @@ export class HooksService {
       throw new GoneException({
         code: 'TRIGGER_INACTIVE',
         message: 'Webhook trigger is inactive',
+      });
+    }
+
+    // 워크플로우를 끄면 웹훅으로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 꺼진 트리거와 같은
+    // 자리(인증 전)에서 410 으로 답하고 코드로 원인을 가른다.
+    if (
+      await isWorkflowInactive(
+        this.workflowRepository,
+        trigger.workflowId,
+        trigger.workspaceId,
+      )
+    ) {
+      throw new GoneException({
+        code: 'WORKFLOW_INACTIVE',
+        message: 'Workflow of this webhook trigger is inactive',
       });
     }
 
@@ -272,13 +291,18 @@ export class HooksService {
    * Chat Channel inbound 처리 — Spec §3.1 / CCH-AD-04 / CCH-AD-06.
    *
    * 1. provider 별 adapter 조회
-   * 2. (Telegram) X-Telegram-Bot-Api-Secret-Token 헤더 검증
-   * 3. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
-   * 4. ChannelConversation 조회 — execution 상태별 분기 (CCH-CV-03): (a) waiting_for_input →
-   *    interact() in-process 호출, (b) running/pending → executionStillRunning 안내 + ignored
-   *    (대기 큐 미적재, R9), (c) terminal/없음 → 새 execution 시작
-   *    그 외에는 새 execution 시작 (또는 /cancel 명령 처리)
-   * 5. ackInteraction (button_callback 등)
+   * 2. provider 별 inbound 서명 검증 (Telegram secret token · Slack signing secret · Discord Ed25519)
+   * 3. 꺼진 트리거면 202 ignored. Slack url_verification · Discord PING handshake 는 답한다.
+   * 4. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
+   * 5. 재도착 억제(CCH-SE-02) · 분당 rate limit(CCH-NF-03), `/help` 안내
+   * 6. ChannelConversation 조회 — `/cancel` 처리, 폼 모달 명령, 활성 execution 이 있을 때의 입력
+   *    (CCH-CV-03): (a) waiting_for_input → interact() in-process 호출, (b) running/pending →
+   *    executionStillRunning 안내 + ignored (대기 큐 미적재, R9)
+   * 7. **워크플로우가 꺼져 있으면 202 ignored** — 새 실행을 시작하는 입력만 막는다. 위 4~6 의 처리는
+   *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`). 그래서 꺼진 워크플로우로 오는 새 시작
+   *    입력도 미지원 update 안내 · dedup · rate limit · `enrichInbound` 를 거친 뒤 여기서 끝난다.
+   * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
+   * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
    *
    * 본 메서드는 200ms 안에 202 Accepted 응답해야 함 (WH-NF-01). 무거운 작업은 fire-and-forget.
    */
@@ -429,14 +453,16 @@ export class HooksService {
     const hasActiveExecution =
       state?.executionId != null && activeStatus !== null;
 
-    // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop.
+    // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop. 매핑은 읽은 실행을 가리킬 때만
+    // 비운다. 취소하는 사이 `/start` 가 대화를 새 실행에 이었다면 그 매핑을 지우지 않는다
+    // (NERV Task `CLE-T-V4WVF2`).
     if (update.command.kind === 'cancel') {
       if (hasActiveExecution) {
         await this.executionsService.stop(state.executionId!);
-        await this.channelConversationService.updateExecutionId(
+        await this.channelConversationService.clearExecutionIdIfMatches(
           trigger.id,
           update.conversationKey,
-          null,
+          state.executionId!,
         );
       }
       await adapter.ackInteraction(update, config);
@@ -673,6 +699,37 @@ export class HooksService {
       return { executionId: state.executionId! };
     }
 
+    // 워크플로우를 끄면 채팅 채널로 새 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 막는 것은
+    // 새 실행 시작뿐이라 이 관문은 새 실행을 시작하는 자리(아래 `/start` 취소 · `execute()`) 바로
+    // 앞에 둔다. 위의 `/help` · `/cancel` · 대기 실행으로 가는 입력(답장 · 버튼 · 폼)은 워크플로우가
+    // 꺼져 있어도 처리한다. 이미 진행 중인 실행은 끝까지 진행된다. 응답은 꺼진 트리거와 같은 202
+    // ignored 다. 활성 실행이 있는 대화의 `/start` 도 여기서 끝나므로 기존 실행을 취소하지 않는다.
+    // handshake(Slack url_verification · Discord PING)는 위에서 이미 답했다. 워크플로우를 꺼 둔 채
+    // 채널을 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
+    // dedup claim 은 풀지 않는다. rate limit 으로 ignored 가 되는 경로와 같다.
+    // 이 관문이 뒤에 있어서 꺼진 워크플로우로 오는 새 시작 입력도 위의 미지원 update 안내 · dedup ·
+    // rate limit(한도를 넘으면 트리거 health 를 degraded 로 쓴다) · `enrichInbound`(Slack `files.info`
+    // 같은 외부 호출)를 모두 거친다. 대기 실행으로 가는 입력과 같은 순서를 지키려는 것이다.
+    if (
+      await isWorkflowInactive(
+        this.workflowRepository,
+        trigger.workflowId,
+        trigger.workspaceId,
+      )
+    ) {
+      return { executionId: 'ignored' };
+    }
+
+    // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
+    // 기존 실행을 실행 중지 경로(CLE-EXEC-CANCEL)로 취소한 뒤 아래에서 새로 시작한다.
+    if (update.command.kind === 'start' && hasActiveExecution) {
+      await this.stopForRestart(
+        trigger.id,
+        parsed.idempotencyKey,
+        state.executionId!,
+      );
+    }
+
     // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
     let executionId: string;
     try {
@@ -733,6 +790,37 @@ export class HooksService {
 
     await adapter.ackInteraction(update, config);
     return { executionId, status: 'pending' as const };
+  }
+
+  /**
+   * /start 로 다시 시작하기 전에 대화의 기존 실행을 취소한다(NERV Task `CLE-T-V4WVF2`).
+   *
+   * 상태를 읽은 뒤 실행이 먼저 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로
+   * 그대로 새로 시작한다. 그 밖의 실패(취소를 큐에 넣지 못한 503 등)는 전파한다. 옛 실행을 남긴 채
+   * 새 실행을 시작하면 대기 실행이 쌓인다.
+   *
+   * 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낸다. 그 재전송이 되살아나도록 오류를 전파하기
+   * 전에 update 의 dedup 선점을 푼다. 풀지 않으면 30초 동안 재전송이 `ignored` 로 끝나 `/start` 가
+   * 유실된다. 새 실행을 시작하다 실패하는 경로(`execute()`)는 선점을 풀지 않는다. 기존 동작이라 이번
+   * 변경에서 바꾸지 않았다.
+   */
+  private async stopForRestart(
+    triggerId: string,
+    idempotencyKey: string,
+    executionId: string,
+  ): Promise<void> {
+    try {
+      await this.executionsService.stop(executionId);
+    } catch (err) {
+      if (isAlreadyStoppedError(err)) {
+        this.logger.log(
+          `/start — 기존 실행 ${executionId} 이 이미 끝나 취소 없이 새로 시작한다`,
+        );
+        return;
+      }
+      await this.chatChannelDedup.release(triggerId, idempotencyKey);
+      throw err;
+    }
   }
 
   /**
@@ -1184,6 +1272,22 @@ export class HooksService {
     // per_trigger — token 미동봉. 호출자는 `revoke-token` 으로 받은 itk_* 를 쓴다(생성 응답에는 itk_* 가 없다).
     return { endpoints };
   }
+}
+
+/**
+ * `ExecutionsService.stop` 이 취소할 실행이 없어서 거부했는지 본다. 실행 행이 없으면 404 이고 이미
+ * 종결 상태면 `INVALID_STATE` 다. 카탈로그(CLE-API-ERRCODES)는 `INVALID_STATE` 를 422 로 정하는데
+ * 지금 구현은 400 을 던진다(NERV Task `CLE-T-B9CRCF`). 그래서 HTTP 상태가 아니라 응답의 `code` 로 판정한다.
+ */
+function isAlreadyStoppedError(err: unknown): boolean {
+  if (err instanceof NotFoundException) return true;
+  if (!(err instanceof HttpException)) return false;
+  const response = err.getResponse();
+  return (
+    typeof response === 'object' &&
+    response !== null &&
+    (response as { code?: unknown }).code === 'INVALID_STATE'
+  );
 }
 
 /**

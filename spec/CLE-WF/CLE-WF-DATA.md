@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "cdd14bae146ce8e604bddf20ddb27cf2a64c3829e46386858e75ae517234d093"
+content_hash: "caf8803b3363ea2d41e92632fb9b88374d5dc6176fe69831dd8b9ac5f2f83c11"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "841bdf082058b05b40e1135dfc343d1cf1dee72b7e473eacdaa8de295c53d8c2"
-etag: "sha256-a891062abfd9e539017d0f66a05dd3b8752b456500d8af20b200bb814e015051"
+mirror_sha256: "eac1f8da34899ecee5ba4899f1a58511c295e1d925cee4262e00f3fc9fb708ad"
+etag: "sha256-cf4662ed111070486235ab18e0fe54d30d566410dce7f0d625bd47da6416734e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -298,7 +298,7 @@ stateDiagram-v2
   Inactive --> [*]: 워크플로우 삭제
 ```
 
-워크플로우는 비활성으로 태어나고 목록의 상태 스위치로 켜고 끈다. 수동 실행은 비활성 워크플로우도 된다. 원문은 스케줄·웹훅 트리거는 활성 워크플로우만 동작한다고 적지만 트리거 흐름과 현재 구현은 이 값을 보지 않는다. 정의가 갈린다. `workflow.is_active` 를 트리거 발사 관문으로 둘지는 [트리거 데이터와 흐름의 미결 사항](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항) 에서 정한다. 그 전까지 이 문장은 확정된 규칙이 아니다.
+워크플로우는 비활성으로 만들어지고 목록의 상태 스위치로 켜고 끈다. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 시작되지 않는다. 진행 중인 실행은 그대로 이어지고 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 비활성 워크플로우도 된다. 경로별 확인 위치와 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 이 문서가 바뀐 이유는 [Rationale](#꺼진-워크플로우는-외부-이벤트로-실행하지-않는다-2026-10-10) 에 있다.
 
 ### 워크플로우 삭제의 FK 파급
 
@@ -327,7 +327,6 @@ stateDiagram-v2
 
 - **저장과 버전 생성이 한 트랜잭션인가**: 이 문서의 원문(데이터 흐름)과 에디터 원문(저장과 버전의 관계)은 `createVersion` 을 캔버스 저장과 같은 트랜잭션 안에서 부른다고 적는다. [버전 기록](CLE-WF-VERSION.md) 의 원문은 캔버스 트랜잭션을 커밋한 직후 버전을 만들고, 버전 생성이 실패하면 캔버스는 저장된 채로 두고 다음 저장에서 따라잡는다고 적는다. 현재 구현(`workflows.service.ts` 의 `saveCanvas`)은 같은 트랜잭션에서 `createVersion` 을 불러 둘 다 커밋하거나 둘 다 되돌린다. 버전 생성 실패 때 저장 전체를 되돌릴지 결정이 필요하다.
 - **`current_version` 의 뜻**: 데이터 모델은 `current_version` 을 "현재 버전 번호" 라고 적는다. 그런데 워크플로우는 `current_version=1` 로 버전 행 없이 만들어지고, 저장할 때마다 `current_version` 과 `workflow_version.version`(최신+1)이 따로 오른다. 그래서 현재 구현에서 `current_version` 은 버전 기록의 최신 vN 보다 늘 1 크다(`workflows.service.ts`, `workflow-versions.service.ts`). [버전 기록](CLE-WF-VERSION.md) 은 `current_version` 을 언급하지 않는다. `current_version` 이 저장 횟수 + 1 인지 최신 버전 번호인지 정하고 여기에 적어야 한다.
-- **워크플로우 활성 상태가 트리거 실행을 막는가**: 이 문서의 원문(상태 전이 "스케줄·웹훅 트리거는 활성만 동작")과 [워크플로우 목록과 폴더](CLE-WF-LIST.md) 의 원문(비활성이면 트리거·스케줄 중지)은 워크플로우를 끄면 웹훅·스케줄이 멈춘다고 적는다. [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 웹훅·스케줄 흐름은 `trigger.is_active`·`schedule.is_active` 만 본다. 현재 구현(`hooks.service.ts`, schedule runner)도 `workflow.is_active` 를 확인하지 않는다. 실행 게이트로 둘지, 표시용으로 둘지 결정이 필요하다. 결정은 [트리거 데이터와 흐름의 미결 사항](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항) 에서 한다.
 
 ## 구현 위치
 
@@ -336,6 +335,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/edges/edges.service.ts` (Edge CRUD)
 - `codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts` (버전 스냅샷)
 - `codebase/backend/src/modules/folders/**` (Folder)
+- `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문. 부르는 곳과 테스트는 [트리거 데이터와 흐름 「구현 위치」](../CLE-TRIG/CLE-TRIG-DATA.md#구현-위치) 에 있다)
 - `codebase/backend/migrations/V001__initial_schema.sql` (테이블·CHECK 제약)
 - `codebase/backend/migrations/V135__workflow_id_workspace_id_unique_index.sql`, `codebase/backend/migrations/V137__folder_id_workspace_id_unique_index.sql`, `codebase/backend/migrations/V140__node_id_workflow_id_unique_index.sql`, `codebase/backend/migrations/V141__composite_fk_scope_workflow_not_valid.sql`, `codebase/backend/migrations/V143__composite_fk_scope_folder_not_valid.sql`, `codebase/backend/migrations/V146__composite_fk_scope_node_not_valid.sql` (부모 UNIQUE 와 복합 FK)
 
@@ -368,3 +368,15 @@ stateDiagram-v2
 `workflow_version` 은 "이 워크플로우가 어떻게 바뀌어 왔는가" 의 기록이다. 사본은 복제 시점에 태어난 새 워크플로우다. 원본의 편집 이력을 물려받으면 사본의 v1 스냅샷이 사실은 원본의 과거가 되어 `restoreVersion` 이 사본에 있었던 적 없는 상태를 복원하게 된다. 트리거(웹훅·스케줄)를 물려받으면 같은 이벤트가 두 워크플로우를 동시에 시작시켜 사용자가 뜻하지 않은 중복 실행이 생긴다. 사본이 `is_active=false` 로 시작하는 것과 같은 방향의 안전한 선택이다. `workflow_test_dataset` 은 사용자에게 속한 자원이라 소유권 축이 다르다([에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md)). 셋 다 가져오기 경로가 만들지 않는 것과 같은 경계라 일관된 선택이다.
 
 기각한 대안: **복제본에도 수동 트리거 노드를 자동 생성**(`create()` 처럼). 원본에 이미 수동 트리거 노드가 있으므로 중복이 되어 "정확히 1개" 불변식을 깬다. 원본이 비어 있을 때만 뜻이 있는데 그 경우는 원본 자체가 비정상이다.
+
+### 꺼진 워크플로우는 외부 이벤트로 실행하지 않는다 (2026-10-10)
+
+NERV Task `CLE-T-XRWFMJ` 에서 사람이 정한 결정이다.
+
+이 문서와 [워크플로우 목록과 폴더](CLE-WF-LIST.md) 는 워크플로우를 끄면 스케줄 · 웹훅이 멈춘다고 적었다. 트리거 흐름과 구현은 `trigger.is_active` · `schedule.is_active` 만 보고 `workflow.is_active` 를 보지 않았다. 그래서 이 어긋남을 미결 사항으로 남겼다. 목록의 상태 스위치를 끈 사용자는 실행이 멈춘다고 생각한다. 그래서 문서를 거두지 않고 코드를 문서에 맞췄다.
+
+- 관문의 규칙(경로별 응답, 채팅 채널의 handshake 와 진행 중인 대화, 조회 범위)과 그 근거는 [트리거 데이터와 흐름 「꺼진 워크플로우를 실행 관문으로 둔 결정」](../CLE-TRIG/CLE-TRIG-DATA.md#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다. 이 문서는 `workflow.is_active` 의 뜻만 적는다. 같은 규칙을 여러 문서에 자세히 적으면 문서마다 두 번째 기준이 생긴다.
+- 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 비활성 워크플로우도 된다는 이 문서의 기존 규칙을 그대로 둔다. 이미 진행 중인 실행도 취소하지 않는다.
+- 워크플로우는 지금처럼 비활성으로 만들어진다. 그래서 꺼 둔 채 외부 호출로 돌던 워크플로우는 이 변경을 배포한 뒤 멈춘다. 다시 돌리려면 켜야 한다.
+
+기각한 대안: **`workflow.is_active` 를 표시용 플래그로 두고 문서만 고치는 안**. 화면 문구대로 사용자는 워크플로우를 끄면 실행이 멈춘다고 생각한다. 이 안을 고르면 켜고 꺼도 실행에 아무 영향이 없는 스위치가 남는다.

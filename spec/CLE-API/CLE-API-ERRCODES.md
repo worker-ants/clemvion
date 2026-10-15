@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 6
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "683c61df46700b7a3e40506cf51fc484ba37c3c335185f344ece8de59aed152e"
+content_hash: "e3133b07081bea011e28aa83a659e2f77e24eb4b309c46a6ae935e29bae78684"
 read_as: "approved_fallback"
-task: "CLE-T-0W7CA7"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "5d2c1a2d7d80aa6fa1d00d676f5052874bc14f03bf406352752166def64e4f32"
-etag: "sha256-18cc461cf111f3047418ed40cbf4967d2dacd669f8a549355e846e5520da209e"
+mirror_sha256: "1c788d53006e809c0b64910214ea3c811218509dbbb30aec2c33ed1b5e448d3d"
+etag: "sha256-6775a9a85f08ab98ee97d929abe05bfbcf0fe4338d28175847af8563f99bdf06"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-18cc461cf111f3047418ed40cbf4967d2dacd669f8a549355e846e5520da209e"
 3. 도메인 범주가 의미 있는 코드는 `<DOMAIN>_<CONDITION>` 으로 묶는 것을 권장한다(`CAFE24_*`, `OAUTH_*`, `INTEGRATION_*`). 시스템 전역 공용 코드는 prefix 없이 쓴다.
 4. 클라이언트는 코드의 의미로 분기한다. 이름의 부분 문자열이나 `message` 문자열을 파싱해 분기하지 않는다. 코드의 정의(문서 본문)가 기준이고 이름은 그 정의를 읽히게 하는 라벨이다.
 5. 에러 코드 이름 바꾸기는 호환성을 깨는 변경이다. 이름을 더 정확하게 하려는 목적만으로 바꾸지 않는다.
-6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다.
+6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)와 비활성 워크플로우의 `WORKFLOW_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다.
 7. 규칙을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
 9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다.
@@ -291,7 +291,7 @@ etag: "sha256-18cc461cf111f3047418ed40cbf4967d2dacd669f8a549355e846e5520da209e"
 | `NODE_NOT_RETRYABLE` | 대상 노드가 재시도 가능한 에러로 끝나지 않음(`outputData.output.error.details.retryable === false`, 정상 종결, 조건 종결 등) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운이 끝나기 전에 호출함(서버 쪽 강제) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `SERVER_SHUTTING_DOWN` | 서버가 SIGTERM 을 받은 뒤 새 실행을 시작할 수 없음. HTTP 진입점은 503 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `EXECUTION_ENQUEUE_FAILED` | 입력 대기 실행에 보내는 취소와 재개 명령(REST `POST /executions/:id/stop`, External Interaction API `/interact` 의 재개 명령 4종과 `cancel`)에서 재개 메시지 발행(BullMQ `queue.add`) 자체가 실패함. `publish` 가 `queued:false`(Redis 장애 등으로 큐에 들어가지 못함)를 돌려준 경우다. HTTP 진입점은 503 이고 실행은 입력 대기 상태를 유지한다(`failed` 아님). 다시 시도를 권한다. 이 코드를 내는 HTTP 진입점은 REST `stop` 과 토큰으로 인증한 External Interaction API 호출(`/interact`, 별칭 `POST .../cancel`)이다. 내부 신뢰 호출(`in_process_trusted`, 채팅 채널 인바운드)의 재개 명령은 이 코드를 내지 않는다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). EIA REST 의 503 은 멱등 캐시에 넣지 않는다(§6.9). WebSocket 재개 명령 4종은 이 코드를 싣지 않는다. 같은 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 알린다. `SERVER_SHUTTING_DOWN` 503 선례와 같은 형태이고 큐에 들어간 뒤 재개가 실패하는 워커 쪽 비동기 실패(`RESUME_*`)와 구분한다 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면), [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개) |
+| `EXECUTION_ENQUEUE_FAILED` | 입력 대기 실행에 보내는 취소와 재개 명령(REST `POST /executions/:id/stop`, External Interaction API `/interact` 의 재개 명령 4종과 `cancel`)에서 재개 메시지 발행(BullMQ `queue.add`) 자체가 실패함. `publish` 가 `queued:false`(Redis 장애 등으로 큐에 들어가지 못함)를 돌려준 경우다. HTTP 진입점은 503 이고 실행은 입력 대기 상태를 유지한다(`failed` 아님). 다시 시도를 권한다. 이 코드를 내는 HTTP 진입점은 셋이다. REST `stop`, 토큰으로 인증한 External Interaction API 호출(`/interact`, 별칭 `POST .../cancel`), 채팅 채널 인바운드의 `/start` 다. 채팅 채널의 `/start` 는 활성 실행을 취소할 때 `ExecutionsService.stop` 을 직접 부르고 이 503 을 그대로 돌려준다. 이때 새 실행은 시작하지 않고 프로바이더는 non-2xx 를 받아 같은 update 를 다시 보낼 수 있다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드가 내부 신뢰 호출(`in_process_trusted`)로 부르는 재개 명령은 이 코드를 내지 않는다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). EIA REST 의 503 은 멱등 캐시에 넣지 않는다(§6.9). WebSocket 재개 명령 4종은 이 코드를 싣지 않는다. 같은 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 알린다. `SERVER_SHUTTING_DOWN` 503 선례와 같은 형태이고 큐에 들어간 뒤 재개가 실패하는 워커 쪽 비동기 실패(`RESUME_*`)와 구분한다 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면), [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 
 ### 6.8 WebSocket 전송 (도메인 문서 참조)
 
@@ -340,6 +340,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 [Rationale](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `WORKFLOW_INACTIVE` | 410 | 트리거는 활성인데 그 트리거의 워크플로우가 비활성임(`workflow.is_active=false`). 채팅 채널 트리거는 이 코드를 내지 않는다. 확인 순서와 경로별 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 
 **`MASKED_VALUE_RESUBMITTED` 는 수동 실행 경로 한정이다.** 다시 제출한 값뿐 아니라 사용자가 직접 입력한 마커도 대상이다(그 표면에서 마스킹 마커 세 문자열은 예약어다). 웹훅 수신과 스케줄은 외부 시스템이 쓰는 임의 페이로드라 대상이 아니다. 판정 기준은 값의 출처가 아니라 페이로드를 쓰는 주체다. 범위 근거는 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 에 있다.
 
@@ -478,6 +479,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 - `codebase/backend/src/modules/execution-engine/types/trigger-parameter.types.ts` (`toTriggerParameterErrorDetails`)
 - `codebase/backend/src/modules/websocket/ws-error-codes.ts` (`WsErrorCode`)
 - `codebase/backend/src/common/constants/workspace-roles.ts` (가드와 서비스가 함께 쓰는 거부 본문). 상수 이름은 TS 이름이고 응답의 에러 코드가 아니다. `NOT_A_MEMBER` 는 코드 `NOT_A_MEMBER` 를 낸다. `ROLE_REQUIRED` 는 요구 역할별 본문 표이고 `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED` 를 낸다(`viewer` 는 `NOT_A_MEMBER` 와 같은 본문). `ADMIN_ROLE_CHANGE_REQUIRES_OWNER` 는 코드 `OWNER_REQUIRED` 를 관리자 역할 규칙의 문구로 낸다
+- `codebase/backend/src/modules/hooks/hooks.service.ts` (웹훅 수신의 `TRIGGER_INACTIVE` · `WORKFLOW_INACTIVE` 발행)
 
 ## Rationale
 
@@ -572,7 +574,9 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 - **새 코드를 만들지 않았다.** 조건의 뜻이 REST `stop` 과 같다. 두 경우 모두 발행 자체가 실패했고 실행은 입력 대기에 남는다. 클라이언트가 할 일도 다시 보내기 하나다. 그래서 규칙 6 의 새 조건이 아니다.
 - **표면마다 코드를 나누지 않았다.** §6 머리말은 같은 뜻이라도 표면마다 다른 코드를 쓴다고 적는다. 그러나 EIA `cancel` 은 REST `stop` 과 같은 서비스 메서드를 부르므로 이 코드는 이미 두 표면에서 나가고 있었다. 재개 명령에 EIA 전용 코드를 주면 `/interact` 한 표면 안에서 같은 조건이 두 코드로 갈린다.
 - **WebSocket 재개 명령은 바꾸지 않았다.** 이 경로의 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 바로 돌아간다. ack 는 요청마다 한 번 보내는 응답이라 어디에도 저장하지 않는다. 그래서 클라이언트는 실패를 보고 다시 보낼 수 있다. EIA REST 는 2xx 응답을 멱등 캐시에 넣으므로 실패를 2xx 로 알리면 재시도로 바로잡을 수 없다. 이 차이 때문에 EIA REST 만 HTTP 상태 코드(503)로 실패를 알린다.
-- **내부 신뢰 호출은 이 코드를 내지 않는다.** 채팅 채널 인바운드는 서버 안에서 내부 신뢰 호출(`in_process_trusted`)로 같은 재개 명령을 부른다. 이 경로가 503 을 던지면 웹훅을 보낸 채널 프로바이더에게 5xx 가 나간다. 그 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 따로 정한다. 그래서 503 은 HTTP 진입점의 응답으로 한정했다. 이 범위는 사용자에게 묻지 않고 기본값으로 정해 알렸다.
+- **채팅 채널 인바운드의 재개 명령은 이 코드를 내지 않는다.** 채팅 채널 인바운드는 서버 안에서 내부 신뢰 호출(`in_process_trusted`)로 같은 재개 명령을 부른다. 이 경로가 503 을 던지면 웹훅을 보낸 채널 프로바이더에게 5xx 가 나간다. 그 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 따로 정한다. 그래서 재개 명령의 503 은 HTTP 진입점의 응답으로 한정했다. 이 범위는 사용자에게 묻지 않고 기본값으로 정해 알렸다.
+- **예외는 채팅 채널 `/start` 의 기존 실행 취소다.** `/start` 는 활성 실행을 취소할 때 재개 명령을 거치지 않고 `ExecutionsService.stop` 을 직접 부른다. 그래서 취소 메시지를 큐에 넣지 못하면 이 503 을 그대로 돌려주고 새 실행은 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064, NERV Task `CLE-T-V4WVF2`). 프로바이더는 non-2xx 를 받아 같은 update 를 다시 보낼 수 있다. 5xx 를 받아들인 이유는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」 Rationale 에 있다.
+- **`/start` 의 취소 실패에도 새 코드를 만들지 않았다.** 조건의 뜻이 REST `stop` 과 같다. 취소 메시지 발행 자체가 실패했고 실행은 입력 대기에 남는다. 할 일도 다시 보내기 하나다. 그래서 규칙 6 의 새 조건이 아니다.
 - **승인 전 초안 두 편의 WebSocket 서술은 코드와 다르다.** [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 과 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 은 승인 전 초안이다. 두 문서는 WebSocket 재개 명령의 `queued:false` 를 성공 ack 의 필드로 적는다. 코드(`websocket.gateway.ts`)는 `queued:false` 일 때 실패 ack(`success:false`)를 보낸다. 이 카탈로그는 코드를 따랐다. 두 문서의 정정은 NERV Task `CLE-T-EMB0YG` 가 맡는다.
 - **이 코드를 만든 근거가 넓어졌다.** [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 Rationale 「발행 실패를 `queued:false` 하나로 알린다 (C-1·M-7)」 은 취소가 WebSocket ack 경로가 아니라 REST 중지 진입점이라서 이 코드로 표기한다고 적는다. 이 코드는 이미 `/interact` 의 `cancel` 에서 나갔고 이번 결정으로 재개 명령 4종에도 쓴다. ack 가 아닌 HTTP 진입점이라는 근거는 `/interact` 에도 그대로 맞는다. «REST 중지 진입점» 으로 좁힌 그 서술의 정정도 `CLE-T-EMB0YG` 가 맡는다.
 
@@ -598,3 +602,13 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 그 Rationale 에 없는 기각 대안 하나는 여기 남긴다.
 
 - TOTP 복구 코드 불일치에 `RECOVERY_CODE_INVALID` 를 쓴다: 그 코드는 Passkey 복구 코드의 실패 코드다. 비활성화는 입력란 하나로 TOTP 코드와 TOTP 복구 코드를 함께 받으므로 어느 쪽이 틀렸는지 가르지 않는다. 로그인 2FA 도 같다.
+
+### 꺼진 워크플로우의 웹훅에 `WORKFLOW_INACTIVE` 를 새로 만들었다 (2026-10-10)
+
+NERV Task `CLE-T-XRWFMJ` 에서 사람이 정한 결정이다. 웹훅 트리거는 활성인데 그 워크플로우가 비활성이면 `410` 과 `WORKFLOW_INACTIVE` 를 돌려준다. 확인 순서와 경로별 동작은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
+
+- **규칙 6 의 새 조건으로 보고 새 코드를 만들었다(사용자 결정).** 비활성인 것이 트리거가 아니라 워크플로우다.
+- **규칙 6 의 단서에 걸리지 않는다.** 관문은 트리거의 워크스페이스 안에서만 워크플로우를 찾는다. 그 워크스페이스에 워크플로우가 없으면 이 코드가 아니라 `TRIGGER_NOT_FOUND`(404)다. 그래서 이 코드로 다른 워크스페이스 워크플로우의 활성 상태가 드러나지 않는다.
+- **코드를 명시한다.** `410` 에는 기본 코드가 없다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)).
+
+기각한 대안: **`TRIGGER_INACTIVE` 를 다시 쓰는 안**. 트리거는 활성이므로 코드의 뜻(트리거가 비활성)과 실제 조건이 어긋난다(규칙 1).

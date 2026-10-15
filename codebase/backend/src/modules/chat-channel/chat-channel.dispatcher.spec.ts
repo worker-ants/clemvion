@@ -780,7 +780,7 @@ function buildDispatcherHarness(
   const conversationService = {
     lookup: jest.fn(async () => state),
     upsert,
-    updateExecutionId: jest.fn(async () => undefined),
+    clearExecutionIdIfMatches: jest.fn(async () => true),
   };
   const adapter = {
     provider: 'slack',
@@ -808,7 +808,14 @@ function buildDispatcherHarness(
     conversationService as never,
     triggerRepository as never,
   );
-  return { dispatcher, adapter, state, upsert, triggerRepository };
+  return {
+    dispatcher,
+    adapter,
+    state,
+    upsert,
+    triggerRepository,
+    conversationService,
+  };
 }
 
 /**
@@ -971,6 +978,61 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
     });
     expect(state.pendingFormModal).toBeUndefined();
   });
+
+  // 근거: NERV Task `CLE-T-V4WVF2`. `/start` 가 이 실행을 취소하고 대화를 새 실행에 이었거나 `/cancel` 이
+  // 매핑을 비운 뒤 이 실행의 폼 이벤트가 늦게 올 수 있다. 읽은 시점에 다른 실행을 가리키면 덮어쓰지
+  // 않는다. 읽은 뒤 쓰기 전에 끼는 경합은 이 테스트가 다루지 않는다(NERV Task `CLE-T-CVJXDE`).
+  describe('대화가 이 이벤트의 실행을 가리키지 않으면', () => {
+    const formModalMsg: ChannelMessage = {
+      conversationKey: '',
+      body: {
+        kind: 'form_modal',
+        openLabel: '양식 작성하기',
+        formConfig: {
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      },
+    };
+    const stateOf = (executionId: string | null): Record<string, unknown> => ({
+      executionId,
+      threadId: 'default',
+      channelUserKey: 'U1',
+      startedAt: '2026-05-28T00:00:00Z',
+      lastUpdateAt: '2026-05-28T00:00:00Z',
+    });
+
+    it.each([
+      ['다른 실행(exec-new)', 'exec-new'],
+      ['비워진 매핑(null)', null],
+    ])(
+      '%s 을 가리키면 pendingFormModal · formState 를 고치지 않고 저장도 하지 않는다',
+      async (_label, executionId) => {
+        const lookupState = stateOf(executionId);
+        const { dispatcher, upsert } = buildDispatcherHarness({
+          renderResult: [formModalMsg],
+          lookupState,
+        });
+
+        await callHandle(dispatcher, formEvent);
+
+        expect(lookupState.pendingFormModal).toBeUndefined();
+        expect(lookupState.formState).toBeUndefined();
+        expect(lookupState.executionId).toBe(executionId);
+        expect(upsert).not.toHaveBeenCalled();
+      },
+    );
+
+    it('폼 안내 메시지는 그대로 보낸다 — 상태만 건드리지 않는다', async () => {
+      const { dispatcher, adapter } = buildDispatcherHarness({
+        renderResult: [formModalMsg],
+        lookupState: stateOf('exec-new'),
+      });
+
+      await callHandle(dispatcher, formEvent);
+
+      expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
@@ -1023,5 +1085,68 @@ describe('ChatChannelDispatcher.handle — 저장된 시크릿 참조', () => {
         botTokenRef: 'secret://triggers/trig-1/bot-token',
       }),
     );
+  });
+});
+
+// 근거: NERV Task `CLE-T-V4WVF2`. /start 가 기존 실행을 취소하고 새 실행을 대화에 이은 뒤 옛 실행의
+// 종결 이벤트가 늦게 와도 새 실행의 매핑을 지우면 안 된다. 대화가 아직 그 실행을 가리킬 때만 비운다.
+describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정리', () => {
+  function buildTerminalEvent(
+    eventType: string,
+    payload: Record<string, unknown> = {},
+  ): ExecutionChannelEvent {
+    return {
+      executionId: 'exec-old',
+      eventType,
+      seq: 9,
+      payload: {
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        timestamp: '2026-10-10T00:00:00Z',
+        chatChannel: { conversationKey: 'D1' },
+        ...payload,
+      },
+    } as ExecutionChannelEvent;
+  }
+
+  it.each([
+    ['execution.completed', { status: 'completed', result: {} }],
+    [
+      'execution.failed',
+      { status: 'failed', error: { code: 'NODE_FAILED', message: 'x' } },
+    ],
+    [
+      'execution.cancelled',
+      { status: 'cancelled', result: { cancelledBy: 'user' } },
+    ],
+  ])(
+    '%s 는 대화가 그 실행을 가리킬 때만 매핑을 비운다',
+    async (eventType, payload) => {
+      const { dispatcher, conversationService } = buildDispatcherHarness();
+
+      await callHandle(dispatcher, buildTerminalEvent(eventType, payload));
+
+      expect(
+        conversationService.clearExecutionIdIfMatches,
+      ).toHaveBeenCalledWith('trig-1', 'D1', 'exec-old');
+      expect(conversationService.upsert).not.toHaveBeenCalled();
+    },
+  );
+
+  it('종결이 아닌 이벤트는 매핑을 건드리지 않는다', async () => {
+    const { dispatcher, conversationService } = buildDispatcherHarness();
+
+    await callHandle(
+      dispatcher,
+      buildTerminalEvent('execution.ai_message', {
+        message: 'hi',
+        nodeId: 'n1',
+      }),
+    );
+
+    expect(
+      conversationService.clearExecutionIdIfMatches,
+    ).not.toHaveBeenCalled();
+    expect(conversationService.upsert).not.toHaveBeenCalled();
   });
 });

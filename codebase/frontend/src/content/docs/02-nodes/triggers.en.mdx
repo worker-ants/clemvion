@@ -69,6 +69,8 @@ All three paths deliver the same `{ parameters, ... }` shape to the execution en
 
 <Callout type="note">
 Webhook and schedule settings live under the Triggers/Schedules menus in the sidebar. Define the parameter schema on the Manual Trigger first, and all three trigger paths will follow that same contract.
+
+When a workflow is turned off, webhooks, schedules, and chat channels no longer start runs for it. Runs already in progress continue to the end, and you can still run the workflow from the editor.
 </Callout>
 
 ## Webhook triggers in detail
@@ -136,7 +138,7 @@ HMAC verification reads the **raw bytes** of the request body. If a relay middle
 | `400 Bad Request` | Body parse failure, or a missing `required` parameter / coercion failure. The body lists the offending fields. **No execution is created.** |
 | `401 Unauthorized` | Authentication failed. |
 | `404 Not Found` | No trigger exists for that `endpoint_path`. |
-| `410 Gone` | The trigger is inactive. Re-enable it on the trigger detail panel before retrying. |
+| `410 Gone` | The trigger or its workflow is turned off. The code is `TRIGGER_INACTIVE` when the trigger is off and `WORKFLOW_INACTIVE` when the workflow is off. Turn the inactive one back on before retrying. |
 | `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**Authenticated webhook:** body over 1MB (`PAYLOAD_TOO_LARGE`). |
 | `429 Too Many Requests` | Exceeded the instance-wide global 100 req/min rate limit. The response carries a `Retry-After` header telling you when to retry. |
 

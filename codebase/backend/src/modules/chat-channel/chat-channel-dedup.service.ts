@@ -73,4 +73,25 @@ export class ChatChannelDedupService {
       return true; // fail-open
     }
   }
+
+  /**
+   * `claim` 한 update 의 선점을 푼다. 응답을 non-2xx 로 돌려줘서 프로바이더가 같은 update 를 다시 보낼
+   * 때 그 재전송이 이 서비스에 막히지 않게 하려는 것이다(NERV Task `CLE-T-V4WVF2` — `/start` 의 기존
+   * 실행 취소가 503 으로 실패하는 경우). 선점이 남아 있으면 30초 동안 재전송이 `ignored` 로 끝나
+   * 사용자의 `/start` 가 유실된다.
+   *
+   * Redis 미가용 · 오류는 삼키고 warn 만 남긴다. 선점은 30초 뒤 저절로 만료된다.
+   */
+  async release(triggerId: string, idempotencyKey: string): Promise<void> {
+    if (!this.redis) return;
+    // claim 이 빈 키를 선점하지 않으므로 풀 것도 없다.
+    if (!idempotencyKey) return;
+    try {
+      await this.redis.del(makeChatDedupKey(triggerId, idempotencyKey));
+    } catch (err) {
+      this.logger.warn(
+        `chat-channel update dedup 해제 실패 — ${CHAT_DEDUP_WINDOW_SEC}초 뒤 만료로 풀린다: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 }

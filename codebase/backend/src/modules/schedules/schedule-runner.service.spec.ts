@@ -31,7 +31,12 @@ describe('ScheduleRunnerService', () => {
         ScheduleRunnerService,
         {
           provide: getRepositoryToken(Schedule),
-          useValue: { find: jest.fn(), findOne: jest.fn(), save: jest.fn() },
+          useValue: {
+            find: jest.fn(),
+            findOne: jest.fn(),
+            save: jest.fn(),
+            update: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(Node),
@@ -347,8 +352,13 @@ describe('ScheduleRunnerService', () => {
         }
 
         expect(notifications.notify).not.toHaveBeenCalled();
-        expect(workflowRepo.findOne).not.toHaveBeenCalled();
+        // 활성 관문(CLE-T-XRWFMJ)의 조회 한 번뿐이다. 실패 알림의 소유자 조회는 없다.
+        expect(workflowRepo.findOne).toHaveBeenCalledTimes(1);
+        expect(workflowRepo.findOne).toHaveBeenCalledWith(
+          expect.objectContaining({ select: { id: true, isActive: true } }),
+        );
         expect(scheduleRepo.save).not.toHaveBeenCalled();
+        expect(scheduleRepo.update).not.toHaveBeenCalled();
         // 운영자가 찾을 수 있게 스케줄 · 워크플로우 · 워크스페이스를 서버 로그에 남긴다.
         expect(errorMessages).toEqual([
           expect.stringMatching(/s1.*wf1.*ws.*건너뛴다/),
@@ -483,7 +493,10 @@ describe('ScheduleRunnerService', () => {
         config: {},
       } as unknown as Node);
       engine.execute.mockRejectedValue(new Error('engine boom'));
-      workflowRepo.findOne.mockRejectedValue(new Error('db down'));
+      workflowRepo.findOne
+        // 활성 관문(CLE-T-XRWFMJ)은 켜진 워크플로우를 읽는다. 실패는 알림의 소유자 조회에서 난다.
+        .mockResolvedValueOnce({ id: 'wf1', isActive: true } as Workflow)
+        .mockRejectedValue(new Error('db down'));
 
       await expect(service.process(job)).rejects.toThrow('engine boom');
     });
@@ -528,6 +541,133 @@ describe('ScheduleRunnerService', () => {
       expect(notifications.notify).not.toHaveBeenCalled();
     });
 
+    // 근거: NERV Task `CLE-T-XRWFMJ`. 워크플로우를 끄면 스케줄로 실행이 생기지 않는다.
+    // 꺼진 스케줄과 같이 건너뛴다.
+    describe('스케줄의 워크플로우가 꺼져 있을 때', () => {
+      it('실행하지 않고 건너뛴다. 실패 알림 · 마지막 실행 시각 갱신이 없다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({ ...baseSchedule });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+
+        await service.process(job);
+
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(scheduleRepo.save).not.toHaveBeenCalled();
+        expect(notifications.notify).not.toHaveBeenCalled();
+        expect(scheduleRepo.update).toHaveBeenCalledTimes(1);
+        expect(scheduleRepo.update.mock.calls[0][1]).not.toHaveProperty(
+          'lastRunAt',
+        );
+      });
+
+      it('다음 실행 시각을 옮기지 못해도 job 을 실패시키지 않는다 — 건너뛴 발화는 재시도하지 않는다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({ ...baseSchedule });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+        scheduleRepo.update.mockRejectedValue(new Error('db down'));
+        const warnSpy = jest
+          .spyOn(
+            (
+              service as unknown as {
+                logger: { warn: (...args: unknown[]) => void };
+              }
+            ).logger,
+            'warn',
+          )
+          .mockImplementation(() => undefined);
+        let warnMessages: string[];
+        try {
+          await expect(service.process(job)).resolves.toBeUndefined();
+        } finally {
+          // mockRestore 는 호출 기록을 지우므로 단언에 쓸 값을 먼저 꺼낸다.
+          warnMessages = warnSpy.mock.calls.map((call) => String(call[0]));
+          warnSpy.mockRestore();
+        }
+
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(notifications.notify).not.toHaveBeenCalled();
+        expect(warnMessages).toEqual([expect.stringMatching(/s1.*db down/)]);
+      });
+
+      it('다음 실행 시각만 다음 cron 발화로 옮긴다 — 지난 시각에 머물지 않는다', async () => {
+        const stale = new Date('2020-01-01T00:00:00Z');
+        scheduleRepo.findOne.mockResolvedValue({
+          ...baseSchedule,
+          nextRunAt: stale,
+        });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+        const before = Date.now();
+
+        await service.process(job);
+
+        expect(scheduleRepo.update).toHaveBeenCalledTimes(1);
+        const [criteria, patch] = scheduleRepo.update.mock.calls[0] as [
+          unknown,
+          { nextRunAt: Date | null },
+        ];
+        expect(criteria).toEqual({ id: 's1', workspaceId: 'ws' });
+        expect(Object.keys(patch)).toEqual(['nextRunAt']);
+        expect(patch.nextRunAt).toBeInstanceOf(Date);
+        // `*/5 * * * *` 이므로 지금 뒤 5분 안이다.
+        expect(patch.nextRunAt!.getTime()).toBeGreaterThan(before);
+        expect(patch.nextRunAt!.getTime()).toBeLessThanOrEqual(
+          Date.now() + 5 * 60_000,
+        );
+      });
+
+      it('cron 을 해석하지 못하면 다음 실행 시각을 null 로 둔다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({
+          ...baseSchedule,
+          cronExpression: 'not-a-cron',
+        });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+
+        await service.process(job);
+
+        expect(scheduleRepo.update).toHaveBeenCalledWith(
+          { id: 's1', workspaceId: 'ws' },
+          { nextRunAt: null },
+        );
+      });
+
+      it('워크플로우는 스케줄의 워크스페이스 안에서 찾는다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({ ...baseSchedule });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+
+        await service.process(job);
+
+        expect(workflowRepo.findOne).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'wf1', workspaceId: 'ws' } }),
+        );
+      });
+
+      it('워크플로우가 켜져 있으면 실행한다', async () => {
+        scheduleRepo.findOne.mockResolvedValue({ ...baseSchedule });
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: true,
+        } as Workflow);
+        engine.execute.mockResolvedValue('exec-1');
+
+        await service.process(job);
+
+        expect(engine.execute).toHaveBeenCalled();
+      });
+    });
+
     it('skips when schedule is inactive (no engine call, no save)', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         ...baseSchedule,
@@ -538,6 +678,7 @@ describe('ScheduleRunnerService', () => {
 
       expect(engine.execute).not.toHaveBeenCalled();
       expect(scheduleRepo.save).not.toHaveBeenCalled();
+      expect(scheduleRepo.update).not.toHaveBeenCalled();
     });
 
     it('skips when schedule has no associated workflow (no engine call, no save)', async () => {
@@ -550,6 +691,7 @@ describe('ScheduleRunnerService', () => {
 
       expect(engine.execute).not.toHaveBeenCalled();
       expect(scheduleRepo.save).not.toHaveBeenCalled();
+      expect(scheduleRepo.update).not.toHaveBeenCalled();
     });
   });
 });

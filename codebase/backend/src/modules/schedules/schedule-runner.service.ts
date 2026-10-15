@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { sanitizeErrorMessage } from '../execution-engine/sanitize-error-message';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { isWorkflowInactive } from '../execution-engine/utils/is-workflow-inactive';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import { evaluate } from '@workflow/expression-engine';
 import { CronExpressionParser } from 'cron-parser';
@@ -135,6 +136,23 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
   }
 
   /**
+   * `now` 다음의 cron 발화 시각. cron 을 해석하지 못하면 `null` 이다. `undefined` 를 돌려주면
+   * TypeORM 이 SET 절에서 그 열을 빼서 옛 시각이 남으므로 `null` 을 명시한다.
+   */
+  private nextRunAtAfter(schedule: Schedule, now: Date): Date | null {
+    try {
+      return CronExpressionParser.parse(schedule.cronExpression, {
+        tz: schedule.timezone,
+        currentDate: now,
+      })
+        .next()
+        .toDate();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Process a scheduled job — execute the linked workflow.
    */
   async process(job: Job<ScheduleJobData>): Promise<void> {
@@ -161,6 +179,32 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       this.logger.warn(
         `Schedule ${scheduleId} has no associated workflow, skipping`,
       );
+      return;
+    }
+
+    // 워크플로우를 끄면 스케줄로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`). 꺼진 스케줄처럼
+    // 건너뛴다. 스케줄의 워크스페이스 안에서 찾는다(`execute()` 에 넘기는 값과 같다).
+    // job scheduler 는 그대로라 다음 cron 에 다시 온다. 화면의 "다음 실행" 이 지난 시각에 머물지
+    // 않게 `nextRunAt` 만 다음 발화 시각으로 옮긴다. 실행하지 않았으니 `lastRunAt` 은 둔다. 그 사이
+    // 사용자가 고친 다른 열을 덮지 않게 SET 절에는 `nextRunAt` 만 넣는다(`updated_at` 은 TypeORM 이
+    // 함께 올린다). 이 갱신은 표시용이라 실패해도 job 을 실패시키지 않는다. 건너뛴 발화는 재시도하지
+    // 않는다(REQ-SCHED-036).
+    if (
+      await isWorkflowInactive(this.workflowRepository, workflowId, workspaceId)
+    ) {
+      this.logger.log(
+        `Schedule ${scheduleId} 의 워크플로우 ${workflowId} 가 꺼져 있어 건너뛴다`,
+      );
+      try {
+        await this.scheduleRepository.update(
+          { id: schedule.id, workspaceId },
+          { nextRunAt: this.nextRunAtAfter(schedule, new Date()) },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Schedule ${scheduleId} 의 다음 실행 시각을 옮기지 못했다: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       return;
     }
 
@@ -191,15 +235,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       // Update lastRunAt and nextRunAt
       const now = new Date();
       schedule.lastRunAt = now;
-      try {
-        const interval = CronExpressionParser.parse(schedule.cronExpression, {
-          tz: schedule.timezone,
-          currentDate: now,
-        });
-        schedule.nextRunAt = interval.next().toDate();
-      } catch {
-        schedule.nextRunAt = null;
-      }
+      schedule.nextRunAt = this.nextRunAtAfter(schedule, now);
       await this.scheduleRepository.save(schedule);
     } catch (err) {
       // 연결 트리거의 워크플로우가 없거나 스케줄의 워크스페이스에 없다(저장 경계 이전의 교차 행). 재시도해도 같고,

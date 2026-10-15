@@ -240,7 +240,15 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
         trigger.id,
         conversationKey,
       );
-      if (state) {
+      if (state && state.executionId !== event.executionId) {
+        // 읽은 시점에 대화가 이 실행을 가리키지 않는다. `/start` 나 `/cancel` 이 이 실행을 끊고 대화를
+        // 다른 실행에 잇거나 비웠는데 이 실행의 폼 이벤트가 늦게 온 경우다. 그 상태는 다른 실행의 것이라
+        // 덮어쓰지 않는다(NERV Task `CLE-T-V4WVF2`). 읽은 뒤 아래 upsert 전에 다른 요청이 대화를 바꾸는
+        // 경합은 막지 않는다. 종결 이벤트처럼 compare-and-set 으로 바꾸는 일은 NERV Task `CLE-T-CVJXDE`.
+        this.logger.debug(
+          `form 대기 상태 갱신 생략 — 대화가 다른 실행을 가리킨다 (event=${event.executionId}, state=${state.executionId ?? 'null'}, trigger=${trigger.id})`,
+        );
+      } else if (state) {
         const modalMsg = messages.find((m) => m.body.kind === 'form_modal');
         if (modalMsg) {
           const modalFormConfig = (modalMsg.body as { formConfig: unknown })
@@ -308,16 +316,18 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // terminal event 면 conversation 의 activeExecution 비우기.
+    // terminal event 면 conversation 의 activeExecution 비우기. 대화가 아직 이 실행을 가리킬 때만
+    // 비운다. /start 가 이 실행을 취소하고 새 실행을 이은 뒤 이 이벤트가 늦게 올 수 있다
+    // (NERV Task `CLE-T-V4WVF2`).
     if (
       event.eventType === 'execution.completed' ||
       event.eventType === 'execution.failed' ||
       event.eventType === 'execution.cancelled'
     ) {
-      await this.conversationService.updateExecutionId(
+      await this.conversationService.clearExecutionIdIfMatches(
         trigger.id,
         conversationKey,
-        null,
+        event.executionId,
       );
     }
 

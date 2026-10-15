@@ -3,18 +3,18 @@ id: "CLE-WF-LIST"
 title: "워크플로우 목록과 폴더"
 type: "feature"
 version: 1
-status: "draft"
-requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051"]
+status: "approved"
+requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051", "REQ-WFLIST-052", "REQ-WFLIST-053"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "5591281afd4797596f03f3ad1f931fc946acdad75a6179ca6e12e337a09bc362"
-read_as: "approved"
-task: null
+content_hash: "c50de31f828a91cf9e56729fd79183b7401d54aa1d9a05b697fd9e05d36589ff"
+read_as: "approved_fallback"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "7b19392763f2070e63ae3d66f342d2483f4f30414260365c501186e385293c4f"
-etag: "sha256-b7e64616d6610bd30d2171a00ccb1b0eba0c584c5eb5d22f45d421e90ad1efd7"
+mirror_sha256: "26f8041c7234eba07c84b94a17407527860ca218b8b891135a56d61cba7a6901"
+etag: "sha256-f6a6d0d94c3f6029b9b1163a6607f9f4deebbd73f883a147c0c9de34f09b43be"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,7 +61,7 @@ etag: "sha256-b7e64616d6610bd30d2171a00ccb1b0eba0c584c5eb5d22f45d421e90ad1efd7"
 - REQ-WFLIST-025 WHEN 워크플로우를 복제하면 THE SYSTEM SHALL 버전 기록·트리거·테스트 데이터셋을 사본에 옮기지 않는다.
 - REQ-WFLIST-026 WHEN 사용자가 목록이나 에디터 더보기 메뉴에서 내보내기를 고르면 THE SYSTEM SHALL 워크플로우를 JSON 파일로 내려받게 한다. (원본: ED-SV-05)
 - REQ-WFLIST-027 WHEN 사용자가 JSON 파일을 가져오면 THE SYSTEM SHALL 그 파일로 새 워크플로우를 만든다. (원본: ED-SV-06)
-- REQ-WFLIST-028 WHEN 사용자가 워크플로우를 비활성으로 바꾸면 THE SYSTEM SHALL 그 워크플로우의 트리거·스케줄 실행을 멈춘다(현재 구현과 다름, 미결 사항 참조). (부분 구현)
+- REQ-WFLIST-028 WHILE 워크플로우가 비활성인 동안 THE SYSTEM SHALL 웹훅 · 채팅 채널 · 스케줄 이벤트로 그 워크플로우의 실행을 시작하지 않는다.
 - REQ-WFLIST-029 WHEN 사용자가 삭제를 확인하면 THE SYSTEM SHALL 워크플로우와 연결된 트리거를 함께 지우고 트리거가 쓰던 외부 등록과 비밀을 정리한다.
 - REQ-WFLIST-030 IF 워크플로우가 하나도 없으면 THE SYSTEM SHALL 아이콘과 "첫 번째 워크플로우를 만들어 보세요" 메시지와 생성 버튼을 표시한다.
 - REQ-WFLIST-031 IF 검색·필터 때문에 결과가 비면 THE SYSTEM SHALL 생성 버튼 대신 "필터를 조정해 보세요" 안내를 표시한다.
@@ -85,6 +85,8 @@ etag: "sha256-b7e64616d6610bd30d2171a00ccb1b0eba0c584c5eb5d22f45d421e90ad1efd7"
 - REQ-WFLIST-049 IF 워크플로우 생성·수정 요청의 `folderId` 가 같은 워크스페이스의 폴더가 아니면 THE SYSTEM SHALL 저장하지 않고 400 `VALIDATION_ERROR`(`details[].field='folderId'`)로 거부한다.
 - REQ-WFLIST-050 IF 폴더 생성 요청의 `parentId` 가 같은 워크스페이스의 폴더가 아니면 THE SYSTEM SHALL 저장하지 않고 400 `VALIDATION_ERROR`(`details[].field='parentId'`)로 거부한다.
 - REQ-WFLIST-051 WHEN 폴더 수정 요청의 새 `parentId` 가 같은 워크스페이스에 없어 거부하면 THE SYSTEM SHALL 생성과 같은 형태의 `details[]`(`field='parentId'`, `code='INVALID_FIELD'`)를 싣는다.
+- REQ-WFLIST-052 WHEN 사용자가 워크플로우를 비활성으로 바꾸면 THE SYSTEM SHALL 이미 진행 중인 그 워크플로우의 실행을 취소하지 않는다.
+- REQ-WFLIST-053 WHEN 사용자가 비활성 워크플로우를 편집기에서 수동 실행하거나 재실행하거나 그 워크플로우의 스케줄을 "지금 실행" 하면 THE SYSTEM SHALL 활성 워크플로우와 같이 그 실행을 시작한다.
 
 ## 화면 구성
 
@@ -152,7 +154,7 @@ etag: "sha256-b7e64616d6610bd30d2171a00ccb1b0eba0c584c5eb5d22f45d421e90ad1efd7"
 | 실행 내역 | `/w/<slug>/workflows/:id/executions` 로 이동한다. slug 는 현재 워크스페이스 기준이다. 에디터 캔버스 경로 `/workflows/:id` 도 slug 라우팅 2단계부터 slug 기준이다. 라벨은 i18n `workflows.executionHistory` (ko "실행 내역", en "Execution History")다. 화면 내용은 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 이 정한다. |
 | 복제 | 워크플로우 사본을 만든다(duplicate). 노드·연결선을 포함한 캔버스 전체를 복사하고 이름 끝에 " (Copy)" 를 붙이며 사본은 비활성으로 시작한다. 버전 기록·트리거·테스트 데이터셋은 옮기지 않는다. 데이터 흐름과 재매핑 규칙은 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 에 있다. |
 | 내보내기 | JSON 파일로 내려받는다. 파일 형식은 [내보내기·가져오기 JSON 형식](#내보내기가져오기-json-형식) 에 있다. |
-| 활성/비활성 | 워크플로우 활성 상태(`workflow.is_active`)를 바꾼다. 원문은 "비활성이면 트리거·스케줄이 멈춘다" 고 적지만 현재 구현과 다르다. 정의가 갈린다. [미결 사항](#미결-사항) 참조. |
+| 활성/비활성 | 워크플로우 활성 상태(`workflow.is_active`)를 바꾼다. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄로 새 실행이 시작되지 않는다([트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)). 진행 중인 실행과 수동 실행은 그대로다(REQ-WFLIST-052 · 053). |
 | 삭제 | 확인 다이얼로그 뒤 지운다. 연결된 트리거는 함께 지워진다(FK CASCADE, 스케줄 트리거면 스케줄까지). 트리거가 쓰던 외부 등록과 비밀도 정리한다. 순서와 실패 처리는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 에 있다. |
 
 에디터 헤더의 더보기 메뉴에도 내보내기·가져오기가 있다([워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md)). 동작과 파일 형식은 이 문서를 따른다.
@@ -214,10 +216,6 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 
 가져오기 전체를 한 트랜잭션으로 저장하는 흐름은 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 에 있다.
 
-## 미결 사항
-
-- **워크플로우 활성 상태가 트리거 실행을 막는가**: 이 문서의 원문(더보기 메뉴 "비활성 시 트리거/스케줄 중지")과 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 의 상태 전이("스케줄·웹훅 트리거는 활성만 동작"), 대시보드의 Active 카드 설명은 워크플로우를 끄면 웹훅·스케줄 실행이 멈춘다고 적는다. [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 웹훅·스케줄 흐름은 `trigger.is_active` 와 `schedule.is_active` 만 본다. 현재 구현도 `hooks.service.ts` 와 schedule runner 가 트리거·스케줄 플래그만 확인하고 `workflow.is_active` 를 확인하지 않는다. 워크플로우 활성 상태를 실행 게이트로 둘지(구현과 트리거 흐름을 고침), 표시용으로 둘지(이 약속을 거둠) 결정이 필요하다. 이 결정은 [트리거 데이터와 흐름의 미결 사항](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항) 에서 한다.
-
 ## 구현 위치
 
 - `codebase/frontend/src/app/(main)/w/[slug]/workflows/page.tsx` (목록 화면)
@@ -226,6 +224,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 - `codebase/backend/src/modules/workflows/workflows.service.ts`
 - `codebase/backend/src/modules/workflows/workflows.module.ts`
 - `codebase/backend/src/modules/folders/**`
+- `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문. 부르는 곳은 [트리거 데이터와 흐름 「구현 위치」](../CLE-TRIG/CLE-TRIG-DATA.md#구현-위치) 에 있다)
 
 ## Rationale
 
@@ -270,3 +269,11 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 - **여러 개가 아니라 하나인 이유**: 서버 `GET /api/workflows` 는 `?tag=` 에 값 하나만 받아 `= ANY(w.tags)` 로 맞춘다(`query-workflow.dto.ts`). 다중 선택을 지원하려면 `?tag=a,b` 나 반복 파라미터를 받도록 서버 계약을 넓히고, 워크스페이스의 태그 목록을 조회하는 엔드포인트를 새로 만들어야 한다. 지금은 선택지를 채울 출처가 없다. 이 확장은 비용에 비해 가치가 낮다고 판단했다(사용자 결정, 2026-07-06).
 - **선택 목록이 아니라 텍스트인 이유**: 태그 목록 엔드포인트가 없어 드롭다운을 채울 출처가 없다. 텍스트 입력 하나는 서버 계약과 정확히 맞고 백엔드를 더 만들지 않아도 끝까지 동작한다.
 - **다시 넓힐 여지**: 여러 태그가 다시 필요해지면 서버 계약 확장과 태그 목록 API 를 함께 도입하는 별도 작업으로 살릴 수 있다. 이 결정은 그 대안을 영구히 버린 것이 아니라 지금의 범위를 정한 것이다.
+
+### 5. 워크플로우를 끄면 외부 이벤트로 실행하지 않는다 (2026-10-10)
+
+NERV Task `CLE-T-XRWFMJ` 에서 사람이 정한 결정이다. 이 문서는 비활성 워크플로우의 트리거 · 스케줄 실행이 멈춘다고 적었다. 그런데 웹훅과 스케줄 처리 코드는 `workflow.is_active` 를 확인하지 않아 이 차이를 미결 사항으로 남겨 두었다. 상태 스위치를 끈 사용자는 실행이 멈춘다고 생각한다. 그래서 약속을 거두지 않고 구현을 문서에 맞췄다. 경로별 규칙과 결정의 근거는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 에 있다.
+
+진행 중인 실행을 취소하지 않는 것(REQ-WFLIST-052)과 수동 실행 · 재실행 · 스케줄 "지금 실행" 을 받는 것(REQ-WFLIST-053)은 이번 결정의 범위 밖이다. 지금 동작을 그대로 요구사항으로 옮겨 적었다.
+
+기각한 대안: **활성 상태를 표시용 플래그로 두고 이 약속을 거두는 안**. 그러면 스위치를 꺼도 실행에 아무 영향이 없어 화면 문구와 실제 동작이 어긋난다.

@@ -5,6 +5,24 @@ import { RedisConnectionProvider } from '../../common/redis/redis-connection.pro
 import { ChannelConversationState } from './types';
 
 /**
+ * 저장된 값이 읽은 값과 같을 때만 새 값으로 바꾼다(compare-and-set). JSON 을 Lua 에서 다시 만들지
+ * 않고 문자열 그대로 비교한다. cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을
+ * 망가뜨린다.
+ */
+export const COMPARE_AND_SET_SCRIPT =
+  "if redis.call('get',KEYS[1])==ARGV[1] then redis.call('set',KEYS[1],ARGV[2],'EX',ARGV[3]) return 1 else return 0 end";
+
+/** compare-and-set 이 다른 쓰기에 밀렸을 때 다시 읽는 횟수 상한. */
+const COMPARE_AND_SET_MAX_ATTEMPTS = 3;
+
+/**
+ * `acquireLock` 으로 잡은 lock 을 소유자(token)가 맞을 때만 지운다. TTL 이 지나 다른 요청이 잡은 lock 을
+ * 잘못 지우지 않으려는 것이다. 테스트의 Redis 모사가 스크립트 문자열로 분기하도록 내보낸다.
+ */
+export const RELEASE_LOCK_SCRIPT =
+  "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end";
+
+/**
  * Chat Channel ConversationState 의 Redis CRUD.
  *
  * Spec §4.3 (15-chat-channel.md):
@@ -103,20 +121,53 @@ export class ChannelConversationService {
   }
 
   /**
-   * 활성 executionId 만 갱신 (terminal 후 null 로 비우거나, 새 execution 으로 교체).
-   * lookup-then-upsert 의 atomic 변형 — race condition 가능성은 동일 conversation 의 동시 도착이
-   * 드물어 (CCH-NF-03 의 분당 60 cap) 큰 문제 아님.
+   * 대화가 아직 `executionId` 를 가리킬 때만 executionId 를 비운다. 실행의 종결 이벤트가 쓴다.
+   *
+   * `/start` 는 기존 실행을 취소하고 새 실행을 대화에 잇는다(NERV Task `CLE-T-V4WVF2`). 옛 실행의
+   * 종결 이벤트는 그 뒤에 올 수 있다. 무조건 비우면 새 실행의 매핑이 지워져 다음 메시지가 대기 중인
+   * 새 실행으로 가지 않고 또 다른 실행을 시작한다. 읽은 값과 저장된 값을 비교해 바꾸므로 읽은 뒤에
+   * 다른 요청이 새 실행을 이어도 덮어쓰지 않는다.
+   *
+   * Redis 미가용 · 오류 시 false (graceful degradation). 비우지 못한 executionId 는 이미 종결된
+   * 실행을 가리키므로 다음 메시지가 활성 실행 없음으로 판정한다.
+   *
+   * @returns 비웠으면 true.
    */
-  async updateExecutionId(
+  async clearExecutionIdIfMatches(
     triggerId: string,
     conversationKey: string,
-    executionId: string | null,
-  ): Promise<void> {
-    const state = await this.lookup(triggerId, conversationKey);
-    if (!state) return;
-    state.executionId = executionId;
-    state.lastUpdateAt = new Date().toISOString();
-    await this.upsert(triggerId, conversationKey, state);
+    executionId: string,
+  ): Promise<boolean> {
+    if (!this.redis) return false;
+    const key = this.buildKey(triggerId, conversationKey);
+    try {
+      for (let attempt = 0; attempt < COMPARE_AND_SET_MAX_ATTEMPTS; attempt++) {
+        const raw = await this.redis.get(key);
+        if (!raw) return false;
+        const state = JSON.parse(raw) as ChannelConversationState;
+        if (state.executionId !== executionId) return false;
+        state.executionId = null;
+        state.lastUpdateAt = new Date().toISOString();
+        const swapped = await this.redis.eval(
+          COMPARE_AND_SET_SCRIPT,
+          1,
+          key,
+          raw,
+          JSON.stringify(state),
+          ChannelConversationService.TTL_SEC,
+        );
+        if (swapped === 1) return true;
+      }
+      this.logger.warn(
+        `ChannelConversationService.clearExecutionIdIfMatches — 동시 쓰기가 이어져 비우지 못했다 (trigger=${triggerId}, execution=${executionId})`,
+      );
+      return false;
+    } catch (err) {
+      this.logger.warn(
+        `ChannelConversationService.clearExecutionIdIfMatches 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
   }
 
   /**
@@ -162,12 +213,7 @@ export class ChannelConversationService {
     if (!this.redis) return;
     const lockKey = this.buildLockKey(triggerId, conversationKey);
     try {
-      await this.redis.eval(
-        "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
-        1,
-        lockKey,
-        token,
-      );
+      await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
     } catch (err) {
       this.logger.warn(
         `ChannelConversationService.releaseLock 실패 (TTL 로 자연 만료): ${err instanceof Error ? err.message : String(err)}`,

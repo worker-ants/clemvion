@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "803d8db217317550aaea7b1521f00d455830944d4cf27539469d47f29b17befd"
-read_as: "approved"
-task: null
+content_hash: "9c16844568ccad8408e4f18e58107d9da05d3511fe1aecf1d9709a492b3a9c7a"
+read_as: "approved_fallback"
+task: "CLE-T-XRWFMJ"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "533613b83ad3c5b4b4a9ae321b951b1801379cb8ca84cf685ade532d3d78b9da"
-etag: "sha256-357aadab1c72bf917324d133e74b20026bd248b6938ae97fd550a3307aa3d5b2"
+mirror_sha256: "aec578e1ecd5453d50274a88d6107638af38ed8a4d987ed6b2e9fba11684b8fd"
+etag: "sha256-9a65cce198eeeefea281c39af29cab5cc35df4ad7e013bfcc579fbd693f1bd55"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 | 410 | **없음** |
 
 - `RolesGuard` 의 멤버십·역할 거부는 기본값이 아니라 전용 가드 거부 코드(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `ADMIN_REQUIRED`, `OWNER_REQUIRED`)를 쓴다. 2026-09-25 이전에는 코드를 지정하지 않아 기본값 `FORBIDDEN` 이 나갔다. 결정 근거는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 "가드 거부의 오류 코드" Rationale 이다.
-- **`410` 에는 기본값이 없다.** 위 표는 필터의 상태→코드 매핑을 옮긴 것이고 그 매핑에 `410` 항목이 없다. 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 그래서 `410` 을 돌려주는 경로는 `code` 를 반드시 명시한다. 현재 `410` 발행 지점(`TRIGGER_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_expired`, `invitation_already_used`)은 모두 코드를 명시한다. 기본값을 새로 만들지 않은 이유는 Rationale 에 있다.
+- **`410` 에는 기본값이 없다.** 위 표는 필터의 상태→코드 매핑을 옮긴 것이고 그 매핑에 `410` 항목이 없다. 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 그래서 `410` 을 돌려주는 경로는 `code` 를 반드시 명시한다. 현재 `410` 발행 지점(`TRIGGER_INACTIVE`, `WORKFLOW_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_expired`, `invitation_already_used`)은 모두 코드를 명시한다. 기본값을 새로 만들지 않은 이유는 Rationale 에 있다.
 - **외부 표면의 의도적 교체**: EIA REST(`/api/external/*`)와 웹훅 수신(`/api/hooks/*`)은 외부 호출자에게 보이는 표면이라 기본 코드 대신 도메인 코드를 쓴다(예: 400 에 `INVALID_COMMAND`·`INVALID_WEBHOOK_PAYLOAD`, 429 에 `TOO_MANY_CONNECTIONS`). `410` 은 교체가 아니라 명시 의무다. 교체할 기본값이 애초에 없다.
 
 ### 2.3 도메인 세부 사유를 어디에 싣는가: top-level `code` 교체와 `details[].code`
@@ -276,6 +276,8 @@ HTTP 상태 코드 표에 `410 Gone` 을 등재하면서 §2.2 기본값 목록�
 그 목록은 바라는 규범이 아니라 `GlobalExceptionFilter` 의 상태→코드 매핑을 옮긴 서술이다. 그 매핑에는 `410` 항목이 없다(실측). 기본값을 적으면 문서가 구현에 없는 동작을 약속한다. 다음 사람이 그 약속을 믿고 `code` 를 빼는 순간 `410` 응답에 `INTERNAL_ERROR` 가 실린다. 문서가 만든 결함이다.
 
 **기각한 대안**: 필터에 `case 410` 을 더하고 그 값을 문서화하는 것. 현재 발행 지점이 모두 도메인 코드를 명시하므로(`TRIGGER_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_*`) 새 기본값은 도달하지 않는 코드를 하나 늘릴 뿐이다. 대신 "명시 의무" 를 규약으로 적어 누락이 리뷰에서 보이게 했다.
+
+2026-10-10 에 더한 웹훅 발행 지점 `WORKFLOW_INACTIVE`(트리거의 워크플로우가 비활성인 경우, NERV Task `CLE-T-XRWFMJ`)도 코드를 명시한다([에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)).
 
 ### 4xx http-error `message` 를 고정 문구로 바꾸는 이유 (CWE-209)
 

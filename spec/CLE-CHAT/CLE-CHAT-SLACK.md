@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK"
 title: "Slack 어댑터"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-SLACK-001", "REQ-SLACK-002", "REQ-SLACK-003", "REQ-SLACK-004", "REQ-SLACK-005", "REQ-SLACK-006", "REQ-SLACK-007", "REQ-SLACK-008", "REQ-SLACK-009", "REQ-SLACK-010", "REQ-SLACK-011", "REQ-SLACK-012", "REQ-SLACK-013", "REQ-SLACK-014", "REQ-SLACK-015", "REQ-SLACK-016", "REQ-SLACK-017", "REQ-SLACK-018", "REQ-SLACK-019", "REQ-SLACK-020", "REQ-SLACK-021", "REQ-SLACK-022", "REQ-SLACK-023", "REQ-SLACK-024", "REQ-SLACK-025", "REQ-SLACK-026", "REQ-SLACK-027", "REQ-SLACK-028", "REQ-SLACK-029", "REQ-SLACK-030", "REQ-SLACK-031", "REQ-SLACK-032", "REQ-SLACK-033", "REQ-SLACK-034", "REQ-SLACK-035", "REQ-SLACK-036", "REQ-SLACK-037", "REQ-SLACK-038", "REQ-SLACK-039", "REQ-SLACK-040", "REQ-SLACK-041", "REQ-SLACK-042"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "5f83cfcf716b4faa1e686a3feb821422c3b40ed205c368b1bca187e99051e0cb"
-read_as: "approved"
-task: null
+content_hash: "f3044d87dcf027b3bf306f74102439481a359406c65bbdf8ed3165a5db83c655"
+read_as: "approved_fallback"
+task: "CLE-T-V4WVF2"
 source_paths: ["spec/4-nodes/7-trigger/providers/slack.md"]
-mirror_sha256: "4dd418e28d6cde269ac13df7734019339f9513e5c23adfeaae8be031821ebfab"
-etag: "sha256-917bc6bc18f568479cfebaf18d1bb0e10c0e23992af6ff25d034d54a84c1544c"
+mirror_sha256: "75b589f91ac07e5a7e1d07a5f69da6fac9d4e6993a0b1c8261f49d8f71b890f7"
+etag: "sha256-972096992ac754b2f2f60b4134134e1c5bca8c8b4a0d8241491075ebd629cb37"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/slack.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -69,9 +69,9 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 - REQ-SLACK-031 IF `X-Slack-Request-Timestamp` 가 현재 시각 ±5분 밖이면 THE SYSTEM SHALL `401` 로 답한다. (원본: slack §6)
 - REQ-SLACK-032 IF 트리거 생성 때 `inboundSigningPlaintext` 가 `^[a-f0-9]{32}$` 에 맞지 않으면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='inboundSigningPlaintext'`, `details.code='INVALID_FIELD'`)로 거부한다. (원본: slack §6)
 - REQ-SLACK-033 WHEN 모달 view 의 `private_metadata` 를 채우면 THE SYSTEM SHALL 대화 키(DM 채널 ID)만 넣고 자격 증명과 개인정보는 넣지 않는다. (원본: slack §6)
-- REQ-SLACK-034 WHEN 활성 실행이 없을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 를 안내한다. (원본: slack §7)
-- REQ-SLACK-035 WHEN 활성 실행이 있을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 기존 실행을 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: slack §7)
-- REQ-SLACK-036 WHEN `/<prefix> cancel` 이 오면 THE SYSTEM SHALL 활성 실행에 EIA `cancel` 을 부르고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: slack §7)
+- REQ-SLACK-034 WHEN 활성 실행이 없을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 를 안내한다. (원본: slack §7) (부분 구현)
+- REQ-SLACK-035 WHEN 활성 실행이 있을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: slack §7) (부분 구현)
+- REQ-SLACK-036 WHEN `/<prefix> cancel` 이 오면 THE SYSTEM SHALL 활성 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: slack §7) (부분 구현)
 - REQ-SLACK-037 WHEN `/<prefix> help` 가 오면 THE SYSTEM SHALL `languageHints.help`(없으면 기본 문구)를 보낸다. (원본: slack §7) (부분 구현)
 - REQ-SLACK-038 WHEN `chat.postMessage` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다. (원본: slack §8)
 - REQ-SLACK-039 WHEN Slack 이 `429` 와 `Retry-After` 를 돌려주면 THE SYSTEM SHALL 그 초만큼 기다린 뒤 다시 시도한다. (원본: slack §8)
@@ -83,9 +83,10 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 
 - 관련 REQ-SLACK-002·003: 이 다섯 값이 `BOT_TOKEN_INVALID` 판별의 전부이고 목록을 열어 두지 않는다. `ratelimited` 처럼 자격 증명과 무관한 값은 일부러 뺀다. "당신 토큰이 잘못됐다" 를 잘못 말하는 것이 `502`(그 밖의 실패)보다 나쁘다. 목록에 없는 값은 502 로 간다. 이 목록은 외부 API 응답이라 저장소 안에서 잴 수 없다. 늘리려면 Slack 이 문서화한 표준 auth 에러라는 근거를 대고 코드 상수(`slack.adapter.ts` 의 `SLACK_CREDENTIAL_REJECTED_ERRORS`)와 함께 늘린다. 한쪽만 바꾸면 판별이 조용히 갈린다. `token_expired` 는 통합 상태 사유(`Integration.status_reason`)의 `'token_expired'` 와 글자만 같고 다른 네임스페이스다([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)). 이쪽은 Slack API 응답 문자열이고 저쪽은 우리 DB 컬럼 값이다.
 - 관련 REQ-SLACK-008: `parseUpdate` 는 순수 계약을 지키고 보강(`HooksService.enrichInbound` 가 `SlackClient.filesInfo` 를 부른다)은 호출자가 한다. 진행 중인 다단계 질문에서는 `handleFormStep` 이 `file_upload` 를 폼 필드 값으로 쌓아 `submit_form` 을 부른다(`hooks.service.ts`, 구현됨). Form `file` 필드의 MIME 검증은 다단계 질문이 필드 제약을 상태에 저장하지 않는 `formState` v1 한계에 걸려 Planned 다.
-- 관련 REQ-SLACK-016·035: 활성 실행 중 일반 DM 메시지와 `/start` 처리는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- 관련 REQ-SLACK-016·034·035: 활성 실행이 있을 때 기존 실행을 취소하고 새로 시작하는 입력은 `/<prefix> start` 뿐이다. 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 활성 실행이 있는 DM 의 일반 텍스트는 기존 실행을 취소하지 않고 [채팅 채널](CLE-CHAT-CORE.md) 의 실행 상태 분기(REQ-CHAT-013·014)를 따른다(R-S-10). 트리거의 워크플로우가 비활성이면 활성 실행이 없는 DM 의 메시지와 `/<prefix> start` 는 새 실행을 시작하지 않고 버린다. 활성 실행이 있는 DM 의 `/<prefix> start` 도 기존 실행을 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
 - 관련 REQ-SLACK-025: [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 `validation.preset` 이 아직 없다. Slack 에는 연락처 공유에 해당하는 기능이 없다.
 - 관련 REQ-SLACK-027: 현재 구현(`slack-message.renderer.ts`)은 Carousel 카드를 제목·설명 텍스트로만 만든다.
+- 관련 REQ-SLACK-036: 취소는 `/<prefix> start` 와 같은 실행 중지 경로(`ExecutionsService.stop`)를 쓴다. EIA `cancel` 도 같은 `stop` 을 부르므로 취소 동작은 같다([채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 취소한 뒤의 대화 상태 정리는 REQ-CHAT-065 를 따른다. 활성 실행이 없을 때의 안내는 아직 보내지 않고 ack 만 한다(현재 구현, `hooks.service.ts`).
 - 관련 REQ-SLACK-037: `/<prefix> help` 는 [명령 매핑](#명령-매핑) 상 `text_message`("help")가 되는데, `HooksService` 는 텍스트가 정확히 `/help` 일 때만 도움말을 보낸다. [미결 사항](#미결-사항) 참조.
 - 관련 REQ-SLACK-038·041: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기는 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않아 4초 대기는 생기지 않는다(`slack-client.ts` `call`).
 - 관련 REQ-SLACK-040: 현재 구현은 `429` 의 `Retry-After` 대기만 한다. 채널 단위 큐와 메서드별 bucket 은 확인되지 않았다.
@@ -123,7 +124,7 @@ Slack 식별자(`user_id` `U…`, `bot_id` `B…`)는 문자열인데 `botIdenti
 
 Events API Request URL 은 Slack 앱 manifest 에 미리 등록하는 값이라 어댑터가 API 로 등록·해제하지 않는다(R-S-2). 사용자는 manifest 의 `event_subscriptions.request_url` 을 `${BASE_URL}/api/hooks/${trigger.endpointPath}` 로 설정해 둬야 한다(사용자 가이드가 안내한다).
 
-URL Verification(`type: "url_verification"`)은 Slack 이 Request URL 을 등록할 때 한 번 보낸다. `parseUpdate` 가 `null` 을 돌려주고 호출자가 `{ challenge: <받은 값> }` JSON 을 `200 OK` 로 답한다. [채팅 채널](CLE-CHAT-CORE.md) 인바운드 HTTP 응답 계약의 `202` 고정 정책에 대한 명시적 예외다(R-S-8).
+URL Verification(`type: "url_verification"`)은 Slack 이 Request URL 을 등록할 때 한 번 보낸다. `parseUpdate` 가 `null` 을 돌려주고 호출자가 `{ challenge: <받은 값> }` JSON 을 `200 OK` 로 답한다. [채팅 채널](CLE-CHAT-CORE.md) 인바운드 HTTP 응답 계약의 `202` 고정 정책에 대한 명시적 예외다(R-S-8). 트리거가 활성이면 워크플로우가 비활성이어도 답한다(2026-10-10 사용자 결정). 워크플로우가 비활성인 채로 앱을 연결해도 Request URL 등록이 실패하지 않게 하려는 것이다. 관문은 트리거 활성 관문, 핸드셰이크 응답, …, 워크플로우 활성 관문 순서로 놓이므로 핸드셰이크 응답 단계에서는 워크플로우 상태를 확인하지 않는다. 순서의 기준은 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 다. 트리거가 비활성이면 challenge 를 돌려주지 않고 `202`·`{ executionId: 'ignored' }` 다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-067, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)).
 
 ### teardownChannel
 
@@ -291,16 +292,16 @@ Slack Web API 에는 서버가 보내는 typing 표시가 없다(`as_user=true` 
 - 다른 봇이 보낸 메시지(`bot_id` 있음)도 무시한다.
 - **네이티브 모달 `private_metadata`(위험 수용)**: `openFormModal` 이 view 의 `private_metadata` 에 대화 키(DM 채널 ID, 예: `D0123ABCD`)를 평문으로 담는다. `view_submission` 에 채널 ID 가 없어 제출 때 대화를 되찾는 데 필요하다. Slack 서버가 이 값을 보고 보관할 수 있지만 (a) 채널 ID 는 비밀이 아니고(Slack 이 이미 안다) (b) 봇 토큰·signing secret 같은 자격 증명은 전혀 넣지 않으므로 위험을 받아들인다. 자격 증명과 개인정보는 `private_metadata` 에 절대 넣지 않는다(SS-SE-01).
 
-인바운드 HTTP 응답 정책은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. Slack 예외는 두 가지다. (1) `url_verification` envelope 은 `200 OK + { challenge }`, (2) Interactivity 는 3초 안에 `200 OK`(빈 본문이나 `response_action`)이고 `202` 가 아니다. 두 예외 모두 인바운드 응답 계약 표와 프로바이더별 응답 예외 조건에 들어 있다(R-S-8).
+인바운드 HTTP 응답 정책은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 요점은 기본이 `202 Accepted` 이고 인증 실패는 `401`, 엔드포인트 미존재는 `404` 이며 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. Slack 예외는 두 가지다. (1) `url_verification` envelope 은 `200 OK + { challenge }`, (2) Interactivity 는 3초 안에 `200 OK`(빈 본문이나 `response_action`)이고 `202` 가 아니다. 두 예외 모두 인바운드 응답 계약 표와 프로바이더별 응답 예외 조건에 들어 있다(R-S-8). 트리거가 활성이면 워크플로우가 비활성이어도 `url_verification` 에는 답한다. 핸드셰이크 응답이 워크플로우 활성 관문보다 앞이기 때문이다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 새 실행을 시작할 update(활성 실행이 없는 DM 의 메시지, `/<prefix> start`)는 `202 + { executionId: 'ignored' }` 로 버리고, 진행 중인 DM 의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다(REQ-CHAT-066~068, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다(REQ-CHAT-064). 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다.
 
 ## 명령 처리
 
 | 사용자 입력 | 어댑터 처리 |
 |---|---|
-| DM 첫 메시지나 `/<prefix> start`(활성 실행 없음) | 새 실행 시작, `languageHints.executionStarted` 안내 |
-| `/<prefix> start`(활성 실행 있음) | 기존 실행을 취소(`cancel`)하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내 |
-| DM 메시지(활성 실행 있음) | 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
-| `/<prefix> cancel` | 활성 실행에 EIA `cancel`. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." |
+| DM 첫 메시지나 `/<prefix> start`(활성 실행 없음) | 새 실행 시작, `languageHints.executionStarted` 안내. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| `/<prefix> start`(활성 실행 있음) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| DM 메시지(활성 실행 있음) | 기존 실행을 취소하지 않는다. 입력 대기면 대기 노드로 전달하고 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내 뒤 버린다(CCH-CV-03, R-S-10) |
+| `/<prefix> cancel` | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." 안내. 이 안내는 아직 보내지 않는다 |
 | `/<prefix> help` | 봇 기본 도움말(v1 정적 텍스트, `languageHints.help` 나 기본 문구). 현재 경로에서 닿지 않는다. [미결 사항](#미결-사항) 참조 |
 | 그 밖의 slash text | `text_message` 로 받는다. 멀티턴 AI 진행 중이면 답장이고 아니면 안내 |
 
@@ -314,7 +315,6 @@ Telegram 의 `/start`·`/cancel`·`/help` 와 뜻이 1:1 이고, Slack 은 prefi
 
 ## 미결 사항
 
-- **활성 실행 중 DM 메시지**: 원문 명령 처리 표는 활성 실행이 있을 때 DM 메시지나 `/<prefix> start` 가 오면 기존 실행을 취소하고 새로 시작한다고 적었다. 같은 문서의 멀티턴 AI 절과 명령 처리 표 마지막 행, [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-CV-03 은 DM 텍스트를 대기 노드로 전달한다. 현재 구현(`hooks.service`)은 `text_message` 를 전달하거나 처리 중 안내를 보낸다. `/start` 우선 규칙도 [채팅 채널](CLE-CHAT-CORE.md) 과 정의가 갈린다. 결정 필요.
 - **help 명령 경로**: `/<prefix> help` 는 slash command 매핑상 `text_message`("help")가 되지만 `HooksService` 는 텍스트가 정확히 `/help` 일 때만 도움말을 보낸다. 기본 도움말 문구도 Telegram 명령 형식이다. [Discord 어댑터](CLE-CHAT-DISCORD.md) 도 help 경로가 따로 있다. `ChannelUpdate` 에 help 명령을 정식 kind 로 둘지 결정 필요.
 - **이전 봇 토큰 revoke 시점**: 이 문서와 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 은 24시간 유예 종료 정리에서 `auth.revoke` 를 부른다고 적었고, [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 재발급 시점에 부른다고 적었다. 현재 구현은 정리 작업에서 부른다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 결정 필요.
 
@@ -327,7 +327,8 @@ Telegram 의 `/start`·`/cancel`·`/help` 와 뜻이 1:1 이고, Slack 은 prefi
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts`
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack.types.ts`
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함)과 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소)
+- `codebase/backend/src/modules/hooks/hooks.service.spec.ts`: 세 프로바이더의 활성 실행 중 start 명령
 - `codebase/packages/chat-channel-validation/src/index.ts`
 - `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `chat-channel-trigger-create.e2e-spec.ts`
 - `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
@@ -370,3 +371,7 @@ Slack `views.open` 모달을 네이티브 폼으로 택했다. 어댑터 규약 
 ### R-S-9 DM 첫 메시지로 자동 시작한다
 
 Telegram `/start` 와 뜻이 같고, slash command prefix 가 워크스페이스마다 하나라는 Slack 제약을 피한다. `/workflow start` 를 의무로 두면 매번 명령을 쳐야 해 DM 봇 UX 와 맞지 않는다(게다가 prefix 가 트리거마다 달라야 의미가 있는데 Slack 은 그럴 수 없다). `app_home` 진입 때 자동 시작하는 안은 Home 탭이 별도 표면이라 찾기 어렵다. slash command 는 cancel·help 같은 명시 명령의 보조 도구다.
+
+### R-S-10 취소 후 새로 시작은 start 명령에만 적용한다
+
+2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). 원문 명령 처리 표는 활성 실행이 있을 때 DM 메시지가 와도 기존 실행을 취소하고 새로 시작한다고 적었다. DM 텍스트는 멀티턴 AI 답장과 다단계 질문 답변이 들어오는 길이다. 이것을 재시작으로 보면 대화 중 답장마다 실행이 새로 시작된다. 그래서 재시작은 명시 명령인 `/<prefix> start` 에만 두고 DM 텍스트는 CCH-CV-03 대로 처리한다. 명령 우선 규칙의 근거는 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다. 이 결정으로 미결 «활성 실행 중 DM 메시지» 를 닫았다.

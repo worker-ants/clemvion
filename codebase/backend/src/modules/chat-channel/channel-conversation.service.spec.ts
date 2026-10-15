@@ -5,7 +5,12 @@
  * Spec §4.3 (15-chat-channel.md) — Redis key `chat-channel:{triggerId}:{conversationKey}`,
  * TTL 7일, graceful degradation (Redis 미가용 시 null 반환 / noop).
  */
-import { ChannelConversationService } from './channel-conversation.service';
+import { Logger } from '@nestjs/common';
+import {
+  ChannelConversationService,
+  COMPARE_AND_SET_SCRIPT,
+  RELEASE_LOCK_SCRIPT,
+} from './channel-conversation.service';
 import { ChannelConversationState } from './types';
 
 /** 인메모리 Redis mock — ioredis 대체 */
@@ -45,17 +50,35 @@ class MockRedis {
     return this.store.delete(key) ? 1 : 0;
   }
 
-  /** releaseLock 의 안전 해제 Lua 모사: token 일치 시에만 del. */
+  /**
+   * Lua 모사. 서비스가 내보낸 스크립트 문자열로 분기한다. 인자 수로 가르면 스크립트가 바뀌어도
+   * 모사는 그대로 통과하므로, 모르는 스크립트는 던진다.
+   *  - RELEASE_LOCK_SCRIPT: (key, token) → token 일치 시에만 del.
+   *  - COMPARE_AND_SET_SCRIPT: (key, 읽은 값, 새 값, ttlSec) → 값이 그대로일 때만 set.
+   *
+   * 이 모사는 스크립트 *문자열이 어느 쪽인지* 만 고정하고 비교는 JS 로 다시 구현한다. 실제 Lua 의
+   * 일치 · 불일치 경로는 e2e(`chat-channel-telegram-start.e2e-spec.ts`)가 실제 Redis 로 스크립트를
+   * 돌려 확인한다(불일치는 스크립트 직접 호출과 읽은 뒤 다른 쓰기가 끼는 경합 재현).
+   */
   async eval(
-    _script: string,
+    script: string,
     _numKeys: number,
     key: string,
-    token: string,
+    ...args: Array<string | number>
   ): Promise<number> {
-    if ((await this.get(key)) === token) {
-      return this.store.delete(key) ? 1 : 0;
+    if (script === COMPARE_AND_SET_SCRIPT) {
+      const [expected, next, ttlSec] = args;
+      if ((await this.get(key)) !== expected) return 0;
+      await this.set(key, String(next), 'EX', Number(ttlSec));
+      return 1;
     }
-    return 0;
+    if (script === RELEASE_LOCK_SCRIPT) {
+      if ((await this.get(key)) === args[0]) {
+        return this.store.delete(key) ? 1 : 0;
+      }
+      return 0;
+    }
+    throw new Error(`MockRedis.eval: 모르는 스크립트 ${script}`);
   }
 
   async quit(): Promise<void> {}
@@ -152,30 +175,149 @@ describe('ChannelConversationService', () => {
     });
   });
 
-  describe('updateExecutionId()', () => {
-    it('존재하는 conversation 의 executionId 만 갱신', async () => {
+  // 근거: NERV Task `CLE-T-V4WVF2`. 옛 실행의 종결 이벤트가 /start 로 이은 새 실행의 매핑을 지우지 않게 한다.
+  describe('clearExecutionIdIfMatches()', () => {
+    it('대화가 그 실행을 가리키면 executionId 만 비우고 true 를 돌려준다', async () => {
       await service.upsert(triggerId, conversationKey, state);
-      await service.updateExecutionId(
+
+      const cleared = await service.clearExecutionIdIfMatches(
         triggerId,
         conversationKey,
-        'exec-updated',
+        'exec-abc',
       );
+
+      expect(cleared).toBe(true);
       const result = await service.lookup(triggerId, conversationKey);
-      expect(result?.executionId).toBe('exec-updated');
-      expect(result?.channelUserKey).toBe('user-9999'); // 나머지 필드 유지
+      expect(result?.executionId).toBeNull();
+      expect(result?.channelUserKey).toBe('user-9999');
     });
 
-    it('executionId 를 null 로 초기화 (cancel 후 대화 종료)', async () => {
+    it('대화가 다른 실행을 가리키면 그대로 두고 false 를 돌려준다', async () => {
+      await service.upsert(triggerId, conversationKey, {
+        ...state,
+        executionId: 'exec-new',
+      });
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(false);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-new');
+    });
+
+    it('읽은 뒤 다른 요청이 새 실행으로 바꿨으면 덮어쓰지 않는다', async () => {
       await service.upsert(triggerId, conversationKey, state);
-      await service.updateExecutionId(triggerId, conversationKey, null);
+      const realGet = redis.get.bind(redis);
+      let raced = false;
+      jest.spyOn(redis, 'get').mockImplementation(async (key: string) => {
+        const value = await realGet(key);
+        if (!raced) {
+          raced = true;
+          await service.upsert(triggerId, conversationKey, {
+            ...state,
+            executionId: 'exec-new',
+          });
+        }
+        return value;
+      });
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(false);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-new');
+    });
+
+    it('읽은 뒤 같은 실행의 다른 필드만 바뀌었으면 다시 읽어 비운다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const realGet = redis.get.bind(redis);
+      let raced = false;
+      jest.spyOn(redis, 'get').mockImplementation(async (key: string) => {
+        const value = await realGet(key);
+        if (!raced) {
+          raced = true;
+          await service.upsert(triggerId, conversationKey, {
+            ...state,
+            lastUpdateAt: '2026-05-22T02:00:00.000Z',
+          });
+        }
+        return value;
+      });
+
+      const cleared = await service.clearExecutionIdIfMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+      );
+
+      expect(cleared).toBe(true);
       const result = await service.lookup(triggerId, conversationKey);
       expect(result?.executionId).toBeNull();
     });
 
-    it('conversation 없으면 noop', async () => {
+    // 같은 대화에 쓰기가 계속 이어지면 재시도 상한(3회)에서 포기한다. 상한이 없으면 루프가 끝나지 않고,
+    // 상한이 빗나가면(4회 · 0회) 재시도 횟수 약속이 깨진다.
+    it('compare-and-set 이 3번 모두 밀리면 포기하고 false 를 돌려주며 warn 을 남긴다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const evalSpy = jest.spyOn(redis, 'eval').mockResolvedValue(0);
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        const cleared = await service.clearExecutionIdIfMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+        );
+
+        expect(cleared).toBe(false);
+        expect(evalSpy).toHaveBeenCalledTimes(3);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('동시 쓰기가 이어져 비우지 못했다'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+        evalSpy.mockRestore();
+      }
+      // 비우지 못했으니 매핑은 그대로다.
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-abc');
+    });
+
+    it('conversation 이 없으면 false', async () => {
       await expect(
-        service.updateExecutionId(triggerId, 'non-existent', 'exec-xyz'),
-      ).resolves.toBeUndefined();
+        service.clearExecutionIdIfMatches(triggerId, 'none', 'exec-abc'),
+      ).resolves.toBe(false);
+    });
+
+    it('Redis 미가용 시 false (graceful degradation)', async () => {
+      const degradedService = new ChannelConversationService();
+      await expect(
+        degradedService.clearExecutionIdIfMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+        ),
+      ).resolves.toBe(false);
+    });
+
+    it('Redis 오류는 삼키고 false', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      jest.spyOn(redis, 'eval').mockRejectedValueOnce(new Error('down'));
+
+      await expect(
+        service.clearExecutionIdIfMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+        ),
+      ).resolves.toBe(false);
     });
   });
 

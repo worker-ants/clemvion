@@ -51,7 +51,8 @@ describe('Webhook trigger (e2e)', () => {
       .post('/api/workflows')
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId)
-      .send({ name: uniqueName('hook-wf') });
+      // 꺼진 워크플로우는 웹훅으로 실행되지 않는다(NERV Task `CLE-T-XRWFMJ`). 생성 기본값이 꺼짐이라 켜서 만든다.
+      .send({ name: uniqueName('hook-wf'), isActive: true });
     workflowId = wf.body.data.id;
   }, 60_000);
 
@@ -493,7 +494,7 @@ describe('Webhook trigger (e2e)', () => {
       .post('/api/workflows')
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId)
-      .send({ name: uniqueName('hook-b3') });
+      .send({ name: uniqueName('hook-b3'), isActive: true });
     const wfId = (wf.body.data as { id: string }).id;
     // 자동 생성된 manual_trigger 노드에 required string + optional number 파라미터 주입
     // (number 는 coerce 실패 경로 검증용 — required 아님이라 누락은 통과).
