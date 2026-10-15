@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
-requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069"]
+requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "15b1ceb716975fcbbdf9fabab2c6ece72ce95a16a33dcf2a88e9286cf96ba5d8"
+content_hash: "a6c95ff213ad680b67854dfa8f5f402fbfb3eb2c16daa82f086c79723d578a98"
 read_as: "approved_fallback"
-task: "CLE-T-V4WVF2"
+task: "CLE-T-PXTGVQ"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "ea5845899ef4d01648c39ce45b58ab49c062452e374cd49007908db1177c29fb"
-etag: "sha256-7503289a37eeccb84f1456cf1a4d829a4ddcc73ce16af7a7d67ecab62e3d6780"
+mirror_sha256: "ee1044f3d20c02ad8c6b4d638345f76cc5d5d938028d0bb6951bbc503bc8a2b3"
+etag: "sha256-bbeb34e95d2bc4a2dc8079eb82a5c8f3a5d2c463e86e1ddc210a174a97569058"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -47,9 +47,10 @@ etag: "sha256-7503289a37eeccb84f1456cf1a4d829a4ddcc73ce16af7a7d67ecab62e3d6780"
 
 - REQ-CHAT-001 WHEN 웹훅 트리거에 `config.chatChannel` 이 있으면 THE SYSTEM SHALL `provider` 값으로 채널 어댑터를 고른다. (원본: CCH-AD-01)
 - REQ-CHAT-002 WHEN 채팅 채널 트리거를 새로 만들거나 `chatChannel` 이 실린 일반 PATCH 를 받으면 THE SYSTEM SHALL 채널 어댑터의 `setupChannel()` 을 자동으로 부른다. (원본: CCH-AD-02)
-- REQ-CHAT-003 WHEN 채팅 채널 트리거를 활성화하면 THE SYSTEM SHALL 채널 어댑터의 `setupChannel()` 을 자동으로 부른다. (원본: CCH-AD-02) (부분 구현)
+- REQ-CHAT-003 WHEN 채팅 채널 트리거를 활성화하면(`chatChannel` 이 없는 PATCH 본문 `{ isActive: true }`) THE SYSTEM SHALL 채널 어댑터의 `setupChannel()` 을 부르지 않고 외부 프로바이더의 웹훅 등록과 저장된 봇 토큰 · 인바운드 서명 자료를 그대로 쓴다. (원본: CCH-AD-02) (R-CC-29)
 - REQ-CHAT-004 WHEN 채팅 채널 트리거를 삭제하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 자동으로 부른다. (원본: CCH-AD-03)
-- REQ-CHAT-005 WHEN 채팅 채널 트리거를 비활성화하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 자동으로 부른다. (원본: CCH-AD-03) (부분 구현)
+- REQ-CHAT-005 WHEN 채팅 채널 트리거를 비활성화하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 부르지 않고 외부 프로바이더의 웹훅 등록과 트리거 단위 listener 레지스트리 항목을 그대로 둔다. (원본: CCH-AD-03) (R-CC-29)
+- REQ-CHAT-070 WHEN 채팅 채널 트리거를 활성화하면 THE SYSTEM SHALL 그 트리거를 트리거 단위 listener 레지스트리(R8, 코드 `ChannelListenerRegistry`)에 항목으로 등록해 활성화 뒤 시작한 실행의 메시지를 채널로 보낸다. (R-CC-29) (미구현)
 - REQ-CHAT-006 WHEN `config.chatChannel` 이 있는 트리거로 `POST /api/hooks/:endpointPath` 요청이 오면 THE SYSTEM SHALL raw body 를 `parseUpdate(raw)` 로 워크플로우 입력으로 바꾸고 `parseUpdate`, 트리거 조회, `202 Accepted` 반환 순서로 처리해 웹훅 200ms 응답 시한을 지킨다. (원본: CCH-AD-04)
 - REQ-CHAT-007 WHILE 서버가 동작하는 동안 THE SYSTEM SHALL `ChatChannelDispatcher` 가 단일 sink `WebsocketService.executionEvents$` 를 `onModuleInit` 에서 직접 구독해 `execution.waiting_for_input`·`execution.ai_message`·`execution.completed`·`execution.failed`·`execution.cancelled` 를 `renderNode()` 와 `sendMessage()` 로 넘기게 한다. (원본: CCH-AD-05)
 - REQ-CHAT-008 WHEN 메신저에서 인터랙션 응답(답장, 버튼 탭, 다단계 Form 답변)이 오면 THE SYSTEM SHALL HTTP 표면을 거치지 않고 `InteractionService.interact(ctx, dto)` 를 서버 안에서 직접 부른다. (원본: CCH-AD-06)
@@ -139,7 +140,7 @@ etag: "sha256-7503289a37eeccb84f1456cf1a4d829a4ddcc73ce16af7a7d67ecab62e3d6780"
 ### 요구사항 보충 설명
 
 - 관련 REQ-CHAT-001: 지원 목록은 [채널 프로바이더 카탈로그](#채널-프로바이더-카탈로그) 가 정한다(v1: `telegram`·`slack`·`discord`).
-- 관련 REQ-CHAT-002~005: 세 경로의 기준은 [봇 토큰 변경 단일 경로](#봇-토큰-변경-단일-경로) 다. `setupChannel()` 은 멱등이라 다시 불러도 된다(R8). Telegram 은 이때 `setWebhook` 을 부른다. 활성화·비활성화 때의 호출은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- 관련 REQ-CHAT-002~005·070: `setupChannel()` 을 부르는 경로와 그때 바뀌는 자격 증명의 기준은 [봇 토큰 변경 단일 경로](#봇-토큰-변경-단일-경로) 다. `setupChannel()` 은 멱등이라 다시 불러도 된다(R8). Telegram 은 이때 `setWebhook` 을 부른다. 트리거를 켜고 끄는 PATCH 는 외부 등록을 건드리지 않는다. 켤 때는 트리거 단위 listener 레지스트리에만 등록한다(R-CC-29).
 - 관련 REQ-CHAT-007·008: [단일 sink 구독](#단일-sink-구독) 과 [인증과 보안](#인증과-보안) 참조.
 - 관련 REQ-CHAT-009·010: 이 listener 는 채팅 채널 안에서만 쓰며 EIA 알림 웹훅 이벤트 허용 목록(다섯 가지)은 그대로다. 커밋 뒤 호출(EIA-RL-04)과 트리거 단위 레지스트리 가드(R8)가 그대로 적용된다. 입력 타입은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 `ChatChannelInternalEvent` 다.
 - 관련 REQ-CHAT-014: 기본 문구는 "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." 이고 한국어 기본값만 있다. 현재 구현은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태를 돌려주고, 입력 대기일 때만 전달한다. `running`·`pending` 이면 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 세 갈래 모두 구현됐다.
@@ -367,8 +368,8 @@ sequenceDiagram
 
 | 시점 | 방식 | 토큰 변화 |
 |---|---|---|
-| 트리거 생성(`POST /api/triggers`) | 요청 본문의 `chatChannel.botToken` 평문을 `SecretResolver.rotate()`(UPSERT)로 저장하고 참조로 바꾼다. `setupChannel()` 의 부수 효과로 `botTokenRef` 가 생긴다. `setupChannel()` 은 생성·활성화·`chatChannel` PATCH 세 경로에서 다시 불리는 멱등 함수라서, 중복이면 에러를 던지는 `store()` 로는 두 번째 호출부터 깨진다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) | 처음 한 번 |
-| 트리거 활성화(`PATCH /api/triggers/:id` 본문 `{ isActive: true }`) | 기존 `botTokenRef` 로 `setupChannel()` 을 다시 부른다. 이 재호출이 실제로 일어나는지는 정의가 갈린다. [미결 사항](#미결-사항) 을 본다 | 변경 없음 |
+| 트리거 생성(`POST /api/triggers`) | 요청 본문의 `chatChannel.botToken` 평문을 `SecretResolver.rotate()`(UPSERT)로 저장하고 참조로 바꾼다. `setupChannel()` 의 부수 효과로 `botTokenRef` 가 생긴다. `setupChannel()` 은 생성·`chatChannel` PATCH·봇 토큰 재발급 세 경로에서 다시 불리는 멱등 함수라서, 중복이면 에러를 던지는 `store()` 로는 두 번째 호출부터 깨진다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) | 처음 한 번 |
+| 트리거 활성화(`PATCH /api/triggers/:id` 본문 `{ isActive: true }`) | `setupChannel()` 을 부르지 않는다. 외부 프로바이더 등록과 `botTokenRef` 를 그대로 쓰고 트리거 단위 listener 레지스트리에만 등록한다(REQ-CHAT-003·070, R-CC-29) | 변경 없음 |
 | 토큰 변경 | 늘 [봇 토큰 재발급 API](#봇-토큰-재발급-api) 만 쓴다. PATCH 본문의 `chatChannel.botTokenRef`(참조)와 `chatChannel.botToken`(평문)은 모두 `400 VALIDATION_ERROR` 다. `details.field` 의 모양은 아래 표를 본다 | 24시간 유예 적용 |
 | `chatChannel` 이 실린 PATCH(`uiMapping`, `rateLimitPerMinute` 등 편집) | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 시크릿 저장소의 봇 토큰은 바꾸지 않아 요청 전후 값이 같다. `botTokenRef` 는 설정에서 보존되는 것이 아니라 트리거 id 에서 다시 만든다(`buildSecretRef`). 이 행은 봇 토큰만 다룬다. 인바운드 서명 자료는 [인바운드 서명 자료 변경](#인바운드-서명-자료-변경) 을 본다 | 변경 없음 |
 
@@ -410,9 +411,9 @@ Slack signing secret 과 Discord ed25519 public key 는 프로바이더가 발�
 | 시점 | 방식 | 비고 |
 |---|---|---|
 | 트리거 생성(`POST /api/triggers`) | 요청 본문의 `chatChannel.inboundSigningPlaintext` 평문을 `SecretResolver.rotate(inboundSigningRef, ws, plaintext)` 로 저장하고 본문에서 지운다. 설정에는 `inboundSigningRef` 만 둔다(SS-SE-01) | 처음 한 번 |
-| 트리거 활성화(`PATCH` 본문 `{ isActive: true }`) | Slack·Discord 는 기존 `inboundSigningRef` 를 그대로 쓴다. Telegram 은 아래 행을 본다. 재호출이 실제로 일어나는지는 [미결 사항](#미결-사항) 을 본다 | 변경 없음 |
+| 트리거 활성화(`PATCH` 본문 `{ isActive: true }`) | `setupChannel()` 을 부르지 않으므로 세 프로바이더 모두 기존 `inboundSigningRef` 를 그대로 쓴다. Telegram 의 `secret_token` 도 새로 만들지 않는다(REQ-CHAT-003) | 변경 없음 |
 | 변경(Slack·Discord) | v1 에서 정하지 않았다. PATCH 본문의 `chatChannel.inboundSigningPlaintext`·`inboundSigning` 은 `400 VALIDATION_ERROR` 로 막는다. 생성(POST)에서만 받는다. `chatChannel` 이 실린 PATCH 는 저장된 서명 값을 바꾸지 않는다. 바꾸려면 트리거를 지우고 다시 만든다. `details.field` 모양은 봇 토큰과 같다 | v2 에서 따로 결정 |
-| Telegram(서버 발급) | `setupChannel()` 이 불릴 때마다 `randomBytes` 로 새 값을 만들어 `setWebhook` 의 `secret_token` 으로 등록하고, 호출자가 그 값을 `inboundSigningRef` 에 다시 저장한다. 따라서 `chatChannel` 이 실린 PATCH 는 Telegram 의 서명 값을 바꾼다. 이것은 우회가 아니라 프로바이더 등록과 한 동작이다. 저장을 건너뛰면 인바운드 서명 검증이 모두 깨진다(헤더 불일치로 401). 기준은 [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 다 | v1·v2 결정 대상이 아니다 |
+| Telegram(서버 발급) | `setupChannel()` 이 불릴 때마다 `randomBytes` 로 새 값을 만들어 `setWebhook` 의 `secret_token` 으로 등록하고, 호출자가 그 값을 `inboundSigningRef` 에 다시 저장한다. 따라서 `chatChannel` 이 실린 PATCH 는 Telegram 의 서명 값을 바꾼다. 이것은 우회가 아니라 프로바이더 등록과 한 동작이다. 저장을 건너뛰면 인바운드 서명 검증이 모두 깨진다(헤더 불일치로 401). 기준은 [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 다. 이 재발급에는 전용 감사 액션이 없다([감사 로그 「감사 액션 카탈로그」](../CLE-OBS/CLE-OBS-AUDIT.md#감사-액션-카탈로그)) | v1·v2 결정 대상이 아니다 |
 
 현재 구현은 위 표와 같다. PATCH 는 `inboundSigningPlaintext`·`inboundSigning` 을 400 으로 거부한다.
 
@@ -538,7 +539,6 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 
 ## 미결 사항
 
-- **트리거 활성화·비활성화 때 setupChannel·teardownChannel 호출**: REQ-CHAT-003·005(CCH-AD-02/03), [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md), [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 는 활성화 때 setup, 비활성화 때 teardown 을 부른다고 적었다. 원문 §5.4.1 표는 순수 `isActive` 토글이 setup 을 타지 않을 수 있다고 적었고, 인바운드 응답 계약은 비활성 트리거에도 update 가 와서 `202` 로 버린다고 정한다(비활성화 때 웹훅을 해제했다면 오지 않는다). 현재 구현(`TriggersService.update`)은 본문에 `chatChannel` 이 있을 때만 setup 을 부르고 teardown 은 삭제와 `chatChannel` 제거 때만 부른다. [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 도 최초 setup 을 생성 때로만 적는다. 현행 동작을 기준으로 할지 요구사항대로 구현할지 결정 필요.
 - **`revokeBotToken` 호출 시점**: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 재발급 시점에 `rotateBotToken` 이 이전 토큰을 revoke 한다고 적었고, [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md)·[Slack 어댑터](CLE-CHAT-SLACK.md) 는 24시간 유예가 끝난 정리 작업에서 v2 토큰을 revoke 한다고 적었다. 즉시 revoke 하면 유예 창이 의미를 잃는다. 현재 구현은 정리 작업(`cleanupRotatedChatChannelTokens`)에서 부른다. 결정 필요.
 - **`visualNode=text` 에서 시각 메시지 발송 여부**: REQ-CHAT-024 와 [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 매트릭스는 `text` 에서도 Chart·Table·Carousel 을 텍스트로 보낸다고 정한다(R-CC-11 (e) 는 "텍스트만" 을 뜻한다). 현재 구현(Telegram 렌더러)은 `visualNode !== 'text'` 일 때만 시각 메시지를 만들어, 버튼 대기에서 `text` 를 고르면 시각 내용이 빠진다. 결정 필요.
 - **아웃바운드 `seq` 정렬과 `X-Clemvion-Delivery` 중복 제거**: 원문 §6 과 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 어댑터가 이 둘을 내장한다고 적었다. 어댑터는 서버 안 `executionEvents$` 를 받으므로 웹훅 헤더 `X-Clemvion-Delivery` 가 없고, 데이터 흐름에도 그런 단계가 없다. 현재 구현(chat-channel 모듈)에서 해당 헤더 참조는 0건이고 `seq` 는 전달만 된다. 보장을 지울지 Planned 로 둘지 결정 필요.
@@ -603,6 +603,7 @@ fan-out 원천은 `executionEvents$` 이고 listener 는 셋이다. (1) `Notific
 - `teardownChannel()` 때와 트리거 행을 없애는 경로(트리거·워크플로우·워크스페이스 삭제의 행 삭제 전 외부 해제 단계, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md))에서 항목을 반드시 해제한다. 스케줄 트리거는 채팅 채널을 못 가져 등록되지 않는다.
 - `handle()` 은 DB 조회 전에 `registry.has(triggerId)` 로 거르고 미등록 트리거는 조용히 건너뛴다.
 - 재시작하면 `onApplicationBootstrap` 에서 `isActive=true AND config.chatChannel IS NOT NULL` 트리거를 한 번에 등록한다.
+- 트리거를 켜는 PATCH 는 `setupChannel()` 을 부르지 않으므로 그 자리에서 따로 등록한다(REQ-CHAT-070, 미구현). 끄는 PATCH 는 항목을 해제하지 않는다(REQ-CHAT-005). 근거는 R-CC-29 다.
 
 효과는 (a) 삭제 뒤 들어오는 이벤트 차단, (b) 재시작 직후 미등록 race 회피, (c) DB 왕복 절감이다. 라우팅은 여전히 `handle()` 안에서 한다. `executionEvents$` 를 EventEmitter 로 바꾸는 식의 분리는 범위 밖이다.
 
@@ -789,6 +790,18 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 워크플로우를 트리거의 워크스페이스 안에서만 찾는 규칙과 그 이유는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 그 워크스페이스에 없는 워크플로우는 채팅 채널에서 R-CC-25 대로 처리한다.
 
 워크플로우는 비활성 상태로 만들어진다. 그래서 이 결정 전에 비활성인 채 채널로 돌던 워크플로우는 이 결정 뒤에 새 실행을 시작하지 않는다.
+
+### R-CC-29 트리거를 켜고 끌 때 외부 채널 등록은 건드리지 않는다
+
+2026-10-10 결정이다(NERV Task `CLE-T-W11BQ9`, finding 01a0e596-b8d9-7460-b547-8a9b731cd416 의 선택지 1). 이 결정 전의 REQ-CHAT-003·005 는 트리거를 켤 때 `setupChannel()` 을 부르고 끌 때 `teardownChannel()` 을 부른다고 적었다. 구현은 트리거 생성, `chatChannel` 이 실린 PATCH, 봇 토큰 재발급에서만 `setupChannel()` 을 부른다. `teardownChannel()` 은 트리거 행을 없애는 경로에서만 부른다. 인바운드 응답 계약도 비활성 트리거에 update 가 계속 온다고 보고 서명 검증 뒤 `202` 로 버린다(REQ-CHAT-057). 끌 때 웹훅을 해제했다면 그 update 는 오지 않는다. 그래서 현행 동작을 기준으로 삼았다. 켜고 끄는 PATCH 는 프로바이더 등록을 건드리지 않는다.
+
+기각한 대안: 켤 때마다 다시 등록하고 끌 때마다 해제하는 안. 켜고 끌 때마다 외부 API 를 불러야 해서 프로바이더 재등록이 실패할 수 있는 지점이 늘어난다.
+
+켤 때의 레지스트리 등록은 2026-10-15 에 사용자 요청으로 더했다. 이 결정을 문서에 옮기면서 트리거 단위 listener 레지스트리(R8)의 빈틈을 확인했다. 레지스트리에 트리거가 들어가는 곳은 `setupChannel()` 이 성공한 자리와 재시작 때의 일괄 등록 둘뿐이다. 일괄 등록은 활성 트리거만 고른다. 그래서 트리거가 꺼진 채로 서버가 재시작된 뒤 그 트리거를 켜면 레지스트리에 없다. 인바운드는 활성 트리거로 받아 실행을 시작한다. 그런데 dispatcher 가 그 실행의 이벤트를 건너뛰어 채널로 아무것도 나가지 않는다. 다음 재시작 전까지 이 상태가 이어진다. 코드를 읽어 확인했고 실행해서 재현하지는 않았다. 켤 때 외부 등록은 하지 않고 레지스트리 항목만 등록하면 이 문제가 없어진다(REQ-CHAT-070, 구현은 NERV Task `CLE-T-PXTGVQ`). 레지스트리 등록은 서버 안의 일이라 위에서 기각한 외부 호출 실패 지점을 늘리지 않는다.
+
+끌 때는 레지스트리 항목을 해제하지 않는다. 비활성 트리거의 update 는 인바운드 관문에서 버리므로(REQ-CHAT-057) 새 실행이 생기지 않는다. 지금도 끄기 전에 시작한 실행의 메시지는 채널로 나간다. 해제하면 그 메시지가 아무 표시 없이 사라진다. 다만 재시작 때의 일괄 등록은 활성 트리거만 고르므로 꺼진 채 재시작을 넘긴 실행의 메시지는 나가지 않는다. 이 결정은 재시작을 넘는 진행 중 실행까지 보장하지 않는다.
+
+끈 동안에도 외부 등록이 남아 있어 프로바이더는 update 를 계속 보낸다. 비활성 트리거가 Slack `url_verification` 과 Discord PING 에도 `202` ignored 로 답하는 문제는 [트리거 데이터와 흐름 「미결 사항」](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항) 에 있다.
 
 ### 카탈로그를 v1 부터 둔 이유
 

@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "24fcc071e2ecb6812e5175f76d4c2a470737c03ca3aac128caf5ab03993ea026"
+content_hash: "47446e764cf5a6d6a2cb56653546e243802372a8fcc90323d223e2ebf4305d8c"
 read_as: "approved_fallback"
-task: "CLE-T-H0GF4K"
+task: "CLE-T-W11BQ9"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "5014ccd7ba616e7fe1bff4f95616ec4cec0190e4ae0f44341179416d2803c4cd"
-etag: "sha256-9355b8363b05a587b42fc3454850f4b2b9b865dde97492f407eb9979804ab96a"
+mirror_sha256: "caf847c904358e2752779e063c288c9e07f39ddb4b47055339005b89cf732ae5"
+etag: "sha256-e5e018a93cf67b254b272d1549f801457e0f40cda012134394b728a4809d27be"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -276,7 +276,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
   - 이 변경 전에 저장된 값은 다음 갱신 때까지 DB 에 남는다. 응답에서는 봇 토큰이 실린 헤더 오류와 `secret:` 뒤의 시크릿 참조를 값 패턴이 가린다. DB 의 옛 값은 정리하지 않는다. 토큰이 실렸을 수 있는 트리거는 토큰을 재발급한다.
   - 프로바이더가 돌려준 4xx 본문은 알려진 비밀 치환을 거치지 않는다. 본문에 토큰이 실리면 나가는 층의 값 패턴만 남는다.
   - 두 필드는 `TRIGGER_RESPONSE_REDACT_COLUMNS` 에 이름으로 올라 있다. `trigger` 에 마지막 오류 같은 진단 텍스트 컬럼을 더하면 이 목록과 위 표를 함께 고친다.
-  - 제어 문자가 든 봇 토큰을 입력에서 거부하지는 않는다. 그런 토큰은 생성 · 활성화에서 `degraded` 로, 재발급에서 `502 CHAT_CHANNEL_SETUP_FAILED` 로 드러난다. 채팅 채널 R-CC-23 의 기준으로는 사용자가 고칠 입력 오류라 4xx 여야 한다. 입력 거부는 NERV Task `CLE-T-FX354C` 가 다룬다.
+  - 제어 문자가 든 봇 토큰을 입력에서 거부하지는 않는다. 그런 토큰은 생성 · `chatChannel` 이 실린 PATCH 에서 `degraded` 로, 재발급에서 `502 CHAT_CHANNEL_SETUP_FAILED` 로 드러난다. 채팅 채널 R-CC-23 의 기준으로는 사용자가 고칠 입력 오류라 4xx 여야 한다. 입력 거부는 NERV Task `CLE-T-FX354C` 가 다룬다.
 - **남는 표면 `config.notification.url`**: 같은 응답의 알림 URL 은 원문으로 나간다. URL 에 `user:pass@` 가 있으면 마지막 오류에서는 가려도 이 필드에는 남는다. §3.5 가 «같은 응답 안의 원문이 방어를 우회한다» 고 보고 닫은 형태와 같다. 이번에 닫지 않은 이유는 이 필드가 편집 폼이 다시 보내는 왕복 값이라 규칙 9 와 함께 정해야 해서다. 그런 URL 은 fetch 가 요청을 만들지 않아 한 번도 발송되지 않으므로 등록에서 거부하는 안을 먼저 본다(NERV Task `CLE-T-RCQGCC`). 그때까지 알림 URL 의 userinfo 차단은 완전하지 않다. 사용자명만 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)은 마지막 오류에서도 가려지지 않는다.
 
 ## 4. 다시 쓰이는 값과 재제출 거부

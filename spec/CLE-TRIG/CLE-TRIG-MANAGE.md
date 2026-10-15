@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "13907cedaf0ef4036a4e339ee84b2896c283b36805347c867208f25f0f4a0ef2"
+content_hash: "82a732730b9285d182cd4602e2afeb1f9f6f526c27066201eb097bb68776d366"
 read_as: "approved_fallback"
-task: "CLE-T-M6PERB"
+task: "CLE-T-W11BQ9"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "fcf87d471de7652824b8c1f34fc4188163f3cb19e492be11c4ecec9953110f43"
-etag: "sha256-93b09c0bbc7fc10784f3955535001041e652a79b2f828544842d0b99b58961f3"
+mirror_sha256: "f34d9fa768175fff81d1730c5b25ac81ca3e39a5350a2a6d24d2e1db3c307da5"
+etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,7 +175,7 @@ etag: "sha256-93b09c0bbc7fc10784f3955535001041e652a79b2f828544842d0b99b58961f3"
 | 채팅 채널 | `provider` | 읽기 전용 | v1 은 `telegram` / `slack` / `discord`([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) provider 목록). 바꾸려면 트리거를 지우고 다시 만든다. PATCH 로 바꾸면 400 |
 | 채팅 채널 | `inboundSigning` | 생성 때만 입력 | Slack·Discord 만 쓴다. 사용자가 외부 포털(Slack 앱 Basic Information, Discord Developer Portal General Information)에서 받은 값을 입력한다. 응답에서는 빼고 내부 `inboundSigningRef` 만 보관한다. Telegram 은 서버가 발급하므로 이 필드를 쓰지 않는다. 회전은 v1 에 정의되지 않았다. PATCH 로 바꾸면 400 `VALIDATION_ERROR` |
 | 채팅 채널 | `botToken` | 입력 전용과 재발급 액션 | 응답에는 `hasBotToken: boolean` 만 싣는다. 마스킹 값도 끝 네 글자도 싣지 않는다. 인증 설정의 필드 마스킹(`***<last4>`)은 평문 보기로 읽을 수 있는 자격 증명용이라 입력 전용 필드에는 쓰지 않는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)). 입력창 placeholder(`123456789:ABCdef...`)는 형식 예시다. 서버는 형식을 검사하지 않는다. 잘못된 토큰은 `setupChannel` 이 실패할 때 400 `BOT_TOKEN_INVALID` 로 드러난다. Telegram BotFather 형식 정규식은 입력 안내이고 Telegram 전용이다. 이 정규식은 사용자 가이드와 화면 문구에만 있고 코드에는 없다. 바꿀 때는 `POST /api/triggers/:id/chat-channel/rotate-bot-token`(24시간 유예)만 쓴다. PATCH 로 `botTokenRef` 를 바꾸면 400 `VALIDATION_ERROR` |
-| 채팅 채널 | `botIdentity.username` | 읽기 전용 | `setupChannel()` 이 `getMe` 로 받아 캐시한 값이다. 트리거를 다시 활성화할 때 갱신되는지는 정의가 갈린다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#미결-사항) 의 미결 사항) |
+| 채팅 채널 | `botIdentity.username` | 읽기 전용 | `setupChannel()` 이 `getMe` 로 받아 캐시한 값이라 `setupChannel()` 이 불릴 때 갱신된다. 트리거를 다시 켜는 PATCH 는 `setupChannel()` 을 부르지 않으므로 갱신하지 않는다([채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로)) |
 | 채팅 채널 | `uiMapping.formMode` | 편집 | `multi_step` / `native_modal` / `auto`, 기본 `auto`. `auto` 는 채널 프로바이더가 지원하고 모든 필드를 모달로 받을 수 있으며 필드가 5개 이하면 네이티브 모달, 아니면 다단계 질문이다. `native_modal` 은 네이티브 모달을 우선하고 조건이 맞지 않으면 다단계 질문으로 돌아간다. `multi_step` 은 다단계 질문을 강제한다. 상세는 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 채팅 채널 | `uiMapping.visualNode` | 편집 | `text` / `photo` / `auto`, 기본 `auto`. Carousel·Chart·Table 의 시각 렌더 방식이다 |
 | 채팅 채널 | `uiMapping.buttonLayout` | 편집 | `auto` / `vertical` / `horizontal`, 기본 `auto` |
@@ -371,7 +371,6 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 
 - **원시 `config` 의 계약**: PATCH 본문 계약 표의 `config` 행은 «부분 갱신» 이라고 적지만 구현은 요청이 `config` 를 보내면 저장된 `config` 를 통째로 교체한다. 원시 `config` 의 `chatChannel` · `notification` · `interaction` 키는 타입 필드 검사를 거치지 않아 채널을 나중에 붙이거나 `provider` 를 바꾸거나 등록 시점 EIA 알림 웹훅 URL 검사를 건너뛸 수 있다(위 PATCH 본문 계약의 두 거부를 우회한다). `interaction.triggerToken` 도 클라이언트가 값을 정할 수 있다. 원시 `config` 거부는 시크릿 참조 · 평문 필드만 막는다. 그 거부 대상도 사람이 더하는 목록이라 새 참조 슬롯을 자동으로 잡지 못한다(`secret://` 값을 직접 거르는 안이 후보다). 나머지는 NERV Task `CLE-T-EA7B5M` 이 정한다.
 - **트리거 이름의 길이 상한과 유일성**: 트리거 목록 원문은 이름을 1~120자로 제한하고 워크스페이스 안에서 유일해야 하며 충돌하면 409 라고 적는다. 데이터 모델에는 유일성 제약이 없다. 현재 구현은 요청 본문 검증 `MaxLength(255)`·DB `varchar(255)` 이고 이름 충돌 409 경로가 없다(409 는 엔드포인트 경로 충돌뿐이다). 스케줄 이름도 `trigger.name` 이라 유일성을 넣으면 스케줄에도 영향이 있다([스케줄](CLE-TRIG-SCHEDULE.md)). 구현에 맞춰 원문을 고칠지, 유일성을 새로 구현할지 결정해야 한다.
-- **트리거 활성화·비활성화 때 채팅 채널 setup/teardown 호출 여부**: 트리거 목록 원문은 `botIdentity.username` 이 트리거 활성화 때 자동 갱신된다고 적는다. 이 서술이 맞는지는 활성화 때 `setupChannel` 을 부르는지에 달렸고, 그 결정은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#미결-사항) 의 같은 미결 사항에서 한다. 현재 구현(`TriggersService.update`)은 본문에 `chatChannel` 이 있을 때만 setup 을 부르므로 활성 토글만으로는 `botIdentity.username` 이 갱신되지 않는다. 결정이 나면 필드 권한 매트릭스의 `botIdentity.username` 행을 함께 고친다.
 
 ## 구현 위치
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "6fa2533a28dc954ccf456838fd5c872ee66c65eea962c76f137f2cbdf7cacfef"
+content_hash: "d4618c1665cb1f7574336d506e45a411663b3dee593a6e0f8bf57ef04824ad06"
 read_as: "approved_fallback"
-task: "CLE-T-V4WVF2"
+task: "CLE-T-W11BQ9"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "f236342f67a938bace8c8ed777dcce7cf9f44d445e3490d63312d110d301a16c"
-etag: "sha256-85e18b75d02f2185c21209f0b85fd76ec9321ea57872f3985c123f2139d32e6e"
+mirror_sha256: "72f15d26fc8400aa99f54d8ec0f4882f044485d25427c5b2f643d11f45222da2"
+etag: "sha256-a3525b13cdbb7930bfed76b4d29b9fafd57de479dfb7c453382ebf87c875dcde"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-001 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `GET /applications/@me` 로 `botIdentity`(`botId: hashStringToInt(id)`, `username: name`, `publicKey: verify_key`)를 캐시한다. (원본: discord §3.1)
 - REQ-DISCORD-002 IF 응답의 `verify_key` 와 사용자가 입력한 public key 가 둘 다 있고 서로 다르면 THE SYSTEM SHALL `BOT_TOKEN_INVALID` 로 던져 setup 을 막는다. (원본: discord §3.1)
 - REQ-DISCORD-003 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 로 `/<prefix>` slash command(하위 `start`·`cancel`·`help`·`reply`)를 일괄 덮어써 등록한다. (원본: discord §3.1, R-D-2)
-- REQ-DISCORD-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 에 `[]` 를 보내 명령을 지우고 실패해도 트리거 비활성화를 막지 않는다. (원본: discord §3.2)
+- REQ-DISCORD-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 에 `[]` 를 보내 명령을 지우고 실패해도 트리거 삭제를 막지 않는다. (원본: discord §3.2)
 - REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `200 OK` 와 `{ type: 1 }` 로 답한다. (원본: discord §3.1, R-D-8)
 - REQ-DISCORD-006 WHEN Interactions payload 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `interaction.id` 를 중복 제거 키로 쓴다. (원본: discord §4)
 - REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
@@ -89,7 +89,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 | 어댑터 함수 | Discord API |
 |---|---|
 | `setupChannel` | (a) [`GET /applications/@me`](https://discord.com/developers/docs/resources/application)로 application identity 캐시(id, name, `verify_key` → `botIdentity.publicKey`). 응답 `verify_key` 와 사용자 입력 public key(`inboundSigningRef`)를 교차 확인하고 다르면 `BOT_TOKEN_INVALID`. (b) [`PUT /applications/{app_id}/commands`](https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands)로 slash command 일괄 덮어쓰기(`/<prefix>` 와 하위 옵션) |
-| `teardownChannel` | `PUT /applications/{app_id}/commands` 에 `[]`. 실패해도 막지 않는다(남은 명령은 다음 setup 때 덮어쓴다) |
+| `teardownChannel` | `PUT /applications/{app_id}/commands` 에 `[]`. 실패해도 막지 않는다(남은 명령은 같은 애플리케이션으로 새 트리거를 만들 때 setup 이 덮어쓴다) |
 | `parseUpdate` | Interactions Webhook payload(`type ∈ {1, 2, 3, 5}`: PING, APPLICATION_COMMAND, MESSAGE_COMPONENT, MODAL_SUBMIT) → `ChannelUpdate` |
 | `sendMessage`(text) | [`POST /channels/{channel_id}/messages`](https://discord.com/developers/docs/resources/channel#create-message)(content). DM 채널은 먼저 [`POST /users/@me/channels`](https://discord.com/developers/docs/resources/user#create-dm)로 만들고 channel_id 를 캐시한다 |
 | `sendMessage`(buttons) | `POST /channels/{id}/messages` + `components: [{type: 1, components: [{type: 2, ...}]}]`(ACTION_ROW 와 BUTTON) |
@@ -146,7 +146,7 @@ Authorization: Bot {botToken}
 Body: []
 ```
 
-부분 실패해도 트리거 비활성화를 막지 않는다. 다음 setup 때 새 명령으로 덮어쓰면 남은 명령은 저절로 정리된다. Interactions Endpoint URL 은 우리 쪽에서 해제할 수 없어 사용자가 portal 에서 직접 비워야 한다(사용자 가이드 안내).
+부분 실패해도 트리거 삭제를 막지 않는다. 남은 명령은 같은 애플리케이션으로 새 트리거를 만들 때 setup 이 새 명령으로 덮어쓴다. Interactions Endpoint URL 은 우리 쪽에서 해제할 수 없어 사용자가 portal 에서 직접 비워야 한다(사용자 가이드 안내).
 
 ### MODAL
 
