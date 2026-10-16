@@ -45,6 +45,8 @@ const QUIET_PERIOD_MS = 1_500;
 
 /** 서버가 PUBLISH 한 메시지가 구독 연결에 도착하기를 기다리는 상한. */
 const PUBLISH_TIMEOUT_MS = 5_000;
+/** `sendUntilDispatched` 가 메시지 하나의 신호를 기다리는 시간. 넘으면 메시지를 다시 보낸다. */
+const DISPATCH_ATTEMPT_MS = 5_000;
 /** `publishFromOtherInstance` 가 쓰는 origin 접두. 서버가 보낸 메시지와 가르는 데 쓴다. */
 const E2E_ORIGIN_PREFIX = 'e2e-';
 
@@ -184,13 +186,34 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
   }
 
   /** dispatcher 가 이 트리거의 이벤트를 처리했다는 신호를 기다린다. */
-  async function waitForDispatch(triggerId: string): Promise<string> {
-    const deadline = Date.now() + SIGNAL_TIMEOUT_MS;
+  async function waitForDispatch(
+    triggerId: string,
+    timeoutMs = SIGNAL_TIMEOUT_MS,
+  ): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
     for (;;) {
       const h = await health(triggerId);
       if (h !== 'unknown') return h;
       if (Date.now() > deadline) return h;
       await sleep(200);
+    }
+  }
+
+  /**
+   * dispatcher 의 신호가 올 때까지 메시지를 다시 보낸다. 레지스트리 반영(알림 수신, 재구독 뒤 DB
+   * 복원)이 끝나기 전에 시작한 실행의 이벤트는 dispatcher 가 건너뛴다. 그래서 «반영됐다» 를
+   * 확인할 때는 반영에 걸리는 시간을 가정하지 않고 신호가 올 때까지 메시지를 반복해 보낸다.
+   * `SIGNAL_TIMEOUT_MS` 안에 신호가 없으면 마지막 health(`'unknown'`)를 돌려준다.
+   */
+  async function sendUntilDispatched(
+    endpointPath: string,
+    triggerId: string,
+  ): Promise<string> {
+    const deadline = Date.now() + SIGNAL_TIMEOUT_MS;
+    for (;;) {
+      await sendMessage(endpointPath);
+      const h = await waitForDispatch(triggerId, DISPATCH_ATTEMPT_MS);
+      if (h !== 'unknown' || Date.now() > deadline) return h;
     }
   }
 
@@ -330,20 +353,12 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
     async () => {
       expect(await listenerSubscribers()).toBeGreaterThanOrEqual(1);
 
-      // 등록: 다른 인스턴스에서 켠 트리거.
-      const registered = await seedTelegramTrigger(true);
-      const receivers = await publishFromOtherInstance({
-        op: 'register',
-        triggerId: registered.triggerId,
-        provider: 'telegram',
-      });
-      expect(receivers).toBeGreaterThanOrEqual(1);
-      await sleep(300);
-      await sendMessage(registered.endpointPath);
-      expect(await waitForDispatch(registered.triggerId)).not.toBe('unknown');
-
-      // 해제: 다른 인스턴스에서 지운 트리거. 등록을 알린 뒤 해제를 알린다.
       const removed = await seedTelegramTrigger(true);
+      const registered = await seedTelegramTrigger(true);
+
+      // 한 연결로 발행한 메시지는 발행한 순서대로 서버의 구독 연결에 닿고 서버는 받은 순서대로 반영한다.
+      // 그래서 맨 뒤에 알린 `registered` 의 등록이 반영됐으면 앞의 `removed` 등록 · 해제도 반영됐다.
+      // 알림이 닿는 데 걸리는 시간을 가정하지 않고 맨 뒤 알림의 효과를 기다린다.
       await publishFromOtherInstance({
         op: 'register',
         triggerId: removed.triggerId,
@@ -353,7 +368,22 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
         op: 'unregister',
         triggerId: removed.triggerId,
       });
-      await sleep(300);
+      const receivers = await publishFromOtherInstance({
+        op: 'register',
+        triggerId: registered.triggerId,
+        provider: 'telegram',
+      });
+      expect(receivers).toBeGreaterThanOrEqual(1);
+
+      // 등록: 반영이 늦으면 첫 메시지는 건너뛰어지므로 신호가 올 때까지 다시 보낸다.
+      expect(
+        await sendUntilDispatched(
+          registered.endpointPath,
+          registered.triggerId,
+        ),
+      ).not.toBe('unknown');
+
+      // 해제: 위에서 `registered` 가 반영됐으므로 앞서 알린 `removed` 의 해제도 반영됐다.
       const executionId = await sendMessage(removed.endpointPath);
       expect(await waitForExecutionEnd(executionId)).toBe('completed');
       expect(await health(removed.triggerId)).toBe('unknown');
@@ -379,12 +409,11 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
           throw new Error('listener 구독이 다시 붙지 않았다');
         await sleep(100);
       }
-      // 재구독 응답 뒤의 DB 복원이 끝나기를 기다린다.
-      await sleep(1_000);
 
-      await sendMessage(endpointPath);
-
-      expect(await waitForDispatch(triggerId)).not.toBe('unknown');
+      // 재구독 응답 뒤의 DB 복원이 끝나기 전에 보낸 메시지는 건너뛰어지므로 신호가 올 때까지 다시 보낸다.
+      expect(await sendUntilDispatched(endpointPath, triggerId)).not.toBe(
+        'unknown',
+      );
     },
     SIGNAL_TIMEOUT_MS * 3,
   );
