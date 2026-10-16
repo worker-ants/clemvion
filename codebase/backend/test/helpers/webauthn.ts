@@ -44,8 +44,6 @@ export type SoftKeyAlgorithm = 'EdDSA' | 'ES384' | 'ML-DSA-44';
 type CoseKeyMap = Map<number, number | Uint8Array>;
 
 interface SoftKeySpec {
-  /** COSE 알고리즘 식별자. */
-  coseAlg: number;
   /** `crypto.sign` 의 digest. 메시지 전체를 받는 Ed25519 · ML-DSA 는 null. */
   digest: string | null;
   generate(): { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
@@ -60,7 +58,6 @@ function jwkBytes(value: string | undefined): Uint8Array {
 
 const SOFT_KEY_SPECS: Record<SoftKeyAlgorithm, SoftKeySpec> = {
   EdDSA: {
-    coseAlg: COSEALG.EdDSA,
     digest: null,
     generate: () => crypto.generateKeyPairSync('ed25519'),
     coseKey: (jwk) =>
@@ -72,7 +69,6 @@ const SOFT_KEY_SPECS: Record<SoftKeyAlgorithm, SoftKeySpec> = {
       ]),
   },
   ES384: {
-    coseAlg: COSEALG.ES384,
     digest: 'sha384',
     generate: () => crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' }),
     coseKey: (jwk) =>
@@ -85,7 +81,6 @@ const SOFT_KEY_SPECS: Record<SoftKeyAlgorithm, SoftKeySpec> = {
       ]),
   },
   'ML-DSA-44': {
-    coseAlg: COSEALG.ML_DSA_44,
     digest: null,
     generate: () => crypto.generateKeyPairSync('ml-dsa-44'),
     coseKey: (jwk) =>
@@ -122,11 +117,6 @@ export class SoftWebAuthnDevice {
     );
     this.credentialId = crypto.randomBytes(32);
     this.aaguid = Buffer.alloc(16, 0); // attestationType 'none' — 0 AAGUID
-  }
-
-  /** 등록 응답에 담긴 공개 키의 COSE 알고리즘 식별자. */
-  get coseAlgorithm(): number {
-    return this.spec.coseAlg;
   }
 
   get credentialIdB64Url(): string {
