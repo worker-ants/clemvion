@@ -46,8 +46,9 @@ const COUNTER_REGRESSION_REASON_PATTERN = /regress|same|less|lower/i;
 
 /**
  * 등록 옵션과 등록 검증이 받는 공개 키 알고리즘. `@simplewebauthn/server` v13 의 기본값과 같다.
- * v14 는 PQC 를 지원하는 런타임(Node 24 · 26)에서 기본 목록 맨 앞에 ML-DSA-44 를 넣는다. Node 는
- * 그 Web Crypto 알고리즘을 아직 실험 기능으로 표시하므로 PQC 를 켤 때까지 목록을 고정한다.
+ * v14 는 PQC 를 지원하는 런타임(지금 런타임인 Node 26 포함)에서 기본 목록 맨 앞에 ML-DSA-44 를
+ * 넣는다. Node 는 그 Web Crypto 알고리즘을 아직 실험 기능으로 표시하므로 PQC 를 켤 때까지 목록을
+ * 고정한다. 옵션은 브라우저에 주는 안내라서 등록 검증에도 같은 목록을 준다.
  * 근거는 CLE-ACCT-SIGNIN Rationale 「Passkey 라이브러리」.
  */
 const SUPPORTED_ALGORITHM_IDS = [COSEALG.EdDSA, COSEALG.ES256, COSEALG.RS256];
