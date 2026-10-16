@@ -67,6 +67,7 @@ EXPECTED_OVERRIDES = {
     "proxy-addr": "^2.0.8",
     "source-map-js": "^1.2.2",
     "js-yaml@3>argparse": "^2.0.1",
+    "handlebars": "^4.7.10",
 }
 EXPECTED_ONLY_BUILT = {
     "isolated-vm",
