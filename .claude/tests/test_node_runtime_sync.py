@@ -284,7 +284,8 @@ class TypesNodeParserTest(unittest.TestCase):
                 self.assertEqual(range_floor_major(spec), major)
 
     def test_range_floor_refuses_shapes_with_no_single_floor(self):
-        for spec in (">=20 <27", "20 || 22", "*", "latest", "workspace:*", ""):
+        for spec in (">=20 <27", "20 || 22", "*", "latest", "workspace:*", "catalog:",
+                     "^26.0.0-rc.1", ""):
             with self.subTest(spec=spec):
                 self.assertIsNone(range_floor_major(spec))
 
@@ -301,10 +302,34 @@ class TypesNodeParserTest(unittest.TestCase):
         data = {"engines": {"node": ">=20.0.0"}, "devDependencies": {TYPES_NODE: "^26.6.5"}}
         self.assertEqual(len(types_node_problems(data)), 1)
 
-    def test_a_manifest_without_engines_or_with_unreadable_engines_is_reported(self):
-        self.assertEqual(len(types_node_problems({"devDependencies": {TYPES_NODE: "^26"}})), 1)
-        unreadable = {"engines": {"node": ">=20 <27"}, "devDependencies": {TYPES_NODE: "^20"}}
-        self.assertEqual(len(types_node_problems(unreadable)), 1)
+    def test_a_manifest_without_engines_is_reported(self):
+        problems = types_node_problems({"devDependencies": {TYPES_NODE: "^26"}})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("engines.node 가 없다", problems[0])
+
+    def test_unreadable_engines_floor_is_reported_as_unreadable_not_as_a_mismatch(self):
+        # 하한을 읽지 못하면 `읽지 못했다` 로 끝나야 한다. 이 분기가 없으면 하한 None 이 범위의 메이저와
+        # 비교되어 `다르다` 가 나오거나, 범위도 못 읽을 때는 `None != None` 이 거짓이라 아무 문제도 안 나온다.
+        for label, data in (
+            ("범위는 읽힌다", {"engines": {"node": ">=20 <27"}, "devDependencies": {TYPES_NODE: "^20"}}),
+            ("범위도 못 읽는다", {"engines": {"node": ">=20 <27"}, "devDependencies": {TYPES_NODE: "catalog:"}}),
+        ):
+            with self.subTest(case=label):
+                problems = types_node_problems(data)
+                self.assertEqual(len(problems), 1)
+                self.assertIn("읽지 못했다", problems[0])
+                self.assertNotIn("다르다", problems[0])
+
+    def test_unreadable_types_node_range_is_reported_as_a_mismatch_not_skipped(self):
+        # 하한은 읽히는데 `@types/node` 범위만 못 읽는 경우. `major` 가 None 이면 `다르다` 로 보고해야 한다.
+        # `major is not None and major != floor` 로 바꾸면 이 경우가 조용히 통과한다.
+        for spec in ("catalog:", "^26.0.0-rc.1", ">=26 <27"):
+            with self.subTest(spec=spec):
+                data = {"engines": {"node": ">=26"}, "devDependencies": {TYPES_NODE: spec}}
+                problems = types_node_problems(data)
+                self.assertEqual(len(problems), 1)
+                self.assertIn("다르다", problems[0])
+                self.assertNotIn("읽지 못했다", problems[0])
 
     def test_a_manifest_that_does_not_declare_the_types_is_skipped(self):
         self.assertEqual(types_node_problems({"engines": {"node": ">=20"}}), [])

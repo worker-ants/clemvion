@@ -18,17 +18,18 @@ pins that the classifier still SEES the one tree we know is independent. The one
 exception is `DependabotIgnoreTest`, which reads dependabot.yml with PyYAML (the
 exception that README grants); see its section for why.
 
-A second, smaller invariant lives at the bottom (`DependabotGroupsTest`): the
+A second, smaller invariant lives below the main one (`DependabotGroupsTest`): the
 workspace-root entry's `groups:` that bundle minor/patch updates into one PR.
 Deleting that block, or letting a group admit `major`, fails nothing else — the
 per-dependency PRs and their sequential `pnpm-lock.yaml` conflicts just quietly
 come back (NERV Task CLE-T-M8RB67).
 
-A third, last (`DependabotIgnoreTest`): the same entry's `ignore:` list, which holds
-the major bumps a human must decide (`typescript` · `@types/node`). Dropping an item,
-or writing it without `update-types` (which silences minor/patch too and stops the
-group PRs), fails nothing else. PROJECT.md states how many items there are, in a
-second hand-edited place, so the test reads that sentence too (NERV Task CLE-T-8AHC63).
+A third, last in the file (`DependabotIgnoreTest`): the same entry's `ignore:` list,
+which holds the major bumps a human must decide (`typescript` · `@types/node`).
+Dropping an item, or writing it without `update-types` (which silences minor/patch
+too and stops the group PRs), fails nothing else. PROJECT.md states how many items
+there are, in a second hand-edited place, so the test reads that sentence too
+(NERV Task CLE-T-8AHC63).
 """
 
 from __future__ import annotations
@@ -649,9 +650,6 @@ class DependabotGroupsTest(unittest.TestCase):
                     "so drop it from exclude-patterns and _INDIVIDUAL_PR_PINS",
                 )
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 # --- `ignore:` of the workspace-root npm entry --------------------------------------
 #
@@ -835,3 +833,7 @@ class DependabotIgnoreTest(unittest.TestCase):
         for broken in ("", text + "\n" + text):
             with self.subTest(copies=broken.count("현재")), self.assertRaises(ValueError):
                 _stated_ignore_count(broken)
+
+
+if __name__ == "__main__":
+    unittest.main()
