@@ -26,7 +26,9 @@ Node 20 소비자에게 없는 API 를 SDK 코드가 써도 타입 검사가 잡
 
 **한계를 적는다.** 값이 맞는지만 본다. 이미지 안에서 실제로 어떤 node 가 도는지는 Dockerfile 의
 빌드 시점 단언(`RUN test ...`)과 e2e 가 본다. 이 파일은 그 단언이 남아 있는지까지만 본다.
-`engines.node` 를 `.nvmrc` 와 대조하지는 않는다. 외부 배포 SDK 의 floor(`>=20`)가 일부러 낮기 때문이다.
+`engines.node` 를 `.nvmrc` 와 직접 대조하지는 않는다. 외부 배포 SDK 의 floor(`>=20`)가 일부러 낮기 때문이다.
+앱 세 곳의 하한은 아래 `@types/node` 대조를 거쳐 `.nvmrc` 에 묶인다. `@types/node` 를 선언하지 않는
+매니페스트(내부 packages · `@workflow/web-chat`)의 `engines.node` 는 대조하지 않는다.
 `@types/node` 는 앱 세 곳이 `.nvmrc` 와, 선언한 매니페스트마다 자기 `engines.node` 하한과 맞는지만 본다.
 """
 
