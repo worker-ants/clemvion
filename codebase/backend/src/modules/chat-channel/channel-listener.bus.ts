@@ -17,6 +17,14 @@ export const CHAT_CHANNEL_LISTENER_CHANNEL = 'chat-channel:listener';
 /** 메시지 형식 버전. 형식을 바꾸면 올리고, 모르는 버전은 받는 쪽이 버린다. */
 const MESSAGE_VERSION = 1;
 
+/**
+ * PUBLISH 응답을 기다리는 상한(ms). 공유 연결이 끊겨 있으면 ioredis 는 명령을 쌓아 두었다가 재연결
+ * 시도가 거듭된 뒤에야 거부하고, 그 사이 요청이 기다린다. 변경은 이미 커밋됐고 자기 `Map` 에도
+ * 반영돼서 기다려도 얻는 것이 없으므로 넘으면 warn 만 남기고 기다리기를 그만둔다. 명령은 연결에
+ * 남아 있어서 뒤에 보낸 메시지와의 순서는 그대로다.
+ */
+const PUBLISH_WAIT_TIMEOUT_MS = 2000;
+
 /** 레지스트리에 반영할 변경 하나. */
 export type ChannelListenerChange =
   | { op: 'register'; triggerId: string; provider: string }
@@ -59,7 +67,8 @@ export type ChannelListenerSubscribedHandler = () => void | Promise<void>;
  * 그 읽기만으로는 놓침을 막지 못한다. 두 순서는 `chat-channel.module.spec.ts` 가 단언한다.
  *
  * **실패 정책**: 모든 pub/sub 실패는 warn 만 남기고 삼킨다. 트리거 PATCH · 삭제를 실패시키지
- * 않는다. Redis 가 없으면 프로세스 안 레지스트리만 바뀐다(단일 인스턴스 동작).
+ * 않는다. PUBLISH 응답을 {@link PUBLISH_WAIT_TIMEOUT_MS} 안에 받지 못한 것도 실패다. Redis 가
+ * 없으면 프로세스 안 레지스트리만 바뀐다(단일 인스턴스 동작).
  *
  * **연결 분리**: `IntegrationCacheBus` 와 같다. 공유 command 연결에는 SUBSCRIBE 를 보내지
  * 않고 전용 `duplicate()` 연결로 구독한다. PUBLISH 는 공유 연결로 보낸다.
@@ -86,7 +95,10 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
     this.subscribedHandlers.add(handler);
   }
 
-  /** 변경을 다른 인스턴스에 알린다. 실패해도 던지지 않는다. */
+  /**
+   * 변경을 다른 인스턴스에 알린다. 실패해도 던지지 않는다. 응답은 {@link PUBLISH_WAIT_TIMEOUT_MS}
+   * 까지만 기다리고 넘으면 실패로 보고 warn 만 남긴다(요청 경로를 Redis 장애만큼 늦추지 않는다).
+   */
   async publish(change: ChannelListenerChange): Promise<void> {
     const client = this.redis.getClientOrNull();
     if (!client) return;
@@ -95,12 +107,28 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
       origin: this.origin,
       ...change,
     });
+    let timer: NodeJS.Timeout | undefined;
     try {
-      await client.publish(CHAT_CHANNEL_LISTENER_CHANNEL, message);
+      await Promise.race([
+        client.publish(CHAT_CHANNEL_LISTENER_CHANNEL, message),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `PUBLISH 응답을 ${PUBLISH_WAIT_TIMEOUT_MS}ms 안에 받지 못했다`,
+                ),
+              ),
+            PUBLISH_WAIT_TIMEOUT_MS,
+          );
+        }),
+      ]);
     } catch (err) {
       this.logger.warn(
         `listener ${change.op} 발행 실패 (trigger=${change.triggerId}): ${errMessage(err)}`,
       );
+    } finally {
+      clearTimeout(timer);
     }
   }
 

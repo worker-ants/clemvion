@@ -134,6 +134,86 @@ describe('ChannelListenerBus', () => {
         bus.publish({ op: 'register', triggerId: 't-1', provider: 'slack' }),
       ).resolves.toBeUndefined();
     });
+
+    // 공유 연결이 끊겨 있으면 ioredis 는 명령을 쌓아 두었다가 한참 뒤에 거부한다. 변경은 이미 커밋됐고
+    // 자기 `Map` 에도 반영돼서 기다려도 얻는 것이 없다.
+    describe('PUBLISH 가 응답하지 않을 때', () => {
+      beforeEach(() => {
+        jest.useFakeTimers();
+      });
+      afterEach(() => {
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+      });
+
+      it('상한을 넘으면 warn 만 남기고 끝낸다', async () => {
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const client = makeFakeRedis();
+        client.publish.mockReturnValue(new Promise(() => undefined)); // 응답이 오지 않는다
+        const bus = new ChannelListenerBus(makeProvider(client));
+
+        let done = false;
+        const publishing = bus
+          .publish({ op: 'unregister', triggerId: 't-1' })
+          .then(() => {
+            done = true;
+          });
+
+        await jest.advanceTimersByTimeAsync(1999);
+        expect(done).toBe(false); // 상한 안에서는 응답을 기다린다
+        await jest.advanceTimersByTimeAsync(1);
+        await publishing;
+
+        expect(done).toBe(true);
+        expect(warn).toHaveBeenCalledTimes(1);
+        const [message] = warn.mock.calls[0] as [string];
+        expect(message).toContain('t-1');
+        expect(message).toContain('2000ms');
+      });
+
+      it('응답이 상한 안에 오면 타이머를 남기지 않는다', async () => {
+        const client = makeFakeRedis();
+        const bus = new ChannelListenerBus(makeProvider(client));
+
+        await bus.publish({ op: 'unregister', triggerId: 't-1' });
+
+        expect(jest.getTimerCount()).toBe(0);
+      });
+
+      it('상한을 넘긴 뒤 늦게 거부돼도 처리되지 않은 거부로 새지 않는다', async () => {
+        jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const client = makeFakeRedis();
+        let rejectLate: (err: Error) => void = () => undefined;
+        client.publish.mockReturnValue(
+          new Promise((_resolve, reject) => {
+            rejectLate = reject;
+          }),
+        );
+        const unhandled = jest.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+          const bus = new ChannelListenerBus(makeProvider(client));
+          const publishing = bus.publish({
+            op: 'unregister',
+            triggerId: 't-1',
+          });
+          await jest.advanceTimersByTimeAsync(2000);
+          await publishing;
+
+          jest.useRealTimers(); // 가짜 타이머는 setImmediate 도 막는다
+          rejectLate(new Error('late redis down'));
+          await new Promise<void>((resolve) => setImmediate(resolve));
+
+          expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+          process.off('unhandledRejection', unhandled);
+        }
+      });
+    });
   });
 
   describe('수신', () => {
