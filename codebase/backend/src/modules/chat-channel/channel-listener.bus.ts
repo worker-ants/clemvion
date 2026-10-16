@@ -50,6 +50,14 @@ export type ChannelListenerSubscribedHandler = () => void | Promise<void>;
  * DB 를 읽으면 그 사이 커밋 · 발행된 등록을 둘 다 놓칠 수 있어서다. 놓친 해제는 보정하지
  * 않는다. 지운 트리거의 항목이 남아도 dispatcher 가 DB 에서 트리거를 찾지 못해 건너뛴다.
  *
+ * **첫 연결의 순서**: 구독은 이 클래스의 `onModuleInit` 에서 시작하고 handler 는 모든
+ * `onModuleInit` 이 끝난 뒤 `ChatChannelModule.onApplicationBootstrap` 에서 등록된다. 그래서 첫
+ * SUBSCRIBE 응답이 등록보다 먼저 올 수 있고, 그때는 handler 가 불리지 않는다. 지키는 것은
+ * «SUBSCRIBE 응답 뒤의 DB 읽기가 적어도 한 번 있다» 이고 두 순서가 모두 그것을 채운다.
+ * 응답이 등록보다 먼저 오면 등록 직후 모듈의 부팅 복원이 DB 를 읽으므로 응답 뒤다. 응답이
+ * 등록보다 늦으면 응답 뒤에 handler 가 돈다. 이때 부팅 복원의 DB 읽기는 응답 앞일 수 있고,
+ * 그 읽기만으로는 놓침을 막지 못한다. 두 순서는 `chat-channel.module.spec.ts` 가 단언한다.
+ *
  * **실패 정책**: 모든 pub/sub 실패는 warn 만 남기고 삼킨다. 트리거 PATCH · 삭제를 실패시키지
  * 않는다. Redis 가 없으면 프로세스 안 레지스트리만 바뀐다(단일 인스턴스 동작).
  *

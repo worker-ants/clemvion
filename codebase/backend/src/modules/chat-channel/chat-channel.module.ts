@@ -91,7 +91,9 @@ export class ChatChannelModule implements OnApplicationBootstrap {
    * listener 구독 연결이 (다시) 붙을 때마다 같은 복원을 한 번 더 한다(NERV Task `CLE-T-PXTGVQ`).
    * 끊긴 사이 다른 인스턴스가 알린 등록은 pub/sub 에 남지 않기 때문이다. 이유와 순서는
    * `ChannelListenerBus` 머리 주석에 있다. 여기서도 바로 복원하는 것은 Redis 가 없어 구독이
-   * 붙지 않는 경우에도 이 인스턴스의 레지스트리를 채우기 위해서다.
+   * 붙지 않는 경우에도 이 인스턴스의 레지스트리를 채우기 위해서이고, 첫 SUBSCRIBE 응답이 handler
+   * 등록보다 먼저 온 경우의 응답 뒤 DB 읽기도 이 복원이 맡는다. handler 를 먼저 등록하고 그 뒤에
+   * 복원을 시작하는 순서가 그 보장의 전제다.
    */
   async onApplicationBootstrap(): Promise<void> {
     this.listenerBus.onSubscribed(() =>
