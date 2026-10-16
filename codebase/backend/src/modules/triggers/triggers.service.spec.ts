@@ -9,7 +9,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Provider } from '@nestjs/common';
+import { InjectionToken, Provider } from '@nestjs/common';
 import { In, Repository } from 'typeorm';
 import { makePgUniqueViolation } from '../../shared/testing/pg-error-fixtures';
 import {
@@ -33,6 +33,7 @@ import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import type { ChannelListenerBus } from '../chat-channel/channel-listener.bus';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import {
   SecretResolverService,
@@ -121,6 +122,27 @@ function createBaseProviders(
       },
     },
   ];
+}
+
+/**
+ * `createBaseProviders` 가 돌려준 목록에서 `token` 의 provider 를 `useValue` 로 바꾼다. describe 마다 같은
+ * `findIndex` 술어를 인라인으로 복제하던 자리를 한 곳으로 모았다. 목록에 없는 token 이면 던진다.
+ * `providers[-1] = …` 은 아무 provider 도 바꾸지 않고 지나가서 대역이 빠진 채 테스트가 도는 것을 못 본다.
+ */
+function overrideProvider(
+  providers: Provider[],
+  token: InjectionToken,
+  useValue: unknown,
+): void {
+  const idx = providers.findIndex(
+    (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
+  );
+  if (idx < 0) {
+    throw new Error(
+      `createBaseProviders 에 ${(token as { name?: string }).name ?? String(token)} provider 가 없다`,
+    );
+  }
+  providers[idx] = { provide: token, useValue };
 }
 
 describe('TriggersService.findOneDetail', () => {
@@ -1539,25 +1561,15 @@ describe('TriggersService — setupChatChannel secret store 경로 — **생성(
       create: jest.fn((t: object) => ({ ...baseTrigger, ...t })),
       createQueryBuilder: jest.fn(),
     });
-    const overrideIdx = (token: unknown) =>
-      baseProviders.findIndex(
-        (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
-      );
-    baseProviders[overrideIdx(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: adapterRegistry,
-    };
-    baseProviders[overrideIdx(SecretResolverService)] = {
-      provide: SecretResolverService,
-      useValue: {
-        resolve: jest.fn(),
-        store: jest.fn(),
-        rotate: jest.fn().mockResolvedValue(undefined),
-        delete: jest.fn(),
-        deleteByPrefix: jest.fn().mockResolvedValue(0),
-        exists: jest.fn(),
-      },
-    };
+    overrideProvider(baseProviders, ChannelAdapterRegistry, adapterRegistry);
+    overrideProvider(baseProviders, SecretResolverService, {
+      resolve: jest.fn(),
+      store: jest.fn(),
+      rotate: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn(),
+      deleteByPrefix: jest.fn().mockResolvedValue(0),
+      exists: jest.fn(),
+    });
 
     const moduleRef = await Test.createTestingModule({
       providers: baseProviders,
@@ -3674,28 +3686,18 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
       create: jest.fn((t: unknown) => t),
       createQueryBuilder: jest.fn(),
     });
-    const at = (token: unknown) =>
-      baseProviders.findIndex(
-        (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
-      );
-    baseProviders[at(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: {
-        has: jest.fn().mockReturnValue(true),
-        get: jest.fn().mockReturnValue(mockAdapter),
-      },
-    };
-    baseProviders[at(SecretResolverService)] = {
-      provide: SecretResolverService,
-      useValue: {
-        resolve: jest.fn(),
-        store: jest.fn(),
-        rotate: jest.fn().mockResolvedValue(undefined),
-        delete: jest.fn(),
-        deleteByPrefix: jest.fn().mockResolvedValue(0),
-        exists: jest.fn().mockResolvedValue(true),
-      },
-    };
+    overrideProvider(baseProviders, ChannelAdapterRegistry, {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(mockAdapter),
+    });
+    overrideProvider(baseProviders, SecretResolverService, {
+      resolve: jest.fn(),
+      store: jest.fn(),
+      rotate: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn(),
+      deleteByPrefix: jest.fn().mockResolvedValue(0),
+      exists: jest.fn().mockResolvedValue(true),
+    });
     const moduleRef = await Test.createTestingModule({
       providers: baseProviders,
     }).compile();
@@ -4261,41 +4263,25 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       },
       onLockTimeout: (statement) => events.push(`timeout:${statement}`),
     });
-    // `at` 을 먼저 선언해 **세 provider 교체가 같은 형태**를 쓰게 한다. 종전엔 이 한 곳만
-    // 같은 술어를 인라인으로 복제하고 있었다 — 3라운드 연속 지적된 자리다.
-    const at = (token: unknown) =>
-      providers.findIndex(
-        (pr) =>
-          'provide' in pr && (pr as { provide: unknown }).provide === token,
-      );
-    providers[at(ChannelListenerRegistry)] = {
-      provide: ChannelListenerRegistry,
-      useValue: listenerRegistry,
-    };
-    providers[at(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: {
-        has: jest.fn().mockReturnValue(true),
-        get: jest.fn().mockReturnValue(adapter),
-      },
-    };
-    providers[at(SecretResolverService)] = {
-      provide: SecretResolverService,
-      useValue: {
-        resolve: jest.fn().mockResolvedValue('old-token'),
-        store: jest.fn(),
-        rotate: jest.fn((ref: string) => {
-          events.push(`rotate:${ref}`);
-          return Promise.resolve();
-        }),
-        delete: jest.fn(),
-        deleteByPrefix: jest.fn((prefix: string) => {
-          events.push(`deleteByPrefix:${prefix}`);
-          return Promise.resolve(0);
-        }),
-        exists: jest.fn().mockResolvedValue(true),
-      },
-    };
+    overrideProvider(providers, ChannelListenerRegistry, listenerRegistry);
+    overrideProvider(providers, ChannelAdapterRegistry, {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(adapter),
+    });
+    overrideProvider(providers, SecretResolverService, {
+      resolve: jest.fn().mockResolvedValue('old-token'),
+      store: jest.fn(),
+      rotate: jest.fn((ref: string) => {
+        events.push(`rotate:${ref}`);
+        return Promise.resolve();
+      }),
+      delete: jest.fn(),
+      deleteByPrefix: jest.fn((prefix: string) => {
+        events.push(`deleteByPrefix:${prefix}`);
+        return Promise.resolve(0);
+      }),
+      exists: jest.fn().mockResolvedValue(true),
+    });
     const moduleRef = await Test.createTestingModule({ providers }).compile();
     return {
       adapter,
@@ -5865,5 +5851,217 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         }),
       );
     });
+  });
+});
+
+/**
+ * 채팅 채널 트리거를 켜고 끌 때(NERV Task `CLE-T-PXTGVQ`).
+ *
+ * 채팅 채널 REQ-CHAT-003 · 005 · 070, R-CC-29: 켜고 끄는 PATCH 는 `setupChannel()` ·
+ * `teardownChannel()` 을 부르지 않고 저장된 설정 · 서명 자료를 그대로 둔다. 켠 PATCH 는 커밋 뒤
+ * 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)에 등록하고, 끈 PATCH 는 해제하지
+ * 않는다. 레지스트리는 진짜를 쓴다 — «두 번 켜도 항목이 하나» 는 대역으로 볼 수 없다.
+ */
+describe('TriggersService — 채팅 채널 트리거를 켜고 끌 때의 listener 레지스트리 (CLE-T-PXTGVQ)', () => {
+  const BOT_TOKEN_REF = 'secret://triggers/trig-a/bot-token';
+  const SIGNING_REF = 'secret://triggers/trig-a/inbound-signing';
+
+  const chatChannelConfig = () => ({
+    chatChannel: {
+      provider: 'slack',
+      botTokenRef: BOT_TOKEN_REF,
+      inboundSigningRef: SIGNING_REF,
+    },
+  });
+
+  const row = (overrides: Record<string, unknown> = {}) =>
+    ({
+      id: 'trig-a',
+      workspaceId: 'ws-1',
+      type: 'webhook',
+      endpointPath: 'hook-a',
+      isActive: false,
+      config: chatChannelConfig(),
+      chatChannelHealth: 'healthy',
+      chatChannelLastError: null,
+      ...overrides,
+    }) as unknown as Trigger;
+
+  async function makeService(
+    current: Trigger | null,
+    opts: { saveRejects?: boolean; setupChannelRejects?: boolean } = {},
+  ) {
+    const adapter = {
+      setupChannel: opts.setupChannelRejects
+        ? jest.fn().mockRejectedValue(new Error('provider down'))
+        : jest.fn().mockResolvedValue({ configUpdates: {} }),
+      teardownChannel: jest.fn().mockResolvedValue(undefined),
+    };
+    const repoMock = {
+      findOne: jest.fn().mockResolvedValue(current),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      save: opts.saveRejects
+        ? jest.fn().mockRejectedValue(new Error('commit failed'))
+        : jest.fn((t: Trigger) => Promise.resolve(t)),
+      create: jest.fn((t: unknown) => t),
+      createQueryBuilder: jest.fn(),
+    };
+    // 실제 레지스트리를 쓰되 다른 인스턴스와의 통신(Redis)은 흉내 낸다.
+    const listenerBus = {
+      onChange: jest.fn(),
+      publish: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ChannelListenerBus;
+    const listenerRegistry = new ChannelListenerRegistry(listenerBus);
+    jest.spyOn(listenerRegistry, 'register');
+    jest.spyOn(listenerRegistry, 'unregister');
+    const providers = createBaseProviders(repoMock);
+    overrideProvider(providers, ChannelListenerRegistry, listenerRegistry);
+    overrideProvider(providers, ChannelAdapterRegistry, {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(adapter),
+    });
+    const moduleRef = await Test.createTestingModule({ providers }).compile();
+    return {
+      service: moduleRef.get(TriggersService),
+      binder: moduleRef.get(ChatChannelBinderService),
+      secrets: moduleRef.get(SecretResolverService) as unknown as Record<
+        string,
+        jest.Mock
+      >,
+      repoMock,
+      adapter,
+      listenerRegistry,
+    };
+  }
+
+  /** 창 1 이 저장한 `config`. */
+  const savedConfig = (repoMock: { save: jest.Mock }) =>
+    (repoMock.save.mock.calls.at(-1)?.[0] as { config?: unknown } | undefined)
+      ?.config;
+
+  it('켠 PATCH 는 커밋 뒤 레지스트리에 등록한다 — 꺼진 채 재시작을 넘긴 트리거', async () => {
+    // 재시작 뒤라 레지스트리가 비어 있다(부팅 때의 일괄 등록은 활성 트리거만 고른다).
+    const { service, listenerRegistry } = await makeService(row());
+    expect(listenerRegistry.has('trig-a')).toBe(false);
+
+    await service.update('trig-a', 'ws-1', { isActive: true }, 'u-1');
+
+    expect(listenerRegistry.get('trig-a')?.provider).toBe('slack');
+  });
+
+  it('켜고 끄는 PATCH 는 setup · teardown 을 부르지 않고 설정 · 서명 자료를 그대로 둔다', async () => {
+    for (const isActive of [true, false]) {
+      const { service, binder, secrets, repoMock, adapter } = await makeService(
+        row({ isActive: !isActive }),
+      );
+      const setupSpy = jest.spyOn(binder, 'setupChatChannel');
+      const teardownSpy = jest.spyOn(binder, 'teardownChatChannel');
+
+      await service.update('trig-a', 'ws-1', { isActive }, 'u-1');
+
+      expect(setupSpy).not.toHaveBeenCalled();
+      expect(teardownSpy).not.toHaveBeenCalled();
+      expect(adapter.setupChannel).not.toHaveBeenCalled();
+      expect(adapter.teardownChannel).not.toHaveBeenCalled();
+      expect(savedConfig(repoMock)).toEqual(chatChannelConfig());
+      expect(secrets.store).not.toHaveBeenCalled();
+      expect(secrets.rotate).not.toHaveBeenCalled();
+      expect(secrets.delete).not.toHaveBeenCalled();
+      expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
+    }
+  });
+
+  it('끈 PATCH 는 레지스트리 항목을 해제하지 않는다 — 끄기 전에 시작한 실행의 메시지가 나가야 한다', async () => {
+    const { service, listenerRegistry } = await makeService(
+      row({ isActive: true }),
+    );
+    await listenerRegistry.register('trig-a', 'slack');
+
+    await service.update('trig-a', 'ws-1', { isActive: false }, 'u-1');
+
+    expect(listenerRegistry.unregister).not.toHaveBeenCalled();
+    expect(listenerRegistry.has('trig-a')).toBe(true);
+  });
+
+  it('두 번 켜도 항목은 하나다', async () => {
+    const { service, listenerRegistry } = await makeService(row());
+
+    await service.update('trig-a', 'ws-1', { isActive: true }, 'u-1');
+    await service.update('trig-a', 'ws-1', { isActive: true }, 'u-1');
+
+    expect(listenerRegistry.register).toHaveBeenCalledTimes(2);
+    expect(listenerRegistry.size()).toBe(1);
+  });
+
+  it('isActive 를 싣지 않은 PATCH 는 등록하지 않는다', async () => {
+    const { service, listenerRegistry } = await makeService(
+      row({ isActive: true }),
+    );
+
+    await service.update('trig-a', 'ws-1', { name: 'renamed' }, 'u-1');
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it('채팅 채널이 없는 웹훅 트리거는 켜도 등록하지 않는다', async () => {
+    const { service, listenerRegistry } = await makeService(
+      row({ config: {} }),
+    );
+
+    await service.update('trig-a', 'ws-1', { isActive: true }, 'u-1');
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+    expect(listenerRegistry.size()).toBe(0);
+  });
+
+  it('스케줄 트리거는 켜도 등록하지 않는다', async () => {
+    const { service, listenerRegistry } = await makeService(
+      row({ type: 'schedule', endpointPath: null, config: {} }),
+    );
+
+    await service.update('trig-a', 'ws-1', { isActive: true }, 'u-1');
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it('저장이 실패하면 등록하지 않는다', async () => {
+    const { service, listenerRegistry } = await makeService(row(), {
+      saveRejects: true,
+    });
+
+    await expect(
+      service.update('trig-a', 'ws-1', { isActive: true }, 'u-1'),
+    ).rejects.toThrow('commit failed');
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it('다른 워크스페이스의 트리거라 찾지 못하면 등록하지 않는다', async () => {
+    const { service, listenerRegistry } = await makeService(null);
+
+    await expect(
+      service.update('trig-a', 'ws-other', { isActive: true }, 'u-1'),
+    ).rejects.toThrow();
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it('chatChannel 과 함께 켰는데 setup 이 실패해도(degraded) 레지스트리에 등록한다', async () => {
+    const { service, listenerRegistry, adapter } = await makeService(row(), {
+      setupChannelRejects: true,
+    });
+
+    await service.update(
+      'trig-a',
+      'ws-1',
+      {
+        isActive: true,
+        chatChannel: { provider: 'slack', rateLimitPerMinute: 30 },
+      } as never,
+      'u-1',
+    );
+
+    expect(adapter.setupChannel).toHaveBeenCalledTimes(1);
+    expect(listenerRegistry.get('trig-a')?.provider).toBe('slack');
   });
 });

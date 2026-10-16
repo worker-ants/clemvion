@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "903b0d3315d4f62dd36ba03d7be9227f03c7565fc8675238663aa56b840d8cde"
+content_hash: "86717c37ae1e8a6d00ba65ca5a13687a4a333529a136bdc83d548ff5eae17cdc"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-PXTGVQ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "358809ef7442a62e38a44f97cbf48a418c0339c2a8e3ca4694bfc51f15f11078"
-etag: "sha256-14f377c419556fff37cef1ccf5706a97aedb964fb86daa04b24ad0f5e7857f2c"
+mirror_sha256: "8c4c140bdfbdc5f933aec10da906af989df1bf8d6947675162d76b5b2d14d50d"
+etag: "sha256-d743ebeb91754a144438657920930b0e5b174e4d4887c6cb54ec77d1fe7c8742"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -110,6 +110,7 @@ etag: "sha256-14f377c419556fff37cef1ccf5706a97aedb964fb86daa04b24ad0f5e7857f2c"
 | 채널 | 소유 모듈 | 용도 |
 | --- | --- | --- |
 | `integration:cache:invalidate` | `common/redis` | 통합 자격 증명을 교체하거나 삭제하면 모든 인스턴스의 로컬 자격 증명 캐시(예: Database Query 노드 연결 풀)를 곧바로 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)). 페이로드는 통합 ID 평문이다. 워크스페이스와 무관한 전역 채널이다. 메시지를 못 받아도 핸들러가 자격 증명 해시(`credsHash`)를 비교해 비우므로 안전하게 강등된다. 구독은 전용 복제 연결로 한다(공유 명령 연결은 SUBSCRIBE 를 쓰지 않는다) |
+| `chat-channel:listener` | `modules/chat-channel` | 채팅 채널의 트리거 단위 listener 레지스트리 변경을 모든 서버 인스턴스에 알린다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 워크스페이스와 무관한 전역 채널이다. 페이로드 형식과 복원 · 유실 정책은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA.md#redis-키) 가 정한다 |
 
 ### 다른 모듈의 키
 

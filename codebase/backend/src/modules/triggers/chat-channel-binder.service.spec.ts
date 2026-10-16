@@ -44,17 +44,18 @@ function makeBinder({
     has: jest.fn(() => providerRegistered),
     get: jest.fn(() => adapter),
   };
+  const listenerRegistry = {
+    register: jest.fn().mockResolvedValue(undefined),
+    unregister: jest.fn(),
+  };
   const svc = new ChatChannelBinderService(
     { update: jest.fn() } as never,
     registry as unknown as ChannelAdapterRegistry,
-    {
-      register: jest.fn(),
-      unregister: jest.fn(),
-    } as unknown as ChannelListenerRegistry,
+    listenerRegistry as unknown as ChannelListenerRegistry,
     { rotate: jest.fn() } as unknown as SecretResolverService,
     { get: jest.fn(() => 'https://example.com') } as never,
   );
-  return { svc, registry };
+  return { svc, registry, listenerRegistry };
 }
 
 function makeAdapter(): AdapterMock {
@@ -166,5 +167,69 @@ describe('ChatChannelBinderService.teardownChatChannel', () => {
     const [message] = warn.mock.calls[0] as [string];
     expect(message).toContain('trig-1');
     expect(message).toContain('telegram down');
+  });
+});
+
+describe('ChatChannelBinderService.registerListenerOnActivation', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('provider 로 listener 레지스트리에 등록한다', async () => {
+    const { svc, listenerRegistry } = makeBinder({
+      adapter: makeAdapter(),
+      providerRegistered: true,
+    });
+
+    await svc.registerListenerOnActivation(
+      makeTrigger({ chatChannel: TELEGRAM_CFG }),
+    );
+
+    expect(listenerRegistry.register).toHaveBeenCalledWith(
+      'trig-1',
+      'telegram',
+    );
+  });
+
+  it.each([
+    ['chatChannel 이 없다', {}],
+    ['provider 가 없다', { chatChannel: { botTokenRef: 'x' } }],
+    ['provider 가 빈 문자열이다', { chatChannel: { provider: '' } }],
+  ])('%s 면 등록하지 않는다', async (_label, config) => {
+    const { svc, listenerRegistry } = makeBinder({
+      adapter: makeAdapter(),
+      providerRegistered: true,
+    });
+
+    await svc.registerListenerOnActivation(makeTrigger(config));
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  // 등록에는 provider 만 필요하다. 시크릿 참조를 맞추는 읽기를 거치면 이 경로가 참조가 어긋난 행에서
+  // 오류 로그를 남긴다. 그 점검은 참조를 실제로 쓰는 발송 · 인바운드 · 해제 경로의 몫이다.
+  it('저장된 시크릿 참조가 다른 트리거를 가리켜도 오류 로그 없이 등록한다', async () => {
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const { svc, listenerRegistry } = makeBinder({
+      adapter: makeAdapter(),
+      providerRegistered: true,
+    });
+
+    await svc.registerListenerOnActivation(
+      makeTrigger({
+        chatChannel: {
+          provider: 'telegram',
+          botTokenRef: 'secret://triggers/trig-victim/bot-token',
+        },
+      }),
+    );
+
+    expect(listenerRegistry.register).toHaveBeenCalledWith(
+      'trig-1',
+      'telegram',
+    );
+    expect(error).not.toHaveBeenCalled();
   });
 });

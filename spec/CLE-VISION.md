@@ -2,19 +2,19 @@
 id: "CLE-VISION"
 title: "Clemvion 제품 개요"
 type: "vision"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: null
 ancestors: []
 area: null
-content_hash: "2d43c82bee31d4edc09d1c43cd493b96533b522a5dcfa5caecebc6058b6f96fa"
+content_hash: "c1a2863a1af127717b3d16e89be5dde5a0800aaad8de64a8896f85cdf7a694d9"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-PXTGVQ"
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "5d92d638fa21e28cee0dd3c872f2d8dd2bd447926133a507e9fb2dc0c13a705c"
-etag: "sha256-a24008187aa566239c8862c8a962a51f48f86160435c222c753f42b9cca52e74"
+mirror_sha256: "e2af08bce3892ee87a0330c47fd1743afb55f86e1dcdf611facd859d73bb3587"
+etag: "sha256-693f7c083fd8dcab929902457738fcda32136a7a480b8124b2e463ab148ef398"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)
 
@@ -94,7 +94,7 @@ Clemvion 은 AI 에이전트와 노코드 워크플로우 빌더를 합친 실�
 
 | 영역 | 상태 | 기준 문서 |
 | --- | --- | --- |
-| 채팅 채널 | Telegram·Slack·Discord 봇으로 워크플로우를 돌리는 서버 어댑터. v1 은 1:1 DM 을 지원한다. 남은 것은 세 가지다. 트리거를 다시 켤 때 서버 안 listener 를 등록하는 동작은 미구현이다(켜고 끌 때 외부 채널 등록은 건드리지 않는다). 시각형 노드(Chart·Table·Carousel)의 이미지 발송은 미구현이고 지금은 텍스트 표현으로 보낸다. Discord Gateway 와 Slack Socket Mode 는 미구현(v2 후속)이다 | [채팅 채널 영역](CLE-CHAT/CLE-CHAT.md), [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
+| 채팅 채널 | Telegram·Slack·Discord 봇으로 워크플로우를 돌리는 서버 어댑터. v1 은 1:1 DM 을 지원한다. 남은 것은 두 가지다. 시각형 노드(Chart·Table·Carousel)의 이미지 발송은 미구현이고 지금은 텍스트 표현으로 보낸다. Discord Gateway 와 Slack Socket Mode 는 미구현(v2 후속)이다 | [채팅 채널 영역](CLE-CHAT/CLE-CHAT.md), [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | External Interaction API | 실행 중인 워크플로우와 외부가 주고받는 공개 API(EIA 알림 웹훅, 수신 REST·SSE). 스펙 상태가 부분 구현이다 | [External Interaction API](CLE-IX/CLE-EIA.md) |
 
 ### 로드맵(미구현)

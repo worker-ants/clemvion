@@ -181,12 +181,39 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       });
       await this.removeScheduleJobsOrRestore(schedules);
     }
-    for (const trigger of triggers) {
-      await this.chatChannelBinder.teardownChatChannel(trigger);
-      // [chat-channel R8] 해제 뒤 도착한 race event 가 dispatcher 에 닿아도 안전하게.
-      // 미등록이면 noop.
-      this.channelListenerRegistry.unregister(trigger.id);
+    // [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책) 해제 뒤 도착한 race event 가 dispatcher 에
+    // 닿아도 안전하게. 다른 인스턴스의 레지스트리에서도 빠진다. `unregister` 는 자기 `Map` 에서 바로
+    // 빼고 Redis PUBLISH 왕복만 기다리므로 트리거마다 기다리지 않고 모아 두었다가 루프 뒤에 한 번에
+    // 기다린다. Redis 가 느리면 대기가 트리거 수만큼 쌓이지 않고 한 번의 상한(bus 의 응답 대기 상한)으로
+    // 묶인다. 채팅 채널이 있었던 트리거만 부른다. 스케줄 · 일반 웹훅은 레지스트리에 든 적이 없다.
+    const unregistering: Array<Promise<void>> = [];
+    try {
+      for (const trigger of triggers) {
+        await this.chatChannelBinder.teardownChatChannel(trigger);
+        if (this.hadChatChannel(trigger)) {
+          unregistering.push(
+            this.channelListenerRegistry.unregister(trigger.id),
+          );
+        }
+      }
+    } finally {
+      // teardown 이 던져 루프가 끊겨도 이미 시작한 알림은 끝까지 기다린다. unregister 는 던지지 않지만
+      // 원래 오류를 가리지 않도록 settled 로 모은다.
+      await Promise.allSettled(unregistering);
     }
+  }
+
+  /**
+   * 이 트리거가 채팅 채널 listener 레지스트리에 들었을 수 있는가. `config.chatChannel` 이 있거나
+   * 이 프로세스의 레지스트리에 항목이 있으면 참이다. 둘을 OR 로 거는 이유는 설정만 지운 PATCH 뒤에도
+   * 항목이 남을 수 있어서다(`config` 로만 판별하면 그 항목이 다른 인스턴스에 남는다).
+   */
+  private hadChatChannel(trigger: Trigger): boolean {
+    const chatChannel = (
+      trigger.config as { chatChannel?: unknown } | null | undefined
+    )?.chatChannel;
+    if (typeof chatChannel === 'object' && chatChannel !== null) return true;
+    return this.channelListenerRegistry.has(trigger.id);
   }
 
   /**

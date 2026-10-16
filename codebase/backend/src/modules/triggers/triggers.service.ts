@@ -1106,6 +1106,14 @@ export class TriggersService {
       });
       if (refreshed) result = refreshed;
     }
+    // 켠 PATCH 는 커밋 뒤 트리거 단위 listener 레지스트리에 등록한다
+    // ([채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클) REQ-CHAT-070 · [채팅 채널 「R-CC-29」](CLE-CHAT-CORE#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다)).
+    // `chatChannel` 이 함께 실렸는지는 보지 않는다. setup 이 실패해(`degraded`) binder
+    // 가 등록하지 않았어도 켠 트리거는 레지스트리에 있어야 하고, 성공했으면 같은 항목을 덮어쓸
+    // 뿐이다. 끈 PATCH 는 해제하지 않는다. 끄기 전에 시작한 실행의 메시지가 나가야 한다.
+    if (rest.isActive === true) {
+      await this.chatChannelBinder.registerListenerOnActivation(result);
+    }
     return this.withIssuedSecrets(
       this.sanitizeForResponse(result),
       issuedSecret,
