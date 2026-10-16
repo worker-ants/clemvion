@@ -7,7 +7,8 @@ import type { Client } from 'pg';
  * Chat-channel e2e fixture 공용 헬퍼. Slack/Discord e2e spec 두 파일이
  * 거의 동일한 user/workspace/workflow/trigger INSERT 패턴을 병렬 유지하던
  * 중복을 단일 위치로 통합. 본 함수가 SoT 이며, 향후 user/workflow/trigger
- * schema 가 갱신될 때 변경 면적을 1곳으로 제한한다.
+ * schema 가 갱신될 때 변경 면적을 1곳으로 제한한다. 사용자 · 워크스페이스를 직접 만드는
+ * spec 은 workflow · trigger 행만 `insertWorkflowRow` · `insertChatChannelTriggerRow` 로 넣는다.
  *
  * 보안 노트:
  * - `password_hash` 는 bcrypt 로 실제 해시. round=1 은 e2e 속도 우선 (production
@@ -72,41 +73,84 @@ export async function setupChatChannelTrigger(args: {
     ],
   );
 
+  const workflowId = await insertWorkflowRow(db, {
+    workspaceId,
+    userId,
+    name: `${slug}-e2e-wf`,
+  });
+  const { triggerId, endpointPath } = await insertChatChannelTriggerRow(db, {
+    workspaceId,
+    workflowId,
+    name: `${slug}-e2e-trigger`,
+    provider,
+  });
+
+  return { workspaceId, workflowId, triggerId, userId, endpointPath };
+}
+
+/** 켜진 워크플로우 행 하나를 넣고 id 를 돌려준다. 노드는 넣지 않는다. */
+export async function insertWorkflowRow(
+  db: Client,
+  args: { workspaceId: string; userId: string; name: string },
+): Promise<string> {
   const workflowId = randomUUID();
   await db.query(
     `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
      VALUES ($1, $2, $3, true, 1, $4, NOW(), NOW())`,
-    [workflowId, `${slug}-e2e-wf`, workspaceId, userId],
+    [workflowId, args.name, args.workspaceId, args.userId],
   );
+  return workflowId;
+}
 
+/**
+ * webhook 트리거 행 하나를 넣는다. `chat_channel_health` 는 `'unknown'` 이다.
+ * `provider` 가 `null` 이면 채팅 채널 설정 없이 넣는다. 서버를 거치지 않으므로 외부 채널 등록도,
+ * listener 레지스트리 등록도 일어나지 않는다. Provider 별 `inboundSigningRef` 는
+ * `setupChatChannelTrigger` 머리 주석과 같다.
+ */
+export async function insertChatChannelTriggerRow(
+  db: Client,
+  args: {
+    workspaceId: string;
+    workflowId: string;
+    name: string;
+    provider: 'slack' | 'discord' | 'telegram' | null;
+    isActive?: boolean;
+  },
+): Promise<{ triggerId: string; endpointPath: string }> {
+  const { provider, isActive = true } = args;
   const triggerId = randomUUID();
   // endpoint_path 는 v4 UUID 형식 강제(WH-MG-02, DB CHECK chk_trigger_endpoint_path_uuid).
   // 직접 INSERT 도 제약을 받으므로 라우팅 키는 UUID 로 발급한다(slug 가독성 라벨은 trigger name 으로만).
   const endpointPath = randomUUID();
 
-  const chatChannelConfig: Record<string, unknown> = {
-    provider,
-    botTokenRef: `secret://triggers/${triggerId}/bot-token`,
-  };
-  if (provider === 'slack') {
-    chatChannelConfig.inboundSigningRef = `secret://triggers/${triggerId}/inbound-signing`;
+  let config: Record<string, unknown> = {};
+  if (provider !== null) {
+    const chatChannelConfig: Record<string, unknown> = {
+      provider,
+      botTokenRef: `secret://triggers/${triggerId}/bot-token`,
+    };
+    if (provider === 'slack') {
+      chatChannelConfig.inboundSigningRef = `secret://triggers/${triggerId}/inbound-signing`;
+    }
+    // Discord · Telegram 은 inboundSigningRef 를 의도적으로 비운다 — signing skip path 검증.
+    config = { chatChannel: chatChannelConfig };
   }
-  // Discord 는 inboundSigningRef 의도적으로 비움 — signing skip path 검증.
 
   await db.query(
     `INSERT INTO trigger
        (id, workspace_id, workflow_id, type, name, endpoint_path, is_active, config,
         chat_channel_health, created_at, updated_at)
-     VALUES ($1, $2, $3, 'webhook', $4, $5, true, $6::jsonb, 'unknown', NOW(), NOW())`,
+     VALUES ($1, $2, $3, 'webhook', $4, $5, $6, $7::jsonb, 'unknown', NOW(), NOW())`,
     [
       triggerId,
-      workspaceId,
-      workflowId,
-      `${slug}-e2e-trigger`,
+      args.workspaceId,
+      args.workflowId,
+      args.name,
       endpointPath,
-      JSON.stringify({ chatChannel: chatChannelConfig }),
+      isActive,
+      JSON.stringify(config),
     ],
   );
-
-  return { workspaceId, workflowId, triggerId, userId, endpointPath };
+  return { triggerId, endpointPath };
 }

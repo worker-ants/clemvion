@@ -191,14 +191,24 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       for (const trigger of triggers) {
         await this.chatChannelBinder.teardownChatChannel(trigger);
         if (this.hadChatChannel(trigger)) {
+          // unregister 는 던지지 않는다. 그래도 거부되면 다음 트리거의 teardown 을 기다리는 동안
+          // 처리되지 않은 거부가 되므로 부른 자리에서 받는다.
           unregistering.push(
-            this.channelListenerRegistry.unregister(trigger.id),
+            this.channelListenerRegistry
+              .unregister(trigger.id)
+              .catch((err: unknown) => {
+                this.logger.warn(
+                  `listener unregister 실패 (trigger=${trigger.id}): ${
+                    err instanceof Error ? err.message : String(err)
+                  }`,
+                );
+              }),
           );
         }
       }
     } finally {
-      // teardown 이 던져 루프가 끊겨도 이미 시작한 알림은 끝까지 기다린다. unregister 는 던지지 않지만
-      // 원래 오류를 가리지 않도록 settled 로 모은다.
+      // teardown 이 던져 루프가 끊겨도 이미 시작한 알림은 끝까지 기다린다. 원래 오류를 가리지 않도록
+      // settled 로 모은다.
       await Promise.allSettled(unregistering);
     }
   }

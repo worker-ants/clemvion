@@ -95,7 +95,7 @@ function createBaseProviders(
       provide: ChannelListenerRegistry,
       useValue: {
         register: jest.fn(),
-        unregister: jest.fn(),
+        unregister: jest.fn().mockResolvedValue(undefined),
         has: jest.fn(() => false),
         get: jest.fn(),
         size: jest.fn(() => 0),
@@ -193,7 +193,7 @@ describe('TriggersService.findOneDetail', () => {
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -640,7 +640,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -867,7 +867,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -1934,7 +1934,7 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -2097,7 +2097,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -2249,7 +2249,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -2731,7 +2731,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -2938,7 +2938,7 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
           provide: ChannelListenerRegistry,
           useValue: {
             register: jest.fn(),
-            unregister: jest.fn(),
+            unregister: jest.fn().mockResolvedValue(undefined),
             has: jest.fn(() => false),
             get: jest.fn(),
             size: jest.fn(() => 0),
@@ -4241,7 +4241,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     const lockKeys: string[] = [];
     const listenerRegistry = {
       register: jest.fn(),
-      unregister: jest.fn(),
+      unregister: jest.fn().mockResolvedValue(undefined),
       has: jest.fn(() => false),
       get: jest.fn(),
       size: jest.fn(() => 0),
@@ -5949,8 +5949,9 @@ describe('TriggersService — 채팅 채널 트리거를 켜고 끌 때의 liste
     expect(listenerRegistry.get('trig-a')?.provider).toBe('slack');
   });
 
-  it('켜고 끄는 PATCH 는 setup · teardown 을 부르지 않고 설정 · 서명 자료를 그대로 둔다', async () => {
-    for (const isActive of [true, false]) {
+  it.each([true, false])(
+    '켜고 끄는 PATCH 는 setup · teardown 을 부르지 않고 설정 · 서명 자료를 그대로 둔다 (isActive=%s)',
+    async (isActive) => {
       const { service, binder, secrets, repoMock, adapter } = await makeService(
         row({ isActive: !isActive }),
       );
@@ -5968,7 +5969,18 @@ describe('TriggersService — 채팅 채널 트리거를 켜고 끌 때의 liste
       expect(secrets.rotate).not.toHaveBeenCalled();
       expect(secrets.delete).not.toHaveBeenCalled();
       expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
-    }
+    },
+  );
+
+  it('끈 PATCH 는 레지스트리가 비어 있어도 등록하지 않는다', async () => {
+    const { service, listenerRegistry } = await makeService(
+      row({ isActive: true }),
+    );
+
+    await service.update('trig-a', 'ws-1', { isActive: false }, 'u-1');
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+    expect(listenerRegistry.size()).toBe(0);
   });
 
   it('끈 PATCH 는 레지스트리 항목을 해제하지 않는다 — 끄기 전에 시작한 실행의 메시지가 나가야 한다', async () => {
