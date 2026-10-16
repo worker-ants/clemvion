@@ -4,6 +4,14 @@ import {
   type ChannelListenerChange,
 } from './channel-listener.bus';
 
+/** {@link ChannelListenerRegistry} 가 트리거마다 쥐는 항목. */
+export interface ChannelListenerEntry {
+  /** chat-channel provider 식별자 (telegram / slack / discord). */
+  provider: string;
+  /** registry 에 등록된 시각 (debug / monitoring 용도). */
+  registeredAt: Date;
+}
+
 /**
  * [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책) per-trigger listener registry.
  *
@@ -26,13 +34,6 @@ import {
  *   - [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책) — per-trigger listener dedup/teardown
  *   - [채팅 채널 어댑터 규약 「setupChannel 멱등의 뜻」](CLE-CHAT-ADAPTER#setupchannel-멱등의-뜻) — setupChannel 멱등성
  */
-export interface ChannelListenerEntry {
-  /** chat-channel provider 식별자 (telegram / slack / discord). */
-  provider: string;
-  /** registry 에 등록된 시각 (debug / monitoring 용도). */
-  registeredAt: Date;
-}
-
 @Injectable()
 export class ChannelListenerRegistry {
   private readonly logger = new Logger(ChannelListenerRegistry.name);
