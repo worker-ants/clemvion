@@ -2,19 +2,19 @@
 id: "CLE-NODE-CODE"
 title: "Code 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-CODE-001", "REQ-CODE-002", "REQ-CODE-003", "REQ-CODE-004", "REQ-CODE-005", "REQ-CODE-006", "REQ-CODE-007", "REQ-CODE-008", "REQ-CODE-009", "REQ-CODE-010", "REQ-CODE-011", "REQ-CODE-012", "REQ-CODE-013", "REQ-CODE-014", "REQ-CODE-015", "REQ-CODE-016", "REQ-CODE-017", "REQ-CODE-018", "REQ-CODE-019", "REQ-CODE-020", "REQ-CODE-021", "REQ-CODE-022", "REQ-CODE-023", "REQ-CODE-024", "REQ-CODE-025", "REQ-CODE-026", "REQ-CODE-027", "REQ-CODE-028", "REQ-CODE-029", "REQ-CODE-030"]
 basis_superseded: false
 parent: "CLE-NODE-DATA"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-DATA"]
 area: "CLE-NODE-DATA"
-content_hash: "a418e51316afe195b9b2cc02bafe880f331ef6e218b1c0cf4bc92c80bfffff85"
-read_as: "approved"
-task: null
+content_hash: "ea8b252a442a2c9501a0002f46eb01fffa05ad5ec138c7f8fa1aa3a0da3cd0b9"
+read_as: "approved_fallback"
+task: "CLE-T-DC8BY0"
 source_paths: ["spec/4-nodes/5-data/2-code.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "099dd30fbc2e93e5fec8a23f72fafd3bec1569c2d2b9d04948839b2a83acd7bf"
-etag: "sha256-c93250b5aef7713d93d21dd5f571200c42292d7791c8884eed8e5a041e0b0bd0"
+mirror_sha256: "160b78eeea69c0cc6d5aebc514481f3f610e50a54db0461ba8612336d40615ac"
+etag: "sha256-b19af2106b146c3f74b0474b0ae2215c4aa9bf14075bdbc72c6c278bd17e10c9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/5-data/2-code.md`, `spec/4-nodes/_product-overview.md` (§8.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -402,7 +402,7 @@ Code 노드의 `output` 은 사용자 `return` 값을 **루트에 그대로** �
 - **컨테이너·gVisor 즉시 전환**: 격리는 가장 강하지만 노드를 실행할 때마다 컨테이너를 띄워야 하고 런타임 의존(셀프 호스팅 부담)이 커서 운영 복잡도에 비해 과하다. V8 자체 버그에 의한 isolate 탈출까지 막아야 하는 다중 테넌트 확장 때의 후속 강화로 로드맵에 남긴다.
 - **현상 유지 + frozen prototype 임시 완화**: 우회 경로가 많아 근본 차단이 아니고 여러 워크스페이스 환경에서 받아들일 수 없다.
 
-**트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 생긴다. CI 이미지 빌드 때 한 번 컴파일하면 되므로 배포 시점 복잡도는 없지만, 빌드 환경(alpine·musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 호스트 클로저를 `Reference`·`ivm.Callback` 으로 이어 호스트 realm 에서 실행하므로 기존 사용자 코드(dayjs·crypto·base64)와의 호환이 유지된다. isolated-vm 은 `node>=22` 를 지원하는 `6.x` 를 쓴다(`7.x` 는 `node>=26` 요구, Node 26 으로 올릴 때 다시 본다). 여기서 `node>=22` 는 라이브러리 지원 범위일 뿐이며, 프로젝트 런타임 하한은 `PROJECT.md` 버전·도구 정책(내부 앱 `>=24`)을 따른다.
+**트레이드오프**: 네이티브 빌드(node-gyp) 의존성이 생긴다. CI 이미지 빌드 때 한 번 컴파일하면 되므로 배포 시점 복잡도는 없지만, 빌드 환경(alpine·musl 포함)에 C++ 툴체인이 필요하다. `$helpers`·`console` 은 호스트 클로저를 `Reference`·`ivm.Callback` 으로 이어 호스트 realm 에서 실행하므로 기존 사용자 코드(dayjs·crypto·base64)와의 호환이 유지된다. isolated-vm 은 `7.x` 를 쓴다. `7.x` 의 engines 는 `node>=24` 이고 Node 24 · 26 용 prebuild(ABI 137 · 147, glibc · musl)를 함께 배포한다. 여기서 `node>=24` 는 라이브러리 지원 범위일 뿐이며, 프로젝트 런타임 하한은 `PROJECT.md` 버전·도구 정책(내부 앱 `>=26`)을 따른다. Node 메이저를 올릴 때는 그 메이저의 ABI 용 prebuild 가 있는지 먼저 확인한다(2026-10-16, NERV Task `CLE-T-DC8BY0`).
 
 ### dayjs 매 실행 재컴파일을 힙 스냅샷으로 교체 (2026-06-12)
 
