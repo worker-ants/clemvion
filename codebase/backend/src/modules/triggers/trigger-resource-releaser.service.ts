@@ -184,9 +184,26 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     for (const trigger of triggers) {
       await this.chatChannelBinder.teardownChatChannel(trigger);
       // [채팅 채널 「R8 트리거 단위 listener 정책」] 해제 뒤 도착한 race event 가 dispatcher 에
-      // 닿아도 안전하게. 다른 인스턴스의 레지스트리에서도 빠진다. 미등록이면 noop.
-      await this.channelListenerRegistry.unregister(trigger.id);
+      // 닿아도 안전하게. 다른 인스턴스의 레지스트리에서도 빠진다. `unregister` 는 Redis PUBLISH
+      // 왕복이라 트리거마다 직렬로 기다리면 삭제 요청이 트리거 수만큼 늦어진다. 채팅 채널이 있었던
+      // 트리거만 부른다. 스케줄 · 일반 웹훅은 레지스트리에 든 적이 없다.
+      if (this.hadChatChannel(trigger)) {
+        await this.channelListenerRegistry.unregister(trigger.id);
+      }
     }
+  }
+
+  /**
+   * 이 트리거가 채팅 채널 listener 레지스트리에 들었을 수 있는가. `config.chatChannel` 이 있거나
+   * 이 프로세스의 레지스트리에 항목이 있으면 참이다. 둘을 OR 로 거는 이유는 설정만 지운 PATCH 뒤에도
+   * 항목이 남을 수 있어서다(`config` 로만 판별하면 그 항목이 다른 인스턴스에 남는다).
+   */
+  private hadChatChannel(trigger: Trigger): boolean {
+    const chatChannel = (
+      trigger.config as { chatChannel?: unknown } | null | undefined
+    )?.chatChannel;
+    if (typeof chatChannel === 'object' && chatChannel !== null) return true;
+    return this.channelListenerRegistry.has(trigger.id);
   }
 
   /**
