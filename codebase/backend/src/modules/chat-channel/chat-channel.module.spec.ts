@@ -188,6 +188,7 @@ describe('ChatChannelModule 첫 연결의 SUBSCRIBE 응답 순서', () => {
     return {
       events,
       rows,
+      qb,
       registry,
       module,
       /** `ChannelListenerBus.onModuleInit` 을 부르고 연결이 `ready` 가 됐다고 알린다. */
@@ -243,5 +244,37 @@ describe('ChatChannelModule 첫 연결의 SUBSCRIBE 응답 순서', () => {
     expect(events).toEqual(['db-read', 'ack', 'db-read']);
     expect(dbReadsAfterAck(events)).toBeGreaterThanOrEqual(1);
     expect(registry.get('t-between')?.provider).toBe('discord');
+  });
+
+  // 위 두 경우는 응답을 부팅 복원이 «끝나기 전» 이나 «끝난 뒤» 에만 보낸다. 읽기가 진행 중인 동안
+  // 응답이 오는 경우가 handler 등록과 복원 시작의 순서를 바꿨을 때 놓침이 생기는 유일한 인터리빙이다.
+  // 복원을 먼저 시작하고 handler 를 나중에 등록하면 이 응답은 handler 없이 지나가고, 응답 앞에서
+  // 시작한 읽기만 남는다.
+  it('응답이 DB 읽기 도중에 오면 그 읽기가 끝난 뒤 응답 뒤의 읽기를 한 번 더 한다', async () => {
+    const { events, rows, qb, registry, module, connect, ack } = setup();
+    let finishFirstRead: () => void = () => undefined;
+    qb.getMany.mockImplementationOnce(() => {
+      events.push('db-read');
+      const snapshot = [...rows]; // 읽기가 시작될 때의 DB
+      return new Promise((resolve) => {
+        finishFirstRead = () => resolve(snapshot);
+      });
+    });
+
+    connect(); // 응답이 아직 오지 않았다
+    const booting = module.onApplicationBootstrap(); // 첫 읽기가 끝나지 않은 채로 둔다
+
+    // 읽기가 시작된 뒤 다른 인스턴스가 켠 트리거 — 알림은 구독 확립 전이라 놓쳤고 첫 읽기도 못 본다.
+    rows.push({
+      id: 't-between',
+      config: { chatChannel: { provider: 'slack' } },
+    } as Pick<Trigger, 'id' | 'config'>);
+    await ack(); // 읽는 도중에 응답이 온다
+    finishFirstRead();
+    await booting;
+
+    expect(events).toEqual(['db-read', 'ack', 'db-read']);
+    expect(dbReadsAfterAck(events)).toBeGreaterThanOrEqual(1);
+    expect(registry.get('t-between')?.provider).toBe('slack');
   });
 });
