@@ -9,7 +9,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Provider } from '@nestjs/common';
+import { InjectionToken, Provider } from '@nestjs/common';
 import { In, Repository } from 'typeorm';
 import { makePgUniqueViolation } from '../../shared/testing/pg-error-fixtures';
 import {
@@ -122,6 +122,27 @@ function createBaseProviders(
       },
     },
   ];
+}
+
+/**
+ * `createBaseProviders` 가 돌려준 목록에서 `token` 의 provider 를 `useValue` 로 바꾼다. describe 마다 같은
+ * `findIndex` 술어를 인라인으로 복제하던 자리를 한 곳으로 모았다. 목록에 없는 token 이면 던진다.
+ * `providers[-1] = …` 은 아무 provider 도 바꾸지 않고 지나가서 대역이 빠진 채 테스트가 도는 것을 못 본다.
+ */
+function overrideProvider(
+  providers: Provider[],
+  token: InjectionToken,
+  useValue: unknown,
+): void {
+  const idx = providers.findIndex(
+    (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
+  );
+  if (idx < 0) {
+    throw new Error(
+      `createBaseProviders 에 ${(token as { name?: string }).name ?? String(token)} provider 가 없다`,
+    );
+  }
+  providers[idx] = { provide: token, useValue };
 }
 
 describe('TriggersService.findOneDetail', () => {
@@ -1540,25 +1561,15 @@ describe('TriggersService — setupChatChannel secret store 경로 — **생성(
       create: jest.fn((t: object) => ({ ...baseTrigger, ...t })),
       createQueryBuilder: jest.fn(),
     });
-    const overrideIdx = (token: unknown) =>
-      baseProviders.findIndex(
-        (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
-      );
-    baseProviders[overrideIdx(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: adapterRegistry,
-    };
-    baseProviders[overrideIdx(SecretResolverService)] = {
-      provide: SecretResolverService,
-      useValue: {
-        resolve: jest.fn(),
-        store: jest.fn(),
-        rotate: jest.fn().mockResolvedValue(undefined),
-        delete: jest.fn(),
-        deleteByPrefix: jest.fn().mockResolvedValue(0),
-        exists: jest.fn(),
-      },
-    };
+    overrideProvider(baseProviders, ChannelAdapterRegistry, adapterRegistry);
+    overrideProvider(baseProviders, SecretResolverService, {
+      resolve: jest.fn(),
+      store: jest.fn(),
+      rotate: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn(),
+      deleteByPrefix: jest.fn().mockResolvedValue(0),
+      exists: jest.fn(),
+    });
 
     const moduleRef = await Test.createTestingModule({
       providers: baseProviders,
@@ -3675,28 +3686,18 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
       create: jest.fn((t: unknown) => t),
       createQueryBuilder: jest.fn(),
     });
-    const at = (token: unknown) =>
-      baseProviders.findIndex(
-        (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
-      );
-    baseProviders[at(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: {
-        has: jest.fn().mockReturnValue(true),
-        get: jest.fn().mockReturnValue(mockAdapter),
-      },
-    };
-    baseProviders[at(SecretResolverService)] = {
-      provide: SecretResolverService,
-      useValue: {
-        resolve: jest.fn(),
-        store: jest.fn(),
-        rotate: jest.fn().mockResolvedValue(undefined),
-        delete: jest.fn(),
-        deleteByPrefix: jest.fn().mockResolvedValue(0),
-        exists: jest.fn().mockResolvedValue(true),
-      },
-    };
+    overrideProvider(baseProviders, ChannelAdapterRegistry, {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(mockAdapter),
+    });
+    overrideProvider(baseProviders, SecretResolverService, {
+      resolve: jest.fn(),
+      store: jest.fn(),
+      rotate: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn(),
+      deleteByPrefix: jest.fn().mockResolvedValue(0),
+      exists: jest.fn().mockResolvedValue(true),
+    });
     const moduleRef = await Test.createTestingModule({
       providers: baseProviders,
     }).compile();
@@ -4262,41 +4263,25 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       },
       onLockTimeout: (statement) => events.push(`timeout:${statement}`),
     });
-    // `at` 을 먼저 선언해 **세 provider 교체가 같은 형태**를 쓰게 한다. 종전엔 이 한 곳만
-    // 같은 술어를 인라인으로 복제하고 있었다 — 3라운드 연속 지적된 자리다.
-    const at = (token: unknown) =>
-      providers.findIndex(
-        (pr) =>
-          'provide' in pr && (pr as { provide: unknown }).provide === token,
-      );
-    providers[at(ChannelListenerRegistry)] = {
-      provide: ChannelListenerRegistry,
-      useValue: listenerRegistry,
-    };
-    providers[at(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: {
-        has: jest.fn().mockReturnValue(true),
-        get: jest.fn().mockReturnValue(adapter),
-      },
-    };
-    providers[at(SecretResolverService)] = {
-      provide: SecretResolverService,
-      useValue: {
-        resolve: jest.fn().mockResolvedValue('old-token'),
-        store: jest.fn(),
-        rotate: jest.fn((ref: string) => {
-          events.push(`rotate:${ref}`);
-          return Promise.resolve();
-        }),
-        delete: jest.fn(),
-        deleteByPrefix: jest.fn((prefix: string) => {
-          events.push(`deleteByPrefix:${prefix}`);
-          return Promise.resolve(0);
-        }),
-        exists: jest.fn().mockResolvedValue(true),
-      },
-    };
+    overrideProvider(providers, ChannelListenerRegistry, listenerRegistry);
+    overrideProvider(providers, ChannelAdapterRegistry, {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(adapter),
+    });
+    overrideProvider(providers, SecretResolverService, {
+      resolve: jest.fn().mockResolvedValue('old-token'),
+      store: jest.fn(),
+      rotate: jest.fn((ref: string) => {
+        events.push(`rotate:${ref}`);
+        return Promise.resolve();
+      }),
+      delete: jest.fn(),
+      deleteByPrefix: jest.fn((prefix: string) => {
+        events.push(`deleteByPrefix:${prefix}`);
+        return Promise.resolve(0);
+      }),
+      exists: jest.fn().mockResolvedValue(true),
+    });
     const moduleRef = await Test.createTestingModule({ providers }).compile();
     return {
       adapter,
@@ -5930,22 +5915,11 @@ describe('TriggersService — 채팅 채널 트리거를 켜고 끌 때의 liste
     jest.spyOn(listenerRegistry, 'register');
     jest.spyOn(listenerRegistry, 'unregister');
     const providers = createBaseProviders(repoMock);
-    const at = (token: unknown) =>
-      providers.findIndex(
-        (pr) =>
-          'provide' in pr && (pr as { provide: unknown }).provide === token,
-      );
-    providers[at(ChannelListenerRegistry)] = {
-      provide: ChannelListenerRegistry,
-      useValue: listenerRegistry,
-    };
-    providers[at(ChannelAdapterRegistry)] = {
-      provide: ChannelAdapterRegistry,
-      useValue: {
-        has: jest.fn().mockReturnValue(true),
-        get: jest.fn().mockReturnValue(adapter),
-      },
-    };
+    overrideProvider(providers, ChannelListenerRegistry, listenerRegistry);
+    overrideProvider(providers, ChannelAdapterRegistry, {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(adapter),
+    });
     const moduleRef = await Test.createTestingModule({ providers }).compile();
     return {
       service: moduleRef.get(TriggersService),
