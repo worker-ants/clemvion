@@ -440,32 +440,30 @@ class TriggerCoverageTest(unittest.TestCase):
     그 가드가 제품 경로로 빼므로 여기서 직접 본다. Node 상향 PR 은 거의 이 파일들만 고친다.
     """
 
-    def test_every_file_read_here_triggers_the_workflow(self):
+    def _assert_triggers_workflow(self, rels, what):
+        """RELS 의 파일이 모두 harness-checks 의 pathspecs 에 걸리는지 본다. WHAT 은 안 돌게 되는 대조."""
         pathspecs = parse_pathspecs_block(_read(HARNESS_CHECKS))
         self.assertTrue(pathspecs, f"{_rel(HARNESS_CHECKS)}: pathspecs 블록을 읽지 못했다")
-        for path in (NVMRC, BACKEND_DOCKERFILE, FRONTEND_DOCKERFILE, PLAYWRIGHT_DOCKERFILE):
-            rel = _rel(path)
+        for rel in rels:
             with self.subTest(file=rel):
                 self.assertTrue(
                     any(filter_covers_file(spec, rel) for spec in pathspecs),
                     f"{rel} 는 {_rel(HARNESS_CHECKS)} 의 pathspecs 에 없다 — 이 파일만 고친 PR 에서 "
-                    "Node 메이저 대조가 돌지 않는다",
+                    f"{what} 대조가 돌지 않는다",
                 )
+
+    def test_every_file_read_here_triggers_the_workflow(self):
+        self._assert_triggers_workflow(
+            [_rel(p) for p in (NVMRC, BACKEND_DOCKERFILE, FRONTEND_DOCKERFILE, PLAYWRIGHT_DOCKERFILE)],
+            "Node 메이저",
+        )
 
     def test_every_manifest_read_here_triggers_the_workflow(self):
         """`@types/node` 대조가 읽는 매니페스트. 런타임을 올리는 PR 은 이 파일들도 고친다."""
-        pathspecs = parse_pathspecs_block(_read(HARNESS_CHECKS))
-        self.assertTrue(pathspecs, f"{_rel(HARNESS_CHECKS)}: pathspecs 블록을 읽지 못했다")
-        manifests = sorted(
-            {_rel(p) for p in (*APP_MANIFESTS, SDK_MANIFEST)} | set(_types_node_manifests())
+        self._assert_triggers_workflow(
+            sorted({_rel(p) for p in (*APP_MANIFESTS, SDK_MANIFEST)} | set(_types_node_manifests())),
+            TYPES_NODE,
         )
-        for rel in manifests:
-            with self.subTest(file=rel):
-                self.assertTrue(
-                    any(filter_covers_file(spec, rel) for spec in pathspecs),
-                    f"{rel} 는 {_rel(HARNESS_CHECKS)} 의 pathspecs 에 없다 — 이 파일만 고친 PR 에서 "
-                    f"{TYPES_NODE} 대조가 돌지 않는다",
-                )
 
 
 if __name__ == "__main__":

@@ -401,6 +401,72 @@ def _root_npm_block(text: str) -> str:
     raise ValueError('no workspace-root npm entry (directory: "/")')
 
 
+_BLOCK_LIST_ENTRY = re.compile(
+    r"""\s*-\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))\s*""" + _TRAILING_COMMENT
+)
+_KEY_VALUE = re.compile(r"\s*([\w-]+):(.*)")
+# `- key: …` opens a mapping item. A mapping key needs `: ` (colon, then a space or
+# the line end), so the plain scalar `- version-update:semver-major` is no item.
+_ITEM_START = re.compile(r"\s*-\s+([\w-]+:(?:\s.*)?)")
+
+
+def _nested_block_lines(root_block: str, key: str) -> list[tuple[int, str]] | None:
+    """(indent, line) of every content line nested under `KEY:` in ROOT_BLOCK.
+
+    Blank and comment lines are dropped; a sibling key (indent <= KEY's) ends the
+    block. None when ROOT_BLOCK has no `KEY:` line at all, so "absent" and "empty"
+    stay apart for the callers.
+    """
+    lines = root_block.splitlines()
+    start = next(
+        (i for i, line in enumerate(lines)
+         if re.fullmatch(r"\s*" + re.escape(key) + r":\s*" + _TRAILING_COMMENT, line)),
+        None,
+    )
+    if start is None:
+        return None
+    base = len(lines[start]) - len(lines[start].lstrip())
+
+    body: list[tuple[int, str]] = []
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= base:
+            break  # a sibling key ends the block
+        body.append((indent, line))
+    return body
+
+
+def _read_mapping_line(
+    line: str, current: dict[str, object], pending_key: str | None, where: str,
+) -> str | None:
+    """Fold one LINE of a `key: value` mapping into CURRENT.
+
+    A block-list entry (`- a`) goes to the list that PENDING_KEY opened; anything
+    else must be `key: value`, with the value a flow list, a scalar, or empty
+    (which opens a block list). Returns the key whose block list is now open, or
+    None. RAISES on a line that is neither, naming WHERE it was read.
+    """
+    entry = _BLOCK_LIST_ENTRY.fullmatch(line)
+    if entry and pending_key is not None:
+        current[pending_key].append(next(g for g in entry.groups() if g is not None))
+        return pending_key
+    kv = _KEY_VALUE.fullmatch(line)
+    if not kv:
+        raise ValueError(f"unparsable line in {where}: {line!r}")
+    key, raw = kv.group(1), re.sub(r"\s+#.*$", "", kv.group(2)).strip()
+    if not raw:
+        current[key] = []
+        return key
+    if raw.startswith("["):
+        current[key] = _parse_flow_list(raw, key)
+    else:
+        current[key] = raw.strip("\"'")
+    return None
+
+
 def _parse_root_npm_groups(text: str) -> dict[str, dict[str, object]]:
     """`groups:` of the workspace-root npm entry in dependabot.yml TEXT.
 
@@ -409,30 +475,17 @@ def _parse_root_npm_groups(text: str) -> dict[str, dict[str, object]]:
     (`["a", "b"]`) and block lists (`- a`). Anything else RAISES instead of being
     skipped: a silently dropped line would read as "key absent" and the test
     would then blame the config for what is really a parser gap.
+    Line reading is shared with `_parse_root_npm_ignore` (`_read_mapping_line`).
     """
-    root_block = _root_npm_block(text)
-
-    lines = root_block.splitlines()
-    start = next(
-        (i for i, line in enumerate(lines)
-         if re.fullmatch(r"\s*groups:\s*" + _TRAILING_COMMENT, line)),
-        None,
-    )
-    if start is None:
+    body = _nested_block_lines(_root_npm_block(text), "groups")
+    if body is None:
         return {}
-    base = len(lines[start]) - len(lines[start].lstrip())
 
     groups: dict[str, dict[str, object]] = {}
     group_indent = None
     current: dict[str, object] | None = None
     pending_key: str | None = None
-    for line in lines[start + 1:]:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(line) - len(line.lstrip())
-        if indent <= base:
-            break  # a sibling key (e.g. `ignore:`) ends the block
+    for indent, line in body:
         if group_indent is None:
             group_indent = indent
         if indent == group_indent:
@@ -444,26 +497,7 @@ def _parse_root_npm_groups(text: str) -> dict[str, dict[str, object]]:
             continue
         if current is None or indent < group_indent:
             raise ValueError(f"line outside any group: {line!r}")
-        item = re.fullmatch(
-            r"""\s*-\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))\s*""" + _TRAILING_COMMENT,
-            line,
-        )
-        if item and pending_key is not None:
-            current[pending_key].append(next(g for g in item.groups() if g is not None))
-            continue
-        kv = re.fullmatch(r"\s*([\w-]+):(.*)", line)
-        if not kv:
-            raise ValueError(f"unparsable line in groups: {line!r}")
-        key, raw = kv.group(1), re.sub(r"\s+#.*$", "", kv.group(2)).strip()
-        if not raw:
-            current[key] = []
-            pending_key = key
-        elif raw.startswith("["):
-            current[key] = _parse_flow_list(raw, key)
-            pending_key = None
-        else:
-            current[key] = raw.strip("\"'")
-            pending_key = None
+        pending_key = _read_mapping_line(line, current, pending_key, "groups")
     return groups
 
 
@@ -525,61 +559,29 @@ _IGNORE_KEYS = {"dependency-name", "update-types"}
 def _parse_root_npm_ignore(text: str) -> list[dict[str, object]]:
     """`ignore:` items of the workspace-root npm entry in dependabot.yml TEXT.
 
-    Returns one dict per `- dependency-name: …` item, keyed like the YAML; [] when
-    the entry has no `ignore:`. Same contract as `_parse_root_npm_groups`: the two
-    list shapes a human writes (flow `["a"]`, block `- a`) are read, and a line it
-    cannot place RAISES — a dropped line would read as "key absent" and the test
-    would blame the config for what is a parser gap.
+    Returns one dict per `- <key>: …` item, keyed like the YAML; [] when the entry
+    has no `ignore:`. Same contract as `_parse_root_npm_groups`, and the same
+    line reader (`_read_mapping_line`): the two list shapes a human writes (flow
+    `["a"]`, block `- a`) are read, and a line it cannot place RAISES — a dropped
+    line would read as "key absent" and the test would blame the config for what
+    is a parser gap. An item may start with any key, not just `dependency-name`.
     """
-    lines = _root_npm_block(text).splitlines()
-    start = next(
-        (i for i, line in enumerate(lines)
-         if re.fullmatch(r"\s*ignore:\s*" + _TRAILING_COMMENT, line)),
-        None,
-    )
-    if start is None:
+    body = _nested_block_lines(_root_npm_block(text), "ignore")
+    if body is None:
         return []
-    base = len(lines[start]) - len(lines[start].lstrip())
 
     items: list[dict[str, object]] = []
+    current: dict[str, object] | None = None
     pending_key: str | None = None
-    for line in lines[start + 1:]:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(line) - len(line.lstrip())
-        if indent <= base:
-            break  # a sibling key ends the block
-        start_item = re.fullmatch(
-            r"\s*-\s*([\w-]+):(.*)", line)
-        if start_item and start_item.group(1) == "dependency-name":
-            raw = re.sub(r"\s+#.*$", "", start_item.group(2)).strip()
-            items.append({"dependency-name": raw.strip("\"'")})
-            pending_key = None
-            continue
-        if not items:
+    for _indent, line in body:
+        item_start = _ITEM_START.fullmatch(line)
+        if item_start:
+            current = {}
+            items.append(current)
+            line = item_start.group(1)  # the first `key: value` of the new item
+        elif current is None:
             raise ValueError(f"line before the first ignore item: {line!r}")
-        current = items[-1]
-        entry = re.fullmatch(
-            r"""\s*-\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))\s*""" + _TRAILING_COMMENT,
-            line,
-        )
-        if entry and pending_key is not None:
-            current[pending_key].append(next(g for g in entry.groups() if g is not None))
-            continue
-        kv = re.fullmatch(r"\s*([\w-]+):(.*)", line)
-        if not kv:
-            raise ValueError(f"unparsable line in ignore: {line!r}")
-        key, raw = kv.group(1), re.sub(r"\s+#.*$", "", kv.group(2)).strip()
-        if not raw:
-            current[key] = []
-            pending_key = key
-        elif raw.startswith("["):
-            current[key] = _parse_flow_list(raw, key)
-            pending_key = None
-        else:
-            current[key] = raw.strip("\"'")
-            pending_key = None
+        pending_key = _read_mapping_line(line, current, pending_key, "ignore")
     return items
 
 
@@ -813,6 +815,49 @@ class DependabotIgnoreParserTest(unittest.TestCase):
         self.assertEqual(items[1]["update-types"], [_MAJOR])
         self.assertEqual(_ignore_violations(items), [])
 
+    def test_an_item_may_start_with_any_key(self):
+        """`- update-types:` opens a new item just like `- dependency-name:`.
+
+        Read as a list entry of the item before it, it would swallow that item and
+        the run would then report `typescript` missing: the config blamed for what
+        is a parser gap.
+        """
+        text = (
+            "updates:\n"
+            '  - package-ecosystem: "npm"\n'
+            '    directory: "/"\n'
+            "    ignore:\n"
+            '      - dependency-name: "typescript"\n'
+            "        update-types:\n"
+            '          - "version-update:semver-major"\n'
+            "      - update-types:\n"
+            '          - "version-update:semver-major"\n'
+            '        dependency-name: "@types/node"\n'
+        )
+        items = _parse_root_npm_ignore(text)
+        self.assertEqual(items, [
+            {"dependency-name": "typescript", "update-types": [_MAJOR]},
+            {"update-types": [_MAJOR], "dependency-name": "@types/node"},
+        ])
+        self.assertEqual(_ignore_violations(items), [])
+
+    def test_an_unquoted_list_entry_with_a_colon_is_not_an_item(self):
+        """`- version-update:semver-major` is a plain scalar: a mapping key needs
+        `: ` (colon, then a space or the line end), so this stays a list entry."""
+        text = _POLICY_GROUPS_TEXT.replace(
+            '      - dependency-name: "typescript"\n'
+            '        update-types: ["version-update:semver-major"]\n',
+            '      - dependency-name: "typescript"\n'
+            "        update-types:\n"
+            "          - version-update:semver-major\n",
+        )
+        self.assertNotEqual(text, _POLICY_GROUPS_TEXT, "fixture edit did not apply")
+        items = _parse_root_npm_ignore(text)
+        self.assertEqual(
+            [item["dependency-name"] for item in items], ["typescript", "@types/node"])
+        self.assertEqual(items[0]["update-types"], [_MAJOR])
+        self.assertEqual(_ignore_violations(items), [])
+
     def test_only_the_root_entry_is_read(self):
         """An `ignore:` on another npm entry must not stand in for the root one."""
         text = (
@@ -835,6 +880,18 @@ class DependabotIgnoreParserTest(unittest.TestCase):
         text = _POLICY_GROUPS_TEXT.replace(
             '        update-types: ["version-update:semver-major"]\n',
             "        {weird}\n",
+            1,
+        )
+        self.assertNotEqual(text, _POLICY_GROUPS_TEXT, "fixture edit did not apply")
+        with self.assertRaises(ValueError):
+            _parse_root_npm_ignore(text)
+
+    def test_a_list_entry_without_an_open_list_raises(self):
+        """A flow list closes the list, so a following `- a` belongs to nothing."""
+        text = _POLICY_GROUPS_TEXT.replace(
+            '        update-types: ["version-update:semver-major"]\n',
+            '        update-types: ["version-update:semver-major"]\n'
+            "          - stray\n",
             1,
         )
         self.assertNotEqual(text, _POLICY_GROUPS_TEXT, "fixture edit did not apply")
