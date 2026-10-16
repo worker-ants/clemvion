@@ -33,7 +33,10 @@ export class WebAuthnCredential {
   @Column({ name: 'counter', type: 'bigint', default: 0 })
   counter: string; // bigint comes through pg driver as string by default
 
-  /** WebAuthn transport hints (usb / nfc / ble / internal / hybrid). */
+  /**
+   * WebAuthn transport hints (usb / nfc / ble / internal / hybrid).
+   * 표준 값 외 문자열도 클라이언트가 보낸 그대로 저장한다(WebAuthn 명세상 RP 는 모르는 값도 허용).
+   */
   @Column({
     name: 'transports',
     type: 'text',

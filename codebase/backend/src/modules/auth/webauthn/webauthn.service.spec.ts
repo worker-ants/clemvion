@@ -312,6 +312,64 @@ describe('WebAuthnService', () => {
         service.verifyRegistration(userId, 'opts.tok', validResponse as never),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('saves the client transports unchanged, including values outside the standard list', async () => {
+      await service.verifyRegistration(userId, 'opts.tok', {
+        ...validResponse,
+        response: { transports: ['usb', 'smart-card', 'future-transport'] },
+      } as never);
+      expect(credentialRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transports: ['usb', 'smart-card', 'future-transport'],
+        }),
+      );
+    });
+
+    // 필드가 없는 경우와 인증기가 getTransports() 로 빈 배열을 돌려주는 경우 둘 다 정상 등록이다.
+    it.each([
+      ['sends none', {}],
+      ['sends an empty array', { transports: [] }],
+    ])(
+      'saves an empty transport list when the client %s',
+      async (_label, responseBody) => {
+        await service.verifyRegistration(userId, 'opts.tok', {
+          ...validResponse,
+          response: responseBody,
+        } as never);
+        expect(credentialRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ transports: [] }),
+        );
+        expect(credentialRepo.save).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    // 라이브러리는 transports 를 검증하지 않고 그대로 돌려준다. mock 이 아닌 실제 라이브러리와
+    // DB 컬럼에서의 동작은 e2e(webauthn-2fa.e2e-spec.ts 케이스 H)가 본다.
+    it.each([
+      ['a string', 'usb'],
+      ['null', null],
+      ['an object', { 0: 'usb' }],
+      ['an array with a number', ['usb', 1]],
+      ['an array with null', ['usb', null]],
+      // text[] 컬럼은 NUL 문자를 저장하지 못한다.
+      ['an array with a NUL character', ['usb', 'a\u0000b']],
+    ])(
+      'rejects transports that is %s with 400 WEBAUTHN_VERIFY_FAILED and saves nothing',
+      async (_label, transports) => {
+        const err: unknown = await service
+          .verifyRegistration(userId, 'opts.tok', {
+            ...validResponse,
+            response: { transports },
+          } as never)
+          .catch((err_: unknown) => err_);
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect((err as BadRequestException).getResponse()).toMatchObject({
+          code: 'WEBAUTHN_VERIFY_FAILED',
+        });
+        expect(credentialRepo.save).not.toHaveBeenCalled();
+        expect(usersService.update).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('verifyAuthentication', () => {
@@ -361,7 +419,7 @@ describe('WebAuthnService', () => {
     });
 
     it('deletes credential + revokes all active refresh tokens + records WEBAUTHN_COUNTER_REGRESSION on counter regression', async () => {
-      // @simplewebauthn v13 의 실제 에러 메시지 문구 그대로 사용 — mock 과 실제
+      // @simplewebauthn 지금 버전(v14)의 실제 에러 메시지 문구 그대로 사용(v13 도 같다) — mock 과 실제
       // 라이브러리 메시지가 어긋나면 역행 감지 분기가 e2e 에서만 깨진다 (regex 의
       // "lower" 누락 회귀를 단위에서도 잠근다).
       mockedVerifyAuthResp.mockRejectedValue(

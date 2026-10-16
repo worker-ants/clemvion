@@ -7,7 +7,7 @@ import { isoBase64URL, isoCBOR, cose } from '@simplewebauthn/server/helpers';
  *
  * `webauthn.service.spec.ts` 는 `@simplewebauthn/server` 를 통째로 mock 해 24 케이스를
  * 회귀 잠금하지만, mock 은 라이브러리의 실제 verify 동작·에러 메시지를 재현하지 못한다.
- * 본 helper 는 실제 Ed25519 키로 attestation/assertion 을 합성해 backend-e2e 컨테이너의
+ * 본 helper 는 실제 키(기본 Ed25519)로 attestation/assertion 을 합성해 backend-e2e 컨테이너의
  * 진짜 `verifyRegistrationResponse` / `verifyAuthenticationResponse` 를 통과(또는 의도적
  * 으로 실패)시킨다 — HTTP → service → DB 전 구간을 mock 없이 검증한다.
  *
@@ -34,39 +34,93 @@ const FLAG_UV = 0x04; // User Verified
 const FLAG_AT = 0x40; // Attested credential data included
 
 /**
- * 단일 Ed25519(OKP/EdDSA) 인증기를 모사한다. 등록 시 한 번 키를 생성하고, 매 인증마다
- * sign counter 를 1 씩 올린다. 복제/리플레이(=counter 역행) 를 강제로 만들려면
+ * 소프트웨어 인증기가 만들 수 있는 키 종류. 서버가 받는 등록 알고리즘은 EdDSA 다.
+ * ES384(-35)는 서버 목록에도 라이브러리 기본 목록에도 없다. ML-DSA-44(-48)는 라이브러리 v14
+ * 가 PQC 를 지원하는 런타임에서 기본 목록 맨 앞에 넣지만 서버 목록에는 없다. 둘은 등록 검증이
+ * 목록 밖 알고리즘을 거부하는지 보는 데 쓴다.
+ */
+export type SoftKeyAlgorithm = 'EdDSA' | 'ES384' | 'ML-DSA-44';
+
+type CoseKeyMap = Map<number, number | Uint8Array>;
+
+interface SoftKeySpec {
+  /** `crypto.sign` 의 digest. 메시지 전체를 받는 Ed25519 · ML-DSA 는 null. */
+  digest: string | null;
+  generate(): { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+  /** 공개 키 JWK 를 COSE_Key 로 옮긴다. */
+  coseKey(jwk: crypto.webcrypto.JsonWebKey): CoseKeyMap;
+}
+
+function jwkBytes(value: string | undefined): Uint8Array {
+  if (!value) throw new Error('JWK 에 공개 키 값이 없다');
+  return new Uint8Array(Buffer.from(value, 'base64url'));
+}
+
+const SOFT_KEY_SPECS: Record<SoftKeyAlgorithm, SoftKeySpec> = {
+  EdDSA: {
+    digest: null,
+    generate: () => crypto.generateKeyPairSync('ed25519'),
+    coseKey: (jwk) =>
+      new Map<number, number | Uint8Array>([
+        [COSEKEYS.kty, COSEKTY.OKP],
+        [COSEKEYS.alg, COSEALG.EdDSA],
+        [COSEKEYS.crv, COSECRV.ED25519],
+        [COSEKEYS.x, jwkBytes(jwk.x)],
+      ]),
+  },
+  ES384: {
+    digest: 'sha384',
+    generate: () => crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' }),
+    coseKey: (jwk) =>
+      new Map<number, number | Uint8Array>([
+        [COSEKEYS.kty, COSEKTY.EC2],
+        [COSEKEYS.alg, COSEALG.ES384],
+        [COSEKEYS.crv, COSECRV.P384],
+        [COSEKEYS.x, jwkBytes(jwk.x)],
+        [COSEKEYS.y, jwkBytes(jwk.y)],
+      ]),
+  },
+  'ML-DSA-44': {
+    digest: null,
+    generate: () => crypto.generateKeyPairSync('ml-dsa-44'),
+    coseKey: (jwk) =>
+      new Map<number, number | Uint8Array>([
+        [COSEKEYS.kty, COSEKTY.AKP],
+        [COSEKEYS.alg, COSEALG.ML_DSA_44],
+        [COSEKEYS.pub, jwkBytes((jwk as { pub?: string }).pub)],
+      ]),
+  },
+};
+
+/**
+ * 단일 인증기를 모사한다. 등록 시 한 번 키를 생성하고, 매 인증마다 sign counter 를 1 씩
+ * 올린다. 복제/리플레이(=counter 역행) 를 강제로 만들려면
  * `authenticationResponse(..., { bumpCounter: false })` 로 counter 를 고정한다.
+ * 키 종류는 `algorithm` 으로 고르고 기본값은 서버가 받는 EdDSA 다.
  */
 export class SoftWebAuthnDevice {
+  private readonly spec: SoftKeySpec;
   private readonly privateKey: crypto.KeyObject;
-  private readonly publicKeyRaw: Buffer; // 32-byte Ed25519 공개키
+  /** COSE_Key CBOR 직렬화. attestedCredentialData 에 들어간다. */
+  private readonly coseKeyBytes: Buffer;
   readonly credentialId: Buffer;
   private readonly aaguid: Buffer;
   /** 마지막으로 합성에 사용한 sign counter (DB 가 기대하는 다음 값의 직전). */
   signCount = 0;
 
-  constructor() {
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+  constructor(opts: { algorithm?: SoftKeyAlgorithm } = {}) {
+    this.spec = SOFT_KEY_SPECS[opts.algorithm ?? 'EdDSA'];
+    const { publicKey, privateKey } = this.spec.generate();
     this.privateKey = privateKey;
-    const jwk = publicKey.export({ format: 'jwk' }) as { x: string };
-    this.publicKeyRaw = Buffer.from(jwk.x, 'base64url');
+    this.coseKeyBytes = Buffer.from(
+      isoCBOR.encode(this.spec.coseKey(publicKey.export({ format: 'jwk' }))),
+    );
     this.credentialId = crypto.randomBytes(32);
     this.aaguid = Buffer.alloc(16, 0); // attestationType 'none' — 0 AAGUID
   }
 
   get credentialIdB64Url(): string {
     return b64u(this.credentialId);
-  }
-
-  /** COSE_Key (OKP / Ed25519) CBOR 직렬화. attestedCredentialData 에 들어간다. */
-  private coseKey(): Buffer {
-    const map = new Map<number, number | Uint8Array>();
-    map.set(COSEKEYS.kty, COSEKTY.OKP);
-    map.set(COSEKEYS.alg, COSEALG.EdDSA);
-    map.set(COSEKEYS.crv, COSECRV.ED25519);
-    map.set(COSEKEYS.x, new Uint8Array(this.publicKeyRaw));
-    return Buffer.from(isoCBOR.encode(map));
   }
 
   private authenticatorData(opts: {
@@ -92,7 +146,7 @@ export class SoftWebAuthnDevice {
       this.aaguid,
       credIdLen,
       this.credentialId,
-      this.coseKey(),
+      this.coseKeyBytes,
     ]);
   }
 
@@ -108,9 +162,17 @@ export class SoftWebAuthnDevice {
     );
   }
 
-  /** navigator.credentials.create() 결과(RegistrationResponseJSON) 합성. */
-  registrationResponse(challenge: string, opts: { uv?: boolean } = {}) {
+  /**
+   * navigator.credentials.create() 결과(RegistrationResponseJSON) 합성.
+   *  - transports: 응답에 실을 transport 목록. 서버의 형식 검증을 보려고 문자열 배열이 아닌
+   *    값도 받는다. `undefined` 를 주면 필드를 싣지 않는다. 기본 `['internal']`.
+   */
+  registrationResponse(
+    challenge: string,
+    opts: { uv?: boolean; transports?: unknown } = {},
+  ) {
     const uv = opts.uv ?? true; // 정책: requireUserVerification: true
+    const transports = 'transports' in opts ? opts.transports : ['internal'];
     const clientData = this.clientDataJSON('webauthn.create', challenge);
     const authData = this.authenticatorData({ includeAttested: true, uv });
     const attMap = new Map<string, string | Map<never, never> | Uint8Array>();
@@ -125,7 +187,7 @@ export class SoftWebAuthnDevice {
       response: {
         clientDataJSON: b64u(clientData),
         attestationObject: b64u(attestationObject),
-        transports: ['internal'],
+        transports: transports as string[] | undefined,
       },
       clientExtensionResults: {},
       authenticatorAttachment: 'platform' as const,
@@ -147,8 +209,9 @@ export class SoftWebAuthnDevice {
 
     const clientData = this.clientDataJSON('webauthn.get', challenge);
     const authData = this.authenticatorData({ includeAttested: false, uv });
+    // ECDSA 서명은 Node 기본값인 DER 로 나오고 WebAuthn 도 DER 를 쓴다.
     const signature = crypto.sign(
-      null, // Ed25519 → algorithm 은 null
+      this.spec.digest,
       Buffer.concat([authData, sha256(clientData)]),
       this.privateKey,
     );
@@ -177,16 +240,11 @@ interface RegisterResult {
   webauthnRecoveryCodes: string[];
 }
 
-/**
- * 등록 ceremony 한 번: options 발급 → 디바이스 attestation 합성 → verify.
- * 첫 등록이면 복구 코드 10개가 함께 반환된다.
- */
-export async function registerDevice(
+/** register/options 발급 — verify 에 넘길 challenge 와 optionsToken. */
+export async function fetchRegistrationOptions(
   baseUrl: string,
   accessToken: string,
-  device: SoftWebAuthnDevice,
-  deviceName = 'e2e-key',
-): Promise<RegisterResult> {
+): Promise<{ challenge: string; optionsToken: string }> {
   const optionsRes = await request(baseUrl)
     .post('/api/auth/2fa/webauthn/register/options')
     .set('Authorization', `Bearer ${accessToken}`)
@@ -200,13 +258,30 @@ export async function registerDevice(
     publicKey: { challenge: string };
     optionsToken: string;
   };
+  return { challenge: publicKey.challenge, optionsToken };
+}
+
+/**
+ * 등록 ceremony 한 번: options 발급 → 디바이스 attestation 합성 → verify.
+ * 첫 등록이면 복구 코드 10개가 함께 반환된다.
+ */
+export async function registerDevice(
+  baseUrl: string,
+  accessToken: string,
+  device: SoftWebAuthnDevice,
+  deviceName = 'e2e-key',
+): Promise<RegisterResult> {
+  const { challenge, optionsToken } = await fetchRegistrationOptions(
+    baseUrl,
+    accessToken,
+  );
 
   const verifyRes = await request(baseUrl)
     .post('/api/auth/2fa/webauthn/register/verify')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
       optionsToken,
-      response: device.registrationResponse(publicKey.challenge),
+      response: device.registrationResponse(challenge),
       deviceName,
     });
   if (verifyRes.status !== 200) {

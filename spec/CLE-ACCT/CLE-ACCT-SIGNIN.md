@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "ea0c31d4f47f1a9899530b1cfbd22f5e484ff66ea6f1a0ac807eaf728b48a46f"
 read_as: "approved_fallback"
-task: "CLE-T-34HB5X"
+task: "CLE-T-C5EWSD"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "8fed47a6db66af6467733db3f4f8de5e33c5aec141c20719652d300956acb41d"
-etag: "sha256-1daa99848ceeb952f5c56d929a2d6fbc3f643841181ab3720a3cb6329a1098e8"
+mirror_sha256: "dc5114f5a1735d5f795366d40cd550db2e38b02f3c803279a3de0868556dcefa"
+etag: "sha256-e2d2a376a09349407b540b25c109e83405084e8ed4b8991073dde2f656037f44"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
