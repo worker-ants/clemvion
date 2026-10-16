@@ -1,3 +1,5 @@
+import type { LookupAddress } from 'node:dns';
+import { lookup } from 'node:dns/promises';
 import {
   DatabaseQueryHandler,
   extractSqlVerb,
@@ -18,6 +20,19 @@ jest.mock('../http-request/http-safety.js', () => {
     ),
   };
 });
+
+// DNS 는 가짜로 둔다. 실물 해석 가드는 literal IP · localhost 가 아닌 host(`db.example.com` 등)마다 `lookup` 을 부르고
+// 시한이 없다. 그래서 DNS 가 느린 환경에서는 테스트가 jest 시한(5초)을 넘겨 flaky 가 된다(NERV Task `CLE-T-WC482N`).
+// 기본값은 공인 주소 하나로 답하게 해 가드를 통과시키고, 해석 결과로 막는 경로는 테스트마다 따로 정한다.
+// `http-safety.spec.ts` 와 같은 방식이다.
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(),
+}));
+// 가드는 `lookup(host, { all: true })` 오버로드만 쓴다 — `jest.mocked(lookup)` 은 단일 주소 오버로드로 잡혀 배열을 거부한다.
+const mockedLookup = lookup as unknown as jest.MockedFunction<
+  (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
+>;
+const PUBLIC_ADDRESS: LookupAddress = { address: '93.184.216.34', family: 4 };
 
 const connectMock = jest.fn();
 const queryMock = jest.fn();
@@ -157,6 +172,7 @@ function makeService(
 
 describe('DatabaseQueryHandler', () => {
   beforeEach(() => {
+    mockedLookup.mockReset().mockResolvedValue([PUBLIC_ADDRESS]);
     connectMock.mockReset().mockResolvedValue(undefined);
     queryMock.mockReset();
     releaseMock.mockReset();
@@ -1139,6 +1155,32 @@ describe('DatabaseQueryHandler', () => {
           );
         },
       );
+
+      // DNS rebinding — host 이름은 공인 도메인인데 해석 결과가 내부 대역이면 literal 판정을 지나도 해석 가드에서 막힌다.
+      // 위 `node:dns/promises` 가짜가 가드에 실제로 닿는지도 이 테스트로 확인한다. 가짜가 빠지면 실제 조회에서 내부 주소가
+      // 나오지 않아 연결을 열고 이 테스트가 실패한다.
+      it('blocks a public host name that resolves to a private IP (DNS rebinding) → DB_HOST_BLOCKED', async () => {
+        mockedLookup.mockResolvedValueOnce([
+          { address: '10.0.0.5', family: 4 },
+        ]);
+        const { service } = makeService({
+          integration: pgIntegrationWithHost('rebind.example.com'),
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).not.toContain('10.0.0.5');
+        expect(mockedLookup).toHaveBeenCalledWith('rebind.example.com', {
+          all: true,
+        });
+        expect(connectMock).not.toHaveBeenCalled();
+      });
 
       /**
        * 가드의 «판정» 은 `SsrfBlockedError` 하나뿐이다. 그 밖의 오류는 가드의 고장이지 차단이 아니므로 `DB_HOST_BLOCKED`
