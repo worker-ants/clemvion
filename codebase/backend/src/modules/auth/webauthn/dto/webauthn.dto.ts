@@ -7,6 +7,15 @@ import {
   MinLength,
 } from 'class-validator';
 
+import {
+  HasNoNulCharacter,
+  MaxCodePoints,
+} from '../../../../common/utils/postgres-text';
+
+// Passkey 표시 이름의 최대 길이(유니코드 코드 포인트). `webauthn_credential.device_name` 이 `varchar(100)` 이다.
+// 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
+const DEVICE_NAME_MAX_CODE_POINTS = 100;
+
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
 /**
  * WebAuthn 등록 verify 요청.
@@ -29,12 +38,15 @@ export class WebAuthnRegisterVerifyDto {
   response: Record<string, unknown>;
 
   @ApiProperty({
-    description: '사용자가 부여한 표시 이름 (최대 100자, 선택)',
+    description:
+      '사용자가 부여한 표시 이름 (선택). 유니코드 코드 포인트 100개까지 받고 NUL 문자는 받지 않는다.',
     required: false,
   })
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(DEVICE_NAME_MAX_CODE_POINTS)
+  @MaxCodePoints(DEVICE_NAME_MAX_CODE_POINTS)
+  @HasNoNulCharacter()
   deviceName?: string;
 }
 
@@ -88,10 +100,15 @@ export class WebAuthnRecoveryDto {
 
 /** credential 이름 변경. */
 export class WebAuthnRenameDto {
-  @ApiProperty({ description: '새 표시 이름 (최대 100자)' })
+  @ApiProperty({
+    description:
+      '새 표시 이름. 유니코드 코드 포인트 100개까지 받고 NUL 문자는 받지 않는다.',
+  })
   @IsString()
   @MinLength(1)
-  @MaxLength(100)
+  @MaxLength(DEVICE_NAME_MAX_CODE_POINTS)
+  @MaxCodePoints(DEVICE_NAME_MAX_CODE_POINTS)
+  @HasNoNulCharacter()
   deviceName: string;
 }
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "f084f2f530f7cded0bccd57b0037879072d50c291865fe30a69d3bdb7e5258af"
+content_hash: "19da538f87df9eba8f9227ee307ee9d1d51595ae6c9d2473d57c2b7047663c88"
 read_as: "approved_fallback"
-task: "CLE-T-E7MF3Q"
+task: "CLE-T-XYW44D"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "9f099ea66641908fb43edeb01d047b7d2764b275b1fefac2c5de8cd6538d89bf"
-etag: "sha256-525e5302ad3d29d3bb0cccaa9890000d6053a95fe9e7eef14e55e89eeea36ebf"
+mirror_sha256: "d5cc239cf0802896879fba79f10260bd7f20c5ac89a4788a49e464f4da1a5a8a"
+etag: "sha256-ebf07fdfed8e71f0550244e4a6f394ace8a69106cbe77127010af6aba0ffdeec"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -194,7 +194,7 @@ erDiagram
 | credential_id | String | UNIQUE. WebAuthn 표준 credential ID (base64url). 길이가 가변이라 TEXT |
 | public_key | Bytes | CBOR-COSE 로 직렬화한 공개 키 (BYTEA) |
 | counter | BigInt | 재전송 방어용 sign counter. 인증마다 갱신한다. 역행하면 그 행을 바로 지우고(suspend 컬럼은 두지 않는다) 로그인 이력에 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`)를 남긴다 |
-| transports | String[] | 표준 transport 힌트 (`usb`, `nfc`, `ble`, `internal`, `hybrid`) |
+| transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 서버는 문자열 배열인지와 NUL 문자가 없는지만 확인하고 값은 바꾸지 않는다. 표준 값과 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」 이 정한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다 |
 | aaguid | UUID? | 인증기 모델 식별자 (선택) |
 | device_name | String? | 사용자가 붙인 표시 이름 (최대 100자). 없으면 UI 가 transport 와 등록일로 표시한다 |
 | last_used_at | Timestamp? | 마지막 인증 성공 시각 |

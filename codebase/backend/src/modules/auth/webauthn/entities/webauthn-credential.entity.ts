@@ -36,6 +36,7 @@ export class WebAuthnCredential {
   /**
    * WebAuthn transport hints (usb / nfc / ble / internal / hybrid).
    * 표준 값 외 문자열도 클라이언트가 보낸 그대로 저장한다(WebAuthn 명세상 RP 는 모르는 값도 허용).
+   * 문자열 배열이 아니거나 NUL 문자가 든 항목이 있으면 등록 검증이 400 으로 거부한다(`parseTransports`).
    */
   @Column({
     name: 'transports',
@@ -49,7 +50,10 @@ export class WebAuthnCredential {
   @Column({ name: 'aaguid', type: 'uuid', nullable: true })
   aaguid: string | null;
 
-  /** 사용자가 부여한 표시 이름 (최대 100자). */
+  /**
+   * 사용자가 부여한 표시 이름. `varchar(100)` 은 길이를 코드 포인트로 세고 NUL 문자를 저장하지 못한다.
+   * 그런 값은 요청 DTO 가 400 으로 거부한다(`webauthn.dto.ts`).
+   */
   @Column({ name: 'device_name', type: 'varchar', length: 100, nullable: true })
   deviceName: string | null;
 

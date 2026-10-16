@@ -353,6 +353,8 @@ describe('WebAuthnService', () => {
       ['an array with null', ['usb', null]],
       // text[] 컬럼은 NUL 문자를 저장하지 못한다.
       ['an array with a NUL character', ['usb', 'a\u0000b']],
+      ['an array with only a NUL character', ['\u0000']],
+      ['an array with a leading NUL character', ['\u0000usb']],
     ])(
       'rejects transports that is %s with 400 WEBAUTHN_VERIFY_FAILED and saves nothing',
       async (_label, transports) => {

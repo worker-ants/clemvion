@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059"]
+requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "ea0c31d4f47f1a9899530b1cfbd22f5e484ff66ea6f1a0ac807eaf728b48a46f"
+content_hash: "ef904b1600df22fdc9dea0dc58ba7df3adc0c8db2302b339c43181fe7af57856"
 read_as: "approved_fallback"
-task: "CLE-T-C5EWSD"
+task: "CLE-T-XYW44D"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "dc5114f5a1735d5f795366d40cd550db2e38b02f3c803279a3de0868556dcefa"
-etag: "sha256-e2d2a376a09349407b540b25c109e83405084e8ed4b8991073dde2f656037f44"
+mirror_sha256: "b612d1e3e7e68741233a68db662fd9f95f62e10161cbdbecd3b118b0f8a9e4bf"
+etag: "sha256-8778caf6fe6a5d6d0c319481030435272690f2c303434cb5d2a69c16b3d199a3"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -94,6 +94,9 @@ etag: "sha256-e2d2a376a09349407b540b25c109e83405084e8ed4b8991073dde2f656037f44"
 - REQ-SIGNIN-057 IF TOTP 끄기 요청의 코드가 맞지 않거나 TOTP 가 켜져 있지 않으면 THE SYSTEM SHALL 401 `TOTP_INVALID` 로 거부하고 2단계 인증 상태를 바꾸지 않는다.
 - REQ-SIGNIN-058 WHEN 사용자가 TOTP 를 끄면 THE SYSTEM SHALL Passkey credential 과 Passkey 복구 코드를 그대로 둔다.
 - REQ-SIGNIN-059 WHEN TOTP 끄기 요청을 받으면 THE SYSTEM SHALL 사용자당 분당 10회로 요청을 제한한다.
+- REQ-SIGNIN-060 IF Passkey 등록 검증에서 credential 공개 키의 알고리즘이 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`) 밖이면 THE SYSTEM SHALL 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 credential 을 만들지 않는다.
+- REQ-SIGNIN-061 IF Passkey 등록 검증 요청에 transport 목록 필드(`response.response.transports`)가 있는데 그 값이 문자열 배열이 아니거나(`null` 포함) NUL 문자(`\u0000`)가 든 문자열이 있으면 THE SYSTEM SHALL 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 credential 을 만들지 않는다.
+- REQ-SIGNIN-062 WHEN Passkey 등록 검증이 성공하면 THE SYSTEM SHALL 클라이언트가 보낸 transport 문자열을 표준 값이 아니어도 바꾸거나 빼지 않고 저장한다.
 
 ## 인증 화면 공통
 
@@ -341,7 +344,13 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 2. 클라이언트가 `navigator.credentials.create(options)` 를 호출한다.
 3. `POST /api/auth/2fa/webauthn/register/verify { optionsToken, response }`. 서버가 `verifyRegistrationResponse` 로 검증하고 `webauthn_credential` 행을 만든다. 첫 등록이면 복구 코드 10개를 발급해 평문으로 한 번 돌려준다.
 
-등록 옵션과 등록 검증은 같은 공개 키 알고리즘 목록만 받는다. 순서대로 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`)이다. 인증 검증은 등록 때 저장한 공개 키의 알고리즘으로 검증한다.
+등록 옵션과 등록 검증은 같은 공개 키 알고리즘 목록만 받는다. 순서대로 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`)이다. 목록 밖 알고리즘의 공개 키로 만든 credential 은 등록 검증이 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 저장하지 않는다. 인증 검증은 등록 때 저장한 공개 키의 알고리즘으로 검증한다.
+
+등록 검증은 클라이언트가 보낸 transport 목록(`response.response.transports`)의 형식도 확인한다. 서버 라이브러리는 이 값을 검증하지 않고 그대로 돌려준다.
+
+- 필드가 없으면 빈 목록으로 저장한다.
+- 값이 문자열 배열이 아니면 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 credential 을 만들지 않는다. `null` 이거나 배열이 아니거나 문자열이 아닌 항목이 섞인 경우다. 항목에 NUL 문자(`\u0000`)가 든 문자열이 있어도 같다. PostgreSQL `text` 에는 NUL 을 저장할 수 없기 때문이다.
+- 문자열 배열이면 표준 값(`usb` · `nfc` · `ble` · `smart-card` · `hybrid` · `internal`)에 없는 값도 바꾸지 않고 저장한다.
 
 로그인 2단계 인증은 다음 순서다.
 
@@ -619,7 +628,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)에서 사용자가 없거나 TOTP 가 꺼져 있다. 메시지는 다시 로그인하라고 안내한다 |
 | `TOTP_NOT_INITIALIZED` | 400 | TOTP 활성화 검증(`POST /api/auth/2fa/verify`)을 설정 시작(`POST /api/auth/2fa/setup`) 없이 불러 secret 이 없다 |
 | `WEBAUTHN_DISABLED` | 503 | Passkey 기능이 꺼져 있다 |
-| `WEBAUTHN_VERIFY_FAILED` | 400 | Passkey 등록 검증 실패 |
+| `WEBAUTHN_VERIFY_FAILED` | 400 | Passkey 등록 검증 실패. 허용 목록 밖 알고리즘의 공개 키와 형식이 틀린 transport 목록(문자열 배열이 아니거나 NUL 문자가 든 경우)도 이 코드다 |
 | `INVALID_OPTIONS_TOKEN` | 400 | `optionsToken` 무효 |
 | `CHALLENGE_INVALID` | 401 | 챌린지 토큰 검증 실패 |
 | `WEBAUTHN_INVALID` | 401 | Passkey 인증 실패 |
@@ -640,6 +649,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/backend/src/common/config/webauthn.config.ts`
 - `codebase/backend/src/common/constants/throttle.ts` (`SENSITIVE_ACTION_THROTTLE`, TOTP 끄기 요청 한도)
 - `codebase/backend/test/totp-disable.e2e-spec.ts` (TOTP 끄기의 비밀번호·코드 확인과 DB 상태)
+- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 등록 알고리즘 고정, transport 목록 형식)
 - `codebase/frontend/src/app/(auth)/**`
 - `codebase/frontend/src/components/auth/**` (`register-form.tsx` 포함)
 - `codebase/frontend/src/lib/utils/password.ts`
@@ -697,9 +707,21 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - v14 는 양자 내성 암호(Post-Quantum Cryptography, PQC)를 지원하는 런타임에서 등록 옵션과 등록 검증의 기본 알고리즘 목록 맨 앞에 PQC 서명 알고리즘 ML-DSA 의 44 파라미터 세트(COSE 알고리즘 식별자 `-48`)를 넣는다. 지금 런타임인 Node 26 이 그 경우다. Node 는 이 Web Crypto 알고리즘을 아직 실험 기능으로 표시한다.
 - 그래서 등록 옵션(`generateRegistrationOptions`)과 등록 검증(`verifyRegistrationResponse`)의 `supportedAlgorithmIDs` 를 v13 기본값인 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`)으로 고정한다. 옵션은 브라우저에 주는 안내이고 실제로 받는 알고리즘은 등록 검증이 정한다. 그래서 두 호출에 같은 목록을 준다. 인증 검증에는 이 목록이 없다.
 - 기본 목록을 그대로 받는 안은 기각했다. ML-DSA 키로 등록한 credential 은 인증할 때마다 런타임의 실험 기능에 기댄다. 런타임을 바꾸거나 그 기능이 바뀌면 그 사용자가 로그인하지 못할 수 있다. PQC 도입은 런타임 지원이 안정된 뒤 따로 정한다.
-- 등록 옵션만 고정하는 안도 기각했다. 옵션을 따르지 않는 클라이언트가 ML-DSA 키를 보내면 등록 검증이 받아들인다.
+- 등록 옵션만 고정하는 안도 기각했다. 옵션을 따르지 않는 클라이언트가 ML-DSA 키를 보내면 등록 검증이 받아들인다. 그래서 등록 검증도 목록 밖 알고리즘을 400 `WEBAUTHN_VERIFY_FAILED` 로 거부한다.
 - v13 에 머무는 안도 기각했다. 14.0.0(2026-09-02) 뒤로 v13 라인 릴리스가 없고 그 뒤 수정은 모두 v14 릴리스로 나왔다.
 - 이미 등록된 credential 은 v13 과 같은 알고리즘이라 그대로 인증된다. counter 역행을 알리는 에러 메시지도 v13 과 같아서 역행 감지가 그대로 동작한다.
+
+### 등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다 (2026-10-16)
+
+클라이언트가 보낸 transport 목록은 서버 라이브러리가 검증하지 않고 그대로 돌려준다. 서비스가 그 값을 확인 없이 `webauthn_credential.transports`(문자열 배열 컬럼)에 저장해서 문자열 배열이 아닌 값이 오면 500 이 났다(NERV Task `CLE-T-C5EWSD`).
+
+- 형식이 틀린 값은 등록 검증 실패로 본다. 브라우저의 `getTransports()` 는 문자열 배열만 돌려주므로 다른 형식은 클라이언트 결함이나 조작한 요청이다. 응답의 다른 필드가 틀렸을 때와 같은 400 `WEBAUTHN_VERIFY_FAILED` 를 쓰고 새 에러 코드를 두지 않는다.
+- 요청 DTO 검증으로 400 `VALIDATION_ERROR` 를 내는 안은 기각했다. `response` 는 브라우저가 만든 객체를 통째로 받는 자리라 DTO 가 속을 검증하지 않는다. 같은 객체의 다른 필드가 틀리면 이미 `WEBAUTHN_VERIFY_FAILED` 라서 transport 만 다른 코드를 쓰면 같은 요청에 코드가 둘이 된다.
+- 형식이 틀린 transport 목록과 허용 목록 밖 알고리즘은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 의 새 조건으로 보지 않는다. 클라이언트가 할 일이 다른 등록 검증 실패와 같기 때문이다. 그래서 새 코드를 만들지 않고 `WEBAUTHN_VERIFY_FAILED` 를 쓴다. 이 응답에는 `details` 를 싣지 않고 원인은 서버 로그에만 남긴다.
+- 표준에 없는 값만 걸러 내는 안은 기각했다. WebAuthn Level 3 §2.1.1 에 따르면 열거 값은 문자열이고 RP 는 모르는 값도 처리해야 한다. §4 에는 credential record 의 transport 목록에서 항목을 바꾸거나 빼면 그 credential 을 쓰지 못할 수도 있다고 적혀 있다. 서버 v14 의 타입도 `string[]` 이다.
+- 형식이 틀린 값을 빈 목록으로 바꿔 저장하는 안도 기각했다. 잘못된 요청을 성공으로 받으면 클라이언트 결함을 찾기 어렵다. 필드가 없는 요청은 형식 오류가 아니다. 선택 필드가 빠진 것이라서 빈 목록으로 저장한다.
+- NUL 문자가 든 항목만 빼고 나머지를 저장하는 안도 기각했다. 값을 바꾸지 않고 저장한다는 원칙을 지키려고 요청 전체를 거부한다.
+- 개수와 길이 상한은 따로 두지 않는다. 이 엔드포인트의 요청 본문에는 전역 100KB 한도가 걸린다.
 
 ### 복구 코드 묶음을 TOTP 와 Passkey 로 나눈다
 
