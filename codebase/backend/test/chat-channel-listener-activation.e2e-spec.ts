@@ -25,6 +25,11 @@ import { nextE2eClientIp } from './helpers/e2e-client-ip';
  * 대화 매핑(`executionId` 비우기)은 신호로 쓰지 않는다. 인입이 실행을 시작한 **뒤에** 매핑을
  * 쓰므로 짧은 워크플로우는 완료 이벤트가 먼저 와서 매핑이 남을 수 있다.
  *
+ * **송신 방향**: 별도 ioredis 연결로 `chat-channel:listener` 를 구독해 두고, 서버가 켠 PATCH 뒤에
+ * `register` 를, 채팅 채널 트리거 삭제 뒤에 `unregister` 를 PUBLISH 하는지 본다. 수신 방향만 보면
+ * 레지스트리와 bus 의 DI 배선이 깨져 송신이 사라져도 로컬 `Map` 만으로 통과한다. 채팅 채널이 없는
+ * 트리거의 삭제는 PUBLISH 하지 않는다(삭제 요청이 트리거 수만큼 Redis 왕복을 기다리지 않게 한다).
+ *
  * 서버가 Telegram API 에 닿지 않으므로 메시지가 실제로 나가는지는 보지 못한다. 단위 테스트
  * (`triggers.service.spec.ts`, `channel-listener.bus.spec.ts`, `chat-channel.module.spec.ts`)가
  * 등록 조건과 메시지 형식을 고정한다.
@@ -37,11 +42,28 @@ const SIGNAL_TIMEOUT_MS = 20_000;
 /** 실행이 끝난 뒤에도 신호가 없음을 확인할 때 더 기다리는 시간. */
 const QUIET_PERIOD_MS = 1_500;
 
+/** 서버가 PUBLISH 한 메시지가 구독 연결에 도착하기를 기다리는 상한. */
+const PUBLISH_TIMEOUT_MS = 5_000;
+/** `publishFromOtherInstance` 가 쓰는 origin 접두. 서버가 보낸 메시지와 가르는 데 쓴다. */
+const E2E_ORIGIN_PREFIX = 'e2e-';
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** `chat-channel:listener` 로 오간 메시지 한 건. */
+interface ListenerMessage {
+  v: number;
+  origin: string;
+  op: string;
+  triggerId: string;
+  provider?: string;
+}
 
 describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)', () => {
   let db: Client;
   let redis: Redis;
+  /** `chat-channel:listener` 를 구독해 오간 메시지를 모으는 별도 연결. */
+  let observer: Redis;
+  const observed: ListenerMessage[] = [];
   let token: string;
   let workspaceId: string;
   let ownerId: string;
@@ -57,6 +79,11 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
         ? { password: process.env.REDIS_PASSWORD }
         : {}),
     });
+    observer = redis.duplicate();
+    observer.on('message', (_channel: string, raw: string) => {
+      observed.push(JSON.parse(raw) as ListenerMessage);
+    });
+    await observer.subscribe(CHAT_CHANNEL_LISTENER_CHANNEL);
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('cclisten'), db);
     token = owner.accessToken;
     ownerId = owner.userId;
@@ -68,6 +95,7 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
   }, 30_000);
 
   afterAll(async () => {
+    await observer.quit();
     await redis.quit();
     await db.end();
   });
@@ -77,7 +105,10 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
    * 서버를 거치지 않으므로 레지스트리에 들어가지 않는다. `inboundSigningRef` 를 비워 인입의
    * secret_token 검증을 건너뛴다.
    */
-  async function seedTelegramTrigger(isActive: boolean) {
+  async function seedTelegramTrigger(
+    isActive: boolean,
+    { chatChannel = true }: { chatChannel?: boolean } = {},
+  ) {
     const workflowId = randomUUID();
     await db.query(
       `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
@@ -103,12 +134,16 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
         uniqueName('cclisten-trigger'),
         endpointPath,
         isActive,
-        JSON.stringify({
-          chatChannel: {
-            provider: 'telegram',
-            botTokenRef: `secret://triggers/${triggerId}/bot-token`,
-          },
-        }),
+        JSON.stringify(
+          chatChannel
+            ? {
+                chatChannel: {
+                  provider: 'telegram',
+                  botTokenRef: `secret://triggers/${triggerId}/bot-token`,
+                },
+              }
+            : {},
+        ),
       ],
     );
     return { triggerId, endpointPath };
@@ -188,8 +223,43 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
   function publishFromOtherInstance(body: Record<string, unknown>) {
     return redis.publish(
       CHAT_CHANNEL_LISTENER_CHANNEL,
-      JSON.stringify({ v: 1, origin: `e2e-${randomUUID()}`, ...body }),
+      JSON.stringify({
+        v: 1,
+        origin: `${E2E_ORIGIN_PREFIX}${randomUUID()}`,
+        ...body,
+      }),
     );
+  }
+
+  /** 서버가 보낸 메시지(이 테스트가 보낸 것은 제외). */
+  function publishedByServer(op: string, triggerId: string) {
+    return observed.find(
+      (m) =>
+        m.op === op &&
+        m.triggerId === triggerId &&
+        !m.origin.startsWith(E2E_ORIGIN_PREFIX),
+    );
+  }
+
+  /** 서버가 이 트리거의 `op` 를 PUBLISH 해 구독 연결에 닿기를 기다린다. 오지 않으면 `undefined`. */
+  async function waitForServerPublish(
+    op: string,
+    triggerId: string,
+  ): Promise<ListenerMessage | undefined> {
+    const deadline = Date.now() + PUBLISH_TIMEOUT_MS;
+    for (;;) {
+      const found = publishedByServer(op, triggerId);
+      if (found || Date.now() > deadline) return found;
+      await sleep(100);
+    }
+  }
+
+  async function deleteTrigger(triggerId: string): Promise<void> {
+    const res = await request(BASE_URL)
+      .delete(`/api/triggers/${triggerId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(res.status).toBe(204);
   }
 
   // 대조군이 먼저다. 뒤의 재구독 테스트가 활성 트리거를 DB 에서 모두 다시 등록하기 때문이다.
@@ -220,9 +290,36 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
       expect(patch.status).toBe(200);
       expect((patch.body.data as { isActive: boolean }).isActive).toBe(true);
 
+      // 다른 인스턴스가 이 트리거를 알 수 있도록 서버가 register 를 PUBLISH 한다.
+      expect(await waitForServerPublish('register', triggerId)).toMatchObject({
+        v: 1,
+        op: 'register',
+        triggerId,
+        provider: 'telegram',
+      });
+
       await sendMessage(endpointPath);
 
       expect(await waitForDispatch(triggerId)).not.toBe('unknown');
+    },
+    SIGNAL_TIMEOUT_MS * 2,
+  );
+
+  it(
+    '채팅 채널 트리거를 지우면 unregister 를 알리고, 채팅 채널이 없는 트리거는 알리지 않는다',
+    async () => {
+      const plain = await seedTelegramTrigger(true, { chatChannel: false });
+      const chat = await seedTelegramTrigger(true);
+
+      // 순서대로 지운다. 서버는 한 연결로 발행하므로 chat 의 알림이 닿았을 때 plain 의 알림이 있었다면
+      // 이미 닿아 있다 — 아래 부재 단언이 공허하지 않다.
+      await deleteTrigger(plain.triggerId);
+      await deleteTrigger(chat.triggerId);
+
+      expect(
+        await waitForServerPublish('unregister', chat.triggerId),
+      ).toMatchObject({ v: 1, op: 'unregister', triggerId: chat.triggerId });
+      expect(publishedByServer('unregister', plain.triggerId)).toBeUndefined();
     },
     SIGNAL_TIMEOUT_MS * 2,
   );
@@ -266,6 +363,10 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
   it(
     '구독 연결이 다시 붙으면 놓친 등록을 DB 에서 복원한다',
     async () => {
+      // 관찰 연결이 구독자 수를 가리지 않도록 먼저 구독을 푼다. 구독이 없으면 pubsub 연결이 아니라
+      // 아래 CLIENT KILL 의 대상도 아니다.
+      await observer.unsubscribe(CHAT_CHANNEL_LISTENER_CHANNEL);
+
       // 알림을 놓친 활성 트리거 — DB 에만 있다.
       const { triggerId, endpointPath } = await seedTelegramTrigger(true);
 
