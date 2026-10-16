@@ -292,7 +292,10 @@ export class ChatChannelBinderService {
           chatChannelLastError: null,
         },
       );
-      // [Spec R8 v1 적용 (2026-05-24)] setup success path 에서만 listener registry register.
+      // [Spec R8 v1 적용 (2026-05-24)] 이 자리는 setup 성공 경로의 listener registry register 다.
+      // 켠 PATCH(`registerListenerOnActivation`)는 setup 이 실패해(degraded) 이 등록이 일어나지
+      // 않아도 따로 등록하고, 부팅과 구독 재연결 때의 일괄 복원 · 다른 인스턴스의 알림도 같은
+      // 레지스트리를 채운다. 그래서 등록이 겹쳐도 버그가 아니다.
       // setupChannel 멱등성 — 동일 triggerId 재호출 시 entry overwrite.
       //
       // **쓰기가 skip 됐으면(그 사이 삭제) 등록도 하지 않는다.** 안 그러면 해제되지 않는
