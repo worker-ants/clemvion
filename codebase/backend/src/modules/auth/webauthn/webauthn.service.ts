@@ -37,7 +37,7 @@ const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1
 
 /**
  * counter 역행을 나타내는 `@simplewebauthn/server` 검증 에러 메시지의 키워드.
- *  - `lower`  : v13 실제 문구 "Response counter value N was lower than expected M"
+ *  - `lower`  : 지금 버전(v14) 실제 문구 "Response counter value N was lower than expected M". v13 도 같다
  *  - `regress`/`same`/`less` : 과거/타 버전 문구 호환
  * 라이브러리 업그레이드 시 메시지 변경을 즉시 감지하도록 단위(webauthn.service.spec.ts)
  * 와 e2e(webauthn-2fa.e2e-spec.ts case B) 가 본 패턴을 회귀 잠금한다.
@@ -75,6 +75,30 @@ function generateRecoveryCode(): string {
 
 function hashRecoveryCode(code: string): string {
   return createHash('sha256').update(code).digest('hex');
+}
+
+function registrationVerifyFailed(): BadRequestException {
+  return new BadRequestException({
+    code: 'WEBAUTHN_VERIFY_FAILED',
+    message: 'WebAuthn 등록 검증에 실패했어요.',
+  });
+}
+
+/**
+ * 클라이언트가 보낸 transport 목록(`response.response.transports`)을 저장할 값으로 바꾼다.
+ * 서버 라이브러리는 이 값을 검증하지 않고 그대로 돌려준다. 값이 없으면 빈 목록이고, 문자열
+ * 배열이 아니면 null 이다. 표준 목록에 없는 문자열도 바꾸지 않는다. WebAuthn 은 RP 가 모르는
+ * 값도 처리하게 하고, 목록에서 항목을 빼면 그 credential 을 쓰지 못할 수도 있다고 적는다.
+ */
+function parseTransports(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every((item): item is string => typeof item === 'string')
+  ) {
+    return null;
+  }
+  return value;
 }
 
 /**
@@ -219,17 +243,21 @@ export class WebAuthnService {
       this.logger.warn(
         `WebAuthn registration verify failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      throw new BadRequestException({
-        code: 'WEBAUTHN_VERIFY_FAILED',
-        message: 'WebAuthn 등록 검증에 실패했어요.',
-      });
+      throw registrationVerifyFailed();
     }
 
     if (!verification.verified || !verification.registrationInfo) {
-      throw new BadRequestException({
-        code: 'WEBAUTHN_VERIFY_FAILED',
-        message: 'WebAuthn 등록 검증에 실패했어요.',
-      });
+      throw registrationVerifyFailed();
+    }
+
+    // 문자열 배열이 아닌 값을 그대로 저장하면 text[] 컬럼에서 500 이 나거나 숫자가 문자열로
+    // 바뀌어 저장된다. 근거는 CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」.
+    const transports = parseTransports(response.response.transports);
+    if (!transports) {
+      this.logger.warn(
+        `WebAuthn registration rejected for user ${userId}: transports is not a string array`,
+      );
+      throw registrationVerifyFailed();
     }
 
     const { credential, aaguid } = verification.registrationInfo;
@@ -237,7 +265,6 @@ export class WebAuthnService {
     const credentialId = credential.id;
     const publicKey = Buffer.from(credential.publicKey);
     const counter = String(credential.counter ?? 0);
-    const transports = response.response.transports ?? [];
 
     // credential_id UNIQUE — 중복 시 friendly error
     const dup = await this.credentialRepo.findOne({ where: { credentialId } });

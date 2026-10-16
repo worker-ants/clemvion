@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import request from 'supertest';
+import { verifyRegistrationResponse } from '@simplewebauthn/server';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
 import {
@@ -9,10 +10,14 @@ import {
   extractRefreshCookie,
 } from './helpers/auth';
 import {
+  RP_ID,
+  RP_ORIGIN,
   SoftWebAuthnDevice,
+  type SoftKeyAlgorithm,
   registerDevice,
   loginForWebauthnChallenge,
   fetchAuthOptions,
+  fetchRegistrationOptions,
 } from './helpers/webauthn';
 
 /**
@@ -263,5 +268,129 @@ describe('WebAuthn 2FA (e2e)', () => {
       }
     ).publicKey.pubKeyCredParams;
     expect(params.map((p) => p.alg)).toEqual([-8, -7, -257]);
+  });
+
+  async function postRegisterVerify(
+    accessToken: string,
+    optionsToken: string,
+    response: unknown,
+  ) {
+    return request(BASE_URL)
+      .post('/api/auth/2fa/webauthn/register/verify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ optionsToken, response });
+  }
+
+  // 케이스 F 와 짝이다. F 는 등록 옵션이 브라우저에 안내하는 목록을 보고, G 는 등록 검증이
+  // 실제로 받는 목록을 본다. 옵션을 따르지 않는 클라이언트가 목록 밖 알고리즘의 키를 보내도
+  // 등록 검증이 거부해야 한다. 대조군은 같은 응답을 실제 라이브러리로 검증해 응답이 올바르다는
+  // 것을 보인다. 그래서 서버의 거부 이유는 알고리즘 목록뿐이다.
+  it.each<{ algorithm: SoftKeyAlgorithm; controlAlgorithmIDs?: number[] }>([
+    // ES384(-35)는 라이브러리 기본 목록에도 없어서 대조군에 직접 허용한다.
+    { algorithm: 'ES384', controlAlgorithmIDs: [-35] },
+    // ML-DSA-44(-48)는 v14 가 PQC 를 지원하는 런타임에서 기본 목록에 넣는다. 대조군은 기본
+    // 목록을 그대로 쓰므로 서버가 등록 검증의 목록을 고정하지 않으면 이 케이스가 실패한다.
+    { algorithm: 'ML-DSA-44' },
+  ])(
+    'G. 등록 검증이 목록 밖 알고리즘($algorithm)의 credential 을 400 으로 거부하고 저장하지 않는다',
+    async ({ algorithm, controlAlgorithmIDs }) => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-g'),
+        db,
+      );
+      const { challenge, optionsToken } = await fetchRegistrationOptions(
+        BASE_URL,
+        accessToken,
+      );
+      const device = new SoftWebAuthnDevice({ algorithm });
+      const response = device.registrationResponse(challenge);
+
+      const control = await verifyRegistrationResponse({
+        response,
+        expectedChallenge: challenge,
+        expectedOrigin: RP_ORIGIN,
+        expectedRPID: RP_ID,
+        requireUserVerification: true,
+        supportedAlgorithmIDs: controlAlgorithmIDs,
+      });
+      expect(control.verified).toBe(true);
+      expect(control.registrationInfo?.credential.id).toBe(
+        device.credentialIdB64Url,
+      );
+
+      const res = await postRegisterVerify(accessToken, optionsToken, response);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('WEBAUTHN_VERIFY_FAILED');
+      expect(await credentialRows(userId)).toHaveLength(0);
+    },
+  );
+
+  // 라이브러리는 transports 를 검증하지 않고 그대로 돌려준다. 고치기 전에는 문자열이 text[]
+  // 컬럼 저장에서 500 이 났고, 숫자가 섞인 배열은 숫자가 문자열로 바뀌어 저장됐다.
+  it.each([
+    ['문자열', 'usb'],
+    ['숫자가 섞인 배열', ['usb', 1]],
+  ])(
+    'H. transports 가 %s 이면 등록 검증이 400 으로 거부하고 저장하지 않는다',
+    async (_label, transports) => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-h'),
+        db,
+      );
+      const { challenge, optionsToken } = await fetchRegistrationOptions(
+        BASE_URL,
+        accessToken,
+      );
+      const device = new SoftWebAuthnDevice();
+
+      const res = await postRegisterVerify(
+        accessToken,
+        optionsToken,
+        device.registrationResponse(challenge, { transports }),
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('WEBAUTHN_VERIFY_FAILED');
+      expect(await credentialRows(userId)).toHaveLength(0);
+
+      // 대조군: 같은 인증기 · 같은 옵션에서 transports 만 바로잡으면 등록된다.
+      const ok = await postRegisterVerify(
+        accessToken,
+        optionsToken,
+        device.registrationResponse(challenge),
+      );
+      expect(ok.status).toBe(200);
+      expect(await credentialRows(userId)).toHaveLength(1);
+    },
+  );
+
+  it('I. 표준 목록에 없는 transport 도 바꾸지 않고 저장한다', async () => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-i'),
+      db,
+    );
+    const { challenge, optionsToken } = await fetchRegistrationOptions(
+      BASE_URL,
+      accessToken,
+    );
+    const device = new SoftWebAuthnDevice();
+
+    const res = await postRegisterVerify(
+      accessToken,
+      optionsToken,
+      device.registrationResponse(challenge, {
+        transports: ['internal', 'future-transport'],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const rows = await db.query<{ transports: string[] }>(
+      'SELECT transports FROM webauthn_credential WHERE user_id = $1',
+      [userId],
+    );
+    expect(rows.rows.map((r) => r.transports)).toEqual([
+      ['internal', 'future-transport'],
+    ]);
   });
 });
