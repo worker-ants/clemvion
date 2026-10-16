@@ -19,6 +19,7 @@ import { DiscordAdapter } from './providers/discord/discord.adapter';
 import { DiscordClient } from './providers/discord/discord-client';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenticator';
+import { readTriggerChatChannelProvider } from './chat-channel-secret-refs';
 
 /**
  * Chat Channel 어댑터 모듈.
@@ -112,10 +113,8 @@ export class ChatChannelModule implements OnApplicationBootstrap {
 
     const entries: Array<{ triggerId: string; provider: string }> = [];
     for (const trigger of activeTriggers) {
-      const cfg = trigger.config as
-        { chatChannel?: { provider?: string } } | null | undefined;
-      const provider = cfg?.chatChannel?.provider;
-      if (typeof provider !== 'string' || provider.length === 0) continue;
+      const provider = readTriggerChatChannelProvider(trigger.config);
+      if (provider === null) continue;
       entries.push({ triggerId: trigger.id, provider });
     }
     this.listenerRegistry.bulkRegister(entries, source);

@@ -2,6 +2,7 @@ import {
   chatChannelSecretRef,
   pinChatChannelSecretRefs,
   readTriggerChatChannelConfig,
+  readTriggerChatChannelProvider,
 } from './chat-channel-secret-refs';
 import type { ChatChannelConfig } from './types';
 
@@ -117,6 +118,31 @@ describe('pinChatChannelSecretRefs', () => {
     expect(pinned.botIdentity).toEqual({ botId: 7, username: 'bot' });
     expect(pinned.provider).toBe('telegram');
     expect(config.botTokenRef).toBe(foreign);
+  });
+});
+
+describe('readTriggerChatChannelProvider', () => {
+  it.each([
+    ['config 가 null', null],
+    ['config 가 문자열', 'oops'],
+    ['chatChannel 이 없다', {}],
+    ['chatChannel 이 객체가 아니다', { chatChannel: 'telegram' }],
+    ['provider 가 없다', { chatChannel: { botTokenRef: 'x' } }],
+    ['provider 가 빈 문자열', { chatChannel: { provider: '' } }],
+    ['provider 가 문자열이 아니다', { chatChannel: { provider: 7 } }],
+  ])('%s 면 null 이다', (_label, config) => {
+    expect(readTriggerChatChannelProvider(config)).toBeNull();
+  });
+
+  it('provider 문자열을 돌려준다. 시크릿 참조가 어긋나도 그대로 읽는다', () => {
+    expect(
+      readTriggerChatChannelProvider({
+        chatChannel: {
+          provider: 'discord',
+          botTokenRef: `secret://triggers/${OTHER}/bot-token`,
+        },
+      }),
+    ).toBe('discord');
   });
 });
 

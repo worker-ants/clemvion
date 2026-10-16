@@ -69,26 +69,32 @@ export function pinChatChannelSecretRefs(
 }
 
 /**
+ * 트리거 행의 `config.chatChannel.provider` 만 읽는다. 비어 있지 않은 문자열이면 그 값을, 아니면
+ * `null`(채팅 채널이 아니라고 본다)을 돌려준다. 트리거 단위 listener 레지스트리에 등록하는 두 경로
+ * (부팅 · 재구독 복원, 켠 PATCH)가 이 함수로 읽는다. 어댑터에 넘길 설정을 만드는
+ * {@link readTriggerChatChannelConfig} 와 달리 시크릿 참조를 맞추지 않으므로 참조가 어긋난 행에
+ * 오류 로그를 남기지 않는다. 등록에는 provider 만 필요하다.
+ */
+export function readTriggerChatChannelProvider(config: unknown): string | null {
+  if (!config || typeof config !== 'object') return null;
+  const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
+  if (!chatChannel || typeof chatChannel !== 'object') return null;
+  const provider = (chatChannel as { provider?: unknown }).provider;
+  return typeof provider === 'string' && provider.length > 0 ? provider : null;
+}
+
+/**
  * 트리거 행의 `config.chatChannel` 을 어댑터에 넘길 모양으로 읽는다. 아웃바운드 dispatcher, 인바운드
  * hooks, 트리거 삭제의 해제가 이 함수로 읽는다. 봇 토큰 재발급은 설정이 없을 때 따로 거부하므로
  * 저장된 설정을 직접 읽고 {@link pinChatChannelSecretRefs} 를 거친다. `provider` 가 없으면 채팅
- * 채널이 아니라고 보고 `null` 이다.
+ * 채널이 아니라고 보고 `null` 이다(판정은 {@link readTriggerChatChannelProvider} 와 같다).
  */
 export function readTriggerChatChannelConfig(
   trigger: { id: string; config: unknown },
   logger: { error(message: string): void },
   caller: string,
 ): ChatChannelConfig | null {
-  const { config } = trigger;
-  if (!config || typeof config !== 'object') return null;
-  const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
-  if (!chatChannel || typeof chatChannel !== 'object') return null;
-  const provider = (chatChannel as { provider?: unknown }).provider;
-  if (typeof provider !== 'string' || provider.length === 0) return null;
-  return pinChatChannelSecretRefs(
-    trigger.id,
-    chatChannel as ChatChannelConfig,
-    logger,
-    caller,
-  );
+  if (readTriggerChatChannelProvider(trigger.config) === null) return null;
+  const { chatChannel } = trigger.config as { chatChannel: ChatChannelConfig };
+  return pinChatChannelSecretRefs(trigger.id, chatChannel, logger, caller);
 }

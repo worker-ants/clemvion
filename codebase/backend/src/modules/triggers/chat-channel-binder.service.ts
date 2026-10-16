@@ -10,6 +10,7 @@ import { ChatChannelConfig } from '../chat-channel/types';
 import {
   chatChannelSecretRef,
   readTriggerChatChannelConfig,
+  readTriggerChatChannelProvider,
 } from '../chat-channel/chat-channel-secret-refs';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import {
@@ -373,16 +374,11 @@ export class ChatChannelBinderService {
    * 건너뛰므로 메시지가 잘못 나가지는 않는다.
    */
   async registerListenerOnActivation(trigger: Trigger): Promise<void> {
-    const chatChannelCfg = readTriggerChatChannelConfig(
-      trigger,
-      this.logger,
-      'ChatChannelBinderService.registerListenerOnActivation',
-    );
-    if (!chatChannelCfg) return;
-    await this.channelListenerRegistry.register(
-      trigger.id,
-      chatChannelCfg.provider,
-    );
+    // 등록에는 provider 만 필요하다. 시크릿 참조를 맞추는 `readTriggerChatChannelConfig` 를 거치면
+    // 참조가 어긋난 행에서 이 경로가 오류 로그를 남긴다.
+    const provider = readTriggerChatChannelProvider(trigger.config);
+    if (!provider) return;
+    await this.channelListenerRegistry.register(trigger.id, provider);
   }
 
   /**
