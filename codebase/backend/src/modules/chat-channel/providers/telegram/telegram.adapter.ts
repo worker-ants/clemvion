@@ -127,7 +127,8 @@ export class TelegramAdapter implements ChatChannelAdapter {
   }
 
   async teardownChannel(config: ChatChannelConfig): Promise<void> {
-    // best-effort — 실패해도 trigger 비활성화는 진행한다.
+    // best-effort — 실패해도 트리거 삭제는 진행한다. 트리거를 끌 때는 부르지 않는다(채팅 채널
+    // REQ-CHAT-005).
     let botToken: string;
     try {
       botToken = await this.resolveBotToken(config);

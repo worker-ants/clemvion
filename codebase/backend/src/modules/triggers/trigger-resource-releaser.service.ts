@@ -183,9 +183,9 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     }
     for (const trigger of triggers) {
       await this.chatChannelBinder.teardownChatChannel(trigger);
-      // [chat-channel R8] 해제 뒤 도착한 race event 가 dispatcher 에 닿아도 안전하게.
-      // 미등록이면 noop.
-      this.channelListenerRegistry.unregister(trigger.id);
+      // [채팅 채널 「R8 트리거 단위 listener 정책」] 해제 뒤 도착한 race event 가 dispatcher 에
+      // 닿아도 안전하게. 다른 인스턴스의 레지스트리에서도 빠진다. 미등록이면 noop.
+      await this.channelListenerRegistry.unregister(trigger.id);
     }
   }
 

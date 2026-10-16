@@ -300,7 +300,7 @@ export class ChatChannelBinderService {
       // 처리해 오배달로는 안 이어지지만, 애초에 만들 이유가 없다
       // (`/ai-review` `review/code/2026/09/14/20_17_16` side_effect INFO#4).
       if (wrote) {
-        this.channelListenerRegistry.register(
+        await this.channelListenerRegistry.register(
           trigger.id,
           chatChannelCfg.provider,
         );
@@ -356,7 +356,35 @@ export class ChatChannelBinderService {
   }
 
   /**
-   * Chat Channel adapter teardownChannel 호출 — trigger 삭제 / chatChannel 제거 시. best-effort.
+   * 채팅 채널 트리거를 켠 PATCH 가 커밋된 뒤 트리거 단위 listener 레지스트리
+   * (`ChannelListenerRegistry`)에 등록한다(채팅 채널 REQ-CHAT-070 · R-CC-29, NERV Task `CLE-T-PXTGVQ`).
+   *
+   * 켤 때는 `setupChannel()` 을 부르지 않는다(REQ-CHAT-003). 그래서 위 setup 성공 자리의 등록이
+   * 일어나지 않고, 꺼진 채 재시작을 넘긴 트리거는 부팅 때의 일괄 등록에서도 빠져 있다. 여기서
+   * 등록하지 않으면 켠 뒤 시작한 실행의 메시지를 dispatcher 가 건너뛴다. 외부 프로바이더는 부르지
+   * 않는다. 레지스트리가 다른 인스턴스에도 알린다. `config.chatChannel.provider` 가 없는
+   * 트리거(채팅 채널이 아닌 웹훅 · 스케줄)는 등록하지 않는다.
+   *
+   * 커밋과 등록 사이에 트리거가 지워지면 항목이 남는다. dispatcher 가 DB 에서 트리거를 찾지 못해
+   * 건너뛰므로 메시지가 잘못 나가지는 않는다.
+   */
+  async registerListenerOnActivation(trigger: Trigger): Promise<void> {
+    const chatChannelCfg = readTriggerChatChannelConfig(
+      trigger,
+      this.logger,
+      'ChatChannelBinderService.registerListenerOnActivation',
+    );
+    if (!chatChannelCfg) return;
+    await this.channelListenerRegistry.register(
+      trigger.id,
+      chatChannelCfg.provider,
+    );
+  }
+
+  /**
+   * Chat Channel adapter teardownChannel 호출 — 트리거 행을 없애는 경로(트리거 · 워크플로우 ·
+   * 워크스페이스 삭제의 외부 해제 단계)에서만 부른다. 트리거를 끌 때는 부르지 않는다(채팅 채널
+   * REQ-CHAT-005 · R-CC-29). best-effort.
    * Spec CCH-AD-03. **저장된** `config.chatChannel` 로 해제한다 — 설정을 직접 넘기는 쪽은
    * {@link teardownRegisteredChannel}.
    *

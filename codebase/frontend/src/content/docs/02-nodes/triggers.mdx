@@ -391,7 +391,7 @@ curl -X POST https://<your-host>/api/triggers \
   }'
 ```
 
-3. 트리거가 활성화되면 자동으로 `setWebhook` 이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. `botToken` 은 응답에 노출되지 않고 secret store 에 AES-256-GCM 으로 암호화 저장돼요 — 응답에는 `hasBotToken: true` derived 필드만 포함돼요.
+3. 트리거를 만들면 자동으로 `setWebhook` 이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. 트리거를 켜고 끌 때는 웹훅 등록을 바꾸지 않아요. 트리거를 삭제하면 웹훅 등록을 해제해요. `botToken` 은 응답에 노출되지 않고 secret store 에 AES-256-GCM 으로 암호화 저장돼요 — 응답에는 `hasBotToken: true` derived 필드만 포함돼요.
 
 ### Slack 설정 방법
 

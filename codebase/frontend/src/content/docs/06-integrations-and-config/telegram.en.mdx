@@ -50,7 +50,9 @@ curl -X POST https://<your-host>/api/triggers \
   }'
 ```
 
-When the trigger activates, `setWebhook` is called automatically — no manual webhook configuration in BotFather is needed.
+Creating the trigger calls Telegram's `setWebhook` API automatically, which wires the bot to the workflow endpoint. No manual webhook configuration in BotFather is needed. Changing the Chat Channel settings or rotating the bot token calls it again automatically.
+
+Turning the trigger on or off does not change the webhook registration. While the trigger is off, messages the bot receives are discarded rather than processed, and once you turn it back on the bot receives messages again from that point. Deleting the trigger also removes the webhook registration.
 
 - `botToken` is never returned in responses — it is stored AES-256-GCM-encrypted in the secret store, and responses only expose `hasBotToken: true`.
 - `botToken` format: `^\d{6,}:[A-Za-z0-9_-]{30,}$` (BotFather standard). Violations return 400 `BOT_TOKEN_INVALID`.

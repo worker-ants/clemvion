@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ChannelListenerBus,
+  type ChannelListenerChange,
+} from './channel-listener.bus';
 
 /**
  * [Spec Chat Channel §3.1 / R8 (2026-05-24 v1 적용)] per-trigger listener registry.
@@ -10,6 +14,11 @@ import { Injectable, Logger } from '@nestjs/common';
  *
  * 세 가지 invariant 를 강화한다. message routing 자체는 여전히 `ChatChannelDispatcher.handle()`
  * 안에서 일어나며 본 registry 는 lifecycle 추적 + 사전 가드 용도.
+ *
+ * **다중 인스턴스** (NERV Task `CLE-T-PXTGVQ`): `Map` 은 프로세스마다 따로 있다. `register` ·
+ * `unregister` 는 자기 `Map` 을 바꾼 뒤 {@link ChannelListenerBus} 로 다른 인스턴스에 알리고,
+ * 다른 인스턴스는 받은 변경을 자기 `Map` 에만 반영한다. `bulkRegister` 는 알리지 않는다.
+ * 인스턴스마다 DB 에서 스스로 복원하기 때문이다. bus 가 없으면(단위 테스트) 프로세스 안에서만 바뀐다.
  *
  * SoT:
  *   - spec/5-system/15-chat-channel.md R8 (2026-05-24 갱신) — per-trigger listener dedup/teardown
@@ -27,13 +36,23 @@ export class ChannelListenerRegistry {
   private readonly logger = new Logger(ChannelListenerRegistry.name);
   private readonly entries = new Map<string, ChannelListenerEntry>();
 
+  constructor(@Optional() private readonly bus?: ChannelListenerBus) {
+    this.bus?.onChange((change) => this.applyRemote(change));
+  }
+
   /**
-   * Trigger 의 chat-channel listener 등록.
+   * Trigger 의 chat-channel listener 등록. 자기 `Map` 에 넣은 뒤 다른 인스턴스에 알린다.
    *
    * 동일 `triggerId` 가 이미 있으면 entry 를 overwrite — `setupChannel()` 멱등성 정합.
    * provider 가 바뀌는 경우 (trigger 재구성) 도 새 provider 로 갱신.
+   * 알리기가 실패해도 던지지 않는다(호출자의 PATCH · 생성을 실패시키지 않는다).
    */
-  register(triggerId: string, provider: string): void {
+  async register(triggerId: string, provider: string): Promise<void> {
+    this.set(triggerId, provider);
+    await this.broadcast({ op: 'register', triggerId, provider });
+  }
+
+  private set(triggerId: string, provider: string): void {
     if (this.entries.has(triggerId)) {
       const existing = this.entries.get(triggerId);
       if (existing && existing.provider !== provider) {
@@ -46,11 +65,36 @@ export class ChannelListenerRegistry {
   }
 
   /**
-   * Trigger 의 chat-channel listener 해제 — `teardownChannel` / `TriggersService.remove` 직후 호출.
+   * Trigger 의 chat-channel listener 해제. 트리거 행을 없애는 경로의 외부 해제 단계
+   * (`TriggerResourceReleaser`)가 부른다. 자기 `Map` 에서 뺀 뒤 다른 인스턴스에 알린다.
    * 미등록 triggerId 도 graceful (noop).
    */
-  unregister(triggerId: string): void {
+  async unregister(triggerId: string): Promise<void> {
     this.entries.delete(triggerId);
+    await this.broadcast({ op: 'unregister', triggerId });
+  }
+
+  /** 다른 인스턴스에서 온 변경. 자기 `Map` 에만 반영하고 다시 알리지 않는다. */
+  private applyRemote(change: ChannelListenerChange): void {
+    if (change.op === 'register') {
+      this.set(change.triggerId, change.provider);
+    } else {
+      this.entries.delete(change.triggerId);
+    }
+  }
+
+  private async broadcast(change: ChannelListenerChange): Promise<void> {
+    if (!this.bus) return;
+    try {
+      await this.bus.publish(change);
+    } catch (err) {
+      // bus 는 실패를 삼키도록 돼 있다. 그래도 새면 여기서 막는다.
+      this.logger.warn(
+        `ChannelListenerRegistry: trigger=${change.triggerId} ${change.op} 알리기 실패: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**
@@ -73,11 +117,14 @@ export class ChannelListenerRegistry {
   }
 
   /**
-   * **Bootstrap 전용** — hot reload / process restart 후 registry 가 비어있는 상태에서
-   * DB 로부터 active trigger 를 일괄 복원할 때 사용. caller 는 `ChatChannelModule
-   * .onApplicationBootstrap` 에서 호출.
+   * **DB 복원 전용** — DB 의 활성 trigger 를 자기 `Map` 에 일괄 등록한다. 다른 인스턴스에
+   * 알리지 않는다. caller 는 `ChatChannelModule` 이다. 부팅(`onApplicationBootstrap`)과
+   * listener 구독 연결이 (다시) 붙었을 때 부른다. `source` 는 로그에만 쓴다.
    */
-  bulkRegister(entries: Array<{ triggerId: string; provider: string }>): void {
+  bulkRegister(
+    entries: Array<{ triggerId: string; provider: string }>,
+    source = 'bootstrap 복원',
+  ): void {
     for (const entry of entries) {
       this.entries.set(entry.triggerId, {
         provider: entry.provider,
@@ -85,7 +132,7 @@ export class ChannelListenerRegistry {
       });
     }
     this.logger.log(
-      `ChannelListenerRegistry: bootstrap 복원 — ${entries.length}건 등록`,
+      `ChannelListenerRegistry: ${source} — ${entries.length}건 등록`,
     );
   }
 }
