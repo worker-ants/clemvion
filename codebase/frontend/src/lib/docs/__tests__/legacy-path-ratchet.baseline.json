@@ -126,7 +126,6 @@
     "codebase/backend/src/modules/auth/webauthn/webauthn.module.ts": 1,
     "codebase/backend/src/modules/auth/webauthn/webauthn.service.ts": 4,
     "codebase/backend/src/modules/chat-channel/channel-adapter.registry.ts": 1,
-    "codebase/backend/src/modules/chat-channel/channel-listener.registry.ts": 2,
     "codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts": 3,
     "codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts": 5,
     "codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.spec.ts": 2,

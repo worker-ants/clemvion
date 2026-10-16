@@ -13,6 +13,12 @@ import type { ChatChannelConfig } from '../chat-channel/types';
 describe('TriggerResourceReleaserService', () => {
   const trigger = (id: string, type: string) =>
     ({ id, type, config: {} }) as unknown as Trigger;
+  const chatChannelTrigger = (id: string) =>
+    ({
+      id,
+      type: 'webhook',
+      config: { chatChannel: { provider: 'telegram' } },
+    }) as unknown as Trigger;
 
   function make(
     opts: {
@@ -22,6 +28,8 @@ describe('TriggerResourceReleaserService', () => {
       /** 이 schedule id 들의 `removeJob` 만 실패한다. */
       removeJobFailsFor?: string[];
       registerJobRejects?: boolean;
+      /** 이 프로세스의 listener 레지스트리에 이미 든 트리거 id. */
+      registered?: string[];
     } = {},
   ) {
     const events: string[] = [];
@@ -56,7 +64,11 @@ describe('TriggerResourceReleaserService', () => {
       }),
     };
     const listenerRegistry = {
-      unregister: jest.fn((id: string) => events.push(`unregister:${id}`)),
+      unregister: jest.fn((id: string) => {
+        events.push(`unregister:${id}`);
+        return Promise.resolve();
+      }),
+      has: jest.fn((id: string) => opts.registered?.includes(id) ?? false),
     };
     const secrets = {
       deleteByPrefix: jest.fn((prefix: string) => {
@@ -139,9 +151,13 @@ describe('TriggerResourceReleaserService', () => {
   });
 
   describe('releaseExternalForParent', () => {
-    it('부모 밑 트리거마다 teardown · listener unregister(chat-channel R8) 를 하고, schedule job 을 해제한다', async () => {
+    it('부모 밑 트리거마다 teardown 을 하고, 채팅 채널 트리거는 listener unregister(chat-channel R8) 를 하며, schedule job 을 해제한다', async () => {
       const { service, events, triggerRepository } = make({
-        triggers: [trigger('s1', 'schedule'), trigger('w1', 'webhook')],
+        triggers: [
+          trigger('s1', 'schedule'),
+          trigger('w1', 'webhook'),
+          chatChannelTrigger('c1'),
+        ],
         schedules: [{ id: 'sched-1' }],
       });
 
@@ -156,11 +172,127 @@ describe('TriggerResourceReleaserService', () => {
       expect(events).toEqual([
         'removeJob:sched-1',
         'teardown:s1',
-        'unregister:s1',
         'teardown:w1',
-        'unregister:w1',
+        'teardown:c1',
+        'unregister:c1',
       ]);
     });
+
+    // unregister 는 Redis PUBLISH 왕복이다. 트리거마다 기다리면 Redis 가 느릴 때 삭제 요청이 트리거 수만큼
+    // 직렬로 늦어진다. 호출은 트리거별 teardown 바로 뒤에 하고 응답은 루프가 끝난 뒤 한꺼번에 기다린다.
+    it('채팅 채널 트리거가 여럿이어도 unregister 응답을 기다리지 않고 다음 트리거를 해제하며, 모두 끝난 뒤 돌아온다', async () => {
+      const { service, events, listenerRegistry } = make({
+        triggers: [chatChannelTrigger('c1'), chatChannelTrigger('c2')],
+      });
+      const answers: Array<() => void> = [];
+      listenerRegistry.unregister.mockImplementation((id: string) => {
+        events.push(`unregister:${id}`);
+        return new Promise<void>((resolve) => answers.push(resolve));
+      });
+
+      let done = false;
+      const releasing = service
+        .releaseExternalForParent({ workflowId: 'wf-1' })
+        .then(() => {
+          done = true;
+        });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      // c1 의 응답이 오지 않았는데도 c2 의 teardown 이 진행됐다.
+      expect(events).toEqual([
+        'teardown:c1',
+        'unregister:c1',
+        'teardown:c2',
+        'unregister:c2',
+      ]);
+      expect(done).toBe(false); // 알림이 끝나기 전에는 돌아오지 않는다
+
+      answers.forEach((answer) => answer());
+      await releasing;
+      expect(done).toBe(true);
+    });
+
+    it('teardown 이 던져도 이미 시작한 unregister 를 기다린 뒤 원래 오류를 던진다', async () => {
+      const { service, events, listenerRegistry } = make({
+        triggers: [chatChannelTrigger('c1'), chatChannelTrigger('c2')],
+      });
+      let answerFirst: () => void = () => undefined;
+      listenerRegistry.unregister.mockImplementation((id: string) => {
+        events.push(`unregister:${id}`);
+        return new Promise<void>((resolve) => {
+          answerFirst = resolve;
+        });
+      });
+      const binder = (
+        service as unknown as {
+          chatChannelBinder: { teardownChatChannel: jest.Mock };
+        }
+      ).chatChannelBinder;
+      binder.teardownChatChannel
+        .mockImplementationOnce(() => Promise.resolve())
+        .mockImplementationOnce(() => Promise.reject(new Error('boom')));
+
+      let settled = false;
+      const releasing = service
+        .releaseExternalForParent({ workflowId: 'wf-1' })
+        .catch((err: Error) => err)
+        .then((err) => {
+          settled = true;
+          return err;
+        });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(settled).toBe(false); // c1 의 알림이 아직 끝나지 않았다
+
+      answerFirst();
+      const err = await releasing;
+      expect((err as Error).message).toBe('boom');
+      expect(events).toEqual(['unregister:c1']);
+    });
+
+    // 스케줄 · 일반 웹훅은 레지스트리에 든 적이 없어서 부르면 PUBLISH 왕복만 늘린다.
+    it('채팅 채널이 없고 레지스트리에도 없는 트리거는 unregister 를 부르지 않는다', async () => {
+      const { service, listenerRegistry } = make({
+        triggers: [trigger('s1', 'schedule'), trigger('w1', 'webhook')],
+        schedules: [{ id: 'sched-1' }],
+      });
+
+      await service.releaseExternalForParent({ workspaceId: 'ws-1' });
+
+      expect(listenerRegistry.has).toHaveBeenCalledWith('s1');
+      expect(listenerRegistry.has).toHaveBeenCalledWith('w1');
+      expect(listenerRegistry.unregister).not.toHaveBeenCalled();
+    });
+
+    // 채팅 채널 설정만 지운 PATCH 뒤에도 레지스트리 항목은 남을 수 있다.
+    it('config 에 chatChannel 이 없어도 레지스트리에 항목이 있으면 unregister 한다', async () => {
+      const { service, events } = make({
+        triggers: [trigger('w1', 'webhook'), trigger('w2', 'webhook')],
+        registered: ['w2'],
+      });
+
+      await service.releaseExternalForParent({ workflowId: 'wf-1' });
+
+      expect(events).toEqual(['teardown:w1', 'teardown:w2', 'unregister:w2']);
+    });
+
+    it.each([
+      ['config 가 null 이다', null],
+      ['chatChannel 이 null 이다', { chatChannel: null }],
+      ['chatChannel 이 문자열이다', { chatChannel: 'telegram' }],
+    ])(
+      'config 가 채팅 채널을 담지 않으면 unregister 하지 않는다 (%s)',
+      async (_label, config) => {
+        const { service, listenerRegistry } = make({
+          triggers: [
+            { id: 'w1', type: 'webhook', config } as unknown as Trigger,
+          ],
+        });
+
+        await service.releaseExternalForParent({ workflowId: 'wf-1' });
+
+        expect(listenerRegistry.unregister).not.toHaveBeenCalled();
+      },
+    );
 
     it('스케줄 행은 schedule 타입 트리거만 모아 **한 번** 조회한다 (트리거 수만큼 아니다)', async () => {
       const { service, scheduleRepository } = make({

@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "795eaefd177e31273d60ebaf87c04f1b8121d4d42750472a0209115a5eb34dde"
+content_hash: "75e5bbe4a753744041f55ad1a5308246189980ce0b0d67441ad9f13de3c4022b"
 read_as: "approved_fallback"
-task: "CLE-T-2V7SBC"
+task: "CLE-T-PXTGVQ"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "15f53bcf3adc252d0bd3eb09850f89e346c5c1d45399531dc76b7efa0118f754"
-etag: "sha256-bbe2255ad1a9aaefc6082b2dd3ae404df28af3522824cea326751621016e0ca9"
+mirror_sha256: "caa65bda7cc2392cc79ca01e3e81ec1fc03dd17fc963d367840ee72aefa5c40c"
+etag: "sha256-9702a2c3acaab2bf4a3251f8e45691b5da675f3fcbae9c362367d980f655bc30"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -142,7 +142,7 @@ flowchart LR
 | --- | --- |
 | PostgreSQL | 주 데이터베이스. 워크플로우·사용자·설정·실행 기록 등 모든 영속 데이터를 둔다. 기본 이미지는 `pgvector/pgvector:pg18`(`docker-compose.yml`)이고 TypeORM 으로 매핑한다. 스키마는 Flyway SQL 마이그레이션(`codebase/backend/migrations/V*.sql`)이 만든다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)). k8s 로컬 오버레이(`k8s/overlays/local/infra-postgres.yaml`)는 아직 `pg16` 을 쓴다. **최소 버전은 15** 다. 범위 참조의 복합 FK(V141~V146)가 PostgreSQL 15 문법 `ON DELETE SET NULL (컬럼 목록)` 을 쓰고, 15 미만이면 V134 가 스키마를 바꾸기 전에 멈춘다([데이터 모델 개요](CLE-PLAT-DATA.md#참조의-소속)) |
 | pgvector | 지식 저장소 청크와 에이전트 메모리의 임베딩을 PostgreSQL 안에 저장하고 검색한다. 별도 벡터 DB 는 두지 않는다. 차원별 부분 인덱스 정책은 [데이터 모델 개요](CLE-PLAT-DATA.md) 가 정한다 |
-| Redis 7 | BullMQ 큐 백엔드(시작 큐·재개 큐·Background 큐 등), 운영 잠금(`exec:recover:lock`), pub/sub 채널(`integration:cache:invalidate`), 각 모듈의 요청 빈도 제한·멱등 키. 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 에 있다 |
+| Redis 7 | BullMQ 큐 백엔드(시작 큐·재개 큐·Background 큐 등), 운영 잠금(`exec:recover:lock`), pub/sub 채널(`integration:cache:invalidate` · `chat-channel:listener`), 각 모듈의 요청 빈도 제한·멱등 키. 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 에 있다 |
 | 파일 저장소 | S3 호환 저장소. 개발·셀프 호스팅은 MinIO, SaaS 는 AWS S3. 지식 저장소 원본 문서와 프로필 이미지를 둔다([파일 저장소](CLE-PLAT-STORAGE.md)) |
 
 다음 두 가지는 Redis 에 두지 않는다.
@@ -199,10 +199,11 @@ flowchart LR
 
 ## 다중 인스턴스와 동시성 모델
 
-- **상태 없는 백엔드**: 모든 컨트롤러와 서비스는 상태를 갖지 않는다. 인스턴스 사이의 작업 조정은 Redis(BullMQ 영속 큐와 보조 pub/sub)가 맡는다.
+- **상태 없는 백엔드**: 모든 컨트롤러와 서비스는 상태를 갖지 않는다. 인스턴스 사이의 작업 조정은 Redis(BullMQ 영속 큐와 보조 pub/sub)가 맡는다. 서버 인스턴스마다 따로 두는 캐시와 레지스트리는 아래 두 pub/sub 채널로 맞춘다.
 - **재개 전달**: 폼 제출·버튼 클릭 같은 비동기 재개 신호는 재개 큐(`execution-continuation`, `ContinuationBusService`)로 전달한다. 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스의 BullMQ 워커가 받아 재개할 수 있다. 재개는 rehydration 한 경로로만 한다. park 가 늘 코루틴을 놓아 주므로 메모리에서 깨울 대기자가 없다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)).
 - **인스턴스 사이 직렬화**: Redis 큐 말고도 PostgreSQL advisory lock 을 쓴다. 트리거 설정 쓰기(`trigger-config:<triggerId>`)와 워크스페이스 단위 동시 실행 제한(`exec-cap:<workspaceId>`)이 그 예다. 잠금 키 공간 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 - **인스턴스 로컬 캐시 무효화**: 통합 자격 증명을 교체하거나 삭제하면 pub/sub 채널 `integration:cache:invalidate` 로 모든 인스턴스의 로컬 캐시(예: Database Query 노드 연결 풀)를 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)).
+- **서버 인스턴스 로컬 레지스트리 전파**: 채팅 채널 트리거를 트리거 단위 listener 레지스트리에 등록하거나 해제하면 pub/sub 채널 `chat-channel:listener` 로 모든 서버 인스턴스의 레지스트리에 같은 변경을 반영한다. 구독이 끊긴 사이 놓친 등록은 구독이 다시 확립될 때 DB 에서 다시 읽어 메운다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-30).
 - **재시도와 멱등**: BullMQ 의 `attempts` 와 서비스 단의 재시도(`retryWithBackoff`) 두 층이 있다. 두 층의 동작은 영역 데이터 문서의 상태 전이에 함께 적는다.
 - **벡터 인덱스**: pgvector 인덱스는 차원별 부분 인덱스라 차원이 다른 행이 각자의 인덱스를 쓴다. 목록은 [데이터 모델 개요](CLE-PLAT-DATA.md) 에 있다.
 

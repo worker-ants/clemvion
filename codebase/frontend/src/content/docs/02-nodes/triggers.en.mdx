@@ -380,7 +380,7 @@ curl -X POST https://<your-host>/api/triggers \
   }'
 ```
 
-3. When the trigger is activated, `setWebhook` is called automatically to wire the bot to the workflow endpoint. `botToken` is never returned in responses — it lives AES-256-GCM-encrypted in the secret store. Responses include `hasBotToken: true` only.
+3. Creating the trigger calls `setWebhook` automatically to wire the bot to the workflow endpoint. Turning the trigger on or off leaves the webhook registration unchanged, and deleting the trigger removes it. `botToken` is never returned in responses — it lives AES-256-GCM-encrypted in the secret store. Responses include `hasBotToken: true` only.
 
 ### Slack setup
 

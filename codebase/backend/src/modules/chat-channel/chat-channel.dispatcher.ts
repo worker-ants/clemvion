@@ -117,13 +117,15 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     // 복원하므로 의미 있는 갭이 거의 없음.
     //
     // **회귀 신호** (2026-05-25): triggerId 가 있는 webhook 발화 execution 인데 registry
-    // 에 미등록 ⇒ trigger 활성화 시 listener.register 누락 또는 deploy 직후 race.
+    // 에 미등록 ⇒ 등록 경로(생성 · `chatChannel` PATCH 의 setup 성공, 켠 PATCH, 부팅과 listener
+    // 재구독 때의 일괄 복원) 중 하나가 빠졌거나, 다른 인스턴스의 알림을 아직 받지 못했다.
+    // 켠 PATCH 의 등록은 NERV Task `CLE-T-PXTGVQ` 가 더했다([채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클) REQ-CHAT-070).
     // logger.warn 으로 즉시 운영 가시화 (이전엔 silent skip 이라 PR #314 적용 후에도
     // outbound 안 가는 원인을 production log 로 식별 불가했던 회귀를 차단).
     if (!this.listenerRegistry.has(triggerId)) {
       this.logger.warn(
         `event ${event.eventType} (trigger=${triggerId}) — listenerRegistry miss. ` +
-          `bootstrap 누락 또는 활성화 시점 register 누락 가능. ` +
+          `등록 경로 누락 또는 다른 인스턴스의 등록 알림 미수신 가능. ` +
           `즉각 영향: outbound 메시지 발송 안 됨.`,
       );
       return;

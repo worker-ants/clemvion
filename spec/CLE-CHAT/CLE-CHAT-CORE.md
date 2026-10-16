@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
-requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070"]
+requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "a6c95ff213ad680b67854dfa8f5f402fbfb3eb2c16daa82f086c79723d578a98"
+content_hash: "55821b6d4ca8d45c5176e39c53d7181ad47fc6d3ab5ad5b927762b2acfa0f696"
 read_as: "approved_fallback"
 task: "CLE-T-PXTGVQ"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "ee1044f3d20c02ad8c6b4d638345f76cc5d5d938028d0bb6951bbc503bc8a2b3"
-etag: "sha256-bbeb34e95d2bc4a2dc8079eb82a5c8f3a5d2c463e86e1ddc210a174a97569058"
+mirror_sha256: "1550d069319fca6c8fa97cd0eccb94933163b03d12793d55d091d4892d4b5e8b"
+etag: "sha256-e271dbfafc20e2d997726aca8164ce0f182dadf08d41b5971f33a89cd6ca28a0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,7 +50,10 @@ etag: "sha256-bbeb34e95d2bc4a2dc8079eb82a5c8f3a5d2c463e86e1ddc210a174a97569058"
 - REQ-CHAT-003 WHEN 채팅 채널 트리거를 활성화하면(`chatChannel` 이 없는 PATCH 본문 `{ isActive: true }`) THE SYSTEM SHALL 채널 어댑터의 `setupChannel()` 을 부르지 않고 외부 프로바이더의 웹훅 등록과 저장된 봇 토큰 · 인바운드 서명 자료를 그대로 쓴다. (원본: CCH-AD-02) (R-CC-29)
 - REQ-CHAT-004 WHEN 채팅 채널 트리거를 삭제하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 자동으로 부른다. (원본: CCH-AD-03)
 - REQ-CHAT-005 WHEN 채팅 채널 트리거를 비활성화하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 부르지 않고 외부 프로바이더의 웹훅 등록과 트리거 단위 listener 레지스트리 항목을 그대로 둔다. (원본: CCH-AD-03) (R-CC-29)
-- REQ-CHAT-070 WHEN 채팅 채널 트리거를 활성화하면 THE SYSTEM SHALL 그 트리거를 트리거 단위 listener 레지스트리(R8, 코드 `ChannelListenerRegistry`)에 항목으로 등록해 활성화 뒤 시작한 실행의 메시지를 채널로 보낸다. (R-CC-29) (미구현)
+- REQ-CHAT-070 WHEN 채팅 채널 트리거에 `isActive: true` 가 실린 PATCH 가 커밋되면 THE SYSTEM SHALL 그 트리거를 트리거 단위 listener 레지스트리(코드 `ChannelListenerRegistry`, [R8 트리거 단위 listener 정책](#r8-트리거-단위-listener-정책))에 항목으로 등록해 활성화 뒤 시작한 실행의 메시지를 채널로 보낸다. (R-CC-29)
+- REQ-CHAT-071 WHEN 트리거 생성 · `chatChannel` 이 실린 PATCH · `isActive: true` 가 실린 PATCH · 트리거 행을 없애는 삭제로 트리거 단위 listener 레지스트리에 항목을 등록하거나 해제하면 THE SYSTEM SHALL 그 변경을 Redis pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스에 알려 각 서버 인스턴스의 레지스트리에도 반영한다. 다른 서버 인스턴스에서 받은 변경을 반영할 때와 일괄 등록(REQ-CHAT-072)은 알리지 않는다. (R-CC-30)
+- REQ-CHAT-072 WHEN 서버 인스턴스가 시작하거나 `chat-channel:listener` 구독을 확립할 때마다(첫 연결과 다시 연결 모두) THE SYSTEM SHALL 활성 채팅 채널 트리거를 DB 에서 다시 읽어 그 서버 인스턴스의 레지스트리에 등록한다. (R-CC-30)
+- REQ-CHAT-073 IF `chat-channel:listener` 의 발행이나 구독이 실패하면 THE SYSTEM SHALL warn 로그만 남기고 트리거 생성 · 수정 · 삭제 요청을 실패시키지 않는다. (R-CC-30)
 - REQ-CHAT-006 WHEN `config.chatChannel` 이 있는 트리거로 `POST /api/hooks/:endpointPath` 요청이 오면 THE SYSTEM SHALL raw body 를 `parseUpdate(raw)` 로 워크플로우 입력으로 바꾸고 `parseUpdate`, 트리거 조회, `202 Accepted` 반환 순서로 처리해 웹훅 200ms 응답 시한을 지킨다. (원본: CCH-AD-04)
 - REQ-CHAT-007 WHILE 서버가 동작하는 동안 THE SYSTEM SHALL `ChatChannelDispatcher` 가 단일 sink `WebsocketService.executionEvents$` 를 `onModuleInit` 에서 직접 구독해 `execution.waiting_for_input`·`execution.ai_message`·`execution.completed`·`execution.failed`·`execution.cancelled` 를 `renderNode()` 와 `sendMessage()` 로 넘기게 한다. (원본: CCH-AD-05)
 - REQ-CHAT-008 WHEN 메신저에서 인터랙션 응답(답장, 버튼 탭, 다단계 Form 답변)이 오면 THE SYSTEM SHALL HTTP 표면을 거치지 않고 `InteractionService.interact(ctx, dto)` 를 서버 안에서 직접 부른다. (원본: CCH-AD-06)
@@ -141,8 +144,10 @@ etag: "sha256-bbeb34e95d2bc4a2dc8079eb82a5c8f3a5d2c463e86e1ddc210a174a97569058"
 
 - 관련 REQ-CHAT-001: 지원 목록은 [채널 프로바이더 카탈로그](#채널-프로바이더-카탈로그) 가 정한다(v1: `telegram`·`slack`·`discord`).
 - 관련 REQ-CHAT-002~005·070: `setupChannel()` 을 부르는 경로와 그때 바뀌는 자격 증명의 기준은 [봇 토큰 변경 단일 경로](#봇-토큰-변경-단일-경로) 다. `setupChannel()` 은 멱등이라 다시 불러도 된다(R8). Telegram 은 이때 `setWebhook` 을 부른다. 트리거를 켜고 끄는 PATCH 는 외부 등록을 건드리지 않는다. 켤 때는 트리거 단위 listener 레지스트리에만 등록한다(R-CC-29).
+- 관련 REQ-CHAT-070: 커밋된 PATCH 에 `isActive: true` 가 실렸고 저장된 트리거에 `config.chatChannel.provider` 가 있으면 등록한다. `chatChannel` 이 함께 실렸는지와 그 PATCH 의 `setupChannel()` 이 성공했는지는 보지 않는다. 그래서 채널 설정이 실패해 `degraded` 가 된 트리거도 켰으면 레지스트리에 들어간다. 재시작 때의 일괄 등록도 건강도를 보지 않으므로 같은 규칙이다. 같은 트리거를 다시 등록하면 항목을 덮어쓴다. 저장이 실패하거나 다른 워크스페이스의 트리거라 PATCH 가 거절되면 등록하지 않는다.
+- 관련 REQ-CHAT-071~073: 받은 서버 인스턴스는 자기 레지스트리에만 반영하고 다시 알리지 않는다. 메시지에는 보낸 프로세스의 id 가 실려 자기 메시지는 건너뛴다. 재시작 때와 다시 연결 뒤의 일괄 등록은 알리지 않는다. 서버 인스턴스마다 스스로 하기 때문이다. 구독을 확립할 때마다 구독 응답을 받은 뒤에 DB 를 한 번은 읽는다. 응답 전에만 읽으면 그 사이에 커밋하고 발행한 등록을 놓친다. 서버가 시작할 때 이 순서를 지키는 방법은 R-CC-30 「놓친 알림」 에 있다. 놓친 해제는 보정하지 않는다. dispatcher 의 현재 순서에서는 레지스트리를 확인한 다음 DB 에서 트리거를 읽으므로 지운 트리거의 항목이 남아도 트리거를 찾지 못해 건너뛴다. 메시지 형식은 [채팅 채널 데이터와 흐름 「Redis 키」](CLE-CHAT-DATA.md#redis-키) 가 정한다. 실패 정책은 REQ-CHAT-073 이 정한다.
 - 관련 REQ-CHAT-007·008: [단일 sink 구독](#단일-sink-구독) 과 [인증과 보안](#인증과-보안) 참조.
-- 관련 REQ-CHAT-009·010: 이 listener 는 채팅 채널 안에서만 쓰며 EIA 알림 웹훅 이벤트 허용 목록(다섯 가지)은 그대로다. 커밋 뒤 호출(EIA-RL-04)과 트리거 단위 레지스트리 가드(R8)가 그대로 적용된다. 입력 타입은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 `ChatChannelInternalEvent` 다.
+- 관련 REQ-CHAT-009·010: 이 listener 는 채팅 채널 안에서만 쓰며 EIA 알림 웹훅 이벤트 허용 목록(다섯 가지)은 그대로다. 커밋 뒤 호출(EIA-RL-04)과 트리거 단위 listener 레지스트리 가드(R8)가 그대로 적용된다. 입력 타입은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 `ChatChannelInternalEvent` 다.
 - 관련 REQ-CHAT-014: 기본 문구는 "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." 이고 한국어 기본값만 있다. 현재 구현은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태를 돌려주고, 입력 대기일 때만 전달한다. `running`·`pending` 이면 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 세 갈래 모두 구현됐다.
 - 관련 REQ-CHAT-017: 안내 발송 책임은 어댑터가 아니라 호출자에 있다. `parseUpdate` 는 부수 효과 없는 계약을 지킨다.
 - 관련 REQ-CHAT-018~020: `presentations?: PresentationPayload[]` 는 AI 에이전트가 표시 도구(`render_*`)를 부른 턴에만 실린다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)). 표시 전용 네 가지는 REQ-CHAT-024 의 v1 fallback 을 다시 쓴다. `render_form` 텍스트는 v2 네이티브 모달·Mini App 전까지의 임시 정책이다. 디버그 전용 `llmCalls` 는 fanout 에서 지워져 dispatcher 에 오지 않으므로 변환은 `message`·`presentations` 만 쓴다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)).
@@ -545,16 +550,16 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/chat-channel/**`: 모듈, 어댑터 레지스트리(`channel-adapter.registry.ts`), 트리거 단위 listener 레지스트리(`channel-listener.registry.ts`), dispatcher(`chat-channel.dispatcher.ts`, 종결 이벤트에서 대화 상태 정리, Form 대기 상태 갱신 가드), 인바운드 서명 검증(`chat-channel-inbound-authenticator.ts`), 중복 제거(`chat-channel-dedup.service.ts`, 선점 해제 `release` 포함), 분당 한도(`chat-channel-rate-limiter.service.ts`), 채널 대화 상태(`channel-conversation.service.ts`, compare-and-set 정리 `clearExecutionIdIfMatches`), `types.ts`, 공용 로직(`shared/execution-failure-classifier.ts`, `shared/form-mode.ts`, `shared/language-hint-defaults.ts`), 프로바이더별 adapter·client·parser·renderer(`providers/telegram/`, `providers/slack/`, `providers/discord/`, Slack·Discord 는 `*-signing.ts`·`*.types.ts` 추가)
-- `codebase/backend/src/modules/triggers/chat-channel-*.ts`: `chat-channel-binder.service.ts`(어댑터 setup·teardown, 시크릿 쓰기와 참조 보존), `chat-channel-input-rules.ts`(입출력 도메인 규칙 순수 함수, R-CC-21 입력 규칙과 `translateSetupChannelError`), `chat-channel-rejection-messages.const.ts`(PATCH 금지 필드와 거부 문구의 단일 기준. 원시 `config` 가드도 이 필드 목록을 쓴다), `chat-channel-token-rotator.service.ts`(봇 토큰 정리 매시간 워커)
+- `codebase/backend/src/modules/chat-channel/**`: 모듈, 어댑터 레지스트리(`channel-adapter.registry.ts`), 트리거 단위 listener 레지스트리(`channel-listener.registry.ts`)와 그 변경을 다른 서버 인스턴스에 알리는 pub/sub(`channel-listener.bus.ts`), 재시작 · 다시 구독 때의 일괄 등록(`chat-channel.module.ts`), dispatcher(`chat-channel.dispatcher.ts`, 종결 이벤트에서 대화 상태 정리, Form 대기 상태 갱신 가드), 인바운드 서명 검증(`chat-channel-inbound-authenticator.ts`), 중복 제거(`chat-channel-dedup.service.ts`, 선점 해제 `release` 포함), 분당 한도(`chat-channel-rate-limiter.service.ts`), 채널 대화 상태(`channel-conversation.service.ts`, compare-and-set 정리 `clearExecutionIdIfMatches`), `types.ts`, 공용 로직(`shared/execution-failure-classifier.ts`, `shared/form-mode.ts`, `shared/language-hint-defaults.ts`), 프로바이더별 adapter·client·parser·renderer(`providers/telegram/`, `providers/slack/`, `providers/discord/`, Slack·Discord 는 `*-signing.ts`·`*.types.ts` 추가)
+- `codebase/backend/src/modules/triggers/chat-channel-*.ts`: `chat-channel-binder.service.ts`(어댑터 setup·teardown, 시크릿 쓰기와 참조 보존, 켤 때의 레지스트리 등록 `registerListenerOnActivation`), `chat-channel-input-rules.ts`(입출력 도메인 규칙 순수 함수, R-CC-21 입력 규칙과 `translateSetupChannelError`), `chat-channel-rejection-messages.const.ts`(PATCH 금지 필드와 거부 문구의 단일 기준. 원시 `config` 가드도 이 필드 목록을 쓴다), `chat-channel-token-rotator.service.ts`(봇 토큰 정리 매시간 워커)
 - `codebase/backend/src/modules/triggers/dto/**/chat-channel-*.dto.ts`: `chat-channel-config.dto.ts`(생성·수정 검증 분리), `responses/chat-channel-rotate-bot-token-response.dto.ts`
 - `codebase/backend/src/modules/triggers/trigger-callback-url*.ts`: 웹훅 콜백 URL 조립 순수 함수
 - `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`: 원시 `config` 의 내부 필드 거부(`details.field` 표 셋째 행)
-- `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
+- `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션, 켜는 PATCH 커밋 뒤 레지스트리 등록), `trigger-resource-releaser.service.ts`(트리거 행을 없앨 때의 외부 해제와 채팅 채널 트리거의 레지스트리 해제), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(새 실행 시작 앞의 워크플로우 활성 관문 포함), 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts`: 워크플로우 활성 관문 `isWorkflowInactive`(트리거의 워크스페이스 안에서만 찾는다)
-- `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`, `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`, `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`
-- 단위 테스트: `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start` 와 워크플로우 활성 관문), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`, `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.spec.ts`
+- `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`, `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`, `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`, `codebase/backend/test/chat-channel-listener-activation.e2e-spec.ts`(켠 뒤 등록, 켤 때와 삭제 때의 알림 발행, 다른 서버 인스턴스의 알림 반영, 다시 구독 뒤 복원)
+- 단위 테스트: `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start` 와 워크플로우 활성 관문), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`, `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.spec.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.bus.spec.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.registry.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.module.spec.ts`(첫 연결의 두 복원 순서), `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(켜고 끌 때의 레지스트리), `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.spec.ts`(삭제 때 해제를 알리는 트리거)
 - `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/components/triggers/cards/chat-channel-card.tsx`(채널 건강도와 «마지막 오류» 표시), `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
 
 `chat-channel/` 모듈은 `external-interaction/` 모듈과 같은 facade 계층이고 둘 다 엔진 밖이다. 후속 계획(미구현): Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
@@ -577,7 +582,7 @@ EIA HTTP 표면을 새로 만들지 않고 서버 안 facade 호출만 쓴다. H
 
 ### R4 단일 sink 를 직접 구독한다
 
-같은 프로세스 안에서는 외부 인프라 없이 가장 단순하고 단일 sink 가 이미 커밋 뒤 fan-out 진입점이다(`executionEvents$.subscribe(adapter.handle)`). Redis pub/sub 은 같은 프로세스 안에서 왕복 낭비이고, 커밋 뒤 hook 을 따로 두면 엔진의 단일 sink 정책을 어겨 어댑터가 엔진 코드를 알아야 한다. EIA R10 의 "엔진 밖 facade 한 곳, 단일 sink" 원칙을 지킨다.
+같은 프로세스 안에서는 외부 인프라 없이 가장 단순하고 단일 sink 가 이미 커밋 뒤 fan-out 진입점이다(`executionEvents$.subscribe(adapter.handle)`). Redis pub/sub 은 같은 프로세스 안에서 왕복 낭비이고, 커밋 뒤 hook 을 따로 두면 엔진의 단일 sink 정책을 어겨 어댑터가 엔진 코드를 알아야 한다. EIA R10 의 "엔진 밖 facade 한 곳, 단일 sink" 원칙을 지킨다. 서버 인스턴스 사이에 레지스트리 변경을 알리는 pub/sub 는 실행 이벤트가 아니므로 이 결정과 따로 R-CC-30 이 다룬다.
 
 ### R5·R6 문서를 세 층으로 나눈다
 
@@ -597,15 +602,18 @@ EIA `notification/rotate-secret`(알림 서명 시크릿 교체)과 자원이 �
 
 fan-out 원천은 `executionEvents$` 이고 listener 는 셋이다. (1) `NotificationDispatcher`: EIA 알림 웹훅 HTTP POST. (2) SSE 어댑터: SSE fan-out, 구독 방식은 EIA R10 이 정한다. (3) `ChatChannelDispatcher`: 서버 안 구독, 채팅 채널 전담.
 
-`ChatChannelDispatcher` 는 모듈 단위 1회 구독을 유지하면서 트리거 단위 `ChannelListenerRegistry` 로 다음을 보장한다.
+`ChatChannelDispatcher` 는 모듈 단위 1회 구독을 유지하면서 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)로 다음을 보장한다.
 
 - `setupChannel()` 때 같은 `triggerId` 항목이 있으면 덮어쓴다(멱등, 키는 `triggerId`, 값은 `(triggerId, provider)`). 프로바이더 변경은 지원하지 않고 재생성으로 처리한다.
-- `teardownChannel()` 때와 트리거 행을 없애는 경로(트리거·워크플로우·워크스페이스 삭제의 행 삭제 전 외부 해제 단계, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md))에서 항목을 반드시 해제한다. 스케줄 트리거는 채팅 채널을 못 가져 등록되지 않는다.
+- 트리거 행을 없애는 네 경로(트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제. [트리거 관리 「자원 정리」](../CLE-TRIG/CLE-TRIG-MANAGE.md#자원-정리))의 행 삭제 전 외부 해제 단계에서 항목을 반드시 해제한다. `teardownChannel()` 은 이 경로와 쓰기 보상(REQ-TRIG-038)에서만 불린다. 쓰기 보상은 행을 쓰지 못한 요청이 만든 provider 등록을 되돌리는 것이고, 그 요청은 레지스트리에 등록하지 않았으므로 해제할 항목도 알림도 없다. 스케줄 트리거는 채팅 채널을 못 가져 등록되지 않는다. 해제와 그 알림은 `config.chatChannel` 이 있거나 그 서버 인스턴스의 레지스트리에 항목이 있는 트리거에만 한다.
 - `handle()` 은 DB 조회 전에 `registry.has(triggerId)` 로 거르고 미등록 트리거는 조용히 건너뛴다.
 - 재시작하면 `onApplicationBootstrap` 에서 `isActive=true AND config.chatChannel IS NOT NULL` 트리거를 한 번에 등록한다.
-- 트리거를 켜는 PATCH 는 `setupChannel()` 을 부르지 않으므로 그 자리에서 따로 등록한다(REQ-CHAT-070, 미구현). 끄는 PATCH 는 항목을 해제하지 않는다(REQ-CHAT-005). 근거는 R-CC-29 다.
+- 트리거를 켜는 PATCH 는 `setupChannel()` 을 부르지 않으므로 커밋 뒤 그 자리에서 따로 등록한다(REQ-CHAT-070). 끄는 PATCH 는 항목을 해제하지 않는다(REQ-CHAT-005). 근거는 R-CC-29 다.
+- 레지스트리는 서버 인스턴스마다 따로 있다. 등록 · 해제는 Redis pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스에 알리고 구독이 확립될 때마다 DB 에서 다시 일괄 등록한다(REQ-CHAT-071·072). 근거는 R-CC-30 이다.
 
-효과는 (a) 삭제 뒤 들어오는 이벤트 차단, (b) 재시작 직후 미등록 race 회피, (c) DB 왕복 절감이다. 라우팅은 여전히 `handle()` 안에서 한다. `executionEvents$` 를 EventEmitter 로 바꾸는 식의 분리는 범위 밖이다.
+효과는 (a) 삭제 뒤 들어오는 이벤트 차단, (b) 재시작 직후 미등록 race 회피, (c) DB 왕복 절감이다. 다른 서버 인스턴스가 해제 알림을 놓치면 (a) 는 레지스트리 대신 dispatcher 의 DB 조회가 맡는다(R-CC-30). 라우팅은 여전히 `handle()` 안에서 한다. `executionEvents$` 를 EventEmitter 로 바꾸는 식의 분리는 범위 밖이다.
+
+레지스트리는 이벤트를 거르는 가드다. 끈 트리거의 항목도 남으므로 활성 트리거 목록과 같지 않다. 트리거가 켜져 있는지의 기준은 인바운드 관문(REQ-CHAT-057)이다. 그래서 꺼진 트리거의 항목이 남아도 새 실행은 생기지 않는다.
 
 ### R9 처리 중 메시지는 큐에 쌓지 않고 바로 안내한다
 
@@ -793,15 +801,33 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 
 ### R-CC-29 트리거를 켜고 끌 때 외부 채널 등록은 건드리지 않는다
 
-2026-10-10 결정이다(NERV Task `CLE-T-W11BQ9`, finding 01a0e596-b8d9-7460-b547-8a9b731cd416 의 선택지 1). 이 결정 전의 REQ-CHAT-003·005 는 트리거를 켤 때 `setupChannel()` 을 부르고 끌 때 `teardownChannel()` 을 부른다고 적었다. 구현은 트리거 생성, `chatChannel` 이 실린 PATCH, 봇 토큰 재발급에서만 `setupChannel()` 을 부른다. `teardownChannel()` 은 트리거 행을 없애는 경로에서만 부른다. 인바운드 응답 계약도 비활성 트리거에 update 가 계속 온다고 보고 서명 검증 뒤 `202` 로 버린다(REQ-CHAT-057). 끌 때 웹훅을 해제했다면 그 update 는 오지 않는다. 그래서 현행 동작을 기준으로 삼았다. 켜고 끄는 PATCH 는 프로바이더 등록을 건드리지 않는다.
+**결정.** 2026-10-10 결정이다(NERV Task `CLE-T-W11BQ9`). 이 결정 전의 REQ-CHAT-003·005 는 트리거를 켤 때 `setupChannel()` 을 부르고 끌 때 `teardownChannel()` 을 부른다고 적었다. 구현은 트리거 생성, `chatChannel` 이 실린 PATCH, 봇 토큰 재발급에서만 `setupChannel()` 을 부른다. `teardownChannel()` 은 트리거 행을 없애는 경로와 쓰기 보상(REQ-TRIG-038)에서만 부른다. 인바운드 응답 계약도 비활성 트리거에 update 가 계속 온다고 보고 서명 검증 뒤 `202` 로 버린다(REQ-CHAT-057). 끌 때 웹훅을 해제했다면 그 update 는 오지 않는다. 그래서 현행 동작을 기준으로 삼았다. 켜고 끄는 PATCH 는 프로바이더 등록을 건드리지 않는다.
 
-기각한 대안: 켤 때마다 다시 등록하고 끌 때마다 해제하는 안. 켜고 끌 때마다 외부 API 를 불러야 해서 프로바이더 재등록이 실패할 수 있는 지점이 늘어난다.
+**기각한 대안.** 켤 때마다 다시 등록하고 끌 때마다 해제하는 안. 켜고 끌 때마다 외부 API 를 불러야 해서 프로바이더 재등록이 실패할 수 있는 지점이 늘어난다.
 
-켤 때의 레지스트리 등록은 2026-10-15 에 사용자 요청으로 더했다. 이 결정을 문서에 옮기면서 트리거 단위 listener 레지스트리(R8)의 빈틈을 확인했다. 레지스트리에 트리거가 들어가는 곳은 `setupChannel()` 이 성공한 자리와 재시작 때의 일괄 등록 둘뿐이다. 일괄 등록은 활성 트리거만 고른다. 그래서 트리거가 꺼진 채로 서버가 재시작된 뒤 그 트리거를 켜면 레지스트리에 없다. 인바운드는 활성 트리거로 받아 실행을 시작한다. 그런데 dispatcher 가 그 실행의 이벤트를 건너뛰어 채널로 아무것도 나가지 않는다. 다음 재시작 전까지 이 상태가 이어진다. 코드를 읽어 확인했고 실행해서 재현하지는 않았다. 켤 때 외부 등록은 하지 않고 레지스트리 항목만 등록하면 이 문제가 없어진다(REQ-CHAT-070, 구현은 NERV Task `CLE-T-PXTGVQ`). 레지스트리 등록은 서버 안의 일이라 위에서 기각한 외부 호출 실패 지점을 늘리지 않는다.
+**켤 때의 레지스트리 등록.** 2026-10-15 에 더했고(NERV Task `CLE-T-W11BQ9`) 2026-10-16 에 구현했다(NERV Task `CLE-T-PXTGVQ`). 이 결정을 문서에 옮기면서 트리거 단위 listener 레지스트리([R8 「트리거 단위 listener 정책」](#r8-트리거-단위-listener-정책))의 빈틈을 확인했다. 그때 레지스트리에 트리거가 들어가는 곳은 `setupChannel()` 이 성공한 자리와 재시작 때의 일괄 등록 둘뿐이었다. 일괄 등록은 활성 트리거만 고른다. 그래서 트리거가 꺼진 채로 서버가 재시작된 뒤 그 트리거를 켜면 레지스트리에 없었다. 인바운드는 활성 트리거로 받아 실행을 시작하는데 dispatcher 가 그 실행의 이벤트를 건너뛰어 채널로 아무것도 나가지 않았다. 다음 재시작 전까지 이 상태가 이어졌다. e2e(`chat-channel-listener-activation.e2e-spec.ts`)의 대조 시나리오가 이 상태를 재현한다. 켤 때 외부 등록은 하지 않고 레지스트리 항목만 등록한다(REQ-CHAT-070). 레지스트리 등록은 서버 안의 일이고 Redis 알림이 실패해도 요청은 실패하지 않으므로 위에서 기각한 외부 호출 실패 지점을 늘리지 않는다. 다만 레지스트리는 서버 인스턴스마다 따로 있어서 켠 요청을 받은 서버 인스턴스에만 등록하면 같은 빈틈이 다른 서버 인스턴스에 남는다. 그래서 등록을 모든 서버 인스턴스에 알린다(R-CC-30).
 
-끌 때는 레지스트리 항목을 해제하지 않는다. 비활성 트리거의 update 는 인바운드 관문에서 버리므로(REQ-CHAT-057) 새 실행이 생기지 않는다. 지금도 끄기 전에 시작한 실행의 메시지는 채널로 나간다. 해제하면 그 메시지가 아무 표시 없이 사라진다. 다만 재시작 때의 일괄 등록은 활성 트리거만 고르므로 꺼진 채 재시작을 넘긴 실행의 메시지는 나가지 않는다. 이 결정은 재시작을 넘는 진행 중 실행까지 보장하지 않는다.
+**끌 때.** 레지스트리 항목을 해제하지 않는다. 비활성 트리거의 update 는 인바운드 관문에서 버리므로(REQ-CHAT-057) 새 실행이 생기지 않는다. 끄기 전에 시작한 실행의 메시지는 채널로 나간다. 해제하면 그 메시지가 아무 표시 없이 사라진다.
 
-끈 동안에도 외부 등록이 남아 있어 프로바이더는 update 를 계속 보낸다. 비활성 트리거가 Slack `url_verification` 과 Discord PING 에도 `202` ignored 로 답하는 문제는 [트리거 데이터와 흐름 「미결 사항」](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항) 에 있다.
+**남은 한계.** 재시작 때의 일괄 등록은 활성 트리거만 고른다. 그래서 트리거가 꺼진 동안 새로 뜨거나 다시 시작한 서버 인스턴스에서 이어지는 실행의 메시지는 나가지 않는다. 이 결정은 재시작을 넘는 진행 중 실행까지 보장하지 않는다. 끈 동안에도 외부 등록이 남아 있어 프로바이더는 update 를 계속 보낸다. 비활성 트리거가 Slack `url_verification` 과 Discord PING 에도 `202` ignored 로 답하는 문제는 [트리거 데이터와 흐름 「미결 사항」](../CLE-TRIG/CLE-TRIG-DATA.md#미결-사항) 에 있다. 껐다 켜도 `setupChannel()` 을 다시 부르지 않으므로 채널 설정이 실패해 `degraded` 가 된 트리거를 껐다 켜서 다시 설정할 수는 없다. 다시 설정하려면 `chatChannel` 이 실린 PATCH 를 보내거나 봇 토큰을 재발급한다. 이 결정 전의 REQ-CHAT-003 문장대로라면 껐다 켜기도 다시 설정하는 방법이었다. 구현은 그 전에도 그렇게 하지 않았다.
+
+### R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다
+
+**결정.** 2026-10-15 결정이다. NERV Task `CLE-T-W11BQ9` 세션에서 사용자가 방식을 골랐다. 그 선택은 NERV Task `CLE-T-PXTGVQ` 본문 「code 리뷰에서 넘어온 일」 1 에 적혀 있다. 2026-10-16 에 구현했다(NERV Task `CLE-T-PXTGVQ`). 레지스트리는 프로세스 안 `Map` 이고 `executionEvents$` 도 그 프로세스 안에서만 전달된다. 플랫폼은 여러 서버 인스턴스를 전제한다([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md)). 한 서버 인스턴스가 받은 요청으로만 등록하면 실행을 맡은 다른 서버 인스턴스의 dispatcher 는 그 실행의 이벤트를 건너뛴다. 그래서 레지스트리가 자기 `Map` 에 반영한 뒤 Redis pub/sub 채널 `chat-channel:listener` 로 변경을 보낸다. 다른 서버 인스턴스는 받은 변경을 자기 `Map` 에만 반영하고 다시 보내지 않는다. 본보기는 통합 자격 증명 캐시를 비우는 채널(`IntegrationCacheBus`)이다. 구독은 전용 복제 연결로 하고 발행은 공유 연결로 한다. 등록은 그 등록을 낳은 행 쓰기가 커밋된 뒤에 알린다. 생성과 `chatChannel` 이 실린 PATCH 는 행을 저장한 뒤 `setupChannel()` 을 부르고 그 결과를 잠금 안 재기록으로 커밋한다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 등록과 그 알림은 이 재기록이 커밋된 뒤에 한다. 재기록이 행이 없어 쓰지 못하면 등록하지 않는다. 그래서 쓰기 보상(REQ-TRIG-038)이 되돌릴 레지스트리 항목과 알림이 없다. 켜는 PATCH 는 그 PATCH 의 쓰기가 커밋된 뒤에 등록하고 알린다. 해제는 행을 지우기 전의 외부 해제 단계에서 `teardownChannel()` 다음에 알린다.
+
+**알리는 범위.** 켜는 PATCH 의 등록만이 아니라 생성 · `chatChannel` 이 실린 PATCH 의 등록과 트리거 행을 없앨 때의 해제도 알린다. 프로세스 안에서만 바꾸면 생성 경로에 같은 빈틈이 남는다. 지운 트리거가 다른 서버 인스턴스의 레지스트리에 남으면 그 서버 인스턴스는 그 트리거의 이벤트마다 DB 를 읽는다. 삭제 뒤 이벤트 차단은 DB 조회로 유지된다. 잃는 것은 [R8 「트리거 단위 listener 정책」](#r8-트리거-단위-listener-정책) 의 DB 왕복 절감뿐이다. 해제 알림은 `config.chatChannel` 이 있거나 그 서버 인스턴스의 레지스트리에 항목이 있는 트리거에만 보낸다. 스케줄 트리거와 채팅 채널이 없는 웹훅 트리거는 레지스트리에 든 적이 없어서 삭제 요청에 Redis 왕복을 더하지 않는다. 이 범위는 결정을 문서로 옮기면서 더한 판단이고 구현에서 그대로 따랐다.
+
+**pub/sub 로 충분한 이유.** 선행 결정은 놓친 메시지를 메우는 장치가 있는 best-effort 신호에 pub/sub 를 쓰고, 잃으면 일이 멈추는 신호는 영속 큐로 옮겼다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) Rationale 「풀 캐시 무효화에 Redis pub/sub 방송 채택」, [실행 복구](../CLE-EXEC/CLE-EXEC-RECOVERY.md) Rationale 「영속 재개 큐와 안전 종료」). 등록 알림을 잃으면 그 서버 인스턴스의 dispatcher 가 그 트리거 실행의 이벤트를 건너뛰어 채널 메시지가 나가지 않는다. 해제 알림을 잃는 것은 R8 의 DB 왕복 절감만 잃는다(「알리는 범위」). 실행은 그대로 진행되고 결과도 저장된다. 다만 채널로 입력을 묻는 실행이면 사용자가 질문을 받지 못해 대기 상태가 이어질 수 있다. 실행 복구의 「best-effort 교환」 도 같은 기준으로 채널 안내 실패가 실행 재개를 막지 않게 했다. 잃는 경우는 구독이 끊긴 사이와 연결이 이어진 동안의 발행 실패 · 유실이다. 앞의 것은 재구독 때의 일괄 등록이 메운다. 뒤의 것은 메우지 않고 「남은 한계」 에 둔다. BullMQ 큐는 작업 하나를 워커 하나가 가져가므로 모든 서버 인스턴스에 같은 변경을 알리는 데 맞지 않는다. 레지스트리를 Redis 집합처럼 공유 저장소로 옮기는 안과 주기적 재동기화는 이번에 검토하지 않았다. 연결이 이어진 동안의 유실이 실제로 관찰되면 다시 본다.
+
+**R4 와의 관계.** [R4 「단일 sink 를 직접 구독한다」](#r4-단일-sink-를-직접-구독한다) 는 실행 이벤트를 Redis pub/sub 로 돌리지 않는다고 정했다. 이 결정도 실행 이벤트는 그대로 프로세스 안 `executionEvents$` 로 받는다. pub/sub 로 오가는 것은 레지스트리의 등록 · 해제뿐이고 트리거를 만들고 켜고 지울 때만 생긴다.
+
+**기각한 대안.** dispatcher 가 레지스트리에 없는 트리거를 만나면 DB(`is_active AND config.chatChannel`)를 한 번 확인하는 안. 레지스트리의 용도 하나가 레지스트리에 없는 트리거의 이벤트를 DB 를 거치지 않고 건너뛰는 것이다(R8 의 효과 (c)). 채팅 채널이 아닌 실행의 이벤트도 모두 레지스트리에 없으므로 이벤트마다 DB 조회가 생긴다. 사용자는 방식만 골랐고 이 근거는 그 세션이 코드에서 정리했다.
+
+**놓친 알림.** pub/sub 는 메시지를 저장하지 않아서 구독 연결이 끊긴 사이의 변경은 사라진다. 통합 캐시를 비우는 채널은 핸들러가 자격 증명 해시를 비교해 놓친 메시지를 메우지만 레지스트리에는 그런 보정이 없다. 그래서 구독이 확립될 때마다 활성 트리거를 DB 에서 다시 일괄 등록한다(REQ-CHAT-072). DB 를 구독 응답 뒤에 읽는 이유는 구독이 확립되기 전에만 읽으면 그 사이 커밋하고 발행한 등록을 둘 다 놓칠 수 있어서다(순서 규칙은 「관련 REQ-CHAT-071~073」). 서버가 시작할 때는 모듈이 구독 확립 handler 를 먼저 달고 곧바로 일괄 등록한다. 첫 구독 응답이 handler 를 달기 전에 오면 시작 때의 일괄 등록이 응답 뒤에 DB 를 읽는다. 나중에 오면 handler 가 응답 뒤에 읽는다. 그래서 어느 쪽이든 응답 뒤에 DB 를 한 번은 읽는다. 놓친 해제는 보정하지 않는다. 지운 트리거의 항목이 남아도 dispatcher 가 DB 에서 트리거를 찾지 못해 건너뛴다. 메시지에는 보낸 프로세스의 id 를 싣고 자기 메시지는 건너뛴다. 자기 변경은 이미 반영했고 등록 뒤 곧바로 해제했을 때 늦게 돌아온 자기 등록 메시지가 항목을 되살릴 수 있기 때문이다.
+
+**실패 정책.** 발행 · 구독 실패는 warn 만 남기고 트리거 요청을 실패시키지 않는다(REQ-CHAT-073). Redis 가 없으면 그 서버 인스턴스의 레지스트리만 바뀐다. 서버 인스턴스가 하나면 그것으로 충분하다.
+
+**남은 한계.** 해제는 행을 지우기 전에 알린다. 그 뒤 행 삭제가 실패하면 그 트리거는 모든 서버 인스턴스의 레지스트리에서 빠지고 `teardownChannel()` 도 이미 불린 채로 남는다. 다음 재구독이나 재시작 때의 일괄 등록이 항목을 다시 넣는다. 연결이 이어진 동안의 발행 실패와 유실은 보정하지 않는다. DB 에서 메우는 것은 구독이 끊겼다 다시 붙을 때뿐이다. 다른 방식을 검토하지 않은 범위는 「pub/sub 로 충분한 이유」 에 있다.
 
 ### 카탈로그를 v1 부터 둔 이유
 
