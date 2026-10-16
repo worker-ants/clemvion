@@ -6,7 +6,8 @@
 # pnpm 버전은 root package.json 의 `packageManager` 필드를 corepack 이 따른다
 # (이전의 "node:24 = npm 11 lockfile 정합" 근거는 pnpm 전환으로 불필요).
 # Node 25 부터 corepack 이 Node 배포본에서 빠져 공식 이미지에도 없다. 그래서 npm 으로 corepack 을
-# 버전 고정해 설치한 뒤 켠다. frontend Dockerfile 과 같은 버전을 쓴다.
+# 버전 고정해 설치한 뒤 켠다. frontend Dockerfile 과 같은 버전을 쓰고, 그 일치는
+# `.claude/tests/test_node_runtime_sync.py` 가 대조한다(Node 메이저도 같은 파일이 .nvmrc 와 대조한다).
 FROM node:26-alpine AS deps
 RUN apk add --no-cache python3 make g++
 RUN npm install -g corepack@0.36.0 && corepack enable

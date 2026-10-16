@@ -156,6 +156,15 @@ jobs:
         # 아래는 그 가드가 제품 경로로 빼므로 test_package_pin_reasons.py::TriggerCoverageTest 가 맡는다.
         package.json
         codebase/*/package.json
+        # Node 런타임 메이저와 corepack 핀의 대조(test_node_runtime_sync.py)가 읽는 파일이다.
+        # Node 를 올리는 PR 은 거의 이 파일들만 고치는데, 등재가 없으면 정확히 그 PR 에서
+        # 메이저가 갈려도 가드가 안 돈다 — 위 항목들과 같은 실패 클래스다. `.nvmrc` 는
+        # test_harness_checks_paths_coverage.py 가, `codebase/` 아래 Dockerfile 셋은
+        # test_node_runtime_sync.py::TriggerCoverageTest 가 등재를 강제한다.
+        .nvmrc
+        codebase/backend/Dockerfile
+        codebase/frontend/Dockerfile
+        codebase/frontend/Dockerfile.playwright-e2e
 
   unittest:
     needs: changes
