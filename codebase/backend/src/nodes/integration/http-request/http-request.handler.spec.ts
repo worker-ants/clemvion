@@ -1800,10 +1800,12 @@ describe('HttpRequestHandler', () => {
               // 되고, jest 기본 5000ms 타임아웃으로 죽는다.
               //
               // 그 조건이 CI 에서 항상 성립했다(2026-08-09, `#1111` 에서 2회 연속 실패).
-              // 핸들러는 fetch 전에 `assertSafeOutboundHostResolved` 로 **실제 DNS 조회**를
-              // await 한다. 아래 `setTimeout(…, 10)` 이 그 조회보다 먼저 끝나면 fetch 는
+              // 그때 핸들러는 fetch 전에 `assertSafeOutboundHostResolved` 로 **실제 DNS 조회**를
+              // await 했다. 아래 `setTimeout(…, 10)` 이 그 조회보다 먼저 끝나면 fetch 는
               // **이미 aborted 인 signal** 을 받는다 — 러너에서는 매번 그랬다.
               // 로컬에서 abort 를 즉시 발화시키면 같은 실패가 재현된다(실증 완료).
+              // 지금은 이 파일이 DNS 를 가짜로 둬서(파일 상단, `CLE-T-WC482N`) 그 경쟁이 없다.
+              // 그래도 mock 은 실제 `fetch` 처럼 동작해야 하므로 이 분기는 남긴다.
               //
               // 프로덕션 코드의 결함이 아니다 — 진짜 `fetch` 는 이 경우 곧바로
               // `AbortError` 로 reject 한다. **mock 이 그 동작을 안 따랐던 것**이라
