@@ -242,4 +242,26 @@ describe('WebAuthn 2FA (e2e)', () => {
     // 검증 실패는 counter 를 갱신하지 않는다 (성공 verify 만 newCounter 반영).
     expect(rows[0].counter).toBe('0');
   });
+
+  // 단위 테스트는 라이브러리를 mock 해서 인자만 본다. 실제 라이브러리가 그 인자로
+  // 응답의 pubKeyCredParams 를 만드는지는 여기서 본다. v14 는 PQC 를 지원하는 런타임에서
+  // 인자가 없으면 ML-DSA-44(-48)를 맨 앞에 넣는다.
+  it('F. 등록 옵션의 pubKeyCredParams 가 EdDSA · ES256 · RS256 순서로 고정된다', async () => {
+    const { accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-f'),
+      db,
+    );
+    const res = await request(BASE_URL)
+      .post('/api/auth/2fa/webauthn/register/options')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({});
+    expect(res.status).toBe(200);
+    const params = (
+      res.body.data as {
+        publicKey: { pubKeyCredParams: { alg: number; type: string }[] };
+      }
+    ).publicKey.pubKeyCredParams;
+    expect(params.map((p) => p.alg)).toEqual([-8, -7, -257]);
+  });
 });
