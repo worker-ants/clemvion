@@ -35,6 +35,7 @@ type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
  *     하며 nock/msw 가 backend e2e 컨테이너 내부에서 동작하도록 추가 인프라 필요.
  *   - BullMQ refresh worker 실 토큰 회전 — 동일하게 외부 mock 필요.
  *   본 e2e 는 controller → service → DB → Redis 까지의 통합만 검증한다.
+ *   예외로 이 파일 전용 서명 헬퍼(`createInstallTimestampSource`)는 서버 없이 가짜 시계로 함께 검증한다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -63,6 +64,59 @@ function buildHmacMessage(rawQuery: string): string {
 function computeHmac(message: string, secret: string): string {
   return createHmac('sha256', secret).update(message, 'utf8').digest('base64');
 }
+
+/**
+ * install 요청에 서명할 timestamp(초)를 내는 함수를 만든다. 낸 값은 시계가 멈추거나 거꾸로 가도 앞서 낸 값보다 늘 크다.
+ *
+ * 서버는 `{mall_id}:{timestamp}:{hmac 앞 8자}` 를 nonce 로 기록한다(`cafe24-install-nonce-cache.service.ts`). 같은
+ * mall_id 로 같은 쿼리를 두 번 보낼 때 timestamp 가 같으면 hmac 도 같아서 두 번째가 `CAFE24_INSTALL_REPLAY` 로 막힌다.
+ * 현재 초에서 호출 횟수를 빼는 방식은 두 호출 사이에 초가 정확히 하나 넘어가면 같은 값을 다시 낸다(Task CLE-T-VP5Q35).
+ *
+ * 값은 현재 초와 「앞 값 + 1」 중 큰 쪽이다. 시계가 거꾸로 가지 않으면 현재 시각보다 앞서는 폭은 앞서 부른 횟수를 넘지
+ * 않는다. 이 파일은 몇 번만 부르므로 서버의 ±5분 창 안에 든다. 시계가 앞서 낸 값을 따라잡으면 다시 현재 초를 쓴다. 「앞 값 - 1」 로 줄여 가는
+ * 방식은 시계가 흐르는 만큼 현재 시각에서 멀어져서 쓰지 않는다.
+ *
+ * @param nowMs 밀리초 시계. 테스트가 가짜 시계를 넣을 때만 준다.
+ */
+function createInstallTimestampSource(
+  nowMs: () => number = () => Date.now(),
+): () => number {
+  // 첫 호출은 늘 현재 초를 쓴다.
+  let last = Number.NEGATIVE_INFINITY;
+  return () => {
+    last = Math.max(Math.floor(nowMs() / 1000), last + 1);
+    return last;
+  };
+}
+
+// 헬퍼가 이 파일 전용이라 여기서 함께 검증한다. 서버를 부르지 않으므로 아래 e2e describe 의 beforeAll 밖에 둔다.
+describe('signed install query timestamps (CLE-T-VP5Q35)', () => {
+  const startSec = 1_000_000;
+
+  it('never repeats when a second boundary falls between two calls', () => {
+    let nowMs = startSec * 1000 + 999; // startSec 가 끝나기 직전
+    const next = createInstallTimestampSource(() => nowMs);
+    const first = next();
+    nowMs += 1; // 초가 정확히 하나 넘어간다. 값이 겹치면 두 번째 요청이 REPLAY 로 막힌다.
+    const second = next();
+    const third = next(); // 같은 초 안에서 또 부른다.
+    expect([first, second, third]).toEqual([
+      startSec,
+      startSec + 1,
+      startSec + 2,
+    ]);
+  });
+
+  it('keeps increasing when the clock goes back, and returns to the clock once it catches up', () => {
+    let nowMs = startSec * 1000;
+    const next = createInstallTimestampSource(() => nowMs);
+    const first = next();
+    nowMs -= 60_000; // 시계가 1분 거꾸로 간다.
+    expect(next()).toBe(first + 1);
+    nowMs = (startSec + 10) * 1000; // 시계가 앞서 낸 값을 따라잡는다.
+    expect(next()).toBe(startSec + 10);
+  });
+});
 
 describe('Cafe24 install endpoint (e2e)', () => {
   let db: Client;
@@ -193,11 +247,13 @@ describe('Cafe24 install endpoint (e2e)', () => {
     return r.rows[0].id;
   }
 
-  /** 매 호출마다 다른 timestamp 를 써서 nonce replay 가드를 피한다. */
-  let tsOffset = 0;
+  const nextInstallTimestamp = createInstallTimestampSource();
+  /**
+   * install App URL 쿼리를 서명한다. timestamp 가 호출마다 달라서 같은 mall_id 로 두 번 보내도 nonce 가 겹치지 않는다
+   * (`createInstallTimestampSource`).
+   */
   function signedInstallQuery(mallId: string): string {
-    tsOffset += 1;
-    const ts = (Math.floor(Date.now() / 1000) - tsOffset).toString();
+    const ts = nextInstallTimestamp().toString();
     const base = `mall_id=${mallId}&timestamp=${ts}&user_id=admin&user_name=John`;
     const hmac = computeHmac(buildHmacMessage(base), clientSecret);
     return `${base}&hmac=${encodeURIComponent(hmac)}`;
