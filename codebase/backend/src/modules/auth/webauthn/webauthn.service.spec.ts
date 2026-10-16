@@ -325,15 +325,23 @@ describe('WebAuthnService', () => {
       );
     });
 
-    it('saves an empty transport list when the client sends none', async () => {
-      await service.verifyRegistration(userId, 'opts.tok', {
-        ...validResponse,
-        response: {},
-      } as never);
-      expect(credentialRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ transports: [] }),
-      );
-    });
+    // 필드가 없는 경우와 인증기가 getTransports() 로 빈 배열을 돌려주는 경우 둘 다 정상 등록이다.
+    it.each([
+      ['sends none', {}],
+      ['sends an empty array', { transports: [] }],
+    ])(
+      'saves an empty transport list when the client %s',
+      async (_label, responseBody) => {
+        await service.verifyRegistration(userId, 'opts.tok', {
+          ...validResponse,
+          response: responseBody,
+        } as never);
+        expect(credentialRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ transports: [] }),
+        );
+        expect(credentialRepo.save).toHaveBeenCalledTimes(1);
+      },
+    );
 
     // 라이브러리는 transports 를 검증하지 않고 그대로 돌려준다. mock 이 아닌 실제 라이브러리와
     // DB 컬럼에서의 동작은 e2e(webauthn-2fa.e2e-spec.ts 케이스 H)가 본다.
@@ -343,6 +351,8 @@ describe('WebAuthnService', () => {
       ['an object', { 0: 'usb' }],
       ['an array with a number', ['usb', 1]],
       ['an array with null', ['usb', null]],
+      // text[] 컬럼은 NUL 문자를 저장하지 못한다.
+      ['an array with a NUL character', ['usb', 'a\u0000b']],
     ])(
       'rejects transports that is %s with 400 WEBAUTHN_VERIFY_FAILED and saves nothing',
       async (_label, transports) => {
