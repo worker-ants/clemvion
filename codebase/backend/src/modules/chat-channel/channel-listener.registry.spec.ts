@@ -34,8 +34,8 @@ describe('ChannelListenerRegistry', () => {
       expect(registry.size()).toBe(0);
     });
 
-    it('register 후 has true / get entry / size 1', () => {
-      registry.register('t-1', 'telegram');
+    it('register 후 has true / get entry / size 1', async () => {
+      await registry.register('t-1', 'telegram');
       expect(registry.has('t-1')).toBe(true);
       const entry = registry.get('t-1');
       expect(entry?.provider).toBe('telegram');
@@ -43,10 +43,10 @@ describe('ChannelListenerRegistry', () => {
       expect(registry.size()).toBe(1);
     });
 
-    it('멱등성 — 동일 triggerId 재등록 시 overwrite (R8 setupChannel 멱등성)', () => {
-      registry.register('t-1', 'telegram');
+    it('멱등성 — 동일 triggerId 재등록 시 overwrite (R8 setupChannel 멱등성)', async () => {
+      await registry.register('t-1', 'telegram');
       const firstEntry = registry.get('t-1');
-      registry.register('t-1', 'telegram');
+      await registry.register('t-1', 'telegram');
       // size 가 1 그대로 — 중복 entry 추가 안 함.
       expect(registry.size()).toBe(1);
       // entry 가 새 객체로 교체됨 (overwrite).
@@ -54,12 +54,12 @@ describe('ChannelListenerRegistry', () => {
       expect(registry.get('t-1')?.provider).toBe('telegram');
     });
 
-    it('provider 변경 시 entry overwrite + warning 로그', () => {
+    it('provider 변경 시 entry overwrite + warning 로그', async () => {
       const warnSpy = jest
         .spyOn(registry['logger'], 'warn')
         .mockImplementation();
-      registry.register('t-1', 'telegram');
-      registry.register('t-1', 'slack');
+      await registry.register('t-1', 'telegram');
+      await registry.register('t-1', 'slack');
       expect(registry.get('t-1')?.provider).toBe('slack');
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('provider 변경'),
@@ -69,15 +69,17 @@ describe('ChannelListenerRegistry', () => {
   });
 
   describe('unregister', () => {
-    it('등록 → unregister → has false', () => {
-      registry.register('t-1', 'telegram');
-      registry.unregister('t-1');
+    it('등록 → unregister → has false', async () => {
+      await registry.register('t-1', 'telegram');
+      await registry.unregister('t-1');
       expect(registry.has('t-1')).toBe(false);
       expect(registry.size()).toBe(0);
     });
 
-    it('미등록 trigger unregister — graceful noop', () => {
-      expect(() => registry.unregister('never-registered')).not.toThrow();
+    it('미등록 trigger unregister — graceful noop', async () => {
+      await expect(
+        registry.unregister('never-registered'),
+      ).resolves.toBeUndefined();
       expect(registry.size()).toBe(0);
     });
   });
@@ -95,8 +97,8 @@ describe('ChannelListenerRegistry', () => {
       expect(registry.get('t-3')?.provider).toBe('discord');
     });
 
-    it('기존 entry 가 있어도 bulk 덮어쓰기', () => {
-      registry.register('t-1', 'telegram');
+    it('기존 entry 가 있어도 bulk 덮어쓰기', async () => {
+      await registry.register('t-1', 'telegram');
       registry.bulkRegister([{ triggerId: 't-1', provider: 'slack' }]);
       expect(registry.get('t-1')?.provider).toBe('slack');
       expect(registry.size()).toBe(1);
@@ -104,20 +106,20 @@ describe('ChannelListenerRegistry', () => {
   });
 
   describe('다중 provider 동시 등록', () => {
-    it('telegram / slack / discord 모두 별 trigger 로 등록', () => {
-      registry.register('t-tg', 'telegram');
-      registry.register('t-sl', 'slack');
-      registry.register('t-dc', 'discord');
+    it('telegram / slack / discord 모두 별 trigger 로 등록', async () => {
+      await registry.register('t-tg', 'telegram');
+      await registry.register('t-sl', 'slack');
+      await registry.register('t-dc', 'discord');
       expect(registry.size()).toBe(3);
       expect(registry.has('t-tg')).toBe(true);
       expect(registry.has('t-sl')).toBe(true);
       expect(registry.has('t-dc')).toBe(true);
     });
 
-    it('한 provider 의 trigger unregister 가 다른 provider 영향 X', () => {
-      registry.register('t-tg', 'telegram');
-      registry.register('t-sl', 'slack');
-      registry.unregister('t-tg');
+    it('한 provider 의 trigger unregister 가 다른 provider 영향 X', async () => {
+      await registry.register('t-tg', 'telegram');
+      await registry.register('t-sl', 'slack');
+      await registry.unregister('t-tg');
       expect(registry.has('t-tg')).toBe(false);
       expect(registry.has('t-sl')).toBe(true);
       expect(registry.size()).toBe(1);
@@ -154,7 +156,10 @@ describe('ChannelListenerRegistry', () => {
       await reg.unregister('t-1');
 
       expect(reg.has('t-1')).toBe(false);
-      expect(publish).toHaveBeenCalledWith({ op: 'unregister', triggerId: 't-1' });
+      expect(publish).toHaveBeenCalledWith({
+        op: 'unregister',
+        triggerId: 't-1',
+      });
     });
 
     it('bulkRegister 는 발행하지 않는다 — 인스턴스마다 스스로 복원한다', () => {

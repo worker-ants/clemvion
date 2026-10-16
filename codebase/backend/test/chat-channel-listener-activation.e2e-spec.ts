@@ -273,7 +273,8 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
       await redis.call('CLIENT', 'KILL', 'TYPE', 'pubsub');
       const deadline = Date.now() + SIGNAL_TIMEOUT_MS;
       while ((await listenerSubscribers()) < 1) {
-        if (Date.now() > deadline) throw new Error('listener 구독이 다시 붙지 않았다');
+        if (Date.now() > deadline)
+          throw new Error('listener 구독이 다시 붙지 않았다');
         await sleep(100);
       }
       // 재구독 응답 뒤의 DB 복원이 끝나기를 기다린다.

@@ -69,10 +69,17 @@ describe('ChannelListenerBus', () => {
       const client = makeFakeRedis();
       const bus = new ChannelListenerBus(makeProvider(client));
 
-      await bus.publish({ op: 'register', triggerId: 't-1', provider: 'telegram' });
+      await bus.publish({
+        op: 'register',
+        triggerId: 't-1',
+        provider: 'telegram',
+      });
 
       expect(client.publish).toHaveBeenCalledTimes(1);
-      const [channel, message] = client.publish.mock.calls[0] as [string, string];
+      const [channel, message] = client.publish.mock.calls[0] as [
+        string,
+        string,
+      ];
       expect(channel).toBe(CHAT_CHANNEL_LISTENER_CHANNEL);
       expect(JSON.parse(message)).toEqual({
         v: 1,
@@ -177,12 +184,29 @@ describe('ChannelListenerBus', () => {
 
     it.each([
       ['JSON 이 아니다', 'not-json'],
-      ['버전이 다르다', JSON.stringify({ v: 2, origin: 'x', op: 'unregister', triggerId: 't-1' })],
+      [
+        '버전이 다르다',
+        JSON.stringify({
+          v: 2,
+          origin: 'x',
+          op: 'unregister',
+          triggerId: 't-1',
+        }),
+      ],
       ['op 를 모른다', remote({ op: 'clear', triggerId: 't-1' })],
       ['triggerId 가 비었다', remote({ op: 'unregister', triggerId: '' })],
-      ['register 에 provider 가 없다', remote({ op: 'register', triggerId: 't-1' })],
-      ['provider 가 문자열이 아니다', remote({ op: 'register', triggerId: 't-1', provider: 7 })],
-      ['origin 이 없다', JSON.stringify({ v: 1, op: 'unregister', triggerId: 't-1' })],
+      [
+        'register 에 provider 가 없다',
+        remote({ op: 'register', triggerId: 't-1' }),
+      ],
+      [
+        'provider 가 문자열이 아니다',
+        remote({ op: 'register', triggerId: 't-1', provider: 7 }),
+      ],
+      [
+        'origin 이 없다',
+        JSON.stringify({ v: 1, op: 'unregister', triggerId: 't-1' }),
+      ],
       ['배열이다', '[]'],
     ])('깨진 메시지는 버린다 (%s)', (_label, message) => {
       const { bus, sub } = makeSubscribedBus();
@@ -233,7 +257,9 @@ describe('ChannelListenerBus', () => {
     it('구독 연결의 error 이벤트가 프로세스를 죽이지 않는다', () => {
       const { sub } = makeSubscribedBus();
 
-      expect(() => sub.emit('error', new Error('connection reset'))).not.toThrow();
+      expect(() =>
+        sub.emit('error', new Error('connection reset')),
+      ).not.toThrow();
     });
   });
 
