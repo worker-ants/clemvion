@@ -41,6 +41,7 @@ import unittest
 from _harness import REPO_ROOT
 from test_dependabot_npm_coverage import _tracked_package_jsons
 from test_harness_checks_paths_coverage import filter_covers_file, parse_pathspecs_block
+from test_package_pin_reasons import DEP_SECTIONS
 
 NVMRC = REPO_ROOT / ".nvmrc"
 BACKEND_DOCKERFILE = REPO_ROOT / "codebase" / "backend" / "Dockerfile"
@@ -61,7 +62,8 @@ APP_MANIFESTS = (
 SDK_MANIFEST = REPO_ROOT / "codebase" / "packages" / "sdk" / "package.json"
 
 TYPES_NODE = "@types/node"
-DEP_SECTIONS = ("dependencies", "devDependencies", "optionalDependencies")
+# 읽는 섹션 목록(`DEP_SECTIONS`)은 `test_package_pin_reasons.py` 의 것을 쓴다. `peerDependencies` 를
+# 뺀 이유도 거기에 있다.
 
 #: `FROM node:<N>` 스테이지 수의 하한. 앱 Dockerfile 은 deps · runner 두 스테이지가 node 이미지에서 시작한다.
 APP_DOCKERFILES = (
@@ -308,12 +310,18 @@ class TypesNodeParserTest(unittest.TestCase):
         self.assertEqual(types_node_problems({"engines": {"node": ">=20"}}), [])
 
     def test_every_dependency_section_is_read(self):
-        data = {
-            "engines": {"node": ">=26"},
-            "dependencies": {TYPES_NODE: "^26"},
-            "devDependencies": {TYPES_NODE: "^24"},
-        }
-        self.assertEqual(len(types_node_problems(data)), 1)
+        # 기대값은 `DEP_SECTIONS` 와 따로 적는다. 대조 대상을 그 상수에서 꺼내면 상수가 줄어도 줄어든
+        # 목록만 돌아서 통과한다. 섹션마다 그 섹션에만 틀린 값을 둬야 한 섹션을 빼먹는 변경이 실패한다.
+        for section in ("dependencies", "devDependencies", "optionalDependencies"):
+            with self.subTest(section=section):
+                data = {"engines": {"node": ">=26"}, section: {TYPES_NODE: "^24"}}
+                self.assertEqual(len(types_node_problems(data)), 1)
+        # `peerDependencies` 는 읽지 않는다. peer 범위는 소비자가 가져올 수 있는 버전이고 이 저장소가
+        # 설치해 쓰는 버전이 아니다(`test_package_pin_reasons.py` 가 같은 이유로 뺀다). 읽으면 소비자
+        # 범위를 이 저장소의 선언처럼 대조해 오탐한다.
+        peer_only = {"engines": {"node": ">=26"}, "peerDependencies": {TYPES_NODE: "^24"}}
+        self.assertEqual(types_node_problems(peer_only), [])
+        self.assertNotIn("peerDependencies", DEP_SECTIONS)
 
 
 class NodeMajorAgreesTest(unittest.TestCase):
