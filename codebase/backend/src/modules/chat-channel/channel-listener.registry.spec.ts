@@ -24,7 +24,7 @@ describe('ChannelListenerRegistry', () => {
   let registry: ChannelListenerRegistry;
 
   beforeEach(() => {
-    registry = new ChannelListenerRegistry();
+    registry = new ChannelListenerRegistry(makeBus().bus);
   });
 
   describe('register / has / get', () => {

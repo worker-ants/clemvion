@@ -33,6 +33,7 @@ import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import type { ChannelListenerBus } from '../chat-channel/channel-listener.bus';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import {
   SecretResolverService,
@@ -5920,7 +5921,12 @@ describe('TriggersService — 채팅 채널 트리거를 켜고 끌 때의 liste
       create: jest.fn((t: unknown) => t),
       createQueryBuilder: jest.fn(),
     };
-    const listenerRegistry = new ChannelListenerRegistry();
+    // 실제 레지스트리를 쓰되 다른 인스턴스와의 통신(Redis)은 흉내 낸다.
+    const listenerBus = {
+      onChange: jest.fn(),
+      publish: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ChannelListenerBus;
+    const listenerRegistry = new ChannelListenerRegistry(listenerBus);
     jest.spyOn(listenerRegistry, 'register');
     jest.spyOn(listenerRegistry, 'unregister');
     const providers = createBaseProviders(repoMock);

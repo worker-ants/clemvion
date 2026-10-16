@@ -51,7 +51,7 @@ function makeBus() {
 function makeModule(
   repo: Repository<Trigger>,
   listenerRegistry: ChannelListenerRegistry,
-  bus?: ChannelListenerBus,
+  bus: ChannelListenerBus,
 ): ChatChannelModule {
   const adapterRegistry = {
     register: jest.fn(),
@@ -70,9 +70,10 @@ function makeModule(
 describe('ChatChannelModule listener 레지스트리 복원', () => {
   it('부팅 때 활성 채팅 채널 트리거만 고르는 조건으로 DB 를 읽는다', async () => {
     const { repo, qb } = makeRepo([]);
-    const registry = new ChannelListenerRegistry();
+    const { bus } = makeBus();
+    const registry = new ChannelListenerRegistry(bus);
 
-    await makeModule(repo, registry).onApplicationBootstrap();
+    await makeModule(repo, registry, bus).onApplicationBootstrap();
 
     expect(qb.where).toHaveBeenCalledWith('t.is_active = true');
     expect(qb.andWhere).toHaveBeenCalledWith(
@@ -87,21 +88,24 @@ describe('ChatChannelModule listener 레지스트리 복원', () => {
       { id: 't-none', config: { chatChannel: {} } },
       { id: 't-null', config: null },
     ] as Array<Pick<Trigger, 'id' | 'config'>>);
-    const registry = new ChannelListenerRegistry();
+    const { bus } = makeBus();
+    const registry = new ChannelListenerRegistry(bus);
 
-    await makeModule(repo, registry).onApplicationBootstrap();
+    await makeModule(repo, registry, bus).onApplicationBootstrap();
 
     expect(registry.size()).toBe(1);
     expect(registry.get('t-tg')?.provider).toBe('telegram');
   });
 
-  it('bus 가 없어도 부팅 때 복원한다', async () => {
+  // Redis 가 없으면 구독이 붙지 않아 `onSubscribed` handler 는 한 번도 불리지 않는다.
+  it('구독이 붙지 않아도 부팅 때 복원한다', async () => {
     const { repo } = makeRepo([
       { id: 't-1', config: { chatChannel: { provider: 'slack' } } },
     ] as Array<Pick<Trigger, 'id' | 'config'>>);
-    const registry = new ChannelListenerRegistry();
+    const { bus } = makeBus();
+    const registry = new ChannelListenerRegistry(bus);
 
-    await makeModule(repo, registry, undefined).onApplicationBootstrap();
+    await makeModule(repo, registry, bus).onApplicationBootstrap();
 
     expect(registry.has('t-1')).toBe(true);
   });
@@ -110,8 +114,8 @@ describe('ChatChannelModule listener 레지스트리 복원', () => {
     const rows: Array<Pick<Trigger, 'id' | 'config'>> = [];
     const { repo, qb } = makeRepo(rows);
     qb.getMany.mockImplementation(() => Promise.resolve([...rows]));
-    const registry = new ChannelListenerRegistry();
     const { bus, resubscribed } = makeBus();
+    const registry = new ChannelListenerRegistry(bus);
 
     await makeModule(repo, registry, bus).onApplicationBootstrap();
     expect(registry.has('t-late')).toBe(false);

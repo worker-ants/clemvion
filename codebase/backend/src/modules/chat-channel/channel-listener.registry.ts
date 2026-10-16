@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   ChannelListenerBus,
   type ChannelListenerChange,
@@ -18,7 +18,9 @@ import {
  * **다중 인스턴스** (NERV Task `CLE-T-PXTGVQ`): `Map` 은 프로세스마다 따로 있다. `register` ·
  * `unregister` 는 자기 `Map` 을 바꾼 뒤 {@link ChannelListenerBus} 로 다른 인스턴스에 알리고,
  * 다른 인스턴스는 받은 변경을 자기 `Map` 에만 반영한다. `bulkRegister` 는 알리지 않는다.
- * 인스턴스마다 DB 에서 스스로 복원하기 때문이다. bus 가 없으면(단위 테스트) 프로세스 안에서만 바뀐다.
+ * 인스턴스마다 DB 에서 스스로 복원하기 때문이다. Redis 가 없으면 bus 가 알리기를 건너뛰어
+ * 프로세스 안에서만 바뀐다(단일 인스턴스 동작). bus 는 필수 의존성이다 — 빠지면 DI 가 기동을
+ * 실패시킨다. 조용히 단일 인스턴스로 내려앉게 두지 않는다.
  *
  * SoT:
  *   - spec/5-system/15-chat-channel.md R8 (2026-05-24 갱신) — per-trigger listener dedup/teardown
@@ -36,8 +38,8 @@ export class ChannelListenerRegistry {
   private readonly logger = new Logger(ChannelListenerRegistry.name);
   private readonly entries = new Map<string, ChannelListenerEntry>();
 
-  constructor(@Optional() private readonly bus?: ChannelListenerBus) {
-    this.bus?.onChange((change) => this.applyRemote(change));
+  constructor(private readonly bus: ChannelListenerBus) {
+    this.bus.onChange((change) => this.applyRemote(change));
   }
 
   /**
@@ -84,7 +86,6 @@ export class ChannelListenerRegistry {
   }
 
   private async broadcast(change: ChannelListenerChange): Promise<void> {
-    if (!this.bus) return;
     try {
       await this.bus.publish(change);
     } catch (err) {

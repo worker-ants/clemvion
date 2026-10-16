@@ -1,4 +1,4 @@
-import { Module, OnApplicationBootstrap, Optional } from '@nestjs/common';
+import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Repository } from 'typeorm';
@@ -73,7 +73,7 @@ export class ChatChannelModule implements OnApplicationBootstrap {
     private readonly discordAdapter: DiscordAdapter,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
-    @Optional() private readonly listenerBus?: ChannelListenerBus,
+    private readonly listenerBus: ChannelListenerBus,
   ) {
     // onModuleInit 대신 constructor — 어댑터 인스턴스는 NestJS DI 시점에 ready.
     this.registry.register(this.telegramAdapter);
@@ -94,7 +94,7 @@ export class ChatChannelModule implements OnApplicationBootstrap {
    * 붙지 않는 경우에도 이 인스턴스의 레지스트리를 채우기 위해서다.
    */
   async onApplicationBootstrap(): Promise<void> {
-    this.listenerBus?.onSubscribed(() =>
+    this.listenerBus.onSubscribed(() =>
       this.restoreActiveListeners('listener 재구독 뒤 복원'),
     );
     await this.restoreActiveListeners('bootstrap 복원');
