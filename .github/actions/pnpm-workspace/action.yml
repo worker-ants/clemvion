@@ -36,7 +36,7 @@
 
 name: pnpm 워크스페이스 설치
 description: >-
-  pnpm + Node 24(+ pnpm 캐시)를 셋업하고 지정한 워크스페이스 스코프를
+  pnpm + Node 26(+ pnpm 캐시)를 셋업하고 지정한 워크스페이스 스코프를
   `--frozen-lockfile --strict-peer-dependencies` 로 설치한다.
   checkout 은 호출부 책임이다(위 주석 참조).
 
@@ -55,7 +55,7 @@ runs:
 
     - uses: actions/setup-node@v7
       with:
-        node-version: '24'
+        node-version: '26'
         cache: 'pnpm'
         cache-dependency-path: pnpm-lock.yaml
 

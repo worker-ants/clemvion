@@ -203,7 +203,7 @@ class WiringTest(unittest.TestCase):
             "actions/setup-node@v7",
             "actions/setup-node 의 핀 버전이 드리프트했다",
         )
-        self.assertEqual(node["with"]["node-version"], "24")
+        self.assertEqual(node["with"]["node-version"], "26")
         self.assertEqual(node["with"]["cache"], "pnpm")
         self.assertEqual(
             node["with"]["cache-dependency-path"],
