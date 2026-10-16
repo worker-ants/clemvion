@@ -86,9 +86,10 @@ function registrationVerifyFailed(): BadRequestException {
 
 /**
  * 클라이언트가 보낸 transport 목록(`response.response.transports`)을 저장할 값으로 바꾼다.
- * 서버 라이브러리는 이 값을 검증하지 않고 그대로 돌려준다. 값이 없으면 빈 목록이고, 문자열
- * 배열이 아니면 null 이다. 표준 목록에 없는 문자열도 바꾸지 않는다. WebAuthn 은 RP 가 모르는
- * 값도 처리하게 하고, 목록에서 항목을 빼면 그 credential 을 쓰지 못할 수도 있다고 적는다.
+ * 서버 라이브러리는 이 값을 검증하지 않고 그대로 돌려준다. 필드가 없으면 빈 목록을 돌려준다.
+ * 값이 문자열 배열이 아니면(`null` 포함) 거부하라는 뜻으로 null 을 돌려준다.
+ * 표준 목록에 없는 문자열은 바꾸지 않는다. WebAuthn 명세에 따르면 RP 는 모르는 값도 처리해야
+ * 하고 목록에서 항목을 빼면 그 credential 을 쓰지 못할 수도 있다.
  */
 function parseTransports(value: unknown): string[] | null {
   if (value === undefined) return [];
