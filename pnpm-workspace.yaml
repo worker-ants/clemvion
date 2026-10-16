@@ -137,6 +137,11 @@ overrides:
   # 다시 볼 때: lockfile 의 js-yaml 3.x 가 바뀌면 그 판의 `lib/**` 에 argparse require 가 없는지
   # `grep -rn argparse node_modules/.pnpm/js-yaml@3.*/node_modules/js-yaml/lib` 로 확인한다.
   "js-yaml@3>argparse": ^2.0.1
+  # 2026-10-16(NERV Task `CLE-T-64RD6K`). GHSA-8r5x-fm3f-whwj · GHSA-p8wg-vrv2-v86f (critical),
+  # GHSA-xw65-4hp5-5hc7 (moderate). 셋 다 4.7.10 에서 패치됐다. 들어오는 길은 ts-jest@29.4.14 하나이고
+  # backend · packages/* 의 devDependencies 라 프로덕션 트리에는 없다. ts-jest 의 선언이 `^4.7.9` 라
+  # `^4.7.10` 은 그 범위 안이다(실측: `npm view ts-jest@29.4.14 dependencies.handlebars`).
+  handlebars: ^4.7.10
 
 # pnpm v10 은 lifecycle(build) script 를 기본 차단한다 (pnpm 10 정규 위치 — package.json
 # `pnpm.onlyBuiltDependencies` 에서 이전). 네이티브/바이너리 빌드가 필요한 패키지만 허용.
