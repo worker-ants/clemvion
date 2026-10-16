@@ -24,8 +24,8 @@ import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
-  AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
+import { COSEALG } from '@simplewebauthn/server/helpers';
 import { UsersService } from '../../users/users.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
@@ -43,6 +43,15 @@ const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1
  * 와 e2e(webauthn-2fa.e2e-spec.ts case B) 가 본 패턴을 회귀 잠금한다.
  */
 const COUNTER_REGRESSION_REASON_PATTERN = /regress|same|less|lower/i;
+
+/**
+ * 등록 옵션과 등록 검증이 받는 공개 키 알고리즘. `@simplewebauthn/server` v13 의 기본값과 같다.
+ * v14 는 PQC 를 지원하는 런타임(지금 런타임인 Node 26 포함)에서 기본 목록 맨 앞에 ML-DSA-44 를
+ * 넣는다. Node 는 그 Web Crypto 알고리즘을 아직 실험 기능으로 표시하므로 PQC 를 켤 때까지 목록을
+ * 고정한다. 옵션은 브라우저에 주는 안내라서 등록 검증에도 같은 목록을 준다.
+ * 근거는 CLE-ACCT-SIGNIN Rationale 「Passkey 라이브러리」.
+ */
+const SUPPORTED_ALGORITHM_IDS = [COSEALG.EdDSA, COSEALG.ES256, COSEALG.RS256];
 
 type OptionsTokenKind = 'webauthn_register' | 'webauthn_auth';
 
@@ -156,10 +165,11 @@ export class WebAuthnService {
       userName: user.email,
       userDisplayName: user.name,
       attestationType: 'none',
+      supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
       // 동일 인증기 중복 등록 차단 (다중 등록 허용은 다른 인증기에 한해서)
       excludeCredentials: existing.map((c) => ({
         id: c.credentialId,
-        transports: c.transports as AuthenticatorTransportFuture[],
+        transports: c.transports,
       })),
       authenticatorSelection: {
         residentKey: 'preferred',
@@ -203,6 +213,7 @@ export class WebAuthnService {
         // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
         // counter 외 추가 freshness 신호로 작용 (review W-3).
         requireUserVerification: true,
+        supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
       });
     } catch (err) {
       this.logger.warn(
@@ -222,11 +233,11 @@ export class WebAuthnService {
     }
 
     const { credential, aaguid } = verification.registrationInfo;
-    // simplewebauthn v13 returns credential = { id, publicKey, counter, transports? }
+    // simplewebauthn v14 returns credential = { id, publicKey, counter, transports? }
     const credentialId = credential.id;
     const publicKey = Buffer.from(credential.publicKey);
     const counter = String(credential.counter ?? 0);
-    const transports = (response.response.transports ?? []) as string[];
+    const transports = response.response.transports ?? [];
 
     // credential_id UNIQUE — 중복 시 friendly error
     const dup = await this.credentialRepo.findOne({ where: { credentialId } });
@@ -287,7 +298,7 @@ export class WebAuthnService {
       rpID,
       allowCredentials: credentials.map((c) => ({
         id: c.credentialId,
-        transports: c.transports as AuthenticatorTransportFuture[],
+        transports: c.transports,
       })),
       userVerification: 'preferred',
     });
@@ -360,8 +371,7 @@ export class WebAuthnService {
               id: credential.credentialId,
               publicKey: new Uint8Array(credential.publicKey),
               counter: Number(credential.counter),
-              transports:
-                credential.transports as AuthenticatorTransportFuture[],
+              transports: credential.transports,
             },
           });
         } catch (err) {

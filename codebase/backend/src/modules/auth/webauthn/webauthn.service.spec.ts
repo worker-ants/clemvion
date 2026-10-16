@@ -189,6 +189,15 @@ describe('WebAuthnService', () => {
       expect(args.excludeCredentials).toHaveLength(2);
       expect(args.excludeCredentials[0].id).toBe('cid1');
     });
+
+    // v14 는 PQC 를 지원하는 런타임에서 기본 목록 맨 앞에 ML-DSA-44(-48)를 넣는다.
+    // COSE 번호를 상수가 아닌 값으로 적어 상수 이름이 틀려도 잡히게 한다.
+    it('pins supportedAlgorithmIDs to EdDSA, ES256, RS256 (no ML-DSA-44)', async () => {
+      mockedGenerateRegOpts.mockResolvedValue({ challenge: 'x' });
+      await service.generateRegistrationOptionsFor(userId);
+      const args = mockedGenerateRegOpts.mock.calls[0][0];
+      expect(args.supportedAlgorithmIDs).toEqual([-8, -7, -257]);
+    });
   });
 
   describe('verifyRegistration', () => {
@@ -240,6 +249,18 @@ describe('WebAuthnService', () => {
         .webauthnRecoveryCodes;
       // Verify codes are hashed (64-char hex)
       expect(codes[0]).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('verifies against the same pinned algorithm list as the options', async () => {
+      credentialRepo.count.mockResolvedValue(0);
+      await service.verifyRegistration(
+        userId,
+        'opts.tok',
+        validResponse as never,
+        'My Mac',
+      );
+      const args = mockedVerifyRegResp.mock.calls[0][0];
+      expect(args.supportedAlgorithmIDs).toEqual([-8, -7, -257]);
     });
 
     it('does not regenerate recovery codes on subsequent registration', async () => {

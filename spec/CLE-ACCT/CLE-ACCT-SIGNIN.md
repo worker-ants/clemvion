@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "b9bc2c7923b19970959d62ce5cb2df970f1c0e259f13983be82245ff26cc7067"
+content_hash: "ea0c31d4f47f1a9899530b1cfbd22f5e484ff66ea6f1a0ac807eaf728b48a46f"
 read_as: "approved_fallback"
-task: "CLE-T-75TDTN"
+task: "CLE-T-34HB5X"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "f06da369e0fd812387ef873adc9f683bb74f44733bf733b154a6d1732c30420f"
-etag: "sha256-346008f6139fe37c7b981ee8ec21120fd4b148ebb39fe974576c2255e2f5a493"
+mirror_sha256: "8fed47a6db66af6467733db3f4f8de5e33c5aec141c20719652d300956acb41d"
+etag: "sha256-1daa99848ceeb952f5c56d929a2d6fbc3f643841181ab3720a3cb6329a1098e8"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -340,6 +340,8 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 1. `POST /api/auth/2fa/webauthn/register/options` (JWT 필수). 서버가 `generateRegistrationOptions` 를 만들고 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다.
 2. 클라이언트가 `navigator.credentials.create(options)` 를 호출한다.
 3. `POST /api/auth/2fa/webauthn/register/verify { optionsToken, response }`. 서버가 `verifyRegistrationResponse` 로 검증하고 `webauthn_credential` 행을 만든다. 첫 등록이면 복구 코드 10개를 발급해 평문으로 한 번 돌려준다.
+
+등록 옵션과 등록 검증은 같은 공개 키 알고리즘 목록만 받는다. 순서대로 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`)이다. 인증 검증은 등록 때 저장한 공개 키의 알고리즘으로 검증한다.
 
 로그인 2단계 인증은 다음 순서다.
 
@@ -687,7 +689,17 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### Passkey 라이브러리: `@simplewebauthn/server` 와 `@simplewebauthn/browser`
 
-같은 메인테이너가 서버와 브라우저 모듈을 함께 관리한다. FIDO2 L3·WebAuthn 명세를 빨리 따라가고, 등록과 인증의 `generate`·`verify` 쌍이 대칭이라 코드가 단순하다. Node 18 이상에서 ESM·CJS 모두 동작한다. 서버 라이브러리가 origin·rpID·challenge 일관성 검증과 counter 역행 감지를 제공해 이 문서의 보안 요구를 그대로 만족한다.
+같은 메인테이너가 서버와 브라우저 모듈을 함께 관리한다. FIDO2 L3·WebAuthn 명세를 빨리 따라가고, 등록과 인증의 `generate`·`verify` 쌍이 대칭이라 코드가 단순하다. 서버 라이브러리가 origin·rpID·challenge 일관성 검증과 counter 역행 감지를 제공해 이 문서의 보안 요구를 그대로 만족한다.
+
+서버와 브라우저 모두 v14 를 쓴다. `@simplewebauthn/server` 를 v13 에서 v14 로 올리면서 정한 것은 다음과 같다(2026-10-16, NERV Task `CLE-T-34HB5X`).
+
+- 서버 v14 의 `engines` 는 Node 20 이상이다. 지금 런타임은 Node 26 이다.
+- v14 는 양자 내성 암호(Post-Quantum Cryptography, PQC)를 지원하는 런타임에서 등록 옵션과 등록 검증의 기본 알고리즘 목록 맨 앞에 PQC 서명 알고리즘 ML-DSA 의 44 파라미터 세트(COSE 알고리즘 식별자 `-48`)를 넣는다. 지금 런타임인 Node 26 이 그 경우다. Node 는 이 Web Crypto 알고리즘을 아직 실험 기능으로 표시한다.
+- 그래서 등록 옵션(`generateRegistrationOptions`)과 등록 검증(`verifyRegistrationResponse`)의 `supportedAlgorithmIDs` 를 v13 기본값인 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`)으로 고정한다. 옵션은 브라우저에 주는 안내이고 실제로 받는 알고리즘은 등록 검증이 정한다. 그래서 두 호출에 같은 목록을 준다. 인증 검증에는 이 목록이 없다.
+- 기본 목록을 그대로 받는 안은 기각했다. ML-DSA 키로 등록한 credential 은 인증할 때마다 런타임의 실험 기능에 기댄다. 런타임을 바꾸거나 그 기능이 바뀌면 그 사용자가 로그인하지 못할 수 있다. PQC 도입은 런타임 지원이 안정된 뒤 따로 정한다.
+- 등록 옵션만 고정하는 안도 기각했다. 옵션을 따르지 않는 클라이언트가 ML-DSA 키를 보내면 등록 검증이 받아들인다.
+- v13 에 머무는 안도 기각했다. 14.0.0(2026-09-02) 뒤로 v13 라인 릴리스가 없고 그 뒤 수정은 모두 v14 릴리스로 나왔다.
+- 이미 등록된 credential 은 v13 과 같은 알고리즘이라 그대로 인증된다. counter 역행을 알리는 에러 메시지도 v13 과 같아서 역행 감지가 그대로 동작한다.
 
 ### 복구 코드 묶음을 TOTP 와 Passkey 로 나눈다
 
