@@ -9,6 +9,7 @@
  *  - 다시 붙을 때: 구독 연결이 `ready` 가 되면 SUBSCRIBE 응답을 받은 뒤 handler 를 부른다
  *  - onModuleDestroy: 구독 연결을 닫는다
  */
+import { Logger } from '@nestjs/common';
 import {
   CHAT_CHANNEL_LISTENER_CHANNEL,
   ChannelListenerBus,
@@ -34,7 +35,14 @@ function makeFakeRedis(): FakeRedis {
       handlers[event] = cb;
     }),
     duplicate: jest.fn(),
-    emit: (event: string, ...args: unknown[]) => handlers[event]?.(...args),
+    // 진짜 `EventEmitter` 처럼, 리스너 없는 'error' 는 던진다(프로세스를 죽이는 unhandled error).
+    emit: (event: string, ...args: unknown[]) => {
+      const handler = handlers[event];
+      if (handler) return handler(...args);
+      if (event === 'error') {
+        throw args[0] instanceof Error ? args[0] : new Error(String(args[0]));
+      }
+    },
   };
 }
 
@@ -59,8 +67,12 @@ function remote(body: Record<string, unknown>): string {
   return JSON.stringify({ v: 1, origin: 'other-instance', ...body });
 }
 
-async function flush(): Promise<void> {
-  for (let i = 0; i < 5; i++) await Promise.resolve();
+/**
+ * 마이크로태스크 대기열이 빌 때까지 기다린다. 틱 수를 세지 않는다 — `subscribe().then(…)` 체인이
+ * 길어져도, 그리고 «호출되지 않는다» 를 확인하는 테스트에서도 깊이가 모자란 채 통과하지 않는다.
+ */
+function flush(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 describe('ChannelListenerBus', () => {
@@ -254,12 +266,23 @@ describe('ChannelListenerBus', () => {
       await flush();
     });
 
-    it('구독 연결의 error 이벤트가 프로세스를 죽이지 않는다', () => {
+    it('구독 연결의 error 이벤트가 프로세스를 죽이지 않고 로그로 남는다', () => {
       const { sub } = makeSubscribedBus();
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
 
-      expect(() =>
-        sub.emit('error', new Error('connection reset')),
-      ).not.toThrow();
+      try {
+        // 리스너가 없으면 fake 도 진짜 EventEmitter 처럼 던진다 — `sub.on('error', …)` 를 지우면 여기서 실패한다.
+        expect(() =>
+          sub.emit('error', new Error('connection reset')),
+        ).not.toThrow();
+        expect(error).toHaveBeenCalledWith(
+          expect.stringContaining('connection reset'),
+        );
+      } finally {
+        error.mockRestore();
+      }
     });
   });
 
@@ -313,15 +336,32 @@ describe('ChannelListenerBus', () => {
       expect(handler).not.toHaveBeenCalled();
     });
 
-    it('handler 의 거부는 삼킨다', async () => {
+    it('handler 하나가 거부해도 다음 handler 를 부른다', async () => {
       const { bus, sub } = makeSubscribedBus();
       const rejecting = jest.fn().mockRejectedValue(new Error('db down'));
+      const next = jest.fn();
       bus.onSubscribed(rejecting);
+      bus.onSubscribed(next);
 
       sub.emit('ready');
       await flush();
 
       expect(rejecting).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('동기로 던지는 handler 도 다음 handler 를 막지 않는다', async () => {
+      const { bus, sub } = makeSubscribedBus();
+      const next = jest.fn();
+      bus.onSubscribed(() => {
+        throw new Error('sync boom');
+      });
+      bus.onSubscribed(next);
+
+      sub.emit('ready');
+      await flush();
+
+      expect(next).toHaveBeenCalledTimes(1);
     });
   });
 
