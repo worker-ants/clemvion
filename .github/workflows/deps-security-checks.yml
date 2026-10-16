@@ -115,7 +115,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
+          node-version: '26'
       # audit 은 pnpm-lock.yaml + auditConfig(pnpm-workspace.yaml) 를 읽어 레지스트리에
       # 질의한다(node_modules 설치 불요). 수용 CVE 는 auditConfig.ignoreCves 로 제외되어
       # 신규 moderate+ 취약점만 실패시킨다.
@@ -142,7 +142,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
+          node-version: '26'
       - uses: actions/setup-python@v7
         if: needs.changes.outputs.relevant != 'false'
         with:

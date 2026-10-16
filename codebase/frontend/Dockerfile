@@ -13,8 +13,12 @@
 # SoT: spec/7-channel-web-chat/0-architecture.md §4.1.
 
 # ---------- deps: install frontend's workspace subtree ----------
-FROM node:24-alpine AS deps
-RUN corepack enable
+# Node 25 부터 corepack 이 Node 배포본에서 빠져 공식 이미지에도 없다. 그래서 npm 으로 corepack 을
+# 버전 고정해 설치한 뒤 켠다. pnpm 버전은 root package.json 의 `packageManager` 를 따른다.
+# backend Dockerfile 과 같은 corepack 버전을 쓰고, 그 일치는 `.claude/tests/test_node_runtime_sync.py` 가
+# 대조한다(Node 메이저도 같은 파일이 .nvmrc 와 대조한다).
+FROM node:26-alpine AS deps
+RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
 # Workspace anchor + 단일 lockfile. --frozen-lockfile 검증을 위해 모든 manifest 필요.
@@ -60,7 +64,7 @@ RUN pnpm --filter frontend build:widget
 RUN pnpm --filter frontend build
 
 # ---------- runner: minimal standalone server ----------
-FROM node:24-alpine AS runner
+FROM node:26-alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3012

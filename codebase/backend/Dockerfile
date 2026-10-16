@@ -5,9 +5,12 @@
 # ---------- deps: install backend's workspace subtree (incl. native bcrypt/isolated-vm) ----------
 # pnpm 버전은 root package.json 의 `packageManager` 필드를 corepack 이 따른다
 # (이전의 "node:24 = npm 11 lockfile 정합" 근거는 pnpm 전환으로 불필요).
-FROM node:24-alpine AS deps
+# Node 25 부터 corepack 이 Node 배포본에서 빠져 공식 이미지에도 없다. 그래서 npm 으로 corepack 을
+# 버전 고정해 설치한 뒤 켠다. frontend Dockerfile 과 같은 버전을 쓰고, 그 일치는
+# `.claude/tests/test_node_runtime_sync.py` 가 대조한다(Node 메이저도 같은 파일이 .nvmrc 와 대조한다).
+FROM node:26-alpine AS deps
 RUN apk add --no-cache python3 make g++
-RUN corepack enable
+RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
 # Workspace anchor + 단일 lockfile. --frozen-lockfile 검증을 위해 모든 workspace
@@ -70,9 +73,9 @@ RUN CI=true pnpm --filter=backend deploy --prod /prod/backend
 # 프런트 스택 없음) + builder 산출 dist(컴파일 결과) + package.json. deploy 디렉터리에
 # 남는 원본 src/test 잡동사니는 이 stage 로 넘어오지 않는다. WORKDIR·경로 계약
 # (/app/codebase/backend)은 compose·운영 참조 호환을 위해 그대로 둔다.
-FROM node:24-alpine AS runner
+FROM node:26-alpine AS runner
 ENV NODE_ENV=production
-RUN corepack enable
+RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /app/codebase/backend
 COPY --from=deploy --chown=node:node /prod/backend/node_modules ./node_modules
 COPY --from=deploy --chown=node:node /prod/backend/package.json ./package.json

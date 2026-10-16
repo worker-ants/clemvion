@@ -14,7 +14,29 @@
 # — base 이미지 태그를 그 major.minor 에 맞춘다(browser binary + OS 공유 라이브러리 호환).
 # @playwright/test 상향(caret drift 포함) 시 이 태그와 docker-compose.e2e.yml 을 함께 갱신.
 # 이 major.minor 정합은 scripts/check-e2e-playwright-config.py (e2e.yml config-guard) 가 강제.
+#
+# Node 는 앱 런타임(backend · frontend Dockerfile 의 `node:26-alpine`)과 같은 메이저로 맞춘다.
+# playwright 이미지에 들어 있는 Node 는 Playwright 쪽이 정한 LTS(v1.64.1-jammy 는 24)다. e2e 가
+# 이 이미지에서 `next build` · `next start` 를 돌리므로 그대로 두면 frontend e2e 만 운영과 다른
+# 메이저로 돈다. 그래서 공식 node 이미지의 바이너리로 `/usr/bin/node` 를 덮는다. 이미지에 있던
+# npm · corepack 은 JS 라 그대로 이 node 로 돈다.
+#
+# 메이저는 아래 `NODE_MAJOR` 한 곳에만 적는다. 이 값이 PATH 에서 실제로 잡히는 node 와 같은지는
+# COPY 바로 뒤의 RUN 이 빌드 때 단언한다. base 이미지가 node 위치를 바꾸면 덮어쓰기가 조용히
+# 효과를 잃고 e2e 가 다시 Node 24 로 도는데, 이 단언이 그때 빌드를 실패시킨다. 이 값과
+# `.nvmrc` · backend · frontend Dockerfile 의 `FROM node:<N>` · CI `node-version` 이 한 메이저인지는
+# `.claude/tests/test_node_runtime_sync.py` 가 대조한다. 메이저를 올릴 때는 그 파일들을 함께 올린다.
+# base 이미지 태그(`playwright:vX.Y.Z-jammy`)를 올릴 때도 여기를 다시 본다 — jammy 의 glibc 2.35
+# 에서 Node 26 공식 바이너리가 돈다는 전제는 아래 단언이 빌드 때마다 실행해 확인한다
+# (2026-10-16, NERV Task `CLE-T-DC8BY0`: corepack 이 pnpm 10.34.5 를 받는 것도 확인했다).
+ARG NODE_MAJOR=26
+FROM node:${NODE_MAJOR}-bookworm-slim AS node-runtime
+
 FROM mcr.microsoft.com/playwright:v1.64.1-jammy
+ARG NODE_MAJOR
+COPY --from=node-runtime /usr/local/bin/node /usr/bin/node
+# PATH 에서 잡히는 node 가 방금 덮은 메이저인지, 그리고 이 base 의 libc 에서 실제로 실행되는지 본다.
+RUN test "$(node -p 'process.versions.node.split(".")[0]')" = "${NODE_MAJOR}"
 
 # jammy 이미지의 corepack 동작이 CI 미검증이라 실패 시 전역 pnpm 설치로 폴백.
 # 이 버전은 root package.json 의 `packageManager` 사본이다 — 핀을 올릴 때 함께 올린다.
