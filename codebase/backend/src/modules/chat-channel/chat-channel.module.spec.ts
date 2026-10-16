@@ -5,6 +5,7 @@
  * 트리거를 한 번에 등록한다. NERV Task `CLE-T-PXTGVQ` 부터는 listener 구독 연결이 (다시)
  * 붙을 때마다 같은 복원을 한다.
  */
+import { Logger } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { ChatChannelModule } from './chat-channel.module';
 import { ChannelListenerRegistry } from './channel-listener.registry';
@@ -144,6 +145,136 @@ describe('ChatChannelModule listener 레지스트리 복원', () => {
 
     expect(registry.has('t-1')).toBe(true);
     expect(bus.publish).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 구독이 반복해서 다시 붙어도 활성 트리거 조회가 겹쳐 돌지 않는다. 읽기가 진행 중일 때 온 요청은
+ * 그 읽기가 끝난 뒤 한 번의 읽기로 합친다. 진행 중인 읽기는 요청보다 먼저 시작했으므로, 합치되
+ * 요청 뒤에 시작하는 읽기가 적어도 하나는 있어야 «응답 뒤의 DB 읽기» 가 지켜진다.
+ */
+describe('ChatChannelModule 복원 읽기 합치기', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  /** 첫 읽기만 보류하고 나머지는 바로 현재 DB 를 돌려주는 조건. */
+  function setupHeldFirstRead() {
+    const rows: Array<Pick<Trigger, 'id' | 'config'>> = [];
+    const { repo, qb } = makeRepo(rows);
+    let startedReads = 0;
+    let finishFirstRead: () => void = () => undefined;
+    qb.getMany.mockImplementation(() => {
+      startedReads += 1;
+      if (startedReads > 1) return Promise.resolve([...rows]);
+      const snapshot = [...rows]; // 읽기가 시작될 때의 DB
+      return new Promise((resolve) => {
+        finishFirstRead = () => resolve(snapshot);
+      });
+    });
+    const { bus, resubscribed } = makeBus();
+    const registry = new ChannelListenerRegistry(bus);
+    const module = makeModule(repo, registry, bus);
+    return {
+      rows,
+      qb,
+      registry,
+      module,
+      resubscribed,
+      finishFirstRead: () => finishFirstRead(),
+    };
+  }
+
+  it('읽기가 진행 중일 때 온 요청 여럿은 그 뒤 한 번의 읽기로 합친다', async () => {
+    const { qb, module, resubscribed, finishFirstRead } = setupHeldFirstRead();
+
+    const booting = module.onApplicationBootstrap(); // 첫 읽기가 끝나지 않은 채로 둔다
+    const first = resubscribed();
+    const second = resubscribed();
+    const third = resubscribed();
+    expect(qb.getMany).toHaveBeenCalledTimes(1); // 겹쳐 시작하지 않는다
+
+    finishFirstRead();
+    await Promise.all([booting, first, second, third]);
+
+    expect(qb.getMany).toHaveBeenCalledTimes(2); // 요청 넷이 읽기 둘이 된다
+  });
+
+  it('합친 읽기는 요청이 들어온 뒤에 시작해서 그 사이 켜진 트리거를 본다', async () => {
+    const { rows, registry, module, resubscribed, finishFirstRead } =
+      setupHeldFirstRead();
+
+    const booting = module.onApplicationBootstrap();
+    // 첫 읽기가 시작된 뒤 켜진 트리거 — 첫 읽기는 보지 못한다.
+    rows.push({
+      id: 't-late',
+      config: { chatChannel: { provider: 'telegram' } },
+    } as Pick<Trigger, 'id' | 'config'>);
+    const resubscribing = resubscribed();
+    finishFirstRead();
+    await Promise.all([booting, resubscribing]);
+
+    expect(registry.get('t-late')?.provider).toBe('telegram');
+  });
+
+  it('진행 중인 읽기가 없으면 요청마다 읽는다', async () => {
+    const { qb, module, resubscribed, finishFirstRead } = setupHeldFirstRead();
+
+    const booting = module.onApplicationBootstrap();
+    finishFirstRead();
+    await booting;
+    await resubscribed();
+    await resubscribed();
+
+    expect(qb.getMany).toHaveBeenCalledTimes(3);
+  });
+
+  it('읽기가 실패해도 뒤이은 요청이 있으면 그 읽기로 대신한다', async () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const { rows, qb, registry, module, resubscribed } = setupHeldFirstRead();
+    let rejectFirstRead: (err: Error) => void = () => undefined;
+    qb.getMany.mockReset();
+    qb.getMany
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirstRead = reject;
+          }),
+      )
+      .mockImplementation(() => Promise.resolve([...rows]));
+    rows.push({
+      id: 't-1',
+      config: { chatChannel: { provider: 'slack' } },
+    } as Pick<Trigger, 'id' | 'config'>);
+
+    const booting = module.onApplicationBootstrap();
+    const resubscribing = resubscribed();
+    rejectFirstRead(new Error('db down'));
+
+    await expect(Promise.all([booting, resubscribing])).resolves.toBeDefined();
+    expect(registry.has('t-1')).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('읽기가 실패하고 뒤이은 요청이 없으면 호출자에게 알리고 다음 요청은 다시 읽는다', async () => {
+    const { rows, qb, registry, module, resubscribed } = setupHeldFirstRead();
+    qb.getMany.mockReset();
+    qb.getMany
+      .mockRejectedValueOnce(new Error('db down'))
+      .mockImplementation(() => Promise.resolve([...rows]));
+    rows.push({
+      id: 't-1',
+      config: { chatChannel: { provider: 'slack' } },
+    } as Pick<Trigger, 'id' | 'config'>);
+
+    await expect(module.onApplicationBootstrap()).rejects.toThrow('db down');
+    expect(registry.has('t-1')).toBe(false);
+
+    // 실패한 복원이 `restoring` 을 붙잡고 있으면 이 요청은 읽지 않고 같은 실패를 돌려받는다.
+    await resubscribed();
+    expect(registry.has('t-1')).toBe(true);
   });
 });
 
