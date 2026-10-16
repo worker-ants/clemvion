@@ -42,7 +42,6 @@ EXPECTED_OVERRIDES = {
     "fast-uri": "^3.1.8",
     "hono": "^4.13.5",
     "socket.io-parser": "~4.2.7",
-    "uuid": "^13.0.2",
     "ws": "^8.21.0",
     "@grpc/grpc-js": "^1.14.5",
     "multer": "^2.4.0",
