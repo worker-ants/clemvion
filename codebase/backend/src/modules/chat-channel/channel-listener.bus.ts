@@ -10,7 +10,7 @@ import { RedisConnectionProvider } from '../../common/redis/redis-connection.pro
 
 /**
  * 트리거 단위 listener 레지스트리의 등록 · 해제를 모든 인스턴스에 알리는 Redis pub/sub 채널.
- * 접두는 이 모듈이 이미 쓰는 `chat-channel:` 이다(Redis 키 명명 규약 규칙 6).
+ * 접두는 이 모듈이 이미 쓰는 `chat-channel:` 이다([Redis 키 명명 규약 「규칙」](CLE-ENG-REDIS#규칙) 규칙 6).
  */
 export const CHAT_CHANNEL_LISTENER_CHANNEL = 'chat-channel:listener';
 
@@ -31,7 +31,7 @@ export type ChannelListenerSubscribedHandler = () => void | Promise<void>;
 
 /**
  * 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)의 변경을 모든 인스턴스에
- * 알린다(NERV Task `CLE-T-PXTGVQ`, 채팅 채널 「R8 트리거 단위 listener 정책」).
+ * 알린다(NERV Task `CLE-T-PXTGVQ`, [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책)).
  *
  * **문제**: 레지스트리는 프로세스 안 `Map` 이고 `executionEvents$` 도 그 프로세스 안에서만
  * 전달된다. 실행을 맡은 인스턴스의 dispatcher 는 자기 레지스트리만 본다. 트리거를 켜거나

@@ -87,7 +87,7 @@ export class SlackAdapter implements NativeFormAdapter {
    * caller (TriggersService) 가 사용자 입력값을 직접 SecretResolver.rotate 로 보관
    * (UPSERT — `setupChannel` 은 생성 · `chatChannel` 이 실린 PATCH · 봇 토큰 재발급 세 갈래에서
    * 재호출되는 멱등 함수라 중복 시 throw 하는 `store` 로는 두 번째 호출부터 깨진다. 트리거를 켤
-   * 때는 부르지 않는다 — 채팅 채널 REQ-CHAT-003).
+   * 때는 부르지 않는다 — [채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클) REQ-CHAT-003).
    */
   async setupChannel(
     config: ChatChannelConfig,

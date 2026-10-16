@@ -5,7 +5,7 @@ import {
 } from './channel-listener.bus';
 
 /**
- * [Spec Chat Channel §3.1 / R8 (2026-05-24 v1 적용)] per-trigger listener registry.
+ * [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책) per-trigger listener registry.
  *
  * `ChatChannelDispatcher` 는 모듈 단위 1회 subscription 을 유지하지만, 본 registry 가
  * (a) trigger 삭제 후 race event 안전 가드 — `unregister` 호출 후 도달하는 event 는 handle 에서 skip
@@ -23,8 +23,8 @@ import {
  * 실패시킨다. 조용히 단일 인스턴스로 내려앉게 두지 않는다.
  *
  * SoT:
- *   - spec/5-system/15-chat-channel.md R8 (2026-05-24 갱신) — per-trigger listener dedup/teardown
- *   - spec/conventions/chat-channel-adapter.md §1.1 — setupChannel 멱등성
+ *   - [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책) — per-trigger listener dedup/teardown
+ *   - [채팅 채널 어댑터 규약 「setupChannel 멱등의 뜻」](CLE-CHAT-ADAPTER#setupchannel-멱등의-뜻) — setupChannel 멱등성
  */
 export interface ChannelListenerEntry {
   /** chat-channel provider 식별자 (telegram / slack / discord). */

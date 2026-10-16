@@ -292,7 +292,7 @@ export class ChatChannelBinderService {
           chatChannelLastError: null,
         },
       );
-      // [Spec R8 v1 적용 (2026-05-24)] 이 자리는 setup 성공 경로의 listener registry register 다.
+      // [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE#r8-트리거-단위-listener-정책) 이 자리는 setup 성공 경로의 listener registry register 다.
       // 켠 PATCH(`registerListenerOnActivation`)는 setup 이 실패해(degraded) 이 등록이 일어나지
       // 않아도 따로 등록하고, 부팅과 구독 재연결 때의 일괄 복원 · 다른 인스턴스의 알림도 같은
       // 레지스트리를 채운다. 그래서 등록이 겹쳐도 버그가 아니다.
@@ -360,9 +360,10 @@ export class ChatChannelBinderService {
 
   /**
    * 채팅 채널 트리거를 켠 PATCH 가 커밋된 뒤 트리거 단위 listener 레지스트리
-   * (`ChannelListenerRegistry`)에 등록한다(채팅 채널 REQ-CHAT-070 · R-CC-29, NERV Task `CLE-T-PXTGVQ`).
+   * (`ChannelListenerRegistry`)에 등록한다([채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클) REQ-CHAT-070,
+   * [채팅 채널 「R-CC-29」](CLE-CHAT-CORE#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다), NERV Task `CLE-T-PXTGVQ`).
    *
-   * 켤 때는 `setupChannel()` 을 부르지 않는다(REQ-CHAT-003). 그래서 위 setup 성공 자리의 등록이
+   * 켤 때는 `setupChannel()` 을 부르지 않는다([채팅 채널](CLE-CHAT-CORE) REQ-CHAT-003). 그래서 위 setup 성공 자리의 등록이
    * 일어나지 않고, 꺼진 채 재시작을 넘긴 트리거는 부팅 때의 일괄 등록에서도 빠져 있다. 여기서
    * 등록하지 않으면 켠 뒤 시작한 실행의 메시지를 dispatcher 가 건너뛴다. 외부 프로바이더는 부르지
    * 않는다. 레지스트리가 다른 인스턴스에도 알린다. `config.chatChannel.provider` 가 없는
@@ -386,8 +387,8 @@ export class ChatChannelBinderService {
 
   /**
    * Chat Channel adapter teardownChannel 호출 — 트리거 행을 없애는 경로(트리거 · 워크플로우 ·
-   * 워크스페이스 삭제의 외부 해제 단계)에서만 부른다. 트리거를 끌 때는 부르지 않는다(채팅 채널
-   * REQ-CHAT-005 · R-CC-29). best-effort.
+   * 워크스페이스 삭제의 외부 해제 단계)에서만 부른다. 트리거를 끌 때는 부르지 않는다([채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클)
+   * REQ-CHAT-005, [채팅 채널 「R-CC-29」](CLE-CHAT-CORE#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다)). best-effort.
    * Spec CCH-AD-03. **저장된** `config.chatChannel` 로 해제한다 — 설정을 직접 넘기는 쪽은
    * {@link teardownRegisteredChannel}.
    *

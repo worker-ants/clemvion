@@ -127,8 +127,8 @@ export class TelegramAdapter implements ChatChannelAdapter {
   }
 
   async teardownChannel(config: ChatChannelConfig): Promise<void> {
-    // best-effort — 실패해도 트리거 삭제는 진행한다. 트리거를 끌 때는 부르지 않는다(채팅 채널
-    // REQ-CHAT-005).
+    // best-effort — 실패해도 트리거 삭제는 진행한다. 트리거를 끌 때는 부르지 않는다
+    // ([채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클) REQ-CHAT-005).
     let botToken: string;
     try {
       botToken = await this.resolveBotToken(config);

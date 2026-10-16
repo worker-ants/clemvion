@@ -11,8 +11,9 @@ import { nextE2eClientIp } from './helpers/e2e-client-ip';
 
 /**
  * e2e: 채팅 채널 트리거를 켜면 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)에
- * 들어가 켠 뒤 시작한 실행의 메시지가 채널로 나간다(NERV Task `CLE-T-PXTGVQ`, 채팅 채널
- * REQ-CHAT-070 · R-CC-29). 등록 · 해제는 Redis pub/sub 로 다른 인스턴스에도 알리고, 구독 연결이
+ * 들어가 켠 뒤 시작한 실행의 메시지가 채널로 나간다(NERV Task `CLE-T-PXTGVQ`,
+ * [채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클) REQ-CHAT-070 · [채팅 채널 「R-CC-29」](CLE-CHAT-CORE#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다)).
+ * 등록 · 해제는 Redis pub/sub 로 다른 인스턴스에도 알리고, 구독 연결이
  * 다시 붙으면 활성 트리거를 DB 에서 다시 등록한다.
  *
  * **레지스트리를 비운 상태를 만드는 법**: 트리거 행을 SQL 로 넣는다. 서버는 부팅 때 DB 를 읽어
