@@ -36,6 +36,11 @@ injectWorkspacePackages: true
 # lockfile 에 대상이 0건이었고 이 다섯을 peer 로 선언한 패키지도 없었다. 다시 들어오더라도 취약 버전이면
 # `pnpm audit`(deps-security-checks)가 잡는다. 핀은 그때 그 경로에 맞춰 다시 건다.
 #
+# 2026-10-16: `uuid: ^13.0.2` 를 걷었다(NERV Task `CLE-T-MK8WWJ`). lockfile 에서 uuid 를 쓰는 곳은
+# backend 의 직접 의존뿐이었다. 이 override 가 backend 의 `^14.x` 선언을 덮어서 backend 는 13.0.2 를
+# 설치했고 dependabot 의 uuid 상향 PR(#1531)은 lockfile 을 바꾸지 못했다. 위 undici 와 같은 경우다.
+# GHSA-w5hq-g745-h8pq 는 `<11.1.1` · 12.0.0 · 13.0.0 만 해당하고 14.x 는 영향이 없다.
+#
 # **각 항목의 CVE 근거는 그 값을 올린 커밋 메시지에 있다.** 종전에는 "audit 커밋(b2bbb49e)
 # 참조" 라고 적혀 있었으나 그 해시는 **저장소 어디에도 없다**(전 브랜치 `git log` 0건).
 # pnpm 이전 커밋 이후 문구만 이어지고 해시는 한 번도 갱신되지 않았다 — 값이 바뀔 때마다
@@ -52,7 +57,6 @@ overrides:
   # 달리 `^` 가 아니라 `~` 인 이유다. `^4.2.7` 로 두면 4.3.x 가 나왔을 때 override 가 부모의
   # 범위 계약을 깨고 강제 해소한다. GHSA-2m8v-j782-fhvr(high) 은 4.2.7 에서 패치됐다.
   "socket.io-parser": ~4.2.7
-  uuid: ^13.0.2
   ws: ^8.21.0
   "@grpc/grpc-js": ^1.14.5
   multer: ^2.4.0
