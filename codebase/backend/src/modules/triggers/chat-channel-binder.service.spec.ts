@@ -46,7 +46,7 @@ function makeBinder({
   };
   const listenerRegistry = {
     register: jest.fn().mockResolvedValue(undefined),
-    unregister: jest.fn(),
+    unregister: jest.fn().mockResolvedValue(undefined),
   };
   const svc = new ChatChannelBinderService(
     { update: jest.fn() } as never,

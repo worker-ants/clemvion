@@ -62,6 +62,9 @@ function makeSubscribedBus() {
   return { bus, base, sub };
 }
 
+/** 메시지가 실어 나르는 트리거 id. 받는 쪽은 UUID 만 받는다. */
+const T1 = '11111111-1111-4111-8111-111111111111';
+
 /** 다른 인스턴스가 보낸 것처럼 보이는 메시지. */
 function remote(body: Record<string, unknown>): string {
   return JSON.stringify({ v: 1, origin: 'other-instance', ...body });
@@ -83,7 +86,7 @@ describe('ChannelListenerBus', () => {
 
       await bus.publish({
         op: 'register',
-        triggerId: 't-1',
+        triggerId: T1,
         provider: 'telegram',
       });
 
@@ -97,7 +100,7 @@ describe('ChannelListenerBus', () => {
         v: 1,
         origin: expect.any(String),
         op: 'register',
-        triggerId: 't-1',
+        triggerId: T1,
         provider: 'telegram',
       });
     });
@@ -106,14 +109,14 @@ describe('ChannelListenerBus', () => {
       const client = makeFakeRedis();
       const bus = new ChannelListenerBus(makeProvider(client));
 
-      await bus.publish({ op: 'unregister', triggerId: 't-1' });
+      await bus.publish({ op: 'unregister', triggerId: T1 });
 
       const message = (client.publish.mock.calls[0] as [string, string])[1];
       expect(JSON.parse(message)).toEqual({
         v: 1,
         origin: expect.any(String),
         op: 'unregister',
-        triggerId: 't-1',
+        triggerId: T1,
       });
     });
 
@@ -121,7 +124,7 @@ describe('ChannelListenerBus', () => {
       const bus = new ChannelListenerBus(makeProvider(null));
 
       await expect(
-        bus.publish({ op: 'unregister', triggerId: 't-1' }),
+        bus.publish({ op: 'unregister', triggerId: T1 }),
       ).resolves.toBeUndefined();
     });
 
@@ -131,7 +134,7 @@ describe('ChannelListenerBus', () => {
       const bus = new ChannelListenerBus(makeProvider(client));
 
       await expect(
-        bus.publish({ op: 'register', triggerId: 't-1', provider: 'slack' }),
+        bus.publish({ op: 'register', triggerId: T1, provider: 'slack' }),
       ).resolves.toBeUndefined();
     });
 
@@ -156,7 +159,7 @@ describe('ChannelListenerBus', () => {
 
         let done = false;
         const publishing = bus
-          .publish({ op: 'unregister', triggerId: 't-1' })
+          .publish({ op: 'unregister', triggerId: T1 })
           .then(() => {
             done = true;
           });
@@ -169,7 +172,7 @@ describe('ChannelListenerBus', () => {
         expect(done).toBe(true);
         expect(warn).toHaveBeenCalledTimes(1);
         const [message] = warn.mock.calls[0] as [string];
-        expect(message).toContain('t-1');
+        expect(message).toContain(T1);
         expect(message).toContain('2000ms');
       });
 
@@ -177,11 +180,13 @@ describe('ChannelListenerBus', () => {
         const client = makeFakeRedis();
         const bus = new ChannelListenerBus(makeProvider(client));
 
-        await bus.publish({ op: 'unregister', triggerId: 't-1' });
+        await bus.publish({ op: 'unregister', triggerId: T1 });
 
         expect(jest.getTimerCount()).toBe(0);
       });
 
+      // Jest 는 처리되지 않은 거부를 `process` 의 'unhandledRejection' 리스너에 넘기지 않고 그
+      // 거부가 난 테스트를 실패시킨다. 그래서 따로 단언하지 않고 늦은 거부를 테스트 안에서 일으킨다.
       it('상한을 넘긴 뒤 늦게 거부돼도 처리되지 않은 거부로 새지 않는다', async () => {
         jest
           .spyOn(Logger.prototype, 'warn')
@@ -193,25 +198,14 @@ describe('ChannelListenerBus', () => {
             rejectLate = reject;
           }),
         );
-        const unhandled = jest.fn();
-        process.on('unhandledRejection', unhandled);
-        try {
-          const bus = new ChannelListenerBus(makeProvider(client));
-          const publishing = bus.publish({
-            op: 'unregister',
-            triggerId: 't-1',
-          });
-          await jest.advanceTimersByTimeAsync(2000);
-          await publishing;
+        const bus = new ChannelListenerBus(makeProvider(client));
+        const publishing = bus.publish({ op: 'unregister', triggerId: T1 });
+        await jest.advanceTimersByTimeAsync(2000);
+        await publishing;
 
-          jest.useRealTimers(); // 가짜 타이머는 setImmediate 도 막는다
-          rejectLate(new Error('late redis down'));
-          await new Promise<void>((resolve) => setImmediate(resolve));
-
-          expect(unhandled).not.toHaveBeenCalled();
-        } finally {
-          process.off('unhandledRejection', unhandled);
-        }
+        jest.useRealTimers(); // 가짜 타이머는 setImmediate 도 막는다
+        rejectLate(new Error('late redis down'));
+        await new Promise<void>((resolve) => setImmediate(resolve));
       });
     });
   });
@@ -234,18 +228,38 @@ describe('ChannelListenerBus', () => {
       sub.emit(
         'message',
         CHAT_CHANNEL_LISTENER_CHANNEL,
-        remote({ op: 'register', triggerId: 't-1', provider: 'discord' }),
+        remote({ op: 'register', triggerId: T1, provider: 'discord' }),
       );
       sub.emit(
         'message',
         CHAT_CHANNEL_LISTENER_CHANNEL,
-        remote({ op: 'unregister', triggerId: 't-1' }),
+        remote({ op: 'unregister', triggerId: T1 }),
       );
 
       expect(handler.mock.calls).toEqual([
-        [{ op: 'register', triggerId: 't-1', provider: 'discord' }],
-        [{ op: 'unregister', triggerId: 't-1' }],
+        [{ op: 'register', triggerId: T1, provider: 'discord' }],
+        [{ op: 'unregister', triggerId: T1 }],
       ]);
+    });
+
+    it('provider 는 64자까지 받는다', () => {
+      const { bus, sub } = makeSubscribedBus();
+      const handler = jest.fn();
+      bus.onChange(handler);
+      const provider = `web_chat-${'a'.repeat(55)}`;
+
+      sub.emit(
+        'message',
+        CHAT_CHANNEL_LISTENER_CHANNEL,
+        remote({ op: 'register', triggerId: T1, provider }),
+      );
+
+      expect(provider).toHaveLength(64);
+      expect(handler).toHaveBeenCalledWith({
+        op: 'register',
+        triggerId: T1,
+        provider,
+      });
     });
 
     it('자기가 보낸 메시지는 건너뛴다', async () => {
@@ -253,7 +267,7 @@ describe('ChannelListenerBus', () => {
       const handler = jest.fn();
       bus.onChange(handler);
 
-      await bus.publish({ op: 'unregister', triggerId: 't-1' });
+      await bus.publish({ op: 'unregister', triggerId: T1 });
       const own = (base.publish.mock.calls[0] as [string, string])[1];
       sub.emit('message', CHAT_CHANNEL_LISTENER_CHANNEL, own);
 
@@ -268,7 +282,7 @@ describe('ChannelListenerBus', () => {
       sub.emit(
         'message',
         'integration:cache:invalidate',
-        remote({ op: 'unregister', triggerId: 't-1' }),
+        remote({ op: 'unregister', triggerId: T1 }),
       );
 
       expect(handler).not.toHaveBeenCalled();
@@ -282,22 +296,46 @@ describe('ChannelListenerBus', () => {
           v: 2,
           origin: 'x',
           op: 'unregister',
-          triggerId: 't-1',
+          triggerId: T1,
         }),
       ],
-      ['op 를 모른다', remote({ op: 'clear', triggerId: 't-1' })],
+      ['op 를 모른다', remote({ op: 'clear', triggerId: T1 })],
       ['triggerId 가 비었다', remote({ op: 'unregister', triggerId: '' })],
       [
+        'triggerId 가 UUID 가 아니다',
+        remote({ op: 'unregister', triggerId: 'trigger-1' }),
+      ],
+      [
+        'triggerId 에 줄바꿈이 섞였다',
+        remote({ op: 'unregister', triggerId: `${T1}\nforged log line` }),
+      ],
+      [
         'register 에 provider 가 없다',
-        remote({ op: 'register', triggerId: 't-1' }),
+        remote({ op: 'register', triggerId: T1 }),
+      ],
+      [
+        'provider 가 비었다',
+        remote({ op: 'register', triggerId: T1, provider: '' }),
+      ],
+      [
+        'provider 에 줄바꿈이 섞였다',
+        remote({ op: 'register', triggerId: T1, provider: 'slack\nforged' }),
+      ],
+      [
+        'provider 가 64자를 넘는다',
+        remote({ op: 'register', triggerId: T1, provider: 'a'.repeat(65) }),
       ],
       [
         'provider 가 문자열이 아니다',
-        remote({ op: 'register', triggerId: 't-1', provider: 7 }),
+        remote({ op: 'register', triggerId: T1, provider: 7 }),
+      ],
+      [
+        'origin 이 비었다',
+        JSON.stringify({ v: 1, origin: '', op: 'unregister', triggerId: T1 }),
       ],
       [
         'origin 이 없다',
-        JSON.stringify({ v: 1, op: 'unregister', triggerId: 't-1' }),
+        JSON.stringify({ v: 1, op: 'unregister', triggerId: T1 }),
       ],
       ['배열이다', '[]'],
     ])('깨진 메시지는 버린다 (%s)', (_label, message) => {
@@ -323,7 +361,7 @@ describe('ChannelListenerBus', () => {
         sub.emit(
           'message',
           CHAT_CHANNEL_LISTENER_CHANNEL,
-          remote({ op: 'unregister', triggerId: 't-1' }),
+          remote({ op: 'unregister', triggerId: T1 }),
         ),
       ).not.toThrow();
       expect(ok).toHaveBeenCalledTimes(1);

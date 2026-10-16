@@ -69,8 +69,8 @@ export class ChannelListenerRegistry {
 
   /**
    * Trigger 의 chat-channel listener 해제. 트리거 행을 없애는 경로의 외부 해제 단계
-   * (`TriggerResourceReleaser`)가 부른다. 자기 `Map` 에서 뺀 뒤 다른 인스턴스에 알린다.
-   * 미등록 triggerId 도 graceful (noop).
+   * (`TriggerResourceReleaserService`)가 부른다. 자기 `Map` 에서 뺀 뒤 다른 인스턴스에 알린다.
+   * 미등록 triggerId 도 graceful (noop). 알리기가 실패해도 던지지 않는다.
    */
   async unregister(triggerId: string): Promise<void> {
     this.entries.delete(triggerId);
@@ -120,21 +120,15 @@ export class ChannelListenerRegistry {
 
   /**
    * **DB 복원 전용** — DB 의 활성 trigger 를 자기 `Map` 에 일괄 등록한다. 다른 인스턴스에
-   * 알리지 않는다. caller 는 `ChatChannelModule` 이다. 부팅(`onApplicationBootstrap`)과
-   * listener 구독 연결이 (다시) 붙었을 때 부른다. `source` 는 로그에만 쓴다.
+   * 알리지 않는다. caller 는 `ChannelListenerRestorer` 이고 부팅과 listener 구독 연결이 (다시)
+   * 붙었을 때 부른다. 몇 건을 어디서 복원했는지는 caller 가 로그로 남긴다.
    */
-  bulkRegister(
-    entries: Array<{ triggerId: string; provider: string }>,
-    source = 'bootstrap 복원',
-  ): void {
+  bulkRegister(entries: Array<{ triggerId: string; provider: string }>): void {
     for (const entry of entries) {
       this.entries.set(entry.triggerId, {
         provider: entry.provider,
         registeredAt: new Date(),
       });
     }
-    this.logger.log(
-      `ChannelListenerRegistry: ${source} — ${entries.length}건 등록`,
-    );
   }
 }

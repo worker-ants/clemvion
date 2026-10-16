@@ -7,6 +7,10 @@ import request from 'supertest';
 import { CHAT_CHANNEL_LISTENER_CHANNEL } from '../src/modules/chat-channel/channel-listener.bus';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { createTeamWorkspace, registerAndLogin } from './helpers/auth';
+import {
+  insertChatChannelTriggerRow,
+  insertWorkflowRow,
+} from './helpers/e2e-chat-channel-fixture';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 
 /**
@@ -31,8 +35,15 @@ import { nextE2eClientIp } from './helpers/e2e-client-ip';
  * 레지스트리와 bus 의 DI 배선이 깨져 송신이 사라져도 로컬 `Map` 만으로 통과한다. 채팅 채널이 없는
  * 트리거의 삭제는 PUBLISH 하지 않는다(삭제 요청이 트리거 수만큼 Redis 왕복을 기다리지 않게 한다).
  *
+ * **구독자 수**: 관찰 연결도 `chat-channel:listener` 의 구독자다. 그래서 서버가 구독하고 있는지는
+ * 구독자 수가 2 이상인지로 본다.
+ *
+ * **전제와 순서**: 마지막 테스트가 `CLIENT KILL TYPE pubsub` 로 Redis 의 pub/sub 연결을 모두
+ * 끊는다. 그래서 다른 프로세스와 함께 쓰지 않는 e2e 전용 Redis 를 전제로 한다. 테스트는 적힌 순서대로
+ * 돈다. 끄고 켜기의 대조군이 앞에 있고, 구독 연결을 끊는 재구독 테스트가 맨 뒤에 있다.
+ *
  * 서버가 Telegram API 에 닿지 않으므로 메시지가 실제로 나가는지는 보지 못한다. 단위 테스트
- * (`triggers.service.spec.ts`, `channel-listener.bus.spec.ts`, `chat-channel.module.spec.ts`)가
+ * (`triggers.service.spec.ts`, `channel-listener.bus.spec.ts`, `channel-listener.restorer.spec.ts`)가
  * 등록 조건과 메시지 형식을 고정한다.
  */
 
@@ -112,43 +123,23 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
     isActive: boolean,
     { chatChannel = true }: { chatChannel?: boolean } = {},
   ) {
-    const workflowId = randomUUID();
-    await db.query(
-      `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, true, 1, $4, NOW(), NOW())`,
-      [workflowId, uniqueName('cclisten-wf'), workspaceId, ownerId],
-    );
+    const workflowId = await insertWorkflowRow(db, {
+      workspaceId,
+      userId: ownerId,
+      name: uniqueName('cclisten-wf'),
+    });
     await db.query(
       `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
        VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
       [randomUUID(), workflowId, JSON.stringify({ parameters: [] })],
     );
-    const triggerId = randomUUID();
-    const endpointPath = randomUUID();
-    await db.query(
-      `INSERT INTO trigger
-         (id, workspace_id, workflow_id, type, name, endpoint_path, is_active, config,
-          chat_channel_health, created_at, updated_at)
-       VALUES ($1, $2, $3, 'webhook', $4, $5, $6, $7::jsonb, 'unknown', NOW(), NOW())`,
-      [
-        triggerId,
-        workspaceId,
-        workflowId,
-        uniqueName('cclisten-trigger'),
-        endpointPath,
-        isActive,
-        JSON.stringify(
-          chatChannel
-            ? {
-                chatChannel: {
-                  provider: 'telegram',
-                  botTokenRef: `secret://triggers/${triggerId}/bot-token`,
-                },
-              }
-            : {},
-        ),
-      ],
-    );
+    const { triggerId, endpointPath } = await insertChatChannelTriggerRow(db, {
+      workspaceId,
+      workflowId,
+      name: uniqueName('cclisten-trigger'),
+      provider: chatChannel ? 'telegram' : null,
+      isActive,
+    });
     return { triggerId, endpointPath };
   }
 
@@ -351,7 +342,8 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
   it(
     '다른 인스턴스가 알린 등록 · 해제를 반영한다',
     async () => {
-      expect(await listenerSubscribers()).toBeGreaterThanOrEqual(1);
+      // 관찰 연결 말고도 서버가 구독하고 있어야 알림이 닿는다.
+      expect(await listenerSubscribers()).toBeGreaterThanOrEqual(2);
 
       const removed = await seedTelegramTrigger(true);
       const registered = await seedTelegramTrigger(true);
@@ -373,7 +365,8 @@ describe('채팅 채널 트리거를 켤 때의 listener 레지스트리 (e2e)',
         triggerId: registered.triggerId,
         provider: 'telegram',
       });
-      expect(receivers).toBeGreaterThanOrEqual(1);
+      // 관찰 연결 하나와 서버의 구독 연결이 받았다.
+      expect(receivers).toBeGreaterThanOrEqual(2);
 
       // 등록: 반영이 늦으면 첫 메시지는 건너뛰어지므로 신호가 올 때까지 다시 보낸다.
       expect(

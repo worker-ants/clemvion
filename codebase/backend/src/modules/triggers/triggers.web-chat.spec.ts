@@ -47,7 +47,7 @@ function otherProviders(): Provider[] {
       provide: ChannelListenerRegistry,
       useValue: {
         register: jest.fn(),
-        unregister: jest.fn(),
+        unregister: jest.fn().mockResolvedValue(undefined),
         has: jest.fn(() => false),
         get: jest.fn(),
         size: jest.fn(() => 0),

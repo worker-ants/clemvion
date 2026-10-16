@@ -249,6 +249,55 @@ describe('TriggerResourceReleaserService', () => {
       expect(events).toEqual(['unregister:c1']);
     });
 
+    // 거부를 루프 뒤 allSettled 에서야 받으면 c2 의 teardown 을 기다리는 동안 처리되지 않은 거부가 된다.
+    // Jest 는 처리되지 않은 거부가 난 테스트를 실패로 본다.
+    it('unregister 가 거부돼도 다음 트리거의 teardown 을 기다리는 동안 처리되지 않은 거부로 새지 않는다', async () => {
+      const { service, events, listenerRegistry } = make({
+        triggers: [chatChannelTrigger('c1'), chatChannelTrigger('c2')],
+      });
+      listenerRegistry.unregister.mockImplementationOnce((id: string) => {
+        events.push(`unregister:${id}`);
+        return Promise.reject(new Error('publish broke'));
+      });
+      const binder = (
+        service as unknown as {
+          chatChannelBinder: { teardownChatChannel: jest.Mock };
+        }
+      ).chatChannelBinder;
+      binder.teardownChatChannel
+        .mockImplementationOnce((t: Trigger) => {
+          events.push(`teardown:${t.id}`);
+          return Promise.resolve();
+        })
+        .mockImplementationOnce(
+          (t: Trigger) =>
+            new Promise<void>((resolve) =>
+              setImmediate(() => {
+                events.push(`teardown:${t.id}`);
+                resolve();
+              }),
+            ),
+        );
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        service.releaseExternalForParent({ workflowId: 'wf-1' }),
+      ).resolves.toBeUndefined();
+
+      expect(events).toEqual([
+        'teardown:c1',
+        'unregister:c1',
+        'teardown:c2',
+        'unregister:c2',
+      ]);
+      expect(warn).toHaveBeenCalledWith(
+        'listener unregister 실패 (trigger=c1): publish broke',
+      );
+      warn.mockRestore();
+    });
+
     // 스케줄 · 일반 웹훅은 레지스트리에 든 적이 없어서 부르면 PUBLISH 왕복만 늘린다.
     it('채팅 채널이 없고 레지스트리에도 없는 트리거는 unregister 를 부르지 않는다', async () => {
       const { service, listenerRegistry } = make({

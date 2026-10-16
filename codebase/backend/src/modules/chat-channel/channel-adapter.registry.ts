@@ -7,7 +7,7 @@ import { ChatChannelAdapter } from './types';
  * 신규 provider 추가 시 [Spec Convention §5]:
  *   1. providers/<name>/<name>.adapter.ts 구현
  *   2. ChatChannelModule 의 providers 에 등록
- *   3. ChatChannelModule.onModuleInit 에서 registry.register(adapter)
+ *   3. ChatChannelModule 의 constructor 에서 registry.register(adapter)
  *   4. spec/4-nodes/7-trigger/providers/<name>.md + _overview.md 갱신
  */
 @Injectable()

@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Redis } from 'ioredis';
+import { validate as isUuid } from 'uuid';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { withTimeout } from '../../common/utils/with-timeout';
 
 /**
  * 트리거 단위 listener 레지스트리의 등록 · 해제를 모든 인스턴스에 알리는 Redis pub/sub 채널.
@@ -19,11 +21,18 @@ const MESSAGE_VERSION = 1;
 
 /**
  * PUBLISH 응답을 기다리는 상한(ms). 공유 연결이 끊겨 있으면 ioredis 는 명령을 쌓아 두었다가 재연결
- * 시도가 거듭된 뒤에야 거부하고, 그 사이 요청이 기다린다. 변경은 이미 커밋됐고 자기 `Map` 에도
- * 반영돼서 기다려도 얻는 것이 없으므로 넘으면 warn 만 남기고 기다리기를 그만둔다. 명령은 연결에
- * 남아 있어서 뒤에 보낸 메시지와의 순서는 그대로다.
+ * 시도가 거듭된 뒤에야 거부한다. 호출자(트리거 PATCH · 삭제)는 발행을 기다리므로 그동안 요청도
+ * 기다린다. 변경은 이미 커밋됐고 자기 `Map` 에도 반영돼서 상한을 넘겨 더 기다려도 요청만 늦어진다.
+ * 그래서 넘으면 warn 만 남기고 기다리기를 그만둔다. 명령은 연결에 남아 있어서 뒤에 보낸 메시지와의
+ * 순서는 그대로다.
  */
 const PUBLISH_WAIT_TIMEOUT_MS = 2000;
+
+/**
+ * 받은 메시지의 `provider` 형식. 이 서버가 아는 provider 이름(telegram · slack · discord)을 모두
+ * 담고, 로그에 그대로 넣어도 줄바꿈 같은 제어 문자가 들어가지 않는 범위다.
+ */
+const PROVIDER_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** 레지스트리에 반영할 변경 하나. */
 export type ChannelListenerChange =
@@ -53,18 +62,18 @@ export type ChannelListenerSubscribedHandler = () => void | Promise<void>;
  *
  * **놓친 메시지**: pub/sub 는 저장하지 않으므로 구독 연결이 끊긴 사이의 변경은 사라진다.
  * 그래서 구독 연결이 `ready` 가 될 때마다(첫 연결 포함) SUBSCRIBE 응답을 받은 뒤
- * {@link onSubscribed} handler 를 부른다. `ChatChannelModule` 이 여기서 활성 트리거를 DB
+ * {@link onSubscribed} handler 를 부른다. `ChannelListenerRestorer` 가 여기서 활성 트리거를 DB
  * 에서 다시 일괄 등록한다. 응답을 기다리는 이유는 SUBSCRIBE 가 Redis 에서 처리되기 전에
  * DB 를 읽으면 그 사이 커밋 · 발행된 등록을 둘 다 놓칠 수 있어서다. 놓친 해제는 보정하지
  * 않는다. 지운 트리거의 항목이 남아도 dispatcher 가 DB 에서 트리거를 찾지 못해 건너뛴다.
  *
  * **첫 연결의 순서**: 구독은 이 클래스의 `onModuleInit` 에서 시작하고 handler 는 모든
- * `onModuleInit` 이 끝난 뒤 `ChatChannelModule.onApplicationBootstrap` 에서 등록된다. 그래서 첫
+ * `onModuleInit` 이 끝난 뒤 `ChannelListenerRestorer.onApplicationBootstrap` 에서 등록된다. 그래서 첫
  * SUBSCRIBE 응답이 등록보다 먼저 올 수 있고, 그때는 handler 가 불리지 않는다. 지키는 것은
  * «SUBSCRIBE 응답 뒤의 DB 읽기가 적어도 한 번 있다» 이고 두 순서가 모두 그것을 채운다.
- * 응답이 등록보다 먼저 오면 등록 직후 모듈의 부팅 복원이 DB 를 읽으므로 응답 뒤다. 응답이
+ * 응답이 등록보다 먼저 오면 등록 직후 복원 서비스의 부팅 복원이 DB 를 읽으므로 응답 뒤다. 응답이
  * 등록보다 늦으면 응답 뒤에 handler 가 돈다. 이때 부팅 복원의 DB 읽기는 응답 앞일 수 있고,
- * 그 읽기만으로는 놓침을 막지 못한다. 두 순서는 `chat-channel.module.spec.ts` 가 단언한다.
+ * 그 읽기만으로는 놓침을 막지 못한다. 두 순서는 `channel-listener.restorer.spec.ts` 가 단언한다.
  *
  * **실패 정책**: 모든 pub/sub 실패는 warn 만 남기고 삼킨다. 트리거 PATCH · 삭제를 실패시키지
  * 않는다. PUBLISH 응답을 {@link PUBLISH_WAIT_TIMEOUT_MS} 안에 받지 못한 것도 실패다. Redis 가
@@ -98,6 +107,7 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
   /**
    * 변경을 다른 인스턴스에 알린다. 실패해도 던지지 않는다. 응답은 {@link PUBLISH_WAIT_TIMEOUT_MS}
    * 까지만 기다리고 넘으면 실패로 보고 warn 만 남긴다(요청 경로를 Redis 장애만큼 늦추지 않는다).
+   * 상한을 넘긴 뒤 늦게 온 거부도 `withTimeout` 이 받아서 처리되지 않은 거부로 새지 않는다.
    */
   async publish(change: ChannelListenerChange): Promise<void> {
     const client = this.redis.getClientOrNull();
@@ -107,28 +117,16 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
       origin: this.origin,
       ...change,
     });
-    let timer: NodeJS.Timeout | undefined;
     try {
-      await Promise.race([
+      await withTimeout(
         client.publish(CHAT_CHANNEL_LISTENER_CHANNEL, message),
-        new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(
-            () =>
-              reject(
-                new Error(
-                  `PUBLISH 응답을 ${PUBLISH_WAIT_TIMEOUT_MS}ms 안에 받지 못했다`,
-                ),
-              ),
-            PUBLISH_WAIT_TIMEOUT_MS,
-          );
-        }),
-      ]);
+        PUBLISH_WAIT_TIMEOUT_MS,
+        'PUBLISH',
+      );
     } catch (err) {
       this.logger.warn(
         `listener ${change.op} 발행 실패 (trigger=${change.triggerId}): ${errMessage(err)}`,
       );
-    } finally {
-      clearTimeout(timer);
     }
   }
 
@@ -187,7 +185,11 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** 다른 인스턴스가 보낸 올바른 메시지만 변경으로 바꾼다. 나머지는 `null`. */
+  /**
+   * 다른 인스턴스가 보낸 올바른 메시지만 변경으로 바꾼다. 나머지는 `null`. `triggerId` 는 트리거
+   * PK 라 UUID 만 받고 `provider` 는 {@link PROVIDER_PATTERN} 만 받는다. 둘은 경고 로그에 그대로
+   * 들어간다. Redis 는 믿는 저장소지만 형식까지 믿지는 않는다.
+   */
   private parse(message: string): ChannelListenerChange | null {
     let raw: unknown;
     try {
@@ -203,16 +205,14 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
     if (m.v !== MESSAGE_VERSION) return null;
     if (typeof m.origin !== 'string' || m.origin.length === 0) return null;
     if (m.origin === this.origin) return null;
-    if (typeof m.triggerId !== 'string' || m.triggerId.length === 0) {
-      return null;
-    }
+    if (typeof m.triggerId !== 'string' || !isUuid(m.triggerId)) return null;
     if (m.op === 'unregister') {
       return { op: 'unregister', triggerId: m.triggerId };
     }
     if (
       m.op === 'register' &&
       typeof m.provider === 'string' &&
-      m.provider.length > 0
+      PROVIDER_PATTERN.test(m.provider)
     ) {
       return { op: 'register', triggerId: m.triggerId, provider: m.provider };
     }
