@@ -64,6 +64,25 @@ function computeHmac(message: string, secret: string): string {
   return createHmac('sha256', secret).update(message, 'utf8').digest('base64');
 }
 
+/**
+ * install 요청에 서명할 timestamp(초)를 내는 함수를 만든다. 낸 값은 앞서 낸 값보다 늘 크다.
+ *
+ * nonce 키가 `{mall_id}:{timestamp}:{hmac 앞 8자}` 라서 같은 행에 같은 쿼리를 두 번 보낼 때 timestamp 가 같으면
+ * 두 번째가 `CAFE24_INSTALL_REPLAY` 로 막힌다. 옛 헬퍼는 현재 초에서 호출 횟수를 뺐고, 두 호출 사이에 초가
+ * 정확히 하나 넘어가면 같은 값이 다시 나왔다(Task CLE-T-VP5Q35). 그래서 현재 초와 「앞 값 + 1」 중 큰 쪽을 쓴다.
+ * 현재 시각보다 앞서는 폭은 같은 초 안에 부른 횟수를 넘지 않아 서버의 ±5분 창 안에 든다. 앞 값에서 1씩 줄여
+ * 가는 방식은 시계가 흐르는 만큼 현재 시각에서 멀어진다.
+ */
+function createInstallTimestampSource(
+  nowMs: () => number = () => Date.now(),
+): () => number {
+  let last = Number.NEGATIVE_INFINITY;
+  return () => {
+    last = Math.max(Math.floor(nowMs() / 1000), last + 1);
+    return last;
+  };
+}
+
 describe('Cafe24 install endpoint (e2e)', () => {
   let db: Client;
   let owner: RegisterResult;
@@ -194,10 +213,9 @@ describe('Cafe24 install endpoint (e2e)', () => {
   }
 
   /** 매 호출마다 다른 timestamp 를 써서 nonce replay 가드를 피한다. */
-  let tsOffset = 0;
+  const nextInstallTimestamp = createInstallTimestampSource();
   function signedInstallQuery(mallId: string): string {
-    tsOffset += 1;
-    const ts = (Math.floor(Date.now() / 1000) - tsOffset).toString();
+    const ts = nextInstallTimestamp().toString();
     const base = `mall_id=${mallId}&timestamp=${ts}&user_id=admin&user_name=John`;
     const hmac = computeHmac(buildHmacMessage(base), clientSecret);
     return `${base}&hmac=${encodeURIComponent(hmac)}`;
@@ -210,6 +228,22 @@ describe('Cafe24 install endpoint (e2e)', () => {
     );
     return r.rows[0].reinstall_requested_at;
   }
+
+  describe('signed install query timestamps (CLE-T-VP5Q35)', () => {
+    it('never repeats even when a second boundary falls between two calls, and returns to the clock', () => {
+      let nowMs = 1_000_000_999; // 1_000_000 초가 끝나기 직전
+      const next = createInstallTimestampSource(() => nowMs);
+      const first = next();
+      nowMs += 1; // 초가 정확히 하나 넘어간다. 옛 헬퍼는 여기서 앞과 같은 값을 냈다.
+      const second = next();
+      const third = next(); // 같은 초 안에서 또 부른다.
+      expect([first, second, third]).toEqual([1_000_000, 1_000_001, 1_000_002]);
+
+      // 시계가 앞서 낸 값을 따라잡으면 다시 현재 초를 쓴다.
+      nowMs += 10_000;
+      expect(next()).toBe(1_000_011);
+    });
+  });
 
   describe('reinstall request mark (CLE-T-NNENG8)', () => {
     it.each(['connected', 'error'] as const)(
