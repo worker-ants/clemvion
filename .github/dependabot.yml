@@ -131,10 +131,31 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
-      # (묘비) `eslint-plugin-unicorn` major ignore 는 2026-08-28 부로 제거했다 — 위 항목이
-      # 이 리스트의 유일한 원소인 이유. 존재 이유였던 "unicorn 66+ 가 `eslint@>=10.4` 를
-      # 요구하는데 이 저장소는 eslint 9 였다" 는 backend·packages 의 eslint 10 상향
-      # (옛 plan `deps-peer-gating-and-eslint10.md` §2(git 이력), unicorn 도 `^73` 동반 상향)
+      # @types/node major 는 자동 bump 대상에서 제외한다(2026-10-16, NERV Task `CLE-T-8AHC63`).
+      #
+      # `@types/node` 의 major 는 Node 런타임 major 를 따라 사람이 올리는 값이다. 내부 앱은 런타임과
+      # 같은 major 를, 외부 배포 SDK `@workflow/sdk` 는 소비자 하한(`engines.node`)과 같은 major 를
+      # 쓴다(PROJECT.md 「Node 지원 floor」. `@workflow/web-chat` 은 `@types/node` 를 선언하지 않는다).
+      # dependabot 은 이 구분 없이 최신 major 로 올린다. 앱 쪽이 런타임보다 앞서면 런타임에 없는
+      # API 를 타입 검사가 허용한다. SDK 쪽이 오르면 Node 20 소비자에게 없는 API 를 SDK 코드가
+      # 써도 타입 검사가 잡지 못한다.
+      # 2026-10-14 의 #1533 이 앱 `^24 → ^26` 과 SDK `^20.0.0 → ^26.6.5` 를 한 PR 로 올리려 했다.
+      # 앱 쪽은 런타임 상향 PR(#1544, NERV Task `CLE-T-DC8BY0`)이 함께 올렸고 SDK 쪽은 일부러 두었다.
+      #
+      # 런타임 major 를 올리는 PR 이 앱의 `@types/node` 도 함께 올리고, SDK 하한을 올리는 PR 이
+      # SDK 의 `@types/node` 도 함께 올린다. 그래서 이 항목에는 해제 조건이 없다. minor · patch 는
+      # 계속 `npm-minor-patch` 그룹으로 받는다.
+      #
+      # 지키는 테스트는 `.claude/tests/test_node_runtime_sync.py` 의 `TypesNodeAgreesTest`(앱 major 와
+      # `.nvmrc`, `@types/node` major 와 자기 `engines.node` 하한)와 `test_dependabot_npm_coverage.py` 의
+      # `DependabotIgnoreTest`(이 `ignore` 목록)다. 항목을 더하거나 빼면 PROJECT.md 「빌드 툴체인 ·
+      # 런타임 결속 major 자동 bump 차단」의 건수도 같은 커밋에서 고친다.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+      # (묘비) `eslint-plugin-unicorn` major ignore 는 2026-08-28 부로 제거했다. 존재 이유였던
+      # "unicorn 66+ 가 `eslint@>=10.4` 를 요구하는데 이 저장소는 eslint 9 였다" 는 backend·packages 의
+      # eslint 10 상향(옛 plan `deps-peer-gating-and-eslint10.md` §2(git 이력), unicorn 도 `^73` 동반 상향)
       # 으로 소멸했다. 재발 방지는 상시 가드로 이관: `eslint-unicorn-peer.spec.ts`(설치본
       # peer 실측) + CI `--strict-peer-dependencies`(unmet peer 즉시 실패) — `#1049` 당시엔
       # 둘 다 없어 무방비였다. 상세 이력은 `PROJECT.md` §버전·도구 정책 의 동명 각주.

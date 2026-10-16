@@ -14,17 +14,27 @@ forgotten (review/code/2026/07/18/12_31_29 W5 — deferred there, no guard exist
 Parsing is deliberately minimal (stdlib only, per .claude/tests/README.md), so
 both parsers assert they actually found something rather than silently returning
 an empty set and passing vacuously — and `test_known_independent_tree_is_detected`
-pins that the classifier still SEES the one tree we know is independent.
+pins that the classifier still SEES the one tree we know is independent. The one
+exception is `DependabotIgnoreTest`, which reads dependabot.yml with PyYAML (the
+exception that README grants); see its section for why.
 
-A second, smaller invariant lives at the bottom (`DependabotGroupsTest`): the
+A second, smaller invariant lives below the main one (`DependabotGroupsTest`): the
 workspace-root entry's `groups:` that bundle minor/patch updates into one PR.
 Deleting that block, or letting a group admit `major`, fails nothing else — the
 per-dependency PRs and their sequential `pnpm-lock.yaml` conflicts just quietly
 come back (NERV Task CLE-T-M8RB67).
+
+A third, last in the file (`DependabotIgnoreTest`): the same entry's `ignore:` list,
+which holds the major bumps a human must decide (`typescript` · `@types/node`).
+Dropping an item, or writing it without `update-types` (which silences minor/patch
+too and stops the group PRs), fails nothing else. PROJECT.md states how many items
+there are, in a second hand-edited place, so the test reads that sentence too
+(NERV Task CLE-T-8AHC63).
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import subprocess
@@ -35,6 +45,7 @@ import _harness  # noqa: F401  — side effect: harness path setup; REPO_ROOT us
 REPO_ROOT = _harness.REPO_ROOT
 WORKSPACE_YAML = REPO_ROOT / "pnpm-workspace.yaml"
 DEPENDABOT_YAML = REPO_ROOT / ".github" / "dependabot.yml"
+PROJECT_MD = REPO_ROOT / "PROJECT.md"
 
 # The workspace ROOT package.json is the pnpm project itself — `pnpm audit` runs
 # from here and covers it, so it is not an "independent tree".
@@ -638,6 +649,191 @@ class DependabotGroupsTest(unittest.TestCase):
                     f"`{dep}` is caret everywhere ({specs}); its pin reason is gone, "
                     "so drop it from exclude-patterns and _INDIVIDUAL_PR_PINS",
                 )
+
+
+# --- `ignore:` of the workspace-root npm entry --------------------------------------
+#
+# Read with PyYAML, not by hand. .claude/tests/README.md ("One exception: PyYAML")
+# allows it for a guard over YAML the repo depends on, because a hand-rolled parser
+# would put the guard's own correctness in question. This is that case: the `groups:`
+# parser above is hand-rolled and a parser for `ignore:` (a list of mappings, with
+# quoting, comments and block / flow lists) kept drawing review findings of its own.
+# The import is inside the reader, so a missing PyYAML (CI installs it) fails only
+# `DependabotIgnoreTest` with an ImportError, never as a silent skip.
+
+_IGNORE_MAJOR = "version-update:semver-major"
+_IGNORE_KEYS = {"dependency-name", "update-types"}
+# Dependencies whose major a human must decide. PROJECT.md "빌드 툴체인 · 런타임 결속
+# major 자동 bump 차단" gives the reason for each; the list may grow, and then that
+# sentence's count grows with it (the test below ties them).
+_REQUIRED_IGNORES = ("typescript", "@types/node")
+
+# "…major 자동 bump 차단**: … 현재 `a` · `b` N건(…)" — N is edited by hand next to the
+# dependabot.yml list. The anchor is the tail of the bullet's title, so renaming the
+# front of the title does not break the read; losing the sentence raises instead.
+_PROJECT_IGNORE_COUNT = re.compile(r"major 자동 bump 차단\*\*[^\n]*?현재[^\n]*?(\d+)건")
+
+
+def _stated_ignore_count(text: str) -> int:
+    """N of the single "현재 … N건" sentence in PROJECT.md TEXT."""
+    found = _PROJECT_IGNORE_COUNT.findall(text)
+    if len(found) != 1:
+        raise ValueError(
+            f'expected exactly one "major 자동 bump 차단 … 현재 … N건" sentence in '
+            f"PROJECT.md, found {len(found)}")
+    return int(found[0])
+
+
+def _root_npm_entries(doc: object) -> list[dict[str, object]]:
+    """Entries of the loaded dependabot.yml DOC that are npm with `directory: "/"`."""
+    updates = doc.get("updates") if isinstance(doc, dict) else None
+    return [
+        e for e in (updates if isinstance(updates, list) else [])
+        if isinstance(e, dict)
+        and e.get("package-ecosystem") == "npm" and e.get("directory") == "/"
+    ]
+
+
+def _ignore_violations(items: object, stated_count: int) -> list[str]:
+    """Every way the root entry's `ignore:` ITEMS depart from the policy.
+
+    ITEMS is the YAML value as loaded; STATED_COUNT is the N PROJECT.md states.
+    [] means the policy holds.
+    """
+    if not isinstance(items, list) or not items:
+        return ["workspace-root npm entry has no `ignore:` list — the major bumps "
+                "a human must decide arrive as PRs again"]
+    problems: list[str] = []
+    names: list[str] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or not isinstance(item.get("dependency-name"), str):
+            problems.append(f"ignore[{index}] is {item!r}; expected a mapping "
+                            "with a string `dependency-name`")
+            continue
+        name = item["dependency-name"]
+        names.append(name)
+        if set(item) != _IGNORE_KEYS:
+            problems.append(
+                f"`{name}` has keys {sorted(item)}; expected exactly "
+                f"{sorted(_IGNORE_KEYS)} — without `update-types` the whole "
+                "dependency is ignored, minor/patch included, and its group PRs stop")
+        elif item["update-types"] != [_IGNORE_MAJOR]:
+            problems.append(
+                f"`{name}` update-types is {item['update-types']!r}; it must be "
+                f"exactly [{_IGNORE_MAJOR!r}] — minor/patch keep arriving in the groups")
+    for name in sorted({n for n in names if names.count(n) > 1}):
+        problems.append(f"`{name}` appears more than once in `ignore:`")
+    for name in _REQUIRED_IGNORES:
+        if name not in names:
+            problems.append(f"`{name}` is missing from `ignore:` — its major bump is "
+                            "no longer held for a human")
+    if len(items) != stated_count:
+        problems.append(
+            f"PROJECT.md says {stated_count}건 but `ignore:` has {len(items)} items "
+            "— edit both in one commit")
+    return problems
+
+
+def _policy_items() -> list[dict[str, object]]:
+    """`ignore:` as the policy writes it, derived from the constants above."""
+    return [{"dependency-name": name, "update-types": [_IGNORE_MAJOR]}
+            for name in _REQUIRED_IGNORES]
+
+
+class DependabotIgnoreTest(unittest.TestCase):
+    """The root entry's `ignore:` list (PROJECT.md "major 자동 bump 차단")."""
+
+    def test_repo_ignore_follows_policy(self):
+        import yaml  # noqa: PLC0415 — absent PyYAML must fail this test, not skip it
+
+        doc = yaml.safe_load(DEPENDABOT_YAML.read_text(encoding="utf-8"))
+        entries = _root_npm_entries(doc)
+        self.assertEqual(len(entries), 1,
+                         'expected exactly one npm entry with `directory: "/"`')
+        stated = _stated_ignore_count(PROJECT_MD.read_text(encoding="utf-8"))
+        self.assertEqual(_ignore_violations(entries[0].get("ignore"), stated), [])
+
+    def test_policy_shaped_items_have_no_violations(self):
+        """Anchors the mutants below: each differs from this by one edit."""
+        self.assertEqual(
+            _ignore_violations(_policy_items(), len(_REQUIRED_IGNORES)), [])
+
+    def test_each_violation_is_caught(self):
+        """One-edit mutants of the policy; each must be reported by the rule it breaks."""
+        total = len(_REQUIRED_IGNORES)
+        mutants: dict[str, tuple[object, int, str]] = {}
+
+        def edit(label: str, mutate, *, stated: int | None = None, expect: str) -> None:
+            items = copy.deepcopy(_policy_items())
+            mutate(items)
+            mutants[label] = (items, len(items) if stated is None else stated, expect)
+
+        for index, name in enumerate(_REQUIRED_IGNORES):
+            edit(f"`{name}` dropped", lambda items, i=index: items.pop(i),
+                 expect="is missing")
+            edit(f"`{name}` without update-types",
+                 lambda items, i=index: items[i].pop("update-types"), expect="has keys")
+            edit(f"`{name}` with an extra key",
+                 lambda items, i=index: items[i].update(versions=[">=1"]),
+                 expect="has keys")
+            edit(f"`{name}` admits minor too",
+                 lambda items, i=index: items[i]["update-types"].append(
+                     "version-update:semver-minor"),
+                 expect="update-types is")
+            edit(f"`{name}` ignores minor only",
+                 lambda items, i=index: items[i].update(
+                     {"update-types": ["version-update:semver-minor"]}),
+                 expect="update-types is")
+            edit(f"`{name}` update-types is a bare string",
+                 lambda items, i=index: items[i].update({"update-types": _IGNORE_MAJOR}),
+                 expect="update-types is")
+        edit("duplicate name", lambda items: items.append(copy.deepcopy(items[0])),
+             expect="more than once")
+        edit("item is not a mapping", lambda items: items.append("typescript"),
+             expect="expected a mapping")
+        edit("PROJECT.md count too low", lambda items: None, stated=total - 1,
+             expect="PROJECT.md says")
+        edit("PROJECT.md count too high", lambda items: None, stated=total + 1,
+             expect="PROJECT.md says")
+        mutants["list absent"] = (None, total, "no `ignore:` list")
+        mutants["list empty"] = ([], total, "no `ignore:` list")
+
+        for label, (items, stated, expect) in mutants.items():
+            with self.subTest(mutant=label):
+                problems = _ignore_violations(items, stated)
+                self.assertTrue(problems, f"mutant `{label}` slipped through")
+                self.assertTrue(
+                    any(expect in p for p in problems),
+                    f"mutant `{label}` was reported, but not by the rule it breaks "
+                    f"({expect!r}): {problems}")
+
+    def test_a_further_policy_shaped_ignore_is_allowed_with_its_count(self):
+        """The list may grow; only an uncounted or malformed item is a violation."""
+        items = _policy_items() + [
+            {"dependency-name": "some-other-toolchain-dep", "update-types": [_IGNORE_MAJOR]}]
+        self.assertEqual(_ignore_violations(items, len(items)), [])
+
+    def test_only_the_root_npm_entry_is_read(self):
+        """An `ignore:` on another npm entry must not stand in for the root one."""
+        doc = {"updates": [
+            {"package-ecosystem": "npm", "directory": "/.claude/tools/mermaid-lint",
+             "ignore": _policy_items()},
+            {"package-ecosystem": "github-actions", "directory": "/",
+             "ignore": _policy_items()},
+            {"package-ecosystem": "npm", "directory": "/"},
+        ]}
+        entries = _root_npm_entries(doc)
+        self.assertEqual(len(entries), 1)
+        self.assertIsNone(entries[0].get("ignore"))
+
+    def test_stated_count_is_read_from_the_one_sentence(self):
+        text = ("- **빌드 툴체인 · 런타임 결속 major 자동 bump 차단**: 툴체인의 **major** "
+                "상향은 뺀다 — 현재 `typescript` · `@types/node` 12건(`ignore`). 근거 2건.")
+        self.assertEqual(_stated_ignore_count(text), 12)
+        for broken in ("", text + "\n" + text):
+            with self.subTest(copies=broken.count("현재")), self.assertRaises(ValueError):
+                _stated_ignore_count(broken)
+
 
 if __name__ == "__main__":
     unittest.main()

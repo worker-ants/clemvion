@@ -15,21 +15,33 @@
   e2e 도 초록이라 아무도 모른다. 그래서 Dockerfile 이 COPY 바로 뒤에서 빌드 때 단언하고, 이 파일은
   그 단언이 지워지지 않았는지 고정한다.
 
+네 번째는 `@types/node` 다(NERV Task `CLE-T-8AHC63`). dependabot 은 `@types/node` 의 major 를 올리지
+않게 막혀 있다(`.github/dependabot.yml` 의 `ignore`). 그래서 앱의 `@types/node` major 는 런타임 상향
+PR 에서 사람이 함께 올려야만 오르는데, 빠뜨려도 잡는 곳이 없었다. 외부 배포 SDK(`@workflow/sdk`)의
+`@types/node` 는 반대로 `engines.node` 하한(`>=20`)과 같은 major 에 머물러야 하고, 어긋나면
+Node 20 소비자에게 없는 API 를 SDK 코드가 써도 타입 검사가 잡지 못한다.
+
 **정적 대조인 이유.** 매체가 Dockerfile · workflow YAML · 점 파일이라 한 변수로 합칠 수 없다.
 `test_install_gate_flags.py` 가 `pnpm install` 플래그를 묶는 것과 같은 형태로 "한 메이저인가" 만 본다.
 
 **한계를 적는다.** 값이 맞는지만 본다. 이미지 안에서 실제로 어떤 node 가 도는지는 Dockerfile 의
 빌드 시점 단언(`RUN test ...`)과 e2e 가 본다. 이 파일은 그 단언이 남아 있는지까지만 본다.
-`engines.node` 는 대조하지 않는다. 외부 배포 SDK 의 floor(`>=20`)가 일부러 낮기 때문이다.
+`engines.node` 를 `.nvmrc` 와 직접 대조하지는 않는다. 외부 배포 SDK 의 floor(`>=20`)가 일부러 낮기 때문이다.
+앱 세 곳의 하한은 아래 `@types/node` 대조를 거쳐 `.nvmrc` 에 묶인다. `@types/node` 를 선언하지 않는
+매니페스트(내부 packages · `@workflow/web-chat`)의 `engines.node` 는 대조하지 않는다.
+`@types/node` 는 앱 세 곳이 `.nvmrc` 와, 선언한 매니페스트마다 자기 `engines.node` 하한과 맞는지만 본다.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 
 from _harness import REPO_ROOT
+from test_dependabot_npm_coverage import _tracked_package_jsons
 from test_harness_checks_paths_coverage import filter_covers_file, parse_pathspecs_block
+from test_package_pin_reasons import DEP_SECTIONS
 
 NVMRC = REPO_ROOT / ".nvmrc"
 BACKEND_DOCKERFILE = REPO_ROOT / "codebase" / "backend" / "Dockerfile"
@@ -38,6 +50,20 @@ PLAYWRIGHT_DOCKERFILE = REPO_ROOT / "codebase" / "frontend" / "Dockerfile.playwr
 HARNESS_CHECKS = REPO_ROOT / ".github" / "workflows" / "harness-checks.yml"
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 ACTIONS_DIR = REPO_ROOT / ".github" / "actions"
+
+#: 운영 런타임과 같은 메이저의 `@types/node` 를 쓰는 내부 앱 세 곳.
+APP_MANIFESTS = (
+    REPO_ROOT / "codebase" / "backend" / "package.json",
+    REPO_ROOT / "codebase" / "frontend" / "package.json",
+    REPO_ROOT / "codebase" / "channel-web-chat" / "package.json",
+)
+
+#: 소비자 하한(`engines.node >=20`)과 같은 메이저의 `@types/node` 를 써야 하는 외부 배포 SDK.
+SDK_MANIFEST = REPO_ROOT / "codebase" / "packages" / "sdk" / "package.json"
+
+TYPES_NODE = "@types/node"
+# 읽는 섹션 목록(`DEP_SECTIONS`)은 `test_package_pin_reasons.py` 의 것을 쓴다. `peerDependencies` 를
+# 뺀 이유도 거기에 있다.
 
 #: `FROM node:<N>` 스테이지 수의 하한. 앱 Dockerfile 은 deps · runner 두 스테이지가 node 이미지에서 시작한다.
 APP_DOCKERFILES = (
@@ -121,6 +147,62 @@ def has_build_time_node_assertion(text: str) -> bool:
     )
 
 
+_RANGE_FLOOR = re.compile(r"\s*(?:\^|~|>=|=)?\s*v?(\d+)(?:\.(?:\d+|[xX*])){0,2}\s*")
+
+
+def range_floor_major(spec: str) -> int | None:
+    """`^26` · `>=20.0.0` · `~26.1` · `26.x` 처럼 하나의 하한만 적은 범위에서 메이저를 읽는다.
+
+    `||` · 상한(`<27`) · `*` · `workspace:` 같은 형태는 하한을 하나로 정할 수 없어 None 이다.
+    추측해서 맞는 척하지 않고, 대조가 실패해 사람이 형태를 보게 한다.
+    """
+    match = _RANGE_FLOOR.fullmatch(spec)
+    return int(match.group(1)) if match else None
+
+
+def types_node_specs(data: dict) -> list[str]:
+    """매니페스트가 `@types/node` 에 적은 버전 범위들."""
+    out: list[str] = []
+    for section in DEP_SECTIONS:
+        spec = (data.get(section) or {}).get(TYPES_NODE)
+        if spec is not None:
+            out.append(spec)
+    return out
+
+
+def types_node_problems(data: dict) -> list[str]:
+    """한 매니페스트의 `@types/node` 가 자기 `engines.node` 하한과 같은 메이저가 아닌 이유. 맞으면 []."""
+    specs = types_node_specs(data)
+    if not specs:
+        return []
+    engines = (data.get("engines") or {}).get("node")
+    if engines is None:
+        return [f"{TYPES_NODE} 를 선언했지만 engines.node 가 없다 — 어느 메이저에 맞출지 정할 수 없다"]
+    floor = range_floor_major(engines)
+    if floor is None:
+        return [f"engines.node {engines!r} 에서 하한 메이저를 읽지 못했다"]
+    problems: list[str] = []
+    for spec in specs:
+        major = range_floor_major(spec)
+        if major != floor:
+            problems.append(
+                f"{TYPES_NODE} {spec!r}(메이저 {major}) 가 engines.node {engines!r} 하한({floor}) 과 다르다"
+            )
+    return problems
+
+
+def _types_node_manifests() -> dict[str, dict]:
+    """`@types/node` 를 선언한 추적 매니페스트. `.claude/` 아래 하네스 트리는 별도 npm 트리라 뺀다."""
+    found: dict[str, dict] = {}
+    for rel in _tracked_package_jsons():
+        if rel.startswith(".claude/"):
+            continue
+        data = json.loads(_read(REPO_ROOT / rel))
+        if types_node_specs(data):
+            found[rel] = data
+    return found
+
+
 def _read(path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -188,6 +270,83 @@ class ParserTest(unittest.TestCase):
         self.assertFalse(has_build_time_node_assertion(no_major))
         self.assertFalse(has_build_time_node_assertion(commented))
         self.assertFalse(has_build_time_node_assertion("RUN true"))
+
+
+class TypesNodeParserTest(unittest.TestCase):
+    """`@types/node` 대조의 파서 가장자리. 읽지 못한 값은 None 으로 남겨 대조가 실패하게 한다."""
+
+    def test_range_floor_reads_single_lower_bounds(self):
+        for spec, major in (
+            ("^26", 26), ("^20.0.0", 20), (">=20", 20), (">=20.0.0", 20),
+            ("~26.1", 26), ("26.x", 26), ("v26", 26), ("26", 26),
+        ):
+            with self.subTest(spec=spec):
+                self.assertEqual(range_floor_major(spec), major)
+
+    def test_range_floor_refuses_shapes_with_no_single_floor(self):
+        for spec in (">=20 <27", "20 || 22", "*", "latest", "workspace:*", "catalog:",
+                     "^26.0.0-rc.1", ""):
+            with self.subTest(spec=spec):
+                self.assertIsNone(range_floor_major(spec))
+
+    def test_matching_major_has_no_problems(self):
+        data = {"engines": {"node": ">=26"}, "devDependencies": {TYPES_NODE: "^26"}}
+        self.assertEqual(types_node_problems(data), [])
+
+    def test_sdk_shaped_manifest_matches_its_own_lower_floor(self):
+        data = {"engines": {"node": ">=20.0.0"}, "devDependencies": {TYPES_NODE: "^20.0.0"}}
+        self.assertEqual(types_node_problems(data), [])
+
+    def test_a_different_major_is_reported(self):
+        # #1533 이 SDK 에 시도한 변경: 소비자 하한은 20 인데 타입만 26.
+        data = {"engines": {"node": ">=20.0.0"}, "devDependencies": {TYPES_NODE: "^26.6.5"}}
+        self.assertEqual(len(types_node_problems(data)), 1)
+
+    def test_a_manifest_without_engines_is_reported(self):
+        problems = types_node_problems({"devDependencies": {TYPES_NODE: "^26"}})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("engines.node 가 없다", problems[0])
+
+    def test_unreadable_engines_floor_is_reported_as_unreadable_not_as_a_mismatch(self):
+        # 하한을 읽지 못하면 `읽지 못했다` 로 끝나야 한다. 이 분기가 없으면 하한 None 이 범위의 메이저와
+        # 비교되어 `다르다` 가 나오거나, 범위도 못 읽을 때는 `None != None` 이 거짓이라 아무 문제도 안 나온다.
+        for label, data in (
+            ("범위는 읽힌다", {"engines": {"node": ">=20 <27"}, "devDependencies": {TYPES_NODE: "^20"}}),
+            ("범위도 못 읽는다", {"engines": {"node": ">=20 <27"}, "devDependencies": {TYPES_NODE: "catalog:"}}),
+        ):
+            with self.subTest(case=label):
+                problems = types_node_problems(data)
+                self.assertEqual(len(problems), 1)
+                self.assertIn("읽지 못했다", problems[0])
+                self.assertNotIn("다르다", problems[0])
+
+    def test_unreadable_types_node_range_is_reported_as_a_mismatch_not_skipped(self):
+        # 하한은 읽히는데 `@types/node` 범위만 못 읽는 경우. `major` 가 None 이면 `다르다` 로 보고해야 한다.
+        # `major is not None and major != floor` 로 바꾸면 이 경우가 조용히 통과한다.
+        for spec in ("catalog:", "^26.0.0-rc.1", ">=26 <27"):
+            with self.subTest(spec=spec):
+                data = {"engines": {"node": ">=26"}, "devDependencies": {TYPES_NODE: spec}}
+                problems = types_node_problems(data)
+                self.assertEqual(len(problems), 1)
+                self.assertIn("다르다", problems[0])
+                self.assertNotIn("읽지 못했다", problems[0])
+
+    def test_a_manifest_that_does_not_declare_the_types_is_skipped(self):
+        self.assertEqual(types_node_problems({"engines": {"node": ">=20"}}), [])
+
+    def test_every_dependency_section_is_read(self):
+        # 기대값은 `DEP_SECTIONS` 와 따로 적는다. 대조 대상을 그 상수에서 꺼내면 상수가 줄어도 줄어든
+        # 목록만 돌아서 통과한다. 섹션마다 그 섹션에만 틀린 값을 둬야 한 섹션을 빼먹는 변경이 실패한다.
+        for section in ("dependencies", "devDependencies", "optionalDependencies"):
+            with self.subTest(section=section):
+                data = {"engines": {"node": ">=26"}, section: {TYPES_NODE: "^24"}}
+                self.assertEqual(len(types_node_problems(data)), 1)
+        # `peerDependencies` 는 읽지 않는다. peer 범위는 소비자가 가져올 수 있는 버전이고 이 저장소가
+        # 설치해 쓰는 버전이 아니다(`test_package_pin_reasons.py` 가 같은 이유로 뺀다). 읽으면 소비자
+        # 범위를 이 저장소의 선언처럼 대조해 오탐한다.
+        peer_only = {"engines": {"node": ">=26"}, "peerDependencies": {TYPES_NODE: "^24"}}
+        self.assertEqual(types_node_problems(peer_only), [])
+        self.assertNotIn("peerDependencies", DEP_SECTIONS)
 
 
 class NodeMajorAgreesTest(unittest.TestCase):
@@ -269,6 +428,46 @@ class CorepackPinAgreesTest(unittest.TestCase):
         )
 
 
+class TypesNodeAgreesTest(unittest.TestCase):
+    """`@types/node` major 는 dependabot 이 올리지 않으므로 사람이 맞춘다. 그 일치를 여기서 고정한다.
+
+    dependabot 의 `ignore`(`test_dependabot_npm_coverage.py::DependabotIgnoreTest` 가 고정)는 "자동으로
+    올리지 않는다" 까지만 약속한다. 런타임을 올리는 PR 이 앱의 `@types/node` 를 함께 올렸는지는 여기가 본다.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.major = nvmrc_major(_read(NVMRC))
+        cls.declaring = _types_node_manifests()
+
+    def test_discovery_finds_the_manifests_it_is_meant_to_guard(self):
+        wanted = [_rel(p) for p in (*APP_MANIFESTS, SDK_MANIFEST)]
+        for rel in wanted:
+            with self.subTest(file=rel):
+                self.assertIn(
+                    rel, self.declaring,
+                    f"{rel} 가 {TYPES_NODE} 를 선언한 매니페스트로 잡히지 않는다 — 선언이 사라졌거나 "
+                    "탐색이 헛돈다. 사라진 것이 맞다면 APP_MANIFESTS · SDK_MANIFEST 에서도 뺀다",
+                )
+
+    def test_apps_use_the_runtime_major(self):
+        for path in APP_MANIFESTS:
+            rel = _rel(path)
+            with self.subTest(file=rel):
+                specs = types_node_specs(json.loads(_read(path)))
+                self.assertTrue(specs, f"{rel}: {TYPES_NODE} 선언을 찾지 못했다")
+                self.assertEqual(
+                    {range_floor_major(spec) for spec in specs}, {self.major},
+                    f"{rel}: {TYPES_NODE} {specs} 의 메이저가 .nvmrc({self.major}) 와 다르다 — "
+                    "dependabot 이 major 를 올리지 않으므로 런타임을 올리는 PR 에서 함께 올려야 한다",
+                )
+
+    def test_every_declaring_manifest_matches_its_own_engines_floor(self):
+        for rel, data in sorted(self.declaring.items()):
+            with self.subTest(file=rel):
+                self.assertEqual(types_node_problems(data), [], f"{rel}: 위 사유를 본다")
+
+
 class TriggerCoverageTest(unittest.TestCase):
     """이 파일이 읽는 파일을 **혼자** 고친 PR 에서도 harness-checks 가 돌아야 한다.
 
@@ -276,17 +475,30 @@ class TriggerCoverageTest(unittest.TestCase):
     그 가드가 제품 경로로 빼므로 여기서 직접 본다. Node 상향 PR 은 거의 이 파일들만 고친다.
     """
 
-    def test_every_file_read_here_triggers_the_workflow(self):
+    def _assert_triggers_workflow(self, rels, what):
+        """RELS 의 파일이 모두 harness-checks 의 pathspecs 에 걸리는지 본다. WHAT 은 안 돌게 되는 대조."""
         pathspecs = parse_pathspecs_block(_read(HARNESS_CHECKS))
         self.assertTrue(pathspecs, f"{_rel(HARNESS_CHECKS)}: pathspecs 블록을 읽지 못했다")
-        for path in (NVMRC, BACKEND_DOCKERFILE, FRONTEND_DOCKERFILE, PLAYWRIGHT_DOCKERFILE):
-            rel = _rel(path)
+        for rel in rels:
             with self.subTest(file=rel):
                 self.assertTrue(
                     any(filter_covers_file(spec, rel) for spec in pathspecs),
                     f"{rel} 는 {_rel(HARNESS_CHECKS)} 의 pathspecs 에 없다 — 이 파일만 고친 PR 에서 "
-                    "Node 메이저 대조가 돌지 않는다",
+                    f"{what} 대조가 돌지 않는다",
                 )
+
+    def test_every_file_read_here_triggers_the_workflow(self):
+        self._assert_triggers_workflow(
+            [_rel(p) for p in (NVMRC, BACKEND_DOCKERFILE, FRONTEND_DOCKERFILE, PLAYWRIGHT_DOCKERFILE)],
+            "Node 메이저",
+        )
+
+    def test_every_manifest_read_here_triggers_the_workflow(self):
+        """`@types/node` 대조가 읽는 매니페스트. 런타임을 올리는 PR 은 이 파일들도 고친다."""
+        self._assert_triggers_workflow(
+            sorted({_rel(p) for p in (*APP_MANIFESTS, SDK_MANIFEST)} | set(_types_node_manifests())),
+            TYPES_NODE,
+        )
 
 
 if __name__ == "__main__":
