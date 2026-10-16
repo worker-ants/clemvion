@@ -11,10 +11,10 @@ ancestors: []
 area: null
 content_hash: "2d43c82bee31d4edc09d1c43cd493b96533b522a5dcfa5caecebc6058b6f96fa"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-PXTGVQ"
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "5d92d638fa21e28cee0dd3c872f2d8dd2bd447926133a507e9fb2dc0c13a705c"
-etag: "sha256-a24008187aa566239c8862c8a962a51f48f86160435c222c753f42b9cca52e74"
+mirror_sha256: "6e72e47a1b0ef8d12af23c40252c0d72fa4d1e3865a94175902c8a96375a7db1"
+etag: "sha256-9fa7f97588a4c12e5a3ed4e3fc619194f46c7eb6293fb4ec29e38d5c1ba56a92"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)
 

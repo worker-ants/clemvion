@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
 content_hash: "3321be24022faba9d12c4848a6d7126639965568a91331eb997e7199ae39ff6c"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-PXTGVQ"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "038953fd02e598250cdde8d34b312214194544d3abb9861f82c8e2f968d0768b"
-etag: "sha256-257098d4bcc30de9fc67af47e12087cfa81260c1f93d39415adcfddd02f691ab"
+mirror_sha256: "fecf3f792d8e06aa0f97a06a19c1fea728f5e21cae7f96055c028408c1f69d39"
+etag: "sha256-c6a7e879fd0dae2bf27d0ef1014f8c34c5a68962eacd20d2f7135985c95f60f2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
