@@ -270,15 +270,33 @@ describe('WebAuthn 2FA (e2e)', () => {
     expect(params.map((p) => p.alg)).toEqual([-8, -7, -257]);
   });
 
+  /** `deviceName` 이 `undefined` 면 본문에 싣지 않는다. */
   async function postRegisterVerify(
     accessToken: string,
     optionsToken: string,
     response: unknown,
+    deviceName?: string,
   ) {
     return request(BASE_URL)
       .post('/api/auth/2fa/webauthn/register/verify')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ optionsToken, response });
+      .send({ optionsToken, response, deviceName });
+  }
+
+  async function storedTransports(userId: string): Promise<string[][]> {
+    const res = await db.query<{ transports: string[] }>(
+      'SELECT transports FROM webauthn_credential WHERE user_id = $1',
+      [userId],
+    );
+    return res.rows.map((r) => r.transports);
+  }
+
+  async function storedDeviceNames(userId: string): Promise<(string | null)[]> {
+    const res = await db.query<{ device_name: string | null }>(
+      'SELECT device_name FROM webauthn_credential WHERE user_id = $1',
+      [userId],
+    );
+    return res.rows.map((r) => r.device_name);
   }
 
   // 케이스 F 와 짝이다. F 는 등록 옵션이 브라우저에 안내하는 목록을 본다. G 는 등록 검증이
@@ -387,12 +405,115 @@ describe('WebAuthn 2FA (e2e)', () => {
       }),
     );
     expect(res.status).toBe(200);
-    const rows = await db.query<{ transports: string[] }>(
-      'SELECT transports FROM webauthn_credential WHERE user_id = $1',
-      [userId],
-    );
-    expect(rows.rows.map((r) => r.transports)).toEqual([
+    expect(await storedTransports(userId)).toEqual([
       ['internal', 'future-transport'],
     ]);
   });
+
+  it.each([
+    ['필드가 없으면', undefined],
+    ['값이 빈 배열이면', []],
+  ])('J. transports %s 빈 목록으로 저장한다', async (_label, transports) => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-j'),
+      db,
+    );
+    const { challenge, optionsToken } = await fetchRegistrationOptions(
+      BASE_URL,
+      accessToken,
+    );
+    const device = new SoftWebAuthnDevice();
+
+    const res = await postRegisterVerify(
+      accessToken,
+      optionsToken,
+      device.registrationResponse(challenge, { transports }),
+    );
+    expect(res.status).toBe(200);
+    expect(await storedTransports(userId)).toEqual([[]]);
+  });
+
+  // 표시 이름은 varchar(100) 컬럼에 들어간다. PostgreSQL 은 NUL 문자를 저장하지 못하고 길이를
+  // 코드 포인트로 센다. class-validator 의 MaxLength 는 변형 선택자(U+FE0F)를 앞 글자와 묶어 한
+  // 글자로 세서 코드 포인트 101개짜리 이름도 통과시킨다. 고치기 전에는 두 이름 모두 저장에서
+  // 500 이 났다.
+  // 변형 선택자 16(U+FE0F). 화면에 보이지 않아 리터럴로 적으면 핵심 입력이 사라진 것처럼 보인다.
+  const VS16 = '\uFE0F';
+  const INVALID_DEVICE_NAMES: [string, string][] = [
+    ['NUL 문자가 든 이름', 'a\u0000b'],
+    // 글자 100개 + 변형 선택자 = 코드 포인트 101개. MaxLength 는 100으로 센다.
+    ['코드 포인트가 100개를 넘는 이름', `${'a'.repeat(100)}${VS16}`],
+  ];
+  // 대조군에 쓰는 경계값이다. 글자 99개 + 변형 선택자 = 코드 포인트 100개는 받는다.
+  const LONGEST_DEVICE_NAME = `${'a'.repeat(99)}${VS16}`;
+
+  it.each(INVALID_DEVICE_NAMES)(
+    'K. 등록 검증이 %s을 400 으로 거부하고 저장하지 않는다',
+    async (_label, deviceName) => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-k'),
+        db,
+      );
+      const { challenge, optionsToken } = await fetchRegistrationOptions(
+        BASE_URL,
+        accessToken,
+      );
+      const device = new SoftWebAuthnDevice();
+
+      const res = await postRegisterVerify(
+        accessToken,
+        optionsToken,
+        device.registrationResponse(challenge),
+        deviceName,
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(await credentialRows(userId)).toHaveLength(0);
+
+      // 대조군: 같은 인증기 · 같은 옵션에서 이름만 바로잡으면 등록된다.
+      const ok = await postRegisterVerify(
+        accessToken,
+        optionsToken,
+        device.registrationResponse(challenge),
+        LONGEST_DEVICE_NAME,
+      );
+      expect(ok.status).toBe(200);
+      expect(await storedDeviceNames(userId)).toEqual([LONGEST_DEVICE_NAME]);
+    },
+  );
+
+  it.each(INVALID_DEVICE_NAMES)(
+    'L. 이름 변경이 %s을 400 으로 거부하고 이름을 바꾸지 않는다',
+    async (_label, deviceName) => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-l'),
+        db,
+      );
+      const { credentialUuid } = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+        'before-rename',
+      );
+      const rename = (name: string) =>
+        request(BASE_URL)
+          .patch(`/api/auth/2fa/webauthn/credentials/${credentialUuid}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ deviceName: name });
+
+      const res = await rename(deviceName);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(await storedDeviceNames(userId)).toEqual(['before-rename']);
+
+      // 대조군: 같은 credential 에 경계값 이름을 주면 바뀐다.
+      const ok = await rename(LONGEST_DEVICE_NAME);
+      expect(ok.status).toBe(200);
+      expect(ok.body.data.deviceName).toBe(LONGEST_DEVICE_NAME);
+      expect(await storedDeviceNames(userId)).toEqual([LONGEST_DEVICE_NAME]);
+    },
+  );
 });

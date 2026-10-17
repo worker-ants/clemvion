@@ -5,8 +5,8 @@ import { isoBase64URL, isoCBOR, cose } from '@simplewebauthn/server/helpers';
 /**
  * 백엔드 WebAuthn e2e 전용 소프트웨어 인증기.
  *
- * `webauthn.service.spec.ts` 는 `@simplewebauthn/server` 를 통째로 mock 해 24 케이스를
- * 회귀 잠금하지만, mock 은 라이브러리의 실제 verify 동작·에러 메시지를 재현하지 못한다.
+ * `webauthn.service.spec.ts` 는 `@simplewebauthn/server` 를 통째로 mock 해 회귀를 잠그지만,
+ * mock 은 라이브러리의 실제 verify 동작·에러 메시지를 재현하지 못한다.
  * 본 helper 는 실제 키(기본 Ed25519)로 attestation/assertion 을 합성해 backend-e2e 컨테이너의
  * 진짜 `verifyRegistrationResponse` / `verifyAuthenticationResponse` 를 통과(또는 의도적
  * 으로 실패)시킨다 — HTTP → service → DB 전 구간을 mock 없이 검증한다.

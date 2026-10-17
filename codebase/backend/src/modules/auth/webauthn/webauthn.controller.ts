@@ -126,7 +126,8 @@ export class WebAuthnController {
     description: '등록 결과 + 첫 등록 시 복구 코드',
   })
   @ApiBadRequestResponse({
-    description: 'optionsToken 만료/위변조 또는 검증 실패',
+    description:
+      'optionsToken 만료/위변조(`INVALID_OPTIONS_TOKEN`), 등록 검증 실패(`WEBAUTHN_VERIFY_FAILED`. 목록 밖 알고리즘의 공개 키와 형식이 틀린 transports 포함) 또는 입력 검증 실패(`VALIDATION_ERROR`. deviceName 이 코드 포인트 100개를 넘거나 NUL 문자가 든 경우 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async webauthnRegisterVerify(
@@ -303,7 +304,10 @@ export class WebAuthnController {
   @ApiOkWrappedResponse(WebAuthnCredentialDto, {
     description: '갱신된 credential',
   })
-  @ApiBadRequestResponse({ description: '입력 검증 실패' })
+  @ApiBadRequestResponse({
+    description:
+      '입력 검증 실패(`VALIDATION_ERROR`). deviceName 이 비었거나 코드 포인트 100개를 넘거나 NUL 문자가 든 경우다',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async webauthnRename(
     @CurrentUser() user: JwtPayload,

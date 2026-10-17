@@ -31,6 +31,7 @@ import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { LoginHistoryService } from '../login-history.service';
 import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
+import { hasNoNulCharacter } from '../../../common/utils/postgres-text';
 
 const RECOVERY_CODE_COUNT = 10;
 const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1.4.C)
@@ -96,10 +97,7 @@ function parseTransports(value: unknown): string[] | null {
   if (value === undefined) return [];
   if (
     !Array.isArray(value) ||
-    !value.every(
-      (item): item is string =>
-        typeof item === 'string' && !item.includes('\u0000'),
-    )
+    !value.every((item): item is string => hasNoNulCharacter(item))
   ) {
     return null;
   }
