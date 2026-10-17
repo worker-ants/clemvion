@@ -447,6 +447,11 @@ describe('WebAuthn 2FA (e2e)', () => {
   ];
   // 대조군에 쓰는 경계값이다. 글자 99개 + 변형 선택자 = 코드 포인트 100개는 받는다.
   const LONGEST_DEVICE_NAME = `${'a'.repeat(99)}${VS16}`;
+  // 등록 검증은 표시 이름을 빼도 되므로 빈 이름 거부는 이름 변경에만 있다.
+  const INVALID_RENAME_DEVICE_NAMES: [string, string][] = [
+    ...INVALID_DEVICE_NAMES,
+    ['빈 이름', ''],
+  ];
 
   it.each(INVALID_DEVICE_NAMES)(
     'K. 등록 검증이 %s을 400 으로 거부하고 저장하지 않는다',
@@ -484,7 +489,7 @@ describe('WebAuthn 2FA (e2e)', () => {
     },
   );
 
-  it.each(INVALID_DEVICE_NAMES)(
+  it.each(INVALID_RENAME_DEVICE_NAMES)(
     'L. 이름 변경이 %s을 400 으로 거부하고 이름을 바꾸지 않는다',
     async (_label, deviceName) => {
       const { userId, accessToken } = await registerAndLogin(

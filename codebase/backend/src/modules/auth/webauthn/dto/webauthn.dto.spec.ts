@@ -62,6 +62,12 @@ describe.each([
       ['maxCodePoints'],
     ],
     ['101 plain characters', 'a'.repeat(101), ['maxCodePoints', 'maxLength']],
+    // 길이는 앞뒤 공백을 지우기 전의 값으로 센다. 서비스는 지운 값(100개)을 저장하지만 DTO 가 먼저 거부한다.
+    [
+      '100 characters and a trailing space',
+      `${'a'.repeat(100)} `,
+      ['maxCodePoints', 'maxLength'],
+    ],
   ])('rejects %s', async (_label, deviceName, expected) => {
     expect(await deviceNameConstraints(dto, deviceName)).toEqual(expected);
   });
@@ -72,6 +78,15 @@ describe('WebAuthnRegisterVerifyDto deviceName', () => {
     expect(
       await deviceNameConstraints(WebAuthnRegisterVerifyDto, undefined),
     ).toEqual([]);
+  });
+});
+
+// 등록 검증은 표시 이름을 빼도 되므로 빈 이름 거부는 이름 변경에만 있다.
+describe('WebAuthnRenameDto deviceName', () => {
+  it('rejects an empty string', async () => {
+    expect(await deviceNameConstraints(WebAuthnRenameDto, '')).toEqual([
+      'minLength',
+    ]);
   });
 });
 

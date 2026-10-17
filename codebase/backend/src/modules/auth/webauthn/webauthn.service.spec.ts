@@ -343,6 +343,26 @@ describe('WebAuthnService', () => {
       },
     );
 
+    it.each([
+      ['is omitted', undefined, null],
+      ['is empty', '', null],
+      ['has only spaces', '   ', null],
+      ['has surrounding spaces', '  My Mac  ', 'My Mac'],
+    ])(
+      'saves a trimmed device name or null when the name %s',
+      async (_label, deviceName, stored) => {
+        await service.verifyRegistration(
+          userId,
+          'opts.tok',
+          validResponse as never,
+          deviceName,
+        );
+        expect(credentialRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ deviceName: stored }),
+        );
+      },
+    );
+
     // 라이브러리는 transports 를 검증하지 않고 그대로 돌려준다. mock 이 아닌 실제 라이브러리와
     // DB 컬럼에서의 동작은 e2e(webauthn-2fa.e2e-spec.ts 케이스 H)가 본다.
     it.each([
@@ -653,6 +673,20 @@ describe('WebAuthnService', () => {
       await service.renameCredential(userId, 'cred-1', '  My Yubikey  ');
       expect(credentialRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ deviceName: 'My Yubikey' }),
+      );
+    });
+
+    // 특성화 테스트다. 공백만 있는 이름을 어떻게 다룰지는 CLE-ACCT-SIGNIN 이 아직 정하지 않았다(NERV Task
+    // CLE-T-SREW0S). 지금은 앞뒤 공백을 지운 빈 문자열로 저장한다.
+    it('saves an empty string when the name has only spaces', async () => {
+      credentialRepo.findOne.mockResolvedValue({
+        id: 'cred-1',
+        userId,
+        deviceName: 'old',
+      });
+      await service.renameCredential(userId, 'cred-1', '   ');
+      expect(credentialRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ deviceName: '' }),
       );
     });
 
