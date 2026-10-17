@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "30db6b5a600f87f0bc9abd13b1e0359e5d295792d5948ab1c549d1ddc1f0a73e"
+content_hash: "c3bb8a67d7cef7f77391dc825e6235c271bcebeb60f35c8cdae10ba233f59104"
 read_as: "approved_fallback"
-task: "CLE-T-ERAJ7P"
+task: "CLE-T-D331TT"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "128457f19ca30228443c955861ebb3e2c900df0fba058ae4662a0cca0bfa5c43"
-etag: "sha256-67932903ccd982925fd5cab0c4e6cbf2621f54383d4533ee179dcc6cda522aa7"
+mirror_sha256: "335ff5e52140afb4a4c4de9812d9e6692a03f442fa13e4126e1bd876dcf30024"
+etag: "sha256-32bbab60e77041c85b8ee1c1481f4842f24343053719cee8462268863380e07f"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,7 +58,7 @@ etag: "sha256-67932903ccd982925fd5cab0c4e6cbf2621f54383d4533ee179dcc6cda522aa7"
 - REQ-SESSION-023 IF 사용자가 현재 로그인 세션을 강제 종료하려 하면 THE SYSTEM SHALL 400 `CANNOT_REVOKE_CURRENT_SESSION` 으로 거부하고 로그아웃을 쓰게 한다.
 - REQ-SESSION-024 IF 다른 사용자의 로그인 세션이나 없는 로그인 세션을 강제 종료하려 하면 THE SYSTEM SHALL 같은 404 로 응답한다.
 - REQ-SESSION-025 WHEN 계정 재인증을 하면 THE SYSTEM SHALL 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없는 계정은 등록된 TOTP 코드로 확인하고 둘 다 있으면 하나만 통과해도 받는다.
-- REQ-SESSION-026 IF 비밀번호도 2단계 인증도 없는 계정이 계정 재인증을 하려 하면 THE SYSTEM SHALL 403 `REAUTH_NOT_AVAILABLE` 로 막는다.
+- REQ-SESSION-026 IF 비밀번호도 TOTP 도 없는 계정이 계정 재인증을 하려 하면 THE SYSTEM SHALL Passkey 등록 여부와 상관없이 403 `REAUTH_NOT_AVAILABLE` 로 막는다.
 - REQ-SESSION-027 WHEN 비밀번호 변경이 성공하면 THE SYSTEM SHALL 사용자의 모든 로그인 세션을 무효화하고 현재 기기에 7일짜리 새 로그인 세션을 발급한다.
 - REQ-SESSION-028 WHEN 비밀번호 변경이나 이메일 변경으로 모든 로그인 세션을 무효화하면 THE SYSTEM SHALL 로그인 이력에 `session_revoked`(`familyId=null`) 1건을 남긴다.
 - REQ-SESSION-029 IF 비밀번호 변경 뒤 로그인 세션 무효화나 재발급이 실패하면 THE SYSTEM SHALL 이미 커밋한 비밀번호 변경을 유지하고 실패를 서버 로그에 남긴다.
@@ -126,7 +126,7 @@ etag: "sha256-67932903ccd982925fd5cab0c4e6cbf2621f54383d4533ee179dcc6cda522aa7"
 | 동시 로그인 세션 | 기본 5개(관리자 설정 가능). 미구현이다. 한도 값과 설정 주체는 [미결 사항](#미결-사항) |
 | 초과 시 | 가장 오래된 로그인 세션을 자동 종료한다. 미구현이다 |
 | 세션 강제 종료 | 사용자가 활성 세션 목록에서 로그인 세션을 하나씩 끝낼 수 있다. 그 `family_id` 전체를 무효화한다 |
-| 강제 종료 계정 재인증 | `SessionsService.verifyReauth` 로 본인을 확인한다. 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없고 2단계 인증이 있는 계정은 등록된 TOTP 코드로 확인한다. 둘 다 있으면 비밀번호, TOTP 순으로 하나만 통과하면 된다. 복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다. 비밀번호도 2단계 인증도 없는 OAuth 전용 계정은 `REAUTH_NOT_AVAILABLE` 로 막는다. Passkey 와 이메일 OTP 로 하는 계정 재인증은 현재 지원하지 않는다. 이메일 변경과 일괄 종료도 같은 `verifyReauth` 를 쓴다 |
+| 강제 종료 계정 재인증 | `SessionsService.verifyReauth` 로 본인을 확인한다. 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없고 TOTP 가 켜진 계정은 등록된 TOTP 코드로 확인한다. 둘 다 있으면 비밀번호, TOTP 순으로 하나만 통과하면 된다. 복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 `REAUTH_NOT_AVAILABLE` 로 막는다. Passkey 만 등록한 계정도 여기에 든다. Passkey 와 이메일 OTP 로 하는 계정 재인증은 현재 지원하지 않는다. 이메일 변경과 일괄 종료도 같은 `verifyReauth` 를 쓴다 |
 | 비밀번호 변경 시 | `POST /api/users/me/change-password` 가 성공하면 사용자의 모든 활성 로그인 세션을 무효화하고 변경한 현재 기기에 새 로그인 세션(새 액세스 토큰과 리프레시 쿠키)을 바로 발급한다. 로그인 이력에 `session_revoked`(일괄, `familyId=null`) 1건을 남긴다. 새 로그인 세션은 표준 7일(`rememberMe=false`)이다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않는다. 그래서 현재 로그인 세션을 식별할 수 없어 직전 로그인 세션의 로그인 유지 여부를 이어받지 않는다 |
 | 이메일 변경 시 | `POST /api/users/me/email-change/verify` 가 성공하면 비밀번호 변경과 같게 모든 로그인 세션을 무효화하고 현재 기기에 다시 발급한다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않아 현재 로그인 세션을 식별할 수 없다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 기존 enum 값을 다시 쓰므로 DB CHECK·마이그레이션이 필요 없다 |
 | 현재 로그인 세션 식별 | 서버가 요청의 리프레시 쿠키 해시를 조회해 `isCurrent` 로 응답한다. 원래 토큰은 JS 에 노출하지 않는다. 브라우저가 쿠키를 보내도록 세션 API 는 쿠키 Path 아래 `/api/auth/sessions` 에 둔다. 쿠키가 없거나 맞는 로그인 세션이 없으면 모든 로그인 세션의 `isCurrent` 가 false 이고 일괄 종료는 400 `CURRENT_SESSION_REQUIRED` 로 거부한다 |
@@ -143,7 +143,7 @@ etag: "sha256-67932903ccd982925fd5cab0c4e6cbf2621f54383d4533ee179dcc6cda522aa7"
 
 | 헬퍼 | 쓰는 곳 | 에러 코드 |
 | --- | --- | --- |
-| 계정 재인증 `SessionsService.verifyReauth` | 세션 강제 종료, 일괄 종료, 이메일 변경 | 비밀번호·TOTP 어느 쪽도 없거나 충족 안 됨 `REAUTH_REQUIRED`(400), 비밀번호 불일치 `PASSWORD_INVALID`(401), TOTP 불일치 `TOTP_INVALID`(401), 재인증 수단 없음(OAuth 전용) `REAUTH_NOT_AVAILABLE`(403) |
+| 계정 재인증 `SessionsService.verifyReauth` | 세션 강제 종료, 일괄 종료, 이메일 변경 | 요청에 비밀번호·TOTP 어느 쪽도 없거나 충족 안 됨 `REAUTH_REQUIRED`(400), 비밀번호 불일치 `PASSWORD_INVALID`(401), TOTP 불일치 `TOTP_INVALID`(401), 계정 재인증 수단 없음(계정에 비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함) `REAUTH_NOT_AVAILABLE`(403) |
 | 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 복구 코드 재발급 | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 2단계 인증 끄기는 비밀번호 확인 뒤 인증 코드를 확인하고 틀리면 401 `TOTP_INVALID` |
 | 비밀번호 변경 `UsersService.changePassword` | `POST /api/users/me/change-password` 의 현재 비밀번호 확인 | 비밀번호 미설정(`passwordHash` 없음) `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401), 사용자 없음 `USER_NOT_FOUND`(404) |
 
@@ -427,3 +427,7 @@ Origin 검증(REQ-SESSION-013)은 계속 갱신 요청에만 둔다.
 
 - 두 항목을 "계획" 으로 표시하는 안. "계획" 은 구현 상태 어휘(구현됨·부분 구현·미구현)에 없다. 30일 비활동 만료처럼 효과가 없는 약속은 영구 계획 표기로 남는다.
 - 30일 비활동 만료를 미구현으로 남기는 안. 효과가 없는 요구가 미구현 목록에 남아 구현 대상처럼 보인다.
+
+### 계정 재인증 수단 없음의 조건을 TOTP 기준으로 적었다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항과 세션 정책 표는 `REAUTH_NOT_AVAILABLE` 의 조건을 "비밀번호도 2단계 인증도 없는 계정" 으로 적었다. [가입과 로그인](CLE-ACCT-SIGNIN.md) 에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻한다. 구현(`SessionsService.verifyReauth`)은 `password_hash` 와 `two_factor_enabled` 만 본다. `two_factor_enabled` 는 TOTP 사용 여부만 뜻한다. 그래서 Passkey 만 등록하고 비밀번호와 TOTP 가 없는 계정도 403 `REAUTH_NOT_AVAILABLE` 이다. 문서를 이 조건으로 고쳤다. Passkey 로 하는 계정 재인증은 지원하지 않으므로 이 동작이 그 결정과 맞다. 동작은 바뀌지 않았다.

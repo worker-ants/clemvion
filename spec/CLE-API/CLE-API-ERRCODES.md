@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "e3133b07081bea011e28aa83a659e2f77e24eb4b309c46a6ae935e29bae78684"
+content_hash: "58087c3c436eb81439ea0db7827ce02a88f3f33c9d60929d008bdba487cb74be"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-D331TT"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "1c788d53006e809c0b64910214ea3c811218509dbbb30aec2c33ed1b5e448d3d"
-etag: "sha256-6775a9a85f08ab98ee97d929abe05bfbcf0fe4338d28175847af8563f99bdf06"
+mirror_sha256: "e49f0607cc76400ae0fa842ac897db47517820d1e94582db80413ae9f903ec68"
+etag: "sha256-bf761413c663c8d99c3a758016054aaa5127437971d48b412c2170a5ed88158c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -161,9 +161,11 @@ etag: "sha256-6775a9a85f08ab98ee97d929abe05bfbcf0fe4338d28175847af8563f99bdf06"
 | `ADMIN_REQUIRED` | 관리자 권한 필요 | 워크스페이스 소유자·관리자 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드. `RolesGuard` 의 `@Roles('admin')` 미달, `WorkspacesService.assertAdmin()`, `IntegrationsService` 의 조직 통합 변경 판정이 발행한다 | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
 | `EDITOR_REQUIRED` | 편집자 권한 필요 | 편집자 이상 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드(`RolesGuard` 의 `@Roles('editor')` 미달) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `OWNER_REQUIRED` | 소유자 권한 필요 | 소유자만 하는 동작을 소유자가 아닌 멤버가 요청함. 가드(`@Roles('owner')` 미달)와 서비스 계층(소유자 이양 재검증, 관리자 역할 규칙)이 함께 내고 메시지는 발행처마다 다르다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [워크스페이스와 멤버 「관리자 역할 규칙」](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) |
-| `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과(5회 실패 시 10분). `UnauthorizedException` 이다(Rationale "423 오기 정정") | 401 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패. `RolesGuard` 의 멤버십 거부(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않고 요구 역할과도 무관)와 전환(`/api/auth/workspaces/:id/switch`)·탈퇴·멤버십 확인 경로(`auth.service`, `workspaces.service`)가 발행한다 | 403 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
+| `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패. `RolesGuard` 의 멤버십 거부(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않고 요구 역할과도 무관)와 전환(`/api/auth/workspaces/:id/switch`)·탈퇴·멤버십 확인 경로(`auth.service`, `workspaces.service`)가 발행한다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
+
+`EMAIL_VERIFICATION_REQUIRED`(401)는 비밀번호는 맞지만 이메일 인증 전인 계정의 로그인에 쓰기로 정한 코드다. 아직 발행하지 않으므로 규칙 9 에 따라 위 표에 등재하지 않았다. 지금은 `LOGIN_FAILED` 로 모인다. 조건의 정의는 [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) 에 있고 구현(NERV Task `CLE-T-AYT4VB`)과 함께 이 표에 등재한다.
 
 `NOT_A_MEMBER`·`EDITOR_REQUIRED`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드 거부 코드(guard rejection codes)다. 가드 거부에 전용 코드를 쓰게 된 결정은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부에-에러-코드를-붙인다) 의 「가드 거부에 에러 코드를 붙인다」 Rationale(2026-09-25)에 있고 403 응답 설명에 싣는 규칙은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 새 엔드포인트 체크리스트에 있다. 이 가운데 `NOT_A_MEMBER`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드를 통과한 뒤 서비스 계층에서도 난다. 서비스 계층은 같은 뜻의 거부에 가드와 같은 코드를 쓴다. 예외는 초대 모듈이다. 초대 모듈(`WorkspaceInvitationsService`)의 서비스 계층 두 번째 방어선은 비멤버와 관리자 미만 멤버를 모두 §3 의 소문자 `admin_required` 로 거부한다. 초대 라우트는 가드가 먼저 `NOT_A_MEMBER` · `ADMIN_REQUIRED` 로 거부하므로 이 코드는 HTTP 로 나가지 않는다.
 
@@ -173,23 +175,26 @@ etag: "sha256-6775a9a85f08ab98ee97d929abe05bfbcf0fe4338d28175847af8563f99bdf06"
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `WEBAUTHN_DISABLED` | 503 | WebAuthn 기능이 꺼져 있을 때(환경 변수 미설정이고 폴백을 허용하지 않음) WebAuthn 엔드포인트 전체가 돌려준다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `WEBAUTHN_VERIFY_FAILED` | 400 | WebAuthn credential 등록 검증 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `WEBAUTHN_DISABLED` | 503 | Passkey 기능이 꺼져 있을 때(환경 변수 미설정이고 폴백을 허용하지 않음) 가용성 조회(`GET /api/auth/2fa/webauthn/availability`)를 뺀 Passkey 엔드포인트 전체가 돌려준다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정이 로그인 1단계를 통과하면 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다. 운영자가 설정을 바꿀 때까지 회복되지 않으므로 재시도 대상이 아니다. 일시 장애가 아닌데 `503` 을 쓰는 예외는 [HTTP API 규약](CLE-API-CONV.md) 규칙 11 에 있다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) |
+| `WEBAUTHN_VERIFY_FAILED` | 400 | Passkey 등록 검증 실패. 허용 목록 밖 알고리즘의 공개 키와 형식이 틀린 transport 목록(문자열 배열이 아니거나 NUL 문자가 든 경우)도 이 코드다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `INVALID_OPTIONS_TOKEN` | 400 | WebAuthn register·verify 의 optionsToken(짧은 수명의 서명 토큰) 무효 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `CHALLENGE_INVALID` | 401 | WebAuthn authenticate·options 의 challengeToken(mfa_challenge JWT) 검증 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `WEBAUTHN_INVALID` | 401 | WebAuthn 로그인 2FA 검증 실패. counter 역행도 포함하며 세부는 `login_history.failure_reason=WEBAUTHN_COUNTER_REGRESSION` 에 남는다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `CHALLENGE_INVALID` | 401 | 로그인 2단계의 챌린지 토큰(`challengeToken`, `mfa_challenge` JWT)이 만료 · 위조됐거나 2단계용 토큰이 아님. TOTP 검증(`POST /api/auth/login/totp`)과 Passkey 옵션 · 검증 · 복구 코드 경로가 함께 쓴다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `CHALLENGE_METHOD_MISMATCH` | 401 | 로그인 2단계에서 챌린지 토큰(`challengeToken`)이 정한 방식과 다른 경로를 부름. TOTP 챌린지(`methods: ['totp']`)로 받은 토큰을 Passkey 옵션 · 검증 · 복구 코드 경로에 보낸 경우다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
+| `WEBAUTHN_INVALID` | 401 | Passkey 로그인 2단계 검증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이 두 경우는 아직 구현되지 않았다([가입과 로그인 「sign counter 역행과 동시성」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성)). counter 역행은 별도 코드 `WEBAUTHN_COUNTER_REGRESSION` 이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `WEBAUTHN_COUNTER_REGRESSION` | 401 | Passkey 로그인 2단계에서 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 인증기의 sign counter 가 저장값 이하로 돌아감(저장값과 응답 값이 모두 0 이면 역행이 아니다). 서버가 그 credential 을 지우고 사용자의 리프레시 토큰을 모두 무효화한 뒤 이 코드로 거부한다. 처음 쓰는 챌린지와 서명 통과라는 조건은 아직 구현되지 않았다. 로그인 이력 `failure_reason` 에는 같은 이름의 사유값이 남는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
+| `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)을 부름. Passkey 가 있으면 TOTP 로 로그인할 수 없다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 TOTP 로 로그인하므로 나지 않는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 2FA 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. 이메일 변경과 로그인 세션 강제 종료의 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
+| `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 TOTP 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. Passkey 만 등록한 계정도 여기에 든다. 이메일 변경과 로그인 세션 강제 종료의 계정 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
 | `REAUTH_REQUIRED` | 400 | 계정 재인증 자격 증명이 없거나 부족함(비밀번호와 TOTP 어느 것도 검증할 수 없음) | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
 | `PASSWORD_INVALID` | 401 | 비밀번호 재확인 **불일치**. 계정 재인증(`verifyReauth`), 2FA 비활성화·Passkey 복구 코드 재발급의 재확인(`verifyPasswordForUser`), 비밀번호 변경이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `PASSWORD_REQUIRED` | 401 | 비밀번호가 **설정되지 않았거나(OAuth 전용) 입력되지 않음**. 2FA 비활성화·Passkey 복구 코드 재발급 같은 민감 동작의 `verifyPasswordForUser` 재확인과 비밀번호 변경이 함께 쓴다. 불일치는 형제 코드 `PASSWORD_INVALID` 다. 계정 재인증의 입력 누락 `REAUTH_REQUIRED`(400, `verifyReauth`)와는 발행 헬퍼도 상태 코드도 다른 별개 코드다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `PASSWORD_REQUIRED` | 401 | 비밀번호가 **설정되지 않았거나(OAuth 전용) 입력되지 않음**. 2FA 비활성화·Passkey 복구 코드 재발급 같은 민감 동작의 `verifyPasswordForUser` 재확인과 비밀번호 변경이 함께 쓴다. 불일치는 형제 코드 `PASSWORD_INVALID` 다. 계정 재인증의 입력 누락 `REAUTH_REQUIRED`(400, `verifyReauth`)와는 발행 헬퍼도 상태 코드도 다른 별개 코드다 | [세션과 토큰 「본인 확인 에러 코드」](../CLE-ACCT/CLE-ACCT-SESSION.md#본인-확인-에러-코드) |
 | `TOTP_INVALID` | 401 | TOTP 코드 불일치. 계정 재인증, 로그인 2FA, 2FA 켜기 확인, 2FA 비활성화(`POST /api/auth/2fa/disable`)가 함께 쓴다. 로그인 2FA 와 2FA 비활성화는 6자리 TOTP 코드나 TOTP 복구 코드를 받고 둘 다 맞지 않으면 이 코드다. 2FA 비활성화는 2FA 가 켜져 있지 않을 때도 이 코드를 낸다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2FA 챌린지(`AuthService.loginWithTotp`)에서 계정의 2FA 가 꺼져 있거나 사용자가 없음. 로그인 2FA 챌린지 전용이고 클라이언트는 다시 로그인하게 안내한다. 2FA 비활성화에서 2FA 가 꺼져 있을 때는 이 코드가 아니라 `TOTP_INVALID` 다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `TOTP_NOT_INITIALIZED` | 400 | 2FA 켜기 확인(`TotpService.verifyAndEnable`)에서 사용자가 없거나 TOTP secret 이 없음. 설정(`setup`)을 거치지 않고 확인을 부른 경우다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 
 - 이 표는 도메인 문서 본문에 문서화된 코드만 등재한다.
-- 로그인 실패 자체는 `LOGIN_FAILED`(§6.2)로 돌려준다(`PASSWORD_INVALID` 아님). 감사 기록은 `login_history` 의 `event`(`totp_failed` 등 소문자 값)와 `failure_reason`(`TOTP_INVALID`, `INVALID_PASSWORD` 등 대문자 사유값)에 남는다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). 사유값은 응답 코드가 아니다. 알 수 없는 이메일로 로그인하면 `failure_reason` 은 `USER_NOT_FOUND` 이고 응답은 `LOGIN_FAILED`(401)다(`auth.service.ts`).
-- **비슷한 이름 주의**: 비밀번호 재확인 계열 에러 코드는 셋이다(`PASSWORD_INVALID`, `PASSWORD_REQUIRED`, `REAUTH_REQUIRED`). 옛 `INVALID_PASSWORD` 는 2026-09-02 에 은퇴해 응답에 나가지 않는다(§5).
+- 로그인 실패 자체는 `LOGIN_FAILED`(§6.2)로 돌려준다(`PASSWORD_INVALID` 아님). 감사 기록은 `login_history` 의 `event`(`totp_failed` 등 소문자 값)와 `failure_reason`(`TOTP_INVALID`, `INVALID_PASSWORD` 등 대문자 사유값)에 남는다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). 사유값과 응답 에러 코드는 별개 층이다. `TOTP_INVALID` · `WEBAUTHN_COUNTER_REGRESSION` 처럼 이름이 같은 값도 있고 `INVALID_PASSWORD` 처럼 응답에서는 다른 코드(`LOGIN_FAILED`)로 나가는 값도 있다. 알 수 없는 이메일로 로그인하면 `failure_reason` 은 `USER_NOT_FOUND` 이고 응답은 `LOGIN_FAILED`(401)다(`auth.service.ts`).
+- **비슷한 이름 주의**: 비밀번호 재확인 계열 에러 코드는 셋이다(`PASSWORD_INVALID`, `PASSWORD_REQUIRED`, `REAUTH_REQUIRED`). 옛 `INVALID_PASSWORD` 는 2026-09-02 에 은퇴해 응답에 나가지 않는다(§5). 접미사가 같은 `WEBAUTHN_REQUIRED`(§6.3)는 이 계열이 아니다. 입력이 빠진 것이 아니라 TOTP 와 Passkey 가 모두 있는 계정의 TOTP 로그인을 막는 코드다.
 - **2FA 비활성화**: `POST /api/auth/2fa/disable` 의 인증 코드 실패는 새 코드 없이 `TOTP_INVALID`(401)를 쓴다. 확인 순서, 복구 코드 소비, 로그인 이력에 남기지 않는 규칙은 [가입과 로그인 「TOTP 끄기」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-끄기) 가 정한다.
 
 ### 6.4 유효성 검증
@@ -438,7 +443,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
 | `CANNOT_REVOKE_CURRENT_SESSION` | 400 | 단일 세션 강제 종료(`POST /api/auth/sessions/:familyId/revoke`)로 현재 요청의 refresh 토큰 쿠키와 맞는 세션 family 를 끝내려 함(자기 세션 종료 차단). 로그아웃을 쓰게 안내한다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
-| `OAUTH_STATE_MISMATCH` | 400 | OAuth state 가 없거나 만료·소비됐거나 provider 가 다름. 로그인 콜백에서는 URL 신호 `invalid_state`(§3)로 바뀐다. 통합 OAuth 도 같은 코드를 쓴다 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
+| `OAUTH_STATE_MISMATCH` | 400 | OAuth state 가 없거나 만료·소비됐거나 provider 가 다름. 로그인 콜백에서는 URL 신호 `invalid_state`(§3)로 바뀐다. 통합 OAuth 도 같은 코드를 쓴다 | [가입과 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-처리), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
 | `CANNOT_DELETE_PERSONAL` | 403 | personal 워크스페이스는 삭제할 수 없음(team 전용) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `CANNOT_LEAVE_PERSONAL` | 403 | personal 워크스페이스는 탈퇴할 수 없음(team 전용) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `SOLE_OWNER_CANNOT_LEAVE` | 403 | 유일한 소유자는 탈퇴할 수 없음 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
@@ -467,6 +472,8 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 - **발행처가 없는 등재 코드**: `SERVICE_UNAVAILABLE`·`DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **카탈로그에 아직 없는 통합 도메인 코드**: `INTEGRATION_*`, `OAUTH_CONFIG_MISSING`, `INSUFFICIENT_SCOPE`, `CAFE24_*` 등은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 API 에러 절에만 있고 이 카탈로그에 없다. 도메인 참조 절로 옮겨 등재할지 결정이 필요하다. 발행하는데 행이 없는 코드의 정리는 NERV Task `CLE-T-5BZ3M2` 에서 한다.
+- **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_CREDENTIAL_NOT_FOUND` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다.
+- **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 - **`LLM_TIMEOUT` 을 enum 에 남길지**: 어느 경로도 발행하지 않는다(§6.6). [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 는 이 enum 의 사용처·범위 정리를 이 문서 소관으로 넘겼다. `HTTP_TIMEOUT` 처럼 남길지 enum 에서 뺄지 결정이 필요하다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 스트리밍 턴 타임아웃에 이 코드를 약속한다. 그 약속은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항) 의 LLM 호출 타임아웃 기준 미결과 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **가이드 식별자 실재 가드의 소유**: `PROJECT.md` 는 가이드가 인용한 에러 코드·환경 변수가 코드에 실재하는지 보는 가드(`guide-identifier-existence`)의 기준 문서로 이 규약을 지목한다. 원문 규약에는 가이드 인용 규칙도 이 가드도 없어 여기 싣지 않았다. 어느 문서가 이 가드를 소유할지는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#미결-사항) 의 미결에서 정한다.
@@ -612,3 +619,25 @@ NERV Task `CLE-T-XRWFMJ` 에서 사람이 정한 결정이다. 웹훅 트리거�
 - **코드를 명시한다.** `410` 에는 기본 코드가 없다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)).
 
 기각한 대안: **`TRIGGER_INACTIVE` 를 다시 쓰는 안**. 트리거는 활성이므로 코드의 뜻(트리거가 비활성)과 실제 조건이 어긋난다(규칙 1).
+
+### 로그인 2단계에서 발행하던 미등재 코드 셋을 등재했다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 바로잡았다. `WEBAUTHN_COUNTER_REGRESSION` · `CHALLENGE_METHOD_MISMATCH` · `WEBAUTHN_REQUIRED` 는 모두 401 로 발행되고 있었다. 그런데 §6.3 에도 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에도 없었다. 규칙 8 위반이다.
+
+- 도메인 문서에 먼저 적고 이 표에 등재했다. 세 이름 모두 조건의 뜻을 적고 있어 규칙 1 에 맞는다.
+- `WEBAUTHN_INVALID` 행은 counter 역행도 이 코드에 든다고 적었다. 구현은 counter 역행에 응답 코드 `WEBAUTHN_COUNTER_REGRESSION` 을 돌려준다. 로그인 이력의 사유값과 같은 이름이다. 그래서 행을 구현에 맞췄다. counter 역행이면 서버가 그 credential 을 지우므로 사용자가 할 일이 다르다. 같은 Passkey 로는 다시 로그인할 수 없고 Passkey 를 다시 등록해야 한다. 그래서 별개 조건으로 본다(규칙 6).
+- 이 Task 본문은 등재와 구현 변경 두 안을 올렸다. 구현 변경은 counter 역행의 응답 코드를 `WEBAUTHN_INVALID` 로 합치는 안이다. 등재를 골랐다. 구현이 처음부터 이 코드를 내보내므로 이름을 바꾸면 규칙 5 에 어긋난다. 이 응답은 비밀번호 확인을 통과해 챌린지 토큰을 받은 호출자에게만 간다. 그 호출자가 더 알게 되는 것은 방금 쓴 credential 이 역행으로 지워졌다는 사실이다. 이 노출은 위협 모델로 따로 검토하지 않았다.
+- Passkey 의 나머지 미등재 코드(`WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_CREDENTIAL_NOT_FOUND` · `WEBAUTHN_NOT_REGISTERED`)는 이번에 넣지 않았다. NERV Task `CLE-T-9KCQ7Y` 가 등록 저장의 원자성과 함께 다룬다. 그때까지 「미결 사항」 에 올려 둔다.
+- §6.3 끝 불릿의 "사유값은 응답 코드가 아니다" 를 "별개 층이다" 로 고쳤다. `TOTP_INVALID` 처럼 사유값과 응답 코드의 이름이 같은 경우가 전부터 있어서 옛 문장은 맞지 않았다. 이름은 바꾸지 않았다(규칙 5).
+- §5 `INVALID_PASSWORD` 행은 새 코드 `PASSWORD_NOT_SET` 을 만들지 않은 이유로 감사 사유값과의 이름 충돌을 들었다. 이번 등재와 어긋나 보이지만 두 판단은 대상이 다르다. 그 행은 새 이름을 만들지 말지를 정했고 이번 등재는 이미 발행 중인 `WEBAUTHN_COUNTER_REGRESSION` 을 다뤘다. 발행 중인 이름은 사유값과 같아도 규칙 5 로 바꾸지 않는다. 사유값과 겹치는 이름을 피할지는 규칙 1~10 에 없고 새 코드를 만들 때마다 따진다. 2026-09-02 결정은 바뀌지 않았다.
+- §6.3 끝의 「비슷한 이름 주의」 불릿에 `WEBAUTHN_REQUIRED` 를 더했다. 접미사가 `PASSWORD_REQUIRED` · `REAUTH_REQUIRED` 와 같지만 뜻이 다르다.
+- 비밀번호 재설정 실패의 두 원인이 같은 코드인 문제를 「미결 사항」 에 올렸다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 가 정한다.
+- `LOGIN_FAILED` 행에는 어떤 경우를 이 코드로 거부하는지 적지 않았다. 그 목록은 정의 문서인 [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) 한 곳에 둔다(규칙 8). 이메일 인증 전 계정의 로그인 응답은 처음에 정해지지 않았다. 그 뒤 사람 결정이 나서 아래 「로그인 결정 셋을 카탈로그에 옮겼다」 에 적었다.
+
+### 로그인 결정 셋을 카탈로그에 옮겼다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카탈로그에 옮겼다. 결정과 이유의 정본은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) Rationale 이다. 셋 다 아직 구현되지 않았고 구현 Task 는 그 문서 본문에 있다.
+
+- **이메일 인증 전 계정**: 비밀번호가 맞을 때만 새 코드 `EMAIL_VERIFICATION_REQUIRED`(401)로 알린다. 아직 발행하지 않아 §6.2 표가 아니라 표 아래 문장에 적었고 구현과 함께 표에 등재한다(규칙 9). 사용자가 할 일이 자격 증명 확인과 달라 규칙 6 의 새 조건이다. 같은 코드로 묶는 은닉은 이 응답이 비밀번호가 맞을 때만 나서 해당하지 않는다. 클라이언트는 이 코드로 안내 문구를 고른다(규칙 4). 이름은 감사 사유값 `EMAIL_NOT_VERIFIED` 와 겹치지 않게 골랐다. 처음 초안은 `LOGIN_FAILED` 에 메시지만 다르게 두었다. 그러면 규칙 4 · 6 과 어긋나 사람이 다시 정했다. `LOGIN_FAILED` 행의 「잘못된 자격 증명」 은 그대로 맞다([가입과 로그인 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다-2026-10-17)).
+- **Passkey 기능이 꺼졌을 때의 로그인**: Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인도 `WEBAUTHN_DISABLED`(503)를 받는다. 그래서 그 행에 로그인을 더하고 `WEBAUTHN_REQUIRED` 행의 이유를 고쳤다. 기능이 꺼지면 credential 을 0개로 본다는 이유는 이 결정으로 맞지 않게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)).
+- **Passkey 인증 챌린지**: 이미 쓴 챌린지와 서명이 틀린 응답은 `WEBAUTHN_INVALID` 이고 credential 을 지우지 않는다. `WEBAUTHN_COUNTER_REGRESSION` 은 처음 쓰는 챌린지에서 서명이 맞는 응답에만 난다. 새 코드는 만들지 않았다. 두 경우 모두 사용자가 할 일은 Passkey 로 다시 시도하는 것이라 `WEBAUTHN_INVALID` 의 뜻에 든다([가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17)).

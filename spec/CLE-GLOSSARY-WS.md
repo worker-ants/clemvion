@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 작업 공간"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "ca171488fa595bb741e27333ad2c7a060d4ef92be13f836601d0d4752162c12c"
+content_hash: "c2ca656a7eb68cd36fe34b8c07480e3bb935a6142e9cc7abcda8c09c0907076a"
 read_as: "approved_fallback"
-task: "CLE-T-0W7CA7"
+task: "CLE-T-D331TT"
 source_paths: []
-mirror_sha256: "87517297a4cd166814d77c630cece92a2d854da294006da011e5cf4b3df8d27f"
-etag: "sha256-6915b16027491fee20d30623cc9b1035a8ca8e9f9fcae211ffd0888454ed88e9"
+mirror_sha256: "e1356bd38eb7ee3b9b866626a8c598eb31c55d30e508400ac4e0eba77c7e1dbd"
+etag: "sha256-5fbff3b06b8b802d876de22d812a4be7ea8ea45d064eddfcd73c814fe8efb102"
 ---
 ## 개요
 
@@ -52,12 +52,13 @@ etag: "sha256-6915b16027491fee20d30623cc9b1035a8ca8e9f9fcae211ffd0888454ed88e9"
 | 소유자 이양 | transfer ownership, `transfer-ownership` | 현재 소유자가 다른 멤버에게 소유자 역할을 넘기는 동작. 기존 소유자는 관리자가 된다. | 소유권 이전, Owner 이양, 양도 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 가입 | sign up | 이메일과 비밀번호, 또는 소셜 로그인으로 계정을 만드는 절차. 초대 링크로 가입하면 초대도 함께 수락한다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 소셜 로그인 | OAuth login, `auth_oauth_state` | Google·GitHub 같은 외부 계정으로 로그인하는 방식. 통합의 OAuth 연결과 다른 흐름이다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| OAuth 전용 계정 | OAuth-only account, `password_hash IS NULL` | 비밀번호 없이 소셜 로그인으로만 가입한 계정. 2단계 인증도 없으면 계정 재인증을 할 수 없다. | OAuth-only, OAuth 단독 가입 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| OAuth 전용 계정 | OAuth-only account, `password_hash IS NULL` | 비밀번호 없이 소셜 로그인으로만 가입한 계정. 이 계정이 계정 재인증을 할 수 있는 조건은 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md#세션-정책) 에 있다. | OAuth-only, OAuth 단독 가입 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 2단계 인증 | 2FA | 비밀번호 다음에 한 번 더 확인하는 로그인 단계. TOTP 와 Passkey·보안 키 두 방식이 있다. | 이중 인증, 2FA(본문 단독) | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | TOTP | TOTP, `two_factor_enabled` | 인증 앱이 만드는 6자리 코드로 하는 2단계 인증. `two_factor_enabled` 는 TOTP 사용 여부만 뜻한다. | OTP | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| Passkey·보안 키 | WebAuthn, `WebAuthnCredential` | 브라우저 WebAuthn 인증기로 하는 2단계 인증. 하나라도 등록돼 있으면 로그인 때 이 방식만 보여 주고 TOTP 로 자동 전환하지 않는다. | 패스키, WebAuthn(본문 단독) | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| Passkey·보안 키 | WebAuthn, `WebAuthnCredential` | 브라우저 WebAuthn 인증기로 하는 2단계 인증. 로그인에서 어느 방식을 쓰는지는 [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-방식-선택) 이 정한다. | 패스키, WebAuthn(본문 단독) | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 복구 코드 | recovery code, `totp_recovery_codes`, `webauthn_recovery_codes` | 2단계 인증 수단을 잃었을 때 쓰는 일회용 코드. TOTP 와 Passkey 가 코드 묶음을 따로 쓴다. | 백업 코드 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| 챌린지 토큰 | `challengeToken` | 비밀번호를 통과한 뒤 2단계 인증 검증을 부를 때 쓰는 단기 토큰. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| 챌린지 토큰 | `challengeToken` | 로그인 1단계를 통과한 뒤 2단계 인증 검증을 부를 때 쓰는 단기 토큰. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| Passkey 인증 챌린지 | `optionsToken` 의 `challenge` | 로그인 2단계 Passkey 옵션 토큰(`optionsToken`, `kind=webauthn_auth`)에 담는 무작위 값. 인증기가 이 값에 서명한다. 챌린지 토큰과 다르다. | Passkey 챌린지(단독) | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 계정 잠금 | account lock, `ACCOUNT_LOCKED` | 로그인이 연속으로 정한 횟수만큼 실패하면 한동안 로그인을 막는 상태. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 이메일 변경 | email change, `pendingEmail` | 계정 재인증, 새 주소 확인 메일, 링크 확인 순서로 로그인 이메일을 바꾸는 절차. 확정되면 모든 로그인 세션을 끊고 현재 기기에는 로그인 세션을 새로 발급한다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | 비밀번호 재설정 | password reset | 로그인하지 못할 때 메일 링크로 비밀번호를 새로 정하는 절차. 로그인한 상태에서 바꾸는 것은 "비밀번호 변경" 이다. | 없음 | [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) |
@@ -119,3 +120,19 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 - 규칙 문장을 정의에 둔다(처음 초안): 색인 개요의 「이 사전은 이름과 한 줄 정의만 정한다」 에 어긋난다. 동작마다의 결과는 [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) 에 있고 그쪽이 바뀌면 사전도 함께 고쳐야 한다.
 - 「소유자」 정의에도 같은 안내를 적는다: 같은 안내가 여러 행에 있으면 한쪽만 고쳐질 수 있다. 제약을 받는 「관리자」 와 오해가 생긴 「초대」 에만 적었다.
+
+### 「OAuth 전용 계정」 에서 계정 재인증 규칙 문장을 뺐다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) 의 `REAUTH_NOT_AVAILABLE` 조건을 "비밀번호도 TOTP 도 없는 계정" 으로 바로잡았다. 계정 재인증(`verifyReauth`)은 비밀번호와 TOTP 만 받기 때문이다. 「OAuth 전용 계정」 정의는 "2단계 인증도 없으면 계정 재인증을 할 수 없다" 고 적었다. 이 사전에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻한다. 그래서 Passkey 만 등록한 OAuth 전용 계정은 계정 재인증을 할 수 있는 것으로 읽혔다. 정의 칸의 규칙 문장이 기준 문서와 어긋난 사례다. 2026-10-04 의 「현재 워크스페이스」 · 「참조의 소속」 과 2026-10-10 의 「비밀번호 재확인」 · 「관리자」 · 「초대」 처럼 규칙 문장을 빼고 기준 문서를 가리키는 문장으로 바꿨다.
+
+같은 Task 에서 「Passkey·보안 키」 정의의 로그인 선택 규칙 문장("하나라도 등록돼 있으면 로그인 때 이 방식만 보여 주고 TOTP 로 자동 전환하지 않는다")도 뺐다. 같은 날 사람 결정으로 Passkey 기능이 꺼지면 TOTP 가 켜진 사용자는 TOTP 로 로그인하게 됐다. 그 예외를 한 줄 정의에 담을 수 없어 기준 문서를 가리키게 했다.
+
+기각한 대안은 하나다.
+
+- 조건을 "TOTP 도 없으면" 으로 고쳐 정의에 남긴다(처음 초안): 색인 개요의 「이 사전은 이름과 한 줄 정의만 정한다」 에 어긋난다. 계정 재인증 수단이 바뀌면 정의가 다시 틀린 말이 된다.
+
+### 「Passkey 인증 챌린지」 를 더하고 「챌린지 토큰」 정의를 고쳤다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 로그인 Passkey 인증 챌린지를 한 번만 쓰기로 정했다. 챌린지라는 이름이 붙은 값이 챌린지 토큰, 로그인 1단계 응답의 `methods` 챌린지, Passkey 인증 챌린지 셋이 됐다. 줄여 쓴 「Passkey 챌린지」 로는 어느 값인지 알 수 없다. 그래서 「Passkey 인증 챌린지」 를 올리고 단독 「Passkey 챌린지」 를 쓰지 않는 말로 적었다.
+
+「챌린지 토큰」 정의의 "비밀번호를 통과한 뒤" 는 "로그인 1단계를 통과한 뒤" 로 고쳤다. 로그인 1단계에는 비밀번호 말고도 계정 잠금과 이메일 인증 확인이 든다.

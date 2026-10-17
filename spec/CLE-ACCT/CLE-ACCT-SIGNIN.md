@@ -2,21 +2,21 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
-requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064"]
+requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "7fd1f6cda110d71bc95f63d375c41d33d375fa2f9bef93cec5778e26611740b7"
+content_hash: "479d4352b68ac25012707f65c0331bd88d7a55df15d02c7f73c12d836af0ecc3"
 read_as: "approved_fallback"
-task: "CLE-T-SREW0S"
+task: "CLE-T-D331TT"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "4dff7b73c744d34c6d1fc6fb1c5f01e0ba686e13b098acf3bee13cb9344e8e05"
-etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
+mirror_sha256: "220ea2e986c872f21e167b5c056fa88832a422bccb0506ab4260b18fe6169a4b"
+etag: "sha256-91b1ac0a2f0a6db5dfc8ac8e376cb4f0276f8e5c1746c37398e9ce5910bcad1c"
 ---
-> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -46,12 +46,12 @@ etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
 - REQ-SIGNIN-009 WHILE 사용자가 비밀번호를 입력하는 동안 THE SYSTEM SHALL 5단계 비밀번호 강도 바를 보여 준다.
 - REQ-SIGNIN-010 WHEN 초대 토큰 없이 가입이 성공하면 THE SYSTEM SHALL 토큰을 발급하지 않고 이메일 인증 안내 화면으로 보낸다.
 - REQ-SIGNIN-011 WHEN 사용자가 이메일 인증 링크를 열면 THE SYSTEM SHALL 24시간 안의 토큰인지 검증하고 개인 워크스페이스를 만든 뒤 자동 로그인해 대시보드로 보낸다.
-- REQ-SIGNIN-012 WHEN 인증 메일 재발송을 요청받으면 THE SYSTEM SHALL 계정 존재·인증 여부와 상관없이 같은 응답을 주고 24시간짜리 인증 토큰을 다시 보낸다.
+- REQ-SIGNIN-012 WHEN 인증 메일 재발송을 요청받으면 THE SYSTEM SHALL 계정 존재·인증 여부와 상관없이 같은 응답을 주고 인증 전 계정에만 24시간짜리 인증 토큰을 다시 보낸다.
 - REQ-SIGNIN-013 WHEN 사용자가 인증 안내 화면이나 재설정 안내 화면에서 재발송 버튼을 누르면 THE SYSTEM SHALL 60초 쿨다운을 적용한다.
-- REQ-SIGNIN-014 IF 로그인이 실패하면 THE SYSTEM SHALL 실패 이유를 드러내지 않는 같은 문구를 보여 준다.
-- REQ-SIGNIN-015 WHEN 비밀번호 검증을 통과한 사용자에게 Passkey·보안 키가 1개 이상 있으면 THE SYSTEM SHALL `methods: ['webauthn']` 챌린지를 주고 TOTP 입력을 제공하지 않는다.
-- REQ-SIGNIN-016 WHEN 비밀번호 검증을 통과한 사용자에게 Passkey 가 없고 TOTP 가 켜져 있으면 THE SYSTEM SHALL `methods: ['totp']` 챌린지를 준다.
-- REQ-SIGNIN-017 WHEN 비밀번호 검증을 통과한 사용자에게 2단계 인증이 없으면 THE SYSTEM SHALL 바로 액세스 토큰을 발급한다.
+- REQ-SIGNIN-014 IF 없는 이메일 · 비밀번호가 없는 계정 · 틀린 비밀번호로 로그인이 실패하면 THE SYSTEM SHALL 어느 경우인지 드러내지 않는 같은 문구를 보여 준다. (부분 구현)
+- REQ-SIGNIN-015 WHEN Passkey 기능이 켜져 있고 로그인 1단계를 통과한 사용자에게 Passkey·보안 키가 1개 이상 있으면 THE SYSTEM SHALL `methods: ['webauthn']` 챌린지를 주고 TOTP 입력을 제공하지 않는다.
+- REQ-SIGNIN-016 WHEN 로그인 1단계를 통과한 사용자에게 Passkey 가 없고 TOTP 가 켜져 있으면 THE SYSTEM SHALL `methods: ['totp']` 챌린지를 준다.
+- REQ-SIGNIN-017 WHEN 로그인 1단계를 통과한 사용자에게 2단계 인증이 없으면 THE SYSTEM SHALL 바로 액세스 토큰을 발급한다.
 - REQ-SIGNIN-018 IF Passkey 인증이 실패하면 THE SYSTEM SHALL 같은 화면에서 Passkey 복구 코드 입력만 제공하고 TOTP 화면으로 자동 전환하지 않는다.
 - REQ-SIGNIN-019 WHEN 클라이언트가 로그인 응답을 받으면 THE SYSTEM SHALL `requires2fa` 와 `methods[0]` 만 보고 2단계 화면을 고른다.
 - REQ-SIGNIN-020 WHEN TOTP 활성화 검증이 성공하면 THE SYSTEM SHALL TOTP 복구 코드 10개를 한 번만 평문으로 보여 주고 SHA-256 해시로 저장한다.
@@ -60,22 +60,22 @@ etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
 - REQ-SIGNIN-023 WHEN 사용자가 TOTP 를 끄면 THE SYSTEM SHALL 비밀번호 재확인과 TOTP 코드 확인을 모두 통과한 뒤에만 TOTP secret 과 TOTP 복구 코드를 비운다.
 - REQ-SIGNIN-024 WHEN 사용자가 마지막 Passkey 를 삭제하면 THE SYSTEM SHALL 애플리케이션 계층에서 Passkey 복구 코드를 NULL 로 비운다.
 - REQ-SIGNIN-025 WHEN 사용자가 Passkey 복구 코드 재발급을 요청하면 THE SYSTEM SHALL 비밀번호 재확인 뒤 기존 미사용 코드를 버리고 10개를 새로 발급한다.
-- REQ-SIGNIN-026 IF `WEBAUTHN_RP_ID`·`WEBAUTHN_ORIGIN` 이 설정되지 않았고 `WEBAUTHN_ALLOW_FALLBACK=1` 도 아니면 THE SYSTEM SHALL 부팅은 계속하되 Passkey 엔드포인트를 모두 503 `WEBAUTHN_DISABLED` 로 응답한다.
-- REQ-SIGNIN-027 WHILE Passkey 기능이 꺼져 있는 동안 THE SYSTEM SHALL 로그인 분기에서 credential 이 없는 것으로 취급하고 저장된 credential 행은 보존한다.
-- REQ-SIGNIN-028 IF Passkey 인증기의 sign counter 가 저장값 이하로 돌아가면 THE SYSTEM SHALL 그 credential 행을 즉시 삭제하고 사용자의 활성 리프레시 토큰을 모두 무효화한다.
+- REQ-SIGNIN-026 IF `WEBAUTHN_RP_ID`·`WEBAUTHN_ORIGIN` 이 설정되지 않았고 `WEBAUTHN_ALLOW_FALLBACK=1` 도 아니면 THE SYSTEM SHALL 부팅은 계속하되 가용성 조회(`GET /api/auth/2fa/webauthn/availability`)를 뺀 Passkey 엔드포인트를 모두 503 `WEBAUTHN_DISABLED` 로 응답한다.
+- REQ-SIGNIN-027 WHILE Passkey 기능이 꺼져 있는 동안 THE SYSTEM SHALL 로그인에서 `methods: ['webauthn']` 챌린지를 주지 않고 TOTP 가 켜진 사용자에게 `methods: ['totp']` 챌린지를 주며 저장된 credential 행은 보존한다.
+- REQ-SIGNIN-028 IF 처음 쓰는 Passkey 인증 챌린지로 온 인증 응답이 서명 검증을 통과했는데 sign counter 가 저장값 이하이면(저장값과 응답 값이 모두 0 인 경우는 뺀다) THE SYSTEM SHALL 그 credential 행을 즉시 삭제하고 사용자의 활성 리프레시 토큰을 모두 무효화한다. (부분 구현)
 - REQ-SIGNIN-029 IF sign counter 역행으로 credential 을 삭제하면 THE SYSTEM SHALL 로그인 이력에 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`)를 남긴다.
-- REQ-SIGNIN-030 WHEN 같은 assertion 으로 Passkey 인증 요청이 동시에 오면 THE SYSTEM SHALL credential 행을 잠그는 단일 트랜잭션으로 처리해 한 요청만 통과시킨다.
+- REQ-SIGNIN-030 WHEN 같은 Passkey 인증 챌린지로 인증 검증 요청이 동시에 오면 THE SYSTEM SHALL 한 요청만 서명 · counter 판정으로 보내고 나머지는 credential 을 지우지 않고 401 `WEBAUTHN_INVALID` 로 거부한다. (미구현)
 - REQ-SIGNIN-031 WHEN 비밀번호 재설정을 요청받으면 THE SYSTEM SHALL 계정 존재·가입 경로와 상관없이 같은 응답을 주고 메일 발송 실패도 드러내지 않는다.
 - REQ-SIGNIN-032 WHEN 이메일을 가진 사용자가 비밀번호 재설정을 요청하면 THE SYSTEM SHALL OAuth 전용 계정과 Passkey 보유 계정을 포함해 30분짜리 재설정 토큰을 메일로 보낸다.
-- REQ-SIGNIN-033 WHEN 비밀번호 재설정이 성공하면 THE SYSTEM SHALL 그 사용자의 리프레시 토큰을 모두 무효화하고 새 세션 없이 로그인 화면으로 보낸다.
+- REQ-SIGNIN-033 WHEN 비밀번호 재설정이 성공하면 THE SYSTEM SHALL 그 사용자의 리프레시 토큰을 모두 무효화하고 새 로그인 세션 없이 로그인 화면으로 보낸다.
 - REQ-SIGNIN-034 WHEN 비밀번호 재설정이 성공하면 THE SYSTEM SHALL Passkey credential 과 복구 코드를 그대로 보존한다.
 - REQ-SIGNIN-035 IF 재설정 토큰이 만료됐거나 무효이면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 화면에 재요청 링크를 보여 준다.
 - REQ-SIGNIN-036 WHEN 재설정 토큰을 한 번 쓰면 THE SYSTEM SHALL 그 토큰을 바로 무효화한다.
 - REQ-SIGNIN-037 WHEN 사용자가 이메일 변경을 시작하면 THE SYSTEM SHALL 비밀번호 또는 등록된 TOTP 로 계정 재인증을 요구한다.
-- REQ-SIGNIN-038 IF 비밀번호도 2단계 인증도 없는 OAuth 전용 계정이 이메일 변경을 시작하면 THE SYSTEM SHALL 403 `REAUTH_NOT_AVAILABLE` 로 막는다.
+- REQ-SIGNIN-038 IF 비밀번호도 TOTP 도 없는 OAuth 전용 계정이 이메일 변경을 시작하면 THE SYSTEM SHALL Passkey 등록 여부와 상관없이 403 `REAUTH_NOT_AVAILABLE` 로 막는다.
 - REQ-SIGNIN-039 WHEN 이메일 변경을 시작하면 THE SYSTEM SHALL 새 이메일로만 1시간짜리 확인 메일을 보내고 옛 이메일 확인을 차단 조건으로 쓰지 않는다.
-- REQ-SIGNIN-040 WHEN 이메일 변경 확인 토큰을 소비하면 THE SYSTEM SHALL 로그인한 본인 세션의 요청만 받는다.
-- REQ-SIGNIN-041 WHEN 이메일 변경이 확정되면 THE SYSTEM SHALL 모든 로그인 세션을 무효화하고 현재 기기에 새 세션을 발급한다.
+- REQ-SIGNIN-040 WHEN 이메일 변경 확인 토큰을 소비하면 THE SYSTEM SHALL 본인의 로그인 세션에서 온 요청만 받는다.
+- REQ-SIGNIN-041 WHEN 이메일 변경이 확정되면 THE SYSTEM SHALL 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다.
 - REQ-SIGNIN-042 WHEN 이메일 변경이 확정되면 THE SYSTEM SHALL 옛 이메일에 보안 통지를 보내고 발송 실패는 무시한다.
 - REQ-SIGNIN-043 WHEN 이메일 변경이 확정되면 THE SYSTEM SHALL 감사 로그 `user.email_changed` 를 남기되 details 에 원래 이메일 값을 담지 않는다.
 - REQ-SIGNIN-044 IF 새 이메일을 다른 계정이 쓰고 있으면 THE SYSTEM SHALL 409 `RESOURCE_CONFLICT` 로 거부한다.
@@ -99,6 +99,13 @@ etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
 - REQ-SIGNIN-062 WHEN Passkey 등록 검증이 성공하면 THE SYSTEM SHALL 클라이언트가 보낸 transport 문자열을 표준 값이 아니어도 바꾸거나 빼지 않고 저장한다.
 - REQ-SIGNIN-063 IF Passkey 등록 검증 요청이나 Passkey 이름 변경 요청의 표시 이름(`deviceName`)이 유니코드 코드 포인트 100개를 넘거나 NUL 문자(`\u0000`)가 들어 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 credential 을 만들거나 이름을 바꾸지 않는다.
 - REQ-SIGNIN-064 IF Passkey 이름 변경 요청의 표시 이름(`deviceName`)이 비었거나 공백 문자로만 돼 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 이름을 바꾸지 않는다.
+- REQ-SIGNIN-065 WHEN 로그인 요청을 받으면 THE SYSTEM SHALL 이메일 인증 여부를 비밀번호 확인 뒤에 확인한다. (미구현)
+- REQ-SIGNIN-066 IF 비밀번호가 맞지만 이메일 인증을 마치지 않은 계정이 로그인하면 THE SYSTEM SHALL 토큰을 발급하지 않고 401 `EMAIL_VERIFICATION_REQUIRED` 로 거부한다. (미구현)
+- REQ-SIGNIN-067 IF Passkey 기능이 꺼져 있는 동안 Passkey credential 이 1개 이상 있고 TOTP 가 꺼진 사용자가 로그인 1단계를 통과하면 THE SYSTEM SHALL 토큰을 발급하지 않고 503 `WEBAUTHN_DISABLED` 로 거부한다. (미구현)
+- REQ-SIGNIN-068 WHEN 로그인 2단계 Passkey 인증 검증 요청을 받으면 THE SYSTEM SHALL 서명과 counter 를 판정하기 전에 그 요청의 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)를 만료 시각까지 다시 쓰지 못하게 기록한다. (미구현)
+- REQ-SIGNIN-069 IF 이미 인증 검증에 쓴 Passkey 인증 챌린지로 인증 검증 요청이 오면 THE SYSTEM SHALL credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 로 거부한다. (미구현)
+- REQ-SIGNIN-070 IF Passkey 인증 응답이 서명 검증을 통과하지 못하면 THE SYSTEM SHALL counter 값과 상관없이 credential 을 지우지 않고 401 `WEBAUTHN_INVALID` 로 거부한다. (부분 구현)
+- REQ-SIGNIN-071 IF Passkey 인증 검증이 실패하면 THE SYSTEM SHALL 같은 챌린지 토큰(`challengeToken`)으로 새 옵션을 받거나 Passkey 복구 코드로 통과할 수 있게 둔다.
 
 ## 인증 화면 공통
 
@@ -181,9 +188,9 @@ etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
 | 비밀번호 분실 | 이메일로 30분짜리 재설정 링크를 보낸다. 이메일이 있는 모든 사용자에게 발급한다([비밀번호 재설정](#비밀번호-재설정)) |
 | 로그인 실패 | 5회 연속 실패하면 10분 잠금. 이메일 알림은 없다 |
 | 토큰 저장 | 이메일 인증 토큰(`emailVerifyToken`)·비밀번호 재설정 토큰(`passwordResetToken`)·이메일 변경 토큰(`emailChangeToken`)은 SHA-256 해시로만 저장한다. 원래 토큰은 메일 링크로만 전달하고 DB 에 두지 않는다. 검증할 때는 입력 토큰을 같은 해시로 바꿔 비교한다 |
-| 인증 메일 재발송 | `POST /api/auth/resend-verification`. IP 당 분당 5회, 이메일 존재 여부와 상관없이 같은 응답. 새 인증 토큰은 24시간 유효 |
+| 인증 메일 재발송 | `POST /api/auth/resend-verification`. IP 당 분당 5회, 이메일 존재·인증 여부와 상관없이 같은 응답. 인증 전 계정에만 새 인증 토큰(24시간 유효)을 보낸다 |
 
-계정 잠금(account lock, `ACCOUNT_LOCKED`)은 `login_attempts` 가 5에 이르면 `locked_until = now + 10분` 으로 건다. 잠긴 동안 로그인하면 401 `ACCOUNT_LOCKED` 를 돌려주고 로그인 이력에 `login_failed`(`reason=ACCOUNT_LOCKED`)를 남긴다. 로그인이 성공하면 카운터와 잠금을 지운다. 상태 전이는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다. IP 단위 요청 한도는 계정 잠금과 별개의 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 한도가 먼저 막고, 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
+계정 잠금(account lock, `ACCOUNT_LOCKED`)은 `login_attempts` 가 5에 이르면 `locked_until = now + 10분` 으로 건다. 잠긴 동안 로그인하면 401 `ACCOUNT_LOCKED` 를 돌려주고 로그인 이력에 `login_failed`(`failure_reason=ACCOUNT_LOCKED`)를 남긴다. 로그인이 성공하면 카운터와 잠금을 지운다. 상태 전이는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다. IP 단위 요청 한도는 계정 잠금과 별개의 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 한도가 먼저 막고, 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
 
 ## 로그인
 
@@ -203,38 +210,51 @@ etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
 
 1. 이메일 형식과 비밀번호가 비어 있지 않은지 검사한다.
 2. `POST /api/auth/login { email, password, rememberMe }` 을 호출한다.
-3. 2단계 인증이 없으면 서버는 `{ accessToken }` 과 리프레시 토큰 쿠키를 돌려주고 화면은 대시보드(`/dashboard`)로 이동한다. 응답 본문에 `user` 객체는 없다.
-4. 2단계 인증이 있으면 서버는 `{ requires2fa, methods, challengeToken }` 을 돌려주고 화면은 2단계 인증 화면으로 이동한다.
-5. 로그인이 실패하면 "Invalid email or password" 를 보여 준다. 구체적인 이유는 드러내지 않는다.
-6. 5회 실패로 잠기면 "Account locked. Try again in 10 minutes." 를 보여 준다.
+3. 서버는 없는 이메일 → 계정 잠금 → 비밀번호 없음(OAuth 전용) → 비밀번호 불일치 → 이메일 인증 전 순서로 확인한다. 여기까지가 로그인 1단계다. 이메일 인증 여부는 비밀번호가 맞을 때만 알린다.
+4. 2단계 인증이 없으면 서버는 `{ accessToken }` 과 리프레시 토큰 쿠키를 돌려주고 화면은 대시보드(`/dashboard`)로 이동한다. 응답 본문에 `user` 객체는 없다.
+5. 2단계 인증이 있으면 서버는 `{ requires2fa, methods, challengeToken }` 을 돌려주고 화면은 2단계 인증 화면으로 이동한다.
+6. 없는 이메일 · 비밀번호가 없는 계정 · 틀린 비밀번호면 "Invalid email or password" 를 보여 준다. 어느 경우인지는 드러내지 않는다.
+7. 비밀번호가 맞는 이메일 인증 전 계정이면 서버는 401 `EMAIL_VERIFICATION_REQUIRED` 와 "Please verify your email before logging in" 을 돌려준다. 화면은 이 코드를 보고 이메일 인증을 먼저 하라는 안내를 보여 준다.
+8. 5회 실패로 잠기면 "Account locked. Try again in 10 minutes." 를 보여 준다.
+9. Passkey 기능이 꺼진 서버에서 Passkey 만 등록하고 TOTP 가 꺼진 계정이 로그인 1단계를 통과하면 서버는 503 `WEBAUTHN_DISABLED` 를 돌려준다. 화면은 지금 Passkey 로 로그인할 수 없으니 운영자에게 문의하라는 안내를 보여 준다. 로그인 폼이 이 응답을 직접 처리한다. 컴포넌트가 처리한 에러는 화면 전체를 덮지 않으므로 서버 에러 페이지로 넘어가지 않는다([오류 화면과 빈 상태 「감지를 Next.js 에러 바운더리로 구현한 이유」](../CLE-UI/CLE-UI-ERRORS.md#감지를-nextjs-에러-바운더리로-구현한-이유)). 그 문서의 5xx 전체 화면 처리는 페이지까지 전파된 에러에 쓴다. 규칙은 [Passkey 기능 켜기와 환경 변수](#passkey-기능-켜기와-환경-변수) 에 있다.
+
+3번의 순서와 7번 · 9번은 아직 구현되지 않았다. 지금 구현은 이메일 인증 여부를 비밀번호보다 먼저 확인해 비밀번호가 틀려도 `LOGIN_FAILED` 에 인증 안내 메시지를 실어 준다. Passkey 기능이 꺼지면 Passkey 만 등록한 계정도 비밀번호만으로 로그인시킨다. 앞의 것은 NERV Task `CLE-T-AYT4VB`, 뒤의 것은 `CLE-T-RFSJXQ` 가 맡는다. 화면이 응답 메시지를 읽지 못해 늘 일반 문구를 보여 주는 문제는 `CLE-T-MFWBE1` 이 맡는다.
 
 로그인 뒤 이동할 곳(`redirect` 파라미터와 기본 `/dashboard` 처리)은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
 
 ### 2단계 인증 방식 선택
 
-비밀번호 검증을 통과하면 서버가 등록 상태를 보고 2단계를 고른다. Passkey·보안 키(WebAuthn, `WebAuthnCredential`)가 있으면 그것만 쓰고, 없을 때만 TOTP 를 쓴다. TOTP 로 자동 전환하지 않는 것이 핵심 규칙이다.
+로그인 1단계를 통과하면 서버가 등록 상태를 보고 2단계를 고른다. Passkey·보안 키(WebAuthn, `WebAuthnCredential`)가 있으면 그것만 쓰고, 없을 때만 TOTP 를 쓴다. TOTP 로 자동 전환하지 않는 것이 핵심 규칙이다. 예외는 Passkey 기능이 꺼진 경우 하나다. 그때는 TOTP 가 켜진 사용자가 TOTP 로 로그인하고 Passkey 만 등록한 사용자는 503 `WEBAUTHN_DISABLED` 로 막힌다. 뒤의 것은 아직 구현되지 않았다([로그인 처리](#로그인-처리)).
 
 ```mermaid
 flowchart TD
-  A[비밀번호 검증 통과] --> B{Passkey credential 1개 이상}
+  A[로그인 1단계 통과] --> P{Passkey 기능 켜짐}
+  P -- 예 --> B{Passkey credential 1개 이상}
+  P -- 아니요 --> Q{two_factor_enabled}
   B -- 예 --> C[methods = webauthn 챌린지]
   B -- 아니요 --> D{two_factor_enabled}
   D -- 예 --> E[methods = totp 챌린지]
   D -- 아니요 --> F[액세스 토큰 즉시 발급]
+  Q -- 예 --> E
+  Q -- 아니요 --> R{Passkey credential 1개 이상}
+  R -- 예 --> S[503 WEBAUTHN_DISABLED]
+  R -- 아니요 --> F
   C --> G[Passkey 화면, TOTP 입력 없음]
   E --> H[TOTP 화면]
 ```
 
 | 사용자 상태 | 응답 | 로그인 2단계 화면 |
 | --- | --- | --- |
-| Passkey credential 1개 이상 | `{ requires2fa: true, methods: ['webauthn'], challengeToken }` | Passkey 인증 화면. TOTP 코드 입력란은 숨긴다 |
+| Passkey 기능 켜짐, Passkey credential 1개 이상 | `{ requires2fa: true, methods: ['webauthn'], challengeToken }` | Passkey 인증 화면. TOTP 코드 입력란은 숨긴다 |
 | Passkey 0개이고 `two_factor_enabled = true` | `{ requires2fa: true, methods: ['totp'], challengeToken }` | TOTP 입력 화면 |
+| Passkey 기능 꺼짐, Passkey credential 1개 이상, `two_factor_enabled = true` | `{ requires2fa: true, methods: ['totp'], challengeToken }` | TOTP 입력 화면 |
+| Passkey 기능 꺼짐, Passkey credential 1개 이상, `two_factor_enabled = false` | 503 `WEBAUTHN_DISABLED`(미구현) | 없음. 로그인 화면에 안내를 보여 준다 |
 | 둘 다 없음 | `{ accessToken }` (즉시 로그인) | 없음 |
 
-- Passkey 가 하나라도 등록된 사용자에게는 로그인 화면에서 TOTP 입력을 주지 않는다. TOTP 로 로그인하려면 보안 설정에서 Passkey 를 먼저 모두 삭제해야 한다.
+- Passkey 기능이 켜져 있으면 Passkey 가 하나라도 등록된 사용자에게 로그인 화면에서 TOTP 입력을 주지 않는다. TOTP 로 로그인하려면 보안 설정에서 Passkey 를 먼저 모두 삭제해야 한다.
 - Passkey 인증이 실패하면 같은 화면의 "복구 코드 사용" 링크로 Passkey 전용 복구 코드 입력란을 연다. TOTP 화면으로 자동 전환하지 않는다.
 - 클라이언트는 `requires2fa` 와 `methods` 만 본다. `requires2fa=true` 이면 챌린지 단계이고 `methods[0]` 으로 화면을 가른다. 로그인 응답에 `requiresTotp` 필드는 없다.
-- 챌린지 토큰(`challengeToken`)은 비밀번호를 통과한 뒤 2단계 검증을 부를 때 쓰는 단기 토큰(`mfa_challenge` JWT)이다.
+- 챌린지 토큰(`challengeToken`)은 로그인 1단계를 통과한 뒤 2단계 검증을 부를 때 쓰는 단기 토큰(`mfa_challenge` JWT)이다.
 
 ### TOTP 입력 화면
 
@@ -313,10 +333,12 @@ TOTP 를 끄려면 비밀번호와 인증 코드를 함께 넣는다. 인증 코
 | 발급 시점 | TOTP 활성화 검증 성공 시 | 첫 credential 등록 검증 성공 시 |
 | 개수·형식 | 10개, `xxxx-xxxx-xxxx` | 10개, 같은 형식 |
 | 저장 | `user.totp_recovery_codes`: SHA-256 해시 배열, 쓰면 항목 제거 | `user.webauthn_recovery_codes`: SHA-256 해시 배열, 쓰면 항목 제거. TOTP 와 분리 |
-| 폐기 | TOTP 를 끄면 NULL | 모든 credential 을 삭제하면 NULL. 사용자가 명시적으로 재발급할 수도 있다 |
+| 폐기 | TOTP 를 끄면 NULL | 사용자가 마지막 credential 을 삭제하면 NULL. counter 역행으로 서버가 지운 경우는 비우지 않는다. 사용자가 명시적으로 재발급할 수도 있다 |
 | 사용 화면 | 로그인 2단계의 "복구 코드 사용" 링크, [TOTP 끄기](#totp-끄기) 의 코드 입력란 | 로그인 2단계의 "복구 코드 사용" 링크. 별도 코드 묶음에서 검증한다 |
 
 두 묶음을 나누는 이유는 한쪽을 꺼도 다른 쪽 복구가 계속 유효하게 하기 위해서다. TOTP 쪽 복구 코드 재발급 API 는 없다. 끄고 다시 켜면 새로 발급된다. 인증 앱을 잃은 사용자도 TOTP 복구 코드로 TOTP 를 끈 뒤 다시 켤 수 있다.
+
+counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 남는다. 다음에 첫 Passkey 를 등록할 때 새 코드 10개로 바뀐다. 이렇게 두는 이유는 Rationale 「[counter 역행이면 credential 을 지운다](#counter-역행이면-credential-을-지운다-suspend-기각)」 에 있다.
 
 ### Passkey 기능 켜기와 환경 변수
 
@@ -332,11 +354,11 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 | 상태 | 조건 | 동작 |
 | --- | --- | --- |
 | 켜짐 (`enabled=true`) | 두 변수가 모두 있거나 `WEBAUTHN_ALLOW_FALLBACK=1` | 모든 Passkey 엔드포인트가 동작한다. 로그인 응답이 `methods=['webauthn']` 로 갈릴 수 있다 |
-| 꺼짐 (`enabled=false`) | 변수가 없고 폴백도 허용하지 않음 | 부팅은 정상이고 warn 로그만 남긴다. Passkey 엔드포인트는 모두 `503 WEBAUTHN_DISABLED` 다. 로그인은 credential 보유와 상관없이 `webauthnCount=0` 으로 보고 `methods=['totp']` 나 즉시 로그인으로 간다. 프론트엔드는 availability 응답을 보고 Passkey UI 를 숨긴다 |
+| 꺼짐 (`enabled=false`) | 변수가 없고 폴백도 허용하지 않음 | 부팅은 정상이고 warn 로그만 남긴다. 가용성 조회는 200 `{ enabled: false }` 를 돌려주고 나머지 Passkey 엔드포인트는 모두 `503 WEBAUTHN_DISABLED` 다. 로그인은 `methods: ['webauthn']` 챌린지를 주지 않는다. TOTP 가 켜진 사용자는 `methods=['totp']`, credential 이 있고 TOTP 가 꺼진 사용자는 503 `WEBAUTHN_DISABLED`(미구현), 둘 다 없는 사용자는 즉시 로그인이다([2단계 인증 방식 선택](#2단계-인증-방식-선택)). 프론트엔드는 availability 응답을 보고 Passkey UI 를 숨긴다 |
 
-`GET /api/auth/2fa/webauthn/availability` 는 인증이 필요 없는 공개 GET 이다. 논리 응답은 `{ enabled: boolean }` 이고, 전역 응답 봉투 규칙에 따라 wire 에서는 `{ "data": { "enabled": … } }` 로 싸인다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). 클라이언트는 `res.data.enabled` 로 읽는다.
+`GET /api/auth/2fa/webauthn/availability` 는 인증이 필요 없는 공개 GET 이고 응답은 `{ enabled: boolean }` 이다. 응답 봉투는 [API](#api) 첫머리의 규칙을 따른다.
 
-운영자가 설정을 끈 상태에서 이미 credential 을 가진 사용자가 있으면 DB 행은 보존한다. 운영자가 변수를 다시 설정하면 그대로 다시 쓴다. 꺼져 있는 동안 사용자는 TOTP 나 일반 로그인으로 들어오므로 잠기지 않는다.
+운영자가 설정을 끈 상태에서 이미 credential 을 가진 사용자가 있으면 DB 행은 보존한다. 운영자가 변수를 다시 설정하면 그대로 다시 쓴다. 꺼져 있는 동안 TOTP 가 켜진 사용자는 TOTP 로 들어온다. Passkey 만 등록한 사용자는 운영자가 변수를 다시 설정할 때까지 비밀번호로 로그인하지 못한다. 비밀번호만으로 2단계 인증을 건너뛰게 두지 않기 위해서다. 소셜 로그인은 이 규칙 밖이다. 지금 구현은 기능이 꺼지면 credential 수를 0 으로 보고 이 사용자도 비밀번호만으로 로그인시킨다. 고치는 일은 NERV Task `CLE-T-RFSJXQ` 가 맡는다. 고칠 때 기능이 꺼진 동안의 TOTP 로그인(`POST /api/auth/login/totp`)이 `WEBAUTHN_REQUIRED` 로 막히지 않게 지금 동작을 유지한다.
 
 ### Passkey 등록·인증 흐름
 
@@ -367,17 +389,32 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 1. `POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }`. 서버가 챌린지 토큰을 검증하고 `generateAuthenticationOptions` 와 `optionsToken`(`kind=webauthn_auth`, 5분)을 준다.
 2. 클라이언트가 `navigator.credentials.get(options)` 를 호출한다.
-3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버가 `verifyAuthenticationResponse` 로 검증하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
+3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버가 먼저 그 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 `verifyAuthenticationResponse` 로 검증하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
 
 복구 코드로 통과할 때는 `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }` 를 부른다. 서버는 `webauthn_recovery_codes` 해시와 비교해 맞으면 그 항목을 지우고 JWT 를 발급한다.
 
 챌린지는 stateless JWT(`optionsToken`)로 발급하고 별도 테이블에 두지 않는다. payload 는 `{ kind, sub, challenge, exp(5분) }` 이다.
 
+로그인 2단계 인증의 챌린지는 한 번만 쓴다. 이 문서에서 Passkey 인증 챌린지는 `optionsToken`(`kind=webauthn_auth`)에 든 `challenge` 값을 말한다. 챌린지 토큰(`challengeToken`)이나 로그인 1단계 응답의 `methods: ['webauthn']` · `methods: ['totp']` 챌린지와는 다르다. 줄여서 「Passkey 챌린지」 라고 쓰지 않는다.
+
+- 서버는 인증 검증 요청을 받으면 서명과 counter 를 판정하기 전에 그 챌린지를 만료 시각(`exp`)까지 쓴 것으로 기록한다.
+- 기록은 여러 서버 인스턴스에서 원자적이다. 같은 챌린지로 동시에 온 요청 가운데 하나만 판정으로 간다.
+- 이미 기록된 챌린지면 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 로 거부한다.
+- 검증 결과와 상관없이 기록한다. 챌린지 토큰은 기록하지 않는다. 그래서 검증이 실패해도 같은 챌린지 토큰으로 옵션을 다시 받거나 Passkey 복구 코드를 쓸 수 있다. 로그인 화면은 시도할 때마다 옵션을 새로 받는다(`login-form.tsx`).
+- 등록 챌린지(`kind=webauthn_register`)는 이 규칙 밖이다.
+- 기록을 담는 저장소는 구현 Task 가 정한다. Redis 키면 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에, 테이블이면 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 과 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 에 정의를 더한다. 저장소에 닿지 못할 때 검증을 막을지도 그때 정한다.
+
+이 규칙은 아직 구현되지 않았다. 지금은 같은 챌린지를 만료 전까지 다시 쓸 수 있다. NERV Task `CLE-T-GK9J2B` 가 맡는다. 이유는 Rationale 「Passkey 인증 챌린지는 한 번만 쓴다」 에 있다.
+
 ### sign counter 역행과 동시성
 
-sign counter 가 역행하면 `verifyAuthenticationResponse` 가 거부한다. 서비스는 그 credential 행을 바로 지운다. suspend 컬럼은 두지 않는다. 이어서 그 사용자의 활성 리프레시 토큰을 모두 무효화해 복제한 공격자가 기존 토큰으로 계속 접근하지 못하게 한다. 로그인 이력에는 `webauthn_failed`(`failure_reason='WEBAUTHN_COUNTER_REGRESSION'`)를 남긴다. 사용자가 같은 인증기를 다시 쓰려면 `/profile/security` 에서 다시 등록한다.
+처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 sign counter 가 역행했으면 서비스는 그 credential 행을 바로 지운다. suspend 컬럼은 두지 않는다. 이어서 그 사용자의 활성 리프레시 토큰을 모두 무효화해 복제한 공격자가 기존 토큰으로 계속 접근하지 못하게 한다. 로그인 이력에는 `webauthn_failed`(`failure_reason='WEBAUTHN_COUNTER_REGRESSION'`)를 남기고 401 `WEBAUTHN_COUNTER_REGRESSION` 으로 응답한다. 사용자가 같은 인증기를 다시 쓰려면 `/profile/security` 에서 다시 등록한다.
 
-`verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. credential 행은 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 으로 두 요청이 동시에 오면 한쪽은 잠금을 기다린다. 첫 요청이 counter 를 갱신하면 두 번째 요청은 갱신된 counter 를 읽고 `counter <= stored` 로 거부된다. 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
+역행은 응답의 sign counter 가 저장값 이하인 경우다. 저장값과 응답 값이 모두 0 이면 counter 를 쓰지 않는 인증기로 보고 역행으로 판정하지 않는다. `@simplewebauthn/server` 의 판정과 같다.
+
+서명 검증을 통과하지 못한 응답은 counter 값과 상관없이 401 `WEBAUTHN_INVALID` 이고 credential 을 지우지 않는다. 서명이 틀린 응답으로 지우면 그 사용자의 비밀번호만 아는 사람이 인증기 없이 credential 을 지우고 로그인 세션을 모두 끝낼 수 있기 때문이다. 지금 구현은 서명을 확인하기 전에 counter 역행으로 판정한다. NERV Task `CLE-T-NWHVMN` 이 고친다.
+
+`verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. credential 행은 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 의 두 요청은 같은 챌린지를 쓰므로 챌린지 기록에서 한쪽만 이 트랜잭션에 들어가고 다른 쪽은 401 `WEBAUTHN_INVALID` 를 받는다. 다른 챌린지로 같은 credential 의 요청이 동시에 오면 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다. 지금 구현에는 챌린지 기록이 없다. 그래서 같은 assertion 의 두 번째 요청이 갱신된 counter 를 읽고 역행으로 처분된다. credential 이 지워지고 첫 요청이 받은 로그인 세션도 끝난다(NERV Task `CLE-T-GK9J2B`). 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
 
 ## 비밀번호 재설정
 
@@ -387,16 +424,16 @@ sign counter 가 역행하면 `verifyAuthenticationResponse` 가 거부한다. �
 | --- | --- | --- |
 | 이메일·비밀번호 가입 | 재설정 토큰 발급과 메일 발송 | `password_hash` 갱신, 모든 리프레시 토큰 무효화 |
 | OAuth 전용 계정 | 같은 방식으로 토큰과 메일을 보낸다. 이메일 존재 노출을 막으면서 "비밀번호 추가" 경로 역할도 한다 | NULL 이던 `password_hash` 가 채워진다. 이후 이메일·비밀번호 로그인이 된다 |
-| Passkey 보유 | 같음 | `password_hash` 만 바꾼다. credential 과 복구 코드는 보존한다. 다음 로그인은 비밀번호 뒤에 Passkey 챌린지를 거친다 |
+| Passkey 보유 | 같음 | `password_hash` 만 바꾼다. credential 과 복구 코드는 보존한다. 다음 로그인은 비밀번호 뒤에 Passkey 2단계 인증(`methods: ['webauthn']`)을 거친다 |
 | Passkey 보유, 복구 코드와 비밀번호 분실 | 재설정 뒤 비밀번호 단계는 통과하지만 Passkey 단계를 못 넘으면 로그인할 수 없다 | 운영자가 credential 을 지워 주는 개입 경로가 필요하다 |
 | 토큰 만료(30분 경과) | 다시 요청할 수 있다 | 400 `VALIDATION_ERROR` |
 | 없는 이메일 | 같은 응답("If an account exists...") | 없음 |
 
 설계 원칙은 다음과 같다.
 
-- 재설정 요청은 사용자 존재와 가입 경로에 상관없이 같은 응답(`200 { data: { message } }`)을 준다. DB·메일 에러를 포함한 모든 실패를 드러내지 않는다.
+- 재설정 요청은 사용자 존재와 가입 경로에 상관없이 같은 응답(200 `{ message }`)을 준다. DB·메일 에러를 포함한 모든 실패를 드러내지 않는다.
 - 비밀번호 재설정으로 Passkey credential 을 끄지 않는다. 비밀번호는 1단계 인증일 뿐이고 2단계의 신뢰 기반인 개인 키를 흔드는 사건이 아니다. 잃어버린 기기를 끄려면 사용자가 `/profile/security` 의 Passkey 카드에서 직접 삭제한다. credential 과 복구 코드를 모두 잃었으면 로그인할 수 없으므로 운영자 개입이 필요하다.
-- 재설정이 성공하면 모든 활성 로그인 세션을 끝낸다. 탈취된 비밀번호 시나리오를 막기 위해서다. 새 세션은 발급하지 않고 로그인 화면으로 보낸다.
+- 재설정이 성공하면 모든 활성 로그인 세션을 끝낸다. 탈취된 비밀번호 시나리오를 막기 위해서다. 새 로그인 세션은 발급하지 않고 로그인 화면으로 보낸다.
 - 재설정 요청 API 는 IP 당 분당 5회로 제한한다.
 
 ### 재설정 화면
@@ -430,28 +467,28 @@ sequenceDiagram
   U->>S: 변경 요청 (새 이메일, 비밀번호 또는 TOTP)
   S->>S: 계정 재인증, 형식과 중복 검사
   S->>N: 확인 메일 (1시간)
-  U->>S: 확인 (로그인한 본인 세션, 토큰)
-  S->>S: 이메일 교체, 모든 세션 무효화, 현재 기기 재발급
+  U->>S: 확인 (본인의 로그인 세션, 토큰)
+  S->>S: 이메일 교체, 모든 로그인 세션 무효화, 현재 기기 재발급
   S->>O: 보안 통지 (실패 무시)
 ```
 
 ### 핵심 규칙
 
 - 계정 재인증(reauthentication, `verifyReauth`)을 거친 뒤 새 이메일만 확인한다. 변경을 시작할 때 세션 강제 종료와 같은 계정 재인증을 요구한다. 비밀번호가 있으면 비밀번호, 없으면 등록된 TOTP 코드로 확인한다. 확인 링크는 새 이메일로만 보낸다. 옛 이메일에는 막지 않는 보안 통지만 보낸다.
-- 이메일 OTP 는 재인증 수단으로 쓰지 않는다. 바꾸려는 메일함과 순환되기 때문이다. Passkey 로 하는 재인증도 현재 지원하지 않는다.
-- 재인증 수단이 없는 계정은 막는다. 비밀번호도 2단계 인증도 없는 OAuth 전용 계정은 `REAUTH_NOT_AVAILABLE` 로 변경할 수 없다. Passkey 만 등록한 계정은 비밀번호나 TOTP 를 설정한 뒤 이메일을 바꿀 수 있다.
+- 이메일 OTP 는 계정 재인증 수단으로 쓰지 않는다. 바꾸려는 메일함과 순환되기 때문이다. Passkey 로 하는 계정 재인증도 현재 지원하지 않는다.
+- 계정 재인증 수단이 없는 계정은 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 Passkey 를 등록했어도 `REAUTH_NOT_AVAILABLE` 로 변경할 수 없다. 이 계정은 비밀번호나 TOTP 를 설정한 뒤 이메일을 바꿀 수 있다.
 - 변경 확인 토큰(`emailChangeToken`)은 SHA-256 해시로만 저장하고 원래 토큰은 메일 링크로만 전달한다. 유효 시간은 1시간이다.
-- 확인은 인증이 필요하다. 새 이메일의 확인 토큰은 로그인한 본인 세션의 `POST /api/users/me/email-change/verify` 로만 소비한다. 토큰이 사용자에 묶여 있어 새어 나간 링크만으로는 쓸모가 없다. 가입 인증 `verify-email`(`@Public`)보다 강한 가드다.
-- 확인이 성공하면 비밀번호 변경과 같이 모든 로그인 세션을 무효화하고 현재 기기에 새 세션을 발급한다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건과 감사 로그 `user.email_changed` 1건이 함께 남는다. 세션 처리 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
+- 확인은 인증이 필요하다. 새 이메일의 확인 토큰은 본인의 로그인 세션에서 부른 `POST /api/users/me/email-change/verify` 로만 소비한다. 토큰이 사용자에 묶여 있어 새어 나간 링크만으로는 쓸모가 없다. 가입 인증 `verify-email`(`@Public`)보다 강한 가드다.
+- 확인이 성공하면 비밀번호 변경과 같이 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건과 감사 로그 `user.email_changed` 1건이 함께 남는다. 로그인 세션 처리 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
 - 기존 OAuth 제공자 연결은 제공자 계정 ID 기준이라 이메일 변경과 독립이다.
 
 ### 동작 표
 
 | 사용자 상태 | 변경 요청 | 확인 |
 | --- | --- | --- |
-| 비밀번호 있음 | 비밀번호 재확인 뒤 `pending_email` 저장, 새 이메일로 1시간짜리 확인 메일 | `email = pending_email`, `email_verified=true`, 모든 세션 무효화, 현재 기기 재발급(`{ accessToken }`) |
+| 비밀번호 있음 | 비밀번호 재확인 뒤 `pending_email` 저장, 새 이메일로 1시간짜리 확인 메일 | `email = pending_email`, `email_verified=true`, 모든 로그인 세션 무효화, 현재 기기 재발급(`{ accessToken }`) |
 | 비밀번호 없음, TOTP 있음 | TOTP 코드 재확인 뒤 같음 | 같음 |
-| OAuth 전용, 2단계 인증 없음 | 403 `REAUTH_NOT_AVAILABLE`. 변경할 수 없고 안내만 한다 | 없음 |
+| 비밀번호와 TOTP 모두 없음(Passkey 만 등록한 OAuth 전용 계정 포함) | 403 `REAUTH_NOT_AVAILABLE`. 변경할 수 없고 안내만 한다 | 없음 |
 | 새 이메일이 현재 이메일과 같거나 형식이 틀림 | 400 `VALIDATION_ERROR` | 없음 |
 | 새 이메일을 다른 계정이 씀 | 409 `RESOURCE_CONFLICT` (가입 중복과 같은 코드) | 트랜잭션 안에서 UNIQUE 를 다시 검사한다. 선점됐으면 409 를 주고 대기 정보를 NULL 로 지운다 |
 | 토큰 만료(1시간 경과)나 무효 | 없음 | 400 `VALIDATION_ERROR` |
@@ -467,7 +504,7 @@ sequenceDiagram
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 | --- | --- | --- | --- |
 | 제목·안내 | 상단 | "이메일 변경", 새 이메일로 확인 메일을 보내 변경을 마친다는 안내 | 없음 |
-| 입력 | 안내 아래 | New email 입력, 재인증 입력(비밀번호 또는 TOTP 코드, 계정 상태에 따라) | 없음 |
+| 입력 | 안내 아래 | New email 입력, 계정 재인증 입력(비밀번호 또는 TOTP 코드, 계정 상태에 따라) | 없음 |
 | 버튼 | 입력 아래 | [취소], [확인 메일 보내기] | 변경 요청 |
 | 대기 표시 | 발송 뒤 | "new@example.com 으로 확인 메일을 보냈어요. 메일 링크로 변경을 완료하세요.", [재발송], [취소] | 재발송·취소 요청 |
 
@@ -490,7 +527,7 @@ sequenceDiagram
 
 | 응답 | UI 동작 |
 | --- | --- |
-| `{ data: { providers: ["google", "github"] } }` | "Or continue with" 구분선과 두 버튼을 모두 보여 준다 |
+| `{ providers: ["google", "github"] }` | "Or continue with" 구분선과 두 버튼을 모두 보여 준다 |
 | 일부만 포함 (예: `["google"]`) | 해당 버튼만 한 칸으로 보여 준다 |
 | 빈 배열 `[]` | 구분선과 버튼을 모두 숨기고 이메일·비밀번호 폼만 보여 준다 |
 
@@ -545,12 +582,12 @@ sequenceDiagram
 
 | 에러 | 리다이렉트 |
 | --- | --- |
-| state 불일치 | `{frontend_url}/callback?error=invalid_state` |
+| state 불일치(없음 · 만료 · 이미 소비 · 제공자 불일치) | `{frontend_url}/callback?error=invalid_state` |
 | 코드 교환 실패 | `{frontend_url}/callback?error=token_exchange_failed` |
 | 이메일 미제공 (GitHub 비공개 이메일 등) | `{frontend_url}/callback?error=email_required` |
 | 서버 에러 | `{frontend_url}/callback?error=server_error` |
 
-state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 `OAUTH_STATE_MISMATCH` 예외를 던진다. 현재 구현은 컨트롤러가 이 예외를 `?error=invalid_state` 리다이렉트로 바꾼다. 사용자가 받는 것은 400 응답이 아니라 리다이렉트다.
+state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `OAUTH_STATE_MISMATCH` 예외를 던진다. state 를 발급한 제공자와 콜백의 제공자가 달라도 같다. 로그인 콜백에서는 컨트롤러가 이 예외를 `?error=invalid_state` 리다이렉트로 바꾸므로 사용자는 400 응답을 받지 않는다.
 
 `error=` 값은 응답 봉투의 `error.code` 가 아니라 리다이렉트 URL 쿼리 파라미터라서 `lower_snake_case` 다. 이 예외는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 예외 등록 코드 목록에 올라 있다.
 
@@ -570,7 +607,9 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 `OAUT
 
 ## API
 
-이 문서가 소유하는 엔드포인트다. 로그아웃·토큰 갱신·세션 목록은 [세션과 토큰](CLE-ACCT-SESSION.md), 워크스페이스 전환·초대는 [워크스페이스와 멤버](CLE-ACCT-WS.md), 감사 로그 조회는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), 웹훅 수신 인증 설정(AuthConfig)의 CRUD·평문 보기 엔드포인트는 [외부 호출 인증 설정 §API](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#api) 가 정한다.
+이 문서가 소유하는 엔드포인트다. 로그아웃·토큰 갱신·로그인 세션 목록은 [세션과 토큰](CLE-ACCT-SESSION.md), 워크스페이스 전환·초대는 [워크스페이스와 멤버](CLE-ACCT-WS.md), 감사 로그 조회는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), 웹훅 수신 인증 설정(AuthConfig)의 CRUD·평문 보기 엔드포인트는 [외부 호출 인증 설정 §API](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#api) 가 정한다.
+
+이 문서의 표와 본문에 적은 성공 응답은 응답 봉투 `{ data: … }` 안의 내용이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 5). 예를 들어 `GET /api/auth/2fa/webauthn/availability` 의 응답 `{ enabled: boolean }` 은 wire 에서 `{ "data": { "enabled": … } }` 다. 에러 응답 형식은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다.
 
 ### 가입과 로그인
 
@@ -578,12 +617,12 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 `OAUT
 | --- | --- | --- |
 | POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)) |
 | POST | `/api/auth/verify-email` | 본문 `{ token }` 으로 이메일 인증 토큰을 검증한다. 개인 워크스페이스를 만들고 액세스·리프레시 토큰을 바로 발급한다. 인증 불요(`@Public`). 토큰이 무효하거나 만료되면 400 |
-| POST | `/api/auth/resend-verification` | 인증 메일 재발송(24시간 유효). 인증 불요(`@Public`), IP 당 분당 5회. 계정 존재·인증 여부와 상관없이 같은 응답 |
+| POST | `/api/auth/resend-verification` | 인증 메일 재발송(24시간 유효). 인증 불요(`@Public`), IP 당 분당 5회. 계정 존재·인증 여부와 상관없이 같은 응답. 메일은 인증 전 계정에만 보낸다 |
 | POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회 |
-| POST | `/api/auth/login` | 로그인. IP 당 분당 10회. 본문 `{ email, password, rememberMe }`. 2단계 인증이 있으면 `{ requires2fa, methods, challengeToken }`, 없으면 `{ accessToken }` 과 리프레시 쿠키 |
-| POST | `/api/auth/login/totp` | 로그인 2단계 TOTP 검증. 본문 `{ challengeToken, code }`(6자리 코드 또는 TOTP 복구 코드). 성공하면 액세스·리프레시 토큰 발급 |
+| POST | `/api/auth/login` | 로그인. IP 당 분당 10회. 본문 `{ email, password, rememberMe }`. 2단계 인증이 있으면 `{ requires2fa, methods, challengeToken }`, 없으면 `{ accessToken }` 과 리프레시 쿠키. 실패 401 `LOGIN_FAILED`, 비밀번호가 맞는 이메일 인증 전 계정 401 `EMAIL_VERIFICATION_REQUIRED`, 잠긴 계정 401 `ACCOUNT_LOCKED`, Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정 503 `WEBAUTHN_DISABLED`. 순서는 [로그인 처리](#로그인-처리). 이메일 인증 확인 순서와 `EMAIL_VERIFICATION_REQUIRED`, Passkey 기능이 꺼졌을 때의 503 은 아직 구현되지 않았다 |
+| POST | `/api/auth/login/totp` | 로그인 2단계 TOTP 검증. 본문 `{ challengeToken, code }`(6자리 코드 또는 TOTP 복구 코드). 성공하면 액세스·리프레시 토큰 발급. 챌린지 토큰 무효 401 `CHALLENGE_INVALID`, TOTP 꺼짐 401 `TOTP_NOT_ENABLED`(Passkey 만 있는 계정 포함), TOTP 와 Passkey 가 모두 있는 계정 401 `WEBAUTHN_REQUIRED`, 코드 불일치 401 `TOTP_INVALID` |
 | POST | `/api/auth/forgot-password` | 비밀번호 재설정 요청. IP 당 분당 5회. 항상 같은 응답 |
-| POST | `/api/auth/reset-password` | 비밀번호 재설정. 본문 `{ token, newPassword }` |
+| POST | `/api/auth/reset-password` | 비밀번호 재설정. 본문 `{ token, newPassword }`. 실패는 모두 400 `VALIDATION_ERROR` 다. 지금 구현은 요청 형식이나 새 비밀번호의 길이 · 강도 규칙 위반에 `details` 를 싣고 토큰 무효 · 만료에는 싣지 않는다. 이 차이는 현재 동작이고 계약이 아니다. 클라이언트는 `details` 유무로 원인을 가르지 않는다([미결 사항](#미결-사항)). 새 비밀번호 검사가 토큰 조회보다 먼저다 |
 
 ### 2단계 인증
 
@@ -595,10 +634,10 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 `OAUT
 | GET | `/api/auth/2fa/webauthn/availability` | Passkey 기능 켜짐 여부. 인증 불요(`@Public`). 응답 `{ enabled: boolean }` |
 | POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT). `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다. 기능이 꺼져 있으면 503 `WEBAUTHN_DISABLED` |
 | POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 오류 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
-| POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID` |
-| POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`. counter 역행이면 401 과 함께 credential 행 삭제, 로그인 이력 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`) |
-| POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID` |
-| GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ data: { items: [{ id, deviceName, transports, lastUsedAt, createdAt }] } }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다 |
+| POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID`, TOTP 챌린지로 받은 챌린지 토큰 401 `CHALLENGE_METHOD_MISMATCH` |
+| POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. 이미 쓴 챌린지 거부와 서명 확인 뒤의 counter 판정은 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
+| POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID`. 챌린지 토큰 실패는 options 와 같다 |
+| GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ items: [{ id, deviceName, transports, lastUsedAt, createdAt }] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다 |
 | PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 내 것이 아니면 404(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | DELETE | `/api/auth/2fa/webauthn/credentials/:id` | credential 삭제. 인증 필수(JWT). 마지막 credential 을 지우면 `WebAuthnService.deleteCredential` 이 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 204 |
 | POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 본문 `password` 로 비밀번호 재확인. 기존 미사용 코드를 버리고 10개를 새로 발급한다. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
@@ -621,37 +660,43 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| POST | `/api/users/me/email-change/request` | 이메일 변경 시작. 본문 `{ newEmail, password? \| totpCode? }`. 계정 재인증 필수(비밀번호 또는 등록 TOTP, Passkey 재인증은 미지원). OAuth 전용·2단계 인증 없음은 403 `REAUTH_NOT_AVAILABLE`. 새 이메일 형식·중복 검증 뒤 새 이메일로 1시간짜리 확인 메일을 보낸다. 분당 5회 |
-| POST | `/api/users/me/email-change/verify` | 이메일 변경 확인. 본문 `{ token }`. 토큰을 검증한 뒤 `email` 교체, `email_verified=true`, 모든 세션 무효화, 현재 기기 재발급(`{ accessToken }` 과 리프레시 쿠키 회전), 옛 이메일 통지, 감사 로그 `user.email_changed`. 토큰 무효·만료 400 `VALIDATION_ERROR`, 새 이메일 선점 409 `RESOURCE_CONFLICT` |
+| POST | `/api/users/me/email-change/request` | 이메일 변경 시작. 본문 `{ newEmail, password? \| totpCode? }`. 계정 재인증 필수(비밀번호 또는 등록 TOTP, Passkey 로 하는 계정 재인증은 미지원). 비밀번호도 TOTP 도 없는 계정은 Passkey 가 있어도 403 `REAUTH_NOT_AVAILABLE`. 새 이메일 형식·중복 검증 뒤 새 이메일로 1시간짜리 확인 메일을 보낸다. 분당 5회 |
+| POST | `/api/users/me/email-change/verify` | 이메일 변경 확인. 본문 `{ token }`. 토큰을 검증한 뒤 `email` 교체, `email_verified=true`, 모든 로그인 세션 무효화, 현재 기기 재발급(`{ accessToken }` 과 리프레시 쿠키 회전), 옛 이메일 통지, 감사 로그 `user.email_changed`. 토큰 무효·만료 400 `VALIDATION_ERROR`, 새 이메일 선점 409 `RESOURCE_CONFLICT` |
 | POST | `/api/users/me/email-change/resend` | 확인 메일 재발송. 대기 중인 새 이메일로 토큰을 다시 발급한다. 분당 5회. 대기 중 변경이 없으면 400 `VALIDATION_ERROR` |
-| POST | `/api/users/me/email-change/cancel` | 진행 중인 이메일 변경 취소. 대기 필드를 NULL 로 지운다. 재인증 불요, 대기 중 변경이 없어도 멱등 |
+| POST | `/api/users/me/email-change/cancel` | 진행 중인 이메일 변경 취소. 대기 필드를 NULL 로 지운다. 계정 재인증 불요, 대기 중 변경이 없어도 멱등 |
 
 ### 에러 코드
 
 | 코드 | HTTP | 상황 |
 | --- | --- | --- |
+| `LOGIN_FAILED` | 401 | 로그인 실패. 없는 이메일, 비밀번호가 없는 계정(OAuth 전용), 비밀번호 불일치를 같은 코드와 같은 메시지로 거부한다. 로그인 이력 `failure_reason` 에는 각각 `USER_NOT_FOUND` · `PASSWORD_NOT_SET` · `INVALID_PASSWORD` 가 남는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 비밀번호가 맞는 이메일 인증 전 계정은 `EMAIL_VERIFICATION_REQUIRED` 다 |
+| `EMAIL_VERIFICATION_REQUIRED` | 401 | 비밀번호는 맞지만 이메일 인증을 마치지 않은 계정의 로그인. 비밀번호가 틀리면 `LOGIN_FAILED` 다. 로그인 이력 `failure_reason` 은 `EMAIL_NOT_VERIFIED` 다. 화면은 이 코드로 이메일 인증 안내를 고른다. 아직 구현되지 않았다. 지금은 비밀번호를 확인하기 전에 `LOGIN_FAILED` 와 인증 안내 메시지로 거부한다([로그인 처리](#로그인-처리)) |
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
-| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 새 이메일 형식 오류·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 오류, Passkey 표시 이름 형식 오류(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
+| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 오류·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 오류, Passkey 표시 이름 형식 오류(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복, 새 이메일 선점 |
-| `REAUTH_NOT_AVAILABLE` | 403 | 재인증 수단이 없는 OAuth 전용 계정의 이메일 변경 |
+| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경 |
 | `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | 2단계 인증 끄기·Passkey 복구 코드 재발급의 비밀번호 재확인 실패. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
 | `TOTP_INVALID` | 401 | 로그인 TOTP 검증 실패, TOTP 끄기의 코드 불일치(TOTP 가 꺼져 있을 때 포함). 계정 재인증과 같은 코드를 쓴다 |
-| `TOTP_NOT_ENABLED` | 401 | 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)에서 사용자가 없거나 TOTP 가 꺼져 있다. 메시지는 다시 로그인하라고 안내한다 |
+| `TOTP_NOT_ENABLED` | 401 | 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)에서 사용자가 없거나 TOTP 가 꺼져 있다. Passkey 만 등록하고 TOTP 를 켜지 않은 계정도 이 코드다. 메시지는 다시 로그인하라고 안내한다 |
 | `TOTP_NOT_INITIALIZED` | 400 | TOTP 활성화 검증(`POST /api/auth/2fa/verify`)을 설정 시작(`POST /api/auth/2fa/setup`) 없이 불러 secret 이 없다 |
-| `WEBAUTHN_DISABLED` | 503 | Passkey 기능이 꺼져 있다 |
+| `WEBAUTHN_DISABLED` | 503 | Passkey 기능이 꺼져 있다. 가용성 조회를 뺀 Passkey 엔드포인트와, Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)이 이 코드다. 운영자가 설정을 바꿀 때까지 회복되지 않으므로 재시도 대상이 아니다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 11). 로그인의 이 응답은 아직 구현되지 않았다 |
 | `WEBAUTHN_VERIFY_FAILED` | 400 | Passkey 등록 검증 실패. 허용 목록 밖 알고리즘의 공개 키와 형식이 틀린 transport 목록(문자열 배열이 아니거나 NUL 문자가 든 경우)도 이 코드다 |
 | `INVALID_OPTIONS_TOKEN` | 400 | `optionsToken` 무효 |
-| `CHALLENGE_INVALID` | 401 | 챌린지 토큰 검증 실패 |
-| `WEBAUTHN_INVALID` | 401 | Passkey 인증 실패 |
+| `CHALLENGE_INVALID` | 401 | 로그인 2단계 챌린지 토큰이 만료 · 위조됐거나 챌린지 토큰이 아님. TOTP 검증과 Passkey 옵션 · 검증 · 복구 코드가 함께 쓴다 |
+| `CHALLENGE_METHOD_MISMATCH` | 401 | TOTP 챌린지(`methods: ['totp']`)로 받은 챌린지 토큰을 Passkey 옵션 · 검증 · 복구 코드에 보냄 |
+| `WEBAUTHN_INVALID` | 401 | Passkey 인증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이 두 경우는 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)). counter 역행은 아래 `WEBAUTHN_COUNTER_REGRESSION` 이다 |
+| `WEBAUTHN_COUNTER_REGRESSION` | 401 | 처음 쓰는 Passkey 인증 챌린지로 온 인증 응답이 서명 검증을 통과했는데 sign counter 가 저장값 이하로 돌아감(둘 다 0 이면 역행이 아니다). 그 credential 을 지우고 리프레시 토큰을 모두 무효화한 뒤 거부한다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
+| `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 TOTP 로 로그인 2단계를 통과하려 함(`POST /api/auth/login/totp`). Passkey 만 있는 계정은 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 나지 않는다 |
 | `RECOVERY_CODE_INVALID` | 401 | Passkey 복구 코드 불일치 |
-| `OAUTH_STATE_MISMATCH` | 서비스 예외 | OAuth state 없음·만료·이미 소비. 사용자에게는 `?error=invalid_state` 리다이렉트로 보인다 |
+| `OAUTH_STATE_MISMATCH` | 400 | OAuth state 없음·만료·이미 소비, 다른 제공자가 발급한 state. 로그인 콜백에서는 컨트롤러가 이 응답 대신 `?error=invalid_state` 로 리다이렉트한다([에러 처리](#에러-처리)) |
 
 전체 카탈로그와 등재 규칙은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 정한다.
 
 ## 미결 사항
 
-- **TOTP 가 켜진 상태에서 설정을 다시 시작할 수 있다**: `POST /api/auth/2fa/setup` 과 `POST /api/auth/2fa/verify` 는 TOTP 가 이미 켜져 있는지 보지 않는다. setup 은 `two_factor_enabled` 를 그대로 둔 채 secret 을 새 값으로 바꾼다. 이어서 verify 를 부르면 TOTP 복구 코드도 새로 발급돼 기존 코드는 쓸 수 없게 된다. 두 요청 모두 로그인 세션만 있으면 된다. 그래서 비밀번호와 세션을 가진 사람은 setup 으로 받은 새 secret 의 코드로 [TOTP 끄기](#totp-끄기) 를 통과할 수 있다. 세션만 가진 사람도 원래 사용자의 인증 앱과 TOTP 복구 코드를 못 쓰게 만들 수 있다. 화면은 TOTP 가 켜져 있으면 설정 카드를 보여 주지 않지만 API 는 막지 않는다. 켜진 상태의 setup·verify 를 거부할지, 끄기와 같은 확인을 요구할지 정해야 한다. 후속 NERV Task `CLE-T-94FTMV` 로 추적한다.
-- **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 이 문서의 에러 코드 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
+- **TOTP 가 켜진 상태에서 설정을 다시 시작할 수 있다**: `POST /api/auth/2fa/setup` 과 `POST /api/auth/2fa/verify` 는 TOTP 가 이미 켜져 있는지 보지 않는다. setup 은 `two_factor_enabled` 를 그대로 둔 채 secret 을 새 값으로 바꾼다. 이어서 verify 를 부르면 TOTP 복구 코드도 새로 발급돼 기존 코드는 쓸 수 없게 된다. 두 요청 모두 로그인 세션만 있으면 된다. 그래서 비밀번호와 로그인 세션을 가진 사람은 setup 으로 받은 새 secret 의 코드로 [TOTP 끄기](#totp-끄기) 를 통과할 수 있다. 로그인 세션만 가진 사람도 원래 사용자의 인증 앱과 TOTP 복구 코드를 못 쓰게 만들 수 있다. 화면은 TOTP 가 켜져 있으면 설정 카드를 보여 주지 않지만 API 는 막지 않는다. 켜진 상태의 setup·verify 를 거부할지, 끄기와 같은 확인을 요구할지 정해야 한다. 후속 NERV Task `CLE-T-94FTMV` 로 추적한다.
+- **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 이 문서의 에러 코드 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 같은 미등재 코드 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 Passkey 인증 검증에서 401, credential 삭제 · 이름 변경에서 404 로 쓰인다. 인증 검증 행의 실패 코드에도 아직 적지 않았다. 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
+- **비밀번호 재설정 실패의 에러 코드**: 토큰 무효 · 만료와 새 비밀번호 규칙 위반이 모두 400 `VALIDATION_ERROR` 다. 사용자가 할 일은 다르다. 토큰 무효면 재설정 메일을 다시 받아야 하고 규칙 위반이면 비밀번호만 고치면 된다. 규약대로 가르려면 코드가 달라야 한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6). 응답이 바뀌는 일이라 후속 NERV Task `CLE-T-DTVTM9` 에서 정한다.
 
 ## 구현 위치
 
@@ -686,13 +731,13 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### 이메일 변경: 옛 주소와 새 주소를 모두 확인하는 방식을 기각했다
 
-옛 이메일 링크 클릭을 차단 조건으로 두면 옛 메일함을 잃은 사용자가 영원히 이메일을 바꾸지 못한다. 퇴사로 회사 메일을 잃거나 메일 서비스가 끝나는 경우가 이메일 변경의 주된 이유다. 옛 이메일의 두 역할 중 "통제 증명" 은 비밀번호·2단계 인증 재인증이 메일함 소유보다 강하게 대신한다. 그래서 옛 이메일은 막지 않는 통지 채널로만 둔다. 결과적으로 두 주소를 모두 확인하는 방식보다 본인 증명이 강하고 복구성도 낫다.
+옛 이메일 링크 클릭을 차단 조건으로 두면 옛 메일함을 잃은 사용자가 영원히 이메일을 바꾸지 못한다. 퇴사로 회사 메일을 잃거나 메일 서비스가 끝나는 경우가 이메일 변경의 주된 이유다. 옛 이메일의 두 역할 중 "통제 증명" 은 비밀번호나 TOTP 로 하는 계정 재인증이 메일함 소유보다 강하게 대신한다. 그래서 옛 이메일은 막지 않는 통지 채널로만 둔다. 결과적으로 두 주소를 모두 확인하는 방식보다 본인 증명이 강하고 복구성도 낫다.
 
-기각한 대안은 두 가지다. (a) 옛 주소와 새 주소를 모두 링크로 확인하는 방식은 위 잠김 문제가 있다. (b) 재인증 없이 새 주소만 확인하는 방식은 세션 탈취만으로 로그인 식별자를 바꿀 수 있게 한다.
+기각한 대안은 두 가지다. (a) 옛 주소와 새 주소를 모두 링크로 확인하는 방식은 위 잠김 문제가 있다. (b) 계정 재인증 없이 새 주소만 확인하는 방식은 로그인 세션 탈취만으로 로그인 식별자를 바꿀 수 있게 한다.
 
 ### 이메일 변경 확인은 인증이 필요하다
 
-가입 인증 `verify-email` 은 아직 세션이 없는 계정 활성화라 `@Public` 이다. 이메일 변경은 이미 로그인한 계정의 식별자를 바꾸는 동작이다. 확인 토큰을 인증된 사용자에 묶으면 새어 나간 링크만으로는 변경할 수 없다. 공격자가 그 사용자로 로그인해 있어야 한다. 비용은 다른 기기에서 링크를 열 때 옛 이메일로 한 번 로그인하는 것뿐이다. `@Public` 확인은 누구나 링크를 누르면 바로 커밋돼 링크가 새면 제3자가 피해자 이메일을 바꿀 수 있어 기각했다.
+가입 인증 `verify-email` 은 아직 로그인 세션이 없는 계정 활성화라 `@Public` 이다. 이메일 변경은 이미 로그인한 계정의 식별자를 바꾸는 동작이다. 확인 토큰을 인증된 사용자에 묶으면 새어 나간 링크만으로는 변경할 수 없다. 공격자가 그 사용자로 로그인해 있어야 한다. 비용은 다른 기기에서 링크를 열 때 옛 이메일로 한 번 로그인하는 것뿐이다. `@Public` 확인은 누구나 링크를 누르면 바로 커밋돼 링크가 새면 제3자가 피해자 이메일을 바꿀 수 있어 기각했다.
 
 ### 이메일 변경 토큰은 1시간 동안 유효하다
 
@@ -700,15 +745,15 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### 이메일 변경 재인증에서 이메일 OTP 를 뺀다
 
-이메일 변경에서는 바꾸려는 메일함의 소유 자체가 증명 대상이다. 이메일 OTP 로 본인을 증명하면 공격자가 지정한 새 메일함의 OTP 로 통과하는 모순이 생긴다. 그래서 재인증을 비밀번호나 TOTP 로 좁히고, 세션 강제 종료와 같은 `SessionsService.verifyReauth` 를 재사용한다. Passkey 로 하는 재인증은 challenge·response 형태의 추가 인증 흐름이 필요해 `verifyReauth` 가 아직 지원하지 않는다. 그 일반화는 착수하지 않았고 별도 계획이 필요하다.
+이메일 변경에서는 바꾸려는 메일함의 소유 자체가 증명 대상이다. 이메일 OTP 로 본인을 증명하면 공격자가 지정한 새 메일함의 OTP 로 통과하는 모순이 생긴다. 그래서 계정 재인증을 비밀번호나 TOTP 로 좁히고, 세션 강제 종료와 같은 `SessionsService.verifyReauth` 를 재사용한다. Passkey 로 하는 계정 재인증은 challenge·response 형태의 추가 인증 흐름이 필요해 `verifyReauth` 가 아직 지원하지 않는다. 그 일반화는 착수하지 않았고 별도 계획이 필요하다.
 
-### 재인증 수단 없는 계정은 이메일 변경을 막는다
+### 계정 재인증 수단이 없는 계정은 이메일 변경을 막는다
 
-비밀번호도 2단계 인증도 없는 OAuth 전용 계정은 본인을 다시 확인할 수단이 없다. 이런 계정에 이메일 변경을 허용하면 세션 탈취만으로 로그인 식별자를 바꿔 계정을 빼앗을 수 있다. 그래서 `REAUTH_NOT_AVAILABLE` 로 막고 안내만 한다. 강제 2단계 인증과 계정 복구 흐름은 별개 결정이다.
+비밀번호도 TOTP 도 없는 OAuth 전용 계정은 본인을 다시 확인할 수단이 없다. Passkey 만 등록한 계정도 같다. Passkey 로 하는 계정 재인증을 지원하지 않기 때문이다. 이런 계정에 이메일 변경을 허용하면 로그인 세션 탈취만으로 로그인 식별자를 바꿔 계정을 빼앗을 수 있다. 그래서 `REAUTH_NOT_AVAILABLE` 로 막고 안내만 한다. 강제 2단계 인증과 계정 복구 흐름은 별개 결정이다.
 
 ### `user.email_changed` 감사 details 에 이메일 값을 싣지 않는다
 
-`user.email_changed` 는 그 세션 워크스페이스의 관리자가 조회할 수 있다. 바꾸기 전후 주소를 details 에 넣으면 필요 이상으로 개인정보가 드러난다. 그래서 변경이 일어났다는 사실과 포렌식용 `ipAddress` 만 남긴다. 액션 이름 규칙은 [감사 action 명명](../CLE-OBS/CLE-OBS-AUDITNAME.md) 을 따른다.
+`user.email_changed` 는 변경을 확정한 요청의 현재 워크스페이스 관리자가 조회할 수 있다. 바꾸기 전후 주소를 details 에 넣으면 필요 이상으로 개인정보가 드러난다. 그래서 변경이 일어났다는 사실과 포렌식용 `ipAddress` 만 남긴다. 액션 이름 규칙은 [감사 action 명명](../CLE-OBS/CLE-OBS-AUDITNAME.md) 을 따른다.
 
 ### Passkey 라이브러리: `@simplewebauthn/server` 와 `@simplewebauthn/browser`
 
@@ -726,13 +771,14 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### 등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다 (2026-10-16)
 
-클라이언트가 보낸 transport 목록은 서버 라이브러리가 검증하지 않고 그대로 돌려준다. 서비스가 그 값을 확인 없이 `webauthn_credential.transports`(문자열 배열 컬럼)에 저장해서 문자열 배열이 아닌 값이 오면 500 이 났다(NERV Task `CLE-T-C5EWSD`).
+클라이언트가 보낸 transport 목록은 서버 라이브러리가 검증하지 않고 그대로 돌려준다. 서비스가 그 값을 확인 없이 `webauthn_credential.transports`(문자열 배열 컬럼)에 저장했다. 그래서 문자열 배열이 아닌 값 가운데 일부는 500 이 났다. `null` 은 빈 목록으로 저장되고 200 을 받았다. 숫자 항목은 문자열로 바뀌어 저장됐다. NERV Task `CLE-T-C5EWSD` 에서 아래처럼 정했다.
 
 - 형식이 틀린 값은 등록 검증 실패로 본다. 브라우저의 `getTransports()` 는 문자열 배열만 돌려주므로 다른 형식은 클라이언트 결함이나 조작한 요청이다. 응답의 다른 필드가 틀렸을 때와 같은 400 `WEBAUTHN_VERIFY_FAILED` 를 쓰고 새 에러 코드를 두지 않는다.
 - 요청 DTO 검증으로 400 `VALIDATION_ERROR` 를 내는 안은 기각했다. `response` 는 브라우저가 만든 객체를 통째로 받는 자리라 DTO 가 속을 검증하지 않는다. 같은 객체의 다른 필드가 틀리면 이미 `WEBAUTHN_VERIFY_FAILED` 라서 transport 만 다른 코드를 쓰면 같은 요청에 코드가 둘이 된다.
 - 형식이 틀린 transport 목록과 허용 목록 밖 알고리즘은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 의 새 조건으로 보지 않는다. 클라이언트가 할 일이 다른 등록 검증 실패와 같기 때문이다. 그래서 새 코드를 만들지 않고 `WEBAUTHN_VERIFY_FAILED` 를 쓴다. 이 응답에는 `details` 를 싣지 않고 원인은 서버 로그에만 남긴다.
 - 표준에 없는 값만 걸러 내는 안은 기각했다. WebAuthn Level 3 §2.1.1 에 따르면 열거 값은 문자열이고 RP 는 모르는 값도 처리해야 한다. §4 에는 credential record 의 transport 목록에서 항목을 바꾸거나 빼면 그 credential 을 쓰지 못할 수도 있다고 적혀 있다. 서버 v14 의 타입도 `string[]` 이다.
-- 형식이 틀린 값을 빈 목록으로 바꿔 저장하는 안도 기각했다. 잘못된 요청을 성공으로 받으면 클라이언트 결함을 찾기 어렵다. 필드가 없는 요청은 형식 오류가 아니다. 선택 필드가 빠진 것이라서 빈 목록으로 저장한다.
+- 형식이 틀린 값을 빈 목록으로 바꿔 저장하는 안도 기각했다. 잘못된 요청을 성공으로 받으면 클라이언트 결함을 찾기 어렵다. 필드가 빠진 요청은 형식이 틀린 것으로 보지 않는다. 선택 필드가 빠진 것이라서 빈 목록으로 저장한다.
+- `null` 은 필드가 빠진 것으로 보지 않고 400 으로 거부한다. 이전에는 빈 목록으로 저장하고 200 을 줬다. 브라우저의 `getTransports()` 는 `null` 을 돌려주지 않는다.
 - NUL 문자가 든 항목만 빼고 나머지를 저장하는 안도 기각했다. 값을 바꾸지 않고 저장한다는 원칙을 지키려고 요청 전체를 거부한다.
 - 개수와 길이 상한은 따로 두지 않는다. 이 엔드포인트의 요청 본문에는 전역 100KB 한도가 걸린다.
 
@@ -774,25 +820,60 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### Passkey 챌린지를 stateless JWT 로 둔다
 
-WebAuthn 명세의 challenge unique·fresh 요건은 challenge 가 random 이고 검증 때 클라이언트 응답과 맞는지 확인하면 충족된다. 서버 DB 의 단명 행이 필수는 아니다. JWT 만료 5분과 `kind` 검증으로 등록·인증 흐름의 교차 사용을 막는다. 단명 행 정리 배치와 인덱스도 필요 없다. 같은 5분 안에 같은 JWT 로 두 번째 검증을 시도해도 서버 라이브러리가 challenge·response 쌍의 암호학적 고유성으로 거부한다. counter 는 한 번만 오른다. JWT 재사용만으로는 인증을 통과할 수 없다.
+이 절의 챌린지는 등록 · 인증 옵션 토큰(`optionsToken`)에 담는 `challenge` 값이다. WebAuthn 명세의 challenge unique·fresh 요건은 challenge 가 random 이고 검증 때 클라이언트 응답과 맞는지 확인하면 충족된다. 서버 DB 의 단명 행이 필수는 아니다. JWT 만료 5분과 `kind` 검증으로 등록·인증 흐름의 교차 사용을 막는다. 발급할 때는 행을 만들지 않으므로 발급 쪽에는 단명 행 정리 배치와 인덱스가 필요 없다. 다만 JWT 만으로는 같은 챌린지를 다시 쓰는 것을 막지 못한다. 그래서 Passkey 인증 챌린지는 쓴 기록을 따로 두고 그 기록은 만료 시각이 지나면 정리한다(「Passkey 인증 챌린지는 한 번만 쓴다」).
+
+2026-10-17 정정(NERV Task `CLE-T-D331TT`): 이 절은 같은 5분 안에 같은 JWT 로 두 번째 검증을 시도해도 서버 라이브러리가 challenge·response 쌍의 암호학적 고유성으로 거부하고 counter 는 한 번만 오른다고 적었다. 라이브러리에는 쓴 챌린지를 기억하는 상태가 없어 그렇지 않았다. counter 를 올리는 인증기는 두 번째 검증이 counter 역행으로 처분됐다. counter 가 늘 0 인 인증기는 두 번째 검증도 통과했다.
 
 ### counter 역행이면 credential 을 지운다 (suspend 기각)
 
-counter 역행은 인증기 복제 공격이나 인증기 firmware 에러 둘 중 하나다. 둘 다 신뢰가 깨진 상태라 바로 신뢰를 거둔다. suspend(`disabled_at` 컬럼과 명시적 재활성화)는 사용자에게 재활성화 선택지를 주는데, 복제한 공격자가 본인인 척 재활성화해도 효과가 같아 보안 이득이 작다. 추가 컬럼·UI 흐름·테스트가 줄어 운영이 단순하고 재등록 비용은 작다.
+counter 역행은 인증기 복제 공격이나 인증기 firmware 에러 둘 중 하나다. 둘 다 신뢰가 깨진 상태라 바로 신뢰를 거둔다. 같은 assertion 의 중복 요청은 챌린지 기록에서 먼저 거부되고 서명이 틀린 응답은 역행으로 판정하지 않는다. 그래서 역행 판정까지 오는 응답은 이 두 경우뿐이다(2026-10-17, 「Passkey 인증 챌린지는 한 번만 쓴다」). suspend(`disabled_at` 컬럼과 명시적 재활성화)는 사용자에게 재활성화 선택지를 주는데, 복제한 공격자가 본인인 척 재활성화해도 효과가 같아 보안 이득이 작다. 추가 컬럼·UI 흐름·테스트가 줄어 운영이 단순하고 재등록 비용은 작다.
+
+2026-10-17 추가(NERV Task `CLE-T-D331TT`): counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 비우지 않는다. 사용자가 마지막 credential 을 지울 때는 비우므로 둘이 다르다. 지금 구현이 이렇게 동작하고 이번에 문서에 적었다. 남은 코드는 쓸 곳이 거의 없다. credential 이 없으면 로그인 응답이 `methods: ['webauthn']` 가 아니다. 쓸 수 있는 곳은 삭제 전에 `methods: ['webauthn']` 로 발급된 챌린지 토큰(`challengeToken`, 5분)뿐이고 그 토큰은 로그인 1단계를 통과해야 받는다. 첫 등록은 credential 수가 0 인지로 판정하므로 다음 등록 때 새 코드로 바뀐다. 역행 트랜잭션에서 복구 코드도 비우는 안은 처음에 미뤘다. counter 역행 처분의 범위를 정하는 사람 결정이 남아 있었기 때문이다. 그 결정으로 범위가 처음 쓰는 챌린지에서 서명이 맞는 응답으로 좁혀졌다. 범위가 좁혀져도 남은 코드를 쓸 곳은 그대로라 비워서 얻는 것이 없다. 그래서 비우는 안은 기각하고 지금 동작을 유지한다. 이 Task 는 이 동작을 바꾸지 않는다.
 
 ### 로그인에서 TOTP 로 자동 전환하지 않는다
 
 Passkey 는 피싱에 강하고 TOTP 는 코드를 입력하는 순간 피싱에 약하다. 강한 수단을 등록한 사용자가 약한 수단으로 자동 우회할 수 있으면 등록한 의미가 약해진다. TOTP 로 바꾸고 싶으면 보안 설정에서 Passkey 를 모두 지우거나 Passkey 복구 코드를 쓴 뒤 다시 로그인한다. 의식적인 하향만 허용한다. 분실로 잠길 위험은 별도 복구 코드로 줄인다. 복구 코드까지 잃은 경우의 계정 복구는 이 문서 범위 밖이고 운영자 개입 경로다.
 
+예외는 Passkey 기능이 꺼진 경우다(2026-10-17, NERV Task `CLE-T-D331TT`). 기능이 꺼지면 Passkey 로 인증할 수 없다. 그래서 TOTP 가 켜진 사용자는 TOTP 로 로그인한다. 사용자가 등록한 수단 가운데 남은 것을 쓰므로 2단계 인증을 건너뛰지 않는다. TOTP 가 없는 사용자는 막는다. 이유는 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」 에 있다. 기능이 켜져 있을 때 Passkey 인증이 실패해도 TOTP 로 넘기지 않는 규칙은 그대로다.
+
 ### Passkey 환경 변수가 없으면 기능만 끈다
 
-`WEBAUTHN_RP_ID`·`WEBAUTHN_ORIGIN` 이 없고 `WEBAUTHN_ALLOW_FALLBACK` 이 `1` 이 아니면 부팅을 거부하지 않고 `enabled=false` 로 둔다. Passkey 엔드포인트만 503 을 주고 나머지는 정상 동작한다.
+`WEBAUTHN_RP_ID`·`WEBAUTHN_ORIGIN` 이 없고 `WEBAUTHN_ALLOW_FALLBACK` 이 `1` 이 아니면 부팅을 거부하지 않고 `enabled=false` 로 둔다. 가용성 조회를 뺀 Passkey 엔드포인트는 503 을 준다. 로그인은 Passkey 만 등록하고 TOTP 가 꺼진 계정만 503 으로 막고 나머지 계정은 정상 동작한다.
 
-- Passkey 는 부가 인증 수단이지 인증의 핵심 경로가 아니다. 없어도 일반 로그인과 TOTP 가 동작해야 한다.
+- Passkey 는 부가 인증 수단이지 인증의 핵심 경로가 아니다. 그래서 기능이 꺼져도 부팅과 Passkey 를 등록하지 않은 사용자의 로그인, TOTP 로그인은 동작해야 한다. Passkey 만 등록한 사용자는 이 원칙 밖이다(넷째 불릿).
 - 운영자가 환경 변수를 한 번에 다 설정하지 않는 셀프 호스팅 점진 도입을 막지 않는다.
 - localhost 같은 잘못된 폴백으로 등록 데이터가 쌓이면 도메인을 정할 때 모두 무효가 된다. 자동 폴백보다 명시적 활성화가 안전하다.
-- Passkey 만 쓰는 사용자는 설정이 꺼지면 접근하지 못할 수 있다. 운영자가 한 번 켰다면 그대로 두는 것이 정상 운영이다. 실수로 꺼지면 Passkey 복구 코드로 TOTP 를 등록하는 우회 경로가 없어 운영자 개입이 필요하다. 설정을 바꾸기 전에 사용자에게 공지하는 것을 권한다.
+- Passkey 만 쓰는 사용자(TOTP 꺼짐)는 설정이 꺼지면 비밀번호로 로그인하지 못한다(503 `WEBAUTHN_DISABLED`). 2026-10-17 에 구현이 이 사용자를 비밀번호만으로 로그인시킨다는 것을 찾았고 사람 결정으로 이 문장 쪽에 맞췄다(「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」). 운영자가 한 번 켰다면 그대로 두는 것이 정상 운영이다. 실수로 꺼지면 Passkey 복구 코드로 TOTP 를 등록하는 우회 경로가 없어 운영자 개입이 필요하다. 설정을 바꾸기 전에 사용자에게 공지하는 것을 권한다.
 - 폴백이 필요한 개발·로컬·시연에는 `WEBAUTHN_ALLOW_FALLBACK=1` 을 남겨 둔다.
+
+### Passkey 인증 챌린지는 한 번만 쓴다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 이 두 번 오는 일은 공격이 아니어도 생긴다. 버튼을 두 번 누르거나 네트워크 계층이 요청을 다시 보내는 경우다. 챌린지 기록이 없을 때 counter 를 올리는 인증기는 두 번째 요청이 counter 역행으로 처분됐다. credential 이 지워지고 첫 요청이 받은 로그인 세션까지 끝났다. counter 가 늘 0 인 인증기(대부분의 플랫폼 Passkey)는 같은 assertion 이 다시 통과해 토큰이 한 번 더 나왔다. 챌린지를 한 번만 쓰면 두 경우 모두 credential 을 지우지 않는 401 로 끝난다. 처음 쓰는 챌린지에서 서명이 맞는데 counter 가 역행한 응답만 복제 신호로 남는다.
+
+- **기각: counter 가 같은 값과 작은 값을 나눠 처분한다.** counter 가 같으면 거부만 하고 작을 때만 지우는 안이다. 둘 다 0 인 경우는 어느 안에서도 역행이 아니다. 구현은 간단하다. 하지만 counter 가 늘 0 인 인증기의 재전송을 막지 못하고 같은 counter 를 내는 복제 인증기도 놓친다.
+- **기각: 지금 동작을 문서에 적고 화면에서 중복 제출을 막는다.** 화면을 거치지 않는 재전송과 counter 0 인증기의 토큰 재발급이 남는다.
+- **기록 시점**: 서명과 counter 를 판정하기 전에 기록한다. 판정 뒤에 기록하면 동시에 온 두 요청이 모두 판정으로 가서 지금과 같은 역행 처분이 난다. 검증 결과와 상관없이 기록하므로 실패한 사용자는 옵션을 다시 받아야 한다. 옵션 요청은 챌린지 토큰만 있으면 되고 로그인 화면은 이미 시도마다 옵션을 새로 받는다.
+- **비용**: 쓴 챌린지를 만료 시각까지 담는 공유 저장소가 필요하다. 챌린지를 JWT 에 담아 발급하는 방식(「Passkey 챌린지를 stateless JWT 로 둔다」)은 그대로 둔다. 원자적 기록, 만료된 기록 정리, 저장소 장애 때의 동작은 구현 Task 가 정한다. 한 번만 쓰는 값을 원자적으로 소비하는 선례는 [계정과 워크스페이스 데이터 흐름 「OAuth state 를 한 번의 DELETE 로 소비한다」](CLE-ACCT-DATA.md#oauth-state-를-한-번의-delete-로-소비한다) 에 있다.
+
+### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 구현은 기능이 꺼지면 credential 수를 0 으로 보고 Passkey 만 등록한 계정을 비밀번호만으로 로그인시켰다. 「Passkey 환경 변수가 없으면 기능만 끈다」 는 그런 사용자가 접근하지 못한다고 적어 반대였다. 구현대로라면 환경 변수 하나가 빠질 때 Passkey 로 2단계 인증을 등록한 계정이 모두 비밀번호만으로 들어온다. 그래서 막는 쪽으로 정했다. TOTP 가 켜진 사용자는 TOTP 로 로그인한다.
+
+- **기각: 지금 동작을 문서에 적는다.** 아무도 잠기지 않는다. 하지만 설정 실수 하나로 2단계 인증이 꺼지고 사용자는 그 사실을 알 수 없다.
+- **기각: 기능이 꺼진 동안 Passkey 복구 코드로만 로그인을 연다.** 2단계 인증이 유지되고 바로 잠기지 않는다. 하지만 로그인 응답에 새 `methods` 값과 화면이 필요해 바뀌는 곳이 가장 많다. 복구 코드는 10개뿐이라 설정이 꺼진 동안 매번 쓰면 곧 바닥난다.
+- **비용**: 운영자가 변수를 되돌릴 때까지 Passkey 만 등록한 사용자는 비밀번호로 로그인하지 못한다. 그래서 `503` 을 쓴다. 운영자가 설정을 바꿔야 풀리는 상태다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 11).
+- **바뀌는 계약**: `WebAuthnService.countCredentials()` 는 기능이 꺼지면 0 을 돌려준다. 로그인은 기능이 꺼져도 credential 이 있는지 알아야 하므로 이 계약을 바꾸거나 켜짐 여부와 credential 수를 따로 묻는다(「Passkey 도메인 모듈을 분리한다」).
+
+### 이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 구현은 비밀번호를 확인하기 전에 이메일 인증 여부를 보고 인증 전 계정에 다른 메시지를 줬다. 그래서 비밀번호를 몰라도 그 이메일로 가입한 인증 전 계정이 있는지 알 수 있었다. 확인을 비밀번호 뒤로 옮기면 비밀번호를 아는 본인만 계정 상태를 알게 된다. 인증 메일을 놓친 사용자는 왜 로그인이 안 되는지 알 수 있다.
+
+- **기각: 인증 전 계정도 같은 메시지로 숨긴다.** 계정 상태는 드러나지 않는다. 하지만 인증 메일을 놓친 사용자가 이유를 알 수 없다.
+- **기각: 지금 동작을 문서에 적는다.** 코드는 그대로지만 계정 존재와 인증 상태가 비밀번호 없이 드러난다.
+- **잠금 순서는 그대로 둔다**: `ACCOUNT_LOCKED` 는 지금처럼 비밀번호 확인 전에 알린다. 그래서 비밀번호를 몰라도 그 이메일의 계정이 잠겼다는 것은 드러난다. 지금은 이 응답으로 사용자가 잠금을 안다([계정 잠금에 이메일 알림을 두지 않는다](#계정-잠금에-이메일-알림을-두지-않는다)). 잠금 순서는 이미 그렇게 동작하고 이번 결정 범위 밖이다.
+- **새 코드로 알린다**: 비밀번호가 맞는 인증 전 계정은 401 `EMAIL_VERIFICATION_REQUIRED` 로 거부한다. 사용자가 할 일(인증 메일 확인)이 자격 증명을 고치는 것과 달라서 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 의 새 조건이다. 같은 코드로 묶는 경우는 구분하면 정보가 드러날 때인데 이 응답은 비밀번호가 맞을 때만 나서 거기에 들지 않는다. 화면은 메시지가 아닌 코드로 안내 문구를 고르고(같은 문서 규칙 4) 코드를 키로 한국어 문구를 매핑한다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5). 401 은 같은 로그인 1단계의 `ACCOUNT_LOCKED` 를 따랐다. 이름은 로그인 이력 사유값 `EMAIL_NOT_VERIFIED` 와 겹치지 않게 골랐다. 구현 전까지는 카탈로그 §6.2 표에 넣지 않고 표 아래 문장으로 적는다(같은 문서 규칙 9).
+- **기각: `LOGIN_FAILED` 에 메시지만 다르게 둔다.** 처음 초안이 이렇게 적었다. 화면이 코드로 인증 안내를 고를 수 없어 안내가 영문 서버 메시지에만 남는다. 그러면 위 두 규칙과 어긋나 2026-10-17 에 사람이 다시 정했다.
+- **기각: `LOGIN_FAILED` 의 `error.details` 에 하위 사유를 싣는다.** 코드는 하나로 남지만 로그인 응답에 하위 사유 형식이 새로 생기고 화면이 `details` 로 분기해야 한다.
 
 ### Passkey 도메인 모듈을 분리한다
 
@@ -807,11 +888,11 @@ Passkey 관련 엔티티·서비스·DTO·컨트롤러·테스트는 `codebase/b
 | `auth/webauthn/webauthn.module.ts` | NestJS module |
 | `auth/webauthn/webauthn.controller.ts` | HTTP controller (`/auth/2fa/webauthn/...`) |
 
-- `AuthService` 는 credential repository 를 직접 주입하지 않고 `WebAuthnService.countCredentials()` 를 쓴다. 이 함수가 기능이 꺼져 있으면 0 을 돌려주므로 `AuthService` 에 켜짐 분기가 필요 없다.
+- `AuthService` 는 credential repository 를 직접 주입하지 않고 `WebAuthnService.countCredentials()` 를 쓴다. 이 함수가 기능이 꺼져 있으면 0 을 돌려주므로 `AuthService` 에 켜짐 분기가 필요 없다. 2026-10-17 정정(NERV Task `CLE-T-D331TT`): 이 계약은 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」 와 맞지 않는다. 로그인은 기능이 꺼져도 credential 이 있는지 알아야 한다. 계약을 바꾸는 일은 NERV Task `CLE-T-RFSJXQ` 가 맡는다. 어느 쪽으로 바꿔도 `AuthService` 가 credential repository 를 직접 주입하지 않는 규칙은 그대로다.
 - `LoginHistoryService` 는 `AuthModule` 과 `WebAuthnModule` 양쪽에 provider 로 둔다. 두 인스턴스가 같은 테이블에 INSERT 만 하므로 동작이 같다. 별도 모듈 분리는 후속 과제다.
 - `WebAuthnController` 파일은 `webauthn/` 폴더에 두지만 모듈 등록은 `AuthModule` 의 `controllers` 에 한다. 컨트롤러가 챌린지 토큰 소비와 2단계 뒤 토큰 발급에 `AuthService` 를 써야 하기 때문이다. `WebAuthnModule` 에 등록하면 역방향 의존이 생긴다.
 - `setRefreshTokenCookie`·`clearRefreshTokenCookie` 는 두 컨트롤러가 함께 쓰므로 `auth/utils/refresh-cookie.ts` 의 모듈 함수로 뺐다.
-- 채택 이유: 로그인·가입·OAuth·세션·TOTP 에 Passkey 까지 한 모듈에 있으면 응집도가 낮다. 도메인 모듈로 나눠 경계를 드러내고 한 방향 의존으로 순환을 막는다.
+- 채택 이유: 로그인·가입·OAuth·로그인 세션·TOTP 에 Passkey 까지 한 모듈에 있으면 응집도가 낮다. 도메인 모듈로 나눠 경계를 드러내고 한 방향 의존으로 순환을 막는다.
 
 ### 로그인 응답에서 `requiresTotp` 필드를 없앴다
 
@@ -854,7 +935,7 @@ NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세는 두 곳이 �
 
 - 비밀번호만 받고 원문의 2단계 인증 표를 API 표에 맞춰 고치기: 위 첫째 이유로 기각했다.
 - 6자리 코드만 받고 복구 코드는 거부하기: 인증 앱을 잃은 사용자가 TOTP 를 끄지도 다시 설정하지도 못한다.
-- 계정 재인증 `verifyReauth` 를 그대로 쓰기: 비밀번호와 TOTP 가운데 하나만 통과하면 되는 규칙이다. 비밀번호만으로 끄는 지금과 달라지지 않는다.
+- 계정 재인증 `verifyReauth` 를 그대로 쓰기: 비밀번호와 TOTP 가운데 하나만 통과하면 되는 규칙이다. 비밀번호만 받던 이전 구현과 달라지지 않는다.
 - Passkey 복구 코드도 받기: 「복구 코드 묶음을 TOTP 와 Passkey 로 나눈다」 의 결정과 어긋난다. 한쪽 수단의 복구 코드로 다른 쪽 수단을 지우게 된다.
 - 비밀번호를 빼고 코드만 받기: 원문과 기존 구현이 모두 비밀번호 확인을 요구했다. 이를 약하게 할 이유가 없다.
 - 코드 누락용 새 에러 코드(`TOTP_REQUIRED`): 본문 검증이 이미 400 으로 막는다. 같은 상황에 코드를 둘 두지 않는다.
@@ -863,12 +944,25 @@ NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세는 두 곳이 �
 
 NERV Task `CLE-T-75TDTN` 에서 TOTP 끄기 규칙을 정하며 함께 따졌다. 이메일 변경과 세션 강제 종료의 계정 재인증은 등록된 TOTP 코드만 받고 TOTP 복구 코드는 받지 않는다([세션과 토큰](CLE-ACCT-SESSION.md) 의 「세션 정책」 표 「강제 종료 재인증」 행). TOTP 끄기는 복구 코드도 받는다. 두 규칙은 일부러 다르게 두었다.
 
-- 계정 재인증은 비밀번호와 TOTP 가운데 하나만 통과하면 된다. 비밀번호가 있는 사용자는 인증 앱을 잃어도 비밀번호로 재인증한다. 복구 코드를 받지 않아도 잠기지 않는다.
-- 비밀번호가 없는 OAuth 전용 계정만 TOTP 코드에 기댄다. 이 사용자도 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 추가하면 비밀번호로 재인증할 수 있다.
+- 계정 재인증은 비밀번호와 TOTP 가운데 하나만 통과하면 된다. 비밀번호가 있는 사용자는 인증 앱을 잃어도 비밀번호로 계정 재인증을 한다. 복구 코드를 받지 않아도 잠기지 않는다.
+- 비밀번호가 없는 OAuth 전용 계정만 TOTP 코드에 기댄다. 이 사용자도 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 추가하면 비밀번호로 계정 재인증을 할 수 있다.
 - TOTP 끄기는 비밀번호와 코드를 모두 요구한다. 코드 자리에 다른 길이 없어서 복구 코드를 받지 않으면 인증 앱을 잃은 사용자가 막힌다.
 - 계정 재인증이 복구 코드를 받으면 비밀번호 없이 복구 코드 한 장만으로 이메일을 바꿀 수 있다. 복구 코드는 종이나 파일로 오래 보관하는 고정 값이다. 그 보관 방식 때문에 단독 수단으로는 약하다.
 
 그래서 계정 재인증 규칙은 바꾸지 않았다. 계정 재인증의 동작은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다. 요청 필드 이름도 받는 값에 따라 갈린다. 계정 재인증은 `totpCode`, TOTP 끄기와 로그인 2단계는 `code` 다.
 
 계정 재인증에서 복구 코드를 막는 것은 지금 본문 검증이다. `totpCode` 는 6~8자로 묶여 있어 `xxxx-xxxx-xxxx` 꼴의 복구 코드가 서비스에 닿지 않는다. 서비스(`verifyReauth`)는 로그인과 같은 `verifyForLogin` 을 부른다. 그래서 이 길이 제한을 넓히면 계정 재인증에서도 복구 코드가 통과하고 소비된다.
+
+### 에러 코드 표와 응답 표기를 구현에 맞췄다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 바로잡았다. 동작은 바꾸지 않았다.
+
+- **발행하는데 표에 없던 코드**: `LOGIN_FAILED` · `CHALLENGE_METHOD_MISMATCH` · `WEBAUTHN_COUNTER_REGRESSION` · `WEBAUTHN_REQUIRED` 를 에러 코드 표에 더했다. API 표는 counter 역행을 "401" 로만 적었고 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 이 경우를 `WEBAUTHN_INVALID` 로 적었다. 구현은 응답 코드 `WEBAUTHN_COUNTER_REGRESSION` 을 돌려준다. `LOGIN_FAILED` 행의 이메일 인증 전 계정은 처음에 지금 동작만 적고 「미결 사항」 에 올렸다. 사람 결정이 나서 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」 로 옮겼고 그 응답은 새 코드 `EMAIL_VERIFICATION_REQUIRED` 로 나눴다. `WEBAUTHN_REQUIRED` 의 조건도 구현대로 좁혔다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다.
+- **계정 재인증 수단 없음의 조건**: 이메일 변경을 막는 조건을 "비밀번호도 2단계 인증도 없는 계정" 으로 적었다. 이 문서에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻한다. 구현(`SessionsService.verifyReauth`)은 비밀번호와 TOTP 만 본다. 그래서 Passkey 만 등록한 계정도 막힌다. 조건을 "비밀번호도 TOTP 도 없는 계정" 으로 고쳤다.
+- **재설정 실패의 구분**: `POST /api/auth/reset-password` 는 실패를 모두 400 `VALIDATION_ERROR` 로 돌려준다. 지금 구현은 비밀번호 규칙 위반에만 `details` 를 싣는다. 이 Task 는 처음에 `details` 유무를 판별 규칙으로 적으려 했다. 이 규칙은 에러 코드 규약과 어긋난다. 에러 코드 규약은 원인이 갈리면 코드로 가르게 한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 4 · 6). 그래서 API 표에는 현재 동작만 적고 코드를 나눌지는 「미결 사항」 에 올렸다. 재설정 화면은 지금 두 경우를 가르지 않는다.
+- **응답 봉투 표기**: 어떤 곳은 봉투를 뺀 내용을, 어떤 곳은 봉투째 적었다. [API](#api) 첫머리에 봉투를 뺀 내용으로 적는다는 규칙을 두고 봉투째 적은 세 곳을 고쳤다.
+- **counter 역행 뒤의 Passkey 복구 코드**: 사용자가 마지막 credential 을 지우면 복구 코드를 비우지만 counter 역행 삭제는 비우지 않는다. 이 지금 동작을 [복구 코드](#복구-코드) 표와 본문에 적었다. 이유는 「counter 역행이면 credential 을 지운다 (suspend 기각)」 에 날짜를 붙여 더했다.
+- **`WEBAUTHN_DISABLED` 범위**: Passkey 엔드포인트의 503 요구사항, 「Passkey 기능 켜기와 환경 변수」 표, Rationale 「Passkey 환경 변수가 없으면 기능만 끈다」 는 Passkey 기능이 꺼지면 Passkey 엔드포인트가 모두 503 이라고 적었다. 가용성 조회는 기능이 꺼져도 200 `{ enabled: false }` 다. 세 곳에 이 예외를 적었다.
+- **counter 0 경계**: counter 역행 요구사항은 "저장값 이하" 만 적어 저장값과 응답 값이 모두 0 인 인증기도 역행으로 읽혔다. 구현이 쓰는 `@simplewebauthn/server` 는 둘 다 0 이면 역행으로 보지 않는다. counter 가 늘 0 인 인증기(대부분의 플랫폼 Passkey)는 이 경계가 없으면 로그인할 때마다 지워진다. 그래서 문서를 라이브러리 판정에 맞췄다.
+- **날짜가 붙은 Rationale 의 정정**: 「등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다」 의 첫 문단은 고치기 전 동작을 "문자열 배열이 아닌 값이 오면 500" 으로만 적었다. 실제로는 일부만 500 이었고 `null` 은 200 이었다. 첫 문단을 고치고 `null` 이 200 에서 400 으로 바뀐 항목을 더했다. 「`user.email_changed` 감사 details 에 이메일 값을 싣지 않는다」 의 "그 세션 워크스페이스" 는 "변경을 확정한 요청의 현재 워크스페이스" 로 고쳤다. 뜻은 같고 용어 표기만 바꿨다.
 

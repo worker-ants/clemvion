@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "773c80e0eee64a008eabc8e0ac4f0fd3416f877e93ae6f46bce4737ff016069e"
+content_hash: "00220e4beaf5d7843877d7ce0f191de585a124268498339f97c02a2b83b3d779"
 read_as: "approved_fallback"
-task: "CLE-T-0W7CA7"
+task: "CLE-T-D331TT"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "c4b45fa22d8037322b7f8fcc038354cf576cec628afbfebc9ed9a2ef633c8924"
-etag: "sha256-dbeb447b557cb3e21c34817a59a126bde9e71f9e0efa5485da79604905ffc21e"
+mirror_sha256: "c87faa6cb344e55ba03bcd1545309ae5eb5df5eb5264a85395f22f0dde0d8bac"
+etag: "sha256-a3ed4d182988f032e5db34cbe6664838743bae00871d3761a0133a41fa314d73"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -309,14 +309,14 @@ sequenceDiagram
   R->>S: 메일 링크로 가입 페이지 열기
   R->>S: GET /api/invitations/:token (메타 조회)
   S-->>R: workspaceName, invitedByName, email, expiresAt, role
-  R->>S: POST /api/auth/register {name, password, invitationToken}
+  R->>S: POST /api/auth/register {name, email, password, termsAccepted, invitationToken}
   S->>S: 토큰 검증, 이메일 일치, 한 트랜잭션으로 사용자·멤버십·수락
   S-->>R: 액세스 토큰 + 리프레시 쿠키, 초대 워크스페이스로 진입
 ```
 
 1. 관리자 이상이 `POST /api/workspaces/:id/invitations { email, role }` 을 보낸다. `role=admin` 은 소유자만 보낼 수 있다. 서버는 토큰을 만들고 `expiresAt = now + 7일` 로 메일을 보낸다.
 2. 받는 사람이 메일 링크를 누르면 프론트엔드 가입 페이지가 초대 토큰 쿼리와 함께 열린다. 메일 링크는 `/register?invitationToken=<초대 토큰>` 이다(`mail.service.ts` 의 `sendWorkspaceInvitationEmail`). 이미 발송된 옛 링크 `/auth/register?invitationToken=…` 은 로그인 여부와 상관없이 프론트엔드 proxy 가 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다([세션과 토큰](CLE-ACCT-SESSION.md#공개-경로와-가드)). 가입 페이지의 메타 조회와 입력란 고정은 아래 [초대 가입 화면](#초대-가입-화면) 에 있다.
-3. 가입을 제출받으면 서버가 (a) 토큰이 있고 만료되지 않았고 쓰이지 않았는지, (b) 토큰 이메일과 가입 이메일이 같은지 본다. (c) 맞으면 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다. (d) 불일치나 만료면 가입 자체를 거부하고 사용자 행을 만들지 않는다.
+3. 가입을 제출받으면 서버가 (a) 토큰이 있고 만료되지 않았고 쓰이지 않았는지, (b) 토큰 이메일과 가입 이메일이 같은지 본다. 가입 이메일은 앞뒤 공백을 지우고 대소문자를 구분하지 않고 비교한다. (c) 맞으면 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다. (d) 불일치나 만료면 가입 자체를 거부하고 사용자 행을 만들지 않는다.
 4. 가입에 성공하면 인증 메일 없이 자동 로그인하고 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다.
 
 ### 이미 가입한 사용자의 수락 경로
@@ -341,10 +341,10 @@ sequenceDiagram
 | 1. 토큰 메타 미리 조회 | `GET /api/invitations/:token` 로 워크스페이스 이름·초대자·이메일·만료를 받는다. 404·410 같은 실패면 에러 화면으로 보낸다 |
 | 2. 이메일 채우기와 고정 | 응답의 `email` 을 입력란에 채우고 읽기 전용으로 고정한다. 다른 이메일로는 가입할 수 없다 |
 | 3. 헤더 안내 | "**{workspace}** 에 초대받으셨어요" 와 초대자 이름을 보여 준다 |
-| 4. 가입 제출 | `POST /api/auth/register { name, password, invitationToken }`. 이메일은 서버가 토큰에서 믿고 쓴다 |
+| 4. 가입 제출 | `POST /api/auth/register { name, email, password, termsAccepted, invitationToken }`. 고정한 입력란의 이메일을 함께 보낸다. 서버는 이 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다 |
 | 5. 트랜잭션 처리 | 서버가 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다 |
 | 6. 가입 성공 뒤 | 이메일 인증 안내 화면 대신 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다 |
-| 7. 에러 분기 | `invitation_email_mismatch`(서버가 거의 막지만 안전망), `invitation_expired`, `invitation_already_used` 면 "이 초대는 더 이상 유효하지 않아요. 워크스페이스 관리자에게 재발송을 요청하세요" 안내를 보여 준다 |
+| 7. 에러 분기 | `invitation_email_mismatch`(입력란을 고정해 화면에서는 거의 나지 않는다. 요청을 직접 만든 경우를 막는 서버 검사다), `invitation_expired`, `invitation_already_used` 면 "이 초대는 더 이상 유효하지 않아요. 워크스페이스 관리자에게 재발송을 요청하세요" 안내를 보여 준다 |
 
 ### 초대 에러 코드
 
@@ -718,3 +718,7 @@ sequenceDiagram
 (b) `SetMetadata` 와 `Reflector` 로 opt-in 마커를 다는 방식은 다시 기각했다. Nest 공식 확장점이지만 `@WorkspaceId()` 를 쓰는 곳마다 마커를 달아야 한다. 이것은 앞 결정이 이미 기각한 "라우트별 opt-in 마커" 모양이다(다음 라우트에서 같은 누락이 다시 생긴다). 이 검사는 호출부에 아무것도 요구하지 않으면서 같은 위험을 막는다.
 
 (c) `assertProductionConfig` 와 합치지 않았다. 축이 다르다. 그쪽은 환경 변수 축이라 `NODE_ENV=production` 에서만 동작하고 개발·테스트에서는 아무 일도 하지 않는다. 이 검사는 환경과 무관한 구조 불변식이라 모든 환경에서 동작해야 뜻이 있다. 합치면 "production config" 라는 이름의 범위를 넘고, production 한정 조건이 이 검사까지 끌고 갈 위험이 생긴다.
+
+### 초대 가입 요청 본문을 구현에 맞췄다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 바로잡았다. 「미가입자 가입 경로」 의 시퀀스와 「초대 가입 화면」 표는 초대 가입 요청을 `{ name, password, invitationToken }` 으로 적고 서버가 이메일을 토큰에서 가져온다고 했다. 구현은 일반 가입과 같은 본문을 받는다(`register-form.tsx`, `AuthService.registerWithInvitation`). 서버는 입력 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다. 그래서 두 곳의 본문과 설명을 구현에 맞췄다. 동작은 바뀌지 않았다.
