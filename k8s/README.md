@@ -256,6 +256,16 @@ data:
 
 받는 쪽 장애가 이보다 길면 그 이벤트는 더 보내지 않고 트리거의 `notificationHealth` 가 `degraded` 가 됩니다.
 
+### 9. (옵셔널) 외부 인터랙션 SSE 의 Redis 사용량
+
+외부 인터랙션 SSE 는 서버 인스턴스가 여러 대여도 이벤트와 재연결 replay 가 끊기지 않도록 Redis 를 씁니다. 큐(BullMQ)와 같은 Redis 라서 배포 전에 용량과 정책을 확인합니다.
+
+- 서버 인스턴스는 자기가 처리하는 **모든 실행 이벤트**를 Redis 에 씁니다. SSE 구독자가 없는 실행과 외부 인터랙션을 쓰지 않는 실행(에디터 수동 실행 등)도 같습니다. 이벤트 하나마다 `XADD` · `PEXPIRE` · `PUBLISH` 세 명령이 pipeline 하나로 나갑니다.
+- 실행마다 replay 버퍼 `eia:sse:buf:<executionId>`(Redis Stream)가 생깁니다. 항목은 대략 1000개까지 두고 마지막 이벤트 5분 뒤에 사라집니다. 제한은 항목 수뿐이고 크기는 제한하지 않습니다. 그래서 최대 사용량은 **최근 5분 안에 이벤트를 낸 실행 수 × 1000 × 이벤트 payload 크기** 정도입니다.
+- 연결 상한 키 `eia:sse:subs:<executionId>` 는 TTL 이 45초이고 작습니다. 실시간 전달과 닫기 신호 채널(`eia:sse:live:*` · `eia:sse:close`)은 Pub/Sub 이라 Redis 에 저장되지 않습니다.
+- Redis `maxmemory-policy` 는 `noeviction` 이어야 합니다(BullMQ 의 요구입니다). 이 저장소의 매니페스트는 `maxmemory` 와 `maxmemory-policy` 를 정하지 않습니다. 관리형 Redis(ElastiCache 등)는 파라미터 그룹에서 값을 확인하고, 위 최대 사용량을 더한 용량을 잡습니다.
+- Redis 가 없거나 명령이 실패하면 서버 인스턴스는 자기 메모리로만 동작합니다(fail-open). 이때 다른 서버 인스턴스가 낸 이벤트는 받지 못하고 연결 상한도 인스턴스마다 셉니다. 실패는 로그에 `EIA SSE Redis … 실패` 로 한 번 남고 복구되면 `… 복구` 가 남습니다.
+
 ---
 
 ## Smoke 테스트
