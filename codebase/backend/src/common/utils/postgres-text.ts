@@ -1,4 +1,7 @@
+import { applyDecorators } from '@nestjs/common';
+import { ApiProperty } from '@nestjs/swagger';
 import {
+  MaxLength,
   ValidateBy,
   buildMessage,
   type ValidationOptions,
@@ -51,10 +54,9 @@ export function HasNoNulCharacter(
 /**
  * 코드 포인트가 `max` 개를 넘는 문자열을 거부한다. 문자열이 아니어도 거부한다.
  *
- * `varchar(n)` 컬럼 필드에는 `@MaxLength(n)` 과 함께 쓴다. `@MaxLength` 는 변형 선택자(U+FE0E · U+FE0F)를
- * 앞 글자와 묶어 한 글자로 세서 코드 포인트 n 개를 넘는 값도 통과시킨다. PostgreSQL 은 그 값을 거부한다
- * (SQLSTATE 22001). `@MaxLength(n)` 을 지우지 않는 이유는 Swagger 플러그인이 그 값으로 OpenAPI 스키마의
- * `maxLength` 를 만들기 때문이다. JSON Schema 의 `maxLength` 도 코드 포인트로 센다.
+ * `varchar(n)` 컬럼 필드에는 이 검증기를 따로 붙이지 않고 {@link PostgresVarchar} 를 쓴다. `@MaxLength(n)` 은
+ * 변형 선택자(U+FE0E · U+FE0F)를 앞 글자와 묶어 한 글자로 세서 코드 포인트 n 개를 넘는 값도 통과시킨다.
+ * PostgreSQL 은 그 값을 거부한다(SQLSTATE 22001).
  */
 export function MaxCodePoints(
   max: number,
@@ -74,5 +76,28 @@ export function MaxCodePoints(
       },
     },
     validationOptions,
+  );
+}
+
+/**
+ * `varchar(max)` 컬럼에 저장하는 문자열 필드에 붙인다. 숫자 하나로 다음 넷을 함께 건다.
+ *
+ * - `@MaxLength(max)`: 변형 선택자를 앞 글자와 묶어 센다. 평문이 넘치면 `maxLength` 위반으로 답한다.
+ * - `@MaxCodePoints(max)`: 코드 포인트로 센다. PostgreSQL `varchar` 가 세는 방식이다.
+ * - `@HasNoNulCharacter()`: NUL 문자를 거부한다.
+ * - `@ApiProperty({ maxLength: max })`: OpenAPI 스키마의 `maxLength`. JSON Schema 의 `maxLength` 도 코드 포인트로 센다.
+ *
+ * `@MaxLength` 를 합성 안에 넣으면 Nest Swagger CLI 플러그인(`classValidatorShim`)이 소스 AST 에서 `MaxLength`
+ * 이름을 찾지 못해 스키마의 `maxLength` 를 만들지 못한다. 그래서 `ApiProperty` 를 합성 안에서 직접 건다. 필드의
+ * `@ApiProperty({ description })` 와는 값이 합쳐진다.
+ *
+ * `MinLength` · `IsString` · `IsOptional` 은 필드마다 달라 따로 붙인다.
+ */
+export function PostgresVarchar(max: number): PropertyDecorator {
+  return applyDecorators(
+    MaxLength(max),
+    MaxCodePoints(max),
+    HasNoNulCharacter(),
+    ApiProperty({ maxLength: max }),
   );
 }

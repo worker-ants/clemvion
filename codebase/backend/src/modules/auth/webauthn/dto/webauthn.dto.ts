@@ -7,10 +7,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-import {
-  HasNoNulCharacter,
-  MaxCodePoints,
-} from '../../../../common/utils/postgres-text';
+import { PostgresVarchar } from '../../../../common/utils/postgres-text';
 
 // Passkey 표시 이름의 최대 길이(유니코드 코드 포인트). `webauthn_credential.device_name` 이 `varchar(100)` 이다.
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
@@ -44,9 +41,7 @@ export class WebAuthnRegisterVerifyDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(DEVICE_NAME_MAX_CODE_POINTS)
-  @MaxCodePoints(DEVICE_NAME_MAX_CODE_POINTS)
-  @HasNoNulCharacter()
+  @PostgresVarchar(DEVICE_NAME_MAX_CODE_POINTS)
   deviceName?: string;
 }
 
@@ -106,9 +101,7 @@ export class WebAuthnRenameDto {
   })
   @IsString()
   @MinLength(1)
-  @MaxLength(DEVICE_NAME_MAX_CODE_POINTS)
-  @MaxCodePoints(DEVICE_NAME_MAX_CODE_POINTS)
-  @HasNoNulCharacter()
+  @PostgresVarchar(DEVICE_NAME_MAX_CODE_POINTS)
   deviceName: string;
 }
 

@@ -438,12 +438,15 @@ describe('WebAuthn 2FA (e2e)', () => {
   // 코드 포인트로 센다. class-validator 의 MaxLength 는 변형 선택자(U+FE0F)를 앞 글자와 묶어 한
   // 글자로 세서 코드 포인트 101개짜리 이름도 통과시킨다. 고치기 전에는 두 이름 모두 저장에서
   // 500 이 났다.
+  // 변형 선택자 16(U+FE0F). 화면에 보이지 않아 리터럴로 적으면 핵심 입력이 사라진 것처럼 보인다.
+  const VS16 = '\uFE0F';
   const INVALID_DEVICE_NAMES: [string, string][] = [
     ['NUL 문자가 든 이름', 'a\u0000b'],
-    ['코드 포인트가 100개를 넘는 이름', `${'a'.repeat(100)}️`],
+    // 글자 100개 + 변형 선택자 = 코드 포인트 101개. MaxLength 는 100으로 센다.
+    ['코드 포인트가 100개를 넘는 이름', `${'a'.repeat(100)}${VS16}`],
   ];
-  // 대조군에 쓰는 경계값이다. 코드 포인트 100개는 받는다.
-  const LONGEST_DEVICE_NAME = `${'a'.repeat(99)}️`;
+  // 대조군에 쓰는 경계값이다. 글자 99개 + 변형 선택자 = 코드 포인트 100개는 받는다.
+  const LONGEST_DEVICE_NAME = `${'a'.repeat(99)}${VS16}`;
 
   it.each(INVALID_DEVICE_NAMES)(
     'K. 등록 검증이 %s을 400 으로 거부하고 저장하지 않는다',

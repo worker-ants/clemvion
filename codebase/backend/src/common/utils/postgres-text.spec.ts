@@ -1,13 +1,24 @@
-import { IsOptional, MaxLength, validate } from 'class-validator';
+import { Controller, Post } from '@nestjs/common';
+import { ApiBody, ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength, validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 
 import {
+  buildSwaggerDocument,
+  propertyOf,
+  schemaOf,
+} from '../../shared/testing/swagger-probe';
+import {
   HasNoNulCharacter,
   MaxCodePoints,
+  PostgresVarchar,
   codePointLength,
   hasAtMostCodePoints,
   hasNoNulCharacter,
 } from './postgres-text';
+
+// 변형 선택자 16(U+FE0F). 화면에 보이지 않아 리터럴로 적으면 테스트의 핵심 입력이 사라진 것처럼 보인다.
+const VS16 = '\uFE0F';
 
 class Probe {
   @IsOptional()
@@ -53,7 +64,7 @@ describe('codePointLength', () => {
   it.each([
     ['ASCII', 'abc', 3],
     ['a surrogate pair as one code point', '😀', 1],
-    ['a variation selector as its own code point', '❤️', 2],
+    ['a variation selector as its own code point', `\u2764${VS16}`, 2],
     ['Hangul syllables', '보안 키', 4],
   ])('counts %s', (_label, value, expected) => {
     expect(codePointLength(value)).toBe(expected);
@@ -79,7 +90,7 @@ describe('hasAtMostCodePoints', () => {
       @MaxLength(3)
       name!: string;
     }
-    const value = 'abc️';
+    const value = `abc${VS16}`;
     const errors = await validate(
       plainToInstance(MaxLengthProbe, { name: value }),
     );
@@ -110,5 +121,85 @@ describe('HasNoNulCharacter · MaxCodePoints decorators', () => {
     expect(error.constraints?.maxCodePoints).toBe(
       'name must have at most 3 Unicode code points',
     );
+  });
+});
+
+describe('PostgresVarchar', () => {
+  class VarcharProbe {
+    @IsString()
+    @PostgresVarchar(3)
+    name!: string;
+  }
+
+  async function constraintsOfName(name: unknown): Promise<string[]> {
+    const [error] = await validate(plainToInstance(VarcharProbe, { name }));
+    return Object.keys(error?.constraints ?? {}).sort();
+  }
+
+  it('passes a string within max code points', async () => {
+    expect(await constraintsOfName('ab😀')).toEqual([]);
+  });
+
+  it('reports maxLength and maxCodePoints for a plain string over max', async () => {
+    expect(await constraintsOfName('abcd')).toEqual([
+      'maxCodePoints',
+      'maxLength',
+    ]);
+  });
+
+  // MaxLength 는 변형 선택자를 앞 글자와 묶어 세서 통과시키고 MaxCodePoints 만 거부한다.
+  it('rejects a value that only MaxCodePoints catches', async () => {
+    expect(await constraintsOfName(`abc${VS16}`)).toEqual(['maxCodePoints']);
+  });
+
+  it('rejects a NUL character', async () => {
+    expect(await constraintsOfName('a\u0000b')).toEqual(['hasNoNulCharacter']);
+  });
+});
+
+// Nest Swagger CLI 플러그인은 소스에서 `MaxLength` 이름을 찾아 스키마의 maxLength 를 만든다. 합성 안에 넣은
+// MaxLength 는 그 눈에 보이지 않으므로 PostgresVarchar 가 ApiProperty 로 직접 건다. 그 값이 사라지면 여기서 잡는다.
+describe('PostgresVarchar OpenAPI schema', () => {
+  class DocumentedVarcharProbe {
+    @ApiProperty({ description: 'display name', required: false })
+    @IsOptional()
+    @IsString()
+    @PostgresVarchar(3)
+    name?: string;
+
+    @IsString()
+    @PostgresVarchar(7)
+    plainName!: string;
+  }
+
+  @Controller('probe')
+  class ProbeController {
+    @Post()
+    @ApiBody({ type: DocumentedVarcharProbe })
+    create(): void {}
+  }
+
+  let doc: Awaited<ReturnType<typeof buildSwaggerDocument>>;
+
+  beforeAll(async () => {
+    doc = await buildSwaggerDocument({ controllers: [ProbeController] });
+  });
+
+  it('advertises maxLength and keeps the description of the field ApiProperty', () => {
+    const name = propertyOf(doc, 'DocumentedVarcharProbe', 'name');
+    expect(name.maxLength).toBe(3);
+    expect(name.description).toBe('display name');
+  });
+
+  it('keeps the field optional', () => {
+    expect(schemaOf(doc, 'DocumentedVarcharProbe').required).not.toContain(
+      'name',
+    );
+  });
+
+  it('advertises maxLength for a field without its own ApiProperty', () => {
+    expect(
+      propertyOf(doc, 'DocumentedVarcharProbe', 'plainName').maxLength,
+    ).toBe(7);
   });
 });
