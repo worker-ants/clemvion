@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "479d4352b68ac25012707f65c0331bd88d7a55df15d02c7f73c12d836af0ecc3"
+content_hash: "561eb965b1d08ee1a3817255787480fe5d7957a2a34c12d8ed4e6460db8e39fe"
 read_as: "approved_fallback"
-task: "CLE-T-D331TT"
+task: "CLE-T-QJ7XN7"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "220ea2e986c872f21e167b5c056fa88832a422bccb0506ab4260b18fe6169a4b"
-etag: "sha256-91b1ac0a2f0a6db5dfc8ac8e376cb4f0276f8e5c1746c37398e9ce5910bcad1c"
+mirror_sha256: "e75ae5ce0deb6df419e088327a880dea191b2a825b9e9f6363b7305dbcb5342f"
+etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -378,7 +378,7 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 등록 검증과 이름 변경(`PATCH /api/auth/2fa/webauthn/credentials/:id`)은 표시 이름(`deviceName`)의 형식을 같은 규칙으로 확인한다. 등록 검증에서는 이 필드를 빼도 된다. 이름 변경에서는 이 필드가 필수 문자열이다. 키를 빼거나 `null` 을 보내면 400 `VALIDATION_ERROR` 로 거부한다.
 
-- 길이는 유니코드 코드 포인트로 세고 100개까지 받는다. [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 `device_name` "최대 100자"가 이 수다. 서로게이트 쌍으로 된 이모지는 1개로 세고, 변형 선택자(U+FE0E · U+FE0F)는 앞 글자와 따로 1개로 센다. 앞뒤 공백을 지우기 전의 값으로 센다.
+- 길이는 유니코드 코드 포인트로 세고 100개까지 받는다. 저장 컬럼은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 `webauthn_credential.device_name`(`varchar(100)`)이다. 서로게이트 쌍으로 된 이모지는 1개로 세고, 변형 선택자(U+FE0E · U+FE0F)는 앞 글자와 따로 1개로 센다. ZWJ(U+200D)로 이은 이모지와 피부색 수정자가 붙은 이모지는 화면에 한 글자로 보여도 코드 포인트 여러 개로 센다. 앞뒤 공백을 지우기 전의 값으로 센다.
 - NUL 문자(`\u0000`)가 든 이름은 받지 않는다. PostgreSQL `varchar` 에는 NUL 을 저장할 수 없기 때문이다.
 - 형식이 틀리면 400 `VALIDATION_ERROR` 로 거부한다. 등록 검증이면 credential 을 만들지 않고, 이름 변경이면 이름을 바꾸지 않는다.
 - 이름 변경은 빈 문자열과 공백 문자로만 된 이름도 같은 코드로 거부한다. 공백 문자는 ECMAScript 의 공백 · 줄 끝 문자(`String.prototype.trim()` 이 지우는 문자)다. 제로폭 공백(U+200B)처럼 `trim()` 이 지우지 않는 문자는 공백 문자로 보지 않는다.
@@ -630,10 +630,10 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 | --- | --- | --- |
 | POST | `/api/auth/2fa/setup` | TOTP 설정 시작(인증 필수). secret 을 발급하고 QR data URL 을 돌려준다 |
 | POST | `/api/auth/2fa/verify` | TOTP 활성화 검증(인증 필수). 켜고 TOTP 복구 코드 10개를 한 번 돌려준다 |
-| POST | `/api/auth/2fa/disable` | TOTP 끄기. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password, code }`. `code` 는 6~32자 문자열이고 로그인 2단계의 `code` 와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드를 받는다. 비밀번호를 먼저 확인하고 이어서 코드를 확인한다. 성공하면 TOTP secret 과 TOTP 복구 코드를 비우고 200 `{ ok: true }`. 본문 누락·형식 오류 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, 코드 불일치·TOTP 꺼짐 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 끄기](#totp-끄기) |
+| POST | `/api/auth/2fa/disable` | TOTP 끄기. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password, code }`. `code` 는 6~32자 문자열이고 로그인 2단계의 `code` 와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드를 받는다. 비밀번호를 먼저 확인하고 이어서 코드를 확인한다. 성공하면 TOTP secret 과 TOTP 복구 코드를 비우고 200 `{ ok: true }`. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, 코드 불일치·TOTP 꺼짐 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 끄기](#totp-끄기) |
 | GET | `/api/auth/2fa/webauthn/availability` | Passkey 기능 켜짐 여부. 인증 불요(`@Public`). 응답 `{ enabled: boolean }` |
 | POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT). `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다. 기능이 꺼져 있으면 503 `WEBAUTHN_DISABLED` |
-| POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 오류 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
+| POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 에러 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID`, TOTP 챌린지로 받은 챌린지 토큰 401 `CHALLENGE_METHOD_MISMATCH` |
 | POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. 이미 쓴 챌린지 거부와 서명 확인 뒤의 counter 판정은 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
 | POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID`. 챌린지 토큰 실패는 options 와 같다 |
@@ -672,7 +672,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `LOGIN_FAILED` | 401 | 로그인 실패. 없는 이메일, 비밀번호가 없는 계정(OAuth 전용), 비밀번호 불일치를 같은 코드와 같은 메시지로 거부한다. 로그인 이력 `failure_reason` 에는 각각 `USER_NOT_FOUND` · `PASSWORD_NOT_SET` · `INVALID_PASSWORD` 가 남는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 비밀번호가 맞는 이메일 인증 전 계정은 `EMAIL_VERIFICATION_REQUIRED` 다 |
 | `EMAIL_VERIFICATION_REQUIRED` | 401 | 비밀번호는 맞지만 이메일 인증을 마치지 않은 계정의 로그인. 비밀번호가 틀리면 `LOGIN_FAILED` 다. 로그인 이력 `failure_reason` 은 `EMAIL_NOT_VERIFIED` 다. 화면은 이 코드로 이메일 인증 안내를 고른다. 아직 구현되지 않았다. 지금은 비밀번호를 확인하기 전에 `LOGIN_FAILED` 와 인증 안내 메시지로 거부한다([로그인 처리](#로그인-처리)) |
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
-| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 오류·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 오류, Passkey 표시 이름 형식 오류(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
+| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복, 새 이메일 선점 |
 | `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경 |
 | `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | 2단계 인증 끄기·Passkey 복구 코드 재발급의 비밀번호 재확인 실패. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
@@ -706,6 +706,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/backend/src/common/config/webauthn.config.ts`
 - `codebase/backend/src/common/constants/throttle.ts` (`SENSITIVE_ACTION_THROTTLE`, TOTP 끄기 요청 한도)
 - `codebase/backend/src/common/utils/postgres-text.ts` (표시 이름의 NUL 문자 · 코드 포인트 수 검증기)
+- `codebase/backend/src/common/utils/postgres-text.spec.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.spec.ts` (표시 이름 검증기와 등록 검증 · 이름 변경 DTO 의 단위 테스트)
 - `codebase/backend/test/totp-disable.e2e-spec.ts` (TOTP 끄기의 비밀번호·코드 확인과 DB 상태)
 - `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
 - `codebase/frontend/src/app/(auth)/**`
@@ -774,7 +775,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 클라이언트가 보낸 transport 목록은 서버 라이브러리가 검증하지 않고 그대로 돌려준다. 서비스가 그 값을 확인 없이 `webauthn_credential.transports`(문자열 배열 컬럼)에 저장했다. 그래서 문자열 배열이 아닌 값 가운데 일부는 500 이 났다. `null` 은 빈 목록으로 저장되고 200 을 받았다. 숫자 항목은 문자열로 바뀌어 저장됐다. NERV Task `CLE-T-C5EWSD` 에서 아래처럼 정했다.
 
 - 형식이 틀린 값은 등록 검증 실패로 본다. 브라우저의 `getTransports()` 는 문자열 배열만 돌려주므로 다른 형식은 클라이언트 결함이나 조작한 요청이다. 응답의 다른 필드가 틀렸을 때와 같은 400 `WEBAUTHN_VERIFY_FAILED` 를 쓰고 새 에러 코드를 두지 않는다.
-- 요청 DTO 검증으로 400 `VALIDATION_ERROR` 를 내는 안은 기각했다. `response` 는 브라우저가 만든 객체를 통째로 받는 자리라 DTO 가 속을 검증하지 않는다. 같은 객체의 다른 필드가 틀리면 이미 `WEBAUTHN_VERIFY_FAILED` 라서 transport 만 다른 코드를 쓰면 같은 요청에 코드가 둘이 된다.
+- 요청 DTO 검증으로 400 `VALIDATION_ERROR` 를 내는 안은 기각했다. `response` 는 브라우저가 만든 객체를 통째로 받는 자리라 DTO 가 속을 검증하지 않는다. 같은 객체의 다른 필드가 틀리면 이미 `WEBAUTHN_VERIFY_FAILED` 라서 transport 만 다른 코드를 쓰면 같은 `response` 객체 안의 필드끼리 코드가 둘이 된다. `response` 밖의 최상위 입력 필드인 표시 이름은 이 범위가 아니다(2026-10-17, NERV Task `CLE-T-QJ7XN7`). 표시 이름이 `VALIDATION_ERROR` 를 쓰는 이유는 「[Passkey 표시 이름은 요청 DTO 에서 코드 포인트 수와 NUL 문자를 확인한다](#passkey-표시-이름은-요청-dto-에서-코드-포인트-수와-nul-문자를-확인한다-2026-10-17)」에 있다.
 - 형식이 틀린 transport 목록과 허용 목록 밖 알고리즘은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 의 새 조건으로 보지 않는다. 클라이언트가 할 일이 다른 등록 검증 실패와 같기 때문이다. 그래서 새 코드를 만들지 않고 `WEBAUTHN_VERIFY_FAILED` 를 쓴다. 이 응답에는 `details` 를 싣지 않고 원인은 서버 로그에만 남긴다.
 - 표준에 없는 값만 걸러 내는 안은 기각했다. WebAuthn Level 3 §2.1.1 에 따르면 열거 값은 문자열이고 RP 는 모르는 값도 처리해야 한다. §4 에는 credential record 의 transport 목록에서 항목을 바꾸거나 빼면 그 credential 을 쓰지 못할 수도 있다고 적혀 있다. 서버 v14 의 타입도 `string[]` 이다.
 - 형식이 틀린 값을 빈 목록으로 바꿔 저장하는 안도 기각했다. 잘못된 요청을 성공으로 받으면 클라이언트 결함을 찾기 어렵다. 필드가 빠진 요청은 형식이 틀린 것으로 보지 않는다. 선택 필드가 빠진 것이라서 빈 목록으로 저장한다.
@@ -789,14 +790,15 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - NUL 문자가 든 이름은 PostgreSQL 이 `invalid byte sequence for encoding "UTF8": 0x00` 으로 거부했다.
 - 변형 선택자가 붙은 101 코드 포인트 이름도 500 이었다. class-validator 의 `MaxLength` 는 앞 글자와 변형 선택자(U+FE0E · U+FE0F)를 한 글자로 세서 이 이름을 통과시켰다. PostgreSQL 은 코드 포인트로 세서 `value too long for type character varying(100)` 으로 거부했다.
 
-결정과 기각한 안은 다음과 같다.
+결정과 기각한 안은 다음과 같다. `optionsToken` 과 함께 틀린 요청의 코드, 전용 에러 코드를 두지 않은 이유, `X-Workspace-Id` 선례는 NERV Task `CLE-T-QJ7XN7` 에서 더했다.
 
-- 오류 코드는 `VALIDATION_ERROR` 다. 표시 이름은 사용자가 입력한 최상위 필드라서 요청 DTO 가 검증한다. transport 목록과 같은 `WEBAUTHN_VERIFY_FAILED` 를 쓰는 안은 기각했다. 그 코드는 인증기 응답의 검증 실패를 뜻하는데 표시 이름은 인증기 응답에 들지 않는다. transport 목록이 DTO 검증을 쓰지 않은 이유(브라우저가 만든 객체를 통째로 받는 자리)도 표시 이름에는 해당하지 않는다.
-- 그래서 등록 검증 요청 하나에서 오류 코드는 필드가 있는 자리로 갈린다. 인증기 응답(`response`) 객체 안의 필드는 `WEBAUTHN_VERIFY_FAILED` 이고, 최상위 입력 필드인 표시 이름은 `VALIDATION_ERROR` 다. 요청 DTO 검증이 서비스 검증보다 먼저 돌아서 둘을 함께 어긴 요청은 `VALIDATION_ERROR` 를 받는다. transport 목록 결정에서 "같은 요청에 코드가 둘이 된다"고 한 것은 같은 `response` 객체 안의 필드끼리를 말한다.
+- 에러 코드는 `VALIDATION_ERROR` 다. 표시 이름은 사용자가 입력한 최상위 필드라서 요청 DTO 가 검증한다. transport 목록과 같은 `WEBAUTHN_VERIFY_FAILED` 를 쓰는 안은 기각했다. 그 코드는 인증기 응답의 검증 실패를 뜻하는데 표시 이름은 인증기 응답에 들지 않는다. transport 목록이 DTO 검증을 쓰지 않은 이유(브라우저가 만든 객체를 통째로 받는 자리)도 표시 이름에는 해당하지 않는다.
+- 그래서 등록 검증 요청 하나에서 에러 코드는 필드가 있는 자리로 갈린다. 인증기 응답(`response`) 객체 안의 필드는 `WEBAUTHN_VERIFY_FAILED` 이고, 최상위 입력 필드인 표시 이름은 `VALIDATION_ERROR` 다. 요청 DTO 검증이 서비스 검증보다 먼저 돌아서 표시 이름과 `response` 안의 필드가 함께 틀린 요청은 `VALIDATION_ERROR` 를 받는다. `optionsToken` 의 서명 · 만료 확인(400 `INVALID_OPTIONS_TOKEN`)도 서비스가 하므로 표시 이름과 `optionsToken` 이 함께 틀린 요청도 `VALIDATION_ERROR` 다.
+- 표시 이름 전용 에러 코드를 새로 두는 안은 기각했다. 표시 이름 형식 에러에서 클라이언트가 할 일은 다른 입력 검증 실패와 같이 그 필드를 고쳐 다시 보내는 것이다. 그래서 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 6 의 새 조건이 아니다. 어느 필드가 틀렸는지는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md#23-도메인-세부-사유를-어디에-싣는가-top-level-code-교체와-detailscode) §2.3 · §2.5 에 따라 `details[]` 항목(`field: deviceName`, `code: INVALID_FIELD`)에 싣는다.
 - 길이는 저장하는 쪽과 같은 단위인 코드 포인트로 센다. OpenAPI 스키마의 `maxLength` 도 코드 포인트로 세므로 API 문서와 서버의 기준이 같다. 화면의 이름 입력란은 `maxLength` 를 UTF-16 단위로 세서 이보다 엄격하다. 그래서 화면에서 입력한 이름은 이 규칙에 걸리지 않는다.
-- 사람이 보는 글자(grapheme) 수로 세는 안은 기각했다. `varchar(100)` 은 코드 포인트로 세므로 grapheme 100개짜리 이름은 저장하지 못할 수 있다.
+- 사람이 보는 글자(grapheme) 수로 세는 안은 기각했다. `varchar(100)` 은 코드 포인트로 세므로 grapheme 100개짜리 이름은 저장하지 못할 수 있다. ZWJ 로 이은 이모지는 한 글자로 보여도 코드 포인트가 여러 개다.
 - NUL 문자를 지우고 저장하는 안은 기각했다. 사용자가 보낸 이름을 알리지 않고 바꾸게 된다. transport 목록에서 NUL 이 든 항목만 빼는 안을 기각한 이유와 같다.
-- 전역 예외 필터에서 SQLSTATE 22021 · 22001 을 400 으로 바꾸는 안은 기각했다. 저장할 수 없는 값은 요청 입구에서 미리 거부한다는 기존 방식(`codebase/backend/src/common/utils/optional-non-null.ts`)과 맞지 않는다. 필터에서 바꾸면 어느 필드가 틀렸는지도 응답에 담을 수 없다.
+- 전역 예외 필터에서 SQLSTATE 22021 · 22001 을 400 으로 바꾸는 안은 기각했다. 저장할 수 없는 값은 요청 입구에서 미리 거부한다는 기존 방식(`codebase/backend/src/common/utils/optional-non-null.ts`)과 맞지 않는다. [에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) 의 `X-Workspace-Id` 형식 에러 행도 같은 방식이다. 형식이 깨진 헤더를 입구에서 거부하지 않으면 멤버십 조회에서 SQLSTATE 22P02 가 나고 500 `INTERNAL_ERROR` 로 가려지기 때문이다. 필터에서 바꾸면 어느 필드가 틀렸는지도 응답에 담을 수 없다.
 
 ### Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다 (2026-10-17)
 
