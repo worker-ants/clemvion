@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "c71871ff14b9131798bc8ec4b0c1563116b87456c135900e0257e45ed9719791"
+content_hash: "be2cb62b2625546cdd11f2d6844725db0b0ff846f0575f390e11d1ddd2625e78"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-D331TT"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "aa50eb31ee8589c287d23810bb9a64f39ffcf18878aed6e4e225e6d15ee5c196"
-etag: "sha256-cd24ad62031b2e115eb24d1a3f5d274e34b28c7a121003d5af79e94ac2a2e26d"
+mirror_sha256: "84f841e21c2b0e743ea90f3301b8fdb8050e4d085da90d0c46b2b85827f62ad1"
+etag: "sha256-3a9a2b5ca1191ef98639c962413837eef3993bc0f91dd86602115e437f455dd7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -209,7 +209,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant Auth as AuthService·SessionsService·WebauthnService
+  participant Auth as AuthService·SessionsService·WebAuthnService
   participant LHS as LoginHistoryService
   participant PG as Postgres
   Auth->>LHS: record(userId?, email, event, ip?, userAgent?, familyId?, failureReason?)
@@ -217,7 +217,7 @@ sequenceDiagram
   LHS-->>Auth: 적재 완료 뒤 반환
 ```
 
-- 기록하는 쪽은 인증 도메인의 세 서비스(`AuthService`·`SessionsService`·`WebauthnService`)뿐이다.
+- 기록하는 쪽은 인증 도메인의 세 서비스(`AuthService`·`SessionsService`·`WebAuthnService`)뿐이다.
 - 기기 라벨(`deviceLabel`)은 인자로 받지 않는다. 서비스 안에서 `userAgent` 로 만든다(`deriveDeviceLabel`, `auth/utils/device-label.ts`). 외부 라이브러리 없이 정규식만 쓴다. 알아보지 못하면 UA 원문을 64자로 줄여 쓴다.
 - 호출하는 쪽은 반드시 `await` 한다. `void` 로 던져 두면 바로 뒤의 HTTP 요청(예: 로그인 이력 조회)의 SELECT 가 INSERT 보다 먼저 실행되는 읽기 경쟁이 생긴다. 커넥션 풀이 읽기와 쓰기를 다른 커넥션에 실을 때 일어난다. `login-history.service.ts` 의 `record` 주석에 적힌 계약이고 현재 호출부는 모두 `await` 한다.
 - 적재가 실패하면 예외를 흡수하고 `Logger.error` 만 남긴다. 감사 로그와 달리 카운터가 없다. 이 차이는 [Rationale](#적재-실패-관측이-감사-로그와-로그인-이력에서-다르다) 에 있다.
@@ -275,7 +275,7 @@ sequenceDiagram
 | 의존 | 방향 | 내용 |
 | --- | --- | --- |
 | 9개 도메인 서비스(integrations·workspaces·workspace-invitations·executions·auth-configs·workflows·triggers·schedules·model-config)와 3개 컨트롤러(users·auth·webauthn) | 상류 | `audit_log` 를 쓰는 곳 전부. 목록은 [감사 액션 카탈로그](#감사-액션-카탈로그) |
-| 인증 도메인(`AuthService`·`SessionsService`·`WebauthnService`) | 상류 | `login_history` 를 쓰는 유일한 곳 |
+| 인증 도메인(`AuthService`·`SessionsService`·`WebAuthnService`) | 상류 | `login_history` 를 쓰는 유일한 곳 |
 | BullMQ(Redis) | 기반 | `login-history-pruner` 반복 작업 |
 
 ## 구현 위치
@@ -303,7 +303,7 @@ sequenceDiagram
 이 동작들은 모두 로그인한 세션에서만 일어난다(`POST /users/me/change-password`, TOTP, WebAuthn 모두 JwtAuthGuard 뒤에 있다). 인증 요청은 항상 JWT 로 워크스페이스를 싣고 오므로 그 워크스페이스에 귀속하면 스키마를 바꾸지 않고 제약을 채운다. 이는 카탈로그의 "인증(현재 워크스페이스가 있는 동작)" 분류를 구체화한 것이다. 로그인·로그아웃·로그인 실패(워크스페이스 없음)는 로그인 이력으로 간다는 규칙은 그대로다.
 
 - **WebAuthn 추가 등록도 `user.2fa_enabled` 다.** 이미 2단계 인증이 켜진 상태에서 두 번째 이후 인증기를 등록하는 것은 "2단계 인증 활성화" 사건은 아니다. 하지만 계정 보안 속성(인증 수단)을 더하는 일이라 추적한다. 새 감사 액션을 만들기보다 `details.firstCredential=false` 로 구분하는 편이 조회·집계에 단순하다. `webauthn.controller` 는 복구 코드를 발급했는지로 `firstCredential` 을 판정한다.
-- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이며 지금은 막는 로직이 없다.
+- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. Passkey 삭제에는 막는 로직이 없다([가입과 로그인 「2단계 인증 설정 화면」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-설정-화면)). 이 항목은 2026-10-17 에 고쳤다(NERV Task `CLE-T-D331TT`). 전에는 끄기를 막는 로직이 없다고만 적었다. TOTP 끄기가 비밀번호 확인으로 막히는 경로를 반영했다.
 
 기각한 대안:
 

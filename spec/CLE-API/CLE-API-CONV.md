@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "40499ccefb2133e34d269c31257360e4ce86c00cedc53e95a4956e1a1ef2d309"
+content_hash: "ecad5919df0d42fd60b208af100d88a833a9b265754193617539d75e0282fdd1"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-D331TT"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "7465dfdd41be964ba6f7bb201447044cd9ea8acd13fcdfd13f15116e92f7ee50"
-etag: "sha256-d855f5dbe6f2a6d4d930fb3211a2e953deda7b4b00053faa6bb51b8e6c75b143"
+mirror_sha256: "ee1194d6cd13077205ffe32ba3d3fb962a65fec5a5a2caf16f75389098ebe1d7"
+etag: "sha256-3f35b63e0ec6a7bc41d6f42426474a88d9d79dad5c589dad72dd76a7854666fd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -47,7 +47,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 8. 요청 PATCH 는 키 생략·`null`·값이 각각 다른 뜻인 PATCH 삼중 상태(tri-state)다. 응답 부재 표현 규칙을 요청 DTO 에 적용하지 않는다.
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
 10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다.
-11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다.
+11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다(§6). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
 12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘으면 `429` 와 `Retry-After` 헤더를 돌려준다. 채팅 채널 인바운드만 예외로 `202` 를 돌려준다.
 13. 목록 조회의 기본 페이지네이션은 offset 방식이다. 대량으로 쌓이는 데이터는 cursor 방식을 쓴다.
 14. `PUT` 은 쓰지 않는다. 부분 수정은 `PATCH` 로 한다.
@@ -82,7 +82,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 | 중첩은 2단계까지 | `/api/knowledge-bases/:id/documents` |
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요할 때) |
 | **자원 액션**: `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 자원이 아니라 동사(구)다. 앞 경로가 가리키는 자원에 가하는 동작이다. 케밥 케이스 복합 동사구도 포함한다(`run-now`, `transfer-ownership`, `set-default`). 목적어는 경로에 두고 액션 이름에 넣지 않는다. `/workflows/:id/nodes/:nodeId/execute` 가 맞고 `/workflows/:id/execute-node` 는 틀리다. Boolean 상태 필드의 단순 토글에는 이 형태를 쓰지 않는다(§12.1) | `/executions/:id/stop`, `/schedules/:id/run-now`, `/workflows/:id/nodes/:nodeId/execute` |
-| **예외: RPC 형태 하위 채널 액션** `/api/{resource}/{id}/{channel}/{action}`. 자원 자체가 아닌 하위 채널에 가하는 부수 동작(`rotate-*`, `revoke-*`, `disable-*`, `switch` 등)이다. URL 만으로 자원·채널·동작을 식별할 수 있어야 해서 허용한다. 자원 액션에 `{channel}` 이 하나 더 끼는 자매 형태다 | `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch` |
+| **예외: RPC 형태 하위 채널 액션** `/api/{resource}/{id}/{channel}/{action}`. 자원 자체가 아닌 하위 채널에 가하는 부수 동작(`rotate-*`, `revoke-*`, `disable-*`, `switch` 등)이다. URL 만으로 자원·채널·동작을 식별할 수 있어야 해서 허용한다. 자원 액션에 `{channel}` 이 하나 더 끼는 자매 형태다. `/api/users/me` 의 `me` 는 로그인한 사용자 id 의 별칭이다. 그래서 이메일 변경 `/api/users/me/email-change/{action}` 도 이 형태다(채널 `email-change`) | `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`, `/api/users/me/email-change/request` |
 | **예외: 인증 family 전용 네임스페이스** `/api/external/{resource}`. 로그인 세션·워크스페이스 인증이 아니라 실행 단위 토큰(per_execution token, `iext_*`) 같은 인터랙션 토큰으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체와 호출하는 쪽이 달라 경로를 나눈다. 규칙 위반이 아니라 명시한 예외다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md), 요청 빈도 제한은 §7, 부재 표현은 §5.5 | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
 | **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
 | **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
@@ -260,8 +260,8 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 422 | Unprocessable Entity | 비즈니스 로직 에러 |
 | 429 | Too Many Requests | 요청 빈도 제한 초과 |
 | 500 | Internal Server Error | 서버 에러 |
-| 502 | Bad Gateway | **외부 제3자 API**(채팅 채널 provider 등) 호출 실패. 다시 시도할 수 있다. 코드: `CHAT_CHANNEL_SETUP_FAILED`(채팅 채널 `setupChannel` 실패, [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 아래 `503` 과 구분한다. `502` 는 외부 제3자, `503` 은 우리 인프라다. 노드 출력 안의 `statusCode` 와는 다른 축이다. 그쪽은 HTTP Request 노드가 받은 응답 상태이고 이 표는 우리 API 가 클라이언트에 주는 상태다 |
-| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절 |
+| 502 | Bad Gateway | **외부 제3자 API**(채팅 채널 provider 등) 호출 실패. 다시 시도할 수 있다. 코드: `CHAT_CHANNEL_SETUP_FAILED`(채팅 채널 `setupChannel` 실패, [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 아래 `503` 과 구분한다. `502` 는 외부 제3자, `503` 은 우리 인프라다. `WEBAUTHN_DISABLED` 의 `503` 예외는 `503` 행에 있다. 노드 출력 안의 `statusCode` 와는 다른 축이다. 그쪽은 HTTP Request 노드가 받은 응답 상태이고 이 표는 우리 API 가 클라이언트에 주는 상태다 |
+| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 클라이언트는 다시 시도하지 않고 가용성 조회 결과에 따라 기능을 숨긴다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다 |
 
 자원을 만들지 않는 POST 액션의 성공 코드를 정하는 행은 아직 없다. [미결 사항](#미결-사항) 참조.
 
@@ -613,3 +613,19 @@ NERV Task `CLE-T-XRWFMJ` 의 결정이다. 웹훅 트리거가 활성이어도 �
 ### `503` 행에 채팅 채널 `/start` 의 취소 실패를 더했다 (2026-10-10)
 
 NERV Task `CLE-T-V4WVF2` 의 결정이다. 채팅 채널 `/start` 는 활성 실행을 취소할 때 `ExecutionsService.stop` 을 직접 부른다. 취소를 큐에 넣지 못하면 `503 EXECUTION_ENQUEUE_FAILED` 를 그대로 돌려주고 새 실행을 시작하지 않는다. 채팅 채널 인바운드는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책을 따른다. 이 경우는 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외라서 §6 의 `503` 행에 적었다. 프로바이더는 이 응답을 받고 같은 update 를 다시 보낼 수 있다. `5xx` 를 받아들인 이유는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」 Rationale 에 있다.
+
+### Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 예외의 범위는 코드 하나 그대로다.
+
+- 상태 코드는 그대로 두고 규칙 11 과 §6 의 `503` 행에 예외로 적었다. [채팅 채널 「setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 는 4xx · 5xx 경계를 누가 고칠 수 있는가로 정했다. 같은 결정은 `503` 사용처에 `WEBAUTHN_DISABLED` 를 이미 들었다. 서버 설정은 운영자만 고칠 수 있으므로 5xx 가 맞다.
+- 지금 저장소 안 클라이언트는 이 코드로 분기하지 않는다(프론트엔드 · 패키지에 0건). 로그인 차단을 구현하면 로그인 화면이 이 코드에 안내를 보여 준다(NERV Task `CLE-T-RFSJXQ`). 저장소 밖 호출자가 이 상태에 기대는지는 배제할 수 없어 상태 코드를 바꾸지 않았다.
+- 클라이언트는 이 응답을 다시 시도하지 않는다. Passkey 엔드포인트의 이 응답은 설정이 바뀐 직후의 요청에서만 난다. 화면이 가용성 조회(`GET /api/auth/2fa/webauthn/availability`)로 기능을 미리 숨기기 때문이다. 로그인의 이 응답은 기능이 꺼져 있는 동안 계속 난다.
+- 예외는 `WEBAUTHN_DISABLED` 하나로 한정했다. 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). "서버 설정으로 꺼진 기능은 `503`" 을 일반 규칙으로 적으면 이 코드와 부딪친다. 두 코드를 한 상태로 맞출지는 이번에 정하지 않았다.
+- **기각: 다른 상태 코드로 바꾼다.** 403 은 권한 부족으로 읽혀 사용자가 고칠 수 있는 것처럼 보이지만 사용자는 고칠 수 없다. 409 는 요청과 자원 상태의 충돌이라 서버 설정 상태와 맞지 않는다. 500 은 `OAUTH_CONFIG_MISSING` 과 맞출 수 있지만 발행 중인 상태를 바꾸는 일이라 위 불릿의 이유로 하지 않았다.
+- **감시 영향**: 로그인의 이 응답은 기능이 꺼져 있는 동안 Passkey 만 등록한 사용자가 로그인할 때마다 난다. 5xx 비율로 경보를 거는 감시는 이 응답도 센다. 운영자가 변수를 설정하면 그치는 응답이라 이 위험은 받아들였다.
+- 설정 상태로 `503` 을 내는 곳은 전에도 있었다. `GET /api/health` 는 Redis 가 설정되지 않은 경우(`unconfigured`)에도 503 이다([로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md)). 그 응답은 에러 봉투를 쓰지 않는 probe 응답이라 이 규칙의 예외로 적지 않았다.
+
+### 이메일 변경 경로를 하위 채널 액션의 예로 더했다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 §2.2 의 RPC 형태 하위 채널 액션 행에 `/api/users/me/email-change/{action}` 을 예로 더했다. 이 경로는 전부터 있었는데 어느 형태에 드는지 적힌 곳이 없었다. `me` 는 로그인한 사용자 id 의 별칭이므로 이 경로는 `/api/{resource}/{id}/{channel}/{action}` 과 같은 형태다. 그래서 예외 행을 새로 두지 않고 기존 행의 예로 넣었다.
