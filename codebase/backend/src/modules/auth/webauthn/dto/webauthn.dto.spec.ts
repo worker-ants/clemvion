@@ -73,20 +73,69 @@ describe.each([
   });
 });
 
+// 공백 문자는 `String.prototype.trim()` 이 지우는 문자다. 서비스가 저장할 때 지우는 문자와 같다.
+const BLANK_DEVICE_NAMES: [string, string][] = [
+  ['spaces', '   '],
+  ['a tab and a line feed', '\t\n'],
+  ['a no-break space', ' '],
+  ['an ideographic space', '　'],
+  ['a line separator', ' '],
+  ['a byte order mark', '﻿'],
+];
+
 describe('WebAuthnRegisterVerifyDto deviceName', () => {
   it('may be omitted', async () => {
     expect(
       await deviceNameConstraints(WebAuthnRegisterVerifyDto, undefined),
     ).toEqual([]);
   });
+
+  // 표시 이름이 선택 필드라서 이름을 주지 않은 요청과 같게 보고 서비스가 NULL 로 저장한다.
+  it.each([['an empty string', ''], ...BLANK_DEVICE_NAMES])(
+    'accepts %s',
+    async (_label, deviceName) => {
+      expect(
+        await deviceNameConstraints(WebAuthnRegisterVerifyDto, deviceName),
+      ).toEqual([]);
+    },
+  );
 });
 
-// 등록 검증은 표시 이름을 빼도 되므로 빈 이름 거부는 이름 변경에만 있다.
+// 등록 검증은 표시 이름을 빼도 되므로 빈 이름 · 공백 문자로만 된 이름 거부는 이름 변경에만 있다.
 describe('WebAuthnRenameDto deviceName', () => {
   it('rejects an empty string', async () => {
     expect(await deviceNameConstraints(WebAuthnRenameDto, '')).toEqual([
+      'isNotBlank',
       'minLength',
     ]);
+  });
+
+  it.each(BLANK_DEVICE_NAMES)(
+    'rejects a name made only of %s',
+    async (_label, deviceName) => {
+      expect(
+        await deviceNameConstraints(WebAuthnRenameDto, deviceName),
+      ).toEqual(['isNotBlank']);
+    },
+  );
+
+  it.each([
+    ['surrounding spaces', '  My Mac  '],
+    // `trim()` 이 지우지 않으므로 공백 문자로 보지 않는다.
+    ['only a zero-width space', '​'],
+  ])('accepts a name with %s', async (_label, deviceName) => {
+    expect(await deviceNameConstraints(WebAuthnRenameDto, deviceName)).toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+  ])('rejects a %s name', async (_label, deviceName) => {
+    expect(
+      await deviceNameConstraints(WebAuthnRenameDto, deviceName),
+    ).toContain('isString');
   });
 });
 

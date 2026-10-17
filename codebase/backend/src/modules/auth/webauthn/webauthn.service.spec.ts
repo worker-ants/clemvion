@@ -676,20 +676,6 @@ describe('WebAuthnService', () => {
       );
     });
 
-    // 특성화 테스트다. 공백만 있는 이름을 어떻게 다룰지는 CLE-ACCT-SIGNIN 이 아직 정하지 않았다(NERV Task
-    // CLE-T-SREW0S). 지금은 앞뒤 공백을 지운 빈 문자열로 저장한다.
-    it('saves an empty string when the name has only spaces', async () => {
-      credentialRepo.findOne.mockResolvedValue({
-        id: 'cred-1',
-        userId,
-        deviceName: 'old',
-      });
-      await service.renameCredential(userId, 'cred-1', '   ');
-      expect(credentialRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ deviceName: '' }),
-      );
-    });
-
     it('throws NotFound for other user credential', async () => {
       credentialRepo.findOne.mockResolvedValue({
         id: 'cred-1',

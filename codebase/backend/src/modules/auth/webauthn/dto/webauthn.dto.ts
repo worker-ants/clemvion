@@ -5,6 +5,8 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  ValidateBy,
+  buildMessage,
 } from 'class-validator';
 
 import { PostgresVarchar } from '../../../../common/utils/postgres-text';
@@ -12,6 +14,26 @@ import { PostgresVarchar } from '../../../../common/utils/postgres-text';
 // Passkey 표시 이름의 최대 길이(유니코드 코드 포인트). `webauthn_credential.device_name` 이 `varchar(100)` 이다.
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
 const DEVICE_NAME_MAX_CODE_POINTS = 100;
+
+/**
+ * 앞뒤 공백 문자를 지우면 빈 문자열이 되는 값을 거부한다. 문자열이 아니어도 거부한다.
+ *
+ * 공백 문자는 `String.prototype.trim()` 이 지우는 문자다. 서비스가 표시 이름을 저장할 때 지우는 문자와 같다.
+ * 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
+ */
+function IsNotBlank(): PropertyDecorator {
+  return ValidateBy({
+    name: 'isNotBlank',
+    validator: {
+      validate: (value: unknown): boolean =>
+        typeof value === 'string' && value.trim().length > 0,
+      defaultMessage: buildMessage(
+        (eachPrefix) =>
+          `${eachPrefix}$property must not be empty or only whitespace`,
+      ),
+    },
+  });
+}
 
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
 /**
@@ -36,7 +58,7 @@ export class WebAuthnRegisterVerifyDto {
 
   @ApiProperty({
     description:
-      '사용자가 부여한 표시 이름 (선택). 유니코드 코드 포인트 100개까지 받고 NUL 문자는 받지 않는다.',
+      '사용자가 부여한 표시 이름 (선택). 유니코드 코드 포인트 100개까지 받고 NUL 문자는 받지 않는다. 길이는 앞뒤 공백 문자를 지우기 전 값으로 센다. 저장할 때 앞뒤 공백 문자를 지우고, 빈 이름이나 공백 문자로만 된 이름은 이름 없음(null)으로 저장한다.',
     required: false,
   })
   @IsOptional()
@@ -97,10 +119,11 @@ export class WebAuthnRecoveryDto {
 export class WebAuthnRenameDto {
   @ApiProperty({
     description:
-      '새 표시 이름. 유니코드 코드 포인트 100개까지 받고 NUL 문자는 받지 않는다.',
+      '새 표시 이름. 유니코드 코드 포인트 100개까지 받고 NUL 문자는 받지 않는다. 빈 이름과 공백 문자로만 된 이름도 받지 않는다. 길이는 앞뒤 공백 문자를 지우기 전 값으로 센다. 저장할 때 앞뒤 공백 문자를 지운다.',
   })
   @IsString()
   @MinLength(1)
+  @IsNotBlank()
   @PostgresVarchar(DEVICE_NAME_MAX_CODE_POINTS)
   deviceName: string;
 }
