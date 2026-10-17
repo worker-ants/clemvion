@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "930b4201a86e657eaf47ad27828425507526fe79fc938702fff2ba3f0606a2ae"
+content_hash: "d1fdd6b532516be442892e6aeb2bcc1d20a913a4abe05e8d8d20161aae8f2d80"
 read_as: "approved_fallback"
-task: "CLE-T-D331TT"
+task: "CLE-T-QJ7XN7"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "79a4550f390cf34158783d79ae065074d890bc5b1c0bd4a5066e57d40d781509"
-etag: "sha256-59501efb69fdc6ed1f3e47680486112e2b22f1a0cb7518b3a0daf9c7cdead5bc"
+mirror_sha256: "2085935621b19a80e4a7ce73fcb634a54459d9ec98b31a88eb2cb4fdd9dbc525"
+etag: "sha256-67f1feae35fc1a3707aaa9fd306e61e655397946d97fcc12a119cab72bc2f38d"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -196,7 +196,7 @@ erDiagram
 | counter | BigInt | 재전송 방어용 sign counter. 인증마다 갱신한다. 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 역행하면(응답 값이 저장값 이하. 둘 다 0 이면 역행이 아니다) 그 행을 바로 지우고(suspend 컬럼은 두지 않는다) 로그인 이력에 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`)를 남긴다 |
 | transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 서버는 문자열 배열인지와 NUL 문자가 없는지만 확인하고 값은 바꾸지 않는다. 필드가 없으면 빈 배열로 저장한다. `null` 은 문자열 배열이 아니므로 등록 검증이 거부한다. 표준 값과 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」 이 정한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다 |
 | aaguid | UUID? | 인증기 모델 식별자 (선택) |
-| device_name | String? | 사용자가 붙인 표시 이름 (최대 100자). 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」, 결정 근거는 같은 문서 Rationale 「Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다」 |
+| device_name | String? | 사용자가 붙인 표시 이름. 유니코드 코드 포인트 100개까지 받는다(`varchar(100)`). NUL 문자는 저장할 수 없어서 받지 않는다. 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」, 결정 근거는 같은 문서 Rationale 「Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다」 |
 | last_used_at | Timestamp? | 마지막 인증 성공 시각 |
 | created_at | Timestamp | 등록 시각 |
 
@@ -683,6 +683,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/auth/login-history.service.ts`, `codebase/backend/src/modules/auth/jobs/login-history-pruner.service.ts`
 - `codebase/backend/src/modules/auth/totp.service.ts`, `codebase/backend/src/modules/auth/dto/totp.dto.ts` (TOTP 켜기·끄기, 끄기의 코드 확인 `verifyForDisable`)
 - `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts`, `codebase/backend/src/modules/auth/webauthn/webauthn.service.ts`
+- `codebase/backend/src/modules/auth/webauthn/entities/webauthn-credential.entity.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.ts` (`webauthn_credential` 엔티티, 표시 이름을 확인하는 등록 검증 · 이름 변경 DTO)
 - `codebase/backend/src/modules/auth/entities/*.entity.ts`, `codebase/backend/src/modules/users/entities/user.entity.ts`
 - `codebase/backend/src/modules/users/users.controller.ts`, `codebase/backend/src/modules/users/dto/update-me.dto.ts` (프로필 수정과 테마 값 `USER_THEMES`, 이메일 변경 진입)
 - `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (`chk_user_theme` 을 `NOT VALID` 로 건 뒤 검증하고 옛 제약 `user_theme_check` 를 지운다)
