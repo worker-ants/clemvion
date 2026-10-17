@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "19da538f87df9eba8f9227ee307ee9d1d51595ae6c9d2473d57c2b7047663c88"
+content_hash: "8e622e5e818f1e12cc0d402120eb789638d28393b4c6cd612aa64b9389b270b4"
 read_as: "approved_fallback"
-task: "CLE-T-XYW44D"
+task: "CLE-T-SREW0S"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "d5cc239cf0802896879fba79f10260bd7f20c5ac89a4788a49e464f4da1a5a8a"
-etag: "sha256-ebf07fdfed8e71f0550244e4a6f394ace8a69106cbe77127010af6aba0ffdeec"
+mirror_sha256: "16d7b3946fda6ce5db376cea71556d75fa5d8d3b61536db071fd8d7ed9165fbc"
+etag: "sha256-da7f9be0c6f3a72cf6f19987bf8aa145da0753d749b9dd5e0bcf9efeace8ebf0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -196,7 +196,7 @@ erDiagram
 | counter | BigInt | 재전송 방어용 sign counter. 인증마다 갱신한다. 역행하면 그 행을 바로 지우고(suspend 컬럼은 두지 않는다) 로그인 이력에 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`)를 남긴다 |
 | transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 서버는 문자열 배열인지와 NUL 문자가 없는지만 확인하고 값은 바꾸지 않는다. 표준 값과 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」 이 정한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다 |
 | aaguid | UUID? | 인증기 모델 식별자 (선택) |
-| device_name | String? | 사용자가 붙인 표시 이름 (최대 100자). 없으면 UI 가 transport 와 등록일로 표시한다 |
+| device_name | String? | 사용자가 붙인 표시 이름 (최대 100자). 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」, 결정 근거는 같은 문서 Rationale 「Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다」 |
 | last_used_at | Timestamp? | 마지막 인증 성공 시각 |
 | created_at | Timestamp | 등록 시각 |
 
@@ -677,6 +677,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/auth/entities/*.entity.ts`, `codebase/backend/src/modules/users/entities/user.entity.ts`
 - `codebase/backend/src/modules/users/users.controller.ts`, `codebase/backend/src/modules/users/dto/update-me.dto.ts` (프로필 수정과 테마 값 `USER_THEMES`, 이메일 변경 진입)
 - `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (`chk_user_theme` 을 `NOT VALID` 로 건 뒤 검증하고 옛 제약 `user_theme_check` 를 지운다)
+- `codebase/backend/migrations/V152__webauthn_device_name_empty_to_null.sql` (이름 변경이 남긴 빈 문자열 `device_name` 을 NULL 로 바꾼다)
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`, `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts`
 - `codebase/backend/src/common/constants/workspace-roles.ts` (`ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
