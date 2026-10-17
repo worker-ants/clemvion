@@ -306,7 +306,7 @@ export class WebAuthnController {
   })
   @ApiBadRequestResponse({
     description:
-      '입력 검증 실패(`VALIDATION_ERROR`). deviceName 이 비었거나 코드 포인트 100개를 넘거나 NUL 문자가 든 경우다',
+      '입력 검증 실패(`VALIDATION_ERROR`). deviceName 이 비었거나 공백 문자로만 돼 있거나 코드 포인트 100개를 넘거나 NUL 문자가 든 경우다',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async webauthnRename(

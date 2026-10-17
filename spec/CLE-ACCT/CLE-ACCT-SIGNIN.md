@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
-requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063"]
+requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "bdcf46cbcc6ea1b7c5e3408060d502465b360e96e36a2218305e806c0e66bd68"
+content_hash: "7fd1f6cda110d71bc95f63d375c41d33d375fa2f9bef93cec5778e26611740b7"
 read_as: "approved_fallback"
-task: "CLE-T-XYW44D"
+task: "CLE-T-SREW0S"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "dd5d27dea50fa07a0e076fe4b01bdd7ca7a180476d012e26b36ccceed723992a"
-etag: "sha256-138003d8dcb5cafbee2e4945752ea2197ac5215889f3e76dd3aaed7fb8bd1b5c"
+mirror_sha256: "4dff7b73c744d34c6d1fc6fb1c5f01e0ba686e13b098acf3bee13cb9344e8e05"
+etag: "sha256-2f6d6dcd997db20a835255d02bd9b920efeeb616a440b8cc7c0a97f2c69e9d73"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -98,6 +98,7 @@ etag: "sha256-138003d8dcb5cafbee2e4945752ea2197ac5215889f3e76dd3aaed7fb8bd1b5c"
 - REQ-SIGNIN-061 IF Passkey 등록 검증 요청에 transport 목록 필드(`response.response.transports`)가 있는데 그 값이 문자열 배열이 아니거나(`null` 포함) NUL 문자(`\u0000`)가 든 문자열이 있으면 THE SYSTEM SHALL 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 credential 을 만들지 않는다.
 - REQ-SIGNIN-062 WHEN Passkey 등록 검증이 성공하면 THE SYSTEM SHALL 클라이언트가 보낸 transport 문자열을 표준 값이 아니어도 바꾸거나 빼지 않고 저장한다.
 - REQ-SIGNIN-063 IF Passkey 등록 검증 요청이나 Passkey 이름 변경 요청의 표시 이름(`deviceName`)이 유니코드 코드 포인트 100개를 넘거나 NUL 문자(`\u0000`)가 들어 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 credential 을 만들거나 이름을 바꾸지 않는다.
+- REQ-SIGNIN-064 IF Passkey 이름 변경 요청의 표시 이름(`deviceName`)이 비었거나 공백 문자로만 돼 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 이름을 바꾸지 않는다.
 
 ## 인증 화면 공통
 
@@ -279,7 +280,7 @@ flowchart TD
 | 카드 | 들어가는 요소 | 동작 |
 | --- | --- | --- |
 | TOTP | QR 코드, 확인 코드 입력, 복구 코드 표시, 끄기 폼(비밀번호와 인증 코드 입력) | 인증 앱으로 QR 을 스캔하고 코드를 넣어 켠다. 켜질 때 복구 코드 10개를 한 번 보여 준다. 끌 때는 비밀번호와 인증 코드를 함께 넣는다([TOTP 끄기](#totp-끄기)) |
-| Passkey · 보안 키 | credential 목록(이름·transport·마지막 사용·등록일), 등록 버튼, 이름 변경·삭제, 복구 코드 재발급 | credential 을 여러 개 등록하고 관리한다. 첫 등록 때 별도 복구 코드 10개를 한 번 보여 준다 |
+| Passkey · 보안 키 | credential 목록(이름·transport·마지막 사용·등록일), 등록 버튼, 이름 변경·삭제, 복구 코드 재발급 | credential 을 여러 개 등록하고 관리한다. 첫 등록 때 별도 복구 코드 10개를 한 번 보여 준다. 이름 변경 입력이 비었거나 공백 문자로만 돼 있으면 저장 버튼을 막는다 |
 
 - 프론트엔드는 보안 화면을 열 때 `GET /api/auth/2fa/webauthn/availability` 를 불러 Passkey 카드를 보일지 정한다.
 - 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드는 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
@@ -353,11 +354,14 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 - 값이 문자열 배열이 아니면 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 credential 을 만들지 않는다. `null` 이거나 배열이 아니거나 문자열이 아닌 항목이 섞인 경우다. 항목에 NUL 문자(`\u0000`)가 든 문자열이 있어도 같다. PostgreSQL `text` 에는 NUL 을 저장할 수 없기 때문이다.
 - 문자열 배열이면 표준 값(`usb` · `nfc` · `ble` · `smart-card` · `hybrid` · `internal`)에 없는 값도 바꾸지 않고 저장한다.
 
-등록 검증과 이름 변경(`PATCH /api/auth/2fa/webauthn/credentials/:id`)은 표시 이름(`deviceName`)의 형식을 같은 규칙으로 확인한다. 등록 검증에서는 이 필드를 빼도 된다.
+등록 검증과 이름 변경(`PATCH /api/auth/2fa/webauthn/credentials/:id`)은 표시 이름(`deviceName`)의 형식을 같은 규칙으로 확인한다. 등록 검증에서는 이 필드를 빼도 된다. 이름 변경에서는 이 필드가 필수 문자열이다. 키를 빼거나 `null` 을 보내면 400 `VALIDATION_ERROR` 로 거부한다.
 
 - 길이는 유니코드 코드 포인트로 세고 100개까지 받는다. [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 `device_name` "최대 100자"가 이 수다. 서로게이트 쌍으로 된 이모지는 1개로 세고, 변형 선택자(U+FE0E · U+FE0F)는 앞 글자와 따로 1개로 센다. 앞뒤 공백을 지우기 전의 값으로 센다.
 - NUL 문자(`\u0000`)가 든 이름은 받지 않는다. PostgreSQL `varchar` 에는 NUL 을 저장할 수 없기 때문이다.
-- 형식이 틀리면 400 `VALIDATION_ERROR` 로 거부한다. 등록 검증이면 credential 을 만들지 않고, 이름 변경이면 이름을 바꾸지 않는다. 이름 변경은 빈 문자열도 같은 코드로 거부한다.
+- 형식이 틀리면 400 `VALIDATION_ERROR` 로 거부한다. 등록 검증이면 credential 을 만들지 않고, 이름 변경이면 이름을 바꾸지 않는다.
+- 이름 변경은 빈 문자열과 공백 문자로만 된 이름도 같은 코드로 거부한다. 공백 문자는 ECMAScript 의 공백 · 줄 끝 문자(`String.prototype.trim()` 이 지우는 문자)다. 제로폭 공백(U+200B)처럼 `trim()` 이 지우지 않는 문자는 공백 문자로 보지 않는다.
+- 저장할 때는 앞뒤 공백 문자를 지운다. 등록 검증에서 이름을 뺐거나 지운 결과가 빈 문자열이면 이름 없음(`device_name` NULL)으로 저장한다. 그래서 `device_name` 에는 빈 문자열이 들어가지 않는다.
+- 이미 저장된 빈 문자열 이름은 마이그레이션이 NULL 로 바꾼다. 마이그레이션 파일은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 「구현 위치」에 있다.
 
 로그인 2단계 인증은 다음 순서다.
 
@@ -595,7 +599,7 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 `OAUT
 | POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`. counter 역행이면 401 과 함께 credential 행 삭제, 로그인 이력 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`) |
 | POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID` |
 | GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ data: { items: [{ id, deviceName, transports, lastUsedAt, createdAt }] } }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다 |
-| PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 내 것이 아니면 404(존재 노출 방지). 이름이 비었거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
+| PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 내 것이 아니면 404(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | DELETE | `/api/auth/2fa/webauthn/credentials/:id` | credential 삭제. 인증 필수(JWT). 마지막 credential 을 지우면 `WebAuthnService.deleteCredential` 이 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 204 |
 | POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 본문 `password` 로 비밀번호 재확인. 기존 미사용 코드를 버리고 10개를 새로 발급한다. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
 
@@ -627,7 +631,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | 코드 | HTTP | 상황 |
 | --- | --- | --- |
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
-| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 새 이메일 형식 오류·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 오류, Passkey 표시 이름 형식 오류(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름) |
+| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 새 이메일 형식 오류·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 오류, Passkey 표시 이름 형식 오류(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복, 새 이메일 선점 |
 | `REAUTH_NOT_AVAILABLE` | 403 | 재인증 수단이 없는 OAuth 전용 계정의 이메일 변경 |
 | `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | 2단계 인증 끄기·Passkey 복구 코드 재발급의 비밀번호 재확인 실패. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
@@ -647,7 +651,6 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 ## 미결 사항
 
 - **TOTP 가 켜진 상태에서 설정을 다시 시작할 수 있다**: `POST /api/auth/2fa/setup` 과 `POST /api/auth/2fa/verify` 는 TOTP 가 이미 켜져 있는지 보지 않는다. setup 은 `two_factor_enabled` 를 그대로 둔 채 secret 을 새 값으로 바꾼다. 이어서 verify 를 부르면 TOTP 복구 코드도 새로 발급돼 기존 코드는 쓸 수 없게 된다. 두 요청 모두 로그인 세션만 있으면 된다. 그래서 비밀번호와 세션을 가진 사람은 setup 으로 받은 새 secret 의 코드로 [TOTP 끄기](#totp-끄기) 를 통과할 수 있다. 세션만 가진 사람도 원래 사용자의 인증 앱과 TOTP 복구 코드를 못 쓰게 만들 수 있다. 화면은 TOTP 가 켜져 있으면 설정 카드를 보여 주지 않지만 API 는 막지 않는다. 켜진 상태의 setup·verify 를 거부할지, 끄기와 같은 확인을 요구할지 정해야 한다. 후속 NERV Task `CLE-T-94FTMV` 로 추적한다.
-- **공백만 있는 Passkey 이름 변경**: 이름 변경은 빈 문자열을 거부하지만 공백만 있는 이름은 받아서 앞뒤 공백을 지운 빈 문자열로 저장한다. 등록 검증은 빈 이름과 공백만 있는 이름을 이름 없음(NULL)으로 저장한다. 이름 변경에서 공백만 있는 이름을 거부할지 이름 없음으로 저장할지 정해야 한다. 후속 NERV Task `CLE-T-SREW0S` 로 추적한다.
 - **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 이 문서의 에러 코드 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
 
 ## 구현 위치
@@ -659,7 +662,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/backend/src/common/constants/throttle.ts` (`SENSITIVE_ACTION_THROTTLE`, TOTP 끄기 요청 한도)
 - `codebase/backend/src/common/utils/postgres-text.ts` (표시 이름의 NUL 문자 · 코드 포인트 수 검증기)
 - `codebase/backend/test/totp-disable.e2e-spec.ts` (TOTP 끄기의 비밀번호·코드 확인과 DB 상태)
-- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식)
+- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
 - `codebase/frontend/src/app/(auth)/**`
 - `codebase/frontend/src/components/auth/**` (`register-form.tsx` 포함)
 - `codebase/frontend/src/lib/utils/password.ts`
@@ -748,6 +751,22 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - 사람이 보는 글자(grapheme) 수로 세는 안은 기각했다. `varchar(100)` 은 코드 포인트로 세므로 grapheme 100개짜리 이름은 저장하지 못할 수 있다.
 - NUL 문자를 지우고 저장하는 안은 기각했다. 사용자가 보낸 이름을 알리지 않고 바꾸게 된다. transport 목록에서 NUL 이 든 항목만 빼는 안을 기각한 이유와 같다.
 - 전역 예외 필터에서 SQLSTATE 22021 · 22001 을 400 으로 바꾸는 안은 기각했다. 저장할 수 없는 값은 요청 입구에서 미리 거부한다는 기존 방식(`codebase/backend/src/common/utils/optional-non-null.ts`)과 맞지 않는다. 필터에서 바꾸면 어느 필드가 틀렸는지도 응답에 담을 수 없다.
+
+### Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다 (2026-10-17)
+
+이름 변경 DTO 는 빈 문자열만 거부했다(`MinLength(1)`). 공백 문자로만 된 이름은 검증을 지나 앞뒤 공백을 지운 빈 문자열로 저장됐다. 목록 화면은 이름이 NULL 일 때만 기본 문구를 보여 줘서 이 Passkey 의 이름이 빈 칸으로 보였다. 등록 검증은 같은 입력을 이름 없음(NULL)으로 저장한다. 그래서 이름이 없다는 같은 뜻의 값이 데이터베이스에 NULL 과 빈 문자열 두 가지로 갈렸다(NERV Task `CLE-T-SREW0S`). 화면은 공백 문자로만 된 이름이면 저장 버튼을 막으므로 API 를 직접 부를 때만 생기는 경우다.
+
+결정과 기각한 안은 다음과 같다.
+
+- 이름 변경은 공백 문자로만 된 이름을 빈 문자열과 같은 400 `VALIDATION_ERROR` 로 거부한다. 이름 변경은 이름을 바꾸는 요청이고 화면에는 이름을 지우는 기능이 없다.
+- 이름 없음(NULL)으로 저장하는 안은 기각했다. 이름을 지우는 기능이 새로 생기는데 빈 문자열은 계속 거부하므로 같은 뜻의 두 입력이 다르게 처리된다. 빈 문자열까지 NULL 로 받으려면 빈 이름 거부 규칙을 바꿔야 한다.
+- 등록 검증은 그대로 둔다. 표시 이름이 선택 필드라서 빈 이름과 공백 문자로만 된 이름은 이름을 주지 않은 요청과 같게 본다. 그래서 공백 문자로만 된 이름을 등록 검증은 받아 NULL 로 저장하고 이름 변경은 거부한다. 두 요청의 뜻이 달라서 생기는 의도한 차이다.
+- 길이는 지금처럼 앞뒤 공백을 지우기 전 값으로 센다. 보낸 값을 그대로 검사해서 클라이언트가 지킬 규칙이 단순하다. 지운 뒤 값으로 세려면 두 DTO 에서 검증 전에 값을 바꿔야 한다. 이 기준 때문에 앞뒤 공백까지 합해 코드 포인트 100개를 넘는 이름은 지운 뒤 100개 이하여도 400 이다. NERV Task `CLE-T-XYW44D` 전에는 `MaxLength` 가 변형 선택자를 앞 글자와 묶어 세서 이런 이름 일부가 200 이었다.
+- 앞뒤 공백 문자를 지우고 저장하는 것은 NUL 문자를 지우는 안을 기각한 이유(사용자가 보낸 이름을 알리지 않고 바꾸게 된다)의 예외로 둔다. 이름 가운데 글자는 그대로 두고 화면에 보이지 않는 앞뒤 공백만 지운다. 저장한 이름은 목록과 이름 변경 응답에 그대로 나온다.
+- 공백 문자의 범위는 `trim()` 의 기준을 그대로 쓴다. 그래야 저장할 때 지우는 문자와 이름 변경이 거부하는 문자가 같다. 제로폭 공백(U+200B)처럼 `trim()` 이 지우지 않는 문자는 이번 결정의 범위 밖이고 지금처럼 받는다.
+- 이미 저장된 빈 문자열 이름은 마이그레이션으로 NULL 로 바꾼다. 그러면 `device_name` 에 빈 문자열이 남지 않고 목록 화면에 기본 문구가 나온다. 화면이 빈 문자열도 기본 문구로 그리게 고치는 안은 기각했다. 같은 뜻의 값이 데이터베이스에 두 가지로 남는다.
+- 마이그레이션은 `device_name` 이 빈 문자열인 행을 NULL 로 바꾸는 UPDATE 문 하나다. 바꾼 뒤에는 원래 빈 문자열이던 행과 원래 NULL 이던 행을 구분할 수 없어서 되돌리지 않는다. `-- DOWN:` 주석에 그 이유를 적는다.
+- 빈 문자열을 막는 데이터베이스 CHECK 제약은 더하지 않는다. `device_name` 을 쓰는 경로는 등록 검증과 이름 변경 둘뿐이고 두 경로 모두 서버가 빈 문자열을 저장하지 않는다.
 
 ### 복구 코드 묶음을 TOTP 와 Passkey 로 나눈다
 

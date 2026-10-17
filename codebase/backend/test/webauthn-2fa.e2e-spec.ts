@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Client } from 'pg';
 import request from 'supertest';
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
@@ -33,6 +36,16 @@ import {
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
+
+const V152_SQL = readFileSync(
+  join(
+    __dirname,
+    '..',
+    'migrations',
+    'V152__webauthn_device_name_empty_to_null.sql',
+  ),
+  'utf8',
+);
 
 interface CredentialRow {
   id: string;
@@ -447,6 +460,14 @@ describe('WebAuthn 2FA (e2e)', () => {
   ];
   // 대조군에 쓰는 경계값이다. 글자 99개 + 변형 선택자 = 코드 포인트 100개는 받는다.
   const LONGEST_DEVICE_NAME = `${'a'.repeat(99)}${VS16}`;
+  // 공백 문자는 `String.prototype.trim()` 이 지우는 문자다. 탭 · 줄 바꿈 · 전각 공백을 섞었다.
+  const BLANK_DEVICE_NAME = ' \t\n\u3000';
+  // 등록 검증은 표시 이름을 빼도 되므로 빈 이름 · 공백 문자로만 된 이름 거부는 이름 변경에만 있다.
+  const INVALID_RENAME_DEVICE_NAMES: [string, string][] = [
+    ...INVALID_DEVICE_NAMES,
+    ['빈 이름', ''],
+    ['공백 문자로만 된 이름', BLANK_DEVICE_NAME],
+  ];
 
   it.each(INVALID_DEVICE_NAMES)(
     'K. 등록 검증이 %s을 400 으로 거부하고 저장하지 않는다',
@@ -484,7 +505,7 @@ describe('WebAuthn 2FA (e2e)', () => {
     },
   );
 
-  it.each(INVALID_DEVICE_NAMES)(
+  it.each(INVALID_RENAME_DEVICE_NAMES)(
     'L. 이름 변경이 %s을 400 으로 거부하고 이름을 바꾸지 않는다',
     async (_label, deviceName) => {
       const { userId, accessToken } = await registerAndLogin(
@@ -516,4 +537,85 @@ describe('WebAuthn 2FA (e2e)', () => {
       expect(await storedDeviceNames(userId)).toEqual([LONGEST_DEVICE_NAME]);
     },
   );
+
+  // 표시 이름이 선택 필드라서 등록 검증은 이 이름을 이름을 주지 않은 요청과 같게 본다. 케이스 L 의
+  // 이름 변경은 같은 이름을 거부한다. 어느 경로로도 device_name 에 빈 문자열이 들어가지 않는다.
+  it.each([
+    ['빈 이름', ''],
+    ['공백 문자로만 된 이름', BLANK_DEVICE_NAME],
+  ])(
+    'M. 등록 검증이 %s을 이름 없음(NULL)으로 저장한다',
+    async (_label, deviceName) => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-m'),
+        db,
+      );
+      const { challenge, optionsToken } = await fetchRegistrationOptions(
+        BASE_URL,
+        accessToken,
+      );
+
+      const res = await postRegisterVerify(
+        accessToken,
+        optionsToken,
+        new SoftWebAuthnDevice().registrationResponse(challenge),
+        deviceName,
+      );
+      expect(res.status).toBe(200);
+      expect(await storedDeviceNames(userId)).toEqual([null]);
+    },
+  );
+
+  // V152 는 이름 변경이 남긴 빈 문자열만 NULL 로 바꾼다. Flyway 는 빈 테이블에 적용하므로 대상 행이
+  // 없다. 그래서 한 트랜잭션 안에 임시 스키마의 webauthn_credential 사본을 만들고 파일 그대로 실행한 뒤
+  // ROLLBACK 한다(선례: merge-default-config.e2e-spec.ts 의 V148).
+  it('N. V152 가 빈 문자열 device_name 만 NULL 로 바꾸고 다시 돌려도 바꾸는 행이 없다', async () => {
+    const id = (n: number) => `a1520000-0000-4000-8000-00000000000${n}`;
+    // [id, device_name]
+    const rows: Array<[string, string | null]> = [
+      [id(1), ''],
+      [id(2), null],
+      [id(3), 'YubiKey 5C'],
+    ];
+
+    await db.query('BEGIN');
+    try {
+      await db.query('CREATE SCHEMA v152_probe');
+      await db.query(
+        'CREATE TABLE v152_probe.webauthn_credential (LIKE public.webauthn_credential INCLUDING DEFAULTS INCLUDING CONSTRAINTS)',
+      );
+      await db.query('SET LOCAL search_path TO v152_probe, public');
+      for (const [rowId, deviceName] of rows) {
+        await db.query(
+          `INSERT INTO webauthn_credential (id, user_id, credential_id, public_key, device_name)
+             VALUES ($1, $2, $3, $4, $5)`,
+          [
+            rowId,
+            randomUUID(),
+            `cred-${rowId}`,
+            Buffer.from('key'),
+            deviceName,
+          ],
+        );
+      }
+
+      const first = await db.query(V152_SQL);
+      expect(first.rowCount).toBe(1);
+
+      const after = await db.query<{ id: string; device_name: string | null }>(
+        'SELECT id, device_name FROM webauthn_credential ORDER BY id',
+      );
+      expect(after.rows).toEqual([
+        { id: id(1), device_name: null },
+        { id: id(2), device_name: null },
+        { id: id(3), device_name: 'YubiKey 5C' },
+      ]);
+
+      const second = await db.query(V152_SQL);
+      expect(second.rowCount).toBe(0);
+    } finally {
+      await db.query('ROLLBACK');
+    }
+  });
 });

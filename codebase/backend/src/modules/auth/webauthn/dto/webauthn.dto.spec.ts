@@ -62,16 +62,81 @@ describe.each([
       ['maxCodePoints'],
     ],
     ['101 plain characters', 'a'.repeat(101), ['maxCodePoints', 'maxLength']],
+    // 길이는 앞뒤 공백을 지우기 전의 값으로 센다. 서비스는 지운 값(100개)을 저장하지만 DTO 가 먼저 거부한다.
+    [
+      '100 characters and a trailing space',
+      `${'a'.repeat(100)} `,
+      ['maxCodePoints', 'maxLength'],
+    ],
   ])('rejects %s', async (_label, deviceName, expected) => {
     expect(await deviceNameConstraints(dto, deviceName)).toEqual(expected);
   });
 });
+
+// 공백 문자는 `String.prototype.trim()` 이 지우는 문자다. 서비스가 저장할 때 지우는 문자와 같다.
+// 눈에 보이지 않거나 편집기가 바꿀 수 있는 문자라 `\uXXXX` 이스케이프로 적는다.
+const BLANK_DEVICE_NAMES: [string, string][] = [
+  ['spaces', '   '],
+  ['a tab and a line feed', '\t\n'],
+  ['a no-break space (U+00A0)', '\u00A0'],
+  ['an ideographic space (U+3000)', '\u3000'],
+  ['a line separator (U+2028)', '\u2028'],
+  ['a byte order mark (U+FEFF)', '\uFEFF'],
+];
 
 describe('WebAuthnRegisterVerifyDto deviceName', () => {
   it('may be omitted', async () => {
     expect(
       await deviceNameConstraints(WebAuthnRegisterVerifyDto, undefined),
     ).toEqual([]);
+  });
+
+  // 표시 이름이 선택 필드라서 이름을 주지 않은 요청과 같게 보고 서비스가 NULL 로 저장한다.
+  it.each([['an empty string', ''], ...BLANK_DEVICE_NAMES])(
+    'accepts %s',
+    async (_label, deviceName) => {
+      expect(
+        await deviceNameConstraints(WebAuthnRegisterVerifyDto, deviceName),
+      ).toEqual([]);
+    },
+  );
+});
+
+// 등록 검증은 표시 이름을 빼도 되므로 빈 이름 · 공백 문자로만 된 이름 거부는 이름 변경에만 있다.
+describe('WebAuthnRenameDto deviceName', () => {
+  it('rejects an empty string', async () => {
+    expect(await deviceNameConstraints(WebAuthnRenameDto, '')).toEqual([
+      'isNotBlank',
+      'minLength',
+    ]);
+  });
+
+  it.each(BLANK_DEVICE_NAMES)(
+    'rejects a name made only of %s',
+    async (_label, deviceName) => {
+      expect(
+        await deviceNameConstraints(WebAuthnRenameDto, deviceName),
+      ).toEqual(['isNotBlank']);
+    },
+  );
+
+  it.each([
+    ['surrounding spaces', '  My Mac  '],
+    // `trim()` 이 지우지 않으므로 공백 문자로 보지 않는다.
+    ['only a zero-width space (U+200B)', '\u200B'],
+  ])('accepts a name with %s', async (_label, deviceName) => {
+    expect(await deviceNameConstraints(WebAuthnRenameDto, deviceName)).toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+  ])('rejects a %s name', async (_label, deviceName) => {
+    expect(
+      await deviceNameConstraints(WebAuthnRenameDto, deviceName),
+    ).toContain('isString');
   });
 });
 
