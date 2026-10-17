@@ -617,18 +617,12 @@ export class HooksService {
             triggerId: trigger.id,
             scope: 'in_process_trusted',
           };
-          const ack = await this.interactionService.interact(ctx, {
-            command: 'submit_form',
-            nodeId,
-            data: filteredFields,
-          });
-          if (wasNotQueued(ack)) {
-            await this.markChatChannelEnqueueFailed(
-              trigger,
-              state.executionId!,
-              'submit_form',
-            );
-          }
+          await this.interactReportingEnqueueFailure(
+            ctx,
+            { command: 'submit_form', nodeId, data: filteredFields },
+            trigger,
+            state.executionId!,
+          );
           // pendingFormModal clear. 큐에 넣지 못한 경우도 지금까지처럼 비운다.
           state.pendingFormModal = undefined;
           state.lastUpdateAt = new Date().toISOString();
@@ -877,6 +871,27 @@ export class HooksService {
   }
 
   /**
+   * 대기 실행으로 명령을 보내고, 재개 큐에 넣지 못했다고 알리면 {@link markChatChannelEnqueueFailed} 로 남긴다.
+   * 내부 신뢰 호출은 적재 실패를 던지지 않고 `accepted:false` 로 알리므로 호출마다 응답을 검사해야 한다. 그 검사를
+   * 여기 한 곳에 둔다. `interact` 가 던지는 오류는 그대로 전파한다.
+   */
+  private async interactReportingEnqueueFailure(
+    ctx: InternalInteractionRequestContext,
+    dto: InteractDto,
+    trigger: Trigger,
+    executionId: string,
+  ): Promise<void> {
+    const ack = await this.interactionService.interact(ctx, dto);
+    if (wasNotQueued(ack)) {
+      await this.markChatChannelEnqueueFailed(
+        trigger,
+        executionId,
+        dto.command,
+      );
+    }
+  }
+
+  /**
    * 대기 실행으로 보낼 명령을 재개 큐에 넣지 못했을 때 경고 로그를 남기고 채널 건강도를 `degraded` 로 바꾼다.
    * 프로바이더에는 호출자가 202 로 답한다. `healthy` 로는 다음 아웃바운드 발송이 성공할 때 돌아온다.
    * 근거: [채팅 채널 「채널 건강도」](CLE-CHAT-CORE#채널-건강도), NERV Task `CLE-T-EQDYC1`.
@@ -989,14 +1004,12 @@ export class HooksService {
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
     if (!dto) return;
     try {
-      const ack = await this.interactionService.interact(ctx, dto);
-      if (wasNotQueued(ack)) {
-        await this.markChatChannelEnqueueFailed(
-          trigger,
-          executionId,
-          dto.command,
-        );
-      }
+      await this.interactReportingEnqueueFailure(
+        ctx,
+        dto,
+        trigger,
+        executionId,
+      );
     } catch (err) {
       const conflict =
         err instanceof ConflictException ? readErrorBody(err) : undefined;
@@ -1107,18 +1120,16 @@ export class HooksService {
           triggerId: trigger.id,
           scope: 'in_process_trusted',
         };
-        const ack = await this.interactionService.interact(ctx, {
-          command: 'submit_form',
-          nodeId: formState.nodeId,
-          data: formState.partialFormData,
-        });
-        if (wasNotQueued(ack)) {
-          await this.markChatChannelEnqueueFailed(
-            trigger,
-            state.executionId!,
-            'submit_form',
-          );
-        }
+        await this.interactReportingEnqueueFailure(
+          ctx,
+          {
+            command: 'submit_form',
+            nodeId: formState.nodeId,
+            data: formState.partialFormData,
+          },
+          trigger,
+          state.executionId!,
+        );
         state.formState = undefined;
       } catch (err) {
         this.logger.warn(
