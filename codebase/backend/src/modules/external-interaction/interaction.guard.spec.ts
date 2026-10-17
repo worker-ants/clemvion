@@ -301,3 +301,151 @@ describe('InteractionGuard', () => {
     );
   });
 });
+
+// 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-EQDYC1` — SSE 구독을
+// 등록한 뒤 트리거 단위 토큰을 다시 확인한다. 가드를 통과한 뒤 등록하기 전에 무효가 된 토큰을 거른다.
+describe('InteractionGuard.reverifyTriggerToken', () => {
+  const ITK_CONFIG = {
+    interaction: {
+      enabled: true,
+      tokenStrategy: 'per_trigger',
+      triggerToken: 'itk_secret',
+    },
+  };
+  const ITK_INTERACTION = {
+    executionId: 'exec-1',
+    tokenFamily: 'itk',
+    triggerId: 'trg-1',
+  };
+
+  function makeReq(
+    interaction: Record<string, unknown> | undefined,
+    authorization = 'Bearer itk_secret',
+  ) {
+    const ctx = makeContext({ executionId: 'exec-1' }, { authorization });
+    ctx.req.interaction = interaction;
+    return ctx;
+  }
+
+  it('트리거의 지금 설정으로 토큰이 맞으면 통과한다', async () => {
+    const triggerFindOne = jest
+      .fn()
+      .mockResolvedValue({ id: 'trg-1', config: ITK_CONFIG });
+    const verifyPerTrigger = jest.fn().mockReturnValue(true);
+    const { guard } = makeGuard({ triggerFindOne, verifyPerTrigger });
+    const ctx = makeReq(ITK_INTERACTION);
+    await expect(
+      guard.reverifyTriggerToken(ctx.req as never),
+    ).resolves.toBeUndefined();
+    expect(triggerFindOne).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'trg-1' } }),
+    );
+    expect(verifyPerTrigger).toHaveBeenCalledWith('itk_secret', 'itk_secret');
+  });
+
+  it('재발급으로 토큰이 바뀌었으면 TOKEN_INVALID 401 과 refresh 헤더', async () => {
+    const { guard } = makeGuard({
+      triggerFindOne: jest.fn().mockResolvedValue({
+        id: 'trg-1',
+        config: {
+          interaction: { ...ITK_CONFIG.interaction, triggerToken: 'itk_new' },
+        },
+      }),
+      verifyPerTrigger: jest.fn().mockReturnValue(false),
+    });
+    const ctx = makeReq(ITK_INTERACTION);
+    await expect(
+      guard.reverifyTriggerToken(ctx.req as never),
+    ).rejects.toMatchObject({
+      status: 401,
+      response: { error: { code: 'TOKEN_INVALID', message: 'Token rejected' } },
+    });
+    expect(ctx.setHeader).toHaveBeenCalledWith(
+      REFRESH_TOKEN_URL_HEADER,
+      '/api/external/executions/exec-1/refresh-token',
+    );
+  });
+
+  it.each([
+    [
+      '인터랙션을 껐다',
+      {
+        id: 'trg-1',
+        config: { interaction: { ...ITK_CONFIG.interaction, enabled: false } },
+      },
+    ],
+    [
+      '전략을 바꿔 토큰을 지웠다',
+      {
+        id: 'trg-1',
+        config: {
+          interaction: { enabled: true, tokenStrategy: 'per_execution' },
+        },
+      },
+    ],
+    ['트리거를 지웠다', null],
+  ])('%s → TOKEN_INVALID 401', async (_label, trigger) => {
+    const verifyPerTrigger = jest.fn().mockReturnValue(true);
+    const { guard } = makeGuard({
+      triggerFindOne: jest.fn().mockResolvedValue(trigger),
+      verifyPerTrigger,
+    });
+    const ctx = makeReq(ITK_INTERACTION);
+    await expect(
+      guard.reverifyTriggerToken(ctx.req as never),
+    ).rejects.toMatchObject({
+      status: 401,
+      response: {
+        error: {
+          code: 'TOKEN_INVALID',
+          message: 'Trigger has no per-trigger token',
+        },
+      },
+    });
+    expect(verifyPerTrigger).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['가드 컨텍스트 없음', undefined, 'Bearer itk_secret'],
+    [
+      'triggerId 없음',
+      { ...ITK_INTERACTION, triggerId: null },
+      'Bearer itk_secret',
+    ],
+    ['실행 단위 토큰', ITK_INTERACTION, 'Bearer iext_xxx'],
+    ['토큰 없음', ITK_INTERACTION, ''],
+  ])(
+    '%s → DB 를 읽지 않고 TOKEN_INVALID 401',
+    async (_label, interaction, authorization) => {
+      const triggerFindOne = jest.fn();
+      const { guard } = makeGuard({ triggerFindOne });
+      const ctx = makeReq(interaction, authorization);
+      await expect(
+        guard.reverifyTriggerToken(ctx.req as never),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { error: { code: 'TOKEN_INVALID' } },
+      });
+      expect(triggerFindOne).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejectTriggerToken 은 같은 401 을 던진다', () => {
+    const { guard } = makeGuard({});
+    const ctx = makeReq(ITK_INTERACTION);
+    let thrown: unknown;
+    try {
+      guard.rejectTriggerToken(ctx.req as never);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(UnauthorizedException);
+    expect(thrown).toMatchObject({
+      response: { error: { code: 'TOKEN_INVALID', message: 'Token rejected' } },
+    });
+    expect(ctx.setHeader).toHaveBeenCalledWith(
+      REFRESH_TOKEN_URL_HEADER,
+      '/api/external/executions/exec-1/refresh-token',
+    );
+  });
+});

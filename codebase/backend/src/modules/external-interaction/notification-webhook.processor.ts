@@ -23,7 +23,7 @@ import {
   checkSsrfSafeUrl,
 } from '../../common/utils/ssrf-safe-url.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
-import { isSecretRef } from '../secret-store/secret-ref';
+import { readStoredSigningSecret } from '../triggers/notification-signing-secret';
 import { notificationSigningSecretRef } from '../triggers/notification-signing-secret-ref';
 import { OutboundNotificationRateLimiterService } from './outbound-notification-rate-limiter.service';
 
@@ -100,11 +100,12 @@ export class NotificationWebhookProcessor extends WorkerHost {
     config: NotificationConfigRuntime,
     triggerId: string,
   ): Promise<string | null> {
-    const secretRef = config.signing?.secretRef;
-    if (typeof secretRef === 'string' && isSecretRef(secretRef)) {
+    // «있음» 판정은 발급 판정(`decideNotificationSigning`)과 같은 함수로 읽는다(NERV Task `CLE-T-EQDYC1`).
+    const stored = readStoredSigningSecret(config.signing);
+    if (stored.kind === 'ref') {
       // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
       const ownRef = notificationSigningSecretRef(triggerId);
-      if (secretRef !== ownRef) {
+      if (stored.secretRef !== ownRef) {
         this.logger.error(
           `NotificationWebhookProcessor: 트리거 ${triggerId} 의 저장된 notification.signing.secretRef 가 이 트리거의 참조와 달라 ${ownRef} 로 바꿔 씁니다. 저장된 행을 점검하세요.`,
         );
@@ -119,12 +120,11 @@ export class NotificationWebhookProcessor extends WorkerHost {
       }
     }
     // legacy plaintext fallback (마이그레이션 호환성).
-    const refOrLegacy = config.signing?.secret;
-    if (typeof refOrLegacy === 'string' && refOrLegacy.length > 0) {
+    if (stored.kind === 'legacy') {
       this.logger.warn(
         `legacy plaintext signing secret detected (triggerId=${triggerId}) — migration to secret store recommended.`,
       );
-      return refOrLegacy;
+      return stored.plaintext;
     }
     return null;
   }

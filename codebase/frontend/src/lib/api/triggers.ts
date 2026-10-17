@@ -145,9 +145,15 @@ export interface TriggerUpdateBody {
   chatChannel?: Record<string, unknown>;
 }
 
-/** `triggersApi.update` 의 결과. 서버가 첫 알림 서명 시크릿을 발급했을 때만 평문이 있다. */
+/**
+ * `triggersApi.update` 의 결과. 서버가 이 요청에서 발급한 비밀의 평문만 있다.
+ * 두 비밀이 한 응답에 함께 올 수 있다.
+ */
 export interface TriggerUpdateResult {
+  /** 첫 알림 서명 시크릿(`wsk_*`). */
   issuedNotificationSigningSecret?: string;
+  /** 인터랙션을 per_trigger 로 처음 켰을 때 발급된 트리거 단위 토큰(`itk_*`). */
+  issuedInteractionToken?: string;
 }
 
 export const triggersApi = {
@@ -185,20 +191,30 @@ export const triggersApi = {
    * `PATCH /triggers/:id` — 단일 편집 경로(R-4). 부분 바디 전달.
    *
    * 서버가 첫 알림 서명 시크릿을 발급한 응답에만 `data.secrets.notificationSigningSecret` 이 실린다
-   * (EIA 알림 웹훅 설정을 처음 붙일 때). 서버는 다시 보여 주지 않으므로 호출부가 한 번 보여 줘야 한다.
-   * 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api)
+   * (EIA 알림 웹훅 설정을 처음 붙일 때). 인터랙션을 per_trigger 로 켰는데 토큰이 없던 응답에만
+   * `data.secrets.interactionToken` 이 실린다. 서버는 다시 보여 주지 않으므로 호출부가 한 번 보여 줘야 한다.
+   * 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) · CLE-T-EQDYC1
    */
   update: async (
     id: string,
     body: TriggerUpdateBody,
   ): Promise<TriggerUpdateResult> => {
     const res = await apiClient.patch<{
-      data?: { secrets?: { notificationSigningSecret?: unknown } };
+      data?: {
+        secrets?: { notificationSigningSecret?: unknown; interactionToken?: unknown };
+      };
     }>(`/triggers/${id}`, body);
-    const secret = res?.data?.data?.secrets?.notificationSigningSecret;
-    return typeof secret === "string"
-      ? { issuedNotificationSigningSecret: secret }
-      : {};
+    const secrets = res?.data?.data?.secrets;
+    const signingSecret = secrets?.notificationSigningSecret;
+    const interactionToken = secrets?.interactionToken;
+    return {
+      ...(typeof signingSecret === "string"
+        ? { issuedNotificationSigningSecret: signingSecret }
+        : {}),
+      ...(typeof interactionToken === "string"
+        ? { issuedInteractionToken: interactionToken }
+        : {}),
+    };
   },
 
   /** `DELETE /triggers/:id` — 트리거 삭제 (Spec §3). cascade(schedule·notification·interaction)는 backend. */

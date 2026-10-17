@@ -41,6 +41,16 @@ const ITK_BYTES = 32;
 const BLACKLIST_KEY_PREFIX = 'iext:blacklist:';
 
 /**
+ * 새 트리거 단위 토큰(`itk_` + 32 bytes hex). 토큰에는 트리거 id 정보가 없다.
+ *
+ * 트리거 생성 · PATCH 의 첫 발급과 재발급(`TriggersService`)이 이 함수를 쓴다. `TriggersModule` 은 이 모듈을
+ * import 하지 않아 DI 없이 부를 수 있는 함수로 둔다(NERV Task `CLE-T-EQDYC1`).
+ */
+export function newPerTriggerToken(): string {
+  return `${ITK_PREFIX}${randomBytes(ITK_BYTES).toString('hex')}`;
+}
+
+/**
  * dev/test 전용 fallback 서명 키 — env(`INTERACTION_JWT_SECRET`/`JWT_SECRET`) 미설정 시에만 쓰인다.
  * 모듈 로드 시 1회 생성하는 **ephemeral random** 이라 버전 이력에 예측 가능한 고정 secret 을 남기지
  * 않는다(예: 옛 하드코딩 `'interaction-fallback'` 제거). 같은 프로세스 안에서는 일관돼 mint↔verify
@@ -471,8 +481,7 @@ export class InteractionTokenService {
    * 토큰 자체에는 trigger id 정보 없음 — 호출 시 expected 토큰과 timing-safe 비교.
    */
   issuePerTrigger(): string {
-    const random = randomBytes(ITK_BYTES).toString('hex');
-    return `${ITK_PREFIX}${random}`;
+    return newPerTriggerToken();
   }
 
   /**

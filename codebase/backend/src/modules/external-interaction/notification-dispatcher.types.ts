@@ -12,12 +12,23 @@ export const NOTIFICATION_WEBHOOK_QUEUE = 'notification-webhook';
 export const NOTIFICATION_BACKOFF_TYPE = 'exp-base4';
 
 /**
+ * 재시도 간격의 상한(ms). 1시간이다.
+ * 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리), NERV Task `CLE-T-EQDYC1`.
+ * 상한이 없으면 최대 10회 설정의 마지막 간격이 약 18.2시간이고 총 지연이 약 24.3시간이다.
+ */
+export const NOTIFICATION_BACKOFF_MAX_DELAY_MS = 3_600_000;
+
+/**
  * base-4 지수 백오프 지연(ms). BullMQ `backoffStrategy(attemptsMade)` 로 호출되며,
  * `attemptsMade` 는 방금 실패한 시도까지의 누적 횟수(1-indexed)다: 1→1s, 2→4s, 3→16s,
  * 4→64s, 5→256s (Spec EIA §6.6). default maxAttempts=5 면 재시도 지연은 1s·4s·16s·64s 4개.
+ * 7 부터는 {@link NOTIFICATION_BACKOFF_MAX_DELAY_MS}(1시간)다. 최대 10회면 재시도 9번의 간격 합이 12,165초다.
  */
 export function notificationBackoffDelayMs(attemptsMade: number): number {
-  return 1000 * Math.pow(4, Math.max(0, attemptsMade - 1));
+  return Math.min(
+    1000 * Math.pow(4, Math.max(0, attemptsMade - 1)),
+    NOTIFICATION_BACKOFF_MAX_DELAY_MS,
+  );
 }
 
 /** `notification.retry.maxAttempts` 가 없을 때의 총 시도 횟수. */

@@ -20,6 +20,7 @@ import {
 } from './chat-channel-token-rotator.service';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
+import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { TRIGGER_RESOURCE_RELEASER } from './trigger-resource-release';
 import { ChatChannelModule } from '../chat-channel/chat-channel.module';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
@@ -66,6 +67,8 @@ import { SchedulesModule } from '../schedules/schedules.module';
       provide: TRIGGER_RESOURCE_RELEASER,
       useExisting: TriggerResourceReleaserService,
     },
+    // 알림 서명 시크릿의 판정 · 쓰기 · 보상. `TriggersService` 에서 떼어낸 것이라 export 하지 않는다(NERV Task `CLE-T-EQDYC1`).
+    NotificationSigningSecretService,
     NotificationSecretRotatorService,
     ChatChannelTokenRotatorService,
   ],

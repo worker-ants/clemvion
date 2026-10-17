@@ -23,6 +23,7 @@ import {
 import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
+import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { Trigger } from './entities/trigger.entity';
 import {
   withTransactionMock,
@@ -61,6 +62,7 @@ function createBaseProviders(
     TriggersService,
     ChatChannelBinderService,
     TriggerResourceReleaserService,
+    NotificationSigningSecretService,
     {
       provide: getRepositoryToken(Trigger),
       useValue: withTransactionMock(triggerRepoMock, txOptions),
@@ -159,6 +161,7 @@ describe('TriggersService.findOneDetail', () => {
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           // `save` 는 `update()` 경로가 쓴다 — 이 describe 의 다른 테스트는 조회만 하지만
@@ -614,6 +617,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({ createQueryBuilder: jest.fn() }),
@@ -832,10 +836,13 @@ describe('TriggersService — notification/interaction config 병합 (External I
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
-            create: jest.fn((x: Partial<Trigger>) => x as Trigger),
+            // 실제 `create` 처럼 새 객체를 돌려준다. 생성은 INSERT 한 엔티티의 `config` 를 같은 트랜잭션 안에서 다시
+            // 정하므로, 받은 객체를 그대로 돌려주면 `create` 호출 인자의 기록까지 바뀐다.
+            create: jest.fn((x: Partial<Trigger>) => ({ ...x }) as Trigger),
             save: jest.fn((x: Trigger) => Promise.resolve(x)),
             findOne: jest.fn(),
           }),
@@ -1402,6 +1409,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
   describe('promoteRotatedNotificationSecrets — grace 24h 종료 cron', () => {
     function mockQueryBuilder(triggers: Trigger[]): void {
       const qb = {
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue(triggers),
@@ -1895,6 +1903,7 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -2062,6 +2071,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -2200,6 +2210,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -2696,6 +2707,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -2890,6 +2902,7 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
   async function build(candidates: Trigger[]) {
     triggerRepo = {
       createQueryBuilder: jest.fn(() => ({
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue(candidates),
@@ -2913,6 +2926,7 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         TriggersService,
         ChatChannelBinderService,
         TriggerResourceReleaserService,
+        NotificationSigningSecretService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock(triggerRepo),
@@ -3095,6 +3109,7 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let auditLogs: { record: jest.Mock };
   let secretStore: { rotate: jest.Mock };
+  let binder: ChatChannelBinderService;
 
   const webhookTrigger = {
     id: 'trg-1',
@@ -3123,6 +3138,7 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
       record: jest.Mock;
     };
     secretStore = moduleRef.get(SecretResolverService);
+    binder = moduleRef.get(ChatChannelBinderService);
   });
 
   it('create 는 trigger.created 를 details.type 과 함께 남긴다', async () => {
@@ -3276,12 +3292,10 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     expect(auditLogs.record).not.toHaveBeenCalled();
   });
 
-  it('create 는 secret 마이그레이션 **전에** 기록한다 (W6 순서 고정)', async () => {
-    // 이 순서가 뒤집히면 secret store 호출이 실패했을 때 트리거는 생겼는데 감사가 안 남는다.
-    // 코드로만 맞춰두면 리팩터링이 조용히 되돌려도 테스트는 GREEN 이다 — 순서를 고정한다.
-    //
-    // 비밀 단계는 `config.notification` 이 있을 때 시크릿 저장소에 쓰는 것으로 관측한다(첫 알림 서명 시크릿 발급,
-    // NERV Task `CLE-T-M6PERB`). 사설 메서드 이름에 기대지 않는다.
+  it('create 는 트랜잭션 안의 시크릿 쓰기가 끝난 뒤, 채팅 채널 설정(외부 호출) 전에 기록한다 (순서 고정)', async () => {
+    // 첫 알림 서명 시크릿은 INSERT 와 같은 트랜잭션에서 쓴다(NERV Task `CLE-T-EQDYC1`). 감사가 그보다 앞서면 롤백된
+    // 생성이 감사에 남는다. 채팅 채널 설정은 실패할 수 있는 외부 호출이라 감사가 그 뒤로 밀리면 트리거는 생겼는데
+    // 감사가 안 남는다(W6). 코드로만 맞춰 두면 리팩터링이 조용히 되돌려도 GREEN 이라 순서를 고정한다.
     const order: string[] = [];
     const created = {
       ...webhookTrigger,
@@ -3290,7 +3304,7 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     (triggerRepo.create as jest.Mock).mockReturnValue(created);
     (triggerRepo.findOne as jest.Mock).mockResolvedValue(created);
     (triggerRepo.save as jest.Mock).mockImplementation(async () => {
-      order.push('commit');
+      order.push('insert');
       return created;
     });
     auditLogs.record.mockImplementation(async () => {
@@ -3298,6 +3312,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     });
     secretStore.rotate.mockImplementation(async () => {
       order.push('secret');
+    });
+    jest.spyOn(binder, 'setupChatChannel').mockImplementation(async () => {
+      order.push('chat-channel-setup');
     });
 
     await service.create(
@@ -3307,11 +3324,12 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
         type: 'webhook',
         name: 'W',
         notification: { url: 'https://x.example/hook' },
+        chatChannel: { provider: 'telegram' },
       } as never,
       'u-o',
     );
 
-    expect(order).toEqual(['commit', 'audit', 'secret']);
+    expect(order).toEqual(['insert', 'secret', 'audit', 'chat-channel-setup']);
   });
 
   it('chatChannel 분기가 있어도 기록은 **한 번**이다 (W5 회귀)', async () => {
@@ -4765,7 +4783,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(patch?.config?.interaction?.triggerToken).toMatch(/^itk_/);
   });
 
-  it('normalizeNotificationSecretRef — 재읽은 notification 의 url 이 살아남는다', async () => {
+  it('migrateLegacyPlaintext — 재읽은 notification 의 url 이 살아남는다', async () => {
     // `update()` 안에서 불리는 사(私)경로다. 락 안 재읽기가 **두 번** 일어난다 —
     // 창 1, 그리고 이 정규화. 두 번째가 본 `notification.url` 이 최종 patch 에 남아야 한다.
     // 스냅샷을 통째로 대입하면 옛 url 로 되돌아간다(같은 SUMMARY database CRITICAL#1).
@@ -4806,7 +4824,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(signing).not.toHaveProperty('secret');
   });
 
-  it('normalizeNotificationSecretRef — 그 사이 삭제되면 락 밖에 쓴 서명 비밀을 지운다', async () => {
+  it('migrateLegacyPlaintext — 그 사이 삭제되면 락 밖에 쓴 서명 비밀을 지운다', async () => {
     // RP-1 (트래커 항목 8). 종전엔 `false` 를 무시해 `notification-signing` 이 고아로 남았다.
     // chat channel 등록은 이 경로가 만들지 않으므로 teardown 은 없다.
     const legacy = row({
@@ -4833,7 +4851,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(events).not.toContain('teardown');
   });
 
-  it('normalizeNotificationSecretRef — 쓰기가 성공하면 지우지 않는다 (대조군)', async () => {
+  it('migrateLegacyPlaintext — 쓰기가 성공하면 지우지 않는다 (대조군)', async () => {
     const legacy = row({
       notification: {
         url: 'https://x.example/cb',
@@ -4981,6 +4999,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     // 락 안 재읽기가 비었다 = 그 사이 삭제됐다.
     const { service, repo } = await makeService([() => undefined as never]);
     (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([legacy]),
@@ -5010,6 +5029,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     } as unknown as Trigger;
     const { service, repo, events } = await makeService([() => legacy]);
     (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([legacy]),
@@ -5041,6 +5061,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     } as unknown as Trigger;
     const { service, repo } = await makeService([() => stale]);
     (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([stale]),
@@ -5275,20 +5296,117 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
     });
 
-    it('토큰이 없던 행을 다시 per_trigger 로 바꿔도 토큰이 생기지 않는다(재발급으로 받는다)', async () => {
+    // 인터랙션을 per_trigger 로 처음 켜는데 유효한 토큰이 없으면 서버가 발급한다(NERV Task `CLE-T-EQDYC1`, 2026-10-17 사용자
+    // 결정). 다른 전략에서 돌아와도 옛 토큰은 이미 지워졌으므로 새 값이다. 옛 토큰이 되살아나지 않는다.
+    it('토큰이 없던 행을 per_trigger 로 켜면 itk_ 를 발급해 저장하고 그 응답에만 평문을 싣는다', async () => {
       triggerRepo.findOne.mockResolvedValue(
         stored({
           interaction: { enabled: true, tokenStrategy: 'per_execution' },
         }),
       );
-      await service.update(
+      const result = await service.update(
         't1',
         'ws',
         { interaction: { enabled: true, tokenStrategy: 'per_trigger' } },
         'u',
       );
-      expect(savedConfig().interaction).not.toHaveProperty('triggerToken');
+      const token = (result as { secrets?: { interactionToken?: string } })
+        .secrets?.interactionToken;
+      expect(token).toMatch(/^itk_[a-f0-9]{64}$/);
+      expect(savedConfig().interaction).toEqual({
+        enabled: true,
+        tokenStrategy: 'per_trigger',
+        triggerToken: token,
+      });
+      expect(result.config.interaction).not.toHaveProperty('triggerToken');
       expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+      expect(auditRecord).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'trigger.updated',
+          details: { type: 'webhook', issuedSecrets: ['interactionToken'] },
+        }),
+      );
+      expect(JSON.stringify(auditRecord.mock.calls)).not.toContain(token);
+    });
+
+    it('끈 뒤 다시 켜면 남아 있던 토큰을 이어받고 새로 발급하지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: {
+            enabled: false,
+            tokenStrategy: 'per_trigger',
+            triggerToken: 'itk_kept',
+          },
+        }),
+      );
+      const result = await service.update(
+        't1',
+        'ws',
+        { interaction: { enabled: true, tokenStrategy: 'per_trigger' } },
+        'u',
+      );
+      expect(savedConfig().interaction.triggerToken).toBe('itk_kept');
+      expect(result).not.toHaveProperty('secrets');
+      expect(auditRecord).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'trigger.updated',
+          details: { type: 'webhook' },
+        }),
+      );
+    });
+
+    it('per_trigger 라도 인터랙션을 끈 채면 토큰이 없어도 발급하지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored({}));
+      const result = await service.update(
+        't1',
+        'ws',
+        { interaction: { enabled: false, tokenStrategy: 'per_trigger' } },
+        'u',
+      );
+      expect(savedConfig().interaction).not.toHaveProperty('triggerToken');
+      expect(result).not.toHaveProperty('secrets');
+    });
+
+    it('발급하는 값은 잠금 안에서 다시 읽은 행을 보고 정한다(그사이 생긴 토큰이 있으면 발급하지 않는다)', async () => {
+      await build({
+        freshFindOne: () =>
+          Promise.resolve(
+            stored({
+              interaction: {
+                enabled: true,
+                tokenStrategy: 'per_trigger',
+                triggerToken: 'itk_committed_meanwhile',
+              },
+            }),
+          ),
+      });
+      triggerRepo.findOne.mockResolvedValue(stored({}));
+      const result = await service.update(
+        't1',
+        'ws',
+        { interaction: { enabled: true, tokenStrategy: 'per_trigger' } },
+        'u',
+      );
+      expect(savedConfig().interaction.triggerToken).toBe(
+        'itk_committed_meanwhile',
+      );
+      expect(result).not.toHaveProperty('secrets');
+    });
+
+    it('저장이 실패하면 발급한 토큰을 응답하지 않고 그대로 던진다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored({}));
+      (triggerRepo.save as jest.Mock).mockRejectedValueOnce(
+        new Error('db down'),
+      );
+      await expect(
+        service.update(
+          't1',
+          'ws',
+          { interaction: { enabled: true, tokenStrategy: 'per_trigger' } },
+          'u',
+        ),
+      ).rejects.toThrow('db down');
+      expect(auditRecord).not.toHaveBeenCalled();
     });
 
     // `@IsOptional()` 이라 `interaction: null` 이 검증을 통과한다. 종전엔 그 null 을 그대로 저장했다.
@@ -5355,6 +5473,125 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(savedConfig().interaction.triggerToken).toBe(
         'itk_committed_meanwhile',
       );
+    });
+  });
+
+  // 원시 `config` 는 `config` 전체를 바꾼다. 그 안의 `interaction` 에도 같은 토큰 규칙을 건다(NERV Task `CLE-T-EQDYC1`).
+  // 호출자는 `interaction.triggerToken` 을 보낼 수 없으므로(`CONFIG_INTERNAL_FIELDS`) 저장된 토큰은 서버가 이어받는다.
+  describe('원시 config PATCH 의 interaction — 트리거 단위 토큰', () => {
+    beforeEach(() => build());
+    const WITH_TOKEN = {
+      interaction: {
+        enabled: true,
+        tokenStrategy: 'per_trigger',
+        triggerToken: 'itk_old',
+      },
+    };
+
+    it('결과가 켜진 per_trigger 면 저장된 토큰을 이어받고 스트림을 닫지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+      const result = await service.update(
+        't1',
+        'ws',
+        {
+          config: {
+            interaction: { enabled: true, tokenStrategy: 'per_trigger' },
+            custom: 1,
+          },
+        },
+        'u',
+      );
+      expect(savedConfig().interaction).toEqual(WITH_TOKEN.interaction);
+      expect(savedConfig().custom).toBe(1);
+      expect(result).not.toHaveProperty('secrets');
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+    });
+
+    it('인터랙션을 끄면 토큰은 남기고 커밋 뒤 그 토큰으로 연 스트림을 닫는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+      await service.update(
+        't1',
+        'ws',
+        {
+          config: {
+            interaction: { enabled: false, tokenStrategy: 'per_trigger' },
+          },
+        },
+        'u',
+      );
+      expect(savedConfig().interaction.triggerToken).toBe('itk_old');
+      expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+      expect(callOrder(triggerRepo.save)).toBeLessThan(
+        callOrder(closer.closeTriggerTokenStreams),
+      );
+    });
+
+    it.each([
+      [
+        '전략을 바꿈',
+        { interaction: { enabled: true, tokenStrategy: 'per_execution' } },
+      ],
+      ['interaction 을 뺌', { custom: 1 }],
+    ])(
+      '%s 이면 토큰을 지우고 커밋 뒤 스트림을 닫는다',
+      async (_label, config) => {
+        triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+        await service.update('t1', 'ws', { config }, 'u');
+        expect(
+          (savedConfig().interaction ?? {}) as Record<string, unknown>,
+        ).not.toHaveProperty('triggerToken');
+        expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+      },
+    );
+
+    it('토큰이 없던 행을 켜진 per_trigger 로 바꾸면 발급해 그 응답에만 싣는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored({}));
+      const result = await service.update(
+        't1',
+        'ws',
+        {
+          config: {
+            interaction: { enabled: true, tokenStrategy: 'per_trigger' },
+          },
+        },
+        'u',
+      );
+      const token = (result as { secrets?: { interactionToken?: string } })
+        .secrets?.interactionToken;
+      expect(token).toMatch(/^itk_[a-f0-9]{64}$/);
+      expect(savedConfig().interaction.triggerToken).toBe(token);
+    });
+
+    it('원시 config 로 triggerToken 을 심으면 400 이고 쓰지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+      await expect(
+        service.update(
+          't1',
+          'ws',
+          {
+            config: {
+              interaction: {
+                enabled: true,
+                tokenStrategy: 'per_trigger',
+                triggerToken: 'itk_planted',
+              },
+            },
+          },
+          'u',
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          details: { field: 'config.interaction.triggerToken' },
+        },
+      });
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('config 를 싣지 않은 PATCH 는 저장된 interaction 을 건드리지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+      await service.update('t1', 'ws', { name: 'renamed' }, 'u');
+      expect(savedConfig().interaction).toEqual(WITH_TOKEN.interaction);
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
     });
   });
 
@@ -5523,34 +5760,65 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
     });
   });
 
-  describe('create — 첫 알림 서명 시크릿', () => {
+  // 근거: [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙),
+  // NERV Task `CLE-T-EQDYC1`. 생성은 INSERT · 잠금 · 시크릿 저장소 쓰기 · config 쓰기를 한 트랜잭션에서 한다. 중간에 실패하면
+  // 행도 시크릿도 남지 않으므로 커밋 뒤 되돌리는 보상이 없다.
+  describe('create — 한 트랜잭션의 INSERT 와 일회성 평문 발급', () => {
     beforeEach(() => build());
+    const NOTIFICATION = {
+      url: 'https://customer.example.com/cb',
+      events: ['execution.completed'],
+    } as NotificationConfigDto;
+    const PER_TRIGGER_ON = {
+      enabled: true,
+      tokenStrategy: 'per_trigger',
+    } as InteractionConfigDto;
 
-    it('config.notification 이 있으면 서버가 wsk_ 를 발급하고 생성 응답에만 평문을 싣는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(
-        stored({
-          notification: {
-            url: 'https://customer.example.com/cb',
-            events: ['execution.completed'],
-          },
-        }),
-      );
+    /** 실제 TypeORM 처럼 INSERT 한 엔티티에 id 를 채워 돌려준다. */
+    function insertsWithId(): void {
       (triggerRepo.save as jest.Mock).mockImplementation((x: Trigger) =>
         Promise.resolve({ ...x, id: 't1' }),
       );
-      const result = await service.create(
+    }
+
+    function create(
+      extra: Record<string, unknown>,
+    ): ReturnType<TriggersService['create']> {
+      return service.create(
         'ws',
-        {
-          workflowId: 'wf-1',
-          type: 'webhook',
-          name: 'hook',
-          notification: {
-            url: 'https://customer.example.com/cb',
-            events: ['execution.completed'],
-          },
-        },
+        { workflowId: 'wf-1', type: 'webhook', name: 'hook', ...extra },
         'u',
       );
+    }
+
+    function transactionCount(): number {
+      return (
+        (triggerRepo.manager as unknown as { transaction: jest.Mock })
+          .transaction as jest.Mock
+      ).mock.calls.length;
+    }
+
+    /** 시크릿 저장소 쓰기에 넘긴 트랜잭션 매니저. INSERT · config 쓰기가 같은 매니저로 갔는지 볼 때 쓴다. */
+    function rotateManager(): { save: jest.Mock; update: jest.Mock } {
+      return secrets.rotate.mock.calls[0][3] as {
+        save: jest.Mock;
+        update: jest.Mock;
+      };
+    }
+
+    function writtenConfig(): Record<string, Record<string, unknown>> {
+      const calls = (triggerRepo.update as jest.Mock).mock.calls;
+      return (calls[calls.length - 1][1] as { config: never }).config;
+    }
+
+    function interactionTokenOf(result: unknown): string | undefined {
+      return (result as { secrets?: { interactionToken?: string } }).secrets
+        ?.interactionToken;
+    }
+
+    it('notification 이 있으면 INSERT · 잠금 · 시크릿 쓰기 · config 쓰기를 한 트랜잭션에서 하고 생성 응답에만 평문을 싣는다', async () => {
+      insertsWithId();
+      const result = await create({ notification: NOTIFICATION });
       const secret = issued(result);
       expect(secret).toMatch(/^wsk_[a-f0-9]{64}$/);
       expect(secrets.rotate).toHaveBeenCalledWith(
@@ -5559,9 +5827,14 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         secret,
         TX_MANAGER,
       );
-      expect(rotateManagerHoldsTheLock()).toBe(true);
-      expect(locks).toHaveLength(1);
-      expect(triggerRepo.update).toHaveBeenCalledWith(
+      expect(transactionCount()).toBe(1);
+      // INSERT 와 시크릿 쓰기, config 쓰기가 같은 트랜잭션 매니저로 갔다. 그래서 어느 단계가 던져도 함께 롤백된다.
+      expect(rotateManager().save).toHaveBeenCalledWith(
+        Trigger,
+        expect.objectContaining({ name: 'hook' }),
+      );
+      expect(rotateManager().update).toHaveBeenCalledWith(
+        Trigger,
         { id: 't1' },
         expect.objectContaining({
           config: expect.objectContaining({
@@ -5571,91 +5844,145 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
           }),
         }),
       );
-      // 행이 그대로 있으니 비밀을 지우지 않는다(대조군 — 아래 두 보상 테스트가 «언제나 지운다» 로 공허해지지 않게).
+      expect(rotateManagerHoldsTheLock()).toBe(true);
+      expect(locks).toHaveLength(1);
+      expect(callOrder(triggerRepo.save)).toBeLessThan(
+        callOrder(secrets.rotate),
+      );
       expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
     });
 
-    // 잠금 안에서도 행이 사라질 수 있다 — Workflow · Workspace 삭제의 FK CASCADE 는 advisory lock 을 거치지 않는다.
-    // 시크릿 쓰기는 이미 커밋됐으므로 커밋 뒤 그 트리거의 비밀을 되돌려야 하고 응답에 평문을 싣지 않는다(규칙 9).
-    it('config 쓰기가 0행이면(그 사이 행이 사라짐) 쓴 비밀을 되돌리고 평문을 싣지 않는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(
-        stored({
-          notification: {
-            url: 'https://customer.example.com/cb',
-            events: ['execution.completed'],
+    it('per_trigger 인터랙션을 켜서 만들면 itk_ 를 발급해 저장하고 생성 응답에만 평문을 싣는다', async () => {
+      insertsWithId();
+      const result = await create({ interaction: PER_TRIGGER_ON });
+      const token = interactionTokenOf(result);
+      expect(token).toMatch(/^itk_[a-f0-9]{64}$/);
+      expect(result.secrets).not.toHaveProperty('notificationSigningSecret');
+      expect(writtenConfig().interaction).toEqual({
+        enabled: true,
+        tokenStrategy: 'per_trigger',
+        triggerToken: token,
+      });
+      expect(transactionCount()).toBe(1);
+      expect(locks).toHaveLength(1);
+      // 응답의 config 에는 토큰이 나가지 않는다(시크릿 저장소 규칙 4). 평문은 secrets 에만 있다.
+      expect(result.config.interaction).not.toHaveProperty('triggerToken');
+      expect(secrets.rotate).not.toHaveBeenCalled();
+    });
+
+    it('원시 config 의 per_trigger 인터랙션도 같은 규칙으로 발급한다', async () => {
+      insertsWithId();
+      const result = await create({
+        config: {
+          interaction: { enabled: true, tokenStrategy: 'per_trigger' },
+        },
+      });
+      const token = interactionTokenOf(result);
+      expect(token).toMatch(/^itk_[a-f0-9]{64}$/);
+      expect(writtenConfig().interaction.triggerToken).toBe(token);
+    });
+
+    it.each([
+      [
+        '인터랙션을 끈 per_trigger',
+        { enabled: false, tokenStrategy: 'per_trigger' },
+      ],
+      ['per_execution', { enabled: true, tokenStrategy: 'per_execution' }],
+    ])('%s 는 itk_ 를 발급하지 않는다', async (_label, interaction) => {
+      insertsWithId();
+      const result = await create({ interaction });
+      expect(result).not.toHaveProperty('secrets');
+      expect(writtenConfig().interaction).not.toHaveProperty('triggerToken');
+    });
+
+    it('notification 과 per_trigger 인터랙션을 함께 실으면 두 평문을 함께 싣고 감사에는 종류 이름만 남긴다', async () => {
+      insertsWithId();
+      const result = await create({
+        notification: NOTIFICATION,
+        interaction: PER_TRIGGER_ON,
+      });
+      const secret = issued(result);
+      const token = interactionTokenOf(result);
+      expect(secret).toMatch(/^wsk_/);
+      expect(token).toMatch(/^itk_/);
+      expect(transactionCount()).toBe(1);
+      expect(auditRecord).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'trigger.created',
+          resourceId: 't1',
+          details: {
+            type: 'webhook',
+            issuedSecrets: ['notificationSigningSecret', 'interactionToken'],
           },
         }),
       );
-      (triggerRepo.update as jest.Mock).mockResolvedValue({ affected: 0 });
-      (triggerRepo.save as jest.Mock).mockImplementation((x: Trigger) =>
-        Promise.resolve({ ...x, id: 't1' }),
-      );
-      const result = await service.create(
-        'ws',
-        {
-          workflowId: 'wf-1',
-          type: 'webhook',
-          name: 'hook',
-          notification: {
-            url: 'https://customer.example.com/cb',
-            events: ['execution.completed'],
-          },
-        },
-        'u',
-      );
-      expect(secrets.rotate).toHaveBeenCalledTimes(1);
-      expect(secrets.deleteByPrefix).toHaveBeenCalledWith(
-        'secret://triggers/t1/',
-      );
-      expect(result).not.toHaveProperty('secrets');
+      // 평문 값은 감사에 싣지 않는다.
+      const audited = JSON.stringify(auditRecord.mock.calls);
+      expect(audited).not.toContain(secret);
+      expect(audited).not.toContain(token);
+      // 감사는 커밋 뒤에 남긴다. 트랜잭션 안의 쓰기보다 앞서면 롤백된 생성이 감사에 남는다.
+      expect(callOrder(secrets.rotate)).toBeLessThan(callOrder(auditRecord));
     });
 
-    it('잠금 안에서 재읽은 행이 없으면(쓰기 전에 사라짐) 시크릿을 쓰지도 지우지도 않는다', async () => {
-      await build({ freshFindOne: () => Promise.resolve(null) });
-      (triggerRepo.save as jest.Mock).mockImplementation((x: Trigger) =>
-        Promise.resolve({ ...x, id: 't1' }),
-      );
-      const result = await service.create(
-        'ws',
-        {
-          workflowId: 'wf-1',
-          type: 'webhook',
-          name: 'hook',
-          notification: {
-            url: 'https://customer.example.com/cb',
-            events: ['execution.completed'],
-          },
-        },
-        'u',
-      );
-      // 쓴 비밀이 없으니 되돌릴 것도 없다. 행이 없는데 «다른 트리거의» 비밀을 지우지도 않는다.
-      expect(secrets.rotate).not.toHaveBeenCalled();
-      expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
+    it('notification · interaction 이 없으면 INSERT 하나로 끝나고 잠금도 config 쓰기도 없으며 감사에 발급 표시가 없다', async () => {
+      insertsWithId();
+      const result = await create({});
+      expect(result).not.toHaveProperty('secrets');
+      expect(locks).toHaveLength(0);
       expect(triggerRepo.update).not.toHaveBeenCalled();
-      expect(result).not.toHaveProperty('secrets');
+      expect(secrets.rotate).not.toHaveBeenCalled();
+      expect(auditRecord).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'trigger.created',
+          details: { type: 'webhook' },
+        }),
+      );
     });
 
-    it('notification 이 없으면 발급하지 않는다', async () => {
-      (triggerRepo.save as jest.Mock).mockImplementation((x: Trigger) =>
-        Promise.resolve({ ...x, id: 't1' }),
-      );
-      const result = await service.create(
-        'ws',
-        { workflowId: 'wf-1', type: 'webhook', name: 'hook' },
-        'u',
-      );
-      expect(secrets.rotate).not.toHaveBeenCalled();
-      expect(result).not.toHaveProperty('secrets');
-    });
+    // 실패 주입. 생성 트랜잭션 안의 어느 단계가 실패해도 예외가 그대로 나가 트랜잭션이 롤백된다. INSERT 도 같은
+    // 트랜잭션이므로 행이 남지 않는다. 그래서 커밋 뒤 비밀을 지우는 보상이 없고, 생기지 않은 트리거의 감사도 없다.
+    it.each([
+      [
+        '시크릿 저장소 쓰기가 던짐',
+        () =>
+          secrets.rotate.mockRejectedValueOnce(new Error('secret store down')),
+      ],
+      [
+        'config 쓰기가 던짐',
+        () =>
+          (triggerRepo.update as jest.Mock).mockRejectedValueOnce(
+            new Error('db down'),
+          ),
+      ],
+      [
+        'config 쓰기가 0행',
+        () =>
+          (triggerRepo.update as jest.Mock).mockResolvedValueOnce({
+            affected: 0,
+          }),
+      ],
+    ])(
+      '%s 이면 생성이 실패하고 행 · 시크릿 · 감사가 남지 않는다',
+      async (_label, inject) => {
+        insertsWithId();
+        inject();
+        await expect(
+          create({ notification: NOTIFICATION, interaction: PER_TRIGGER_ON }),
+        ).rejects.toThrow();
+        expect(transactionCount()).toBe(1);
+        // INSERT 가 시크릿 쓰기와 같은 트랜잭션 매니저로 갔다. 트랜잭션이 롤백되면 그 행도 사라진다.
+        expect(rotateManager().save).toHaveBeenCalledTimes(1);
+        expect(rotateManagerHoldsTheLock()).toBe(true);
+        expect(secrets.deleteByPrefix).not.toHaveBeenCalled();
+        expect(auditRecord).not.toHaveBeenCalled();
+      },
+    );
 
     it('원시 config 로 보낸 평문이 있으면 그 값을 쓰고 발급하지 않는다', async () => {
       const rawNotification = {
         url: 'https://customer.example.com/cb',
         signing: { algorithm: 'hmac-sha256', secret: 'caller-plain' },
       };
-      triggerRepo.findOne.mockResolvedValue(
-        stored({ notification: rawNotification }),
-      );
       (triggerRepo.save as jest.Mock).mockImplementation((x: Trigger) =>
         Promise.resolve({ ...x, id: 't1' }),
       );
@@ -5786,6 +6113,13 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
           notificationRotatedAt: expect.any(Date),
         },
       );
+      // 응답의 교체 시각은 저장한 시각과 같은 값이다.
+      const written = (triggerRepo.update as jest.Mock).mock.calls[0][1] as {
+        notificationRotatedAt: Date;
+      };
+      expect(result.rotatedAt).toBe(
+        written.notificationRotatedAt.toISOString(),
+      );
     });
 
     it('rotate-secret 은 잠금 안에서 행이 사라졌으면 404 다', async () => {
@@ -5799,13 +6133,26 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(triggerRepo.update).not.toHaveBeenCalled();
     });
 
-    function mockCandidates(candidates: Trigger[]): void {
-      (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue({
+    function mockCandidates(candidates: Trigger[]): { select: jest.Mock } {
+      const qb = {
+        select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue(candidates),
-      });
+      };
+      (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+      return qb;
     }
+
+    // 후보 조회는 고를 값(v2)과 id 만 읽는다. 판정에 쓰는 행은 잠금 안에서 다시 읽는다(NERV Task `CLE-T-EQDYC1`).
+    it('승격 후보 조회는 id 와 v2 컬럼만 읽는다', async () => {
+      const qb = mockCandidates([]);
+      await service.promoteRotatedNotificationSecrets();
+      expect(qb.select).toHaveBeenCalledWith([
+        't.id',
+        't.notificationSecretV2',
+      ]);
+    });
 
     it('승격은 잠금 안에서 v2 가 고른 값과 같을 때만 정식 참조로 옮긴다', async () => {
       const picked = stored({ notification: { url: 'https://x.com/cb' } });

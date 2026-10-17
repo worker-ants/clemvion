@@ -6,6 +6,7 @@ import { Provider } from '@nestjs/common';
 import { TriggersService } from './triggers.service';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
+import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { Trigger } from './entities/trigger.entity';
 import { withTransactionMock } from './__test-utils__/trigger-transaction-mock';
 import { Execution } from '../executions/entities/execution.entity';
@@ -87,6 +88,7 @@ async function makeService(
       TriggersService,
       ChatChannelBinderService,
       TriggerResourceReleaserService,
+      NotificationSigningSecretService,
       {
         provide: getRepositoryToken(Trigger),
         useValue: withTransactionMock(triggerRepoMock),

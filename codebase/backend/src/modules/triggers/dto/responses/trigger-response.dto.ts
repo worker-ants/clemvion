@@ -150,8 +150,12 @@ export class TriggerDto {
 
   // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 규칙 4 · 5, NERV Task `CLE-T-M6PERB`
   // 키 생략형이다([HTTP API 규약 §5.5](CLE-API-CONV#55-부재-표현-null-과-키-생략) 기준 (b)) — 생성 · 수정 가운데 서버가
-  // 첫 알림 서명 시크릿을 발급한 응답에만 있다. 규칙 4 의 예외 응답도 응답-계약 검증(규칙 5)을 받으므로 선언한다.
-  /** 이 응답에서만 보이는 일회성 평문. 서버가 첫 알림 서명 시크릿을 발급한 생성 · 수정 응답에만 있다. */
+  // 첫 알림 서명 시크릿이나 트리거 단위 토큰을 발급한 응답에만 있다(NERV Task `CLE-T-EQDYC1`). 규칙 4 의 예외 응답도
+  // 응답-계약 검증(규칙 5)을 받으므로 선언한다.
+  /**
+   * 이 응답에서만 보이는 일회성 평문. 서버가 첫 알림 서명 시크릿이나 트리거 단위 인터랙션 토큰을 발급한
+   * 생성 · 수정 응답에만 있다. 조회 응답에는 없다.
+   */
   @ApiPropertyOptional({ type: () => TriggerIssuedSecretsDto, readOnly: true })
   secrets?: TriggerIssuedSecretsDto;
 }

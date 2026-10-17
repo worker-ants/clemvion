@@ -13,14 +13,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import {
   isPostgresUniqueViolation,
   pgErrorConstraint,
 } from '../../common/db/pg-error';
-import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import {
   acquireTriggerConfigLock,
+  mergeIntoFreshSubKey,
   rewriteTriggerConfigLocked,
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from './trigger-config-lock';
@@ -42,18 +43,11 @@ import {
   chatChannelSecretRef,
   pinChatChannelSecretRefs,
 } from '../chat-channel/chat-channel-secret-refs';
-import {
-  SecretResolverService,
-  SecretWorkspaceMismatchError,
-} from '../secret-store/secret-resolver.service';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
-import { notificationSigningSecretRef } from './notification-signing-secret-ref';
-import {
-  decideNotificationSigning,
-  newNotificationSigningSecret,
-  notificationWithSigningRef,
-  signingWithRef,
-} from './notification-signing-secret';
+import { newPerTriggerToken } from '../external-interaction/interaction-token.service';
+import type { TriggerIssuedSecretsDto } from './dto/responses/trigger-secret-issue-response.dto';
+import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
@@ -80,23 +74,33 @@ export type TriggerDetail = Trigger & {
 };
 
 /**
- * 생성 · PATCH 응답이 한 번만 싣는 일회성 평문. 서버가 첫 알림 서명 시크릿을 발급한 응답에만 있고
- * 그 밖의 응답에는 키가 없다([HTTP API 규약 §5.5](CLE-API-CONV#55-부재-표현-null-과-키-생략) 기준 (b)).
+ * 생성 · PATCH 의 결과. `secrets` 는 그 요청이 일회성 평문을 발급했을 때만 있고 그 밖의 응답에는 키가 없다
+ * ([HTTP API 규약 §5.5](CLE-API-CONV#55-부재-표현-null-과-키-생략) 기준 (b)).
  * 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 규칙 4.
+ *
+ * 평문 묶음의 모양은 응답 DTO(`TriggerIssuedSecretsDto`) 하나다(NERV Task `CLE-T-EQDYC1`).
  */
-export interface TriggerIssuedSecrets {
-  notificationSigningSecret: string;
-}
-
 export type TriggerWithIssuedSecrets = Trigger & {
-  secrets?: TriggerIssuedSecrets;
+  secrets?: TriggerIssuedSecretsDto;
 };
 
-/** `settleNotificationSigning` 의 결과. 저장할 `config` 와, 발급했으면 일회성 평문, 시크릿 저장소에 썼는지. */
-interface SettledNotificationSigning {
-  config: Record<string, unknown>;
-  issuedSecret?: string;
-  wroteSecret: boolean;
+/** 감사 메타데이터 `issuedSecrets` 에 싣는 값. 발급한 비밀의 종류 이름이고 평문이 아니다. */
+type IssuedSecretKind = keyof TriggerIssuedSecretsDto;
+
+/**
+ * 발급한 일회성 평문의 종류 이름. 값이 있는 키만 `issued` 의 키 순서대로 고른다. 감사의 `issuedSecrets` 와
+ * 응답에 `secrets` 를 실을지가 이 결과를 쓴다.
+ */
+function issuedSecretKinds(
+  issued: TriggerIssuedSecretsDto,
+): IssuedSecretKind[] {
+  return (Object.keys(issued) as IssuedSecretKind[]).filter(
+    (kind) => typeof issued[kind] === 'string',
+  );
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -119,7 +123,7 @@ const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
  * `config.notification.signing` 에서 제거할 키.
  *
  * `secretRef` 는 secret store 참조이고 `secret` 은 정규화 전 평문이 스쳐 가는 자리다
- * (`normalizeNotificationSecretRef` 참조). `botTokenRef`/`inboundSigningRef` 를 이미
+ * (`NotificationSigningSecretService.migrateLegacyPlaintext` 참조). `botTokenRef`/`inboundSigningRef` 를 이미
  * 빼는 것과 **같은 등급·같은 이유**인데 chat-channel 쪽만 목록에 있었다
  * (`review/code/2026/09/05/18_23_02` W1).
  *
@@ -330,6 +334,7 @@ export class TriggersService {
     private readonly scheduleRunner: ScheduleRunnerService,
     private readonly chatChannelBinder: ChatChannelBinderService,
     private readonly resourceReleaser: TriggerResourceReleaserService,
+    private readonly notificationSigning: NotificationSigningSecretService,
   ) {}
 
   async findAll(
@@ -432,39 +437,6 @@ export class TriggersService {
   }
 
   /**
-   * 락 안에서 재읽은 `config` 의 **하위 키를 기준으로** 병합한다.
-   *
-   * ## 왜 이게 따로 필요한가 — 같은 실수를 두 번 했다
-   *
-   * 1라운드에 *"컨테이너만 다시 읽는 것으로는 부족하다"* 고 직접 적어 놓고, 7라운드에 새로
-   * 닫은 자리에서 **그대로 반복**했다: `(freshConfig) => ({ ...freshConfig, notification: X })`
-   * 에서 `X` 를 **락 이전 스냅샷**으로 만들어 넘긴 것이다. 최상위 키는 재읽기로 지켜지지만
-   * 그 하위(`notification.url` 등)는 옛 값으로 되돌아간다 — 이 PR 이 닫는 것과 같은 클래스다
-   * (`/ai-review` `review/code/2026/09/14/22_24_35` database·testing CRITICAL#1).
-   *
-   * 그래서 «어느 하위 키를, 무엇을 얹어» 를 **인자로 강제**한다. 호출부가 스냅샷 객체를
-   * 통째로 대입할 자리를 없애는 것이 요점이다.
-   *
-   * @param freshConfig 락 안에서 재읽은 `config` 전체.
-   * @param key 재읽은 `config` 에서 기준으로 삼을 하위 키.
-   * @param patch 그 하위 객체 **위에** 얹을 필드들.
-   * @param fallback 재읽은 행에 그 키가 없을 때의 기준(보통 요청 시작 시점 값).
-   */
-  private mergeIntoFreshSubKey(
-    freshConfig: Record<string, unknown>,
-    key: string,
-    patch: Record<string, unknown>,
-    fallback: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const current = freshConfig?.[key];
-    const base =
-      typeof current === 'object' && current !== null
-        ? (current as Record<string, unknown>)
-        : fallback;
-    return { ...freshConfig, [key]: { ...base, ...patch } };
-  }
-
-  /**
    * «없다» 를 그대로 던진다 — 검증할 행이 아예 없는 자리용.
    *
    * 종전엔 `assertTriggerFound(null)` 로 불렀는데, 그건 «주어진 행을 검증한다» 는 계약을
@@ -531,6 +503,10 @@ export class TriggersService {
    *
    * `details.type` 을 함께 남긴다: webhook/schedule/chat_channel 은 같은 리소스 타입이지만
    * 노출면이 달라, 이것 없이는 사후 감사에서 어떤 계열이 바뀐 건지 알 수 없다.
+   *
+   * `details.issuedSecrets` 는 그 요청이 일회성 평문을 발급한 비밀의 종류 이름이다(`trigger.created` ·
+   * `trigger.updated`). 평문 값은 싣지 않는다. 발급하지 않았으면 키를 넣지 않는다.
+   * 근거: [감사 로그 「감사 액션 카탈로그」](CLE-OBS-AUDIT#감사-액션-카탈로그), NERV Task `CLE-T-EQDYC1`.
    */
   private recordAudit(params: {
     workspaceId: string;
@@ -538,14 +514,21 @@ export class TriggersService {
     action: AuditActionFor<typeof TRIGGER_RESOURCE_TYPE>;
     resourceId: string;
     type: string;
+    issuedSecrets?: readonly IssuedSecretKind[];
   }): Promise<void> {
+    const issuedSecrets = params.issuedSecrets ?? [];
     return this.auditLogsService.record({
       workspaceId: params.workspaceId,
       userId: params.userId,
       action: params.action,
       resourceType: TRIGGER_RESOURCE_TYPE,
       resourceId: params.resourceId,
-      details: { type: params.type },
+      details: {
+        type: params.type,
+        ...(issuedSecrets.length > 0
+          ? { issuedSecrets: [...issuedSecrets] }
+          : {}),
+      },
     });
   }
 
@@ -591,11 +574,23 @@ export class TriggersService {
       config: mergedConfig,
       workspaceId,
     });
-    const saved = await this.triggerRepository
-      .save(trigger)
+    // **INSERT · 서버가 만드는 EIA 값(첫 알림 서명 시크릿 · `itk_*`) · `config` 쓰기를 한 트랜잭션에서 한다**
+    // (NERV Task `CLE-T-EQDYC1`). 근거: [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화),
+    // [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙).
+    //
+    // 종전엔 INSERT 를 커밋한 뒤 시크릿을 따로 정했다. 그 사이 실패하면 `notification` 은 있고 `signing.secretRef` 는
+    // 없는 행이 남았고, 재시도하면 `endpointPath` UNIQUE 충돌이나 중복 트리거가 생겼다. 지금은 어느 단계가 던져도
+    // 트랜잭션이 롤백되어 행도 시크릿도 남지 않는다. 그래서 커밋 뒤 되돌리는 보상이 없다.
+    const { saved, issued } = await this.triggerRepository.manager
+      .transaction(async (m) => {
+        const inserted = await m.save(Trigger, trigger);
+        const eia = await this.settleCreatedEiaValues(m, inserted);
+        return { saved: inserted, issued: eia };
+      })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
-    // **커밋 직후** 기록한다. 아래 secret store 마이그레이션·chatChannel setup 은 실패할 수
-    // 있는 외부 호출이라, 그 뒤로 미루면 트리거는 생겼는데 감사는 안 남는다 (리뷰 W6).
+    // **커밋 직후** 기록한다. 아래 chatChannel setup 은 실패할 수 있는 외부 호출이라, 그 뒤로 미루면 트리거는
+    // 생겼는데 감사는 안 남는다 (리뷰 W6). 트랜잭션 안에서 기록하지 않는 이유: `AuditLogsService.record` 는 매니저를
+    // 받지 않고 실패를 삼킨다. 커밋 전에 남기면 롤백된 생성이 감사에 남는다.
     // resourceId 는 커밋된 id 로 확정이고, chatChannel 재조회는 응답 형태만 바꾼다.
     await this.recordAudit({
       workspaceId,
@@ -603,10 +598,8 @@ export class TriggersService {
       action: AUDIT_ACTIONS.TRIGGER_CREATED,
       resourceId: saved.id,
       type: saved.type,
+      issuedSecrets: issuedSecretKinds(issued),
     });
-    // `config.notification` 이 있으면 알림 서명 시크릿을 정한다 — 원시 `config` 로 보낸 평문은 시크릿 저장소로
-    // 옮기고, 평문이 없으면 서버가 첫 시크릿을 발급한다(NERV Task `CLE-T-M6PERB`).
-    const issuedSecret = await this.settleCreatedNotificationSigning(saved);
     let result = saved;
     // Chat Channel 어댑터 setup — CCH-AD-02.
     if (chatChannel) {
@@ -621,10 +614,52 @@ export class TriggersService {
       });
       if (refreshed) result = refreshed;
     }
-    return this.withIssuedSecrets(
-      this.sanitizeForResponse(result),
-      issuedSecret,
-    );
+    return this.withIssuedSecrets(this.sanitizeForResponse(result), issued);
+  }
+
+  /**
+   * 생성 트랜잭션 안에서 INSERT 한 행의 서버가 만드는 EIA 값을 정하고 `config` 를 다시 쓴다. 발급한 일회성 평문을
+   * 돌려준다.
+   *
+   * `config.notification` · `config.interaction` 이 둘 다 객체가 아니면 할 일이 없어 잠금도 쓰기도 하지 않는다.
+   * 하나라도 있으면 그 트리거의 설정 잠금을 잡고 PATCH 와 같은 규칙({@link applyServerManagedEiaValues})으로 정한다.
+   * 행이 아직 커밋되지 않아 다른 요청이 볼 수 없으므로 잠금을 기다릴 일은 없다. 그래도 «시크릿 저장소 쓰기는 잠금을
+   * 쥔 트랜잭션에서 한다» 는 규칙을 생성에도 같게 지킨다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
+   *
+   * 판정의 기준 행은 INSERT 한 행이다. 원시 `config` 로 보낸 옛 평문은 시크릿 저장소로 옮기고 없으면 첫 시크릿을
+   * 발급한다. `triggerToken` 은 호출자가 심을 수 없으므로(`CONFIG_INTERNAL_FIELDS`) 저장된 토큰이 없다. 그래서
+   * 인터랙션이 켜진 `per_trigger` 면 늘 발급한다.
+   *
+   * @throws Error `config` 쓰기가 0행이면. 같은 트랜잭션이 방금 INSERT 한 행이라 정상이면 일어나지 않는다. 던져서
+   *   트랜잭션을 롤백한다. 행이 없는데 평문을 응답에 실으면 쓸 수 없는 비밀을 건네는 것이다.
+   */
+  private async settleCreatedEiaValues(
+    m: EntityManager,
+    inserted: Trigger,
+  ): Promise<TriggerIssuedSecretsDto> {
+    const insertedConfig = inserted.config ?? {};
+    const settleNotification = isPlainRecord(insertedConfig.notification);
+    const settleInteraction = isPlainRecord(insertedConfig.interaction);
+    if (!settleNotification && !settleInteraction) return {};
+    await acquireTriggerConfigLock(m, inserted.id);
+    const eia = await this.applyServerManagedEiaValues(m, inserted, {
+      config: insertedConfig,
+      settleInteraction,
+      settleNotification,
+    });
+    // JSONB 라 `QueryDeepPartialEntity` 가 `unknown` 값을 받지 못한다. 캐스트의 근거는 `rewriteTriggerConfigLocked` 의
+    // 같은 자리 주석에 있다.
+    const { affected } = await m.update(Trigger, { id: inserted.id }, {
+      config: eia.config,
+    } as QueryDeepPartialEntity<Trigger>);
+    if (affected === 0) {
+      throw new Error(
+        `TriggersService.create: 트리거 ${inserted.id} 를 만든 트랜잭션 안에서 config 쓰기가 0행이었습니다.`,
+      );
+    }
+    // 호출부가 이 엔티티를 응답에 쓰므로 in-memory 도 맞춰 둔다.
+    inserted.config = eia.config;
+    return eia.issued;
   }
 
   /**
@@ -633,212 +668,137 @@ export class TriggersService {
    */
   private withIssuedSecrets(
     sanitized: Trigger,
-    notificationSigningSecret: string | undefined,
+    issued: TriggerIssuedSecretsDto,
   ): TriggerWithIssuedSecrets {
-    if (notificationSigningSecret === undefined) return sanitized;
-    return { ...sanitized, secrets: { notificationSigningSecret } };
+    if (issuedSecretKinds(issued).length === 0) return sanitized;
+    return { ...sanitized, secrets: issued };
   }
 
   /**
-   * 생성한 트리거의 알림 서명 시크릿을 정한다 — 발급했으면 평문을 돌려준다.
+   * 결과 `config` 의 `interaction` 에 트리거 단위 토큰을 정한다.
    *
-   * 근거: [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙).
-   * 판정은 `decideNotificationSigning` 이다 — 원시 `config` 의 평문은 옮기고(`migrate`) 없으면 발급한다
-   * (`issue`). 종전의 `normalizeNotificationSecretRef` 는 평문 이전만 했고 발급하지 않아 호출자가 평문을 보내지
-   * 않은 트리거에는 주 시크릿이 없었다.
+   * 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약),
+   * [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰).
    *
-   * **판정 · 시크릿 저장소 쓰기 · `config` 쓰기를 한 트리거 설정 잠금 안에서, 같은 트랜잭션으로 한다.** PATCH 와
-   * 같은 규율이다(판정을 잠금 밖에서 하면 동시 요청이 각자 발급해 한쪽 응답의 평문이 쓸모없어진다). 잠금 · 재읽기 ·
-   * 0행 판정은 `rewriteTriggerConfigLocked` 가 하고, 시크릿 쓰기는 그 트랜잭션의 매니저로 한다. 그래서 풀 연결을 더
-   * 빌리지 않고 쓰기가 던지면 시크릿 쓰기도 함께 롤백된다.
+   * | 결과 `interaction` | 기준 행의 토큰 | 처리 | `closeStreams` |
+   * |---|---|---|---|
+   * | 객체가 아님(없음 · `null`) | 있음/없음 | 값을 그대로 둔다. 토큰도 함께 사라진다 | 토큰이 있었으면 `true` |
+   * | `per_trigger` | 있음 | 이어받는다 | `enabled !== true` 면 `true` |
+   * | `per_trigger` · `enabled === true` | 없음 | 새 `itk_*` 를 발급해 싣고 `issuedToken` 으로 돌려준다 | `false` |
+   * | 그 밖 | 있음/없음 | 지운다 | 토큰이 있었으면 `true` |
    *
-   * 던지지 않고 행만 사라진 경우는 롤백되지 않는다. FK CASCADE 는 advisory lock 을 거치지 않아 `config` 쓰기가 0행일
-   * 수 있고, 그때는 시크릿 쓰기가 이미 커밋됐으므로 커밋 뒤 비밀을 되돌린다(시크릿 저장소 규칙 9).
-   */
-  private async settleCreatedNotificationSigning(
-    saved: Trigger,
-  ): Promise<string | undefined> {
-    const savedNotification = (saved.config as { notification?: unknown })
-      ?.notification;
-    if (!savedNotification || typeof savedNotification !== 'object') {
-      return undefined;
-    }
-    // 병합이 잠금 안에서 부르는 콜백이라 결과를 바깥으로 꺼낼 자리가 필요하다. 잠금 · 재읽기 · 부재 처리 ·
-    // 0행 판정은 `rewriteTriggerConfigLocked` 가 한다.
-    const result: { settled?: SettledNotificationSigning } = {};
-    const wrote = await rewriteTriggerConfigLocked(
-      this.triggerRepository.manager,
-      saved.id,
-      async (freshConfig, { manager, fresh }) => {
-        result.settled = await this.settleNotificationSigning(
-          manager,
-          fresh,
-          freshConfig,
-        );
-        return result.settled.config;
-      },
-    );
-    if (!wrote || !result.settled) {
-      // 행이 사라졌다. 시크릿을 쓴 뒤였으면 커밋 뒤 되돌린다(시크릿 저장소 규칙 9). 쓰기 전이었으면 되돌릴 것이 없다.
-      if (result.settled?.wroteSecret) {
-        await this.resourceReleaser.undoAbsentWrite(
-          saved.id,
-          undefined,
-          'TriggersService.settleCreatedNotificationSigning',
-        );
-      }
-      return undefined;
-    }
-    // 호출부가 이 엔티티를 응답에 쓰므로 in-memory 도 맞춰 둔다.
-    saved.config = result.settled.config;
-    return result.settled.issuedSecret;
-  }
-
-  /**
-   * 잠금 안에서 다시 읽은 행(`fresh`)을 보고 `config.notification.signing` 을 정한다. 시크릿 저장소 쓰기를
-   * 하고 새 `config` 를 돌려준다 — 호출부가 같은 잠금 안에서 그 `config` 를 쓴다.
-   *
-   * | 결정 | 시크릿 저장소 | `signing` |
-   * |---|---|---|
-   * | `rederive` | 쓰지 않는다 | `secretRef` 를 트리거 id 로 다시 만든다(행의 값을 복사하지 않는다) |
-   * | `migrate` | 행의 옛 평문을 정식 참조에 쓴다 | `secretRef` 를 싣고 옛 평문 키를 뺀다 |
-   * | `issue` | 새 `wsk_*` 를 정식 참조에 쓴다 | 위와 같다. 평문을 `issuedSecret` 으로 돌려준다 |
-   *
-   * @param manager 설정 잠금을 쥔 트랜잭션의 매니저. 시크릿 저장소 쓰기를 같은 트랜잭션에서 하려고
-   *   `SecretResolverService.rotate` 에 넘긴다 — 넘기지 않으면 풀에서 연결을 하나 더 빌려 잠금 보유자가 연결 둘을
-   *   쥔다. 같은 트랜잭션이므로 뒤따르는 `config` 쓰기가 실패하면 시크릿 쓰기도 함께 롤백된다.
-   * @param fresh 판정의 기준이 되는 행(잠금 안 재읽기). 저장된 `notification` 을 여기서 읽는다.
-   * @param nextConfig 저장할 `config`. 그 `notification` 위에 `signing` 을 얹는다. PATCH 면 요청 바디로
-   *   통째로 바뀐 값이고 생성이면 저장된 값 그대로다.
-   */
-  private async settleNotificationSigning(
-    manager: EntityManager,
-    fresh: Trigger,
-    nextConfig: Record<string, unknown>,
-  ): Promise<SettledNotificationSigning> {
-    const ref = notificationSigningSecretRef(fresh.id);
-    const decision = decideNotificationSigning(
-      (fresh.config as { notification?: unknown } | null)?.notification,
-    );
-    let issuedSecret: string | undefined;
-    if (decision.kind === 'migrate') {
-      await this.secrets.rotate(
-        ref,
-        fresh.workspaceId,
-        decision.plaintext,
-        manager,
-      );
-    } else if (decision.kind === 'issue') {
-      issuedSecret = newNotificationSigningSecret();
-      await this.secrets.rotate(ref, fresh.workspaceId, issuedSecret, manager);
-    }
-    return {
-      // 옛 평문 키는 남기지 않는다 — 평문은 시크릿 저장소에만 둔다(규칙 14).
-      config: {
-        ...nextConfig,
-        notification: notificationWithSigningRef(nextConfig.notification, ref),
-      },
-      issuedSecret,
-      wroteSecret: decision.kind !== 'rederive',
-    };
-  }
-
-  /**
-   * PATCH 결과의 `interaction` 에 트리거 단위 토큰을 정한다.
-   *
-   * 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약). 결과 전략이 `per_trigger` 면
-   * 잠금 안에서 다시 읽은 행의 토큰을 이어받고 아니면 지운다. 다른 전략으로 바꾼 동안 남겨 두면 `per_trigger` 로
-   * 되돌릴 때 이미 폐기했다고 여긴 영구 토큰이 재발급 없이 다시 유효해진다. 지웠으면 커밋 뒤 그 토큰으로 연 SSE
-   * 스트림을 닫아야 하므로 `closeStreams` 로 알린다.
+   * 다른 전략으로 바꾼 동안 토큰을 남겨 두면 `per_trigger` 로 되돌릴 때 이미 폐기했다고 여긴 영구 토큰이 재발급 없이
+   * 다시 유효해진다. 그래서 지운다.
    *
    * 토큰을 이어받아도 인터랙션을 껐으면(`enabled !== true`) 가드가 그 토큰을 거부한다. 그래서 이미 연 스트림도
    * 커밋 뒤 닫도록 `closeStreams` 로 알린다. 토큰 값은 남기므로 다시 켜면 같은 토큰이 통한다(CLE-T-M6PERB 결정 기록,
-   * 2026-10-09 사용자 결정).
+   * 2026-10-09 사용자 결정). 토큰이 이미 있으면(끈 뒤 다시 켜는 경우 포함) 새로 발급하지 않는다.
+   *
+   * 인터랙션을 켠 `per_trigger` 인데 토큰이 없으면 서버가 발급한다(생성 · PATCH 공통, NERV Task `CLE-T-EQDYC1`). 종전엔
+   * 재발급 엔드포인트를 따로 불러야 첫 토큰이 생겼다.
+   *
+   * @param fresh 판정의 기준이 되는 행. PATCH 는 잠금 안 재읽기이고 생성은 같은 트랜잭션에서 INSERT 한 행이다.
    */
   private settleTriggerToken(
     fresh: Trigger,
     nextConfig: Record<string, unknown>,
-  ): { config: Record<string, unknown>; closeStreams: boolean } {
+  ): {
+    config: Record<string, unknown>;
+    issuedToken?: string;
+    closeStreams: boolean;
+  } {
     const storedToken = (
       (fresh.config as { interaction?: { triggerToken?: unknown } } | null)
         ?.interaction ?? {}
     ).triggerToken;
     const hasStoredToken =
       typeof storedToken === 'string' && storedToken.length > 0;
-    // 요청 본문의 `interaction: null` 은 검증을 통과해(`@IsOptional()`) 여기까지 온다. 객체가 아니면 그 값을
-    // 그대로 저장한다(종전 동작) — 빈 객체로 바꿔 저장하지 않는다. 저장된 토큰은 그 값과 함께 사라지므로 지웠다고
-    // 알려 커밋 뒤 스트림을 닫게 한다.
+    // 요청 본문의 `interaction: null` 은 검증을 통과해(`@IsOptional()`) 여기까지 온다. 원시 `config` 가 `interaction` 을
+    // 싣지 않았을 때도 여기다. 객체가 아니면 그 값을 그대로 저장한다(종전 동작). 빈 객체로 바꿔 저장하지 않는다.
+    // 저장된 토큰은 그 값과 함께 사라지므로 지웠다고 알려 커밋 뒤 스트림을 닫게 한다.
     const requested = nextConfig.interaction;
-    if (typeof requested !== 'object' || requested === null) {
+    if (!isPlainRecord(requested)) {
       return { config: nextConfig, closeStreams: hasStoredToken };
     }
-    const nextInteraction: Record<string, unknown> = {
-      ...(requested as Record<string, unknown>),
-    };
-    if (nextInteraction.tokenStrategy === 'per_trigger' && hasStoredToken) {
-      nextInteraction.triggerToken = storedToken;
-      return {
-        config: { ...nextConfig, interaction: nextInteraction },
-        closeStreams: nextInteraction.enabled !== true,
-      };
+    const nextInteraction: Record<string, unknown> = { ...requested };
+    const withInteraction = () => ({
+      ...nextConfig,
+      interaction: nextInteraction,
+    });
+    if (nextInteraction.tokenStrategy === 'per_trigger') {
+      if (hasStoredToken) {
+        nextInteraction.triggerToken = storedToken;
+        return {
+          config: withInteraction(),
+          closeStreams: nextInteraction.enabled !== true,
+        };
+      }
+      if (nextInteraction.enabled === true) {
+        const issuedToken = newPerTriggerToken();
+        nextInteraction.triggerToken = issuedToken;
+        return { config: withInteraction(), issuedToken, closeStreams: false };
+      }
     }
     delete nextInteraction.triggerToken;
-    return {
-      config: { ...nextConfig, interaction: nextInteraction },
-      closeStreams: hasStoredToken,
-    };
+    return { config: withInteraction(), closeStreams: hasStoredToken };
   }
 
   /**
-   * PATCH 가 `interaction` · `notification` 을 실었을 때 **서버가 만드는 두 값**을 잠금 안에서 정한다.
+   * 생성 · PATCH 의 **서버가 만드는 두 값**(트리거 단위 토큰 · 알림 서명 시크릿)을 잠금 안에서 정한다.
    *
-   * top-level `interaction` · `notification` 은 두 값을 입력으로 받지 않으므로(받으면 전역 검증 파이프가 400) 통째
-   * 교체가 그대로 지우던 자리다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약).
+   * 두 값은 요청이 입력으로 보낼 수 없다. top-level `interaction` · `notification` 은 그 키를 받지 않고(받으면 전역
+   * 검증 파이프가 400), 원시 `config` 는 `CONFIG_INTERNAL_FIELDS` 가 막는다. 그래서 통째 교체가 그대로 지우던 자리다.
+   * 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약).
    *
-   * - `interaction` → {@link settleTriggerToken}. 토큰을 지웠거나 인터랙션을 껐으면 `closeTokenStreams` 로 알려 커밋 뒤 스트림을 닫게 한다.
-   * - `notification` → {@link settleNotificationSigning}. 첫 시크릿을 발급했으면 `issuedSecret` 으로 일회성 평문을 돌려준다.
-   *   `notification: null` 은 객체가 아니라 서명을 얹을 자리가 없다 — 껍데기를 만들어 시크릿을 발급하지 않고 종전처럼
-   *   그 값을 저장한다.
+   * - `settleInteraction` → {@link settleTriggerToken}. 토큰을 지웠거나 인터랙션을 껐으면 `closeTokenStreams` 로 알려
+   *   커밋 뒤 스트림을 닫게 한다. 처음 발급했으면 `issued.interactionToken` 에 싣는다.
+   * - `settleNotification` → `NotificationSigningSecretService.settle`. 첫 시크릿을 발급했으면
+   *   `issued.notificationSigningSecret` 에 싣는다. 결과 `notification` 이 객체가 아니면(`null` 등) 서명을 얹을 자리가
+   *   없다. 껍데기를 만들어 시크릿을 발급하지 않고 종전처럼 그 값을 저장한다.
    *
-   * 요청이 싣지 않은 쪽은 건드리지 않는다. 이 함수는 `m` 으로 시크릿 저장소에 쓸 수 있으므로 잠금을 쥔 트랜잭션
+   * 고르지 않은 쪽은 건드리지 않는다. 이 함수는 `m` 으로 시크릿 저장소에 쓸 수 있으므로 잠금을 쥔 트랜잭션
    * 안에서만 부른다.
    *
+   * @param target 판정의 기준이 되는 행. PATCH 는 잠금 안 재읽기이고 생성은 같은 트랜잭션에서 INSERT 한 행이다.
    * @param input.config 요청을 병합한 뒤의 `config`. 그 위에 두 값을 얹은 새 `config` 를 돌려준다.
-   * @param input.requestedInteraction 요청 바디의 `interaction`. 싣지 않았으면 `undefined`.
-   * @param input.requestedNotification 요청 바디의 `notification`. 싣지 않았으면 `undefined`.
+   * @returns `issued` 의 키 순서는 알림 서명 시크릿, 트리거 단위 토큰이다. 감사의 `issuedSecrets` 가 이 순서를 따른다.
    */
   private async applyServerManagedEiaValues(
     m: EntityManager,
     target: Trigger,
     input: {
       config: Record<string, unknown>;
-      requestedInteraction: unknown;
-      requestedNotification: unknown;
+      settleInteraction: boolean;
+      settleNotification: boolean;
     },
   ): Promise<{
     config: Record<string, unknown>;
-    issuedSecret?: string;
+    issued: TriggerIssuedSecretsDto;
     closeTokenStreams: boolean;
   }> {
     let config = input.config;
     let closeTokenStreams = false;
-    let issuedSecret: string | undefined;
-    if (input.requestedInteraction !== undefined) {
+    let interactionToken: string | undefined;
+    let notificationSigningSecret: string | undefined;
+    if (input.settleInteraction) {
       const settled = this.settleTriggerToken(target, config);
       config = settled.config;
       closeTokenStreams = settled.closeStreams;
+      interactionToken = settled.issuedToken;
     }
-    const nextNotification = config.notification;
-    if (
-      input.requestedNotification !== undefined &&
-      typeof nextNotification === 'object' &&
-      nextNotification !== null
-    ) {
-      const settled = await this.settleNotificationSigning(m, target, config);
+    if (input.settleNotification && isPlainRecord(config.notification)) {
+      const settled = await this.notificationSigning.settle(m, target, config);
       config = settled.config;
-      issuedSecret = settled.issuedSecret;
+      notificationSigningSecret = settled.issuedSecret;
     }
-    return { config, issuedSecret, closeTokenStreams };
+    const issued: TriggerIssuedSecretsDto = {};
+    if (notificationSigningSecret !== undefined) {
+      issued.notificationSigningSecret = notificationSigningSecret;
+    }
+    if (interactionToken !== undefined) {
+      issued.interactionToken = interactionToken;
+    }
+    return { config, issued, closeTokenStreams };
   }
 
   /**
@@ -949,7 +909,7 @@ export class TriggersService {
     // 예외로 알림 서명 시크릿의 첫 발급 · 옛 평문 이전은 이 잠금 안에서 시크릿 저장소에 쓴다. 지금 백엔드는
     // 같은 DB 의 `secret_store` 테이블이라 HTTP 호출이 아니다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
     // 이 트랜잭션의 매니저로 써서 풀 연결을 더 빌리지 않고, 저장이 실패하면 시크릿 쓰기도 함께 롤백된다.
-    const { saved, issuedSecret, closeTokenStreams } =
+    const { saved, issued, closeTokenStreams } =
       await this.triggerRepository.manager
         .transaction(async (m) => {
           await acquireTriggerConfigLock(m, trigger.id);
@@ -1000,10 +960,16 @@ export class TriggersService {
           // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
           const target = this.assertTriggerFound(fresh);
           // **서버가 만든 EIA 값은 재읽은 행을 보고 정한다**(NERV Task `CLE-T-M6PERB`).
+          //
+          // 트리거 단위 토큰은 원시 `config` 를 실은 PATCH 에서도 정한다(NERV Task `CLE-T-EQDYC1`). 원시 `config` 는
+          // `interaction` 을 통째로 바꾸므로 그대로 두면 토큰이 사라지는데 그 토큰으로 연 스트림은 닫히지 않았다. 알림
+          // 서명 시크릿은 top-level `notification` 이 실렸을 때만 정한다. 원시 `config` 의 `notification` 은 저장 뒤
+          // 옛 평문 정규화가 맡는다(계약은 NERV Task `CLE-T-EA7B5M`).
           const eia = await this.applyServerManagedEiaValues(m, target, {
             config: mergedConfig,
-            requestedInteraction: interaction,
-            requestedNotification: notification,
+            settleInteraction:
+              interaction !== undefined || config !== undefined,
+            settleNotification: notification !== undefined,
           });
           mergedConfig = eia.config;
           // **저장 대상은 이 요청이 바꾸는 필드뿐이다 — 재읽은 엔티티를 통째로 넘기지 않는다.**
@@ -1045,13 +1011,13 @@ export class TriggersService {
           if (written.updatedAt) target.updatedAt = written.updatedAt;
           return {
             saved: target,
-            issuedSecret: eia.issuedSecret,
+            issued: eia.issued,
             closeTokenStreams: eia.closeTokenStreams,
           };
         })
         // 시크릿 저장소 쓰기가 이 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌릴 것이 없다.
         .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
-    // 전략이 바뀌어 토큰을 지웠으면 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
+    // 토큰을 지웠거나 인터랙션을 껐으면 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는다(best-effort).
     if (closeTokenStreams) {
       this.resourceReleaser.closeTriggerTokenStreams(
         [saved.id],
@@ -1072,6 +1038,7 @@ export class TriggersService {
       action: AUDIT_ACTIONS.TRIGGER_UPDATED,
       resourceId: saved.id,
       type: saved.type,
+      issuedSecrets: issuedSecretKinds(issued),
     });
     // [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) is_active
     // 동기화. ScheduleProcessor 는 schedule.is_active 만 보므로, schedule row + BullMQ job
@@ -1080,7 +1047,7 @@ export class TriggersService {
     if (trigger.type === 'schedule' && rest.isActive !== undefined) {
       await this.syncScheduleActivation(saved, rest.isActive);
     }
-    await this.normalizeNotificationSecretRef(saved);
+    await this.notificationSigning.migrateLegacyPlaintext(saved);
     let result = saved;
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
@@ -1114,10 +1081,7 @@ export class TriggersService {
     if (rest.isActive === true) {
       await this.chatChannelBinder.registerListenerOnActivation(result);
     }
-    return this.withIssuedSecrets(
-      this.sanitizeForResponse(result),
-      issuedSecret,
-    );
+    return this.withIssuedSecrets(this.sanitizeForResponse(result), issued);
   }
 
   /**
@@ -1229,67 +1193,6 @@ export class TriggersService {
     deleteSecretColumns(target);
     redactDiagnosticColumns(target);
     return sanitized;
-  }
-
-  /**
-   * [Spec EIA §7.1] — notification.signing.secret plaintext 정규화.
-   *
-   * config 에 `signing.secret` plaintext 가 포함됐을 때 secret store 로 마이그레이션하고
-   * config 에는 `signing.secretRef` 만 남긴다. plaintext 가 DB JSONB / 로그에 영구 노출되지
-   * 않도록 보장 (SS-SE-01).
-   *
-   * 이미 `secretRef` 만 있는 경우 noop. signing 자체가 없는 경우도 noop.
-   *
-   * **지금은 `update()` 의 원시 `config` 경로만 쓴다.** 생성은 `settleCreatedNotificationSigning` 이 평문 이전과
-   * 첫 발급을 한 잠금 안에서 하고, top-level `notification` 이 실린 PATCH 는 창 1 이 같은 일을 한다
-   * (NERV Task `CLE-T-M6PERB`). 원시 `config` 경로의 계약은 NERV Task `CLE-T-EA7B5M` 이 맡는다.
-   */
-  private async normalizeNotificationSecretRef(
-    trigger: Trigger,
-  ): Promise<void> {
-    const notificationCfg = (trigger.config as { notification?: unknown })
-      ?.notification;
-    if (!notificationCfg || typeof notificationCfg !== 'object') return;
-    const signing = (notificationCfg as { signing?: unknown }).signing;
-    if (!signing || typeof signing !== 'object') return;
-    const plaintext = (signing as { secret?: unknown }).secret;
-    if (typeof plaintext !== 'string' || plaintext.length === 0) return;
-
-    const ref = notificationSigningSecretRef(trigger.id);
-    await this.secrets.rotate(ref, trigger.workspaceId, plaintext);
-
-    const updatedSigning = signingWithRef(signing, ref);
-    const normalizedNotification = {
-      ...(notificationCfg as Record<string, unknown>),
-      signing: updatedSigning,
-    };
-    // 호출부(`update`)가 이 엔티티를 응답에 쓰므로 in-memory 도 맞춰 둔다.
-    trigger.config = {
-      ...trigger.config,
-      notification: normalizedNotification,
-    };
-    // 재읽은 `config.notification` **위에** `signing` 만 얹는다. 스냅샷으로 만든
-    // `normalizedNotification` 을 통째로 대입하면 그 사이 커밋된 `notification.url` 등이
-    // 되돌아간다 — `mergeIntoFreshSubKey` JSDoc 참조.
-    const wrote = await rewriteTriggerConfigLocked(
-      this.triggerRepository.manager,
-      trigger.id,
-      (freshConfig) =>
-        this.mergeIntoFreshSubKey(
-          freshConfig,
-          'notification',
-          { signing: updatedSigning },
-          normalizedNotification,
-        ),
-    );
-    // 그 사이 트리거가 삭제됐다 — 위에서 락 밖에 쓴 서명 비밀을 되돌린다(spec 트리거 목록 §3).
-    if (!wrote) {
-      await this.resourceReleaser.undoAbsentWrite(
-        trigger.id,
-        undefined,
-        'TriggersService.normalizeNotificationSecretRef',
-      );
-    }
   }
 
   /**
@@ -1503,34 +1406,14 @@ export class TriggersService {
           'Trigger 에 notification 설정이 없어 secret rotation 을 수행할 수 없습니다.',
       });
     }
-    const newSecret = newNotificationSigningSecret();
-    trigger.notificationSecretV2 = newSecret;
-    trigger.notificationRotatedAt = new Date();
-    // **트리거 설정 잠금 안에서 컬럼만 쓴다.** `save(trigger)` 는 엔티티를 통째로 저장해 읽은 시점의 `config`
-    // 까지 되쓴다(`hooks.service.ts` 의 `touchLastTriggeredAt` 과 같은 규율). 잠금을 잡는 이유는 승격이 잠금
-    // 안에서 같은 컬럼을 비우기 때문이다 — 승격이 v2 를 고른 뒤 교체가 새 값을 쓰면 응답으로 나간 새 시크릿을
-    // 승격이 지울 수 있었다(NERV Task `CLE-T-M6PERB`). `config` 를 쓰지 않는 컬럼 한정 쓰기 가운데 이 경로만
-    // 잠금을 잡는다. 근거: [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화), REQ-TRIG-054.
-    // 유예 중 재교체는 앞의 v2 를 덮고 유예를 다시 시작한다([EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체)).
-    const rotatedAt = trigger.notificationRotatedAt;
-    const wroteRotation = await this.triggerRepository.manager.transaction(
-      async (m) => {
-        await acquireTriggerConfigLock(m, trigger.id);
-        const fresh = await m.findOne(Trigger, {
-          select: { id: true },
-          where: { id: trigger.id, workspaceId },
-        });
-        if (!fresh) return false;
-        const { affected } = await m.update(
-          Trigger,
-          { id: trigger.id },
-          { notificationSecretV2: newSecret, notificationRotatedAt: rotatedAt },
-        );
-        return (affected ?? 0) > 0;
-      },
+    // 교체 쓰기(잠금 · 재읽기 · 컬럼 쓰기)는 `NotificationSigningSecretService.writeRotation` 이 한다. 응답의 교체
+    // 시각은 DB 에 쓴 값과 같은 객체에서 나온다(NERV Task `CLE-T-EQDYC1`).
+    const rotation = await this.notificationSigning.writeRotation(
+      trigger.id,
+      workspaceId,
     );
     // 동기 요청이다 — 그 사이 삭제됐으면 404 로 드러낸다(`revokePerTriggerToken` 과 같다).
-    if (!wroteRotation) this.throwTriggerNotFound();
+    if (!rotation) this.throwTriggerNotFound();
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1539,8 +1422,8 @@ export class TriggersService {
       type: trigger.type,
     });
     return {
-      secret: newSecret,
-      rotatedAt: trigger.notificationRotatedAt.toISOString(),
+      secret: rotation.secret,
+      rotatedAt: rotation.rotatedAt.toISOString(),
     };
   }
 
@@ -1564,7 +1447,7 @@ export class TriggersService {
     if (!this.isPerTriggerInteraction(interactionCfg)) {
       this.throwNotPerTriggerStrategy();
     }
-    const newToken = `itk_${randomBytes(32).toString('hex')}`;
+    const newToken = newPerTriggerToken();
     const updated = {
       ...interactionCfg,
       triggerToken: newToken,
@@ -1590,7 +1473,7 @@ export class TriggersService {
         ) {
           this.throwNotPerTriggerStrategy();
         }
-        return this.mergeIntoFreshSubKey(
+        return mergeIntoFreshSubKey(
           freshConfig,
           'interaction',
           { triggerToken: newToken },
@@ -1779,7 +1662,7 @@ export class TriggersService {
       // 두 ref 는 델타에 **포함한다** — `chatChannelSecretRef(trigger.id, …)` 로 매번 재유도되는
       // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
       (freshConfig) =>
-        this.mergeIntoFreshSubKey(
+        mergeIntoFreshSubKey(
           freshConfig,
           'chatChannel',
           {
@@ -1833,123 +1716,12 @@ export class TriggersService {
   /**
    * 24h grace 가 경과한 trigger 의 notification_secret_v2 → primary 승격.
    * 별도 scheduled job (NotificationSecretRotatorService) 이 매시간 호출.
-   * trigger 단위 idempotent — v2 가 null 이면 no-op.
-   *
-   * [리뷰 C3 fix] 승격은 평문을 config 에 쓰지 않고 **secret store 의 canonical ref
-   * 내용을 회전**한다 (`normalizeNotificationSecretRef` 와 동일 ref 규약). 과거 구현은
-   * `signing.secret` 평문을 썼는데, 발송측 `resolveSigningSecret` 이 `secretRef` 우선이라
-   * ref 보유 trigger 는 승격 후에도 구 secret 으로 서명을 지속했다 (rotation 무효).
+   * 판정과 쓰기는 `NotificationSigningSecretService.promoteRotated` 가 한다(NERV Task `CLE-T-EQDYC1`).
    */
-  async promoteRotatedNotificationSecrets(
+  promoteRotatedNotificationSecrets(
     nowMs: number = Date.now(),
   ): Promise<{ promoted: number }> {
-    const graceMs = 24 * 60 * 60 * 1000;
-    const candidates = await this.triggerRepository
-      .createQueryBuilder('t')
-      .where('t.notification_secret_v2 IS NOT NULL')
-      .andWhere('t.notification_rotated_at <= :cutoff', {
-        cutoff: new Date(nowMs - graceMs),
-      })
-      .getMany();
-    let promoted = 0;
-    for (const candidate of candidates) {
-      const pickedV2 = candidate.notificationSecretV2;
-      if (!pickedV2) continue;
-      if (
-        (await this.promoteOneLocked(candidate.id, pickedV2)) === 'promoted'
-      ) {
-        promoted++;
-      }
-    }
-    return { promoted };
-  }
-
-  /**
-   * 한 트리거의 v2 를 승격한다 — **판정 · 시크릿 저장소 쓰기 · 컬럼 비우기를 한 트리거 설정 잠금 안에서 한다.**
-   *
-   * 근거: [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체)(승격 조건의 기준), REQ-EIANOTI-036,
-   * [EIA 데이터와 흐름 「서명 시크릿 교체와 승격」](CLE-EIA-DATA#서명-시크릿-교체와-승격).
-   *
-   * - **잠금 안에서 다시 읽은 v2 가 고른 값과 같을 때만** 정식 참조로 옮기고 비운다. 다르면 그사이 교체가 다시
-   *   일어난 것이라 옮기지도 비우지도 않는다 — 새 값은 다시 시작한 유예가 끝난 뒤에 승격한다. 종전엔 잠금
-   *   밖에서 먼저 옮겼다. 그래서 재교체가 끼면 덮인 옛 v2 가 주 시크릿이 됐다(NERV Task `CLE-T-M6PERB`).
-   * - EIA 알림 웹훅 설정이 없는 트리거는 승격하지 않고 v2 와 교체 시각을 비운다 — 매 주기 건너뛰면 v2 평문이
-   *   DB 에 계속 남는다(`[SUMMARY W-2]`).
-   * - 다른 워크스페이스 소유의 저장소 행이면 이 트리거만 건너뛴다(NERV Task `CLE-T-XYR067`). 그 밖의 실패는
-   *   던져 job 재시도에 맡긴다.
-   * - 시크릿 저장소 쓰기는 이 트랜잭션의 매니저로 한다 — 풀 연결을 더 빌리지 않고 던지면 함께 롤백된다.
-   * - 잠금 안에서도 행이 사라질 수 있다(FK CASCADE 는 advisory lock 을 거치지 않는다). 쓰기가 0행이면 커밋 뒤
-   *   시크릿 저장소에 쓴 것을 되돌린다(시크릿 저장소 규칙 9). cron 이라 알릴 상대가 없고 «승격했다» 고 세지 않는다.
-   *
-   * 승격은 평문을 설정에 쓰지 않는다 — 정식 참조 내용을 바꾸고 `signing.secretRef` 를 연결한다.
-   */
-  private async promoteOneLocked(
-    triggerId: string,
-    pickedV2: string,
-  ): Promise<'promoted' | 'skipped'> {
-    let wroteSecret = false;
-    const outcome = await this.triggerRepository.manager.transaction(
-      async (m): Promise<'promoted' | 'skipped' | 'absent'> => {
-        await acquireTriggerConfigLock(m, triggerId);
-        const fresh = await m.findOne(Trigger, { where: { id: triggerId } });
-        if (!fresh) return 'skipped';
-        if (fresh.notificationSecretV2 !== pickedV2) return 'skipped';
-        const notificationCfg = (fresh.config as { notification?: unknown })
-          ?.notification;
-        if (!notificationCfg || typeof notificationCfg !== 'object') {
-          this.logger.warn(
-            `trigger ${triggerId} has notificationSecretV2 but no notification config — clearing stale v2 columns`,
-          );
-          // 컬럼만 쓴다 — `config` 를 건드리지 않는다.
-          await m.update(
-            Trigger,
-            { id: triggerId },
-            { notificationSecretV2: null, notificationRotatedAt: null },
-          );
-          return 'skipped';
-        }
-        const ref = notificationSigningSecretRef(triggerId);
-        try {
-          // ref 가 있으면 내용 교체, 없으면 신규 생성 — rotate 가 upsert 시맨틱.
-          await this.secrets.rotate(ref, fresh.workspaceId, pickedV2, m);
-        } catch (err) {
-          if (err instanceof SecretWorkspaceMismatchError) {
-            this.logger.error(
-              `notification secret 승격 건너뜀 — 트리거 ${triggerId} 의 서명 비밀 행이 다른 워크스페이스 소유다. 저장된 행을 점검하세요.`,
-            );
-            return 'skipped';
-          }
-          throw err;
-        }
-        wroteSecret = true;
-        // legacy 평문 키는 제거 — 평문은 DB config 에 남기지 않는다.
-        const { affected } = await m.update(
-          Trigger,
-          { id: triggerId },
-          {
-            config: {
-              ...fresh.config,
-              notification: notificationWithSigningRef(notificationCfg, ref),
-            },
-            notificationSecretV2: null,
-            notificationRotatedAt: null,
-          },
-        );
-        return (affected ?? 0) > 0 ? 'promoted' : 'absent';
-      },
-    );
-    if (outcome === 'absent') {
-      if (wroteSecret) {
-        // 위 `rotate` 가 쓴 서명 비밀을 되돌린다 — 삭제 쪽 정리보다 늦었으면 아무도 안 지운다.
-        await this.resourceReleaser.undoAbsentWrite(
-          triggerId,
-          undefined,
-          'TriggersService.promoteRotatedNotificationSecrets',
-        );
-      }
-      return 'skipped';
-    }
-    return outcome;
+    return this.notificationSigning.promoteRotated(nowMs);
   }
 
   /**

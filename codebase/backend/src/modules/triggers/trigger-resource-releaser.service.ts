@@ -11,7 +11,7 @@ import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { Workspace } from '../workspaces/entities/workspace.entity';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
-import { closeTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
+import { resolveAndCloseTriggerTokenStreams } from '../external-interaction/interaction-stream-closer';
 import { Trigger } from './entities/trigger.entity';
 import {
   setLocalLockTimeout,
@@ -136,7 +136,12 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     triggerIds: readonly string[],
     caller: string,
   ): void {
-    closeTriggerTokenStreams(this.moduleRef, triggerIds, this.logger, caller);
+    resolveAndCloseTriggerTokenStreams(
+      this.moduleRef,
+      triggerIds,
+      this.logger,
+      caller,
+    );
   }
 
   /**

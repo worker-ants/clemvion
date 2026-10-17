@@ -5,7 +5,9 @@ import { NotificationRetryDto } from '../triggers/dto/notification-config.dto';
 import {
   DEFAULT_NOTIFICATION_ATTEMPTS,
   MAX_NOTIFICATION_ATTEMPTS,
+  NOTIFICATION_BACKOFF_MAX_DELAY_MS,
   notificationAttemptsFromRetry,
+  notificationBackoffDelayMs,
 } from './notification-dispatcher.types';
 
 /**
@@ -87,5 +89,42 @@ describe('notification.retry.maxAttempts — DTO 와 발송 상수의 일치', (
     expect(meta.maximum).toBe(MAX_NOTIFICATION_ATTEMPTS);
     expect(meta.default).toBe(DEFAULT_NOTIFICATION_ATTEMPTS);
     expect(meta.minimum).toBe(0);
+  });
+});
+
+/**
+ * 재시도 간격 = `min(1000 · 4^(n-1), 3,600,000)` ms. `n` 은 BullMQ 가 넘기는 실패한 시도 수(1부터)다.
+ *
+ * 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리), NERV Task `CLE-T-EQDYC1`.
+ * 상한이 없으면 10회 설정의 마지막 간격이 약 18.2시간이고 총 지연이 약 24.3시간이다.
+ */
+describe('notificationBackoffDelayMs — 간격 상한 1시간', () => {
+  it('상한은 1시간이다', () => {
+    expect(NOTIFICATION_BACKOFF_MAX_DELAY_MS).toBe(3_600_000);
+  });
+
+  it('6번째 실패 뒤 간격(1,024초)은 상한 아래라 그대로다', () => {
+    expect(notificationBackoffDelayMs(6)).toBe(1_024_000);
+  });
+
+  it('7번째 실패 뒤 간격(4,096초)부터 1시간으로 줄인다', () => {
+    expect(notificationBackoffDelayMs(7)).toBe(3_600_000);
+  });
+
+  it('8 · 10번째 실패 뒤 간격도 1시간이다', () => {
+    expect(notificationBackoffDelayMs(8)).toBe(3_600_000);
+    expect(notificationBackoffDelayMs(10)).toBe(3_600_000);
+  });
+
+  it('지수가 아주 커도 1시간이다', () => {
+    expect(notificationBackoffDelayMs(1000)).toBe(3_600_000);
+  });
+
+  it('최대 10회 시도면 재시도 9번의 간격 합은 12,165초다', () => {
+    let total = 0;
+    for (let n = 1; n < MAX_NOTIFICATION_ATTEMPTS; n++) {
+      total += notificationBackoffDelayMs(n);
+    }
+    expect(total).toBe(12_165_000);
   });
 });

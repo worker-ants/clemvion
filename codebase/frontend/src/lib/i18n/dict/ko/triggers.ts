@@ -159,7 +159,7 @@ export const triggers = {
     interactionTokenStrategy: "토큰 전략",
     tokenStrategyPerExecution: "Per Execution (default, 단명 1h)",
     tokenStrategyPerTrigger: "Per Trigger (영구 itk_*)",
-    interactionRevokeToken: "Per-Trigger 토큰 재발급",
+    interactionRevokeToken: "트리거 단위 토큰 재발급",
     notConfigured:
       "외부 인터랙션 채널이 설정되어 있지 않아요. trigger config 에 notification 또는 interaction 필드를 추가하면 표시됩니다.",
     edit: "수정",
@@ -177,6 +177,7 @@ export const triggers = {
     rotateFailed: "Secret 회전에 실패했어요",
     rotateNewSecret: "새 secret (1회만 표시)",
     issuedNotificationSigningSecret: "새 알림 서명 시크릿 (1회만 표시)",
+    issuedInteractionToken: "새 트리거 단위 토큰 (1회만 표시)",
     revokeConfirm: "기존 per-trigger 토큰은 즉시 무효화돼요. 진행할까요?",
     revokeSucceeded: "새 토큰을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     revokeFailed: "토큰 재발급에 실패했어요",

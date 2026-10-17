@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
+  act,
   render,
   screen,
   cleanup,
@@ -17,10 +18,11 @@ import type { AuthConfigOption } from "../auth-config-select";
 
 const apiGetMock = vi.fn();
 const apiPatchMock = vi.fn();
+const apiPostMock = vi.fn();
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: (...args: unknown[]) => apiGetMock(...args),
-    post: vi.fn(),
+    post: (...args: unknown[]) => apiPostMock(...args),
     patch: (...args: unknown[]) => apiPatchMock(...args),
     delete: vi.fn(),
   },
@@ -79,6 +81,16 @@ const MANUAL_TRIGGER: TriggerData = {
   isActive: true,
   workflowId: "wf-3",
   workflowName: "Manual flow",
+};
+
+const NOTIFYING_TRIGGER: TriggerData = {
+  ...WEBHOOK_TRIGGER,
+  config: {
+    notification: {
+      url: "https://receiver.example/hook",
+      events: ["execution.completed"],
+    },
+  },
 };
 
 const CHATCHANNEL_TRIGGER: TriggerData = {
@@ -375,6 +387,115 @@ describe("TriggerDetailDrawer", () => {
     ).toBeInTheDocument();
     // 가려 둔 채로 보여 준다 — «표시» 를 눌러야 평문이 보인다.
     expect(screen.queryByText("wsk_issued_once")).not.toBeInTheDocument();
+  });
+
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어) · CLE-T-EQDYC1 — 인터랙션을
+  // per_trigger 로 처음 켠 저장 응답에 실린 트리거 단위 토큰 평문도 한 번 보여 준다.
+  it("External Interaction 저장 응답에 트리거 단위 토큰이 있으면 한 번 보여 준다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    apiPatchMock.mockResolvedValueOnce({
+      data: {
+        data: { id: "t-1", secrets: { interactionToken: "itk_issued_once" } },
+      },
+    });
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("New per-trigger token (shown once)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("itk_issued_once")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("New notification signing secret (shown once)"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("External Interaction 저장 응답에 두 비밀이 함께 있으면 상자를 둘 다 보여 준다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    apiPatchMock.mockResolvedValueOnce({
+      data: {
+        data: {
+          id: "t-1",
+          secrets: {
+            notificationSigningSecret: "wsk_issued_once",
+            interactionToken: "itk_issued_once",
+          },
+        },
+      },
+    });
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("New notification signing secret (shown once)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("New per-trigger token (shown once)"),
+    ).toBeInTheDocument();
+  });
+
+  // 한 번만 보여 주는 평문은 한 상태에 모여 있다(CLE-T-EQDYC1). 상자마다 60초 타이머가 따로 돌고
+  // 한 상자가 사라져도 다른 종류의 상자는 남는다.
+  it("먼저 띄운 상자가 60초 뒤 사라져도 나중에 받은 회전 결과 상자는 남는다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      mockApi(NOTIFYING_TRIGGER, []);
+      apiPatchMock.mockResolvedValueOnce({
+        data: {
+          data: {
+            id: "t-1",
+            secrets: { notificationSigningSecret: "wsk_issued_once" },
+          },
+        },
+      });
+      apiPostMock.mockResolvedValueOnce({
+        data: {
+          data: { secret: "wsk_rotated", rotatedAt: "2026-10-17T00:00:00Z" },
+        },
+      });
+      renderDrawer();
+      await screen.findByText("External Interaction");
+
+      fireEvent.click(cardEditButton("External Interaction"));
+      const eiaHeader = screen.getByText("External Interaction").parentElement!;
+      fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+      await screen.findByText("New notification signing secret (shown once)");
+
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      fireEvent.click(await screen.findByRole("button", { name: "Rotate secret" }));
+      expect(
+        await screen.findByText("New secret (shown once)"),
+      ).toBeInTheDocument();
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/triggers/t-1/notification/rotate-secret",
+        {},
+      );
+      expect(
+        screen.getByText("New notification signing secret (shown once)"),
+      ).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(
+        screen.queryByText("New notification signing secret (shown once)"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("New secret (shown once)")).toBeInTheDocument();
+    } finally {
+      confirmSpy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("External Interaction 저장 응답에 시크릿이 없으면 상자를 띄우지 않는다", async () => {

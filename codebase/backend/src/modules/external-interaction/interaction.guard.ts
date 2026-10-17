@@ -130,16 +130,7 @@ export class InteractionGuard implements CanActivate {
       if (!exec || !exec.triggerId) {
         this.deny(req, 'EXECUTION_NOT_FOUND', 'Execution not found');
       }
-      const trigger = await this.triggerRepository.findOne({
-        where: { id: exec.triggerId },
-        select: { id: true, config: true },
-      });
-      const expected = readItkFromConfig(trigger?.config);
-      if (!expected) {
-        this.deny(req, 'TOKEN_INVALID', 'Trigger has no per-trigger token');
-      }
-      const ok = this.tokenService.verifyPerTrigger(token, expected);
-      if (!ok) this.deny(req, 'TOKEN_INVALID', 'Token rejected');
+      await this.verifyTriggerToken(req, token, exec.triggerId);
       req.interaction = {
         executionId,
         tokenFamily: 'itk',
@@ -148,6 +139,46 @@ export class InteractionGuard implements CanActivate {
       return true;
     }
     this.deny(req, 'TOKEN_INVALID', 'Unknown token family');
+  }
+
+  /**
+   * SSE 구독을 등록한 뒤 트리거 단위 토큰(`itk_*`)을 다시 확인한다. 무효면 {@link canActivate} 와 같은 401 을 던진다.
+   *
+   * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-EQDYC1`. 가드를 통과한 뒤
+   * 구독을 등록하기 전에 토큰이 무효가 되면 닫기 신호가 아직 없는 구독자를 지나쳐 스트림이 남는다. 등록 뒤에 다시 읽으면
+   * 그 창이 닫힌다. 닫기 신호는 무효로 만든 트랜잭션의 커밋 뒤에 나가므로, 등록 앞에 신호가 지나갔다면 이 읽기는 커밋 뒤의
+   * 값을 본다. 등록 뒤에 온 신호는 등록된 구독자를 닫는다.
+   */
+  async reverifyTriggerToken(req: RequestWithInteraction): Promise<void> {
+    const token = extractToken(req);
+    const triggerId = req.interaction?.triggerId;
+    if (!token || !token.startsWith(ITK_PREFIX) || !triggerId) {
+      this.rejectTriggerToken(req);
+    }
+    await this.verifyTriggerToken(req, token, triggerId);
+  }
+
+  /** 트리거 단위 토큰이 무효라는 401 을 던진다. {@link reverifyTriggerToken} 과 같은 응답이다. */
+  rejectTriggerToken(req: RequestWithInteraction): never {
+    this.deny(req, 'TOKEN_INVALID', 'Token rejected');
+  }
+
+  /** 트리거의 지금 설정으로 `itk_*` 를 확인한다. 무효면 401 을 던진다. */
+  private async verifyTriggerToken(
+    req: RequestWithInteraction,
+    token: string,
+    triggerId: string,
+  ): Promise<void> {
+    const trigger = await this.triggerRepository.findOne({
+      where: { id: triggerId },
+      select: { id: true, config: true },
+    });
+    const expected = readItkFromConfig(trigger?.config);
+    if (!expected) {
+      this.deny(req, 'TOKEN_INVALID', 'Trigger has no per-trigger token');
+    }
+    const ok = this.tokenService.verifyPerTrigger(token, expected);
+    if (!ok) this.deny(req, 'TOKEN_INVALID', 'Token rejected');
   }
 
   private deny(

@@ -13,6 +13,7 @@ import { NotificationDispatcher } from './notification-dispatcher.service';
 import { NotificationWebhookProcessor } from './notification-webhook.processor';
 import { NotificationFanout } from './notification-fanout.service';
 import { SseAdapter } from './sse-adapter.service';
+import { SseFanoutService } from './sse-fanout.service';
 import { InteractionGuard } from './interaction.guard';
 import { InteractionRateLimitGuard } from './interaction-rate-limit.guard';
 import { InteractionRateLimiterService } from './interaction-rate-limiter.service';
@@ -38,7 +39,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  *  - IdempotencyInterceptor (Redis 24h, R8)
  *  - InteractionTokenService (iext_/itk_ family)
  *  - NotificationDispatcher + Processor + Fanout (R10 — facade, ExecutionEngine 외부)
- *  - SseAdapter (executionEvents$ 구독)
+ *  - SseAdapter (executionEvents$ 구독) + SseFanoutService (서버 인스턴스 사이 SSE Redis 버퍼 · 채널 · 연결 상한)
  *  - TerminalRevokeReconcilerService (EIA-RL-06 — terminal revoke at-least-once sweep, BullMQ repeatable)
  *  - WebChatIdleReaperService (EIA-RL-07 — 공개 위젯 idle-wait execution 회수, BullMQ repeatable)
  *
@@ -68,6 +69,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     NotificationDispatcher,
     NotificationWebhookProcessor,
     NotificationFanout,
+    SseFanoutService,
     SseAdapter,
     // 트리거 단위 토큰이 무효가 될 때 SSE 스트림을 닫는 포트. 트리거 · 스케줄 모듈이 import 없이
     // `ModuleRef.get(TOKEN, { strict: false })` 로 찾는 입구다(`interaction-stream-closer.ts`).

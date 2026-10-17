@@ -31,21 +31,51 @@ export function buildContinuationJobId(
 }
 
 /**
+ * 재개 큐의 사용자 정의 backoff 전략 이름. job 옵션 `backoff.type` 과 worker `settings.backoffStrategy` 가
+ * 이 이름으로 짝을 이룬다. BullMQ 내장 `exponential` 은 간격이 2배씩 늘어 1초에서 4배씩 늘리는 스펙과 맞지 않는다.
+ * 근거: [큐 워커와 동시 실행 제한 「재개 큐」](CLE-EXEC-WORKER#재개-큐), NERV Task `CLE-T-EQDYC1`.
+ */
+export const CONTINUATION_BACKOFF_TYPE = 'continuation-exp4';
+
+/** 첫 재시도까지의 간격(ms). 다음 간격은 직전의 4배다. */
+const CONTINUATION_BACKOFF_BASE_DELAY_MS = 1000;
+
+/**
+ * 재시도 간격(ms). BullMQ 는 실패한 시도 수에 1 을 더한 값(첫 실패 = 1)으로 전략을 부른다.
+ * 1 → 1초, 2 → 4초, 3 → 16초. 상한은 두지 않는다. 시도 횟수가 `attempts`(기본 3)로 묶여 있어
+ * 기본값이면 재시도 간격은 1초 · 4초뿐이다.
+ */
+export function continuationBackoffDelayMs(attemptsMade: number): number {
+  return (
+    CONTINUATION_BACKOFF_BASE_DELAY_MS *
+    Math.pow(4, Math.max(0, attemptsMade - 1))
+  );
+}
+
+/**
+ * worker `settings.backoffStrategy` 에 거는 함수. 이 큐의 job 은 `CONTINUATION_BACKOFF_TYPE` 하나만 쓴다.
+ * 내장 전략 이름(`fixed` · `exponential`)이면 BullMQ 가 이 함수를 부르지 않는다.
+ */
+export function continuationBackoffStrategy(attemptsMade: number): number {
+  return continuationBackoffDelayMs(attemptsMade);
+}
+
+/**
  * BullMQ 큐 옵션 기본값.
  *
  * - `attempts`: spec §11 의 `RESUME_BULLMQ_ATTEMPTS` (기본 3). dead-letter
  *   는 `RESUME_FAILED` 로 Execution `cancelled` 마킹 (processor 책임).
  * - `removeOnComplete: true`: 정상 처리된 job 은 즉시 제거 — Redis 메모리
  *   사용량 폭증 방지. 실패 job 은 attempts 소진 후 dead-letter 로 보관.
- * - exponential backoff: 1s / 4s / 16s (factor 4).
+ * - backoff: 1초에서 4배씩 늘어난다(`continuationBackoffDelayMs`). 기본 3회 시도면 재시도 간격은
+ *   1초 · 4초다. 계산은 worker 의 `settings.backoffStrategy` 가 한다(`ContinuationExecutionProcessor`).
  */
 export const CONTINUATION_QUEUE_DEFAULT_OPTS = {
   attempts: 3,
   removeOnComplete: true,
   removeOnFail: false,
   backoff: {
-    type: 'exponential' as const,
-    delay: 1000,
+    type: CONTINUATION_BACKOFF_TYPE,
   },
 };
 

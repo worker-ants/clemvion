@@ -13,6 +13,9 @@ const CHAT_CHANNEL_HINT =
 const NOTIFICATION_HINT =
   '알림 서명 시크릿은 POST /api/triggers/:id/notification/rotate-secret 으로만 바꿉니다.';
 
+const INTERACTION_TOKEN_HINT =
+  '트리거 단위 토큰은 서버가 발급하고 POST /api/triggers/:id/interaction/revoke-token 으로만 바꿉니다.';
+
 /**
  * 원시 `config` 에서 받지 않는 내부 필드의 경로와 안내 문구.
  *
@@ -31,6 +34,12 @@ export const CONFIG_INTERNAL_FIELDS: readonly {
   {
     path: ['notification', 'signing', 'secretRef'],
     hint: NOTIFICATION_HINT,
+  },
+  // 트리거 단위 토큰(`itk_*`)은 서버가 만든 값이다. 원시 `config` 로 심으면 그 값이 인터랙션 가드를 통과하는 토큰이
+  // 된다(NERV Task `CLE-T-EQDYC1`). 저장된 토큰은 PATCH 가 서버 쪽에서 이어받는다(`TriggersService` 의 토큰 정리).
+  {
+    path: ['interaction', 'triggerToken'],
+    hint: INTERACTION_TOKEN_HINT,
   },
 ];
 

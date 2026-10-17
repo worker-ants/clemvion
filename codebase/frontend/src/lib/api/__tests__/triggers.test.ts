@@ -126,6 +126,58 @@ describe("triggersApi mutations — single PATCH path (R-4)", () => {
     ).resolves.toEqual({ issuedNotificationSigningSecret: "wsk_x" });
   });
 
+  // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) — 인터랙션을 per_trigger 로 처음 켠 PATCH 응답에만
+  // `data.secrets.interactionToken` 이 있다. 두 비밀이 한 응답에 함께 올 수 있다(CLE-T-EQDYC1).
+  it("update returns the one-time per-trigger token when the server issued one", async () => {
+    patchMock.mockResolvedValue(
+      fakeAxios({
+        data: { id: "t1", secrets: { interactionToken: "itk_x" } },
+      }),
+    );
+    await expect(
+      triggersApi.update("t1", {
+        interaction: { enabled: true, tokenStrategy: "per_trigger" },
+      }),
+    ).resolves.toEqual({ issuedInteractionToken: "itk_x" });
+  });
+
+  it("update returns both one-time secrets when one response carries both", async () => {
+    patchMock.mockResolvedValue(
+      fakeAxios({
+        data: {
+          id: "t1",
+          secrets: {
+            notificationSigningSecret: "wsk_x",
+            interactionToken: "itk_x",
+          },
+        },
+      }),
+    );
+    await expect(
+      triggersApi.update("t1", {
+        notification: { url: "https://a" },
+        interaction: { enabled: true, tokenStrategy: "per_trigger" },
+      }),
+    ).resolves.toEqual({
+      issuedNotificationSigningSecret: "wsk_x",
+      issuedInteractionToken: "itk_x",
+    });
+  });
+
+  it("update ignores a secrets value that is not a string", async () => {
+    patchMock.mockResolvedValue(
+      fakeAxios({
+        data: {
+          id: "t1",
+          secrets: { notificationSigningSecret: 1, interactionToken: null },
+        },
+      }),
+    );
+    await expect(triggersApi.update("t1", { isActive: true })).resolves.toEqual(
+      {},
+    );
+  });
+
   it("update returns no secret when the response has no secrets key", async () => {
     patchMock.mockResolvedValue(fakeAxios({ data: { id: "t1" } }));
     await expect(triggersApi.update("t1", { isActive: true })).resolves.toEqual(
