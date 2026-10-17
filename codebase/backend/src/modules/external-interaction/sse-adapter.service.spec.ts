@@ -915,6 +915,64 @@ describe('SseAdapter — 서버 인스턴스 둘이 Redis 를 나눠 쓸 때', (
       expect(onB.pushed.map((e) => e.eventType)).toEqual([REPLAY_UNAVAILABLE]);
     });
 
+    // XADD 만 실패하면 버퍼에 없으므로 메모리 버퍼가 받는다. 그래야 같은 인스턴스로 다시 연결했을 때 replay 에서 빠지지 않는다.
+    it('XADD 만 실패하면 메모리 버퍼에 두고 PEXPIRE · PUBLISH 만 실패하면 두지 않는다', async () => {
+      server.failPipelineCommands.add('xadd');
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      await flush();
+      expect(a.adapter.bufferSize('exec-1')).toBe(1);
+      expect(warnings('버퍼 쓰기')).toHaveLength(1);
+
+      server.failPipelineCommands.clear();
+      server.failPipelineCommands.add('pexpire');
+      server.failPipelineCommands.add('publish');
+      a.subject.next(ev('exec-1', 'execution.node.started', 2));
+      await flush();
+      // Redis 버퍼에 들어갔으니 메모리 버퍼는 그대로 1건이다.
+      expect(a.adapter.bufferSize('exec-1')).toBe(1);
+      expect(server.streams.get(sseBufferKey('exec-1'))).toHaveLength(1);
+
+      // 같은 인스턴스로 다시 연결하면 두 버퍼를 합쳐 빠짐없이 replay 한다.
+      server.failPipelineCommands.clear();
+      const again = makeSub('exec-1');
+      await open(a.adapter, again.sub, 0);
+      expect(again.pushed.map((e) => e.seq)).toEqual([1, 2]);
+    });
+
+    it('exec() 가 결과 없이 끝나도 메모리 버퍼에 둔다', async () => {
+      server.pipelineExecReturnsNull = true;
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      await flush();
+      expect(a.adapter.bufferSize('exec-1')).toBe(1);
+    });
+
+    // `append` 는 던지지 않는 계약이라 `JSON.stringify` 가 던지는 payload(BigInt)도 `false` 로 끝난다.
+    it('JSON 으로 바꾸지 못하는 이벤트도 로컬 구독자에게 보내고 메모리 버퍼에 둔다', async () => {
+      const onA = makeSub('exec-1');
+      await open(a.adapter, onA.sub);
+      a.subject.next({
+        executionId: 'exec-1',
+        eventType: 'execution.node.started',
+        seq: 1,
+        payload: { big: BigInt(1) },
+      });
+      expect(onA.pushed.map((e) => e.seq)).toEqual([1]);
+      await flush();
+      expect(a.adapter.bufferSize('exec-1')).toBe(1);
+      expect(server.streams.get(sseBufferKey('exec-1'))).toBeUndefined();
+    });
+
+    it('append 가 계약을 어기고 거부돼도 메모리 버퍼에 둔다', async () => {
+      const appendSpy = jest
+        .spyOn(a.fanout, 'append')
+        .mockRejectedValueOnce(new Error('append 가 던졌다'));
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      await flush();
+      expect(appendSpy).toHaveBeenCalledTimes(1);
+      expect(a.adapter.bufferSize('exec-1')).toBe(1);
+      appendSpy.mockRestore();
+    });
+
     it('연결 상한을 세지 못하면 이 서버 인스턴스 안에서 센다', async () => {
       server.failing = true;
       expect(await a.adapter.admit(makeSub('exec-1').sub)).toBe(true);

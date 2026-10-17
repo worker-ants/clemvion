@@ -149,6 +149,90 @@ describe('SseFanoutService', () => {
       expect(warnings('버퍼 쓰기')).toHaveLength(2);
     });
 
+    // ioredis 의 pipeline.exec() 는 명령 하나가 실패해도 reject 하지 않고 [오류, 결과] 배열로 돌려준다.
+    describe('pipeline 명령 하나의 실패', () => {
+      it('XADD 가 실패하면 false 이고 버퍼 쓰기 경고를 한 번만 남긴다', async () => {
+        const { service } = boot(server);
+        server.failPipelineCommands.add('xadd');
+        expect(await service.append(ev(1))).toBe(false);
+        expect(await service.append(ev(2))).toBe(false);
+        expect(warnings('버퍼 쓰기')).toHaveLength(1);
+        expect(warnings('버퍼 TTL · 발행')).toHaveLength(0);
+        expect(server.streams.get(sseBufferKey('exec-1'))).toBeUndefined();
+
+        server.failPipelineCommands.clear();
+        expect(await service.append(ev(3))).toBe(true);
+        expect(log).toHaveBeenCalledWith(
+          expect.stringContaining('버퍼 쓰기 복구'),
+        );
+      });
+
+      it.each(['pexpire', 'publish'] as const)(
+        '%s 만 실패하면 true 이고 버퍼 TTL · 발행 경고를 한 번만 남긴다',
+        async (command) => {
+          const { service } = boot(server);
+          server.failPipelineCommands.add(command);
+          expect(await service.append(ev(1))).toBe(true);
+          expect(await service.append(ev(2))).toBe(true);
+          // XADD 는 들어갔으므로 재연결 replay 로 읽을 수 있다.
+          expect(server.streams.get(sseBufferKey('exec-1'))).toHaveLength(2);
+          expect(warnings('버퍼 TTL · 발행')).toHaveLength(1);
+          expect(warnings('버퍼 쓰기')).toHaveLength(0);
+
+          server.failPipelineCommands.clear();
+          expect(await service.append(ev(3))).toBe(true);
+          expect(log).toHaveBeenCalledWith(
+            expect.stringContaining('버퍼 TTL · 발행 복구'),
+          );
+          // 한 번 복구한 뒤 다시 실패하면 경고를 다시 남긴다.
+          server.failPipelineCommands.add(command);
+          await service.append(ev(4));
+          expect(warnings('버퍼 TTL · 발행')).toHaveLength(2);
+        },
+      );
+
+      it('XADD 와 PEXPIRE 가 함께 실패하면 XADD 실패로 본다', async () => {
+        const { service } = boot(server);
+        server.failPipelineCommands.add('xadd');
+        server.failPipelineCommands.add('pexpire');
+        expect(await service.append(ev(1))).toBe(false);
+        expect(warnings('버퍼 쓰기')).toHaveLength(1);
+        expect(warnings('버퍼 TTL · 발행')).toHaveLength(0);
+      });
+
+      it('exec() 가 결과 없이 끝나면 false 이다', async () => {
+        const { service } = boot(server);
+        server.pipelineExecReturnsNull = true;
+        expect(await service.append(ev(1))).toBe(false);
+        expect(warnings('버퍼 쓰기')).toHaveLength(1);
+
+        server.pipelineExecReturnsNull = false;
+        expect(await service.append(ev(2))).toBe(true);
+        expect(log).toHaveBeenCalledWith(
+          expect.stringContaining('버퍼 쓰기 복구'),
+        );
+      });
+    });
+
+    it('JSON 으로 바꾸지 못하는 payload 는 던지지 않고 false 이며 경고를 남긴다', async () => {
+      const { service } = boot(server);
+      const unserializable: ExecutionChannelEvent = {
+        executionId: 'exec-1',
+        eventType: 'execution.node.started',
+        seq: 1,
+        payload: { big: BigInt(1) },
+      };
+      await expect(service.append(unserializable)).resolves.toBe(false);
+      expect(warnings('버퍼 쓰기')).toHaveLength(1);
+      expect(server.streams.get(sseBufferKey('exec-1'))).toBeUndefined();
+      expect(server.published).toEqual([]);
+      // 다음 정상 이벤트는 그대로 들어가고 복구가 기록된다.
+      expect(await service.append(ev(2))).toBe(true);
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('버퍼 쓰기 복구'),
+      );
+    });
+
     it('readBuffer 는 넣은 순서대로 읽고 Stream id 의 시각을 받은 시각으로 쓴다', async () => {
       const { service } = boot(server);
       await service.append(ev(1));

@@ -493,9 +493,13 @@ export class SseAdapter
   private handleEvent(event: ExecutionChannelEvent): void {
     if (this.fanout.isEnabled()) {
       // 다른 서버 인스턴스의 구독자와 replay 를 위해 Redis 에 넣는다. 넣지 못하면 메모리 버퍼에 둔다.
-      void this.fanout.append(event).then((stored) => {
-        if (!stored) this.remember(event);
-      });
+      // `append` 는 던지지 않는 계약이다. 어겨서 거부돼도 처리되지 않은 거부로 새지 않게 메모리 버퍼에 둔다.
+      void this.fanout.append(event).then(
+        (stored) => {
+          if (!stored) this.remember(event);
+        },
+        () => this.remember(event),
+      );
     } else {
       this.remember(event);
     }

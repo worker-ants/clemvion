@@ -13,6 +13,13 @@ import { SSE_ACQUIRE_SLOT_SCRIPT } from '../sse-fanout.service';
 export class FakeRedisServer {
   /** `true` 면 모든 명령이 거부된다. */
   failing = false;
+  /**
+   * pipeline 안에서 이 명령만 실패한다. ioredis 의 `pipeline().exec()` 는 명령 하나가 실패해도 reject 하지 않고
+   * 그 자리에 `[Error, null]` 을 돌려준다. 실패한 명령은 서버에 적용하지 않는다.
+   */
+  readonly failPipelineCommands = new Set<'xadd' | 'pexpire' | 'publish'>();
+  /** `true` 면 pipeline `exec()` 가 결과 없이 `null` 로 끝난다(ioredis 가 결과를 돌려주지 못할 때 그렇게 돌려준다). */
+  pipelineExecReturnsNull = false;
   /** 설정하면 XRANGE 가 응답하기 전에 기다린다. 구독 순서의 경쟁을 만드는 데 쓴다. */
   beforeXrange: (() => Promise<void>) | null = null;
   /** 설정하면 SUBSCRIBE 가 채널을 등록하기 전에 기다린다. 구독이 늦게 확인되는 경우를 만든다. */
@@ -274,39 +281,58 @@ export class FakeRedisClient {
 }
 
 class FakePipeline {
-  private readonly ops: Array<() => unknown> = [];
+  private readonly ops: Array<{
+    name: 'xadd' | 'pexpire' | 'publish' | 'zadd';
+    run: () => unknown;
+  }> = [];
 
   constructor(private readonly client: FakeRedisClient) {}
 
   xadd(key: string, ...args: Array<string | number>): this {
-    this.ops.push(() => this.client.doXadd(key, args));
+    this.ops.push({ name: 'xadd', run: () => this.client.doXadd(key, args) });
     return this;
   }
 
   pexpire(key: string, ms: number): this {
-    this.ops.push(() => this.client.doPexpire(key, ms));
+    this.ops.push({
+      name: 'pexpire',
+      run: () => this.client.doPexpire(key, ms),
+    });
     return this;
   }
 
   publish(channel: string, message: string): this {
-    this.ops.push(() => this.client.server.publish(channel, message));
+    this.ops.push({
+      name: 'publish',
+      run: () => this.client.server.publish(channel, message),
+    });
     return this;
   }
 
   zadd(key: string, score: number, member: string): this {
-    this.ops.push(() => this.client.doZadd(key, score, member));
+    this.ops.push({
+      name: 'zadd',
+      run: () => this.client.doZadd(key, score, member),
+    });
     return this;
   }
 
-  exec(): Promise<Array<[Error | null, unknown]>> {
-    return this.client.run(() =>
-      this.ops.map((op): [Error | null, unknown] => {
+  exec(): Promise<Array<[Error | null, unknown]> | null> {
+    return this.client.run(() => {
+      if (this.client.server.pipelineExecReturnsNull) return null;
+      return this.ops.map(({ name, run }): [Error | null, unknown] => {
+        if (
+          name !== 'zadd' &&
+          this.client.server.failPipelineCommands.has(name)
+        ) {
+          return [new Error(`fake redis ${name} failed`), null];
+        }
         try {
-          return [null, op()];
+          return [null, run()];
         } catch (err) {
           return [err instanceof Error ? err : new Error(String(err)), null];
         }
-      }),
-    );
+      });
+    });
   }
 }

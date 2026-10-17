@@ -172,12 +172,13 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
   /**
    * 이벤트를 replay 버퍼에 넣고 live 채널로 보낸다. 버퍼에 넣었으면 `true` 다. 실패하면 `false` 이고 던지지 않는다.
    * `XADD` 와 `PUBLISH` 를 한 pipeline 으로 보내므로 PUBLISH 를 받은 쪽이 같은 연결로 읽는 버퍼에는 그 항목이 있다.
+   * JSON 으로 바꾸지 못하는 payload(BigInt 등)도 `false` 로 알린다. 호출자는 `catch` 없이 쓸 수 있다.
    */
   async append(event: ExecutionChannelEvent): Promise<boolean> {
     const client = this.client;
     if (!client) return false;
-    const message = this.encodeEvent(event);
     try {
+      const message = this.encodeEvent(event);
       const results = await client
         .pipeline()
         .xadd(
