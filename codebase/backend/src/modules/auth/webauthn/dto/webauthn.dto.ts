@@ -15,11 +15,11 @@ import { PostgresVarchar } from '../../../../common/utils/postgres-text';
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
 const DEVICE_NAME_MAX_CODE_POINTS = 100;
 
+// 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
 /**
  * 앞뒤 공백 문자를 지우면 빈 문자열이 되는 값을 거부한다. 문자열이 아니어도 거부한다.
  *
  * 공백 문자는 `String.prototype.trim()` 이 지우는 문자다. 서비스가 표시 이름을 저장할 때 지우는 문자와 같다.
- * 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
  */
 function IsNotBlank(): PropertyDecorator {
   return ValidateBy({

@@ -74,13 +74,14 @@ describe.each([
 });
 
 // 공백 문자는 `String.prototype.trim()` 이 지우는 문자다. 서비스가 저장할 때 지우는 문자와 같다.
+// 눈에 보이지 않거나 편집기가 바꿀 수 있는 문자라 `\uXXXX` 이스케이프로 적는다.
 const BLANK_DEVICE_NAMES: [string, string][] = [
   ['spaces', '   '],
   ['a tab and a line feed', '\t\n'],
-  ['a no-break space', ' '],
-  ['an ideographic space', '　'],
-  ['a line separator', ' '],
-  ['a byte order mark', '﻿'],
+  ['a no-break space (U+00A0)', '\u00A0'],
+  ['an ideographic space (U+3000)', '\u3000'],
+  ['a line separator (U+2028)', '\u2028'],
+  ['a byte order mark (U+FEFF)', '\uFEFF'],
 ];
 
 describe('WebAuthnRegisterVerifyDto deviceName', () => {
@@ -122,7 +123,7 @@ describe('WebAuthnRenameDto deviceName', () => {
   it.each([
     ['surrounding spaces', '  My Mac  '],
     // `trim()` 이 지우지 않으므로 공백 문자로 보지 않는다.
-    ['only a zero-width space', '​'],
+    ['only a zero-width space (U+200B)', '\u200B'],
   ])('accepts a name with %s', async (_label, deviceName) => {
     expect(await deviceNameConstraints(WebAuthnRenameDto, deviceName)).toEqual(
       [],
