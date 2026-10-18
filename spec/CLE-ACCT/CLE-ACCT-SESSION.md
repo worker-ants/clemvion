@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "ddfa6b5cb5c06c7a299c542158ddf303c3ea1578d0b69f6a53d33c94ac0ed9bd"
+content_hash: "475f8795267e25e97f7b6a0718ceb49258f9210d6cb6e0989b769c7a5670833f"
 read_as: "approved_fallback"
 task: "CLE-T-YZ9VEX"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "e16c30d1599d57f62d5f56237a46c5289e9ddd70b9cdb0b8c22af2550b0d31fc"
-etag: "sha256-c477dd44655680babc2a9a0108aef4243ada94daf70c4fec5ef746f905cd34b5"
+mirror_sha256: "e632b73d419099fe7877e57b12325d6661e02c53dc57b993669c0a92da6c52d5"
+etag: "sha256-30a32b60c6831f433563bf0054d71209d5c758e3c7d3916af72901980baa7012"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -251,7 +251,7 @@ sequenceDiagram
 
 ### 로그인 힌트 쿠키
 
-로그인 힌트 쿠키(`has_session`)는 인증 수단이 아니라 화면 전환을 위한 힌트다. API 가 cross-domain 이라 Next 서버 미들웨어가 백엔드 세션을 직접 알 수 없다. 그래서 로그인에 성공하면 프론트엔드 JS 가 non-httpOnly 쿠키 `has_session=1`(path=/, max-age 30일, SameSite=Lax)을 설정하고 로그아웃할 때 지운다(`codebase/frontend/src/lib/stores/auth-store.ts`). 실제 인가 판정은 항상 토큰(2층 가드와 API 401)이 한다.
+로그인 힌트 쿠키(`has_session`)는 인증 수단이 아니라 화면 전환을 위한 힌트다. API 가 cross-domain 이라 Next 서버 미들웨어가 백엔드 세션을 직접 알 수 없다. 그래서 로그인에 성공하면 프론트엔드 JS 가 non-httpOnly 쿠키 `has_session=1`(path=/, max-age 30일, SameSite=Lax)을 설정하고 로그아웃할 때 지운다. 쿠키 이름 · 속성과 심기 · 지우기 · 읽기는 `codebase/frontend/src/lib/auth/session-hint.ts` 한 곳에 있다. 심고 지우는 곳은 `codebase/frontend/src/lib/stores/auth-store.ts` 의 `setAuthenticated` · `logout` 이다. proxy 는 이 모듈의 쿠키 이름 `SESSION_HINT_COOKIE` 로 요청에 쿠키가 있는지만 본다. 가입 화면은 `hasSessionHint` 로 쿠키 값이 `1` 인지 본다. 실제 인가 판정은 항상 토큰(2층 가드와 API 401)이 한다.
 
 지금 이 쿠키를 심는 곳은 다음과 같다.
 
@@ -346,6 +346,8 @@ sequenceDiagram
 - `codebase/frontend/src/proxy.ts`
 - `codebase/frontend/src/components/auth/auth-provider.tsx`
 - `codebase/frontend/src/lib/stores/auth-store.ts`
+- `codebase/frontend/src/lib/auth/session-hint.ts` (로그인 힌트 쿠키 `has_session` 의 이름 · 속성과 심기 · 지우기 · 읽기)
+- `codebase/frontend/src/lib/auth/__tests__/session-hint.test.ts` (쿠키 문자열과 읽기 판정)
 - `codebase/frontend/src/lib/api/client.ts`, `codebase/frontend/src/lib/api/sessions.ts` (갱신 재시도 규칙 `skipsRefreshRetry`, 세션 API 호출)
 - `codebase/frontend/src/lib/api/__tests__/client.test.ts` (`skipsRefreshRetry` 와 `/auth/sessions` 갱신 재시도)
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (로그인 뒤 `/dashboard` 를 슬러그 경로로 넘긴다)
@@ -548,3 +550,11 @@ NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항�
 - 남은 로그인 세션은 활성 세션 목록(`/profile/sessions`, [세션 화면](#세션-화면))에서 끊을 수 있다. 이 화면은 [내 프로필](CLE-ACCT-PROFILE.md) 의 보안 카드에서 들어간다.
 
 로그아웃 요청이 실패하면 이동하지 않고 에러를 보여 주는 방식은 채택하지 않은 선택지다.
+
+### 로그인 힌트 쿠키 규약을 한 모듈에 둔다 (2026-10-18)
+
+NERV Task `CLE-T-7WZKFB` 코드 리뷰 지적(finding `01a14e00-503b-7600-b273-1b57a6442019`)으로 정리했다. 쿠키 문자열은 `auth-store.ts` 에, 쿠키 이름은 proxy 와 가입 화면에 따로 적혀 있어 한 곳만 바꾸면 나머지가 어긋날 수 있었다. 그래서 쿠키 이름 · 속성과 심기 · 지우기 · 읽기를 `lib/auth/session-hint.ts` 한 곳에 모았다. 쿠키 이름 · 속성 · 심는 시점은 바뀌지 않았다.
+
+proxy(Next 서버 미들웨어)도 이 모듈을 import 한다. 그래서 이 모듈은 브라우저 전용 모듈을 import 하지 않는다. `document` 는 브라우저인지 확인한 뒤에만 쓴다.
+
+사용처마다 쿠키 문자열을 그대로 두는 방식은 택하지 않았다. 쿠키 이름이나 속성을 바꿀 때 세 곳을 함께 고쳐야 했다. 한 곳을 빠뜨려도 이를 잡는 테스트가 없었다.

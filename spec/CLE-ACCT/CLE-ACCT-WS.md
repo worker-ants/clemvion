@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "3b60cf6650c2727fce1d13ba291270cc33868f65b9cb51e7402d1d54e106abfe"
+content_hash: "b061cc057fd3303390a974f50f65f7598f044d8af690b29cc95763fd73233d80"
 read_as: "approved_fallback"
 task: "CLE-T-YZ9VEX"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "89f521e423ea71e7a2116bf2ace4bd80272c7456053dae21a94d4f44cedb8df6"
-etag: "sha256-78151146c292c4d3a6751ae49090fa0a19b915987d7cf8f200474cf763163335"
+mirror_sha256: "11d1bba8ade6e266f0a5bd2d104a4bd49acae8141a9f657657d69e59c36cef14"
+etag: "sha256-116c2a9d39c593cfecfdade2933632271308dc595a5daebd1f4675deb9cee81a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -559,9 +559,12 @@ sequenceDiagram
 - `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**` (수락 페이지. 대소문자를 구분하지 않는 이메일 비교, «다른 계정으로 로그인»)
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (슬러그 없는 `/invitations/accept` 를 쿼리를 둔 채 슬러그 경로로 넘긴다)
 - `codebase/frontend/src/components/workspace/**`
-- `codebase/frontend/src/components/auth/register-form.tsx` (초대 토큰 가입 분기, 기존 가입자를 로그인 화면으로 보내는 분기, 가입 여부 확인의 5초 제한, 초대 흐름의 로그인 링크)
+- `codebase/frontend/src/components/auth/register-form.tsx` (초대 토큰 가입 분기, 기존 가입자를 로그인 화면으로 보내는 분기, 초대 흐름의 로그인 링크)
 - `codebase/frontend/src/components/auth/login-form.tsx` (복귀 경로가 초대 수락 페이지일 때의 안내 문구)
 - `codebase/frontend/src/lib/auth/post-login-redirect.ts` (수락 페이지 경로 `invitationAcceptPath`, 로그인 경로 `buildLoginHref`, 초대 흐름의 로그인 경로 `buildInvitationLoginHref`)
+- `codebase/frontend/src/lib/auth/registered-email.ts` (초대 가입 화면의 가입 여부 확인 `isRegisteredEmail` 과 5초 제한 `REGISTERED_EMAIL_CHECK_TIMEOUT_MS`)
+- `codebase/frontend/src/lib/auth/__tests__/registered-email.test.ts` (가입 여부 판정과 확인 실패 처리)
+- `codebase/frontend/src/lib/auth/session-hint.ts` (가입 화면이 이미 로그인한 사용자를 알아보는 `hasSessionHint`. 쿠키 규약과 테스트는 [세션과 토큰 「로그인 힌트 쿠키」](CLE-ACCT-SESSION.md#로그인-힌트-쿠키) 에 있다)
 - `codebase/frontend/src/proxy.ts` (옛 초대 링크 `/auth/register` 리다이렉트)
 - `codebase/frontend/src/lib/stores/workspace-store.ts`
 - `codebase/frontend/src/lib/api/workspaces.ts`, `codebase/frontend/src/lib/api/invitations.ts`
