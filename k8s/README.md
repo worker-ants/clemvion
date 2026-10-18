@@ -229,9 +229,9 @@ docker build -f codebase/frontend/Dockerfile \
 
 `base/*-deployment.yaml` 의 `resources` requests/limits 와 `replicas` 는 starter 값. 실 트래픽 측정 후 조정. HPA / KEDA 도입 시 `replicas` 는 minimum 으로만 사용.
 
-### 8. (옵셔널) 외부 인터랙션 알림 웹훅의 DNS rebinding 방어와 재시도 지연
+### 8. (옵셔널) 외부 인터랙션 알림 웹훅의 DNS rebinding 방어 · 리다이렉트 · 재시도 지연
 
-트리거의 알림 웹훅(트리거 본문의 `notification`)은 등록 URL 로 실행 이벤트를 POST 합니다. 배포 전에 아래 두 가지를 확인합니다.
+트리거의 알림 웹훅(트리거 본문의 `notification`)은 등록 URL 로 실행 이벤트를 POST 합니다. 배포 전에 아래 세 가지를 확인합니다.
 
 **DNS rebinding 방어는 기본으로 꺼져 있습니다.** backend 환경 변수 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 가 정확히 `"1"` 일 때만 켜집니다. `true` 등 다른 값은 꺼진 것으로 봅니다.
 
@@ -246,6 +246,8 @@ docker build -f codebase/frontend/Dockerfile \
 data:
   NOTIFICATION_ENFORCE_DNS_REBIND_GUARD: "1"
 ```
+
+**리다이렉트는 따라가지 않습니다.** 설정으로 바꿀 수 없습니다. 알림 URL 이 3xx 로 답하면 발송 실패로 보고 다른 실패와 같은 간격으로 다시 보냅니다. 그래서 공개 호스트가 리다이렉트로 사설 · loopback · 메타데이터 주소를 가리켜도 그 주소로는 보내지 않습니다. 리다이렉트하는 URL 대신 최종 주소를 알림 URL 로 등록하게 안내합니다.
 
 **재시도 간격에는 1시간 상한이 있습니다.** 2xx 가 아닌 응답이나 타임아웃(10초)이면 1초에서 4배씩 늘어나는 간격으로 다시 보냅니다. 간격 하나는 1시간을 넘지 않습니다. 트리거의 `retry.maxAttempts`(첫 시도 포함, 기본 5, 최대 10)에 따른 지연은 다음과 같습니다.
 
