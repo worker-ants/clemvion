@@ -307,6 +307,50 @@ describe('NotificationWebhookProcessor.process', () => {
     );
   });
 
+  // «있음» 판정은 생성 · PATCH 의 판정(`decideNotificationSigning`)과 같은 함수(`readStoredSigningSecret`)다
+  // (NERV Task `CLE-T-EQDYC1`). 형식이 틀린 참조는 없는 것이고 빈 문자열 평문도 없는 것이다.
+  it('형식이 틀린 참조 옆에 옛 평문이 있으면 참조를 읽지 않고 옛 평문으로 서명한다', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: {
+              algorithm: 'hmac-sha256',
+              secretRef: 'not-a-ref',
+              secret: SECRET,
+            },
+          },
+        },
+      }),
+    );
+    fetchSpy.mockResolvedValue({ status: 200, statusText: 'OK' });
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+    expect(secrets.resolve).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it('옛 평문이 빈 문자열이면 없는 것으로 보고 degraded + skip', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: { algorithm: 'hmac-sha256', secret: '' },
+          },
+        },
+      }),
+    );
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      'trg-1',
+      expect.objectContaining({ notificationHealth: 'degraded' }),
+    );
+  });
+
   it('HTTP 5xx — throw + non-final attempt 에서는 health 변경 안 함', async () => {
     triggerRepo.findOne.mockResolvedValue(makeTrigger());
     fetchSpy.mockResolvedValue({ status: 500, statusText: 'Internal' });

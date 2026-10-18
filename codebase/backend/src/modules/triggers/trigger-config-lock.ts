@@ -128,6 +128,41 @@ export async function acquireTriggerConfigLock(
 export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
 
 /**
+ * 락 안에서 재읽은 `config` 의 **하위 키를 기준으로** 병합한다.
+ *
+ * ## 왜 이게 따로 필요한가 — 같은 실수를 두 번 했다
+ *
+ * 1라운드에 *"컨테이너만 다시 읽는 것으로는 부족하다"* 고 직접 적어 놓고, 7라운드에 새로
+ * 닫은 자리에서 **그대로 반복**했다: `(freshConfig) => ({ ...freshConfig, notification: X })`
+ * 에서 `X` 를 **락 이전 스냅샷**으로 만들어 넘긴 것이다. 최상위 키는 재읽기로 지켜지지만
+ * 그 하위(`notification.url` 등)는 옛 값으로 되돌아간다 — 이 PR 이 닫는 것과 같은 클래스다
+ * (`/ai-review` `review/code/2026/09/14/22_24_35` database·testing CRITICAL#1).
+ *
+ * 그래서 «어느 하위 키를, 무엇을 얹어» 를 **인자로 강제**한다. 호출부가 스냅샷 객체를
+ * 통째로 대입할 자리를 없애는 것이 요점이다.
+ *
+ * `TriggersService` 와 `NotificationSigningSecretService` 가 함께 쓰므로 순수 함수로 둔다(NERV Task `CLE-T-EQDYC1`).
+ *
+ * @param freshConfig 락 안에서 재읽은 `config` 전체.
+ * @param key 재읽은 `config` 에서 기준으로 삼을 하위 키.
+ * @param patch 그 하위 객체 **위에** 얹을 필드들.
+ * @param fallback 재읽은 행에 그 키가 없을 때의 기준(보통 요청 시작 시점 값).
+ */
+export function mergeIntoFreshSubKey(
+  freshConfig: Record<string, unknown>,
+  key: string,
+  patch: Record<string, unknown>,
+  fallback: Record<string, unknown>,
+): Record<string, unknown> {
+  const current = freshConfig?.[key];
+  const base =
+    typeof current === 'object' && current !== null
+      ? (current as Record<string, unknown>)
+      : fallback;
+  return { ...freshConfig, [key]: { ...base, ...patch } };
+}
+
+/**
  * **`trigger.config` 를 락 안에서 다시 읽어** 머지하고 쓴다 — lost update 방지.
  *
  * ## 왜 필요한가
@@ -137,9 +172,13 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * - 창 1(`TriggersService.update()`) — `save(entity)` 의 계약(반환 엔티티·subscriber·`endpointPath` UNIQUE
  *   충돌 경로)을 보존해야 한다.
- * - 승격(`promoteOneLocked`) — 재읽은 행을 보고 «쓰지 않고 건너뜀» · «컬럼만 비움» · «config 와 컬럼을 함께 씀» 으로
- *   갈린다. `merge` 는 config 하나만 돌려주므로 그 갈래를 표현하지 못한다.
- * - 시크릿 교체(`rotateNotificationSecret`)는 `config` 를 쓰지 않지만 승격과 같은 컬럼을 쓰므로 같은 락을 잡는다.
+ * - 생성(`TriggersService.create()`) — INSERT 와 같은 트랜잭션에서 잠금을 잡고 시크릿 저장소 · `config` 를 쓴다.
+ *   이 함수는 트랜잭션을 따로 열므로 INSERT 와 묶지 못한다. 어느 단계가 실패해도 행이 남지 않게 하려고 한
+ *   트랜잭션에 둔다(NERV Task `CLE-T-EQDYC1`).
+ * - 승격(`NotificationSigningSecretService` 의 `promoteOneLocked`) — 재읽은 행을 보고 «쓰지 않고 건너뜀» ·
+ *   «컬럼만 비움» · «config 와 컬럼을 함께 씀» 으로 갈린다. `merge` 는 config 하나만 돌려주므로 그 갈래를 표현하지 못한다.
+ * - 시크릿 교체(`NotificationSigningSecretService.writeRotation`)는 `config` 를 쓰지 않지만 승격과 같은 컬럼을 쓰므로
+ *   같은 락을 잡는다.
  *
  * > **호출부를 세어 적지 않는다.** 한때 «창 2·3·4» 라고 못박아 뒀는데, 그 뒤 세 자리가 더
  * > 전환되면서 그 문장이 **과소 서술**이 됐다 — 같은 문장을 세 라운드에 걸쳐 «과대» 방향으로
@@ -154,7 +193,7 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * 다만 **잠금을 쥔 트랜잭션의 매니저를 `SecretResolverService.rotate` 에 넘겨야 한다.** 넘기지 않으면 풀에서 연결을
  * 하나 더 빌려 잠금 보유자가 연결 둘을 쥔다 — 같은 트리거를 기다리는 요청이 풀을 채우면 서로 기다리는 정체가 된다.
- * `merge` 가 `async` 일 수 있고 두 번째 인자로 그 매니저를 받는 것은 이 때문이다(생성의 첫 발급이 쓴다).
+ * `merge` 가 `async` 일 수 있고 두 번째 인자로 그 매니저를 받는 것은 이 때문이다.
  *
  * ## 이 함수가 없던 때의 결함
  *
@@ -206,9 +245,8 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *   | `rotateBotToken` (동기 요청) | **404 + 감사 미기록** — 위와 같은 이유 |
  *   | `revokePerTriggerToken` (동기 요청) | **404** — 위와 같은 이유 |
  *   | binder 성공/실패 경로 (저장 **뒤**의 best-effort 후속) | **`false` 로 감춘다** — 이미 응답이 나갔고, 실패를 던지면 성공한 저장을 되돌리는 것처럼 보인다 |
- *   | 생성의 첫 알림 서명 시크릿 (저장 **뒤**의 후속 단계) | **`false` 로 돌려 받아 호출부가 시크릿 쓰기를 되돌린다** — 응답에 평문을 싣지 않는다 |
- *   | `normalizeNotificationSecretRef` (요청 안의 정규화 부수 단계) | **관측하지 않는다** — 후속 등재분(9라운드 INFO#6) |
- *   | `promoteOneLocked` (`promoteRotatedNotificationSecrets` cron 이 부른다. 같은 락을 인라인으로) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
+ *   | `NotificationSigningSecretService.migrateLegacyPlaintext` (PATCH 안의 정규화 부수 단계) | **`false` 를 받아 락 밖에 쓴 시크릿을 되돌린다** — 응답은 그대로 나간다 |
+ *   | `promoteOneLocked` (승격 cron 이 부른다. 같은 락을 인라인으로) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
  *
  *   `cleanupRotatedChatChannelTokens` 는 **이 표에 없다** — 이 함수를 거치지 않고 컬럼만
  *   직접 갱신하기 때문이다(`config` 미접촉). 한때 «cron 두 곳» 으로 묶어 적었는데, 그러면

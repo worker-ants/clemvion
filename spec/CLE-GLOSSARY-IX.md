@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "d33a6adf2745adeeded7802c3d6ec376e852f67ac7f4711be02daafacc97d5ad"
+content_hash: "48fb2705bc6b027f015af1d85fe1b63ce9ce0d4941a520448edc0961a373b90c"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-6YY7KY"
 source_paths: []
-mirror_sha256: "b8cc654d95881c687c2e10d1e6059b9db3bb9eadc48e90c3e494e9504da820bf"
-etag: "sha256-2875933adc88d8128bd90a2ee39fce30aaa3ba5ec7abc93f0b59e28774bc8940"
+mirror_sha256: "341cac7fae02e5db26ac99943d81407f9d5dade9ab0edd085108fc0b55dbfc32"
+etag: "sha256-02ee891bb13c289efbb928b695bea80186f79d344695fbf3861414d41e18de53"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-2875933adc88d8128bd90a2ee39fce30aaa3ba5ec7abc93f0b59e28774bc8940"
 | 토큰 전략 | `tokenStrategy` | 두 토큰 중 무엇을 쓸지 정하는 트리거 설정. 기본값은 실행 단위다. | 없음 | [External Interaction API](CLE-IX/CLE-EIA.md) |
 | 트리거 단위 토큰 재발급 | `revoke-token` | 트리거 단위 토큰을 새로 발급하고 옛 토큰을 바로 무효로 만드는 동작. 엔드포인트 이름과 달리 폐기만 하지 않는다. | 토큰 폐기(이 동작 이름으로) | [External Interaction API](CLE-IX/CLE-EIA.md) |
 | 알림 서명 시크릿 | notification signing secret, `wsk_*` | EIA 알림 웹훅의 HMAC 서명 비밀. | signing secret(단독) | [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md) |
-| 시크릿 교체 | `rotate-secret` | 알림 서명 시크릿을 새로 발급하고 24시간 유예 동안 두 서명을 함께 싣는 동작. | secret 회전 | [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md) |
+| 시크릿 교체 | `rotate-secret` | 알림 서명 시크릿을 발급하고 바꾸는 절차 전체. 엔드포인트 하나만 가리킬 때는 `rotate-secret` 을 함께 적는다. | secret 회전 | [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) |
 | 발송 건강도 | `notification_health` | EIA 알림 웹훅의 발송 상태. 저하돼도 트리거를 끄지 않는다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md) |
 | 멱등 키 | `Idempotency-Key` | 같은 EIA 요청을 다시 보내도 같은 응답을 받게 하는 헤더. 채팅 채널의 중복 제거 키와 다른 장치다. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
 | SSE 재전송 버퍼 | SSE replay buffer | SSE 가 다시 연결될 때 놓친 이벤트를 정한 기간 동안 다시 보내는 버퍼. 채우지 못하면 `execution.replay_unavailable` 을 보낸다. | 5분 이벤트 버퍼 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
@@ -98,6 +98,13 @@ etag: "sha256-2875933adc88d8128bd90a2ee39fce30aaa3ba5ec7abc93f0b59e28774bc8940"
 ## Rationale
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「외부 상호작용과 채널」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 「시크릿 교체」 정의를 넓혔다 (2026-10-17)
+
+NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 `rotate-secret` 동작 하나만 가리켰다. 기준 문서 [EIA 알림 웹훅 「시크릿 교체」](CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 는 같은 이름 아래에서 첫 발급, 유예 중 재교체, 매시 승격 작업의 승격까지 정한다. 다른 문서도 이 절을 가리켜 첫 발급이나 승격을 말한다. 그래서 정의를 절이 다루는 범위에 맞췄다. 엔드포인트만 가리킬 때 `rotate-secret` 을 함께 적게 해서 두 뜻이 섞이지 않게 했다.
+
+- 기각한 대안: 기준 문서의 절 이름을 «시크릿 발급과 교체» 로 바꾸는 안. 여러 문서가 `#시크릿-교체` 앵커로 이 절을 가리킨다. 절 이름을 바꾸면 그 링크를 모두 고쳐야 한다. 용어 정의를 넓히면 같은 효과를 얻는다.
+- 정의 칸에는 절차의 단계를 늘어놓지 않았다. 이 초안의 첫 저장은 첫 발급 · 교체 · 유예 중 재교체 · 승격을 정의에 적었다. 2026-10-17 스펙 초안 일관성 검토가 [용어 사전](CLE-GLOSSARY.md) 개요의 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다고 짚었다. 단계는 기준 문서 칸이 가리키는 절에 있다.
 
 ### 「채널 건강도」 정의를 채팅 채널의 동작 상태로 넓혔다 (2026-10-05)
 

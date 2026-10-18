@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "939ed740611e3c22137e9813cdd7a632d2280b822d17d1f208a0d95297873e60"
+content_hash: "6d8b7b8956f4bf7353e56b770a5bbce7ec88f6303a9976adf604db6f0b6e78cc"
 read_as: "approved_fallback"
-task: "CLE-T-NNENG8"
+task: "CLE-T-6YY7KY"
 source_paths: []
-mirror_sha256: "80cb61d421d180bcb68216d63ffb6d607fb81f445672af62971032e500dbfc92"
-etag: "sha256-8e6cd3d2031d18622c7eed12df9874252da949f7a60efece86784b415eab2132"
+mirror_sha256: "0ba86c173b7c125d4c2d90e03b90e62e4d030f0b04ae69ea1c82400a1ef64386"
+etag: "sha256-7a19ec708924c7cacba65a0e03a4ed5a9f9590772cf43ca7587fad1be59b83d2"
 ---
 ## 개요
 
@@ -69,7 +69,7 @@ etag: "sha256-8e6cd3d2031d18622c7eed12df9874252da949f7a60efece86784b415eab2132"
 | 시크릿 저장소 | SecretStore, `secret_store` | 비밀을 AES-256-GCM 으로 암호화해 보관하고 `secret://` 참조로 가리키는 저장소. 통합 자격 증명과 인증 설정은 여기 두지 않는다. | Secret Store, secret store(본문) | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
 | 시크릿 참조 | secret ref, `secret://<scope>/<id>/<name>` | 시크릿 저장소 값을 가리키는 문자열. | ref(단독) | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
 | SecretResolver | `SecretResolver` | 시크릿 저장소를 읽고 쓰는 유일한 서비스. | 없음 | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
-| 저장소 예외 필드 | non-target fields | 시크릿 저장소 밖에 두기로 정한 비밀(인증 설정 `config`, 트리거 단위 토큰, 알림 서명 시크릿 v2 컬럼). 응답 노출 예외는 아니다. | 비대상(단독) | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
+| 저장소 예외 필드 | non-target fields | 시크릿 저장소 밖에 두기로 정한 비밀. 저장 위치의 예외이고 응답 노출의 예외는 아니다. 일회성 평문 응답은 [시크릿 저장소 규칙 4](CLE-INT/CLE-INT-SECRET.md#규칙) 가 정한다. | 비대상(단독) | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) |
 | 24시간 유예 | 24h grace | 비밀을 바꾼 뒤 옛 값과 새 값을 함께 받는 기간. 이름의 시간은 기준 문서의 값이다. | 없음 | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
 | MCP | Model Context Protocol | LLM 이 쓸 도구·리소스를 외부 서버가 제공하는 프로토콜. 번역하지 않는다. | 없음 | [MCP 클라이언트](CLE-INT/CLE-INT-MCP.md) |
 | 외부 MCP 서버 | MCP server, `service_type=mcp` | Streamable HTTP 로 연결하는 외부 MCP 통합. | Generic MCP server | [MCP 클라이언트](CLE-INT/CLE-INT-MCP.md) |
@@ -116,3 +116,10 @@ NERV Task `CLE-T-NNENG8` 에서 Cafe24 Private 통합의 재인증과 추가 권
 
 - 설치 대기(`pending_install`)와 이름이 비슷해 정의에 둘이 다르다고 적었다. 설치 대기는 통합 상태 값이고 재설치 대기 표시는 상태와 따로 두는 컬럼이다.
 - 유효 기간은 정의에 적지 않았다(색인 표기 원칙 14). 값은 기준 문서 [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md#재설치-대기-표시) 에 있다.
+
+### 「저장소 예외 필드」 에 일회성 평문 응답 예외를 함께 적었다 (2026-10-17)
+
+NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 «응답 노출 예외는 아니다» 로 끝났다. 그래서 이 필드의 평문이 어떤 응답에도 실리지 않는다고 읽혔다. 기준 문서 [시크릿 저장소 「규칙」](CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 4 는 값을 만든 바로 그 응답에 평문을 한 번 싣는 예외를 둔다. 2026-10-17 사용자 결정으로 트리거 단위 토큰도 트리거 생성과 PATCH 때 발급하고 그 응답의 `data.secrets.interactionToken` 에 싣는다. 그래서 정의에 이 예외와 목록의 위치를 함께 적었다.
+
+- 기각한 대안: 규칙 4 의 목록 전체를 정의 칸에 옮기는 안. 목록은 예외 응답이 늘 때마다 바뀐다. 정의 칸에 옮기면 기준 문서와 어긋나도 잡아 줄 가드가 없다. 색인 표기 원칙 14 가 기준 문서의 수치를 정의에 적지 않는 이유와 같다.
+- 이 초안의 첫 저장은 대표 응답 몇 개를 필드 경로와 함께 «등» 으로 적었다. 2026-10-17 스펙 초안 일관성 검토가 [용어 사전](CLE-GLOSSARY.md) 개요의 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다고 짚었다. 그래서 대표 응답과 정의 앞의 예외 필드 목록을 함께 뺐다. 정의는 규칙 4 를 가리키고 기준 문서 칸은 [시크릿 저장소 「저장소 예외 필드」](CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 를 가리킨다.

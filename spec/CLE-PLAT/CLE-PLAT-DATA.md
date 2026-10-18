@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "4fd03801d3ea7fc441755cf3a82b2612c0fd36ab360924d24ba8109ca4cf12ba"
+content_hash: "84772ab59f3caa8a8b6423329fd75863fa6941f38cc617f5d9e154eb0d79e097"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "5911f7ff0bcb10cc75c11f45cb90429423954a02193c763d623074d62d182b6f"
-etag: "sha256-2edd8d99a9fe01b4d4c37af6819883ffbdf7e4ca83157ec44d756d4765bea879"
+mirror_sha256: "55c652c4f6f7e76bd12716f43b9059a6dbd0700e572c3b837dbccd051460b25c"
+etag: "sha256-938ffbce6cc8f8d675749eb4fd3d78cefaa23c786465dba9bce5204ebb4d7351"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -396,7 +396,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 | Trigger | `(workspace_id, type)` | 유형별 트리거 조회 |
 | Trigger | `(endpoint_path)` UNIQUE WHERE `endpoint_path IS NOT NULL` | 웹훅 URL 라우팅. 라우팅 키(`/api/hooks/:endpointPath`)가 워크스페이스와 무관한 전역 키라 유일성도 전역이다. 수신·공개 가드·웹채팅 embed-config 가 이 컬럼 하나로 찾는다. V002 의 `(workspace_id, endpoint_path)` UNIQUE 를 교체했다(V131 중복 정리, V132 CONCURRENTLY). 근거는 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) |
 | Trigger | `(workflow_id)` | 워크플로우 삭제 경로. 트리거 자원 정리의 열거 두 번(`WHERE workflow_id = ?`, 하나는 `workflow` 행 잠금 안)과 FK `ON DELETE CASCADE` 가 쓴다. 이 셋 말고 `workflow_id` 로 트리거를 찾는 곳은 없다. CONCURRENTLY, V111 |
-| Trigger | `(notification_health)` WHERE `notification_health = 'degraded'` | EIA 알림 웹훅 발송이 degraded 인 트리거를 대시보드와 운영 알림에서 전체 스캔 없이 찾는다(부분 인덱스). V061 |
+| Trigger | `(notification_health)` WHERE `notification_health = 'degraded'` | 발송 건강도가 `degraded` 인 트리거를 전체 스캔 없이 찾으려고 만들었다(부분 인덱스). 지금 코드에는 이 조건으로 트리거를 찾는 조회가 없다. V061 |
 | Trigger | `(auth_config_id)` WHERE `auth_config_id IS NOT NULL` | 인증 설정 사용처(`GET /api/auth-configs/:id/usage`)가 이 컬럼 하나로 트리거를 찾는다. 이어서 위 Execution `(trigger_id, started_at DESC)` 를 쓴다. FK `ON DELETE SET NULL`(인증 설정 삭제)도 이 인덱스를 쓴다. CONCURRENTLY, V126 |
 | Trigger | `(id, workspace_id)` UNIQUE | 복합 FK 의 참조 대상(스케줄 `trigger_id`). `uq_trigger_id_workspace_id`, CONCURRENTLY, V139 |
 | AuthConfig | `(id, workspace_id)` UNIQUE | 복합 FK 의 참조 대상(트리거 `auth_config_id`). `uq_auth_config_id_workspace_id`, CONCURRENTLY, V136 |

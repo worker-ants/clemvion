@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
-requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073"]
+requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "55821b6d4ca8d45c5176e39c53d7181ad47fc6d3ab5ad5b927762b2acfa0f696"
+content_hash: "096841bf4d7b48a24b720a7e5eaf2b12235a8fca112871890740170c81e8cbdb"
 read_as: "approved_fallback"
-task: "CLE-T-NCKHVQ"
+task: "CLE-T-EQDYC1"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "6075f21147ba94ba4cac20337fd38526a54dd2011a93944a63140dee86180426"
-etag: "sha256-170db93d51a1448169adf4e780626b7fe9016ac16e8018deff331fb581f2bd19"
+mirror_sha256: "718cef777f95ac7d16e45524fdc599737178be8729c1325ef58947bc7c36454c"
+etag: "sha256-d9d9f74c1d1cb57a8ce663b5bf32a6cdf6e34ce7e72fdd0905117c382e8715d5"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -132,13 +132,16 @@ etag: "sha256-170db93d51a1448169adf4e780626b7fe9016ac16e8018deff331fb581f2bd19"
 
 ### 인바운드 HTTP
 
-- REQ-CHAT-056 WHEN 채팅 채널 경로의 웹훅 요청을 처리하면 THE SYSTEM SHALL 인증 실패(`401`), 엔드포인트 미존재(`404`), 프로바이더별 응답 예외, `/start` 의 기존 실행 취소 실패(REQ-CHAT-064)를 뺀 모든 경우에 `202 Accepted` 로 응답한다. (원본: 15-chat-channel §5.5, R-CC-12, R-CC-27)
+- REQ-CHAT-056 WHEN 채팅 채널 경로의 웹훅 요청을 처리하면 THE SYSTEM SHALL 인증 실패(`401`), 엔드포인트 미존재(`404`), 프로바이더별 응답 예외, `/start` 의 기존 실행 취소 실패(REQ-CHAT-064)를 뺀 모든 경우(`/cancel` 과 재개 명령의 큐 적재 실패 REQ-CHAT-074·076 포함)에 `202 Accepted` 로 응답한다. (원본: 15-chat-channel §5.5, R-CC-12, R-CC-27, R-CC-31)
 - REQ-CHAT-057 WHEN 비활성 채팅 채널 트리거에 update 가 오면 THE SYSTEM SHALL 인바운드 서명을 먼저 검증하고 통과하면 `202`·`{ executionId: 'ignored' }` 로 조용히 버린다. (원본: 15-chat-channel §5.5, WH-EP-07)
 - REQ-CHAT-058 IF 프로바이더가 특정 응답 형식만 성공으로 인정하고 그 사유와 응답 본문이 프로바이더 문서에 적혀 있으면 THE SYSTEM SHALL 그 경우에만 `202` 대신 `200 OK` 응답을 허용한다. (원본: 15-chat-channel §5.5.1)
 - REQ-CHAT-059 IF 채팅 채널 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 `202`·`{ executionId: 'ignored' }` 로 답하며 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 고정 문구를 남긴다.
 - REQ-CHAT-066 IF 활성 채팅 채널 트리거의 워크플로우가 비활성(`workflow.is_active=false`)이고 새 실행을 시작할 update(REQ-CHAT-012·015 의 메시지, REQ-CHAT-062 의 `/start`)가 오면 THE SYSTEM SHALL 실행을 시작하지 않고 기존 실행도 취소하지 않으며 `202`·`{ executionId: 'ignored' }` 로 답한다. (R-CC-28)
 - REQ-CHAT-067 WHEN 워크플로우가 비활성인 활성 채팅 채널 트리거에 Slack `url_verification` 이나 Discord PING(`type: 1`)이 오면 THE SYSTEM SHALL 서명 검증 뒤 프로바이더별 handshake 응답(`200 OK`)을 돌려준다. (R-CC-28)
 - REQ-CHAT-068 WHILE 활성 채팅 채널 트리거의 워크플로우가 비활성인 동안 THE SYSTEM SHALL 활성 실행이 있는 대화의 `/start` 가 아닌 메시지(답장, 버튼, 폼 제출)와 `/cancel`·`/help` 를 워크플로우가 활성일 때와 같이 처리한다. (R-CC-28)
+- REQ-CHAT-074 IF `/cancel` 의 활성 실행 취소를 재개 큐에 넣지 못하면(`EXECUTION_ENQUEUE_FAILED`) THE SYSTEM SHALL 채널 대화 상태의 `executionId` 를 그대로 두고 경고 로그를 남기며 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 고정 문구를 남긴 뒤 `202 Accepted` 로 응답한다. (R-CC-31)
+- REQ-CHAT-075 IF `/cancel` 의 활성 실행 취소가 `INVALID_STATE` 나 `RESOURCE_NOT_FOUND` 로 실패하면 THE SYSTEM SHALL 그 실행이 이미 끝났거나 지워진 것으로 보고 REQ-CHAT-065 대로 `executionId` 를 비우며 채널 건강도는 바꾸지 않고 `202 Accepted` 로 응답한다. (R-CC-31)
+- REQ-CHAT-076 IF 입력 대기 실행으로 보내는 재개 명령(답장, 버튼 탭, 폼 제출)을 내부 신뢰 호출로 재개 큐에 넣지 못하면(`queued:false`) THE SYSTEM SHALL 경고 로그를 남기고 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 REQ-CHAT-074 와 같은 고정 문구를 남긴 뒤 `202 Accepted` 로 응답한다. (R-CC-31)
 
 ### 요구사항 보충 설명
 
@@ -158,12 +161,13 @@ etag: "sha256-170db93d51a1448169adf4e780626b7fe9016ac16e8018deff331fb581f2bd19"
 - 관련 REQ-CHAT-031·032: 대기 간격은 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다. `degraded` 로 바꾸는 원인은 [채널 건강도](#채널-건강도) 가 정하고 모두 자동 비활성화하지 않는다(웹훅 WH-MG-04, EIA-NX-07 과 같은 정책).
 - 관련 REQ-CHAT-033·034: 서비스는 `ChatChannelDedupService` 다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. Redis 가 없는 동안에는 중복 처리가 생길 수 있다.
 - 관련 REQ-CHAT-035: 참조 형식은 `secret://triggers/{triggerId}/bot-token`·`secret://triggers/{triggerId}/inbound-signing` 이고 DB 에는 암호문(BYTEA)만 남는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
-- 관련 REQ-CHAT-036·037: Telegram 은 재발급 때 `setWebhook` 을 다시 부른다. 정리 스케줄러는 BullMQ repeatable 이고 `NotificationSecretRotatorService` 와 같은 패턴이다. 재발급은 primary 참조를 바로 새 토큰으로 바꾸고 v2 참조(`bot-token.v2`)에 옛 토큰을 24시간 백업한다. v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C).
+- 관련 REQ-CHAT-036·037: Telegram 은 재발급 때 `setWebhook` 을 다시 부른다. 정리 스케줄러는 BullMQ repeatable 이고 `NotificationSecretRotatorService` 와 같은 패턴이다. `NotificationSecretRotatorService` 는 EIA 알림 서명 시크릿의 회전 유예가 끝나면 새 시크릿(v2)을 primary 로 올리는 스케줄러다. 재발급은 primary 참조를 바로 새 토큰으로 바꾸고 v2 참조(`bot-token.v2`)에 옛 토큰을 24시간 백업한다. v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C).
 - 관련 REQ-CHAT-046·047: 카운터는 대화 단위 fixed-window 다. `PublicWebhookQuotaService` 와 같은 `INCR`+`EXPIRE` pipeline 을 별도 키에 써서 여러 서버 인스턴스에서도 정확하다. 60 은 Telegram group rate limit 과 맞춘 값이고, 초과 안내 메시지는 v1 범위 밖이다. 현재 구현은 `ChatChannelRateLimiterService.consume` 이 세고 `HooksService.handleChatChannelWebhook` 이 `parseUpdate`·중복 제거 게이트 뒤에 확인하며, 이미 `degraded` 면 다시 쓰지 않는다(`markChatChannelRateLimited`).
 - 관련 REQ-CHAT-062~064: 활성 실행은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태(`running`·`pending`·`waiting_for_input`)를 돌려준 실행이다. 취소는 EIA `cancel`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) REQ-EIAIN-003)과 사용자 실행 중지(`POST /api/executions/:id/stop`)가 쓰는 REST 취소 경로 `ExecutionsService.stop` 을 부른다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 7). `running`·`pending` 은 원자 UPDATE 로 바로 `cancelled` 가 된다. `waiting_for_input` 은 continuation bus 에 취소를 넣어 비동기로 `cancelled` 가 된다. 새 실행은 그 취소가 끝나기를 기다리지 않는다. 이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고(REQ-CHAT-063) `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다(REQ-CHAT-064). 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. `/start` 가 아닌 메시지는 REQ-CHAT-013~015 를 그대로 따른다. 명령 이름과 안내 문구는 프로바이더 문서가 정한다. 시작 안내(`languageHints.executionStarted`)와 재시작 안내는 아직 보내지 않는다(부분 구현, NERV Task `CLE-T-0400J6`). 흐름은 [활성 실행 중 다시 시작](#활성-실행-중-다시-시작) 에 있다.
 - 관련 REQ-CHAT-065: 채널 대화 상태의 키는 `chat-channel:{triggerId}:{conversationKey}` 다. 읽은 값과 저장된 값을 비교해 바꾸는 compare-and-set 이고 다른 쓰기에 밀리면 최대 3회 다시 읽는다. Redis 를 쓸 수 없거나 끝내 비우지 못하면 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 REQ-CHAT-015 대로 새 실행을 시작한다. `/cancel` 도 취소한 실행을 가리킬 때만 같은 방식으로 비운다.
 - 관련 REQ-CHAT-066~068: 워크플로우 활성 관문의 규칙(무엇을 막고 무엇을 통과시키는지, 버릴 때 남기지 않는 기록, 워크플로우 조회 범위)은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 채팅 채널 경로에서 이 관문이 놓이는 자리는 [인바운드 관문 순서](#인바운드-관문-순서) 가 정한다. 이 문서는 채팅 채널만의 차이를 정한다. 버리는 응답은 `202`·`{ executionId: 'ignored' }` 다(REQ-CHAT-066). handshake 에는 답한다(REQ-CHAT-067). 진행 중인 대화의 입력과 `/cancel`·`/help` 는 관문에 닿지 않는다(REQ-CHAT-068). 비활성 트리거와의 차이는 [인바운드 관문 순서](#인바운드-관문-순서) 의 표에 있다. 트리거의 워크스페이스에 워크플로우가 없으면 이 관문은 통과시키고 REQ-CHAT-059 가 처리한다. 이미 진행 중인 실행은 취소하지 않고 채널 건강도도 바꾸지 않는다([R-CC-28 「비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)).
 - 관련 REQ-CHAT-069: 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 갱신하지 않는다. 렌더한 메시지의 발송은 이 조건과 관계없다. 조회한 값을 그대로 고쳐 다시 저장하므로 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 덮어쓸 수 있다. 이 한계는 [R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 의 미룬 문제에 있다.
+- 관련 REQ-CHAT-074~076: 큐 적재 실패는 둘이다. `/cancel` 이 부른 `ExecutionsService.stop` 의 `EXECUTION_ENQUEUE_FAILED` 와 내부 신뢰 호출 재개 명령의 `queued:false` 다. `running`·`pending` 실행의 취소는 원자 UPDATE 라 큐를 쓰지 않으므로 REQ-CHAT-074 는 입력 대기 실행의 `/cancel` 에서만 생긴다. `/cancel` 은 `/start` 와 같이 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 REQ-CHAT-075 이고 `EXECUTION_ENQUEUE_FAILED` 면 REQ-CHAT-074 다. `chat_channel_last_error` 에 남기는 고정 문구(원인 종류를 알 수 있는 짧은 문장)는 두 경우가 같다. 문구에는 실행 id 와 트리거 id 를 싣지 않고 경고 로그에만 남긴다. `/start` 와 달리 그 update 의 중복 제거 선점을 풀지 않는다. 실행은 입력 대기에 그대로 남으므로 사용자는 같은 명령을 다시 보낼 수 있다. 다시 보낸 명령은 새 update id 로 오므로 중복 제거에 걸리지 않는다. 프로바이더별 응답 예외(REQ-CHAT-058)는 이때도 그대로다. `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다. 근거는 [R-CC-31](#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다) 에 있다.
 
 ## 처리 흐름
 
@@ -234,8 +238,8 @@ flowchart TD
 3. **핸드셰이크 응답**: Slack `url_verification` 과 Discord PING 에 답한다. 워크플로우가 비활성이어도 답한다(REQ-CHAT-067).
 4. **파싱과 중복 제거, 분당 한도**: `parseUpdate` 뒤 중복 제거와 분당 한도를 지난다(REQ-CHAT-033·046). 그룹 대화와 지원하지 않는 update 는 여기서 버린다(REQ-CHAT-017).
 5. **도움말**: `/help` 면 도움말을 보낸다.
-6. **대화 조회와 취소 명령**: 채널 대화 상태를 조회한다. `/cancel` 이면 활성 실행을 취소한다.
-7. **진행 중인 대화의 전달**: 네이티브 폼 모달 열기와 제출, 활성 실행이 있는 대화의 `/start` 가 아닌 메시지는 REQ-CHAT-013·014 대로 대기 노드로 전달하거나 처리 중 안내로 끝낸다. 새 실행을 시작하지 않는다.
+6. **대화 조회와 취소 명령**: 채널 대화 상태를 조회한다. `/cancel` 이면 활성 실행을 취소한다. 취소를 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다(REQ-CHAT-074). 실행이 이미 끝났으면 건강도를 바꾸지 않는다(REQ-CHAT-075).
+7. **진행 중인 대화의 전달**: 네이티브 폼 모달 열기와 제출, 활성 실행이 있는 대화의 `/start` 가 아닌 메시지는 REQ-CHAT-013·014 대로 대기 노드로 전달하거나 처리 중 안내로 끝낸다. 새 실행을 시작하지 않는다. 재개 명령을 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다(REQ-CHAT-076).
 8. **워크플로우 활성 관문**: 남은 update 는 새 실행을 시작할 update 다. 워크플로우가 비활성이면 여기서 `202`·`{ executionId: 'ignored' }` 다(REQ-CHAT-066). `/start` 의 기존 실행 취소보다 앞이라 기존 실행은 그대로 남는다. 워크플로우가 트리거의 워크스페이스에 없으면 이 관문을 지나 REQ-CHAT-059 에서 걸린다. 이 관문이 무엇을 막고 무엇을 통과시키는지는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 9. **재시작과 새 실행**: `/start` 이고 활성 실행이 있으면 기존 실행을 취소한 뒤 새 실행을 시작한다(REQ-CHAT-062~064). 그 밖의 update 는 새 실행을 시작한다.
 
@@ -304,15 +308,16 @@ sequenceDiagram
 
 ## 채널 건강도
 
-채널 건강도(`chat_channel_health`)는 채팅 채널의 동작 상태다([용어 사전 — 외부 상호작용과 채널](../CLE-GLOSSARY-IX.md)). `degraded` 가 되는 원인은 아래 셋이고 이 표가 기준이다. 어느 원인도 트리거를 자동으로 비활성화하지 않는다(REQ-CHAT-032). 다음 성공 때 `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다.
+채널 건강도(`chat_channel_health`)는 채팅 채널의 동작 상태다([용어 사전 — 외부 상호작용과 채널](../CLE-GLOSSARY-IX.md)). `degraded` 가 되는 원인은 아래 넷이고 이 표가 기준이다. 어느 원인도 트리거를 자동으로 비활성화하지 않는다(REQ-CHAT-032). 다음 성공 때 `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다.
 
 | 원인 | 요구사항 | `chat_channel_last_error` |
 | --- | --- | --- |
 | 어댑터 실패(렌더 `renderNode` 실패, 채널 설정 `setupChannel` 실패, 발송이 재시도 뒤에도 실패) | REQ-CHAT-031 · 032(렌더 실패는 요구사항 줄이 없는 구현 동작) | 그 에러 메시지(1024자에서 자른다). 봇 토큰은 프로바이더 API 클라이언트가 자기 실패 문장에서 지운다(프로바이더 4xx 본문은 그대로). 실패할 때마다 덮어쓴다. 봇 토큰 재발급 API 의 `setupChannel` 실패는 4xx · 5xx 응답으로 돌려주고(REQ-CHAT-055) 건강도를 바꾸지 않는다 |
 | 대화 단위 분당 한도 초과 | REQ-CHAT-046 | 서버가 정한 문구 `Inbound rate limit exceeded (N/min)`(한도 값이 낀다). 이미 `degraded` 면 쓰지 않는다 |
 | 트리거의 워크플로우가 트리거의 워크스페이스에 없음 | REQ-CHAT-059 | 서버 고정 문구 `Workflow not found for this trigger`. 이미 `degraded` 면 쓰지 않는다 |
+| `/cancel` 의 취소나 입력 대기 실행으로 보내는 재개 명령을 재개 큐에 넣지 못함 | REQ-CHAT-074 · 076 | 서버 고정 문구(원인 종류를 알 수 있는 짧은 문장, 두 경우가 같다). 이미 `degraded` 면 쓰지 않는다 |
 
-뒤의 둘이 이미 `degraded` 면 쓰지 않는 것은 한도 초과가 몰릴 때 같은 쓰기를 되풀이하지 않으려는 것이다. 그래서 한도 초과나 교차 행이 나중에 와도 `chat_channel_last_error` 는 먼저 `degraded` 가 된 원인의 문구로 남는다. 어댑터 실패는 그때마다 덮어쓴다.
+뒤의 셋이 이미 `degraded` 면 쓰지 않는 것은 한도 초과나 큐 적재 실패가 몰릴 때 같은 쓰기를 되풀이하지 않으려는 것이다. 그래서 한도 초과, 교차 행, 큐 적재 실패가 나중에 와도 `chat_channel_last_error` 는 먼저 `degraded` 가 된 원인의 문구로 남는다. 어댑터 실패는 그때마다 덮어쓴다.
 
 `chat_channel_last_error` 는 트리거 상세를 볼 수 있는 워크스페이스 멤버에게 보이는 진단 표면이다. 화면은 이 값을 번역하지 않고 원문으로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 으로 자격 증명 모양만 가리고 그 밖의 원문은 진단을 위해 워크스페이스 멤버에게 보인다. 새로 저장되는 값에는 그 호출에 쓴 봇 토큰이 글자 그대로 남지 않는다. 프로바이더 API 클라이언트가 자기가 만든 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10). 프로바이더가 돌려준 4xx 본문은 바꾸지 않는다. 한계는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 에 있다. 재발급 API 의 에러 응답이 원문을 싣지 않는 것(R-CC-23)과의 관계는 [R-CC-26](#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 에 있다. 화면 도움말과 사용자 가이드는 원인을 나열하지 않고 «마지막 오류» 를 가리킨다. 원인이 늘 때마다 화면 문구가 낡지 않게 하려는 것이다.
 
@@ -447,9 +452,9 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 
 `config.chatChannel` 이 설정된 트리거의 `POST /api/hooks/:endpointPath` 응답 정책은 아래 규칙과 표로 정한다. `chatChannel` 이 없는 일반 웹훅 경로는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 을 따른다. 두 경로의 응답 정책을 나눈 것은 프로바이더 특성 차이 때문이다([R-CC-12 「인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)).
 
-- **기본**: `202 Accepted` 로 답한다. 실행을 만들지 않고 버린 update 와 어댑터 내부 에러도 `202` 다.
+- **기본**: `202 Accepted` 로 답한다. 실행을 만들지 않고 버린 update 와 어댑터 내부 에러도 `202` 다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못한 경우도 `202` 다(REQ-CHAT-074~076).
 - **(가) 조건을 만족하는 예외**: 인증 실패 `401` 과 엔드포인트 미존재 `404` 다. 이유는 [R-CC-12](#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) (d)·(e) 에 있다. 프로바이더가 특정 응답 형식만 받는 경우의 `200 OK` 도 여기 든다. 이 응답은 [프로바이더별 응답 예외](#프로바이더별-응답-예외) 의 두 조건을 모두 만족할 때만 둔다.
-- **(나) 내부 신뢰 호출 실패 전달**: `/start` 의 기존 실행 취소(`ExecutionsService.stop`)가 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 밖의 에러로 실패하면 그 에러로 답한다(REQ-CHAT-064). 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 가 이 경우다. 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다. 근거는 [R-CC-12](#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 와 [R-CC-27 「활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
+- **(나) 내부 신뢰 호출 실패 전달**: `/start` 의 기존 실행 취소(`ExecutionsService.stop`)가 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 밖의 에러로 실패하면 그 에러로 답한다(REQ-CHAT-064). 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 가 이 경우다. 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다. 근거는 [R-CC-12](#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 와 [R-CC-27 「활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다. `/cancel` 의 취소 실패와 재개 명령의 큐 적재 실패는 이 예외에 들지 않는다. 둘은 `202` 로 답하고 채널 건강도로 알린다(REQ-CHAT-074~076, [R-CC-31](#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다)).
 
 | 경우 | HTTP | 본문 | 어댑터 동작 |
 |---|---|---|---|
@@ -457,6 +462,9 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 | 1:1 대화, 정상 update(기존 실행에 전달) | `202 Accepted` | `{ executionId }`(활성 실행 id) | `InteractionService.interact` 호출, 새 실행 없음 |
 | 1:1 대화, 활성 실행이 있는 대화의 `/start` | `202 Accepted` | `{ executionId }`(새 실행 id) | 기존 실행을 실행 중지 경로로 취소한 뒤 새 실행 시작. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다(REQ-CHAT-062·063) |
 | 1:1 대화, `/start` 의 기존 실행 취소 실패(취소를 큐에 넣지 못함 등) | `503 Service Unavailable` 등 | 표준 에러 응답 봉투(`EXECUTION_ENQUEUE_FAILED` 등. 코드 정의는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조)) | 새 실행 없음. 그 update 의 중복 제거 선점을 풀어 프로바이더의 재전송을 받는다. 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외이고 위 규칙 (나) 에 해당한다(REQ-CHAT-064, [R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)) |
+| 1:1 대화, 활성 실행이 있는 대화의 `/cancel` | `202 Accepted` | `{ executionId }`(취소한 실행 id) | 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 비운다(REQ-CHAT-065). 실행이 이미 끝났거나 지워졌으면(`INVALID_STATE`·`RESOURCE_NOT_FOUND`) 취소할 것이 없으므로 같은 응답이고 채널 건강도를 바꾸지 않는다(REQ-CHAT-075) |
+| 1:1 대화, `/cancel` 의 취소를 재개 큐에 넣지 못함 | `202 Accepted` | `{ executionId }`(취소하려던 실행 id) | 실행은 입력 대기에 남고 채널 대화 상태의 `executionId` 도 그대로다. 경고 로그를 남기고 `chat_channel_health=degraded` 로 바꾼다. `chat_channel_last_error` 는 고정 문구이고 이미 `degraded` 면 다시 쓰지 않는다. 중복 제거 선점은 풀지 않는다. `/start` 의 같은 실패와 달리 `503` 으로 답하지 않는다(REQ-CHAT-074, [R-CC-31](#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다)) |
+| 1:1 대화, 입력 대기 실행으로 보내는 재개 명령(답장, 버튼 탭, 폼 제출)을 재개 큐에 넣지 못함 | `202 Accepted` | `{ executionId }`(활성 실행 id) | 실행은 입력 대기에 그대로 있다. `/cancel` 의 큐 적재 실패와 같이 경고 로그, `chat_channel_health=degraded`, 고정 문구를 남긴다. 네이티브 모달로 온 폼 제출은 아래 Interactivity ack 행의 응답을 그대로 쓴다(REQ-CHAT-076, R-CC-31) |
 | group·supergroup·channel 대화 | `202 Accepted` | `{ executionId: 'ignored' }` | `languageHints.groupChatRefusal` 안내 발송 |
 | 봇이 보낸 메시지(`from.is_bot === true`, Slack `bot_id`, Discord `member.user.bot === true`) | `202 Accepted` | `{ executionId: 'ignored' }` | 조용히 건너뜀 |
 | `parseUpdate` 가 지원하지 않는 update | `202 Accepted` | `{ executionId: 'ignored' }` | 조용히 건너뜀(웹훅 처리 흐름과 같다) |
@@ -473,6 +481,8 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 | Discord Interactivity ack(`type ∈ {2, 3, 5}`) | `200 OK` | `{ type: 5 \| 6 }`(DEFERRED)나 `{ type: 4, data: {...} }`(즉시) | 프로바이더별 예외. Discord 의 3초 ack 시한 |
 
 에러 응답 봉투 형식(`{ error: { code, message, details? } }`)은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 이 정한다.
+
+표의 `202` 본문 칸은 줄여 적은 것이다. 실제 `202` 본문은 전역 `TransformInterceptor` 의 `{ data }` 응답 봉투 안에 있고 `HooksController` 가 붙인 `message` 가 함께 실린다. 새 실행을 시작한 경우에는 `status: "pending"` 도 실린다. 응답 모양의 기준은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) 이고 두 필드를 붙이는 자리는 [트리거 데이터와 흐름 「웹훅 진입」](../CLE-TRIG/CLE-TRIG-DATA.md#웹훅-진입) 에 있다. `200 OK` 로 답하는 handshake 와 어댑터가 정한 응답 본문(Discord 모달 열기와 폼 제출 응답, Slack `{ response_action }`)은 `{ data }` 로 감싸지 않고 표의 본문 그대로 보낸다.
 
 새 실행을 만들지 않은 경우의 본문은 `{ ignored: true }` 가 아니라 `executionId` 에 표시 문자열을 넣은 `{ executionId: 'ignored' }` 다(`state?.executionId ?? 'ignored'`). 기존 실행에 전달한 경우는 활성 실행 id 를 돌려준다. 웹훅 문서의 처리 흐름이 이 인증 방식과 맞지 않는 점은 [미결 사항](#미결-사항) 을 본다.
 
@@ -631,7 +641,7 @@ fan-out 원천은 `executionEvents$` 이고 listener 는 셋이다. (1) `Notific
 
 ### R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다
 
-예외는 제목의 401·404 말고 둘이 더 있다. 프로바이더가 요구하는 응답 형식([프로바이더별 응답 예외](#프로바이더별-응답-예외))과 `/start` 의 기존 실행 취소 실패에 돌려주는 `503` `EXECUTION_ENQUEUE_FAILED`(REQ-CHAT-064)다. 규칙 목록은 [인바운드 HTTP 응답 계약](#인바운드-http-응답-계약) 에 있다.
+예외는 제목의 401·404 말고 둘이 더 있다. 프로바이더가 요구하는 응답 형식([프로바이더별 응답 예외](#프로바이더별-응답-예외))과 `/start` 의 기존 실행 취소 실패에 돌려주는 `503` `EXECUTION_ENQUEUE_FAILED`(REQ-CHAT-064)다. `/cancel` 의 취소와 재개 명령을 재개 큐에 넣지 못한 경우는 예외에 들지 않고 `202` 다(2026-10-17, R-CC-31). 규칙 목록은 [인바운드 HTTP 응답 계약](#인바운드-http-응답-계약) 에 있다.
 
 웹훅 처리 흐름이 이미 `202` 를 기준으로 정해 일관성을 지킨다. `200` 을 새로 들이면 Telegram 에는 차이가 없는데 웹훅 문서도 고쳐야 한다. 일반 웹훅의 410 Gone(WH-EP-07)을 쓰면 프로바이더가 non-2xx 에 웹훅을 자동 비활성화하고 재시도를 쏟아낸다(Telegram Bot API 문서화 동작).
 
@@ -648,7 +658,7 @@ fan-out 원천은 `executionEvents$` 이고 listener 는 셋이다. (1) `Notific
 - `/start` 의 취소는 새 실행을 시작하기 전의 정리 단계다. 이 실패를 `202` 로 숨기면 옛 실행이 남은 채 사용자의 `/start` 가 조용히 사라진다.
 - 큐 적재 실패는 일시적이다. 에러로 답하면 프로바이더가 다시 보낸 같은 update 를 받을 수 있다. 답하기 전에 그 update 의 중복 제거 선점을 풀어 재전송을 다시 처리한다.
 - 재전송이 쏟아져도 그 상한은 같은 대화의 `/start` 한 건이다.
-- 재개 명령(답장, 버튼 탭, 폼 제출)의 실패는 `202` 로 삼킨다. 그 명령들은 새 실행을 시작하지 않으므로 `/start` 와 다르게 둔다.
+- 재개 명령(답장, 버튼 탭, 폼 제출)과 `/cancel` 의 실패는 `202` 로 답한다. 그 명령들은 새 실행을 시작하지 않으므로 `/start` 와 다르게 둔다. 큐 적재 실패는 채널 건강도를 `degraded` 로 바꿔 알린다(R-CC-31).
 
 non-2xx 가 이어질 때 프로바이더가 웹훅을 끄는 조건은 확인하지 않았다. 그래도 이 위험을 받아들인 이유는 [R-CC-27 「활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
 
@@ -667,7 +677,7 @@ Discord v1 은 Interactions Webhook 만 써서 `MESSAGE_CREATE` 를 받지 못�
 - (a) 분류 입력 enum 의 기준은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 이고 이 영역은 매핑 규칙만 정한다.
 - (b) 알 수 없는 코드를 조용히 넘기지 않는 것은 새 노드 분류가 빠졌을 때 로그에서 바로 알기 위해서다.
 - (c) 모르는 자리표시자(`{nodeId}` 등)는 DTO validator 가 등록 때 `400 VALIDATION_ERROR` 로 거부한다. `CustomValidationPipe.flattenErrors` 는 `details[].code` 를 모든 제약 위반에 `INVALID_FIELD` 로 고정하고, validator 의 `UNKNOWN_PLACEHOLDER:<field>:<placeholder>` 문자열을 `details[].message` 에 그대로 넣는다. 그래서 `UNKNOWN_PLACEHOLDER` 는 `details[].message` 접두로만 드러나고 최상위 코드 목록에는 올리지 않는다.
-- (d) `chat_channel_health` 는 채널 동작 상태이고(원인은 [채널 건강도](#채널-건강도). 이 결정 때는 외부 호출 실패뿐이었고 R-CC-19 · R-CC-25 가 원인을 더했다) 실패 안내는 실행 실패 안내라 서로 직교한다. 안내 발송 자체가 끝내 실패하면 외부 호출 실패이므로 `degraded` 가 된다.
+- (d) `chat_channel_health` 는 채널 동작 상태이고(원인은 [채널 건강도](#채널-건강도). 이 결정 때는 외부 호출 실패뿐이었고 R-CC-19 · R-CC-25 · R-CC-31 이 원인을 더했다) 실패 안내는 실행 실패 안내라 서로 직교한다. 안내 발송 자체가 끝내 실패하면 외부 호출 실패이므로 `degraded` 가 된다.
 - (e) MCP 전용 에러 코드는 아직 없다. 생기면 분류 표에 행과 안내 키를 더하고, 입력 허용 목록은 그대로 쓴다.
 
 ### R-CC-16 표시 전용 Presentation 노드와 AI 표시물을 채널로 보낸다
@@ -694,7 +704,7 @@ EIA 알림 웹훅 허용 목록에 `node.completed` 를 더하는 안은 외부 
 
 ### R-CC-19 분당 한도 초과분은 재발송 큐 대신 건너뛰고 degraded 로 표시한다
 
-R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 뿐이다. 이 결정은 한도 초과 안에서 큐와 건너뛰기를 고른다. (a) 200ms 응답 시한 때문에 인바운드를 동기로 쌓거나 잡아 둘 수 없고 Telegram 은 늦은 응답에 재시도를 쏟아낸다. (b) 재발송 버퍼는 입력 순서, 중복 제거, TTL·정렬 장치를 요구해 v1 에 비해 이득이 적다. 그래서 건너뛰고(`202 { executionId: 'ignored' }`) 가시성은 `degraded` 로 확보한다. fixed-window 와 Redis 는 `PublicWebhookQuotaService` 패턴을 다시 써서 일관되고 여러 인스턴스에서 정확하다. 분 경계 몰림은 fixed-window 의 표준 trade-off 로 받아들인다. Redis 가 없으면 통과시킨다. 한도는 방어 기능이라 없을 때 막기보다 통과가 안전하다. `degraded` 는 외부 호출 실패와 한도 초과가 함께 쓰는 "정상 범위를 벗어남" 신호이고 자동 비활성화 금지는 공통이다. 2026-10-05 에 트리거의 워크플로우가 다른 워크스페이스에 있는 경우가 세 번째 원인으로 더해졌다(R-CC-25).
+R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 뿐이다. 이 결정은 한도 초과 안에서 큐와 건너뛰기를 고른다. (a) 200ms 응답 시한 때문에 인바운드를 동기로 쌓거나 잡아 둘 수 없고 Telegram 은 늦은 응답에 재시도를 쏟아낸다. (b) 재발송 버퍼는 입력 순서, 중복 제거, TTL·정렬 장치를 요구해 v1 에 비해 이득이 적다. 그래서 건너뛰고(`202 { executionId: 'ignored' }`) 가시성은 `degraded` 로 확보한다. fixed-window 와 Redis 는 `PublicWebhookQuotaService` 패턴을 다시 써서 일관되고 여러 인스턴스에서 정확하다. 분 경계 몰림은 fixed-window 의 표준 trade-off 로 받아들인다. Redis 가 없으면 통과시킨다. 한도는 방어 기능이라 없을 때 막기보다 통과가 안전하다. `degraded` 는 외부 호출 실패와 한도 초과가 함께 쓰는 "정상 범위를 벗어남" 신호이고 자동 비활성화 금지는 공통이다. 2026-10-05 에 트리거의 워크플로우가 다른 워크스페이스에 있는 경우가 세 번째 원인으로 더해졌다(R-CC-25). 2026-10-17 에 `/cancel` 과 재개 명령의 큐 적재 실패가 네 번째 원인으로 더해졌다(R-CC-31).
 
 ### R-CC-20 인바운드 중복 제거는 전용 서비스로 한다
 
@@ -828,6 +838,30 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 **실패 정책.** 발행 · 구독 실패는 warn 만 남기고 트리거 요청을 실패시키지 않는다(REQ-CHAT-073). Redis 가 없으면 그 서버 인스턴스의 레지스트리만 바뀐다. 서버 인스턴스가 하나면 그것으로 충분하다.
 
 **남은 한계.** 해제는 행을 지우기 전에 알린다. 그 뒤 행 삭제가 실패하면 그 트리거는 모든 서버 인스턴스의 레지스트리에서 빠지고 `teardownChannel()` 도 이미 불린 채로 남는다. 다음 재구독이나 재시작 때의 일괄 등록이 항목을 다시 넣는다. 연결이 이어진 동안의 발행 실패와 유실은 보정하지 않는다. DB 에서 메우는 것은 구독이 끊겼다 다시 붙을 때뿐이다. 다른 방식을 검토하지 않은 범위는 「pub/sub 로 충분한 이유」 에 있다.
+
+### R-CC-31 /cancel 과 재개 명령의 큐 적재 실패는 202 와 degraded 로 답한다
+
+2026-10-17 결정이다(NERV Task `CLE-T-EQDYC1` · `CLE-T-EMB0YG`). 사용자가 방식을 정했다.
+
+**그전 동작.** `/cancel` 은 `ExecutionsService.stop` 의 에러를 잡지 않았다. 입력 대기 실행의 취소를 재개 큐에 넣지 못하면 `503` `EXECUTION_ENQUEUE_FAILED` 가 그대로 프로바이더로 나갔다. 이 응답은 [인바운드 HTTP 응답 계약](#인바운드-http-응답-계약) 과 R-CC-12 의 `202` 고정 정책에 어긋났다. 내부 신뢰 호출로 보낸 재개 명령(답장, 버튼 탭, 폼 제출)은 재개 큐에 넣지 못해도 `InteractionService` 가 에러를 던지지 않는다(`queued:false`). 그래서 응답은 `202` 였지만 로그도 채널 건강도 신호도 남지 않았다.
+
+**결정.** 두 경우 모두 `202` 로 답한다(REQ-CHAT-074 · 076). 경고 로그를 남기고 `chat_channel_health` 를 `degraded` 로 바꾼다. `chat_channel_last_error` 에는 원인 종류를 알 수 있는 짧은 고정 문구를 남긴다. 분당 한도 초과(R-CC-19)와 워크스페이스 불일치(R-CC-25)의 `degraded` 처리와 같은 방식이다. 이미 `degraded` 면 다시 쓰지 않는다. `healthy` 로 돌아가는 규칙은 바꾸지 않는다.
+
+**`503` 대신 `202` 인 이유.** 메신저 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낸다(R-CC-12). 그러면 같은 명령이 되풀이된다. non-2xx 가 이어지면 프로바이더가 웹훅을 끌 수도 있다. 큐 적재 실패는 채널 건강도와 «마지막 오류» 에 드러나고 사용자와 운영자는 트리거 상세에서 그 값을 본다.
+
+**`/start` 를 그대로 두는 이유.** `/start` 의 같은 실패는 지금 규칙대로 에러로 답한다(REQ-CHAT-064). 이번 결정은 그 규칙을 다시 열지 않았다. `/start` 는 재전송으로 같은 `/start` 를 다시 처리하려고 중복 제거 선점까지 푼다(R-CC-27). `/cancel` 과 재개 명령은 새 실행을 시작하지 않는다. 실패해도 실행은 입력 대기에 그대로 있고 채널 대화 상태도 그 실행을 가리킨다. 사용자가 같은 명령을 다시 보내면 다시 처리된다.
+
+**중복 제거 선점.** `/start` 와 달리 풀지 않는다. `202` 를 받은 프로바이더는 같은 update 를 다시 보내지 않으므로 풀어도 다시 처리될 update 가 없다. 사용자가 다시 보낸 명령은 새 update id 로 오므로 30초 중복 제거(REQ-CHAT-033)에 걸리지 않는다.
+
+**이미 끝난 실행.** `/cancel` 이 상태를 읽은 뒤 실행이 먼저 끝났거나 지워지면 `stop` 이 `INVALID_STATE` 나 `RESOURCE_NOT_FOUND` 로 거부한다. 이미 끝난 실행을 취소하려 한 것뿐이라 채널의 이상이 아니다. 그래서 `202` 로 답하고 `degraded` 로 바꾸지 않는다(REQ-CHAT-075). 판정은 `/start`(REQ-CHAT-063)와 같이 HTTP 상태가 아닌 에러 코드로 한다.
+
+**고정 문구.** `chat_channel_last_error` 는 워크스페이스 멤버에게 보이는 진단 필드다. 큐 적재 실패는 우리 쪽 인프라의 일시 장애라 사용자가 고칠 원인이 아니다. 그래서 R-CC-25 처럼 원인 종류만 알리는 고정 문구를 쓰고 실행 id 와 트리거 id 는 경고 로그에만 남긴다. 프로바이더 원문을 싣는 어댑터 실패(R-CC-26)와 다른 점이다. `/cancel` 과 재개 명령은 같은 문구를 쓴다. 문구 원문은 기존 `degraded` 문구의 관례를 따라 구현에서 정하고 이 문서에는 적지 않는다.
+
+**기각한 대안.**
+
+- (a) `503` 을 그대로 둔다(그전 `/cancel` 동작). 프로바이더가 같은 `/cancel` 을 다시 보내고 non-2xx 가 이어지면 웹훅이 꺼질 수 있다. 실패가 채널 건강도에 남지 않아 운영자가 알 수 없다.
+- (b) `degraded` 없이 `202` 로 넘긴다(그전 재개 명령 동작). 사용자의 입력이 실행에 닿지 않았는데 로그도 건강도 신호도 남지 않는다.
+- (c) `/start` 처럼 중복 제거 선점을 풀고 `202` 로 답한다. `202` 에는 재전송이 오지 않으므로 풀어도 다시 처리될 update 가 없다.
 
 ### 카탈로그를 v1 부터 둔 이유
 

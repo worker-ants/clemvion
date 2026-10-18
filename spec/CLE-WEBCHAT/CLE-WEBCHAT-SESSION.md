@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SESSION"
 title: "웹채팅 인증과 세션"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-WCSESS-001", "REQ-WCSESS-002", "REQ-WCSESS-003", "REQ-WCSESS-004", "REQ-WCSESS-005", "REQ-WCSESS-006", "REQ-WCSESS-007", "REQ-WCSESS-008", "REQ-WCSESS-009", "REQ-WCSESS-010", "REQ-WCSESS-011", "REQ-WCSESS-012", "REQ-WCSESS-013", "REQ-WCSESS-014", "REQ-WCSESS-015", "REQ-WCSESS-016", "REQ-WCSESS-017", "REQ-WCSESS-018", "REQ-WCSESS-019", "REQ-WCSESS-020", "REQ-WCSESS-021", "REQ-WCSESS-022", "REQ-WCSESS-023", "REQ-WCSESS-024", "REQ-WCSESS-025", "REQ-WCSESS-026", "REQ-WCSESS-027", "REQ-WCSESS-028", "REQ-WCSESS-029", "REQ-WCSESS-030", "REQ-WCSESS-031", "REQ-WCSESS-032", "REQ-WCSESS-033", "REQ-WCSESS-034"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "02bff874d4a07d85ef67d489f14e49d142e13c6eecb908af5db8e59311d3b606"
-read_as: "approved"
-task: null
+content_hash: "cd5938525ae3040b66998b950e6169a27a4503f43eb867c555a8704e34cd3733"
+read_as: "approved_fallback"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/7-channel-web-chat/3-auth-session.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "1e359106fddf3f514ac74eff353c45ec9d30f3973c736e3b30a06660f7705e2c"
-etag: "sha256-812b08ee7433ef7081d23bf3d30e0570a60bb9566080ca4fded75eba03fe6ecf"
+mirror_sha256: "c9a37f19698b9fae1731050121439129412cef5f003c9582aa35e2d3f92ade07"
+etag: "sha256-c3a2b39330475803258c988d86b9c82511187d2e708d49798f93e54cba9abaf1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/3-auth-session.md`, `spec/7-channel-web-chat/5-admin-console.md` (§6 첫 노드 race 보정) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -101,7 +101,7 @@ sequenceDiagram
 
 0. (부팅) 위젯이 `GET /api/hooks/:path/embed-config` 로 `{ data: { allowlist, enforce } }` 를 조회하고 `data` 를 벗겨 호스트 origin 을 비교한다. 맞지 않으면 위젯은 `[blocked]` 가 되고 시작하지 않는다. 허용 목록이 비었거나 `enforce=false` 면 통과한다(fail-open). 자세한 규칙은 [웹채팅 보안](CLE-WEBCHAT-SECURITY.md).
 1. 패널이 열리면(런처 클릭) 위젯이 `POST /api/hooks/:path { profile }` 를 보낸다. 인증이 없고 `firstMessage` 를 싣지 않는다([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md)).
-2. API 가 `202 { data: { executionId, status: "pending", interaction: { token: iext_*, expiresAt, endpoints } } }` 로 응답한다. 전역 `TransformInterceptor` 가 모든 성공 응답을 `{ data }` 응답 봉투로 감싸므로 위젯은 `data` 를 벗겨 읽는다.
+2. API 가 `202 { data: { executionId, message, status: "pending", interaction: { token: iext_*, expiresAt, endpoints } } }` 로 응답한다. 전역 `TransformInterceptor` 가 모든 성공 응답을 `{ data }` 응답 봉투로 감싸므로 위젯은 `data` 를 벗겨 읽는다. `message` 는 웹훅 202 본문에 늘 들어가는 안내 문장이고 위젯은 이 키를 쓰지 않는다. 202 본문 모양은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) 가 기준이다.
 3. 위젯이 `GET .../:id/stream?token=iext_*` 로 SSE 를 연다. 이어서 아래 [첫 노드 보정](#첫-노드-보정)을 한다.
 4. SSE `execution.waiting_for_input` 이 오면 `interactionType` 별로 첫 표면을 그린다. `ai_conversation` 이면 입력창, `buttons`·carousel 이면 선택지, `form` 이면 폼이다.
 5. 사용자가 입력하거나 선택하면 `POST .../:id/interact { command: submit_message|click_button|submit_form, ... }` 를 `Authorization: Bearer iext_*` 로 보낸다.
@@ -145,7 +145,7 @@ sequenceDiagram
 유휴 실행 회수(`WEBCHAT_IDLE_TIMEOUT`)는 버려진 공개 위젯 실행을 서버가 거두는 장치다. 사용자가 명시 종료 없이 떠나면(탭 닫기, "닫기") 그 실행은 입력 대기로 남는다. 위젯의 새 대화 전 `cancel`([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md))은 정상 경로만 즉시 닫으므로 놓친 경로에 남은 실행을 서버가 거둔다.
 
 - 대상: 공개 웹훅(`auth_config_id IS NULL`) 트리거가 시작하고 실행 단위 토큰으로만 접근하는 입력 대기 실행.
-- 판정: 발급한 모든 인터랙션 토큰이 만료되고(`execution_token.exp_at` 이 모두 `< now`) 유예 시간(env `WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 1시간)이 지남.
+- 판정: 그 실행의 인터랙션 토큰 행이 하나 이상 있고 그 토큰이 모두 만료되고(`execution_token.exp_at` 이 모두 `< now`) 유예 시간(env `WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 1시간)이 지남. 토큰 행이 하나도 없는 실행은 회수하지 않는다([External Interaction API](../CLE-IX/CLE-EIA.md) REQ-EIA-030).
 - 결과: `cancelled`(`cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`). hard-delete 가 아니라 취소 전이와 토큰 일괄 폐기이며 기록과 상태 조회는 남는다.
 - 구현: `WebChatIdleReaperService`, BullMQ repeatable 분 단위(구현됨).
 

@@ -1,11 +1,11 @@
 import {
   INTERACTION_STREAM_CLOSER,
-  closeTriggerTokenStreams,
+  resolveAndCloseTriggerTokenStreams,
 } from './interaction-stream-closer';
 
 // 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰) — 닫기는 best-effort 다. 닫지
 // 못해도 재발급 · PATCH · 삭제의 결과는 그대로다.
-describe('closeTriggerTokenStreams', () => {
+describe('resolveAndCloseTriggerTokenStreams', () => {
   function makeLogger() {
     return { error: jest.fn() };
   }
@@ -14,7 +14,7 @@ describe('closeTriggerTokenStreams', () => {
     const closer = { closeTriggerTokenStreams: jest.fn().mockReturnValue(2) };
     const moduleRef = { get: jest.fn().mockReturnValue(closer) };
     const logger = makeLogger();
-    closeTriggerTokenStreams(moduleRef, ['trg-1'], logger, 'caller');
+    resolveAndCloseTriggerTokenStreams(moduleRef, ['trg-1'], logger, 'caller');
     expect(moduleRef.get).toHaveBeenCalledWith(INTERACTION_STREAM_CLOSER, {
       strict: false,
     });
@@ -24,7 +24,7 @@ describe('closeTriggerTokenStreams', () => {
 
   it('빈 목록이면 포트를 찾지 않는다', () => {
     const moduleRef = { get: jest.fn() };
-    closeTriggerTokenStreams(moduleRef, [], makeLogger(), 'caller');
+    resolveAndCloseTriggerTokenStreams(moduleRef, [], makeLogger(), 'caller');
     expect(moduleRef.get).not.toHaveBeenCalled();
   });
 
@@ -37,7 +37,12 @@ describe('closeTriggerTokenStreams', () => {
     };
     const logger = makeLogger();
     expect(() =>
-      closeTriggerTokenStreams(moduleRef, ['trg-1'], logger, 'caller'),
+      resolveAndCloseTriggerTokenStreams(
+        moduleRef,
+        ['trg-1'],
+        logger,
+        'caller',
+      ),
     ).not.toThrow();
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('NOT_FOUND_MARK'),
@@ -52,7 +57,7 @@ describe('closeTriggerTokenStreams', () => {
     };
     const logger = makeLogger();
     expect(() =>
-      closeTriggerTokenStreams(
+      resolveAndCloseTriggerTokenStreams(
         { get: jest.fn().mockReturnValue(closer) },
         ['trg-1'],
         logger,
@@ -66,7 +71,7 @@ describe('closeTriggerTokenStreams', () => {
   it('실패 로그에는 트리거 id 를 개수와 앞 몇 개만 싣는다', () => {
     const logger = makeLogger();
     const ids = Array.from({ length: 5000 }, (_, i) => `trg-${i}`);
-    closeTriggerTokenStreams(
+    resolveAndCloseTriggerTokenStreams(
       {
         get: jest.fn(() => {
           throw new Error('boom');

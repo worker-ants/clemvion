@@ -2,10 +2,13 @@ import {
   decideNotificationSigning,
   newNotificationSigningSecret,
   notificationWithSigningRef,
+  readStoredSigningSecret,
   signingWithRef,
 } from './notification-signing-secret';
 
 // 근거: [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
+const REF = 'secret://triggers/t1/notification-signing';
+
 describe('decideNotificationSigning', () => {
   it('secret:// 형식 참조가 있으면 다시 만든다', () => {
     expect(
@@ -59,6 +62,62 @@ describe('decideNotificationSigning', () => {
   });
 });
 
+// 판정과 발송 처리기(`NotificationWebhookProcessor.resolveSigningSecret`)가 이 함수 하나로 «있음» 을 읽는다
+// (NERV Task `CLE-T-EQDYC1`). 둘이 갈리면 발송이 «없음» 으로 보는 행을 판정이 «있음» 으로 보고 발급하지 않는다.
+describe('readStoredSigningSecret', () => {
+  it.each([
+    [
+      'secret:// 형식 참조',
+      { secretRef: REF },
+      { kind: 'ref', secretRef: REF },
+    ],
+    [
+      '참조와 옛 평문이 함께 있으면 참조가 앞선다',
+      { secretRef: REF, secret: 'legacy' },
+      { kind: 'ref', secretRef: REF },
+    ],
+    [
+      '비어 있지 않은 옛 평문',
+      { secret: 'legacy-plain' },
+      { kind: 'legacy', plaintext: 'legacy-plain' },
+    ],
+    [
+      '형식이 틀린 참조 옆의 옛 평문',
+      { secretRef: 'not-a-ref', secret: 'legacy' },
+      { kind: 'legacy', plaintext: 'legacy' },
+    ],
+    ['형식이 틀린 참조만', { secretRef: 'not-a-ref' }, { kind: 'none' }],
+    ['빈 문자열 평문', { secret: '' }, { kind: 'none' }],
+    ['문자열이 아닌 값', { secretRef: 1, secret: 2 }, { kind: 'none' }],
+    ['빈 설정', {}, { kind: 'none' }],
+    ['객체가 아닌 설정', 'x', { kind: 'none' }],
+    ['없는 설정', undefined, { kind: 'none' }],
+  ])('%s', (_label, signing, expected) => {
+    expect(readStoredSigningSecret(signing)).toEqual(expected);
+  });
+
+  it('판정은 이 함수의 결과를 그대로 따른다', () => {
+    const cases: unknown[] = [
+      { secretRef: REF },
+      { secret: 'legacy' },
+      { secret: '' },
+      { secretRef: 'not-a-ref' },
+      undefined,
+    ];
+    for (const signing of cases) {
+      const presence = readStoredSigningSecret(signing);
+      const decision = decideNotificationSigning({ signing });
+      expect(decision.kind).toBe(
+        presence.kind === 'ref'
+          ? 'rederive'
+          : presence.kind === 'legacy'
+            ? 'migrate'
+            : 'issue',
+      );
+    }
+  });
+});
+
 describe('newNotificationSigningSecret', () => {
   it('wsk_ 와 64자리 hex 다', () => {
     expect(newNotificationSigningSecret()).toMatch(/^wsk_[a-f0-9]{64}$/);
@@ -67,8 +126,6 @@ describe('newNotificationSigningSecret', () => {
     );
   });
 });
-
-const REF = 'secret://triggers/t1/notification-signing';
 
 describe('signingWithRef', () => {
   it('참조를 싣고 옛 평문 키를 뺀다', () => {

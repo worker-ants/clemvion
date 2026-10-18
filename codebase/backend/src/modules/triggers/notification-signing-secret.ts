@@ -8,6 +8,36 @@ export function newNotificationSigningSecret(): string {
   return `wsk_${randomBytes(32).toString('hex')}`;
 }
 
+/** 저장된 `signing` 에서 읽은 시크릿. {@link readStoredSigningSecret} 의 결과다. */
+export type StoredSigningSecret =
+  | { kind: 'ref'; secretRef: string }
+  | { kind: 'legacy'; plaintext: string }
+  | { kind: 'none' };
+
+/**
+ * 저장된 `notification.signing` 에 쓸 수 있는 시크릿이 있는지 읽는다.
+ *
+ * 참조 «있음» 은 `isSecretRef`(시크릿 저장소 규칙 24)이고, 옛 평문 «있음» 은 비어 있지 않은 문자열이다.
+ * 둘 다 있으면 참조가 앞선다. 빈 문자열 평문은 «없음» 이다.
+ *
+ * 발급 판정({@link decideNotificationSigning})과 발송 처리기(`NotificationWebhookProcessor`)가 이 함수 하나로
+ * «있음» 을 읽는다(NERV Task `CLE-T-EQDYC1`). 둘이 갈리면 발송이 «없음» 으로 보는 행을 판정이 «있음» 으로 보고
+ * 발급하지 않아 발송이 계속 `degraded` 가 된다.
+ */
+export function readStoredSigningSecret(signing: unknown): StoredSigningSecret {
+  const fields =
+    signing && typeof signing === 'object'
+      ? (signing as { secretRef?: unknown; secret?: unknown })
+      : {};
+  if (typeof fields.secretRef === 'string' && isSecretRef(fields.secretRef)) {
+    return { kind: 'ref', secretRef: fields.secretRef };
+  }
+  if (typeof fields.secret === 'string' && fields.secret.length > 0) {
+    return { kind: 'legacy', plaintext: fields.secret };
+  }
+  return { kind: 'none' };
+}
+
 /** {@link decideNotificationSigning} 의 결정. 각 값의 뜻은 그 함수의 표에 있다. */
 export type NotificationSigningDecision =
   | { kind: 'rederive' }
@@ -23,11 +53,9 @@ export type NotificationSigningDecision =
  * | 참조가 없고 옛 평문 `secret` 이 비어 있지 않은 문자열 | `migrate` — 그 평문을 시크릿 저장소로 옮긴다. 발급하지 않는다 |
  * | 둘 다 없음 | `issue` — 첫 시크릿을 발급한다 |
  *
- * 판정은 발송 처리기(`NotificationWebhookProcessor.resolveSigningSecret`)와 같다 — 참조 «있음» 은
- * `isSecretRef`(시크릿 저장소 규칙 24), 옛 평문 «있음» 은 비어 있지 않은 문자열이다. 둘이 갈리면 발송이
- * «없음» 으로 보는 행을 여기서 «있음» 으로 보고 발급하지 않아 발송이 계속 `degraded` 가 된다.
+ * «있음» 판정은 발송 처리기와 같은 {@link readStoredSigningSecret} 으로 읽는다.
  * 옛 평문이 있으면 옮기는 이유: PATCH 가 `notification` 을 통째로 바꾸면 그 평문이 사라지는데, 새로
- * 발급하면 수신 측이 쓰던 시크릿이 유예 없이 바뀐다. 빈 문자열은 «없음» 이다 — 빈 시크릿을 저장하지 않는다.
+ * 발급하면 수신 측이 쓰던 시크릿이 유예 없이 바뀐다. 빈 시크릿은 저장하지 않는다.
  */
 export function decideNotificationSigning(
   storedNotification: unknown,
@@ -36,17 +64,15 @@ export function decideNotificationSigning(
     storedNotification && typeof storedNotification === 'object'
       ? (storedNotification as { signing?: unknown }).signing
       : undefined;
-  const fields =
-    signing && typeof signing === 'object'
-      ? (signing as { secretRef?: unknown; secret?: unknown })
-      : {};
-  if (typeof fields.secretRef === 'string' && isSecretRef(fields.secretRef)) {
-    return { kind: 'rederive' };
+  const stored = readStoredSigningSecret(signing);
+  switch (stored.kind) {
+    case 'ref':
+      return { kind: 'rederive' };
+    case 'legacy':
+      return { kind: 'migrate', plaintext: stored.plaintext };
+    case 'none':
+      return { kind: 'issue' };
   }
-  if (typeof fields.secret === 'string' && fields.secret.length > 0) {
-    return { kind: 'migrate', plaintext: fields.secret };
-  }
-  return { kind: 'issue' };
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

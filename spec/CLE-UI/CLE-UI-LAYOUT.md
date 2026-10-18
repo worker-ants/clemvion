@@ -2,25 +2,25 @@
 id: "CLE-UI-LAYOUT"
 title: "레이아웃과 내비게이션"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-LAYOUT-001", "REQ-LAYOUT-002", "REQ-LAYOUT-003", "REQ-LAYOUT-004", "REQ-LAYOUT-005", "REQ-LAYOUT-006", "REQ-LAYOUT-007", "REQ-LAYOUT-008", "REQ-LAYOUT-009", "REQ-LAYOUT-010", "REQ-LAYOUT-011", "REQ-LAYOUT-012", "REQ-LAYOUT-013", "REQ-LAYOUT-014", "REQ-LAYOUT-015", "REQ-LAYOUT-016", "REQ-LAYOUT-017", "REQ-LAYOUT-018", "REQ-LAYOUT-019", "REQ-LAYOUT-020", "REQ-LAYOUT-021", "REQ-LAYOUT-022", "REQ-LAYOUT-023", "REQ-LAYOUT-024", "REQ-LAYOUT-025", "REQ-LAYOUT-026", "REQ-LAYOUT-027", "REQ-LAYOUT-028", "REQ-LAYOUT-029", "REQ-LAYOUT-030", "REQ-LAYOUT-031", "REQ-LAYOUT-032", "REQ-LAYOUT-033", "REQ-LAYOUT-034", "REQ-LAYOUT-035", "REQ-LAYOUT-036", "REQ-LAYOUT-037", "REQ-LAYOUT-038", "REQ-LAYOUT-039", "REQ-LAYOUT-040", "REQ-LAYOUT-041", "REQ-LAYOUT-042", "REQ-LAYOUT-043"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "9f423a48e67910f8c9fc3ab093c36cc320c738218c9dcb86b2567c1bd65d455e"
-read_as: "approved"
-task: null
+content_hash: "9c27a2c032f4628794f07804e2bbe7de4cbbac255f7617d4711e52781320368a"
+read_as: "approved_fallback"
+task: "CLE-T-6YY7KY"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "9cd4cee14a31ae6d2837f2ecbae63bf3783037bccacceb3f400d989db60acd2a"
-etag: "sha256-2264a3e1523bd932098400a2cdcf37dc1f7f3395fbdb6579d00446a1622df9d5"
+mirror_sha256: "f5d823c3cf2edd477453a2b285e4966633b3ff3247b95e167b688c326fac48d1"
+etag: "sha256-a39388b27e9f3c1fced1891fd0533d7293f242d99f6a6ad5422a94a2a0d41f5a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/_layout.md` (§1 레이아웃 구조, §2 사이드바, §4 메인 컨텐츠 영역, §5 공통 헤더, Rationale), `spec/2-navigation/_product-overview.md` (§1 개요, §2 내비게이션 구조), `spec/0-overview.md` (§3 공통 UI 패턴, Rationale «Inline Alert 의 위치») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 로그인한 사용자가 보는 모든 화면의 틀을 정한다. 왼쪽 사이드바와 오른쪽 메인 영역으로 나뉜 레이아웃, 사이드바 메뉴와 동작, 워크스페이스 슬러그(slug, `Workspace.slug`)를 붙인 라우팅, 메인 영역과 공통 헤더, 그리고 여러 화면이 함께 쓰는 UI 패턴(목록·상세 패널·상태 표시·반응형·테마)이다.
+이 문서는 로그인한 사용자가 보는 모든 화면의 틀을 정한다. 왼쪽 사이드바와 오른쪽 메인 영역으로 나뉜 레이아웃, 사이드바 메뉴와 동작, 워크스페이스 슬러그(slug, `Workspace.slug`)를 붙인 라우팅, 메인 영역과 공통 헤더, 그리고 여러 화면이 함께 쓰는 UI 패턴(목록·상세 드로어·상태 표시·반응형·테마)이다.
 
 제품의 내비게이션은 왼쪽 사이드바가 중심이다. 메뉴 항목마다 독립 화면으로 바뀌고, 워크플로우 에디터는 목록에서 워크플로우를 고르면 들어가는 별도 화면이다.
 
@@ -109,21 +109,23 @@ etag: "sha256-2264a3e1523bd932098400a2cdcf37dc1f7f3395fbdb6579d00446a1622df9d5"
 
 경로는 논리 경로다. 실제 URL 은 [워크스페이스 슬러그 라우팅](#워크스페이스-슬러그-라우팅) 에 따라 `/w/<slug>/<경로>` 로 그린다. 사용자 가이드만 예외다.
 
+항목 이름은 한국어 화면 문구다. 값의 정본은 화면 문구 사전 `codebase/frontend/src/lib/i18n/dict/ko/sidebar.ts` 이고 사전 규약은 [다국어와 화면 문구](CLE-UI-I18N.md) 가 정한다.
+
 | 순서 | 항목 | 아이콘 | 경로 | 비고 |
 | --- | --- | --- | --- | --- |
-| 1 | Dashboard | 홈(LayoutDashboard) | `/dashboard` | [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) |
-| 2 | Workflows | 플로우차트(GitBranch) | `/workflows` | [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md) |
-| 3 | Triggers | 번개(Zap) | `/triggers` | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
-| 4 | Schedule | 달력(Calendar) | `/schedules` | [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
-| 5 | Web Chat | 말풍선(MessageCircle) | `/web-chat` | 임베드형 웹채팅 위젯의 설치·미리보기 콘솔. [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) |
-| 6 | Integration | 퍼즐(Puzzle) | `/integrations` | HTTP·DB·Email·MCP 서버 등 외부 통합. [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
-| 7 | Knowledge Base | 책(BookOpen) | `/knowledge-bases` | RAG 용 지식 저장소. Vector·Graph 모드. [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) |
-| 8 | Models | 두뇌(Brain) | `/models` | AI 노드가 부를 모델 프로바이더·기본 모델·파라미터. [모델 설정](../CLE-AI/CLE-AI-MODELS.md) |
-| 9 | Authentication | 자물쇠(Lock) | `/authentication` | 외부 호출자용 API Key·Bearer·Basic 인증. [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
-| 10 | Statistics | 차트(BarChart3) | `/statistics` | [통계](../CLE-OBS/CLE-OBS-STATS.md) |
-| 11 | System Status | 활동(Activity) | `/system-status` | 워크스페이스·사용자와 무관한 전체 시스템(큐) 상태. [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md) |
-| 12 | Agent Memory | 두뇌 회로(BrainCircuit) | `/agent-memory` | 에이전트 메모리 조회·관리. [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) |
-| 13 | User Guide | 책(BookMarked) | `/docs` | 에디터·설정·노드 도움말. [사용자 가이드](CLE-UI-GUIDE.md) |
+| 1 | 대시보드 | 홈(LayoutDashboard) | `/dashboard` | [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) |
+| 2 | 워크플로우 | 플로우차트(GitBranch) | `/workflows` | [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md) |
+| 3 | 트리거 | 번개(Zap) | `/triggers` | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
+| 4 | 스케줄 | 달력(Calendar) | `/schedules` | [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
+| 5 | 웹채팅 | 말풍선(MessageCircle) | `/web-chat` | 임베드형 웹채팅 위젯의 설치·미리보기 콘솔. [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) |
+| 6 | 통합 | 퍼즐(Puzzle) | `/integrations` | HTTP·DB·Email·MCP 서버 등 외부 통합. [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
+| 7 | 지식 저장소 | 책(BookOpen) | `/knowledge-bases` | RAG 용 지식 저장소. Vector·Graph 모드. [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) |
+| 8 | 모델 설정 | 두뇌(Brain) | `/models` | AI 노드가 부를 모델 프로바이더·기본 모델·파라미터. [모델 설정](../CLE-AI/CLE-AI-MODELS.md) |
+| 9 | 인증 | 자물쇠(Lock) | `/authentication` | 외부 호출자용 API Key·Bearer·Basic 인증. [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
+| 10 | 통계 | 차트(BarChart3) | `/statistics` | [통계](../CLE-OBS/CLE-OBS-STATS.md) |
+| 11 | 시스템 상태 | 활동(Activity) | `/system-status` | 워크스페이스·사용자와 무관한 전체 시스템(큐) 상태. [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md) |
+| 12 | 에이전트 메모리 | 두뇌 회로(BrainCircuit) | `/agent-memory` | 에이전트 메모리 조회·관리. [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) |
+| 13 | 사용자 가이드 | 책(BookMarked) | `/docs` | 에디터·설정·노드 도움말. [사용자 가이드](CLE-UI-GUIDE.md) |
 
 모델 설정과 인증 설정은 설정(Config) 하위 메뉴가 아니라 최상위 메뉴다. 설정 묶음 하위 메뉴와 그 접기·펼치기 동작은 지금 없다. 나중에 설정 묶음을 다시 도입하면 그때 정한다.
 
@@ -176,7 +178,7 @@ etag: "sha256-2264a3e1523bd932098400a2cdcf37dc1f7f3395fbdb6579d00446a1622df9d5"
 
 검색·필터 결과가 없을 때와 데이터가 없을 때의 화면은 [오류 화면과 빈 상태](CLE-UI-ERRORS.md) 가 정한다.
 
-### 상세·설정 패널
+### 상세 드로어와 설정 패널
 
 - 오른쪽 상세 드로어 또는 모달로 연다.
 - 설정 패널은 저장·취소(또는 "변경 저장") 버튼으로 저장한다. 워크플로우 에디터 캔버스는 수동 저장(`Ctrl+S`·Save)과 실행 직전 저장만 하고 타이머 자동 저장은 없다([워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md)).
@@ -215,7 +217,7 @@ etag: "sha256-2264a3e1523bd932098400a2cdcf37dc1f7f3395fbdb6579d00446a1622df9d5"
 ## 미결 사항
 
 - **모바일 뷰어 모드의 근거**: 원문 공통 UI 패턴은 "에디터는 데스크톱 전용이고 모바일에서는 뷰어 모드만 제공한다" 고 적는다. 그런데 뷰어 모드를 정의한 문서가 이 한 줄 말고 없고, 레이아웃 규칙은 1280px 미만에서 사이드바를 숨기는 것만 정한다. 모바일 뷰어 모드가 실제로 있는지 확인이 필요하다. 없으면 계획으로 표시해야 한다.
-- **마켓플레이스 메뉴 위치**: 레이아웃 원문의 주석은 구현하면 System Status 바로 뒤에 둔다고 적고, 내비게이션 PRD 트리는 User Guide 뒤 맨 끝에 둔다. 주석의 번호(11)도 지금 메뉴 순서와 맞지 않는다. 착수할 때 정한다(관련: [마켓플레이스 (구상)](CLE-UI-MARKET.md)).
+- **마켓플레이스 메뉴 위치**: 레이아웃 원문의 주석은 구현하면 시스템 상태 바로 뒤에 둔다고 적고, 내비게이션 PRD 트리는 사용자 가이드 뒤 맨 끝에 둔다. 주석의 번호(11)도 지금 메뉴 순서와 맞지 않는다. 착수할 때 정한다(관련: [마켓플레이스 (구상)](CLE-UI-MARKET.md)).
 
 ## 구현 위치
 
@@ -247,3 +249,10 @@ etag: "sha256-2264a3e1523bd932098400a2cdcf37dc1f7f3395fbdb6579d00446a1622df9d5"
 ### 인라인 안내를 공통 패턴 자리에 둔 이유
 
 인라인 안내는 통합·지식 저장소 같은 내비게이션 화면에서 처음 도입됐다. 그래서 내비게이션 레이아웃 문서에 두는 것이 자연스러워 보였다. 그러나 앞으로 웹훅 서명 키 교체나 알림 설정 변경처럼 내비게이션 밖으로 사용처가 넓어질 가능성을 보면, 영역에 묶어 두는 비용이 더 크다고 판단했다. 그래서 여러 화면이 함께 쓰는 공통 패턴 자리에 둔다. 첫 사용처와 문서상 거리가 멀어진 것은 받아들인 비용이다.
+
+### 사이드바 메뉴 이름을 한국어 화면 문구로 적는다 (2026-10-17)
+
+NERV Task `CLE-T-6YY7KY` 가 고쳤다. [메뉴 항목](#메뉴-항목) 표는 항목 이름 13개를 모두 영어로 적었다. 한국어 화면의 사이드바에는 "대시보드" · "워크플로우" 같은 한국어 문구가 보인다. [용어 사전](../CLE-GLOSSARY.md) 표기 원칙 1 은 화면 개념을 화면 문구로 부르게 한다. 그래서 항목 이름을 한국어 화면 문구 사전의 값으로 바꾸고 표 앞에 그 출처를 적었다. 「마켓플레이스 메뉴 위치」 미결 사항의 메뉴 이름도 함께 바꿨다. 같은 메뉴를 영어 이름으로 적은 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)(사이드바 메뉴를 정한 요구사항 포함) · [모델 설정](../CLE-AI/CLE-AI-MODELS.md) · [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 은 후속 NERV Task `CLE-T-N0K4SE` 가 맞춘다.
+
+- 기각한 대안: 영어 이름을 괄호로 함께 적는 안. 영어 이름은 영어 화면 문구 사전의 값이다. 두 사전의 값을 이 표에 옮기면 문구가 바뀔 때마다 표가 뒤처진다. 영어 값은 사전에서 찾는다.
+- 같은 Task 에서 「상세 패널」 을 [용어 사전](../CLE-GLOSSARY.md) 의 표준 용어 「상세 드로어」 로 맞췄다. 개요와 공통 UI 패턴의 절 제목이다. 절 제목이 바뀌어 앵커도 바뀌었다. 이 앵커를 가리키는 링크는 찾지 못했다.

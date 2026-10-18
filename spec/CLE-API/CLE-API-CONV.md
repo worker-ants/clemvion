@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "ecad5919df0d42fd60b208af100d88a833a9b265754193617539d75e0282fdd1"
+content_hash: "a661e462bf4b884267db5186de18cf109428d13ddb086f067dbbf08921401c81"
 read_as: "approved_fallback"
-task: "CLE-T-D331TT"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "ee1194d6cd13077205ffe32ba3d3fb962a65fec5a5a2caf16f75389098ebe1d7"
-etag: "sha256-3f35b63e0ec6a7bc41d6f42426474a88d9d79dad5c589dad72dd76a7854666fd"
+mirror_sha256: "972327f1b70d2775e3cca7b4cf5fc405fd02b6ca035dfb46a6d78dc96d6d1edc"
+etag: "sha256-76ddbdbfa642f36f4817e01560eb1f8f24df4b035b26dea93494257f3984ef28"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -261,7 +261,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 429 | Too Many Requests | 요청 빈도 제한 초과 |
 | 500 | Internal Server Error | 서버 에러 |
 | 502 | Bad Gateway | **외부 제3자 API**(채팅 채널 provider 등) 호출 실패. 다시 시도할 수 있다. 코드: `CHAT_CHANNEL_SETUP_FAILED`(채팅 채널 `setupChannel` 실패, [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 아래 `503` 과 구분한다. `502` 는 외부 제3자, `503` 은 우리 인프라다. `WEBAUTHN_DISABLED` 의 `503` 예외는 `503` 행에 있다. 노드 출력 안의 `statusCode` 와는 다른 축이다. 그쪽은 HTTP Request 노드가 받은 응답 상태이고 이 표는 우리 API 가 클라이언트에 주는 상태다 |
-| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 클라이언트는 다시 시도하지 않고 가용성 조회 결과에 따라 기능을 숨긴다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다 |
+| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령)은 큐에 넣지 못해도 이 `503` 을 돌려주지 않는다. `202` 로 답하고 채널 건강도를 `degraded` 로 둔다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 클라이언트는 다시 시도하지 않고 가용성 조회 결과에 따라 기능을 숨긴다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다 |
 
 자원을 만들지 않는 POST 액션의 성공 코드를 정하는 행은 아직 없다. [미결 사항](#미결-사항) 참조.
 
@@ -288,7 +288,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 재실행 (`POST /api/executions/:id/re-run`) | 10 req/min (사용자 기준). `@Throttle`(60초에 10회). 넘으면 `429 RATE_LIMITED`. 동작 정의는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) | 같음 |
 | 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. provider probe·2단계 인증 끄기와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다 | 같음 |
 | External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절 | `Retry-After` |
-| External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
+| External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 상한은 모든 서버 인스턴스의 연결을 합쳐 센다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다(fail-open). 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
 | 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 CCH-NF-03 | 없음 (위 콜아웃) |
 | WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). `WsRateLimitGuard` 가 넘으면 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 핸들러와 등록되지 않은 이벤트(`onAny`)에 적용한다. 상세는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 의 에러 코드 절 | 없음 (전송: socket `exception`) |
 
@@ -355,7 +355,7 @@ HTTP API 와 같은 서버가 실시간 채널을 함께 연다. 전송 계층�
 재연결 요약:
 
 - **자동 재연결은 Socket.IO 클라이언트에 내장돼 있다.** 지수 백오프와 지터로 제한 없이 다시 시도한다. 구체 파라미터는 구현이 단일 기준이므로 여기에 숫자를 두지 않는다.
-- **놓친 이벤트는 다시 구독할 때 받는 1회성 실행 스냅샷 이벤트(`execution.snapshot`)로 맞춘다.** native WebSocket 에는 이벤트 순번(`seq`) 기반 재전송 버퍼가 없다. 그 버퍼는 EIA 의 SSE 어댑터에 있고 `Last-Event-Id` 로 제공한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
+- **놓친 이벤트는 다시 구독할 때 받는 1회성 실행 스냅샷 이벤트(`execution.snapshot`)로 맞춘다.** native WebSocket 에는 이벤트 순번(`seq`) 기반 재전송 버퍼가 없다. 그 버퍼는 EIA SSE 용 Redis Stream(`eia:sse:buf:<executionId>`)이다. SSE 클라이언트는 `Last-Event-Id` 로 그 버퍼에서 놓친 이벤트를 받는다. 자세한 흐름은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 에 있다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
 - **자동 재연결이 되지 않는 경우**: 서버가 스스로 `disconnect()` 하면(토큰 만료 종료) Socket.IO 는 재연결을 시도하지 않는다. 클라이언트가 명시적으로 다시 연결해야 한다. 갈리는 것은 재연결 시작 여부뿐이고 복구 방식은 두 경우가 같다(위 스냅샷). 상세와 근거는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 에 있다.
 
 ## 11. 웹훅 수신 엔드포인트
@@ -421,6 +421,8 @@ flowchart TD
 ```
 
 `interaction.enabled=true` 트리거의 응답 확장 필드는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 웹훅 호출 응답 확장 절이 정한다.
+
+**예외: 채팅 채널 트리거의 handshake 와 인터랙션 ack.** `config.chatChannel` 트리거가 받은 Slack `url_verification` 과 Discord PING 의 handshake 응답, Slack · Discord 의 인터랙션 ack(네이티브 모달 열기와 제출 응답 포함)는 `{ data }` 로 감싸지 않는다. 프로바이더가 정한 본문을 `200 OK` 로 그대로 보낸다. 프로바이더가 그 형식만 성공으로 인정하기 때문이다. 경우별 본문은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 채팅 채널 트리거의 `202` 응답은 이 절의 봉투를 그대로 따른다. §6 · §7 과 채팅 채널 문서의 `{ executionId: 'ignored' }` 는 `{ data }` 감싸기와 `message` 를 뺀 줄임 표기다.
 
 ### 11.5 인증 방식
 
@@ -504,7 +506,7 @@ Content-Type: application/json
 2026-09-10 에 위 진단이 한 칸 좁았다는 것이 드러났다. 첫 문장은 두 요약 줄이 "서버가 스스로 끊은 경우에" 틀리다고 적어 그 밖의 경우에는 맞다는 뜻을 담았다. 실제로 두 줄은 모든 경우에 틀렸고 §10 본문을 그에 맞춰 바꿨다.
 
 - 백오프 수치 `(1s, 2s, 4s, … 30s)` 는 WebSocket 문서가 스스로 "초안 값이며 실제는 Socket.IO Manager 내장 알고리즘을 따른다" 고 부인한 값이다.
-- 마지막 이벤트 ID 재전송은 native WebSocket 에 아예 없다. 끊긴 원인과 무관하게 복구는 늘 실행 스냅샷 이벤트이고 `seq` 기반 재전송 버퍼는 EIA SSE 어댑터에 있다.
+- 마지막 이벤트 ID 재전송은 native WebSocket 에 아예 없다. 끊긴 원인과 무관하게 복구는 늘 실행 스냅샷 이벤트다. `seq` 기반 재전송 버퍼는 EIA SSE 쪽에만 있다. 2026-10-17 부터 그 버퍼는 Redis Stream(`eia:sse:buf:<executionId>`)이다([EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq)).
 - 이 사실은 새로 밝혀진 것이 아니었다. WebSocket 문서 Rationale 「재연결 복구: native WS 는 snapshot, seq 버퍼 재전송은 SSE 전송」이 2026-05-31 에 이미 "native WS lastSeq 버퍼 재전송 전면 구현" 을 폐기 대안으로 기록했다. 2026-09-02 판단은 그 폐기 선언을 인용하지 않은 채 "전송 계층 끊김" 이라는 부분집합에 그 설계를 남겨 뒀다.
 
 위임한다는 결정은 그대로다. 바뀐 것은 위임 대상이 예외 하나가 아니라 재연결·복구 서술 전체라는 점이다.
@@ -629,3 +631,19 @@ NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 �
 ### 이메일 변경 경로를 하위 채널 액션의 예로 더했다 (2026-10-17)
 
 NERV Task `CLE-T-D331TT` 에서 §2.2 의 RPC 형태 하위 채널 액션 행에 `/api/users/me/email-change/{action}` 을 예로 더했다. 이 경로는 전부터 있었는데 어느 형태에 드는지 적힌 곳이 없었다. `me` 는 로그인한 사용자 id 의 별칭이므로 이 경로는 `/api/{resource}/{id}/{channel}/{action}` 과 같은 형태다. 그래서 예외 행을 새로 두지 않고 기존 행의 예로 넣었다.
+
+### 채팅 채널 handshake 와 인터랙션 ack 를 §11.4 의 봉투 예외로 적었다 (2026-10-17)
+
+NERV Task `CLE-T-EMB0YG` 에서 더했다. §11.4 는 웹훅 수신의 모든 응답을 `{ data }` 로 감싼다고만 적었다. 코드(`hooks.controller.ts`)는 채팅 채널 트리거의 handshake 와 인터랙션 ack 를 `TransformInterceptor` 를 거치지 않고 `200 OK` 로 바로 보낸다. 이 본문은 프로바이더가 정한 형식이고 프로바이더는 그 형식만 성공으로 인정한다. 그래서 §11.4 에 예외 한 줄과 채팅 채널 문서 링크를 더했다.
+
+같은 자리에 채팅 채널 `202` 본문의 줄임 표기도 밝혔다. 이 문서의 §6 · §7 과 채팅 채널 문서는 그 본문을 `{ executionId: 'ignored' }` 로 적는다. 실제 응답은 `{ data }` 로 감싸이고 `message` 도 실린다.
+
+기각한 대안: 경우별 본문을 §11.4 에 표로 옮기는 안. 프로바이더를 더할 때마다 두 문서를 함께 고쳐야 하고 한쪽만 고쳐지면 두 표가 갈린다. 본문의 기준은 채팅 채널 문서 한 곳에 둔다.
+
+### 채팅 채널 `/cancel` 의 큐 적재 실패는 `503` 으로 돌려주지 않는다 (2026-10-17)
+
+NERV Task `CLE-T-EQDYC1` 의 사람 결정이다. 채팅 채널 인바운드의 `/cancel` 은 `ExecutionsService.stop` 을 바로 부른다. 취소를 큐에 넣지 못하면 `stop` 이 `503 EXECUTION_ENQUEUE_FAILED` 를 던진다. 그전에는 이 응답이 채널 프로바이더에 그대로 나가 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책과 어긋났다.
+
+이제 `/cancel` 은 `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. 진행 중인 대화의 입력이 재개 큐에 들어가지 못한 경우도 같다. 사람은 분당 한도 초과 · 워크스페이스 불일치 때와 같은 처리를 골랐다. 실패는 채널 건강도와 경고 로그로 운영자에게 보인다. §6 의 `503` 행에는 이 사실을 한 줄로 적었다. 채팅 채널 인바운드가 `503` 을 돌려주는 경우는 `/start` 의 기존 실행 취소 실패 하나로 남는다. 처리 규칙과 근거의 기준은 채팅 채널 문서다.
+
+기각한 대안: `/start` 처럼 `/cancel` 도 `503` 을 돌려주는 안. non-2xx 가 이어지면 프로바이더가 웹훅을 끌 수 있다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). `/start` 는 실패를 숨기면 사용자의 새 시작 요청이 사라져서 이 위험을 받아들였다. `/cancel` 은 그 사정이 없다.

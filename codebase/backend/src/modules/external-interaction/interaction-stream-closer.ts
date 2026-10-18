@@ -19,24 +19,29 @@ import type { ModuleRef } from '@nestjs/core';
  * 스트림 닫기는 best-effort 라 재발급 · PATCH · 삭제의 결과를 막지 않는다. 다만 이 단계가 조용히 빠지면 무효가
  * 된 토큰으로 연 스트림이 살아남는다(보안 후속 단계). 그래서 경고가 아니라 오류로 남겨 알림에 걸리게 한다.
  * 포트의 이름 · 시그니처가 어긋나는 것은 구현 클래스가 `implements` 로 컴파일 때 막고, 모듈이 실제로 해석하는지는
- * `interaction-stream-closer.wiring.spec.ts` 가 본다. 지금은 이 서버 인스턴스에 붙은 구독자만 닫는다(SSE 버퍼가
- * 서버 인스턴스 하나를 전제로 한다. 넓히는 일은 NERV Task `CLE-T-Z35F7P`).
+ * `interaction-stream-closer.wiring.spec.ts` 가 본다. 구현은 이 서버 인스턴스의 구독자를 닫고 Redis 채널
+ * `eia:sse:close` 로 다른 서버 인스턴스에도 알린다(NERV Task `CLE-T-Z35F7P`).
  */
 export const INTERACTION_STREAM_CLOSER = Symbol('INTERACTION_STREAM_CLOSER');
 
 export interface InteractionStreamCloserPort {
-  /** 지정한 트리거들의 `itk_*` 로 연 스트림을 닫고 닫은 수를 돌려준다. 던지지 않는다. */
+  /**
+   * 지정한 트리거들의 `itk_*` 로 연 스트림을 모든 서버 인스턴스에서 닫는다. 돌려주는 수는 이 서버 인스턴스에서 닫은
+   * 수다. 던지지 않는다.
+   */
   closeTriggerTokenStreams(triggerIds: readonly string[]): number;
 }
 
 /**
- * 트리거 단위 토큰으로 연 SSE 스트림을 best-effort 로 닫는다. 커밋 **뒤에** 부른다 — 토큰이 실제로 무효가
- * 된 뒤에 닫아야 클라이언트가 옛 토큰으로 다시 연결했을 때 가드가 401 로 거부한다.
+ * 포트를 `ModuleRef` 로 찾아 트리거 단위 토큰으로 연 SSE 스트림을 best-effort 로 닫는다. 커밋 **뒤에** 부른다 — 토큰이
+ * 실제로 무효가 된 뒤에 닫아야 클라이언트가 옛 토큰으로 다시 연결했을 때 가드가 401 로 거부한다.
  *
  * 실패는 던지지 않고 `logger.error` 로 남긴다. 로그에는 트리거 id 를 개수와 앞 몇 개만 싣는다 — 워크스페이스
  * 삭제는 트리거를 한꺼번에 넘겨 한 줄이 수천 id 로 길어질 수 있다.
+ *
+ * 이름이 포트 메서드(`closeTriggerTokenStreams`)와 달라 둘을 헷갈리지 않는다.
  */
-export function closeTriggerTokenStreams(
+export function resolveAndCloseTriggerTokenStreams(
   moduleRef: Pick<ModuleRef, 'get'>,
   triggerIds: readonly string[],
   logger: { error(message: string): unknown },

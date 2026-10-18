@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "86717c37ae1e8a6d00ba65ca5a13687a4a333529a136bdc83d548ff5eae17cdc"
+content_hash: "9cf264ceea91bbbc617d3ae7dbbc9ad2c1bbe25250d76cba34036b213284a47f"
 read_as: "approved_fallback"
-task: "CLE-T-PXTGVQ"
+task: "CLE-T-Z35F7P"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "8c4c140bdfbdc5f933aec10da906af989df1bf8d6947675162d76b5b2d14d50d"
-etag: "sha256-d743ebeb91754a144438657920930b0e5b174e4d4887c6cb54ec77d1fe7c8742"
+mirror_sha256: "f8e08e6ba2cf44cd7f7903b9ce561c970eb007ce0be06d95c22d9a97ede21271"
+etag: "sha256-a509c3c2d19d209f8b2198cc8dfe61a0c99b05c39cf62f2fa3b213a912271af8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,9 +48,9 @@ etag: "sha256-d743ebeb91754a144438657920930b0e5b174e4d4887c6cb54ec77d1fe7c8742"
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (매일 반복 작업, `0 3 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 180일 지난 로그인 이력 정리 | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
 | `workspace-invitations-pruner` | `workspaces.module.ts` | `WorkspaceInvitationsPrunerService` (매일 반복 작업, `0 4 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 만료·미수락 초대 정리 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
 | `chat-channel-token-rotator` | `triggers.module.ts` | `ChatChannelTokenRotatorService` (매시간 반복 작업) | 같은 서비스 (`@Processor`) | `chat_channel_token_v2` 의 24시간 유예 정리 | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
-| `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (매시간 반복 작업) | 같은 서비스 (`@Processor`) | `notification_secret_v2` 의 24시간 유예 뒤 승격 | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
+| `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (매시간 반복 작업). 회전 유예가 끝난 알림 서명 시크릿을 승격하는 스케줄러다. 알림 서명 시크릿(`wsk_*`)을 발급해 저장하는 `NotificationSigningSecretService` 와 다르다 | 같은 서비스 (`@Processor`) | `notification_secret_v2` 의 24시간 유예 뒤 승격 | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 종료된 실행에 남은 인터랙션 토큰을 훑어 폐기한다. 최소 1회 폐기를 보강한다(EIA-RL-06) | [External Interaction API](../CLE-IX/CLE-EIA.md) |
-| `webchat-idle-reaper` | `external-interaction.module.ts` | `WebChatIdleReaperService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 공개 위젯(`auth_config_id IS NULL`)의 익명 실행 단위 토큰이 모두 만료된 입력 대기 실행을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`)로 회수하고 토큰을 폐기한다. 버려진 위젯 세션의 마지막 안전장치다(EIA-RL-07) | [External Interaction API](../CLE-IX/CLE-EIA.md) |
+| `webchat-idle-reaper` | `external-interaction.module.ts` | `WebChatIdleReaperService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 웹채팅 위젯 유휴 실행 회수. 공개 웹훅(`auth_config_id IS NULL`)이 시작한 입력 대기 실행 가운데 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`)이 지난 실행을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`)로 회수하고 토큰을 폐기한다. 토큰 행이 없는 실행은 대상이 아니다. 버려진 위젯 세션의 마지막 안전장치다(EIA-RL-07) | [External Interaction API](../CLE-IX/CLE-EIA.md) · [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 
 모니터링 레지스트리 `MONITORED_QUEUES` 는 이 표를 기준으로 삼는다. 현재 구현은 레지스트리에 `agent-memory-extraction` 이 빠져 있다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)). BullMQ 가 안에서 만드는 Redis 키(`bull:<queue>:*`)는 라이브러리 표준이라 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 의 명명 규칙 밖이다.
 
@@ -111,6 +111,8 @@ etag: "sha256-d743ebeb91754a144438657920930b0e5b174e4d4887c6cb54ec77d1fe7c8742"
 | --- | --- | --- |
 | `integration:cache:invalidate` | `common/redis` | 통합 자격 증명을 교체하거나 삭제하면 모든 인스턴스의 로컬 자격 증명 캐시(예: Database Query 노드 연결 풀)를 곧바로 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)). 페이로드는 통합 ID 평문이다. 워크스페이스와 무관한 전역 채널이다. 메시지를 못 받아도 핸들러가 자격 증명 해시(`credsHash`)를 비교해 비우므로 안전하게 강등된다. 구독은 전용 복제 연결로 한다(공유 명령 연결은 SUBSCRIBE 를 쓰지 않는다) |
 | `chat-channel:listener` | `modules/chat-channel` | 채팅 채널의 트리거 단위 listener 레지스트리 변경을 모든 서버 인스턴스에 알린다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 워크스페이스와 무관한 전역 채널이다. 페이로드 형식과 복원 · 유실 정책은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA.md#redis-키) 가 정한다 |
+| `eia:sse:live:<executionId>` | `modules/external-interaction` | 실행별 EIA SSE 이벤트 채널이다. 실행 이벤트가 난 서버 인스턴스가 이 채널로 발행하고 그 실행의 SSE 구독자가 있는 서버 인스턴스만 구독한다. 그래서 구독자는 어느 서버 인스턴스에 붙어도 그 실행의 이벤트를 받는다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
+| `eia:sse:close` | `modules/external-interaction` | 트리거 단위 토큰(`itk_*`)이 무효가 되면 그 트리거를 모든 서버 인스턴스에 알린다. 받은 서버 인스턴스는 그 토큰으로 연 SSE 스트림을 닫는다. 워크스페이스와 무관한 전역 채널이다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
 
 ### 다른 모듈의 키
 
@@ -120,6 +122,7 @@ etag: "sha256-d743ebeb91754a144438657920930b0e5b174e4d4887c6cb54ec77d1fe7c8742"
 | --- | --- | --- |
 | `iext:blacklist:<jti>` · `interaction:idempotency:<executionId>:<route>:<key>` | `modules/external-interaction` | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | `eia:rl:interact:<executionId>` · `eia:rl:status:<executionId>` · `eia:notif:rl:<triggerId>` | `modules/external-interaction` | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md). 한도는 [External Interaction API](../CLE-IX/CLE-EIA.md) |
+| `eia:sse:buf:<executionId>` · `eia:sse:subs:<executionId>` | `modules/external-interaction` | [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq). `eia:sse:subs:<executionId>` 는 연결 슬롯(동시 연결 상한 계산용)이다 |
 | `chat-channel:<triggerId>:<conversationKey>` · `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |

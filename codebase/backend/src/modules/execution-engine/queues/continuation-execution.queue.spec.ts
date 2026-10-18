@@ -1,5 +1,10 @@
+import { Backoffs } from 'bullmq';
 import {
+  CONTINUATION_BACKOFF_TYPE,
+  CONTINUATION_QUEUE_DEFAULT_OPTS,
   DEFAULT_CONTINUATION_WORKER_CONCURRENCY,
+  continuationBackoffDelayMs,
+  continuationBackoffStrategy,
   resolveContinuationWorkerConcurrency,
 } from './continuation-execution.queue';
 
@@ -66,5 +71,41 @@ describe('resolveContinuationWorkerConcurrency', () => {
         CONTINUATION_WORKER_CONCURRENCY: '  8  ',
       }),
     ).toBe(8);
+  });
+});
+
+// 근거: [큐 워커와 동시 실행 제한 「재개 큐」](CLE-EXEC-WORKER#재개-큐), NERV Task `CLE-T-EQDYC1`.
+// 재시도 간격은 1초에서 4배씩 늘어난다. BullMQ 내장 `exponential` 은 2배라 사용자 정의 전략을 쓴다.
+describe('재개 큐 backoff', () => {
+  it('재시도 간격은 1초에서 4배씩 늘어난다', () => {
+    expect([1, 2, 3, 4].map(continuationBackoffDelayMs)).toEqual([
+      1000, 4000, 16000, 64000,
+    ]);
+  });
+
+  it('job 옵션은 BullMQ 내장 전략이 아닌 사용자 정의 전략 이름을 쓴다', () => {
+    expect(CONTINUATION_QUEUE_DEFAULT_OPTS.backoff).toEqual({
+      type: 'continuation-exp4',
+    });
+    expect(CONTINUATION_BACKOFF_TYPE).toBe('continuation-exp4');
+    expect(Object.keys(Backoffs.builtinStrategies)).not.toContain(
+      CONTINUATION_BACKOFF_TYPE,
+    );
+  });
+
+  it('기본 3회 시도면 BullMQ 가 계산하는 재시도 간격은 1초 · 4초다', () => {
+    expect(CONTINUATION_QUEUE_DEFAULT_OPTS.attempts).toBe(3);
+    // BullMQ 는 실패한 시도 수에 1 을 더해 전략을 부른다(첫 실패 = 1). 마지막 시도가 실패하면
+    // 재시도하지 않으므로 3회 시도의 재시도는 두 번이다.
+    const delays = [1, 2].map((attemptsMade) =>
+      Backoffs.calculate(
+        CONTINUATION_QUEUE_DEFAULT_OPTS.backoff,
+        attemptsMade,
+        new Error('boom'),
+        {} as never,
+        continuationBackoffStrategy,
+      ),
+    );
+    expect(delays).toEqual([1000, 4000]);
   });
 });

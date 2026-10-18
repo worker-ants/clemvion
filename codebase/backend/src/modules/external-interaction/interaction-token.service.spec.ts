@@ -3,6 +3,7 @@ import {
   IEXT_PREFIX,
   ITK_PREFIX,
   INTERACTION_TOKEN_AUDIENCE,
+  newPerTriggerToken,
 } from './interaction-token.service';
 import { sign } from 'jsonwebtoken';
 
@@ -172,7 +173,7 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
         { ttlSec: 600 },
       );
       const result = await service.refreshPerExecution(oldToken);
-      if ('valid' in result && result.valid === false) {
+      if ('valid' in result) {
         throw new Error('expected fresh token');
       }
       expect(result.token).toMatch(new RegExp(`^${IEXT_PREFIX}`));
@@ -646,6 +647,15 @@ describe('InteractionTokenService — itk_* (per_trigger)', () => {
     expect(a).toMatch(new RegExp(`^${ITK_PREFIX}[a-f0-9]{64}$`));
     expect(b).toMatch(new RegExp(`^${ITK_PREFIX}[a-f0-9]{64}$`));
     expect(a).not.toBe(b);
+  });
+
+  // 트리거 생성 · PATCH 의 첫 발급과 재발급(`TriggersService`)이 DI 없이 같은 생성기를 쓴다(NERV Task `CLE-T-EQDYC1`).
+  it('newPerTriggerToken — issuePerTrigger 와 같은 모양(itk_ + 32 bytes hex)을 매번 새로 만든다', () => {
+    const a = newPerTriggerToken();
+    const b = newPerTriggerToken();
+    expect(a).toMatch(new RegExp(`^${ITK_PREFIX}[a-f0-9]{64}$`));
+    expect(a).not.toBe(b);
+    expect(service.verifyPerTrigger(a, a)).toBe(true);
   });
 
   it('verifyPerTrigger — 동일 토큰 timing-safe 통과', () => {

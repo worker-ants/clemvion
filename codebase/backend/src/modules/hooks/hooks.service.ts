@@ -27,6 +27,7 @@ import { InteractionTokenService } from '../external-interaction/interaction-tok
 import { InteractionService } from '../external-interaction/interaction.service';
 import type { InternalInteractionRequestContext } from '../external-interaction/interaction.guard';
 import type { InteractDto } from '../external-interaction/dto/interact.dto';
+import type { InteractAckDto } from '../external-interaction/dto/responses/interact-ack-response.dto';
 import { ExecutionsService } from '../executions/executions.service';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
@@ -72,6 +73,13 @@ const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
  */
 const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
   'Workflow not found for this trigger';
+
+/**
+ * 채팅 채널 인바운드가 `/cancel` 의 취소나 대기 실행으로 가는 재개 명령을 재개 큐에 넣지 못했을 때
+ * `chat_channel_last_error` 에 남기는 고정 문구. 실행 · 트리거 id 를 싣지 않는다.
+ * 근거: [채팅 채널 「채널 건강도」](CLE-CHAT-CORE#채널-건강도), NERV Task `CLE-T-EQDYC1`.
+ */
+const CHAT_CHANNEL_ENQUEUE_FAILED_ERROR = 'Command could not be queued';
 
 @Injectable()
 export class HooksService {
@@ -455,10 +463,13 @@ export class HooksService {
 
     // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop. 매핑은 읽은 실행을 가리킬 때만
     // 비운다. 취소하는 사이 `/start` 가 대화를 새 실행에 이었다면 그 매핑을 지우지 않는다
-    // (NERV Task `CLE-T-V4WVF2`).
+    // (NERV Task `CLE-T-V4WVF2`). 취소를 큐에 넣지 못했으면 실행이 입력 대기에 그대로 있으므로
+    // 매핑도 그대로 둔다(NERV Task `CLE-T-EQDYC1`).
     if (update.command.kind === 'cancel') {
-      if (hasActiveExecution) {
-        await this.executionsService.stop(state.executionId!);
+      if (
+        hasActiveExecution &&
+        (await this.stopForCancelCommand(trigger, state.executionId!))
+      ) {
         await this.channelConversationService.clearExecutionIdIfMatches(
           trigger.id,
           update.conversationKey,
@@ -606,12 +617,13 @@ export class HooksService {
             triggerId: trigger.id,
             scope: 'in_process_trusted',
           };
-          await this.interactionService.interact(ctx, {
-            command: 'submit_form',
-            nodeId,
-            data: filteredFields,
-          });
-          // 성공 — pendingFormModal clear.
+          await this.interactReportingEnqueueFailure(
+            ctx,
+            { command: 'submit_form', nodeId, data: filteredFields },
+            trigger,
+            state.executionId!,
+          );
+          // pendingFormModal clear. 큐에 넣지 못한 경우도 지금까지처럼 비운다.
           state.pendingFormModal = undefined;
           state.lastUpdateAt = new Date().toISOString();
           await this.channelConversationService.upsert(
@@ -824,6 +836,82 @@ export class HooksService {
   }
 
   /**
+   * `/cancel` 로 대화의 활성 실행을 취소한다. 실행이 끝났으면 `true` 를 돌려 호출자가 매핑을 비우게 한다.
+   *
+   * 실행이 그사이 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로 끝난 것으로 본다.
+   * 취소를 재개 큐에 넣지 못했으면(503 `EXECUTION_ENQUEUE_FAILED`) 프로바이더에 5xx 를 내지 않는다.
+   * 채널 건강도를 `degraded` 로 남기고 `false` 를 돌린다. 실행은 입력 대기에 그대로 있다. `/start` 의
+   * 같은 실패는 전파한다(`stopForRestart`). 그 밖의 실패도 전파한다.
+   * 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약), NERV Task `CLE-T-EQDYC1`.
+   */
+  private async stopForCancelCommand(
+    trigger: Trigger,
+    executionId: string,
+  ): Promise<boolean> {
+    try {
+      await this.executionsService.stop(executionId);
+      return true;
+    } catch (err) {
+      if (isAlreadyStoppedError(err)) {
+        this.logger.log(
+          `/cancel — 실행 ${executionId} 이 이미 끝나 취소할 것이 없다`,
+        );
+        return true;
+      }
+      if (isEnqueueFailedError(err)) {
+        await this.markChatChannelEnqueueFailed(
+          trigger,
+          executionId,
+          '/cancel',
+        );
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * 대기 실행으로 명령을 보내고, 재개 큐에 넣지 못했다고 알리면 {@link markChatChannelEnqueueFailed} 로 남긴다.
+   * 내부 신뢰 호출은 적재 실패를 던지지 않고 `accepted:false` 로 알리므로 호출마다 응답을 검사해야 한다. 그 검사를
+   * 여기 한 곳에 둔다. `interact` 가 던지는 오류는 그대로 전파한다.
+   */
+  private async interactReportingEnqueueFailure(
+    ctx: InternalInteractionRequestContext,
+    dto: InteractDto,
+    trigger: Trigger,
+    executionId: string,
+  ): Promise<void> {
+    const ack = await this.interactionService.interact(ctx, dto);
+    if (wasNotQueued(ack)) {
+      await this.markChatChannelEnqueueFailed(
+        trigger,
+        executionId,
+        dto.command,
+      );
+    }
+  }
+
+  /**
+   * 대기 실행으로 보낼 명령을 재개 큐에 넣지 못했을 때 경고 로그를 남기고 채널 건강도를 `degraded` 로 바꾼다.
+   * 프로바이더에는 호출자가 202 로 답한다. `healthy` 로는 다음 아웃바운드 발송이 성공할 때 돌아온다.
+   * 근거: [채팅 채널 「채널 건강도」](CLE-CHAT-CORE#채널-건강도), NERV Task `CLE-T-EQDYC1`.
+   */
+  private async markChatChannelEnqueueFailed(
+    trigger: Trigger,
+    executionId: string,
+    command: string,
+  ): Promise<void> {
+    this.logger.warn(
+      `chat-channel '${command}' 을 재개 큐에 넣지 못했다. 202 로 답하고 채널을 degraded 로 둔다 ` +
+        `(execution=${executionId} trigger=${trigger.id})`,
+    );
+    await this.markChatChannelDegraded(
+      trigger,
+      CHAT_CHANNEL_ENQUEUE_FAILED_ERROR,
+    );
+  }
+
+  /**
    * §4.1 step 5 — form_submission 검증 실패 (client-side gate 또는 EIA reject) 후 "양식 작성하기"
    * 버튼을 재노출 (best-effort). Interactions 응답 후 동일 modal 재전송 불가이므로 별도 sendMessage.
    * pendingFormModal 은 호출자가 유지 (재클릭 가능). 실패는 swallow (logger.warn).
@@ -916,7 +1004,12 @@ export class HooksService {
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
     if (!dto) return;
     try {
-      await this.interactionService.interact(ctx, dto);
+      await this.interactReportingEnqueueFailure(
+        ctx,
+        dto,
+        trigger,
+        executionId,
+      );
     } catch (err) {
       const conflict =
         err instanceof ConflictException ? readErrorBody(err) : undefined;
@@ -1027,11 +1120,16 @@ export class HooksService {
           triggerId: trigger.id,
           scope: 'in_process_trusted',
         };
-        await this.interactionService.interact(ctx, {
-          command: 'submit_form',
-          nodeId: formState.nodeId,
-          data: formState.partialFormData,
-        });
+        await this.interactReportingEnqueueFailure(
+          ctx,
+          {
+            command: 'submit_form',
+            nodeId: formState.nodeId,
+            data: formState.partialFormData,
+          },
+          trigger,
+          state.executionId!,
+        );
         state.formState = undefined;
       } catch (err) {
         this.logger.warn(
@@ -1269,7 +1367,8 @@ export class HooksService {
         endpoints,
       };
     }
-    // per_trigger — token 미동봉. 호출자는 `revoke-token` 으로 받은 itk_* 를 쓴다(생성 응답에는 itk_* 가 없다).
+    // per_trigger — token 미동봉. 호출자는 트리거 생성 응답이나 per_trigger 를 켠 PATCH 응답에서 한 번 받은
+    // itk_* 를 쓴다. 다시 받으려면 `revoke-token` 으로 재발급한다(NERV Task `CLE-T-EMB0YG`).
     return { endpoints };
   }
 }
@@ -1287,6 +1386,32 @@ function isAlreadyStoppedError(err: unknown): boolean {
     typeof response === 'object' &&
     response !== null &&
     (response as { code?: unknown }).code === 'INVALID_STATE'
+  );
+}
+
+/**
+ * 내부 신뢰 호출로 보낸 재개 명령을 `InteractionService` 가 큐에 넣지 못했다고 알렸는지 본다. 그 호출은
+ * 503 을 던지지 않고 `accepted:false` 로 알린다. 응답이 없거나 `accepted` 가 `false` 가 아니면 적재 실패로
+ * 읽지 않는다.
+ */
+function wasNotQueued(ack: InteractAckDto | undefined): boolean {
+  return ack?.accepted === false;
+}
+
+/**
+ * 취소를 재개 큐에 넣지 못한 503 `EXECUTION_ENQUEUE_FAILED` 인지 본다. `ExecutionsService.stop` 은 응답
+ * 최상위에 `code` 를 둔다. API 규약의 `{ error: { code } }` 모양도 같은 실패로 읽는다.
+ */
+function isEnqueueFailedError(err: unknown): boolean {
+  if (!(err instanceof HttpException)) return false;
+  const response = err.getResponse();
+  const topLevelCode =
+    typeof response === 'object' && response !== null
+      ? (response as { code?: unknown }).code
+      : undefined;
+  return (
+    topLevelCode === 'EXECUTION_ENQUEUE_FAILED' ||
+    readErrorBody(err)?.code === 'EXECUTION_ENQUEUE_FAILED'
   );
 }
 

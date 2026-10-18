@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-ARCH"
 title: "웹채팅 구조"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "fbbfb74d1b5af171b662b16793af6b4bce3de9a2106e880749b6c5255bc2b1a3"
-read_as: "approved"
-task: null
+content_hash: "005b2c0277af42f54d69248869dd7c5c7843e0a19ec690fc495d2436dacace67"
+read_as: "approved_fallback"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/7-channel-web-chat/0-architecture.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "b23f709b6463778c283322b0ee8728e82f63a2c69e095b67556674f25443013f"
-etag: "sha256-1ca7c9362384a399f02937d26994028afb058b046b9bc797afc3c20f65322cb3"
+mirror_sha256: "e8e3a43b60b88c5b0c4cad3c117b28d4480acafbb8a413409b5d6844b7105a3e"
+etag: "sha256-e6d501cbb199f34aebf11b4c9a88a7203172dae25964a39edf0647769db16f18"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/0-architecture.md`, `spec/7-channel-web-chat/5-admin-console.md` (R4·R6 의 배포 결정 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -69,7 +69,7 @@ flowchart TB
 
 | 위젯 동작 | EIA 표면 | 계약 문서 |
 |---|---|---|
-| 대화 시작 | `POST /api/hooks/:endpointPath` → `202`. 응답은 응답 봉투로 감싸져 `{ data: { executionId, status, interaction: { token, expiresAt, endpoints } } }` 로 온다. 위젯은 `data` 를 벗겨 읽는다([웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md)) | [External Interaction API](../CLE-IX/CLE-EIA.md) (웹훅 호출 응답 확장) |
+| 대화 시작 | `POST /api/hooks/:endpointPath` → `202`. 응답은 응답 봉투로 감싸져 `{ data: { executionId, message, status, interaction: { token, expiresAt, endpoints } } }` 로 온다. 위젯은 `data` 를 벗겨 읽는다([웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md)). `message` 는 웹훅 202 본문에 늘 들어가는 안내 문장이고 위젯은 이 키를 쓰지 않는다. 202 본문 모양은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) 가 기준이다 | [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) (202 본문 모양), [External Interaction API](../CLE-IX/CLE-EIA.md) (웹훅 호출 응답 확장) |
 | 실시간 이벤트 | `GET /api/external/executions/:id/stream` (SSE, `?token=`) | [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) |
 | AI 메시지 | SSE `execution.ai_message` (+ `presentations[]`) | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) (페이로드) |
 | 표시 메시지(버튼 없이 넘어가는 Presentation 노드) | SSE 표시 메시지 이벤트(`execution.message`, + `presentations[]`). 표시 전용 Presentation 노드가 버튼 없이 자동으로 완료할 때 나온다. AI 가 만든 텍스트가 아니라 노드가 그린 정적 표시물이며 노드 출력 형태(`{config, output}`)로 온다. 렌더 규칙은 [웹채팅 위젯](CLE-WEBCHAT-WIDGET.md) | [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md), [External Interaction API](../CLE-IX/CLE-EIA.md) (도입 결정) |

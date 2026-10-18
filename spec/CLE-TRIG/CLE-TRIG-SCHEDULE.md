@@ -2,19 +2,19 @@
 id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035", "REQ-SCHED-036", "REQ-SCHED-037", "REQ-SCHED-038", "REQ-SCHED-039", "REQ-SCHED-040"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "074b8c8b31dd796bd34a36b8de710608e9164918a580816f97e82170012d4bca"
+content_hash: "6d7e937a19f0523228212be2dfb535685ca312887524db8fce2412c5329d0706"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-6YY7KY"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "e145d0212406f2c1da61e3ca401a0ee465e758b53c9ccaea386538e11595e8c4"
-etag: "sha256-5071e6b255dc990d1cfaa35d476926aeaf5ea34e0d7bb3ab638273e35a37ede5"
+mirror_sha256: "d0dc212059d6f91cd7ed38dbeddca709b7cb9a1888307da630f24317ba820312"
+etag: "sha256-e3c5e7b33995567bdf292f8e8d26fa1478d86ccbb86dafaa12b7bc40f91ca232"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-5071e6b255dc990d1cfaa35d476926aeaf5ea34e0d7bb3ab638273e35a37ede5"
 
 스케줄(Schedule, `schedule`)은 Cron 표현식(cron expression, `cron_expression`)으로 워크플로우를 주기 실행하는 설정이다. 스케줄은 트리거의 서브타입이다. 스케줄마다 스케줄 유형 트리거(`Trigger.type=schedule`)가 1:1 로 붙고 스케줄 이름은 그 트리거의 이름(`trigger.name`)에 저장된다.
 
-이 문서는 스케줄 화면(사이드바 "Schedule", 경로 `/schedules`)의 목록·딥링크·생성과 수정 대화상자·표현식과 시각 편집(visual editor) 변환·캘린더 뷰, 스케줄 API(`/api/schedules`) 계약, 스케줄 실행이 남기는 실행 출처 값을 정한다.
+이 문서는 스케줄 화면(사이드바 "스케줄", 경로 `/schedules`)의 목록·딥링크·생성과 수정 대화상자·표현식과 시각 편집(visual editor) 변환·캘린더 뷰, 스케줄 API(`/api/schedules`) 계약, 스케줄 실행이 남기는 실행 출처 값을 정한다.
 
 범위 밖 주제는 다음 문서가 정한다.
 
@@ -45,7 +45,7 @@ etag: "sha256-5071e6b255dc990d1cfaa35d476926aeaf5ea34e0d7bb3ab638273e35a37ede5"
 - REQ-SCHED-009 WHEN 스케줄을 만들면 THE SYSTEM SHALL 같은 이름·워크플로우·활성 상태의 스케줄 유형 트리거를 자동으로 만든다. (원본: NAV-SC-08)
 - REQ-SCHED-010 WHEN 스케줄이나 연결된 트리거의 활성 상태가 바뀌면 THE SYSTEM SHALL 다른 쪽 활성 상태도 같은 값으로 맞춘다. (원본: NAV-SC-08)
 - REQ-SCHED-011 WHEN 스케줄을 지우면 THE SYSTEM SHALL 연결된 트리거도 함께 지운다. (원본: NAV-SC-08)
-- REQ-SCHED-012 WHEN 사용자가 스케줄 행 더보기(⋮)에서 "트리거에서 보기" 를 고르면 THE SYSTEM SHALL `/triggers?triggerId=…` 로 이동해 그 트리거의 상세 패널을 연다. (원본: NAV-SC-09)
+- REQ-SCHED-012 WHEN 사용자가 스케줄 행 더보기(⋮)에서 "트리거에서 보기" 를 고르면 THE SYSTEM SHALL `/triggers?triggerId=…` 로 이동해 그 트리거의 상세 드로어를 연다. (원본: NAV-SC-09)
 - REQ-SCHED-013 IF 스케줄에 트리거가 연결되지 않았으면 THE SYSTEM SHALL 더보기(⋮)의 "실행 이력"·"트리거에서 보기" 항목을 비활성화한다.
 - REQ-SCHED-014 IF 사용자 역할이 편집자 미만이면 THE SYSTEM SHALL 행의 토글·수정·삭제 버튼을 노출하지 않는다.
 - REQ-SCHED-015 WHEN 스케줄 화면이 `?triggerId=` 딥링크로 열리면 THE SYSTEM SHALL 서버 필터로 그 트리거의 스케줄만 보여 주고 그 행을 강조해 한 번 스크롤한다.
@@ -109,7 +109,7 @@ etag: "sha256-5071e6b255dc990d1cfaa35d476926aeaf5ea34e0d7bb3ab638273e35a37ede5"
 더보기(⋮) 메뉴에는 두 항목이 있다. 두 항목 모두 트리거가 연결된 스케줄에서만 활성화된다.
 
 - "실행 이력"(화면 문구): 그 스케줄 트리거의 호출 이력 대화상자를 연다. 호출 이력의 정의는 [트리거 관리](CLE-TRIG-MANAGE.md) 가 정한다.
-- "트리거에서 보기": `/triggers?triggerId=…` 딥링크로 트리거 목록에 가서 그 트리거의 상세 패널을 연다.
+- "트리거에서 보기": `/triggers?triggerId=…` 딥링크로 트리거 목록에 가서 그 트리거의 상세 드로어를 연다.
 
 반대 방향 딥링크도 있다. [트리거 관리](CLE-TRIG-MANAGE.md) 화면의 "스케줄 관리에서 편집"(→ `/schedules?triggerId=…`)으로 들어오면 목록을 서버에서 그 트리거의 스케줄로 걸러 보여 준다(API 의 `?triggerId=` 필터). 서버 필터라 대상 스케줄이 몇 번째 페이지에 있든 항상 찾는다. 해당 행은 강조하고 한 번 스크롤한다. 목록 위에는 필터 중이라는 안내와 "전체 스케줄 보기"(→ `/schedules`) 해제 링크를 표시한다. 강조는 시각 표시일 뿐이고 편집 대화상자를 자동으로 열지 않는다.
 
@@ -286,8 +286,8 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 
 두 방향의 `?triggerId=` 딥링크가 서로 다르게 동작하는 것은 의도한 것이다. 목적지마다 데이터에 접근하는 방식이 다르다.
 
-- 스케줄 → 트리거(`/triggers?triggerId=`): 트리거 상세 패널을 자동으로 연다. 상세 패널은 트리거 id 로 단건 리소스를 바로 조회하므로 목록 로드나 페이지와 상관없이 언제나 열 수 있다([트리거 관리](CLE-TRIG-MANAGE.md)).
-- 트리거 → 스케줄(`/schedules?triggerId=`): 목록을 서버 `?triggerId=` 필터로 그 트리거의 스케줄로 좁히고 행을 강조·스크롤한다. 서버 필터라 페이지 위치와 상관없이 대상을 찾는다. 패널 자동 열기 대신 목록 필터와 강조를 고른 이유는 두 가지다. 스케줄 편집은 다음 실행·활성 상태 같은 목록 맥락 안에서 하는 편이 자연스럽다. 그리고 "전체 보기" 해제 경로를 분명히 둘 수 있다. 편집 대화상자는 자동으로 열지 않는다.
+- 스케줄 → 트리거(`/triggers?triggerId=`): 트리거 상세 드로어를 자동으로 연다. 상세 드로어는 트리거 id 로 단건 리소스를 바로 조회하므로 목록 로드나 페이지와 상관없이 언제나 열 수 있다([트리거 관리](CLE-TRIG-MANAGE.md)).
+- 트리거 → 스케줄(`/schedules?triggerId=`): 목록을 서버 `?triggerId=` 필터로 그 트리거의 스케줄로 좁히고 행을 강조·스크롤한다. 서버 필터라 페이지 위치와 상관없이 대상을 찾는다. 드로어 자동 열기 대신 목록 필터와 강조를 고른 이유는 두 가지다. 스케줄 편집은 다음 실행·활성 상태 같은 목록 맥락 안에서 하는 편이 자연스럽다. 그리고 "전체 보기" 해제 경로를 분명히 둘 수 있다. 편집 대화상자는 자동으로 열지 않는다.
 
 ### 꺼진 워크플로우의 발화를 건너뛰고 스케줄은 그대로 둔다 (2026-10-10)
 

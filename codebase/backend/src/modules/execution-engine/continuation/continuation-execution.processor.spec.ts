@@ -3,7 +3,11 @@ import type { Job } from 'bullmq';
 import { ContinuationExecutionProcessor } from './continuation-execution.processor';
 import { ExecutionEngineService } from '../execution-engine.service';
 import { RetryTurnService } from '../retry-turn.service';
-import type { ContinuationJob } from '../queues/continuation-execution.queue';
+import {
+  continuationBackoffStrategy,
+  resolveContinuationWorkerConcurrency,
+  type ContinuationJob,
+} from '../queues/continuation-execution.queue';
 
 /**
  * C5 — ContinuationExecutionProcessor 단위 테스트.
@@ -286,5 +290,28 @@ describe('ContinuationExecutionProcessor', () => {
       ).not.toThrow();
       expect(spy).toHaveBeenCalled();
     });
+  });
+});
+
+// 근거: [큐 워커와 동시 실행 제한 「재개 큐」](CLE-EXEC-WORKER#재개-큐), NERV Task `CLE-T-EQDYC1`.
+// job 옵션의 사용자 정의 backoff 이름은 worker 의 `settings.backoffStrategy` 가 있어야 계산된다.
+// 없으면 BullMQ 가 재시도할 때 `Unknown backoff strategy` 로 실패한다.
+describe('ContinuationExecutionProcessor worker 옵션', () => {
+  const workerOptions = Reflect.getMetadata(
+    'bullmq:worker_metadata',
+    ContinuationExecutionProcessor,
+  ) as { concurrency?: number; settings?: { backoffStrategy?: unknown } };
+
+  it('재개 큐의 사용자 정의 backoff 전략을 worker 설정에 건다', () => {
+    expect(typeof continuationBackoffStrategy).toBe('function');
+    expect(workerOptions.settings?.backoffStrategy).toBe(
+      continuationBackoffStrategy,
+    );
+  });
+
+  it('동시성 설정은 그대로 둔다', () => {
+    expect(workerOptions.concurrency).toBe(
+      resolveContinuationWorkerConcurrency(),
+    );
   });
 });

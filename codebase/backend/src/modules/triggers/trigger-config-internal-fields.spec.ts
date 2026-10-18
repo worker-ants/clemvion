@@ -22,10 +22,11 @@ function rejection(config: unknown): Record<string, unknown> | null {
 describe('assertConfigCarriesNoInternalFields', () => {
   const FOREIGN = 'secret://triggers/other-trigger/bot-token';
 
-  it('대상은 타입 필드의 차단 다섯 필드와 notification.signing.secretRef 다', () => {
+  it('대상은 타입 필드의 차단 다섯 필드와 notification.signing.secretRef · interaction.triggerToken 이다', () => {
     expect(CONFIG_INTERNAL_FIELDS.map((f) => f.path.join('.'))).toEqual([
       ...CHAT_CHANNEL_BLOCKED_FIELDS.map((f) => `chatChannel.${f}`),
       'notification.signing.secretRef',
+      'interaction.triggerToken',
     ]);
   });
 
@@ -51,6 +52,17 @@ describe('assertConfigCarriesNoInternalFields', () => {
       'config.notification.signing.secretRef',
       { notification: { signing: { secretRef: FOREIGN } } },
     ],
+    // 트리거 단위 토큰은 서버가 만든다. 원시 config 로 심으면 그 값이 가드를 통과하는 토큰이 된다(NERV Task `CLE-T-EQDYC1`).
+    [
+      'config.interaction.triggerToken',
+      {
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_trigger',
+          triggerToken: 'itk_planted',
+        },
+      },
+    ],
   ])('%s 가 실리면 VALIDATION_ERROR · INVALID_FIELD', (field, config) => {
     expect(rejection(config)).toMatchObject({
       code: 'VALIDATION_ERROR',
@@ -70,6 +82,12 @@ describe('assertConfigCarriesNoInternalFields', () => {
     const res = rejection({ chatChannel: { botTokenRef: FOREIGN } });
     expect(res?.message).toContain('config.chatChannel.botTokenRef');
     expect(JSON.stringify(res)).not.toContain(FOREIGN);
+  });
+
+  it('트리거 단위 토큰 거부 메시지는 재발급 경로를 안내하고 받은 값을 싣지 않는다', () => {
+    const res = rejection({ interaction: { triggerToken: 'itk_planted' } });
+    expect(res?.message).toContain('/interaction/revoke-token');
+    expect(JSON.stringify(res)).not.toContain('itk_planted');
   });
 
   it('내부 필드가 여럿이면 목록 순서로 첫 필드를 보고한다', () => {
@@ -100,6 +118,10 @@ describe('assertConfigCarriesNoInternalFields', () => {
       { notification: { signing: [{ secretRef: FOREIGN }] } },
     ],
     ['다른 키 아래의 같은 이름', { custom: { botTokenRef: FOREIGN } }],
+    [
+      '토큰 없는 per_trigger 인터랙션',
+      { interaction: { enabled: true, tokenStrategy: 'per_trigger' } },
+    ],
   ])('%s 는 통과한다', (_label, config) => {
     expect(rejection(config)).toBeNull();
   });

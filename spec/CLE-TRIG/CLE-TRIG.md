@@ -2,19 +2,19 @@
 id: "CLE-TRIG"
 title: "트리거"
 type: "area"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "90eebebcc21294d43bdae4ce12926e82c28cd4edc30bf05b6fe5a7832d38b6df"
+content_hash: "72ba61db8588f173fa263fdfc844b4cfbde9edfdf853e9cec94c2f8c6e7098d0"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-6YY7KY"
 source_paths: []
-mirror_sha256: "bfb6cf701f6205514e4379543932a403ac79d94410e1eb034dddc9a92d879097"
-etag: "sha256-474b802fd0fa09c288f9163c99e645eb78fbcdc8a996600240bcdd1b026d32b4"
+mirror_sha256: "842d3b169698d8de0f15b8b109ddfcf63d6ccce6d73c91c37d43d49bc1bd28b5"
+etag: "sha256-a753dce5487346b7db01933cd370a73e1e965e4fb2af03ceb53249ace95f787f"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -37,7 +37,7 @@ etag: "sha256-474b802fd0fa09c288f9163c99e645eb78fbcdc8a996600240bcdd1b026d32b4"
 
 | 문서 | 다루는 것 |
 |------|----------|
-| [트리거 관리](CLE-TRIG-MANAGE.md) | 트리거 화면(목록·필터·상세 패널·생성), 트리거 API, PATCH 계약, `config` 동시 쓰기 직렬화, 삭제 권한·확인·연쇄 영향·자원 정리 정책 |
+| [트리거 관리](CLE-TRIG-MANAGE.md) | 트리거 화면(목록·필터·상세 드로어·생성), 트리거 API, PATCH 계약, `config` 동시 쓰기 직렬화, 삭제 권한·확인·연쇄 영향·자원 정리 정책 |
 | [스케줄](CLE-TRIG-SCHEDULE.md) | 스케줄 화면, Cron 표현식과 시각 편집 변환, 시간대, 스케줄 API, 스케줄 실행의 실행 출처 기록 |
 | [웹훅](CLE-TRIG-WEBHOOK.md) | 웹훅 수신 엔드포인트와 URL 형식, 엔드포인트 경로의 비밀성, 인증 검증, 워크플로우 입력 구조, 공개 웹훅 남용 방어, 수신 처리 흐름 |
 | [외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md) | 인증 설정 화면, 인증 방식별 입력 항목, 사용 내역, 필드 마스킹과 평문 보기, 권한, 인증 설정 API |

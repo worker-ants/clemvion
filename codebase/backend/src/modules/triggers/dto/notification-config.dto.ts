@@ -69,9 +69,13 @@ export class NotificationRetryDto {
   @Max(10)
   maxAttempts?: number;
 
-  /** 백오프 전략. v1 은 exponential 만 지원. */
+  /**
+   * 백오프 전략. v1 은 exponential 만 지원.
+   * 재시도 간격은 1초에서 4배씩 늘고 한 간격의 상한은 1시간이다.
+   */
   @ApiPropertyOptional({
-    description: '재시도 백오프. v1 은 exponential 만.',
+    description:
+      '재시도 백오프. v1 은 exponential 만. 재시도 간격은 1초에서 4배씩 늘고(1초 · 4초 · 16초 …) 한 간격의 상한은 1시간이다.',
     enum: ['exponential'],
     default: 'exponential',
   })

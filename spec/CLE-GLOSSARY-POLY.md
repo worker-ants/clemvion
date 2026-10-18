@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "3e6306e534cb0ac13247f41387bea38a991c6399c1acc7f124e3e89a890f79d8"
+content_hash: "7ef103a635dc6ac14bdcff320f37c52956cc3bb8f08036f78cfe6d71c8e4cafe"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-6YY7KY"
 source_paths: []
-mirror_sha256: "3c37454184baa16c2c33660cb1ad6097062566c4a138daf08c59cefaf78e7eaf"
-etag: "sha256-787d716dbc219a26b3edae5be46d51715a99163f5306c2fa9ae0d0e3568f9919"
+mirror_sha256: "21abe19833a9a6a291a8d82533f17bd7fca7d0855dff7eeb913d7fce9d914d0a"
+etag: "sha256-f6a9b2c6afa5bb9e3a9e783a8f13c6ee4edc76854b659ad9aad12462b7951597"
 ---
 ## 개요
 
@@ -47,6 +47,9 @@ etag: "sha256-787d716dbc219a26b3edae5be46d51715a99163f5306c2fa9ae0d0e3568f9919"
 | 재시도 | 문서 임베딩 자동 재시도(예: 임베딩 재시도 중인 문서는 "재시도 중" 으로 보인다) | 임베딩 재시도 |
 | 재시도 | BullMQ 작업 재시도(`attempts`)(예: 재개 큐는 정한 횟수만큼 큐 재시도를 한다) | 큐 재시도 |
 | 재시도 | LLM 클라이언트 호출 재시도 | LLM 호출 재시도 |
+| `exponential` | EIA 알림 웹훅의 재시도 간격 설정 값(`notification.retry.backoff: "exponential"`). 사용자 정의 backoff 전략 `exp-base4` 로 간격을 늘리고 간격에 상한을 둔다. BullMQ 내장 `exponential` 과 이름만 같다. 값은 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리) 에 있다 | EIA 알림 웹훅 재시도 간격(`exp-base4`) |
+| `exponential` | 재개 큐(`execution-continuation`)의 큐 재시도 간격. 사용자 정의 backoff 전략 `continuation-exp4` 로 간격을 늘리고 간격에 상한을 두지 않는다. 값은 [큐 워커와 동시 실행 제한 「재개 큐」](CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐) 에 있다. 이 전략을 고른 근거는 [큐 워커와 동시 실행 제한의 재개 큐 재시도 간격 결정](CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다-2026-10-17) 에 있다 | 재개 큐 재시도 간격(`continuation-exp4`) |
+| `exponential` | BullMQ 내장 backoff 전략(`backoff.type: 'exponential'`). 위 두 사용자 정의 전략과 간격을 늘리는 배수가 다르다(예: 만료 스캐너 작업의 큐 재시도) | BullMQ 내장 `exponential` |
 | 대기 | 워커가 아직 시작하지 않은 상태(`pending`) | 대기 중 |
 | 대기 | 사용자 입력을 기다리는 상태(`waiting_for_input`) | 입력 대기 |
 | 대기 | 동시 실행 제한에 걸려 큐에서 기다림(예: 큐 대기가 한도를 넘으면 취소한다) | 큐 대기 |
@@ -336,3 +339,14 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「교차 행」: [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검) 는 다른 워크스페이스의 행을 가리키는 id 참조를, [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md#교차-행-점검과-정리) 는 다른 트리거의 비밀 참조와 덮어써진 비밀 행을 같은 말로 부른다. 두 문서는 그 절 머리에서 뜻을 밝히므로 본문은 그대로 둔다. 두 뜻이 함께 나오는 문장에서 붙일 구분 표기를 정했다(NERV Task `CLE-T-K9S0TE`). 절 머리에서 뜻을 밝히거나 같은 문장에서 그 절을 링크한 문서 안의 단독 «교차 행» 은 표 머리말의 «단독으로 쓰지 않는다» 의 예외로 적었다.
 - 「발사」: 트리거 · 스케줄의 실행 시작과 알림 출처의 알림 생성을 행 둘로 갈랐다. 표기 표준은 [용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md) 의 「발사」 가 정한다.
 - 「건강도(health)」 의 세 번째 행: «알림 웹훅·채널 발송 상태» 는 채팅 채널을 발송 상태로 좁혔다. 두 뜻을 행 둘로 나눴다. [용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 의 「채널 건강도」 는 2026-10-05 에 채팅 채널의 동작 상태로 넓혔으므로 그 정의에 맞췄다.
+
+### 「`exponential`」 의 세 뜻을 갈랐다 (2026-10-17)
+
+NERV Task `CLE-T-6YY7KY` 가 더했다. EIA 알림 웹훅의 설정 값 `backoff: "exponential"`, 재개 큐의 큐 재시도 간격, BullMQ 내장 backoff 전략이 모두 «exponential» 로 불렸다. 셋은 간격을 늘리는 배수나 간격 상한이 다르다. 같은 묶음에서 두 가지가 바뀌었고 행은 바뀐 뒤의 사실로 적었다.
+
+- 재개 큐는 BullMQ 내장 전략을 쓰고 있어서 [큐 워커와 동시 실행 제한 「재개 큐」](CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐) 가 적은 간격과 실제 간격이 달랐다. 2026-10-17 사용자 결정으로 코드를 그 문서의 의도에 맞춘다. 재개 큐는 사용자 정의 전략 `continuation-exp4` 를 쓴다. 이 결정과 기각한 대안은 [큐 워커와 동시 실행 제한의 재개 큐 재시도 간격 결정](CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다-2026-10-17) 에 있다.
+- EIA 알림 웹훅 재시도 간격에는 2026-10-17 사용자 결정으로 상한을 두었다([EIA 알림 웹훅 「재시도와 실패 처리」](CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리)). 두 사용자 정의 전략은 이 상한의 유무 때문에 이름을 나눴다.
+- 뜻 칸에는 첫 간격 · 배수 · 상한 시간을 적지 않고 기준 문서를 가리켰다(색인 표기 원칙 14). 두 사용자 정의 전략의 배수와 상한은 우리 기준 문서가 정하는 값이다. 이번 묶음에서 재개 큐 간격과 EIA 알림 웹훅 간격 상한이 바뀐 것처럼 기준 문서가 값을 바꾸면 이 표가 뒤처진다. 전략 이름 `exp-base4` · `continuation-exp4` 에 든 숫자는 원칙 14 가 예외로 둔 «이름에 든 숫자» 라 그대로 적었다. 재개 큐 행의 근거 링크 글자에도 기준 문서의 결정 제목에 든 배수를 옮기지 않았다.
+- BullMQ 내장 전략의 배수는 라이브러리가 정한 값이다. 우리 기준 문서가 정하는 값이 아니어서 원칙 14 의 대상으로 보지 않을 수도 있다. 그래도 세 행은 «배수가 다르다» 만으로 갈리므로 이 숫자도 적지 않았다.
+- 기각한 대안: 뜻 칸에 «1초에서 4배씩» · «2배씩» 같은 수치를 적는 안. 위 원칙 14 의 이유로 택하지 않았다.
+- 기각한 대안: 두 사용자 정의 전략을 한 행으로 묶는 안. 간격 상한의 유무와 전략 이름이 달라서 본문이 어느 쪽을 말하는지 구분 표기로 밝혀야 한다.

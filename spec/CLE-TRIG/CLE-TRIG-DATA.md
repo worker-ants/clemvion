@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "7f1f095c41562c0beba57832214d62fe3fb3a1baf895c094188736fc42e494dd"
+content_hash: "ee1ec7f1e8f3727e04100b5c350c802b4c02a6fadb5f787138c2076ea534238a"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-G0Y6MW"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "887bd0e6cfbd97d34864ab15433f5b477ce147eaa2d403c958ba810415f3dd0e"
-etag: "sha256-2b9623a8418a6704c4a6c49a1cecfda9cfe24c4729b5010cef94275224dd142a"
+mirror_sha256: "6f441cf789c03bf52d82b7adddae42bf36b922a377c3871122bf2e30b2c9e464"
+etag: "sha256-48c9b71cb4bc71be59c1586f3a13754a410001d40c498ebe9a177b107595844f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -368,12 +368,12 @@ sequenceDiagram
 
 ## 트리거 삭제와 자원 해제
 
-트리거 행을 없애는 모든 경로(트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제)는 그 트리거의 자원을 정리한다. 무엇을 정리하고 실패하면 어떻게 하는지는 [트리거 관리](CLE-TRIG-MANAGE.md) 가 정한다. 이 절은 정리 순서와 그 이유를 정한다.
+트리거 행을 없애는 모든 경로(트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제)는 그 트리거의 자원을 정리한다. 무엇을 정리하고 실패하면 어떻게 하는지는 [트리거 관리 「자원 정리」](CLE-TRIG-MANAGE.md#자원-정리) 가 정한다. 이 절은 정리 순서와 그 이유를 정한다.
 
 | 자원 | 시점 | 이유 |
 |------|------|------|
 | 외부 자원: 스케줄 BullMQ 작업, 채널 프로바이더 등록(해제는 best-effort), listener registry | 행 삭제 전, DB 트랜잭션 밖 | 채팅 채널 해제는 `secret_store` 의 봇 토큰을 읽는다(Telegram·Discord). 외부 호출은 트리거 설정 잠금 안에 두지 않는다 |
-| 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림(같은 서버 인스턴스) | 행 삭제가 커밋된 뒤, best-effort | 트리거가 사라지면 그 토큰도 무효가 된다. 네 삭제 경로 모두 같다. 닫을 트리거는 비밀 삭제가 쓰는 열거를 그대로 쓰고 새 조회를 더하지 않는다. 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다 |
+| 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림(모든 서버 인스턴스, `eia:sse:close`) | 행 삭제가 커밋된 뒤, best-effort | 트리거가 사라지면 그 토큰도 무효가 된다. 네 삭제 경로 모두 같다. 닫을 트리거는 비밀 삭제가 쓰는 열거를 그대로 쓰고 새 조회를 더하지 않는다. 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다 |
 | `secret_store` 의 `secret://triggers/<id>/` 비밀 | 행 삭제가 커밋된 뒤 | 삭제와 겹친 쓰기가 비밀을 고아로 남기지 않게 한다. 쓰기 쪽의 "쓰지 못했으면 되돌린다" 보상과 짝이다 |
 
 트리거 화면에서 스케줄 유형 트리거를 지우는 순서는 다음과 같다. 이 그림은 순서만 보인다. 정리 대상은 위 표가 기준이다.
@@ -585,11 +585,11 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. processor 의 재계�
 - transformer 를 함께 쓴다: 인증 설정 `config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이고 인증 설정은 자기 테이블 컬럼 transformer 라 이 체계를 쓰지 않는다. 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다. 이 transformer 의 키를 시크릿 저장소의 마스터키와 따로 두는 이유는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - `ip_whitelist` 를 저장 때 검증한다: 잘못된 IP·CIDR 이 DB 에 들어가면 런타임 평가에서 조용히 fail-closed 불일치로만 드러나, 설정한 사람이 의도와 다른 차단을 디버깅하기 어렵다. 그래서 저장 때 형식을 검증해 400 으로 일찍 돌려준다. 검증 기준은 런타임 `AuthConfigsService.parseIp` 와 같은 `ip-address`(`Address4`/`Address6.isValid`)를 다시 쓴다. 저장 때 검증을 통과한 값은 런타임이 늘 파싱할 수 있어 저장과 평가의 수용 범위가 어긋나지 않는다. class-validator 의 `@IsIP` 는 CIDR 를 거부하므로 단일 IP 와 CIDR 를 함께 받는 커스텀 `@IsIpOrCidr` 를 쓴다.
 
-### 웹훅 202 응답 모양을 지금 코드에 맞춘 결정 (2026-10-09)
+### 웹훅 202 응답 모양의 기준은 웹훅 문서에 있다 (2026-10-09)
 
 이 문서는 웹훅 202 응답을 `message` 없이 `{ executionId }` 와 인터랙션 블록으로 적어 코드와 달랐다. 응답 모양은 지금 코드에 맞춘다. NERV Task `CLE-T-M6PERB` 에서 사용자에게 묻지 않고 기본값으로 정해 알린 뒤 진행했다(2026-10-09, 그 Task 의 결정 기록).
 
-모양과 그 근거의 기준은 [웹훅](CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 의 「웹훅 202 응답 모양을 지금 코드에 맞춘다」 다. 이 문서는 `message` 를 더하는 곳과 `{ data }` 로 감싸는 곳만 적는다. 같은 모양을 여러 문서에 자세히 적으면 저마다 두 번째 기준이 된다.
+모양과 그 근거의 기준은 [웹훅](CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 의 「웹훅 202 응답 모양을 지금 코드에 맞춘다」 다. 이 문서는 `message` 를 더하는 곳과 `{ data }` 로 감싸는 곳만 적는다. 같은 모양을 여러 문서에 자세히 적으면 저마다 두 번째 기준이 된다. 2026-10-17 에 이 절의 제목을 바꿨다(NERV Task `CLE-T-G0Y6MW`). 옛 제목 «웹훅 202 응답 모양을 지금 코드에 맞춘 결정» 은 이 문서가 결정을 담은 것처럼 읽혔다.
 
 ### 꺼진 워크플로우를 실행 관문으로 둔 결정 (2026-10-10)
 

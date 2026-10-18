@@ -17,7 +17,10 @@ import {
   NodeExecution,
   NodeExecutionStatus,
 } from '../node-executions/entities/node-execution.entity';
-import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import {
+  ExecutionEngineService,
+  type ContinuationPublishResult,
+} from '../execution-engine/execution-engine.service';
 import {
   InvalidExecutionStateError,
   MessageTooLongError,
@@ -152,6 +155,14 @@ export class InteractionService {
     private readonly tokenService: InteractionTokenService,
   ) {}
 
+  /**
+   * 인바운드 명령을 실행 엔진에 넘긴다.
+   *
+   * 돌려주는 `accepted` 는 재개 명령이 큐에 들어갔는지다. 토큰으로 인증한 호출은 큐에 넣지 못하면 503 을 던지므로
+   * 늘 `true` 다. 내부 신뢰 호출(채팅 채널 인바운드)은 던지지 않고 `false` 를 돌려준다. 호출자가 그 값으로 202 ·
+   * 채널 건강도 `degraded` · 경고 로그를 처리한다.
+   * 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약), NERV Task `CLE-T-EQDYC1`.
+   */
   async interact(
     ctx: InteractionRequestContext,
     dto: InteractDto,
@@ -162,6 +173,8 @@ export class InteractionService {
     // expectedNodeId=undefined 로 nodeId 검사를 건너뛴다(진입점이 nodeId 를 아는지와
     // 무관: form 제출 handleFormStep 은 nodeId 를 알아도 동일 policy 로 면제).
     const expectedNodeId = isInternalCtx(ctx) ? undefined : dto.nodeId;
+    // 재개 명령이 큐에 들어갔는지. `false` 는 내부 신뢰 호출에서만 나온다(`dispatchContinuation`).
+    let accepted = true;
     switch (dto.command) {
       case 'submit_form':
         this.assertNodeId(dto, ctx);
@@ -172,7 +185,7 @@ export class InteractionService {
           );
         }
         this.assertWaiting(execution);
-        await this.dispatchContinuation(
+        accepted = await this.dispatchContinuation(
           ctx,
           this.executionEngineService.continueExecution(
             ctx.executionId,
@@ -190,7 +203,7 @@ export class InteractionService {
           );
         }
         this.assertWaiting(execution);
-        await this.dispatchContinuation(
+        accepted = await this.dispatchContinuation(
           ctx,
           this.executionEngineService.continueButtonClick(
             ctx.executionId,
@@ -208,7 +221,7 @@ export class InteractionService {
           );
         }
         this.assertWaiting(execution);
-        await this.dispatchContinuation(
+        accepted = await this.dispatchContinuation(
           ctx,
           this.executionEngineService.continueAiConversation(
             ctx.executionId,
@@ -220,7 +233,7 @@ export class InteractionService {
       case 'end_conversation':
         this.assertNodeId(dto, ctx);
         this.assertWaiting(execution);
-        await this.dispatchContinuation(
+        accepted = await this.dispatchContinuation(
           ctx,
           this.executionEngineService.endAiConversation(
             ctx.executionId,
@@ -245,7 +258,7 @@ export class InteractionService {
     });
     return {
       executionId: ctx.executionId,
-      accepted: true,
+      accepted,
       currentStatus: refreshed?.status ?? 'running',
     };
   }
@@ -540,13 +553,15 @@ export class InteractionService {
    * 끝내 적재되지 않았다. 503 은 캐시 대상(2xx·409·410)이 아니다. `cancel` 은 `ExecutionsService.stop` 이
    * 이미 같은 코드로 응답한다. 내부 신뢰 호출(채팅 채널 인바운드)은 던지지 않는다 — 던지면 웹훅을 보낸 채널
    * 프로바이더에게 5xx 가 나가고, 그 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약)
-   * 이 따로 정한다.
+   * 이 따로 정한다. 대신 `false` 를 돌려줘 `interact()` 가 `accepted:false` 로 알리게 한다.
+   *
+   * @returns 큐에 들어갔으면 `true`. `false` 는 내부 신뢰 호출이 큐에 넣지 못했을 때만이다.
    */
   private async dispatchContinuation(
     ctx: InteractionRequestContext,
-    promise: Promise<unknown>,
-  ): Promise<void> {
-    let result: unknown;
+    promise: Promise<ContinuationPublishResult | undefined>,
+  ): Promise<boolean> {
+    let result: ContinuationPublishResult | undefined;
     try {
       result = await promise;
     } catch (err: unknown) {
@@ -575,17 +590,16 @@ export class InteractionService {
       throw err;
     }
     // 발행 결과의 계약은 `ContinuationPublishResult` 다 — `queued:false` 면 `jobId:null` 이 쌍으로 온다.
-    // `queued` 만 본다. 결과가 없거나 모양이 다르면(단위 대역) 실패로 읽지 않는다.
-    const queued = (result as { queued?: unknown } | null | undefined)?.queued;
-    if (queued === false && !isInternalCtx(ctx)) {
-      throw new ServiceUnavailableException({
-        error: {
-          code: ErrorCode.EXECUTION_ENQUEUE_FAILED,
-          message:
-            'Command could not be queued (continuation bus unavailable). Please retry.',
-        },
-      });
-    }
+    // `queued` 만 본다. 결과가 없으면(단위 대역) 실패로 읽지 않는다.
+    if (result?.queued !== false) return true;
+    if (isInternalCtx(ctx)) return false;
+    throw new ServiceUnavailableException({
+      error: {
+        code: ErrorCode.EXECUTION_ENQUEUE_FAILED,
+        message:
+          'Command could not be queued (continuation bus unavailable). Please retry.',
+      },
+    });
   }
 
   private assertWaiting(execution: Execution): void {

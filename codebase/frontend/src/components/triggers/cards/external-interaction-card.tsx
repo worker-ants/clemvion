@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { useT } from "@/lib/i18n";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import { SecretRevealBox } from "../secret-reveal-box";
 import { isValidNotificationUrl } from "@/lib/utils/url-validation";
@@ -27,6 +27,39 @@ const NOTIFICATION_EVENT_CHOICES = [
   "execution.cancelled",
   "execution.ai_message",
 ] as const;
+
+/**
+ * 한 번만 보여 주는 평문의 종류. 종류마다 상자 하나를 띄우고 제목이 다르다.
+ * 같은 종류를 다시 받으면 그 상자의 값을 바꾼다.
+ */
+type OneTimeSecretKind =
+  | "issuedNotificationSigningSecret"
+  | "issuedInteractionToken"
+  | "rotatedNotificationSigningSecret"
+  | "revokedInteractionToken";
+
+const ONE_TIME_SECRET_TITLE_KEYS: Record<OneTimeSecretKind, TranslationKey> = {
+  issuedNotificationSigningSecret:
+    "triggers.externalInteraction.issuedNotificationSigningSecret",
+  issuedInteractionToken: "triggers.externalInteraction.issuedInteractionToken",
+  rotatedNotificationSigningSecret: "triggers.externalInteraction.rotateNewSecret",
+  revokedInteractionToken: "triggers.externalInteraction.revokeNewToken",
+};
+
+interface OneTimeSecret {
+  kind: OneTimeSecretKind;
+  secret: string;
+}
+
+/** 같은 종류가 있으면 그 자리의 값을 바꾸고, 없으면 뒤에 붙인다. */
+function upsertOneTimeSecret(
+  list: readonly OneTimeSecret[],
+  next: OneTimeSecret,
+): OneTimeSecret[] {
+  return list.some((item) => item.kind === next.kind)
+    ? list.map((item) => (item.kind === next.kind ? next : item))
+    : [...list, next];
+}
 
 export function ExternalInteractionCard({
   trigger,
@@ -66,12 +99,18 @@ export function ExternalInteractionCard({
     interaction?.tokenStrategy ?? "per_execution",
   );
 
-  // Rotate / revoke result dialogs (1회만 표시)
-  const [rotateResult, setRotateResult] = useState<string | null>(null);
-  const [revokeResult, setRevokeResult] = useState<string | null>(null);
-  // 저장 응답에 실린 첫 알림 서명 시크릿(1회만 표시). EIA 알림 웹훅 설정을 처음 붙이면 서버가 발급한다.
-  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어)
-  const [issuedSecret, setIssuedSecret] = useState<string | null>(null);
+  // 한 번만 보여 주는 평문(저장 응답의 첫 알림 서명 시크릿 · 트리거 단위 토큰, rotate · revoke 결과).
+  // 서버는 다시 보여 주지 않는다. 한 저장 응답에 두 비밀이 함께 올 수 있어 종류별 목록으로 둔다.
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어) · CLE-T-EQDYC1
+  const [oneTimeSecrets, setOneTimeSecrets] = useState<OneTimeSecret[]>([]);
+
+  function showOneTimeSecret(kind: OneTimeSecretKind, secret: string): void {
+    setOneTimeSecrets((list) => upsertOneTimeSecret(list, { kind, secret }));
+  }
+
+  function dismissOneTimeSecret(kind: OneTimeSecretKind): void {
+    setOneTimeSecrets((list) => list.filter((item) => item.kind !== kind));
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -88,13 +127,17 @@ export function ExternalInteractionCard({
         enabled: interactionEnabled,
         tokenStrategy: strategy,
       };
-      const { issuedNotificationSigningSecret } = await triggersApi.update(
-        trigger.id,
-        patchBody,
-      );
+      const { issuedNotificationSigningSecret, issuedInteractionToken } =
+        await triggersApi.update(trigger.id, patchBody);
       // 평문은 이 상태에만 둔다. mutation 결과(`data`)로 돌려주면 60초 뒤 상자를 지워도 캐시에 남는다.
       if (issuedNotificationSigningSecret) {
-        setIssuedSecret(issuedNotificationSigningSecret);
+        showOneTimeSecret(
+          "issuedNotificationSigningSecret",
+          issuedNotificationSigningSecret,
+        );
+      }
+      if (issuedInteractionToken) {
+        showOneTimeSecret("issuedInteractionToken", issuedInteractionToken);
       }
     },
     onSuccess: () => {
@@ -137,7 +180,7 @@ export function ExternalInteractionCard({
       const { secret } = await triggersApi.rotateNotificationSecret(
         trigger.id,
       );
-      setRotateResult(secret);
+      showOneTimeSecret("rotatedNotificationSigningSecret", secret);
       toast.success(t("triggers.externalInteraction.rotateSucceeded"));
     } catch {
       toast.error(t("triggers.externalInteraction.rotateFailed"));
@@ -148,7 +191,7 @@ export function ExternalInteractionCard({
     if (!window.confirm(t("triggers.externalInteraction.revokeConfirm"))) return;
     try {
       const { token } = await triggersApi.revokeInteractionToken(trigger.id);
-      setRevokeResult(token);
+      showOneTimeSecret("revokedInteractionToken", token);
       toast.success(t("triggers.externalInteraction.revokeSucceeded"));
     } catch {
       toast.error(t("triggers.externalInteraction.revokeFailed"));
@@ -371,32 +414,15 @@ export function ExternalInteractionCard({
           </Button>
         )}
 
-        {/* 저장 응답의 첫 알림 서명 시크릿 (마스킹 + 클릭 노출 + 60s 자동 소거) */}
-        {issuedSecret && (
+        {/* 한 번만 보여 주는 평문 (마스킹 + 클릭 노출 + 상자마다 60s 자동 소거) */}
+        {oneTimeSecrets.map(({ kind, secret }) => (
           <SecretRevealBox
-            title={t("triggers.externalInteraction.issuedNotificationSigningSecret")}
-            secret={issuedSecret}
-            onDismiss={() => setIssuedSecret(null)}
+            key={kind}
+            title={t(ONE_TIME_SECRET_TITLE_KEYS[kind])}
+            secret={secret}
+            onDismiss={() => dismissOneTimeSecret(kind)}
           />
-        )}
-
-        {/* Secret rotation result (마스킹 + 클릭 노출 + 60s 자동 소거) */}
-        {rotateResult && (
-          <SecretRevealBox
-            title={t("triggers.externalInteraction.rotateNewSecret")}
-            secret={rotateResult}
-            onDismiss={() => setRotateResult(null)}
-          />
-        )}
-
-        {/* Per-trigger token revoke result (마스킹 + 클릭 노출 + 60s 자동 소거) */}
-        {revokeResult && (
-          <SecretRevealBox
-            title={t("triggers.externalInteraction.revokeNewToken")}
-            secret={revokeResult}
-            onDismiss={() => setRevokeResult(null)}
-          />
-        )}
+        ))}
       </CardContent>
     </Card>
   );

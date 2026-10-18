@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "caf8803b3363ea2d41e92632fb9b88374d5dc6176fe69831dd8b9ac5f2f83c11"
+content_hash: "ceb0e496cd80353b80550678dc232f54f189c1790769e52eb7c68c5f75641d53"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "eac1f8da34899ecee5ba4899f1a58511c295e1d925cee4262e00f3fc9fb708ad"
-etag: "sha256-cf4662ed111070486235ab18e0fe54d30d566410dce7f0d625bd47da6416734e"
+mirror_sha256: "fc7f89f485cb2bcdaaf52beceeac1f14ee39c7556e281ab90672a10ee06ce4e4"
+etag: "sha256-fcc4b804f8e38a2230b441de82c577c8b47b871038ba2b1f6d4186363804864c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,7 +28,7 @@ etag: "sha256-cf4662ed111070486235ab18e0fe54d30d566410dce7f0d625bd47da6416734e"
 - AI 어시스턴트 세션·메시지 엔티티와 저장 흐름은 [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) 가 정한다.
 - 공통 컬럼 규칙, FK 삭제 동작 전체 지도, 인덱스 전략은 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 가 정한다.
 - 화면 동작은 [워크플로우 목록과 폴더](CLE-WF-LIST.md), [워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md), [버전 기록](CLE-WF-VERSION.md) 이 정한다.
-- 트리거 삭제 때 외부 자원·비밀을 정리하는 순서는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다.
+- 트리거 삭제 때 정리하는 자원은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 정리 순서는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
 
 ## 엔티티 관계
 
@@ -268,7 +268,7 @@ AI 어시스턴트의 편집 도구 호출은 **DB 를 직접 건드리지 않�
 | `workflow` | 복제 | INSERT. 생성과 같은 컬럼이다. `name` 은 원본 + `" (Copy)"`, `is_active=false`, `current_version=1` 고정. description·tags·folder_id·settings 는 원본 값, `created_by` 는 **요청한 사용자** | 같음 |
 | `workflow` | 활성 토글 | UPDATE `is_active, updated_at` | 없음 |
 | `workflow` | 저장(버전 커밋) | UPDATE `current_version, updated_at` | 없음 |
-| `workflow` | 삭제 | DELETE. 자식 행 FK 파급은 [상태 전이](#상태-전이) 참조. 트리거 자원 정리: 외부 자원을 트랜잭션 **전에** 풀고, 삭제 트랜잭션의 첫 호출로 잠금 대기 상한(5초)을 건 뒤 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 그 워크플로우의 트리거 id 를 모은 다음 지운다. 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지운다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)). | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 모을 때 빠지는 트리거가 없게 한다. |
+| `workflow` | 삭제 | DELETE. 자식 행 FK 파급은 [상태 전이](#상태-전이) 참조. 트리거 자원 정리: 외부 자원을 트랜잭션 **전에** 풀고, 삭제 트랜잭션의 첫 호출로 잠금 대기 상한(5초)을 건 뒤 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 그 워크플로우의 트리거 id 를 모은 다음 지운다. 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지운다. 이어서 그 트리거들의 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort). 정리하는 자원은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 순서와 이유는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다. | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 모을 때 빠지는 트리거가 없게 한다. |
 | `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement`(둘 다 설정 금지). `container_id`·`tool_owner_id` 는 같은 워크플로우 노드만(저장 전 거부, 복합 FK). 캔버스 저장이 새 노드로 싣는 `id` 가 다른 행의 id 면 거부(그 행을 덮어쓰지 않는다) |
 | `node` | 복제 | INSERT. 추가와 같은 컬럼이다. `id` 를 새로 발급하고 `container_id`·`tool_owner_id` 를 사본 UUID 로 바꾼다. `config` 는 원본 그대로다(기본값 다시 채우기, 모델 설정 채우기 없음). | 같음. 원본이 이미 통과한 레이블 유일성은 다시 검사하지 않는다. |
 | `node` | 이동·설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | 없음 |
@@ -307,7 +307,7 @@ stateDiagram-v2
 | 테이블 | `ON DELETE` | 마이그레이션 |
 | --- | --- | --- |
 | `node`, `edge`, `execution`, `workflow_version` | CASCADE | `V001__initial_schema.sql` |
-| `trigger` | CASCADE. 이어서 `schedule`(`schedule.trigger_id` CASCADE)까지 2차로 지워진다. **DB 수준이라 트리거 단위 advisory lock 을 거치지 않는다.** 트리거가 쓰던 외부 등록·비밀의 정리는 이 CASCADE 앞뒤로 앱이 한다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)). | `V001__initial_schema.sql` · `V141__composite_fk_scope_workflow_not_valid.sql`(복합 FK) |
+| `trigger` | CASCADE. 이어서 `schedule`(`schedule.trigger_id` CASCADE)까지 2차로 지워진다. **DB 수준이라 트리거 단위 advisory lock 을 거치지 않는다.** 트리거가 쓰던 외부 등록·비밀의 정리와 트리거 단위 토큰으로 연 SSE 스트림 닫기는 이 CASCADE 앞뒤로 앱이 한다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)). | `V001__initial_schema.sql` · `V141__composite_fk_scope_workflow_not_valid.sql`(복합 FK) |
 | `integration_usage_log` | CASCADE | `V008__integration_usage_log_and_metadata.sql` |
 | `llm_usage_log` | **SET NULL**. 사용량 이력은 남는다. | `V014__llm_usage_logs.sql` |
 | `alert_rule` | CASCADE | `V016__alert_rules.sql` · `V141__composite_fk_scope_workflow_not_valid.sql`(복합 FK) |

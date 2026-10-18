@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
-requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054"]
+requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-060"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "82a732730b9285d182cd4602e2afeb1f9f6f526c27066201eb097bb68776d366"
+content_hash: "7c76dd377c95148db398f7e8e6d5ff44f84cf3a50a7c604222623d34007962c9"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-EQDYC1"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "f34d9fa768175fff81d1730c5b25ac81ca3e39a5350a2a6d24d2e1db3c307da5"
-etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
+mirror_sha256: "ee39971c4286cf569c6fd8f88bbea07afe42039b58bf5a4218e226bede750682"
+etag: "sha256-b4642da59eccf8594601b6e9b71cbbb06a62686e4fbec43c48fbd02214b7e37a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -71,14 +71,14 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 - REQ-TRIG-031 IF PATCH 가 채팅 채널 `provider` 를 바꾸려 하면 THE SYSTEM SHALL 400 `VALIDATION_ERROR`(`details.field='provider'`)로 거부한다.
 - REQ-TRIG-032 IF 스케줄 유형 트리거 PATCH 에 `name`·`isActive` 밖의 키가 오면 THE SYSTEM SHALL 400 `VALIDATION_ERROR`(`details.field='type'`)로 거부한다.
 - REQ-TRIG-033 IF 엔드포인트 경로가 다른 트리거와 겹치거나 다른 워크스페이스가 예약한 경로면 THE SYSTEM SHALL 두 경우를 구분하지 않고 409 `RESOURCE_CONFLICT`(`details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`)로 거부한다.
-- REQ-TRIG-034 WHEN 트리거를 응답하면 THE SYSTEM SHALL [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 4 가 정한 저장소 예외 필드와 시크릿 참조를 싣지 않고 봇 토큰은 `hasBotToken` 으로만 알린다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 4 의 목록에 오른 응답(첫 알림 서명 시크릿을 발급한 생성 · PATCH 응답, `rotate-secret`, `revoke-token`)은 예외다.
+- REQ-TRIG-034 WHEN 트리거를 응답하면 THE SYSTEM SHALL [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 4 가 정한 저장소 예외 필드와 시크릿 참조를 싣지 않고 봇 토큰은 `hasBotToken` 으로만 알린다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 4 의 목록에 오른 응답(알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급한 생성 · PATCH 응답, `rotate-secret`, `revoke-token`)은 예외다.
 - REQ-TRIG-035 WHEN 어떤 경로가 트리거 `config` 를 다시 쓰면 THE SYSTEM SHALL 트리거 단위 advisory lock 을 잡은 뒤 행을 다시 읽고 그 위에 병합한다.
-- REQ-TRIG-036 WHILE 트리거 설정 잠금을 잡고 있는 동안 THE SYSTEM SHALL 외부 provider 를 호출하지 않는다.
-- REQ-TRIG-037 IF 잠금 안에서 다시 읽은 트리거가 없거나 병합 쓰기가 0행에 매치되면 THE SYSTEM SHALL 쓰지 못한 것으로 처리하고 `rotate-bot-token`·`interaction/revoke-token` 은 404 로 응답한다.
+- REQ-TRIG-036 WHILE 트리거 설정 잠금을 잡고 있는 동안 THE SYSTEM SHALL 채널 프로바이더 같은 외부 서비스를 호출하지 않는다.
+- REQ-TRIG-037 IF 잠금 안에서 다시 읽은 트리거가 없거나 잠금 안의 쓰기가 0행에 매치되면 THE SYSTEM SHALL 쓰지 못한 것으로 처리하고 `rotate-bot-token`·`interaction/revoke-token`·`notification/rotate-secret` 은 404 `RESOURCE_NOT_FOUND` 로 응답하며 저장하지 못한 새 비밀을 응답에 싣지 않는다.
 - REQ-TRIG-038 IF 비밀을 쓰거나 채널 프로바이더에 등록한 요청이 트리거 행을 쓰지 못하면 THE SYSTEM SHALL 채널 프로바이더 등록을 best-effort 로 해제한 뒤 그 트리거의 비밀(`secret://triggers/<id>/`)을 지운다.
 - REQ-TRIG-039 WHEN PATCH 가 트리거를 저장하면 THE SYSTEM SHALL 그 요청이 바꾸는 필드만 저장한다.
 - REQ-TRIG-040 WHEN 트리거 목록·상세·수정 응답을 보내면 THE SYSTEM SHALL `workflow` 참조(`id`, `name`)를 채운다.
-- REQ-TRIG-041 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 기존 트리거 단위 토큰(`itk_*`)을 곧바로 무효로 하고 같은 서버 인스턴스에서 그 토큰으로 연 SSE 스트림을 닫으며 새 토큰을 평문으로 한 번 응답한다.
+- REQ-TRIG-041 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 기존 트리거 단위 토큰(`itk_*`)을 곧바로 무효로 하고 모든 서버 인스턴스에서 그 토큰으로 연 SSE 스트림을 닫으며 새 토큰을 평문으로 한 번 응답한다.
 - REQ-TRIG-042 IF 뷰어가 트리거를 지우려 하면 THE SYSTEM SHALL 삭제 항목을 노출하지 않고 API 도 거부한다.
 - REQ-TRIG-043 WHEN 사용자가 삭제를 고르면 THE SYSTEM SHALL 트리거 유형별 안내 문구가 담긴 확인 대화상자를 띄우고 트리거 이름을 정확히 입력해야 삭제 버튼을 활성화한다.
 - REQ-TRIG-044 WHEN 트리거를 지우면 THE SYSTEM SHALL 연결된 스케줄을 함께 지우고 실행의 `trigger_id` 는 NULL 로 바꿔 실행 기록을 보존한다.
@@ -90,8 +90,14 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 - REQ-TRIG-050 IF 같은 트리거를 두 요청이 동시에 지우면 THE SYSTEM SHALL 두 번째 요청에 `404 RESOURCE_NOT_FOUND` 로 응답한다.
 - REQ-TRIG-051 WHEN 트리거를 지우거나 활성 상태를 바꾸면 THE SYSTEM SHALL 감사 로그에 각각 `trigger.deleted`·`trigger.updated` 를 남긴다.
 - REQ-TRIG-052 WHILE v1 인 동안 THE SYSTEM SHALL 트리거의 `type`·`workflowId`·`httpMethod`(POST)·`contentType`(`application/json`)을 바꾸지 못하게 한다.
-- REQ-TRIG-053 IF 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `config` 키 아래에 `chatChannel` 의 차단 필드나 `notification.signing.secretRef` 가 있으면 THE SYSTEM SHALL 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다.
+- REQ-TRIG-053 IF 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `config` 키 아래에 `chatChannel` 의 차단 필드나 `notification.signing.secretRef` · `interaction.triggerToken` 이 있으면 THE SYSTEM SHALL 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다.
 - REQ-TRIG-054 WHEN 시크릿 교체(`rotate-secret`)가 `notification_secret_v2` 를 쓰면 THE SYSTEM SHALL `config` 를 쓰지 않더라도 트리거 설정 잠금을 잡는다. (승격 조건: [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체))
+- REQ-TRIG-055 WHEN 인터랙션이 켜져 있고(`interaction.enabled: true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 `config.interaction.triggerToken` 에 저장하고 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다.
+- REQ-TRIG-056 WHEN 최상위 `interaction` 이나 원시 `config` 가 실린 PATCH 의 결과가 인터랙션이 켜져 있고 전략이 `per_trigger` 인데 잠금 안에서 다시 읽은 행에 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 새 토큰을 발급해 저장하고 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. 저장된 토큰이 있으면 인터랙션을 껐다 다시 켠 경우에도 새로 발급하지 않는다.
+- REQ-TRIG-057 WHEN 생성이나 PATCH 가 알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급하면 THE SYSTEM SHALL 그 요청의 감사 기록(`trigger.created` · `trigger.updated`)의 `details.issuedSecrets` 에 발급한 비밀의 종류 이름(`notificationSigningSecret` · `interactionToken`)을 싣고 평문은 싣지 않는다. 발급하지 않은 요청의 기록에는 이 키가 없다.
+- REQ-TRIG-058 WHEN 트리거를 만들면 THE SYSTEM SHALL 행 INSERT · 시크릿 저장소 쓰기 · `config` 쓰기 · 첫 알림 서명 시크릿과 트리거 단위 토큰의 발급을 한 트랜잭션에서 하고 하나라도 실패하면 행을 남기지 않으며 감사 기록(`trigger.created`)은 커밋 직후 트랜잭션 밖에서 남긴다.
+- REQ-TRIG-059 WHEN `interaction` 이 실린 PATCH 가 전략을 `per_trigger` 밖으로 바꿔 저장된 트리거 단위 토큰을 지우거나 인터랙션을 끄면 THE SYSTEM SHALL 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다. 인터랙션만 끈 경우는 토큰 값을 남긴다. (출처: 2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답, finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`)
+- REQ-TRIG-060 WHEN 원시 `config` 로 `interaction` 을 바꾼 PATCH 가 저장된 트리거 단위 토큰을 없애거나 인터랙션을 끄면 THE SYSTEM SHALL 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다.
 
 ## 화면 구조
 
@@ -147,13 +153,13 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 | 스케줄 설정 | Cron 표현식(읽기 전용), 시간대, 다음 실행. "스케줄 관리에서 편집" 링크로 스케줄 화면에 간다 |
 | 채팅 채널 | `config.chatChannel` 이 설정된 트리거에만 보인다. provider, 봇 username(`botIdentity.username`), 봇 토큰 등록 여부(`hasBotToken`)와 재발급 액션, `uiMapping`(formMode / visualNode / buttonLayout), `rateLimitPerMinute`, `languageHints`, 상태(`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·`chatChannelRotatedAt`). 웹훅 설정 카드와 나란한 별도 카드다 |
 | 인증 설정 | 연결된 인증 설정 정보 |
-| 외부 인터랙션 | EIA 알림 웹훅과 인터랙션 설정. 저장 · 시크릿 교체 · 트리거 단위 토큰 재발급 응답에 실린 평문은 이 카드가 한 번 보여 준다. 평문은 가려 두고 «표시» 를 눌러야 보이며 60초 뒤 지운다 |
+| 외부 인터랙션 | EIA 알림 웹훅과 인터랙션 설정. 저장 · 시크릿 교체 · 트리거 단위 토큰 재발급 응답에 실린 평문은 이 카드가 한 번 보여 준다. 평문은 가려 두고 «표시» 를 눌러야 보인다. 60초 뒤에 지우고 카드가 화면에서 사라지면 함께 사라진다([Rationale](#rationale) «평문을 60초 뒤 지우는 이유») |
 
 호출 이력은 상세 드로어에 싣지 않는다. 더보기(⋮) "호출 이력" 대화상자가 같은 데이터를 더 가벼운 모달로 보여 준다.
 
 ### 필드 권한 매트릭스
 
-상세 드로어는 카드별 "수정" 토글로 읽기 모드와 편집 모드를 오간다. 편집 토글은 편집자 이상에게만 보인다. 뷰어에게는 모든 카드가 읽기 모드로 보인다. 관리자와 소유자도 동작은 같고 감사 로그의 행위자만 다르다.
+상세 드로어의 카드마다 편집 토글(화면 문구 «수정»)이 있다. 이 토글로 읽기 모드와 편집 모드를 오간다. 편집 토글은 편집자 이상에게만 보인다. 뷰어에게는 모든 카드가 읽기 모드로 보인다. 관리자와 소유자도 동작은 같고 감사 로그의 행위자만 다르다.
 
 | 카드 | 필드 | 모드 | 규칙 |
 |------|------|------|------|
@@ -168,7 +174,7 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 | 스케줄 설정 | `cronExpression` | 읽기 전용 | 편집은 [스케줄](CLE-TRIG-SCHEDULE.md) 화면에서만 한다. 이 카드는 "스케줄 관리에서 편집" 링크만 보여 준다 |
 | 스케줄 설정 | `timezone` | 읽기 전용 | 위와 같다 |
 | 스케줄 설정 | `nextRunAt` | 읽기 전용(시스템 계산) | 스케줄 생성·수정 때와 실행이 끝난 직후 다시 계산한다. Cron 파싱이 실패하면 비어 있을 수 있다(`-` 표시). 발사와 상관없는 정보성 값이다 |
-| 외부 인터랙션 (EIA 알림 웹훅) | `url` / `events` / `signing` / `retry` | 편집 | 필드 정의는 [External Interaction API](../CLE-IX/CLE-EIA.md). `retry` 의 뜻과 범위(총 시도 횟수, 상한, 간격)는 [EIA 알림 웹훅 「재시도와 실패 처리」](../CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다 |
+| 외부 인터랙션 (EIA 알림 웹훅) | `url` / `events` / `signing` / `retry` | 편집 | 필드 정의는 [External Interaction API](../CLE-IX/CLE-EIA.md). `retry` 의 뜻과 범위(총 시도 횟수, 상한, 간격)는 [EIA 알림 웹훅 「재시도와 실패 처리」](../CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 읽기 모드는 `retry.maxAttempts` 를 «최대 시도 횟수» 로 보여 준다 |
 | 외부 인터랙션 (EIA 알림 웹훅) | `notificationHealth` / `notificationLastError` | 읽기 전용(시스템 계산) | `notificationHealth` 는 트리거 상세에 배지로 보인다([웹훅](CLE-TRIG-WEBHOOK.md) 의 상세 화면 요구사항). `notificationLastError` 는 API 응답에만 실리고 화면에 그리지 않는다. 자격 증명 모양은 가려 내보낸다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | 외부 인터랙션 (인터랙션) | `enabled` / `tokenStrategy` | 편집 | 위와 같다 |
 | 인증 설정 | `authConfigId` | 편집 | 인증 메뉴(`/authentication`)에서 만든 인증 설정을 셀렉터로 트리거에 연결한다. `PATCH /api/triggers/:id { authConfigId }`. `null` 은 인증 없음이다. 비밀 값의 편집·평문 보기·재생성은 인증 메뉴에서만 한다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)). 셀렉터는 워크스페이스 인증 설정 목록, "인증 없음", "+ 새 인증 설정 만들기"(→ `/authentication`)로 이루어진다. "+ 새 인증 설정 만들기" 는 관리자 이상에게만 보인다. 연결 자체는 편집자 이상이 할 수 있다 |
@@ -203,7 +209,7 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 - Slack·Discord 의 `inboundSigningPlaintext` 는 보내기 전에 클라이언트에서 hex 형식을 검사한다. 정규식의 단일 기준은 `@workflow/chat-channel-validation` 패키지이고 백엔드 `assertInboundSigningPlaintextByProvider` 도 같은 export 를 쓴다.
 - 스케줄 유형은 이 모달에서도 `POST /api/triggers` 에서도 만들 수 없다. 스케줄 화면에서 스케줄을 만들면 트리거가 자동으로 생긴다([스케줄](CLE-TRIG-SCHEDULE.md)).
 - 워크플로우 에디터에서도 같은 `POST /api/triggers` 로 트리거를 만들 수 있다. 트리거 화면은 웹훅 트리거 생성과 모든 트리거의 조회·수정·삭제를 맡는다.
-- 요청 본문의 `config` 키 아래에는 시크릿 참조 · 평문 필드를 실을 수 없다. 규칙은 [PATCH 본문 계약](#patch-본문-계약) 과 같다.
+- 요청 본문의 `config` 키 아래에는 시크릿 참조 · 평문 필드와 서버가 만드는 `interaction.triggerToken` 을 실을 수 없다. 규칙은 [PATCH 본문 계약](#patch-본문-계약) 과 같다.
 
 ### 웹훅 URL
 
@@ -215,19 +221,19 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/api/triggers` | 트리거 생성(편집자 이상). `webhook`·`manual` 유형만 받는다. `schedule` 은 스케줄 API 가 자동으로 만들므로 받지 않는다. 트리거 화면 "웹훅 추가" 모달이 이 경로로 웹훅 트리거를 만든다. 본문 `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 본문에 EIA 알림 웹훅 설정(`notification`, 저장 위치 `config.notification`)이 있으면 서버가 알림 서명 시크릿(`wsk_<64hex>`)을 발급해 시크릿 저장소에 넣는다. `config.notification.signing` 에는 평문 대신 트리거 id 로 정해지는 시크릿 참조(`secretRef`)가 남는다. 평문은 이 생성 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 실린다. 이후 응답에는 실리지 않는다. 발급하지 않은 응답에는 `secrets` 키가 없다. 그 응답에서만 생기는 일회성 값이기 때문이다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). 호출자가 원시 `config` 로 평문 `signing.secret`(옛 키)을 보냈으면 서버는 그 값을 시크릿 저장소로 옮기고 발급하지 않는다. 발급 규칙의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다 |
+| POST | `/api/triggers` | 트리거 생성(편집자 이상). `webhook`·`manual` 유형만 받는다. `schedule` 은 스케줄 API 가 자동으로 만들므로 받지 않는다. 트리거 화면 "웹훅 추가" 모달이 이 경로로 웹훅 트리거를 만든다. 본문 `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 본문에 EIA 알림 웹훅 설정(`notification`, 저장 위치 `config.notification`)이 있으면 서버가 알림 서명 시크릿(`wsk_<64hex>`)을 발급해 시크릿 저장소에 넣는다. `config.notification.signing` 에는 평문 대신 트리거 id 로 정해지는 시크릿 참조(`secretRef`)가 남는다. 호출자가 원시 `config` 로 평문 `signing.secret`(옛 키)을 보냈으면 서버는 그 값을 시크릿 저장소로 옮기고 발급하지 않는다. 발급 규칙의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다. 본문의 인터랙션 설정(`interaction`)이 켜져 있고(`enabled: true`) 전략이 `per_trigger` 면 서버가 트리거 단위 토큰(`itk_*`)도 발급해 `config.interaction.triggerToken` 에 저장한다. 발급한 평문은 이 생성 응답의 `data.secrets` 에 한 번만 실린다(`notificationSigningSecret`, `interactionToken`). 이후 응답에는 실리지 않는다. 발급한 비밀이 없는 응답에는 `secrets` 키가 없다([응답 형태](#응답-형태)). 행 INSERT · 시크릿 저장소 쓰기 · 첫 비밀 발급은 한 트랜잭션이라 하나라도 실패하면 행이 남지 않는다. 감사 기록은 커밋 직후 트랜잭션 밖에서 남긴다([동시 쓰기 직렬화](#동시-쓰기-직렬화)) |
 | GET | `/api/triggers` | 목록. 쿼리: `type`, `status`, `search`, `page`, `limit`, `sort`, `order`, `interactionEnabled`. `interactionEnabled`(boolean, 선택)는 `config.interaction.enabled` 가 일치하는 트리거만 돌려주는 JSONB 필터로, [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 목록이 쓴다. `sort`·`order` 는 `PaginationQueryDto` 로 받지만 `findAll` 이 무시하고 `created_at DESC` 로 고정 정렬한다(반영은 미구현) |
 | GET | `/api/triggers/:id` | 상세 |
-| PATCH | `/api/triggers/:id` | 수정. 활성/비활성 토글도 이 경로로 한다(`{ isActive: boolean }`). 별도 `/toggle` 경로는 없다. 이 요청으로 서버가 알림 서명 시크릿을 처음 발급하면 평문은 이 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 실린다([PATCH 본문 계약](#patch-본문-계약)) |
+| PATCH | `/api/triggers/:id` | 수정. 활성/비활성 토글도 이 경로로 한다(`{ isActive: boolean }`). 별도 `/toggle` 경로는 없다. 이 요청으로 서버가 알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급하면 평문은 이 응답의 `data.secrets` 에 한 번만 실린다(`notificationSigningSecret`, `interactionToken`, [PATCH 본문 계약](#patch-본문-계약)). 이 응답을 받지 못했으면 알림 서명 시크릿은 `rotate-secret`, 트리거 단위 토큰은 `revoke-token` 으로 새로 받는다 |
 | GET | `/api/triggers/:id/history` | 호출 이력 |
 | DELETE | `/api/triggers/:id` | 삭제. 권한·연쇄 삭제·확인 절차는 [삭제 정책](#삭제-정책) |
 | POST | `/api/triggers/:id/chat-channel/rotate-bot-token` | 채팅 채널 봇 토큰 재발급(24시간 유예). 이 경로가 봇 토큰을 바꾸는 유일한 경로다. 응답 계약은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md). 감사: `trigger.chat_channel_bot_token_rotated` |
 | POST | `/api/triggers/:id/notification/rotate-secret` | EIA 알림 웹훅 HMAC 시크릿 교체. 응답 `{ data: { secret, rotatedAt } }`. 트리거 설정 잠금 안에서 쓴다([동시 쓰기 직렬화](#동시-쓰기-직렬화)). 기준은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md). 감사: `trigger.notification_secret_rotated` |
-| POST | `/api/triggers/:id/interaction/revoke-token` | 트리거 단위 토큰(`itk_*`) 재발급. 응답 `{ data: { token } }`. 기존 토큰을 곧바로 무효로 하고 새 토큰을 평문으로 한 번 응답한다. 옛 토큰으로 연 SSE 스트림은 서버가 닫는다. 닫는 방식과 범위(같은 서버 인스턴스)는 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다. 엔드포인트 이름과 달리 폐기만 하지 않는다. 기준은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md). 감사: `trigger.interaction_token_revoked` |
+| POST | `/api/triggers/:id/interaction/revoke-token` | 트리거 단위 토큰(`itk_*`) 재발급. 응답 `{ data: { token } }`. 기존 토큰을 곧바로 무효로 하고 새 토큰을 평문으로 한 번 응답한다. 옛 토큰으로 연 SSE 스트림은 서버가 닫는다. 닫는 범위는 모든 서버 인스턴스이고 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다. 엔드포인트 이름과 달리 폐기만 하지 않는다. 기준은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md). 감사: `trigger.interaction_token_revoked` |
 
-감사 action 의 정의는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다.
+감사 action 의 정의는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다. 생성 · PATCH 가 첫 비밀을 발급하면 새 action 없이 그 요청의 `trigger.created` · `trigger.updated` 기록 `details.issuedSecrets` 에 발급한 종류 이름을 남긴다(REQ-TRIG-057).
 
-서버가 새로 만든 비밀의 평문은 응답마다 놓이는 자리가 다르다. 생성 · PATCH 응답의 `data` 는 트리거 리소스다. 그래서 일회성 값을 리소스 필드와 섞지 않으려고 `data.secrets` 아래에 둔다(`data.secrets.notificationSigningSecret`). `rotate-secret` · `revoke-token` 응답은 그 동작만의 응답이라 평문을 `data` 에 바로 둔다(`data.secret`, `data.token`).
+서버가 새로 만든 비밀의 평문은 응답마다 놓이는 자리가 다르다. 생성 · PATCH 응답의 `data` 는 트리거 리소스다. 그래서 일회성 값을 리소스 필드와 섞지 않으려고 `data.secrets` 아래에 둔다(`data.secrets.notificationSigningSecret`, `data.secrets.interactionToken`). `rotate-secret` · `revoke-token` 응답은 그 동작만의 응답이라 평문을 `data` 에 바로 둔다(`data.secret`, `data.token`).
 
 웹훅 인증 자격 증명의 키 재생성은 트리거가 아니라 인증 설정이 맡는다. `POST /api/auth-configs/:id/regenerate`([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md))로 한곳에서 한다.
 
@@ -241,15 +247,24 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 | `isActive` | 활성 상태 |
 | `endpointPath` | 엔드포인트 경로. v4 UUID |
 | `authConfigId` | 인증 설정 연결. `null` 을 받는다. 소속 검증은 백엔드 `triggers.service` 가 `authConfigsService.findById(id, workspaceId)` 로 한다. 호출자 워크스페이스의 인증 설정이 아니면(없거나 다른 워크스페이스 소속이면 둘을 구분하지 않음) 400 `AUTH_CONFIG_NOT_FOUND`, `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) |
-| `config` | 그 밖의 JSONB 키 부분 갱신. 시크릿 참조 · 평문 필드는 받지 않는다(아래) |
+| `config` | 그 밖의 JSONB 키 부분 갱신. 시크릿 참조 · 평문 필드와 서버가 만든 값은 받지 않는다(아래) |
 | `notification` / `interaction` / `chatChannel` | EIA 알림 웹훅 · 인터랙션 · 채팅 채널 설정. `config.*` 아래가 아니라 별도 top-level 키로 받는다. 백엔드 `triggers.service`(`mergeExternalConfig`)가 `config` JSONB 안의 같은 이름 키로 합친다. 키를 보내면 그 객체를 통째로 교체한다. 부분 병합이 아니므로 사용자가 정하는 필드는 전체를 다시 보내야 한다. 서버가 만든 값(`interaction.triggerToken`, `notification.signing.secretRef`, 채팅 채널의 시크릿 참조)은 요청으로 받지 않고 서버가 정한다(아래). 기준은 `update-trigger.dto.ts` 와 `triggers.service.ts mergeExternalConfig` 다 |
 
 - 인라인 인증 키(`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`)는 없다. 웹훅 인증은 `authConfigId` 연결로만 받는다.
 - 채팅 채널의 비밀은 PATCH 로 바꿀 수 없다. `chatChannel.botTokenRef`(ref), `chatChannel.botToken`(평문), `chatChannel.inboundSigning`, `inboundSigningPlaintext` 를 바꾸려 하면 400 `VALIDATION_ERROR` 다. 봇 토큰은 재발급 API(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)로만 바꾼다. 거부 응답의 모양과 이 규칙의 기준은 [채팅 채널 §봇 토큰 변경 단일 경로](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 다. Slack signing secret·Discord public key 회전 API 는 v1 에 정의되지 않았다.
 - `chatChannel` 이 실린 PATCH 는 사용자가 보낸 비밀을 받지도 쓰지도 않는다. `botToken` 과 Slack·Discord 의 `inboundSigningPlaintext` 는 요청 전후로 같다. `botTokenRef` 는 "통째로 교체" 규칙과 상관없이 사라지지 않는다(트리거 id 에서 다시 유도한다). Telegram 의 서버 발급 inbound signing 은 예외다. `setupChannel()` 을 다시 부를 때마다 새로 발급·저장되며 이것이 정상이다.
-- `interaction` · `notification` 이 실린 PATCH 에서 서버가 만든 두 값은 서버가 잠금 안에서 다시 읽은 행을 보고 정한다. 알림 서명 시크릿 참조(`notification.signing.secretRef`)는 그 행에 참조가 있으면 행의 값을 복사하지 않고 `notificationSigningSecretRef(triggerId)` 로 다시 만들어 싣는다. 참조가 없으면 아래 항목대로 첫 시크릿을 발급한다. 트리거 단위 토큰(`interaction.triggerToken`, `itk_*`)은 PATCH 결과의 `interaction.tokenStrategy` 가 `per_trigger` 일 때만 이어받는다. 전략이 `per_trigger` 가 아니게 되면 저장된 토큰을 지우고 그 토큰으로 연 SSE 스트림을 닫는다([EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰)). 그 뒤 다시 `per_trigger` 로 바꿔도 옛 토큰은 되살아나지 않는다. 토큰을 새로 받거나 바꾸려면 트리거 단위 토큰 재발급(`revoke-token`)을 쓴다. top-level `interaction` · `notification` 본문에 두 값을 실으면 전역 검증 파이프(`whitelist` + `forbidNonWhitelisted`)가 400 `VALIDATION_ERROR` 로 거부한다. 목적도 방식도 위 `botTokenRef` 보존과 같다. 두 참조는 저장값 대신 트리거 id 로 다시 만든다. 시크릿을 바꾸려면 시크릿 교체(`rotate-secret`)를 쓴다. 원시 `config` 경로의 규칙은 아래 항목과 [미결 사항](#미결-사항) 에 있다.
-- PATCH 가 `notification` 을 실었는데 잠금 안에서 다시 읽은 행에 `signing.secretRef` 가 없으면 서버는 그 행의 옛 평문 `signing.secret` 을 시크릿 저장소로 옮기거나 첫 알림 서명 시크릿(`wsk_<64hex>`)을 발급한다. 어느 쪽인지는 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. EIA 알림 웹훅 설정을 처음 붙일 때가 발급하는 경우다. 판정과 시크릿 저장소 쓰기(발급이나 옮기기)는 같은 트리거 설정 잠금 안에서 한다. 평문은 그 PATCH 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 실린다. 발급하지 않은 응답에는 `secrets` 키가 없다. 생성 때와 같은 규칙이다.
-- 요청 본문의 `config` 키 아래(이 문서에서 «원시 `config`». top-level `chatChannel` · `notification` 과 다른 위치)에는 [채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 의 차단 필드와 `notification.signing.secretRef` 를 실을 수 없다. 있으면 값과 상관없이(자기 트리거의 시크릿 참조여도) 400 `VALIDATION_ERROR` 다. 응답은 원시 `config` 경로를 담은 단일 object 다(예: `details: { field: 'config.chatChannel.botTokenRef', code: 'INVALID_FIELD' }`). 생성도 같다. 스케줄 유형 트리거는 `config` 를 받지 않으므로 그 거부(`details.field='type'`)가 먼저 난다. `interaction.triggerToken` 같은 다른 서버 발급 값은 이 규칙이 막지 않는다([미결 사항](#미결-사항)). 원시 `config` 에는 `setupChannel()` 과 평문 제거가 돌지 않아 평문이 JSONB 에 남는다. 시크릿 참조는 다른 트리거의 비밀을 가리킬 수 있다. 시크릿 저장소의 `resolve` 는 참조만 보고 `rotate` 는 같은 워크스페이스 안의 다른 트리거 행을 가리지 못한다. 그래서 그대로 두면 봇 토큰 재발급이 그 트리거의 비밀을 덮어쓴다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 23). 이미 저장된 행은 읽는 쪽이 참조를 트리거 id 로 다시 만들고([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24) `rotate` 는 다른 워크스페이스의 행을 거부한다(같은 문서 규칙 25).
+- `interaction` · `notification` 이 실린 PATCH 에서 서버가 만든 두 값은 서버가 잠금 안에서 다시 읽은 행을 보고 정한다. 알림 서명 시크릿 참조(`notification.signing.secretRef`)는 그 행에 참조가 있으면 행의 값을 복사하지 않고 `notificationSigningSecretRef(triggerId)` 로 다시 만들어 싣는다. 참조가 없을 때의 처리는 아래 항목이 정한다. 트리거 단위 토큰(`interaction.triggerToken`, `itk_*`)의 처리도 아래 항목이 정한다. top-level `interaction` · `notification` 본문에 두 값을 실으면 전역 검증 파이프(`whitelist` + `forbidNonWhitelisted`)가 400 `VALIDATION_ERROR` 로 거부한다. 목적도 방식도 위 `botTokenRef` 보존과 같다. 두 참조는 저장값 대신 트리거 id 로 다시 만든다. 시크릿을 바꾸려면 시크릿 교체(`rotate-secret`)를 쓴다. 원시 `config` 경로의 규칙은 아래 항목과 [미결 사항](#미결-사항) 에 있다.
+- PATCH 가 `notification` 을 실었는데 잠금 안에서 다시 읽은 행에 `signing.secretRef` 가 없으면 서버는 그 행의 옛 평문 `signing.secret` 을 시크릿 저장소로 옮기거나 첫 알림 서명 시크릿(`wsk_<64hex>`)을 발급한다. 어느 쪽인지는 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. EIA 알림 웹훅 설정을 처음 붙일 때가 발급하는 경우다. 판정과 시크릿 저장소 쓰기(발급이나 옮기기)는 같은 트리거 설정 잠금 안에서 한다. 평문은 그 PATCH 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 실린다. 발급한 비밀이 없는 응답에는 `secrets` 키가 없다. 생성 때와 같은 규칙이다. 이 응답을 받지 못했으면 `rotate-secret` 으로 새 시크릿을 받는다.
+- 최상위 `interaction` 이나 원시 `config` 가 실린 PATCH 는 트리거 단위 토큰을 PATCH 결과의 인터랙션 설정과 잠금 안에서 다시 읽은 행으로 정한다. 원시 `config` 도 `interaction` 을 통째로 바꾸므로 같은 규칙을 따른다. 트리거를 만들 때의 발급 조건은 [API](#api) 표의 POST 행에 있다.
+  - 결과 전략이 `per_trigger` 이고 행에 토큰이 있으면 그 토큰을 이어받는다. 인터랙션을 끈 뒤 다시 켜도 같은 토큰이 통한다.
+  - 결과 전략이 `per_trigger` 이고 인터랙션이 켜져 있는데(`enabled: true`) 행에 토큰이 없으면 새 토큰을 발급한다. 인터랙션을 `per_trigger` 로 처음 켤 때와 다른 전략에서 `per_trigger` 로 돌아올 때가 이 경우다. 평문은 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 실린다.
+  - 결과 전략이 `per_trigger` 가 아니면 저장된 토큰을 지운다. 그래서 `per_trigger` 로 돌아와도 옛 토큰은 되살아나지 않고 새 토큰이 발급된다.
+  - 결과 `interaction` 이 객체가 아니면 그 값을 그대로 저장하고 저장된 토큰도 함께 사라진다. `interaction: null` 을 보냈거나 원시 `config` 에 `interaction` 이 없을 때가 이 경우다.
+  - 인터랙션을 끄는 PATCH(결과 `enabled` 가 `true` 가 아님)는 토큰 값을 남긴다. 인터랙션 가드는 `interaction.enabled === true` 인 트리거에서만 토큰을 받으므로 꺼 둔 동안 그 토큰은 통하지 않는다.
+  - 토큰을 지우거나 인터랙션을 끈 PATCH 는 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다([EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰)).
+  - 발급된 토큰을 바꾸려면 트리거 단위 토큰 재발급(`revoke-token`)을 쓴다. 첫 발급 응답을 받지 못했을 때도 같다.
+- 요청 본문의 `config` 키 아래(이 문서에서 «원시 `config`». top-level `chatChannel` · `notification` 과 다른 위치)에는 [채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 의 차단 필드와 `notification.signing.secretRef` · `interaction.triggerToken` 을 실을 수 없다. 있으면 값과 상관없이(자기 트리거의 시크릿 참조나 토큰이어도) 400 `VALIDATION_ERROR` 다. 응답은 원시 `config` 경로를 담은 단일 object 다(예: `details: { field: 'config.chatChannel.botTokenRef', code: 'INVALID_FIELD' }`). 생성도 같다. 스케줄 유형 트리거는 `config` 를 받지 않으므로 그 거부(`details.field='type'`)가 먼저 난다. `interaction.triggerToken` 은 서버가 만드는 값이라 호출자가 정하지 못한다. 원시 `config` 에는 `setupChannel()` 과 평문 제거가 돌지 않아 평문이 JSONB 에 남는다. 시크릿 참조는 다른 트리거의 비밀을 가리킬 수 있다. 시크릿 저장소의 `resolve` 는 참조만 보고 `rotate` 는 같은 워크스페이스 안의 다른 트리거 행을 가리지 못한다. 그래서 그대로 두면 봇 토큰 재발급이 그 트리거의 비밀을 덮어쓴다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 23). 이미 저장된 행은 읽는 쪽이 참조를 트리거 id 로 다시 만들고([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24) `rotate` 는 다른 워크스페이스의 행을 거부한다(같은 문서 규칙 25).
+- 원시 `config` 가 실린 PATCH 의 트리거 단위 토큰 발급 · 이어받기 · 지우기 · 스트림 닫기는 위 항목을 따른다(REQ-TRIG-056, REQ-TRIG-060). 원시 `config` 의 나머지 계약은 [미결 사항](#미결-사항) 에 있다.
 - 채팅 채널이 없는 트리거에 PATCH 로 채널을 나중에 붙이면 400(`details.field='chatChannel'`, `details.code='INVALID_FIELD'`)이다. 최초 설정은 생성 요청에서만 한다.
 - 채팅 채널 `provider` 를 바꾸면 400(`details.field='provider'`, `details.code='INVALID_FIELD'`)이다. 허용하면 다른 provider 의 토큰을 새 어댑터에 넘기게 된다.
 - 스케줄 유형 트리거 PATCH 는 `name`, `isActive` 만 받는다. `endpointPath` / `config` / `authConfigId` 등을 바꾸려 하면 400 `VALIDATION_ERROR`(`details.field='type'`, `details.code='INVALID_FIELD'`)다. 트리거와 스케줄의 동기화를 지키기 위해서다([트리거 데이터와 흐름](CLE-TRIG-DATA.md)).
@@ -258,7 +273,7 @@ etag: "sha256-721a1616bd90e07cb673cad8ff9999328c5cff1fc65a224a9d8ff816757323b3"
 
 ### 동시 쓰기 직렬화
 
-트리거 `config` 는 트리거 단위 잠금 안에서 다시 읽고 쓴다. `config` JSONB 를 다시 쓰는 경로는 PATCH, 채팅 채널 setup, 봇 토큰 재발급, 알림 서명 시크릿 정규화·승격, 트리거 단위 토큰 재발급이다. 이 경로들은 Postgres advisory lock `pg_advisory_xact_lock(hashtext('trigger-config:<triggerId>'))` 을 잡은 뒤 행을 다시 읽고 그 위에 병합한다. 시크릿 교체(`rotate-secret`)는 `config` 를 쓰지 않지만 같은 잠금을 잡는다(아래). 요청 시작 시점의 스냅샷으로 통째로 되쓰면 그사이 커밋된 키가 되돌아간다. 되돌아가는 키가 `chatChannel.inboundSigningRef` 면 인바운드 서명 검증이 fail-open 된다.
+트리거 `config` 는 트리거 단위 잠금 안에서 다시 읽고 쓴다. `config` JSONB 를 다시 쓰는 경로는 PATCH, 채팅 채널 setup, 봇 토큰 재발급, 알림 서명 시크릿 정규화·승격, 트리거 단위 토큰 재발급이다. 이 경로들은 Postgres advisory lock `pg_advisory_xact_lock(hashtext('trigger-config:<triggerId>'))` 을 잡은 뒤 행을 다시 읽고 그 위에 병합한다. 시크릿 교체(`rotate-secret`)는 `config` 를 쓰지 않지만 같은 잠금을 잡는다(아래). 트리거 생성도 행을 INSERT 한 트랜잭션 안에서 같은 잠금을 잡는다(아래). 요청 시작 시점의 스냅샷으로 통째로 되쓰면 그사이 커밋된 키가 되돌아간다. 되돌아가는 키가 `chatChannel.inboundSigningRef` 면 인바운드 서명 검증이 fail-open 된다.
 
 ```mermaid
 flowchart TD
@@ -266,21 +281,22 @@ flowchart TD
     B --> C[트리거 설정 잠금 획득]
     C --> D{행을 다시 읽었나}
     D -- 비어 있음 --> F[쓰지 못함]
-    D -- 있음 --> E[바뀐 필드만 병합 쓰기<br/>PATCH 의 첫 알림 서명 시크릿 쓰기도 여기]
+    D -- 있음 --> E[바뀐 필드만 병합 쓰기<br/>PATCH 의 첫 비밀 발급과 시크릿 저장소 쓰기도 같은 트랜잭션]
     E --> G{매치된 행이 있나}
     G -- 0행 --> F
-    G -- 1행 --> H[커밋]
+    G -- 1행 --> H[커밋<br/>생성 · PATCH 의 감사 기록은 커밋 직후 트랜잭션 밖]
     F --> I[provider 등록 해제 best-effort<br/>그 트리거 비밀 삭제]
     I --> J[404 또는 에러 응답]
 ```
 
 - 외부 서비스 호출은 잠금 밖에서 한다. 잠금 안에서는 다시 읽기와 쓰기만 한다. Cafe24 토큰 갱신이 같은 잠금을 기각한 이유(잠금을 쥔 채 HTTP 요청을 하면 DB 커넥션 점유가 길어진다)가 이 설계의 제약이다([OAuth 연결과 토큰 갱신 「여러 인스턴스의 갱신 경쟁은 BullMQ `jobId` 중복 제거로 푼다」](../CLE-INT/CLE-INT-OAUTH.md#여러-인스턴스의-갱신-경쟁은-bullmq-jobid-중복-제거로-푼다)).
-- 예외로 PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기와 시크릿 승격은 잠금 안에서 시크릿 저장소에 쓴다. 지금 시크릿 저장소 백엔드는 같은 DB 의 `secret_store` 테이블이라 이 쓰기에 HTTP 호출이 없다. 외부 백엔드를 들이면 이 경로를 다시 설계한다([시크릿 저장소 「다른 백엔드로 바꾸기」](../CLE-INT/CLE-INT-SECRET.md#다른-백엔드로-바꾸기)).
+- 예외로 세 경로는 잠금 안에서 시크릿 저장소에 쓴다. 생성의 첫 알림 서명 시크릿 발급 · 옮기기, PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기, 시크릿 승격이다. 세 경로는 잠금을 쥔 트랜잭션의 매니저로 쓴다. 그래서 풀 연결을 하나 더 쓰지 않고 그 트랜잭션이 롤백되면 시크릿 저장소 쓰기도 함께 롤백된다. 지금 시크릿 저장소 백엔드는 같은 DB 의 `secret_store` 테이블이라 이 쓰기에 HTTP 호출이 없다. 외부 백엔드를 들이면 이 경로를 다시 설계한다([시크릿 저장소 「다른 백엔드로 바꾸기」](../CLE-INT/CLE-INT-SECRET.md#다른-백엔드로-바꾸기)).
+- 생성은 행 INSERT · 시크릿 저장소 쓰기 · `config` 쓰기 · 첫 비밀 발급을 한 트랜잭션에서 한다. 본문에 `notification` 이나 `interaction` 이 있으면 이 트랜잭션은 INSERT 한 트리거의 설정 잠금을 잡는다. 첫 알림 서명 시크릿은 잠금을 쥔 이 트랜잭션의 매니저로 시크릿 저장소에 쓴다. 트리거 단위 토큰은 같은 트랜잭션에서 `config.interaction.triggerToken` 에 쓴다. 어느 단계든 실패하면 트랜잭션 전체가 롤백되어 행도 비밀도 남지 않는다. 그래서 호출자가 같은 요청을 다시 보내도 `endpointPath` UNIQUE 충돌이나 중복 트리거가 생기지 않는다. 감사 기록(`trigger.created`)은 이 트랜잭션에 넣지 않고 커밋 직후 트랜잭션 밖에서 남긴다. PATCH 의 `trigger.updated` 도 커밋 직후에 남긴다. 그래서 롤백된 생성은 감사에 남지 않는다([Rationale](#rationale) «생성을 한 트랜잭션으로 묶는다»). 채팅 채널 setup 은 커밋과 감사 기록 뒤에 하고 위의 다시 읽기 · 병합 규칙을 따른다.
 - 잠금 대기 상한은 삭제에만 있다(5초, [결과와 에러](#결과와-에러)).
 - `config` 를 건드리지 않는 컬럼 한정 갱신은 이 잠금을 잡지 않는다. 예: 웹훅 수신의 `lastTriggeredAt`, 스케줄 편집의 `name`·`isActive` 동기화.
 - 예외는 시크릿 교체(`rotate-secret`)다. `notification_secret_v2` · `notification_rotated_at` 컬럼만 쓰지만 같은 잠금을 잡는다. 승격이 잠금 안에서 같은 컬럼을 비우기 때문이다. 승격이 v2 를 비우는 조건과 유예 중 재교체 규칙은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. 상태 전이는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다.
-- 잠금으로 막을 수 없는 삭제 경로가 있다. 워크플로우·워크스페이스 삭제의 FK CASCADE 다. 그래서 잠금 안에서도 행이 있는지 판정한다. 다시 읽은 결과가 비면 쓰지 않는다. 병합 쓰기가 0행에 매치되면 쓰지 못한 것으로 본다. `rotate-bot-token`·`interaction/revoke-token` 은 이때 404 로 응답한다.
-- 쓰지 못했으면 만든 것을 되돌린다. 잠금 밖에서 `secret_store` 에 비밀을 쓰거나 채널 프로바이더에 등록한 뒤 위 판정으로 쓰지 못한 요청은 채널 프로바이더 등록을 해제(best-effort)한 뒤 그 트리거의 비밀(`secret://triggers/<id>/`)을 지운다. PATCH 의 첫 알림 서명 시크릿 발급 · 옮기기나 시크릿 승격이 잠금 안에서 비밀을 쓴 뒤 행이 없어 저장하지 못한 경우도 같이 지운다. 트리거 설정 잠금은 advisory lock 이라 워크플로우 · 워크스페이스 삭제의 FK CASCADE 를 막지 못하기 때문이다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 9). 이 되돌리기는 삭제 쪽이 행을 지운 뒤에 비밀을 지우는 것과 짝을 이룬다. 그래서 삭제와 겹친 쓰기가 비밀을 고아로 남기지 않는다.
+- 잠금으로 막을 수 없는 삭제 경로가 있다. 워크플로우·워크스페이스 삭제의 FK CASCADE 다. 그래서 잠금 안에서도 행이 있는지 판정한다. 다시 읽은 결과가 비면 쓰지 않는다. 쓰기가 0행에 매치되면 쓰지 못한 것으로 본다. `rotate-bot-token`·`interaction/revoke-token`·`notification/rotate-secret` 은 이때 404 `RESOURCE_NOT_FOUND` 로 응답하고 저장하지 못한 새 비밀을 응답에 싣지 않는다.
+- 쓰지 못했으면 만든 것을 되돌린다. 잠금 밖에서 `secret_store` 에 비밀을 쓰거나 채널 프로바이더에 등록한 뒤 위 판정으로 쓰지 못한 요청은 채널 프로바이더 등록을 해제(best-effort)한 뒤 그 트리거의 비밀(`secret://triggers/<id>/`)을 지운다. 잠금 안의 쓰기 가운데 따로 되돌리는 것은 승격뿐이다. 승격은 비밀을 쓴 뒤 `config` 쓰기가 0행에 매치돼도 트랜잭션이 오류 없이 커밋되므로 그때 쓴 비밀을 지운다. 생성과 PATCH 의 잠금 안 쓰기는 저장하지 못하면 트랜잭션과 함께 롤백되어 남지 않는다. 트리거 설정 잠금은 advisory lock 이라 워크플로우 · 워크스페이스 삭제의 FK CASCADE 를 막지 못한다. 그래서 잠금 안에서 쓴 승격도 행을 잃을 수 있다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 9). 이 되돌리기는 삭제 쪽이 행을 지운 뒤에 비밀을 지우는 것과 짝을 이룬다. 그래서 삭제와 겹친 쓰기가 비밀을 고아로 남기지 않는다.
 
 PATCH 는 그 요청이 바꾸는 필드만 저장한다. 엔티티를 통째로 저장하면 다시 읽은 뒤 잠금 밖에서 커밋된 컬럼(웹훅 수신의 `lastTriggeredAt`, 스케줄 편집의 `name`·`isActive` 등)이 다시 읽은 시점 값으로 되써진다. "컬럼 한정 갱신은 잠금을 잡지 않는다" 가 성립하려면 PATCH 가 그 컬럼을 싣지 않아야 한다.
 
@@ -301,7 +317,7 @@ PATCH 에서 트리거가 사라지는 경우는 두 창으로 갈린다.
 - 이 캐너리가 고정하는 것은 계약이 아니라 현재 구현이다. 규약은 이 필드를 키 생략형으로 선언하라고만 요구하고 어느 경로에서 빠지는지는 정하지 않는다. 생성 응답도 `workflow` 를 싣도록 바꾸는 것은 계약 위반이 아니라 추가 개선이다. 다만 지금은 캐너리의 음성 케이스가 그 변경을 RED 로 막는다. 이것은 의도한 프로세스 게이트다(이 절을 함께 고치지 않고는 동작을 바꿀 수 없다).
 - 이 참조는 `id` 와 `name` 을 담는다. 스케줄 응답의 자매 참조는 `name` 하나만 담는다. 이 차이는 의도한 것이다(스케줄 화면은 이름만 표시한다). 한쪽을 다른 쪽으로 바꾸지 않는다.
 
-`secrets` 도 키 생략형이다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). 서버가 첫 알림 서명 시크릿을 발급한 생성 · PATCH 응답에만 `secrets.notificationSigningSecret` 이 있다. 평문이 놓이는 자리는 [API](#api) 표 아래 문단이 정한다.
+`secrets` 도 키 생략형이다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). 그 응답에서만 생기는 일회성 값이기 때문이다. 서버가 첫 비밀을 발급한 생성 · PATCH 응답에만 `secrets` 가 있다. 안의 `notificationSigningSecret` · `interactionToken` 도 키 생략형이고 그 응답이 실제로 발급한 것만 실린다. 응답 DTO 는 `TriggerIssuedSecretsDto` 다. 평문이 놓이는 자리는 [API](#api) 표 아래 문단이 정한다.
 
 ## 삭제 정책
 
@@ -325,6 +341,8 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 | `schedule` | "이 트리거를 삭제하면 연결된 스케줄도 함께 삭제돼요 (Cron: `{{cron}}`). 다음 실행 예정: `{{nextRunAt}}`." |
 | `manual` | "이 트리거에 연결된 워크플로우 (`{{workflowName}}`) 는 보존되며 트리거를 통한 외부 실행 진입점만 사라져요." |
 
+스케줄 유형이면 본문 아래에 경고 상자를 하나 더 보인다. 문구는 "연결된 스케줄도 함께 삭제돼요" 다(i18n 키 `triggers.delete.cascadeWarning`).
+
 오삭제를 막기 위해 사용자가 트리거 이름을 정확히 입력해야 "삭제" 버튼이 켜진다. 이 패턴은 트리거 화면이 처음 도입했다. 공통 UI 규약([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md))으로 올리는 일은 후속 과제다.
 
 ### 연쇄 영향
@@ -338,26 +356,20 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 | `execution.trigger_id` | SET NULL. 실행 기록은 남는다. 트리거를 지워도 과거 실행 통계와 감사 추적이 끊기지 않게 하려는 것이다 |
 | `auth_config_id` | 트리거 쪽 FK 만 끊긴다. 인증 설정 행은 지워지지 않는다(다른 트리거가 함께 쓸 수 있다) |
 | EIA 알림 웹훅(`notification.*`) | 트리거에 딸린 것이라 다음 발송 시도부터 멈춘다. `notificationHealth` 는 행이 없어지므로 따로 정리할 필요가 없다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)) |
-| 트리거 단위 인터랙션 토큰 | 트리거를 지우면 곧바로 무효가 된다. 그 토큰으로 연 SSE 스트림도 닫는다([EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰)). 따로 재발급을 부를 필요가 없다 |
+| 트리거 단위 인터랙션 토큰 | 트리거를 지우면 곧바로 무효가 된다. 그 토큰으로 연 SSE 스트림도 모든 서버 인스턴스에서 닫는다([EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰)). 따로 재발급을 부를 필요가 없다 |
 
 ### 자원 정리
 
 트리거 행을 없애는 모든 경로는 그 트리거의 자원을 정리한다(2026-09-17 결정). 경로는 트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제다.
 
-| 자원 | 정리 시점 |
-|------|----------|
-| 외부 자원: 스케줄 BullMQ 작업, 채팅 채널 provider 등록(해제는 best-effort), listener registry | 행 삭제 전, DB 트랜잭션 밖 |
-| `secret_store` 의 `secret://triggers/<id>/` 비밀 | 행 삭제가 커밋된 뒤 |
-| 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림(같은 서버 인스턴스) | 행 삭제가 커밋된 뒤 |
+정리하는 자원은 셋이다. 외부 자원(스케줄 BullMQ 작업, 채팅 채널 provider 등록, listener registry), `secret_store` 의 `secret://triggers/<id>/` 비밀, 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림이다. 자원별 정리 시점과 순서, 부모 삭제 때 대상 트리거를 고르는 방법, 정리가 닿지 않는 남은 창은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
 
 외부 자원 해제가 실패했을 때의 정책은 다음과 같다.
 
 - 채팅 채널 provider 등록 해제는 best-effort 라 실패해도 삭제를 계속한다.
 - 스케줄 작업 해제가 실패하면 삭제를 멈춘다.
-- SSE 스트림 닫기는 best-effort 라 실패해도 삭제 결과는 그대로다. 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다.
+- SSE 스트림 닫기는 best-effort 라 실패해도 삭제 결과는 그대로다. 닫는 범위는 모든 서버 인스턴스이고 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다.
 - 여러 작업을 해제하는 워크플로우·워크스페이스 삭제는 전부 시도한 뒤, 이미 해제한 활성 작업을 다시 등록하고 멈춘다. 스케줄은 활성인데 발사하지 않는 상태를 남기지 않으려는 것이다.
-
-자원별 정리 순서, 부모 삭제 때 대상 트리거를 고르는 방법, 정리가 닿지 않는 남은 창은 [트리거 데이터와 흐름](CLE-TRIG-DATA.md) 이 정한다.
 
 ### 결과와 에러
 
@@ -369,7 +381,7 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 
 ## 미결 사항
 
-- **원시 `config` 의 계약**: PATCH 본문 계약 표의 `config` 행은 «부분 갱신» 이라고 적지만 구현은 요청이 `config` 를 보내면 저장된 `config` 를 통째로 교체한다. 원시 `config` 의 `chatChannel` · `notification` · `interaction` 키는 타입 필드 검사를 거치지 않아 채널을 나중에 붙이거나 `provider` 를 바꾸거나 등록 시점 EIA 알림 웹훅 URL 검사를 건너뛸 수 있다(위 PATCH 본문 계약의 두 거부를 우회한다). `interaction.triggerToken` 도 클라이언트가 값을 정할 수 있다. 원시 `config` 거부는 시크릿 참조 · 평문 필드만 막는다. 그 거부 대상도 사람이 더하는 목록이라 새 참조 슬롯을 자동으로 잡지 못한다(`secret://` 값을 직접 거르는 안이 후보다). 나머지는 NERV Task `CLE-T-EA7B5M` 이 정한다.
+- **원시 `config` 의 계약**: PATCH 본문 계약 표의 `config` 행은 «부분 갱신» 이라고 적지만 구현은 요청이 `config` 를 보내면 저장된 `config` 를 통째로 교체한다. 원시 `config` 의 `chatChannel` · `notification` · `interaction` 키는 타입 필드 검사를 거치지 않아 채널을 나중에 붙이거나 `provider` 를 바꾸거나 등록 시점 EIA 알림 웹훅 URL 검사를 건너뛸 수 있다(위 PATCH 본문 계약의 두 거부를 우회한다). 원시 `config` 거부는 시크릿 참조 · 평문 필드와 서버가 만드는 `interaction.triggerToken` 만 막는다. 그 거부 대상도 사람이 더하는 목록이라 새 참조 슬롯을 자동으로 잡지 못한다(`secret://` 값을 직접 거르는 안이 후보다). 나머지는 NERV Task `CLE-T-EA7B5M` 이 정한다.
 - **트리거 이름의 길이 상한과 유일성**: 트리거 목록 원문은 이름을 1~120자로 제한하고 워크스페이스 안에서 유일해야 하며 충돌하면 409 라고 적는다. 데이터 모델에는 유일성 제약이 없다. 현재 구현은 요청 본문 검증 `MaxLength(255)`·DB `varchar(255)` 이고 이름 충돌 409 경로가 없다(409 는 엔드포인트 경로 충돌뿐이다). 스케줄 이름도 `trigger.name` 이라 유일성을 넣으면 스케줄에도 영향이 있다([스케줄](CLE-TRIG-SCHEDULE.md)). 구현에 맞춰 원문을 고칠지, 유일성을 새로 구현할지 결정해야 한다.
 
 ## 구현 위치
@@ -381,9 +393,13 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 - `codebase/backend/src/modules/triggers/triggers.service.ts`
 - `codebase/backend/src/modules/triggers/triggers.module.ts`
 - `codebase/backend/src/modules/triggers/trigger-config-lock.ts` (동시 쓰기 직렬화의 트리거 단위 advisory lock)
-- `codebase/backend/src/modules/triggers/trigger-resource-release.ts` (자원 정리의 순서·실패 정책. 네 삭제 경로와 쓰기 보상이 모두 지나는 순수 함수)
+- `codebase/backend/src/modules/triggers/trigger-resource-release.ts` (자원 정리의 순서·실패 정책. 네 삭제 경로와 쓰기 보상이 모두 지나는 순수 함수. 행 삭제 커밋 뒤의 비밀 삭제와 스트림 닫기는 `cleanUpDeletedTriggersAfterCommit` 하나로 모았다)
 - `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts` (위 순수 함수의 배선. 스케줄 삭제는 모듈 순환 때문에 서비스를 거치지 않고 순수 함수를 직접 부른다)
-- `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts` (원시 `config` 의 시크릿 참조 · 평문 필드 거부)
+- `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts` (원시 `config` 의 시크릿 참조 · 평문 필드와 서버가 만드는 값의 거부)
+- `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급해 저장하는 서비스다. 이름이 비슷한 `NotificationSecretRotatorService` 는 회전 유예가 끝난 시크릿을 승격하는 스케줄러로 따로 있다. 이 서비스는 알림 서명 시크릿의 판정 · 시크릿 저장소 쓰기 · 보상을 맡는다. `settle` 은 생성과 `notification` 이 실린 PATCH 가 잡은 잠금 안에서 부른다. `migrateLegacyPlaintext`(원시 `config` PATCH 의 옛 평문 정규화) · `writeRotation`(`rotate-secret`) · `promoteRotated`(승격과 그 되돌리기)는 스스로 잠금을 잡는다)
+- `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 알림 서명 시크릿의 발급 판정 `decideNotificationSigning` 과 서명 참조 얹기. 이름이 비슷한 `notification-signing-secret-ref.ts` 는 트리거 id 로 참조를 만드는 `notificationSigningSecretRef` 하나만 둔다)
+- `codebase/backend/src/modules/triggers/dto/responses/trigger-response.dto.ts`, `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts` (생성 · PATCH 응답과 일회성 평문 묶음 `TriggerIssuedSecretsDto`. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 4 의 예외 응답이다)
+- `codebase/backend/src/modules/external-interaction/interaction-stream-closer.ts` (트리거 단위 토큰으로 연 SSE 스트림을 닫는 포트. 트리거 쪽 재발급 · PATCH · 삭제가 이 포트로 닫기를 요청한다), `codebase/backend/src/modules/external-interaction/interaction-stream-closer.wiring.spec.ts` (포트가 실제 모듈에서 해석되는지)
 - `codebase/backend/src/modules/triggers/dto/**`
 - `codebase/packages/chat-channel-validation/src/index.ts`
 - `codebase/backend/src/repo-guards/__tests__/endpoint-path-conflict-wrap*.ts` (409 계약을 AST 로 강제한다. `endpointPath` 를 쓰는 `save()` 는 래핑돼야 한다)
@@ -514,9 +530,45 @@ v1.1 이후 이 영향을 풀 마이그레이션 계획이 생기면 이 제한�
 
 ### 서버가 만든 EIA 값의 발급 · 보존 · 교체 잠금 (2026-10-09)
 
-승인된 스펙의 일관성 재검토가 낸 발견과 그 결정을 반영한 초안을 두 번 검토하며 나온 발견을 두고 사용자가 2026-10-09 에 세 차례 답해 아래 네 가지를 정했다(NERV Task `CLE-T-M6PERB`). 질문마다 함께 제시한 선택지는 그 Task 의 결정 기록에 있다. 사용자에게 묻지 않고 기본값으로 정해 알린 뒤 진행한 부분도 있다. 그 부분은 각 항목에 «기본값» 으로 밝혔다.
+사용자가 2026-10-09 에 세 차례 답해 아래 네 가지를 정했다. 검토 경위와 질문마다 함께 제시한 선택지는 NERV Task `CLE-T-M6PERB` 의 결정 기록에 있다. 사용자에게 묻지 않고 기본값으로 정해 알린 뒤 진행한 부분도 있다. 그 부분은 각 항목에 «기본값» 으로 밝혔다.
 
-- **PATCH 에서 서버가 만든 값은 서버가 정한다.** 트리거 단위 토큰(`interaction.triggerToken`)과 알림 서명 시크릿 참조(`notification.signing.secretRef`)는 서버가 만든다. top-level `interaction` · `notification` 에는 이 필드가 없어서 «통째로 교체하니 전체 객체를 다시 보내라» 는 계약을 호출자가 지킬 수 없었다. 구현은 교체할 때 두 값을 지웠다. 트리거 단위 토큰이 지워지면 한 번만 보여 준 토큰이 조용히 무효가 된다. 알림 서명 시크릿 참조가 지워지면 다음 발송에서 서명할 시크릿을 찾지 못해 발송하지 않고 발송 건강도가 `degraded` 가 된다. 그래서 시크릿 참조는 늘 보존한다. 트리거 단위 토큰은 PATCH 결과의 전략이 `per_trigger` 일 때만 이어받는다. 가드는 전략이 `per_trigger` 일 때만 저장된 토큰과 비교한다. 다른 전략으로 바꾼 동안 토큰을 남겨 두면 `per_trigger` 로 되돌릴 때 이미 폐기했다고 여긴 영구 토큰이 재발급 없이 다시 유효해진다. 이를 막으려고 전략을 바꾸면 토큰을 지운다. 되돌릴 때는 `revoke-token` 으로 새로 받는다. [PATCH 본문 계약](#patch-본문-계약) 의 `botTokenRef` 보존과 목적이 같다. 처음 물었을 때 함께 제시한 «지워지는 것이 의도라고 스펙에 적기» 와 다시 물었을 때 함께 제시한 «남겨 두고 되살아남을 명시» 는 택하지 않았다. 시크릿 참조를 보존하는 방식은 기본값으로 정했다. 다시 읽은 행에 참조가 있으면 그 값을 복사하지 않고 트리거 id 로 다시 만든다. 저장 경계가 막기 전에 원시 `config` 로 저장된 행에는 다른 트리거를 가리키는 참조가 있을 수 있어서다. 이렇게 하면 `botTokenRef` 와 보존 방식이 같아지고 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24 와도 맞는다.
-- **첫 알림 서명 시크릿은 서버가 발급한다.** [External Interaction API](../CLE-IX/CLE-EIA.md) 의 요구사항(승인 전 초안)은 트리거를 만들 때 알림 서명 시크릿(`wsk_*`)을 생성 응답에서 한 번 평문으로 보여 준다고 정한다. 구현은 생성 때 발급하지 않아 호출자가 시크릿을 보내지 않으면 주 시크릿이 없었다. 사용자는 그 요구사항을 따르기로 했다. 발급 시점은 트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때(다시 읽은 행에 `signing.secretRef` 가 없을 때) 둘이다. 생성 때만 발급하면 나중에 붙인 트리거는 주 시크릿이 없어 발송할 때마다 저하로 처리된다. 호출자가 원시 `config` 로 평문 `signing.secret` 을 보냈으면 그 값을 쓰고 발급하지 않는다. 평문은 발급한 그 응답의 `data.secrets.notificationSigningSecret` 에만 싣는다. 처음 물었을 때 함께 제시한 «그 요구사항을 현재 동작으로 고치기» 와 다시 물었을 때 함께 제시한 «생성 때만» · «발급하지 않음(지금 동작을 스펙으로)» 은 택하지 않았다. PATCH 의 «없음» 판정은 기본값으로 정했다. 다시 읽은 행의 값이 없거나 `secret://` 형식의 문자열이 아니면 없다고 본다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24). 발송도 같은 규칙으로 참조를 읽는다. 그래서 형식이 틀린 값을 «있음» 으로 보면 발급하지 않은 채 저하로 남을 수 있다. 판정과 시크릿 저장소 쓰기는 같은 트리거 설정 잠금 안에서 한다. 판정을 잠금 밖에서 하면 동시에 온 두 PATCH 가 모두 «없음» 으로 보고 각자 발급해 한쪽 응답의 평문이 쓸모없어진다. 참조가 없는 행에 옛 평문 `signing.secret` 이 남아 있으면 발급하지 않고 그 평문을 옮긴다. 통째 교체로 그 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 이것도 기본값이다. PATCH 가 시크릿 저장소에 쓰는 것은 [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 와 부딪치지 않는다. 그 결정의 비밀은 요청자가 입력한 값이다. 서버가 만든 첫 값과 저장된 값의 이전은 요청 본문을 쓰지 않는다. 이후 바꾸는 길은 `rotate-secret` 하나다.
+- **PATCH 에서 서버가 만든 값은 서버가 정한다.** 트리거 단위 토큰(`interaction.triggerToken`)과 알림 서명 시크릿 참조(`notification.signing.secretRef`)는 서버가 만든다. top-level `interaction` · `notification` 에는 이 필드가 없어서 «통째로 교체하니 전체 객체를 다시 보내라» 는 계약을 호출자가 지킬 수 없었다. 구현은 교체할 때 두 값을 지웠다. 트리거 단위 토큰이 지워지면 한 번만 보여 준 토큰이 조용히 무효가 된다. 알림 서명 시크릿 참조가 지워지면 다음 발송에서 서명할 시크릿을 찾지 못해 발송하지 않고 발송 건강도가 `degraded` 가 된다. 그래서 시크릿 참조는 늘 보존한다. 트리거 단위 토큰은 PATCH 결과의 전략이 `per_trigger` 일 때만 이어받는다. 가드는 전략이 `per_trigger` 일 때만 저장된 토큰과 비교한다. 다른 전략으로 바꾼 동안 토큰을 남겨 두면 `per_trigger` 로 되돌릴 때 이미 폐기했다고 여긴 영구 토큰이 재발급 없이 다시 유효해진다. 이를 막으려고 전략을 바꾸면 토큰을 지운다. 되돌릴 때는 새 토큰을 받는다. 처음에는 `revoke-token` 으로 받게 했고 2026-10-17 부터는 그 PATCH 가 발급한다(아래 「트리거 단위 토큰을 생성과 첫 PATCH 에서 발급한다」). [PATCH 본문 계약](#patch-본문-계약) 의 `botTokenRef` 보존과 목적이 같다. 처음 물었을 때 함께 제시한 «지워지는 것이 의도라고 스펙에 적기» 와 다시 물었을 때 함께 제시한 «남겨 두고 되살아남을 명시» 는 택하지 않았다. 시크릿 참조를 보존하는 방식은 기본값으로 정했다. 다시 읽은 행에 참조가 있으면 그 값을 복사하지 않고 트리거 id 로 다시 만든다. 저장 경계가 막기 전에 원시 `config` 로 저장된 행에는 다른 트리거를 가리키는 참조가 있을 수 있어서다. 이렇게 하면 `botTokenRef` 와 보존 방식이 같아지고 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24 와도 맞는다.
+- **첫 알림 서명 시크릿은 서버가 발급한다.** [External Interaction API](../CLE-IX/CLE-EIA.md) 의 요구사항은 트리거를 만들 때 알림 서명 시크릿(`wsk_*`)을 생성 응답에서 한 번 평문으로 보여 준다고 정한다. 구현은 생성 때 발급하지 않아 호출자가 시크릿을 보내지 않으면 주 시크릿이 없었다. 사용자는 그 요구사항을 따르기로 했다. 발급 시점은 트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때(다시 읽은 행에 `signing.secretRef` 가 없을 때) 둘이다. 생성 때만 발급하면 나중에 붙인 트리거는 주 시크릿이 없어 발송할 때마다 발송 건강도가 `degraded`(저하됨)가 된다. 호출자가 원시 `config` 로 평문 `signing.secret` 을 보냈으면 그 값을 쓰고 발급하지 않는다. 평문은 발급한 그 응답의 `data.secrets.notificationSigningSecret` 에만 싣는다. 처음 물었을 때 함께 제시한 «그 요구사항을 현재 동작으로 고치기» 와 다시 물었을 때 함께 제시한 «생성 때만» · «발급하지 않음(지금 동작을 스펙으로)» 은 택하지 않았다. PATCH 의 «없음» 판정은 기본값으로 정했다. 판정 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 24 이고 발송도 같은 기준으로 참조를 읽는다. 두 판정이 갈리면 발급하지 않은 채 `degraded` 로 남을 수 있어서다. 판정 뒤의 분기(다시 만들기 · 옮기기 · 발급)는 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. 판정과 시크릿 저장소 쓰기는 같은 트리거 설정 잠금 안에서 한다. 판정을 잠금 밖에서 하면 동시에 온 두 PATCH 가 모두 «없음» 으로 보고 각자 발급해 한쪽 응답의 평문이 쓸모없어진다. 참조가 없는 행에 옛 평문 `signing.secret` 이 남아 있으면 발급하지 않고 그 평문을 옮긴다. 통째 교체로 그 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 이것도 기본값이다. PATCH 가 시크릿 저장소에 쓰는 것은 [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 와 부딪치지 않는다. 그 결정의 비밀은 요청자가 입력한 값이다. 서버가 만든 첫 값과 저장된 값의 이전은 요청 본문을 쓰지 않는다. 이후 바꾸는 길은 `rotate-secret` 하나다.
 - **시크릿 교체도 트리거 설정 잠금을 잡는다.** 승격은 잠금 안에서 `notification_secret_v2` 를 비우는데 교체는 잠금 없이 같은 컬럼을 썼다. 승격이 v2 를 고른 뒤 교체가 새 값을 쓰면 응답으로 이미 나간 새 시크릿을 승격이 지울 수 있었다. 그래서 두 경로가 같은 잠금을 잡고 승격은 고른 값이 그대로일 때만 비운다. 24시간 유예 중 다시 교체하면 앞의 새 시크릿을 덮고 유예 시간을 다시 시작한다. 승격 조건은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 한 곳에 둔다. 이 문서의 요구사항은 교체도 같은 잠금을 잡는다는 것만 정한다. 같은 조건을 두 문서의 요구사항에 적으면 한쪽만 고쳐질 수 있어서다. 처음 물었을 때 함께 제시한 «유예 중 재교체 거부(409)» 는 택하지 않았다.
-- **트리거 단위 토큰이 무효가 되면 그 토큰으로 연 SSE 스트림을 닫는다.** 처음 물었을 때 사용자는 토큰을 재발급하거나 토큰이 만료돼도 이미 열린 SSE 스트림을 그 실행이 끝날 때까지 두기로 했다. 바뀌기 전에 시작한 실행이라는 것이 이유였다. 그때 함께 제시한 «문서화하고 후속 Task 로» 와 «이번에 막기(SSE 스트림을 토큰 수명에 묶기)» 는 택하지 않았다. 그 결정을 반영한 초안의 일관성 검토에서 «실행이 끝날 때까지» 라는 상한이 늘 성립하지는 않는다는 지적이 나왔다. 입력 대기 중인 실행은 기한 없이 멈춰 있을 수 있다. 그러면 재발급으로 폐기한 영구 토큰으로 연 스트림이 끝없이 남는다. 다시 물었을 때 사용자는 이 사실을 알고 재발급하면 옛 토큰으로 연 스트림을 닫는 쪽을 골랐다. 그때 함께 제시한 «유지하고 위험을 적기»(추천으로 제시했다)와 «위험만 적고 후속 Task» 는 택하지 않았다. 전략을 바꾸는 PATCH 가 저장된 토큰을 지울 때와 트리거를 지울 때도 같은 이유로 그 토큰으로 연 스트림을 닫는다. 실행 단위 토큰(`iext_*`)이 만료되거나 갱신될 때는 닫지 않는다. PATCH · 삭제 때 닫는 것과 실행 단위 토큰을 닫지 않는 것은 기본값이다. 실행 단위 토큰은 수명이 짧고 실행 하나에 묶이며 그 스트림은 실행의 종료 이벤트에서 끝난다. 다만 입력 대기에서는 그 스트림에도 상한이 없다. 이때의 대응은 실행 취소다. 취소하면 종료 이벤트(`execution.cancelled`)로 스트림이 닫힌다. WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 무효가 된 영구 토큰의 스트림을 끊는 것은 그 원칙과 같은 방향이다. 실행 단위 토큰은 WebSocket 이 택하지 않은 인가 틈(알리기만 하고 끊지 않음)을 의도적으로 받아들이는 예외다. 닫는 대상은 같은 서버 인스턴스의 구독자뿐이다. SSE 버퍼가 서버 인스턴스 하나를 전제로 하기 때문이다. 여러 서버 인스턴스로 넓히는 일은 NERV Task `CLE-T-Z35F7P` 가 맡는다. 닫는 방식과 WebSocket 원칙과의 관계는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다 (2026-10-09)」](../CLE-IX/CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 자세히 적었다.
+- **트리거 단위 토큰이 무효가 되면 그 토큰으로 연 SSE 스트림을 닫는다.** 처음 물었을 때 사용자는 토큰을 재발급하거나 토큰이 만료돼도 이미 열린 SSE 스트림을 그 실행이 끝날 때까지 두기로 했다. 바뀌기 전에 시작한 실행이라는 것이 이유였다. 그때 함께 제시한 «문서화하고 후속 Task 로» 와 «이번에 막기(SSE 스트림을 토큰 수명에 묶기)» 는 택하지 않았다. 그 뒤 «실행이 끝날 때까지» 라는 상한이 늘 성립하지는 않는다는 지적이 나왔다. 입력 대기 중인 실행은 기한 없이 멈춰 있을 수 있다. 그러면 재발급으로 폐기한 영구 토큰으로 연 스트림이 끝없이 남는다. 다시 물었을 때 사용자는 이 사실을 알고 재발급하면 옛 토큰으로 연 스트림을 닫는 쪽을 골랐다. 그때 함께 제시한 «유지하고 위험을 적기»(추천으로 제시했다)와 «위험만 적고 후속 Task» 는 택하지 않았다. 전략을 바꾸는 PATCH 가 저장된 토큰을 지울 때와 트리거를 지울 때도 같은 이유로 그 토큰으로 연 스트림을 닫는다. 인터랙션을 끄는 PATCH 는 토큰 값을 남기고 그 토큰으로 연 스트림만 닫는다. 이것은 2026-10-09 에 같은 Task(`CLE-T-M6PERB`)의 구현 코드 리뷰 질문에 사용자가 답해 정했다(finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`, 인터랙션을 끈 트리거의 토큰 처리가 스펙에 없다는 지적). 인터랙션 끄기는 토큰 폐기가 아니라 중지라서 다시 켜면 같은 토큰이 통한다. 토큰 전략을 바꾸면 값을 지우는 것은 2026-10-09 결정의 범위다(위 첫 항목). 근거 전문은 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다 (2026-10-17)」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다. 실행 단위 토큰(`iext_*`)이 만료되거나 갱신될 때는 닫지 않는다. PATCH · 삭제 때 닫는 것과 실행 단위 토큰을 닫지 않는 것은 기본값이다. 실행 단위 토큰은 수명이 짧고 실행 하나에 묶이며 그 스트림은 실행의 종료 이벤트에서 끝난다. 다만 입력 대기에서는 그 스트림에도 상한이 없다. 이때의 대응은 실행 취소다. 취소하면 종료 이벤트(`execution.cancelled`)로 스트림이 닫힌다. WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 무효가 된 영구 토큰의 스트림을 끊는 것은 그 원칙과 같은 방향이다. 실행 단위 토큰은 WebSocket 이 택하지 않은 인가 틈(알리기만 하고 끊지 않음)을 의도적으로 받아들이는 예외다. 처음에는 닫는 대상이 같은 서버 인스턴스의 구독자뿐이었다. SSE 버퍼가 서버 인스턴스 하나를 전제로 했기 때문이다. 2026-10-17 에 모든 서버 인스턴스로 넓혔다(NERV Task `CLE-T-Z35F7P`). 닫기를 시작한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 닫기 신호를 보낸다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 닫는 방식과 WebSocket 원칙과의 관계는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다 (2026-10-09)」](../CLE-IX/CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 자세히 적었다.
+
+### 트리거 단위 토큰을 생성과 첫 PATCH 에서 발급한다 (2026-10-17)
+
+사용자가 2026-10-17 에 정했다(NERV Task `CLE-T-EMB0YG` 가 맡은 [External Interaction API](../CLE-IX/CLE-EIA.md#미결-사항) 의 미결). 인터랙션이 켜져 있고 전략이 `per_trigger` 인 트리거를 만들면 서버가 트리거 단위 토큰(`itk_*`)을 발급해 생성 응답의 `data.secrets.interactionToken` 에 한 번 싣는다. PATCH 의 결과가 인터랙션이 켜진 `per_trigger` 인데 저장된 토큰이 없을 때도 발급한다. 처음 켤 때와 다른 전략에서 `per_trigger` 로 돌아올 때가 이 경우다. 저장된 토큰이 있으면 발급하지 않는다. 그래서 인터랙션을 껐다 다시 켜면 같은 토큰을 쓴다.
+
+- 전에는 생성 때 토큰을 발급하지 않았다. `per_trigger` 트리거를 만든 호출자는 `revoke-token` 을 부르기 전까지 쓸 토큰이 없었다. 그런데 [웹훅](CLE-TRIG-WEBHOOK.md#수신-api) 의 202 응답은 `per_trigger` 호출자에게 토큰이 이미 있다고 보고 토큰을 싣지 않는다. 알림 서명 시크릿(`wsk_*`)은 생성과 첫 PATCH 에서 발급하는데 이 토큰만 달랐다.
+- 응답 자리는 첫 알림 서명 시크릿과 같은 `data.secrets` 다. 같은 묶음(`TriggerIssuedSecretsDto`)의 선택 필드로 두어 생성 · PATCH 응답의 일회성 평문을 한곳에 모은다. 저장 위치는 그대로 `config.interaction.triggerToken` 이고 응답에서는 뺀다.
+- PATCH 의 발급은 최상위 `interaction` 이 실린 PATCH 와 원시 `config` 가 실린 PATCH 에 같게 적용한다. 이 범위는 구현하면서 정했다(2026-10-17, NERV Task `CLE-T-EQDYC1`). 원시 `config` 도 `interaction` 을 통째로 바꾸고 `interaction.triggerToken` 은 실을 수 없다(REQ-TRIG-053). 그래서 원시 `config` 로 `per_trigger` 를 켠 트리거도 서버가 발급하지 않으면 쓸 토큰이 없다.
+- 기각한 대안: 생성 때 발급하지 않고 `revoke-token` 으로만 받게 두기(옛 동작). 엔드포인트 이름은 폐기인데 첫 발급에 써야 하고 위 202 응답의 전제가 성립하지 않는다.
+- 기각한 대안: 최상위 `interaction` 이 실린 PATCH 에서만 발급하기. 원시 `config` 로 `per_trigger` 를 켠 트리거는 `revoke-token` 을 따로 불러야 첫 토큰이 생긴다. 바로 위에서 기각한 옛 동작이 이 경로에만 남는다.
+- 기각한 대안: 인터랙션을 다시 켤 때마다 새로 발급하기. 이미 외부 시스템에 배포한 토큰이 사용자가 모르는 사이에 바뀐다. 발급된 토큰을 바꾸는 길은 `revoke-token` 하나로 둔다.
+- 감사는 새 action 을 만들지 않는다(사용자 결정, NERV Task `CLE-T-G0Y6MW`). 생성 · PATCH 가 첫 비밀을 발급하면 그 요청의 `trigger.created` · `trigger.updated` 기록에 `details.issuedSecrets`(발급한 종류 이름 배열)를 더한다. 평문은 싣지 않고 발급하지 않은 요청에는 키를 넣지 않는다. 일회성 평문을 낸 요청을 감사 기록에서 가려낼 수 없다는 지적에서 나왔다(finding 01a11f44-8a41-7056-b3f2-22435b485e5e). 기각한 대안은 발급만 따로 남기는 새 action 이다. 발급은 생성 · 수정 요청의 일부라 action 을 나누면 한 요청이 감사 기록 두 줄로 갈린다. `rotate-secret` · `revoke-token` 은 그 동작만의 요청이라 지금처럼 따로 action 이 있다.
+
+### 생성을 한 트랜잭션으로 묶는다 (2026-10-17)
+
+NERV Task `CLE-T-EQDYC1` 에서 정했다. 전에는 행 INSERT 와 감사 기록이 커밋된 뒤 첫 알림 서명 시크릿을 따로 정했다. 그 사이 실패하면 `notification` 은 있는데 `signing.secretRef` 는 없는 행이 남았다. 호출자는 일회성 평문을 받지 못했고 같은 요청을 다시 보내면 `endpointPath` UNIQUE 충돌이나 중복 트리거가 생겼다(finding 01a11f6b-ae23-737b-970b-1d9e3d0248ea · 01a11f6b-aa56-75c5-9767-01bd7663ab1a · 01a11f6b-a70a-7255-bd1b-670b6ce3b307 · 01a11f6b-d09a-747d-84f5-f7683b757f7d · 01a11f6b-c3aa-7197-acd5-b131e882c4f5, 생성의 커밋 뒤 단계가 실패하면 반쪽 행이 남는다는 지적).
+
+- 이제 행 INSERT · 시크릿 저장소 쓰기 · `config` 쓰기 · 첫 비밀 발급을 한 트랜잭션에서 한다. 시크릿 저장소 쓰기는 잠금을 쥔 그 트랜잭션의 매니저로 하므로 함께 롤백된다.
+- 그래서 생성은 잠금 안에서 시크릿 저장소에 쓰는 예외 목록에 들어가고 «쓰지 못했으면 되돌린다» 의 대상에서는 빠진다. 따로 되돌리는 잠금 안 쓰기는 승격만 남는다(finding 01a11f6d-e219-7351-8323-78fee8e038ea · 01a11f6e-11e3-743e-a1fb-0a2830ecdbdd, 잠금 안 쓰기의 예외 목록과 되돌리기 범위가 구현과 다르다는 지적). 그 지적은 되돌리기 대상을 생성 · 승격으로 좁히자고 했다. 생성을 한 트랜잭션으로 묶으면서 생성도 빠졌다.
+- 감사 기록(`trigger.created`)은 이 트랜잭션에 넣지 않고 커밋 직후 트랜잭션 밖에서 남긴다. 이 범위는 구현하면서 정했다(2026-10-17). 감사 기록 함수 `AuditLogsService.record` 는 트랜잭션 매니저를 받지 않고 자기 연결로 쓴다. 그래서 트랜잭션 안에서 부르면 생성이 롤백돼도 감사 행은 남는다. 이 함수는 적재 실패를 삼키고 주 동작을 계속한다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md#요구사항) REQ-AUDIT-003). 커밋 뒤에 남기면 롤백된 생성은 감사에 남지 않는다. 잃을 수 있는 것은 커밋된 생성의 감사 행 하나이고 그 유실은 REQ-AUDIT-003 이 이미 받아들인 범위다. PATCH 의 `trigger.updated` 도 커밋 직후에 남긴다.
+- 기각한 대안: 커밋 뒤 단계가 실패하면 만든 행을 지우는 보상. 보상도 실패할 수 있고 보상이 끝나기 전까지 반쪽 행이 목록에 보인다.
+- 기각한 대안: `record` 가 매니저를 받아 생성 트랜잭션 안에서 쓰고 savepoint 로 감사 INSERT 의 실패만 되돌리기. 롤백된 생성이 감사에서도 빠지는 장점은 있다. 그러나 모든 모듈이 쓰는 감사 기록 함수의 계약이 바뀐다. savepoint 없이 매니저만 넘기면 감사 INSERT 가 실패할 때 Postgres 트랜잭션 전체가 중단돼 생성까지 실패한다. 그러면 REQ-AUDIT-003 과 어긋난다. 커밋 뒤 기록에 남는 틈(커밋된 생성의 감사 행 유실)은 다른 감사 기록에도 똑같이 있는 틈이라 이 경로만 따로 막을 까닭이 적다.
+
+### 원시 `config` 로 트리거 단위 토큰을 다루지 못하게 한다 (2026-10-17)
+
+NERV Task `CLE-T-EQDYC1` 에서 정했다. 원시 `config` 경로에는 두 틈이 있었다. `interaction` 을 바꿔 토큰이 사라져도 그 토큰으로 연 SSE 스트림을 닫지 않았다. `config.interaction.triggerToken` 에 호출자가 고른 값을 심을 수 있었다(finding 01a11f6b-cc1b-7510-b35d-c57aca8f8531 · 01a11f6b-d09c-755c-b3e3-221c0582db1f, 토큰 무효화와 스트림 닫기 사이에 남은 창을 짚은 지적). 이제 원시 `config` 의 `interaction.triggerToken` 은 시크릿 참조와 같이 거부한다. 원시 `config` 로 토큰이 없어지거나 인터랙션이 꺼져도 스트림을 닫는다. 토큰이 없는 행을 원시 `config` 로 `per_trigger` 로 켜면 최상위 `interaction` 과 같이 서버가 발급한다(위 「트리거 단위 토큰을 생성과 첫 PATCH 에서 발급한다」).
+
+- 기각한 대안: 원시 `config` 계약 전체를 정하는 NERV Task `CLE-T-EA7B5M` 까지 미루기. 그동안 위 「서버가 만든 EIA 값의 발급 · 보존 · 교체 잠금」 이 정한 두 원칙(서버가 만든 값은 서버가 정한다, 무효가 된 토큰의 스트림을 닫는다)을 원시 `config` 로 우회할 수 있다.
+
+### 평문을 60초 뒤 지우는 이유 (2026-10-17)
+
+외부 인터랙션 카드는 첫 발급 · 시크릿 교체 · 토큰 재발급 응답의 평문을 같은 결과 상자(`SecretRevealBox`)로 보여 준다. 60초는 교체 · 재발급 결과 상자에 이미 있던 값(`SECRET_AUTO_HIDE_MS`)이다. 첫 발급 평문을 보여 줄 때도 이 상자를 그대로 썼다. 이 값을 문서에 적은 것은 NERV Task `CLE-T-G0Y6MW` 다(finding 01a11f6d-e21c-7573-b351-c5458648c265 · 01a11f6e-11e7-72d0-a3e1-aac8c0975d6b, 인증 설정의 30초와 다르다는 지적).
+
+- 인증 설정의 평문 표시 30초([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md) REQ-AUTHCFG-016)와는 따로 정한 값이다. 인증 설정은 평문 보기로 다시 읽을 수 있다. 이 카드의 평문은 다시 볼 길이 없다. 놓치면 교체나 재발급으로 새 값을 받아야 하고 외부 시스템에 배포할 값도 바뀐다.
+- 기각한 대안: 30초로 맞추기. 위 이유로 복사할 시간을 줄일 까닭이 적다.
+- 카드가 화면에서 사라지면 평문을 담은 상태도 함께 사라지고 결과 상자는 타이머를 정리한다. 새 값이 오면 타이머를 다시 시작한다. 인증 설정 화면이 타이머를 정리하는 방식(REQ-AUTHCFG-016)과 같다.

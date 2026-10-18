@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "47446e764cf5a6d6a2cb56653546e243802372a8fcc90323d223e2ebf4305d8c"
+content_hash: "a3029fb9cf254a15fe71d1d7af49bedd0df2769827f2ece2564286604afe846c"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-EQDYC1"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "caf847c904358e2752779e063c288c9e07f39ddb4b47055339005b89cf732ae5"
-etag: "sha256-e5e018a93cf67b254b272d1549f801457e0f40cda012134394b728a4809d27be"
+mirror_sha256: "cf69d42fe661748e7b2f11bfb3abd17adc33100f85902233849f6f83f70c66a1"
+etag: "sha256-62a84ef986aa577b5e14bccd9e423bafcdc4af6272c3ab0fb7a532de4a4022f2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -260,7 +260,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 | `notification_last_error` | `notificationLastError` | EIA 알림 웹훅 발송 실패의 원문과 서버가 정한 문구([EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md)) | 500자 |
 
 - **표면**: `GET /api/triggers`(목록), `GET /api/triggers/:id`(상세), `POST /api/triggers`(생성), `PATCH /api/triggers/:id`(수정) 응답이다. 모두 `TriggersService.sanitizeForResponse` 를 지난다(§2.2).
-- **비대상**: 스케줄 응답은 조인한 트리거를 `id` · `name` · `workflowId`(워크플로우를 불러왔으면 `workflow.name` 도)로 좁혀 두 필드를 싣지 않는다. 봇 토큰 재발급 · 알림 서명 시크릿 교체 응답도 이 필드를 싣지 않는다.
+- **비대상**: 스케줄 응답은 조인한 트리거를 `id` · `name` · `workflowId`(워크플로우를 불러왔으면 `workflow.name` 도)로 좁혀 두 필드를 싣지 않는다. 봇 토큰 재발급 · 알림 서명 시크릿 교체 응답도 이 필드를 싣지 않는다. 생성 · 수정(PATCH) 응답의 `data.secrets`(`notificationSigningSecret` · `interactionToken`)는 `sanitizeForResponse` 를 지난 뒤에 붙는 일회성 평문이라 이 마스킹의 대상이 아니다. 어느 응답이 평문을 한 번 실을 수 있는지는 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 가 정한다.
 - **수신 인구**: 두 GET 은 `@Roles` 게이트가 없어 뷰어를 포함한 워크스페이스 멤버가 받는다. 실행 상세(§2.1)와 같은 사람들이라 같은 값 패턴 마스커 `redactSecrets`(`codebase/backend/src/shared/utils/sanitize-error-message.ts`, 자르지 않는다)를 건다.
 - **알려진 비밀 치환과 나가는 시점 마스킹**:
   1. 만든 자리(§1.1): 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 자기가 만든 실패 문장(fetch 예외, 재시도 소진 사유)을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 봇 토큰을 지운다. 세부는 [채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다. 프로바이더가 돌려준 4xx 본문은 실패 판별 입력이라 바꾸지 않는다. 봇 토큰에 CR · LF · NUL 이 있으면 fetch 가 `Headers.append: "Bearer <토큰 전체>" is an invalid header value.`(Discord 는 `Bot <토큰>`)로 거부해 Slack 은 토큰이 이 필드 · 로그 · 응답까지 갔다(Node 24 실측). Discord 는 지금 이 필드에 닿지 않고 로그에 남았다(합성 실패의 판별 결함은 NERV Task `CLE-T-KX2Q2N`).
@@ -502,3 +502,5 @@ NERV Task `CLE-T-H0GF4K` 가 채팅 채널 어댑터와 알림 발송의 실패 
 같은 응답의 `config.notification.url` 은 원문으로 나간다. §3.5 가 «같은 응답 안의 원문이 방어를 우회한다» 고 보고 닫은 형태라 `notificationLastError` 의 `user:pass@` 가림은 이 필드가 남는 동안 실효가 작다. 이 필드는 편집 폼이 다시 보내는 왕복 값이라 규칙 9 와 함께 정해야 해서 §3.5 원칙의 한시 예외로 남겼다. 같은 이유(왕복 값)로 세웠다가 소비 쪽 마커 가드가 선 뒤 닫은 `inputData` 카브아웃(Rationale 「`inputData` 카브아웃을 닫은 이유」)과 같은 길을 밟는다. 해소 조건은 NERV Task `CLE-T-RCQGCC` 가 userinfo 가 든 알림 URL 을 등록에서 거부하거나 응답에서 가리는 것이다. 그때 §3.10 · 개요 · 이 문단을 같은 변경에서 고친다.
 
 2026-10-08 보강: 같은 Task 의 코드 · 일관성 검토에서 알려진 비밀 치환의 범위(클라이언트가 만든 실패 문장, 4xx 본문 제외, 양끝 공백 변형), 규칙 5 의 예외, 헤더 값 패턴의 2048자 상한을 더했다.
+
+2026-10-17 보강: 생성 · 수정 응답의 `data.secrets` 를 §3.10 비대상에 적었다(NERV Task `CLE-T-EMB0YG`, finding 01a11f6d-e21d-7263-90c7-deed20199670). 이 묶음은 서버가 그 요청에서 발급한 평문(첫 알림 서명 시크릿, 트리거 단위 토큰 `itk_*`)을 한 번 싣는다. 그래서 `sanitizeForResponse` 를 지난 응답에 붙인다. 이 묶음을 마스커에 통과시키는 안은 택하지 않았다. 키 이름 판정이나 값 패턴에 걸리면 호출자가 다시 받을 수 없는 평문이 가려진다. 면제 대상 응답의 목록은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 한 곳에 둔다.

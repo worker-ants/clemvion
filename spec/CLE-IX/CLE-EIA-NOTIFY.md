@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "009c84dd2bdb25c84b81850f12fcee6b98b69c4c08d151a83be9d169b1fae58f"
+content_hash: "3f482fe6ac9f99ba93ddf2ba2dff5f2a49dad8f31d652e905580ac4d97aced30"
 read_as: "approved_fallback"
-task: "CLE-T-M6PERB"
+task: "CLE-T-EQDYC1"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "d7f9159018d7111c5717a00c333a9ce3b78a38ac2470513fbe8cf5cfd28e324a"
-etag: "sha256-1a7272f69a3c94a85f84658f8eda76c001fd83b93f8e46b37a3a549c9c3d8242"
+mirror_sha256: "21c55270d100a290ad4b8b0dd5be8cbe1e7f9d7b1d0b72c76e46e5dcb3ee02cc"
+etag: "sha256-9551fb896174cc60fdb0057615bb7822df025b31d8d3cfa6a90cde4cf555b94a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -35,7 +35,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-005 WHEN 같은 이벤트를 다시 보내면 THE SYSTEM SHALL 처음과 같은 `X-Clemvion-Delivery` UUID 를 싣는다. (원본: EIA-NX-04)
 - REQ-EIANOTI-006 WHEN `waiting_for_input`·`ai_message` 알림을 보내기 직전이면 THE SYSTEM SHALL 실행 상태를 다시 읽고 이미 종료된 실행이면 보내지 않는다. (원본: EIA-NX-05)
 - REQ-EIANOTI-007 WHEN 수신 측이 응답하면 THE SYSTEM SHALL `2xx` 만 성공으로 본다. (원본: EIA-NX-06)
-- REQ-EIANOTI-008 IF 응답이 `2xx` 가 아니거나 10초 안에 오지 않으면 THE SYSTEM SHALL 1초에서 시작해 4배씩 늘어나는 간격(1초 · 4초 · 16초 · 64초 …)으로 다시 보내되 첫 시도를 포함한 총 시도 횟수를 `notification.retry.maxAttempts`(기본 5, 상한 10, 0 은 1 로 본다)로 제한한다. (원본: EIA-NX-06)
+- REQ-EIANOTI-008 IF 응답이 `2xx` 가 아니거나 10초 안에 오지 않으면 THE SYSTEM SHALL 1초에서 시작해 4배씩 늘어나되 1시간을 넘지 않는 간격(1초 · 4초 · 16초 · 64초 … 최대 1시간)으로 다시 보내고 첫 시도를 포함한 총 시도 횟수를 `notification.retry.maxAttempts`(기본 5, 상한 10, 0 은 1 로 본다)로 제한한다. (원본: EIA-NX-06)
 - REQ-EIANOTI-009 IF 마지막 시도까지 실패하면 THE SYSTEM SHALL 트리거의 발송 건강도(`notification_health`)를 `degraded` 로 바꾸고 `notification_last_error` 를 기록하되 트리거를 끄지 않는다. (원본: EIA-NX-07)
 - REQ-EIANOTI-010 WHEN 알림을 보내면 THE SYSTEM SHALL 봉투에 그 실행의 이벤트 순번(`seq`)을 싣는다. (원본: EIA-NX-08)
 - REQ-EIANOTI-011 IF `notification.url` 이 `https://` 가 아니면 THE SYSTEM SHALL 거부하되, 개발 환경 변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. (원본: EIA-NX-09)
@@ -43,7 +43,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-013 WHEN 알림 URL 을 검증하면 THE SYSTEM SHALL 워크스페이스 단위 허용·차단 목록을 함께 적용한다. (원본: EIA-NX-10) (미구현)
 - REQ-EIANOTI-014 WHEN 한 트리거의 발송 성공이 분당 60건을 넘으면 THE SYSTEM SHALL 알림을 버리거나 늦추지 않고 보내되 발송 건강도를 `degraded` 로, `notification_last_error` 를 폭주 전용 메시지로 기록한다. (원본: EIA-NX-11)
 - REQ-EIANOTI-015 WHEN 폭주가 멎어 분당 60건 이내로 발송에 성공하면 THE SYSTEM SHALL 발송 건강도를 `healthy` 로 되돌린다. (원본: R-outbound-flood)
-- REQ-EIANOTI-016 WHEN `POST /api/triggers/:id/notification/rotate-secret` 이 호출되면 THE SYSTEM SHALL 새 서명 시크릿을 만들어 응답에 한 번만 평문으로 싣고 24시간 동안 옛 시크릿과 함께 쓴다. (원본: EIA-NX-12)
+- REQ-EIANOTI-016 WHEN `POST /api/triggers/:id/notification/rotate-secret` 이 호출되면 THE SYSTEM SHALL 새 알림 서명 시크릿을 만들어 응답에 한 번만 평문으로 싣고 24시간 동안 옛 시크릿과 함께 쓴다. (원본: EIA-NX-12)
 - REQ-EIANOTI-017 WHEN 시크릿 교체가 일어나면 THE SYSTEM SHALL 감사 로그에 `trigger.notification_secret_rotated` 를 남긴다. (원본: EIA-NX-12)
 - REQ-EIANOTI-018 WHILE 시크릿 교체 유예 24시간 동안 THE SYSTEM SHALL 옛 시크릿과 새 시크릿으로 각각 서명한 `v1=` 두 개를 함께 싣는다. (원본: data-flow §1.4)
 - REQ-EIANOTI-019 IF 주 알림 서명 시크릿이 없거나 가져오지 못하면 THE SYSTEM SHALL 서명 없이 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 유예 중인 새 시크릿(`notification_secret_v2`)만 있어도 그 값 하나로 서명해 보내지 않는다. (원본: data-flow §1.4)
@@ -262,7 +262,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 }
 ```
 
-- `error.code` 는 엔진 수준 에러 코드이거나 노드 수준 실패의 노드 에러 코드(예: `LLM_TIMEOUT`)다. 엔진 코드 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md), 노드 코드 목록은 `codebase/backend/src/nodes/core/error-codes.ts` 에 있다. `EXECUTION_TIMEOUT` 은 Code 노드 스크립트 타임아웃, `EXECUTION_TIME_LIMIT_EXCEEDED` 는 엔진의 누적 실행 시간 한도 초과다.
+- `error.code` 는 엔진 수준 에러 코드이거나 노드 수준 실패의 노드 에러 코드(예: `LLM_CALL_FAILED`)다. 엔진 코드 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md), 노드 코드 목록은 `codebase/backend/src/nodes/core/error-codes.ts` 에 있다. `EXECUTION_TIMEOUT` 은 Code 노드 스크립트 타임아웃, `EXECUTION_TIME_LIMIT_EXCEEDED` 는 엔진의 누적 실행 시간 한도 초과다.
 - `code` 는 `null` 일 수 있다. 코드를 만드는 경로는 여럿이다(sentinel `ErrorPortFallbackError`·`ExecutionTimeLimitError`, 늘 붙는 `WORKER_HEARTBEAT_TIMEOUT`, 취소 계열 `RESUME_*`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·`WEBCHAT_IDLE_TIMEOUT`). 그러나 일반 `catch` 경로에는 분류할 코드가 없어 "항상 있다" 를 약속할 수 없다. 수신 측 처리는 정해져 있다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 은 `error.code === null` 을 내부 실패 안내로 대신한다.
 - `failed` 의 `error` 는 모든 발행 경로에서 객체다(`toTerminalErrorPayload` 로 발행 네 곳을 일원화). 다만 배포 경계에서 다시 재생되는 옛 이벤트는 문자열을 실을 수 있다. 그래서 채팅 채널 디스패처와 에디터 프런트엔드는 문자열을 받는 분기를 일부러 남긴다. 그 분기는 지울 대상이 아니다.
 - `message`·`details` 는 자격 증명 패턴(`Bearer …`, 자격 증명이 든 URI 등)을 `***` 로 가린다. `code`·`nodeId` 는 원문 그대로다. JSON 형태의 `message` 는 가린 뒤 다시 직렬화하므로 공백 같은 서식이 달라질 수 있다(파싱은 된다). 범위와 남은 갭은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다.
@@ -292,12 +292,12 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 성공 기준 | HTTP `2xx` |
 | 타임아웃 | 10초 |
 | 시도 횟수 | `notification.retry.maxAttempts` 는 첫 시도를 포함한 총 시도 횟수다. 기본 5, 상한 10 이다. 0 은 1(큐 재시도 없음)로 본다. 이 값을 발송 큐(`notification-webhook`) 작업의 `attempts` 로 넘긴다. 기본값이면 큐 재시도는 네 번이다 |
-| 간격 | 1초에서 시작해 4배씩 늘어난다(1s · 4s · 16s · 64s …). 간격 수는 총 시도 횟수보다 하나 적다. 설정 값 `backoff: "exponential"` 은 이 간격을 뜻한다. BullMQ 내장 `exponential`(2배씩 늘어남)과는 이름만 같다. 내장 전략으로는 4배 간격을 낼 수 없어 사용자 정의 전략을 쓴다. 워커 `settings.backoffStrategy`(`NotificationWebhookProcessor`)가 `1000·4^(attemptsMade-1)` 을 돌려준다. 작업 옵션 `backoff.type = NOTIFICATION_BACKOFF_TYPE` 이 이 전략을 가리킨다 |
+| 간격 | 1초에서 시작해 4배씩 늘어나고 한 간격은 1시간을 넘지 않는다(1s · 4s · 16s · 64s … 최대 1시간). 간격 수는 총 시도 횟수보다 하나 적다. 1시간 상한은 일곱째 간격부터 걸린다. 그래서 총 시도 횟수가 8 이상일 때만 걸리고 기본값 5 에는 걸리지 않는다. 총 시도 횟수가 상한 10 이면 간격은 1 · 4 · 16 · 64 · 256 · 1024 · 3600 · 3600 · 3600초다. 마지막 재시도는 첫 시도 뒤 12,165초(약 3.4시간)에 나간다. 이 값은 간격만 더한 것이다. 시도마다 응답을 최대 10초 기다리는 시간은 따로 더해진다. 설정 값 `backoff: "exponential"` 은 이 간격을 뜻한다. BullMQ 내장 `exponential`(2배씩 늘어남)과는 이름만 같다. 내장 전략으로는 4배 간격을 낼 수 없어 사용자 정의 전략을 쓴다. 워커 `settings.backoffStrategy`(`NotificationWebhookProcessor`)가 `min(1000·4^(attemptsMade-1), 3600000)` 밀리초를 돌려준다(`notificationBackoffDelayMs`). 작업 옵션 `backoff.type = NOTIFICATION_BACKOFF_TYPE`(`exp-base4`)이 이 전략을 가리킨다 |
 | 같은 이벤트 식별 | `X-Clemvion-Delivery` UUID(다시 보내도 같다) |
 | 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | 낡은 알림 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
 
-발송 건강도(`notification_health`)는 `unknown`(확인 안 됨)·`healthy`(정상)·`degraded`(저하됨) 세 값이다. 발송 파이프라인(`NotificationFanout` → `NotificationDispatcher` → `notification-webhook` 큐 → `NotificationWebhookProcessor`)과 큐 설정은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다. `notification.retry` 설정의 뜻(시도 횟수와 간격)은 위 표가 정하고 다른 문서는 이 표를 가리킨다.
+발송 건강도(`notification_health`)는 `unknown`(확인 안 됨)·`healthy`(정상)·`degraded`(저하됨) 세 값이다. 발송 파이프라인(`NotificationFanout` → `NotificationDispatcher` → `notification-webhook` 큐 → `NotificationWebhookProcessor`)과 큐 설정은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다. `notification.retry` 설정의 뜻(시도 횟수와 간격)은 위 표가 정하고 다른 문서는 이 표를 가리킨다. 간격에 상한을 둔 이유는 [재시도 간격에 1시간 상한을 둔다](#재시도-간격에-1시간-상한을-둔다-2026-10-17) 에 있다.
 
 ## 폭주 감지
 
@@ -327,8 +327,10 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - 유예가 끝나면 매시 승격 작업이 새 시크릿을 시크릿 저장소 정식 참조로 승격한다. 저장 형태(`notification_secret_v2` 평문 컬럼)와 승격 흐름은 [EIA 데이터와 흐름](CLE-EIA-DATA.md), 저장 형태 예외의 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한다.
 - 유예 중에 `rotate-secret` 을 다시 부르면 앞서 만든 새 시크릿(`notification_secret_v2`)을 이번 값으로 덮어쓴다. 24시간 유예도 그 시각부터 다시 시작한다. 덮어쓴 값은 더는 서명에 쓰지 않는다. 수신 측은 주 시크릿과 마지막으로 받은 새 시크릿만 알면 된다.
 - 교체와 승격은 같은 트리거 설정 잠금(`acquireTriggerConfigLock`)을 잡는다. 승격은 잠금 안에서 읽은 `notification_secret_v2` 가 처음 고른 값과 같을 때만 그 값을 정식 참조로 옮기고 비운다. 옮기기도 이 확인 뒤에 같은 잠금 안에서 한다. 먼저 옮기면 그사이 다시 교체해 덮인 옛 값이 주 시크릿이 된다. 값이 다르면 그 사이 다시 교체한 것이라 옮기지도 비우지도 않는다. 새 값은 다시 시작한 유예가 끝난 뒤에 승격한다. 잠금 자체의 규칙은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) 가 정한다. 승격 조건은 이 문서가 정하고 다른 문서는 여기를 가리킨다.
-- 첫 시크릿은 서버가 발급한다. 발급하는 경우는 두 가지다. 하나는 EIA 알림 웹훅 설정(`config.notification`)이 있는 트리거를 만들 때다. 다른 하나는 PATCH 로 EIA 알림 웹훅 설정을 처음 붙일 때다. 트리거 설정 잠금 안에서 다시 읽은 행에 `signing.secretRef` 가 없으면 처음 붙이는 것으로 본다. 값이 있어도 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24 의 형식(`secret://` 문자열)이 아니면 없는 것으로 본다. 참조가 없어도 그 행에 옛 평문 `signing.secret` 이 있으면 처음 붙이는 것이 아니다. 서버는 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다. 통째 교체로 옛 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 이 판정과 시크릿 저장소 쓰기(발급이나 옮기기)는 같은 잠금 안에서 한다. 서버는 `wsk_<64hex>` 를 만들어 시크릿 저장소에 넣는다. 참조는 트리거 id 로 정해진다(`secret://triggers/<triggerId>/notification-signing`). `config` 에는 시크릿 대신 참조(`signing.secretRef`)만 남는다.
-- 발급한 평문은 그 요청의 응답에만 한 번 싣는다. 응답 안의 위치와 발급하지 않은 응답의 키 생략은 [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 가 정한다.
+- 첫 시크릿은 서버가 발급한다. 발급하는 경우는 두 가지다. 하나는 EIA 알림 웹훅 설정(`config.notification`)이 있는 트리거를 만들 때다. 다른 하나는 PATCH 로 EIA 알림 웹훅 설정을 처음 붙일 때다. 트리거 설정 잠금 안에서 다시 읽은 행에 `signing.secretRef` 가 없으면 처음 붙이는 것으로 본다. 값이 있어도 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24 의 형식(`secret://` 문자열)이 아니면 없는 것으로 본다. 참조가 없어도 그 행에 옛 평문 `signing.secret` 이 있으면 처음 붙이는 것이 아니다. 서버는 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다. 통째 교체로 옛 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 옛 평문이 있다는 것은 `signing.secret` 이 비어 있지 않은 문자열이라는 뜻이다. 빈 문자열이면 없는 것으로 보고 첫 시크릿을 발급한다. 발송 처리기도 같은 기준으로 주 시크릿이 있는지 읽는다. 이 판정과 시크릿 저장소 쓰기(발급이나 옮기기)는 같은 잠금 안에서 한다. 서버는 `wsk_<64hex>` 를 만들어 시크릿 저장소에 넣는다. 참조는 트리거 id 로 정해진다(`secret://triggers/<triggerId>/notification-signing`). `config` 에는 시크릿 대신 참조(`signing.secretRef`)만 남는다.
+- 트리거를 만들 때는 트리거 INSERT 와 위 판정 · 시크릿 저장소 쓰기를 한 트랜잭션에서 한다. 그래서 어느 단계가 실패해도 트리거 행과 시크릿이 남지 않는다. 트랜잭션 범위는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) 가 정한다.
+- 발급한 평문은 그 요청의 응답에만 한 번 싣는다. 응답 안의 위치와 발급하지 않은 응답의 키 생략은 [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 가 정한다. 발급한 요청은 감사 기록(`trigger.created` · `trigger.updated`)의 `details.issuedSecrets` 에 `"notificationSigningSecret"` 을 남긴다. 평문은 싣지 않는다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)).
+- 생성이나 PATCH 의 응답을 받지 못해 첫 시크릿의 평문을 모르면 `rotate-secret` 으로 새 시크릿을 받는다. 발급한 평문은 다시 볼 수 없기 때문이다. 새 시크릿은 유예 동안 두 번째 `v1=` 의 서명에도 쓰인다. 그래서 수신 측은 받은 즉시 그 값으로 검증할 수 있다.
 - 호출자가 원시 `config` 로 평문 `signing.secret`(옛 키)를 보냈으면 그 값을 쓰고 발급하지 않는다. 그 평문을 시크릿 저장소로 옮기는 처리는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 이 정한다.
 - 참조가 이미 있으면 PATCH 로 EIA 알림 웹훅 설정을 바꿔도 서버는 새로 발급하지 않는다. `signing.secretRef` 는 PATCH 뒤에도 남는다. 서버는 행의 값을 복사하지 않고 트리거 id 로 참조를 다시 만들어 싣는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)).
 
@@ -341,14 +343,16 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 - `codebase/backend/src/modules/external-interaction/notification-fanout.service.ts` (단일 싱크 구독, `FANOUT_EVENTS` 화이트리스트, 종료 시 토큰 폐기, `retry.maxAttempts` 를 큐 시도 횟수로 넘김)
 - `codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts` (BullMQ 적재, `NOTIFICATION_BACKOFF_TYPE`)
-- `codebase/backend/src/modules/external-interaction/notification-dispatcher.types.ts` (`NOTIFICATION_BACKOFF_TYPE`, 4배 간격 계산 `notificationBackoffDelayMs`)
+- `codebase/backend/src/modules/external-interaction/notification-dispatcher.types.ts` (`NOTIFICATION_BACKOFF_TYPE`, 4배 간격 계산 `notificationBackoffDelayMs`, 간격 상한 `NOTIFICATION_BACKOFF_MAX_DELAY_MS`)
 - `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 검사·발송 건강도)
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts` (서명 계산, `verifySignatureHeader`)
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts` (폭주 감지 카운터)
-- `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 의 첫 시크릿 발급, `rotateNotificationSecret`, `promoteRotatedNotificationSecrets`, `assertNotificationUrlSafe`)
+- `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`, `assertNotificationUrlSafe`)
+- `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰는 서비스다. 첫 시크릿 발급이나 옛 평문 옮기기 `settle`, 원시 `config` 평문 옮기기 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`)
+- `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 시크릿 발급 판정 `decideNotificationSigning`, 발송 처리기와 함께 쓰는 «있음» 판정 `readStoredSigningSecret`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts` (트리거 id 로 알림 서명 시크릿 참조를 만든다)
 - `codebase/backend/src/modules/triggers/trigger-config-lock.ts` (`acquireTriggerConfigLock`, 교체와 승격이 함께 잡는 잠금)
-- `codebase/backend/src/modules/triggers/notification-secret-rotator.service.ts` (매시 승격 작업)
+- `codebase/backend/src/modules/triggers/notification-secret-rotator.service.ts` (`NotificationSecretRotatorService`. 유예가 끝난 시크릿의 승격을 매시 시작하는 스케줄러다. 승격 쓰기는 `NotificationSigningSecretService.promoteRotated` 가 한다)
 - `codebase/backend/src/shared/utils/terminal-error-payload.ts` (`toTerminalErrorPayload`)
 - `codebase/backend/src/shared/utils/terminal-duration.ts` (종결 이벤트 `durationMs`)
 - `codebase/channel-web-chat/src/lib/eia-events.ts` (`parseWaitingForInput`·`parseAiMessage` 참조 구현)
@@ -395,7 +399,22 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 승인된 스펙의 일관성 재검토에서 이 문서가 정하지 않은 동작 세 가지가 드러났다. 세 가지는 사용자 결정(2026-10-09)이다. 작업은 NERV Task `CLE-T-M6PERB` 가 맡고 코드도 같은 Task 에서 고친다. 사용자에게 제시한 선택지와 답은 그 Task 의 결정 기록에 있다.
 
-- **첫 시크릿은 서버가 발급한다.** 이 문서의 이전 판은 생성 때 서버가 첫 시크릿을 발급하는지를 [External Interaction API](CLE-EIA.md#미결-사항) 의 미결 사항으로 미뤘다. [External Interaction API](CLE-EIA.md#트리거-등록과-웹훅-응답) 의 요구사항(승인 전 초안)은 트리거를 만들면 `wsk_*` 를 생성 응답에서 한 번 평문으로 보여 준다고 적는다. 결정할 때 코드는 트리거를 만들면서 시크릿을 발급하지 않았다. 그래서 호출자가 시크릿을 보내지 않은 트리거에는 주 시크릿이 없었다. 이런 트리거는 발송할 때마다 저하로 처리됐다. `rotate-secret` 으로 받은 새 시크릿도 승격되는 24시간 뒤에야 서명에 쓰였다. 생성 뒤 PATCH 로 EIA 알림 웹훅 설정을 처음 붙인 트리거도 같았다. 사용자는 먼저 그 요구사항대로 생성 때 서버가 발급하는 쪽을 골랐다. 이때 함께 제시한 다른 안은 그 요구사항을 지금 동작에 맞춰 고치는 것이었다. 이어서 사용자는 PATCH 로 처음 붙일 때도 발급하는 쪽을 골랐다. 이때 함께 제시한 다른 안은 «생성 때만» 과 «발급하지 않음(지금 동작을 스펙으로)» 이었다. 호출자가 원시 `config` 로 보낸 평문 `signing.secret` 은 지금처럼 그 값을 쓴다. 호출자가 보낸 평문의 처리는 바꾸지 않았다. 저장된 행에 남은 옛 평문은 PATCH 가 발급하지 않고 시크릿 저장소로 옮긴다. 통째 교체로 그 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. PATCH 가 처음 붙이는지는 잠금 안에서 다시 읽은 행의 `signing.secretRef` 와 옛 평문으로 판정한다. 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24 와 같다. `secret://` 문자열이면 있다고 본다. 형식이 틀린 옛 값을 있다고 읽으면 첫 시크릿을 발급하지 않아 발송이 계속 저하로 처리된다. 이 판정 기준, 옛 평문 옮기기, 잠금 안 발급은 사용자에게 묻지 않고 기본값으로 정해 알렸다.
-- **발급한 평문은 `data.secrets.notificationSigningSecret` 에 싣는다.** 이 위치도 같은 결정에서 정했다. 성공 응답은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투(`{ data }`)를 따른다. [External Interaction API](CLE-EIA.md#트리거-등록-페이로드-확장) 의 생성 응답 예시에는 봉투 없이 최상위 `secrets` 블록이 있고 키 이름도 `notification.secret` 으로 다르다. 그 예시는 승인 전 초안이라 기준으로 삼지 않았다. 발급하지 않은 응답에는 `secrets` 키를 싣지 않는다. 발급한 응답에서만 생기는 일회성 값이기 때문이다. 위치와 키 생략의 기준은 [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 다. 응답 모양은 그 응답을 내는 API 문서 한 곳에 둔다. 이 문서의 요구사항과 [시크릿 교체](#시크릿-교체) 는 그곳을 가리킨다. 같은 위치를 두 문서에 적으면 한쪽만 고쳐 낡기 쉽다.
-- **`retry.maxAttempts` 를 발송 큐에 넘긴다.** 이 값은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 에서 편집할 수 있는 설정이다. 결정할 때 발송은 이 값을 읽지 않고 시도 횟수를 5로 고정했다. 사용자는 설정을 반영하는 쪽을 골랐다. 함께 제시한 다른 안은 `retry` 를 입력에서 빼는 것이었다. 값의 뜻은 첫 시도를 포함한 총 시도 횟수다. BullMQ 작업 옵션 `attempts` 와 같은 뜻이다. 입력은 0 부터 10 까지 받고 0 은 1(큐 재시도 없음)로 본다. 이 뜻으로 이 문서의 미결 사항 «재시도 횟수와 간격 수» 를 정리하고 항목을 지웠다. 기본 5 면 큐 재시도는 네 번이고 간격은 1초 · 4초 · 16초 · 64초다. `backoff: "exponential"` 은 BullMQ 내장 지수 백오프(2배씩 늘어남)가 아니다. 1초에서 시작해 4배씩 늘어나는 간격이다. 이름이 같아 헷갈리기 쉬워서 [재시도와 실패 처리](#재시도와-실패-처리) 표에 뜻을 적었다. 이 뜻은 그 표 한 곳에 두고 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 은 그 표를 가리킨다. 같은 필드를 여러 문서에 적으면 저마다 두 번째 기준이 된다는 [종결 이벤트 필드를 약속한 만큼만 둔다](#종결-이벤트-필드를-약속한-만큼만-둔다) 와 같은 이유다.
-- **유예 중 재교체는 덮어쓴다.** 유예 중에 다시 교체하면 어떻게 되는지는 문서에 없었다. 결정할 때 교체는 잠금 없이 `notification_secret_v2` 와 `notification_rotated_at` 만 바꿨다. 사용자는 앞의 새 시크릿을 덮어쓰고 24시간 유예를 다시 시작하는 쪽을 골랐다. 함께 제시한 다른 안은 유예 중 재교체를 409 로 거부하는 것이었다. 새 시크릿을 담는 컬럼은 하나라서 덮어써도 수신 측이 함께 시도하는 시크릿은 주 시크릿과 마지막 새 시크릿 둘이다. 교체와 승격은 같은 트리거 설정 잠금을 잡는다. 결정할 때 승격은 잠금 밖에서 대상을 골랐다. 그리고 잠금 안에서 `notification_secret_v2` 가 그대로인지 보지 않고 비웠다. 그 사이 교체가 끼면 호출자가 방금 받은 새 시크릿이 승격되지 않고 지워질 수 있었다. 그래서 승격은 잠금 안에서 읽은 값이 처음 고른 값과 같을 때만 비운다. 승격 조건은 이 문서의 요구사항 한 곳에 둔다. [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 는 교체도 같은 잠금을 잡는다는 것만 적고 이 조건을 가리킨다. 같은 조건을 두 문서의 요구사항에 적으면 한쪽만 고쳐 낡기 쉽다.
+- **첫 시크릿은 서버가 발급한다.** 이 문서의 이전 판은 생성 때 서버가 첫 시크릿을 발급하는지를 [External Interaction API](CLE-EIA.md#미결-사항) 의 미결 사항으로 미뤘다. [External Interaction API](CLE-EIA.md#트리거-등록과-웹훅-응답) 의 요구사항은 트리거를 만들면 `wsk_*` 를 생성 응답에서 한 번 평문으로 보여 준다고 적는다. 결정할 때 코드는 트리거를 만들면서 시크릿을 발급하지 않았다. 그래서 호출자가 시크릿을 보내지 않은 트리거에는 주 시크릿이 없었다. 이런 트리거는 발송할 때마다 발송 건강도가 `degraded`(저하됨)가 됐다. `rotate-secret` 으로 받은 새 시크릿도 승격되는 24시간 뒤에야 서명에 쓰였다. 생성 뒤 PATCH 로 EIA 알림 웹훅 설정을 처음 붙인 트리거도 같았다. 사용자는 먼저 그 요구사항대로 생성 때 서버가 발급하는 쪽을 골랐다. 이때 함께 제시한 다른 안은 그 요구사항을 지금 동작에 맞춰 고치는 것이었다. 이어서 사용자는 PATCH 로 처음 붙일 때도 발급하는 쪽을 골랐다. 이때 함께 제시한 다른 안은 «생성 때만» 과 «발급하지 않음(지금 동작을 스펙으로)» 이었다. 호출자가 원시 `config` 로 보낸 평문 `signing.secret` 은 지금처럼 그 값을 쓴다. 호출자가 보낸 평문의 처리는 바꾸지 않았다. 이 경로는 원시 `config` 계약을 정하는 NERV Task `CLE-T-EA7B5M` 에 달려 있다. 그 Task 가 이 경로를 막으면 [시크릿 교체](#시크릿-교체) 와 REQ-EIANOTI-037 을 함께 고친다. 저장된 행에 남은 옛 평문은 PATCH 가 발급하지 않고 시크릿 저장소로 옮긴다. 통째 교체로 그 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. PATCH 가 처음 붙이는지는 잠금 안에서 다시 읽은 행의 `signing.secretRef` 와 옛 평문으로 판정한다. 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24 와 같다. `secret://` 문자열이면 있다고 본다. 형식이 틀린 옛 값을 있다고 읽으면 첫 시크릿을 발급하지 않아 발송 건강도가 계속 `degraded` 가 된다. 이 판정 기준, 옛 평문 옮기기, 잠금 안 발급은 사용자에게 묻지 않고 기본값으로 정해 알렸다.
+- **발급한 평문은 `data.secrets.notificationSigningSecret` 에 싣는다.** 이 위치도 같은 결정에서 정했다. 성공 응답은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투(`{ data }`)를 따른다. 결정할 때 [External Interaction API](CLE-EIA.md#트리거-등록-페이로드-확장) 의 생성 응답 예시에는 응답 봉투 없이 최상위 `secrets` 블록이 있었고 키 이름도 `notification.secret` 으로 달랐다. 응답 모양의 기준은 그 응답을 내는 [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 다. 그 예시도 이 기준에 맞췄다(NERV Task `CLE-T-EMB0YG`). 발급하지 않은 응답에는 `secrets` 키를 싣지 않는다. 발급한 응답에서만 생기는 일회성 값이기 때문이다. 위치와 키 생략의 기준은 [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 다. 응답 모양은 그 응답을 내는 API 문서 한 곳에 둔다. 이 문서의 요구사항과 [시크릿 교체](#시크릿-교체) 는 그곳을 가리킨다. 같은 위치를 두 문서에 적으면 한쪽만 고쳐 낡기 쉽다.
+- **`retry.maxAttempts` 를 발송 큐에 넘긴다.** 이 값은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 에서 편집할 수 있는 설정이다. 결정할 때 발송은 이 값을 읽지 않고 시도 횟수를 5로 고정했다. 사용자는 설정을 반영하는 쪽을 골랐다. 함께 제시한 다른 안은 `retry` 를 입력에서 빼는 것이었다. 값의 뜻은 첫 시도를 포함한 총 시도 횟수다. BullMQ 작업 옵션 `attempts` 와 같은 뜻이다. 입력은 0 부터 10 까지 받고 0 은 1(큐 재시도 없음)로 본다. 이 뜻으로 이 문서의 미결 사항 «재시도 횟수와 간격 수» 를 정리하고 항목을 지웠다. 기본 5 면 큐 재시도는 네 번이고 간격은 1초 · 4초 · 16초 · 64초다. `backoff: "exponential"` 은 BullMQ 내장 지수 백오프(2배씩 늘어남)가 아니다. 1초에서 시작해 4배씩 늘어나는 간격이다. 이름이 같아 헷갈리기 쉬워서 [재시도와 실패 처리](#재시도와-실패-처리) 표에 뜻을 적었다. 이 뜻은 그 표 한 곳에 두고 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 은 그 표를 가리킨다. 같은 필드를 여러 문서에 적으면 저마다 두 번째 기준이 된다는 [종결 이벤트 필드를 약속한 만큼만 둔다](#종결-이벤트-필드를-약속한-만큼만-둔다) 와 같은 이유다. 간격의 1시간 상한은 2026-10-17 에 더했다([재시도 간격에 1시간 상한을 둔다](#재시도-간격에-1시간-상한을-둔다-2026-10-17)).
+- **유예 중 재교체는 덮어쓴다.** 유예 중에 다시 교체하면 어떻게 되는지는 문서에 없었다. 결정할 때 교체는 잠금 없이 `notification_secret_v2` 와 `notification_rotated_at` 만 바꿨다. 사용자는 앞의 새 시크릿을 덮어쓰고 24시간 유예를 다시 시작하는 쪽을 골랐다. 함께 제시한 다른 안은 유예 중 재교체를 409 로 거부하는 것이었다. 새 시크릿을 담는 컬럼은 하나라서 덮어써도 수신 측이 함께 시도하는 시크릿은 주 시크릿과 마지막 새 시크릿 둘이다. 교체와 승격은 같은 트리거 설정 잠금을 잡는다. 결정할 때 승격은 잠금 밖에서 대상을 골랐다. 그리고 잠금 안에서 `notification_secret_v2` 가 그대로인지 보지 않고 비웠다. 그 사이 교체가 끼면 호출자가 방금 받은 새 시크릿이 승격되지 않고 지워질 수 있었다. 그래서 승격은 잠금 안에서 읽은 값이 처음 고른 값과 같을 때만 비운다. 승격 조건은 이 문서의 [시크릿 교체](#시크릿-교체) 한 곳에 둔다. [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 는 교체도 같은 잠금을 잡는다는 것만 적고 이 조건을 가리킨다. 같은 조건을 두 문서의 요구사항에 적으면 한쪽만 고쳐 낡기 쉽다.
+
+### 재시도 간격에 1시간 상한을 둔다 (2026-10-17)
+
+알림 재시도의 한 간격은 1시간을 넘지 않는다. 총 시도 횟수 상한 10 은 그대로다. 사용자 결정(2026-10-17)이고 작업은 NERV Task `CLE-T-EQDYC1` 다(finding `01a11f6b-bd7a-737c-9035-344ab0290d74` · finding `01a11f6b-d09b-70fe-92b8-81a7eb3500b4` · finding `01a11f6b-cc1c-70c1-8336-bc2a1853d5f3`).
+
+- 상한이 없으면 총 시도 횟수 10 의 마지막 간격은 65,536초(약 18.2시간)다. 간격을 모두 더하면 87,381초(약 24.3시간)다. 상한을 두면 같은 설정에서 12,165초(약 3.4시간)로 줄어든다.
+- 발송 건강도는 마지막 시도가 실패해야 `degraded` 가 된다. 재시도 창이 하루면 운영자는 발송 실패를 하루 늦게 안다.
+- 진행 중 이벤트는 낡은 알림 차단이 걸러 낸다. 종결 이벤트는 그 대상이 아니라서 하루 늦게라도 나간다.
+- 발송 직전 SSRF 검사는 시도마다 한다. 그러나 등록 때와 발송 때의 IP 가 다른지 보는 DNS rebinding 가드(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)는 기본 꺼짐이다. 재시도 창이 길수록 등록 뒤 바뀐 DNS 응답으로 보낼 여지도 길어진다.
+- 상한은 EIA 알림 웹훅에만 둔다. 재개 큐(`execution-continuation`)도 1초에서 4배씩 늘지만 상한이 없고 전략 이름(`continuation-exp4`)도 따로다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 알림 쪽 전략 이름 `exp-base4` 는 그대로 둔다.
+
+기각한 대안:
+
+- **상한 없음**(그때까지의 동작): 위 이유로 재시도 창이 하루에 이른다.
+- **총 시도 횟수 상한을 10 보다 낮춘다**: 총 지연은 줄어든다. 그러나 이미 8~10 으로 저장한 트리거의 값이 입력 범위를 벗어난다. 긴 장애 동안 시간 단위로 여러 번 다시 시도하는 길도 사라진다.

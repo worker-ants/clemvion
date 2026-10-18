@@ -4,6 +4,7 @@ import type { Job } from 'bullmq';
 import {
   CONTINUATION_EXECUTION_QUEUE,
   CONTINUATION_QUEUE_DEFAULT_OPTS,
+  continuationBackoffStrategy,
   resolveContinuationWorkerConcurrency,
   type ContinuationJob,
 } from '../queues/continuation-execution.queue';
@@ -51,8 +52,11 @@ import { RetryTurnService } from '../retry-turn.service';
 // concurrency 는 모듈 로드(데코레이터 평가) 시점에 1회 결정된다 — DI factory
 // 주입 불가 배경·env 파싱 규약은 resolveContinuationWorkerConcurrency JSDoc
 // (continuation-execution.queue.ts) 참조. env 변경은 인스턴스 재시작 시 반영.
+// job 옵션 `backoff.type` 의 사용자 정의 전략은 여기서 건 `settings.backoffStrategy` 로 계산된다.
+// 빠지면 재시도 때 BullMQ 가 `Unknown backoff strategy` 로 실패한다(NERV Task `CLE-T-EQDYC1`).
 @Processor(CONTINUATION_EXECUTION_QUEUE, {
   concurrency: resolveContinuationWorkerConcurrency(),
+  settings: { backoffStrategy: continuationBackoffStrategy },
 })
 export class ContinuationExecutionProcessor extends WorkerHost {
   private readonly logger = new Logger(ContinuationExecutionProcessor.name);

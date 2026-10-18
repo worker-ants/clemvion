@@ -533,26 +533,48 @@ describe('InteractionService.interact — 재개 큐 적재 실패', () => {
   );
 
   // 내부 신뢰 호출(채팅 채널 인바운드)은 503 을 던지지 않는다. 던지면 웹훅을 보낸 채널 프로바이더에게 5xx 가 나간다.
-  // 그 응답은 채팅 채널 「인바운드 HTTP 응답 계약」 이 따로 정한다.
-  it('내부 신뢰 호출은 queued:false 여도 던지지 않는다', async () => {
-    const { service, repo, engine } = makeMocks();
-    repo.findOne.mockResolvedValue(makeExecution());
-    engine.continueAiConversation.mockResolvedValueOnce({
-      queued: false,
-      jobId: null,
-    });
-    const INTERNAL_CTX: InteractionRequestContext = {
-      executionId: 'exec-1',
-      triggerId: 'trg-1',
-      scope: 'in_process_trusted',
-    };
-    await expect(
-      service.interact(INTERNAL_CTX, {
-        command: 'submit_message',
-        message: '안녕하세요',
-      } as InteractDto),
-    ).resolves.toMatchObject({ accepted: true });
+  // 대신 `accepted:false` 로 알린다. 호출자가 202 · 채널 건강도 `degraded` · 경고 로그로 처리한다.
+  // 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약), NERV Task `CLE-T-EQDYC1`.
+  const INTERNAL_CTX: InteractionRequestContext = {
+    executionId: 'exec-1',
+    triggerId: 'trg-1',
+    scope: 'in_process_trusted',
+  };
+  // 내부 신뢰 호출은 nodeId 를 넘기지 않는다(scope 단위 면제).
+  const INTERNAL_COMMANDS = RESUME_COMMANDS.map(({ dto, engineMethod }) => {
+    const { nodeId: _nodeId, ...rest } = dto;
+    return { dto: rest as InteractDto, engineMethod };
   });
+
+  it.each(INTERNAL_COMMANDS)(
+    '$dto.command (내부 신뢰 호출) — queued:false 면 던지지 않고 accepted:false 를 돌려준다',
+    async ({ dto, engineMethod }) => {
+      const { service, repo, engine } = makeMocks();
+      repo.findOne.mockResolvedValue(makeExecution());
+      engine[engineMethod].mockResolvedValueOnce({
+        queued: false,
+        jobId: null,
+      });
+      await expect(service.interact(INTERNAL_CTX, dto)).resolves.toMatchObject({
+        accepted: false,
+      });
+    },
+  );
+
+  it.each(INTERNAL_COMMANDS)(
+    '$dto.command (내부 신뢰 호출) — queued:true 면 accepted:true 다',
+    async ({ dto, engineMethod }) => {
+      const { service, repo, engine } = makeMocks();
+      repo.findOne.mockResolvedValue(makeExecution());
+      engine[engineMethod].mockResolvedValueOnce({
+        queued: true,
+        jobId: 'job-1',
+      });
+      await expect(service.interact(INTERNAL_CTX, dto)).resolves.toMatchObject({
+        accepted: true,
+      });
+    },
+  );
 });
 
 describe('InteractionService.cancel (alias endpoint)', () => {

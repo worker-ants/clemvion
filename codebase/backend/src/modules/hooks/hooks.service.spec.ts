@@ -2604,6 +2604,331 @@ describe('HooksService', () => {
       expect(res).toEqual({ executionId: 'exec-active' });
     });
 
+    // 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약) ·
+    // [「채널 건강도」](CLE-CHAT-CORE#채널-건강도). NERV Task `CLE-T-EQDYC1`.
+    // `/cancel` 의 취소를 큐에 넣지 못해도 프로바이더에는 202 로 답하고 채널 건강도로 알린다.
+    describe('/cancel 의 취소 결과에 따라', () => {
+      let executions: {
+        stop: jest.Mock;
+        executionRepository: { findOne: jest.Mock };
+      };
+
+      beforeEach(() => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'cancel' },
+          idempotencyKey: '2003',
+          receivedAt: new Date().toISOString(),
+        });
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: '2026-10-10T00:00:00.000Z',
+          lastUpdateAt: '2026-10-10T00:00:00.000Z',
+        });
+        executions = moduleRef.get(ExecutionsService);
+        executions.executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+      });
+
+      it('취소를 큐에 넣지 못하면(503) 202 로 답하고 고정 문구로 degraded 를 남기며 매핑을 비우지 않는다', async () => {
+        executions.stop.mockRejectedValue(
+          new ServiceUnavailableException({
+            code: 'EXECUTION_ENQUEUE_FAILED',
+            message: 'Cancel could not be queued',
+          }),
+        );
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation();
+
+        let res: unknown;
+        try {
+          res = await service.handleWebhook('abc', chatInput);
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('exec-active'),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).toHaveBeenCalledWith(
+          { id: 't1' },
+          {
+            chatChannelHealth: 'degraded',
+            chatChannelLastError: 'Command could not be queued',
+          },
+        );
+        // 실행은 입력 대기에 그대로 있다. 매핑을 비우면 다음 메시지가 새 실행을 시작한다.
+        expect(
+          conversationService.clearExecutionIdIfMatches,
+        ).not.toHaveBeenCalled();
+        expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+      });
+
+      it('503 본문이 API 규약의 `{ error: { code } }` 모양이어도 같은 실패로 읽는다', async () => {
+        executions.stop.mockRejectedValue(
+          new ServiceUnavailableException({
+            error: {
+              code: 'EXECUTION_ENQUEUE_FAILED',
+              message: 'Cancel could not be queued',
+            },
+          }),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).toHaveBeenCalledWith(
+          { id: 't1' },
+          {
+            chatChannelHealth: 'degraded',
+            chatChannelLastError: 'Command could not be queued',
+          },
+        );
+      });
+
+      it('이미 degraded 면 다시 쓰지 않고 202 로 답한다', async () => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...chatChannelTrigger,
+          chatChannelHealth: 'degraded',
+          chatChannelLastError: 'Inbound rate limit exceeded (60/min)',
+        } as Trigger);
+        executions.stop.mockRejectedValue(
+          new ServiceUnavailableException({
+            code: 'EXECUTION_ENQUEUE_FAILED',
+            message: 'Cancel could not be queued',
+          }),
+        );
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        [
+          '그사이 끝나 INVALID_STATE',
+          new BadRequestException({
+            code: 'INVALID_STATE',
+            message: "Cannot stop execution with status 'completed'",
+          }),
+        ],
+        [
+          '그사이 끝나 카탈로그대로 422 INVALID_STATE',
+          new UnprocessableEntityException({
+            code: 'INVALID_STATE',
+            message: "Cannot stop execution with status 'completed'",
+          }),
+        ],
+        [
+          '그사이 지워져 404',
+          new NotFoundException({
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Execution not found',
+          }),
+        ],
+      ])(
+        '실행이 %s 로 취소를 거부하면 202 로 답하고 건강도를 바꾸지 않는다',
+        async (_label, rejection) => {
+          executions.stop.mockRejectedValue(rejection);
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'exec-active' });
+          expect(triggerRepo.update).not.toHaveBeenCalled();
+          // 실행은 이미 끝났다. 읽은 실행을 가리킬 때만 매핑을 비운다.
+          expect(
+            conversationService.clearExecutionIdIfMatches,
+          ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
+        },
+      );
+
+      it('취소가 큐에 들어가면 건강도를 바꾸지 않는다', async () => {
+        executions.stop.mockResolvedValue({ id: 'exec-active' });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+        expect(
+          conversationService.clearExecutionIdIfMatches,
+        ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
+      });
+
+      it('그 밖의 오류는 삼키지 않는다', async () => {
+        executions.stop.mockRejectedValue(
+          new BadRequestException({ code: 'VALIDATION_ERROR', message: 'x' }),
+        );
+
+        await expect(
+          service.handleWebhook('abc', chatInput),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+    });
+
+    // 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약). NERV Task
+    // `CLE-T-EQDYC1`. 내부 신뢰 호출로 보낸 재개 명령은 큐에 넣지 못해도 503 을 받지 않는다.
+    // InteractionService 가 `accepted:false` 로 알려 주면 `/cancel` 과 같이 202 와 degraded 로 처리한다.
+    describe('대기 실행으로 보낸 재개 명령을 큐에 넣지 못하면', () => {
+      const notQueued = {
+        executionId: 'exec-active',
+        accepted: false,
+        currentStatus: 'waiting_for_input',
+      } as never;
+      const degradedUpdate = [
+        { id: 't1' },
+        {
+          chatChannelHealth: 'degraded',
+          chatChannelLastError: 'Command could not be queued',
+        },
+      ];
+
+      beforeEach(() => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        (
+          moduleRef.get(ExecutionsService) as {
+            executionRepository: { findOne: jest.Mock };
+          }
+        ).executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+      });
+
+      it('메시지 전달(submit_message) — 202 로 답하고 degraded 와 경고 로그를 남긴다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'text_message', text: 'my answer' },
+          idempotencyKey: '1010',
+          receivedAt: new Date().toISOString(),
+        });
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+        });
+        interactionService.interact.mockResolvedValueOnce(notQueued);
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation();
+
+        let res: unknown;
+        try {
+          res = await service.handleWebhook('abc', chatInput);
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('submit_message'),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).toHaveBeenCalledWith(...degradedUpdate);
+        expect(engine.execute).not.toHaveBeenCalled();
+      });
+
+      it('큐에 넣었으면(accepted:true) 건강도를 바꾸지 않는다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'button_callback', callbackData: 'btn-1' },
+          idempotencyKey: '1011',
+          receivedAt: new Date().toISOString(),
+        });
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+        });
+        interactionService.interact.mockResolvedValueOnce({
+          executionId: 'exec-active',
+          accepted: true,
+          currentStatus: 'waiting_for_input',
+        } as never);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('양식 제출(submit_form) — 202 로 답하고 degraded 를 남긴다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'form_submission', fields: { email: 'a@b.io' } },
+          idempotencyKey: '1012',
+          receivedAt: new Date().toISOString(),
+        });
+        (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
+          jest.fn().mockReturnValue({});
+        (mockAdapter as Record<string, unknown>).supportsNativeForm = true;
+        (mockAdapter as Record<string, unknown>).openFormModal = jest.fn();
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+          pendingFormModal: {
+            nodeId: 'node-form',
+            fields: [{ name: 'email', label: 'Email', type: 'email' }],
+          },
+        });
+        interactionService.interact.mockResolvedValueOnce(notQueued);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).toHaveBeenCalledWith(...degradedUpdate);
+      });
+
+      it('여러 단계 양식의 마지막 제출(submit_form) — 202 로 답하고 degraded 를 남긴다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'text_message', text: 'last answer' },
+          idempotencyKey: '1013',
+          receivedAt: new Date().toISOString(),
+        });
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+          // 이번 응답이 마지막 필드가 되도록 9번째 필드에서 시작한다(handleFormStep 의 10필드 휴리스틱).
+          formState: {
+            nodeId: 'node-form',
+            currentFieldIdx: 9,
+            partialFormData: {},
+          },
+        } as never);
+        interactionService.interact.mockResolvedValueOnce(notQueued);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(interactionService.interact).toHaveBeenCalledWith(
+          expect.objectContaining({ scope: 'in_process_trusted' }),
+          expect.objectContaining({ command: 'submit_form' }),
+        );
+        expect(res).toEqual({ executionId: 'exec-active' });
+        expect(triggerRepo.update).toHaveBeenCalledWith(...degradedUpdate);
+      });
+    });
+
     // 근거: NERV Task `CLE-T-V4WVF2`. 활성 실행 중에 온 /start 는 명령이 먼저다(CCH-CV-02/03).
     // 기존 실행을 실행 중지 경로(CLE-EXEC-CANCEL)로 취소한 뒤 새 실행을 시작한다.
     describe('활성 실행이 있는 대화에 /start 가 오면', () => {
