@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   DEFAULT_POST_LOGIN_PATH,
   buildInvitationLoginHref,
@@ -125,5 +125,33 @@ describe("rememberOauthRedirect · consumeOauthRedirect", () => {
 
     window.sessionStorage.setItem("clemvion.postLoginRedirect", "https://evil.example.com");
     expect(consumeOauthRedirect()).toBe(DEFAULT_POST_LOGIN_PATH);
+  });
+
+  // 사이트 데이터를 막은 브라우저에서는 sessionStorage 접근이 SecurityError 를 던진다. 로그인 시작과
+  // 콜백이 이 예외로 멈추지 않고 `/dashboard` 로 가야 한다.
+  describe("저장소 접근이 막힌 브라우저", () => {
+    beforeEach(() => {
+      const deny = () => {
+        throw new DOMException("denied", "SecurityError");
+      };
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(deny);
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(deny);
+      vi.spyOn(Storage.prototype, "removeItem").mockImplementation(deny);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("rememberOauthRedirect 는 저장에 실패해도 던지지 않는다", () => {
+      expect(() => rememberOauthRedirect("/invitations/accept?token=abc")).not.toThrow();
+      // 지우는 경로(null · 안전하지 않은 값)도 같다.
+      expect(() => rememberOauthRedirect(null)).not.toThrow();
+      expect(() => rememberOauthRedirect("//evil.example.com")).not.toThrow();
+    });
+
+    it("consumeOauthRedirect 는 읽기에 실패해도 /dashboard 를 돌려준다", () => {
+      expect(consumeOauthRedirect()).toBe(DEFAULT_POST_LOGIN_PATH);
+    });
   });
 });
