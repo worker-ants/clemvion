@@ -95,7 +95,7 @@ export class NotificationConfigDto {
   /** 이벤트 수신 URL. https 만 허용 (개발 ALLOW_HTTP_HOOKS=1 예외). */
   @ApiProperty({
     description:
-      'Outbound notification 수신 URL. https 만 허용. 사설 IP/loopback/metadata IP 는 차단.',
+      'Outbound notification 수신 URL. https 만 허용. 사설 IP/loopback/metadata IP 는 차단. 리다이렉트(3xx)는 따라가지 않고 발송 실패로 보므로 최종 주소를 등록해야 한다.',
     example: 'https://customer.example/webhook/wf-callback',
   })
   @IsString()
