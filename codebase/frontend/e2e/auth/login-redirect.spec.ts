@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ACCESS, USER, WORKSPACE, mockAuth } from "../helpers/mock-auth";
+import { ACCESS, PAGE_READY_TIMEOUT, USER, WORKSPACE, mockAuth } from "../helpers/mock-auth";
 
 /**
  * e2e: 로그인 뒤 원래 화면으로 돌아오기.
@@ -15,6 +15,8 @@ import { ACCESS, USER, WORKSPACE, mockAuth } from "../helpers/mock-auth";
 
 const SLUG = WORKSPACE.slug;
 const TOKEN = "e2e-invite-token";
+/** 초대 만료 시각을 지금부터 얼마 뒤로 둘지. */
+const ONE_HOUR_MS = 3_600_000;
 
 async function mockSignedOut(page: Page) {
   await mockAuth(page);
@@ -59,7 +61,7 @@ test.describe("로그인 뒤 redirect 복귀", () => {
     await submitLogin(page);
 
     await page.waitForURL((url) => url.pathname === `/w/${SLUG}/workflows`, {
-      timeout: 15_000,
+      timeout: PAGE_READY_TIMEOUT,
     });
     expect(new URL(page.url()).searchParams.get("q")).toBe("abc");
   });
@@ -71,7 +73,7 @@ test.describe("로그인 뒤 redirect 복귀", () => {
     await page.goto(`/login?redirect=${encodeURIComponent("https://evil.example.com/x")}`);
     await submitLogin(page);
 
-    await page.waitForURL(new RegExp(`/w/${SLUG}/dashboard`), { timeout: 15_000 });
+    await page.waitForURL(new RegExp(`/w/${SLUG}/dashboard`), { timeout: PAGE_READY_TIMEOUT });
     expect(new URL(page.url()).host).not.toContain("evil.example.com");
   });
 
@@ -98,7 +100,7 @@ test.describe("로그인 뒤 redirect 복귀", () => {
     await page.goto("/callback?success=true");
 
     await page.waitForURL((url) => url.pathname === `/w/${SLUG}/workflows`, {
-      timeout: 15_000,
+      timeout: PAGE_READY_TIMEOUT,
     });
     expect(new URL(page.url()).searchParams.get("q")).toBe("oauth");
     expect(
@@ -121,7 +123,7 @@ test.describe("초대 가입 링크 — 이미 가입된 이메일", () => {
             invitedByName: "Bob",
             email: USER.email,
             role: "editor",
-            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+            expiresAt: new Date(Date.now() + ONE_HOUR_MS).toISOString(),
           },
         }),
       }),
@@ -148,7 +150,7 @@ test.describe("초대 가입 링크 — 이미 가입된 이메일", () => {
     await page.goto(`/register?invitationToken=${TOKEN}`);
 
     // 가입 폼 대신 로그인 화면으로 간다. 돌아올 곳은 초대 수락 페이지다.
-    await page.waitForURL(/\/login\?/, { timeout: 15_000 });
+    await page.waitForURL(/\/login\?/, { timeout: PAGE_READY_TIMEOUT });
     expect(new URL(page.url()).searchParams.get("redirect")).toBe(
       `/invitations/accept?token=${TOKEN}`,
     );
@@ -164,7 +166,7 @@ test.describe("초대 가입 링크 — 이미 가입된 이메일", () => {
       (url) =>
         url.pathname === `/w/${SLUG}/invitations/accept` &&
         url.searchParams.get("token") === TOKEN,
-      { timeout: 15_000 },
+      { timeout: PAGE_READY_TIMEOUT },
     );
 
     await page.getByRole("button", { name: /^(수락|Accept)$/ }).click();
