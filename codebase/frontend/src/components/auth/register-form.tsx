@@ -84,6 +84,13 @@ type ApiErrorBody = {
   error?: { code?: string; message?: string };
 };
 
+/**
+ * 가입 요청이 이메일 중복으로 거부될 때의 에러 코드. 전용 코드가 아니라 409 의 기본 코드다. 지금 가입
+ * 요청에서 409 는 이메일 중복 하나뿐이라 이 값으로 가려내는 임시 판별이다(CLE-ACCT-WS 「초대 가입 화면」
+ * 11단계). 가입 이메일 중복 전용 코드가 생기면 이 상수와 사용처를 그 코드로 바꾼다(CLE-T-2M6Q02).
+ */
+const REGISTER_EMAIL_CONFLICT_CODE = "RESOURCE_CONFLICT";
+
 function extractApiCode(err: AxiosError<ApiErrorBody>): string | undefined {
   const data = err.response?.data;
   return data?.code ?? data?.error?.code;
@@ -192,8 +199,9 @@ function RegisterFormInner({
     };
   }, [invitationToken]);
 
-  // 기존 가입자를 로그인 화면으로 보낸다. 돌아올 곳은 초대 수락 페이지다. locale 이 바뀌어 `t` 가 새로
-  // 와도 안내와 이동이 한 번만 일어나게 ref 로 막는다.
+  // 기존 가입자를 로그인 화면으로 보낸다. 돌아올 곳은 초대 수락 페이지다. deps 의 `t` · `router` 가 새
+  // 참조로 와서 effect 가 다시 돌아도 안내와 이동이 한 번만 일어나게 ref 로 막는다. locale 이 바뀌면
+  // `key={locale}` 로 폼이 새로 마운트되므로 ref 도 새로 시작한다.
   const loginRedirectedRef = useRef(false);
   useEffect(() => {
     if (invitationState.kind !== "existingAccount" || !invitationToken) return;
@@ -283,8 +291,8 @@ function RegisterFormInner({
     } catch (err) {
       const error = err as AxiosError<ApiErrorBody>;
       const code = extractApiCode(error);
-      // 가입 여부 확인이 실패해 폼을 띄운 기존 가입자. 가입 요청의 RESOURCE_CONFLICT 는 이메일 중복이다.
-      if (invitationToken && code === "RESOURCE_CONFLICT") {
+      // 가입 여부 확인이 실패해 폼을 띄운 기존 가입자. 임시 판별이다(REGISTER_EMAIL_CONFLICT_CODE 주석 참고).
+      if (invitationToken && code === REGISTER_EMAIL_CONFLICT_CODE) {
         setInvitationState((prev) =>
           prev.kind === "ready" ? { kind: "existingAccount" } : prev,
         );

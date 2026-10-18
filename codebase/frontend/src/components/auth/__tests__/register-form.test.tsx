@@ -287,6 +287,22 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
     expect((submit as HTMLButtonElement).disabled).toBe(true);
   });
 
+  // 이 테스트의 `useRouter` mock 은 렌더마다 새 객체를 돌려줘 effect 의 `router` 의존성이 바뀐다.
+  // 재렌더로 effect 가 다시 돌아도 안내와 이동은 한 번만 일어나야 한다.
+  it("재렌더로 effect 가 다시 돌아도 안내와 이동은 한 번만 일어난다", async () => {
+    mockGetByToken.mockResolvedValue(META);
+    mockCheckEmail.mockResolvedValue({ data: { data: { available: false } } });
+
+    const { rerender } = render(<RegisterForm invitationToken={TOKEN} />);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith(LOGIN_HREF));
+
+    rerender(<RegisterForm invitationToken={TOKEN} />);
+    await act(async () => {});
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockToastInfo).toHaveBeenCalledTimes(1);
+  });
+
   it("가입되지 않은 이메일이면 가입 폼을 그대로 둔다", async () => {
     mockGetByToken.mockResolvedValue(META);
     mockCheckEmail.mockResolvedValue({ data: { data: { available: true } } });
