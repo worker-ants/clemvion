@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
@@ -46,14 +46,14 @@ export function AcceptInvitationContent() {
   const [status, setStatus] = useState<Status>(token ? "loading" : "missing");
   const [meta, setMeta] = useState<InvitationMeta | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const fetchedRef = useRef(false);
 
   // 토큰 메타 조회 → 로그인 이메일과 비교. deps 에 locale 을 넣지 않아(토글이
   // 재조회를 유발하지 않도록) 텍스트 변환은 렌더 시점에서 수행한다.
   useEffect(() => {
-    if (!token || fetchedRef.current) return;
-    fetchedRef.current = true;
-    // unmount 후 setState 방지 — register-form 의 meta 조회 패턴과 동일한 가드.
+    if (!token) return;
+    // cleanup 이후 도착한 응답은 버린다 — register-form 의 meta 조회 패턴과 동일한 가드. 한 번만
+    // 부르려는 ref 가드를 함께 두면 StrictMode 가 effect 를 mount, cleanup, mount 로 돌릴 때 첫 응답은
+    // 버려지고 두 번째 실행은 건너뛰어 loading 에 머문다. 토큰 메타 조회는 멱등 GET 이라 다시 불러도 된다.
     let cancelled = false;
     const currentLocale = useLocaleStore.getState().locale;
     (async () => {

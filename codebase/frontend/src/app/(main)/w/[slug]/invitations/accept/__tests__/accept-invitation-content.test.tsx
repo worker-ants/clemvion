@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -79,6 +80,21 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
       expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
     );
     expect(mockAccept).not.toHaveBeenCalled(); // 자동수락 아님 — 클릭 대기
+  });
+
+  // 개발 서버의 StrictMode 는 effect 를 mount, cleanup, mount 순으로 돌린다. 첫 실행의 조회 결과는
+  // cleanup 으로 버려지므로 두 번째 실행이 다시 조회해야 loading 에 머물지 않는다.
+  it("leaves loading under StrictMode, which runs the lookup effect twice", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockResolvedValue(META);
+    render(
+      <StrictMode>
+        <AcceptInvitationContent />
+      </StrictMode>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
+    );
   });
 
   it("accepts only after the button is clicked", async () => {
