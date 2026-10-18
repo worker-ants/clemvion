@@ -30,6 +30,17 @@ export function invitationAcceptPath(token: string): string {
   return `/invitations/accept?token=${encodeURIComponent(token)}`;
 }
 
+/**
+ * 초대 수락 페이지로 돌아오는 로그인 화면 경로. 토큰이 없으면(수락 페이지 밖) 돌아올 곳이 없어
+ * 그냥 `/login` 이다. 가입 화면의 «로그인» 링크 · 기존 가입자 이동 · 수락 페이지의 «다른 계정으로
+ * 로그인» 이 모두 이 규칙을 쓴다.
+ */
+export function buildInvitationLoginHref(
+  token: string | null | undefined,
+): string {
+  return token ? buildLoginHref(invitationAcceptPath(token)) : "/login";
+}
+
 const INVITATION_ACCEPT_PATH_RE = /^(?:\/w\/[^/?#]+)?\/invitations\/accept(?:[?#]|$)/;
 
 /** 로그인 뒤 갈 곳이 초대 수락 페이지인지. 로그인 화면이 초대 안내 문구를 고를 때 쓴다. */

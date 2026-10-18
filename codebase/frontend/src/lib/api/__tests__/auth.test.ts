@@ -12,7 +12,7 @@ vi.mock("../client", () => ({
   setAccessToken: (...args: unknown[]) => setAccessTokenMock(...args),
 }));
 
-import { switchWorkspaceApi, decodeActiveWorkspaceId } from "../auth";
+import { authApi, switchWorkspaceApi, decodeActiveWorkspaceId } from "../auth";
 
 function fakeAxios<T>(data: T): AxiosResponse<T> {
   return {
@@ -51,6 +51,28 @@ describe("switchWorkspaceApi (결정1)", () => {
     await switchWorkspaceApi("ws-9");
 
     expect(setAccessTokenMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("authApi.checkEmail", () => {
+  it("요청 옵션을 받으면 그 호출에만 넘긴다(공용 apiClient 기본값은 건드리지 않는다)", async () => {
+    postMock.mockResolvedValue(fakeAxios({ data: { available: true } }));
+
+    await authApi.checkEmail("a@b.com", { timeout: 5_000 });
+
+    expect(postMock).toHaveBeenCalledWith(
+      "/auth/check-email",
+      { email: "a@b.com" },
+      { timeout: 5_000 },
+    );
+  });
+
+  it("옵션이 없으면 추가 설정 없이 부른다", async () => {
+    postMock.mockResolvedValue(fakeAxios({ data: { available: true } }));
+
+    await authApi.checkEmail("a@b.com");
+
+    expect(postMock.mock.calls[0][2]).toBeUndefined();
   });
 });
 

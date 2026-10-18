@@ -40,6 +40,7 @@ vi.mock("sonner", () => ({
 
 import { LoginForm } from "../login-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { stubLocationHref } from "@/test/stub-location-href";
 
 async function submitPassword() {
   const user = userEvent.setup();
@@ -132,18 +133,7 @@ describe("LoginForm — 로그인 뒤 돌아갈 경로", () => {
   });
 
   it("OAuth 로그인을 시작하면 redirect 를 sessionStorage 에 남긴다", async () => {
-    const assign = vi.fn();
-    const original = window.location;
-    // jsdom 은 location.href 대입으로 이동하지 않는다. 대입 값만 확인한다.
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        ...original,
-        set href(v: string) {
-          assign(v);
-        },
-      },
-    });
+    const hrefStub = stubLocationHref();
     try {
       render(
         <LoginForm
@@ -153,17 +143,32 @@ describe("LoginForm — 로그인 뒤 돌아갈 경로", () => {
       );
       await userEvent.setup().click(screen.getByRole("button", { name: "Google" }));
 
-      expect(assign).toHaveBeenCalledWith(
+      expect(hrefStub.assign).toHaveBeenCalledWith(
         expect.stringContaining("/auth/oauth/google?mode=login"),
       );
       expect(window.sessionStorage.getItem("clemvion.postLoginRedirect")).toBe(
         "/invitations/accept?token=abc",
       );
     } finally {
-      Object.defineProperty(window, "location", {
-        configurable: true,
-        value: original,
-      });
+      hrefStub.restore();
+    }
+  });
+
+  // 로그인 화면에서 OAuth 를 시작했다 그만둔 값이 남으면 다음 콜백의 목적지가 된다. redirect 가 없는
+  // 시작은 남은 값을 지워야 한다.
+  it("redirect 없이 OAuth 로그인을 시작하면 남아 있던 복귀 경로를 지운다", async () => {
+    window.sessionStorage.setItem("clemvion.postLoginRedirect", "/workflows?stale=1");
+    const hrefStub = stubLocationHref();
+    try {
+      render(<LoginForm enabledProviders={["google"]} />);
+      await userEvent.setup().click(screen.getByRole("button", { name: "Google" }));
+
+      expect(hrefStub.assign).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/oauth/google?mode=login"),
+      );
+      expect(window.sessionStorage.getItem("clemvion.postLoginRedirect")).toBeNull();
+    } finally {
+      hrefStub.restore();
     }
   });
 });

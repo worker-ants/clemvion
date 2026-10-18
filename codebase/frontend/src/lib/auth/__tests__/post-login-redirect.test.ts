@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   DEFAULT_POST_LOGIN_PATH,
+  buildInvitationLoginHref,
   buildLoginHref,
   consumeOauthRedirect,
   invitationAcceptPath,
@@ -55,6 +56,24 @@ describe("buildLoginHref", () => {
     expect(url.searchParams.get("redirect")).toBe("/invitations/accept?token=a+b/c");
     // 쿼리 안의 쿼리가 /login 의 파라미터로 새지 않는다.
     expect(url.searchParams.get("token")).toBeNull();
+  });
+});
+
+describe("buildInvitationLoginHref", () => {
+  it("토큰이 있으면 초대 수락 페이지로 돌아오는 로그인 경로를 만든다", () => {
+    const href = buildInvitationLoginHref("ab+/=c");
+    expect(href).toBe(buildLoginHref(invitationAcceptPath("ab+/=c")));
+    const url = new URL(href, "http://localhost");
+    expect(url.pathname).toBe("/login");
+    expect(url.searchParams.get("redirect")).toBe("/invitations/accept?token=ab%2B%2F%3Dc");
+  });
+
+  it.each([
+    ["null", null],
+    ["undefined", undefined],
+    ["빈 문자열", ""],
+  ])("토큰이 %s 이면 돌아올 곳 없이 /login 이다", (_label, token) => {
+    expect(buildInvitationLoginHref(token)).toBe("/login");
   });
 });
 

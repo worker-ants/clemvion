@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mockPush = vi.fn();
@@ -43,6 +43,7 @@ vi.mock("sonner", () => ({
 
 import { RegisterForm } from "../register-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { stubLocationHref } from "@/test/stub-location-href";
 
 const VALID_TOKEN = "a".repeat(64);
 
@@ -276,7 +277,9 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
     render(<RegisterForm invitationToken={TOKEN} />);
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith(LOGIN_HREF));
-    expect(mockCheckEmail).toHaveBeenCalledWith("member@example.com");
+    expect(mockCheckEmail).toHaveBeenCalledWith("member@example.com", {
+      timeout: expect.any(Number),
+    });
     expect(mockToastInfo).toHaveBeenCalledWith(
       "이미 가입된 이메일이에요. 로그인하면 초대를 수락할 수 있어요.",
     );
@@ -306,6 +309,56 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
     const email = screen.getByLabelText("이메일") as HTMLInputElement;
     await waitFor(() => expect(email.value).toBe("member@example.com"));
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  // `apiClient` 에는 기본 timeout 이 없다. 응답이 오지 않는 확인이 폼을 loading 에 붙잡으면 안 된다.
+  it("가입 여부 확인이 시간 안에 끝나지 않으면 확인 실패로 보고 가입 폼을 연다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockGetByToken.mockResolvedValue(META);
+      // axios 의 `timeout` 옵션처럼 응답이 없으면 그 시간 뒤 ECONNABORTED 로 끝나는 요청이다.
+      mockCheckEmail.mockImplementation(
+        (_email: string, config?: { timeout?: number }) =>
+          new Promise((_resolve, reject) => {
+            if (config?.timeout) {
+              setTimeout(
+                () =>
+                  reject(
+                    Object.assign(
+                      new Error(`timeout of ${config.timeout}ms exceeded`),
+                      { isAxiosError: true, code: "ECONNABORTED" },
+                    ),
+                  ),
+                config.timeout,
+              );
+            }
+          }),
+      );
+
+      render(<RegisterForm invitationToken={TOKEN} />);
+
+      await waitFor(() => expect(mockCheckEmail).toHaveBeenCalled());
+      const timeout = (mockCheckEmail.mock.calls[0][1] as { timeout: number })
+        .timeout;
+      // 짧은 시간 제한이 이 호출에 걸려 있다.
+      expect(timeout).toBeGreaterThan(0);
+      expect(timeout).toBeLessThanOrEqual(10_000);
+
+      // 시간 제한 전에는 아직 확인 중이라 제출할 수 없다.
+      const submit = screen.getByRole("button", { name: /계정 만들기/ });
+      expect((submit as HTMLButtonElement).disabled).toBe(true);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(timeout);
+      });
+
+      const email = screen.getByLabelText("이메일") as HTMLInputElement;
+      await waitFor(() => expect(email.value).toBe("member@example.com"));
+      expect((submit as HTMLButtonElement).disabled).toBe(false);
+      expect(mockReplace).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("토큰 메타 조회가 실패하면 가입 여부를 묻지 않는다", async () => {
@@ -382,5 +435,32 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
   it("초대 없는 가입 화면의 로그인 링크는 /login 이다", () => {
     render(<RegisterForm />);
     expect(screen.getByRole("link", { name: "로그인" }).getAttribute("href")).toBe("/login");
+  });
+});
+
+/**
+ * 로그인 화면에서 OAuth 를 시작했다 그만둔 복귀 경로가 남아 있으면 다음 콜백의 목적지가 된다.
+ * 가입 화면의 OAuth 시작은 그 값을 지운다.
+ */
+describe("RegisterForm — OAuth 가입 시작", () => {
+  beforeEach(() => {
+    useLocaleStore.setState({ locale: "ko" });
+    window.sessionStorage.clear();
+  });
+
+  it("OAuth 가입을 시작하면 남아 있던 로그인 복귀 경로를 지운다", async () => {
+    window.sessionStorage.setItem("clemvion.postLoginRedirect", "/workflows?stale=1");
+    const hrefStub = stubLocationHref();
+    try {
+      render(<RegisterForm enabledProviders={["google"]} />);
+      await userEvent.setup().click(screen.getByRole("button", { name: "Google" }));
+
+      expect(hrefStub.assign).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/oauth/google?mode=register"),
+      );
+      expect(window.sessionStorage.getItem("clemvion.postLoginRedirect")).toBeNull();
+    } finally {
+      hrefStub.restore();
+    }
   });
 });

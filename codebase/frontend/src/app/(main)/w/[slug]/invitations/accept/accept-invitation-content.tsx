@@ -10,10 +10,7 @@ import { authApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
-import {
-  buildLoginHref,
-  invitationAcceptPath,
-} from "@/lib/auth/post-login-redirect";
+import { buildInvitationLoginHref } from "@/lib/auth/post-login-redirect";
 import {
   Card,
   CardHeader,
@@ -125,7 +122,7 @@ export function AcceptInvitationContent() {
     // 을 load-bearing 으로 쓰므로 로그아웃도 이 쿠키를 반드시 지워야 한다).
     useAuthStore.getState().logout();
     // 다른 계정으로 로그인한 뒤 이 초대 수락 페이지로 돌아온다.
-    router.push(token ? buildLoginHref(invitationAcceptPath(token)) : "/login");
+    router.push(buildInvitationLoginHref(token));
   }
 
   return (
