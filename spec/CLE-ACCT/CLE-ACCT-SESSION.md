@@ -2,25 +2,25 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
-requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044"]
+requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "c3bb8a67d7cef7f77391dc825e6235c271bcebeb60f35c8cdae10ba233f59104"
+content_hash: "ddfa6b5cb5c06c7a299c542158ddf303c3ea1578d0b69f6a53d33c94ac0ed9bd"
 read_as: "approved_fallback"
 task: "CLE-T-YZ9VEX"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "ec669a8b533b26bf98a467e61535f00353533707ccdc5f9ba01184fe7eee5158"
-etag: "sha256-a3217f45ada7b3ad21ddd0aa4aa64837f24bdd55293addb91cf1563c76607c18"
+mirror_sha256: "e16c30d1599d57f62d5f56237a46c5289e9ddd70b9cdb0b8c22af2550b0d31fc"
+etag: "sha256-c477dd44655680babc2a9a0108aef4243ada94daf70c4fec5ef746f905cd34b5"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 로그인한 뒤 사용자가 로그인 상태를 어떻게 유지하고 끝내는지 정한다. 액세스 토큰(access token, `accessToken`)과 리프레시 토큰(refresh token, `refreshToken`)의 형태와 수명, 로그인 세션(login session, `family_id`) 단위의 토큰 회전(refresh token rotation)과 재사용 감지, 리프레시 쿠키 속성, 세션 목록과 세션 강제 종료(session revoke), 계정 재인증(reauthentication, `verifyReauth`)과 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드, 로그아웃, 프론트엔드 라우트 가드가 범위다.
+이 문서는 로그인한 뒤 사용자가 로그인 상태를 어떻게 유지하고 끝내는지 정한다. 액세스 토큰(access token, `accessToken`)과 리프레시 토큰(refresh token, `refreshToken`)의 형태와 수명, 로그인 세션(login session, `family_id`) 단위의 토큰 회전(refresh token rotation)과 재사용 감지, 리프레시 쿠키 속성, 세션 목록과 세션 강제 종료(session revoke), 계정 재인증(reauthentication, `verifyReauth`)과 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드, 로그아웃, 프론트엔드 라우트 가드와 로그인 뒤 이동할 곳이 범위다.
 
 범위 밖 주제는 다음 문서가 정한다.
 
@@ -64,18 +64,19 @@ etag: "sha256-a3217f45ada7b3ad21ddd0aa4aa64837f24bdd55293addb91cf1563c76607c18"
 - REQ-SESSION-029 IF 비밀번호 변경 뒤 로그인 세션 무효화나 재발급이 실패하면 THE SYSTEM SHALL 이미 커밋한 비밀번호 변경을 유지하고 실패를 서버 로그에 남긴다.
 - REQ-SESSION-030 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 호출한 기기의 로그인 세션 전체를 무효화하고 리프레시 쿠키를 지우고 로그인 이력에 `logout` 을 남긴다.
 - REQ-SESSION-031 WHEN 리프레시 쿠키 없이 로그아웃을 요청하면 THE SYSTEM SHALL 200 으로 응답한다.
-- REQ-SESSION-032 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 클라이언트 메모리의 액세스 토큰과 `has_session` 쿠키를 지우고 `/login` 으로 보낸다.
+- REQ-SESSION-032 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 클라이언트 메모리의 액세스 토큰과 `has_session` 쿠키를 지우고 `/login` 으로 보낸다. 복귀 경로(post-login return path)를 지정한 로그아웃(초대 수락 페이지의 «다른 계정으로 로그인»)은 `/login?redirect=<인코딩한 그 화면의 경로와 쿼리>` 로 보낸다.
 - REQ-SESSION-033 IF 동시 로그인 세션이 5개를 넘으면 THE SYSTEM SHALL 가장 오래된 로그인 세션을 자동 종료한다. (미구현, [미결 사항](#미결-사항))
-- REQ-SESSION-035 IF 로그인하지 않은 사용자가 공개 경로 밖 화면을 열면 THE SYSTEM SHALL 원래 URL 을 `redirect` 파라미터에 담아 `/login` 으로 보낸다.
-- REQ-SESSION-036 IF 요청에 `has_session` 쿠키가 없으면 THE SYSTEM SHALL JS 를 내려보내기 전 서버 proxy 단계에서 `/login?redirect=<path>` 로 보낸다.
+- REQ-SESSION-035 IF 로그인하지 않은 사용자가 공개 경로 밖 화면을 열면 THE SYSTEM SHALL 그 화면의 경로와 쿼리를 `redirect` 파라미터에 담아 `/login` 으로 보낸다.
+- REQ-SESSION-036 IF 요청에 `has_session` 쿠키가 없으면 THE SYSTEM SHALL JS 를 내려보내기 전 서버 proxy 단계에서 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다.
 - REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 프론트엔드 JS 가 `has_session=1` 쿠키(non-httpOnly, path=/, max-age 30일, SameSite=Lax)를 설정한다.
-- REQ-SESSION-038 WHEN 로그인에 성공하면 THE SYSTEM SHALL `redirect` 파라미터가 있으면 그 URL 로, 없으면 `/dashboard` 로 보낸다.
+- REQ-SESSION-038 WHEN 로그인(비밀번호 · 2단계 인증 · 복구 코드 · 소셜 로그인)에 성공하면 THE SYSTEM SHALL `redirect` 값이 하나뿐이고 안전한 같은 출처 경로일 때 그 경로와 쿼리로 보내고 아니면 `/dashboard` 로 보낸다. 안전한 값의 기준은 [로그인 뒤 이동](#로그인-뒤-이동) 에 있다.
 - REQ-SESSION-039 WHEN 사용자가 `/profile/sessions` 를 열면 THE SYSTEM SHALL 활성 로그인 세션 목록과 "현재" 배지, 개별 종료와 일괄 종료 버튼을 보여 준다.
 - REQ-SESSION-040 WHEN 요청 경로가 `/auth/register`(끝 슬래시 포함)이면 THE SYSTEM SHALL 공개 경로 판정과 `has_session` 검사보다 먼저 쿼리를 보존한 채 `/register` 로 리다이렉트한다.
 - REQ-SESSION-041 WHEN 서버가 세션 목록과 세션 강제 종료 API 를 노출하면 THE SYSTEM SHALL 리프레시 쿠키 Path 아래인 `/api/auth/sessions` 경로로 노출하고 옛 경로 `/api/users/me/sessions` 는 두지 않는다.
 - REQ-SESSION-042 IF 일괄 종료 요청에서 현재 로그인 세션을 식별할 수 없으면 THE SYSTEM SHALL 400 `CURRENT_SESSION_REQUIRED` 로 거부한다.
 - REQ-SESSION-043 IF 클라이언트가 `/auth/sessions` 밖의 `/auth/` 경로 요청에서 401 을 받으면 THE SYSTEM SHALL 액세스 토큰을 갱신하지 않고 그 401 을 호출한 쪽에 그대로 돌려준다.
 - REQ-SESSION-044 WHEN 클라이언트가 `/auth/sessions` 나 그 하위 경로 요청에서 401 을 받으면 THE SYSTEM SHALL 다른 API 처럼 액세스 토큰을 한 번 갱신하고 요청을 다시 보낸다.
+- REQ-SESSION-045 WHEN 소셜 로그인 콜백 화면(`/callback`)이 열리면 THE SYSTEM SHALL 로그인 화면이 소셜 로그인을 시작하기 전에 그 탭의 sessionStorage(키 `clemvion.postLoginRedirect`)에 둔 복귀 경로를 성공 · 실패와 관계없이 한 번 꺼내 바로 지우고 [로그인 뒤 이동](#로그인-뒤-이동) 의 기준으로 다시 검사한다.
 
 ## 토큰
 
@@ -212,7 +213,11 @@ sequenceDiagram
 
 1. `POST /api/auth/logout` 을 호출한다.
 2. 메모리의 액세스 토큰을 지우고 쿠키를 지운다. 로그인 힌트 쿠키 `has_session` 도 지운다.
-3. `/login` 으로 이동한다.
+3. `/login` 으로 이동한다. 사이드바의 로그아웃이 이 경우다.
+
+로그아웃 요청이 실패해도 2번과 3번을 그대로 한다. 사이드바의 로그아웃과 초대 수락 페이지의 «다른 계정으로 로그인» 이 같게 동작한다. 이유는 Rationale 「[로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다](#로그아웃-요청이-실패해도-클라이언트를-정리하고-이동한다)」 에 있다.
+
+복귀 경로를 지정한 로그아웃은 3번의 예외다. 초대 수락 페이지의 «다른 계정으로 로그인» 버튼은 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다. 다른 계정으로 로그인하면 같은 초대 수락 페이지로 돌아온다([워크스페이스와 멤버](CLE-ACCT-WS.md#이미-가입한-사용자의-수락-경로)).
 
 ## 세션 화면
 
@@ -233,25 +238,77 @@ sequenceDiagram
 | --- | --- | --- |
 | `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password` 등 `(auth)` 그룹 | 아니요 | 없음 |
 | `/callback` (OAuth 콜백) | 아니요 | 없음 |
-| 그 밖의 모든 라우트 | 예 | 원래 URL 을 `redirect` 파라미터에 담아 `/login` 으로 보낸다 |
+| 그 밖의 모든 라우트 | 예 | 그 화면의 경로와 쿼리를 `redirect` 파라미터에 담아 `/login` 으로 보낸다 |
+
+초대 수락 페이지의 `?token=` 처럼 쿼리가 화면을 정하는 경로가 있다. 그래서 `redirect` 에는 경로와 쿼리를 함께 담는다.
 
 미인증 리다이렉트는 두 층으로 동작한다.
 
 | 층 | 구현 | 동작 |
 | --- | --- | --- |
-| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<path>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다. 공개 경로 판정과 `has_session` 검사보다 먼저 옛 초대 링크 경로 `/auth/register`(끝 슬래시 포함)를 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다. 이 리다이렉트는 `has_session` 쿠키 유무와 상관없다. 이유는 [워크스페이스와 멤버](CLE-ACCT-WS.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다) 의 Rationale 에 있다 |
-| 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준의 최종 가드. 미인증이면 원래 URL 을 `redirect` 파라미터에 담아 `/login` 으로 보낸다 |
+| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다. 공개 경로 판정과 `has_session` 검사보다 먼저 옛 초대 링크 경로 `/auth/register`(끝 슬래시 포함)를 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다. 이 리다이렉트는 `has_session` 쿠키 유무와 상관없다. 이유는 [워크스페이스와 멤버](CLE-ACCT-WS.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다) 의 Rationale 에 있다 |
+| 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준의 최종 가드. 로그인 상태 복원(리프레시와 `GET /api/users/me`)이 실패하면 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 담을 값이 안전한 같은 출처 경로가 아니면 `/dashboard` 를 담는다. 지금 경로가 `/login` 이면 보내지 않는다 |
 
 ### 로그인 힌트 쿠키
 
 로그인 힌트 쿠키(`has_session`)는 인증 수단이 아니라 화면 전환을 위한 힌트다. API 가 cross-domain 이라 Next 서버 미들웨어가 백엔드 세션을 직접 알 수 없다. 그래서 로그인에 성공하면 프론트엔드 JS 가 non-httpOnly 쿠키 `has_session=1`(path=/, max-age 30일, SameSite=Lax)을 설정하고 로그아웃할 때 지운다(`codebase/frontend/src/lib/stores/auth-store.ts`). 실제 인가 판정은 항상 토큰(2층 가드와 API 401)이 한다.
 
-`(auth)` 라우트 그룹에는 세션 하이드레이션(AuthProvider)이 없다. 그래서 가입 페이지가 이미 로그인한 사용자를 알아볼 때도 이 쿠키를 본다. 쿠키만 남고 리프레시 토큰이 만료된 경우에는 다음 화면의 라우트 가드가 로그인 화면으로 돌려보낸다. 이 분기는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 초대 가입 절에 있다.
+지금 이 쿠키를 심는 곳은 다음과 같다.
+
+- 비밀번호 로그인, 2단계 인증(TOTP · Passkey), 복구 코드 로그인. 로그인 폼이 `GET /api/users/me` 를 읽어 로그인 상태를 표시할 때 심는다.
+- 소셜 로그인 콜백. `/callback` 이 `GET /api/users/me` 를 읽어 로그인 상태를 표시할 때 심는다([소셜 로그인의 복귀 경로](#소셜-로그인의-복귀-경로)).
+- 로그인 상태 복원. AuthProvider 가 리프레시와 `GET /api/users/me` 에 성공하면 다시 심는다.
+
+초대 토큰 가입과 이메일 인증의 자동 로그인은 이 쿠키를 심지 않는다. 이 어긋남은 [미결 사항](#미결-사항) 에 있다.
+
+`(auth)` 라우트 그룹에는 세션 하이드레이션(AuthProvider)이 없다. 그래서 가입 페이지가 이미 로그인한 사용자를 알아볼 때도 이 쿠키를 본다. 쿠키만 남고 리프레시 토큰이 만료된 경우에는 다음 화면의 라우트 가드가 로그인 화면으로 돌려보낸다. 이 분기는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 초대 절에 있다.
 
 ### 로그인 뒤 이동
 
-- 로그인에 성공하면 `redirect` 파라미터가 있으면 그 URL 로 간다. 슬러그 경로 `/w/<slug>/…` 는 그대로 가고, 슬러그 없는 옛 경로는 옛 경로 흡수 라우트(catch-all route)가 받는다.
-- `redirect` 가 없으면 `/dashboard` 로 간다. 로그인 폼은 슬러그를 알기 전이라 `/dashboard` 로 보내고, `(main)/[...rest]` 옛 경로 흡수 라우트가 워크스페이스 목록을 읽은 뒤 현재 워크스페이스의 `/w/<slug>/dashboard` 로 넘긴다. 리다이렉트만 하는 중간 경로라 화면 깜빡임을 허용한다. 슬러그 라우팅 규칙은 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 이 정한다.
+로그인 뒤 이동할 곳은 이 절이 한 곳에서 정한다. 비밀번호 로그인, 2단계 인증(TOTP · Passkey), 복구 코드 로그인, 소셜 로그인이 모두 같은 규칙을 따른다. 로그인 절차는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
+
+복귀 경로는 로그인을 마친 뒤 돌아갈 화면의 경로와 쿼리다. 로그인 화면은 이 값을 `redirect` 쿼리로 받는다.
+
+- 로그인에 성공하면 `redirect` 값이 안전한 같은 출처 경로일 때 그 경로로 간다. 쿼리와 해시는 그대로 둔다.
+- `redirect` 가 없거나 안전하지 않으면 `/dashboard` 로 간다.
+- `redirect` 가 여러 번 온 요청(`?redirect=/a&redirect=/b`)은 값을 하나로 정할 수 없다. 이때는 `redirect` 가 없는 것으로 본다(`(auth)/login/page.tsx`).
+- 슬러그 경로 `/w/<slug>/…` 는 그대로 간다. 슬러그 없는 옛 경로(예: `/invitations/accept?token=…`)는 옛 경로 흡수 라우트(catch-all route)가 받아 쿼리와 해시를 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다.
+- `/dashboard` 도 슬러그 없는 경로다. 로그인 폼은 슬러그를 알기 전이라 `/dashboard` 로 보내고, `(main)/[...rest]` 옛 경로 흡수 라우트가 워크스페이스 목록을 읽은 뒤 현재 워크스페이스의 `/w/<slug>/dashboard` 로 넘긴다. 리다이렉트만 하는 중간 경로라 화면 깜빡임을 허용한다. 슬러그 라우팅 규칙은 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 이 정한다.
+
+안전한 같은 출처 경로의 기준은 다음 표다. 판정은 `isSafeInternalPath`(`lib/workspace/safe-path.ts`) 하나로 한다. 이 함수는 링크 생성(`buildWorkspaceHref`)과 같은 정규화 함수 `toSafeInternalPath` 를 쓴다. 이유는 Rationale 「[로그인 뒤 이동은 같은 출처 경로만 받는다](#로그인-뒤-이동은-같은-출처-경로만-받는다)」 에 있다.
+
+| `redirect` 값 | 판정 |
+| --- | --- |
+| `/` 하나로 시작하는 경로. 쿼리와 해시도 포함한다(예: `/invitations/accept?token=…`, `/w/team-alpha/workflows`) | 쓴다 |
+| 앞머리에 `/` · `\` 가 둘 이상 겹친 값(`//host`, `/\host`, `\\host`) | 거부 |
+| `/` 로 시작하지 않는 값(외부 URL `https://…`, `dashboard` 같은 상대 경로, 빈 값) | 거부 |
+| 탭 · 개행(CR · LF)이 든 값. 자리와 상관없다 | 거부 |
+
+- 판정은 정규화한 결과가 원래 값과 같은지만 본다. 위 표에 없는 값은 거르지 않는다. 예를 들어 앞머리가 아닌 자리의 백슬래시(`/a\b`)는 통과한다.
+- 판정하는 곳은 로그인 폼이다(`login-form.tsx` 가 `resolvePostLoginRedirect` 를 부른다). `redirect` 를 담아 보낸 쪽이 이미 검사했어도 다시 판정한다. 누구나 `/login?redirect=…` 링크를 만들 수 있어서다.
+- 비밀번호 로그인, 2단계 인증, 복구 코드 로그인은 같은 마무리 단계(`completeLogin`)에서 이동한다. 소셜 로그인은 아래 [소셜 로그인의 복귀 경로](#소셜-로그인의-복귀-경로) 를 따른다.
+- 서버 proxy, AuthProvider, 초대 흐름은 `redirect` 를 담아 로그인 화면으로 보낼 때 `/login?redirect=<인코딩한 경로와 쿼리>` 형식을 쓴다. 경로와 쿼리를 합친 값을 통째로 인코딩한다. AuthProvider 와 초대 흐름은 `buildLoginHref` 로 만들고, 서버 proxy 는 이 헬퍼 없이 URL 쿼리 파라미터로 직접 담는다.
+- 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 예외다. 이 화면은 `/login?redirect=<현재 경로>` 에 경로만 담고 쿼리는 담지 않는다([미결 사항](#미결-사항)).
+- 초대 흐름은 세 곳에서 로그인 화면으로 보낸다. 가입 화면 아래 «로그인» 링크, 가입 화면의 기존 가입자 이동, 수락 페이지의 «다른 계정으로 로그인» 이다. 세 곳은 같은 헬퍼 `buildInvitationLoginHref` 로 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 을 만든다. 토큰이 없으면 `/login` 이다.
+- 복귀 경로가 초대 수락 페이지(`/invitations/accept` 나 `/w/<slug>/invitations/accept`)면 로그인 화면이 초대 안내 문구를 보여 준다. 문구는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다. 초대 흐름은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다.
+- 로그인 화면 아래 «계정 만들기» 링크(`/register`)는 복귀 경로를 넘기지 않는다. 동작과 이유는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다.
+- 복귀 경로는 이메일 인증을 넘어 이어지지 않는다. 이메일 인증을 마치지 않은 계정은 로그인이 막힌다. 인증 링크로 자동 로그인하면 늘 `/dashboard` 로 간다([가입과 로그인](CLE-ACCT-SIGNIN.md)).
+
+#### 소셜 로그인의 복귀 경로
+
+소셜 로그인은 백엔드와 OAuth 제공자를 거쳐 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 복귀 경로를 그 탭의 sessionStorage 로 넘긴다(`lib/auth/post-login-redirect.ts`). 이유는 Rationale 「[소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다](#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다)」 에 있다.
+
+1. 로그인 화면은 소셜 로그인을 시작하기 전에 `redirect` 값을 그 탭의 sessionStorage 키 `clemvion.postLoginRedirect` 에 둔다. 값이 없거나 안전하지 않으면 남아 있던 값을 지운다.
+2. 가입 화면에서 시작하는 소셜 로그인(`mode=register`)은 남아 있던 값을 지운다.
+3. `/callback` 은 성공 · 실패와 관계없이 저장한 값을 한 번 꺼내 바로 지운다. 꺼낸 값도 위 기준으로 다시 검사한다. 값이 없거나 안전하지 않으면 `/dashboard` 를 쓴다.
+4. 성공(`?success=true`)이면 리프레시(`POST /api/auth/refresh`)로 액세스 토큰을 받는다. 이어서 `GET /api/users/me` 를 읽어 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 그 뒤 3번의 경로로 이동한다.
+5. 리프레시가 실패하면 실패 화면을 보여 준다. `GET /api/users/me` 조회만 실패하면 로그인 상태를 표시하지 않고 힌트 쿠키도 심지 않은 채 3번의 경로로 이동한다. 그 경로가 보호 경로면 proxy 가 `/login?redirect=…` 로 보낸다. 그래서 복귀 경로는 남는다.
+6. sessionStorage 를 쓸 수 없으면(사생활 보호 모드 등) 값을 두지 않고 넘어간다. 그러면 콜백은 `/dashboard` 로 간다.
+
+- 소셜 로그인은 같은 탭에서 이동한다. 팝업 창은 쓰지 않는다.
+- 복귀 경로는 같은 탭에서만 이어진다. 다른 탭에서 소셜 로그인을 마치면 `/dashboard` 로 간다.
+- 콜백 실패 화면의 «다시 시도» 버튼과 로그인 화면 링크는 `/login` 으로 간다. 그래서 실패한 뒤 다시 로그인하면 복귀 경로를 잃는다.
+- 백엔드의 로그인 OAuth state(`auth_oauth_state`)와 리프레시 쿠키는 복귀 경로를 담지 않는다. 소셜 로그인 시작 · 콜백 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
 
 ## API
 
@@ -272,6 +329,8 @@ sequenceDiagram
 - **동시 세션 한도의 값과 설정 주체**: 세션 정책 표는 동시 세션 기본 5개(관리자 설정 가능)와 초과 시 가장 오래된 세션 종료를 약속하지만 둘 다 미구현이다(2026-10-10 코드 확인). 5개가 맞는 값인지, "관리자 설정" 의 주체가 운영자 환경 변수인지 워크스페이스 관리자인지 정해지지 않았다. 후속 Task CLE-T-VBQV4H 가 둘을 정하고 구현한다. 관련 요구는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다.
 - **로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는다**: 로그인 유지를 켜고 로그인하면 첫 리프레시 토큰과 쿠키는 30일이다. 그런데 갱신(`AuthService.refresh`)은 새 토큰을 `generateTokens(user, false, …)` 로 발급해 수명이 7일이다. 갱신 응답의 쿠키도 `setRefreshTokenCookie` 기본값인 7일이다. `refresh_token` 행에 로그인 유지 여부를 담는 칸이 없어 회전할 때 이어받을 수 없다. 액세스 토큰이 15분이라 첫 갱신은 곧 일어나므로 로그인 유지를 켜도 실제로는 마지막 사용 뒤 7일짜리 세션이 된다. 회전할 때 로그인 유지 여부를 이어받게 할지, 지금 동작을 규칙으로 받아들이고 REQ-SESSION-003 을 고칠지 결정 필요.
 - **`/auth/` 아래 다른 JWT 라우트는 401 에서 갱신하지 않는다**: 클라이언트의 갱신 제외 규칙은 `/auth/sessions` 만 예외로 둔다. 2단계 인증 설정·켜기·끄기(`/auth/2fa/setup`·`/auth/2fa/verify`·`/auth/2fa/disable`)와 워크스페이스 전환(`/auth/workspaces/:id/switch`)도 Bearer 액세스 토큰이 필요한 라우트다. 이 라우트들은 액세스 토큰이 만료된 뒤 첫 호출이 갱신 없이 401 로 끝난다. 제외 조건을 갱신이 필요 없는 라우트의 명시 목록(`/auth/login`, `/auth/login/totp`, `/auth/refresh` 등)으로 좁힐지 결정 필요.
+- **자동 로그인 두 곳은 로그인 힌트 쿠키를 심지 않는다**: 초대 토큰 가입과 이메일 인증의 자동 로그인은 `setAccessToken` 만 불러 로그인 힌트 쿠키가 없다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다. 세션 확립 진입점을 하나로 모으는 일은 `CLE-T-1X7DMR` 이 맡는다.
+- **전체 화면 오류의 세션 만료 변형은 쿼리를 담지 않는다**: 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 `/login?redirect=<현재 경로>` 에 경로만 담는다. 쿼리가 화면을 정하는 경로(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아온다. [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 REQ-ERRPAGE-004 · 005 는 로그인 뒤 원래 URL 로 돌아온다고 적는다. 두 문서와 구현을 맞추는 일은 `CLE-T-2NQ857` 이 맡는다.
 
 ## 구현 위치
 
@@ -291,6 +350,12 @@ sequenceDiagram
 - `codebase/frontend/src/lib/api/__tests__/client.test.ts` (`skipsRefreshRetry` 와 `/auth/sessions` 갱신 재시도)
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (로그인 뒤 `/dashboard` 를 슬러그 경로로 넘긴다)
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/sessions/**`
+- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동 판정 `resolvePostLoginRedirect`, 로그인 경로 `buildLoginHref` · `buildInvitationLoginHref`, 소셜 로그인 복귀 경로 저장 `clemvion.postLoginRedirect`)
+- `codebase/frontend/src/lib/auth/__tests__/post-login-redirect.test.ts` (이동 판정, 로그인 경로 생성, 복귀 경로 저장과 소비)
+- `codebase/frontend/src/lib/workspace/safe-path.ts` (안전한 같은 출처 경로 판정 `isSafeInternalPath` 와 정규화 `toSafeInternalPath`)
+- `codebase/frontend/src/app/(auth)/login/page.tsx` (`redirect` 가 여러 번 오면 쓰지 않는다)
+- `codebase/frontend/src/components/auth/login-form.tsx` (로그인 뒤 이동, 소셜 로그인 시작 전 복귀 경로 저장, 초대 안내 문구)
+- `codebase/frontend/src/app/(auth)/callback/callback-content.tsx` (소셜 로그인 콜백의 복귀 경로 소비와 로그인 상태 표시)
 
 ## Rationale
 
@@ -431,3 +496,55 @@ Origin 검증(REQ-SESSION-013)은 계속 갱신 요청에만 둔다.
 ### 계정 재인증 수단 없음의 조건을 TOTP 기준으로 적었다 (2026-10-17)
 
 NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항과 세션 정책 표는 `REAUTH_NOT_AVAILABLE` 의 조건을 "비밀번호도 2단계 인증도 없는 계정" 으로 적었다. [가입과 로그인](CLE-ACCT-SIGNIN.md) 에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻한다. 구현(`SessionsService.verifyReauth`)은 `password_hash` 와 `two_factor_enabled` 만 본다. `two_factor_enabled` 는 TOTP 사용 여부만 뜻한다. 그래서 Passkey 만 등록하고 비밀번호와 TOTP 가 없는 계정도 403 `REAUTH_NOT_AVAILABLE` 이다. 문서를 이 조건으로 고쳤다. Passkey 로 하는 계정 재인증은 지원하지 않으므로 이 동작이 그 결정과 맞다. 동작은 바뀌지 않았다.
+
+### 로그인 뒤 이동은 같은 출처 경로만 받는다
+
+2026-10-18, NERV Task `CLE-T-7WZKFB` 의 결정이다.
+
+`redirect` 는 누구나 만들 수 있는 링크의 쿼리다. 로그인 화면이 받은 값으로 아무 URL 이나 열면 오픈 리다이렉트가 된다. 공격자가 우리 로그인 화면을 거쳐 피싱 사이트로 보내는 링크를 만들 수 있다. 그래서 같은 출처의 경로만 받고 나머지는 `/dashboard` 로 보낸다.
+
+판정은 링크 생성(`buildWorkspaceHref`)이 쓰는 정규화 함수 `toSafeInternalPath` 하나에 기댄다. 브라우저 URL 파서에서는 앞머리의 `/` 와 `\` 가 같은 뜻이고 탭 · 개행은 지워진다. 그래서 `/\host` 나 `/<탭>/host` 같은 값이 다른 호스트로 읽힌다. 정규화는 앞머리를 `/` 하나로 접고 탭 · 개행을 지운다. `isSafeInternalPath` 는 정규화한 결과가 원래 값과 같을 때만 통과시킨다. 링크 생성과 이동 검사가 같은 함수를 쓰므로 두 곳의 방어 강도가 어긋나지 않는다.
+
+채택하지 않은 선택지는 두 가지다.
+
+- 임의 URL 을 허용한다: 오픈 리다이렉트가 된다.
+- 호스트 허용 목록을 둔다: 로그인 뒤 다른 출처로 보낼 화면이 없다. 목록을 관리하는 부담만 는다.
+
+`redirect` 가 여러 번 온 요청은 어느 값이 의도한 복귀 경로인지 알 수 없다. 그래서 `redirect` 가 없는 것으로 보고 `/dashboard` 로 보낸다. 첫 값을 쓰는 방식, 마지막 값을 쓰는 방식, 요청을 거부하는 방식은 채택하지 않은 선택지다.
+
+한계가 하나 남는다. 전체 화면 오류(`ErrorPage`)의 세션 만료 변형(`components/ui/error-page.tsx`, `app/(main)/error.tsx`)은 같은 판정을 쓰지만 경로만 담고 쿼리는 담지 않는다. 쿼리가 필요한 화면(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아온다. NERV Task `CLE-T-2NQ857` 이 맞춘다. 그때 [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 REQ-ERRPAGE-004 · 005 도 함께 고친다.
+
+### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다
+
+2026-10-18, NERV Task `CLE-T-7WZKFB` 의 결정이다.
+
+소셜 로그인은 백엔드 시작 요청, OAuth 제공자, 백엔드 콜백을 거쳐 프론트엔드 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 로그인 화면이 복귀 경로를 같은 탭의 sessionStorage 에 두고 `/callback` 이 꺼낸다.
+
+시작 요청 값을 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나르는 방식도 가능하다. `mode` 와 `rememberMe`(「[로그인 유지](#로그인-유지)」)가 이미 이 방식으로 콜백까지 간다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md#oauth-state-를-한-번의-delete-로-소비한다)). 이 방식은 state 행에 칸을 더하는 마이그레이션과 백엔드 인증 API 변경이 필요해 이번 범위 밖이다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 이 방식으로 옮긴다.
+
+지금 방식에는 비용이 있다. 소셜 로그인의 시작 값이 두 채널로 나뉜다. `mode` 와 `rememberMe` 는 state 행으로 가고 복귀 경로는 sessionStorage 로 간다. 시작 값을 더할 때마다 어느 채널에 둘지 정해야 한다. 두 채널은 수명도 다르다. state 행은 10분 뒤 만료되고 sessionStorage 값은 콜백이 꺼내거나 탭이 닫힐 때까지 남는다.
+
+백엔드 콜백이 쿼리로 되돌려 주는 방식은 채택하지 않은 선택지다. 백엔드가 시작 요청의 값을 받아 콜백 URL 에 붙여야 해서 같은 이유로 이번 범위 밖이다.
+
+고른 방식에는 한계가 있고 다음처럼 대응한다.
+
+- 같은 탭에서만 이어진다. 다른 탭에서 소셜 로그인을 마치면 `/dashboard` 로 간다.
+- 중간에 그만둔 소셜 로그인 시도의 값이 남을 수 있다. 남은 값이 다음 로그인의 목적지가 되지 않도록 `/callback` 은 성공 · 실패 모두에서 값을 한 번 꺼내 지운다. 가입 화면에서 시작하는 소셜 로그인도 남은 값을 지운다.
+- sessionStorage 는 같은 출처의 스크립트가 고칠 수 있다. 그래서 저장할 때 검사한 값도 꺼낼 때 다시 검사한다.
+
+콜백은 이동하기 전에 `GET /api/users/me` 를 읽어 비밀번호 로그인과 같게 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 이동하면 proxy 가 JS 를 내려보내기 전에 다시 `/login` 으로 보낸다. 소셜 로그인을 마친 사용자가 복귀 경로 대신 로그인 화면을 보지 않게 하려는 것이다.
+
+### 로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다
+
+2026-10-18, NERV Task `CLE-T-7WZKFB` 에서 기존 동작을 공통 규칙으로 적었다.
+
+사이드바의 로그아웃과 초대 수락 페이지의 «다른 계정으로 로그인» 은 로그아웃 요청이 실패해도 클라이언트의 액세스 토큰, 로그인 힌트 쿠키, 인증 상태를 지우고 이동한다. 사용자가 나가려는 의도를 막지 않으려는 것이다.
+
+비용이 있다. 요청이 서버에서 처리되지 않았으면 서버의 로그인 세션(리프레시 토큰 `family_id`)과 브라우저의 리프레시 쿠키가 만료될 때까지 남을 수 있다.
+
+완화 수단은 둘이다.
+
+- 로그인 힌트 쿠키가 지워진다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다.
+- 남은 로그인 세션은 활성 세션 목록(`/profile/sessions`, [세션 화면](#세션-화면))에서 끊을 수 있다. 이 화면은 [내 프로필](CLE-ACCT-PROFILE.md) 의 보안 카드에서 들어간다.
+
+로그아웃 요청이 실패하면 이동하지 않고 에러를 보여 주는 방식은 채택하지 않은 선택지다.
