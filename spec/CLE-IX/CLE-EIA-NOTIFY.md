@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037"]
+requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "3f482fe6ac9f99ba93ddf2ba2dff5f2a49dad8f31d652e905580ac4d97aced30"
+content_hash: "e2474891224f5352ee1d499ae7f693b77441c00fed07c8aeff41b73f86c898e8"
 read_as: "approved_fallback"
 task: "CLE-T-ZGYXSZ"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "68bd2bb4745bf028c1330b79fd52f0593ff4eb220c1bd2c736d7602d831ce5ac"
-etag: "sha256-d8ecb622cc2eb904b99042921c19f7804cf94ec992482146cdf08a5377ff9302"
+mirror_sha256: "1c71d2e7683e91f809c15f2b0afdb6c4f1d0de5927704683657961beafa7a60b"
+etag: "sha256-b5566a8787d30477ef567bdf91de69640dbf237e64bcf6b56bd8cd325eac499c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -65,6 +65,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-035 WHEN 시크릿 교체 유예 중에 `rotate-secret` 이 다시 호출되면 THE SYSTEM SHALL 앞서 만든 새 시크릿을 이번 새 시크릿으로 덮어쓰고 24시간 유예를 그 시각부터 다시 시작한다. ([시크릿 교체](#시크릿-교체))
 - REQ-EIANOTI-036 WHEN 매시 승격 작업이 유예가 끝난 새 시크릿을 승격하면 THE SYSTEM SHALL 시크릿 교체와 같은 트리거 설정 잠금을 잡고 잠금 안에서 읽은 `notification_secret_v2` 가 처음 고른 값과 같을 때만 같은 잠금 안에서 그 값을 정식 참조로 옮기고 비운다. ([시크릿 교체](#시크릿-교체))
 - REQ-EIANOTI-037 WHEN EIA 알림 웹훅 설정(`config.notification`)이 있는 트리거를 만들거나 PATCH 로 EIA 알림 웹훅 설정을 처음 붙이면 THE SYSTEM SHALL 알림 서명 시크릿을 발급해 시크릿 저장소에 넣고 평문을 그 응답에 한 번만 싣는다. 호출자가 원시 `config` 로 보냈거나 다시 읽은 행에 남아 있는 평문 `signing.secret`(옛 키)이 있으면 그 값을 쓰고 발급하지 않는다. ([시크릿 교체](#시크릿-교체), 응답 위치: [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api))
+- REQ-EIANOTI-038 WHEN 알림 웹훅 발송 응답이 3xx 이면 THE SYSTEM SHALL `Location` 을 따라가지 않고 그 발송을 실패로 보아 REQ-EIANOTI-008 의 재시도 규칙을 적용한다. ([재시도와 실패 처리](#재시도와-실패-처리), [SSRF 방지](#ssrf-방지))
 
 ## 구독 이벤트
 
@@ -290,6 +291,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 항목 | 값 |
 |---|---|
 | 성공 기준 | HTTP `2xx` |
+| 리다이렉트 | 발송은 리다이렉트를 따라가지 않는다. 3xx 응답은 `2xx` 가 아니므로 실패로 보고 다른 실패와 같은 간격으로 재시도한다. 마지막 시도가 3xx 로 실패하면 `notification_last_error` 는 `HTTP <status> <statusText>. Redirects are not followed. Register the final URL as the notification URL.` 이다 |
 | 타임아웃 | 10초 |
 | 시도 횟수 | `notification.retry.maxAttempts` 는 첫 시도를 포함한 총 시도 횟수다. 기본 5, 상한 10 이다. 0 은 1(큐 재시도 없음)로 본다. 이 값을 발송 큐(`notification-webhook`) 작업의 `attempts` 로 넘긴다. 기본값이면 큐 재시도는 네 번이다 |
 | 간격 | 1초에서 시작해 4배씩 늘어나고 한 간격은 1시간을 넘지 않는다(1s · 4s · 16s · 64s … 최대 1시간). 간격 수는 총 시도 횟수보다 하나 적다. 1시간 상한은 일곱째 간격부터 걸린다. 그래서 총 시도 횟수가 8 이상일 때만 걸리고 기본값 5 에는 걸리지 않는다. 총 시도 횟수가 상한 10 이면 간격은 1 · 4 · 16 · 64 · 256 · 1024 · 3600 · 3600 · 3600초다. 마지막 재시도는 첫 시도 뒤 12,165초(약 3.4시간)에 나간다. 이 값은 간격만 더한 것이다. 시도마다 응답을 최대 10초 기다리는 시간은 따로 더해진다. 설정 값 `backoff: "exponential"` 은 이 간격을 뜻한다. BullMQ 내장 `exponential`(2배씩 늘어남)과는 이름만 같다. 내장 전략으로는 4배 간격을 낼 수 없어 사용자 정의 전략을 쓴다. 워커 `settings.backoffStrategy`(`NotificationWebhookProcessor`)가 `min(1000·4^(attemptsMade-1), 3600000)` 밀리초를 돌려준다(`notificationBackoffDelayMs`). 작업 옵션 `backoff.type = NOTIFICATION_BACKOFF_TYPE`(`exp-base4`)이 이 전략을 가리킨다 |
@@ -297,7 +299,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | 낡은 알림 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
 
-발송 건강도(`notification_health`)는 `unknown`(확인 안 됨)·`healthy`(정상)·`degraded`(저하됨) 세 값이다. 발송 파이프라인(`NotificationFanout` → `NotificationDispatcher` → `notification-webhook` 큐 → `NotificationWebhookProcessor`)과 큐 설정은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다. `notification.retry` 설정의 뜻(시도 횟수와 간격)은 위 표가 정하고 다른 문서는 이 표를 가리킨다. 간격에 상한을 둔 이유는 [재시도 간격에 1시간 상한을 둔다](#재시도-간격에-1시간-상한을-둔다-2026-10-17) 에 있다.
+발송 건강도(`notification_health`)는 `unknown`(확인 안 됨)·`healthy`(정상)·`degraded`(저하됨) 세 값이다. 발송 파이프라인(`NotificationFanout` → `NotificationDispatcher` → `notification-webhook` 큐 → `NotificationWebhookProcessor`)과 큐 설정은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다. `notification.retry` 설정의 뜻(시도 횟수와 간격)은 위 표가 정하고 다른 문서는 이 표를 가리킨다. 간격에 상한을 둔 이유는 [재시도 간격에 1시간 상한을 둔다](#재시도-간격에-1시간-상한을-둔다-2026-10-17) 에 있다. 리다이렉트를 따라가지 않는 이유는 [알림 웹훅 발송은 리다이렉트를 따라가지 않는다](#알림-웹훅-발송은-리다이렉트를-따라가지-않는다-2026-10-18) 에 있다.
 
 ## 폭주 감지
 
@@ -314,6 +316,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 - 호스트 이름이 사설 IP(10/8, 172.16/12, 192.168/16, 169.254/16, ::1, fe80::/10, fc00::/7)나 loopback·메타데이터 서비스 IP(169.254.169.254 등)로 풀리면 거부한다.
 - DNS rebinding 방어: 등록 때 IP 와 실제 발송 때 IP 가 다르면 발송을 거부한다. 비용이 커서 선택 사항이고, `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 켠다(기본 꺼짐).
+- 발송은 리다이렉트를 따라가지 않는다. 등록 때와 발송 직전의 검사는 등록 URL 의 호스트만 본다. 리다이렉트가 가리키는 주소는 어느 검사도 보지 않는다. 따라가면 공개 호스트가 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 이 검사들을 통과한다. 307 · 308 이면 서명한 본문도 그 주소로 간다. 3xx 응답의 처리는 [재시도와 실패 처리](#재시도와-실패-처리) 가 정한다.
 - 워크스페이스 단위 허용·차단 목록(원문 표기 `workspace_settings.notification_url_allow_pattern`)을 설정할 수 있어야 한다. [미결 사항](#미결-사항) 참조.
 - URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다.
 
@@ -344,7 +347,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - `codebase/backend/src/modules/external-interaction/notification-fanout.service.ts` (단일 싱크 구독, `FANOUT_EVENTS` 화이트리스트, 종료 시 토큰 폐기, `retry.maxAttempts` 를 큐 시도 횟수로 넘김)
 - `codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts` (BullMQ 적재, `NOTIFICATION_BACKOFF_TYPE`)
 - `codebase/backend/src/modules/external-interaction/notification-dispatcher.types.ts` (`NOTIFICATION_BACKOFF_TYPE`, 4배 간격 계산 `notificationBackoffDelayMs`, 간격 상한 `NOTIFICATION_BACKOFF_MAX_DELAY_MS`)
-- `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 검사·발송 건강도)
+- `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 검사·발송 건강도, 3xx 를 따라가지 않고 실패로 처리)
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts` (서명 계산, `verifySignatureHeader`)
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts` (폭주 감지 카운터)
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`, `assertNotificationUrlSafe`)
@@ -418,3 +421,19 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 - **상한 없음**(그때까지의 동작): 위 이유로 재시도 창이 하루에 이른다.
 - **총 시도 횟수 상한을 10 보다 낮춘다**: 총 지연은 줄어든다. 그러나 이미 8~10 으로 저장한 트리거의 값이 입력 범위를 벗어난다. 긴 장애 동안 시간 단위로 여러 번 다시 시도하는 길도 사라진다.
+
+### 알림 웹훅 발송은 리다이렉트를 따라가지 않는다 (2026-10-18)
+
+알림 웹훅 발송은 3xx 응답을 따라가지 않고 실패로 본다. 그때까지 발송은 fetch 기본값대로 리다이렉트를 따라갔다. 이 문제는 코드 리뷰 발견 finding `01a14c6e-515d-75ec-a1a2-de1a962c6443` 이 찾았다. 알림 웹훅 발송이 리다이렉트를 그대로 따라가서 등록 URL 검사와 DNS 검사를 우회할 수 있다는 지적이다. 리뷰 대상은 PR worker-ants/clemvion#1557 이었다. 작업은 NERV Task `CLE-T-ZGYXSZ` 다.
+
+- 등록 때와 발송 직전의 SSRF 검사는 등록 URL 의 호스트만 본다. 리다이렉트를 따라가면 공개 호스트가 302 · 307 로 사설 · loopback · 메타데이터 주소를 가리켜 두 검사와 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 를 통과한다.
+- 307 · 308 은 메서드와 본문을 바꾸지 않고 다시 보내라는 응답이다. 그래서 따라가면 서명한 POST 본문도 그 주소로 간다.
+- 3xx 도 `2xx` 가 아닌 다른 응답과 같이 재시도한다. 처리기는 시도마다 트리거 설정의 URL 을 다시 읽는다. 그래서 사용자가 URL 을 고치면 남은 재시도에 반영된다. 3xx 를 받았을 때 바로 `degraded` 로 보내는 별도 분기는 두지 않는다.
+
+기각한 대안:
+
+- **HTTP Request 노드처럼 따라가며 홉마다 다시 검사한다**: [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) 는 `integration` 인증일 때 3xx 를 최대 5홉까지 따라가고 홉마다 사설망 차단을 다시 검사한다. 같은 노드도 `none` · `custom` 인증일 때는 3xx 를 따라가지 않는다. 알림 웹훅 발송은 같은 노드의 `none` · `custom` 인증 쪽 동작을 따른다. 알림 웹훅이 따라가면 307 · 308 이 서명한 본문과 `X-Clemvion-*` 헤더를 다른 호스트로 그대로 보낸다. 따라가는 홉마다 SSRF 검사를 다시 하려면 그 코드와 시험을 새로 들여야 한다. 정상 수신 서버는 최종 URL 을 등록하면 된다.
+- **같은 출처 리다이렉트만 따라간다**: 새 허용 규칙이 필요하다. 등록 URL 을 최종 주소로 바꾸면 같은 결과를 얻는다.
+- **3xx 를 받으면 재시도 없이 바로 최종 실패(`degraded`)로 둔다**: 임시 리다이렉트는 상대 서버가 고치거나 사용자가 URL 을 고치면 회복될 수 있다. 다른 `2xx` 가 아닌 응답과 같은 재시도 규칙(REQ-EIANOTI-008)을 따르면 처리 분기가 늘지 않는다. 대신 영구 리다이렉트도 재시도가 끝날 때까지 `degraded` 표시가 늦어진다. 기본 설정(총 시도 5)이면 간격만 더해 85초, 총 시도 횟수 상한 10 이면 12,165초(약 3.4시간) 늦어진다.
+
+DNS rebinding 가드의 기본값과 [SSRF 방지](#ssrf-방지) 본문 · REQ-EIANOTI-012 의 어긋남은 후속 NERV Task `CLE-T-YR4EK5` 가 맡는다.
