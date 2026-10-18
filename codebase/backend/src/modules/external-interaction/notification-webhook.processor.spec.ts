@@ -658,7 +658,7 @@ describe('NotificationWebhookProcessor.process', () => {
       expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
         notificationHealth: 'degraded',
         notificationLastError: expect.stringMatching(
-          /^HTTP 302 Found\. 알림 발송은 리다이렉트를 따라가지 않습니다/,
+          /^HTTP 302 Found\. Redirects are not followed\./,
         ),
       });
     });

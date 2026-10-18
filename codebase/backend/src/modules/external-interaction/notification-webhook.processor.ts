@@ -35,7 +35,7 @@ const STALE_ELIGIBLE_EVENTS = new Set<string>([
 const LAST_ERROR_MAX_LENGTH = 500;
 /** 3xx 실패의 `notification_last_error` 에 붙이는 안내. 발송은 리다이렉트를 따라가지 않는다. */
 const REDIRECT_NOT_FOLLOWED_HINT =
-  '알림 발송은 리다이렉트를 따라가지 않습니다. 리다이렉트가 가리키는 최종 주소를 알림 URL 로 등록하세요.';
+  'Redirects are not followed. Register the final URL as the notification URL.';
 
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400;
@@ -312,9 +312,13 @@ export class NotificationWebhookProcessor extends WorkerHost {
       return;
     }
 
+    // statusText 는 HTTP/2 응답처럼 비어 있을 수 있다. 비면 공백 없이 `HTTP <status>` 로 둔다.
+    const baseMsg = res.statusText
+      ? `HTTP ${res.status} ${res.statusText}`
+      : `HTTP ${res.status}`;
     const errMsg = isRedirectStatus(res.status)
-      ? `HTTP ${res.status} ${res.statusText}. ${REDIRECT_NOT_FOLLOWED_HINT}`
-      : `HTTP ${res.status} ${res.statusText}`;
+      ? `${baseMsg}. ${REDIRECT_NOT_FOLLOWED_HINT}`
+      : baseMsg;
     await this.maybeMarkDegradedOnFinalAttempt(job, triggerId, errMsg);
     // BullMQ 재시도를 트리거하기 위해 throw.
     throw new Error(errMsg);

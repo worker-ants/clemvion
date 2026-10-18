@@ -229,7 +229,7 @@ describe('알림 웹훅 발송의 리다이렉트 (e2e)', () => {
     );
     expect(row.rows[0].notification_health).toBe('degraded');
     expect(row.rows[0].notification_last_error).toMatch(
-      /^HTTP 307 Temporary Redirect\. 알림 발송은 리다이렉트를 따라가지 않습니다/,
+      /^HTTP 307 Temporary Redirect\. Redirects are not followed\./,
     );
   });
 });
