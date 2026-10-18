@@ -1,3 +1,5 @@
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
 import { NotificationWebhookProcessor } from './notification-webhook.processor';
 import { Trigger } from '../triggers/entities/trigger.entity';
@@ -56,6 +58,23 @@ function makeJob(
 const SECRET = 'wsk_test-secret';
 const SECRET_V2 = 'wsk_test-secret-rotated';
 const SAFE_URL = 'https://customer.example.com/webhook';
+
+/** 각 테스트가 `globalThis.fetch` 를 mock 으로 바꾸기 전의 실제 fetch. */
+const realFetch = globalThis.fetch;
+
+function listen(server: Server): Promise<string> {
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      resolve(`http://127.0.0.1:${port}/`);
+    });
+  });
+}
+
+function close(server: Server): Promise<void> {
+  server.closeAllConnections();
+  return new Promise((resolve) => server.close(() => resolve()));
+}
 
 function makeTrigger(overrides: Partial<Trigger> = {}): Trigger {
   return {
@@ -575,5 +594,135 @@ describe('NotificationWebhookProcessor.process', () => {
       'trg-1',
       expect.objectContaining({ notificationHealth: 'degraded' }),
     );
+  });
+
+  // 리다이렉트를 따라가지 않는다(NERV Task `CLE-T-ZGYXSZ`). 발송 전 검사는 등록 URL 의 호스트만 보므로 따라가면
+  // 공개 호스트의 3xx 가 사설 · 메타데이터 주소로 서명한 본문을 보낸다. 3xx 는 2xx 가 아니라 다른 실패와 같게 다룬다.
+  // 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리)
+  describe('리다이렉트', () => {
+    it('fetch 에 redirect: manual 을 준다', async () => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      fetchSpy.mockResolvedValue({ status: 200, statusText: 'OK' });
+
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        SAFE_URL,
+        expect.objectContaining({ redirect: 'manual' }),
+      );
+    });
+
+    it.each([
+      [301, 'Moved Permanently'],
+      [302, 'Found'],
+      [303, 'See Other'],
+      [307, 'Temporary Redirect'],
+      [308, 'Permanent Redirect'],
+    ])(
+      'HTTP %d — 한 번만 보내고 실패로 던진다. 마지막 시도가 아니면 건강도를 바꾸지 않는다',
+      async (status, statusText) => {
+        triggerRepo.findOne.mockResolvedValue(makeTrigger());
+        fetchSpy.mockResolvedValue({
+          status,
+          statusText,
+          headers: new Headers({
+            location: 'http://169.254.169.254/latest/meta-data/',
+          }),
+        });
+
+        await expect(
+          processor.process(
+            makeJob(
+              { eventType: 'execution.completed' },
+              { attempts: 5, attemptsMade: 1 },
+            ),
+          ),
+        ).rejects.toThrow(new RegExp(`HTTP ${status}`));
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(triggerRepo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('HTTP 302 — 마지막 시도면 degraded 로 바꾸고 따라가지 않는다는 안내를 남긴다', async () => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      fetchSpy.mockResolvedValue({ status: 302, statusText: 'Found' });
+
+      await expect(
+        processor.process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 5, attemptsMade: 4 },
+          ),
+        ),
+      ).rejects.toThrow(/HTTP 302/);
+      expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+        notificationHealth: 'degraded',
+        notificationLastError: expect.stringMatching(
+          /^HTTP 302 Found\. 알림 발송은 리다이렉트를 따라가지 않습니다/,
+        ),
+      });
+    });
+
+    it('3xx 가 아닌 실패에는 리다이렉트 안내를 붙이지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      fetchSpy.mockResolvedValue({ status: 404, statusText: 'Not Found' });
+
+      await expect(
+        processor.process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 1, attemptsMade: 0 },
+          ),
+        ),
+      ).rejects.toThrow(/HTTP 404/);
+      expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+        notificationHealth: 'degraded',
+        notificationLastError: 'HTTP 404 Not Found',
+      });
+    });
+
+    it('실제 fetch — 307 이 가리키는 주소로 서명한 본문을 보내지 않는다', async () => {
+      const landingHits: string[] = [];
+      const landing = createServer((req, res) => {
+        landingHits.push(req.method ?? '');
+        res.writeHead(200).end();
+      });
+      const landingUrl = await listen(landing);
+      const redirectorHits: string[] = [];
+      const redirector = createServer((req, res) => {
+        redirectorHits.push(req.method ?? '');
+        res.writeHead(307, { Location: landingUrl }).end();
+      });
+      const redirectorUrl = await listen(redirector);
+      // 알림 URL 은 SSRF 검사를 지나는 공개 호스트(SAFE_URL)로 두고 연결만 로컬 서버로 돌린다. 처리기가 준
+      // 옵션(`redirect` 포함)은 그대로 실제 fetch 에 넘긴다. `redirect: 'manual'` 이 빠지면 fetch 가 307 을 따라가
+      // landing 이 POST 를 받고 200 으로 성공한다.
+      (globalThis as unknown as { fetch: typeof fetch }).fetch = (
+        _input,
+        init,
+      ) => realFetch(redirectorUrl, init);
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+
+      try {
+        await expect(
+          processor.process(
+            makeJob(
+              { eventType: 'execution.completed' },
+              { attempts: 1, attemptsMade: 0 },
+            ),
+          ),
+        ).rejects.toThrow(/HTTP 307/);
+      } finally {
+        await close(redirector);
+        await close(landing);
+      }
+
+      expect(redirectorHits).toEqual(['POST']);
+      expect(landingHits).toEqual([]);
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        'trg-1',
+        expect.objectContaining({ notificationHealth: 'degraded' }),
+      );
+    });
   });
 });
