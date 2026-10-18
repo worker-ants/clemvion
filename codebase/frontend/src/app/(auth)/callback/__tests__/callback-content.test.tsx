@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, cleanup, waitFor } from "@testing-library/react";
 
@@ -90,6 +91,23 @@ describe("CallbackContent (decision A — refresh-cookie reuse)", () => {
     expect(window.sessionStorage.getItem(REDIRECT_KEY)).toBeNull();
   });
 
+  // 개발 서버의 StrictMode 는 effect 를 두 번 돌린다. 첫 effect 가 sessionStorage 에서 값을 꺼내 지운 뒤
+  // 두 번째 effect 가 다시 꺼내면 복귀 경로가 사라지고 /dashboard 가 된다. 한 번 꺼낸 값을 ref 로 지킨다.
+  it("keeps the stored path when StrictMode runs the effect twice", async () => {
+    window.sessionStorage.setItem(REDIRECT_KEY, "/invitations/accept?token=abc");
+    refreshAccessToken.mockResolvedValue("new-access-token");
+    render(
+      <StrictMode>
+        <CallbackContent success="true" />
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith("/invitations/accept?token=abc");
+    expect(window.sessionStorage.getItem(REDIRECT_KEY)).toBeNull();
+  });
+
   it("ignores an unsafe stored path and routes to /dashboard", async () => {
     window.sessionStorage.setItem(REDIRECT_KEY, "https://evil.example.com");
     refreshAccessToken.mockResolvedValue("new-access-token");
@@ -115,11 +133,15 @@ describe("CallbackContent (decision A — refresh-cookie reuse)", () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
-  it("still routes when /users/me fails after a successful refresh", async () => {
+  // 사용자 조회가 실패하면 힌트 쿠키를 심지 못한다. 이동은 그대로 하고(정책은 CLE-T-1X7DMR) 그 한계를 고정한다.
+  // proxy 가 보호 경로를 /login?redirect=<경로와 쿼리> 로 돌려보내므로 돌아갈 경로는 잃지 않는다.
+  it("still routes when /users/me fails, but cannot set the has_session hint", async () => {
     refreshAccessToken.mockResolvedValue("new-access-token");
     getMe.mockRejectedValue(new Error("network"));
     render(<CallbackContent success="true" />);
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"));
+    expect(document.cookie.split("; ")).not.toContain("has_session=1");
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 });

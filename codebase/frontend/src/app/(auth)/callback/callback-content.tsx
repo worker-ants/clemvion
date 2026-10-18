@@ -56,7 +56,10 @@ export function CallbackContent({ success, error }: CallbackContentProps) {
           const user = (await usersApi.getMe()).data.data;
           if (user && !cancelled) setAuthenticated(token, user);
         } catch {
-          /* AuthProvider will restore on next page load */
+          // 사용자 조회에 실패하면 `has_session` 힌트 쿠키를 심지 못한다(`(auth)` 그룹에는 AuthProvider 가
+          // 없어 이 페이지에서 복구하지 않는다). 그대로 이동하면 proxy 가 보호 경로를 `/login?redirect=<경로와
+          // 쿼리>` 로 돌려보내므로 돌아갈 경로는 잃지 않고, 사용자는 다시 로그인하게 된다.
+          // 이 실패의 처리 정책(재시도 · 오류 화면)은 세션 확립 로직을 모을 때 정한다(CLE-T-1X7DMR).
         }
         if (!cancelled) router.push(redirectTo);
       })
