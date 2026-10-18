@@ -49,7 +49,8 @@ export function proxy(request: NextRequest) {
   const hasSession = request.cookies.get("has_session");
   if (!hasSession) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    // 쿼리까지 담아야 로그인 뒤 원래 화면이 같은 값으로 열린다(예: 초대 수락 페이지의 `?token=`).
+    loginUrl.searchParams.set("redirect", pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 

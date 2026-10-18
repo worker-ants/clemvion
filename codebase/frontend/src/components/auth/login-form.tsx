@@ -29,14 +29,26 @@ import {
 } from "@/components/ui/card";
 import { useT, useLocale } from "@/lib/i18n";
 import { API_BASE_URL } from "@/lib/api/constants";
+import {
+  isInvitationAcceptPath,
+  rememberOauthRedirect,
+  resolvePostLoginRedirect,
+} from "@/lib/auth/post-login-redirect";
 
 interface LoginFormProps {
   enabledProviders?: OAuthProvider[];
+  /**
+   * `?redirect=` 쿼리 값 그대로. 검사하지 않은 값이라 폼 안에서 안전한 상대 경로만 쓴다
+   * (REQ-SESSION-038).
+   */
+  redirect?: string;
 }
 
-function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
+function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
   const t = useT();
   const router = useRouter();
+  // 비밀번호 · 2단계 인증 · 복구 코드가 모두 completeLogin 에서 끝나므로 여기서 한 번 정한다.
+  const redirectTo = resolvePostLoginRedirect(redirect);
   // 페이지에 동일 폼이 두 번 마운트되어도 ID 충돌이 없도록 useId 사용
   // (review W-10 — 고정 "email-error" 등은 axe duplicate-id 위반 위험).
   const emailErrorId = useId();
@@ -82,9 +94,9 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
         /* AuthProvider will restore on next page load */
       }
       toast.success(t("auth.login.signedIn"));
-      router.push("/dashboard");
+      router.push(redirectTo);
     },
-    [router, setAuthenticated, t],
+    [redirectTo, router, setAuthenticated, t],
   );
 
   async function onSubmitTotp(e: React.FormEvent) {
@@ -122,6 +134,8 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
   });
 
   function startOauth(provider: OAuthProvider) {
+    // OAuth 는 `/callback` 으로 돌아오므로 돌아갈 경로를 이 탭의 sessionStorage 에 둔다.
+    rememberOauthRedirect(redirect ?? null);
     const rememberMe = getValues("rememberMe") ? "&rememberMe=true" : "";
     window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=login${rememberMe}`;
   }
@@ -381,7 +395,11 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
     <Card>
       <CardHeader className="text-center">
         <CardTitle as="h1">{t("auth.login.title")}</CardTitle>
-        <CardDescription>{t("auth.login.welcomeBack")}</CardDescription>
+        <CardDescription>
+          {isInvitationAcceptPath(redirectTo)
+            ? t("auth.login.invitationHint")
+            : t("auth.login.welcomeBack")}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

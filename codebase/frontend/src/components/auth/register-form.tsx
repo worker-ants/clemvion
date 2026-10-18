@@ -29,9 +29,40 @@ import {
 import { useT, useLocale } from "@/lib/i18n";
 import { getPasswordStrength } from "@/lib/utils/password";
 import { API_BASE_URL } from "@/lib/api/constants";
+import {
+  buildLoginHref,
+  invitationAcceptPath,
+  rememberOauthRedirect,
+} from "@/lib/auth/post-login-redirect";
 
 function startOauth(provider: OAuthProvider) {
+  // 로그인 화면에서 시작했다 그만둔 OAuth 의 복귀 경로가 남아 있으면 지운다.
+  rememberOauthRedirect(null);
   window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=register`;
+}
+
+/**
+ * proxy.ts 가 라우팅 판단에 쓰는 `has_session` 힌트 쿠키(로그인 시 auth-store 가 심고 로그아웃 시
+ * 지움)로 브라우저에 남은 세션을 감지한다.
+ */
+function hasSessionHint(): boolean {
+  return (
+    typeof document !== "undefined" &&
+    document.cookie.split("; ").includes("has_session=1")
+  );
+}
+
+/**
+ * 초대 토큰의 이메일이 이미 가입돼 있는지 공개 `check-email` 로 묻는다. 확인하지 못하면(429 · 네트워크)
+ * 가입되지 않은 것으로 보고 가입 폼을 띄운다. 그 경우 제출이 409 로 끝나면 그때 로그인으로 보낸다.
+ */
+async function isRegisteredEmail(email: string): Promise<boolean> {
+  try {
+    const response = await authApi.checkEmail(email);
+    return response.data.data?.available === false;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -64,6 +95,8 @@ type InvitationState =
   | { kind: "none" }
   | { kind: "loading" }
   | { kind: "ready"; meta: InvitationMeta }
+  /** 토큰의 이메일이 이미 가입돼 있다. 로그인 화면으로 보낸다. */
+  | { kind: "existingAccount"; meta: InvitationMeta }
   | {
       kind: "error";
       /** HTTP status (410=만료/사용됨, 404=없음). 다른 경우 undefined. */
@@ -112,14 +145,8 @@ function RegisterFormInner({
     // `has_session` 힌트 쿠키(로그인 시 auth-store 가 심고 로그아웃 시 지움)로
     // 브라우저에 남은 세션을 감지한다. 힌트가 stale(쿠키만 남고 refresh 만료)이면
     // accept 페이지의 AuthProvider 가 정상적으로 /login 으로 되돌린다.
-    if (
-      invitationToken &&
-      typeof document !== "undefined" &&
-      document.cookie.split("; ").includes("has_session=1")
-    ) {
-      router.replace(
-        `/invitations/accept?token=${encodeURIComponent(invitationToken)}`,
-      );
+    if (invitationToken && hasSessionHint()) {
+      router.replace(invitationAcceptPath(invitationToken));
     }
   }, [invitationToken, router]);
 
@@ -132,6 +159,14 @@ function RegisterFormInner({
     (async () => {
       try {
         const meta = await invitationsApi.getByToken(invitationToken);
+        if (cancelled) return;
+        // 로그인하지 않은 기존 가입자는 가입 대신 로그인 뒤 수락 페이지로 간다(CLE-ACCT-WS 선택지 (a)).
+        // 가입 여부는 토큰 메타 조회가 성공한 뒤에만 묻는다. 세션이 있으면 위 effect 가 수락 페이지로
+        // 보내므로 묻지 않는다.
+        if (!hasSessionHint() && (await isRegisteredEmail(meta.email))) {
+          if (!cancelled) setInvitationState({ kind: "existingAccount", meta });
+          return;
+        }
         if (!cancelled) setInvitationState({ kind: "ready", meta });
       } catch (err) {
         if (cancelled) return;
@@ -147,6 +182,17 @@ function RegisterFormInner({
       cancelled = true;
     };
   }, [invitationToken]);
+
+  // 기존 가입자를 로그인 화면으로 보낸다. 돌아올 곳은 초대 수락 페이지다. locale 이 바뀌어 `t` 가 새로
+  // 와도 안내와 이동이 한 번만 일어나게 ref 로 막는다.
+  const loginRedirectedRef = useRef(false);
+  useEffect(() => {
+    if (invitationState.kind !== "existingAccount" || !invitationToken) return;
+    if (loginRedirectedRef.current) return;
+    loginRedirectedRef.current = true;
+    toast.info(t("auth.register.invitationExistingAccount"));
+    router.replace(buildLoginHref(invitationAcceptPath(invitationToken)));
+  }, [invitationState.kind, invitationToken, router, t]);
 
   // defined inside component so validation messages pick up the current locale via t()
   const registerSchema = useMemo(
@@ -228,6 +274,13 @@ function RegisterFormInner({
     } catch (err) {
       const error = err as AxiosError<ApiErrorBody>;
       const code = extractApiCode(error);
+      // 가입 여부 확인이 실패해 폼을 띄운 기존 가입자. 가입 요청의 RESOURCE_CONFLICT 는 이메일 중복이다.
+      if (invitationToken && code === "RESOURCE_CONFLICT") {
+        setInvitationState((prev) =>
+          prev.kind === "ready" ? { kind: "existingAccount", meta: prev.meta } : prev,
+        );
+        return;
+      }
       const message =
         code === INVITATION_ERROR.EMAIL_MISMATCH
           ? t("auth.register.invitationEmailMismatch")
@@ -271,6 +324,7 @@ function RegisterFormInner({
   const submitDisabled =
     isLoading ||
     invitationState.kind === "loading" ||
+    invitationState.kind === "existingAccount" ||
     invitationState.kind === "error";
 
   return (
@@ -508,7 +562,14 @@ function RegisterFormInner({
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           {t("auth.register.haveAccountCta")}{" "}
-          <Link href="/login" className="text-[hsl(var(--primary))] underline">
+          <Link
+            href={
+              invitationToken
+                ? buildLoginHref(invitationAcceptPath(invitationToken))
+                : "/login"
+            }
+            className="text-[hsl(var(--primary))] underline"
+          >
             {t("auth.login.submit")}
           </Link>
         </p>
@@ -533,6 +594,19 @@ function InvitationBanner({ state }: { state: InvitationState }) {
       <div className="mb-4">
         <p className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
           {t("auth.register.invitationLoading")}
+        </p>
+      </div>
+    );
+  }
+
+  if (state.kind === "existingAccount") {
+    return (
+      <div className="mb-4">
+        <p
+          role="status"
+          className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm"
+        >
+          {t("auth.register.invitationExistingAccount")}
         </p>
       </div>
     );

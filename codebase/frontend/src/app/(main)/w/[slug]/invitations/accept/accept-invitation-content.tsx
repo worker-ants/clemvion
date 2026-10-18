@@ -11,6 +11,10 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
 import {
+  buildLoginHref,
+  invitationAcceptPath,
+} from "@/lib/auth/post-login-redirect";
+import {
   Card,
   CardHeader,
   CardTitle,
@@ -61,7 +65,12 @@ export function AcceptInvitationContent() {
         if (cancelled) return;
         setMeta(m);
         const userEmail = useAuthStore.getState().user?.email;
-        setStatus(userEmail && userEmail === m.email ? "ready" : "mismatch");
+        // 서버 수락과 같은 규칙이다. 로그인 이메일을 소문자로 바꿔 토큰 이메일과 비교한다.
+        setStatus(
+          userEmail && userEmail.toLowerCase() === m.email.toLowerCase()
+            ? "ready"
+            : "mismatch",
+        );
       } catch (err) {
         if (cancelled) return;
         const error = err as AxiosError<{ message?: string }>;
@@ -115,7 +124,8 @@ export function AcceptInvitationContent() {
     // register-form 이 stale 쿠키로 잘못 리다이렉트한다(§1.5.3 진입 경로가 has_session
     // 을 load-bearing 으로 쓰므로 로그아웃도 이 쿠키를 반드시 지워야 한다).
     useAuthStore.getState().logout();
-    router.push("/login");
+    // 다른 계정으로 로그인한 뒤 이 초대 수락 페이지로 돌아온다.
+    router.push(token ? buildLoginHref(invitationAcceptPath(token)) : "/login");
   }
 
   return (

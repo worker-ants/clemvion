@@ -3,10 +3,11 @@ import { render, waitFor, screen } from "@testing-library/react";
 
 // Mock next/navigation
 const mockReplace = vi.fn();
+let mockPathname = "/dashboard";
 vi.mock("next/navigation", () => ({
   useParams: () => ({}),
   useRouter: () => ({ replace: mockReplace }),
-  usePathname: () => "/dashboard",
+  usePathname: () => mockPathname,
 }));
 
 // Mock API modules
@@ -61,6 +62,8 @@ describe("AuthProvider", () => {
     });
     vi.clearAllMocks();
     mockReplace.mockClear();
+    mockPathname = "/dashboard";
+    window.history.replaceState(null, "", "/dashboard");
   });
 
   it("shows loading spinner while restoring session", () => {
@@ -110,6 +113,43 @@ describe("AuthProvider", () => {
   });
 
   it("redirects to login when refresh returns null", async () => {
+    mockRefreshAccessToken.mockResolvedValue(null);
+
+    render(
+      <AuthProvider>
+        <div data-testid="content">Protected</div>
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/login?redirect=%2Fdashboard",
+      );
+    });
+  });
+
+  // REQ-SESSION-035 · 038 — 로그인 뒤 원래 화면을 같은 값으로 열려면 쿼리도 담아야 한다
+  // (초대 수락 페이지의 `?token=` 이 대표 사례).
+  it("keeps the current query in the login redirect", async () => {
+    mockPathname = "/invitations/accept";
+    window.history.replaceState(null, "", "/invitations/accept?token=abc%2B1");
+    mockRefreshAccessToken.mockResolvedValue(null);
+
+    render(
+      <AuthProvider>
+        <div data-testid="content">Protected</div>
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        `/login?redirect=${encodeURIComponent("/invitations/accept?token=abc%2B1")}`,
+      );
+    });
+  });
+
+  it("falls back to /dashboard when the current path is not a safe internal path", async () => {
+    mockPathname = "//evil.example.com";
     mockRefreshAccessToken.mockResolvedValue(null);
 
     render(
