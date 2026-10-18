@@ -29,11 +29,11 @@ import {
 import { useT, useLocale } from "@/lib/i18n";
 import { getPasswordStrength } from "@/lib/utils/password";
 import { API_BASE_URL } from "@/lib/api/constants";
-import { rememberOauthRedirect } from "@/lib/auth/post-login-redirect";
 import {
   buildInvitationLoginHref,
   invitationAcceptPath,
-} from "@/lib/invitations/accept-path";
+  rememberOauthRedirect,
+} from "@/lib/auth/post-login-redirect";
 
 function startOauth(provider: OAuthProvider) {
   // 로그인 화면에서 시작했다 그만둔 OAuth 의 복귀 경로가 남아 있으면 지운다.

@@ -30,10 +30,10 @@ import {
 import { useT, useLocale } from "@/lib/i18n";
 import { API_BASE_URL } from "@/lib/api/constants";
 import {
+  isInvitationAcceptPath,
   rememberOauthRedirect,
   resolvePostLoginRedirect,
 } from "@/lib/auth/post-login-redirect";
-import { isInvitationAcceptPath } from "@/lib/invitations/accept-path";
 
 interface LoginFormProps {
   enabledProviders?: OAuthProvider[];

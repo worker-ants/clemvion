@@ -2,9 +2,7 @@ import { isSafeInternalPath } from "@/lib/workspace/safe-path";
 
 // 근거:
 //   - [세션과 토큰 「공개 경로와 가드」](CLE-ACCT-SESSION#공개-경로와-가드) REQ-SESSION-035 · 038
-//   - [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION#로그인-뒤-이동)
-//   - [세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION#소셜-로그인의-복귀-경로) REQ-SESSION-045
-// 초대 수락 페이지로 돌아오는 경로는 `@/lib/invitations/accept-path` 가 맡는다.
+//   - [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS#초대-가입-화면)
 
 /** 로그인 뒤 돌아갈 곳이 없거나 안전하지 않을 때 가는 경로. */
 export const DEFAULT_POST_LOGIN_PATH = "/dashboard";
@@ -25,6 +23,29 @@ export function resolvePostLoginRedirect(
 /** 로그인 화면 경로. `target` 은 경로와 쿼리를 합친 값이고 통째로 인코딩한다. */
 export function buildLoginHref(target: string): string {
   return `/login?redirect=${encodeURIComponent(target)}`;
+}
+
+/** 초대 수락 페이지 경로. 슬러그 없는 경로라 옛 경로 흡수 라우트가 현재 워크스페이스로 넘긴다. */
+export function invitationAcceptPath(token: string): string {
+  return `/invitations/accept?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * 초대 수락 페이지로 돌아오는 로그인 화면 경로. 토큰이 없으면(수락 페이지 밖) 돌아올 곳이 없어
+ * 그냥 `/login` 이다. 가입 화면의 «로그인» 링크 · 기존 가입자 이동 · 수락 페이지의 «다른 계정으로
+ * 로그인» 이 모두 이 규칙을 쓴다.
+ */
+export function buildInvitationLoginHref(
+  token: string | null | undefined,
+): string {
+  return token ? buildLoginHref(invitationAcceptPath(token)) : "/login";
+}
+
+const INVITATION_ACCEPT_PATH_RE = /^(?:\/w\/[^/?#]+)?\/invitations\/accept(?:[?#]|$)/;
+
+/** 로그인 뒤 갈 곳이 초대 수락 페이지인지. 로그인 화면이 초대 안내 문구를 고를 때 쓴다. */
+export function isInvitationAcceptPath(path: string): boolean {
+  return INVITATION_ACCEPT_PATH_RE.test(path);
 }
 
 /** sessionStorage 키. OAuth 왕복 동안만 쓰고 콜백이 꺼내며 지운다. 앱 전역 키라 `clemvion.` 접두를 쓴다. */
