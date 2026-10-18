@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "1e28fb6d3ca4d922d668e631f651d3dfc2db6e5c0e15a1d6dc564f34e4381478"
+content_hash: "00f814d82dd3c4ca22aa3a472f7655f8bb44aa5754c6ab7cb5ee69ee25e63d7a"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-G0Y6MW"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "512ac12443f1d960195b2bc118c33348b66258071d962b4b6fcb26c036efde7b"
-etag: "sha256-730dc30133a9be2d8c37cc6150f551658274079747ec7ca1c5764dc00ec46e8d"
+mirror_sha256: "b5f2ce6fd7e4b647d9127ae9c2f0c3b079069c63e23c103cca428d2778f7062c"
+etag: "sha256-fde204164a7bd3c76b2710574fff12f58c580c5e1ad58039c1559345175b2012"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -78,7 +78,7 @@ etag: "sha256-730dc30133a9be2d8c37cc6150f551658274079747ec7ca1c5764dc00ec46e8d"
 - REQ-WEBHOOK-027 WHEN 웹훅 요청이 실행을 시작하면 THE SYSTEM SHALL 실행을 기다리지 않고 `202 Accepted` 와 `executionId` 를 응답한다. (원본: WH-RS-01)
 - REQ-WEBHOOK-028 IF 엔드포인트 경로에 맞는 웹훅 트리거가 없으면 THE SYSTEM SHALL `404 TRIGGER_NOT_FOUND` 로 응답한다. (원본: WH-RS-02)
 - REQ-WEBHOOK-029 IF 요청 본문 파싱이 실패하면 THE SYSTEM SHALL `400 Bad Request` 로 응답한다. (원본: WH-RS-03)
-- REQ-WEBHOOK-030 WHEN 트리거가 `config.interaction.enabled=true` 이면 THE SYSTEM SHALL 202 응답에 `status: "pending"` 과 `interaction.endpoints` 를 싣고 `tokenStrategy="per_execution"` 이면 `interaction.token`·`interaction.expiresAt` 도 함께 싣는다. `tokenStrategy="per_trigger"` 면 토큰을 싣지 않는다. (원본: WH-RS-04)
+- REQ-WEBHOOK-030 WHEN 트리거가 `config.interaction.enabled=true` 이면 THE SYSTEM SHALL 202 응답에 `status: "pending"` 과 `interaction.endpoints` 를 싣고 `tokenStrategy="per_execution"` 이면 `interaction.token`·`interaction.expiresAt` 도 함께 싣는다. `tokenStrategy="per_trigger"` 면 토큰을 싣지 않는다. 싣지 않는 `token`·`expiresAt` 은 `null` 없이 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). (원본: WH-RS-04)
 - REQ-WEBHOOK-031 WHEN 사용자가 웹훅 트리거를 만들면 THE SYSTEM SHALL 워크플로우 에디터와 트리거 화면 두 곳에서 같은 `POST /api/triggers` 로 만들게 한다. (원본: WH-MG-01)
 - REQ-WEBHOOK-032 WHEN 웹훅 트리거를 만들거나 경로를 바꾸면 THE SYSTEM SHALL 생성·수정 DTO 에서 v4 UUID 형식(`@IsUUID('4')`)의 엔드포인트 경로만 받는다. (원본: WH-MG-02)
 - REQ-WEBHOOK-033 WHILE 사용자가 트리거를 비활성으로 둔 동안 THE SYSTEM SHALL 웹훅 수신으로 실행을 시작하지 않는다. (원본: WH-MG-04)
@@ -207,7 +207,7 @@ POST /api/hooks/:endpointPath
 }
 ```
 
-위 예시는 외부 인터랙션을 켜지 않은 트리거의 응답이다. `message` 는 어느 경우에나 들어간다. 트리거에 `config.interaction.enabled=true` 가 설정돼 있으면 `data` 에 `status: "pending"` 과 `interaction` 이 더 들어간다. 두 키는 외부 인터랙션을 켰을 때만 있는 선택적 부가 맥락이라 켜지 않은 트리거의 응답에서는 `null` 을 싣지 않고 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). `interaction` 은 `tokenStrategy="per_execution"` 이면 `{ token, expiresAt, endpoints }` 이고 `per_trigger` 면 `{ endpoints }` 다. `per_trigger` 호출자에게는 트리거 단위 토큰(`itk_*`)이 이미 있어서 응답에 토큰을 싣지 않는다. `endpoints` 는 `stream`·`submit`·`status`·`cancel`·`refresh` 다섯 경로다. 202 응답 모양은 이 절이 기준이다. 인터랙션 블록을 받은 뒤의 호출은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정한다. 실행 단위 토큰의 발급과 저장은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#토큰-발급) 이 정한다.
+위 예시는 외부 인터랙션을 켜지 않은 트리거의 응답이다. `message` 는 어느 경우에나 들어간다. 트리거에 `config.interaction.enabled=true` 가 설정돼 있으면 `data` 에 `status: "pending"` 과 `interaction` 이 더 들어간다. 두 키는 외부 인터랙션을 켰을 때만 있는 선택적 부가 맥락이라 켜지 않은 트리거의 응답에서는 `null` 을 싣지 않고 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). `interaction` 은 `tokenStrategy="per_execution"` 이면 `{ token, expiresAt, endpoints }` 이고 `per_trigger` 면 `{ endpoints }` 다. `per_trigger` 호출자에게는 트리거 단위 토큰(`itk_*`)이 이미 있어서 응답에 토큰을 싣지 않는다. 그 토큰은 트리거를 만들 때나 인터랙션을 `per_trigger` 로 처음 켜는 PATCH 의 응답에서 받는다([트리거 관리 「API」](CLE-TRIG-MANAGE.md#api)). `per_trigger` 응답에서 빠지는 `token` · `expiresAt` 도 `null` 없이 키를 생략한다(같은 기준 (b)). 응답 DTO(`WebhookAcceptedDto` · `WebhookInteractionDto`)는 두 변형을 `oneOf` 로 나누지 않는다. `status` · `interaction` · `token` · `expiresAt` 은 선택 필드(`@ApiPropertyOptional`)로 선언돼 있다. `endpoints` 는 `stream`·`submit`·`status`·`cancel`·`refresh` 다섯 경로다. 202 응답 모양은 이 절이 기준이다. 인터랙션 블록을 받은 뒤의 호출은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정한다. 실행 단위 토큰의 발급과 저장은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#토큰-발급) 이 정한다.
 
 에러 응답은 다음과 같다. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 등재한다.
 
@@ -522,7 +522,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - 일관성 재검토(NERV Task `CLE-T-2NVZA4`)에서 문서마다 응답 계약이 다르다는 지적이 나왔다. 이 문서는 `message` 가 남는지를 [External Interaction API](../CLE-IX/CLE-EIA.md#미결-사항) 의 미결로 미뤘다. [요구사항](#요구사항) 의 인터랙션 응답 항목은 `tokenStrategy="per_execution"` 만 다뤄서 `per_trigger` 트리거의 응답이 정해지지 않았다.
 - 코드는 `message` 를 늘 붙인다(`hooks.controller.ts`). `hooks.service.ts` 의 `buildInteractionResponse` 는 `config.interaction.enabled` 가 참이면 두 전략 모두 `status: "pending"` 과 `interaction.endpoints` 를 싣고 `per_execution` 일 때만 `token`·`expiresAt` 을 더한다.
 - 이 동작을 그대로 계약으로 삼는다. `per_trigger` 호출자에게는 트리거 단위 토큰(`itk_*`)이 이미 있어서 응답에 토큰을 실을 필요가 없다. 다음 호출에 쓸 `endpoints` 는 두 전략 모두 필요하다.
-- 202 응답 모양의 기준은 이 문서의 「수신 API」 와 [요구사항](#요구사항) 이다. 초안 검토에서 같은 모양을 이 문서와 [트리거 데이터와 흐름](CLE-TRIG-DATA.md) · [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 각각 자세히 적는다는 지적이 나왔다. 여러 문서가 같은 필드를 나열하면 저마다 두 번째 기준이 된다. 그래서 두 문서는 처리 흐름이나 EIA 쪽 뜻만 적고 모양은 여기를 가리킨다. 이 기준 문서 지정도 사용자에게 묻지 않고 기본값으로 정해 알렸다. 승인 전 초안 [External Interaction API](../CLE-IX/CLE-EIA.md#웹훅-호출-응답-확장) 의 응답 예시와 미결 사항을 이 기준에 맞추는 일은 NERV Task `CLE-T-EMB0YG` 가 맡는다.
+- 202 응답 모양의 기준은 이 문서의 「수신 API」 와 [요구사항](#요구사항) 이다. [트리거 데이터와 흐름](CLE-TRIG-DATA.md) 과 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 은 처리 흐름이나 EIA 쪽 뜻만 적고 모양은 여기를 가리킨다. 여러 문서가 같은 필드를 나열하면 저마다 두 번째 기준이 되기 때문이다. [External Interaction API](../CLE-IX/CLE-EIA.md#웹훅-호출-응답-확장) 의 응답 예시도 이 기준을 따른다. 이 기준 문서 지정도 사용자에게 묻지 않고 기본값으로 정해 알렸다. 경위는 NERV Task `CLE-T-M6PERB` 의 결정 기록에 있다.
 
 ### 꺼진 워크플로우의 웹훅 응답 (2026-10-10)
 

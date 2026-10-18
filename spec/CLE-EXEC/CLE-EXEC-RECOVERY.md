@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "d16739b133f2bcbfaf01a1ddfb3e3942e80c12277364b058cf1771f88eaf4427"
+content_hash: "198642d16be89442f2b3017c2be953e0f18a17879e5bd7c8338510c45a3d17e3"
 read_as: "approved_fallback"
-task: "CLE-T-BV4YXZ"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "e7c358793535ac0800f8567b72c501301898b57b73aa00730231df6ce2610fea"
-etag: "sha256-c1562973eb1684166258e745021e3ee073835784663497c319ecf9d55505c8de"
+mirror_sha256: "ed84aa54cce6118ce8351adb4558cf7fe4d90f1898787f512386debbb7e7d6a1"
+etag: "sha256-692456f4095a8301b48a02c543feb78e9846b0eea0b87c9ff68e244ac5c0a71f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -233,7 +233,7 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 | BullMQ 시도 소진 | 실행 `cancelled` + `error.code='RESUME_FAILED'`, 짝 노드 실행 `failed` |
 | 멀티턴 AI 노드의 AI 재개 체크포인트가 **없음**(이 기능 배포 전에 들어간 입력 대기 행), **손상**(schema drift 로 `buildRetryReentryState` 재구성 실패), **미래 버전**(`schemaVersion` 이 현재 코드 `CHECKPOINT_SCHEMA_VERSION` 보다 큼, 롤링 배포 중 옛 인스턴스가 새 형식을 가져감) | 실행 `cancelled` + `error.code='RESUME_INCOMPATIBLE_STATE'`, 짝 노드 실행 `failed`. 체크포인트가 있고 버전이 맞으면 재구성에 성공해 재개하며 이 에러는 나지 않는다. |
 
-- 표의 경우는 모두 워커 쪽 **비동기**(enqueue 뒤) 실패다. 동기 ack 가 아니라 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 사용자에게 알린다. 동기 ack 에 실리는 실패는 발행 전 사전 검증(`INVALID_EXECUTION_STATE`)뿐이다. 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
+- 표의 경우는 모두 워커 쪽 **비동기**(enqueue 뒤) 실패다. 동기 ack 가 아니라 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 사용자에게 알린다. 동기 ack 에 실리는 실패는 세 가지다. 발행 전 사전 검증의 거부(`INVALID_EXECUTION_STATE`), 발행 경로의 에러, 재개 큐 적재 실패다. 진입점마다의 응답은 [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) 에 있다.
 - 중첩 재개의 호출 스택은 두 코드가 나눠 맡는다. 버전이 지원 범위보다 크면 `RESUME_INCOMPATIBLE_STATE`([중첩 재개](#중첩-서브-워크플로우-재개) 1단계), 값이 비었거나 가리키는 노드가 없으면 `RESUME_CHECKPOINT_MISSING` 이다.
 - 채팅 채널 어댑터는 세 코드 모두(`RESUME_*` 접두 코드 전부) raw 에러 대신 대화 세션 만료 안내(`sessionExpired`)를 보낸다. 사용자의 다음 메시지는 새 대화로 시작한다(텔레그램 등). 렌더 매핑은 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 정한다.
 - 세 종결의 상태 분류(실행 `cancelled`, 노드 실행 `failed`)의 결정 근거는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 의 Rationale 에 있다.

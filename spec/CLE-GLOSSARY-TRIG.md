@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-TRIG"
 title: "용어 사전 — 트리거"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "0ffbff9d2d5d79e1301d26db0594adb8c066cee9c6ca9ae29165cbbec747522d"
+content_hash: "543d47d83441f131add220e6e0b9a712d078e186f9e90486b10a0ea96c2c983e"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-6YY7KY"
 source_paths: []
-mirror_sha256: "1383ba4782d89aeb5cb32266f662ca4d9e9b765bea226447d27dc2898c3a9d2c"
-etag: "sha256-ebe46fda7ce71915161ec151a6d52dd70360d30bf208da44d6b7b90e775453bf"
+mirror_sha256: "b31c0f016dcb29abd57599cb4343061cc2ef391801238394d9e0f8223f942b36"
+etag: "sha256-d5d8d81b832ef3a8277890518176d363685f656021678801ea561a372b5dfcfd"
 ---
 ## 개요
 
@@ -50,8 +50,8 @@ etag: "sha256-ebe46fda7ce71915161ec151a6d52dd70360d30bf208da44d6b7b90e775453bf"
 | 다음 실행 | next run, `next_run_at` | 스케줄이 다음에 돌 예정 시각. 화면 표시용이고 실제 실행 시점은 BullMQ 스케줄러가 정한다. | 다음 실행 예정 시간, 다음 실행 시각 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 지금 실행 | run now, `run-now` | 스케줄 주기와 상관없이 한 번 바로 실행하는 동작. 실행 출처는 수동 실행이 된다. | 즉시 실행 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 파라미터 값 | `parameter_values` | 스케줄 실행이 수동 트리거 노드에 넘기는 JSON 값. 제한 표현식을 쓸 수 있다. | 없음 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
-| 트리거 외부 자원 정리 | teardown | 트리거를 지울 때 BullMQ 작업·채널 등록·시크릿을 함께 정리하는 절차. 자원 해제 순서는 [트리거 데이터와 흐름](CLE-TRIG/CLE-TRIG-DATA.md) 이 정한다. | 비밀 정리 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md) |
-| 트리거 설정 잠금 | `trigger-config:<id>` | 트리거 `config` 를 다시 쓰는 경로가 한 번에 하나만 돌게 하는 DB 잠금. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md) |
+| 트리거 외부 자원 정리 | teardown | 트리거를 지울 때 그 트리거에 딸린 자원을 정리하는 절차. 정리 순서와 시점은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다. | 비밀 정리 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#자원-정리) |
+| 트리거 설정 잠금 | `trigger-config:<id>` | 트리거 설정과 알림 서명 시크릿의 쓰기를 트리거마다 한 번에 하나만 돌게 하는 DB 잠금. 잠금을 잡는 시점은 [트리거 데이터와 흐름 「config 서브 필드」](CLE-TRIG/CLE-TRIG-DATA.md#config-서브-필드) 가 정한다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) |
 
 ## Rationale
 
@@ -69,3 +69,13 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 ### 「발사」 와 「Cron」 표기를 정했다 (2026-10-05)
 
 트리거 · 스케줄이 실행을 시작시키는 일을 문서마다 «발사» 와 «발화» 로 섞어 썼고 «Cron» 과 «cron» 도 섞였다(NERV Task `CLE-T-K9S0TE`). 2026-10-05 미러에서 «발사» 는 14편에 101번, «발화» 는 16편에 54번 나왔다. «발화» 가운데 상당수는 AI 영역의 «사용자 발화»(사람이 보낸 말)와 경고 규칙 · 포트가 걸리는 뜻이었다. 트리거 문서(트리거 관리 · 스케줄 · 트리거 데이터와 흐름)가 주로 «발사» 를 쓰고 «발화» 는 그 두 뜻과 겹치므로 «발사» 를 표준으로 정했다. 쓰지 않는 표기는 «발화(트리거 · 스케줄 뜻으로)» 로 조건을 달았다. 다른 뜻의 «발화»(사용자 발화, 경고 규칙 · 포트 · 타임아웃이 걸림, 발화 주체)는 그대로 쓴다. 본문의 «Cron» 은 [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) 이 쓰는 대문자 표기를 따른다. 이번 Task 가 고친 문서([실행 컨텍스트](CLE-EXEC/CLE-EXEC-CONTEXT.md) · [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md))는 함께 맞췄다. 남은 문서(실행 이력 · 실행 데이터 · 재실행 · 실행 상태 · AI 노드 공통)는 NERV Task `CLE-T-AGBPHW` 가 맞춘다.
+
+### 「트리거 설정 잠금」 과 「트리거 외부 자원 정리」 의 정의를 넓혔다 (2026-10-17)
+
+NERV Task `CLE-T-6YY7KY` 의 두 항목을 반영했다. 두 정의가 기준 문서가 정한 범위보다 좁았다.
+
+- 「트리거 설정 잠금」: 옛 정의는 `config` 를 다시 쓰는 경로만 꼽았다. [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) 는 시크릿 교체가 `config` 를 쓰지 않더라도 `notification_secret_v2` 를 쓸 때 이 잠금을 잡게 한다. 승격도 같은 잠금 안에서 그 값을 비운다([EIA 알림 웹훅 「시크릿 교체」](CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체)). 정의만 읽고 `notification_secret_v2` 를 쓰는 경로를 잠금 밖에 두는 일이 없도록 정의의 대상에 알림 서명 시크릿의 쓰기를 넣었다.
+- 「트리거 외부 자원 정리」: 옛 정의가 꼽은 자원에는 트리거 단위 토큰으로 연 SSE 스트림 닫기가 빠져 있었다. [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 행 삭제 커밋 뒤에 정리하는 자원으로 이미 꼽는다. 닫는 방식은 [EIA 데이터와 흐름](CLE-IX/CLE-EIA-DATA.md) 이 정한다. 그래서 정의를 «그 트리거에 딸린 자원» 으로 넓혔다.
+- 닫는 범위는 모든 서버 인스턴스다. 기각한 대안은 Task 본문의 원안대로 정의에 «같은 서버 인스턴스» 로 한정해 적는 것이다. 같은 묶음의 NERV Task `CLE-T-Z35F7P` 가 닫기 신호를 Redis 로 서버 인스턴스 사이에 전한다. 그래서 그 한정은 이 정의가 승인될 때 이미 사실이 아니다.
+- 두 정의는 한 문장으로 줄이고 경로 · 자원 목록 · 시점 · 닫는 범위는 링크로 돌렸다. 이 초안의 첫 저장은 이것들을 정의에 적었다. 2026-10-17 스펙 초안 일관성 검토가 [용어 사전](CLE-GLOSSARY.md) 개요의 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다고 짚었다. 자원 목록과 잠금을 잡는 경로는 기준 문서 칸이 가리키는 절에 있다. 순서와 시점은 정의의 링크가 가리키는 [트리거 데이터와 흐름](CLE-TRIG/CLE-TRIG-DATA.md) 의 절에 있다.
+- 기각한 대안: 목록과 시점을 정의 칸에 그대로 두는 안. 기준 문서가 경로를 더하거나 순서를 바꾸면 이 표가 뒤처진다.

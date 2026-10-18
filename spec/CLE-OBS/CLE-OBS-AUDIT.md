@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031"]
+requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "be2cb62b2625546cdd11f2d6844725db0b0ff846f0575f390e11d1ddd2625e78"
+content_hash: "be8cf0eed62d72fe327eabc2eeda39fb79e5e84fcd3b6eff39fc8e1d2d644d15"
 read_as: "approved_fallback"
-task: "CLE-T-D331TT"
+task: "CLE-T-EQDYC1"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "84f841e21c2b0e743ea90f3301b8fdb8050e4d085da90d0c46b2b85827f62ad1"
-etag: "sha256-3a9a2b5ca1191ef98639c962413837eef3993bc0f91dd86602115e437f455dd7"
+mirror_sha256: "86b71f3bdae737bb5e5843162ccf5a5bf84ee34cc30c74b7bf595bb533bef94f"
+etag: "sha256-a778a6124797fe8e2583fe0ff660685c36f383a2aedd82ce196e17ccf95b8ca9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,6 +75,7 @@ etag: "sha256-3a9a2b5ca1191ef98639c962413837eef3993bc0f91dd86602115e437f455dd7"
 - REQ-AUDIT-029 WHEN 로그인 이력 보존 배치가 한 번 돌면 THE SYSTEM SHALL 1000행씩 최대 50번까지만 지우고 나머지는 다음 실행에 넘긴다. (원본: data-flow/1-audit §3)
 - REQ-AUDIT-030 WHILE 서버 인스턴스가 여럿인 동안 THE SYSTEM SHALL 로그인 이력 보존 배치를 전역에서 한 번만 실행한다. (원본: data-flow/1-audit §3)
 - REQ-AUDIT-031 IF 로그인 이력 보존 배치의 삭제가 실패하면 THE SYSTEM SHALL 예외를 흡수하고 로그만 남긴다. (원본: data-flow/1-audit §3)
+- REQ-AUDIT-032 WHEN 트리거 생성이나 수정(PATCH)이 일회성 평문(첫 알림 서명 시크릿, 트리거 단위 토큰)을 발급하면 THE SYSTEM SHALL 그 요청의 `trigger.created` · `trigger.updated` 행 `details.issuedSecrets` 에 발급한 비밀의 종류 이름만 싣고 평문은 싣지 않는다.
 
 ## 감사 로그 기록
 
@@ -99,6 +100,7 @@ sequenceDiagram
 - 인자는 `{ workspaceId, userId, action, resourceType, resourceId, details?, ipAddress? }` 다.
 - `action` 은 `AuditAction` union(`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`)으로 타입이 좁혀져 있다. union 에 없는 문자열은 컴파일되지 않는다(cross-audit G-01).
 - 적재가 실패해도 예외를 흡수한다. 감사 기록이 실패했다고 리소스 변경이 실패하면 안 된다는 계약이다. 호출부가 `await` 해도 예외가 올라오지 않는다.
+- 트리거 생성은 감사 행을 생성 트랜잭션이 커밋된 직후 트랜잭션 밖에서 남긴다. 트리거 INSERT 와 첫 알림 서명 시크릿 · 트리거 단위 토큰 발급은 그 트랜잭션에 든다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 R14). 그래서 생성이 롤백되면 `trigger.created` 행도 남지 않는다. 커밋과 감사 기록 사이에 프로세스가 멈추면 감사 행이 없는 트리거가 남을 수 있다. 트리거 수정(PATCH)과 같은 받아들인 위험이다([Rationale](#트리거-생성의-감사-행은-커밋-직후-트랜잭션-밖에서-남긴다)).
 - 흡수한 실패는 경고 로그와 카운터 `clemvion.audit.write_failed{resource_type}` 로 드러난다. 로그만으로는 비율·추세로 경보를 걸 수 없어 카운터를 둔다. 로그 메시지에는 무엇이 유실됐는지(`action`·`resourceType`·`resourceId`·`workspaceId`)를 싣는다. 유실 사실만 알고 대상을 모르면 조사도 복구도 시작할 수 없다. 관측 호출 자체의 실패도 흡수한다. 메트릭 정의는 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 에 있다.
 - 기록 위치는 12곳이다. 9개 서비스 모듈과 3개 컨트롤러(`users`·`auth`·`webauthn`)다(2026-09-01 실측). 12는 파일 수다. `resource_type` 의 서로 다른 값은 10종(`user`·`trigger`·`workflow`·`schedule`·`member`·`workspace`·`integration`·`model_config`·`auth_config`·`execution`)이라 두 수치가 다르다.
 - 인증 설정 계열과 `user.*` 계열 감사 액션은 모두 `ipAddress` 를 함께 넘긴다. 포렌식과 사후 감사 목적이다. IP 는 `extractClientIp`(`auth/utils/client-ip.ts`)로 뽑는다. `CF-Connecting-IP` 신뢰 정책(`TRUST_CF_CONNECTING_IP`)은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 정한다. 뽑을 수 없으면 `undefined` 로 빼고 남긴다.
@@ -148,12 +150,12 @@ sequenceDiagram
 | `workflow.updated` | workflow | 〃 | 워크플로우 수정 | 구현됨 |
 | `workflow.deleted` | workflow | 〃 | 워크플로우 삭제 | 구현됨 |
 | `workflow.executed` | workflow | 없음 | 워크플로우 실행. 보존 정책 결정 뒤로 미룬다(아래 Rationale) | 미구현 |
-| `trigger.created` | trigger | `triggers/triggers.service.ts` | 트리거 생성 | 구현됨 |
-| `trigger.updated` | trigger | 〃 | 트리거 수정. 켜기·끄기도 이 감사 액션이다(토글 전용 동사가 없다) | 구현됨 |
+| `trigger.created` | trigger | `triggers/triggers.service.ts` | 트리거 생성. `details.type`(트리거 종류). 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 에 발급한 비밀의 종류 이름 배열을 싣는다. 값은 `notificationSigningSecret` 과 `interactionToken` 이고 발급한 것만 이 순서로 싣는다. 평문은 싣지 않는다. 발급하지 않았으면 키가 없다 | 구현됨 |
+| `trigger.updated` | trigger | 〃 | 트리거 수정. 켜기·끄기도 이 감사 액션이다(토글 전용 동사가 없다). `details.type`. 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 를 싣는다(`trigger.created` 와 같다) | 구현됨 |
 | `trigger.deleted` | trigger | 〃 | 트리거 삭제 | 구현됨 |
 | `trigger.notification_secret_rotated` | trigger | 〃 | 알림 서명 시크릿 교체. 24시간 유예(`notificationSecretV2`). 새 시크릿을 응답에 한 번 평문으로 싣는다([EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md)) | 구현됨 |
 | `trigger.chat_channel_bot_token_rotated` | trigger | 〃 | 봇 토큰 재발급. 24시간 유예(`chatChannelTokenV2`). 새 토큰은 호출자가 입력하므로 응답에 싣지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)) | 구현됨 |
-| `trigger.interaction_token_revoked` | trigger | 〃 | 트리거 단위 토큰 재발급. 이전 토큰을 곧바로 무효로 한다(유예 없음). 새 토큰을 응답에 한 번 평문으로 싣는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)) | 구현됨 |
+| `trigger.interaction_token_revoked` | trigger | 〃 | 트리거 단위 토큰 재발급. 새 요청에 대해 이전 토큰을 곧바로 무효로 하고 그 토큰으로 연 SSE 스트림을 닫는다(유예 없음). 새 토큰을 응답에 한 번 평문으로 싣는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)) | 구현됨 |
 | `schedule.created` | schedule | `schedules/schedules.service.ts` | 스케줄 생성 | 구현됨 |
 | `schedule.updated` | schedule | 〃 | 스케줄 수정 | 구현됨 |
 | `schedule.deleted` | schedule | 〃 | 스케줄 삭제 | 구현됨 |
@@ -167,7 +169,7 @@ sequenceDiagram
 - 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다.
 - **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
 - **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다.
-- **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다.
+- **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다. 트리거 생성 · 수정 요청이 첫 알림 서명 시크릿이나 트리거 단위 토큰을 발급하는 일에는 전용 감사 액션을 두지 않는다. 그 요청의 `trigger.created` · `trigger.updated` 행이 `details.issuedSecrets` 로 발급을 표시한다([Rationale](#첫-발급-표시는-생성과-수정-기록에-싣는다)).
 - **Telegram 인바운드 서명의 서버 재발급에는 전용 감사 액션이 없다.** Telegram 어댑터는 `setupChannel()` 이 불릴 때마다 `secret_token` 을 새로 만들어 등록한다. 서버는 그 값을 다시 저장한다([채팅 채널 「인바운드 서명 자료 변경」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-서명-자료-변경)). 이 재발급은 사용자가 고른 자격 증명 교체가 아니라 프로바이더 등록의 일부라서 위 세 교체 감사 액션의 대상이 아니다. 재발급을 일으킨 요청의 감사 액션(`trigger.created`, `trigger.updated`, `trigger.chat_channel_bot_token_rotated`)이 그 기록을 겸한다. 감사 로그 조회에서 서명 재발급만 따로 거를 수는 없다(알려진 한계, [Rationale](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다)).
 - **모델 설정 레거시 행**: 모델 설정 통합(2026-08-01) 전에 `llm_config.*`·`rerank_config.*` 로 남은 행은 append-only 로 보존하고 다시 쓰지 않는다. 모델 설정 감사를 조회할 때는 두 집합(`model_config.*` 또는 `llm_config.*`·`rerank_config.*`)을 OR 로 묶는다.
 - **남은 커버리지 갭**: `workflow.executed` 외에 알림 규칙 CRUD 를 맡는 `alerts` 모듈이 감사 로그를 남기지 않는다(`AuditLogsService` 를 가져다 쓰지 않는다). 알림 규칙 평가가 알림을 보낼 때도 감사 행은 없다([알림](CLE-OBS-NOTIFY.md)).
@@ -341,6 +343,30 @@ sequenceDiagram
 NERV Task `CLE-T-W11BQ9` 에서 정했다. 2026-09-10 의 consistency 검토가 Telegram 인바운드 서명의 서버 재발급이 감사 액션 카탈로그 밖에 있다고 짚었다.
 
 기각한 대안은 전용 감사 액션이다. [감사 action 명명](CLE-OBS-AUDITNAME.md) 은 무엇이 교체됐는지 `details` 를 열어야 알 수 있는 액션을 피한다. 그 원칙은 사용자가 고른 자격 증명 교체를 대상으로 한다. 이 재발급은 사용자가 고른 교체가 아니고 프로바이더 등록에 딸린 결과다. 회전 주체와 PATCH 비밀을 나누는 기준은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-21 의 「세 축」 이다. 재발급을 일으킨 요청의 감사 액션이 이미 남으므로 같은 사건을 두 번 적게 된다. 대가는 조회 필터로 서명 재발급만 고를 수 없다는 점이다.
+
+### 첫 발급 표시는 생성과 수정 기록에 싣는다
+
+2026-10-17 에 NERV Task `CLE-T-EMB0YG` 에서 정했다(사용자 결정). 트리거 생성과 수정(PATCH)은 첫 알림 서명 시크릿과 트리거 단위 토큰(`itk_*`)을 발급하고 그 평문을 응답에 한 번 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4). 이 발급은 감사 로그에서 구분되지 않았다. 일반 `trigger.created` · `trigger.updated` 행만 남았다(finding 01a11f44-8a41-7056-b3f2-22435b485e5e). 이제 그 행의 `details.issuedSecrets` 에 발급한 비밀의 종류 이름을 싣는다. 평문은 싣지 않는다. 발급하지 않은 요청에는 이 키가 없다. 그래서 키가 있는지만 보고 발급한 요청을 고를 수 있다. 이 행의 감사 액션은 생성이나 수정이다. `details.issuedSecrets` 는 그 행에 붙는 보조 표시일 뿐이다. 그래서 무엇이 교체됐는지 `details` 를 열어야 알 수 있는 액션을 피한다는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 의 원칙과 어긋나지 않는다.
+
+기각한 대안:
+
+- **전용 감사 액션을 둔다**(예: `trigger.notification_secret_issued`). 한 요청이 생성이나 수정 행과 발급 행 두 줄로 남는다. 같은 사건을 두 번 적는다는 점에서 위 Telegram 결정과 같은 이유로 택하지 않았다. 첫 발급은 기존 자격 증명을 무효로 하지 않으므로 교체 감사 액션과도 성격이 다르다.
+- **표시하지 않는다.** 계정을 탈취한 사람이 트리거를 만들거나 고쳐 비밀을 받아 간 일을 `audit_log` 만으로 재구성할 수 없다. 교체를 기록하는 이유(카탈로그의 「트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다」)와 같은 요구다.
+
+시크릿 교체(`rotate-secret`)와 트리거 단위 토큰 재발급(`revoke-token`)은 지금처럼 각자의 감사 액션을 쓴다. 두 동작은 기존 자격 증명을 무효로 한다.
+
+### 트리거 생성의 감사 행은 커밋 직후 트랜잭션 밖에서 남긴다
+
+2026-10-17 에 NERV Task `CLE-T-EQDYC1` 에서 정했다. 트리거 생성은 INSERT · 첫 발급 · 시크릿 저장소 쓰기 · `config` 쓰기를 트리거 설정 잠금을 쥔 한 트랜잭션으로 묶는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 R14). `trigger.created` 감사 행은 그 트랜잭션이 커밋된 직후 트랜잭션 밖에서 남긴다. 그래서 생성이 롤백되면 `trigger.created` 행도 남지 않는다. REQ-AUDIT-001 은 완료된 변경만 남기게 하므로 이 결과와 맞는다. 감사 적재 실패를 흡수하는 계약(REQ-AUDIT-003)도 그대로다.
+
+전의 동작과는 감사와 발급의 순서가 반대다. 전에는 감사 행을 먼저 남기고 첫 발급은 커밋 뒤의 별도 단계로 했다. 이제는 첫 발급까지 커밋한 뒤에 감사 행을 남긴다. 그래서 발급이 실패한 반쪽 트리거의 생성 기록이 남지 않는다.
+
+받아들인 위험이 하나 있다. 커밋과 감사 기록 사이에 프로세스가 멈추면 감사 행이 없는 트리거가 남을 수 있다. 트리거 수정(PATCH)도 커밋 직후에 감사 행을 남기므로 같은 위험이 이미 있다.
+
+기각한 대안:
+
+- **감사도 생성 트랜잭션 안에서 남긴다**(`record` 에 매니저 인자를 더하고 savepoint 로 감싼다). 같은 날 이 문서의 초안이 처음 택한 안이고 구현을 검토하며 뒤집었다. `AuditLogsService.record` 는 매니저를 받지 않고 적재 실패를 삼킨다. 트랜잭션 안에서 감사 INSERT 가 실패하면 Postgres 트랜잭션 전체가 중단된다. 그러면 REQ-AUDIT-003 을 지키려고 감사 INSERT 를 savepoint 로 감싸야 하고 기록 API 도 바뀐다. 얻는 것은 커밋과 감사 사이의 짧은 창을 닫는 것뿐이다. PATCH 경로와도 달라진다.
+- **감사 행을 먼저 남기고 첫 발급을 커밋 뒤에 따로 한다**(전의 동작). 감사 행을 남긴 뒤 첫 발급이 실패하면 반쪽 트리거와 그 생성 기록이 함께 남았다. 호출자가 다시 시도하면 같은 트리거의 생성 기록이 두 번 남거나 충돌이 났다.
 
 ### 레거시 감사 액션 행은 고치지 않는다
 

@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 1
-status: "draft"
-requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037"]
+version: 2
+status: "approved"
+requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "6adf9cc1dcc3f0919c382198a0bea7ba5c22f896ca751d120b7dd7cd8c8458a2"
-read_as: "approved"
-task: null
+content_hash: "7631de0fc381662cc9a337461b23a0513fa57f06237a741cb5bf27d3c48e61f5"
+read_as: "approved_fallback"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "69ef012a7e30b3333b6c6047303ebbe2978ffbb40a58e31bc9979f90e698cd8f"
-etag: "sha256-f07e5b453dbcd5853d88bc3b7de08b188cf3d16098efdd4f80b30fec7136081b"
+mirror_sha256: "c1ba31e6abf07dd0d50edd33a47f1b27804dc7f8db91a51495aa4de434886ab3"
+etag: "sha256-1d1dfd0cacd3b4ee4899c621b5ef41f7e9452ce5462cd9d32d665b45c3095974"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,10 +50,10 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 ### 트리거 등록과 웹훅 응답
 
 - REQ-EIA-001 WHEN 트리거 설정에 `notification` 이나 `interaction` 그룹이 없으면 THE SYSTEM SHALL 그 채널을 쓰지 않는 것으로 해석하고 기존 웹훅 동작을 그대로 유지한다. (원본: §1, §12)
-- REQ-EIA-002 WHEN `interaction.enabled=true` 인 웹훅 트리거가 호출되면 THE SYSTEM SHALL 202 응답에 `status` 와 `interaction.endpoints`(stream·submit·status·cancel·refresh 다섯 경로)를 함께 싣는다. (원본: §4.1, §9.2)
+- REQ-EIA-002 WHEN `interaction.enabled=true` 인 웹훅 트리거가 호출되면 THE SYSTEM SHALL 202 응답에 `status` 와 `interaction.endpoints`(stream·submit·status·cancel·refresh 다섯 경로)를 함께 싣는다. (원본: §4.1, §9.2 · 응답 모양의 기준은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api))
 - REQ-EIA-003 WHEN 그 트리거의 `tokenStrategy` 가 `per_execution` 이면 THE SYSTEM SHALL `interaction` 블록에 새 실행 단위 토큰(`token`)과 `expiresAt` 을 함께 싣는다. (원본: §4.1)
-- REQ-EIA-004 WHEN PATCH 로 `interaction` 객체를 보내면 THE SYSTEM SHALL 저장된 `interaction` 을 병합하지 않고 통째로 바꾼다. (원본: §4)
-- REQ-EIA-005 WHEN 트리거를 만들면 THE SYSTEM SHALL 알림 서명 시크릿(`wsk_*`)을 생성 응답에서 한 번만 평문으로 보여 주고 이후 모든 조회 응답에서 가린다. (원본: EIA-AU-01 · 발급 주체는 [미결 사항](#미결-사항))
+- REQ-EIA-004 WHEN PATCH 로 `interaction` 객체를 보내면 THE SYSTEM SHALL 사용자가 정하는 `interaction` 필드를 병합하지 않고 통째로 바꾸고 서버가 만든 `triggerToken` 은 요청에서 받지 않는다. (원본: §4 · 토큰을 정하는 규칙은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약))
+- REQ-EIA-005 WHEN 트리거를 만들거나 PATCH 가 EIA 알림 웹훅 설정을 처음 붙여서 서버가 알림 서명 시크릿(`wsk_*`)을 발급하면 THE SYSTEM SHALL 그 평문을 그 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 싣고 이후 응답에는 싣지 않는다. (원본: EIA-AU-01 · 발급 조건과 호출자 평문 우선은 [EIA 알림 웹훅 「요구사항」](CLE-EIA-NOTIFY.md#요구사항) 의 REQ-EIANOTI-037)
 
 ### 인터랙션 토큰
 
@@ -61,9 +61,14 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-007 IF `tokenStrategy` 를 지정하지 않으면 THE SYSTEM SHALL `per_execution` 을 쓴다. (원본: EIA-AU-03)
 - REQ-EIA-008 WHEN 실행이 종료(`completed`·`failed`·`cancelled`)되면 THE SYSTEM SHALL 그 실행에 발급한 실행 단위 토큰을 즉시 무효로 만든다. (원본: EIA-AU-04)
 - REQ-EIA-009 WHILE 실행 단위 토큰의 만료가 30분 이내이고 실행이 살아 있는 동안 THE SYSTEM SHALL `POST /api/external/executions/:id/refresh-token` 으로 토큰 갱신을 허용한다. (원본: EIA-AU-05)
-- REQ-EIA-010 WHEN 트리거가 삭제되면 THE SYSTEM SHALL 그 트리거 단위 토큰을 무효로 만든다. (원본: EIA-AU-07)
-- REQ-EIA-011 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 새 트리거 단위 토큰을 발급하고 옛 토큰을 즉시 무효로 만든다. (원본: EIA-AU-07)
+- REQ-EIA-010 WHEN 트리거가 삭제되면 THE SYSTEM SHALL 그 트리거 단위 토큰을 무효로 만들고 그 토큰으로 연 SSE 스트림을 닫는다. (원본: EIA-AU-07)
+- REQ-EIA-011 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 새 트리거 단위 토큰을 발급하고 옛 토큰을 새 요청에 대해 즉시 무효로 만들며 옛 토큰으로 연 SSE 스트림을 닫는다. (원본: EIA-AU-07)
 - REQ-EIA-012 WHEN 트리거 단위 토큰을 재발급하면 THE SYSTEM SHALL 감사 로그에 `trigger.interaction_token_revoked` 를 남긴다. (원본: EIA-AU-07)
+- REQ-EIA-038 WHEN 인터랙션을 켜고(`interaction.enabled=true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 그 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정 · [생성과 PATCH 응답에 싣는 일회성 비밀](#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17))
+- REQ-EIA-039 WHEN 최상위 `interaction` 이나 원시 `config` 를 바꾼 PATCH 의 결과가 인터랙션을 켠 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 트리거 단위 토큰을 발급해 그 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정)
+- REQ-EIA-040 WHEN PATCH 결과가 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 있으면 THE SYSTEM SHALL 그 토큰을 이어받고 새 토큰을 발급하지 않는다. (2026-10-17 결정)
+- REQ-EIA-041 WHEN PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꾸면 THE SYSTEM SHALL 저장된 트리거 단위 토큰을 지우고 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09 결정 · [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약))
+- REQ-EIA-042 WHEN PATCH 가 `per_trigger` 전략인 트리거의 인터랙션을 끄면 THE SYSTEM SHALL 트리거 단위 토큰 값은 남기고 그 토큰으로 오는 요청을 401 로 거부하며 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답(finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`))
 - REQ-EIA-013 WHEN 서버 프로세스 안의 신뢰 호출자가 `InteractionService.interact()` 를 직접 부르면 THE SYSTEM SHALL 토큰 발급과 검증을 건너뛴다. (원본: EIA-AU-08)
 - REQ-EIA-014 IF 요청이 HTTP 로 들어오면 THE SYSTEM SHALL 내부 신뢰 호출 예외를 적용하지 않고 인터랙션 토큰 인증을 그대로 요구한다. (원본: EIA-AU-08, EIA-IN-06)
 - REQ-EIA-015 WHEN HTTP 진입점 가드가 요청 컨텍스트를 합성하면 THE SYSTEM SHALL `scope` 필드를 설정하지 않는다. (원본: §3.3.1-1)
@@ -84,7 +89,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-027 WHEN 이벤트마다 순번을 발급하면 THE SYSTEM SHALL 단일 인스턴스에서 메모리 기준선 대비 추가 지연을 중앙값 5ms 미만으로 유지한다. (원본: EIA-NF-07)
 - REQ-EIA-028 WHEN 실행이 종료되면 THE SYSTEM SHALL 엔진 종료 이벤트 구독으로 그 실행의 모든 인터랙션 토큰을 즉시 폐기하고, 분 단위 정리 작업으로 남은 토큰을 다시 폐기해 최소 한 번의 폐기를 보장한다. (원본: EIA-RL-06)
 - REQ-EIA-029 WHILE 공개 웹훅 트리거(`auth_config_id IS NULL`)가 시작한 실행이 실행 단위 토큰으로만 접근되며 입력 대기인 동안, 발급한 모든 토큰이 만료되고 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms)이 지나면 THE SYSTEM SHALL 그 실행을 `cancelled`(`cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`)로 회수한다. (원본: EIA-RL-07)
-- REQ-EIA-030 IF 트리거가 인증 트리거이거나 트리거 단위 토큰을 쓰면 THE SYSTEM SHALL 입력 대기 회수 대상에서 뺀다. (원본: EIA-RL-07)
+- REQ-EIA-030 IF 실행을 시작한 트리거에 인증 설정이 연결돼 있거나 그 실행에 실행 토큰 행이 하나도 없으면 THE SYSTEM SHALL 그 실행을 입력 대기 회수 대상에서 뺀다. 토큰 행이 없는 실행은 트리거 단위 토큰을 쓰는 실행, 채팅 채널 실행, 인터랙션을 켜지 않은 웹훅 실행이다. (원본: EIA-RL-07)
 
 ### 레이트 리밋과 CORS
 
@@ -122,7 +127,7 @@ POST /api/triggers
       // "execution.ai_message"  // 선택. 양이 많아 명시 구독할 때만
     ],
     "signing": { "algorithm": "hmac-sha256" },
-    "retry": { "maxAttempts": 5, "backoff": "exponential" }
+    "retry": { "maxAttempts": 5, "backoff": "exponential" }  // 뜻과 범위: EIA 알림 웹훅 「재시도와 실패 처리」
   },
 
   // 인바운드 인터랙션
@@ -143,64 +148,91 @@ POST /api/triggers
 }
 ```
 
+`notification.retry` 의 뜻과 허용 범위는 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. `backoff: "exponential"` 은 그 절이 정한 간격을 뜻한다. BullMQ 내장 `exponential` 과는 이름만 같다.
+
 `interaction.appearance` 는 웹채팅 운영 콘솔 전용 선택 필드다. 인터랙션 토큰 발급·검증과 관계없는 표시용 값이다. 필드 허용 목록(enum·hex·길이)은 `WebChatAppearanceDto`(`web-chat-appearance.dto.ts`)가 강제한다. 외형 자체의 의미는 [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 이 정한다.
 
 PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. 그래서 `appearance` 만 고칠 때도 `enabled`·`tokenStrategy` 를 함께 보내야 한다. 반대로 외부 API 호출자가 `appearance` 없이 `interaction` 을 PATCH 하면 저장된 외형이 경고 없이 사라진다. 외형을 지키려면 `appearance` 를 함께 보내거나, `GET /api/triggers/:id` 로 현재 값을 읽어 합친 뒤 PATCH 한다.
 
-생성 응답은 다음과 같다.
+서버가 만든 트리거 단위 토큰(`interaction.triggerToken`)은 이 통째 교체에서 빠진다. 호출자가 top-level `interaction` 이나 원시 `config` 에 이 필드를 실으면 400 `VALIDATION_ERROR` 다. 서버는 PATCH 결과에 따라 저장된 토큰을 이어받거나 새로 발급하거나 지운다(REQ-EIA-039 ~ 042). 최상위 `interaction` 으로 바꾸든 원시 `config` 로 바꾸든 규칙은 같다. 규칙의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 발급 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055(생성) · 056(PATCH) 이다.
+
+생성 응답(`201 Created`)은 다음과 같다. 전역 `TransformInterceptor` 가 트리거 리소스를 응답 봉투 `data` 로 감싼다.
 
 ```jsonc
 {
-  "id": "trigger_xxx",
-  "endpointPath": "...",
-  "notification": {
-    "url": "...",
-    "events": [...],
-    "signing": { "algorithm": "hmac-sha256" }
-    // signing.secret 은 응답에서 항상 가린다
-  },
-  "interaction": { "enabled": true, "tokenStrategy": "per_execution" },
+  "data": {
+    "id": "uuid",
+    "type": "webhook",
+    "endpointPath": "...",
+    "config": {
+      "notification": {
+        "url": "...",
+        "events": [...],
+        "signing": { "algorithm": "hmac-sha256" },  // secret · secretRef 는 응답에서 뺀다
+        "retry": { "maxAttempts": 5, "backoff": "exponential" }
+      },
+      "interaction": { "enabled": true, "tokenStrategy": "per_trigger" }  // triggerToken 은 응답에서 뺀다
+    },
+    // ... 그 밖의 트리거 필드
 
-  // 생성 시점에만 평문. 이후 조회 응답은 모두 가린다
-  "secrets": {
-    "notification.secret": "wsk_xxx...",
-    "interaction.triggerToken": "itk_xxx..."   // tokenStrategy="per_trigger" 일 때만
-  }
-}
-```
-
-`secrets` 블록을 서버가 만들어 주는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
-
-알림 서명 시크릿 교체(`POST /api/triggers/:id/notification/rotate-secret`)는 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md), 트리거 설정의 저장 형태는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에서 정한다.
-
-## 웹훅 호출 응답 확장
-
-기존 응답은 `{ "executionId": "uuid", "message": "Webhook received, workflow execution started" }` 였다. 확장한 응답의 논리 payload 는 다음과 같다.
-
-```jsonc
-{
-  "executionId": "uuid",
-  "status": "pending",
-  "message": "Webhook received, workflow execution started",
-
-  // interaction.enabled=true 일 때 싣는다. token·expiresAt 은 per_execution 일 때만
-  "interaction": {
-    "token":     "iext_<short-lived-jwt>",
-    "expiresAt": "ISO8601",
-    "endpoints": {
-      "stream":  "/api/external/executions/{id}/stream",
-      "submit":  "/api/external/executions/{id}/interact",
-      "status":  "/api/external/executions/{id}",
-      "cancel":  "/api/external/executions/{id}/cancel",
-      "refresh": "/api/external/executions/{id}/refresh-token"
+    // 이 요청에서 서버가 발급한 비밀의 평문. 이후 응답에는 없다
+    "secrets": {
+      "notificationSigningSecret": "wsk_...",  // 알림 서명 시크릿을 발급했을 때만
+      "interactionToken": "itk_..."            // 트리거 단위 토큰을 발급했을 때만
     }
   }
 }
 ```
 
-전송할 때는 전역 `TransformInterceptor` 가 이 payload 를 응답 봉투(`{ "data": { ... } }`)로 감싼다([HTTP API 규약](../CLE-API/CLE-API-CONV.md), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)). 클라이언트는 `res.data` 를 풀어 읽는다. SSE 프레임은 인터셉터를 거치지 않아 봉투가 없다.
+`data.secrets` 는 서버가 그 요청에서 새 비밀을 만든 응답에만 있다. 안의 두 키도 각각 그 비밀을 발급했을 때만 있다. 발급하지 않은 응답에는 `null` 을 싣지 않고 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). 알림 서명 시크릿의 발급 조건은 REQ-EIA-005 이고 트리거 단위 토큰의 발급 조건은 REQ-EIA-038 · 039 다. PATCH 응답도 같은 자리를 쓴다. 이 일회성 응답은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 4 의 예외에 든다. 발급 사실은 `trigger.created` · `trigger.updated` 감사 기록의 메타데이터에 남는다. 평문은 감사 기록에 남지 않는다. 메타데이터 필드는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다.
 
-기존 필드는 모두 `data` 안에 그대로 있고 `status`·`interaction` 만 새로 붙는다. 기존 클라이언트는 모르는 필드를 무시하므로 하위 호환이다. 트리거 단위 토큰 전략이면 호출자에게 이미 토큰이 있으므로 `token`·`expiresAt` 을 싣지 않고 `endpoints` 만 싣는다. `message` 필드가 실제 응답에 남아 있는지는 [미결 사항](#미결-사항) 참조.
+알림 서명 시크릿 교체(`POST /api/triggers/:id/notification/rotate-secret`)는 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md), 트리거 설정의 저장 형태는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에서 정한다. 트리거 단위 토큰 재발급(`POST /api/triggers/:id/interaction/revoke-token`)의 응답은 `{ data: { token } }` 이다([트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api)).
+
+## 웹훅 호출 응답 확장
+
+웹훅 202 응답 모양의 기준은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) 다. 아래는 인터랙션을 켠 `per_execution` 트리거의 응답 예시다.
+
+```jsonc
+{
+  "data": {
+    "executionId": "uuid",
+    "message": "Webhook received, workflow execution started",
+    "status": "pending",
+
+    // interaction.enabled=true 일 때만 있다
+    "interaction": {
+      "token":     "iext_<short-lived-jwt>",  // per_execution 일 때만
+      "expiresAt": "ISO8601",                 // per_execution 일 때만
+      "endpoints": {
+        "stream":  "/api/external/executions/{id}/stream",
+        "submit":  "/api/external/executions/{id}/interact",
+        "status":  "/api/external/executions/{id}",
+        "cancel":  "/api/external/executions/{id}/cancel",
+        "refresh": "/api/external/executions/{id}/refresh-token"
+      }
+    }
+  }
+}
+```
+
+인터랙션을 켠 `per_trigger` 트리거의 응답은 다음과 같다. `interaction` 에 `endpoints` 만 있다.
+
+```jsonc
+{
+  "data": {
+    "executionId": "uuid",
+    "message": "Webhook received, workflow execution started",
+    "status": "pending",
+    "interaction": {
+      "endpoints": { "stream": "...", "submit": "...", "status": "...", "cancel": "...", "refresh": "..." }
+    }
+  }
+}
+```
+
+응답 봉투(`{ "data": { ... } }`)는 전역 `TransformInterceptor` 가 씌운다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). 클라이언트는 `res.data` 를 풀어 읽는다. SSE 프레임은 인터셉터를 거치지 않아 봉투가 없다.
+
+`message` 는 어느 경우에나 있다. 인터랙션을 켜지 않은 트리거의 응답 `data` 에는 `executionId` 와 `message` 만 있다. 그 응답에는 `status` 와 `interaction` 키가 없다. `null` 을 싣지 않고 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). 인터랙션을 켜면 두 키가 더해진다. 기존 클라이언트는 모르는 필드를 무시하므로 하위 호환이다. 트리거 단위 토큰 전략이면 호출자에게 이미 토큰이 있다. 그래서 `interaction` 에 `token` · `expiresAt` 키가 없다.
 
 ## 인터랙션 토큰
 
@@ -210,12 +242,16 @@ PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. �
 |---|---|---|
 | 형태 | 단명 JWT(HS256). payload `{ sub: executionId, aud: 'interaction', jti, exp }` | trigger 별 opaque 토큰(32바이트 무작위 hex) |
 | 범위 | 실행 하나 | 그 트리거가 만든 모든 실행 |
-| 수명 | 기본 1시간. 만료 30분 이내에 갱신할 수 있다 | 영구. 재발급(`revoke-token`)이나 트리거 삭제 때 무효가 된다 |
-| 발급 | 웹훅 호출 응답에 새로 싣는다 | 트리거 단위 토큰 재발급(`revoke-token`)으로 받는다 |
+| 수명 | 기본 1시간. 만료 30분 이내에 갱신할 수 있다 | 영구. 재발급(`revoke-token`), 전략을 `per_trigger` 에서 다른 값으로 바꾸는 PATCH, 트리거 삭제 때 무효가 된다 |
+| 발급 | 웹훅 호출 응답에 새로 싣는다 | 서버가 발급해 생성 응답이나 PATCH 응답의 `data.secrets.interactionToken` 에 한 번 싣는다(REQ-EIA-038 · 039). 새 토큰으로 바꿀 때는 재발급(`revoke-token`) 응답의 `data.token` 으로 받는다 |
+| 인터랙션을 끄면 | 새 웹훅 호출 응답에 토큰을 싣지 않는다. 이미 발급한 토큰은 실행에 묶여 있어 만료나 실행 종료까지 쓸 수 있다 | 토큰 값은 남는다. 가드가 그 토큰을 401 `TOKEN_INVALID` 로 거부한다. 그 토큰으로 연 SSE 스트림은 모든 서버 인스턴스에서 닫힌다. 다시 켜면 같은 토큰을 쓴다 |
 | 서명 비밀 | 전역 비밀 하나(`INTERACTION_JWT_SECRET`, 없으면 `JWT_SECRET`) | trigger 별로 분리돼 다른 trigger 의 토큰과 교차 검증할 수 없다 |
-| 폐기 | 실행 종료 때 jti 를 Redis 블랙리스트에 올린다 | 트리거 설정의 현재 값과만 비교하므로 교체 즉시 옛 값이 무효다 |
+| 폐기 | 실행 종료 때 jti 를 Redis 블랙리스트에 올린다 | 가드가 요청마다 트리거 설정의 현재 값과만 비교한다. 그래서 바꾸거나 지우는 즉시 옛 값은 새 요청에 대해 무효다 |
+| 열린 SSE 스트림 | 토큰이 만료되거나 갱신돼도 닫지 않는다. 그 실행의 종료 이벤트까지 이어진다 | 토큰이 무효가 되거나 인터랙션을 끄면 서버가 닫는다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다 |
 
 기본값은 실행 단위다. 실행 단위 토큰은 trigger 별로 비밀을 나누지 않지만, payload 가 실행 하나에 묶여 있고 jti 를 블랙리스트로 폐기할 수 있어 실행 범위로 한정된다.
+
+트리거 단위 토큰으로 연 스트림을 서버가 닫을 때 따로 보내는 이벤트는 없다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 이 401 이 토큰을 더 쓸 수 없다는 신호다. `itk_*` 를 쓰는 서버 간 자동화는 이 401 을 받으면 같은 토큰으로 다시 연결하지 않는다. 401 의 코드와 재연결 규칙은 [EIA 수신 API와 SSE 「스트림 규칙」](CLE-EIA-INBOUND.md#스트림-규칙) 이 정한다. 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다.
 
 서명 비밀은 설정 네임스페이스 `interaction.jwtSecret`(= `INTERACTION_JWT_SECRET`)을 먼저 보고, 없으면 `jwt.secret`(= `JWT_SECRET`)을 쓴다. 서비스 코드는 `process.env` 를 직접 읽지 않고 `registerAs` 네임스페이스로 읽는다. 두 값이 모두 없을 때의 동작은 환경마다 다르다.
 
@@ -266,7 +302,7 @@ type InteractionRequestContext =
 | 대상 | 한도 | 구현 | 초과 응답 |
 |---|---|---|---|
 | 인바운드 명령(`/interact`, `/cancel` 합산) | 실행당 분당 60 | 구현됨. `InteractionRateLimiterService`(Redis 고정 윈도우, fail-open) + `InteractionRateLimitGuard` | `429 RATE_LIMITED` + `Retry-After`(남은 윈도우 초) |
-| SSE 동시 연결 | 실행당 3 | 구현됨. `interaction-stream.controller.ts` | `429 TOO_MANY_CONNECTIONS` |
+| SSE 동시 연결 | 실행당 3. 모든 서버 인스턴스의 연결을 합해 센다 | 구현됨. `interaction-stream.controller.ts`, 전역 집계는 `sse-fanout.service.ts` | `429 TOO_MANY_CONNECTIONS` |
 | 단발 상태 조회 | 실행당 분당 120 | 구현됨. 위 리미터의 별도 버킷 | `429 RATE_LIMITED` + `Retry-After` |
 | EIA 알림 웹훅 발송 | 트리거당 분당 60 | 구현됨. `OutboundNotificationRateLimiterService`(Redis 고정 윈도우 `INCR`+`EXPIRE NX`) | 버리지 않고 발송한다. 넘으면 발송 건강도를 저하됨으로 표시한다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md)) |
 
@@ -277,6 +313,8 @@ type InteractionRequestContext =
 | 인바운드 명령(`/interact`, `/cancel` 합산) | `eia:rl:interact:<executionId>` |
 | 단발 상태 조회 | `eia:rl:status:<executionId>` |
 | EIA 알림 웹훅 발송 | `eia:notif:rl:<triggerId>` |
+
+SSE 동시 연결 수는 실행마다 Redis 에 모아 센다. 그 키와 Redis 를 쓸 수 없을 때의 정책은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다. 서버 인스턴스가 죽어 연결 종료를 기록하지 못해도 그 연결의 자리는 마지막 heartbeat 뒤 45초가 지나면 빠진다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다.
 
 `/cancel` 은 `interact` 의 `command: "cancel"` 과 같은 뜻이므로 인바운드 명령 버킷에 합산한다. 별칭 경로로 한도를 피하지 못하게 하기 위해서다. `/refresh-token` 은 명령도 조회도 아닌 토큰 관리 경로라 실행별 한도 밖이고 전역 스로틀만 받는다. 인바운드 한도의 429 는 시스템 전역 기본 코드 `RATE_LIMITED` 를 그대로 쓴다. SSE 동시 연결 초과의 `TOO_MANY_CONNECTIONS` 는 EIA 전용 코드이고 별개 경로다.
 
@@ -309,15 +347,15 @@ sequenceDiagram
   Hk->>Hk: 인증 검증, 트리거 조회, 수동 트리거 파라미터 추출
   Hk->>Eng: execute() 로 executionId 생성
   Hk->>Tok: interaction.enabled 이면 issuePerExecution
-  Hk-->>Ext: 202 executionId, status pending, interaction
+  Hk-->>Ext: 202 data 안에 executionId, message, status pending, interaction
   Eng->>Eng: Form 노드 도달, 노드 실행과 실행을 입력 대기로 한 트랜잭션에 기록
   Eng->>WS: 커밋 후 execution.waiting_for_input 발행
-  WS->>Out: SSE 스트림에 push, 구독 중이면 알림 큐에 적재
+  WS->>Out: Redis 를 거쳐 모든 인스턴스의 SSE 스트림에 push, 구독 중이면 알림 큐에 적재
   Out-->>Ext: SSE 이벤트 또는 서명된 알림 POST
   Ext->>Api: POST /interact submit_form
   Api->>Api: 토큰과 jti 블랙리스트 확인, 멱등 키 조회
   Api->>Eng: 재개 명령을 재개 큐에 넣음
-  Api-->>Ext: 202 ack, 필드 검증 실패면 400
+  Api-->>Ext: 202 ack, 필드 검증 실패면 400, 큐 적재 실패면 503
   Eng->>WS: 재개 후 진행, 종료 커밋 뒤 종료 이벤트 발행
   WS->>Out: 알림 발송, SSE 종료, 토큰 무효
 ```
@@ -326,13 +364,13 @@ sequenceDiagram
 2. `HooksService` 가 인증을 검증하고 트리거를 찾아 수동 트리거 노드의 파라미터를 뽑는다.
 3. `ExecutionEngineService.execute()` 가 실행을 만든다.
 4. `interaction.enabled=true` 이면 `InteractionTokenService.issuePerExecution(executionId)` 가 `iext_*` 를 만든다.
-5. `202 Accepted { executionId, status: "pending", interaction: { token, endpoints, ... } }` 로 응답한다.
+5. `202 Accepted` 로 응답한다. 응답 `data` 에는 `executionId` · `message` · `status: "pending"` · `interaction` 이 있다. 모양의 기준은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) 다.
 6. 백그라운드에서 실행이 진행되다 Form 노드에 닿는다. 엔진은 노드 실행 상태를 `WAITING_FOR_INPUT` 으로 바꾸고 같은 트랜잭션에서 실행 상태도 바꾼다.
-7. 트랜잭션이 커밋된 뒤 `WebsocketService.emitToExecution(execution.waiting_for_input, payload)` 가 이벤트를 낸다. 내부 WS 구독자에게 전달되고, SSE 어댑터가 서버 안 구독(`executionEvents$`)으로 받아 외부 SSE 스트림에 쓴다. 여러 인스턴스에 나눠 보내는 Redis pub/sub 은 계획 단계다.
+7. 트랜잭션이 커밋된 뒤 `WebsocketService.emitToExecution(execution.waiting_for_input, payload)` 가 이벤트를 낸다. 이벤트는 내부 WS 구독자에게 전달되고 SSE 어댑터도 서버 안 구독(`executionEvents$`)으로 받는다. 이벤트를 낸 서버 인스턴스의 SSE 어댑터는 그 이벤트를 Redis 의 재전송 버퍼와 실행별 채널에 넣는다. 그 실행의 SSE 구독자가 붙은 서버 인스턴스는 채널에서 이벤트를 받아 외부 SSE 스트림에 쓴다. 키와 Redis 장애 때의 동작은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
 8. `notification.events` 에 `execution.waiting_for_input` 이 있으면 `NotificationFanout` 이 `NotificationDispatcher.enqueue` 로 발송을 맡긴다. 발송 직전에 실행 상태를 다시 읽어 낡은 알림을 막고, `notification.url` 로 HMAC 서명해 POST 한다.
 9. 외부 시스템은 알림을 받아 자체 UI 로 폼을 안내하거나, SSE 스트림으로 같은 이벤트를 받는다.
 10. 사용자 응답을 받은 외부 시스템이 `POST /api/external/executions/:id/interact { command: "submit_form", ... }` 를 보낸다.
-11. 인터랙션 API 는 `iext_*` 를 검증(jti 블랙리스트 확인)하고 멱등 키 캐시를 조회한다. 검증을 통과하면 재개 명령을 재개 큐(`execution-continuation`)에 넣는다. 내부 WS 의 `execution.submit_form` 과 같은 경로다. 필드 검증에 실패하면 `400 VALIDATION_ERROR` 와 `details[]` 를 돌려주고 실행 상태는 그대로 둔다.
+11. 인터랙션 API 는 `iext_*` 를 검증(jti 블랙리스트 확인)하고 멱등 키 캐시를 조회한다. 검증을 통과하면 재개 명령을 재개 큐(`execution-continuation`)에 넣는다. 내부 WS 의 `execution.submit_form` 과 같은 경로다. 필드 검증에 실패하면 `400 VALIDATION_ERROR` 와 `details[]` 를 돌려주고 실행 상태는 그대로 둔다. 재개 큐에 넣지 못하면 `503 EXECUTION_ENQUEUE_FAILED` 를 돌려준다. 이 503 은 멱등 캐시에 넣지 않는다([EIA 수신 API와 SSE 「명령 에러」](CLE-EIA-INBOUND.md#명령-에러)).
 12. 엔진이 입력을 받아 재개하고 다음 노드로 간다.
 13. 실행이 끝나면 트랜잭션 커밋 뒤 알림과 SSE 를 함께 보내고, SSE 를 닫고, 토큰을 무효로 만든다.
 
@@ -340,7 +378,7 @@ sequenceDiagram
 
 ### 트리거 단위 토큰으로 AI 멀티턴 대화
 
-1~6단계는 위와 같다. 트리거 단위 토큰 전략이면 웹훅 응답에 토큰을 싣지 않는다.
+1~6단계는 위와 같다. 트리거 단위 토큰 전략이면 웹훅 응답에 토큰을 싣지 않는다. 호출자는 트리거를 만들거나 PATCH 할 때 응답으로 받은 `itk_*` 를 쓴다(REQ-EIA-038 · 039).
 
 7. AI Agent 멀티턴에 처음 들어가면 실행이 입력 대기가 되고 `conversationConfig` 를 함께 싣는다.
 8. `notification.events` 에 해당 이벤트가 있으면 알림과 SSE 를 함께 보낸다.
@@ -362,12 +400,12 @@ sequenceDiagram
 
 ### 공개 위젯의 방치된 입력 대기 회수
 
-공개 웹채팅 위젯(`auth_config_id IS NULL`, 실행 단위 토큰)은 패널을 열 때마다 실행을 바로 시작한다. 사용자가 탭을 닫거나 "닫기"로 떠나면 그 실행은 명시적 종료 없이 입력 대기로 남는다. 위젯의 "새 대화" 최선 노력 `cancel` 은 정상 경로만 닫으므로, 놓친 실행을 서버가 회수하는 backstop 을 둔다(구현됨, `WebChatIdleReaperService`).
+공개 웹채팅 위젯(`auth_config_id IS NULL`, 실행 단위 토큰)은 패널을 열 때마다 실행을 바로 시작한다. 사용자가 탭을 닫거나 "닫기"로 떠나면 그 실행은 명시적 종료 없이 입력 대기로 남는다. 위젯의 "새 대화" 최선 노력 `cancel` 은 정상 경로만 닫는다. 그래서 놓친 실행을 서버가 회수하는 backstop 으로 웹채팅 위젯 유휴 실행 회수를 둔다(구현됨, `WebChatIdleReaperService`).
 
-- 판정: 발급한 모든 실행 단위 토큰이 만료(`execution_token.exp_at` 이 모두 `< now`)된 뒤 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms=1시간)이 지난 입력 대기 실행이다. 익명 위젯은 만료 뒤 토큰을 갱신할 수 없다. 만료된 JWT 는 `InteractionGuard` 가 401 로 먼저 막아 갱신 핸들러에 닿지 못한다. 살아 있는 세션은 만료 전에 미리 갱신해 유지하므로, 모든 토큰이 만료됐다는 것은 입력이 올 경로가 사라졌다는 증명이다.
+- 판정: 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms=1시간)이 지난 입력 대기 실행이다. 익명 위젯은 만료 뒤 토큰을 갱신할 수 없다. 만료된 JWT 는 `InteractionGuard` 가 401 로 먼저 막아 갱신 핸들러에 닿지 못한다. 살아 있는 세션은 만료 전에 미리 갱신해 유지하므로, 모든 토큰이 만료됐다는 것은 입력이 올 경로가 사라졌다는 증명이다.
 - 동작: BullMQ 반복 작업(`webchat-idle-reaper`, 분 단위, 전역 한 번)이 대상을 찾아 엔진 `markWebChatIdleTimeout` 으로 조건부 UPDATE(`cancelled`, `cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`)하고 `revokeAllForExecution` 을 부른다.
 - 회수는 소프트 종료다. 행을 지우지 않고 `cancelled` 로 바꾼 뒤 토큰을 일괄 폐기한다. 이력과 상태 조회(`GET /api/external/executions/:id`)는 남는다.
-- 범위는 공개 웹훅 + 실행 단위 토큰뿐이다. 인증 트리거와 트리거 단위 토큰은 대상이 아니다. 노드 설정 쪽 입력 대기 기한도 이 회수와 관계없다. 그런 기한을 둘지는 [Form 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-FORM.md#미결-사항) 에서 다룬다.
+- 범위는 공개 웹훅이 시작했고 실행 토큰 행이 있는 실행뿐이다. 인증 설정이 연결된 트리거의 실행은 대상이 아니다. 토큰 행이 없는 실행도 대상이 아니다. 트리거 단위 토큰을 쓰는 실행, 채팅 채널 실행, 인터랙션을 켜지 않은 웹훅 실행이 여기 든다. 노드 설정 쪽 입력 대기 기한도 이 회수와 관계없다. 그런 기한을 둘지는 [Form 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-FORM.md#미결-사항) 에서 다룬다.
 - 웹채팅 위젯의 재로드 `401` 도 이 규칙(만료 뒤 갱신 불가)을 따른다. 위젯 쪽 처리는 [웹채팅 인증과 세션](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md) 이 정한다.
 
 실행 엔진이 입력 대기 실행을 기한 없이 보존한다는 불변식은 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 가 정한다. 이 회수는 그 불변식이 보호하는 "곧 올 입력을 기다리는" 경우와 겹치지 않는다.
@@ -392,8 +430,6 @@ EIA 컨트롤러는 워크스페이스 JWT(`access-token` scheme) 대신 별도 
 
 ## 미결 사항
 
-- **트리거 생성 때 `wsk_*`·`itk_*` 를 서버가 발급하는가**: 이 문서의 생성 응답 예시와 EIA-AU-01 은 트리거를 만들 때 서버가 알림 서명 시크릿과 트리거 단위 토큰을 만들어 `secrets` 블록으로 한 번 돌려준다고 적는다. [EIA 데이터와 흐름](CLE-EIA-DATA.md) 은 `itk_*` 를 트리거 단위 토큰 재발급(`revoke-token`) 호출로만 만들고, `wsk_*` 는 시크릿 교체 흐름만 적는다. 현재 구현은 생성 응답에 `secrets` 객체가 없고, 생성 때 `signing.secret` 은 호출자가 보낸 평문을 시크릿 저장소로 옮기며, `itk_` 생성 위치는 `revokePerTriggerToken` 하나다(분석 단계 확인). 생성 시 서버 발급을 구현할지, 계약을 현재 동작(호출자 제공 시크릿, `itk_*` 는 재발급으로 받음)으로 고칠지 결정 필요.
-- **웹훅 202 응답의 `message` 필드**: 이 문서는 기존 `message` 필드가 `data` 안에 그대로 남는다고 적는다. 현재 구현과 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 은 `{ executionId }` 와 인터랙션 블록만 돌려준다고 적는다(분석 단계 확인). 응답 계약을 어느 쪽으로 맞출지 결정 필요.
 - **종료된 실행에 대한 명령의 정상 응답 코드**: REQ-EIA-008 에 따라 실행이 끝나면 실행 단위 토큰을 바로 폐기하고, 가드는 폐기된 토큰을 핸들러 전에 `401 TOKEN_REVOKED` 로 막는다. 한편 EIA-IN-12 는 종료된 실행에 대한 명령에 `410 Gone` 을 예고한다. 그래서 정상 경로의 코드가 `401` 인지 `410` 인지 하나로 정해지지 않았다. 두 쪽 서술과 영향은 [EIA 수신 API와 SSE §미결 사항](CLE-EIA-INBOUND.md#미결-사항) 과 [웹채팅 인증과 세션 §미결 사항](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md#미결-사항) 에 있다. 결정 필요.
 - **전역 스로틀의 카운트 기준**: 원문은 `UserThrottlerGuard` 를 IP 기준 분당 100이라 적고, [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 은 사용자 기준 분당 100이라 적는다. 토큰으로만 인증하는 EIA 경로에서 가드가 IP 로 대신 세는지 확인하고, 키 결정 규칙을 HTTP API 규약에 적어야 한다.
 
@@ -409,12 +445,13 @@ EIA 컨트롤러는 워크스페이스 JWT(`access-token` scheme) 대신 별도 
   - `terminal-revoke-reconciler.service.ts`, `terminal-revoke-reconciler.types.ts` (종료 토큰 정리 작업과 큐 이름 상수)
   - `webchat-idle-reaper.service.ts`, `webchat-idle-reaper.types.ts` (공개 위젯 입력 대기 회수, `WEBCHAT_IDLE_REAP_GRACE_MS`)
   - `notification-fanout.service.ts`, `notification-dispatcher.service.ts`, `notification-webhook.processor.ts`, `notification-signature.util.ts` (알림 발송)
-  - `sse-adapter.service.ts` (SSE fan-out, 현재 메모리 단일 인스턴스)
+  - `sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정)
+  - `sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한)
   - `idempotency.interceptor.ts` (멱등 키)
   - `entities/execution-token.entity.ts`
   - `dto/interact.dto.ts`, `dto/cancel.dto.ts`, `dto/responses/*-response.dto.ts` (`ExecutionStatusDto`·`InteractAckDto`·`RefreshTokenResponseDto`)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`, `hooks.service.ts` (웹훅 응답에 인터랙션 블록, `buildInteractionResponse`)
-- `codebase/backend/src/modules/triggers/triggers.controller.ts`, `triggers.service.ts` (`rotate-secret`·`revoke-token`, 알림·인터랙션 설정 검증)
+- `codebase/backend/src/modules/triggers/triggers.controller.ts`, `triggers.service.ts` (`rotate-secret`·`revoke-token`, 생성·PATCH 응답의 일회성 비밀 발급, 알림·인터랙션 설정 검증)
 - `codebase/backend/src/modules/triggers/dto/create-trigger.dto.ts`, `dto/interaction-config.dto.ts`, `dto/web-chat-appearance.dto.ts`
 - `codebase/backend/src/modules/websocket/websocket.service.ts` (단일 싱크)
 - `codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts`
@@ -452,7 +489,7 @@ SSE 의 `id` 와 알림 payload 의 `seq` 는 같은 단조 카운터다([WebSoc
 
 ### 웹훅 문서와 분리한다
 
-EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거 진입점" 책임에 집중하고, EIA 는 "실행 중 인터랙션 채널" 이라 층이 다르다. 한 문서에 합치면 두 관심사가 섞인다. [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 은 관리 표에 알림·인터랙션 설정 필드 행만 두고 이 문서를 가리킨다.
+EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거 진입점" 책임에 집중하고, EIA 는 "실행 중 인터랙션 채널" 이라 층이 다르다. 한 문서에 합치면 두 관심사가 섞인다. [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 은 관리 표에 알림·인터랙션 설정 필드 행만 두고 이 문서를 가리킨다. 웹훅 202 응답 모양의 기준도 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api) 다. 이 문서는 인터랙션 블록을 받은 뒤의 호출을 정하고 응답 예시는 그 절을 따른다.
 
 ### 단일 싱크와 외부 facade
 
@@ -466,8 +503,8 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 
 단일 싱크(RxJS `Subject`)에는 형제 구독자 셋이 `onModuleInit` 에서 직접 붙는다. 셋 다 같은 facade 층이고 같은 이벤트 순번과 같은 커밋 시점을 공유한다.
 
-- `NotificationFanout`(`notification-fanout.service.ts`): 알림 설정이 그 이벤트를 구독하면 `NotificationDispatcher.enqueue()`(BullMQ 적재만 하는 facade)로 외부 HTTP POST 를 맡긴다. 종료 이벤트면 토큰 폐기도 한다. 지금은 단일 인스턴스 서버 안 구독이다.
-- SSE 어댑터(`sse-adapter.service.ts`): 서버 메모리 안에서 직접 구독해 외부 SSE 스트림으로 퍼뜨린다. 여러 인스턴스에서 외부 SSE 클라이언트가 아무 인스턴스에나 붙게 하려면 Redis pub/sub 이 필요하고, 이것은 계획 단계다.
+- `NotificationFanout`(`notification-fanout.service.ts`): 알림 설정이 그 이벤트를 구독하면 `NotificationDispatcher.enqueue()`(BullMQ 적재만 하는 facade)로 외부 HTTP POST 를 맡긴다. 종료 이벤트면 토큰 폐기도 한다. 서버 인스턴스마다 자기 프로세스의 싱크를 구독한다. 그래서 이벤트 하나는 그 이벤트를 낸 서버 인스턴스에서 한 번만 큐에 들어간다.
+- SSE 어댑터(`sse-adapter.service.ts`): 자기 프로세스의 싱크를 서버 안에서 직접 구독한다. 받은 이벤트는 Redis 를 거쳐 그 실행의 SSE 구독자가 붙은 모든 서버 인스턴스로 전달된다. 그래서 외부 SSE 클라이언트는 아무 서버 인스턴스에나 붙어도 된다. Redis 는 서버 인스턴스 사이의 전달 수단이고 새 싱크가 아니다. 2026-10-17 에 서버 인스턴스 하나의 메모리 버퍼에서 이 구조로 바꿨다(NERV Task `CLE-T-Z35F7P`). 설계와 기각한 대안은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 의 「SSE 스트림」 과 Rationale 에 있다.
 - `ChatChannelDispatcher`: 같은 프로세스 안에서 구독해 메신저 `sendMessage` 로 바꾼다.
 
 채팅 채널 어댑터는 `NotificationFanout`·`NotificationDispatcher` 뒤에 붙지 않고 단일 싱크에 직접 붙은 형제 구독자다. 알림 경로가 채팅 채널용 이벤트를 따로 내지 않는다. 어댑터도 엔진 코드를 부르지 않으므로 "엔진 단일 싱크 + 외부 facade" 원칙을 깨지 않는다.
@@ -489,6 +526,24 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 ### 공개 위젯 회수 신호는 토큰 만료다
 
 - 판정 신호는 토큰 영구 만료다. 일괄 유휴 타이머는 쓰지 않는다. "N일 동안 조용하면 종료" 같은 엔진 전역 정리는 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 위험이 있다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 무기한 보존). 익명 위젯 토큰은 만료 뒤 갱신할 수 없으므로 "발급한 토큰이 모두 만료됨" 은 익명 사용자가 그 실행을 영원히 이을 수 없다는 증명이다. 회수 대상과 불변식의 보호 대상이 겹치지 않으므로 보호를 약하게 만들지 않는다.
+- 판정과 범위는 2026-10-17 에 지금 코드(`WebChatIdleReaperService`)에 맞춰 바로잡았다(NERV Task `CLE-T-EMB0YG`). 실행 토큰 행이 하나 이상 있고 가장 늦은 `exp_at` 뒤로 유예 시간이 지나야 회수한다. 인증 설정이 연결된 트리거의 실행과 토큰 행이 없는 실행은 뺀다. 이전 본문은 인증 트리거와 트리거 단위 토큰을 쓰는 트리거만 뺀다고 적었다. 이 회수는 토큰 만료를 증거로 삼는다. 그래서 토큰 행이 없으면 회수할 증거가 없다.
 - `cancelledBy` 닫힌 union 을 넓히지 않는다. 입력 대기 회수도 시간 한도 초과라 큐 대기 초과와 같은 `cancelledBy='timeout'` 을 쓰고, 새 `error.code='WEBCHAT_IDLE_TIMEOUT'` 으로만 나눈다(선례: `'system'`+`RESUME_*`, `'timeout'`+`EXECUTION_QUEUE_WAIT_TIMEOUT`). 코드 prefix 를 `CHANNEL_` 대신 `WEBCHAT_` 으로 둔 것은 범위에서 뺀 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 모듈과 이름이 헷갈리지 않게 하려는 것이다.
 - 메커니즘은 새 구조를 만들지 않고 종료 토큰 정리 작업의 형제로 둔다. [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 전이표가 `waiting_for_input → cancelled` 사유로 "타임아웃" 을 이미 예약해 두었고, 이 회수가 그 사유의 첫 구현이다. EIA 층은 이미 종료 토큰 정리 작업(BullMQ 반복·실행 토큰 테이블·전역 한 번)을 운영하므로, 회수 작업은 같은 층·같은 데이터·같은 패턴의 형제다. 헷갈리지 않게 서비스·큐 이름만 나눈다. 따라서 실행 엔진의 "새 주기 스캐너 도입 안 함" 원칙(작업이 있는 RUNNING·대기 중 실행 복구 범위)과 관계없다. park 는 BullMQ 작업이 아예 없어 엔진 복구 대상이 아니다.
 - 기각한 대안: 실행마다 지연 작업을 두고 토큰을 갱신할 때마다 다시 예약해 만료+유예 시점에 터뜨리는 안. 대기 실행(잠재적으로 수백만)마다 지연 작업을 추적해야 하고, 갱신마다 다시 예약하는 비용이 들며, 작업 없는 park 설계를 뒤집는다. 실행 토큰 테이블을 그대로 쓰는 전역 정리 한 번이 더 단순하고 싸다.
+
+### 생성과 PATCH 응답에 싣는 일회성 비밀 (2026-10-17)
+
+생성과 PATCH 응답의 `data` 는 트리거 리소스다. 서버가 그 요청에서 새로 만든 비밀의 평문은 리소스 필드와 섞이지 않게 `data.secrets` 아래에 둔다. 알림 서명 시크릿은 `notificationSigningSecret` 에, 트리거 단위 토큰은 `interactionToken` 에 싣는다. 두 키 모두 그 응답이 실제로 발급했을 때만 있다. 재발급과 교체의 응답은 그 동작만의 응답이라 평문을 `data.token` · `data.secret` 에 바로 둔다([트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api)).
+
+알림 서명 시크릿(`wsk_*`)의 서버 발급과 웹훅 202 응답의 `message` 는 2026-10-09 에 정했다(NERV Task `CLE-T-M6PERB`). 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 와 [웹훅 「웹훅 202 응답 모양을 지금 코드에 맞춘다」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 에 있다. 이 문서의 미결 사항에 남아 있던 두 항목은 2026-10-17 에 그 결정대로 본문을 고치고 닫았다(NERV Task `CLE-T-EMB0YG`).
+
+트리거 단위 토큰(`itk_*`)의 발급은 2026-10-17 에 사용자가 정했다(NERV Task `CLE-T-EMB0YG`). 인터랙션을 켠 `per_trigger` 트리거를 만들면 서버가 발급한다. PATCH 결과가 인터랙션을 켠 `per_trigger` 이고 저장된 토큰이 없을 때도 발급한다. 최상위 `interaction` 으로 바꾼 PATCH 든 원시 `config` 로 바꾼 PATCH 든 같다. 저장된 토큰이 있으면 이어받는다. 그래서 인터랙션을 껐다가 다시 켜면 같은 토큰을 쓴다. 이렇게 정한 이유는 두 가지다. 생성 때 발급하지 않으면 `per_trigger` 로 만든 트리거는 재발급을 한 번 더 불러야 인바운드 경로를 쓸 수 있다. 또 서버가 만든 비밀을 그 비밀이 생긴 응답에서 한 번 보여 준다는 규칙이 알림 서명 시크릿과 같아진다. 저장과 잠금의 근거는 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다. 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055 · 056 이다.
+
+인터랙션을 끄는 것은 토큰 폐기가 아니고 중지다. 그래서 다시 켜면 같은 토큰이 통한다. 토큰 전략을 바꾸면 값을 지운다. 이 경우는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 의 범위다. 끄기와 전략 변경을 가르는 근거 전문은 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다.
+
+기각한 대안:
+
+- `itk_*` 를 재발급(`revoke-token`)으로만 받는 안(지금까지의 동작): `per_trigger` 로 만든 트리거에는 재발급을 부르기 전까지 쓸 수 있는 토큰이 없다. 서버가 발급하는 알림 서명 시크릿과 규칙도 갈린다.
+- 생성 때만 발급하는 안: PATCH 로 `per_trigger` 로 바꾼 트리거에는 토큰이 없다. 알림 서명 시크릿을 생성 때만 발급하는 안을 기각한 것과 같은 이유다.
+- 인터랙션을 켤 때마다 새로 발급하는 안: 인터랙션을 꺼도 토큰 값을 남긴다는 결정(2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답(finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`))과 어긋난다. 호출자가 쓰던 토큰도 알림 없이 바뀐다.
+- 전략을 `per_trigger` 로 되돌릴 때 재발급(`revoke-token`)으로 새 토큰을 받는 규칙(2026-10-09, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 「서버가 만든 EIA 값의 발급 · 보존 · 교체 잠금」): 이제 그 PATCH 가 새 토큰을 발급한다. 옛 규칙의 목적은 지운 옛 토큰이 다시 살아나지 않게 하는 것이었다. PATCH 가 발급하는 토큰도 새 값이므로 그 목적은 그대로 지켜진다. 바꾼 이유는 생성 때 발급하는 것과 같다. 되돌린 트리거도 재발급을 따로 부르지 않고 바로 쓸 수 있어야 한다.

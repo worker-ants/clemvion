@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "6cf7d775314c9a23b73e4101d4c22af90374ba59488a67ebd2e4e65d9358106d"
-read_as: "approved"
-task: null
+content_hash: "33dd15689b1bc50e38ea92a53921ec00468a45d47a13e5df08e3a44428777dc3"
+read_as: "approved_fallback"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "4852460b4d4a3177af3020da18f9b20f22f15d8347da1ae12d71b7427805f9a3"
-etag: "sha256-5ee1a1481f04ba17e3b7acb21cbf9b3de3f1f93370d832d525c179e2fef7ea92"
+mirror_sha256: "0440c3de5f100cec75d1e4bbcc677841dc8822043cfcafcf412020bb46007eeb"
+etag: "sha256-8350b45c32912118acf2be01999c97e4806231fd9625748c175e1ad172665d77"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,7 +28,7 @@ etag: "sha256-5ee1a1481f04ba17e3b7acb21cbf9b3de3f1f93370d832d525c179e2fef7ea92"
 
 - 연결·인증·구독 채널·이벤트 봉투(`seq`, `timestamp`)·재연결·전송 계층 에러: [WebSocket 연결과 채널 구독](CLE-API-WS.md)
 - 실행·노드 실행 상태 전이와 블로킹·재개 계약, 마지막 턴 재시도의 상태 전이: [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)
-- 재개 명령의 발행 쪽 사전 검증과 ack 에러 표면: [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)
+- 재개 명령의 발행 쪽 사전 검증과 ack 에러 표면: [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)
 - 종결 이벤트 셋(`completed`, `failed`, `cancelled`)의 필드 집합과 행동 계약, 채널별 봉투: [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md)
 - 외부 SSE 스트림, EIA REST 명령, 입력 대기 이벤트의 외부 소비 필드 매핑: [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)
 - 이벤트 페이로드의 자격 증명 마스킹과 외부 `nodeOutput` 허용 목록: [응답 자격 증명 마스킹](CLE-API-EGRESS.md)
@@ -93,7 +93,7 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 | `execution.stop` _(비채택, REST 대체)_ | `{ executionId, force? }` | 실행 중단 요청. 정식 경로는 REST `POST /executions/:id/stop` |
 | `execution.continue` _(계획, 미구현)_ | `{ executionId }` | 브레이크포인트 뒤 계속([에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 의 브레이크포인트 로드맵) |
 | `execution.step` _(계획, 미구현)_ | `{ executionId }` | 노드 하나만 실행하고 다시 정지(같은 로드맵) |
-| `execution.submit_form` | `{ executionId, formData }` | Form 노드에 사용자 입력 제출. `nodeId`·`toolCallId` 는 **클라이언트가 보내는 필드가 아니다.** 대기 노드는 서버가 조회하고([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 사전 검증), AI 에이전트 `render_form` 응답의 `toolCallId` 는 서버가 보관한 `pendingFormToolCall` 재개 상태로 맞춘다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). 외부 wire 는 이 형태를 유지하고 내부 재개 버스만 `{type:'form_submitted', formData}` 로 감싼다([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md)) |
+| `execution.submit_form` | `{ executionId, formData }` | Form 노드에 사용자 입력 제출. `nodeId`·`toolCallId` 는 **클라이언트가 보내는 필드가 아니다.** 대기 노드는 서버가 조회하고([큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증)), AI 에이전트 `render_form` 응답의 `toolCallId` 는 서버가 보관한 `pendingFormToolCall` 재개 상태로 맞춘다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). 외부 wire 는 이 형태를 유지하고 내부 재개 버스만 `{type:'form_submitted', formData}` 로 감싼다([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md)) |
 | `execution.click_button` | `{ executionId, nodeId?, buttonId }` | 버튼이 설정된 Presentation 노드의 버튼 클릭. `buttonId` 는 port 타입 버튼의 UUID 또는 `__continue__`(link 전용일 때 Continue 동작). `nodeId` 는 선택이다. **보내면** 발행 쪽이 실제 대기 노드와 대조하고 보내지 않으면 `executionId` 와 상태 조회만으로 대기 노드를 찾는다(프론트엔드는 보내지 않아 실제로는 쓰이지 않는다) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI 에이전트 멀티턴의 사용자 메시지 전송. **폼 우회**: `interactionType: 'ai_form_render'` 로 대기 중에 이 명령이 오면 서버가 `pendingFormToolCall.toolCallId` 와 맞는 `render_form` 도구의 tool_result 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채우고 `pendingFormToolCall` 을 비운 뒤 일반 `ai_user` 턴을 진행한다. LLM 의 다음 추론을 자유롭게 둔다. 화면의 메시지 입력은 늘 활성이다(폼 우회 허용) |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI 에이전트 멀티턴 대화 종료 요청 |
@@ -155,17 +155,17 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `executionId` | uuid | 실행 ID (공통) |
-| `resumed` | boolean | **재개 수락 여부(enqueue).** 정상적으로 큐에 넣으면 늘 `true` 이고 실패는 `queued: false` 로 드러난다. 모든 진입점이 늘 큐에 넣는 모델에서는 동기 ack 시점에 재개 성공을 알 수 없으므로 "재개 성공" 이 아니다. 최종 재개는 뒤따르는 `execution.resumed`·`execution.node.*` 이벤트로, rehydration 실패(`RESUME_*`)는 뒤따르는 `execution.cancelled` 이벤트로 확인한다. 이 ack 불리언 `resumed` 는 이름이 같은 재개 이벤트 `execution.resumed`, 노드 출력의 흐름 지시 상태 `resumed` 와 **별개**다 |
-| `queued` | boolean | 재개 큐에 정상적으로 들어갔는지(`true` 정상, `false` Redis 장애 등 발행 실패). 관측·디버깅용이고 클라이언트 분기에 쓰지 않는다. `false` 면 다시 시도를 권한다 |
+| `resumed` | boolean | **재개 수락 여부(enqueue).** 성공 ack 에서는 늘 `true` 다. 큐에 넣지 못하면 성공 ack 가 아니라 실패 ack 가 온다(§2.3). 모든 진입점이 늘 큐에 넣는 모델에서는 동기 ack 시점에 재개 성공을 알 수 없으므로 "재개 성공" 이 아니다. 최종 재개는 뒤따르는 `execution.resumed`·`execution.node.*` 이벤트로, rehydration 실패(`RESUME_*`)는 뒤따르는 `execution.cancelled` 이벤트로 확인한다. 이 ack 불리언 `resumed` 는 이름이 같은 재개 이벤트 `execution.resumed`, 노드 출력의 흐름 지시 상태 `resumed` 와 **별개**다 |
+| `queued` | boolean | 재개 큐에 들어갔는지. 성공 ack 에서는 늘 `true` 다. 발행 실패(Redis 장애 등)는 이 필드가 아니라 §2.3 의 실패 ack 로 온다. 관측·디버깅용이고 클라이언트 분기에 쓰지 않는다 |
 | 명령별 식별자 | 없음 | `buttonId`(`click_button`) / 없음(`submit_form`, `formData` 를 싣지 않음) / 없음(`submit_message`, `message` 를 싣지 않음) / 없음(`end_conversation`) |
 
-- 클라이언트는 ack `resumed: true` 만으로 입력 대기 화면을 풀지 않는다. 동기 ack 시점에는 워커의 재개 처리가 아직 일어나지 않았다. 재개 큐의 동작은 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 가 정한다.
+- 클라이언트는 ack `resumed: true` 만으로 입력 대기 화면을 풀지 않는다. 동기 ack 시점에는 워커의 재개 처리가 아직 일어나지 않았다. 재개 큐의 동작은 [큐 워커와 동시 실행 제한 「재개 큐」](../CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐) 가 정한다.
 - ack data 에 `nodeId` 는 없다. 대기 노드는 서버가 조회(`execution_id + status='waiting_for_input'`)하고 클라이언트는 `executionId` 만으로 ack 를 맞춘다.
 - 명령 본문에 `nodeId` 를 실은 경우(`submit_message`·`end_conversation` 은 프론트엔드가 대기 노드의 `nodeId` 를 싣는다) 서버는 조회로 찾은 대기 노드와 그 `nodeId` 를 **대조**해 다르면 `INVALID_EXECUTION_STATE` 로 거부한다. `nodeId` 는 조회 키가 아니라 낡거나 잘못 지정한 제출을 거르는 사후 검증 입력이다.
 
 ### 2.3 재개 명령의 에러
 
-**실패 ack 형태**: 네 명령의 실패 ack 는 `{ success: false, error: string, errorCode?: string }` 다. `errorCode` 는 아래 표의 코드를 담는 **평면 필드**이고 기존 `error`(사람용 메시지)와 하위 호환되도록 형제로 더했다. `retry_last_turn` 의 중첩 `error: { code, message }` 와 층이 다른 것은 의도한 분리다. 네 명령은 처음부터 평면 `{ success, error }` 를 써 왔고 `errorCode` 는 그 위의 확장이다.
+**실패 ack 형태**: 네 명령의 실패 ack 는 `{ success: false, error: string, errorCode?: string }` 다. `errorCode` 는 아래 표의 코드를 담는 **평면 필드**이고 기존 `error`(사람용 메시지)와 하위 호환되도록 형제로 더했다. 큐 적재 실패의 실패 ack 에는 `errorCode` 가 없다(아래 「큐 적재 실패」). `retry_last_turn` 의 중첩 `error: { code, message }` 와 층이 다른 것은 의도한 분리다. 네 명령은 처음부터 평면 `{ success, error }` 를 써 왔고 `errorCode` 는 그 위의 확장이다.
 
 | 코드 | 설명 |
 |------|------|
@@ -176,8 +176,10 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 | `VALIDATION_ERROR` | `submit_form` 필드 검증 실패(필수, 타입, minLength·maxLength, min·max, 정규식, select·radio 선택지, `type:'file'` MIME·크기·개수). 발행 쪽 `continueExecution` 관문이 노드 설정의 필드 정의로 동기 검증한다(typed `FormValidationError`). EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다. 실행 상태는 유지되어 다시 제출할 수 있다. ack 는 평면 `{ success:false, error, errorCode:'VALIDATION_ERROR' }` 이고 **필드별 `details[]` 가 없다.** 필드별 상세(`{field,message,code}`)는 EIA REST 경로(`400` body `error.details[]`, [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))에서만 준다. WebSocket 클라이언트는 사람용 `error` 문자열로 폼을 다시 보인다 |
 | `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러(DB, 서드파티, 예기치 못한 throw). ack `error` 는 **고정 일반 문자열**이고 내부 `error.message` 는 클라이언트에 보내지 않는다(서버 로그 전용) |
 
-- **누출 차단(typed·plain 분기)**: ack 의 `error` 문자열은 에러 타입에 따라 채운다. typed `ExecutionError`(`InvalidExecutionStateError` 등)면 그 클래스의 고정된 클라이언트용 `message` 를, 그 밖의 plain `Error` 면 호출부가 정한 고정 일반 문자열을 담고 `errorCode='EXECUTION_INTERNAL_ERROR'` 로 드러낸다. 내부 메시지(스택 힌트, DB·서드파티 원문, 내부 식별자)는 서버 로그에만 남긴다. 계약과 근거는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 ack 에러 표면 절이다.
-- **rehydration 실패는 ack 가 아니다.** `RESUME_CHECKPOINT_MISSING`, `RESUME_FAILED`, `RESUME_INCOMPATIBLE_STATE` 는 워커 쪽 **비동기** 실패라 ack 가 아니라 뒤따르는 `execution.cancelled` 이벤트의 `error.code` 로 알린다. 동기 ack 에 실패가 담기는 경우는 발행 쪽 사전 검증뿐이다. 이 세 코드는 네 명령의 재개 경로에만 해당하고 `retry_last_turn` 은 rehydration 경로를 타지 않아 대상이 아니다(§2.4). 코드 뜻은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에 있다.
+**큐 적재 실패**: 재개 메시지를 재개 큐에 넣지 못하면(Redis 장애 등) 네 명령은 실패 ack `{ success: false, error: 'Continuation could not be queued. Please try again.' }` 를 돌려준다. `errorCode` 는 싣지 않는다. 실행은 입력 대기 그대로다. ack 는 서버에 저장되지 않으므로 클라이언트가 같은 명령을 다시 보내면 새로 처리된다. 같은 실패를 EIA REST 는 503 `EXECUTION_ENQUEUE_FAILED` 로 알린다. 503 을 받는 요청의 범위는 [EIA 수신 API와 SSE 「명령 에러」](../CLE-IX/CLE-EIA-INBOUND.md#명령-에러) 에 있다. `retry_last_turn` 의 큐 적재 실패는 §2.4 에 있다. 진입점별 표면의 기준은 [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) 이다.
+
+- **누출 차단(typed·plain 분기)**: ack 의 `error` 문자열은 에러 타입에 따라 채운다. typed `ExecutionError`(`InvalidExecutionStateError` 등)면 그 클래스의 고정된 클라이언트용 `message` 를, 그 밖의 plain `Error` 면 호출부가 정한 고정 일반 문자열을 담고 `errorCode='EXECUTION_INTERNAL_ERROR'` 로 드러낸다. 내부 메시지(스택 힌트, DB·서드파티 원문, 내부 식별자)는 서버 로그에만 남긴다. 계약과 근거는 [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) 이다.
+- **rehydration 실패는 ack 가 아니다.** `RESUME_CHECKPOINT_MISSING`, `RESUME_FAILED`, `RESUME_INCOMPATIBLE_STATE` 는 워커 쪽 **비동기** 실패라 ack 가 아니라 뒤따르는 `execution.cancelled` 이벤트의 `error.code` 로 알린다. 동기 ack 에 담기는 실패는 발행 쪽 사전 검증, 발행 경로의 에러, 큐 적재 실패 세 가지다. 이 세 코드는 네 명령의 재개 경로에만 해당하고 `retry_last_turn` 은 rehydration 경로를 타지 않아 대상이 아니다(§2.4). 코드 뜻은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에 있다.
 
 ### 2.4 마지막 턴 재시도 (`execution.retry_last_turn`)
 
@@ -208,7 +210,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 
 - ack 에 `nodeId` 는 없다. 클라이언트가 `nodeExecutionId` 만 보내고 ack 도 같은 식별자만 되돌려준다. `nodeId` 는 `nodeExecutionId` 로 서버가 찾을 수 있다.
 - 실제 ack callback payload 는 재개 명령 넷과 같이 `success: boolean` 형제 필드를 담는다. 성공 `{ success: true, executionId, nodeExecutionId, resumed: true }`, 실패 `{ success: false, executionId, nodeExecutionId, resumed: false, error: { code, message } }` 다. §2.3 의 평면 `{ success, error }` 관례를 따르고 실패 때 평면 `errorCode` 대신 중첩 `error: { code, message }` 를 쓰는 것만 다르다.
-- ack 의 `resumed: false` 는 네 명령과 달리 발행 쪽 **동기** 검증 실패(`failed` 상태 기대 불충족 등)를 반영한다. `RESUME_*` 비동기 경로와 무관하다.
+- ack 의 `resumed: false` 는 네 명령과 달리 발행 쪽 **동기** 실패를 반영한다. `failed` 상태 기대 불충족 같은 검증 실패와 큐 적재 실패(아래 표의 `INTERNAL_ERROR`)가 여기에 든다. `RESUME_*` 비동기 경로와 무관하다.
 
 | 코드 | 설명 |
 |------|------|
@@ -216,6 +218,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 | `NODE_NOT_RETRYABLE` | 대상 노드의 `outputData.output.error.details.retryable === false` 이거나 재시도 가능한 에러로 끝나지 않음(정상 종결, 조건 종결 등) |
 | `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운이 끝나기 전 호출(서버 쪽 강제). 클라이언트가 버튼을 비활성으로 두면 정상적으로는 생기지 않는다 |
 | `INVALID_EXECUTION_STATE` | 대상 노드 실행이 `FAILED` 가 아니거나 실행이 재시도에 들어갈 수 있는 상태가 아님(사전 검증 실패). 재개 명령의 같은 코드와 뜻을 공유한다(기대 상태만 다르다) |
+| `INTERNAL_ERROR` | 새로 만든 재시도 턴을 재개 큐에 넣지 못함(Redis 장애 등). 새 노드 실행 행은 `failed` 로 마감한다. `_retryState` 는 이미 소비됐으므로 같은 명령을 다시 보내면 `RETRY_STATE_NOT_FOUND` 가 온다 |
 
 **`_retryState` 소비 원자성과 TTL (구현 계약)**
 
@@ -649,7 +652,7 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 **핵심 규약**
 
 - **`seq` 를 함께 쓴다.** SSE 의 `id:` 필드와 EIA 알림 웹훅 페이로드의 `seq` 는 WebSocket 이벤트 봉투의 이벤트 순번과 같은 값이다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R7).
-- **5분 버퍼는 SSE 어댑터에 있다.** `seq` 기반 5분 SSE 재전송 버퍼는 SSE 어댑터(`sse-adapter.service.ts`)에 있고 외부 클라이언트의 `Last-Event-Id` 로 그 버퍼에서 `seq > Last-Event-Id` 인 이벤트를 다시 보낸다. native WebSocket 은 버퍼 없이 `execution.snapshot` 으로 대신한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
+- **5분 버퍼는 SSE 쪽에 있다.** `seq` 기반 5분 SSE 재전송 버퍼는 Redis Stream 이다(`sse-fanout.service.ts`). SSE 어댑터(`sse-adapter.service.ts`)가 외부 클라이언트의 `Last-Event-Id` 로 그 버퍼에서 `seq > Last-Event-Id` 인 이벤트를 다시 보낸다. 버퍼의 키와 수명은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 은 버퍼 없이 `execution.snapshot` 으로 대신한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
 - **트랜잭션 커밋 뒤에 발행한다.** 실행 이벤트의 커밋 후 발행 규약은 SSE 와 EIA 알림 웹훅에도 그대로 적용된다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 트랜잭션과 발송 순서).
 - **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령·이벤트 처리 경로를 facade 로 감싼 형태로만 구현한다. 두 표면이 갈라지면 유지 부담이 생긴다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R5).
 - 외부 WebSocket 채널 신설은 v1 에서 보류했다. 보류 사유와 다시 논의할 조건은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R5 에 있다.
@@ -662,7 +665,8 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 - `codebase/backend/src/shared/utils/strip-external-only-fields.ts`
 - `codebase/backend/src/shared/utils/redact-stored-error.ts`
 - `codebase/backend/src/modules/executions/executions.service.ts` (`findById`, 스냅샷 페이로드)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 매핑, 재전송 버퍼)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 매핑, 재전송 판정)
+- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (재전송 버퍼 Redis Stream, 인스턴스 사이 전달)
 - `codebase/frontend/src/lib/websocket/use-execution-interaction-commands.ts` (재개 명령 발신, `emitWithAck`)
 
 ## Rationale
@@ -725,6 +729,8 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 ### ack 의 `resumed` 뜻을 "재개 성공" 에서 "재개 수락" 으로 바꾼 이유 (2026-06-10)
 
 옛 공통 ack 표는 `resumed` 를 "재개 성공 여부" 로 적었다. 모든 진입점이 늘 BullMQ 에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md))을 채택한 뒤 네 재개 핸들러는 큐에 넣으면 바로 `resumed: true` 를 돌려준다. 이 시점에는 어느 워커의 rehydration 도 일어나지 않아 동기 ack 로 재개 성공을 판정할 수 없다. 그래서 정의를 "재개 시작 수락(enqueue)" 으로 바꾸고 최종 확인은 뒤따르는 이벤트로 모았다. **기각한 대안**: 게이트웨이가 워커 처리를 동기로 기다리는 안. ack 지연을 워커에 묶어 큐를 들인 취지와 충돌한다. 코드는 바뀌지 않았다. 프론트엔드 `emitWithAck` 는 `success === false` 만 쓰고 `resumed` 로 상태를 바꾸지 않는다.
+
+2026-10-17 정정(NERV Task `CLE-T-EMB0YG`): 이 문서는 큐 적재 실패가 성공 ack 의 `queued: false` 로 드러난다고 적었다. 코드는 그 경우 성공 ack 를 보내지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞춰 §2.2 와 §2.3 을 고쳤다. 기각한 대안은 코드를 바꿔 성공 ack 에 `queued: false` 를 싣는 안이다. 프론트엔드 `emitWithAck` 는 `success === false` 만 실패로 보므로 그 안에서는 실패가 화면에 보이지 않는다. 진입점마다 다른 표면의 근거는 [큐 워커와 동시 실행 제한 「진입점마다 큐 적재 실패를 다르게 알린다」](../CLE-EXEC/CLE-EXEC-WORKER.md#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
 
 ### WebSocket 이벤트 enum 이름은 `<도메인>EventType` (2026-08-30)
 

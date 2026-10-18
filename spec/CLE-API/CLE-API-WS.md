@@ -2,19 +2,19 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "5fb551f9673b2d1443a70fefc54ad8a252d8e86412f460bcd430c57cfe59ac8c"
-read_as: "approved"
-task: null
+content_hash: "392bdac8bab63d4a733a86c26c6e884c473a4e906894977eecb053d3fa7525c1"
+read_as: "approved_fallback"
+task: "CLE-T-G0Y6MW"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "01e0027211685e409c8e454e804ef28fe5a2caee6759f5548847b7159cf0d5a9"
-etag: "sha256-697e3e9f7b70f471a0b1c5361321d16c097321de59be25ce399ac22088a3961e"
+mirror_sha256: "d68b3046762c14700613ba525c987fb1a35eb226e9baeb9ebfa281c801bad821"
+etag: "sha256-d690cc1af051319a7bfe63524dcea46f6460e217520004c404fc5e66da541149"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -368,7 +368,8 @@ flowchart LR
 - `codebase/backend/src/modules/websocket/websocket.service.ts` (이벤트 봉투 조립과 발행)
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts` (`seq` 발급)
 - `codebase/backend/src/modules/websocket/ws-error-codes.ts` (`WsErrorCode`)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 재전송 버퍼, 비교 대상)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정, 비교 대상)
+- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (SSE 재전송 버퍼 Redis Stream 과 인스턴스 사이 전달, 비교 대상)
 - `codebase/frontend/src/lib/websocket/ws-client.ts` (재연결 설정, 토큰 갱신, 토큰 만료 대응)
 
 ## Rationale
@@ -427,6 +428,7 @@ flowchart LR
 - **왜 60초 앞서 알리나**: 끊기만 하면 살아 있던 소켓이 예고 없이 끊기는 동작 변경이 된다. 사전 통지가 있으면 클라이언트가 만료 전에 재발급과 재연결을 마쳐 끊김이 보이지 않는다. 60초는 900초의 약 6.7% 로, 재발급·재연결에 드는 시간(수백 ms 규모)의 넉넉한 배수이면서 유효 창을 크게 줄이지 않는다.
 - **클라이언트 계약이 결정의 일부다**: Socket.IO 는 서버가 보낸 `disconnect()` 에 자동 재연결을 시작하지 않는다(§6.1 예외). 착수 시점 실측으로 프론트엔드에 `auth.token_expired` 구독이 0건이었고 `disconnect` 재연결 경로도 없었다. 서버만 바꾸면 사용자가 조용히 연결을 잃는다. 그래서 §9.2 에 사전 통지 경로와 통지를 놓친 경우의 폴백을 함께 정했다.
 - **닫지 않는 것(범위 명시)**: 이 결정은 토큰 자연 만료 경로만 닫는다. 명시적 폐기는 이미 발급된 access token 을 무효로 만들지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다. 즉시 종료에는 소켓으로 폐기를 전파하는 별도 장치가 필요하며 이 결정은 그것을 약속하지 않는다.
+  - **EIA SSE 의 예외(2026-10-17, NERV Task `CLE-T-G0Y6MW` · `CLE-T-EMB0YG`)**: 이 결정은 WebSocket 소켓의 규칙이다. EIA SSE 스트림 가운데 실행 단위 토큰(`iext_*`)으로 연 스트림은 토큰이 만료돼도 닫지 않는다([EIA 데이터와 흐름 「실행 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#실행-단위-토큰)). 인증 설정이 연결된 웹훅이 시작한 실행이면 그 스트림에는 연결 시간 상한이 없다. 이 틈은 받아들인 잔여 위험이고 대응은 실행 취소다. «만료 때 스트림을 닫는다» 를 택하지 않은 이유는 그 문서의 Rationale 에 있다.
 - **타이머가 견디는 범위**: 이 타이머는 소켓을 들고 있는 프로세스에 로컬이다. 프로세스가 죽으면 소켓 자체가 끊겨 클라이언트가 새 핸드셰이크로 새 타이머를 받으므로 다중 인스턴스 사이 상태 불일치(EIA 의 R10·R15·R19 가 다루는 부류)에 해당하지 않는다.
 - **구현됨(2026-09-02)**: 백엔드 소켓별 타이머(`armExpiryTimers`)와 프론트엔드 구독·명시 재연결. 서버만으로 성립하지 않는 계약이라 양쪽이 다 들어간 뒤 구현됨으로 표시했다.
 - **페이로드 `expiresAt`**: ISO 8601 문자열이고 이 소켓이 강제로 끊기는 시각이다. 선례는 구현된 `_retryState.expiresAt` 이고 `auth.refreshed.expiresAt`(§2.3 비채택)과는 이름만 같다. 발행 전이던 이벤트라 wire 호환 부담 없이 그때 정의하는 것이 가장 쌌다.
@@ -439,6 +441,7 @@ flowchart LR
 - **근거**: WebSocket 채널의 실제 쓰임은 에디터와 실행 모니터링 화면이다. 스냅샷은 노드별 최종 상태와 종결 상태를 권위 있게 맞추므로 재연결 뒤 화면 복구에 충분하다. 잃는 것은 끊긴 짧은 창의 중간 이벤트(`node.started`, 진행, 도구 진행) 입자뿐이고 다음 이벤트나 스냅샷으로 곧 수렴한다. native WebSocket 버퍼 재전송을 따로 배선하는 비용(WebSocket room 단위 `seq` 버퍼 신설, 다중 인스턴스 fan-out 미해결. SSE 어댑터도 같은 한계)은 그 한계 이득에 비해 크다.
 - **폐기한 대안**: native WebSocket lastSeq 버퍼 재전송 전면 구현. 분산 환경 미해결과 낮은 ROI 로 보류했다. 외부 클라이언트용 손실 없는 재전송 요구(EIA-NF-03)는 SSE 버퍼 재전송으로 이미 충족된다.
 - **버퍼 만료 신호는 SSE 에만 둔다**: SSE 는 `execution.replay_unavailable` 을 보낸다(구현됨). native WebSocket 은 `seq` 버퍼가 없어 만료 신호가 구조적으로 필요 없으므로 대응 `replay.unavailable` 을 두지 않는다. 초기 초안의 "두 전송에 함께 도입" 문구는 WebSocket 에 버퍼가 있다는 폐기된 전제였으므로 철회했다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R-replay-unavailable 도 같은 정정을 적는다).
+- **2026-10-17 보강(NERV Task `CLE-T-Z35F7P`)**: 위 근거의 «SSE 어댑터도 같은 한계» 는 그날까지의 사실이다. SSE 쪽의 다중 인스턴스 한계는 Redis fan-out 으로 풀었다. SSE 재전송 버퍼는 이제 Redis Stream 이어서 클라이언트가 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 받는다. 키와 실패 정책은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 쪽 판단은 바뀌지 않았다.
 
 ### `workflow:`·`notifications:` 채널 인가를 더한 이유 (refactor 04 M-6)
 

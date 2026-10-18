@@ -2,19 +2,19 @@
 id: "CLE-UI"
 title: "앱 셸과 공통 화면"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "bab82c9b770d5188661cb1aa9b240640de0b2ec48bc87f098eb2d490d63b99d0"
-read_as: "approved"
-task: null
+content_hash: "20790d5ab45fa90f064b3b601b9f3ff3bfb437273e1b3038ad25a5ea7d00e5e2"
+read_as: "approved_fallback"
+task: "CLE-T-6YY7KY"
 source_paths: []
-mirror_sha256: "2c1324b4731c673128f0e89fd48801f6456e98af599d75f648dcfa14a79677ce"
-etag: "sha256-39930dd04edab68b71099d944ca293e9c1bda281d225bded2abb66e573c1ce48"
+mirror_sha256: "4a7aaa48bb6937a3d0906e4e4a283f3729586af3a7c290466c42d593bb6f8944"
+etag: "sha256-174b6dc76761b8e1f69f9ccee934b8d51dabeae7a5aa4c3f29b5b061c5cb4272"
 ---
 > 구현 상태: 구현됨 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,7 +28,7 @@ etag: "sha256-39930dd04edab68b71099d944ca293e9c1bda281d225bded2abb66e573c1ce48"
 
 | 문서 | 다루는 것 |
 | --- | --- |
-| [레이아웃과 내비게이션](CLE-UI-LAYOUT.md) | 앱 레이아웃, 사이드바 메뉴와 동작, 워크스페이스 슬러그 라우팅, 메인 영역과 공통 헤더, 목록·상세 패널·상태 표시·인라인 안내·반응형·테마 같은 공통 UI 패턴 |
+| [레이아웃과 내비게이션](CLE-UI-LAYOUT.md) | 앱 레이아웃, 사이드바 메뉴와 동작, 워크스페이스 슬러그 라우팅, 메인 영역과 공통 헤더, 목록·상세 드로어·상태 표시·인라인 안내·반응형·테마 같은 공통 UI 패턴 |
 | [오류 화면과 빈 상태](CLE-UI-ERRORS.md) | 전체 화면 오류 다섯 가지와 감지 규칙, 화면별 빈 상태, 검색 결과 없음 |
 | [사용자 가이드](CLE-UI-GUIDE.md) | 앱 안 사용자 가이드(`/docs`)의 정보 구조·라우트·파일 형식·딥링크·접근과 표시·빌드 검증 |
 | [다국어와 화면 문구](CLE-UI-I18N.md) | 화면 문구 사전과 ko/en 동등성, 백엔드 라벨 매핑, 가이드 문체 규칙과 동반 갱신 규율 |

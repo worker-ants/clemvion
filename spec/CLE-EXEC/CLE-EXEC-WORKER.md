@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "e8132a45d022ff3a4ece3e7e52a298c3b5ce0a1fbe9cc64263c83c288b433205"
-read_as: "approved"
-task: null
+content_hash: "e16188b0cd32e9c1bbdc4573ec0d22934288c01e8f5a8445464fd4ada57095b0"
+read_as: "approved_fallback"
+task: "CLE-T-EMB0YG"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "7a5ae46ac6c0d8b6c29d16ba829680b2663caf07c31e996306049c235401b5e7"
-etag: "sha256-523d2f667f9e74e551fefbf445ed6974cbe7f6b9ac2232971804a9ce698a5d79"
+mirror_sha256: "0cbd558deb7c8b4ab97303e8f2b3f5f9dd8ddbf7eb76d3250e7d8db98d2f8934"
+etag: "sha256-0b280d5428fdfe75b97660549b34624f725f48b1e34c33cf810ae16b512e67b9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -114,7 +114,7 @@ flowchart LR
 | 메시지 타입 | `continue` / `cancel` / `button_click` / `ai_message` / `ai_end_conversation` / `retry_last_turn` (`ContinuationType`, `continuation-bus.service.ts`). `continue` 메시지 payload 안의 표시 값(폼 제출이면 `{ type: 'form_submitted', formData }`)은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#폼-제출-wire-format) 이 기준이다. |
 | 메시지 스키마 | `{ type: ContinuationType, executionId: string, nodeExecutionId: string, payload?: unknown }` |
 | jobId | `${executionId}:${nodeExecutionId}:${monotonic-seq}`. seq 는 executionId 마다 Redis INCR 로 받는 멱등 키다. 키와 TTL 은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 의 `exec:cont:seq:<executionId>` 에 있다. |
-| 큐 재시도 | `attempts: RESUME_BULLMQ_ATTEMPTS`(기본 3), exponential backoff(1초 / 4초 / 16초) |
+| 큐 재시도 | `attempts: RESUME_BULLMQ_ATTEMPTS`(기본 3). 재시도 간격은 1초에서 4배씩 늘어나고 상한은 없다. 기본 3회면 재시도 간격은 1초 · 4초다. BullMQ 내장 `exponential`(2배씩)은 쓰지 않는다. 사용자 정의 backoff 전략 `continuation-exp4` 를 쓰고 워커의 `settings.backoffStrategy` 가 간격을 계산한다. 근거는 [Rationale 「재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다」](#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다-2026-10-17) 에 있다. |
 | 작업 보존 | `removeOnComplete: true`, `removeOnFail: false`. 실패 작업을 남겨 DLQ 적재량을 관측한다. |
 | DLQ | 모든 시도를 소진하면 실행을 `cancelled` + `error.code='RESUME_FAILED'` 로 마감한다. 처리는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다. |
 | 워커 동시성 | `CONTINUATION_WORKER_CONCURRENCY`(기본 1). 아래 [워커 동작](#워커-동작) 참조. |
@@ -217,14 +217,23 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 
 ### 발행 결과와 ack 에러 표면
 
-**발행 결과**: 재개 진입점은 발행 결과 `ContinuationPublishResult`(`queued:false` 는 `jobId:null` 과 짝)를 호출자에게 돌려준다.
+**발행 결과**: 재개 진입점은 발행 결과 `ContinuationPublishResult`(`queued:false` 는 `jobId:null` 과 짝)를 호출자에게 돌려준다. 큐에 넣지 못했을 때(`queued:false`) 호출자에게 나가는 응답은 진입점마다 다르다.
 
-- WebSocket 재개 handler 4종은 `queued:false` 를 ack 에 싣는다.
-- REST `POST /executions/:id/stop` 의 입력 대기 취소 분기(WS ack 가 아님)는 `queued:false` 이면 **503 `EXECUTION_ENQUEUE_FAILED`** 로 응답해 클라이언트가 다시 시도하게 한다. 안전 종료 중의 `SERVER_SHUTTING_DOWN` 503 과 같은 모양이다.
+| 진입점 | 큐 적재 실패 때의 응답 |
+| --- | --- |
+| WebSocket 재개 명령 4종(`execution.submit_form` / `click_button` / `submit_message` / `end_conversation`) | 실패 ack `{ success:false, error:'Continuation could not be queued. Please try again.' }`. `errorCode` 는 싣지 않는다. 성공 ack 에 `queued:false` 를 싣는 경우는 없다. ack 는 서버에 저장되지 않으므로 클라이언트는 같은 명령을 다시 보낸다. |
+| WebSocket `execution.retry_last_turn` | 실패 ack 의 `error` 는 `{ code:'INTERNAL_ERROR', message }` 객체다. 새로 만든 `running` 행은 `failed` 로 마감한다. `_retryState` 는 이미 소비됐으므로 다시 보내면 `RETRY_STATE_NOT_FOUND` 가 온다. 형식은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다. |
+| REST `POST /executions/:id/stop` 의 입력 대기 취소 분기 | **503 `EXECUTION_ENQUEUE_FAILED`**. 안전 종료 중의 `SERVER_SHUTTING_DOWN` 503 과 같은 모양이다. 클라이언트는 다시 시도한다. |
+| EIA `/interact` 재개 명령 4종과 입력 대기 실행의 `cancel`(별칭 `POST /api/external/executions/:id/cancel` 포함) | **503 `EXECUTION_ENQUEUE_FAILED`**. 이 응답은 멱등 캐시에 넣지 않는다. 같은 `Idempotency-Key` 로 다시 보내면 새로 처리한다. 503 을 받는 요청의 범위는 [EIA 수신 API와 SSE 「명령 에러」](../CLE-IX/CLE-EIA-INBOUND.md#명령-에러) 에 있다. |
+| 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령) | `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. 기준은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. |
+| 채팅 채널 인바운드의 `/start`(기존 실행 취소) | 503 `EXECUTION_ENQUEUE_FAILED` 를 그대로 돌려주고 새 실행을 시작하지 않는다. 기준은 같은 채팅 채널 절이다. |
+
+진입점마다 표면이 다른 이유는 [Rationale 「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
+
 - 성공(`queued:true`) 직후 다시 조회하면 실행이 아직 `pending` 이나 `running` 일 수 있다. 최종 취소는 뒤따르는 `execution.cancelled` 이벤트로 확인한다.
 - seq 발급(Redis INCR)이 실패하면 무작위 seq 로 대신하지 않는다. `publish` 가 `null`(`queued:false`)을 돌려준다(fail-fast).
 
-**ack 의 뜻**: ack 의 `resumed` / `queued` 는 enqueue 수락 신호다. 동기 ack 가 실패를 싣는 경우는 [발행 전 사전 검증](#발행-전-사전-검증) 뿐이다. 워커 쪽에서 나중에 실패하는 rehydration(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)은 뒤따르는 `execution.cancelled` 이벤트의 `error.code` 로 알린다.
+**ack 의 뜻**: 성공 ack 의 `resumed` / `queued` 는 enqueue 수락 신호다. 동기 ack 가 싣는 실패는 세 가지다. [발행 전 사전 검증](#발행-전-사전-검증) 의 거부, 아래 「ack 에러 변환」 이 바꾼 발행 경로의 에러, 위 표의 큐 적재 실패다. 워커 쪽에서 나중에 실패하는 rehydration(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)은 뒤따르는 `execution.cancelled` 이벤트의 `error.code` 로 알린다.
 
 **ack 에러 변환**: 재개 handler 4종(`execution.submit_form` / `click_button` / `submit_message` / `end_conversation`)은 발행 경로에서 던져진 에러를 공통 ack 빌더로 바꾼다. 변환은 에러 타입에 따라 둘로 갈린다. 클라이언트에 보여도 되는 표면과 내부 진단 정보를 나눈다.
 
@@ -284,6 +293,7 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 - 인스턴스 사이 fan-out 은 재개 큐가 맡는다. 이벤트 발행 방식과 분산 동작은 서로 관계가 없다. 옛 Redis pub/sub 채널 `execution:continuation` 은 폐기했다.
 - `ExecutionEventEmitter` 는 발행 호출 지점을 한데 모은 **같은 모양의 얇은 래퍼**다. 이 절이 금지하는 외부 이벤트 발행 추상화 인터페이스가 아니므로 단일 발행 정책의 예외가 아니다. 이 래퍼가 생긴 배경(엔진 클래스 분할)은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 의 Rationale 에 있다.
 - External Interaction API 의 EIA 알림 웹훅(Outbound Notification Webhook)과 외부 SSE 어댑터가 생긴 뒤에도 엔진 수준 단일 발행 정책은 유지한다. NotificationDispatcher 와 SSE 어댑터는 모두 엔진 밖 facade 층에 둔다. 엔진 코드는 외부 발행 대상의 종류를 알 필요가 없다. 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R10 이다.
+- SSE 어댑터는 2026-10-17 부터 받은 이벤트를 Redis 로 서버 인스턴스 사이에 나눈다(NERV Task `CLE-T-Z35F7P`, [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)). 이 fan-out 도 엔진 밖 facade 층 안의 일이라 엔진 코드와 단일 발행 정책은 바뀌지 않는다.
 - 외부 발행 대상(웹훅 콜백, 텔레메트리 export 등)이 실제로 더해지면 이 결정을 다시 검토한다.
 
 **순환 의존 처리**: 엔진의 DI 순환은 성격에 따라 두 표준 기법으로 푼다. 둘 다 NestJS 표준이며 회피용 안티패턴이 아니다.
@@ -346,8 +356,9 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 - `codebase/backend/src/modules/execution-engine/**` (엔진 전체. `execute`, `runExecutionFromQueue`, 동시 실행 제한 검사)
 - `codebase/backend/src/modules/execution-engine/queues/execution-run.queue.ts` (시작 큐와 우선순위, 작업 옵션)
 - `codebase/backend/src/modules/execution-engine/queues/execution-run.processor.ts` (시작 큐 소비자)
+- `codebase/backend/src/modules/execution-engine/queues/continuation-execution.queue.ts` (재개 큐 작업 옵션과 backoff 전략 이름 `continuation-exp4`)
 - `codebase/backend/src/modules/execution-engine/continuation/continuation-bus.service.ts` (재개 큐 발행)
-- `codebase/backend/src/modules/execution-engine/continuation/continuation-execution.processor.ts` (재개 큐 소비자)
+- `codebase/backend/src/modules/execution-engine/continuation/continuation-execution.processor.ts` (재개 큐 소비자. 워커 `settings.backoffStrategy` 가 재시도 간격을 계산한다)
 - `codebase/backend/src/modules/execution-engine/execution-limits.ts` (실행 시간 한도, 큐 대기 한도)
 - `codebase/backend/src/modules/websocket/websocket-events.types.ts` (이벤트 값·타입 선언 분리)
 
@@ -416,7 +427,7 @@ nodeId 불일치 행은 F-1 이 표면 불일치 행 앞에 더했다.
 
 - **C-1**: `cancelWaitingExecution` 은 원래 `void publish` 로 결과를 버렸다. 발행 실패가 호출자에게 닿지 않아 에러가 사라졌다. 다른 재개 메서드 4종은 이미 `ContinuationPublishResult` 를 돌려주므로 취소만 예외로 둘 근거가 없었다. 같은 방식으로 맞추고 REST `POST /executions/:id/stop` 의 입력 대기 취소 분기가 `queued:false` 를 알리게 했다.
   - HTTP 코드는 **503** 이다. Redis 의존성 장애는 상류를 쓸 수 없는 상태이므로 502(잘못된 게이트웨이 응답)가 아니라 503(일시적 불가, 재시도)이 맞다. `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)이 같은 503 선례를 만들었다.
-  - 취소는 WS ack 경로가 아니라 REST 중지 진입점이므로 새 코드 `EXECUTION_ENQUEUE_FAILED`(`EXECUTION_*` 이름공간)로 표기한다.
+  - 취소는 WS ack 경로가 아니라 REST 중지 진입점이므로 새 코드 `EXECUTION_ENQUEUE_FAILED`(`EXECUTION_*` 이름공간)로 표기한다. 이 코드는 처음에 REST 중지 진입점 전용이었다. 2026-10-09 에 EIA `/interact` 의 재개 명령과 취소로 넓어졌다(NERV Task `CLE-T-M6PERB`). 진입점별 표면은 [「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
   - "502 가 아니라 503" 판정은 **우리 의존성의 장애**에 한정된다. 외부 서드파티 API 호출 실패의 502 사용은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-23 이 정한다. 두 기준은 지금까지의 사례에서 모두 같은 결론을 낸다.
 - **M-7**: `nextSeq` 의 Redis INCR 이 실패하면 쓰던 `Math.random` seq 대체를 없애고 fail-fast(INCR throw → `publish` 바깥 catch → `null`/`queued:false`)로 바꿨다. 무작위 seq 는 "seq = 멱등 키" 와 단조성 계약을 어겨 jobId 중복 제거를 무력화한다. BullMQ 자체가 Redis 위에서 돌기 때문에 INCR 이 실패하는 장애라면 바로 뒤의 `queue.add` 도 실패할 가능성이 크다. 대체의 가용성 이득이 사실상 없다. 이벤트 순번(`exec:seq`)은 분산 단조성 미보장을 받아들여 in-memory 대체를 두지만 재개 seq 는 jobId 중복 제거 계약이 우선이라 일부러 **비대칭**으로 둔다.
 
@@ -427,6 +438,7 @@ nodeId 불일치 행은 F-1 이 표면 불일치 행 앞에 더했다.
 - **옛 서술**: rehydration 실패 3종(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)이 "WS ack 에 `resumed: false` + error 로 나간다" 고 적혀 있었다. 같은 문서의 사전 검증 절("`RESUME_*` 는 뒤따르는 `execution.cancelled` 이벤트이며 ack 동기 응답이 아니다")과 정면으로 모순이었다.
 - **맞는 경로**: 항상 큐에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md) 의 "실행 엔진: Redis 큐 + 분산 워커 풀" 결정) 이후 `RESUME_*` 는 enqueue 뒤 임의 워커가 처리하다 실패하는 **비동기** 종결이다. 재개 handler 4종은 enqueue 수락만 동기 ack(`resumed: true`/`queued`)로 돌려준다. 워커 쪽 실패는 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 알린다. 코드에서도 4종 handler 는 `RESUME_*` 에 대해 `resumed: false` 를 내지 않는다.
 - **정정**: rehydration 실패 설명을 사전 검증 절의 동기·비동기 분류에 맞췄다. 동기 ack 가 실패를 싣는 경우는 사전 검증(`INVALID_EXECUTION_STATE`)뿐이다. WebSocket 쪽 정정은 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 Rationale "`resumed` 의미 재정의" 에 있다. 코드는 바뀌지 않았다(spec 을 코드 동작에 맞췄다).
+- **2026-10-17 보강**: 위 정정의 «사전 검증뿐» 은 범위가 좁았다. 발행 경로의 에러(「ack 에러 변환」)와 큐 적재 실패도 동기 실패 ack 로 온다. 본문 「ack 의 뜻」 을 그에 맞게 고쳤다(NERV Task `CLE-T-EMB0YG`). `RESUME_*` 가 동기 ack 에 실리지 않는다는 결정은 그대로다.
 
 ### ack 에 내부 에러 메시지를 싣지 않는다 (2026-06-14 결정)
 
@@ -437,3 +449,27 @@ nodeId 불일치 행은 F-1 이 표면 불일치 행 앞에 더했다.
   3. **`ExecutionError` 전환 범위는 경계만**: `ExecutionError` 추상 기반을 도입한 뒤 클라이언트 경계에 닿는 throw 만 typed 로 바꾼다. 안쪽 깊은 `Error` 는 ack 경계에서 일반 대체로 처리한다. 전수 전환(약 15곳)은 크고 가치가 낮으며(다수가 클라이언트에 닿지 않는다) 회귀 위험이 있어 기각했다.
   4. **ack 변환**: typed `ExecutionError` 는 `error.message`(고정 client-safe) + `error.code` 로 바꾼다. 그 밖의 `Error` 는 고정 일반 문구 + `EXECUTION_INTERNAL_ERROR` 로 바꾸고 내부 `error.message` 를 싣지 않는다(서버 로그 전용). 이것이 누출 차단의 보안 관문이다.
 - **선례와 맞춤**: `InvalidExecutionStateError`, `RetryLastTurnError`, `ExecutionTimeLimitError` 는 이미 "고정 client-safe message + 서버 전용 detail" 형태다. `ExecutionError` 기반으로 차례로 옮긴다(code 와 동작 유지). 워커 쪽 `RESUME_*`(`execution.cancelled` 이벤트)는 다른 경로라 이 변경 범위 밖이다. 같은 원칙을 적용할지는 후속 점검이다.
+
+### 재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다 (2026-10-17)
+
+이 문서는 재개 큐의 재시도 간격을 «exponential backoff(1초 / 4초 / 16초)» 로 적었다. 코드는 BullMQ 내장 `exponential` 전략에 `delay: 1000` 을 주었다. 내장 전략은 간격을 2배씩 늘리므로 실제 간격은 1초 · 2초였다. 코드 주석에는 4배가 적혀 있었다. NERV Task `CLE-T-6YY7KY` 의 다의어 표 작업에서 이 차이가 드러났다. 사람 결정으로 코드를 문서의 의도에 맞췄다.
+
+- 재개 큐는 사용자 정의 backoff 전략 `continuation-exp4` 를 쓴다. 간격은 1초에서 4배씩 늘어나고 상한은 없다.
+- 기본 시도 횟수 3회면 재시도 간격은 1초 · 4초다. 재시도 대기의 합은 3초에서 5초로 늘어난다.
+- 옛 서술의 16초는 시도 횟수를 4 이상으로 올렸을 때의 셋째 간격이다. 기본값에서는 나오지 않으므로 계약 표에서 뺐다.
+
+기각한 대안은 세 가지다.
+
+- 문서를 1초 · 2초로 고치는 안. 문서와 코드 주석이 모두 4배를 적었으므로 4배가 의도한 값이다.
+- 내장 `exponential` 의 `delay` 만 바꾸는 안. 내장 전략의 배수는 2로 고정돼 있어 4배를 만들 수 없다.
+- EIA 알림 웹훅의 `exp-base4` 전략을 그대로 쓰는 안. 알림 재시도 간격에는 1시간 상한이 있고 재개 큐에는 상한이 없다([EIA 알림 웹훅 「재시도와 실패 처리」](../CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리)). 이름을 나눠 두 동작을 구분한다. 코드에서 두 전략이 계산 함수를 함께 쓰는 것은 허용한다.
+
+### 진입점마다 큐 적재 실패를 다르게 알린다 (2026-10-17)
+
+NERV Task `CLE-T-EMB0YG` 와 `CLE-T-EQDYC1` 에서 정리했다. 재개 메시지를 큐에 넣지 못하면(`queued:false`) 진입점마다 다른 응답이 나간다. 목록은 「발행 결과와 ack 에러 표면」 의 표에 있다.
+
+- **WebSocket**: 이 문서는 한때 «WebSocket 재개 handler 4종은 `queued:false` 를 ack 에 싣는다» 고 적었다. 코드는 성공 ack 에 `queued:false` 를 싣지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞췄다. ack 는 서버에 저장되지 않으므로 클라이언트는 실패를 보고 같은 명령을 다시 보내면 된다.
+- **EIA `/interact`**: 503 `EXECUTION_ENQUEUE_FAILED` 를 쓴다(2026-10-09, NERV Task `CLE-T-M6PERB`). EIA 는 `202` 응답을 멱등 캐시에 넣는다. 실패를 `202` 로 알리면 같은 키로 다시 보낸 요청도 그 실패를 돌려받는다. 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](../CLE-IX/CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+- **채팅 채널**: 인바운드는 `202` 고정 정책을 따른다(NERV Task `CLE-T-EQDYC1` 의 사람 결정). 그전에는 `/cancel` 이 `stop` 의 503 을 프로바이더에 그대로 돌려줬다. 이제 `/cancel` 과 진행 중인 대화의 입력은 `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. `/start` 의 기존 실행 취소 실패만 503 이다. 근거는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 에 있다.
+
+기각한 대안은 모든 진입점의 응답을 한 모양으로 맞추는 안이다. WebSocket ack 에는 HTTP 상태가 없다. 채팅 채널은 non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 그래서 진입점마다 전송 방식의 제약에 맞는 표면을 고른다.
