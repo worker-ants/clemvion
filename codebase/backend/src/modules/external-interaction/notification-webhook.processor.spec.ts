@@ -1,7 +1,10 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
-import { NotificationWebhookProcessor } from './notification-webhook.processor';
+import {
+  NotificationWebhookProcessor,
+  REDIRECT_NOT_FOLLOWED_HINT,
+} from './notification-webhook.processor';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import {
   Execution,
@@ -612,12 +615,15 @@ describe('NotificationWebhookProcessor.process', () => {
       );
     });
 
+    // 300 · 399 는 3xx 범위의 양 끝이다. 경계가 한 칸 어긋나면(예: `> 300`, `<= 399`) 여기서 걸린다.
     it.each([
+      [300, 'Multiple Choices'],
       [301, 'Moved Permanently'],
       [302, 'Found'],
       [303, 'See Other'],
       [307, 'Temporary Redirect'],
       [308, 'Permanent Redirect'],
+      [399, 'Unassigned'],
     ])(
       'HTTP %d — 한 번만 보내고 실패로 던진다. 마지막 시도가 아니면 건강도를 바꾸지 않는다',
       async (status, statusText) => {
@@ -637,7 +643,11 @@ describe('NotificationWebhookProcessor.process', () => {
               { attempts: 5, attemptsMade: 1 },
             ),
           ),
-        ).rejects.toThrow(new RegExp(`HTTP ${status}`));
+        ).rejects.toThrow(
+          new Error(
+            `HTTP ${status} ${statusText}. ${REDIRECT_NOT_FOLLOWED_HINT}`,
+          ),
+        );
         expect(fetchSpy).toHaveBeenCalledTimes(1);
         expect(triggerRepo.update).not.toHaveBeenCalled();
       },
@@ -657,15 +667,13 @@ describe('NotificationWebhookProcessor.process', () => {
       ).rejects.toThrow(/HTTP 302/);
       expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
         notificationHealth: 'degraded',
-        notificationLastError: expect.stringMatching(
-          /^HTTP 302 Found\. Redirects are not followed\./,
-        ),
+        notificationLastError: `HTTP 302 Found. ${REDIRECT_NOT_FOLLOWED_HINT}`,
       });
     });
 
-    it('3xx 가 아닌 실패에는 리다이렉트 안내를 붙이지 않는다', async () => {
+    it('statusText 가 비어 있으면 상태 코드와 안내 사이에 공백이 남지 않는다', async () => {
       triggerRepo.findOne.mockResolvedValue(makeTrigger());
-      fetchSpy.mockResolvedValue({ status: 404, statusText: 'Not Found' });
+      fetchSpy.mockResolvedValue({ status: 308, statusText: '' });
 
       await expect(
         processor.process(
@@ -674,10 +682,54 @@ describe('NotificationWebhookProcessor.process', () => {
             { attempts: 1, attemptsMade: 0 },
           ),
         ),
-      ).rejects.toThrow(/HTTP 404/);
+      ).rejects.toThrow(new Error(`HTTP 308. ${REDIRECT_NOT_FOLLOWED_HINT}`));
       expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
         notificationHealth: 'degraded',
-        notificationLastError: 'HTTP 404 Not Found',
+        notificationLastError: `HTTP 308. ${REDIRECT_NOT_FOLLOWED_HINT}`,
+      });
+    });
+
+    // 3xx 바로 위인 400 과 대표적인 404 · 500 이다. 이 값들에는 안내를 붙이지 않는다.
+    it.each([
+      [400, 'Bad Request'],
+      [404, 'Not Found'],
+      [500, 'Internal Server Error'],
+    ])(
+      'HTTP %d — 3xx 가 아닌 실패에는 리다이렉트 안내를 붙이지 않는다',
+      async (status, statusText) => {
+        triggerRepo.findOne.mockResolvedValue(makeTrigger());
+        fetchSpy.mockResolvedValue({ status, statusText });
+
+        await expect(
+          processor.process(
+            makeJob(
+              { eventType: 'execution.completed' },
+              { attempts: 1, attemptsMade: 0 },
+            ),
+          ),
+        ).rejects.toThrow(new Error(`HTTP ${status} ${statusText}`));
+        expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+          notificationHealth: 'degraded',
+          notificationLastError: `HTTP ${status} ${statusText}`,
+        });
+      },
+    );
+
+    it('3xx 가 아닌 실패도 statusText 가 비어 있으면 끝에 공백이 남지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      fetchSpy.mockResolvedValue({ status: 500, statusText: '' });
+
+      await expect(
+        processor.process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 1, attemptsMade: 0 },
+          ),
+        ),
+      ).rejects.toThrow(new Error('HTTP 500'));
+      expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+        notificationHealth: 'degraded',
+        notificationLastError: 'HTTP 500',
       });
     });
 

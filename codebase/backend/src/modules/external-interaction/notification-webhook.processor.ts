@@ -33,8 +33,11 @@ const STALE_ELIGIBLE_EVENTS = new Set<string>([
   'execution.ai_message',
 ]);
 const LAST_ERROR_MAX_LENGTH = 500;
-/** 3xx 실패의 `notification_last_error` 에 붙이는 안내. 발송은 리다이렉트를 따라가지 않는다. */
-const REDIRECT_NOT_FOLLOWED_HINT =
+/**
+ * 3xx 실패의 `notification_last_error` 에 붙이는 안내. 발송은 리다이렉트를 따라가지 않는다.
+ * 영문 원문이다(CLE-UI-I18N 규칙 3). 단위 시험과 e2e 가 이 상수를 import 해 단언한다.
+ */
+export const REDIRECT_NOT_FOLLOWED_HINT =
   'Redirects are not followed. Register the final URL as the notification URL.';
 
 function isRedirectStatus(status: number): boolean {
