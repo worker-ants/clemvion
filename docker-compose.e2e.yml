@@ -181,6 +181,9 @@ services:
       # 반드시 일치해야 한다(불일치 시 origin/rpIdHash 검증 실패).
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_ORIGIN: http://localhost:3012
+      # 알림 웹훅 리다이렉트 e2e(notification-webhook-redirect.e2e-spec.ts)가 러너의 http 수신 서버로 보내게 한다.
+      # 개발 환경 전용 플래그다(CLE-EIA-NOTIFY 「SSRF 방지」). 운영에는 두지 않는다.
+      ALLOW_HTTP_HOOKS: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -213,6 +216,10 @@ services:
       target: deps
     working_dir: /app/codebase/backend
     command: ["pnpm", "run", "test:e2e"]
+    # backend-e2e 가 이 러너에 띄운 수신 서버로 알림 웹훅을 보낼 때 쓰는 이름(notification-webhook-redirect.e2e-spec.ts).
+    # Docker 내장 DNS 가 컨테이너 hostname 을 푼다. 기본 hostname 인 짧은 컨테이너 ID 는 숫자로만 되면 URL 에서
+    # IPv4 로 읽혀 쓸 수 없어서 이름을 정해 둔다.
+    hostname: backend-e2e-runner
     environment:
       E2E_BASE_URL: http://backend-e2e:3011
       DB_HOST: postgres

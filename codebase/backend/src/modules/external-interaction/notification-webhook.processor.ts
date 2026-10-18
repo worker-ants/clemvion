@@ -33,6 +33,16 @@ const STALE_ELIGIBLE_EVENTS = new Set<string>([
   'execution.ai_message',
 ]);
 const LAST_ERROR_MAX_LENGTH = 500;
+/**
+ * 3xx 실패의 `notification_last_error` 에 붙이는 안내. 발송은 리다이렉트를 따라가지 않는다.
+ * 영문 원문이다(CLE-UI-I18N 규칙 3). 단위 시험과 e2e 가 이 상수를 import 해 단언한다.
+ */
+export const REDIRECT_NOT_FOLLOWED_HINT =
+  'Redirects are not followed. Register the final URL as the notification URL.';
+
+function isRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
+}
 
 /**
  * Trigger.config.notification 의 런타임 shape. DTO 와 별도 타입 — 큐 페이로드를 통해 들어오는
@@ -52,7 +62,7 @@ function truncate(msg: string, max: number): string {
  * [Spec EIA §6 / §R10] — Outbound notification 의 BullMQ worker.
  *
  * 책임: Trigger config 로 url/secret/algorithm 조회 → stale 차단 검사 → HMAC 서명 →
- * HTTP POST (10s timeout) → 결과에 따라 health 갱신.
+ * HTTP POST (10s timeout, 리다이렉트는 따라가지 않고 3xx 를 실패로 본다) → 결과에 따라 health 갱신.
  *
  * BullMQ 가 attempts/backoff 로 재시도를 자동 관리한다. 본 process() 가 throw 하면 BullMQ 가
  * base-4 custom backoff 로 재시도 (총 시도 default 5회, 재시도 간격은 1s·4s·16s·64s 처럼 총 시도 횟수보다
@@ -257,6 +267,11 @@ export class NotificationWebhookProcessor extends WorkerHost {
     try {
       res = await fetch(url, {
         method: 'POST',
+        // 리다이렉트를 따라가지 않는다. 위 SSRF · DNS rebinding 검사는 등록 URL 의 호스트만 본다. 따라가면 공개 호스트가
+        // 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 그 검사를 지나고, 307 · 308 이면 서명한 본문까지 그리로 간다.
+        // 3xx 는 2xx 가 아니므로 아래에서 다른 실패와 같이 재시도하고 마지막 시도면 degraded 로 둔다(NERV Task `CLE-T-ZGYXSZ`).
+        // 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리)
+        redirect: 'manual',
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
@@ -300,7 +315,13 @@ export class NotificationWebhookProcessor extends WorkerHost {
       return;
     }
 
-    const errMsg = `HTTP ${res.status} ${res.statusText}`;
+    // statusText 는 HTTP/2 응답처럼 비어 있을 수 있다. 비면 공백 없이 `HTTP <status>` 로 둔다.
+    const baseMsg = res.statusText
+      ? `HTTP ${res.status} ${res.statusText}`
+      : `HTTP ${res.status}`;
+    const errMsg = isRedirectStatus(res.status)
+      ? `${baseMsg}. ${REDIRECT_NOT_FOLLOWED_HINT}`
+      : baseMsg;
     await this.maybeMarkDegradedOnFinalAttempt(job, triggerId, errMsg);
     // BullMQ 재시도를 트리거하기 위해 throw.
     throw new Error(errMsg);
