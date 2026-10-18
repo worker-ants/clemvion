@@ -44,6 +44,7 @@ vi.mock("sonner", () => ({
 import { RegisterForm } from "../register-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { stubLocationHref } from "@/test/stub-location-href";
+import { REGISTERED_EMAIL_CHECK_TIMEOUT_MS } from "@/lib/auth/registered-email";
 
 const VALID_TOKEN = "a".repeat(64);
 
@@ -242,8 +243,9 @@ describe("RegisterForm — invitation token flow", () => {
 });
 
 /**
- * CLE-ACCT-WS 「초대 가입 화면」 선택지 (a) — 초대 토큰의 이메일이 이미 가입돼 있으면 로그인으로 보내고
- * 로그인 뒤 초대 수락 페이지로 돌아오게 한다. 가입 여부는 메타 조회가 성공한 뒤에만 묻는다.
+ * CLE-ACCT-WS 「초대 가입 화면」 2~4단계 — 초대 토큰의 이메일이 이미 가입돼 있으면 로그인으로 보내고
+ * 로그인 뒤 초대 수락 페이지로 돌아오게 한다. 가입 여부는 메타 조회가 성공한 뒤에만 묻는다. 근거는 같은
+ * 문서 Rationale 「로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다」 다.
  */
 describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
   const TOKEN = "tok+/=1";
@@ -356,9 +358,8 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
       await waitFor(() => expect(mockCheckEmail).toHaveBeenCalled());
       const timeout = (mockCheckEmail.mock.calls[0][1] as { timeout: number })
         .timeout;
-      // 짧은 시간 제한이 이 호출에 걸려 있다.
-      expect(timeout).toBeGreaterThan(0);
-      expect(timeout).toBeLessThanOrEqual(10_000);
+      // 가입 여부 확인의 시간 제한이 이 호출에 걸려 있다.
+      expect(timeout).toBe(REGISTERED_EMAIL_CHECK_TIMEOUT_MS);
 
       // 시간 제한 전에는 아직 확인 중이라 제출할 수 없다.
       const submit = screen.getByRole("button", { name: /계정 만들기/ });

@@ -10,6 +10,9 @@ export const REGISTERED_EMAIL_CHECK_TIMEOUT_MS = 5_000;
 /**
  * 초대 토큰의 이메일이 이미 가입돼 있는지 공개 `check-email` 로 묻는다. 확인하지 못하면(429 · 네트워크 ·
  * 시간 초과) 가입되지 않은 것으로 보고 가입 폼을 띄운다. 그 경우 제출이 409 로 끝나면 그때 로그인으로 보낸다.
+ *
+ * 서버는 이메일을 대소문자까지 그대로 비교한다. 초대 이메일과 계정 이메일의 대소문자가 다르면 가입되지 않은
+ * 것으로 나온다(NERV Task CLE-T-SFWX84).
  */
 export async function isRegisteredEmail(email: string): Promise<boolean> {
   try {

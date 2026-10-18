@@ -79,7 +79,7 @@ describe("CallbackContent (decision A — refresh-cookie reuse)", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  // REQ-SESSION-038 — OAuth 는 `?redirect=` 를 들고 갈 수 없어 로그인 화면이 sessionStorage 에 남긴다.
+  // REQ-SESSION-045 — OAuth 는 `?redirect=` 를 들고 갈 수 없어 로그인 화면이 sessionStorage 에 남긴다.
   it("routes to the stored post-login path and clears it", async () => {
     window.sessionStorage.setItem(REDIRECT_KEY, "/invitations/accept?token=abc");
     refreshAccessToken.mockResolvedValue("new-access-token");

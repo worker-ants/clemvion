@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 /**
  * e2e: 초대 토큰 가입 페이지 (NAV-UP-05 / spec/2-navigation/10-auth-flow.md §2.6).
  *
- * backend 호출(`GET /api/invitations/:token`, `POST /api/auth/register`)을
+ * backend 호출(`GET /api/invitations/:token`, `POST /api/auth/check-email`, `POST /api/auth/register`)을
  * page.route 로 mock 한다 — backend 의 실제 흐름은 `codebase/backend/test/app.e2e-spec.ts`
  * 가 보장하고, 본 spec 은 "프론트엔드가 응답을 받아서 UI 분기를 제대로 하는가"
  * 만 검증한다.
@@ -30,6 +30,15 @@ test.describe("Register page — invitation token flow", () => {
         }),
       });
     });
+
+    // 가입 화면은 메타 조회 뒤 가입 여부를 묻는다. 미가입 이메일로 두어 가입 폼을 띄운다.
+    await page.route("**/api/auth/check-email", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { available: true } }),
+      }),
+    );
 
     await page.goto(`/register?invitationToken=${VALID_TOKEN}`);
 
@@ -64,6 +73,15 @@ test.describe("Register page — invitation token flow", () => {
         }),
       });
     });
+
+    // 가입 화면은 메타 조회 뒤 가입 여부를 묻는다. 미가입 이메일로 두어 가입 폼을 띄운다.
+    await page.route("**/api/auth/check-email", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { available: true } }),
+      }),
+    );
 
     await page.goto(`/auth/register?invitationToken=${VALID_TOKEN}`);
 

@@ -6,6 +6,8 @@ import { ACCESS, PAGE_READY_TIMEOUT, USER, WORKSPACE, mockAuth } from "../helper
  *
  * - [세션과 토큰](CLE-ACCT-SESSION) REQ-SESSION-035 · 038 — 보호 경로는 경로와 쿼리를 `redirect` 에 담아
  *   로그인 화면으로 보내고, 로그인에 성공하면 그 경로로 돌아온다(CLE-T-7WZKFB).
+ * - [세션과 토큰](CLE-ACCT-SESSION) REQ-SESSION-045 「소셜 로그인의 복귀 경로」 — 소셜 로그인 콜백은
+ *   로그인 화면이 sessionStorage 에 둔 경로를 한 번 꺼내 지우고 그 경로로 돌아온다.
  * - [워크스페이스와 멤버](CLE-ACCT-WS) 「초대 가입 화면」 — 로그인하지 않은 기존 가입자가 초대 가입
  *   링크를 열면 로그인 화면으로 가고, 로그인 뒤 초대 수락 페이지에서 수락한다(CLE-T-YZ9VEX).
  *

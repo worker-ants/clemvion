@@ -79,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Only redirect if current path is not already a public auth route
         if (!pathname.startsWith("/login")) {
           // 쿼리까지 담아야 로그인 뒤 원래 화면이 같은 값으로 열린다(예: 초대 수락 페이지의 `?token=`).
+          // 안전한 같은 출처 경로가 아니면 `/dashboard` 로 바꿔 담는다.
           router.replace(
             buildLoginHref(
               resolvePostLoginRedirect(pathname + window.location.search),

@@ -1,7 +1,9 @@
 import { isSafeInternalPath } from "@/lib/workspace/safe-path";
 
 // 근거:
-//   - [세션과 토큰 「공개 경로와 가드」](CLE-ACCT-SESSION#공개-경로와-가드) REQ-SESSION-035 · 038
+//   - [세션과 토큰 「공개 경로와 가드」](CLE-ACCT-SESSION#공개-경로와-가드) REQ-SESSION-035 · 036
+//   - [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION#로그인-뒤-이동) REQ-SESSION-038
+//   - [세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION#소셜-로그인의-복귀-경로) REQ-SESSION-045
 //   - [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS#초대-가입-화면)
 
 /** 로그인 뒤 돌아갈 곳이 없거나 안전하지 않을 때 가는 경로. */
@@ -69,7 +71,10 @@ export function rememberOauthRedirect(target: string | null): void {
   }
 }
 
-/** OAuth 콜백에서 저장한 경로를 한 번 꺼내 지운다. 꺼낸 값도 다시 검사한다. */
+/**
+ * OAuth 콜백에서 저장한 경로를 한 번 꺼내 지운다. 꺼낸 값도 다시 검사한다. 두 번째 호출은 `/dashboard` 를
+ * 돌려주므로 콜백 한 번에 한 번만 부른다.
+ */
 export function consumeOauthRedirect(): string {
   let raw: string | null = null;
   try {

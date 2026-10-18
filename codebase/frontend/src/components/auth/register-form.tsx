@@ -122,14 +122,15 @@ function RegisterFormInner({
   useEffect(() => {
     // 이미 로그인한 사용자가 초대 링크(/register?invitationToken=…)로 온 경우 —
     // register 폼은 미가입자 가입 경로이므로, §1.5.3 수락 확인 페이지로 보낸다
-    // (V-09 진입 경로). 미로그인 사용자만 아래 가입 폼을 사용한다.
+    // (V-09 진입 경로). 아래 가입 폼은 로그인하지 않은 미가입자(와 가입 여부를 확인하지
+    // 못한 기존 가입자)가 쓴다.
     //
     // (auth) 라우트 그룹에는 AuthProvider 가 없어 useAuthStore 세션이 하이드레이트
     // 되지 않는다 — 메일 링크→새 탭 진입 시 `isAuthenticated` 는 항상 false 라
     // store 로는 기존 로그인을 감지할 수 없다. 대신 proxy.ts 가 라우팅 판단에 쓰는
     // `has_session` 힌트 쿠키(로그인 시 auth-store 가 심고 로그아웃 시 지움)로
     // 브라우저에 남은 세션을 감지한다. 힌트가 stale(쿠키만 남고 refresh 만료)이면
-    // accept 페이지의 AuthProvider 가 정상적으로 /login 으로 되돌린다.
+    // accept 페이지의 AuthProvider 가 수락 페이지로 돌아오는 `/login?redirect=…` 로 되돌린다.
     if (invitationToken && hasSessionHint()) {
       router.replace(invitationAcceptPath(invitationToken));
     }
@@ -145,7 +146,8 @@ function RegisterFormInner({
       try {
         const meta = await invitationsApi.getByToken(invitationToken);
         if (cancelled) return;
-        // 로그인하지 않은 기존 가입자는 가입 대신 로그인 뒤 수락 페이지로 간다(CLE-ACCT-WS 선택지 (a)).
+        // 로그인하지 않은 기존 가입자는 가입 대신 로그인 뒤 수락 페이지로 간다(CLE-ACCT-WS 「초대 가입 화면」
+        // 2~4단계. 근거는 같은 문서 Rationale 「로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다」).
         // 가입 여부는 토큰 메타 조회가 성공한 뒤에만 묻는다. 세션이 있으면 위 effect 가 수락 페이지로
         // 보내므로 묻지 않는다.
         if (!hasSessionHint() && (await isRegisteredEmail(meta.email))) {
