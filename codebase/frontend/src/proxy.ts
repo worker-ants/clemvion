@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { SESSION_HINT_COOKIE } from "@/lib/auth/session-hint";
 
 const publicPaths = [
   "/login",
@@ -46,7 +47,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Check for session hint cookie (set by frontend JS on login, works cross-domain)
-  const hasSession = request.cookies.get("has_session");
+  const hasSession = request.cookies.get(SESSION_HINT_COOKIE);
   if (!hasSession) {
     const loginUrl = new URL("/login", request.url);
     // 쿼리까지 담아야 로그인 뒤 원래 화면이 같은 값으로 열린다(예: 초대 수락 페이지의 `?token=`).
