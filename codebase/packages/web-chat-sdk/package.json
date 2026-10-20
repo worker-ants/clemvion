@@ -24,8 +24,8 @@
     "globals": "^17.13.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
-    "ts-jest": "^29.4.14",
-    "typescript-eslint": "^8.71.0",
+    "ts-jest": "^29.4.15",
+    "typescript-eslint": "^8.71.2",
     "@workflow/sdk": "workspace:*"
   },
   "engines": {
