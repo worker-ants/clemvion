@@ -536,7 +536,7 @@ describe("useExecutionInteractionCommands", () => {
       });
     });
 
-    // CLE-API-WS-EVENTS §2.4 — retry 실패 ack 는 재개 명령 넷의 평면 `error: string` 과 달리
+    // CLE-API-WS-EVENTS 「마지막 턴 재시도」 — retry 실패 ack 는 재개 명령 넷의 평면 `error: string` 과 달리
     // 중첩 `error: { code, message }` 다. 이 객체가 토스트에 그대로 넘어가면 sonner 가
     // React 자식으로 렌더하다 "Objects are not valid as a React child" 로 깨진다(CLE-T-4BJ3KR).
     function failRetryLastTurn(ack: Record<string, unknown>) {
@@ -567,12 +567,12 @@ describe("useExecutionInteractionCommands", () => {
       return toastErrorMock.mock.calls[0][0];
     }
 
-    // §2.4 표의 코드 일곱 개. 백엔드 message 는 게이트웨이(`handleRetryLastTurn`)와
+    // 마지막 턴 재시도 표의 코드 전부. 백엔드 message 는 게이트웨이(`handleRetryLastTurn`)와
     // `RetryLastTurnError` 의 고정 문자열이다.
     it.each([
       ["UNAUTHENTICATED", "Not authenticated", "systemErrorRetryFailedUnauthenticated"],
       ["NOT_FOUND", "Execution not found", "systemErrorRetryFailedExecutionNotFound"],
-      ["RETRY_STATE_NOT_FOUND", "Retry state not found or expired.", "systemErrorRetryFailedNotFound"],
+      ["RETRY_STATE_NOT_FOUND", "Retry state not found or expired.", "systemErrorRetryFailedStateExpired"],
       ["NODE_NOT_RETRYABLE", "This node cannot be retried.", "systemErrorRetryFailedNodeNotRetryable"],
       ["RETRY_TOO_EARLY", "Retry requested before the retry-after window elapsed.", "systemErrorRetryFailedTooEarly"],
       // InvalidExecutionStateError 의 고정 message 는 재개 명령용 문장이라 재시도에는 맞지 않는다.

@@ -252,7 +252,7 @@ export const editor: Dict["editor"] = {
     systemErrorNonRetryable: "Not retryable",
     // retry_last_turn failure ack error.code → toast (execution-error-codes.ts).
     systemErrorRetryFailed: "Retry failed.",
-    systemErrorRetryFailedNotFound:
+    systemErrorRetryFailedStateExpired:
       "This retry attempt has expired or was already used.",
     systemErrorRetryFailedNodeNotRetryable: "This error cannot be retried.",
     systemErrorRetryFailedTooEarly: "Please wait before retrying.",
@@ -263,7 +263,7 @@ export const editor: Dict["editor"] = {
     systemErrorRetryFailedInvalidState:
       "This execution can't be retried right now. Please refresh the page.",
     systemErrorRetryFailedInternal:
-      "The retry couldn't be started. If it fails again, run the workflow again.",
+      "The retry couldn't be started. Please run the workflow again.",
   },
   expression: {
     insertVariable: "Insert variable",

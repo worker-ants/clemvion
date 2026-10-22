@@ -24,7 +24,7 @@ export const EXECUTION_INTERACTION_ERROR_CODE_TO_I18N: Readonly<
 
 /**
  * 마지막 턴 재시도(`execution.retry_last_turn`) 실패 ack 의 중첩 `error.code` →
- * i18n 키 (CLE-API-WS-EVENTS §2.4 표의 코드 일곱 개).
+ * i18n 키 (`CLE-API-WS-EVENTS` 「마지막 턴 재시도」 표의 코드).
  *
  * 재개 명령 넷의 맵과 따로 둔다. 코드 출처가 셋(`WsErrorCode` · `ErrorCode` 의
  * `RETRY_*` · `InvalidExecutionStateError`)이고, 같은 `INVALID_EXECUTION_STATE` 라도
@@ -37,12 +37,13 @@ export const RETRY_LAST_TURN_ERROR_CODE_TO_I18N: Readonly<
 > = {
   UNAUTHENTICATED: "editor.conversation.systemErrorRetryFailedUnauthenticated",
   NOT_FOUND: "editor.conversation.systemErrorRetryFailedExecutionNotFound",
-  RETRY_STATE_NOT_FOUND: "editor.conversation.systemErrorRetryFailedNotFound",
+  RETRY_STATE_NOT_FOUND: "editor.conversation.systemErrorRetryFailedStateExpired",
   NODE_NOT_RETRYABLE: "editor.conversation.systemErrorRetryFailedNodeNotRetryable",
   RETRY_TOO_EARLY: "editor.conversation.systemErrorRetryFailedTooEarly",
   INVALID_EXECUTION_STATE: "editor.conversation.systemErrorRetryFailedInvalidState",
-  // 큐 적재 실패 · typed 가 아닌 예외. `_retryState` 가 이미 소비됐을 수 있어
-  // "잠시 후 다시" 만 안내하지 않는다(§2.4 `INTERNAL_ERROR` 행).
+  // 큐 적재 실패 · typed 가 아닌 예외. `_retryState` 는 이미 소비됐으므로 같은 명령을
+  // 다시 보내면 `RETRY_STATE_NOT_FOUND` 가 온다. 다시 누르라고 안내하지 않고 워크플로우
+  // 재실행을 안내한다(`CLE-API-WS-EVENTS` 「마지막 턴 재시도」 `INTERNAL_ERROR` 행).
   INTERNAL_ERROR: "editor.conversation.systemErrorRetryFailedInternal",
 };
 

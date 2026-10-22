@@ -37,20 +37,20 @@ function isUserInitiatedTurn(
 
 /**
  * 재개 명령 넷(`submit_form` · `click_button` · `submit_message` · `end_conversation`)의
- * ack (CLE-API-WS-EVENTS §2.3). 실패하면 평면 `error` 문자열과 `errorCode` 를 싣는다.
+ * ack (`CLE-API-WS-EVENTS` 「재개 명령의 에러」). 실패하면 평면 `error` 문자열과 `errorCode` 를 싣는다.
  */
 export interface ContinuationAck {
   success: boolean;
   error?: string;
   /**
-   * 평면 client-safe 에러 코드 (4종 continuation 명령, spec §7.5.2). frontend 가
+   * 평면 client-safe 에러 코드 (4종 continuation 명령, `CLE-API-WS-EVENTS` 「재개 명령의 에러」). frontend 가
    * `execution-error-codes` 맵으로 localize 한다. retry 의 nested `error:{code}` 와 별개.
    */
   errorCode?: string;
 }
 
 /**
- * 마지막 턴 재시도(`retry_last_turn`)의 ack (CLE-API-WS-EVENTS §2.4). 실패하면 재개
+ * 마지막 턴 재시도(`retry_last_turn`)의 ack (`CLE-API-WS-EVENTS` 「마지막 턴 재시도」). 실패하면 재개
  * 명령 넷과 달리 중첩 `error: { code, message }` 를 싣는다.
  *
  * 두 ack 를 한 타입(`error?: string`)으로 두었을 때 이 객체가 `toast.error` 에 그대로
@@ -76,7 +76,7 @@ interface AckByEvent {
 }
 
 /**
- * continuation ack 의 (error, errorCode) 를 localized 메시지로 변환한다 (spec §7.5.2).
+ * continuation ack 의 (error, errorCode) 를 localized 메시지로 변환한다 (`CLE-API-WS-EVENTS` 「재개 명령의 에러」).
  * 매핑된 code 면 localized i18n 메시지, 아니면 backend 의 영문 `error` 문자열로 fallback.
  * backend 는 typed error → 고정 client-safe message, plain error → generic fallback 만
  * 보내므로 `error` 문자열 자체에 내부 정보 누출은 없다.
@@ -90,7 +90,7 @@ function localizeContinuationAckError(
 }
 
 /**
- * `retry_last_turn` 실패 ack 의 중첩 `error` 를 토스트 문구로 바꾼다 (CLE-API-WS-EVENTS §2.4).
+ * `retry_last_turn` 실패 ack 의 중첩 `error` 를 토스트 문구로 바꾼다 (`CLE-API-WS-EVENTS` 「마지막 턴 재시도」).
  * 매핑된 `code` 면 지역화 문구, 아니면 백엔드의 영문 `message`, 그것도 없으면 일반
  * 실패 문구다. ack 는 소켓에서 온 값이라 선언 타입과 다를 수 있어 `message` 는
  * 문자열일 때만 쓴다. 어느 경로든 문자열을 돌려줘 토스트에 객체가 넘어가지 않는다.
@@ -141,7 +141,7 @@ export interface ExecutionInteractionCommands {
    * 2. `setWaitingAiResponse(true)` — AI 응답 인디케이터 활성. ack 실패 시
    *    `setWaitingAiResponse(false)` 로 해제 (spinner 만 해제, optimistic turn 유지).
    * 3. WS emit `execution.submit_form` → ack event `execution.form_submitted`.
-   *    ack 실패 시 `toast.error(error)` 표시.
+   *    ack 실패 시 `localizeContinuationAckError` 로 지역화한 문구를 `toast.error` 로 표시.
    */
   submitForm: (formData: Record<string, unknown>) => void;
   /** Click a specific port-type button in a waiting buttons node. */
@@ -156,14 +156,15 @@ export interface ExecutionInteractionCommands {
    * Re-enter a multi-turn AI Agent node that ended with retryable error by
    * spawning a new NodeExecution row from the persisted `_retryState`.
    *
-   * SoT: CLE-API-WS-EVENTS §2.4 + CLE-EXEC-PREVIEW CT-S11.
+   * SoT: `CLE-API-WS-EVENTS` 「마지막 턴 재시도」 + CLE-EXEC-PREVIEW CT-S11.
    *
    * Distinct from workflow Re-run (§13 replay-rerun) — this stays inside
    * the same Execution and only re-attempts the last failed LLM turn.
    *
-   * On failure the ack carries a nested `error: { code, message }`; the
-   * seven §2.4 codes map to localized toasts, an unmapped code falls back to
-   * the backend `message`, then to a generic "retry failed" string.
+   * On failure the ack carries a nested `error: { code, message }`. The codes
+   * in the `CLE-API-WS-EVENTS` retry table map to localized toasts, an unmapped
+   * code falls back to the backend `message`, then to a generic "retry failed"
+   * string.
    */
   retryLastTurn: (nodeExecutionId: string) => void;
 }

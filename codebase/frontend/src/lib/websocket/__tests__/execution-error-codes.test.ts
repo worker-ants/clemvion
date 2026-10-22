@@ -40,12 +40,12 @@ describe("getExecutionInteractionErrorI18nKey (§7.5.2)", () => {
   });
 });
 
-describe("getRetryLastTurnErrorI18nKey (CLE-API-WS-EVENTS §2.4)", () => {
-  it("§2.4 표의 코드 일곱 개를 모두 재시도 실패 문구로 매핑한다", () => {
+describe("getRetryLastTurnErrorI18nKey (CLE-API-WS-EVENTS 「마지막 턴 재시도」)", () => {
+  it("마지막 턴 재시도 표의 코드를 모두 재시도 실패 문구로 매핑한다", () => {
     expect(RETRY_LAST_TURN_ERROR_CODE_TO_I18N).toEqual({
       UNAUTHENTICATED: "editor.conversation.systemErrorRetryFailedUnauthenticated",
       NOT_FOUND: "editor.conversation.systemErrorRetryFailedExecutionNotFound",
-      RETRY_STATE_NOT_FOUND: "editor.conversation.systemErrorRetryFailedNotFound",
+      RETRY_STATE_NOT_FOUND: "editor.conversation.systemErrorRetryFailedStateExpired",
       NODE_NOT_RETRYABLE:
         "editor.conversation.systemErrorRetryFailedNodeNotRetryable",
       RETRY_TOO_EARLY: "editor.conversation.systemErrorRetryFailedTooEarly",
