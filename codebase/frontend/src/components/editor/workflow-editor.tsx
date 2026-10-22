@@ -94,8 +94,8 @@ export function WorkflowEditor() {
 
   // Subscribe to WebSocket execution events. 구독이 막히면 REST 폴링이 같은
   // store 자리를 채워 실행 패널이 비지 않는다(CLE-EXEC-RUN).
-  const { realtimeFallback } = useExecutionEvents({ executionId });
-  useExecutionPollingFallback({ executionId, enabled: realtimeFallback });
+  const { needsRestPolling } = useExecutionEvents({ executionId });
+  useExecutionPollingFallback({ executionId, enabled: needsRestPolling });
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

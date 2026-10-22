@@ -38,8 +38,10 @@ interface UseExecutionEventsReturn {
    * 채워야 하는지. 구독이 실패했거나(`subscribed` 실패 ack · 연결 실패) 스냅샷과
    * 이벤트가 10초 안에 오지 않으면 켜지고, 스냅샷이나 이 실행의 이벤트가 오면
    * 꺼진다. 폴링은 호출자가 `useExecutionPollingFallback` 으로 붙인다(에디터).
+   * 10초 지연 토스트(i18n 키 `executions.realtimeFallback`)와 켜지는 시점이 다르다.
+   * 구독 실패가 분명하면 이 값은 바로 켜지고 토스트는 10초를 기다린다.
    */
-  realtimeFallback: boolean;
+  needsRestPolling: boolean;
 }
 
 /** 스냅샷 · 이벤트가 이 시간 안에 오지 않으면 경고 토스트를 띄우고 REST 폴링으로 넘긴다. */
@@ -1167,7 +1169,7 @@ export function useExecutionEvents({
     }
 
     // 구독 실패 ack(`{ success:false, error, code }`) — 10초를 기다리지 않고 폴링으로
-    // 넘긴다. 서버의 실패 ack 에는 channel 이 없어(CLE-API-WS §4.4) 어느 구독의 실패인지
+    // 넘긴다. 서버의 실패 ack 에는 channel 이 없어(CLE-API-WS 「구독 인가」) 어느 구독의 실패인지
     // 가릴 수 없다. 싱글턴 소켓의 다른 채널 구독이 거부돼도 켜질 수 있지만, 이 실행의
     // 실시간 데이터가 오면 꺼지므로 잠깐의 불필요한 폴링에 그친다. 이 실행의 데이터를
     // 이미 받은 effect 안에서는 켜지 않는다.
@@ -1299,6 +1301,6 @@ export function useExecutionEvents({
 
   return {
     isConnected,
-    realtimeFallback: !!executionId && fallbackRequested && !realtimeReceived,
+    needsRestPolling: !!executionId && fallbackRequested && !realtimeReceived,
   };
 }

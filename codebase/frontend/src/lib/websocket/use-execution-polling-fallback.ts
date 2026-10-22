@@ -6,8 +6,8 @@ import { useExecutionStore } from "../stores/execution-store";
 import { applyExecutionSnapshot } from "./apply-execution-snapshot";
 
 /**
- * REST 폴링 간격. 실행 상세 페이지의 `refetchInterval` 과 같은 2초다
- * (CLE-EXEC-RUN 「입력 데이터 흐름」).
+ * REST 폴링 간격. 실행 상세 페이지(`executions/[executionId]/page.tsx`)의
+ * `refetchInterval` 과 같은 2초다.
  */
 export const EXECUTION_POLL_INTERVAL_MS = 2000;
 
@@ -83,7 +83,7 @@ function backoffDelayMs(failures: number): number {
 
 interface UseExecutionPollingFallbackOptions {
   executionId: string | null;
-  /** `useExecutionEvents` 의 `realtimeFallback`. WS 실시간 경로가 막혔을 때만 켠다. */
+  /** `useExecutionEvents` 의 `needsRestPolling`. WS 실시간 경로가 막혔을 때만 켠다. */
   enabled: boolean;
 }
 
