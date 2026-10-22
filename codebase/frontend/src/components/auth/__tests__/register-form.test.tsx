@@ -317,6 +317,32 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  // 진입 판정이 이미 `check-email` 을 한 번 불렀다. 읽기 전용 이메일 입력란의 blur 가 한 번 더 부르면 같은
+  // 분당 5회 한도를 같이 쓰고, 한도가 차거나 응답이 바뀌면 잠긴 입력란에 «이미 사용 중» 오류가 붙는다.
+  // 그래서 첫 호출은 «미가입», 그 뒤 호출은 «사용 중» 으로 답하게 해 blur 가 새 호출을 만들면 드러나게 한다.
+  it("읽기 전용 이메일 입력란의 blur 는 가입 여부를 다시 묻지 않는다", async () => {
+    mockGetByToken.mockResolvedValue(META);
+    mockCheckEmail
+      .mockResolvedValueOnce({ data: { data: { available: true } } })
+      .mockResolvedValue({ data: { data: { available: false } } });
+
+    const user = userEvent.setup();
+    render(<RegisterForm invitationToken={TOKEN} />);
+
+    const email = screen.getByLabelText("이메일") as HTMLInputElement;
+    await waitFor(() => expect(email.readOnly).toBe(true));
+    expect(email.value).toBe("member@example.com");
+    expect(mockCheckEmail).toHaveBeenCalledTimes(1);
+
+    await user.click(email);
+    await user.tab(); // blur
+    await act(async () => {});
+
+    expect(mockCheckEmail).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/이미 사용 중인 이메일/)).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("가입 여부를 확인하지 못하면(429 등) 가입 폼을 그대로 둔다", async () => {
     mockGetByToken.mockResolvedValue(META);
     mockCheckEmail.mockRejectedValue(axiosError(429));
