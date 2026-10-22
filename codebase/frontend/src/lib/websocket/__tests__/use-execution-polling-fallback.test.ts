@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { AxiosError, AxiosHeaders } from "axios";
 import {
   EXECUTION_POLL_INTERVAL_MS,
+  EXECUTION_POLL_MAX_BACKOFF_MS,
   useExecutionPollingFallback,
 } from "../use-execution-polling-fallback";
 import {
@@ -53,6 +55,24 @@ function makeExecution(overrides: Record<string, unknown> = {}) {
     ],
     ...overrides,
   } as unknown as Awaited<ReturnType<typeof executionsApi.getById>>;
+}
+
+/** `apiClient` 가 던지는 것과 같은 모양의 HTTP 오류(AxiosError). */
+function httpError(status: number, headers: Record<string, string> = {}) {
+  const axiosHeaders = new AxiosHeaders(headers);
+  return new AxiosError(
+    `Request failed with status code ${status}`,
+    "ERR_BAD_RESPONSE",
+    { headers: new AxiosHeaders({ Authorization: "Bearer secret-token" }) },
+    undefined,
+    {
+      status,
+      statusText: "",
+      headers: axiosHeaders,
+      config: { headers: new AxiosHeaders() },
+      data: {},
+    },
+  );
 }
 
 /** 대기 중인 마이크로태스크(모킹한 fetch 의 resolve)를 흘려 보낸다. */
@@ -290,5 +310,186 @@ describe("useExecutionPollingFallback", () => {
     await flush();
     expect(getById).toHaveBeenCalledTimes(1);
     expect(getById).toHaveBeenCalledWith("exec-2");
+  });
+  describe("요청이 실패할 때", () => {
+    let warn: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    async function advance(ms: number): Promise<void> {
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+      await flush();
+    }
+
+    it.each([400, 401, 403, 404])(
+      "%s 은 회복할 수 없는 실패라 경고를 한 번 남기고 폴링을 멈춘다",
+      async (status) => {
+        getById.mockRejectedValue(httpError(status));
+
+        renderHook(() =>
+          useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+        );
+        await flush();
+        expect(getById).toHaveBeenCalledTimes(1);
+
+        await advance(EXECUTION_POLL_MAX_BACKOFF_MS * 3);
+        expect(getById).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("로그에는 AxiosError 전체가 아니라 상태 코드와 메시지만 남긴다", async () => {
+      getById.mockRejectedValue(httpError(403));
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const args = warn.mock.calls[0];
+      expect(args[1]).toEqual({
+        status: 403,
+        message: "Request failed with status code 403",
+      });
+      expect(JSON.stringify(args)).not.toContain("secret-token");
+    });
+
+    it.each([500, 502, 503])(
+      "%s 은 2초에서 시작해 두 배씩 늘려 30초에서 멈추는 백오프로 다시 받는다",
+      async (status) => {
+        getById.mockRejectedValue(httpError(status));
+
+        renderHook(() =>
+          useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+        );
+        await flush();
+        expect(getById).toHaveBeenCalledTimes(1);
+
+        // 실패 n 번째 뒤의 대기: 2s · 4s · 8s · 16s · 30s · 30s.
+        const waits = [2000, 4000, 8000, 16000, 30000, 30000];
+        for (let i = 0; i < waits.length; i += 1) {
+          await advance(waits[i] - 1);
+          expect(getById).toHaveBeenCalledTimes(i + 1);
+          await advance(1);
+          expect(getById).toHaveBeenCalledTimes(i + 2);
+        }
+      },
+    );
+
+    it("백오프 중에는 경고를 한 번만 남긴다", async () => {
+      getById.mockRejectedValue(httpError(503));
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+      for (const wait of [2000, 4000, 8000]) {
+        await advance(wait);
+      }
+      expect(getById).toHaveBeenCalledTimes(4);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("응답이 없는 네트워크 오류도 백오프로 다시 받는다", async () => {
+      getById.mockRejectedValue(new Error("Network Error"));
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+      await advance(2000);
+      expect(getById).toHaveBeenCalledTimes(2);
+      await advance(3999);
+      expect(getById).toHaveBeenCalledTimes(2);
+      await advance(1);
+      expect(getById).toHaveBeenCalledTimes(3);
+    });
+
+    it("성공하면 간격을 2초로 되돌린다", async () => {
+      getById
+        .mockRejectedValueOnce(httpError(503))
+        .mockRejectedValueOnce(httpError(503))
+        .mockRejectedValueOnce(httpError(503))
+        .mockResolvedValueOnce(makeExecution())
+        .mockRejectedValueOnce(httpError(503))
+        .mockResolvedValue(makeExecution());
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush(); // 1: 실패 -> 2s
+      await advance(2000); // 2: 실패 -> 4s
+      await advance(4000); // 3: 실패 -> 8s
+      await advance(8000); // 4: 성공 -> 2s
+      expect(getById).toHaveBeenCalledTimes(4);
+
+      await advance(2000); // 5: 실패(연속 1번째) -> 다시 2s
+      expect(getById).toHaveBeenCalledTimes(5);
+      await advance(2000); // 6
+      expect(getById).toHaveBeenCalledTimes(6);
+    });
+
+    it("429 의 Retry-After(초)를 따른다", async () => {
+      getById
+        .mockRejectedValueOnce(httpError(429, { "Retry-After": "7" }))
+        .mockResolvedValue(makeExecution());
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+      expect(getById).toHaveBeenCalledTimes(1);
+
+      await advance(6999);
+      expect(getById).toHaveBeenCalledTimes(1);
+      await advance(1);
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
+
+    it("Retry-After 가 너무 크면 60초에서 자르고 너무 작으면 기본 간격을 지킨다", async () => {
+      getById
+        .mockRejectedValueOnce(httpError(429, { "Retry-After": "3600" }))
+        .mockRejectedValueOnce(httpError(429, { "Retry-After": "0" }))
+        .mockResolvedValue(makeExecution());
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+      await advance(59_999);
+      expect(getById).toHaveBeenCalledTimes(1);
+      await advance(1);
+      expect(getById).toHaveBeenCalledTimes(2);
+
+      await advance(EXECUTION_POLL_INTERVAL_MS - 1);
+      expect(getById).toHaveBeenCalledTimes(2);
+      await advance(1);
+      expect(getById).toHaveBeenCalledTimes(3);
+    });
+
+    it("읽을 수 없는 Retry-After(날짜 형식)는 백오프로 대신한다", async () => {
+      getById
+        .mockRejectedValueOnce(
+          httpError(503, { "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" }),
+        )
+        .mockResolvedValue(makeExecution());
+
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+      await advance(1999);
+      expect(getById).toHaveBeenCalledTimes(1);
+      await advance(1);
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
   });
 });
