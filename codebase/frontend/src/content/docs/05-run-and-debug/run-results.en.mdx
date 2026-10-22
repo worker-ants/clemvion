@@ -104,7 +104,7 @@ A successful retry ends in one of two ways.
   response appears and the run returns to **waiting for input**. This is not a failure — just carry
   on with the conversation.
 
-Retry is available **once within 60 minutes**. After the window expires or a retry has already been used, you need to run the workflow again from the start.
+Retry is available **once within 60 minutes**. After the window expires or a retry has already been used, you need to run the workflow again from the start. If a retry can't be made, a notification shows the reason.
 
 **Once the conversation is finished**, any downstream nodes connected to the AI node (e.g. HTTP Request, Send Email) continue executing just as in a normal run.
 </Callout>
