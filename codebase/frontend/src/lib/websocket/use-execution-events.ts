@@ -42,25 +42,6 @@ interface UseExecutionEventsReturn {
   realtimeFallback: boolean;
 }
 
-/** 이 이벤트들이 오면 WS 실시간 경로가 살아 있다고 본다(스냅샷은 핸들러가 직접 표시한다). */
-const REALTIME_EXECUTION_EVENTS = [
-  "execution.started",
-  "execution.resumed",
-  "execution.completed",
-  "execution.failed",
-  "execution.cancelled",
-  "execution.waiting_for_input",
-  "execution.user_message",
-  "execution.ai_message",
-  "execution.tool_call_started",
-  "execution.tool_call_completed",
-  "execution.node.started",
-  "execution.node.completed",
-  "execution.node.failed",
-  "execution.node.skipped",
-  "execution.node.cancelled",
-] as const;
-
 /** 스냅샷 · 이벤트가 이 시간 안에 오지 않으면 경고 토스트를 띄우고 REST 폴링으로 넘긴다. */
 const REALTIME_TIMEOUT_MS = 10_000;
 
@@ -1117,24 +1098,33 @@ export function useExecutionEvents({
     bind("connect", onConnect);
     bind("disconnect", onDisconnect);
 
-    // Bind execution events BEFORE subscribing
-    bind("execution.started", handleExecutionStarted);
-    bind("execution.resumed", handleExecutionResumed);
-    bind("execution.completed", handleExecutionCompleted);
-    bind("execution.failed", handleExecutionFailed);
-    bind("execution.cancelled", handleExecutionCancelled);
-    bind("execution.waiting_for_input", handleWaitingForInput);
-    bind("execution.user_message", handleUserMessage);
-    bind("execution.ai_message", handleAiMessage);
-    bind("execution.tool_call_started", handleToolCallStarted);
-    bind("execution.tool_call_completed", handleToolCallCompleted);
+    // 이 실행의 이벤트 이름 → 상태 핸들러 표. 한 표로 (1) 상태 핸들러를 달고 (2) 같은
+    // 이벤트에 실시간 수신 표시 핸들러를 달고 (3) cleanup 에서 함께 뗀다. 이벤트를 더할
+    // 때 이 표만 고치면 상태 반영과 폴링 해제 신호가 같이 따라온다.
+    const executionEventHandlers: ReadonlyArray<
+      readonly [string, (...args: unknown[]) => void]
+    > = [
+      ["execution.started", handleExecutionStarted],
+      ["execution.resumed", handleExecutionResumed],
+      ["execution.completed", handleExecutionCompleted],
+      ["execution.failed", handleExecutionFailed],
+      ["execution.cancelled", handleExecutionCancelled],
+      ["execution.waiting_for_input", handleWaitingForInput],
+      ["execution.user_message", handleUserMessage],
+      ["execution.ai_message", handleAiMessage],
+      ["execution.tool_call_started", handleToolCallStarted],
+      ["execution.tool_call_completed", handleToolCallCompleted],
+      ["execution.node.started", handleNodeStarted],
+      ["execution.node.completed", handleNodeCompleted],
+      ["execution.node.failed", handleNodeFailed],
+      ["execution.node.skipped", handleNodeSkipped],
+      ["execution.node.cancelled", handleNodeCancelled],
+    ];
 
-    // Bind node events
-    bind("execution.node.started", handleNodeStarted);
-    bind("execution.node.completed", handleNodeCompleted);
-    bind("execution.node.failed", handleNodeFailed);
-    bind("execution.node.skipped", handleNodeSkipped);
-    bind("execution.node.cancelled", handleNodeCancelled);
+    // Bind execution events BEFORE subscribing
+    for (const [name, handler] of executionEventHandlers) {
+      bind(name, handler);
+    }
 
     const channel = `execution:${executionId}`;
 
@@ -1172,7 +1162,7 @@ export function useExecutionEvents({
         markRealtimeReceived();
       }
     };
-    for (const name of REALTIME_EXECUTION_EVENTS) {
+    for (const [name] of executionEventHandlers) {
       bind(name, markOnExecutionEvent);
     }
 
@@ -1219,27 +1209,13 @@ export function useExecutionEvents({
       cancelledRef.current = true;
       disposed = true;
       client.off("subscribed", onSubscribed);
-      for (const name of REALTIME_EXECUTION_EVENTS) {
+      for (const [name, handler] of executionEventHandlers) {
+        client.off(name, handler);
         client.off(name, markOnExecutionEvent);
       }
       client.off("connect", onConnect);
       client.off("disconnect", onDisconnect);
       client.off("connect", onReconnect);
-      client.off("execution.started", handleExecutionStarted);
-      client.off("execution.resumed", handleExecutionResumed);
-      client.off("execution.completed", handleExecutionCompleted);
-      client.off("execution.failed", handleExecutionFailed);
-      client.off("execution.cancelled", handleExecutionCancelled);
-      client.off("execution.waiting_for_input", handleWaitingForInput);
-      client.off("execution.user_message", handleUserMessage);
-      client.off("execution.ai_message", handleAiMessage);
-      client.off("execution.tool_call_started", handleToolCallStarted);
-      client.off("execution.tool_call_completed", handleToolCallCompleted);
-      client.off("execution.node.started", handleNodeStarted);
-      client.off("execution.node.completed", handleNodeCompleted);
-      client.off("execution.node.failed", handleNodeFailed);
-      client.off("execution.node.skipped", handleNodeSkipped);
-      client.off("execution.node.cancelled", handleNodeCancelled);
       client.off("execution.snapshot", handleSnapshot);
       client.unsubscribe(channel);
       // Do NOT disconnect - singleton stays alive

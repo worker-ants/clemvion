@@ -2890,6 +2890,35 @@ describe("useExecutionEvents", () => {
       expect(result.current.realtimeFallback).toBe(false);
     });
 
+    // 이벤트 이름 표 하나로 상태 핸들러와 실시간 수신 표시 핸들러를 함께 다는지 지킨다.
+    // 표 밖에서 이벤트를 따로 bind 하거나 표시 핸들러를 빼먹으면 폴링이 꺼지지 않는다.
+    it("상태 핸들러가 붙은 모든 execution 이벤트에 수신 표시 핸들러도 붙고 cleanup 에서 함께 떨어진다", () => {
+      const { unmount } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      const byEvent = new Map<string, Set<unknown>>();
+      for (const [name, handler] of (mockClient.on as Mock).mock.calls) {
+        // snapshot 은 핸들러 하나가 상태 반영과 수신 표시를 함께 한다.
+        if (!name.startsWith("execution.") || name === "execution.snapshot") {
+          continue;
+        }
+        byEvent.set(name, (byEvent.get(name) ?? new Set()).add(handler));
+      }
+      expect(byEvent.size).toBeGreaterThan(0);
+      for (const [name, handlers] of byEvent) {
+        expect(handlers.size, `${name} 의 핸들러 수(상태 + 수신 표시)`).toBe(2);
+      }
+
+      (mockClient.off as Mock).mockClear();
+      unmount();
+      const offCalls = (mockClient.off as Mock).mock.calls;
+      for (const [name, handlers] of byEvent) {
+        for (const handler of handlers) {
+          expect(offCalls, `${name} cleanup`).toContainEqual([name, handler]);
+        }
+      }
+    });
+
     it("cleanup 에서 subscribed · 이벤트 표시 리스너를 함께 뗀다", () => {
       const { unmount } = renderHook(() =>
         useExecutionEvents({ executionId: "exec-1" }),
