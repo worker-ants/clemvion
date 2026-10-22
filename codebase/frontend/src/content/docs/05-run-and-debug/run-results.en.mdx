@@ -33,6 +33,10 @@ Running a workflow auto-opens the Run Results drawer at the bottom of the editor
 
 <Callout type="tip">`Ctrl + Shift + R` toggles the drawer any time. Drag the top handle to resize it — up to 60% of the viewport.</Callout>
 
+<Callout type="note">
+**When the realtime connection is delayed**: the drawer fills in as the run progresses in real time. If the realtime connection fails or no progress data arrives for 10 seconds, the editor fetches the run status again every 2 seconds and fills in the drawer's node list and statuses. If the connection has not recovered after 10 seconds, a "Realtime updates are delayed. Falling back to polling." message also appears. Once the realtime connection is back, the drawer returns to live updates, and fetching stops when the run finishes. While updates are delayed, what you see can lag by up to about 2 seconds.
+</Callout>
+
 ## Reading the timeline
 
 The left timeline lists **every executed node** in run order.

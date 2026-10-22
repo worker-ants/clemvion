@@ -178,7 +178,7 @@ describe("useExecutionEvents", () => {
       expect(mockToast.warning).toHaveBeenCalled();
 
       mockToast.dismiss.mockClear();
-      // snapshot 도착 → snapshotReceived=true → dismiss 를 1s 지연 예약.
+      // snapshot 도착 → realtimeReceived=true → dismiss 를 1s 지연 예약.
       act(() => {
         emitSnapshot(createMockExecution());
       });
@@ -994,11 +994,12 @@ describe("useExecutionEvents", () => {
     );
     expect(connectOffCalls.length).toBe(4);
 
-    // execution.resumed(핸들러 1개) — 등록 dedup off 1 + cleanup off 1 = 2.
+    // execution.resumed(핸들러 2개 — 상태 핸들러 + 실시간 수신 표시) — 핸들러마다
+    // 등록 dedup off 1 + cleanup off 1 이라 2*2=4.
     const resumedOffCalls = offCalls.filter(
       (c: unknown[]) => c[0] === "execution.resumed",
     );
-    expect(resumedOffCalls.length).toBe(2);
+    expect(resumedOffCalls.length).toBe(4);
   });
 
   it("unsubscribes from old channel when executionId changes", async () => {
@@ -2557,11 +2558,11 @@ describe("useExecutionEvents", () => {
     });
   });
 
-  // Fix D 회귀 fix — snapshotReceived 기반 toast 신호.
+  // Fix D 회귀 fix — realtimeReceived 기반 toast 신호.
   // 이전 isConnected 기반 toast 가 WS singleton 의 기존 연결 상태를 무시하여
   // 페이지 navigation 마다 false positive 발화. 새 신호 (handleSnapshot 이
   // 받았는지) 로 정확도 향상.
-  describe("WS toast — snapshotReceived signal (Fix D 회귀)", () => {
+  describe("WS toast — realtimeReceived signal (Fix D 회귀)", () => {
     beforeEach(() => {
       mockToast.warning.mockClear();
       mockToast.dismiss.mockClear();
@@ -2574,7 +2575,7 @@ describe("useExecutionEvents", () => {
     it("snapshot 수신 시 즉시 toast dismiss + 이후 timer 발화 안 함", async () => {
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-      // 초기 mount — snapshotReceived=false → 10초 timer 가 시작됨.
+      // 초기 mount — realtimeReceived=false → 10초 timer 가 시작됨.
       expect(mockToast.warning).not.toHaveBeenCalled();
 
       // WS snapshot 도착 시뮬.
@@ -2584,7 +2585,7 @@ describe("useExecutionEvents", () => {
         execution: createMockExecution({ status: "running" }),
       });
 
-      // dismiss 호출 (snapshotReceived → true 의 effect).
+      // dismiss 호출 (realtimeReceived → true 의 effect).
       // React state update 가 다음 microtask 에 propagate.
       await vi.runOnlyPendingTimersAsync();
       expect(mockToast.dismiss).toHaveBeenCalledWith("ws-connection-warning");
@@ -2611,13 +2612,13 @@ describe("useExecutionEvents", () => {
       );
     });
 
-    it("executionId 변경 시 snapshotReceived reset → 새 timer 시작", async () => {
+    it("executionId 변경 시 realtimeReceived reset → 새 timer 시작", async () => {
       const { rerender } = renderHook(
         ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
         { initialProps: { id: "exec-1" } },
       );
 
-      // exec-1 의 snapshot 도착 → snapshotReceived=true.
+      // exec-1 의 snapshot 도착 → realtimeReceived=true.
       const snapshotHandler = getHandler("execution.snapshot");
       snapshotHandler({
         executionId: "exec-1",
@@ -2627,13 +2628,351 @@ describe("useExecutionEvents", () => {
       mockToast.warning.mockClear();
       mockToast.dismiss.mockClear();
 
-      // exec-2 로 navigate — render-time prop change reset 이 snapshotReceived
+      // exec-2 로 navigate — render-time prop change reset 이 realtimeReceived
       // 를 false 로 되돌려 새 timer 시작.
       rerender({ id: "exec-2" });
       expect(mockToast.warning).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(11000);
       expect(mockToast.warning).toHaveBeenCalled();
+    });
+  });
+
+  // CLE-T-KMQ43W — WS 구독이 실패하거나 스냅샷이 10초 안에 오지 않으면
+  // `needsRestPolling` 을 켜서 호출자(에디터)가 REST 폴링으로 store 를 채우게 한다.
+  // 스냅샷이나 이 실행의 이벤트가 오면 끈다.
+  describe("needsRestPolling — REST 폴링 대체 경로 신호", () => {
+    /** 같은 이벤트에 붙은 핸들러를 모두 부른다(실제 socket 의 emit 과 같다). */
+    function fireAll(eventName: string, data: unknown): void {
+      for (const call of (mockClient.on as Mock).mock.calls) {
+        if (call[0] === eventName) (call[1] as (d: unknown) => void)(data);
+      }
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("처음에는 꺼져 있고 스냅샷 없이 10초가 지나면 켜진다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      expect(result.current.needsRestPolling).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(9_999);
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    it("스냅샷이 오면 꺼진다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+    });
+
+    it("이 실행의 노드 이벤트가 오면 스냅샷 없이도 꺼지고 토스트를 닫는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+      mockToast.dismiss.mockClear();
+
+      act(() => {
+        fireAll("execution.node.started", {
+          executionId: "exec-1",
+          nodeId: "n1",
+          nodeType: "manual_trigger",
+          nodeLabel: "Start",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+      expect(mockToast.dismiss).toHaveBeenCalledWith("ws-connection-warning");
+    });
+
+    it("다른 실행의 이벤트로는 꺼지지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+
+      act(() => {
+        fireAll("execution.node.started", {
+          executionId: "exec-other",
+          nodeId: "n1",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    // 서버(`websocket.gateway.ts` handleSubscribe)의 실패 ack 는 channel 을 싣지 않는다.
+    // 그래서 어느 구독의 실패인지 가릴 수 없고, 실패 ack 가 오면 켠다.
+    it("구독 실패 ack 가 오면 10초를 기다리지 않고 켠다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Not authorized to subscribe",
+          code: "FORBIDDEN",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+      // 토스트는 그대로 10초 뒤에 뜬다(재연결 깜빡임 방지).
+      expect(mockToast.warning).not.toHaveBeenCalled();
+    });
+
+    it("성공 ack 로는 켜지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("subscribed", { success: true, channel: "execution:exec-1" });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+    });
+
+    it("연결을 기다리다 실패하면 바로 켠다", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockClient.waitForConnect.mockRejectedValue(new Error("connect_error"));
+
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+      warn.mockRestore();
+    });
+
+    it("스냅샷을 받은 뒤 늦게 온 구독 실패 ack 로는 켜지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Subscription limit exceeded",
+          code: "SUBSCRIPTION_LIMIT_EXCEEDED",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      // 실패 ack 가 신호를 남기지 않았는지는 연결이 끊긴 뒤에 드러난다. 남겼다면
+      // 끊기는 즉시 켜지고, 아니면 다시 10초를 기다린다.
+      act(() => {
+        fireAll("disconnect", "transport close");
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    it("이벤트만 받은 뒤 늦게 온 구독 실패 ack 로도 켜지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("execution.node.started", {
+          executionId: "exec-1",
+          nodeId: "n1",
+        });
+      });
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Not authorized to subscribe",
+          code: "FORBIDDEN",
+        });
+        fireAll("disconnect", "transport close");
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+    });
+
+    it("연결이 끊겨 실시간 수신 표시가 지워지면 실패 ack 가 다시 켠다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      act(() => {
+        fireAll("disconnect", "transport close");
+      });
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Not authenticated",
+          code: "UNAUTHENTICATED",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    it("연결이 끊기면 다시 10초를 기다려 켠다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      act(() => {
+        fireAll("disconnect", "transport close");
+      });
+      act(() => {
+        vi.advanceTimersByTime(9_000);
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    it("executionId 가 바뀌면 꺼진 상태에서 다시 기다린다", () => {
+      const { result, rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+
+      rerender({ id: "exec-2" });
+      expect(result.current.needsRestPolling).toBe(false);
+    });
+
+    // `disposed` 가드: 앞 실행의 연결 대기(`waitForConnect`)가 cleanup 뒤에 늦게 실패해도
+    // 새 실행의 폴링 신호를 켜면 안 된다. 켜지면 새 실행이 10초를 기다리지 않고 폴링한다.
+    it("앞 실행의 연결 대기가 cleanup 뒤에 늦게 실패해도 새 실행의 폴링 신호를 켜지 않는다", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      let rejectFirst: (err: Error) => void = () => {};
+      mockClient.waitForConnect.mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      );
+
+      const { result, rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+      // 새 실행으로 바뀌면 앞 effect 가 cleanup 된다. 새 effect 의 연결 대기는 바로 성공한다.
+      rerender({ id: "exec-2" });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+
+      await act(async () => {
+        rejectFirst(new Error("connect_error"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // 늦은 실패가 실제로 catch 에 닿았다(경고가 남는다)는 것을 확인한 뒤 신호를 본다.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(result.current.needsRestPolling).toBe(false);
+      warn.mockRestore();
+    });
+
+    // 이벤트 이름 표 하나로 상태 핸들러와 실시간 수신 표시 핸들러를 함께 다는지 지킨다.
+    // 표 밖에서 이벤트를 따로 bind 하거나 표시 핸들러를 빼먹으면 폴링이 꺼지지 않는다.
+    it("상태 핸들러가 붙은 모든 execution 이벤트에 수신 표시 핸들러도 붙고 cleanup 에서 함께 떨어진다", () => {
+      const { unmount } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      const byEvent = new Map<string, Set<unknown>>();
+      for (const [name, handler] of (mockClient.on as Mock).mock.calls) {
+        // snapshot 은 핸들러 하나가 상태 반영과 수신 표시를 함께 한다.
+        if (!name.startsWith("execution.") || name === "execution.snapshot") {
+          continue;
+        }
+        byEvent.set(name, (byEvent.get(name) ?? new Set()).add(handler));
+      }
+      expect(byEvent.size).toBeGreaterThan(0);
+      for (const [name, handlers] of byEvent) {
+        expect(handlers.size, `${name} 의 핸들러 수(상태 + 수신 표시)`).toBe(2);
+      }
+
+      (mockClient.off as Mock).mockClear();
+      unmount();
+      const offCalls = (mockClient.off as Mock).mock.calls;
+      for (const [name, handlers] of byEvent) {
+        for (const handler of handlers) {
+          expect(offCalls, `${name} cleanup`).toContainEqual([name, handler]);
+        }
+      }
+    });
+
+    it("cleanup 에서 subscribed · 이벤트 표시 리스너를 함께 뗀다", () => {
+      const { unmount } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      const onCalls = (mockClient.on as Mock).mock.calls;
+      const ackHandler = onCalls.find((c) => c[0] === "subscribed")?.[1];
+      const markers = onCalls.filter((c) => c[0] === "execution.node.started");
+      expect(ackHandler).toBeDefined();
+      expect(markers.length).toBe(2);
+
+      (mockClient.off as Mock).mockClear();
+      unmount();
+      const offCalls = (mockClient.off as Mock).mock.calls;
+      expect(offCalls).toContainEqual(["subscribed", ackHandler]);
+      for (const [, handler] of markers) {
+        expect(offCalls).toContainEqual(["execution.node.started", handler]);
+      }
     });
   });
 
