@@ -22,9 +22,9 @@ import { Button } from "@/components/ui/button";
 import { useT, translate } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
-// §1.5.3 — 이미 가입한 사용자가 다른 워크스페이스에 초대된 흐름. 마운트 즉시 자동
-// 수락(종전) 대신, 토큰 메타를 조회해 (a) 로그인 이메일 == 토큰 이메일이면 [수락]
-// 버튼을, (b) 불일치면 "해당 계정으로 로그인" 안내 + 로그아웃 버튼을 노출한다.
+// CLE-ACCT-WS 「이미 가입한 사용자의 수락 경로」 — 이미 가입한 사용자가 다른 워크스페이스에 초대된
+// 흐름. 마운트 즉시 자동 수락(종전) 대신, 토큰 메타를 조회해 (a) 로그인 이메일 == 토큰 이메일이면
+// [수락] 버튼을, (b) 불일치면 "해당 계정으로 로그인" 안내 + 로그아웃 버튼을 노출한다.
 type Status =
   | "loading"
   | "ready"
@@ -51,9 +51,10 @@ export function AcceptInvitationContent() {
   // 재조회를 유발하지 않도록) 텍스트 변환은 렌더 시점에서 수행한다.
   useEffect(() => {
     if (!token) return;
-    // cleanup 이후 도착한 응답은 버린다 — register-form 의 meta 조회 패턴과 동일한 가드. 한 번만
-    // 부르려는 ref 가드를 함께 두면 StrictMode 가 effect 를 mount, cleanup, mount 로 돌릴 때 첫 응답은
-    // 버려지고 두 번째 실행은 건너뛰어 loading 에 머문다. 토큰 메타 조회는 멱등 GET 이라 다시 불러도 된다.
+    // cleanup 이후 도착한 응답은 버린다. `useInvitationGate`(`components/auth/use-invitation-gate.ts`)의
+    // 메타 조회와 같은 가드다. 한 번만 부르려는 ref 가드를 함께 두면 StrictMode 가 effect 를 mount,
+    // cleanup, mount 로 돌릴 때 첫 응답은 버려지고 두 번째 실행은 건너뛰어 loading 에 머문다. 토큰 메타
+    // 조회는 멱등 GET 이라 다시 불러도 된다.
     let cancelled = false;
     const currentLocale = useLocaleStore.getState().locale;
     (async () => {
@@ -118,8 +119,8 @@ export function AcceptInvitationContent() {
     }
     // store 의 logout() 은 access token·`has_session` 힌트 쿠키·인증 플래그를 한꺼번에
     // 정리한다. setUser(null) 만 쓰면 has_session 쿠키가 남아, 이후 초대 링크 재진입 시
-    // register-form 이 stale 쿠키로 잘못 리다이렉트한다(§1.5.3 진입 경로가 has_session
-    // 을 load-bearing 으로 쓰므로 로그아웃도 이 쿠키를 반드시 지워야 한다).
+    // `useInvitationGate` 가 stale 쿠키로 잘못 리다이렉트한다(CLE-ACCT-WS 「초대 가입 화면」
+    // 진입 경로가 has_session 을 load-bearing 으로 쓰므로 로그아웃도 이 쿠키를 반드시 지워야 한다).
     useAuthStore.getState().logout();
     // 다른 계정으로 로그인한 뒤 이 초대 수락 페이지로 돌아온다.
     router.push(buildInvitationLoginHref(token));
