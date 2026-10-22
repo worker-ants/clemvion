@@ -101,6 +101,29 @@ async function respondBeforeCleanup(
   });
 }
 
+/** 첫 요청은 바로 응답하고 두 번째 요청을 연 채로 둔다. 돌려준 함수로 두 번째 응답을 푼다. */
+async function startWithPendingSecondRequest() {
+  let resolveSecond: (v: ReturnType<typeof makeExecution>) => void = () => {};
+  getById
+    .mockResolvedValueOnce(makeExecution({ nodeExecutions: [] }))
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+    );
+  renderHook(() =>
+    useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+  );
+  await flush();
+  act(() => {
+    vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS);
+  });
+  await flush();
+  expect(getById).toHaveBeenCalledTimes(2);
+  return (v: ReturnType<typeof makeExecution>) => resolveSecond(v);
+}
+
 describe("useExecutionPollingFallback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -509,22 +532,21 @@ describe("useExecutionPollingFallback", () => {
       await advance(1);
       expect(getById).toHaveBeenCalledTimes(2);
     });
-  });
-  describe("effect 정리 전에 도착한 옛 응답", () => {
-    /** 첫 요청은 바로 응답하고 두 번째 요청을 연 채로 둔다. */
-    async function startWithPendingSecondRequest() {
-      let resolveSecond: (v: ReturnType<typeof makeExecution>) => void =
-        () => {};
+
+    it("꺼진 뒤 실패로 끝난 요청은 경고를 남기지 않고 다시 보내지 않는다", async () => {
+      let rejectSecond: (e: unknown) => void = () => {};
       getById
         .mockResolvedValueOnce(makeExecution({ nodeExecutions: [] }))
         .mockImplementationOnce(
           () =>
-            new Promise((resolve) => {
-              resolveSecond = resolve;
+            new Promise((_resolve, reject) => {
+              rejectSecond = reject;
             }),
         );
-      renderHook(() =>
-        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      const { rerender } = renderHook(
+        ({ enabled }: { enabled: boolean }) =>
+          useExecutionPollingFallback({ executionId: "exec-1", enabled }),
+        { initialProps: { enabled: true } },
       );
       await flush();
       act(() => {
@@ -532,9 +554,17 @@ describe("useExecutionPollingFallback", () => {
       });
       await flush();
       expect(getById).toHaveBeenCalledTimes(2);
-      return (v: ReturnType<typeof makeExecution>) => resolveSecond(v);
-    }
 
+      rerender({ enabled: false });
+      rejectSecond(httpError(503));
+      await flush();
+      await advance(EXECUTION_POLL_MAX_BACKOFF_MS * 3);
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
+  });
+  describe("effect 정리 전에 도착한 옛 응답", () => {
     it("드로어를 닫아 store 가 reset 됐으면 응답으로 실행을 되살리지 않는다", async () => {
       const respond = await startWithPendingSecondRequest();
 
@@ -598,6 +628,90 @@ describe("useExecutionPollingFallback", () => {
         selectSortedNodeResults(useExecutionStore.getState().nodeResults),
       ).toHaveLength(1);
     });
+  });
+
+  describe("요청이 떠 있는 동안 다른 경로가 store 를 바꾸면", () => {
+    const [completedNode] = makeExecution().nodeExecutions;
+    /** WS 보다 앞선 시점의 응답: 노드가 아직 실행 중이고 출력이 없다. */
+    const staleExecution = () =>
+      makeExecution({
+        nodeExecutions: [
+          {
+            ...completedNode,
+            status: "running",
+            finishedAt: null,
+            durationMs: null,
+            outputData: null,
+          },
+        ],
+      });
+
+    it.each([
+      [
+        "노드 상태",
+        () =>
+          useExecutionStore
+            .getState()
+            .updateNodeStatus("trigger-1", {
+              status: "completed",
+              duration: 100,
+            }),
+        () =>
+          expect(
+            selectSortedNodeResults(useExecutionStore.getState().nodeResults),
+          ).toHaveLength(0),
+      ],
+      [
+        "노드 결과",
+        () =>
+          useExecutionStore.getState().addNodeResult({
+            nodeExecutionId: completedNode.id,
+            nodeId: "trigger-1",
+            nodeLabel: "Start",
+            nodeType: "manual_trigger",
+            nodeCategory: "trigger",
+            status: "completed",
+            duration: 100,
+            outputData: { output: { ok: true } },
+            startedAt: completedNode.startedAt ?? undefined,
+          }),
+        () => {
+          const [row] = selectSortedNodeResults(
+            useExecutionStore.getState().nodeResults,
+          );
+          expect(row.status).toBe("completed");
+          expect(row.outputData).toEqual({ output: { ok: true } });
+        },
+      ],
+      [
+        "실행 상태",
+        () => useExecutionStore.getState().pauseForForm("trigger-1", {}),
+        () => {
+          const state = useExecutionStore.getState();
+          expect(state.status).toBe("waiting_for_input");
+          expect(state.waitingInteractionType).toBe("form");
+        },
+      ],
+    ] as const)(
+      "%s가 바뀌었으면 그 응답만 버리고 다음 요청은 적용한다",
+      async (_label, change, expectKept) => {
+        const respond = await startWithPendingSecondRequest();
+
+        // WS 가 복구돼 먼저 들어온 이벤트(또는 사용자의 대기 응답)를 흉내 낸다.
+        act(() => change());
+        respond(staleExecution());
+        await flush();
+        expectKept();
+
+        getById.mockResolvedValueOnce(makeExecution({ status: "completed" }));
+        act(() => {
+          vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS);
+        });
+        await flush();
+        expect(getById).toHaveBeenCalledTimes(3);
+        expect(useExecutionStore.getState().status).toBe("completed");
+      },
+    );
   });
 
 });

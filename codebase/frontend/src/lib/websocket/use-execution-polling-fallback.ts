@@ -100,6 +100,8 @@ interface UseExecutionPollingFallbackOptions {
  * 30초에서 멈추는 백오프로 다시 받고, 응답에 `Retry-After`(초)가 있으면 그 값을
  * (최대 60초까지) 따른다. 성공하면 2초로 되돌린다. 401 마다 토큰 갱신을 되풀이하거나
  * 429 를 받고도 같은 간격으로 보내 사용자 요청 한도를 스스로 쓰는 일을 막는다.
+ * API 를 다른 출처로 부르는 배포에서는 백엔드 CORS 가 `Retry-After` 를 노출하지 않아
+ * 브라우저가 이 헤더를 숨기므로 백오프로 대신한다(NERV Task CLE-T-1XDNY3).
  *
  * React Query 의 `refetchInterval` 대신 effect 로 직접 도는 이유:
  *  - 늦게 도착한 응답을 버려야 한다. 이미 WS 이벤트로 앞선 store 를 옛 REST
@@ -114,9 +116,11 @@ interface UseExecutionPollingFallbackOptions {
  *  - 그 사이에 도착한 응답은 적용 직전에 store 를 동기로 읽어 거른다. store 의
  *    `executionId` 가 이 폴링의 것과 다르거나(드로어를 닫아 `reset` 됐거나 새 실행이
  *    시작됨) store 가 이미 끝난 실행이면 응답을 버리고 폴링을 멈춘다.
- *  - 막지 못하는 경우가 하나 있다. WS 가 복구돼 스냅샷이 store 에 먼저 들어가고
- *    `enabled` 가 꺼지기 전(정리 전)에 그보다 먼저 보낸 요청의 응답이 도착하면 적용된다.
- *    이 구간은 위 macrotask 한 번이고, 같은 실행의 같은 store 라 위 확인으로는 가를 수 없다.
+ *  - 요청을 보낸 뒤 응답이 오기 전에 다른 경로가 store 의 노드 상태 · 노드 결과 · 실행
+ *    상태를 바꿨으면 그 응답만 버리고 다음 요청을 예약한다. WS 가 복구돼 스냅샷이나
+ *    이벤트가 먼저 들어간 직후(`enabled` 가 꺼지기 전) 도착한 옛 응답이 WS 가 채운
+ *    노드 결과를 되돌리지 않게 한다. 사용자가 폼 · 버튼 대기를 이어 가 store 가 바뀐
+ *    경우도 같은 이유로 한 번 버린다.
  */
 export function useExecutionPollingFallback({
   executionId,
@@ -136,6 +140,8 @@ export function useExecutionPollingFallback({
 
     const poll = async () => {
       let nextDelayMs: number | null = EXECUTION_POLL_INTERVAL_MS;
+      // 요청을 보내는 시점의 store. 응답이 올 때까지 다른 경로가 바꿨는지 가른다.
+      const sent = useExecutionStore.getState();
       try {
         const execution = await executionsApi.getById(executionId);
         if (disposed) return;
@@ -151,9 +157,15 @@ export function useExecutionPollingFallback({
         ) {
           return;
         }
-        applyExecutionSnapshot(execution, () => disposed);
-        if (TERMINAL_EXECUTION_STATUSES.has(execution.status)) {
-          nextDelayMs = null;
+        const changedSinceSent =
+          store.nodeStatuses !== sent.nodeStatuses ||
+          store.nodeResults !== sent.nodeResults ||
+          store.status !== sent.status;
+        if (!changedSinceSent) {
+          applyExecutionSnapshot(execution, () => disposed);
+          if (TERMINAL_EXECUTION_STATUSES.has(execution.status)) {
+            nextDelayMs = null;
+          }
         }
       } catch (err) {
         if (disposed) return;
