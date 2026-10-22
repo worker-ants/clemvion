@@ -2890,6 +2890,43 @@ describe("useExecutionEvents", () => {
       expect(result.current.realtimeFallback).toBe(false);
     });
 
+    // `disposed` 가드: 앞 실행의 연결 대기(`waitForConnect`)가 cleanup 뒤에 늦게 실패해도
+    // 새 실행의 폴링 신호를 켜면 안 된다. 켜지면 새 실행이 10초를 기다리지 않고 폴링한다.
+    it("앞 실행의 연결 대기가 cleanup 뒤에 늦게 실패해도 새 실행의 폴링 신호를 켜지 않는다", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      let rejectFirst: (err: Error) => void = () => {};
+      mockClient.waitForConnect.mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      );
+
+      const { result, rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+      // 새 실행으로 바뀌면 앞 effect 가 cleanup 된다. 새 effect 의 연결 대기는 바로 성공한다.
+      rerender({ id: "exec-2" });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(result.current.realtimeFallback).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+
+      await act(async () => {
+        rejectFirst(new Error("connect_error"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // 늦은 실패가 실제로 catch 에 닿았다(경고가 남는다)는 것을 확인한 뒤 신호를 본다.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(result.current.realtimeFallback).toBe(false);
+      warn.mockRestore();
+    });
+
     // 이벤트 이름 표 하나로 상태 핸들러와 실시간 수신 표시 핸들러를 함께 다는지 지킨다.
     // 표 밖에서 이벤트를 따로 bind 하거나 표시 핸들러를 빼먹으면 폴링이 꺼지지 않는다.
     it("상태 핸들러가 붙은 모든 execution 이벤트에 수신 표시 핸들러도 붙고 cleanup 에서 함께 떨어진다", () => {
