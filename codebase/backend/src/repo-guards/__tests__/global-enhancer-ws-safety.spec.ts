@@ -86,7 +86,7 @@ const POLICY: readonly PolicyEntry[] = [
   {
     enhancer: UserThrottlerGuard,
     policy: 'skips-non-http',
-    why: '`shouldSkip` 이 HTTP 가 아니면 세지 않는다. WS 빈도 제한은 소켓당 `WsRateLimitGuard`(CLE-API-WS §7.1)',
+    why: '`shouldSkip` 이 HTTP 가 아니면 세지 않는다. WS 빈도 제한은 소켓당 `WsRateLimitGuard`(CLE-API-WS 「에러 코드」)',
   },
   {
     enhancer: RolesGuard,

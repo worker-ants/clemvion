@@ -7,7 +7,7 @@ import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin } from './helpers/auth';
 
 /**
- * 실행 채널 구독 e2e (CLE-API-WS — 채널 구독 · 재구독 스냅샷).
+ * 실행 채널 구독 e2e ([WebSocket 연결과 채널 구독 「채널 구독」](CLE-API-WS#4-채널-구독)).
  *
  * 에디터는 실행을 시작한 뒤 `execution:<id>` 를 구독하고, 서버가 구독 직후 보내는
  * `execution.snapshot` 으로 하단 실행 패널을 채운다. NestJS 12 부터 전역 enhancer

@@ -52,7 +52,8 @@ describe('UserThrottlerGuard.getTracker', () => {
  * NestJS 12 부터 APP_GUARD 가 WebSocket 게이트웨이 핸들러에도 붙는다. 그 컨텍스트의 "요청" 은
  * 소켓이라 `user` · `ip` 가 없어 tracker 가 모두 `'unknown'` 이 된다. 그대로 두면 모든 사용자의
  * WS 메시지가 핸들러마다 한 버킷을 나눠 써서 서버 전체가 분당 limit 건에 막힌다. WS 빈도 제한은
- * 소켓당 `WsRateLimitGuard` 가 맡는다(CLE-API-WS §7.1).
+ * 소켓당 `WsRateLimitGuard` 가 맡는다
+ * ([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS#71-에러-코드)).
  */
 describe('UserThrottlerGuard — HTTP 가 아닌 컨텍스트', () => {
   class Gateway {
