@@ -2733,15 +2733,17 @@ describe("useExecutionEvents", () => {
       expect(result.current.realtimeFallback).toBe(true);
     });
 
-    it("이 채널의 구독 실패 ack 가 오면 10초를 기다리지 않고 켠다", () => {
+    // 서버(`websocket.gateway.ts` handleSubscribe)의 실패 ack 는 channel 을 싣지 않는다.
+    // 그래서 어느 구독의 실패인지 가릴 수 없고, 실패 ack 가 오면 켠다.
+    it("구독 실패 ack 가 오면 10초를 기다리지 않고 켠다", () => {
       const { result } = renderHook(() =>
         useExecutionEvents({ executionId: "exec-1" }),
       );
       act(() => {
         fireAll("subscribed", {
           success: false,
-          channel: "execution:exec-1",
-          error: "Not authorized",
+          error: "Not authorized to subscribe",
+          code: "FORBIDDEN",
         });
       });
       expect(result.current.realtimeFallback).toBe(true);
@@ -2749,26 +2751,11 @@ describe("useExecutionEvents", () => {
       expect(mockToast.warning).not.toHaveBeenCalled();
     });
 
-    it("channel 이 빠진 구독 실패 ack 도 켠다", () => {
+    it("성공 ack 로는 켜지 않는다", () => {
       const { result } = renderHook(() =>
         useExecutionEvents({ executionId: "exec-1" }),
       );
       act(() => {
-        fireAll("subscribed", { success: false, error: "Not authenticated" });
-      });
-      expect(result.current.realtimeFallback).toBe(true);
-    });
-
-    it("다른 채널의 구독 실패나 성공 ack 로는 켜지 않는다", () => {
-      const { result } = renderHook(() =>
-        useExecutionEvents({ executionId: "exec-1" }),
-      );
-      act(() => {
-        fireAll("subscribed", {
-          success: false,
-          channel: "kb:other",
-          error: "Not authorized",
-        });
         fireAll("subscribed", { success: true, channel: "execution:exec-1" });
       });
       expect(result.current.realtimeFallback).toBe(false);
@@ -2800,9 +2787,68 @@ describe("useExecutionEvents", () => {
         });
       });
       act(() => {
-        fireAll("subscribed", { success: false, error: "Not authenticated" });
+        fireAll("subscribed", {
+          success: false,
+          error: "Subscription limit exceeded",
+          code: "SUBSCRIPTION_LIMIT_EXCEEDED",
+        });
       });
       expect(result.current.realtimeFallback).toBe(false);
+
+      // 실패 ack 가 신호를 남기지 않았는지는 연결이 끊긴 뒤에 드러난다. 남겼다면
+      // 끊기는 즉시 켜지고, 아니면 다시 10초를 기다린다.
+      act(() => {
+        fireAll("disconnect", "transport close");
+      });
+      expect(result.current.realtimeFallback).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.realtimeFallback).toBe(true);
+    });
+
+    it("이벤트만 받은 뒤 늦게 온 구독 실패 ack 로도 켜지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("execution.node.started", {
+          executionId: "exec-1",
+          nodeId: "n1",
+        });
+      });
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Not authorized to subscribe",
+          code: "FORBIDDEN",
+        });
+        fireAll("disconnect", "transport close");
+      });
+      expect(result.current.realtimeFallback).toBe(false);
+    });
+
+    it("연결이 끊겨 실시간 수신 표시가 지워지면 실패 ack 가 다시 켠다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      act(() => {
+        fireAll("disconnect", "transport close");
+      });
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Not authenticated",
+          code: "UNAUTHENTICATED",
+        });
+      });
+      expect(result.current.realtimeFallback).toBe(true);
     });
 
     it("연결이 끊기면 다시 10초를 기다려 켠다", () => {

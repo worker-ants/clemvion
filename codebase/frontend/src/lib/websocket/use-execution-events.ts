@@ -194,7 +194,8 @@ export function useExecutionEvents({
   const [realtimeReceived, setRealtimeReceived] = useState(false);
   // fallbackRequested: 구독 실패 또는 10초 무수신으로 REST 폴링이 필요하다고
   // 판정했는지. 실시간 데이터가 오면 끈다. 반환값은 realtimeReceived 로 한 번 더
-  // 거른다(스냅샷 뒤 늦게 온 다른 구독의 실패 ack 가 폴링을 켜지 않게).
+  // 거른다(이미 받은 effect 의 실패 ack 는 effect 안에서 거르지만, 렌더를 넘어 남은
+  // 값이 폴링을 켜지 않게 하는 마지막 방어선).
   const [fallbackRequested, setFallbackRequested] = useState(false);
   // React 19 권장 패턴 — render-time prop-change reset (useEffect+setState 대신).
   // executionId 가 새 값으로 바뀌면 두 신호를 즉시 false 로 reset 해 새
@@ -1077,16 +1078,23 @@ export function useExecutionEvents({
       })();
     }
 
+    // 이 effect 안에서 이 실행의 실시간 데이터(스냅샷 · 이벤트)를 이미 받았는지.
+    // state 의 realtimeReceived 는 다음 렌더에야 반영되므로, 같은 틱에 늦게 온 실패 ack 를
+    // 거르는 데는 이 지역 변수를 쓴다. disconnect 때 지워 재연결 뒤 다시 기다린다.
+    let realtimeSeen = false;
+
     // Track connection state. disconnect 시 realtimeReceived 도 reset —
     // 재연결 후 새 snapshot 을 기다려야 "real-time data 수신" 다시 보장.
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => {
       setIsConnected(false);
       setRealtimeReceived(false);
+      realtimeSeen = false;
     };
 
     // 실시간 데이터 수신 표시 — 폴링 대체 경로를 끄고 토스트를 닫게 한다.
     const markRealtimeReceived = () => {
+      realtimeSeen = true;
       setRealtimeReceived(true);
       setFallbackRequested(false);
     };
@@ -1168,13 +1176,14 @@ export function useExecutionEvents({
       bind(name, markOnExecutionEvent);
     }
 
-    // 구독 실패 ack(`{ success:false, channel?, error }`) — 10초를 기다리지 않고
-    // 폴링으로 넘긴다. 일부 실패 ack 에는 channel 이 없다(인증 · 형식 오류).
-    // 그 경우도 이 소켓의 구독이 막힌 것이라 이 실행의 실패로 본다.
+    // 구독 실패 ack(`{ success:false, error, code }`) — 10초를 기다리지 않고 폴링으로
+    // 넘긴다. 서버의 실패 ack 에는 channel 이 없어(CLE-API-WS §4.4) 어느 구독의 실패인지
+    // 가릴 수 없다. 싱글턴 소켓의 다른 채널 구독이 거부돼도 켜질 수 있지만, 이 실행의
+    // 실시간 데이터가 오면 꺼지므로 잠깐의 불필요한 폴링에 그친다. 이 실행의 데이터를
+    // 이미 받은 effect 안에서는 켜지 않는다.
     const onSubscribed = (data: unknown) => {
-      const ack = asRecord(data);
-      if (ack?.success !== false) return;
-      if (ack.channel !== undefined && ack.channel !== channel) return;
+      if (asRecord(data)?.success !== false) return;
+      if (realtimeSeen) return;
       requestFallback();
     };
     bind("subscribed", onSubscribed);
