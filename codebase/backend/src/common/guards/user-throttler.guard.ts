@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { isHttpContext } from '../utils/http-context';
 
 /**
  * 전역 ThrottlerGuard 를 **user 인지(user-aware)** 로 확장한다.
@@ -12,9 +13,22 @@ import { ThrottlerGuard } from '@nestjs/throttler';
  * 도입 동기: Re-run rate-limit (spec/5-system/13-replay-rerun.md §12 — 사용자당
  * 분당 10회). 라우트의 `@Throttle({ default: { ttl, limit } })` 메타는 그대로
  * 적용되며, 키만 사용자 단위로 바뀐다. 미인증 라우트 동작은 IP 폴백으로 무변경.
+ *
+ * HTTP 요청만 센다. WebSocket 게이트웨이 핸들러는 건너뛰고 소켓 단위 `WsRateLimitGuard` 가 맡는다
+ * (`shouldSkip` 참조).
  */
 @Injectable()
 export class UserThrottlerGuard extends ThrottlerGuard {
+  /**
+   * HTTP 요청만 센다. NestJS 12 부터 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙는데, 그
+   * 컨텍스트의 요청은 소켓이라 `user` · `ip` 가 없어 모든 사용자가 `'unknown'` 한 버킷을 나눠 쓴다.
+   * WebSocket 빈도 제한은 소켓 단위 `WsRateLimitGuard` 가 맡는다
+   * ([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS#71-에러-코드)).
+   */
+  protected shouldSkip(context: ExecutionContext): Promise<boolean> {
+    return Promise.resolve(!isHttpContext(context));
+  }
+
   // base `ThrottlerGuard.getTracker` 의 `Promise<string>` 반환 계약을 유지하되,
   // 내부에 await 가 없어 `async` 는 불필요(@typescript-eslint/require-await).
   // `Promise.resolve` 로 동일 계약을 충족한다.

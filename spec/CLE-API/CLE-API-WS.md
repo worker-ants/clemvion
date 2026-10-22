@@ -2,25 +2,25 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "392bdac8bab63d4a733a86c26c6e884c473a4e906894977eecb053d3fa7525c1"
+content_hash: "768a5ad9f3249b82128bd73062620c668114190ea5023a974977f563ae4094a1"
 read_as: "approved_fallback"
-task: "CLE-T-G0Y6MW"
+task: "CLE-T-A3W8B8"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "d68b3046762c14700613ba525c987fb1a35eb226e9baeb9ebfa281c801bad821"
-etag: "sha256-d690cc1af051319a7bfe63524dcea46f6460e217520004c404fc5e66da541149"
+mirror_sha256: "a0a2fc604d1f290f89bbe580766f309b42baddb72cb9473a1d082897bc292c3c"
+etag: "sha256-af52fe22df3b8219decb5d66f9e032586b2bfd8567323aee9247fe7acd9899ae"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 서버와 프론트엔드 사이의 양방향 실시간 채널인 WebSocket(`/ws`)의 연결 방식을 정한다. 전송 계층, 인증과 토큰 만료, 메시지 형식과 서버 이벤트 봉투, 구독 채널(subscription channel) 구독과 인가, heartbeat, 재연결과 놓친 이벤트 복구, 전송 계층 에러, 클라이언트 구현 지침이 대상이다.
+이 문서는 서버와 프론트엔드 사이의 양방향 실시간 채널인 WebSocket(`/ws`)의 연결 방식을 정한다. 전송 계층, 게이트웨이에서 전역 enhancer 가 동작하는 방식, 인증과 토큰 만료, 메시지 형식과 서버 이벤트 봉투, 구독 채널(subscription channel) 구독과 인가, heartbeat, 재연결과 놓친 이벤트 복구, 전송 계층 에러, 클라이언트 구현 지침이 대상이다.
 
 채널의 무게중심은 실행이다. 서버가 실행 진행 상황을 밀어 보내고 클라이언트가 실행 제어 명령을 보내고 노드가 사용자 입력을 기다릴 때 그 왕복을 중개한다. 실행 밖에 지식 저장소 문서 처리 상태와 인앱 알림도 같은 채널 위에 있다. 이벤트는 구독한 리소스에 대해서만 전달되고 구독 채널은 `execution:`·`workflow:`·`kb:`·`notifications:`·`background:run:` 다섯 종이다. 끊긴 동안 놓친 것은 다시 구독할 때 받는 1회성 실행 스냅샷 이벤트(`execution.snapshot`)로 맞춘다. 이벤트 순번(`seq`) 기반 재전송 버퍼는 native WebSocket 에 없고 SSE 어댑터에 있다.
 
@@ -31,7 +31,7 @@ etag: "sha256-d690cc1af051319a7bfe63524dcea46f6460e217520004c404fc5e66da541149"
 
 이 문서가 정하지 않는 것은 아래 문서가 정한다.
 
-- 서버 이벤트와 클라이언트 명령 목록, ack 형태, EIA 매핑: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
+- 서버 이벤트와 클라이언트 명령 목록, 명령별 ack 필드, EIA 매핑: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md). ack 가 전송에서 어떻게 보이는지는 이 문서 §1 이 정한다
 - 실행 상태 전이(실행·노드 실행 상태 머신, 블로킹·재개 계약): [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)
 - 외부 호출자용 표면(REST·SSE·EIA 알림 웹훅): [External Interaction API](../CLE-IX/CLE-EIA.md), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)
 - 에러 코드 이름 규칙과 카탈로그: [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md). 이 문서의 §7 은 그중 전송 계층의 `WsErrorCode` 가 wire 에서 어떤 프레임으로 보이는지만 다룬다
@@ -42,10 +42,18 @@ etag: "sha256-d690cc1af051319a7bfe63524dcea46f6460e217520004c404fc5e66da541149"
 
 채널은 **Socket.IO** 로 구현한다(`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`).
 
-- 메시지는 Socket.IO 의 이벤트·ack 모델을 따른다. 클라이언트는 `socket.emit('<event>', data)` 로 보내고 명령 ack 는 `{ event, data }` 형태의 callback payload 로 받는다(§4.3, [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).
+- 메시지는 Socket.IO 의 이벤트 모델을 따른다. 클라이언트는 `socket.emit('<event>', data)` 로 보낸다.
+- 명령과 구독의 응답도 Socket.IO 이벤트로 온다. 게이트웨이 핸들러는 `{ event, data }` 를 돌려주고 Nest 어댑터(`@nestjs/platform-socket.io` 의 `IoAdapter`)는 `event` 필드 값을 이름으로 하는 Socket.IO 이벤트로 `data` 만 보낸다. `{ event, data }` 형태는 wire 에 없다. 클라이언트는 그 이벤트 이름을 `socket.on` 으로 구독해 받는다(§4.3, [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)). 이 문서에서 ack 는 핸들러가 돌려준 `{ event, data }` 가 나가는 명령 응답 이벤트(ack 이벤트. `subscribed`, `<명령>.ack` 등)를 가리키며 Socket.IO ack callback 이 아니다.
+- ack 이벤트는 Socket.IO ack callback 으로 오지 않는다. 어댑터는 핸들러 반환값에 `event` 가 없을 때만 클라이언트가 넘긴 callback 을 부른다. 지금 핸들러는 모두 `event` 를 돌려주므로 `socket.emit('<event>', data, callback)` 의 callback 은 불리지 않는다. 같은 이유로 클라이언트는 Socket.IO 내장 `Socket#emitWithAck` 를 쓰지 않는다. 내장은 ack callback 을 기다리므로 응답을 받지 못한다.
 - `{ type, id, payload }` JSON 프레임 표기는 논리 구조의 추상화다. 실제 wire 는 Socket.IO 가 감싼다. raw WebSocket 프레임, `Sec-WebSocket-Protocol` 서브프로토콜, raw close code 를 직접 다루지 않는다.
+- **HTTP 전용 전역 enhancer(전역 가드 · 파이프 · 인터셉터)는 WebSocket 핸들러에서 동작하지 않는다.** NestJS 12 부터 전역 `APP_GUARD`·`APP_PIPE`·`APP_INTERCEPTOR` 가 게이트웨이 핸들러에도 붙는다. 전역 예외 필터는 붙지 않는다.
+  - HTTP 요청을 전제한 `LoggingInterceptor`·`TransformInterceptor`·`UserThrottlerGuard` 는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. 세 enhancer 가 같은 판정 함수(`common/utils/http-context.ts`)를 쓴다. 그래서 전역 요청 빈도 제한은 WebSocket 메시지를 세지 않는다([HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한)).
+  - `CustomValidationPipe` 는 커스텀 데코레이터 인자(`@ConnectedSocket()` 소켓)를 검증하지 않는다. 이 제외(`ArgumentMetadata.type === 'custom'`)는 HTTP 의 커스텀 파라미터 데코레이터에도 걸리는 전역 동작이다(NestJS 기본 `ValidationPipe` 의 `validateCustomDecorators: false` 와 같다). 파이프는 NestJS `ExecutionContext` 를 받지 못해서 `isHttpContext` 대신 인자 종류로 가른다. `@MessageBody()` 는 DTO 클래스 타입이면 검증한다. 지금 게이트웨이 핸들러의 `@MessageBody()` 는 모두 인라인 객체 타입이라 검증 대상이 아니다. DTO 클래스를 쓰는 `@MessageBody()` 의 검증 실패 wire 는 [미결 사항](#미결-사항) 에 있다.
+  - `JwtAuthGuard` 는 게이트웨이의 `@Public()` 으로 통과한다. WebSocket 인증은 `handleConnection` 의 JWT 검증이 맡는다(§2.2).
+  - `RolesGuard` 는 `@Public()` 을 보지 않는다. 소켓은 핸드셰이크에서 검증한 사용자 ID 를 소켓 속성 `userId` 에 두고 `request.user` 는 채우지 않는다. 그래서 소켓 요청은 `request.user` 가 없어 `!userId` 분기로 통과한다. 이 분기는 `@Roles()` 가 없는 핸들러만 통과시킨다. 그래서 게이트웨이 핸들러에 `@Roles()` 를 붙이면 모든 요청이 거부된다. 구독 채널 접근 인가는 `handleConnection` 과 구독 채널 인가기(`channelAuthorizers`, §4.4)가 맡는다. 이 동작은 [워크스페이스와 멤버 「멤버십 검증은 가드가 무조건 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드가-무조건-한다) 의 제외 대상 (a) 가운데 `request.user` 가 없는 미인증 요청의 경우에 준한다. 소켓은 인증된 연결이지만 가드가 보는 자리에 사용자가 없다. 인증 판정은 `handleConnection` 이 맡고 멤버십은 토큰 클레임을 그대로 쓴다(§2.2).
+  - 새 전역 enhancer 는 저장소 가드 `global-enhancer-ws-safety.spec.ts` 에 WebSocket 처리 방식을 분류해야 등록할 수 있다. 분류 없이 들어오면 그 가드가 실패한다. 경위는 [「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」](#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 에 있다.
 
-raw WebSocket 을 전제했던 초안 항목은 세 갈래로 처분했다.
+raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 
 | 갈래 | 항목 | 상태 | 근거 |
 |---|---|---|---|
@@ -78,23 +86,25 @@ wss://{base_url}/ws        (Socket.IO namespace '/ws')
 
 raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 인증은 **비채택**이다. Socket.IO 전송은 서브프로토콜 협상을 애플리케이션에 드러내지 않아 이 경로가 구조적으로 적용되지 않고 위 두 위치가 인증을 마친다. 전송을 raw WebSocket 으로 바꾸지 않는 한 도입하지 않는다.
 
+`handleConnection` 은 토큰의 서명과 `exp` 만 검증한다(`jwtService.verify`). 소켓의 워크스페이스는 토큰의 `activeWorkspaceId`(없으면 `workspaceId`)를 그대로 쓰고 멤버십을 DB 에서 다시 확인하지 않는다.
+
 **인증 실패 시**
 
 - **핸드셰이크 단계**: 토큰이 없거나 무효면 서버가 `error` 이벤트(`{ message }`)를 보낸 뒤 `disconnect()` 로 연결을 끊는다. raw HTTP `401` 이 아니라 Socket.IO 연결 에러 경로다.
 - **연결 중 토큰 만료**: 소켓 수명은 토큰 수명에 묶인다. 서버는 핸드셰이크에서 검증한 토큰의 `exp` 로 소켓별 타이머를 걸어 만료 **60초 전**에 `auth.token_expired` 를 1회 보내고 `exp` 에 `disconnect()` 한다(`handleDisconnect` 에서 타이머를 푼다). 구현됨(2026-09-02).
-  - **클라이언트 계약(필수)**: 서버 동작만으로는 성립하지 않는다. 클라이언트는 `auth.token_expired` 를 구독해 통지 창(60초) 안에 REST `/auth/refresh` 로 새 토큰을 받고 `socket.auth.token` 을 바꾼 뒤 **명시적으로 `socket.connect()`** 한다. 통지를 놓친 경우의 폴백은 §9.2 를 따른다.
+  - **클라이언트 계약(필수)**: 서버 동작만으로는 성립하지 않는다. 클라이언트는 `auth.token_expired` 를 구독해 통지 창(60초) 안에 REST `/api/auth/refresh` 로 새 토큰을 받고 `socket.auth.token` 을 바꾼 뒤 **명시적으로 `socket.connect()`** 한다. 통지를 놓친 경우의 폴백은 §9.2 를 따른다.
   - **자동 재연결에 기대지 않는다.** Socket.IO 는 서버가 `disconnect()` 를 부른 경우 자동 재연결을 시작하지 않는다(§6.1 예외).
-  - **닫는 범위**: 이 모델은 토큰 자연 만료 경로만 닫는다. 명시적 폐기(비밀번호 변경, `token_reuse_detected` 로 refresh family 폐기, [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md))는 이미 발급된 access token 을 무효로 만들지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다. "즉시 종료" 가 필요하면 소켓에 폐기를 전파하는 별도 장치가 필요하며 이 결정은 그것을 약속하지 않는다.
+  - **닫는 범위**: 이 모델은 토큰 자연 만료 경로만 닫는다. 명시적 폐기(비밀번호 변경, `token_reuse_detected` 로 refresh family 폐기, [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md))는 이미 발급된 access token 을 무효로 만들지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다. 멤버 제거도 소켓에 바로 전파되지 않고 액세스 토큰 `exp` 까지 간다([미결 사항](#미결-사항)). "즉시 종료" 가 필요하면 소켓에 폐기를 전파하는 별도 장치가 필요하며 이 결정은 그것을 약속하지 않는다.
 
 `auth.token_expired` 이벤트의 페이로드는 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 시스템 이벤트 절에 있다.
 
 ### 2.3 토큰 갱신 (연결 유지)
 
-별도의 in-band WebSocket 갱신 메시지(`auth.refresh`·`auth.refreshed`)는 **비채택**이다. 클라이언트는 토큰이 만료되거나 `connect_error` 가 나면 REST `/auth/refresh` 로 새 access token 을 받아 Socket.IO `auth.token` 을 바꾸고 **다시 연결**해 세션을 유지한다(`ws-client.ts` 의 `connect_error` 핸들러). 이 REST 와 재연결 모델이 정식 채택안이다. 끊김 없는 in-band 갱신의 이득(짧은 재연결 창 제거)이 별도 WebSocket 인증 프로토콜 유지 비용에 못 미친다.
+별도의 in-band WebSocket 갱신 메시지(`auth.refresh`·`auth.refreshed`)는 **비채택**이다. 클라이언트는 토큰이 만료되거나 `connect_error` 가 나면 REST `/api/auth/refresh` 로 새 access token 을 받아 Socket.IO `auth.token` 을 바꾸고 **다시 연결**해 세션을 유지한다(`ws-client.ts` 의 `connect_error` 핸들러). 이 REST 와 재연결 모델이 정식 채택안이다. 끊김 없는 in-band 갱신의 이득(짧은 재연결 창 제거)이 별도 WebSocket 인증 프로토콜 유지 비용에 못 미친다.
 
 비채택한 in-band 갱신 프로토콜은 참고로만 남긴다. backend 에 이 메시지 핸들러와 발행이 없다.
 
-```json
+```js
 // 클라이언트 → 서버
 { "type": "auth.refresh", "payload": { "token": "{new_access_token}" } }
 // 서버 → 클라이언트
@@ -105,7 +115,7 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 
 ## 3. 메시지 형식
 
-메시지의 `type` 은 별도 JSON 필드가 아니라 **Socket.IO 이벤트 이름**으로 전달한다. 서버는 `socket.emit(eventType, envelope)`, 클라이언트는 `socket.on(eventType, handler)` 를 쓴다. 그래서 아래 `{ type, id, payload }` 표기는 논리 구조이고 실제 wire 는 "이벤트 이름 = `type`" 과 "payload = 봉투" 다. 명령의 요청과 응답도 `id` 필드가 아니라 Socket.IO ack callback 으로 짝짓는다.
+메시지의 `type` 은 별도 JSON 필드가 아니라 **Socket.IO 이벤트 이름**으로 전달한다. 서버는 `socket.emit(eventType, envelope)`, 클라이언트는 `socket.on(eventType, handler)` 를 쓴다. 그래서 아래 `{ type, id, payload }` 표기는 논리 구조이고 실제 wire 는 "이벤트 이름 = `type`" 과 "payload = 봉투" 다. 명령의 응답도 같은 방식으로 온다. 핸들러가 돌려준 `{ event, data }` 의 `event` 값이 ack 이벤트 이름이고 payload 는 `data` 다(§1). 요청과 응답은 `id` 필드 대신 ack 이벤트 이름으로 짝짓는다.
 
 ### 3.1 기본 프레임 (논리 구조)
 
@@ -120,7 +130,7 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `type` | String | ✓ | 이벤트·명령 종류(네임스페이스.액션 형태). wire 에서는 Socket.IO 이벤트 이름이다 |
-| `id` | String | 선택 | 메시지 고유 ID. 계획이며 일부 미구현이다. 구현된 명령 ack 는 `id` echo 대신 Socket.IO ack callback 으로 짝짓는다 |
+| `id` | String | 선택 | 메시지 고유 ID. 계획이며 일부 미구현이다. 구현된 명령 응답은 `id` echo 대신 ack 이벤트 이름(`subscribed`, `<명령>.ack` 등)으로 짝짓는다 |
 | `payload` | Object | ✓ | 이벤트·명령별 데이터 |
 
 ### 3.2 서버 → 클라이언트 이벤트 봉투
@@ -147,7 +157,7 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 **이벤트 순번 `seq`**
 
 - `execution:{executionId}` 채널에서는 실행 안에서 1씩 늘어나는 카운터다(`ExecutionSeqAllocator`, Redis `INCR exec:seq:<executionId>`). 키 정의와 TTL 은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다. 슬라이딩 TTL 은 환경 변수 `EXECUTION_SEQ_TTL_SECONDS`(기본 86400)다.
-- 외부 SSE 의 `id:` 와 EIA 알림 웹훅의 `seq` 가 같은 값을 쓴다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R7).
+- 외부 SSE 의 `id:` 와 EIA 알림 웹훅의 `seq` 가 같은 값을 쓴다([External Interaction API 「이벤트 순번을 SSE 와 알림이 같이 쓴다」](../CLE-IX/CLE-EIA.md#이벤트-순번을-sse-와-알림이-같이-쓴다)).
 - **저장 정책은 Redis 전용이다(2026-06-02 결정, DB 폴백 없음).** Redis 를 쓸 수 없으면 인스턴스별 메모리 카운터로 내려가 발행을 멈추지 않는다. 그 구간에는 인스턴스 사이 단조 증가를 보장하지 않는다(받아들인 trade-off, `logger.warn` 기록). 정상 경로에서도 자기 인스턴스가 발급한 값을 미러링해 장애 전환 때 최고값을 이어받는다.
 
 ## 4. 채널 구독
@@ -170,21 +180,23 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 
 ### 4.3 구독과 구독 해제
 
-구독과 해제는 Socket.IO 이벤트 `subscribe`·`unsubscribe` 로 보내고 서버는 ack callback 으로 `{ event, data }` 를 돌려준다.
+구독과 해제는 Socket.IO 이벤트 `subscribe`·`unsubscribe` 로 보낸다. 서버 핸들러가 돌려준 `{ event, data }` 는 `subscribed`·`unsubscribed` ack 이벤트로 나가고 payload 는 `data` 다(§1).
 
 ```js
 // 구독 요청 (클라이언트)
 socket.emit("subscribe", { channel: "execution:550e8400-e29b-41d4-a716-446655440000" });
 
-// 구독 확인 (ack callback payload)
+// 구독 확인: 핸들러 반환(논리 형태)
 { "event": "subscribed", "data": { "success": true, "channel": "execution:550e8400-e29b-41d4-a716-446655440000" } }
+// wire: Socket.IO 이벤트 "subscribed", payload { "success": true, "channel": "execution:550e8400-e29b-41d4-a716-446655440000" }
 
 // 구독 해제
 socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-446655440000" });
-// ack: { "event": "unsubscribed", "data": { "success": true, "channel": "..." } }
+// 핸들러 반환: { "event": "unsubscribed", "data": { "success": true, "channel": "..." } }
+// wire: Socket.IO 이벤트 "unsubscribed", payload { "success": true, "channel": "..." }
 ```
 
-이 ack 는 `{ type, id, payload }` 가 아니라 Socket.IO ack callback 의 `{ event, data }` 형태다(`handleSubscribe` 반환).
+클라이언트는 구독 ack 를 `socket.on('subscribed', …)` 로 받는다. ack callback 과의 관계는 [§1](#1-전송-계층) 이 정한다.
 
 ### 4.4 구독 인가
 
@@ -198,8 +210,9 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `background:run:{id}` | 워크스페이스 소유 검증 (UUID 가 아니면 먼저 차단) |
 | `notifications:{userId}` | **사용자 단위**. JWT `sub` 와 채널의 `userId` 가 같은지 검증한다(fail-closed). `notification.new` 발행은 `emitNotificationEvent` 로 구현됐다 |
 
+- 워크스페이스 소유를 보는 구독 채널 인가기는 토큰 클레임의 워크스페이스가 그 리소스를 소유하는지만 확인한다(예: `execution:` 의 `verifyOwnership(executionId, workspaceId)`). 멤버십을 DB 에서 다시 확인하지 않는다(§2.2).
 - `execution:` 구독 인가는 워크스페이스 소유만 보고 역할을 구분하지 않는다. 그래서 이 채널의 수신 인구는 `GET /api/executions/:id` 와 같고 이벤트 페이로드 마스킹 범위가 이 사실에서 나온다([응답 자격 증명 마스킹](CLE-API-EGRESS.md)).
-- 권한이 없으면 별도 `error` 메시지가 아니라 같은 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 구조화 `code` 를 실어 돌려준다. `code` 는 평문 `error` 에 **더해** 붙는 확장이라 옛 클라이언트는 계속 `error` 로 동작한다.
+- 권한이 없으면 별도 `error` 메시지가 아니라 같은 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 구조화 `code` 를 실어 돌려준다. `code` 는 평문 `error` 에 **더해** 붙는 확장이라 옛 클라이언트는 계속 `error` 로 동작한다. 새 클라이언트는 `code` 로 분기한다. 아래는 핸들러 반환 형태이고 wire 에는 `data` 만 `subscribed` ack 이벤트로 간다(§4.3).
 
 ```json
 { "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution", "code": "FORBIDDEN" } }
@@ -232,13 +245,14 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 ### 5.2 애플리케이션 수준 ping
 
-구현에는 **클라이언트 → 서버 방향** app 수준 `ping` 핸들러가 있다(`@SubscribeMessage('ping')`, `handlePing`). 서버는 `pong` ack 를 돌려준다.
+구현에는 **클라이언트 → 서버 방향** app 수준 `ping` 핸들러가 있다(`@SubscribeMessage('ping')`, `handlePing`). 서버는 `pong` 이벤트로 답한다.
 
 ```js
 // 클라이언트 → 서버
 socket.emit("ping");
-// 서버 ack (callback payload)
+// 핸들러 반환(논리 형태)
 { "event": "pong", "data": { "timestamp": 1711706400000 } }
+// wire: Socket.IO 이벤트 "pong", payload { "timestamp": 1711706400000 }
 ```
 
 서버가 주기적으로 app `ping` 을 보내는 경로는 **비채택**이다. §5.1 의 Socket.IO 내장 heartbeat 가 이미 그 자리를 채우고 그 위의 앱 수준 ping 은 소비처도 주기도 정의되지 않은 주기적 브로드캐스트를 하나 더 만든다.
@@ -256,7 +270,7 @@ socket.emit("ping");
 | 지터 | Socket.IO 내장 randomizationFactor (기본 0.5). 초안의 "±500ms" 는 비율 기반 지터로 바뀌었다 |
 | 최대 재시도 | 제한 없음 (`reconnectionAttempts: Infinity`) |
 
-- 클라이언트는 첫 `connect_error` 때 REST `/auth/refresh` 로 토큰을 한 번 받아 `auth.token` 을 바꾸고 명시적으로 다시 연결해 낡은 토큰 인증 경합을 막는다(`ws-client.ts`).
+- 클라이언트는 첫 `connect_error` 때 REST `/api/auth/refresh` 로 토큰을 한 번 받아 `auth.token` 을 바꾸고 명시적으로 다시 연결해 낡은 토큰 인증 경합을 막는다(`ws-client.ts`).
 - 초안의 구체 백오프 순서(1/2/4/8/16s)는 초안 값이고 실제는 Socket.IO Manager 의 내장 알고리즘을 따른다.
 
 **예외: 서버가 보낸 `disconnect()` 는 자동 재연결 대상이 아니다.** 서버가 `disconnect()` 를 부르면 클라이언트는 reason `"io server disconnect"` 를 받고 Socket.IO 는 재연결을 시도하지 않는다. 클라이언트가 명시적으로 `socket.connect()` 를 불러야 한다. 토큰 만료 종료(§2.2)가 이 경로이므로 그 처리는 §9.2 의 재연결 패턴을 따른다. 이 예외를 모르면 소켓이 조용히 끊긴 채 남는다.
@@ -287,26 +301,29 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 | 코드 | 구현 | 설명 |
 |------|------|------|
-| `UNAUTHENTICATED` | ✅ | 소켓에 사용자 ID 가 없음 |
-| `FORBIDDEN` | ✅ (정의) | 권한 없음(일반). IDOR 차단 핸들러는 존재 추론을 막으려고 일부러 `NOT_FOUND` 를 쓴다 |
-| `NOT_FOUND` | ✅ | 리소스가 없거나 소유 검증 실패 (`verifyOwnership` 으로 통일) |
+| `UNAUTHENTICATED` | ✅ | 소켓에 사용자 ID 가 없음. `retry_last_turn` 의 중첩 `error.code` 로도 쓴다 |
+| `FORBIDDEN` | ✅ (구독 인가 실패) | 권한 없음(일반). IDOR 차단 핸들러는 존재 추론을 막으려고 일부러 `NOT_FOUND` 를 쓴다 |
+| `NOT_FOUND` | ✅ | 리소스가 없거나 소유 검증 실패 (`verifyOwnership` 으로 통일). `retry_last_turn` 의 중첩 `error.code` 로도 쓴다 |
 | `INTERNAL_ERROR` | ✅ | 서버·전송 내부 실패(큐 적재 실패 등). `retry_last_turn` 의 중첩 `error.code` 같은 `WsErrorCode` 전송 수준 코드다. 재개 명령 평면 ack 의 `EXECUTION_INTERNAL_ERROR`(`ErrorCode` enum)와 **별개 범위**다 |
 | `INVALID_EXECUTION_STATE` | ✅ | 재개 명령의 평면 `errorCode`. 발행 쪽 사전 검증 실패 |
 | `RETRY_*`·`RESUME_*` | ✅ | 마지막 턴 재시도와 재개의 도메인 코드. `nodes/core/error-codes.ts` 의 `ErrorCode` enum. 뜻과 전달 방식은 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `INVALID_MESSAGE` | ✅ | 채널이 유효하지 않거나 필수 필드가 없을 때 구독 ack 의 `code` (§4.4) |
-| `UNKNOWN_TYPE` | ✅ | 등록되지 않은 이벤트. 게이트웨이 `onAny` 가 잡아 `error` 이벤트 `{ code, message }` 를 보낸다(Socket.IO 가 조용히 버리는 것을 보완) |
+| `UNKNOWN_TYPE` | ✅ | 등록되지 않은 이벤트. 게이트웨이 `onAny` 가 잡아 `error` 이벤트 `{ code, message }` 를 보낸다(Socket.IO 가 조용히 버리는 것을 보완). 소켓 예산이 남아 있을 때만 보낸다. 예산을 넘은 등록되지 않은 이벤트는 응답 없이 버린다 |
 | `SUBSCRIPTION_LIMIT_EXCEEDED` | ✅ | 구독 한도(20) 초과 시 구독 ack 의 `code` (§4.5) |
-| `RATE_LIMITED` | ✅ | WebSocket 명령 빈도 제한(**소켓당 분당 60건**, 메모리 fixed-window). `WsRateLimitGuard` 가 넘으면 `WsException` 을 던지고 클라이언트는 `exception` 이벤트 `{ code, message }` 로 받는다. **클래스 수준 가드**라 `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 걸리고 등록되지 않은 이벤트(`onAny` 경로)도 같은 소켓 예산을 쓴다(우회 차단). 소켓은 인스턴스에 머문다(sticky)는 전제라 Redis 가 필요 없다. 사용자·워크스페이스 단위 총량 제한이 아니라 소켓당 명령 폭주 방지다 |
+| `RATE_LIMITED` | ✅ | WebSocket 명령 빈도 제한(**소켓당 분당 60건**, 메모리 fixed-window). `WsRateLimitGuard` 가 넘으면 `WsException` 을 던지고 클라이언트는 `exception` 이벤트 `{ code, message }` 로 받는다. 처리되지 않은 서버 예외도 같은 `exception` 이름으로 나가고 `code` 가 없을 수 있다. **클래스 수준 가드**라 `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 걸리고 등록되지 않은 이벤트(`onAny` 경로)도 같은 소켓 예산을 쓴다(우회 차단). 소켓은 인스턴스에 머문다(sticky)는 전제라 Redis 가 필요 없다. 사용자·워크스페이스 단위 총량 제한이 아니라 소켓당 명령 폭주 방지다 |
+
+**전역 요청 빈도 제한은 HTTP 요청만 센다.** WebSocket 메시지는 위 `RATE_LIMITED` 의 `WsRateLimitGuard` 만 센다. 규칙과 근거는 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.
 
 ### 7.2 에러 메시지 형식
 
-- 명령 ack 의 실패 형태는 Socket.IO ack callback 의 `{ event, data }` 다. 재개 명령 넷은 평면 `{ success: false, error, errorCode? }`, `retry_last_turn` 은 중첩 `{ success: false, ..., error: { code, message } }` 를 쓴다([WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).
-- 구독 거부는 `{ event: 'subscribed', data: { success: false, error, code } }` 다(§4.4).
-- **빈도 제한 초과(`RATE_LIMITED`)와 등록되지 않은 이벤트(`UNKNOWN_TYPE`)** 는 ack 가 아니라 각각 NestJS `exception` 이벤트와 `error` 이벤트의 `{ code, message }` 로 나간다.
-- 연결 수준 에러는 시스템 이벤트 `error`(`{ message }`)로만 나간다.
+- 명령 ack 의 실패도 성공과 같은 ack 이벤트(`<명령>.ack` 등)로 온다. 핸들러 반환은 `{ event, data }` 이고 wire payload 는 `data` 다. 재개 명령 넷은 평면 `{ success: false, error, errorCode? }`, `retry_last_turn` 은 중첩 `{ success: false, ..., error: { code, message } }` 를 쓴다([WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).
+- 구독 거부는 `subscribed` 이벤트의 payload `{ success: false, error, code }` 다(§4.4).
+- **빈도 제한 초과(`RATE_LIMITED`)와 등록되지 않은 이벤트(`UNKNOWN_TYPE`)** 는 ack 이벤트가 아니라 각각 NestJS `exception` 이벤트와 `error` 이벤트의 `{ code, message }` 로 나간다.
+- 연결 핸드셰이크 에러는 `error` 이벤트 `{ message }` 다.
+- `error` 이벤트는 페이로드가 두 가지다. 핸드셰이크 에러는 `{ message }` 이고 `UNKNOWN_TYPE` 은 `{ code, message }` 다. 클라이언트는 `code` 가 있는지로 둘을 가른다.
 
-```json
-// retry_last_turn 실패 ack (nested error.code)
+```js
+// retry_last_turn 실패 ack (nested error.code). 핸들러 반환(논리 형태)이고 wire 는 이벤트 "execution.retry_last_turn.ack" 의 payload 로 data 만 간다
 { "event": "execution.retry_last_turn.ack", "data": { "success": false, "executionId": "...", "nodeExecutionId": "...", "resumed": false, "error": { "code": "NOT_FOUND", "message": "Execution not found" } } }
 ```
 
@@ -348,19 +365,21 @@ flowchart LR
 
 1. **연결**: `io(url + '/ws', { auth: { token } })` 로 Socket.IO 인스턴스를 만들고 토큰을 넘긴다.
 2. **인증 확인**: `connect` 이벤트로 확인한다. 실패는 `connect_error` 로 온다.
-3. **구독**: `socket.emit('subscribe', { channel })` 을 보내고 ack callback 의 `data.success` 를 확인한다.
+3. **구독**: `socket.emit('subscribe', { channel })` 을 보내고 `subscribed` ack 이벤트 payload 의 `success` 를 확인한다(`socket.on('subscribed', …)`, [§1](#1-전송-계층)).
 4. **이벤트 처리**: `socket.on('<event>', handler)` 로 이벤트별로 나눈다(이벤트 이름 = 논리 구조의 `type`).
-5. **Heartbeat**: Socket.IO 내장 transport ping/pong 이 자동으로 처리한다(§5). app 수준 `ping` 은 클라이언트가 보내고 서버 `pong` ack 를 받는 선택 경로다.
-6. **토큰 갱신**: `connect_error` 때 REST `/auth/refresh` 로 새 토큰을 받아 `socket.auth.token` 을 바꾸고 다시 연결한다(§2.3). in-band `auth.refresh` 메시지는 비채택이다.
+5. **Heartbeat**: Socket.IO 내장 transport ping/pong 이 자동으로 처리한다(§5). app 수준 `ping` 은 클라이언트가 보내고 서버의 `pong` 이벤트를 받는 선택 경로다.
+6. **토큰 갱신**: `connect_error` 때 REST `/api/auth/refresh` 로 새 토큰을 받아 `socket.auth.token` 을 바꾸고 다시 연결한다(§2.3). in-band `auth.refresh` 메시지는 비채택이다.
 7. **재연결**: Socket.IO 내장 reconnection(`reconnection: true`)에 맡기고 다시 구독할 때 한 번 받는 `execution.snapshot`(현재 상태)으로 맞춘다(§6.2). raw `onclose` 처리는 필요 없다.
 8. **토큰 만료 종료 대응(§2.2)**: 7 의 자동 재연결은 **서버가 보낸 `disconnect()` 에는 시작되지 않는다**(§6.1 예외). 두 경로를 모두 구현한다.
-   - **사전 통지(정상)**: `socket.on('auth.token_expired', …)` 로 구독하고 `expiresAt` 까지의 창(60초) 안에 REST `/auth/refresh` 로 새 토큰을 받아 `socket.auth.token` 을 바꾼 뒤 **명시적으로 `socket.connect()`** 한다. 성공하면 사용자에게 끊김이 보이지 않는다.
+   - **사전 통지(정상)**: `socket.on('auth.token_expired', …)` 로 구독하고 `expiresAt` 까지의 창(60초) 안에 REST `/api/auth/refresh` 로 새 토큰을 받아 `socket.auth.token` 을 바꾼 뒤 **명시적으로 `socket.connect()`** 한다. 성공하면 사용자에게 끊김이 보이지 않는다.
    - **폴백(통지를 놓친 경우)**: `socket.on('disconnect', reason => …)` 에서 `reason === 'io server disconnect'` 이면 같은 재발급과 명시적 재연결을 한다. 백그라운드 탭이나 일시 정지로 통지를 못 받을 수 있으므로 이 경로가 없으면 소켓이 끊긴 채 남는다.
 9. **정리**: 페이지를 떠날 때 `unsubscribe` 를 보내고 `socket.disconnect()` 한다(raw close code 1000 은 쓰지 않는다).
 
 ## 미결 사항
 
-- **구독 인가 실패 코드 `FORBIDDEN` 과 IDOR 차단 `NOT_FOUND` 관례**: §4.4 는 구독 인가 실패(IDOR 차단 목적)에 `FORBIDDEN` 을 돌려준다고 적는다. §7.1 은 IDOR 차단 핸들러가 존재 추론을 막으려 일부러 `NOT_FOUND` 를 쓴다고 적는다. 구독 경로만 예외인지, 그렇다면 왜 존재 추론 방지를 적용하지 않는지 문서에 이유가 없다. 구독 경로를 `NOT_FOUND` 로 맞출지, 예외로 두고 이유를 적을지 결정이 필요하다.
+- **구독 인가 실패 코드 `FORBIDDEN` 과 IDOR 차단 `NOT_FOUND` 관례**: §4.4 는 구독 인가 실패(IDOR 차단 목적)에 `FORBIDDEN` 을 돌려준다고 적는다. §7.1 은 IDOR 차단 핸들러가 존재 추론을 막으려 일부러 `NOT_FOUND` 를 쓴다고 적는다. 구독 경로만 예외인지, 그렇다면 왜 존재 추론 방지를 적용하지 않는지 문서에 이유가 없다. 구독 경로를 `NOT_FOUND` 로 맞출지, 예외로 두고 이유를 적을지 결정이 필요하다. 결정이 나면 [WebSocket 이벤트와 명령 「마지막 턴 재시도」](CLE-API-WS-EVENTS.md#24-마지막-턴-재시도-executionretry_last_turn) 의 §2.4 코드 표와 [에러 코드 규약과 카탈로그 「WebSocket 전송」](CLE-API-ERRCODES.md#68-websocket-전송-도메인-문서-참조) 의 §6.8 도 함께 고친다.
+- **소켓의 멤버십 재검증**: 워크스페이스에서 제거된 멤버의 소켓은 액세스 토큰 `exp`(최대 15분)까지 그 워크스페이스의 구독 채널을 구독하고 이벤트를 받는다. HTTP 는 요청마다 멤버십을 다시 읽는다. 이것은 관측된 현재 동작이고 사람이 승인한 수용이 아니다. 즉시 재검증을 둘지는 사람이 정한다(후속 NERV Task `CLE-T-KYPH36`). 경위는 [「소켓 수명을 토큰 수명에 묶는다 (2026-09-02)」](#소켓-수명을-토큰-수명에-묶는다-2026-09-02) 의 「닫지 않는 것」에 있다.
+- **DTO 클래스 `@MessageBody()` 의 검증 실패 wire**: 지금 게이트웨이 핸들러의 `@MessageBody()` 는 모두 인라인 객체 타입이라 `CustomValidationPipe` 가 검증하지 않는다(§1). 검증 실패가 wire 에서 어떻게 보이는지는 아직 정하지 않았다. 게이트웨이에 DTO 클래스 타입의 `@MessageBody()` 를 처음 들일 때 이 wire 와 `INVALID_MESSAGE` 와의 매핑을 먼저 정한다.
 
 ## 구현 위치
 
@@ -368,6 +387,13 @@ flowchart LR
 - `codebase/backend/src/modules/websocket/websocket.service.ts` (이벤트 봉투 조립과 발행)
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts` (`seq` 발급)
 - `codebase/backend/src/modules/websocket/ws-error-codes.ts` (`WsErrorCode`)
+- `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (`WsRateLimitGuard`. 소켓당 명령 빈도 제한)
+- `codebase/backend/src/common/utils/http-context.ts` (`isHttpContext`. HTTP 전용 전역 enhancer 가 HTTP 가 아닌 호출을 건너뛰는 판정)
+- `codebase/backend/src/common/guards/user-throttler.guard.ts` (`UserThrottlerGuard`. HTTP 가 아닌 호출을 건너뛴다)
+- `codebase/backend/src/common/interceptors/logging.interceptor.ts` (`LoggingInterceptor`. HTTP 가 아닌 호출을 건너뛴다)
+- `codebase/backend/src/common/interceptors/transform.interceptor.ts` (`TransformInterceptor`. HTTP 가 아닌 호출을 건너뛴다)
+- `codebase/backend/src/common/pipes/validation.pipe.ts` (`CustomValidationPipe`. 커스텀 데코레이터 인자를 검증하지 않는다)
+- `codebase/backend/src/repo-guards/__tests__/global-enhancer-ws-safety.spec.ts` (전역 enhancer 의 WebSocket 처리 분류 가드)
 - `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정, 비교 대상)
 - `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (SSE 재전송 버퍼 Redis Stream 과 인스턴스 사이 전달, 비교 대상)
 - `codebase/frontend/src/lib/websocket/ws-client.ts` (재연결 설정, 토큰 갱신, 토큰 만료 대응)
@@ -378,7 +404,7 @@ flowchart LR
 
 초안은 native·raw WebSocket 프로토콜을 전제로 `{ type, id, payload }` 프레임, `Sec-WebSocket-Protocol` 서브프로토콜 인증, `auth.refresh`·`auth.refreshed` in-band 갱신, `execution.start`·`execution.stop` WebSocket 명령, 서버 발신 30s/10s app ping, raw close code(1000·1001·1008·4000·4001), `{type:'error',code}` 프레임을 약속했다. 그러나 구현(`websocket.gateway.ts`, `websocket.service.ts`, 프론트엔드 `ws-client.ts`)은 Socket.IO(namespace `/ws`) 기반이고 위 표면 다수가 없거나 형태가 달랐다.
 
-- **구현에 맞춰 바로잡은 사실**: 전송 = Socket.IO. 인증 = `handshake.query.token || handshake.auth.token`(서브프로토콜 경로 없음). 구독 ack = `{ event:'subscribed', data:{ success, channel?, error? } }`. 스냅샷 페이로드 = `{ executionId, execution, timestamp }`(`status`·`nodeExecutions` 는 `execution` 안). app ping = 클라이언트 → 서버(`handlePing`). heartbeat = Socket.IO 내장. 재연결 = Socket.IO 내장 백오프. 토큰 갱신 = REST refresh 와 재연결. 서버 발신 이벤트 wire = `{ executionId, ...payload, seq, timestamp }` 평면과 이벤트 이름 분리.
+- **구현에 맞춰 바로잡은 사실**: 전송 = Socket.IO. 인증 = `handshake.query.token || handshake.auth.token`(서브프로토콜 경로 없음). 구독 ack = `{ event:'subscribed', data:{ success, channel?, error? } }`(2026-10-22 정정: ack callback 이 아니라 `subscribed` ack 이벤트로 `data` 만 간다. [「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」](#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 참조). 스냅샷 페이로드 = `{ executionId, execution, timestamp }`(`status`·`nodeExecutions` 는 `execution` 안). app ping = 클라이언트 → 서버(`handlePing`). heartbeat = Socket.IO 내장. 재연결 = Socket.IO 내장 백오프. 토큰 갱신 = REST refresh 와 재연결. 서버 발신 이벤트 wire = `{ executionId, ...payload, seq, timestamp }` 평면과 이벤트 이름 분리.
 - **미구현으로 나눴던 약속의 처분**
   - 2026-07-07 구현: WebSocket 에러 처리 강화. 전용 에러 코드 넷(`INVALID_MESSAGE`, `UNKNOWN_TYPE`, `SUBSCRIPTION_LIMIT_EXCEEDED`, `RATE_LIMITED`)과 소켓당 분당 60건 빈도 제한이다. 구독 ack 는 평문 `error` 에 구조화 `code` 를 더했고 빈도 제한은 `WsRateLimitGuard`(클래스 수준, 메모리, 소켓별), 등록되지 않은 이벤트는 `onAny` → `error{code}` 다.
   - 2026-07-08 비채택: raw WebSocket 전제 둘(서브프로토콜 인증, close code)과 REST 대체 둘(in-band 갱신, WebSocket 실행 시작·중단·start ack). 근거는 아래 "raw WebSocket 전제·REST 대체 항목 비채택".
@@ -387,6 +413,45 @@ flowchart LR
   - `notification.new` 발행은 이후 구현됐다.
   - **남은 항목은 없다.** 2026-06-03 에 미구현으로 나눈 항목이 모두 처분됐다.
 - 재개·재시도 코드(`INVALID_EXECUTION_STATE`, `RESUME_*`, `RETRY_*`)는 처음부터 코드와 맞았다.
+
+### ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)
+
+NERV Task `CLE-T-A3W8B8` 에서 실행 패널이 비는 장애를 고치면서 두 가지를 바로잡았다. 하나는 문서가 적은 ack 이벤트 wire 이고 다른 하나는 NestJS 12 가 게이트웨이에 붙인 전역 enhancer 다. 짝 문서 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 ack 서술도 같은 Task 에서 함께 고쳤다.
+
+**ack 이벤트 wire 정정**
+
+- 2026-06-03 정정부터 이 문서는 명령과 구독의 응답을 «Socket.IO ack callback 의 `{ event, data }`» 로 적었다. 코드는 그렇게 동작하지 않는다.
+- `@nestjs/platform-socket.io` 12.1.2 의 `IoAdapter.bindMessageHandlers` 는 핸들러 반환값에 `event` 가 있으면 `socket.emit(response.event, response.data)` 를 부른다. `event` 필드 값을 이름으로 하는 Socket.IO 이벤트로 `data` 만 보내는 것이다. 이때 ack callback 은 부르지 않는다. 반환값에 `event` 가 없고 클라이언트가 callback 을 넘긴 경우에만 `ack(response)` 를 부른다.
+- 게이트웨이 핸들러는 모두 `{ event, data }` 를 돌려준다. 그래서 wire 는 ack 이벤트 이름(`event` 값)과 payload `data` 이고 `{ event, data }` 형태는 wire 에 없다.
+- 프론트엔드는 이 wire 로 받아 왔다. 구독 결과는 `subscribed` 이벤트 구독으로 받는다. 재개 명령은 프론트엔드 로컬 헬퍼 `emitWithAck`(`use-execution-interaction-commands.ts`)가 ack 이벤트 이름(`execution.click_button.ack` 등)을 한 번 기다린다. 이 헬퍼는 Socket.IO 내장 `Socket#emitWithAck` 와 다르다. 내장은 ack callback 을 기다리므로 이 게이트웨이에서는 응답을 받지 못한다. e2e `ws-execution-subscribe.e2e-spec.ts` 는 callback 없이 `subscribe` 를 보내고 `subscribed` 이벤트 payload 가 `{ success: true, channel }` 임을 단언한다.
+- 문서를 믿고 구현할 클라이언트가 callback 을 넘겨 기다리면 응답을 받지 못한다. 그래서 문서를 코드에 맞췄다. 이벤트 이름과 payload 필드는 그대로라 지금 클라이언트에는 영향이 없다.
+- §7.2 에서 `error` 이벤트 `{ message }` 를 쓰는 경우를 연결 핸드셰이크 에러로 좁혔다. 연결된 소켓도 등록되지 않은 이벤트를 보내면 `error` 이벤트로 `{ code: 'UNKNOWN_TYPE', message }` 를 받는다(§7.1). 범위를 좁히지 않으면 §7.2 가 §7.1 과 어긋난다.
+- **기각한 대안**
+  - 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추기: 프론트엔드(`ws.on('subscribed')` 와 로컬 헬퍼 `emitWithAck`)와 새 e2e 가 이미 이벤트 wire 에 기대고 있어 호환만 깨진다. 이미 굳은 wire 이름을 바꾸지 않은 판단은 [WebSocket 이벤트와 명령 「`submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)」](CLE-API-WS-EVENTS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유-2026-06-10) 의 폼 제출 ack 이름에도 있다.
+  - callback 과 이벤트를 함께 보내기(이번 Task 에서 검토만 한 안): 택하지 않은 이유는 지금 callback 을 기다리는 소비자가 없고 응답이 두 번 나가는 표면만 늘기 때문이다.
+
+**NestJS 12 전역 enhancer 장애**
+
+- NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD`·`APP_PIPE`·`APP_INTERCEPTOR` 가 게이트웨이 핸들러에도 붙는다. 끄는 옵션은 없다. 전역 예외 필터는 붙지 않는다. 이 동작은 NestJS 를 12 로 올린 NERV Task `CLE-T-3X627J`(커밋 `27423a5b8`)와 함께 들어왔다.
+- HTTP 요청을 전제한 `LoggingInterceptor` 가 소켓 요청에서 던졌다(소켓에는 `url` 이 없다). 그래서 `subscribe` 가 `exception` 으로 끝났고 구독이 성립하지 않아 실행 패널이 비었다.
+- 같은 원인으로 `CustomValidationPipe` 는 `@ConnectedSocket()` 소켓을 검증 대상으로 보고 변환했다. `UserThrottlerGuard` 는 소켓에 `user`·`ip` 가 없어서 모든 사용자의 WebSocket 메시지를 한 버킷(`unknown`)으로 셌다.
+- 단위 테스트는 핸들러를 직접 불러 이 파이프라인을 지나지 않았다. 장애는 e2e 에서야 드러났다.
+
+**결정**
+
+- HTTP 전용 전역 enhancer 는 한 술어로 HTTP 가 아닌 호출을 건너뛴다. 술어는 `isHttpContext`(`common/utils/http-context.ts`) 하나이고 `LoggingInterceptor`·`TransformInterceptor`·`UserThrottlerGuard` 가 이 술어를 쓴다. enhancer 마다 `getType()` 비교를 따로 쓰면 어느 것이 WebSocket 을 거르는지 한눈에 보이지 않는다.
+- 파이프는 NestJS `ExecutionContext` 를 받지 못해 이 술어를 쓰지 못한다. `CustomValidationPipe` 는 커스텀 데코레이터 인자(`ArgumentMetadata.type === 'custom'`)를 검증하지 않는다. `@ConnectedSocket()` 소켓이 여기 든다. `@MessageBody()` 는 `body` 로 오므로 DTO 클래스 타입이면 검증한다. 지금 게이트웨이 핸들러의 `@MessageBody()` 는 모두 인라인 객체 타입이라 검증 대상이 아니다.
+- `JwtAuthGuard` 와 `RolesGuard` 는 고치지 않았다. `JwtAuthGuard` 는 게이트웨이의 `@Public()` 으로 통과한다. `RolesGuard` 는 `@Public()` 을 보지 않는다. 소켓 요청에는 `request.user` 가 없어 `!userId` 분기로 통과한다. 이 분기는 `@Roles()` 가 없는 핸들러만 통과시킨다. 그래서 게이트웨이 핸들러에 `@Roles()` 를 붙이면 모든 요청이 거부된다. 구독 채널 접근 인가는 `handleConnection` 과 구독 채널 인가기(`channelAuthorizers`)가 맡는다. 이 동작은 [워크스페이스와 멤버 「멤버십 검증은 가드가 무조건 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드가-무조건-한다) 의 제외 대상 (a) 가운데 `request.user` 가 없는 미인증 요청의 경우에 준한다. 인증 판정은 `handleConnection` 이 맡고 멤버십은 토큰 클레임을 그대로 쓴다.
+- `JwtAuthGuard` 를 `@Public()` 으로 우회하는 것은 2026-09-02 결정 [「소켓 수명을 토큰 수명에 묶는다」](#소켓-수명을-토큰-수명에-묶는다-2026-09-02) 와 같은 선이다. 그 결정은 명령마다 다시 검증하는 안을 기각했고 만료 집행은 `armExpiryTimers` 하나다.
+- 그 절의 실측 «게이트웨이에 인증 가드 0건» 은 NestJS 12 상향 전(2026-09-02) 기준이다. 지금은 전역 `JwtAuthGuard` 가 게이트웨이 핸들러에도 붙지만 `@Public()` 으로 통과한다.
+- 저장소 가드 `global-enhancer-ws-safety.spec.ts` 가 이 분류를 고정한다. 전역 enhancer 는 «HTTP 가 아니면 건너뜀»(`skips-non-http`) 이나 «WebSocket 핸들러에서 통과하도록 설계됨»(`ws-safe-by-design`) 중 하나로 분류돼야 한다. 지금은 `JwtAuthGuard`·`RolesGuard` 가 뒤쪽이고 나머지 넷이 앞쪽이다. 분류 없이 새 enhancer 를 등록하면 가드가 실패한다. 분류가 사실인지는 WebSocket 호출 모양으로 enhancer 를 직접 불러 확인한다.
+- 그 결과 WebSocket 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건) 하나다. 전역 요청 빈도 제한은 WebSocket 메시지를 세지 않는다(§7.1). 이 규칙의 핵심 결정은 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.
+
+**기각한 대안 (전역 enhancer)**
+
+- 전역 등록을 컨트롤러 단위로 옮기기(이번 Task 에서 검토만 한 안): 택하지 않은 이유는 새 컨트롤러가 등록을 빠뜨리기 쉽고 바꿀 표면이 크기 때문이다.
+- Nest 쪽 옵트아웃: `@nestjs/websockets` 12.1.2 에는 게이트웨이에서 전역 enhancer 를 끄는 옵션이 없다.
+- 검증 파이프에서 `instanceof Socket` 으로 소켓을 가려내기: `@nestjs/platform-socket.io` 가 고정한 socket.io 사본과 backend 가 설치한 사본이 다르다. 그래서 런타임 소켓이 `instanceof` 검사에 걸리지 않는다. e2e 에서 확인했다.
 
 ### raw WebSocket 전제·REST 대체 항목 비채택 (2026-07-08)
 
@@ -397,8 +462,8 @@ flowchart LR
   - raw close code 매핑: Socket.IO 는 close code 를 앱 수준에 드러내지 않는다. 클라이언트는 `disconnect`·`connect_error` 이벤트로 재연결을 판단한다.
   - 전송을 raw WebSocket 으로 바꾸지 않는 한 구현할 대상이 없다. 바꾸는 것은 Socket.IO 의 재연결·멀티플렉싱·폴백 이점을 버리는 큰 결정이라 계획에 없다.
 - **REST 로 충분(중복 경로 회피)**: 정식 REST 경로가 같은 기능을 이미 마친다.
-  - in-band `auth.refresh`·`auth.refreshed`: 토큰이 만료되면 REST `/auth/refresh` 와 Socket.IO 재연결이 세션을 유지한다. in-band 갱신의 이득(짧은 재연결 창 제거)은 별도 WebSocket 인증 프로토콜(핸들러, 발행, 재생 공격 방어, 테스트) 유지 비용에 못 미친다.
-  - `execution.start`·`execution.stop`·`execution.start.ack` WebSocket 명령: 실행 시작은 REST `POST /workflows/:id/execute`, 중단은 REST `POST /executions/:id/stop` 이 정식 경로다. WebSocket 시작·중단은 REST 와 순수하게 중복되는 표면이라 유지 부채만 늘린다(진행 상황은 `execution:{id}` 구독으로 받으므로 시작을 WebSocket 으로 둘 이점이 없다).
+  - in-band `auth.refresh`·`auth.refreshed`: 토큰이 만료되면 REST `/api/auth/refresh` 와 Socket.IO 재연결이 세션을 유지한다. in-band 갱신의 이득(짧은 재연결 창 제거)은 별도 WebSocket 인증 프로토콜(핸들러, 발행, 재생 공격 방어, 테스트) 유지 비용에 못 미친다.
+  - `execution.start`·`execution.stop`·`execution.start.ack` WebSocket 명령: 실행 시작은 REST `POST /api/workflows/:id/execute`, 중단은 REST `POST /api/executions/:id/stop` 이 정식 경로다. WebSocket 시작·중단은 REST 와 순수하게 중복되는 표면이라 유지 부채만 늘린다(진행 상황은 `execution:{id}` 구독으로 받으므로 시작을 WebSocket 으로 둘 이점이 없다).
 - **폐기한 대안**: 넷을 계속 "계획" 으로 두는 안. 전송이 Socket.IO 로 정해진 이상 raw WebSocket 둘은 영구히 도입하지 않고 REST 대체 둘은 의도적으로 도입하지 않으므로 "계획" 표기는 언젠가 구현한다는 잘못된 기대를 남긴다. 명시적 비채택이 정직하다.
 - 당시 이 결정은 서버 발신 `auth.token_expired`, `system.maintenance`, app ping 을 범위 밖으로 두었다. "트리거 소스 설계가 필요한 실제 기능 backlog" 로 보았기 때문이다. 이 셋은 뒤의 두 결정으로 처분됐다.
 
@@ -420,7 +485,7 @@ flowchart LR
 
 `auth.token_expired` 를 **보내고 끊는다.** 서버는 핸드셰이크에서 검증한 토큰의 `exp` 로 소켓별 타이머를 걸어 만료 **60초 전**에 1회 알리고 `exp` 에 `disconnect()` 한다.
 
-- **왜 필요한가(실측 2026-09-02)**: `modules/websocket/` 의 `jwtService.verify` 호출부는 **1곳**(`handleConnection`)뿐이고 게이트웨이에 `exp` 참조·타이머·인증 가드가 **모두 0건**이었다. access token 수명은 **900초**인데 한 번 연결된 소켓은 만료 뒤에도 무기한 인가된 채 이벤트를 받았다. 옛 복구 서술(`connect_error` → REST refresh → 재연결)은 새 연결 시도에서만 시작돼 살아 있는 소켓을 다루지 않았다.
+- **왜 필요한가(실측 2026-09-02)**: `modules/websocket/` 의 `jwtService.verify` 호출부는 **1곳**(`handleConnection`)뿐이고 게이트웨이에 `exp` 참조·타이머·인증 가드가 **모두 0건**이었다(NestJS 12 상향 뒤의 상태는 [2026-10-22 절](#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22)). access token 수명은 **900초**인데 한 번 연결된 소켓은 만료 뒤에도 무기한 인가된 채 이벤트를 받았다. 옛 복구 서술(`connect_error` → REST refresh → 재연결)은 새 연결 시도에서만 시작돼 살아 있는 소켓을 다루지 않았다.
 - **기각한 대안**
   - 알리기만 하고 끊지 않음: "만료됐다" 고 알리고도 그 소켓을 인가된 채로 둔다. 틈을 문서화할 뿐 닫지 않는다.
   - 명령마다 다시 검증(가드): 명령은 막지만 **수신을 못 막는다.** WebSocket 은 push 중심이라 구독만 하는 소켓은 만료된 토큰으로 계속 데이터를 받는다.
@@ -429,7 +494,11 @@ flowchart LR
 - **클라이언트 계약이 결정의 일부다**: Socket.IO 는 서버가 보낸 `disconnect()` 에 자동 재연결을 시작하지 않는다(§6.1 예외). 착수 시점 실측으로 프론트엔드에 `auth.token_expired` 구독이 0건이었고 `disconnect` 재연결 경로도 없었다. 서버만 바꾸면 사용자가 조용히 연결을 잃는다. 그래서 §9.2 에 사전 통지 경로와 통지를 놓친 경우의 폴백을 함께 정했다.
 - **닫지 않는 것(범위 명시)**: 이 결정은 토큰 자연 만료 경로만 닫는다. 명시적 폐기는 이미 발급된 access token 을 무효로 만들지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다. 즉시 종료에는 소켓으로 폐기를 전파하는 별도 장치가 필요하며 이 결정은 그것을 약속하지 않는다.
   - **EIA SSE 의 예외(2026-10-17, NERV Task `CLE-T-G0Y6MW` · `CLE-T-EMB0YG`)**: 이 결정은 WebSocket 소켓의 규칙이다. EIA SSE 스트림 가운데 실행 단위 토큰(`iext_*`)으로 연 스트림은 토큰이 만료돼도 닫지 않는다([EIA 데이터와 흐름 「실행 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#실행-단위-토큰)). 인증 설정이 연결된 웹훅이 시작한 실행이면 그 스트림에는 연결 시간 상한이 없다. 이 틈은 받아들인 잔여 위험이고 대응은 실행 취소다. «만료 때 스트림을 닫는다» 를 택하지 않은 이유는 그 문서의 Rationale 에 있다.
-- **타이머가 견디는 범위**: 이 타이머는 소켓을 들고 있는 프로세스에 로컬이다. 프로세스가 죽으면 소켓 자체가 끊겨 클라이언트가 새 핸드셰이크로 새 타이머를 받으므로 다중 인스턴스 사이 상태 불일치(EIA 의 R10·R15·R19 가 다루는 부류)에 해당하지 않는다.
+  - **멤버 제거(2026-10-22 관측, NERV Task `CLE-T-A3W8B8`)**: HTTP 와 WebSocket 이 멤버십을 다르게 다룬다. 이것은 관측된 현재 동작이고 사람이 승인한 수용이 아니다.
+    - HTTP 는 `jwt.strategy.ts` 가 요청마다 토큰 클레임이 가리키는 워크스페이스의 멤버십을 DB 에서 다시 읽는다(`getMemberRole`). 멤버가 아니면 개인 워크스페이스(없으면 첫 멤버십)로 내려가므로 제거된 워크스페이스에는 다음 요청부터 접근하지 못한다.
+    - WebSocket 은 핸드셰이크에서 토큰 클레임만 쓴다(§2.2). 구독 채널 인가기와 명령 핸들러는 그 워크스페이스가 리소스를 소유하는지만 본다. 그래서 워크스페이스에서 제거된 멤버도 액세스 토큰 `exp`(최대 15분)까지 그 워크스페이스의 구독 채널을 구독하고 이벤트를 받는다. 명령도 보낼 수 있다.
+    - 즉시 재검증을 둘지는 사람이 정한다(후속 NERV Task `CLE-T-KYPH36`). [미결 사항](#미결-사항) 에 올렸다.
+- **타이머가 견디는 범위**: 이 타이머는 소켓을 들고 있는 프로세스에 로컬이다. 프로세스가 죽으면 소켓 자체가 끊겨 클라이언트가 새 핸드셰이크로 새 타이머를 받으므로 다중 인스턴스 사이의 상태 불일치 문제에 해당하지 않는다.
 - **구현됨(2026-09-02)**: 백엔드 소켓별 타이머(`armExpiryTimers`)와 프론트엔드 구독·명시 재연결. 서버만으로 성립하지 않는 계약이라 양쪽이 다 들어간 뒤 구현됨으로 표시했다.
 - **페이로드 `expiresAt`**: ISO 8601 문자열이고 이 소켓이 강제로 끊기는 시각이다. 선례는 구현된 `_retryState.expiresAt` 이고 `auth.refreshed.expiresAt`(§2.3 비채택)과는 이름만 같다. 발행 전이던 이벤트라 wire 호환 부담 없이 그때 정의하는 것이 가장 쌌다.
 
@@ -439,11 +508,11 @@ flowchart LR
 
 - **결정**: native WebSocket 복구는 스냅샷 모델이다. `seq` 단위 정밀 재전송(5분 버퍼)은 SSE 표면(`Last-Event-Id`, `sse-adapter.service.ts`)이 맡는다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼 인스턴스는 공유하지 않는다.
 - **근거**: WebSocket 채널의 실제 쓰임은 에디터와 실행 모니터링 화면이다. 스냅샷은 노드별 최종 상태와 종결 상태를 권위 있게 맞추므로 재연결 뒤 화면 복구에 충분하다. 잃는 것은 끊긴 짧은 창의 중간 이벤트(`node.started`, 진행, 도구 진행) 입자뿐이고 다음 이벤트나 스냅샷으로 곧 수렴한다. native WebSocket 버퍼 재전송을 따로 배선하는 비용(WebSocket room 단위 `seq` 버퍼 신설, 다중 인스턴스 fan-out 미해결. SSE 어댑터도 같은 한계)은 그 한계 이득에 비해 크다.
-- **폐기한 대안**: native WebSocket lastSeq 버퍼 재전송 전면 구현. 분산 환경 미해결과 낮은 ROI 로 보류했다. 외부 클라이언트용 손실 없는 재전송 요구(EIA-NF-03)는 SSE 버퍼 재전송으로 이미 충족된다.
-- **버퍼 만료 신호는 SSE 에만 둔다**: SSE 는 `execution.replay_unavailable` 을 보낸다(구현됨). native WebSocket 은 `seq` 버퍼가 없어 만료 신호가 구조적으로 필요 없으므로 대응 `replay.unavailable` 을 두지 않는다. 초기 초안의 "두 전송에 함께 도입" 문구는 WebSocket 에 버퍼가 있다는 폐기된 전제였으므로 철회했다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R-replay-unavailable 도 같은 정정을 적는다).
+- **폐기한 대안**: native WebSocket lastSeq 버퍼 재전송 전면 구현. 분산 환경 미해결과 낮은 ROI 로 보류했다. 외부 클라이언트에 손실 없이 다시 보내야 한다는 요구는 SSE 버퍼 재전송으로 이미 충족된다([EIA 수신 API와 SSE 「스트림 규칙」](../CLE-IX/CLE-EIA-INBOUND.md#스트림-규칙)).
+- **버퍼 만료 신호는 SSE 에만 둔다**: SSE 는 `execution.replay_unavailable` 을 보낸다(구현됨). native WebSocket 은 `seq` 버퍼가 없어 만료 신호가 구조적으로 필요 없으므로 대응 `replay.unavailable` 을 두지 않는다. 초기 초안의 "두 전송에 함께 도입" 문구는 WebSocket 에 버퍼가 있다는 폐기된 전제였으므로 철회했다([EIA 수신 API와 SSE 「버퍼 만료를 명시 신호로 알린다」](../CLE-IX/CLE-EIA-INBOUND.md#버퍼-만료를-명시-신호로-알린다) 도 같은 정정을 적는다).
 - **2026-10-17 보강(NERV Task `CLE-T-Z35F7P`)**: 위 근거의 «SSE 어댑터도 같은 한계» 는 그날까지의 사실이다. SSE 쪽의 다중 인스턴스 한계는 Redis fan-out 으로 풀었다. SSE 재전송 버퍼는 이제 Redis Stream 이어서 클라이언트가 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 받는다. 키와 실패 정책은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 쪽 판단은 바뀌지 않았다.
 
-### `workflow:`·`notifications:` 채널 인가를 더한 이유 (refactor 04 M-6)
+### `workflow:`·`notifications:` 채널 인가를 더한 이유
 
 §4.4 의 소유 검증 채널 목록에 `workflow:{workflowId}`(워크스페이스 소유 검증, `execution:` 과 같은 형태)와 `notifications:{userId}`(JWT `sub` 일치 검증)를 더했다. `channelAuthorizers` 는 배열에 항목을 더하는 것만으로 따로따로 넓힐 수 있는 구조다.
 

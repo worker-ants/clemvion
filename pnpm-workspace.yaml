@@ -83,7 +83,10 @@ overrides:
   # GHSA-rfgv-xxqx-mfg5 외 6건(8.x) — frontend · channel-web-chat > jsdom@30 > undici. jsdom 선언이
   # `^8.x` 라 8 계열 안의 패치 버전으로만 올린다(다른 메이저를 끌어올리지 않게 레인지 키로 둔다).
   "undici@>=8.0.0 <8.10.2": ^8.10.2
-  vite: ^8.0.16
+  # 2026-10-22(NERV Task `CLE-T-BJ334Q`): GHSA-587h-7wmj-h5pm (high) · GHSA-698v-4r3x-3vcv ·
+  # GHSA-r825-w8mm-5pxw · GHSA-rq7h-c2jc-7f22 (moderate). 취약 범위가 `>=8.0.0 <=8.1.5` 라 바닥을
+  # 8.1.6 으로 올렸다. 경로는 frontend · channel-web-chat > `@vitejs/plugin-react` · vitest > vite 다.
+  vite: ^8.1.6
   "@babel/core": ^7.29.7
   "@hono/node-server": ^2.0.5
   # GHSA-4mjr-xmp4-gh2g · GHSA-x5fp-wj9c-mxmx (moderate) — `qs` 6.15.2 가 두 경로로

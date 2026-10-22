@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a661e462bf4b884267db5186de18cf109428d13ddb086f067dbbf08921401c81"
+content_hash: "5fb337bb27c284ffd42ee961d8f027a091010d66b6f35ea2e7e8a0aba3ba8e9c"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-A3W8B8"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "972327f1b70d2775e3cca7b4cf5fc405fd02b6ca035dfb46a6d78dc96d6d1edc"
-etag: "sha256-76ddbdbfa642f36f4817e01560eb1f8f24df4b035b26dea93494257f3984ef28"
+mirror_sha256: "3008e0ca3dfe287cc683b68ab78b468c9069467f6cdc6fdf715268f299d733ec"
+etag: "sha256-04f7fc36fa2d2296be832349a8c6f924425d2c9cb58001b98cc6026e25d419f1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,7 +48,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
 10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다.
 11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다(§6). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
-12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘으면 `429` 와 `Retry-After` 헤더를 돌려준다. 채팅 채널 인바운드만 예외로 `202` 를 돌려준다.
+12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외는 두 가지다. 채팅 채널 인바운드는 `202` 를 돌려준다. WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
 13. 목록 조회의 기본 페이지네이션은 offset 방식이다. 대량으로 쌓이는 데이터는 cursor 방식을 쓴다.
 14. `PUT` 은 쓰지 않는다. 부분 수정은 `PATCH` 로 한다.
 
@@ -267,7 +267,10 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 
 ## 7. 요청 빈도 제한
 
-> **한 행만 초과 응답이 다르다.** 채팅 채널 인바운드는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다(근거: [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-19). 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
+> **초과 응답이 `429` 가 아닌 행은 두 개다.**
+>
+> - 채팅 채널 인바운드는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다(근거: [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-19). 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
+> - WebSocket 명령은 HTTP 요청이 아니라서 상태 코드가 없다. 한도를 넘으면 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)).
 
 | 범위 | 제한 | 헤더 |
 |------|------|------|
@@ -290,14 +293,15 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절 | `Retry-After` |
 | External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 상한은 모든 서버 인스턴스의 연결을 합쳐 센다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다(fail-open). 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
 | 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 CCH-NF-03 | 없음 (위 콜아웃) |
-| WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). `WsRateLimitGuard` 가 넘으면 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 핸들러와 등록되지 않은 이벤트(`onAny`)에 적용한다. 상세는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 의 에러 코드 절 | 없음 (전송: socket `exception`) |
+| WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). 전역 요청 빈도 제한(일반 API 100 req/min)은 이 경로를 세지 않는다. 한도를 넘으면 `WsRateLimitGuard` 가 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용한다. 등록되지 않은 이벤트(`onAny`)도 같은 소켓 예산을 쓴다. 넘었을 때의 응답은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 가 정한다 | 없음 (전송: 소켓 `exception` 이벤트) |
 
-- 한도를 넘으면 `429` 와 `Retry-After` 헤더를 돌려준다.
+- HTTP 요청이 한도를 넘으면 `429` 를 받는다. 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도와 External Interaction SSE 동시 연결은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 두 행(채팅 채널 인바운드, WebSocket 명령)은 위 콜아웃에 있다.
 - **표의 범위**: 위 표는 전역 throttler 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 rate limiter 로 덮어쓴 엔드포인트별 오버라이드를 한 곳에 모은 것이다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 throttle 수치의 단일 기준은 이 표다.
-- 인증된 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
-- **키 결정 규칙(현재 구현)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다.
+- 인증된 HTTP 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
+- **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다.
+- **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다.
 - External Interaction 인바운드는 `@Throttle` 이 아니라 도메인 전용 `InteractionRateLimiterService`(실행 단위 Redis 카운터)로 덮어쓴 사례다.
-- **`NODE_ENV=test` 에서만 건너뛴다.** e2e 가 컨테이너 IP 하나에서 빠른 인증 호출을 연달아 보내 스스로 throttle 한계(100/60s)에 막히는 문제를 피하려고 test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 throttle 을 전역으로 우회한다. production·development 동작은 바뀌지 않는다. 헬퍼는 `throttler-skip.ts` 다.
+- **환경으로 건너뛰는 경우는 `NODE_ENV=test` 하나다.** e2e 가 컨테이너 IP 하나에서 빠른 인증 호출을 연달아 보내 스스로 요청 빈도 제한(100/60s)에 걸리는 문제를 피하려고 test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역 기본값과 라우트별 `@Throttle` 한도를 건너뛴다. production·development 동작은 바뀌지 않는다. 헬퍼는 `throttler-skip.ts` 의 `shouldSkipThrottle` 이다. 위의 HTTP 가 아닌 호출 건너뛰기와는 별개다.
 
 ## 8. 페이지네이션
 
@@ -476,12 +480,16 @@ Content-Type: application/json
 - `codebase/backend/src/common/pipes/validation.pipe.ts`
 - `codebase/backend/src/common/dto/*.ts`
 - `codebase/backend/src/common/swagger/error-response.dto.ts`
-- `codebase/backend/src/common/interceptors/transform.interceptor.ts` (성공 응답 `{ data }` 래핑과 pass-through)
-- `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 throttle 키 결정)
+- `codebase/backend/src/common/interceptors/transform.interceptor.ts` (성공 응답 `{ data }` 래핑과 pass-through. HTTP 가 아닌 호출을 건너뛴다)
+- `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 요청 빈도 제한 키 결정과 HTTP 가 아닌 호출 건너뛰기)
+- `codebase/backend/src/common/guards/user-throttler.guard.spec.ts`
+- `codebase/backend/src/common/utils/http-context.ts` (`isHttpContext`. HTTP 전용 전역 enhancer(요청 빈도 제한 가드 · 응답 래핑 · 요청 로깅)가 함께 쓰는 판정)
 - `codebase/backend/src/common/constants/throttle.ts` (§7 의 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`)
 - `codebase/backend/src/common/utils/throttler-skip.ts` (`NODE_ENV=test` skip)
+- `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (WebSocket 명령 빈도 제한)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`
+- `codebase/backend/src/repo-guards/__tests__/global-enhancer-ws-safety.spec.ts` (전역 enhancer 분류 가드)
 - `codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts` (선언과 선언 대조)
 - `codebase/backend/src/shared/testing/response-contract*.ts` (값과 선언 대조)
 - `codebase/backend/src/shared/testing/swagger-probe*.ts`
@@ -647,3 +655,19 @@ NERV Task `CLE-T-EQDYC1` 의 사람 결정이다. 채팅 채널 인바운드의 
 이제 `/cancel` 은 `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. 진행 중인 대화의 입력이 재개 큐에 들어가지 못한 경우도 같다. 사람은 분당 한도 초과 · 워크스페이스 불일치 때와 같은 처리를 골랐다. 실패는 채널 건강도와 경고 로그로 운영자에게 보인다. §6 의 `503` 행에는 이 사실을 한 줄로 적었다. 채팅 채널 인바운드가 `503` 을 돌려주는 경우는 `/start` 의 기존 실행 취소 실패 하나로 남는다. 처리 규칙과 근거의 기준은 채팅 채널 문서다.
 
 기각한 대안: `/start` 처럼 `/cancel` 도 `503` 을 돌려주는 안. non-2xx 가 이어지면 프로바이더가 웹훅을 끌 수 있다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). `/start` 는 실패를 숨기면 사용자의 새 시작 요청이 사라져서 이 위험을 받아들였다. `/cancel` 은 그 사정이 없다.
+
+### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
+
+NERV Task `CLE-T-A3W8B8` 에서 더했다. NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD` · `APP_PIPE` · `APP_INTERCEPTOR` 가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 가 아닌 호출을 건너뛰고 WebSocket 명령은 소켓당 `WsRateLimitGuard` 만 센다. 소켓당 가드는 2026-07-07 에 들어왔다([WebSocket 연결과 채널 구독 「전송 계층을 Socket.IO 로 바로잡은 경위 (2026-06-03)」](CLE-API-WS.md#전송-계층을-socketio-로-바로잡은-경위-2026-06-03) 의 2026-07-07 구현 항목). 이번 수정은 WebSocket 명령을 그 가드 하나로 세던 설계를 되살린 것이다.
+
+§7 은 전역 가드 순서와 키 결정 규칙만 적고 어떤 요청을 세는지는 적지 않았다. 그래서 §7 에 HTTP 요청만 센다는 항목을 더하고 키 결정 규칙이 HTTP 기준이라고 밝혔다. 「`NODE_ENV=test` 에서만 건너뛴다」 는 이제 사실과 달라서 환경으로 건너뛰는 경우가 그 하나라는 뜻으로 고쳤다. 같은 항목은 test 환경에서 모든 한도를 건너뛰는 것처럼 읽혔다. `skipIf` 가 건너뛰는 것은 전역 기본값과 라우트별 `@Throttle` 한도라서 그 범위대로 적었다. 판정 함수가 있는 `http-context.ts`, 소켓당 가드, 전역 enhancer 분류 가드 테스트는 구현 위치에 더했다.
+
+같은 초안에서 규칙 12 와 §7 머리 콜아웃도 고쳤다. 두 곳은 초과 응답이 다른 경우를 채팅 채널 하나로 적었다. §7 표의 WebSocket 명령 행도 `429` 대신 소켓 `exception` 이벤트로 알리므로 그 행을 두 번째 예외로 더했다.
+
+규칙 12 와 표 아래 첫 줄은 모든 HTTP 행이 `429` 와 함께 `Retry-After` 헤더를 싣는다고 읽혔다. 코드에서 그 헤더를 싣는 것은 전역 기본값과 라우트별 `@Throttle` 행(`@nestjs/throttler`)과 External Interaction 인바운드 행(`InteractionRateLimitGuard`)이다. 공개 웹훅 추가 한도(`PublicWebhookThrottleGuard`)와 External Interaction SSE 동시 연결은 `429` 만 돌려준다. 그래서 규칙 12 에는 헤더가 행마다 다르다고만 적고 표 아래 첫 줄에 행 묶음별로 적었다.
+
+WebSocket 명령 행은 등록되지 않은 이벤트(`onAny`)도 한도를 넘으면 `exception` 을 받는다고 읽혔다. 그래서 그 행에서 `@SubscribeMessage` 핸들러와 등록되지 않은 이벤트를 나눠 적고 등록되지 않은 이벤트의 응답 규칙은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 에 맡겼다.
+
+기각한 대안: 전역 가드가 소켓에서 사용자 · IP 키를 만들어 WebSocket 명령도 세는 안. 소켓당 `WsRateLimitGuard` 와 같은 명령을 두 번 센다. WebSocket 명령이 같은 사용자의 HTTP 요청 한도(분당 100회)도 함께 써 버린다.
+
+경위는 [WebSocket 연결과 채널 구독](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.

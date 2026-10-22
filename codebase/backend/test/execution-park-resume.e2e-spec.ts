@@ -725,7 +725,8 @@ describe('Execution park → cold rehydration resume (e2e, PR-B1)', () => {
  *     운영에서는 emitAiWaitingForInput 가 토큰을 발급하지만, e2e 에서는 backend
  *     와 동일한 `JWT_SECRET` 으로 직접 mint 한다 (InteractionTokenService.
  *     issuePerExecution 과 동형 payload). WS `execution.submit_message` 는
- *     socket.io-client 의존성 부재로 제외, REST `/continue` 는 form_submitted
+ *     아직 e2e 로 옮기지 않아 제외한다(socket.io-client 는 있고 소켓 e2e 의 기준 예제는
+ *     `ws-execution-subscribe.e2e-spec.ts`). REST `/continue` 는 form_submitted
  *     sentinel 전용이라 multi-turn 메시지를 구동하지 않으므로 제외.
  *
  * 검증: (1) park 시 execution=waiting_for_input(durable) + node_execution WAITING

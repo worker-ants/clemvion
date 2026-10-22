@@ -19,10 +19,10 @@ import { NotificationDto } from '../src/modules/notifications/dto/responses/noti
  *   1) V047 / V048 인덱스의 `pg_index.indisvalid = true` 운영 안전성
  *   2) Cross-workspace `GET /api/executions/:id/background-runs/:bgid` → 404
  *   3) WS `background:run:<id>` 비-UUID / cross-workspace 구독 거부
- *      ⇒ socket.io-client 의존성 부재로 e2e 미커버. 동일 시나리오는
- *         `websocket.gateway.spec.ts` 의 unit test 4건이 이미 회귀 잠금
- *         (cross-workspace / non-UUID / DB error / success). 의존성 추가
- *         결정 시 본 spec 으로 이관.
+ *      ⇒ 아직 e2e 로 옮기지 않았다. socket.io-client 는 devDependency 로 들어왔고 소켓 e2e 의
+ *         기준 예제는 `ws-execution-subscribe.e2e-spec.ts` 다. 동일 시나리오는
+ *         `websocket.gateway.spec.ts` 의 unit test 4건이 회귀 잠금
+ *         (cross-workspace / non-UUID / DB error / success). 이관은 후속으로 남긴다.
  *   4) Background 본문 실패 시 Notification 의 딥링크(resource_type/resource_id=workflow,
  *      `_layout.md §3.1`)와 per-run attribution(`background_run_id` 컬럼, V107)이 분리 생성
  *

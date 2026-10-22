@@ -1007,7 +1007,8 @@ describe('WebsocketGateway', () => {
 
   describe('§7.1 rate-limit 하드닝 배선', () => {
     it('class-level @UseGuards 에 WsRateLimitGuard 바인딩 (실배선 회귀 가드)', () => {
-      // e2e(socket.io-client) 부재를 보완 — 데코레이터 위치·providers 누락 시 실패.
+      // 실제 소켓 e2e 가 이 시나리오를 아직 덮지 않는다(`ws-execution-subscribe.e2e-spec.ts` 는
+      // subscribe 경로만 본다). 데코레이터 위치·providers 누락 시 실패하는 단위 가드로 보완한다.
       const guards = Reflect.getMetadata('__guards__', WebsocketGateway) as
         unknown[] | undefined;
       expect(guards).toBeDefined();
