@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
 content_hash: "392bdac8bab63d4a733a86c26c6e884c473a4e906894977eecb053d3fa7525c1"
 read_as: "approved_fallback"
-task: "CLE-T-G0Y6MW"
+task: "CLE-T-A3W8B8"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "d68b3046762c14700613ba525c987fb1a35eb226e9baeb9ebfa281c801bad821"
-etag: "sha256-d690cc1af051319a7bfe63524dcea46f6460e217520004c404fc5e66da541149"
+mirror_sha256: "ce138ba09c9b57e49d82f8d4b865f17225c0fac3901780a8239ca5da5a5a9039"
+etag: "sha256-0f936c4ccbf4aa5118ac56da17dc717930051f0a64c98afc71a0861dea2042cc"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

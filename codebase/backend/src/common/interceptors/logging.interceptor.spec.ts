@@ -19,6 +19,7 @@ describe('LoggingInterceptor', () => {
 
   const buildContext = (url: string, statusCode: number) =>
     ({
+      getType: () => 'http',
       switchToHttp: () => ({
         getRequest: () => ({ method: 'GET', url }),
         getResponse: () => ({ statusCode }),
@@ -151,6 +152,33 @@ describe('LoggingInterceptor', () => {
       await run(interceptor, '/api/health-records', 200);
       // /api/health-records 는 health probe 경로(정확 매치)가 아니므로 항상 로그
       expect(logSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // NestJS 12 부터 APP_INTERCEPTOR 가 WebSocket 게이트웨이 핸들러에도 붙는다. 그 컨텍스트의
+  // switchToHttp().getRequest() 는 HTTP 요청이 아니라 소켓이라 url 이 없다. 예전에는 여기서
+  // `url.split` 이 TypeError 를 던져 `subscribe` 가 `exception` 으로 끝났다.
+  describe('HTTP 가 아닌 컨텍스트 (WebSocket)', () => {
+    const buildWsContext = () =>
+      ({
+        getType: () => 'ws',
+        switchToHttp: () => ({
+          getRequest: () => ({ id: 'socket-1', handshake: {} }),
+          getResponse: () => ({ channel: 'execution:e-1' }),
+        }),
+      }) as any;
+
+    it('던지지 않고 핸들러 결과를 그대로 넘기며 HTTP 로그를 남기지 않는다', async () => {
+      const interceptor = new LoggingInterceptor(buildConfig('true'));
+      const ack = { event: 'subscribed', data: { success: true } };
+      const result = await new Promise<unknown>((resolve) => {
+        interceptor
+          .intercept(buildWsContext(), createHandler(ack))
+          .subscribe((value) => resolve(value));
+      });
+      expect(result).toBe(ack);
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 });

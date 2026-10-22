@@ -38,6 +38,12 @@ export class CustomValidationPipe implements PipeTransform<unknown> {
     if (!metatype || !this.toValidate(metatype)) {
       return value;
     }
+    // 이미 선언 타입의 인스턴스면 요청 본문이 아니라 프레임워크가 넘긴 객체다. NestJS 12 부터
+    // `APP_PIPE` 가 WebSocket 게이트웨이 인자에도 붙어 `@ConnectedSocket() client: Socket` 이
+    // 여기로 온다. 변환하면 핸들러가 소켓 대신 사본을 받는다.
+    if (value instanceof metatype) {
+      return value;
+    }
     const object = plainToInstance(
       metatype,
       value as Record<string, unknown>,

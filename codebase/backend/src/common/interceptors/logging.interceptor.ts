@@ -25,6 +25,9 @@ const HEALTH_PROBE_PATHS = new Set(['/api/health', '/api/health/live']);
  *   - 성공(status < 400): `HEALTH_CHECK_LOG=true` 일 때만 INFO 레벨 로그.
  *
  * 그 외 경로는 결과와 무관하게 항상 INFO 레벨로 로그한다.
+ *
+ * HTTP 요청만 로그한다. NestJS 12 부터 `APP_INTERCEPTOR` 가 WebSocket 게이트웨이 핸들러에도
+ * 붙는데, 그 컨텍스트의 `switchToHttp().getRequest()` 는 소켓이라 `url` 이 없다.
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -39,6 +42,9 @@ export class LoggingInterceptor implements NestInterceptor {
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (context.getType() !== 'http') {
+      return next.handle();
+    }
     const request = context
       .switchToHttp()
       .getRequest<{ method: string; url: string }>();

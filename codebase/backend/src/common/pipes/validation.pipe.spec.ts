@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Socket } from 'socket.io';
 import { CustomValidationPipe, UNVALIDATED_METATYPES } from './validation.pipe';
 
 class InnerDto {
@@ -128,5 +129,37 @@ describe('UNVALIDATED_METATYPES', () => {
         pipe.transform(value, { type: 'body', metatype: metatype as never }),
       ).resolves.toBe(value);
     }
+  });
+});
+
+/**
+ * NestJS 12 부터 APP_PIPE 가 WebSocket 게이트웨이 핸들러의 인자에도 붙는다. 게이트웨이의
+ * `@ConnectedSocket() client: Socket` 은 설계 타입이 `Socket` 클래스라 목록에 걸리지 않고,
+ * 값은 요청 본문이 아니라 프레임워크가 넘긴 소켓 객체다. 이것을 DTO 처럼 변환 · 검증하면
+ * 핸들러가 소켓 대신 사본을 받거나 검증 예외로 끝난다.
+ */
+describe('CustomValidationPipe — 이미 선언 타입의 인스턴스인 값', () => {
+  const pipe = new CustomValidationPipe();
+
+  it('WS 소켓 인자는 변환 · 검증하지 않고 같은 참조를 돌려준다', async () => {
+    const socket = Object.assign(Object.create(Socket.prototype) as Socket, {
+      id: 'socket-1',
+    });
+    await expect(
+      pipe.transform(socket, { type: 'custom', metatype: Socket }),
+    ).resolves.toBe(socket);
+  });
+
+  it('plain 객체는 같은 설계 타입이어도 여전히 검증한다 — 위 단언이 vacuous 하지 않다', async () => {
+    class NarrowDto {
+      @IsString()
+      known: string;
+    }
+    await expect(
+      pipe.transform(
+        { known: 'ok', extra: 1 },
+        { type: 'custom', metatype: NarrowDto },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
