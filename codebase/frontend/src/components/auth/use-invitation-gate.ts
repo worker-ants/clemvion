@@ -39,6 +39,10 @@ export type InvitationState =
  *
  * 가입 여부를 확인하지 못해 폼을 연 기존 가입자는 제출이 이메일 중복으로 끝난다. 그때 호출자가
  * `sendExistingAccountToLogin` 을 불러 3단계와 같은 안내와 경로로 보낸다.
+ *
+ * effect 안의 이동은 `on…` 으로 시작하는 `useEffectEvent` 로 읽는다. `router` · `t` 를 의존성에 넣으면 참조가
+ * 바뀔 때마다 판정이 다시 돌아 메타 조회와 이동이 두 번 일어나므로 `useCallback` 으로 되돌리지 않는다.
+ * effect 밖에서 부르는 `sendExistingAccountToLogin` 은 평범한 함수를 쓴다.
  */
 export function useInvitationGate(invitationToken: string | undefined): {
   state: InvitationState;
@@ -50,7 +54,8 @@ export function useInvitationGate(invitationToken: string | undefined): {
     invitationToken ? { kind: "loading" } : { kind: "none" },
   );
 
-  function goToLogin(token: string) {
+  // 기존 가입자를 로그인으로 보낸다. 상태 전환, 안내 토스트, 로그인 경로 이동을 한꺼번에 한다.
+  function routeExistingAccountToLogin(token: string) {
     setState({ kind: "existingAccount" });
     toast.info(t("auth.register.invitationExistingAccount"));
     router.replace(buildInvitationLoginHref(token));
@@ -58,10 +63,10 @@ export function useInvitationGate(invitationToken: string | undefined): {
 
   // 판정 effect 는 토큰에만 묶는다. `router` · `t` 가 새 참조로 와도 다시 돌지 않게 effect event 로 읽는다.
   // locale 이 바뀌면 `key={locale}` 로 폼이 새로 마운트되므로 판정도 새로 한다.
-  const goToAcceptPage = useEffectEvent((token: string) => {
+  const onRouteSignedInUserToAcceptPage = useEffectEvent((token: string) => {
     router.replace(invitationAcceptPath(token));
   });
-  const onExistingAccount = useEffectEvent(goToLogin);
+  const onRouteExistingAccountToLogin = useEffectEvent(routeExistingAccountToLogin);
 
   useEffect(() => {
     if (!invitationToken) return;
@@ -69,7 +74,7 @@ export function useInvitationGate(invitationToken: string | undefined): {
     // 로그인 힌트 쿠키로 본다. 힌트가 stale(쿠키만 남고 refresh 만료)이면 수락 페이지의 AuthProvider 가
     // 수락 페이지로 돌아오는 `/login?redirect=…` 로 보낸다.
     if (hasSessionHint()) {
-      goToAcceptPage(invitationToken);
+      onRouteSignedInUserToAcceptPage(invitationToken);
       return;
     }
     let cancelled = false;
@@ -79,7 +84,7 @@ export function useInvitationGate(invitationToken: string | undefined): {
         if (cancelled) return;
         const registered = await isRegisteredEmail(meta.email);
         if (cancelled) return;
-        if (registered) onExistingAccount(invitationToken);
+        if (registered) onRouteExistingAccountToLogin(invitationToken);
         else setState({ kind: "ready", meta });
       } catch (err) {
         if (cancelled) return;
@@ -99,7 +104,7 @@ export function useInvitationGate(invitationToken: string | undefined): {
   function sendExistingAccountToLogin() {
     // 가입 폼은 `ready` 에서만 제출할 수 있다. 그 밖의 상태에서 온 호출은 무시한다.
     if (!invitationToken || state.kind !== "ready") return;
-    goToLogin(invitationToken);
+    routeExistingAccountToLogin(invitationToken);
   }
 
   return { state, sendExistingAccountToLogin };
