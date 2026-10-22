@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "6f304fb4c174fa98adff94834ebb7b60fa80647b1ccb8c4883f393a2a6c27664"
+content_hash: "a7c67ddca1bddb67d244c28189bbe59af7498fdceb6f7c2c768244c1322c25f2"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-A3W8B8"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "de8ebcb8d2746d9e378d6d3879d1a8f1f4b4345de6e1ed4d626c22f748ca8b1d"
-etag: "sha256-62e38f6ae5cea8566ba986ee3f1ccae3d5e58d937ca1a34c1511754502c26f81"
+mirror_sha256: "aa46cda50ceac39416192e02681e25df4c495db5468e6c108a3a3b3184040b6e"
+etag: "sha256-752f4e9cf76ef9e27339ff8d77c37e6b30c0f5f94a364985b7b85f55f2ca0d98"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -592,13 +592,13 @@ sequenceDiagram
 
 두 큐 모두 멀티 인스턴스에서도 전역 1회만 돈다.
 
-요청 빈도 제한은 Redis 가 아니라 `@nestjs/throttler` 의 in-memory 카운터로 구현했다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
+요청 빈도 제한은 Redis 가 아니라 `@nestjs/throttler` 의 in-memory 카운터로 구현했다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
 
 수치의 단일 기준은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다. 이 표는 집계 키와 구현 위치의 정본이다.
 
 | 범위 | 한도 | 집계 키 | 위치 |
 | --- | --- | --- | --- |
-| 전역 (모든 API) | 분당 100회(`NODE_ENV=test` 만 건너뜀) | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts` |
+| 전역 (모든 HTTP API) | 분당 100회 | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts`, `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`) |
 | `register`·`login` | 분당 10회 | IP | `auth.controller.ts` 의 `@Throttle` |
 | `forgot-password`·`resend-verification`·`check-email` | 분당 5회 | IP | `auth.controller.ts` |
 | `2fa/disable` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
@@ -606,6 +606,8 @@ sequenceDiagram
 | `auth/sessions/:familyId/revoke`·`auth/sessions/revoke-others` | 분당 10회·5회 | 사용자 | `sessions.controller.ts` |
 | 초대 발급·재발송 | 분당 10건 | 사용자 | `workspaces.controller.ts`(`INVITATION_THROTTLE`, 값은 `SENSITIVE_ACTION_THROTTLE`) |
 | 공개 초대 메타 조회 | 분당 30건 | IP | `invitations.controller.ts` |
+
+전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
 
 초대 발송 · provider probe · 2단계 인증 끄기는 `SENSITIVE_ACTION_THROTTLE` 하나를 공유한다.
 
@@ -691,7 +693,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`, `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts`
 - `codebase/backend/src/common/constants/workspace-roles.ts` (`ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
-- `codebase/backend/src/app.module.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`, `codebase/backend/src/common/constants/throttle.ts` (요청 빈도 제한과 집계 키, `SENSITIVE_ACTION_THROTTLE`)
+- `codebase/backend/src/app.module.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`, `codebase/backend/src/common/utils/http-context.ts`, `codebase/backend/src/common/constants/throttle.ts` (요청 빈도 제한과 집계 키, HTTP 요청만 세는 판정 `isHttpContext`, `SENSITIVE_ACTION_THROTTLE`)
 - `codebase/backend/src/modules/mail/mail.service.ts`, `codebase/backend/src/modules/mail/mail.module.ts`, `codebase/backend/src/modules/mail/mail.transporter.ts` (SMTP 전송기와 TLS 강제)
 - `codebase/backend/src/common/config/mail.config.ts` (`MAIL_*` 해석과 운영 경고 판정), `codebase/backend/src/main.ts` (운영 경고)
 - `codebase/backend/src/modules/mail/mail.transporter.spec.ts`, `codebase/backend/src/common/config/mail.config.spec.ts` (TLS 강제 · 설정 기본값 · 운영 경고 판정 테스트)
@@ -859,3 +861,9 @@ STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 �
 2026-10-10 변경이다(NERV Task `CLE-T-75TDTN`). `POST /api/auth/2fa/disable` 은 예전에 비밀번호만 받았다. 이제 `{ password, code }` 를 받고 둘 다 맞아야 `two_factor_enabled`·`two_factor_secret`·`totp_recovery_codes` 를 지운다. `code` 는 6자리 TOTP 코드나 TOTP 복구 코드이고 로그인 2단계와 같은 검증을 쓴다(`TotpService.verifyForDisable`). 틀리면 401 `TOTP_INVALID` 다.
 
 비밀번호만 받던 방식은 비밀번호와 로그인 세션을 함께 빼앗기면 2단계 인증까지 꺼질 수 있어 바꿨다. 켜진 상태의 setup/verify 가 닫히기 전까지 효과는 부분적이다([가입과 로그인](CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항, NERV Task `CLE-T-94FTMV`). 복구 코드를 받지 않는 안은 기각했다. 기기를 잃고 복구 코드로 로그인한 사용자가 2단계 인증을 끌 방법이 없어진다. 규칙의 정본은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이다.
+
+### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
+
+NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard` 하나가 맡는다. 그래서 요청 빈도 제한 표의 전역 행에 범위가 HTTP API 라는 것을 밝히고 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 으로 넘겼다. 표 위 문단의 집계 키 설명도 HTTP 요청 기준으로 고쳤다.
+
+2026-10-10 [「요청 한도의 집계 기준을 코드에 맞췄다」](#요청-한도의-집계-기준을-코드에-맞췄다) 의 집계 기준은 HTTP 요청에 그대로 유효하다. 기각한 대안은 [HTTP API 규약 「전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)」](../CLE-API/CLE-API-CONV.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22) 에 있다. 경위는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
