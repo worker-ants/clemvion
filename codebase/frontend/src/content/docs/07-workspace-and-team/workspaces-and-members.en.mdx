@@ -64,11 +64,43 @@ The pending-invitations list shows expiry time. Each row supports:
 
 ## What the invited person sees
 
-The `Accept invitation` button in the email opens the sign-up page with `?invitationToken=…`.
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/auth/register-form.tsx"
+  symbol="RegisterForm"
+  describes="Sign-up screen opened from the invitation email: locked email, and the redirect to sign in for existing accounts"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/auth/login-form.tsx"
+  symbol="LoginForm"
+  describes="Sign-in screen for people arriving from an invitation link: hint text and return after sign-in"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/accept-invitation-content.tsx"
+  symbol="AcceptInvitationContent"
+  describes="Invitation accept screen: the Accept button and the Sign in with another account button"
+/>
+
+When you click the `Accept invitation` button in the email, one of three screens opens: sign-up, sign-in, or the invitation accept screen, depending on whether you're signed in and whether an account already exists.
 
 - **Not signed up yet**: The email field is prefilled and locked (you cannot register under a different email — this is an intentional safeguard against permission escalation via leaked tokens). Just set a password and name, and on submit you're signed up, joined to the workspace, and routed to the dashboard. **No email-verification step** — the token itself proves ownership.
-- **Already signed up**: If the logged-in email matches the token's email, you'll see an `[Accept]` button. If it doesn't match, you'll get a "log in as `{tokenEmail}` to accept" prompt.
+- **Has an account but is not signed in**: If an account already exists for the invited email, you're taken to the [sign-in](/login) screen instead of the sign-up screen. A brief notice reads "This email already has an account. Sign in to accept the invitation.", and the sign-in screen shows "Sign in to continue to the invitation."
+- **Already signed in**: The invitation accept screen opens right away. If the signed-in account's email matches the invited email, click `Accept` to join. If you're signed in with a different account, a notice and a `Sign in with another account` button appear. The button signs you out and takes you to the sign-in screen, and once you sign in with the invited account you come back to the same invitation accept screen.
 - **Expired / consumed token**: A banner explains what happened. Ask the workspace Admin to resend.
+
+### Returning to the invitation after you sign in
+
+If you sign in after arriving from an invitation link, you come back to the invitation accept screen. This is the same for password, two-factor authentication, and Google · GitHub sign-in. Signing in alone does not accept the invitation: click `Accept` on the screen you return to, and you join the workspace.
+
+The `Sign in` link under the sign-up form also returns you to the invitation accept screen after you sign in, when you arrived from an invitation link.
+
+<Callout type="note">
+  An existing account whose email has not been verified cannot sign in. Handle the verification email first, then click the `Accept invitation` button in the invitation email again.
+</Callout>
 
 ## Shared workflows (Team badge)
 

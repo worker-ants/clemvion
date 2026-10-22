@@ -2,21 +2,21 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 7
+version: 9
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "561eb965b1d08ee1a3817255787480fe5d7957a2a34c12d8ed4e6460db8e39fe"
+content_hash: "4a7838f5931db64afc025902584c7f41786ba3f5fc90a562a2abb08ea90a9246"
 read_as: "approved_fallback"
-task: "CLE-T-QJ7XN7"
+task: "CLE-T-7WZKFB"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "e75ae5ce0deb6df419e088327a880dea191b2a825b9e9f6363b7305dbcb5342f"
-etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
+mirror_sha256: "e4a7401118961bc143811d9d58fe00d8a6d0fab59d86fd1718a60750fb1227e6"
+etag: "sha256-c80b8bdbcb219e6056f3dbf7b41329f3795a276414ccf9f748b52c55bbb61515"
 ---
-> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 
 범위 밖 주제는 다음 문서가 정한다.
 
-- 액세스 토큰·리프레시 토큰, 로그인 세션, 로그인 유지, 로그아웃, 계정 재인증 에러 코드, 라우트 가드: [세션과 토큰](CLE-ACCT-SESSION.md)
+- 액세스 토큰·리프레시 토큰, 로그인 세션, 로그인 유지, 로그아웃, 계정 재인증 에러 코드, 라우트 가드, 로그인 뒤 이동할 곳: [세션과 토큰](CLE-ACCT-SESSION.md)
 - 초대 링크로 하는 가입, 첫 개인 워크스페이스 자동 생성, 역할과 권한: [워크스페이스와 멤버](CLE-ACCT-WS.md)
 - 내 프로필 화면과 비밀번호 변경: [내 프로필](CLE-ACCT-PROFILE.md)
 - 테이블 컬럼, 서버 시퀀스, 상태 전이: [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)
@@ -41,11 +41,11 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 - REQ-SIGNIN-004 IF 로그인이 5번 연속 실패하면 THE SYSTEM SHALL 계정을 10분 동안 잠그고 `ACCOUNT_LOCKED` 로 거부한다.
 - REQ-SIGNIN-005 IF 계정이 잠기면 THE SYSTEM SHALL 이메일 알림을 보내지 않고 로그인 이력과 `ACCOUNT_LOCKED` 에러 코드로만 알린다.
 - REQ-SIGNIN-006 WHEN 이메일 인증·비밀번호 재설정·이메일 변경 토큰을 발급하면 THE SYSTEM SHALL 원래 토큰은 메일 링크로만 보내고 DB 에는 SHA-256 해시만 저장한다.
-- REQ-SIGNIN-007 WHEN 가입 폼의 이메일 입력란에서 포커스가 빠지면 THE SYSTEM SHALL 형식을 검사하고 `POST /api/auth/check-email` 로 중복 여부를 확인한다.
+- REQ-SIGNIN-007 WHEN 읽기 전용이 아닌 가입 폼 이메일 입력란에서 포커스가 빠지면 THE SYSTEM SHALL 형식을 검사하고 `POST /api/auth/check-email` 로 중복 여부를 확인한다.
 - REQ-SIGNIN-008 IF 가입 폼의 약관 동의가 체크되지 않았으면 THE SYSTEM SHALL 가입 버튼을 비활성화한다.
 - REQ-SIGNIN-009 WHILE 사용자가 비밀번호를 입력하는 동안 THE SYSTEM SHALL 5단계 비밀번호 강도 바를 보여 준다.
 - REQ-SIGNIN-010 WHEN 초대 토큰 없이 가입이 성공하면 THE SYSTEM SHALL 토큰을 발급하지 않고 이메일 인증 안내 화면으로 보낸다.
-- REQ-SIGNIN-011 WHEN 사용자가 이메일 인증 링크를 열면 THE SYSTEM SHALL 24시간 안의 토큰인지 검증하고 개인 워크스페이스를 만든 뒤 자동 로그인해 대시보드로 보낸다.
+- REQ-SIGNIN-011 WHEN 사용자가 이메일 인증 링크를 열면 THE SYSTEM SHALL 24시간 안의 토큰인지 검증하고 개인 워크스페이스를 만든 뒤 자동 로그인해 대시보드로 보낸다. (부분 구현, [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항))
 - REQ-SIGNIN-012 WHEN 인증 메일 재발송을 요청받으면 THE SYSTEM SHALL 계정 존재·인증 여부와 상관없이 같은 응답을 주고 인증 전 계정에만 24시간짜리 인증 토큰을 다시 보낸다.
 - REQ-SIGNIN-013 WHEN 사용자가 인증 안내 화면이나 재설정 안내 화면에서 재발송 버튼을 누르면 THE SYSTEM SHALL 60초 쿨다운을 적용한다.
 - REQ-SIGNIN-014 IF 없는 이메일 · 비밀번호가 없는 계정 · 틀린 비밀번호로 로그인이 실패하면 THE SYSTEM SHALL 어느 경우인지 드러내지 않는 같은 문구를 보여 준다. (부분 구현)
@@ -131,14 +131,14 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 | 약관 동의 | 입력 폼 아래 | "I agree to Terms of Service" 체크박스 | 체크하지 않으면 가입 버튼 비활성 |
 | 가입 버튼 | 약관 아래 | "Create Account" | 가입 요청 |
 | 소셜 로그인 | 가입 버튼 아래 | "or continue with" 구분선, Google·GitHub 버튼 | [소셜 로그인](#소셜-로그인) 의 제공자 노출 규칙 |
-| 로그인 링크 | 카드 하단 | "Already have an account? → Sign in" | 로그인 화면으로 이동 |
+| 로그인 링크 | 카드 하단 | "Already have an account? → Sign in" | 로그인 화면으로 이동. 초대 가입 화면에서는 초대 수락 페이지를 `redirect` 로 넘긴다([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면)) |
 
 ### 필드 검증
 
 | 필드 | 검증 규칙 | 실시간 피드백 |
 | --- | --- | --- |
 | Name | 필수, 2~50자 | 입력 즉시 |
-| Email | 필수, 이메일 형식 | 포커스가 빠질 때 형식 검증과 `POST /api/auth/check-email` 중복 확인(가입 폼 `onBlur` 가 `checkEmailAvailability` 를 부른다) |
+| Email | 필수, 이메일 형식 | 포커스가 빠질 때 형식 검증과 `POST /api/auth/check-email` 중복 확인(가입 폼 `onBlur` 가 `checkEmailAvailability` 를 부른다). 초대 가입 화면은 이메일 입력란이 읽기 전용이라 이 확인을 하지 않는다. 그 화면의 가입 여부 확인은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다 |
 | Password | 필수, 8자 이상 100자 이하, 대문자·소문자·숫자·특수문자 중 3가지 이상 | 입력 중 강도 바 표시 |
 | Terms | 필수 체크 | 체크하지 않으면 버튼 비활성 |
 
@@ -161,7 +161,7 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 3. 초대 토큰 없는 가입이 성공하면 이메일 인증 안내 화면으로 이동한다. 서버는 사용자 행과 인증 메일만 만들고 토큰·쿠키·개인 워크스페이스는 만들지 않는다.
 4. 실패하면 이메일 중복 같은 에러를 인라인으로 보여 준다.
 
-`invitationToken` 을 담은 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 멤버십을 만들고 바로 로그인한다. 이 경로의 화면과 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 초대 절이 정한다.
+`invitationToken` 을 담은 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 멤버십을 만들고 바로 로그인한다. 지금은 이 자동 로그인과 이메일 인증 뒤 자동 로그인이 로그인 힌트 쿠키를 심지 않는다. 그래서 보호 경로로 가면 로그인 화면이 다시 나온다([세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항)). 이 경로의 화면과 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다. 로그인하지 않은 기존 가입자가 초대 링크를 열면 가입 화면 대신 로그인 화면으로 보내는 규칙도 그 절에 있다. 초대 토큰 가입이 409 `RESOURCE_CONFLICT` 로 끝나면 4번처럼 에러를 보여 주지 않고 같은 로그인 화면으로 보낸다. 가입 여부 확인이 실패해 가입 폼을 띄운 기존 가입자가 이 경우다.
 
 ### 이메일 인증 안내 화면
 
@@ -173,7 +173,7 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 | 로그인 링크 | 카드 하단 | "Back to login" | 로그인 화면으로 이동 |
 
 - 인증 링크는 `?token=` 쿼리로 토큰을 전달한다. 인증 페이지는 그 토큰을 요청 본문에 담아 `POST /api/auth/verify-email { token }` 을 호출한다.
-- 인증에 성공하면 자동 로그인하고 개인 워크스페이스를 만든 뒤 대시보드(`/dashboard`)로 보낸다. 개인 워크스페이스 생성 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
+- 인증에 성공하면 자동 로그인하고 개인 워크스페이스를 만든 뒤 대시보드(`/dashboard`)로 보낸다. 개인 워크스페이스 생성 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다. 다만 지금은 이 자동 로그인이 로그인 힌트 쿠키를 심지 않는다([세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항)).
 - 인증 토큰은 24시간 동안 유효하다.
 - 인증 메일 재발송 API 는 IP 당 분당 5회로 제한하고 이메일 존재 여부를 드러내지 않는 같은 응답을 준다.
 
@@ -199,19 +199,20 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 | --- | --- | --- | --- |
 | 제목 | 카드 상단 | "Sign in to your account" | 없음 |
-| 입력 폼 | 제목 아래 | Email, Password 입력란 | 이메일 형식과 빈 비밀번호 검사 |
+| 안내 | 제목 아래 | "Welcome back! Sign in to your account." | 복귀 경로(post-login return path)가 초대 수락 페이지면 초대 안내 문구로 바뀐다. 한국어는 "로그인하면 초대 수락 화면으로 이동해요.", 영어는 "Sign in to continue to the invitation." 이다. 복귀 경로는 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다 |
+| 입력 폼 | 안내 아래 | Email, Password 입력란 | 이메일 형식과 빈 비밀번호 검사 |
 | 로그인 유지 | 입력 폼 아래 | "Remember me" 체크박스 | 리프레시 토큰 수명을 7일에서 30일로 늘린다([세션과 토큰](CLE-ACCT-SESSION.md)). 첫 토큰 회전 뒤 수명은 [세션과 토큰](CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-BYCGF1`) |
 | 비밀번호 분실 링크 | 체크박스 옆 | "Forgot password?" | 비밀번호 재설정 화면으로 이동 |
 | 로그인 버튼 | 폼 아래 | "Sign In" | 로그인 요청 |
 | 소셜 로그인 | 버튼 아래 | "or continue with" 구분선, Google·GitHub 버튼 | [소셜 로그인](#소셜-로그인) |
-| 가입 링크 | 카드 하단 | "Don't have an account? → Create account" | 가입 화면으로 이동 |
+| 가입 링크 | 카드 하단 | "Don't have an account? → Create account" | 가입 화면(`/register`)으로 이동한다. 로그인 화면이 받은 `redirect` 는 넘기지 않는다. 그래서 초대 수락 페이지에서 온 사용자가 이 링크로 가면 초대 문맥을 잃는다. 이 링크로 만든 계정은 이메일이 초대 이메일과 다르면 그 초대를 수락할 수 없기 때문이다([워크스페이스와 멤버 「초대 수락·가입 때 이메일 일치를 강제한다」](CLE-ACCT-WS.md#초대-수락가입-때-이메일-일치를-강제한다)) |
 
 ### 로그인 처리
 
 1. 이메일 형식과 비밀번호가 비어 있지 않은지 검사한다.
 2. `POST /api/auth/login { email, password, rememberMe }` 을 호출한다.
 3. 서버는 없는 이메일 → 계정 잠금 → 비밀번호 없음(OAuth 전용) → 비밀번호 불일치 → 이메일 인증 전 순서로 확인한다. 여기까지가 로그인 1단계다. 이메일 인증 여부는 비밀번호가 맞을 때만 알린다.
-4. 2단계 인증이 없으면 서버는 `{ accessToken }` 과 리프레시 토큰 쿠키를 돌려주고 화면은 대시보드(`/dashboard`)로 이동한다. 응답 본문에 `user` 객체는 없다.
+4. 2단계 인증이 없으면 서버는 `{ accessToken }` 과 리프레시 토큰 쿠키를 돌려준다. 응답 본문에 `user` 객체는 없다. 화면은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한 곳으로 이동한다.
 5. 2단계 인증이 있으면 서버는 `{ requires2fa, methods, challengeToken }` 을 돌려주고 화면은 2단계 인증 화면으로 이동한다.
 6. 없는 이메일 · 비밀번호가 없는 계정 · 틀린 비밀번호면 "Invalid email or password" 를 보여 준다. 어느 경우인지는 드러내지 않는다.
 7. 비밀번호가 맞는 이메일 인증 전 계정이면 서버는 401 `EMAIL_VERIFICATION_REQUIRED` 와 "Please verify your email before logging in" 을 돌려준다. 화면은 이 코드를 보고 이메일 인증을 먼저 하라는 안내를 보여 준다.
@@ -220,7 +221,7 @@ etag: "sha256-59cdb6fa1071cdfc2821470d4cf4adde1a53b89e0c3f630902f577a851205ab3"
 
 3번의 순서와 7번 · 9번은 아직 구현되지 않았다. 지금 구현은 이메일 인증 여부를 비밀번호보다 먼저 확인해 비밀번호가 틀려도 `LOGIN_FAILED` 에 인증 안내 메시지를 실어 준다. Passkey 기능이 꺼지면 Passkey 만 등록한 계정도 비밀번호만으로 로그인시킨다. 앞의 것은 NERV Task `CLE-T-AYT4VB`, 뒤의 것은 `CLE-T-RFSJXQ` 가 맡는다. 화면이 응답 메시지를 읽지 못해 늘 일반 문구를 보여 주는 문제는 `CLE-T-MFWBE1` 이 맡는다.
 
-로그인 뒤 이동할 곳(`redirect` 파라미터와 기본 `/dashboard` 처리)은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
+로그인 화면에서 시작한 로그인은 2단계 인증과 복구 코드를 거쳐도 모두 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한 곳으로 이동한다. 소셜 로그인은 제공자를 거쳐 돌아오므로 [콜백 처리](#콜백-처리) 를 함께 본다.
 
 ### 2단계 인증 방식 선택
 
@@ -542,6 +543,7 @@ sequenceDiagram
   participant C as 브라우저
   participant S as 서버
   participant P as OAuth 제공자
+  C->>C: 로그인 화면이면 복귀 경로를 탭의 sessionStorage 에 저장
   C->>S: GET /api/auth/oauth/:provider
   S-->>C: 302 제공자 인증 URL (state 포함)
   C->>P: 인증 승인
@@ -549,19 +551,24 @@ sequenceDiagram
   C->>S: 콜백
   S->>S: state 소비·검증, 코드 교환, 프로필 조회, 사용자 조회 또는 생성
   S-->>C: 리프레시 토큰 쿠키 + 302 /callback?success=true
+  C->>C: 복귀 경로를 꺼내고 지움
   C->>S: POST /api/auth/refresh
   S-->>C: 액세스 토큰
+  C->>S: GET /api/users/me
+  S-->>C: 사용자 정보
+  C->>C: 로그인 상태 표시, 복귀 경로로 이동
 ```
 
 | 단계 | 동작 |
 | --- | --- |
-| 1 | 사용자가 "Continue with Google/GitHub" 버튼을 누른다 |
-| 2 | `GET /api/auth/oauth/:provider`. 서버가 `state` 를 담은 OAuth URL 을 만든다 |
-| 3 | 브라우저를 제공자의 인증 페이지로 보낸다(또는 팝업) |
+| 1 | 사용자가 "Continue with Google/GitHub" 버튼을 누른다. 로그인 화면에서 누르면 복귀 경로를 이 탭의 sessionStorage 에 먼저 저장한다. 가입 화면에서 누르면 남은 값을 지운다([세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로)) |
+| 2 | `GET /api/auth/oauth/:provider`. 로그인 화면은 `mode=login`, 가입 화면은 `mode=register` 를 붙인다. 서버가 `state` 를 담은 OAuth URL 을 만든다 |
+| 3 | 브라우저를 같은 탭에서 제공자의 인증 페이지로 보낸다 |
 | 4 | 사용자가 제공자에서 승인한다 |
 | 5 | 제공자가 `GET /api/auth/oauth/:provider/callback?code=...&state=...` 로 보낸다 |
 | 6 | 서버가 `code` 로 토큰을 교환하고 프로필을 조회한 뒤 사용자를 찾거나 만든다 |
 | 7 | 리프레시 토큰을 쿠키로 설정하고 프론트엔드 콜백 URL 로 보낸다 |
+| 8 | 프론트엔드 `/callback` 에서 액세스 토큰을 받고 복귀 경로로 이동한다([콜백 처리](#콜백-처리)) |
 
 ### 콜백 처리
 
@@ -574,7 +581,7 @@ sequenceDiagram
 | 기존 사용자 | OAuth 제공자 정보를 연결하고 로그인 처리한다 |
 | 신규 사용자 | 자동 가입하고 개인 워크스페이스를 만든 뒤 로그인 처리한다 |
 | 토큰 발급 | 리프레시 토큰만 HttpOnly 쿠키로 발급한다. 액세스 토큰은 콜백 페이지가 따로 받는다 |
-| 리다이렉트 | `{frontend_url}/callback?success=true`. 액세스 토큰은 URL 에 싣지 않는다. 콜백 페이지가 리프레시 쿠키로 `POST /api/auth/refresh` 를 불러 액세스 토큰을 받아 메모리에 둔다 |
+| 리다이렉트 | `{frontend_url}/callback?success=true`. 액세스 토큰은 URL 에 싣지 않는다. 콜백 페이지가 리프레시 쿠키로 `POST /api/auth/refresh` 를 불러 액세스 토큰을 받아 메모리에 둔다. 복귀 경로도 URL 에 싣지 않는다. 콜백 페이지는 로그인 화면이 탭의 sessionStorage 에 저장해 둔 복귀 경로로 이동한다([세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로)) |
 
 서버 시퀀스와 `auth_oauth_state` 테이블 동작은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다.
 
@@ -593,8 +600,12 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 
 프론트엔드 `/callback` 페이지는 다음처럼 동작한다.
 
-- `success=true` 이면 `refreshAccessToken()`(`POST /api/auth/refresh`)으로 액세스 토큰을 받아 메모리에 두고 대시보드(`/dashboard`)로 이동한다. refresh 가 실패하면 에러를 보여 준다.
-- `error=*` 이면 에러 메시지, "다시 시도" 버튼, 로그인 화면 링크를 보여 준다.
+- 페이지가 열리면 저장해 둔 복귀 경로를 꺼내고 바로 지운다. 성공과 실패에 상관없이 지운다. 저장과 검사 규칙은 [세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로) 가 정한다.
+- `success=true` 이면 `refreshAccessToken()`(`POST /api/auth/refresh`)으로 액세스 토큰을 받아 메모리에 둔다. refresh 가 실패하면 에러를 보여 준다.
+- 이어서 `GET /api/users/me` 로 사용자를 받아 로그인 상태로 표시한다. 비밀번호 로그인과 같이 이때 로그인 힌트 쿠키(`has_session`)가 심어진다([세션과 토큰 「로그인 힌트 쿠키」](CLE-ACCT-SESSION.md#로그인-힌트-쿠키)).
+- 그다음 복귀 경로로 이동한다. 복귀 경로가 없거나 쓸 수 없을 때 갈 곳은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다.
+- `error=*` 이면 에러 메시지, "다시 시도" 버튼, 로그인 화면 링크를 보여 준다. 둘 다 `/login` 으로 간다.
+- 사용자 조회만 실패한 경우, 이 탭에서 sessionStorage 를 쓸 수 없는 경우, 실패 화면에서 다시 로그인하는 경우의 복귀 경로 처리는 [세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로) 를 따른다.
 
 ## 셀프 호스팅 추가 인증 (미구현)
 
@@ -615,10 +626,10 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)) |
+| POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)). 이메일이 이미 가입돼 있으면 409 `RESOURCE_CONFLICT`(메시지 `Email already registered`)다. 초대 가입 화면은 메시지가 아닌 `error.code` 로 이 경우를 가른다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 4). 이 응답을 전용 코드로 바꾸는 일은 NERV Task `CLE-T-2M6Q02` 가 맡는다 |
 | POST | `/api/auth/verify-email` | 본문 `{ token }` 으로 이메일 인증 토큰을 검증한다. 개인 워크스페이스를 만들고 액세스·리프레시 토큰을 바로 발급한다. 인증 불요(`@Public`). 토큰이 무효하거나 만료되면 400 |
 | POST | `/api/auth/resend-verification` | 인증 메일 재발송(24시간 유효). 인증 불요(`@Public`), IP 당 분당 5회. 계정 존재·인증 여부와 상관없이 같은 응답. 메일은 인증 전 계정에만 보낸다 |
-| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회 |
+| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 저장된 이메일과 대소문자까지 같을 때만 `available: false` 다. 이메일 정규화는 NERV Task `CLE-T-SFWX84` 가 맡는다. 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다) 에 있다 |
 | POST | `/api/auth/login` | 로그인. IP 당 분당 10회. 본문 `{ email, password, rememberMe }`. 2단계 인증이 있으면 `{ requires2fa, methods, challengeToken }`, 없으면 `{ accessToken }` 과 리프레시 쿠키. 실패 401 `LOGIN_FAILED`, 비밀번호가 맞는 이메일 인증 전 계정 401 `EMAIL_VERIFICATION_REQUIRED`, 잠긴 계정 401 `ACCOUNT_LOCKED`, Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정 503 `WEBAUTHN_DISABLED`. 순서는 [로그인 처리](#로그인-처리). 이메일 인증 확인 순서와 `EMAIL_VERIFICATION_REQUIRED`, Passkey 기능이 꺼졌을 때의 503 은 아직 구현되지 않았다 |
 | POST | `/api/auth/login/totp` | 로그인 2단계 TOTP 검증. 본문 `{ challengeToken, code }`(6자리 코드 또는 TOTP 복구 코드). 성공하면 액세스·리프레시 토큰 발급. 챌린지 토큰 무효 401 `CHALLENGE_INVALID`, TOTP 꺼짐 401 `TOTP_NOT_ENABLED`(Passkey 만 있는 계정 포함), TOTP 와 Passkey 가 모두 있는 계정 401 `WEBAUTHN_REQUIRED`, 코드 불일치 401 `TOTP_INVALID` |
 | POST | `/api/auth/forgot-password` | 비밀번호 재설정 요청. IP 당 분당 5회. 항상 같은 응답 |
@@ -651,7 +662,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
 | GET | `/api/auth/oauth/providers` | 자격 증명이 설정된 OAuth 제공자 목록. 인증 불요(`@Public`), `Cache-Control: private, max-age=300`. 비어 있으면 클라이언트가 소셜 로그인 UI 를 숨긴다 |
-| GET | `/api/auth/oauth/:provider` | OAuth 시작. 쿼리 `mode`, `rememberMe` 를 state 와 함께 저장하고 제공자로 리다이렉트한다 |
+| GET | `/api/auth/oauth/:provider` | OAuth 시작. 쿼리 `mode`(`login` · `register`)와 `rememberMe` 를 state 와 함께 저장하고 제공자로 리다이렉트한다. `mode` 가 `register` 가 아니면 `login` 으로 본다. 복귀 경로는 받지 않는다([세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로)) |
 | GET | `/api/auth/oauth/:provider/callback` | OAuth 콜백. 성공과 실패 모두 프론트엔드 `/callback` 으로 리다이렉트한다 |
 
 ### 이메일 변경
@@ -709,8 +720,9 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/backend/src/common/utils/postgres-text.spec.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.spec.ts` (표시 이름 검증기와 등록 검증 · 이름 변경 DTO 의 단위 테스트)
 - `codebase/backend/test/totp-disable.e2e-spec.ts` (TOTP 끄기의 비밀번호·코드 확인과 DB 상태)
 - `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
-- `codebase/frontend/src/app/(auth)/**`
-- `codebase/frontend/src/components/auth/**` (`register-form.tsx` 포함)
+- `codebase/frontend/src/app/(auth)/**` (`callback/callback-content.tsx` 의 소셜 로그인 복귀 포함)
+- `codebase/frontend/src/components/auth/**` (`register-form.tsx` · `login-form.tsx` 포함)
+- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동할 곳, 소셜 로그인의 복귀 경로 저장과 꺼내기, 초대 수락 페이지로 돌아오는 로그인 경로 `buildInvitationLoginHref`. 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다)
 - `codebase/frontend/src/lib/utils/password.ts`
 - `codebase/frontend/src/lib/api/auth.ts`, `codebase/frontend/src/lib/api/auth-providers.ts`
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/change-email/**`, `codebase/frontend/src/app/(main)/w/[slug]/profile/security/**`
@@ -968,3 +980,19 @@ NERV Task `CLE-T-D331TT` 에서 바로잡았다. 동작은 바꾸지 않았다.
 - **counter 0 경계**: counter 역행 요구사항은 "저장값 이하" 만 적어 저장값과 응답 값이 모두 0 인 인증기도 역행으로 읽혔다. 구현이 쓰는 `@simplewebauthn/server` 는 둘 다 0 이면 역행으로 보지 않는다. counter 가 늘 0 인 인증기(대부분의 플랫폼 Passkey)는 이 경계가 없으면 로그인할 때마다 지워진다. 그래서 문서를 라이브러리 판정에 맞췄다.
 - **날짜가 붙은 Rationale 의 정정**: 「등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다」 의 첫 문단은 고치기 전 동작을 "문자열 배열이 아닌 값이 오면 500" 으로만 적었다. 실제로는 일부만 500 이었고 `null` 은 200 이었다. 첫 문단을 고치고 `null` 이 200 에서 400 으로 바뀐 항목을 더했다. 「`user.email_changed` 감사 details 에 이메일 값을 싣지 않는다」 의 "그 세션 워크스페이스" 는 "변경을 확정한 요청의 현재 워크스페이스" 로 고쳤다. 뜻은 같고 용어 표기만 바꿨다.
 
+### 로그인 뒤 이동할 곳은 세션과 토큰 문서가 정한다 (2026-10-18)
+
+NERV Task `CLE-T-7WZKFB` · `CLE-T-YZ9VEX` 에서 고쳤다. 이 문서의 「로그인 처리」 4번과 프론트엔드 `/callback` 동작은 로그인 뒤 늘 대시보드(`/dashboard`)로 간다고 적었다. 같은 절 끝 문단은 이동할 곳을 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다고 적어 두 문장이 서로 맞지 않았다. 그래서 초대 링크에서 로그인 화면으로 온 기존 가입자를 로그인 뒤 초대 수락 페이지로 돌려보내는 규칙이 이 문서와 어긋났다.
+
+- 이동 규칙은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 한 곳에 두고 이 문서는 그 절을 링크한다. 두 문서에 규칙을 함께 적으면 한쪽만 고쳐지기 쉽다. 이번에 어긋난 것도 그 경우다.
+- 로그인 화면의 초대 안내 문구와 「계정 만들기」 링크 동작은 화면 요소라서 이 문서의 [로그인 화면](#로그인-화면) 표가 정한다. 세션과 토큰 문서와 워크스페이스와 멤버 문서는 그 표를 링크한다.
+- 소셜 로그인은 제공자를 거쳐 `/callback` 으로 돌아오므로 로그인 화면의 `redirect` 쿼리가 이어지지 않는다. 시작 요청의 `mode` 와 `rememberMe` 는 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나른다. 복귀 경로도 같은 방식으로 나를 수 있다. 이번 범위는 백엔드 인증 API 를 바꾸지 않아서 탭의 sessionStorage 로 넘긴다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 state 행으로 옮긴다. 이유와 비용은 [세션과 토큰 「소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다) 에 있다.
+- 콜백은 이동하기 전에 `GET /api/users/me` 를 불러 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 가면 proxy 가 다시 로그인 화면으로 보내기 때문이다. 자세한 내용은 같은 절에 있다.
+- 이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다. 지금처럼 대시보드로 보낸다.
+- 초대 가입 화면의 가입 여부 확인 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 에만 둔다. 이 문서는 가입 폼 이메일 입력란의 중복 확인 요구사항을 읽기 전용 입력란에서 건너뛰도록 고치고 그 절을 링크한다.
+
+### 자동 로그인 두 곳의 로그인 힌트 쿠키 갭을 표시했다 (2026-10-22)
+
+NERV Task `CLE-T-7WZKFB` 의 구현 완료 뒤 일관성 검토 지적(finding `01a1614a-524b-7063-96ec-aed408cf1382`)으로 고쳤다. 이메일 인증 링크와 초대 토큰 가입의 자동 로그인은 로그인 힌트 쿠키를 심지 않는다. 그래서 대시보드 같은 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다. 이 사실은 [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항) 에만 있었고 REQ-SIGNIN-011 은 대시보드로 보낸다고만 적었다. REQ-SIGNIN-011 과 머리 줄에 부분 구현을 표시하고 「가입 처리」 와 「이메일 인증 안내 화면」 에 지금 동작을 더했다. 동작 규칙은 바뀌지 않았다. 로그인 세션을 만드는 진입점을 하나로 모으는 NERV Task `CLE-T-1X7DMR` 이 끝나면 표시를 지운다. 지울 곳은 [세션과 토큰](CLE-ACCT-SESSION.md) 의 같은 날짜 Rationale 「로그인 힌트 쿠키 요구를 부분 구현으로 표시했다」 가 모아 둔다.
+
+앞 절의 «이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다» 는 로그인 뒤 돌아갈 경로(`redirect`)의 범위를 말한다. 이번에 표시한 갭은 그 경로와 상관없는 로그인 힌트 쿠키다. 그래서 두 항목은 어긋나지 않는다.

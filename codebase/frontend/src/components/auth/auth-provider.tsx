@@ -10,6 +10,10 @@ import {
   refreshAccessToken,
   setSessionRestoreInProgress,
 } from "@/lib/api/client";
+import {
+  buildLoginHref,
+  resolvePostLoginRedirect,
+} from "@/lib/auth/post-login-redirect";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -74,11 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout();
         // Only redirect if current path is not already a public auth route
         if (!pathname.startsWith("/login")) {
-          const redirect =
-            pathname.startsWith("/") && !pathname.startsWith("//")
-              ? pathname
-              : "/dashboard";
-          router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+          // 쿼리까지 담아야 로그인 뒤 원래 화면이 같은 값으로 열린다(예: 초대 수락 페이지의 `?token=`).
+          // 안전한 같은 출처 경로가 아니면 `/dashboard` 로 바꿔 담는다.
+          router.replace(
+            buildLoginHref(
+              resolvePostLoginRedirect(pathname + window.location.search),
+            ),
+          );
         }
       } finally {
         setSessionRestoreInProgress(false);

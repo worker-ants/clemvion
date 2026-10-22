@@ -1,4 +1,24 @@
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
+
+/**
+ * 백엔드 응답은 GlobalExceptionFilter 가 `{error: {code, message, ...}}` 로 wrap 한다.
+ * 일부 컨트롤러는 평탄한 `{code, message}` 도 반환할 수 있어 양쪽을 모두 탐색한다.
+ */
+export type ApiErrorBody = {
+  code?: string;
+  message?: string;
+  error?: { code?: string; message?: string };
+};
+
+export function extractApiCode(err: AxiosError<ApiErrorBody>): string | undefined {
+  const data = err.response?.data;
+  return data?.code ?? data?.error?.code;
+}
+
+export function extractApiMessage(err: AxiosError<ApiErrorBody>): string | undefined {
+  const data = err.response?.data;
+  return data?.message ?? data?.error?.message;
+}
 
 /**
  * 서버·네트워크 에러를 사용자에게 보여줄 문자열로 변환한다.

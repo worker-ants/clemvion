@@ -45,6 +45,21 @@ describe("proxy — 인증 보호 회귀(여전히 동작)", () => {
     expect(loc).toContain("redirect=%2Fweb-chat");
   });
 
+  // REQ-SESSION-035 — 원래 URL 을 담는다. 쿼리를 버리면 초대 수락 페이지의 `?token=` 처럼 화면에
+  // 필요한 값이 로그인 뒤에 사라진다.
+  it("보호 경로의 쿼리도 redirect 값에 그대로 담는다", () => {
+    const loc = redirectLocation(
+      proxy(req("/invitations/accept?token=abc%2B123&x=1")),
+    );
+    const url = new URL(loc!);
+    expect(url.pathname).toBe("/login");
+    expect(url.searchParams.get("redirect")).toBe(
+      "/invitations/accept?token=abc%2B123&x=1",
+    );
+    // 원래 쿼리가 /login 의 파라미터로 새지 않는다.
+    expect(url.searchParams.get("token")).toBeNull();
+  });
+
   it("보호 경로도 세션 있으면 통과", () => {
     expect(redirectLocation(proxy(req("/web-chat", { session: true })))).toBeNull();
   });

@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from "axios";
 import { apiClient, setAccessToken } from "./client";
 
 /**
@@ -177,10 +178,15 @@ export const authApi = {
       { token, newPassword },
     ),
 
-  checkEmail: (email: string) =>
+  /**
+   * 이메일 중복 확인. `config.timeout` 처럼 이 호출에만 적용할 요청 옵션을 받는다(공용 `apiClient` 기본값은
+   * 건드리지 않는다).
+   */
+  checkEmail: (email: string, config?: AxiosRequestConfig) =>
     apiClient.post<{ data: { available: boolean } }>(
       "/auth/check-email",
       { email },
+      config,
     ),
 
   // ========== WebAuthn 2FA ==========

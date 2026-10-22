@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -54,6 +55,8 @@ vi.mock("@/lib/i18n", () => ({
 
 import { AcceptInvitationContent } from "../accept-invitation-content";
 
+const LOGIN_HREF = `/login?redirect=${encodeURIComponent("/invitations/accept?token=tok-1")}`;
+
 const META = {
   workspaceName: "Acme",
   invitedByName: "Alice",
@@ -77,6 +80,21 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
       expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
     );
     expect(mockAccept).not.toHaveBeenCalled(); // 자동수락 아님 — 클릭 대기
+  });
+
+  // 개발 서버의 StrictMode 는 effect 를 mount, cleanup, mount 순으로 돌린다. 첫 실행의 조회 결과는
+  // cleanup 으로 버려지므로 두 번째 실행이 다시 조회해야 loading 에 머물지 않는다.
+  it("leaves loading under StrictMode, which runs the lookup effect twice", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockResolvedValue(META);
+    render(
+      <StrictMode>
+        <AcceptInvitationContent />
+      </StrictMode>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
+    );
   });
 
   it("accepts only after the button is clicked", async () => {
@@ -104,7 +122,44 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     expect(mockAccept).not.toHaveBeenCalled();
   });
 
-  it("logout clears session and routes to /login", async () => {
+  // 서버 수락은 로그인 이메일을 소문자로 바꿔 토큰 이메일(저장할 때 소문자)과 비교한다. 화면도 같은
+  // 규칙을 따라야 수락할 수 있는 사용자에게 «다른 계정» 안내를 띄우지 않는다.
+  it("treats the logged-in email case-insensitively like the server accept check", async () => {
+    mockUser = { email: "Invitee@Example.com" };
+    mockGetByToken.mockResolvedValue(META);
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("invitations.accept.logoutAndSwitch")).toBeNull();
+  });
+
+  // 토큰 쪽도 소문자로 바꿔 비교한다. 서버가 토큰 이메일을 소문자로 저장해도 화면은 그 전제에 기대지 않는다.
+  it("treats the token email case-insensitively too", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockResolvedValue({ ...META, email: "Invitee@Example.com" });
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("invitations.accept.logoutAndSwitch")).toBeNull();
+  });
+
+  // 대소문자만 무시하고 앞뒤 공백은 지우지 않는다(CLE-ACCT-WS REQ-WSPACE-035).
+  it("keeps surrounding whitespace in the logged-in email significant", async () => {
+    mockUser = { email: " invitee@example.com " };
+    mockGetByToken.mockResolvedValue(META);
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(
+        screen.getByText("invitations.accept.logoutAndSwitch"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("invitations.accept.accept")).toBeNull();
+  });
+
+  // 다른 계정으로 로그인하면 이 초대 수락 페이지로 돌아온다(REQ-SESSION-038).
+  it("logout clears session and routes to /login with this page as the redirect", async () => {
     mockUser = { email: "other@example.com" };
     mockGetByToken.mockResolvedValue(META);
     mockLogout.mockResolvedValue(undefined);
@@ -114,10 +169,10 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     await waitFor(() => expect(mockLogout).toHaveBeenCalled());
     // store.logout() 이 access token·has_session 쿠키·인증 플래그를 일괄 정리한다.
     expect(storeLogoutMock).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith("/login");
+    expect(mockPush).toHaveBeenCalledWith(LOGIN_HREF);
   });
 
-  it("clears the client session and routes to /login even when server logout fails", async () => {
+  it("clears the client session and routes to the login href even when server logout fails", async () => {
     mockUser = { email: "other@example.com" };
     mockGetByToken.mockResolvedValue(META);
     mockLogout.mockRejectedValue(new Error("network")); // 서버 logout 실패
@@ -129,7 +184,7 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     // 통째로 지운 회귀도 통과해버린다(testing 리뷰 지적).
     await waitFor(() => expect(storeLogoutMock).toHaveBeenCalled());
     expect(mockLogout).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith("/login");
+    expect(mockPush).toHaveBeenCalledWith(LOGIN_HREF);
   });
 
   it("shows error on expired/invalid token (410)", async () => {

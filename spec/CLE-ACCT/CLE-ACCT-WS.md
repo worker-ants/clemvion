@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 7
+version: 10
 status: "approved"
-requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065"]
+requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "00220e4beaf5d7843877d7ce0f191de585a124268498339f97c02a2b83b3d779"
+content_hash: "d83618fd8efdea4b9b57f0d82cb50f4b82490fff07b21a6ef159cd31fd6df64b"
 read_as: "approved_fallback"
-task: "CLE-T-D331TT"
+task: "CLE-T-YZ9VEX"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "c87faa6cb344e55ba03bcd1545309ae5eb5df5eb5264a85395f22f0dde0d8bac"
-etag: "sha256-a3ed4d182988f032e5db34cbe6664838743bae00871d3761a0133a41fa314d73"
+mirror_sha256: "a16259e4910588723c06df3eec5a55f681c504401021291c2b22b9ee72758934"
+etag: "sha256-efb6e85ce4d200fcb0aa21305b007957836fb5e90bc71ff6f1335305034b07b7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,7 +74,7 @@ etag: "sha256-a3ed4d182988f032e5db34cbe6664838743bae00871d3761a0133a41fa314d73"
 - REQ-WSPACE-032 WHEN 미가입자가 초대 링크로 가입하면 THE SYSTEM SHALL 사용자 생성·멤버십 추가·초대 수락을 한 트랜잭션으로 처리하고 실패하면 모두 되돌린다.
 - REQ-WSPACE-033 WHEN 가입 페이지가 초대 토큰을 받으면 THE SYSTEM SHALL 초대 메타를 미리 조회해 이메일 입력란을 채우고 읽기 전용으로 고정한다.
 - REQ-WSPACE-034 IF 이미 로그인한 사용자가 초대 가입 링크를 열면 THE SYSTEM SHALL 가입 폼 대신 초대 수락 페이지로 보낸다.
-- REQ-WSPACE-035 IF 로그인 사용자 이메일과 초대 이메일이 다르면 THE SYSTEM SHALL 수락 페이지에 초대 대상 이메일 안내와 로그아웃 버튼만 보여 준다.
+- REQ-WSPACE-035 IF 로그인 사용자 이메일과 초대 이메일이 대소문자를 구분하지 않고 비교해도 다르면 THE SYSTEM SHALL 수락 페이지에 초대 대상 이메일 안내와 «다른 계정으로 로그인»(로그아웃) 버튼만 보여 준다.
 - REQ-WSPACE-036 WHEN 초대 발급·재발송을 요청받으면 THE SYSTEM SHALL 분당 10건으로 제한하고, 공개 초대 메타 조회는 분당 30건으로 제한한다.
 - REQ-WSPACE-037 WHEN 매일 04:00(Asia/Seoul)이 되면 THE SYSTEM SHALL 만료되고 수락되지 않은 초대 행을 지운다.
 - REQ-WSPACE-038 WHEN 관리자 이상이 이미 가입한 사용자를 이메일로 직접 추가하면 THE SYSTEM SHALL 메일 없이 바로 그 사용자를 팀 워크스페이스 멤버로 넣는다.
@@ -105,6 +105,9 @@ etag: "sha256-a3ed4d182988f032e5db34cbe6664838743bae00871d3761a0133a41fa314d73"
 - REQ-WSPACE-063 IF 소유자가 아닌 멤버가 관리자 역할로 대기 중인 초대가 있는 이메일을 다시 초대하면 THE SYSTEM SHALL 그 대기 중 초대를 바꾸지 않고 403 `OWNER_REQUIRED` 로 거부한다.
 - REQ-WSPACE-064 WHEN 초대를 수락하거나 초대 토큰으로 가입하면 THE SYSTEM SHALL 초대를 보낸 사람의 지금 역할을 다시 확인하지 않고 초대 행의 역할로 멤버십을 만든다.
 - REQ-WSPACE-065 IF 소유자가 아닌 관리자가 멤버 탭을 열면 THE SYSTEM SHALL 초대와 역할 변경의 역할 선택지에서 관리자를 빼고 관리자 멤버의 역할을 읽기 전용 배지로 보여 준다.
+- REQ-WSPACE-066 IF 로그인 힌트 쿠키(`has_session`)가 없는 사용자가 초대 가입 링크를 열고 토큰 메타 조회 뒤 `POST /api/auth/check-email` 이 초대 이메일을 가입된 이메일로 답하면 THE SYSTEM SHALL 가입 폼 대신 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
+- REQ-WSPACE-067 IF 초대 토큰 가입이 토큰 이메일 중복으로 거부되면 THE SYSTEM SHALL 사용자를 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
+- REQ-WSPACE-068 IF 초대 가입 화면의 가입 여부 확인(`POST /api/auth/check-email`)이 실패하거나(429 · 네트워크 에러) 5초 안에 끝나지 않으면 THE SYSTEM SHALL 가입되지 않은 이메일로 보고 가입 폼을 보여 준다.
 
 ## 워크스페이스 종류와 생성
 
@@ -317,7 +320,7 @@ sequenceDiagram
 1. 관리자 이상이 `POST /api/workspaces/:id/invitations { email, role }` 을 보낸다. `role=admin` 은 소유자만 보낼 수 있다. 서버는 토큰을 만들고 `expiresAt = now + 7일` 로 메일을 보낸다.
 2. 받는 사람이 메일 링크를 누르면 프론트엔드 가입 페이지가 초대 토큰 쿼리와 함께 열린다. 메일 링크는 `/register?invitationToken=<초대 토큰>` 이다(`mail.service.ts` 의 `sendWorkspaceInvitationEmail`). 이미 발송된 옛 링크 `/auth/register?invitationToken=…` 은 로그인 여부와 상관없이 프론트엔드 proxy 가 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다([세션과 토큰](CLE-ACCT-SESSION.md#공개-경로와-가드)). 가입 페이지의 메타 조회와 입력란 고정은 아래 [초대 가입 화면](#초대-가입-화면) 에 있다.
 3. 가입을 제출받으면 서버가 (a) 토큰이 있고 만료되지 않았고 쓰이지 않았는지, (b) 토큰 이메일과 가입 이메일이 같은지 본다. 가입 이메일은 앞뒤 공백을 지우고 대소문자를 구분하지 않고 비교한다. (c) 맞으면 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다. (d) 불일치나 만료면 가입 자체를 거부하고 사용자 행을 만들지 않는다.
-4. 가입에 성공하면 인증 메일 없이 자동 로그인하고 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다.
+4. 가입에 성공하면 인증 메일 없이 자동 로그인하고 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다. 다만 지금은 이 자동 로그인이 로그인 힌트 쿠키를 심지 않는다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다([세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항)).
 
 ### 이미 가입한 사용자의 수락 경로
 
@@ -326,25 +329,44 @@ sequenceDiagram
 3. `POST /api/workspaces/invitations/accept { token }`. 서버는 토큰이 유효하고 본인 이메일이 토큰 이메일과 같은지 확인한 뒤 멤버십 추가와 `acceptedAt` 갱신을 한 트랜잭션에서 한다. 이미 멤버면 멤버십 추가는 건너뛴다.
 4. 응답(200, `data` 는 `{ workspaceId, role }`)을 받으면 프론트엔드가 그 워크스페이스로 전환한다.
 
-토큰 이메일과 로그인 사용자 이메일이 다르면 수락 페이지에 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내와 로그아웃 버튼만 보여 준다.
+수락 페이지는 로그인 이메일과 토큰 이메일을 대소문자를 구분하지 않고 비교한다. 두 값을 소문자로 바꿔 비교하고 앞뒤 공백은 지우지 않는다. 서버 수락과 같은 규칙이다. 서버는 로그인 이메일을 소문자로 바꿔 비교하고 토큰 이메일은 소문자로 저장돼 있다.
 
-수락 페이지 경로는 `/invitations/accept?token=<초대 토큰>` 이다(쿼리 파라미터 `token`). 이미 로그인한 사용자가 초대 가입 링크로 들어오면 가입 페이지가 로그인 상태를 알아채 이 수락 페이지로 보낸다. 로그인하지 않은 사용자는 위 가입 경로를 따른다.
+두 이메일이 다르면 수락 페이지에 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내와 «다른 계정으로 로그인» 버튼만 보여 준다. 이 버튼을 누르면 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 간다. 다른 계정으로 로그인하면 이 수락 페이지로 돌아온다. 복귀 경로(post-login return path)를 지정한 로그아웃 규칙은 [세션과 토큰 「로그아웃」](CLE-ACCT-SESSION.md#로그아웃) 의 REQ-SESSION-032 가 정한다.
+
+수락 페이지 경로는 `/invitations/accept?token=<초대 토큰>` 이다(쿼리 파라미터 `token`). 화면은 슬러그 경로 `app/(main)/w/[slug]/invitations/accept/**` 에 있다. 슬러그 없는 `/invitations/accept` 로 들어오면 옛 경로 흡수 라우트가 쿼리를 그대로 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)).
+
+수락 페이지에 닿는 경로는 로그인 상태에 따라 다르다. 분기는 [초대 가입 화면](#초대-가입-화면) 에 있다.
+
+- 이미 로그인한 사용자가 초대 가입 링크로 들어오면 가입 페이지가 로그인 힌트 쿠키를 보고 이 수락 페이지로 보낸다.
+- 로그인하지 않은 기존 가입자는 가입 페이지에서 로그인 화면으로 간다. 로그인하면 이 수락 페이지로 돌아온다. 수락은 자동으로 되지 않는다. 사용자가 [수락] 을 누른다.
+- 로그인하지 않은 미가입자는 위 가입 경로를 따른다.
+
+이메일 인증을 마치지 않은 기존 계정은 로그인이 막힌다. 정한 응답은 401 `EMAIL_VERIFICATION_REQUIRED` 이고, 아직 구현되지 않아 지금은 401 `LOGIN_FAILED` 다([가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리)). 인증 메일 링크의 자동 로그인은 `redirect` 를 넘기지 않고 `/dashboard` 로 간다. 그래서 이 사용자는 인증을 마친 뒤 초대 메일 링크를 다시 연다.
 
 ### 초대 가입 화면
 
-미가입자가 메일 링크를 누르면 가입 페이지는 `?invitationToken=…` 쿼리를 받아 아래처럼 처리한다. 가입 화면 자체의 필드와 검증은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
+초대 메일 링크를 누르면 가입 페이지는 `?invitationToken=…` 쿼리를 받아 아래처럼 처리한다. 가입 화면 자체의 필드와 검증은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
 
-먼저 이미 로그인한 사용자를 가려낸다. 초대 메일 링크는 미가입자를 기준으로 하지만, 다른 계정으로 이미 로그인한 사용자가 같은 브라우저의 새 탭에서 누를 수도 있다. 이때는 가입 폼 대신 초대 수락 페이지 `/invitations/accept?token=…` 로 바로 보낸다. `(auth)` 라우트 그룹에는 세션 하이드레이션(AuthProvider)이 없어 클라이언트 스토어로 로그인을 알 수 없다. 그래서 로그인 힌트 쿠키 `has_session` 으로 판정한다([세션과 토큰](CLE-ACCT-SESSION.md)). 힌트가 낡았으면(쿠키만 남고 리프레시 토큰은 만료) 수락 페이지의 라우트 가드가 로그인 화면으로 돌려보낸다. 아래 표는 로그인하지 않은 미가입자 경로에만 적용한다.
+먼저 이미 로그인한 사용자를 가려낸다. 초대 메일 링크는 미가입자를 기준으로 한다. 그래도 다른 계정으로 이미 로그인한 사용자가 같은 브라우저의 새 탭에서 누를 수 있다. 이때는 가입 폼 대신 초대 수락 페이지 `/invitations/accept?token=…` 로 바로 보낸다. 토큰 메타와 가입 여부는 묻지 않는다. 그래서 REQ-WSPACE-034 가 REQ-WSPACE-033 보다 먼저 적용된다. `(auth)` 라우트 그룹에는 세션 하이드레이션(AuthProvider)이 없어 클라이언트 스토어로 로그인을 알 수 없다. 그래서 로그인 힌트 쿠키 `has_session` 으로 판정한다([세션과 토큰](CLE-ACCT-SESSION.md)). 힌트가 낡았으면(쿠키만 남고 리프레시 토큰은 만료) 수락 페이지의 라우트 가드가 로그인 화면으로 돌려보낸다.
+
+로그인 힌트가 없으면 아래 표대로 처리한다. 2~4단계에서 로그인하지 않은 기존 가입자를 로그인 화면으로 보낸다. 나머지는 5단계부터 미가입자 가입으로 이어진다.
 
 | 단계 | 처리 |
 | --- | --- |
 | 1. 토큰 메타 미리 조회 | `GET /api/invitations/:token` 로 워크스페이스 이름·초대자·이메일·만료를 받는다. 404·410 같은 실패면 에러 화면으로 보낸다 |
-| 2. 이메일 채우기와 고정 | 응답의 `email` 을 입력란에 채우고 읽기 전용으로 고정한다. 다른 이메일로는 가입할 수 없다 |
-| 3. 헤더 안내 | "**{workspace}** 에 초대받으셨어요" 와 초대자 이름을 보여 준다 |
-| 4. 가입 제출 | `POST /api/auth/register { name, email, password, termsAccepted, invitationToken }`. 고정한 입력란의 이메일을 함께 보낸다. 서버는 이 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다 |
-| 5. 트랜잭션 처리 | 서버가 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다 |
-| 6. 가입 성공 뒤 | 이메일 인증 안내 화면 대신 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다 |
-| 7. 에러 분기 | `invitation_email_mismatch`(입력란을 고정해 화면에서는 거의 나지 않는다. 요청을 직접 만든 경우를 막는 서버 검사다), `invitation_expired`, `invitation_already_used` 면 "이 초대는 더 이상 유효하지 않아요. 워크스페이스 관리자에게 재발송을 요청하세요" 안내를 보여 준다 |
+| 2. 가입 여부 확인 | 메타 조회가 성공한 뒤에만 공개 API `POST /api/auth/check-email` 에 토큰 이메일을 보내 가입 여부를 묻는다. 응답이 `available=false` 면 이미 가입된 이메일이다 |
+| 3. 기존 가입자 분기 | 이미 가입된 이메일이면 «이미 가입된 이메일이에요. 로그인하면 초대를 수락할 수 있어요.» 안내를 띄운다. 그리고 현재 페이지를 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 바꾼다. 로그인하면 수락 페이지로 돌아온다. 수락은 자동으로 되지 않고 사용자가 [수락] 을 누른다 |
+| 4. 확인 실패 | 요청 한도 초과(429)나 네트워크 에러로 가입 여부를 확인하지 못하면 가입되지 않은 것으로 보고 가입 폼을 보여 준다. 5초(`REGISTERED_EMAIL_CHECK_TIMEOUT_MS`) 안에 응답이 없어도 같다. 공용 `apiClient` 에는 기본 시간 제한이 없어서 이 호출에만 시간 제한을 건다. 시간 제한이 없으면 응답이 오지 않을 때 화면이 로딩 상태에 머문다. 요청 한도는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다 |
+| 5. 이메일 채우기와 고정 | 응답의 `email` 을 입력란에 채우고 읽기 전용으로 고정한다. 다른 이메일로는 가입할 수 없다. 입력란이 고정돼 있어 입력란의 이메일 중복 확인(`onBlur`)은 하지 않는다. 가입 여부는 2단계가 확인한다 |
+| 6. 헤더 안내 | "**{workspace}** 에 초대받으셨어요" 와 초대자 이름을 보여 준다 |
+| 7. 가입 제출 | `POST /api/auth/register { name, email, password, termsAccepted, invitationToken }`. 고정한 입력란의 이메일을 함께 보낸다. 서버는 이 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다 |
+| 8. 트랜잭션 처리 | 서버가 사용자 생성, 멤버십 추가, `invitation.acceptedAt` 갱신을 한 트랜잭션에서 한다. 실패하면 모두 되돌린다 |
+| 9. 가입 성공 뒤 | 이메일 인증 안내 화면 대신 초대받은 워크스페이스로 들어간다. 개인 워크스페이스 자동 생성은 일어나지 않는다. 다만 지금은 이 자동 로그인이 로그인 힌트 쿠키를 심지 않는다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다([세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항)) |
+| 10. 초대 에러 분기 | `invitation_email_mismatch`(입력란을 고정해 화면에서는 거의 나지 않는다. 요청을 직접 만든 경우를 막는 서버 검사다), `invitation_expired`, `invitation_already_used` 면 "이 초대는 더 이상 유효하지 않아요. 워크스페이스 관리자에게 재발송을 요청하세요" 안내를 보여 준다 |
+| 11. 이메일 중복 분기 | 가입 제출이 토큰 이메일 중복으로 거부되면 3단계와 같은 안내를 띄우고 같은 로그인 경로로 보낸다. 4단계에서 가입 여부를 확인하지 못한 기존 가입자가 여기에 든다. 지금은 409 `RESOURCE_CONFLICT` 로 중복을 가려낸다. 지금 가입 요청에서 `RESOURCE_CONFLICT` 는 이메일 중복 하나뿐이다. 그래서 화면은 메시지가 아니라 `error.code` 로 가른다. 다만 `RESOURCE_CONFLICT` 는 409 의 기본 코드다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 그래서 이 판별은 전용 코드가 생기기 전까지 쓰는 임시 분기다. NERV Task `CLE-T-2M6Q02` 가 가입 이메일 중복 전용 에러 코드를 만들고 이 분기를 그 코드로 바꾼다 |
+
+- 초대 흐름의 가입 폼 아래 `로그인` 링크도 같은 `redirect` 를 담는다(`/login?redirect=<인코딩한 /invitations/accept?token=…>`).
+- 로그인 화면의 초대 안내 문구와 «계정 만들기» 링크는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다. 로그인 뒤 이동은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다.
 
 ### 초대 에러 코드
 
@@ -511,12 +533,12 @@ sequenceDiagram
 
 - 컨트롤러는 두 개다. `workspaces.controller.ts`(`@Controller('workspaces')`)가 생성·멤버·초대 발급·수락 등 대부분을 받고, `invitations.controller.ts`(`@Controller('invitations')`)가 공개 토큰 메타 조회 하나를 받는다.
 - `POST /api/auth/register` 가 본문에 `invitationToken?` 을 받으면 위 [미가입자 가입 경로](#미가입자-가입-경로) 의 트랜잭션을 한다. 가입 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다.
+- 초대 가입 화면의 가입 여부 확인은 공개 API `POST /api/auth/check-email` 을 쓴다. 이 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
 
 ## 미결 사항
 
 - **개인 워크스페이스의 기본 시간대와 설정이 없을 때의 폴백**: 가입 화면 원문은 개인 워크스페이스를 만들 때 시간대를 "브라우저 타임존(Accept-Language 헤더에서 추론) 또는 UTC" 로 채운다고 적는다. 데이터 모델은 그런 컬럼 없이 `settings.timezone` 이 없으면 서버 기본 `process.env.TZ`, 없으면 `UTC` 이고 AI 노드 시스템 컨텍스트와 스케줄 기본 시간대가 이 값을 쓴다고 적는다. 스케줄 원문은 `settings.timezone` 다음 `'Asia/Seoul'` 로 폴백한다고 적는다(관련: [스케줄 §미결 사항](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#미결-사항), [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)). 현재 구현의 `createPersonalWorkspace` 는 `settings={}` 로 만든다. Accept-Language 헤더로는 시간대를 추론할 수도 없다. 기본값 하나를 정할지, 스케줄과 AI 가 서로 다른 폴백을 써도 되는지 결정 필요.
 - **초대 요청 한도 초과 코드 `rate_limited`**: 초대 에러 표와 에러 코드 예외 목록은 초대 429 를 소문자 `rate_limited` 로 적고 예외 등록 코드로 올려 둔다. 원문 분석에 따르면 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾸며, 백엔드·프론트엔드 소스에 `'rate_limited'` 문자열은 0건이다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 같은 표에서 발행처 없는 `forbidden` 을 뺀 선례가 있다. 표와 예외 목록에서 `rate_limited` 를 빼고 `RATE_LIMITED` 로 적을지 결정 필요.
-- **로그인하지 않은 기존 가입자가 초대 가입 링크를 열 때**: 초대 메일 링크는 받는 사람이 가입했는지와 상관없이 `/register?invitationToken=…` 이다. 로그인하지 않은 기존 가입자가 이 링크를 열면 가입 폼이 보인다. 이메일 입력란은 초대 이메일로 채워지고 읽기 전용으로 잠긴다. 초대 흐름에서는 입력란의 이메일 중복 확인을 건너뛴다(`register-form.tsx`). 제출하면 서버가 이메일 중복을 초대 처리보다 먼저 확인해 409 `RESOURCE_CONFLICT`(`Email already registered`)로 거부한다(`auth.service.ts` 의 `register`). 화면에는 그 메시지가 토스트로 표시된다. 가입 폼 아래 로그인 링크는 `/login` 으로만 가고 초대 토큰과 `redirect` 를 넘기지 않는다. 로그인 화면은 로그인 뒤 `/dashboard` 로 이동한다(`login-form.tsx`). 그래서 이 사용자는 로그인한 뒤에도 수락 페이지로 돌아오지 않는다. 선택지는 세 가지다. (a) 토큰 이메일이 이미 가입된 이메일이면 가입 화면이 로그인 화면으로 보내고 로그인 뒤 `/invitations/accept?token=…` 로 돌려보낸다. (b) 기존 가입자에게 보내는 초대 메일은 처음부터 수락 페이지 링크를 쓴다. (c) 현행을 유지한다. 결정 필요.
 - **`WORKSPACE_NOT_FOUND` 의 두 상태**: 워크스페이스 관리 경로는 이 코드를 404 로 내고 액세스 토큰 검증은 401 로 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 한 코드가 두 상태와 두 뜻으로 쓰인다. 401 경로에 별도 코드를 줄지는 NERV Task `CLE-T-3P4ENZ` 에서 정한다. 결정 필요.
 
 ## 구현 위치
@@ -534,9 +556,17 @@ sequenceDiagram
 - `codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts` (`RolesGuard` 전역 등록과 핸들러별 `@Roles` 고정)
 - `codebase/backend/test/workspace-rbac.e2e-spec.ts` (역할별 인가와 관리자 역할 규칙 e2e)
 - `codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/**`
-- `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**`
+- `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**` (수락 페이지. 대소문자를 구분하지 않는 이메일 비교, «다른 계정으로 로그인»)
+- `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (슬러그 없는 `/invitations/accept` 를 쿼리를 둔 채 슬러그 경로로 넘긴다)
 - `codebase/frontend/src/components/workspace/**`
-- `codebase/frontend/src/components/auth/register-form.tsx` (초대 토큰 가입 분기)
+- `codebase/frontend/src/components/auth/register-form.tsx` (초대 토큰 가입 제출, 이메일 중복으로 끝난 제출의 기존 가입자 분기, 초대 흐름의 로그인 링크)
+- `codebase/frontend/src/components/auth/use-invitation-gate.ts` (초대 가입 화면의 진입 판정 `useInvitationGate`: 이미 로그인한 사용자, 기존 가입자를 로그인 화면으로 보내는 분기, 가입 폼 열기)
+- `codebase/frontend/src/components/auth/__tests__/use-invitation-gate.test.ts` (진입 판정 순서와 한 번만 이동하는지)
+- `codebase/frontend/src/components/auth/login-form.tsx` (복귀 경로가 초대 수락 페이지일 때의 안내 문구)
+- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (수락 페이지 경로 `invitationAcceptPath`, 로그인 경로 `buildLoginHref`, 초대 흐름의 로그인 경로 `buildInvitationLoginHref`)
+- `codebase/frontend/src/lib/auth/registered-email.ts` (초대 가입 화면의 가입 여부 확인 `isRegisteredEmail` 과 5초 제한 `REGISTERED_EMAIL_CHECK_TIMEOUT_MS`)
+- `codebase/frontend/src/lib/auth/__tests__/registered-email.test.ts` (가입 여부 판정과 확인 실패 처리)
+- `codebase/frontend/src/lib/auth/session-hint.ts` (가입 화면이 이미 로그인한 사용자를 알아보는 `hasSessionHint`. 쿠키 규약과 테스트는 [세션과 토큰 「로그인 힌트 쿠키」](CLE-ACCT-SESSION.md#로그인-힌트-쿠키) 에 있다)
 - `codebase/frontend/src/proxy.ts` (옛 초대 링크 `/auth/register` 리다이렉트)
 - `codebase/frontend/src/lib/stores/workspace-store.ts`
 - `codebase/frontend/src/lib/api/workspaces.ts`, `codebase/frontend/src/lib/api/invitations.ts`
@@ -658,7 +688,7 @@ sequenceDiagram
 
 가드는 요청이 도는 워크스페이스만 본다. 요청 본문의 참조 id 는 저장 때 서비스가 본다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
 
-워크스페이스와 무관한 전역 API 는 이 검증에서 뺀다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트는 헤더가 와도 멤버십을 확인하지 않는다. 이런 라우트는 워크스페이스 값을 받을 통로가 없어 헤더를 위조해도 다른 워크스페이스 데이터에 닿지 않는다. 예외가 없으면 프런트엔드가 모든 요청에 붙이는 헤더 때문에 시스템 상태 같은 전역 API 가 헤더와 토큰의 워크스페이스가 다를 때마다 멤버십을 다시 조회하고, 헤더의 워크스페이스에 속하지 않은 사용자는 403 을 받는다. 2026-08-08 e2e 회귀(`test/system-status.e2e-spec.ts`)로 실측했다. 예외 여부는 가드가 세 데코레이터의 사용 여부를 reflection 으로 보고 정한다. 새 라우트가 `@WorkspaceId()` 를 쓰면 표시를 따로 달지 않아도 검사 대상이 되므로 위에서 기각한 라우트별 opt-in 과 달리 빠뜨려도 열리지 않는다. 다만 가드는 세 데코레이터만 알아본다. 핸들러가 `req.user.workspaceId` 를 직접 읽는 경우의 비대칭은 아래 「경로 파라미터 워크스페이스도 가드가 본다」 와 「부팅 때 가드 인식을 스스로 검사한다」 가 다룬다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있으므로 이 예외에서 뺀다.
+워크스페이스와 무관한 전역 API 는 이 검증에서 뺀다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트는 헤더가 와도 멤버십을 확인하지 않는다. 이런 라우트는 워크스페이스 값을 받을 통로가 없어 헤더를 위조해도 다른 워크스페이스 데이터에 닿지 않는다. 예외가 없으면 프론트엔드가 모든 요청에 붙이는 헤더 때문에 시스템 상태 같은 전역 API 가 헤더와 토큰의 워크스페이스가 다를 때마다 멤버십을 다시 조회하고, 헤더의 워크스페이스에 속하지 않은 사용자는 403 을 받는다. 2026-08-08 e2e 회귀(`test/system-status.e2e-spec.ts`)로 실측했다. 예외 여부는 가드가 세 데코레이터의 사용 여부를 reflection 으로 보고 정한다. 새 라우트가 `@WorkspaceId()` 를 쓰면 표시를 따로 달지 않아도 검사 대상이 되므로 위에서 기각한 라우트별 opt-in 과 달리 빠뜨려도 열리지 않는다. 다만 가드는 세 데코레이터만 알아본다. 핸들러가 `req.user.workspaceId` 를 직접 읽는 경우의 비대칭은 아래 「경로 파라미터 워크스페이스도 가드가 본다」 와 「부팅 때 가드 인식을 스스로 검사한다」 가 다룬다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있으므로 이 예외에서 뺀다.
 
 ### 경로 파라미터 워크스페이스도 가드가 본다
 
@@ -722,3 +752,63 @@ sequenceDiagram
 ### 초대 가입 요청 본문을 구현에 맞췄다 (2026-10-17)
 
 NERV Task `CLE-T-D331TT` 에서 바로잡았다. 「미가입자 가입 경로」 의 시퀀스와 「초대 가입 화면」 표는 초대 가입 요청을 `{ name, password, invitationToken }` 으로 적고 서버가 이메일을 토큰에서 가져온다고 했다. 구현은 일반 가입과 같은 본문을 받는다(`register-form.tsx`, `AuthService.registerWithInvitation`). 서버는 입력 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다. 그래서 두 곳의 본문과 설명을 구현에 맞췄다. 동작은 바뀌지 않았다.
+
+### 로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다
+
+2026-10-10 에 사용자가 아래 선택지 (a) 를 승인했다(NERV Task `CLE-T-YZ9VEX` 「결정」). 2026-10-18 에 같은 Task 가 구현했다. v5 에서 미결 사항으로 올린 항목을 닫고 미결 항목을 지웠다.
+
+초대 메일 링크는 받는 사람이 가입했는지와 상관없이 `/register?invitationToken=…` 이다. 전에는 로그인하지 않은 기존 가입자가 이 링크를 열면 가입 폼이 보였다.
+
+- 이메일 입력란은 초대 이메일로 채워지고 읽기 전용으로 잠겼다. 초대 흐름이라 입력란의 이메일 중복 확인도 건너뛰었다.
+- 제출하면 서버가 이메일 중복을 초대 처리보다 먼저 확인해 409 `RESOURCE_CONFLICT`(`Email already registered`)로 거부했다(`auth.service.ts` 의 `register`). 화면에는 그 메시지가 토스트로 표시됐다.
+- 가입 폼 아래 로그인 링크는 `/login` 으로만 갔다. 초대 토큰과 `redirect` 는 넘기지 않았다. 로그인 화면은 로그인 뒤 `/dashboard` 로 이동했다. 그래서 이 사용자는 로그인한 뒤에도 수락 페이지로 돌아오지 못했다.
+
+지금은 가입 화면이 토큰 이메일의 가입 여부를 확인해 로그인 화면으로 보낸다. 로그인 뒤에는 수락 페이지로 돌아온다([초대 가입 화면](#초대-가입-화면)). 수락은 자동으로 되지 않고 사용자가 수락 페이지에서 [수락] 을 누른다.
+
+v5 미결 사항의 선택지는 세 가지였다.
+
+- (a) 가입 화면이 로그인 화면으로 보낸다: 토큰 이메일이 이미 가입된 이메일이면 가입 화면이 로그인 화면으로 보낸다. 로그인 뒤에는 `/invitations/accept?token=…` 로 돌아온다. 이 선택지를 채택했다.
+- (b) 기존 가입자에게는 처음부터 수락 페이지 링크를 보낸다: 메일 링크가 두 형식으로 갈린다. 어느 링크를 보낼지는 발송 시점의 가입 여부로 정해진다. 메일을 보낸 뒤 가입하면 받은 링크가 맞지 않게 된다. 기각했다.
+- (c) 현행을 유지한다: 기존 가입자의 가입 시도가 늘 409 로 끝난다. 기각했다.
+
+채택하지 않은 선택지도 있다.
+
+- 토큰 메타 응답에 가입 여부를 싣는다: 초대 API 응답을 바꿔야 한다. 이번 변경은 프론트엔드만 바꾸는 범위라 넣지 않았다.
+- 가입 제출이 409 로 끝날 때만 로그인 화면으로 보낸다: 기존 가입자가 이름과 비밀번호를 입력해 제출한 뒤에야 로그인 화면으로 간다. 이 분기는 가입 여부를 확인하지 못했을 때의 안전망으로만 둔다([초대 가입 화면](#초대-가입-화면) 11단계).
+- 로그인 뒤 초대를 자동으로 수락한다: 이미 로그인한 사용자는 수락 페이지에서 워크스페이스 이름을 보고 [수락] 을 누른다. 자동 수락을 넣으면 두 경로의 동작이 갈린다.
+
+초대 토큰 검증, 수락 API, 메일 링크 형식은 바뀌지 않았다. 바뀐 곳은 프론트엔드의 가입 화면, 로그인 화면, 수락 페이지다.
+
+한계가 둘 남는다.
+
+- 가입 여부 확인이 실패하면(429 · 네트워크 에러 · 5초 초과) 기존 가입자도 가입 폼을 본다. 이 사용자는 이름과 비밀번호를 입력해 제출하고 409 를 받은 뒤에야 로그인 화면으로 간다. `check-email` 은 IP 단위 요청 한도 안에서 불린다([HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한)). 그래서 같은 IP 를 쓰는 사무실에서 여러 사람이 초대 링크를 열거나 새로고침을 되풀이하면 429 가 날 수 있다.
+- 대문자가 섞인 이메일로 가입한 기존 계정은 가입되지 않은 것으로 판정된다. `check-email`, 가입의 이메일 중복 확인, 로그인은 이메일을 대소문자까지 그대로 비교해 조회한다. 초대 이메일은 소문자로 저장된다. 그래서 이 사용자에게는 가입 폼이 보인다. 제출해도 가입의 중복 확인이 그 계정을 찾지 못해 409 없이 가입이 끝난다. 그 결과 소문자 이메일 계정이 새로 생기고 그 계정이 워크스페이스에 들어간다. NERV Task `CLE-T-SFWX84` 가 이메일 대소문자 정규화를 맞출 때까지의 한계다.
+
+### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다
+
+2026-10-18, NERV Task `CLE-T-YZ9VEX` 에서 정리했다.
+
+초대 가입 화면에서는 로그인하지 않은 사용자도 토큰 이메일의 가입 여부를 알 수 있다. 그래도 이 흐름 때문에 이메일 존재가 새로 노출되지는 않는다. 이유는 다음과 같다.
+
+- `POST /api/auth/check-email` 은 원래 공개 API 다. 일반 가입 화면의 이메일 중복 확인이 이미 쓰고 있다. 이 흐름도 같은 API 를 같은 IP 요청 한도 안에서 부른다. 한도를 우회하는 경로가 없다.
+- 가입 화면은 토큰 메타 조회가 성공한 뒤에만 이 API 를 부른다. 그래서 이 흐름으로 가입 여부를 알 수 있는 사람은 토큰을 가진 사람뿐이다.
+- 토큰 메타 응답은 이미 토큰 이메일을 보여 준다.
+- 로그인 URL 의 `redirect` 에 담긴 토큰은 이미 메일 링크와 수락 페이지 URL 에 있다. 수락은 이메일 일치를 강제하므로 토큰만으로는 합류할 수 없다.
+
+이 확인으로 드러나는 것은 가입 여부뿐이다. 응답에는 `available` 하나만 있어 인증 상태나 잠금 여부는 드러나지 않는다. 그래서 이메일 인증 전 상태를 비밀번호가 맞을 때만 알리는 로그인 규칙과 어긋나지 않는다([가입과 로그인](CLE-ACCT-SIGNIN.md) Rationale 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」).
+
+대소문자 비교의 한계는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다) 에 있다.
+
+### 초대 가입 뒤 도착 화면에 세션과 토큰 문서의 미결 사항을 이었다 (2026-10-22)
+
+NERV Task `CLE-T-7WZKFB` 의 구현 완료 뒤 일관성 검토 지적(finding `01a1614a-524b-7063-96ec-aed408cf1382`)으로 고쳤다. 초대 토큰 가입의 자동 로그인은 로그인 힌트 쿠키를 심지 않는다. 그래서 가입 뒤 보호 경로로 가면 로그인 화면이 다시 나온다. 이 사실은 [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항) 에만 있었고 「초대 가입 화면」 9단계와 「미가입자 가입 경로」 4단계는 워크스페이스로 바로 들어간다고만 적었다. 두 곳에 지금 동작과 미결 사항 링크를 더했다. 동작 규칙은 바뀌지 않았다. 로그인 세션을 만드는 진입점을 하나로 모으는 NERV Task `CLE-T-1X7DMR` 이 끝나면 두 문장을 지운다. 지울 곳은 [세션과 토큰](CLE-ACCT-SESSION.md) 의 같은 날짜 Rationale 「로그인 힌트 쿠키 요구를 부분 구현으로 표시했다」 가 모아 둔다.
+
+머리 줄 구현 상태는 「구현됨」 으로 둔다. 이 문서의 요구사항은 모두 구현됐다. 로그인 힌트 쿠키 요구는 세션과 토큰 문서가 정하고 그 문서가 부분 구현으로 표시한다.
+
+### 초대 가입 화면의 진입 판정을 한 훅에 모았다 (2026-10-22)
+
+NERV Task `CLE-T-7WZKFB` 코드 리뷰 지적(finding `01a1614a-ae04-7604-968f-52a8d7a3a6bd`)으로 정리했다. 가입 폼 컴포넌트에 진입 판정이 effect 세 개와 제출 실패 분기로 흩어져 있었다. 기존 가입자 상태를 만드는 곳이 두 곳이었고 로그인 화면으로 보내는 일은 그 상태를 지켜보는 세 번째 effect 가 했다. 그래서 router 참조가 바뀌어 effect 가 다시 돌 때를 막는 가드가 따로 있어야 했다. 로그인 힌트도 두 번 읽었다.
+
+판정을 `use-invitation-gate.ts` 의 훅 하나에 모았다. 이 훅은 토큰마다 한 번 판정하고 로그인 힌트도 한 번만 읽는다. 판정과 제출 실패는 기존 가입자를 같은 함수로 로그인 화면에 보낸다. 가입 여부 확인은 토큰 메타 조회가 성공한 뒤에만 한다는 규칙은 그대로다. 이미 로그인한 사용자는 이제 토큰 메타도 조회하지 않고 수락 페이지로 간다. 그 메타는 쓰이지 않았고 수락 페이지가 다시 조회한다. 나머지 동작은 바뀌지 않았다.
+
+effect 를 그대로 두고 이동 가드만 보강하는 안은 택하지 않았다. 기존 가입자 상태를 만드는 곳이 두 곳으로 남는다. 그러면 안내 문구와 로그인 경로를 두 곳에서 따로 맞춰야 한다.

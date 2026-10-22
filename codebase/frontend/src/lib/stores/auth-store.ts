@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { setAccessToken } from "../api/client";
+import { clearSessionHint, setSessionHint } from "../auth/session-hint";
 
 interface User {
   id: string;
@@ -32,18 +33,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuthenticated: (token, user) => {
     setAccessToken(token);
     // Set session hint cookie for middleware (non-httpOnly, visible to server)
-    if (typeof document !== "undefined") {
-      document.cookie = "has_session=1; path=/; max-age=2592000; SameSite=Lax";
-    }
+    setSessionHint();
     set({ user, isAuthenticated: true, isLoading: false });
   },
 
   logout: () => {
     setAccessToken(null);
     // Clear session hint cookie
-    if (typeof document !== "undefined") {
-      document.cookie = "has_session=; path=/; max-age=0";
-    }
+    clearSessionHint();
     set({ user: null, isAuthenticated: false, isLoading: false });
   },
 

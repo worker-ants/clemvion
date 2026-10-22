@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "3031462d66f8d066acfbaeb779ff0239bc11077fb019f9220a49ba499e9aee5b"
+content_hash: "0f980cb710a492ca727a041d4d33fab9e40cb95757f5d919df50423ce88d1b95"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-YZ9VEX"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "b9f14bd6f1c7690d3f16902422bd263177183f59e05f53f46d137ec1864a6652"
-etag: "sha256-696899d7fa5ab2d5cda01813321a082e0ad6e0d48992c77b781111ca51138c9e"
+mirror_sha256: "9fd7b55c8941252c49096b3bb0b43cdb9cd2638e27409bca3977cb8fcf0a901a"
+etag: "sha256-c2d438db161e674090af8362efe6af2a8c851d277395d068b0476b227a26b29b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -513,7 +513,7 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 기존 가입자(비멤버)를 팀에 초대하면 `WorkspaceInvitationsService.invite()` 가 이메일을 보낼 수 있는 발송 두 가지를 차례로 한다.
 
-1. `dispatchEmail` → `MailService.sendWorkspaceInvitationEmail`: **수락 토큰을 담은 초대 링크 이메일**. 제목은 `Clemvion - "<ws>" 워크스페이스 초대`, 버튼은 "초대 수락하기" 로 초대 가입 경로(`invitationToken` 쿼리 포함)를 가리킨다. 이미 로그인한 기존 가입자가 이 링크를 열면 가입 폼 대신 수락 페이지로 간다([REQ-WSPACE-034](../CLE-ACCT/CLE-ACCT-WS.md)). 로그인하지 않은 기존 가입자의 경로는 [워크스페이스](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 미결 사항이다. 링크는 `/register?invitationToken=…` 이다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미가입자-가입-경로)).
+1. `dispatchEmail` → `MailService.sendWorkspaceInvitationEmail`: **수락 토큰을 담은 초대 링크 이메일**. 제목은 `Clemvion - "<ws>" 워크스페이스 초대`, 버튼은 "초대 수락하기" 로 초대 가입 경로(`invitationToken` 쿼리 포함)를 가리킨다. 이미 로그인한 기존 가입자가 이 링크를 열면 가입 폼 대신 수락 페이지로 간다. 로그인하지 않은 기존 가입자는 가입 화면에서 로그인 화면으로 가고 로그인 뒤 초대 수락 페이지로 돌아온다([워크스페이스와 멤버 「초대 가입 화면」](../CLE-ACCT/CLE-ACCT-WS.md#초대-가입-화면)). 링크는 `/register?invitationToken=…` 이다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미가입자-가입-경로)).
 2. `dispatchTeamInviteNotification` → `team_invite` 알림 행: 벨(`in_app`)과, 채널이 `email`·`both` 면 `MailService.sendNotificationEmail`. 뒤쪽은 **토큰 없는 범용 알림 템플릿**이다. 제목은 알림 제목(`워크스페이스 초대`), 버튼은 "알림 보기" 로 `/dashboard` 를 가리킨다.
 
 초기 구현은 알림 설정 표의 "팀 초대 = 인앱 + 이메일" 을 글자 그대로 읽어 알림 행을 `both` 로 보냈다. 그 결과 기존 가입자는 **제목이 비슷한 이메일 2통**을 받았다. 하필 두 번째(알림 이메일)는 수락 토큰이 없어 `/dashboard` 로만 안내하는 **기능이 더 약한** 쪽이었다. 사용자가 그 이메일을 먼저 열면 수락 경로를 찾지 못해 헷갈린다.
