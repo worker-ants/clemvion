@@ -134,6 +134,30 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     expect(screen.queryByText("invitations.accept.logoutAndSwitch")).toBeNull();
   });
 
+  // 토큰 쪽도 소문자로 바꿔 비교한다. 서버가 토큰 이메일을 소문자로 저장해도 화면은 그 전제에 기대지 않는다.
+  it("treats the token email case-insensitively too", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockResolvedValue({ ...META, email: "Invitee@Example.com" });
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(screen.getByText("invitations.accept.accept")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("invitations.accept.logoutAndSwitch")).toBeNull();
+  });
+
+  // 대소문자만 무시하고 앞뒤 공백은 지우지 않는다(CLE-ACCT-WS REQ-WSPACE-035).
+  it("keeps surrounding whitespace in the logged-in email significant", async () => {
+    mockUser = { email: " invitee@example.com " };
+    mockGetByToken.mockResolvedValue(META);
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(
+        screen.getByText("invitations.accept.logoutAndSwitch"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("invitations.accept.accept")).toBeNull();
+  });
+
   // 다른 계정으로 로그인하면 이 초대 수락 페이지로 돌아온다(REQ-SESSION-038).
   it("logout clears session and routes to /login with this page as the redirect", async () => {
     mockUser = { email: "other@example.com" };
