@@ -3,18 +3,18 @@ id: "CLE-EXEC-RUN"
 title: "에디터 실행과 디버깅"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "03e10d6b6fe35ad3a3d7af720ced3d36232c866918b790387be951df2cf3f067"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-KMQ43W"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "43f521a98d2a2e2102472c33a7cd0b45c212a786ce3b4513ad7131ebfa7dae74"
-etag: "sha256-9ff04cfbbcf4113b0984df232af9ab68e24a7e473b81c2013c60a22f6bc2149e"
+mirror_sha256: "0075fd84b5c70944d15484aac292edeaeb2df0521b1658bc8dddccc2b4b0975d"
+etag: "sha256-8ed28c7caadeefa916b1aee7d8f9b38dd456c5be3252d7376b0483e6f2ca5b77"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

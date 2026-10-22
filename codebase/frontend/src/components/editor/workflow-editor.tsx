@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
+import { useExecutionPollingFallback } from "@/lib/websocket/use-execution-polling-fallback";
 import { getWsClient } from "@/lib/websocket/ws-client";
 import { getAccessToken } from "@/lib/api/client";
 import { useAssistantStore } from "@/lib/stores/assistant-store";
@@ -91,8 +92,10 @@ export function WorkflowEditor() {
      
   }, [workflowId, nodeTopologyKey, edgeTopologyKey, evaluateGraphWarningsLocal]);
 
-  // Subscribe to WebSocket execution events
-  useExecutionEvents({ executionId });
+  // Subscribe to WebSocket execution events. 구독이 막히면 REST 폴링이 같은
+  // store 자리를 채워 실행 패널이 비지 않는다(CLE-EXEC-RUN).
+  const { realtimeFallback } = useExecutionEvents({ executionId });
+  useExecutionPollingFallback({ executionId, enabled: realtimeFallback });
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
