@@ -2,21 +2,21 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "475f8795267e25e97f7b6a0718ceb49258f9210d6cb6e0989b769c7a5670833f"
+content_hash: "fb8d31063ae481db0d4f3765615e854c178e20b687866787b9601c6423bc5630"
 read_as: "approved_fallback"
 task: "CLE-T-YZ9VEX"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "e632b73d419099fe7877e57b12325d6661e02c53dc57b993669c0a92da6c52d5"
-etag: "sha256-30a32b60c6831f433563bf0054d71209d5c758e3c7d3916af72901980baa7012"
+mirror_sha256: "56eb253ac050a63cd7707c219d2b71e1709ddeb3264207b192f01d2d83ce69d6"
+etag: "sha256-3bf5b6a470212282ad3d3f15cd70092f2873e85d00728eb023dea4f2fed69d55"
 ---
-> 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일과 로그인 힌트 쿠키는 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -68,7 +68,7 @@ etag: "sha256-30a32b60c6831f433563bf0054d71209d5c758e3c7d3916af72901980baa7012"
 - REQ-SESSION-033 IF 동시 로그인 세션이 5개를 넘으면 THE SYSTEM SHALL 가장 오래된 로그인 세션을 자동 종료한다. (미구현, [미결 사항](#미결-사항))
 - REQ-SESSION-035 IF 로그인하지 않은 사용자가 공개 경로 밖 화면을 열면 THE SYSTEM SHALL 그 화면의 경로와 쿼리를 `redirect` 파라미터에 담아 `/login` 으로 보낸다.
 - REQ-SESSION-036 IF 요청에 `has_session` 쿠키가 없으면 THE SYSTEM SHALL JS 를 내려보내기 전 서버 proxy 단계에서 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다.
-- REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 프론트엔드 JS 가 `has_session=1` 쿠키(non-httpOnly, path=/, max-age 30일, SameSite=Lax)를 설정한다.
+- REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 프론트엔드 JS 가 `has_session=1` 쿠키(non-httpOnly, path=/, max-age 30일, SameSite=Lax)를 설정한다. (부분 구현, [미결 사항](#미결-사항))
 - REQ-SESSION-038 WHEN 로그인(비밀번호 · 2단계 인증 · 복구 코드 · 소셜 로그인)에 성공하면 THE SYSTEM SHALL `redirect` 값이 하나뿐이고 안전한 같은 출처 경로일 때 그 경로와 쿼리로 보내고 아니면 `/dashboard` 로 보낸다. 안전한 값의 기준은 [로그인 뒤 이동](#로그인-뒤-이동) 에 있다.
 - REQ-SESSION-039 WHEN 사용자가 `/profile/sessions` 를 열면 THE SYSTEM SHALL 활성 로그인 세션 목록과 "현재" 배지, 개별 종료와 일괄 종료 버튼을 보여 준다.
 - REQ-SESSION-040 WHEN 요청 경로가 `/auth/register`(끝 슬래시 포함)이면 THE SYSTEM SHALL 공개 경로 판정과 `has_session` 검사보다 먼저 쿼리를 보존한 채 `/register` 로 리다이렉트한다.
@@ -558,3 +558,9 @@ NERV Task `CLE-T-7WZKFB` 코드 리뷰 지적(finding `01a14e00-503b-7600-b273-1
 proxy(Next 서버 미들웨어)도 이 모듈을 import 한다. 그래서 이 모듈은 브라우저 전용 모듈을 import 하지 않는다. `document` 는 브라우저인지 확인한 뒤에만 쓴다.
 
 사용처마다 쿠키 문자열을 그대로 두는 방식은 택하지 않았다. 쿠키 이름이나 속성을 바꿀 때 세 곳을 함께 고쳐야 했다. 한 곳을 빠뜨려도 이를 잡는 테스트가 없었다.
+
+### 로그인 힌트 쿠키 요구를 부분 구현으로 표시했다 (2026-10-22)
+
+NERV Task `CLE-T-7WZKFB` 의 구현 완료 뒤 일관성 검토 지적(finding `01a16149-ffac-7340-9544-be525b61781a` · `01a1614a-524b-7063-96ec-aed408cf1382`)으로 고쳤다. 초대 토큰 가입과 이메일 인증의 자동 로그인이 로그인 힌트 쿠키를 심지 않는다는 어긋남은 미결 사항과 「로그인 힌트 쿠키」 절에만 있었다. 그래서 REQ-SESSION-037 과 머리 줄은 완전 구현으로 읽혔다. REQ-SESSION-037 에 부분 구현 표시를 달고 머리 줄 구현 상태에 더했다. 동작 규칙은 바뀌지 않았다. NERV Task `CLE-T-1X7DMR` 이 두 곳에 쿠키를 심으면 세 문서의 표시를 함께 지운다. 지울 곳은 이 문서의 REQ-SESSION-037 · 머리 줄 · 미결 사항 항목, [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 이메일 인증 자동 로그인 요구사항 줄 · 머리 줄 · 「가입 처리」 문장, [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 「초대 가입 화면」 9단계 · 「미가입자 가입 경로」 4단계 문장이다.
+
+미결 사항과 본문 절에만 적어 두는 방식은 택하지 않았다. 요구사항을 인용하는 다른 문서와 spec-coverage 감사는 요구사항 줄과 머리 줄을 기준으로 읽는다. 그래서 미결 사항에만 있는 갭은 놓친다.

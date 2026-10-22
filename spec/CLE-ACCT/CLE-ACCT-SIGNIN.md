@@ -2,21 +2,21 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "96c7d6362dd1f8bb666ce010ead053e091670b25e01c4b68fdf2efc85bf1a22f"
+content_hash: "4a7838f5931db64afc025902584c7f41786ba3f5fc90a562a2abb08ea90a9246"
 read_as: "approved_fallback"
 task: "CLE-T-7WZKFB"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "fd963a846254d885873b78b893e801207472503741718e61e238ecb39844fed0"
-etag: "sha256-84c1075b3b57019786ffbc8bff5aef9866c7ca1938c15ec12485c93d45b7a67a"
+mirror_sha256: "e4a7401118961bc143811d9d58fe00d8a6d0fab59d86fd1718a60750fb1227e6"
+etag: "sha256-c80b8bdbcb219e6056f3dbf7b41329f3795a276414ccf9f748b52c55bbb61515"
 ---
-> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-84c1075b3b57019786ffbc8bff5aef9866c7ca1938c15ec12485c93d45b7a67a"
 - REQ-SIGNIN-008 IF 가입 폼의 약관 동의가 체크되지 않았으면 THE SYSTEM SHALL 가입 버튼을 비활성화한다.
 - REQ-SIGNIN-009 WHILE 사용자가 비밀번호를 입력하는 동안 THE SYSTEM SHALL 5단계 비밀번호 강도 바를 보여 준다.
 - REQ-SIGNIN-010 WHEN 초대 토큰 없이 가입이 성공하면 THE SYSTEM SHALL 토큰을 발급하지 않고 이메일 인증 안내 화면으로 보낸다.
-- REQ-SIGNIN-011 WHEN 사용자가 이메일 인증 링크를 열면 THE SYSTEM SHALL 24시간 안의 토큰인지 검증하고 개인 워크스페이스를 만든 뒤 자동 로그인해 대시보드로 보낸다.
+- REQ-SIGNIN-011 WHEN 사용자가 이메일 인증 링크를 열면 THE SYSTEM SHALL 24시간 안의 토큰인지 검증하고 개인 워크스페이스를 만든 뒤 자동 로그인해 대시보드로 보낸다. (부분 구현, [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항))
 - REQ-SIGNIN-012 WHEN 인증 메일 재발송을 요청받으면 THE SYSTEM SHALL 계정 존재·인증 여부와 상관없이 같은 응답을 주고 인증 전 계정에만 24시간짜리 인증 토큰을 다시 보낸다.
 - REQ-SIGNIN-013 WHEN 사용자가 인증 안내 화면이나 재설정 안내 화면에서 재발송 버튼을 누르면 THE SYSTEM SHALL 60초 쿨다운을 적용한다.
 - REQ-SIGNIN-014 IF 없는 이메일 · 비밀번호가 없는 계정 · 틀린 비밀번호로 로그인이 실패하면 THE SYSTEM SHALL 어느 경우인지 드러내지 않는 같은 문구를 보여 준다. (부분 구현)
@@ -161,7 +161,7 @@ etag: "sha256-84c1075b3b57019786ffbc8bff5aef9866c7ca1938c15ec12485c93d45b7a67a"
 3. 초대 토큰 없는 가입이 성공하면 이메일 인증 안내 화면으로 이동한다. 서버는 사용자 행과 인증 메일만 만들고 토큰·쿠키·개인 워크스페이스는 만들지 않는다.
 4. 실패하면 이메일 중복 같은 에러를 인라인으로 보여 준다.
 
-`invitationToken` 을 담은 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 멤버십을 만들고 바로 로그인한다. 이 경로의 화면과 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다. 로그인하지 않은 기존 가입자가 초대 링크를 열면 가입 화면 대신 로그인 화면으로 보내는 규칙도 그 절에 있다. 초대 토큰 가입이 409 `RESOURCE_CONFLICT` 로 끝나면 4번처럼 에러를 보여 주지 않고 같은 로그인 화면으로 보낸다. 가입 여부 확인이 실패해 가입 폼을 띄운 기존 가입자가 이 경우다.
+`invitationToken` 을 담은 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 멤버십을 만들고 바로 로그인한다. 지금은 이 자동 로그인과 이메일 인증 뒤 자동 로그인이 로그인 힌트 쿠키를 심지 않는다. 그래서 보호 경로로 가면 로그인 화면이 다시 나온다([세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항)). 이 경로의 화면과 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다. 로그인하지 않은 기존 가입자가 초대 링크를 열면 가입 화면 대신 로그인 화면으로 보내는 규칙도 그 절에 있다. 초대 토큰 가입이 409 `RESOURCE_CONFLICT` 로 끝나면 4번처럼 에러를 보여 주지 않고 같은 로그인 화면으로 보낸다. 가입 여부 확인이 실패해 가입 폼을 띄운 기존 가입자가 이 경우다.
 
 ### 이메일 인증 안내 화면
 
@@ -173,7 +173,7 @@ etag: "sha256-84c1075b3b57019786ffbc8bff5aef9866c7ca1938c15ec12485c93d45b7a67a"
 | 로그인 링크 | 카드 하단 | "Back to login" | 로그인 화면으로 이동 |
 
 - 인증 링크는 `?token=` 쿼리로 토큰을 전달한다. 인증 페이지는 그 토큰을 요청 본문에 담아 `POST /api/auth/verify-email { token }` 을 호출한다.
-- 인증에 성공하면 자동 로그인하고 개인 워크스페이스를 만든 뒤 대시보드(`/dashboard`)로 보낸다. 개인 워크스페이스 생성 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
+- 인증에 성공하면 자동 로그인하고 개인 워크스페이스를 만든 뒤 대시보드(`/dashboard`)로 보낸다. 개인 워크스페이스 생성 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다. 다만 지금은 이 자동 로그인이 로그인 힌트 쿠키를 심지 않는다([세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항)).
 - 인증 토큰은 24시간 동안 유효하다.
 - 인증 메일 재발송 API 는 IP 당 분당 5회로 제한하고 이메일 존재 여부를 드러내지 않는 같은 응답을 준다.
 
@@ -990,3 +990,9 @@ NERV Task `CLE-T-7WZKFB` · `CLE-T-YZ9VEX` 에서 고쳤다. 이 문서의 「�
 - 콜백은 이동하기 전에 `GET /api/users/me` 를 불러 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 가면 proxy 가 다시 로그인 화면으로 보내기 때문이다. 자세한 내용은 같은 절에 있다.
 - 이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다. 지금처럼 대시보드로 보낸다.
 - 초대 가입 화면의 가입 여부 확인 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 에만 둔다. 이 문서는 가입 폼 이메일 입력란의 중복 확인 요구사항을 읽기 전용 입력란에서 건너뛰도록 고치고 그 절을 링크한다.
+
+### 자동 로그인 두 곳의 로그인 힌트 쿠키 갭을 표시했다 (2026-10-22)
+
+NERV Task `CLE-T-7WZKFB` 의 구현 완료 뒤 일관성 검토 지적(finding `01a1614a-524b-7063-96ec-aed408cf1382`)으로 고쳤다. 이메일 인증 링크와 초대 토큰 가입의 자동 로그인은 로그인 힌트 쿠키를 심지 않는다. 그래서 대시보드 같은 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다. 이 사실은 [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항) 에만 있었고 REQ-SIGNIN-011 은 대시보드로 보낸다고만 적었다. REQ-SIGNIN-011 과 머리 줄에 부분 구현을 표시하고 「가입 처리」 와 「이메일 인증 안내 화면」 에 지금 동작을 더했다. 동작 규칙은 바뀌지 않았다. 로그인 세션을 만드는 진입점을 하나로 모으는 NERV Task `CLE-T-1X7DMR` 이 끝나면 표시를 지운다. 지울 곳은 [세션과 토큰](CLE-ACCT-SESSION.md) 의 같은 날짜 Rationale 「로그인 힌트 쿠키 요구를 부분 구현으로 표시했다」 가 모아 둔다.
+
+앞 절의 «이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다» 는 로그인 뒤 돌아갈 경로(`redirect`)의 범위를 말한다. 이번에 표시한 갭은 그 경로와 상관없는 로그인 힌트 쿠키다. 그래서 두 항목은 어긋나지 않는다.
