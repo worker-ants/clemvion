@@ -33,15 +33,14 @@ interface ValidationDetail {
 export class CustomValidationPipe implements PipeTransform<unknown> {
   async transform(
     value: unknown,
-    { metatype }: ArgumentMetadata,
+    { metatype, type }: ArgumentMetadata,
   ): Promise<unknown> {
-    if (!metatype || !this.toValidate(metatype)) {
-      return value;
-    }
-    // 이미 선언 타입의 인스턴스면 요청 본문이 아니라 프레임워크가 넘긴 객체다. NestJS 12 부터
-    // `APP_PIPE` 가 WebSocket 게이트웨이 인자에도 붙어 `@ConnectedSocket() client: Socket` 이
-    // 여기로 온다. 변환하면 핸들러가 소켓 대신 사본을 받는다.
-    if (value instanceof metatype) {
+    // 커스텀 파라미터 데코레이터 값은 검증하지 않는다(NestJS 기본 `ValidationPipe` 의
+    // `validateCustomDecorators: false` 와 같다). NestJS 12 부터 `APP_PIPE` 가 WebSocket 게이트웨이
+    // 인자에도 붙어 `@ConnectedSocket()` 소켓이 `custom` 으로 온다. 그 소켓은
+    // `@nestjs/platform-socket.io` 가 고정한 socket.io 사본의 인스턴스라 `instanceof Socket` 으로는
+    // 가려내지 못한다. `@MessageBody()` 는 `body` 로 오므로 계속 검증한다.
+    if (type === 'custom' || !metatype || !this.toValidate(metatype)) {
       return value;
     }
     const object = plainToInstance(

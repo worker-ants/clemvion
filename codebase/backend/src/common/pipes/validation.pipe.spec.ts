@@ -134,31 +134,39 @@ describe('UNVALIDATED_METATYPES', () => {
 
 /**
  * NestJS 12 부터 APP_PIPE 가 WebSocket 게이트웨이 핸들러의 인자에도 붙는다. 게이트웨이의
- * `@ConnectedSocket() client: Socket` 은 설계 타입이 `Socket` 클래스라 목록에 걸리지 않고,
- * 값은 요청 본문이 아니라 프레임워크가 넘긴 소켓 객체다. 이것을 DTO 처럼 변환 · 검증하면
- * 핸들러가 소켓 대신 사본을 받거나 검증 예외로 끝난다.
+ * `@ConnectedSocket() client: Socket` 은 `custom` 인자로 오고, 설계 타입이 `Socket` 클래스라
+ * 목록에 걸리지 않는다. 실제 소켓은 `@nestjs/platform-socket.io` 가 고정한 socket.io 사본의
+ * 인스턴스라 백엔드가 import 한 `Socket` 의 인스턴스도 아니다. 이 값을 DTO 처럼 변환하면
+ * `new Socket()` 이 던져 `subscribe` 가 `exception` 으로 끝났다.
  */
-describe('CustomValidationPipe — 이미 선언 타입의 인스턴스인 값', () => {
+describe('CustomValidationPipe — 커스텀 데코레이터 인자', () => {
   const pipe = new CustomValidationPipe();
 
-  it('WS 소켓 인자는 변환 · 검증하지 않고 같은 참조를 돌려준다', async () => {
-    const socket = Object.assign(Object.create(Socket.prototype) as Socket, {
-      id: 'socket-1',
-    });
+  class NarrowDto {
+    @IsString()
+    known: string;
+  }
+
+  it('다른 socket.io 사본의 소켓도 변환 · 검증하지 않고 같은 참조를 돌려준다', async () => {
+    // 백엔드의 `Socket` 클래스로 만들지 않은 객체다. 런타임에 두 사본이 갈리는 상황과 같다.
+    const socket = { id: 'socket-1', handshake: {} };
     await expect(
       pipe.transform(socket, { type: 'custom', metatype: Socket }),
     ).resolves.toBe(socket);
   });
 
-  it('plain 객체는 같은 설계 타입이어도 여전히 검증한다 — 위 단언이 vacuous 하지 않다', async () => {
-    class NarrowDto {
-      @IsString()
-      known: string;
-    }
+  it('커스텀 인자는 설계 타입이 DTO 여도 검증하지 않는다', async () => {
+    const value = { known: 'ok', extra: 1 };
+    await expect(
+      pipe.transform(value, { type: 'custom', metatype: NarrowDto }),
+    ).resolves.toBe(value);
+  });
+
+  it('body 인자는 같은 값이면 거부한다 (WS 의 @MessageBody() 도 body 로 온다)', async () => {
     await expect(
       pipe.transform(
         { known: 'ok', extra: 1 },
-        { type: 'custom', metatype: NarrowDto },
+        { type: 'body', metatype: NarrowDto },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
