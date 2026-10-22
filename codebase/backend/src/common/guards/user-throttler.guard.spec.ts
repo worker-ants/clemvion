@@ -1,9 +1,6 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import {
-  ThrottlerException,
-  ThrottlerStorageService,
-} from '@nestjs/throttler';
+import { ThrottlerException, ThrottlerStorageService } from '@nestjs/throttler';
 import { UserThrottlerGuard } from './user-throttler.guard';
 
 /**
