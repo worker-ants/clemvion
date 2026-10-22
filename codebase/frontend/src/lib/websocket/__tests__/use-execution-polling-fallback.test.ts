@@ -83,6 +83,24 @@ async function flush(): Promise<void> {
   });
 }
 
+/**
+ * store 가 바뀐 직후 React 가 effect 를 정리하기 전에 응답이 도착하는 구간을 만든다.
+ * 응답을 먼저 풀어 응답 처리 마이크로태스크가 React 의 재렌더(`storeFinished` 가 바뀌면
+ * 동기 레인으로 잡힌다)보다 앞에 서게 하고, 그 뒤에 store 를 바꾼다. 응답 처리는 store
+ * 가 이미 바뀐 상태에서 돌고 `disposed` 는 아직 false 다.
+ */
+async function respondBeforeCleanup(
+  change: () => void,
+  respond: () => void,
+): Promise<void> {
+  await act(async () => {
+    respond();
+    change();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe("useExecutionPollingFallback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -492,4 +510,94 @@ describe("useExecutionPollingFallback", () => {
       expect(getById).toHaveBeenCalledTimes(2);
     });
   });
+  describe("effect 정리 전에 도착한 옛 응답", () => {
+    /** 첫 요청은 바로 응답하고 두 번째 요청을 연 채로 둔다. */
+    async function startWithPendingSecondRequest() {
+      let resolveSecond: (v: ReturnType<typeof makeExecution>) => void =
+        () => {};
+      getById
+        .mockResolvedValueOnce(makeExecution({ nodeExecutions: [] }))
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecond = resolve;
+            }),
+        );
+      renderHook(() =>
+        useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+      );
+      await flush();
+      act(() => {
+        vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS);
+      });
+      await flush();
+      expect(getById).toHaveBeenCalledTimes(2);
+      return (v: ReturnType<typeof makeExecution>) => resolveSecond(v);
+    }
+
+    it("드로어를 닫아 store 가 reset 됐으면 응답으로 실행을 되살리지 않는다", async () => {
+      const respond = await startWithPendingSecondRequest();
+
+      await respondBeforeCleanup(
+        () => useExecutionStore.getState().reset(),
+        () => respond(makeExecution()),
+      );
+
+      const state = useExecutionStore.getState();
+      expect(state.executionId).toBeNull();
+      expect(state.status).toBe("idle");
+      expect(selectSortedNodeResults(state.nodeResults)).toHaveLength(0);
+
+      act(() => {
+        vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS * 3);
+      });
+      await flush();
+      expect(getById).toHaveBeenCalledTimes(2);
+    });
+
+    it("새 실행이 시작됐으면 옛 실행의 응답이 새 실행 store 에 섞이지 않는다", async () => {
+      const respond = await startWithPendingSecondRequest();
+
+      await respondBeforeCleanup(
+        () => useExecutionStore.getState().startExecution("exec-2"),
+        // 옛 실행이 끝난 응답이어도 새 실행을 완료로 만들면 안 된다.
+        () => respond(makeExecution({ status: "completed" })),
+      );
+
+      const state = useExecutionStore.getState();
+      expect(state.executionId).toBe("exec-2");
+      expect(state.status).toBe("running");
+      expect(selectSortedNodeResults(state.nodeResults)).toHaveLength(0);
+    });
+
+    it.each([
+      ["completed", () => useExecutionStore.getState().completeExecution()],
+      ["failed", () => useExecutionStore.getState().failExecution("boom")],
+    ] as const)(
+      "WS 이벤트로 store 가 %s 가 된 뒤에 도착한 응답은 적용하지 않는다",
+      async (status, change) => {
+        const respond = await startWithPendingSecondRequest();
+
+        await respondBeforeCleanup(change, () => respond(makeExecution()));
+
+        const state = useExecutionStore.getState();
+        expect(state.status).toBe(status);
+        expect(selectSortedNodeResults(state.nodeResults)).toHaveLength(0);
+      },
+    );
+
+    it("같은 실행이면 정리 전에 도착한 응답도 적용한다", async () => {
+      const respond = await startWithPendingSecondRequest();
+
+      await respondBeforeCleanup(
+        () => {},
+        () => respond(makeExecution()),
+      );
+
+      expect(
+        selectSortedNodeResults(useExecutionStore.getState().nodeResults),
+      ).toHaveLength(1);
+    });
+  });
+
 });

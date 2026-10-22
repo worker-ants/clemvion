@@ -102,11 +102,21 @@ interface UseExecutionPollingFallbackOptions {
  * 429 를 받고도 같은 간격으로 보내 사용자 요청 한도를 스스로 쓰는 일을 막는다.
  *
  * React Query 의 `refetchInterval` 대신 effect 로 직접 도는 이유:
- *  - 꺼진 뒤 도착한 응답을 버려야 한다. 이미 WS 이벤트로 앞선 store 를 옛 REST
+ *  - 늦게 도착한 응답을 버려야 한다. 이미 WS 이벤트로 앞선 store 를 옛 REST
  *    응답이 덮으면 `running` + 이전 `waiting_for_input` 조합이 대기 UI 를 지운다
  *    (`applyExecutionSnapshot` 의 resume 분기).
  *  - 다시 켜질 때 캐시에 남은 옛 응답을 적용하지 않아야 한다. 같은 이유다.
  *  - 요청이 겹치지 않게 응답을 받은 뒤에 다음 요청을 예약한다.
+ *
+ * 응답을 버리는 기준과 그 범위:
+ *  - effect 가 정리된 뒤 도착한 응답은 버린다(`disposed`). 다만 정리는 React 가 렌더를
+ *    마친 뒤 passive effect 를 비울 때 돌므로, store 가 바뀐 시점보다 한 macrotask 늦다.
+ *  - 그 사이에 도착한 응답은 적용 직전에 store 를 동기로 읽어 거른다. store 의
+ *    `executionId` 가 이 폴링의 것과 다르거나(드로어를 닫아 `reset` 됐거나 새 실행이
+ *    시작됨) store 가 이미 끝난 실행이면 응답을 버리고 폴링을 멈춘다.
+ *  - 막지 못하는 경우가 하나 있다. WS 가 복구돼 스냅샷이 store 에 먼저 들어가고
+ *    `enabled` 가 꺼지기 전(정리 전)에 그보다 먼저 보낸 요청의 응답이 도착하면 적용된다.
+ *    이 구간은 위 macrotask 한 번이고, 같은 실행의 같은 store 라 위 확인으로는 가를 수 없다.
  */
 export function useExecutionPollingFallback({
   executionId,
@@ -130,6 +140,17 @@ export function useExecutionPollingFallback({
         const execution = await executionsApi.getById(executionId);
         if (disposed) return;
         failures = 0;
+        // effect 정리가 아직 돌지 않은 구간의 응답을 거른다(위 docblock). 정리가 곧
+        // 이 폴링을 끝내는 경우가 대부분이지만, 정리가 늦어도 옛 응답이 닫은 드로어를
+        // 다시 열거나 새 실행에 섞이지 않게 여기서 멈춘다.
+        const store = useExecutionStore.getState();
+        if (
+          store.executionId !== executionId ||
+          store.status === "completed" ||
+          store.status === "failed"
+        ) {
+          return;
+        }
         applyExecutionSnapshot(execution, () => disposed);
         if (TERMINAL_EXECUTION_STATUSES.has(execution.status)) {
           nextDelayMs = null;
