@@ -289,9 +289,9 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
     expect((submit as HTMLButtonElement).disabled).toBe(true);
   });
 
-  // 이 테스트의 `useRouter` mock 은 렌더마다 새 객체를 돌려줘 effect 의 `router` 의존성이 바뀐다.
-  // 재렌더로 effect 가 다시 돌아도 안내와 이동은 한 번만 일어나야 한다.
-  it("재렌더로 effect 가 다시 돌아도 안내와 이동은 한 번만 일어난다", async () => {
+  // 이 테스트의 `useRouter` mock 은 렌더마다 새 객체를 돌려준다. router 참조가 바뀌어도 안내와 이동은
+  // 한 번만 일어나야 한다.
+  it("재렌더로 router 참조가 바뀌어도 안내와 이동은 한 번만 일어난다", async () => {
     mockGetByToken.mockResolvedValue(META);
     mockCheckEmail.mockResolvedValue({ data: { data: { available: false } } });
 
@@ -387,7 +387,7 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
     expect(mockCheckEmail).not.toHaveBeenCalled();
   });
 
-  it("이미 로그인한 사용자는 가입 여부를 묻지 않고 수락 페이지로 보낸다", async () => {
+  it("이미 로그인한 사용자는 토큰 메타와 가입 여부를 묻지 않고 수락 페이지로 보낸다", async () => {
     document.cookie = "has_session=1; path=/";
     mockGetByToken.mockResolvedValue(META);
 
@@ -398,7 +398,8 @@ describe("RegisterForm — 이미 가입된 이메일로 온 초대", () => {
         `/invitations/accept?token=${encodeURIComponent(TOKEN)}`,
       ),
     );
-    await waitFor(() => expect(mockGetByToken).toHaveBeenCalled());
+    await act(async () => {});
+    expect(mockGetByToken).not.toHaveBeenCalled();
     expect(mockCheckEmail).not.toHaveBeenCalled();
   });
 
