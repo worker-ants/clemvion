@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { isHttpContext } from '../utils/http-context';
 
 /**
  * Health probe 경로 (spec/data-flow/9-observability.md §1.1).
@@ -42,7 +43,7 @@ export class LoggingInterceptor implements NestInterceptor {
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    if (context.getType() !== 'http') {
+    if (!isHttpContext(context)) {
       return next.handle();
     }
     const request = context
