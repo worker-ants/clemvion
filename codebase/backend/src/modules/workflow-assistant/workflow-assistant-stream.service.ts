@@ -47,6 +47,10 @@ import {
   makeResumeMeta,
 } from './tools/assistant-turn-persistence.service';
 import { buildSystemPrompt } from './prompts/system-prompt';
+import {
+  ASSISTANT_STREAM_ERROR_MESSAGES,
+  toClientStreamErrorMessage,
+} from './workflow-assistant-stream-errors';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
   AssistantToolCallRecord,
@@ -716,9 +720,17 @@ export class WorkflowAssistantStreamService {
               },
             };
           } else if (ev.type === 'error') {
+            // 클라이언트 `message` 는 SDK 예외 원문일 수 있다. 원문은 로그에만
+            // 남기고 화면에는 코드별 고정 영문을 보낸다 (REQ-ASSIST-048).
+            this.logger.error(
+              `Assistant LLM stream error (${ev.code}): ${ev.message}`,
+            );
             yield {
               event: 'error',
-              data: { code: ev.code, message: ev.message },
+              data: {
+                code: ev.code,
+                message: toClientStreamErrorMessage(ev.code, ev.message),
+              },
             };
             hadError = true;
             break;
@@ -729,7 +741,10 @@ export class WorkflowAssistantStreamService {
         this.logger.error(`Assistant stream failed: ${message}`);
         yield {
           event: 'error',
-          data: { code: 'ASSISTANT_STREAM_FAILED', message },
+          data: {
+            code: 'ASSISTANT_STREAM_FAILED',
+            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+          },
         };
         hadError = true;
       }

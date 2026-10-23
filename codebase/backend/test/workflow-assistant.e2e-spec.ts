@@ -13,13 +13,15 @@ import {
   AssistantSessionDetailDto,
   AssistantSessionDto,
 } from '../src/modules/workflow-assistant/dto/responses/assistant-session-response.dto';
+import { ASSISTANT_STREAM_ERROR_MESSAGES } from '../src/modules/workflow-assistant/workflow-assistant-stream-errors';
 
 /**
  * e2e: Workflow AI Assistant 세션 관리 — spec/3-workflow-editor/4-ai-assistant.md.
  *
  * SSE 스트리밍·LLM 호출 자체는 LLM 의존이라 unit / integration 이 담당. 본 e2e 는
- * 세션 엔티티 라이프사이클·RBAC·격리에 집중한다. 예외 하나 — SSE 응답의 **상태 줄**은 LLM 에
- * 닿기 전에 정해지므로 여기서 본다(G).
+ * 세션 엔티티 라이프사이클·RBAC·격리에 집중한다. 예외 둘 — SSE 응답의 **상태 줄**은 LLM 에
+ * 닿기 전에 정해지므로 여기서 본다(G). 스트림 실패의 `error` 이벤트는 닿을 수 없는 local
+ * 프로바이더 주소로 외부 LLM 없이 만든다(I).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -346,4 +348,63 @@ describe('Workflow Assistant sessions (e2e)', () => {
       .delete(`/api/workflow-assistant/sessions/${sessionId}`)
       .set(authHeaders());
   });
+
+  it('I. 스트림이 실패하면 error 이벤트에 코드별 고정 문구만 싣는다 (REQ-ASSIST-048)', async () => {
+    // local 프로바이더는 SSRF 가드 면제라 loopback 을 받는다. discard 포트(9)는 열려 있지
+    // 않아 SDK 가 연결 오류를 던진다. 외부 LLM 호출 없이 스트림 실패 경로를 탄다.
+    const config = await request(BASE_URL)
+      .post('/api/model-configs')
+      .set(authHeaders())
+      .send({
+        kind: 'chat',
+        provider: 'local',
+        name: uniqueName('asst-unreachable'),
+        baseUrl: 'http://127.0.0.1:9/v1',
+        defaultModel: 'stub-model',
+        defaultParams: {},
+        isDefault: false,
+      });
+    expect(config.status).toBe(201);
+    const llmConfigId = config.body.data.id as string;
+
+    const create = await request(BASE_URL)
+      .post('/api/workflow-assistant/sessions')
+      .set(authHeaders())
+      .send({ workflowId, title: 'SSE stream failure' });
+    expect(create.status).toBe(201);
+    const sessionId = create.body.data.id as string;
+
+    const res = await request(BASE_URL)
+      .post(`/api/workflow-assistant/sessions/${sessionId}/messages`)
+      .set(authHeaders())
+      .send({
+        content: 'hello',
+        currentWorkflow: { nodes: [], edges: [] },
+        llmConfigId,
+      });
+    expect(res.status).toBe(200);
+
+    const match = /event: error\ndata: (.+)\n/.exec(res.text);
+    expect(match).not.toBeNull();
+    const data = JSON.parse(match![1]) as { code: string; message: string };
+    // OpenAI 계열은 스트림을 열 때의 실패를 ASSISTANT_STREAM_FAILED 로, 열린 뒤의 실패를
+    // LLM_CONNECTION_ERROR 로 보낸다. 어느 쪽이든 message 는 그 코드의 고정 문구다.
+    expect(['ASSISTANT_STREAM_FAILED', 'LLM_CONNECTION_ERROR']).toContain(
+      data.code,
+    );
+    expect(data.message).toBe(
+      ASSISTANT_STREAM_ERROR_MESSAGES[
+        data.code as keyof typeof ASSISTANT_STREAM_ERROR_MESSAGES
+      ],
+    );
+    expect(res.text).not.toContain('127.0.0.1');
+    expect(res.text).toContain('"finishReason":"error"');
+
+    await request(BASE_URL)
+      .delete(`/api/workflow-assistant/sessions/${sessionId}`)
+      .set(authHeaders());
+    await request(BASE_URL)
+      .delete(`/api/model-configs/${llmConfigId}`)
+      .set(authHeaders());
+  }, 60_000);
 });

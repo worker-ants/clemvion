@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
 content_hash: "3479ef3e35fdc144e078466ba7cf759700ef4ee2a482bb167903c559e72ada8d"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-MX8PSE"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "59e5a316bb6f9f7fbbe1a63c0521dbc09eeba935fed98fdaa027419bdfa9ee1d"
-etag: "sha256-459ceecc959c6261dac6ae7c5dfb4df03cf41fe9b6e0b2a231a6da5879400437"
+mirror_sha256: "9615e2c040ce12fd582b02d7f193a8edc718d05eeb57125bba43695329e09adb"
+etag: "sha256-bf6bf1fc7ed9c9d28ff1ab2d384b81e831b6c067f20066f8982a162563a80be2"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
