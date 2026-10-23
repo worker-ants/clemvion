@@ -16,12 +16,12 @@ import {
 import { ASSISTANT_STREAM_ERROR_MESSAGES } from '../src/modules/workflow-assistant/workflow-assistant-stream-errors';
 
 /**
- * e2e: Workflow AI Assistant 세션 관리 — spec/3-workflow-editor/4-ai-assistant.md.
+ * e2e: Workflow AI Assistant 세션 관리 — CLE-WF-ASSIST.
  *
  * SSE 스트리밍·LLM 호출 자체는 LLM 의존이라 unit / integration 이 담당. 본 e2e 는
  * 세션 엔티티 라이프사이클·RBAC·격리에 집중한다. 예외 둘 — SSE 응답의 **상태 줄**은 LLM 에
- * 닿기 전에 정해지므로 여기서 본다(G). 스트림 실패의 `error` 이벤트는 닿을 수 없는 local
- * 프로바이더 주소로 외부 LLM 없이 만든다(I).
+ * 닿기 전에 정해지므로 여기서 본다(G). 스트림 실패의 `error` 이벤트는 stub 모드의
+ * 스트리밍 미지원 예외로 외부 LLM 없이 만든다(I).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -350,15 +350,21 @@ describe('Workflow Assistant sessions (e2e)', () => {
   });
 
   it('I. 스트림이 실패하면 error 이벤트에 코드별 고정 문구만 싣는다 (REQ-ASSIST-048)', async () => {
-    // local 프로바이더는 SSRF 가드 면제라 loopback 을 받는다. discard 포트(9)는 열려 있지
-    // 않아 SDK 가 연결 오류를 던진다. 외부 LLM 호출 없이 스트림 실패 경로를 탄다.
+    // e2e 컨테이너는 `LLM_STUB_MODE=true`(docker-compose.e2e.yml)라 provider · baseUrl 과
+    // 상관없이 `LlmService.createClient` 가 `StubLlmClient` 를 돌려준다. stub 에는 `stream`
+    // 이 없어서 `LlmService.chatStream` 이 스트림을 열기 전에 BadRequestException
+    // ("Provider '<p>' does not support streaming in this release.")을 던지고, 서비스의
+    // catch 가 이를 ASSISTANT_STREAM_FAILED 로 바꾼다. 외부 LLM 호출 없이 그 catch 경로를
+    // 탄다. SDK 연결 오류 경로(LLM_CONNECTION_ERROR)는 서비스 단위 테스트가 덮는다.
+    // baseUrl 은 local 프로바이더 설정에 채우는 값이고(loopback 은 local 만 받는다) stub
+    // 모드라 호출하지 않는다.
     const config = await request(BASE_URL)
       .post('/api/model-configs')
       .set(authHeaders())
       .send({
         kind: 'chat',
         provider: 'local',
-        name: uniqueName('asst-unreachable'),
+        name: uniqueName('asst-stub-stream'),
         baseUrl: 'http://127.0.0.1:9/v1',
         defaultModel: 'stub-model',
         defaultParams: {},
@@ -387,17 +393,13 @@ describe('Workflow Assistant sessions (e2e)', () => {
     const match = /event: error\ndata: (.+)\n/.exec(res.text);
     expect(match).not.toBeNull();
     const data = JSON.parse(match![1]) as { code: string; message: string };
-    // OpenAI 계열은 스트림을 열 때의 실패를 ASSISTANT_STREAM_FAILED 로, 열린 뒤의 실패를
-    // LLM_CONNECTION_ERROR 로 보낸다. 어느 쪽이든 message 는 그 코드의 고정 문구다.
-    expect(['ASSISTANT_STREAM_FAILED', 'LLM_CONNECTION_ERROR']).toContain(
-      data.code,
-    );
-    expect(data.message).toBe(
-      ASSISTANT_STREAM_ERROR_MESSAGES[
-        data.code as keyof typeof ASSISTANT_STREAM_ERROR_MESSAGES
-      ],
-    );
-    expect(res.text).not.toContain('127.0.0.1');
+    expect(data).toEqual({
+      code: 'ASSISTANT_STREAM_FAILED',
+      message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+    });
+    // 스트리밍 미지원 예외의 원문 조각이 이벤트에 실리지 않는다 (CWE-209). 원문 문구는
+    // `LlmService.chatStream` 이 정한다.
+    expect(res.text).not.toContain('does not support streaming');
     expect(res.text).toContain('"finishReason":"error"');
 
     await request(BASE_URL)
