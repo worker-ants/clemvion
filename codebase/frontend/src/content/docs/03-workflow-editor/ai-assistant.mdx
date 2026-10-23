@@ -6,7 +6,7 @@ order: 9
 summary: "에디터 안의 채팅창으로 자연어로 워크플로우를 만들고 고치는 AI 어시스턴트의 사용법을 한눈에 정리해요."
 summary_en: "How the in-editor chat assistant builds and edits workflows from natural-language requests, at a glance."
 spec: ["CLE-WF-ASSIST", "CLE-WF-ASSIST-TOOLS"]
-code: ["codebase/frontend/src/components/editor/assistant-panel/assistant-panel.tsx", "codebase/frontend/src/lib/stores/assistant-store.ts", "codebase/frontend/src/lib/stores/assistant-editor-bridge.ts", "codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts", "codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts"]
+code: ["codebase/frontend/src/components/editor/assistant-panel/assistant-panel.tsx", "codebase/frontend/src/components/editor/assistant-panel/assistant-message.tsx", "codebase/frontend/src/lib/stores/assistant-store.ts", "codebase/frontend/src/lib/stores/assistant-editor-bridge.ts", "codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts", "codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts", "codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts"]
 ---
 
 이 페이지에서는 캔버스 안에 내장된 **AI 어시스턴트**가 무엇이고, 어떻게 여닫는지, 어떤 흐름으로 워크플로우를 만들거나 고쳐 주는지를 정리해요. 실제로 자연어로 요청을 던져 4-노드 자동화를 완성하는 시연은 [Walkthrough](/docs/03-workflow-editor/ai-assistant-walkthrough)에서 이어져요.
@@ -119,13 +119,14 @@ AI 어시스턴트는 **자연어 요청을 받아 노드와 연결선을 직접
 
 | 상황 | 화면에 보이는 메시지 | 사용자 조치 |
 | --- | --- | --- |
-| LLM 설정이 등록되지 않았을 때 | "LLM 설정을 먼저 등록해 주세요." 안내와 모델 설정 화면 링크 | 링크를 눌러 [모델 설정](/docs/06-integrations-and-config/models) 에서 OpenAI 등 프로바이더를 등록 |
-| 선택한 LLM 설정이 삭제됐을 때 | "선택한 LLM 설정을 찾을 수 없어요. 다시 선택해 주세요." | 패널 상단 모델 드롭다운에서 다른 설정을 고르거나 워크스페이스 기본값을 사용 |
-| 프로바이더 rate limit | 빨간 오류 박스 — "잠시 후 다시 시도해 주세요." | 잠시 기다린 뒤 재전송하거나 "이어서 진행" 버튼으로 같은 흐름을 재개 |
-| 응답 지연 / 타임아웃 | "응답이 늦어지고 있어요. 다시 시도할까요?" | 재시도 버튼을 누르거나 새 메시지 전송 |
+| 사용할 모델 설정이 없을 때 (패널에서 고른 설정도, 워크스페이스 기본 모델도 없음) | 빨간 오류 박스에 `ASSISTANT_NO_LLM_CONFIG` 라벨과 "사용할 모델 설정이 없어요. 모델 설정 화면에서 Chat 모델을 먼저 등록해 주세요." 안내가 나오고 그 아래에 "모델 설정으로 이동" 링크가 붙어요 | 링크를 누르면 [모델 설정](/docs/06-integrations-and-config/models)의 Chat 탭이 열려요. 거기서 Chat 모델을 등록한 뒤 메시지를 다시 보내요 |
+| 패널에서 고른 모델 설정이 삭제됐을 때 | 삭제된 설정이 계속 선택된 채로 패널이 열려 있으면, 워크스페이스 기본 모델이 있어도 위와 같은 `ASSISTANT_NO_LLM_CONFIG` 오류 박스가 나와요. 페이지를 새로고침하면 삭제된 설정의 선택이 풀리고 별도 안내 없이 워크스페이스 기본 모델이 쓰여요 | 패널 상단 모델 드롭다운에서 다른 설정을 골라 다시 보내거나 페이지를 새로고침해요. 기본 모델도 없으면 위 행처럼 Chat 모델을 먼저 등록해요 |
+| 프로바이더 요청 한도 초과 (rate limit) | Anthropic · Google AI 모델은 빨간 오류 박스에 `LLM_RATE_LIMIT` 라벨과 "AI 모델의 요청 한도를 넘었어요. 잠시 후 같은 메시지를 다시 보내 주세요." 안내가 나와요. OpenAI 계열(OpenAI · Azure OpenAI · Local)은 응답이 오기 시작한 뒤에 한도에 걸릴 때만 같은 안내가 나오고 응답이 오기 전에 걸리면 아래 「응답이 없거나 늦어질 때」 오류로 표시돼요 | 잠시 기다린 뒤 같은 메시지를 다시 보내요. 이 오류에는 재시도 버튼도 "이어서 진행" 버튼도 없어요 |
+| 응답이 없거나 늦어질 때 (응답 없음 · 응답 지연 · 시간 초과) | 빨간 오류 박스에 `ASSISTANT_STREAM_FAILED` 라벨과 "AI 모델의 응답을 받지 못했어요. 요청 한도를 넘었거나 응답이 늦어졌을 수 있어요. 잠시 후 같은 메시지를 다시 보내 주세요." 안내가 나와요. OpenAI 계열(OpenAI · Azure OpenAI · Local)은 요청 한도 초과를 포함해 응답이 오기 전에 난 오류가 모두 이렇게 표시돼요 | 잠시 기다린 뒤 같은 메시지를 다시 보내요. 이 오류에는 재시도 버튼이 없어요 |
+| 응답을 받는 도중 연결이 끊겼을 때 | 빨간 오류 박스에 `LLM_CONNECTION_ERROR` 라벨과 "AI 모델과 통신하다가 오류가 났어요. 잠시 후 같은 메시지를 다시 보내 주세요." 안내가 나와요. Anthropic · Google AI는 요청 한도 초과가 아닌 이유로 응답이 오기 전에 요청이 실패해도 같은 안내가 나와요 | 같은 메시지를 다시 보내요 |
 | 도구 호출 실패 | 메시지 아래 빨간 배지에 코드와 짧은 설명 | 어시스턴트가 다음 턴에 자동으로 다시 시도해요. 반복 실패 시 사용자가 직접 노드를 수정하거나 다른 접근을 지시해요. |
-| 한 턴의 도구 호출 한도 초과 | "이어서 진행" 버튼이 입력창 위에 노출 | 버튼을 누르면 같은 흐름이 다음 턴으로 이어져요 |
-| 세션 만료 / 외부에서 삭제 | "세션이 만료되었어요. 새 대화를 시작할게요." | 새 세션이 자동으로 만들어지므로 이어서 메시지를 보내면 돼요 |
+| 한 턴의 도구 호출 한도 초과 | 빨간 오류 박스에 `ASSISTANT_TOO_MANY_TOOL_CALLS` 라벨이 나오고 같은 박스 안에 "이어서 진행" 버튼이 붙어요. 이 버튼이 붙는 오류는 이것 하나뿐이에요 | 버튼을 누르면 남은 단계가 다음 턴에서 이어져요 |
+| 대화 세션이 다른 곳에서 삭제됐을 때 | 메시지를 보내면 화면에 짧은 오류 알림이 잠깐 나타나고 답변은 오지 않아요. 새 대화가 자동으로 시작되지는 않아요 | 패널 헤더의 `+` ("새 대화 시작") 버튼으로 새 대화를 시작한 뒤 메시지를 다시 보내요 |
 
 ## 팁 & 참고
 
