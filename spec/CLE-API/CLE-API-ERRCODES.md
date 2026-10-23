@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 10
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "baeb4c518e6dfcf537d20ea5c06d2d01938e0b2271a83766ecfe4781dc58f646"
+content_hash: "05fa6e8d6fcedade4b022477d2da255ba3fb8c0df0d87118f1c0a1f8ea02d2b6"
 read_as: "approved_fallback"
-task: "CLE-T-G0Y6MW"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "c8481d9a63618c6fd2681f4363765d69dbe90fe9e19d149e896266c8646fac49"
-etag: "sha256-9a6b7af24556c2ebd08b44b690e51713dd01290cbb3d972360d0030b251e53eb"
+mirror_sha256: "c5cc591b6812535f689e685f721a4ccd7f75e830a1b244af1cb93f258756b60a"
+etag: "sha256-e1b706224cd2e86f8b8c042b195c05a84f345511b63ec2c43bca78e4fc9b301b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -274,7 +274,7 @@ etag: "sha256-9a6b7af24556c2ebd08b44b690e51713dd01290cbb3d972360d0030b251e53eb"
 | 노드 취소 | `AbortError` (§3 예외 등록 코드) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
 
 - **`HTTP_TIMEOUT` 은 발행하지 않는다.** enum 에는 있지만 HTTP Request 핸들러는 타임아웃 때 `AbortController.abort()` 로 fetch 를 멈추고 그 reject 를 다른 전송 에러와 함께 `HTTP_TRANSPORT_FAILED` 로 발행한다(`http-request.handler.ts`). 그래서 `output.error.code` 로 `HTTP_TIMEOUT` 이 보이는 경로는 없다. 앞으로 세분화할 여지와 방어적 매핑을 위해 enum 과 분류 표에 코드를 남긴다.
-- **`LLM_TIMEOUT` 도 발행하지 않는다.** enum 에는 있지만 AI 에이전트 경로는 LLM 타임아웃을 재시도 가능한 `LLM_CALL_FAILED` 로 분류하고([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)) LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). enum 에 남길지는 [미결 사항](#미결-사항)이다.
+- **`LLM_TIMEOUT` 도 발행하지 않는다.** enum 에는 있지만 어느 LLM 호출 경로도 이 코드를 내지 않는다(2026-10-10 결정). LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 오고, 경로에 따라서는 아직 코드 없이 실패한다. LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 호출 경로별 결과와 구현 공백은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 실패 분류 표는 `HTTP_TIMEOUT` 처럼 이 코드를 «발행 안 됨» 으로 표시해 남긴다. 등재를 지울지는 [미결 사항](#미결-사항)이다.
 - 옛 코드 `NODE_EXECUTION_FAILED`·`INTEGRATION_ERROR`·`LLM_ERROR` 는 노드 출력에 더 이상 쓰지 않는다. 노드 실패가 Stop Workflow 로 격상된 엔진 수준에서만 `NodeExecution.error.message` 맥락으로 남는다.
 - 채팅 채널 어댑터는 이 enum 으로 사용자 안내 메시지를 고른다([채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)). enum 을 늘리면 분류 표에 행을 더할지 함께 검토한다.
 - **워크스페이스 격리 가드 `WORKFLOW_FORBIDDEN_WORKSPACE`**: 다른 워크스페이스(또는 호출자 컨텍스트 누락)의 서브 워크플로우 호출을 막는다(fail-closed). `assertSameWorkspace` 가 typed `WorkflowForbiddenWorkspaceError` 를 던지고 서브 워크플로우 핸들러(`mapSubWorkflowError`)가 이를 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 바꿔 에러 포트(`output.error.code`)에 싣는다.
@@ -430,8 +430,8 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. 지수 백오프로 최대 3회 다시 시도한다(`withRetry`) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
-| `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. `chat` 은 지수 백오프로 최대 3회 다시 시도한다(`withRetry`). `chatStream` 은 앱 수준 재시도를 거치지 않는다. 스트림을 열 때의 프로바이더별 분기는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함). 스트림을 열 때의 프로바이더별 분기는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_OUTPUT_MALFORMED` | 없음 | gpt-oss 계열 harmony 제어 토큰 노출(OpenAI 스트리밍 경로). 사용자에게는 안내문으로 바꿔 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_CREDENTIALS_REQUIRED` | 400 | 미리보기 요청에서 local 이 아닌 프로바이더의 apiKey 누락 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_MODEL_LIST_FAILED` | 400 | 미리보기나 `:id/models` 호출 중 프로바이더 응답 실패. 정리한 메시지를 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
@@ -475,9 +475,10 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 - **발행처가 없는 등재 코드**: `SERVICE_UNAVAILABLE`·`DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **카탈로그에 아직 없는 통합 도메인 코드**: `INTEGRATION_*`, `OAUTH_CONFIG_MISSING`, `INSUFFICIENT_SCOPE`, `CAFE24_*` 등은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 API 에러 절에만 있고 이 카탈로그에 없다. 도메인 참조 절로 옮겨 등재할지 결정이 필요하다. 발행하는데 행이 없는 코드의 정리는 NERV Task `CLE-T-5BZ3M2` 에서 한다.
+- **발행하는데 행이 없는 어시스턴트 스트림 코드**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 스트림 `error` 이벤트는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `ASSISTANT_STREAM_FAILED` 를 내는데 이 카탈로그에 행이 없다(규칙 8). §6.19 는 세션 REST 코드만 싣는다. 어시스턴트 코드의 등재는 NERV Task `CLE-T-YFDSY7` 이 `CLE-T-5BZ3M2` 가 정하는 하위 구조를 따라 한다. 이 코드들에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
 - **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_CREDENTIAL_NOT_FOUND` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다.
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
-- **`LLM_TIMEOUT` 을 enum 에 남길지**: 어느 경로도 발행하지 않는다(§6.6). [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 는 이 enum 의 사용처·범위 정리를 이 문서 소관으로 넘겼다. `HTTP_TIMEOUT` 처럼 남길지 enum 에서 뺄지 결정이 필요하다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 스트리밍 턴 타임아웃에 이 코드를 약속한다. 그 약속은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항) 의 LLM 호출 타임아웃 기준 미결과 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
+- **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
 - **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **가이드 식별자 실재 가드의 소유**: `PROJECT.md` 는 가이드가 인용한 에러 코드·환경 변수가 코드에 실재하는지 보는 가드(`guide-identifier-existence`)의 기준 문서로 이 규약을 지목한다. 원문 규약에는 가이드 인용 규칙도 이 가드도 없어 여기 싣지 않았다. 어느 문서가 이 가드를 소유할지는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#미결-사항) 의 미결에서 정한다.
 - **`WORKSPACE_NOT_FOUND` 의 두 상태**: 워크스페이스 관리 경로는 이 코드를 404 로 내고 액세스 토큰 검증은 401 로 낸다(§6.4). 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 401 경로에 별도 코드를 줄지는 NERV Task `CLE-T-3P4ENZ` 에서 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 결정 필요.
@@ -658,3 +659,7 @@ NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카
 - **위 「모델 설정 코드 분리」 선례와 다르다.** 그 선례에서는 같은 코드가 두 상태를 가져 코드를 나눴다. 두 상태가 서로 다른 뜻(지정한 설정 없음, 기본값 미설정)을 담았기 때문이다. 이번에는 뜻이 하나다. 두 상태는 판정하는 자리만 다르다. 트리거 단위 토큰 경로에서는 핸들러가 아니라 가드가 부재를 판정한다.
 - **`WORKSPACE_NOT_FOUND` 의 두 상태와도 다르다.** 그 코드의 404 와 401 은 뜻이 달라 「미결 사항」 에 남아 있다. 이 코드의 두 상태는 뜻이 같아 미결로 올리지 않았다.
 - **상태를 하나로 맞출지는 정의 문서가 정한다.** 카탈로그는 정의 문서를 따른다(규칙 8). 그래서 정의 문서의 401 을 그대로 적었다.
+
+### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)
+
+`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. LLM 타임아웃은 지금처럼 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 단일 턴 AI 에이전트는 아직 코드 없이 실패한다(구현 공백, NERV Task `CLE-T-ZHBMAC`). 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. enum 과 등재를 지울지는 규칙 9 정리와 함께 NERV Task `CLE-T-8WXV7T` 가 정한다.

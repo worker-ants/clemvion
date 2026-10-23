@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 3
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "0ce75d81293444a067e47feb7076e3ee0879ac5bfa92d92d2d43d9cd685f5776"
+content_hash: "c58839459a6a398bfd7eb24f1c172eee9040cd254560ac9088d99d26f2b12e37"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "d7b7d4bd742d07f7ee614c313df2c0f3f73899e5951ce9d7eed6256fc12b9f63"
-etag: "sha256-1f91fc77323d7057ba3f06c69f2a3842822ef4753121e711fb3ae3da601477db"
+mirror_sha256: "9dfd26d0c1631d1bb59a62492f225ca2ac70a2bcc04d6294682bd2bf47ae8824"
+etag: "sha256-f46313254145c86eb88b7246a4aa299e29cd5e00285ae27d5058e8be94530f7f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -462,7 +462,7 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | `HTTP_TIMEOUT`(발행 안 됨) | 없음 | `executionFailedTimeout` | `{}` |
 | `HTTP_TRANSPORT_FAILED` | 없음 | `executionFailedThirdParty` | `{}` |
 | `LLM_RATE_LIMIT` | 없음 | `executionFailedRateLimit` | `{}` |
-| `LLM_TIMEOUT` | 없음 | `executionFailedTimeout` | `{}` |
+| `LLM_TIMEOUT`(발행 안 됨) | 없음 | `executionFailedTimeout` | `{}` |
 | `LLM_CALL_FAILED` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` | 없음 | `executionFailedThirdParty` | `{}` |
 | `EMAIL_SEND_FAILED` | 없음 | `executionFailedThirdParty` | `{}` |
 | `EXECUTION_TIMEOUT`(Code 노드 스크립트) · `EXECUTION_TIME_LIMIT_EXCEEDED`(엔진 누적 실행 시간) · `CODE_TIMEOUT` | 없음 | `executionFailedTimeout` | `{}` |
@@ -471,6 +471,7 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | 그 밖의 모든 code(`error.code === null` 포함) | 알 수 없음 | `executionFailedInternal` | `{}`(백엔드 `warn` 로그, CCH-ERR-04) |
 
 - **`HTTP_TIMEOUT`(발행 안 됨)**: HTTP Request 핸들러는 timeout reject 를 `HTTP_TRANSPORT_FAILED` 로 합쳐 발행하므로 EIA 페이로드에 `HTTP_TIMEOUT` 이 올 경로는 지금 없다. enum 보존과 방어를 위해 행을 둔다.
+- **`LLM_TIMEOUT`(발행 안 됨)**: 어느 LLM 호출 경로도 이 코드를 내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). LLM 타임아웃이 `LLM_CALL_FAILED` 로 오면 `executionFailedThirdParty` 로 안내된다. 단일 턴 AI 에이전트는 지금 에러 코드 없이 실패하므로 마지막 행의 `executionFailedInternal` 로 간다(구현 공백, NERV Task `CLE-T-ZHBMAC`). 경로별 결과는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. `HTTP_TIMEOUT` 과 같은 이유로 행을 둔다.
 - **timeout 행의 층 구분**: 입력은 엔진 수준의 `execution.failed.error.code` 다. Code 노드 스크립트가 시간을 넘기면 엔진은 `EXECUTION_TIMEOUT` 을 발행한다. 노드 출력 층의 `output.error.code` 는 같은 상황을 `CODE_TIMEOUT` 으로 정규화하며, 이 토큰이 EIA 페이로드로 오는 경우까지 방어적으로 함께 매핑한다(두 층의 구분 기준은 에러 코드 카탈로그). `EXECUTION_TIME_LIMIT_EXCEEDED` 는 엔진 누적 실행 시간 초과로 다른 코드다. 세 코드 모두 `executionFailedTimeout` 으로 모이므로 사용자 영향은 같다.
 - **`statusCode` 생략**: `details.statusCode` 가 없거나 정수가 아니면 4xx·5xx 분기는 `error.code` 만으로 정한다(HTTP 노드 핸들러는 두 값을 일관되게 넣는다고 가정한다). 자리표시자가 빠지면 어댑터는 `{statusCode}` 를 `"?"` 로 바꾸거나 `({statusCode})` 괄호 구간을 통째로 지운다(어댑터 재량). 사용자 영향은 거의 없다.
 - **위치**: `codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts` 한 파일이다. 어댑터는 부르기만 하고 프로바이더별 분기는 없다.

@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "9c16844568ccad8408e4f18e58107d9da05d3511fe1aecf1d9709a492b3a9c7a"
+content_hash: "8226ccf5b8619163c7cb5f11092dfc1121efa7861aff7b6d614611a567c8979d"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "aec578e1ecd5453d50274a88d6107638af38ed8a4d987ed6b2e9fba11684b8fd"
-etag: "sha256-9a65cce198eeeefea281c39af29cab5cc35df4ad7e013bfcc579fbd693f1bd55"
+mirror_sha256: "6390d4d5f7a29bd937712e8e3eadc69437a445e0f54ea243634c2987199667d5"
+etag: "sha256-7efbccced240d60b4c43c75335840a5d8a99b31ae1c2a3992723d06370b68e49"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -214,7 +214,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 ```
 
 - 노드 이름 필드는 `nodeLabel` 이다. 엔진이 내보내는 값은 모두 `nodeLabel: node.label ?? node.type` 이다.
-- AI 에이전트 노드는 LLM 타임아웃을 `LLM_CALL_FAILED` 로 분류한다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). 그래서 예시 코드도 그 값을 쓴다.
+- 멀티턴 재개의 AI 에이전트 노드는 LLM 타임아웃을 `LLM_CALL_FAILED` 로 분류한다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). 그래서 예시 코드도 그 값을 쓴다. 호출 경로별 동작은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 - 노드 핸들러가 돌려주는 표준 `output.error` 형태(`code`, `message`, `details`)는 이 봉투와 다른 층이다. 기준은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이다.
 
 ## 4. 클라이언트 에러 처리

@@ -2,19 +2,19 @@
 id: "CLE-KB-SEARCH"
 title: "RAG 검색"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-RAG-001", "REQ-RAG-002", "REQ-RAG-003", "REQ-RAG-004", "REQ-RAG-005", "REQ-RAG-006", "REQ-RAG-007", "REQ-RAG-008", "REQ-RAG-009", "REQ-RAG-010", "REQ-RAG-011", "REQ-RAG-012", "REQ-RAG-013", "REQ-RAG-014", "REQ-RAG-015", "REQ-RAG-016", "REQ-RAG-017", "REQ-RAG-018", "REQ-RAG-019", "REQ-RAG-020", "REQ-RAG-021", "REQ-RAG-022", "REQ-RAG-023", "REQ-RAG-024", "REQ-RAG-025", "REQ-RAG-026", "REQ-RAG-027", "REQ-RAG-028", "REQ-RAG-029", "REQ-RAG-030", "REQ-RAG-031", "REQ-RAG-032", "REQ-RAG-033", "REQ-RAG-034", "REQ-RAG-035", "REQ-RAG-036", "REQ-RAG-037", "REQ-RAG-038", "REQ-RAG-039", "REQ-RAG-040", "REQ-RAG-041", "REQ-RAG-042"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "16f4cd76998ebc9573ba5aec5e3a0154b32b268b226dbe8be23e0ac774fa3121"
-read_as: "approved"
-task: null
+content_hash: "678f941508891c4e00c4b3b9de198fe952c27ada6c8d95b7661f0b235d9a7f91"
+read_as: "approved_fallback"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/9-rag-search.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "1f22df960ac70f959a039c0bcce99e19a6c1485d67aebefc34f590ea4e781918"
-etag: "sha256-6438008736a2b8f2509ef2cc8d3b8c2514113f6370365cd77d708408583c1590"
+mirror_sha256: "3092f4b1ed0554f0fe904c986722cbe539df52ecee6dc121b20e185c21e442ec"
+etag: "sha256-6f4546b1feca42b1106df818e0576c7154fc3f0e461ef248d505d52a4619e80f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/9-rag-search.md`, `spec/data-flow/6-knowledge-base.md` (§1.3·§1.4), `spec/4-nodes/3-ai/_product-overview.md` (§3.5 KB-AG, §5 NF-AI-03), `spec/4-nodes/4-integration/_product-overview.md` (§3.4 KB-AG), `spec/2-navigation/_product-overview.md` (§3.5 NAV-KB-06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -112,7 +112,7 @@ sequenceDiagram
   N-->>N: 응답과 meta.ragSources, meta.ragDiagnostics 반환
 ```
 
-LLM 호출 전에 엔진이 지식 저장소를 자동으로 검색하는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조. 현재 구현에서 검색 서비스를 부르는 곳은 지식 저장소 도구 경로와 디버그 API 뿐이다.
+엔진은 LLM 호출 전에 지식 저장소를 미리 검색(prefill)하지 않는다. 검색은 LLM 이 `kb_*` 를 부를 때만 일어난다. 워크플로우 실행 중에 검색 서비스를 부르는 곳은 지식 저장소 도구 경로뿐이다. 그 밖에는 디버그 API 와 오프라인 평가 스크립트([RAG 품질 평가](CLE-KB-EVAL.md))가 부른다([LLM 호출 전 자동 검색을 두지 않는다](#llm-호출-전-자동-검색을-두지-않는다-2026-10-10)).
 
 ### 지식 저장소 도구 정의
 
@@ -399,7 +399,7 @@ AI 노드가 지식 저장소를 부르려 했으면(`ragDiagnostics.attempted=t
 대화 미리보기(Preview)에는 두 표면이 있다.
 
 - 📚 문서명 칩: 어시스턴트 메시지 아래 한 줄. 누르면 References 탭의 해당 턴으로 간다.
-- 🔎 `rag` 행: 대화 타임라인 위의 독립 행이다. 이 행이 무엇을 나타내는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- 🔎 `rag` 행: 대화 타임라인 위의 독립 행이다. 그 턴에 `kb_*` 도구 호출이 가져온 청크를 턴 단위로 모아 보여 준다. 같은 호출은 🔧 도구 행으로도 보인다. 도구 행은 호출 하나와 그 결과를 보여 주고 `rag` 행은 그 턴에 모인 청크를 보여 준다.
 
 세 표면(References 탭, 칩, 행)은 모두 `meta.turnDebug[].ragSources` 를 읽고 같은 턴이면 같은 `sources[]` 를 보여야 한다. 시각 매핑과 불변식은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md), 소스 정의는 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 에서 정한다. 이 절과 그 문서들은 같은 표면을 다루므로 한쪽을 고치면 다른 쪽도 확인한다.
 
@@ -492,7 +492,6 @@ AI 노드가 지식 저장소를 부르려 했으면(`ragDiagnostics.attempted=t
 ## 미결 사항
 
 - **점수 컷 임계를 비웠을 때 컷을 하는가**: 데이터 모델 원문과 지식 저장소 화면은 `rerank_score_threshold` 가 NULL 이면 점수 컷 없이 점수순 정렬 뒤 동적 점수 컷만 적용한다고 적는다. 화면 도움말도 "비워 두면 컷 없이 점수순 정렬 후 top-k 를 반환해요." 다. 반면 이 문서의 원문은 리랭킹이 켜지면 `ragThreshold` 와 `threshold` 인자를 리랭킹 점수 임계로 해석한다고 적는다. 데이터 흐름 원문과 [RAG 품질 평가](CLE-KB-EVAL.md) 는 `kb.rerankScoreThreshold ?? threshold` 로 NULL 이면 런타임 임계값(기본 0.7 또는 LLM 인자)을 쓴다고 적는다. `ragThreshold` 에는 늘 기본값 0.7 이 있으므로 두 서술은 결과가 다르다(관련: [지식 저장소 관리](CLE-KB-MANAGE.md), [지식 저장소 데이터와 흐름](CLE-KB-DATA.md)). 현재 구현(`rag-search.service.ts`)은 런타임 임계값으로 돌아간다. 화면 문구를 고칠지 동작을 고칠지 결정 필요.
-- **LLM 호출 전 자동 검색과 Preview `rag` 행의 뜻**: 이 문서의 원문(§1·§2)과 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)·[AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 는 지식 저장소 검색이 LLM 의 도구 호출로만 일어나고 미리 채우지(prefill) 않는다고 적는다. 반면 이 문서 원문의 Preview 설명(§4.1)과 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md)·[대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 는 🔎 `rag` 행을 "엔진이 LLM 호출 전에 자동 수행한 검색" 으로 정의하고 LLM 이 부른 도구(`ai_tool`)와 인과가 다르다고 구분한다. 현재 구현에서 검색 서비스를 부르는 곳은 지식 저장소 도구 경로와 디버그 API 뿐이다. 그래서 `rag` 행은 실제로는 LLM 도구 호출 결과를 자동 검색처럼 보여 준다. `rag` 행 정의를 "도구 호출이 가져온 청크의 타임라인 표시" 로 고칠지, 자동 검색 기능을 새로 만들지 결정 필요.
 
 ## 구현 위치
 
@@ -574,3 +573,10 @@ AI 노드가 지식 저장소를 부르려 했으면(`ragDiagnostics.attempted=t
 - 늘 리랭킹(끔 없음): 셀프 호스팅에 리랭커 의존을 강제한다.
 - 코사인 임계값을 유지한 채 리랭킹: 넓은 후보를 코사인으로 미리 줄여 리랭커 효과가 반감된다. 그래서 리랭킹 경로는 코사인 임계값 없이 가져온다.
 - VectorChord·ColBERT 같은 DB 안 리랭킹: 한국어 토크나이저가 없고 인프라가 복잡하다. cross-encoder API·TEI 로 충분하다.
+
+### LLM 호출 전 자동 검색을 두지 않는다 (2026-10-10)
+
+대화 미리보기의 🔎 `rag` 행은 "엔진이 LLM 호출 전에 자동으로 한 검색" 으로 정의돼 있었다. 이 문서의 검색 흐름과 AI 노드 문서는 검색을 `kb_*` 도구 호출로만 적었고 구현도 그렇다. 두 정의가 부딪쳐 미결로 남아 있던 것을 2026-10-10 에 사람이 정했다. 문서를 구현에 맞춰 `rag` 행을 `kb_*` 도구 호출이 가져온 청크의 타임라인 표시로 고쳤다.
+
+- **기각: LLM 호출 전 자동 검색(prefill)을 새로 만드는 안.** 이 문서의 개요가 고른 능동 tool calling 과 맞지 않는다. 검색할지, 무엇을 몇 개 찾을지는 LLM 이 정한다. prefill 을 더하면 검색이 필요 없는 턴에도 매번 검색한다. 그러면 토큰과 지연이 늘고, LLM 이 같은 주제로 `kb_*` 를 다시 부를 때 같은 청크가 두 번 들어갈 수 있다(예상 비용이고 측정한 값은 아니다). 그 정의를 받칠 코드도 없었다. 검색 서비스의 `buildContext` 는 운영 호출부가 없다.
+- `rag` 행과 🔧 도구 행이 같은 호출을 두 번 보여 주는 것은 받아들인다. 도구 행은 호출 하나와 그 결과를, `rag` 행은 그 턴에 모인 청크를 `chunkId` 중복 없이 References 탭과 같은 목록으로 보여 준다. 시각 구분과 배치는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 정한다.

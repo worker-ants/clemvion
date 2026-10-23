@@ -2,19 +2,19 @@
 id: "CLE-EXEC-PREVIEW"
 title: "대화 미리보기"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-CONVPV-001", "REQ-CONVPV-002", "REQ-CONVPV-003", "REQ-CONVPV-004", "REQ-CONVPV-005", "REQ-CONVPV-006", "REQ-CONVPV-007", "REQ-CONVPV-008", "REQ-CONVPV-009", "REQ-CONVPV-010", "REQ-CONVPV-011", "REQ-CONVPV-012", "REQ-CONVPV-013", "REQ-CONVPV-014", "REQ-CONVPV-015", "REQ-CONVPV-016", "REQ-CONVPV-017", "REQ-CONVPV-018", "REQ-CONVPV-019", "REQ-CONVPV-020", "REQ-CONVPV-021", "REQ-CONVPV-022", "REQ-CONVPV-023", "REQ-CONVPV-024", "REQ-CONVPV-025", "REQ-CONVPV-026", "REQ-CONVPV-027", "REQ-CONVPV-028", "REQ-CONVPV-029", "REQ-CONVPV-030", "REQ-CONVPV-031", "REQ-CONVPV-032", "REQ-CONVPV-033", "REQ-CONVPV-034", "REQ-CONVPV-035", "REQ-CONVPV-036", "REQ-CONVPV-037", "REQ-CONVPV-038", "REQ-CONVPV-039", "REQ-CONVPV-040", "REQ-CONVPV-041", "REQ-CONVPV-042", "REQ-CONVPV-043", "REQ-CONVPV-044", "REQ-CONVPV-045", "REQ-CONVPV-046", "REQ-CONVPV-047"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "fbaaee832301f1923a71193b0f9af6093ac9ead77c6a187c82315b9e630b49a1"
-read_as: "approved"
-task: null
+content_hash: "a02b5d5219b6da3b59392ef316a43df5c285ff853ad9f4844ba9fe51a738d3ad"
+read_as: "approved_fallback"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "f7931adeeced42c5ed8d7de34b8d114e9404d1d9a895d1e704993d5bc544c6d0"
-etag: "sha256-476c8e111993649ef71eec60bb243e9c3d45f84863e0a6f7a19b74c573bf8339"
+mirror_sha256: "bceb9d7a82e89fda2e6fb0bf55de26df814dae5aa68e92545d893bd56ec94e15"
+etag: "sha256-ec644d456fb91820dead795920f85d523b43de07fcac3f0eaca8a47ef0c08e4b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§9 미리보기 UI 렌더 규칙, 줄 433–756. 근거는 §8.1·§8.2·§8.3·§8.5·§8.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -145,7 +145,7 @@ sequenceDiagram
 
 `system_error` 와 `rag` 는 백엔드가 쌓는 값이 아니라 프런트가 합성하는 출처다. `system_error` 는 노드 출력의 `output.error` 로부터, `rag` 는 `meta.turnDebug[].ragSources` 로부터 만든다. `system_error` 의 `data` 형태는 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 가 정한다.
 
-`rag` 줄이 나타내는 검색이 엔진이 LLM 호출 전에 자동으로 한 검색인지 LLM 도구 호출이 가져온 청크인지는 정의가 갈린다. 결정 전까지 이 문서의 `rag` 서술은 원문 정의를 옮긴 것이다. [대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항) 과 [RAG 검색 §미결 사항](../CLE-KB/CLE-KB-SEARCH.md#미결-사항) 참조.
+`rag` 줄은 그 턴에 지식 저장소 도구(`kb_*`) 호출이 가져온 청크를 턴 단위로 모아 보여 준다. 엔진은 LLM 호출 전에 지식 저장소를 미리 검색하지 않는다(2026-10-10 결정, [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)). 그래서 같은 호출이 🔧 `ai_tool` 도구 행으로도 보인다. 도구 행은 호출 하나와 그 결과를, `rag` 줄은 그 턴에 모인 청크를 `chunkId` 중복 없이 보여 준다.
 
 ### [다시 시도] 버튼 조건
 
@@ -164,7 +164,7 @@ sequenceDiagram
 2. **컨테이너 형식**: 말풍선(둥근 배경, 좌우 정렬), 전체 폭 회색 카드, 전체 폭 **점선** 줄(rag), 가운데 정렬 줄(system 회색, system_error 빨간 강조).
 3. **출처 칩**: presentation·tool·rag·system·system_error 는 머리에 칩을 단다. system_error 는 `<nodeLabel> · <code>`, rag 는 `KB · <N> chunk(s)` 형식이다. user·assistant 말풍선에는 칩이 없다.
 
-`rag` 와 `ai_tool` 은 세 신호가 모두 달라야 한다. 둘 다 "지식 저장소를 조회했다" 는 같은 관심사를 표현하지만 인과가 다르다. `ai_tool` 은 LLM 이 호출하기로 정한 것이고 `rag` 는 엔진이 LLM 호출 전에 자동으로 한 것이다. 한 신호(예: 아이콘)만 다르면 사용자가 "LLM 이 지식 저장소를 호출했다" 는 잘못된 인과를 읽는다. 그래서 아이콘(🔎/🔧), 컨테이너(점선 줄/실선 카드), 칩(`KB · N chunk(s)`/도구 이름)이 모두 다르다. 이 인과 구분은 `rag` 를 엔진의 자동 검색으로 보는 정의에 기대고 그 정의는 미결이다([대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항)).
+`rag` 와 `ai_tool` 은 세 신호가 모두 달라야 한다. 둘은 같은 `kb_*` 호출에서 나오지만 보여 주는 단위가 다르다. `ai_tool` 은 호출 하나와 그 결과이고 `rag` 는 그 턴의 호출들이 가져온 청크를 모은 것이다. 한 신호(예: 아이콘)만 다르면 사용자가 같은 검색을 두 번 한 것으로 잘못 읽는다. 그래서 아이콘(🔎/🔧), 컨테이너(점선 줄/실선 카드), 칩(`KB · N chunk(s)`/도구 이름)이 모두 다르다.
 
 이 규칙은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 의 전송 출처 표시(`live`·`injected`)에 대한 옛 권장(injected 칩)을 강제로 올린 것이다. 근거는 [Rationale](#rationale) 에 있다.
 
@@ -203,7 +203,7 @@ LLM 호출 한 번이 `ai_assistant` 항목 하나다. 다음 조건을 모두 �
 
 **단일 결정 함수**: `groupToolCallItems(items: ConversationItem[]): { claimedToolIndices: Set<number>; childrenByParent: Map<number, number[]> }` 를 `codebase/frontend/src/lib/conversation/conversation-utils.ts` 에서 export 한다. 이 함수가 분류와 순서 매칭 결과를 두 화면에 똑같이 공급한다(Inv-5). 묶음 정책을 바꾸면 이 함수 하나만 고치고 모든 화면에 저절로 반영된다.
 
-**`system_error` 와 `rag` 는 묶음 분류 대상이 아니다.** `groupToolCallItems` 는 두 출처 항목을 묶지 않은 상태로 두고 들여쓰기 트리에 넣지 않는다. 부모로도 자식으로도 분류하지 않고 `isAssistantContentBlank` 도 평가하지 않는다. 두 항목은 제자리에 독립 줄로 표시된다(`system_error` 는 빨간 줄, `rag` 는 점선 줄). "묶음 단위로만 줄어든다"(Inv-2)와 맞는다. `rag` 가 `ai_tool` 처럼 보인다고 부모의 `toolCalls.length` 순서 매칭 대상에 넣지 않는다. `rag` 는 LLM 이 나열한 도구 호출이 아니어서 그 개수에 애초에 없고 넣으면 실제 도구 자식 하나가 밀려난다.
+**`system_error` 와 `rag` 는 묶음 분류 대상이 아니다.** `groupToolCallItems` 는 두 출처 항목을 묶지 않은 상태로 두고 들여쓰기 트리에 넣지 않는다. 부모로도 자식으로도 분류하지 않고 `isAssistantContentBlank` 도 평가하지 않는다. 두 항목은 제자리에 독립 줄로 표시된다(`system_error` 는 빨간 줄, `rag` 는 점선 줄). "묶음 단위로만 줄어든다"(Inv-2)와 맞는다. `rag` 가 `ai_tool` 처럼 보인다고 부모의 `toolCalls.length` 순서 매칭 대상에 넣지 않는다. `rag` 는 도구 호출 항목이 아니라 그 결과를 모은 표시라 그 개수에 없고 넣으면 실제 도구 자식 하나가 밀려난다.
 
 | 영역 | 모양 |
 | --- | --- |
@@ -335,7 +335,7 @@ LLM 프로바이더가 content 를 어떤 모양으로 보내든(Anthropic `null
 | CT-S15 | 멀티턴 AI 에이전트가 `node.failed` 와 `details.retryable === true` 로 종료 | (a) Inv-6 (b) **미리보기 탭 표시**(Inv-8), 대화 전체와 마지막 `system_error` (c) `nodeExecutionId` 가 있어 `[다시 시도]` 표시. 이벤트의 `output` 이 `NodeResult.outputData` 로 전달되는지도 함께 검증(엔진이 `node.failed` 에 대화 출력을 함께 싣는다, [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)) | `use-execution-events.test.ts`, `result-detail.test.tsx` |
 | CT-S16 | 멀티턴 AI 에이전트가 `node.failed` 와 `details.retryable === false` 로 종료(CT-S10 과 같은 조건) | (a) Inv-8 탭 표시 (b) **기본 탭이 미리보기**(retryable 무관 예외, [에디터 실행과 디버깅](CLE-EXEC-RUN.md)) (c) `[다시 시도]` 없음 (d) **대화형이 아닌 노드(`http_request` 등)는 여전히 오류 탭이 기본**. 일반 원칙 ED-EX-13 보존 회귀 | `result-detail.test.tsx` |
 | CT-S17 | 오류로 끝난 대화 노드를 **새로고침 뒤 내역 화면**(`/executions/:id`, store 비어 있음)에서 조회 | (a) `outputData`(REST 스냅샷)로 미리보기 재구성, `status: 'failed'` 는 게이트가 아님(Inv-8) (b) `parseHistoryMessages` 가 `output.error` 로 `system_error` 합성 (c) `nodeExecutionId` 가 없어 `[다시 시도]` 자동 숨김 | `result-detail.test.tsx`, `conversation-utils.test.ts` |
-| CT-S18 | 한 턴에 **자동 지식 저장소 검색**(`turnDebug[].ragSources` 가 비어 있지 않음)과 **지식 저장소 도구 호출**(`ai_tool`)이 함께 일어남 | (a) 🔎 `rag` 줄과 🔧 `ai_tool` 줄이 **각각 독립 행** (b) 세 가지 구분 신호가 모두 다름 (c) `groupToolCallItems` 가 `rag` 를 묶지 않아 도구 자식이 밀려나지 않음 (d) 📚 칩 병존 (e) **대화 미리보기와 실행 트리 두 화면에 동시에 표시** (f) **Inv-9**, 같은 turnIndex 에서 🔎 줄·📚 칩·참조 탭의 `sources[]` 가 같음 | `conversation-utils.test.ts`, `result-detail.test.tsx`, `result-timeline.test.tsx` |
+| CT-S18 | 한 턴에 **지식 저장소 도구(`kb_*`) 호출**이 청크를 가져옴(`turnDebug[].ragSources` 가 비어 있지 않음). 같은 호출이 🔧 `ai_tool` 줄로도 보임 | (a) 🔎 `rag` 줄과 🔧 `ai_tool` 줄이 **각각 독립 행** (b) 세 가지 구분 신호가 모두 다름 (c) `groupToolCallItems` 가 `rag` 를 묶지 않아 도구 자식이 밀려나지 않음 (d) 📚 칩 병존 (e) **대화 미리보기와 실행 트리 두 화면에 동시에 표시** (f) **Inv-9**, 같은 turnIndex 에서 🔎 줄·📚 칩·참조 탭의 `sources[]` 가 같음 | `conversation-utils.test.ts`, `result-detail.test.tsx`, `result-timeline.test.tsx` |
 | CT-S19 | `meta.turnDebug` 없음(옛 실행, legacy payload) | 🔎 줄 **생략**, 배치 손상 없음([요소별 시각과 소요 시간](#요소별-시각과-소요-시간) 의 결측 허용). 나머지 턴 렌더는 영향 없음 | `conversation-utils.test.ts`, `result-detail.test.tsx` |
 | CT-S20 | **여러 노드가 공유하는 스레드**: 다른 노드(Presentation, 다른 AI 노드)의 턴이 섞인 스레드에서 선택한 노드의 `meta.turnDebug` 만 있음 | 선택한 노드가 만들지 않은 턴 앞에는 🔎 줄이 **붙지 않는다**. 스레드는 실행 범위지만 `meta` 는 노드 범위라 두 데이터의 범위가 다름을 고정한다. "노드 필터 없음" 원칙의 **예외가 아니다** | `conversation-utils.test.ts` |
 
@@ -388,7 +388,7 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | `tool`(`ai_tool`) | `item.timestamp`(`tool_call_started.startedAt` 또는 `turnDebug[].toolCalls[].startedAt`) | `item.durationMs`(`tool_call_completed.durationMs`) |
 | `presentation`(`presentation_user`) | `item.timestamp`(`turns[].timestamp`) | 없음 |
 | `system`, `system_error` | `item.timestamp`(`turns[].timestamp` 또는 노드 `finishedAt`) | 없음 |
-| `rag` | 같은 `turnIndex` 의 **부모 assistant 턴 `llmCalls[0].startedAt`** 을 대신 쓴다. `RagSource` 스키마([Graph RAG](../CLE-KB/CLE-KB-GRAPH.md))에 시각 필드가 없기 때문이다. 자동 지식 저장소 검색은 그 LLM 호출 **직전**에 일어나므로 의미가 맞다. 이 전제는 `rag` 정의와 함께 미결이다([출처별 시각 매핑](#출처별-시각-매핑)) | 없음(즉시 주입, 표시 안 함) |
+| `rag` | 같은 `turnIndex` 의 **부모 assistant 턴 `llmCalls[0].startedAt`** 을 대신 쓴다. `RagSource` 스키마([Graph RAG](../CLE-KB/CLE-KB-GRAPH.md))에 시각 필드가 없기 때문이다. 이 값은 그 턴의 기준 시각(첫 LLM 호출 시작)이다. 실제 검색은 그 뒤 도구 호출에서 일어나므로 검색 시각이 아니다. 호출마다의 시각은 🔧 `ai_tool` 줄에 있다 | 없음(턴 단위로 모은 표시라 표시 안 함) |
 
 **표시 규칙**
 
@@ -454,15 +454,16 @@ store 보존(Inv-6)과 별도로 렌더 층 도달성을 Inv-8 로 두고 [데�
 
 ### `rag` 줄을 보조 관찰성 레인으로 둔다
 
-엔진이 LLM 호출 전에 자동으로 한 지식 저장소 검색을 대화 타임라인의 일급 이벤트(🔎 `rag` 줄)로 표시하고 LLM 이 호출한 지식 저장소 도구(🔧 `ai_tool`)와 세 신호로 구분한다. 1차 소스는 `meta.turnDebug[].ragSources` 이고 "대화 턴 1차 소스는 스레드" 원칙(D4)을 유지한 채 보조 관찰성 레인으로 정식화한다. 이 결정이 전제한 "LLM 호출 전 자동 검색" 이 실제로 있는지는 미결이다. 현재 구현에서 검색 서비스를 부르는 곳은 지식 저장소 도구 경로와 디버그 API 뿐이다([RAG 검색 §미결 사항](../CLE-KB/CLE-KB-SEARCH.md#미결-사항)).
+그 턴에 지식 저장소 도구(`kb_*`) 호출이 가져온 청크를 대화 타임라인의 일급 이벤트(🔎 `rag` 줄)로 표시하고 같은 호출의 🔧 `ai_tool` 도구 행과 세 신호로 구분한다. 1차 소스는 `meta.turnDebug[].ragSources` 이고 "대화 턴 1차 소스는 스레드" 원칙(D4)을 유지한 채 보조 관찰성 레인으로 정식화한다. 처음 원문은 이 줄을 "엔진이 LLM 호출 전에 자동으로 한 검색" 으로 정의했지만 그런 검색은 구현된 적이 없다. 실행 중에 검색 서비스를 부르는 곳은 지식 저장소 도구 경로뿐이다. 2026-10-10 에 사람이 정의를 코드에 맞추기로 정했다. 자동 검색을 새로 만드는 안을 기각한 근거는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 의 Rationale 에 있다.
 
-- **기각: `ai_tool` 재사용.** 자동 검색은 LLM 이 호출한 도구가 아니라 엔진이 LLM 호출 전에 맥락을 붙인 것이다. `ai_tool` 로 표현하면 (a) 맞출 `toolCallId` 가 없고 (b) 묶음 분류가 부모 assistant 의 `toolCalls.length` 로 자식을 순서대로 가져가는데 `rag` 는 그 개수에 없어 실제 도구 자식 하나가 밀려나며 (c) 사용자에게 "LLM 이 지식 저장소를 호출했다" 는 잘못된 인과를 전한다. 두 경로를 나눠 보여 달라는 요구의 핵심이 바로 이 인과 구분이다.
+- **기각: `ai_tool` 재사용.** `rag` 줄은 도구 호출 하나가 아니라 그 턴의 호출들이 가져온 청크를 모은 표시다. `ai_tool` 로 표현하면 (a) 맞출 `toolCallId` 가 없고 (b) 묶음 분류가 부모 assistant 의 `toolCalls.length` 로 자식을 순서대로 가져가는데 `rag` 는 그 개수에 없어 실제 도구 자식 하나가 밀려나며 (c) 한 턴에 `kb_*` 를 여러 번 불렀을 때 `chunkId` 중복을 뺀 턴 단위 청크 목록을 보일 자리가 없다. 이 목록은 참조 탭과 같아야 하고(Inv-9) 호출마다의 카드로는 보일 수 없다.
 - **기각: `system` 과 구분 필드.** `system_error` 때 기각한 논리가 그대로 적용된다. 출처의 1:1 시각 매핑을 1:N 으로 나눠 매핑 표가 단순하지 않게 된다.
 - **D4 와 충돌하지 않는 이유**: D4 가 막으려던 것은 emit 메시지 원문 노출이다. 출처 접두와 사용자 입력 마커가 들어간 LLM 페이로드를 미리보기가 그대로 보여 사용자가 오인하고 매 렌더마다 정리해야 하는 문제다. `ragSources` 는 마커도 접두도 없는 구조화 관찰 데이터(`documentName`, `score`, `content` 미리보기, [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md))라 그 위험 요소가 구조적으로 없다. 또 `rag` 줄은 턴을 대신하지 않고 더해지는 별도 레인이다.
 - **범위를 `ragSources` 로 좁힌 이유**: `meta.turnDebug` 전체를 열면 형제 필드 `llmCalls` 까지 열린다. `llmCalls` 는 원문 디버그 페이로드(에디터 전용)로 정해진 필드라 D4 가 막으려던 바로 그 대상이다. 전체를 열면 D4 보호가 다른 경로로 다시 들어온다.
 - **새 예외가 아니라 기존 관행의 정식화**: `ragSources` 는 이미 대화 미리보기의 소스였다. 📚 참조 칩이 그 데이터로 assistant 말풍선 아래에 렌더되고 있었고 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 이 그 표면을 명시적으로 승인해 두었다. 문제는 두 문서가 서로를 가리키지 않아 데이터 소스 규칙과 D4 가 그 사실을 모른 채 적혀 있었던 것이다(2026-07-17 발견). 문구만 고치면 같은 어긋남이 다시 생기므로 양방향 링크를 함께 두었다.
 - **소스로 `turnDebug` 를 고른 이유(옛 `### Relevant Knowledge` 마커 대신)**: 옛 프런트 인라인 파서는 `role:'system'` 메시지의 마커로 지식 저장소 줄을 합성했다. 그런데 그 마커를 만드는 `RagSearchService.buildContext` 는 운영 호출부가 없어 새 실행에서 생기지 않는다. `turnDebug` 는 참조·LLM 사용량 탭이 이미 쓰는 현행 데이터이고 라이브(입력 대기 이벤트의 `nodeOutput.meta`)와 내역(영속 `outputData.meta`) 양쪽에 있어 두 표면이 어긋나지 않는다. 그 인라인 파서는 변환 함수 계약에 없는 넷째 경로여서 Inv-8 작업 때 따로 제거했다.
-- **📚 칩을 함께 두는 이유**: 줄과 칩은 답하는 질문이 다르다. 🔎 줄은 "언제 무엇이 검색됐나"(시간축 이벤트), 📚 칩은 "이 응답이 무엇에 근거했나"(출처 귀속)와 참조 탭 진입점이다. 칩을 없애면 응답과 출처의 연결과 진입점을 잃는다.
+- **🔎 줄을 턴의 시작 시각에 두는 이유**: 🔎 줄은 그 턴의 `kb_*` 호출들이 가져온 청크를 턴 단위로 모은 표시라 검색 하나의 시각을 갖지 않는다. 그래서 턴의 기준 시각(첫 LLM 호출 시작)에 둔다. 호출마다의 시각은 🔧 `ai_tool` 줄이 가진다.
+- **📚 칩을 함께 두는 이유**: 줄과 칩은 답하는 질문이 다르다. 🔎 줄은 "이 턴에 무엇을 가져왔나"(턴 단위 모음), 📚 칩은 "이 응답이 무엇에 근거했나"(출처 귀속)와 참조 탭 진입점이다. 칩을 없애면 응답과 출처의 연결과 진입점을 잃는다.
 - **옛 데이터 한계**: `turnDebug` 가 없던 시절 실행에는 🔎 줄이 생기지 않는다. 결측 허용 규칙대로 생략한다(CT-S19). 옛 마커까지 덮는 이중 변환 경로는 단일 결정 함수 원칙에 어긋나 도입하지 않는다.
 
 ### 전송 데이터의 래퍼와 도메인 값을 구분해 적는다
