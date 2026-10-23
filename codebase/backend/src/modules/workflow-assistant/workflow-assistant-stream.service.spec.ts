@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import {
   WorkflowAssistantStreamService,
   toRuntimePortDescriptor,
@@ -6,6 +6,7 @@ import {
 import {
   ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
   ASSISTANT_STREAM_ERROR_MESSAGES,
+  noLlmConfigMessage,
 } from './workflow-assistant-stream-errors';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
@@ -2411,9 +2412,11 @@ describe('WorkflowAssistantStreamService', () => {
       'ASSISTANT_TOO_MANY_TOOL_CALLS',
     );
     // 재시도 안내 문구가 포함되어야 함 (UX 친절화).
-    expect((errEvent!.data as { message: string }).message).toMatch(
-      /follow-up message|budget/i,
-    );
+    const budgetMessage = (errEvent!.data as { message: string }).message;
+    expect(budgetMessage).toMatch(/follow-up message|budget/i);
+    // 서버 message 는 고정 영문이다 — 한국어 예시 문구를 싣지 않는다
+    // (REQ-ASSIST-048, CLE-UI-I18N 규칙 3).
+    expect(budgetMessage).not.toMatch(/[가-힣]/);
   });
 
   it('forwards optional width/height from the request snapshot into the system prompt JSON', async () => {
@@ -3015,7 +3018,11 @@ describe('WorkflowAssistantStreamService', () => {
       expect(loggedText()).toContain(RAW);
     });
 
-    it.each(['LLM_RATE_LIMIT', 'LLM_CONNECTION_ERROR'] as const)(
+    it.each([
+      'LLM_RATE_LIMIT',
+      'LLM_CONNECTION_ERROR',
+      'LLM_OUTPUT_MALFORMED',
+    ] as const)(
       'forwards the %s code with a fixed message instead of the client text',
       async (code) => {
         const { service, mocks } = makeService();
@@ -3066,9 +3073,11 @@ describe('WorkflowAssistantStreamService', () => {
       expect(loggedText()).toContain(RAW);
     });
 
-    it('keeps the guidance the OpenAI client writes for LLM_OUTPUT_MALFORMED', async () => {
+    it('does not forward the guidance the LLM client writes for LLM_OUTPUT_MALFORMED', async () => {
       const { service, mocks } = makeService();
-      const guidance = 'harmony 제어 토큰 안내문';
+      // 클라이언트(openai.client.ts)가 사용자용으로 쓴 안내문도 화면으로 보내지
+      // 않는다. 서버는 코드별 고정 영문만 보내고 안내문은 로그에만 남는다.
+      const guidance = '모델이 harmony 제어 토큰을 응답에 노출했어요';
       mocks.llmService.chatStream.mockImplementation(() =>
         asyncIter<ChatStreamEvent>([
           { type: 'error', code: 'LLM_OUTPUT_MALFORMED', message: guidance },
@@ -3081,8 +3090,10 @@ describe('WorkflowAssistantStreamService', () => {
 
       expect(errorEventOf(events)).toEqual({
         code: 'LLM_OUTPUT_MALFORMED',
-        message: guidance,
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_OUTPUT_MALFORMED,
       });
+      expect(JSON.stringify(events)).not.toContain(guidance);
+      expect(loggedText()).toContain(guidance);
     });
 
     it('does not forward the config resolution error text for ASSISTANT_NO_LLM_CONFIG', async () => {
@@ -3093,7 +3104,27 @@ describe('WorkflowAssistantStreamService', () => {
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
 
-      expect(errorEventOf(events)?.code).toBe('ASSISTANT_NO_LLM_CONFIG');
+      expect(errorEventOf(events)).toEqual({
+        code: 'ASSISTANT_NO_LLM_CONFIG',
+        message: noLlmConfigMessage(false),
+      });
+      expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+    });
+
+    it('sends the table message for ASSISTANT_NO_LLM_CONFIG when no usable config exists', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockRejectedValue(
+        new BadRequestException(RAW),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'ASSISTANT_NO_LLM_CONFIG',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
+      });
       expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
     });
   });

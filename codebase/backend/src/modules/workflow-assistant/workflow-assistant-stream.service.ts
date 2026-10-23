@@ -49,7 +49,9 @@ import {
 import { buildSystemPrompt } from './prompts/system-prompt';
 import {
   ASSISTANT_STREAM_ERROR_MESSAGES,
+  noLlmConfigMessage,
   toClientStreamErrorMessage,
+  tooManyToolCallsMessage,
 } from './workflow-assistant-stream-errors';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
@@ -216,10 +218,7 @@ export class WorkflowAssistantStreamService {
         event: 'error',
         data: {
           code: 'ASSISTANT_NO_LLM_CONFIG',
-          message:
-            err instanceof BadRequestException
-              ? 'No LLM config available. Please configure one first.'
-              : 'Failed to resolve LLM config.',
+          message: noLlmConfigMessage(err instanceof BadRequestException),
         },
       };
       return;
@@ -370,7 +369,10 @@ export class WorkflowAssistantStreamService {
           event: 'error',
           data: {
             code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-            message: `Per-turn LLM round limit (${MAX_TOOL_LOOP_ROUNDS}) exceeded. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
+            message: tooManyToolCallsMessage(
+              'round-limit',
+              MAX_TOOL_LOOP_ROUNDS,
+            ),
           },
         };
         await this.turnPersistence.persistAssistantTurn(
@@ -421,7 +423,10 @@ export class WorkflowAssistantStreamService {
                 event: 'error',
                 data: {
                   code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-                  message: `Per-turn tool-call budget (${toolCallsBudget}) exhausted. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
+                  message: tooManyToolCallsMessage(
+                    'tool-call-budget',
+                    toolCallsBudget,
+                  ),
                 },
               };
               hadError = true;
@@ -720,8 +725,9 @@ export class WorkflowAssistantStreamService {
               },
             };
           } else if (ev.type === 'error') {
-            // 클라이언트 `message` 는 SDK 예외 원문일 수 있다. 원문은 로그에만
-            // 남기고 화면에는 코드별 고정 영문을 보낸다 (REQ-ASSIST-048).
+            // 클라이언트 `message` 는 SDK 예외 원문이거나 클라이언트가 쓴 안내문
+            // 이다. 어느 쪽이든 로그에만 남기고 화면에는 코드별 고정 영문을
+            // 보낸다 (REQ-ASSIST-048).
             this.logger.error(
               `Assistant LLM stream error (${ev.code}): ${ev.message}`,
             );
@@ -729,7 +735,7 @@ export class WorkflowAssistantStreamService {
               event: 'error',
               data: {
                 code: ev.code,
-                message: toClientStreamErrorMessage(ev.code, ev.message),
+                message: toClientStreamErrorMessage(ev.code),
               },
             };
             hadError = true;
