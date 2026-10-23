@@ -26,6 +26,7 @@ import {
   Cafe24OperationMetadata,
   Cafe24Resource,
   findCafe24Operation,
+  isCafe24DryRunMocked,
   validateCafe24Constraints,
 } from './metadata/index.js';
 
@@ -167,20 +168,14 @@ export class Cafe24Handler
       apiInfo.method = operation.method;
       apiInfo.path = operation.path;
 
-      // 1b. Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — cafe24 의
+      // 1b. Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — cafe24 의
       // WRITE operation (POST/PUT/DELETE) 은 외부 commerce 상태를 변경하는
       // 부수효과이므로 실제 ApiClient 호출 없이 mock 으로 단락한다. READ
       // operation (GET) 은 부수효과가 없어 dry-run 에서도 그대로 호출한다
-      // (§7.1 — Database SELECT 와 동일 취급). method 가 곧 read/write 분류
-      // 기준이다 (catalog 의 모든 row 가 GET/POST/PUT/DELETE 를 명시).
-      if (isDryRun(context) && operation.method !== 'GET') {
+      // (Database SELECT 와 동일 취급). method 가 곧 read/write 분류 기준이다.
+      // 외부 API 를 부르지 않았으므로 활동 로그도 남기지 않는다.
+      if (isDryRun(context) && isCafe24DryRunMocked(operation)) {
         const durationMs = Date.now() - started;
-        await this.logUsage(context, {
-          integrationId,
-          status: 'success',
-          durationMs,
-          api: apiInfo,
-        });
         return {
           config: echo,
           output: buildDryRunMock('cafe24', {

@@ -987,7 +987,8 @@ describe('McpToolProvider', () => {
       });
     });
 
-    // 재실행 「dry-run」 임시 가드 — tools/call 은 외부 서버에 보내지 않는다.
+    // 재실행 「dry-run」 — 외부 서버의 tools/call 은 부수효과를 판정할 수 없어
+    // 보내지 않는다(CLE-EXEC-RERUN 「부수효과 판정」).
     describe('dry-run re-run (ctx.dryRun)', () => {
       const dryCtx = {
         config: { mcpServers: [{ integrationId: integration.id }] },
@@ -1035,6 +1036,35 @@ describe('McpToolProvider', () => {
           },
         });
         expect(parsed.message).toMatch(/dry-run/);
+      });
+
+      it('does not trust a readOnlyHint annotation from the server', async () => {
+        const session = makeSession({
+          listTools: jest.fn().mockResolvedValue({
+            tools: [
+              {
+                name: 'lookup',
+                description: 'Claims to be read-only',
+                inputSchema: { type: 'object', properties: {} },
+                annotations: { readOnlyHint: true },
+              },
+            ],
+          }),
+        });
+        mcpClient.connect.mockResolvedValue(session);
+        await provider.buildTools(dryCtx);
+
+        const result = await provider.execute(
+          { id: 'tc-4', name: 'mcp_aaaaaaaa__lookup', arguments: '{}' },
+          dryCtx,
+        );
+
+        expect(session.callTool).not.toHaveBeenCalled();
+        expect(JSON.parse(result.content)).toMatchObject({
+          _dryRun: true,
+          executed: false,
+          wouldHaveCalled: { kind: 'mcp_tool', tool: 'lookup' },
+        });
       });
 
       it('still forwards resources/prompts meta tools (read-only by protocol)', async () => {

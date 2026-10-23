@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "bf8bfc611fa276f4e3daa472a0b5f39bb43e98dd8a3c60b2924a1dffef45f123"
+content_hash: "d5563f7a80745c5e66a3d96a4b07c5f0053b981b538ec428571fbd599a3b3f7d"
 read_as: "approved_fallback"
-task: "CLE-T-8BX1HK"
+task: "CLE-T-G62XJS"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "1d61e269678bc16b801021ed4863561e8e38b5bf5713ba0446041a34f2154f44"
-etag: "sha256-2a957e39311912f3b05e30a469e5ef55387785cf0168bf53a6d53322a72b1c0c"
+mirror_sha256: "e3d0527e5ee14ec887fe2597551826e8356135272b8fbfdd81d42f10b6e36492"
+etag: "sha256-d3ad3bf9cb70e9c357581c49ae36fdfb365199d0f3bf58cc2b45de041f0b9d26"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -350,10 +350,11 @@ flowchart TD
     - d. 비조건 도구만 있으면 각 프로바이더가 실행한다(지식 저장소 검색, MCP RPC, 표시 도구, 일반 도구 stub). 결과는 호출마다 따로 된 tool_result 로 넘기고 점수 병합·재정렬은 하지 않는다.
     - d.i. 표시 전용 도구: 페이로드를 검증·정규화한다([Presentation 노드 공통 §스키마 위반 처리와 정규화](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#스키마-위반-처리와-정규화)). 그 결과를 현재 턴 `ai_assistant` 항목의 최상위 `presentations[]` 에 넣고 `{ok: true, rendered: true, …}` 를 회신한다. LLM 은 같은 턴에서 계속 쓰거나 다른 도구를 부를 수 있다.
     - d.ii. `render_form`: 현재 턴을 보류하고 `status: 'waiting_for_input'`, `meta.interactionType: 'ai_form_render'` 로 멈춘다. `'ai_conversation'` 과 다른 값이며 클라이언트가 `execution.submit_form` 을 쓸 근거다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)). 폼 페이로드(`type: 'form'`)를 `presentations[]` 에 넣고 `_resumeState.pendingFormToolCall = {toolCallId, formConfig}` 를 저장한다. 단일 턴에서 부르면 스키마 위반과 같이 한 번 재시도 후 버린다. 폼 입력이 필요하면 멀티턴을 써야 한다.
-    - d.iii. **dry-run 재실행**: dry-run 재실행에서는 LLM 이 MCP 도구(외부 MCP 서버 도구와 Cafe24·MakeShop 내부 MCP 브리지 도구)를 불러도 그 호출을 외부로 보내지 않고 건너뛴 결과를 받는다. 부수효과 도구를 골라 모의 응답을 주는 동작이 생기기 전까지 쓰는 임시 가드다(2026-10-10). 대상·예외·값의 출처·해제 조건은 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 이 정한다(REQ-RERUN-043~046). 결과 형식은 [MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행) 이 정한다.
-        - 가드는 도구 실행(`execute`) 단계에만 있다. 도구 목록 구성(`buildTools`)은 dry-run 에서도 평소처럼 돈다. 이 단계의 외부 호출은 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다.
-        - 도구 프로바이더는 실행하지 않았다는 성공 결과(`_dryRun: true`, `executed: false`)를 tool_result 로 돌려준다. LLM 은 이 결과를 보고 다음 판단을 한다. 건너뛴 호출도 `maxToolCalls` 에 센다.
-        - 건너뛴 호출 결과의 `_dryRun` 마커는 도구 결과 본문(LLM 에 돌려주는 문자열) 안에만 실린다. dry-run 배지 판정에 쓰는 노드 출력의 `output._dryRun` 과 다르다.
+    - d.iii. **dry-run 재실행**: dry-run 재실행에서는 LLM 이 부수효과 도구를 부르면 그 호출을 외부로 보내지 않고 모의 응답을 받는다. 읽기 도구는 실제로 호출된다. Cafe24 · MakeShop 내부 MCP 브리지 도구는 operation 의 HTTP 메서드와 상태를 바꾸는 GET 예외 목록으로 판정하고, 외부 MCP 서버의 일반 도구(`tools/call`)는 늘 부수효과로 본다. MCP 메타 도구와 `kb_*` · `render_*` · `cond_*` 는 그대로 실행한다. 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정), 대상 · 예외 · 값의 출처는 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 이 정한다(REQ-RERUN-048 ~ REQ-RERUN-053). 결과 형식은 [MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행) 이 정한다.
+        - 부수효과 판정은 도구 실행(`execute`) 단계에만 있다. 도구 목록 구성(`buildTools`)은 dry-run 에서도 평소처럼 돈다. 이 단계의 외부 호출은 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다.
+        - 부수효과 도구에는 도구 프로바이더가 실행하지 않았다는 성공 결과(`_dryRun: true`, `executed: false`)를 tool_result 로 돌려준다. LLM 은 이 결과를 성공으로 보고 다음 판단을 한다. 모의 응답으로 대신한 호출도 `maxToolCalls` 에 센다.
+        - 모의 응답의 `_dryRun` 마커는 도구 결과 본문(LLM 에 돌려주는 문자열) 안에만 실린다. dry-run 배지 판정에 쓰는 노드 출력의 `output._dryRun` 과 다르다.
+        - 한 노드 안에서 모의 응답과 실제 호출이 섞여도 `turnDebug[].toolCalls` 는 둘 다 `success` 다. 둘을 가르는 값은 도구 결과 본문의 `executed: false` 다.
     - e. 한 서버나 지식 저장소의 실패는 격리해 `meta.mcpDiagnostics.errors`·`meta.ragDiagnostics` 에 기록하고 대화를 계속한다.
     - f. 지식 저장소·MCP 도구와 표시 전용 도구는 같은 턴 안에서 `Promise.all` 로 병렬 실행해 지연을 가장 긴 호출만큼으로 줄인다. `render_form` 은 차단형이라 직렬로 들어간다. tool_result 는 결과 순서대로 직렬로 넣어 누적이 결정적이다.
     - g. `maxToolCalls` 전까지 반복한다. 배치에 들어갈 때 남은 한도를 넘는 호출은 앞쪽부터 잘라내고 잘린 호출에 `tool_call_budget_exceeded` 를 돌려준다. Anthropic 의 tool_use ↔ tool_result 짝 요건 때문이다.
@@ -474,8 +475,7 @@ stateDiagram-v2
 - **조건 id 예약어 집합**: 조건 id 검증은 `out`·`in`·`error`·`user_ended`·`max_turns` 다섯 개만 막는다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 6 의 예약어는 `out`·`error`·`default`·`done`·`user_ended`·`max_turns`·`completed`·`fallback`·`continue` 아홉 개이고 `in` 은 없다. 텍스트 분류기는 아홉 개를 백엔드 스키마에서, Switch 는 세 개만 막는다. 조건 id 는 UUID v4 라 충돌 가능성은 낮다. 규약 집합에 맞출지, UUID 발급 예외 근거를 적을지 결정 필요.
 - **`execution.submit_form` 거부와 fallback**: 멀티턴 2.a 는 대기 중인 폼 호출이 없거나 `toolCallId` 가 맞지 않으면 거부한다고 적는다. 2.c.fallback 은 `render_form` 호출이 없는 턴에 `submit_form` 이 직접 오는 경우를 예로 들며 일반 메시지로 넣는다고 적는다. 현재 핸들러(`processMultiTurnMessage`)는 대기 중인 폼 호출이 없으면 fallback 한다. 거부는 명령 검증 계층, fallback 은 경합 대비로 나눌지, 하나로 정리할지 결정 필요.
 - 지식 저장소 자동 검색 여부, 인증 실패 재시도 분류, LLM 호출 타임아웃 기준, 포트 type 표기, 캔버스 요약 표시 도구 세그먼트는 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항에서 다룬다.
-- dry-run 재실행에서 부수효과 도구만 골라 모의 응답을 주는 동작(임시 가드를 푸는 조건)은 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 에서 다룬다. 후속 작업은 CLE-T-G62XJS 다.
-- **dry-run 재실행의 도구 목록 구성 단계**: 단일 턴 9.d.iii 의 가드 밖에 있는 도구 목록 구성(`buildTools`) 단계를 가드 범위에 넣을지는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다(CLE-T-8B66BK).
+- **dry-run 재실행의 도구 목록 구성 단계**: 단일 턴 9.d.iii 의 부수효과 판정 밖에 있는 도구 목록 구성(`buildTools`) 단계를 판정 범위에 넣을지는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다(CLE-T-8B66BK).
 - **dry-run 재실행의 메모리 추출**: `persistent` 전략의 메모리 추출(단일 턴 8단계)은 dry-run 여부를 보지 않는다. 현재 구현은 dry-run 재실행에서도 추출한 사실·선호를 `agent_memory` 에 저장한다(`AiMemoryManager.scheduleMemoryExtraction` 과 공유 헬퍼 `scheduleMemoryExtraction` 에 `isDryRun` 확인이 없다). `memoryKey` 를 주면 이 기록은 실행을 넘어 이후 실행의 회수에 쓰인다. 저장과 회수 규칙의 기준 문서는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 다. dry-run 에서 추출을 막을지 정의가 없어 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 으로 넘긴다. 담당 작업은 CLE-T-C9GF9F 다.
 - 추출 기준점 저장 키 경로는 [에이전트 메모리 미결 사항](../CLE-AI/CLE-AI-MEMORY.md#미결-사항) 에서 다룬다.
 
@@ -489,7 +489,8 @@ stateDiagram-v2
 - `codebase/backend/src/nodes/ai/ai-agent/llm-call-timeout.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts`, `ai-agent.component.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/*.ts`
-- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 건너뛴 MCP 도구 결과)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 부수효과 도구에 돌려주는 모의 응답)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 여부 `isDryRun` 과 Cafe24 · MakeShop 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts`, `agent-memory-schema.ts`
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 park·재개, 에러 분류)
@@ -509,7 +510,15 @@ stateDiagram-v2
 
 dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRun` 으로 도구 프로바이더에 넘긴다. 외부 호출을 하는 곳이 도구 프로바이더라서 외부로 보내기 바로 앞에서 도구 프로바이더가 이 값을 확인한다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
 
-가드는 실행을 거부하지 않고 `success` 결과로 흐름을 잇는다. dry-run 을 완전하게 구현한다는 방향(부수효과 도구만 모의 응답, [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 도구 단위 분류가 들어갈 때까지 AI 에이전트의 MCP 도구는 읽기 operation 까지 모두 막는다. 해제는 CLE-T-G62XJS 가 맡는다.
+가드는 실행을 거부하지 않고 `success` 결과로 흐름을 잇는다. dry-run 을 완전하게 구현한다는 방향(부수효과 도구만 모의 응답, [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 도구 단위 분류가 들어갈 때까지 AI 에이전트의 MCP 도구는 읽기 operation 까지 모두 막았다. 2026-10-23 에 부수효과 판정이 들어가 이 차단을 풀었다([아래 절](#dry-run-재실행의-도구-모의-응답-2026-10-23)).
+
+### dry-run 재실행의 도구 모의 응답 (2026-10-23)
+
+판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
+
+- **판정은 도구 프로바이더가 한다.** AI 에이전트 노드 핸들러는 `ProviderExecCtx.dryRun` 만 넘기고 어떤 도구가 부수효과인지 따지지 않는다. 판정에 쓰는 operation 메타데이터와 외부 서버 정보가 도구 프로바이더에 있기 때문이다. 2026-10-10 에 만든 전달 경로를 그대로 쓴다.
+- **도구 프로바이더는 인자 검증을 dry-run 판정보다 먼저 한다.** LLM 이 고칠 수 있는 인자 에러는 dry-run 재실행에서도 평소와 같은 에러로 돌려준다. Cafe24 · MakeShop 노드 핸들러는 dry-run 확인을 필수 필드 검증보다 먼저 하므로 순서가 다르다. 두 순서는 일부러 다르게 뒀다([재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출)).
+- **모의 응답에는 성공한 것으로 보고 이어 가라는 안내를 싣는다.** LLM 이 모의 응답을 실패로 읽고 같은 쓰기를 다시 부르거나 흐름을 멈추지 않게 하려는 것이다. [render_form 제출 뒤 같은 폼 재호출을 막은 방법](#render_form-제출-뒤-같은-폼-재호출을-막은-방법) 과 같은 이유로 status 를 `success` 로 두고 `message` 로 안내한다. 선례의 `ok: true` 는 싣지 않는다. 본문의 `executed: false` 는 실패 표시가 아니라 호출이 외부로 나가지 않았다는 사실을 남기는 값이다([재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 「에러가 아닌 `success` 로 돌려준다」).
 
 ### 표시 도구를 들인 이유
 

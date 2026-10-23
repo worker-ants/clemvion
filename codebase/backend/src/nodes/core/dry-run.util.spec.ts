@@ -1,4 +1,8 @@
-import { isDryRun, buildDryRunMock } from './dry-run.util';
+import {
+  isDryRun,
+  buildDryRunMock,
+  isDryRunMockedOperation,
+} from './dry-run.util';
 import type { ExecutionContext } from './node-handler.interface';
 
 function ctx(variables?: Record<string, unknown>): ExecutionContext {
@@ -58,6 +62,51 @@ describe('dry-run.util', () => {
     it('defaults wouldHaveCalled extra fields to empty (kind only)', () => {
       const mock = buildDryRunMock('send_email', {});
       expect(mock.wouldHaveCalled).toEqual({ kind: 'send_email' });
+    });
+  });
+
+  // 부수효과 판정 — 근거: CLE-EXEC-RERUN 「부수효과 판정」.
+  describe('isDryRunMockedOperation', () => {
+    const NO_GETS: ReadonlySet<string> = new Set();
+
+    it.each(['POST', 'PUT', 'DELETE', 'PATCH'])(
+      'mocks a %s operation',
+      (method) => {
+        expect(isDryRunMockedOperation({ id: 'op', method }, NO_GETS)).toBe(
+          true,
+        );
+      },
+    );
+
+    it('calls a GET operation for real', () => {
+      expect(
+        isDryRunMockedOperation({ id: 'op', method: 'GET' }, NO_GETS),
+      ).toBe(false);
+    });
+
+    it('mocks a GET operation listed as state-changing', () => {
+      const stateChangingGets = new Set(['get-cart_free_config-update']);
+      expect(
+        isDryRunMockedOperation(
+          { id: 'get-cart_free_config-update', method: 'GET' },
+          stateChangingGets,
+        ),
+      ).toBe(true);
+      expect(
+        isDryRunMockedOperation(
+          { id: 'get-cart_free_config', method: 'GET' },
+          stateChangingGets,
+        ),
+      ).toBe(false);
+    });
+
+    it('treats an unexpected method spelling as a side effect (fail-closed)', () => {
+      expect(
+        isDryRunMockedOperation({ id: 'op', method: 'get' }, NO_GETS),
+      ).toBe(true);
+      expect(isDryRunMockedOperation({ id: 'op', method: '' }, NO_GETS)).toBe(
+        true,
+      );
     });
   });
 });

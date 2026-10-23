@@ -427,8 +427,10 @@ export class McpToolProvider implements AgentToolProvider {
       );
     }
 
-    // dry-run 재실행 임시 가드 — tools/call 은 서버에 보내지 않는다. 위 메타 도구
-    // (resources/prompts)는 프로토콜상 읽기 전용이라 그대로 보낸다.
+    // dry-run 재실행 — 외부 서버의 도구는 부수효과를 판정할 수 없으므로 tools/call
+    // 을 보내지 않고 모의 응답을 돌려준다. 서버가 붙인 readOnlyHint 같은 annotation
+    // 은 믿지 않는다. 위 메타 도구(resources/prompts)는 프로토콜상 읽기 전용이라
+    // 그대로 보낸다. 근거: CLE-EXEC-RERUN 「부수효과 판정」.
     if (ctx.dryRun) {
       return buildDryRunSkippedToolResult(call.id, 'mcp_tool', {
         integrationId: entry.integrationId,

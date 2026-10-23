@@ -688,6 +688,8 @@ describe('MakeshopHandler', () => {
     });
   });
 
+  // Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — makeshop mocks POST and
+  // the state-changing GETs, and passes other GET operations through.
   describe('execute — dry-run (§7)', () => {
     function makeDryRunContext(): ExecutionContext {
       const ctx = makeContext();
@@ -726,9 +728,38 @@ describe('MakeshopHandler', () => {
         method: 'POST',
         resource: 'product',
       });
-      expect(integrationsService.logUsage).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'success' }),
+      // A mocked call reaches no external API, so it leaves no activity log.
+      expect(integrationsService.logUsage).not.toHaveBeenCalled();
+    });
+
+    it('state-changing GET (cart_free_config/update) — mocked like a write', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'shop',
+          operation: 'get-cart_free_config-update',
+          fields: { use: 'Y' },
+        },
+        makeDryRunContext(),
       );
+
+      expect(apiClient.call).not.toHaveBeenCalled();
+      expect(integrationsService.logUsage).not.toHaveBeenCalled();
+      expect(result.port).toBe('success');
+      const output = result.output as {
+        _dryRun?: boolean;
+        wouldHaveCalled?: Record<string, unknown>;
+      };
+      expect(output._dryRun).toBe(true);
+      expect(output.wouldHaveCalled).toEqual({
+        kind: 'makeshop',
+        operation: 'get-cart_free_config-update',
+        method: 'GET',
+        resource: 'shop',
+      });
     });
 
     it('READ op (GET) — ApiClient IS called normally even in dry-run', async () => {
@@ -759,6 +790,10 @@ describe('MakeshopHandler', () => {
       const output = result.output as { _dryRun?: boolean; response?: unknown };
       expect(output._dryRun).toBeUndefined();
       expect(output.response).toEqual({ list: [{ product_id: 1 }] });
+      // A real call is logged as usual.
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'success' }),
+      );
     });
   });
 

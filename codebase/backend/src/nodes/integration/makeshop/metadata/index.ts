@@ -18,6 +18,8 @@ import { orderOperations } from './order.js';
 import { productOperations } from './product.js';
 import { shopOperations } from './shop.js';
 
+import { isDryRunMockedOperation } from '../../../core/dry-run.util.js';
+
 import type { MakeshopOperationMetadata, MakeshopResource } from './types.js';
 
 export * from './types.js';
@@ -30,6 +32,35 @@ export {
 // (spec 5-makeshop.md §4.1). Cafe24 declares a `CAFE24_TIMEZONE_SUFFIX` (KST)
 // appended to every MCP tool description; MakeShop must NOT invent a KST suffix
 // until the timezone semantics are verified during the client/handler phase.
+
+/**
+ * 메서드는 GET 인데 상점 상태를 바꾸는 operation. dry-run 재실행은 GET 을 실제로
+ * 호출하므로 이 목록의 operation 은 따로 모의 응답으로 대신한다
+ * (`isMakeshopDryRunMocked`, CLE-EXEC-RERUN 「부수효과 판정」).
+ *
+ * 2026-10-23 에 전체 GET operation 의 id · path · 설명을 확인해 올렸다. 메타데이터를
+ * 다시 생성할 때 새로 생긴 후보는 `dry-run-state-changing-get.spec.ts` 가 잡는다.
+ */
+export const MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS: ReadonlySet<string> =
+  new Set([
+    // 카트프리 설정을 바꾼다 (`cart_free_config/update`).
+    'get-cart_free_config-update',
+  ]);
+
+/**
+ * dry-run 에서 이 MakeShop operation 을 모의 응답으로 대신할지 판정한다. MakeShop
+ * 통합 노드 핸들러와 `MakeshopMcpToolProvider` 가 이 함수 하나를 부른다. 예외 목록을
+ * 이 함수가 묶어 두므로 호출 지점은 목록을 따로 넘기지 않는다.
+ */
+export function isMakeshopDryRunMocked(operation: {
+  id: string;
+  method: string;
+}): boolean {
+  return isDryRunMockedOperation(
+    operation,
+    MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
+  );
+}
 
 export const MAKESHOP_OPERATIONS_BY_RESOURCE: Record<
   MakeshopResource,

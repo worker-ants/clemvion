@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "5545465489392a939e60c241b209049472eccae278e335c15e0ea997043ca9e5"
+content_hash: "e839f0ab1abfa109571a060b4466a5e4f2d761412f5a5d1208f27bb876222ca7"
 read_as: "approved_fallback"
-task: "CLE-T-NNENG8"
+task: "CLE-T-G62XJS"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ed8bbdc2d1410f90df9baa7b90b57fe196e04773a726fc0810a223bc26d8bdbd"
-etag: "sha256-ead46f6145ba95528357caebf612cca23a4c91ba333ce4c63e5f702181a91682"
+mirror_sha256: "dc5b1cef1fbde725a8e6a97bad2219c682f84e00154d137b8ffaf42e6b0c8028"
+etag: "sha256-7698303f895d1136100414a70c9f97dd2615039a940055482df8687e504196be"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,15 +67,15 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 - REQ-CAFENODE-028 WHEN 응답이 4xx·5xx 면 THE SYSTEM SHALL 상태별 코드(`CAFE24_404`·`CAFE24_422`·`CAFE24_4XX`·`CAFE24_5XX`)로 에러 포트에 보낸다.
 - REQ-CAFENODE-029 IF 요청이 reject 되면 THE SYSTEM SHALL `CAFE24_TRANSPORT_FAILED` 와 `meta.statusCode = 0` 으로 에러 포트에 보낸다.
 - REQ-CAFENODE-030 WHEN 설정을 에코하면 THE SYSTEM SHALL `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 명시적으로 열거하고 자격 증명은 싣지 않는다.
-- REQ-CAFENODE-031 WHEN 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
+- REQ-CAFENODE-031 WHEN 외부 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
 - REQ-CAFENODE-032 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 `cafe24.<resource>.<operation>`, `api_method` 를 operation method, `api_path` 를 치환 전 path 템플릿으로 채운다.
-- REQ-CAFENODE-033 WHEN dry-run 으로 실행되고 operation method 가 GET 이 아니면 THE SYSTEM SHALL 실제 호출 없이 mock 결과로 `success` 포트에 보낸다.
-- REQ-CAFENODE-034 WHEN dry-run 으로 실행되고 operation method 가 GET 이면 THE SYSTEM SHALL 실제로 호출한다.
-- REQ-CAFENODE-035 WHEN dry-run 으로 mock 결과를 돌려주면 THE SYSTEM SHALL 활동 로그를 1건 남긴다.
+- REQ-CAFENODE-033 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이 아니거나 operation 이 상태를 바꾸는 GET 예외 목록에 있으면 THE SYSTEM SHALL 실제 호출 없이 모의 출력으로 `success` 포트에 보낸다.
+- REQ-CAFENODE-034 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이며 상태를 바꾸는 GET 예외 목록에 없으면 THE SYSTEM SHALL 실제로 호출한다.
+- REQ-CAFENODE-035 WHEN 노드 실행이 dry-run 으로 모의 출력을 돌려주면 THE SYSTEM SHALL 활동 로그를 남기지 않는다.
 - REQ-CAFENODE-036 WHEN 내부 MCP 브리지가 도구를 만들면 THE SYSTEM SHALL 모든 도구 설명 끝에 KST 시간대 안내 한 줄을 붙인다.
 - REQ-CAFENODE-037 WHEN 내부 MCP 브리지가 capability 를 보고하면 THE SYSTEM SHALL `tools` 만 보고하고 `resources`·`prompts` 는 보고하지 않는다.
 - REQ-CAFENODE-038 WHEN AI 에이전트의 노출 도구 목록을 저장하면 THE SYSTEM SHALL bare operation id 배열로 저장한다.
-- REQ-CAFENODE-039 WHEN AI 에이전트가 내부 MCP 브리지로 Cafe24 를 부르면 THE SYSTEM SHALL 호출 시점의 AI 에이전트 노드 실행으로 활동 로그를 남긴다.
+- REQ-CAFENODE-039 WHEN AI 에이전트가 내부 MCP 브리지로 Cafe24 API 를 실제로 부르면 THE SYSTEM SHALL 호출 시점의 AI 에이전트 노드 실행으로 활동 로그를 남긴다.
 - REQ-CAFENODE-040 WHEN AI 에이전트가 도구 목록을 만들 때 통합 상태가 `error` 면 THE SYSTEM SHALL 그 통합의 도구를 빼고 진단에 `skipReason='error'` 를 남긴다.
 - REQ-CAFENODE-041 WHEN AI 에이전트가 도구 목록을 만들 때 통합이 `expired` 이고 사유가 `install_timeout` 이면 THE SYSTEM SHALL 도구를 빼고 `skipReason='expired_install_timeout'` 을 남긴다.
 - REQ-CAFENODE-042 WHEN AI 에이전트가 도구 목록을 만들 때 통합이 `expired` 이고 리프레시 토큰이 없으면 THE SYSTEM SHALL 도구를 빼고 `skipReason='expired_no_refresh_token'` 을 남긴다.
@@ -168,7 +168,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
    - 401 을 받으면 리프레시 토큰으로 액세스 토큰을 한 번 갱신하고 같은 요청을 한 번 재시도한다. 6단계의 사전 갱신이 경쟁 구간에서 빗나간 경우를 이렇게 되살린다. 재시도가 2xx 면 정상 흐름으로 가고, 재시도도 401 이면 인증 실패로 격하한다(아래 "인증 실패 처리"). 403 은 이 갱신 대상이 아니며 즉시 격하한다.
    - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
 10. **응답 파싱**: JSON 본문을 그대로 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs`, `meta.callUsage`(헤더 `X-Cafe24-Call-Usage`), `meta.callRemain`(헤더 `X-Cafe24-Call-Remain`)을 채운다.
-11. **활동 로그 기록**: 성공·실패와 관계없이 1건 남긴다. `error.code` 는 아래 에러 코드 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+11. **활동 로그 기록**: 성공·실패와 관계없이 1건 남긴다. dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 아래 에러 코드 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
     - `api_label` = 카탈로그 키 `cafe24.<resource>.<operation>`(예: `cafe24.product.product_list`). 프론트엔드가 `GET /api/integrations/services/cafe24/catalog` 응답의 `labelKey` 와 i18n 사전으로 사람이 읽는 라벨을 만든다. DB 에는 언어 정보가 없는 카탈로그 키만 저장한다.
     - `api_method` = 메타데이터 행의 `method`(`GET`·`POST`·`PUT`·`DELETE`).
     - `api_path` = 메타데이터 행의 `path` 템플릿. placeholder 를 그대로 둔다(예: `products/{product_no}`). 실제 호출 URL 의 치환값을 넣지 않는다. 엔드포인트 단위로 묶고 path 안 ID 에 담긴 개인정보가 새지 않게 하기 위해서다.
@@ -179,7 +179,9 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 
 ### dry-run
 
-노드 스키마가 `supportsDryRun: true` 인 부수효과 노드다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)). dry-run 에서 operation `method` 가 GET 이 아닌 호출(쓰기: POST·PUT·DELETE)은 외부 쇼핑몰 상태를 바꾸지 않도록 `Cafe24ApiClient` 를 부르지 않고 1단계 직후 mock 응답으로 끝낸다(`buildDryRunMock('cafe24', ...)`, `meta.statusCode=0`, `port:'success'`). GET operation 은 부수효과가 없어 dry-run 에서도 그대로 부른다. mock 으로 끝낸 경우에도 활동 로그를 1건 남긴다.
+노드 스키마가 `supportsDryRun: true` 인 부수효과 노드다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)). dry-run 에서 부수효과로 판정된 operation 은 외부 쇼핑몰 상태를 바꾸지 않도록 `Cafe24ApiClient` 를 부르지 않고 1단계 직후 모의 출력으로 끝낸다(`buildDryRunMock('cafe24', ...)`, `port:'success'`). 모의 출력의 `output` 에는 `_dryRun: true` · `skippedReason` · `wouldHaveCalled`(`kind: 'cafe24'` 와 `operation` · `method` · `resource`)가 들고 `meta` 는 `statusCode: 0` · `durationMs` 다. 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이다. operation `method` 가 GET 이 아닌 호출(쓰기: POST·PUT·DELETE)이 대상이다. Cafe24 에는 상태를 바꾸는 GET 이 없어(2026-10-23 확인) 예외 목록이 비어 있고 GET operation 은 모두 dry-run 에서도 그대로 부른다. 메타데이터를 다시 생성해 쓰기를 뜻하는 낱말이 든 GET 이 생기면 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 예외 목록이나 확인한 조회 목록에 올리게 한다. `scopeType` 은 OAuth 권한 범위라 판정에 쓰지 않는다. 모의 출력으로 끝낸 경우에는 외부 호출이 없었으므로 활동 로그를 남기지 않는다. 이 규칙도 같은 절이 정한다.
+
+AI 에이전트가 내부 MCP 브리지로 부르는 Cafe24 도구도 같은 기준으로 판정하고, 모의 응답으로 대신한 호출은 활동 로그를 남기지 않는다. 다만 도구 경로는 필수 필드 검증(`CAFE24_MISSING_FIELDS`)을 dry-run 확인보다 먼저 한다. 노드는 dry-run 확인이 먼저라 필수 필드가 빠진 쓰기 operation 도 모의 출력으로 끝난다. 도구 경로의 결과 형식은 [MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)이 정한다.
 
 ### 호출 제한
 
@@ -431,7 +433,7 @@ AI 에이전트 설정에서는 리소스 단위로 묶어 고르게 한다. "Pr
 
 ### 활동 로그
 
-MCP 쪽 호출도 같은 활동 로그(`IntegrationUsageLog`)에 기록한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)). `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 통합 상세 화면의 활동 탭은 두 경로의 호출을 함께 보인다. 내부 MCP 브리지는 노드 핸들러 베이스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부르므로 `api` 식별 정보도 직접 채워야 한다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+MCP 쪽 호출도 같은 활동 로그(`IntegrationUsageLog`)에 기록한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)). `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 통합 상세 화면의 활동 탭은 두 경로의 호출을 함께 보인다. 내부 MCP 브리지는 노드 핸들러 베이스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부르므로 `api` 식별 정보도 직접 채워야 한다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05). dry-run 재실행에서 모의 응답으로 대신한 도구 호출은 외부로 나가지 않았으므로 남기지 않는다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
 
 ### 만료된 통합의 도구 목록 처리
 
@@ -534,6 +536,7 @@ App URL 경로의 `:installToken` 으로 통합 **한 행**을 조회한다. 상
 ## 구현 위치
 
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts`
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.schema.ts`
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.component.ts`
 - `codebase/backend/src/nodes/integration/cafe24/metadata/index.ts` (operation 메타데이터)
@@ -605,3 +608,13 @@ POST·PUT 밖의 method 는 허용 목록으로 강제한다. PATCH 같은 metho
 ### 별도 승인 라벨을 메타데이터 한 곳에서 렌더
 
 화면 네 곳(통합 추가 위저드, 통합 상세 권한 범위 영역, 이 노드의 operation 드롭다운, AI 에이전트 노출 도구 목록)의 ⚠ 라벨은 모두 같은 메타데이터(`Cafe24OperationMetadata.restrictedApproval`)에서 자동으로 렌더한다. 명단의 단일 기준은 [Cafe24 별도 승인 scope](CLE-C24-SCOPES)뿐이다. 이 문서는 라벨이 노드와 AI 에이전트의 어디에 보이는지만 적고 명단을 되풀이하지 않는다. operation 목록을 본문에 되풀이하지 않는 것과 같은 이유다(어긋남 방지). 막는 정책을 택하지 않은 이유는 [OAuth 연결과 토큰 갱신 Rationale](../CLE-INT/CLE-INT-OAUTH.md#cafe24-별도-승인-권한-범위는-막지-않고-안내한다)에 있다. 새 에러 코드는 더하지 않았다. 403 때 어떤 코드와 보강 필드로 알리는지는 [미결 사항](#미결-사항)이다.
+
+### dry-run 모의 출력에 활동 로그를 남기지 않는다 (2026-10-23)
+
+이전에는 노드 dry-run 이 모의 출력에도 활동 로그를 1건 남겼다(REQ-CAFENODE-035 의 옛 문장). 같은 dry-run 에서 AI 에이전트의 내부 MCP 브리지 도구 경로는 남기지 않아 두 경로의 규칙이 달랐다. [MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10)(2026-10-10)은 노드의 1건을 모의 실행을 활동 탭에서 추적하려는 것이라 적었지만 요구사항 문서에는 근거가 없었다. HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터(2026-05-31, #390) 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다.
+
+2026-10-23 에 두 경로를 맞추면서 사람이 «둘 다 남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출의 기록이고 통합의 활동 탭과 `lastUsedAt` 이 이 기록에서 나온다. 모의 실행은 실행 상세의 노드 출력(`output._dryRun`)에서 확인한다. 같은 날 dry-run 판정도 노드와 도구가 같은 함수를 쓰도록 맞췄고, MakeShop 노드도 같은 규칙을 요구사항으로 두었다. 근거 전체는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)에 있다.
+
+- 기각한 안: «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드만 남기는 차이를 그대로 두는 안은 같은 dry-run 에서 두 경로의 규칙이 갈려 택하지 않았다.
+- 상태를 바꾸는 GET 예외 목록: MakeShop `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꾼다. 메서드만으로는 부족한 곳이 있어 판정에 예외 목록을 더했다. Cafe24 목록은 비어 있고, 목록이 낡지 않도록 단위 테스트가 쓰기 낱말이 든 GET 을 예외 목록이나 확인한 조회 목록에 올리게 한다.
+- 요구사항 변경: REQ-CAFENODE-035 는 «dry-run 으로 mock 결과를 돌려주면 활동 로그를 1건 남긴다» 에서 «남기지 않는다» 로 바꿨다. REQ-CAFENODE-033 · REQ-CAFENODE-034 는 상태를 바꾸는 GET 예외 목록을 판정에 더했다. REQ-CAFENODE-039 는 실제로 부른 호출로, REQ-CAFENODE-031 은 외부 호출로 범위를 좁혔다.

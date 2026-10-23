@@ -134,10 +134,11 @@ export const cafe24NodeMetadata: NodeComponentMetadata = {
   icon: 'ShoppingBag',
   color: '#F97316',
   executionMetadata: { kind: 'standard' },
-  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — cafe24 is an external
+  // Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — cafe24 is an external
   // side-effect Integration node. In dry-run, the handler mocks WRITE operations
-  // (POST/PUT/DELETE) and passes READ operations (GET) through unchanged (§7.1
-  // — read calls have no side effect, like Database SELECT).
+  // (POST/PUT/DELETE) and passes READ operations (GET) through unchanged (read
+  // calls have no side effect, like Database SELECT). A GET listed in
+  // `CAFE24_STATE_CHANGING_GET_OPERATION_IDS` (currently none) is mocked too.
   supportsDryRun: true,
   summaryTemplate: {
     template: '{{resource}} · {{operation}}',

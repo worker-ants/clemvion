@@ -952,8 +952,8 @@ describe('Cafe24McpToolProvider', () => {
       expect(JSON.parse(res.content).error.code).toBe('CAFE24_MCP_NO_SESSION');
     });
 
-    // 재실행 「dry-run」 임시 가드 — 쓰기든 읽기든 Cafe24 API 를 부르지 않는다.
-    // GET 통과와 모의 응답은 후속 Task(CLE-T-G62XJS) 몫이다.
+    // 재실행 「dry-run」 — GET 이 아닌 operation 은 Cafe24 API 를 부르지 않고 모의
+    // 응답을 받는다. GET 은 실제로 호출한다(CLE-EXEC-RERUN 「부수효과 판정」).
     describe('dry-run re-run (ctx.dryRun)', () => {
       const dryCtx = {
         config: {},
@@ -975,9 +975,11 @@ describe('Cafe24McpToolProvider', () => {
             supply_price: '800',
           },
         ],
-        ['read (GET)', 'product_list', 'GET', { shop_no: 1 }],
+        // scopeType 은 'read' 지만 PUT 이다. 판정은 OAuth scope 가 아니라
+        // HTTP 메서드를 본다.
+        ['read-scoped PUT', 'carts_setting_update', 'PUT', {}],
       ])(
-        'does not call Cafe24ApiClient for a %s operation',
+        'mocks a %s operation without calling Cafe24ApiClient',
         async (_label, op, method, args) => {
           const { sid } = await setup();
 
@@ -999,6 +1001,29 @@ describe('Cafe24McpToolProvider', () => {
           expect(parsed.message).toMatch(/dry-run/);
         },
       );
+
+      it('calls Cafe24ApiClient for a GET operation and logs usage', async () => {
+        const { sid } = await setup();
+        apiClient.call.mockResolvedValue({
+          status: 200,
+          body: { products: [{ product_no: 1 }] },
+          headers: {},
+          retries: 0,
+        });
+
+        const res = await provider.execute(
+          makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
+          dryCtx,
+        );
+
+        expect(apiClient.call).toHaveBeenCalledTimes(1);
+        const parsed = JSON.parse(res.content);
+        expect(parsed._dryRun).toBeUndefined();
+        expect(parsed.response).toEqual({ products: [{ product_no: 1 }] });
+        expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'success', api: PRODUCT_LIST_API }),
+        );
+      });
 
       it('still reports CAFE24_MISSING_FIELDS before the dry-run skip', async () => {
         const { sid } = await setup();

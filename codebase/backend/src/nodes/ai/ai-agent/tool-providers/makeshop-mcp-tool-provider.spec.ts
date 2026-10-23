@@ -745,8 +745,9 @@ describe('MakeshopMcpToolProvider', () => {
       );
     });
 
-    // 재실행 「dry-run」 임시 가드 — 쓰기든 읽기든 MakeShop API 를 부르지 않는다.
-    // GET 통과와 모의 응답은 후속 Task(CLE-T-G62XJS) 몫이다.
+    // 재실행 「dry-run」 — GET 이 아니거나 상태를 바꾸는 GET 인 operation 은
+    // MakeShop API 를 부르지 않고 모의 응답을 받는다. 나머지 GET 은 실제로
+    // 호출한다(CLE-EXEC-RERUN 「부수효과 판정」).
     describe('dry-run re-run (ctx.dryRun)', () => {
       const dryCtx = {
         config: {},
@@ -767,9 +768,16 @@ describe('MakeshopMcpToolProvider', () => {
             datas: [{ id: 'm1', point: 100 }],
           },
         ],
-        ['read (GET)', 'get_product', 'get-product', 'GET', { limit: '10' }],
+        // 메서드는 GET 이지만 카트프리 설정을 바꾼다.
+        [
+          'state-changing GET',
+          'get_cart_free_config_update',
+          'get-cart_free_config-update',
+          'GET',
+          { use: 'Y' },
+        ],
       ])(
-        'does not call MakeshopApiClient for a %s operation',
+        'mocks a %s operation without calling MakeshopApiClient',
         async (_label, token, op, method, args) => {
           await setup();
 
@@ -791,6 +799,32 @@ describe('MakeshopMcpToolProvider', () => {
           expect(parsed.message).toMatch(/dry-run/);
         },
       );
+
+      it('calls MakeshopApiClient for a GET operation and logs usage', async () => {
+        await setup();
+        apiClient.call.mockResolvedValue({
+          status: 200,
+          body: { products: [{ uid: 1 }] },
+          headers: {},
+          retries: 0,
+        });
+
+        const res = await provider.execute(
+          makeCall(`mcp_${SID}__get_product`, { limit: '10' }),
+          dryCtx,
+        );
+
+        expect(apiClient.call).toHaveBeenCalledWith(
+          expect.objectContaining({ id: SID }),
+          expect.objectContaining({ method: 'GET', path: 'product' }),
+        );
+        const parsed = JSON.parse(res.content);
+        expect(parsed._dryRun).toBeUndefined();
+        expect(parsed.response).toEqual({ products: [{ uid: 1 }] });
+        expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'success' }),
+        );
+      });
     });
   });
 
