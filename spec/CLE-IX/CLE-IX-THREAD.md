@@ -2,19 +2,19 @@
 id: "CLE-IX-THREAD"
 title: "대화 스레드"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "509a0cc1552234311d52b455dd451e147dd952af3218c2acabafb8d02a1a5451"
-read_as: "approved"
-task: null
+content_hash: "98c82970a68f86a1e2e8734c6a7d09a4c5c643300d99aa8a889bf296fa5b6d63"
+read_as: "approved_fallback"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "e1c79d6f18aabe753bbc128a1ee304e36713332d034e9d4b64671d67fca03072"
-etag: "sha256-bf03b8e9113aaa02f29885fc5d5ce433fef758df1f41508ef8132d2a2bd79d1e"
+mirror_sha256: "aa22d332778350f4357a97a964bc0c01f81575f536b34a822119dcd9a1943889"
+etag: "sha256-8bec08f5a9bfd7f2ab317a7d4c516e9b1cc2a49315d10ab0f71354b3c5ea38e0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§1~§8, 1–467행. §9 미리보기 렌더 규칙과 §8.1·§8.2·§8.5 근거는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -72,7 +72,7 @@ etag: "sha256-bf03b8e9113aaa02f29885fc5d5ce433fef758df1f41508ef8132d2a2bd79d1e"
 
 #### `rag`
 
-`rag` 도 프런트엔드가 합성하는 출처다. 대화 타임라인 위에 지식 저장소 검색을 일급 이벤트로 표시한다. 1차 소스는 `meta.turnDebug[].ragSources` 이고, 스레드 밖의 보조 관찰성 레인이다. 이 검색이 "엔진이 LLM 호출 전에 자동으로 한 검색" 인지, LLM 이 부른 지식 저장소 도구(`ai_tool`)의 결과인지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+`rag` 도 프런트엔드가 합성하는 출처다. 그 턴에 지식 저장소 도구(`kb_*`) 호출이 가져온 청크를 대화 타임라인 위에 일급 이벤트로 표시한다. 1차 소스는 `meta.turnDebug[].ragSources` 이고, 스레드 밖의 보조 관찰성 레인이다. 엔진은 LLM 호출 전에 지식 저장소를 미리 검색하지 않으므로 이 청크는 늘 LLM 이 부른 도구의 결과다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)). 같은 호출은 대화 미리보기에서 도구 행(`ai_tool`)으로도 보인다. 도구 행은 호출 하나와 그 결과이고, `rag` 는 그 턴에 모인 청크를 `chunkId` 중복 없이 모은 것이다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)).
 
 `ragSources` 스키마와 UI 노출 정책은 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 이 정한다. 📚 참조 칩(assistant 말풍선 아래, 참조 탭으로 이동)은 그 문서가 이미 승인한 표현이고, 🔎 `rag` 행은 같은 데이터의 타임라인 표현이다.
 
@@ -310,7 +310,7 @@ system_text 모드의 systemPrompt 조립 순서(System Context Prefix → 사�
 
 ## 미결 사항
 
-- **`rag` 가 나타내는 검색이 무엇인가**: 이 문서와 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 는 🔎 `rag` 를 "엔진이 LLM 호출 전에 자동으로 한 지식 저장소 검색" 으로 정의하고 LLM 이 부른 지식 저장소 도구(`ai_tool`)와 인과가 다르다고 구분한다. 반면 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)·[AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)·[RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 은 지식 저장소 검색이 LLM 의 도구 호출로만 일어나고 미리 채우지(prefill) 않는다고 적는다. 현재 구현에서 검색 서비스를 부르는 곳은 지식 저장소 도구(`kb_*`) 경로와 디버그 API 뿐이다(분석 단계 확인). 같은 충돌이 [RAG 검색 §미결 사항](../CLE-KB/CLE-KB-SEARCH.md#미결-사항) 에도 올라 있다. 그래서 `rag` 행은 실제로 LLM 도구 호출 결과를 자동 검색처럼 보여 줄 수 있다. `rag` 정의를 "도구 호출이 가져온 청크의 타임라인 표시" 로 고칠지, LLM 호출 전 자동 검색 기능을 새로 만들지 결정 필요.
+없음. 2026-10-10 에 «`rag` 가 나타내는 검색이 무엇인가» 를 닫았다. 결정은 Rationale 「`rag` 를 프런트엔드 합성 출처로 둔다」 에 있다.
 
 ## 구현 위치
 
@@ -348,7 +348,7 @@ LLM payload 표현(접두가 붙음)과 스레드 본문(원문)은 층이 다�
 
 ### `rag` 를 프런트엔드 합성 출처로 둔다
 
-지식 저장소 검색을 대화 타임라인의 일급 이벤트로 보이기 위해 `rag` 출처를 프런트엔드 합성 값으로 뒀다. 백엔드 다섯 값은 그대로이고 1차 소스는 `meta.turnDebug[].ragSources` 다. 이 소스를 고른 이유, `ai_tool` 을 다시 쓰지 않는 이유, "대화 턴 1차 소스는 스레드" 원칙과의 관계, 옛 데이터 한계는 [대화 미리보기 §`rag` 줄을 보조 관찰성 레인으로 둔다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#rag-줄을-보조-관찰성-레인으로-둔다) 에 있다. 이 검색이 무엇을 나타내는지는 [미결 사항](#미결-사항) 이다.
+지식 저장소 검색을 대화 타임라인의 일급 이벤트로 보이기 위해 `rag` 출처를 프런트엔드 합성 값으로 뒀다. 백엔드 다섯 값은 그대로이고 1차 소스는 `meta.turnDebug[].ragSources` 다. 이 소스를 고른 이유, `ai_tool` 을 다시 쓰지 않는 이유, "대화 턴 1차 소스는 스레드" 원칙과의 관계, 옛 데이터 한계는 [대화 미리보기 §`rag` 줄을 보조 관찰성 레인으로 둔다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#rag-줄을-보조-관찰성-레인으로-둔다) 에 있다. 2026-10-10 에 `rag` 를 «`kb_*` 도구 호출이 가져온 청크의 타임라인 표시» 로 정했다. LLM 호출 전 자동 검색을 새로 만드는 안을 기각한 근거는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 의 Rationale 에 있다.
 
 ### 입력 대기 때 스레드를 실행 행에 저장한다
 

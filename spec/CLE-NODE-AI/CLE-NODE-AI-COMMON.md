@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "5024258472e58a93249cc8f2de845a4f80059c674c0bbb8ab0fb3be11ed54f75"
-read_as: "approved"
-task: null
+content_hash: "9f3b124c4ccfa3f9722ae5626030f21c4763fd47eb44ee2f01a277bb3b6a7a62"
+read_as: "approved_fallback"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3fe523d86483a1f34ddeb05c707d06650c3628c2ef1ab98b392d8c4d7f3be76f"
-etag: "sha256-221c56c4592895282c4996c51bbbb11d54021916bba5871ece7eacb5282bdd95"
+mirror_sha256: "d06705d6a694027c5aaa5023e23bc2f80346e56cff82ad4cffdd30e85feb8875"
+etag: "sha256-cede7689cdcd7bd236997125306092663521dccb0fec88043d230e967ea35470"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드]
 
 1. AI 노드는 모두 `llmConfigId`(모델 설정 참조 필드)와 `model`(모델 ID) 두 필드로 LLM 호출 설정을 고른다.
 2. 지식 저장소 연결 필드(`knowledgeBases`·`ragTopK`·`ragThreshold`)와 MCP 연결 필드(`mcpServers`·`maxToolCalls`)는 AI 에이전트 노드만 갖는다. 텍스트 분류기와 정보 추출기에는 이 필드가 없다.
-3. 지식 저장소 검색은 LLM 이 지식 저장소 도구(`kb_*`)를 부를 때 실행한다. LLM 호출 전 자동 검색(prefill) 여부는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+3. 지식 저장소 검색은 LLM 이 지식 저장소 도구(`kb_*`)를 부를 때만 실행한다. 엔진은 LLM 호출 전에 지식 저장소를 미리 검색(prefill)하지 않는다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)).
 4. 멀티턴(`multi_turn`)은 AI 에이전트와 정보 추출기만 쓴다. 종료 조건을 채우지 못하면 `status: 'waiting_for_input'`, `interactionType: 'ai_conversation'` 으로 멈춘다.
 5. 멀티턴의 사용자 응답 대기에는 타임아웃이 없다. 외부 취소만 대기를 끝낸다.
 6. 도메인 결과는 `output.result.*`, 에러는 `output.error.{code, message, details?}`, 사용자 입력 기록은 `output.interaction.*` 에 둔다.
@@ -76,7 +76,7 @@ AI 에이전트 노드는 다음 필드로 지식 저장소 검색을 켠다. �
 
 LLM 은 도구 호출 인자로 `ragTopK`·`ragThreshold` 를 덮어쓸 수 있다. 두 값의 의미, 동적 점수 컷, 리랭킹 해석, 도구 인터페이스와 이름 규칙은 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 에서 정한다.
 
-LLM 호출 전에 엔진이 지식 저장소를 자동 검색하는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조. 현재 구현은 LLM 이 지식 저장소 도구를 부를 때만 검색한다.
+엔진은 LLM 호출 전에 지식 저장소를 자동으로 검색하지 않는다. 검색은 LLM 이 지식 저장소 도구를 부를 때만 일어난다. 대화 미리보기의 🔎 `rag` 행은 그 턴의 도구 호출이 가져온 청크를 모아 보여 준다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)).
 
 ## MCP 서버 연결 (AI 에이전트 전용)
 
@@ -349,7 +349,7 @@ AI 제품 정의에 있던 기술 결정과 비기능 요구사항이다. 항목
 
 | ID | 요구사항 | 기준 | 소유 문서 |
 |----|----------|------|-----------|
-| NF-AI-01 | LLM API 호출 타임아웃 | 120초 (스트리밍 제외). 실제 정책과 어긋난다. [미결 사항](#미결-사항), [LLM 클라이언트 미결 사항](../CLE-AI/CLE-AI-LLM.md#미결-사항) 참조 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md), [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| NF-AI-01 | LLM API 호출 타임아웃 | 호출 경로마다 다르다. 모든 호출에 거는 공통 한도(옛 120초)는 두지 않는다. 경로별 값은 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md), [AI 에이전트 노드](CLE-NODE-AGENT.md) |
 | NF-AI-02 | 임베딩 처리 속도 | 100 청크/분 이상 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
 | NF-AI-03 | RAG 검색 응답 시간 | 500ms 미만 (청크 1만 개 기준) | [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) |
 | NF-AI-04 | API 키 저장 시 암호화 | AES-256-GCM 필수 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md) |
@@ -358,11 +358,27 @@ AI 제품 정의에 있던 기술 결정과 비기능 요구사항이다. 항목
 
 LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/CLE-AI-MODELS.md), 지식 저장소 요구사항(KB-*)은 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md), 워크플로우 AI 어시스턴트는 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 가 정한다.
 
+### LLM 호출 경로별 타임아웃
+
+아래 표가 NF-AI-01 의 기준이다. 앱이 호출에 거는 타임아웃(`LlmService.chat` 의 `timeoutMs` 등)을 호출 경로별로 적는다. 값과 동작은 각 소유 문서가 정한다.
+
+| 호출 경로 | 앱 타임아웃 | 한도를 넘거나 호출이 실패하면 | 소유 문서 |
+|-----------|-------------|-------------------------------|-----------|
+| AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 멀티턴 재개는 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 단일 턴은 에러 코드 없이 노드가 실패한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 3.1 의 런타임 에러 처리를 아직 지키지 못하는 구현 공백이다(NERV Task `CLE-T-ZHBMAC`) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음 | 그 턴이 실패한다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| 텍스트 분류기·정보 추출기 | 없음 | `LLM_CALL_FAILED` | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
+| 워크플로우 AI 어시스턴트 턴 | 없음. 스트리밍 호출(`chatStream`)만 쓴다 | 스트림 에러 코드로 턴이 끝난다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) |
+| 문서 임베딩 배치 | 60초 | 그 호출이 실패하고, 일시 오류로 보아 다시 시도한다 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
+| Graph RAG 추출(청크 하나의 `chat`) | 90초 | 그 호출이 실패하고, 일시 오류로 보아 문서 단위로 다시 시도한다 | [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) |
+| 모델 목록 조회 | 30초 | `LLM_MODEL_LIST_FAILED` | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| 그 밖의 호출(연결 테스트, RAG 검색어 임베딩, 평가 채점, 에이전트 메모리 추출·임베딩 등) | 없음 | 호출한 쪽의 실패 처리를 따른다 | 각 기능 문서 |
+
+- 앱 타임아웃이 없어도 SDK 요청 타임아웃은 걸린다. OpenAI·Azure·Local·Anthropic SDK 는 요청마다 약 120초이고 Google SDK 에는 없다. SDK 타이머는 응답 헤더가 오면 멈추고, SDK 는 타임아웃 난 요청을 기본 2회 다시 보낸다. 자세한 내용은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
+- 어느 경로도 LLM 타임아웃을 `LLM_TIMEOUT` 코드로 내보내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)).
+
 ## 미결 사항
 
-- **LLM 호출 전 지식 저장소 자동 검색(prefill) 여부**: AI 노드 문서와 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 의 검색 흐름 절은 지식 저장소 검색이 LLM 의 능동 호출(`kb_*` 도구)로만 일어나고 prefill 하지 않는다고 적는다. [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 의 관찰성 레인 정의와 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 의 `ragSources` 표시 절은 🔎 `rag` 행을 "엔진이 LLM 호출 전에 자동으로 한 검색" 으로 정의하고 LLM 이 부른 도구(`ai_tool`)와 인과가 다르다고 구분한다. 현재 구현은 검색 서비스를 지식 저장소 도구 경로와 디버그 컨트롤러에서만 부른다. 그래서 `rag` 행은 실제로는 LLM 도구 호출 결과를 "자동 검색" 으로 보여 준다. `rag` 행 정의를 "지식 저장소 도구 결과의 보조 표시" 로 고칠지, 자동 검색 기능을 새로 만들지 결정 필요.
 - **인증 실패(401·403)의 재시도 가능 분류**: [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 [AI 에이전트 노드](CLE-NODE-AGENT.md)·[텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 문서는 인증 실패를 `retryable: false` 로 정한다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 고정한다. 코드도 갈린다. 정보 추출기 핸들러(`retryabilityDetails`)는 코드 기준이라 늘 `true` 이고, 텍스트 분류기 핸들러(`text-classifier.handler.ts` 234~241행)는 자기 문서와 달리 `LLM_CALL_FAILED` 를 늘 `true` 로 채운다. 같은 인증 실패에서 노드마다 [다시 시도] 버튼 노출이 달라진다. HTTP status 기준 분류로 통일할지, 정보 추출기의 코드 기준 예외를 규약에 적을지 결정 필요.
-- **LLM 호출 타임아웃 기준**: NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구한다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 는 앱 레벨 기본값을 10분(`AI_AGENT_LLM_CALL_TIMEOUT_MS=600000`)으로 두고, 120초는 OpenAI·Anthropic·Azure·Local SDK 의 기본값일 뿐이라고 적는다. `LlmService` 는 `timeoutMs` 를 주지 않으면 앱 타임아웃이 없다. Google 처럼 SDK 기본값이 없는 프로바이더에서는 NF-AI-01 이 보장되지 않는다. 또 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 NF-AI-01 을 근거로 스트리밍 턴에 120초와 `LLM_TIMEOUT` 을 약속하지만 NF-AI-01 은 스트리밍을 제외하고, [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 는 타임아웃을 `LLM_TIMEOUT` 으로 매핑하지 않는다. 워크플로우 에디터 요구사항 ED-AI-32 도 NF-AI-01 을 "스트리밍 제외" 조건 없이 인용해 어시스턴트 단일 턴 타임아웃을 120초로 적는다. 어시스턴트는 스트리밍만 쓰므로 NF-AI-01 이 적용되는지부터 정해지지 않았다([워크플로우 AI 어시스턴트 미결 사항](../CLE-WF/CLE-WF-ASSIST.md#미결-사항), [LLM 클라이언트 미결 사항](../CLE-AI/CLE-AI-LLM.md#미결-사항)). NF-AI-01 을 호출 경로별 실제 정책으로 다시 적을지, 앱 레벨 기본값을 120초로 낮출지, 스트리밍에 타임아웃을 둘지 결정 필요.
 - **자동 메모리 전략에서 opt-out 필드 노출**: 이 문서는 자동 전략에서 `excludeFromConversationThread` 가 유효하다고 정한다. 설정 화면은 자동 전략일 때 대화 맥락 필드 5개를 모두 숨긴다(`gateOnManualMemoryStrategy`). 원문 AI 에이전트 문서의 `memoryStrategy` 행과 원본 ND-AG-27 은 "`manual` 외 선택 시 5필드 무효" 라고 적었다. 자동 전략에서 opt-out 필드를 화면에 보일지 결정 필요.
 - **에러 출력의 `meta` 필수 여부**: 토큰 회계 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
 - **포트 type 표기**: [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 포트 정의 `type` enum 은 `data`·`control`·`error` 세 값이다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 는 시스템 포트에 `system` 을 쓴다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 는 시스템 포트와 에러 포트를 `data` 로 적는다. [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 는 에러 포트를 `error` 로 적는다. 현재 프런트엔드 `resolve-dynamic-ports.ts` 는 `DynamicPortType` 에 `system` 을 두고 AI 에이전트 시스템 포트에도 `system` 을 쓴다. enum 에 `system` 을 더할지, 노드 포트 표를 어느 값으로 맞출지 결정 필요.
@@ -423,6 +439,15 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 ### 캔버스 요약의 `· {N} tools` 세그먼트 폐기
 
 AI 에이전트 요약의 옛 `· {N} tools` 세그먼트는 도구 영역(Tool Area)을 제거하면서 폐기했다.
+
+### LLM 호출 타임아웃을 호출 경로별 현행 값으로 적는다 (2026-10-10)
+
+**문제**: NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 코드에는 모든 호출에 거는 120초가 없다. AI 에이전트 턴은 앱 기본값 10분을 걸고, 그 밖의 경로는 대부분 `timeoutMs` 를 주지 않아 SDK 요청 타임아웃만 받는다. Google SDK 에는 그 타임아웃도 없다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 NF-AI-01 을 근거로 스트리밍 턴에 120초와 `LLM_TIMEOUT` 을 약속했지만, NF-AI-01 은 스트리밍을 빼고 어느 경로도 `LLM_TIMEOUT` 을 내지 않는다.
+
+**결정**: 2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 공통 120초 기준을 거두고 호출 경로별 현행 값을 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표에 적는다. LLM 타임아웃은 `LLM_TIMEOUT` 코드로 내지 않는다.
+
+- 기각: 앱 기본값을 120초로 낮추는 안. 큰 출력이나 extended thinking 처럼 정상이지만 오래 걸리는 생성이 끊긴다. AI 에이전트 턴에 10분을 둔 근거는 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 Rationale 에 있다. OpenAI 계열과 Anthropic 은 이미 SDK 가 요청마다 약 120초를 건다.
+- 기각: 어시스턴트의 스트리밍 턴에 앱 타임아웃을 두는 안. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이번 결정에서 검토하지 않았다. 필요하면 별도 요구사항으로 올린다.
 
 ### 임베딩 처리를 in-process 에서 큐로 바꾼 이력
 

@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "912540b2f2d13333235a96f19572749562e34b05a1f4a3efc418515a2059ff12"
+content_hash: "53156c4c6c040c733ccf708cb7d2466734608334d63470d6cc6e125d99bbbfdd"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "f9ac3287f63a5914a87d935108c589b64efc678059f68bdc89d516db4d886f3a"
-etag: "sha256-1775bde512c723f6fbac832ab590de9c3af0a6da05c0812fae26c6b296c6c03e"
+mirror_sha256: "31bca9974a76bb58cf4166e2b70878a95119aabdba0d9302b51db21781494a1f"
+etag: "sha256-dc3051c14af5cf8b8e75c7a1a8f465ea3b6395a6a2dab32e7bd9ecc07fc30a57"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -93,7 +93,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-045 WHEN 세션 삭제 API 가 호출되면 THE SYSTEM SHALL 세션과 그 메시지를 함께 지운다. (원본: ED-AI-30)
 - REQ-ASSIST-046 WHEN 워크플로우가 삭제되면 THE SYSTEM SHALL 그 세션과 메시지를 cascade 로 지운다. (원본: ED-AI-30)
 - REQ-ASSIST-047 WHEN 첫 사용자 메시지의 응답이 끝나면 THE SYSTEM SHALL 첫 메시지를 40자 이내로 잘라 세션 제목으로 저장하고 사용자가 고칠 수 있게 한다. (원본: ED-AI-31)
-- REQ-ASSIST-048 IF 어시스턴트 턴의 LLM 호출이 타임아웃 한도를 넘으면 THE SYSTEM SHALL 턴을 끝내고 다시 시도할지 안내한다(한도 값과 스트리밍 적용 여부는 미결 사항). (원본: ED-AI-32)
+- REQ-ASSIST-048 IF 어시스턴트 턴의 LLM 스트림이 실패하면(프로바이더 SDK 요청 타임아웃 포함) THE SYSTEM SHALL 턴을 끝내고 에러 버블에 에러 코드와 사유를 보인다. (원본: ED-AI-32)
 - REQ-ASSIST-049 IF 한 턴의 도구 호출 수가 어시스턴트 도구 호출 한도를 넘거나 LLM 라운드가 50에 이르면 THE SYSTEM SHALL `ASSISTANT_TOO_MANY_TOOL_CALLS` 로 턴을 끝내고 이어서 진행 안내를 보인다. (원본: ED-AI-33)
 - REQ-ASSIST-050 WHEN 어시스턴트가 LLM 을 부르면 THE SYSTEM SHALL `llm_usage_log` 에 `workflow_id`·`workspace_id` 와 함께 사용량을 적는다. (원본: ED-AI-34)
 - REQ-ASSIST-051 WHILE 대화 기록을 LLM 에 넘기는 동안 THE SYSTEM SHALL 최근 30턴만 넘기고 그 이전 기록은 서버에만 둔다.
@@ -244,9 +244,10 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 |------|------|-------------|
 | `ASSISTANT_NO_LLM_CONFIG` | 모델 설정도 워크스페이스 기본 설정도 없다. 지정한 설정이 삭제됐거나 워크스페이스 밖인데 기본 설정으로 대신하지도 못하면 이 코드다 | "LLM 설정을 먼저 등록해 주세요." 와 설정 화면 링크 |
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 [어시스턴트 도구 호출 한도](#어시스턴트-도구-호출-한도)를 넘었다 | "이어서 진행해줘" 같은 후속 메시지 안내. 다음 턴에 남은 단계를 이어서 한다. 에러 버블에 "이어서 진행" 버튼을 보인다 |
-| `ASSISTANT_STREAM_FAILED` | 스트리밍 중 LLM 이나 네트워크가 실패했다 | 에러 버블에 사유와 재시도 안내 |
-| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)의 에러 매핑) | "잠시 후 다시 시도해 주세요." 와 재시도 버튼(정의가 갈린다. [미결 사항](#미결-사항) 참조) |
-| `LLM_TIMEOUT` | LLM 호출 타임아웃(정의가 갈린다. [미결 사항](#미결-사항) 참조) | "응답이 늦어지고 있어요. 다시 시도할까요?" |
+| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전에 클라이언트가 예외를 던졌거나 턴 처리 중 서비스 안에서 실패했다. OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열 때의 실패(429, SDK 요청 타임아웃 포함)가 이 코드로 온다 | 에러 버블에 사유와 재시도 안내 |
+| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)의 스트리밍 에러 매핑). OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보낸다 | "잠시 후 다시 시도해 주세요." 와 재시도 버튼(정의가 갈린다. [미결 사항](#미결-사항) 참조) |
+| `LLM_CONNECTION_ERROR` | 스트림이 열린 뒤 429 가 아닌 이유로 실패했다(모든 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). Anthropic·Google 은 스트림을 열 때의 429 밖 실패도 이 코드로 보낸다. Anthropic 의 SDK 요청 타임아웃도 여기에 든다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 스트리밍 에러 매핑) | 에러 버블에 에러 코드와 사유 |
+| `LLM_OUTPUT_MALFORMED` | OpenAI 계열 스트림에 gpt-oss 계열 모델의 harmony 제어 토큰이 드러났다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 harmony 제어 토큰 거르기) | 에러 버블에 원시 메시지 대신 안내문 |
 | `ASSISTANT_TOOL_FAILED` | 편집 도구가 Shadow 검증에 실패했다 | 배지에 구체 사유([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#shadow-검증-규칙))를 보이고 LLM 이 다음 라운드에 복구를 시도한다 |
 | `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 |
 | `ASSISTANT_SESSION_NOT_YOURS` | 같은 워크스페이스의 다른 사용자 세션이다. 다른 워크스페이스의 세션은 `ASSISTANT_SESSION_NOT_FOUND` 로 온다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#세션-rest-api)) | 접근 거부 |
@@ -308,7 +309,12 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 
 ### LLM 호출 타임아웃
 
-단일 턴 타임아웃은 120초로 적혀 있다. 근거와 적용 범위는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+어시스턴트는 스트리밍 호출(`chatStream`)만 쓰고 앱 타임아웃을 걸지 않는다. 턴이나 호출마다 거는 120초 한도는 없다(2026-10-10 결정, [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01).
+
+- OpenAI·Azure·Local·Anthropic 에는 SDK 요청 타임아웃(약 120초)이 응답 헤더가 올 때까지만 걸린다. Google 에는 없다.
+- SDK 요청 타임아웃이 나면 OpenAI 계열은 `ASSISTANT_STREAM_FAILED`, Anthropic 은 `LLM_CONNECTION_ERROR` 로 턴이 끝난다([에러 처리](#에러-처리)).
+- 헤더가 온 뒤 토큰이 멈추면 서버가 잡지 못한다. 사용자가 중지(Stop)로 턴을 끊는다.
+- `LLM_TIMEOUT` 코드는 내지 않는다.
 
 ### 어시스턴트 도구 호출 한도
 
@@ -489,9 +495,9 @@ flowchart TD
 | `assistant.exampleAddCancelFlow` | 주문 취소 프로세스 추가해줘 | Add an order cancellation flow |
 | `assistant.exampleAddHeader` | HTTP 노드에 Authorization 헤더 추가 | Add an Authorization header to the HTTP node |
 | `assistant.exampleReview` | 현재 워크플로우를 검토하고 개선점 제안해줘 | Review this workflow and suggest improvements |
-| `assistant.errorNoLlmConfig` | LLM 설정을 먼저 등록해요. | Please register an LLM config first. |
-| `assistant.errorRateLimit` | 잠시 후 다시 시도해요. | Rate limited. Please retry in a moment. |
-| `assistant.errorTimeout` | 응답이 늦어지고 있어요. | Response is taking too long. |
+| `assistant.errorNoLlmConfig`(미사용) | LLM 설정을 먼저 등록해요. | Please register an LLM config first. |
+| `assistant.errorRateLimit`(미사용) | 잠시 후 다시 시도해요. | Rate limited. Please retry in a moment. |
+| `assistant.errorTimeout`(미사용) | 응답이 늦어지고 있어요. | Response is taking too long. |
 | `assistant.opAdded` | 노드 추가: {{label}} | Added node: {{label}} |
 | `assistant.opUpdated` | 노드 수정: {{label}} | Updated node: {{label}} |
 | `assistant.opRemoved` | 노드 삭제: {{label}} | Removed node: {{label}} |
@@ -503,6 +509,8 @@ flowchart TD
 | `assistant.executionNotInScope` | 이 실행은 현재 워크플로우의 것이 아니에요. | This execution does not belong to the current workflow. |
 
 `assistant.planApproveConfirm` 은 안내 상자로는 쓰지 않는다. "계획대로 진행" 버튼(`approveActivePlan`)이 사용자 메시지로 보낼 때 쓴다.
+
+`(미사용)` 을 단 세 키는 사전에만 있고 읽는 코드가 없다. 에러 버블은 서버가 보낸 에러 코드와 사유를 보인다. 어시스턴트는 `LLM_TIMEOUT` 을 내지 않는다([LLM 호출 타임아웃](#llm-호출-타임아웃)).
 
 ## 범위 밖과 후속 과제
 
@@ -530,7 +538,6 @@ flowchart TD
 
 ## 미결 사항
 
-- **LLM 호출 타임아웃의 값과 근거**: 원문은 단일 턴 타임아웃을 "LLM 클라이언트 §6 에 따라 120초" 로 적고 `LLM_TIMEOUT` 에러와 안내 문구를 둔다. 워크플로우 에디터 PRD ED-AI-32 도 NF-AI-01 을 들어 120초로 적는다. 그런데 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항)에는 120초 규정이 없고 타임아웃을 `LLM_TIMEOUT` 으로 매핑하지 않는다고 적는다. AI PRD 의 NF-AI-01([AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항))은 120초를 "스트리밍 제외" 로 한정하는데 AI 어시스턴트는 스트리밍만 쓴다. 현재 구현의 AI 어시스턴트 모듈에도 120초 타임아웃이 없다. 두 문서의 같은 미결 항목과 함께 정리한다. 스트리밍 턴에 타임아웃을 둘지, 둔다면 값과 에러 코드를 무엇으로 할지 결정 필요.
 - **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. PRD ED-AI-26 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. 버튼을 둘지 결정 필요.
 
 ## 구현 위치
@@ -646,6 +653,12 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 ### 에러 버블에 "이어서 진행" 버튼을 더했다
 
 `ASSISTANT_TOO_MANY_TOOL_CALLS` 가 나면 사용자가 입력창에 "이어서 진행해줘" 를 직접 쳐야 복구할 수 있었다. 그래서 `assistant-store.ts` 에 `sendMessage` 를 감싸 현재 언어의 메시지를 보내는 `continueAfterBudget` 동작을 더하고 `assistant-message.tsx` 에 `RESUMABLE_ERROR_CODES` 집합을 두어 에러 버블 아래 버튼을 보이게 했다. `assistant-panel.tsx` 가 `onContinueAfterBudget` 콜백을 `AssistantMessageView` 로 넘겨 스냅샷 결합을 유지한다. 계획 승인 버튼과 같은 패턴이다.
+
+### 어시스턴트 턴에 120초 타임아웃을 두지 않는다 (2026-10-10)
+
+원문은 단일 턴 타임아웃을 "LLM 클라이언트 §6 에 따라 120초" 로 적고 `LLM_TIMEOUT` 에러와 안내 문구를 두었다. 원본 ED-AI-32 도 NF-AI-01 을 들어 120초로 적었다. 그런데 NF-AI-01 은 스트리밍을 뺐고 어시스턴트는 스트리밍만 쓴다. LLM 클라이언트에도 120초 규정이 없고 어시스턴트 모듈에도 그런 타임아웃이 구현된 적이 없다.
+
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 120초와 `LLM_TIMEOUT` 약속을 거두고 REQ-ASSIST-048 을 스트림 실패 처리로 다시 적었다. 스트리밍 턴에 앱 타임아웃을 두는 안은 기각했다. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이번 결정에서 검토하지 않았고, 필요하면 별도 요구사항으로 올린다. 공통 결정은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
 
 ### 후보 선택기 정책 (ED-AI-39)
 

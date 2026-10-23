@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "26d04b61f2205f9ce8dc3bfa1f558da0c83c3f1c922a0d06aa226a95c83c84ed"
+content_hash: "37d0af2d5e03185249443168152bfeeeeb51e1d1b80818aa336da8b44529fcd5"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "757be3207480ace8f65a580552d502244734af5bd5596789aa8c54fedeb53105"
-etag: "sha256-3125d44ce6e6dea096734d9ba20dcba1c2dbaf838f8e2f4995a242ad1b2da7a3"
+mirror_sha256: "b8b99eb80ca80b45c96c2d7d0b18e37bab2a401befab1f2be0a23773cecf11d0"
+etag: "sha256-2254bc2600b824e5d120cf78ca44d566456e28dfb705748686f7e7f31327d0df"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -316,7 +316,7 @@ etag: "sha256-3125d44ce6e6dea096734d9ba20dcba1c2dbaf838f8e2f4995a242ad1b2da7a3"
 | `output.result.message` | string | 핸들러 반환 | 현재 턴 assistant 응답. 첫 진입 때는 `""` |
 | `output.result.turnCount` | number | 핸들러 반환 | 누적 턴 수(첫 진입 때 `0`). 진행률 분모 `maxTurns` 는 `config.maxTurns` 에서 읽고 출력에는 싣지 않는다(Principle 1.1) |
 | `meta.interactionType` | `"ai_conversation"` | 핸들러 반환 | 실행 결과 화면의 대화 미리보기 탭 식별자. 노드 판별자(Principle 1.1.4)가 아니라 대기 표면 라벨이다. 탭 렌더 규칙은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 정하며 1차 소스는 내보낸 messages 가 아니라 대화 스레드 스냅샷이다 |
-| `meta.durationMs`·토큰·`turnDebug` | | 단일 턴과 같은 위치 | 진행 중 누적치를 실어 참조·LLM 사용량 탭이 동작한다. `turnDebug[].ragSources` 는 대화 미리보기의 보조 관찰성 레인(🔎 `rag` 행, 📚 칩)도 쓴다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md), [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)). `rag` 행이 엔진 자동 검색인지 도구 호출 결과인지는 정의가 갈린다([RAG 검색 미결 사항](../CLE-KB/CLE-KB-SEARCH.md#미결-사항)). `llmCalls` 는 디버그 탭 전용이다 |
+| `meta.durationMs`·토큰·`turnDebug` | | 단일 턴과 같은 위치 | 진행 중 누적치를 실어 참조·LLM 사용량 탭이 동작한다. `turnDebug[].ragSources` 는 대화 미리보기의 보조 관찰성 레인(🔎 `rag` 행, 📚 칩)도 쓴다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md), [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)). `rag` 행은 이 턴의 `kb_*` 도구 호출이 가져온 청크를 턴 단위로 모은 표시다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)). `llmCalls` 는 디버그 탭 전용이다 |
 | `status` | `"waiting_for_input"` | 핸들러 반환 | 엔진이 실행을 멈춘다 |
 | `_resumeState` | object(최상위) | 핸들러 반환 | 다음 턴 처리용 내부 상태. 표현식 resolver 에 노출하지 않는다(Principle 4.2). DB 저장 때 지운다. 매 턴 재개를 위해 엔진이 자격 증명을 뺀 부분집합을 `_resumeCheckpoint` 로 `outputData` 에 영속한다 |
 | `_resumeState.ragSources` | Array | `RagAccumulator`(상한) | 최근 `MAX_RESUME_RAG_SOURCES = 200` 건만 둔다. 긴 대화에서 `outputData` JSONB 비대화를 막는다. 잘린 청크는 이후 중복 제거에서 빠진다(의도한 절충) |

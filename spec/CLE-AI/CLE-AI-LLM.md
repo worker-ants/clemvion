@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "a3db4633ab7f2a4a207feea7f04295337c55788d6608fe164a8340862c096c55"
+content_hash: "6ae7da335920ffc8709673e4cd89b37927a04212d165de62f1592a8d262b227d"
 read_as: "approved_fallback"
-task: "CLE-T-52JYHM"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "3790cb2a9312ed1412ea8d209d2ed84c36fa178b4b33dceef6a156912221f19e"
-etag: "sha256-b032f26e449ea6813cc9ba0e6ecd453ce3588f82016c2b22c9151e7402327e9a"
+mirror_sha256: "b7e60d95de88c8d9347127ca5c3232e8c9b6454533200eaee830fabd16fa95ed"
+etag: "sha256-950b0a2ddc193bd7146b75df335971c7e2f88902f8b68cba8eb53654cb8305e0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -372,7 +372,7 @@ class RerankClientFactory {
 | 스트리밍 미지원 | - | `LLM_STREAMING_UNSUPPORTED`. 지원하지 않는 프로바이더에 `stream()` 을 부를 때 |
 
 - 세분화 코드 `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400)는 미구현(Planned)이다. 지금은 모두 `LLM_CONNECTION_ERROR` 로 모인다.
-- 타임아웃은 `withTimeout` 이 `AbortController` 로 진행 중인 요청을 취소하고 "Request timed out after {ms}ms" 에러를 던진다. 전용 `LLM_TIMEOUT` 코드로 옮기지 않는다. 노드 실행 계층(`nodes/core/error-codes.ts`)의 `LLM_TIMEOUT` 은 별개의 노드 분류다. 호출 타임아웃 기준은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- 타임아웃은 `withTimeout` 이 `AbortController` 로 진행 중인 요청을 취소하고 "Request timed out after {ms}ms" 에러를 던진다. 전용 `LLM_TIMEOUT` 코드로 옮기지 않는다. 노드 실행 계층(`nodes/core/error-codes.ts`)의 `LLM_TIMEOUT` 은 어느 호출 경로도 내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 호출 경로별 타임아웃 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 - 노드 계층 에러 분류와 이 표의 대응은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 과 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에서 다룬다.
 
 ### harmony 제어 토큰 거르기
@@ -440,10 +440,11 @@ type ChatStreamEvent =
 
 | 경우 | 이벤트 | 비고 |
 |--------|--------|------|
-| 429 rate limit (스트리밍 시작 전) | `error` (code=`LLM_RATE_LIMIT`) | [에러 처리](#에러-처리) 의 재시도 정책을 쓴다 |
+| 429 rate limit (스트리밍 시작 전) | Anthropic·Google 은 `error` (code=`LLM_RATE_LIMIT`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | [에러 처리](#에러-처리) 의 재시도 정책을 쓴다 |
 | 시작 뒤 네트워크 단절 | `error` (code=`LLM_CONNECTION_ERROR`) | 클라이언트가 다시 시작하도록 안내한다 |
 | 클라이언트 취소 (사용자 Stop) | `done` (finishReason=`aborted`) | 서버는 usage 가 확인되는 만큼만 기록한다 |
 | 지원하지 않는 프로바이더에 stream 요청 | 스트림 시작 전 `LLM_STREAMING_UNSUPPORTED` throw | 호출하는 쪽이 non-streaming 대체 경로를 쓸지 정한다 |
+| 응답 헤더가 오기 전 SDK 요청 타임아웃 | Anthropic 은 `error` (code=`LLM_CONNECTION_ERROR`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | Google 은 SDK 타임아웃이 없다. `stream()` 에는 앱 타임아웃(`timeoutMs`)이 없어서 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다 |
 
 ### chat() 과의 관계
 
@@ -487,7 +488,7 @@ class LlmService {
 `chat` 호출은 `LlmCallOptions` 로 다음을 제어한다.
 
 - `timeoutMs`: 0 이거나 없으면 타임아웃을 걸지 않는다. 값이 있으면 `withTimeout` race 로 건다.
-- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 약 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. 원문은 Google 클라이언트의 SDK 타임아웃을 적지 않는다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다.
+- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 약 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈추고, OpenAI·Anthropic SDK 는 타임아웃 난 요청도 기본 2회(`maxRetries`) 다시 보낸다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 120초보다 길 수 있다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 모든 호출에 거는 공통 앱 타임아웃은 없다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 - `withTimeout` 은 콜백에 넘기는 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 프로바이더 HTTP 요청도 취소되므로 소켓이 남지 않는다(`listModels` 와 같은 방식). Google 클라이언트는 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 `client.embed` 가 signal 을 받지 않아 이 배선 밖이다.
 - `signal`: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다. 취소되면 SDK 가 바로 throw 하고 재시도 대상이 아니다.
 - `disableInnerRetry`: 호출하는 쪽에 자체 재시도 층(예: 지식 저장소의 `retryWithBackoff`)이 있으면 내부 재시도를 꺼서 호출이 불어나지 않게 한다.
@@ -521,12 +522,7 @@ class LlmService {
 
 ## 미결 사항
 
-- **LLM 호출 타임아웃 기준**: 120초의 근거가 층마다 다르다.
-  - 제품 요구: AI 제품 요구사항 NF-AI-01 은 LLM API 호출 타임아웃을 120초(스트리밍 제외)로 요구한다([AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)).
-  - 클라이언트 계층(이 문서): `timeoutMs` 를 넘기지 않으면 앱 타임아웃을 걸지 않는다. 120초는 OpenAI·Anthropic·Azure OpenAI·Local 클라이언트의 SDK 요청 타임아웃으로만 걸린다([호출 신뢰성 계약](#호출-신뢰성-계약)). 이 문서에는 120초 제품 규정이 없다. 타임아웃을 `LLM_TIMEOUT` 으로 옮기지도 않는다.
-  - 호출하는 쪽: AI 에이전트 노드는 앱 레벨 기본값을 10분(`AI_AGENT_LLM_CALL_TIMEOUT_MS`)으로 두므로 위 프로바이더에서는 대개 SDK 의 120초가 먼저 발화한다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). 워크플로우 AI 어시스턴트 문서는 이 문서를 근거로 단일 턴 120초와 `LLM_TIMEOUT` 을 적는데, 어시스턴트는 스트리밍만 쓴다([워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md)).
-
-  120초 요구(NF-AI-01)를 SDK 기본값에 맡길지 앱 레벨 기본값으로 보장할지, 스트리밍 턴에 타임아웃을 둘지, 둔다면 값과 에러 코드를 무엇으로 할지 결정 필요.
+없음. 2026-10-10 에 «LLM 호출 타임아웃 기준» 을 닫았다. 결정은 Rationale 「LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)」 에 있다.
 
 ## 구현 위치
 
@@ -585,6 +581,12 @@ class LlmService {
 ### testConnection 의 차원 추출이 EmbedResponse 와 따로 가는 이유
 
 `EmbedResponse`(usage·`dimensions` 메타데이터 반환)는 아직 미구현이다. 그러나 Embedding 연결 테스트의 `dimension` 은 서비스 계층(`LlmService.testConnection`)이 평범한 `embed()` 반환 벡터의 길이(`vectors[0].length`)에서 뽑는다. 따라서 `LLMClient.embed`·`testConnection` 인터페이스를 바꾸지 않고 두 작업은 서로 독립이다. 단수 `dimension`(설정 한 건의 출력 차원)과 복수 `dimensions`(미구현 `EmbedResponse` 메타데이터)의 이름 차이는 의도한 것이다.
+
+### LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)
+
+AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 이 문서의 클라이언트 계층은 `timeoutMs` 를 받지 않으면 앱 타임아웃을 걸지 않고, 120초는 일부 SDK 의 요청 타임아웃으로만 걸린다. 호출하는 쪽도 제각각이었다. AI 에이전트는 10분을 걸고, 어시스턴트 문서는 이 문서를 근거로 스트리밍 턴에 120초와 `LLM_TIMEOUT` 을 적었다.
+
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 클라이언트 계층은 지금처럼 호출자가 주는 `timeoutMs` 만 걸고 공통 기본값을 두지 않는다. 타임아웃을 `LLM_TIMEOUT` 으로 옮기지도 않는다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. 앱 기본값을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
 
 ### 종류와 상관없이 설정을 찾는 이유
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "d5563f7a80745c5e66a3d96a4b07c5f0053b981b538ec428571fbd599a3b3f7d"
+content_hash: "84589b36123331d147ff22df55bc53ce90cd382ad80696455671995402afeb36"
 read_as: "approved_fallback"
-task: "CLE-T-G62XJS"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e3d0527e5ee14ec887fe2597551826e8356135272b8fbfdd81d42f10b6e36492"
-etag: "sha256-d3ad3bf9cb70e9c357581c49ae36fdfb365199d0f3bf58cc2b45de041f0b9d26"
+mirror_sha256: "7297d822a0588567fb7b93679e8498db13bac6cb4cb9ef763024d9cc677a9b47"
+etag: "sha256-31439b0593714f27f60abf6d31634dd69ea8fe23fbf12fa8a445bc2653299c86"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -89,7 +89,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 - REQ-AGENT-051 WHEN 메모리 전략이 `persistent` 면 THE SYSTEM SHALL LLM 호출 전에 에이전트 메모리를 동기로 회수하고 턴 경계에서 메모리 추출을 비동기로 넣는다. (원본: ND-AG-29) (부분 구현)
 - REQ-AGENT-052 WHEN 멀티턴 롤링 요약이 오래된 교환을 새로 덮으면 THE SYSTEM SHALL 다음 턴 messages 에서 그 교환을 `user` 메시지 경계에서 지운다.
 - REQ-AGENT-053 WHEN 메모리 전략이 `manual` 이 아니면 THE SYSTEM SHALL `meta.memory` 에 전략·요약 여부·회수 수·예산 사용량을 싣는다. (원본: ND-AG-30) (부분 구현)
-- REQ-AGENT-054 WHEN LLM `chat` 을 부르면 THE SYSTEM SHALL 호출마다 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분) 앱 레벨 타임아웃을 건다.
+- REQ-AGENT-054 WHEN 턴 응답을 만드는 LLM `chat` 을 부르면(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출) THE SYSTEM SHALL 호출마다 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분) 앱 레벨 타임아웃을 건다.
 - REQ-AGENT-055 IF 조건이 검증 규칙(최대 20개, id·label·prompt 필수, prompt 2,000자 이하, 예약 포트 이름 금지)을 어기면 THE SYSTEM SHALL 설정을 거부한다.
 
 ## 설정
@@ -334,7 +334,7 @@ flowchart TD
 ### 단일 턴
 
 1. **시스템 컨텍스트 접두**: `includeSystemContext !== false` 면 접두를 시스템 프롬프트 앞에 붙인다. 시간대는 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 결정 순서를 따른다.
-2. **도구 준비**: 지식 저장소 도구와 MCP 도구(메타도구 포함)를 조건 도구와 함께 노출한다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)). 지식 저장소 검색은 LLM 이 도구를 부를 때 실행한다. 호출 전 자동 검색 여부는 정의가 갈린다([AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항).
+2. **도구 준비**: 지식 저장소 도구와 MCP 도구(메타도구 포함)를 조건 도구와 함께 노출한다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)). 지식 저장소 검색은 LLM 이 도구를 부를 때만 실행한다. LLM 호출 전에 미리 검색하지 않는다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)).
 3. **에이전트 메모리 회수**(`persistent`, LLM 호출 전 동기): 메모리 범위 키 `(workspace_id, memoryKey ?? execution_id)` 로 `agent_memory` 에서 top-k 의미 검색(`memoryTopK`·`memoryThreshold`)을 해 결과를 시스템 프롬프트 안정 프리픽스에 넣는다. 회수 수는 `meta.memory.recalledCount` 다. 구현은 `AiMemoryManager.injectMemoryContext`, 단일 기준은 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 다.
 4. **대화 맥락 주입**(LLM 호출 전)
     - `manual`: `contextScope ≠ 'none'` 이면 `ConversationThreadService.getThreadExcludingNode(context, this.nodeId)` 로 자기 턴을 뺀 스레드를 가져와 `messages` 모드면 messages 앞에, `system_text` 모드면 시스템 프롬프트 끝에(`thread-renderer`) 붙인다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)). 길이 상한으로 버린 턴 수는 `meta.contextInjection.droppedTurns` 다. 대화 맥락 설정은 이 분기에서만 적용한다.
@@ -400,13 +400,13 @@ stateDiagram-v2
 
 ### LLM 호출 타임아웃
 
-모든 LLM `chat` 호출(단일 턴 2곳, 멀티턴 재개 2곳)에 호출당 앱 레벨 타임아웃을 건다.
+턴 응답을 만드는 LLM `chat` 호출(단일 턴 2곳, 멀티턴 재개 2곳. 각각 첫 호출과 도구 루프 호출)에 호출당 앱 레벨 타임아웃을 건다. 마지막 턴 다시 시도도 재개 경로라 같은 타임아웃을 받는다. 롤링 요약(`summary_buffer`)의 요약 호출에는 걸지 않는다. 그 호출이 실패하면 그 턴이 실패한다. 다른 AI 노드와 그 밖의 호출 경로의 값은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 
 - 환경 변수 `AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms(10분), `0` 이면 끈다. `LlmService.chat` 은 `opts.timeoutMs > 0` 이면 `withTimeout`(자체 `AbortController`)으로 경쟁시켜 넘으면 예외를 던진다. 새 에러 코드는 없다.
 - 멀티턴 재개에서는 `AiTurnOrchestrator.classifyLlmError` 가 이 예외를 재시도 가능 `LLM_CALL_FAILED`(네트워크 타임아웃 계열)로 분류한다. AI 에이전트 경로는 `LLM_TIMEOUT` 을 내지 않는다. `error-codes.ts` 의 `LLM_TIMEOUT` 은 어느 경로도 내지 않는 별개 enum 이며 정리는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 소관이다.
 - 단일 턴은 일반 `chat` 호출에 try/catch 가 없어 타임아웃이 지금은 분류 없는 `FAILED` 로 끝난다. 이는 기존 라우팅 공백이며 타임아웃 배선은 이를 만들지도 없애지도 않는다. 1차 목적은 무기한 멈춤에 상한을 두는 것이다.
 - 타임아웃은 노드 `abortSignal` 과 독립이다. 재개 경로에는 전파할 signal 이 없다. 사용자 중단은 `AbortController` 없이 Execution 행만 UPDATE 하고, `AbortController` 를 만드는 곳은 `parallel-executor.ts` 한 곳뿐이다. 그래서 재개 경로 취소는 턴 경계 DB 관측 가드가 맡는다(2026-07-27 구현, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다.
-- provider SDK 타임아웃과 나란히 적용돼 먼저 발화하는 쪽이 실제 상한이다. OpenAI·Anthropic·Azure·Local(OpenAI 계열) 클라이언트는 약 120초 요청 타임아웃이 박혀 있어 대개 SDK 쪽이 먼저 발화한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. NF-AI-01(120초)과의 관계는 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항 참조.
+- provider SDK 타임아웃과 나란히 적용돼 먼저 발화하는 쪽이 실제 상한이다. OpenAI·Anthropic·Azure·Local(OpenAI 계열) 클라이언트는 약 120초 요청 타임아웃이 박혀 있어 대개 SDK 쪽이 먼저 발화한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. 모든 LLM 호출에 120초를 거는 공통 기준은 없다(2026-10-10 결정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01).
 - `LlmService.chat` 은 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 HTTP 요청을 취소해 소켓이 남지 않는다(`listModels` 와 같은 패턴). Google 클라이언트도 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 signal 을 받지 않아 이 배선 밖이다(후속).
 - 이 배선은 AI 에이전트 전용이다. 텍스트 분류기·정보 추출기로 넓히는 것은 후속이다.
 
@@ -474,7 +474,7 @@ stateDiagram-v2
 
 - **조건 id 예약어 집합**: 조건 id 검증은 `out`·`in`·`error`·`user_ended`·`max_turns` 다섯 개만 막는다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 6 의 예약어는 `out`·`error`·`default`·`done`·`user_ended`·`max_turns`·`completed`·`fallback`·`continue` 아홉 개이고 `in` 은 없다. 텍스트 분류기는 아홉 개를 백엔드 스키마에서, Switch 는 세 개만 막는다. 조건 id 는 UUID v4 라 충돌 가능성은 낮다. 규약 집합에 맞출지, UUID 발급 예외 근거를 적을지 결정 필요.
 - **`execution.submit_form` 거부와 fallback**: 멀티턴 2.a 는 대기 중인 폼 호출이 없거나 `toolCallId` 가 맞지 않으면 거부한다고 적는다. 2.c.fallback 은 `render_form` 호출이 없는 턴에 `submit_form` 이 직접 오는 경우를 예로 들며 일반 메시지로 넣는다고 적는다. 현재 핸들러(`processMultiTurnMessage`)는 대기 중인 폼 호출이 없으면 fallback 한다. 거부는 명령 검증 계층, fallback 은 경합 대비로 나눌지, 하나로 정리할지 결정 필요.
-- 지식 저장소 자동 검색 여부, 인증 실패 재시도 분류, LLM 호출 타임아웃 기준, 포트 type 표기, 캔버스 요약 표시 도구 세그먼트는 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항에서 다룬다.
+- 인증 실패 재시도 분류, 포트 type 표기, 캔버스 요약 표시 도구 세그먼트는 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항에서 다룬다.
 - **dry-run 재실행의 도구 목록 구성 단계**: 단일 턴 9.d.iii 의 부수효과 판정 밖에 있는 도구 목록 구성(`buildTools`) 단계를 판정 범위에 넣을지는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다(CLE-T-8B66BK).
 - **dry-run 재실행의 메모리 추출**: `persistent` 전략의 메모리 추출(단일 턴 8단계)은 dry-run 여부를 보지 않는다. 현재 구현은 dry-run 재실행에서도 추출한 사실·선호를 `agent_memory` 에 저장한다(`AiMemoryManager.scheduleMemoryExtraction` 과 공유 헬퍼 `scheduleMemoryExtraction` 에 `isDryRun` 확인이 없다). `memoryKey` 를 주면 이 기록은 실행을 넘어 이후 실행의 회수에 쓰인다. 저장과 회수 규칙의 기준 문서는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 다. dry-run 에서 추출을 막을지 정의가 없어 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 으로 넘긴다. 담당 작업은 CLE-T-C9GF9F 다.
 - 추출 기준점 저장 키 경로는 [에이전트 메모리 미결 사항](../CLE-AI/CLE-AI-MEMORY.md#미결-사항) 에서 다룬다.
@@ -606,7 +606,9 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 
 ### LLM 호출 앱 레벨 타임아웃을 둔 근거
 
-도구 정의 크기 예산은 팽창에 의한 멈춤의 근본 원인을 막지만, 네트워크 지연이나 모델 stall 같은 다른 이유의 무기한 멈춤에는 앱 레벨 상한이 없었다. 이를 심층 방어로 보완한다. 기본값 10분은 정상적인 긴 생성(큰 출력, extended thinking)을 해치지 않으면서 무기한 멈춤만 끊는 값이고 주요 SDK 기본값과도 맞다. AI 에이전트에만 둔 이유는 재개 다단계 도구 반복 때문에 멈춤 노출면이 가장 넓어서다.
+도구 정의 크기 예산은 팽창에 의한 멈춤의 근본 원인을 막지만, 네트워크 지연이나 모델 stall 같은 다른 이유의 무기한 멈춤에는 앱 레벨 상한이 없었다. 이를 심층 방어로 보완한다. 기본값 10분은 정상적인 긴 생성(큰 출력, extended thinking)을 해치지 않으면서 무기한 멈춤만 끊는 값이다. OpenAI·Anthropic SDK 라이브러리의 기본 요청 타임아웃도 10분이다(이 앱은 SDK 클라이언트에 120초를 따로 준다. [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01). AI 에이전트에만 둔 이유는 재개 다단계 도구 반복 때문에 멈춤 노출면이 가장 넓어서다.
+
+2026-10-10 에 NF-AI-01 의 공통 120초 기준을 거두고 호출 경로별 현행 값을 적기로 했다. 이 노드의 10분 기본값은 그대로 둔다. 120초로 낮추면 긴 생성이 끊기기 때문이다. 결정과 기각한 대안은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
 
 ### 멀티턴에 `out` 포트가 없는 이유 (2026-07-18)
 

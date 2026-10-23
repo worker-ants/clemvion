@@ -2,19 +2,19 @@
 id: "CLE-KB"
 title: "지식 저장소"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "723cd9016b6044b21bc9ba6e0c7575ad8c8d98a8676d418cb422ded5cb00cae2"
-read_as: "approved"
-task: null
+content_hash: "2e540ed8d646155fe8aca6a16fba38bb4857c3b47f80fed3e5ea409d489ba5ed"
+read_as: "approved_fallback"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/5-system/8-embedding-pipeline.md", "spec/5-system/9-rag-search.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "b0e2b674e4a15d33f3197d07c8f255d1ef538dc06195a518aceaf6443f0e33a5"
-etag: "sha256-0a7c3b0fc20b301dae43d28beef5ca1e256b5584d835d3e7fcefd46a850fd2e1"
+mirror_sha256: "e84b4ed9e4dfedb6288d77d80a3c27eefb5a8273e28e660ccf59a00b50f6a927"
+etag: "sha256-6bfc509d546f7d613435fc5f52638f4a1a906886ba20974205145320aaeb8938"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/6-knowledge-base.md` (Overview), `spec/5-system/8-embedding-pipeline.md` (Overview), `spec/5-system/9-rag-search.md` (Overview) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,6 +56,6 @@ flowchart LR
 
 영역 문서들에 풀리지 않은 결정이 남아 있다. 자세한 내용은 각 문서의 미결 사항에 있다.
 
-- 리랭킹 점수 컷 임계를 비웠을 때 컷을 하는지, LLM 호출 전 자동 검색과 대화 미리보기 `rag` 행의 뜻: [RAG 검색](CLE-KB-SEARCH.md)
+- 리랭킹 점수 컷 임계를 비웠을 때 컷을 하는지: [RAG 검색](CLE-KB-SEARCH.md)
 - 모델 출력 차원과 저장 청크 차원이 다를 때의 기준: [지식 저장소 데이터와 흐름](CLE-KB-DATA.md)
 - 문서 수정, 자동 재임베딩, 문서 메타데이터 관리 요구사항과 임베딩 테스트의 옛 필드: [지식 저장소 관리](CLE-KB-MANAGE.md)

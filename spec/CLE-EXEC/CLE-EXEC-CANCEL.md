@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "78bef09a4160a9ad12dfca85cd0153381fa88543ec5663da88ae12c5224bce36"
+content_hash: "11e581a631db408030e1ceb63b4381630d6cabbff9ce1b78c2eea91d7789da8d"
 read_as: "approved_fallback"
-task: "CLE-T-6T6Q95"
+task: "CLE-T-APEQDD"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "6598f111459d274a1f44bbc4d431b04e03eef105c204d4cedeed918f6827a90f"
-etag: "sha256-07bd73dc651df11fb57c2f333da41cd4c8db98a32da4cd9aa7359647b4f9fb31"
+mirror_sha256: "22b99bd85f5bccba6408dbe693c0d07067067cff513a654dc2d19286511c5d5e"
+etag: "sha256-43bfeb4ff1bf16efde2bc0f3b939d06dc61f08ed6486a5ba00f15e99ec4dd4a8"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -51,7 +51,7 @@ etag: "sha256-07bd73dc651df11fb57c2f333da41cd4c8db98a32da4cd9aa7359647b4f9fb31"
    | MongoDB | 드라이버의 `signal` 옵션에 바로 넘긴다 | 미구현(Planned). 지금 DB 노드는 pg·mysql 만 지원한다 |
    | Email(nodemailer) | 진행 중 중단은 일부러 택하지 않았다. 전송 중에 `transporter.close()` 를 부르면 일부만 가거나 두 번 갈 위험이 있어 들어가기 직전 `abortSignal?.aborted` 사전 확인만 한다. SMTP 전송은 보통 짧다. 안전한 중단 방법이 확인되면 다시 검토한다 | 부분 구현 |
 
-   AI 에이전트는 신호와 별도로 모든 `chat` 호출(단일 턴, 멀티턴 재개 포함)에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
+   AI 에이전트는 신호와 별도로 턴 응답을 만드는 `chat` 호출(단일 턴, 멀티턴 재개 포함. 롤링 요약 호출은 뺀다)에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
 3. 취소 때 나는 `AbortError` 류는 노드가 그대로 던진다. 엔진의 노드 실행 catch 가 에러 처리 정책을 적용하기 전에 그 에러를 취소로 분류하므로 노드가 따로 처리하지 않는다. 에러를 잡아 다른 코드로 바꾸면 엔진이 취소로 분류하지 못한다. 요청 자신의 타임아웃처럼 노드 취소 신호에서 오지 않은 `AbortError` 는 노드가 자기 실패로 다룬다(아래 [fetch 자체 타임아웃과의 연쇄](#fetch-자체-타임아웃과의-연쇄)). 노드 취소 신호로 끝난 외부 호출은 통합 활동 로그를 남기지 않는다. 그 호출은 끝나지 않았기 때문이다(근거는 아래 Rationale). HTTP Request·Cafe24·MakeShop·DB 노드와 AI 에이전트는 `AbortError` 를 그대로 던진다. 활동 로그 규칙은 HTTP Request·Cafe24·MakeShop 노드가 지킨다. DB 노드는 아직 취소 때도 `failed` 활동 로그를 남긴다. Text Classifier 와 정보 추출기는 아직 취소를 실패 출력으로 바꾼다([구현 현황](#구현-현황)).
 4. **CPU 위주이거나 바로 끝나는 노드**는 신호를 지원하지 않아도 된다(best-effort). 작업을 끝까지 해도 되지만 시작 직전에 `context.abortSignal?.aborted` 를 확인하기를 권한다. 시작 전에 이미 취소됐으면 바로 끝낸다.
 
