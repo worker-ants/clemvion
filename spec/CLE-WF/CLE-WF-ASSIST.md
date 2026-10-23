@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "53156c4c6c040c733ccf708cb7d2466734608334d63470d6cc6e125d99bbbfdd"
+content_hash: "3479ef3e35fdc144e078466ba7cf759700ef4ee2a482bb167903c559e72ada8d"
 read_as: "approved_fallback"
 task: "CLE-T-APEQDD"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "31bca9974a76bb58cf4166e2b70878a95119aabdba0d9302b51db21781494a1f"
-etag: "sha256-dc3051c14af5cf8b8e75c7a1a8f465ea3b6395a6a2dab32e7bd9ecc07fc30a57"
+mirror_sha256: "59e5a316bb6f9f7fbbe1a63c0521dbc09eeba935fed98fdaa027419bdfa9ee1d"
+etag: "sha256-459ceecc959c6261dac6ae7c5dfb4df03cf41fe9b6e0b2a231a6da5879400437"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,7 +55,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-007 WHEN 사용자가 패널 상단에서 모델 설정을 고르면 THE SYSTEM SHALL 그 모델 설정으로 어시스턴트 턴을 처리한다. (원본: ED-AI-06)
 - REQ-ASSIST-008 IF 요청에 모델 설정이 없으면 THE SYSTEM SHALL 세션에 저장된 모델 설정을 쓰고 그것도 없으면 워크스페이스 기본 설정을 쓴다. (원본: ED-AI-07)
 - REQ-ASSIST-009 IF 세션의 모델 설정이 삭제됐거나 워크스페이스 밖이면 THE SYSTEM SHALL 워크스페이스 기본 설정으로 대신하고 토스트로 알린다.
-- REQ-ASSIST-010 IF 모델 설정도 워크스페이스 기본 설정도 없으면 THE SYSTEM SHALL `ASSISTANT_NO_LLM_CONFIG` 안내와 설정 화면 딥링크를 보인다. (원본: ED-AI-08)
+- REQ-ASSIST-010 IF 모델 설정도 워크스페이스 기본 설정도 없으면 THE SYSTEM SHALL `ASSISTANT_NO_LLM_CONFIG` 안내와 설정 화면 딥링크를 보인다. (원본: ED-AI-08) (부분 구현)
 - REQ-ASSIST-011 WHEN 어시스턴트 턴을 처리하면 THE SYSTEM SHALL OpenAI·Anthropic·Google·Azure OpenAI·Local 프로바이더 모두 스트리밍으로 응답한다. (원본: ED-AI-09)
 - REQ-ASSIST-012 IF 스트리밍을 지원하지 않는 프로바이더가 선택되면 THE SYSTEM SHALL `ASSISTANT_STREAMING_UNSUPPORTED` 에러를 낸다. (원본: ED-AI-09) (미구현)
 - REQ-ASSIST-013 WHILE 한 대화 창을 쓰는 동안 THE SYSTEM SHALL 모드 전환 없이 탐색·계획·편집 단계를 오가게 한다. (원본: ED-AI-10)
@@ -86,14 +86,14 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-038 WHEN 탐색 도구가 호출되면 THE SYSTEM SHALL 채팅에 탐색 배지로 표시한다. (원본: ED-AI-23)
 - REQ-ASSIST-039 WHEN 어시스턴트가 응답하면 THE SYSTEM SHALL 텍스트와 도구 호출을 SSE 로 스트리밍한다. (원본: ED-AI-24)
 - REQ-ASSIST-040 WHEN 사용자가 응답 중단 버튼을 누르면 THE SYSTEM SHALL 스트림을 끊고 이미 적용한 편집은 되돌릴 수 있는 상태로 남긴다. (원본: ED-AI-25)
-- REQ-ASSIST-041 IF 네트워크 오류나 요청 한도 초과가 나면 THE SYSTEM SHALL 사용자에게 재시도 안내를 보인다. (원본: ED-AI-26)
+- REQ-ASSIST-041 IF 네트워크 오류나 요청 한도 초과가 나면 THE SYSTEM SHALL 사용자에게 재시도 안내를 보인다. (원본: ED-AI-26) (부분 구현)
 - REQ-ASSIST-042 WHEN 페이지를 새로 고치거나 다시 접속하면 THE SYSTEM SHALL 서버에 저장된 대화를 이어서 보여 준다. (원본: ED-AI-27)
 - REQ-ASSIST-043 WHEN 패널을 열면 THE SYSTEM SHALL 그 워크플로우의 가장 최근 활성 세션을 자동으로 고른다. (원본: ED-AI-28)
 - REQ-ASSIST-044 WHEN 사용자가 새 대화 버튼을 누르면 THE SYSTEM SHALL 확인 다이얼로그 뒤 새 세션을 시작하고 이전 세션을 보존한다. (원본: ED-AI-29)
 - REQ-ASSIST-045 WHEN 세션 삭제 API 가 호출되면 THE SYSTEM SHALL 세션과 그 메시지를 함께 지운다. (원본: ED-AI-30)
 - REQ-ASSIST-046 WHEN 워크플로우가 삭제되면 THE SYSTEM SHALL 그 세션과 메시지를 cascade 로 지운다. (원본: ED-AI-30)
 - REQ-ASSIST-047 WHEN 첫 사용자 메시지의 응답이 끝나면 THE SYSTEM SHALL 첫 메시지를 40자 이내로 잘라 세션 제목으로 저장하고 사용자가 고칠 수 있게 한다. (원본: ED-AI-31)
-- REQ-ASSIST-048 IF 어시스턴트 턴의 LLM 스트림이 실패하면(프로바이더 SDK 요청 타임아웃 포함) THE SYSTEM SHALL 턴을 끝내고 에러 버블에 에러 코드와 사유를 보인다. (원본: ED-AI-32)
+- REQ-ASSIST-048 IF 어시스턴트 턴의 LLM 스트림이 실패하면(프로바이더 SDK 요청 타임아웃 포함) THE SYSTEM SHALL 턴을 끝내고 에러 버블에 에러 코드와 코드별 안내 문구를 보인다. 프로바이더 · 라이브러리 예외의 원문은 화면에 싣지 않고 서버 로그에만 남긴다. (원본: ED-AI-32) (부분 구현)
 - REQ-ASSIST-049 IF 한 턴의 도구 호출 수가 어시스턴트 도구 호출 한도를 넘거나 LLM 라운드가 50에 이르면 THE SYSTEM SHALL `ASSISTANT_TOO_MANY_TOOL_CALLS` 로 턴을 끝내고 이어서 진행 안내를 보인다. (원본: ED-AI-33)
 - REQ-ASSIST-050 WHEN 어시스턴트가 LLM 을 부르면 THE SYSTEM SHALL `llm_usage_log` 에 `workflow_id`·`workspace_id` 와 함께 사용량을 적는다. (원본: ED-AI-34)
 - REQ-ASSIST-051 WHILE 대화 기록을 LLM 에 넘기는 동안 THE SYSTEM SHALL 최근 30턴만 넘기고 그 이전 기록은 서버에만 둔다.
@@ -242,15 +242,19 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 
 | 코드 | 상황 | 사용자 안내 |
 |------|------|-------------|
-| `ASSISTANT_NO_LLM_CONFIG` | 모델 설정도 워크스페이스 기본 설정도 없다. 지정한 설정이 삭제됐거나 워크스페이스 밖인데 기본 설정으로 대신하지도 못하면 이 코드다 | "LLM 설정을 먼저 등록해 주세요." 와 설정 화면 링크 |
+| `ASSISTANT_NO_LLM_CONFIG` | 모델 설정도 워크스페이스 기본 설정도 없다. 지정한 설정이 삭제됐거나 워크스페이스 밖인데 기본 설정으로 대신하지도 못하면 이 코드다 | `assistant.errorNoLlmConfig` 문구와 설정 화면 링크(REQ-ASSIST-010) (미구현) |
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 [어시스턴트 도구 호출 한도](#어시스턴트-도구-호출-한도)를 넘었다 | "이어서 진행해줘" 같은 후속 메시지 안내. 다음 턴에 남은 단계를 이어서 한다. 에러 버블에 "이어서 진행" 버튼을 보인다 |
-| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전에 클라이언트가 예외를 던졌거나 턴 처리 중 서비스 안에서 실패했다. OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열 때의 실패(429, SDK 요청 타임아웃 포함)가 이 코드로 온다 | 에러 버블에 사유와 재시도 안내 |
-| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)의 스트리밍 에러 매핑). OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보낸다 | "잠시 후 다시 시도해 주세요." 와 재시도 버튼(정의가 갈린다. [미결 사항](#미결-사항) 참조) |
-| `LLM_CONNECTION_ERROR` | 스트림이 열린 뒤 429 가 아닌 이유로 실패했다(모든 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). Anthropic·Google 은 스트림을 열 때의 429 밖 실패도 이 코드로 보낸다. Anthropic 의 SDK 요청 타임아웃도 여기에 든다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 스트리밍 에러 매핑) | 에러 버블에 에러 코드와 사유 |
+| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전에 클라이언트가 예외를 던졌거나 턴 처리 중 서비스 안에서 실패했다. OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열 때의 실패(429, SDK 요청 타임아웃 포함)가 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | 에러 버블에 코드와 재시도 안내(REQ-ASSIST-041) (미구현) |
+| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보낸다 | `assistant.errorRateLimit` 문구로 재시도 안내(REQ-ASSIST-041) (미구현). 재시도 버튼은 정의가 갈린다([미결 사항](#미결-사항)) |
+| `LLM_CONNECTION_ERROR` | 스트림이 열린 뒤 429 가 아닌 이유로 실패했다(모든 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). Anthropic·Google 은 스트림을 열 때의 429 밖 실패도 이 코드로 보낸다. Anthropic 의 SDK 요청 타임아웃도 여기에 든다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | 에러 버블에 코드와 안내 문구 (미구현) |
 | `LLM_OUTPUT_MALFORMED` | OpenAI 계열 스트림에 gpt-oss 계열 모델의 harmony 제어 토큰이 드러났다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 harmony 제어 토큰 거르기) | 에러 버블에 원시 메시지 대신 안내문 |
 | `ASSISTANT_TOOL_FAILED` | 편집 도구가 Shadow 검증에 실패했다 | 배지에 구체 사유([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#shadow-검증-규칙))를 보이고 LLM 이 다음 라운드에 복구를 시도한다 |
 | `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 |
 | `ASSISTANT_SESSION_NOT_YOURS` | 같은 워크스페이스의 다른 사용자 세션이다. 다른 워크스페이스의 세션은 `ASSISTANT_SESSION_NOT_FOUND` 로 온다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#세션-rest-api)) | 접근 거부 |
+
+에러 버블 동작은 이 표가 기준이다. `(미구현)` 을 단 칸은 지금 에러 버블에 제목(`assistant.errorBubbleTitle`), 에러 코드, 서버가 보낸 `message` 만 보인다(`assistant-message.tsx`). 코드별 안내 문구는 사전 키로 고른다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)).
+
+`ASSISTANT_STREAM_FAILED` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` 의 서버 `message` 에는 지금 프로바이더 · 라이브러리 예외 원문이 그대로 실린다. REQ-ASSIST-048 에 맞지 않는 구현 공백이다. 원문은 서버 로그에만 남겨야 한다. 서버는 코드별 고정 영문 `message` 만 보낸다. 프런트엔드는 에러 코드로 사전 문구를 고르고([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5), 문구가 없는 코드는 그 영문 `message` 로 폴백한다. NERV Task `CLE-T-MX8PSE` 가 이 칸들과 세 코드의 사전 문구를 함께 고친다.
 
 아직 구현하지 않은 에러 코드 두 개가 있다(미구현).
 
@@ -311,9 +315,8 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 
 어시스턴트는 스트리밍 호출(`chatStream`)만 쓰고 앱 타임아웃을 걸지 않는다. 턴이나 호출마다 거는 120초 한도는 없다(2026-10-10 결정, [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01).
 
-- OpenAI·Azure·Local·Anthropic 에는 SDK 요청 타임아웃(약 120초)이 응답 헤더가 올 때까지만 걸린다. Google 에는 없다.
-- SDK 요청 타임아웃이 나면 OpenAI 계열은 `ASSISTANT_STREAM_FAILED`, Anthropic 은 `LLM_CONNECTION_ERROR` 로 턴이 끝난다([에러 처리](#에러-처리)).
-- 헤더가 온 뒤 토큰이 멈추면 서버가 잡지 못한다. 사용자가 중지(Stop)로 턴을 끊는다.
+- 프로바이더 SDK 의 요청 타임아웃과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. SDK 요청 타임아웃이 나면 턴은 [에러 처리](#에러-처리) 표의 스트림 실패 코드로 끝난다. 어느 코드가 오는지는 프로바이더에 따라 다르다.
+- 응답 헤더가 온 뒤 토큰이 멈추면 서버가 잡지 못한다. 사용자가 중지(Stop)로 턴을 끊는다. 유휴 감지를 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 미결이다.
 - `LLM_TIMEOUT` 코드는 내지 않는다.
 
 ### 어시스턴트 도구 호출 한도
@@ -510,7 +513,7 @@ flowchart TD
 
 `assistant.planApproveConfirm` 은 안내 상자로는 쓰지 않는다. "계획대로 진행" 버튼(`approveActivePlan`)이 사용자 메시지로 보낼 때 쓴다.
 
-`(미사용)` 을 단 세 키는 사전에만 있고 읽는 코드가 없다. 에러 버블은 서버가 보낸 에러 코드와 사유를 보인다. 어시스턴트는 `LLM_TIMEOUT` 을 내지 않는다([LLM 호출 타임아웃](#llm-호출-타임아웃)).
+`(미사용)` 을 단 세 키는 사전에만 있고 읽는 코드가 없다. 지금 에러 버블은 제목과 에러 코드, 서버가 보낸 메시지를 보인다. `assistant.errorNoLlmConfig` · `errorRateLimit` 은 [에러 처리](#에러-처리) 표의 `(미구현)` 안내를 구현할 때 쓸 자리다. 어시스턴트는 `LLM_TIMEOUT` 을 내지 않으므로([LLM 호출 타임아웃](#llm-호출-타임아웃)) `errorTimeout` 은 쓸 곳이 없다. 세 키의 정리는 NERV Task `CLE-T-MX8PSE` 가 한다.
 
 ## 범위 밖과 후속 과제
 
@@ -538,7 +541,7 @@ flowchart TD
 
 ## 미결 사항
 
-- **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. PRD ED-AI-26 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. 버튼을 둘지 결정 필요.
+- **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. PRD ED-AI-26 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보내므로 버튼을 `LLM_RATE_LIMIT` 에만 붙이면 그 프로바이더에서는 보이지 않는다. 이 프로바이더 분기를 통일할지는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항) 의 미결이다(NERV Task `CLE-T-0R5SYN`). 버튼을 둘지 결정 필요.
 
 ## 구현 위치
 
@@ -658,7 +661,11 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 
 원문은 단일 턴 타임아웃을 "LLM 클라이언트 §6 에 따라 120초" 로 적고 `LLM_TIMEOUT` 에러와 안내 문구를 두었다. 원본 ED-AI-32 도 NF-AI-01 을 들어 120초로 적었다. 그런데 NF-AI-01 은 스트리밍을 뺐고 어시스턴트는 스트리밍만 쓴다. LLM 클라이언트에도 120초 규정이 없고 어시스턴트 모듈에도 그런 타임아웃이 구현된 적이 없다.
 
-2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 120초와 `LLM_TIMEOUT` 약속을 거두고 REQ-ASSIST-048 을 스트림 실패 처리로 다시 적었다. 스트리밍 턴에 앱 타임아웃을 두는 안은 기각했다. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이번 결정에서 검토하지 않았고, 필요하면 별도 요구사항으로 올린다. 공통 결정은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 120초와 `LLM_TIMEOUT` 약속을 거두고 REQ-ASSIST-048 을 스트림 실패 처리로 다시 적었다. 그때 적은 «사유» 는 2026-10-23 에 코드별 안내 문구로 바꿨다(아래 「에러 버블에 프로바이더 원문을 싣지 않는다」). 스트리밍 턴에 앱 타임아웃을 두는 안은 기각했다. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이번 결정에서 검토하지 않았다. [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 에서 함께 정한다. 공통 결정은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
+
+### 에러 버블에 프로바이더 원문을 싣지 않는다 (2026-10-23)
+
+2026-10-10 결정으로 고친 REQ-ASSIST-048 은 에러 버블에 «에러 코드와 사유» 를 보인다고 적었다. 승인본 코드 리뷰에서 이 문구가 프로바이더 원문 노출을 요구사항으로 굳힌다는 지적이 나왔다(finding 01a168eb-c9a9-7095-ab08-d86e2965ae88, CWE-209). 지금 스트림 서비스는 SDK 예외 메시지를 그대로 보내고 에러 버블은 그 메시지를 그대로 보인다. [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 스트림의 `error` 이벤트는 그 규칙이 다루는 층이 아니지만 막으려는 노출(CWE-209)은 같다. 같은 모듈의 REST 컨트롤러도 같은 이유로 코드만 내보내고, 위 harmony 제어 토큰 항목도 원시 메시지를 로그에만 남긴다. 그래서 «사유» 를 코드별 안내 문구로 정하고 원문은 서버 로그에만 남긴다. 에러 처리 표의 안내 열은 기존 요구사항(REQ-ASSIST-010 · 041)이 정한 목표로 두고 구현되지 않은 칸에 `(미구현)` 을 달았다. 세 요구사항 줄(REQ-ASSIST-010 · 041 · 048)에는 `(부분 구현)` 을 달았다. 구현은 NERV Task `CLE-T-MX8PSE` 가 한다.
 
 ### 후보 선택기 정책 (ED-AI-39)
 

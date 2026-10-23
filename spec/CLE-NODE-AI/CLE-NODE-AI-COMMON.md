@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "9f3b124c4ccfa3f9722ae5626030f21c4763fd47eb44ee2f01a277bb3b6a7a62"
+content_hash: "c054496b90236c190aff389c74e56d175ee5d7fbc02d6f4c4c3c259f3b4ac476"
 read_as: "approved_fallback"
 task: "CLE-T-APEQDD"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d06705d6a694027c5aaa5023e23bc2f80346e56cff82ad4cffdd30e85feb8875"
-etag: "sha256-cede7689cdcd7bd236997125306092663521dccb0fec88043d230e967ea35470"
+mirror_sha256: "19b8a7707f5f6f53204ae5f1d261ea0e2679d40389a198635c1da65d592c9ec1"
+etag: "sha256-14708dc4786247536340e0fb316c18b7b104bc2a81a8a1fff5c9b50ca85e8d8b"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -365,7 +365,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 | 호출 경로 | 앱 타임아웃 | 한도를 넘거나 호출이 실패하면 | 소유 문서 |
 |-----------|-------------|-------------------------------|-----------|
 | AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 멀티턴 재개는 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 단일 턴은 에러 코드 없이 노드가 실패한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 3.1 의 런타임 에러 처리를 아직 지키지 못하는 구현 공백이다(NERV Task `CLE-T-ZHBMAC`) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
-| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음 | 그 턴이 실패한다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패한다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다([미결 사항](#미결-사항)) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
 | 텍스트 분류기·정보 추출기 | 없음 | `LLM_CALL_FAILED` | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
 | 워크플로우 AI 어시스턴트 턴 | 없음. 스트리밍 호출(`chatStream`)만 쓴다 | 스트림 에러 코드로 턴이 끝난다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) |
 | 문서 임베딩 배치 | 60초 | 그 호출이 실패하고, 일시 오류로 보아 다시 시도한다 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
@@ -373,7 +373,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 | 모델 목록 조회 | 30초 | `LLM_MODEL_LIST_FAILED` | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | 그 밖의 호출(연결 테스트, RAG 검색어 임베딩, 평가 채점, 에이전트 메모리 추출·임베딩 등) | 없음 | 호출한 쪽의 실패 처리를 따른다 | 각 기능 문서 |
 
-- 앱 타임아웃이 없어도 SDK 요청 타임아웃은 걸린다. OpenAI·Azure·Local·Anthropic SDK 는 요청마다 약 120초이고 Google SDK 에는 없다. SDK 타이머는 응답 헤더가 오면 멈추고, SDK 는 타임아웃 난 요청을 기본 2회 다시 보낸다. 자세한 내용은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
+- 앱 타임아웃이 없어도 프로바이더에 따라 SDK 요청 타임아웃이 걸린다. 그 값과 재전송, SDK 타임아웃이 없는 프로바이더는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다.
 - 어느 경로도 LLM 타임아웃을 `LLM_TIMEOUT` 코드로 내보내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)).
 
 ## 미결 사항
@@ -382,6 +382,11 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 - **자동 메모리 전략에서 opt-out 필드 노출**: 이 문서는 자동 전략에서 `excludeFromConversationThread` 가 유효하다고 정한다. 설정 화면은 자동 전략일 때 대화 맥락 필드 5개를 모두 숨긴다(`gateOnManualMemoryStrategy`). 원문 AI 에이전트 문서의 `memoryStrategy` 행과 원본 ND-AG-27 은 "`manual` 외 선택 시 5필드 무효" 라고 적었다. 자동 전략에서 opt-out 필드를 화면에 보일지 결정 필요.
 - **에러 출력의 `meta` 필수 여부**: 토큰 회계 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
 - **포트 type 표기**: [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 포트 정의 `type` enum 은 `data`·`control`·`error` 세 값이다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 는 시스템 포트에 `system` 을 쓴다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 는 시스템 포트와 에러 포트를 `data` 로 적는다. [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 는 에러 포트를 `error` 로 적는다. 현재 프런트엔드 `resolve-dynamic-ports.ts` 는 `DynamicPortType` 에 `system` 을 두고 AI 에이전트 시스템 포트에도 `system` 을 쓴다. enum 에 `system` 을 더할지, 노드 포트 표를 어느 값으로 맞출지 결정 필요.
+- **앱 타임아웃이 없는 호출의 상한**: [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표에서 앱 타임아웃이 「없음」 인 경로 가운데 다음은 상한을 정한 결정이 없다. 2026-10-10 결정은 문서를 코드에 맞추는 데까지였다([Rationale](#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10), 120초 하향안 기각 이력 포함). 결정 필요. NERV Task `CLE-T-0R5SYN`.
+  - 롤링 요약 호출: 타임아웃도 취소 신호도 없고 실패하면 턴이 실패한다. 신호를 넘기지 않는 것은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 2 의 구현 공백이다.
+  - Google 비스트리밍 호출: SDK 요청 타임아웃이 없어서 `timeoutMs` 를 주지 않는 텍스트 분류기·정보 추출기·메모리 호출에는 상한이 없다.
+  - 스트림 유휴: 응답 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다([워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md)).
+  - 공통 기본값: `LlmService` 에 공통 기본값을 둘지, 지금처럼 호출하는 쪽이 각자 `timeoutMs` 를 넘길지([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항)).
 - **AI 에이전트 캔버스 요약의 표시 도구 세그먼트**: 원문 AI 에이전트 문서는 목표 형식에 표시 도구 수(`· {N} render`, 예: `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond · 3 render`)를 넣었다. 이 문서의 목표 형식에는 없다. 아직 구현 전이라 영향은 작다. 어느 쪽으로 맞출지 결정 필요.
 
 ## 구현 위치
@@ -444,10 +449,10 @@ AI 에이전트 요약의 옛 `· {N} tools` 세그먼트는 도구 영역(Tool 
 
 **문제**: NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 코드에는 모든 호출에 거는 120초가 없다. AI 에이전트 턴은 앱 기본값 10분을 걸고, 그 밖의 경로는 대부분 `timeoutMs` 를 주지 않아 SDK 요청 타임아웃만 받는다. Google SDK 에는 그 타임아웃도 없다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 NF-AI-01 을 근거로 스트리밍 턴에 120초와 `LLM_TIMEOUT` 을 약속했지만, NF-AI-01 은 스트리밍을 빼고 어느 경로도 `LLM_TIMEOUT` 을 내지 않는다.
 
-**결정**: 2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 공통 120초 기준을 거두고 호출 경로별 현행 값을 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표에 적는다. LLM 타임아웃은 `LLM_TIMEOUT` 코드로 내지 않는다.
+**결정**: 2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 공통 120초 기준을 거두고 호출 경로별 현행 값을 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표에 적는다. LLM 타임아웃은 `LLM_TIMEOUT` 코드로 내지 않는다. 이 결정은 문서를 코드에 맞추는 데까지였고 앱 타임아웃이 없는 호출의 상한은 정하지 않았다(2026-10-23 명시, [미결 사항](#미결-사항)).
 
-- 기각: 앱 기본값을 120초로 낮추는 안. 큰 출력이나 extended thinking 처럼 정상이지만 오래 걸리는 생성이 끊긴다. AI 에이전트 턴에 10분을 둔 근거는 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 Rationale 에 있다. OpenAI 계열과 Anthropic 은 이미 SDK 가 요청마다 약 120초를 건다.
-- 기각: 어시스턴트의 스트리밍 턴에 앱 타임아웃을 두는 안. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이번 결정에서 검토하지 않았다. 필요하면 별도 요구사항으로 올린다.
+- 기각: AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안. 처음에는 큰 출력이나 extended thinking 처럼 정상이지만 오래 걸리는 생성이 끊긴다는 이유를 적었다. 그런데 OpenAI 계열과 Anthropic 은 SDK 가 이미 요청마다 약 120초를 건다. 에이전트의 `chat` 은 비스트리밍이라 응답 헤더가 생성이 끝난 뒤에 오므로, 이 네 프로바이더의 긴 생성은 지금도 SDK 쪽에서 약 120초에 끊긴다. 120초로 낮췄을 때 달라지는 것은 SDK 타임아웃이 없는 Google 과, SDK 가 타임아웃 난 요청을 다시 보내며 늘어나는 누적 시간이다. 긴 생성이 끊긴다는 이유는 Google 에만 맞는다(2026-10-23 정정). 지금 10분을 유지하는 근거는 문서를 코드에 맞춘다는 2026-10-10 결정이다. 상한을 다시 정할지는 [미결 사항](#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 에서 함께 다룬다. AI 에이전트 턴에 10분을 둔 근거는 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 Rationale 에 있다.
+- 기각: 어시스턴트의 스트리밍 턴에 앱 타임아웃을 두는 안. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이번 결정에서 검토하지 않았다. [미결 사항](#미결-사항) 에서 정한다.
 
 ### 임베딩 처리를 in-process 에서 큐로 바꾼 이력
 

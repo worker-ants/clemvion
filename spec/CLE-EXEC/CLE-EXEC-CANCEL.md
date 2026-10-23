@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "11e581a631db408030e1ceb63b4381630d6cabbff9ce1b78c2eea91d7789da8d"
+content_hash: "24d8d5b03e89709e78b7bf304879c888de78e10c9073d617a3718fd6158262df"
 read_as: "approved_fallback"
 task: "CLE-T-APEQDD"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "22b99bd85f5bccba6408dbe693c0d07067067cff513a654dc2d19286511c5d5e"
-etag: "sha256-43bfeb4ff1bf16efde2bc0f3b939d06dc61f08ed6486a5ba00f15e99ec4dd4a8"
+mirror_sha256: "466ce0c1a8a5d0be28a8a8d5de61b2d9691cab655a2333dc69e367c1357d4b03"
+etag: "sha256-9922619ad4c7e62e6f80b839417efb2eb2226269ee319d98672bf0d3a1f12807"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,12 +46,12 @@ etag: "sha256-43bfeb4ff1bf16efde2bc0f3b939d06dc61f08ed6486a5ba00f15e99ec4dd4a8"
    | 호출 | 신호 전파 | 상태 |
    | --- | --- | --- |
    | `fetch(url, init)` | `init.signal` 에 넣는다. 자체 타임아웃과 함께 쓰면 연쇄 패턴을 따른다(아래 [fetch 자체 타임아웃과의 연쇄](#fetch-자체-타임아웃과의-연쇄)) | 구현됨(HTTP Request·Cafe24·MakeShop). 신호 전파와 취소 에러 분류(`AbortError` 를 엔진까지 전달)를 모두 한다 |
-   | LLM 호출 | AI 노드(AI 에이전트·Text Classifier·정보 추출기)는 `llmService.chat` 에 `signal` 을 넘기고 프로바이더 클라이언트가 진행 중인 요청을 끊는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 첫 멀티턴 경로(`executeMultiTurn`)는 `context.abortSignal` 을 그대로 넘긴다. 멀티턴 재개 경로(`processMultiTurnMessage`)는 아래 턴 경계 DB 관측으로 취소를 처리한다. 그 경로에는 전파할 신호가 없기 때문이다. `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다. 나중에 신호를 만드는 곳이 생기면 전파되도록 열어 둔 것이지 도입이 예정된 것은 아니다 | 신호 전파는 구현됨. 취소 에러 분류는 AI 에이전트만 구현됨([구현 현황](#구현-현황)) |
+   | LLM 호출 | AI 노드(AI 에이전트·Text Classifier·정보 추출기)는 `llmService.chat` 에 `signal` 을 넘기고 프로바이더 클라이언트가 진행 중인 요청을 끊는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). AI 에이전트의 롤링 요약(`summary_buffer`) 호출에는 아직 `signal` 을 넘기지 않는다(구현 공백, [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항)). 신호가 만들어지는 병렬 분기 취소에서도 요약 요청은 끝날 때까지 남는다. 사용자 실행 중지는 신호를 만들지 않으므로(규칙 9) 이 공백과 상관없이 노드 경계 · 턴 경계 확인(규칙 10 · 12)이 맡는다. 첫 멀티턴 경로(`executeMultiTurn`)는 `context.abortSignal` 을 그대로 넘긴다. 멀티턴 재개 경로(`processMultiTurnMessage`)는 아래 턴 경계 DB 관측으로 취소를 처리한다. 그 경로에는 전파할 신호가 없기 때문이다. `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다. 나중에 신호를 만드는 곳이 생기면 전파되도록 열어 둔 것이지 도입이 예정된 것은 아니다 | 신호 전파는 롤링 요약 호출을 빼고 구현됨. 취소 에러 분류는 AI 에이전트만 구현됨([구현 현황](#구현-현황)) |
    | PostgreSQL(`pg`)·MySQL(`mysql2`) | `signal.addEventListener('abort', ...)` 로 진행 중 쿼리 취소를 등록한다. 취소되면 **별도 풀 연결**로 PG `SELECT pg_cancel_backend(<pid>)`·MySQL `KILL QUERY <threadId>` 를 보내 진행 중 쿼리만 끊는다(연결은 유지). 취소로 난 드라이버 에러(PG `57014`·MySQL `ER_QUERY_INTERRUPTED`)는 catch 에서 `AbortError` 로 다시 던져 `cancelled` 로 분류되게 한다. 취소 권한(PG 소유자·MySQL `PROCESS`)과 타이밍에 따라 실패할 수 있지만 무해하다. 정상 완료하면 리스너를 해제한다 | 구현됨 |
    | MongoDB | 드라이버의 `signal` 옵션에 바로 넘긴다 | 미구현(Planned). 지금 DB 노드는 pg·mysql 만 지원한다 |
    | Email(nodemailer) | 진행 중 중단은 일부러 택하지 않았다. 전송 중에 `transporter.close()` 를 부르면 일부만 가거나 두 번 갈 위험이 있어 들어가기 직전 `abortSignal?.aborted` 사전 확인만 한다. SMTP 전송은 보통 짧다. 안전한 중단 방법이 확인되면 다시 검토한다 | 부분 구현 |
 
-   AI 에이전트는 신호와 별도로 턴 응답을 만드는 `chat` 호출(단일 턴, 멀티턴 재개 포함. 롤링 요약 호출은 뺀다)에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
+   AI 에이전트는 신호와 별도로 턴 응답을 만드는 `chat` 호출에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. 대상 호출은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#llm-호출-타임아웃) 가 정하고 롤링 요약 호출은 빠진다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
 3. 취소 때 나는 `AbortError` 류는 노드가 그대로 던진다. 엔진의 노드 실행 catch 가 에러 처리 정책을 적용하기 전에 그 에러를 취소로 분류하므로 노드가 따로 처리하지 않는다. 에러를 잡아 다른 코드로 바꾸면 엔진이 취소로 분류하지 못한다. 요청 자신의 타임아웃처럼 노드 취소 신호에서 오지 않은 `AbortError` 는 노드가 자기 실패로 다룬다(아래 [fetch 자체 타임아웃과의 연쇄](#fetch-자체-타임아웃과의-연쇄)). 노드 취소 신호로 끝난 외부 호출은 통합 활동 로그를 남기지 않는다. 그 호출은 끝나지 않았기 때문이다(근거는 아래 Rationale). HTTP Request·Cafe24·MakeShop·DB 노드와 AI 에이전트는 `AbortError` 를 그대로 던진다. 활동 로그 규칙은 HTTP Request·Cafe24·MakeShop 노드가 지킨다. DB 노드는 아직 취소 때도 `failed` 활동 로그를 남긴다. Text Classifier 와 정보 추출기는 아직 취소를 실패 출력으로 바꾼다([구현 현황](#구현-현황)).
 4. **CPU 위주이거나 바로 끝나는 노드**는 신호를 지원하지 않아도 된다(best-effort). 작업을 끝까지 해도 되지만 시작 직전에 `context.abortSignal?.aborted` 를 확인하기를 권한다. 시작 전에 이미 취소됐으면 바로 끝낸다.
 
@@ -156,7 +156,7 @@ catch 는 `isUpstreamAbort(err, upstream)` 로 두 `AbortError` 를 가른다. �
 | 규약 신설 | ✅ | 이 문서 |
 | HTTP 노드 신호 전파(fetch 연쇄) | ✅ | `http-request.handler.ts` 가 공용 헬퍼 `linkUpstreamAbort` 로 잇는다. 리다이렉트 홉(`followRedirectsSafely`)과 응답 본문 읽기도 같은 controller 신호를 쓴다. 리스너는 응답 본문까지 읽은 뒤 `finally` 에서 뗀다. 단위 테스트 `http-request.handler.spec.ts` |
 | HTTP 노드 취소 에러 분류(handler 가 `AbortError` 를 엔진까지 전달) | ✅ | catch 가 `isUpstreamAbort` 이면 `AbortError` 를 다시 던진다. 활동 로그는 남기지 않는다(규칙 3). JSON 본문을 읽는 중에 노드 취소 신호로 끊긴 것도 `null` 로 삼키지 않고 다시 던진다. 노드 자체 타임아웃은 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 간다. 2026-10-10 결정(아래 Rationale) |
-| AI 노드 신호 전파 | ✅ | `ai-agent.handler.ts`·`text-classifier.handler.ts`·`information-extractor.handler.ts` 가 `signal: context.abortSignal` 을 넘긴다. 단위 테스트가 `context.abortSignal` 이 `llmService.chat` 으로 가는지 확인한다(정보 추출기는 단일 턴, 멀티턴 첫 경로는 후속) |
+| AI 노드 신호 전파 | 🚧 | `ai-agent.handler.ts`·`text-classifier.handler.ts`·`information-extractor.handler.ts` 가 `signal: context.abortSignal` 을 넘긴다. AI 에이전트의 롤링 요약 호출은 아직 넘기지 않는다(규칙 2). 단위 테스트가 `context.abortSignal` 이 `llmService.chat` 으로 가는지 확인한다(정보 추출기는 단일 턴, 멀티턴 첫 경로는 후속) |
 | AI 노드 취소 에러 분류(handler 가 `AbortError` 를 엔진까지 전달) | 🚧 | AI 에이전트만 맞다. AI 에이전트는 `AbortError` 를 잡지 않고 엔진까지 전달한다. Text Classifier 는 catch 가 `AbortError` 를 포함한 모든 에러를 `LLM_CALL_FAILED` 출력으로 바꿔 `cancelled` 로 기록되지 않는다. 정보 추출기도 단일 턴과 멀티턴 경로 모두 취소를 실패 출력으로 바꾼다. 두 노드 문서의 요구사항([텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 의 REQ-CLASSIFY-012, [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 의 REQ-EXTRACT-009)도 아직 LLM 호출의 모든 예외를 에러 포트로 보내라고 적는다. NERV Task `CLE-T-SFH6RG` 가 코드와 두 문서를 함께 고친다 |
 | Parallel `cancel-others-on-fail` 통합 | ✅ | `parallel-executor.ts` |
 | 사용자 실행 중지(`POST /api/executions/:id/stop`, 툴바 Stop) | ✅ | `executions.controller.ts`·`executions.service.ts`·`editor-toolbar.tsx`. 실행 행 UPDATE 까지가 이 행의 범위이고 dispatch 를 멈추는 것은 아래 가드 행이다 |

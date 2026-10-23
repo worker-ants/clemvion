@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "6ae7da335920ffc8709673e4cd89b37927a04212d165de62f1592a8d262b227d"
+content_hash: "f8474897a17b9b7d564dea9ddf89399f181998c1a86fdca9b86c77a23c156488"
 read_as: "approved_fallback"
 task: "CLE-T-APEQDD"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "b7e60d95de88c8d9347127ca5c3232e8c9b6454533200eaee830fabd16fa95ed"
-etag: "sha256-950b0a2ddc193bd7146b75df335971c7e2f88902f8b68cba8eb53654cb8305e0"
+mirror_sha256: "af6e7ed30a72cbe3987fd444433567adeed1ffd07db7f2ab7eb11a5f085e77e0"
+etag: "sha256-9a40029de32b3d34004691b6a13ae81baa1b5ab029bf7e5a578ad56ddffc1de6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -363,7 +363,7 @@ class RerankClientFactory {
 
 | 에러 유형 | HTTP 상태 | 코드와 처리 |
 |----------|----------|------|
-| 속도 제한 | 429 | `LLM_RATE_LIMIT`. 지수 백오프로 최대 3회 재시도(`withRetry`) |
+| 속도 제한 | 429 | `LLM_RATE_LIMIT`. `chat` 은 지수 백오프로 최대 3회 재시도(`withRetry`). `chatStream` 은 [호출 신뢰성 계약](#호출-신뢰성-계약) 참조 |
 | 네트워크·기타 실패 | - | `LLM_CONNECTION_ERROR`. 위 분기에 들지 않는 모든 클라이언트 호출 실패의 기본값이다(인증 실패·모델 없음·컨텍스트 초과 포함) |
 | 출력 오염 | - | `LLM_OUTPUT_MALFORMED`. gpt-oss 계열 harmony 제어 토큰이 드러날 때(OpenAI 스트리밍 경로). 사용자에게는 안내문으로 바꿔 보여 준다([harmony 제어 토큰 거르기](#harmony-제어-토큰-거르기)) |
 | 자격 증명 누락 | 400 | `LLM_CREDENTIALS_REQUIRED`. 미리보기 요청에서 local 이 아닌 프로바이더의 `apiKey` 가 없을 때 |
@@ -440,7 +440,8 @@ type ChatStreamEvent =
 
 | 경우 | 이벤트 | 비고 |
 |--------|--------|------|
-| 429 rate limit (스트리밍 시작 전) | Anthropic·Google 은 `error` (code=`LLM_RATE_LIMIT`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | [에러 처리](#에러-처리) 의 재시도 정책을 쓴다 |
+| 429 rate limit (스트리밍 시작 전) | Anthropic·Google 은 `error` (code=`LLM_RATE_LIMIT`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | `chatStream` 은 앱 수준 재시도(`withRetry`)를 거치지 않는다([호출 신뢰성 계약](#호출-신뢰성-계약)). 프로바이더 분기는 [미결 사항](#미결-사항) |
+| 그 밖의 실패 (스트리밍 시작 전, 429 아님) | Anthropic·Google 은 `error` (code=`LLM_CONNECTION_ERROR`). OpenAI 계열은 스트림을 열기 전에 예외를 던진다 | 인증 실패나 모델 없음 같은 실패가 여기 든다 |
 | 시작 뒤 네트워크 단절 | `error` (code=`LLM_CONNECTION_ERROR`) | 클라이언트가 다시 시작하도록 안내한다 |
 | 클라이언트 취소 (사용자 Stop) | `done` (finishReason=`aborted`) | 서버는 usage 가 확인되는 만큼만 기록한다 |
 | 지원하지 않는 프로바이더에 stream 요청 | 스트림 시작 전 `LLM_STREAMING_UNSUPPORTED` throw | 호출하는 쪽이 non-streaming 대체 경로를 쓸지 정한다 |
@@ -493,7 +494,7 @@ class LlmService {
 - `signal`: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다. 취소되면 SDK 가 바로 throw 하고 재시도 대상이 아니다.
 - `disableInnerRetry`: 호출하는 쪽에 자체 재시도 층(예: 지식 저장소의 `retryWithBackoff`)이 있으면 내부 재시도를 꺼서 호출이 불어나지 않게 한다.
 - 내부 `withRetry` 는 rate limit(HTTP 429 또는 "rate limit") 에만 최대 3회 재시도한다. RFC 7231 `Retry-After` 헤더(delta-seconds 또는 HTTP-date)가 있으면 그 값을 따르되 상한은 60초다. 없으면 지수 백오프를 쓴다.
-- 스트리밍 도중에는 재시도하지 않는다. 시작 전 네트워크 초기화 단계에서만 위 백오프 규칙을 쓴다.
+- `chatStream` 은 `withRetry` 를 거치지 않는다. 스트림을 열 때도 도중에도 앱이 다시 시도하지 않고 실패를 호출하는 쪽에 그대로 넘긴다.
 - 호출하는 쪽이 메시지에 붙인 `source` 마커(WebSocket emit 메타)는 프로바이더로 보내기 전에 떼어 낸다.
 - chat 계열 호출은 끝난 뒤 사용량을 fire-and-forget 으로 기록한다. `chatStream` 은 `done` 이벤트에서만 기록한다. 적재 규칙은 [LLM 사용량 기록](CLE-AI-USAGE.md) 에서 정한다.
 
@@ -522,7 +523,10 @@ class LlmService {
 
 ## 미결 사항
 
-없음. 2026-10-10 에 «LLM 호출 타임아웃 기준» 을 닫았다. 결정은 Rationale 「LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)」 에 있다.
+- **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
+- **공통 기본값**: 클라이언트 계층은 호출하는 쪽이 준 `timeoutMs` 만 건다. `LlmService` 에 공통 기본값을 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 이 함께 정한다(NERV Task `CLE-T-0R5SYN`). 120초 하향안을 기각한 이력은 [그 문서의 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
+
+2026-10-10 에 «LLM 호출 타임아웃 기준» 의 문서와 코드 정합을 닫았다. 결정은 Rationale 「LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)」 에 있다. 공통 기본값은 위 항목대로 열려 있다.
 
 ## 구현 위치
 
@@ -586,7 +590,7 @@ class LlmService {
 
 AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 이 문서의 클라이언트 계층은 `timeoutMs` 를 받지 않으면 앱 타임아웃을 걸지 않고, 120초는 일부 SDK 의 요청 타임아웃으로만 걸린다. 호출하는 쪽도 제각각이었다. AI 에이전트는 10분을 걸고, 어시스턴트 문서는 이 문서를 근거로 스트리밍 턴에 120초와 `LLM_TIMEOUT` 을 적었다.
 
-2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 클라이언트 계층은 지금처럼 호출자가 주는 `timeoutMs` 만 걸고 공통 기본값을 두지 않는다. 타임아웃을 `LLM_TIMEOUT` 으로 옮기지도 않는다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. 앱 기본값을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 클라이언트 계층은 지금처럼 호출자가 주는 `timeoutMs` 만 걸고 공통 기본값을 두지 않는다. 이것은 현행 구조를 적은 것이고 공통 기본값을 둘지는 이 결정에서 따지지 않았다(2026-10-23 정정, [미결 사항](#미결-사항)). 승인본은 «공통 기본값을 두지 않는다» 를 결정처럼 적었지만 2026-10-10 결정은 문서를 코드에 맞추는 데까지였다. 타임아웃을 `LLM_TIMEOUT` 으로 옮기지도 않는다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
 
 ### 종류와 상관없이 설정을 찾는 이유
 

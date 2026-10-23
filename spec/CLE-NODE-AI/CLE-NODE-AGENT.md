@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "84589b36123331d147ff22df55bc53ce90cd382ad80696455671995402afeb36"
+content_hash: "d37ad5b96089de2a4a2634746cdd316ddcd16961a49a70e1cd760bb0da2c0e49"
 read_as: "approved_fallback"
 task: "CLE-T-APEQDD"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7297d822a0588567fb7b93679e8498db13bac6cb4cb9ef763024d9cc677a9b47"
-etag: "sha256-31439b0593714f27f60abf6d31634dd69ea8fe23fbf12fa8a445bc2653299c86"
+mirror_sha256: "7dcc20075612c3d8d725194897c763fd2d826e12c9e637f82f09bbf64aa53d4d"
+etag: "sha256-843ea84c39adbabdfaab55e019441f47424835f02374886f94051fc81f35037e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -208,7 +208,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 
 멀티턴에는 `out` 포트가 없다. 종료 사유가 늘 분명해 사유별 포트로 나눈다. 조건이 0개여도 같다. 포트 `type` 표기는 AI 노드와 코드 사이에 정의가 갈린다([AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항).
 
-단일 턴 `error` 포트 출력은 목표 계약이다. 현재 단일 턴의 일반 LLM `chat` 실패는 try/catch 로 감싸지 않아 `error` 포트로 가지 않고 엔진 레벨의 분류 없는 `FAILED` 로 끝난다(부분 구현). 도구 정의 크기 예산 초과만 `error` 포트로 간다. 후속은 `plan/in-progress/node-output-redesign/ai-agent.md` 가 추적한다. 멀티턴 에러 종결은 엔진 `handleAiTurnError` 경로로 구현돼 있다.
+단일 턴 `error` 포트 출력은 목표 계약이다. 현재 단일 턴의 일반 LLM `chat` 실패는 try/catch 로 감싸지 않아 `error` 포트로 가지 않고 엔진 레벨의 분류 없는 `FAILED` 로 끝난다(부분 구현). 도구 정의 크기 예산 초과만 `error` 포트로 간다. 후속은 NERV Task `CLE-T-ZHBMAC` 가 추적한다. 멀티턴 에러 종결은 엔진 `handleAiTurnError` 경로로 구현돼 있다.
 
 **포트 시각 구분**
 
@@ -404,9 +404,9 @@ stateDiagram-v2
 
 - 환경 변수 `AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms(10분), `0` 이면 끈다. `LlmService.chat` 은 `opts.timeoutMs > 0` 이면 `withTimeout`(자체 `AbortController`)으로 경쟁시켜 넘으면 예외를 던진다. 새 에러 코드는 없다.
 - 멀티턴 재개에서는 `AiTurnOrchestrator.classifyLlmError` 가 이 예외를 재시도 가능 `LLM_CALL_FAILED`(네트워크 타임아웃 계열)로 분류한다. AI 에이전트 경로는 `LLM_TIMEOUT` 을 내지 않는다. `error-codes.ts` 의 `LLM_TIMEOUT` 은 어느 경로도 내지 않는 별개 enum 이며 정리는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 소관이다.
-- 단일 턴은 일반 `chat` 호출에 try/catch 가 없어 타임아웃이 지금은 분류 없는 `FAILED` 로 끝난다. 이는 기존 라우팅 공백이며 타임아웃 배선은 이를 만들지도 없애지도 않는다. 1차 목적은 무기한 멈춤에 상한을 두는 것이다.
+- 단일 턴은 일반 `chat` 호출에 try/catch 가 없어 타임아웃이 지금은 분류 없는 `FAILED` 로 끝난다. 이는 기존 라우팅 공백(NERV Task `CLE-T-ZHBMAC`)이며 타임아웃 배선은 이를 만들지도 없애지도 않는다. 1차 목적은 무기한 멈춤에 상한을 두는 것이다.
 - 타임아웃은 노드 `abortSignal` 과 독립이다. 재개 경로에는 전파할 signal 이 없다. 사용자 중단은 `AbortController` 없이 Execution 행만 UPDATE 하고, `AbortController` 를 만드는 곳은 `parallel-executor.ts` 한 곳뿐이다. 그래서 재개 경로 취소는 턴 경계 DB 관측 가드가 맡는다(2026-07-27 구현, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다.
-- provider SDK 타임아웃과 나란히 적용돼 먼저 발화하는 쪽이 실제 상한이다. OpenAI·Anthropic·Azure·Local(OpenAI 계열) 클라이언트는 약 120초 요청 타임아웃이 박혀 있어 대개 SDK 쪽이 먼저 발화한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. 모든 LLM 호출에 120초를 거는 공통 기준은 없다(2026-10-10 결정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01).
+- 프로바이더 SDK 요청 타임아웃과 나란히 걸려 먼저 발화하는 쪽이 실제 상한이다. SDK 타임아웃 값과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. 모든 LLM 호출에 120초를 거는 공통 기준은 없다(2026-10-10 결정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01).
 - `LlmService.chat` 은 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 HTTP 요청을 취소해 소켓이 남지 않는다(`listModels` 와 같은 패턴). Google 클라이언트도 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 signal 을 받지 않아 이 배선 밖이다(후속).
 - 이 배선은 AI 에이전트 전용이다. 텍스트 분류기·정보 추출기로 넓히는 것은 후속이다.
 
@@ -496,7 +496,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 park·재개, 에러 분류)
 - `codebase/backend/src/shared/llm-tracing/llm-call-record.ts`
 
-진행 중 작업: `plan/in-progress/ai-agent-tool-connection-rewrite.md`, `plan/in-progress/node-output-redesign/ai-agent.md`
+진행 중 작업은 NERV Task 로 추적한다. 단일 턴 실패 라우팅은 `CLE-T-ZHBMAC` 다.
 
 ## Rationale
 
@@ -606,9 +606,9 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 
 ### LLM 호출 앱 레벨 타임아웃을 둔 근거
 
-도구 정의 크기 예산은 팽창에 의한 멈춤의 근본 원인을 막지만, 네트워크 지연이나 모델 stall 같은 다른 이유의 무기한 멈춤에는 앱 레벨 상한이 없었다. 이를 심층 방어로 보완한다. 기본값 10분은 정상적인 긴 생성(큰 출력, extended thinking)을 해치지 않으면서 무기한 멈춤만 끊는 값이다. OpenAI·Anthropic SDK 라이브러리의 기본 요청 타임아웃도 10분이다(이 앱은 SDK 클라이언트에 120초를 따로 준다. [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01). AI 에이전트에만 둔 이유는 재개 다단계 도구 반복 때문에 멈춤 노출면이 가장 넓어서다.
+도구 정의 크기 예산은 팽창에 의한 멈춤의 근본 원인을 막지만, 네트워크 지연이나 모델 stall 같은 다른 이유의 무기한 멈춤에는 앱 레벨 상한이 없었다. 이를 심층 방어로 보완한다. 기본값 10분은 정상적인 긴 생성(큰 출력, extended thinking)을 해치지 않으면서 무기한 멈춤만 끊는 값이다. 다만 SDK 에 약 120초 요청 타임아웃을 준 프로바이더(OpenAI 계열·Anthropic)에서는 SDK 쪽이 먼저 끊는다. 그래서 이 설명은 SDK 타임아웃이 없는 Google 과, SDK 재전송으로 늘어나는 누적 시간에만 맞는다(2026-10-23 정정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale). OpenAI·Anthropic SDK 라이브러리의 기본 요청 타임아웃도 10분이다(이 앱은 SDK 클라이언트에 120초를 따로 준다. [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01). AI 에이전트에만 둔 이유는 재개 다단계 도구 반복 때문에 멈춤 노출면이 가장 넓어서다.
 
-2026-10-10 에 NF-AI-01 의 공통 120초 기준을 거두고 호출 경로별 현행 값을 적기로 했다. 이 노드의 10분 기본값은 그대로 둔다. 120초로 낮추면 긴 생성이 끊기기 때문이다. 결정과 기각한 대안은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
+2026-10-10 에 NF-AI-01 의 공통 120초 기준을 거두고 호출 경로별 현행 값을 적기로 했다. 이 노드의 10분 기본값은 그대로 둔다. 120초로 낮추면 Google 에서 긴 생성이 끊긴다. 다른 프로바이더에서는 SDK 타임아웃이 먼저 걸려 차이가 작다. 결정과 기각한 대안은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
 
 ### 멀티턴에 `out` 포트가 없는 이유 (2026-07-18)
 
