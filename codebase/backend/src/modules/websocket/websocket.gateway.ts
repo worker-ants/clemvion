@@ -1049,7 +1049,7 @@ export class WebsocketGateway
    *   원본 message/stack 은 서버 로그에만 기록한다 (누출 차단 보안 게이트).
    *
    * 아키텍처 불변식: 4종 continuation 핸들러(submitForm·clickButton·submitMessage·endConversation)
-   * 의 catch 블록은 모두 이 메서드를 거친다 — frontend `localizeAckError` 가 "모든 continuation
+   * 의 catch 블록은 모두 이 메서드를 거친다 — frontend `localizeContinuationAckError` 가 "모든 continuation
    * ack 의 error 필드는 client-safe" 임을 가정하므로, 신규 continuation 핸들러 추가 시
    * 반드시 이 메서드를 사용해야 한다 (§7.5.2).
    *

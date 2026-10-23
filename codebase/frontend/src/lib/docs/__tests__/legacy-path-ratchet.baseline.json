@@ -678,7 +678,7 @@
     "codebase/frontend/src/lib/websocket/execution-error-codes.ts": 1,
     "codebase/frontend/src/lib/websocket/use-background-run.ts": 1,
     "codebase/frontend/src/lib/websocket/use-execution-events.ts": 18,
-    "codebase/frontend/src/lib/websocket/use-execution-interaction-commands.ts": 3,
+    "codebase/frontend/src/lib/websocket/use-execution-interaction-commands.ts": 1,
     "codebase/frontend/src/lib/workspace/href.ts": 1,
     "codebase/frontend/src/lib/workspace/workspace-slug-gate.tsx": 1,
     "codebase/packages/ai-end-reason/README.md": 1,

@@ -248,12 +248,20 @@ export const editor = {
     systemErrorRetryAfterShort: "{{seconds}}초",
     systemErrorRetrying: "재시도 중…",
     systemErrorNonRetryable: "재시도 불가",
-    systemErrorRetryFailed: "재시도 실패",
-    systemErrorRetryFailedNotFound:
-      "이 재시도 정보가 만료되었거나 이미 사용되었습니다.",
-    systemErrorRetryFailedNodeNotRetryable:
-      "이 오류는 재시도할 수 없습니다.",
-    systemErrorRetryFailedTooEarly: "잠시 후 다시 시도해주세요.",
+    // retry_last_turn 실패 ack 의 error.code → 토스트 (execution-error-codes.ts).
+    systemErrorRetryFailed: "재시도에 실패했어요.",
+    systemErrorRetryFailedStateExpired:
+      "이 재시도 정보가 만료됐거나 이미 사용됐어요.",
+    systemErrorRetryFailedNodeNotRetryable: "이 오류는 다시 시도할 수 없어요.",
+    systemErrorRetryFailedTooEarly: "잠시 후 다시 시도해 주세요.",
+    systemErrorRetryFailedUnauthenticated:
+      "로그인 상태를 확인하지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.",
+    systemErrorRetryFailedExecutionNotFound:
+      "이 실행을 찾을 수 없어요. 화면을 새로고침해 주세요.",
+    systemErrorRetryFailedInvalidState:
+      "이 실행은 지금 다시 시도할 수 없는 상태예요. 화면을 새로고침해 주세요.",
+    systemErrorRetryFailedInternal:
+      "재시도를 시작하지 못했어요. 워크플로우를 다시 실행해 주세요.",
   },
   expression: {
     insertVariable: "변수 삽입",

@@ -6,7 +6,10 @@ import { getWsClient } from "./ws-client";
 import type { WsClient } from "./ws-client";
 import { useExecutionStore } from "../stores/execution-store";
 import { useT, type TFunction } from "@/lib/i18n";
-import { getExecutionInteractionErrorI18nKey } from "./execution-error-codes";
+import {
+  getExecutionInteractionErrorI18nKey,
+  getRetryLastTurnErrorI18nKey,
+} from "./execution-error-codes";
 
 /**
  * Sentinel buttonId recognised by the engine's button-interaction handler as
@@ -32,52 +35,96 @@ function isUserInitiatedTurn(
   return m.type === "user";
 }
 
-interface InteractionAck {
+/**
+ * 재개 명령 넷(`submit_form` · `click_button` · `submit_message` · `end_conversation`)의
+ * ack (`CLE-API-WS-EVENTS` 「재개 명령의 에러」). 실패하면 평면 `error` 문자열과 `errorCode` 를 싣는다.
+ */
+export interface ContinuationAck {
   success: boolean;
   error?: string;
   /**
-   * 평면 client-safe 에러 코드 (4종 continuation 명령, spec §7.5.2). frontend 가
+   * 평면 client-safe 에러 코드 (4종 continuation 명령, `CLE-API-WS-EVENTS` 「재개 명령의 에러」). frontend 가
    * `execution-error-codes` 맵으로 localize 한다. retry 의 nested `error:{code}` 와 별개.
    */
   errorCode?: string;
 }
 
 /**
- * continuation ack 의 (error, errorCode) 를 localized 메시지로 변환한다 (spec §7.5.2).
+ * 마지막 턴 재시도(`retry_last_turn`)의 ack (`CLE-API-WS-EVENTS` 「마지막 턴 재시도」). 실패하면 재개
+ * 명령 넷과 달리 중첩 `error: { code, message }` 를 싣는다.
+ *
+ * 두 ack 를 한 타입(`error?: string`)으로 두었을 때 이 객체가 `toast.error` 에 그대로
+ * 넘어가 React 렌더 오류가 났고 타입 검사는 잡지 못했다(CLE-T-4BJ3KR). 나눠 두면 같은
+ * 실수가 타입 오류로 드러난다. `executionId` · `nodeExecutionId` · `resumed` 도 오지만
+ * 클라이언트가 읽지 않아 선언하지 않는다.
+ */
+export interface RetryLastTurnAck {
+  success: boolean;
+  error?: { code: string; message: string };
+}
+
+/**
+ * ack 이벤트 이름 → ack payload 타입. `emitWithAck` 가 이 표로 `onFailure` 인자 타입을
+ * 정하므로 호출부가 ack 형태를 잘못 고를 수 없다.
+ */
+interface AckByEvent {
+  "execution.form_submitted": ContinuationAck;
+  "execution.click_button.ack": ContinuationAck;
+  "execution.submit_message.ack": ContinuationAck;
+  "execution.end_conversation.ack": ContinuationAck;
+  "execution.retry_last_turn.ack": RetryLastTurnAck;
+}
+
+/**
+ * continuation ack 의 (error, errorCode) 를 localized 메시지로 변환한다 (`CLE-API-WS-EVENTS` 「재개 명령의 에러」).
  * 매핑된 code 면 localized i18n 메시지, 아니면 backend 의 영문 `error` 문자열로 fallback.
  * backend 는 typed error → 고정 client-safe message, plain error → generic fallback 만
  * 보내므로 `error` 문자열 자체에 내부 정보 누출은 없다.
  */
-function localizeAckError(
+function localizeContinuationAckError(
   t: TFunction,
-  error: string,
-  errorCode: string | undefined,
+  ack: ContinuationAck,
 ): string {
-  const key = getExecutionInteractionErrorI18nKey(errorCode);
-  return key ? t(key) : error;
+  const key = getExecutionInteractionErrorI18nKey(ack.errorCode);
+  return key ? t(key) : (ack.error ?? "Unknown error");
+}
+
+/**
+ * `retry_last_turn` 실패 ack 의 중첩 `error` 를 토스트 문구로 바꾼다 (`CLE-API-WS-EVENTS` 「마지막 턴 재시도」).
+ * 매핑된 `code` 면 지역화 문구, 아니면 백엔드의 영문 `message`, 그것도 없으면 일반
+ * 실패 문구다. ack 는 소켓에서 온 값이라 선언 타입과 다를 수 있어 `message` 는
+ * 문자열일 때만 쓴다. 어느 경로든 문자열을 돌려줘 토스트에 객체가 넘어가지 않는다.
+ */
+function localizeRetryAckError(t: TFunction, ack: RetryLastTurnAck): string {
+  const key = getRetryLastTurnErrorI18nKey(ack.error?.code);
+  if (key) return t(key);
+  const message: unknown = ack.error?.message;
+  if (typeof message === "string" && message.trim() !== "") return message;
+  return t("editor.conversation.systemErrorRetryFailed");
 }
 
 /**
  * Emit a command and listen for its ack event exactly once. The gateway
- * replies with `{ event, data: { success, error? } }` — NestJS surfaces this
+ * replies with `{ event, data: { success, ... } }` — NestJS surfaces this
  * to the client as `socket.on(event, data)`, not as a Socket.IO ack callback,
- * so we attach a one-shot listener.
+ * so we attach a one-shot listener. The ack payload type follows the ack
+ * event name (`AckByEvent`).
  *
  * Each interaction command is gated by the user (one in-flight at a time —
  * the UI disables further input until the AI response arrives), so a single
  * one-shot ack listener is enough to match the latest emit.
  */
-function emitWithAck(
+function emitWithAck<E extends keyof AckByEvent>(
   ws: WsClient,
   event: string,
   data: unknown,
-  ackEvent: string,
-  onFailure: (error: string, errorCode?: string) => void,
+  ackEvent: E,
+  onFailure: (ack: AckByEvent[E]) => void,
 ): void {
   ws.once(ackEvent, (...args: unknown[]) => {
-    const response = args[0] as InteractionAck | undefined;
+    const response = args[0] as AckByEvent[E] | undefined;
     if (response && response.success === false) {
-      onFailure(response.error ?? "Unknown error", response.errorCode);
+      onFailure(response);
     }
   });
   ws.emit(event, data);
@@ -94,7 +141,7 @@ export interface ExecutionInteractionCommands {
    * 2. `setWaitingAiResponse(true)` — AI 응답 인디케이터 활성. ack 실패 시
    *    `setWaitingAiResponse(false)` 로 해제 (spinner 만 해제, optimistic turn 유지).
    * 3. WS emit `execution.submit_form` → ack event `execution.form_submitted`.
-   *    ack 실패 시 `toast.error(error)` 표시.
+   *    ack 실패 시 `localizeContinuationAckError` 로 지역화한 문구를 `toast.error` 로 표시.
    */
   submitForm: (formData: Record<string, unknown>) => void;
   /** Click a specific port-type button in a waiting buttons node. */
@@ -109,14 +156,15 @@ export interface ExecutionInteractionCommands {
    * Re-enter a multi-turn AI Agent node that ended with retryable error by
    * spawning a new NodeExecution row from the persisted `_retryState`.
    *
-   * SoT: spec/5-system/6-websocket-protocol.md §4.2 +
-   * spec/conventions/conversation-thread.md §9.10 CT-S11.
+   * SoT: `CLE-API-WS-EVENTS` 「마지막 턴 재시도」 + CLE-EXEC-PREVIEW CT-S11.
    *
    * Distinct from workflow Re-run (§13 replay-rerun) — this stays inside
    * the same Execution and only re-attempts the last failed LLM turn.
    *
-   * On failure (3 error codes — RETRY_STATE_NOT_FOUND /
-   * NODE_NOT_RETRYABLE / RETRY_TOO_EARLY) shows a localized toast.
+   * On failure the ack carries a nested `error: { code, message }`. The codes
+   * in the `CLE-API-WS-EVENTS` retry table map to localized toasts, an unmapped
+   * code falls back to the backend `message`, then to a generic "retry failed"
+   * string.
    */
   retryLastTurn: (nodeExecutionId: string) => void;
 }
@@ -183,12 +231,12 @@ export function useExecutionInteractionCommands(
         "execution.submit_form",
         { executionId, formData },
         "execution.form_submitted",
-        (error, errorCode) => {
+        (ack) => {
           // Server rejected. `sendMessage` 와 평행으로 spinner 만 해제 +
           // toast. optimistic presentation_user 는 유지 (사용자가 제출한
           // 내용 가시화 — 재시도 안내 차원). spec §Rationale.
           setWaitingAiResponse(false);
-          toast.error(localizeAckError(t, error, errorCode));
+          toast.error(localizeContinuationAckError(t, ack));
         },
       );
     },
@@ -203,7 +251,7 @@ export function useExecutionInteractionCommands(
         "execution.click_button",
         { executionId, buttonId },
         "execution.click_button.ack",
-        (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
+        (ack) => toast.error(localizeContinuationAckError(t, ack)),
       );
     },
     [executionId, t],
@@ -216,7 +264,7 @@ export function useExecutionInteractionCommands(
       "execution.click_button",
       { executionId, buttonId: CONTINUE_BUTTON_ID },
       "execution.click_button.ack",
-      (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
+      (ack) => toast.error(localizeContinuationAckError(t, ack)),
     );
   }, [executionId, t]);
 
@@ -244,12 +292,12 @@ export function useExecutionInteractionCommands(
         "execution.submit_message",
         { executionId, nodeId, message },
         "execution.submit_message.ack",
-        (error, errorCode) => {
+        (ack) => {
           // Server rejected the message (oversize / no pending continuation /
           // not authorised). Release the "AI is responding" indicator so the
           // user can retry instead of staring at a frozen spinner.
           setWaitingAiResponse(false);
-          toast.error(localizeAckError(t, error, errorCode));
+          toast.error(localizeContinuationAckError(t, ack));
         },
       );
     },
@@ -264,7 +312,7 @@ export function useExecutionInteractionCommands(
         "execution.end_conversation",
         { executionId, nodeId },
         "execution.end_conversation.ack",
-        (error, errorCode) => toast.error(localizeAckError(t, error, errorCode)),
+        (ack) => toast.error(localizeContinuationAckError(t, ack)),
       );
     },
     [executionId, t],
@@ -281,13 +329,13 @@ export function useExecutionInteractionCommands(
         "execution.retry_last_turn",
         { executionId, nodeExecutionId },
         "execution.retry_last_turn.ack",
-        (error) => {
+        (ack) => {
           setWaitingAiResponse(false);
-          toast.error(error);
+          toast.error(localizeRetryAckError(t, ack));
         },
       );
     },
-    [executionId, setWaitingAiResponse],
+    [executionId, setWaitingAiResponse, t],
   );
 
   return {

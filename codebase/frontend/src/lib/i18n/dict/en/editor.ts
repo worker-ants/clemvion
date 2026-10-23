@@ -250,11 +250,20 @@ export const editor: Dict["editor"] = {
     systemErrorRetryAfterShort: "{{seconds}}s",
     systemErrorRetrying: "Retrying…",
     systemErrorNonRetryable: "Not retryable",
-    systemErrorRetryFailed: "Retry failed",
-    systemErrorRetryFailedNotFound:
+    // retry_last_turn failure ack error.code → toast (execution-error-codes.ts).
+    systemErrorRetryFailed: "Retry failed.",
+    systemErrorRetryFailedStateExpired:
       "This retry attempt has expired or was already used.",
     systemErrorRetryFailedNodeNotRetryable: "This error cannot be retried.",
     systemErrorRetryFailedTooEarly: "Please wait before retrying.",
+    systemErrorRetryFailedUnauthenticated:
+      "We couldn't confirm your sign-in. Refresh the page and try again.",
+    systemErrorRetryFailedExecutionNotFound:
+      "This execution could not be found. Please refresh the page.",
+    systemErrorRetryFailedInvalidState:
+      "This execution can't be retried right now. Please refresh the page.",
+    systemErrorRetryFailedInternal:
+      "The retry couldn't be started. Please run the workflow again.",
   },
   expression: {
     insertVariable: "Insert variable",

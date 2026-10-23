@@ -26,7 +26,11 @@ vi.mock("@/lib/i18n", () => ({
   useT: () => (key: string) => key,
 }));
 
-import { useExecutionInteractionCommands } from "../use-execution-interaction-commands";
+import type { toast } from "sonner";
+import {
+  useExecutionInteractionCommands,
+  type RetryLastTurnAck,
+} from "../use-execution-interaction-commands";
 import { useExecutionStore } from "../../stores/execution-store";
 
 describe("useExecutionInteractionCommands", () => {
@@ -532,46 +536,112 @@ describe("useExecutionInteractionCommands", () => {
       });
     });
 
-    it("sets isWaitingAiResponse=true optimistically and releases on ack failure with 3 error codes", () => {
+    // CLE-API-WS-EVENTS 「마지막 턴 재시도」 — retry 실패 ack 는 재개 명령 넷의 평면 `error: string` 과 달리
+    // 중첩 `error: { code, message }` 다. 이 객체가 토스트에 그대로 넘어가면 sonner 가
+    // React 자식으로 렌더하다 "Objects are not valid as a React child" 로 깨진다(CLE-T-4BJ3KR).
+    function failRetryLastTurn(ack: Record<string, unknown>) {
       const { result } = renderHook(() =>
         useExecutionInteractionCommands("exec-1"),
       );
-      const errorCodes = [
-        "RETRY_STATE_NOT_FOUND",
-        "NODE_NOT_RETRYABLE",
-        "RETRY_TOO_EARLY",
-      ] as const;
-
-      for (const code of errorCodes) {
-        emitMock.mockReset();
-        onceMock.mockReset();
-        toastErrorMock.mockReset();
-        useExecutionStore.getState().reset();
-
-        act(() => {
-          result.current.retryLastTurn("node-exec-abc");
+      act(() => {
+        result.current.retryLastTurn("node-exec-abc");
+      });
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+      const onceCall = onceMock.mock.calls.find(
+        ([event]) => event === "execution.retry_last_turn.ack",
+      );
+      const ackHandler = onceCall![1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({
+          success: false,
+          executionId: "exec-1",
+          nodeExecutionId: "node-exec-abc",
+          resumed: false,
+          ...ack,
         });
+      });
+    }
 
-        expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
-        expect(onceMock).toHaveBeenCalledWith(
-          "execution.retry_last_turn.ack",
-          expect.any(Function),
-        );
+    function onlyToastArg(): unknown {
+      expect(toastErrorMock).toHaveBeenCalledTimes(1);
+      return toastErrorMock.mock.calls[0][0];
+    }
 
-        const ackHandler = onceMock.mock.calls[0][1] as (
-          ...args: unknown[]
-        ) => void;
-
-        act(() => {
-          ackHandler({
-            success: false,
-            error: code,
-          });
-        });
-
+    // 마지막 턴 재시도 표의 코드 전부. 백엔드 message 는 게이트웨이(`handleRetryLastTurn`)와
+    // `RetryLastTurnError` 의 고정 문자열이다.
+    it.each([
+      ["UNAUTHENTICATED", "Not authenticated", "systemErrorRetryFailedUnauthenticated"],
+      ["NOT_FOUND", "Execution not found", "systemErrorRetryFailedExecutionNotFound"],
+      ["RETRY_STATE_NOT_FOUND", "Retry state not found or expired.", "systemErrorRetryFailedStateExpired"],
+      ["NODE_NOT_RETRYABLE", "This node cannot be retried.", "systemErrorRetryFailedNodeNotRetryable"],
+      ["RETRY_TOO_EARLY", "Retry requested before the retry-after window elapsed.", "systemErrorRetryFailedTooEarly"],
+      // InvalidExecutionStateError 의 고정 message 는 재개 명령용 문장이라 재시도에는 맞지 않는다.
+      ["INVALID_EXECUTION_STATE", "Execution is not waiting for input.", "systemErrorRetryFailedInvalidState"],
+      ["INTERNAL_ERROR", "Retry could not be queued. Please try again.", "systemErrorRetryFailedInternal"],
+    ])(
+      "중첩 error.code %s 는 지역화 문자열로 토스트하고 스피너를 해제한다",
+      (code, message, keySuffix) => {
+        failRetryLastTurn({ error: { code, message } });
+        const arg = onlyToastArg();
+        expect(typeof arg).toBe("string");
+        expect(arg).toBe(`editor.conversation.${keySuffix}`);
         expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
-        expect(toastErrorMock).toHaveBeenCalledWith(code);
-      }
+      },
+    );
+
+    it("매핑 없는 error.code 는 백엔드 error.message 로 떨어진다", () => {
+      failRetryLastTurn({
+        error: { code: "SOME_FUTURE_CODE", message: "Retry failed" },
+      });
+      expect(onlyToastArg()).toBe("Retry failed");
+    });
+
+    it.each([
+      ["error 없음", {}],
+      ["error null", { error: null }],
+      ["빈 message", { error: { code: "SOME_FUTURE_CODE", message: "  " } }],
+      ["code · message 가 문자열이 아님", { error: { code: 42, message: { nested: true } } }],
+      ["옛 평면 문자열 error", { error: "RETRY_TOO_EARLY" }],
+    ])(
+      "%s 이면 일반 실패 문구로 떨어지고 객체를 넘기지 않는다",
+      (_label, ack) => {
+        failRetryLastTurn(ack);
+        expect(onlyToastArg()).toBe("editor.conversation.systemErrorRetryFailed");
+        expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+      },
+    );
+
+    it("성공 ack 는 토스트를 띄우지 않고 새 턴이 올 때까지 스피너를 둔다", () => {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.retryLastTurn("node-exec-abc");
+      });
+      const ackHandler = onceMock.mock.calls[0][1] as (resp: unknown) => void;
+      act(() => {
+        ackHandler({
+          success: true,
+          executionId: "exec-1",
+          nodeExecutionId: "node-exec-abc",
+          resumed: true,
+        });
+      });
+      expect(toastErrorMock).not.toHaveBeenCalled();
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
+    // 타입 수준 회귀 방지. vitest 는 타입을 지우므로 이 검사는 `tsconfig.typecheck.json`
+    // ratchet(`run-test.sh build` · CI frontend-checks)이 본다. `RetryLastTurnAck.error` 를
+    // 다시 `string` 으로 선언하면 아래 지시문이 쓰이지 않아 TS2578 이 늘어 ratchet 이 실패한다.
+    it("retry ack 의 error 는 토스트 인자 자리에 넣으면 타입 오류다", () => {
+      const ack: RetryLastTurnAck = {
+        success: false,
+        error: { code: "RETRY_TOO_EARLY", message: "m" },
+      };
+      // @ts-expect-error 중첩 error 객체는 toast.error 의 인자 타입(ReactNode)이 아니다.
+      const toastArg: Parameters<typeof toast.error>[0] = ack.error;
+      expect(toastArg).toEqual({ code: "RETRY_TOO_EARLY", message: "m" });
     });
 
     it("no-ops when executionId is null", () => {
