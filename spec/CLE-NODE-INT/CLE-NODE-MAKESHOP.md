@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP"
 title: "MakeShop 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046"]
+requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046", "REQ-MKSNODE-047"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "c73475833cd3bcb3d2c94b58b29aef52dcfd59bedec83ceb7ffbaee4e6b5b712"
+content_hash: "427f21c33c59c181d9fdd81af351d4fa6030cae9e864fd00f80506ac58237def"
 read_as: "approved_fallback"
 task: "CLE-T-G62XJS"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "4fc55c761f3f2b39b51a3264415bc11c1a203a6c669071824150c71d81f862fe"
-etag: "sha256-c5a15bb8de8e52098143c22badfa9b3067ba983860eb527840d20b30e553eb8a"
+mirror_sha256: "9c3336e05553072093cc258c9d4665aea12173afb405f6673f4630007fb81a4c"
+etag: "sha256-e1cea0df819bcc885192dbb3ce9dee30df6c65078bde17883c97f9b7f44d772a"
 ---
 > 구현 상태: 구현됨 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,8 +67,8 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 - REQ-MKSNODE-028 WHEN 설정을 에코하면 THE SYSTEM SHALL `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 사용자가 넣은 원래 값(표현식과 `pagination.offset` 포함)으로 싣고 자격 증명은 싣지 않는다.
 - REQ-MKSNODE-029 WHEN 통합을 해소한 뒤 노드 실행이 성공이나 실패로 끝나면 THE SYSTEM SHALL 활동 로그를 1건 남기고 노드 취소 신호(`AbortError`)로 끝난 호출에는 남기지 않는다.
 - REQ-MKSNODE-030 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 `makeshop.<resource>.<operation>`, `api_method` 를 operation method, `api_path` 를 path 템플릿으로 채운다.
-- REQ-MKSNODE-031 WHEN dry-run 으로 실행되고 operation method 가 POST 면 THE SYSTEM SHALL 실제 호출 없이 mock 결과로 끝낸다.
-- REQ-MKSNODE-032 WHEN dry-run 으로 실행되고 operation method 가 GET 이면 THE SYSTEM SHALL 실제로 호출한다.
+- REQ-MKSNODE-031 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이 아니거나 operation 이 상태를 바꾸는 GET 예외 목록에 있으면 THE SYSTEM SHALL 실제 호출 없이 모의 출력으로 끝낸다.
+- REQ-MKSNODE-032 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이며 상태를 바꾸는 GET 예외 목록에 없으면 THE SYSTEM SHALL 실제로 호출한다.
 - REQ-MKSNODE-033 WHEN 내부 MCP 브리지가 도구 이름을 만들면 THE SYSTEM SHALL operationId 의 하이픈을 밑줄로 바꾼다.
 - REQ-MKSNODE-034 WHEN 백엔드 메타데이터 검사가 돌면 THE SYSTEM SHALL 섹션 안에서 sanitize 한 operationId 가 겹치지 않는지 검증한다.
 - REQ-MKSNODE-035 WHEN AI 에이전트의 노출 도구 목록을 저장하면 THE SYSTEM SHALL 하이픈 원형의 bare operationId 배열로 저장한다.
@@ -83,6 +83,7 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 - REQ-MKSNODE-044 WHEN 실행할 operation 이 `paginated: true` 가 아니면 THE SYSTEM SHALL `pagination` 을 읽지 않는다.
 - REQ-MKSNODE-045 WHEN 실행 직전 노드 설정 사전 검증(`validate()`)이 돌면 THE SYSTEM SHALL `pagination` 을 검사하지 않고 숫자로 적은 값과 표현식 값의 규칙 위반을 모두 실행 단계의 `MAKESHOP_INVALID_PAGINATION` 판정에 맡긴다.
 - REQ-MKSNODE-046 WHEN 사용자가 설정 화면에서 Offset 을 바꾸면 THE SYSTEM SHALL 화면에 보이는 Limit 값(비어 있으면 50)을 함께 저장한다.
+- REQ-MKSNODE-047 WHEN 노드 실행이 dry-run 으로 모의 출력을 돌려주면 THE SYSTEM SHALL 활동 로그를 남기지 않는다.
 
 ## 설정
 
@@ -159,7 +160,7 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
    - MakeShop 은 데이터 호출의 호출 제한 헤더·정책을 공개 문서로 밝히지 않았다. 429 를 받으면 `Retry-After` 헤더가 있으면 그 값만큼, 없으면 고정 간격만큼 기다려 최대 2회 재시도하고, 다 쓰면 `MAKESHOP_RATE_LIMITED` 다.
    - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
 10. **응답 파싱**: JSON 본문을 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs` 를 채운다.
-11. **활동 로그 기록**: 통합을 해소한 뒤 끝난 실행마다 성공·실패 1건을 남긴다. 노드 취소 신호(`AbortError`)로 끝난 호출은 남기지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). 해소 전에 끝난 실패의 기록에는 알려진 결함이 있다([미결 사항](#미결-사항)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 요구사항은 [REQ-INTMGMT-022](../CLE-INT/CLE-INT-MANAGE.md)).
+11. **활동 로그 기록**: 통합을 해소한 뒤 끝난 실행마다 성공·실패 1건을 남긴다. dry-run 모의 출력은 통합을 해소하기 전(1단계 직후)에 끝나 이 단계에 닿지 않는다. 노드 취소 신호(`AbortError`)로 끝난 호출은 남기지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). 해소 전에 끝난 실패의 기록에는 알려진 결함이 있다([미결 사항](#미결-사항)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 요구사항은 [REQ-INTMGMT-022](../CLE-INT/CLE-INT-MANAGE.md)).
     - `api_label` = 카탈로그 키 `makeshop.<resource>.<operation>`(예: `makeshop.product.get-product`). 프론트엔드가 `GET /api/integrations/services/makeshop/catalog` 응답의 `labelKey` 와 i18n 사전으로 렌더한다.
     - `api_method` = operation 의 `method`(`GET`·`POST`).
     - `api_path` = operation 의 path 템플릿(placeholder 그대로).
@@ -213,7 +214,11 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 
 ### dry-run
 
-Cafe24 노드와 같은 규칙이다. 쓰기 operation(POST)은 dry-run 에서 외부 상태 변경을 막으려고 mock 으로 끝내고, GET 은 그대로 부른다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)).
+[Cafe24 노드](CLE-NODE-CAFE24.md#dry-run)와 같은 규칙이고 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이다. operation `method` 가 GET 이 아니면 dry-run 에서 외부 상태 변경을 막으려고 모의 출력으로 끝낸다. MakeShop Shop API 는 GET · POST 만 쓰므로 POST 가 대상이다. 읽기 의도인 POST(예: `post-cpik_member-check` 회원 연동 확인)도 메서드로 판정해 모의 출력으로 끝난다. 메서드는 GET 인데 상태를 바꾸는 operation 은 예외 목록(`MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)에 올려 모의 출력으로 끝낸다. 지금은 `get-cart_free_config-update`(카트프리 설정 변경) 하나다. 나머지 GET 은 그대로 부른다.
+
+모의 출력은 실행 로직 1단계 직후, 필수 필드 · 페이지네이션 검증과 통합 자격 증명 해소보다 먼저 `success` 포트로 끝난다. `output` 에는 응답 대신 `_dryRun: true` · `skippedReason` · `wouldHaveCalled`(`kind: 'makeshop'` 와 `operation` · `method` · `resource`)가 들고 `meta` 는 `statusCode: 0` · `durationMs` 다. 포트 표와 출력 구조가 말하는 2xx 응답과 달리 `statusCode` 가 0 이다. 모의 출력으로 끝낸 경우에는 외부 호출이 없었으므로 활동 로그를 남기지 않는다. [통합 노드 공통](CLE-NODE-INT-COMMON.md) 6단계의 «성공·실패와 관계없이 `logUsage` 를 부른다» 는 외부 호출이 나간 경우를 말한다. 공통 문서에 이 예외를 적는 일은 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항)에 있다.
+
+AI 에이전트가 내부 MCP 브리지로 부르는 MakeShop 도구도 같은 기준으로 판정하고, 모의 응답으로 대신한 호출은 활동 로그를 남기지 않는다. 도구 경로는 필수 필드 검증(`MAKESHOP_MISSING_FIELDS`)을 dry-run 확인보다 먼저 한다는 점만 다르다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
 
 ### 시간대
 
@@ -370,7 +375,8 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 - `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts` (401 재시도·429 재시도)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop-token-refresh.processor.ts` (토큰 갱신 worker)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.module.ts`
-- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (operation 메타데이터)
+- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (operation 메타데이터, 상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (내부 MCP 브리지)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth auth-code + PKCE, 통합 재인증 · 추가 권한 요청 거절, ShopStore 설치 처리 `handleMakeshopInstall`)
 - `codebase/backend/src/modules/integrations/integrations.service.ts`
@@ -438,6 +444,11 @@ Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
 - 설정 에코(REQ-MKSNODE-028, Task CLE-T-XVS8H7): 에코하는 값이 사용자가 넣은 원래 값(`offset` 포함)이라고 밝혔다.
 - 활동 로그(REQ-MKSNODE-029): 원래 "호출이 끝나면 성공·실패와 관계없이 활동 로그를 1건 남긴다" 였다. 통합을 해소한 뒤 끝난 실행으로 범위를 좁히고 노드 취소 신호로 끝난 호출은 남기지 않는다고 더했다. 해소 전 실패의 기록은 알려진 결함(Task CLE-T-PTC4SF)이라 요구사항으로 굳히지 않는다.
 - 페이지네이션 세부 규칙(REQ-MKSNODE-038 ~ REQ-MKSNODE-046, Task CLE-T-XVS8H7): 경계값 · 거절 · `fields` 와의 우선순위 · 사전 검증 · 설정 화면 동작을 새로 두었다.
+
+### dry-run 판정과 활동 로그 (2026-10-23)
+
+- dry-run 판정(REQ-MKSNODE-031 · REQ-MKSNODE-032): 원래 «POST 면 mock, GET 이면 실제 호출» 이었다. `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꿔서 메서드만으로는 dry-run 에서 설정이 실제로 바뀐다. 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 이 하나를 상태를 바꾸는 GET 예외 목록에 넣고 요구사항 문구를 «GET 이 아니거나 예외 목록에 있으면» 으로 바꿨다. 판정 기준과 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)에 있다.
+- 활동 로그(REQ-MKSNODE-047): 이전에는 «Cafe24 노드와 같은 규칙» 이라 노드 dry-run 모의 출력에도 활동 로그를 1건 남겼지만 이 문서에는 그 요구사항이 없었다. 2026-10-23 에 사람이 노드 경로와 AI 에이전트 도구 경로 모두 «남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출의 기록이라 나가지 않은 모의 출력은 적지 않는다. 옛 목적(모의 실행을 활동 탭에서 추적)은 실행 상세의 노드 출력 `_dryRun` 이 대신한다. «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드 경로는 REQ-MKSNODE-047, 도구 경로는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)의 REQ-RERUN-053 이 정한다. 나머지 근거는 [Cafe24 노드](CLE-NODE-CAFE24.md)의 Rationale «dry-run 모의 출력에 활동 로그를 남기지 않는다» 와 같다.
 
 ### 운영 전 확인할 항목
 

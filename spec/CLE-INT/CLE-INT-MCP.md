@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "74c09beb3a690e87f72494a396956ad040b0a578ad1a20cebc67087c284addaa"
+content_hash: "5e5d98e779653cb5d84f7d75452b682f7adc640aeab388b15092f02e094fa2eb"
 read_as: "approved_fallback"
 task: "CLE-T-G62XJS"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "6407adc78e1cd2c81f80b4fab7b372b792ea8f9014d79f306091b7b917ae7cbd"
-etag: "sha256-324fb66112b771f1fb8f2ccbe5994a8f40f63a3b52212904f4c696035b08989e"
+mirror_sha256: "c454600efb83defa97e8bb2d3dd778c155c39ec77e67e45d73b5de21ef4db4a9"
+etag: "sha256-a6bf2401a9230d6de7e05a7aab4fa2574a7fe174c3eeda2dd30425792a305ebf"
 ---
 > 구현 상태: 구현됨(외부 MCP 도구 인자의 `inputSchema` 검증은 미구현, [미결 사항](#미결-사항)) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ MVP 에 넣지 않은 것은 다음과 같다.
 - 통합 상태 전이 전체: [통합 상태와 만료 알림](CLE-INT-STATUS.md)
 - 활동 로그 컬럼과 API 식별 채우기 규칙: [통합 데이터와 흐름](CLE-INT-DATA.md#호출-api-식별-채우기-규칙)
 - 도구 프로바이더 확장 지점(첫 구현체 `KbToolProvider`): [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md#확장-지점)
-- dry-run 재실행 정책: [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출). 이 문서는 MCP 도구 쪽 동작과 건너뛴 호출의 결과 형식만 정한다([dry-run 재실행](#dry-run-재실행))
+- dry-run 재실행 정책: [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출), 부수효과 판정 기준: [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정). 이 문서는 MCP 도구 쪽 동작과 건너뛴 호출의 결과 형식만 정한다([dry-run 재실행](#dry-run-재실행))
 
 ## Transport
 
@@ -105,7 +105,7 @@ flowchart LR
 - **에러 처리**: [에러 처리](#에러-처리)의 규칙을 그대로 쓴다. Cafe24 의 `tool_result.error.code` 는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드) 에러 어휘(`CAFE24_AUTH_FAILED` 등)를 그대로 쓴다. 호출 단계 실패(API 4xx·5xx, 전송 실패)는 `tool_result.error` 와 [활동 로그](#활동-로그)에 더해 `mcpDiagnostics.errors[]` 에도 같은 어휘와 `phase='tools/call'` 로 쌓인다(`AgentToolResult.mcpErrorDelta` 경유). 도구 목록 구성 단계의 `errors[]`(connect·`tools/list`)는 외부 `McpToolProvider` 전용이다. 내부 MCP 브리지의 도구 목록 구성 실패는 `serverSummaries[]` 의 `skipped(skipReason)` 로 드러난다. 즉 내부 MCP 브리지에서 `errors[]` 는 호출 단계 표면이다.
 - **인증 실패**: 내부 MCP 브리지도 [인증 실패 상태 전환](#인증-실패-상태-전환) 정책을 따른다. 단 refresh token 이 있는 프로바이더(예: Cafe24)의 401 에는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#인증-실패-처리)의 «토큰 갱신 + 1회 재시도» 자가 회복 정책을 먼저 적용한다. 재시도도 401 이면 그때 같은 방식으로 격하한다. 403 은 언제나 즉시 격하한다. MakeShop 클라이언트도 같은 방식이다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)).
 - **브리지별 description 접미**: 내부 MCP 브리지는 자기 `service_type` 에 특화된 정보를 도구 description 끝에 자동으로 붙일 수 있다. Cafe24 는 `(Cafe24 <method> <path>)` 한 줄과 KST 시간대 안내 `CAFE24_TIMEZONE_SUFFIX` 를 붙인다. operation 메타데이터에 `constraints?` 가 있으면 그 사이에 제약 종류별로 한 줄씩(예: `Constraint: at least one of …`) 넣는다. 조립 순서와 종류별 문구 형식은 [Cafe24 operation 메타데이터](CLE-C24-META#2-operation-메타데이터-형식) 의 `constraints` 의미 절과 [description 자동 접미 절](CLE-C24-META#53-mcp-도구-description-자동-접미)이 함께 정한다. 외부 HTTP transport 는 서버가 보고한 description 을 그대로 쓰고, 끝에 출처 한 줄만 붙인다([일반 도구](#일반-도구-tools)).
-- **dry-run 재실행**: dry-run 재실행에서는 브리지가 operation 을 HTTP 메서드와 관계없이 부르지 않는다. 대신 실행하지 않았다는 성공 결과를 돌려주고 활동 로그도 남기지 않는다. 규칙은 [dry-run 재실행](#dry-run-재실행) 에 있다.
+- **dry-run 재실행**: dry-run 재실행에서 내부 MCP 브리지는 operation 메타데이터의 HTTP 메서드와 상태를 바꾸는 GET 예외 목록으로 부수효과를 판정한다. 지금 예외 목록은 MakeShop `get-cart_free_config-update` 하나이고 Cafe24 목록은 비어 있다([재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)). GET 이 아니거나 예외 목록에 있는 operation 은 부르지 않고 실행하지 않았다는 성공 결과를 돌려주며 활동 로그도 남기지 않는다. 나머지 GET 은 평소처럼 부르고 활동 로그도 남긴다. 규칙은 [dry-run 재실행](#dry-run-재실행) 에 있다.
 
 ## 통합 모델
 
@@ -448,18 +448,17 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
 
 ## dry-run 재실행
 
-[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) 의 dry-run 재실행에서는 외부 MCP 서버의 `tools/call` 과 내부 MCP 브리지 operation 만 건너뛴다. 읽기 전용 메타 도구(`resources/*` · `prompts/*`)는 그대로 부른다. LLM 호출도 그대로 한다. 정책은 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 이 정한다. 이 절은 MCP 도구(외부 MCP 서버 도구와 Cafe24 · MakeShop 내부 MCP 브리지 도구)를 처리하는 도구 프로바이더의 동작과 건너뛴 호출의 결과 형식을 정한다.
+[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) 의 dry-run 재실행에서는 AI 에이전트가 부른 부수효과 도구를 외부로 보내지 않고 모의 응답을 돌려준다. 무엇이 부수효과 도구인지는 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 이 단일 기준이다. 읽기 전용 메타 도구(`resources/*` · `prompts/*`)는 그대로 부른다. LLM 호출도 그대로 한다. 정책은 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 이 정한다. 이 절은 MCP 도구(외부 MCP 서버 도구와 Cafe24 · MakeShop 내부 MCP 브리지 도구)를 처리하는 도구 프로바이더의 동작과 모의 응답의 형식을 정한다. 이 문서는 모의 응답으로 대신한 호출을 **건너뛴 호출**이라 부른다. 다른 문서의 «모의 응답으로 대신한 호출» 과 같은 말이다.
 
-가드는 도구 실행(`execute`) 단계에만 있고 도구 목록 구성(`buildTools`) 단계는 막지 않는다([미결 사항](#미결-사항)).
+부수효과 판정은 도구 실행(`execute`) 단계에만 있고 도구 목록 구성(`buildTools`) 단계는 막지 않는다([미결 사항](#미결-사항)).
 
-가드는 같은 실행 컨텍스트 안에만 적용된다. 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않아 그 안의 MCP 도구는 외부를 그대로 부른다. 이 한계는 [재실행 §미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 에서 다룬다.
-
-지금 동작은 임시 가드다(2026-10-10). 부수효과가 있는 도구만 골라 모의 응답을 주는 분류가 아직 없어서 읽기 operation 도 함께 막는다. 분류와 모의 응답은 후속 NERV Task `CLE-T-G62XJS` 가 맡는다. 그때 읽기 operation 차단을 푼다.
+부수효과 판정은 같은 실행 컨텍스트 안에만 적용된다. 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않아 그 안의 MCP 도구는 외부를 그대로 부른다. 이 한계는 [재실행 §미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 에서 다룬다.
 
 | 호출 | dry-run 재실행에서의 처리 |
 |------|------|
-| 외부 MCP 서버의 일반 도구(`tools/call`) | 서버에 보내지 않는다 |
-| 내부 MCP 브리지 operation(Cafe24·MakeShop) | HTTP 메서드와 관계없이 API 를 부르지 않는다. GET 도 막는다 |
+| 외부 MCP 서버의 일반 도구(`tools/call`) | 서버에 보내지 않는다. 서버가 도구에 붙인 annotation(`readOnlyHint` 등)과 상관없다 |
+| 내부 MCP 브리지 operation(Cafe24·MakeShop) 가운데 HTTP 메서드가 GET 이 아니거나 상태를 바꾸는 GET 예외 목록에 있는 것 | API 를 부르지 않는다 |
+| 내부 MCP 브리지 operation 가운데 나머지 GET | 평소처럼 API 를 부른다 |
 | 메타 도구(`list_resources`·`read_resource`·`list_prompts`·`get_prompt`) | 그대로 부른다 |
 
 ### 건너뛴 호출의 결과
@@ -477,7 +476,7 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
     "tool": "write_file"
   },
   "executed": false,
-  "message": "Not executed: this is a dry-run re-run, so the tool was not called and no external system was read or changed. Do not call it again in this run."
+  "message": "Not executed: this is a dry-run re-run, so this call was not sent and nothing was changed. Continue as if it had succeeded. Do not retry the same call in this run."
 }
 ```
 
@@ -490,12 +489,13 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
 - `skippedReason` 은 통합 노드 dry-run 모의 출력(`dry-run.util.ts` 의 `DryRunMock.skippedReason`)과 같은 필드이고 [진단 누적](#진단-누적-mcpdiagnostics)의 `serverSummaries[].skipReason` 과 무관하다.
 - `kind` 끝의 `_tool` 은 통합 노드 dry-run 모의 출력의 `kind`(`cafe24` · `makeshop` 등)와 겹치지 않게 붙인다. 같은 통합이라도 노드의 모의 출력과 AI 에이전트 도구의 건너뛴 호출의 결과를 `kind` 만으로 가를 수 있다.
 - 도구 인자 값은 싣지 않는다.
-- `message` 는 LLM 이 읽는 안내라 영어로 둔다. 도구를 부르지 않았고 외부 시스템을 읽지도 바꾸지도 않았으니 이번 실행에서 다시 부르지 말라는 뜻이다. 외부 시스템을 읽지도 바꾸지도 않았다는 말은 그 도구 호출에만 해당한다. 같은 실행의 도구 목록 구성 단계는 별개다([미결 사항](#미결-사항)). 이 문구는 LLM 에 돌려주는 도구 결과 본문의 일부다. 사용자 화면용 번역 문구가 아니다.
+- `message` 는 LLM 이 읽는 안내라 영어로 둔다. 이 호출은 보내지 않았고 아무것도 바뀌지 않았으니 성공한 것으로 보고 이어 가되, 이번 실행에서 같은 호출을 다시 하지 말라는 뜻이다. 이 안내는 그 도구 호출에만 해당한다. 같은 실행에서 실제로 부른 읽기 호출과 도구 목록 구성 단계는 별개다([미결 사항](#미결-사항)). 이 문구는 LLM 에 돌려주는 도구 결과 본문의 일부다. 사용자 화면용 번역 문구가 아니다.
+- `executed: false` 가 건너뛴 호출의 결과와 실제로 부른 호출의 결과를 가른다. 도구 프로바이더는 실제로 부른 호출의 결과에 이 필드를 붙이지 않는다. 두 결과 모두 status 는 `success` 다.
 - 실패가 아니므로 새 에러 코드를 두지 않는다. `AgentToolResult.mcpErrorDelta` 도 싣지 않는다.
 
 ### 확인 순서
 
-dry-run 여부는 외부로 보내기 바로 앞에서 확인한다. 그 앞의 확인에서 걸린 호출은 dry-run 재실행에서도 평소와 같은 에러 결과를 돌려준다.
+dry-run 여부와 부수효과 판정은 외부로 보내기 바로 앞에서 확인한다. 그 앞의 확인에서 걸린 호출은 dry-run 재실행에서도 평소와 같은 에러 결과를 돌려준다. 부수효과가 없다고 판정된 GET 내부 MCP 브리지 operation 은 평소처럼 부르므로 호출 단계 실패도 평소처럼 보고한다. 인증 실패를 받으면 통합 상태도 평소처럼 바뀐다([인증 실패 상태 전환](#인증-실패-상태-전환)). 노드 dry-run 의 GET 과 같다.
 
 - 외부 MCP: 활성 세션이 없거나 노출하지 않은 도구 이름이면 `MCP_UNKNOWN_TOOL`, 인자 JSON 파싱에 실패하면 `INVALID_TOOL_ARGUMENTS` 다. 인자가 서버의 `inputSchema` 에 맞는지는 확인하지 않고 건너뛴다.
 - Cafe24: 모르는 operation 이면 `CAFE24_UNKNOWN_OPERATION`, 필수 필드가 빠졌거나 제약을 어기면 `CAFE24_MISSING_FIELDS` 다.
@@ -503,15 +503,15 @@ dry-run 여부는 외부로 보내기 바로 앞에서 확인한다. 그 앞의 
 
 ### 기록과 집계
 
-- 건너뛴 호출은 [활동 로그](#활동-로그)에 남기지 않는다. 통합 노드 dry-run 과 다르게 둔 이유는 [Rationale](#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10) 에 있다.
-- 활동 로그의 «호출마다 한 행» 규칙([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 의 REQ-CAFENODE-039, [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-021, [통합 데이터와 흐름](CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 의 「호출 API 식별 채우기 규칙」)에서 «호출» 은 통합 API 로 실제로 나간 호출이다. dry-run 재실행에서 건너뛴 호출은 여기에 들지 않는다. 통합 노드 dry-run 의 모의 출력에 남기는 1건은 그 노드 문서가 따로 정한다([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#dry-run)).
-- `mcpDiagnostics.errors[]` 에도 넣지 않는다.
+- 건너뛴 호출은 [활동 로그](#활동-로그)에 남기지 않는다. 통합 노드 dry-run 의 모의 출력도 남기지 않는다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 REQ-RERUN-053). dry-run 재실행에서 실제로 부른 GET 내부 MCP 브리지 operation 은 평소처럼 남긴다. 근거는 [Rationale](#dry-run-에서-실제로-부른-호출과-건너뛴-호출의-기록-2026-10-23) 에 있다.
+- 활동 로그의 «호출마다 한 행» 규칙([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 의 REQ-CAFENODE-039, [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-021, [통합 데이터와 흐름](CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 의 「호출 API 식별 채우기 규칙」)에서 «호출» 은 통합 API 로 실제로 나간 호출이다. dry-run 재실행에서 건너뛴 호출과 통합 노드 dry-run 의 모의 출력은 여기에 들지 않는다. 이 규칙의 기준은 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 REQ-RERUN-053 이다. 활동 로그를 정하는 문서들에 dry-run 예외를 적는 일은 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 에 있다.
+- 건너뛴 호출은 `mcpDiagnostics.errors[]` 에도 넣지 않는다.
 - `mcpDiagnostics.toolCalls` 에는 시도 1회로 센다. 이 카운터는 원래 결과를 보지 않고 `mcp_` 이름의 호출 시도를 센다. 내부 MCP 브리지 도구도 `mcp_<sid>__<operation 토큰>` 이름이라 외부 MCP 와 내부 MCP 브리지의 건너뛴 호출을 모두 센다([진단 누적](#진단-누적-mcpdiagnostics)).
 - [도구 호출 한도](#도구-호출-한도)(`maxToolCalls`)에도 들어간다.
 
 ### dry-run 여부 전달
 
-dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRun` 으로 들어온다. 턴마다 이 값을 어디서 구하는지는 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 의 REQ-RERUN-045 와 「dry-run 여부를 넘기는 길」 표가 정한다. 이 문서는 값의 출처를 따로 정하지 않는다.
+dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRun` 으로 들어온다. 턴마다 이 값을 어디서 구하는지는 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 의 REQ-RERUN-052 와 「dry-run 여부를 넘기는 길」 표가 정한다. 이 문서는 값의 출처를 따로 정하지 않는다.
 
 도구 목록 구성 문맥(`ProviderBuildCtx`)에는 이 값이 없다([미결 사항](#미결-사항)).
 
@@ -567,7 +567,7 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 
 메타 도구(`list_resources`·`read_resource`·`list_prompts`·`get_prompt`)는 활동 로그에 남기지 않는다. 외부 API 호출이라기보다 MCP 세션 안의 탐색 흐름이고, 매번 남기면 활동 탭의 신호보다 잡음이 커진다. 따로 대시보드가 필요해지면 별도 trace 로 들인다. `tools/list`·`resources/list`·`prompts/list` 같은 `buildTools` 단계의 준비 RPC 도 남기지 않는다.
 
-dry-run 재실행에서 건너뛴 `tools/call` 과 브리지 operation 도 활동 로그에 남기지 않는다. 외부 호출이 없었기 때문이다([dry-run 재실행](#dry-run-재실행)).
+dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operation 도 활동 로그에 남기지 않는다. 외부 호출이 없었기 때문이다. dry-run 재실행에서도 실제로 부른 GET 내부 MCP 브리지 operation 은 남긴다([dry-run 재실행](#dry-run-재실행)).
 
 활동 로그 쓰기는 fire-and-forget 이다. `tools/call` 응답을 돌려준 직후 비동기로 보내 주 경로를 막지 않는다. DB 쓰기가 실패하면 삼키고 warn 로그만 남긴다.
 
@@ -626,6 +626,7 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 브리지 operation 도 활�
 - **OAuth 2.1(PKCE) 인증 유형**: 지금은 OAuth 계열 인증 유형이 없다(`bearer_token`·`api_key`·`none` 만). 동적 OAuth 흐름은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#oauth-콜백-엔드포인트)의 콜백 패턴을 다시 써서 더할 수 있다.
 - **server-to-server proxy, 응답 캐싱**: 트래픽 분석 뒤 별도 스펙으로 다룬다.
 - **내부 MCP 브리지 확장**: Shopify, Naver Smartstore 같은 first-party 이커머스 통합을 `cafe24` 와 같은 패턴으로 더할 수 있다. 백엔드에 브리지 모듈(기존 예: `Cafe24McpToolProvider`)과 메타데이터 테이블을 두고, [내부 MCP 브리지 적용 목록](#service_type-과-인증-유형)에 더한다.
+- **외부 MCP 도구의 dry-run 세분 판정**: 지금은 dry-run 재실행에서 외부 MCP 서버의 `tools/call` 을 늘 모의 응답으로 대신해 읽기 전용 도구도 데이터를 받지 못한다. 신뢰하는 서버의 allow-list 같은 도구별 판정 정책은 필요해지면 따로 결정한다([재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)).
 
 각 항목은 [도구 노출 모델](#도구-노출-모델)의 평탄화 방식을 깨지 않고 더할 수 있게 설계했다.
 
@@ -633,7 +634,7 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 브리지 operation 도 활�
 
 - 자격 증명 교체 실패 `INTEGRATION_TEST_FAILED` 의 HTTP 상태(400 대 422)와 MCP 통합의 개인 공개 범위 허용 여부는 [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항에서 다룬다. 이 문서 원문은 각각 400 과 «기본 `organization`, 개인 등록 미지원» 쪽이다.
 - **`<sid>` 길이 규칙과 현재 구현의 차이**: 이 문서 원문은 `<sid>` 를 `Integration.id` 앞 8자로 두고 워크스페이스 안에서 겹치면 12자로 늘린다고 적는다. 현재 구현은 외부 `McpToolProvider` 가 한 노드의 `mcpServers` 안에서만 겹침을 보고 8 → 12 → 32자 순으로 늘리며(`assignSids`, `buildTools` 시점), 내부 MCP 브리지 프로바이더는 늘 앞 16자를 쓴다(`sanitizeSid`). 문서를 구현에 맞출지, 구현을 문서에 맞출지 정해야 한다. 결정 필요.
-- **dry-run 재실행의 도구 목록 구성 단계**: dry-run 가드는 `execute` 단계에만 있다. `buildTools` 는 dry-run 재실행에서도 외부 MCP 서버에 connect·`initialize`·`tools/list` 를 보내고, 서버가 보고하면 `resources/list`·`prompts/list` 도 보낸다. Cafe24 · MakeShop 브리지는 둘 다 `buildTools` 안에서 `expired` 상태 통합의 토큰 갱신을 한 번 시도한다(`tryRecoverExpired` → `refreshTokenViaQueue`). 이 시도는 각 통합의 토큰 갱신 엔드포인트를 부르고, 결과에 따라 저장된 토큰과 통합 상태가 바뀐다. 목록 조회를 임시 가드 범위에 넣을지, 토큰 갱신을 dry-run 에서 막을지 결정 필요. 담당 NERV Task `CLE-T-8B66BK`.
+- **dry-run 재실행의 도구 목록 구성 단계**: dry-run 부수효과 판정은 `execute` 단계에만 있다. `buildTools` 는 dry-run 재실행에서도 외부 MCP 서버에 connect·`initialize`·`tools/list` 를 보내고, 서버가 보고하면 `resources/list`·`prompts/list` 도 보낸다. Cafe24 · MakeShop 내부 MCP 브리지는 둘 다 `buildTools` 안에서 `expired` 상태 통합의 토큰 갱신을 한 번 시도한다(`tryRecoverExpired` → `refreshTokenViaQueue`). 이 시도는 각 통합의 토큰 갱신 엔드포인트를 부르고, 결과에 따라 저장된 토큰과 통합 상태가 바뀐다. 목록 조회를 dry-run 판정 범위에 넣을지, 토큰 갱신을 dry-run 에서 막을지 결정 필요. `execute` 단계에서 실제로 부른 GET 의 인증 실패(401 토큰 갱신, 403 `error(auth_failed)` 전환)도 통합 상태를 바꾸므로 같은 Task 에서 함께 본다. 담당 NERV Task `CLE-T-8B66BK`.
 - **외부 MCP 도구 인자의 `inputSchema` 검증**: [격리 원칙](#격리-원칙) 표와 [에러 코드](#에러-코드)의 `INVALID_TOOL_ARGUMENTS` 는 인자가 `inputSchema` 를 어기면 호출하지 않는다고 적는다. 현재 `McpToolProvider.execute` 는 일반 도구 인자의 JSON 파싱만 확인하고 `inputSchema` 검증은 하지 않는다. 메타 도구는 `uri`·`name` 같은 필수 인자만 확인한다. 그래서 dry-run 재실행에서는 형식이 틀린 인자도 건너뛴 호출의 결과를 받는다. 검증을 구현할지, 문서를 서버 쪽 검증에 맡기는 쪽으로 고칠지 결정 필요. 담당 NERV Task `CLE-T-RBMJP0`.
 
 ## 구현 위치
@@ -647,6 +648,8 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 브리지 operation 도 활�
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 내부 MCP 브리지)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 내부 MCP 브리지)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 건너뛴 호출의 결과)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (내부 MCP 브리지 operation 의 부수효과 판정 `isDryRunMockedOperation`)
+- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
 - `codebase/backend/src/common/config/mcp.config.ts` (`mcp.*` 설정 namespace)
 
 ## Rationale
@@ -701,8 +704,17 @@ URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 �
 
 ### dry-run 재실행에서 건너뛴 호출의 기록 (2026-10-10)
 
-dry-run 재실행의 임시 가드는 AI 에이전트가 부른 MCP 도구 가운데 외부 MCP 서버의 `tools/call` 과 내부 MCP 브리지 operation 을 건너뛴다. 막는 범위와 임시 가드를 둔 배경은 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 에 있다. 가드는 실행을 거부하지 않고 노드 dry-run 처럼 모의 결과로 흐름을 잇는다. dry-run 을 완전하게 구현한다는 방향([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 이 절은 MCP 클라이언트 쪽에서 정한 세 가지의 근거만 적는다.
+2026-10-10 의 임시 가드는 AI 에이전트가 부른 MCP 도구 가운데 외부 MCP 서버의 `tools/call` 과 내부 MCP 브리지 operation 을 모두 건너뛰었다. 막는 범위와 임시 가드를 둔 배경은 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 에 있다. 가드는 실행을 거부하지 않고 노드 dry-run 처럼 모의 결과로 흐름을 이었다. dry-run 을 완전하게 구현한다는 방향([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 이 절은 MCP 클라이언트 쪽에서 정한 세 가지의 근거만 적는다. 2026-10-23 에 임시 가드를 부수효과 판정으로 바꿨다. 앞의 두 가지는 그대로 유효하고 셋째는 [아래 절](#dry-run-에서-실제로-부른-호출과-건너뛴-호출의-기록-2026-10-23) 로 바뀌었다.
 
-- **활동 로그와 `errors[]` 에 남기지 않는다.** 활동 로그는 외부 API 호출 기록인데, 건너뛴 호출은 외부로 나가지 않았다. `errors[]` 는 격리된 실패 기록인데, 건너뛴 호출은 실패가 아니다. 그래서 결과의 status 도 `success` 로 두고 새 에러 코드를 만들지 않았다. 실패 모양 대신 status `success` 와 `message` 로 재호출을 막은 것은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법) Rationale 의 `render_form` 재호출 방지 선례와 같은 이유다. 그 선례도 LLM 이 실패로 읽고 다시 부를 수 있는 모양(`rendered: false`)을 버리고 재호출 금지 안내문(`message`)을 더했다. `toolCalls` 는 원래 결과를 보지 않고 시도를 세는 카운터라 건너뛴 호출도 그대로 센다.
+- **활동 로그와 `errors[]` 에 남기지 않는다.** 활동 로그는 외부 API 호출 기록인데, 건너뛴 호출은 외부로 나가지 않았다. `errors[]` 는 격리된 실패 기록인데, 건너뛴 호출은 실패가 아니다. 그래서 결과의 status 도 `success` 로 두고 새 에러 코드를 만들지 않았다. 실패 모양 대신 status `success` 와 `message` 로 재호출을 막은 것은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법) Rationale 의 `render_form` 재호출 방지 선례와 같은 이유다. 그 선례는 제출된 폼 결과에 `ok: true` 가드와 재호출 금지 안내(`message`)를 함께 실었고, LLM 이 실패로 읽고 다시 부를 수 있는 모양(`rendered: false`)은 기각했다. 건너뛴 호출의 결과는 선례와 달리 `ok: true` 를 싣지 않고, 선례가 기각한 `rendered: false` 와 같은 모양의 `executed: false` 를 싣는다. `executed: false` 는 건너뛴 호출과 실제로 부른 호출을 가르는 값이라 남겼고 실패로 읽히는 위험은 status `success` 와 `message` 안내로 막는다(2026-10-23 에 덧붙였다). `toolCalls` 는 원래 결과를 보지 않고 시도를 세는 카운터라 건너뛴 호출도 그대로 센다.
 - **메타 도구는 막지 않는다.** MCP 프로토콜에서 resources·prompts 조회는 읽기 전용이라 외부 상태를 바꾸지 않는다. 프로토콜을 지키는 서버를 전제하며 비준수 서버의 부수효과는 이 가드가 막지 않는다.
-- **통합 노드 dry-run 의 활동 로그 규칙과 다르게 둔다.** [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#dry-run) 는 dry-run 모의 출력에도 활동 로그를 1건 남긴다(그 문서의 REQ-CAFENODE-035). [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#dry-run) 도 같은 규칙을 따른다. AI 에이전트 도구 경로가 이 선례와 다른 것은 의도한 차이다. 이 차이의 근거는 이 절이 기준이다. 노드 dry-run 이 1건을 남기는 것은 모의 실행을 활동 탭에서 추적하기 위해서다. AI 에이전트 경로에서는 에이전트의 도구 호출 기록이 그 역할을 한다. `meta.turnDebug[].toolCalls` 에는 건너뛴 호출이 `success` 로 남는다. 대화 메시지(`messages`)의 도구 결과에는 `executed: false` 가 든 본문이 남는다. 노드 쪽 규칙은 그대로 둔다. 두 경로의 기록 규칙을 맞추는 일은 부수효과 도구의 모의 응답을 정하는 NERV Task `CLE-T-G62XJS` 에서 정한다.
+- **통합 노드 dry-run 의 활동 로그 규칙과 다르게 둔다(2026-10-23 에 대체).** 당시 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#dry-run) 는 dry-run 모의 출력에도 활동 로그를 1건 남겼고(그 문서의 REQ-CAFENODE-035 옛 문장) [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#dry-run) 도 같았다. AI 에이전트 도구 경로가 이 선례와 다른 것을 의도한 차이로 두었다. 당시에는 노드의 1건을 모의 실행을 활동 탭에서 추적하려는 것으로 보았지만 요구사항 문서에는 그 근거가 없었다. AI 에이전트 경로에서는 에이전트의 도구 호출 기록이 그 역할을 한다고 보았다. `meta.turnDebug[].toolCalls` 에는 건너뛴 호출이 `success` 로 남고, 대화 메시지(`messages`)의 도구 결과에는 `executed: false` 가 든 본문이 남는다. 이 차이는 2026-10-23 에 둘 다 남기지 않는 쪽으로 없앴다([아래 절](#dry-run-에서-실제로-부른-호출과-건너뛴-호출의-기록-2026-10-23)).
+
+### dry-run 에서 실제로 부른 호출과 건너뛴 호출의 기록 (2026-10-23)
+
+[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 부수효과 판정이 들어가면서 dry-run 재실행의 AI 에이전트 도구 호출은 두 가지로 나뉜다. 모의 응답으로 대신한 호출(건너뛴 호출)과 실제로 부른 읽기 호출이다. 판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다. 이 절은 MCP 클라이언트 쪽 기록 규칙의 근거만 적는다.
+
+- **건너뛴 호출은 노드 경로와 도구 경로 모두 활동 로그에 남기지 않는다.** 2026-10-10 에는 Cafe24 · MakeShop 노드 dry-run 이 모의 출력에도 활동 로그를 1건 남겼고 도구 경로는 남기지 않았다. 2026-10-23 에 사람이 «둘 다 남기지 않음» 을 골랐다(물은 안과 기각한 이유는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)). HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터(2026-05-31, #390) 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다. 이번에 하나로 맞췄다. 활동 로그는 실제로 나간 외부 호출의 기록이고 통합의 활동 탭과 `lastUsedAt` 이 이 기록에서 나온다. 모의 실행은 실행 상세의 노드 출력(`_dryRun`)과 도구 결과 본문(`executed: false`)에서 따로 확인할 수 있다.
+- **실제로 부른 읽기 호출은 평소처럼 기록한다.** 외부로 나간 호출이므로 활동 로그에 남기고 호출 단계 실패는 `errors[]` 에 넣는다. dry-run 이라고 따로 표시하지 않는다.
+- **`executed: false` 는 건너뛴 호출에만 붙인다.** 한 노드 안에서 건너뛴 호출과 실제로 부른 호출이 섞여도 `turnDebug[].toolCalls` 에서는 둘 다 `success` 다. LLM 과 실행 기록을 읽는 사람이 둘을 가를 수 있는 값은 도구 결과 본문의 이 필드뿐이다.
+- **안내 문구를 바꿨다.** 임시 가드의 안내는 «외부 시스템을 읽지도 바꾸지도 않았다» 였다. 읽기 호출이 실제로 나가게 되면서 이 문장은 맞지 않는다. «이 호출은 보내지 않았고 아무것도 바뀌지 않았다, 성공한 것으로 보고 이어 가라, 같은 호출을 다시 하지 마라» 로 바꿨다.
