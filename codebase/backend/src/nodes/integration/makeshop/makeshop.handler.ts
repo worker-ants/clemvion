@@ -11,7 +11,11 @@ import {
   sanitizeConfigEcho,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
-import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
+import {
+  buildDryRunMock,
+  isDryRun,
+  isDryRunMockedOperation,
+} from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
   MakeshopApiClient,
@@ -23,6 +27,7 @@ import {
 } from './makeshop-api.client.js';
 import {
   MAKESHOP_RESOURCES,
+  MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
   MakeshopOperationMetadata,
   MakeshopResource,
   findMakeshopOperation,
@@ -232,16 +237,18 @@ export class MakeshopHandler
       apiInfo.method = operation.method;
       apiInfo.path = operation.path;
 
-      // 1b. Re-run dry-run (§7) — WRITE operations (POST) mock-short-circuit to
-      // block external state changes; READ operations (GET) pass through.
-      if (isDryRun(context) && operation.method !== 'GET') {
+      // 1b. Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — WRITE operations
+      // (POST) and the state-changing GETs mock-short-circuit to block external
+      // state changes; other READ operations (GET) pass through. A mocked call
+      // reaches no external API, so it leaves no activity log.
+      if (
+        isDryRun(context) &&
+        isDryRunMockedOperation(
+          operation,
+          MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
+        )
+      ) {
         const durationMs = Date.now() - started;
-        await this.logUsage(context, {
-          integrationId,
-          status: 'success',
-          durationMs,
-          api: apiInfo,
-        });
         return {
           config: echo,
           output: buildDryRunMock('makeshop', {

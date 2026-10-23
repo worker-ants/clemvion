@@ -31,6 +31,20 @@ export {
 // appended to every MCP tool description; MakeShop must NOT invent a KST suffix
 // until the timezone semantics are verified during the client/handler phase.
 
+/**
+ * 메서드는 GET 인데 상점 상태를 바꾸는 operation. dry-run 재실행은 GET 을 실제로
+ * 호출하므로 이 목록의 operation 은 따로 모의 응답으로 대신한다
+ * (`isDryRunMockedOperation`, CLE-EXEC-RERUN 「부수효과 판정」).
+ *
+ * 2026-10-23 에 전체 GET operation 의 id · path · 설명을 확인해 올렸다. 메타데이터를
+ * 다시 생성할 때 새로 생긴 후보는 `dry-run-state-changing-get.spec.ts` 가 잡는다.
+ */
+export const MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS: ReadonlySet<string> =
+  new Set([
+    // 카트프리 설정을 바꾼다 (`cart_free_config/update`).
+    'get-cart_free_config-update',
+  ]);
+
 export const MAKESHOP_OPERATIONS_BY_RESOURCE: Record<
   MakeshopResource,
   readonly MakeshopOperationMetadata[]

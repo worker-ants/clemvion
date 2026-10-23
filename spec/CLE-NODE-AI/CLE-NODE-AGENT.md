@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
 content_hash: "bf8bfc611fa276f4e3daa472a0b5f39bb43e98dd8a3c60b2924a1dffef45f123"
 read_as: "approved_fallback"
-task: "CLE-T-8BX1HK"
+task: "CLE-T-G62XJS"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "1d61e269678bc16b801021ed4863561e8e38b5bf5713ba0446041a34f2154f44"
-etag: "sha256-2a957e39311912f3b05e30a469e5ef55387785cf0168bf53a6d53322a72b1c0c"
+mirror_sha256: "1b24785233a7587c72aa43fd3f3d238c4e898400deb03e8f7f30709cbb3256e3"
+etag: "sha256-c3e9c7f3c42d2ec42acdd5362af867b4529170b94e1d119df5400e288f274776"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

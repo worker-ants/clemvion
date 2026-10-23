@@ -621,7 +621,7 @@ describe('Cafe24Handler', () => {
     });
   });
 
-  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — cafe24 mocks WRITE
+  // Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — cafe24 mocks WRITE
   // operations (POST/PUT/DELETE) and passes READ (GET) operations through.
   describe('execute — dry-run (§7)', () => {
     function makeDryRunContext(): ExecutionContext {
@@ -672,10 +672,8 @@ describe('Cafe24Handler', () => {
       expect(result.config.resource).toBe('product');
       expect(result.config.operation).toBe('product_update');
 
-      // Usage logged as success (flow proceeds, §7.2).
-      expect(integrationsService.logUsage).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'success' }),
-      );
+      // A mocked call reaches no external API, so it leaves no activity log.
+      expect(integrationsService.logUsage).not.toHaveBeenCalled();
     });
 
     it('READ op (GET) — ApiClient IS called normally even in dry-run', async () => {
@@ -707,6 +705,10 @@ describe('Cafe24Handler', () => {
       const output = result.output as { _dryRun?: boolean; response?: unknown };
       expect(output._dryRun).toBeUndefined();
       expect(output.response).toEqual({ products: [{ product_no: 1 }] });
+      // A real call is logged as usual.
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'success' }),
+      );
     });
 
     it('non-dry-run WRITE op — unchanged, real ApiClient call performed', async () => {

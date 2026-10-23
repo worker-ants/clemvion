@@ -19,6 +19,7 @@ import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
+import { isDryRunMockedOperation } from '../../../core/dry-run.util.js';
 import {
   buildOperationJsonSchema,
   makeEnabledToolsFilter,
@@ -30,6 +31,7 @@ import {
   MakeshopTransportFailedError,
 } from '../../../integration/makeshop/makeshop-api.client.js';
 import {
+  MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
   MakeshopFieldConstraint,
   MakeshopOperationMetadata,
   MakeshopResource,
@@ -481,10 +483,17 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       };
     }
 
-    // dry-run 재실행 임시 가드 — 읽기 · 쓰기 모두 MakeShop API 를 부르지 않는다.
-    // 통합 노드처럼 GET 을 통과시키는 분류와 모의 응답은 후속 CLE-T-G62XJS 몫이다.
-    // 외부 호출이 없으므로 logUsage 도 남기지 않는다.
-    if (ctx.dryRun) {
+    // dry-run 재실행 — 통합 노드와 같은 판정으로 GET 이 아니거나 상태를 바꾸는 GET
+    // 인 operation 은 MakeShop API 를 부르지 않고 모의 응답을 돌려준다. 나머지 GET 은
+    // 아래로 내려가 실제로 호출하고 평소처럼 logUsage 를 남긴다. 모의 처리한 호출은
+    // logUsage 를 남기지 않는다. 근거: CLE-EXEC-RERUN 「부수효과 판정」.
+    if (
+      ctx.dryRun &&
+      isDryRunMockedOperation(
+        operation,
+        MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
+      )
+    ) {
       return buildDryRunSkippedToolResult(call.id, 'makeshop_tool', {
         operation: operation.id,
         method: operation.method,

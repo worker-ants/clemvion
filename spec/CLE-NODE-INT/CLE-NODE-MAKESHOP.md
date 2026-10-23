@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
 content_hash: "c73475833cd3bcb3d2c94b58b29aef52dcfd59bedec83ceb7ffbaee4e6b5b712"
 read_as: "approved_fallback"
-task: "CLE-T-XVS8H7"
+task: "CLE-T-G62XJS"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "caa4e0c40d893a4be49e336c9868d1cf149c5a10d9254c7f0639d25c3920f770"
-etag: "sha256-c19669c8220b72ecb62d0649ebe2cfc700eebd143ddd62bba849e4fd53a88422"
+mirror_sha256: "4fc55c761f3f2b39b51a3264415bc11c1a203a6c669071824150c71d81f862fe"
+etag: "sha256-c5a15bb8de8e52098143c22badfa9b3067ba983860eb527840d20b30e553eb8a"
 ---
 > 구현 상태: 구현됨 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

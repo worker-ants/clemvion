@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
 content_hash: "5545465489392a939e60c241b209049472eccae278e335c15e0ea997043ca9e5"
 read_as: "approved_fallback"
-task: "CLE-T-NNENG8"
+task: "CLE-T-G62XJS"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ed8bbdc2d1410f90df9baa7b90b57fe196e04773a726fc0810a223bc26d8bdbd"
-etag: "sha256-ead46f6145ba95528357caebf612cca23a4c91ba333ce4c63e5f702181a91682"
+mirror_sha256: "7f72f47793911e8e3732646b09a9d2874465599ced096350c734a04037d0fcb9"
+etag: "sha256-5ac4e1785be65b86949c5d1664e81f18c9fb760b8de126e4667b0c08d65b849e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

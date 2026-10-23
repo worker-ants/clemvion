@@ -151,11 +151,19 @@ The **Nodes column** in the execution history list shows node run aggregates as 
 
 A run started with Re-run joins the same chain as the original run. The execution detail page shows a chain badge with the re-run number and a **View chain** list. Viewers can see the chain too. Only Editors and above can press **Re-run**, and only Owners and Admins can re-run a run someone else started.
 
-Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead.
+Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead. Cafe24·MakeShop read nodes are really called. An operation that is a read request but changes settings, such as MakeShop's "Update Cart Free Config", returns a mock result like a write.
 
 <Callout type="warn">
-  In dry-run, the AI Agent's MCP tools (including Cafe24·MakeShop tools) are not called either. The tool gets a "not executed" result, so the agent's answer may differ from a real run. Knowledge Base search still runs.
+  In dry-run, the AI Agent's tools behave differently depending on their kind.
+
+  - Cafe24·MakeShop tools follow the same rule as the nodes. Read tools are really called. Write tools, and read tools that change settings, are not called and get a mock result.
+  - Tools from an external MCP server can't be told apart as reads or writes, so none of them are called and all get a mock result. This is true even if the server marks a tool as "read-only". Reading the MCP server's resources and prompts still works as usual.
+  - Knowledge Base search and render tools (the ones that show content on screen) still run as usual.
+
+  A tool that gets a mock result also receives a note telling the agent to continue as if the call had succeeded, even though it was not executed. The agent's answer may therefore differ from a real run.
 </Callout>
+
+Calls handled with a mock result, whether from a node or a tool, are not recorded in the integration's activity log. Read calls that were really made are recorded as usual.
 
 ## Tips for inspecting per-node I/O
 

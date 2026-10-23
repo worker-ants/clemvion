@@ -112,8 +112,9 @@ export interface Cafe24RestrictedApproval {
  *
  * Note: `scopeType` is decoupled from HTTP `method`. A POST/PUT can be
  * `scopeType: 'read'` when Cafe24 requires only the read OAuth scope to
- * call it (e.g. `orders_calculation_total` uses POST for body-based
- * calculation but never mutates server state).
+ * call it (e.g. `carts_setting_update` is a PUT under the read scope).
+ * Dry-run re-runs therefore classify side effects by `method`, not
+ * `scopeType` (`isDryRunMockedOperation`, CLE-EXEC-RERUN).
  */
 export interface Cafe24OperationMetadata {
   id: string;
