@@ -40,11 +40,15 @@ export const assistant: Dict["assistant"] = {
     "No model config is available. Register a Chat model in Model settings first.",
   errorNoLlmConfigLink: "Open Model settings",
   errorStreamFailed:
-    "Couldn't get a response from the AI model. The rate limit may have been reached or the response took too long. Send your message again in a moment.",
+    "Couldn't finish the response. A rate limit may have been reached or the response may have taken too long. Send your message again in a moment.",
   errorRateLimit:
     "The AI model's rate limit was reached. Send your message again in a moment.",
   errorConnection:
     "Something went wrong while talking to the AI model. Send your message again in a moment.",
+  errorOutputMalformed:
+    "The model leaked internal control tokens into its response, so processing was stopped. Switch to another model or check the model's serving settings.",
+  errorTooManyToolCalls:
+    'This turn used up all of its available tool calls. Press "Continue" to carry on with the remaining steps.',
   opAdded: "Added node: {{label}}",
   opUpdated: "Updated node: {{label}}",
   opRemoved: "Removed node: {{label}}",

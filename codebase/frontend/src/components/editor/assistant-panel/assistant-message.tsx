@@ -100,8 +100,8 @@ interface AssistantMessageViewProps {
 /**
  * 에러 코드 중 "다음 turn 한 번으로 resume 가능" 한 것들. 이 집합에 속하면
  * 에러 버블 아래에 "이어서 진행" 버튼을 노출해 사용자 타이핑을 줄인다.
- *  - `ASSISTANT_TOO_MANY_TOOL_CALLS`: 턴당 tool-call / round 상한 초과. 서버가
- *    명시적으로 "이어서 진행해줘" 메시지를 follow-up 으로 기대.
+ *  - `ASSISTANT_TOO_MANY_TOOL_CALLS`: 턴당 tool-call / round 상한 초과. 남은
+ *    step 은 사용자의 "이어서 진행해줘" follow-up 메시지로 이어간다.
  * 다른 코드 (NO_LLM_CONFIG / STREAM_FAILED) 는 resume 로 복구 불가이므로 제외.
  */
 const RESUMABLE_ERROR_CODES = new Set(['ASSISTANT_TOO_MANY_TOOL_CALLS']);
@@ -110,12 +110,21 @@ const RESUMABLE_ERROR_CODES = new Set(['ASSISTANT_TOO_MANY_TOOL_CALLS']);
  * 에러 코드별 안내 문구 사전 키 (REQ-ASSIST-048). 서버 `message` 는 코드별
  * 고정 영문이고 프로바이더 원문을 싣지 않는다. 여기 없는 코드만 그 영문을
  * 그대로 보인다.
+ *
+ * 짝이 되는 백엔드 표:
+ * `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts`
+ * 의 `ASSISTANT_STREAM_ERROR_MESSAGES` · `tooManyToolCallsMessage`. 새 코드를
+ * 더하면 양쪽을 함께 고친다. 두 패키지가 코드를 공유하는 상수는 만들지 않고,
+ * 각 쪽 테스트가 같은 코드 목록을 명시해 한쪽만 바뀌면 깨지게 했다
+ * (`assistant-message-error.test.tsx` · `workflow-assistant-stream-errors.spec.ts`).
  */
-const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([
+export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([
   ["ASSISTANT_NO_LLM_CONFIG", "assistant.errorNoLlmConfig"],
   ["ASSISTANT_STREAM_FAILED", "assistant.errorStreamFailed"],
+  ["ASSISTANT_TOO_MANY_TOOL_CALLS", "assistant.errorTooManyToolCalls"],
   ["LLM_RATE_LIMIT", "assistant.errorRateLimit"],
   ["LLM_CONNECTION_ERROR", "assistant.errorConnection"],
+  ["LLM_OUTPUT_MALFORMED", "assistant.errorOutputMalformed"],
 ]);
 
 export function AssistantMessageView({
