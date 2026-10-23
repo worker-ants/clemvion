@@ -67,15 +67,21 @@ describe('dry-run.util', () => {
 
   // 부수효과 판정 — 근거: CLE-EXEC-RERUN 「부수효과 판정」.
   describe('isDryRunMockedOperation', () => {
+    const NO_GETS: ReadonlySet<string> = new Set();
+
     it.each(['POST', 'PUT', 'DELETE', 'PATCH'])(
       'mocks a %s operation',
       (method) => {
-        expect(isDryRunMockedOperation({ id: 'op', method })).toBe(true);
+        expect(isDryRunMockedOperation({ id: 'op', method }, NO_GETS)).toBe(
+          true,
+        );
       },
     );
 
     it('calls a GET operation for real', () => {
-      expect(isDryRunMockedOperation({ id: 'op', method: 'GET' })).toBe(false);
+      expect(
+        isDryRunMockedOperation({ id: 'op', method: 'GET' }, NO_GETS),
+      ).toBe(false);
     });
 
     it('mocks a GET operation listed as state-changing', () => {
@@ -95,8 +101,12 @@ describe('dry-run.util', () => {
     });
 
     it('treats an unexpected method spelling as a side effect (fail-closed)', () => {
-      expect(isDryRunMockedOperation({ id: 'op', method: 'get' })).toBe(true);
-      expect(isDryRunMockedOperation({ id: 'op', method: '' })).toBe(true);
+      expect(
+        isDryRunMockedOperation({ id: 'op', method: 'get' }, NO_GETS),
+      ).toBe(true);
+      expect(isDryRunMockedOperation({ id: 'op', method: '' }, NO_GETS)).toBe(
+        true,
+      );
     });
   });
 });

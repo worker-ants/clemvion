@@ -42,10 +42,8 @@ export function buildDryRunMock(
   };
 }
 
-const NO_STATE_CHANGING_GETS: ReadonlySet<string> = new Set();
-
 /**
- * dry-run 에서 이 Cafe24 · MakeShop operation 을 모의 응답으로 대신할지 판정한다.
+ * dry-run 에서 HTTP API operation 을 모의 응답으로 대신할지 판정한다.
  * 근거: CLE-EXEC-RERUN 「부수효과 판정」.
  *
  * GET 이 아니면 부수효과로 보고 모의 처리한다. GET 은 실제로 호출하되, 메서드는
@@ -53,13 +51,16 @@ const NO_STATE_CHANGING_GETS: ReadonlySet<string> = new Set();
  * 메서드 철자가 `'GET'` 과 다르면 부수효과로 본다. `scopeType` 은 OAuth scope
  * 분류라 쓰지 않는다(예: Cafe24 `carts_setting_update` 는 scope 가 read 인 PUT).
  *
- * 통합 노드 핸들러와 AI 에이전트의 내부 MCP 브리지가 같은 판정을 쓴다.
+ * 벤더 코드는 이 함수를 직접 부르지 않는다. 벤더 메타데이터 모듈이 자기 예외 목록을
+ * 묶어 내보내는 판정 함수(`isCafe24DryRunMocked` · `isMakeshopDryRunMocked`)를 부르고,
+ * 통합 노드 핸들러와 AI 에이전트의 내부 MCP 브리지가 그 함수 하나를 함께 쓴다.
+ * 예외 목록 인자는 필수라서 새 벤더가 넘기지 않으면 컴파일이 실패한다.
  *
- * @param stateChangingGetIds 상태를 바꾸는 GET 의 operation id. 기본은 빈 집합.
+ * @param stateChangingGetIds 상태를 바꾸는 GET 의 operation id. 없으면 빈 집합을 넘긴다.
  */
 export function isDryRunMockedOperation(
   operation: { id: string; method: string },
-  stateChangingGetIds: ReadonlySet<string> = NO_STATE_CHANGING_GETS,
+  stateChangingGetIds: ReadonlySet<string>,
 ): boolean {
   return operation.method !== 'GET' || stateChangingGetIds.has(operation.id);
 }

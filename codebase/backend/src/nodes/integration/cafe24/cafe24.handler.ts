@@ -11,11 +11,7 @@ import {
   sanitizeConfigEcho,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
-import {
-  buildDryRunMock,
-  isDryRun,
-  isDryRunMockedOperation,
-} from '../../core/dry-run.util.js';
+import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
   Cafe24ApiClient,
@@ -30,6 +26,7 @@ import {
   Cafe24OperationMetadata,
   Cafe24Resource,
   findCafe24Operation,
+  isCafe24DryRunMocked,
   validateCafe24Constraints,
 } from './metadata/index.js';
 
@@ -177,7 +174,7 @@ export class Cafe24Handler
       // operation (GET) 은 부수효과가 없어 dry-run 에서도 그대로 호출한다
       // (Database SELECT 와 동일 취급). method 가 곧 read/write 분류 기준이다.
       // 외부 API 를 부르지 않았으므로 활동 로그도 남기지 않는다.
-      if (isDryRun(context) && isDryRunMockedOperation(operation)) {
+      if (isDryRun(context) && isCafe24DryRunMocked(operation)) {
         const durationMs = Date.now() - started;
         return {
           config: echo,

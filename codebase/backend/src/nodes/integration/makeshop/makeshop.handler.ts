@@ -11,11 +11,7 @@ import {
   sanitizeConfigEcho,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
-import {
-  buildDryRunMock,
-  isDryRun,
-  isDryRunMockedOperation,
-} from '../../core/dry-run.util.js';
+import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
   MakeshopApiClient,
@@ -27,10 +23,10 @@ import {
 } from './makeshop-api.client.js';
 import {
   MAKESHOP_RESOURCES,
-  MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
   MakeshopOperationMetadata,
   MakeshopResource,
   findMakeshopOperation,
+  isMakeshopDryRunMocked,
   validateMakeshopConstraints,
 } from './metadata/index.js';
 
@@ -241,13 +237,7 @@ export class MakeshopHandler
       // (POST) and the state-changing GETs mock-short-circuit to block external
       // state changes; other READ operations (GET) pass through. A mocked call
       // reaches no external API, so it leaves no activity log.
-      if (
-        isDryRun(context) &&
-        isDryRunMockedOperation(
-          operation,
-          MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS,
-        )
-      ) {
+      if (isDryRun(context) && isMakeshopDryRunMocked(operation)) {
         const durationMs = Date.now() - started;
         return {
           config: echo,

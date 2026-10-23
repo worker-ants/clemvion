@@ -27,6 +27,8 @@ import { storeOperations } from './store.js';
 import { supplyOperations } from './supply.js';
 import { translationOperations } from './translation.js';
 
+import { isDryRunMockedOperation } from '../../../core/dry-run.util.js';
+
 import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
 
 export * from './types.js';
@@ -44,6 +46,32 @@ export {
  */
 export const CAFE24_TIMEZONE_SUFFIX =
   'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9) unless the field description states otherwise.';
+
+/**
+ * 메서드는 GET 인데 상점 상태를 바꾸는 operation. dry-run 재실행은 GET 을 실제로
+ * 호출하므로 이 목록의 operation 은 따로 모의 응답으로 대신한다
+ * (`isCafe24DryRunMocked`, CLE-EXEC-RERUN 「부수효과 판정」).
+ *
+ * 지금은 그런 operation 이 없어 비어 있다. 새로 생기면 여기에 올린다. 메타데이터를
+ * 다시 생성할 때 후보는 `dry-run-state-changing-get.spec.ts` 가 잡는다.
+ */
+export const CAFE24_STATE_CHANGING_GET_OPERATION_IDS: ReadonlySet<string> =
+  new Set<string>();
+
+/**
+ * dry-run 에서 이 Cafe24 operation 을 모의 응답으로 대신할지 판정한다. Cafe24
+ * 통합 노드 핸들러와 `Cafe24McpToolProvider` 가 이 함수 하나를 부른다. 예외 목록을
+ * 이 함수가 묶어 두므로 호출 지점은 목록을 따로 넘기지 않는다.
+ */
+export function isCafe24DryRunMocked(operation: {
+  id: string;
+  method: string;
+}): boolean {
+  return isDryRunMockedOperation(
+    operation,
+    CAFE24_STATE_CHANGING_GET_OPERATION_IDS,
+  );
+}
 
 export const CAFE24_OPERATIONS_BY_RESOURCE: Record<
   Cafe24Resource,

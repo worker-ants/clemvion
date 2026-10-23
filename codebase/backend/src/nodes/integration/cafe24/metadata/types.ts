@@ -114,7 +114,7 @@ export interface Cafe24RestrictedApproval {
  * `scopeType: 'read'` when Cafe24 requires only the read OAuth scope to
  * call it (e.g. `carts_setting_update` is a PUT under the read scope).
  * Dry-run re-runs therefore classify side effects by `method`, not
- * `scopeType` (`isDryRunMockedOperation`, CLE-EXEC-RERUN).
+ * `scopeType` (`isCafe24DryRunMocked`, CLE-EXEC-RERUN).
  */
 export interface Cafe24OperationMetadata {
   id: string;

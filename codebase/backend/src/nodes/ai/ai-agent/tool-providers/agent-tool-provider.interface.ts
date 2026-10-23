@@ -97,8 +97,9 @@ export interface ProviderExecCtx {
    * MCP 계열 provider 는 이 값이 `true` 면 부수효과가 있는 호출을 외부로 보내지 않고
    * `buildDryRunSkippedToolResult`(dry-run-tool-result.ts) 모의 응답을 돌려준다.
    * 외부 MCP 서버의 `tools/call` 은 판정할 수 없어 늘 모의 처리한다. Cafe24 ·
-   * MakeShop 브리지는 통합 노드와 같은 `isDryRunMockedOperation` 판정으로 GET 이
-   * 아니거나 상태를 바꾸는 GET 만 모의 처리하고 나머지 GET 은 실제로 호출한다.
+   * MakeShop 브리지는 통합 노드와 같은 벤더 판정 함수(`isCafe24DryRunMocked` ·
+   * `isMakeshopDryRunMocked`)로 GET 이 아니거나 상태를 바꾸는 GET 만 모의 처리하고
+   * 나머지 GET 은 실제로 호출한다.
    * 읽기 전용인 kb_* · render_* 는 보지 않는다.
    */
   dryRun?: boolean;

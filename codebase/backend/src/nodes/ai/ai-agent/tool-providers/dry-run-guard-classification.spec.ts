@@ -10,8 +10,10 @@ import { join } from 'node:path';
  * 이 테스트가 막는다. 가드한 provider 는 소스에 `ctx.dryRun` 분기가, 짝 spec 에 `dryRun: true`
  * 케이스가 있어야 한다. 가드하지 않는 provider 는 면제 사유를 여기에 적는다.
  *
- * 내부 MCP 브리지(Cafe24 · MakeShop)는 통합 노드와 같은 판정 함수
- * `isDryRunMockedOperation` 으로 모의 응답 여부를 정한다.
+ * 내부 MCP 브리지(Cafe24 · MakeShop)는 통합 노드와 같은 벤더 판정 함수
+ * (`isCafe24DryRunMocked` · `isMakeshopDryRunMocked`)로 모의 응답 여부를 정한다.
+ * 호출 지점이 벤더 판정 함수를 거치는지는 `integration/dry-run-state-changing-get.spec.ts`
+ * 가 노드 핸들러와 함께 본다.
  */
 const DRY_RUN_GUARDED = [
   'McpToolProvider',
@@ -19,11 +21,11 @@ const DRY_RUN_GUARDED = [
   'MakeshopMcpToolProvider',
 ] as const;
 
-/** 통합 노드와 같은 operation 판정을 써야 하는 내부 MCP 브리지. */
-const OPERATION_BRIDGES = new Set<string>([
-  'Cafe24McpToolProvider',
-  'MakeshopMcpToolProvider',
-]);
+/** 통합 노드와 같은 벤더 operation 판정 함수를 써야 하는 내부 MCP 브리지. */
+const OPERATION_BRIDGES: Record<string, string> = {
+  Cafe24McpToolProvider: 'isCafe24DryRunMocked',
+  MakeshopMcpToolProvider: 'isMakeshopDryRunMocked',
+};
 
 const DRY_RUN_EXEMPT: Record<string, string> = {
   KbToolProvider:
@@ -87,8 +89,9 @@ describe('AgentToolProvider dry-run 가드 분류', () => {
       expect(source).toMatch(/\bctx\.dryRun\b/);
       expect(source).toContain('buildDryRunSkippedToolResult');
       expect(spec).toMatch(/\bdryRun:\s*true\b/);
-      if (OPERATION_BRIDGES.has(name)) {
-        expect(source).toContain('isDryRunMockedOperation');
+      const predicate = OPERATION_BRIDGES[name];
+      if (predicate) {
+        expect(source).toContain(predicate);
       }
     },
   );

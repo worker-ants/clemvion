@@ -19,7 +19,6 @@ import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
-import { isDryRunMockedOperation } from '../../../core/dry-run.util.js';
 import {
   buildOperationJsonSchema,
   makeEnabledToolsFilter,
@@ -35,6 +34,7 @@ import {
   Cafe24FieldConstraint,
   Cafe24OperationMetadata,
   Cafe24Resource,
+  isCafe24DryRunMocked,
   listAllCafe24Operations,
   scopeForOperation,
   validateCafe24Constraints,
@@ -473,7 +473,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     // API 를 부르지 않고 모의 응답을 돌려준다. GET 은 아래로 내려가 실제로 호출하고
     // 평소처럼 logUsage 를 남긴다. 모의 처리한 호출은 logUsage 를 남기지 않는다.
     // 근거: CLE-EXEC-RERUN 「부수효과 판정」.
-    if (ctx.dryRun && isDryRunMockedOperation(operation)) {
+    if (ctx.dryRun && isCafe24DryRunMocked(operation)) {
       return buildDryRunSkippedToolResult(call.id, 'cafe24_tool', {
         operation: operation.id,
         method: operation.method,
