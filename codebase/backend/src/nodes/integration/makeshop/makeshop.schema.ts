@@ -129,9 +129,11 @@ export const makeshopNodeMetadata: NodeComponentMetadata = {
   icon: '🛒',
   color: '#2563EB',
   executionMetadata: { kind: 'standard' },
-  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — makeshop is an
-  // external side-effect Integration node. In dry-run, the handler mocks WRITE
-  // operations (POST) and passes READ operations (GET) through unchanged.
+  // Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — makeshop is an external
+  // side-effect Integration node. In dry-run, the handler mocks WRITE operations
+  // (POST) and the state-changing GETs listed in
+  // `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`, and passes the other READ
+  // operations (GET) through unchanged.
   supportsDryRun: true,
   summaryTemplate: {
     template: '{{resource}} · {{operation}}',
