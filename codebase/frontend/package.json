@@ -45,7 +45,7 @@
     "cron-parser": "^5.10.1",
     "cronstrue": "^3.27.0",
     "dayjs": "^1.11.23",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "fuse.js": "^7.5.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^1.50.0",

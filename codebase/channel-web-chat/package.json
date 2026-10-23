@@ -12,7 +12,7 @@
   },
   "//pin": "비-caret 핀 사유 (PROJECT.md §버전 핀 정책): dompurify·marked = sanitize 경로(공급망 무결성), react·react-dom = monorepo 전역 정렬(앱마다 같은 exact 버전).",
   "dependencies": {
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "marked": "18.1.1",
     "next": "^16.3.8",
     "react": "19.3.0",
