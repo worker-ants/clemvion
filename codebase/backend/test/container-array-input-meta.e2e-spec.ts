@@ -7,7 +7,7 @@ import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
- * e2e: Map · ForEach 의 배열 입력과 완료 meta(CLE-NODE-LOGIC-COMMON 「배열이 아닌 입력 처리」).
+ * e2e: Map · ForEach 의 배열 입력과 완료 meta([Logic 노드 공통 「배열이 아닌 입력 처리」](CLE-NODE-LOGIC-COMMON#배열이-아닌-입력-처리)).
  *
  * 실제 실행(save → execute → engine → 표현식 해석)에서 두 가지를 본다.
  *

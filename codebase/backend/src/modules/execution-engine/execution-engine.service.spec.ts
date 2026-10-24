@@ -13861,9 +13861,9 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    // CLE-NODE-MAP · CLE-NODE-FOREACH — 완료 시점 meta 는 핸들러의 시작 시점 meta
-    // (`fellBackToEmpty`)에 엔진 반복 메트릭(`iterations` · `skippedCount?`)을
-    // 합친 값이다(CLE-NODE-LOGIC-COMMON 엔진 덮어쓰기 계약 6).
+    // [Map 노드](CLE-NODE-MAP) · [ForEach 노드](CLE-NODE-FOREACH) — 완료 시점 meta 는
+    // 핸들러의 시작 시점 meta(`fellBackToEmpty`)에 엔진 반복 메트릭(`iterations` ·
+    // `skippedCount?`)을 합친 값이다([Logic 노드 공통 「엔진 덮어쓰기 계약」](CLE-NODE-LOGIC-COMMON#엔진-덮어쓰기-계약) 규칙 6).
     describe('container completion meta (Map · ForEach)', () => {
       const runContainer = async (
         type: 'map' | 'foreach',

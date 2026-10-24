@@ -42,9 +42,9 @@ export class ForEachHandler implements NodeHandler {
     const { arrayField } = config as unknown as ForEachConfig;
 
     const resolved = resolveFieldValue(input, arrayField);
-    // 배열이 아닌 입력은 빈 배열로 돌고 meta 로 알린다(CLE-NODE-LOGIC-COMMON
-    // 「배열이 아닌 입력 처리」). 엔진이 완료 시점 meta 에 이 값을 합치므로 다음 노드
-    // 표현식에서도 `$node["<노드>"].meta.fellBackToEmpty` 로 읽힌다.
+    // 배열이 아닌 입력은 빈 배열로 돌고 meta 로 알린다([Logic 노드 공통 「배열이 아닌 입력 처리」](CLE-NODE-LOGIC-COMMON#배열이-아닌-입력-처리)).
+    // 엔진이 완료 시점 meta 에 이 값을 합치므로 다음 노드 표현식에서도
+    // `$node["<노드>"].meta.fellBackToEmpty` 로 읽힌다.
     const fellBackToEmpty = !Array.isArray(resolved);
     const items = fellBackToEmpty ? [] : resolved;
 

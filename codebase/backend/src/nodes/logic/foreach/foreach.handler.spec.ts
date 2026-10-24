@@ -173,7 +173,7 @@ describe('ForEachHandler', () => {
     });
   });
 
-  // CLE-NODE-LOGIC-COMMON 「배열이 아닌 입력 처리」 — 배열이 아닌 입력은 [] 로 대체하고 meta 로 알린다.
+  // [Logic 노드 공통 「배열이 아닌 입력 처리」](CLE-NODE-LOGIC-COMMON#배열이-아닌-입력-처리) — 배열이 아닌 입력은 [] 로 대체하고 meta 로 알린다.
   describe('meta.fellBackToEmpty', () => {
     it.each([
       ['number', { items: 42 }, 'items'],
