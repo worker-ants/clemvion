@@ -34,9 +34,19 @@ export const assistant = {
   exampleAddHeader: "HTTP 노드에 Authorization 헤더 추가",
   exampleReview: "현재 워크플로우를 검토하고 개선점 제안해줘",
   exampleArrange: "노드를 예쁘게 재정렬해줘",
-  errorNoLlmConfig: "LLM 설정을 먼저 등록해요.",
-  errorRateLimit: "잠시 후 다시 시도해요.",
-  errorTimeout: "응답이 늦어지고 있어요.",
+  errorNoLlmConfig:
+    "사용할 모델 설정이 없어요. 모델 설정 화면에서 Chat 모델을 먼저 등록해 주세요.",
+  errorNoLlmConfigLink: "모델 설정으로 이동",
+  errorStreamFailed:
+    "응답을 끝내지 못했어요. 요청 한도를 넘었거나 응답이 늦어졌을 수 있어요. 잠시 후 같은 메시지를 다시 보내 주세요.",
+  errorRateLimit:
+    "AI 모델의 요청 한도를 넘었어요. 잠시 후 같은 메시지를 다시 보내 주세요.",
+  errorConnection:
+    "AI 모델과 통신하다가 오류가 났어요. 잠시 후 같은 메시지를 다시 보내 주세요.",
+  errorOutputMalformed:
+    "모델이 응답에 내부 제어 토큰을 드러내 처리를 멈췄어요. 다른 모델로 바꾸거나 모델 서빙 설정을 확인해 주세요.",
+  errorTooManyToolCalls:
+    '이번 턴에 쓸 수 있는 도구 호출을 다 썼어요. "이어서 진행" 버튼을 누르면 남은 단계를 이어서 해요.',
   opAdded: "노드 추가: {{label}}",
   opUpdated: "노드 수정: {{label}}",
   opRemoved: "노드 삭제: {{label}}",

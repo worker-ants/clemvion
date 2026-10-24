@@ -1,7 +1,13 @@
+import { BadRequestException, Logger } from '@nestjs/common';
 import {
   WorkflowAssistantStreamService,
   toRuntimePortDescriptor,
 } from './workflow-assistant-stream.service';
+import {
+  ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
+  ASSISTANT_STREAM_ERROR_MESSAGES,
+  noLlmConfigMessage,
+} from './workflow-assistant-stream-errors';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
 import { AssistantTurnPersistenceService } from './tools/assistant-turn-persistence.service';
@@ -2406,9 +2412,11 @@ describe('WorkflowAssistantStreamService', () => {
       'ASSISTANT_TOO_MANY_TOOL_CALLS',
     );
     // 재시도 안내 문구가 포함되어야 함 (UX 친절화).
-    expect((errEvent!.data as { message: string }).message).toMatch(
-      /follow-up message|budget/i,
-    );
+    const budgetMessage = (errEvent!.data as { message: string }).message;
+    expect(budgetMessage).toMatch(/follow-up message|budget/i);
+    // 서버 message 는 고정 영문이다 — 한국어 예시 문구를 싣지 않는다
+    // (REQ-ASSIST-048, CLE-UI-I18N 규칙 3).
+    expect(budgetMessage).not.toMatch(/[가-힣]/);
   });
 
   it('forwards optional width/height from the request snapshot into the system prompt JSON', async () => {
@@ -2942,6 +2950,194 @@ describe('WorkflowAssistantStreamService', () => {
     });
     // No message persistence when config missing.
     expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
+  });
+
+  // REQ-ASSIST-048: 스트림이 실패하면 턴을 끝내고 SSE `error` 이벤트에 코드와
+  // 코드별 고정 영문만 싣는다. 프로바이더 · 라이브러리 예외 원문은 서버 로그에만
+  // 남는다(CWE-209). 원문에는 요청 URL · 키 조각 · 응답 본문이 섞일 수 있다.
+  describe('stream failure error events (REQ-ASSIST-048)', () => {
+    const RAW =
+      '429 Too Many Requests: https://api.example.test/v1?key=sk-raw-secret {"error":"quota"}';
+
+    let loggerError: jest.SpyInstance;
+    beforeEach(() => {
+      loggerError = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+    });
+    afterEach(() => loggerError.mockRestore());
+
+    const errorEventOf = (events: Array<{ event: string; data: unknown }>) =>
+      events.find((e) => e.event === 'error')?.data as
+        { code: string; message: string } | undefined;
+
+    const loggedText = () =>
+      loggerError.mock.calls.map((c) => String(c[0])).join('\n');
+
+    const assistantPersist = (mocks: MockDeps) =>
+      mocks.sessionService.appendMessage.mock.calls
+        .map(
+          (c) =>
+            c[1] as { role?: string; content?: string; finishReason?: string },
+        )
+        .find((m) => m?.role === 'assistant');
+
+    it('ends the turn with ASSISTANT_STREAM_FAILED when chatStream throws', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() => {
+        throw new Error(RAW);
+      });
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)?.code).toBe('ASSISTANT_STREAM_FAILED');
+      expect(events[events.length - 1]).toEqual({
+        event: 'done',
+        data: { finishReason: 'error' },
+      });
+      expect(assistantPersist(mocks)?.finishReason).toBe('error');
+    });
+
+    it('sends a fixed message for ASSISTANT_STREAM_FAILED and logs the raw text only', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() => {
+        throw new Error(RAW);
+      });
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      const data = errorEventOf(events);
+      expect(data?.message).toBe(
+        ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+      );
+      expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+      expect(loggedText()).toContain(RAW);
+    });
+
+    it.each([
+      'LLM_RATE_LIMIT',
+      'LLM_CONNECTION_ERROR',
+      'LLM_OUTPUT_MALFORMED',
+    ] as const)(
+      'forwards the %s code with a fixed message instead of the client text',
+      async (code) => {
+        const { service, mocks } = makeService();
+        mocks.llmService.chatStream.mockImplementation(() =>
+          asyncIter<ChatStreamEvent>([
+            { type: 'text_delta', delta: 'partial' },
+            { type: 'error', code, message: RAW },
+          ]),
+        );
+
+        const events = await collect(
+          service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+        );
+
+        expect(errorEventOf(events)).toEqual({
+          code,
+          message: ASSISTANT_STREAM_ERROR_MESSAGES[code],
+        });
+        expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+        expect(loggedText()).toContain(RAW);
+        expect(events[events.length - 1]).toEqual({
+          event: 'done',
+          data: { finishReason: 'error' },
+        });
+        expect(assistantPersist(mocks)).toMatchObject({
+          content: 'partial',
+          finishReason: 'error',
+        });
+      },
+    );
+
+    it('does not forward the client text for an unknown error code', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'error', code: 'LLM_SOMETHING_NEW', message: RAW },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'LLM_SOMETHING_NEW',
+        message: ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
+      });
+      expect(loggedText()).toContain(RAW);
+    });
+
+    it('does not forward the guidance the LLM client writes for LLM_OUTPUT_MALFORMED', async () => {
+      const { service, mocks } = makeService();
+      // 클라이언트(openai.client.ts)가 사용자용으로 쓴 안내문도 화면으로 보내지
+      // 않는다. 서버는 코드별 고정 영문만 보내고 안내문은 로그에만 남는다.
+      const guidance = '모델이 harmony 제어 토큰을 응답에 노출했어요';
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'error', code: 'LLM_OUTPUT_MALFORMED', message: guidance },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'LLM_OUTPUT_MALFORMED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_OUTPUT_MALFORMED,
+      });
+      expect(JSON.stringify(events)).not.toContain(guidance);
+      expect(loggedText()).toContain(guidance);
+    });
+
+    it('does not forward the config resolution error text for ASSISTANT_NO_LLM_CONFIG', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockRejectedValue(new Error(RAW));
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'ASSISTANT_NO_LLM_CONFIG',
+        message: noLlmConfigMessage(false),
+      });
+      expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+      expect(loggedText()).toContain(RAW);
+    });
+
+    it('sends the table message for ASSISTANT_NO_LLM_CONFIG when no usable config exists', async () => {
+      const loggerWarn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const { service, mocks } = makeService();
+        mocks.llmService.resolveConfig.mockRejectedValue(
+          new BadRequestException(RAW),
+        );
+
+        const events = await collect(
+          service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+        );
+
+        expect(errorEventOf(events)).toEqual({
+          code: 'ASSISTANT_NO_LLM_CONFIG',
+          message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
+        });
+        expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+        expect(
+          loggerWarn.mock.calls.map((c) => String(c[0])).join('\n'),
+        ).toContain(RAW);
+      } finally {
+        loggerWarn.mockRestore();
+      }
+    });
   });
 
   // gpt-oss-120b 같은 일부 프로바이더는 tool_call 을 emit 하면서도 round 를

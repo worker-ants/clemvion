@@ -38,6 +38,7 @@ import { WorkflowAssistantStreamService } from './workflow-assistant-stream.serv
 import { CreateAssistantSessionDto } from './dto/create-assistant-session.dto';
 import { UpdateAssistantSessionDto } from './dto/update-assistant-session.dto';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
+import { ASSISTANT_STREAM_ERROR_MESSAGES } from './workflow-assistant-stream-errors';
 import {
   FORBIDDEN_NOT_A_MEMBER,
   forbiddenForRole,
@@ -244,7 +245,7 @@ export class WorkflowAssistantController {
         res.write(
           `data: ${JSON.stringify({
             code: 'ASSISTANT_STREAM_FAILED',
-            message: 'Assistant failed to respond. Please retry.',
+            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
           })}\n\n`,
         );
       }

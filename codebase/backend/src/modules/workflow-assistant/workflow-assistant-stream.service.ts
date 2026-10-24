@@ -47,6 +47,12 @@ import {
   makeResumeMeta,
 } from './tools/assistant-turn-persistence.service';
 import { buildSystemPrompt } from './prompts/system-prompt';
+import {
+  ASSISTANT_STREAM_ERROR_MESSAGES,
+  noLlmConfigMessage,
+  toClientStreamErrorMessage,
+  tooManyToolCallsMessage,
+} from './workflow-assistant-stream-errors';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
   AssistantToolCallRecord,
@@ -208,14 +214,20 @@ export class WorkflowAssistantStreamService {
         workspaceId,
       );
     } catch (err) {
+      // 예외 원문은 화면에 보내지 않고 로그에만 남긴다 (REQ-ASSIST-048). 설정이
+      // 없거나 쓸 수 없는 경우는 warn, 그 밖의 예외(DB 장애 등)는 error 다.
+      const configUnavailable = err instanceof BadRequestException;
+      const reason = err instanceof Error ? err.message : 'Unknown error';
+      if (configUnavailable) {
+        this.logger.warn(`Assistant LLM config unavailable: ${reason}`);
+      } else {
+        this.logger.error(`Assistant LLM config resolve failed: ${reason}`);
+      }
       yield {
         event: 'error',
         data: {
           code: 'ASSISTANT_NO_LLM_CONFIG',
-          message:
-            err instanceof BadRequestException
-              ? 'No LLM config available. Please configure one first.'
-              : 'Failed to resolve LLM config.',
+          message: noLlmConfigMessage(configUnavailable),
         },
       };
       return;
@@ -366,7 +378,10 @@ export class WorkflowAssistantStreamService {
           event: 'error',
           data: {
             code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-            message: `Per-turn LLM round limit (${MAX_TOOL_LOOP_ROUNDS}) exceeded. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
+            message: tooManyToolCallsMessage(
+              'round-limit',
+              MAX_TOOL_LOOP_ROUNDS,
+            ),
           },
         };
         await this.turnPersistence.persistAssistantTurn(
@@ -417,7 +432,10 @@ export class WorkflowAssistantStreamService {
                 event: 'error',
                 data: {
                   code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-                  message: `Per-turn tool-call budget (${toolCallsBudget}) exhausted. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
+                  message: tooManyToolCallsMessage(
+                    'tool-call-budget',
+                    toolCallsBudget,
+                  ),
                 },
               };
               hadError = true;
@@ -716,9 +734,18 @@ export class WorkflowAssistantStreamService {
               },
             };
           } else if (ev.type === 'error') {
+            // 클라이언트 `message` 는 SDK 예외 원문이거나 클라이언트가 쓴 안내문
+            // 이다. 어느 쪽이든 로그에만 남기고 화면에는 코드별 고정 영문을
+            // 보낸다 (REQ-ASSIST-048).
+            this.logger.error(
+              `Assistant LLM stream error (${ev.code}): ${ev.message}`,
+            );
             yield {
               event: 'error',
-              data: { code: ev.code, message: ev.message },
+              data: {
+                code: ev.code,
+                message: toClientStreamErrorMessage(ev.code),
+              },
             };
             hadError = true;
             break;
@@ -729,7 +756,10 @@ export class WorkflowAssistantStreamService {
         this.logger.error(`Assistant stream failed: ${message}`);
         yield {
           event: 'error',
-          data: { code: 'ASSISTANT_STREAM_FAILED', message },
+          data: {
+            code: 'ASSISTANT_STREAM_FAILED',
+            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+          },
         };
         hadError = true;
       }

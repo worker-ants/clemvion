@@ -489,7 +489,6 @@
     "codebase/backend/test/webchat-idle-reaper.e2e-spec.ts": 1,
     "codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts": 2,
     "codebase/backend/test/webhook-trigger.e2e-spec.ts": 3,
-    "codebase/backend/test/workflow-assistant.e2e-spec.ts": 1,
     "codebase/backend/test/workflow-crud.e2e-spec.ts": 1,
     "codebase/backend/test/workflow-delete-concurrency.e2e-spec.ts": 1,
     "codebase/backend/test/workflow-execution.e2e-spec.ts": 1,
