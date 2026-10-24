@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "e65e3cc2d91b8cca53eec36a51c6ef05f60acae0eb1e41965356bad22098c1d0"
+content_hash: "0fecec743bf34fddd61412fc7f603b8ce1ffaab7e56a10f418f47b134a591edb"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7ea585f7596474f1f21160c1a82e0eb0d07e065fa7eab524041a5685b81a8d82"
-etag: "sha256-e0ea52ef1d3951ecc08d97e93f623de9b08ee04b4ab50e2a1c6d6acde0aebf6f"
+mirror_sha256: "d642eb41cbab3e86f3103e765bdfd2c3222490ae070b84b761588c14286d7a26"
+etag: "sha256-4f63f7be0732bf2cefbbce5f2956fd1807eeeeda76f910d21d4a87ed1694bda6"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -116,7 +116,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | `output` | unknown[] | 런타임, 핸들러 반환 | 해석한 원래 배열(항목이 본문으로 나뉜다). `inputField` 가 배열이 아니거나 해석되지 않으면 `[]` |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `inputField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 
-이 시점의 `output` 은 해석한 원래 배열이다. 본문 반복 입력을 나눠 주는 데만 쓰고 다음 노드가 직접 참조하면 안 된다. 완료 뒤 `{ mapped, count }` 로 덮어써진다. 이 배열을 엔진 내부 표현으로 두는 이유(D2 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
+이 시점의 `output` 은 해석한 원래 배열이다. 본문 반복 입력을 나눠 주는 데만 쓰고 다음 노드가 직접 참조하면 안 된다. 완료 뒤 `{ mapped, count }` 로 덮어써진다. 이 배열을 엔진 내부 표현으로 두는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다.
 
 본문 안에서의 표현식 접근:
 
@@ -170,7 +170,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 
 **빈 배열 입력**: `inputField` 해석 결과가 `[]` 이거나 배열이 아니면 본문을 0회 실행하고 `output: { mapped: [], count: 0 }` 으로 `done` 포트를 곧바로 활성화한다. 배열이 아니었으면 `meta.fellBackToEmpty` 가 `true` 다. 어느 쪽이든 `meta.iterations` 는 `0` 이다.
 
-**`errorPolicy: 'skip' / 'continue'` 일 때**: 인덱스를 지키려고 실패 항목 자리에 `output.mapped[i] = { _skipped: true, error: { code, message } }` 를 넣는다. Map 의 의도는 "같은 타입으로 바꾼 배열" 이므로 다음 노드는 `_skipped` 표시로 정상과 실패를 가려야 한다. ForEach 는 `null` 자리와 별도 `skipped[]` 배열을 쓴다. 두 노드가 형태를 달리하는 이유(D3 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다. 현재 구현은 실행기가 따로 모은 실패 목록으로 이 인라인 표시를 다시 만든다(`execution-engine.service.ts` 의 컨테이너 완료 처리).
+**`errorPolicy: 'skip' / 'continue'` 일 때**: 인덱스를 지키려고 실패 항목 자리에 `output.mapped[i] = { _skipped: true, error: { code, message } }` 를 넣는다. Map 의 의도는 "같은 타입으로 바꾼 배열" 이므로 다음 노드는 `_skipped` 표시로 정상과 실패를 가려야 한다. ForEach 는 `null` 자리와 별도 `skipped[]` 배열을 쓴다. 두 노드가 형태를 달리하는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다. 현재 구현은 실행기가 따로 모은 실패 목록으로 이 인라인 표시를 다시 만든다(`execution-engine.service.ts` 의 컨테이너 완료 처리).
 
 ### 엔진 덮어쓰기 계약
 
@@ -224,7 +224,7 @@ Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 �
 
 Map 과 ForEach 는 같은 실행기를 쓰지만 뜻이 다르다. ForEach 는 항목마다의 부수 효과이고 Map 은 변환 결과 수집이다. 그래서 Map 은 컬렉션 키를 `mapped` 로 따로 둔다. 네 엔진 덮어쓰기 대상 노드는 컬렉션 키가 모두 다르다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)).
 
-시작 시점 배열을 엔진 내부 표현으로 두는 결정(D2)과 실패 표현을 ForEach 와 다르게 두는 결정(D3)은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
+시작 시점 배열을 엔진 내부 표현으로 두는 결정은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다. 실패 표현을 ForEach 와 다르게 두는 결정은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다.
 
 ### 설정 패널이 항목 에러 정책을 지우지 않는다 (2026-10-10)
 

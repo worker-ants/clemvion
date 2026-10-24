@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "283cd896955e3a8142af6cb966c945670486c612b741d4504dd5d13b54c68415"
+content_hash: "8bd256014d4262dda7bd7c21d16c8892cdf6469848c366504c9d61dad00a1a6f"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "48109f2a6dfd923b0e69cc1b2fe77d8ccd9678c1bd1d1f73be93f9787dd17a6c"
-etag: "sha256-8fbb3c119e11c58538daa7645a1aea5f0407291ef06139172b180688419d46d7"
+mirror_sha256: "d679b1ada9e50fae57ddc5842ef3b3656a757505fd6eb02ed851c2690ff24fcb"
+etag: "sha256-91e084d0dbe9ade9f98b448d588163f4d310689319424279ce9437f44051cbb0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -129,7 +129,7 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 | `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 엔진 안에서만 쓰는 중간 형태다. 밖에서 보이지 않는 범위는 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1번에 있다 |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `arrayField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 
-이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. park · 재구동 없이 이어진 실행에서 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유(D2 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
+이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. park · 재구동 없이 이어진 실행에서 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다.
 
 ### 완료 시점 (`done` 포트)
 
@@ -203,7 +203,7 @@ ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`
 
 실패가 0건이면 `output.skipped` 와 `meta.skippedCount` 둘 다 필드 자체를 뺀다(`undefined` 필드는 싣지 않는다). 다음 노드는 `output.items.filter(x => x !== null)` 로 성공만 골라내거나 `output.skipped` 가 있을 때만 실패 처리 분기로 들어가면 된다.
 
-Map 은 실패 항목을 `output.mapped[i] = { _skipped: true, error }` 인라인 표시로 둔다. 두 노드가 형태를 달리하는 이유(D3 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
+Map 은 실패 항목을 `output.mapped[i] = { _skipped: true, error }` 인라인 표시로 둔다. 두 노드가 형태를 달리하는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다.
 
 ### 엔진 덮어쓰기 계약
 

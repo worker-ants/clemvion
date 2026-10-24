@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "6c347c32fe2ac293e7a9b2ba8da76133a8b33cd5fdb43559c356f2f7620eaafd"
+content_hash: "d141640d9aca77ce6ca47b671360b1bcc708b7cc5961af06fcdfa9158d23bb96"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "0806852326d3afd9dc3b2db9551047cba7cfa4edf86eb713f8ad8636cd1e076a"
-etag: "sha256-dc0cd07a2ad7c2c72f12ec374ea199ea66b9118484443b619a708a7e620a39a4"
+mirror_sha256: "aecc9ce9f517232ea1a14810af32239b29ed1b1fbbc21e1792379fcc09f403aa"
+etag: "sha256-c745e770d51786165093dcdc850a2496490617cf0e8d049c0242546dbbb4275a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -127,7 +127,7 @@ ForEach 와 Map 은 같은 `ForEachExecutor` 를 쓰고 뜻만 다르다. ForEac
 
 ForEach 가 중첩되면 `ForEachExecutor` 가 바깥 `$item`·`$itemIndex` 를 저장했다가 되돌린다.
 
-항목 에러 정책(`config.errorPolicy`)은 컨테이너 전용이다. 일반 노드의 에러 처리 정책(`config.errorHandling.policy`)과 다른 층이다. ForEach · Map 의 핸들러 호출이 실패하면 에러 처리 정책을, 반복 회차가 실패하면 항목 에러 정책을 적용한다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#두-키가-함께-있는-이유), [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#항목-에러-정책)).
+항목 에러 정책(`config.errorPolicy`)은 ForEach · Map · Parallel 에만 있다(Loop 에는 없다). 일반 노드의 에러 처리 정책(`config.errorHandling.policy`)과 다른 층이다. ForEach · Map 의 핸들러 호출이 실패하면 에러 처리 정책을, 반복 회차가 실패하면 항목 에러 정책을 적용한다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#두-키가-함께-있는-이유), [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#항목-에러-정책)).
 
 ## 중첩 컨테이너 스코프
 
@@ -206,7 +206,7 @@ ForEach·Map 뒤의 노드는 원본 항목과 결과를 짝지어 쓰는 경우
 
 ### 완료 시점 덮어쓰기를 엔진이 한다
 
-ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준다. 노드 출력 다섯 필드 계약을 깨지 않고 분배용 데이터를 엔진에 넘기기 위한 방식이다. 핸들러 반환 형태와 외부에 보이는 형태가 다른 것은 의도한 설계다. 엔진이 완료 시점에 핸들러를 다시 부르지 않고 덮어쓰므로 다음 노드 표현식에는 `{ <컬렉션 키>, count }` 만 보이게 하는 것이 목표다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 D2 결정). 지금은 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에 아직 시작 시점 배열이 남는다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준다. 노드 출력 다섯 필드 계약을 깨지 않고 분배용 데이터를 엔진에 넘기기 위한 방식이다. 핸들러 반환 형태와 외부에 보이는 형태가 다른 것은 의도한 설계다. 엔진이 완료 시점에 핸들러를 다시 부르지 않고 덮어쓰므로 다음 노드 표현식에는 `{ <컬렉션 키>, count }` 만 보이게 하는 것이 목표다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」). 지금은 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에 아직 시작 시점 배열이 남는다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
 
 ### Background 본문은 컨테이너 소속 모델을 쓰지 않는다
 

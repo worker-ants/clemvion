@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR"
 title: "워크플로우 에디터와 캔버스"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-EDITOR-001", "REQ-EDITOR-002", "REQ-EDITOR-003", "REQ-EDITOR-004", "REQ-EDITOR-005", "REQ-EDITOR-006", "REQ-EDITOR-007", "REQ-EDITOR-008", "REQ-EDITOR-009", "REQ-EDITOR-010", "REQ-EDITOR-011", "REQ-EDITOR-012", "REQ-EDITOR-013", "REQ-EDITOR-014", "REQ-EDITOR-015", "REQ-EDITOR-016", "REQ-EDITOR-017", "REQ-EDITOR-018", "REQ-EDITOR-019", "REQ-EDITOR-020", "REQ-EDITOR-021", "REQ-EDITOR-022", "REQ-EDITOR-023", "REQ-EDITOR-024", "REQ-EDITOR-025", "REQ-EDITOR-026", "REQ-EDITOR-027", "REQ-EDITOR-028", "REQ-EDITOR-029", "REQ-EDITOR-030", "REQ-EDITOR-031", "REQ-EDITOR-032", "REQ-EDITOR-033", "REQ-EDITOR-034", "REQ-EDITOR-035", "REQ-EDITOR-036", "REQ-EDITOR-037", "REQ-EDITOR-038", "REQ-EDITOR-039", "REQ-EDITOR-040", "REQ-EDITOR-041", "REQ-EDITOR-042", "REQ-EDITOR-043", "REQ-EDITOR-044", "REQ-EDITOR-045", "REQ-EDITOR-046", "REQ-EDITOR-047", "REQ-EDITOR-048", "REQ-EDITOR-049", "REQ-EDITOR-050", "REQ-EDITOR-051", "REQ-EDITOR-052", "REQ-EDITOR-053", "REQ-EDITOR-054", "REQ-EDITOR-055", "REQ-EDITOR-056", "REQ-EDITOR-057", "REQ-EDITOR-058"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "d36d568b31dbf02f8d16705c901189848d4aad6f9abb14b107eb05c99ae12993"
-read_as: "approved"
-task: null
+content_hash: "b67b73ebe919b3723d0d457842fc1d329858f3cd3576fa5ebc90ed2f595a59ff"
+read_as: "approved_fallback"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "bca4df82fcb86be2f7029312c41959c372996fc85c0fd8b08ae4d23a95d61002"
-etag: "sha256-a4865903220e6d169b2a1ad154104801f3572a64c16b6d2d4d447d05f4bbbeea"
+mirror_sha256: "9ec241e3146ab665dcb87a7bd8bf0b7f0142f2f42c01ab9cea17e6d2488baaff"
+etag: "sha256-a87b35467eddf7df8b5a06d375e2e4a5dbd59f2b1f8a2fff2e85e931ffbea5a9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -197,14 +197,14 @@ etag: "sha256-a4865903220e6d169b2a1ad154104801f3572a64c16b6d2d4d447d05f4bbbeea"
 | --- | --- |
 | 제목 | "워크플로우를 이어서 완성해봐요" |
 | 소제목 | "트리거 다음에 이어 붙일 노드를 추가하면 워크플로우가 완성돼요." |
-| 체크리스트 | 3단계: (1) 팔레트에서 다음 노드를 드래그 (2) 트리거 출력 포트에 연결 (3) 실행해서 결과 확인. 항목마다 오른쪽에 "자세히" 링크가 있고 관련 매뉴얼 절로 이동한다. |
+| 체크리스트 | 3단계: (1) 팔레트에서 다음 노드를 드래그 (2) 트리거 출력 포트에 연결 (3) 실행해서 결과 확인. 항목마다 오른쪽에 "자세히" 링크가 있고 관련 사용자 가이드 절로 이동한다. |
 | 버튼 | "시작 가이드 열기" 는 `/docs/01-getting-started/first-workflow` 를 새 탭으로 연다. 노드는 팔레트에서 끌어 놓아 추가하므로 카드 안에 추가 버튼을 두지 않는다. |
 | 표시 조건 | 노드가 하나도 없거나 트리거 카테고리 노드만 있을 때 표시한다. 트리거가 아닌 첫 노드가 추가되면 300ms 동안 흐려지며 사라진다. |
 | 위치·크기 | `top-right` Panel, 너비 340px. 트리거 노드와 겹치지 않도록 오른쪽에 고정한다. |
 | 접근성 | `role="region"` 과 `aria-label="시작하기"`. 숨긴 상태에서는 `aria-hidden="true"` 와 `tabIndex={-1}` 로 포커스에서 뺀다. |
-| 링크 동작 | 매뉴얼 링크는 새 탭으로 열어 작업 맥락을 지킨다. |
+| 링크 동작 | 사용자 가이드 링크는 새 탭으로 열어 작업 맥락을 지킨다. |
 
-매뉴얼 구조는 [사용자 가이드](../CLE-UI/CLE-UI-GUIDE.md) 가 정한다.
+사용자 가이드의 구조는 [사용자 가이드](../CLE-UI/CLE-UI-GUIDE.md) 가 정한다.
 
 ## 노드 팔레트
 
