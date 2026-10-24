@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "00a772eec259a93c6add3133a528a9fc694dcfb2a3217c28832c176012470d24"
+content_hash: "0e0519ef1481cf212ad6b9d3c70bd7a364ece803d1f3d50dc74e613b13f3af68"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "71c7e6ff3a35cf05ee4b933bc462cee101799e50226ca5a3c733da693e80ca61"
-etag: "sha256-103f4ecdf0cc58497c5f1998ee38bc2fb05a77b584d4983e227015cb594ad033"
+mirror_sha256: "3630723058137cd6663415721e0b0301f4240147b7bdeaabb1af9be0a4958fff"
+etag: "sha256-27d9f523df25cc122866ea8c93391f2d52f5f1acc318cd79b0064767386251f0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -225,7 +225,7 @@ sequenceDiagram
    - 수동 트리거 노드 파라미터 스키마를 어기면 400 `INVALID_TRIGGER_PARAMETERS` 다. 버전 복원 경로는 `skipLegacyDataGates` 로 이 검사를 건너뛴다.
    - 노드 레이블이 겹치면 거부한다(`DUPLICATE_NODE_LABEL`).
    - `containerId`·`toolOwnerId`·연결선 끝점이 이번 페이로드에 없는 노드를 가리키면 400 `VALIDATION_ERROR` 다(`details[].field` 예: `nodes[2].containerId`). 버전 복원 경로도 이 검사는 건너뛰지 않는다.
-   - 새로 넣거나 바꾼 노드 `config` 의 통합 참조(`integrationId`·`mcpServers[].integrationId`)가 워크스페이스에 없는 통합이나 저장자 또는 워크플로우 작성자가 통합 소유자가 아닌 개인 통합을 가리키면 400 `VALIDATION_ERROR` 다(`details[].field` 예: `nodes[3].config.integrationId`). 바뀌었는지는 같은 id 로 저장된 노드와 비교한다. 버전 복원 경로는 거절하지 않고 그 참조를 비운다. 규칙은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다. 아직 코드에 없다(NERV Task `CLE-T-1BQZ10`).
+   - 새로 넣거나 바꾼 노드 `config` 의 통합 참조(`integrationId`·`mcpServers[].integrationId`)가 워크스페이스에 없는 통합이나 저장자 또는 워크플로우 작성자가 통합 소유자가 아닌 개인 통합을 가리키면 400 `VALIDATION_ERROR` 다(`details[].field` 예: `nodes[3].config.integrationId`). 바뀌었는지는 같은 id 로 저장된 노드와 비교한다. 버전 복원 경로는 거절하지 않고 실행 시점 판정을 통과하지 못하는 참조만 비운다(REQ-WFVER-026). 판정은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정), 참조 위치와 비우는 방법은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다. 아직 코드에 없다(NERV Task `CLE-T-1BQZ10`).
 3. 트랜잭션 안에서 `current_version` 을 1 올리고, 노드 전체를 동기화하고, 연결선을 전부 교체한다. 노드를 동기화할 때 이 워크플로우에 없는 노드 id 는 새 노드로 본다. 그 id 를 다른 행이 이미 쓰면 400 `VALIDATION_ERROR`(`details[].field` 예: `nodes[1].id`)로 거부하고 그 행을 덮어쓰지 않는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
 4. 노드 사이 그래프 경고 규칙을 평가한다. 심각도 `error` 가 있으면 `GRAPH_VALIDATION_FAILED` 를 던져 트랜잭션을 되돌린다(저장 차단). 규칙은 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다.
 5. `createVersion` 이 최신 버전 번호를 `pessimistic_write` 잠금으로 읽고(`ORDER BY version DESC`) 다음 번호로 `workflow_version` 을 넣는다. 이 잠금이 같은 워크플로우의 동시 저장을 차례로 처리한다. 스냅샷은 이름·설명·노드·연결선의 JSONB 이고 `workflow.settings` 는 담지 않는다. 원문은 이 단계를 "같은 트랜잭션 안" 이라고 적는다. 버전 기록 원문과 정의가 갈린다. [미결 사항](#미결-사항) 참조.

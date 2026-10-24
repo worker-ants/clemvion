@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "8d80780ab94d683803e9fcf0db8b73dfd315717e974407d3519388cdebca8233"
+content_hash: "896f0cd55be6a2cf4058d890635c44925fcf660c54fbc31c56ed2cd8cf488d5a"
 read_as: "approved_fallback"
-task: "CLE-T-NNENG8"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "5bc7991ad15fe18fd8e6ddbef80b31413b429c5e03dcfb2b39a9c040a1928df2"
-etag: "sha256-4df57dc68627bf8dae9752ca9fd4fc24ff6247ff875e4ca733e965b58a57d3aa"
+mirror_sha256: "4adf08ab0f567327c8d24c6abc9aa64a62239235cf3ce958e23e67c37cfb485e"
+etag: "sha256-7d0fcbb0b44659bf830e5c5ac984a5deccf17378914f8b7e84b28ecb5e111e6a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,8 +58,8 @@ erDiagram
 | credentials | JSONB (encrypted) | 자격 증명. 암호화해 저장한다([암호화](#암호화)). OAuth 통합은 권한 범위(`scopes: string[]`)를 포함한다 |
 | scope | Enum | 공개 범위(`Integration.scope`). `personal` / `organization` |
 | status | Enum | 통합 상태. `connected` / `expired` / `error` / `pending_install`. 전이 규칙은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
-| install_token | String? | 설치 토큰. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치 대기 통합을 가리키는 식별 키다. 그 밖의 서비스 유형은 NULL 이다. 발급 시 16바이트를 base64url(패딩 없음, 22자)로 인코딩한다. 통합이 살아 있는 동안 보존한다(App URL 경로 식별 키). 연결 성공 콜백에서도 보존하고, 설치 대기 24시간 만료 또는 통합 삭제에서만 NULL 로 지운다. `varchar(64)`, V042 |
-| install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 재사용·재발급 때 갱신하고 연결 성공 콜백에서는 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
+| install_token | String? | 설치 토큰. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치 대기 통합을 가리키는 식별 키다. 그 밖의 서비스 유형은 NULL 이다. 발급 시 16바이트를 base64url(패딩 없음, 22자)로 인코딩한다. 통합이 살아 있는 동안 보존한다(App URL 경로 식별 키). 예외로 `oauth/begin` 이 설치 대기 행을 다시 쓰면서 새로 발급할 때가 있다. Cafe24 Private 은 다른 `client_id`·`client_secret` 으로 다시 쓰거나 설치 토큰이 없는 옛 행일 때, MakeShop 은 설치 토큰이 없는 행일 때다(REQ-INTOAUTH-012, 조건은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#oauthbegin-요청과-응답) 이 정한다). 연결 성공 콜백에서도 보존하고, 설치 대기 24시간 만료 또는 통합 삭제에서만 NULL 로 지운다. `varchar(64)`, V042 |
+| install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 설치 토큰을 새로 발급할 때만 갱신한다. 설치 대기 행을 다시 써도 설치 토큰을 보존하면 그대로 두고 연결 성공 콜백에서도 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
 | mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. V045 이전 행은 NULL 이고 다음 저장(콜백·재인증)에서 채운다. V045 |
 | status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [통합 상태와 만료 알림](CLE-INT-STATUS.md). `VARCHAR(64)`, V008 |
 | consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
@@ -338,7 +338,7 @@ sequenceDiagram
 
 - 통합 재인증과 설치 대기 행은 자격 증명을 통째로 바꾸고, 추가 권한 요청은 기존 자격 증명에 합치고 권한 범위를 갱신한다. 설치 토큰은 보존한다. 재설치 대기 표시(`reinstall_requested_at`)는 같은 UPDATE 에서 지운다.
 - 콜백이 실패하면(토큰 교환 실패 등) state 를 소비한 뒤 식별된 행에 `markIntegrationCallbackError` 가 `status_reason`(`normalizeStatusReason` 으로 union 정규화)과 `last_error={code,message,at}` 을 기록한다. 상태를 바꾸는지는 실패 종류와 행의 현재 상태에 따라 다르다. 연결됨 행의 통합 재인증 토큰 교환 실패는 `error(auth_failed)` 로 바뀐다. 재설치 대기 표시가 유효한 행, 설치 대기 행, state 단계 실패는 상태를 보존한다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 콜백 실패는 재설치 대기 표시를 지우지 않는다. 표는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑이 소유한다.
-- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고, 같은 수집 경로가 `last_error` 에 `RESOURCE_NOT_FOUND` 또는 `ADMIN_REQUIRED` 를 기록한다. 상태는 보존한다.
+- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고, 같은 수집 경로가 `last_error` 에 `RESOURCE_NOT_FOUND`, `EDITOR_REQUIRED`(개인 통합, 미구현), `ADMIN_REQUIRED` 가운데 하나를 기록한다. 상태는 보존한다.
 - 설치 대기 행과, 재설치 대기 표시가 유효한 Cafe24 Private 행은 커밋 직전 인가 재판정을 하지 않는다. 이 행의 state 는 App URL(설치 토큰과 HMAC 이 인가한다)이 만들어 `user_id` 가 요청자가 아니라 통합 생성자다. 표시를 남긴 요청자의 인가는 표시를 남길 때 이미 확인했다. 재판정하면 관리자가 요청한 조직 통합의 재설치가 생성자 기준으로 `ADMIN_REQUIRED` 가 되어 실패한다. Cafe24 Public 행과 MakeShop 행은 표시 값과 관계없이 재판정하고 표시를 남긴 지 24시간이 지난 Cafe24 Private 행도 재판정한다.
 - 설치 토큰이 있는 Cafe24 Private 행의 통합 재인증과 추가 권한 요청은 `oauth/begin` 을 거치지 않고 state 도 만들지 않는다. 통합 재인증은 판정한 행 조건으로 `reinstall_requested_at` 만 현재 시각으로 UPDATE 하고 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 추가 권한 요청은 `credentials.scopes` 를 합쳐 저장하면서 설치 대기가 아니면 같은 값을 쓴다. 이미 표시가 있으면 새 시각으로 덮어써 24시간을 다시 센다. 상태·상태 사유·토큰은 그대로다. state 는 사용자가 «테스트 실행» 을 눌러 App URL 이 불릴 때 생긴다([Cafe24 Private 앱 설치](#cafe24-private-앱-설치)).
 - 자격 증명 교체(`POST /api/integrations/:id/rotate`)는 OAuth 흐름이 아니다. 연결 테스트를 통과하면 자격 증명을 합치고 `last_rotated_at` 을 갱신하며 연결됨으로 되돌린다.
@@ -356,7 +356,7 @@ sequenceDiagram
   participant Prov as Cafe24 OAuth
   FE->>Svc: POST /oauth/begin (Private, mode new)
   Svc->>Svc: 설치 토큰 발급 (16바이트 base64url)
-  Svc->>PG: INSERT integration (pending_install, install_token, install_token_issued_at, mall_id, 암호화 자격 증명)<br/>같은 설치 대기 행이 있으면 재사용
+  Svc->>PG: INSERT integration (pending_install, install_token, install_token_issued_at, mall_id, 암호화 자격 증명)<br/>요청자가 바꿀 수 있는 같은 설치 대기 행이 있으면 재사용(REQ-INTOAUTH-012·058)
   Svc-->>FE: appUrl, callbackUrl
   CDev->>Svc: GET /api/3rd-party/cafe24/install/:installToken (테스트 실행)
   Svc->>PG: install_token 으로 한 행 조회 (상태 무관)
@@ -390,7 +390,7 @@ sequenceDiagram
   participant MS as MakeShop ShopStore
   participant Prov as MakeShop OAuth
   U->>Svc: POST /oauth/begin (makeshop, mode new, 클라이언트 자격 증명)
-  Svc->>PG: INSERT integration (makeshop, pending_install, install_token, mall_id NULL)<br/>같은 (워크스페이스, client_id) 설치 대기 행이 있으면 재사용
+  Svc->>PG: INSERT integration (makeshop, pending_install, install_token, mall_id NULL)<br/>요청자가 바꿀 수 있는 같은 (워크스페이스, client_id) 설치 대기 행이 있으면 재사용(REQ-INTOAUTH-059·060)
   Svc-->>U: appUrl, callbackUrl
   MS->>Svc: GET /api/3rd-party/makeshop/install/:installToken (shop_uid, timestamp, action_type, hmac)
   Svc->>Svc: Cafe24 와 같은 가드 순서, shop_uid 형식 검사, HMAC, nonce
@@ -421,6 +421,7 @@ sequenceDiagram
   participant PG as Postgres
   participant Ext as 외부 API
   H->>Svc: getForExecution(integrationId, workspaceId)
+  Note over H,Svc: 개인 통합 판정용 작성자 · 표현식 여부도 넘긴다(미구현, 통합 노드 공통)
   Svc->>PG: SELECT integration (transformer 가 복호화)
   alt 복호화 불가
     Svc-->>H: IntegrationCredentialsUnreadableError

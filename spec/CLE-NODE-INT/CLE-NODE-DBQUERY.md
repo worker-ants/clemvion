@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "3f86c364c4eeee1d9240687dbd40b684b2b7a9d8102f724663a2032409a9ae4a"
-read_as: "approved"
-task: null
+content_hash: "1e3a29e84a11557e5bcb8a636587e0201b59312456a3f45655aacdb262b675bc"
+read_as: "approved_fallback"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "cd55e573f8972d0046637ae59a719a020443dd1a6d393d30d6e9fea0dda0b147"
-etag: "sha256-01e511a98d4b4e44dc012fa3d073b49e9732b35786c5769da2af61562224ca59"
+mirror_sha256: "76485df704b998a665d08f191239b0bc77ba0f23249f83a4fb38b7a16dd879ef"
+etag: "sha256-d326efe19d9978f5f33c06b3b678e7f74cac24d7b1832f18193d4e3173b20ed9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - REQ-DBQ-024 WHEN 에러 메시지를 내보내거나 활동 로그에 남기면 THE SYSTEM SHALL 비밀번호·Bearer·긴 토큰 패턴을 가린다.
 - REQ-DBQ-025 WHEN dry-run 으로 실행되고 쿼리가 쓰기 작업이면 THE SYSTEM SHALL DB 에 연결하지 않고 mock 결과로 `success` 포트에 보낸다.
 - REQ-DBQ-026 WHEN dry-run 으로 실행되고 쿼리가 읽기 작업이거나 판정이 모호하면 THE SYSTEM SHALL 쿼리를 실제로 실행한다.
-- REQ-DBQ-027 WHEN 실행이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
+- REQ-DBQ-027 WHEN 통합을 얻은 뒤 실행이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
 - REQ-DBQ-028 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 SQL 동사, `api_path` 를 드라이버 토큰으로 채운다.
 - REQ-DBQ-029 IF 설정 형식이 잘못되면 THE SYSTEM SHALL 사전 검증 에러로 실행을 실패시킨다.
 
@@ -112,7 +112,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
    | `verify-full` | `ssl: { rejectUnauthorized: true }` | `ssl: { rejectUnauthorized: true }` |
 
    `require` 도 인증서 검증을 강제한다(MITM 방어). self-signed 인증서를 쓰려면 별도 `require-trust` 모드를 새로 도입해야 한다.
-8. **활동 로그 기록**: 성공·실패 모두 `logUsage({ integrationId, status, durationMs, error?, api })` 를 부른다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage({ integrationId, status, durationMs, error?, api })` 를 부른다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). 지금 코드는 이런 실패도 남긴다(미구현, NERV Task `CLE-T-PTC4SF`). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
    - `api_label` = NULL. 임의 SQL 을 부르므로 엔드포인트 카탈로그가 없다.
    - `api_method` = SQL 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE`). `config.queryType` 을 대문자로 그대로 쓴다. `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑는다. 뽑지 못하면 NULL 이다.
    - `api_path` = 드라이버 토큰(`postgres`·`mysql`). SQL 본문 파싱을 피하고 개인정보가 직접 드러나지 않게 한다. 드라이버가 늘면 같은 토큰 목록을 넓힌다.
@@ -390,3 +390,9 @@ INSERT(MySQL `ResultSetHeader`):
 기각한 대안(옵션 B, `POOL_IDLE_TIMEOUT_MS` 낮추기): 시간 기반 완화일 뿐 즉시성이 없고, 낮출수록 연결 churn 이 늘어 풀 캐시의 존재 이유(연결 재사용)와 부딪힌다. 활성 사용 중인 연결은 유휴 타이머에 걸리지도 않는다.
 
 실행 엔진은 유실되면 실행이 멈추는 재개 신호를 옛 Redis pub/sub 에서 BullMQ 영속 큐로 옮겼다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) Rationale). 이 채널은 그 결정과 부딪히지 않는다. 재개 신호는 내구성이 필요해 큐가 맞고, 캐시 무효화는 유실돼도 해시 비교로 정합성이 보장되는 best-effort 라 가벼운 pub/sub 가 맞다. 목적과 허용 의미(at-most-once 대 at-least-once)가 다르다.
+
+### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 에서 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않기로 정했다(REQ-INTMGMT-053). 남의 개인 통합이나 다른 워크스페이스 통합의 ID 를 넣은 노드가 그 통합에 활동 로그와 `last_error` 를 남기지 않게 하려는 것이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) Rationale 결정 4 · 17 에 있다. 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드) 한 곳에 두고 이 문서는 단계 서술만 맞췄다.
+
+- 요구사항 변경: REQ-DBQ-027 은 «실행이 끝나면» 에서 «통합을 얻은 뒤 실행이 끝나면» 으로 범위를 좁혔다.

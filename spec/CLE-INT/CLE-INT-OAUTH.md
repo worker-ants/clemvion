@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH"
 title: "OAuth 연결과 토큰 갱신"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057", "REQ-INTOAUTH-058", "REQ-INTOAUTH-059", "REQ-INTOAUTH-060", "REQ-INTOAUTH-061", "REQ-INTOAUTH-062", "REQ-INTOAUTH-063", "REQ-INTOAUTH-064", "REQ-INTOAUTH-065"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "55fbe87dc8c32520eb325f5fe8fbb43643787f1607f6f8d7bebe568cd9f0165e"
+content_hash: "9a7d1f37ddd4269f18fff28fe40f0869aa927726180bc98f74163202ac199df0"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "e02fc97f90de8fa71f097ddfcc9ef0f181d284d8b2f9a513569280e4388b5ffa"
-etag: "sha256-f890fec31306d3ea8d5ac0e943d8709c60100bf550ee0e5c553cb86ba6580d6d"
+mirror_sha256: "2d25803d3e5b3d5ab4305d1a91da22854038bfcea954a6afbc26137a1547f45b"
+etag: "sha256-9da93e6df37e4431106db49fe76368f2c58fd8564eb0e91f25136524f44c88ed"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ etag: "sha256-f890fec31306d3ea8d5ac0e943d8709c60100bf550ee0e5c553cb86ba6580d6d"
 - REQ-INTOAUTH-009 WHILE 설정·설치 안내 화면이 열려 있는 동안 THE SYSTEM SHALL 그 통합을 3초마다 조회하고 연결됨이 되면 토스트를 띄운 뒤 상세 화면으로 이동한다.
 - REQ-INTOAUTH-010 WHEN 안내 화면의 조회가 10분을 넘기면 THE SYSTEM SHALL 조회를 멈추고 «아직 대기 중» 안내를 보이며 재진입하거나 창에 포커스가 오면 다시 조회한다.
 - REQ-INTOAUTH-011 IF 같은 워크스페이스에 같은 상점 식별자의 연결됨 Cafe24 통합이 있고 그 통합이 `new` 가 아닌 모드의 대상 통합(`integrationId`)이 아니면 THE SYSTEM SHALL Cafe24 `oauth/begin` 을 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 거절한다.
-- REQ-INTOAUTH-012 WHEN Cafe24 Private `oauth/begin` 에 같은 상점의 Private 설치 대기 행이 있고 요청자가 그 행을 바꿀 수 있으면 THE SYSTEM SHALL 새 행을 만들지 않고 그 행을 재사용하며 `client_id`·`client_secret` 이 그대로면 설치 토큰도 그대로 둔다. (부분 구현)
+- REQ-INTOAUTH-012 WHEN Cafe24 Private `oauth/begin` 에 같은 상점의 Private 설치 대기 행이 있고 요청자가 그 행을 바꿀 수 있으면 THE SYSTEM SHALL 새 행을 만들지 않고 그 행을 재사용하며 `client_id`·`client_secret` 이 그대로이고 설치 토큰이 있으면 설치 토큰도 그대로 둔다. (부분 구현)
 - REQ-INTOAUTH-013 IF `oauth/begin` 이 `client_id`·`client_secret` 을 갖춘 Cafe24 Private 요청을 `new` 가 아닌 모드(`reauthorize`·`request_scopes`)로 받으면 THE SYSTEM SHALL 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN` 으로 거절한다.
 - REQ-INTOAUTH-014 WHEN App URL 호출의 HMAC 검증이 통과하고 통합이 설치 대기이면 THE SYSTEM SHALL OAuth state 를 만들고 인가 URL 로 302 한다.
 - REQ-INTOAUTH-015 WHEN App URL 호출의 HMAC 검증이 통과하고 통합이 설치 대기가 아니며 유효한 재설치 대기 표시도 없으면 THE SYSTEM SHALL 프런트엔드 통합 상세 화면으로 302 한다.
@@ -66,7 +66,7 @@ etag: "sha256-f890fec31306d3ea8d5ac0e943d8709c60100bf550ee0e5c553cb86ba6580d6d"
 - REQ-INTOAUTH-023 WHEN 새 연결(`mode='new'`) 콜백의 토큰 교환이 성공하면 THE SYSTEM SHALL 토큰을 10분짜리 미리보기 토큰에 맡기고 `previewToken` 을 돌려준다.
 - REQ-INTOAUTH-024 WHEN 통합 재인증 콜백이 성공하면 THE SYSTEM SHALL 자격 증명을 새 토큰으로 바꾸고 상태를 `connected` 로 되돌린다.
 - REQ-INTOAUTH-025 WHEN 추가 권한 요청 콜백이 성공하면 THE SYSTEM SHALL 기존 권한 범위에 새 권한 범위를 합치고 토큰을 갱신한다.
-- REQ-INTOAUTH-026 WHEN 통합 재인증·추가 권한 요청 콜백을 커밋하기 직전이고 통합이 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 통합도 아니면 THE SYSTEM SHALL 요청자의 가시성과 조직 통합의 관리자 권한을 다시 판정하고 실패하면 롤백한다.
+- REQ-INTOAUTH-026 WHEN 통합 재인증·추가 권한 요청 콜백을 커밋하기 직전이고 통합이 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 통합도 아니면 THE SYSTEM SHALL 요청자의 가시성, 개인 통합의 편집자 하한, 조직 통합의 관리자 권한을 다시 판정하고 실패하면 롤백한다. (부분 구현)
 - REQ-INTOAUTH-027 WHEN 콜백 처리가 끝나면 THE SYSTEM SHALL `postMessage` 로 부모 창에 결과를 알리고 성공은 바로, 실패는 3~5초 뒤 팝업을 닫는다.
 - REQ-INTOAUTH-028 IF OAuth 팝업이 5분 안에 돌아오지 않으면 THE SYSTEM SHALL 타임아웃 에러를 보이고 다시 시도할 수 있게 한다.
 - REQ-INTOAUTH-029 IF 유효한 재설치 대기 표시가 없는 연결됨 통합의 통합 재인증 코드 교환이 실패하면 THE SYSTEM SHALL 상태를 `error(auth_failed)` 로 바꾸고 `last_error` 를 기록한다.
@@ -297,7 +297,7 @@ sequenceDiagram
 | GET | `/api/3rd-party/cafe24/install/:installToken` | Cafe24 Private App URL. Cafe24 개발자 센터의 «테스트 실행» 과 쇼핑몰 관리자의 «앱으로 가기» 가 같은 주소를 부른다. 통합이 설치 대기이거나 유효한 재설치 대기 표시가 있으면 OAuth 인가로, 그 밖이면 프런트엔드 상세 화면으로 redirect 한다 |
 | GET | `/api/3rd-party/makeshop/install/:installToken` | MakeShop App URL. 쿼리 `shop_uid`, `timestamp`, `action_type`, `hmac`. 통합이 설치 대기면 OAuth 인가로, 그 밖이면 프런트엔드 상세 화면으로 redirect 한다 |
 
-- `:installToken` 은 begin 응답의 22자 설치 토큰이다. 설치 토큰은 통합이 살아 있는 동안 지속되는 식별자다. 콜백 성공에서 NULL 로 지우지 않는다.
+- `:installToken` 은 begin 응답의 22자 설치 토큰이다. 설치 토큰은 통합이 살아 있는 동안 지속되는 식별자다. 예외는 begin 이 설치 대기 행을 다시 쓰면서 새로 발급할 때다. Cafe24 Private 은 `client_id`·`client_secret` 을 바꿔 다시 쓰거나 설치 토큰이 없는 옛 행일 때, MakeShop 은 설치 토큰이 없는 행일 때다. 조건은 [`oauth/begin` 요청과 응답](#oauthbegin-요청과-응답) 이 정한다. 콜백 성공에서 NULL 로 지우지 않는다.
 - 식별 절차: 설치 토큰으로 한 행을 찾고 그 행의 `client_secret` 으로 HMAC 을 한 번 검증한다.
 
 가드는 이 순서로 건다.
@@ -363,7 +363,7 @@ GET /api/3rd-party/:provider/callback
    - `new`: 아직 통합이 없다. 토큰을 미리보기 토큰(`integration_oauth_preview`, 10분)에 맡기고 `previewToken` 을 발급한다. `POST /api/integrations` 가 이 토큰을 참조해 통합을 만든다.
    - `reauthorize`: 기존 통합의 자격 증명을 새 토큰으로 바꾸고 상태를 `connected` 로, 상태 사유와 `last_error` 를 NULL 로 되돌린다. 통합이 설치 대기면 성공 시 연결됨이 되고 실패 시 설치 대기를 유지하며 `last_error`·`status_reason` 만 갱신한다(Cafe24 Private·MakeShop 첫 설치). 성공하면 재설치 대기 표시도 같은 트랜잭션에서 NULL 로 지운다. 유효한 재설치 대기 표시가 있는 행은 실패해도 상태와 표시를 보존한다.
    - `request_scopes`: 기존 `credentials.scopes` 에 새 권한 범위를 합치고 access token·refresh token 을 갱신한다.
-   - `reauthorize`·`request_scopes` 는 커밋 직전에 요청자에게 그 통합이 보이는지, 조직 통합이면 요청자의 현재 역할이 관리자 이상인지 같은 트랜잭션에서 다시 판정한다. 실패하면 롤백한다. 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 Private 행은 이 판정을 건너뛴다. Cafe24 Public 행과 MakeShop 행은 표시 값과 상관없이 판정한다. 이유는 [재설치 대기 표시](#재설치-대기-표시)에 있다.
+   - `reauthorize`·`request_scopes` 는 커밋 직전에 요청자에게 그 통합이 보이는지, 개인 통합이면 요청자의 현재 역할이 편집자 이상인지, 조직 통합이면 관리자 이상인지 같은 트랜잭션에서 다시 판정한다. 실패하면 롤백한다. 개인 통합의 편집자 하한은 begin 의 라우트 가드와 같은 하한이고 아직 코드에 없다(NERV Task `CLE-T-JQVHFJ`). 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 Private 행은 이 판정을 건너뛴다. Cafe24 Public 행과 MakeShop 행은 표시 값과 상관없이 판정한다. 이유는 [재설치 대기 표시](#재설치-대기-표시)에 있다.
 5. **부모 창 알림**:
 
    ```javascript
@@ -393,7 +393,7 @@ GET /api/3rd-party/:provider/callback
 | Cafe24 `invalid_scope` (인가·토큰 교환 두 단계 모두) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | 상태 보존 + `status_reason='oauth_invalid_scope'` + `last_error.code='OAUTH_INVALID_SCOPE'` + `last_error.details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합). 상세 화면이 이 단서를 읽어 «이 권한은 카페24 별도 승인이 필요해요» 를 보인다. `oauth_token_exchange_failed` 와 진입 경로가 다르다. 이쪽은 Cafe24 가 권한 범위를 명시적으로 거부한 경우이고 저쪽은 그 밖의 토큰 교환 실패 전부(네트워크, 서버 오류, 알 수 없는 `invalid_grant` 등)다 |
 | state 불일치·만료 (state 소비 뒤) | `Security validation failed.` / `OAuth state has expired.` | 통합을 알 수 있으면 `status_reason='oauth_state_mismatch'` 또는 `oauth_state_expired` 만 기록, 상태 보존 |
 | 토큰 발급 뒤 행 조회 실패 | `Integration not found.` | 변경 불가. 행이 사라져 갱신할 대상이 없다 |
-| 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`, 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 행도 아님. 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 됨) | 서버 메시지 그대로. `Integration not found`(`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`) | 자격 증명 불변(롤백), 상태 보존, `last_error` 에 그 코드 기록 |
+| 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`, 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 행도 아님. 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 됨) | 서버 메시지 그대로. `Integration not found`(`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`). 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED`(미구현) | 자격 증명 불변(롤백), 상태 보존, `last_error` 에 그 코드 기록 |
 | 네트워크 오류 | `Connection error.` | 통합을 알 수 있으면 `last_error` 만 기록, 상태 보존 |
 
 상태 사유 저장값(snake_case)과 API 에러 코드(UPPER_SNAKE_CASE)의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 에 있다.
@@ -771,7 +771,7 @@ Cafe24 Private·MakeShop 의 `oauth/begin`(`new`)은 같은 상점(MakeShop 은 
 
 - 409 `*_ALREADY_CONNECTED` 는 겹친 행의 통합 ID 를 싣지 않는다. 결정할 때는 요청자가 볼 수 없는 행의 ID 가 응답에 실린다고 봤다. 초안을 쓰며 확인해 보니 예외 객체에만 있고 응답에는 나가지 않았다(전역 예외 필터와 설치 엔드포인트가 그 값을 옮기지 않는다, 2026-10-24 코드 확인). 그래서 볼 수 있는 행이면 싣는 규칙을 새로 두지 않고 지금 응답 모양을 요구사항으로 고정했다. 기존 통합으로 가는 링크는 중복 사전 감지(precheck)가 맡는다.
 - `oauth/begin` 의 역할 판정. 뷰어 거절과 조직 공개 범위의 관리자 판정을 설치 대기 행을 만들기 전에 한다. 팝업 흐름도 최종 생성에서 막히던 것을 begin 에서 미리 막는다. 같은 요청을 동의 화면까지 보냈다가 거절하는 것보다 낫다.
-- 두 역할 판정은 다시 쓸 행을 고르기 전에 한다. 이 초안의 2차 consistency 검토(2026-10-24, 경고 W2)는 다시 쓸 행이 있으면 그 행만 보고 본문의 공개 범위는 무시하는 순서를 권했다. 그 순서에서는 조직 통합을 만들어 달라는 편집자의 요청이 자기 개인 설치 대기 행을 다시 쓰며 성공한다. 요청과 다른 개인 통합이 생기고 거절 이유도 보이지 않는다. 본문을 먼저 보면 그 요청은 `403 ADMIN_REQUIRED` 로 끝난다.
+- 두 역할 판정은 다시 쓸 행을 고르기 전에 한다. 다시 쓸 행이 있으면 그 행만 보고 본문의 공개 범위는 무시하는 순서도 검토했다. 그 순서에서는 조직 통합을 만들어 달라는 편집자의 요청이 자기 개인 설치 대기 행을 다시 쓰며 성공한다. 요청과 다른 개인 통합이 생기고 거절 이유도 보이지 않는다. 본문을 먼저 보면 그 요청은 `403 ADMIN_REQUIRED` 로 끝난다.
 
 ### 요구사항 변경 이력 (2026-10-10, Task CLE-T-NNENG8)
 
@@ -799,6 +799,7 @@ Cafe24 Private·MakeShop 의 `oauth/begin`(`new`)은 같은 상점(MakeShop 은 
 
 다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
 
-- REQ-INTOAUTH-012: 재사용 조건에 «요청자가 그 행을 바꿀 수 있으면» 을 더했다. 그 밖의 경우는 REQ-INTOAUTH-058·062 를 따른다. «설치 토큰째 재사용한다» 던 것도 코드에 맞춰 고쳤다. `client_id`·`client_secret` 가운데 하나라도 바뀌면 설치 토큰을 새로 발급한다(2026-10-24 코드 확인). 보존하는 이유는 사용자가 외부 콘솔에 처음 등록한 App URL 이 begin 을 다시 불러도 유효해야 해서다(2026-05-15 운영 보고). 발급 시각(`install_token_issued_at`)도 토큰을 새로 발급할 때만 바꾼다.
+- REQ-INTOAUTH-012: 재사용 조건에 «요청자가 그 행을 바꿀 수 있으면» 을 더했다. 그 밖의 경우는 REQ-INTOAUTH-058·062 를 따른다. «설치 토큰째 재사용한다» 던 것도 코드에 맞춰 고쳤다. `client_id`·`client_secret` 가운데 하나라도 바뀌면 설치 토큰을 새로 발급한다(2026-10-24 코드 확인). 보존하는 이유는 사용자가 외부 콘솔에 처음 등록한 App URL 이 begin 을 다시 불러도 유효해야 해서다(2026-05-15 운영 보고). 발급 시각(`install_token_issued_at`)도 토큰을 새로 발급할 때만 바꾼다. 보존과 재발급의 조건은 2026-05-15 커밋 `f3db9209b` 가 정했다. 그 전에는 재사용할 때마다 새로 발급했다. 그 커밋은 옛 동작의 의도가 보안을 위한 회전이었지만 운영에서 낸 효과는 사용자가 막 등록한 URL 을 무효로 만든 것뿐이었다고 적는다. 그래서 자격 증명(`mall_id`·`client_id`·`client_secret`)이 같으면 보존하고, 자격 증명이 다르거나(사용자가 `client_id` 등을 바꿔 다시 시도한 경우) 설치 토큰이 없을 때만 새로 발급하게 했다. 자격 증명이 다를 때 새로 발급하는 이유는 그 커밋에 따로 적혀 있지 않다. 요구사항 문장에는 «설치 토큰이 있으면» 을 조건으로 넣었다. 설치 토큰이 없는 옛 행은 자격 증명이 같아도 새로 발급하기 때문이다(finding 01a16e25-ca25-70ff-bba4-e76f55bd9e0d).
+- REQ-INTOAUTH-026: 콜백의 커밋 직전 재판정에 개인 통합의 편집자 하한을 더했다. begin 은 라우트 가드가 뷰어를 막는데 시작과 콜백 사이에 뷰어로 강등된 요청자는 콜백에서 막히지 않았다(finding 01a16e25-6561-717a-999a-88cc990d8450).
 
 새 요구사항은 REQ-INTOAUTH-058 부터다. REQ-INTOAUTH-059 는 본문에만 있던 MakeShop 설치 대기 행 재사용을 같은 조건으로 요구사항에 올린 것이다.

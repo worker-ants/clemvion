@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "e839f0ab1abfa109571a060b4466a5e4f2d761412f5a5d1208f27bb876222ca7"
+content_hash: "94e334da6af41334ef86888f1151cf42fe4a86d4713ea002f77aecd9bdd825d9"
 read_as: "approved_fallback"
-task: "CLE-T-G62XJS"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "dc5b1cef1fbde725a8e6a97bad2219c682f84e00154d137b8ffaf42e6b0c8028"
-etag: "sha256-7698303f895d1136100414a70c9f97dd2615039a940055482df8687e504196be"
+mirror_sha256: "7943cd493696b30c3ea02168eaa426f8859b92a331732008b100d9472a194f15"
+etag: "sha256-e5f271857e379d423910b96eda8ba7bdbac50a347fed126d7180fbd24e26167e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 - REQ-CAFENODE-028 WHEN 응답이 4xx·5xx 면 THE SYSTEM SHALL 상태별 코드(`CAFE24_404`·`CAFE24_422`·`CAFE24_4XX`·`CAFE24_5XX`)로 에러 포트에 보낸다.
 - REQ-CAFENODE-029 IF 요청이 reject 되면 THE SYSTEM SHALL `CAFE24_TRANSPORT_FAILED` 와 `meta.statusCode = 0` 으로 에러 포트에 보낸다.
 - REQ-CAFENODE-030 WHEN 설정을 에코하면 THE SYSTEM SHALL `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 명시적으로 열거하고 자격 증명은 싣지 않는다.
-- REQ-CAFENODE-031 WHEN 외부 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
+- REQ-CAFENODE-031 WHEN 통합을 얻은 뒤 외부 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
 - REQ-CAFENODE-032 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 `cafe24.<resource>.<operation>`, `api_method` 를 operation method, `api_path` 를 치환 전 path 템플릿으로 채운다.
 - REQ-CAFENODE-033 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이 아니거나 operation 이 상태를 바꾸는 GET 예외 목록에 있으면 THE SYSTEM SHALL 실제 호출 없이 모의 출력으로 `success` 포트에 보낸다.
 - REQ-CAFENODE-034 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이며 상태를 바꾸는 GET 예외 목록에 없으면 THE SYSTEM SHALL 실제로 호출한다.
@@ -155,7 +155,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 
 1. **설정 정규화**: `resource`·`operation` 으로 메타데이터를 찾아 `{ method, path, requiredFields, optionalFields, paginated, responseShape }` 를 얻는다. 없으면 `CAFE24_UNKNOWN_OPERATION` 으로 에러 포트에 보낸다(D4).
 2. **설정 에코 만들기**: `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 원본 설정에서 하나씩 명시적으로 읽어 에코한다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 7 D1). `fields`·`pagination` 의 `{{ }}` 표현식은 그대로 남는다. 자격 증명은 싣지 않는다.
-3. **통합 자격 증명 해소**: `getForExecution(integrationId, workspaceId)` 로 통합을 읽고 `serviceType='cafe24'`·`status='connected'` 를 확인한다. 실패하면 `INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` 로 에러 포트에 보낸다(D4). 통합이 없거나 다른 워크스페이스 소속이면 공통 규칙대로 `INTEGRATION_CALL_FAILED` 가 된다.
+3. **통합 자격 증명 해소**: `getForExecution(integrationId, workspaceId)` 로 통합을 읽고 `serviceType='cafe24'`·`status='connected'` 를 확인한다. 개인 통합이면 판정에 쓸 작성자와 표현식 여부도 넘긴다([통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용), 미구현). 실패하면 `INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` 로 에러 포트에 보낸다(D4). 통합이 없거나 다른 워크스페이스 소속이면 공통 규칙대로 `INTEGRATION_CALL_FAILED` 가 된다.
 4. **자격 증명 충족 검증**: `mall_id`·`app_type`·`access_token`·`refresh_token` 이 없으면 `INTEGRATION_INCOMPLETE` 다. `app_type='private'` 인데 `client_id`·`client_secret` 이 없어도 같다(D4).
 5. **필수 필드·조건부 필수 제약 검증**: 메타데이터의 `requiredFields`(모두 필수)가 `config.fields` 에 다 있는지, 조건부 필수 제약(`constraints`)을 만족하는지 확인한다. 제약 종류와 의미는 [Cafe24 operation 메타데이터](CLE-C24-META)가 정한다. 어기면 `CAFE24_MISSING_FIELDS` 로 에러 포트에 보내고, `details` 에 어느 필드나 어느 제약 종류가 어긋났는지 적는다(D4).
 6. **토큰 만료 확인과 갱신**: `Integration.token_expires_at` 이 지났거나 60초 안에 만료되면 호출 전에 자동 갱신한다. 갱신 실패의 상태 전이(리프레시 토큰 `invalid_grant` 면 `error(auth_failed)`, 전송 3회 연속 실패면 `error(network)`)와 갱신 요청의 여러 인스턴스 사이 직렬화는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)과 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다. 갱신에 실패해 연결이 끊긴 통합은 `INTEGRATION_NOT_CONNECTED` 로 끝난다.
@@ -168,7 +168,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
    - 401 을 받으면 리프레시 토큰으로 액세스 토큰을 한 번 갱신하고 같은 요청을 한 번 재시도한다. 6단계의 사전 갱신이 경쟁 구간에서 빗나간 경우를 이렇게 되살린다. 재시도가 2xx 면 정상 흐름으로 가고, 재시도도 401 이면 인증 실패로 격하한다(아래 "인증 실패 처리"). 403 은 이 갱신 대상이 아니며 즉시 격하한다.
    - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
 10. **응답 파싱**: JSON 본문을 그대로 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs`, `meta.callUsage`(헤더 `X-Cafe24-Call-Usage`), `meta.callRemain`(헤더 `X-Cafe24-Call-Remain`)을 채운다.
-11. **활동 로그 기록**: 성공·실패와 관계없이 1건 남긴다. dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 아래 에러 코드 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 1건 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). 지금 코드는 이런 실패도 남긴다(미구현, NERV Task `CLE-T-PTC4SF`). dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 아래 에러 코드 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
     - `api_label` = 카탈로그 키 `cafe24.<resource>.<operation>`(예: `cafe24.product.product_list`). 프론트엔드가 `GET /api/integrations/services/cafe24/catalog` 응답의 `labelKey` 와 i18n 사전으로 사람이 읽는 라벨을 만든다. DB 에는 언어 정보가 없는 카탈로그 키만 저장한다.
     - `api_method` = 메타데이터 행의 `method`(`GET`·`POST`·`PUT`·`DELETE`).
     - `api_path` = 메타데이터 행의 `path` 템플릿. placeholder 를 그대로 둔다(예: `products/{product_no}`). 실제 호출 URL 의 치환값을 넣지 않는다. 엔드포인트 단위로 묶고 path 안 ID 에 담긴 개인정보가 새지 않게 하기 위해서다.
@@ -356,7 +356,7 @@ Cafe24 API 4xx·5xx 응답:
 
 ### 런타임 에러 (`port: 'error'`)
 
-`execute()` 안의 모든 실패는 에러 포트로 간다(D4). 활동 로그에는 같은 실패를 `status: 'failed'` 와 `error: {code, message}` 로 기록한다.
+`execute()` 안의 모든 실패는 에러 포트로 간다(D4). 활동 로그에는 통합을 얻은 뒤의 실패를 `status: 'failed'` 와 `error: {code, message}` 로 기록한다(11단계).
 
 | 코드 | 조건 | `output.response` | `meta.statusCode` |
 |------|------|-------------------|-------------------|
@@ -618,3 +618,9 @@ POST·PUT 밖의 method 는 허용 목록으로 강제한다. PATCH 같은 metho
 - 기각한 안: «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드만 남기는 차이를 그대로 두는 안은 같은 dry-run 에서 두 경로의 규칙이 갈려 택하지 않았다.
 - 상태를 바꾸는 GET 예외 목록: MakeShop `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꾼다. 메서드만으로는 부족한 곳이 있어 판정에 예외 목록을 더했다. Cafe24 목록은 비어 있고, 목록이 낡지 않도록 단위 테스트가 쓰기 낱말이 든 GET 을 예외 목록이나 확인한 조회 목록에 올리게 한다.
 - 요구사항 변경: REQ-CAFENODE-035 는 «dry-run 으로 mock 결과를 돌려주면 활동 로그를 1건 남긴다» 에서 «남기지 않는다» 로 바꿨다. REQ-CAFENODE-033 · REQ-CAFENODE-034 는 상태를 바꾸는 GET 예외 목록을 판정에 더했다. REQ-CAFENODE-039 는 실제로 부른 호출로, REQ-CAFENODE-031 은 외부 호출로 범위를 좁혔다.
+
+### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 에서 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않기로 정했다(REQ-INTMGMT-053). 남의 개인 통합이나 다른 워크스페이스 통합의 ID 를 넣은 노드가 그 통합에 활동 로그와 `last_error` 를 남기지 않게 하려는 것이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) Rationale 결정 4 · 17 에 있다. 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드) 한 곳에 두고 이 문서는 단계 서술만 맞췄다.
+
+- 요구사항 변경: REQ-CAFENODE-031 은 «외부 호출이 끝나면» 에서 «통합을 얻은 뒤 외부 호출이 끝나면» 으로 범위를 좁혔다.

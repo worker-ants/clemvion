@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "6d8b7b8956f4bf7353e56b770a5bbce7ec88f6303a9976adf604db6f0b6e78cc"
+content_hash: "986d232b4e6bc600000d88875e19767173d9346d5369d51bdafcc262086a673f"
 read_as: "approved_fallback"
-task: "CLE-T-6YY7KY"
+task: "CLE-T-MG0EQZ"
 source_paths: []
-mirror_sha256: "0ba86c173b7c125d4c2d90e03b90e62e4d030f0b04ae69ea1c82400a1ef64386"
-etag: "sha256-7a19ec708924c7cacba65a0e03a4ed5a9f9590772cf43ca7587fad1be59b83d2"
+mirror_sha256: "023de1d31812376785a9d83523631f144e9e2a19189c4181547adbe9cb5042be"
+etag: "sha256-3640db058b7188ae77b639d1b961b304f714561b094ccd1ff16c970d681c58ec"
 ---
 ## 개요
 
@@ -32,7 +32,9 @@ etag: "sha256-7a19ec708924c7cacba65a0e03a4ed5a9f9590772cf43ca7587fad1be59b83d2"
 | 자격 증명 | credentials | 외부 시스템에 접근하는 비밀 값 묶음. 통합은 이를 암호화해 저장하고 응답에서 가린다. | 자격증명, 인증 정보, credential(s)(본문) | [서비스별 인증 방식과 자격 증명](CLE-INT/CLE-INT-AUTH.md) |
 | 공개 범위 | `Integration.scope` | 통합을 누가 쓸 수 있는지 정하는 값. 개인(`personal`)은 만든 사람만, 조직(`organization`)은 워크스페이스 멤버 전체가 쓴다. | scope(본문), 공유 범위, 범위 전환, Organization-scope, (Org) | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 권한 범위 | OAuth scope, `credentials.scopes` | OAuth 동의로 받은 권한 목록. 화면 탭 이름은 "권한" 이다. | scope(본문), 사용 권한 scope | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
-| 통합 소유자 | `created_by` | 개인 통합을 보고 바꿀 수 있는 유일한 사용자. 역할이 높아도 남의 개인 통합은 다루지 못한다. | 본인, 생성자 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
+| 통합 소유자 | `created_by` | 개인 통합을 보고 바꿀 수 있는 유일한 사용자. 역할이 높아도 남의 개인 통합은 다루지 못한다. 노드는 워크플로우 작성자가 통합 소유자일 때만 그 개인 통합을 쓴다. | 본인, 생성자 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
+| 저장자 | saver | 캔버스 저장이나 노드 생성·설정 수정을 요청한 사용자. 워크플로우 작성자와 같을 수도 다를 수도 있다. 개인 통합 참조를 새로 넣거나 바꾸는 저장은 저장자가 통합 소유자여야 한다. 역할 이름 편집자(Editor)로 쓰는 것은 막지 않는다. | 편집자(이 뜻으로) | [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) |
+| 워크플로우 작성자 | `workflow.created_by` | 워크플로우를 만든 사용자. 노드가 개인 통합을 쓸 수 있는지는 실행을 시작한 사람과 관계없이 이 사용자로 판정한다. 복제·가져오기로 만든 워크플로우는 요청한 사용자가 작성자다. | 실행자(이 뜻으로), 워크플로우 소유자(이 뜻으로) | [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) |
 | 통합 상태 | `Integration.status` | 통합의 연결 상태. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
 | 상태 사유 | `status_reason` | 상태의 이유를 남기는 snake_case 코드. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
 | 만료 임박·주의 필요 | `expiring`, `attention` | DB 에 없는 화면 필터 값. 만료 임박은 만료가 가까운 연결이다. 주의 필요는 만료됨·오류·만료 임박을 합친 것이다. | Need attention(본문) | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
@@ -123,3 +125,13 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 «응답 노출 예외는 
 
 - 기각한 대안: 규칙 4 의 목록 전체를 정의 칸에 옮기는 안. 목록은 예외 응답이 늘 때마다 바뀐다. 정의 칸에 옮기면 기준 문서와 어긋나도 잡아 줄 가드가 없다. 색인 표기 원칙 14 가 기준 문서의 수치를 정의에 적지 않는 이유와 같다.
 - 이 초안의 첫 저장은 대표 응답 몇 개를 필드 경로와 함께 «등» 으로 적었다. 2026-10-17 스펙 초안 일관성 검토가 [용어 사전](CLE-GLOSSARY.md) 개요의 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다고 짚었다. 그래서 대표 응답과 정의 앞의 예외 필드 목록을 함께 뺐다. 정의는 규칙 4 를 가리키고 기준 문서 칸은 [시크릿 저장소 「저장소 예외 필드」](CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 를 가리킨다.
+
+### 용어 추가 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 가 개인 통합을 노드에서 쓸 수 있는 조건을 [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 에 정했다. 그 판정에 맞춰 「저장자」 · 「워크플로우 작성자」 를 더하고 「통합 소유자」 정의에 노드에서 쓰는 조건을 한 문장 더했다.
+
+- 판정에는 세 사람이 나온다. 통합을 가진 사람(통합 소유자), 워크플로우를 만든 사람(워크플로우 작성자), 저장을 요청한 사람(저장자)이다. 셋이 같은 사람일 때가 많아 이름을 나누지 않으면 판정 문장이 누구를 가리키는지 흐려진다.
+- 「소유자」 대신 「작성자」 를 골랐다. 「통합 소유자」 와 겹치지 않게 하려는 것이다. [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 같은 컬럼이다. 알림 문서의 수신자 규칙이 `createdBy` 라고 적고 `ExecutionEngineService.dispatchExecutionFailedNotification` 의 수신자도 `workflow.createdBy` 다(2026-10-25 코드 확인). 그래서 «워크플로우 소유자» 를 이 뜻으로는 쓰지 않는 표기에 올렸다.
+- 「저장자」 는 역할 이름 「편집자(Editor)」 와 다르다. 관리자도 저장자가 된다. 그래서 «편집자» 를 이 뜻으로는 쓰지 않는 표기에 올렸다.
+- 「워크플로우 작성자」 의 뜻은 통합 노드 판정에서 쓰는 뜻이다. «워크플로우를 만드는 사람» 이라는 일반어 쓰임은 막지 않는다.
+- 남은 용례: [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 NERV Task `CLE-T-KD2AZ2` 가 고친다. [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 «워크플로우 소유자만 실행 결과를 조회할 수 있어» 는 실행 결과 조회 권한을 말한다. 같은 뜻인지 확인하지 못해 같은 Task 가 먼저 뜻을 확인한다. 이 내용은 처음에 「워크플로우 작성자」 행의 정의 칸에 적었다가 용어 사전의 한 줄 정의 원칙에 맞춰 여기로 옮겼다(finding 01a16e9b-c598-7756-9ff5-1d832e11a7ba).

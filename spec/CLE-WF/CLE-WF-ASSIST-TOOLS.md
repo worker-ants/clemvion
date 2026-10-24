@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS"
 title: "AI 어시스턴트 도구"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "7ea31cd02e46c869fef12b54e45678f763d964480bc5c5d93d9741d102939df7"
+content_hash: "a461f984ee7d78fbd1b872568b08b9f87a2613300a86c6c6209e07723532862d"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "ba5d1c6d33c4bd36dc732119d7c8cf2fc02622af789d28c0352c95a660b09dd8"
-etag: "sha256-cdab194560439bbeaeb776dcb751abb172ef9bea6390c8ae019bd7596e4461ce"
+mirror_sha256: "162ba2668b483d1f750a5533c14c7bc6381305613ac2a56d9b577f6224432e89"
+etag: "sha256-1843e90bd80c57ad46243a3cb813dc080e2ff0103b3e9234fa803c6f1aea64dd"
 ---
 > 구현 상태: 부분 구현(통합 후보의 워크플로우 작성자 조건은 미구현) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -517,9 +517,9 @@ LLM 이 `update_node`·`remove_node`·`add_edge` 의 `id`·`source_id`·`target_
 
 ### 통합 후보는 워크플로우 작성자 조건도 본다 (2026-10-24)
 
-NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그 검사만 두면 작성자가 아닌 요청자에게 자기 개인 통합이 후보로 나오고 사용자가 골라도 저장이 400 이다. 그래서 `list_integrations` 와 `integration-selector`·`mcp-server-selector` 후보에서 뺀다. 조건은 저장 검사와 같다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」).
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그 검사만 두면 작성자가 아닌 요청자에게 자기 개인 통합이 후보로 나오고 사용자가 골라도 저장이 400 이다. 그래서 `list_integrations` 와 `integration-selector`·`mcp-server-selector` 후보에서 뺀다. 조건은 저장 검사와 같다([통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건).
 
-- **고를 수 없게 보이지 않고 빼는 이유**: 노드 설정 패널의 선택기는 그 통합을 고를 수 없는 항목으로 보이고 이유를 붙인다. 어시스턴트는 LLM 과 후보 선택기가 고를 수 없는 항목을 다룰 방법이 없다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 8번).
+- **고를 수 없게 보이지 않고 빼는 이유**: 노드 설정 패널의 선택기는 그 통합을 고를 수 없는 항목으로 보이고 이유를 붙인다. 어시스턴트는 LLM 과 후보 선택기가 고를 수 없는 항목을 다룰 방법이 없다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «고르는 화면은 저장 검사를 통과할 통합만 고르게 한다»).
 - **받아들인 잔여**: 작성자가 아닌 요청자에게 통합 후보가 0개면 [AI 어시스턴트](CLE-WF-ASSIST.md) 의 0개 안내(REQ-ASSIST-033)가 그대로 나온다. 그 사용자가 개인 통합을 새로 등록해도 이 워크플로우의 후보는 생기지 않고 조직 통합을 등록해야 생긴다. 품질 점검(`PENDING_USER_CONFIG_UNMENTIONED`)이 0개 항목을 마무리 메시지에 적게 하므로 이 안내가 그대로 나간다. 안내 문구는 이번에 바꾸지 않는다.
 
 ### 유지보수 점검

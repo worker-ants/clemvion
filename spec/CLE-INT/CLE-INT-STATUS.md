@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "13218c98f2b4f14bd27fad0669e877998e81e6a5b4d25106745950ccfea90657"
+content_hash: "9414ba8d1406055818ceb5e8282af43cbf5ed8fbadb767f4e314317a17f96fb8"
 read_as: "approved_fallback"
-task: "CLE-T-NNENG8"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "b51030a396a96109e7acc71c28c54b30d9e4e14d35ba04f12e9eaa377d9a1e2c"
-etag: "sha256-4f472fc4aad094ae4a88bb6f173aae146d9706aa3f76cf9ccfcbeb951d5d36d4"
+mirror_sha256: "9cb8b36eabd6510f4c4430f13645ce747da4acd8617711395aacc2321dd214a4"
+etag: "sha256-514a9caf2c47a5dcd339a8001c786dd99d5ee3d8570f27f7f7b9220b60b9bb90"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -269,6 +269,8 @@ flowchart TD
 ### 채널과 이메일
 
 - 수신자의 `notification_preferences.integrationExpiryEmail` 이 켜져 있으면 `Notification.channel='both'` 로, 아니면 `'in_app'` 으로 만든다. 조치 필요 알림도 같은 토글을 쓴다(전용 토글은 없다).
+- 통합 소유자가 워크스페이스를 떠난 개인 통합은 노드에서 쓸 수 없다(REQ-INTMGMT-058). 그래도 지금 알림은 멤버십을 보지 않고 통합 소유자에게 간다. 이 행의 알림과 정리는 NERV Task `CLE-T-TGZGM9` 가 정한다.
+- 뷰어가 소유한 개인 통합도 같은 알림을 받는다. 뷰어는 통합 재인증과 자격 증명 교체를 할 수 없으므로 알림을 받고 할 수 있는 일은 통합 삭제와 역할 변경 요청뿐이다. 알림 문구는 역할로 나누지 않는다([통합 관리](CLE-INT-MANAGE.md) Rationale 의 받아들인 잔여).
 - 이 토글은 opt-in 이고 기본값은 꺼짐이다. 저장 위치는 `User.notification_preferences` JSONB 이고 설정 화면은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다.
 - `channel='both'` 인 알림은 `NotificationsService.dispatchEmails`(`MailService` 주입)가 이메일을 best-effort 로 보낸다.
 
@@ -337,7 +339,7 @@ flowchart TD
 
 Cafe24 개발자 센터 앱 등록부터 «테스트 실행» 까지의 사용자 작업을 최대 하루로 본다. 더 길면 오래된 설치 대기 행이 쌓여 설치 토큰 조회 성능과 주의 필요 카운트에 잡음이 된다. 더 짧으면 점심, 회의, 휴일로 작업이 나뉘는 정상 흐름이 끊긴다.
 
-만료 기준은 `created_at` 이 아니라 설치 토큰 발급 시각(`install_token_issued_at`, V044)이다. 같은 상점으로 `oauth/begin` 을 다시 부르면 기존 행을 재사용하며 설치 토큰만 바꾸는데, 행 생성 시각을 기준으로 하면 새 토큰이 발급되자마자 24시간이 이미 끝나 있을 수 있다. 연결 성공 뒤에도 설치 토큰과 발급 시각은 보존된다. 스캐너는 설치 대기 행만 보므로 연결 뒤의 값이 잘못된 만료 처리에 영향을 주지 않는다. NULL 은 만료 경로에서만 생긴다. V044 이전 행은 발급 시각이 NULL 이라 스캐너가 `created_at` 으로 대신 판정한다.
+만료 기준은 `created_at` 이 아니라 설치 토큰 발급 시각(`install_token_issued_at`, V044)이다. 같은 상점으로 `oauth/begin` 을 다시 부르면 요청자가 그 행을 바꿀 수 있을 때 기존 행을 재사용한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한), REQ-INTOAUTH-012·058~061). Cafe24 Private 은 이때 `client_id`·`client_secret` 가운데 하나라도 바뀌었거나 설치 토큰이 없는 옛 행이면 설치 토큰을 새로 발급한다. MakeShop 은 `client_secret` 이 바뀌어도 그대로 두고 설치 토큰이 없는 행에만 새로 발급한다. 두 조건은 [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](CLE-INT-OAUTH.md#oauthbegin-요청과-응답) 이 정하고 MakeShop 쪽은 그 문서의 미결 사항에 있다. 행 생성 시각을 기준으로 하면 새 토큰이 발급되자마자 24시간이 이미 끝나 있을 수 있다. 연결 성공 뒤에도 설치 토큰과 발급 시각은 보존된다. 스캐너는 설치 대기 행만 보므로 연결 뒤의 값이 잘못된 만료 처리에 영향을 주지 않는다. NULL 은 만료 경로에서만 생긴다. V044 이전 행은 발급 시각이 NULL 이라 스캐너가 `created_at` 으로 대신 판정한다.
 
 ### 재설치 대기 표시는 상태와 따로 둔 컬럼이다
 

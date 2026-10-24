@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY"
 title: "에이전트 메모리"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-MEMORY-001", "REQ-MEMORY-002", "REQ-MEMORY-003", "REQ-MEMORY-004", "REQ-MEMORY-005", "REQ-MEMORY-006", "REQ-MEMORY-007", "REQ-MEMORY-008", "REQ-MEMORY-009", "REQ-MEMORY-010", "REQ-MEMORY-011", "REQ-MEMORY-012", "REQ-MEMORY-013", "REQ-MEMORY-014", "REQ-MEMORY-015", "REQ-MEMORY-016", "REQ-MEMORY-017", "REQ-MEMORY-018", "REQ-MEMORY-019", "REQ-MEMORY-020", "REQ-MEMORY-021", "REQ-MEMORY-022", "REQ-MEMORY-023", "REQ-MEMORY-024", "REQ-MEMORY-025", "REQ-MEMORY-026", "REQ-MEMORY-027", "REQ-MEMORY-028", "REQ-MEMORY-029", "REQ-MEMORY-030", "REQ-MEMORY-031", "REQ-MEMORY-032", "REQ-MEMORY-033", "REQ-MEMORY-034", "REQ-MEMORY-035", "REQ-MEMORY-036", "REQ-MEMORY-037", "REQ-MEMORY-038", "REQ-MEMORY-039", "REQ-MEMORY-040", "REQ-MEMORY-041", "REQ-MEMORY-042", "REQ-MEMORY-043", "REQ-MEMORY-044", "REQ-MEMORY-045", "REQ-MEMORY-046", "REQ-MEMORY-047", "REQ-MEMORY-048", "REQ-MEMORY-049", "REQ-MEMORY-050", "REQ-MEMORY-051", "REQ-MEMORY-052", "REQ-MEMORY-053"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "193fc1f9650475b2235635d7f8188ae9b9d5b9c09abf05525d6a71c1ce302f69"
+content_hash: "cb504fd5261a3a45f933c62c2ac7641a1a0974a167b71bbb671460bf3746f2a2"
 read_as: "approved_fallback"
-task: "CLE-T-9DBM7V"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "259316b09c47837bbef33fb7114b9e1879e019d16bcd866e8b047850a482d9d5"
-etag: "sha256-dab0b4ea80e225b13646daec3ce14dca4734bf114fdedb8e6c998f776dbe75ce"
+mirror_sha256: "c8c189bb9f7733aa284303c8c4763428a615cf5ac9f746b8abf4dafc761d41ec"
+etag: "sha256-96152be20c022af42603fea57064ab4da9d6dfaa62c4ced172b0d6261fe45c7d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -490,4 +490,4 @@ cross-origin(웹채팅 위젯, 외부 앱)에서 브라우저는 기본으로 �
 
 ### 조회는 뷰어 이상, 삭제는 편집자 이상으로 둔 이유
 
-메모리 내용은 운영 점검 정보라 멤버가 볼 수 있어야 한다. 삭제는 되돌릴 수 없는 영구 삭제이므로 통합·지식 저장소 삭제와 같이 편집자 이상으로 제한한다.
+메모리 내용은 운영 점검 정보라 멤버가 볼 수 있어야 한다. 삭제는 되돌릴 수 없는 영구 삭제이므로 지식 저장소 삭제와 같이 편집자 이상으로 제한한다.

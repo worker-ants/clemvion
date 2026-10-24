@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "de82649ba62756044e552eaa69b8e620755558f2c3dddccd07a8524b77f903bf"
-read_as: "task_basis"
-task: "CLE-T-6T6Q95"
+content_hash: "2f22333cb979824325c39d450993774a69863ea86559616196824d0d61ef4aa6"
+read_as: "approved_fallback"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "456945294419c35bda75c182de2cdc2aca97cc555710cba6e2cb6832df90bd9e"
-etag: "sha256-4b0ba0fdeb7a49936a71e4f775dc68a02e051cd0a289bad8039b1141ac4ac98b"
+mirror_sha256: "28260360179bc6f1c721919e3a469b5c8e424f57fb491076830287ece7d9f74f"
+etag: "sha256-73ab4781c961884f2e1698bb8034b98afb847b231c9dbcfc22d3447a08d85896"
 ---
 > 구현 상태: 구현됨 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -54,7 +54,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 - REQ-HTTP-026 WHEN 설정의 `url` 을 에코하면 THE SYSTEM SHALL URL 의 `user:pass@` 를 지우고 자격 증명 후보 쿼리 값을 `[REDACTED]` 로 바꾼다.
 - REQ-HTTP-027 WHEN 응답 헤더를 출력하면 THE SYSTEM SHALL key 를 소문자로 바꾸고 자격 증명 형태의 헤더와 `Location` 값을 `[REDACTED]` 로 바꾼다.
 - REQ-HTTP-028 WHEN 실제로 보낸 요청 본문이 256KB 를 넘으면 THE SYSTEM SHALL `output.requestBody` 를 자르고 `output.bodyTruncated` 를 `true` 로 둔다.
-- REQ-HTTP-029 WHILE 인증 방식이 `integration` 인 동안 THE SYSTEM SHALL 노드 취소 신호로 끝난 호출을 빼고 성공·실패마다 활동 로그를 1건 남긴다.
+- REQ-HTTP-029 WHILE 인증 방식이 `integration` 인 동안 THE SYSTEM SHALL 통합을 얻은 뒤의 호출 가운데 노드 취소 신호로 끝난 호출을 빼고 성공·실패마다 활동 로그를 1건 남긴다.
 - REQ-HTTP-030 WHILE 인증 방식이 `none` 이나 `custom` 인 동안 THE SYSTEM SHALL 활동 로그를 남기지 않는다.
 - REQ-HTTP-031 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 정규화한 method, `api_path` 를 query string 을 뺀 호스트+경로로 채운다.
 - REQ-HTTP-032 WHEN dry-run 으로 실행되면 THE SYSTEM SHALL 외부 요청 없이 mock 결과를 반환하고 사설망 차단 검사를 건너뛴다.
@@ -110,7 +110,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
    - URL 의 `user:pass@host` 에서 userinfo 를 지운다.
    - 쿼리 파라미터 key 가 `api_key`·`token`·`secret`·`signature`·`x-amz-signature` 같은 자격 증명 후보면 값을 `[REDACTED]` 로 바꾼다.
    - URL 파싱에 실패하면 정규식으로 userinfo 만 지운다(best-effort).
-3. **통합 자격 증명 해소**(`authentication='integration'` 일 때만): `getForExecution(integrationId, workspaceId)` 로 통합을 읽고 `serviceType='http'`·`status='connected'` 를 확인한다. `auth_type` 별로 자격 증명을 만든다(아래 표). 실패하면 에러를 잡아 에러 포트로 보내고 활동 로그에 `failed` 를 남긴다(D4).
+3. **통합 자격 증명 해소**(`authentication='integration'` 일 때만): `getForExecution(integrationId, workspaceId)` 로 통합을 읽고 `serviceType='http'`·`status='connected'` 를 확인한다. 개인 통합이면 판정에 쓸 작성자와 표현식 여부도 넘긴다([통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용), 미구현). `auth_type` 별로 자격 증명을 만든다(아래 표). 실패하면 에러를 잡아 에러 포트로 보낸다(D4). 유형 불일치와 미연결은 통합을 얻은 뒤의 실패라 활동 로그에 `failed` 를 남긴다. 조회가 실패하면 남기지 않는다(11단계).
 4. **URL 결합**: `base_url` 이 있고 `url` 이 절대 URL(`https?://`)이 아니면 `{base_url}/{url}` 로 합치고 중복 슬래시를 정규화한다.
 5. **쿼리 병합**: 노드 `queryParams` 를 URL 에 붙인다. 그 뒤 `auth_type='api_key'` 이고 `location='query'` 인 자격 증명을 붙인다.
 6. **헤더 병합**(뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 통합 자격 증명 헤더가 사용자 입력을 덮어쓴다. 사용자가 `Authorization` 을 위조해 자격 증명을 무력화하는 경로를 막기 위해서다.
@@ -118,7 +118,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
 9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 3xx 를 받을 때 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#rationale) 에 있다.
 10. **응답 파싱**: `responseType='json'` 이면 `res.json()`(실패하면 `null`), 그 밖(`text`·`binary`)은 `res.text()` 다. 본문을 읽다가 노드 취소 신호가 취소되면 `null` 로 삼키지 않고 `AbortError` 를 다시 던진다.
-11. **활동 로그 기록**: `integration` 인증일 때만 `success`·`failed` 를 남긴다(아래 "활동 로그"). 노드 취소 신호로 끝난 호출은 남기지 않는다.
+11. **활동 로그 기록**: `integration` 인증일 때만 `success`·`failed` 를 남긴다(아래 "활동 로그"). 노드 취소 신호로 끝난 호출과 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). 지금 코드는 이런 실패도 남긴다(미구현, NERV Task `CLE-T-PTC4SF`).
 12. **반환**:
     - `res.ok` 면 성공 케이스(`port: 'success'`).
     - 3xx·4xx·5xx 면 에러 케이스(`output.error.code` 는 `HTTP_4XX` 또는 `HTTP_5XX`). 3xx 는 직접 따라가는 한도에 닿았을 때도 생길 수 있다.
@@ -419,3 +419,9 @@ D4 이전에는 `IntegrationError`·`Error` throw 로 노드 실행이 실패하
 ### 진입할 때 노드 취소 신호를 따로 확인하지 않는다 (2026-10-10)
 
 신호를 잇기 전 단계(통합 조회와 자격 증명 해소, 사설망 차단 검사와 DNS 해석)는 노드 취소 신호를 받지 않는다. 그 사이에 신호가 취소되면 요청 직전에 신호를 잇는 순간 요청이 끊긴다. `linkUpstreamAbort` 가 이미 취소된 신호를 보면 `controller.abort()` 를 바로 부르기 때문이다. 그래서 노드 실행은 취소됨(`cancelled`)으로 끝난다. 다만 대상이 차단 주소면 그 전에 `HTTP_BLOCKED` 로 에러 포트에 간다. 차단 주소는 취소와 상관없이 실패할 요청이므로 진입 확인을 더하지 않았다. dispatch 전에 신호가 이미 취소된 노드는 엔진이 핸들러를 부르기 전에 거른다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19).
+
+### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 에서 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않기로 정했다(REQ-INTMGMT-053). 남의 개인 통합이나 다른 워크스페이스 통합의 ID 를 넣은 노드가 그 통합에 활동 로그와 `last_error` 를 남기지 않게 하려는 것이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) Rationale 결정 4 · 17 에 있다. 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드) 한 곳에 두고 이 문서는 단계 서술만 맞췄다.
+
+- 요구사항 변경: REQ-HTTP-029 는 «노드 취소 신호로 끝난 호출을 빼고» 에서 «통합을 얻은 뒤의 호출 가운데 노드 취소 신호로 끝난 호출을 빼고» 로 범위를 좁혔다.
