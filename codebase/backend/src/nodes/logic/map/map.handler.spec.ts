@@ -174,7 +174,7 @@ describe('MapHandler', () => {
     });
   });
 
-  // CONVENTIONS Principle 10 예외 — 배열이 아닌 입력은 [] 로 대체하고 meta 로 알린다.
+  // CLE-NODE-LOGIC-COMMON 「배열이 아닌 입력 처리」 — 배열이 아닌 입력은 [] 로 대체하고 meta 로 알린다.
   describe('meta.fellBackToEmpty', () => {
     it.each([
       ['number', { items: 42 }, 'items'],
@@ -183,6 +183,8 @@ describe('MapHandler', () => {
       ['null', { items: null }, 'items'],
       ['missing path', { other: [] }, 'items'],
       ['null input', null, 'items'],
+      ['inline number', null, 42],
+      ['inline object', null, { a: 1 }],
     ])(
       'is true when inputField resolves to a non-array (%s)',
       async (_label, input, inputField) => {

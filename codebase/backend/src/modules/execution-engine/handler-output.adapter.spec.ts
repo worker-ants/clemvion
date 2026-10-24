@@ -2,6 +2,7 @@ import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
+  toEngineFlatShapeForNode,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -391,30 +392,19 @@ describe('toEngineFlatShape', () => {
     expect((flat as Record<string, unknown>).status).toBe('waiting_for_input');
   });
 
-  // meta 는 봉투에 실리지 않으므로 meta 만으로는 감싸지 않는다. 감싸면 Map · ForEach 가
-  // 입력 배열을 못 보고 Code 의 `return [...]` 가 `$input.data` 로 밀려난다.
+  // meta 만 있어도 감싼다. 저장된 워크플로우가 `$input.data` 로 읽을 수 있어서
+  // 노드 종류를 모르는 이 함수는 레거시 `{ data }` 봉투를 지킨다(NERV Task
+  // CLE-T-T30D5S). Map · ForEach 예외는 toEngineFlatShapeForNode 가 맡는다.
   it.each([
     ['array', [1, 2, 3]],
-    ['empty array', []],
     ['string', 'result text'],
-    ['number', 42],
-  ])('keeps a %s output bare when only meta is present', (_label, output) => {
+  ])('wraps a %s output when only meta is present', (_label, output) => {
     const flat = toEngineFlatShape({
       config: {},
       output,
-      meta: { fellBackToEmpty: false },
-    });
-    expect(flat).toEqual(output);
-  });
-
-  it('still wraps an array output when a control field rides with meta', () => {
-    const flat = toEngineFlatShape({
-      config: {},
-      output: [1, 2],
       meta: { durationMs: 3 },
-      port: 'success',
     });
-    expect(flat).toEqual({ data: [1, 2], port: 'success' });
+    expect(flat).toEqual({ data: output });
   });
 
   it('synthesises { data, port, status } when output is a primitive with control fields', () => {
@@ -526,4 +516,43 @@ describe('toEngineFlatShape', () => {
       expect(flat.data).toBe(output);
     });
   });
+});
+
+describe('toEngineFlatShapeForNode', () => {
+  // Map · ForEach 는 입력 배열을 output 으로 돌려주고 컨테이너 실행이 구조화
+  // 캐시에서 그 배열을 읽는다. meta 때문에 감싸면 컨테이너가 배열을 못 본다.
+  it.each(['map', 'foreach'])(
+    'keeps the %s input array bare when it carries meta',
+    (nodeType) => {
+      const output = [{ v: 1 }, { v: 2 }];
+      const flat = toEngineFlatShapeForNode(nodeType, {
+        config: {},
+        output,
+        meta: { fellBackToEmpty: false },
+      });
+      expect(flat).toBe(output);
+    },
+  );
+
+  it('still wraps a container array when a control field rides with meta', () => {
+    const flat = toEngineFlatShapeForNode('map', {
+      config: {},
+      output: [1, 2],
+      meta: { fellBackToEmpty: false },
+      port: 'body',
+    });
+    expect(flat).toEqual({ data: [1, 2], port: 'body' });
+  });
+
+  it.each(['merge', 'transform', ''])(
+    'keeps the legacy envelope for a non-container type %p',
+    (nodeType) => {
+      const flat = toEngineFlatShapeForNode(nodeType, {
+        config: {},
+        output: [1, 2],
+        meta: { inputCount: 2 },
+      });
+      expect(flat).toEqual({ data: [1, 2] });
+    },
+  );
 });

@@ -119,7 +119,7 @@ A container's `emit` port must have **exactly one body node** connected. Wiring 
 
 Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`.
 
-If the array path resolves to something that isn't an array (a number, string, object, or a missing path), ForEach treats it as an empty array without an error and never runs the body. In that case `$node["ForEach"].meta.fellBackToEmpty` is `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were).
+If the array path resolves to something that isn't an array (a number, string, object, `null`, or a missing path), ForEach treats it as an empty array without an error and never runs the body. In that case `$node["ForEach"].meta.fellBackToEmpty` is `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were).
 
 ### Example
 
@@ -127,7 +127,7 @@ If the array path resolves to something that isn't an array (a number, string, o
 ```ts
 // arrayField: "$input.order.items"
 // Inside body, reference $item.value, $itemIndex
-// errorPolicy: "skip" → a failed index leaves null in items, and the failure is collected in skipped as { index, error }
+// errorPolicy: "skip" → a failed index leaves null in items, and the error is collected in output.skipped as { index, error }
 ```
 </Example>
 

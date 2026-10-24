@@ -6654,6 +6654,60 @@ describe('ExecutionEngineService', () => {
       expect(seenInputs[0]).toEqual({ seeded: 99 });
     });
 
+    // 상류 출력 복원도 노드 완료 경로와 같은 감싸기 규칙을 따른다. Map 은 meta 가
+    // 있어도 배열 그대로, 다른 노드는 meta 가 있으면 옛 `{ data }` 봉투로 넘긴다.
+    it.each([
+      ['map', [{ v: 1 }]],
+      ['test_node', { data: [{ v: 1 }] }],
+    ])(
+      '상류 %s 의 배열 출력 + meta 를 노드 완료 경로와 같은 모양으로 seed',
+      async (predType, expectedInput) => {
+        passThroughCreate();
+        mockNodeRepo.findBy.mockResolvedValue(
+          mockNodes.map((n) =>
+            n.id === 'node-1' ? { ...n, type: predType } : n,
+          ),
+        );
+        const seenInputs: unknown[] = [];
+        (mockHandler.execute as jest.Mock).mockImplementation(
+          async (input: unknown) => {
+            seenInputs.push(input);
+            return mockOutput({ processed: true });
+          },
+        );
+        mockNodeExecutionRepo.find.mockResolvedValueOnce([
+          {
+            id: 'ne-prev-node-1',
+            executionId: 'prev-exec',
+            nodeId: 'node-1',
+            status: NodeExecutionStatus.COMPLETED,
+            outputData: {
+              config: {},
+              output: [{ v: 1 }],
+              meta: { fellBackToEmpty: false },
+            },
+            finishedAt: new Date(),
+          },
+        ]);
+
+        await service.execute(
+          workflowId,
+          {},
+          {
+            workspaceId: 'ws-1',
+            executedBy: 'u1',
+            singleNodeId: 'node-2',
+            previousExecutionId: 'prev-exec',
+          },
+        );
+        await flushPromises();
+        await flushPromises();
+
+        expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+        expect(seenInputs[0]).toEqual(expectedInput);
+      },
+    );
+
     it('previousExecutionId 미지정 시 수동 입력(input)으로 단일 노드 실행', async () => {
       passThroughCreate();
       const seenInputs: unknown[] = [];
@@ -13274,7 +13328,11 @@ describe('ExecutionEngineService', () => {
       // metric matches `output.items.length`. `meta.skippedCount` (Phase 1 D)
       // continues to mirror `output.skipped.length`.
       expect(capturedForeachStructured?.meta).toEqual(
-        expect.objectContaining({ iterations: 3, skippedCount: 1 }),
+        expect.objectContaining({
+          iterations: 3,
+          skippedCount: 1,
+          fellBackToEmpty: false,
+        }),
       );
     });
 
@@ -13430,7 +13488,11 @@ describe('ExecutionEngineService', () => {
       // Phase 2 (C): same meta contract as `errorPolicy: 'skip'` — iterations
       // counts every launched body (3) and skippedCount mirrors skipped.length.
       expect(capturedForeachStructured?.meta).toEqual(
-        expect.objectContaining({ iterations: 3, skippedCount: 1 }),
+        expect.objectContaining({
+          iterations: 3,
+          skippedCount: 1,
+          fellBackToEmpty: false,
+        }),
       );
     });
 
@@ -13895,29 +13957,30 @@ describe('ExecutionEngineService', () => {
         expect(meta).toEqual({ fellBackToEmpty: false, iterations: 3 });
       });
 
-      it('Map: skippedCount mirrors `_skipped` markers under errorPolicy=skip', async () => {
-        let calls = 0;
-        const { sinkCalls, meta } = await runContainer(
-          'map',
-          { items: [1, 2, 3] },
-          { inputField: 'items', errorPolicy: 'skip' },
-          async (input) => {
-            calls++;
-            if (calls === 2) throw new Error('boom');
-            return mockOutput({ v: input });
-          },
-        );
-        const payload = sinkCalls[0] as { mapped: unknown[]; count: number };
-        expect(payload.mapped[1]).toEqual({
-          _skipped: true,
-          error: { code: 'Error', message: 'boom' },
-        });
-        expect(meta).toEqual({
-          fellBackToEmpty: false,
-          iterations: 3,
-          skippedCount: 1,
-        });
-      });
+      it.each(['skip', 'continue'])(
+        'Map: skippedCount mirrors `_skipped` markers under errorPolicy=%s',
+        async (errorPolicy) => {
+          const { sinkCalls, meta } = await runContainer(
+            'map',
+            { items: [1, 2, 3] },
+            { inputField: 'items', errorPolicy },
+            async (input) => {
+              if (input === 2) throw new Error('boom');
+              return mockOutput({ v: input });
+            },
+          );
+          const payload = sinkCalls[0] as { mapped: unknown[]; count: number };
+          expect(payload.mapped[1]).toEqual({
+            _skipped: true,
+            error: { code: 'Error', message: 'boom' },
+          });
+          expect(meta).toEqual({
+            fellBackToEmpty: false,
+            iterations: 3,
+            skippedCount: 1,
+          });
+        },
+      );
 
       it.each([
         ['map', { inputField: 'items' }, { mapped: [], count: 0 }],
@@ -13933,6 +13996,34 @@ describe('ExecutionEngineService', () => {
           );
           expect(bodyHandler.execute).not.toHaveBeenCalled();
           expect(sinkCalls[0]).toEqual(expectedOutput);
+          expect(meta).toEqual({ fellBackToEmpty: true, iterations: 0 });
+        },
+      );
+
+      // 구조화 캐시의 핸들러 출력이 배열이 아니면 엔진도 빈 배열로 돈다. 그때는
+      // 핸들러 meta 의 `false` 를 덮어 `fellBackToEmpty: true` 로 알린다.
+      it.each(['map', 'foreach'] as const)(
+        '%s: engine fallback on a non-array handler output reports fellBackToEmpty=true',
+        async (type) => {
+          handlerRegistry.register(
+            type,
+            {
+              validate: () => ({ valid: true, errors: [] }),
+              execute: jest.fn(async () => ({
+                config: {},
+                output: { notAnArray: true },
+                meta: { fellBackToEmpty: false },
+              })),
+            },
+            { kind: 'container' },
+          );
+          const { bodyHandler, meta } = await runContainer(
+            type,
+            { items: [1, 2] },
+            {},
+            async () => mockOutput({ ran: true }),
+          );
+          expect(bodyHandler.execute).not.toHaveBeenCalled();
           expect(meta).toEqual({ fellBackToEmpty: true, iterations: 0 });
         },
       );

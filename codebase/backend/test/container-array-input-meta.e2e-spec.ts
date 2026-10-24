@@ -7,7 +7,7 @@ import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
- * e2e: Map · ForEach 의 배열 입력과 완료 meta(CONVENTIONS Principle 10 예외).
+ * e2e: Map · ForEach 의 배열 입력과 완료 meta(CLE-NODE-LOGIC-COMMON 「배열이 아닌 입력 처리」).
  *
  * 실제 실행(save → execute → engine → 표현식 해석)에서 두 가지를 본다.
  *
@@ -15,7 +15,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *    돌려줘도 컨테이너가 그 배열을 돈다. 엔진의 flat 캐시가 meta 만 보고 출력을
  *    `{ data: [...] }` 로 감싸 구조화 캐시의 output 까지 바꾸던 회귀를 막는다.
  *    상류 Code 는 배열을 객체에 담아 돌려준다. Code 가 배열을 그대로 돌려주면
- *    `port: 'success'` 때문에 다운스트림이 `{ data: [...] }` 를 보는 별도 결함이 있어서다.
+ *    `port: 'success'` 때문에 다운스트림이 `{ data: [...] }` 를 보는 별도 결함이 있어서다
+ *    (레거시 `{ port, data }` 봉투, NERV Task CLE-T-T30D5S).
  * 2. **비배열 입력은 meta 로 알린다**: 배열 경로가 원시값 · 객체로 풀리면 바디를 돌지
  *    않고 `meta.fellBackToEmpty: true` 를 남긴다. 다운스트림은
  *    `$node["<컨테이너>"].meta.*` 로 읽는다.

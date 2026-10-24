@@ -119,6 +119,10 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
  * `stripControlFields`, downstream `$input.<field>` access) keep working
  * without per-call-site refactors. Phase 3 will remove this function along
  * with the legacy cache.
+ *
+ * 배열 · 원시값 output 은 `port` · `status` · `meta` · `_resumeState` 중 하나라도
+ * 있으면 `{ data, ...control }` 로 감싼다. 노드 종류를 알면
+ * {@link toEngineFlatShapeForNode} 를 쓴다(Map · ForEach 는 `meta` 만으로 감싸지 않는다).
  */
 export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
   const output = adapted.output;
@@ -148,14 +152,15 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
     return output;
   }
   if (typeof output !== 'object' || Array.isArray(output)) {
-    if (adapted.port || adapted.status || adapted._resumeState) {
+    if (
+      adapted.port ||
+      adapted.status ||
+      adapted.meta ||
+      adapted._resumeState
+    ) {
       // Engine expects top-level `status` / port metadata on an object. Keep
       // the raw output under `data` and surface control fields to emulate
       // the legacy `{ port, data, status }` envelope.
-      //
-      // `meta` 는 조건에 넣지 않는다. 이 봉투에 meta 가 실리지 않으므로 감쌀 이유가
-      // 없고, 감싸면 `setNodeOutput` 이 구조화 캐시의 output 까지 `{ data }` 로
-      // 바꿔 배열 출력(Map · ForEach 입력 배열, Code 의 `return [...]`)이 깨진다.
       return {
         data: output,
         ...(adapted.port !== undefined ? { port: adapted.port } : {}),
@@ -200,6 +205,33 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
     base._retryState = adapted._retryState;
   }
   return base;
+}
+
+const ITERATING_CONTAINER_TYPES: ReadonlySet<string> = new Set([
+  'map',
+  'foreach',
+]);
+
+/**
+ * 노드 종류를 알 때 쓰는 {@link toEngineFlatShape}. 핸들러 출력을 엔진 캐시에 넣는
+ * 경로(노드 완료 · 단일 노드 실행의 상류 출력 복원)는 이 함수를 쓴다.
+ *
+ * Map · ForEach 는 감싸기 판단에서 `meta` 를 뺀다. 두 노드는 입력 배열을 `output` 으로
+ * 돌려주고 컨테이너 실행이 구조화 캐시에서 그 배열을 읽는다. 함께 온 `meta` 때문에
+ * `{ data }` 로 감싸이면 `setNodeOutput` 이 구조화 캐시의 `output` 까지 바꿔서
+ * 컨테이너가 배열을 못 본다.
+ *
+ * 다른 노드는 `meta` 만 있어도 그대로 감싼다. 저장된 워크플로우가 그 출력을
+ * `$input.data` 로 읽고 있을 수 있어서다(NERV Task CLE-T-T30D5S 가 다룬다).
+ */
+export function toEngineFlatShapeForNode(
+  nodeType: string,
+  adapted: NodeHandlerOutput,
+): unknown {
+  if (ITERATING_CONTAINER_TYPES.has(nodeType)) {
+    return toEngineFlatShape({ ...adapted, meta: undefined });
+  }
+  return toEngineFlatShape(adapted);
 }
 
 /**

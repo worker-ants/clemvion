@@ -130,7 +130,7 @@ Loop는 컨테이너 노드예요. 입력은 `in`, `emit` 두 개, 출력은 `bo
 
 body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참조할 수 있어요.
 
-배열 경로가 배열이 아닌 값(숫자 · 문자열 · 객체 · 없는 경로)으로 풀리면 에러 없이 빈 배열로 보고 body 를 한 번도 실행하지 않아요. 이때 `$node["ForEach"].meta.fellBackToEmpty` 가 `true` 예요. body 를 실행한 횟수는 `meta.iterations`, 건너뛴 항목이 있으면 그 수는 `meta.skippedCount` 로 확인해요.
+배열 경로가 배열이 아닌 값(숫자 · 문자열 · 객체 · `null` · 없는 경로)으로 풀리면 에러 없이 빈 배열로 보고 body를 한 번도 실행하지 않아요. 이때 `$node["ForEach"].meta.fellBackToEmpty`가 `true`예요. body를 실행한 횟수는 `meta.iterations`, 건너뛴 항목이 있으면 그 수는 `meta.skippedCount`로 확인해요.
 
 ### 예시
 
@@ -138,7 +138,7 @@ body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참�
 ```ts
 // arrayField: "$input.order.items"
 // body 내부에서 $item.value, $itemIndex 참조
-// errorPolicy: "skip" → 실패한 인덱스의 items 자리는 null 이 되고, 실패 내용은 skipped 에 { index, error } 로 모여요
+// errorPolicy: "skip" → 실패한 인덱스의 items 자리는 null이 되고 에러 내용은 output.skipped에 { index, error }로 모여요
 ```
 </Example>
 
@@ -156,7 +156,7 @@ body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참�
   {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "항목별 에러 정책이에요.", default: "stop"}
 ]} />
 
-배열 경로가 배열이 아니면 ForEach 와 같이 빈 배열로 보고 `meta.fellBackToEmpty` 를 `true` 로 남겨요. body 를 실행한 횟수는 `meta.iterations`, 건너뛴 항목이 있으면 그 수는 `meta.skippedCount` 로 확인해요. `skip` · `continue` 로 넘긴 항목은 결과 배열 그 자리에 `{ _skipped: true, error }` 로 남아요.
+배열 경로가 배열이 아니면 ForEach와 같이 빈 배열로 보고 `meta.fellBackToEmpty`를 `true`로 남겨요. body를 실행한 횟수는 `meta.iterations`, 건너뛴 항목이 있으면 그 수는 `meta.skippedCount`로 확인해요. `skip` · `continue`로 넘긴 항목은 결과 배열 그 자리에 `{ _skipped: true, error }`로 남아요.
 
 ### 예시
 

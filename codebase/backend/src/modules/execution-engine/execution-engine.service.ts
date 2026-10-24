@@ -149,6 +149,7 @@ import {
   adaptHandlerReturn,
   isCanonicalHandlerOutput,
   toEngineFlatShape,
+  toEngineFlatShapeForNode,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -372,6 +373,24 @@ function clampNodeErrorMessage(raw: string): string {
   return raw.length > NODE_ERROR_MESSAGE_MAX_LEN
     ? raw.slice(0, NODE_ERROR_MESSAGE_MAX_LEN) + '…'
     : raw;
+}
+
+/**
+ * ForEach · Map 의 완료 `meta`(Principle 2 실행 지표). `iterations` 는 바디를 띄운
+ * 횟수, `skippedCount` 는 skip · continue 로 넘긴 수이고 0 이면 싣지 않는다.
+ * 구조화 캐시의 핸들러 출력이 배열이 아니어서 빈 배열로 돌았으면
+ * `fellBackToEmpty: true` 를 실어 핸들러 meta 의 `false` 를 덮는다.
+ */
+function buildIterationMeta(
+  iterations: number,
+  skippedCount: number,
+  handlerOutputWasArray: boolean,
+): Record<string, unknown> {
+  return {
+    iterations,
+    ...(skippedCount > 0 ? { skippedCount } : {}),
+    ...(handlerOutputWasArray ? {} : { fellBackToEmpty: true }),
+  };
 }
 
 /**
@@ -4568,6 +4587,7 @@ export class ExecutionEngineService
           savedExecution,
           singleNodeId,
           incomingEdgeMap,
+          nodeMap,
           context,
           executedNodes,
         );
@@ -6110,7 +6130,7 @@ export class ExecutionEngineService
         node.id,
         resolvedConfig,
       );
-      const flatForCache = toEngineFlatShape(adapted);
+      const flatForCache = toEngineFlatShapeForNode(node.type, adapted);
 
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
@@ -6646,6 +6666,7 @@ export class ExecutionEngineService
     savedExecution: Execution,
     targetNodeId: string,
     incomingEdgeMap: Map<string, GraphEdge[]>,
+    nodeMap: Map<string, Node>,
     context: ExecutionContext,
     executedNodes: Set<string>,
   ): Promise<void> {
@@ -6679,7 +6700,9 @@ export class ExecutionEngineService
       this.contextService.setNodeOutput(
         ctxKey,
         predId,
-        this.applyPortSelection(toEngineFlatShape(adapted)),
+        this.applyPortSelection(
+          toEngineFlatShapeForNode(nodeMap.get(predId)?.type ?? '', adapted),
+        ),
       );
       executedNodes.add(predId);
     }
@@ -8159,13 +8182,11 @@ export class ExecutionEngineService
       // and matches `output.items.length` (skip-policy `null` placeholders
       // are still counted, since the body did run for those indices).
       // Additive / non-breaking; coexists with Phase 1 D `meta.skippedCount`.
-      const foreachMeta: Record<string, unknown> = {
-        iterations: collected.items.length,
-      };
-      if (collected.skippedCount > 0) {
-        foreachMeta.skippedCount = collected.skippedCount;
-      }
-      structuredMeta = foreachMeta;
+      structuredMeta = buildIterationMeta(
+        collected.items.length,
+        collected.skippedCount,
+        Array.isArray(handlerOutput),
+      );
     } else if (containerNode.type === 'map') {
       const handlerOutput = structured?.output;
       const array = Array.isArray(handlerOutput) ? handlerOutput : [];
@@ -8198,15 +8219,12 @@ export class ExecutionEngineService
         mapped,
         count: mapped.length,
       };
-      // ForEach 와 같은 실행 지표다(Principle 2). `iterations` 는 바디를 띄운 횟수,
-      // `skippedCount` 는 skip · continue 로 넘긴 수이고 0 이면 싣지 않는다.
-      const mapMeta: Record<string, unknown> = {
-        iterations: mapped.length,
-      };
-      if (collected.skippedCount > 0) {
-        mapMeta.skippedCount = collected.skippedCount;
-      }
-      structuredMeta = mapMeta;
+      // ForEach 와 같은 실행 지표다. `skippedCount` 는 `mapped` 안의 `_skipped` 마커 수와 같다.
+      structuredMeta = buildIterationMeta(
+        mapped.length,
+        collected.skippedCount,
+        Array.isArray(handlerOutput),
+      );
     } else if (containerNode.type === 'loop') {
       const count = coerceContainerNumber(
         engineResolvedConfig.count,
