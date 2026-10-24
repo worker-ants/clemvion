@@ -11800,9 +11800,11 @@ describe('ExecutionEngineService', () => {
       // `meta.iterations` exposes the actually executed body count
       // (= output.items.length, including skip-placeholder slots).
       // Principle 2 — meta carries execution metrics, not config echoes.
-      expect(capturedForeachStructured?.meta).toEqual(
-        expect.objectContaining({ iterations: 3 }),
-      );
+      // 핸들러의 시작 시점 `fellBackToEmpty` 가 완료 meta 에 함께 남는다.
+      expect(capturedForeachStructured?.meta).toEqual({
+        iterations: 3,
+        fellBackToEmpty: false,
+      });
     });
 
     // ai-review C3 (2026-07-26) — §2.3 컨테이너 범위 확장. `executeContainerBody`
@@ -13790,6 +13792,150 @@ describe('ExecutionEngineService', () => {
         count: 3,
         mapped: [{ squared: 4 }, { squared: 9 }, { squared: 16 }],
       });
+    });
+
+    // CLE-NODE-MAP · CLE-NODE-FOREACH — 완료 시점 meta 는 핸들러의 시작 시점 meta
+    // (`fellBackToEmpty`)에 엔진 반복 메트릭(`iterations` · `skippedCount?`)을
+    // 합친 값이다(CLE-NODE-LOGIC-COMMON 엔진 덮어쓰기 계약 6).
+    describe('container completion meta (Map · ForEach)', () => {
+      const runContainer = async (
+        type: 'map' | 'foreach',
+        sourceOutput: Record<string, unknown>,
+        containerConfig: Record<string, unknown>,
+        bodyExecute: (input: unknown) => Promise<unknown>,
+      ) => {
+        const bodyHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(bodyExecute) as NodeHandler['execute'],
+        };
+        handlerRegistry.register('body_node', bodyHandler);
+
+        const sinkCalls: unknown[] = [];
+        let captured: { meta?: Record<string, unknown> } | undefined;
+        const sinkHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(
+            async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+              sinkCalls.push(input);
+              captured = ctx.structuredOutputCache?.['ctr'];
+              return mockOutput({ ok: true });
+            },
+          ),
+        };
+        handlerRegistry.register('sink_node', sinkHandler);
+        handlerRegistry.register('source_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => mockOutput(sourceOutput)),
+        });
+
+        const node = (
+          id: string,
+          nodeType: string,
+          config: Record<string, unknown>,
+          containerId: string | null,
+        ): Partial<Node> => ({
+          id,
+          workflowId,
+          type: nodeType,
+          category:
+            nodeType === 'source_node'
+              ? NodeCategory.TRIGGER
+              : NodeCategory.LOGIC,
+          label: id,
+          config,
+          isDisabled: false,
+          containerId,
+          toolOwnerId: null,
+        });
+        const edge = (
+          id: string,
+          sourceNodeId: string,
+          sourcePort: string,
+          targetNodeId: string,
+          targetPort: string,
+        ): Partial<Edge> => ({
+          id,
+          workflowId,
+          sourceNodeId,
+          sourcePort,
+          targetNodeId,
+          targetPort,
+          type: EdgeType.DATA,
+        });
+
+        mockNodeRepo.findBy.mockResolvedValue([
+          node('src', 'source_node', {}, null),
+          node('ctr', type, containerConfig, null),
+          node('body', 'body_node', {}, 'ctr'),
+          node('sink', 'sink_node', {}, null),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          edge('e1', 'src', 'out', 'ctr', 'in'),
+          edge('e2', 'ctr', 'body', 'body', 'in'),
+          edge('e3', 'body', 'out', 'ctr', 'emit'),
+          edge('e4', 'ctr', 'done', 'sink', 'in'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+        return { bodyHandler, sinkCalls, meta: captured?.meta };
+      };
+
+      it('Map: iterations + fellBackToEmpty=false for an array input', async () => {
+        const { sinkCalls, meta } = await runContainer(
+          'map',
+          { items: [1, 2, 3] },
+          { inputField: 'items' },
+          async (input) => mockOutput({ v: input }),
+        );
+        expect(sinkCalls[0]).toEqual({
+          mapped: [{ v: 1 }, { v: 2 }, { v: 3 }],
+          count: 3,
+        });
+        expect(meta).toEqual({ fellBackToEmpty: false, iterations: 3 });
+      });
+
+      it('Map: skippedCount mirrors `_skipped` markers under errorPolicy=skip', async () => {
+        let calls = 0;
+        const { sinkCalls, meta } = await runContainer(
+          'map',
+          { items: [1, 2, 3] },
+          { inputField: 'items', errorPolicy: 'skip' },
+          async (input) => {
+            calls++;
+            if (calls === 2) throw new Error('boom');
+            return mockOutput({ v: input });
+          },
+        );
+        const payload = sinkCalls[0] as { mapped: unknown[]; count: number };
+        expect(payload.mapped[1]).toEqual({
+          _skipped: true,
+          error: { code: 'Error', message: 'boom' },
+        });
+        expect(meta).toEqual({
+          fellBackToEmpty: false,
+          iterations: 3,
+          skippedCount: 1,
+        });
+      });
+
+      it.each([
+        ['map', { inputField: 'items' }, { mapped: [], count: 0 }],
+        ['foreach', { arrayField: 'items' }, { items: [], count: 0 }],
+      ] as const)(
+        '%s: non-array input runs the body zero times and keeps fellBackToEmpty=true',
+        async (type, config, expectedOutput) => {
+          const { bodyHandler, sinkCalls, meta } = await runContainer(
+            type,
+            { items: 'not-an-array' },
+            config,
+            async () => mockOutput({ ran: true }),
+          );
+          expect(bodyHandler.execute).not.toHaveBeenCalled();
+          expect(sinkCalls[0]).toEqual(expectedOutput);
+          expect(meta).toEqual({ fellBackToEmpty: true, iterations: 0 });
+        },
+      );
     });
   });
 

@@ -391,6 +391,32 @@ describe('toEngineFlatShape', () => {
     expect((flat as Record<string, unknown>).status).toBe('waiting_for_input');
   });
 
+  // meta 는 봉투에 실리지 않으므로 meta 만으로는 감싸지 않는다. 감싸면 Map · ForEach 가
+  // 입력 배열을 못 보고 Code 의 `return [...]` 가 `$input.data` 로 밀려난다.
+  it.each([
+    ['array', [1, 2, 3]],
+    ['empty array', []],
+    ['string', 'result text'],
+    ['number', 42],
+  ])('keeps a %s output bare when only meta is present', (_label, output) => {
+    const flat = toEngineFlatShape({
+      config: {},
+      output,
+      meta: { fellBackToEmpty: false },
+    });
+    expect(flat).toEqual(output);
+  });
+
+  it('still wraps an array output when a control field rides with meta', () => {
+    const flat = toEngineFlatShape({
+      config: {},
+      output: [1, 2],
+      meta: { durationMs: 3 },
+      port: 'success',
+    });
+    expect(flat).toEqual({ data: [1, 2], port: 'success' });
+  });
+
   it('synthesises { data, port, status } when output is a primitive with control fields', () => {
     const flat = toEngineFlatShape({
       config: {},

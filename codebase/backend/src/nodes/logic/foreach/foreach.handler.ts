@@ -42,7 +42,10 @@ export class ForEachHandler implements NodeHandler {
     const { arrayField } = config as unknown as ForEachConfig;
 
     const resolved = resolveFieldValue(input, arrayField);
-    const items = Array.isArray(resolved) ? resolved : [];
+    // CONVENTIONS Principle 10 예외 — 비배열 → 빈 배열 fallback, meta 로 발동을 알린다.
+    // 엔진이 완료 시점 meta 에 이 값을 합치므로 완료 출력에도 남는다.
+    const fellBackToEmpty = !Array.isArray(resolved);
+    const items = fellBackToEmpty ? [] : (resolved as unknown[]);
 
     // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
     // schema field; `errorPolicy` was previously missing.
@@ -53,6 +56,7 @@ export class ForEachHandler implements NodeHandler {
         errorPolicy: (rawConfig as { errorPolicy?: string }).errorPolicy,
       },
       output: items,
+      meta: { fellBackToEmpty },
     });
   }
 }

@@ -119,13 +119,15 @@ A container's `emit` port must have **exactly one body node** connected. Wiring 
 
 Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`.
 
+If the array path resolves to something that isn't an array (a number, string, object, or a missing path), ForEach treats it as an empty array without an error and never runs the body. In that case `$node["ForEach"].meta.fellBackToEmpty` is `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were).
+
 ### Example
 
 <Example title="Process order items">
 ```ts
 // arrayField: "$input.order.items"
 // Inside body, reference $item.value, $itemIndex
-// errorPolicy: "skip" → failed indices become { _skipped: true, error: {...} }
+// errorPolicy: "skip" → a failed index leaves null in items, and the failure is collected in skipped as { index, error }
 ```
 </Example>
 
@@ -142,6 +144,8 @@ Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item
   {name: "inputField", required: true, type: "expression", description: "Path to the array being transformed.", default: "-"},
   {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "Per-item error policy.", default: "stop"}
 ]} />
+
+Like ForEach, a non-array path is treated as an empty array and `meta.fellBackToEmpty` is set to `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were). Items passed over by `skip` or `continue` stay in the result array at their index as `{ _skipped: true, error }`.
 
 ### Example
 

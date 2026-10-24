@@ -8198,6 +8198,15 @@ export class ExecutionEngineService
         mapped,
         count: mapped.length,
       };
+      // ForEach 와 같은 실행 지표다(Principle 2). `iterations` 는 바디를 띄운 횟수,
+      // `skippedCount` 는 skip · continue 로 넘긴 수이고 0 이면 싣지 않는다.
+      const mapMeta: Record<string, unknown> = {
+        iterations: mapped.length,
+      };
+      if (collected.skippedCount > 0) {
+        mapMeta.skippedCount = collected.skippedCount;
+      }
+      structuredMeta = mapMeta;
     } else if (containerNode.type === 'loop') {
       const count = coerceContainerNumber(
         engineResolvedConfig.count,

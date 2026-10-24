@@ -148,15 +148,14 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
     return output;
   }
   if (typeof output !== 'object' || Array.isArray(output)) {
-    if (
-      adapted.port ||
-      adapted.status ||
-      adapted.meta ||
-      adapted._resumeState
-    ) {
+    if (adapted.port || adapted.status || adapted._resumeState) {
       // Engine expects top-level `status` / port metadata on an object. Keep
       // the raw output under `data` and surface control fields to emulate
       // the legacy `{ port, data, status }` envelope.
+      //
+      // `meta` 는 조건에 넣지 않는다. 이 봉투에 meta 가 실리지 않으므로 감쌀 이유가
+      // 없고, 감싸면 `setNodeOutput` 이 구조화 캐시의 output 까지 `{ data }` 로
+      // 바꿔 배열 출력(Map · ForEach 입력 배열, Code 의 `return [...]`)이 깨진다.
       return {
         data: output,
         ...(adapted.port !== undefined ? { port: adapted.port } : {}),

@@ -173,4 +173,35 @@ describe('MapHandler', () => {
       expect(result.output).toEqual([1, 2]);
     });
   });
+
+  // CONVENTIONS Principle 10 예외 — 배열이 아닌 입력은 [] 로 대체하고 meta 로 알린다.
+  describe('meta.fellBackToEmpty', () => {
+    it.each([
+      ['number', { items: 42 }, 'items'],
+      ['string', { items: 'not-array' }, 'items'],
+      ['object', { items: { a: 1 } }, 'items'],
+      ['null', { items: null }, 'items'],
+      ['missing path', { other: [] }, 'items'],
+      ['null input', null, 'items'],
+    ])(
+      'is true when inputField resolves to a non-array (%s)',
+      async (_label, input, inputField) => {
+        const result = await handler.execute(input, { inputField }, context);
+        expect(result.output).toEqual([]);
+        expect(result.meta).toEqual({ fellBackToEmpty: true });
+      },
+    );
+
+    it.each([
+      ['non-empty array', { items: [1, 2] }, 'items'],
+      ['empty array', { items: [] }, 'items'],
+      ['inline resolved array', null, [1, 2, 3]],
+    ])(
+      'is false when inputField resolves to an array (%s)',
+      async (_label, input, inputField) => {
+        const result = await handler.execute(input, { inputField }, context);
+        expect(result.meta).toEqual({ fellBackToEmpty: false });
+      },
+    );
+  });
 });
