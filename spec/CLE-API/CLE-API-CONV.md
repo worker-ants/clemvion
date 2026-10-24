@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "1f3f513cc9d4846211d132b8a1210b64bf92f1156e9271674af3ef46695a7807"
+content_hash: "c09690a7b45aeb5def8e299defff8ed0ba48307e68bc33c2aec389a1ae7002d2"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "e1d9252fe9f82e126807d2febfc3af02a06d8842a3553ac6fd465c60f2596cbc"
-etag: "sha256-e8449d3c85efa7044fb6f5b560cfe25eeb68d84a339a9a6913bf77ea3545f326"
+mirror_sha256: "24055ce3a22148a92c2413c03c0b2ab150b6acc3f6d145b2959ad16ae8fe1e8a"
+etag: "sha256-5b15e9df70e1babae3614d4ec65050c85a04545aca3d5f6250c4402f1252e2fb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,7 +48,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
 10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다.
 11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다(§6). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
-12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외는 두 가지다. 채팅 채널 인바운드는 `202` 를 돌려준다. WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
+12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 채팅 채널 인바운드는 `202` 를 돌려준다. WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
 13. 목록 조회의 기본 페이지네이션은 offset 방식이다. 대량으로 쌓이는 데이터는 cursor 방식을 쓴다.
 14. `PUT` 은 쓰지 않는다. 부분 수정은 `PATCH` 로 한다.
 
@@ -268,7 +268,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 
 ## 7. 요청 빈도 제한
 
-> **초과 응답이 `429` 가 아닌 행은 두 개다.**
+> **초과 응답이 `429` 가 아닌 행이 있다.**
 >
 > - 채팅 채널 인바운드는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다(근거: [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-19). 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
 > - WebSocket 명령은 HTTP 요청이 아니라서 상태 코드가 없다. 한도를 넘으면 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)).
@@ -282,22 +282,27 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 로그인 세션 강제 종료 (`POST /api/auth/sessions/:familyId/revoke`, `POST /api/auth/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로, 사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
 | 2단계 인증 끄기 (`POST /api/auth/2fa/disable`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 초대 발송·provider probe 와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
 | 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min (사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-변경) | 같음 |
-| 웹훅 수신 | 100 req/min (전역 throttler `default`) | 같음 |
+| 웹훅 수신 | 100 req/min (전역 기본값. `ThrottlerModule` 의 `default` 등급) | 같음 |
 | 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 트리거) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
-| 파일 업로드 (지식 저장소 문서, 아바타) | 전역 100 req/min 을 그대로 따른다. `POST /api/knowledge-bases/:id/documents` 와 `POST /api/users/me/avatar` 둘 다 별도 `@Throttle` 이 없다 | 같음 |
+| 파일 업로드 (지식 저장소 문서, 아바타) | 전역 100 req/min 을 그대로 따른다. `POST /api/knowledge-bases/:id/documents` 와 `POST /api/users/me/avatar` 에는 별도 `@Throttle` 이 없다 | 같음 |
 | Provider probe API (`POST /api/model-configs/preview-models`, `POST /api/model-configs/:id/test`, `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준). 실시간 provider 호출 비용과 provider 쪽 속도 제한을 보호하는 `@Throttle` 이다. 세 핸들러가 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE`(`SENSITIVE_ACTION_THROTTLE` 의 별칭)을 함께 쓴다 | 같음 |
 | 지식 저장소 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`) | 3 req/min (사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) | 같음 |
 | 지식 저장소 실패 문서 재시도 (`POST /api/knowledge-bases/:id/retry-failed`) | 3 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
 | 임베딩 테스트 (`POST /api/knowledge-bases/embedding-probe`) | 30 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
+| 지식 저장소 그래프 재추출 (`POST /api/knowledge-bases/:id/re-extract`, `POST /api/knowledge-bases/:id/documents/:docId/re-extract`) | 3 req/min, 10 req/min (순서대로, 사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) | 같음 |
 | 재실행 (`POST /api/executions/:id/re-run`) | 10 req/min (사용자 기준). `@Throttle`(60초에 10회). 넘으면 `429 RATE_LIMITED`. 동작 정의는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) | 같음 |
 | 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. provider probe·2단계 인증 끄기와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다 | 같음 |
+| 저장 전 연결 테스트 (`POST /api/integrations/preview-test`) | 20 req/min (사용자 기준). 저장하지 않은 자격 증명으로 외부 연결(Email · MCP · HTTP · Database)을 거듭 여는 것을 막는 `@Throttle` 이다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 서비스마다 실제로 접속하는지는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) | 같음 |
+| 쇼핑몰 중복 사전 감지 (`GET /api/integrations/cafe24/precheck`, `GET /api/integrations/makeshop/precheck`) | 60 req/min (사용자 기준). 이 엔드포인트 전용 `@Throttle` 이고 일반 API 한도 대신 적용한다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) | 같음 |
+| 쇼핑몰 앱 설치 진입점 (`GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`) | 30 req/min (공개 라우트라 IP 기준). 설치 토큰이 URL 에 드러나서 거는 `@Throttle` 이다. 그 위에 도메인 전용 실패 잠금이 있다. 설치 토큰 조회·HMAC 검증 실패가 쌓인 IP 는 `429 CAFE24_INSTALL_RATE_LIMITED`·`MAKESHOP_INSTALL_RATE_LIMITED` 로 거절한다(두 진입점이 `Cafe24InstallRateLimitService` 를 함께 쓴다). `MAKESHOP_INSTALL_RATE_LIMITED` 는 MakeShop 노드의 API 한도 초과 코드 `MAKESHOP_RATE_LIMITED` 와 다른 코드다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) · [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | 같음 (실패 잠금은 `Retry-After` 없음) |
+| 통합 OAuth 콜백 (`GET /api/3rd-party/:provider/callback`) | 60 req/min (공개 라우트라 IP 기준). OAuth code 교환은 외부를 부르므로 그 비용을 줄이려고 거는 `@Throttle` 이다. 사용자 소셜 로그인 콜백 `/api/auth/oauth/:provider/callback` 과는 다른 경로다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) | 같음 |
 | External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절 | `Retry-After` |
 | External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 상한은 모든 서버 인스턴스의 연결을 합쳐 센다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다(fail-open). 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
-| 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 CCH-NF-03 | 없음 (위 콜아웃) |
+| 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 REQ-CHAT-046 · REQ-CHAT-047 | 없음 (위 콜아웃) |
 | WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). 전역 요청 빈도 제한(일반 API 100 req/min)은 이 경로를 세지 않는다. 한도를 넘으면 `WsRateLimitGuard` 가 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용한다. 등록되지 않은 이벤트(`onAny`)도 같은 소켓 예산을 쓴다. 넘었을 때의 응답은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 가 정한다 | 없음 (전송: 소켓 `exception` 이벤트) |
 
-- HTTP 요청이 한도를 넘으면 `429` 를 받는다. 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도와 External Interaction SSE 동시 연결은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 두 행(채팅 채널 인바운드, WebSocket 명령)은 위 콜아웃에 있다.
-- **표의 범위**: 위 표는 전역 throttler 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 rate limiter 로 덮어쓴 엔드포인트별 오버라이드를 한 곳에 모은 것이다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 throttle 수치의 단일 기준은 이 표다.
+- HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, WebSocket 명령)은 위 콜아웃에 있다.
+- **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 요청 빈도 제한 수치의 단일 기준은 이 표다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
 - 인증된 HTTP 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
 - **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다.
 - **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다.
@@ -345,7 +350,7 @@ GET /api/executions/{executionId}/background-runs/{backgroundRunId}?cursor=eyJ..
 | 허용 타입 | 엔드포인트마다 제한한다. 지식 저장소 문서는 PDF·Markdown·텍스트 등, 아바타는 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외) |
 | 응답 | 엔드포인트마다 다르다. 지식 저장소 문서는 올린 파일 메타데이터(id, status 등), 아바타는 `PATCH /users/me` 와 같은 프로필 응답([내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md)) |
 
-파일 업로드 엔드포인트는 둘이다. 지식 저장소 문서 업로드(`POST /api/knowledge-bases/:id/documents`)와 아바타 업로드(`POST /api/users/me/avatar`, [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md))다. 아바타는 `PATCH /api/users/me` 의 `avatarUrl` 로 외부 URL 을 넣는 경로도 함께 유지한다. 두 경로가 같은 컬럼을 쓴다.
+파일 업로드 엔드포인트는 지식 저장소 문서 업로드(`POST /api/knowledge-bases/:id/documents`)와 아바타 업로드(`POST /api/users/me/avatar`, [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md))다. 아바타는 `PATCH /api/users/me` 의 `avatarUrl` 로 외부 URL 을 넣는 경로도 함께 유지한다. 두 경로가 같은 컬럼을 쓴다.
 
 ## 10. WebSocket
 
@@ -373,8 +378,8 @@ HTTP API 와 같은 서버가 실시간 채널을 함께 연다. 전송 계층�
 POST {base_url}/api/hooks/{endpoint_path}
 ```
 
-- `base_url`: SaaS 는 서비스 도메인(예: `https://api.example.com`), 셀프 호스팅은 설정한 도메인이다. 프론트엔드가 base 를 정하는 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 WH-EP-02 다.
-- `endpoint_path`: 트리거(Trigger) 엔티티의 `endpoint_path` 값이다. 트리거를 만들 때 v4 UUID 로 자동 발급하며 라우팅 식별자로 쓴다.
+- `base_url`: SaaS 는 서비스 도메인(예: `https://api.example.com`), 셀프 호스팅은 설정한 도메인이다. 프론트엔드가 base 를 정하는 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 REQ-WEBHOOK-002 다.
+- `endpoint_path`: 트리거(Trigger) 엔티티의 `endpoint_path` 값이고 라우팅 식별자로 쓴다. 클라이언트가 CSPRNG 로 v4 UUID(`crypto.randomUUID()`)를 만들어 요청 본문의 `endpointPath` 로 보낸다. 서버는 트리거를 만들거나 경로를 바꿀 때 v4 형식만 검증한다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 REQ-WEBHOOK-012 · REQ-WEBHOOK-032).
 - 예시: `POST https://api.example.com/api/hooks/3f6c2a1e-8b4d-4e2f-9a7c-1d5e8f0b2c64`
 
 ### 11.2 지원 메서드
@@ -383,7 +388,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 |--------|------|------|
 | POST | ✓ | 표준 웹훅 수신 (유일하게 지원하는 메서드) |
 
-웹훅 수신(워크플로우 트리거) 메서드는 POST 만 지원하고 그 밖의 메서드는 `405 Method Not Allowed` 다. GET·PUT 트리거 수신은 v1 에서 지원하지 않는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 WH-EP-03). 같은 라우터에 웹채팅 위젯 부팅용 공개 읽기 엔드포인트 `GET /api/hooks/{endpoint_path}/embed-config` 가 따로 있다. 이것은 웹훅 수신이 아니라 임베드 허용 목록 조회용이다([웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md)).
+웹훅 수신(워크플로우 트리거) 메서드는 POST 만 지원하고 그 밖의 메서드는 `405 Method Not Allowed` 다. GET·PUT 트리거 수신은 v1 에서 지원하지 않는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 REQ-WEBHOOK-003). 같은 라우터에 웹채팅 위젯 부팅용 공개 읽기 엔드포인트 `GET /api/hooks/{endpoint_path}/embed-config` 가 따로 있다. 이것은 웹훅 수신이 아니라 임베드 허용 목록 조회용이다([웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md)).
 
 ### 11.3 요청 처리 흐름
 
@@ -439,7 +444,7 @@ flowchart TD
 
 ### 11.7 요청 빈도 제한
 
-웹훅 수신은 전역 throttler 의 100 req/min 제한을 받는다(§7). 넘으면 `429 Too Many Requests` 다. 공개 웹훅에는 IP 단위 추가 한도가 걸린다. 수치는 §7 표에 있고 버킷·IP 식별 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
+웹훅 수신은 전역 요청 빈도 제한(100 req/min)을 받는다(§7). 넘으면 `429 Too Many Requests` 다. 공개 웹훅에는 IP 단위 추가 한도가 걸린다. 수치는 §7 표에 있고 버킷·IP 식별 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
 
 ## 12. 공통 API 패턴
 
@@ -451,14 +456,14 @@ flowchart TD
 PATCH /api/{resource}/{id}
 Content-Type: application/json
 
-{ "is_active": false }
+{ "isActive": false }
 ```
 
 | 규칙 | 설명 |
 |------|------|
 | 패턴 | `PATCH /:id { field: value }` |
 | 전용 엔드포인트 불필요 | `POST /:id/activate`, `POST /:id/deactivate` 같은 전용 엔드포인트를 만들지 않는다 |
-| 적용 대상 | `is_active`(워크플로우, 트리거, 스케줄), `is_disabled`(노드) 같은 Boolean 토글 필드 |
+| 적용 대상 | `isActive`(워크플로우, 트리거, 스케줄), `isDisabled`(노드) 같은 Boolean 토글 필드. 토글 필드의 요청 본문 이름은 camelCase(`isActive`)다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 REQ-TRIG-026, [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) 의 REQ-SCHED-029) |
 | 예외 | 인앱 알림의 읽음은 `PATCH /api/notifications/:id/read` 를 쓴다. 읽음은 `is_read` 의 한 방향 전이이고 읽지 않음으로 되돌리는 API 가 없다. 이 경로가 `PATCH` 인 것은 이미 구현된 경로를 그대로 두기 때문이다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)). 모두 읽음 · 모두 닫기 · 닫기는 Boolean 토글이 아니므로 §2.2 가 정한다 |
 
 상태 토글이 아닌 동작(실행, 중단, 복제, 권한 이양 등)의 경로 형태는 §2.2 의 자원 액션 행이 정한다.
@@ -682,7 +687,26 @@ WebSocket 명령 행은 등록되지 않은 이벤트(`onAny`)도 한도를 넘�
 
 기각한 대안은 두 가지다.
 
-- 읽음을 `PATCH /api/notifications/:id { is_read }` 로 바꾸는 안. 백엔드 · 프런트엔드 API 를 바꿔야 한다. 또 읽지 않음으로 되돌리는 동작이 없는데 토글 형태만 갖추게 된다.
+- 읽음을 `PATCH /api/notifications/:id { isRead }` 로 바꾸는 안. 백엔드 · 프런트엔드 API 를 바꿔야 한다. 또 읽지 않음으로 되돌리는 동작이 없는데 토글 형태만 갖추게 된다.
 - 두 일괄 경로를 규칙에 맞는 형태로 옮기는 안. 이미 쓰는 프런트엔드 호출과 응답 DTO 를 함께 바꿔야 하는데 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
 
-읽지 않음으로 되돌리는 기능이 생기면 `PATCH /api/notifications/:id { is_read }` 로 옮기는 것을 다시 본다.
+읽지 않음으로 되돌리는 기능이 생기면 `PATCH /api/notifications/:id { isRead }` 로 옮기는 것을 다시 본다.
+
+### §7 표에 빠진 라우트별 한도를 더했다 (2026-10-24)
+
+규칙 12 와 §7 「표의 범위」 는 §7 표를 요청 빈도 제한 수치의 단일 기준이라고 한다. 그런데 저장 전 연결 테스트, 쇼핑몰 중복 사전 감지, 쇼핑몰 앱 설치 진입점, 통합 OAuth 콜백, 지식 저장소 그래프 재추출의 `@Throttle` 은 표에 없었다. 수치는 도메인 문서와 코드에만 있었다. 코드(`integrations.controller.ts`, `third-party-oauth.controller.ts`, `graph.controller.ts`)로 수치를 확인하고 표에 행을 더했다(NERV Task `CLE-T-MJ9G4C`). 「표의 범위」 에는 HTTP 라우트의 `@Throttle` 이 모두 표에 있다는 문장과 수치를 바꾸면 표도 고친다는 문장을 더했다. 이 문장은 2026-10-24 에 `@Throttle` 사용처 전부를 표와 대조한 결과다. 같은 의무가 전부터 있었는데도 다섯 라우트가 빠졌으므로 표와 코드를 대조하는 테스트를 NERV Task `CLE-T-CYEVNV` 로 올렸다.
+
+이 결함을 올린 리뷰 발견(`01a12313-21b3-7385-a130-2e24c1a483f8`)은 표에 행을 더하는 안과 「표의 범위」 를 좁혀 일부 라우트만 표에 두는 안을 함께 냈다. 좁히는 안은 고르지 않았다. 그 안을 따르면 빠진 라우트의 수치는 단일 기준 없이 도메인 문서와 코드에만 남는다. 다음 사람은 어느 라우트가 표에 있어야 하는지 알 수 없다.
+
+쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 를 돌려준다(코드 확인). 그래서 표 아래 첫 불릿의 `Retry-After` 없는 목록에 더했다. 같은 불릿에 기본 에러 코드 `RATE_LIMITED` 를 한 번 적었다. NERV Task `CLE-T-V0JAG1` 의 일관성 검토가 초대 발송·재발송 행에 `429 RATE_LIMITED` 를 적자고 했다(Task `CLE-T-MJ9G4C` 본문). 라우트별 `@Throttle` 행은 모두 같은 코드라 행마다 적지 않고 불릿 하나로 모았다. [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 초대 에러 표와 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 는 초대 429 를 소문자 `rate_limited` 로 적는다. 코드는 `RATE_LIMITED` 만 내고 소문자 코드는 발행처가 없다. 그 등재는 NERV Task `CLE-T-8WXV7T` 가 정리한다.
+
+`MAKESHOP_INSTALL_RATE_LIMITED` 는 코드(`third-party-oauth.controller.ts`)가 내는 대로 적었다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 과 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 에러 표, 카탈로그에는 아직 `CAFE24_INSTALL_RATE_LIMITED` 만 있다. 도메인 문서에 MakeShop 잠금을 적는 일은 NERV Task `CLE-T-SRXR5W` 가 맡고 카탈로그 등재는 통합 도메인 코드 계열(`CLE-T-5BZ3M2`)과 함께 한다. 설치 잠금의 `429` 는 전역 예외 필터를 거치지 않아 `requestId` 가 빠진다. 에러 봉투를 맞추는 일은 NERV Task `CLE-T-YK106G` 가 맡는다.
+
+새 행의 `/api/3rd-party/*` 경로와 컬렉션 수준 액션 경로(`preview-test`, `precheck`)는 §2.2 명명 규칙의 예외 행에 없다. 전부터 표에 있던 `preview-models` · `embedding-probe` 도 같다. 이 개정은 §7 의 수치만 맞추고 §2.2 는 고치지 않았다. 예외 등록은 NERV Task `CLE-T-SRXR5W` 가 맡는다.
+
+같은 개정에서 API 문서와 어긋난 서술도 고쳤다.
+
+- §11.1 은 `endpoint_path` 를 서버가 자동 발급한다고 적었다. 실제로는 클라이언트가 v4 UUID 를 만들어 요청 본문의 `endpointPath` 로 보내고 서버는 형식만 검증한다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)).
+- §12.1 의 예시와 적용 대상은 DB 컬럼 이름(`is_active`)으로 적었다. 요청 본문은 camelCase(`isActive`)다. 알림 Rationale 의 기각한 대안 `{ is_read }` 도 `{ isRead }` 로 맞췄다.
+- §9 의 «엔드포인트는 둘이다» 에서 개수를 뺐다. 엔드포인트가 늘면 숫자가 낡는다(§5.5 「검증 층」 의 «개수를 세지 않는다» 와 같은 이유). 규칙 12 의 «두 가지», §7 콜아웃의 «두 개», 표 아래 불릿의 «두 행», 파일 업로드 행의 «둘 다» 도 같은 이유로 뺐다.
+- 채팅 채널 인바운드 행의 옛 요구사항 번호 `CCH-NF-03` 을 지금 ID(REQ-CHAT-046 · REQ-CHAT-047)로 바꿨다. §11.1 · §11.2 의 `WH-EP-02` · `WH-EP-03` 도 REQ-WEBHOOK-002 · REQ-WEBHOOK-003 으로 바꿨다.

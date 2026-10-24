@@ -2,19 +2,19 @@
 id: "CLE-AI-USAGE"
 title: "LLM 사용량 기록"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "49b0b11762bbd948fa5c00557f5577a00f606713e1afc071a0173a455d04f35e"
+content_hash: "5cd0f5fc305fe7a331fc7774def25e8413181463df94b19833f1380e1cfe2d79"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "b2624d056a0460b406b62f399df5332de34413bd71f0a41d1f02e29fed40fba5"
-etag: "sha256-9668914f18f26c93dac0d532b3047f22cafb6abce0a7e6b72db7aca004b126c1"
+mirror_sha256: "c1281e023de99e4784d1a704b1914a04141329bc2950df325247b7dea4d1deb6"
+etag: "sha256-0fcbd0e21a62bf2db80b58f096f29de4de8fb9151554d2720bc1e43a76605784"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/7-llm-usage.md`, `spec/1-data-model.md` (§2.16 ModelConfig, §2.24 LlmUsageLog) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -224,7 +224,7 @@ Chat 계열(사용량 적재):
 | 실행 | 양쪽 참조 | AI 노드 호출 진입점. 노드 핸들러(AI 에이전트, 텍스트 분류기, 정보 추출기)가 사용량 귀속으로 워크플로우·실행·노드 실행을 채운다. 첫 턴은 `ExecutionContext`, 재개 턴은 재구성 `state` 를 쓴다 |
 | 워크플로우 AI 어시스턴트 | 양쪽 참조 | 턴이 끝날 때 사용량을 메시지 행과 로그에 쌓고 `workflow_id` 를 채운다([워크플로우 AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md)) |
 | 통계 | 하류 | `llm_usage_log` 를 프로바이더·모델별, 일자별 SUM 으로 집계한다(`statistics.service.ts`). `workflowId` 필터는 노드와 어시스턴트 사용량을 잡는다([통계](../CLE-OBS/CLE-OBS-STATS.md)) |
-| 알림 규칙 | 하류 | `llm_cost` 규칙이 기간 안 `SUM(cost_usd)` 를 임계값과 비교한다(`alerts-evaluator.service.ts`). 워크플로우 범위 규칙은 노드 사용량을 반영하고 노드 밖 호출만 빠진다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)) |
+| 알림 규칙 | 하류 | `llm_cost` 규칙이 기간 안 `SUM(cost_usd)` 를 임계치와 비교한다(`alerts-evaluator.service.ts`). 워크플로우 범위 규칙은 노드 사용량을 반영하고 노드 밖 호출만 빠진다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)) |
 
 ## 구현 위치
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "fb8d31063ae481db0d4f3765615e854c178e20b687866787b9601c6423bc5630"
+content_hash: "ec35273a2544243647b130646ac90c86249866fb7cbd393ec5a32355b8ec9504"
 read_as: "approved_fallback"
-task: "CLE-T-YZ9VEX"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "56eb253ac050a63cd7707c219d2b71e1709ddeb3264207b192f01d2d83ce69d6"
-etag: "sha256-3bf5b6a470212282ad3d3f15cd70092f2873e85d00728eb023dea4f2fed69d55"
+mirror_sha256: "d07028f60cc3165cff9c6eafcf40c372be49c81a33c2dbe8b4c889d4fa50f028"
+etag: "sha256-15bcc7203af4d37370517cb0371015c37f934444a620c7c6914cf8f46aad4a9e"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일과 로그인 힌트 쿠키는 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -71,7 +71,7 @@ etag: "sha256-3bf5b6a470212282ad3d3f15cd70092f2873e85d00728eb023dea4f2fed69d55"
 - REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 프론트엔드 JS 가 `has_session=1` 쿠키(non-httpOnly, path=/, max-age 30일, SameSite=Lax)를 설정한다. (부분 구현, [미결 사항](#미결-사항))
 - REQ-SESSION-038 WHEN 로그인(비밀번호 · 2단계 인증 · 복구 코드 · 소셜 로그인)에 성공하면 THE SYSTEM SHALL `redirect` 값이 하나뿐이고 안전한 같은 출처 경로일 때 그 경로와 쿼리로 보내고 아니면 `/dashboard` 로 보낸다. 안전한 값의 기준은 [로그인 뒤 이동](#로그인-뒤-이동) 에 있다.
 - REQ-SESSION-039 WHEN 사용자가 `/profile/sessions` 를 열면 THE SYSTEM SHALL 활성 로그인 세션 목록과 "현재" 배지, 개별 종료와 일괄 종료 버튼을 보여 준다.
-- REQ-SESSION-040 WHEN 요청 경로가 `/auth/register`(끝 슬래시 포함)이면 THE SYSTEM SHALL 공개 경로 판정과 `has_session` 검사보다 먼저 쿼리를 보존한 채 `/register` 로 리다이렉트한다.
+- REQ-SESSION-040 WHEN 브라우저가 옛 초대 링크의 페이지 경로 `/auth/register`(끝 슬래시 포함)를 요청하면 THE SYSTEM SHALL 공개 경로 판정과 `has_session` 검사보다 먼저 쿼리를 보존한 채 `/register` 로 리다이렉트한다.
 - REQ-SESSION-041 WHEN 서버가 세션 목록과 세션 강제 종료 API 를 노출하면 THE SYSTEM SHALL 리프레시 쿠키 Path 아래인 `/api/auth/sessions` 경로로 노출하고 옛 경로 `/api/users/me/sessions` 는 두지 않는다.
 - REQ-SESSION-042 IF 일괄 종료 요청에서 현재 로그인 세션을 식별할 수 없으면 THE SYSTEM SHALL 400 `CURRENT_SESSION_REQUIRED` 로 거부한다.
 - REQ-SESSION-043 IF 클라이언트가 `/auth/sessions` 밖의 `/auth/` 경로 요청에서 401 을 받으면 THE SYSTEM SHALL 액세스 토큰을 갱신하지 않고 그 401 을 호출한 쪽에 그대로 돌려준다.
@@ -246,7 +246,7 @@ sequenceDiagram
 
 | 층 | 구현 | 동작 |
 | --- | --- | --- |
-| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다. 공개 경로 판정과 `has_session` 검사보다 먼저 옛 초대 링크 경로 `/auth/register`(끝 슬래시 포함)를 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다. 이 리다이렉트는 `has_session` 쿠키 유무와 상관없다. 이유는 [워크스페이스와 멤버](CLE-ACCT-WS.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다) 의 Rationale 에 있다 |
+| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다. 공개 경로 판정과 `has_session` 검사보다 먼저 옛 초대 링크 경로 `/auth/register`(끝 슬래시 포함)를 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다. 이 경로는 프론트엔드 페이지 경로이고 백엔드 가입 API `POST /api/auth/register` 와 이름만 같다. 이 리다이렉트는 `has_session` 쿠키 유무와 상관없다. 이유는 [워크스페이스와 멤버](CLE-ACCT-WS.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다) 의 Rationale 에 있다 |
 | 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준의 최종 가드. 로그인 상태 복원(리프레시와 `GET /api/users/me`)이 실패하면 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 담을 값이 안전한 같은 출처 경로가 아니면 `/dashboard` 를 담는다. 지금 경로가 `/login` 이면 보내지 않는다 |
 
 ### 로그인 힌트 쿠키

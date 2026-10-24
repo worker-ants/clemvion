@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "853f5060f6613d8fd2b813c083b12ba8767a660a16b3309cf4ebc6028ae87f35"
+content_hash: "c0a6cf3efc021c33fff78817843317b9fe9e8411fa3630e595b5c37a4b1ce7e5"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "a4c60d140c73397f6086dee0032ca93413e8e448cbec0e357d00b284db617521"
-etag: "sha256-547221e50bdb4c931cb3fe925bce30a6ceb60c8a9b648a27b9ae8a6480a88f91"
+mirror_sha256: "11a253f8f7192dfc32f250636004f566fcde42a54bb2d2d221104cca4253d2de"
+etag: "sha256-3259aed10e93dde577eb44c06897470d8dcdb8633e9f34b38cc9a5b50c023f96"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -581,7 +581,7 @@ spread 로 싣지 않는 이유는 세 가지다.
 
 ### 엔진 덮어쓰기 대상 노드는 핸들러 반환값과 상관없이 덮어쓴다 (2026-10-24)
 
-옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 D2 결정). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 D2 와 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 다만 현재 구현은 다음 노드 표현식이 읽는 실행 컨텍스트만 덮어쓴다. 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 아직 반영하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 그 결정과 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 다만 현재 구현은 다음 노드 표현식이 읽는 실행 컨텍스트만 덮어쓴다. 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 아직 반영하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
 
 기각한 대안은 옛 서술대로 `null` 일 때만 덮어쓰는 안이다. 그렇게 구현하면 ForEach·Map 의 최종 `output` 이 원래 배열로 남아 다음 노드가 [9.2](#92-노드별-최종-출력-값) 의 형태를 볼 수 없다.
 

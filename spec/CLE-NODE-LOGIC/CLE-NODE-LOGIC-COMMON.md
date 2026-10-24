@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "3c30779fe45115a9fd49f6186281c0120c0d5aa34be8a726fe2e2e23f6d17b06"
+content_hash: "297c238702f13f4194b3761a803d01885f1e80b2b4f5d7c4f32e12165a75bad3"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MJ9G4C"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7e6766cb73272aa0797c496ff1396bc1d8e3bc33213a94aaf5b73101c5b6ae64"
-etag: "sha256-9069fd1998c7a208209d6db1151da0139cd397b7bdaded644869870b34e4b645"
+mirror_sha256: "ebd278c7c26f8d689707177c712d3d17efc09d9d80266e02554591f78d520d2f"
+etag: "sha256-6221ab33b35b73a31e882ab9c2ee4268c5c37a09e5eb03f390308d824ceb6bc6"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -294,7 +294,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
 
 ### 시작 시점 배열을 엔진 내부 표현으로 둔다
 
-ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 다음 노드 표현식에 드러나게 하려는 형태는 `{ <컬렉션 키>, count }` 다. 핸들러 시그니처와 외부 노출 형태가 다른 것은 의도한 설계다. 노드 출력 5필드를 깨지 않고 나눠 줄 데이터를 엔진에 넘기는 방법이 이것이기 때문이다. [ForEach 노드](CLE-NODE-FOREACH.md) · [Map 노드](CLE-NODE-MAP.md) · [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 은 이 결정을 "D2 결정" 으로 가리킨다.
+ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 다음 노드 표현식에 드러나게 하려는 형태는 `{ <컬렉션 키>, count }` 다. 핸들러 시그니처와 외부 노출 형태가 다른 것은 의도한 설계다. 노드 출력 5필드를 깨지 않고 나눠 줄 데이터를 엔진에 넘기는 방법이 이것이기 때문이다.
 
 이 배열을 다음 노드 표현식과 외부에 드러내지 않는 것은 지금도 목표다. 2026-10-24 에 확인한 범위에서 park · 재구동 없이 이어진 실행의 다음 노드 표현식에는 이 배열이 드러나지 않는다. 노드 실행 기록 · 실행 이벤트와 rehydration 한 실행 컨텍스트에는 아직 남는다. 이 구현 갭은 [미결 사항](#미결-사항) 과 NERV Task `CLE-T-JXD0W5` 가 맡는다.
 
@@ -302,7 +302,7 @@ ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 
 
 ### ForEach 와 Map 의 실패 표현을 다르게 둔다
 
-항목 에러 정책이 `skip` / `continue` 일 때 ForEach 는 `output.items[i] = null` 자리와 별도 `output.skipped[]` 배열로 실패를 나누고 Map 은 `output.mapped[i] = { _skipped: true, error }` 로 같은 배열 안에 표시한다. 두 노드의 의미가 다르기 때문이다. [ForEach 노드](CLE-NODE-FOREACH.md) · [Map 노드](CLE-NODE-MAP.md) 는 이 결정을 "D3 결정" 으로 가리킨다.
+항목 에러 정책이 `skip` / `continue` 일 때 ForEach 는 `output.items[i] = null` 자리와 별도 `output.skipped[]` 배열로 실패를 나누고 Map 은 `output.mapped[i] = { _skipped: true, error }` 로 같은 배열 안에 표시한다. 두 노드의 의미가 다르기 때문이다.
 
 - **Map** 은 "같은 타입으로 바꾼 배열" 계약이다. 다음 노드가 `mapped.map(...)` 처럼 배열 전체를 한 번에 다루므로 실패 항목도 같은 배열에 두는 편이 자연스럽다. `_skipped` 표시로 정상과 실패를 가른다.
 - **ForEach** 는 "독립 항목 반복" 계약이다. 반복 회차가 서로 독립이므로 성공과 실패가 한 배열에 섞이지 않는 편이 뜻이 분명하다. `items[]` 에는 성공과 `null` 만, `skipped[]` 에는 실패만 둔다.
