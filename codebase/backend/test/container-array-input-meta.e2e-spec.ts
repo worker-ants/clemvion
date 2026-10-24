@@ -11,10 +11,11 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *
  * 실제 실행(save → execute → engine → 표현식 해석)에서 두 가지를 본다.
  *
- * 1. **배열 출력이 그대로 흐른다**: Code 가 `return [...]` 한 배열을
- *    `$node["Code"].output` 으로 넘기면 컨테이너가 그 배열을 돈다. 핸들러가 `meta` 를
- *    함께 돌려주면 엔진의 flat 캐시가 출력을 `{ data: [...] }` 로 감싸 구조화 캐시의
- *    output 까지 바뀌던 회귀를 막는다.
+ * 1. **입력 배열을 그대로 돈다**: 컨테이너 핸들러가 입력 배열과 함께 `meta` 를
+ *    돌려줘도 컨테이너가 그 배열을 돈다. 엔진의 flat 캐시가 meta 만 보고 출력을
+ *    `{ data: [...] }` 로 감싸 구조화 캐시의 output 까지 바꾸던 회귀를 막는다.
+ *    상류 Code 는 배열을 객체에 담아 돌려준다. Code 가 배열을 그대로 돌려주면
+ *    `port: 'success'` 때문에 다운스트림이 `{ data: [...] }` 를 보는 별도 결함이 있어서다.
  * 2. **비배열 입력은 meta 로 알린다**: 배열 경로가 원시값 · 객체로 풀리면 바디를 돌지
  *    않고 `meta.fellBackToEmpty: true` 를 남긴다. 다운스트림은
  *    `$node["<컨테이너>"].meta.*` 로 읽는다.
@@ -210,8 +211,9 @@ describe('Container array input and completion meta (e2e)', () => {
             targetPort: 'in',
           },
           {
+            // Code 노드의 출력 포트는 `success` 하나다(code.schema.ts).
             sourceNodeId: codeId,
-            sourcePort: 'out',
+            sourcePort: 'success',
             targetNodeId: ctrId,
             targetPort: 'in',
           },
@@ -249,12 +251,12 @@ describe('Container array input and completion meta (e2e)', () => {
   }
 
   it.each<ContainerType>(['map', 'foreach'])(
-    '%s iterates an array returned by Code and reports fellBackToEmpty=false',
+    '%s iterates an upstream array and reports fellBackToEmpty=false',
     async (type) => {
       const { executionId, bodyId, echoId, status } = await runGraph(
         type,
-        'return [{ v: 1 }, { v: 2 }, { v: 3 }];',
-        '{{ $node["Code"].output }}',
+        'return { items: [{ v: 1 }, { v: 2 }, { v: 3 }] };',
+        '{{ $node["Code"].output.items }}',
       );
       expect(status).toBe('completed');
       expect(await countBodyRuns(executionId, bodyId)).toBe(3);
