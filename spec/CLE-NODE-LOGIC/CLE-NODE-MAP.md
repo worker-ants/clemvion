@@ -2,21 +2,21 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018"]
+requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "32e41a814d9e87f790352ecd47ea361c3cff281de9a1db110cd21aeb631c9ea4"
+content_hash: "e65e3cc2d91b8cca53eec36a51c6ef05f60acae0eb1e41965356bad22098c1d0"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0264baacab06c3b5182ddf69a541a7f327e3d165cff23615f158273a17fe4108"
-etag: "sha256-411f0674d4f5bf740f2962b34f0c90455a0552fd90711f9a5e8280e20b041be3"
+mirror_sha256: "7ea585f7596474f1f21160c1a82e0eb0d07e065fa7eab524041a5685b81a8d82"
+etag: "sha256-e0ea52ef1d3951ecc08d97e93f623de9b08ee04b4ab50e2a1c6d6acde0aebf6f"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -29,7 +29,7 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 - REQ-MAP-001 WHEN Map 노드가 실행되면 THE SYSTEM SHALL 배열의 항목마다 컨테이너 본문을 실행하고 회차마다의 `emit` 출력을 모아 새 배열을 만든다. (원본: ND-MP-01)
 - REQ-MAP-002 WHEN 사용자가 변환을 정의하면 THE SYSTEM SHALL 필드 매핑과 값 변환을 컨테이너 본문 노드로 구성하고 `emit` 에 연결한 본문 노드의 출력을 그 항목의 변환 결과로 쓴다. (원본: ND-MP-02)
 - REQ-MAP-003 WHEN 사용자가 대상 배열을 설정하면 THE SYSTEM SHALL `inputField` 에 dot-path 문자열이나 inline 표현식을 받는다.
-- REQ-MAP-004 IF `inputField` 로 읽은 값이 배열이 아니면 THE SYSTEM SHALL `[]` 로 처리해 본문을 0회 실행하고 곧바로 `done` 포트를 `{ mapped: [], count: 0 }` 으로 활성화한다.
+- REQ-MAP-004 IF `inputField` 로 읽은 값이 배열이 아니면 THE SYSTEM SHALL `[]` 로 처리해 본문을 0회 실행하고 곧바로 `done` 포트를 `{ mapped: [], count: 0 }` 으로 활성화하고 `meta.fellBackToEmpty` 를 `true` 로 둔다.
 - REQ-MAP-005 WHILE 컨테이너 본문이 실행되는 동안 THE SYSTEM SHALL 본문 노드가 `$item` 과 `$itemIndex` 로 현재 항목과 인덱스를 읽을 수 있게 한다.
 - REQ-MAP-006 WHEN 핸들러가 시작 시점 출력을 반환하면 THE SYSTEM SHALL 해석한 배열을 `output` 으로 반환하고 엔진이 그 항목을 본문으로 나눠 준다.
 - REQ-MAP-007 WHEN 모든 반복 회차가 끝나면 THE SYSTEM SHALL 핸들러를 다시 부르지 않고 노드 `output` 을 `{ mapped, count }` 로 덮어쓴 뒤 `done` 포트를 활성화한다.
@@ -37,13 +37,15 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 - REQ-MAP-009 IF 본문 회차가 실패하고 항목 에러 정책이 `stop` 이면 THE SYSTEM SHALL 회차의 에러 메시지를 그대로 전파해 실행을 실패시킨다.
 - REQ-MAP-010 IF 본문 회차가 실패하고 항목 에러 정책이 `skip` 이나 `continue` 면 THE SYSTEM SHALL 그 인덱스에 `{ _skipped: true, error: { code, message } }` 를 넣고 노드를 정상 종료한다.
 - REQ-MAP-011 WHEN 노드 출력을 만들면 THE SYSTEM SHALL 컬렉션 키로 반드시 `mapped` 를 쓴다.
-- REQ-MAP-012 WHEN 다음 노드가 Map 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 `{ mapped, count }` 형태만 보여 준다.
+- REQ-MAP-012 WHEN 다음 노드가 Map 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 `{ mapped, count }` 형태만 보여 준다. (부분 구현)
 - REQ-MAP-013 IF `inputField` 가 없거나 빈 문자열이거나 `null` / `undefined` 면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-MAP-014 IF `errorPolicy` 가 `stop` / `skip` / `continue` 가 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-MAP-015 IF `emit` 포트에 본문 노드가 없거나 2개 이상이면 THE SYSTEM SHALL 엔진 사전 검증에서 `CONTAINER_MISSING_EMIT` / `CONTAINER_MULTIPLE_EMIT` 로 실행을 실패시킨다.
 - REQ-MAP-016 IF 컨테이너 본문 안에 되돌아가는 연결선이나 블로킹 노드가 있으면 THE SYSTEM SHALL 엔진 사전 검증에서 실행을 실패시킨다.
 - REQ-MAP-017 WHILE Map 노드가 실행 중인 동안 THE SYSTEM SHALL 컨테이너 헤더에 현재 항목 인덱스(예 `Item 2/5`)를 표시한다.
-- REQ-MAP-018 WHEN Map 노드를 정의하면 THE SYSTEM SHALL 별도 `error` 출력 포트와 동적 포트를 두지 않는다.
+- REQ-MAP-018 WHEN Map 노드를 정의하면 THE SYSTEM SHALL 별도 `error` 출력 포트와 동적 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
+- REQ-MAP-019 WHEN 모든 반복 회차가 끝나면 THE SYSTEM SHALL 본문 실행 횟수를 `meta.iterations` 에 실어 다음 노드의 표현식에서 읽을 수 있게 한다.
+- REQ-MAP-020 WHEN 항목 에러 정책 `skip` 이나 `continue` 로 처리한 실패 항목이 있으면 THE SYSTEM SHALL 그 수를 `meta.skippedCount` 에 실어 다음 노드의 표현식에서 읽을 수 있게 하고 실패 항목이 없으면 이 필드를 싣지 않는다.
 
 ## 설정
 
@@ -72,15 +74,15 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 | 출력 | `body` | Body | data | false | 항목을 본문 첫 노드로 넘긴다(회차마다 1번) |
 | 출력 | `done` | Done | data | false | 모든 반복 회차가 끝난 뒤 `{ mapped, count }` 형태로 다음 노드에 넘긴다 |
 
-Map 은 동적 포트가 없다.
+Map 은 동적 포트가 없다. 포트 표와 REQ-MAP-018 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이고 아직 구현되지 않았다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
 
 ## 실행 로직
 
-1. **입력 해석**: `inputField` 를 `resolveFieldValue(input, inputField)` 로 풀어 배열을 꺼낸다. dot-path 문자열이면 `$input` 의 중첩 경로를 읽고 inline 표현식이면 resolver 가 이미 치환한 값을 그대로 받는다. 결과가 배열이 아니면 `[]` 로 대체한다. 이 처리는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+1. **입력 해석**: `inputField` 를 `resolveFieldValue(input, inputField)` 로 풀어 배열을 꺼낸다. dot-path 문자열이면 `$input` 의 중첩 경로를 읽고 inline 표현식이면 resolver 가 이미 치환한 값을 그대로 받는다. 결과가 배열이 아니면(원시값 · 객체 포함) `[]` 로 대체하고 `meta.fellBackToEmpty: true` 로 알린다. 배열이면 `false` 다. 배열이 아닌 값에 throw 하는 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)).
 2. **시작 시점(본문 진입 직전)**: 핸들러가 `output: items` (해석한 배열)를 반환한다. 엔진의 `ForEachExecutor` 가 항목을 `body` 포트로 나눠 준다.
 3. **반복 실행**: 항목마다 `$item` / `$itemIndex` 를 묶고 본문을 위상 순서로 실행한다. `emit` 포트에 연결된 본문 노드의 출력을 그 회차의 변환 결과로 모은다.
 4. **항목 에러 정책**: `stop` 은 곧바로 실패한다. `skip` 은 그 인덱스에 `{ _skipped: true, error }` 를 넣는다. `continue` 는 에러 항목도 포함한다. 원본 배열과 같은 인덱스를 유지한다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md)).
-5. **완료 시점(모든 회차 종료 뒤)**: 엔진이 노드 `output` 을 `{ mapped: [...], count: N }` 으로 덮어쓰고 `done` 포트를 활성화한다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약)).
+5. **완료 시점(모든 회차 종료 뒤)**: 엔진이 노드 `output` 을 `{ mapped: [...], count: N }` 으로 덮어쓰고 `done` 포트를 활성화한다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약)). 완료 `meta` 에는 본문 실행 횟수 `iterations` 와, 실패 항목이 있을 때 `skippedCount` 를 더한다.
 
 ## 출력 구조
 
@@ -102,7 +104,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
     { "id": 3, "name": "Carol" }
   ],
   "meta": {
-    "durationMs": 0
+    "fellBackToEmpty": false
   }
 }
 ```
@@ -112,7 +114,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | `config.inputField` | Expression | 설정 에코 | 사용자가 입력한 원래 표현식. `{{ }}` 을 남긴다 |
 | `config.errorPolicy` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책(기본 `stop`) |
 | `output` | unknown[] | 런타임, 핸들러 반환 | 해석한 원래 배열(항목이 본문으로 나뉜다). `inputField` 가 배열이 아니거나 해석되지 않으면 `[]` |
-| `meta.durationMs` | number | 엔진 주입 | 핸들러 호출의 실행 시간(ms) |
+| `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `inputField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 
 이 시점의 `output` 은 해석한 원래 배열이다. 본문 반복 입력을 나눠 주는 데만 쓰고 다음 노드가 직접 참조하면 안 된다. 완료 뒤 `{ mapped, count }` 로 덮어써진다. 이 배열을 엔진 내부 표현으로 두는 이유(D2 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
 
@@ -140,7 +142,8 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
     "count": 3
   },
   "meta": {
-    "durationMs": 187
+    "fellBackToEmpty": false,
+    "iterations": 3
   }
 }
 ```
@@ -150,15 +153,22 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | `config.*` | 시작 시점과 같음 | 설정 에코 | |
 | `output.mapped` | unknown[] | 엔진 덮어쓰기 | 회차마다의 `emit` 포트 출력을 모은 변환 결과 배열. ForEach 의 `items` 가 아니라 `mapped` 키를 쓴다 |
 | `output.count` | number | 엔진 덮어쓰기 | 실행한 회차 수(`mapped.length` 와 같음. O(1) 접근) |
-| `meta.durationMs` | number | 엔진 주입 | 컨테이너 전체 실행 시간(ms). 완료 출력에 이 값이 실리는지는 ForEach 문서와 서술이 다르다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 참조 |
+| `meta.fellBackToEmpty` | boolean | 핸들러 반환 | 시작 시점 값이 그대로 남는다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) 규칙 6) |
+| `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수. 실패로 `_skipped` 표시가 된 인덱스도 본문이 돌았으므로 센다. Loop 의 `output.iterations`(배열)와 다르다 |
+| `meta.skippedCount?` | number | 엔진 주입 | `mapped` 안의 `_skipped` 마커 수(`skip` / `continue` 로 처리한 실패 항목 수). 0건이면 필드 자체를 뺀다 |
+
+완료 `output` 과 `meta` 는 park · 재구동 없이 이어진 실행에서 다음 노드 표현식이 읽는 값이다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 반환값이 남는다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+
+완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)). ForEach · Loop · Parallel 도 같다.
 
 표현식 접근 예:
 
 - `$node["Map"].output.mapped` → 변환 결과 배열
 - `$node["Map"].output.mapped[0].label` → `"user-1: Alice"`
 - `$node["Map"].output.count` → `3`
+- `$node["Map"].meta.fellBackToEmpty` → `false`(입력이 배열이 아니어서 빈 배열로 대체했으면 `true`)
 
-**빈 배열 입력**: `inputField` 해석 결과가 `[]` 이거나 배열이 아니면 본문을 0회 실행하고 `output: { mapped: [], count: 0 }` 으로 `done` 포트를 곧바로 활성화한다.
+**빈 배열 입력**: `inputField` 해석 결과가 `[]` 이거나 배열이 아니면 본문을 0회 실행하고 `output: { mapped: [], count: 0 }` 으로 `done` 포트를 곧바로 활성화한다. 배열이 아니었으면 `meta.fellBackToEmpty` 가 `true` 다. 어느 쪽이든 `meta.iterations` 는 `0` 이다.
 
 **`errorPolicy: 'skip' / 'continue'` 일 때**: 인덱스를 지키려고 실패 항목 자리에 `output.mapped[i] = { _skipped: true, error: { code, message } }` 를 넣는다. Map 의 의도는 "같은 타입으로 바꾼 배열" 이므로 다음 노드는 `_skipped` 표시로 정상과 실패를 가려야 한다. ForEach 는 `null` 자리와 별도 `skipped[]` 배열을 쓴다. 두 노드가 형태를 달리하는 이유(D3 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다. 현재 구현은 실행기가 따로 모은 실패 목록으로 이 인라인 표시를 다시 만든다(`execution-engine.service.ts` 의 컨테이너 완료 처리).
 
@@ -171,10 +181,10 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | 모든 회차 완료(`done`) | `{ mapped: [...], count: N }` | **엔진이 덮어쓴다** |
 
 1. 핸들러는 시작 시점에 한 번만 실행돼 `output: items` (배열)를 반환한다(`map.handler.ts`). 엔진의 `ForEachExecutor` 는 이 배열을 본문 분배 입력으로 쓰고 모든 회차가 끝나면 핸들러를 다시 부르지 않고 `{ mapped, count }` 로 노드 출력의 `output` 을 덮어쓴다.
-2. 다음 노드는 항상 완료 시점 형태(`output.mapped[i]` / `output.count`)만 본다. 시작 시점의 원래 배열은 드러나지 않는다.
+2. park · 재구동 없이 이어진 실행에서 다음 노드는 완료 시점 형태(`output.mapped[i]` / `output.count`)만 보고 시작 시점의 원래 배열은 보지 않는다. rehydration 뒤에는 시작 시점 배열을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
 3. 컬렉션 키는 ForEach 의 `items`, Loop 의 `iterations`, Parallel 의 `branches` 와 모두 다르다. Map 의 컬렉션 키는 반드시 `mapped` 다.
 
-핸들러가 `null` 이 아닌 배열을 반환하는데도 엔진이 덮어쓰는 이 동작은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 덮어쓰기 규칙과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+핸들러가 `null` 이 아닌 배열을 반환해도 엔진이 덮어쓰는 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#91-계약) 의 9.1 이 정한다.
 
 ## 에러
 
@@ -200,10 +210,7 @@ Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 �
 
 ## 미결 사항
 
-- **엔진 덮어쓰기 규칙이 노드 출력 규약과 갈린다** (critical): 핸들러가 배열을 반환해도 엔진이 완료 시점에 덮어쓴다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 `null` 이 아닌 값을 반환하면 덮어쓰지 않는다고 적는다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다. 결정에 따라 REQ-MAP-006 · 007 이 바뀔 수 있다. 정리는 NERV Task `CLE-T-3HJ8MM` 이 맡는다.
-- **배열 아닌 입력의 처리가 노드 출력 규약과 갈린다** (critical): 이 문서는 원시값까지 모든 비배열을 `[]` 로 대체한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 숫자·문자열이면 에러를 던지라고 정한다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다. 결정에 따라 REQ-MAP-004 가 바뀔 수 있다. 정리는 NERV Task `CLE-T-3HJ8MM` 이 맡는다.
 - **설정 요약 형식이 원문끼리 갈린다** (warning): 이 문서의 `{inputField}` 는 옛 캔버스 문서의 형식이고 현재 구현(`map.schema.ts` 의 `summaryTemplate`)과 같다. Logic 공통 원문은 `{N} mappings` 를 적었지만 Map 설정에는 매핑 개수를 담는 필드가 없다. 결정 항목은 [Logic 노드 공통 미결 사항](CLE-NODE-LOGIC-COMMON.md#미결-사항) 의 "Map · Background 의 설정 요약 형식" 에 모았다.
-- **에러 처리 정책의 동적 에러 포트와 REQ-MAP-018** (warning): [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#요구사항) 의 REQ-NODEUI-012 는 에러 처리 정책이 `route_to_error_port` 면 노드에 동적 에러 포트를 만든다고 정한다. 이 포트와 REQ-MAP-018(에러 포트 없음)의 관계는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 미결 사항의 「Logic 노드에 에러 처리 정책이 적용되는가」 항목에서 정한다.
 
 ## 구현 위치
 
@@ -224,3 +231,9 @@ Map 과 ForEach 는 같은 실행기를 쓰지만 뜻이 다르다. ForEach 는 
 2026-10-10 에 설정 패널이 항목 에러 정책을 지우던 결함을 고쳤다(NERV Task `CLE-T-V0JAG1`). 결정과 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 
 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸는 안은 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요해서 기각했다.
+
+### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다 (2026-10-24)
+
+Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[]` 로 바꿔 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 두고, Split · ForEach 처럼 `meta.fellBackToEmpty` 로 대체 여부를 알린다(NERV Task `CLE-T-3HJ8MM` · `CLE-T-PEVD3R`). 다음 노드는 진짜 빈 배열과 대체한 빈 배열을 구분할 수 있다. 기각한 대안은 Map 만 throw 로 바꾸는 안이다. 지금 0회 실행으로 지나가는 워크플로우가 실패로 바뀐다.
+
+같은 작업에서 완료 `meta` 에 `iterations` 와 `skippedCount` 를 더했다. Map 은 ForEach 와 같은 실행기를 쓰는데 완료 메트릭이 없어 실패 항목 수를 보려면 `mapped` 배열을 돌아야 했다. 그래서 ForEach 와 같은 실행기가 이미 내는 값을 Map 문서에도 적었다.

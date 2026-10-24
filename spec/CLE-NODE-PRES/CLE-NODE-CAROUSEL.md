@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAROUSEL"
 title: "Carousel 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-CAROUSEL-001", "REQ-CAROUSEL-002", "REQ-CAROUSEL-003", "REQ-CAROUSEL-004", "REQ-CAROUSEL-005", "REQ-CAROUSEL-006", "REQ-CAROUSEL-007", "REQ-CAROUSEL-008", "REQ-CAROUSEL-009", "REQ-CAROUSEL-010", "REQ-CAROUSEL-011", "REQ-CAROUSEL-012", "REQ-CAROUSEL-013", "REQ-CAROUSEL-014", "REQ-CAROUSEL-015", "REQ-CAROUSEL-016", "REQ-CAROUSEL-017", "REQ-CAROUSEL-018", "REQ-CAROUSEL-019", "REQ-CAROUSEL-020", "REQ-CAROUSEL-021", "REQ-CAROUSEL-022", "REQ-CAROUSEL-023", "REQ-CAROUSEL-024", "REQ-CAROUSEL-025", "REQ-CAROUSEL-026"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "9783c7bffdffc9400efd927184a66a06d2059c355eb400dcce530a9a14dece2a"
-read_as: "approved"
-task: null
+content_hash: "26fc71c43df42cbe89500d73dc24885691e674830a5e8f53143282f9dd49d66b"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8d42ea25ae90c92a6b0dafc30010b4abaaea0e3b0592c5af219c44d9ddfcfbdc"
-etag: "sha256-e1fe715af332d6ace4cb7bb3e47f8fce7994556f3f0022c8ad4e37ca952dc727"
+mirror_sha256: "3296c1648b69b2b1f0c9e40b756261e9697fcdb3ae1c3054b8398ca814eb1378"
+etag: "sha256-a0f0a3ce5f95e74051d8f83ebf1021cda70731feaf7c1bff00e36392f370c4fb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md`, `spec/4-nodes/_product-overview.md` (§9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -44,7 +44,7 @@ Carousel 노드(Carousel, `carousel`)는 데이터를 슬라이드 목록으로 
 - REQ-CAROUSEL-009 WHEN 동적 모드에서 `itemButtons` 를 설정하면 THE SYSTEM SHALL 공통 버튼 정의(최대 5개)를 모든 항목에 적용하고 버튼 정의 단위로 포트를 만든다. (원본: ND-CL-08)
 - REQ-CAROUSEL-010 WHEN 사용자가 항목 포트 버튼을 누르면 THE SYSTEM SHALL 그 항목 데이터를 `selectedItem` 에 담아 다운스트림에 전달한다. (원본: ND-CL-09)
 - REQ-CAROUSEL-011 WHEN 동적 모드에서 `source` 표현식이 설정되어 있으면 THE SYSTEM SHALL 엔진이 해석한 표현식 결과 배열을 데이터 소스로 쓴다. (원본: ND-CL-10)
-- REQ-CAROUSEL-012 IF 동적 모드에서 `source` 가 없으면 THE SYSTEM SHALL 입력 포트 데이터를 쓰되 배열이 아니면 `[input]` 으로 감싸고 null 이면 `[]` 로 쓴다.
+- REQ-CAROUSEL-012 IF 동적 모드에서 `source` 가 없거나 그 결과가 배열이 아니면 THE SYSTEM SHALL 입력 포트 데이터를 쓰되 배열이 아니면 `[input]` 으로 감싸고 `null` · `undefined` 면 `[]` 로 쓴다.
 - REQ-CAROUSEL-013 WHEN `mode` 가 설정되어 있지 않으면 THE SYSTEM SHALL 동적 모드로 처리한다.
 - REQ-CAROUSEL-014 IF 정적 모드에서 `items` 가 비었거나 없으면 THE SYSTEM SHALL 빈 배열로 처리한다.
 - REQ-CAROUSEL-015 IF 항목에 매핑 필드가 없으면 THE SYSTEM SHALL 그 슬라이드 값을 빈 문자열로 채운다.
@@ -60,9 +60,9 @@ Carousel 노드(Carousel, `carousel`)는 데이터를 슬라이드 목록으로 
 - REQ-CAROUSEL-025 WHEN 사용자가 동적 모드에서 필드 경로를 입력하면 THE SYSTEM SHALL 이전 노드 출력 스키마로 자동완성을 제공한다.
 - REQ-CAROUSEL-026 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 런타임 에러 포트는 쓰지 않는다.
 
-입력 대기 기한(타임아웃)은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-CL-01~10)의 우선순위는 모두 필수다.
+제품 요구사항 원문(ND-CL-01~10)의 우선순위는 모두 필수다. 다만 ND-CL-07 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -70,7 +70,7 @@ Carousel 노드(Carousel, `carousel`)는 데이터를 슬라이드 목록으로 
 |------|------|------|--------|------|
 | `mode` | `static` / `dynamic` | ✗ | `dynamic` | 데이터 소스 방식. 없으면 `dynamic`(하위 호환) |
 | `items` | ItemDef[] | 정적 모드일 때 ✓ | `[]` | 정적 슬라이드 정의(정적 모드 전용). 출력 크기 한도를 적용한다 |
-| `source` | Expression | ✗ | 없음 | 배열을 돌려주는 표현식(`{{ $node["X"].output.items }}` 등). 없으면 입력 포트 데이터를 그대로 쓴다(동적 모드 전용, 하위 호환) |
+| `source` | Expression | ✗ | 없음 | 배열을 돌려주는 표현식(`{{ $node["X"].output.items }}` 등). 없거나 결과가 배열이 아니면 입력 포트 데이터를 쓴다(동적 모드 전용, 하위 호환) |
 | `titleField` | String | 동적 모드일 때 ✓ | 없음 | 슬라이드 제목 필드 경로(동적 모드 전용) |
 | `descriptionField` | String | ✗ | 없음 | 슬라이드 설명 필드 경로(동적 모드 전용) |
 | `imageField` | String | ✗ | 없음 | 이미지 URL 필드 경로(동적 모드 전용) |
@@ -146,7 +146,7 @@ flowchart TD
 1. `mode` 를 확인한다. 기본값은 `dynamic` 이다.
 2. **정적 모드**: `config.items` 를 그대로 쓴다. 표현식은 엔진이 미리 해석한다. 비었거나 없으면 `[]` 로 쓴다.
 3. **동적 모드**:
-   1. `source` 표현식이 있으면 해석한 결과를 배열로 쓴다. 없으면 입력 포트 데이터(`input`)를 쓴다. 배열이 아니면 `[input]` 으로 감싸고 null 이면 `[]` 로 쓴다.
+   1. `source` 표현식이 있고 해석한 결과가 배열이면 그 배열을 쓴다. `source` 가 없거나 결과가 배열이 아니면 입력 포트 데이터(`input`)를 쓴다. 입력이 배열이 아니면 `[input]` 으로 감싸고 `null` · `undefined` 면 `[]` 로 쓴다.
    2. `maxItems` 까지 슬라이드를 줄인다.
    3. 각 항목에 `titleField`·`descriptionField`·`imageField` 를 매핑한다. 없는 필드는 빈 문자열로 두고 이미지의 `javascript:` 는 sanitize 한다.
    4. `itemButtons` 가 있으면 모든 항목에 같은 버튼을 붙인다. 런타임 ID 는 `<btn.id>__item_<idx>` 다.
@@ -457,7 +457,6 @@ Carousel 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 실�
 
 ## 미결 사항
 
-- **입력 대기 기한(타임아웃)**: 요구사항 원문(ND-CL-07)은 "선택적 타임아웃 지원(무제한 가능)" 을 적고 이 노드 원문은 외부 취소나 종료 전까지 기한 없이 기다린다고 적는다. 설정에 타임아웃 필드는 없다. 결정은 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항) 에서 함께 한다.
 - **채팅 채널 렌더러의 이미지 필드 이름**: 채팅 채널 어댑터 문서와 렌더러는 캐러셀 카드 이미지를 `imageUrl` 로 찾지만 이 노드는 `items[].image` 로 낸다(동적 모드 `output.items`, 정적 모드 `config.items`). 매트릭스와 렌더러를 고칠지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다.
 
 ## 구현 위치

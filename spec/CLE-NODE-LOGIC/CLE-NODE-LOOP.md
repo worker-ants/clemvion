@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "2c7a9436f5c9966face28778961aa8158a568add2cda66ade229c5b28520e86c"
-read_as: "approved"
-task: null
+content_hash: "64c72190889e4ced97d1705bacdd5050343b01d954c11fbc6ab80f1bf209c35d"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d2f185bbfc623923a7c7e1141d37062046dbadc9b2c16dc217f58989f15c1cbe"
-etag: "sha256-3cc42a320e6a423ca682c0ba04906c0648981a4b28759d99cc4ff53badb10ff5"
+mirror_sha256: "293b08ae847b6a95e66e7bcd8a2f41302517ada3dd2af4609e2dc5b8bedc8c26"
+etag: "sha256-64235cda9d87aadd863cd8179a7559dba8391405d443e3cce479c38b7153e1e4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -176,7 +176,8 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 | `meta.iterations` | number | 엔진 주입 | 실제 반복 수. 정상 완료면 `config.count` 와 같고 `breakCondition` 으로 일찍 끝나면 작아진다. `output` 은 결과 배열, `meta` 는 메트릭으로 축을 나눴다 |
 | `meta.maxIterationsReached` | boolean | 엔진 주입 | `meta.exitReason === 'maxIterations'` 일 때만 `true`. 한도를 넘는 순간은 `MAX_ITERATIONS_EXCEEDED` 에러로 끝나므로 이 값은 "break 없이 한도까지 정상 완료" 만 가리킨다 |
 | `meta.exitReason` | `'completed' \| 'break' \| 'maxIterations'` | 엔진 주입 | 종료 이유. `'break'` 는 `breakCondition` 이 참이 되어 일찍 끝난 경우, `'maxIterations'` 는 `config.count === config.maxIterations` 로 한도까지 정상 완료한 경우, 나머지는 `'completed'` |
-| `meta.durationMs` | number | 엔진 주입 | 컨테이너 전체 소요 시간(ms) |
+
+완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)). ForEach · Map · Parallel 도 같다.
 
 `output.count` 는 실제 반복 수이고 `config.count` 는 사용자 설정값이다. `break` 로 일찍 끝나면 `output.count < config.count` 가 될 수 있다. 하나는 설정, 하나는 실행 결과 메트릭이라 서로 겹치지 않는다.
 
@@ -195,7 +196,7 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 | 반복 중 | `LoopExecutor` | 본문 노드들이 각자 출력을 가진다 | `$node["Loop"].output` 은 아직 `null`. 다음 노드는 `done` 뒤에만 의미 있는 값을 본다 |
 | 완료 | 엔진 | `{ iterations: [...], count }` | 컬렉션 키는 `iterations`, 실행 횟수는 `count` (`iterations.length`) |
 
-- [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 핸들러가 `null` 이 아닌 값을 반환하면 엔진이 덮어쓰지 않는다고 적는다. Loop 핸들러는 항상 `null` 을 반환하므로 이 분기에 들어가지 않는다. 이 규칙이 ForEach · Map 과 갈리는 문제는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 적었다.
+- 엔진은 핸들러 반환값과 상관없이 완료 시점에 `output` 을 덮어쓴다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#91-계약) 9.1). Loop 핸들러는 항상 `null` 을 반환한다.
 - `config` 는 핸들러가 반환한 그대로 남는다.
 
 ## 에러

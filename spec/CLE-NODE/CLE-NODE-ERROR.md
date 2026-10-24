@@ -2,21 +2,21 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "df98fae1894286a680551f19e0aaa12eb40fca8eb5bb72139576cfbd8a8e5639"
+content_hash: "fc3c86b7690c2f614a3f7181766c6da0e58d09d537635aef81090ce9e935cda7"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "d5bc7086b0dce8ea9bbb225f433342f17123ec1c51537d991951de895885c9b3"
-etag: "sha256-2e69e594f71cb37fd25a07705858be868212c354fd36e755ef2078299b71e209"
+mirror_sha256: "0d6ac9dc3e79ec042f3e6e3adaa84bc53fbcee9be61d728216de9de42d39a1c3"
+etag: "sha256-12055a1db62c1967cb600ced3476bf75da6c0f322df6c61a7d25167053670587"
 ---
-> 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -29,7 +29,7 @@ etag: "sha256-2e69e594f71cb37fd25a07705858be868212c354fd36e755ef2078299b71e209"
 | 에러 처리 정책 | `config.errorHandling = { policy, retryConfig?, defaultOutput? }` | 모든 노드 | 노드 자체가 실패했을 때의 동작. 이 문서가 정한다. |
 | 항목 에러 정책(item error policy) | `config.errorPolicy` | ForEach·Map(`stop`, `skip`, `continue`), Parallel(`stop`, `continue`, `cancel-others-on-fail`) | 반복 항목이나 병렬 분기 하나가 실패했을 때의 동작. [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md)이 정한다. |
 
-두 설정은 서로 다른 층이다. 한 노드에서 두 키를 같은 뜻으로 섞어 쓰지 않는다. ForEach·Map·Parallel 에는 두 키가 함께 있을 수 있다. Logic 노드 일반에 에러 처리 정책을 허용할지는 [Logic 노드 공통의 미결 사항](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)이 정한다. 아래는 현재 구현의 동작이다.
+두 설정은 서로 다른 층이다. 한 노드에서 두 키를 같은 뜻으로 섞어 쓰지 않는다. ForEach·Map·Parallel 에는 두 키가 함께 있을 수 있다. Logic 노드도 다른 노드처럼 에러 처리 정책 다섯 가지를 모두 쓸 수 있다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#항목-에러-정책)). 두 키가 함께 있는 노드의 동작은 다음과 같다.
 
 1. ForEach·Map·Parallel 노드의 `config.errorHandling` 은 그 노드의 핸들러 호출이 실패할 때 적용한다.
 2. 본문 노드나 병렬 분기 안의 노드가 실패하면 그 노드 자신의 `config.errorHandling` 을 먼저 적용한다.
@@ -112,6 +112,8 @@ flowchart TD
 - 고정 에러 포트: 노드 정의에 원래 있는 `error` 포트. 어떤 노드에 있는지는 [노드 출력 규약 Principle 3](CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 3.3 이 정한다.
 - 동적 에러 포트: 에러 처리 정책을 "에러 포트로 라우팅" 으로 고를 때 노드에 생기는 `error` 포트. 설정 패널 동작은 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md)이 정한다.
 
+동적 에러 포트는 아직 구현되지 않았다. 지금은 노드 정의에 고정 `error` 포트를 둔 노드만 이 정책으로 에러 연결선을 이을 수 있다.
+
 노드 핸들러가 런타임 실패를 `port: 'error'` 로 보낼 때 노드 출력은 아래 형태다([노드 출력 규약 Principle 3](CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 3.2 와 같다).
 
 ```json
@@ -162,7 +164,7 @@ flowchart TD
 
 1. 설정은 `config.errorHandling.retryConfig.*` 에 저장한다.
 2. 기본 정책은 워크플로우 중단이다. 노드 재시도는 사용자가 정책으로 고를 때만 적용한다.
-3. 노드 카테고리마다 기본 재시도를 따로 두는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조. 현재 구현은 카테고리별 기본값 없이 `maxRetries` 기본값 3 하나만 둔다(`error-policy.handler.ts`).
+3. 노드 카테고리별 기본 재시도는 두지 않는다. 모든 노드가 같은 `maxRetries` 기본값 3 을 쓴다(`error-policy.handler.ts`). Logic 노드의 재시도도 막지 않는다. 이유는 [Rationale](#rationale) 에 있다.
 4. 재시도 간격은 `interval = retryInterval × backoffMultiplier^attempt` 로 계산한다. 현재 구현은 상한 없이 늘어난다. `error-policy.handler.ts` 와 `execution-engine.service.ts` 의 재시도 경로가 모두 그렇다.
 5. `maxInterval` 로 간격을 자르는 것(`min(..., maxInterval)`)은 계획이다(미구현).
 
@@ -182,7 +184,6 @@ flowchart TD
 ## 미결 사항
 
 - **워크플로우 수준 자동 재시도의 구현 상태**: 이 문서 4절은 트리거·스케줄 자동 실행에 워크플로우 설정 재시도(기본 0, 최대 5)를 약속하고, [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md)의 자동 재시도 요구는 구현 완료로 표시돼 있다. 반면 워크플로우 설정(`Workflow.settings`)에는 재시도 키가 없고([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)), 시작 큐(`execution-run`)는 `attempts:1` 로 애플리케이션 재시도를 하지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 코드에서 워크플로우 수준 재시도 구현을 찾지 못했다. 결정 필요: 4절을 미구현으로 표시하고 비기능 요구사항을 노드 재시도 기준으로 다시 쓸지, 기능을 구현할지.
-- **노드 카테고리별 기본 재시도**: 엔진 원문 §5.7 은 카테고리마다 기본 재시도를 둔다(통합 최대 3회·AI 최대 2회는 지수 백오프, Flow 최대 1회, Logic·Data·Presentation 은 없음). 이 문서 3절과 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md)은 모든 노드의 기본 정책을 워크플로우 중단으로 두고, 재시도는 사용자가 고를 때만 `maxRetries` 기본값 3 으로 적용한다. 현재 구현(`error-policy.handler.ts`)에도 카테고리별 기본값은 없다. [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#노드-카테고리별-기본-재시도-표를-옮기지-않는다)은 이 문서를 따라 카테고리 표를 옮기지 않았고 그 절에 원문 표의 내용과 옮기지 않은 이유를 적었다. 결정 필요: 카테고리별 기본값을 둘지, Logic 노드에서 재시도를 막을지. 결정이 나면 이 문서 3절이 기준이다.
 
 ## 구현 위치
 
@@ -220,3 +221,9 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 - 승인된 문서 여러 개가 쓰는 키를 바꿔야 한다. [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md), [Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md), [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md), [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md), [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md), [용어 사전](../CLE-GLOSSARY.md)이 이 키를 쓴다.
 - [용어 사전 — 노드](../CLE-GLOSSARY-NODE.md)의 「항목 에러 정책」 행과 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md)의 「에러·오류와 에러 처리 정책 이름이 갈린다」 항목(D09)이 가리키는 키 표기를 함께 고쳐야 한다.
 - 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요하다.
+
+### 노드 카테고리별 기본 재시도를 두지 않는다 (2026-10-24)
+
+엔진 원문은 노드 카테고리마다 기본 재시도를 달리 두었다. 이 문서 3절과 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 모든 노드의 기본 정책을 워크플로우 중단으로 두고, 재시도는 사용자가 고를 때만 `maxRetries` 기본값 3 으로 적용한다. 현재 구현도 그렇다. 그래서 현행을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 원문 표의 내용과 옮기지 않은 이유는 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#노드-카테고리별-기본-재시도-표를-옮기지-않는다) 에 있다.
+
+기각한 대안은 Logic 노드에서 재시도를 막는 안이다. Logic 노드도 다섯 정책을 모두 고를 수 있게 둔 결정([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale))과 맞지 않고, 설정 패널과 엔진에 카테고리 검사를 새로 넣어야 한다.

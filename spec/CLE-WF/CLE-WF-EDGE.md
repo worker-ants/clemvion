@@ -2,19 +2,19 @@
 id: "CLE-WF-EDGE"
 title: "연결선"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-EDGE-001", "REQ-EDGE-002", "REQ-EDGE-003", "REQ-EDGE-004", "REQ-EDGE-005", "REQ-EDGE-006", "REQ-EDGE-007", "REQ-EDGE-008", "REQ-EDGE-009", "REQ-EDGE-010", "REQ-EDGE-011", "REQ-EDGE-012", "REQ-EDGE-013", "REQ-EDGE-014", "REQ-EDGE-015", "REQ-EDGE-016", "REQ-EDGE-017", "REQ-EDGE-018", "REQ-EDGE-019", "REQ-EDGE-020", "REQ-EDGE-021", "REQ-EDGE-022", "REQ-EDGE-023", "REQ-EDGE-024", "REQ-EDGE-025", "REQ-EDGE-026", "REQ-EDGE-027", "REQ-EDGE-028", "REQ-EDGE-029", "REQ-EDGE-030", "REQ-EDGE-031", "REQ-EDGE-032", "REQ-EDGE-033", "REQ-EDGE-034", "REQ-EDGE-035", "REQ-EDGE-036", "REQ-EDGE-037", "REQ-EDGE-038", "REQ-EDGE-039"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "db3939e82c9acdeebaa945aea739640c2b45018e2da34eb0bf3d6aa7dc510801"
-read_as: "approved"
-task: null
+content_hash: "2541f92415d8a1109f9e64dc2918845505f555c2e413fbb15210cd6b812c09fc"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "f4fe4057818890ab359e64469b86a58171ac735daa1056c1c23c295f2cc7ca3c"
-etag: "sha256-f6236b4598d20fa5369203976825b02777ea3ff8004e8d8775416433db04aff0"
+mirror_sha256: "9e240a93585d27ae6d6427b26e4b0fe9a95b500e9c2a4450a19986ce6f0d0dbf"
+etag: "sha256-cb77512eae33d24de36a5f1a57e3372c30fe80c151a96c521556c69a7798d216"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/2-edge.md`, `spec/3-workflow-editor/_product-overview.md` (§3.3 ED-EG-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -256,7 +256,7 @@ flowchart LR
 | 진입 | 컨테이너의 `body` 포트에서 컨테이너 안 첫 자식 노드로 잇는다. |
 | 결과 수집(`emit` 포트) | Loop·ForEach·Map 은 본문 자식 가운데 **정확히 하나**가 컨테이너의 `emit` 입력 포트로 이어져야 한다. 반복마다 그 노드의 출력을 모은다. |
 | 검사 | `emit` 이 없으면 `CONTAINER_MISSING_EMIT`, 둘 이상이면 `CONTAINER_MULTIPLE_EMIT` 이다. 실행할 때 엔진이 먼저 검사한다. |
-| Loop·Map·ForEach | `emit` 출발 노드의 출력을 배열로 모아 `done` 포트로 보낸다. ForEach 는 항목 에러 정책(`errorPolicy`)에 따라 건너뛰거나 계속한 항목 자리에 `{_skipped, error}` 를 넣는다. |
+| Loop·Map·ForEach | `emit` 출발 노드의 출력을 배열로 모아 `done` 포트로 보낸다. 항목 에러 정책(`errorPolicy`)이 `skip` · `continue` 면 ForEach 는 실패한 항목 자리 `output.items[i]` 를 `null` 로 두고 실패 정보를 `output.skipped[]` 에 모으고, Map 은 `output.mapped[i]` 에 `{ _skipped: true, error }` 를 넣는다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#foreach-와-map-실행)). |
 | Background | 컨테이너 모델을 쓰지 않는다. `background` 포트로 본문 시작 노드를 가리키고 본문 노드는 메인 흐름과 같은 캔버스 평면에 놓인다. `emit` 모델도 쓰지 않는다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)). |
 
 ### 경계 규칙

@@ -2,25 +2,25 @@
 id: "CLE-EXEC-RUN"
 title: "에디터 실행과 디버깅"
 type: "feature"
-version: 1
+version: 3
 status: "approved"
-requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054"]
+requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054", "REQ-EXECRUN-055", "REQ-EXECRUN-056"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "03e10d6b6fe35ad3a3d7af720ced3d36232c866918b790387be951df2cf3f067"
+content_hash: "8492d56aae618b97cad287baab98100ee4583dcebee227f259fec701376c8bd2"
 read_as: "approved_fallback"
-task: "CLE-T-KMQ43W"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "0075fd84b5c70944d15484aac292edeaeb2df0521b1658bc8dddccc2b4b0975d"
-etag: "sha256-8ed28c7caadeefa916b1aee7d8f9b38dd456c5be3252d7376b0483e6f2ca5b77"
+mirror_sha256: "c1945b6585a0de8378c0f9b1be2d42625068f137439f7149c178392ac19af121"
+etag: "sha256-989a6f294837def942e5401099a38037da7a4806124e5de068f5895d9fa9bd98"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 워크플로우 에디터 안에서 워크플로우를 실행하고 결과를 살펴보는 방법을 정한다. 실행 방식 세 가지(전체 실행·선택 노드부터 실행·단일 노드 실행), 테스트 입력(Mock Input)과 테스트 데이터셋(`WorkflowTestDataset`), 캔버스의 실행 표시, 실행 중지, 실행 결과 드로어(Run Results drawer), 에디터 안 실행 내역 패널, 재실행 진입점, Background 본문 결과 표시가 범위다.
+이 문서는 워크플로우 에디터 안에서 워크플로우를 실행하고 결과를 살펴보는 방법을 정한다. 실행 방식 세 가지(전체 실행·선택 노드부터 실행·단일 노드 실행), 테스트 입력(Mock Input)과 테스트 데이터셋(`WorkflowTestDataset`), 캔버스의 실행 표시, 실행 중지, 실행 결과 드로어(Run Results drawer), 에디터 안 실행 내역 패널, 재실행 진입점, Background 본문 결과 표시, 실시간 경로가 막혔을 때의 REST 폴링 대체 경로가 범위다.
 
 실행 결과 드로어는 에디터 아래쪽에 펼쳐지는 2단 패널이다. 왼쪽 실행 트리(Run Tree)에 실행된 노드가 순서대로 쌓이고 오른쪽 결과 상세 탭(`ResultDetail`)에 고른 노드의 결과가 표시된다. 실행 내역 화면의 실행 상세도 같은 결과 상세 탭을 쓴다.
 
@@ -76,7 +76,7 @@ etag: "sha256-8ed28c7caadeefa916b1aee7d8f9b38dd456c5be3252d7376b0483e6f2ca5b77"
 - REQ-EXECRUN-040 WHEN 사용자가 버튼 대기 노드의 port 버튼을 누르면 THE SYSTEM SHALL `execution.click_button` 명령을 보내 그 포트로 실행을 재개한다.
 - REQ-EXECRUN-041 WHEN 사용자가 버튼 대기 노드의 link 버튼을 누르면 THE SYSTEM SHALL 새 탭에서 URL 을 열고 실행 상태를 바꾸지 않는다.
 - REQ-EXECRUN-042 IF 대화 스레드의 마지막 항목이 `retryable === true` 인 `system_error` 면 THE SYSTEM SHALL 메시지 입력란 자리에 [다시 시도] 버튼과 `retryAfterSec` 카운트다운을 표시한다.
-- REQ-EXECRUN-043 WHEN 사용자가 [다시 시도] 를 누르면 THE SYSTEM SHALL `execution.retry_last_turn` 명령을 보내고 노드 상태를 `running` 으로 바꾼다.
+- REQ-EXECRUN-043 WHEN 사용자가 [다시 시도] 를 누르면 THE SYSTEM SHALL `execution.retry_last_turn` 명령을 보내고 노드 상태를 `running` 으로 바꾼다. WebSocket 이벤트로 `system_error` 를 받은 뒤 REST 폴링 대체 경로로 넘어간 경우에는 노드 상태가 `failed` 에 머문다(REQ-EXECRUN-056).
 - REQ-EXECRUN-044 WHEN 새 실행이 시작되면 THE SYSTEM SHALL 이전 실행 트리와 대화 스냅샷을 비운다.
 - REQ-EXECRUN-045 WHEN 실행이 완료되거나 실패하면 THE SYSTEM SHALL 드로어와 대화 스냅샷을 그대로 유지한다.
 - REQ-EXECRUN-046 WHEN 사용자가 드로어의 닫기 버튼을 누르면 THE SYSTEM SHALL 드로어를 숨기고 실행 상태를 초기화한다.
@@ -88,6 +88,8 @@ etag: "sha256-8ed28c7caadeefa916b1aee7d8f9b38dd456c5be3252d7376b0483e6f2ca5b77"
 - REQ-EXECRUN-052 WHEN 사용자가 Ctrl+Shift+R 을 누르면 THE SYSTEM SHALL 드로어 펼침을 토글하고 브라우저 강력 새로고침을 막는다.
 - REQ-EXECRUN-053 WHEN 드로어에 포커스가 있을 때 사용자가 Escape 를 누르면 THE SYSTEM SHALL 포커스를 캔버스로 돌린다.
 - REQ-EXECRUN-054 IF Escape 를 누를 때 드로어 안 편집 가능한 필드에 포커스가 있으면 THE SYSTEM SHALL 그 필드가 Escape 를 처리하게 둔다.
+- REQ-EXECRUN-055 WHEN 에디터에서 실행 구독 채널(`execution:{executionId}`) 구독이 실패하거나 구독 뒤 10초 동안 그 실행의 `execution.snapshot` 이나 실행 이벤트가 하나도 오지 않으면 THE SYSTEM SHALL 그 시점부터 `GET /api/executions/:id` 를 2초 간격으로 받아 캔버스 노드 상태와 실행 결과 드로어를 채운다.
+- REQ-EXECRUN-056 WHEN REST 폴링 대체 경로가 켜진 뒤 그 실행의 `execution.snapshot` 이나 실행 이벤트가 다시 오거나 실행이 종결 상태가 되면 THE SYSTEM SHALL 폴링을 멈추고 멈춘 뒤 도착한 응답을 반영하지 않는다. 마지막 턴 재시도로 `failed` 에서 다시 `running` 이 되는 실행은 따라가지 못한다([노드 결과 수집](#노드-결과-수집) 의 「따라가지 못하는 경우」, NERV Task `CLE-T-GKVH1B`).
 
 ## 실행 방식
 
@@ -343,7 +345,7 @@ completed·failed·cancelled·waiting_for_input 상태 노드는 머리 아래�
 | 탭 | 표시 조건 | 내용 |
 | --- | --- | --- |
 | 미리보기(Preview) | Presentation 노드이고 `outputData` 가 있을 때, AI 대화형 노드일 때, Form·버튼 대기 UI 가 있을 때. **AI 대화형 노드는 `status` 로 가르지 않는다.** 대화 데이터(`outputData` 의 대화 형태 또는 live store 스냅샷)가 있으면 오류로 끝난(`failed`) 노드에서도 표시한다 ([대화 미리보기](CLE-EXEC-PREVIEW.md) Inv-8) | 시각 미리보기. 테이블·캐러셀·차트, 폼·버튼 대기 UI, 대화 미리보기. 출력 JSON 은 출력 탭에서 본다 |
-| 입력(Input) | 노드 수준에서 항상 | 노드에 전달된 `inputData` JSON. 폴링으로 받기 전에는 "Loading..." |
+| 입력(Input) | 노드 수준에서 항상 | 노드에 전달된 `inputData` JSON. 노드 이벤트나 (폴링 대체 경로 중에는) REST 응답으로 받기 전에는 "Loading..." |
 | 출력(Output) | 노드 수준에서 항상 | 노드의 `outputData` JSON. AI 노드는 Model·Tokens·Turn Count·Tool Calls 메타데이터 표를 위에 함께 표시한다 |
 | 응답(Response) | AI 노드에서 assistant 메시지를 골랐을 때 | 그 턴 LLM 호출의 `responsePayload` JSON. 한 턴에 호출이 여러 개(도구 루프·재시도)면 위쪽 호출 선택기로 고른다 |
 | 요청(Request) | AI 노드에서 assistant 메시지를 골랐을 때 | 그 턴 LLM 호출의 `requestPayload` JSON. 응답 탭과 호출 선택기를 같이 쓴다 |
@@ -401,7 +403,7 @@ flowchart TD
 **입력 데이터 흐름**:
 
 - `execution.node.completed` 이벤트는 `input` 필드에 `NodeExecution.inputData` 를 싣는다. 값 패턴 마스킹이 적용된다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)).
-- REST 폴링(2초 간격)도 **같은 store 자리**를 채운다. 두 경로의 마스킹 정책이 다르면 폴링이 마스킹된 값을 원문으로 덮는 flip-flop 이 생긴다. 지금은 REST 와 WebSocket 이 같은 규칙을 써서 그런 일이 없다.
+- REST 폴링(2초 간격)도 **같은 store 자리**를 채운다. 에디터에서는 이 폴링이 실시간 경로가 막혔을 때만 켜지는 대체 경로다. 켜고 끄는 조건은 REQ-EXECRUN-055 · REQ-EXECRUN-056 과 [노드 결과 수집](#노드-결과-수집) 에 있다. 두 경로의 마스킹 정책이 다르면 폴링이 마스킹된 값을 원문으로 덮는 flip-flop 이 생긴다. 지금은 REST 와 WebSocket 이 같은 규칙을 써서 그런 일이 없다.
 - 늦게 오는 WebSocket 이벤트가 이미 받은 값을 지우지 않도록 합칠 때 `??` 로 기존 값을 보존한다.
 
 #### Presentation 노드 콘텐츠
@@ -409,7 +411,7 @@ flowchart TD
 | 노드 유형 | 렌더 |
 | --- | --- |
 | Carousel | 가로 스크롤 텍스트 중심 카드 목록. 제목·설명·버튼 라벨, `layout` 배지, lazy 썸네일(이미지 매핑 확인용). 시각 레이아웃 재구성은 대화형 채널이 맡는다([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md)) |
-| Carousel(버튼 대기 중) | 카드 목록과 **버튼 바**. port 버튼을 누르면 `execution.click_button` 명령을 보내고 link 버튼을 누르면 새 탭에서 URL 을 연다. link 버튼만 있으면 암시적 `[Continue →]` 를 표시한다. 타임아웃이 설정되면 남은 시간 카운트다운을 표시한다는 서술은 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
+| Carousel(버튼 대기 중) | 카드 목록과 **버튼 바**. port 버튼을 누르면 `execution.click_button` 명령을 보내고 link 버튼을 누르면 새 탭에서 URL 을 연다. link 버튼만 있으면 암시적 `[Continue →]` 를 표시한다. 입력 대기에는 기한이 없어 남은 시간 카운트다운을 표시하지 않는다([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#규칙)) |
 | Carousel(버튼 클릭 후) | 누른 버튼 라벨, 누른 시각과 누른 사람 |
 | Table | 테이블. 컬럼 헤더와 행 데이터. 최대 표시 행 수는 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | Table(버튼 대기 중·클릭 후) | Carousel 과 같은 버튼 바 동작과 클릭 후 표시 |
@@ -491,7 +493,23 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 
 ### 노드 결과 수집
 
-에디터는 모든 노드 이벤트(`execution.node.started`·`completed`·`failed`·`skipped`·`cancelled`)를 받아 실행 트리에 반영한다. REST 폴링으로도 노드 관계가 포함된 `NodeExecution` 데이터를 받아 맞춘다. 각 이벤트에 어떤 필드가 실리는지는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정한다.
+에디터는 모든 노드 이벤트(`execution.node.started`·`completed`·`failed`·`skipped`·`cancelled`)를 받아 실행 트리에 반영한다. 각 이벤트에 어떤 필드가 실리는지는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정한다. 실시간 경로가 막히면 REST 폴링으로 노드 관계가 포함된 `NodeExecution` 데이터를 받아 맞춘다.
+
+**REST 폴링 대체 경로**: 에디터는 WebSocket 을 기본 경로로 쓰고 REST 폴링은 실시간 경로가 막혔을 때만 켠다(REQ-EXECRUN-055 · REQ-EXECRUN-056). 채널 구독과 `subscribed` 응답 형식은 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 이 정한다.
+
+| 항목 | 동작 |
+| --- | --- |
+| 바로 켜는 경우 | 연결이나 구독 요청이 실패할 때, 또는 `subscribed` 의 `success: false` 응답을 받을 때. 실패 응답에는 `channel` 필드가 없어 어느 구독 채널의 실패인지 가릴 수 없다. 그래서 이 실행의 `execution.snapshot` 이나 실행 이벤트가 아직 오지 않은 동안 받은 실패 응답은 이 실행의 실패로 본다. 이미 왔으면 그 응답으로 폴링을 켜지 않는다. 게이트웨이가 `subscribed` 응답 없이 `exception` 으로 끝나는 경우는 10초 경로가 잡는다 |
+| 10초 뒤 켜는 경우 | 구독 뒤 10초 안에 이 실행의 `execution.snapshot` 이나 실행 이벤트가 하나도 오지 않을 때 |
+| 지연 토스트 | "실시간 업데이트 연결이 지연되고 있어요. 폴링으로 진행됩니다." 는 10초 시점에만 띄운다. 바로 켜는 경우에도 토스트는 10초를 기다린다 |
+| 요청 | 켜지면 `GET /api/executions/:id` 를 바로 한 번 받는다. 응답을 받고 2초 뒤에 다음 요청을 예약하므로 요청이 겹치지 않는다 |
+| 요청이 실패할 때 | 400·401·403·404 는 다시 보내도 결과가 같으므로 폴링을 멈춘다. 401 은 공용 HTTP 클라이언트가 토큰 갱신을 한 번 시도해 다시 보낸 뒤에도 남은 401 이다. 429·5xx·네트워크 에러는 2초에서 시작해 두 배씩 늘려 30초에서 멈추는 간격으로 다시 받는다. 응답에 `Retry-After`(초)가 있고 브라우저가 읽을 수 있으면 그 값을 2초~60초 범위로 잘라 따른다([미결 사항](#미결-사항) 참조). 성공하면 간격을 2초로 되돌린다. 화면 뒤에서 도는 요청이라 실패해도 토스트를 띄우지 않는다. 429 · 404 에 토스트나 404 페이지를 띄우는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) §4.1 과 다르다(Rationale 「요청 빈도」) |
+| store 채우기 | 응답은 실행 스냅샷 이벤트(`execution.snapshot`)와 같은 진입점(`applyExecutionSnapshot`)으로 같은 store 자리에 넣는다. 노드 출력 필드를 복원하는 규칙은 [실행 화면 복원 규약](CLE-EXEC-HYDRATION.md) 을 따른다. 내역 보기 경로(`loadHistoricalExecution`)는 쓰지 않으므로 라이브 대화 상태가 비지 않는다 |
+| 멈추는 경우 | 이 실행의 `execution.snapshot` 이나 실행 이벤트가 다시 올 때(WebSocket 복구), 응답 상태가 종결 상태(`completed`·`failed`·`cancelled`, [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md))일 때, store 가 이미 끝난 실행일 때, 위의 회복할 수 없는 에러를 받았을 때. store 는 `cancelled` 를 `failed` 로 담으므로 store 쪽 판정은 `completed`·`failed` 두 값이다. 멈춘 뒤 도착한 응답은 버린다. 응답을 넣기 직전에도 store 의 실행 ID 가 이 실행과 같고 store 가 끝나지 않았는지 확인해 아니면 버린다. 요청을 보낸 뒤 응답이 오기 전에 실행 이벤트나 사용자의 대기 응답으로 store 의 노드 상태·노드 결과·실행 상태가 바뀌었으면 그 응답만 버리고 다음 요청은 그대로 보낸다 |
+| 다시 판단하는 경우 | 실행 ID 가 바뀌면 새 실행 기준으로 처음부터 판단한다. 연결이 끊기면 이 실행의 실시간 데이터를 받았다는 표시를 지우고 10초를 다시 잰다 |
+| 따라가지 못하는 경우 | 대체 경로 중에 마지막 턴 재시도(`failed → running`, [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md))를 하면 화면은 `failed` 에 머문다. store 를 `running` 으로 돌리는 것은 WebSocket 이벤트뿐이고 구독이 실패한 클라이언트에는 그 이벤트가 오지 않는다. `applyExecutionSnapshot` 도 `failed` 다음의 `running` 응답을 반영하지 않는다. [다시 시도] 버튼은 `nodeExecutionId` 가 있는 `system_error` 에만 보이고 그 값은 실시간 이벤트로 만든 항목에만 있다([대화 미리보기](CLE-EXEC-PREVIEW.md) 의 「[다시 시도] 버튼 조건」). 그래서 이 경우는 WebSocket 으로 `system_error` 를 받은 뒤 대체 경로로 넘어갔을 때만 생기고 처음부터 대체 경로로 받은 실행에서는 버튼이 숨는다. NERV Task `CLE-T-GKVH1B` 가 다룬다 |
+
+현재 구현에서 실행 상세 화면(`executions/[executionId]/page.tsx`)의 상시 폴링과 Background 본문 결과(`use-background-run.ts`)의 폴링은 이 대체 경로와 관계없이 그대로다. 근거는 [Rationale](#rationale) 의 "에디터의 REST 폴링은 실시간 경로가 막혔을 때만 켠다" 항목에 있다.
 
 ### 설정 패널과 함께 쓰기
 
@@ -622,17 +640,21 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 
 - **Ctrl+Enter 전체 실행 단축키**: 옛 에디터 실행 문서는 실행 버튼과 함께 Ctrl+Enter 로 전체 실행한다고 적는다. 에디터 전역 단축키 목록([워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md))에는 Ctrl+Enter 가 없다. 현재 구현(`workflow-editor.tsx`, `editor-toolbar.tsx`)에도 바인딩이 없다. 단축키를 만들지, 이 서술을 지울지 결정이 필요하다.
 - **중지 버튼 3초 누르기 강제 중단(Force)**: 옛 에디터 실행 문서는 중지 버튼을 3초 이상 누르면 진행 중인 노드를 즉시 중단한다고 적는다. [노드 취소](CLE-EXEC-CANCEL.md) 와 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 는 사용자 중지가 `AbortController` 를 만들지 않고 실행 행만 갱신하며 진행 중 노드는 다음 노드·턴 경계에서 알아챈다고 정한다. force 경로는 정의돼 있지 않다. WebSocket 의 `force` 옵션은 채택하지 않은 `execution.stop` 명령에만 있고([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 도 `force` 를 지원하지 않는다. 현재 구현(`editor-toolbar.tsx`, `executions.controller.ts`)에도 길게 누르기와 force 경로가 없다. 강제 중단을 만들지(만든다면 REST stop 의 force 계약과 취소 규약의 생산자 추가가 필요하다), 이 서술을 지울지 결정이 필요하다.
-- **버튼 대기 타임아웃 카운트다운**: 옛 에디터 실행 문서는 버튼 대기 중 "타임아웃 설정 시 잔여 시간 카운트다운" 을 표시한다고 적는다. [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) 과 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 는 config 에 타임아웃 필드가 없고 외부 cancel·종료 전까지 무제한 대기라고 정한다. 옛 노드 PRD 의 요구사항(ND-CL-07·TB-07·CH-07·TP-06·FM-05)은 대기 타임아웃 설정을 구현됨으로 적는다. 타임아웃을 새 기능으로 둘지, 카운트다운 서술과 PRD 상태를 정리할지 결정이 필요하다.
 - **Table 최대 표시 행 수**: 옛 에디터 실행 문서는 드로어의 Table 을 "최대 50행 표시" 라고 적는다. [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) 은 같은 드로어 Table 에 "페이지네이션 강제(최대 200행/페이지)" 를 적는다. 현재 구현(`presentation-renderers.tsx`)은 앞 50행만 렌더한다. 어느 쪽을 규칙으로 둘지 결정이 필요하다.
 - **드로어 재실행 버튼의 표시 상태**: 옛 에디터 실행 문서는 드로어의 재실행 버튼을 "completed·failed·cancelled·waiting_for_input 종료" 상태에서 보인다고 적으면서, 같은 표에서 진행 중 멀티턴(입력 대기 상태)은 숨긴다고 적는다. `waiting_for_input` 은 엔진에서 종결 상태가 아니다([실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md)). [재실행](CLE-EXEC-RERUN.md) 은 재실행할 수 있는 원본 상태를 제한하지 않는다. 현재 구현(`run-results-drawer.tsx`)은 store 상태가 `completed`·`failed` 일 때만 버튼을 보인다. 드로어에서 버튼을 보일 상태 집합을 결정해야 한다.
 - **컨테이너 안 Presentation 노드의 반복 표시**: 옛 에디터 실행 문서 §10.5 는 컨테이너 본문 노드의 반복 회차마다 실행 트리 항목을 따로 만들고 라벨에 `(iter N)` 을 붙인다고 적는다. 같은 문서 §10.9 는 Loop·ForEach 안 Presentation 노드를 `"Table (Iteration 3/5)"` 처럼 표시하고 기본으로 마지막 회차 결과를 보이며 이전 회차는 결과 상세의 반복 드롭다운으로 탐색한다고 적는다. 현재 구현(`timeline-tree.ts`, `result-timeline.tsx`)은 Presentation 노드도 §10.5 방식으로 `(iter N)` 항목을 따로 만들고 반복 드롭다운은 없다. §10.9 를 Presentation 노드 예외로 구현할지, §10.9 서술을 지울지 결정이 필요하다.
+- **`subscribed` 실패 응답의 `channel` 필드**: [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 `subscribed` 실패 응답에는 `channel` 이 없어 에디터는 어느 구독이 실패했는지 가리지 못한다([노드 결과 수집](#노드-결과-수집) 의 「바로 켜는 경우」). 실패 응답에 `channel` 을 더할지는 NERV Task `CLE-T-7MBBA7` 에서 정한다.
+- **교차 출처 배포의 `Retry-After`**: 프런트엔드가 API 를 다른 출처로 부르는 배포에서는 백엔드 CORS 가 `Retry-After` 를 노출하지 않는다. 그래서 브라우저가 이 헤더를 숨기고, [노드 결과 수집](#노드-결과-수집) 의 REST 폴링 대체 경로는 429 에도 늘리는 간격으로 대신한다. 헤더를 노출할지는 NERV Task `CLE-T-1XDNY3` 에서 정한다.
 
 ## 구현 위치
 
 - `codebase/frontend/src/components/editor/run-results/*.tsx` (실행 결과 드로어, 실행 트리, 결과 상세 탭, 실행 내역 패널)
 - `codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx` (실행 버튼, 테스트 입력 대화상자, 중지)
-- `codebase/frontend/src/components/editor/workflow-editor.tsx` (드로어 단축키)
+- `codebase/frontend/src/components/editor/workflow-editor.tsx` (드로어 단축키, 실행 이벤트 구독과 폴링 대체 경로 연결)
 - `codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx` (노드 컨텍스트 메뉴 "이 노드 실행")
+- `codebase/frontend/src/lib/websocket/use-execution-events.ts` (실행 이벤트 구독, 실시간 경로가 막혀 REST 폴링이 필요하다는 신호 `needsRestPolling`)
+- `codebase/frontend/src/lib/websocket/use-execution-polling-fallback.ts` (REST 폴링 대체 경로)
+- `codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` (실행 스냅샷 이벤트 · REST 응답 공용 store 채우기)
 - `codebase/backend/src/modules/websocket/websocket.gateway.ts`
 - `codebase/backend/src/modules/websocket/websocket.service.ts`
 - `codebase/backend/src/modules/websocket/websocket-events.types.ts`
@@ -642,6 +664,21 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 - `codebase/frontend/src/lib/api/workflow-test-datasets.ts`
 
 ## Rationale
+
+### 에디터의 REST 폴링은 실시간 경로가 막혔을 때만 켠다 (2026-10-22)
+
+2026-10-22 에 백엔드 전역 enhancer 문제로 실행 채널 구독이 깨지자 에디터의 실행 결과 드로어가 비었다(NERV Task `CLE-T-A3W8B8`). 10초 뒤 "폴링으로 진행됩니다" 토스트가 떴지만 에디터에는 폴링이 없었다. 상시 폴링은 실행 상세 화면에만 있었다. 이 문서의 「입력 데이터 흐름」 도 "REST 폴링도 같은 store 자리를 채운다" 고만 적어 에디터도 폴링하는 것처럼 읽혔다. 이 결정은 NERV Task `CLE-T-KMQ43W` 에서 내렸다.
+
+- **고른 안**: 에디터는 WebSocket 을 기본 경로로 둔다. 구독이 실패하거나 10초 동안 이 실행의 `execution.snapshot` 이나 실행 이벤트가 오지 않을 때만 REST 폴링을 켠다. 구독 실패가 분명하면 폴링은 바로 켜고 토스트는 10초에 띄운다. 만료된 토큰으로 다시 연결하는 경우처럼 금방 회복되는 상황에서 토스트가 깜빡이지 않게 하려는 것이다. 2026-10-22 장애처럼 `subscribed` 응답 없이 `exception` 으로 끝나는 구독은 바로 켜는 조건에 들지 않고 10초 경로가 잡는다.
+- **수신 진입점은 하나로 유지한다**: 폴링 응답과 실행 스냅샷 이벤트(`execution.snapshot`)는 `applyExecutionSnapshot` 한 진입점으로 store 를 채운다. 새 표면을 만들지 않으므로 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 2026-07-08 REST 대체 항목 비채택과 부딪치지 않는다. 그 결정이 막은 것은 REST 가 이미 하는 일을 WebSocket 명령으로 한 번 더 만드는 중복 경로다. 옛 REST 응답이 앞선 store 를 덮는 위험은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 의 "대기 진입 직전 읽기 창" 과 같은 종류라서 꺼진 뒤 도착한 응답을 버린다. 응답을 넣기 직전에 store 의 실행 ID 와 종결 여부도 다시 본다. WebSocket 이 복구돼 실행 스냅샷이나 실행 이벤트가 먼저 들어간 직후, 폴링이 꺼지기 전(렌더 한 번 사이)에 이미 떠 있던 요청의 응답이 도착할 수도 있다. 같은 실행의 같은 store 라 실행 ID 와 종결 여부로는 가를 수 없어서, 요청을 보낸 뒤 store 의 노드 상태·노드 결과·실행 상태가 바뀌었는지로 가려 그 응답을 버린다. 처음에는 이 구간이 렌더 한 번이라 받아들였다. 그런데 이 응답이 WebSocket 이 채운 노드 결과 행을 실행 중·출력 없음으로 덮으면 WebSocket 이 그 노드를 다시 보내지 않는 한 옛 값으로 남는다는 코드 리뷰 지적(finding `01a163f0-cd2f-7619-bb7f-976649311fdd`)이 있어 막았다.
+- **요청 빈도**: 폴링은 실행 하나에 분당 30건이다. 일반 API 요청 빈도 한도(사용자 기준 100 req/min, [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7)의 약 30% 다. 실시간 경로가 막혔을 때만 켜지므로 이 비용을 받아들인다. `waiting_for_input` 동안에도 같은 간격으로 받는다. 여러 탭에서 막힌 실행을 동시에 보면 한도에 닿을 수 있어서 실패한 요청은 간격을 늘려 다시 받는다(429·5xx·네트워크 에러는 2초에서 30초까지 두 배씩, `Retry-After` 는 2초~60초로 잘라 따른다). 400·401·403·404 는 다시 보내도 같으므로 멈춘다. 401 마다 토큰 갱신을 되풀이하거나 429 를 받고도 같은 간격으로 보내 사용자 요청 한도를 스스로 쓰지 않게 하려는 것이다. `Retry-After` 의 날짜 형식은 읽지 않고 늘리는 간격으로 대신한다. 사용자가 일으킨 요청이 아니므로 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) §4.1 의 토스트 · 404 페이지 처리를 따르지 않는다. 폴링 훅이 에러를 직접 처리하므로 [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 에러 바운더리도 타지 않는다. 401 은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) §4.1 대로 공용 HTTP 클라이언트가 토큰 갱신을 한 번 거친 뒤에도 남은 것만 멈추는 사유로 센다. §4.1 과 다른 점은 둘이다. 실패에 토스트를 띄우지 않는다. 화면 뒤에서 2초마다 도는 요청이라 실패할 때마다 토스트가 쌓이기 때문이다. `Retry-After` 는 2초~60초로 잘라 따른다. 잘못된 헤더 값 하나로 폴링이 사실상 멈추지 않게 하려는 것이다.
+- **실시간 수신 신호에 실행 이벤트도 센다**: `execution.snapshot` 은 소켓의 첫 구독에서만 한 번 온다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) §6.2). 같은 소켓이 이미 구독한 채널을 다시 구독하면 `execution.snapshot` 없이 실행 이벤트만 온다. 그래서 이 실행의 실행 이벤트가 와도 실시간 경로가 살아 있다고 본다.
+- **실패 응답으로는 구독 채널을 가리지 않는다**: `subscribed` 실패 응답에는 `channel` 필드가 없다. 같은 소켓의 다른 구독(Background 본문 결과 등)이 실패해도 이 실행의 `execution.snapshot` 이나 실행 이벤트가 오기 전이면 폴링이 켜진다. `execution.snapshot` 이나 실행 이벤트가 오면 바로 꺼지므로 그 비용을 받아들였다. 실패 응답에 `channel` 을 더하는 계약 변경(추가 필드라 옛 클라이언트에는 영향이 없다)은 이 결정에서 하지 않았고 NERV Task `CLE-T-7MBBA7` 에서 정한다.
+- **마지막 턴 재시도는 이번에 다루지 않는다**: 대체 경로 중 재시도를 따라가려면 재시도 뒤 폴링을 다시 켜는 신호와 `applyExecutionSnapshot` 의 `failed → running` 분기가 함께 필요하다. `applyExecutionSnapshot` 은 실행 상세 화면의 상시 폴링도 쓰는 진입점이라 그 화면의 동작까지 다시 따져야 한다. 구독 실패와 AI 턴 실패가 겹칠 때만 생기므로 후속 Task `CLE-T-GKVH1B` 로 넘겼다.
+- **기각 (a) 에디터도 실행 상세 화면처럼 늘 폴링한다**: WebSocket 으로 받는 동안에도 실행 하나에 2초마다 REST 요청이 더 나간다(분당 30건). WebSocket 으로 이미 앞선 store 를 옛 REST 응답이 덮을 수도 있다. `running` 응답이 이전 `waiting_for_input` 상태와 만나면 `applyExecutionSnapshot` 의 재개 분기가 입력 대기 UI 를 지운다.
+- **기각 (b) React Query `refetchInterval` 로 켜고 끈다**: 꺼진 뒤 도착한 응답이 store 에 들어가고, 다시 켤 때 캐시에 남은 옛 응답도 store 에 들어간다. (a) 의 덮어쓰기와 같은 문제가 생긴다. 그래서 effect 안에서 응답을 받은 뒤 다음 요청을 예약하고, 꺼지면 도착한 응답을 버린다.
+- **기각 (c) 토스트 문구에서 "폴링으로 진행" 만 지운다**: 문구와 동작은 맞아지지만 구독이 막히면 드로어가 계속 빈다. 2026-10-22 장애(`CLE-T-A3W8B8`)가 바로 그 상황이었다.
+- (b) · (c) 는 구현하면서 비교한 안이다.
 
 ### 에디터 안 실행 내역 패널은 프런트만으로 만들고 기존 API 를 다시 쓴다 (2026-06-16)
 
@@ -687,3 +724,7 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 - **근거**: 약속한 표면이 하나도 없는데 구현됨으로 두면 거짓 약속이 되고 맡은 계획도 없어 영원히 부분 구현 부채로 남는다. 설계는 이 문서에 남기되 미구현임을 밝혀 문서 전체의 구현 상태와 맞춘다. 나머지 기능은 모두 구현됐다.
 - **함께 정리한 곳**: WebSocket 이벤트·명령의 브레이크포인트 행, 옛 에디터 PRD 의 ED-DB-05, 사용자 가이드의 브레이크포인트 안내를 모두 미구현 표기로 맞췄다(가이드 안내는 삭제).
 - **다시 도입하는 길**: 우선순위가 올라가면 별도 계획과 스펙 개정으로 정식 기능으로 올리고 위 표기를 되돌린다.
+
+### 버튼 대기 카운트다운을 옮기지 않는다 (2026-10-24)
+
+옛 에디터 실행 문서는 버튼 대기 중 "타임아웃 설정 시 잔여 시간 카운트다운" 을 표시한다고 적었다. 입력 대기에 기한을 두지 않기로 정해서 카운트다운도 옮기지 않는다(NERV Task `CLE-T-PERSR7`). 결정과 기각한 대안은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#rationale) 에 있다.

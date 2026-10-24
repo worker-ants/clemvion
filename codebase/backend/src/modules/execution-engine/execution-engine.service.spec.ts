@@ -6654,6 +6654,65 @@ describe('ExecutionEngineService', () => {
       expect(seenInputs[0]).toEqual({ seeded: 99 });
     });
 
+    // 상류 출력 복원도 노드 완료 경로와 같은 감싸기 규칙을 따른다. 컨테이너(레지스트리
+    // `kind: 'container'`)는 meta 가 있어도 배열 그대로, 다른 노드는 meta 가 있으면 옛
+    // `{ data }` 봉투로 넘긴다.
+    it.each([
+      ['map', [{ v: 1 }]],
+      ['test_node', { data: [{ v: 1 }] }],
+    ])(
+      '상류 %s 의 배열 출력 + meta 를 노드 완료 경로와 같은 모양으로 seed',
+      async (predType, expectedInput) => {
+        passThroughCreate();
+        // 엔진은 유형 이름이 아니라 등록 때 받은 kind 로 판단한다.
+        handlerRegistry.register('map', new MapHandler(), {
+          kind: 'container',
+        });
+        mockNodeRepo.findBy.mockResolvedValue(
+          mockNodes.map((n) =>
+            n.id === 'node-1' ? { ...n, type: predType } : n,
+          ),
+        );
+        const seenInputs: unknown[] = [];
+        (mockHandler.execute as jest.Mock).mockImplementation(
+          async (input: unknown) => {
+            seenInputs.push(input);
+            return mockOutput({ processed: true });
+          },
+        );
+        mockNodeExecutionRepo.find.mockResolvedValueOnce([
+          {
+            id: 'ne-prev-node-1',
+            executionId: 'prev-exec',
+            nodeId: 'node-1',
+            status: NodeExecutionStatus.COMPLETED,
+            outputData: {
+              config: {},
+              output: [{ v: 1 }],
+              meta: { fellBackToEmpty: false },
+            },
+            finishedAt: new Date(),
+          },
+        ]);
+
+        await service.execute(
+          workflowId,
+          {},
+          {
+            workspaceId: 'ws-1',
+            executedBy: 'u1',
+            singleNodeId: 'node-2',
+            previousExecutionId: 'prev-exec',
+          },
+        );
+        await flushPromises();
+        await flushPromises();
+
+        expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+        expect(seenInputs[0]).toEqual(expectedInput);
+      },
+    );
+
     it('previousExecutionId 미지정 시 수동 입력(input)으로 단일 노드 실행', async () => {
       passThroughCreate();
       const seenInputs: unknown[] = [];
@@ -11800,9 +11859,11 @@ describe('ExecutionEngineService', () => {
       // `meta.iterations` exposes the actually executed body count
       // (= output.items.length, including skip-placeholder slots).
       // Principle 2 — meta carries execution metrics, not config echoes.
-      expect(capturedForeachStructured?.meta).toEqual(
-        expect.objectContaining({ iterations: 3 }),
-      );
+      // 핸들러의 시작 시점 `fellBackToEmpty` 가 완료 meta 에 함께 남는다.
+      expect(capturedForeachStructured?.meta).toEqual({
+        iterations: 3,
+        fellBackToEmpty: false,
+      });
     });
 
     // ai-review C3 (2026-07-26) — §2.3 컨테이너 범위 확장. `executeContainerBody`
@@ -13272,7 +13333,11 @@ describe('ExecutionEngineService', () => {
       // metric matches `output.items.length`. `meta.skippedCount` (Phase 1 D)
       // continues to mirror `output.skipped.length`.
       expect(capturedForeachStructured?.meta).toEqual(
-        expect.objectContaining({ iterations: 3, skippedCount: 1 }),
+        expect.objectContaining({
+          iterations: 3,
+          skippedCount: 1,
+          fellBackToEmpty: false,
+        }),
       );
     });
 
@@ -13428,7 +13493,11 @@ describe('ExecutionEngineService', () => {
       // Phase 2 (C): same meta contract as `errorPolicy: 'skip'` — iterations
       // counts every launched body (3) and skippedCount mirrors skipped.length.
       expect(capturedForeachStructured?.meta).toEqual(
-        expect.objectContaining({ iterations: 3, skippedCount: 1 }),
+        expect.objectContaining({
+          iterations: 3,
+          skippedCount: 1,
+          fellBackToEmpty: false,
+        }),
       );
     });
 
@@ -13791,6 +13860,237 @@ describe('ExecutionEngineService', () => {
         mapped: [{ squared: 4 }, { squared: 9 }, { squared: 16 }],
       });
     });
+
+    // [Map 노드](CLE-NODE-MAP) · [ForEach 노드](CLE-NODE-FOREACH) — 완료 시점 meta 는
+    // 핸들러의 시작 시점 meta(`fellBackToEmpty`)에 엔진 반복 메트릭(`iterations` ·
+    // `skippedCount?`)을 합친 값이다([Logic 노드 공통 「엔진 덮어쓰기 계약」](CLE-NODE-LOGIC-COMMON#엔진-덮어쓰기-계약) 규칙 6).
+    describe('container completion meta (Map · ForEach)', () => {
+      const runContainer = async (
+        type: 'map' | 'foreach',
+        sourceOutput: Record<string, unknown>,
+        containerConfig: Record<string, unknown>,
+        bodyExecute: (input: unknown) => Promise<unknown>,
+      ) => {
+        const bodyHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(bodyExecute) as NodeHandler['execute'],
+        };
+        handlerRegistry.register('body_node', bodyHandler);
+
+        const sinkCalls: unknown[] = [];
+        let captured: { meta?: Record<string, unknown> } | undefined;
+        const sinkHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(
+            async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+              sinkCalls.push(input);
+              captured = ctx.structuredOutputCache?.['ctr'];
+              return mockOutput({ ok: true });
+            },
+          ),
+        };
+        handlerRegistry.register('sink_node', sinkHandler);
+        handlerRegistry.register('source_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => mockOutput(sourceOutput)),
+        });
+
+        const node = (
+          id: string,
+          nodeType: string,
+          config: Record<string, unknown>,
+          containerId: string | null,
+        ): Partial<Node> => ({
+          id,
+          workflowId,
+          type: nodeType,
+          category:
+            nodeType === 'source_node'
+              ? NodeCategory.TRIGGER
+              : NodeCategory.LOGIC,
+          label: id,
+          config,
+          isDisabled: false,
+          containerId,
+          toolOwnerId: null,
+        });
+        const edge = (
+          id: string,
+          sourceNodeId: string,
+          sourcePort: string,
+          targetNodeId: string,
+          targetPort: string,
+        ): Partial<Edge> => ({
+          id,
+          workflowId,
+          sourceNodeId,
+          sourcePort,
+          targetNodeId,
+          targetPort,
+          type: EdgeType.DATA,
+        });
+
+        mockNodeRepo.findBy.mockResolvedValue([
+          node('src', 'source_node', {}, null),
+          node('ctr', type, containerConfig, null),
+          node('body', 'body_node', {}, 'ctr'),
+          node('sink', 'sink_node', {}, null),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          edge('e1', 'src', 'out', 'ctr', 'in'),
+          edge('e2', 'ctr', 'body', 'body', 'in'),
+          edge('e3', 'body', 'out', 'ctr', 'emit'),
+          edge('e4', 'ctr', 'done', 'sink', 'in'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+        return { bodyHandler, sinkCalls, meta: captured?.meta };
+      };
+
+      it('Map: iterations + fellBackToEmpty=false for an array input', async () => {
+        const { sinkCalls, meta } = await runContainer(
+          'map',
+          { items: [1, 2, 3] },
+          { inputField: 'items' },
+          async (input) => mockOutput({ v: input }),
+        );
+        expect(sinkCalls[0]).toEqual({
+          mapped: [{ v: 1 }, { v: 2 }, { v: 3 }],
+          count: 3,
+        });
+        expect(meta).toEqual({ fellBackToEmpty: false, iterations: 3 });
+      });
+
+      it.each(['skip', 'continue'])(
+        'Map: skippedCount mirrors `_skipped` markers under errorPolicy=%s',
+        async (errorPolicy) => {
+          const { sinkCalls, meta } = await runContainer(
+            'map',
+            { items: [1, 2, 3] },
+            { inputField: 'items', errorPolicy },
+            async (input) => {
+              if (input === 2) throw new Error('boom');
+              return mockOutput({ v: input });
+            },
+          );
+          const payload = sinkCalls[0] as { mapped: unknown[]; count: number };
+          expect(payload.mapped[1]).toEqual({
+            _skipped: true,
+            error: { code: 'Error', message: 'boom' },
+          });
+          expect(meta).toEqual({
+            fellBackToEmpty: false,
+            iterations: 3,
+            skippedCount: 1,
+          });
+        },
+      );
+
+      it.each([
+        ['map', { inputField: 'items' }, { mapped: [], count: 0 }],
+        ['foreach', { arrayField: 'items' }, { items: [], count: 0 }],
+      ] as const)(
+        '%s: non-array input runs the body zero times and keeps fellBackToEmpty=true',
+        async (type, config, expectedOutput) => {
+          const { bodyHandler, sinkCalls, meta } = await runContainer(
+            type,
+            { items: 'not-an-array' },
+            config,
+            async () => mockOutput({ ran: true }),
+          );
+          expect(bodyHandler.execute).not.toHaveBeenCalled();
+          expect(sinkCalls[0]).toEqual(expectedOutput);
+          expect(meta).toEqual({ fellBackToEmpty: true, iterations: 0 });
+        },
+      );
+
+      // 위 케이스의 부정 짝이다. 실제 빈 배열 입력도 본문은 0회 돌지만 대체한 것이
+      // 아니므로 `fellBackToEmpty` 는 `false` 다(Map · ForEach 모두 같다).
+      it.each([
+        ['map', { inputField: 'items' }, { mapped: [], count: 0 }],
+        ['foreach', { arrayField: 'items' }, { items: [], count: 0 }],
+      ] as const)(
+        '%s: empty array input runs the body zero times and keeps fellBackToEmpty=false',
+        async (type, config, expectedOutput) => {
+          const { bodyHandler, sinkCalls, meta } = await runContainer(
+            type,
+            { items: [] },
+            config,
+            async () => mockOutput({ ran: true }),
+          );
+          expect(bodyHandler.execute).not.toHaveBeenCalled();
+          expect(sinkCalls[0]).toEqual(expectedOutput);
+          expect(meta).toEqual({ fellBackToEmpty: false, iterations: 0 });
+        },
+      );
+    });
+
+    // 엔진은 노드 유형 이름이 아니라 레지스트리 `kind` 로 감싸기 판단에서 meta 를
+    // 뺄지 정한다. 컨테이너가 아닌 노드의 배열 출력은 meta 만 있어도 `{ data }` 로
+    // 감싸이는 현행 동작을 고정한다(노드 출력 규약과 다르다. NERV Task CLE-T-T30D5S 에서 바뀐다).
+    it.each([
+      ['standard', { kind: 'standard' }],
+      ['unregistered metadata', undefined],
+    ] as const)(
+      'wraps a non-container array output that carries meta as { data } (%s)',
+      async (_label, metadata) => {
+        handlerRegistry.register(
+          'array_with_meta',
+          {
+            validate: () => ({ valid: true, errors: [] }),
+            execute: jest.fn(async () => ({
+              config: {},
+              output: [1, 2, 3],
+              meta: { inputCount: 3 },
+            })),
+          },
+          metadata,
+        );
+        const sinkCalls: unknown[] = [];
+        handlerRegistry.register('sink_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async (input: unknown) => {
+            sinkCalls.push(input);
+            return mockOutput({ ok: true });
+          }),
+        });
+        const node = (id: string, type: string): Partial<Node> => ({
+          id,
+          workflowId,
+          type,
+          category:
+            type === 'array_with_meta'
+              ? NodeCategory.TRIGGER
+              : NodeCategory.LOGIC,
+          label: id,
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        });
+        mockNodeRepo.findBy.mockResolvedValue([
+          node('src', 'array_with_meta'),
+          node('sink', 'sink_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          {
+            id: 'e1',
+            workflowId,
+            sourceNodeId: 'src',
+            sourcePort: 'out',
+            targetNodeId: 'sink',
+            targetPort: 'in',
+            type: EdgeType.DATA,
+          } as Partial<Edge>,
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+
+        expect(sinkCalls).toEqual([{ data: [1, 2, 3] }]);
+      },
+    );
   });
 
   describe('Parallel execution (PARALLEL_ENGINE=v1)', () => {

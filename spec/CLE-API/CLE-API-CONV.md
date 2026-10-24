@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "5fb337bb27c284ffd42ee961d8f027a091010d66b6f35ea2e7e8a0aba3ba8e9c"
+content_hash: "1f3f513cc9d4846211d132b8a1210b64bf92f1156e9271674af3ef46695a7807"
 read_as: "approved_fallback"
-task: "CLE-T-A3W8B8"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "3008e0ca3dfe287cc683b68ab78b468c9069467f6cdc6fdf715268f299d733ec"
-etag: "sha256-04f7fc36fa2d2296be832349a8c6f924425d2c9cb58001b98cc6026e25d419f1"
+mirror_sha256: "e1d9252fe9f82e126807d2febfc3af02a06d8842a3553ac6fd465c60f2596cbc"
+etag: "sha256-e8449d3c85efa7044fb6f5b560cfe25eeb68d84a339a9a6913bf77ea3545f326"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 
 1. 리소스 API 는 `{base_url}/api/{resource}` 아래에 둔다. 리소스 이름은 복수형 명사이고 케밥 케이스로 쓴다. 경로 중첩은 2단계까지다.
 2. 자원 액션 경로 `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 동사(구)다. 목적어는 경로에 두고 액션 이름에 넣지 않는다.
-3. Boolean 상태 필드를 바꿀 때는 전용 엔드포인트를 만들지 않는다. `PATCH /:id { field: value }` 로 바꾼다.
+3. Boolean 상태 필드를 바꿀 때는 전용 엔드포인트를 만들지 않는다. `PATCH /:id { field: value }` 로 바꾼다. 예외는 §12.1 에 등록한다.
 4. 리소스 API 는 현재 워크스페이스 안에서만 동작한다. 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다.
 5. 성공 응답은 `{ data: ... }` 로 감싼다. 페이지 목록은 `{ data: [...], pagination }` 이고 작은 본인 목록은 `{ data: { items } }` 다.
 6. 응답에서 값이 없을 때 기본 표현은 `null` 이다. 키를 빼는 것은 §5.5 의 두 기준 중 하나에 해당할 때만이고 그 필드를 문서화하는 절에 사유를 적는다.
@@ -86,6 +86,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 | **예외: 인증 family 전용 네임스페이스** `/api/external/{resource}`. 로그인 세션·워크스페이스 인증이 아니라 실행 단위 토큰(per_execution token, `iext_*`) 같은 인터랙션 토큰으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체와 호출하는 쪽이 달라 경로를 나눈다. 규칙 위반이 아니라 명시한 예외다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md), 요청 빈도 제한은 §7, 부재 표현은 §5.5 | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
 | **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
 | **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
+| **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
 
 ### 2.3 워크스페이스 스코핑
 
@@ -122,7 +123,7 @@ Authorization: Bearer {access-token}   (payload.activeWorkspaceId)
 |--------|------|--------|
 | GET | 리소스 조회 (목록·상세) | O |
 | POST | 리소스 생성, 액션 실행 | X |
-| PATCH | 리소스 부분 수정 | O |
+| PATCH | 리소스 부분 수정. 인앱 알림 읽음 `PATCH /api/notifications/:id/read` 는 §12.1 의 예외인 전용 경로다 | O |
 | DELETE | 리소스 삭제 | O |
 | PUT | 쓰지 않는다 (PATCH 를 쓴다) | 없음 |
 
@@ -457,7 +458,8 @@ Content-Type: application/json
 |------|------|
 | 패턴 | `PATCH /:id { field: value }` |
 | 전용 엔드포인트 불필요 | `POST /:id/activate`, `POST /:id/deactivate` 같은 전용 엔드포인트를 만들지 않는다 |
-| 적용 대상 | `is_active`(워크플로우, 트리거, 스케줄), `is_disabled`(노드), `is_read`(인앱 알림) 같은 Boolean 토글 필드 |
+| 적용 대상 | `is_active`(워크플로우, 트리거, 스케줄), `is_disabled`(노드) 같은 Boolean 토글 필드 |
+| 예외 | 인앱 알림의 읽음은 `PATCH /api/notifications/:id/read` 를 쓴다. 읽음은 `is_read` 의 한 방향 전이이고 읽지 않음으로 되돌리는 API 가 없다. 이 경로가 `PATCH` 인 것은 이미 구현된 경로를 그대로 두기 때문이다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)). 모두 읽음 · 모두 닫기 · 닫기는 Boolean 토글이 아니므로 §2.2 가 정한다 |
 
 상태 토글이 아닌 동작(실행, 중단, 복제, 권한 이양 등)의 경로 형태는 §2.2 의 자원 액션 행이 정한다.
 
@@ -671,3 +673,16 @@ WebSocket 명령 행은 등록되지 않은 이벤트(`onAny`)도 한도를 넘�
 기각한 대안: 전역 가드가 소켓에서 사용자 · IP 키를 만들어 WebSocket 명령도 세는 안. 소켓당 `WsRateLimitGuard` 와 같은 명령을 두 번 센다. WebSocket 명령이 같은 사용자의 HTTP 요청 한도(분당 100회)도 함께 써 버린다.
 
 경위는 [WebSocket 연결과 채널 구독](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
+
+### 인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)
+
+§12.1 은 인앱 알림의 `is_read` 를 Boolean 토글의 적용 대상으로 들었지만 알림 모듈은 읽음을 처음부터 전용 경로 `PATCH /api/notifications/:id/read` 로 구현했다. 읽음은 되돌리지 않는 한 방향 전이다. 그래서 이 경로만 §12.1 의 예외로 적었다(NERV Task `CLE-T-3HJ8MM`). 이 경로가 `PATCH` 인 것은 이미 구현된 경로를 그대로 두기 때문이다.
+
+모두 읽음 · 모두 닫기 · 닫기는 Boolean 토글에 해당하지 않는 `POST` 동작이다. 닫기는 `dismissed_at` 을 채우는 동작이다. 한 건 닫기 `POST /api/notifications/:id/dismiss` 는 §2.2 의 자원 액션 형태 그대로다. 두 일괄 경로 `mark-all-read` · `dismiss-all` 은 자원 id 없이 컬렉션 경로에 동사를 붙여 규칙 2 에서 벗어난다. 그래도 `revoke-others` 처럼 기존 이름을 그대로 두고 §2.2 에 예외로 적었다. 이 두 이름은 선례로 삼지 않는다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md#rationale)).
+
+기각한 대안은 두 가지다.
+
+- 읽음을 `PATCH /api/notifications/:id { is_read }` 로 바꾸는 안. 백엔드 · 프런트엔드 API 를 바꿔야 한다. 또 읽지 않음으로 되돌리는 동작이 없는데 토글 형태만 갖추게 된다.
+- 두 일괄 경로를 규칙에 맞는 형태로 옮기는 안. 이미 쓰는 프런트엔드 호출과 응답 DTO 를 함께 바꿔야 하는데 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
+
+읽지 않음으로 되돌리는 기능이 생기면 `PATCH /api/notifications/:id { is_read }` 로 옮기는 것을 다시 본다.

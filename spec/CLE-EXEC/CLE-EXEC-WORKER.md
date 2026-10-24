@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "e16188b0cd32e9c1bbdc4573ec0d22934288c01e8f5a8445464fd4ada57095b0"
+content_hash: "719cce6c5bc338f950a4e9e7e42af3d8bd58ef066b83f7d76419127dab5a86ad"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "0cbd558deb7c8b4ab97303e8f2b3f5f9dd8ddbf7eb76d3250e7d8db98d2f8934"
-etag: "sha256-0b280d5428fdfe75b97660549b34624f725f48b1e34c33cf810ae16b512e67b9"
+mirror_sha256: "ce8ebbe7922f947016424df2f476aa56782a33783a99e907cf964000a8a5de32"
+etag: "sha256-44cb405006110f283a405e6f87db302be425a8f2d29b3cf9793d7fabb1c684b4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -276,7 +276,7 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 - **BLOCK 진입**: 그 세그먼트를 운반하던 작업(시작 큐 또는 재개 큐)은 "BLOCK 이나 완료까지 전진" 이라는 자기 일을 끝낸 것이다. 작업을 정상 ack 하고 지운다. 실패나 재시도가 아니다. 실행 행만 `waiting_for_input` 으로 남는다.
 - **park 상태**: 큐 항목이 없다. heartbeat 도 TTL 도 없다. stalled 재배달 대상이 아니고 부팅 복구 스캔(`recoverStuckExecutions`) 대상도 아니다. DB 에 기한 없이 남는다.
 - **재개**: 사용자 인터랙션이 도착해야만 재개 큐 작업이 생기고 다음 세그먼트가 시작된다.
-- **노드별 대기 타임아웃은 없다**: Presentation 노드는 외부 취소나 종료가 없으면 입력을 기한 없이 기다린다. 기준은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) 이다. 노드 설정에 대기 타임아웃 필드(원문의 `formConfig.timeout` 등)는 없다. 타임아웃을 둘지는 정의가 갈린다([Presentation 노드 공통 미결 사항](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#미결-사항)). 실행 시간 한도는 park 시간을 세지 않는다.
+- **노드별 대기 타임아웃은 없다**: Presentation 노드는 외부 취소나 종료가 없으면 입력을 기한 없이 기다린다. 기준은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#규칙) 의 규칙 10 이다. 노드 설정에 대기 타임아웃 필드(원문의 `formConfig.timeout` 등)는 없다. 실행 시간 한도는 park 시간을 세지 않는다.
 - **예외 회수**: 다시 이어 갈 수 없음이 확실한 park 만 예외로 회수한다. 공개 웹채팅 위젯의 익명 per_execution 토큰이 영구 만료된 경우다. 이 회수는 엔진 부팅 복구가 아니라 EIA 계층의 토큰 수명 sweep 이 `cancelled` 로 처리한다. 그래서 park 무기한 보존 불변식과 충돌하지 않는다. 규칙은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 EIA-RL-07 에 있다.
 
 **park 는 세그먼트 종료다(Phase B, 구현 완료)**: park 에서 `runExecution` 세그먼트가 바로 반환한다.

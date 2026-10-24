@@ -114,13 +114,38 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
 }
 
 /**
+ * {@link toEngineFlatShape} 의 옵션.
+ *
+ * `ignoreMetaForWrap` 은 배열 · 원시값 `output` 을 감싸는 판단에서 `meta` 를 뺀다.
+ * 컨테이너(`NodeTypeMetadata.kind === 'container'`)는 입력 배열을 `output` 으로
+ * 돌려주고 컨테이너 실행이 구조화 캐시에서 그 배열을 읽는다. 함께 온 `meta` 때문에
+ * `{ data }` 로 감싸이면 `setNodeOutput` 이 구조화 캐시의 `output` 까지 바꿔서
+ * 컨테이너가 배열을 못 본다. 어댑터는 노드 종류를 모른다. 어떤 노드에 켤지는
+ * 엔진이 레지스트리의 `kind` 로 정하고(`ExecutionEngineService.toCacheShape`) 새 컨테이너도
+ * 같은 선언으로 따라온다. Loop 는 핸들러 `output` 이 `null` 이라 이 옵션과 무관하다.
+ *
+ * 켜지 않은 노드는 `meta` 만 있어도 그대로 감싼다. 저장된 워크플로우가 그 출력을
+ * `$input.data` 로 읽고 있을 수 있어서다(현행 동작 고정. NERV Task CLE-T-T30D5S 가 다룬다).
+ */
+export interface EngineFlatShapeOptions {
+  readonly ignoreMetaForWrap?: boolean;
+}
+
+/**
  * Collapses a {@link NodeHandlerOutput} back into the pre-migration flat
  * shape so that existing engine internals (`applyPortSelection`,
  * `stripControlFields`, downstream `$input.<field>` access) keep working
  * without per-call-site refactors. Phase 3 will remove this function along
  * with the legacy cache.
+ *
+ * 배열 · 원시값 output 은 `port` · `status` · `meta` · `_resumeState` 중 하나라도
+ * 있으면 `{ data, ...control }` 로 감싼다. `options.ignoreMetaForWrap` 이면 `meta`
+ * 만으로는 감싸지 않는다({@link EngineFlatShapeOptions}).
  */
-export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
+export function toEngineFlatShape(
+  adapted: NodeHandlerOutput,
+  options: EngineFlatShapeOptions = {},
+): unknown {
   const output = adapted.output;
 
   // Null / undefined output: if there are control fields (status / port) or
@@ -151,7 +176,7 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
     if (
       adapted.port ||
       adapted.status ||
-      adapted.meta ||
+      (adapted.meta && !options.ignoreMetaForWrap) ||
       adapted._resumeState
     ) {
       // Engine expects top-level `status` / port metadata on an object. Keep

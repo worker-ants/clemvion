@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "6b9d496c4e9c15bcc628e5144e8c773fffd098cfabcc9a0d68e59cf4747667dc"
-read_as: "approved"
-task: null
+content_hash: "1d129ab2d0ad0fd739eda54e54e0baa547d56467caa871360ac962910650935c"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e1da33fc0f0cbdf727abf976077a0291d14e01cff61dc374b98f54e192492a4e"
-etag: "sha256-778ae5ae461bc9f2e95a10cbd5c4b43f1453d0758a64fd77ea9d7bff03756b39"
+mirror_sha256: "c514a076dc1cc29ef38eb064fa41ee98c68178b88fdfcb207935f8e4d241f5fb"
+etag: "sha256-06ab933a02400553e23b8eb38796fc9e42817d922c435673fa10fc88abf7c202"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -132,7 +132,7 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 |------|------|------|------|
 | `config.branchCount` | Integer (원래 값) | 설정 에코 | 사용자가 설정한 원래 값(범위 맞추기 전). 핸들러의 출력 포트 수는 맞춘 뒤 길이지만 설정 에코는 원래 값을 지킨다 |
 | `config.maxConcurrency` | Integer (원래 값) | 설정 에코 | 사용자 설정 원래 값. 음수·16 초과 같은 잘못된 값도 그대로 싣고 실제 동작은 실행기가 맞춘다 |
-| `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 대상 노드의 핸들러 계약(Loop · ForEach · Map 과 같은 계열). 밖의 표현식에 드러나지 않는 중간 형태다. 다음 노드가 `$node["X"].output.*` 로 보는 값은 완료 시점 형태다 |
+| `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 대상 노드의 핸들러 계약(Loop · ForEach · Map 과 같은 계열). 엔진 안에서만 쓰는 중간 형태다. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["X"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 이 `null` 을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)) |
 | `port` | `string[]` | 핸들러 반환 | `branch_0` ~ `branch_{N-1}` 을 모두 활성화한다(fan-out). 병렬 분기 진입점을 여는 신호 |
 
 ### 완료 시점 (`done` 포트)
@@ -163,6 +163,8 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 | `output.count` | Integer | 엔진 덮어쓰기 | 끝난 병렬 분기 수(`branches.length`). 컬렉션 키와 `count` 를 함께 내는 공통 규칙을 따른다 |
 | `port` | `'done'` | 엔진 | 단일 문자열. 모든 병렬 분기 완료 경로 |
 
+완료 출력의 `meta` 는 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `{ clampedConcurrency }` 로 싣고 그 밖에는 싣지 않는다(REQ-PARALLEL-025). 병렬 분기 수와 실패 수는 `meta` 에 따로 두지 않는다. 다음 노드는 `output.count` 와 `output.branches[i].status` 로 읽는다. `meta.durationMs` 도 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 병렬 분기 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)).
+
 `errorPolicy='stop'` 에서는 첫 실패에 곧바로 에러를 던져 `done` 포트를 거치지 않으므로 `branches[i]` 는 모두 `fulfilled` 다(Parallel 노드는 실패로 전이). `rejected` 항목은 `errorPolicy='continue'` 에서만 보인다.
 
 표현식 접근 예:
@@ -180,8 +182,8 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 | 시작(병렬 분기 fan-out 직전) | `output: null` | `string[]` (`branch_0` ~ `branch_{N-1}`) | 핸들러 반환. 병렬 분기 포트를 여는 용도 |
 | 완료(모든 병렬 분기 종료 뒤) | `output: { branches: Array<{ status, value? \| error? }>, count }` | `'done'` (단일 문자열) | **엔진 덮어쓰기** |
 
-1. 다음 노드가 `$node["Parallel"].output.*` 로 보는 값은 항상 완료 시점 형태다.
-2. 핸들러가 시작 시점에 반환한 `output: null` 은 밖의 표현식에 드러나지 않는다(Loop · ForEach · Map 과 같은 방식).
+1. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["Parallel"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 시작 시점의 `output: null` 을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+2. 핸들러가 시작 시점에 반환한 `output: null` 은 엔진이 덮어쓰기 전의 중간 단계다(Loop · ForEach · Map 과 같은 방식). 밖의 표현식에 드러나지 않는 범위는 1번과 같다.
 3. `port` 는 시작 시점에 `string[]` (fan-out)이고 완료 시점에 `'done'` 문자열(단일 포트)이다. 엔진 덮어쓰기 대상 노드 가운데 노드 출력에 `port` 를 직접 싣는 것은 Parallel 뿐이다.
 4. 병렬 분기 입력은 `ParallelExecutor` 가 `ExecutionContext` 얕은 복사본(`variables` 는 깊은 복사)으로 나눠 준다. 핸들러의 시작 시점 `output` 에 기대지 않는다.
 
@@ -291,3 +293,13 @@ Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 �
 **best-effort 계약** ([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)): signal 을 지원하지 않는 노드(CPU 작업, 곧바로 끝나는 노드)는 자기 작업을 끝낼 때까지 계속한다. 2026-07-26 기준 signal 을 받는 노드는 HTTP · DB · AI · 이커머스 통합 Cafe24 · MakeShop 이다. Email 은 보내기 전 abort 확인만 하고 이미 보내는 중인 SMTP 는 일부러 중단하지 않는다. 채팅 채널은 노드가 아니라 `webhook` 트리거의 발신 어댑터라서 처음부터 대상이 아니다. 그래서 `cancel-others-on-fail` 의 효과는 노드별로 차츰 강해진다.
 
 **에러 분류**: 모든 병렬 분기가 끝나면 원인 에러(`error.name !== 'AbortError'` 인 첫 실패)를 Parallel 노드의 에러로 다시 던진다. `AbortError` 는 뒤따른 병렬 분기 정리의 결과라서 사용자 메시지의 신호 대 잡음비를 위해 드러내지 않는다.
+
+### 완료 `meta` 에 병렬 분기 수와 실패 수를 따로 싣지 않는다 (2026-10-24)
+
+옛 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 컨테이너 행은 `meta.branches?` 를 적었지만 엔진은 `meta.clampedConcurrency` 만 싣는다. 병렬 분기 수는 `output.count`, 성공과 실패는 `output.branches[i].status` 로 이미 알 수 있으므로 지금 동작을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`).
+
+기각한 대안은 완료 `meta` 에 `branches` · `fulfilledCount` · `rejectedCount` 를 더하는 안이다. 엔진 코드를 바꿔야 하고 지금 이 값을 요구하는 화면 · 요구사항이 없다. 실패 수는 `branches[i].status` 로 셀 수 있다. `meta.durationMs` 는 이 판단에 넣지 않았다. 노드 전체 실행 시간을 둘 곳은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항) 의 미결 사항 「컨테이너 · Parallel 노드의 실행 시간」 에서 정한다.
+
+출력 균일성을 겹침 제거보다 앞에 둔 2026-06-03 결정 B([`done` 출력에 `count` 를 싣는다](#done-출력에-count-를-싣는다-2026-06-03-결정-b))는 `output` 필드에 대한 결정이다. 그래서 이 판단과 부딪치지 않는다. [Map 노드](CLE-NODE-MAP.md#rationale) 가 완료 `meta` 에 `iterations` · `skippedCount` 를 더한 것은 같은 실행기를 쓰는 ForEach 와 `meta` 를 맞추려는 것이라 이 경우와 다르다.
+
+병렬 분기 수나 실패 수를 `meta` 로 읽어야 하는 화면이나 요구사항이 생기면 다시 본다.

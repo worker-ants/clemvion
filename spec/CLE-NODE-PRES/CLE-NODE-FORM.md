@@ -2,19 +2,19 @@
 id: "CLE-NODE-FORM"
 title: "Form 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-FORM-001", "REQ-FORM-002", "REQ-FORM-003", "REQ-FORM-004", "REQ-FORM-005", "REQ-FORM-006", "REQ-FORM-007", "REQ-FORM-008", "REQ-FORM-009", "REQ-FORM-010", "REQ-FORM-011", "REQ-FORM-012", "REQ-FORM-013", "REQ-FORM-014", "REQ-FORM-015", "REQ-FORM-016", "REQ-FORM-017", "REQ-FORM-018", "REQ-FORM-019", "REQ-FORM-020", "REQ-FORM-021", "REQ-FORM-022", "REQ-FORM-023"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "2245a576e575ba21ac2d7c35aa78350a6cc84ded4c00bdc501dbf0178e5a3dda"
-read_as: "approved"
-task: null
+content_hash: "4ee6b627910904251daacc8e6c40aecb08f6982e50df623d07f65e08981e9a33"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/6-presentation/4-form.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "16a7aa296e4abde1af00cdac1cfc29b309776553a45a00bfcf8e27bdb6596937"
-etag: "sha256-9852065dbdea06feff7a0dd5dc738381f9ce3e4f4207b5cc2be2ab279331de6a"
+mirror_sha256: "9bf2aafde079022dc6f2b7f54f915ca82f11c0b5eb66309b139bff438640c43a"
+etag: "sha256-2dff1513b19af41265a94015cf7241f239a4844b63686b4d6be4b98ff480c4af"
 ---
 > 구현 상태: 구현됨 (검증 preset 카탈로그와 캔버스 설정 요약은 미구현) · 원문: `spec/4-nodes/6-presentation/4-form.md`, `spec/4-nodes/_product-overview.md` (§9.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,9 +58,9 @@ Form 노드는 버튼 정의(`ButtonDef`)를 쓰지 않고 자체 폼 필드(`Fo
 - REQ-FORM-022 WHEN 검증 규칙에 `preset` 이 있으면 THE SYSTEM SHALL 미리 정의한 검증을 적용하고 `pattern` 보다 먼저 쓴다. (미구현)
 - REQ-FORM-023 WHEN 검증 규칙이 `preset: 'phone'` 이면 THE SYSTEM SHALL 서버에서 `^\+?[\d\s\-()]+$` 로 검증하고 채널 어댑터가 UI 힌트를 뽑게 한다. (미구현)
 
-입력 대기 기한(타임아웃)은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+입력 대기에는 기한이 없다. 사용자가 폼을 제출하거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-FM-01~07)의 우선순위는 모두 필수다.
+제품 요구사항 원문(ND-FM-01~07)의 우선순위는 모두 필수다. 다만 ND-FM-05 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -71,7 +71,7 @@ Form 노드는 버튼 정의(`ButtonDef`)를 쓰지 않고 자체 폼 필드(`Fo
 | `description` | String? | | 없음 | 폼 설명. Markdown 을 쓸 수 있다 |
 | `submitLabel` | String | | `'Submit'` | 제출 버튼 텍스트 |
 
-설정에 타임아웃 필드는 없다. 대기 기한은 [미결 사항](#미결-사항) 참조.
+설정에 타임아웃 필드는 없다.
 
 **FormField 구조:**
 
@@ -375,7 +375,6 @@ Form 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 다음 �
 
 ## 미결 사항
 
-- **입력 대기 기한(타임아웃)**: 요구사항 원문(ND-FM-05)은 "대기 타임아웃 설정(초 단위, 미지정 시 무제한)" 을 구현됨으로 적었다. 이 노드 원문은 폼 제출 전까지 기한 없이 기다리고 외부 취소나 종료 말고는 타임아웃이 없다고 적는다. 설정에도 타임아웃 필드가 없다. 옛 실행 엔진·EIA 원문은 없는 설정 필드 `formConfig.timeout` 을 근거로 들었다. 새 문서는 이 서술을 옮기지 않았다. 결정은 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항) 에서 함께 한다.
 - **채팅 채널 프롬프트가 쓰는 필드 설명(`description`)**: Telegram·Discord 등 어댑터 문서([Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md), [Discord 어댑터](../CLE-CHAT/CLE-CHAT-DISCORD.md))는 필드별 `description` 을 프롬프트 둘째 줄이나 모달 placeholder 로 쓴다. 이 문서의 FormField 표와 `formFieldSchema` 에는 `description` 이 없다. 현재 구현은 스키마 `passthrough` 로만 값을 통과시키고 `form-mode.ts` 가 읽는다. 설정 UI 에서 입력할 방법도 없다. FormField 에 `description` 을 정식 필드로 더할지, 어댑터 문서에서 뺄지 결정 필요. 같은 항목이 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에 있고 결정은 한 번에 한다.
 
 ## 구현 위치

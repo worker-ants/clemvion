@@ -2,19 +2,19 @@
 id: "CLE-NODE-CHART"
 title: "Chart 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-CHART-001", "REQ-CHART-002", "REQ-CHART-003", "REQ-CHART-004", "REQ-CHART-005", "REQ-CHART-006", "REQ-CHART-007", "REQ-CHART-008", "REQ-CHART-009", "REQ-CHART-010", "REQ-CHART-011", "REQ-CHART-012", "REQ-CHART-013", "REQ-CHART-014", "REQ-CHART-015", "REQ-CHART-016"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "c28410fdcd6be448d894a5df96f870d805378ded1ab1b1ef2dd9288c3f3cce12"
+content_hash: "7dce1913a895915af29d56d8c9163d63e88dfb82d5f70d33f7689f85fad6a75e"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e383c6a2d2ff7ff8ff688dc8c07b62e2301f770c7b190cc81b707dc085be6254"
-etag: "sha256-39021de57d259d2276537b5af01e4389ebfc66bd27eeb0c3032ec13bc8dd1929"
+mirror_sha256: "954e339966ee71a312976a2db2d83505a7b1063a325653f49da9966433940099"
+etag: "sha256-37a3c6a90f816cc313d8131a9d0cf584d0df1e4022b1bb0da5dc1699c0c13476"
 ---
 > 구현 상태: 부분 구현 (`groupBy` 다중 시리즈 미구현. 핸들러는 `groupBy` 를 설정 에코에만 실음) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,9 +49,9 @@ Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입
 - REQ-CHART-015 IF `chartType`·`xAxis.field`·`yAxis.field` 가 비어 있으면 THE SYSTEM SHALL 노드 경고 규칙으로 캔버스에 알린다.
 - REQ-CHART-016 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 런타임 에러 포트는 쓰지 않는다.
 
-입력 대기 기한(타임아웃)은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-CH-01~07)의 우선순위는 ND-CH-04(제목·색상)만 권장이고 나머지는 필수다.
+제품 요구사항 원문(ND-CH-01~07)의 우선순위는 ND-CH-04(제목·색상)만 권장이고 나머지는 필수다. 다만 ND-CH-07 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -113,7 +113,7 @@ pie·donut 은 `xAxis` 대신 labelField·valueField 를 쓰려는 의도였지�
 ## 실행 로직
 
 1. 입력 데이터 배열을 정규화한다. 핸들러 `execute` 의 우선순위는 다음과 같다.
-   - `dataField` 가 있고 입력이 객체이면 `input[dataField]` 를 뽑는다. 배열이 아니면 `[]` 로 대신한다.
+   - `dataField` 가 있고 입력이 객체이면 `input[dataField]` 를 뽑는다. 배열이 아니면 `[]` 로 대신한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 Principle 10 예외이고 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 의 예외 표에 있다.
    - 그 밖에는 `Array.isArray(input) ? input : [input]` 을 쓴다.
    - 현재 구현은 이보다 먼저 `config.dataSource` 가 있으면 그 값을 쓴다. 배열은 그대로 쓰고 단일 값은 `[v]` 로 감싼다(`ChartHandler.execute` 의 데이터 원천 선택 분기). `dataSource` 는 `chartConfigSchema` 에 없는 키이고 스키마가 `.passthrough()` 라 저장만 통과한다. 정식 설정 항목이 아니며 정식 데이터 추출 경로는 `dataField` 다.
 2. 각 항목에서 `{ x: item[xAxis.field], y: item[yAxis.field] }` 포인트를 만든다. `yAxis` 가 없으면 `y` 를 생략한다.
@@ -364,7 +364,6 @@ Chart 는 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 ## 미결 사항
 
 - **채팅 채널 렌더러가 기대하는 차트 입력**: 채팅 채널 어댑터 문서와 렌더러는 차트 입력을 `output.payload.{title, series, labels}` 로 찾지만 이 노드는 `output.data` 를 `{ x, y? }[]` 로 내고 제목은 `config.title` 에 둔다. 매트릭스와 렌더러를 고칠지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다. 두 선택지 모두 이 문서의 [출력 구조](#출력-구조)를 노드 출력의 기준으로 둔다.
-- **입력 대기 기한(타임아웃)**: 요구사항 원문(ND-CH-07)은 "선택적 타임아웃 지원(무제한 가능)" 을 적고 이 노드 원문은 외부 취소나 종료 전까지 기한 없이 기다린다고 적는다. 결정은 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항) 에서 함께 한다.
 - **출력 스키마가 폐기한 필드를 선언한다**: `chart.schema.ts` 의 `chartOutputSchema` 는 `data` 말고도 `type: 'chart'`·`chartType`·`title` 을 선언한다. `chart.component.ts` 가 이 스키마를 노드의 `outputSchema` 로 등록한다. 핸들러가 출력 값에 싣는 것은 `data` 뿐이다. 세 필드 선언은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 1.1 · 4.2 와 어긋나므로 정리 대상이다.
 
 ## 구현 위치
@@ -396,3 +395,11 @@ Chart 는 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 - 사용자 문서의 `chartType` 설명: `codebase/frontend/src/content/docs/02-nodes/presentation.mdx`, `presentation.en.mdx`
 
 기각한 대안은 스키마 enum 과 렌더러를 세 유형으로 줄이는 안이다. 이 안은 이전 초안의 미결 사항에 선택지 (B)로 올라 있었다. 이미 `area`·`donut` 으로 저장된 노드가 스키마 검증에서 깨지므로 택하지 않았다.
+
+### `dataField` 가 배열이 아니면 빈 배열로 그린다 (2026-10-24)
+
+[노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 Principle 10 은 배열을 기대한 설정 필드에 배열이 아닌 값이 오면 throw 하라고 정한다. Chart 는 `dataField` 가 배열이 아닌 값을 가리키면 `[]` 로 그려 왔다. 이 동작은 승인본 요구사항 REQ-CHART-009 가 이미 정한 동작이다. 반복·분리 노드는 아니지만 이 동작을 바꾸지 않고 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 의 예외 표에 넣었다(NERV Task `CLE-T-3HJ8MM`). 빈 차트는 화면에 바로 보여 사용자가 알아채므로 `meta.fellBackToEmpty` 를 더하지 않았다. 2026-10-10 에 사용자가 승인한 규칙은 입력 배열을 도는 반복·분리 노드만 다뤘다. Chart 를 예외 표에 함께 올린 경위는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24) 에 있다.
+
+문자열 · 숫자 · 객체처럼 `null` · `undefined` 가 아닌 값도 빈 차트로 그린다. 승인본 요구사항 REQ-CHART-009 는 값의 타입을 나누지 않고 배열이 아니면 `[]` 로 대신한다고 정했다. 핸들러도 `input[dataField]` 가 배열이 아니면 타입과 상관없이 `[]` 로 집계한다(`chart.handler.ts`). 이런 값이 와도 Chart 는 실행을 멈추지 않고 빈 차트를 보여 준다. 빈 차트가 화면에 바로 보이므로 사용자는 데이터가 잘못 들어온 것을 알아챌 수 있다.
+
+기각한 대안은 Principle 10 대로 throw 하는 안이다. 데이터가 아직 없을 때 빈 차트를 보여 주던 워크플로우가 실패로 바뀐다.
