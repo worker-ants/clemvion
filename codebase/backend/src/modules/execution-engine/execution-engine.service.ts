@@ -112,6 +112,7 @@ import type { ResumeCheckpoint } from './utils/resume-state.schema';
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ParallelBranchContext,
   ResumableMessageSource,
 } from '../../nodes/core/node-handler.interface';
@@ -149,7 +150,6 @@ import {
   adaptHandlerReturn,
   isCanonicalHandlerOutput,
   toEngineFlatShape,
-  toEngineFlatShapeForNode,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -6128,7 +6128,7 @@ export class ExecutionEngineService
         node.id,
         resolvedConfig,
       );
-      const flatForCache = toEngineFlatShapeForNode(node.type, adapted);
+      const flatForCache = this.toCacheShape(node.type, adapted);
 
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
@@ -6699,7 +6699,7 @@ export class ExecutionEngineService
         ctxKey,
         predId,
         this.applyPortSelection(
-          toEngineFlatShapeForNode(nodeMap.get(predId)?.type ?? '', adapted),
+          this.toCacheShape(nodeMap.get(predId)?.type ?? '', adapted),
         ),
       );
       executedNodes.add(predId);
@@ -6793,6 +6793,24 @@ export class ExecutionEngineService
     // If no predecessor has produced output yet (e.g., all incoming are back-edges
     // and none have executed), fall back to workflow input
     return hasAnyInput ? merged : workflowInput;
+  }
+
+  /**
+   * 핸들러 출력을 엔진 캐시(flat) 모양으로 바꾼다. 노드 완료 경로와 단일 노드 실행의
+   * 상류 출력 복원 경로가 같은 규칙을 쓰도록 한 곳에 둔다.
+   *
+   * 컨테이너(`kind: 'container'`)는 입력 배열을 `output` 으로 돌려주고 컨테이너 실행이
+   * 구조화 캐시에서 그 배열을 읽는다. 함께 온 `meta` 만으로 `{ data }` 로 감싸면
+   * `setNodeOutput` 이 구조화 캐시의 `output` 까지 바꿔 컨테이너가 배열을 못 본다.
+   * 그래서 `kind` 가 컨테이너인 노드는 감싸기 판단에서 `meta` 를 뺀다.
+   * 노드 유형 이름이 아니라 등록 때 받은 `kind` 로 정하므로 새 컨테이너도 선언만 따라온다
+   * (`executionMetadata` 자기선언, `NodeTypeMetadata`).
+   */
+  private toCacheShape(nodeType: string, adapted: NodeHandlerOutput): unknown {
+    return toEngineFlatShape(adapted, {
+      ignoreMetaForWrap:
+        this.handlerRegistry.getMetadata(nodeType).kind === 'container',
+    });
   }
 
   /**

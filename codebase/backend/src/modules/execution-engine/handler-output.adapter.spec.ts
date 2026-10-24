@@ -2,7 +2,6 @@ import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
-  toEngineFlatShapeForNode,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -393,8 +392,9 @@ describe('toEngineFlatShape', () => {
   });
 
   // meta 만 있어도 감싼다. 저장된 워크플로우가 `$input.data` 로 읽을 수 있어서
-  // 노드 종류를 모르는 이 함수는 레거시 `{ data }` 봉투를 지킨다(NERV Task
-  // CLE-T-T30D5S). Map · ForEach 예외는 toEngineFlatShapeForNode 가 맡는다.
+  // 옵션이 없는 이 함수는 레거시 `{ data }` 봉투를 지킨다. 현행 동작을 고정한 것이고
+  // 노드 출력 규약과는 다르다(배열 · 원시값 `output` 을 그대로 노출). NERV Task
+  // CLE-T-T30D5S 에서 바뀐다. 컨테이너 예외는 `ignoreMetaForWrap` 이 맡는다.
   it.each([
     ['array', [1, 2, 3]],
     ['string', 'result text'],
@@ -518,41 +518,52 @@ describe('toEngineFlatShape', () => {
   });
 });
 
-describe('toEngineFlatShapeForNode', () => {
-  // Map · ForEach 는 입력 배열을 output 으로 돌려주고 컨테이너 실행이 구조화
+describe('toEngineFlatShape ignoreMetaForWrap', () => {
+  // 컨테이너(Map · ForEach)는 입력 배열을 output 으로 돌려주고 컨테이너 실행이 구조화
   // 캐시에서 그 배열을 읽는다. meta 때문에 감싸면 컨테이너가 배열을 못 본다.
-  it.each(['map', 'foreach'])(
-    'keeps the %s input array bare when it carries meta',
-    (nodeType) => {
-      const output = [{ v: 1 }, { v: 2 }];
-      const flat = toEngineFlatShapeForNode(nodeType, {
-        config: {},
-        output,
-        meta: { fellBackToEmpty: false },
-      });
-      expect(flat).toBe(output);
-    },
-  );
+  // 어댑터는 노드 종류를 모른다. 켜는 쪽은 엔진이 레지스트리 kind 로 정한다.
+  it('keeps an array output bare when it carries only meta', () => {
+    const output = [{ v: 1 }, { v: 2 }];
+    const flat = toEngineFlatShape(
+      { config: {}, output, meta: { fellBackToEmpty: false } },
+      { ignoreMetaForWrap: true },
+    );
+    expect(flat).toBe(output);
+  });
 
-  it('still wraps a container array when a control field rides with meta', () => {
-    const flat = toEngineFlatShapeForNode('map', {
-      config: {},
-      output: [1, 2],
-      meta: { fellBackToEmpty: false },
-      port: 'body',
-    });
+  it('still wraps an array output when a control field rides with meta', () => {
+    const flat = toEngineFlatShape(
+      {
+        config: {},
+        output: [1, 2],
+        meta: { fellBackToEmpty: false },
+        port: 'body',
+      },
+      { ignoreMetaForWrap: true },
+    );
     expect(flat).toEqual({ data: [1, 2], port: 'body' });
   });
 
-  it.each(['merge', 'transform', ''])(
-    'keeps the legacy envelope for a non-container type %p',
-    (nodeType) => {
-      const flat = toEngineFlatShapeForNode(nodeType, {
-        config: {},
-        output: [1, 2],
-        meta: { inputCount: 2 },
-      });
-      expect(flat).toEqual({ data: [1, 2] });
-    },
-  );
+  it('keeps the legacy envelope when the option is off', () => {
+    const adapted = {
+      config: {},
+      output: [1, 2],
+      meta: { inputCount: 2 },
+    };
+    expect(toEngineFlatShape(adapted)).toEqual({ data: [1, 2] });
+    expect(toEngineFlatShape(adapted, { ignoreMetaForWrap: false })).toEqual({
+      data: [1, 2],
+    });
+  });
+
+  it('does not change an object output (meta never decided its wrapping)', () => {
+    const adapted = {
+      config: {},
+      output: { a: 1 },
+      meta: { iterations: 2 },
+    };
+    expect(toEngineFlatShape(adapted, { ignoreMetaForWrap: true })).toEqual(
+      toEngineFlatShape(adapted),
+    );
+  });
 });

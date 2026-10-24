@@ -6654,8 +6654,9 @@ describe('ExecutionEngineService', () => {
       expect(seenInputs[0]).toEqual({ seeded: 99 });
     });
 
-    // 상류 출력 복원도 노드 완료 경로와 같은 감싸기 규칙을 따른다. Map 은 meta 가
-    // 있어도 배열 그대로, 다른 노드는 meta 가 있으면 옛 `{ data }` 봉투로 넘긴다.
+    // 상류 출력 복원도 노드 완료 경로와 같은 감싸기 규칙을 따른다. 컨테이너(레지스트리
+    // `kind: 'container'`)는 meta 가 있어도 배열 그대로, 다른 노드는 meta 가 있으면 옛
+    // `{ data }` 봉투로 넘긴다.
     it.each([
       ['map', [{ v: 1 }]],
       ['test_node', { data: [{ v: 1 }] }],
@@ -6663,6 +6664,10 @@ describe('ExecutionEngineService', () => {
       '상류 %s 의 배열 출력 + meta 를 노드 완료 경로와 같은 모양으로 seed',
       async (predType, expectedInput) => {
         passThroughCreate();
+        // 엔진은 유형 이름이 아니라 등록 때 받은 kind 로 판단한다.
+        handlerRegistry.register('map', new MapHandler(), {
+          kind: 'container',
+        });
         mockNodeRepo.findBy.mockResolvedValue(
           mockNodes.map((n) =>
             n.id === 'node-1' ? { ...n, type: predType } : n,
@@ -14020,6 +14025,72 @@ describe('ExecutionEngineService', () => {
         },
       );
     });
+
+    // 엔진은 노드 유형 이름이 아니라 레지스트리 `kind` 로 감싸기 판단에서 meta 를
+    // 뺄지 정한다. 컨테이너가 아닌 노드의 배열 출력은 meta 만 있어도 `{ data }` 로
+    // 감싸이는 현행 동작을 고정한다(노드 출력 규약과 다르다. NERV Task CLE-T-T30D5S 에서 바뀐다).
+    it.each([
+      ['standard', { kind: 'standard' }],
+      ['unregistered metadata', undefined],
+    ] as const)(
+      'wraps a non-container array output that carries meta as { data } (%s)',
+      async (_label, metadata) => {
+        handlerRegistry.register(
+          'array_with_meta',
+          {
+            validate: () => ({ valid: true, errors: [] }),
+            execute: jest.fn(async () => ({
+              config: {},
+              output: [1, 2, 3],
+              meta: { inputCount: 3 },
+            })),
+          },
+          metadata,
+        );
+        const sinkCalls: unknown[] = [];
+        handlerRegistry.register('sink_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async (input: unknown) => {
+            sinkCalls.push(input);
+            return mockOutput({ ok: true });
+          }),
+        });
+        const node = (id: string, type: string): Partial<Node> => ({
+          id,
+          workflowId,
+          type,
+          category:
+            type === 'array_with_meta'
+              ? NodeCategory.TRIGGER
+              : NodeCategory.LOGIC,
+          label: id,
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        });
+        mockNodeRepo.findBy.mockResolvedValue([
+          node('src', 'array_with_meta'),
+          node('sink', 'sink_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          {
+            id: 'e1',
+            workflowId,
+            sourceNodeId: 'src',
+            sourcePort: 'out',
+            targetNodeId: 'sink',
+            targetPort: 'in',
+            type: EdgeType.DATA,
+          } as Partial<Edge>,
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+
+        expect(sinkCalls).toEqual([{ data: [1, 2, 3] }]);
+      },
+    );
   });
 
   describe('Parallel execution (PARALLEL_ENGINE=v1)', () => {
