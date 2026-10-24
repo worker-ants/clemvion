@@ -3109,23 +3109,34 @@ describe('WorkflowAssistantStreamService', () => {
         message: noLlmConfigMessage(false),
       });
       expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+      expect(loggedText()).toContain(RAW);
     });
 
     it('sends the table message for ASSISTANT_NO_LLM_CONFIG when no usable config exists', async () => {
-      const { service, mocks } = makeService();
-      mocks.llmService.resolveConfig.mockRejectedValue(
-        new BadRequestException(RAW),
-      );
+      const loggerWarn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const { service, mocks } = makeService();
+        mocks.llmService.resolveConfig.mockRejectedValue(
+          new BadRequestException(RAW),
+        );
 
-      const events = await collect(
-        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
-      );
+        const events = await collect(
+          service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+        );
 
-      expect(errorEventOf(events)).toEqual({
-        code: 'ASSISTANT_NO_LLM_CONFIG',
-        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
-      });
-      expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+        expect(errorEventOf(events)).toEqual({
+          code: 'ASSISTANT_NO_LLM_CONFIG',
+          message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
+        });
+        expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
+        expect(
+          loggerWarn.mock.calls.map((c) => String(c[0])).join('\n'),
+        ).toContain(RAW);
+      } finally {
+        loggerWarn.mockRestore();
+      }
     });
   });
 

@@ -214,11 +214,20 @@ export class WorkflowAssistantStreamService {
         workspaceId,
       );
     } catch (err) {
+      // 예외 원문은 화면에 보내지 않고 로그에만 남긴다 (REQ-ASSIST-048). 설정이
+      // 없거나 쓸 수 없는 경우는 warn, 그 밖의 예외(DB 장애 등)는 error 다.
+      const configUnavailable = err instanceof BadRequestException;
+      const reason = err instanceof Error ? err.message : 'Unknown error';
+      if (configUnavailable) {
+        this.logger.warn(`Assistant LLM config unavailable: ${reason}`);
+      } else {
+        this.logger.error(`Assistant LLM config resolve failed: ${reason}`);
+      }
       yield {
         event: 'error',
         data: {
           code: 'ASSISTANT_NO_LLM_CONFIG',
-          message: noLlmConfigMessage(err instanceof BadRequestException),
+          message: noLlmConfigMessage(configUnavailable),
         },
       };
       return;
