@@ -2,21 +2,21 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "5e5d98e779653cb5d84f7d75452b682f7adc640aeab388b15092f02e094fa2eb"
+content_hash: "df995e3d6a6f137522f8373f605536c421b7fdf83a5db7112cd4f37e41a1a0f8"
 read_as: "approved_fallback"
-task: "CLE-T-G62XJS"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "c454600efb83defa97e8bb2d3dd778c155c39ec77e67e45d73b5de21ef4db4a9"
-etag: "sha256-a6bf2401a9230d6de7e05a7aab4fa2574a7fe174c3eeda2dd30425792a305ebf"
+mirror_sha256: "8fbde57f3f42f38c31a81e5af37843f062559d12cc8120d6ed88a90bea2cb02d"
+etag: "sha256-8d09da1397d640a3be35f712dec9f2e57a52b5df75d64a3b28ad30ec2376d1b6"
 ---
-> 구현 상태: 구현됨(외부 MCP 도구 인자의 `inputSchema` 검증은 미구현, [미결 사항](#미결-사항)) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨(외부 MCP 도구 인자의 `inputSchema` 검증은 미구현, [미결 사항](#미결-사항). 개인 통합의 작성자 기준은 미구현, [통합 조회 기준](#통합-조회-기준)) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -416,8 +416,12 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 | `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없다. 갱신할 수 없어 통합 재인증이 필요하다 | cafe24 |
 | `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 정식 회복은 외부에서 하는 명시적 재인증이다([인증 실패 상태 전환](#인증-실패-상태-전환)) | cafe24 / mcp |
 | `pending_install` | Cafe24 Private 첫 설치가 끝나지 않았다 | cafe24 |
-| `lookup_failed` | 통합 행 조회 실패(삭제됨, 권한 없음) | 공용 |
+| `lookup_failed` | 통합 행 조회 실패. 통합이 없을 때, 다른 워크스페이스에 있을 때, 개인 통합인데 AI 에이전트 노드가 속한 워크플로우의 작성자가 통합 소유자가 아닐 때(이 조건은 미구현)다. 셋을 구분하지 않는다. 외부 MCP 서버는 아직 이 요약을 남기지 않는다(아래 「통합 조회 기준」) | 공용 |
 | `not_capable` | `mcpServers` 에 등록된 통합의 `service_type` 이 이 프로바이더가 처리할 대상이 아니다(프로바이더 라우팅이 정상인지 확인하는 용도) | 공용 |
+
+#### 통합 조회 기준
+
+`mcpServers` 의 통합 조회는 통합 노드 핸들러와 같은 기준을 따른다. 개인 통합이면 AI 에이전트 노드가 속한 워크플로우의 작성자가 통합 소유자여야 한다. 아니거나 작성자를 알 수 없으면 그 서버를 `lookup_failed` 로 건너뛰고 나머지 서버는 그대로 쓴다. 하위 워크플로우 안의 AI 에이전트 노드는 그 하위 워크플로우의 작성자로 판정한다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 외부 MCP 서버와 Cafe24 · MakeShop 내부 MCP 브리지가 같다. 다만 외부 MCP 서버는 지금 통합 조회가 실패해도 `lookup_failed` 요약을 남기지 않는다. `McpToolProvider.openServer` 가 서비스 유형을 알기 전의 조회 실패를 진단에 넣지 않고 던진다. 그 서버만 빠지고 나머지 서버는 그대로 쓰인다(2026-10-24 코드 확인). 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 같다. 건너뛴 서버에는 활동 로그를 남기지 않는다. 2026-10-24 에 정했고 작성자 조건은 아직 코드에 없다(NERV Task `CLE-T-1BQZ10`). 판정 기준은 [통합 관리 「노드 실행 연동」](CLE-INT-MANAGE.md#노드-실행-연동) 이 정한다.
 
 `expired` 통합을 `buildTools` 가 스스로 되살리는지는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#미결-사항)와 [통합 상태와 만료 알림](CLE-INT-STATUS.md#미결-사항)의 미결 사항이다.
 
@@ -718,3 +722,7 @@ URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 �
 - **실제로 부른 읽기 호출은 평소처럼 기록한다.** 외부로 나간 호출이므로 활동 로그에 남기고 호출 단계 실패는 `errors[]` 에 넣는다. dry-run 이라고 따로 표시하지 않는다.
 - **`executed: false` 는 건너뛴 호출에만 붙인다.** 한 노드 안에서 건너뛴 호출과 실제로 부른 호출이 섞여도 `turnDebug[].toolCalls` 에서는 둘 다 `success` 다. LLM 과 실행 기록을 읽는 사람이 둘을 가를 수 있는 값은 도구 결과 본문의 이 필드뿐이다.
 - **안내 문구를 바꿨다.** 임시 가드의 안내는 «외부 시스템을 읽지도 바꾸지도 않았다» 였다. 읽기 호출이 실제로 나가게 되면서 이 문장은 맞지 않는다. «이 호출은 보내지 않았고 아무것도 바뀌지 않았다, 성공한 것으로 보고 이어 가라, 같은 호출을 다시 하지 마라» 로 바꿨다.
+
+### `mcpServers` 조회도 워크플로우 작성자 기준을 따른다 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24, 근거는 [통합 관리](CLE-INT-MANAGE.md) Rationale). AI 에이전트의 `mcpServers` 는 Cafe24 · MakeShop 통합을 노드 없이 쓰는 또 하나의 경로다. 이 경로를 빼면 Cafe24 노드에서는 막힌 남의 개인 통합을 AI 에이전트 도구로는 쓸 수 있다. 그래서 같은 기준을 둔다. 걸린 서버만 건너뛰고 노드는 실패시키지 않는 것은 지금 `lookup_failed` 의 격리 원칙 그대로다. [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-052 도 MCP 서버 항목은 이 격리를 따른다고 적는다.
