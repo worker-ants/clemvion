@@ -378,18 +378,16 @@ function clampNodeErrorMessage(raw: string): string {
 /**
  * ForEach · Map 의 완료 `meta`(Principle 2 실행 지표). `iterations` 는 바디를 띄운
  * 횟수, `skippedCount` 는 skip · continue 로 넘긴 수이고 0 이면 싣지 않는다.
- * 구조화 캐시의 핸들러 출력이 배열이 아니어서 빈 배열로 돌았으면
- * `fellBackToEmpty: true` 를 실어 핸들러 meta 의 `false` 를 덮는다.
+ * 엔진이 재는 지표는 이 둘뿐이다. `fellBackToEmpty` 는 핸들러가 시작 시점에 돌려준
+ * 값이 그대로 남는다([Logic 노드 공통 「엔진 덮어쓰기 계약」](CLE-NODE-LOGIC-COMMON#엔진-덮어쓰기-계약) 규칙 6).
  */
 function buildIterationMeta(
   iterations: number,
   skippedCount: number,
-  handlerOutputWasArray: boolean,
 ): Record<string, unknown> {
   return {
     iterations,
     ...(skippedCount > 0 ? { skippedCount } : {}),
-    ...(handlerOutputWasArray ? {} : { fellBackToEmpty: true }),
   };
 }
 
@@ -8185,7 +8183,6 @@ export class ExecutionEngineService
       structuredMeta = buildIterationMeta(
         collected.items.length,
         collected.skippedCount,
-        Array.isArray(handlerOutput),
       );
     } else if (containerNode.type === 'map') {
       const handlerOutput = structured?.output;
@@ -8223,7 +8220,6 @@ export class ExecutionEngineService
       structuredMeta = buildIterationMeta(
         mapped.length,
         collected.skippedCount,
-        Array.isArray(handlerOutput),
       );
     } else if (containerNode.type === 'loop') {
       const count = coerceContainerNumber(

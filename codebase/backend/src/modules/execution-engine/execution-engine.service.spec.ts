@@ -14000,31 +14000,23 @@ describe('ExecutionEngineService', () => {
         },
       );
 
-      // 구조화 캐시의 핸들러 출력이 배열이 아니면 엔진도 빈 배열로 돈다. 그때는
-      // 핸들러 meta 의 `false` 를 덮어 `fellBackToEmpty: true` 로 알린다.
-      it.each(['map', 'foreach'] as const)(
-        '%s: engine fallback on a non-array handler output reports fellBackToEmpty=true',
-        async (type) => {
-          handlerRegistry.register(
+      // 위 케이스의 부정 짝이다. 실제 빈 배열 입력도 본문은 0회 돌지만 대체한 것이
+      // 아니므로 `fellBackToEmpty` 는 `false` 다(Map · ForEach 모두 같다).
+      it.each([
+        ['map', { inputField: 'items' }, { mapped: [], count: 0 }],
+        ['foreach', { arrayField: 'items' }, { items: [], count: 0 }],
+      ] as const)(
+        '%s: empty array input runs the body zero times and keeps fellBackToEmpty=false',
+        async (type, config, expectedOutput) => {
+          const { bodyHandler, sinkCalls, meta } = await runContainer(
             type,
-            {
-              validate: () => ({ valid: true, errors: [] }),
-              execute: jest.fn(async () => ({
-                config: {},
-                output: { notAnArray: true },
-                meta: { fellBackToEmpty: false },
-              })),
-            },
-            { kind: 'container' },
-          );
-          const { bodyHandler, meta } = await runContainer(
-            type,
-            { items: [1, 2] },
-            {},
+            { items: [] },
+            config,
             async () => mockOutput({ ran: true }),
           );
           expect(bodyHandler.execute).not.toHaveBeenCalled();
-          expect(meta).toEqual({ fellBackToEmpty: true, iterations: 0 });
+          expect(sinkCalls[0]).toEqual(expectedOutput);
+          expect(meta).toEqual({ fellBackToEmpty: false, iterations: 0 });
         },
       );
     });
