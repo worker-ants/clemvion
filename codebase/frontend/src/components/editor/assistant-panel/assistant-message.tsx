@@ -114,9 +114,10 @@ const RESUMABLE_ERROR_CODES = new Set(['ASSISTANT_TOO_MANY_TOOL_CALLS']);
  * 짝이 되는 백엔드 표:
  * `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts`
  * 의 `ASSISTANT_STREAM_ERROR_MESSAGES` · `tooManyToolCallsMessage`. 새 코드를
- * 더하면 양쪽을 함께 고친다. 두 패키지가 코드를 공유하는 상수는 만들지 않고,
- * 각 쪽 테스트가 같은 코드 목록을 명시해 한쪽만 바뀌면 깨지게 했다
- * (`assistant-message-error.test.tsx` · `workflow-assistant-stream-errors.spec.ts`).
+ * 더하면 양쪽을 함께 고친다. 두 패키지가 코드를 공유하는 상수는 만들지 않았다.
+ * 대신 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 이 Map 의
+ * 코드를 소스에서 읽어 백엔드 표와 맞춰 보므로 한쪽만 바꾸면 실패한다. 그 테스트가
+ * 읽을 수 있게 `new Map([["CODE", "assistant.key"], ...])` 리터럴 형태를 유지한다.
  */
 export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([
   ["ASSISTANT_NO_LLM_CONFIG", "assistant.errorNoLlmConfig"],

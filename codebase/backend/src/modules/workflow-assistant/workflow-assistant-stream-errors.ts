@@ -15,9 +15,9 @@
  *
  * 짝이 되는 프런트엔드 표: `codebase/frontend/src/components/editor/assistant-panel/assistant-message.tsx`
  * 의 `ERROR_MESSAGE_KEYS`. 새 코드를 더하면 양쪽을 함께 고친다. 두 패키지가
- * 코드를 공유하는 상수는 만들지 않고, 각 쪽 테스트가 같은 코드 목록을 명시해
- * 한쪽만 바뀌면 깨지게 했다(`workflow-assistant-stream-errors.spec.ts` ·
- * `assistant-message-error.test.tsx`).
+ * 코드를 공유하는 상수는 만들지 않았다. 대신 이 모듈의 테스트
+ * (`workflow-assistant-stream-errors.spec.ts`)가 프런트엔드 소스에서
+ * `ERROR_MESSAGE_KEYS` 의 코드를 읽어 이 표와 맞춰 보므로 한쪽만 바꾸면 실패한다.
  */
 export const ASSISTANT_STREAM_ERROR_MESSAGES = {
   ASSISTANT_NO_LLM_CONFIG:

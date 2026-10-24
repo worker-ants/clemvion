@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
   ASSISTANT_STREAM_ERROR_MESSAGES,
@@ -13,9 +15,9 @@ import {
 
 /**
  * 이 모듈이 문구를 정하는 모든 SSE `error` 코드. 프런트엔드 `ERROR_MESSAGE_KEYS`
- * (`assistant-message.tsx`)가 같은 집합을 사전 키로 덮어야 한다. 프런트엔드
- * 테스트(`assistant-message-error.test.tsx`)가 같은 목록을 따로 들고 있어서,
- * 코드를 더하거나 빼면 양쪽 목록을 함께 고쳐야 두 테스트가 모두 통과한다.
+ * (`assistant-message.tsx`)가 같은 집합을 사전 키로 덮어야 한다. 아래
+ * "matches the frontend ERROR_MESSAGE_KEYS" 테스트가 프런트엔드 소스를 읽어
+ * 맞춰 본다.
  */
 const TABLE_CODES = [
   'ASSISTANT_NO_LLM_CONFIG',
@@ -27,14 +29,45 @@ const TABLE_CODES = [
 /** 한도 숫자가 문구에 들어가 표 대신 함수(`tooManyToolCallsMessage`)로 두는 코드. */
 const FUNCTION_CODES = ['ASSISTANT_TOO_MANY_TOOL_CALLS'];
 
+/**
+ * 프런트엔드 `ERROR_MESSAGE_KEYS` 의 코드. 두 패키지가 공유하는 상수가 없어서
+ * 소스의 `new Map([["CODE", "assistant.key"], ...])` 리터럴에서 키를 뽑는다.
+ */
+function frontendErrorMessageCodes(): string[] {
+  const source = readFileSync(
+    join(
+      __dirname,
+      '../../../../frontend/src/components/editor/assistant-panel/assistant-message.tsx',
+    ),
+    'utf8',
+  );
+  const literal =
+    /ERROR_MESSAGE_KEYS\b[^=]*=\s*new Map\(\[([\s\S]*?)\]\);/.exec(source);
+  if (!literal) {
+    throw new Error('ERROR_MESSAGE_KEYS Map literal not found');
+  }
+  return [...literal[1].matchAll(/\[\s*"([A-Z][A-Z0-9_]*)"\s*,/g)].map(
+    (m) => m[1],
+  );
+}
+
 describe('ASSISTANT_STREAM_ERROR_MESSAGES', () => {
-  it('covers exactly the codes the frontend dictionary maps (with the function-built code)', () => {
+  it('covers exactly the listed codes (with the function-built code)', () => {
     expect(
       [
         ...Object.keys(ASSISTANT_STREAM_ERROR_MESSAGES),
         ...FUNCTION_CODES,
       ].sort(),
     ).toEqual([...TABLE_CODES, ...FUNCTION_CODES].sort());
+  });
+
+  it('matches the frontend ERROR_MESSAGE_KEYS', () => {
+    expect(frontendErrorMessageCodes().sort()).toEqual(
+      [
+        ...Object.keys(ASSISTANT_STREAM_ERROR_MESSAGES),
+        ...FUNCTION_CODES,
+      ].sort(),
+    );
   });
 
   it.each(Object.entries(ASSISTANT_STREAM_ERROR_MESSAGES))(

@@ -14,9 +14,10 @@ import { assistant as enAssistant } from "@/lib/i18n/dict/en/assistant";
 
 /**
  * 사전 문구를 고르는 모든 에러 코드. 백엔드 표(`workflow-assistant-stream-errors.ts`)가
- * 문구를 정하는 코드와 같은 집합이어야 한다. 백엔드 테스트
- * (`workflow-assistant-stream-errors.spec.ts`)가 같은 목록을 따로 들고 있어서,
- * 코드를 더하거나 빼면 양쪽 목록을 함께 고쳐야 두 테스트가 모두 통과한다.
+ * 문구를 정하는 코드와 같은 집합이어야 한다. 이 테스트는 `ERROR_MESSAGE_KEYS` 가
+ * 이 목록과 같은지만 본다. 백엔드 표와 같은 집합인지는 백엔드 테스트
+ * (`workflow-assistant-stream-errors.spec.ts`)가 `assistant-message.tsx` 를 읽어
+ * 확인한다.
  */
 const MAPPED_ERROR_CODES = [
   "ASSISTANT_NO_LLM_CONFIG",
