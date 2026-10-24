@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "c09690a7b45aeb5def8e299defff8ed0ba48307e68bc33c2aec389a1ae7002d2"
+content_hash: "7bba5ff6bfaa713cc4a1f296c6cf203ab251fb4202cc7f42f14793cca4f62dea"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-ZPKDF5"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "24055ce3a22148a92c2413c03c0b2ab150b6acc3f6d145b2959ad16ae8fe1e8a"
-etag: "sha256-5b15e9df70e1babae3614d4ec65050c85a04545aca3d5f6250c4402f1252e2fb"
+mirror_sha256: "97f3e58c0b06cfe44fc4d4c9e7ba067019bbf52878a13a07c102b7b6d8e44113"
+etag: "sha256-d34991482df96d71b65bbd92a49eded8743a7ed032ed4ef0d164645bb07263ac"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -700,7 +700,7 @@ WebSocket 명령 행은 등록되지 않은 이벤트(`onAny`)도 한도를 넘�
 
 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 를 돌려준다(코드 확인). 그래서 표 아래 첫 불릿의 `Retry-After` 없는 목록에 더했다. 같은 불릿에 기본 에러 코드 `RATE_LIMITED` 를 한 번 적었다. NERV Task `CLE-T-V0JAG1` 의 일관성 검토가 초대 발송·재발송 행에 `429 RATE_LIMITED` 를 적자고 했다(Task `CLE-T-MJ9G4C` 본문). 라우트별 `@Throttle` 행은 모두 같은 코드라 행마다 적지 않고 불릿 하나로 모았다. [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 초대 에러 표와 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 는 초대 429 를 소문자 `rate_limited` 로 적는다. 코드는 `RATE_LIMITED` 만 내고 소문자 코드는 발행처가 없다. 그 등재는 NERV Task `CLE-T-8WXV7T` 가 정리한다.
 
-`MAKESHOP_INSTALL_RATE_LIMITED` 는 코드(`third-party-oauth.controller.ts`)가 내는 대로 적었다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 과 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 에러 표, 카탈로그에는 아직 `CAFE24_INSTALL_RATE_LIMITED` 만 있다. 도메인 문서에 MakeShop 잠금을 적는 일은 NERV Task `CLE-T-SRXR5W` 가 맡고 카탈로그 등재는 통합 도메인 코드 계열(`CLE-T-5BZ3M2`)과 함께 한다. 설치 잠금의 `429` 는 전역 예외 필터를 거치지 않아 `requestId` 가 빠진다. 에러 봉투를 맞추는 일은 NERV Task `CLE-T-YK106G` 가 맡는다.
+`MAKESHOP_INSTALL_RATE_LIMITED` 는 코드(`third-party-oauth.controller.ts`)가 내는 대로 적었다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 과 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 에러 표에는 아직 `CAFE24_INSTALL_RATE_LIMITED` 만 있고 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에는 두 코드 모두 없다. 도메인 문서에 MakeShop 잠금을 적는 일은 NERV Task `CLE-T-SRXR5W` 가 맡고 두 코드의 카탈로그 등재는 통합 도메인 코드 계열(`CLE-T-5BZ3M2`)과 함께 한다. 설치 잠금의 `429` 는 전역 예외 필터를 거치지 않아 `requestId` 가 빠진다. 에러 봉투를 맞추는 일은 NERV Task `CLE-T-YK106G` 가 맡는다.
 
 새 행의 `/api/3rd-party/*` 경로와 컬렉션 수준 액션 경로(`preview-test`, `precheck`)는 §2.2 명명 규칙의 예외 행에 없다. 전부터 표에 있던 `preview-models` · `embedding-probe` 도 같다. 이 개정은 §7 의 수치만 맞추고 §2.2 는 고치지 않았다. 예외 등록은 NERV Task `CLE-T-SRXR5W` 가 맡는다.
 
@@ -710,3 +710,7 @@ WebSocket 명령 행은 등록되지 않은 이벤트(`onAny`)도 한도를 넘�
 - §12.1 의 예시와 적용 대상은 DB 컬럼 이름(`is_active`)으로 적었다. 요청 본문은 camelCase(`isActive`)다. 알림 Rationale 의 기각한 대안 `{ is_read }` 도 `{ isRead }` 로 맞췄다.
 - §9 의 «엔드포인트는 둘이다» 에서 개수를 뺐다. 엔드포인트가 늘면 숫자가 낡는다(§5.5 「검증 층」 의 «개수를 세지 않는다» 와 같은 이유). 규칙 12 의 «두 가지», §7 콜아웃의 «두 개», 표 아래 불릿의 «두 행», 파일 업로드 행의 «둘 다» 도 같은 이유로 뺐다.
 - 채팅 채널 인바운드 행의 옛 요구사항 번호 `CCH-NF-03` 을 지금 ID(REQ-CHAT-046 · REQ-CHAT-047)로 바꿨다. §11.1 · §11.2 의 `WH-EP-02` · `WH-EP-03` 도 REQ-WEBHOOK-002 · REQ-WEBHOOK-003 으로 바꿨다.
+
+### 「§7 표에 빠진 라우트별 한도를 더했다」 의 카탈로그 서술을 바로잡았다 (2026-10-24)
+
+「§7 표에 빠진 라우트별 한도를 더했다 (2026-10-24)」 의 `MAKESHOP_INSTALL_RATE_LIMITED` 문단에는 처음에 두 도메인 문서의 에러 표와 카탈로그에 `CAFE24_INSTALL_RATE_LIMITED` 만 있다고 적혀 있었다. 카탈로그 부분이 틀렸다. [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에는 두 코드 모두 없다. 그래서 그 문장을 고쳤다(NERV Task `CLE-T-ZPKDF5`, 구현 완료 일관성 검토 `finding 01a16d2b-0f7b-75a2-9f7a-f6f56aba1ef1`).
