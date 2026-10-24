@@ -2,19 +2,19 @@
 id: "CLE-NODE-TABLE"
 title: "Table 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-TABLE-001", "REQ-TABLE-002", "REQ-TABLE-003", "REQ-TABLE-004", "REQ-TABLE-005", "REQ-TABLE-006", "REQ-TABLE-007", "REQ-TABLE-008", "REQ-TABLE-009", "REQ-TABLE-010", "REQ-TABLE-011", "REQ-TABLE-012", "REQ-TABLE-013", "REQ-TABLE-014", "REQ-TABLE-015", "REQ-TABLE-016", "REQ-TABLE-017", "REQ-TABLE-018", "REQ-TABLE-019", "REQ-TABLE-020"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "b4c7c1fb4c7454c100118e14dc1dc1d9ea148e964a0935cda7073d8f00e88aa5"
-read_as: "approved"
-task: null
+content_hash: "1acda752e2525a75ac3dda86f029cec390333d30fc0e257f8480e59ee439b5fe"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/6-presentation/2-table.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "84cbdf95c81c36c5420d94776a7896f350d41daf02b42ffec3dbf702c5b7efe1"
-etag: "sha256-2cca70c6bbf4797d74fc4b8c18d7627c63f1ba7930387b191183369309defe06"
+mirror_sha256: "b7806a50bb9599538c290ef03523507ae922792298d00e85b18c97c0749b6dc1"
+etag: "sha256-f378b859394d8a3ba1a4f71e8f0576f1695f6238cb07f462f572dee2e5c5d22d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/2-table.md`, `spec/4-nodes/_product-overview.md` (§9.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -54,9 +54,11 @@ Table 노드(Table, `table`)는 데이터를 표로 구조화해 보여 주는 P
 - REQ-TABLE-019 IF `columns` 가 비었거나 없으면 THE SYSTEM SHALL 노드 경고 규칙 `table:no-columns` 로 캔버스에 알리고 설정 검증에서 거부한다.
 - REQ-TABLE-020 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 런타임 에러 포트는 쓰지 않는다.
 
-입력 대기 기한(타임아웃)과 `pagination` 플래그의 역할은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+`pagination` 플래그의 역할은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
-제품 요구사항 원문(ND-TB-01~07)의 우선순위는 모두 필수다.
+입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
+
+제품 요구사항 원문(ND-TB-01~07)의 우선순위는 모두 필수다. 다만 ND-TB-07 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -373,7 +375,6 @@ Table 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 ## 미결 사항
 
 - **`pagination` 플래그가 출력 자르기를 제어하는가**: 설정 표는 `pagination`(기본 `true`)을 "페이지네이션 활성화" 로 적는다. 그런데 실행 로직 5단계는 플래그와 상관없이 `pageSize` 가 참 같은 값이면 앞 `pageSize` 행만 출력 값에 담는다. 현재 구현(`table.handler.ts:128`)도 플래그를 보지 않는다. 그래서 다운스트림과 드로어가 받는 행은 늘 한 페이지이고 드로어 페이지네이션 컨트롤이 넘길 페이지가 없다. `pagination` 이 출력 자르기를 제어하는지, 화면 표시 전용인지 결정 필요. 드로어 표시 행 수 문제([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항))와 함께 정한다.
-- **입력 대기 기한(타임아웃)**: 요구사항 원문(ND-TB-07)은 "선택적 타임아웃 지원(무제한 가능)" 을 적고 이 노드 원문은 외부 취소나 종료 전까지 기한 없이 기다린다고 적는다. 결정은 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항) 에서 함께 한다.
 
 ## 구현 위치
 

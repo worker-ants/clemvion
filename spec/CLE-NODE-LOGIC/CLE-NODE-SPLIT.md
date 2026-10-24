@@ -2,19 +2,19 @@
 id: "CLE-NODE-SPLIT"
 title: "Split 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-SPLIT-001", "REQ-SPLIT-002", "REQ-SPLIT-003", "REQ-SPLIT-004", "REQ-SPLIT-005", "REQ-SPLIT-006", "REQ-SPLIT-007", "REQ-SPLIT-008", "REQ-SPLIT-009", "REQ-SPLIT-010", "REQ-SPLIT-011", "REQ-SPLIT-012"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "e7d45c1f773c9f1acb7ece14683591d9c7e4cdba127abe6018bd20f73048b531"
-read_as: "approved"
-task: null
+content_hash: "699d5c1e95eb009011242dd069c1319a787ffd4474bdfb005af4038391e57fa8"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/6-split.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2147c20ca50e3423de03e4a7f3ba98c6eef379e8b4f9333c21c4102ba1e322b2"
-etag: "sha256-2dc2d975cd9d807d4549fa4de1e240da4586f6494f6755fe05050f3e890b3ad1"
+mirror_sha256: "a921c4ce35526cb766d1a63337010b6856a92fe40375e42c13eab58748d61796"
+etag: "sha256-0ff43ab139c092e53cddf0f6d7fb3a1c0b237abfad0b29e862cfa3d513e19d19"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/6-split.md`, `spec/4-nodes/_product-overview.md` (§4.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -69,7 +69,7 @@ Split 은 단일 출력 포트만 있다. 경로 선택 노드가 아니고 동�
 2. 평가한 `config.fieldPath` 를 `resolveFieldValue(input, fieldPath)` (`nested-value.util.ts`)로 해석한다.
    - dot-path 문자열이면 입력에 적용해 중첩 값을 읽는다.
    - inline 표현식 결과(이미 배열 값)면 그 값을 그대로 쓴다.
-3. 결과가 배열이 아니면 빈 배열로 처리하고 `meta.fellBackToEmpty = true` 로 표시한다. 이 처리는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+3. 결과가 배열이 아니면(원시값 · 객체 포함) 빈 배열로 처리하고 `meta.fellBackToEmpty = true` 로 표시한다. 배열이 아닌 값에 throw 하는 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)).
 4. 배열의 각 항목을 `{ index: number, value: unknown }` 으로 감싼다.
 5. `output: { items: [...], count: N }` 형태로 반환한다. 컨테이너 출력 규칙과 대칭이 되도록 ForEach 의 `items` 와 같은 키를 쓴다.
 
@@ -151,10 +151,6 @@ flowchart LR
 2. ForEach: `arrayField` 를 `$node["Split"].output.items` 로 지정한다. 본문 안에서 `$item.value` 로 실제 항목을, `$item.index` 로 순번을 읽는다.
 3. `done`: 항목마다의 처리 결과를 `{ items, count }` 형태로 모은다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)).
 
-## 미결 사항
-
-- **배열 아닌 입력의 처리가 노드 출력 규약과 갈린다** (critical): 이 문서는 배열이 아닌 입력을 원시값까지 모두 빈 배열로 처리한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절은 `null` / `undefined` 만 `[]` 로 대체하고 숫자·문자열은 에러를 던지라고 정한다. 원문은 이 처리를 그 절의 대체 규칙이라고 인용했다. 문자열이 들어오면 규약대로는 실패하고 이 문서대로는 빈 결과로 조용히 지나간다. 노드별 비교와 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
-
 ## 구현 위치
 
 - `codebase/backend/src/nodes/logic/split/split.*.ts`
@@ -165,3 +161,7 @@ flowchart LR
 ### 항목마다 보내지 않고 한 번에 내보낸다
 
 Split 은 나눈 배열을 한 포트로 한 번에 내보낸다. 항목마다의 반복 실행이 필요하면 ForEach 와 함께 쓴다. 옛 PRD 에 있던 "원본 데이터의 다른 필드를 각 항목에 병합" 옵션은 현행 Split 에 없다. 다른 필드가 필요하면 앞 노드 출력을 직접 참조한다.
+
+### 배열이 아닌 입력을 빈 배열로 처리한다 (2026-10-24)
+
+Split 은 배열이 아닌 입력을 모두 빈 배열로 처리하고 `meta.fellBackToEmpty` 로 알려 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 확정했다(NERV Task `CLE-T-3HJ8MM`). 기각한 대안은 Split 만 throw 로 바꾸는 안이다. 지금 빈 결과로 지나가는 워크플로우가 실패로 바뀐다.

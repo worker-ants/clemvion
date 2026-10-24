@@ -2,19 +2,19 @@
 id: "CLE-NODE-MERGE"
 title: "Merge 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-MERGE-001", "REQ-MERGE-002", "REQ-MERGE-003", "REQ-MERGE-004", "REQ-MERGE-005", "REQ-MERGE-006", "REQ-MERGE-007", "REQ-MERGE-008", "REQ-MERGE-009", "REQ-MERGE-010", "REQ-MERGE-011", "REQ-MERGE-012", "REQ-MERGE-013", "REQ-MERGE-014", "REQ-MERGE-015", "REQ-MERGE-016", "REQ-MERGE-017"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "fe7fbca5273a56932483d2f72b01b789f8e4955fe104215a2fb78051d9b98697"
-read_as: "task_basis"
-task: "CLE-T-HSHW71"
+content_hash: "7b2d2145b2f92b14408635990ae4e64d87c7c53a5dcbd704118f35b00b2878b0"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "aaf7b313e57ba1f10230d8f119e96121e482280ea0d3b4bd96460656d0aebf2d"
-etag: "sha256-e0a528ae81b01a9014062834a2680186c658eb0c339dba876cdf27e001858236"
+mirror_sha256: "0809e5368fe5b046a38e6fb2d95b84993e673f5176abf48dca6a897da8ee2cc9"
+etag: "sha256-9f0914424bc3908e6485e6b6a0e2f8586ad60b74699cba20d9aee8de20416b9e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -119,7 +119,7 @@ Merge 는 동적 포트가 없다. 경로 선택 포트와 에러 포트도 없�
 | `{}` (빈 객체) | `[]` |
 | `[]` (빈 배열) | `[]` |
 
-원문은 이 정규화에 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 을 인용했지만 `null` 처리가 그 원칙과 다르다. [미결 사항](#미결-사항) 참조.
+Merge 는 설정 경로로 값을 꺼내지 않고 입력 전체를 정규화하므로 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 대상이 아니다. 대상의 범위는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 규칙 2 가 정한다. 그래서 `null` 을 `[null]` 로 감싸 `inputCount` 1 을 만드는 지금 동작을 유지한다.
 
 ### 형식별 결과
 
@@ -259,10 +259,6 @@ Merge 는 런타임 에러 포트가 없다. 검증 실패는 모두 설정 검�
 - 예: `3 inputs · wait_all`
 - 현재 구현은 `merge.schema.ts` 에 `summaryTemplate` 이 없어 캔버스에 이 요약을 표시하지 않는다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 참조.
 
-## 미결 사항
-
-- **`null` 입력 처리가 노드 출력 규약과 다르다** (info): 원문은 [입력 정규화](#입력-정규화) 절에 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 을 인용했지만 `null` 을 `[null]` 로 감싸 `inputCount` 1 을 만든다. 규약은 `null` 을 `[]` 로 대체하라고 정한다. Merge 입력은 설정 필드가 아니라 규약의 적용 대상인지도 애매하다. 적용할지 정하고 인용을 고쳐야 한다. 노드별 비교는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 있다.
-
 ## 구현 위치
 
 - `codebase/backend/src/nodes/logic/merge/merge.*.ts`
@@ -313,3 +309,9 @@ Merge 는 런타임 에러 포트가 없다. 검증 실패는 모두 설정 검�
 - 이전하지 않는다: 이미 저장된 노드가 계속 실행에 실패한다.
 
 **소유**: 결정은 NERV Task `CLE-T-AGDM92` 가 맡았다. 구현은 `CLE-T-HSHW71` 이 맡았다. 관련 리뷰 발견은 `finding 01a0e5a1-114d-7256-9024-f3899651dea4` 다. 그 지적의 요지는 영구 dormant 필드를 화면에 보이면서 값을 넣으면 실행을 막아도 되는가였다.
+
+### 입력 정규화는 노드 출력 규약 Principle 10 의 대상이 아니다 (2026-10-24)
+
+원문은 입력 정규화에 Principle 10 을 인용했지만 `null` 을 `[null]` 로 감쌌다. Principle 10 대로면 `[]` 다. Merge 는 설정 경로로 값을 꺼내지 않고 입력 전체를 정규화하므로 Principle 10 의 대상이 아니다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 규칙 2). 그래서 Merge 의 지금 동작을 유지했다(NERV Task `CLE-T-3HJ8MM`).
+
+기각한 대안은 `null` 입력을 `[]` 로 바꾸는 안이다. 위쪽 노드가 `null` 을 낸 경우 `inputCount` 가 1 에서 0 으로 바뀌어 기존 워크플로우의 결과가 달라진다.

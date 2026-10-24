@@ -2,21 +2,21 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "964b41bce7eb819967a7e48e32d2b9eaee48be7a19fd2ff1929a7f467f8bf1dc"
+content_hash: "283cd896955e3a8142af6cb966c945670486c612b741d4504dd5d13b54c68415"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "bfc9768961c22f30ebae2faf93e0eb57485cf880003626eede50bd8d054e830b"
-etag: "sha256-8f697da939d274c7b12538ce17740f554b16a9d7f3478584d393f2a123ec7dc0"
+mirror_sha256: "48109f2a6dfd923b0e69cc1b2fe77d8ccd9678c1bd1d1f73be93f9787dd17a6c"
+etag: "sha256-8fbb3c119e11c58538daa7645a1aea5f0407291ef06139172b180688419d46d7"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -35,20 +35,20 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 - REQ-FOREACH-005 WHEN ForEach 노드를 캔버스에 그리면 THE SYSTEM SHALL 자식 노드를 감싸는 그룹 박스 없이 일반 노드와 같은 크기의 컨테이너로 그린다. (원본: ND-FE-05)
 - REQ-FOREACH-006 WHILE 컨테이너 본문이 실행되는 동안 THE SYSTEM SHALL `$itemIsFirst` 와 `$itemIsLast` 최상위 변수로 첫 항목·마지막 항목 여부를 노출한다.
 - REQ-FOREACH-007 WHEN 사용자가 대상 배열을 설정하면 THE SYSTEM SHALL `arrayField` 에 dot-path 문자열이나 inline 표현식을 받는다.
-- REQ-FOREACH-008 IF `arrayField` 로 읽은 값이 배열이 아니거나 경로가 없으면 THE SYSTEM SHALL `[]` 로 처리한다.
+- REQ-FOREACH-008 IF `arrayField` 로 읽은 값이 배열이 아니거나 경로가 없으면 THE SYSTEM SHALL `[]` 로 처리하고 `meta.fellBackToEmpty` 를 `true` 로 둔다.
 - REQ-FOREACH-009 WHEN 핸들러가 시작 시점 출력을 반환하면 THE SYSTEM SHALL 해석한 배열을 `output` 으로 반환하고 엔진이 그 항목을 본문으로 나눠 준다.
 - REQ-FOREACH-010 WHEN 모든 반복 회차가 끝나면 THE SYSTEM SHALL 핸들러를 다시 부르지 않고 노드 `output` 을 `{ items, count, skipped? }` 로 덮어쓴 뒤 `done` 포트로 보낸다.
 - REQ-FOREACH-011 WHEN 결과 배열을 만들면 THE SYSTEM SHALL 원본 배열과 같은 인덱스를 유지한다.
 - REQ-FOREACH-012 IF 본문 회차가 실패하고 항목 에러 정책이 `stop` 이면 THE SYSTEM SHALL 곧바로 실행을 실패시킨다.
 - REQ-FOREACH-013 IF 본문 회차가 실패하고 항목 에러 정책이 `skip` 이나 `continue` 면 THE SYSTEM SHALL 그 인덱스의 `output.items[i]` 를 `null` 로 두고 실패 정보를 `output.skipped` 에 `{ index, error: { code, message } }` 로 더한다.
-- REQ-FOREACH-014 WHEN 분리한 실패 항목이 있으면 THE SYSTEM SHALL 그 수를 `meta.skippedCount` 에 싣는다.
+- REQ-FOREACH-014 WHEN 분리한 실패 항목이 있으면 THE SYSTEM SHALL 그 수를 `meta.skippedCount` 에 실어 다음 노드의 표현식에서 읽을 수 있게 한다.
 - REQ-FOREACH-015 IF 분리한 실패 항목이 없으면 THE SYSTEM SHALL `output.skipped` 와 `meta.skippedCount` 를 싣지 않는다.
-- REQ-FOREACH-016 WHEN 반복이 끝나면 THE SYSTEM SHALL 본문 실행 횟수를 `meta.iterations` 에 싣는다.
-- REQ-FOREACH-017 WHEN 다음 노드가 ForEach 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 완료 형태만 보여 준다.
+- REQ-FOREACH-016 WHEN 반복이 끝나면 THE SYSTEM SHALL 본문 실행 횟수를 `meta.iterations` 에 실어 다음 노드의 표현식에서 읽을 수 있게 한다.
+- REQ-FOREACH-017 WHEN 다음 노드가 ForEach 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 완료 형태만 보여 준다. (부분 구현)
 - REQ-FOREACH-018 IF `arrayField` 가 빈 문자열이거나 없으면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-FOREACH-019 IF `errorPolicy` 가 `stop` / `skip` / `continue` 가 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-FOREACH-020 IF `emit` 포트에 본문 노드가 없거나 2개 이상이거나 본문 안에 되돌아가는 연결선이나 블로킹 노드가 있으면 THE SYSTEM SHALL 엔진 그래프 검증에서 실행을 실패시킨다.
-- REQ-FOREACH-021 WHEN ForEach 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트와 동적 포트를 두지 않는다.
+- REQ-FOREACH-021 WHEN ForEach 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트와 동적 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
 
 ## 설정
 
@@ -61,7 +61,7 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 
 설정 패널은 이 노드의 `config.errorPolicy` 를 에러 처리 정책(`config.errorHandling.policy`)으로 옮기지 않고 저장할 때 지우지도 않는다([노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정) 의 REQ-NODEUI-041, [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유)).
 
-빈 입력과 `null` 입력: `arrayField` 해석 결과가 배열이 아니면 `[]` 로 처리한다. 이 처리는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+빈 입력과 `null` 입력: `arrayField` 해석 결과가 배열이 아니면(원시값 · 객체 포함) `[]` 로 처리하고 `meta.fellBackToEmpty: true` 로 알린다. 배열이 아닌 값에 throw 하는 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)).
 
 ## 설정 화면
 
@@ -79,7 +79,7 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 | 출력 | `body` | Body | data | false | 항목마다 본문에 들어간다. `$item` / `$itemIndex` 를 묶는다 |
 | 출력 | `done` | Done | data | false | 모든 회차가 끝난 뒤 `{ items, count }` 를 넘긴다 |
 
-ForEach 는 동적 포트가 없다.
+ForEach 는 동적 포트가 없다. 포트 표와 REQ-FOREACH-021 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이고 아직 구현되지 않았다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
 
 ### 본문 안 컨텍스트 변수
 
@@ -94,7 +94,7 @@ ForEach 는 동적 포트가 없다.
 
 ## 실행 로직
 
-1. `arrayField` 로 배열을 꺼낸다(`resolveFieldValue`, `nested-value.util.ts`). dot-path 문자열이면 `$input` 에 적용하고 inline 표현식이면 resolver 가 치환한 값을 그대로 쓴다. 배열이 아니거나 경로가 없으면 `[]` 로 대체한다.
+1. `arrayField` 로 배열을 꺼낸다(`resolveFieldValue`, `nested-value.util.ts`). dot-path 문자열이면 `$input` 에 적용하고 inline 표현식이면 resolver 가 치환한 값을 그대로 쓴다. 배열이 아니거나 경로가 없으면 `[]` 로 대체하고 `meta.fellBackToEmpty` 를 `true` 로 둔다. 배열이면 `false` 다.
 2. 핸들러는 [시작 시점](#시작-시점-핸들러-반환) 형태로 `output: items[]` 를 반환한다. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다.
 3. 엔진은 항목마다 다음을 한다.
    - `$item` / `$itemIndex` 를 묶고 본문을 위상 순서로 실행한다.
@@ -118,16 +118,18 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
   "output": [
     { "id": "a", "name": "Alice" },
     { "id": "b", "name": "Bob" }
-  ]
+  ],
+  "meta": { "fellBackToEmpty": false }
 }
 ```
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.arrayField` | Expression (원래 값) | 설정 에코 | 사용자가 입력한 원래 경로·표현식. `{{ }}` 을 남긴다 |
-| `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 밖에서 직접 보이지 않는 중간 형태다 |
+| `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 엔진 안에서만 쓰는 중간 형태다. 밖에서 보이지 않는 범위는 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1번에 있다 |
+| `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `arrayField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 
-이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유(D2 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
+이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. park · 재구동 없이 이어진 실행에서 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유(D2 결정)는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
 
 ### 완료 시점 (`done` 포트)
 
@@ -142,6 +144,7 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
     "count": 2
   },
   "meta": {
+    "fellBackToEmpty": false,
     "iterations": 2
   }
 }
@@ -153,16 +156,20 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 | `config.errorPolicy` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 기본 `stop` |
 | `output.items` | unknown[] | 엔진 덮어쓰기 | 회차마다의 `emit` 포트 출력 배열. `errorPolicy` 가 `skip` / `continue` 면 실패 인덱스는 `null` 자리 |
 | `output.count` | number | 엔진 덮어쓰기 | 반복 실행한 항목 수(입력 배열 길이와 같음. 인덱스 유지) |
-| `output.skipped` | `Array<{index, error}>` | 엔진 덮어쓰기 | `errorPolicy` 가 `skip` / `continue` 일 때 따로 모은 실패 항목. 실패가 0건이면 필드 자체를 뺀다 |
-| `meta.skippedCount` | number | 엔진 주입 | `output.skipped.length`. 실패가 0건이면 필드 자체를 뺀다 |
-| `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수(반복 메트릭). 현재 구현은 실패로 `null` 이 된 인덱스도 본문이 돌았으므로 센다 |
+| `output.skipped?` | `Array<{index, error}>` | 엔진 덮어쓰기 | `errorPolicy` 가 `skip` / `continue` 일 때 따로 모은 실패 항목. 실패가 0건이면 필드 자체를 뺀다 |
+| `meta.skippedCount?` | number | 엔진 주입 | `output.skipped.length`. 실패가 0건이면 필드 자체를 뺀다 |
+| `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수(반복 메트릭). 현재 구현은 실패로 `null` 이 된 인덱스도 본문이 돌았으므로 센다. Loop 의 `output.iterations`(배열)와 다르다 |
+| `meta.fellBackToEmpty` | boolean | 핸들러 반환 | 시작 시점 값이 그대로 남는다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) 규칙 6) |
 
-ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`execution-engine.service.ts` 의 컨테이너 완료 처리는 `port` 키를 쓰지 않는다). `done` 포트는 노드 출력의 `port` 필드가 아니라 엔진의 연결선 활성화로 열린다. 노드 출력에 `port` 를 직접 싣는 것은 엔진 덮어쓰기 대상 노드 가운데 Parallel 뿐이다. 또 이 문서는 완료 출력 `meta` 에 `durationMs` 가 없고 실행 시간은 노드 실행 기록과 WebSocket 이벤트 수준에서만 보인다고 적는다. Map 문서와 서술이 다른 점은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 적었다.
+완료 `output` 과 `meta` 는 park · 재구동 없이 이어진 실행에서 다음 노드 표현식이 읽는 값이다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 반환값이 남는다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+
+ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`execution-engine.service.ts` 의 컨테이너 완료 처리는 `port` 키를 쓰지 않는다). `done` 포트는 노드 출력의 `port` 필드가 아니라 엔진의 연결선 활성화로 열린다. 노드 출력에 `port` 를 직접 싣는 것은 엔진 덮어쓰기 대상 노드 가운데 Parallel 뿐이다. 완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)). Map · Loop · Parallel 도 같다.
 
 표현식 접근 예:
 
 - `$node["ForEach"].output.items[0]` → 첫 회차의 emit 출력
 - `$node["ForEach"].output.count` → 처리한 항목 수(O(1))
+- `$node["ForEach"].meta.fellBackToEmpty` → 입력이 배열이 아니어서 빈 배열로 대체했는지
 
 ### 실패 항목 분리 (`errorPolicy` `skip` / `continue`)
 
@@ -187,6 +194,7 @@ ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`
     ]
   },
   "meta": {
+    "fellBackToEmpty": false,
     "iterations": 3,
     "skippedCount": 1
   }
@@ -204,11 +212,11 @@ Map 은 실패 항목을 `output.mapped[i] = { _skipped: true, error }` 인라�
 | 시작(본문 진입 직전) | `output: items[]` (해석한 원래 배열) | 핸들러 반환. 본문 반복 회차에 나눠 줄 입력 |
 | 완료(모든 회차 종료 뒤) | `output: { items: [...], count: N, skipped?: [...] }` | **엔진 덮어쓰기**(핸들러 다시 부르지 않음) |
 
-1. 다음 노드가 `$node["ForEach"].output.*` 로 보는 값은 항상 완료 시점 형태다.
-2. 핸들러가 시작 시점에 반환한 `output: items[]` 는 밖의 표현식에 드러나지 않는다(엔진이 덮어쓰기 전 중간 단계).
+1. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["ForEach"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 시작 시점 배열을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+2. 핸들러가 시작 시점에 반환한 `output: items[]` 는 엔진이 덮어쓰기 전의 중간 단계다. 밖의 표현식에 드러나지 않는 범위는 1번과 같다.
 3. 핸들러는 한 번만 실행되고 완료 시점 덮어쓰기는 엔진이 핸들러 호출 없이 한다.
 
-핸들러가 `null` 이 아닌 배열을 반환하는데도 엔진이 덮어쓰는 이 동작은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 덮어쓰기 규칙과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+핸들러가 `null` 이 아닌 배열을 반환해도 엔진이 덮어쓰는 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#91-계약) 의 9.1 이 정한다.
 
 ## 에러
 
@@ -232,10 +240,7 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 
 ## 미결 사항
 
-- **엔진 덮어쓰기 규칙이 노드 출력 규약과 갈린다** (critical): 핸들러가 배열을 반환해도 엔진이 완료 시점에 덮어쓴다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 `null` 이 아닌 값을 반환하면 덮어쓰지 않는다고 적는다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
-- **배열 아닌 입력의 처리가 노드 출력 규약과 갈린다** (critical): 이 문서는 원시값까지 모든 비배열을 `[]` 로 대체한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 숫자·문자열이면 에러를 던지라고 정한다. 결정 항목은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 모았다.
 - **시작 시점 설정 에코에 `errorPolicy` 가 빠져 있다** (info): 시작 시점 예시의 `config` 에는 `arrayField` 만 있다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 설정 에코 규칙은 `foreach.errorPolicy` 를 보강할 누락 필드로 든다. Loop 의 `breakCondition` 과 함께 예외로 둘지 보강할지 결정 필요([Loop 노드](CLE-NODE-LOOP.md)).
-- **에러 처리 정책의 동적 에러 포트와 REQ-FOREACH-021** (warning): [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#요구사항) 의 REQ-NODEUI-012 는 에러 처리 정책이 `route_to_error_port` 면 노드에 동적 에러 포트를 만든다고 정한다. 이 포트와 REQ-FOREACH-021(에러 포트 없음)의 관계는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 미결 사항의 「Logic 노드에 에러 처리 정책이 적용되는가」 항목에서 정한다.
 
 ## 구현 위치
 
@@ -262,3 +267,7 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 2026-10-10 에 설정 패널이 항목 에러 정책을 지우던 결함을 고쳤다(NERV Task `CLE-T-V0JAG1`). 결정과 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 
 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸는 안은 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요해서 기각했다.
+
+### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다 (2026-10-24)
+
+ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 두고 `meta.fellBackToEmpty` 로 대체 여부를 알린다(NERV Task `CLE-T-3HJ8MM`). 기각한 대안은 ForEach 만 throw 로 바꾸는 안이다. 지금 0회 실행으로 지나가는 워크플로우가 실패로 바뀐다.

@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "7631de0fc381662cc9a337461b23a0513fa57f06237a741cb5bf27d3c48e61f5"
+content_hash: "465fd7d9947cab1ac6001ab2cda20f3eb2ec48ee5e98fbcd2331e126b5e6a0f1"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "c1ba31e6abf07dd0d50edd33a47f1b27804dc7f8db91a51495aa4de434886ab3"
-etag: "sha256-1d1dfd0cacd3b4ee4899c621b5ef41f7e9452ce5462cd9d32d665b45c3095974"
+mirror_sha256: "8aff70bd2e7aba28c504732074a6e7a8628b3c46c66b19ace5533cda99023a20"
+etag: "sha256-f2becf044c175aeaa10d84b7af8481bdb76f5da1c48b7965a70859cc73612a62"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -405,7 +405,7 @@ sequenceDiagram
 - 판정: 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms=1시간)이 지난 입력 대기 실행이다. 익명 위젯은 만료 뒤 토큰을 갱신할 수 없다. 만료된 JWT 는 `InteractionGuard` 가 401 로 먼저 막아 갱신 핸들러에 닿지 못한다. 살아 있는 세션은 만료 전에 미리 갱신해 유지하므로, 모든 토큰이 만료됐다는 것은 입력이 올 경로가 사라졌다는 증명이다.
 - 동작: BullMQ 반복 작업(`webchat-idle-reaper`, 분 단위, 전역 한 번)이 대상을 찾아 엔진 `markWebChatIdleTimeout` 으로 조건부 UPDATE(`cancelled`, `cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`)하고 `revokeAllForExecution` 을 부른다.
 - 회수는 소프트 종료다. 행을 지우지 않고 `cancelled` 로 바꾼 뒤 토큰을 일괄 폐기한다. 이력과 상태 조회(`GET /api/external/executions/:id`)는 남는다.
-- 범위는 공개 웹훅이 시작했고 실행 토큰 행이 있는 실행뿐이다. 인증 설정이 연결된 트리거의 실행은 대상이 아니다. 토큰 행이 없는 실행도 대상이 아니다. 트리거 단위 토큰을 쓰는 실행, 채팅 채널 실행, 인터랙션을 켜지 않은 웹훅 실행이 여기 든다. 노드 설정 쪽 입력 대기 기한도 이 회수와 관계없다. 그런 기한을 둘지는 [Form 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-FORM.md#미결-사항) 에서 다룬다.
+- 범위는 공개 웹훅이 시작했고 실행 토큰 행이 있는 실행뿐이다. 인증 설정이 연결된 트리거의 실행은 대상이 아니다. 토큰 행이 없는 실행도 대상이 아니다. 트리거 단위 토큰을 쓰는 실행, 채팅 채널 실행, 인터랙션을 켜지 않은 웹훅 실행이 여기 든다. 노드 설정에는 입력 대기 기한이 없고([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#규칙) 규칙 10) 이 회수는 노드 설정과 관계없다.
 - 웹채팅 위젯의 재로드 `401` 도 이 규칙(만료 뒤 갱신 불가)을 따른다. 위젯 쪽 처리는 [웹채팅 인증과 세션](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md) 이 정한다.
 
 실행 엔진이 입력 대기 실행을 기한 없이 보존한다는 불변식은 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 가 정한다. 이 회수는 그 불변식이 보호하는 "곧 올 입력을 기다리는" 경우와 겹치지 않는다.

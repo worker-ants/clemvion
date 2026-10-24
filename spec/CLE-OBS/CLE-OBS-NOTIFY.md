@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "0f980cb710a492ca727a041d4d33fab9e40cb95757f5d919df50423ce88d1b95"
+content_hash: "f5e26ad1169ac00f06549933602da8c0e00fdaa27675362f1ff9f57ebfef001c"
 read_as: "approved_fallback"
-task: "CLE-T-YZ9VEX"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "9fd7b55c8941252c49096b3bb0b43cdb9cd2638e27409bca3977cb8fcf0a901a"
-etag: "sha256-c2d438db161e674090af8362efe6af2a8c851d277395d068b0476b227a26b29b"
+mirror_sha256: "4b75262dc7d9826022d3b0ba48e97968c8e3a4ef6f415333214881d9a02b71ae"
+etag: "sha256-05ba0f03d6a3aa8102a0325e26c8726654216e37dd822d0d1eb6104f57328b87"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -423,7 +423,6 @@ sequenceDiagram
 - **이메일 수신 거부 링크**: 원문 이메일 알림 절(9-user-profile §5.3)은 이메일 하단에 수신 거부 링크를 둔다고 적고 미구현 표시가 없다. 원문 데이터 흐름은 알림 이메일을 제목·본문·버튼 링크로 된 범용 템플릿 하나로만 적는다. 현재 구현의 메일·알림 모듈에는 수신 거부 처리가 없다. 수신 거부 링크를 구현할지, 요구에서 뺄지 결정이 필요하다.
 - **이메일 설정 키의 기본 방향**: 원문 알림 설정 절과 현재 구현은 키마다 방향이 다르다. `integrationExpiryEmail` 은 켜야 받는 opt-in(기본 꺼짐)이고 `executionFailedEmail`·`scheduleFailedEmail` 은 꺼야 안 받는 opt-out(기본 켜짐)이다. 원문 데이터 흐름의 Rationale 은 "`integrationExpiryEmail` 키만 쓰며 이메일 opt-in 의 기본은 false" 라고 적어 키 하나·opt-in 하나만 있는 것처럼 읽힌다. 새 키를 더할 때 기본 방향을 무엇으로 정할지(유형마다 정할지, 공통 규칙을 둘지) 규칙이 없다. 결정이 필요하다.
 - **전체 알림 페이지와 팝오버 구성**: 원문 알림 센터 절(9-user-profile §5.2)은 벨 드롭다운에 최근 알림 최대 10개와 "View all" 링크를 두고 유형·읽음 필터와 페이지네이션이 있는 전체 알림 페이지를 둔다고 적는다. 원문 레이아웃(§3.1)은 필터 칩·개별 읽음과 닫기·딥링크가 있는 팝오버만 정의하고 전체 알림 페이지를 말하지 않는다. 현재 구현은 팝오버가 최근 10건을 불러오고 전체 알림 페이지 라우트가 없다. 전체 알림 페이지를 만들지, 요구에서 뺄지 결정이 필요하다.
-- **읽음 · 삭제 API 와 상태 토글 규약**: [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §12.1 은 Boolean 토글을 `PATCH /:id { field: value }` 로 정하고 적용 대상에 인앱 알림의 `is_read` 를 든다. 현재 구현은 읽음을 전용 경로(`PATCH /api/notifications/:id/read`, `POST /api/notifications/mark-all-read`)로 받는다(`notifications.controller.ts`). 읽음 · 삭제 API 를 §12.1 예외로 등록할지 `PATCH /:id { is_read }` 로 바꿀지 정한다(NERV Task `CLE-T-3HJ8MM`). 결정이 필요하다.
 
 ## 구현 위치
 
@@ -494,14 +493,14 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 1. **코드베이스 관례상 `DELETE` 는 행 삭제다.** 행을 지우지 않는 `dismissed_at` 갱신에 같은 동사를 쓰면 API 를 쓰는 쪽이 "알림이 사라졌다 = 행이 사라졌다" 로 오해할 수 있다.
 2. **`DELETE` 응답 본문 호환성**: 일부 HTTP 클라이언트와 API 게이트웨이는 `DELETE` 응답 본문을 무시하거나 없앤다. 닫기 응답에는 `dismissedAt` 이나 `affected` 가 있어야 클라이언트가 낙관적 갱신을 고치지 않고 반영할 수 있다.
-3. **API 계약 정합성**: [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §12.1 은 Boolean 토글을 `PATCH /:id { field }` 로 정하지만 읽음은 전용 경로로 구현돼 있다. 이때 새 엔드포인트에 `DELETE` 를 들이면 알림 모듈의 동사 정책이 다른 모듈의 결정과 어긋날 수 있다. `POST` 동작 엔드포인트는 [미결 사항](#미결-사항) 이 어느 쪽으로 정해지든 맞는 보수적 선택이다. `PATCH` 로 정해지더라도 닫기는 별개 동작이라 영향이 없다(`mark-all-read` 가 `POST` 인 것과 같은 이유).
-4. **`mark-all-read` 와 동사를 맞춘다**: 모두 읽음이 이미 `POST /notifications/mark-all-read` 이므로 모두 닫기도 `POST /notifications/dismiss-all` 로 맞추면 클라이언트 SDK 가 두 동작을 같은 방식으로 부른다.
+3. **API 계약 정합성**: [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §12.1 은 Boolean 토글을 `PATCH /:id { field }` 로 정한다. 읽음은 전용 경로 `PATCH /api/notifications/:id/read` 로 구현돼 있어 2026-10-24 에 §12.1 예외로 등록했다. 닫기 · 모두 닫기 · 모두 읽음은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §2.2 의 `POST` 동작으로 정리했다(NERV Task `CLE-T-3HJ8MM`). 닫기에 `DELETE` 를 들이면 알림 모듈의 동사 정책이 이 정리와 어긋난다.
+4. **`mark-all-read` 와 동사를 맞춘다**: 모두 읽음이 이미 `POST /notifications/mark-all-read` 이므로 모두 닫기도 `POST /notifications/dismiss-all` 로 맞추면 클라이언트 SDK 가 두 동작을 같은 방식으로 부른다. 맞춘 것은 `POST` 동사다. 두 일괄 경로의 이름은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §2.2 가 선례로 삼지 않는 예외로 적었다.
 
 `PATCH /notifications/:id` + 본문 `{ dismissed: true }` 도 쓰지 않는다. 읽음 처리(`PATCH /:id/read`)와 차원이 다른 동작을 한 엔드포인트에 묶어 의도가 흐려지고 본문의 부분 수정 뜻과 동작 뜻이 섞인다.
 
 ### 모두 읽음은 `POST /notifications/mark-all-read` 다
 
-모두 읽음은 `POST /notifications/mark-all-read`(`NotificationsController.markAllRead`, `@Post('mark-all-read')`)다. 여러 건을 읽음으로 바꾸는 멱등 상태 변경이라 `PATCH`·`POST` 모두 가능했다. 일관된 `POST /동작-동사` 형태가 NestJS 컨트롤러 구현 관례와 잘 맞아 골랐다. 닫기 엔드포인트의 `POST` 도 이 형태를 따른다.
+모두 읽음은 `POST /notifications/mark-all-read`(`NotificationsController.markAllRead`, `@Post('mark-all-read')`)다. 여러 건을 읽음으로 바꾸는 멱등 상태 변경이라 `PATCH`·`POST` 모두 가능했다. 일관된 `POST /동작-동사` 형태가 NestJS 컨트롤러 구현 관례와 잘 맞아 골랐다. 닫기 엔드포인트도 같은 `POST` 동사를 쓴다. 이 경로 이름은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §2.2 의 예외이고 다른 API 의 선례로 삼지 않는다(2026-10-24).
 
 ### WebSocket 이벤트는 `notification.new` 와 `notifications:<userId>` 로 적는다
 

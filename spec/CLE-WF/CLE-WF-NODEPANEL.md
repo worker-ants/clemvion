@@ -2,21 +2,21 @@
 id: "CLE-WF-NODEPANEL"
 title: "노드 포트와 설정 패널"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-NODEUI-001", "REQ-NODEUI-002", "REQ-NODEUI-003", "REQ-NODEUI-004", "REQ-NODEUI-005", "REQ-NODEUI-006", "REQ-NODEUI-007", "REQ-NODEUI-008", "REQ-NODEUI-009", "REQ-NODEUI-010", "REQ-NODEUI-011", "REQ-NODEUI-012", "REQ-NODEUI-013", "REQ-NODEUI-014", "REQ-NODEUI-015", "REQ-NODEUI-016", "REQ-NODEUI-017", "REQ-NODEUI-018", "REQ-NODEUI-019", "REQ-NODEUI-020", "REQ-NODEUI-021", "REQ-NODEUI-022", "REQ-NODEUI-023", "REQ-NODEUI-024", "REQ-NODEUI-025", "REQ-NODEUI-026", "REQ-NODEUI-027", "REQ-NODEUI-028", "REQ-NODEUI-029", "REQ-NODEUI-030", "REQ-NODEUI-031", "REQ-NODEUI-032", "REQ-NODEUI-033", "REQ-NODEUI-034", "REQ-NODEUI-035", "REQ-NODEUI-036", "REQ-NODEUI-037", "REQ-NODEUI-038", "REQ-NODEUI-039", "REQ-NODEUI-040", "REQ-NODEUI-041"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "c03aa1f18f1abbeec038dd967364a234d53ee74b953918c04ba7190044fdf166"
+content_hash: "80edcbb6d96dfad94c6d37be689ffdb0e3b6b1821a38642d54d1f8375fac50e1"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "3541f87bf97c8cdaab3ef9ba60fe8c72d3bdb918c4bb954d418853f0a84bfe7c"
-etag: "sha256-19e0663968c2587bcc198c95fa66ce21e13dbeadec8ebd81a01d38d6c8dfe381"
+mirror_sha256: "b71a8adf18820ec70d7d49144ed9e1fc447cbe717e538f7f313d7601cfe7f86f"
+etag: "sha256-b9e1b0c60f3ea800f8194ff744888cb6be2066c7506884ea189c48a0463e1197"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-19e0663968c2587bcc198c95fa66ce21e13dbeadec8ebd81a01d38d6c8dfe381"
 - REQ-NODEUI-009 WHEN 입력 포트 하나에 연결선이 여러 개 들어오면 THE SYSTEM SHALL 모두 받는다.
 - REQ-NODEUI-010 WHEN 출력 포트 하나에서 연결선이 여러 개 나가면 THE SYSTEM SHALL 같은 데이터를 복제해 각 대상에 전달한다.
 - REQ-NODEUI-011 WHILE 노드에 출력 포트가 여럿인 동안 THE SYSTEM SHALL 포트마다 라벨을 표시한다.
-- REQ-NODEUI-012 WHEN 노드의 에러 처리 정책을 "에러 포트로 라우팅" 으로 고르면 THE SYSTEM SHALL 노드 오른쪽 아래에 빨간 동적 에러 포트를 만든다.
+- REQ-NODEUI-012 WHEN 노드의 에러 처리 정책을 "에러 포트로 라우팅" 으로 고르면 THE SYSTEM SHALL 노드 오른쪽 아래에 빨간 동적 에러 포트를 만든다. (미구현)
 - REQ-NODEUI-013 WHILE 포트를 그리는 동안 THE SYSTEM SHALL 데이터 포트는 초록, 시스템 포트는 파랑, 에러 포트는 빨강, 컨테이너 `emit` 포트는 보라로 표시한다.
 - REQ-NODEUI-014 WHILE 사용자 조건 포트와 시스템 포트가 함께 있는 동안 THE SYSTEM SHALL 둘 사이에 점선 구분자를 표시한다.
 - REQ-NODEUI-015 WHILE 노드에 입력 포트가 여럿인 동안 THE SYSTEM SHALL 포트 옆에 라벨을 표시한다.
@@ -73,7 +73,7 @@ etag: "sha256-19e0663968c2587bcc198c95fa66ce21e13dbeadec8ebd81a01d38d6c8dfe381"
 - REQ-NODEUI-037 IF 노드 스키마가 auto-form 이 그릴 수 없는 위젯(`integration-selector`, `condition-builder`, `table-grid`)을 쓰면 THE SYSTEM SHALL 그 노드를 수작업 폼 트랙에 둔다.
 - REQ-NODEUI-038 WHEN 조건 노드(If/Else, Switch 등)가 출력 포트를 고르면 THE SYSTEM SHALL 고른 포트로만 데이터를 전달한다.
 - REQ-NODEUI-039 WHEN 여러 입력이 한 노드에 모이면 THE SYSTEM SHALL Merge 노드의 전략에 따라 처리한다.
-- REQ-NODEUI-040 WHEN 에러 포트로 라우팅하는 노드에서 에러가 나면 THE SYSTEM SHALL 에러 데이터를 `error` 포트로 보내 연결된 다음 노드가 입력으로 실행하게 한다.
+- REQ-NODEUI-040 WHEN 에러 포트로 라우팅하는 노드에서 에러가 나면 THE SYSTEM SHALL 에러 데이터를 `error` 포트로 보내 연결된 다음 노드가 입력으로 실행하게 한다. (부분 구현)
 - REQ-NODEUI-041 WHEN 설정 패널이 ForEach · Map · Parallel 노드를 불러오거나 저장하면 THE SYSTEM SHALL `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않고 지우지도 않는다.
 
 ## 포트 체계
@@ -103,7 +103,7 @@ etag: "sha256-19e0663968c2587bcc198c95fa66ce21e13dbeadec8ebd81a01d38d6c8dfe381"
 | --- | --- | --- |
 | 데이터 포트 | 초록(●) | 일반 데이터를 내보내는 포트 |
 | 시스템 포트(system port) | 파랑(●) | 노드가 미리 정한 고정 제어 출력 포트. 예: AI 에이전트 노드의 `user_ended`·`max_turns`·`out`, 컨테이너의 `done` |
-| 에러 포트(error port, `error`) | 빨강(●) | 런타임 에러를 내보내는 출력 포트. 노드에 원래 있는 **고정 에러 포트**와, 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 **동적 에러 포트**가 있다. 동적 에러 포트는 노드 오른쪽 아래에 빨간 원으로 그린다. |
+| 에러 포트(error port, `error`) | 빨강(●) | 런타임 에러를 내보내는 출력 포트. 노드에 원래 있는 **고정 에러 포트**와, 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 **동적 에러 포트**가 있다. 동적 에러 포트는 노드 오른쪽 아래에 빨간 원으로 그린다. 동적 에러 포트는 아직 구현되지 않았다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). |
 | 컨테이너 `emit` 포트 | 보라(●) | Loop·ForEach·Map 의 본문 결과를 모으는 입력 포트. 헤드 라벨도 보라다. |
 
 - 사용자 조건 포트와 시스템 포트 사이에는 점선 구분자를 둔다.
@@ -236,7 +236,7 @@ ID 형식이 맞지 않을 때 `case_0` 같은 순번 ID 로 대신하는 규칙
 | 노드 건너뛰기(Skip Node) | `skip_node` | 에러가 나면 이 노드를 건너뛰고 다음 노드로 간다. 출력은 `null` 이다. |
 | 기본 출력 사용(Use Default Output) | `use_default_output` | 에러가 나면 미리 정한 기본 출력을 쓴다. [기본 출력](#기본-출력) 참조 |
 | 재시도(Retry) | `retry` | 노드 재시도. 고르면 설정 패널에 `maxRetries`(최대 재시도 횟수)와 `retryInterval`(재시도 간격, ms) 입력이 나온다(`node-settings-panel.tsx`). 엔진은 `retryInterval × backoffMultiplier^attempt` 지수 백오프로 재시도한다(`backoffMultiplier` 기본 2). |
-| 에러 포트로 라우팅(Route to Error Port) | `route_to_error_port` | 에러 데이터를 `error` 포트로 보낸다. 고르면 노드에 동적 에러 포트가 생긴다. `error` 포트에 연결된 노드가 없으면 워크플로우 중단으로 대신한다. |
+| 에러 포트로 라우팅(Route to Error Port) | `route_to_error_port` | 에러 데이터를 `error` 포트로 보낸다. 고르면 노드에 동적 에러 포트가 생긴다(미구현). `error` 포트에 연결된 노드가 없으면 워크플로우 중단으로 대신한다. |
 
 **저장 형태**: 설정 패널은 정책을 엔진 계약인 중첩 객체로 저장한다.
 
@@ -345,11 +345,10 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 | 1:N 분기 | 출력 데이터를 복제해 연결된 노드마다 똑같이 보낸다. |
 | N:1 합류 | 여러 입력이 도착하면 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) 의 전략에 따라 처리한다. |
 | 조건부 경로 선택 | If/Else, Switch 같은 조건 노드는 조건에 맞는 출력 포트로만 데이터를 보낸다. |
-| 에러 라우팅 | 에러 처리 정책이 에러 포트로 라우팅인 노드에서 에러가 나면 에러 데이터를 `error` 포트로 보낸다. 에러 연결선(빨간색)으로 이어진 다음 노드가 에러 데이터를 입력으로 받아 실행한다. 에러 연결선 모양은 [연결선](CLE-WF-EDGE.md) 이 정한다. |
+| 에러 라우팅 | 에러 처리 정책이 에러 포트로 라우팅인 노드에서 에러가 나면 에러 데이터를 `error` 포트로 보낸다. 에러 연결선(빨간색)으로 이어진 다음 노드가 에러 데이터를 입력으로 받아 실행한다. 에러 연결선 모양은 [연결선](CLE-WF-EDGE.md) 이 정한다. 동적 에러 포트는 아직 구현되지 않았다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). |
 
 ## 미결 사항
 
-- **Logic 노드에 에러 포트로 라우팅을 허용하는가**: 이 문서는 에러 포트로 라우팅 정책을 고른 노드에는 어떤 노드든 동적 에러 포트가 생긴다고 적는다. Logic 노드 문서 12종은 런타임 에러 포트가 없다고 적는다(예: [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md)). Logic 노드에 에러 처리 정책을 적용하는지 [Logic 노드 공통의 미결 사항](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항) 에서 정해야 한다. 그 결정 전까지 이 문서는 Loop·Map·ForEach·Background 에 에러 포트를 따로 표기하지 않는다.
 - **시스템 포트의 식별자와 포트 type 선언**: 에디터 문서와 프론트엔드 동적 포트(`resolve-dynamic-ports.ts`)·포트 색(`custom-node.tsx`)은 `system` 을 쓴다. [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 `PortDef.type` 과 백엔드 `NodePortKind` 는 `data`·`control`·`error` 를 쓴다. 프론트엔드 타입은 둘 다 받는다. 한국어 표기는 "시스템 포트" 로 정했지만 코드 식별자를 하나로 맞출지 결정이 필요하다. 같은 맥락에서 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 의 `error` 포트는 type 이 `data` 로 선언돼 있다. 연결선 색은 포트 ID 가 `error` 여도 빨강으로 그리지만 다른 소비처 영향은 미확인이다.
 - **노드 메모의 저장 위치**: 데이터 모델은 `Node.description` 을 "메모/설명" 으로 정의하고 [버전 기록](CLE-WF-VERSION.md) 의 비교도 `description` 을 본다. 설정 패널의 Notes 는 `config.notes` 에 저장한다. 어느 쪽이 노드 메모의 저장 위치인지, `description` 컬럼을 무엇에 쓰는지 결정이 필요하다([워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md)).
 
@@ -384,3 +383,7 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 ### R-4. ForEach·Map·Parallel 의 `config.errorPolicy` 는 옮기지 않는다 (2026-10-10)
 
 설정 패널은 예전 평면 키 `config.errorPolicy` 를 노드 유형을 가리지 않고 에러 처리 정책으로 옮기고 저장할 때 지웠다. 그래서 ForEach·Map·Parallel 에서 고른 항목 에러 정책이 저장할 때 사라졌다. 이전과 삭제를 세 노드가 아닌 노드로 한정하면 설정 패널 한 곳만 고치면 되고 저장된 워크플로우는 그대로 둘 수 있어서 이 안을 골랐다(NERV Task `CLE-T-V0JAG1`). 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸고 저장된 워크플로우를 마이그레이션하는 안은 기각했다. 승인된 문서 여러 개와 용어 사전을 함께 고쳐야 하고 데이터 마이그레이션이 필요하기 때문이다. 자세한 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
+
+### R-5. Logic 노드의 에러 처리 정책 선택지를 막지 않는다 (2026-10-24)
+
+에러 처리 정책 선택지는 노드 카테고리와 상관없이 같다. Logic 노드도 "에러 포트로 라우팅" 을 고를 수 있다. 동적 에러 포트가 구현되기 전까지 Logic 노드에서 이 정책은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 결정과 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다(NERV Task `CLE-T-3HJ8MM`).

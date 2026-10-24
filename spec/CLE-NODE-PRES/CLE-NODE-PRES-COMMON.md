@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "dc93d8604d0f6f51e26075d530a812a87cce75366c599f9a39d6500103041f8c"
+content_hash: "0a0ee8ac4019a8ae304a7132ac4205758186ef7b4e32b936729f930d7eec2460"
 read_as: "approved_fallback"
-task: "CLE-T-V0JAG1"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "04f0fc581ec1f0a092fcd2eb2f753c57b458a488ce62ec1b1e2b70209d32c714"
-etag: "sha256-1d70effe9d90cee70d64b93cb36b9ba5011b98a597399c8d13a0caaee9423bd5"
+mirror_sha256: "8d90c7a1757d0aca2a4e194067490638b1df21dac4a30eb43fd759cd7fd45e93"
+etag: "sha256-750c09e57db5bc6919c616ccdd98c2620d8f2a10e6ae73a9c80a26a1f2196919"
 ---
 > 구현 상태: 구현됨 (대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출은 미구현) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -54,7 +54,7 @@ Presentation 노드는 두 가지 목적으로 쓴다. 하나는 다운스트림
 7. 재개 출력(resumed output)은 입력 대기 시점의 출력 값을 그대로 두고 사용자 입력 기록을 더한다.
 8. 사용자 입력은 대화 스레드에 자동으로 쌓는다. `excludeFromConversationThread: true` 인 노드의 입력은 쌓지 않는다.
 9. 표시 도구 모드는 다섯 노드의 설정 스키마(zod)를 LLM 도구 파라미터의 단일 기준으로 다시 쓴다. 표시 도구의 버튼은 그래프 포트로 라우팅하지 않고 다음 LLM 대화 턴의 사용자 메시지가 된다.
-10. 입력 대기 기한(타임아웃)은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+10. 입력 대기에는 기한이 없다. 노드는 사용자가 입력하거나 사용자 취소 · 공개 웹채팅 유휴 실행 회수처럼 외부에서 실행을 끝낼 때까지 `waiting_for_input` 으로 기다린다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)). 다섯 노드 설정에 타임아웃 필드는 없고 옛 `buttonTimeout` 입력은 무시한다. 실행 시간 한도는 입력 대기 시간을 세지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 이 규칙은 메인 흐름 기준이다. Background 본문은 예외다. 본문의 블로킹 노드가 입력 대기에 들어가면 기다리지 않고 본문이 그 지점에서 조용히 끝난다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다)). 컨테이너 본문의 제약은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 을 따른다.
 
 ## 버튼 정의
 
@@ -139,7 +139,7 @@ sequenceDiagram
 3. 출력을 `NodeExecution.output_data` 에 저장한다.
 4. 노드 실행(`NodeExecution`)과 실행(`Execution`)의 상태를 모두 `waiting_for_input` 으로 바꾼다.
 5. WebSocket 이벤트 `execution.waiting_for_input` 을 보낸다. 대기 표면은 `interactionType: "buttons"` 이고 `buttonConfig` 를 함께 싣는다.
-6. 사용자 입력을 기다린다. 대기 기한은 정의가 갈린다([미결 사항](#미결-사항)).
+6. 사용자 입력을 기한 없이 기다린다([규칙](#규칙) 10).
    - **전역 포트 버튼 클릭**: 그 버튼의 동적 포트(`{button.id}`)로 데이터를 보낸다.
    - **항목 포트 버튼 클릭**: 그 포트로 데이터를 보내고 `selectedItem` 에 항목 데이터를 넣는다. 동적 모드는 런타임 ID(`{id}__item_{idx}`)에서 원래 정의 ID 를 뽑아 포트 라우팅에 쓴다.
    - **Continue 클릭**(링크 버튼만 있을 때): 계속 포트(`continue`)로 출력을 보낸다.
@@ -276,7 +276,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 | 렌더링 | **텍스트 위주 데이터 뷰**. `output.items`(동적 모드) 또는 `config.items`(정적 모드)를 가로 스크롤 목록으로 늘어놓고 슬라이드마다 제목·설명·버튼 라벨을 보여 준다. `config.layout`(card / image / minimal)은 **배지**로 보여 준다. 시각 레이아웃 재구성은 인터랙티브 채널이 맡는다([Carousel 노드](CLE-NODE-CAROUSEL.md)). 드로어는 이미 끝난 실행의 스냅샷이라 조작할 수 없으므로 시각 재현보다 데이터·이미지 매핑 확인에 맞춘다 |
 | 이미지 | `imageField` 나 `image` 가 있으면 **lazy 로딩 썸네일**로 보여 주고 URL 도 확인할 수 있게 한다. 불러오지 못하면 placeholder 를 보여 준다. 여러 이미지를 한꺼번에 불러오지 않는다 |
 | 빈 데이터 | "No items" 메시지와 `mode` 힌트 |
-| 버튼 대기 중(`waiting_for_input`) | 카드 목록 아래에 **버튼 바**를 보여 준다. 포트 버튼을 누르면 `execution.click_button` WebSocket 명령을 보내고 그 포트로 실행이 재개된다. 링크 버튼을 누르면 새 탭에서 URL 을 열고 실행 상태는 바뀌지 않는다. 링크 버튼만 있으면 `[Continue →]` 버튼을 함께 보여 주고 누르면 `__continue__` ID 로 명령을 보낸다. 대기 기한은 [미결 사항](#미결-사항) 참조 |
+| 버튼 대기 중(`waiting_for_input`) | 카드 목록 아래에 **버튼 바**를 보여 준다. 포트 버튼을 누르면 `execution.click_button` WebSocket 명령을 보내고 그 포트로 실행이 재개된다. 링크 버튼을 누르면 새 탭에서 URL 을 열고 실행 상태는 바뀌지 않는다. 링크 버튼만 있으면 `[Continue →]` 버튼을 함께 보여 주고 누르면 `__continue__` ID 로 명령을 보낸다. 대기 기한이 없으므로 남은 시간 카운트다운을 보여 주지 않는다 |
 | 버튼 클릭 후 | "Button clicked: {label}" 과 클릭 시각, 클릭한 사람 정보 |
 
 ### Table
@@ -311,7 +311,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 | 파일 업로드 | `type: file` 필드는 드래그앤드롭과 파일 선택 UI 를 쓴다. MIME·크기 제한을 바로 검증한다 |
 | 제출 | 제출 버튼을 누르면 `execution.submit_form` WebSocket 명령을 보낸다. 검증에 실패하면 에러를 보여 주고 성공하면 실행이 재개된다 |
 | 제출 후 | 제출한 데이터를 키-값 표로 보여 준다. 제출 시각과 제출한 사람 정보를 함께 보여 준다 |
-| 대기 기한 | [미결 사항](#미결-사항) 참조 |
+| 대기 기한 | 없다. 폼을 제출하거나 외부에서 실행을 취소할 때까지 기다리고 남은 시간 카운트다운을 보여 주지 않는다 |
 
 ### Template
 
@@ -496,7 +496,6 @@ AI 에이전트 멀티턴은 턴마다 rehydration 으로 단발 처리기 `proc
 
 ## 미결 사항
 
-- **입력 대기 기한(타임아웃)이 있는가**: 제품 요구사항 표(ND-CL-07, ND-TB-07, ND-CH-07, ND-TP-06)는 버튼 대기에 "선택적 타임아웃 지원(무제한 가능)" 을, ND-FM-05 는 "대기 타임아웃 설정(초 단위, 미지정 시 무제한)" 을 구현됨으로 적었다. 실행 결과 드로어 문서([에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md))도 "타임아웃 설정 시 잔여 시간 카운트다운" 을 적는다. 반면 이 문서와 다섯 노드 문서는 설정에 타임아웃 필드가 없고 외부 취소나 종료 전까지 기한 없이 기다린다고 적는다. 실행 엔진·EIA·데이터 흐름의 옛 원문은 park 중에도 노드별 `formConfig.timeout` 이 따로 적용된다고 적었지만 그런 설정 필드는 없다. 새 문서는 이 서술을 옮기지 않았다. [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 와 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 은 노드별 입력 대기 타임아웃이 현재 없다고 적고 이 항목을 가리킨다. 현재 구현은 다섯 노드 스키마에 타임아웃 필드가 없고 옛 `buttonTimeout` 입력은 무시한다. 노드 문서의 무기한 대기를 현행 계약으로 삼고 요구사항·드로어 카운트다운 서술을 정리할지, 타임아웃을 새 기능으로 둘지 결정 필요. 드로어 쪽 같은 충돌은 [에디터 실행과 디버깅 미결 사항](../CLE-EXEC/CLE-EXEC-RUN.md#미결-사항) 의 "버튼 대기 타임아웃 카운트다운" 항목이다.
 - **채팅 채널 렌더러가 기대하는 입력 형태가 노드 출력과 다르다**: 채팅 채널 렌더러([Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md), [Slack 어댑터](../CLE-CHAT/CLE-CHAT-SLACK.md), [Discord 어댑터](../CLE-CHAT/CLE-CHAT-DISCORD.md))는 차트 입력을 `output.payload.{title, series, labels}`, 캐러셀 카드 이미지를 `imageUrl` 로 찾는다. 노드 출력의 기준인 [Chart 노드](CLE-NODE-CHART.md)는 `output.data` 를, [Carousel 노드](CLE-NODE-CAROUSEL.md)는 `items[].image` 를 낸다. 매트릭스와 렌더러를 노드 출력에 맞출지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다.
 - **실행 결과 드로어의 Table 표시 행 수와 조작**: 이 문서의 원문은 드로어 Table 에 "페이지네이션 강제(최대 200행/페이지)" 와 정렬 토글·페이지네이션 컨트롤·포맷 적용을 적었다. [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md)은 "최대 50행 표시" 로 적는다. 현재 구현(`presentation-renderers.tsx` 의 `TableContent`)은 앞 50행만 보여 주고 정렬 토글·페이지네이션 컨트롤·포맷 적용이 없다. 어느 쪽을 표시 계약으로 할지 결정 필요. 같은 충돌이 [에디터 실행과 디버깅 미결 사항](../CLE-EXEC/CLE-EXEC-RUN.md#미결-사항) 의 "Table 최대 표시 행 수" 항목에 있다. Table 노드의 `pagination` 플래그 문제([Table 노드](CLE-NODE-TABLE.md) 미결 사항)와 함께 정한다.
 
@@ -611,3 +610,16 @@ AI 에이전트 멀티턴은 턴마다 rehydration 으로 단발 처리기 `proc
 **`pendingFormToolCall.toolCallId` 매칭 조건 하나로 가른다**: `AssistantPresentationsBlock` 의 `"form"` 분기가 조건 하나로 입력 중과 제출됨을 가른다. store selector 로 `waitingConversationConfig.pendingFormToolCall.toolCallId` 를 가져와 `payload.toolCallId` 와 비교한다. 두 화면(SummaryView, SelectedItemDetail)이 같은 selector 를 쓴다. 두 화면이 한 결정 함수의 결과를 쓰는 대화 미리보기 불변식과 같은 모양이다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)).
 
 **MessageInput 은 늘 켜 둔다**: 폼 입력 중에도 MessageInput 을 끄거나 숨기지 않는다. 폼을 건너뛴 입력의 백엔드 처리는 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 정한다. 취소된 도구 결과로 대신해 LLM 이 다음 추론을 자유롭게 할 수 있게 한다.
+
+### 입력 대기에 기한을 두지 않는다 (2026-10-24)
+
+옛 제품 요구사항 표는 버튼 대기에 "선택적 타임아웃 지원(무제한 가능)" 을(ND-CL-07 · ND-TB-07 · ND-CH-07 · ND-TP-06), Form 에 "대기 타임아웃 설정(초 단위, 미지정 시 무제한)" 을(ND-FM-05) 구현됨으로 적었다. 옛 에디터 실행 문서는 버튼 대기 중 남은 시간 카운트다운을 적었다. 실제로는 다섯 노드 설정 스키마에 타임아웃 필드가 없고 옛 `buttonTimeout` 입력은 무시한다(`button.types.spec.ts`). 옛 실행 엔진 · EIA 원문이 근거로 든 `formConfig.timeout` 도 없는 필드다.
+
+사용자가 2026-10-10 에 지금의 무기한 대기를 계약으로 정했다(리뷰 발견 `finding 01a0e5a1-11bf-74cc-b5c1-0278ad7c5480`, NERV Task `CLE-T-PERSR7`). 그래서 위 요구사항 행의 타임아웃 부분과 드로어 카운트다운은 새 문서로 옮기지 않는다.
+
+기각한 대안은 타임아웃을 새 기능으로 두는 안이다. 설정 필드, 만료 때 상태 전이(`cancelled` 인지 `failed` 인지), 만료 알림, 드로어 카운트다운을 함께 정해야 한다. 지금은 그런 요구가 없다. 또 며칠 뒤에 입력해도 실행이 이어지는 지금 동작이 바뀐다. 필요해지면 별도 Task 와 스펙 개정으로 정한다.
+
+비슷한 안은 전에도 기각했다.
+
+- 2026-06-03 에 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-2026-06-03-c2c3) 을 고치면서 공통 규약에 타임아웃 정책을 들이는 안을 기각하고 `buttonConfig` 예시에서 타임아웃을 지웠다. 현 구현과 다른 문서가 모두 무제한 대기였기 때문이다.
+- [External Interaction API](../CLE-IX/CLE-EIA.md#공개-위젯-회수-신호는-토큰-만료다) 에서는 공개 위젯 실행을 회수할 때 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있기 때문이다. 이 결정은 노드별 입력 대기 기한이 아니라 서버 전체에 거는 정리 규칙을 다룬다.

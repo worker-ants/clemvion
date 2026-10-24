@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "31d189dabcc694fc7608a75adc36a0d54e8d0c36bf001c5c20b247ec695f4c50"
-read_as: "approved"
-task: null
+content_hash: "6c347c32fe2ac293e7a9b2ba8da76133a8b33cd5fdb43559c356f2f7620eaafd"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "2bbfdac70e6421719c677fc1f000b4ad754bb4d34a68888ca02d71733967b337"
-etag: "sha256-7fb12c59ba1e4eb6bd951c90693a77e9b359bda64785ab2d88555e4972e019fa"
+mirror_sha256: "0806852326d3afd9dc3b2db9551047cba7cfa4edf86eb713f8ad8636cd1e076a"
+etag: "sha256-dc0cd07a2ad7c2c72f12ec374ea199ea66b9118484443b619a708a7e620a39a4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -84,7 +84,7 @@ ForEach 와 Map 의 결과 배열은 원본 배열과 **같은 인덱스**를 �
 | Map | `mapped` | `items[]`(본문 입력 분배) | `{ mapped: [...], count }` |
 | Parallel | `branches` | 없음(분기별 빈 입력) | `{ branches: [...], count }` |
 
-시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 본문에 나눈 직후 덮어쓰기로 교체되므로 뒤 노드의 표현식(`$node["X"].output.*`)이나 외부 관찰자(실행 내역 API, 웹훅 페이로드 등)는 원시 배열을 보지 않는다. `done` 포트 뒤의 노드는 항상 `{ <컬렉션 키>, count }` 형태를 본다. 노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
+시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 park · 재구동 없이 이어진 실행에서 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 배열이 남고 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
 
 ## Loop 실행
 
@@ -106,14 +106,14 @@ ForEach 와 Map 의 결과 배열은 원본 배열과 **같은 인덱스**를 �
 
 ForEach 와 Map 은 같은 `ForEachExecutor` 를 쓰고 뜻만 다르다. ForEach 는 항목마다 부수 효과를 내고 Map 은 항목을 변환한다.
 
-1. `arrayField`(Map 은 `inputField`)를 평가해 배열을 얻는다.
+1. 핸들러가 `arrayField`(Map 은 `inputField`)를 평가해 배열을 얻는다. 배열이 아니면 `[]` 로 바꾸고 `meta.fellBackToEmpty: true` 를 싣는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)). 실행기는 핸들러가 돌려준 배열을 받는다.
 2. `planContainerBody(containerNode, nodes, edges)` 로 본문을 계획한다. `emit` 검증도 여기서 한다.
 3. 배열의 항목마다 다음을 한다.
    1. `$item` 에 현재 항목, `$itemIndex` 에 인덱스를 바인딩한다. `$itemIsFirst`·`$itemIsLast` 도 함께 둔다.
    2. 본문 서브그래프를 토폴로지 순서로 실행한다.
    3. `emit` 소스의 출력을 같은 인덱스의 회차 결과로 모은다.
    4. 항목 에러 정책(`config.errorPolicy`)에 따라 에러를 처리한다.
-4. 엔진이 출력을 `{ items, count }`(Map 은 `{ mapped, count }`)로 덮어쓰고 `done` 포트로 넘긴다. ForEach 는 실패 항목이 있으면 `skipped` 도 싣는다.
+4. 엔진이 출력을 `{ items, count }`(Map 은 `{ mapped, count }`)로 덮어쓰고 `done` 포트로 넘긴다. ForEach 는 실패 항목이 있으면 `skipped` 도 싣는다. 완료 `meta` 에는 두 노드 모두 본문 실행 횟수 `iterations` 를, 실패 항목이 있으면 `skippedCount` 를 싣는다.
 
 항목 에러 정책:
 
@@ -127,7 +127,7 @@ ForEach 와 Map 은 같은 `ForEachExecutor` 를 쓰고 뜻만 다르다. ForEac
 
 ForEach 가 중첩되면 `ForEachExecutor` 가 바깥 `$item`·`$itemIndex` 를 저장했다가 되돌린다.
 
-항목 에러 정책(`config.errorPolicy`)은 컨테이너 전용이다. 일반 노드의 에러 처리 정책(`config.errorHandling.policy`)과 다른 층이다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md)).
+항목 에러 정책(`config.errorPolicy`)은 컨테이너 전용이다. 일반 노드의 에러 처리 정책(`config.errorHandling.policy`)과 다른 층이다. ForEach · Map 의 핸들러 호출이 실패하면 에러 처리 정책을, 반복 회차가 실패하면 항목 에러 정책을 적용한다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#두-키가-함께-있는-이유), [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#항목-에러-정책)).
 
 ## 중첩 컨테이너 스코프
 
@@ -206,7 +206,7 @@ ForEach·Map 뒤의 노드는 원본 항목과 결과를 짝지어 쓰는 경우
 
 ### 완료 시점 덮어쓰기를 엔진이 한다
 
-ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준다. 노드 출력 다섯 필드 계약을 깨지 않고 분배용 데이터를 엔진에 넘기기 위한 방식이다. 핸들러 반환 형태와 외부에 보이는 형태가 다른 것은 의도한 설계다. 엔진이 완료 시점에 핸들러를 다시 부르지 않고 덮어쓰므로 외부에는 항상 `{ <컬렉션 키>, count }` 만 보인다(Logic 공통 D2 결정).
+ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준다. 노드 출력 다섯 필드 계약을 깨지 않고 분배용 데이터를 엔진에 넘기기 위한 방식이다. 핸들러 반환 형태와 외부에 보이는 형태가 다른 것은 의도한 설계다. 엔진이 완료 시점에 핸들러를 다시 부르지 않고 덮어쓰므로 다음 노드 표현식에는 `{ <컬렉션 키>, count }` 만 보이게 하는 것이 목표다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 D2 결정). 지금은 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에 아직 시작 시점 배열이 남는다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
 
 ### Background 본문은 컨테이너 소속 모델을 쓰지 않는다
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "658c7bb77c339993bdb0065327c464f517b5ff839b8705f170b9cc8444e2113d"
-read_as: "approved"
-task: null
+content_hash: "853f5060f6613d8fd2b813c083b12ba8767a660a16b3309cf4ebc6028ae87f35"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "93d6ded88d1bbd464ee1ac8afab9e5a423de8f5b3fe7a229071d3e9262694194"
-etag: "sha256-9c00e2b465bedc28476308c07973de5e5db1454b9cedc6571a601ef21f53fe9d"
+mirror_sha256: "a4c60d140c73397f6086dee0032ca93413e8e448cbec0e357d00b284db617521"
+etag: "sha256-547221e50bdb4c931cb3fe925bce30a6ceb60c8a9b648a27b9ae8a6480a88f91"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -109,12 +109,13 @@ etag: "sha256-9c00e2b465bedc28476308c07973de5e5db1454b9cedc6571a601ef21f53fe9d"
 
 | 분류 | 필수·권장 필드 |
 | --- | --- |
-| 공통 | `meta.durationMs: number` |
+| 공통 | `meta.durationMs: number`(Loop·ForEach·Map·Parallel 의 완료 출력은 제외). 이 값을 누가 채우는지는 노드 문서가 정한다. 제외한 네 노드의 `node_execution.duration_ms` 에는 지금 핸들러 실행 시간만 있고 반복 회차 · 병렬 분기 시간은 없다. 노드 전체 실행 시간을 어디에 둘지는 아직 정하지 않았고 이 제외도 그때까지 잠정이다([Rationale](#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24)). 이 실행 시간 문제와 노드 문서의 표기가 코드와 다른 곳은 [미결 사항](#미결-사항) 에 있다 |
 | AI 노드 | 아래 목록 |
 | HTTP | `meta.statusCode`, `meta.durationMs` |
 | DB | `meta.durationMs`, `meta.rowCount` |
 | Code | `meta.durationMs`, `meta.success`, `meta.logs?`. 런타임 에러는 `output.error` 와 `port: 'error'` 로 낸다. `meta.error`, `meta.errorCode` 별칭은 폐기했다. |
-| 컨테이너 | `meta.iterations?`, `meta.branches?`, `meta.matchedCount?` |
+| 컨테이너 · Parallel | `meta.iterations`(Loop·ForEach·Map), `meta.skippedCount?`(ForEach·Map), `meta.fellBackToEmpty`(ForEach·Map), `meta.maxIterationsReached`·`meta.exitReason`(Loop). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency?` 를 싣는다 |
+| Split · Filter | `meta.fellBackToEmpty`([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값)) |
 
 AI 노드의 `meta` 필드는 다음과 같다.
 
@@ -434,9 +435,11 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 #### 9.1 계약
 
-1. 입력을 그대로 출력 값에 복사하는 pass-through 는 혼란을 주므로 금지한다.
-2. 핸들러가 `output: null` 을 돌려주면 엔진이 반드시 덮어쓴다.
-3. 핸들러가 null 이 아닌 값을 돌려줄 때 엔진이 덮어쓰는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+1. 다음 노드가 보는 최종 출력 값에 입력을 그대로 복사하는 pass-through 는 혼란을 주므로 금지한다.
+2. 엔진은 모든 반복 회차나 병렬 분기가 끝나면 핸들러 반환값과 상관없이 `output` 을 [9.2](#92-노드별-최종-출력-값) 의 형태로 덮어쓴다. 핸들러를 다시 부르지 않는다.
+3. 핸들러의 시작 시점 반환값은 노드마다 다르다. Loop·Parallel 은 `output: null` 을, ForEach·Map 은 본문에 나눠 줄 배열을 돌려준다. 이 배열은 엔진 안에서만 쓰는 중간 표현이라 1번의 pass-through 에 해당하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약)). 다음 노드 표현식이 이 값을 보지 않는 범위는 5번에 적었다.
+4. 덮어쓰기는 `output` 을 바꾼다. `meta` 는 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) 규칙 6 대로 합친다. `config` 는 핸들러가 돌려준 그대로 남는다.
+5. 덮어쓴 `output` 과 완료 `meta` 는 park · 재구동 없이 이어진 실행에서 다음 노드 표현식(`$node["X"].output` · `$node["X"].meta`)이 읽는다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 반환값이 남는다. 재개 · 재구동 때는 이 저장값으로 실행 컨텍스트를 rehydration 하므로 그 뒤 노드 표현식도 시작 시점 반환값을 읽는다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 이 동작은 모든 재개를 손실 없이 되살린다는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md#park-즉시-해제와-rehydration-단일-경로-phase-b) 의 전제를 지금 어기는 결함이다.
 
 #### 9.2 노드별 최종 출력 값
 
@@ -462,10 +465,12 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 | --- | --- |
 | 배열을 기대한 필드가 `undefined` 또는 `null` | `[]` 로 대체한다. throw 하지 않는다. |
 | 객체를 기대한 필드가 `undefined` 또는 `null` | `{}` 로 대체한다. throw 하지 않는다. |
-| 배열을 기대한 필드가 원시값(숫자·문자열) | 정의가 갈린다. [미결 사항](#미결-사항) 참조. |
+| 배열을 기대한 필드가 배열이 아닌 값(숫자·문자열·객체) | throw 한다(타입 불일치). 예외 노드와 처리는 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 표가 정한다. 예외 노드는 `[]` 로 대체한다. `meta.fellBackToEmpty` 로 알릴지도 그 표가 노드마다 정한다. |
 | 필수 설정 필드가 없음 | throw(사전 검증 에러, [3.1](#31-분류)) |
 
-Filter 노드가 배열이 아닌 입력에 throw 하는 현재 동작은 유지한다. 명백한 사용자 실수이기 때문이다. `null`·`undefined` 는 `[]` 로 처리한다.
+예외 표에는 입력 배열을 도는 반복·분리 노드(Split·ForEach·Map)를 올린다. Chart 는 반복·분리 노드가 아니지만 승인본 요구사항이 이미 빈 배열 처리를 정해 표에 함께 올렸다. Filter 노드는 기본 규칙대로 배열이 아닌 입력에 throw 한다. 명백한 사용자 실수이기 때문이다. `null`·`undefined` 는 `[]` 로 처리한다. 예외를 둔 이유는 [Rationale](#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24) 에 있다.
+
+이 원칙은 노드가 배열을 돌거나 나누려고 설정 경로(`arrayField`·`inputField`·`fieldPath`·`dataField` 등)로 꺼낸 값이 배열이 아닐 때 그 값을 `[]` 로 대체할지 throw 할지를 정한다. 값을 감싸 배열로 만들거나 다른 입력을 쓰거나 연산을 건너뛰는 처리는 이 원칙의 대상이 아니다. 그런 처리의 목록은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 「배열이 아닌 입력 처리」 규칙 2 에 있다. Merge 는 설정 경로로 값을 꺼내지 않고 입력 전체를 정규화하므로 대상이 아니다. Merge 가 배열이 아닌 입력을 `[input]` 으로 감싸는 동작은 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) 가 정한다.
 
 ### Principle 11. 출력 예시 작성 규칙
 
@@ -501,7 +506,7 @@ Filter 노드가 배열이 아닌 입력에 throw 하는 현재 동작은 유지
 | [0](#principle-0-노드-출력의-다섯-필드) | 다섯 필드 고정 | 모든 노드 |
 | [1](#principle-1-출력-값에는-비즈니스-결과만-둔다) | `output` 에는 비즈니스 데이터만 | ai_agent |
 | [1.1](#principle-11-설정과-출력-값은-겹치지-않는다) | `config` 와 `output` 은 겹치지 않는다 | form, carousel, chart, template, ai_agent(멀티턴), information_extractor(멀티턴), manual_trigger, loop, parallel, workflow |
-| [2](#principle-2-실행-메트릭에는-관측-값만-둔다) | `meta` 에는 실행 메트릭만 | ai_agent, text_classifier, code |
+| [2](#principle-2-실행-메트릭에는-관측-값만-둔다) | `meta` 에는 실행 메트릭만 | ai_agent, text_classifier, code, loop, foreach, map, parallel |
 | [3](#principle-3-에러-계약) | 에러 계약 통일 | send_email, code, transform |
 | [4](#principle-4-블로킹과-재개-계약) | 블로킹·재개 구조 통일 | form, carousel, chart, table, template, ai_agent(멀티턴), information_extractor(멀티턴) |
 | [5](#principle-5-출력-포트-선택-모델) | `port` 활성화 모델 | 동적 포트가 있는 모든 노드 |
@@ -509,18 +514,18 @@ Filter 노드가 배열이 아닌 입력에 throw 하는 현재 동작은 유지
 | [7](#principle-7-설정-에코-원칙) | 설정 에코 원칙 | http_request, ai_agent, database_query |
 | [8](#principle-8-불필요한-중첩을-없앤다) | 중첩 제거 | information_extractor, ai_agent |
 | [9](#principle-9-컨테이너와-parallel-의-출력-덮어쓰기) | 엔진 덮어쓰기 계약 | loop, foreach, map, parallel |
-| [10](#principle-10-비었거나-null-인-입력의-대체-값) | null·빈 입력 대체 값 | filter, foreach, split, map, merge |
+| [10](#principle-10-비었거나-null-인-입력의-대체-값) | null·빈 입력 대체 값 | foreach, map, split, filter, chart |
 | [11](#principle-11-출력-예시-작성-규칙) | 출력 예시 작성 규칙 | 모든 노드(문서 수준) |
 
 ## 미결 사항
 
-- **엔진이 null 이 아닌 핸들러 출력도 덮어쓰는가(Principle 9.1)**: 이 규약의 옛 서술은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고, null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 이다. [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md)의 컨테이너 출력 절, [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md), [Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md)는 핸들러가 시작 시점에 본문에 나눠 줄 `items[]`(null 이 아님)를 돌려주고, 끝나면 엔진이 핸들러를 다시 부르지 않고 `{ items|mapped, count }` 로 무조건 덮어쓴다고 적는다(결정 D2). 옛 서술대로 구현하면 ForEach·Map 의 최종 `output` 이 원래 배열로 남는다. [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md)는 핸들러가 `null` 을 돌려준다. 결정 필요: "컨테이너와 Parallel 은 반환값과 상관없이 덮어쓴다" 로 이 규약을 고칠지.
-- **배열을 기대한 필드에 원시값이 들어올 때(Principle 10)**: 이 규약의 옛 서술은 숫자·문자열이 들어오면 타입 불일치로 throw 하라고 한다. [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md)만 그렇게 한다. [Split 노드](../CLE-NODE-LOGIC/CLE-NODE-SPLIT.md), [Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md), [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md)는 배열이 아닌 값을 모두 `[]` 로 바꾸고, [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md)는 `null`·`undefined`·원시값을 `[input]` 으로 감싸며, 모두 Principle 10 을 근거로 든다. 문자열이 들어오면 규약대로면 실패하고 노드 문서대로면 0회 실행으로 조용히 지나간다. Merge 입력이 설정 필드가 아니라서 이 원칙의 적용 대상인지도 불분명하다. 결정 필요: 원칙에 노드별 예외를 적을지, 세 노드 문서와 구현을 규약에 맞출지.
 - **설정 에코에서 빼는 필드(Principle 7)**: 이 규약은 비민감 스키마 필드를 모두 항상 싣는다고 정한다. [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md)는 엔진이 직접 평가한다는 이유로 `breakCondition` 을 일부러 싣지 않는다. [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) 예시는 `errorPolicy` 를 빠뜨린다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)는 `outputSchema` 를 `schema` 키로 싣고 이를 미뤄 둔 알려진 결함으로 적는다. 결정 필요: 예외를 허용하고 이 규약에 예외 목록을 둘지, 노드를 규약에 맞출지.
-- **시스템 포트 예약어 집합과 거부 계층(Principle 6)**: 이 규약은 예약어 9개를 두고 프론트엔드가 거부한다고 적는다. [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md)는 이 원칙을 인용하면서 `default`, `out`, `error` 3개만 백엔드 `validateSwitchConfig` 에서 거부한다. [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)는 9개를 백엔드 스키마(`RESERVED_PORT_WORDS`)에서 거부한다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 조건 검증은 `out`, `in`, `error`, `user_ended`, `max_turns` 를 막는다. 케이스 ID `done` 이 허용되는지가 노드마다 다르다. 결정 필요: 공통 예약어 상수 하나와 거부 계층을 정할지, 노드별 허용 범위를 적을지.
+- **시스템 포트 예약어 집합과 거부 계층(Principle 6)**: 이 규약은 예약어 9개를 두고 프론트엔드가 거부한다고 적는다. [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md)는 이 원칙을 인용하면서 `default`, `out`, `error` 3개만 백엔드 `validateSwitchConfig` 에서 거부한다. [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)는 9개를 백엔드 스키마(`RESERVED_PORT_WORDS`)에서 거부한다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 조건 검증은 `out`, `in`, `error`, `user_ended`, `max_turns` 를 막는다. 케이스 ID `done` 이 허용되는지가 노드마다 다르다. Presentation 노드의 버튼 id 는 `validateButtons`(`button.types.ts`)가 `__item_` 포함과 중복만 거부하고 예약어는 검사하지 않는다. 그래서 버튼 id 로 `out`·`continue` 같은 고정 포트 ID 를 저장할 수 있다. 결정 필요: 공통 예약어 상수 하나와 거부 계층을 정할지, 노드별 허용 범위를 적을지. 정해지면 Presentation 버튼 검증에도 적용한다.
 - **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)**: 이 규약과 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 문서는 인증 실패(401·403)를 `retryable: false` 로 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 둔다. 현재 구현은 정보 추출기 핸들러가 코드 기반이라 항상 `true` 를 채우고, 텍스트 분류기 핸들러도 자기 문서와 달리 `LLM_CALL_FAILED` 를 항상 `true` 로 채운다. 같은 인증 실패에서 노드마다 `[다시 시도]` 버튼이 보이기도 하고 안 보이기도 한다. 또 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도를 지원하지 않아 `_retryState` 를 만들지 않는다. 화면이 노드 유형으로 버튼을 막지 않으면 버튼을 눌러도 `RETRY_STATE_NOT_FOUND` 가 난다. 결정 필요: HTTP 상태 기반 분류로 통일할지, 정보 추출기의 코드 기반 예외를 규약에 적을지, 재시도 버튼 노출 조건을 어디에 둘지.
 - **출력 포트가 둘인데 `port` 를 비우는 노드(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이고 여러 포트 동시 활성화는 `string[]` 로 나타낸다. [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md)는 출력이 둘(`match`, `unmatched`)인데 `port` 를 돌려주지 않고 두 포트를 모두 활성화한다. 결정 필요: "모든 출력 포트 활성화" 형태를 이 원칙에 더할지, Filter 가 `port: ['match', 'unmatched']` 를 돌려주게 할지.
-- **컨테이너 완료 출력의 `meta.durationMs` 와 `port`(Principle 2)**: 이 규약은 `meta.durationMs` 를 모든 노드 공통 필드로 둔다. [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md)는 완료 출력에 `port` 와 `meta.durationMs` 가 없다고 적고(Parallel 만 port 를 찍는다), 같은 실행기를 쓰는 [Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md)와 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md)은 `port: 'done'` 과 `meta.durationMs` 를 넣는다. 결정 필요: 공통 필수 규정에 컨테이너 예외를 적을지.
+- **컨테이너 완료 출력의 `port`(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이다. Loop·ForEach·Map 은 출력 포트가 `body`·`done` 둘인데 완료 출력에 `port` 를 싣지 않고 엔진이 `done` 연결선을 직접 활성화한다. 결정은 [Logic 노드 공통 미결 사항](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항) 의 같은 항목에서 한다. 컨테이너와 Parallel 의 완료 출력에 `meta.durationMs` 를 싣지 않는 것은 [Principle 2](#principle-2-실행-메트릭에는-관측-값만-둔다) 에 적었다.
+- **일반 노드의 `meta.durationMs` 를 채우는 주체(Principle 2)**: 여러 노드 문서가 `meta.durationMs` 의 출처를 "엔진 주입" 으로 적는다. 2026-10-24 에 확인한 코드에서 엔진이 이 값을 넣는 곳은 폼 재개 경로뿐이다. Chart · Carousel · Table · Template 의 버튼 대기는 핸들러가 `0` 을 싣고 버튼 재개는 그 값을 바꾸지 않는다. 버튼이 없는 Chart · Carousel · Table · Template 은 `meta` 를 싣지 않는다. If/Else · Switch · Filter · Merge · Split · 변수 선언 · 변수 수정 핸들러도 이 값을 싣지 않는다. 결정 필요: 엔진이 모든 노드 완료 때 실제 값을 넣도록 바꿀지, 노드 문서를 지금 동작에 맞출지. 영향을 받는 노드 문서 목록과 후속 작업은 NERV Task `CLE-T-1GJKB2` 가 다룬다.
+- **컨테이너 · Parallel 노드의 실행 시간(Principle 2)**: Loop · ForEach · Map · Parallel 은 핸들러가 시작 시점 값을 돌려주면 엔진이 바로 노드 실행 기록을 완료로 저장한다. 그래서 기록의 `node_execution.finished_at` · `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러 실행 시간이고 반복 회차 · 병렬 분기 시간은 들어 있지 않다. 성공한 실행에서는 이 기록을 다시 갱신하지 않는다. 그래서 네 노드의 기록 행에는 노드 전체 실행 시간이 없고 본문 노드 행(Parallel 은 병렬 분기 행)의 시각으로 따로 계산해야 한다. `node_execution.duration_ms` 를 노드 실행 시간으로 쓰는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 의 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드별 평균 실행 시간과 병목 강조에서도 네 노드가 실제보다 짧게 잡힌다. 결정 필요: 완료 시점에 실행 기록의 끝 시각과 실행 시간을 갱신할지, 완료 `meta` 에 `meta.durationMs` 를 더할지. 실행 기록의 완료 출력 갱신과 함께 NERV Task `CLE-T-JXD0W5` 가 다룬다.
 - **흐름 지시 상태 값 `started`(Principle 0)**: 이 규약은 `status` 를 엔진 흐름을 바꾸는 값으로 정의한다. [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)의 비동기 호출은 최상위 `status: 'started'` 를 돌려준다. 자세한 내용은 그 문서의 미결 사항에 있다.
 
 ## 구현 위치
@@ -573,3 +578,34 @@ spread 로 싣지 않는 이유는 세 가지다.
 ### 엔진 덮어쓰기 형태를 하나로 맞춘 이유
 
 예전에는 Loop·ForEach·Parallel 이 단순 배열을 각자 다른 뜻으로 썼다. 다음 노드가 노드마다 다른 형태를 다루지 않도록 [9.2](#92-노드별-최종-출력-값)의 `{ <컬렉션 키>, count }` 구조로 맞췄다.
+
+### 엔진 덮어쓰기 대상 노드는 핸들러 반환값과 상관없이 덮어쓴다 (2026-10-24)
+
+옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 D2 결정). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 D2 와 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 다만 현재 구현은 다음 노드 표현식이 읽는 실행 컨텍스트만 덮어쓴다. 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 아직 반영하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+
+기각한 대안은 옛 서술대로 `null` 일 때만 덮어쓰는 안이다. 그렇게 구현하면 ForEach·Map 의 최종 `output` 이 원래 배열로 남아 다음 노드가 [9.2](#92-노드별-최종-출력-값) 의 형태를 볼 수 없다.
+
+### 예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다 (2026-10-24)
+
+옛 Principle 10 은 배열을 기대한 필드에 숫자·문자열이 들어오면 throw 하라고 적었다. Filter 는 그렇게 했지만 Split·ForEach·Map 과 Chart 는 배열이 아닌 값을 모두 `[]` 로 바꿔 왔다. 규약대로 바꾸면 지금 0회 실행이나 빈 결과로 지나가는 워크플로우가 실패로 바뀐다.
+
+사용자가 2026-10-10 에 다음 규칙을 승인했다(리뷰 발견 `finding 01a0e5a1-114b-7604-9136-9788ccc9829c`, NERV Task `CLE-T-3HJ8MM`). 입력 배열을 도는 반복·분리 노드는 배열이 아닌 값을 `[]` 로 처리하고 `meta.fellBackToEmpty` 로 알린다. 다른 노드는 throw 한다. 이 규칙이면 기존 워크플로우의 동작이 바뀌지 않는다. 조용히 지나가던 0회 실행은 `meta.fellBackToEmpty` 로 드러난다.
+
+2026-10-10 결정은 입력 배열을 도는 반복 · 분리 노드만 다뤘다. Chart 는 승인본 요구사항이 이미 빈 배열 처리를 정한 노드라 예외 표에 함께 올렸다. 데이터가 비면 빈 차트가 화면에 바로 보여 사용자가 알아챈다. 그래서 `meta.fellBackToEmpty` 도 싣지 않는다. Chart 쪽 근거는 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md#rationale) 에 있다.
+
+2026-10-10 결정의 "다른 노드는 throw 한다" 를 글자 그대로 따르면 Merge · Carousel · Table · Transform 도 throw 로 바꿔야 한다. 이 노드들은 배열이 아닌 값을 `[]` 로 대체하지 않고 감싸거나 다른 입력을 쓰거나 연산을 건너뛴다. 2026-10-10 결정은 이런 처리를 따로 다루지 않았다. 이 개정은 이 처리들을 Principle 10 의 대상에서 빼고 지금 동작을 그대로 두었다([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값) 마지막 문단). 처리 목록과 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-예외-노드를-이-문서에-모은다-2026-10-24) 에 있다.
+
+기각한 대안은 네 가지다.
+
+- 모든 노드를 throw 로 맞추는 안. Split·ForEach·Map 을 쓰는 기존 워크플로우의 동작이 바뀐다.
+- Chart 만 throw 로 바꾸고 2026-10-10 기준을 그대로 두는 안. 승인된 Chart 동작과 기존 워크플로우를 깬다. 데이터가 아직 없을 때 빈 차트를 보여 주던 워크플로우가 실패로 바뀐다.
+- Chart 에도 `meta.fellBackToEmpty` 를 싣는 안. Chart 는 표시 노드라 다음 노드가 이 신호로 분기할 일이 드물다. 지금 이 값을 요구하는 곳도 없다.
+- 예외를 각 노드 문서에만 적는 안. 새 노드를 만드는 쪽이 기준을 찾을 곳이 없어 같은 불일치가 다시 생긴다. 그래서 예외 목록을 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 한 곳에 둔다.
+
+### 컨테이너와 Parallel 의 완료 출력에 `durationMs` 를 싣지 않는다 (잠정, 2026-10-24)
+
+옛 Principle 2 는 `meta.durationMs` 를 모든 노드의 공통 필드로 두었다. 그런데 Loop·ForEach·Map 의 완료 `meta` 는 핸들러가 돌려준 `meta` 에 엔진이 잰 반복 메트릭(`iterations`·`skippedCount` 등)을 합친 값이다. Parallel 의 완료 `meta` 에는 `clampedConcurrency` 만 있다. 엔진은 여기에 `meta.durationMs` 를 더하지 않는다. 그래서 지금 동작을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 노드 전체 실행 시간은 완료 `meta` 보다 노드 실행 기록에 두는 방향을 먼저 검토했다. 그런데 2026-10-24 에 확인한 코드에서 이 네 노드의 `node_execution.duration_ms` 는 핸들러 실행 시간뿐이다. 그래서 이 제외는 실행 시간을 둘 곳이 정해질 때까지 잠정이다. 이 차이는 [미결 사항](#미결-사항) 의 「컨테이너 · Parallel 노드의 실행 시간」 항목에 적었다.
+
+옛 Principle 2 와 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md) 은 엔진이 모든 노드에 `meta.durationMs` 를 넣는다고 적었다. 그런데 2026-10-24 에 확인한 코드에서 엔진이 이 값을 확정해 넣는 곳은 폼 재개 경로뿐이다. 그래서 이 개정은 "엔진이 모든 노드에 넣는다" 는 옛 서술을 걷고 일반 노드의 주입 주체를 노드 문서에 맡긴다. 노드 문서의 "엔진 주입" 표기는 이 개정에서 고치지 않는다. 코드를 옛 서술에 맞출지 문서를 코드에 맞출지 아직 정하지 않았기 때문이다. 그 결정은 [미결 사항](#미결-사항) 의 같은 항목과 NERV Task `CLE-T-1GJKB2` 가 맡는다.
+
+이 개정에서 기각한 대안은 없다. 엔진이 컨테이너와 Parallel 의 완료 `meta` 에 `meta.durationMs` 를 더하는 안과 완료 시점에 노드 실행 기록을 갱신하는 안은 둘 다 엔진 코드를 바꿔야 한다. 지금은 어느 쪽도 정하지 않았고 NERV Task `CLE-T-JXD0W5` 가 정한다. 엔진이 일반 노드에도 모두 넣도록 구현을 옛 서술에 맞추는 안도 미결로 남겼다. 노드마다 측정 지점을 확인해야 해서 이 개정의 범위를 넘는다.

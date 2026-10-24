@@ -2,19 +2,19 @@
 id: "CLE-NODE-TEMPLATE"
 title: "Template 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-TEMPLATE-001", "REQ-TEMPLATE-002", "REQ-TEMPLATE-003", "REQ-TEMPLATE-004", "REQ-TEMPLATE-005", "REQ-TEMPLATE-006", "REQ-TEMPLATE-007", "REQ-TEMPLATE-008", "REQ-TEMPLATE-009", "REQ-TEMPLATE-010", "REQ-TEMPLATE-011", "REQ-TEMPLATE-012", "REQ-TEMPLATE-013", "REQ-TEMPLATE-014", "REQ-TEMPLATE-015", "REQ-TEMPLATE-016"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "ab3374eb42ac45a293909fcf2c3a88ae176473de6f5ebe33be2f738c1f7eb7c9"
-read_as: "approved"
-task: null
+content_hash: "858749ccef2fc8c3145d176c56b3e0840406afe58d7710ca1420d0e655f51ad7"
+read_as: "approved_fallback"
+task: "CLE-T-3HJ8MM"
 source_paths: ["spec/4-nodes/6-presentation/5-template.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e2e9eb0f242c1066133d15981d223f783de4b888b627ab49913b4d8923c8efac"
-etag: "sha256-870f6f77ad287623707a9699287075ffe2409f1b2bd40ef166ad4aba220d0fb3"
+mirror_sha256: "bb4c1fc55bf1e739d616b1a0c92d9e569a2c678411c3f913695d484dbc584d80"
+etag: "sha256-b160820eaa976e52856a5e3ece8bc8388cdc1153c012c8760f63bb6b8043adc1"
 ---
 > 구현 상태: 구현됨 (Handlebars 블록 구문·내장 헬퍼 지원 여부는 [미결 사항](#미결-사항)) · 원문: `spec/4-nodes/6-presentation/5-template.md`, `spec/4-nodes/_product-overview.md` (§9.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,9 +50,11 @@ Template 노드(Template, `template`)는 사용자가 적은 템플릿 문자열
 - REQ-TEMPLATE-015 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 `output.error` 나 `port: 'error'` 는 쓰지 않는다.
 - REQ-TEMPLATE-016 WHEN 링크 버튼과 포트 버튼이 섞여 있고 사용자가 링크 버튼을 누르면 THE SYSTEM SHALL 새 탭에서 URL 만 열고 실행 상태는 바꾸지 않는다.
 
-Handlebars 블록 구문과 내장 헬퍼(ND-TP-03), 입력 대기 기한(타임아웃)은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+Handlebars 블록 구문과 내장 헬퍼(ND-TP-03)는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
-제품 요구사항 원문(ND-TP-01~06)의 우선순위는 모두 필수다.
+입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
+
+제품 요구사항 원문(ND-TP-01~06)의 우선순위는 모두 필수다. 다만 ND-TP-06 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -312,7 +314,6 @@ Template 핸들러는 `output.error` 나 `port: 'error'` 를 돌려주지 않는
 ## 미결 사항
 
 - **Handlebars 를 지원하는가**: 제품 요구사항 ND-TP-01 은 "Handlebars 스타일 템플릿으로 입력 데이터 바인딩" 을, ND-TP-03 은 "내장 Handlebars 헬퍼 제공(if, each, formatDate, formatNumber 등)" 을 구현됨으로 적었다. 설정 화면 예시도 `{{#each items}}` 블록과 Handlebars 구문 강조를 보여 준다. 그런데 실행 로직은 엔진 표현식 해석만 하는 no-op 렌더러이고 Handlebars·Mustache 를 돌리지 않는다고 적는다. 현재 구현(`template.handler.ts`)에서 `helpers` 플래그는 설정 에코 말고 어디서도 쓰이지 않는다. 지금 동작(표현식만)에 맞춰 ND-TP-01·03, 화면 예시, `helpers` 설명을 고칠지, Handlebars 를 새로 들일지 결정 필요.
-- **입력 대기 기한(타임아웃)**: 요구사항 원문(ND-TP-06)은 "선택적 타임아웃 지원(무제한 가능)" 을 적고 이 노드 원문은 외부 취소나 종료 말고는 기한 없이 기다린다고 적는다. 결정은 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항) 에서 함께 한다.
 - **버튼 있는 Template 의 채팅 채널 전달**: Template 도 버튼이 있으면 입력 대기에 들어간다. 그런데 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 은 입력 대기 이벤트 앞에 보내는 시각 메시지 규칙에 carousel·table·chart 만 적고 [Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md) 의 template 행은 표시 전용과 AI 경로만 적는다. 현재 구현의 Telegram 렌더러는 template 도 처리한다. 문서만 보면 버튼 달린 Template 본문이 채널로 나가는지 알 수 없다. 어댑터 규약의 버튼 대기 규칙에 template 을 더할지 결정 필요.
 
 ## 구현 위치
