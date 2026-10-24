@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050"]
+requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "fd8d645da3f12bec9255c940802197b0c8b61d958b67831bc05bbddb3f06e163"
+content_hash: "4a523a3bb6de85905f9d96b0e3377f63cacff3c3acd0c926fd4bd7fb1f98ac2b"
 read_as: "approved_fallback"
 task: "CLE-T-WB7JPC"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "112dcf369f1f3beb9527dd41448682ea1926a37ac8452f62de2aa969bde40a36"
-etag: "sha256-a93b1d41d7d494a9d30a21709b8440ff641316c6e03e8b55628a66b5af70dc71"
+mirror_sha256: "db0fadd400d3b963c1fca7339880672ef606648d08600c4ae6e825626d3d5602"
+etag: "sha256-d1344a541979c7e0d5fc4c2c8f619fdef1b9bb6fced0fe40ecb92397f502051b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-a93b1d41d7d494a9d30a21709b8440ff641316c6e03e8b55628a66b5af70dc71"
 
 통합(Integration, `integration`)은 외부 서비스 자격 증명(credentials)과 연결 상태를 워크스페이스에 저장한 것이다. 통합 노드와 AI 에이전트가 통합을 참조해 외부 서비스를 부른다. 이 문서는 사용자가 통합을 만들고 보고, 바꾸고 지우는 기능을 정한다. 목록·추가·상세 화면, 사용처(usages) 추적과 삭제 차단, 권한, 연결 테스트(test connection), 관리 API 와 에러 코드, 노드 실행·에디터·감사 로그와의 연동이 여기에 있다.
 
-하나의 서비스에 계정이나 인스턴스별로 통합을 여러 개 둘 수 있고 별칭으로 구분한다. 공개 범위(`Integration.scope`)가 개인(`personal`)이면 통합 소유자(`created_by`)만, 조직(`organization`)이면 워크스페이스 멤버 전원이 쓴다.
+하나의 서비스에 계정이나 인스턴스별로 통합을 여러 개 둘 수 있고 별칭으로 구분한다. 공개 범위(`Integration.scope`)가 개인(`personal`)이면 통합 소유자(`created_by`)만 보고 바꾼다. 노드에서는 통합 소유자가 작성한 워크플로우에서만 쓸 수 있다. 조직(`organization`)이면 워크스페이스 멤버 전원이 쓴다.
 
 범위 밖:
 
@@ -55,7 +55,7 @@ etag: "sha256-a93b1d41d7d494a9d30a21709b8440ff641316c6e03e8b55628a66b5af70dc71"
 - REQ-INTMGMT-018 WHEN 사용처를 돌려주면 THE SYSTEM SHALL 노드마다 `usageKind`(`direct`·`mcp`)를 표시하고 두 경로에 모두 해당하면 `direct` 로 둔다. (원본: INT-US-01)
 - REQ-INTMGMT-019 IF 사용처가 남은 통합을 삭제하려 하면 THE SYSTEM SHALL 409 `INTEGRATION_IN_USE` 와 사용처 목록으로 거절하고 노드를 먼저 바꾸거나 지우라고 안내한다. (원본: INT-US-02)
 - REQ-INTMGMT-020 WHEN 통합이 만료됨이나 오류가 되면 THE SYSTEM SHALL 그 통합을 참조하는 노드에 에디터 경고 배지와 상세 바로가기를 보인다. (원본: INT-US-03)
-- REQ-INTMGMT-021 WHEN 통합 노드나 내부 MCP 브리지가 통합을 부르면 THE SYSTEM SHALL 호출마다 활동 로그를 한 행 남기고 상세 활동 탭에 최근 7일 호출 수 차트를 보인다. (원본: INT-US-04)
+- REQ-INTMGMT-021 WHEN 통합 노드나 내부 MCP 브리지가 통합을 부르면 THE SYSTEM SHALL 호출마다 활동 로그를 한 행 남기고 상세 활동 탭에 최근 7일 호출 수 차트를 보인다. 통합을 얻기 전에 끝난 실패는 REQ-INTMGMT-053 을 따른다. (원본: INT-US-04)
 - REQ-INTMGMT-022 WHEN 활동 로그를 남기면 THE SYSTEM SHALL 호출 API 식별 정보(`api_label`·`api_method`·`api_path`)를 함께 저장한다. (원본: INT-US-05)
 - REQ-INTMGMT-023 WHEN 활동 탭이 Cafe24·MakeShop 카탈로그 키를 보이면 THE SYSTEM SHALL `services/:type/catalog` 의 `labelKey` 와 프런트엔드 i18n 으로 사람이 읽는 문구를 보인다.
 - REQ-INTMGMT-024 WHILE 통합이 연결됨이 아닌 동안 THE SYSTEM SHALL 활동 탭 위에 «연결 안 됨» 인라인 안내를 보인다.
@@ -65,12 +65,12 @@ etag: "sha256-a93b1d41d7d494a9d30a21709b8440ff641316c6e03e8b55628a66b5af70dc71"
 - REQ-INTMGMT-028 WHEN Cafe24·MakeShop 통합을 만들면 THE SYSTEM SHALL 같은 통합을 워크플로우 노드와 AI 에이전트 MCP 도구 양쪽에서 쓰게 한다. (원본: INT-SV-05, INT-SV-09)
 - REQ-INTMGMT-029 WHEN 팀 워크스페이스의 관리자 이상이 통합을 만들면 THE SYSTEM SHALL 조직 공개 범위를 고를 수 있게 한다. (원본: INT-OG-01, NAV-IN-07)
 - REQ-INTMGMT-030 WHEN 조직 통합이 있으면 THE SYSTEM SHALL 워크스페이스 멤버 전원이 워크플로우에서 쓰게 한다. (원본: INT-OG-02)
-- REQ-INTMGMT-031 IF 관리자 미만이 조직 통합을 생성·별칭 수정·삭제·통합 재인증·자격 증명 교체·추가 권한 요청·공개 범위 전환하려 하면 THE SYSTEM SHALL 403 `ADMIN_REQUIRED` 로 거절한다. (원본: INT-OG-03, NAV-IN-07)
+- REQ-INTMGMT-031 IF 관리자 미만이 조직 통합을 생성·별칭 수정·삭제·통합 재인증·자격 증명 교체·추가 권한 요청·공개 범위 전환하려 하면 THE SYSTEM SHALL 403 으로 거절한다. 코드는 `ADMIN_REQUIRED` 다. 라우트 가드가 먼저 막는 뷰어의 요청만 `EDITOR_REQUIRED` 다. (원본: INT-OG-03, NAV-IN-07)
 - REQ-INTMGMT-032 WHEN 목록을 보이면 THE SYSTEM SHALL 조직 통합과 개인 통합을 섹션으로 나눠 보인다. (원본: INT-OG-04)
 - REQ-INTMGMT-033 IF 요청자가 통합 소유자가 아닌 개인 통합에 접근하면 THE SYSTEM SHALL 목록에서 빼고 그 `:id` 경로 전부를 404 `RESOURCE_NOT_FOUND` 로 응답한다.
 - REQ-INTMGMT-034 WHILE 개인 통합을 다루는 동안 THE SYSTEM SHALL 소유자·관리자 역할이라도 통합 소유자가 아니면 보거나 바꾸지 못하게 한다.
-- REQ-INTMGMT-035 WHEN 뷰어가 자기 개인 통합을 생성·별칭 수정·자격 증명 교체·삭제하면 THE SYSTEM SHALL 허용한다. (미구현)
-- REQ-INTMGMT-036 WHEN 워크플로우 노드가 개인 통합을 참조하면 THE SYSTEM SHALL 통합 소유자의 노드만 쓰게 한다. (미구현)
+- REQ-INTMGMT-035 IF 뷰어가 개인 통합을 생성·별칭 수정·자격 증명 교체·통합 재인증·추가 권한 요청하려 하면 THE SYSTEM SHALL 403 `EDITOR_REQUIRED` 로 거절한다. (부분 구현)
+- REQ-INTMGMT-036 WHEN 노드가 실행 중에 개인 통합을 참조하면 THE SYSTEM SHALL 그 노드가 속한 워크플로우의 작성자(`workflow.created_by`)가 통합 소유자일 때만 그 통합을 쓴다. (미구현)
 - REQ-INTMGMT-037 WHEN 사용자가 목록을 검색하거나 거르면 THE SYSTEM SHALL 별칭 부분 일치, 공개 범위, 서비스 유형(다중 선택), 상태(단일 선택) 필터를 URL 쿼리 `q`·`scope`·`serviceType`·`status` 와 맞춰 둔다.
 - REQ-INTMGMT-038 WHEN 사용자가 추가 페이지를 새로고침하면 THE SYSTEM SHALL `service`·`step` 을 복원하되 입력한 자격 증명은 복원하지 않고 인증 단계로 되돌린다.
 - REQ-INTMGMT-039 WHILE 추가 페이지에 입력 중인 자격 증명이 있는 동안 THE SYSTEM SHALL 페이지를 떠나려 하면 경고한다.
@@ -85,6 +85,13 @@ etag: "sha256-a93b1d41d7d494a9d30a21709b8440ff641316c6e03e8b55628a66b5af70dc71"
 - REQ-INTMGMT-048 WHILE 통합 조회 응답의 `reinstallRequestedAt` 이 `null` 이 아닌 동안 THE SYSTEM SHALL 상세 화면 머리 아래에 «테스트 실행» 을 누르라는 안내와 요청 시각을 info 톤으로 보인다.
 - REQ-INTMGMT-049 WHEN 보안 탭이 통합 재인증 버튼을 막으면 THE SYSTEM SHALL 설치 대기, 설치 기한 만료, App URL 없음, MakeShop 가운데 해당하는 이유의 안내 문구를 버튼 아래에 보인다.
 - REQ-INTMGMT-050 WHEN 통합 재인증 응답이 `cafe24_private_pending` 이면 THE SYSTEM SHALL 팝업을 열지 않고 info 토스트를 보인 뒤 통합을 다시 조회한다.
+- REQ-INTMGMT-051 WHEN 뷰어가 자기 개인 통합을 삭제하면 THE SYSTEM SHALL 다른 역할과 같은 사용처 검사를 거쳐 허용한다. (미구현)
+- REQ-INTMGMT-052 IF 실행 중인 노드가 작성자가 통합 소유자가 아닌 개인 통합을 참조하면 THE SYSTEM SHALL 없는 통합을 참조할 때와 똑같이 통합 노드는 같은 노드 에러 코드로 실패시키고 AI 에이전트의 MCP 서버 항목은 그 서버만 건너뛴다. (미구현)
+- REQ-INTMGMT-053 IF 통합 노드나 MCP 서버 항목이 통합을 얻기 전에 실패하면 THE SYSTEM SHALL 설정의 통합 ID 로 활동 로그를 남기지 않고 그 통합의 `last_used_at`·`last_error` 도 쓰지 않는다. (미구현)
+- REQ-INTMGMT-054 IF 노드 설정 저장 요청이 새로 넣거나 바꾼 통합 참조가 워크스페이스에 없는 통합이나 저장자 또는 워크플로우 작성자가 통합 소유자가 아닌 개인 통합을 가리키면 THE SYSTEM SHALL 거절 이유를 구분하지 않고 400 `VALIDATION_ERROR`(`details[].code`=`INVALID_FIELD`)로 거절한다. (미구현)
+- REQ-INTMGMT-055 IF 실행 중 노드가 속한 워크플로우의 작성자를 알 수 없으면 THE SYSTEM SHALL 그 노드의 개인 통합 참조를 작성자가 통합 소유자가 아닐 때와 같이 처리한다. (미구현)
+- REQ-INTMGMT-056 IF 지금 사용자가 워크플로우 작성자가 아니면 THE SYSTEM SHALL 통합 선택기에서 자기 개인 통합을 고를 수 없는 항목으로 보이고 그 이유를 함께 보인다. (미구현)
+- REQ-INTMGMT-057 WHEN 관리자가 조직 통합을 개인으로 전환하려 하고 통합 소유자가 아닌 사람이 작성한 워크플로우가 그 통합을 쓰면 THE SYSTEM SHALL 전환 확인 다이얼로그에 실행이 실패하게 될 워크플로우 목록을 보인다. 전환을 막지는 않는다. (미구현)
 
 ## 라우트
 
@@ -220,7 +227,7 @@ stateDiagram-v2
 
 | 요소 | 설명 |
 | --- | --- |
-| 기본 정보 | 서비스, 별칭, 생성자, 생성·수정일, 마지막 사용 시각, 마지막 교체 시각, 토큰 만료 시각(자동 갱신 통합의 표기는 [통합 상태와 만료 알림](CLE-INT-STATUS.md)) |
+| 기본 정보 | 서비스, 별칭, 만든 사람, 생성·수정일, 마지막 사용 시각, 마지막 교체 시각, 토큰 만료 시각(자동 갱신 통합의 표기는 [통합 상태와 만료 알림](CLE-INT-STATUS.md)) |
 | 빠른 동작 | `Test connection`(연결됨만), `Reauthorize`(OAuth, 비활성 조건은 [보안 탭](#보안-탭). 자동 갱신 통합이 연결됨인 동안에는 버튼을 활성으로 두되 hover 에 "Auto-renewing — manual reauthorization is not required" 를 보인다), `Rotate credentials`(OAuth 아님), `Edit alias` |
 | 상태 배지 | 현재 상태와 사유(예: `error(insufficient_scope)`) |
 | 별칭 편집 | 인라인 편집, `PATCH /api/integrations/:id` |
@@ -298,7 +305,9 @@ OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는
 >
 > [취소] [Change to Organization]
 
-API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감사 로그 `integration.scope_changed` 를 남긴다.
+조직에서 개인으로 바꾸는 다이얼로그는 전환 전에 `GET /api/integrations/:id/usages` 를 확인한다. 작성자가 통합 소유자가 아닌 워크플로우(응답의 `authorIsIntegrationOwner` 가 `false`)가 있으면 그 목록과 함께 전환 뒤 그 워크플로우의 노드가 이 통합을 쓰지 못해 실행에서 실패한다는 안내를 보인다(REQ-INTMGMT-057). 관리자가 확인하면 전환한다. 그런 워크플로우가 없으면 안내 없이 확인만 받는다. 화면 문구는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙을 따른다.
+
+API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감사 로그 `integration.scope_changed` 를 남긴다. 서버는 사용처가 있어도 전환을 거절하지 않는다. 다이얼로그를 연 뒤에 생긴 사용처는 경고에 나오지 않는다.
 
 ## 사용처 추적과 삭제 차단
 
@@ -307,9 +316,10 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 - 직접 참조: 최상위 `config->>'integrationId' = :id`. HTTP·Database·Send Email·Cafe24·MakeShop 등 통합 노드다.
 - MCP 참조: AI 에이전트 노드 `config->'mcpServers'` 배열 안 객체의 `integrationId`. JSONB containment 로 찾는다: `config->'mcpServers' @> '[{"integrationId":"<id>"}]'::jsonb`.
 
-결과는 워크플로우 단위로 묶는다: `{ workflowId, workflowName, isActive, nodes: [{ id, label, type, usageKind }] }[]`.
+결과는 워크플로우 단위로 묶는다: `{ workflowId, workflowName, isActive, authorIsIntegrationOwner, nodes: [{ id, label, type, usageKind }] }[]`.
 
 - `usageKind: 'direct' | 'mcp'` 는 노드가 통합을 참조하는 방식이다. 일반 노드에는 `mcpServers` 가 없고 AI 에이전트 노드는 최상위 `integrationId` 를 쓰지 않아 두 경로는 실제로 겹치지 않는다. 한 노드가 양쪽에 걸리면 `direct` 로 둔다.
+- `authorIsIntegrationOwner` 는 그 워크플로우의 작성자(`workflow.created_by`)가 통합 소유자(`integration.created_by`)와 같은지다. 공개 범위 전환 다이얼로그가 쓴다(REQ-INTMGMT-057). 작성자 id 는 싣지 않는다. (미구현)
 - 응답에는 요청자가 볼 수 있는 워크스페이스의 워크플로우만 넣는다.
 
 삭제 차단 다이얼로그 문구:
@@ -335,30 +345,42 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 
 | 동작 | 개인 통합 | 조직 통합 |
 | --- | --- | --- |
-| 생성 | 모든 멤버 | 관리자 이상 |
-| 조회 | 통합 소유자만 | 모든 멤버 |
-| 수정(별칭) | 통합 소유자만 | 관리자 이상 |
-| 통합 재인증 | 통합 소유자만 | 관리자 이상 |
-| 자격 증명 교체 | 통합 소유자만 | 관리자 이상 |
-| 추가 권한 요청 | 통합 소유자만 | 관리자 이상 |
+| 생성 | 편집자 이상 | 관리자 이상 |
+| 조회 | 통합 소유자만(뷰어 포함) | 모든 멤버 |
+| 수정(별칭) | 통합 소유자만(편집자 이상) | 관리자 이상 |
+| 통합 재인증 | 통합 소유자만(편집자 이상) | 관리자 이상 |
+| 자격 증명 교체 | 통합 소유자만(편집자 이상) | 관리자 이상 |
+| 추가 권한 요청 | 통합 소유자만(편집자 이상) | 관리자 이상 |
 | 공개 범위 전환 | 없음 | 관리자 이상 |
-| 삭제 | 통합 소유자만(사용처 없을 때) | 관리자 이상(사용처 없을 때) |
-| 워크플로우 노드에서 사용 | 통합 소유자만 | 모든 멤버 |
+| 삭제 | 통합 소유자만(뷰어 포함, 사용처 없을 때) | 관리자 이상(사용처 없을 때) |
+| 워크플로우 노드에서 사용 | 통합 소유자가 작성한 워크플로우만 | 모든 멤버 |
 
 역할 매트릭스 전체는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 가 기준이다. 판정 규칙(2026-09-25 부터 강제):
 
 - **통합 소유자는 `created_by` 다.** 개인 통합에는 역할 우위가 없다. 소유자·관리자 역할도 남의 개인 통합을 보거나 바꾸지 못한다.
 - **남의 개인 통합은 없는 통합과 같다.** 목록(`GET /api/integrations`)에서 빠지고 `:id` 경로 전부(상세, 사용처, 활동, 연결 테스트, 별칭 수정, 삭제, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 공개 범위 전환)가 없는 ID 와 같은 `404 RESOURCE_NOT_FOUND` 를 낸다. `POST /api/integrations/oauth/begin` 의 `reauthorize`·`request_scopes` 모드(`integrationId` 지정)도 같은 판정을 받는다.
-- **표에 없는 조회성 경로는 «조회» 행을 따른다.** 연결 테스트, 사용처, 활동, 그리고 워크플로우 어시스턴트의 통합 목록 도구와 노드 후보 제시가 해당한다.
+- **표에 없는 조회성 경로는 «조회» 행을 따른다.** 연결 테스트, 사용처, 활동, 그리고 워크플로우 어시스턴트의 통합 목록 도구와 노드 후보 제시가 해당한다. 어시스턴트의 두 경로는 여기에 노드 사용 기준을 더해 그 워크플로우에서 쓸 수 있는 통합만 고른다(아래 2026-10-24 판정 규칙).
 - **조직 통합의 변경은 관리자 이상이다.** 생성, 별칭 수정, 삭제, 통합 재인증, 자격 증명 교체, 추가 권한 요청, 공개 범위 전환이 해당한다. 거부는 `403 ADMIN_REQUIRED` 다. 라우트 가드의 역할 거부와 같은 코드에 동작별 문구를 싣는다. 라우트 가드(`@Roles('editor')`)는 그 아래의 첫 번째 선일 뿐이다.
-- **공개 범위 전환은 관리자가 볼 수 있는 통합에만 된다.** 자기 개인 통합을 조직으로, 조직 통합을 개인으로 바꾼다. 전환해도 `created_by` 는 바뀌지 않으므로 조직에서 개인으로 바꾸면 생성자의 개인 통합이 된다.
-- **중복 사전 감지는 공개 범위를 가리지 않는다.** 상점 식별자 유일성이 워크스페이스 단위라서다. 충돌 행이 남의 개인 통합이면 `existingIntegrationId`·`existingName` 을 싣지 않고 `conflict`·`status` 만 싣는다.
+- **공개 범위 전환은 관리자가 볼 수 있는 통합에만 된다.** 자기 개인 통합을 조직으로, 조직 통합을 개인으로 바꾼다. 전환해도 `created_by` 는 바뀌지 않으므로 조직에서 개인으로 바꾸면 그 통합을 만든 사람이 통합 소유자가 된다. 그러면 작성자가 통합 소유자가 아닌 워크플로우는 이 통합을 노드에서 쓰지 못한다(REQ-INTMGMT-036). 전환은 막지 않고 다이얼로그에서 그런 워크플로우를 알린다(REQ-INTMGMT-057).
+- **중복 사전 감지는 공개 범위를 가리지 않는다.** 상점 식별자 유일성이 워크스페이스 단위라서다. 충돌 행이 남의 개인 통합이면 `existingIntegrationId`·`existingName` 을 싣지 않고 `conflict`·`status` 만 싣는다. 설치 흐름의 409 `*_ALREADY_CONNECTED` 는 공개 범위와 상관없이 `integrationId` 를 싣지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#oauthbegin-요청과-응답)).
 
-아직 강제되지 않는 것(후속 작업 `plan/in-progress/integration-personal-owner-followup.md`):
+2026-10-24 에 정한 판정 규칙([Rationale](#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24)):
 
-- «워크플로우 노드에서 사용» 행. 실행 엔진은 워크스페이스만 보고, 노드 설정 저장도 남의 개인 통합 참조를 막지 않는다. 스케줄·웹훅 실행에는 요청 사용자가 없어 «통합 소유자» 를 누구로 볼지부터 정해야 한다.
-- 뷰어의 자기 개인 통합 생성·별칭 수정·교체·삭제. 라우트 가드가 편집자 이상이라 막혀 있어 표보다 좁다. 이것이 의도된 권한인지는 [미결 사항](#미결-사항) 이다.
-- Cafe24 Private·MakeShop 설치 대기 행 재사용(`oauth/begin`)이 그 행의 생성자를 보지 않는다.
+- **역할 거부 코드는 라우트 가드가 먼저 정한다.** 뷰어가 쓰기 라우트(생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 공개 범위 전환, `oauth/begin`)를 부르면 대상의 공개 범위와 상관없이 라우트 가드의 `403 EDITOR_REQUIRED` 다. 삭제 라우트는 뷰어까지 열려 있으므로 뷰어가 조직 통합을 지우려 하면 서비스 계층이 `403 ADMIN_REQUIRED` 를 낸다. REQ-INTMGMT-031 의 관리자 미만 가운데 뷰어가 받는 코드는 이 규칙이 정한다. 저장 전 연결 테스트(`POST /api/integrations/preview-test`)는 쓰기 라우트가 아니다. 저장하는 것이 없어 «조회» 행을 따르므로 뷰어도 부를 수 있다.
+
+- **개인 통합의 쓰기는 편집자 이상이다.** 생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청이 해당한다. 뷰어가 하면 라우트 가드가 `403 EDITOR_REQUIRED` 로 거절한다. `POST /api/integrations/oauth/begin` 의 `new` 모드(설치 대기 행을 만드는 Cafe24 Private·MakeShop 포함)도 생성으로 본다. 뷰어가 부르면 `403 EDITOR_REQUIRED` 다. 관리자 미만이 조직 공개 범위를 고르면 `403 ADMIN_REQUIRED` 다.
+- **뷰어는 자기 개인 통합을 보고 지울 수 있다.** 삭제 라우트의 역할 하한은 개인 통합일 때만 뷰어까지 내려간다. 사용처가 남아 있으면 다른 역할과 같이 `409 INTEGRATION_IN_USE` 다. 연결 테스트는 지금처럼 «조회» 행을 따른다.
+- **노드에서 개인 통합을 쓰는 기준은 워크플로우 작성자다.** 실행할 때는 노드가 속한 워크플로우의 `created_by` 를 통합 소유자와 비교한다. 실행을 시작한 사람은 보지 않는다. 수동 실행, 재실행, 스케줄, 웹훅, 채팅 채널, 하위 워크플로우가 모두 같다. 하위 워크플로우는 자기 작성자로 판정하고 부모 워크플로우의 작성자는 보지 않는다. 작성자를 알 수 없으면 개인 통합을 거절한다. 조직 통합은 지금처럼 워크스페이스만 본다. 실행 시점의 거절은 [노드 실행 연동](#노드-실행-연동) 이 정한다.
+- **노드 설정을 저장할 때는 새로 넣거나 바꾼 참조만 검사한다.** 대상은 `config.integrationId` 와 `config.mcpServers[].integrationId` 다. HTTP 노드의 `config.integrationId` 는 `authentication='integration'` 일 때만 본다. 개인 통합이면 저장자와 워크플로우 작성자가 둘 다 통합 소유자여야 한다. 경로마다의 규칙과 복제·가져오기·버전 복원에서 참조를 비우는 규칙은 [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 이 정한다.
+- **설치 대기 행은 그 행을 바꿀 수 있는 사람만 다시 쓴다.** 개인 행은 통합 소유자, 조직 행은 관리자 이상이다. 남의 개인 설치 대기 행과 부딪히면 409, 조직 설치 대기 행에 관리자 미만이 오면 `403 ADMIN_REQUIRED` 다. 코드와 응답은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) 이 정한다.
+- **고르는 화면은 저장 검사를 통과할 통합만 고르게 한다.** 노드 설정 패널의 통합 선택기는 작성자가 아닌 사람의 개인 통합을 고를 수 없는 항목으로 보인다. 어시스턴트의 통합 목록 도구와 노드 후보는 그 통합을 아예 뺀다. 붙여넣거나 복제한 노드는 지금 사용자가 고를 수 없는 참조를 비우고 경고한다. 화면 규칙은 [워크플로우 에디터](#워크플로우-에디터), [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#위젯별-후보-조회-범위), [에디터](../CLE-WF/CLE-WF-EDITOR.md#노드-조작) 가 정한다.
+
+정했지만 아직 코드에 없는 것:
+
+- 노드 사용 기준(REQ-INTMGMT-036·052·053·055)과 저장 검사(REQ-INTMGMT-054), 고르는 화면의 거르기(REQ-INTMGMT-056), 개인 전환 다이얼로그의 경고(REQ-INTMGMT-057). 실행 엔진은 워크스페이스만 본다. 노드 설정 저장도 통합 참조를 검사하지 않는다. 선택기·어시스턴트·붙여넣기도 작성자를 보지 않는다. 사용처 응답에는 `authorIsIntegrationOwner` 가 없다. NERV Task `CLE-T-1BQZ10` 이 맡는다. 통합 조회 앞 단계에서 끝난 실패의 기록은 `CLE-T-PTC4SF` 가 맡는다. 따로 이행하지 않고 첫 배포부터 바로 강제한다. 2026-10-24 운영 실측에서 작성자가 통합 소유자가 아닌 개인 통합을 참조하는 노드는 0건이었다([Rationale](#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24)).
+- 개인 통합 쓰기의 역할 하한(REQ-INTMGMT-035)과 뷰어의 자기 개인 통합 삭제(REQ-INTMGMT-051). `:id/reauthorize`·`:id/request-scopes`·`:id/scope` 에 라우트 가드가 없다. 그래서 뷰어의 공개 범위 전환은 지금 서비스 계층의 `403 ADMIN_REQUIRED` 로 거절된다. `oauth/begin` 의 `new` 모드는 라우트 가드도 생성 권한 검사도 거치지 않는다. 그래서 지금은 뷰어도 Cafe24 Private·MakeShop 설치 대기 행을 만들 수 있다. 관리자 미만이 조직 공개 범위로 만드는 것도 막히지 않는다. 삭제 라우트는 아직 편집자 이상이다. NERV Task `CLE-T-JQVHFJ` 가 맡는다.
+- 설치 대기 행 재사용의 통합 소유자 조건. 지금은 Cafe24 Private·MakeShop 설치 대기 행을 다시 쓸 때 그 행의 통합 소유자를 보지 않는다. 409 `*_ALREADY_CONNECTED` 의 예외 객체에 남은 `integrationId` 는 응답에 나가지 않지만 쓰이지 않는 값이라 함께 지운다. NERV Task `CLE-T-N7ENKQ` 가 맡는다.
+- 화면의 역할 반영. 목록의 `N` 단축키와 `/integrations/new` 경로는 역할 게이트를 거치지 않는다. 추가 페이지의 «조직» 선택지도 관리자 미만에게 켜져 있다. NERV Task `CLE-T-EDQYGH` 가 맡는다.
 - 상세 화면은 역할과 소유에 따라 버튼을 가리지 않는다. 거부는 서버 응답으로 드러난다.
 
 MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 사항](#미결-사항) 에 있다.
@@ -476,12 +498,14 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스 유형·인증 유형 조합. 생성과 저장 전 연결 테스트가 공유하는 `IntegrationsService.validateServiceAuthType` 이 서비스 레지스트리(`findVariant`)에 없는 조합을 거부한다. 메시지 `Unsupported service/auth combination: {serviceType}/{authType}` |
 | `INTEGRATION_ROTATE_UNSUPPORTED` | | `oauth2` 통합에 자격 증명 교체를 요청했다 |
 | `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합 |
-| `ADMIN_REQUIRED` | 403 | 관리자 미만이 조직 통합을 바꾸려 했다 |
+| `ADMIN_REQUIRED` | 403 | 관리자 미만이 조직 통합을 만들거나 바꾸려 했다. `oauth/begin` 이 다시 쓸 조직 설치 대기 행을 관리자 미만이 만난 경우도 같다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 뷰어는 라우트 가드가 있는 경로에서 이 코드 대신 `EDITOR_REQUIRED` 를 받는다. 조직 통합 삭제처럼 라우트 가드가 뷰어를 통과시키는 경로에서는 뷰어도 이 코드다 |
+| `EDITOR_REQUIRED` | 403 | 뷰어가 쓰기 라우트(생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 공개 범위 전환, `oauth/begin`)를 불렀다. 대상의 공개 범위와 상관없이 라우트 가드가 낸다. 뷰어의 조회·연결 테스트·삭제는 이 코드를 내지 않는다 |
 | `OAUTH_STATE_MISMATCH` | 400 | OAuth state 불일치 |
 | `OAUTH_CONFIG_MISSING` | 500 | 서버 OAuth 설정(예: Cafe24 Public 환경 변수) 없음 |
 | `OAUTH_PREVIEW_INVALID` · `OAUTH_PREVIEW_EXPIRED` · `OAUTH_PREVIEW_MISMATCH` | 400 | 미리보기 토큰이 없거나 남의 것 · 10분 경과 · 서비스 유형 불일치 |
 | `INSUFFICIENT_SCOPE` | 403 | 권한 부족. 노드 실행 중 감지하면 통합 상태도 `error(insufficient_scope)` 로 바뀐다. `details.missingScopes: string[]`(Cafe24 응답에서 뽑은 누락 권한 범위)와, Cafe24 만 `details.requiresCafe24Approval?: string[]`(누락 권한과 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1·§2 명단 전체의 교집합)를 싣는다. §2 항목은 권한 범위 자체(`mall.read_store`·`mall.write_store`)가 일반 사용 가능이라 교집합은 대개 §1 항목에서 생긴다. 다른 서비스는 이 필드를 뺀다. 프런트엔드는 비어 있지 않으면 «이 권한은 카페24 별도 승인이 필요해요» 를 더 보인다. 새 코드 없이 필드만 더한 보강이다. 노드 실행 중 403 의 노드 출력 코드는 [미결](#미결-사항) |
-| `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 상점의 Cafe24 통합이 있다(앱 유형 무관). `new` 가 아닌 모드의 begin(통합 재인증·추가 권한 요청)은 대상 통합 자신을 빼고 본다. 두 경로와 이름의 유래는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
+| `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 상점의 Cafe24 통합이 있다(앱 유형 무관). `new` 가 아닌 모드의 begin(통합 재인증·추가 권한 요청)은 대상 통합 자신을 빼고 본다. 겹친 행의 통합 ID 는 싣지 않는다. 두 경로와 이름의 유래는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
+| `CAFE24_PRIVATE_APP_INSTALL_PENDING` | 409 | Cafe24 Private `oauth/begin`(`new`)이 다시 쓸 같은 상점의 설치 대기 행이 남의 개인 통합이다. 통합 ID 와 App URL 을 싣지 않고 `details.pendingInstallExpiresAt` 에 그 행의 설치 기한을 싣는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 이름이 통합 상태 값 `pending_install` 과 비슷하지만 상태 값이 아니고 `oauth/begin` 이 내는 충돌 코드다. 2026-10-24 에 새로 뒀다. 미구현 |
 | `CAFE24_PRIVATE_APP_USE_TEST_RUN` | 400 | 우리 서버가 OAuth 를 시작할 수 없는 Cafe24 Private 통합에 OAuth 시작을 요청했다. 설치는 «테스트 실행» 이 App URL 을 거쳐 마친다. 나오는 자리는 `client_id`·`client_secret` 을 갖춘 `oauth/begin` 의 `new` 외 모드와 설치 토큰이 있는 설치 대기 Cafe24 Private 통합의 `:id/reauthorize` 다. 설치 대기여도 설치 토큰이 없으면 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 이다. 설치 토큰이 있고 설치 대기가 아닌 통합의 통합 재인증과 추가 권한 요청은 이 코드 대신 재설치 대기 표시를 남긴다. 2026-10-10 에 낼 자리가 좁아졌지만 뜻이 같아 이름을 유지했다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
 | `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` | 400 | 설치 토큰이 없는 Cafe24 Private 통합(24시간 설치 기한을 넘긴 행, 설치 토큰 보존 전에 연결된 옛 행)에 통합 재인증이나 추가 권한 요청을 했다. App URL 이 없어 «테스트 실행» 이 이 통합으로 돌아오지 못한다. 복구는 삭제 후 재등록이다. 행에 설치 토큰이 저장돼 있지 않다는 조건이라 App URL 경로의 설치 토큰으로 행을 찾지 못한 `CAFE24_INSTALL_INVALID_TOKEN`(404)과 다르다. 설치 대기 행이어도 설치 토큰이 없으면 이 코드다. 2026-10-15 에 새로 뒀다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
 | `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED` | 400 | Cafe24 Private `oauth/begin` 본문에 `client_id`·`client_secret` 이 없다. 콜백의 토큰 교환에서 OAuth state 에 자격 증명이 없을 때도 같은 코드가 난다 |
@@ -489,7 +513,8 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `CAFE24_INVALID_APP_TYPE` | 400 | Cafe24 `oauth/begin` 의 앱 유형이 `public`·`private` 가 아니다. 통합 재인증과 추가 권한 요청에서는 `credentials.app_type` 이 없는 옛 행에서 난다 |
 | `MAKESHOP_USE_SHOPSTORE_INSTALL` | 400 | MakeShop 통합에 `oauth/begin` 을 `new` 외 모드로 요청했다. MakeShop 은 통합 재인증과 추가 권한 요청이 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 복구는 삭제 후 재등록이다. 이름을 유지한 이유는 같은 문서의 Rationale |
 | `MAKESHOP_CREDENTIALS_REQUIRED` | 400 | MakeShop `oauth/begin` 본문에 `client_id`·`client_secret` 이 없다. MakeShop 통합의 `:id/reauthorize`·`:id/request-scopes` 도 지금은 이 코드로 거절된다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#미결-사항)) |
-| `MAKESHOP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 `shop_uid` 의 연결됨 MakeShop 통합이 있다 |
+| `MAKESHOP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 `shop_uid` 의 연결됨 MakeShop 통합이 있다. 겹친 행의 통합 ID 는 싣지 않는다 |
+| `MAKESHOP_INSTALL_PENDING` | 409 | MakeShop `oauth/begin`(`new`)이 다시 쓸 같은 `client_id` 의 설치 대기 행이 남의 개인 통합이다. 응답 모양은 `CAFE24_PRIVATE_APP_INSTALL_PENDING` 과 같다. `MAKESHOP_INSTALL_*` 계열이지만 설치 엔드포인트가 아니라 `oauth/begin` 이 낸다. 2026-10-24 에 새로 뒀다. 미구현 |
 | `CAFE24_INSTALL_MISSING_PARAMS` | 400 | App URL 호출에 `mall_id`·`timestamp`·`hmac` 누락 |
 | `CAFE24_INSTALL_INVALID_TOKEN` | 404 | App URL 경로의 설치 토큰으로 행을 찾지 못했다(삭제, 24시간 만료, 회복 실패) |
 | `CAFE24_INSTALL_INVALID_HMAC` | 403 | App URL HMAC 검증 실패 |
@@ -503,10 +528,10 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 
 핸들러 실행 계약은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md) 이 정한다. 통합 쪽에서 보는 핵심은 이렇다.
 
-- 모든 통합 핸들러는 `IntegrationsService.getForExecution(id, workspaceId)` 로 자격 증명을 꺼내고 호출 결과를 `IntegrationsService.logUsage(...)` 로 기록한다.
+- 모든 통합 핸들러는 `IntegrationsService.getForExecution(id, workspaceId)` 로 자격 증명을 꺼내고 호출 결과를 `IntegrationsService.logUsage(...)` 로 기록한다. 개인 통합이면 조회가 노드가 속한 워크플로우의 작성자를 통합 소유자와 비교하고 다르거나 작성자를 알 수 없으면 거절한다(REQ-INTMGMT-036·055, 미구현). 하위 워크플로우에서 작성자를 바꾸는 규칙과 작성자를 넘기는 경로의 제약은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다(NERV Task `CLE-T-1BQZ10`).
 - 엔진은 노드 실행 직전에 `ExecutionContext.nodeExecutionId` 를 넣어 활동 로그의 귀속을 보장한다.
 - 실패하면 핸들러는 `IntegrationError(code, message)` 를 throw 하지 않고 `port: 'error'` 와 `output.error` 로 보내며 `logUsage({ status: 'failed' })` 를 기록한다. config 형식 오류(`handler.validate` 실패)만 throw 로 남는다. 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
-- 노드 에러 코드(`INTEGRATION_CALL_FAILED`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_AUTH_UNSUPPORTED`·`INTEGRATION_SERVICE_UNAVAILABLE` 등 공통 코드와 노드별 코드)는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 각 노드 문서가 정한다. 존재하지 않거나 다른 워크스페이스의 통합은 별도 `INTEGRATION_NOT_FOUND` 없이 `INTEGRATION_CALL_FAILED` 다.
+- 노드 에러 코드(`INTEGRATION_CALL_FAILED`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_AUTH_UNSUPPORTED`·`INTEGRATION_SERVICE_UNAVAILABLE` 등 공통 코드와 노드별 코드)는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 각 노드 문서가 정한다. 존재하지 않거나 다른 워크스페이스의 통합은 별도 `INTEGRATION_NOT_FOUND` 없이 `INTEGRATION_CALL_FAILED` 다. 작성자가 통합 소유자가 아닌 개인 통합도 같은 코드와 같은 문구로 실패한다. 노드 출력만 보고는 남의 개인 통합인지 알 수 없다(REQ-INTMGMT-052). AI 에이전트의 `mcpServers[].integrationId` 는 없는 통합과 같이 그 서버만 `lookup_failed` 로 건너뛰고 노드는 계속 실행한다([MCP 클라이언트](CLE-INT-MCP.md)). 통합을 얻기 전에 끝난 실행은 조회 거절이든 그 앞 단계의 실패든 활동 로그를 남기지 않고 설정의 통합 ID 가 가리키는 통합의 `last_used_at`·`last_error` 도 쓰지 않는다(REQ-INTMGMT-053). 지금은 이런 실패에도 핸들러가 `logUsage` 를 불러 다른 워크스페이스 통합에 활동 로그와 `last_error` 가 남는다.
 - HTTP 노드는 2xx 가 아닌 응답을 노드 출력 `HTTP_4XX`·`HTTP_5XX` 로 내고 활동 로그에는 `HTTP_{status}`(예: `HTTP_502`)로 남긴다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)).
 - 연결 테스트 전용 코드(`EMAIL_CONNECT_FAILED`·`DB_AUTH_FAILED`·`DB_CONNECT_FAILED`·`HTTP_AUTH_FAILED`·`HTTP_SERVER_ERROR`·`HTTP_CONNECT_FAILED`)와 노드와 공유하는 host 차단 코드(`EMAIL_HOST_BLOCKED`·`DB_HOST_BLOCKED`·`HTTP_BLOCKED`)는 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 에 있다.
 
@@ -520,13 +545,17 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `cafe24` | 매 호출(성공·실패 모두). AI 에이전트의 `Cafe24McpToolProvider` 호출도 같은 로그에 남긴다. `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 남기지 않는다([MCP 클라이언트](CLE-INT-MCP.md)) |
 | `makeshop` | 매 호출(성공·실패 모두). `MakeshopMcpToolProvider` 호출도 같다 |
 
+표의 «매 호출» 은 통합을 얻은 뒤의 호출이다. 통합을 얻기 전에 끝난 실패는 남기지 않는다(REQ-INTMGMT-053).
+
 ### 워크플로우 에디터
 
-- 노드 설정 패널은 공용 드롭다운인 통합 선택기(`IntegrationSelector`)로 통합을 고른다. `serviceTypes` prop 으로 거른다: Send Email 은 `email`, Database 는 `database`, HTTP 의 `authentication='integration'` 모드는 `http`, Cafe24 노드는 `cafe24`, MakeShop 노드는 `makeshop`, AI 에이전트의 `mcpServers` 항목은 `['mcp', 'cafe24', 'makeshop']`.
+- 노드 설정 패널은 공용 드롭다운인 통합 선택기(`IntegrationSelector`)로 통합을 고른다. 지금 사용자가 워크플로우 작성자가 아니면 자기 개인 통합은 고를 수 없는 항목으로 보이고 워크플로우 작성자의 개인 통합만 노드에서 쓸 수 있다는 이유가 함께 보인다(REQ-INTMGMT-056). 화면 문구는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙을 따른다. 조직 통합은 누구나 고른다. `serviceTypes` prop 으로 거른다: Send Email 은 `email`, Database 는 `database`, HTTP 의 `authentication='integration'` 모드는 `http`, Cafe24 노드는 `cafe24`, MakeShop 노드는 `makeshop`, AI 에이전트의 `mcpServers` 항목은 `['mcp', 'cafe24', 'makeshop']`.
 - AI 에이전트의 `mcpServers` 선택은 외부 MCP 서버와 Cafe24·MakeShop 통합을 모두 받는다. Cafe24·MakeShop 은 `Cafe24McpToolProvider`·`MakeshopMcpToolProvider` 가 서버 안의 `AgentToolProvider` 로 동작한다([MCP 클라이언트](CLE-INT-MCP.md)). 화면은 그룹을 나눠 보인다(`🌐 Generic MCP (HTTP) servers` / `🛒 Cafe24 stores (Internal Bridge)` / `🛒 MakeShop stores (Internal Bridge)`).
 - AI 에이전트의 `mcpServers` 는 다중 선택이고 서버별로 노출 도구 목록과 resource·prompt 노출 토글이 붙는다. Cafe24 는 도구가 많아(리소스 × operation 485개, 2026-07-17 실측, 수치 기준은 [Cafe24 API 카탈로그](CLE-C24-CATALOG#5-coverage-matrix)) 노출 도구 목록을 카테고리 단위로 묶어 보인다. 이 규모는 `AI_AGENT_TOOL_COUNT_MAX` 기본값(128)을 늘 넘으므로 노출 도구 목록은 편의가 아니라 사실상 필수다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [Cafe24 operation 메타데이터](CLE-C24-META)).
 - 통합 상태 배지를 함께 보이고 해당 유형 통합이 0건이면 선택기 아래에 `+ Create {Service} integration` 링크(`/integrations/new?service=…&step=auth`)를 보인다.
 - 삭제된 통합 ID 가 저장돼 있으면 `{id앞8자}… (missing)` 옵션을 더해 값을 보존한다.
+- 워크플로우 작성자가 아닌 편집자가 노드를 열면 작성자의 개인 통합도 목록에 없으므로 같은 `(missing)` 옵션으로 보인다. 값은 그대로 남는다. 저장 검사는 바뀐 참조만 보므로 그 노드의 다른 필드를 고쳐 저장해도 거절되지 않는다. 선택기가 개인 통합을 고르지 못하게 하므로 그 편집자가 바꿀 수 있는 값은 조직 통합뿐이다. 다른 경로로 개인 통합을 넣으면 저장이 거절된다(REQ-INTMGMT-054).
+- 노드를 붙여넣거나 복제하면 지금 사용자가 그 워크플로우에서 고를 수 없는 통합 참조를 비우고 경고한다. 통합 목록을 다 받지 못했으면 비우지 않는다. 규칙은 [에디터](../CLE-WF/CLE-WF-EDITOR.md#노드-조작) 가 정한다.
 
 ### 감사 로그
 
@@ -541,7 +570,6 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 - **`INTEGRATION_TEST_FAILED` 의 HTTP 상태**: 통합 화면 정의의 에러 카탈로그는 422 로 적는다. [MCP 클라이언트](CLE-INT-MCP.md) 는 자격 증명 교체 경로에서 `BadRequestException`(400)으로 적는다. 현재 구현(`integrations.service.ts` rotate)은 400 이고 컨트롤러 Swagger 도 400 응답 설명에 이 코드를 적는다. 통합 화면 Rationale 도 이 서비스의 다른 throw 가 모두 400 이라고 적는다. API 계약이라 한쪽으로 정해야 한다. 422 로 가면 코드와 MCP 클라이언트 정의를 함께 바꾼다.
 - **노드 실행 중 403 의 에러 코드**: [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 는 403 을 `output.error.code=CAFE24_AUTH_FAILED` 로 내고 상태를 `auth_failed` 또는 `insufficient_scope` 로 바꾼다고 적는다. 이 문서의 에러 코드 표와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) 는 노드 실행 중 403 이 `INSUFFICIENT_SCOPE` 와 `details.missingScopes`·`requiresCafe24Approval` 을 낸다고 적는다. 워크플로우 작성자가 분기할 코드가 문서마다 다르다. 현재 구현에서 `CAFE24_INSUFFICIENT_SCOPE` 는 연결 테스트용으로 보인다(미확인). 노드 출력 코드와 `requiresCafe24Approval` 이 실리는 자리(`last_error.details` 로 보인다)를 확정해야 한다.
 - **MCP 서버 통합의 개인 공개 범위**: [MCP 클라이언트](CLE-INT-MCP.md) 는 MCP 통합의 기본값이 조직이고 개인 등록을 지원하지 않는다고 적는다. 이 문서의 추가 화면·권한 규칙과 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 에는 MCP 예외가 없어 모든 서비스가 개인을 고를 수 있다. MCP 전용 제한은 코드에서 찾지 못했다(미확인). MCP 개인 등록을 막을지 결정이 필요하다.
-- **뷰어의 자기 개인 통합 쓰기**: 이 문서의 권한 표와 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 역할 매트릭스는 개인 통합을 역할과 상관없이 «자기 것» 으로 두어, 뷰어도 자기 개인 통합을 생성·별칭 수정·자격 증명 교체·삭제할 수 있다(REQ-INTMGMT-035). 라우트 가드(`@Roles('editor')`)와 요구사항 NAV-IN-07 의 완료 서술은 이 쓰기 경로를 편집자 이상으로 막는다. [제품 비전](../CLE-VISION.md) 은 라우트 가드 사실만 적고 판단을 이 문서와 역할 매트릭스에 맡겼다. 원문은 이 차이를 후속 작업의 «아직 강제되지 않는 것» 으로 적는다. 뷰어에게 개인 통합 쓰기를 여는 것이 의도인지 확정하고, 의도라면 가드를 개인 통합에 한해 넓히고 아니라면 매트릭스를 좁혀야 한다.
 - **삭제 차단 409 의 사용처 목록**: 이 문서는 `DELETE` 의 409 `INTEGRATION_IN_USE` 가 에러 봉투의 `details.usages` 에 사용처 목록을 싣는다고 정한다(REQ-INTMGMT-019). 현재 구현(`integrations.service.ts` 의 삭제 경로)은 목록을 예외 객체 최상위의 `usages` 에 담는다. 전역 예외 필터(`http-exception.filter.ts`)는 `code`·`message`·`details` 만 봉투로 옮기므로 목록이 응답에서 빠진다. 화면(`danger-tab.tsx`)도 응답 본문 최상위의 `usages` 를 읽어 경합으로 409 가 오면 늘 토스트로 끝난다. 삭제 전 `usages` 조회로 차단 다이얼로그를 띄우는 정상 흐름은 영향이 없다. 서버는 `details.usages` 로 싣고 화면은 `error.details.usages` 를 읽도록 함께 고쳐야 한다.
 
 ## 구현 위치
@@ -557,6 +585,63 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 - `codebase/backend/src/common/filters/http-exception.filter.ts` (에러 응답 봉투)
 
 ## Rationale
+
+### 개인 통합의 역할 하한과 노드 사용 기준을 정한다 (2026-10-24)
+
+2026-09-25 결정은 개인 통합의 읽기·쓰기를 닫고 두 가지를 남겼다. 하나는 노드 실행에서 «통합 소유자» 를 누구로 볼지였다. 다른 하나는 뷰어가 자기 개인 통합을 쓸 수 있는지였다(그때의 미결 사항). 그 뒤 같은 영역을 다시 살피다가 설치 대기 행 재사용이 통합 소유자를 보지 않는다는 것도 확인했다. 세 가지를 NERV Task `CLE-T-MG0EQZ` 에 모아 선택지와 함께 올렸고 사용자가 모두 추천안을 골랐다(2026-10-24).
+
+결정:
+
+1. **노드 사용 기준은 워크플로우 작성자(`workflow.created_by`)다.** 실행을 시작한 사람은 스케줄·웹훅·채팅 채널 실행에는 없다. 그래서 실행 경로마다 기준이 달라진다. 작성자는 모든 실행 경로에 있고 실행 사이에 바뀌지 않는다. 하위 워크플로우를 자기 작성자로 판정하는 것도 같은 이유다. 부모의 작성자로 판정하면 남의 개인 통합을 쓰는 하위 워크플로우를 부모로 감싸 우회할 수 있다. 작성자를 알 수 없을 때 거절하는 것은 그 빈틈이 우회로가 되지 않게 하려는 것이다(초안에서 정했다).
+2. **저장할 때는 새로 넣거나 바꾼 참조만 검사한다.** 모든 참조를 검사하면 작성자가 아닌 편집자는 작성자의 개인 통합이 든 노드를 아예 저장하지 못한다. 그 노드의 다른 필드를 고치는 것도 막힌다. 바꾼 참조만 보면 그 편집자는 노드를 고칠 수 있고 남의 개인 통합을 새로 끌어오는 것만 막힌다. 저장자와 작성자를 둘 다 보는 이유는 둘 중 하나만 보면 우회가 남아서다. 저장자만 보면 작성자가 아닌 통합 소유자가 남의 워크플로우에 자기 개인 통합을 심어 그 워크플로우가 실행에서 깨진다. 작성자만 보면 작성자가 아닌 편집자가 워크플로우 JSON 에서 본 작성자의 개인 통합 ID 를 다른 노드에 옮겨 넣을 수 있다. 통합 소유자가 고르지 않은 자리에서 그 사람의 자격 증명이 쓰인다.
+3. **거절은 400 `VALIDATION_ERROR` 와 `INVALID_FIELD` 이고 이유를 구분하지 않는다.** 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 같은 응답으로 묶는다. 2026-09-25 에 정한 «남의 개인 통합은 없는 통합과 같다» 를 저장 경로에도 적용한 것이다.
+4. **실행 시점 거절도 없는 통합과 같은 노드 에러다.** 새 코드(예: `INTEGRATION_OWNER_MISMATCH`)를 두면 노드 출력을 보는 사람(워크플로우 작성자와 편집자)이 남의 개인 통합이 있다는 것을 알게 된다. AI 에이전트의 MCP 서버 항목은 노드를 실패시키지 않고 그 서버만 건너뛴다. 없는 통합을 가리키는 항목을 이미 그렇게 다루므로([MCP 클라이언트](CLE-INT-MCP.md)) 같은 원칙을 따른 것이고 서버 단위 격리를 뒤집지 않는다. 거절된 조회가 활동 로그와 `last_used_at`·`last_error` 를 쓰지 않게 한 것도 같은 이유다. 쓰면 통합 소유자의 활동 탭에 남의 워크플로우 실행이 보인다. 소유자의 통합 상태도 남의 실행 때문에 바뀐다. 이 결정을 내리며 코드를 보다가 지금도 다른 워크스페이스 통합 ID 를 넣은 노드가 그 통합에 활동 로그와 `last_error` 를 남긴다는 것을 확인했다(2026-10-24, 다섯 통합 핸들러의 바깥 catch 가 조회 실패에도 `logUsage` 를 부르고 `logUsage` 는 워크스페이스를 보지 않는다). 같은 규칙이 이것도 막는다. 조회 앞 단계에서 끝난 실패도 설정의 통합 ID 로 기록하면 같은 문제가 생기므로 «통합을 얻기 전의 실패» 전체를 기록하지 않는다(consistency 검토 뒤 넓혔다). 그쪽 결함은 NERV Task `CLE-T-PTC4SF` 가 고친다.
+5. **개인 통합의 쓰기는 편집자 이상으로 좁힌다.** 뷰어는 노드를 고칠 수도 워크플로우를 실행할 수도 없다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 역할 매트릭스). 그래서 개인 통합을 쓸 곳이 없다. 외부 자격 증명이라 좁은 편이 안전하다. 라우트 가드도 이미 편집자 이상이었다. 이 결정은 REQ-INTMGMT-035 를 뒤집는다.
+6. **뷰어도 자기 개인 통합을 보고 지울 수 있다.** 편집자에서 뷰어로 강등된 사람의 개인 통합은 그 통합 소유자 말고 아무도 보거나 지울 수 없다. 소유자마저 지우지 못하면 쓸 수 없는 자격 증명이 워크스페이스에 계속 남는다. 연결 테스트는 조회성 경로라 그대로 둔다.
+7. **설치 대기 행은 그 행을 바꿀 수 있는 사람만 다시 쓴다.** 코드와 응답 모양을 고른 근거는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale 에 있다.
+8. **고르는 화면은 저장 검사를 통과할 통합만 고르게 한다.** 초안의 consistency 검토에서 나온 문제를 사용자에게 올렸고 사용자가 이 안을 골랐다(2026-10-24). 저장 검사만 두면 작성자가 아닌 편집자의 선택기에 자기 개인 통합이 후보로 나오는데 고르면 저장이 400 이다. 어시스턴트의 후보도 같다. 붙여넣거나 복제한 노드는 id 가 새로 생겨 그 안의 참조도 새 참조로 검사받는다. 2026-09-25 에 «목록에 보이는 통합을 눌렀을 때 거부되는 어색한 중간 상태» 를 이유로 기각한 모양이 노드 화면에서 다시 생긴다. 선택기는 그 통합을 숨기지 않고 고를 수 없게만 한다. 숨기면 사용자는 자기 통합이 왜 없는지 알 수 없다. 어시스턴트는 LLM 과 후보 선택기가 고를 수 없는 항목을 다룰 방법이 없어 뺀다. 붙여넣기와 복제는 복제·가져오기와 같이 비우고 알린다.
+9. **조직 통합을 개인으로 전환할 때는 경고만 한다.** 위 1 때문에 전환하면 통합 소유자가 아닌 작성자의 워크플로우가 실행에서 실패한다. 2차 consistency 검토(로컬 `2026/10/24/21_28_26` WARNING 6)에서 이 문제를 사용자에게 올렸다. 선택지는 «409 로 막는다(추천)», «경고만 한다», «초안대로 둔다» 셋이었고 사용자가 «경고만 한다» 를 골랐다(2026-10-24). 전환은 그대로 되고 다이얼로그에서 실패할 워크플로우를 보고 확인한다. 그래서 같은 사용처라도 삭제는 `409 INTEGRATION_IN_USE` 로 막고 전환은 막지 않는다. 사용자는 그렇게 고른 이유를 따로 말하지 않았다. 사용처 응답에 작성자 id 대신 불리언을 싣는 것은 다이얼로그에 필요한 값이 그것뿐이어서다(초안에서 정했다).
+
+초안에서 정한 세부 두 가지(Task 본문에서 «초안에서 확정» 으로 남긴 것):
+
+- 버전 복원도 복제·가져오기처럼 걸리는 참조를 비우고 성공한다. 복원은 사용자가 고른 옛 상태를 통째로 되돌리는 작업이다. 참조 하나 때문에 복원 전체를 거절하면 사용자는 그 버전으로 돌아갈 길이 없다. 근거와 응답 모양은 [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 이 정한다.
+- 실행 시점 거절의 노드 에러는 위 4 와 같이 없는 통합의 경로를 따른다.
+
+기각한 안:
+
+- 실행을 시작한 사람 기준: 스케줄·웹훅·채팅 채널 실행에 기준이 없다. 같은 워크플로우가 누가 실행하느냐에 따라 성공하거나 실패한다.
+- 실행 시점에만 검사하고 저장은 막지 않는 안: 사용자는 실행해 보기 전까지 노드가 깨진 줄 모른다. 스케줄 워크플로우는 아무도 보지 않는 시간에 실패한다.
+- 저장할 때 모든 참조를 검사하는 안: 위 2 의 이유로 작성자가 아닌 편집자의 편집을 막는다.
+- 뷰어의 개인 통합 쓰기를 여는 안(기존 REQ-INTMGMT-035): 위 5 의 이유다.
+- 선택기·어시스턴트 후보를 그대로 두고 저장할 때 400 문구로 알리는 안(같은 날 선택지로 올렸고 사용자가 고르지 않았다): 위 8 의 이유다.
+- 다른 작성자의 워크플로우가 쓰는 조직 통합의 개인 전환을 409 로 막는 안: 같은 날 추천안으로 올렸고 사용자가 고르지 않았다(위 9). 삭제 차단과 같은 원칙이라는 것이 추천 근거였다.
+- 개인 전환을 초안대로 두는 안(사용처 탭에서만 영향을 본다): 같은 날 선택지로 올렸고 사용자가 고르지 않았다(위 9).
+
+받아들인 잔여:
+
+- 작성자가 아닌 편집자에게는 고를 수 있는 통합이 조직 통합뿐이다. 개인 통합을 새로 만들어도 그 워크플로우에서는 쓸 수 없다.
+- 작성자가 아닌 편집자에게 작성자의 개인 통합 참조는 `(missing)` 으로 보인다. 실제로는 실행되는 노드라 «삭제된 통합» 과 헷갈릴 수 있다. 존재를 드러내지 않는다는 원칙과 맞바꿨다.
+- 조직 통합을 개인으로 전환하면 그 통합을 쓰던 다른 작성자의 워크플로우가 실행에서 실패한다. 전환은 관리자 이상만 하고 다이얼로그가 그런 워크플로우를 먼저 보인다(위 9). 관리자가 확인하면 막지 않는다. 다이얼로그를 연 뒤에 생긴 사용처는 경고에 나오지 않는다.
+- 작성자가 워크스페이스를 떠나면 그 사람의 워크플로우가 쓰던 개인 통합도 함께 쓸 수 없게 된다. 떠난 멤버의 개인 통합 처리는 NERV Task `CLE-T-TGZGM9` 가 정한다.
+- 뷰어는 사용처가 남은 자기 개인 통합을 지우지 못한다. 삭제가 다른 역할과 같이 `409 INTEGRATION_IN_USE` 로 막히는데 뷰어는 노드를 고칠 수 없다. 그 워크플로우를 고칠 수 있는 편집자 이상이 먼저 참조를 비워야 한다. 위 6 의 이유는 사용처가 없는 통합에만 닿는다.
+
+이행:
+
+- 경고 기간 없이 첫 배포부터 저장 검사와 실행 기준을 함께 강제한다. 2026-10-24 에 사용자가 운영 DB 를 조회했다. 작성자가 통합 소유자가 아닌 개인 통합을 `config.integrationId` 나 `config.mcpServers[].integrationId` 로 참조하는 노드는 0건이었다. 깨질 워크플로우가 없으니 미리 알릴 사람도 없다.
+- 0건이 아니었다면 경고 기간을 두려 했다. 첫 배포는 막지 않고 워크플로우 작성자와 통합 소유자에게 알린 뒤 기간이 지나면 강제하는 안이다.
+- 실측한 뒤 배포하기 전까지 생긴 참조는 막지 못한다. 그 사이에는 저장 검사가 코드에 없어서다. 그런 노드는 배포 뒤 실행에서 없는 통합과 같이 실패한다. 0건에서 출발하고 그 사이가 짧아 받아들였다.
+
+### 요구사항 변경 이력 (2026-10-24, Task CLE-T-MG0EQZ)
+
+다음 요구사항의 뜻이 바뀌었다. 번호는 그대로 둔다.
+
+- REQ-INTMGMT-035: 뷰어의 개인 통합 생성·별칭 수정·자격 증명 교체·삭제를 «허용한다» 던 것을 뒤집었다. 생성·별칭 수정·자격 증명 교체·통합 재인증·추가 권한 요청은 `403 EDITOR_REQUIRED` 로 거절한다. 삭제는 REQ-INTMGMT-051 로 옮겨 계속 허용한다.
+- REQ-INTMGMT-036: «통합 소유자의 노드만 쓰게 한다» 를 «노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓴다» 로 바꿨다. 노드에는 소유자가 없어 뜻이 정해지지 않았던 문장이다.
+
+- REQ-INTMGMT-031: 라우트 가드가 먼저 막는 뷰어의 요청은 `EDITOR_REQUIRED` 라고 적었다. 라우트 가드는 2026-09-25(`#1399`)부터 그 코드를 냈는데 요구사항 문장은 관리자 미만을 한 코드로 묶어 적었다.
+- REQ-INTMGMT-021: 통합을 얻기 전에 끝난 실패는 REQ-INTMGMT-053 을 따른다는 문장을 더했다.
+
+새 요구사항은 REQ-INTMGMT-051 부터다. REQ-INTMGMT-055·056 은 1차, REQ-INTMGMT-057 은 2차 consistency 검토 뒤에 더했다.
 
 ### 개인 통합 소유자를 강제한다: 404 로 숨기고 역할 우위를 두지 않으며 노드 실행은 후속으로 둔다 (2026-09-25)
 
@@ -578,6 +663,8 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 - 조직 별칭 수정·삭제를 편집자로 두고 스펙을 정정: 스펙 두 곳과 가이드가 이미 관리자다.
 
 받아들인 잔여: 통합 이름(`integration_workspace_name_unique`)과 상점 식별자(`(workspace_id, service_type, mall_id)`)의 유일성은 워크스페이스 단위다. 그래서 생성·이름 변경의 `INTEGRATION_NAME_TAKEN` 과 begin·precheck 의 충돌 응답은 남의 개인 통합이 **있다는 사실**을 드러낸다. 유일성을 생성자 단위로 바꾸면 같은 상점을 두 통합이 붙잡는 상태를 허용하는데 상점 식별자 유일성은 토큰과 설치 흐름의 전제다. 그래서 존재 신호는 남기고 precheck 가 식별자(ID, 이름)를 싣지 않는 데서 멈춘다.
+
+후속으로 둔 노드 실행 시점 검사와 미결로 둔 뷰어의 개인 통합 쓰기는 2026-10-24 에 정했다([개인 통합의 역할 하한과 노드 사용 기준을 정한다](#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24)).
 
 ### `IntegrationDto` 인벤토리 주장의 경계 (2026-09-10)
 

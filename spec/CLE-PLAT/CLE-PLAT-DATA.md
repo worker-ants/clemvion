@@ -2,21 +2,21 @@
 id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "84772ab59f3caa8a8b6423329fd75863fa6941f38cc617f5d9e154eb0d79e097"
+content_hash: "013d2a4ea6b90f7305ed6f354f912732b0053d3da7478a010cb71b9ebe6b19e1"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "55c652c4f6f7e76bd12716f43b9059a6dbd0700e572c3b837dbccd051460b25c"
-etag: "sha256-938ffbce6cc8f8d675749eb4fd3d78cefaa23c786465dba9bce5204ebb4d7351"
+mirror_sha256: "6d3f408ceafc9e65b4e36453abe2cbfced42419bc311812c3af3296b0c541143"
+etag: "sha256-6f9199d5b98fece05eb3ef81b737c3bd962d27057b42dac90342eff585c4b770"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -200,7 +200,7 @@ erDiagram
 
 참조의 소속(reference ownership)은 요청 본문이 가리키는 행의 범위를 정하는 공통 규칙이다. 클라이언트가 요청 본문으로 보내 컬럼에 저장되는 참조 id 는 요청자의 워크스페이스에 있는 행만 가리킨다. 워크플로우 안의 구조 참조는 같은 워크플로우의 행만 가리킨다. 구조 참조는 노드의 `container_id`·`tool_owner_id`, 연결선 끝점, 캔버스 저장이 새 노드로 싣는 노드 `id` 다.
 
-서버는 이 규칙을 어긴 요청을 저장 전에 거부한다. 실행 경로나 조회 경로가 워크스페이스로 거르는지에 기대지 않는다. 저장이 첫 방어선이다. 그 뒤에 DB 의 복합 FK 가 아래 「DB 제약」 의 열일곱 참조를 한 번 더 막는다. 실행 엔진은 진입(`execute()`) 한 곳에서 워크플로우가 실행을 시작하는 워크스페이스에 있는지 대조한다. 저장 경계 이전에 남은 트리거 · 스케줄 행을 위해 둔 방어선이고 DB 제약 뒤에도 남긴다. 엔진 안의 다른 읽기(재개, 실행 구동 등)는 여전히 워크플로우를 id 로 읽는다([저장된 교차 행 점검](#저장된-교차-행-점검)).
+서버는 이 규칙을 어긴 요청을 저장 전에 거부한다. 다만 노드 `config` 안의 통합 참조는 컬럼이 아니라 JSONB 안의 값이고 복제·가져오기·버전 복원에서는 거부하지 않고 비운다(아래 「통합 참조」). 실행 경로나 조회 경로가 워크스페이스로 거르는지에 기대지 않는다. 저장이 첫 방어선이다. 그 뒤에 DB 의 복합 FK 가 아래 「DB 제약」 의 열일곱 참조를 한 번 더 막는다. 실행 엔진은 진입(`execute()`) 한 곳에서 워크플로우가 실행을 시작하는 워크스페이스에 있는지 대조한다. 저장 경계 이전에 남은 트리거 · 스케줄 행을 위해 둔 방어선이고 DB 제약 뒤에도 남긴다. 엔진 안의 다른 읽기(재개, 실행 구동 등)는 여전히 워크플로우를 id 로 읽는다([저장된 교차 행 점검](#저장된-교차-행-점검)).
 
 | 요청 본문 필드 | 가리키는 행 | 범위 |
 | --- | --- | --- |
@@ -212,6 +212,7 @@ erDiagram
 | 노드 생성·수정 `containerId`·`toolOwnerId` · 연결선 생성 `sourceNodeId`·`targetNodeId` | Node | 같은 워크플로우 |
 | 캔버스 저장 `nodes[].containerId`·`nodes[].toolOwnerId`·`edges[].sourceNodeId`·`edges[].targetNodeId` | Node | **이번 페이로드의 노드**. 저장 뒤 워크플로우의 노드가 정확히 그 집합이다 |
 | 캔버스 저장 `nodes[].id` 가운데 이 워크플로우에 없는 것 | — | 어느 행도 쓰지 않는 id(새 노드)여야 한다. 다른 행이 쓰는 id 면 거부하고 그 행을 덮어쓰지 않는다 |
+| 노드 생성·수정 `config.integrationId`·`config.mcpServers[].integrationId` · 캔버스 저장 `nodes[].config.integrationId`·`nodes[].config.mcpServers[].integrationId` · 가져오기·복제·버전 복원이 저장하는 같은 필드(이 셋은 거부하지 않고 비운다) | Integration | 워크스페이스. 개인 통합이면 저장자와 워크플로우 작성자가 둘 다 통합 소유자여야 한다. 새로 넣거나 바꾼 참조만 본다. 아래 「통합 참조」(미구현) |
 
 거부 응답은 다음과 같다.
 
@@ -221,6 +222,21 @@ erDiagram
 - 예외 2: 트리거 `authConfigId` 는 400 `AUTH_CONFIG_NOT_FOUND` 다([에러 코드 규약과 카탈로그 §트리거 인증 설정 연결](../CLE-API/CLE-API-ERRCODES.md#614-트리거-인증-설정-연결-도메인-문서-참조)).
 - 예외 3: 어시스턴트 세션 생성 `workflowId` 는 404 `WORKFLOW_NOT_FOUND` 다([에러 코드 규약과 카탈로그 §AI 어시스턴트 세션 API](../CLE-API/CLE-API-ERRCODES.md#619-ai-어시스턴트-세션-api-도메인-문서-참조)). 이 코드는 어시스턴트 세션 API 에서만 쓴다. 같은 API 의 조회 파라미터 검사는 [AI 어시스턴트 스트리밍과 세션 API 「세션 REST API」](../CLE-WF/CLE-WF-ASSIST-PROTO.md#세션-rest-api) 가 정한다.
 - 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다.
+
+**통합 참조**: 노드 `config` 안의 통합 참조는 위 표의 다른 참조와 세 가지가 다르다. 2026-10-24 에 정했고 아직 코드에 없다(NERV Task `CLE-T-1BQZ10`).
+
+- 컬럼이 아니라 JSONB(`node.config`) 안에 있다. 그래서 복합 FK 가 없고 아래 「DB 제약」 의 열일곱에 들지 않는다. 저장 시점 검사가 저장 쪽의 유일한 방어선이다. 그 뒤는 실행 시점 조회(`IntegrationsService.getForExecution`)가 맡는다([통합 관리 「노드 실행 연동」](../CLE-INT/CLE-INT-MANAGE.md#노드-실행-연동)).
+- 개인 통합에는 워크스페이스에 더해 사람 조건이 붙는다. 저장자(요청 사용자)와 워크플로우 작성자(`workflow.created_by`)가 둘 다 통합 소유자(`integration.created_by`)여야 한다. 조직 통합은 워크스페이스만 본다.
+- HTTP Request 노드의 `config.integrationId` 는 `authentication='integration'` 일 때만 본다. `authentication` 이 다른 값일 때 남은 `integrationId` 는 실행에 쓰이지 않으므로 검사하지도 비우지도 않는다. `authentication` 을 `integration` 으로 바꾸면 남아 있던 값이 그때부터 쓰이므로 바뀐 참조로 본다.
+- 새로 넣거나 바꾼 참조만 본다. 비교 대상은 같은 id 로 이미 저장된 노드다. `config.integrationId` 는 값이 다르면 바뀐 참조다. `config.mcpServers` 는 항목들의 `integrationId` 집합을 비교하고 순서는 보지 않는다. 저장된 집합에 없던 id 만 검사한다. 저장된 노드가 없는 노드(새 노드)는 모든 참조가 새 참조다.
+- 참조 값이 표현식(`{{ }}`)이면 저장할 때는 어떤 통합인지 알 수 없다. 그래서 저장 검사도 비우기도 그 값을 판정하지 않고 실행 시점 조회가 같은 기준으로 판정한다.
+
+통합 참조를 어긴 요청의 처리는 경로마다 다르다.
+
+- 노드 생성·수정과 캔버스 저장은 위 거부 응답(400 `VALIDATION_ERROR`, `INVALID_FIELD`)으로 거절한다. 어시스턴트의 편집은 서버에 따로 쓰지 않고 에디터 상태에 들어간 뒤 캔버스 저장으로 저장되므로 같은 검사를 받는다. 응답 코드가 위 다른 참조 검사와 같은 `VALIDATION_ERROR` 라서 카탈로그의 그 행 발생 조건에 이 검사를 더하는 일은 NERV Task `CLE-T-5BZ3M2` 가 맡는다. `field` 는 캔버스 저장이 `nodes[i].config.integrationId`·`nodes[i].config.mcpServers[j].integrationId`, 노드 생성·수정이 `config.integrationId`·`config.mcpServers[j].integrationId` 다. 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 구분하지 않는다.
+- 복제·가져오기·버전 복원은 거절하지 않는다. 걸리는 참조를 비우고 작업을 끝낸다. `config.integrationId` 는 키를 지워 고르지 않은 노드와 같게 둔다. `config.mcpServers[]` 는 그 항목을 뺀다. 그 서버에 붙은 노출 도구 목록과 토글도 함께 빠진다.
+- 비운 참조는 응답 `data` 의 `clearedIntegrationRefs: [{ nodeId, nodeLabel, field }]` 로 알린다. `data` 는 작업 결과(복제·가져오기는 새 워크플로우, 버전 복원은 `{ workflow, nodes, edges }`)에 이 필드를 더한 것이고 응답 봉투는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 5 를 따른다. 이 필드는 세 작업의 응답에만 있고 워크플로우 조회 응답에는 없다. `nodeId` 는 작업 뒤 노드의 id 이고 `field` 는 그 노드 안의 경로(`config.integrationId`·`config.mcpServers[j].integrationId`, `j` 는 비우기 전 순서)다. 비운 것이 없으면 빈 배열이다. 비운 이유는 싣지 않는다. 이유를 실으면 없는 통합과 남의 개인 통합이 구분된다.
+- 복제와 가져오기에서는 요청 사용자가 새 워크플로우의 작성자이자 저장자다. 그래서 요청 사용자 자신의 개인 통합 참조만 남고 남의 개인 통합 참조는 모두 비워진다. 버전 복원은 작성자가 그대로이고 복원한 사람이 저장자다.
 
 **DB 제약**: 저장 시점 검사 뒤에 DB 가 범위 참조 열일곱을 복합 FK 로 한 번 더 막는다. 자식의 `(참조, 범위 컬럼)` 이 부모의 `(id, 범위 컬럼)` 을 가리킨다. 범위 컬럼은 워크스페이스 범위가 `workspace_id`, 같은 워크플로우 범위가 `workflow_id` 다. 위반(SQLSTATE 23503)은 저장 시점 검사가 먼저 막지 못한 서버 결함이라 500 `INTERNAL_ERROR` 로 응답하고 서버 로그에 제약 이름을 남긴다. 새 에러 코드는 없다. 삭제 동작은 [FK 삭제 동작](#fk-삭제-동작) 그대로다. SET NULL 은 `ON DELETE SET NULL (참조 컬럼)` 으로 참조 컬럼만 비운다(PostgreSQL 15 이상).
 
@@ -246,7 +262,7 @@ erDiagram
 
 부모 여섯에는 `(id, 범위 컬럼)` UNIQUE 가 있다(「인덱스 목록」). 이 열일곱과 여섯의 제약 이름은 FK 가 `fk_<자식 테이블>_<참조 컬럼>`, UNIQUE 가 `uq_<부모 테이블>_id_<범위 컬럼>` 이다. DB 제약이 보지 않는 것은 저장 시점 검사만 본다. 모델 설정의 `kind`, 캔버스 저장의 «이번 페이로드의 노드», 같은 워크플로우의 다른 노드를 가리키는 구조 참조가 그렇다. 표의 열일곱 가운데 스케줄 `trigger_id` 는 서버가 채우고 테스트 데이터셋 `workflow_id` 는 경로 파라미터로 정해져 위 요청 본문 표에 없다. 테스트 데이터셋 서비스는 그 워크플로우가 요청의 워크스페이스에 없으면 404 `RESOURCE_NOT_FOUND` 를 낸다. 결정의 근거는 [Rationale](#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05) 에 있다.
 
-현재 구현은 버전 복원 경로(`skipLegacyDataGates`)에서도 캔버스 저장의 참조 검사를 건너뛰지 않는다. 이 검사는 옛 데이터 호환 게이트가 아니라 워크스페이스 경계이기 때문이다(`workflows.service.ts`). 결정의 근거와 이 규칙 밖에 남긴 것은 [Rationale](#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27) 에 있다.
+현재 구현은 버전 복원 경로(`skipLegacyDataGates`)에서도 캔버스 저장의 참조 검사를 건너뛰지 않는다. 이 검사는 옛 데이터 호환 게이트가 아니라 워크스페이스 경계이기 때문이다(`workflows.service.ts`). 통합 참조도 복원에서 검사하지만 거절하지 않고 위 「통합 참조」 대로 비운다. 결정의 근거와 이 규칙 밖에 남긴 것은 [Rationale](#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27) 에 있다.
 
 ## 저장된 교차 행 점검
 
@@ -478,6 +494,20 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 - 조회 조건 규칙을 지키는 가드: `codebase/backend/src/repo-guards/__tests__/nullable-type-lie-cast*.ts`, `codebase/backend/src/common/__test-utils__/source-scan.ts` (`countNullishEscapeCasts`, nullish 를 타입 밖으로 빼는 캐스트)
 
 ## Rationale
+
+### 노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다 (2026-10-24)
+
+노드 `config.integrationId`·`config.mcpServers[].integrationId` 는 2026-09-27 의 본문 참조 검사에 들지 않았다. 그때 표는 컬럼에 저장되는 참조 id 만 대상으로 했다. 노드 `config` 같은 JSONB 안의 id 참조는 다루지 않았다. 2026-10-24 에 개인 통합의 노드 사용 기준을 워크플로우 작성자로 정하면서([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale) 저장 경로에도 검사를 두기로 했다(NERV Task `CLE-T-MG0EQZ`, 2026-10-24 사용자 결정). 실행 시점에만 막으면 사용자는 실행해 보기 전까지 노드가 깨진 줄 모른다.
+
+- **표에 통합 참조 행을 더했지만 DB 제약은 없다.** JSONB 안의 값이라 복합 FK 를 걸 수 없다. 노드 `config` 를 정규화해 참조 테이블로 빼는 안은 노드 설정 전체의 저장 모양을 바꾸므로 이 결정의 범위를 넘는다.
+- **바꾼 참조만 본다.** 모든 참조를 보면 작성자가 아닌 편집자는 작성자의 개인 통합이 든 노드를 저장하지 못한다. 캔버스 저장은 노드 전체를 보내므로 그 노드를 건드리지 않아도 막힌다.
+- **복제·가져오기·버전 복원은 거절하지 않고 비운다.** 셋은 여러 노드를 한꺼번에 만드는 작업이다. 참조 하나 때문에 전체를 거절하면 사용자가 고칠 방법이 없다. 복제와 가져오기는 원본을 고칠 수 없다. 버전 복원은 옛 상태를 고칠 수 없다. 비우면 작업은 끝나고 사용자는 비워진 노드에서 통합을 다시 고른다. 버전 복원을 같게 할지는 결정 때 초안에서 정하기로 남겼다. 같은 이유로 같게 정했다.
+- **비우는 대상에 없는 통합과 다른 워크스페이스 통합도 넣는다.** 남의 개인 통합만 비우고 없는 통합은 남기면 결과만 보고 그 ID 가 남의 개인 통합이었는지 알 수 있다. 그래서 세 경우를 같게 다룬다. 지금까지 가져오기는 없는 통합 ID 를 그대로 남겨 에디터가 `(missing)` 으로 보였는데 이제는 비운다.
+
+받아들인 잔여:
+
+- 작성자가 아닌 편집자가 버전을 복원하면 작성자의 개인 통합 참조 가운데 지금 노드와 다른 것은 비워진다. 저장자가 통합 소유자가 아니어서다. 작성자가 직접 복원하면 남는다.
+- 비울 때 MCP 서버 항목의 노출 도구 목록도 함께 사라진다. 그 목록은 그 통합에 묶인 설정이라 통합을 다시 고르면 다시 정해야 한다.
 
 ### 워크스페이스 범위 참조를 복합 FK 로도 막는다 (2026-10-05)
 
