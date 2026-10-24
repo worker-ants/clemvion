@@ -2,21 +2,21 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "3479ef3e35fdc144e078466ba7cf759700ef4ee2a482bb167903c559e72ada8d"
+content_hash: "cbad7e8a2d307a2ef881a997534b821b61d8dd4ae3b2c095d1cb417b6f619d1c"
 read_as: "approved_fallback"
 task: "CLE-T-MX8PSE"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "9615e2c040ce12fd582b02d7f193a8edc718d05eeb57125bba43695329e09adb"
-etag: "sha256-bf6bf1fc7ed9c9d28ff1ab2d384b81e831b6c067f20066f8982a162563a80be2"
+mirror_sha256: "c580b9bd0c78e36c2f3dc6af54bb2a2bb1d46c6862dda32b4a2920573dada727"
+etag: "sha256-20d6e351c0a73fcdfbb9c8617fc562a0c93a6be2301b845bedc00bb8e3583628"
 ---
-> 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 (요구사항에 미구현 · 부분 구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -54,8 +54,8 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-006 WHILE 메시지 목록을 보여 주는 동안 THE SYSTEM SHALL 스트림 조각이 아닌 완결된 메시지만 `aria-live="polite"` 로 스크린 리더에 알린다. (원본: ED-AI-05)
 - REQ-ASSIST-007 WHEN 사용자가 패널 상단에서 모델 설정을 고르면 THE SYSTEM SHALL 그 모델 설정으로 어시스턴트 턴을 처리한다. (원본: ED-AI-06)
 - REQ-ASSIST-008 IF 요청에 모델 설정이 없으면 THE SYSTEM SHALL 세션에 저장된 모델 설정을 쓰고 그것도 없으면 워크스페이스 기본 설정을 쓴다. (원본: ED-AI-07)
-- REQ-ASSIST-009 IF 세션의 모델 설정이 삭제됐거나 워크스페이스 밖이면 THE SYSTEM SHALL 워크스페이스 기본 설정으로 대신하고 토스트로 알린다.
-- REQ-ASSIST-010 IF 모델 설정도 워크스페이스 기본 설정도 없으면 THE SYSTEM SHALL `ASSISTANT_NO_LLM_CONFIG` 안내와 설정 화면 딥링크를 보인다. (원본: ED-AI-08) (부분 구현)
+- REQ-ASSIST-009 IF 세션의 모델 설정이 삭제됐거나 워크스페이스 밖이면 THE SYSTEM SHALL 워크스페이스 기본 설정으로 대신하고 토스트로 알린다. (미구현: 기본 설정으로 대신하고 토스트로 알리는 동작, NERV Task `CLE-T-1K2BM4`)
+- REQ-ASSIST-010 IF 모델 설정도 워크스페이스 기본 설정도 없으면 THE SYSTEM SHALL `ASSISTANT_NO_LLM_CONFIG` 안내와 설정 화면 딥링크를 보인다. (원본: ED-AI-08)
 - REQ-ASSIST-011 WHEN 어시스턴트 턴을 처리하면 THE SYSTEM SHALL OpenAI·Anthropic·Google·Azure OpenAI·Local 프로바이더 모두 스트리밍으로 응답한다. (원본: ED-AI-09)
 - REQ-ASSIST-012 IF 스트리밍을 지원하지 않는 프로바이더가 선택되면 THE SYSTEM SHALL `ASSISTANT_STREAMING_UNSUPPORTED` 에러를 낸다. (원본: ED-AI-09) (미구현)
 - REQ-ASSIST-013 WHILE 한 대화 창을 쓰는 동안 THE SYSTEM SHALL 모드 전환 없이 탐색·계획·편집 단계를 오가게 한다. (원본: ED-AI-10)
@@ -86,14 +86,14 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-038 WHEN 탐색 도구가 호출되면 THE SYSTEM SHALL 채팅에 탐색 배지로 표시한다. (원본: ED-AI-23)
 - REQ-ASSIST-039 WHEN 어시스턴트가 응답하면 THE SYSTEM SHALL 텍스트와 도구 호출을 SSE 로 스트리밍한다. (원본: ED-AI-24)
 - REQ-ASSIST-040 WHEN 사용자가 응답 중단 버튼을 누르면 THE SYSTEM SHALL 스트림을 끊고 이미 적용한 편집은 되돌릴 수 있는 상태로 남긴다. (원본: ED-AI-25)
-- REQ-ASSIST-041 IF 네트워크 오류나 요청 한도 초과가 나면 THE SYSTEM SHALL 사용자에게 재시도 안내를 보인다. (원본: ED-AI-26) (부분 구현)
+- REQ-ASSIST-041 IF 네트워크 오류나 요청 한도 초과가 나면 THE SYSTEM SHALL 사용자에게 재시도 안내를 보인다. (원본: ED-AI-26)
 - REQ-ASSIST-042 WHEN 페이지를 새로 고치거나 다시 접속하면 THE SYSTEM SHALL 서버에 저장된 대화를 이어서 보여 준다. (원본: ED-AI-27)
 - REQ-ASSIST-043 WHEN 패널을 열면 THE SYSTEM SHALL 그 워크플로우의 가장 최근 활성 세션을 자동으로 고른다. (원본: ED-AI-28)
 - REQ-ASSIST-044 WHEN 사용자가 새 대화 버튼을 누르면 THE SYSTEM SHALL 확인 다이얼로그 뒤 새 세션을 시작하고 이전 세션을 보존한다. (원본: ED-AI-29)
 - REQ-ASSIST-045 WHEN 세션 삭제 API 가 호출되면 THE SYSTEM SHALL 세션과 그 메시지를 함께 지운다. (원본: ED-AI-30)
 - REQ-ASSIST-046 WHEN 워크플로우가 삭제되면 THE SYSTEM SHALL 그 세션과 메시지를 cascade 로 지운다. (원본: ED-AI-30)
 - REQ-ASSIST-047 WHEN 첫 사용자 메시지의 응답이 끝나면 THE SYSTEM SHALL 첫 메시지를 40자 이내로 잘라 세션 제목으로 저장하고 사용자가 고칠 수 있게 한다. (원본: ED-AI-31)
-- REQ-ASSIST-048 IF 어시스턴트 턴의 LLM 스트림이 실패하면(프로바이더 SDK 요청 타임아웃 포함) THE SYSTEM SHALL 턴을 끝내고 에러 버블에 에러 코드와 코드별 안내 문구를 보인다. 프로바이더 · 라이브러리 예외의 원문은 화면에 싣지 않고 서버 로그에만 남긴다. (원본: ED-AI-32) (부분 구현)
+- REQ-ASSIST-048 IF 어시스턴트 턴의 LLM 스트림이 실패하면(모델 프로바이더 SDK 요청 타임아웃 포함) THE SYSTEM SHALL 턴을 끝내고 에러 버블에 에러 코드와 코드별 안내 문구를 보이며 모델 프로바이더 · 라이브러리 예외의 원문은 화면에 싣지 않고 서버 로그에만 남긴다. (원본: ED-AI-32)
 - REQ-ASSIST-049 IF 한 턴의 도구 호출 수가 어시스턴트 도구 호출 한도를 넘거나 LLM 라운드가 50에 이르면 THE SYSTEM SHALL `ASSISTANT_TOO_MANY_TOOL_CALLS` 로 턴을 끝내고 이어서 진행 안내를 보인다. (원본: ED-AI-33)
 - REQ-ASSIST-050 WHEN 어시스턴트가 LLM 을 부르면 THE SYSTEM SHALL `llm_usage_log` 에 `workflow_id`·`workspace_id` 와 함께 사용량을 적는다. (원본: ED-AI-34)
 - REQ-ASSIST-051 WHILE 대화 기록을 LLM 에 넘기는 동안 THE SYSTEM SHALL 최근 30턴만 넘기고 그 이전 기록은 서버에만 둔다.
@@ -197,7 +197,7 @@ AI 어시스턴트는 세 단계를 자유롭게 오간다. 단계는 상태 기
 | 편집 배지 (✔ 녹색) | `add_node`, `update_node` 등 성공. 인자 요약과 연결된 노드 라벨을 보인다. 서명이 같은 호출이 연달아 오면 `× N` 을 붙인 배지 하나로 줄인다. 서명은 `update_node` 는 patch 필드 집합, `add_node` 는 노드 유형, 나머지는 도구 이름이다. 실패(`ok:false`) 호출은 서명에 `:err` 를 붙여 성공 묶음과 따로 그린다. 에러가 묻히지 않게 하기 위해서다 |
 | 재시도 후 성공 배지 (✔ `retried`) | `add_edge` 실패의 에러 코드가 `PORT_NOT_FOUND` 나 `NODE_NOT_FOUND` 이고 같은 `source_id`·`target_id` 의 성공 배지가 곧바로 이어지면 두 배지를 "재시도 후 성공" 하나로 줄인다. 앞선 `NODE_NOT_FOUND` 가 연쇄 실패였으면 같은 source 기준으로 묶는다. 라벨은 성공한 호출 기준에 `retried` 꼬리표를 붙이고 툴팁·hover 에 원래 실패 사유(실패한 포트 값, 에러 코드)와 성공 때의 포트 값을 함께 보인다. i18n `assistant.toolCallBadgeRetryRecovered`. 이 축약은 서버가 `knownPorts` 와 연쇄 실패 FIFO 로 다음 라운드에 자연 복구하도록 설계한 두 코드에만 쓴다. `LABEL_CONFLICT`, `CYCLE_DETECTED` 같은 다른 Shadow 에러는 사용자와 디버깅하는 사람에게 분명히 보여야 하므로 빨간 배지를 유지한다. 성공 배지가 이어지지 않으면 실패 배지를 그대로 둔다 |
 | 에러 배지 (⚠ 빨강) | 편집 도구 실패. Shadow 검증 실패 사유를 보인다 |
-| 에러 버블 | `error` 이벤트(예: `ASSISTANT_TOO_MANY_TOOL_CALLS`, `ASSISTANT_STREAM_FAILED`)를 토스트가 아닌 해당 어시스턴트 버블 아래 빨간 상자로 그린다. 채팅 맥락에서 왜 멈췄는지와 복구 방법(코드와 메시지)이 그대로 보여 사용자가 다음 행동을 바로 고를 수 있다. 제목은 `assistant.errorBubbleTitle` 이다 |
+| 에러 버블 | `error` 이벤트(예: `ASSISTANT_TOO_MANY_TOOL_CALLS`, `ASSISTANT_STREAM_FAILED`)를 토스트가 아닌 해당 어시스턴트 버블 아래 빨간 상자로 그린다. 상자에는 제목(`assistant.errorBubbleTitle`), 에러 코드 배지, 안내 문구가 보인다. 안내 문구는 에러 코드로 고른 화면 문구 사전(`dict`)의 `assistant.*` 문구다. 사전 문구가 없는 코드는 서버가 보낸 `message` 를 그대로 보인다. `ASSISTANT_NO_LLM_CONFIG` 에는 모델 설정 화면의 Chat 탭(`/models?tab=chat`)으로 가는 링크(`assistant.errorNoLlmConfigLink`)가 붙는다. 사용자는 채팅 맥락에서 왜 멈췄는지와 복구 방법을 보고 다음 행동을 바로 고를 수 있다. 코드별 문구는 [에러 처리](#에러-처리) 표를 따른다 |
 | 멈춤 안내 | 어시스턴트가 텍스트 없이(content 공백) 정상 종료(`done`)했고 승인된 계획(버튼 승인이나 자연어 승인으로 단계가 1개 이상 끝남)에 실행 가능한 대기 단계가 남아 있으면 프론트엔드가 그 메시지에 `systemHint.kind = 'info'` 로 `assistant.turnStalledHint` 를 넣고 amber 안내 상자로 그린다. 서버 가드가 진척을 추적해 계획이 끝날 때까지 `finish` 를 계속 막으므로 이 안내는 LLM 이 정말 막혔거나 한도가 다 됐을 때만 보인다 |
 | 완료 안내 | 턴이 끝날 때 활성 계획의 `note` 가 아닌 단계가 모두 `done` 이고 `openQuestions` 도 비어 있으면 `systemHint.kind = 'success'` 로 `assistant.turnCompletedHint`("작업을 완료했어요 — N개 단계 실행 성공.")를 넣고 체크 아이콘이 있는 emerald 성공 상자로 그린다. 에러가 났으면 에러 버블이 우선이고 성공 안내는 띄우지 않는다. 우선순위는 에러 > 멈춤 > 완료다 |
 | 자동 이어서 진행 구분선 | 서버가 자동 이어서 진행으로 다음 라운드를 시작하면 어시스턴트 메시지 행이 나뉘어 새 버블이 생긴다. 경계에는 회전 아이콘과 `assistant.autoResumedHint`("자동으로 이어서 진행했어요 (1/2)")로 구분선을 그린다. 실시간 경로는 `attempt/max` 로 진행도를 보이고 `max` 가 없는 세션 다시 불러오기 경로는 `assistant.autoResumedHintShort` 로 순번("(1번째)")만 보인다. 이 구조 덕분에 gpt-oss-120b 가 이어서 진행 앞뒤 라운드에서 같은 확인 문구를 되풀이해도 다른 버블에 나뉘어 보인다 |
@@ -224,7 +224,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 |------|------|
 | 제목 | "무엇을 도와드릴까요?" |
 | 설명 | "자연어로 원하는 워크플로우를 설명하면 함께 만들어드려요." |
-| 예시 칩 | 누르면 입력창에 들어간다: "주문 취소 프로세스 추가해줘", "HTTP 노드에 Authorization 헤더 추가", "현재 워크플로우를 검토하고 개선점 제안해줘" |
+| 예시 칩 | 누르면 입력창에 들어간다: "주문 취소 프로세스 추가해줘", "HTTP 노드에 Authorization 헤더 추가", "현재 워크플로우를 검토하고 개선점 제안해줘", "노드를 예쁘게 재정렬해줘" |
 
 ### 키보드 단축키
 
@@ -242,23 +242,27 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 
 | 코드 | 상황 | 사용자 안내 |
 |------|------|-------------|
-| `ASSISTANT_NO_LLM_CONFIG` | 모델 설정도 워크스페이스 기본 설정도 없다. 지정한 설정이 삭제됐거나 워크스페이스 밖인데 기본 설정으로 대신하지도 못하면 이 코드다 | `assistant.errorNoLlmConfig` 문구와 설정 화면 링크(REQ-ASSIST-010) (미구현) |
-| `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 [어시스턴트 도구 호출 한도](#어시스턴트-도구-호출-한도)를 넘었다 | "이어서 진행해줘" 같은 후속 메시지 안내. 다음 턴에 남은 단계를 이어서 한다. 에러 버블에 "이어서 진행" 버튼을 보인다 |
-| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전에 클라이언트가 예외를 던졌거나 턴 처리 중 서비스 안에서 실패했다. OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열 때의 실패(429, SDK 요청 타임아웃 포함)가 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | 에러 버블에 코드와 재시도 안내(REQ-ASSIST-041) (미구현) |
-| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보낸다 | `assistant.errorRateLimit` 문구로 재시도 안내(REQ-ASSIST-041) (미구현). 재시도 버튼은 정의가 갈린다([미결 사항](#미결-사항)) |
-| `LLM_CONNECTION_ERROR` | 스트림이 열린 뒤 429 가 아닌 이유로 실패했다(모든 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). Anthropic·Google 은 스트림을 열 때의 429 밖 실패도 이 코드로 보낸다. Anthropic 의 SDK 요청 타임아웃도 여기에 든다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | 에러 버블에 코드와 안내 문구 (미구현) |
-| `LLM_OUTPUT_MALFORMED` | OpenAI 계열 스트림에 gpt-oss 계열 모델의 harmony 제어 토큰이 드러났다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 harmony 제어 토큰 거르기) | 에러 버블에 원시 메시지 대신 안내문 |
+| `ASSISTANT_NO_LLM_CONFIG` | 모델 설정도 워크스페이스 기본 설정도 없다. 지정한 설정이 삭제됐거나 워크스페이스 밖인데 기본 설정으로 대신하지도 못하면 이 코드다. 기본 설정으로 대신하는 동작은 아직 없다(미구현, NERV Task `CLE-T-1K2BM4`). 지금은 이미 열린 패널이 지운 설정 id 를 보내면 이 코드로 끝난다([모델 설정](#모델-설정)) | `assistant.errorNoLlmConfig` 문구와 모델 설정 화면 링크 `assistant.errorNoLlmConfigLink`(REQ-ASSIST-010) |
+| `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 [어시스턴트 도구 호출 한도](#어시스턴트-도구-호출-한도)를 넘었다 | `assistant.errorTooManyToolCalls` 문구와 에러 버블의 "이어서 진행" 버튼. 다음 턴에 남은 단계를 이어서 한다 |
+| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전에 클라이언트가 예외를 던졌거나 턴 처리 중 서비스 안에서 실패했다. OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열 때의 실패(429, SDK 요청 타임아웃 포함)가 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | `assistant.errorStreamFailed` 문구로 재시도 안내(REQ-ASSIST-041). 이 코드 하나에 OpenAI 계열의 429 · SDK 요청 타임아웃과 서버 내부 실패가 함께 담긴다. 이 코드는 원인을 나누지 않는다. 그래서 두 문구 모두 원인을 단정하지 않는다. 서버 문구는 재시도만 안내하고 사전 문구는 가능한 원인(요청 한도 초과, 응답 지연)과 재시도를 안내한다. 모델 프로바이더 간 통일은 NERV Task `CLE-T-0R5SYN` 이 정한다 |
+| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보낸다 | `assistant.errorRateLimit` 문구로 재시도 안내(REQ-ASSIST-041). 재시도 버튼은 정의가 갈린다([미결 사항](#미결-사항)) |
+| `LLM_CONNECTION_ERROR` | 스트림이 열린 뒤 429 가 아닌 이유로 실패했다(모든 모델 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). Anthropic·Google 은 스트림을 열 때의 429 밖 실패도 이 코드로 보낸다. Anthropic 의 SDK 요청 타임아웃도 여기에 든다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | `assistant.errorConnection` 문구로 재시도 안내(REQ-ASSIST-041 의 네트워크 오류) |
+| `LLM_OUTPUT_MALFORMED` | OpenAI 계열 스트림에 gpt-oss 계열 모델의 harmony 제어 토큰이 드러났다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 harmony 제어 토큰 거르기) | `assistant.errorOutputMalformed` 문구 |
 | `ASSISTANT_TOOL_FAILED` | 편집 도구가 Shadow 검증에 실패했다 | 배지에 구체 사유([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#shadow-검증-규칙))를 보이고 LLM 이 다음 라운드에 복구를 시도한다 |
-| `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 |
+| `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 (미구현, NERV Task `CLE-T-ZWQ4K2`) |
 | `ASSISTANT_SESSION_NOT_YOURS` | 같은 워크스페이스의 다른 사용자 세션이다. 다른 워크스페이스의 세션은 `ASSISTANT_SESSION_NOT_FOUND` 로 온다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#세션-rest-api)) | 접근 거부 |
 
-에러 버블 동작은 이 표가 기준이다. `(미구현)` 을 단 칸은 지금 에러 버블에 제목(`assistant.errorBubbleTitle`), 에러 코드, 서버가 보낸 `message` 만 보인다(`assistant-message.tsx`). 코드별 안내 문구는 사전 키로 고른다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)).
+에러 버블 동작과 코드별 사전 키는 이 표가 기준이다. 에러 버블에는 제목(`assistant.errorBubbleTitle`), 에러 코드, 안내 문구가 보인다(`assistant-message.tsx`). 안내 문구는 `ERROR_MESSAGE_KEYS` 가 에러 코드로 고른 `assistant.*` 사전 문구다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 1). 이 표에서 사전 키를 적은 여섯 코드가 `ERROR_MESSAGE_KEYS` 에 있다. 사전 문구가 없는 코드는 서버가 보낸 `message` 로 폴백한다.
 
-`ASSISTANT_STREAM_FAILED` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` 의 서버 `message` 에는 지금 프로바이더 · 라이브러리 예외 원문이 그대로 실린다. REQ-ASSIST-048 에 맞지 않는 구현 공백이다. 원문은 서버 로그에만 남겨야 한다. 서버는 코드별 고정 영문 `message` 만 보낸다. 프런트엔드는 에러 코드로 사전 문구를 고르고([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5), 문구가 없는 코드는 그 영문 `message` 로 폴백한다. NERV Task `CLE-T-MX8PSE` 가 이 칸들과 세 코드의 사전 문구를 함께 고친다.
+서버는 SSE `error` 이벤트의 `message` 에 코드별 고정 영문만 싣는다. 어시스턴트 모듈(스트림 서비스와 컨트롤러)이 SSE `error` 이벤트로 보내는 모든 `message` 는 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 세션 REST API 오류 응답의 `message` 는 HTTP 에러 응답이라 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. `ASSISTANT_NO_LLM_CONFIG` 의 두 갈래(설정이 없을 때, 설정을 읽지 못했을 때)와 `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 두 갈래(라운드 상한, 도구 호출 한도)도 이 파일의 문구를 쓴다. 스트림 서비스 밖에서 컨트롤러가 잡은 예외는 `ASSISTANT_STREAM_FAILED` 의 고정 문구로 보낸다. 이 파일의 표에 없는 LLM 클라이언트 코드는 공통 폴백 문구(`The LLM stream failed. Please try again.`)를 쓴다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트가 쓴 안내문(`LLM_OUTPUT_MALFORMED` 의 안내문 등)은 서버 로그에만 남는다(REQ-ASSIST-048). [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 와 같은 동기다(CWE-209). 서버 문구를 영문으로 두는 근거는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 이다.
+
+백엔드 문구(`workflow-assistant-stream-errors.ts`)와 프론트엔드 `ERROR_MESSAGE_KEYS` 는 같은 여섯 코드를 다룬다. 새 코드를 더하면 양쪽을 함께 고친다. 양쪽 테스트(`workflow-assistant-stream-errors.spec.ts`, `assistant-message-error.test.tsx`)가 같은 코드 목록을 적어 두어 한쪽만 바뀌면 실패한다.
+
+알려진 예외가 하나 있다. 같은 실패가 모델 프로바이더마다 다른 코드로 온다. `ASSISTANT_STREAM_FAILED` 한 코드에 여러 원인이 합쳐진 것도 이 공백이다(NERV Task `CLE-T-0R5SYN`). 카탈로그에 행이 없는 스트림 코드는 [미결 사항](#미결-사항)에 있다.
 
 아직 구현하지 않은 에러 코드 두 개가 있다(미구현).
 
-- `ASSISTANT_LLM_CONFIG_INVALID`: 지정한 모델 설정이 삭제됐거나 워크스페이스 밖인 경우. 지금은 별도 코드 없이 워크스페이스 기본 설정으로 대신하고 그것도 없으면 `ASSISTANT_NO_LLM_CONFIG` 로 떨어진다.
+- `ASSISTANT_LLM_CONFIG_INVALID`: 지정한 모델 설정이 삭제됐거나 워크스페이스 밖인 경우. 설계는 별도 코드 없이 워크스페이스 기본 설정으로 대신하고 그것도 없으면 `ASSISTANT_NO_LLM_CONFIG` 로 떨어지는 것이다. 기본 설정으로 대신하는 동작은 아직 없다(REQ-ASSIST-009, NERV Task `CLE-T-1K2BM4`). 지금 동작은 [모델 설정](#모델-설정)에 적었다.
 - `ASSISTANT_STREAMING_UNSUPPORTED`: 스트리밍을 지원하지 않는 프로바이더가 나중에 추가될 때 쓴다. 지금의 다섯 프로바이더가 모두 스트리밍을 지원해 발동 경로가 없다. LLM 모듈에는 별개의 `LLM_STREAMING_UNSUPPORTED` 가 있지만 AI 어시스턴트 전용 코드는 아니다.
 
 턴이 실패해도 이미 적용된 편집은 에디터 스토어에 남아 있어 `Ctrl+Z` 로 되돌릴 수 있다.
@@ -331,7 +335,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 
 - 같은 턴에 새 `propose_plan` 이 나오면 한도를 늘려 다시 계산한다.
 - LLM 라운드 수에는 별도 상한 `MAX_TOOL_LOOP_ROUNDS` = 50 이 있다.
-- 넘으면 `ASSISTANT_TOO_MANY_TOOL_CALLS` 에러 이벤트에 "이어서 진행해줘" 같은 후속 메시지 안내를 실어 보낸다. 사용자는 다음 턴에서 남은 단계를 이어 할 수 있다.
+- 넘으면 `ASSISTANT_TOO_MANY_TOOL_CALLS` 에러 이벤트로 턴을 끝낸다. 서버 `message` 는 한도 숫자가 든 고정 영문이다. 에러 버블에는 `assistant.errorTooManyToolCalls` 문구와 "이어서 진행" 버튼이 보인다. 사용자는 다음 턴에서 남은 단계를 이어 할 수 있다.
 - 이 한도는 AI 노드의 도구 호출 한도와 다르다.
 
 ### 라운드 이어가기
@@ -459,7 +463,8 @@ flowchart TD
 
 ### 모델 설정
 
-- 세션의 `llm_config_id` 에 남은 모델 설정이 삭제됐으면 첫 메시지를 보낼 때 서버가 워크스페이스 기본 설정으로 자동 대체하고 토스트로 알린다.
+- 세션의 `llm_config_id` 에 남은 모델 설정이 삭제됐으면 첫 메시지를 보낼 때 서버가 워크스페이스 기본 설정으로 자동 대체하고 토스트로 알린다. 이 대체와 토스트 알림은 아직 구현하지 않았다(REQ-ASSIST-009, NERV Task `CLE-T-1K2BM4`).
+- 지금 동작은 이렇다. 모델 설정을 지우면 세션의 `llm_config_id` 가 ON DELETE SET NULL 로 비워진다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#어시스턴트-세션)). 그래서 새로 연 패널은 알림 없이 기본 설정을 쓴다. 이미 열린 패널은 지운 설정 id 를 요청에 실어 보내고 턴은 `ASSISTANT_NO_LLM_CONFIG` 로 끝난다.
 - 사용량은 `llm_usage_log` 에 `workflow_id`·`workspace_id` 와 함께 기록한다([LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)).
 
 ## i18n 키
@@ -498,9 +503,16 @@ flowchart TD
 | `assistant.exampleAddCancelFlow` | 주문 취소 프로세스 추가해줘 | Add an order cancellation flow |
 | `assistant.exampleAddHeader` | HTTP 노드에 Authorization 헤더 추가 | Add an Authorization header to the HTTP node |
 | `assistant.exampleReview` | 현재 워크플로우를 검토하고 개선점 제안해줘 | Review this workflow and suggest improvements |
-| `assistant.errorNoLlmConfig`(미사용) | LLM 설정을 먼저 등록해요. | Please register an LLM config first. |
-| `assistant.errorRateLimit`(미사용) | 잠시 후 다시 시도해요. | Rate limited. Please retry in a moment. |
-| `assistant.errorTimeout`(미사용) | 응답이 늦어지고 있어요. | Response is taking too long. |
+| `assistant.exampleArrange` | 노드를 예쁘게 재정렬해줘 | Rearrange the nodes into a clean layout |
+| `assistant.errorNoLlmConfig` | 사용할 모델 설정이 없어요. 모델 설정 화면에서 Chat 모델을 먼저 등록해 주세요. | No model config is available. Register a Chat model in Model settings first. |
+| `assistant.errorNoLlmConfigLink` | 모델 설정으로 이동 | Open Model settings |
+| `assistant.errorStreamFailed` | 응답을 끝내지 못했어요. 요청 한도를 넘었거나 응답이 늦어졌을 수 있어요. 잠시 후 같은 메시지를 다시 보내 주세요. | Couldn't finish the response. A rate limit may have been reached or the response may have taken too long. Send your message again in a moment. |
+| `assistant.errorRateLimit` | AI 모델의 요청 한도를 넘었어요. 잠시 후 같은 메시지를 다시 보내 주세요. | The AI model's rate limit was reached. Send your message again in a moment. |
+| `assistant.errorConnection` | AI 모델과 통신하다가 오류가 났어요. 잠시 후 같은 메시지를 다시 보내 주세요. | Something went wrong while talking to the AI model. Send your message again in a moment. |
+| `assistant.errorOutputMalformed` | 모델이 응답에 내부 제어 토큰을 드러내 처리를 멈췄어요. 다른 모델로 바꾸거나 모델 서빙 설정을 확인해 주세요. | The model leaked internal control tokens into its response, so processing was stopped. Switch to another model or check the model's serving settings. |
+| `assistant.errorTooManyToolCalls` | 이번 턴에 쓸 수 있는 도구 호출을 다 썼어요. "이어서 진행" 버튼을 누르면 남은 단계를 이어서 해요. | This turn used up all of its available tool calls. Press "Continue" to carry on with the remaining steps. |
+| `assistant.continueAfterBudgetButton` | 이어서 진행 | Continue |
+| `assistant.continueAfterBudget` | 이어서 진행해줘. | Continue. |
 | `assistant.opAdded` | 노드 추가: {{label}} | Added node: {{label}} |
 | `assistant.opUpdated` | 노드 수정: {{label}} | Updated node: {{label}} |
 | `assistant.opRemoved` | 노드 삭제: {{label}} | Removed node: {{label}} |
@@ -513,7 +525,7 @@ flowchart TD
 
 `assistant.planApproveConfirm` 은 안내 상자로는 쓰지 않는다. "계획대로 진행" 버튼(`approveActivePlan`)이 사용자 메시지로 보낼 때 쓴다.
 
-`(미사용)` 을 단 세 키는 사전에만 있고 읽는 코드가 없다. 지금 에러 버블은 제목과 에러 코드, 서버가 보낸 메시지를 보인다. `assistant.errorNoLlmConfig` · `errorRateLimit` 은 [에러 처리](#에러-처리) 표의 `(미구현)` 안내를 구현할 때 쓸 자리다. 어시스턴트는 `LLM_TIMEOUT` 을 내지 않으므로([LLM 호출 타임아웃](#llm-호출-타임아웃)) `errorTimeout` 은 쓸 곳이 없다. 세 키의 정리는 NERV Task `CLE-T-MX8PSE` 가 한다.
+`assistant.continueAfterBudgetButton` 은 에러 버블의 "이어서 진행" 버튼 라벨이다. 버튼을 누르면 `continueAfterBudget` 동작이 현재 언어의 `assistant.continueAfterBudget` 문구를 사용자 메시지로 보낸다.
 
 ## 범위 밖과 후속 과제
 
@@ -542,15 +554,19 @@ flowchart TD
 ## 미결 사항
 
 - **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. PRD ED-AI-26 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보내므로 버튼을 `LLM_RATE_LIMIT` 에만 붙이면 그 프로바이더에서는 보이지 않는다. 이 프로바이더 분기를 통일할지는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항) 의 미결이다(NERV Task `CLE-T-0R5SYN`). 버튼을 둘지 결정 필요.
+- **카탈로그에 행이 없는 어시스턴트 스트림 코드**: 스트림 `error` 이벤트가 내는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `ASSISTANT_STREAM_FAILED` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 아직 행이 없다. 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` 는 [에러 코드 규약과 카탈로그 §6.17](../CLE-API/CLE-API-ERRCODES.md#617-llm-클라이언트-도메인-문서-참조) 에 있다. 같은 공백을 [에러 코드 규약과 카탈로그 §미결 사항](../CLE-API/CLE-API-ERRCODES.md#미결-사항) 도 적어 둔다. 등재는 NERV Task `CLE-T-YFDSY7` 이 한다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts` (턴 루프, 라운드 이어가기, 자동 이어서 진행)
+- `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts` (SSE `error` 이벤트 `message` 의 단일 출처)
+- `codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts` (SSE 응답, 스트림 밖 예외의 `error` 이벤트)
 - `codebase/backend/src/modules/workflow-assistant/tools/assistant-finish-guard.service.ts` (종료 가드)
 - `codebase/backend/src/modules/workflow-assistant/tools/review-workflow.ts` (품질 점검 항목)
 - `codebase/backend/src/modules/workflow-assistant/tools/active-plan-context.ts` (활성 계획 컨텍스트)
 - `codebase/backend/src/modules/workflow-assistant/prompts/system-prompt.ts` (시스템 프롬프트)
 - `codebase/frontend/src/components/editor/assistant-panel/*.ts`, `*.tsx` (패널, 메시지, 배지, 후보 선택기)
+- `codebase/frontend/src/lib/i18n/dict/ko/assistant.ts`, `codebase/frontend/src/lib/i18n/dict/en/assistant.ts` (에러 안내 문구 등 패널 문구)
 - `codebase/frontend/src/lib/stores/assistant-store.ts` (대화 상태, 안내 상자, 이어서 진행 버튼)
 - `codebase/frontend/src/lib/stores/assistant-editor-bridge.ts` (에디터 스토어 연결)
 
@@ -639,9 +655,9 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 **harmony 제어 토큰 누출 (gpt-oss).** gpt-oss-120b 가 `<|channel|>final<|message|>...` 같은 내부 제어 토큰을 응답에 드러냈다. OpenAI SDK 의 SSE 파서가 이를 파싱하다 "Failed to parse input at pos 0: ..." 로 예외를 던져 사용자에게 원시 `LLM_CONNECTION_ERROR` 가 보였다. `openai.client.ts` 에서 두 층으로 막았다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)).
 
 1. 스트리밍 중에 `delta.content` 와 tool_call 인자에서 제어 토큰을 지운다. `HARMONY_CHANNEL_PREAMBLE_REGEX = /<\|channel\|>[\s\S]*?<\|message\|>/g` 가 채널 이름을 포함한 preamble 전체를, `HARMONY_STANDALONE_TOKEN_REGEX = /<\|(channel|start|end|message|return|constrain|...)\|>/g` 가 남은 단독 토큰을 지운다.
-2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류하고 사용자 친화 한국어 안내로 바꾼다. 원시 메시지는 화면에 보이지 않고 로그에만 남는다.
+2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류한다. `openai.client.ts` 가 쓰는 안내문은 서버 로그에만 남고 SSE `error` 의 `message` 는 고정 영문이다. 화면에는 사전 키 `assistant.errorOutputMalformed` 의 ko/en 문구가 보인다. 처음에는 한국어 안내를 화면에 그대로 보냈다. 이 방식을 버린 이유는 [에러 버블 문구는 `assistant.*` 사전 키로 고른다](#에러-버블-문구는-assistant-사전-키로-고른다-2026-10-24) 의 허용 목록 항목에 있다.
 
-**에러 상자 대비.** 패널 에러 상자가 `text-red-800/200` 의 탁한 색을 써서 11px 작은 글씨가 특히 읽기 어려웠다. `assistant-message.tsx` 의 에러 상자를 안내 상자 패턴에 맞춰 본문은 `text-red-950 dark:text-red-50` 와 `font-medium`, 에러 코드 알약은 별도 배경(red-200, 어두운 모드 red-800)과 테두리로 구분했다. 본문은 10px 에서 11px 로 올리고 긴 영문 메시지를 위해 `break-all` 을 더했다.
+**에러 상자 대비.** 패널 에러 상자가 `text-red-800/200` 의 탁한 색을 써서 11px 작은 글씨가 특히 읽기 어려웠다. `assistant-message.tsx` 의 에러 상자를 안내 상자 패턴에 맞춰 본문은 `text-red-950 dark:text-red-50` 와 `font-medium`, 에러 코드 배지는 별도 배경(red-200, 어두운 모드 red-800)과 테두리로 구분했다. 본문은 10px 에서 11px 로 올리고 긴 영문 메시지를 위해 `break-all` 을 더했다. `break-all` 은 2026-10-24 에 뺐다(NERV Task `CLE-T-MX8PSE`). 에러 버블이 코드별 사전 문구를 보이고 모델 프로바이더 원문을 싣지 않게 되어 긴 URL 이나 토큰 문자열이 더는 오지 않는다. 지금은 단어 단위 줄바꿈(`break-words`)만 쓴다.
 
 **계획 전용 턴의 핑퐁 루프 (gemini-3-flash-preview).** 복합 설문조사 요청에서 gemini-3-flash-preview 가 `propose_plan` 직후 `finish` 를 부르지 않고 같은 턴에 편집 수십 개를 연달아 쐈다. 프로바이더가 `finishReason: 'tool_calls'` 로 끝내 서버가 라운드를 이었고 LLM 은 `PLAN_AWAITING_APPROVAL` 피드백을 보고도 편집을 다시 시도했다. `MAX_TOOL_LOOP_ROUNDS`(50)에 이르자 화면에 "진행이 중단됐어요" 와 빨간 배지 수십 개가 남았다. 그래서 계획을 제안했는데 아직 승인되지 않았으면 서버가 라운드를 잇지 않고 `finishReason` 을 `'stop'` 으로 덮어쓰게 했다. 프롬프트의 계획 전용 턴 규칙을 서버가 실제로 강제하므로 LLM 이 규칙을 어겨도 핑퐁 루프가 생기지 않는다.
 
@@ -665,7 +681,23 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 
 ### 에러 버블에 프로바이더 원문을 싣지 않는다 (2026-10-23)
 
-2026-10-10 결정으로 고친 REQ-ASSIST-048 은 에러 버블에 «에러 코드와 사유» 를 보인다고 적었다. 승인본 코드 리뷰에서 이 문구가 프로바이더 원문 노출을 요구사항으로 굳힌다는 지적이 나왔다(finding 01a168eb-c9a9-7095-ab08-d86e2965ae88, CWE-209). 지금 스트림 서비스는 SDK 예외 메시지를 그대로 보내고 에러 버블은 그 메시지를 그대로 보인다. [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 스트림의 `error` 이벤트는 그 규칙이 다루는 층이 아니지만 막으려는 노출(CWE-209)은 같다. 같은 모듈의 REST 컨트롤러도 같은 이유로 코드만 내보내고, 위 harmony 제어 토큰 항목도 원시 메시지를 로그에만 남긴다. 그래서 «사유» 를 코드별 안내 문구로 정하고 원문은 서버 로그에만 남긴다. 에러 처리 표의 안내 열은 기존 요구사항(REQ-ASSIST-010 · 041)이 정한 목표로 두고 구현되지 않은 칸에 `(미구현)` 을 달았다. 세 요구사항 줄(REQ-ASSIST-010 · 041 · 048)에는 `(부분 구현)` 을 달았다. 구현은 NERV Task `CLE-T-MX8PSE` 가 한다.
+2026-10-10 결정으로 고친 REQ-ASSIST-048 은 에러 버블에 «에러 코드와 사유» 를 보인다고 적었다. 승인본 코드 리뷰에서 이 문구가 모델 프로바이더 원문 노출을 요구사항으로 굳힌다는 지적이 나왔다(finding 01a168eb-c9a9-7095-ab08-d86e2965ae88, CWE-209). 당시 스트림 서비스는 SDK 예외 메시지를 그대로 보냈고 에러 버블도 그 메시지를 그대로 보였다. [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 스트림의 `error` 이벤트는 그 규칙이 다루는 층이 아니지만 막으려는 노출(CWE-209)은 같다. 같은 모듈의 REST 컨트롤러도 같은 이유로 코드만 내보내고, 위 harmony 제어 토큰 항목도 원시 메시지를 로그에만 남긴다. 그래서 «사유» 를 코드별 안내 문구로 정하고 원문은 서버 로그에만 남긴다. 에러 처리 표의 안내 열은 기존 요구사항(REQ-ASSIST-010 · 041)이 정한 목표로 두고 구현되지 않은 칸에 `(미구현)` 을 달았다. 세 요구사항 줄(REQ-ASSIST-010 · 041 · 048)에는 `(부분 구현)` 을 달았다. 구현은 NERV Task `CLE-T-MX8PSE` 가 맡았다.
+
+### 에러 버블 문구는 `assistant.*` 사전 키로 고른다 (2026-10-24)
+
+NERV Task `CLE-T-MX8PSE` 가 위 결정을 구현하면서 에러 버블 문구를 어디서 고를지 정했다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 `ERROR_KO` 대신 규칙 1 의 `assistant.*` 사전 키를 쓴다. 이 문서와 [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) · [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 의 개정판은 같은 Task 의 변경이라 함께 승인한다.
+
+- **범위를 여섯 코드로 넓혔다.** 2026-10-23 결정은 세 코드(`ASSISTANT_STREAM_FAILED` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR`)의 안내 문구를 다뤘다. 이번 구현에서 `ERROR_MESSAGE_KEYS` 의 여섯 코드로 넓혔다. LLM 클라이언트가 쓴 `message` 는 코드와 관계없이 서버 로그에만 남긴다.
+- **새 에러 코드는 만들지 않았다.** 코드별 문구는 기존 에러 코드에 붙였다. SSE `error` 이벤트가 내는 코드 집합은 그대로다.
+- **규칙 5 의 `ERROR_KO` 를 쓰지 않은 이유.** 구현 당시 승인본의 규칙 5 원천 표는 HTTP 에러 응답 봉투 코드와 노드 `output.error.code` 층만 다뤘고 SSE `error` 이벤트의 코드는 없었다. 이 문구는 어시스턴트 패널에서만 쓰고 모델 설정 링크 문구가 함께 붙는다. 그래서 패널의 다른 문구와 같은 `assistant.*` 사전에 둔다. 이 경로를 원천 표의 한 행으로 두는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 어시스턴트 행이 정한다.
+- **기각한 대안: `ERROR_KO` 에 코드를 더한다.** 문구는 표시 면마다 하나이고 코드 문자열이 같아도 면이 다르면 표도 다르다. 근거의 정본은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24) 의 Rationale 이다.
+- **기각한 대안: LLM 클라이언트가 쓴 안내문을 코드별 허용 목록으로 통과시킨다.** 처음 구현은 `LLM_OUTPUT_MALFORMED` 하나를 허용 목록에 두고 LLM 클라이언트가 쓴 한국어 안내문을 그대로 보냈다. `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 서버 문구에도 "이어서 진행해줘" 같은 한국어 예시가 들어 있었다. 2026-10-24 리뷰 뒤 허용 목록을 없앴다(발견 `01a16b1e-ecfe-7307-a934-0f76ab8b5aca`. 허용 목록이 `LLM_OUTPUT_MALFORMED` 의 한국어 안내문을 그대로 통과시켜 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 과 어긋났다). 규칙 3 은 백엔드 응답에 한국어를 넣지 않는다고 정한다. en 로케일에서도 한국어가 보였다. 지금은 두 코드 모두 고정 영문을 보내고 화면 문구는 `assistant.errorOutputMalformed` · `assistant.errorTooManyToolCalls` 가 고른다.
+- **기각한 대안: 원문을 마스킹해서 보인다.** [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 의 R-CC-26 처럼 자격 증명 모양만 가리고 나머지 원문은 보이는 방식이다. URL 이나 응답 본문 조각은 자격 증명 모양이 아니어도 내부 정보다. R-CC-26 의 근거 가운데 (c) 는 여기서 성립하지 않는다. 채팅 채널의 원문은 클라이언트마다 고정된 API 호스트만 부른 결과다. LLM 클라이언트의 Local · Azure 모델 프로바이더는 사용자가 설정한 `baseUrl` 을 부르므로 내부 호스트가 원문에 실릴 수 있다. (d) 의 진단 가치는 서버 로그가 대신한다. 사용자가 할 일은 코드별 안내로 충분히 알 수 있다.
+- **한 코드의 두 갈래는 한 문구로 합쳤다.** 의도한 단순화다. `ASSISTANT_NO_LLM_CONFIG` 의 «설정 없음» 과 «설정을 읽지 못함» 은 같은 안내와 같은 링크로 나간다. 한도 초과 사전 문구(`assistant.errorTooManyToolCalls`)에는 서버 문구에 든 라운드 상한 · 도구 호출 한도 숫자를 넣지 않는다. 숫자는 서버 영문 `message` 에 남는다.
+- **서버가 `message` 를 빼지 않은 이유.** [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) 의 `error` 이벤트 데이터는 `{code, message}` 다. 이 필드를 유지하고 원문 대신 코드별 고정 영문을 싣는다. 이 영문은 사전 문구가 없는 코드의 폴백이 된다.
+- **[에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 개요의 에러 층 표에 SSE 행을 더하지 않은 이유.** SSE 이벤트 계약의 정본은 [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) 다. `message` 의 뜻도 그 문서가 정한다. 세션 REST API 의 오류 응답은 HTTP 에러 응답이라 그 표의 층을 그대로 따른다. 다만 `LLM_RATE_LIMIT` 은 노드 `output.error.code` 층과 SSE 층에 같은 문자열로 나간다. 문자열이 같아도 표시 면이 달라 문구는 면마다 따로 고른다. `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` 는 LLM 클라이언트 층 코드다([에러 코드 규약과 카탈로그 §6.17](../CLE-API/CLE-API-ERRCODES.md#617-llm-클라이언트-도메인-문서-참조)). 노드에서는 이 둘이 `LLM_CALL_FAILED` 로 바뀌어 나온다.
+- **LLM 클라이언트 쪽 정정은 따로 한다.** LLM 클라이언트가 쓰는 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 고친다. 어시스턴트 SSE 는 그 문장을 서버 로그에만 남긴다.
+- **이 Task 가 구현하지 않은 안내는 `(미구현)` 으로 남겼다.** `ASSISTANT_SESSION_NOT_FOUND` 의 세션 만료 안내와 새 세션 자동 생성은 NERV Task `CLE-T-ZWQ4K2` 가 맡는다. 지운 모델 설정을 기본 설정으로 대신하고 토스트로 알리는 동작(REQ-ASSIST-009)은 NERV Task `CLE-T-1K2BM4` 가 맡는다.
 
 ### 후보 선택기 정책 (ED-AI-39)
 
@@ -697,3 +729,4 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 - 계획 전용 가드(`planProposedPendingApproval`)의 조건을 바꾸면 위 세 경우가 회귀 테스트로 고정돼 있는지 확인한다. `finishReason=stop` 을 기대하는 기존 계획 관련 테스트가 이 가드에 영향받지 않아야 한다.
 - `MAX_STALL_ROUNDS` 나 멈춤 가드 조건을 바꾸면 "auto-continue on stall with pending plan" 묶음의 세 테스트와 행 분리·`auto_resume` 이벤트 단언을 함께 고친다.
 - `RESUMABLE_ERROR_CODES` 에 코드를 더하면 (1) 백엔드가 그 코드를 실제로 내는지, (2) "이어서 진행해줘" 가 의미 있는 복구인지, (3) `continueAfterBudget` 대신 별도 재개 동작이 필요한지 확인한다.
+- `RESUMABLE_ERROR_CODES` 를 바꾸면 `assistant.errorTooManyToolCalls` 문구도 함께 본다. 이 문구가 «"이어서 진행" 버튼» 을 가리키기 때문이다. 에러 버블 테스트(`assistant-message-error.test.tsx`)가 이 문구에 버튼 문구(`assistant.continueAfterBudgetButton`)가 들어 있는지 확인한다.

@@ -2,33 +2,33 @@
 id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "5d5d251c55a1b23c10bbcd60c62311f781d40aa31198e4595e95bf3dd78fced7"
+content_hash: "6b14a487ec5eb210de409fce76c6055b4eddfe6622ecd68b86c1880d714db445"
 read_as: "approved_fallback"
 task: "CLE-T-MX8PSE"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "ad89421dde96316469ed549ef11f4bba470e84d46e194e9ca302db3eec88db3b"
-etag: "sha256-9bc5867cdd34cdb0a96d6b58011113cccea741547e09ebfd1fa39d34f264e4a1"
+mirror_sha256: "4d040aa126bac74fc436c2bde7096143c23334fe4e5a95a287f35cfd27637e6d"
+etag: "sha256-5653cf47e9c65487d21b1b3b4022323d224b5b8cdd563388a50e81e06f77960a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-[AI 어시스턴트](CLE-WF-ASSIST.md)의 클라이언트·서버 계약을 정한다. 사용자 메시지를 보내고 응답을 SSE(Server-Sent Events)로 받는 스트림 엔드포인트, 세션과 메시지를 다루는 REST API, 대화를 서버에 남기는 두 엔티티가 대상이다.
+[워크플로우 AI 어시스턴트](CLE-WF-ASSIST.md)의 클라이언트·서버 계약을 정한다. 사용자 메시지를 보내고 응답을 SSE(Server-Sent Events)로 받는 스트림 엔드포인트, 세션과 메시지를 다루는 REST API, 대화를 서버에 남기는 두 엔티티가 대상이다.
 
 어시스턴트 세션(`AssistantSession`, `workflow_assistant_session`)은 워크플로우 하나에 묶인 사용자별 대화다. 어시스턴트 메시지(`AssistantMessage`, `workflow_assistant_message`)는 그 세션의 사용자·어시스턴트 메시지 행이며 도구 호출·계획·사용량 정보가 붙는다. 대화 기록을 서버에 두므로 페이지를 새로 고치거나 다시 접속해도 대화를 이어 갈 수 있다.
 
 이 문서가 다루지 않는 내용은 다음과 같다.
 
 - 도구의 인자와 반환 형태는 [AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md)가 정한다.
-- 에러 코드의 사용자 안내, 자동 이어서 진행·종료 가드의 발동 조건, 패널 화면은 [AI 어시스턴트](CLE-WF-ASSIST.md)가 정한다.
-- LLM 스트리밍 인터페이스와 프로바이더별 구현은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md), 사용량 로그 적재는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)이 정한다.
+- 에러 코드의 사용자 안내, 자동 이어서 진행·종료 가드의 발동 조건, 패널 화면은 [워크플로우 AI 어시스턴트](CLE-WF-ASSIST.md)가 정한다.
+- LLM 스트리밍 인터페이스와 모델 프로바이더별 구현은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md), 사용량 로그 적재는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)이 정한다.
 - 워크플로우·노드·연결선 저장 흐름은 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md)이 정한다.
 
 ## 메시지 스트림 엔드포인트
@@ -61,7 +61,7 @@ interface AssistantMessageRequest {
 }
 ```
 
-`currentWorkflow` 는 시스템 프롬프트의 현재 워크플로우 스냅샷으로 들어간다. `width`·`height` 는 시스템 프롬프트의 배치 지침이 쓴다([AI 어시스턴트 §시스템 프롬프트](CLE-WF-ASSIST.md#시스템-프롬프트)).
+`currentWorkflow` 는 시스템 프롬프트의 현재 워크플로우 스냅샷으로 들어간다. `width`·`height` 는 시스템 프롬프트의 배치 지침이 쓴다([워크플로우 AI 어시스턴트 §시스템 프롬프트](CLE-WF-ASSIST.md#시스템-프롬프트)).
 
 ### 한 턴의 흐름
 
@@ -118,7 +118,7 @@ event: done
 data: {"finishReason": "stop"}
 
 event: error
-data: {"code": "LLM_RATE_LIMIT", "message": "..."}
+data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was reached. Please retry in a moment."}
 ```
 
 | 이벤트 | 뜻 | 프론트엔드 동작 |
@@ -129,7 +129,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `auto_resume` | 서버가 자동 이어서 진행에 들어갔다는 알림 | 현재 버블을 `streaming=false` 로 확정하고 `autoResume={reason, attempt, max}` 메타를 단 새 어시스턴트 버블을 추가한다. 뒤이은 `text`·`tool_call` 은 새 버블로 간다. 새 버블 앞에는 자동 이어서 진행 구분선을 그린다 |
 | `usage` | 토큰 사용량. 데이터는 `{inputTokens, outputTokens, totalTokens, thinkingTokens?, model}` 이고 메시지 행의 `usage` 와 모양이 같다 | 화면 표시는 선택 |
 | `done` | 어시스턴트 턴 종료 | 스트리밍 표시를 끝내고 입력창을 다시 쓸 수 있게 한다 |
-| `error` | 실패 | 에러 버블과 재시도 안내를 보인다. 코드별 안내는 [AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리) |
+| `error` | 실패. 데이터는 `{code, message}` 다. `message` 는 코드별로 정한 고정 영문이고 한도 숫자처럼 값이 들어가는 자리만 바뀐다. 한 코드에 문구 갈래가 둘인 것도 있다(`ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS`). 그래서 소비자는 `message` 로 분기하지 않고 `code` 로 분기한다. 어시스턴트 모듈이 SSE `error` 이벤트로 보내는 모든 `message` 는 백엔드 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트가 쓴 안내문(`LLM_OUTPUT_MALFORMED` 의 안내문 등)은 싣지 않는다. 둘 다 서버 로그에만 남는다 | 에러 코드로 사전 문구를 골라 에러 버블에 보인다. 문구가 없는 코드는 `message` 로 폴백한다. 코드별 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)가 정한다. 코드로 사전 키를 고르는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 5 를 따른다 |
 
 ### `tool_call` 데이터
 
@@ -181,7 +181,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `POST` | `/api/workflow-assistant/sessions/{id}/messages` | SSE 스트림. 사용자 메시지를 보내고 응답을 받는다([메시지 스트림 엔드포인트](#메시지-스트림-엔드포인트)) |
 
 - 모든 엔드포인트는 편집자(`editor`) 이상 역할이 필요하다. `workspace_id` 는 JWT 에서 넣는다.
-- 세션이 없거나 요청의 워크스페이스 세션이 아니면 404 `ASSISTANT_SESSION_NOT_FOUND`, 같은 워크스페이스의 다른 사용자 세션이면 403 `ASSISTANT_SESSION_NOT_YOURS` 다. 다른 워크스페이스의 세션을 없는 세션과 구분하지 않는다. 사용자 안내는 [AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)에서 정한다.
+- 세션이 없거나 요청의 워크스페이스 세션이 아니면 404 `ASSISTANT_SESSION_NOT_FOUND`, 같은 워크스페이스의 다른 사용자 세션이면 403 `ASSISTANT_SESSION_NOT_YOURS` 다. 다른 워크스페이스의 세션을 없는 세션과 구분하지 않는다. 사용자 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)에서 정한다. 세션 REST API 오류 응답의 `message` 는 HTTP 에러 응답 층이라 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다.
 - 보관 전용 `/archive` 엔드포인트는 없다. 보관은 일반 세션 수정으로 `status` 를 바꾼다.
 - 생성 본문의 `workflowId` 와 목록 조회(`GET /sessions?workflowId`)의 `workflowId` 는 같은 워크스페이스의 워크플로우만 받는다. 아니면 404 `WORKFLOW_NOT_FOUND` 다. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 예외 3). `GET /sessions/latest` 는 이 검사 없이 요청의 워크스페이스로 세션을 찾으므로 다른 워크스페이스의 워크플로우면 세션이 없을 때와 같은 `null` 이다.
 - 생성·수정 본문의 `llmConfigId` 는 같은 워크스페이스의 `kind=chat` 모델 설정만 받는다. 아니면 404 `MODEL_CONFIG_NOT_FOUND` 다. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
@@ -255,7 +255,7 @@ AI 어시스턴트의 채팅 세션이다. 워크플로우 하나에 종속되�
 | `tool_call_id` | String? | `role=tool` 행이 어느 tool_call 의 결과인지 가리키는 자리. 지금은 `tool` 행을 쓰지 않아 비어 있다 |
 | `plan` | JSONB? | `propose_plan` 발행 시점 스냅샷. `{title, summary, steps[], openQuestions[], approvedAt?}` |
 | `usage` | JSONB? | `{inputTokens, outputTokens, totalTokens, thinkingTokens?, model}`. `role=assistant` 의 턴 종료 시점에만 채운다 |
-| `finish_reason` | String? | `role=assistant` 에만 있다. 프로바이더 값 `stop` / `tool_calls` / `length` / `content_filter` / `aborted` 와 서버 합성 표시 `error`(턴이 에러로 끝남, 예: 라운드 한도 초과) / `auto_resume_pending`(이어서 진행으로 나뉜 턴의 중간 행) |
+| `finish_reason` | String? | `role=assistant` 에만 있다. 모델 프로바이더 값 `stop` / `tool_calls` / `length` / `content_filter` / `aborted` 와 서버 합성 표시 `error`(턴이 에러로 끝남, 예: 라운드 한도 초과) / `auto_resume_pending`(이어서 진행으로 나뉜 턴의 중간 행) |
 | `auto_resumed` | Boolean | 자동 이어서 진행으로 새로 시작된 어시스턴트 행이면 true(기본 false). 이어서 진행 직전까지의 행은 false. 응답 필드 `autoResumed`. V020 |
 | `auto_resume_reason` | String? | `auto_resumed=true` 행에만. 현재 `stall_pending_steps` 한 가지 (V020) |
 | `auto_resume_attempt` | Integer? | `auto_resumed=true` 행에만. 턴 안의 이어서 진행 순번(1부터) (V020) |
@@ -274,7 +274,7 @@ AI 어시스턴트의 채팅 세션이다. 워크플로우 하나에 종속되�
 
 ## 턴 저장 규칙
 
-보통 턴은 어시스턴트 행 하나로 저장한다. 자동 이어서 진행이 일어나면 행을 나눈다. 이어서 진행의 발동 조건은 [AI 어시스턴트 §자동 이어서 진행](CLE-WF-ASSIST.md#자동-이어서-진행)에서 정한다.
+보통 턴은 어시스턴트 행 하나로 저장한다. 자동 이어서 진행이 일어나면 행을 나눈다. 이어서 진행의 발동 조건은 [워크플로우 AI 어시스턴트 §자동 이어서 진행](CLE-WF-ASSIST.md#자동-이어서-진행)에서 정한다.
 
 1. 서버가 이어서 진행으로 다음 라운드를 시작하는 순간, 지금까지 쌓인 어시스턴트 텍스트와 도구 호출을 중간 행으로 먼저 저장한다. 이 행은 `finish_reason='auto_resume_pending'`, `auto_resumed=false` 다.
 2. 텍스트·도구 호출 누적을 비운다. 다음 라운드는 새 행에 쌓인다.
@@ -294,11 +294,13 @@ AI 어시스턴트의 채팅 세션이다. 워크플로우 하나에 종속되�
 - `codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts` (REST·SSE 엔드포인트)
 - `codebase/backend/src/modules/workflow-assistant/workflow-assistant-session.service.ts` (세션·메시지 CRUD)
 - `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts` (SSE 이벤트 발행)
+- `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts` (SSE `error` 이벤트 `message` 의 단일 출처)
 - `codebase/backend/src/modules/workflow-assistant/tools/assistant-turn-persistence.service.ts` (턴 저장, `makeResumeMeta`)
 - `codebase/backend/src/modules/workflow-assistant/entities/*.ts` (세션·메시지 엔티티)
 - `codebase/backend/src/modules/workflow-assistant/dto/**/*.ts` (요청·응답 DTO)
 - `codebase/frontend/src/lib/api/assistant.ts` (클라이언트, `AssistantSseEvent`)
 - `codebase/frontend/src/lib/stores/assistant-store.ts` (SSE 처리, 세션 다시 불러오기 `hydrateMessage`)
+- `codebase/frontend/src/components/editor/assistant-panel/assistant-message.tsx` (`error` 이벤트의 에러 버블, 코드별 사전 키 `ERROR_MESSAGE_KEYS`)
 
 ## Rationale
 
@@ -318,7 +320,7 @@ AI 어시스턴트의 채팅 세션이다. 워크플로우 하나에 종속되�
 
 ### 사용량을 JSONB 한 칸에 둔다
 
-어시스턴트 메시지의 토큰 수와 모델을 컬럼 여러 개로 나누지 않고 `usage` JSONB 하나에 담는다. 프로바이더마다 사용량 키 구조가 다르기 때문이다. 사고 토큰처럼 중간에 새 필드가 생겨도(V018) 마이그레이션 없이 차차 채울 수 있다. 집계가 필요하면 정규화된 카운트를 따로 담는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)의 사용량 로그를 쓴다.
+어시스턴트 메시지의 토큰 수와 모델을 컬럼 여러 개로 나누지 않고 `usage` JSONB 하나에 담는다. 모델 프로바이더마다 사용량 키 구조가 다르기 때문이다. 사고 토큰처럼 중간에 새 필드가 생겨도(V018) 마이그레이션 없이 차차 채울 수 있다. 집계가 필요하면 정규화된 카운트를 따로 담는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)의 사용량 로그를 쓴다.
 
 ### 자동 이어서 진행 때 메시지 행을 나눈다
 
@@ -345,6 +347,16 @@ yield { event: 'auto_resume', data: { reason, attempt, max } };
 - 프론트엔드는 `AssistantSseEvent` union 에 `auto_resume` 을, 표시 메시지에 `autoResume?: {reason, attempt, max}` 를 더했다. `sendMessage` 의 이벤트 콜백이 `auto_resume` 을 가로채 현재 스트리밍 메시지 ID 를 새 UUID 로 바꾸고 새 행을 추가한다. `hydrateMessage` 는 서버의 `autoResumed=true` 행을 `autoResume` 메타로 되살린다.
 
 회귀 테스트: `stream.service.spec.ts` 의 "auto-continue on stall with pending plan" 묶음이 `appendMessage` 호출 횟수(이어서 진행 N회 + 최종 1개), 중간 행의 `finishReason='auto_resume_pending'`·`autoResumed=false`, 최종 행의 `autoResumed=true`·`autoResumeReason`·`autoResumeAttempt=N`, `auto_resume` 이벤트 N회와 `attempt` 1..N 증가, 첫 행에만 계획이 실리는 것을 고정한다. `assistant-store.test.ts` 는 `auto_resume` 을 받으면 새 행이 더해지고 스트리밍 메시지 ID 가 바뀌며 `autoResume` 메타가 붙는지 본다.
+
+### `error` 이벤트에 예외 원문을 싣지 않는다 (2026-10-24)
+
+`error` 이벤트의 `message` 는 코드별 고정 영문이다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트가 쓴 안내문은 서버 로그에만 남긴다. 결정의 근거는 [워크플로우 AI 어시스턴트](CLE-WF-ASSIST.md) 의 Rationale 두 소절에 있다. 원문을 싣지 않는 근거는 [워크플로우 AI 어시스턴트 §에러 버블에 프로바이더 원문을 싣지 않는다 (2026-10-23)](CLE-WF-ASSIST.md#에러-버블에-프로바이더-원문을-싣지-않는다-2026-10-23) 에 있다. 문구를 고르는 방식은 [워크플로우 AI 어시스턴트 §에러 버블 문구는 `assistant.*` 사전 키로 고른다 (2026-10-24)](CLE-WF-ASSIST.md#에러-버블-문구는-assistant-사전-키로-고른다-2026-10-24) 에 있다.
+
+- **근거 규칙.** [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 이벤트는 그 층이 아니지만 막으려는 노출(CWE-209)이 같다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 은 백엔드 응답을 영문 원문으로 두고 한국어를 넣지 않는다고 정한다.
+- **기각: `message` 필드를 뺀다.** 사전 문구가 없는 코드의 폴백이 사라진다. 그래서 필드를 두고 원문 대신 고정 영문을 싣는다.
+- **기각: LLM 클라이언트가 쓴 안내문을 코드별 허용 목록으로 통과시킨다.** 허용 목록이 `LLM_OUTPUT_MALFORMED` 의 한국어 안내문을 그대로 내보내 규칙 3 과 어긋났다.
+- **LLM 클라이언트 쪽 정정은 따로 한다.** LLM 클라이언트가 쓰는 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 고친다. 어시스턴트 SSE 는 그 문장을 서버 로그에만 남긴다.
+- **함께 승인한다.** 이 문서와 [워크플로우 AI 어시스턴트](CLE-WF-ASSIST.md) · [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 의 개정판은 NERV Task `CLE-T-MX8PSE` 의 한 변경이라 함께 승인한다.
 
 ### 유지보수 점검
 
