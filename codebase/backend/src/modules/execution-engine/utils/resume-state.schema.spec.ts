@@ -143,8 +143,14 @@ describe('resume-state.schema', () => {
   // 리터럴 참조를 표현식으로 오인하지 않는다.
   describe('mcpServers 항목의 fromExpression', () => {
     const servers = [
-      { integrationId: '11111111-1111-4111-8111-111111111111', fromExpression: false },
-      { integrationId: '22222222-2222-4222-8222-222222222222', fromExpression: true },
+      {
+        integrationId: '11111111-1111-4111-8111-111111111111',
+        fromExpression: false,
+      },
+      {
+        integrationId: '22222222-2222-4222-8222-222222222222',
+        fromExpression: true,
+      },
     ];
 
     it.each([

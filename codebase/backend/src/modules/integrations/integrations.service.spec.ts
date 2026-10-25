@@ -3533,9 +3533,7 @@ describe('IntegrationsService', () => {
       );
       await expect(
         service.getForExecution('int-1', 'ws-1', LITERAL_USE),
-      ).rejects.toThrow(
-        IntegrationCredentialsUnreadableError,
-      );
+      ).rejects.toThrow(IntegrationCredentialsUnreadableError);
     });
 
     it('healthy rows expose credentialsStatus: ok', async () => {
@@ -3559,7 +3557,7 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValueOnce(null);
       const err: unknown = await service
         .getForExecution('missing', 'ws-1', LITERAL_USE)
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(err).toBeInstanceOf(NotFoundException);
       return (err as NotFoundException).getResponse();
     }
@@ -3589,10 +3587,25 @@ describe('IntegrationsService', () => {
     });
 
     it.each<[string, Array<Record<string, unknown>>, boolean, string]>([
-      ['작성자 ≠ 소유자', facts('user-2', true), false, 'workflow_author_not_owner'],
-      ['노드 행 없음 · 다른 워크스페이스 → 작성자 불명', facts(null, true), false, 'workflow_author_unknown'],
+      [
+        '작성자 ≠ 소유자',
+        facts('user-2', true),
+        false,
+        'workflow_author_not_owner',
+      ],
+      [
+        '노드 행 없음 · 다른 워크스페이스 → 작성자 불명',
+        facts(null, true),
+        false,
+        'workflow_author_unknown',
+      ],
       ['결과 행 없음 → 작성자 불명', [], false, 'workflow_author_unknown'],
-      ['소유자가 멤버가 아님', facts('user-1', false), false, 'owner_not_member'],
+      [
+        '소유자가 멤버가 아님',
+        facts('user-1', false),
+        false,
+        'owner_not_member',
+      ],
       ['표현식 참조', facts('user-1', true), true, 'expression_ref'],
     ])(
       '%s → 없는 통합과 같은 404, 이유는 WARN 로그에만',
@@ -3608,7 +3621,7 @@ describe('IntegrationsService', () => {
 
         const err: unknown = await service
           .getForExecution('int-1', 'ws-1', { nodeId: NODE_ID, fromExpression })
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
 
         expect(err).toBeInstanceOf(NotFoundException);
         expect((err as NotFoundException).getResponse()).toEqual(expected);

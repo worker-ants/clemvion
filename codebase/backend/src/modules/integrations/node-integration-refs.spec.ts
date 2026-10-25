@@ -13,14 +13,13 @@ const B = '22222222-2222-4222-8222-222222222222';
 const C = '33333333-3333-4333-8333-333333333333';
 
 describe('extractNodeIntegrationRefs — 통합 참조의 자리', () => {
-  it.each([...INTEGRATION_ID_REF_NODE_TYPES].filter((t) => t !== 'http_request'))(
-    '%s 는 config.integrationId 를 본다',
-    (type) => {
-      expect(extractNodeIntegrationRefs(type, { integrationId: A })).toEqual([
-        { field: 'config.integrationId', integrationId: A, expression: false },
-      ]);
-    },
-  );
+  it.each(
+    [...INTEGRATION_ID_REF_NODE_TYPES].filter((t) => t !== 'http_request'),
+  )('%s 는 config.integrationId 를 본다', (type) => {
+    expect(extractNodeIntegrationRefs(type, { integrationId: A })).toEqual([
+      { field: 'config.integrationId', integrationId: A, expression: false },
+    ]);
+  });
 
   it.each<[string, unknown, number]>([
     ['integration', 'integration', 1],
@@ -77,19 +76,27 @@ describe('extractNodeIntegrationRefs — 통합 참조의 자리', () => {
     ['null', null],
     ['빈 문자열', ''],
   ])('고르지 않은 자리(%s)는 참조가 아니다', (_label, integrationId) => {
-    expect(
-      extractNodeIntegrationRefs('send_email', { integrationId }),
-    ).toEqual([]);
+    expect(extractNodeIntegrationRefs('send_email', { integrationId })).toEqual(
+      [],
+    );
   });
 
   it('문자열이 아닌 값은 어느 통합도 가리키지 못하는 참조다', () => {
     expect(extractNodeIntegrationRefs('cafe24', { integrationId: 42 })).toEqual(
-      [{ field: 'config.integrationId', integrationId: null, expression: false }],
+      [
+        {
+          field: 'config.integrationId',
+          integrationId: null,
+          expression: false,
+        },
+      ],
     );
   });
 
   it('통합을 참조하지 않는 노드와 객체가 아닌 config 는 참조가 없다', () => {
-    expect(extractNodeIntegrationRefs('code', { integrationId: A })).toEqual([]);
+    expect(extractNodeIntegrationRefs('code', { integrationId: A })).toEqual(
+      [],
+    );
     expect(extractNodeIntegrationRefs('send_email', null)).toEqual([]);
   });
 });
@@ -216,7 +223,10 @@ describe('통합 참조 목록 ↔ 노드 스키마 위젯', () => {
     ui?: { widget?: string };
   }
 
-  const SELECTOR_WIDGETS = new Set(['integration-selector', 'mcp-server-selector']);
+  const SELECTOR_WIDGETS = new Set([
+    'integration-selector',
+    'mcp-server-selector',
+  ]);
 
   function selectorFields(schema: JsonSchemaNode, path = ''): string[] {
     const found: string[] = [];

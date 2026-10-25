@@ -108,7 +108,12 @@ describe('ExploreToolsService — listIntegrations', () => {
       createdBy: 'u-1',
     });
 
-    const result = await svc.listIntegrations('ws-1', 'u-1', CURRENT_WF, 'http');
+    const result = await svc.listIntegrations(
+      'ws-1',
+      'u-1',
+      CURRENT_WF,
+      'http',
+    );
 
     expect(qb.where).toHaveBeenCalledWith('i.workspace_id = :workspaceId', {
       workspaceId: 'ws-1',

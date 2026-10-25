@@ -21,7 +21,10 @@ import {
  */
 const repoRoot = path.resolve(__dirname, '../../../../..');
 const srcDir = path.resolve(__dirname, '../..');
-const SERVICE = path.join(srcDir, 'modules/integrations/integrations.service.ts');
+const SERVICE = path.join(
+  srcDir,
+  'modules/integrations/integrations.service.ts',
+);
 
 const EXECUTION_CALLERS = [
   // 통합 노드 다섯 종의 공통 베이스. `context.nodeId` · `context.rawConfig` 로 `use` 를 만든다.
@@ -55,7 +58,9 @@ describe('findUnguardedRowReaders', () => {
   it('판정 없이 저장소를 읽는 공개 메서드를 잡는다', () => {
     expect(
       findUnguardedRowReaders(
-        wrap(`async leak(id) { return this.integrationRepository.findOne({ where: { id } }); }`),
+        wrap(
+          `async leak(id) { return this.integrationRepository.findOne({ where: { id } }); }`,
+        ),
         'S',
       ),
     ).toEqual(['leak']);

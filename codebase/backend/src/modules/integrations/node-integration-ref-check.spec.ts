@@ -86,7 +86,13 @@ describe('findUnusableIntegrationRefs', () => {
   });
 
   it.each<
-    [string, IntegrationRefCheckPath, string | null, boolean, string | undefined]
+    [
+      string,
+      IntegrationRefCheckPath,
+      string | null,
+      boolean,
+      string | undefined,
+    ]
   >([
     [
       'save: 작성자 · 저장자가 소유자',
@@ -154,18 +160,31 @@ describe('findUnusableIntegrationRefs', () => {
     const logger = { warn: jest.fn() };
     const runner = makeRunner([]);
     expect(
-      await unusable({ path: 'restore' }, OWNER, [ref(PERSONAL)], runner, logger),
+      await unusable(
+        { path: 'restore' },
+        OWNER,
+        [ref(PERSONAL)],
+        runner,
+        logger,
+      ),
     ).toEqual([PERSONAL]);
     expect(runner.query).toHaveBeenCalledWith(
       expect.stringContaining('FROM workspace_member'),
       ['ws-1', [OWNER]],
     );
-    expect(logger.warn.mock.calls[0][0].context.reason).toBe('owner_not_member');
+    expect(logger.warn.mock.calls[0][0].context.reason).toBe(
+      'owner_not_member',
+    );
   });
 
   it('save · clone 은 멤버십을 읽지 않는다', async () => {
     const runner = makeRunner();
-    await unusable({ path: 'save', saverId: OWNER }, OWNER, [ref(PERSONAL)], runner);
+    await unusable(
+      { path: 'save', saverId: OWNER },
+      OWNER,
+      [ref(PERSONAL)],
+      runner,
+    );
     await unusable({ path: 'clone' }, OWNER, [ref(PERSONAL)], runner);
     expect(
       runner.query.mock.calls.filter(([sql]) =>
@@ -207,7 +226,7 @@ describe('assertNodeIntegrationRefsUsable', () => {
           fieldPrefix: 'nodes[1].',
         },
       ],
-    }).catch((e: unknown) => e);
+    }).catch((err: unknown) => err);
 
     expect(error).toBeInstanceOf(BadRequestException);
     expect((error as BadRequestException).getResponse()).toMatchObject({
@@ -230,20 +249,27 @@ describe('assertNodeIntegrationRefsUsable', () => {
   it('저장된 노드와 같은 참조는 판정하지 않는다', async () => {
     const runner = makeRunner();
     await expect(
-      assertNodeIntegrationRefsUsable(runner, { warn: jest.fn() }, {
-        workspaceId: 'ws-1',
-        workflowAuthorId: OWNER,
-        saverId: OTHER,
-        nodes: [
-          {
-            nodeId: 'n-1',
-            type: 'send_email',
-            config: { integrationId: PERSONAL, subject: '바뀐 제목' },
-            stored: { type: 'send_email', config: { integrationId: PERSONAL } },
-            fieldPrefix: '',
-          },
-        ],
-      }),
+      assertNodeIntegrationRefsUsable(
+        runner,
+        { warn: jest.fn() },
+        {
+          workspaceId: 'ws-1',
+          workflowAuthorId: OWNER,
+          saverId: OTHER,
+          nodes: [
+            {
+              nodeId: 'n-1',
+              type: 'send_email',
+              config: { integrationId: PERSONAL, subject: '바뀐 제목' },
+              stored: {
+                type: 'send_email',
+                config: { integrationId: PERSONAL },
+              },
+              fieldPrefix: '',
+            },
+          ],
+        },
+      ),
     ).resolves.toBeUndefined();
     expect(runner.query).not.toHaveBeenCalled();
   });

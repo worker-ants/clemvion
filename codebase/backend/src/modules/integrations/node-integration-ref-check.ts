@@ -29,9 +29,7 @@ import {
 
 /** 경로 종류와 그 경로만 가진 사실. 복제 · 가져오기는 요청자가 작성자라서 따로 받지 않는다. */
 export type IntegrationRefCheckPath =
-  | { path: 'save'; saverId: string }
-  | { path: 'clone' }
-  | { path: 'restore' };
+  { path: 'save'; saverId: string } | { path: 'clone' } | { path: 'restore' };
 
 export interface IntegrationRefCandidate {
   /** 로그에 남길 노드 id. 캔버스 저장의 새 노드는 요청이 보낸 id 이고 복제 · 가져오기는 새로 발급한 id 다. */

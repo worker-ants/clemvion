@@ -121,7 +121,11 @@ describe('IntegrationHandlerBase.acquireIntegration — 실행 시점 조회 인
   const connected = { id: ID, serviceType: 'http', status: 'connected' };
 
   it.each<[string, Partial<ExecutionContext>, boolean]>([
-    ['원본이 평가값과 같은 문자열 → 리터럴', { rawConfig: { integrationId: ID } }, false],
+    [
+      '원본이 평가값과 같은 문자열 → 리터럴',
+      { rawConfig: { integrationId: ID } },
+      false,
+    ],
     [
       '원본이 템플릿 → 표현식',
       { rawConfig: { integrationId: '{{ $vars.id }}' } },
@@ -134,7 +138,11 @@ describe('IntegrationHandlerBase.acquireIntegration — 실행 시점 조회 인
     const service = makeIntegrationsServiceMock();
     service.getForExecution.mockResolvedValue(connected as never);
     const handler = new TestHandler(asIntegrationsService(service));
-    await handler.callResolve(ID, ctx({ nodeId: 'node-1', ...override }), 'http');
+    await handler.callResolve(
+      ID,
+      ctx({ nodeId: 'node-1', ...override }),
+      'http',
+    );
     expect(service.getForExecution).toHaveBeenCalledWith(ID, 'ws-1', {
       nodeId: 'node-1',
       fromExpression,
@@ -242,9 +250,9 @@ describe('IntegrationHandlerBase — 조회가 거절된 통합은 활동 로그
     } as never);
     const handler = new TestHandler(asIntegrationsService(service));
     const context = ctx({ nodeId: 'node-1' });
-    await expect(handler.callResolve(ID, context, 'http')).rejects.toMatchObject(
-      { code: 'INTEGRATION_TYPE_MISMATCH' },
-    );
+    await expect(
+      handler.callResolve(ID, context, 'http'),
+    ).rejects.toMatchObject({ code: 'INTEGRATION_TYPE_MISMATCH' });
     await handler.callLog(context, usage);
     expect(service.logUsage).toHaveBeenCalledTimes(1);
   });

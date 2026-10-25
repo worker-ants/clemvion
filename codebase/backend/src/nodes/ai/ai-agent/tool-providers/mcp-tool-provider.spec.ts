@@ -166,7 +166,9 @@ describe('McpToolProvider', () => {
     it('connects via Integration credentials and lists tools', async () => {
       const tools = await provider.buildTools({
         config: {
-          mcpServers: [{ integrationId: integration.id, fromExpression: false }],
+          mcpServers: [
+            { integrationId: integration.id, fromExpression: false },
+          ],
         },
         workspaceId: 'ws-1',
         executionId: 'exec-1',

@@ -67,8 +67,7 @@ const CASES: HandlerCase[] = [
   },
   {
     name: 'cafe24',
-    make: (s) =>
-      new Cafe24Handler(s, apiClient as unknown as Cafe24ApiClient),
+    make: (s) => new Cafe24Handler(s, apiClient as unknown as Cafe24ApiClient),
     config: {
       integrationId: ID,
       resource: 'product',

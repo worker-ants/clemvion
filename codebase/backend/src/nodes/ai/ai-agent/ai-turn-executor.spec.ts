@@ -1425,7 +1425,9 @@ describe('AiTurnExecutor', () => {
         nodeId: 'node-1',
         memoryStrategy: 'manual',
         // 재개마다 다시 만드는 rawConfig 는 읽지 않는다.
-        rawConfig: { mcpServers: [{ integrationId: '{{ x }}' }, { integrationId: B }] },
+        rawConfig: {
+          mcpServers: [{ integrationId: '{{ x }}' }, { integrationId: B }],
+        },
       });
       const ctx = buildTools.mock.calls[0][0];
       expect(ctx.nodeId).toBe('node-1');

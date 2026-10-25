@@ -799,7 +799,10 @@ describe('WorkflowsService', () => {
         ]);
         expect(row.id).not.toBe('n-mail');
         // 원본 노드의 설정은 그대로다.
-        expect(mailNode.config).toEqual({ integrationId: PERSONAL, subject: 's' });
+        expect(mailNode.config).toEqual({
+          integrationId: PERSONAL,
+          subject: 's',
+        });
       });
 
       it('요청자 자신의 개인 통합 참조는 남긴다', async () => {
@@ -2356,14 +2359,17 @@ describe('WorkflowsService', () => {
       it.each<[string, string, Array<{ user_id: string }>]>([
         ['워크플로우 작성자가 소유자가 아니다', OTHER, [{ user_id: OTHER }]],
         ['소유자가 멤버가 아니다', AUTHOR, []],
-      ])('%s → 실행처럼 건너뛰어 예산에 넣지 않는다', async (_label, owner, members) => {
-        mockIntegrationRepository.find.mockResolvedValue([
-          personalMakeshop(owner),
-        ]);
-        mockIntegrationRepository.query.mockResolvedValueOnce(members);
+      ])(
+        '%s → 실행처럼 건너뛰어 예산에 넣지 않는다',
+        async (_label, owner, members) => {
+          mockIntegrationRepository.find.mockResolvedValue([
+            personalMakeshop(owner),
+          ]);
+          mockIntegrationRepository.query.mockResolvedValueOnce(members);
 
-        expect(await hasBudgetWarning()).toBe(false);
-      });
+          expect(await hasBudgetWarning()).toBe(false);
+        },
+      );
     });
   });
 

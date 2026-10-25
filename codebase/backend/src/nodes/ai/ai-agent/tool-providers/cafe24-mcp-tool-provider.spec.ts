@@ -447,7 +447,9 @@ describe('Cafe24McpToolProvider', () => {
 
       await provider.buildTools({
         config: {
-          mcpServers: [{ integrationId: 'abcdef1234567890', fromExpression: false }],
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', fromExpression: false },
+          ],
         },
         workspaceId: 'ws-1',
         executionId: 'exec-1',

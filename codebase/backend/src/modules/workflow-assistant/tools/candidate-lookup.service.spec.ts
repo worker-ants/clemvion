@@ -179,9 +179,9 @@ describe('CandidateLookupService', () => {
         mcpField,
       ]);
 
-      expect(mocks.exploreTools.requesterIsWorkflowAuthor).toHaveBeenCalledTimes(
-        1,
-      );
+      expect(
+        mocks.exploreTools.requesterIsWorkflowAuthor,
+      ).toHaveBeenCalledTimes(1);
       expect(mocks.exploreTools.requesterIsWorkflowAuthor).toHaveBeenCalledWith(
         'ws-1',
         'wf-1',
@@ -218,7 +218,9 @@ describe('CandidateLookupService', () => {
         },
       ]);
 
-      expect(mocks.exploreTools.requesterIsWorkflowAuthor).not.toHaveBeenCalled();
+      expect(
+        mocks.exploreTools.requesterIsWorkflowAuthor,
+      ).not.toHaveBeenCalled();
     });
   });
 

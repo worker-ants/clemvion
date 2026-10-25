@@ -375,9 +375,7 @@ export class WorkflowsService {
     id: string,
     workspaceId: string,
     userId: string,
-  ): Promise<
-    Workflow & { clearedIntegrationRefs: ClearedIntegrationRef[] }
-  > {
+  ): Promise<Workflow & { clearedIntegrationRefs: ClearedIntegrationRef[] }> {
     // 권한·존재 확인은 트랜잭션 밖에서 (없으면 트랜잭션 자체를 열지 않는다).
     const original = await this.findById(id, workspaceId);
 
@@ -570,9 +568,7 @@ export class WorkflowsService {
     workspaceId: string,
     userId: string,
     dto: ImportWorkflowDto,
-  ): Promise<
-    Workflow & { clearedIntegrationRefs: ClearedIntegrationRef[] }
-  > {
+  ): Promise<Workflow & { clearedIntegrationRefs: ClearedIntegrationRef[] }> {
     // Imported JSON is new data, never a historical snapshot of this
     // workspace — the legacy-data escape that `restoreVersion` gets does not
     // apply, so the reserved-name gate is always on here.
@@ -868,7 +864,9 @@ export class WorkflowsService {
         nodeLabel: node.label,
         type: stored?.type ?? node.type,
         config: node.config ?? {},
-        stored: stored ? { type: stored.type, config: stored.config } : undefined,
+        stored: stored
+          ? { type: stored.type, config: stored.config }
+          : undefined,
         fieldPrefix: `nodes[${i}].`,
       };
     });
@@ -894,7 +892,9 @@ export class WorkflowsService {
     );
     return {
       nodes: nodes.map((node, i) =>
-        configs[i] === refNodes[i].config ? node : { ...node, config: configs[i] },
+        configs[i] === refNodes[i].config
+          ? node
+          : { ...node, config: configs[i] },
       ),
       clearedIntegrationRefs: cleared,
     };

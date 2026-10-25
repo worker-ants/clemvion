@@ -150,7 +150,8 @@ export function findUnguardedRowReaders(
     const reads = reachable.some((m) => m?.readsRows);
     const guarded = reachable.some(
       (m) =>
-        m?.guarded || [...(m?.calls ?? [])].some((c) => VISIBILITY_GUARDS.has(c)),
+        m?.guarded ||
+        [...(m?.calls ?? [])].some((c) => VISIBILITY_GUARDS.has(c)),
     );
     if (reads && !guarded) out.push(name);
   }

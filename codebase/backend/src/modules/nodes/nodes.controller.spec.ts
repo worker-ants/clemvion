@@ -62,12 +62,7 @@ describe('NodesController', () => {
     it('update forwards workspaceId to the service', async () => {
       const dto = { label: 'L2' } as never;
       await controller.update('n1', WS, 'user-1', dto);
-      expect(nodesService.update).toHaveBeenCalledWith(
-        'n1',
-        WS,
-        'user-1',
-        dto,
-      );
+      expect(nodesService.update).toHaveBeenCalledWith('n1', WS, 'user-1', dto);
     });
 
     it('remove forwards workspaceId to the service', async () => {

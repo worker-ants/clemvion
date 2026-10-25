@@ -251,7 +251,9 @@ describe('NodesService', () => {
         .mockResolvedValueOnce(null);
       mockRepo.save.mockResolvedValue({ ...existing, label: 'API Call' });
 
-      const result = await service.update('n1', WS, USER, { label: 'API Call' });
+      const result = await service.update('n1', WS, USER, {
+        label: 'API Call',
+      });
       expect(result.label).toBe('API Call');
     });
 
@@ -396,7 +398,7 @@ describe('NodesService', () => {
           label: 'Mail',
           config: { integrationId: PERSONAL },
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
 
       expect(txManager.findOne).toHaveBeenCalledWith(Workflow, {
         where: { id: 'wf-1', workspaceId: WS },
@@ -432,9 +434,7 @@ describe('NodesService', () => {
     });
 
     it('update 는 config 를 보내지 않으면 통합 참조를 판정하지 않는다', async () => {
-      mockRepo.findOne.mockResolvedValue(
-        mailNode({ integrationId: PERSONAL }),
-      );
+      mockRepo.findOne.mockResolvedValue(mailNode({ integrationId: PERSONAL }));
 
       await service.update('n1', WS, USER, { positionX: 10 });
 
@@ -443,9 +443,7 @@ describe('NodesService', () => {
     });
 
     it('update 는 저장된 값과 같은 참조를 다시 판정하지 않는다', async () => {
-      mockRepo.findOne.mockResolvedValue(
-        mailNode({ integrationId: PERSONAL }),
-      );
+      mockRepo.findOne.mockResolvedValue(mailNode({ integrationId: PERSONAL }));
 
       await service.update('n1', WS, USER, {
         config: { integrationId: PERSONAL, subject: '바뀐 제목' },
@@ -462,7 +460,7 @@ describe('NodesService', () => {
 
       const err = await service
         .update('n1', WS, USER, { config: { integrationId: PERSONAL } })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
 
       expect(err).toBeInstanceOf(BadRequestException);
       expect(mockRepo.findOne).toHaveBeenNthCalledWith(2, {

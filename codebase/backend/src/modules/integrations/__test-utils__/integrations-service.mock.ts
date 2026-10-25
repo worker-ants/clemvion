@@ -16,7 +16,10 @@ export interface IntegrationsServiceMock {
     Promise<Integration>,
     Parameters<IntegrationsService['getForExecution']>
   >;
-  logUsage: jest.Mock<Promise<void>, Parameters<IntegrationsService['logUsage']>>;
+  logUsage: jest.Mock<
+    Promise<void>,
+    Parameters<IntegrationsService['logUsage']>
+  >;
 }
 
 export function makeIntegrationsServiceMock(): IntegrationsServiceMock {
