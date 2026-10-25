@@ -184,6 +184,93 @@ describe('changedNodeIntegrationRefs — 새로 넣거나 바꾼 참조만', () 
       },
     ]);
   });
+
+  describe('MCP 서버의 문자열이 아닌 integrationId 도 저장된 원본 값 그대로 견준다', () => {
+    const storedWith = (integrationId: unknown) => ({
+      type: 'ai_agent',
+      config: { mcpServers: [{ integrationId }] },
+    });
+
+    it.each<[string, unknown, unknown]>([
+      ['숫자 → 다른 숫자', 123, 456],
+      ['숫자 → 문자열 "null"', 123, 'null'],
+      ['문자열 "null" → 숫자', 'null', 123],
+      ['문자열 "null" → 객체', 'null', { id: A }],
+      ['객체 → 다른 객체', { id: A }, { id: B }],
+      ['불리언 → 문자열 UUID', true, A],
+      ['문자열 UUID → 숫자', A, 123],
+    ])('%s 는 바뀐 참조다', (_label, before, after) => {
+      const changed = changedNodeIntegrationRefs(
+        'ai_agent',
+        { mcpServers: [{ integrationId: after }] },
+        storedWith(before),
+      );
+      expect(changed).toHaveLength(1);
+      expect(changed[0]).toMatchObject({
+        kind: 'mcpServer',
+        field: 'config.mcpServers[0].integrationId',
+      });
+    });
+
+    it.each<[string, unknown]>([
+      ['숫자', 123],
+      ['객체', { id: A }],
+      ['문자열 "null"', 'null'],
+    ])('같은 %s 값이면 바뀌지 않은 참조다', (_label, value) => {
+      expect(
+        changedNodeIntegrationRefs(
+          'ai_agent',
+          { mcpServers: [{ integrationId: value }] },
+          storedWith(value),
+        ),
+      ).toEqual([]);
+    });
+
+    it('숫자 123 과 문자열 "123" 은 다른 값이다', () => {
+      expect(
+        changedNodeIntegrationRefs(
+          'ai_agent',
+          { mcpServers: [{ integrationId: '123' }] },
+          storedWith(123),
+        ),
+      ).toHaveLength(1);
+    });
+
+    it('config.integrationId 갈래도 같은 기준으로 견준다', () => {
+      expect(
+        changedNodeIntegrationRefs(
+          'send_email',
+          { integrationId: '123' },
+          { type: 'send_email', config: { integrationId: 123 } },
+        ),
+      ).toHaveLength(1);
+    });
+
+    it('정상 UUID 문자열은 바뀐 값만 돌려주고 같은 값은 건너뛴다', () => {
+      const stored = storedWith(A);
+      expect(
+        changedNodeIntegrationRefs(
+          'ai_agent',
+          { mcpServers: [{ integrationId: A }] },
+          stored,
+        ),
+      ).toEqual([]);
+      expect(
+        changedNodeIntegrationRefs(
+          'ai_agent',
+          { mcpServers: [{ integrationId: B }] },
+          stored,
+        ),
+      ).toEqual([
+        {
+          kind: 'mcpServer',
+          field: 'config.mcpServers[0].integrationId',
+          integrationId: B,
+          expression: false,
+        },
+      ]);
+    });
+  });
 });
 
 describe('참조 자리의 경로 — 응답 field 의 형식', () => {

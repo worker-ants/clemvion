@@ -78,9 +78,12 @@ function refAt(
   };
 }
 
-/** 바뀐 참조를 가릴 때 쓰는 값. 문자열이 아닌 값도 서로 비교할 수 있게 JSON 으로 바꾼다. */
+/**
+ * 바뀐 참조를 가릴 때 쓰는 값. 문자열이 아닌 값도 그 값 그대로 견주려고 JSON 으로 바꾼다. 문자열도 따옴표가 붙은 채라
+ * 숫자 `123` 과 문자열 `"123"` 이 같은 값으로 보이지 않는다.
+ */
 function comparable(value: unknown): string {
-  return typeof value === 'string' ? value : JSON.stringify(value);
+  return JSON.stringify(value);
 }
 
 function usesIntegrationIdRef(type: string, config: Record<string, unknown>) {
@@ -89,20 +92,24 @@ function usesIntegrationIdRef(type: string, config: Record<string, unknown>) {
   return type !== 'http_request' || config.authentication === 'integration';
 }
 
-/** 노드의 통합 참조를 모두 꺼낸다. 표현식 참조도 `expression: true` 로 함께 돌려준다. */
-export function extractNodeIntegrationRefs(
-  type: string,
-  config: unknown,
-): NodeIntegrationRef[] {
+/** 참조와 그 자리의 원본 값. 바뀐 참조를 가릴 때 정규화 전의 값을 견주려고 함께 들고 다닌다. */
+interface RefEntry {
+  ref: NodeIntegrationRef;
+  /** 저장된 `config` 에 있던 그대로의 값. `ref.integrationId` 는 문자열이 아니면 `null` 로 정규화된 값이다. */
+  raw: unknown;
+}
+
+function collectRefEntries(type: string, config: unknown): RefEntry[] {
   if (!isRecord(config)) return [];
-  const refs: NodeIntegrationRef[] = [];
+  const entries: RefEntry[] = [];
+  const push = (ref: NodeIntegrationRef | undefined, raw: unknown) => {
+    if (ref) entries.push({ ref, raw });
+  };
   if (usesIntegrationIdRef(type, config)) {
-    const ref = refAt(
-      'integrationId',
-      INTEGRATION_ID_FIELD,
+    push(
+      refAt('integrationId', INTEGRATION_ID_FIELD, config.integrationId),
       config.integrationId,
     );
-    if (ref) refs.push(ref);
   }
   if (MCP_SERVER_REF_NODE_TYPES.has(type)) {
     const servers = config[MCP_SERVERS_FIELD];
@@ -110,16 +117,22 @@ export function extractNodeIntegrationRefs(
     if (Array.isArray(servers)) {
       servers.forEach((item, j) => {
         if (!isRecord(item)) return;
-        const ref = refAt(
-          'mcpServer',
-          mcpServerRefField(j),
+        push(
+          refAt('mcpServer', mcpServerRefField(j), item.integrationId),
           item.integrationId,
         );
-        if (ref) refs.push(ref);
       });
     }
   }
-  return refs;
+  return entries;
+}
+
+/** 노드의 통합 참조를 모두 꺼낸다. 표현식 참조도 `expression: true` 로 함께 돌려준다. */
+export function extractNodeIntegrationRefs(
+  type: string,
+  config: unknown,
+): NodeIntegrationRef[] {
+  return collectRefEntries(type, config).map((entry) => entry.ref);
 }
 
 /**
@@ -134,30 +147,26 @@ export function changedNodeIntegrationRefs(
   config: unknown,
   stored: StoredNodeConfig | undefined,
 ): NodeIntegrationRef[] {
-  const refs = extractNodeIntegrationRefs(type, config);
-  if (!stored) return refs;
-  const before = extractNodeIntegrationRefs(stored.type, stored.config);
+  const current = collectRefEntries(type, config);
+  if (!stored) return current.map((entry) => entry.ref);
+  const before = collectRefEntries(stored.type, stored.config);
+  // 문자열이 아닌 값도 바뀐 값으로 가르려고 두 갈래 모두 정규화 전의 원본 값을 견준다.
   const beforeIntegrationId = before.find(
-    (ref) => ref.kind === 'integrationId',
+    (entry) => entry.ref.kind === 'integrationId',
   );
-  // 참조를 꺼냈다는 것은 둘 다 객체라는 뜻이다. 문자열이 아닌 값도 바뀐 값으로 가르려고 원본 값을 비교한다.
-  const currentConfig = isRecord(config) ? config : {};
-  const storedConfig = isRecord(stored.config) ? stored.config : {};
   const beforeServerValues = new Set(
     before
-      .filter((ref) => ref.kind === 'mcpServer')
-      .map((ref) => comparable(ref.integrationId)),
+      .filter((entry) => entry.ref.kind === 'mcpServer')
+      .map((entry) => comparable(entry.raw)),
   );
-  return refs.filter((ref) => {
-    if (ref.kind === 'integrationId') {
-      return (
-        beforeIntegrationId === undefined ||
-        comparable(storedConfig.integrationId) !==
-          comparable(currentConfig.integrationId)
-      );
-    }
-    return !beforeServerValues.has(comparable(ref.integrationId));
-  });
+  return current
+    .filter((entry) =>
+      entry.ref.kind === 'integrationId'
+        ? beforeIntegrationId === undefined ||
+          comparable(beforeIntegrationId.raw) !== comparable(entry.raw)
+        : !beforeServerValues.has(comparable(entry.raw)),
+    )
+    .map((entry) => entry.ref);
 }
 
 /**

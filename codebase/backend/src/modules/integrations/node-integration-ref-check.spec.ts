@@ -280,6 +280,42 @@ describe('assertNodeIntegrationRefsUsable', () => {
     ).resolves.toBeUndefined();
     expect(runner.query).not.toHaveBeenCalled();
   });
+
+  it('MCP 서버의 문자열이 아닌 integrationId 를 다른 값으로 바꾸면 400 INVALID_FIELD 로 거절한다', async () => {
+    const error = await assertNodeIntegrationRefsUsable(
+      makeRunner(),
+      { warn: jest.fn() },
+      {
+        workspaceId: 'ws-1',
+        workflowAuthorId: OWNER,
+        saverId: OTHER,
+        nodes: [
+          {
+            nodeId: 'n-1',
+            type: 'ai_agent',
+            config: { mcpServers: [{ integrationId: 456 }] },
+            stored: {
+              type: 'ai_agent',
+              config: { mcpServers: [{ integrationId: 123 }] },
+            },
+            fieldPrefix: '',
+          },
+        ],
+      },
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as BadRequestException).getResponse()).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      details: [
+        {
+          field: 'config.mcpServers[0].integrationId',
+          code: 'INVALID_FIELD',
+          message: 'Integration not found',
+        },
+      ],
+    });
+  });
 });
 
 describe('clearUnusableNodeIntegrationRefs', () => {
