@@ -449,24 +449,12 @@ export class WorkflowsService {
           toolOwnerId: remap(node.toolOwnerId),
         }));
         // 복제는 요청자가 사본의 작성자다. 사본을 실행하면 실패할 통합 참조는 비우고 응답으로 알린다(REQ-WFLIST-055).
-        const { configs, cleared } = await clearUnusableNodeIntegrationRefs(
+        const cleared = await this.clearCopiedNodeRefs(
           manager,
-          this.logger,
-          {
-            workspaceId,
-            workflowAuthorId: userId,
-            check: { path: 'clone' },
-            nodes: nodeRows.map((row) => ({
-              nodeId: row.id,
-              nodeLabel: row.label,
-              type: row.type,
-              config: row.config,
-            })),
-          },
+          workspaceId,
+          userId,
+          nodeRows,
         );
-        nodeRows.forEach((row, i) => {
-          row.config = configs[i];
-        });
         if (nodeRows.length > 0) {
           await manager.insert(
             Node,
@@ -662,24 +650,12 @@ export class WorkflowsService {
       });
       // 가져오기도 복제와 같은 규칙이다. 요청자가 새 워크플로우의 작성자이고, 다른 워크스페이스에서 내보낸 파일의 통합 id 는
       // 이 워크스페이스에 없으니 모두 비워진다(REQ-WFLIST-054, CLE-WF-LIST 가져오기 5단계).
-      const { configs, cleared } = await clearUnusableNodeIntegrationRefs(
+      const cleared = await this.clearCopiedNodeRefs(
         manager,
-        this.logger,
-        {
-          workspaceId,
-          workflowAuthorId: userId,
-          check: { path: 'clone' },
-          nodes: nodeRows.map((row) => ({
-            nodeId: row.id,
-            nodeLabel: row.label,
-            type: row.type,
-            config: row.config,
-          })),
-        },
+        workspaceId,
+        userId,
+        nodeRows,
       );
-      nodeRows.forEach((row, i) => {
-        row.config = configs[i];
-      });
       if (nodeRows.length > 0) {
         await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
       }
@@ -838,6 +814,42 @@ export class WorkflowsService {
         clearedIntegrationRefs,
       };
     });
+  }
+
+  /**
+   * 복제 · 가져오기가 새로 만드는 노드 행의 쓸 수 없는 통합 참조를 비운다(REQ-WFLIST-054 · 055). 요청자가 새 워크플로우의
+   * 작성자다. `nodeRows` 의 `config` 를 비운 사본으로 바꾸고 비운 참조를 돌려준다. 두 경로가 같은 규칙을 한 곳에서 쓴다.
+   */
+  private async clearCopiedNodeRefs(
+    manager: EntityManager,
+    workspaceId: string,
+    userId: string,
+    nodeRows: Array<{
+      id: string;
+      type: string;
+      label: string;
+      config: Record<string, unknown>;
+    }>,
+  ): Promise<ClearedIntegrationRef[]> {
+    const { configs, cleared } = await clearUnusableNodeIntegrationRefs(
+      manager,
+      this.logger,
+      {
+        workspaceId,
+        workflowAuthorId: userId,
+        check: { path: 'clone' },
+        nodes: nodeRows.map((row) => ({
+          nodeId: row.id,
+          nodeLabel: row.label,
+          type: row.type,
+          config: row.config,
+        })),
+      },
+    );
+    nodeRows.forEach((row, i) => {
+      row.config = configs[i];
+    });
+    return cleared;
   }
 
   /**
