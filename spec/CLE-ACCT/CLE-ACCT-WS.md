@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "40829beebe912148eaa8900e5ce80cc7d903f38643185e2d1f87f6e54d38380d"
+content_hash: "f71cf1eda07e6c1839df4710e07dd1e2baa3dd6dc1607e738abcb66b69b38d85"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "72841953985b1d336cf7199f2395b632d76945a34e6cc1091f0ad6785967fb3d"
-etag: "sha256-d629fe33549ce22a1b006257624174354917772a87f7334a98ac421e0972bac0"
+mirror_sha256: "6eb230392036fe2ce50bae247f5c158a7534b02080a2033f51ee79253f627ad4"
+etag: "sha256-a5a0e2d55a7daa0187146fc515e6d5be9f6c6d1ade6d67b3cbd1d9300b4817eb"
 ---
 > 구현 상태: 부분 구현(권한 매트릭스 「통합 (개인)」 행의 2026-10-24 변경은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -428,7 +428,7 @@ sequenceDiagram
 | 감사 로그 | R | R | — | — |
 
 - † 관리자의 멤버 관리에는 대상 조건이 붙는다. 역할 권한이 아니라 대상 조건이라 각주로 적는다. 대상이 소유자면 제거와 역할 변경이 거부된다(`CANNOT_REMOVE_OWNER`, `OWNER_ROLE_PROTECTED`). 관리자 역할이 걸린 직접 추가·초대·역할 변경은 소유자만 한다(`OWNER_REQUIRED`, [관리자 역할 규칙](#관리자-역할-규칙)). 관리자는 다른 관리자를 제거할 수 있다. 자기 자신 제거는 나가기로 넘긴다. "멤버를 제거할 수 있다" 와 "관리자 역할을 줄 수 있다" 는 다른 권한이다.
-- ‡ 통합(개인)의 "자기 것" 은 자기가 통합 소유자(`created_by`)인 개인 통합만 다룬다는 뜻이다. 뷰어는 자기 개인 통합을 조회하고 지우기만 한다("자기 것 (RD)"). 저장 전 연결 테스트(`preview-test`)는 저장한 통합이 없어 공개 범위와 상관없이 편집자 이상이다. 작업별 역할 하한, 노드에서 개인 통합을 쓰는 기준, 아직 코드에 없는 부분은 [통합 관리 §권한](../CLE-INT/CLE-INT-MANAGE.md#권한) 이 정한다.
+- ‡ 통합(개인)의 "자기 것" 은 자기가 통합 소유자(`created_by`)인 개인 통합만 다룬다는 뜻이다. 뷰어는 자기 개인 통합을 조회하고 지우기만 한다("자기 것 (RD)"). 저장 전 연결 테스트(`preview-test`)는 저장한 통합이 없어 공개 범위와 상관없이 편집자 이상이다. 작업별 역할 하한, 노드에서 개인 통합을 쓰는 기준, 아직 코드에 없는 부분은 [통합 관리 §권한](../CLE-INT/CLE-INT-MANAGE.md#권한) 이 정한다. 워크플로우를 고칠 수 있는 편집자가 개인 통합을 쓰는 노드의 목적지 필드를 바꾸는 위험은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) Rationale 의 받아들인 잔여에 있다.
 - ※ 시스템 상태는 큐 적체 집계만 보여 주는 시스템 전역 읽기 API(`/api/system-status/overview`)라 워크스페이스 경계가 없다. 개별 job·payload·워크스페이스 식별자를 드러내지 않으므로 모든 역할이 똑같이 읽기만 한다(별도 관리자 가드 없음). [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md).
 - 워크스페이스 설정·멤버 관리의 편집자·뷰어 R 은 조회 권한이다. 변경 권한 관점의 요약에서는 편집자·뷰어가 둘 다 변경할 수 없다고 적는다.
 - 뷰어는 워크플로우를 실행할 수 없다. `POST /api/workflows/:id/execute` 가 `@Roles('editor')` 이고 역할 계층상 뷰어(1)가 편집자(2)보다 낮다.
@@ -817,7 +817,7 @@ effect 를 그대로 두고 이동 가드만 보강하는 안은 택하지 않�
 
 이 표는 통합(개인)을 모든 역할에 «자기 것» 으로 두고 뷰어의 쓰기는 라우트 가드에 막혀 표보다 좁다고 적었다. 뷰어에게 무엇을 허용할지는 미결이었다. NERV Task `CLE-T-MG0EQZ` 에서 사용자가 정했다(2026-10-24). 쓰기는 편집자 이상이고 뷰어는 자기 개인 통합을 조회하고 지우기만 한다.
 
-- 뷰어는 워크플로우를 고칠 수도 실행할 수도 없다(위 표). 그래서 뷰어가 개인 통합을 새로 만들거나 바꿀 일이 없다. 외부 자격 증명이라 좁은 편이 안전하다. 쓰기를 좁혀도 실행은 막지 않는다. 뷰어로 강등된 작성자의 워크플로우는 계속 실행되고 노드는 작성자 자신의 개인 통합을 쓴다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)).
+- 뷰어는 워크플로우를 고칠 수도 실행할 수도 없다(위 표). 그래서 뷰어가 개인 통합을 새로 만들거나 바꿀 일이 없다. 외부 자격 증명이라 좁은 편이 안전하다. 쓰기를 좁혀도 실행은 막지 않는다. 뷰어로 강등된 사람이 작성한 워크플로우는 계속 실행되고 노드는 워크플로우 작성자 자신의 개인 통합을 쓴다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)).
 - 편집자에서 뷰어로 강등된 사람의 개인 통합은 그 통합 소유자 말고 아무도 보거나 지울 수 없다. 뷰어가 된 통합 소유자는 통합 재인증도 자격 증명 교체도 못 한다. 지우지도 못하면 자기 자격 증명을 거둘 길이 없다. 그래서 삭제는 연다.
 
 자세한 근거와 기각한 안은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 에 있다.

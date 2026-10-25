@@ -2,21 +2,21 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "1e3a29e84a11557e5bcb8a636587e0201b59312456a3f45655aacdb262b675bc"
+content_hash: "a057fbf5638a596fc96c0a3d1106b39fd36269047b5adbff3e4b5d8b00c4454d"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "76485df704b998a665d08f191239b0bc77ba0f23249f83a4fb38b7a16dd879ef"
-etag: "sha256-d326efe19d9978f5f33c06b3b678e7f74cac24d7b1832f18193d4e3173b20ed9"
+mirror_sha256: "140b424a613dbd6153c969be33ece1b76b5b5aae9ffdbde21e90d54b2fe4957b"
+etag: "sha256-8b8ede6516447e5284405904b57201d4c9ee6b26e0d0b6c77d6a79291aa29f80"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (개인 통합 판정 인자 전달과 통합을 얻기 전 실패의 활동 로그 생략은 미구현) · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -112,7 +112,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
    | `verify-full` | `ssl: { rejectUnauthorized: true }` | `ssl: { rejectUnauthorized: true }` |
 
    `require` 도 인증서 검증을 강제한다(MITM 방어). self-signed 인증서를 쓰려면 별도 `require-trust` 모드를 새로 도입해야 한다.
-8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage({ integrationId, status, durationMs, error?, api })` 를 부른다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). 지금 코드는 이런 실패도 남긴다(미구현, NERV Task `CLE-T-PTC4SF`). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage` 를 부른다(인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
    - `api_label` = NULL. 임의 SQL 을 부르므로 엔드포인트 카탈로그가 없다.
    - `api_method` = SQL 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE`). `config.queryType` 을 대문자로 그대로 쓴다. `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑는다. 뽑지 못하면 NULL 이다.
    - `api_path` = 드라이버 토큰(`postgres`·`mysql`). SQL 본문 파싱을 피하고 개인정보가 직접 드러나지 않게 한다. 드라이버가 늘면 같은 토큰 목록을 넓힌다.
@@ -393,6 +393,6 @@ INSERT(MySQL `ResultSetHeader`):
 
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
 
-NERV Task `CLE-T-MG0EQZ` 에서 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않기로 정했다(REQ-INTMGMT-053). 남의 개인 통합이나 다른 워크스페이스 통합의 ID 를 넣은 노드가 그 통합에 활동 로그와 `last_error` 를 남기지 않게 하려는 것이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) Rationale 결정 4 · 17 에 있다. 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드) 한 곳에 두고 이 문서는 단계 서술만 맞췄다.
+규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
 
 - 요구사항 변경: REQ-DBQ-027 은 «실행이 끝나면» 에서 «통합을 얻은 뒤 실행이 끝나면» 으로 범위를 좁혔다.

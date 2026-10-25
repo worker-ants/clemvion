@@ -2,21 +2,21 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "fdf8be54a1e7e7114552f776af6ca0793cbf367d6594fce399166fba428712d4"
+content_hash: "5c93d464e81293be257df46c7e5a31eab91a2b541076cd017f499bcc8b5b035a"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "67ee688ead0e1f49a11de9acb9918af1ad52bccd53115dbca6cdb5c6028d90fc"
-etag: "sha256-93c7cdb422cdf753ba67184ebcd1d28f1cc44b977c1acc8822739a3bc67ccfea"
+mirror_sha256: "bab2ca5e3d74469931512485ea45b93ea3d1741fac135a56008a9d6530ebad52"
+etag: "sha256-34c4105fd91bbe9783109372c02cd63451d58b1802745c0337bd5c30f8761829"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (`nodeId` 로 워크플로우 작성자를 구하는 개인 통합 판정은 미구현) · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -132,6 +132,7 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 | --- | --- | --- |
 | `executionId` | 실행 시작 때 고정 | 실행·노드 실행 귀속 |
 | `workflowId` | 실행 시작 때 고정 | 표현식 컨텍스트, 사용처 확인 |
+| `nodeId` | 엔진이 `handler.execute` 직전에 넣고 노드마다 바꾼다 | 지금 실행 중인 노드의 ID. AI 노드는 대화 스레드와 시스템 컨텍스트에 자기 노드를 적을 때 쓴다. 통합 서비스는 개인 통합을 조회할 때 이 값으로 노드가 속한 워크플로우의 작성자를 구한다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 멀티턴(AI 에이전트·정보 추출기)의 재개 턴은 엔진 `buildRetryReentryState` 가 재구성 상태에 넣은 값을 쓴다 |
 | `nodeExecutionId` | 엔진이 `handler.execute` 직전에 넣고 노드마다 바꾼다 | 통합 핸들러가 `IntegrationUsageLog.node_execution_id` 에 기록한다. AI 노드 핸들러(AI 에이전트·Text Classifier·정보 추출기)는 `LlmCallContext` 로 `llm_usage_log.node_execution_id` 에 기록한다. 멀티턴(AI 에이전트·정보 추출기)의 재개 턴은 실행 컨텍스트를 받지 않으므로 엔진 `buildRetryReentryState` 가 재구성 상태에 넣은 현재 턴 행 PK 를 쓴다. Text Classifier(재개 없는 한 번 호출)는 첫 호출의 `context.nodeExecutionId` 만 쓴다([LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)) |
 | `rawConfig` | 엔진이 `handler.execute` 직전에 넣고 노드마다 바꾼다 | 노드 정의에 저장된 **원본 설정**(표현식 평가 전). 핸들러가 `NodeHandlerOutput.config` 에코에 쓴다. 얕은 `Object.freeze` 를 걸어 최상위 변경을 막고 중첩 객체는 읽기 전용으로 다룬다 |
 | `engineResolvedConfigCache` | 엔진이 표현식 평가 직후 노드마다 쌓는다 | 노드별 **평가가 끝난 설정** 스냅샷. `runContainerInner`·`runParallel` 처럼 핸들러가 끝난 뒤 따로 동작 파라미터(Loop `count`, Parallel `branchCount`·`maxConcurrency`·`waitAll`, ForEach `errorPolicy` 등)를 다시 읽는 경로가 쓴다. **표현식 컨텍스트에는 노출하지 않는다**. `$node["X"].config` 는 여전히 원본 에코를 돌려준다. 핸들러가 원본만 에코하는 컨테이너의 동작 파라미터가 조용히 기본값으로 떨어지거나 `Number("{{...}}")` 가 NaN 이 되던 문제를 막는다 |
@@ -327,6 +328,10 @@ Code 노드는 `$vars` 를 통째로 바꿔 넣으므로 사용자 코드가 `$v
 - 실행 상태는 PostgreSQL `Execution.status` 이고 Redis 사본이 없다. 노드 출력은 `NodeExecution.outputData` 와 순서 기록 `execution_node_log` 다. 워커 heartbeat 는 만들지 않고 BullMQ stalled 검출이 대신한다. 실행 잠금은 재개 진입의 DB 원자 claim 과 부팅 복구의 전역 `exec:recover:lock` 으로 충분하다. 우선순위는 BullMQ 기본 작업 우선순위다.
 
 그래서 저장 전략과 Redis 키 표에서 위 Redis 항목을 빼고 실제 모델로 적었다. 남는 손실은 세그먼트 누적 시간 추적(`segmentStartMs`)이 메모리에 있다는 점이다. 이는 안전 종료 때 누적 시간을 덜 세는 것을 받아들인 결정이고 세그먼트 시작 시각 저장은 확정되지 않은 후속 후보로 남긴다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md), [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)). 전면적인 Redis 컨텍스트 저장소는 기준이 둘로 갈릴 위험 때문에 채택하지 않는다.
+
+### `nodeId` 를 필드 표에 적는다 (2026-10-25)
+
+`nodeId` 는 코드에 이미 있는 선택 필드(`node-handler.interface.ts`)인데 이 표에 없었다. NERV Task `CLE-T-MG0EQZ` 에서 개인 통합 사용 판정에 쓸 워크플로우 작성자를 이 값으로 구하기로 했다. 통합 서비스가 노드 행에서 그 노드가 속한 워크플로우를 찾는다. 그래서 표에 행을 더하고 쓰임을 적었다. 새 필드가 아니므로 규칙 3 과 「새 필드 추가 결정」 표를 다시 거치지 않는다. 분류는 규칙 1 의 식별 필드와 같다. 엔진이 모든 노드에 넣는 값이고 특정 기능이나 컨테이너에만 뜻이 있는 값이 아니다. 타입은 `nodeId?` 선택 필드다. 같은 Task 의 2026-10-24 승인본은 워크플로우 작성자를 새 선택 필드 `workflowAuthorId` 로 넣고 규칙 3 의 예외로 두려 했다. 그 안을 버린 이유는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) Rationale 에 있다(finding 01a17053-eeb5-71bd-b490-3e9f53bf530c · 01a17052-f9a3-77c3-8fb1-8c06cb38d696 · 01a17052-87d3-72bf-b816-51dd41946e83).
 
 ### 멀티턴 설정은 턴마다 새로 만든다 (D3)
 

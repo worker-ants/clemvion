@@ -2,21 +2,21 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "c0820a1bd357efa6c7a1fc76a938336785ad891d07be876b134dd027fbe04d0e"
+content_hash: "00b1e8bef268a1780d90184b3fce6eb516dc030594e07d566b9e0e7548a7cbbd"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "10466cb38569a4ae229748670d51cd48e7a6ce836a31199f32608f02755173b4"
-etag: "sha256-9e043b227b101711a44b3713afdcde7f618688e5612c2737d35da87f34548fec"
+mirror_sha256: "066b73601b8c79e0fa4e90b28040075360d184fdfcf7a4e8c9ff806765a3c0e2"
+etag: "sha256-9bc8d72cc0ec12f1fecac54e706217110461fd1777f63c06d71392e661f38782"
 ---
-> 구현 상태: 부분 구현 · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (개인 통합 사용 판정, `getForExecution`·`logUsage` 의 목표 서명, 통합을 얻기 전 실패의 활동 로그 생략, 워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -40,7 +40,7 @@ etag: "sha256-9e043b227b101711a44b3713afdcde7f618688e5612c2737d35da87f34548fec"
 4. 통합 노드는 블로킹 노드가 아니다. 흐름 지시 상태(`status`)는 비워 둔다. 예외는 [Send Email 노드](CLE-NODE-EMAIL.md)의 DI 미주입 식별값 하나다(아래 "서비스 미주입과 워크스페이스 누락").
 5. 모든 통합 핸들러는 아래 "핸들러 실행 계약" 의 6단계를 따른다.
 6. 사전 검증 에러(`handler.validate()` 실패)만 throw 로 실행을 실패시킨다. `execute()` 안에서 난 실패는 모두 에러 포트(`port: 'error'`)와 `output.error.{code, message, details?}` 로 내보낸다(D4 결정).
-7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다(아래 「공통 에러 코드」, 미구현).
+7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다(아래 「공통 에러 코드」).
 8. HTTP Request·Database Query·Send Email 노드는 사설망 차단을 기본으로 켠다. 끄는 방법은 `ALLOW_PRIVATE_HOST_TARGETS=true` 하나뿐이다.
 9. 차단 코드(`HTTP_BLOCKED`·`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)는 차단 판정에만 쓴다. 클라이언트에 나가는 차단 메시지에는 차단된 호스트나 IP 를 넣지 않는다.
 10. 캔버스 요약은 노드 스키마의 `summaryTemplate` 으로 렌더하고, 렌더된 한 줄을 40자에서 자른다.
@@ -58,8 +58,8 @@ etag: "sha256-9e043b227b101711a44b3713afdcde7f618688e5612c2737d35da87f34548fec"
 
 - 현재 워크스페이스에 등록된 통합 가운데 노드가 기대하는 서비스 유형만 보여 준다. HTTP Request 노드는 `http`, Database Query 노드는 `database`, Send Email 노드는 `email`, Cafe24 노드는 `cafe24`, MakeShop 노드는 `makeshop` 으로 거른다.
 - 개인 통합과 조직 통합을 구분해 표시한다.
-- 개인 통합은 지금 사용자가 그 워크플로우의 작성자일 때만 고를 수 있다. 작성자가 아니면 자기 개인 통합도 고를 수 없는 항목으로 보이고 워크플로우 작성자의 개인 통합만 노드에서 쓸 수 있다는 이유를 함께 보인다(미구현). 문구는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙을 따른다. 남의 개인 통합은 처음부터 목록에 없다. 기준은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 이다.
-- 노드를 붙여넣거나 복제하면 지금 사용자가 고를 수 없는 통합 참조를 비운다([에디터](../CLE-WF/CLE-WF-EDITOR.md#노드-조작), 미구현).
+- 개인 통합을 고를 수 있는 조건과 고를 수 없는 항목의 표시는 [통합 관리 「워크플로우 에디터」](../CLE-INT/CLE-INT-MANAGE.md#워크플로우-에디터) 가 정한다. 남의 개인 통합은 처음부터 목록에 없다.
+- 붙여넣거나 복제한 노드의 통합 참조는 [에디터](../CLE-WF/CLE-WF-EDITOR.md#노드-조작) 가 정한다.
 - 연결 상태 배지(`connected`·`expired`·`error`)를 함께 보인다.
 - "새 Integration 추가" 링크를 누르면 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 화면으로 간다.
 
@@ -93,11 +93,11 @@ etag: "sha256-9e043b227b101711a44b3713afdcde7f618688e5612c2737d35da87f34548fec"
 | 단계 | 책임 |
 |------|------|
 | 1. 워크스페이스 확인 | `ExecutionContext.variables.__workspaceId` 를 읽는다. 없으면 에러로 끝낸다(처리 방식은 아래 "서비스 미주입과 워크스페이스 누락") |
-| 2. 통합 조회 | `IntegrationsService.getForExecution(integrationId, workspaceId)` 를 부른다. 개인 통합이면 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 거친다(미구현). 판정에 쓸 워크플로우 작성자와 참조 값이 표현식이었는지는 필수 인자 `use` 로 받는다(아래 「IntegrationsService API」). 자격 증명은 AES-256-GCM 컬럼 transformer 가 자동으로 복호화한다 |
+| 2. 통합 조회 | `IntegrationsService.getForExecution` 을 부른다. 개인 통합이면 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 거친다. 인자는 아래 「IntegrationsService API」 가 정한다. 자격 증명은 AES-256-GCM 컬럼 transformer 가 자동으로 복호화한다 |
 | 3. 유형·상태 검증 | `serviceType` 이 노드 기대값과 같은지, `status === 'connected'` 인지 확인한다 |
 | 4. 자격 증명 충족 검증 | 서비스별 필수 필드가 빠지면 `INTEGRATION_INCOMPLETE` |
 | 5. 외부 호출 | 서비스별 SDK 나 드라이버로 부른다 |
-| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage({integrationId, nodeExecutionId, workflowId, status, durationMs, error?, api?})` 를 부른다. 통합을 얻기 전에 끝났으면 부르지 않는다. 1단계에서 끝난 실패와 2단계의 조회 거절이 해당한다(미구현). `logUsage` 도 통합의 워크스페이스가 실행의 워크스페이스와 다르면 쓰지 않는다(REQ-INTMGMT-062, 미구현) |
+| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 1단계에서 끝난 실패와 2단계의 조회 거절은 얻은 통합이 없어 기록하지 않는다(REQ-INTMGMT-053) |
 
 6단계의 `api` 식별 정보(`{ label?, method?, path? }`)는 동반이 의무다. 이 값은 `integration_usage_log.api_label`·`api_method`·`api_path` 에 저장된다. 통합별로 무엇을 채우는지는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)의 INT-US-05 표가 정하고, 각 노드 문서는 자기 노드의 값만 적는다. 값이 길면 백엔드(`logUsage` 내부)가 `varchar(128)`·`varchar(8)`·`varchar(256)` 한도로 자르고 끝에 `…` 를 붙인다(`clampMessage` 패턴). 호출하는 쪽이 직접 자를 필요는 없다.
 
@@ -110,9 +110,9 @@ class IntegrationsService {
    * 복호화한 평문으로 반환된다. 결과는 시크릿으로 취급한다.
    */
   getForExecution(id: UUID, workspaceId: UUID): Promise<Integration>;
-  // 목표 서명(미구현, NERV Task CLE-T-1BQZ10). use 는 아래 글머리가 정한다.
+  // 목표 서명(미구현). use 는 아래 글머리가 정한다.
   // getForExecution(id: UUID, workspaceId: UUID,
-  //   use: { workflowAuthorId: UUID | null; fromExpression: boolean }): Promise<Integration>;
+  //   use: { nodeId: UUID | null; fromExpression: boolean }): Promise<Integration>;
 
   /**
    * 노드 실행이 끝나면 부른다. 성공·실패 여부와 durationMs 를 기록하고
@@ -122,30 +122,28 @@ class IntegrationsService {
     integrationId: UUID;
     nodeExecutionId: UUID;
     workflowId: UUID;
-    // 목표(미구현, NERV Task CLE-T-PTC4SF): 실행의 워크스페이스. getForExecution 에 넘긴 값과 같다.
-    // 통합 노드 공통 베이스와 도구 프로바이더가 모두 넘긴다.
-    // workspaceId: UUID;
     status: "success" | "failed";
     durationMs: number;
     error?: { code?: string; message?: string } | null;
     api?: { label?: string; method?: string; path?: string };
   }): Promise<void>;
+  // 목표 서명(미구현). integration 은 getForExecution 이 돌려준 통합이다.
+  // logUsage(integration: Integration,
+  //   params: { nodeExecutionId; workflowId; status; durationMs; error?; api? }): Promise<void>;
 }
 ```
 
-개인 통합의 판정에는 노드가 속한 워크플로우의 작성자와 참조 값이 표현식이었는지가 필요하다. 지금 `getForExecution` 은 워크스페이스만 받는다. 두 값은 위 코드 블록의 목표 서명처럼 `use` 인자로 넘긴다(NERV Task `CLE-T-1BQZ10`). 판정 기준은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 이 정한다.
+개인 통합의 판정에는 노드가 속한 워크플로우의 작성자와 참조 값이 표현식이었는지가 필요하다. 부르는 쪽은 노드 ID 와 표현식 여부를 `use` 인자로 넘기고 워크플로우 작성자는 통합 서비스가 구한다. 판정 기준은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 이 정한다.
 
-- 실행 엔진이 노드 행의 `workflow_id` 로 워크플로우 행을 찾아 `created_by`(엔티티에서 NOT NULL)를 읽는다. 엔진은 그 값을 핸들러를 부를 때마다 새로 만드는 노드별 실행 컨텍스트(`nodeId` 를 담는 곳)의 `workflowAuthorId` 에 넣는다. 핸들러를 다시 부르는 재개 경로도 같은 실행 컨텍스트를 만든다. 멀티턴 AI 노드의 재개·재시도 턴은 실행 컨텍스트 없이 들어오므로 아래 글머리를 따른다. 통합 모듈은 워크플로우 저장소를 읽지 않는다.
-- `getForExecution` 은 실행 엔진이 아니라 핸들러와 통합을 쓰는 도구 프로바이더(외부 MCP 서버용 · Cafe24 · MakeShop)가 부른다. 통합 노드는 공통 베이스의 `resolveIntegration` 이 `context.workflowAuthorId` 를 넘긴다. AI 에이전트 노드는 핸들러가 도구 프로바이더에 넘기는 도구 목록 구성 문맥(`ProviderBuildCtx`)에 같은 값을 `workflowAuthorId` 로 싣고 도구 프로바이더가 넘긴다. 도구 프로바이더는 도구 목록을 만들 때만 통합을 조회한다. 내부 MCP 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 이 단계 안에서 일어난다([MCP 클라이언트 「통합 조회 기준」](../CLE-INT/CLE-INT-MCP.md#통합-조회-기준)). 도구를 실행할 때는 통합을 다시 조회하지 않고 도구 목록을 만들 때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션). 그래서 도구 프로바이더 실행 문맥(`ProviderExecCtx`)에는 작성자 필드를 더하지 않는다. 도구 실행은 서버 항목의 `fromExpression` 도 읽지 않는다.
+- `use.nodeId` 는 지금 실행 중인 노드의 ID 다. 통합 서비스는 조회한 통합이 개인 통합일 때만 그 노드 행과 노드가 속한 워크플로우 행을 읽어 `created_by` 를 구한다. 그 워크플로우는 실행의 워크스페이스(`workspaceId` 인자)에 있어야 한다. 조직 통합은 노드를 읽지 않는다.
+- `use.nodeId` 가 `null` 이거나, 노드 행이 없거나, 그 워크플로우가 실행의 워크스페이스에 없으면 워크플로우 작성자를 알 수 없다. 이때는 개인 통합을 거절하고 응답은 워크플로우 작성자가 통합 소유자가 아닐 때와 같다(REQ-INTMGMT-055).
+- 워크플로우 작성자는 노드마다 그 노드가 속한 워크플로우의 것이다. 동기 호출 서브 워크플로우는 부모 실행 안에서 인라인으로 돌고([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)) `context.workflowId` 는 실행 시작 때 고정된다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)). 그래서 `context.workflowId` 로는 구하지 않는다. 서브 워크플로우의 노드 행은 서브 워크플로우에 속하므로 서브 워크플로우 작성자로 판정된다. 비동기 호출도 같다.
+- 통합 노드는 공통 베이스의 `resolveIntegration` 이 `context.nodeId` 를 넘긴다. 엔진은 핸들러를 부를 때마다 새로 만드는 노드별 실행 컨텍스트에 `nodeId` 를 이미 넣는다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)). 핸들러 시그니처와 실행 컨텍스트 필드는 바꾸지 않는다.
+- AI 에이전트 노드는 핸들러가 도구 목록 구성 문맥(`ProviderBuildCtx`)에 `nodeId` 를 싣고, 통합을 쓰는 도구 프로바이더(외부 MCP 서버용 · Cafe24 · MakeShop)가 그 값을 넘긴다. 첫 턴은 `context.nodeId` 를 싣는다. 멀티턴 재개·재시도 턴은 재구성 결과의 `nodeId` 를 싣는다([실행 상태 머신과 대기·재개 「보존 예외 `_resumeCheckpoint`」](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint)).
+- 도구 프로바이더는 도구 목록을 만들 때만 통합을 조회한다. 내부 MCP 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 이 단계 안에서 일어난다([MCP 클라이언트 「통합 조회 기준」](../CLE-INT/CLE-INT-MCP.md#통합-조회-기준)). 도구를 실행할 때는 도구 목록을 만들 때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션). 그래서 도구 프로바이더 실행 문맥(`ProviderExecCtx`)에는 노드 ID 를 더하지 않는다. 도구 실행은 서버 항목의 `fromExpression` 도 읽지 않는다.
 - 참조 값이 표현식이었는지(`fromExpression`)는 부르는 쪽이 평가 전 원본 설정의 같은 위치를 보고 정한다. 통합 노드는 `context.rawConfig.integrationId` 를 본다. AI 에이전트 노드는 첫 턴에 평가 전 `mcpServers` 의 같은 위치를 보고 서버 항목마다 `fromExpression` 을 정해 그 항목에 싣는다. 도구 프로바이더는 도구 목록 구성 문맥의 `config` 로 받은 서버 항목에서 이 값을 읽는다. `mcpServers` 자체가 표현식이면 모든 항목이 표현식이다. 원본 값이 표현식 엔진이 평가하는 템플릿(`{{ }}` 를 담은 문자열)이면 표현식이다. 이스케이프한 `\{\{` 만 있으면 리터럴이다([표현식 언어](../CLE-WF/CLE-WF-EXPR.md) REQ-EXPR-008). `execute` 가 받는 `config` 는 평가가 끝난 값이라 이것으로는 알 수 없다([노드 핸들러](../CLE-EXEC/CLE-EXEC-HANDLER.md)). 표현식이었고 조회한 통합이 개인 통합이면 거절한다(REQ-INTMGMT-059).
-- 핸들러 시그니처는 바꾸지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#핸들러-시그니처를-바꾸지-않고-실행-컨텍스트-필드로-전파한다) 와 같은 이유). `workflowAuthorId` 는 `ExecutionContext` 의 선택 필드로 둔다. 통합 노드와 AI 에이전트 노드만 읽고 엔진은 노드 종류를 가리지 않고 모든 노드의 실행 컨텍스트에 넣는다. [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md#새-필드-추가-결정) 결정 표의 네 질문에 이 필드는 모두 «아니오» 라서 마지막 칸 «다시 검토» 에 닿는다. 선택 필드 행은 여러 기능이 함께 쓰고 동작 계약을 best-effort 규약 문서에 맡기는 필드의 자리다. 이 필드는 개인 통합 사용 판정 한 기능이 읽고 값이 없으면 거절한다. 그 거절 계약은 이 절이 정한다(아래 «작성자 인자가 없거나 `null` 이면» 글머리). `CLE-EXEC-CONTEXT` 규칙 3 은 기능에 한정된 새 필드를 확장 타입으로 나누라고 한다. 이 필드를 그 규칙의 예외로 두고 결정 표에 행을 더하는 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 초안은 NERV Task `CLE-T-1BQZ10` 이 쓰고 구현보다 먼저 승인받는다. 예외로 두는 이유는 Rationale 에 적는다.
-- 작성자는 노드마다 넘긴다. 공유 실행 컨텍스트에 써 두고 서브 워크플로우에서 바꿨다가 되돌리지 않는다. 그 방식은 서브 워크플로우를 나오는 모든 경로(정상 종료, 예외, park 뒤 rehydration 으로 프레임을 다시 들어가는 재개)에서 값을 되돌려야 한다. 하나라도 빠지면 부모 워크플로우의 다음 노드가 서브 워크플로우 작성자로 판정된다.
-- 작성자는 지금 실행 중인 노드가 속한 워크플로우의 것이다. 동기 호출 서브 워크플로우는 부모 실행 안에서 인라인으로 돌고([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)) `context.workflowId` 는 실행 시작 때 고정된다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)). 그래서 `context.workflowId` 가 아니라 노드가 속한 워크플로우로 작성자를 구한다.
-- 비동기 호출 서브 워크플로우는 별도 실행(`Execution`)으로 돈다. 그 실행의 워크플로우 작성자로 판정한다.
-- 멀티턴 AI 노드의 재개·재시도 턴은 실행 컨텍스트 없이 `state` 로 들어온다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)). 작성자는 `workflowId`·`nodeExecutionId` 처럼 AI 재개 체크포인트에 넣지 않고 재구성 때 다시 넣는 값이다. AI 재개 체크포인트에 넣지 않는 실행 컨텍스트 필드 목록(`CREDENTIAL_CONTEXT_FIELDS`)에 더한다. 재개·재시도마다 노드가 속한 워크플로우(`node.workflowId`)의 `created_by` 를 읽어 `buildRetryReentryState` 의 재구성 결과에 `workflowAuthorId` 로 다시 넣는다. 재구성기가 넣는 `workflowId` 는 실행의 루트 워크플로우(`execution.workflowId`)다. 그 값으로 작성자를 구하면 서브 워크플로우 안 AI 에이전트 노드가 부모 워크플로우 작성자로 판정된다. 재구성기는 동기 함수라 워크플로우 행을 읽는 자리(호출 쪽이 `opts` 로 넘길지 등)는 NERV Task `CLE-T-1BQZ10` 이 정한다. 이 값이 빠지면 작성자가 없어 개인 통합을 쓰는 서버가 모두 거절된다. 식별 필드가 빠져 활동 로그 귀속이 사라졌던 #501 과 같은 모양이다.
-- 서버별 `fromExpression` 은 첫 턴에 평가한 서버 항목(`state.mcpServers`)에 함께 저장하고 재개·재시도 턴은 그 값을 쓴다. 재개 턴의 서버 목록은 첫 턴에 평가한 값인데 `state.rawConfig` 는 재개마다 현재 `node.config` 로 다시 만든다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 「멀티턴 재개 때의 `rawConfig` 스냅샷」). 그래서 위치로 다시 맞추면 정지 중에 서버를 재정렬하거나 지웠을 때 다른 서버의 값을 읽는다. 서버 항목의 `fromExpression` 은 엔진이 첫 턴에 늘 계산해 덮어쓴다. 사용자 설정의 `mcpServers[]` 항목에 같은 키가 있어도 읽지 않는다. 읽는 쪽은 저장된 항목에 값이 없으면(이 규칙 전에 저장한 AI 재개 체크포인트와 재시도 상태 `_retryState`) 표현식으로 본다. [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 「스키마 버전」 규칙이 빠진 필드를 기본값으로 채우는 방식과 같고 이 필드의 기본값은 표현식이다. 그래서 배포 때 입력 대기 중이던 대화는 작성자 자신의 개인 통합 서버도 재개 턴에서 건너뛰고 남은 서버로 이어진다. 내부 MCP 브리지는 그 서버를 `lookup_failed` 로 요약하고 외부 MCP 서버는 아직 요약을 남기지 않는다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#통합-조회-기준)). 그런 대화가 있는지는 배포 전에 센다([통합 관리 Rationale](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) 의 이행).
-- 작성자는 `variables` 에 싣지 않는다. Code 노드가 `__*` 를 포함한 `context.variables` 를 덮어쓸 수 있어서다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 규칙 5).
-- 작성자 인자가 없거나 `null` 이면 개인 통합을 거절한다. 작성자가 통합 소유자가 아닐 때와 같은 응답이다(REQ-INTMGMT-055). 조직 통합은 작성자를 보지 않는다.
+- 재개·재시도 턴의 서버별 `fromExpression` 은 첫 턴에 저장한 값을 쓴다. 저장 규칙과 값이 없는 옛 항목의 기본값은 [실행 상태 머신과 대기·재개 「보존 예외 `_resumeCheckpoint`」](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint) 가 정한다.
+- 노드 ID 와 표현식 여부는 `variables` 에서 읽지 않는다. Code 노드가 `__*` 를 포함한 `context.variables` 를 덮어쓸 수 있어서다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 규칙 5).
 
 `logUsage` 는 best-effort 다. 내부 예외를 삼키므로 실행 흐름을 멈추지 않는다. `logUsage` 가 갱신하는 통합 컬럼은 `last_used_at` 과 `last_error` 다. 노드 실행 결과로 통합 상태가 바뀌는 범위는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다.
 
@@ -165,10 +163,13 @@ class IntegrationHandlerBase {
     context: ExecutionContext,
     params: IntegrationUsageParams, // api 식별 정보 포함
   ): Promise<void>;
+  // 목표 서명(미구현). integration 은 resolveIntegration 이 돌려주거나 IntegrationError 에 실은 통합이다.
+  // protected logUsage(integration: Integration, context: ExecutionContext,
+  //   params: Omit<IntegrationUsageParams, "integrationId">): Promise<void>;
 }
 ```
 
-`resolveIntegration` 은 검증에 실패하면 `IntegrationError(code, message)` 를 던진다. `code` 는 아래 "공통 에러 코드" 의 값이다. 핸들러는 이 예외를 잡아 에러 포트로 내보낸다.
+`resolveIntegration` 은 검증에 실패하면 `IntegrationError(code, message)` 를 던진다. `code` 는 아래 "공통 에러 코드" 의 값이다. 핸들러는 이 예외를 잡아 에러 포트로 내보낸다. 유형·상태 검증(3단계)에서 실패하면 통합은 이미 얻었으므로 예외에 그 통합을 싣는다. 핸들러는 그 통합으로 활동 로그를 남긴다.
 
 ### 호출 순서
 
@@ -188,13 +189,13 @@ sequenceDiagram
   S-->>H: 통합 (복호화된 자격 증명)
   H->>X: 외부 호출
   X-->>H: 응답 또는 실패
-  H->>S: logUsage(status, durationMs, error?, api)
+  H->>S: logUsage(통합, status, durationMs, error?, api)
   H-->>E: 노드 출력 (성공 포트 또는 error)
   E->>E: 노드 실행 상태 COMPLETED 또는 FAILED
 ```
 
-- `context.nodeExecutionId` 는 엔진이 노드를 부를 때마다 새로 만드는 노드별 실행 컨텍스트에 담기므로 다른 노드나 병렬 분기의 값과 섞이지 않는다. 작성자(`workflowAuthorId`, 미구현)도 같은 곳에 담는다.
-- 멀티턴 AI 노드의 재개·재시도 턴은 노드를 새로 dispatch 하지 않고 `resumeState` 로 다시 들어온다. 이때 `context.nodeExecutionId` 와 `workflowId` 는 새로 배정되지 않는다. `buildRetryReentryState` 가 입력 대기·재시도 중인 노드 실행 행의 식별 필드에서 다시 유도한다. 이 유도가 빠지면 활동 로그의 귀속이 누락된다. 불변식은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)에서 정한다(#501).
+- `context.nodeExecutionId` 는 엔진이 노드를 부를 때마다 새로 만드는 노드별 실행 컨텍스트에 담기므로 다른 노드나 병렬 분기의 값과 섞이지 않는다. 개인 통합 판정에 쓰는 `context.nodeId` 도 같은 곳에 담긴다.
+- 멀티턴 AI 노드의 재개·재시도 턴은 노드를 새로 dispatch 하지 않고 `resumeState` 로 다시 들어온다. 이때 `context.nodeExecutionId`·`workflowId`·`nodeId` 는 새로 배정되지 않는다. `buildRetryReentryState` 가 입력 대기·재시도 중인 노드 실행 행과 그 노드 행에서 다시 유도한다. 이 유도가 빠지면 활동 로그의 귀속이 누락된다. 불변식은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)에서 정한다(#501).
 
 ### 서비스 미주입과 워크스페이스 누락
 
@@ -223,9 +224,9 @@ HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않�
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입 또는 workspace context 누락(배포 구성 에러). 에러 포트로 내보낸다 |
 
 - **통합이 없거나 다른 워크스페이스 소속일 때**: `IntegrationsService.getForExecution` 안의 `requireEntity` 가 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다. 이 예외는 `IntegrationError` 가 아니므로 전용 코드로 보존되지 않는다. 대부분의 노드는 `INTEGRATION_CALL_FAILED` 로, Send Email 노드는 `EMAIL_SEND_FAILED` 로 내보낸다. 별도의 `INTEGRATION_NOT_FOUND` 코드는 현재 코드에 없다(`integrations.service.ts` `requireEntity`, `_base/integration-handler-base.ts` `toLogError`).
-- **[개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못한 개인 통합일 때**: 위와 같은 코드와 같은 문구로 실패한다(미구현). 노드 출력만 보고는 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 구분할 수 없다.
-- **통합을 얻기 전에 끝난 실행의 기록**: 위 세 경우와 워크스페이스 확인(1단계) 실패는 통합을 얻지 못한 실패다. 활동 로그를 남기지 않고 설정의 `integrationId` 가 가리키는 통합의 `last_used_at`·`last_error` 도 바꾸지 않는다(미구현). 지금은 핸들러가 이런 실패 뒤에도 `logUsage` 를 불러 다른 워크스페이스 통합에 활동 로그와 `last_error` 가 남는다. 핸들러가 이런 실패를 기록하지 않게 하는 것은 NERV Task `CLE-T-PTC4SF` 가 고친다. 개인 통합 판정에 따른 조회 거절은 `CLE-T-1BQZ10` 이 더하고 그 거절도 같은 규칙으로 기록하지 않는다. 그래서 `CLE-T-PTC4SF` 를 먼저 내거나 같은 배포로 낸다([통합 관리 「권한」](../CLE-INT/CLE-INT-MANAGE.md#권한) 의 배포 순서). 노드별 문서의 «매 호출 활동 로그» 서술은 통합을 얻은 뒤의 호출을 말한다. 유형 불일치·미연결·자격 증명 부족은 통합을 얻은 뒤의 실패라 지금처럼 활동 로그를 남긴다.
-- **서비스 경계의 검사**: `logUsage` 는 통합의 워크스페이스가 실행의 워크스페이스와 다르면 아무것도 쓰지 않는다(REQ-INTMGMT-062, 미구현). 핸들러가 위 규칙을 어겨도 다른 워크스페이스 통합에는 기록이 남지 않는다. 같은 워크스페이스에서 판정을 통과하지 못한 개인 통합은 이 검사를 통과하므로 위 규칙만 막는다. 실행의 워크스페이스는 `logUsage` 를 부르는 쪽(통합 노드 공통 베이스와 도구 프로바이더)이 `getForExecution` 에 넘긴 값을 `workspaceId` 인자로 넘긴다. `CLE-T-PTC4SF` 가 고친다.
+- **[개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못한 개인 통합일 때**: 위와 같은 코드와 같은 문구로 실패한다. 노드 출력만 보고는 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 구분할 수 없다.
+- **통합을 얻기 전에 끝난 실행의 기록**: 위 세 경우와 워크스페이스 확인(1단계) 실패는 통합을 얻지 못한 실패다. 활동 로그를 남기지 않고 설정의 `integrationId` 가 가리키는 통합의 `last_used_at`·`last_error` 도 바꾸지 않는다(REQ-INTMGMT-053). 노드별 문서의 «매 호출 활동 로그» 서술은 통합을 얻은 뒤의 호출을 말한다. 유형 불일치·미연결·자격 증명 부족은 통합을 얻은 뒤의 실패라 활동 로그를 남긴다.
+- **기록할 통합은 얻은 통합뿐이다**: `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다(REQ-INTMGMT-062). 얻지 못한 통합은 넘길 수 없으므로 위 규칙을 핸들러와 도구 프로바이더가 따로 지키지 않아도 된다. 다른 워크스페이스 통합도 `getForExecution` 이 돌려주지 않으므로 기록되지 않는다.
 - **에러 포트 라우팅(D4)**: 위 코드가 생기는 모든 경우는 핸들러 안에서 잡혀 `port: 'error'` 와 `output.error.{code, message, details?}` 로 나간다. 다섯 노드 모두 Send Email 노드의 catch 패턴으로 통일했다. `IntegrationError` 를 throw 해서 노드 실행이 실패하는 경로는 없다. 모든 `IntegrationError.code` 는 `output.error.code` 로 나온다. 통합을 얻은 뒤의 실패는 활동 로그에 `status: 'failed'` 와 `error: {code, message}` 로 기록한다. 통합을 얻기 전의 실패는 위 «통합을 얻기 전에 끝난 실행의 기록» 대로 남기지 않는다.
 - 노드별 코드(`HTTP_*`, `DB_*`, `EMAIL_*`, `CAFE24_*`, `MAKESHOP_*`)와 `INTEGRATION_AUTH_UNSUPPORTED`(HTTP 전용)는 각 노드 문서가 정한다. 어느 코드가 어느 문서에 있는지는 아래 "노드별 코드 색인" 에 모았다.
 - 자격 증명을 복호화할 수 없을 때(`IntegrationCredentialsUnreadableError`)의 출력 코드는 정해지지 않았다. [미결 사항](#미결-사항) 참조.
@@ -283,9 +284,9 @@ HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않�
 - 캔버스(`workflow-canvas.tsx`)가 워크스페이스 통합 목록을 React Query 로 한 번 조회한다. 키는 캔버스 전용 `["integrations","list"]` 로, 서비스 유형 필터 없이 전체 목록을 받는다. 설정 패널 선택기의 `["integrations","list",{serviceTypes}]` 키와 다르다.
 - 캔버스는 실재하는 id 집합을 Context 로 내려 준다. 각 노드 렌더러(`custom-node.tsx`)가 자기 `config.integrationId` 가 집합에 있는지(`Set.has(id)`) 확인한다.
 - 목록이 아직 확정되지 않았으면(로딩 중이거나 페이지네이션 한도로 전체를 받지 못함) 배지를 억제한다. 위양성을 막기 위해서다.
-- 목록이 확정되지 않았으면 에디터의 붙여넣기와 복제도 통합 참조를 비우지 않는다([에디터 §노드 조작](../CLE-WF/CLE-WF-EDITOR.md#노드-조작)). 남은 참조가 쓸 수 없는 통합이면 저장 검사가 400 으로 막는다(미구현).
+- 목록이 확정되지 않았으면 에디터의 붙여넣기와 복제도 통합 참조를 비우지 않는다([에디터 §노드 조작](../CLE-WF/CLE-WF-EDITOR.md#노드-조작)). 남은 참조가 쓸 수 없는 통합이면 저장 검사가 400 으로 막는다.
 - `integrationId` 가 비어 있으면(미선택) 이 배지 대신 각 노드 스키마의 `warningRules`(필드 미선택 경고)가 표시된다. 복제·가져오기·버전 복원·붙여넣기가 비운 참조도 미선택이라 이 배지가 아니라 필드 미선택 경고가 붙는다.
-- 워크플로우 작성자가 아닌 편집자에게는 작성자의 개인 통합이 통합 목록에 없다. 그래서 그 노드에도 이 배지가 붙는다. 통합이 지워진 것은 아니고 노드는 실행된다. 작성자에게는 배지가 붙지 않는다. 이 화면 차이는 받아들인 잔여다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」).
+- 워크플로우 작성자가 아닌 편집자에게는 워크플로우 작성자의 개인 통합이 통합 목록에 없다. 그래서 그 노드에도 이 배지가 붙는다. 통합이 지워진 것은 아니고 노드는 실행된다. 워크플로우 작성자에게는 배지가 붙지 않는다. 이 화면 차이는 받아들인 잔여다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」).
 - HTTP Request 노드의 `integrationId` 는 `authentication === "integration"` 일 때만 유효하다. 다른 인증 방식에 남은 값에는 배지를 붙이지 않는다. 나머지 통합 노드에는 조건 없이 적용한다.
 - 시각적으로는 캔버스의 `⚠ Missing workflow` 배지와 같은 앰버 계열이다. 그래프 경고 배지(`AlertTriangle`)와 겹쳐 보이지 않도록 연결 끊김 아이콘(`Unplug`)과 별도 슬롯에 렌더한다.
 - 백엔드와 `warningRules` DSL 은 바꾸지 않았다.
@@ -308,7 +309,7 @@ HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않�
 - **사설망 차단 원본 상세를 남기는 위치**: [Database Query 노드](CLE-NODE-DBQUERY.md) 원문은 차단 상세(원본 호스트)가 활동 로그(`logUsage`)에만 남는다고 적고, 이를 "서버 활동 로그" 라고 부른다. [HTTP Request 노드](CLE-NODE-HTTP.md) 원문은 활동 로그가 `GET /integrations/:id/activity` 로 워크스페이스 사용자에게 그대로 나가므로 활동 로그에도 일반화 문구만 남기고 원본은 서버 로그(`logger.warn`)에만 둔다고 적는다. 같은 정찰 방지 원칙을 두 노드가 반대로 적용한다. 현재 구현은 Database Query 핸들러가 일반화 문구만 담은 `IntegrationError('DB_HOST_BLOCKED')` 를 만들고 원본을 `cause` 로도 싣지 않는 것으로 보인다(활동 로그에 원본이 남는지는 미확인). 어느 쪽을 규칙으로 삼을지 결정 필요.
 - **자격 증명 복호화 실패의 출력 코드**: 암호화 키 교체 등으로 자격 증명을 복호화할 수 없으면 `getForExecution` 이 `IntegrationCredentialsUnreadableError` 를 던진다([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)). 이 경로가 어떤 `output.error.code` 로 나오는지 원문에 없다. 현재 구현의 이 예외는 `BadRequestException` 계열이라 `IntegrationError` 가 아니므로 기본 규칙대로 `INTEGRATION_CALL_FAILED`(Send Email 은 `EMAIL_SEND_FAILED`)로 나올 것으로 보이나 확인되지 않았다. 공통 에러 코드 표에 행을 둘지 결정 필요.
 - **통합 자격 증명 암호화와 시크릿 저장소의 관계**: 통합 노드는 자격 증명을 컬럼 transformer 로 직접 복호화한다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)는 모든 도메인 모듈이 `SecretResolver` 를 거친다고 정하면서 예외 목록에 `Integration.credentials` 를 두지 않았다. 예외로 등재할지 이관할지 결정 필요(관련: [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
-- **작성자가 아닌 편집자에게 보이는 배지 문구**: 캔버스는 작성자의 개인 통합과 지워진 통합을 구분하지 못해 둘 다 `⚠ Missing integration` 으로 보인다. 지금 사용자가 워크플로우 작성자가 아닐 때는 «확인할 수 없는 통합» 처럼 삭제로 읽히지 않는 문구를 쓸지 정해야 한다(2026-10-24).
+- **워크플로우 작성자가 아닌 편집자에게 보이는 배지 문구**: 캔버스는 워크플로우 작성자의 개인 통합과 지워진 통합을 구분하지 못해 둘 다 `⚠ Missing integration` 으로 보인다. 지금 사용자가 워크플로우 작성자가 아닐 때는 «확인할 수 없는 통합» 처럼 삭제로 읽히지 않는 문구를 쓸지 정해야 한다(2026-10-24).
 
 ## 구현 위치
 
@@ -336,9 +337,9 @@ HTTP Request 노드만 `meta.duration` 을 쓰고 나머지 노드와 시스템 
 
 목록 조회를 캔버스 한 곳으로 올린 것은 노드마다 `useQuery` 를 구독하면 N개 노드에 N개 구독과 리렌더가 생기기 때문이다. AI 노드의 `hasDefaultLlmConfig` Context 와 같은 패턴이다. 판정 로직(`Set.has(id)`)은 설정 패널의 `integration-selector`·`mcp-server-selector` 가 쓰는 것과 같다. 다만 선택기는 패널이 열린 노드 하나에만 마운트되고 이 배지는 캔버스의 모든 통합 노드에 동시에 붙으므로, 개수 차이 때문에 Context 로 올렸다. 교차 엔티티 경고가 앞으로 많아지면 DSL 조회 기능을 일반화하는 방안(plan `spec-sync-integration-common-gaps` 옵션 C)을 다시 검토한다.
 
-이 배지는 방어용 표시다. 정상 UI 삭제 경로는 사용처가 있는 통합의 삭제를 막는다(409 `INTEGRATION_IN_USE`, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 그래서 "캔버스의 라이브 노드가 참조하는데 통합이 없는" 상태는 평소에 생기지 않는다. 삭제 차단의 사용처 조회(`queryUsageNodes`)는 라이브 `Node` 테이블만 보고 과거 버전 스냅샷, 워크스페이스 이동, 레거시·직접 DB 조작은 보지 않는다. 배지는 이 틈으로 남은 잔존 참조(dangling reference)를 드러낸다.
+이 배지는 방어용 표시다. 정상 UI 삭제 경로는 사용처가 있는 통합의 삭제를 막는다(409 `INTEGRATION_IN_USE`, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 그래서 "캔버스의 라이브 노드가 참조하는데 통합이 없는" 상태는 평소에 생기지 않는다. 삭제 차단의 사용처 조회(`queryUsageNodes`)는 라이브 `Node` 테이블만 보고 과거 버전 스냅샷, 워크스페이스 이동, 레거시·직접 DB 조작은 보지 않는다. 배지는 이 틈으로 남은 잔존 참조(dangling reference)를 드러낸다. 2026-10-24 부터는 예외가 하나 있다. 워크플로우 작성자가 아닌 편집자에게는 통합이 지워지지 않아도 워크플로우 작성자의 개인 통합 노드에 배지가 붙는다([삭제된 통합 표시](#삭제된-통합-표시)).
 
-2026-10-24 부터는 정상 경로에서도 배지가 붙는 경우가 하나 생겼다. 워크플로우 작성자가 아닌 편집자에게는 작성자의 개인 통합이 통합 목록에 없어서 그 노드에도 배지가 붙는다(NERV Task `CLE-T-MG0EQZ`). 남의 개인 통합이 있다는 것을 드러내지 않으려고 받아들인 위양성이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 에 있다. 이 경우의 배지 문구를 따로 둘지는 [미결 사항](#미결-사항) 에 있다.
+2026-10-24 부터는 정상 경로에서도 배지가 붙는 경우가 하나 생겼다. 워크플로우 작성자가 아닌 편집자에게는 워크플로우 작성자의 개인 통합이 통합 목록에 없어서 그 노드에도 배지가 붙는다(NERV Task `CLE-T-MG0EQZ`). 남의 개인 통합이 있다는 것을 드러내지 않으려고 받아들인 위양성이다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 에 있다. 이 경우의 배지 문구를 따로 둘지는 [미결 사항](#미결-사항) 에 있다.
 
 ### 캔버스 요약을 줄인 이유
 
@@ -354,19 +355,18 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 
 ### 남의 개인 통합 조회는 없는 통합과 같게 실패한다 (2026-10-24)
 
-NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24). 실행 시점에 거절할 때의 노드 에러는 «통합이 없을 때와 같은 경로» 를 권하고 초안에서 확정하기로 했다. 이 초안에서 그대로 정했다.
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24). 실행 시점에 거절할 때의 노드 에러는 «통합이 없을 때와 같은 경로» 를 권하고 초안에서 확정하기로 했다. 이 초안에서 그대로 정했다. 워크플로우 작성자를 구하는 방법은 2026-10-25 에 고쳤다(아래 «워크플로우 작성자는 통합 서비스가 노드 ID 로 구한다»).
 
 - 전용 코드를 두면 노드 출력만 보고 그 ID 가 남의 개인 통합이라는 것을 알 수 있다. 관리 API 가 남의 개인 통합을 404 로 숨기는 것(2026-09-25)과 같은 원칙이다.
-- 거절된 조회를 기록하지 않는 근거와 지금 다른 워크스페이스 통합에 기록이 남는 문제는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 에 있다.
-- 조회 앞 단계에서 끝난 실패도 기록하지 않는다. 설정의 `integrationId` 만으로는 그 통합을 이 실행에서 쓸 수 있는지 모른다. 그 값으로 기록하면 거절된 조회를 기록하지 않는 목적이 같은 방식으로 깨진다.
-- 재개 턴의 서버별 표현식 여부는 첫 턴에 평가한 서버 항목에 저장한다. 재개 턴의 원본 설정은 현재 `node.config` 라 위치로 맞추면 정지 중에 바뀐 서버 목록과 어긋난다. 위치 대신 서버 항목의 키로 맞추는 안도 봤다. 항목에는 `integrationId` 말고 고유 키가 없고 표현식 항목은 원본에 그 ID 가 없어서 쓰지 않았다(finding 01a16e8a-37c4-75b6-b818-981efecea074 · 01a16e8a-fd4f-7739-a7b4-cc9d4b7394a6).
-- 값이 없는 옛 서버 항목은 표현식으로 본다. 기본값을 리터럴로 두면 배포 전에 표현식으로 고른 개인 통합이 재개 턴에서 판정을 피한다. 옛 항목만 재개 때 현재 `node.config` 의 같은 위치로 추정하는 안은 위치가 어긋나는 문제가 그대로 남아 쓰지 않았다. 현재 설정의 같은 위치가 같은 통합을 리터럴로 가리킬 때만 리터럴로 보는 변형은 배포 전에 저장된 항목에만 쓰는 이행용 분기다. 이 변형은 통합 ID 가 다르면 표현식으로 남아 거절 쪽에 서고, 같으면 그 위치의 리터럴 참조와 같은 실행 시점 판정(작성자가 통합 소유자이고 통합 소유자가 지금 멤버인가)을 받는다. 그런 대화가 있으면 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) 이행의 선택지로 사람이 고른다. 대가로 배포 때 입력 대기 중이던 대화는 작성자 자신의 개인 통합 서버를 잃는다. 그 수는 배포 전에 센다(finding 01a16e9c-174b-712a-87a9-b4cdc2b579b3 · 01a16e9d-4969-72ba-bbf6-742891d939c5).
-- 서버 항목의 `fromExpression` 은 엔진이 늘 덮어쓴다. API 나 가져오기로 사용자 설정의 서버 항목에 `fromExpression: false` 가 들어와도 표현식 참조의 거절을 피하지 못하게 하려는 것이다(finding 01a16e9c-6666-7109-bac3-367e8095657c).
-- `workflowAuthorId` 를 확장 타입으로 나누지 않고 실행 컨텍스트의 선택 필드로 둔다. [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 가 `ParallelBranchContext` 를 나눈 근거는 타입이 «이 필드는 Parallel 분기에서만 읽힌다» 를 강제한다는 것이다. 그 값은 Parallel 분기의 실행 컨텍스트에만 있다. 이 값은 엔진이 노드 종류를 가리지 않고 모든 노드 호출에 넣는다. 노드 종류마다 실행 컨텍스트를 달리 만들지 않으려는 것이다. 그래서 통합 전용 확장 타입을 두어도 모든 노드의 실행 컨텍스트가 그 타입이 되어 읽는 곳을 타입이 좁혀 주지 못하고 읽는 쪽의 형 변환만 는다.
-- 핸들러가 보는 필드가 기능마다 는다는 God Object 우려는 이 필드에도 해당한다. 그 비용을 받아들이고 값이 없으면 거절하는 계약은 서비스 경계(`getForExecution` 의 `use` 인자)에 둔다. 필수 필드로 두면 타입이 값이 있음을 보장하지만 통합을 쓰지 않는 경로까지 실행 컨텍스트를 만드는 모든 곳이 작성자를 채워야 한다.
-- 위 두 해석과 `CLE-EXEC-CONTEXT` 규칙 3 의 예외는 그 문서의 초안이 규칙 1 · 3, 결정 표, 필드 표, Rationale 에 적는다. 그 초안이 승인될 때까지 두 문서는 이 필드에서 서로 다르게 읽힌다. 그래서 구현은 그 승인 뒤에 시작한다. 사람 승인 때 필수 필드나 통합 전용 확장 타입으로 바꿀 수 있다(finding 01a16e9b-c596-72ae-9843-264c1656ab1b · 01a16e9c-174d-775e-94f8-6d617121cff9 · 01a16e9d-4967-7444-88ee-ba2d14d4ef64 · 01a16eab-5cae-77ef-8407-586fd4d91d56 · 01a16eaa-f324-77a6-9413-894d42d16960).
-- 도구 프로바이더는 도구 목록을 만들 때만 통합을 조회한다. 그래서 작성자는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 필드로, 표현식 여부는 그 문맥의 `config` 안 서버 항목에 싣는다. 도구 프로바이더 실행 문맥(`ProviderExecCtx`)에는 작성자 필드를 더하지 않고 도구 실행은 `fromExpression` 을 읽지 않는다. 도구 실행마다 다시 조회하면 도구 목록을 만들 때 얻은 통합과 MCP 세션을 쓰는 지금 방식이 바뀌고 호출마다 조회 비용이 든다(finding 01a16eab-5cad-71fd-b051-4509c842398e).
-- 작성자를 알 수 없으면 거절한다. 통과시키면 작성자 정보가 빠지기 쉬운 경로(재개 턴, 서브 워크플로우)가 우회로가 된다. 판정할 수 없으면 거부한다는 원칙은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 대기 표면 판정과 같다.
-- 작성자는 노드마다 넘긴다. 승인본은 서브 워크플로우에 들어갈 때 실행 컨텍스트의 작성자를 바꾸고 나올 때 되돌린다고 적었다. 서브 워크플로우를 나오는 모든 경로에서 되돌려야 하고 하나라도 빠지면 부모 워크플로우의 다음 노드가 잘못 판정돼 뺐다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 결정 15 «작성자는 노드마다 넘긴다» 에 있다(finding 01a16e29-19e0-7648-ae02-e99178f8127a).
+- 거절된 조회를 기록하지 않는 근거와 `logUsage` 가 얻은 통합을 받게 한 이유는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 의 결정 4(실행 시점 거절도 없는 통합과 같은 노드 에러다)와 결정 17(활동 로그는 얻은 통합에만 쓴다)에 있다.
+- 조회 앞 단계에서 끝난 실패도 기록하지 않는다. 설정의 `integrationId` 만으로는 그 통합을 이 실행에서 쓸 수 있는지 모른다. 그 값으로 기록하면 거절된 조회를 기록하지 않는 목적이 같은 방식으로 깨진다. 다섯 통합 노드 문서는 이 규칙에 맞춰 «매 호출 활동 로그» 요구사항을 통합을 얻은 뒤의 호출로 좁혔다(REQ-CAFENODE-031 · REQ-DBQ-027 · REQ-EMAIL-024 · REQ-HTTP-029 · REQ-MKSNODE-029, finding 01a1705c-04aa-72ee-8cf6-f35f7537c46c · 01a17059-b864-7572-a6d2-505b00427454).
+- 재개 턴의 서버별 표현식 여부를 서버 항목에 저장하는 이유와 값이 없는 옛 항목을 표현식으로 보는 이유는 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) Rationale 「MCP 서버 항목에 표현식 여부를 저장하고 스키마 버전을 올리지 않는다」 에 있다.
+- **워크플로우 작성자는 통합 서비스가 노드 ID 로 구한다(2026-10-25).** 2026-10-24 승인본은 엔진이 노드가 속한 워크플로우의 `created_by` 를 읽어 실행 컨텍스트의 새 선택 필드 `workflowAuthorId` 로 넣는다고 적었다. 근거는 «통합 모듈이 워크플로우 저장소를 읽지 않으므로 의존 방향이 실행 엔진에서 통합 모듈 쪽 하나로 남는다» 였다. 코드는 그렇지 않았다. 통합 모듈은 사용처 조회에서 이미 노드 저장소로 워크플로우를 join 한다(`integrations.service.ts` 의 사용처 조회, `integrations.module.ts` 의 `Node` 등록). 노드 ID 는 엔진이 이미 노드마다 실행 컨텍스트에 넣고 멀티턴 재구성기도 이미 다시 넣는다. 그래서 새 필드 없이 같은 판정을 할 수 있다. 새 필드로 두면 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 규칙 3 의 예외를 따로 승인받아야 했고, 동기 함수인 재구성기 안에서 워크플로우 행을 읽을 자리도 정해야 했다(finding 01a17059-b861-7577-a9f0-ed2fcfd71aef · 01a17053-eeb5-71bd-b490-3e9f53bf530c · 01a17052-f9a3-77c3-8fb1-8c06cb38d696 · 01a17052-87d3-72bf-b816-51dd41946e83).
+  - 기각: 엔진이 워크플로우 작성자를 실행 컨텍스트 선택 필드 `workflowAuthorId` 로 넣는 안(2026-10-24 승인본). 위 이유로 뺐다. 확장 타입이나 필수 필드로 두는 변형도 같이 뺐다(finding 01a16e9b-c596-72ae-9843-264c1656ab1b · 01a16e9c-174d-775e-94f8-6d617121cff9 · 01a16e9d-4967-7444-88ee-ba2d14d4ef64 · 01a16eab-5cae-77ef-8407-586fd4d91d56 · 01a16eaa-f324-77a6-9413-894d42d16960).
+  - 기각: 엔진이 노드가 속한 워크플로우 ID(`nodeWorkflowId`)를 새 필드로 싣고 통합 서비스가 그 워크플로우의 작성자를 구하는 안(2026-10-25 리뷰 제안). 노드 ID 로 같은 워크플로우 행에 닿으므로 새 필드가 필요 없다.
+  - 기각: 서브 워크플로우에 들어갈 때 공유 실행 컨텍스트의 워크플로우 작성자를 바꾸고 나올 때 되돌리는 안(앞선 승인본). 서브 워크플로우를 나오는 모든 경로(정상 종료, 예외, park 뒤 rehydration 으로 프레임을 다시 들어가는 재개)에서 값을 되돌려야 한다. 하나라도 빠지면 부모 워크플로우의 다음 노드가 잘못 판정된다(finding 01a16e29-19e0-7648-ae02-e99178f8127a).
+  - 비용: 개인 통합을 조회할 때마다 노드와 워크플로우를 한 번 더 읽는다. 조직 통합은 읽지 않는다.
+- 도구 프로바이더는 도구 목록을 만들 때만 통합을 조회한다. 그래서 노드 ID 는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 필드로, 표현식 여부는 그 문맥의 `config` 안 서버 항목에 싣는다. 도구 프로바이더 실행 문맥(`ProviderExecCtx`)에는 노드 ID 를 더하지 않고 도구 실행은 `fromExpression` 을 읽지 않는다. 도구 실행마다 다시 조회하면 도구 목록을 만들 때 얻은 통합과 MCP 세션을 쓰는 지금 방식이 바뀌고 호출마다 조회 비용이 든다(finding 01a16eab-5cad-71fd-b051-4509c842398e).
+- 워크플로우 작성자를 알 수 없으면 거절한다. 통과시키면 노드 ID 가 빠지기 쉬운 경로(멀티턴 재개 턴)가 우회로가 된다. 판정할 수 없으면 거부한다는 원칙은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 대기 표면 판정과 같다.
 - 비운 참조에 «삭제된 통합 표시» 를 쓰지 않는다. 값이 비었으니 미선택과 같고 사용자가 다시 골라야 한다는 점도 같다. 배지는 값이 남아 있는데 목록에 없는 경우만 뜻한다.
-- 비용: 작성자는 노드 출력으로 «지워진 통합» 과 «쓸 수 없는 통합» 을 구분하지 못한다. 저장 검사가 남의 개인 통합 참조가 새로 들어오는 것을 막으므로 이 상태는 검사 전 데이터와 공개 범위 전환에서 주로 생긴다.
+- 비용: 워크플로우 작성자는 노드 출력으로 «지워진 통합» 과 «쓸 수 없는 통합» 을 구분하지 못한다. 저장 검사가 남의 개인 통합 참조가 새로 들어오는 것을 막으므로 이 상태는 검사 전 데이터와 공개 범위 전환에서 주로 생긴다.

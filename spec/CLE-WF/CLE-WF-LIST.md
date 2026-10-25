@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST"
 title: "워크플로우 목록과 폴더"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051", "REQ-WFLIST-052", "REQ-WFLIST-053", "REQ-WFLIST-054", "REQ-WFLIST-055", "REQ-WFLIST-056"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "b7d264207f1de31e3525a584e547d5084eb251b3bdf767431e384836aba9d173"
+content_hash: "1a3c007e8e1e99b325892fa0597c0ef7a0186b712a1014d411c9f692c1a3894d"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "2fa23d385b7c2da18a9446fb445dba11f45392aebb6e6c74e46c306d57bc3aca"
-etag: "sha256-5d2bf3b87e16afcec90df0734a569c75ec8cb01e5cbfe7a5e5569753e4a84e16"
+mirror_sha256: "9f83db25cdcbc7d78025443db5863f79e642945dc20f2ae7b22fd9cc929f50c6"
+etag: "sha256-2a6ceb425b8f672fb813bb95f249aa05b255be120be6b4d0231b947c70d80c54"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -87,7 +87,7 @@ etag: "sha256-5d2bf3b87e16afcec90df0734a569c75ec8cb01e5cbfe7a5e5569753e4a84e16"
 - REQ-WFLIST-051 WHEN 폴더 수정 요청의 새 `parentId` 가 같은 워크스페이스에 없어 거부하면 THE SYSTEM SHALL 생성과 같은 형태의 `details[]`(`field='parentId'`, `code='INVALID_FIELD'`)를 싣는다.
 - REQ-WFLIST-052 WHEN 사용자가 워크플로우를 비활성으로 바꾸면 THE SYSTEM SHALL 이미 진행 중인 그 워크플로우의 실행을 취소하지 않는다.
 - REQ-WFLIST-053 WHEN 사용자가 비활성 워크플로우를 편집기에서 수동 실행하거나 재실행하거나 그 워크플로우의 스케줄을 "지금 실행" 하면 THE SYSTEM SHALL 활성 워크플로우와 같이 그 실행을 시작한다.
-- REQ-WFLIST-054 WHEN 사용자가 JSON 파일을 가져오면 THE SYSTEM SHALL 노드 `config`(parse 에 실패해 원래대로 보존한 설정 포함)의 통합 참조 가운데 이 워크스페이스에 없는 통합이나 요청 사용자가 통합 소유자가 아닌 개인 통합을 가리키는 것을 비우고 가져오기를 끝낸다. (미구현)
+- REQ-WFLIST-054 WHEN 사용자가 JSON 파일을 가져오면 THE SYSTEM SHALL 노드 `config`(parse 에 실패해 원래대로 보존한 설정 포함)의 통합 참조 가운데 표현식이 아닌 값이 이 워크스페이스에 없는 통합이나 요청 사용자가 통합 소유자가 아닌 개인 통합을 가리키는 것을 비우고 가져오기를 끝낸다. (미구현)
 - REQ-WFLIST-055 WHEN 사용자가 워크플로우를 복제하면 THE SYSTEM SHALL 가져오기와 같은 규칙으로 노드 `config` 의 통합 참조를 비우고 복제를 끝낸다. (미구현)
 - REQ-WFLIST-056 WHEN 가져오기나 복제에서 통합 참조를 비우면 THE SYSTEM SHALL 성공 안내와 함께 비운 노드의 레이블을 경고로 표시한다. (미구현)
 
@@ -126,7 +126,7 @@ etag: "sha256-5d2bf3b87e16afcec90df0734a569c75ec8cb01e5cbfe7a5e5569753e4a84e16"
 | 필터 | 옵션 | 동작 |
 | --- | --- | --- |
 | 상태 | 전체 / Active / Inactive | 항상 보이는 버튼 그룹. 서버 계약(`query-workflow.dto.ts`)과 클라이언트 모두 `?status=active\|inactive` 를 쓴다. |
-| 소유 | 내 워크플로우 / 공유된 워크플로우 / 전체 | 팀 워크스페이스일 때만 보인다. "공유된 워크플로우" 는 작성자가 내가 아닌(`createdBy ≠ 현재 사용자`) 워크플로우다. 세 옵션은 서버 `ownership` 의 `mine`·`shared`·`all` 에 하나씩 대응한다. 개인 워크스페이스에서는 필터가 사라지고 파라미터도 보내지 않는다. |
+| 소유 | 내 워크플로우 / 공유된 워크플로우 / 전체 | 팀 워크스페이스일 때만 보인다. "공유된 워크플로우" 는 워크플로우 작성자가 내가 아닌(`createdBy ≠ 현재 사용자`) 워크플로우다. 세 옵션은 서버 `ownership` 의 `mine`·`shared`·`all` 에 하나씩 대응한다. 개인 워크스페이스에서는 필터가 사라지고 파라미터도 보내지 않는다. |
 | 태그 | 태그 하나(텍스트 입력) | 입력한 태그 하나를 `?tag=` 로 보낸다. 그 값을 `tags` 배열에 가진 워크플로우만 조회한다(`= ANY(tags)`). 빈 값이면 보내지 않는다. 검색처럼 debounce 를 두고 페이지를 처음으로 돌린다([Rationale](#rationale) 4번). |
 | 폴더 | 폴더 선택 | 워크스페이스에 폴더가 하나 이상 있을 때만 보이는 드롭다운(`NativeSelect`). 첫 옵션 "전체 폴더" 는 빈 값이라 보내지 않는다. 고르면 `?folderId=` 로 거르고 페이지를 처음으로 돌린다. 폴더는 워크스페이스 단위라 워크스페이스를 바꾸면 선택을 초기화한다. |
 
@@ -181,7 +181,7 @@ etag: "sha256-5d2bf3b87e16afcec90df0734a569c75ec8cb01e5cbfe7a5e5569753e4a84e16"
 | POST | `/api/workflows/:id/duplicate` | 복제. 노드·연결선을 포함한 캔버스 전체를 한 트랜잭션으로 복사한다. 복제 범위와 재매핑 규칙은 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 에 있다. 응답 `data` 는 새 워크플로우에 `clearedIntegrationRefs`(아래 「통합 참조 비우기」, 미구현)를 더한 것이다. |
 | DELETE | `/api/workflows/:id` | 워크플로우 삭제 |
 | GET | `/api/workflows/:id/export` | JSON 내보내기 |
-| POST | `/api/workflows/import` | JSON 가져오기. 응답 `data` 는 새 워크플로우에 `clearedIntegrationRefs`(미구현)를 더한 것이다 |
+| POST | `/api/workflows/import` | JSON 가져오기. 응답 `data` 는 새 워크플로우에 `clearedIntegrationRefs` 를 더한 것이다 |
 
 ### 폴더 API
 
@@ -214,7 +214,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 2. 노드 레이블은 워크플로우 안에서 유일해야 한다. 겹치면 409 `DUPLICATE_NODE_LABEL` 이다.
 3. 노드 `config` 를 그 노드의 zod 스키마로 parse 해 `.default(...)` 기본값을 덮어 채운다(`applyConfigDefaults`). 캔버스에서 노드를 새로 만들 때와 같은 기본값이다. parse 에 실패하면(손으로 고친 JSON, 타입 불일치 등) 원래 설정을 그대로 보존한다. 사용자는 에디터에서 그 노드를 고칠 수 있다([Rationale](#rationale) 2번). 보존한 설정의 통합 참조도 5단계에서 비운다.
 4. AI 노드에 `llmConfigId` 가 없으면 워크스페이스 기본 모델 설정을 채운다.
-5. 노드 `config` 의 통합 참조(`integrationId`·`mcpServers[].integrationId`) 가운데 이 워크스페이스에 없는 통합이나 요청 사용자가 통합 소유자가 아닌 개인 통합을 가리키는 것을 비운다. 다른 워크스페이스에서 내보낸 파일이면 그 워크스페이스의 통합 ID 는 모두 비워진다. 3단계에서 parse 에 실패해 원래 설정을 보존한 노드도 그 설정의 같은 위치에서 비운다. 그 위치의 모양이 달라 참조로 읽을 수 없으면(`mcpServers` 가 배열이 아니거나 항목이 객체가 아닌 경우 등) 비우지 않고 둔다. 실행 시점 조회가 모든 참조에 판정을 다시 적용하므로 남의 개인 통합이 그 노드에서 쓰이지는 않는다. 거부하지 않는다(아래 「통합 참조 비우기」, 미구현).
+5. 노드 `config` 의 통합 참조([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 「통합 참조」 목록의 자리) 가운데 이 워크스페이스에 없는 통합이나 요청 사용자가 통합 소유자가 아닌 개인 통합을 가리키는 것을 비운다. 다른 워크스페이스에서 내보낸 파일이면 그 워크스페이스의 통합 ID 는 모두 비워진다. 3단계에서 parse 에 실패해 원래 설정을 보존한 노드도 그 설정의 같은 위치에서 비운다. 그 위치의 모양이 달라 참조로 읽을 수 없으면(`mcpServers` 가 배열이 아니거나 항목이 객체가 아닌 경우 등) 비우지 않고 둔다. 실행 시점 조회가 모든 참조에 판정을 다시 적용하므로 남의 개인 통합이 그 노드에서 쓰이지는 않는다. 참조 값이 표현식이면 판정하지 않고 둔다. 거부하지 않는다(아래 「통합 참조 비우기」).
 6. 인덱스 참조(`containerIndex`·`toolOwnerIndex`·`sourceNodeIndex`·`targetNodeIndex`)를 새로 발급한 UUID 로 바꿔 저장한다.
 7. 워크플로우 `settings` 는 엄격한 중첩 DTO(`WorkflowSettingsDto`)로 검사한다. 지금 허용하는 키는 `maxConcurrentExecutions`(양의 정수, 워크플로우당 동시 실행 상한) 하나다. 모르는 키, 양수가 아닌 값, 정수가 아닌 값은 400 `VALIDATION_ERROR` 다. `UpdateWorkflowDto.settings`(PATCH)도 같은 규칙을 쓴다. 동시 실행 상한의 동작은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 에 있다.
 
@@ -222,10 +222,10 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 
 #### 통합 참조 비우기
 
-가져오기와 복제는 노드 `config` 의 통합 참조에 같은 규칙을 각자 적용한다. 복제가 가져오기 경로를 거치지는 않는다. 2026-10-24 에 정했고 아직 코드에 없다(NERV Task `CLE-T-1BQZ10`).
+가져오기와 복제는 노드 `config` 의 통합 참조에 같은 규칙을 각자 적용한다. 복제가 가져오기 경로를 거치지는 않는다.
 
 - 요청 사용자가 새 워크플로우의 작성자이자 저장자다. 판정은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 쓴다. 그래서 조직 통합과 요청 사용자 자신의 개인 통합 참조만 남는다. 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합 참조는 비운다. 셋을 구분하지 않는다.
-- `config.integrationId` 는 키를 지워 통합을 고르지 않은 노드와 같게 둔다. `config.mcpServers[]` 는 그 항목을 빼고 그 서버에 붙은 노출 도구 설정도 함께 뺀다.
+- 비우는 방법은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 「통합 참조」 목록의 «비울 때» 를 따른다. 참조 값이 표현식이면 비우지 않는다.
 - 응답 `data.clearedIntegrationRefs: [{ nodeId, nodeLabel, field }]` 로 알린다. `nodeId` 는 저장된 노드의 id 다(가져오기는 6단계에서 발급한 id). 비운 것이 없으면 빈 배열이다. 비운 이유는 싣지 않는다. 필드 표기와 규칙 전체는 [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다.
 - 화면은 `data.clearedIntegrationRefs` 가 비어 있지 않으면 성공 토스트와 함께 경고 토스트를 하나 더 띄운다. 경고에는 비운 노드의 레이블을 적고 에디터에서 통합을 다시 고르라고 안내한다. 목록 화면과 에디터 헤더의 가져오기가 같다.
 
@@ -254,7 +254,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 - 데이터 모델은 이미 `workspaceId` 로 워크플로우를 격리한다(`workflow.entity.ts`). 그래서 `sharedWith` 컬럼이나 추가 마이그레이션 없이 구현할 수 있다.
 - (b) 는 같은 팀 안에서 "내 것" 과 "남의 것" 을 다시 나누는 정의다. 그 구분은 소유 필터가 맡으므로 배지에서 한 번 더 표현할 필요가 없다.
 
-그래서 배지는 워크스페이스 단위의 공유를, 필터는 작성자 단위의 세분화를 맡는다.
+그래서 배지는 워크스페이스 단위의 공유를, 필터는 워크플로우 작성자 단위의 세분화를 맡는다.
 
 ### 2. 가져오기에서 노드 설정은 느슨하게 받는다
 
