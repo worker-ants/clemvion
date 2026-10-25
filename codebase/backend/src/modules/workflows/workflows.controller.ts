@@ -225,7 +225,7 @@ export class WorkflowsController {
   @ApiOperation({
     summary: '워크플로우 복제',
     description:
-      '캔버스 전체(노드·엣지)를 새 UUID 로 복사해 비활성 상태의 "(Copy)" 워크플로우를 만듭니다. 쓸 수 없는 통합 참조는 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
+      '노드·엣지를 새 UUID 로 복사해 비활성 "(Copy)" 사본을 만듭니다. 버전 이력·트리거·테스트 데이터셋·실행 이력은 복제하지 않고 사본은 버전 1 로 시작합니다. 쓸 수 없는 통합 참조는 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
   })
   @ApiParam({ name: 'id', description: '원본 워크플로우 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(DuplicateWorkflowResultDto, {
