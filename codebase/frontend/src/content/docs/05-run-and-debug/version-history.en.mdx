@@ -65,6 +65,8 @@ Restoring **overwrites the current canvas** with the snapshot.
 
 <Callout type="warn">Restoring overwrites your in-progress edits. If you have unsaved changes, `Save` first to pin the current state as its own version.</Callout>
 
+<Callout type="note">If a node in the version you restore has a Personal integration selected that this workflow can't use, the restore clears that integration choice. For example, the integration was switched from Organization to Personal after the version was made, and the person who created the integration isn't the person who created the workflow. When the editor reloads, a warning toast names the nodes that were cleared. In that case, pick an integration again in the node settings. For the full rule, see [Managing integrations](/docs/06-integrations-and-config/integration-management).</Callout>
+
 ## Common scenarios
 
 <FieldTable rows={[

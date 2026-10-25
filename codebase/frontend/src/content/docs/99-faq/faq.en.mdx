@@ -50,7 +50,7 @@ Under the sidebar's `Authentication` menu. You can issue API Keys, Bearer Tokens
 
 ## Q12. I want to move a workflow to another account.
 
-Use **Export (JSON)** from the workflow list's more menu. Import the received JSON in the other account to restore structure and configuration. For security, Integration credentials (API keys, etc.) are not included — reconnect them on the receiving side.
+Use **Export (JSON)** from the workflow list's more menu. Import the received JSON in the other account to restore structure and configuration. For security, Integration credentials (API keys, etc.) are not included — reconnect them on the receiving side. The person who imports a workflow becomes its creator, and any selection of another person's Personal integration is cleared. See Q20 below for details.
 
 ## Q13. My node needs more than 30 seconds.
 
@@ -84,6 +84,10 @@ They sound similar but live in different places and play different roles.
 - The **AI Agent node** is an **LLM call that runs inside a workflow**. You drop it on the canvas and configure the system prompt, user prompt, RAG, and tools — at run time it calls the LLM and produces an answer. It's a *part* of a workflow. Field reference: [AI nodes](/docs/02-nodes/ai).
 
 The two are complementary: workflows the Assistant builds for you may include AI Agent nodes.
+
+## Q20. My personal integration appears disabled in a workflow someone else created.
+
+A node can use Organization integrations and the Personal integrations of **the person who created the workflow**, and nothing else. If you didn't create the workflow, your own Personal integrations show "can't be used in this workflow" in the selection list. The check is based on whoever created the workflow, not on whoever runs it, so the same rule applies to scheduled and webhook runs. A node that breaks this rule fails at run time with an "integration not found" error. To fix it, pick an Organization integration, or ask the person who created the workflow to set it up with their own integration. For the full rule, see [Managing integrations](/docs/06-integrations-and-config/integration-management).
 
 ## Tips & notes
 

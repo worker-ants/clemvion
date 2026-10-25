@@ -6,6 +6,8 @@ This page covers the five integration nodes that talk to external services (HTTP
 
 Every integration node exposes an `integrationId` field that points to an Integration entity (sidebar → Integrations) holding the credentials. Credentials are automatically encrypted and decrypted with AES-256-GCM. If the connection is not in the `connected` state, the run fails with `INTEGRATION_NOT_CONNECTED`.
 
+A node can use Organization integrations and the Personal integrations of **the person who created the workflow**. The check is based on whoever created the workflow, not on whoever runs it. So the same rule applies to scheduled and webhook runs, and a node inside a sub-workflow is checked against the person who created that sub-workflow. A node that points to an integration that breaks this rule fails at run time with an "integration not found" error. For how to pick an integration in the node settings panel and what the save-time check does, see [Managing integrations](/docs/06-integrations-and-config/integration-management).
+
 ### Common error codes
 
 <FieldTable rows={[

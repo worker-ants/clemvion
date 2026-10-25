@@ -40,6 +40,10 @@ Drag a node to move it wherever you want. If several nodes are selected and you 
 The Manual Trigger node that starts a workflow can only exist once per workflow, so it can't be duplicated — its "Duplicate" menu item shows as disabled.
 </Callout>
 
+<Callout type="note">
+If a pasted or duplicated node has a Personal integration selected that this workflow can't use, that selection is cleared. For example, you copy a node from a workflow you created and paste it into a workflow someone else created. A warning toast names the nodes that were cleared. In that case, pick an Organization integration or the workflow creator's integration again in the node settings. For the full rule, see [Managing integrations](/docs/06-integrations-and-config/integration-management).
+</Callout>
+
 ## Deleting nodes
 
 There are two ways to remove a node.

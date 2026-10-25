@@ -46,6 +46,15 @@ The AI Agent settings panel has an **MCP Servers** multi-select field. Each entr
 
 When the LLM calls a tool, the AI Agent uses the integration's credentials to call the MCP server and feeds the result back as `tool_result` in the next LLM request. Tool names are sanitized for LLM consumption as `mcp_<sid>__<toolName>` to avoid name collisions across servers.
 
+The list for adding MCP servers shows Personal integrations that this workflow can't use as disabled. If you didn't create the workflow, "can't be used in this workflow" appears next to the name of your own Personal integrations, and a hint under the list explains why. In that case, pick an Organization integration, or ask the person who created the workflow to set it up with their own integration. At run time, a Personal MCP server that can't be used is skipped on its own, and the node keeps running with the remaining servers.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/integrations/mcp-server-selector.tsx"
+  symbol="notAuthorHint"
+  describes="Add list for MCP servers on the AI Agent node that disables Personal integrations the workflow can't use and explains why"
+/>
+
 <Example title="Connecting two MCP servers to an AI Agent">
 ```ts
 // excerpt from an AI Agent config
