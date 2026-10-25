@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import { integrationNotFoundError } from './integration-visibility';
 import {
   type IntegrationRefCheckPath,
+  INTEGRATION_REF_INVALID_MESSAGE,
   assertNodeIntegrationRefsUsable,
   clearUnusableNodeIntegrationRefs,
   findUnusableIntegrationRefs,
@@ -18,7 +20,12 @@ function ref(
   integrationId: string | null,
   expression = false,
 ): NodeIntegrationRef {
-  return { field: 'config.integrationId', integrationId, expression };
+  return {
+    kind: 'integrationId',
+    field: 'config.integrationId',
+    integrationId,
+    expression,
+  };
 }
 
 function makeRunner(memberIds: string[] = [OWNER]) {
@@ -356,5 +363,13 @@ describe('clearUnusableNodeIntegrationRefs', () => {
     );
     expect(configs).toEqual([{ integrationId: PERSONAL }]);
     expect(cleared).toEqual([]);
+  });
+});
+
+describe('INTEGRATION_REF_INVALID_MESSAGE', () => {
+  it('저장 검사 400 의 문구는 없는 통합 404 본문의 문구와 같다(존재 여부를 가르는 신호가 되지 않는다)', () => {
+    expect(INTEGRATION_REF_INVALID_MESSAGE).toBe(
+      (integrationNotFoundError().getResponse() as { message: string }).message,
+    );
   });
 });

@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { ALL_NODE_COMPONENTS } from '../../nodes/index';
 import {
+  INTEGRATION_ID_FIELD,
   INTEGRATION_ID_REF_NODE_TYPES,
   MCP_SERVER_REF_NODE_TYPES,
   changedNodeIntegrationRefs,
   clearNodeIntegrationRefs,
   extractNodeIntegrationRefs,
+  mcpServerRefField,
 } from './node-integration-refs';
 
 const A = '11111111-1111-4111-8111-111111111111';
@@ -17,7 +19,12 @@ describe('extractNodeIntegrationRefs — 통합 참조의 자리', () => {
     [...INTEGRATION_ID_REF_NODE_TYPES].filter((t) => t !== 'http_request'),
   )('%s 는 config.integrationId 를 본다', (type) => {
     expect(extractNodeIntegrationRefs(type, { integrationId: A })).toEqual([
-      { field: 'config.integrationId', integrationId: A, expression: false },
+      {
+        kind: 'integrationId',
+        field: 'config.integrationId',
+        integrationId: A,
+        expression: false,
+      },
     ]);
   });
 
@@ -51,11 +58,13 @@ describe('extractNodeIntegrationRefs — 통합 참조의 자리', () => {
       }),
     ).toEqual([
       {
+        kind: 'mcpServer',
         field: 'config.mcpServers[0].integrationId',
         integrationId: A,
         expression: false,
       },
       {
+        kind: 'mcpServer',
         field: 'config.mcpServers[2].integrationId',
         integrationId: '{{ $var.server }}',
         expression: true,
@@ -85,6 +94,7 @@ describe('extractNodeIntegrationRefs — 통합 참조의 자리', () => {
     expect(extractNodeIntegrationRefs('cafe24', { integrationId: 42 })).toEqual(
       [
         {
+          kind: 'integrationId',
           field: 'config.integrationId',
           integrationId: null,
           expression: false,
@@ -116,7 +126,12 @@ describe('changedNodeIntegrationRefs — 새로 넣거나 바꾼 참조만', () 
     expect(
       changedNodeIntegrationRefs('send_email', { integrationId: B }, stored),
     ).toEqual([
-      { field: 'config.integrationId', integrationId: B, expression: false },
+      {
+        kind: 'integrationId',
+        field: 'config.integrationId',
+        integrationId: B,
+        expression: false,
+      },
     ]);
   });
 
@@ -160,11 +175,41 @@ describe('changedNodeIntegrationRefs — 새로 넣거나 바꾼 참조만', () 
       ),
     ).toEqual([
       {
+        kind: 'mcpServer',
         field: 'config.mcpServers[1].integrationId',
         integrationId: C,
         expression: false,
       },
     ]);
+  });
+});
+
+describe('참조 자리의 경로 — 응답 field 의 형식', () => {
+  it('상수와 함수가 와이어 형식을 만든다', () => {
+    expect(INTEGRATION_ID_FIELD).toBe('config.integrationId');
+    expect(mcpServerRefField(0)).toBe('config.mcpServers[0].integrationId');
+    expect(mcpServerRefField(12)).toBe('config.mcpServers[12].integrationId');
+  });
+
+  it('꺼낸 참조의 field 는 비우기가 알아보는 경로와 같다', () => {
+    const config = {
+      mcpServers: [{ integrationId: A }, { integrationId: B }],
+    };
+    const [first, second] = extractNodeIntegrationRefs('ai_agent', config);
+    expect(first.field).toBe(mcpServerRefField(0));
+    expect(clearNodeIntegrationRefs(config, new Set([second.field]))).toEqual({
+      mcpServers: [{ integrationId: A }],
+    });
+    const [direct] = extractNodeIntegrationRefs('send_email', {
+      integrationId: A,
+    });
+    expect(direct.field).toBe(INTEGRATION_ID_FIELD);
+    expect(
+      clearNodeIntegrationRefs(
+        { integrationId: A, subject: 's' },
+        new Set([direct.field]),
+      ),
+    ).toEqual({ subject: 's' });
   });
 });
 

@@ -7,6 +7,8 @@
  * `node-integration-refs.spec.ts` 가 노드 스키마 전체를 돌며 확인한다.
  */
 
+const MCP_SERVERS_FIELD = 'mcpServers';
+
 /** `config.integrationId` 로 통합을 참조하는 노드. */
 export const INTEGRATION_ID_REF_NODE_TYPES: ReadonlySet<string> = new Set([
   'send_email',
@@ -21,9 +23,24 @@ export const MCP_SERVER_REF_NODE_TYPES: ReadonlySet<string> = new Set([
   'ai_agent',
 ]);
 
+/**
+ * 참조 자리의 노드 안 경로. 응답의 `field`(`ClearedIntegrationRef.field`)와 {@link clearNodeIntegrationRefs} 의 `fields` 가 이
+ * 형식을 쓰므로 경로 문자열은 여기서만 만든다.
+ */
+export const INTEGRATION_ID_FIELD = 'config.integrationId';
+
+/** `config.mcpServers[index].integrationId` 의 경로. `index` 는 비우기 전 순서다. */
+export function mcpServerRefField(index: number): string {
+  return `config.${MCP_SERVERS_FIELD}[${index}].integrationId`;
+}
+
+/** 참조가 선 자리 — `config.integrationId` 는 `integrationId`, `config.mcpServers[]` 의 항목은 `mcpServer`. */
+export type NodeIntegrationRefKind = 'integrationId' | 'mcpServer';
+
 /** 노드 안의 통합 참조 하나. */
 export interface NodeIntegrationRef {
-  /** 노드 안의 경로. `config.integrationId` 또는 `config.mcpServers[j].integrationId`(`j` 는 비우기 전 순서). */
+  kind: NodeIntegrationRefKind;
+  /** 노드 안의 경로. {@link INTEGRATION_ID_FIELD} 또는 {@link mcpServerRefField}(`j` 는 비우기 전 순서). */
   field: string;
   /**
    * 참조한 통합 id. 값이 문자열이 아니면 `null` 이다. 어느 통합도 가리키지 못하므로 부르는 쪽은 없는 통합과 같이 다룬다.
@@ -39,19 +56,26 @@ export interface StoredNodeConfig {
   config: unknown;
 }
 
-const MCP_SERVERS_FIELD = 'mcpServers';
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** 고르지 않은 자리(키 없음 · `null` · 빈 문자열)면 `undefined`, 아니면 참조 하나. */
-function refAt(field: string, value: unknown): NodeIntegrationRef | undefined {
+function refAt(
+  kind: NodeIntegrationRefKind,
+  field: string,
+  value: unknown,
+): NodeIntegrationRef | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value !== 'string') {
-    return { field, integrationId: null, expression: false };
+    return { kind, field, integrationId: null, expression: false };
   }
-  return { field, integrationId: value, expression: value.includes('{{') };
+  return {
+    kind,
+    field,
+    integrationId: value,
+    expression: value.includes('{{'),
+  };
 }
 
 /** 바뀐 참조를 가릴 때 쓰는 값. 문자열이 아닌 값도 서로 비교할 수 있게 JSON 으로 바꾼다. */
@@ -73,7 +97,11 @@ export function extractNodeIntegrationRefs(
   if (!isRecord(config)) return [];
   const refs: NodeIntegrationRef[] = [];
   if (usesIntegrationIdRef(type, config)) {
-    const ref = refAt('config.integrationId', config.integrationId);
+    const ref = refAt(
+      'integrationId',
+      INTEGRATION_ID_FIELD,
+      config.integrationId,
+    );
     if (ref) refs.push(ref);
   }
   if (MCP_SERVER_REF_NODE_TYPES.has(type)) {
@@ -83,7 +111,8 @@ export function extractNodeIntegrationRefs(
       servers.forEach((item, j) => {
         if (!isRecord(item)) return;
         const ref = refAt(
-          `config.mcpServers[${j}].integrationId`,
+          'mcpServer',
+          mcpServerRefField(j),
           item.integrationId,
         );
         if (ref) refs.push(ref);
@@ -109,20 +138,22 @@ export function changedNodeIntegrationRefs(
   if (!stored) return refs;
   const before = extractNodeIntegrationRefs(stored.type, stored.config);
   const beforeIntegrationId = before.find(
-    (ref) => ref.field === 'config.integrationId',
+    (ref) => ref.kind === 'integrationId',
   );
+  // 참조를 꺼냈다는 것은 둘 다 객체라는 뜻이다. 문자열이 아닌 값도 바뀐 값으로 가르려고 원본 값을 비교한다.
+  const currentConfig = isRecord(config) ? config : {};
   const storedConfig = isRecord(stored.config) ? stored.config : {};
   const beforeServerValues = new Set(
     before
-      .filter((ref) => ref.field !== 'config.integrationId')
+      .filter((ref) => ref.kind === 'mcpServer')
       .map((ref) => comparable(ref.integrationId)),
   );
   return refs.filter((ref) => {
-    if (ref.field === 'config.integrationId') {
+    if (ref.kind === 'integrationId') {
       return (
         beforeIntegrationId === undefined ||
         comparable(storedConfig.integrationId) !==
-          comparable((config as Record<string, unknown>).integrationId)
+          comparable(currentConfig.integrationId)
       );
     }
     return !beforeServerValues.has(comparable(ref.integrationId));
@@ -139,11 +170,11 @@ export function clearNodeIntegrationRefs(
 ): Record<string, unknown> {
   if (fields.size === 0) return config;
   const next: Record<string, unknown> = { ...config };
-  if (fields.has('config.integrationId')) delete next.integrationId;
+  if (fields.has(INTEGRATION_ID_FIELD)) delete next.integrationId;
   const servers = next[MCP_SERVERS_FIELD];
   if (Array.isArray(servers)) {
     next[MCP_SERVERS_FIELD] = servers.filter(
-      (_item, j) => !fields.has(`config.mcpServers[${j}].integrationId`),
+      (_item, j) => !fields.has(mcpServerRefField(j)),
     );
   }
   return next;
