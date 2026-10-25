@@ -7,7 +7,7 @@ import { Plus, X, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
-import { usePersonalIntegrationPickBlocked } from "@/lib/integrations/use-personal-integration-pick-blocked";
+import { useIntegrationPickBlocked } from "@/lib/integrations/use-integration-pick-blocked";
 import { Cafe24AllowlistEditor } from "@/components/integrations/cafe24-allowlist-editor";
 import { MakeshopAllowlistEditor } from "@/components/integrations/makeshop-allowlist-editor";
 
@@ -97,9 +97,7 @@ export function McpServerSelector({ value, onChange }: Props) {
   const attached = new Set(safe.map((r) => r.integrationId));
   const available = allMcp.filter((i) => !attached.has(i.id));
   // REQ-INTMGMT-056 — 워크플로우 작성자가 아니면 자기 개인 통합은 고를 수 없는 항목으로 보인다.
-  const personalBlocked = usePersonalIntegrationPickBlocked();
-  const isBlocked = (i: IntegrationDto) =>
-    personalBlocked && i.scope === "personal";
+  const isBlocked = useIntegrationPickBlocked();
 
   function add(integrationId: string) {
     onChange([

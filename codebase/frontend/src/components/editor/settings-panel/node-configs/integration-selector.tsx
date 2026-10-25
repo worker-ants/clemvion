@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { useT, type TFunction } from "@/lib/i18n";
-import { usePersonalIntegrationPickBlocked } from "@/lib/integrations/use-personal-integration-pick-blocked";
+import { useIntegrationPickBlocked } from "@/lib/integrations/use-integration-pick-blocked";
 
 interface IntegrationSelectorProps {
   value: string;
@@ -31,9 +31,7 @@ export function IntegrationSelector({
 
   const integrations: IntegrationDto[] = data?.data ?? [];
   // REQ-INTMGMT-056 — 워크플로우 작성자가 아니면 자기 개인 통합은 고를 수 없는 항목으로 보인다.
-  const personalBlocked = usePersonalIntegrationPickBlocked();
-  const isBlocked = (i: IntegrationDto) =>
-    personalBlocked && i.scope === "personal";
+  const isBlocked = useIntegrationPickBlocked();
   const hasBlocked = integrations.some(isBlocked);
   const hasSavedButMissing =
     !isLoading &&
