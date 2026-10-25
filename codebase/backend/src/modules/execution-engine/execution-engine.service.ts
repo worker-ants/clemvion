@@ -5567,9 +5567,7 @@ export class ExecutionEngineService
         resumeFields.mcpServers ??
         markMcpServerRefOrigins(
           rawNodeConfig.mcpServers,
-          Array.isArray(resolvedConfig.mcpServers)
-            ? resolvedConfig.mcpServers
-            : [],
+          resolvedConfig.mcpServers,
         ),
       // information_extractor config 필드 재유도 (node.config) + 고유 runtime
       // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —

@@ -28,16 +28,20 @@ function withFromExpression(item: unknown, fromExpression: boolean): unknown {
  * 포함) 평가한 목록과 길이가 다르면 모든 항목이 표현식이다. 길이가 같으면 같은 순서의 항목끼리 비교하고, 원본 항목이 객체가
  * 아니면 그 항목은 표현식이다. 리터럴인지는 {@link isLiteralReference} 가 본다.
  *
+ * `evaluatedServers` 가 배열이 아니면 서버가 없는 것으로 보고 빈 목록을 돌려준다. 세 호출 지점(첫 턴 도구 구성 · 상태 저장 ·
+ * 체크포인트 재구성)이 이 규칙을 같이 쓰도록 호출 쪽이 아니라 여기서 정한다.
+ *
  * `rawServers` 에는 평가 전 원본(첫 턴은 `context.rawConfig`, 재시도 재진입은 `node.config`)을 넘긴다. 평가가 끝난
  * `config` 로 폴백하면 표현식 참조가 리터럴로 보인다.
  */
 export function markMcpServerRefOrigins(
   rawServers: unknown,
-  evaluatedServers: readonly unknown[],
+  evaluatedServers: unknown,
 ): unknown[] {
+  if (!Array.isArray(evaluatedServers)) return [];
   const aligned =
     Array.isArray(rawServers) && rawServers.length === evaluatedServers.length;
-  return evaluatedServers.map((item, i) => {
+  return evaluatedServers.map((item: unknown, i) => {
     const rawItem: unknown = aligned ? rawServers[i] : undefined;
     const literal =
       isRecord(rawItem) &&

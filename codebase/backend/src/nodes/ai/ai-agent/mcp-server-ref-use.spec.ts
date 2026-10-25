@@ -30,6 +30,22 @@ describe('markMcpServerRefOrigins — 첫 턴 표현식 여부', () => {
     ]);
   });
 
+  it.each<[string, unknown]>([
+    ['undefined', undefined],
+    ['null', null],
+    ['표현식 문자열', '{{ $vars.servers }}'],
+    ['숫자', 3],
+    ['객체', { integrationId: A }],
+  ])(
+    '평가한 목록이 배열이 아니면(%s) 원본과 관계없이 빈 목록이다',
+    (_label, evaluated) => {
+      expect(
+        markMcpServerRefOrigins([{ integrationId: A }], evaluated),
+      ).toEqual([]);
+      expect(markMcpServerRefOrigins(undefined, evaluated)).toEqual([]);
+    },
+  );
+
   it('원본 항목이 객체가 아니면 그 항목만 표현식', () => {
     const out = markMcpServerRefOrigins(
       ['{{ $vars.server }}', { integrationId: B }],

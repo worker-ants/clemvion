@@ -1379,6 +1379,42 @@ describe('AiTurnExecutor', () => {
       ]);
     });
 
+    it.each<[string, unknown]>([
+      ['키 없음', undefined],
+      ['표현식을 평가하지 못한 문자열', '{{ $vars.servers }}'],
+    ])(
+      'single-turn: 평가한 서버 목록이 배열이 아니면(%s) 프로바이더는 빈 목록을 받는다',
+      async (_label, evaluated) => {
+        const { buildTools, provider } = capturingProvider();
+        const executor = buildExecutor({ toolProviders: [provider] });
+        await executor.executeSingleTurn(
+          undefined,
+          {
+            mode: 'single_turn',
+            systemPrompt: 'sys',
+            userPrompt: 'go',
+            ...(evaluated === undefined ? {} : { mcpServers: evaluated }),
+          },
+          ctxWithRaw([{ integrationId: A }]),
+        );
+        expect(buildTools.mock.calls[0][0].config.mcpServers).toEqual([]);
+      },
+    );
+
+    it('multi-turn 첫 턴: 평가한 서버 목록이 배열이 아니면 _resumeState.mcpServers 는 빈 목록이다', async () => {
+      const executor = buildExecutor();
+      const result = (await executor.executeMultiTurn(
+        undefined,
+        {
+          mode: 'multi_turn',
+          systemPrompt: 'sys',
+          mcpServers: '{{ $vars.servers }}',
+        },
+        ctxWithRaw([{ integrationId: A }]),
+      )) as { _resumeState: Record<string, unknown> };
+      expect(result._resumeState.mcpServers).toEqual([]);
+    });
+
     it('multi-turn 첫 턴: _resumeState.mcpServers 에 서버별 fromExpression 을 저장한다', async () => {
       const executor = buildExecutor();
       const result = (await executor.executeMultiTurn(

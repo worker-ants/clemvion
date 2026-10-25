@@ -1503,15 +1503,14 @@ export class AiTurnExecutor {
     } = args;
     try {
       // 서버 항목마다 표현식 여부를 싣는다. 원본은 `context.rawConfig` 에서만 읽는다(평가가 끝난 config 로 폴백하지 않는다).
-      const toolConfig = Array.isArray(config.mcpServers)
-        ? {
-            ...config,
-            mcpServers: markMcpServerRefOrigins(
-              context.rawConfig?.mcpServers,
-              config.mcpServers,
-            ),
-          }
-        : config;
+      // 평가한 목록이 배열이 아니면 빈 목록이 된다. 도구 프로바이더도 배열이 아닌 `mcpServers` 를 서버 없음으로 읽는다.
+      const toolConfig = {
+        ...config,
+        mcpServers: markMcpServerRefOrigins(
+          context.rawConfig?.mcpServers,
+          config.mcpServers,
+        ),
+      };
       const tools = await this.buildTools(
         toolConfig,
         workspaceId,
@@ -2079,7 +2078,7 @@ export class AiTurnExecutor {
       // 맞추지 않는다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」).
       mcpServers: markMcpServerRefOrigins(
         context.rawConfig?.mcpServers,
-        Array.isArray(config.mcpServers) ? config.mcpServers : [],
+        config.mcpServers,
       ),
       conditions,
       // Persist presentationTools so each resume turn rebuilds the same
