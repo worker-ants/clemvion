@@ -362,7 +362,7 @@ describe('개인 통합 사용 판정 (e2e)', () => {
   });
 
   /**
-   * 동시 저장 — 낡은 캔버스 저장이 그 사이 바뀐 참조를 되돌리지 못한다(NERV Task `CLE-T-1BQZ10` W15).
+   * 동시 저장 — 낡은 캔버스 저장이 그 사이 바뀐 참조를 되돌리지 못한다(NERV Task `CLE-T-1BQZ10`).
    *
    * Bob 의 캔버스는 personalA 를 담은 채 낡았다. 그 사이 Alice 가 참조를 personalA2 로 바꿔 커밋한다. Bob 의 저장이 Alice 의
    * 커밋 전에 기준선을 읽으면 personalA 는 «저장된 값 그대로» 라 검사를 건너뛰고, 쓰는 시점에는 personalA2 를 personalA 로
