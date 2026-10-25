@@ -13,6 +13,7 @@ import {
 import {
   CanvasSaveResultDto,
   ExportWorkflowDto,
+  RestoreVersionResultDto,
 } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import {
@@ -31,7 +32,7 @@ import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
  *     포함한 캔버스 전체를 새 UUID 로 재매핑해 복사 (data-flow §1.5). 버전 이력은 비승계
  *   - DELETE 후 GET 404
  *   - 동시 PATCH 가 마지막 쓰기로 수렴 (실패 없이)
- *   - 캔버스 저장(C) · 버전 복원(I) 응답이 `CanvasSaveResultDto` 선언과 맞는다 — 노드 생성 가지와 갱신 가지
+ *   - 캔버스 저장(C) 응답이 `CanvasSaveResultDto`, 버전 복원(I) 응답이 `RestoreVersionResultDto` 선언과 맞는다 — 노드 생성 가지와 갱신 가지
  *   - 버전 목록 · 상세(H · I) 응답이 선언과 맞고 `User` 비밀을 싣지 않는다 — `changeSummary` 가 있는 버전(H)과 null 인 버전(I)
  *
  * 권한·격리 invariants 는 workspace-rbac.e2e-spec.ts 가 담당. 본 spec 은 단일 owner
@@ -601,14 +602,14 @@ describe('Workflow CRUD (e2e)', () => {
   });
 
   /**
-   * 버전 복원 — 이 엔드포인트의 첫 e2e. 응답은 저장과 같은 `CanvasSaveResultDto` 다(`restoreVersion` 이 `saveCanvas` 를
-   * 재사용한다).
+   * 버전 복원 — 이 엔드포인트의 첫 e2e. 응답은 저장 결과 `CanvasSaveResultDto` 에 비운 통합 참조
+   * `clearedIntegrationRefs` 를 더한 `RestoreVersionResultDto` 다(`restoreVersion` 이 `saveCanvas` 를 재사용한다).
    *
    * C 와 **다른 가지**를 탄다. 복원은 스냅샷의 같은 노드 id 로 저장하므로 `syncNodes` 가 새로 만들지 않고 기존 행을
    * 고친다. 생성 가지는 `manager.create` 에 적은 필드로, 갱신 가지는 `find` 로 읽은 행으로 엔티티를 채운다 — 두 가지의
    * 와이어 키가 갈리면 C 만으로는 보이지 않는다.
    */
-  it('I. 버전 복원 → 응답이 저장과 같은 선언을 따른다 (기존 노드 갱신 경로)', async () => {
+  it('I. 버전 복원 → 응답이 복원 결과 선언을 따른다 (기존 노드 갱신 경로)', async () => {
     const created = await request(BASE_URL)
       .post('/api/workflows')
       .set('Authorization', `Bearer ${ownerToken}`)
@@ -657,9 +658,11 @@ describe('Workflow CRUD (e2e)', () => {
     expect(restored.body.data.nodes).toHaveLength(5);
     expect(idsOf(restored.body)).toEqual(idsOf(saved.body));
     expect(restored.body.data.edges).toHaveLength(2);
+    // 통합을 쓰는 노드가 없으니 비운 참조도 없다. 키는 늘 실린다(선언: required 배열).
+    expect(restored.body.data.clearedIntegrationRefs).toEqual([]);
     assertMatchesContract(
       restored.body.data,
-      await contractForDto(CanvasSaveResultDto),
+      await contractForDto(RestoreVersionResultDto),
     );
   });
 });
