@@ -20,10 +20,30 @@ vi.mock("next/navigation", () => ({
 // Workflows API mock — controlled per test via setListResponse / setCreateResult
 let listResponse: unknown = {};
 const createMock = vi.fn();
+const duplicateMock = vi.fn();
+const importMock = vi.fn();
 vi.mock("@/lib/api/workflows", () => ({
   workflowsApi: {
     list: vi.fn(() => Promise.resolve({ data: listResponse })),
     create: (...args: unknown[]) => createMock(...args),
+    duplicate: (...args: unknown[]) => duplicateMock(...args),
+    importWorkflow: (...args: unknown[]) => importMock(...args),
+  },
+}));
+
+// 토스트 호출을 확인한다(복제 · 가져오기가 비운 통합 참조 경고).
+const { toastSuccessMock, toastWarningMock, toastErrorMock } = vi.hoisted(
+  () => ({
+    toastSuccessMock: vi.fn(),
+    toastWarningMock: vi.fn(),
+    toastErrorMock: vi.fn(),
+  }),
+);
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    warning: toastWarningMock,
+    error: toastErrorMock,
   },
 }));
 
@@ -831,5 +851,113 @@ describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
     expect(
       (screen.getByTestId("workflow-tag-filter") as HTMLInputElement).value,
     ).toBe("");
+  });
+});
+
+describe("WorkflowsPage — 복제 · 가져오기가 비운 통합 참조 경고 (REQ-WFLIST-054 · 055)", () => {
+  const cleared = [
+    { nodeId: "n1", nodeLabel: "Mail", field: "config.integrationId" },
+    // 한 노드에서 MCP 서버 항목 여럿을 비워도 레이블은 한 번만 적는다.
+    { nodeId: "n2", nodeLabel: "Agent", field: "config.mcpServers[0].integrationId" },
+    { nodeId: "n2", nodeLabel: "Agent", field: "config.mcpServers[1].integrationId" },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "Team", type: "team", slug: "team-x", role: "editor" },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    setListResponse({
+      data: [{ id: "wf-0", name: "Source", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+  });
+
+  async function duplicateFirstRow() {
+    await renderPage();
+    await screen.findByText("Source");
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.click(await screen.findByText("Duplicate"));
+  }
+
+  async function importFile() {
+    await renderPage();
+    await screen.findByText("Source");
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([JSON.stringify({ name: "W", nodes: [], edges: [] })], "w.json", {
+      type: "application/json",
+    });
+    // jsdom 의 File 에는 text() 가 없을 수 있어 같은 내용을 돌려주게 둔다.
+    file.text = () => Promise.resolve(JSON.stringify({ name: "W", nodes: [], edges: [] }));
+    await userEvent.upload(input, file);
+  }
+
+  it("복제 응답에 비운 참조가 있으면 성공 토스트 뒤에 경고를 한 번 더한다(레이블은 중복 없이)", async () => {
+    duplicateMock.mockResolvedValue({
+      data: { data: { id: "wf-1", name: "Source (Copy)", clearedIntegrationRefs: cleared } },
+    });
+    await duplicateFirstRow();
+
+    await vi.waitFor(() => expect(toastWarningMock).toHaveBeenCalledTimes(1));
+    expect(duplicateMock).toHaveBeenCalledWith("wf-0");
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1);
+    const message = toastWarningMock.mock.calls[0][0] as string;
+    expect(message).toContain("Mail, Agent");
+    expect(message.match(/Agent/g)).toHaveLength(1);
+  });
+
+  it("복제 응답의 비운 참조가 비어 있거나 없으면 경고하지 않는다", async () => {
+    duplicateMock.mockResolvedValue({
+      data: { data: { id: "wf-1", name: "Source (Copy)", clearedIntegrationRefs: [] } },
+    });
+    await duplicateFirstRow();
+    await vi.waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(1));
+    expect(toastWarningMock).not.toHaveBeenCalled();
+
+    // 옛 서버처럼 키가 없는 응답도 같다.
+    cleanup();
+    vi.clearAllMocks();
+    duplicateMock.mockResolvedValue({ data: { data: { id: "wf-2", name: "Source (Copy)" } } });
+    await duplicateFirstRow();
+    await vi.waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(1));
+    expect(toastWarningMock).not.toHaveBeenCalled();
+  });
+
+  it("가져오기 응답에 비운 참조가 있으면 성공 토스트 뒤에 경고를 한 번 더한다", async () => {
+    importMock.mockResolvedValue({
+      data: { data: { id: "wf-3", name: "W", clearedIntegrationRefs: cleared } },
+    });
+    await importFile();
+
+    await vi.waitFor(() => expect(toastWarningMock).toHaveBeenCalledTimes(1));
+    expect(importMock).toHaveBeenCalledTimes(1);
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1);
+    expect(toastWarningMock.mock.calls[0][0]).toContain("Mail, Agent");
+  });
+
+  it("가져오기 응답의 비운 참조가 비어 있으면 경고하지 않는다", async () => {
+    importMock.mockResolvedValue({
+      data: { data: { id: "wf-3", name: "W", clearedIntegrationRefs: [] } },
+    });
+    await importFile();
+
+    await vi.waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(1));
+    expect(toastWarningMock).not.toHaveBeenCalled();
   });
 });
