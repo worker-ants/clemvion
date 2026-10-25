@@ -45,11 +45,7 @@ import {
   assertNodeIntegrationRefsUsable,
   clearUnusableNodeIntegrationRefs,
 } from '../integrations/node-integration-ref-check';
-import {
-  isPersonalIntegration,
-  judgePersonalIntegrationUse,
-} from '../integrations/personal-integration-use';
-import { loadWorkspaceMemberIds } from '../integrations/personal-integration-use-facts';
+import { filterExecutionUsableIntegrations } from '../integrations/personal-integration-use-facts';
 import { isUnreadableCredentials } from '../integrations/services/credentials-transformer';
 import { evaluateAiAgentToolPayloadWarnings } from '../../nodes/ai/ai-agent/tool-payload-save-warning';
 import { toolBudgetStrictSave } from '../../nodes/ai/ai-agent/tool-payload-budget';
@@ -1162,26 +1158,11 @@ export class WorkflowsService {
         where: { id: In([...ids]), workspaceId },
       })
     ).filter((row) => !isUnreadableCredentials(row.credentials));
-    const personalOwners = rows
-      .filter(isPersonalIntegration)
-      .map((row) => row.createdBy);
-    const memberIds =
-      personalOwners.length > 0
-        ? await loadWorkspaceMemberIds(repo, workspaceId, personalOwners)
-        : new Set<string>();
-    for (const row of rows) {
-      if (
-        isPersonalIntegration(row) &&
-        judgePersonalIntegrationUse({
-          path: 'execution',
-          integrationOwnerId: row.createdBy,
-          workflowAuthorId,
-          ownerIsMember: memberIds.has(row.createdBy),
-          fromExpression: false,
-        }) !== null
-      ) {
-        continue;
-      }
+    for (const row of await filterExecutionUsableIntegrations(
+      repo,
+      { workspaceId, workflowAuthorId },
+      rows,
+    )) {
       map.set(row.id, row);
     }
     return map;

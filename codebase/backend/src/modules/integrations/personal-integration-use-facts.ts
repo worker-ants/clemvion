@@ -1,9 +1,11 @@
 import type { EntityManager } from 'typeorm';
 import type { Logger } from '@nestjs/common';
 import { isUuidShaped } from '../../common/utils/uuid';
-import type {
-  PersonalIntegrationUsePath,
-  PersonalIntegrationUseRejection,
+import {
+  type PersonalIntegrationUsePath,
+  type PersonalIntegrationUseRejection,
+  isPersonalIntegration,
+  judgePersonalIntegrationUse,
 } from './personal-integration-use';
 
 /*
@@ -110,6 +112,38 @@ export async function loadWorkspaceMemberIds(
     [workspaceId, valid],
   );
   return new Set(rows.map((r) => r.user_id));
+}
+
+/**
+ * 실행 시점 판정을 통과하는 통합만 남긴다. 조직 통합은 판정 없이 남기고, 개인 통합은 `workflowAuthorId` 가 만든 워크플로우에서
+ * 쓸 수 있을 때만 남긴다. 예산 같은 경고 계산이 부르므로 참조는 리터럴로 보고(표현식 조건은 늘 통과) 거절 로그는 남기지 않는다.
+ * 소유자 멤버십은 개인 통합 소유자를 모아 한 쿼리로 읽는다.
+ */
+export async function filterExecutionUsableIntegrations<
+  T extends { scope: string; createdBy: string },
+>(
+  runner: SqlRunner,
+  args: { workspaceId: string; workflowAuthorId: string | null },
+  rows: readonly T[],
+): Promise<T[]> {
+  const personalOwners = rows
+    .filter(isPersonalIntegration)
+    .map((row) => row.createdBy);
+  const memberIds =
+    personalOwners.length > 0
+      ? await loadWorkspaceMemberIds(runner, args.workspaceId, personalOwners)
+      : new Set<string>();
+  return rows.filter(
+    (row) =>
+      !isPersonalIntegration(row) ||
+      judgePersonalIntegrationUse({
+        path: 'execution',
+        integrationOwnerId: row.createdBy,
+        workflowAuthorId: args.workflowAuthorId,
+        ownerIsMember: memberIds.has(row.createdBy),
+        fromExpression: false,
+      }) === null,
+  );
 }
 
 /**
