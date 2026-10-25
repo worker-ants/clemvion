@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "d37ad5b96089de2a4a2634746cdd316ddcd16961a49a70e1cd760bb0da2c0e49"
+content_hash: "8818070cc109a9f222eadc95385517e360947690e393e9b7ecbbabc3a3c38da8"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7dcc20075612c3d8d725194897c763fd2d826e12c9e637f82f09bbf64aa53d4d"
-etag: "sha256-843ea84c39adbabdfaab55e019441f47424835f02374886f94051fc81f35037e"
+mirror_sha256: "dc41ccbca533b0787fd09c4acb8d6e1af6e7ce6f67953e47eb6cd695a920a5d0"
+etag: "sha256-ce574960cfe1dd1668ce5f2da03f375e920d369e8211417d5543605d3e265799"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -91,6 +91,8 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 - REQ-AGENT-053 WHEN 메모리 전략이 `manual` 이 아니면 THE SYSTEM SHALL `meta.memory` 에 전략·요약 여부·회수 수·예산 사용량을 싣는다. (원본: ND-AG-30) (부분 구현)
 - REQ-AGENT-054 WHEN 턴 응답을 만드는 LLM `chat` 을 부르면(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출) THE SYSTEM SHALL 호출마다 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분) 앱 레벨 타임아웃을 건다.
 - REQ-AGENT-055 IF 조건이 검증 규칙(최대 20개, id·label·prompt 필수, prompt 2,000자 이하, 예약 포트 이름 금지)을 어기면 THE SYSTEM SHALL 설정을 거부한다.
+
+저장 때의 도구 정의 크기 추정치(REQ-AGENT-043 · REQ-AGENT-044)는 `mcpServers` 가운데 실행 시점과 같은 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과한 서버만 센다. 실행이 건너뛸 서버를 예산에 넣지 않으려는 것이다. 세는 범위 전체는 [도구 정의 크기 예산](#도구-정의-크기-예산) 의 저장 시점 경고에 있다.
 
 ## 설정
 
@@ -285,7 +287,7 @@ LLM 요청에 싣는 도구 정의(스키마) 전체의 직렬화 크기를 예�
 
 - 경고는 `GET /workflows/:id/graph-warnings`(`getGraphWarnings`)가 결과 배열에 덧붙인다. 새 응답 필드는 없고 `saveCanvas` 응답은 그래프 경고를 싣지 않는다.
 - 저장(`POST /workflows/:id/save`)은 기본이면 통과하고, strict 옵션이면 hard 초과를 `GRAPH_VALIDATION_FAILED`(400)로 막는다.
-- 연결된 cafe24·makeshop 정적 카탈로그와 표시 도구만 센다. 외부 MCP 와 연결되지 않은 통합은 실시간 연결 없이 재현할 수 없어 건너뛴다.
+- 연결된 cafe24·makeshop 정적 카탈로그와 표시 도구만 센다. 외부 MCP 와 연결되지 않은 통합은 실시간 연결 없이 재현할 수 없어 건너뛴다. 개인 통합은 실행 시점과 같은 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과한 것만 센다(`WorkflowsService.loadIntegrationsForBudget`).
 - 통합 허용 scope 를 비동기로 조회해야 해 공유 동기 규칙 패키지(`@workflow/graph-warning-rules`)로 표현할 수 없다. 그래서 백엔드(`WorkflowsService`)에서만 평가하고 프런트엔드 캔버스 가드는 이 규칙을 계산하지 않는다. 실질 안전망은 실행 시점 실패와 저장 가드다.
 
 ## 조건

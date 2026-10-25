@@ -2,21 +2,21 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "206dc06b01cc8ddffcc92cb2390e58b13026e90bbcbd46d88ab6497acaf78a96"
+content_hash: "0b7811603bd35a2f8acfb16707c7b2d617286534ed50914b5c9ac8562f8e4137"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "70a1cadad868f19ea4125d519006297611728ae5cfe55c64b08cc50833dfee5d"
-etag: "sha256-b8bb2a2fb658c388c284a180fcac877eae1d1de94708873bf5d38c7ce8d9e62a"
+mirror_sha256: "d01faa1845142494d4dc013ccb526dbc95226a9011d3c7843e5852c8849bb9fa"
+etag: "sha256-33935ab4a1b11e05d8b2b974b5907401d9b2afb0715211299df0ce47ed652195"
 ---
-> 구현 상태: 부분 구현 (노드 `config` 의 통합 참조 검사와 비우기는 미구현) · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -194,7 +194,7 @@ erDiagram
 
 ## 생성과 저장 흐름
 
-에디터의 주 편집 경로는 캔버스 전체를 한 번에 맞추는 저장(`POST /:id/save`)이다. 개별 노드·연결선 CRUD 엔드포인트(`POST /:id/nodes`, `POST /:id/edges` 등)도 있지만 에디터는 캔버스 상태 전체를 한 번에 맞춘다. 노드 생성·수정의 `containerId`·`toolOwnerId` 와 연결선 생성의 `sourceNodeId`·`targetNodeId` 도 같은 워크플로우의 노드만 받는다. 아니면 400 `VALIDATION_ERROR` 다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 노드 생성·수정의 `config` 통합 참조도 캔버스 저장과 같은 검사를 받는다. 이 두 경로도 한 트랜잭션에서 먼저 워크플로우 행을 `SELECT … FOR UPDATE` 로 잠근 뒤 저장된 노드를 읽고 검사한다(아래 3단계와 같은 행 잠금, 미구현). 지금 `NodesService` 의 생성·수정은 트랜잭션도 잠금도 없다. 노드 생성은 참조가 모두 새 참조다. 서버 쪽 저장은 사용자의 수동 저장과 실행 직전 저장 두 경로로만 일어난다([워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md)).
+에디터의 주 편집 경로는 캔버스 전체를 한 번에 맞추는 저장(`POST /:id/save`)이다. 개별 노드·연결선 CRUD 엔드포인트(`POST /:id/nodes`, `POST /:id/edges` 등)도 있지만 에디터는 캔버스 상태 전체를 한 번에 맞춘다. 노드 생성·수정의 `containerId`·`toolOwnerId` 와 연결선 생성의 `sourceNodeId`·`targetNodeId` 도 같은 워크플로우의 노드만 받는다. 아니면 400 `VALIDATION_ERROR` 다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 노드 생성·수정의 `config` 통합 참조도 캔버스 저장과 같은 검사를 받는다. 이 두 경로도 한 트랜잭션에서 먼저 워크플로우 행을 `SELECT … FOR NO KEY UPDATE` 로 잠근 뒤 저장된 노드를 읽고 검사한다(아래 3단계와 같은 행 잠금). 노드 생성은 참조가 모두 새 참조다. 노드 수정은 `config` 를 보낸 요청만 검사한다. 서버 쪽 저장은 사용자의 수동 저장과 실행 직전 저장 두 경로로만 일어난다([워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md)).
 
 ```mermaid
 sequenceDiagram
@@ -209,8 +209,9 @@ sequenceDiagram
   Wf-->>C: 201 { workflow }
   C->>Wf: POST /api/workflows/:id/save {nodes[], edges[], changeSummary?}
   Note over Wf: DTO 사전 검사(수동 트리거 노드 정확히 1개, 파라미터 스키마, 레이블 중복)
-  Wf->>PG: 트랜잭션 시작, UPDATE workflow SET current_version = current_version + 1
-  Note over Wf,PG: 이 UPDATE 가 워크플로우 행을 잠근 뒤 저장된 노드를 읽어 통합 참조를 검사(검사는 미구현)
+  Wf->>PG: 트랜잭션 시작, SELECT workflow FOR NO KEY UPDATE (행 잠금)
+  Wf->>PG: UPDATE workflow SET current_version = 잠근 값 + 1
+  Note over Wf,PG: 잠근 뒤 저장된 노드를 읽어 바뀐 통합 참조를 검사
   Wf->>PG: 노드 전체 동기화(제출하지 않은 기존 노드 삭제, upsert)
   Wf->>PG: 연결선 전부 교체(기존 삭제 뒤 다시 넣기)
   Note over Wf: 그래프 경고 규칙 평가, error 면 GRAPH_VALIDATION_FAILED 로 되돌림
@@ -225,16 +226,16 @@ sequenceDiagram
    - 수동 트리거 노드가 정확히 하나여야 한다. 없거나 둘 이상이면 400 이다.
    - 수동 트리거 노드 파라미터 스키마를 어기면 400 `INVALID_TRIGGER_PARAMETERS` 다. 버전 복원 경로는 `skipLegacyDataGates` 로 이 검사를 건너뛴다.
    - 노드 레이블이 겹치면 거부한다(`DUPLICATE_NODE_LABEL`).
-   - `containerId`·`toolOwnerId`·연결선 끝점이 이번 페이로드에 없는 노드를 가리키면 400 `VALIDATION_ERROR` 다(`details[].field` 예: `nodes[2].containerId`). 버전 복원 경로도 이 검사는 건너뛰지 않는다.
-3. 트랜잭션 안에서 `current_version` 을 1 올리고, 통합 참조를 검사하고, 노드 전체를 동기화하고, 연결선을 전부 교체한다. 노드를 동기화할 때 이 워크플로우에 없는 노드 id 는 새 노드로 본다. 그 id 를 다른 행이 이미 쓰면 400 `VALIDATION_ERROR`(`details[].field` 예: `nodes[1].id`)로 거부하고 그 행을 덮어쓰지 않는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)).
-   - 워크플로우 행 잠금은 트랜잭션의 첫 문장이다. `UPDATE workflow SET current_version = current_version + 1 WHERE id = $1` 처럼 DB 가 값을 올리는 UPDATE 이거나 `SELECT … FOR UPDATE` 다(미구현). 지금 `saveCanvas` 는 트랜잭션 밖에서 읽은 워크플로우에 1 을 더해 엔티티를 저장한다. 그 사이에 다른 저장이 같은 값을 먼저 커밋하면 바뀐 컬럼이 없어 UPDATE 가 나가지 않고 행 잠금도 잡히지 않는다.
-   - 통합 참조 검사는 이 잠금 뒤에 한다. 잠근 뒤 저장된 노드를 읽고 같은 id 의 노드와 비교해 새로 넣거나 바꾼 참조만 가린다. 그 참조가 워크스페이스에 없는 통합이거나 저장자 또는 워크플로우 작성자가 통합 소유자가 아닌 개인 통합이면 400 `VALIDATION_ERROR`(`details[].field` 예: `nodes[3].config.integrationId`)로 트랜잭션을 되돌린다. 참조 값이 표현식이면 판정하지 않는다.
-   - 잠금을 쥔 동안의 읽기는 좁게 한다. 바뀐 참조가 없으면 통합을 조회하지 않는다. 바뀐 참조의 통합은 한 번에 읽고(`WHERE id = ANY($1) AND workspace_id = $2`) 읽는 컬럼은 `id`·`workspace_id`·`scope`·`created_by` 다. 자격 증명 컬럼은 읽지 않는다. 잠금을 쥔 동안 외부 호출을 하지 않는다.
-   - 버전 복원 경로도 같은 자리에서 검사하고 거절하지 않는다. 실행 시점 판정을 통과하지 못하는 참조만 비운다(REQ-WFVER-026). 판정은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정), 참조 자리와 비우는 방법은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 이 정한다.
+   - `containerId`·`toolOwnerId`·연결선 끝점이 이번 페이로드에 없는 노드를 가리키면 400 `VALIDATION_ERROR` 다. `details[]` 마다 `field`(예: `nodes[2].containerId`)와 `code`(`INVALID_FIELD`)를 싣는다. 버전 복원 경로도 이 검사는 건너뛰지 않는다.
+3. 트랜잭션 안에서 워크플로우 행을 잠그고 `current_version` 을 1 올린다. 이어서 통합 참조를 검사하고, 노드 전체를 동기화하고, 연결선을 전부 교체한다. 노드를 동기화할 때 이 워크플로우에 없는 노드 id 는 새 노드로 본다. 그 id 를 다른 행이 이미 쓰면 400 `VALIDATION_ERROR`(`details[].field` 예: `nodes[1].id`)로 거부하고 그 행을 덮어쓰지 않는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 이 단계가 거부하는 400 `VALIDATION_ERROR` 는 `details[]` 마다 `field` 와 `code='INVALID_FIELD'` 를 싣는다.
+   - 워크플로우 행 잠금은 트랜잭션의 첫 문장이다. 이 워크스페이스의 워크플로우 행을 `SELECT … FOR NO KEY UPDATE` 로 잠그고(`lockWorkflowInWorkspace`) 잠근 행의 값에 1 을 더해 `current_version` 을 쓴다. 값을 잠근 뒤에 읽으므로 이 UPDATE 는 늘 나간다. 잠근 행이 없으면(그 사이 지워졌거나 다른 워크스페이스) 404 `RESOURCE_NOT_FOUND` 다.
+   - 통합 참조 검사는 이 잠금 뒤에 한다. 잠근 뒤 저장된 노드를 읽고 같은 id 의 노드와 비교해 새로 넣거나 바꾼 참조만 가린다. 그 참조가 워크스페이스에 없는 통합이거나 저장자 또는 워크플로우 작성자가 통합 소유자가 아닌 개인 통합이면 400 `VALIDATION_ERROR`(`details[].field` 예: `nodes[3].config.integrationId`)로 트랜잭션을 되돌린다. 참조 값이 표현식이면 판정하지 않는다. 고르지 않은 자리가 아닌데 문자열도 아닌 값은 없는 통합과 같이 거절한다. 어떤 값이 참조인지는 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다.
+   - 잠금을 쥔 동안의 읽기는 좁게 한다. 바뀐 참조가 없으면 통합을 조회하지 않는다. 바뀐 참조의 통합은 한 번에 읽고(`WHERE id = ANY($1) AND workspace_id = $2`) 읽는 컬럼은 `id`·`scope`·`created_by` 다. UUID 모양이 아닌 값은 조회하지 않고 없는 통합으로 본다. 버전 복원은 읽은 통합 가운데 개인 통합이 있으면 그 소유자가 지금 워크스페이스 멤버인지 보려고 `workspace_member` 를 한 번 더 읽는다(`loadWorkspaceMemberIds`). 자격 증명 컬럼은 읽지 않는다. 잠금을 쥔 동안 외부 호출을 하지 않는다.
+   - 버전 복원은 캔버스 저장과 같은 쓰기 경로(`writeCanvas`)를 쓰므로 같은 자리에서 검사한다. 복원은 거절하지 않고 실행 시점 판정을 통과하지 못하는 참조만 비운다(REQ-WFVER-026). 판정은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정), 참조 자리와 비우는 방법은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 이 정한다.
 4. 노드 사이 그래프 경고 규칙을 평가한다. 심각도 `error` 가 있으면 `GRAPH_VALIDATION_FAILED` 를 던져 트랜잭션을 되돌린다(저장 차단). 규칙은 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다.
 5. `createVersion` 이 최신 버전 번호를 `pessimistic_write` 잠금으로 읽고(`ORDER BY version DESC`) 다음 번호로 `workflow_version` 을 넣는다. 같은 워크플로우의 동시 저장은 3단계의 행 잠금에서 이미 줄을 서고 이 잠금은 버전 번호가 겹치지 않게 한다([Rationale](#통합-참조-검사는-워크플로우-행을-잠근-뒤에-한다-2026-10-25)). 스냅샷은 이름·설명·노드·연결선의 JSONB 이고 `workflow.settings` 는 담지 않는다. 원문은 이 단계를 "같은 트랜잭션 안" 이라고 적는다. 버전 기록 원문과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
-버전 행을 만드는 전용 API(`POST /api/workflows/:id/versions`)는 없다. 버전 조회 API 와 복원 흐름(`POST /:id/versions/:versionId/restore` 가 스냅샷을 검사한 뒤 캔버스 저장 경로를 다시 써서 `Restored from vN` 새 버전을 만듦)은 [버전 기록](CLE-WF-VERSION.md) 이 정한다.
+버전 행을 만드는 전용 API(`POST /api/workflows/:id/versions`)는 없다. 버전 조회 API 와 복원 흐름(`POST /:id/versions/:versionId/restore` 가 스냅샷을 검사한 뒤 캔버스 저장과 같은 쓰기 경로로 `Restored from vN` 새 버전을 만듦)은 [버전 기록](CLE-WF-VERSION.md) 이 정한다.
 
 저장과 별개로 `GET /api/workflows/:id/graph-warnings` 는 같은 그래프 경고 규칙 평가를 저장 없이 돌려준다. 프론트엔드는 이 API 대신 500ms debounce 로 로컬 평가를 한다([그래프 경고 규칙](CLE-WF-WARN.md)).
 
@@ -259,9 +260,9 @@ AI 어시스턴트의 편집 도구 호출은 **DB 를 직접 건드리지 않�
 
 | 엔드포인트 | 데이터 흐름 |
 | --- | --- |
-| `POST /api/workflows/:id/duplicate` | 메타와 **노드·연결선 전체**를 한 트랜잭션으로 복제한다. 이름 끝에 `" (Copy)"` 를 붙이고 `is_active=false` 로 두며 description·tags·folder_id·settings 는 물려받는다. 노드는 새 UUID 로 다시 발급하고 노드 사이 참조(`container_id`, `tool_owner_id`, 연결선 양 끝)도 새 UUID 로 바꾼다. AI 노드의 `llmConfigId` 는 같은 워크스페이스 안 복사라 원래 값을 그대로 둔다(가져오기와 달리 기본 모델 설정을 채우지 않는다). 노드 `config` 의 통합 참조 가운데 요청 사용자가 쓸 수 없는 것(없는 통합, 요청 사용자가 통합 소유자가 아닌 개인 통합)은 비우고 응답 `data.clearedIntegrationRefs` 로 알린다. 복제는 실패하지 않는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). **복제하지 않는 것**: 버전 기록(`workflow_version`, 사본은 `current_version=1` 로 새로 시작), 트리거(`trigger`, 웹훅·스케줄), 테스트 데이터셋(`workflow_test_dataset`), 실행 내역. 내보내기·가져오기와 같은 경계다. |
+| `POST /api/workflows/:id/duplicate` | 메타와 **노드·연결선 전체**를 한 트랜잭션으로 복제한다. 이름 끝에 `" (Copy)"` 를 붙이고 `is_active=false` 로 두며 description·tags·folder_id·settings 는 물려받는다. 노드는 새 UUID 로 다시 발급하고 노드 사이 참조(`container_id`, `tool_owner_id`, 연결선 양 끝)도 새 UUID 로 바꾼다. AI 노드의 `llmConfigId` 는 같은 워크스페이스 안 복사라 원래 값을 그대로 둔다(가져오기와 달리 기본 모델 설정을 채우지 않는다). 노드 `config` 의 통합 참조 가운데 요청 사용자가 쓸 수 없는 것은 비우고 응답 `data.clearedIntegrationRefs` 로 알린다. 비우는 것은 없는 통합, 고르지 않은 자리가 아닌데 문자열도 아닌 값, 요청 사용자가 통합 소유자가 아닌 개인 통합이다. 규칙은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다. 복제는 실패하지 않는다. **복제하지 않는 것**: 버전 기록(`workflow_version`, 사본은 `current_version=1` 로 새로 시작), 트리거(`trigger`, 웹훅·스케줄), 테스트 데이터셋(`workflow_test_dataset`), 실행 내역. 내보내기·가져오기와 같은 경계다. |
 | `GET /api/workflows/:id/export` | 워크플로우 메타(name, description, tags, settings)와 노드·연결선 전체를 JSON 으로 직렬화한다. 노드 사이 참조(`container_id`, `tool_owner_id`, 연결선 양 끝)는 UUID 대신 **nodes 배열 인덱스**로 바꿔 다른 환경으로 옮길 수 있게 한다. |
-| `POST /api/workflows/import` | 내보낸 JSON 을 받아 새 워크플로우·노드·연결선을 한 트랜잭션으로 만든다. 인덱스 참조를 새 UUID 로 바꾸고, AI 노드에 `llmConfigId` 가 없으면 워크스페이스 기본 모델 설정을 채운다. 페이로드 안에 노드 레이블이 겹치면 409(`DUPLICATE_NODE_LABEL`)다. 노드 `config` 의 통합 참조는 복제와 같은 규칙으로 비우고 응답 `data.clearedIntegrationRefs` 로 알린다. 없는 통합 ID 도 비운다. |
+| `POST /api/workflows/import` | 내보낸 JSON 을 받아 새 워크플로우·노드·연결선을 한 트랜잭션으로 만든다. 인덱스 참조를 새 UUID 로 바꾸고, AI 노드에 `llmConfigId` 가 없으면 워크스페이스 기본 모델 설정을 채운다. 페이로드 안에 노드 레이블이 겹치면 409(`DUPLICATE_NODE_LABEL`)다. 노드 `config` 의 통합 참조는 복제와 같은 규칙으로 비우고 응답 `data.clearedIntegrationRefs` 로 알린다. 다른 워크스페이스에서 내보낸 파일의 통합과 지워진 통합은 이 워크스페이스에 없는 통합이라 비운다. |
 
 파일 형식과 가져오기 검사 순서는 [워크플로우 목록과 폴더](CLE-WF-LIST.md) 가 정한다.
 
@@ -330,16 +331,22 @@ stateDiagram-v2
 
 ## 미결 사항
 
-- **저장과 버전 생성이 한 트랜잭션인가**: 이 문서의 원문(데이터 흐름)과 에디터 원문(저장과 버전의 관계)은 `createVersion` 을 캔버스 저장과 같은 트랜잭션 안에서 부른다고 적는다. [버전 기록](CLE-WF-VERSION.md) 의 원문은 캔버스 트랜잭션을 커밋한 직후 버전을 만들고, 버전 생성이 실패하면 캔버스는 저장된 채로 두고 다음 저장에서 따라잡는다고 적는다. 현재 구현(`workflows.service.ts` 의 `saveCanvas`)은 같은 트랜잭션에서 `createVersion` 을 불러 둘 다 커밋하거나 둘 다 되돌린다. 버전 생성 실패 때 저장 전체를 되돌릴지 결정이 필요하다.
+- **저장과 버전 생성이 한 트랜잭션인가**: 이 문서의 원문(데이터 흐름)과 에디터 원문(저장과 버전의 관계)은 `createVersion` 을 캔버스 저장과 같은 트랜잭션 안에서 부른다고 적는다. [버전 기록](CLE-WF-VERSION.md) 의 원문은 캔버스 트랜잭션을 커밋한 직후 버전을 만들고, 버전 생성이 실패하면 캔버스는 저장된 채로 두고 다음 저장에서 따라잡는다고 적는다. 현재 구현(`workflows.service.ts` 의 `writeCanvas`, 캔버스 저장과 버전 복원이 함께 쓴다)은 같은 트랜잭션에서 `createVersion` 을 불러 둘 다 커밋하거나 둘 다 되돌린다. 버전 생성 실패 때 저장 전체를 되돌릴지 결정이 필요하다.
 - **`current_version` 의 뜻**: 데이터 모델은 `current_version` 을 "현재 버전 번호" 라고 적는다. 그런데 워크플로우는 `current_version=1` 로 버전 행 없이 만들어지고, 저장할 때마다 `current_version` 과 `workflow_version.version`(최신+1)이 따로 오른다. 그래서 현재 구현에서 `current_version` 은 버전 기록의 최신 vN 보다 늘 1 크다(`workflows.service.ts`, `workflow-versions.service.ts`). [버전 기록](CLE-WF-VERSION.md) 은 `current_version` 을 언급하지 않는다. `current_version` 이 저장 횟수 + 1 인지 최신 버전 번호인지 정하고 여기에 적어야 한다.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/workflows/workflows.service.ts` (Workflow CRUD, `saveCanvas`, 복제·내보내기·가져오기)
-- `codebase/backend/src/modules/nodes/nodes.service.ts` (Node CRUD)
+- `codebase/backend/src/modules/workflows/workflows.service.ts` (Workflow CRUD, 캔버스 저장과 버전 복원이 함께 쓰는 `writeCanvas`, 복제·내보내기·가져오기)
+- `codebase/backend/src/modules/workflows/workflow-ownership.util.ts` (워크플로우 행 잠금 `lockWorkflowInWorkspace`)
+- `codebase/backend/src/modules/nodes/nodes.service.ts` (Node CRUD. 생성·수정의 행 잠금과 통합 참조 검사)
 - `codebase/backend/src/modules/edges/edges.service.ts` (Edge CRUD)
 - `codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts` (버전 스냅샷)
 - `codebase/backend/src/modules/folders/**` (Folder)
+- `codebase/backend/src/modules/integrations/node-integration-refs.ts` (노드 `config` 의 통합 참조 자리, 바뀐 참조 가리기, 참조 비우기)
+- `codebase/backend/src/modules/integrations/node-integration-ref-check.ts` (저장 검사의 거절과 복제·가져오기·복원의 비우기)
+- `codebase/backend/src/modules/integrations/personal-integration-use.ts`, `codebase/backend/src/modules/integrations/personal-integration-use-facts.ts` (개인 통합 사용 판정과 잠금 안의 통합 · 멤버십 조회)
+- `codebase/backend/src/repo-guards/__tests__/node-row-writers-guard.ts`, `codebase/backend/src/repo-guards/__tests__/node-row-writers.spec.ts` (노드 행을 쓰는 지점 허용 목록 가드)
+- `codebase/backend/test/integration-personal-use.e2e-spec.ts` (노드 생성·수정 · 캔버스 저장 · 동시 저장 · 복제 · 가져오기 · 버전 복원의 통합 참조 e2e)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문. 부르는 곳과 테스트는 [트리거 데이터와 흐름 「구현 위치」](../CLE-TRIG/CLE-TRIG-DATA.md#구현-위치) 에 있다)
 - `codebase/backend/migrations/V001__initial_schema.sql` (테이블·CHECK 제약)
 - `codebase/backend/migrations/V135__workflow_id_workspace_id_unique_index.sql`, `codebase/backend/migrations/V137__folder_id_workspace_id_unique_index.sql`, `codebase/backend/migrations/V140__node_id_workflow_id_unique_index.sql`, `codebase/backend/migrations/V141__composite_fk_scope_workflow_not_valid.sql`, `codebase/backend/migrations/V143__composite_fk_scope_folder_not_valid.sql`, `codebase/backend/migrations/V146__composite_fk_scope_node_not_valid.sql` (부모 UNIQUE 와 복합 FK)
@@ -384,11 +391,13 @@ NERV Task `CLE-T-MG0EQZ` 의 코드 리뷰가 짚었다. 처음 승인본은 통
 
 - 예: 워크플로우 작성자가 노드의 참조를 X 에서 Y 로 바꿔 저장하는 사이에 다른 사용자가 X 가 든 낡은 캔버스를 저장한다. 그 사용자의 검사는 낡은 기준선과 비교해 «바뀌지 않음» 으로 건너뛰고 3단계가 노드를 X 로 되돌려 쓴다. 저장자 조건(REQ-INTMGMT-054)을 거치지 않은 쓰기가 된다. 반대로 멀쩡한 참조가 새 참조로 보여 400 으로 거절될 수도 있다.
 - 저장 검사는 통합 참조의 저장 쪽 유일한 방어선이다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 그래서 기준선 읽기와 통합 조회를 쓰기와 같은 잠금 안에 둔다. 버전 복원도 지금 노드와 비교하므로 같은 자리로 옮겼다.
-- 개별 노드 생성·수정도 같은 워크플로우 행을 잠근다. 노드 행만 잠그면 캔버스 저장이 그 노드를 잠그기 전의 값으로 기준선을 읽어 위 예와 같은 경합이 남는다. 지금 `NodesService.update` 는 트랜잭션 없이 노드를 읽고 저장한다(2026-10-25 코드 확인).
-- 5단계 `createVersion` 의 `pessimistic_write` 잠금은 3단계 행 잠금(UPDATE 또는 `SELECT … FOR UPDATE`)이 워크플로우 행을 잠근 뒤에 잡힌다. 이 행 잠금은 트랜잭션이 끝날 때까지 남으므로 같은 워크플로우의 저장은 3단계에서 이미 줄을 선다. 그래서 검사 위치는 3단계 잠금을 기준으로 정했다.
-- 잠금은 조건 없이 잡혀야 한다. 2026-10-25 승인본은 «`current_version` UPDATE 가 행을 잠근다» 고만 적었다. 코드 리뷰(finding 01a170cc-5934-7643-b0be-d2c23fda58ac)에서 지금 `saveCanvas` 가 트랜잭션 밖에서 읽은 값으로 엔티티를 저장해 값이 이미 같으면 UPDATE 를 내지 않는다는 것을 확인했다(`workflows.service.ts`). 그래서 DB 가 값을 올리는 UPDATE 나 `SELECT … FOR UPDATE` 를 트랜잭션의 첫 문장으로 정했다. 노드 생성·수정(`nodes.service.ts` 의 `create`·`update`)도 트랜잭션과 잠금이 없어서 같은 행 잠금을 먼저 잡는다.
-- 잠금 안의 읽기를 좁게 정한 것은 같은 워크플로우의 저장이 그동안 기다리기 때문이다. 바뀐 참조가 없는 저장(대부분의 저장)은 통합을 읽지 않는다.
+- 개별 노드 생성·수정도 같은 워크플로우 행을 잠근다. 노드 행만 잠그면 캔버스 저장이 그 노드를 잠그기 전의 값으로 기준선을 읽어 위 예와 같은 경합이 남는다. 이 결정을 내릴 때 `NodesService.update` 는 트랜잭션 없이 노드를 읽고 저장했다(2026-10-25 코드 확인). 지금은 트랜잭션 안에서 워크플로우 행을 잠근 뒤 노드를 다시 읽는다(NERV Task `CLE-T-1BQZ10`).
+- 5단계 `createVersion` 의 `pessimistic_write` 잠금은 3단계 행 잠금(`SELECT … FOR NO KEY UPDATE`)이 워크플로우 행을 잠근 뒤에 잡힌다. 이 행 잠금은 트랜잭션이 끝날 때까지 남으므로 같은 워크플로우의 저장은 3단계에서 이미 줄을 선다. 그래서 검사 위치는 3단계 잠금을 기준으로 정했다.
+- 잠금은 조건 없이 잡혀야 한다. 2026-10-25 승인본은 «`current_version` UPDATE 가 행을 잠근다» 고만 적었다. 코드 리뷰(finding 01a170cc-5934-7643-b0be-d2c23fda58ac)에서 그때 `saveCanvas` 가 트랜잭션 밖에서 읽은 값으로 엔티티를 저장해 값이 이미 같으면 UPDATE 를 내지 않는다는 것을 확인했다(`workflows.service.ts`). 그래서 DB 가 값을 올리는 UPDATE 나 행을 잠그는 SELECT 를 트랜잭션의 첫 문장으로 정했다. 노드 생성·수정(`nodes.service.ts` 의 `create`·`update`)도 그때 트랜잭션과 잠금이 없어서 같은 행 잠금을 먼저 잡게 했다. 구현은 행을 잠그는 SELECT 를 골랐고 잠근 값에 1 을 더해 `current_version` 을 쓴다(`lockWorkflowInWorkspace`). SELECT 를 고른 것은 한 문장으로 워크스페이스 범위 확인(행이 없으면 404)과 잠근 행 읽기를 함께 얻기 때문이다. 잠근 행의 `created_by` 는 통합 참조 검사의 워크플로우 작성자로 쓴다.
+- 행 잠금은 `FOR UPDATE` 가 아닌 `FOR NO KEY UPDATE` 다(2026-10-25 구현, NERV Task `CLE-T-1BQZ10`). `FOR UPDATE` 는 이 워크플로우를 가리키는 자식 행 INSERT 의 FK 검사가 거는 `FOR KEY SHARE` 와 충돌해 저장이 끝날 때까지 실행 생성과 트리거 쓰기를 세운다. `FOR NO KEY UPDATE` 는 `FOR KEY SHARE` 를 막지 않고 같은 잠금끼리는 충돌하므로 같은 워크플로우의 저장끼리만 줄을 세운다. 워크플로우 삭제는 자식 행 INSERT 의 FK 검사와 일부러 충돌시켜 트리거를 빠짐없이 모으므로 `FOR UPDATE`(`pessimistic_write`)를 그대로 쓴다.
+- 잠금 안의 읽기를 좁게 정한 것은 같은 워크플로우의 저장이 그동안 기다리기 때문이다. 바뀐 참조가 없는 저장(대부분의 저장)은 통합을 읽지 않는다. 버전 복원은 읽은 통합 가운데 개인 통합이 있을 때만 멤버십을 한 번 더 읽는다(`loadWorkspaceMemberIds`).
 - 받아들인 잔여: 이 잠금은 같은 워크플로우를 쓰는 경로만 줄 세운다. 통합 삭제나 공개 범위 전환은 워크플로우 행을 잠그지 않으므로 검사를 통과한 직후 바뀔 수 있다. 그 경합은 실행 시점 판정이 받는다. 피해는 그 노드가 실행에서 없는 통합과 같이 실패하는 데서 그친다.
+- 구현 위치에 `codebase/backend/test/integration-personal-use.e2e-spec.ts` 를 적었다. 이 e2e 의 「동시 저장」 경우가 이 결정을 지킨다. 기준선 읽기가 워크플로우 행 잠금 뒤에 있어서 잠금을 기다린 저장은 그 사이 커밋된 참조를 기준선으로 본다. 그래서 동시 저장이 서로의 참조 검사를 우회하지 못한다. 복제 · 가져오기 · 버전 복원의 비우기도 같은 파일이 확인한다.
 
 ### 꺼진 워크플로우는 외부 이벤트로 실행하지 않는다 (2026-10-10)
 

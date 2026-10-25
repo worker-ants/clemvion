@@ -2,21 +2,21 @@
 id: "CLE-WF-ASSIST-TOOLS"
 title: "AI 어시스턴트 도구"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "dc978abbb877f071fe9bb7f9c7e700de41857b6f8136428b452f12b1fdcc5eb3"
+content_hash: "5219127d90b776d94884d47774d1cf12e4d58a0c8cf7a138e26e0ee8b4303558"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "84c44c34e3f25e74ab6d0e975c93e7b7142f4d33c399fe27064c4b461ff8f9b3"
-etag: "sha256-cefd177a5de8bc7a1246629e3af88f4de323203b42bab8d8b7001acaa8b696a7"
+mirror_sha256: "a6caef6d6ff08c06d4861a7687cf66811222c538c22a54f0ab5f8449a59757dd"
+etag: "sha256-49a7fc0275b6be0672b85b3081f9e7d07c6d75e4ce5b91d8ab155fdacd89d4a7"
 ---
-> 구현 상태: 부분 구현 (통합 후보의 워크플로우 작성자 조건은 미구현) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -291,6 +291,8 @@ interface CandidateEntry {
 | `kb-selector` | 지식 저장소(`KnowledgeBase`) | `workspace_id` 일치. 이름 오름차순. 여러 개를 고를 수 있다 |
 | `workflow-selector` | 워크플로우(`Workflow`) | 같은 `workspace_id` 이고 `id != session.workflow_id`(현재 편집 중인 워크플로우 제외). 최근 수정 순 |
 
+`list_integrations` 와 두 통합 위젯(`integration-selector` · `mcp-server-selector`)은 같은 함수(`requesterIsWorkflowAuthor`)로 요청자가 워크플로우 작성자인지 판정한다. 편집 중인 워크플로우를 찾지 못하거나 작성자를 알 수 없으면 요청자를 작성자가 아닌 것으로 보고 요청자의 개인 통합도 뺀다. [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)이 워크플로우 작성자를 알 수 없는 참조를 통과시키지 않는 것과 같은 방향이다.
+
 위젯마다 후보는 20개까지다. 넘는 후보는 응답에서 자르고 프론트엔드는 후보 선택기에 "Settings 에서 더 많은 후보 보기" 링크를 붙인다.
 
 ### LLM 과의 계약
@@ -428,9 +430,10 @@ LLM 이 자유 텍스트로 채운 값(라벨, `attemptedType`)을 힌트나 에
 
 - `codebase/backend/src/modules/workflow-assistant/tools/tool-definitions.ts` (도구 스키마, `TOOL_KIND_BY_NAME`)
 - `codebase/backend/src/modules/workflow-assistant/tools/shadow-workflow.ts` (Shadow 검증, 힌트, 포트 반환)
-- `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts` (탐색·실행 조회 도구)
+- `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts` (탐색·실행 조회 도구. `requesterIsWorkflowAuthor` 가 요청자가 워크플로우 작성자인지 판정하고 `list_integrations` 가 그 결과로 개인 통합을 뺀다)
 - `codebase/backend/src/modules/workflow-assistant/tools/assistant-tool-router.service.ts` (도구 이름 → kind 분류와 탐색 dispatch)
-- `codebase/backend/src/modules/workflow-assistant/tools/collect-pending-user-config.ts`, `detect-pending-user-config.ts`, `candidate-lookup.service.ts` (선택 필드 후보)
+- `codebase/backend/src/modules/workflow-assistant/tools/{collect-pending-user-config,detect-pending-user-config}.ts` (선택 필드 후보 수집)
+- `codebase/backend/src/modules/workflow-assistant/tools/candidate-lookup.service.ts` (위젯별 후보 조회. 통합 · MCP 서버 후보에도 같은 작성자 판정을 적용한다)
 - `codebase/backend/src/modules/workflow-assistant/tools/resolve-dynamic-ports.ts` (동적 포트 해석)
 - `codebase/backend/src/modules/workflow-assistant/tools/redact.ts` (조회 결과 마스킹)
 - `codebase/backend/src/nodes/core/button-slug.util.ts` (버튼 ID slug)
@@ -517,10 +520,10 @@ LLM 이 `update_node`·`remove_node`·`add_edge` 의 `id`·`source_id`·`target_
 
 ### 통합 후보는 워크플로우 작성자 조건도 본다 (2026-10-24)
 
-NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그 검사만 두면 워크플로우 작성자가 아닌 요청자에게 자기 개인 통합이 후보로 나오고 사용자가 골라도 저장이 400 이다. 그래서 `list_integrations` 와 `integration-selector`·`mcp-server-selector` 후보에서 뺀다. 조건은 저장 검사와 같다([통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건).
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그 검사만 두면 워크플로우 작성자가 아닌 요청자에게 자기 개인 통합이 후보로 나오고 사용자가 골라도 저장이 400 이다. 그래서 `list_integrations` 와 `integration-selector`·`mcp-server-selector` 후보에서 뺀다([AI 어시스턴트 요구사항](CLE-WF-ASSIST.md#요구사항)). 조건은 저장 검사와 같다([통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건). 이 거르기는 2026-10-24 에 정했고 2026-10-25 에 NERV Task `CLE-T-1BQZ10` 이 구현했다.
 
 - **고를 수 없게 보이지 않고 빼는 이유**: 노드 설정 패널의 선택기는 그 통합을 고를 수 없는 항목으로 보이고 이유를 붙인다. 어시스턴트는 LLM 과 후보 선택기가 고를 수 없는 항목을 다룰 방법이 없다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «고르는 화면은 저장 검사를 통과할 통합만 고르게 한다»).
-- **받아들인 잔여**: 워크플로우 작성자가 아닌 요청자에게 통합 후보가 0개면 [AI 어시스턴트](CLE-WF-ASSIST.md) 의 0개 안내(REQ-ASSIST-033)가 그대로 나온다. 그 사용자가 개인 통합을 새로 등록해도 이 워크플로우의 후보는 생기지 않고 조직 통합을 등록해야 생긴다. 품질 점검(`PENDING_USER_CONFIG_UNMENTIONED`)이 0개 항목을 마무리 메시지에 적게 하므로 이 안내가 그대로 나간다. 안내 문구는 바꾸지 않았다.
+- **받아들인 잔여**: 워크플로우 작성자가 아닌 요청자에게 통합 후보가 0개면 [AI 어시스턴트](CLE-WF-ASSIST.md) 의 0개 안내(REQ-ASSIST-033)가 그대로 나온다. 그 사용자가 개인 통합을 새로 등록해도 이 워크플로우의 후보는 생기지 않고 조직 통합을 등록해야 생긴다. 품질 점검(`PENDING_USER_CONFIG_UNMENTIONED`)이 0개 항목을 마무리 메시지에 적게 하므로 이 안내가 그대로 나간다. 안내 문구는 바꾸지 않았다. 편집 중인 워크플로우를 찾지 못하거나 작성자를 알 수 없을 때도 요청자의 개인 통합을 후보에서 뺀다. 후보에서 빼도 잃는 데이터가 없다. 노드에 이미 들어 있는 참조는 건드리지 않고 고를 목록만 줄어든다. 에디터의 붙여넣기 · 복제는 반대로 문맥을 모르면 참조를 비우지 않는다. 그쪽은 비우면 노드에 있던 참조를 잃을 수 있어서다([워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md#rationale) R-5).
 
 ### 유지보수 점검
 

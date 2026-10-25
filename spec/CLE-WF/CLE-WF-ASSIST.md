@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061", "REQ-ASSIST-062"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "b7f9298442a59da5c96048b511e8d7f342235fe95caee3048e679858d9e184bc"
+content_hash: "2c1c1f30daef741c52901fce1336b265ea4a8311e2d411c432d319ae4b5582f1"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "413cf502af985b4c2ebf80c48878fb871108e187cc4c609e40182bb18e2ad07d"
-etag: "sha256-981bb1629d34b5574bb1514e84b9670630226051177acd34240c6a24fc718799"
+mirror_sha256: "4411cd97aa647b9af9a794836f83c1f73a265348b3d38ad83075e852991a4abb"
+etag: "sha256-eb5ecc1ec6ab6f7a5804f1e30e01701e7ef703f2c1efd9aae1c4a5cd277a18e1"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현 · 부분 구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -107,7 +107,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-059 WHEN 어시스턴트 텍스트에 harmony 제어 토큰이 섞이면 THE SYSTEM SHALL 렌더 전에 걸러 내고 남는 내용이 없으면 버블을 숨긴다.
 - REQ-ASSIST-060 IF 턴이 `ASSISTANT_TOO_MANY_TOOL_CALLS` 로 끝나면 THE SYSTEM SHALL 에러 버블에 "이어서 진행" 버튼을 보인다.
 - REQ-ASSIST-061 IF 같은 워크플로우에 스트리밍이 진행 중일 때 새 메시지 요청이 오면 THE SYSTEM SHALL 409 로 거부한다. (미구현)
-- REQ-ASSIST-062 IF 요청자가 편집 중인 워크플로우의 작성자가 아니면 THE SYSTEM SHALL 통합 목록 도구와 통합·MCP 서버 후보에서 요청자 자신의 개인 통합도 뺀다. (미구현)
+- REQ-ASSIST-062 IF 요청자가 편집 중인 워크플로우의 작성자가 아니면 THE SYSTEM SHALL 통합 목록 도구와 통합·MCP 서버 후보에서 요청자 자신의 개인 통합도 뺀다.
 
 ## 대화 루프
 
@@ -565,6 +565,8 @@ flowchart TD
 - `codebase/backend/src/modules/workflow-assistant/tools/assistant-finish-guard.service.ts` (종료 가드)
 - `codebase/backend/src/modules/workflow-assistant/tools/review-workflow.ts` (품질 점검 항목)
 - `codebase/backend/src/modules/workflow-assistant/tools/active-plan-context.ts` (활성 계획 컨텍스트)
+- `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts` (통합 목록 도구, 작성자 판정 `requesterIsWorkflowAuthor`. REQ-ASSIST-062)
+- `codebase/backend/src/modules/workflow-assistant/tools/candidate-lookup.service.ts` (후보 선택기 후보 조회. REQ-ASSIST-062)
 - `codebase/backend/src/modules/workflow-assistant/prompts/system-prompt.ts` (시스템 프롬프트)
 - `codebase/frontend/src/components/editor/assistant-panel/*.ts`, `*.tsx` (패널, 메시지, 배지, 후보 선택기)
 - `codebase/frontend/src/lib/i18n/dict/ko/assistant.ts`, `codebase/frontend/src/lib/i18n/dict/en/assistant.ts` (에러 안내 문구 등 패널 문구)
@@ -708,7 +710,7 @@ NERV Task `CLE-T-MX8PSE` 가 위 결정을 구현하면서 에러 버블 문구�
 
 구현자가 기억할 계약은 다음과 같다.
 
-1. **서버**: `collectPendingUserConfig` 는 스키마를 훑어 빈 선택기 필드를 모으고 위젯별 저장소를 워크스페이스 범위로 조회해 `candidates` 를 채운다. 통합은 요청자에게 보이는 것만 담는다(다른 사용자의 개인 통합 제외, 2026-09-25 부터). 2026-10-24 부터는 요청자가 워크플로우 작성자가 아니면 요청자의 개인 통합도 뺀다(REQ-ASSIST-062). 골라도 노드 저장이 400 이기 때문이다([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md) Rationale).
+1. **서버**: `collectPendingUserConfig` 는 스키마를 훑어 빈 선택기 필드를 모으고 위젯별 저장소를 워크스페이스 범위로 조회해 `candidates` 를 채운다. 통합은 요청자에게 보이는 것만 담는다(다른 사용자의 개인 통합 제외, 2026-09-25 부터). 요청자가 워크플로우 작성자가 아니면 요청자의 개인 통합도 뺀다(REQ-ASSIST-062). 골라도 노드 저장이 400 이기 때문이다([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md) Rationale). 이 규칙은 2026-10-24 에 정했고 2026-10-25 에 NERV Task `CLE-T-1BQZ10` 이 구현했다.
 2. **프롬프트**: 전의 "You must NOT fill ... surface them in the closing message" 를 "Leave ids empty; server attaches candidates; mention only when candidates list is empty" 로 바꿔 `STATIC_BLOCK_3_EDIT_PLAYBOOK` 에 넣었다.
 3. **품질 점검**: `collectUnmentionedPendingUserConfig` 는 `candidates?.length === 0` 인 항목만 빠진 필드로 센다.
 4. **화면**: 확정 뒤 선택기는 "✓ 설정됨" 으로 고정한다. 되돌리기로 선택기 상태를 되돌리지 않는 것은 화면 복잡도에 비해 얻는 것이 적기 때문이다.

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "b7e8d9561ccd3fd6493ab1eaae1daa5e66d01101058499fb34ab764f4544fbda"
-read_as: "approved"
-task: null
+content_hash: "56dc343448fe5a3c0cecc383be7c8f4e7120e97e2b5d900e1c0683a800773607"
+read_as: "approved_fallback"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "8b1009c74c232c3f335683a10b877899ddb04dbfd3bdff85eaedcce144085ace"
-etag: "sha256-65797eec4993646430ce3a1793b59729783822b8f00f64d00054c7c9fcb35bc6"
+mirror_sha256: "0e806f1a334ddfdc9068e1bc0b1a92c242ddc7558502330ce0f15adb50573abb"
+etag: "sha256-02296805e976fb80553c5cccc002bf75c6b17a75f1558a04e2d3b1af720ef13a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,7 +175,7 @@ interface NodeHandlerRegistry {
    - 글자와 표현식이 섞이면 결과는 늘 문자열이다.
    - 숫자·불리언·null 은 그대로 둔다.
    - 한 번만 평가하고 결과를 다시 평가하지 않는다.
-3. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 실행한다.
+3. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 실행한다. 이 실행 컨텍스트 복사본을 만드는 단위는 [핸들러용 실행 컨텍스트는 노드 실행마다 하나다](#핸들러용-실행-컨텍스트는-노드-실행마다-하나다) 에 있다.
 
 `context.rawConfig` 는 평가 전 원본 설정의 참조다. 핸들러가 `NodeHandlerOutput.config` 에코에 쓴다. 핸들러는 평가된 값으로 동작하고 에코는 원본을 지켜 뒤 노드의 `$node["X"].config.*` 와 `$node["X"].output.*` 가 서로 겹치지 않게 한다.
 
@@ -207,7 +207,7 @@ interface NodeHandlerRegistry {
 2. `registry.get(nodeType)` 으로 핸들러를 찾는다.
 3. `handler.validate(rawConfig)` 가 실패하면 바로 실패한다(`INVALID_NODE_CONFIG`).
 4. `ExpressionResolver.resolveConfig(rawConfig)` 로 `resolvedConfig` 를 만든다.
-5. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 출력을 받는다.
+5. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 출력을 받는다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 이 단계를 되풀이한다.
 6. 출력이 JSON 으로 직렬화되는지 확인한다.
 7. 노드 실행 행에 입력·출력·상태를 기록한다.
 8. 그래프 순회에 따라 포인터를 옮긴다.
@@ -224,6 +224,10 @@ flowchart TD
   G --> H["포인터 이동"]
 ```
 
+### 핸들러용 실행 컨텍스트는 노드 실행마다 하나다
+
+`executeNode` 는 핸들러에 넘길 실행 컨텍스트 복사본을 노드 실행마다 한 번 만든다. 이 절 제목의 «핸들러용 실행 컨텍스트» 는 이 복사본을 말한다. 복사본은 `{ ...context, rawConfig }` 에 `nodeId` · `nodeExecutionId` 같은 노드 실행 값을 더한 객체다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 모든 시도에서 이 복사본으로 핸들러를 다시 부른다. 시도마다 새 복사본을 만들지 않는다. 그래서 핸들러가 이 복사본을 키로 둔 값은 같은 노드 실행의 재시도 사이에 남고 다른 노드 실행이나 병렬 분기의 값과는 섞이지 않는다. 이 성질에 기대는 장치는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 에 있다. 이 단위로 만드는 이유는 [Rationale](#실행-컨텍스트-복사본은-노드-실행-단위로-만든다-2026-10-25) 에 있다.
+
 ## 노드 재시도 기본값
 
 사용자는 노드 설정 패널의 에러 처리 정책에서 Retry 를 골라 재시도를 켤 수 있다. 기본 정책은 워크플로우 중단이고 재시도는 사용자가 Retry 를 고를 때만 적용한다. 재시도 설정의 기본값(`maxRetries` 3 등)은 노드 카테고리와 상관없이 같다. 값과 규칙은 [노드 에러 처리 정책 §3. 노드 재시도 설정](../CLE-NODE/CLE-NODE-ERROR.md#3-노드-재시도-설정) 과 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 이 정한다. 엔진 원문의 카테고리별 기본 재시도 표를 옮기지 않은 이유는 [Rationale](#rationale) 에 있다.
@@ -235,7 +239,7 @@ flowchart TD
 - `codebase/backend/src/nodes/core/node-type-metadata.ts`
 - `codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts`
 - `codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts`
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeNode`, `applyPortSelection`, Template 입력 펼치기)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeNode`, `executeWithRetry`, `applyPortSelection`, Template 입력 펼치기)
 - `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts`
 
 ## Rationale
@@ -263,3 +267,10 @@ flowchart TD
 ### 노드 카테고리별 기본 재시도 표를 옮기지 않는다
 
 엔진 원문 §5.7 에는 카테고리별 기본 재시도 표가 있었다. Integration 은 최대 3회, AI 는 최대 2회, Flow 는 최대 1회를 지수 백오프로 재시도하고 Logic·Data·Presentation 은 재시도하지 않으며 설정도 막는다는 내용이다. 노드 에러 처리 정책을 소유한 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 과 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 모든 노드의 기본 정책을 워크플로우 중단으로 두고 재시도는 사용자가 고를 때만 적용한다. 현재 구현(`error-policy.handler.ts`)에도 카테고리별 기본값은 없고 Retry 를 고를 때의 `maxRetries` 기본값 3 만 있다. 그래서 이 문서는 소유 문서를 따르고 카테고리 표는 옮기지 않았다.
+
+### 실행 컨텍스트 복사본은 노드 실행 단위로 만든다 (2026-10-25)
+
+노드 실행마다 만드는 실행 컨텍스트 복사본을 시도 단위나 실행 전체 단위로 만들지 않는 이유다.
+
+- 시도마다 새 복사본을 만들면 복사본을 키로 둔 값이 시도 사이에 이어지지 않는다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 `rejectedLookups` 가 그런 값이다.
+- 노드 실행을 넘어 복사본을 공유하면 병렬 분기의 노드 실행이 같은 복사본을 쓰게 되어 값이 섞인다.

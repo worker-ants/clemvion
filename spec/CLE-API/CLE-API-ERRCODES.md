@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "05fa6e8d6fcedade4b022477d2da255ba3fb8c0df0d87118f1c0a1f8ea02d2b6"
+content_hash: "87e66013ef679f0efc181024def0a9485a59ff4d35c1bb3647cc3cf340eecf15"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "c5cc591b6812535f689e685f721a4ccd7f75e830a1b244af1cb93f258756b60a"
-etag: "sha256-e1b706224cd2e86f8b8c042b195c05a84f345511b63ec2c43bca78e4fc9b301b"
+mirror_sha256: "af0620188df77ce495fc08382f926e83b6a5cf31855718c06d4bb225f8191c7b"
+etag: "sha256-4d698d58a3605ff4a3afc71112a8cb81890d5c4caf18e80618151c0495011eac"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -203,7 +203,7 @@ etag: "sha256-e1b706224cd2e86f8b8c042b195c05a84f345511b63ec2c43bca78e4fc9b301b"
 
 | 코드 | 설명 | HTTP | 정의 문서 |
 |------|------|------|-----------|
-| `VALIDATION_ERROR` | 요청 데이터 유효성 실패. 400 기본 코드. 발행 지점이 정해진 경우(`X-Workspace-Id` 형식 에러)는 아래 별도 행이다. 요청 본문의 참조 id 가 요청자의 워크스페이스나 같은 워크플로우 밖을 가리킬 때도 이 코드와 `details[].code='INVALID_FIELD'` 배열을 싣는다 | 400 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) |
+| `VALIDATION_ERROR` | 요청 데이터 유효성 실패. 400 기본 코드. 발행 지점이 정해진 경우(`X-Workspace-Id` 형식 에러)는 아래 별도 행이다. 요청 본문의 참조 id 가 요청자의 워크스페이스나 같은 워크플로우 밖을 가리킬 때도 이 코드와 `details[].code='INVALID_FIELD'` 배열을 싣는다. 노드 생성 · 수정과 캔버스 저장에서 노드 `config` 의 통합 참조 자리에 쓸 수 없는 값(문자열이 아닌 값, 없는 통합, 이 워크플로우에서 쓸 수 없는 개인 통합)이 와도 같은 코드와 배열로 거절한다(`node-integration-ref-check.ts`) | 400 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
 | `PAYLOAD_TOO_LARGE` (요청 본문) | 요청 본문이 body-parser 한도를 넘음. 전역 기본 100KB, `/api/hooks/*` 인증 웹훅 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 바꾼다. `message` 는 내부 원문(`"request entity too large"` 등)을 싣지 않고 고정 문구 `"Request payload too large."` 만 돌려준다. 공개 웹훅의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§6.10) | 413 | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 고정 문구가 아니라 multer 원문 `"File too large"` 다 | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
 | `FILE_REQUIRED` | 업로드 요청에 파일이 없거나 내용이 비어 있음(`file?.buffer?.length` 가 0). 확장자 불허(`INVALID_FILE_TYPE`)와 다른 코드다. 클라이언트가 취할 행동이 다르기 때문이다("파일을 고르세요" 와 "다른 형식으로 바꾸세요"). 메시지 문자열 파싱이 금지돼 있으므로 코드로 갈라야 분기할 수 있다. 현재 발행처는 아바타 업로드다 | 400 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
@@ -220,9 +220,10 @@ etag: "sha256-e1b706224cd2e86f8b8c042b195c05a84f345511b63ec2c43bca78e4fc9b301b"
 | `WORKSPACE_NOT_FOUND` (관리 경로) | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행이 없음(`workspaces.service.ts`). 사실상 동시 삭제 경합에서만 난다. `RESOURCE_NOT_FOUND` 의 워크스페이스 특화 코드다. 초대 모듈의 소문자 `workspace_not_found`(§3)와 별개 코드다 | 404 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
 | `WORKSPACE_NOT_FOUND` (토큰 검증) | 액세스 토큰은 유효한데 사용자가 쓸 워크스페이스가 하나도 없음(`jwt.strategy.ts`). 한 코드가 두 상태로 쓰이는 점은 [미결 사항](#미결-사항) 에 있다 | 401 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
 | `RESOURCE_CONFLICT` | 리소스 충돌(이름 중복 등). 409 기본 코드 | 409 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `DUPLICATE_NODE_LABEL` | 노드 라벨 중복. `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드(`nodes.service.ts` 와 캔버스 일괄 저장 경로의 `workflows.service.ts` 발행) | 409 | [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) |
+| `DUPLICATE_NODE_LABEL` | 노드 라벨 중복. `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드(`nodes.service.ts` 와 캔버스 일괄 저장 · 버전 복원 경로의 `workflows.service.ts` 발행). 버전 복원은 캔버스 저장과 같은 쓰기를 거친다 | 409 | [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md), [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
 | `RESERVED_VARIABLE_NAME` | 변수 선언·변수 수정 노드의 변수 이름이 시스템 예약 `__` prefix 로 시작함(`variables.__*` 는 엔진 시스템 네임스페이스). **이 행은 저장 시점(L0)만 다룬다.** `saveCanvas`·`importWorkflow` 가 `details.offenders[]` 와 함께 HTTP 400 을 낸다(`restoreVersion` 은 옛 데이터 탈출구라 면제). 저장을 우회한 리터럴은 엔진 사전 검증(L1)에서 `INVALID_NODE_CONFIG` 가 된다. 표현식이 예약 이름으로 평가되는 런타임(L2)은 HTTP 와 무관하다. 핸들러가 `RESERVED_VARIABLE_NAME:` 메시지 prefix 로 throw 해 노드 실패로 기록되지만 구조화 `error.code` 는 없다 | 400 (저장) / 없음 (런타임) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), [변수 선언 노드](../CLE-NODE-LOGIC/CLE-NODE-VARDECL.md), [변수 수정 노드](../CLE-NODE-LOGIC/CLE-NODE-VARSET.md) |
-| `WORKFLOW_VERSION_CONFLICT` | 캔버스 동시 저장 경합. 같은 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 돌려준다(`workflow-versions.service.ts` 발행) | 409 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
+| `WORKFLOW_VERSION_CONFLICT` | 캔버스 저장이나 버전 복원이 같은 워크플로우에 동시에 버전을 만드는 경합. 버전 복원도 캔버스 저장과 같은 쓰기를 거쳐 버전을 만든다. 같은 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 돌려준다(`workflow-versions.service.ts` 발행) | 409 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
+| `INVALID_VERSION_SNAPSHOT` | 버전 복원 때 버전 스냅샷 형식이 잘못됐다(`nodes` · `edges` 가 배열이 아니거나 `name` 이 있는데 문자열이 아니다). `workflows.service.ts` 의 `restoreVersion` 발행. 상태 코드는 등재 전부터 내던 400 을 그대로 적었다. 요청이 아니라 저장된 버전 스냅샷의 결함이라 [HTTP API 규약](CLE-API-CONV.md) 「6. HTTP 상태 코드」 의 422 · 500 과 결이 다르다. 상태 코드를 바꾸면 API 계약이 바뀌므로 등재와 함께 바꾸지 않았다 | 400 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
 | `INVALID_STATE` | 상태 전이 불가(이미 실행 중인 워크플로우 삭제 등). 422 기본 코드. 표면별 같은 뜻 코드는 §6 머리말 | 422 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 
 **`X-Workspace-Id` 세 갈래**: 같은 헤더 하나가 세 갈래로 갈린다.
