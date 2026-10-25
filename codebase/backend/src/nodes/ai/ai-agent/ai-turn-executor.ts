@@ -68,6 +68,7 @@ import type {
 import { LlmCallRecord } from '../../../shared/llm-tracing/llm-call-record';
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { isDryRun } from '../../core/dry-run.util';
+import { markMcpServerRefOrigins } from './mcp-server-ref-use';
 
 import type { AiAgentEndReason } from '@workflow/ai-end-reason';
 /**
@@ -1501,11 +1502,22 @@ export class AiTurnExecutor {
       preflightStartedAt,
     } = args;
     try {
+      // 서버 항목마다 표현식 여부를 싣는다. 원본은 `context.rawConfig` 에서만 읽는다(평가가 끝난 config 로 폴백하지 않는다).
+      const toolConfig = Array.isArray(config.mcpServers)
+        ? {
+            ...config,
+            mcpServers: markMcpServerRefOrigins(
+              context.rawConfig?.mcpServers,
+              config.mcpServers,
+            ),
+          }
+        : config;
       const tools = await this.buildTools(
-        config,
+        toolConfig,
         workspaceId,
         context.executionId,
         mcpDiagnosticsAcc,
+        context.nodeId ?? null,
       );
       return { tools };
     } catch (err) {
@@ -2063,7 +2075,12 @@ export class AiTurnExecutor {
       maxTurns,
       // Persist mcpServers across multi-turn resumes so each post-resume turn
       // re-materializes MCP sessions deterministically from the saved config.
-      mcpServers: (config.mcpServers as unknown[]) || [],
+      // 항목마다 첫 턴의 표현식 여부(`fromExpression`)를 함께 저장한다. 재개 · 재시도 턴은 이 값을 쓰고 원본과 다시
+      // 맞추지 않는다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」).
+      mcpServers: markMcpServerRefOrigins(
+        context.rawConfig?.mcpServers,
+        Array.isArray(config.mcpServers) ? config.mcpServers : [],
+      ),
       conditions,
       // Persist presentationTools so each resume turn rebuilds the same
       // `render_*` ToolDefs (spec §4.1 — RenderToolProvider reads
@@ -2725,6 +2742,7 @@ export class AiTurnExecutor {
       workspaceId,
       executionId,
       mcpDiagnosticsAcc,
+      resumeState.nodeId ?? null,
     );
 
     // ── Auto-memory 재주입 (매 turn, spec §6.2 d.5/d.6) ──
@@ -3606,8 +3624,9 @@ export class AiTurnExecutor {
   private async buildTools(
     config: Record<string, unknown>,
     workspaceId: string,
-    executionId?: string,
-    mcpDiagnostics?: McpDiagnosticsAccumulator,
+    executionId: string | undefined,
+    mcpDiagnostics: McpDiagnosticsAccumulator | undefined,
+    nodeId: string | null,
   ): Promise<ToolDef[]> {
     // 일반 도구(`tool_*`) 입력 경로는 스키마에서 제거됨 — 재작성 시 새 디자인으로 복원.
     // 스키마 .passthrough() 로 DB 의 legacy toolNodeIds/toolOverrides 는 silently
@@ -3623,6 +3642,7 @@ export class AiTurnExecutor {
           config,
           workspaceId,
           executionId,
+          nodeId,
           // provider 는 serverSummaries / errors 두 sub-array 로만 push 한다
           // (카운터는 executor 소유, execute choke point 에서 증가).
           mcpDiagnostics: mcpDiagnostics?.serverSummaries,

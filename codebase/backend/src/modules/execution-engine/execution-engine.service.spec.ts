@@ -15538,6 +15538,79 @@ describe('ExecutionEngineService', () => {
       );
       expect(resumeState.workflowId).toBe('wf-attr');
       expect(resumeState.nodeExecutionId).toBe('ne-attr-1');
+      // 개인 통합 사용 판정은 노드 → 워크플로우 작성자를 이 값으로 찾는다(CLE-NODE-INT-COMMON).
+      expect(resumeState.nodeId).toBe('node-1');
+    });
+
+    // 개인 통합 사용 판정 — MCP 서버 항목의 `fromExpression` 은 첫 턴에 정한 값을 이어 받는다
+    // (CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」). 체크포인트에 서버 목록이 없어 노드 설정에서
+    // 다시 만들 때는 첫 턴과 같이 평가 전 원본과 맞춰 정하고 노드 설정의 사용자 값은 쓰지 않는다.
+    describe('MCP 서버 항목의 fromExpression', () => {
+      const A = '11111111-1111-4111-8111-111111111111';
+      const B = '22222222-2222-4222-8222-222222222222';
+
+      it('buildResumeCheckpoint keeps fromExpression on mcpServers items', () => {
+        const servers = [
+          { integrationId: A, fromExpression: false },
+          { integrationId: B, fromExpression: true },
+        ];
+        const checkpoint = cpSubject().buildResumeCheckpoint({
+          messages: [],
+          mcpServers: servers,
+        });
+        expect(checkpoint?.mcpServers).toEqual(servers);
+      });
+
+      it('buildRetryReentryState keeps the checkpoint mcpServers as they are', () => {
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext('exec-mcp-1', 'wf-1', {
+          initialVariables: { __workspaceId: 'ws-1' },
+        });
+        const servers = [{ integrationId: A, fromExpression: false }];
+        const { resumeState } = cp.buildRetryReentryState(
+          { id: 'exec-mcp-1', workflowId: 'wf-1', startedAt: new Date() },
+          {
+            id: 'node-1',
+            type: 'ai_agent',
+            config: {
+              mode: 'multi_turn',
+              mcpServers: [{ integrationId: B, fromExpression: false }],
+            },
+          },
+          ctx,
+          { messages: [], turnCount: 1, mcpServers: servers },
+          { resumeMode: true },
+        );
+        expect(resumeState.mcpServers).toEqual(servers);
+      });
+
+      it('buildRetryReentryState marks rebuilt mcpServers against node.config, ignoring a user-supplied fromExpression', () => {
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext('exec-mcp-2', 'wf-1', {
+          initialVariables: { __workspaceId: 'ws-1', mcpId: B },
+        });
+        const { resumeState } = cp.buildRetryReentryState(
+          { id: 'exec-mcp-2', workflowId: 'wf-1', startedAt: new Date() },
+          {
+            id: 'node-1',
+            type: 'ai_agent',
+            config: {
+              mode: 'multi_turn',
+              mcpServers: [
+                { integrationId: A, fromExpression: true },
+                { integrationId: '{{ $var.mcpId }}', fromExpression: false },
+              ],
+            },
+          },
+          ctx,
+          { messages: [], turnCount: 1 },
+          { resumeMode: true },
+        );
+        expect(resumeState.mcpServers).toEqual([
+          { integrationId: A, fromExpression: false },
+          { integrationId: B, fromExpression: true },
+        ]);
+      });
     });
 
     // 재실행 dry-run 임시 가드 — resume 턴 provider-tool 실행도 dry-run 을 알아야 MCP

@@ -16,6 +16,10 @@ import type {
   McpSession,
 } from '../../../../modules/mcp/mcp-client.service';
 import type { IntegrationsService } from '../../../../modules/integrations/integrations.service';
+import {
+  makeIntegrationsServiceMock,
+  type IntegrationsServiceMock,
+} from '../../../../modules/integrations/__test-utils__/integrations-service.mock';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 
 const SAMPLE_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -72,15 +76,15 @@ describe('McpToolProvider — review issues', () => {
     // McpToolProvider 가 주입된 mcpClient.allowInsecureUrl 을 읽는다(옛 process.env flip 대체).
     allowInsecureUrl: boolean;
   };
-  let integrations: {
-    getForExecution: jest.Mock<Promise<Integration>, [string, string]>;
-  };
+  let integrations: Pick<IntegrationsServiceMock, 'getForExecution'>;
   let provider: McpToolProvider;
 
   beforeEach(() => {
     jest.useRealTimers();
     mcpClient = { connect: jest.fn(), allowInsecureUrl: false };
-    integrations = { getForExecution: jest.fn() };
+    integrations = {
+      getForExecution: makeIntegrationsServiceMock().getForExecution,
+    };
     provider = new McpToolProvider(
       mcpClient as unknown as McpClientService,
       integrations as unknown as IntegrationsService,

@@ -17,6 +17,8 @@ import {
 } from './mcp-diagnostics.js';
 import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
+import type { IntegrationUse } from '../../../../modules/integrations/personal-integration-use.js';
+import { mcpServerRefUse } from '../mcp-server-ref-use.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
 import {
@@ -133,11 +135,14 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
     for (const ref of mcpServers) {
       if (!ref.integrationId) continue;
 
+      // 토큰 갱신 뒤 다시 읽는 조회도 같은 `use` 로 판정한다(CLE-INT-MCP 「통합 조회 기준」).
+      const use = mcpServerRefUse(ctx.nodeId, ref);
       let integration: Integration;
       try {
         integration = await this.integrationsService.getForExecution(
           ref.integrationId,
           ctx.workspaceId,
+          use,
         );
       } catch (err) {
         this.logger.warn(
@@ -161,7 +166,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       // spec §8.6 — `expired` 자가 회복. refresh_token 보유 + 큐 경유 refresh
       // 1회 시도 후 worker 가 status='connected' 로 전이시키면 fresh row 로 진행.
       if (integration.status === 'expired') {
-        const recovered = await this.tryRecoverExpired(integration);
+        const recovered = await this.tryRecoverExpired(integration, use);
         if (recovered.kind === 'recovered') {
           integration = recovered.integration;
         } else {
@@ -265,6 +270,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
    */
   private async tryRecoverExpired(
     integration: Integration,
+    use: IntegrationUse,
   ): Promise<
     | { kind: 'recovered'; integration: Integration }
     | { kind: 'skipped'; skipReason: McpSkipReason }
@@ -302,6 +308,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       fresh = await this.integrationsService.getForExecution(
         integration.id,
         integration.workspaceId,
+        use,
       );
     } catch (err) {
       this.logger.warn(

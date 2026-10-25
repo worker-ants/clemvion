@@ -1,10 +1,28 @@
 import { Logger } from '@nestjs/common';
-import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import {
+  IntegrationCredentialsUnreadableError,
+  IntegrationsService,
+} from '../../../modules/integrations/integrations.service.js';
 import { Integration } from '../../../modules/integrations/entities/integration.entity.js';
+import {
+  isLiteralReference,
+  type IntegrationUse,
+} from '../../../modules/integrations/personal-integration-use.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 
 const logger = new Logger('IntegrationHandlerBase');
 let warnedMissingNodeExecutionId = false;
+
+/**
+ * 조회가 통합을 돌려주지 않은 통합 ID. 노드 실행 컨텍스트마다 둔다. 엔진은 핸들러를 부를 때마다 컨텍스트를 새로 만들므로
+ * 다른 노드나 병렬 분기와 섞이지 않는다.
+ *
+ * 핸들러는 실패하면 설정의 통합 ID 로 {@link IntegrationHandlerBase.logUsage} 를 부른다. 개인 통합 사용 판정의 거절은 없는
+ * 통합과 같아야 하는데(REQ-INTMGMT-052), 그대로 두면 거절된 개인 통합의 활동 탭과 `last_error` 에 남의 워크플로우 실행이
+ * 남는다. 그래서 조회가 거절된 ID 는 기록하지 않는다(REQ-INTMGMT-053 의 조회 거절). 자격 증명을 읽지 못한 통합은 조회가
+ * 통합을 찾은 경우라 지금처럼 기록한다. 기록 규칙 전체(얻은 통합만 받는 `logUsage`)는 NERV Task `CLE-T-PTC4SF` 가 맡는다.
+ */
+const rejectedLookups = new WeakMap<ExecutionContext, Set<string>>();
 
 /**
  * Shared helpers for node handlers that read Integration credentials and
@@ -12,6 +30,7 @@ let warnedMissingNodeExecutionId = false;
  *
  * Handlers call:
  *  - `resolveIntegration(...)` to fetch + validate the Integration entity
+ *    (`acquireIntegration` + `assertUsable`)
  *  - `logUsage(...)` to record success/failure for the Activity tab
  */
 export interface IntegrationUsageParams {
@@ -42,10 +61,24 @@ export class IntegrationHandlerBase {
     return context.variables.__workspaceId as string | undefined;
   }
 
+  /** 얻기(1·2단계)와 검증(3단계)을 이어 부른다(CLE-NODE-INT-COMMON 「IntegrationHandlerBase」). */
   protected async resolveIntegration(
     integrationId: string,
     context: ExecutionContext,
     expectedServiceType: string,
+  ): Promise<Integration> {
+    const integration = await this.acquireIntegration(integrationId, context);
+    this.assertUsable(integration, expectedServiceType);
+    return integration;
+  }
+
+  /**
+   * 통합을 얻는다. 지금 노드와 참조 값이 리터럴이었는지를 `use` 로 넘긴다. 리터럴인지는 평가 전 원본
+   * (`context.rawConfig.integrationId`)이 평가한 값과 같은 문자열인지로 본다. 원본이 없으면 표현식으로 본다.
+   */
+  protected async acquireIntegration(
+    integrationId: string,
+    context: ExecutionContext,
   ): Promise<Integration> {
     if (!this.integrationsService) {
       throw new Error('Integration service is not available');
@@ -57,15 +90,38 @@ export class IntegrationHandlerBase {
       );
     }
 
-    const integration = await this.integrationsService.getForExecution(
-      integrationId,
-      workspaceId,
-    );
+    const use: IntegrationUse = {
+      nodeId: context.nodeId ?? null,
+      fromExpression: !isLiteralReference(
+        context.rawConfig?.integrationId,
+        integrationId,
+      ),
+    };
+    try {
+      return await this.integrationsService.getForExecution(
+        integrationId,
+        workspaceId,
+        use,
+      );
+    } catch (err) {
+      if (!(err instanceof IntegrationCredentialsUnreadableError)) {
+        const ids = rejectedLookups.get(context) ?? new Set<string>();
+        ids.add(integrationId);
+        rejectedLookups.set(context, ids);
+      }
+      throw err;
+    }
+  }
 
+  /** 얻은 통합이 노드가 기대한 유형이고 연결된 상태인지 본다. */
+  protected assertUsable(
+    integration: Integration,
+    expectedServiceType: string,
+  ): void {
     if (integration.serviceType !== expectedServiceType) {
       throw new IntegrationError(
         'INTEGRATION_TYPE_MISMATCH',
-        `Integration ${integrationId} is type "${integration.serviceType}", not "${expectedServiceType}"`,
+        `Integration ${integration.id} is type "${integration.serviceType}", not "${expectedServiceType}"`,
       );
     }
     if (integration.status !== 'connected') {
@@ -76,7 +132,6 @@ export class IntegrationHandlerBase {
         }`,
       );
     }
-    return integration;
   }
 
   protected async logUsage(
@@ -84,6 +139,7 @@ export class IntegrationHandlerBase {
     params: IntegrationUsageParams,
   ): Promise<void> {
     if (!this.integrationsService) return;
+    if (rejectedLookups.get(context)?.has(params.integrationId)) return;
     if (!context.nodeExecutionId) {
       // Engine must populate nodeExecutionId before dispatching a handler.
       // If this fires in production it means IntegrationUsageLog rows are

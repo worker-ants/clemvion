@@ -53,6 +53,9 @@ jest.mock('./http-connection-tester', () => ({
 
 type Mock = jest.Mock;
 
+const NODE_ID = '22222222-2222-4222-8222-222222222222';
+const LITERAL_USE = { nodeId: NODE_ID, fromExpression: false };
+
 function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   const base: Integration = {
     id: 'int-1',
@@ -117,7 +120,7 @@ describe('IntegrationsService', () => {
   let auditLogsService: { record: Mock };
   let mcpTestConnection: { test: Mock };
   let integrationCacheBus: { publish: Mock };
-  let dataSource: { transaction: Mock };
+  let dataSource: { transaction: Mock; query: Mock };
   let integration: Integration;
 
   beforeEach(() => {
@@ -182,6 +185,12 @@ describe('IntegrationsService', () => {
           async (cb: (manager: { getRepository: jest.Mock }) => unknown) =>
             cb({ getRepository: jest.fn().mockReturnValue(integrationRepo) }),
         ),
+      // 개인 통합의 실행 시점 판정 사실(`loadExecutionUseFacts`). 기본은 작성자 = 소유자(`user-1`) · 소유자가 멤버다.
+      query: jest
+        .fn()
+        .mockResolvedValue([
+          { workflow_author_id: 'user-1', owner_is_member: true },
+        ]),
     };
 
     service = new IntegrationsService(
@@ -1569,6 +1578,41 @@ describe('IntegrationsService', () => {
         'direct',
       ]);
       expect(usages[1].nodes[0].usageKind).toBe('mcp');
+    });
+
+    it('authorIsIntegrationOwner 는 워크플로우 작성자가 통합 소유자인지이고 작성자 id 는 싣지 않는다 (REQ-INTMGMT-057)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({ createdBy: 'user-1' }),
+      );
+      const row = (workflowId: string, author: string | null) => ({
+        node_id: `n-${workflowId}`,
+        node_label: 'Send',
+        node_type: 'send_email',
+        workflow_id: workflowId,
+        workflow_name: workflowId,
+        is_active: true,
+        workflow_author_id: author,
+        usage_kind: 'direct',
+      });
+      const qb = makeQueryBuilder({
+        raw: [row('w1', 'user-1'), row('w2', 'user-2'), row('w3', null)],
+      });
+      nodeRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const usages = await service.getUsages('int-1', 'ws-1', 'user-1');
+
+      expect(
+        usages.map((u) => [u.workflowId, u.authorIsIntegrationOwner]),
+      ).toEqual([
+        ['w1', true],
+        ['w2', false],
+        ['w3', false],
+      ]);
+      expect(qb.addSelect).toHaveBeenCalledWith(
+        'w.created_by',
+        'workflow_author_id',
+      );
+      expect(JSON.stringify(usages)).not.toContain('user-2');
     });
 
     it('exposes usageKind=direct for direct config.integrationId references', async () => {
@@ -3487,7 +3531,9 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValue(
         makeIntegration({ credentials: sentinel }),
       );
-      await expect(service.getForExecution('int-1', 'ws-1')).rejects.toThrow(
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE),
+      ).rejects.toThrow(
         IntegrationCredentialsUnreadableError,
       );
     });
@@ -3495,6 +3541,135 @@ describe('IntegrationsService', () => {
     it('healthy rows expose credentialsStatus: ok', async () => {
       const result = await service.findById('int-1', 'ws-1', 'user-1');
       expect(result.credentialsStatus).toBe('ok');
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // getForExecution — 개인 통합 사용 판정 (CLE-INT-MANAGE 「개인 통합 사용 판정」)
+  // -----------------------------------------------------------------
+  describe('getForExecution — 개인 통합 사용 판정', () => {
+    const facts = (
+      workflowAuthorId: string | null,
+      ownerIsMember: boolean,
+    ): Array<Record<string, unknown>> => [
+      { workflow_author_id: workflowAuthorId, owner_is_member: ownerIsMember },
+    ];
+
+    async function notFoundResponse(): Promise<unknown> {
+      integrationRepo.findOne.mockResolvedValueOnce(null);
+      const err: unknown = await service
+        .getForExecution('missing', 'ws-1', LITERAL_USE)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(NotFoundException);
+      return (err as NotFoundException).getResponse();
+    }
+
+    it('조직 통합은 노드를 읽지 않고 표현식 · 작성자 불명이어도 돌려준다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({ scope: 'organization' }),
+      );
+      await expect(
+        service.getForExecution('int-1', 'ws-1', {
+          nodeId: null,
+          fromExpression: true,
+        }),
+      ).resolves.toMatchObject({ id: 'int-1' });
+      expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    it('작성자 = 소유자 · 소유자가 멤버 · 리터럴이면 돌려준다', async () => {
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE),
+      ).resolves.toMatchObject({ id: 'int-1' });
+      expect(dataSource.query).toHaveBeenCalledWith(expect.any(String), [
+        NODE_ID,
+        'ws-1',
+        'user-1',
+      ]);
+    });
+
+    it.each<[string, Array<Record<string, unknown>>, boolean, string]>([
+      ['작성자 ≠ 소유자', facts('user-2', true), false, 'workflow_author_not_owner'],
+      ['노드 행 없음 · 다른 워크스페이스 → 작성자 불명', facts(null, true), false, 'workflow_author_unknown'],
+      ['결과 행 없음 → 작성자 불명', [], false, 'workflow_author_unknown'],
+      ['소유자가 멤버가 아님', facts('user-1', false), false, 'owner_not_member'],
+      ['표현식 참조', facts('user-1', true), true, 'expression_ref'],
+    ])(
+      '%s → 없는 통합과 같은 404, 이유는 WARN 로그에만',
+      async (_label, rows, fromExpression, reason) => {
+        const expected = await notFoundResponse();
+        dataSource.query.mockResolvedValueOnce(rows);
+        const warn = jest
+          .spyOn(
+            (service as unknown as { logger: { warn: () => void } }).logger,
+            'warn',
+          )
+          .mockImplementation(() => undefined);
+
+        const err: unknown = await service
+          .getForExecution('int-1', 'ws-1', { nodeId: NODE_ID, fromExpression })
+          .catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(NotFoundException);
+        expect((err as NotFoundException).getResponse()).toEqual(expected);
+        expect(JSON.stringify(expected)).not.toContain(reason);
+        expect(warn).toHaveBeenCalledWith({
+          message: 'Personal integration use rejected',
+          workspaceId: 'ws-1',
+          context: {
+            path: 'execution',
+            nodeId: NODE_ID,
+            integrationId: 'int-1',
+            reason,
+          },
+        });
+        warn.mockRestore();
+      },
+    );
+
+    it('nodeId 가 null 이면 작성자 불명으로 거절한다', async () => {
+      dataSource.query.mockResolvedValueOnce(facts(null, true));
+      await expect(
+        service.getForExecution('int-1', 'ws-1', {
+          nodeId: null,
+          fromExpression: false,
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(dataSource.query).toHaveBeenCalledWith(expect.any(String), [
+        null,
+        'ws-1',
+        'user-1',
+      ]);
+    });
+
+    it('UUID 모양이 아닌 nodeId 는 쿼리에 넣지 않는다(22P02 방지)', async () => {
+      dataSource.query.mockResolvedValueOnce(facts(null, true));
+      await expect(
+        service.getForExecution('int-1', 'ws-1', {
+          nodeId: 'not-a-uuid',
+          fromExpression: false,
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(dataSource.query).toHaveBeenCalledWith(expect.any(String), [
+        null,
+        'ws-1',
+        'user-1',
+      ]);
+    });
+
+    it('거절이 자격 증명 판정보다 먼저다 — 거절된 통합은 읽지 못하는 자격 증명을 드러내지 않는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          credentials: { [UNREADABLE_KEY]: true } as unknown as Record<
+            string,
+            unknown
+          >,
+        }),
+      );
+      dataSource.query.mockResolvedValueOnce(facts('user-2', true));
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

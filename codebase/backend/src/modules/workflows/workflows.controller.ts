@@ -60,9 +60,12 @@ import { ExecuteNodeDto } from './dto/execute-node.dto';
 import { ExecuteWorkflowDto } from './dto/execute-workflow.dto';
 import {
   CanvasSaveResultDto,
+  DuplicateWorkflowResultDto,
   ExecuteAcceptedDto,
   ExportWorkflowDto,
   GraphWarningsResponseDto,
+  ImportWorkflowResultDto,
+  RestoreVersionResultDto,
   WorkflowDto,
 } from './dto/responses/workflow-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
@@ -227,11 +230,13 @@ export class WorkflowsController {
       '— 노드는 새 UUID 로 재발급되고 노드 간 참조(컨테이너·Tool Area·엣지 endpoint)는',
       '사본 UUID 로 재매핑됩니다.',
       '버전 이력·트리거·테스트 데이터셋·실행 이력은 복제되지 않으며, 사본은 버전 1 로 새로 시작합니다.',
+      '요청자가 사본의 작성자라서 요청자가 쓸 수 없는 통합 참조(없는 통합, 남의 개인 통합)는 비우고',
+      '`data.clearedIntegrationRefs` 로 알립니다.',
     ].join(' '),
   })
   @ApiParam({ name: 'id', description: '원본 워크플로우 UUID', format: 'uuid' })
-  @ApiCreatedWrappedResponse(WorkflowDto, {
-    description: '복제된 워크플로우 정보',
+  @ApiCreatedWrappedResponse(DuplicateWorkflowResultDto, {
+    description: '복제된 워크플로우 정보와 비운 통합 참조',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
@@ -466,7 +471,8 @@ export class WorkflowsController {
     description: '캔버스 저장 결과 (워크플로우/노드/엣지)',
   })
   @ApiBadRequestResponse({
-    description: 'Manual Trigger 누락/중복 또는 입력값 검증 실패',
+    description:
+      'Manual Trigger 누락/중복, 입력값 검증 실패 또는 새로 넣거나 바꾼 통합 참조를 쓸 수 없음',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
@@ -487,12 +493,12 @@ export class WorkflowsController {
   @ApiOperation({
     summary: '워크플로우 버전 복원',
     description:
-      '지정한 버전의 스냅샷으로 현재 워크플로우를 덮어씁니다. 복원 동작도 새로운 버전으로 기록됩니다.',
+      '지정한 버전의 스냅샷으로 현재 워크플로우를 덮어씁니다. 복원 동작도 새로운 버전으로 기록됩니다. 지금 노드와 다른 통합 참조 가운데 실행하면 실패할 것(없는 통합, 워크플로우 작성자가 쓸 수 없는 개인 통합)은 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiParam({ name: 'versionId', description: '버전 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(CanvasSaveResultDto, {
-    description: '복원 결과 (워크플로우/노드/엣지)',
+  @ApiOkWrappedResponse(RestoreVersionResultDto, {
+    description: '복원 결과 (워크플로우/노드/엣지)와 비운 통합 참조',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
@@ -538,10 +544,10 @@ export class WorkflowsController {
   @ApiOperation({
     summary: '워크플로우 가져오기',
     description:
-      '내보내기 JSON 포맷을 그대로 받아 새 워크플로우·노드·엣지를 생성합니다. 노드 라벨은 페이로드 내에서 유일해야 합니다.',
+      '내보내기 JSON 포맷을 그대로 받아 새 워크플로우·노드·엣지를 생성합니다. 노드 라벨은 페이로드 내에서 유일해야 합니다. 요청자가 쓸 수 없는 통합 참조(없는 통합, 남의 개인 통합)는 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
   })
-  @ApiCreatedWrappedResponse(WorkflowDto, {
-    description: '생성된 워크플로우 정보',
+  @ApiCreatedWrappedResponse(ImportWorkflowResultDto, {
+    description: '생성된 워크플로우 정보와 비운 통합 참조',
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })

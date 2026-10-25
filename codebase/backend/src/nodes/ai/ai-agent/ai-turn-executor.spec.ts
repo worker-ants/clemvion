@@ -6,6 +6,7 @@ import {
 import { AiConditionEvaluator } from './ai-condition-evaluator';
 import { AiMemoryManager } from './ai-memory-manager';
 import { ExecutionContext } from '../../core/node-handler.interface';
+import type { ProviderBuildCtx } from './tool-providers/agent-tool-provider.interface';
 import { makeExecutionContext } from '../../../modules/execution-engine/__test__/make-execution-context';
 
 /**
@@ -1303,5 +1304,132 @@ describe('AiTurnExecutor', () => {
         expect(execute.mock.calls[0][1]).toMatchObject({ dryRun: expected });
       },
     );
+  });
+
+  // CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」 · CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」 —
+  // 도구 목록 구성 문맥에 노드 ID 를 싣고, 서버 항목마다 첫 턴의 표현식 여부를 싣는다.
+  describe('ProviderBuildCtx — nodeId · 서버 항목의 fromExpression', () => {
+    const A = '11111111-1111-4111-8111-111111111111';
+    const B = '22222222-2222-4222-8222-222222222222';
+    const capturingProvider = () => {
+      const buildTools = jest.fn(async (_ctx: ProviderBuildCtx) => []);
+      return {
+        buildTools,
+        provider: {
+          key: 'mcp',
+          matches: (n: string) => n.startsWith('mcp_'),
+          buildTools,
+          execute: jest.fn(),
+        },
+      };
+    };
+    const ctxWithRaw = (rawMcpServers: unknown) =>
+      makeExecutionContext({
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        nodeId: 'node-1',
+        variables: { __workspaceId: 'ws-1' },
+        rawConfig: Object.freeze({ mcpServers: rawMcpServers }),
+      });
+
+    it('single-turn: context.nodeId 를 싣고 원본과 비교한 fromExpression 으로 덮어쓴다', async () => {
+      const { buildTools, provider } = capturingProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+      await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'sys',
+          userPrompt: 'go',
+          mcpServers: [
+            { integrationId: A, fromExpression: true },
+            { integrationId: B, fromExpression: false },
+          ],
+        },
+        ctxWithRaw([{ integrationId: A }, { integrationId: '{{ $vars.b }}' }]),
+      );
+      const ctx = buildTools.mock.calls[0][0];
+      expect(ctx.nodeId).toBe('node-1');
+      expect(ctx.config.mcpServers).toEqual([
+        { integrationId: A, fromExpression: false },
+        { integrationId: B, fromExpression: true },
+      ]);
+    });
+
+    it('single-turn: rawConfig 가 없으면 모든 서버 항목이 표현식이다(평가값으로 폴백하지 않는다)', async () => {
+      const { buildTools, provider } = capturingProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+      await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'sys',
+          userPrompt: 'go',
+          mcpServers: [{ integrationId: A }],
+        },
+        makeExecutionContext({
+          executionId: 'exec-1',
+          workflowId: 'wf-1',
+          nodeId: 'node-1',
+          variables: { __workspaceId: 'ws-1' },
+        }),
+      );
+      expect(buildTools.mock.calls[0][0].config.mcpServers).toEqual([
+        { integrationId: A, fromExpression: true },
+      ]);
+    });
+
+    it('multi-turn 첫 턴: _resumeState.mcpServers 에 서버별 fromExpression 을 저장한다', async () => {
+      const executor = buildExecutor();
+      const result = (await executor.executeMultiTurn(
+        undefined,
+        {
+          mode: 'multi_turn',
+          systemPrompt: 'sys',
+          mcpServers: [{ integrationId: A }, { integrationId: B }],
+        },
+        ctxWithRaw([{ integrationId: '{{ $vars.a }}' }, { integrationId: B }]),
+      )) as { _resumeState: Record<string, unknown> };
+      expect(result._resumeState.nodeId).toBe('node-1');
+      expect(result._resumeState.mcpServers).toEqual([
+        { integrationId: A, fromExpression: true },
+        { integrationId: B, fromExpression: false },
+      ]);
+    });
+
+    it('재개 턴: 상태의 nodeId 와 저장된 서버 항목을 그대로 싣는다(원본과 다시 맞추지 않는다)', async () => {
+      const { buildTools, provider } = capturingProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+      const stored = [
+        { integrationId: A, fromExpression: false },
+        { integrationId: B },
+      ];
+      await executor.processMultiTurnMessage('hi', {
+        llmConfigId: 'cfg-1',
+        model: 'gpt-4o',
+        maxToolCalls: 10,
+        maxTurns: 20,
+        knowledgeBases: [],
+        conditions: [],
+        mcpServers: stored,
+        presentationTools: [],
+        messages: [{ role: 'system', content: 'sys' }],
+        turnCount: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeId: 'node-1',
+        memoryStrategy: 'manual',
+        // 재개마다 다시 만드는 rawConfig 는 읽지 않는다.
+        rawConfig: { mcpServers: [{ integrationId: '{{ x }}' }, { integrationId: B }] },
+      });
+      const ctx = buildTools.mock.calls[0][0];
+      expect(ctx.nodeId).toBe('node-1');
+      expect(ctx.config.mcpServers).toEqual(stored);
+    });
   });
 });

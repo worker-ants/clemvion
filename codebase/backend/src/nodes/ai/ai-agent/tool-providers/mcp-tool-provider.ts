@@ -14,6 +14,7 @@ import {
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service';
+import { mcpServerRefUse } from '../mcp-server-ref-use';
 import {
   McpClientService,
   McpConnectParams,
@@ -95,6 +96,8 @@ class McpBuildPhaseError extends Error {
 /** McpServerRef as declared in `aiAgentNodeConfigSchema.mcpServers`. */
 interface McpServerRefConfig {
   integrationId: string;
+  /** 첫 턴에 핸들러가 정한 표현식 여부. 사용자 설정 값이 아니다(`mcp-server-ref-use.ts`). */
+  fromExpression?: boolean;
   enabledTools?: string[];
   includeResources?: boolean;
   includePrompts?: boolean;
@@ -680,6 +683,7 @@ export class McpToolProvider implements AgentToolProvider {
     const integration = await this.integrationsService.getForExecution(
       ref.integrationId,
       ctx.workspaceId,
+      mcpServerRefUse(ctx.nodeId, ref),
     );
     if (integration.serviceType !== 'mcp') {
       // Spec MCP §6.2 의 `not_capable` skipReason — 본 provider 는 외부 HTTP

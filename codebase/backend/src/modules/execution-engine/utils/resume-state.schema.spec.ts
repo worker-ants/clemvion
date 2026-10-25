@@ -137,4 +137,26 @@ describe('resume-state.schema', () => {
       expect(resumeStateSchema.safeParse({}).success).toBe(true);
     });
   });
+
+  // 개인 통합 사용 판정 — MCP 서버 항목의 `fromExpression` 은 첫 턴에 핸들러가 정해 상태 · 체크포인트로 이어 간다
+  // (CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」). 세 스키마 모두 그 값을 지우지 않아야 재개 턴의 조회가
+  // 리터럴 참조를 표현식으로 오인하지 않는다.
+  describe('mcpServers 항목의 fromExpression', () => {
+    const servers = [
+      { integrationId: '11111111-1111-4111-8111-111111111111', fromExpression: false },
+      { integrationId: '22222222-2222-4222-8222-222222222222', fromExpression: true },
+    ];
+
+    it.each([
+      ['resumeCheckpointSchema', resumeCheckpointSchema],
+      ['retryStateSchema', retryStateSchema],
+      ['resumeStateSchema', resumeStateSchema],
+    ] as const)('%s 가 항목의 값을 그대로 둔다', (_name, schema) => {
+      const parsed = schema.parse({
+        ...wellFormedCheckpoint,
+        mcpServers: servers,
+      });
+      expect(parsed.mcpServers).toEqual(servers);
+    });
+  });
 });

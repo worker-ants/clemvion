@@ -644,9 +644,11 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
 
+    // 편집 중인 워크플로우도 넘긴다 — 작성자가 아닌 요청자에게는 자기 개인 통합도 빠진다(REQ-ASSIST-062).
     expect(mocks.exploreTools.listIntegrations).toHaveBeenCalledWith(
       'ws-1',
       'u-1',
+      'wf-1',
       'http',
     );
   });

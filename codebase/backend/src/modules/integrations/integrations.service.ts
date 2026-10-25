@@ -60,6 +60,15 @@ import {
 } from './services/service-registry';
 import { isUnreadableCredentials } from './services/credentials-transformer';
 import {
+  isPersonalIntegration,
+  judgePersonalIntegrationUse,
+  type IntegrationUse,
+} from './personal-integration-use';
+import {
+  loadExecutionUseFacts,
+  logPersonalIntegrationUseRejection,
+} from './personal-integration-use-facts';
+import {
   ConnectionPreview,
   McpTestConnectionService,
 } from '../mcp/mcp-test-connection.service';
@@ -206,6 +215,8 @@ export interface IntegrationUsageWorkflow {
   workflowId: string;
   workflowName: string;
   isActive: boolean;
+  /** 워크플로우 작성자가 통합 소유자인가(REQ-INTMGMT-057). 작성자 id 는 싣지 않는다. */
+  authorIsIntegrationOwner: boolean;
   nodes: IntegrationUsageNode[];
 }
 
@@ -697,7 +708,7 @@ export class IntegrationsService {
   /**
    * 요청자에게 **보이는** 통합을 읽는다 — 없거나 남의 personal 이면 같은 404(`spec/2-navigation/4-integration.md` §8
    * 판정 규칙). 역할은 보지 않는다 — Personal 통합에는 역할 우위가 없다. 사용자 요청이 `:id` 로 통합에 닿는 경로는 전부
-   * 이것을 거친다(실행 엔진 전용 {@link getForExecution} 만 예외 — 노드 실행 시점 판정은 후속 plan).
+   * 이것을 거친다(실행 엔진 전용 {@link getForExecution} 만 예외 — 그쪽은 개인 통합 사용 판정을 본다).
    */
   private async requireVisible(
     id: string,
@@ -975,7 +986,7 @@ export class IntegrationsService {
     // remove() 가 이미 위에서 requireModifiable 로 통합 존재·workspace 소유·가시성을 검증했으므로,
     // getUsages 의 findById 선검증을 거치지 않고 사용처 조회 헬퍼를 직접 호출한다
     // (통합 행 중복 조회 제거 — PR #633 후속 ⑦).
-    const usages = await this.queryUsageNodes(id, workspaceId);
+    const usages = await this.queryUsageNodes(entity, workspaceId);
     if (usages.length > 0) {
       throw new ConflictException({
         code: 'INTEGRATION_IN_USE',
@@ -1037,8 +1048,8 @@ export class IntegrationsService {
     // already established existence (e.g. {@link remove}) can skip this
     // duplicate lookup. Public contract — controller-facing NotFound throw
     // (없거나 남의 personal — spec §8) — is preserved here.
-    await this.requireVisible(id, workspaceId, userId);
-    return this.queryUsageNodes(id, workspaceId);
+    const integration = await this.requireVisible(id, workspaceId, userId);
+    return this.queryUsageNodes(integration, workspaceId);
   }
 
   /**
@@ -1051,11 +1062,14 @@ export class IntegrationsService {
    *
    * Reference union (PR #633): direct (`config.integrationId`) ∪ MCP
    * (`config.mcpServers[].integrationId`). `usageKind` discriminates them.
+   *
+   * 워크플로우 작성자는 `authorIsIntegrationOwner` 를 정하는 데만 읽고 응답에 싣지 않는다(CLE-INT-MANAGE 「사용처 추적과 삭제 차단」).
    */
   private async queryUsageNodes(
-    id: string,
+    integration: Pick<Integration, 'id' | 'createdBy'>,
     workspaceId: string,
   ): Promise<IntegrationUsageWorkflow[]> {
+    const id = integration.id;
     const rows: Array<{
       node_id: string;
       node_label: string;
@@ -1063,6 +1077,7 @@ export class IntegrationsService {
       workflow_id: string;
       workflow_name: string;
       is_active: boolean;
+      workflow_author_id: string | null;
       usage_kind: 'direct' | 'mcp';
     }> = await this.nodeRepository
       .createQueryBuilder('n')
@@ -1083,6 +1098,7 @@ export class IntegrationsService {
       .addSelect('w.id', 'workflow_id')
       .addSelect('w.name', 'workflow_name')
       .addSelect('w.is_active', 'is_active')
+      .addSelect('w.created_by', 'workflow_author_id')
       .addSelect(
         "CASE WHEN n.config ->> 'integrationId' = :integrationId THEN 'direct' ELSE 'mcp' END",
         'usage_kind',
@@ -1099,6 +1115,9 @@ export class IntegrationsService {
           workflowId: r.workflow_id,
           workflowName: r.workflow_name,
           isActive: r.is_active,
+          authorIsIntegrationOwner:
+            r.workflow_author_id !== null &&
+            r.workflow_author_id === integration.createdBy,
           nodes: [],
         };
         grouped.set(r.workflow_id, bucket);
@@ -1665,18 +1684,45 @@ export class IntegrationsService {
    * Fetch the raw entity (with decrypted credentials via the TypeORM
    * transformer) for use by the execution engine.
    *
-   * **Authorisation contract** — the caller MUST already have established
-   * that the execution has permission to use this integration. This method
-   * only enforces the `workspace_id` scope check; it does not verify the
-   * individual workflow's ownership, the user triggering the run, or
-   * whether the integration is organisation-shared vs. personal. Use
-   * exclusively from trusted execution-engine code paths.
+   * 워크스페이스를 보고, 개인 통합이면 개인 통합 사용 판정(CLE-INT-MANAGE 「개인 통합 사용 판정」)의 실행 시점 조건을 본다.
+   * 기준은 `use.nodeId` 가 속한 워크플로우의 작성자이고 실행을 시작한 사람은 보지 않는다. 판정을 통과하지 못하면 없는 통합과
+   * 같은 예외를 던진다(REQ-INTMGMT-052). 이유는 서버 로그에만 남긴다. 조직 통합은 노드를 읽지 않는다.
+   *
+   * 사용자 요청 경로의 가시성 판정({@link requireVisible})은 거치지 않는다. 실행 엔진 · 도구 프로바이더만 부른다.
    *
    * Credentials on the returned object are NOT masked — callers must treat
    * the result as secret material and avoid logging it.
    */
-  async getForExecution(id: string, workspaceId: string): Promise<Integration> {
+  async getForExecution(
+    id: string,
+    workspaceId: string,
+    use: IntegrationUse,
+  ): Promise<Integration> {
     const entity = await this.requireEntity(id, workspaceId);
+    if (isPersonalIntegration(entity)) {
+      const facts = await loadExecutionUseFacts(this.dataSource, {
+        nodeId: use.nodeId,
+        workspaceId,
+        integrationOwnerId: entity.createdBy,
+      });
+      const reason = judgePersonalIntegrationUse({
+        path: 'execution',
+        integrationOwnerId: entity.createdBy,
+        workflowAuthorId: facts.workflowAuthorId,
+        ownerIsMember: facts.ownerIsMember,
+        fromExpression: use.fromExpression,
+      });
+      if (reason) {
+        logPersonalIntegrationUseRejection(this.logger, {
+          path: 'execution',
+          workspaceId,
+          nodeId: use.nodeId,
+          integrationId: entity.id,
+          reason,
+        });
+        this.throwIntegrationNotFound();
+      }
+    }
     if (isUnreadableCredentials(entity.credentials)) {
       throw new IntegrationCredentialsUnreadableError(entity.id);
     }

@@ -7,6 +7,12 @@ import {
 } from './integration-handler-base.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { IntegrationCredentialsUnreadableError } from '../../../modules/integrations/integrations.service.js';
+import { integrationNotFoundError } from '../../../modules/integrations/integration-visibility.js';
+import {
+  asIntegrationsService,
+  makeIntegrationsServiceMock,
+} from '../../../modules/integrations/__test-utils__/integrations-service.mock.js';
 
 // Concrete subclass so we can exercise protected helpers from a test.
 class TestHandler extends IntegrationHandlerBase {
@@ -107,6 +113,140 @@ describe('IntegrationHandlerBase.resolveIntegration', () => {
     await expect(handler.callResolve('int-1', ctx(), 'http')).resolves.toBe(
       integration,
     );
+  });
+});
+
+describe('IntegrationHandlerBase.acquireIntegration — 실행 시점 조회 인자(use)', () => {
+  const ID = '11111111-1111-4111-8111-111111111111';
+  const connected = { id: ID, serviceType: 'http', status: 'connected' };
+
+  it.each<[string, Partial<ExecutionContext>, boolean]>([
+    ['원본이 평가값과 같은 문자열 → 리터럴', { rawConfig: { integrationId: ID } }, false],
+    [
+      '원본이 템플릿 → 표현식',
+      { rawConfig: { integrationId: '{{ $vars.id }}' } },
+      true,
+    ],
+    ['rawConfig 없음 → 표현식', { rawConfig: undefined }, true],
+    ['원본 integrationId 없음 → 표현식', { rawConfig: {} }, true],
+    ['원본이 문자열 아님 → 표현식', { rawConfig: { integrationId: 7 } }, true],
+  ])('%s', async (_label, override, fromExpression) => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockResolvedValue(connected as never);
+    const handler = new TestHandler(asIntegrationsService(service));
+    await handler.callResolve(ID, ctx({ nodeId: 'node-1', ...override }), 'http');
+    expect(service.getForExecution).toHaveBeenCalledWith(ID, 'ws-1', {
+      nodeId: 'node-1',
+      fromExpression,
+    });
+  });
+
+  it('context.nodeId 가 없으면 nodeId 는 null 이다(작성자 불명으로 판정)', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockResolvedValue(connected as never);
+    const handler = new TestHandler(asIntegrationsService(service));
+    await handler.callResolve(
+      ID,
+      ctx({ rawConfig: { integrationId: ID } }),
+      'http',
+    );
+    expect(service.getForExecution).toHaveBeenCalledWith(ID, 'ws-1', {
+      nodeId: null,
+      fromExpression: false,
+    });
+  });
+
+  it('variables 의 nodeId · fromExpression 은 읽지 않는다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockResolvedValue(connected as never);
+    const handler = new TestHandler(asIntegrationsService(service));
+    await handler.callResolve(
+      ID,
+      ctx({
+        nodeId: 'node-1',
+        rawConfig: { integrationId: '{{ x }}' },
+        variables: {
+          __workspaceId: 'ws-1',
+          nodeId: 'forged',
+          fromExpression: false,
+        },
+      }),
+      'http',
+    );
+    expect(service.getForExecution).toHaveBeenCalledWith(ID, 'ws-1', {
+      nodeId: 'node-1',
+      fromExpression: true,
+    });
+  });
+});
+
+describe('IntegrationHandlerBase — 조회가 거절된 통합은 활동 로그를 남기지 않는다(REQ-INTMGMT-053)', () => {
+  const ID = '11111111-1111-4111-8111-111111111111';
+  const usage = {
+    integrationId: ID,
+    status: 'failed' as const,
+    durationMs: 3,
+  };
+
+  it('없는 통합과 같은 거절 뒤 같은 컨텍스트의 logUsage 는 기록하지 않는다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockRejectedValue(integrationNotFoundError());
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toThrow(
+      'Integration not found',
+    );
+    await handler.callLog(context, usage);
+    expect(service.logUsage).not.toHaveBeenCalled();
+  });
+
+  it('거절은 그 컨텍스트에만 걸린다 — 다른 노드 실행은 기록한다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockRejectedValue(integrationNotFoundError());
+    const handler = new TestHandler(asIntegrationsService(service));
+    await expect(
+      handler.callResolve(ID, ctx({ nodeId: 'node-1' }), 'http'),
+    ).rejects.toThrow();
+    await handler.callLog(ctx({ nodeExecutionId: 'ne-2' }), usage);
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('거절된 ID 가 아닌 통합은 같은 컨텍스트에서도 기록한다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockRejectedValue(integrationNotFoundError());
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toThrow();
+    await handler.callLog(context, { ...usage, integrationId: 'other' });
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('자격 증명을 읽지 못한 통합은 지금처럼 기록한다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockRejectedValue(
+      new IntegrationCredentialsUnreadableError(ID),
+    );
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toThrow();
+    await handler.callLog(context, usage);
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('통합을 얻은 뒤 검증(3단계)에서 실패하면 기록한다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockResolvedValue({
+      id: ID,
+      serviceType: 'email',
+      status: 'connected',
+    } as never);
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toMatchObject(
+      { code: 'INTEGRATION_TYPE_MISMATCH' },
+    );
+    await handler.callLog(context, usage);
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
   });
 });
 

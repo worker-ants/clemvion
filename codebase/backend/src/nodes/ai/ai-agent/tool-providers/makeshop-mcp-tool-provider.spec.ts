@@ -351,6 +351,56 @@ describe('MakeshopMcpToolProvider', () => {
       expect(summaries[0].skipReason).toBeUndefined();
     });
 
+    // CLE-INT-MCP 「통합 조회 기준」 — 토큰 갱신 뒤 다시 읽는 조회도 첫 조회와 같은 `use` 로 판정한다.
+    it('첫 조회와 토큰 갱신 뒤 재조회에 같은 use(nodeId · fromExpression)를 넘긴다', async () => {
+      const expiredRow = makeIntegration({ status: 'expired' });
+      const freshRow = makeIntegration({ status: 'connected' });
+      integrationsService.getForExecution
+        .mockResolvedValueOnce(expiredRow)
+        .mockResolvedValueOnce(freshRow);
+      apiClient.refreshTokenViaQueue.mockResolvedValue(undefined);
+
+      await provider.buildTools({
+        config: {
+          mcpServers: [{ integrationId: SID, fromExpression: false }],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeId: 'node-1',
+      });
+
+      const use = { nodeId: 'node-1', fromExpression: false };
+      expect(integrationsService.getForExecution).toHaveBeenNthCalledWith(
+        1,
+        SID,
+        'ws-1',
+        use,
+      );
+      expect(integrationsService.getForExecution).toHaveBeenNthCalledWith(
+        2,
+        SID,
+        'ws-1',
+        use,
+      );
+    });
+
+    it('fromExpression 이 없는 서버 항목(옛 체크포인트)은 표현식으로 조회한다', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({ status: 'connected' }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeId: 'node-1',
+      });
+      expect(integrationsService.getForExecution).toHaveBeenCalledWith(
+        SID,
+        'ws-1',
+        { nodeId: 'node-1', fromExpression: true },
+      );
+    });
+
     it('skips expired+refresh_token when refresh fails with auth_failed', async () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ status: 'expired' }),
