@@ -5,10 +5,12 @@ import type { IntegrationUse } from '../personal-integration-use';
 /*
  * 실행 경로(통합 노드 핸들러 · 도구 프로바이더 · 실행 엔진) 테스트가 쓰는 `IntegrationsService` 대역.
  *
- * 인자 타입을 실제 서명에서 가져온다. `getForExecution` 의 서명이 바뀌면 이 대역을 쓰는 테스트의 호출 · 단언이 타입체크
- * ratchet(`scripts/check-backend-typecheck-ratchet.py`)에 걸린다. jest 는 타입을 지우므로 테스트마다 `jest.fn()` 을
- * 따로 만들면 옛 서명으로 단언해도 아무도 모른다. `use` 는 필수 인자다(CLE-NODE-INT-COMMON 「IntegrationsService API
- * (실행 엔진용)」).
+ * 인자 타입을 실제 서명에서 가져온다. `getForExecution` 의 서명이 바뀌면 **이 대역을 쓰는 spec 에 한해** 호출 · 단언이
+ * 타입체크 ratchet(`scripts/check-backend-typecheck-ratchet.py`)에 걸린다. jest 는 타입을 지우므로 테스트마다
+ * `jest.fn()` 을 따로 만들면 옛 서명으로 단언해도 아무도 모른다. 실행 경로 spec 이 전부 이것을 쓰지는 않는다. 도구
+ * 프로바이더 spec 은 쓰고, 통합 노드 핸들러 spec(`cafe24` · `makeshop` · `database-query` · `http-request` ·
+ * `send-email`)과 실행 엔진 spec 은 아직 `getForExecution: jest.fn()` 을 직접 만든다. `use` 는 필수 인자다
+ * (CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」).
  */
 
 export interface IntegrationsServiceMock {

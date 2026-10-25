@@ -21,6 +21,11 @@ import {
 } from '../../../integration/cafe24/metadata/index';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import type { ToolCall } from '../../../../modules/llm/interfaces/llm-client.interface';
+import {
+  asIntegrationsService,
+  makeIntegrationsServiceMock,
+  type IntegrationsServiceMock,
+} from '../../../../modules/integrations/__test-utils__/integrations-service.mock';
 
 type Mock = jest.Mock;
 
@@ -76,21 +81,18 @@ const PRODUCT_LIST_API = {
 } as const;
 
 describe('Cafe24McpToolProvider', () => {
-  let integrationsService: { getForExecution: Mock; logUsage: Mock };
+  let integrationsService: IntegrationsServiceMock;
   let apiClient: { call: Mock; refreshTokenViaQueue: Mock };
   let provider: Cafe24McpToolProvider;
 
   beforeEach(() => {
-    integrationsService = {
-      getForExecution: jest.fn(),
-      logUsage: jest.fn().mockResolvedValue(undefined),
-    };
+    integrationsService = makeIntegrationsServiceMock();
     apiClient = {
       call: jest.fn(),
       refreshTokenViaQueue: jest.fn().mockResolvedValue(undefined),
     };
     provider = new Cafe24McpToolProvider(
-      integrationsService as never,
+      asIntegrationsService(integrationsService),
       apiClient as unknown as Cafe24ApiClient,
     );
   });

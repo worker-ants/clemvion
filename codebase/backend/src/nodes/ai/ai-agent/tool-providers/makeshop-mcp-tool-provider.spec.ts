@@ -18,6 +18,11 @@ import {
 import { listAllMakeshopOperations } from '../../../integration/makeshop/metadata/index';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import type { ToolCall } from '../../../../modules/llm/interfaces/llm-client.interface';
+import {
+  asIntegrationsService,
+  makeIntegrationsServiceMock,
+  type IntegrationsServiceMock,
+} from '../../../../modules/integrations/__test-utils__/integrations-service.mock';
 
 type Mock = jest.Mock;
 
@@ -62,21 +67,18 @@ const GET_PRODUCT_API = {
 } as const;
 
 describe('MakeshopMcpToolProvider', () => {
-  let integrationsService: { getForExecution: Mock; logUsage: Mock };
+  let integrationsService: IntegrationsServiceMock;
   let apiClient: { call: Mock; refreshTokenViaQueue: Mock };
   let provider: MakeshopMcpToolProvider;
 
   beforeEach(() => {
-    integrationsService = {
-      getForExecution: jest.fn(),
-      logUsage: jest.fn().mockResolvedValue(undefined),
-    };
+    integrationsService = makeIntegrationsServiceMock();
     apiClient = {
       call: jest.fn(),
       refreshTokenViaQueue: jest.fn().mockResolvedValue(undefined),
     };
     provider = new MakeshopMcpToolProvider(
-      integrationsService as never,
+      asIntegrationsService(integrationsService),
       apiClient as unknown as MakeshopApiClient,
     );
   });
