@@ -1,5 +1,6 @@
 import type { Logger } from '@nestjs/common';
 import { throwInvalidReferences } from '../../common/utils/reference-in-scope';
+import { INTEGRATION_NOT_FOUND_MESSAGE } from './integration-visibility';
 import {
   type NodeIntegrationRef,
   type StoredNodeConfig,
@@ -139,7 +140,8 @@ export interface ClearedIntegrationRef {
   field: string;
 }
 
-export const INTEGRATION_REF_INVALID_MESSAGE = 'Integration not found';
+/** 저장 검사 400 의 `details[].message`. 없는 통합의 404 본문과 같은 문구다(REQ-INTMGMT-052). */
+export const INTEGRATION_REF_INVALID_MESSAGE = INTEGRATION_NOT_FOUND_MESSAGE;
 
 /**
  * 노드 생성 · 수정과 캔버스 저장의 검사(REQ-INTMGMT-054). 새로 넣거나 바꾼 참조 가운데 쓸 수 없는 것을 모두 모아 400
