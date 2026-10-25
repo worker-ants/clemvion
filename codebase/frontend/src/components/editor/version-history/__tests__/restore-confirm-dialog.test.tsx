@@ -64,6 +64,68 @@ describe("RestoreConfirmDialog", () => {
     expect(reloadSpy).toHaveBeenCalled();
   });
 
+  it("hands the cleared integration refs to the reloaded editor before reloading (REQ-WFVER-027)", async () => {
+    window.sessionStorage.clear();
+    const cleared = [
+      { nodeId: "n-1", nodeLabel: "Fetch", field: "config.integrationId" },
+    ];
+    vi.mocked(workflowsApi.restoreVersion).mockResolvedValue({
+      data: {
+        data: { workflow: {}, nodes: [], edges: [], clearedIntegrationRefs: cleared },
+      },
+    } as never);
+    // 다시 불러오는 순간 저장소에 이미 목록이 있어야 한다.
+    let storedAtReload: string | null = null;
+    reloadSpy.mockImplementationOnce(() => {
+      storedAtReload = window.sessionStorage.getItem(
+        "clemvion.restoreClearedIntegrationRefs:wf-1",
+      );
+    });
+
+    await act(async () => {
+      render(
+        <RestoreConfirmDialog
+          workflowId="wf-1"
+          version={baseVersion}
+          onClose={vi.fn()}
+        />,
+        { wrapper: wrapper() },
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Restore$/ }));
+    });
+
+    expect(reloadSpy).toHaveBeenCalled();
+    expect(JSON.parse(storedAtReload ?? "null")).toEqual(cleared);
+  });
+
+  it("stores nothing when the restore cleared no refs", async () => {
+    window.sessionStorage.clear();
+    vi.mocked(workflowsApi.restoreVersion).mockResolvedValue({
+      data: {
+        data: { workflow: {}, nodes: [], edges: [], clearedIntegrationRefs: [] },
+      },
+    } as never);
+
+    await act(async () => {
+      render(
+        <RestoreConfirmDialog
+          workflowId="wf-1"
+          version={baseVersion}
+          onClose={vi.fn()}
+        />,
+        { wrapper: wrapper() },
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Restore$/ }));
+    });
+
+    expect(reloadSpy).toHaveBeenCalled();
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
   it("shows error when restore fails", async () => {
     vi.mocked(workflowsApi.restoreVersion).mockRejectedValue(
       new Error("Network down"),

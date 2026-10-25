@@ -67,6 +67,7 @@ export const workflows: Dict["workflows"] = {
   exportFailed: "Failed to export",
   imported: "Workflow imported",
   importFailed: "Failed to import",
+  integrationRefsCleared: "Cleared integrations you can't use on {{labels}}. Pick them again in the editor.",
   deleted: "Workflow deleted",
   deleteFailed: "Failed to delete",
   deleteConfirm: "Delete workflow '{{name}}'?",

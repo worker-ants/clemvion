@@ -232,6 +232,8 @@ export const nodeConfigs = {
     missingSuffix: "…(없음)",
     createNew: "+ {{name}} 통합 만들기",
     needsAttention: "주의 필요",
+    notAuthorSuffix: "이 워크플로우에서는 쓸 수 없음",
+    notAuthorHint: "이 워크플로우를 만든 사람이 아니어서 내 개인 통합은 고를 수 없어요. 노드에는 조직 통합과 워크플로우를 만든 사람의 개인 통합만 쓸 수 있어요.",
   },
   logic: {
     combineMode: "결합 방식",

@@ -8,7 +8,24 @@ export interface WorkflowData {
   tags: string[];
   settings: Record<string, unknown>;
   currentVersion: number;
+  /** 워크플로우 작성자 사용자 id. 통합 선택기와 붙여넣기 필터가 지금 사용자와 견준다. */
+  createdBy?: string;
 }
+
+/**
+ * 복제 · 가져오기 · 버전 복원이 비운 노드 통합 참조 하나(CLE-PLAT-DATA 「참조의 소속」 의 「통합 참조」). 비운 이유는 없다.
+ * `field` 는 노드 안의 경로(`config.integrationId` · `config.mcpServers[j].integrationId`)다.
+ */
+export interface ClearedIntegrationRef {
+  nodeId: string;
+  nodeLabel: string;
+  field: string;
+}
+
+/** 복제 · 가져오기 결과. 새 워크플로우에 비운 통합 참조를 더한 것이다. */
+export type WorkflowCopyResult = WorkflowData & {
+  clearedIntegrationRefs: ClearedIntegrationRef[];
+};
 
 export interface NodeData {
   id: string;
@@ -139,7 +156,7 @@ export const workflowsApi = {
   delete: (id: string) => apiClient.delete(`/workflows/${id}`),
 
   duplicate: (id: string) =>
-    apiClient.post<{ data: WorkflowData }>(`/workflows/${id}/duplicate`),
+    apiClient.post<{ data: WorkflowCopyResult }>(`/workflows/${id}/duplicate`),
 
   getNodes: (workflowId: string) =>
     apiClient.get<{ data: NodeData[] }>(`/workflows/${workflowId}/nodes`),
@@ -240,7 +257,7 @@ export const workflowsApi = {
     apiClient.get<{ data: ExportedWorkflow }>(`/workflows/${id}/export`),
 
   importWorkflow: (data: object) =>
-    apiClient.post<{ data: WorkflowData }>("/workflows/import", data),
+    apiClient.post<{ data: WorkflowCopyResult }>("/workflows/import", data),
 
   listVersions: (workflowId: string) =>
     apiClient.get<{ data: WorkflowVersionSummary[] }>(
@@ -254,6 +271,11 @@ export const workflowsApi = {
 
   restoreVersion: (workflowId: string, versionId: string) =>
     apiClient.post<{
-      data: { workflow: WorkflowData; nodes: NodeData[]; edges: EdgeData[] };
+      data: {
+        workflow: WorkflowData;
+        nodes: NodeData[];
+        edges: EdgeData[];
+        clearedIntegrationRefs: ClearedIntegrationRef[];
+      };
     }>(`/workflows/${workflowId}/versions/${versionId}/restore`),
 };

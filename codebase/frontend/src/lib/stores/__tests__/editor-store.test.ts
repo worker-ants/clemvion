@@ -9,9 +9,12 @@ vi.mock("../../api/workflows", () => ({
   },
 }));
 
-const { toastErrorMock } = vi.hoisted(() => ({ toastErrorMock: vi.fn() }));
+const { toastErrorMock, toastWarningMock } = vi.hoisted(() => ({
+  toastErrorMock: vi.fn(),
+  toastWarningMock: vi.fn(),
+}));
 vi.mock("sonner", () => ({
-  toast: { error: toastErrorMock, success: vi.fn() },
+  toast: { error: toastErrorMock, success: vi.fn(), warning: toastWarningMock },
 }));
 
 // `@workflow/graph-warning-rules` 는 실제 평가 로직을 그대로 사용하되,
@@ -33,6 +36,8 @@ vi.mock("@workflow/graph-warning-rules", async () => {
 
 import { useEditorStore } from "../editor-store";
 import { useRecentNodesStore } from "../recent-nodes-store";
+import { useLocaleStore } from "../locale-store";
+import type { IntegrationRefFilterContext } from "@/lib/integrations/node-integration-refs";
 import { workflowsApi } from "../../api/workflows";
 
 const saveCanvasMock = vi.mocked(workflowsApi.saveCanvas);
@@ -53,6 +58,7 @@ const makeEdge = (source: string, target: string): Edge => ({
 const initialState = {
   workflowId: null,
   workflowName: "Untitled Workflow",
+  workflowCreatedBy: null,
   isDirty: false,
   isSaving: false,
   nodes: [] as Node[],
@@ -1101,6 +1107,100 @@ describe("useEditorStore", () => {
       expect(cloneLabels).toHaveLength(2);
       expect(new Set(cloneLabels).size).toBe(2); // 두 복제본 라벨 서로 다름
       expect(cloneLabels).not.toContain("Dup"); // 원본과도 다름
+    });
+
+    describe("고를 수 없는 통합 참조 비우기 (REQ-EDITOR-059)", () => {
+      // Alice 가 Bob 이 작성한 워크플로우에 붙여 넣는다. Alice 의 개인 통합은 이 워크플로우에서 쓸 수 없다.
+      const refFilter: IntegrationRefFilterContext = {
+        currentUserId: "alice",
+        workflowAuthorId: "bob",
+        integrations: new Map([
+          ["org-1", { scope: "organization", createdBy: "bob" }],
+          ["alice-personal", { scope: "personal", createdBy: "alice" }],
+        ]),
+      };
+      const integrationNodes = () => [
+        makeNode("p", {
+          selected: true,
+          data: {
+            type: "send_email",
+            label: "Mail",
+            config: { integrationId: "alice-personal", to: "x" },
+          },
+        }),
+        makeNode("o", {
+          selected: true,
+          data: {
+            type: "send_email",
+            label: "Org mail",
+            config: { integrationId: "org-1" },
+          },
+        }),
+      ];
+      const pastedConfigs = () =>
+        Object.fromEntries(
+          useEditorStore
+            .getState()
+            .nodes.filter((n) => n.id !== "p" && n.id !== "o")
+            .map((n) => {
+              const data = n.data as { label: string; config: unknown };
+              return [data.label, data.config];
+            }),
+        );
+
+      beforeEach(() => {
+        toastWarningMock.mockClear();
+        useLocaleStore.setState({ locale: "en" });
+      });
+
+      it("pasteClipboard 는 쓸 수 없는 참조를 비우고 새 레이블로 경고한다", () => {
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore.getState().copySelection();
+        useEditorStore.getState().pasteClipboard(undefined, refFilter);
+        expect(pastedConfigs()).toEqual({
+          "Mail 2": { to: "x" },
+          "Org mail 2": { integrationId: "org-1" },
+        });
+        expect(toastWarningMock).toHaveBeenCalledTimes(1);
+        expect(toastWarningMock.mock.calls[0][0]).toContain("Mail 2");
+        expect(toastWarningMock.mock.calls[0][0]).not.toContain("Org mail");
+      });
+
+      it("duplicateSelection 도 같은 규칙으로 비운다", () => {
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore.getState().duplicateSelection(refFilter);
+        expect(pastedConfigs()).toEqual({
+          "Mail 2": { to: "x" },
+          "Org mail 2": { integrationId: "org-1" },
+        });
+        expect(toastWarningMock).toHaveBeenCalledTimes(1);
+      });
+
+      it("필터 문맥이 없거나 비운 것이 없으면 그대로 두고 경고하지 않는다", () => {
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore.getState().duplicateSelection();
+        expect(pastedConfigs()).toEqual({
+          "Mail 2": { integrationId: "alice-personal", to: "x" },
+          "Org mail 2": { integrationId: "org-1" },
+        });
+
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore
+          .getState()
+          .duplicateSelection({ ...refFilter, workflowAuthorId: "alice" });
+        expect(pastedConfigs()["Mail 2"]).toEqual({
+          integrationId: "alice-personal",
+          to: "x",
+        });
+        expect(toastWarningMock).not.toHaveBeenCalled();
+      });
+
+      it("setWorkflow 는 워크플로우 작성자를 담고 모르면 null 로 둔다", () => {
+        useEditorStore.getState().setWorkflow("wf-1", "W", [], [], "bob");
+        expect(useEditorStore.getState().workflowCreatedBy).toBe("bob");
+        useEditorStore.getState().setWorkflow("wf-2", "W", [], []);
+        expect(useEditorStore.getState().workflowCreatedBy).toBeNull();
+      });
     });
 
     it("selectAll / deselectAll", () => {

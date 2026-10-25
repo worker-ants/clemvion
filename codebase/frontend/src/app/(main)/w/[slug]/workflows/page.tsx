@@ -19,7 +19,11 @@ import {
   Tag,
 } from "lucide-react";
 import { toast } from "sonner";
-import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
+import {
+  workflowsApi,
+  type ClearedIntegrationRef,
+  type WorkflowData,
+} from "@/lib/api/workflows";
 import { foldersApi } from "@/lib/api/folders";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
@@ -36,6 +40,7 @@ import { cn } from "@/lib/utils/cn";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildEditorHref, buildExecutionHref } from "@/lib/workspace/href";
+import { clearedIntegrationRefLabels } from "@/lib/integrations/cleared-integration-refs";
 
 type FilterStatus = "all" | "active" | "inactive";
 type Ownership = "all" | "mine" | "shared";
@@ -81,6 +86,16 @@ export default function WorkflowsPage() {
   const router = useRouter();
   const slug = useWorkspaceSlug();
   const queryClient = useQueryClient();
+
+  // REQ-WFLIST-054 · 055 — 복제 · 가져오기가 비운 통합 참조가 있으면 성공 토스트에 경고를 하나 더한다.
+  const warnClearedRefs = (refs: ClearedIntegrationRef[] | undefined) => {
+    const labels = clearedIntegrationRefLabels(refs);
+    if (labels.length > 0) {
+      toast.warning(
+        t("workflows.integrationRefsCleared", { labels: labels.join(", ") }),
+      );
+    }
+  };
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -259,8 +274,9 @@ export default function WorkflowsPage() {
 
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => workflowsApi.duplicate(id),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success(t("workflows.duplicated"));
+      warnClearedRefs(res.data.data.clearedIntegrationRefs);
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
     },
     onError: () => {
@@ -291,8 +307,9 @@ export default function WorkflowsPage() {
       const json = JSON.parse(text);
       return workflowsApi.importWorkflow(json);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success(t("workflows.imported"));
+      warnClearedRefs(res.data.data.clearedIntegrationRefs);
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
     },
     onError: () => {

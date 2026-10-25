@@ -234,6 +234,8 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     missingSuffix: "… (missing)",
     createNew: "+ Create {{name}} integration",
     needsAttention: "needs attention",
+    notAuthorSuffix: "can't be used in this workflow",
+    notAuthorHint: "You didn't create this workflow, so you can't pick your personal integrations. Nodes can use organization integrations and the workflow creator's personal integrations only.",
   },
   logic: {
     combineMode: "Combine Mode",

@@ -79,6 +79,7 @@ const USAGES: UsageWorkflow[] = [
     workflowId: "wf-a",
     workflowName: "Workflow A",
     isActive: true,
+    authorIsIntegrationOwner: true,
     nodes: [
       { id: "abc", label: "Send Email message", type: "send-email", usageKind: "direct" },
       { id: "mcp1", label: "AI Agent", type: "ai-agent", usageKind: "mcp" },
@@ -93,8 +94,8 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
-function renderDangerTab() {
-  const integration = buildIntegration();
+function renderDangerTab(overrides: Partial<IntegrationDto> = {}) {
+  const integration = buildIntegration(overrides);
   function Host() {
     const t = useT();
     return (
@@ -216,5 +217,124 @@ describe("DangerTab — delete blocked dialog (§4.7 / §7.2)", () => {
       expect(toastErrorMock).toHaveBeenCalledTimes(1);
     });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("DangerTab — organization → personal warning (REQ-INTMGMT-057)", () => {
+  const MIXED_USAGES: UsageWorkflow[] = [
+    { ...USAGES[0], authorIsIntegrationOwner: true },
+    {
+      workflowId: "wf-b",
+      workflowName: "Workflow B",
+      isActive: false,
+      authorIsIntegrationOwner: false,
+      nodes: [
+        { id: "n-b", label: "Query orders", type: "database_query", usageKind: "direct" },
+      ],
+    },
+  ];
+  let confirmSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+    updateScopeMock.mockResolvedValue(undefined);
+    confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  async function applyScope(next: "personal" | "organization") {
+    await userEvent.selectOptions(screen.getByRole("combobox"), next);
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+  }
+
+  it("lists only workflows whose author is not the integration owner and switches after confirming", async () => {
+    usagesMock.mockResolvedValue(MIXED_USAGES);
+    await act(async () => {
+      renderDangerTab({ scope: "organization" });
+    });
+
+    await applyScope("personal");
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(
+      "Some workflows will fail after switching to Personal",
+    );
+    expect(dialog).toHaveTextContent("Workflow B");
+    expect(dialog).toHaveTextContent("Query orders");
+    expect(dialog).not.toHaveTextContent("Workflow A");
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(updateScopeMock).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Switch to Personal" }),
+    );
+    await waitFor(() => {
+      expect(updateScopeMock).toHaveBeenCalledWith("int-1", "personal");
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not switch when the warning dialog is cancelled", async () => {
+    usagesMock.mockResolvedValue(MIXED_USAGES);
+    await act(async () => {
+      renderDangerTab({ scope: "organization" });
+    });
+
+    await applyScope("personal");
+    await screen.findByRole("dialog");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(updateScopeMock).not.toHaveBeenCalled();
+  });
+
+  it("asks a plain confirmation when every workflow author owns the integration", async () => {
+    usagesMock.mockResolvedValue([MIXED_USAGES[0]]);
+    await act(async () => {
+      renderDangerTab({ scope: "organization" });
+    });
+
+    await applyScope("personal");
+
+    await waitFor(() => {
+      expect(updateScopeMock).toHaveBeenCalledWith("int-1", "personal");
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining("only the person who created this integration"),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps the scope when usages cannot be checked", async () => {
+    usagesMock.mockRejectedValue(new Error("down"));
+    await act(async () => {
+      renderDangerTab({ scope: "organization" });
+    });
+
+    await applyScope("personal");
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "Couldn't check where this integration is used, so the scope wasn't changed",
+      );
+    });
+    expect(updateScopeMock).not.toHaveBeenCalled();
+  });
+
+  it("does not check usages when switching personal → organization", async () => {
+    await act(async () => {
+      renderDangerTab({ scope: "personal" });
+    });
+
+    await applyScope("organization");
+
+    await waitFor(() => {
+      expect(updateScopeMock).toHaveBeenCalledWith("int-1", "organization");
+    });
+    expect(usagesMock).not.toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Existing credentials will be shared with all workspace members. Continue?",
+    );
   });
 });

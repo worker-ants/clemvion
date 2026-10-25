@@ -32,6 +32,8 @@ vi.mock("next/link", () => ({
 
 import { IntegrationSelector } from "../integration-selector";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useEditorStore } from "@/lib/stores/editor-store";
 
 function wrap(ui: React.ReactNode) {
   const client = new QueryClient({
@@ -183,5 +185,65 @@ describe("IntegrationSelector", () => {
       target: { value: "int-1" },
     });
     expect(onChange).toHaveBeenCalledWith("int-1");
+  });
+});
+
+describe("IntegrationSelector — workflow author rule (REQ-INTMGMT-056)", () => {
+  const LIST = {
+    data: [
+      { id: "org-1", name: "Team SMTP", authType: "smtp", status: "connected", scope: "organization", createdBy: "bob" },
+      { id: "mine-1", name: "My SMTP", authType: "smtp", status: "connected", scope: "personal", createdBy: "alice" },
+    ],
+    pagination: { page: 1, limit: 100, totalItems: 2, totalPages: 1 },
+  };
+  const HINT = /you didn't create this workflow/i;
+
+  beforeEach(() => {
+    listMock.mockReset();
+    listMock.mockResolvedValue(LIST);
+    useLocaleStore.setState({ locale: "en" });
+    useAuthStore.setState({ user: { id: "alice" } as never });
+  });
+
+  async function renderOptions() {
+    render(
+      wrap(
+        <IntegrationSelector
+          value=""
+          onChange={() => {}}
+          serviceTypes={["email"]}
+        />,
+      ),
+    );
+    await waitForOptions(3);
+    const options = screen.getAllByRole("option") as HTMLOptionElement[];
+    return (id: string) => options.find((o) => o.value === id)!;
+  }
+
+  it("disables the user's own personal integrations with the reason when they are not the workflow author", async () => {
+    useEditorStore.setState({ workflowCreatedBy: "bob" });
+    const option = await renderOptions();
+
+    expect(option("mine-1").disabled).toBe(true);
+    expect(option("mine-1").textContent).toBe(
+      "My SMTP (smtp) — can't be used in this workflow",
+    );
+    expect(option("org-1").disabled).toBe(false);
+    expect(screen.getByText(HINT)).toBeDefined();
+  });
+
+  it("keeps personal integrations selectable for the workflow author", async () => {
+    useEditorStore.setState({ workflowCreatedBy: "alice" });
+    const option = await renderOptions();
+
+    expect(option("mine-1").disabled).toBe(false);
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+
+  it("does not filter while the workflow author is unknown", async () => {
+    useEditorStore.setState({ workflowCreatedBy: null });
+    const option = await renderOptions();
+
+    expect(option("mine-1").disabled).toBe(false);
   });
 });

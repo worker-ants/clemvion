@@ -67,6 +67,7 @@ export const workflows = {
   exportFailed: "내보내기에 실패했어요",
   imported: "워크플로우를 가져왔어요",
   importFailed: "가져오기에 실패했어요",
+  integrationRefsCleared: "{{labels}} 노드에서 쓸 수 없는 통합 선택을 비웠어요. 에디터에서 통합을 다시 골라 주세요.",
   deleted: "워크플로우를 삭제했어요",
   deleteFailed: "삭제에 실패했어요",
   deleteConfirm: "워크플로우 '{{name}}'을(를) 삭제할까요?",

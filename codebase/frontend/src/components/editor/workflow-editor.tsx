@@ -17,6 +17,7 @@ import {
 import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
+import { useIntegrationRefFilterContext } from "./canvas/integration-list-context";
 import { NodeSettingsPanel } from "./settings-panel/node-settings-panel";
 import { RunResultsDrawer } from "./run-results/run-results-drawer";
 import { VersionHistoryPanel } from "./version-history/version-history-panel";
@@ -36,6 +37,8 @@ export function WorkflowEditor() {
   const copySelection = useEditorStore((s) => s.copySelection);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const duplicateSelection = useEditorStore((s) => s.duplicateSelection);
+  // REQ-EDITOR-059 — 붙여넣기 · 복제가 지금 사용자가 고를 수 없는 통합 참조를 비울 때 쓴다.
+  const integrationRefFilter = useIntegrationRefFilterContext();
   const selectAll = useEditorStore((s) => s.selectAll);
   const deselectAll = useEditorStore((s) => s.deselectAll);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
@@ -131,12 +134,12 @@ export function WorkflowEditor() {
           break;
         case "paste":
           e.preventDefault();
-          pasteClipboard();
+          pasteClipboard(undefined, integrationRefFilter);
           break;
         case "duplicate":
           // 브라우저 북마크(Ctrl+D) 기본동작 차단.
           e.preventDefault();
-          duplicateSelection();
+          duplicateSelection(integrationRefFilter);
           break;
         case "select-all":
           e.preventDefault();
@@ -165,6 +168,7 @@ export function WorkflowEditor() {
       copySelection,
       pasteClipboard,
       duplicateSelection,
+      integrationRefFilter,
       selectAll,
       deselectAll,
       saveAndInvalidate,

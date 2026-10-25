@@ -7,6 +7,7 @@ import { workflowsApi } from "@/lib/api/workflows";
 import type { WorkflowVersionSummary } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
+import { stashRestoreClearedIntegrationRefs } from "@/lib/integrations/cleared-integration-refs";
 
 interface Props {
   workflowId: string;
@@ -22,10 +23,15 @@ export function RestoreConfirmDialog({ workflowId, version, onClose }: Props) {
   const mutation = useMutation({
     mutationFn: async () =>
       workflowsApi.restoreVersion(workflowId, version.id),
-    onSuccess: async () => {
+    onSuccess: async (res) => {
       await queryClient.invalidateQueries({
         queryKey: ["workflow-versions", workflowId],
       });
+      // REQ-WFVER-027 — 다시 불러오면 메모리 상태가 사라지므로 경고할 목록을 먼저 넘겨 둔다.
+      stashRestoreClearedIntegrationRefs(
+        workflowId,
+        res.data.data.clearedIntegrationRefs,
+      );
       window.location.reload();
     },
     onError: (e: unknown) => {
