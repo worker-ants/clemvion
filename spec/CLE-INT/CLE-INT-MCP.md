@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "76c414afedeff14591e36fc2ddc65b9358fbe37fcba4ff97090403c55cd37809"
+content_hash: "38720e6bdbd2a2dc7ad90bedac715e215c083f4f09ec69958bac5c54ebefccd5"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "7a03031ab22b7041ce872d4f18022d31c72abdf004624c6ebe702d2a07346b2b"
-etag: "sha256-6eeed77f865233c15d6131aad89abf08ffcf5e91f2a6bf406b73213a897e58c7"
+mirror_sha256: "81a40edf10510d248fdff6f91616d62c09e162c32771349da39116e77456fa06"
+etag: "sha256-36e7bd2c3d9f1a38529bf92f333f30b56f753c793cbd71e1f0401ff6e1055c3e"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증, `mcpServers` 의 개인 통합 사용 판정, 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -425,7 +425,13 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 
 ### 통합 조회 기준
 
-`mcpServers` 의 통합 조회는 통합 노드 핸들러와 같은 기준을 따른다. 개인 통합이면 [개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)의 실행 시점 조건을 모두 통과해야 한다. AI 에이전트 노드가 속한 워크플로우의 작성자가 통합 소유자이고 통합 소유자가 지금 그 워크스페이스의 멤버여야 한다. 통과하지 못하거나 노드 ID 로 워크플로우 작성자를 구하지 못하면 그 서버를 `lookup_failed` 로 건너뛰고 나머지 서버는 그대로 쓴다. 서브 워크플로우 안의 AI 에이전트 노드는 그 서브 워크플로우의 작성자로 판정한다. 도구 프로바이더는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 노드 ID 와 서버 항목의 표현식 여부를 조회에 넘긴다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 외부 MCP 서버와 Cafe24 · MakeShop 내부 MCP 브리지가 같다. 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 같다. 통합 조회는 도구 목록을 만들 때만 하고 토큰 갱신 뒤 재조회도 이 단계 안에서 일어난다. 도구 실행은 그때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션). 건너뛴 서버에는 활동 로그를 남기지 않는다.
+`mcpServers` 의 통합 조회는 통합 노드 핸들러와 같은 기준을 따른다.
+
+- 개인 통합이면 [개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)의 실행 시점 조건을 모두 통과해야 한다. AI 에이전트 노드가 속한 워크플로우의 작성자가 통합 소유자이고 통합 소유자가 지금 그 워크스페이스의 멤버여야 한다. 서브 워크플로우 안의 AI 에이전트 노드는 그 서브 워크플로우의 작성자로 판정한다.
+- 통과하지 못하거나 노드 ID 로 워크플로우 작성자를 구하지 못하면 그 서버를 `lookup_failed` 로 건너뛰고 나머지 서버는 그대로 쓴다. 건너뛴 서버에는 활동 로그를 남기지 않는다. 거절 이유는 서버 로그에만 남긴다([개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)).
+- 도구 프로바이더는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 노드 ID 와 서버 항목의 표현식 여부를 조회에 넘긴다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 외부 MCP 서버와 Cafe24 · MakeShop 내부 MCP 브리지가 같다. 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 같다.
+- 통합 조회는 도구 목록을 만들 때만 하고 토큰 갱신 뒤 재조회도 이 단계 안에서 일어난다. 도구 실행은 그때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션).
+- 그래서 판정한 뒤 도구를 실행하기 전에 통합이 지워지거나 통합 소유자가 워크스페이스를 떠나도 그 노드 실행 안에서는 반영되지 않는다. 멀티턴이면 입력 대기 뒤 재개 턴에서 도구 목록을 다시 만들 때 반영된다. 받아들인 잔여다.
 
 다만 외부 MCP 서버는 지금 통합 조회가 실패해도 `lookup_failed` 요약을 남기지 않는다. `McpToolProvider.openServer` 가 서비스 유형을 알기 전의 조회 실패를 진단에 넣지 않고 던진다. 그 서버만 빠지고 나머지 서버는 그대로 쓰인다(2026-10-24 코드 확인). 다른 문서는 이 차이를 다시 적지 않고 이 절을 링크한다.
 

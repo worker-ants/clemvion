@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "5c93d464e81293be257df46c7e5a31eab91a2b541076cd017f499bcc8b5b035a"
+content_hash: "add27c2af647729764a2db74ea169b8cc21f7abcb59cda6e6b2ae317ac315f36"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "bab2ca5e3d74469931512485ea45b93ea3d1741fac135a56008a9d6530ebad52"
-etag: "sha256-34c4105fd91bbe9783109372c02cd63451d58b1802745c0337bd5c30f8761829"
+mirror_sha256: "da827b2b0f99419020fa27a176b563639b975d90138e40f1b1312261ce47dc8c"
+etag: "sha256-637f98327e66328dfd99633d010d671c2bf594660425490255ff0d082b6466e3"
 ---
 > 구현 상태: 부분 구현 (`nodeId` 로 워크플로우 작성자를 구하는 개인 통합 판정은 미구현) · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ etag: "sha256-34c4105fd91bbe9783109372c02cd63451d58b1802745c0337bd5c30f8761829"
 ### 필드 분류
 
 1. **안정 핵심(stable core)**: `ExecutionContext` 에는 모든 노드가 함께 쓰는 최소 필드만 둔다.
-   - 식별: `workflowId`, `executionId`, `nodeExecutionId`
+   - 식별: `workflowId`, `executionId`, `nodeExecutionId`, `nodeId?`
    - 실행 표준: `variables`, `nodeOutputCache`, `structuredOutputCache`, `rawConfig`, `recursionDepth`. `nodeOutputCache` 와 `structuredOutputCache` 는 Parallel 분기에 들어갈 때 얕은 복사로 격리한다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md)).
    - 여러 기능이 함께 쓰는 취소: `abortSignal?: AbortSignal`. 선택 필드이고 best-effort 규약이다. 모든 노드가 지켜야 하는 것은 아니다.
    - 위 목록은 이 규약이 직접 다루는 발췌다. 전체 필드 정의의 기준은 `node-handler.interface.ts` 다(`conversationThread`, `itemContext`, `loopContext`, `expressionContext` 등 포함).
@@ -102,6 +102,7 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
   "executionId": "uuid",
   "workflowId": "uuid",
   "nodeExecutionId": "uuid",
+  "nodeId": "uuid",
   "rawConfig": {
     "subject": "Hello {{ name }}",
     "body": "Welcome, {{ user.firstName }}!"

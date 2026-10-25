@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "734cd261a9afac72efa89431f7483eee614ad1ea27517b31c74d08debc4bfbd7"
+content_hash: "2921c118be0ec55eca7c61ae8e1d6d2524f29eee24bd29dc51f6c9bc45f88ffb"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "6c26318aa6bf31f908b2ea0edf7a4377384468c0d1084fd0a82c875d5dbac041"
-etag: "sha256-1ee491be8bc5e763f8879e8b5641139205a84fcbc0d3c2e1ab4095d7e2647297"
+mirror_sha256: "a9e9ea0971f0f9a60a60406d42d1e384c552b9232b8d8441b884f3f20fdb04f1"
+etag: "sha256-02d47e5f2c7a8e65b9bf7bffec4101a44e6ff8bcb35945b08d5616625d196baa"
 ---
 > 구현 상태: 부분 구현 (개인 통합의 사용 판정과 커밋 직전 재판정의 `EDITOR_REQUIRED`, `logUsage` 가 얻은 통합을 받는 서명은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -338,7 +338,7 @@ sequenceDiagram
 
 - 통합 재인증과 설치 대기 행은 자격 증명을 통째로 바꾸고, 추가 권한 요청은 기존 자격 증명에 합치고 권한 범위를 갱신한다. 설치 토큰은 보존한다. 재설치 대기 표시(`reinstall_requested_at`)는 같은 UPDATE 에서 지운다.
 - 콜백이 실패하면(토큰 교환 실패 등) state 를 소비한 뒤 식별된 행에 `markIntegrationCallbackError` 가 `status_reason`(`normalizeStatusReason` 으로 union 정규화)과 `last_error={code,message,at}` 을 기록한다. 상태를 바꾸는지는 실패 종류와 행의 현재 상태에 따라 다르다. 연결됨 행의 통합 재인증 토큰 교환 실패는 `error(auth_failed)` 로 바뀐다. 재설치 대기 표시가 유효한 행, 설치 대기 행, state 단계 실패는 상태를 보존한다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 콜백 실패는 재설치 대기 표시를 지우지 않는다. 표는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑이 소유한다.
-- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고, 같은 수집 경로가 `last_error` 에 `RESOURCE_NOT_FOUND`, `EDITOR_REQUIRED`(개인 통합), `ADMIN_REQUIRED` 가운데 하나를 기록한다. 상태는 보존한다.
+- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고, 같은 수집 경로가 `last_error` 에 `RESOURCE_NOT_FOUND`, `EDITOR_REQUIRED`(개인 통합), `ADMIN_REQUIRED` 가운데 하나를 기록한다. 상태는 보존한다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 `EDITOR_REQUIRED` 를 가드 거부 코드로만 적는다. 서비스 계층이 내는 경우를 더하는 일은 NERV Task `CLE-T-5BZ3M2` 가 맡는다.
 - 설치 대기 행과, 재설치 대기 표시가 유효한 Cafe24 Private 행은 커밋 직전 인가 재판정을 하지 않는다. 이 행의 state 는 App URL(설치 토큰과 HMAC 이 인가한다)이 만들어 `user_id` 가 요청자가 아니라 통합 소유자다. 표시를 남긴 요청자의 인가는 표시를 남길 때 이미 확인했다. 재판정하면 관리자가 요청한 조직 통합의 재설치가 통합 소유자 기준으로 `ADMIN_REQUIRED` 가 되어 실패한다. Cafe24 Public 행과 MakeShop 행은 표시 값과 관계없이 재판정하고 표시를 남긴 지 24시간이 지난 Cafe24 Private 행도 재판정한다.
 - 설치 토큰이 있는 Cafe24 Private 행의 통합 재인증과 추가 권한 요청은 `oauth/begin` 을 거치지 않고 state 도 만들지 않는다. 통합 재인증은 판정한 행 조건으로 `reinstall_requested_at` 만 현재 시각으로 UPDATE 하고 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 추가 권한 요청은 `credentials.scopes` 를 합쳐 저장하면서 설치 대기가 아니면 같은 값을 쓴다. 이미 표시가 있으면 새 시각으로 덮어써 24시간을 다시 센다. 상태·상태 사유·토큰은 그대로다. state 는 사용자가 «테스트 실행» 을 눌러 App URL 이 불릴 때 생긴다([Cafe24 Private 앱 설치](#cafe24-private-앱-설치)).
 - 자격 증명 교체(`POST /api/integrations/:id/rotate`)는 OAuth 흐름이 아니다. 연결 테스트를 통과하면 자격 증명을 합치고 `last_rotated_at` 을 갱신하며 연결됨으로 되돌린다.
@@ -425,10 +425,9 @@ sequenceDiagram
   Svc->>PG: SELECT integration (transformer 가 복호화)
   alt 복호화 불가
     Svc-->>H: IntegrationCredentialsUnreadableError
-  else 서비스 유형 불일치
-    Svc-->>H: INTEGRATION_TYPE_MISMATCH
-  else 연결됨이 아님
-    Svc-->>H: INTEGRATION_NOT_CONNECTED (상태와 사유를 메시지에 포함)
+  else 조회됨
+    Svc-->>H: 통합
+    Note over H: 3단계 검증. 서비스 유형이 다르면 INTEGRATION_TYPE_MISMATCH, 연결됨이 아니면 INTEGRATION_NOT_CONNECTED
   end
   H->>Ext: API 호출 (클라이언트 경유)
   H->>Svc: logUsage(통합, status, durationMs, error, api)
@@ -440,6 +439,8 @@ sequenceDiagram
 ```
 
 - 토큰 만료가 가깝거나 지난 것은 조회 실패 조건이 아니다. Cafe24·MakeShop 클라이언트가 호출 직전에 토큰을 갱신하고, 401 을 받으면 갱신 뒤 다시 시도한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
+- 그림에서 `getForExecution` 의 `use` 인자와 `logUsage` 가 얻은 통합을 받는 서명은 목표 서명이다(미구현). 지금 서명과 목표 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
+- 서비스 유형과 연결 상태는 서비스가 아니라 핸들러 기반 클래스가 3단계에서 검증한다(`integration-handler-base.ts`, [통합 노드 공통 「IntegrationHandlerBase」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationhandlerbase)). 연결 상태 실패의 메시지에는 상태와 사유를 싣는다. 통합을 얻은 뒤의 실패라 그 통합에 활동 로그를 남긴다(REQ-INTMGMT-062).
 - `logUsage` 는 예외를 던지지 않는다. 기록 실패가 노드 실행을 깨지 않도록 삼킨다. `nodeExecutionId` 가 없으면 행을 쓰지 않는다.
 - Cafe24·MakeShop 의 인증 실패와 네트워크 실패로 인한 오류 전이는 `logUsage` 가 아니라 각 클라이언트의 `markAuthFailed`·`recordNetworkFailure` 가 한다. 노드 실행 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
 - 재설치 대기 표시는 실행 경로가 보지 않는다. 표시가 있는 연결됨 행은 기존 토큰으로 계속 실행된다. 표시가 있는 오류·만료됨 행은 위 상태 검사에서 막힌다.

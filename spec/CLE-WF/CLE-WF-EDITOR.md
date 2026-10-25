@@ -2,21 +2,21 @@
 id: "CLE-WF-EDITOR"
 title: "워크플로우 에디터와 캔버스"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-EDITOR-001", "REQ-EDITOR-002", "REQ-EDITOR-003", "REQ-EDITOR-004", "REQ-EDITOR-005", "REQ-EDITOR-006", "REQ-EDITOR-007", "REQ-EDITOR-008", "REQ-EDITOR-009", "REQ-EDITOR-010", "REQ-EDITOR-011", "REQ-EDITOR-012", "REQ-EDITOR-013", "REQ-EDITOR-014", "REQ-EDITOR-015", "REQ-EDITOR-016", "REQ-EDITOR-017", "REQ-EDITOR-018", "REQ-EDITOR-019", "REQ-EDITOR-020", "REQ-EDITOR-021", "REQ-EDITOR-022", "REQ-EDITOR-023", "REQ-EDITOR-024", "REQ-EDITOR-025", "REQ-EDITOR-026", "REQ-EDITOR-027", "REQ-EDITOR-028", "REQ-EDITOR-029", "REQ-EDITOR-030", "REQ-EDITOR-031", "REQ-EDITOR-032", "REQ-EDITOR-033", "REQ-EDITOR-034", "REQ-EDITOR-035", "REQ-EDITOR-036", "REQ-EDITOR-037", "REQ-EDITOR-038", "REQ-EDITOR-039", "REQ-EDITOR-040", "REQ-EDITOR-041", "REQ-EDITOR-042", "REQ-EDITOR-043", "REQ-EDITOR-044", "REQ-EDITOR-045", "REQ-EDITOR-046", "REQ-EDITOR-047", "REQ-EDITOR-048", "REQ-EDITOR-049", "REQ-EDITOR-050", "REQ-EDITOR-051", "REQ-EDITOR-052", "REQ-EDITOR-053", "REQ-EDITOR-054", "REQ-EDITOR-055", "REQ-EDITOR-056", "REQ-EDITOR-057", "REQ-EDITOR-058", "REQ-EDITOR-059"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "4cccbecb4fd0a6b9d01b6e4201ecc4d126f88a255c5eaee41d6fa83690bb6846"
+content_hash: "16411df08c2760118d311c41e5fd8ddac2a88cdbce99e6e88c7d4600ab4c3b6f"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "346c10e95545df22cb4140884ab3da8268d2f3dba5c211c20e34016c414aed55"
-etag: "sha256-d581967629f7dea381b45bfe4df3824fa85065969faca2445263461cac06f30f"
+mirror_sha256: "cac1d51369c2f86f01145bcf591294d7ecc555e11d58e3cd02a7243e7cc63151"
+etag: "sha256-f979a0c2557f64530d306de64eb41ccc284fb6234c20af743c458d29d17914ed"
 ---
-> 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (붙여넣기 · 복제의 통합 참조 비우기는 미구현) · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -165,7 +165,7 @@ etag: "sha256-d581967629f7dea381b45bfe4df3824fa85065969faca2445263461cac06f30f"
 | 우클릭 | 노드 컨텍스트 메뉴를 연다. |
 | 컨테이너 소속 | 연결선으로 정한다. `body`·`emit`·체인 연결선이 소속을 자동으로 정하고 푼다. 노드를 컨테이너 안으로 끌어 넣는 UX 는 없다. 규칙은 [소속 자동 동기화](#소속-자동-동기화) 참조 |
 
-붙여넣기와 복제는 노드 id 를 새로 발급한다(REQ-EDITOR-056). 그래서 그 노드의 통합 참조는 저장할 때 새로 넣은 참조로 검사받는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」). 에디터는 붙여 넣는 시점에 같은 조건으로 참조를 거른다. 워크스페이스에 있는 조직 통합은 남긴다. 개인 통합은 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건대로 지금 사용자가 그 통합의 소유자이면서 워크플로우 작성자일 때만 남긴다. 참조 값이 표현식이면 거르지 않는다. 그 밖의 참조는 비우고 비운 노드의 레이블을 경고 토스트로 알린다. 거르는 일은 서버에 묻지 않고 에디터가 가진 워크플로우 작성자(`createdBy`)와 통합 목록으로 한다. 이 필터는 사용자 편의이고 권위는 저장 검사다. 통합 목록이 확정되지 않았으면(불러오는 중이거나 페이지네이션 한도로 전체를 받지 못함) 비우지 않는다. 남은 참조가 쓸 수 없는 통합이면 저장 검사가 400 으로 막는다. 비운 필드에는 필드 미선택 경고가 붙는다([통합 노드 공통 §삭제된 통합 표시](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#삭제된-통합-표시)).
+붙여넣기와 복제는 노드 id 를 새로 발급한다(REQ-EDITOR-056). 그래서 그 노드의 통합 참조는 저장할 때 새로 넣은 참조로 검사받는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」). 에디터는 붙여 넣는 시점에 같은 조건으로 참조를 거른다(미구현). 워크스페이스에 있는 조직 통합은 남긴다. 개인 통합은 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건대로 지금 사용자가 그 통합의 소유자이면서 워크플로우 작성자일 때만 남긴다. 참조 값이 표현식이면 거르지 않는다. 그 밖의 참조는 비우고 비운 노드의 레이블을 경고 토스트로 알린다. 거르는 일은 서버에 묻지 않고 에디터가 가진 워크플로우 작성자(`createdBy`)와 통합 목록으로 한다. 이 필터는 사용자 편의이고 권위는 저장 검사다. 통합 목록이 확정되지 않았으면(불러오는 중이거나 페이지네이션 한도로 전체를 받지 못함) 비우지 않는다. 남은 참조가 쓸 수 없는 통합이면 저장 검사가 400 으로 막는다. 비운 필드에는 필드 미선택 경고가 붙는다([통합 노드 공통 §삭제된 통합 표시](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#삭제된-통합-표시)).
 
 ### 노드 컨텍스트 메뉴
 
@@ -582,6 +582,6 @@ Recent 는 세션 한정(저장하지 않음)으로 둔다. 저장하면 상관�
 
 ### R-5. 붙여넣기와 복제는 쓸 수 없는 통합 참조를 비운다 (2026-10-24)
 
-NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 붙여넣기와 복제는 노드 id 를 새로 발급하므로 그 안의 참조는 모두 새 참조다. 그대로 두면 워크플로우 작성자가 아닌 편집자가 워크플로우 작성자의 노드를 복제한 순간 저장이 400 으로 막히고 어느 노드 때문인지는 저장을 누른 뒤에야 안다. 그래서 붙여 넣을 때 미리 비우고 알린다. 선택기와 어시스턴트 후보를 좁힌 결정([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «고르는 화면은 저장 검사를 통과할 통합만 고르게 한다»)과 같은 이유다.
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 붙여넣기와 복제는 노드 id 를 새로 발급하므로 그 안의 참조는 모두 새 참조다. 그대로 두면 워크플로우 작성자가 아닌 사용자가 워크플로우 작성자의 노드를 복제한 순간 저장이 400 으로 막히고 어느 노드 때문인지는 저장을 누른 뒤에야 안다. 그래서 붙여 넣을 때 미리 비우고 알린다. 선택기와 어시스턴트 후보를 좁힌 결정([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «고르는 화면은 저장 검사를 통과할 통합만 고르게 한다»)과 같은 이유다.
 
 비우는 조건은 저장 검사와 같게 둔다. 에디터가 저장 검사보다 많이 비우면 쓸 수 있는 참조를 잃는다. 적게 비우면 남긴 참조 때문에 저장이 막힌다. 목록이 확정되지 않았을 때 비우지 않는 것도 참조를 잃지 않으려는 것이다. 모르는 참조를 비우면 쓸 수 있는 참조까지 잃을 수 있다. 남긴 참조 때문에 저장이 막히면 사용자가 다시 고르면 된다.

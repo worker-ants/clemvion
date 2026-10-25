@@ -2,19 +2,19 @@
 id: "CLE-WF-VERSION"
 title: "버전 기록"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-WFVER-001", "REQ-WFVER-002", "REQ-WFVER-003", "REQ-WFVER-004", "REQ-WFVER-005", "REQ-WFVER-006", "REQ-WFVER-007", "REQ-WFVER-008", "REQ-WFVER-009", "REQ-WFVER-010", "REQ-WFVER-011", "REQ-WFVER-012", "REQ-WFVER-013", "REQ-WFVER-014", "REQ-WFVER-015", "REQ-WFVER-016", "REQ-WFVER-017", "REQ-WFVER-018", "REQ-WFVER-019", "REQ-WFVER-020", "REQ-WFVER-021", "REQ-WFVER-022", "REQ-WFVER-023", "REQ-WFVER-024", "REQ-WFVER-025", "REQ-WFVER-026", "REQ-WFVER-027"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "e27e4be3deaaf1cb48cd67e06d661694dd51dbf18d4bb16ea2f4cf9ef592b980"
+content_hash: "825116fd2f5144db94c51b750adcf7434d69705cf6a2cda8088cabcf377b1cf5"
 read_as: "approved_fallback"
 task: "CLE-T-MG0EQZ"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/5-version-history.md", "spec/3-workflow-editor/_product-overview.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "b38af19342166d5add0ac0a166cf20cee4892d9ea4b3d586b84e9d8ab560ade5"
-etag: "sha256-2e26c3e299f9736401d0ddfdc1780411c64b0fad5b2329593c9550a2842895f1"
+mirror_sha256: "78ff69f6f4cac83d8f8aded164809a11475440896e2449bc1e47063cf2a30eec"
+etag: "sha256-cb08f9a9a97cec9903cbf915cc707bcda68ad7b8623210d22543942f4466d885"
 ---
 > 구현 상태: 부분 구현 (복원의 통합 참조 비우기와 경고는 미구현) · 원문: `spec/3-workflow-editor/5-version-history.md`, `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-03·04), `spec/3-workflow-editor/0-canvas.md` (§8.1, R-5), `spec/data-flow/11-workflow.md` (§1.1 버전 복원) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -136,7 +136,7 @@ sequenceDiagram
 
 ## API
 
-버전을 만드는 전용 API(`POST /api/workflows/:id/versions`)는 없다. `WorkflowVersionsController` 는 조회 GET 두 개만 연다. 버전 스냅샷은 `POST /:id/save` 와 `POST /:id/versions/:versionId/restore` 의 처리 안에서 `createVersion` 으로 기록한다. `createVersion` 은 가장 최신 버전 번호를 `pessimistic_write` 잠금으로 읽어 같은 워크플로우의 동시 저장을 차례로 처리한다([워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md)).
+버전을 만드는 전용 API(`POST /api/workflows/:id/versions`)는 없다. `WorkflowVersionsController` 는 조회 GET 두 개만 연다. 버전 스냅샷은 `POST /:id/save` 와 `POST /:id/versions/:versionId/restore` 의 처리 안에서 `createVersion` 으로 기록한다. `createVersion` 은 가장 최신 버전 번호를 `pessimistic_write` 잠금으로 읽어 버전 번호가 겹치지 않게 한다. 같은 워크플로우의 동시 저장은 그 앞의 워크플로우 행 잠금에서 줄을 선다([워크플로우 데이터와 저장 흐름 「생성과 저장 흐름」](CLE-WF-DATA.md#생성과-저장-흐름)).
 
 ### 버전 목록
 
@@ -193,7 +193,7 @@ interface VersionSnapshot {
 1. 대상 스냅샷의 형식을 먼저 검사한다. `nodes`·`edges` 배열이 없는 등 형식이 잘못됐으면 400 `INVALID_VERSION_SNAPSHOT` 이다.
 2. 통과하면 스냅샷을 `SaveCanvasDto` 로 바꿔 **캔버스 저장(`saveCanvas`) 경로를 그대로 쓴다**. 그래서 복원도 변경 요약 `Restored from vN` 이 붙은 **새 버전**을 만든다. 되감기가 아니라 앞으로 기록하는 것이다.
 3. 복원 경로는 저장 사전 검사 가운데 수동 트리거 노드 파라미터 스키마 검사(`INVALID_TRIGGER_PARAMETERS`)를 건너뛴다(`skipLegacyDataGates`).
-4. 통합 참조 검사는 건너뛰지 않는다. 다만 걸린 참조로 복원을 거절하지 않고 그 참조를 비운다. 검사 대상은 지금 저장된 같은 id 의 노드와 다른 참조다. 검사는 캔버스 저장과 같은 자리에서 한다. 워크플로우 행을 잠근 뒤 지금 저장된 노드를 읽어 비교한다([워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 저장 흐름 3단계). 복원은 캔버스 저장과 달리 저장자 조건을 보지 않는다. [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 가운데 실행 시점에 보는 조건만 본다. 워크플로우 작성자(`workflow.created_by`)는 복원해도 바뀌지 않으므로 워크플로우 작성자가 아닌 편집자가 복원해도 워크플로우 작성자의 개인 통합 참조는 남는다. 비우는 것은 워크플로우 작성자가 통합 소유자가 아닌 참조, 통합 소유자가 지금 워크스페이스 멤버가 아닌 참조, 없는 통합과 다른 워크스페이스 통합을 가리키는 참조다. 표현식 참조는 복원할 때 값을 알 수 없어 판정하지 않고 둔다. 실행할 때 조직 통합이 아니면 거절된다(REQ-INTMGMT-059). 규칙은 [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다.
+4. 통합 참조 검사는 건너뛰지 않는다. 다만 걸린 참조로 복원을 거절하지 않고 그 참조를 비운다. 검사 대상은 지금 저장된 같은 id 의 노드와 다른 참조다. 검사는 캔버스 저장과 같은 자리에서 한다. 워크플로우 행을 잠근 뒤 지금 저장된 노드를 읽어 비교한다([워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 저장 흐름 3단계). 복원은 저장자 조건을 보지 않고 실행하면 실패할 참조만 비운다. 무엇을 비우고 무엇을 두는지는 [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다.
 
 응답 `data` 는 `{ workflow, nodes, edges }` 에 `clearedIntegrationRefs: [{ nodeId, nodeLabel, field }]` 를 더한 것이다. 비운 것이 없으면 빈 배열이다.
 
@@ -239,5 +239,5 @@ NERV Task `CLE-T-MG0EQZ` 에서 사용자는 노드의 통합 참조를 저장�
 
 - **거절하지 않는 이유**: 복원은 사용자가 고른 옛 상태를 통째로 되돌리는 작업이다. 스냅샷은 복원 전에 고칠 수 없다. 참조 하나 때문에 거절하면 그 버전으로 돌아갈 길이 없다. 비우면 복원은 끝나고 사용자는 그 노드에서 통합만 다시 고른다.
 - **검사를 건너뛰지 않는 이유**: 복원은 이미 수동 트리거 파라미터 검사를 건너뛴다(`skipLegacyDataGates`). 통합 참조 검사까지 건너뛰면 검사를 두기 전에 만든 버전을 복원해 그때 들어간 남의 개인 통합 참조를 다시 살릴 수 있다. 다만 복원이 보는 것은 실행 시점 조건뿐이고 저장자 조건은 보지 않는다. 그래서 워크플로우 작성자가 통합 소유자인 참조는 누가 넣었든 살아난다. 저장자 조건은 저장 경로에서만 지킨다([통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)). 통합 참조 검사는 누가 그 통합을 쓸 수 있는지를 지키는 검사다. 그래서 노드 참조의 워크스페이스 검사처럼 복원에서도 돈다.
-- **저장자 조건을 보지 않는 이유**: 승인본은 복원한 사람을 저장자로 보고 저장자 조건을 걸었다. 그래서 워크플로우 작성자가 아닌 편집자가 복원하면 워크플로우 작성자의 개인 통합 참조가 비워졌고 경고는 복원한 사람에게만 갔다. 워크플로우 작성자는 참조가 사라진 줄 모른다. 강제한 뒤에 저장한 버전의 참조는 저장할 때 이미 저장 검사를 통과했다. 강제 전에 저장한 버전에서도 실행하면 실패할 참조는 실행 시점 조건으로 비워진다. 그래서 복원은 실행 시점 조건만 본다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «버전 복원은 실행 시점 판정으로만 참조를 비운다», finding 01a16e29-19e4-771c-b6ed-0f12972f4318).
-- **받아들인 잔여**: 통합 소유자가 워크스페이스를 떠난 뒤 복원하면 그 사람의 개인 통합 참조 가운데 지금 노드와 다른 것은 비워진다. 실행해도 실패할 참조다. 강제 전에 워크플로우 작성자가 아닌 편집자가 워크플로우 작성자의 개인 통합을 넣어 저장한 버전은 복원해도 그 참조가 남는다. 2026-10-24 운영 실측은 이런 참조를 따로 세지 않았다.
+- **저장자 조건을 보지 않는 이유**: [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «버전 복원은 실행 시점 판정으로만 참조를 비운다» 에 있다(finding 01a16e29-19e4-771c-b6ed-0f12972f4318).
+- **받아들인 잔여**: 통합 소유자가 워크스페이스를 떠난 뒤 복원하면 그 사람의 개인 통합 참조 가운데 지금 노드와 다른 것은 비워진다. 실행해도 실패할 참조다. 강제 전에 워크플로우 작성자가 아닌 사용자가 워크플로우 작성자의 개인 통합을 넣어 저장한 버전은 복원해도 그 참조가 남는다. 2026-10-24 운영 실측은 이런 참조를 따로 세지 않았다.
