@@ -241,6 +241,61 @@ describe('IntegrationHandlerBase — 조회가 거절된 통합은 활동 로그
     expect(service.logUsage).toHaveBeenCalledTimes(1);
   });
 
+  it('DB 연결 오류 같은 일시 오류는 거절이 아니라서 기록한다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution.mockRejectedValue(new Error('connection reset'));
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toThrow(
+      'connection reset',
+    );
+    await handler.callLog(context, usage);
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('일시 오류 뒤 같은 컨텍스트의 재시도가 성공하면 성공 사용 기록을 남긴다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution
+      .mockRejectedValueOnce(new Error('deadlock detected'))
+      .mockResolvedValueOnce({
+        id: ID,
+        serviceType: 'http',
+        status: 'connected',
+      } as never);
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toThrow(
+      'deadlock detected',
+    );
+    await expect(
+      handler.callResolve(ID, context, 'http'),
+    ).resolves.toBeTruthy();
+    await handler.callLog(context, { ...usage, status: 'success' });
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
+    expect(service.logUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ integrationId: ID, status: 'success' }),
+    );
+  });
+
+  it('거절 뒤 같은 컨텍스트의 재시도가 통합을 얻으면 거절 기록을 지운다', async () => {
+    const service = makeIntegrationsServiceMock();
+    service.getForExecution
+      .mockRejectedValueOnce(integrationNotFoundError())
+      .mockResolvedValueOnce({
+        id: ID,
+        serviceType: 'http',
+        status: 'connected',
+      } as never);
+    const handler = new TestHandler(asIntegrationsService(service));
+    const context = ctx({ nodeId: 'node-1' });
+    await expect(handler.callResolve(ID, context, 'http')).rejects.toThrow(
+      'Integration not found',
+    );
+    await handler.callResolve(ID, context, 'http');
+    await handler.callLog(context, { ...usage, status: 'success' });
+    expect(service.logUsage).toHaveBeenCalledTimes(1);
+  });
+
   it('통합을 얻은 뒤 검증(3단계)에서 실패하면 기록한다', async () => {
     const service = makeIntegrationsServiceMock();
     service.getForExecution.mockResolvedValue({

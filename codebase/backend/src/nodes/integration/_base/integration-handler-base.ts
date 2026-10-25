@@ -1,8 +1,5 @@
-import { Logger } from '@nestjs/common';
-import {
-  IntegrationCredentialsUnreadableError,
-  IntegrationsService,
-} from '../../../modules/integrations/integrations.service.js';
+import { Logger, NotFoundException } from '@nestjs/common';
+import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import {
   isLiteralReference,
@@ -14,13 +11,18 @@ const logger = new Logger('IntegrationHandlerBase');
 let warnedMissingNodeExecutionId = false;
 
 /**
- * 조회가 통합을 돌려주지 않은 통합 ID. 노드 실행 컨텍스트마다 둔다. 엔진은 핸들러를 부를 때마다 컨텍스트를 새로 만들므로
- * 다른 노드나 병렬 분기와 섞이지 않는다.
+ * 조회가 없는 통합과 같은 응답(404)으로 거절한 통합 ID. 노드 실행 컨텍스트마다 둔다. 엔진은 핸들러를 부를 때마다 컨텍스트를
+ * 새로 만들므로 다른 노드나 병렬 분기와 섞이지 않는다. 단 에러 정책이 `retry` 이면 엔진이 같은 컨텍스트로 핸들러를 다시
+ * 부르므로(`executeWithRetry`) 조회가 성공하면 그 ID 를 지운다.
  *
  * 핸들러는 실패하면 설정의 통합 ID 로 {@link IntegrationHandlerBase.logUsage} 를 부른다. 개인 통합 사용 판정의 거절은 없는
  * 통합과 같아야 하는데(REQ-INTMGMT-052), 그대로 두면 거절된 개인 통합의 활동 탭과 `last_error` 에 남의 워크플로우 실행이
- * 남는다. 그래서 조회가 거절된 ID 는 기록하지 않는다(REQ-INTMGMT-053 의 조회 거절). 자격 증명을 읽지 못한 통합은 조회가
- * 통합을 찾은 경우라 지금처럼 기록한다. 기록 규칙 전체(얻은 통합만 받는 `logUsage`)는 NERV Task `CLE-T-PTC4SF` 가 맡는다.
+ * 남는다. 그래서 조회가 거절된 ID 는 기록하지 않는다(REQ-INTMGMT-053 의 조회 거절). 거절이 아닌 실패는 담지 않는다. DB 연결
+ * 오류 같은 일시 오류는 통합이 있는지 알 수 없는 경우이고, 자격 증명을 읽지 못한 통합은 조회가 통합을 찾은 경우라 지금처럼
+ * 기록한다.
+ *
+ * 임시 장치다. 얻은 통합만 받는 `logUsage` 로 바꾸면 얻지 못한 통합은 기록할 값이 없으므로 이 맵이 필요 없다. 그 변경은
+ * NERV Task `CLE-T-PTC4SF` 가 맡고, 그때 이 맵과 `acquireIntegration` 의 기록 코드를 지운다.
  */
 const rejectedLookups = new WeakMap<ExecutionContext, Set<string>>();
 
@@ -98,13 +100,17 @@ export class IntegrationHandlerBase {
       ),
     };
     try {
-      return await this.integrationsService.getForExecution(
+      const integration = await this.integrationsService.getForExecution(
         integrationId,
         workspaceId,
         use,
       );
+      // 재시도 정책의 다시 부름: 앞 시도의 거절 기록이 이번에 얻은 통합의 사용 기록을 막지 않게 한다.
+      rejectedLookups.get(context)?.delete(integrationId);
+      return integration;
     } catch (err) {
-      if (!(err instanceof IntegrationCredentialsUnreadableError)) {
+      // 없는 통합과 같은 거절(404)만 담는다. 일시 오류는 담지 않아 재시도 뒤 성공 기록이 막히지 않는다.
+      if (err instanceof NotFoundException) {
         const ids = rejectedLookups.get(context) ?? new Set<string>();
         ids.add(integrationId);
         rejectedLookups.set(context, ids);
