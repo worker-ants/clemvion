@@ -114,9 +114,16 @@ export class ClearedIntegrationRefDto {
 
 /**
  * 워크플로우 복제 결과. 새 워크플로우에 비운 통합 참조 목록을 더한 것이다.
+ *
+ * 복제는 노드 · 엣지를 포함한 캔버스 전체를 한 트랜잭션으로 복사한다. 노드는 새 UUID 를 받고 노드 간 참조(컨테이너 · Tool Area
+ * · 엣지 endpoint)는 사본 UUID 로 다시 이어진다. 버전 이력 · 트리거 · 테스트 데이터셋 · 실행 이력은 복제하지 않고 사본은
+ * 버전 1 로 시작한다.
  */
 export class DuplicateWorkflowResultDto extends WorkflowDto {
-  /** 복제하며 비운 통합 참조. 없으면 빈 배열이다. */
+  /**
+   * 복제하며 비운 통합 참조. 요청자가 사본의 작성자라서 요청자가 쓸 수 없는 통합 참조(없는 통합, 남의 개인 통합)를 비운다.
+   * 없으면 빈 배열이다.
+   */
   @ApiProperty({ type: () => [ClearedIntegrationRefDto] })
   clearedIntegrationRefs: ClearedIntegrationRefDto[];
 }
@@ -134,7 +141,10 @@ export class ImportWorkflowResultDto extends WorkflowDto {
  * 버전 복원 결과. 캔버스 저장 결과에 비운 통합 참조 목록을 더한 것이다.
  */
 export class RestoreVersionResultDto extends CanvasSaveResultDto {
-  /** 복원하며 비운 통합 참조. 없으면 빈 배열이다. */
+  /**
+   * 복원하며 비운 통합 참조. 지금 노드와 다른 통합 참조 가운데 실행하면 실패할 것(없는 통합, 워크플로우를 만든 사람이 쓸 수
+   * 없는 개인 통합)을 비운다. 없으면 빈 배열이다.
+   */
   @ApiProperty({ type: () => [ClearedIntegrationRefDto] })
   clearedIntegrationRefs: ClearedIntegrationRefDto[];
 }

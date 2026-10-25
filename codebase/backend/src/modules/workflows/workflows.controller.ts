@@ -224,15 +224,8 @@ export class WorkflowsController {
   @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 복제',
-    description: [
-      '기존 워크플로우를 비활성(inactive) 상태의 새 워크플로우로 복제합니다.',
-      '이름에 "(Copy)"가 추가되며, **노드·엣지를 포함한 캔버스 전체**를 한 트랜잭션으로 함께 복사합니다',
-      '— 노드는 새 UUID 로 재발급되고 노드 간 참조(컨테이너·Tool Area·엣지 endpoint)는',
-      '사본 UUID 로 재매핑됩니다.',
-      '버전 이력·트리거·테스트 데이터셋·실행 이력은 복제되지 않으며, 사본은 버전 1 로 새로 시작합니다.',
-      '요청자가 사본의 작성자라서 요청자가 쓸 수 없는 통합 참조(없는 통합, 남의 개인 통합)는 비우고',
-      '`data.clearedIntegrationRefs` 로 알립니다.',
-    ].join(' '),
+    description:
+      '캔버스 전체(노드·엣지)를 새 UUID 로 복사해 비활성 상태의 "(Copy)" 워크플로우를 만듭니다. 쓸 수 없는 통합 참조는 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
   })
   @ApiParam({ name: 'id', description: '원본 워크플로우 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(DuplicateWorkflowResultDto, {
@@ -493,7 +486,7 @@ export class WorkflowsController {
   @ApiOperation({
     summary: '워크플로우 버전 복원',
     description:
-      '지정한 버전의 스냅샷으로 현재 워크플로우를 덮어씁니다. 복원 동작도 새로운 버전으로 기록됩니다. 지금 노드와 다른 통합 참조 가운데 실행하면 실패할 것(없는 통합, 워크플로우 작성자가 쓸 수 없는 개인 통합)은 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
+      '지정한 버전의 스냅샷으로 현재 워크플로우를 덮어쓰고 새 버전으로 기록합니다. 쓸 수 없는 통합 참조는 비우고 `data.clearedIntegrationRefs` 로 알립니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiParam({ name: 'versionId', description: '버전 UUID', format: 'uuid' })
