@@ -42,6 +42,13 @@ import { workflowsApi } from "../../api/workflows";
 
 const saveCanvasMock = vi.mocked(workflowsApi.saveCanvas);
 
+/** 비울 근거를 모르는 문맥(통합 목록을 아직 받지 못함). 아무것도 비우지 않는다. */
+const NO_REF_FILTER: IntegrationRefFilterContext = {
+  currentUserId: null,
+  workflowAuthorId: null,
+  integrations: null,
+};
+
 const makeNode = (id: string, overrides?: Partial<Node>): Node => ({
   id,
   position: { x: 0, y: 0 },
@@ -1001,7 +1008,7 @@ describe("useEditorStore", () => {
         edges: [makeEdge("a", "b")],
       });
       useEditorStore.getState().copySelection();
-      useEditorStore.getState().pasteClipboard();
+      useEditorStore.getState().pasteClipboard(undefined, NO_REF_FILTER);
       const state = useEditorStore.getState();
       expect(state.nodes).toHaveLength(4); // 원본 2 + 붙여넣기 2
       // 원본 id 는 유지, 신규 노드는 새 id
@@ -1029,7 +1036,7 @@ describe("useEditorStore", () => {
         edges: [],
       });
       useEditorStore.getState().copySelection();
-      useEditorStore.getState().pasteClipboard({ x: 0, y: 0 });
+      useEditorStore.getState().pasteClipboard({ x: 0, y: 0 }, NO_REF_FILTER);
       const newNodes = useEditorStore
         .getState()
         .nodes.filter((n) => n.id !== "a" && n.id !== "b");
@@ -1040,7 +1047,7 @@ describe("useEditorStore", () => {
 
     it("pasteClipboard: 클립보드 null 이면 no-op", () => {
       useEditorStore.setState({ nodes: [makeNode("a")], edges: [] });
-      useEditorStore.getState().pasteClipboard();
+      useEditorStore.getState().pasteClipboard(undefined, NO_REF_FILTER);
       expect(useEditorStore.getState().nodes).toHaveLength(1);
     });
 
@@ -1049,7 +1056,7 @@ describe("useEditorStore", () => {
         nodes: [sel("a"), sel("b"), makeNode("c")],
         edges: [makeEdge("a", "b")],
       });
-      useEditorStore.getState().duplicateSelection();
+      useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
       const state = useEditorStore.getState();
       expect(state.nodes).toHaveLength(5); // 3 + 복제 2
       expect(state.editorClipboard).toBeNull(); // 클립보드 미변경
@@ -1068,7 +1075,7 @@ describe("useEditorStore", () => {
         ],
         edges: [],
       });
-      useEditorStore.getState().duplicateSelection();
+      useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
       expect(useRecentNodesStore.getState().recentNodeTypes).toContain(
         "http_request",
       );
@@ -1085,7 +1092,7 @@ describe("useEditorStore", () => {
         edges: [],
       });
       useEditorStore.getState().copySelection();
-      useEditorStore.getState().pasteClipboard();
+      useEditorStore.getState().pasteClipboard(undefined, NO_REF_FILTER);
       expect(useRecentNodesStore.getState().recentNodeTypes).toContain("code");
     });
 
@@ -1098,7 +1105,7 @@ describe("useEditorStore", () => {
         ],
         edges: [],
       });
-      useEditorStore.getState().duplicateSelection();
+      useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
       const state = useEditorStore.getState();
       // 복제본 2개(신규 id)의 라벨은 서로 다르고, 원본 라벨 "Dup" 과도 겹치지 않는다.
       const cloneLabels = state.nodes
@@ -1176,9 +1183,9 @@ describe("useEditorStore", () => {
         expect(toastWarningMock).toHaveBeenCalledTimes(1);
       });
 
-      it("필터 문맥이 없거나 비운 것이 없으면 그대로 두고 경고하지 않는다", () => {
+      it("비울 근거를 모르거나 비운 것이 없으면 그대로 두고 경고하지 않는다", () => {
         useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
-        useEditorStore.getState().duplicateSelection();
+        useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
         expect(pastedConfigs()).toEqual({
           "Mail 2": { integrationId: "alice-personal", to: "x" },
           "Org mail 2": { integrationId: "org-1" },

@@ -62,7 +62,7 @@ import {
   useCanvasIntegrationList,
   useIntegrationRefFilterContext,
 } from "./integration-list-context";
-import { clearUnusableIntegrationRefsInNodes } from "@/lib/integrations/node-integration-refs";
+import { buildDuplicatedNode } from "./duplicate-node";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { useEdgeReconnect } from "./use-edge-reconnect";
@@ -459,24 +459,10 @@ export function WorkflowCanvas() {
           const currentLabel =
             (node.data as Record<string, unknown>).label as string ??
             definition.label;
-          const {
-            nodes: [newNode],
-            clearedLabels,
-          } = clearUnusableIntegrationRefsInNodes(
-            [
-              {
-                id: crypto.randomUUID(),
-                type: "custom",
-                position: {
-                  x: node.position.x + 50,
-                  y: node.position.y + 50,
-                },
-                data: {
-                  ...node.data,
-                  label: generateUniqueLabel(currentLabel, existingLabels),
-                },
-              },
-            ],
+          const { node: newNode, clearedLabels } = buildDuplicatedNode(
+            node,
+            currentLabel,
+            existingLabels,
             integrationRefFilter,
           );
           addNode(newNode);

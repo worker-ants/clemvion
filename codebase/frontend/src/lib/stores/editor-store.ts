@@ -136,17 +136,18 @@ interface EditorState {
    * §3.3 editorClipboard 를 붙여넣기 — 신규 id·오프셋 배치·유니크 라벨·containerId
    * 재도출. `anchor` 지정 시 복사 묶음의 좌상단이 anchor 에 오도록, 미지정 시 원본
    * 대비 +40,+40 오프셋. 붙여넣은 노드가 새 선택이 된다. clipboard null 이면 no-op.
-   * `refFilter` 를 주면 지금 사용자가 고를 수 없는 통합 참조를 비우고 경고한다(REQ-EDITOR-059).
+   * `refFilter` 는 지금 사용자가 고를 수 없는 통합 참조를 비우고 경고하는 데 쓴다(REQ-EDITOR-059). 필수 인자라서 호출하는 쪽이
+   * 빠뜨리면 컴파일 단계에서 걸린다. 비울 근거를 모르면(`integrations: null` 등) 비우지 않는다.
    */
   pasteClipboard: (
-    anchor?: { x: number; y: number },
-    refFilter?: IntegrationRefFilterContext,
+    anchor: { x: number; y: number } | undefined,
+    refFilter: IntegrationRefFilterContext,
   ) => void;
   /**
    * §3.3 Ctrl+D — 선택된 노드(+내부 엣지)를 클립보드 경유 없이 즉시 복제 (단일 undo). `refFilter` 는
    * `pasteClipboard` 와 같다.
    */
-  duplicateSelection: (refFilter?: IntegrationRefFilterContext) => void;
+  duplicateSelection: (refFilter: IntegrationRefFilterContext) => void;
   /** §3.2 Ctrl+A — 모든 노드 선택. */
   selectAll: () => void;
   /** §3.2 Escape — 모든 노드 선택 해제. */
@@ -630,14 +631,13 @@ function cloneNodesWithOffset(
 }
 
 /**
- * REQ-EDITOR-059 — 붙여넣거나 복제한 노드에서 지금 사용자가 고를 수 없는 통합 참조를 비운다. `refFilter` 가 없으면
- * 그대로 둔다. 비운 노드의 레이블은 `warnClearedIntegrationRefs` 가 알린다.
+ * REQ-EDITOR-059 — 붙여넣거나 복제한 노드에서 지금 사용자가 고를 수 없는 통합 참조를 비운다. 비운 노드의 레이블은
+ * `warnClearedIntegrationRefs` 가 알린다.
  */
 function clearPastedIntegrationRefs(
   nodes: Node[],
-  refFilter: IntegrationRefFilterContext | undefined,
+  refFilter: IntegrationRefFilterContext,
 ): { nodes: Node[]; clearedLabels: string[] } {
-  if (!refFilter) return { nodes, clearedLabels: [] };
   return clearUnusableIntegrationRefsInNodes(nodes, refFilter);
 }
 
