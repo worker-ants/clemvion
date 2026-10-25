@@ -4,6 +4,8 @@ import {
   canUseIntegrationInWorkflow,
   clearUnusableIntegrationRefs,
   clearUnusableIntegrationRefsInNodes,
+  INTEGRATION_ID_REF_NODE_TYPES,
+  MCP_SERVER_REF_NODE_TYPES,
   type IntegrationRefFilterContext,
   type VisibleIntegration,
 } from "../node-integration-refs";
@@ -133,6 +135,28 @@ describe("clearUnusableIntegrationRefs", () => {
     // 받은 config 는 바꾸지 않는다.
     expect(config.mcpServers).toHaveLength(4);
   });
+
+  // 목록의 모든 노드 유형이 실제로 비우기에 걸린다. 백엔드 `node-integration-refs.spec.ts` 가 이 목록을 백엔드 목록과 맞춘다.
+  it.each([...INTEGRATION_ID_REF_NODE_TYPES])(
+    "%s 는 config.integrationId 를 본다",
+    (type) => {
+      // HTTP Request 는 authentication 이 integration 일 때만 본다.
+      const config = { authentication: "integration", integrationId: "gone" };
+      expect(
+        clearUnusableIntegrationRefs(type, config, aliceInOwnWorkflow),
+      ).toEqual({ config: { authentication: "integration" }, cleared: true });
+    },
+  );
+
+  it.each([...MCP_SERVER_REF_NODE_TYPES])(
+    "%s 는 config.mcpServers[].integrationId 를 본다",
+    (type) => {
+      const config = { mcpServers: [{ integrationId: "gone" }] };
+      expect(
+        clearUnusableIntegrationRefs(type, config, aliceInOwnWorkflow),
+      ).toEqual({ config: { mcpServers: [] }, cleared: true });
+    },
+  );
 
   it("통합 참조 자리가 없는 노드는 같은 키가 있어도 보지 않는다", () => {
     const config = { integrationId: "gone" };

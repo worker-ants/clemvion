@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { z } from 'zod';
 import { ALL_NODE_COMPONENTS } from '../../nodes/index';
 import {
@@ -311,5 +313,46 @@ describe('통합 참조 목록 ↔ 노드 스키마 위젯', () => {
       ),
     ].sort();
     expect(fromSchemas).toEqual(fromList);
+  });
+});
+
+/**
+ * 프런트엔드 에디터가 붙여넣기 · 복제에서 같은 자리의 참조를 비운다(`codebase/frontend/src/lib/integrations/
+ * node-integration-refs.ts`, CLE-WF-EDITOR R-5). 두 패키지가 공유하는 모듈이 없어서 목록이 사본으로 있고, 위젯과 대조하는
+ * 위 테스트는 백엔드 목록만 지킨다. 새 통합 노드를 백엔드에만 더하면 프런트 사본이 조용히 낡아 붙여넣기가 그 노드의 참조를
+ * 비우지 못하고 저장이 400 으로 막힌다. 그래서 프런트 소스의 `new Set([...])` 리터럴을 읽어 백엔드 목록과 맞춘다.
+ */
+describe('통합 참조 목록 ↔ 프런트엔드 사본', () => {
+  const frontendSource = readFileSync(
+    join(
+      __dirname,
+      '../../../../frontend/src/lib/integrations/node-integration-refs.ts',
+    ),
+    'utf8',
+  );
+
+  /** `const <name> ... = new Set([ "a", "b" ])` 리터럴의 문자열 원소. 프런트가 이 모양을 바꾸면 여기서 실패한다. */
+  function frontendSet(name: string): string[] {
+    const literal = new RegExp(
+      `const\\s+${name}\\b[^=]*=\\s*new Set\\(\\[([\\s\\S]*?)\\]\\)`,
+    ).exec(frontendSource);
+    if (!literal) {
+      throw new Error(
+        `${name} 의 new Set([...]) 리터럴을 프런트 소스에서 찾지 못했다`,
+      );
+    }
+    return [...literal[1].matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
+  }
+
+  it('config.integrationId 를 참조하는 노드 유형이 같다', () => {
+    expect(frontendSet('INTEGRATION_ID_REF_NODE_TYPES').sort()).toEqual(
+      [...INTEGRATION_ID_REF_NODE_TYPES].sort(),
+    );
+  });
+
+  it('config.mcpServers[].integrationId 를 참조하는 노드 유형이 같다', () => {
+    expect(frontendSet('MCP_SERVER_REF_NODE_TYPES').sort()).toEqual(
+      [...MCP_SERVER_REF_NODE_TYPES].sort(),
+    );
   });
 });
