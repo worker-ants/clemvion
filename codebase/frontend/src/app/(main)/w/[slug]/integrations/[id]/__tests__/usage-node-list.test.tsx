@@ -16,6 +16,7 @@ const usages: UsageWorkflow[] = [
     workflowId: "wf-1",
     workflowName: "My Workflow",
     isActive: true,
+    authorIsIntegrationOwner: true,
     nodes: [{ id: "n1", label: "Node A", type: "http_request", usageKind: "direct" }],
   },
 ];
