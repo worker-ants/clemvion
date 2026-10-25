@@ -8,9 +8,10 @@ import type { IntegrationScope } from "@/lib/api/integrations";
  * - 붙여넣기와 복제는 지금 사용자가 그 워크플로우에서 고를 수 없는 참조를 비운다(REQ-EDITOR-059).
  *
  * 둘 다 사용자 편의이고 권위는 서버의 저장 검사다. 참조의 자리는 CLE-PLAT-DATA 「참조의 소속」 의 「통합 참조」 목록을 따르고
- * 백엔드 `modules/integrations/node-integration-refs.ts` 와 같게 둔다. 두 패키지가 공유하는 모듈이 없어서 백엔드
+ * 백엔드 `modules/integrations/node-integration-refs.ts` 와 같게 둔다. 지금은 두 패키지에 한 벌씩 있어서 백엔드
  * `node-integration-refs.spec.ts` 가 이 파일의 두 목록을 읽어 백엔드 목록과 맞춰 본다. 목록은 아래 두 상수의 `new Set([...])`
- * 리터럴로 두어야 그 테스트가 읽는다.
+ * 리터럴로 두어야 그 테스트가 읽는다. 목록과 순수 함수를 `codebase/packages/` 의 공유 패키지로 옮기는 일은
+ * CLE-T-9CYAA4 가 맡는다.
  */
 
 /** `config.integrationId` 로 통합을 참조하는 노드. */
