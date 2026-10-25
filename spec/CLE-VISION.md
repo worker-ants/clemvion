@@ -2,19 +2,19 @@
 id: "CLE-VISION"
 title: "Clemvion 제품 개요"
 type: "vision"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: null
 ancestors: []
 area: null
-content_hash: "c1a2863a1af127717b3d16e89be5dde5a0800aaad8de64a8896f85cdf7a694d9"
+content_hash: "9368bff87fcb6e1ec5b38dfcd8c701d11fe7af1bb5fc96890d995e175c2ef150"
 read_as: "approved_fallback"
-task: "CLE-T-PXTGVQ"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "e2af08bce3892ee87a0330c47fd1743afb55f86e1dcdf611facd859d73bb3587"
-etag: "sha256-693f7c083fd8dcab929902457738fcda32136a7a480b8124b2e463ab148ef398"
+mirror_sha256: "59bc3a4ff11f7f848125e0181c25e0a01712ce632b05388a4c796df188d7a1a2"
+etag: "sha256-42acc55cd0d4885dac374ecc9d9ca021ab5828b17dba35d9dd3d4667af189ff3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)
 
@@ -81,7 +81,7 @@ Clemvion 은 AI 에이전트와 노코드 워크플로우 빌더를 합친 실�
 | AI 플랫폼 | 모델 설정(채팅·임베딩·리랭크를 한 엔티티로 관리. 프로바이더 OpenAI·Anthropic·Google·Azure OpenAI·로컬 Ollama·vLLM 다섯 모두 스트리밍 지원), 지식 저장소(문서 업로드·임베딩·RAG 검색), Graph RAG(지식 저장소 검색 모드 선택, 엔티티·관계 자동 추출, Hybrid 검색, 엔티티·관계 목록과 삭제, 3D 그래프 시각화), 리랭킹(지식 저장소 단위 검색 후처리. cross-encoder, cross-encoder + LLM 채점. 리랭커 프로바이더 TEI·Cohere) | [모델 설정](CLE-AI/CLE-AI-MODELS.md), [지식 저장소 관리](CLE-KB/CLE-KB-MANAGE.md), [Graph RAG](CLE-KB/CLE-KB-GRAPH.md), [RAG 검색](CLE-KB/CLE-KB-SEARCH.md) |
 | 워크플로우 AI 어시스턴트 | 에디터 안 채팅형 AI 가 자연어 요청으로 노드와 연결선을 구성한다. Clarify → Plan → Execute 3단계 대화, SSE 스트리밍, 세션 유지 | [워크플로우 AI 어시스턴트](CLE-WF/CLE-WF-ASSIST.md) |
 | 팀 워크스페이스와 역할 | 개인·팀 워크스페이스, 멤버 역할, 워크스페이스 전환, 멤버 초대·역할 변경·소유자 이양. 가입하면 개인 워크스페이스가 자동으로 생기고, 서버가 `X-Workspace-Id` 를 자동으로 맞춘다 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
-| 워크스페이스 단위 통합 공유 | 통합은 워크스페이스 단위로 격리되고 팀 멤버끼리 공유한다. 모든 통합 API 가 현재 워크스페이스로 범위를 좁히고, 생성·수정·삭제·자격 증명 교체는 라우트 가드가 편집자 이상으로 막는다(NAV-IN-07). 개인·조직 공개 범위별 세부 권한은 기준 문서가 정한다. 여러 워크스페이스를 가로지르는 조직 수준 공유는 로드맵에 있다 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md), [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
+| 워크스페이스 단위 통합 공유 | 통합은 워크스페이스 단위로 격리되고 팀 멤버끼리 공유한다. 모든 통합 API 가 현재 워크스페이스로 범위를 좁히고, 생성·수정·자격 증명 교체는 라우트 가드가 편집자 이상으로 막는다(NAV-IN-07). 삭제는 지금 편집자 이상이다. 뷰어가 자기 개인 통합을 지울 수 있게 하는 것은 정했고 아직 코드에 없다(미구현). 개인·조직 공개 범위별 세부 권한은 기준 문서가 정한다. 여러 워크스페이스를 가로지르는 조직 수준 공유는 로드맵에 있다 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md), [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | Cafe24 통합 | `cafe24` 단일 노드(18개 리소스 메타데이터 기반 Resource × Operation, 485 endpoint), AI 에이전트 내부 MCP 브리지로 양방향 노출, Public·Private 앱 OAuth, Cafe24 Developers "테스트 실행"·"앱으로 가기" App URL 흐름, 누수 버킷 요청 빈도 제한, BullMQ 기반 인스턴스 사이 토큰 갱신 직렬화, 7일 임계 + 6시간 주기 백그라운드 갱신(리프레시 토큰 14일 만료 전 자동 갱신). 도구 수가 AI 에이전트 도구 수 한도(`AI_AGENT_TOOL_COUNT_MAX`, 기본 128)를 늘 넘으므로 에이전트에 연결할 때 `enabledTools` 허용 목록이 사실상 필요하다 | [Cafe24 노드](CLE-NODE-INT/CLE-NODE-CAFE24.md), [AI 에이전트 노드](CLE-NODE-AI/CLE-NODE-AGENT.md) |
 | MakeShop 통합 | `makeshop` 단일 노드(7개 섹션 메타데이터 기반 Resource × Operation, 161 REST operation), AI 에이전트 내부 MCP 브리지 양방향 노출(`MakeshopMcpToolProvider`), OAuth 2.1 auth-code + PKCE(`auth.makeshop.com`, 리프레시 토큰 회전), ShopStore 설치 HMAC, 전용 `makeshop-token-refresh` 큐로 인스턴스 사이 직렬화, 프론트엔드와 e2e. Cafe24 와 같은 설계다(단일 호스트 `connect.makeshop.co.kr` + `shop_uid` 경로 세그먼트, flat JSON 본문). Cafe24 와 같이 도구 수(161)가 한도(128)를 넘어 `enabledTools` 허용 목록이 사실상 필요하다 | [MakeShop 노드](CLE-NODE-INT/CLE-NODE-MAKESHOP.md), [MakeShop Shop API 카탈로그](CLE-MKS-CATALOG) |
 | 시스템 | 인증과 인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, BullMQ 영속 재개 큐 기반 분산 재개와 rehydration), WebSocket 실시간 상태, 웹훅 수신, 실행 내역 | [시스템 아키텍처](CLE-PLAT/CLE-PLAT-ARCH.md), [실행 엔진 개요와 그래프 순회](CLE-EXEC/CLE-EXEC-ENGINE.md) |

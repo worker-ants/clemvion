@@ -2,21 +2,21 @@
 id: "CLE-WF-ASSIST-TOOLS"
 title: "AI 어시스턴트 도구"
 type: "design"
-version: 1
-status: "draft"
+version: 4
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "c3b40f5cfda54e6a54976f5554e4a527ad5bf2b70463963364e1faf34f5acec3"
-read_as: "approved"
-task: null
+content_hash: "dc978abbb877f071fe9bb7f9c7e700de41857b6f8136428b452f12b1fdcc5eb3"
+read_as: "approved_fallback"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "bd9a6258d5d0f6b09f152e43104e7cd6473b025b00d615954af54de0ac33ce02"
-etag: "sha256-45ef3932b0e7e5c6956afef579e468516c0c2ebcd62ea67bcf1e65563a53674c"
+mirror_sha256: "84c44c34e3f25e74ab6d0e975c93e7b7142f4d33c399fe27064c4b461ff8f9b3"
+etag: "sha256-cefd177a5de8bc7a1246629e3af88f4de323203b42bab8d8b7001acaa8b696a7"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (통합 후보의 워크플로우 작성자 조건은 미구현) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -61,7 +61,7 @@ etag: "sha256-45ef3932b0e7e5c6956afef579e468516c0c2ebcd62ea67bcf1e65563a53674c"
 | 도구 | 인자 | 반환 | 용도 |
 |------|------|------|------|
 | `get_node_schema` | `type: string` | `{configSchema, ports, description, category}` | 노드 유형 하나의 상세 스키마. 시스템 프롬프트의 노드 카탈로그 요약으로 부족할 때만 부른다 |
-| `list_integrations` | `{category?: string}` | `[{id, name, type, category}]` | 현재 워크스페이스에 등록된 통합 목록. 다른 사용자의 개인 통합은 빠진다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)의 권한 규칙) |
+| `list_integrations` | `{category?: string}` | `[{id, name, type, category}]` | 현재 워크스페이스에 등록된 통합 목록. 다른 사용자의 개인 통합은 빠진다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)의 권한 규칙). 요청자가 편집 중인 워크플로우의 작성자가 아니면 요청자 자신의 개인 통합도 빠진다([위젯별 후보 조회 범위](#위젯별-후보-조회-범위)) |
 | `list_workflows` | `{limit?: number, search?: string}` | `[{id, name, description, tags, updatedAt}]` | 같은 워크스페이스의 워크플로우 목록. 현재 편집 중인 워크플로우를 빼는 옵션이 있다 |
 | `get_workflow` | `{id: UUID, mode?: 'summary'\|'full'}` | `{name, nodes, edges, summary}` | **다른** 워크플로우의 구조 참고(예: "주문 생성" 워크플로우를 읽고 "주문 취소" 설계). 현재 편집 중인 워크플로우는 이 도구로 조회하지 않는다 |
 | `get_current_workflow` | 없음 | `{ok, nodes, edges}` (`config` 는 redact 적용) | **현재** 캔버스의 최신 노드·연결선. 같은 턴에서 편집한 뒤 결과를 다시 확인하거나 시스템 프롬프트 스냅샷이 오래됐을 수 있을 때 부른다 |
@@ -285,8 +285,8 @@ interface CandidateEntry {
 
 | 위젯 | 조회 대상 | 조건과 정렬 |
 |------|-----------|-------------|
-| `integration-selector` | 통합(`Integration`) | `workspace_id` 일치, `status='connected'`, 요청자에게 보이는 것만(다른 사용자의 개인 통합 제외, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 그 `service_type` 만 고른다. 힌트는 문자열 하나 또는 `string[]` 이며 배열이면 `service_type IN (...)` 로 조회한다. 힌트가 없으면 연결된 통합 전체다 |
-| `mcp-server-selector` | 통합(`Integration`) | `workspace_id` 일치, `status='connected'`, 요청자에게 보이는 것만, `service_type` 이 MCP 가능 서비스 전체(`MCP_CAPABLE_SERVICE_TYPES`, backend `integrations/services/mcp-capable-service-types.ts`)에 드는 것. AI 에이전트 노드의 `mcpServers` 필드 전용이다. 힌트 허용 목록은 `['mcp', 'cafe24', 'makeshop']` 이며 단일 기준은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)의 `serviceTypes` 허용 목록이다. 내부 MCP 브리지([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md))가 적용되는 `service_type` 이 늘면 함께 고친다. 여러 개를 고를 수 있다 |
+| `integration-selector` | 통합(`Integration`) | `workspace_id` 일치, `status='connected'`, 요청자에게 보이는 것만(다른 사용자의 개인 통합 제외, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 요청자가 워크플로우 작성자가 아니면 요청자의 개인 통합도 뺀다. 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 그 `service_type` 만 고른다. 힌트는 문자열 하나 또는 `string[]` 이며 배열이면 `service_type IN (...)` 로 조회한다. 힌트가 없으면 연결된 통합 전체다 |
+| `mcp-server-selector` | 통합(`Integration`) | `workspace_id` 일치, `status='connected'`, 요청자에게 보이는 것만(`integration-selector` 와 같은 워크플로우 작성자 조건 포함), `service_type` 이 MCP 가능 서비스 전체(`MCP_CAPABLE_SERVICE_TYPES`, backend `integrations/services/mcp-capable-service-types.ts`)에 드는 것. AI 에이전트 노드의 `mcpServers` 필드 전용이다. 힌트 허용 목록은 `['mcp', 'cafe24', 'makeshop']` 이며 단일 기준은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)의 `serviceTypes` 허용 목록이다. 내부 MCP 브리지([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md))가 적용되는 `service_type` 이 늘면 함께 고친다. 여러 개를 고를 수 있다 |
 | `llm-config-selector` | 모델 설정(`ModelConfig`, `kind=chat`) | `workspace_id` 일치. 최근 수정 순 |
 | `kb-selector` | 지식 저장소(`KnowledgeBase`) | `workspace_id` 일치. 이름 오름차순. 여러 개를 고를 수 있다 |
 | `workflow-selector` | 워크플로우(`Workflow`) | 같은 `workspace_id` 이고 `id != session.workflow_id`(현재 편집 중인 워크플로우 제외). 최근 수정 순 |
@@ -514,6 +514,13 @@ LLM 이 `update_node`·`remove_node`·`add_edge` 의 `id`·`source_id`·`target_
 ### 설정 도메인 검증을 막지 않는 이유
 
 `handler.validate` 위반을 저장 차단으로 두면 LLM 이 같은 실패를 끝없이 재시도하는 루프가 생긴다. 그래서 경고(`configWarnings`)로만 알리고 실행 시점에 실행 엔진이 같은 규칙으로 최종 차단해 의미상 방어선을 유지한다.
+
+### 통합 후보는 워크플로우 작성자 조건도 본다 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그 검사만 두면 워크플로우 작성자가 아닌 요청자에게 자기 개인 통합이 후보로 나오고 사용자가 골라도 저장이 400 이다. 그래서 `list_integrations` 와 `integration-selector`·`mcp-server-selector` 후보에서 뺀다. 조건은 저장 검사와 같다([통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건).
+
+- **고를 수 없게 보이지 않고 빼는 이유**: 노드 설정 패널의 선택기는 그 통합을 고를 수 없는 항목으로 보이고 이유를 붙인다. 어시스턴트는 LLM 과 후보 선택기가 고를 수 없는 항목을 다룰 방법이 없다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «고르는 화면은 저장 검사를 통과할 통합만 고르게 한다»).
+- **받아들인 잔여**: 워크플로우 작성자가 아닌 요청자에게 통합 후보가 0개면 [AI 어시스턴트](CLE-WF-ASSIST.md) 의 0개 안내(REQ-ASSIST-033)가 그대로 나온다. 그 사용자가 개인 통합을 새로 등록해도 이 워크플로우의 후보는 생기지 않고 조직 통합을 등록해야 생긴다. 품질 점검(`PENDING_USER_CONFIG_UNMENTIONED`)이 0개 항목을 마무리 메시지에 적게 하므로 이 안내가 그대로 나간다. 안내 문구는 바꾸지 않았다.
 
 ### 유지보수 점검
 

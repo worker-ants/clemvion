@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 2
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "8b46e37fbb63292e285672bdc8129e8ddbbdddf6025d7ce5473b71c9332a2623"
+content_hash: "05159877c34611bbabe7fccfb0b4b2b65cc465fd1424ecbe80cc0fe6c328b70c"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "4196b72649d631445fa34d507fff1c2811242c832147eba00c4910d843af5909"
-etag: "sha256-15ed1324b54855a8ed1174315a71f642e7d54dc5b6d4be85a0f1152b41df3b4a"
+mirror_sha256: "8dcd742278029114bbfa36bb587ee77ddf6fa31508dc1e97dbdcd76299a3bc41"
+etag: "sha256-27786d0a3800a13fd6bd11b0776a3e903f3775b80b585c83d3ea2944ef97036a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -211,8 +211,9 @@ Presentation 노드의 `interaction` 과 멀티턴 AI 노드의 `message_receive
 - **지움 예외**: `stripControlFields()` 는 `_resumeCheckpoint` 를 남긴다. 다음 노드 입력으로 넘길 때는 `_resumeState` 와 함께 지운다.
 - **모양**: `_retryState` 와 같은 부분집합(messages·turnCount·model·temperature·maxTokens·knowledgeBases·RAG·MCP·`pendingFormToolCall?` 등)이다. 다만 `expiresAt`(TTL)이 없다. 입력 대기 실행은 기한 없이 보존되므로 대화는 오래 쉰 뒤에도 이어져야 한다. `lastUserMessage` 도 없다. 재개할 때 도착한 사용자 메시지를 그대로 첫 턴으로 처리한다.
 - **자격 증명 제외**: 자격 증명과 컨텍스트 결속 필드는 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 하나씩 열거하는 허용 목록 방식이다.
-- **두 재유도 경로**: 재개할 때 **조작 필드**(`llmConfigId`·`maxTurns`·`conditions`·`presentationTools` 등)는 `node.config` 를 다시 평가해 만든다. **식별 필드**는 호출하는 쪽 컨텍스트에서 다시 만든다. `workflowId` 는 `execution.workflowId` 에서, 재개 대상 `nodeExecutionId` 는 대기·재시도 노드 실행 행의 PK 를 `buildRetryReentryState` 옵션으로 넣어서 `workspaceId` 는 실행 컨텍스트에서 가져온다.
-- **스키마 버전**: 체크포인트는 정수 `CHECKPOINT_SCHEMA_VERSION` 을 함께 싣는다. 재개할 때 버전이 없거나(기능 배포 전 행) 현재 코드 버전 이하이면 빠진 필드를 기본값으로 채워 다시 만든다. 현재 코드 버전보다 크면(롤링 배포 중 옛 인스턴스가 새 형식을 받음) 안전하게 만들 수 없으므로 `RESUME_INCOMPATIBLE_STATE` 로 정리한다.
+- **두 재유도 경로**: 재개할 때 **조작 필드**(`llmConfigId`·`maxTurns`·`conditions`·`presentationTools` 등)는 `node.config` 를 다시 평가해 만든다. **식별 필드**는 호출하는 쪽 컨텍스트에서 다시 만든다. `workflowId` 는 `execution.workflowId`, `nodeId` 는 재개할 노드 행의 `node.id`, 재개 대상 `nodeExecutionId` 는 대기·재시도 노드 실행 행의 PK(`buildRetryReentryState` 옵션), `workspaceId` 는 실행 컨텍스트에서 가져온다. `workflowId` 는 실행의 루트 워크플로우라서 서브 워크플로우 안의 노드에서는 그 노드가 속한 워크플로우와 다르다. 노드가 속한 워크플로우가 필요하면 `nodeId` 로 찾는다.
+- **MCP 서버 항목의 표현식 여부**: AI 에이전트 노드 핸들러는 첫 턴에 MCP 서버 항목(`mcpServers[]`)마다 `fromExpression`(그 항목의 통합 참조가 평가 전 원본에서 표현식이었는지)을 정해 항목에 함께 저장한다(미구현). 첫 턴에 원본을 확인하지 못한 항목은 표현식(`true`)으로 저장한다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 의 리터럴 판정). 재개·재시도 턴은 저장된 값을 쓰고 원본 설정의 위치로 다시 맞추지 않는다. 핸들러가 첫 턴에 늘 계산해 덮어쓰므로 사용자 설정에 같은 키가 있어도 읽지 않는다. 값이 없는 항목(이 규칙 전에 저장한 체크포인트와 `_retryState`)은 표현식으로 본다. 그래서 읽을 때는 `fromExpression !== false` 를 표현식으로 판정한다. 이 판정과, 체크포인트 스키마가 서버 항목의 키를 지우지 않는 성질(`resume-state.schema.ts` 의 `mcpServers: z.array(z.unknown())`)은 단위 테스트로 지킨다(미구현). 항목 스키마를 `z.object` 로 좁히면 zod 가 모르는 키를 지워 `fromExpression` 이 사라지고 모든 서버가 표현식으로 보인다. 이 값을 쓰는 판정은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다.
+- **스키마 버전**: 체크포인트는 정수 `CHECKPOINT_SCHEMA_VERSION` 을 함께 싣는다. 재개할 때 버전이 없거나(기능 배포 전 행) 현재 코드 버전 이하이면 빠진 필드를 기본값으로 채워 다시 만든다. 현재 코드 버전보다 크면(롤링 배포 중 옛 인스턴스가 새 형식을 받음) 안전하게 만들 수 없으므로 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. MCP 서버 항목의 `fromExpression` 처럼 값이 없을 때의 뜻이 정해진 필드는 버전을 올리지 않고 더한다([Rationale](#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다-2026-10-25)).
 - **소비**: rehydration 이 `outputData._resumeCheckpoint` 를 읽고 버전을 검사한 뒤 `buildRetryReentryState`(`_retryState` 와 공유)로 `_resumeState` 를 다시 만든다. 핵심 필드가 빠졌으면 기본값으로 채운다. `driveResumeAwaited`·`driveResumeFrame` 이 도착한 재개 페이로드를 `dispatchResumeTurn` 을 거쳐 `handleAiResumeTurn` → `processAiResumeTurn`(한 턴 처리기)에 넘긴다. 체크포인트가 없거나(기능 배포 전 행) 손상됐거나 미래 버전이면 `RESUME_INCOMPATIBLE_STATE` 로 정리한다.
 - **재개 payload 기준**: 재개 큐 `'continue'` 메시지 payload 의 표시 값(폼 제출이면 `{ type: 'form_submitted', formData }`)과 `processAiResumeTurn` 이 이 값으로 나누는 분기는 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#폼-제출-wire-format) 이 기준이다.
 
@@ -234,6 +235,8 @@ sequenceDiagram
 **사용량 귀속 불변식**: 재개·재시도 턴의 provider 도구 `logUsage` 귀속(`IntegrationUsageLog.node_execution_id`)은 위 식별 필드 `nodeExecutionId`·`workflowId` 가 `buildRetryReentryState` 재구성 결과에 다시 들어가야 성립한다. 두 필드는 자격 증명 제외 허용 목록(`CREDENTIAL_CONTEXT_FIELDS`)에 따라 체크포인트에서 빠진다. 재구성 때 호출 쪽 컨텍스트에서 다시 넣지 않으면 provider 도구의 사용 로그 조건(`ctx.nodeExecutionId && ctx.workflowId`)이 거짓이 돼 재개·재시도 턴의 통합 사용 로그가 조용히 빠진다(회귀 #501).
 
 소비하는 곳은 노드 유형마다 다르다. `ai_agent` 의 provider 도구 `IntegrationUsageLog` 는 조건부라 필드가 없으면 로그가 빠진다. 두 노드의 LLM 호출이 남기는 `llm_usage_log`(`LlmUsageLogService.record`, `?? null`)는 조건이 없어 필드가 없거나 틀리면 로그가 빠지지 않고 귀속이 오염된다. provider 도구가 없는 `information_extractor` 재개가 이 경우다. 현재 이 불변식은 회귀 테스트로만 강제되므로 `CREDENTIAL_CONTEXT_FIELDS`·`resumeStateSchema` 를 고칠 때 반드시 지킨다. 사용량 기록 구조는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md) 과 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 에 있다.
+
+**개인 통합 판정의 식별 필드**: 재개·재시도 턴의 도구 프로바이더는 재구성 결과의 `nodeId` 를 개인 통합 조회에 넘긴다(미구현). `nodeId` 도 `CREDENTIAL_CONTEXT_FIELDS` 에 있어 체크포인트에서 빠지므로 위 귀속 불변식처럼 재구성 때 다시 넣어야 한다. 이 값이 빠지면 통합 서비스가 워크플로우 작성자를 구하지 못해 개인 통합을 쓰는 서버가 모두 거절된다. 남의 개인 통합이 쓰이지는 않지만 워크플로우 작성자 자신의 개인 통합도 쓰지 못한다.
 
 ### 보존 예외 `_retryState`
 
@@ -356,6 +359,15 @@ DB 는 깨지지 않았다. `WHERE status IN (...)` 조건이 쓰기 자체를 �
 - R1 은 `ended` 와 `port: 'error'` 의 뜻을 그대로 두므로 에러 포트 뒤 노드(알림 등)의 의미가 바뀌지 않는다. 재시도 가능 여부는 `output.error.details.retryable` 하나로 충분히 전달되고 재시도는 에러 라우팅 뒤의 별도 사용자 행동(`execution.retry_last_turn`)으로 들어온다.
 - `_retryState` 는 `_resumeState` 처럼 표현식에 노출하지 않고 자격 증명을 뺀다. TTL(기본 60분)이 사실상 재시도 상한이다.
 
+### MCP 서버 항목에 표현식 여부를 저장하고 스키마 버전을 올리지 않는다 (2026-10-25)
+
+NERV Task `CLE-T-MG0EQZ` 에서 표현식으로 정한 통합 참조는 조직 통합만 쓰게 했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「표현식으로 정한 통합 참조는 조직 통합만 쓴다」). 멀티턴 재개·재시도 턴은 실행 컨텍스트 없이 들어오므로 서버마다 표현식이었는지를 체크포인트에서 알아야 한다.
+
+- **위치로 맞추지 않는다**: 재개 턴의 서버 목록은 첫 턴에 평가한 값인데 `rawConfig` 는 재개마다 현재 `node.config` 로 다시 만든다([실행 컨텍스트](CLE-EXEC-CONTEXT.md) 「멀티턴 설정은 턴마다 새로 만든다」). 위치로 다시 맞추면 정지 중에 서버를 재정렬하거나 지웠을 때 다른 서버의 값을 읽는다. 서버 항목의 키로 맞추는 안도 봤다. 항목에는 `integrationId` 말고 고유 키가 없고 표현식 항목은 원본에 그 ID 가 없어서 쓰지 않았다(finding 01a16e8a-37c4-75b6-b818-981efecea074 · 01a16e8a-fd4f-7739-a7b4-cc9d4b7394a6).
+- **핸들러가 늘 덮어쓴다**: API 나 가져오기로 사용자 설정의 서버 항목에 `fromExpression: false` 가 들어와도 표현식 참조의 거절을 피하지 못하게 하려는 것이다(finding 01a16e9c-6666-7109-bac3-367e8095657c).
+- **값이 없으면 표현식이다**: 기본값을 리터럴로 두면 배포 전에 표현식으로 고른 개인 통합이 재개 턴에서 판정을 피한다. 대가로 배포 때 입력 대기 중이던 대화는 워크플로우 작성자 자신의 개인 통합 서버도 재개 턴에서 건너뛴다. 그 수를 세고 다루는 방법은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) 이행이 정한다(finding 01a16e9c-174b-712a-87a9-b4cdc2b579b3 · 01a16e9d-4969-72ba-bbf6-742891d939c5).
+- **스키마 버전을 올리지 않는다**: 버전을 올리면 롤링 배포 중 옛 인스턴스가 새 체크포인트를 미래 버전으로 보고 대화를 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. 올리지 않아도 깨지는 쪽이 없다. 옛 인스턴스는 개인 통합 판정을 하지 않아 이 값을 읽지 않고 `resumeStateSchema` 는 `mcpServers` 항목의 모양을 보지 않는다. 새 인스턴스는 값이 없는 옛 항목을 위 규칙대로 표현식으로 본다(finding 01a17052-f9a4-7697-b5d9-d153a6a25255).
+
 ### `_resumeCheckpoint` 를 남긴다 (옛 "WARN #6 미영속" 번복)
 
 도입 초기(코드 주석 "WARN #6")에는 `_resumeState` 가 원본 설정·턴 디버그·모델 상태 같은 잠재 자격 증명을 담을 수 있다는 우려로 DB 에 남기지 않고 메모리에만 두었다. 그러자 배포·오토스케일·크래시로 인스턴스가 다시 시작되면 진행 중인 멀티턴 대화를 영원히 이어 갈 수 없었다(`RESUME_INCOMPATIBLE_STATE`). 텔레그램처럼 오래 이어지는 채널에서는 대화 중 백엔드가 한 번 배포되면 그 대화가 끝나 버렸다. 실행 행 자체는 기한 없이 보존되지만 재개에 필요한 `_resumeState` 가 사라져 쓸모가 없었다.
@@ -373,7 +385,7 @@ DB 는 깨지지 않았다. `WHERE status IN (...)` 조건이 쓰기 자체를 �
 
 ### 재개·재시도 턴의 식별 필드를 다시 넣는다 (#501, 2026-07)
 
-위 체크포인트 항목은 "`node.config` 에서 다시 만든다" 고 단순하게 적어 갭을 가렸다. 실제로 `node.config` 재평가로 다시 만들어지는 것은 조작 필드뿐이고 식별 필드는 호출 쪽 컨텍스트에서 다시 만들어야 한다. 그래서 `buildRetryReentryState` 가 `workflowId`(실행)와 `nodeExecutionId`(옵션)를 재구성 결과에 다시 넣도록 하고 이를 불변식으로 적었다. 코드는 PR #877(재구성 복원)과 PR #879(`llm_usage_log` 소비 지점 교정)로 이미 맞춰져 있었다.
+위 체크포인트 항목은 "`node.config` 에서 다시 만든다" 고 단순하게 적어 갭을 가렸다. 실제로 `node.config` 재평가로 다시 만들어지는 것은 조작 필드뿐이고 식별 필드는 호출 쪽 컨텍스트에서 다시 만들어야 한다. 그래서 `buildRetryReentryState` 가 `workflowId`(실행)와 `nodeExecutionId`(옵션)를 재구성 결과에 다시 넣도록 하고 이를 불변식으로 적었다. 코드는 PR #877(재구성 복원)과 PR #879(`llm_usage_log` 소비 지점 교정)로 이미 맞춰져 있었다. 재구성기는 그때부터 `nodeId` 도 `node.id` 로 다시 넣었는데 목록에는 적지 않았다. 2026-10-25 에 개인 통합 판정이 이 값을 쓰게 되어 식별 필드 목록에 더했다(finding 01a17052-f9a4-7697-b5d9-d153a6a25255).
 
 정보 추출기는 provider 도구가 없어(도구는 `finalize_extraction` 하나) 유일한 소비처가 `llm_usage_log` 다. 교정 전에는 재개 `llmContext` 가 `nodeExecutionId=state.nodeId`(노드 정의 ID)이고 `workflowId` 가 빠져 귀속이 오염됐다. 이 교정과 `ai_agent` 메인 대화 재개의 비슷한 NULL 누락 교정은 PR #879 에서 함께 끝났다.
 

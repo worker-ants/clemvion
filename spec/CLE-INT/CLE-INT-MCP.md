@@ -2,21 +2,21 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 3
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "5e5d98e779653cb5d84f7d75452b682f7adc640aeab388b15092f02e094fa2eb"
+content_hash: "38720e6bdbd2a2dc7ad90bedac715e215c083f4f09ec69958bac5c54ebefccd5"
 read_as: "approved_fallback"
-task: "CLE-T-G62XJS"
+task: "CLE-T-MG0EQZ"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "c454600efb83defa97e8bb2d3dd778c155c39ec77e67e45d73b5de21ef4db4a9"
-etag: "sha256-a6bf2401a9230d6de7e05a7aab4fa2574a7fe174c3eeda2dd30425792a305ebf"
+mirror_sha256: "81a40edf10510d248fdff6f91616d62c09e162c32771349da39116e77456fa06"
+etag: "sha256-36e7bd2c3d9f1a38529bf92f333f30b56f753c793cbd71e1f0401ff6e1055c3e"
 ---
-> 구현 상태: 구현됨(외부 MCP 도구 인자의 `inputSchema` 검증은 미구현, [미결 사항](#미결-사항)) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증, `mcpServers` 의 개인 통합 사용 판정, 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -416,12 +416,24 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 | `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없다. 갱신할 수 없어 통합 재인증이 필요하다 | cafe24 |
 | `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 정식 회복은 외부에서 하는 명시적 재인증이다([인증 실패 상태 전환](#인증-실패-상태-전환)) | cafe24 / mcp |
 | `pending_install` | Cafe24 Private 첫 설치가 끝나지 않았다 | cafe24 |
-| `lookup_failed` | 통합 행 조회 실패(삭제됨, 권한 없음) | 공용 |
+| `lookup_failed` | 통합 행 조회 실패. 통합이 없을 때, 다른 워크스페이스에 있을 때, 개인 통합인데 [개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못할 때다. 셋을 구분하지 않는다. 서버 종류별 차이는 아래 「통합 조회 기준」에 있다 | 공용 |
 | `not_capable` | `mcpServers` 에 등록된 통합의 `service_type` 이 이 프로바이더가 처리할 대상이 아니다(프로바이더 라우팅이 정상인지 확인하는 용도) | 공용 |
 
 `expired` 통합을 `buildTools` 가 스스로 되살리는지는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#미결-사항)와 [통합 상태와 만료 알림](CLE-INT-STATUS.md#미결-사항)의 미결 사항이다.
 
 멀티턴에서는 지식 저장소와 같이 턴 단위 delta 를 `meta.turnDebug[].mcpDiagnostics` 에도 따로 싣는다. `serverSummaries[]` 는 도구 목록 구성 결과의 정적 스냅샷이다. 턴마다 다시 계산하지 않고 노드 실행 단위로 한 번 정한다. 멀티턴 재개 때 도구 목록을 다시 만들면 스냅샷도 바뀐다.
+
+### 통합 조회 기준
+
+`mcpServers` 의 통합 조회는 통합 노드 핸들러와 같은 기준을 따른다.
+
+- 개인 통합이면 [개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)의 실행 시점 조건을 모두 통과해야 한다. AI 에이전트 노드가 속한 워크플로우의 작성자가 통합 소유자이고 통합 소유자가 지금 그 워크스페이스의 멤버여야 한다. 서브 워크플로우 안의 AI 에이전트 노드는 그 서브 워크플로우의 작성자로 판정한다.
+- 통과하지 못하거나 노드 ID 로 워크플로우 작성자를 구하지 못하면 그 서버를 `lookup_failed` 로 건너뛰고 나머지 서버는 그대로 쓴다. 건너뛴 서버에는 활동 로그를 남기지 않는다. 거절 이유는 서버 로그에만 남긴다([개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)).
+- 도구 프로바이더는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 노드 ID 와 서버 항목의 표현식 여부를 조회에 넘긴다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 외부 MCP 서버와 Cafe24 · MakeShop 내부 MCP 브리지가 같다. 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 같다.
+- 통합 조회는 도구 목록을 만들 때만 하고 토큰 갱신 뒤 재조회도 이 단계 안에서 일어난다. 도구 실행은 그때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션).
+- 그래서 판정한 뒤 도구를 실행하기 전에 통합이 지워지거나 통합 소유자가 워크스페이스를 떠나도 그 노드 실행 안에서는 반영되지 않는다. 멀티턴이면 입력 대기 뒤 재개 턴에서 도구 목록을 다시 만들 때 반영된다. 받아들인 잔여다.
+
+다만 외부 MCP 서버는 지금 통합 조회가 실패해도 `lookup_failed` 요약을 남기지 않는다. `McpToolProvider.openServer` 가 서비스 유형을 알기 전의 조회 실패를 진단에 넣지 않고 던진다. 그 서버만 빠지고 나머지 서버는 그대로 쓰인다(2026-10-24 코드 확인). 다른 문서는 이 차이를 다시 적지 않고 이 절을 링크한다.
 
 ## 실행 흐름
 
@@ -718,3 +730,7 @@ URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 �
 - **실제로 부른 읽기 호출은 평소처럼 기록한다.** 외부로 나간 호출이므로 활동 로그에 남기고 호출 단계 실패는 `errors[]` 에 넣는다. dry-run 이라고 따로 표시하지 않는다.
 - **`executed: false` 는 건너뛴 호출에만 붙인다.** 한 노드 안에서 건너뛴 호출과 실제로 부른 호출이 섞여도 `turnDebug[].toolCalls` 에서는 둘 다 `success` 다. LLM 과 실행 기록을 읽는 사람이 둘을 가를 수 있는 값은 도구 결과 본문의 이 필드뿐이다.
 - **안내 문구를 바꿨다.** 임시 가드의 안내는 «외부 시스템을 읽지도 바꾸지도 않았다» 였다. 읽기 호출이 실제로 나가게 되면서 이 문장은 맞지 않는다. «이 호출은 보내지 않았고 아무것도 바뀌지 않았다, 성공한 것으로 보고 이어 가라, 같은 호출을 다시 하지 마라» 로 바꿨다.
+
+### `mcpServers` 조회도 워크플로우 작성자 기준을 따른다 (2026-10-24)
+
+NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24, 근거는 [통합 관리](CLE-INT-MANAGE.md) Rationale). AI 에이전트의 `mcpServers` 는 Cafe24 · MakeShop 통합을 노드 없이 쓰는 또 하나의 경로다. 이 경로를 빼면 Cafe24 노드에서는 막힌 남의 개인 통합을 AI 에이전트 도구로는 쓸 수 있다. 그래서 같은 기준을 둔다. 걸린 서버만 건너뛰고 노드는 실패시키지 않는 것은 지금 `lookup_failed` 의 격리 원칙 그대로다. [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-052 도 MCP 서버 항목은 이 격리를 따른다고 적는다. 워크플로우 작성자 기준만이 아니라 판정 전체(통합 소유자의 현재 멤버십, 표현식 참조)를 [통합 관리 「개인 통합 사용 판정」](CLE-INT-MANAGE.md#개인-통합-사용-판정) 에 따른다.
