@@ -11,9 +11,9 @@ const logger = new Logger('IntegrationHandlerBase');
 let warnedMissingNodeExecutionId = false;
 
 /**
- * 조회가 없는 통합과 같은 응답(404)으로 거절한 통합 ID. 노드 실행 컨텍스트마다 둔다. 엔진은 핸들러를 부를 때마다 컨텍스트를
- * 새로 만들므로 다른 노드나 병렬 분기와 섞이지 않는다. 단 에러 정책이 `retry` 이면 엔진이 같은 컨텍스트로 핸들러를 다시
- * 부르므로(`executeWithRetry`) 조회가 성공하면 그 ID 를 지운다.
+ * 조회가 없는 통합과 같은 응답(404)으로 거절한 통합 ID. 노드 실행 컨텍스트마다 둔다. 엔진은 노드 실행마다 실행 컨텍스트
+ * 복사본을 한 번 만들므로 다른 노드 실행이나 병렬 분기와 섞이지 않는다. 노드 재시도 정책이면 `executeWithRetry` 가 시도
+ * 사이에 같은 복사본으로 핸들러를 다시 부르므로 조회가 성공하면 그 ID 를 지운다.
  *
  * 핸들러는 실패하면 설정의 통합 ID 로 {@link IntegrationHandlerBase.logUsage} 를 부른다. 개인 통합 사용 판정의 거절은 없는
  * 통합과 같아야 하는데(REQ-INTMGMT-052), 그대로 두면 거절된 개인 통합의 활동 탭과 `last_error` 에 남의 워크플로우 실행이

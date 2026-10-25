@@ -56,6 +56,7 @@ export type PersonalIntegrationUsePath = PersonalIntegrationUseFacts['path'];
 /**
  * 실행 시점 조회에 부르는 쪽이 넘기는 인자(CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」).
  * `nodeId` 는 지금 실행 중인 노드이고 `fromExpression` 은 참조 값이 평가 전 원본과 같은 리터럴이 아니었는지다.
+ * 통합 활동 로그(`IntegrationUsageParams` · `logUsage` · `integration_usage_log`)와 무관한 조회 인자다.
  */
 export interface IntegrationUse {
   nodeId: string | null;
