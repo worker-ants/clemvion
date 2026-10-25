@@ -11,6 +11,16 @@ import {
 } from './helpers/auth';
 // 공허성 가드 대기 시간은 한 곳에서 온다(`integration-rotate-concurrency.e2e-spec.ts` 와 같은 이유).
 import { VACUITY_GUARD_MS } from './helpers/concurrency';
+import {
+  assertMatchesContract,
+  contractForDto,
+  type DtoContract,
+} from '../src/shared/testing/response-contract';
+import { IntegrationUsageItemDto } from '../src/modules/integrations/dto/responses/integration-response.dto';
+import {
+  DuplicateWorkflowResultDto,
+  ImportWorkflowResultDto,
+} from '../src/modules/workflows/dto/responses/workflow-response.dto';
 
 /**
  * e2e: 개인 통합 사용 판정 — 노드는 워크플로우 작성자 본인의 개인 통합만 쓴다(CLE-INT-MANAGE 「개인 통합 사용 판정」,
@@ -289,6 +299,11 @@ describe('개인 통합 사용 판정 (e2e)', () => {
     // 전제: aliceWf · bobWf 의 노드가 모두 personalA 를 가리킨다(bobWf 는 판정 도입 전 데이터).
     const res = await as(alice).get(`/api/integrations/${personalA}/usages`);
     expect(res.status).toBe(200);
+    // 응답이 선언과 맞는가 — 항목마다 `authorIsIntegrationOwner` 와 `nodes[]` 원소까지 본다. 항목이 없으면 대조가 vacuous 하다.
+    const itemContract = await contractForDto(IntegrationUsageItemDto);
+    const items = res.body.data as UsageWorkflow[];
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    for (const item of items) assertMatchesContract(item, itemContract);
     const byWorkflow = new Map(
       (res.body.data as UsageWorkflow[]).map((w) => [w.workflowId, w]),
     );
@@ -434,7 +449,13 @@ describe('개인 통합 사용 판정 (e2e)', () => {
       expect(r.rows).toHaveLength(1);
       return r.rows[0].id;
     };
-    const expectCleared = async (res: request.Response) => {
+    // 응답이 선언과 맞는가 — 비운 참조가 있는 응답이라 `ClearedIntegrationRefDto` 원소의 필드까지 본다(`expectCleared`).
+    const duplicateContract = await contractForDto(DuplicateWorkflowResultDto);
+    const importContract = await contractForDto(ImportWorkflowResultDto);
+    const expectCleared = async (
+      res: request.Response,
+      contract: DtoContract,
+    ) => {
       expect(res.status).toBe(201);
       const data = res.body.data as {
         id: string;
@@ -444,32 +465,38 @@ describe('개인 통합 사용 판정 (e2e)', () => {
       expect(data.clearedIntegrationRefs).toEqual([
         { nodeId, nodeLabel: 'Fetch (Bob)', field: 'config.integrationId' },
       ]);
+      assertMatchesContract(data, contract);
       expect(await readRef(nodeId)).toBeNull();
     };
-    const expectKept = async (res: request.Response) => {
+    const expectKept = async (res: request.Response, contract: DtoContract) => {
       expect(res.status).toBe(201);
       const data = res.body.data as {
         id: string;
         clearedIntegrationRefs: ClearedRef[];
       };
       expect(data.clearedIntegrationRefs).toEqual([]);
+      assertMatchesContract(data, contract);
       expect(await readRef(await copiedNodeOf(data.id))).toBe(personalA2);
     };
 
     await expectCleared(
       await as(bob).post(`/api/workflows/${aliceWf}/duplicate`),
+      duplicateContract,
     );
     await expectKept(
       await as(alice).post(`/api/workflows/${aliceWf}/duplicate`),
+      duplicateContract,
     );
 
     const exported = await as(bob).get(`/api/workflows/${aliceWf}/export`);
     expect(exported.status).toBe(200);
     await expectCleared(
       await as(bob).post('/api/workflows/import', exported.body.data),
+      importContract,
     );
     await expectKept(
       await as(alice).post('/api/workflows/import', exported.body.data),
+      importContract,
     );
   });
 

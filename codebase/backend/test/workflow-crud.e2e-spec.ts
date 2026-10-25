@@ -12,7 +12,9 @@ import {
 } from '../src/shared/testing/response-contract';
 import {
   CanvasSaveResultDto,
+  DuplicateWorkflowResultDto,
   ExportWorkflowDto,
+  ImportWorkflowResultDto,
   RestoreVersionResultDto,
 } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
@@ -294,6 +296,13 @@ describe('Workflow CRUD (e2e)', () => {
     expect(dup.body.data.isActive).toBe(false);
     // 버전 이력은 승계하지 않는다 — 원본은 save 로 2 가 됐고 사본은 1 로 시작.
     expect(dup.body.data.currentVersion).toBe(1);
+    // 통합을 쓰는 노드가 없으니 비운 참조도 없다. 키는 늘 실린다(선언: required 배열). 비운 참조가 있는 응답의 원소는
+    // `integration-personal-use.e2e-spec.ts` 가 대조한다.
+    expect(dup.body.data.clearedIntegrationRefs).toEqual([]);
+    assertMatchesContract(
+      dup.body.data,
+      await contractForDto(DuplicateWorkflowResultDto),
+    );
 
     // 사본의 캔버스를 export 로 관측한다 (노드 간 참조가 인덱스로 정규화돼 나와
     // UUID 재매핑 결과를 그대로 대조할 수 있다).
@@ -475,6 +484,12 @@ describe('Workflow CRUD (e2e)', () => {
     expect(importRes.status).toBe(201);
     const newId = importRes.body.data.id;
     expect(newId).not.toBe(id);
+    // 통합 참조가 없는 캔버스라 비운 참조도 없다. 키는 늘 실린다(선언: required 배열).
+    expect(importRes.body.data.clearedIntegrationRefs).toEqual([]);
+    assertMatchesContract(
+      importRes.body.data,
+      await contractForDto(ImportWorkflowResultDto),
+    );
   });
 
   it('G. import settings.maxConcurrentExecutions — round-trip 영속 + 미지키 400 (§8, patch 대칭)', async () => {
