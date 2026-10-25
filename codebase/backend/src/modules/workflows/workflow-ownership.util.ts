@@ -29,7 +29,8 @@ export async function assertWorkflowInWorkspace(
  * 와 같은 404 다.
  *
  * `FOR UPDATE` 를 쓰지 않는다. 그 잠금은 이 워크플로우를 가리키는 자식 행 INSERT 의 FK 검사(`FOR KEY SHARE`)와 부딪쳐 실행
- * 생성 · 트리거 쓰기를 저장이 끝날 때까지 세운다. `FOR NO KEY UPDATE` 는 같은 잠금끼리만 부딪쳐 저장만 줄 세운다.
+ * 생성 · 트리거 쓰기를 저장이 끝날 때까지 세운다. `FOR NO KEY UPDATE` 는 `FOR KEY SHARE` 를 막지 않고, 같은 잠금(과
+ * `FOR SHARE` · `FOR UPDATE`)과는 부딪치므로 저장끼리는 줄을 선다.
  */
 export async function lockWorkflowInWorkspace(
   manager: EntityManager,
