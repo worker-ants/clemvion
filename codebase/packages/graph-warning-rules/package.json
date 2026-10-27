@@ -16,9 +16,9 @@
     "eslint": "^10.9.1",
     "globals": "^17.13.0",
     "jest": "^30.5.2",
-    "ts-jest": "^29.4.14",
+    "ts-jest": "^29.4.15",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.0"
+    "typescript-eslint": "^8.72.0"
   },
   "engines": {
     "node": ">=26"
