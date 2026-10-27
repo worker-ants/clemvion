@@ -20,7 +20,7 @@
     "@types/jest": "^30.0.0",
     "@eslint/js": "^10.0.1",
     "esbuild": "^0.28.2",
-    "eslint": "^10.9.1",
+    "eslint": "^10.13.0",
     "globals": "^17.13.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
