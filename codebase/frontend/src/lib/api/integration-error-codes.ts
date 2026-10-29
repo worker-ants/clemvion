@@ -1,5 +1,12 @@
+import type { AxiosError } from "axios";
 import type { TFunction, TranslationKey } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
+import {
+  extractApiCode,
+  extractApiDetails,
+  extractApiMessage,
+  type ApiErrorBody,
+} from "./errors";
 
 /**
  * Backend integration 에러 코드 중 frontend 가 도메인-aware 메시지로 remap 하는
@@ -69,16 +76,9 @@ export function getIntegrationErrorI18nKey(
   return null;
 }
 
-type IntegrationErrorBody = {
-  code?: string;
-  message?: string;
-  details?: unknown;
-  error?: { code?: string; message?: string; details?: unknown };
-};
-
 /**
- * 오류 응답에서 코드 · 메시지 · details 를 꺼낸다. 서버의 전역 예외 필터는 `{error:{code,message,details}}` 로
- * 감싸서 내고, 평탄한 `{code,message}` 를 내는 경로도 있어 둘 다 읽는다(`lib/api/errors.ts` 와 같은 규칙).
+ * 오류 응답에서 코드 · 메시지 · details 를 꺼낸다. 응답 본문을 읽는 규칙(전역 예외 필터의 `{error:{code,message,details}}`
+ * 래핑과 평탄한 `{code,message}`)은 `lib/api/errors.ts` 의 `extract*` 헬퍼가 갖는다.
  * `serverMessage` 는 응답 본문의 문구, `errorMessage` 는 axios 같은 오류 객체 자체의 문구다.
  */
 function readIntegrationError(err: unknown): {
@@ -87,16 +87,13 @@ function readIntegrationError(err: unknown): {
   errorMessage?: string;
   details?: unknown;
 } {
-  const e = (err ?? {}) as {
-    response?: { data?: IntegrationErrorBody };
-    message?: string;
-  };
-  const data = e.response?.data;
+  // 호출자는 axios 오류 말고 응답 모양만 맞춘 객체나 Error 도 넘긴다. `extract*` 는 `response?.data` 만 읽는다.
+  const e = (err ?? {}) as AxiosError<ApiErrorBody>;
   return {
-    code: data?.code ?? data?.error?.code,
-    serverMessage: data?.message ?? data?.error?.message,
+    code: extractApiCode(e),
+    serverMessage: extractApiMessage(e),
     errorMessage: e.message,
-    details: data?.details ?? data?.error?.details,
+    details: extractApiDetails(e),
   };
 }
 
