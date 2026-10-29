@@ -18,7 +18,7 @@ import {
  *
  * 보호 대상 invariants:
  *   - 남의 personal 은 목록에서 빠지고, `:id` 경로는 **없는 id 와 같은** `404 RESOURCE_NOT_FOUND` 다 — Owner 도 예외가 아니다
- *   - Organization 통합의 수정 · 삭제 · 재인증은 Editor · Viewer 에게 `403 ADMIN_REQUIRED` 다
+ *   - Organization 통합의 수정 · 삭제 · 재인증은 Editor 에게 `403 ADMIN_REQUIRED` 다. Viewer 는 편집자 이상 라우트 가드가 먼저 `403 EDITOR_REQUIRED` 로 거절한다
  *   - `oauth/begin` 의 reauthorize 모드(`integrationId` 지정)도 같은 판정을 받는다 — `:id/reauthorize` 우회 입구가 아니다
  *   - 생성자는 자기 personal 을 바꾸고 지운다
  *
@@ -207,24 +207,25 @@ describe('Integration personal-owner enforcement (e2e)', () => {
     expect(answerOf(res)).toBe('404 RESOURCE_NOT_FOUND');
   });
 
+  // 뷰어는 두 라우트의 편집자 이상 가드가 먼저 거절한다(CLE-INT-MANAGE «역할 거부 코드는 라우트 가드가 먼저 정한다»).
   it.each([
-    ['Viewer', () => viewer],
-    ['Editor', () => editor],
+    ['Viewer', () => viewer, '403 EDITOR_REQUIRED'],
+    ['Editor', () => editor, '403 ADMIN_REQUIRED'],
   ])(
-    'Organization 통합 재인증 — %s 는 403 ADMIN_REQUIRED (`:id/reauthorize` · `oauth/begin` 둘 다)',
-    async (_label, actorOf) => {
+    'Organization 통합 재인증 — %s 는 %s (`:id/reauthorize` · `oauth/begin` 둘 다)',
+    async (_label, actorOf, expected) => {
       const actor = actorOf();
       const direct = await as(actor).post(
         `/api/integrations/${orgId}/reauthorize`,
       );
-      expect(answerOf(direct)).toBe('403 ADMIN_REQUIRED');
+      expect(answerOf(direct)).toBe(expected);
       const viaBegin = await as(actor).post('/api/integrations/oauth/begin', {
         service: 'google',
         scopes: [],
         mode: 'reauthorize',
         integrationId: orgId,
       });
-      expect(answerOf(viaBegin)).toBe('403 ADMIN_REQUIRED');
+      expect(answerOf(viaBegin)).toBe(expected);
     },
   );
 
