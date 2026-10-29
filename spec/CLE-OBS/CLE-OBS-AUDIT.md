@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "be8cf0eed62d72fe327eabc2eeda39fb79e5e84fcd3b6eff39fc8e1d2d644d15"
+content_hash: "a5c1a05cfb3a3ce31f87cbf499c31bc89ac5e8b1eccd72f43c68adc2e25df9c8"
 read_as: "approved_fallback"
-task: "CLE-T-EQDYC1"
+task: "CLE-T-TGZGM9"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "86b71f3bdae737bb5e5843162ccf5a5bf84ee34cc30c74b7bf595bb533bef94f"
-etag: "sha256-a778a6124797fe8e2583fe0ff660685c36f383a2aedd82ce196e17ccf95b8ca9"
+mirror_sha256: "c36eb9b20dcb01ee41e42eb09a6a11c0e2bb24d8689c93cb87e859da021e7dfb"
+etag: "sha256-436e3804ad6394f436532a5afa8fc6d2102202fa03a0729be7f562aa025cee12"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -123,7 +123,7 @@ sequenceDiagram
 | --- | --- | --- | --- | --- |
 | `integration.created` | integration | `integrations/integrations.service.ts` | 통합 생성 | 구현됨 |
 | `integration.updated` | integration | 〃 | 통합 수정 | 구현됨 |
-| `integration.deleted` | integration | 〃 | 통합 삭제 | 구현됨 |
+| `integration.deleted` | integration | 〃 | 통합 삭제. 멤버가 나가거나 제거되면서 그 사람의 개인 통합을 함께 지우면 통합마다 남기고 `member.removed` 와 같은 `details.mode`(`'left'` 또는 `'removed'`)와 `details.memberUserId` 를 싣는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#감사-로그)). 이 삭제 경로는 미구현이다(NERV Task `CLE-T-PS7JQY`) | 부분 구현 |
 | `integration.rotated` | integration | 〃 | 자격 증명 교체 | 구현됨 |
 | `integration.scope_changed` | integration | 〃 | 공개 범위(`Integration.scope`) 전환. personal ↔ organization. `details.from`·`to` | 구현됨 |
 | `integration.reauthorized` | integration | 〃 | 통합 재인증. OAuth 제공자가 없는 통합의 reset 경로에서만 남는다(`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 에 위임하므로 시작과 콜백 어디에서도 남지 않는다(커버리지 갭, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)) | 부분 구현 |

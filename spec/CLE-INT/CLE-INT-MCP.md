@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "1df117a8d3f0c69f9b3a952d454caa65ce38325d80c987c8cd8ebbb793fc033e"
+content_hash: "636a22ed2ceec163f25c427c2d799d692fcbbadebbd8a499d7584b550ce1fd64"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-TGZGM9"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "8f222c90809a78b26f2aa0656dd69fdf1cb0156fbe6165a2a04101e613779b8f"
-etag: "sha256-360b334d87dfc8ea5855612dafda9a4924af99f8f4d3cb23fe5e91be10c04b8e"
+mirror_sha256: "6b2c09fb508fab2447467e6a3eb35c92902c0cf702ff879a653d903b2a93484e"
+etag: "sha256-31359394f181d5f5a27e507977adaca7191d527e793bb0a301cff256ec581ea2"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -411,7 +411,7 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 
 | 값 | 뜻 | 적용 프로바이더 |
 |----|------|---------------|
-| `expired_install_timeout` | Cafe24 Private 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없고 사용자가 지우고 다시 등록해야 한다 | cafe24 |
+| `expired_install_timeout` | Cafe24 Private 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없고 사용자가 지우고 다시 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | cafe24 |
 | `expired_refresh_failed` | `expired` 상태에서 `buildTools` 의 1회 갱신 시도가 `invalid_grant` 로 실패. worker 가 `error(auth_failed)` 로 전이한다([Cafe24 노드 §만료된 통합의 도구 목록 처리](../CLE-NODE-INT/CLE-NODE-CAFE24.md#만료된-통합의-도구-목록-처리)) | cafe24 |
 | `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없다. 갱신할 수 없어 통합 재인증이 필요하다 | cafe24 |
 | `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 정식 회복은 외부에서 하는 명시적 재인증이다([인증 실패 상태 전환](#인증-실패-상태-전환)) | cafe24 / mcp |
