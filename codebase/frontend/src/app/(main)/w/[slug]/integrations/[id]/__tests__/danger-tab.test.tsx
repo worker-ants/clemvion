@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import type { IntegrationDto, UsageWorkflow } from "@/lib/api/integrations";
 import { useT } from "@/lib/i18n";
+import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
 const usagesMock = vi.fn();
 const removeMock = vi.fn();
@@ -121,6 +122,8 @@ describe("DangerTab — delete blocked dialog (§4.7 / §7.2)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useLocaleStore.setState({ locale: "en" });
+    // 픽스처의 통합 소유자(user-1)이자 소유자 역할 — 모든 동작이 보인다.
+    seedWorkspaceViewer("owner");
     cleanup();
   });
 
@@ -142,7 +145,7 @@ describe("DangerTab — delete blocked dialog (§4.7 / §7.2)", () => {
     // open-workflow action link
     expect(
       screen.getByRole("link", { name: /Open workflow/i }),
-    ).toHaveAttribute("href", "/workflows/wf-a");
+    ).toHaveAttribute("href", "/w/team-1/workflows/wf-a");
 
     // usages were pre-fetched; no confirm step shown and no delete happened
     expect(usagesMock).toHaveBeenCalledWith("int-1");
@@ -173,7 +176,7 @@ describe("DangerTab — delete blocked dialog (§4.7 / §7.2)", () => {
       expect(removeMock).toHaveBeenCalledWith("int-1");
     });
     expect(toastSuccessMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/integrations");
+    expect(pushMock).toHaveBeenCalledWith("/w/team-1/integrations");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -238,6 +241,8 @@ describe("DangerTab — organization → personal warning (REQ-INTMGMT-057)", ()
   beforeEach(() => {
     vi.clearAllMocks();
     useLocaleStore.setState({ locale: "en" });
+    // 픽스처의 통합 소유자(user-1)이자 소유자 역할 — 모든 동작이 보인다.
+    seedWorkspaceViewer("owner");
     cleanup();
     updateScopeMock.mockResolvedValue(undefined);
     confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -336,5 +341,42 @@ describe("DangerTab — organization → personal warning (REQ-INTMGMT-057)", ()
     expect(confirmSpy).toHaveBeenCalledWith(
       "Existing credentials will be shared with all workspace members. Continue?",
     );
+  });
+});
+
+// 역할 × 공개 범위 — NERV CLE-INT-MANAGE 「권한」 표, Task CLE-T-EDQYGH. 할 수 없는 동작은 버튼이 없다.
+describe("DangerTab — 역할과 통합 소유에 따른 표시", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+  });
+
+  const shown = () => ({
+    scopeChange: screen.queryByRole("button", { name: "Apply" }) !== null,
+    remove:
+      screen.queryByRole("button", { name: "Delete integration" }) !== null,
+  });
+
+  it.each([
+    ["조직 · 뷰어", "organization", "viewer", false, false],
+    ["조직 · 편집자", "organization", "editor", false, false],
+    ["조직 · 관리자", "organization", "admin", true, true],
+    ["자기 개인 · 뷰어", "personal", "viewer", false, true],
+    ["자기 개인 · 편집자", "personal", "editor", false, true],
+    ["자기 개인 · 관리자", "personal", "admin", true, true],
+  ] as const)(
+    "%s",
+    (_label, scope, role, scopeChange, remove) => {
+      seedWorkspaceViewer(role);
+      renderDangerTab({ scope });
+      expect(shown()).toEqual({ scopeChange, remove });
+    },
+  );
+
+  it("남의 개인 통합은 소유자 역할에게도 아무 동작을 보이지 않는다", () => {
+    seedWorkspaceViewer("owner", "user-other");
+    renderDangerTab({ scope: "personal", createdBy: "user-1" });
+    expect(shown()).toEqual({ scopeChange: false, remove: false });
   });
 });

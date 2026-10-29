@@ -12,6 +12,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import type { IntegrationDto, OAuthBeginResult } from "@/lib/api/integrations";
 import { useT } from "@/lib/i18n";
+import type { WorkspaceRole } from "@/lib/stores/workspace-store";
+import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
 const reauthorizeMock = vi.fn();
 const toastSuccessMock = vi.fn();
@@ -103,6 +105,7 @@ describe("SecurityTab — 재인증 연결부", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useLocaleStore.setState({ locale: "en" });
+    seedWorkspaceViewer("owner");
   });
   afterEach(() => cleanup());
 
@@ -260,5 +263,56 @@ describe("SecurityTab — 재인증 연결부", () => {
     });
     expect(screen.queryByRole("button", { name: "Reauthorize" })).toBeNull();
     expect(screen.getByRole("button", { name: "Rotate" })).toBeInTheDocument();
+  });
+});
+
+/*
+ * 재인증 · 자격 증명 교체는 바꿀 수 있는 사람에게만 보인다 — NERV CLE-INT-MANAGE 「권한」 표, Task CLE-T-EDQYGH.
+ * 조직 통합은 관리자 이상, 개인 통합은 만든 사람이 편집자 이상일 때다.
+ */
+describe("SecurityTab — 역할과 통합 소유에 따른 표시", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+  });
+  afterEach(() => cleanup());
+
+  const CASES: [string, WorkspaceRole, Partial<IntegrationDto>, boolean][] = [
+    ["조직 통합 · 편집자", "editor", { scope: "organization" }, false],
+    ["조직 통합 · 관리자", "admin", { scope: "organization" }, true],
+    ["자기 개인 통합 · 뷰어", "viewer", { scope: "personal" }, false],
+    ["자기 개인 통합 · 편집자", "editor", { scope: "personal" }, true],
+    [
+      "남의 개인 통합 · 소유자",
+      "owner",
+      { scope: "personal", createdBy: "user-other" },
+      false,
+    ],
+  ];
+
+  it.each(CASES)("재인증 — %s", (_label, role, overrides, visible) => {
+    seedWorkspaceViewer(role);
+    renderSecurityTab(buildIntegration(overrides));
+    expect(screen.queryByRole("button", { name: "Reauthorize" }) !== null).toBe(
+      visible,
+    );
+  });
+
+  it.each(CASES)("자격 증명 교체 — %s", async (_label, role, overrides, visible) => {
+    seedWorkspaceViewer(role);
+    await act(async () => {
+      renderSecurityTab(
+        buildIntegration({
+          authType: "api_key",
+          serviceType: "http",
+          meta: { appType: null },
+          appUrl: null,
+          ...overrides,
+        }),
+      );
+    });
+    expect(screen.queryByRole("button", { name: "Rotate" }) !== null).toBe(
+      visible,
+    );
   });
 });

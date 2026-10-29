@@ -3,6 +3,8 @@ import { render, screen, act, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import type { WorkspaceRole } from "@/lib/stores/workspace-store";
+import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -285,4 +287,40 @@ describe("IntegrationsPage — attention banner", () => {
     const pushArg = mockPush.mock.calls.at(-1)?.[0] as string;
     expect(pushArg).toBe("/integrations/lonely");
   });
+});
+
+/*
+ * 통합 추가는 편집자 이상만 한다 — NERV CLE-INT-MANAGE 「권한」 표, Task CLE-T-EDQYGH.
+ * 추가 버튼은 이미 `RoleGate` 로 숨긴다. `N` 단축키도 같은 하한을 따라야 뷰어가 추가 창을 열지 못한다.
+ */
+describe("IntegrationsPage — 통합 추가 역할 하한", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+    servicesMock.mockResolvedValue([]);
+    listMock.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 30, totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  it.each([
+    ["viewer", false],
+    ["editor", true],
+    ["admin", true],
+  ] as [WorkspaceRole, boolean][])(
+    "%s — 추가 버튼과 N 단축키",
+    async (role, canAdd) => {
+      seedWorkspaceViewer(role);
+      await renderPage();
+
+      expect(
+        screen.queryByRole("button", { name: /Add Integration/ }) !== null,
+      ).toBe(canAdd);
+      await userEvent.keyboard("n");
+      expect(screen.queryByRole("dialog") !== null).toBe(canAdd);
+    },
+  );
 });

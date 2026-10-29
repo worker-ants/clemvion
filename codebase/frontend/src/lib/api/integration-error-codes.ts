@@ -1,4 +1,5 @@
-import type { TranslationKey } from "@/lib/i18n";
+import type { TFunction, TranslationKey } from "@/lib/i18n";
+import { formatDate } from "@/lib/utils/date";
 
 /**
  * Backend integration 에러 코드 중 frontend 가 도메인-aware 메시지로 remap 하는
@@ -22,6 +23,15 @@ export const INTEGRATION_LOCALIZED_ERROR_CODES = {
    * Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED 코드명 유지 결정" 참조.
    */
   CAFE24_DUPLICATE_MALL: "CAFE24_PRIVATE_APP_ALREADY_CONNECTED",
+  /**
+   * `oauth/begin`(`new`)이 다시 쓸 설치 대기 행이 남의 개인 통합이다. `details.pendingInstallExpiresAt` 에 설치 기한이
+   * 온다. NERV CLE-INT-OAUTH 「설치 대기 행 재사용의 권한」.
+   */
+  CAFE24_INSTALL_PENDING_BY_OTHER: "CAFE24_PRIVATE_APP_INSTALL_PENDING",
+  MAKESHOP_INSTALL_PENDING_BY_OTHER: "MAKESHOP_INSTALL_PENDING",
+  /** 역할 하한 거부. 코드를 고르는 규칙은 NERV CLE-INT-MANAGE 「권한」. */
+  EDITOR_REQUIRED: "EDITOR_REQUIRED",
+  ADMIN_REQUIRED: "ADMIN_REQUIRED",
 } as const;
 
 export type IntegrationLocalizedErrorCode =
@@ -33,6 +43,14 @@ export const INTEGRATION_ERROR_CODE_TO_I18N: Readonly<
 > = {
   [INTEGRATION_LOCALIZED_ERROR_CODES.CAFE24_DUPLICATE_MALL]:
     "integrations.cafe24DuplicateMallToast",
+  [INTEGRATION_LOCALIZED_ERROR_CODES.CAFE24_INSTALL_PENDING_BY_OTHER]:
+    "integrations.cafe24InstallPendingByOtherToast",
+  [INTEGRATION_LOCALIZED_ERROR_CODES.MAKESHOP_INSTALL_PENDING_BY_OTHER]:
+    "integrations.makeshopInstallPendingByOtherToast",
+  [INTEGRATION_LOCALIZED_ERROR_CODES.EDITOR_REQUIRED]:
+    "integrations.editorRequiredToast",
+  [INTEGRATION_LOCALIZED_ERROR_CODES.ADMIN_REQUIRED]:
+    "integrations.adminRequiredToast",
 };
 
 /**
@@ -49,4 +67,66 @@ export function getIntegrationErrorI18nKey(
     ];
   }
   return null;
+}
+
+type IntegrationErrorBody = {
+  code?: string;
+  message?: string;
+  details?: unknown;
+  error?: { code?: string; message?: string; details?: unknown };
+};
+
+/**
+ * 오류 응답에서 코드 · 메시지 · details 를 꺼낸다. 서버의 전역 예외 필터는 `{error:{code,message,details}}` 로
+ * 감싸서 내고, 평탄한 `{code,message}` 를 내는 경로도 있어 둘 다 읽는다(`lib/api/errors.ts` 와 같은 규칙).
+ * `serverMessage` 는 응답 본문의 문구, `errorMessage` 는 axios 같은 오류 객체 자체의 문구다.
+ */
+function readIntegrationError(err: unknown): {
+  code?: string;
+  serverMessage?: string;
+  errorMessage?: string;
+  details?: unknown;
+} {
+  const e = (err ?? {}) as {
+    response?: { data?: IntegrationErrorBody };
+    message?: string;
+  };
+  const data = e.response?.data;
+  return {
+    code: data?.code ?? data?.error?.code,
+    serverMessage: data?.message ?? data?.error?.message,
+    errorMessage: e.message,
+    details: data?.details ?? data?.error?.details,
+  };
+}
+
+/** 설치 대기 409 의 `details.pendingInstallExpiresAt`. 없거나 문자열이 아니면 `null`. */
+function pendingInstallExpiresAt(details: unknown): string | null {
+  if (!details || typeof details !== "object") return null;
+  const value = (details as { pendingInstallExpiresAt?: unknown })
+    .pendingInstallExpiresAt;
+  return typeof value === "string" && value ? value : null;
+}
+
+/**
+ * 통합 API 오류를 토스트 문구로 바꾼다. 매핑에 있는 코드는 번역 문구를 앞에 두고 서버 문구를 괄호에 둔다.
+ * 설치 대기 409 는 설치 기한을 화면 시각으로 붙인다. 매핑에 없는 코드는 서버 문구, 오류 객체의 문구,
+ * `fallbackKey` 순으로 고른다.
+ */
+export function formatIntegrationErrorToast(
+  err: unknown,
+  t: TFunction,
+  fallbackKey: TranslationKey,
+): string {
+  const { code, serverMessage, errorMessage, details } =
+    readIntegrationError(err);
+  const mappedKey = getIntegrationErrorI18nKey(code);
+  if (!mappedKey) return serverMessage ?? errorMessage ?? t(fallbackKey);
+  const expiresAt = pendingInstallExpiresAt(details);
+  const primary = expiresAt
+    ? `${t(mappedKey)} ${t("integrations.retryAfterPendingInstallExpiry", {
+        expiresAt: formatDate(expiresAt, "datetime"),
+      })}`
+    : t(mappedKey);
+  return serverMessage ? `${primary} (${serverMessage})` : primary;
 }

@@ -15,6 +15,7 @@ import type {
 } from "@/lib/api/integrations";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { useHasRole } from "@/components/auth/role-gate";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { CredentialsForm } from "../../_shared/credentials-form";
 import {
@@ -70,6 +71,8 @@ export function AuthStep({
   t,
 }: AuthStepProps) {
   const isOAuth = variant?.authType === "oauth2";
+  // 조직 공개 범위는 관리자 이상만 고른다(CLE-INT-MANAGE 「권한」). 서버도 `ADMIN_REQUIRED` 로 거절한다.
+  const canPickOrganization = useHasRole("admin");
   const toggleScope = (value: string) => {
     setSelectedScopes(
       selectedScopes.includes(value)
@@ -101,8 +104,9 @@ export function AuthStep({
             <button
               key={opt}
               type="button"
+              disabled={opt === "organization" && !canPickOrganization}
               className={cn(
-                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                 scope === opt
                   ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",

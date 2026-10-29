@@ -12,7 +12,8 @@ import {
   type IntegrationScope,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
-import { getIntegrationErrorI18nKey } from "@/lib/api/integration-error-codes";
+import { formatIntegrationErrorToast } from "@/lib/api/integration-error-codes";
+import { useHasRole } from "@/components/auth/role-gate";
 import {
   useCafe24MallIdPrecheck,
   CAFE24_MALL_ID_PATTERN,
@@ -30,7 +31,32 @@ import { MakeshopPendingStep } from "./_components/makeshop-pending-step";
 
 type Step = "auth" | "test";
 
+/**
+ * 통합 추가는 편집자 이상만 한다(CLE-INT-MANAGE 「권한」). 목록의 추가 버튼과 `N` 단축키를 숨겨도 주소로 들어올 수
+ * 있어 페이지에서도 막는다. 서버도 `EDITOR_REQUIRED` 로 거절한다.
+ */
 export default function NewIntegrationPage() {
+  const canAdd = useHasRole("editor");
+  return canAdd ? <NewIntegrationWizard /> : <AddIntegrationForbidden />;
+}
+
+function AddIntegrationForbidden() {
+  const t = useT();
+  const slug = useWorkspaceSlug();
+  return (
+    <div className="space-y-4">
+      <Link
+        href={buildWorkspaceHref(slug, "/integrations")}
+        className="inline-flex items-center gap-1 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+      >
+        <ArrowLeft className="h-4 w-4" /> {t("integrations.backToList")}
+      </Link>
+      <p className="text-sm">{t("integrations.addIntegrationForbidden")}</p>
+    </div>
+  );
+}
+
+function NewIntegrationWizard() {
   const t = useT();
   const router = useRouter();
   const slug = useWorkspaceSlug();
@@ -124,22 +150,24 @@ export default function NewIntegrationPage() {
    * 괄호 안 보조 정보로 노출. 매핑 없는 코드는 backend message 우선.
    * 사용자가 "괄호 등을 이용해서 보조 안내로 사용" 지시 (2026-05-16, ai-review W11).
    */
-  const formatErrorToast = (
-    err: unknown,
-    fallbackKey: TranslationKey,
-  ): string => {
-    const e = err as {
-      response?: { data?: { message?: string; code?: string } };
-      message?: string;
-    };
-    const backendCode = e.response?.data?.code;
-    const backendMessage = e.response?.data?.message ?? e.message;
-    const mappedKey = getIntegrationErrorI18nKey(backendCode);
-    if (mappedKey) {
-      const primary = t(mappedKey);
-      return backendMessage ? `${primary} (${backendMessage})` : primary;
-    }
-    return backendMessage ?? t(fallbackKey);
+  const formatErrorToast = (err: unknown, fallbackKey: TranslationKey) =>
+    formatIntegrationErrorToast(err, t, fallbackKey);
+
+  /**
+   * 설치 대기 행을 다시 쓰면 그 행의 공개 범위가 그대로라 요청과 다를 수 있다. 응답의 `scope` 로 알려 준다
+   * (REQ-INTOAUTH-067).
+   */
+  const noticeIfScopeKept = (resultScope: IntegrationScope | undefined) => {
+    if (!resultScope || resultScope === scope) return;
+    toast.info(
+      t("integrations.pendingInstallScopeKept", {
+        scope: t(
+          resultScope === "organization"
+            ? "integrations.scopeOrganization"
+            : "integrations.scopePersonal",
+        ),
+      }),
+    );
   };
 
   const createMutation = useMutation({
@@ -216,6 +244,7 @@ export default function NewIntegrationPage() {
           appUrl: result.appUrl,
           callbackUrl: result.callbackUrl,
         });
+        noticeIfScopeKept(result.scope);
         queryClient.invalidateQueries({ queryKey: ["integrations"] });
         return;
       }
@@ -225,6 +254,7 @@ export default function NewIntegrationPage() {
           appUrl: result.appUrl,
           callbackUrl: result.callbackUrl,
         });
+        noticeIfScopeKept(result.scope);
         queryClient.invalidateQueries({ queryKey: ["integrations"] });
         return;
       }

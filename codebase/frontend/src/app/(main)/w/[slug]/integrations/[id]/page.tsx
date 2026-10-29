@@ -21,6 +21,10 @@ import {
   type IntegrationDto,
 } from "@/lib/api/integrations";
 import { ServiceIcon, prettyAuthType } from "../_shared/service-icons";
+import {
+  hasDangerZoneAction,
+  useIntegrationPermissions,
+} from "../_shared/integration-permissions";
 import { StatusBadge, humanizeUntil } from "../_shared/status-badge";
 import {
   Tooltip,
@@ -89,6 +93,14 @@ export default function IntegrationDetailPage({
     queryFn: () => integrationsApi.services(),
     staleTime: 5 * 60 * 1000,
   });
+
+  // 위험 영역 탭은 공개 범위 전환이나 삭제 중 하나라도 할 수 있을 때만 둔다(CLE-INT-MANAGE 「권한」).
+  const showDangerTab = hasDangerZoneAction(useIntegrationPermissions(integration));
+  const visibleTabs: readonly Tab[] = showDangerTab
+    ? TABS
+    : TABS.filter((key) => key !== "danger");
+  // 공개 범위를 바꿔 위험 영역 탭이 사라지면 개요로 돌아간다.
+  const activeTab: Tab = visibleTabs.includes(tab) ? tab : "overview";
 
   const service = services.find((s) => s.type === integration?.serviceType);
   const variant = service?.authVariants.find(
@@ -163,14 +175,14 @@ export default function IntegrationDetailPage({
       />
 
       <nav className="flex flex-wrap gap-1 border-b border-[hsl(var(--border))]">
-        {TABS.map((key) => (
+        {visibleTabs.map((key) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             className={cn(
               "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-              tab === key
+              activeTab === key
                 ? "border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
                 : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
             )}
@@ -180,10 +192,10 @@ export default function IntegrationDetailPage({
         ))}
       </nav>
 
-      {tab === "overview" && (
+      {activeTab === "overview" && (
         <OverviewTab integration={integration} onChanged={invalidate} t={t} />
       )}
-      {tab === "security" && (
+      {activeTab === "security" && (
         <SecurityTab
           integration={integration}
           variant={variant}
@@ -191,7 +203,7 @@ export default function IntegrationDetailPage({
           t={t}
         />
       )}
-      {tab === "scope" && (
+      {activeTab === "scope" && (
         <ScopeTab
           integration={integration}
           service={service}
@@ -199,8 +211,8 @@ export default function IntegrationDetailPage({
           t={t}
         />
       )}
-      {tab === "usage" && <UsageTab integrationId={id} t={t} />}
-      {tab === "activity" && (
+      {activeTab === "usage" && <UsageTab integrationId={id} t={t} />}
+      {activeTab === "activity" && (
         <ActivityTab
           integrationId={id}
           serviceType={integration.serviceType}
@@ -209,7 +221,7 @@ export default function IntegrationDetailPage({
           t={t}
         />
       )}
-      {tab === "danger" && (
+      {activeTab === "danger" && (
         <DangerTab
           integration={integration}
           onScopeChanged={invalidate}
@@ -242,6 +254,8 @@ function OverviewTab({
   onChanged: () => void;
   t: TFunction;
 }) {
+  // 이름 바꾸기는 할 수 있는 사람에게만 보인다(CLE-INT-MANAGE 「권한」). 연결 테스트는 조회라 누구나 쓴다.
+  const permissions = useIntegrationPermissions(integration);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(integration.name);
 
@@ -297,9 +311,11 @@ function OverviewTab({
         ) : (
           <div className="mt-1 flex items-center gap-2">
             <span className="text-sm">{integration.name}</span>
-            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-              {t("integrations.editBtn")}
-            </Button>
+            {permissions.rename && (
+              <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+                {t("integrations.editBtn")}
+              </Button>
+            )}
           </div>
         )}
       </div>

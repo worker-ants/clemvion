@@ -15,6 +15,7 @@ import {
   requestScopesDisabledReason,
   type RequestScopesDisabledReason,
 } from "@/lib/integrations/reauthorize";
+import { useIntegrationPermissions } from "../_shared/integration-permissions";
 import { openOAuthPopup } from "./open-oauth-popup";
 import {
   ApprovalRequiredBadge,
@@ -80,6 +81,8 @@ export function ScopeTab({
       ? null
       : t(REQUEST_SCOPES_DISABLED_HINT_KEYS[disabledReason]);
 
+  // 권한 추가 요청은 할 수 있는 사람에게만 보인다(CLE-INT-MANAGE 「권한」). 현재 권한 목록은 누구나 본다.
+  const permissions = useIntegrationPermissions(integration);
   const [selected, setSelected] = useState<string[]>([]);
   const [cafe24Pending, setCafe24Pending] = useState<{
     scopesAdded: string[];
@@ -218,79 +221,81 @@ export function ScopeTab({
         </section>
       )}
 
-      <section className="space-y-2">
-        <h3 className="text-sm font-semibold">{t("integrations.requestScopesTitle")}</h3>
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          {t("integrations.requestScopesHint")}
-        </p>
-        {requestDisabledHint && (
+      {permissions.requestScopes && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{t("integrations.requestScopesTitle")}</h3>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {requestDisabledHint}
+            {t("integrations.requestScopesHint")}
           </p>
-        )}
-        <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
-          {allOptions.length === 0 ? (
+          {requestDisabledHint && (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {t("integrations.noScopeOptionsAvailable")}
+              {requestDisabledHint}
             </p>
-          ) : (
-            allOptions.map((s) => {
-              const isGranted = currentScopes.includes(s.value);
-              return (
-                <label
-                  key={s.value}
-                  className="flex cursor-pointer items-start gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(s.value)}
-                    onChange={() => toggle(s.value)}
-                    className="mt-0.5"
-                    disabled={isGranted || requestDisabledHint !== null}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-medium">
-                      <span>{s.label}</span>
-                      {s.requiresApproval && <ApprovalRequiredBadge t={t} />}
-                      {isGranted && (
-                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                          {t("integrations.alreadyGranted")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                      {s.value}
-                    </div>
-                  </div>
-                </label>
-              );
-            })
           )}
-        </div>
-        <RestrictedScopeNotice
-          count={
-            allOptions.filter(
-              (s) => s.requiresApproval && selected.includes(s.value),
-            ).length
-          }
-          t={t}
-        />
-        <div className="flex justify-end">
-          <Button
-            onClick={() => requestMutation.mutate()}
-            disabled={
-              selected.length === 0 ||
-              requestMutation.isPending ||
-              requestDisabledHint !== null
+          <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
+            {allOptions.length === 0 ? (
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("integrations.noScopeOptionsAvailable")}
+              </p>
+            ) : (
+              allOptions.map((s) => {
+                const isGranted = currentScopes.includes(s.value);
+                return (
+                  <label
+                    key={s.value}
+                    className="flex cursor-pointer items-start gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(s.value)}
+                      onChange={() => toggle(s.value)}
+                      className="mt-0.5"
+                      disabled={isGranted || requestDisabledHint !== null}
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 font-medium">
+                        <span>{s.label}</span>
+                        {s.requiresApproval && <ApprovalRequiredBadge t={t} />}
+                        {isGranted && (
+                          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                            {t("integrations.alreadyGranted")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">
+                        {s.value}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <RestrictedScopeNotice
+            count={
+              allOptions.filter(
+                (s) => s.requiresApproval && selected.includes(s.value),
+              ).length
             }
-          >
-            {requestMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            {t("integrations.requestScopesBtn")}
-          </Button>
-        </div>
-      </section>
+            t={t}
+          />
+          <div className="flex justify-end">
+            <Button
+              onClick={() => requestMutation.mutate()}
+              disabled={
+                selected.length === 0 ||
+                requestMutation.isPending ||
+                requestDisabledHint !== null
+              }
+            >
+              {requestMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {t("integrations.requestScopesBtn")}
+            </Button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
