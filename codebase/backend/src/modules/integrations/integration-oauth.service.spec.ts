@@ -493,13 +493,13 @@ describe('IntegrationOAuthService', () => {
           .mockResolvedValue(undefined);
         dataSource.query.mockResolvedValue(stateOf('reauthorize'));
         integrationRepo.findOne.mockResolvedValue(rowOf(row));
-        const err: unknown = await svc
+        const thrown: unknown = await svc
           .handleCallbackWithErrorCapture('google', {
             code: 'code',
             state: 'abc',
           })
-          .catch((e: unknown) => e);
-        return { err, calls: [...mark.mock.calls] };
+          .catch((err: unknown) => err);
+        return { err: thrown, calls: [...mark.mock.calls] };
       };
 
       it('남의 personal 이 됐으면 404 만 내고 last_error 를 쓰지 않는다', async () => {
@@ -649,7 +649,11 @@ describe('IntegrationOAuthService', () => {
 
     it.each([
       ['Organization', {}, 'ADMIN_REQUIRED'],
-      ['본인 personal', { scope: 'personal', createdBy: 'u-1' }, 'EDITOR_REQUIRED'],
+      [
+        '본인 personal',
+        { scope: 'personal', createdBy: 'u-1' },
+        'EDITOR_REQUIRED',
+      ],
     ])(
       '역할을 조회할 수 없으면(WorkspacesService 미주입) %s 재판정은 거부한다 — fail-closed',
       async (_name, row, code) => {

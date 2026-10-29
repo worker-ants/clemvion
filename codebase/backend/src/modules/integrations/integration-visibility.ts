@@ -117,10 +117,7 @@ export function assertOrgScopeModifiable(
  * 역할을 모르면(`null` — 멤버가 아니게 됐거나 조회할 수 없다) 거부한다.
  */
 export function assertPersonalWriteRole(userRole: string | null): void {
-  if (
-    userRole &&
-    workspaceRoleLevel(userRole) >= WORKSPACE_ROLE_LEVEL.editor
-  ) {
+  if (userRole && workspaceRoleLevel(userRole) >= WORKSPACE_ROLE_LEVEL.editor) {
     return;
   }
   throw new ForbiddenException({ ...ROLE_REQUIRED.editor });
