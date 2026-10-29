@@ -9,6 +9,14 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import {
+  OAuthBeginCafe24PendingResultDto,
+  OAuthBeginMakeshopPendingResultDto,
+} from '../src/modules/integrations/dto/responses/integration-response.dto';
 
 /**
  * e2e: `oauth/begin`(`new`)의 설치 대기 행 재사용 권한과 잠금 (NERV Task CLE-T-N7ENKQ).
@@ -24,6 +32,7 @@ import {
  *   - MakeShop 설치 대기 행이 여럿이면 요청자가 바꿀 수 있는 행을 먼저 고른다
  *   - FOR UPDATE 로 기다리는 사이 다른 요청이 그 행을 설치 완료 · 만료시키면 begin 은 그 행을 덮지 않는다(잠근 뒤 WHERE 재평가)
  *   - 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 겹친 행의 통합 ID 를 싣지 않는다
+ *   - begin 응답은 Swagger 가 광고한 DTO 와 같다(MakeShop 은 `scope` 필수, Cafe24 Private 은 선택)
  *
  * 액터: Owner · Admin(승격) · Editor A · Editor B.
  */
@@ -244,6 +253,10 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
       const clientId = freshClientId();
       const first = await begin(editorA, makeshop(clientId));
       expect(first.status).toBe(200);
+      assertMatchesContract(
+        first.body.data,
+        await contractForDto(OAuthBeginMakeshopPendingResultDto),
+      );
       const rowId = (first.body.data as { integrationId: string })
         .integrationId;
       expect((first.body.data as { scope: string }).scope).toBe('personal');
@@ -391,6 +404,10 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
       const mallId = freshMall();
       const first = await begin(editorA, cafe24Private(mallId));
       expect(first.status).toBe(200);
+      assertMatchesContract(
+        first.body.data,
+        await contractForDto(OAuthBeginCafe24PendingResultDto),
+      );
       const rowId = (first.body.data as { integrationId: string })
         .integrationId;
 

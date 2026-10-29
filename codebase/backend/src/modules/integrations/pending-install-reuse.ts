@@ -69,17 +69,17 @@ export function pickPendingToReuse<
   };
 }
 
-/** 남의 개인 설치 대기 행을 만났을 때의 409 코드. */
+/** 남의 개인 설치 대기 행을 만났을 때의 409 코드. 백엔드 문구는 영문 원문이고 화면 문구는 프런트 i18n 이 코드로 고른다. */
 export const PENDING_INSTALL_CONFLICT = {
   cafe24: {
     code: 'CAFE24_PRIVATE_APP_INSTALL_PENDING',
     message:
-      '같은 상점에 다른 멤버가 시작한 Cafe24 Private 설치가 기다리고 있습니다. 설치 기한이 지난 뒤 다시 시도하세요.',
+      'Another member has a pending Cafe24 Private install for this mall. Try again after the install deadline passes.',
   },
   makeshop: {
     code: 'MAKESHOP_INSTALL_PENDING',
     message:
-      '같은 client_id 로 다른 멤버가 시작한 MakeShop 설치가 기다리고 있습니다. 설치 기한이 지난 뒤 다시 시도하세요.',
+      'Another member has a pending MakeShop install for this client_id. Try again after the install deadline passes.',
   },
 } as const;
 
