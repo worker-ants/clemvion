@@ -9,9 +9,12 @@ vi.mock("../../api/workflows", () => ({
   },
 }));
 
-const { toastErrorMock } = vi.hoisted(() => ({ toastErrorMock: vi.fn() }));
+const { toastErrorMock, toastWarningMock } = vi.hoisted(() => ({
+  toastErrorMock: vi.fn(),
+  toastWarningMock: vi.fn(),
+}));
 vi.mock("sonner", () => ({
-  toast: { error: toastErrorMock, success: vi.fn() },
+  toast: { error: toastErrorMock, success: vi.fn(), warning: toastWarningMock },
 }));
 
 // `@workflow/graph-warning-rules` 는 실제 평가 로직을 그대로 사용하되,
@@ -33,9 +36,18 @@ vi.mock("@workflow/graph-warning-rules", async () => {
 
 import { useEditorStore } from "../editor-store";
 import { useRecentNodesStore } from "../recent-nodes-store";
+import { useLocaleStore } from "../locale-store";
+import type { IntegrationRefFilterContext } from "@/lib/integrations/node-integration-refs";
 import { workflowsApi } from "../../api/workflows";
 
 const saveCanvasMock = vi.mocked(workflowsApi.saveCanvas);
+
+/** 비울 근거를 모르는 문맥(통합 목록을 아직 받지 못함). 아무것도 비우지 않는다. */
+const NO_REF_FILTER: IntegrationRefFilterContext = {
+  currentUserId: null,
+  workflowAuthorId: null,
+  integrations: null,
+};
 
 const makeNode = (id: string, overrides?: Partial<Node>): Node => ({
   id,
@@ -53,6 +65,7 @@ const makeEdge = (source: string, target: string): Edge => ({
 const initialState = {
   workflowId: null,
   workflowName: "Untitled Workflow",
+  workflowCreatedBy: null,
   isDirty: false,
   isSaving: false,
   nodes: [] as Node[],
@@ -995,7 +1008,7 @@ describe("useEditorStore", () => {
         edges: [makeEdge("a", "b")],
       });
       useEditorStore.getState().copySelection();
-      useEditorStore.getState().pasteClipboard();
+      useEditorStore.getState().pasteClipboard(undefined, NO_REF_FILTER);
       const state = useEditorStore.getState();
       expect(state.nodes).toHaveLength(4); // 원본 2 + 붙여넣기 2
       // 원본 id 는 유지, 신규 노드는 새 id
@@ -1023,7 +1036,7 @@ describe("useEditorStore", () => {
         edges: [],
       });
       useEditorStore.getState().copySelection();
-      useEditorStore.getState().pasteClipboard({ x: 0, y: 0 });
+      useEditorStore.getState().pasteClipboard({ x: 0, y: 0 }, NO_REF_FILTER);
       const newNodes = useEditorStore
         .getState()
         .nodes.filter((n) => n.id !== "a" && n.id !== "b");
@@ -1034,7 +1047,7 @@ describe("useEditorStore", () => {
 
     it("pasteClipboard: 클립보드 null 이면 no-op", () => {
       useEditorStore.setState({ nodes: [makeNode("a")], edges: [] });
-      useEditorStore.getState().pasteClipboard();
+      useEditorStore.getState().pasteClipboard(undefined, NO_REF_FILTER);
       expect(useEditorStore.getState().nodes).toHaveLength(1);
     });
 
@@ -1043,7 +1056,7 @@ describe("useEditorStore", () => {
         nodes: [sel("a"), sel("b"), makeNode("c")],
         edges: [makeEdge("a", "b")],
       });
-      useEditorStore.getState().duplicateSelection();
+      useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
       const state = useEditorStore.getState();
       expect(state.nodes).toHaveLength(5); // 3 + 복제 2
       expect(state.editorClipboard).toBeNull(); // 클립보드 미변경
@@ -1062,7 +1075,7 @@ describe("useEditorStore", () => {
         ],
         edges: [],
       });
-      useEditorStore.getState().duplicateSelection();
+      useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
       expect(useRecentNodesStore.getState().recentNodeTypes).toContain(
         "http_request",
       );
@@ -1079,7 +1092,7 @@ describe("useEditorStore", () => {
         edges: [],
       });
       useEditorStore.getState().copySelection();
-      useEditorStore.getState().pasteClipboard();
+      useEditorStore.getState().pasteClipboard(undefined, NO_REF_FILTER);
       expect(useRecentNodesStore.getState().recentNodeTypes).toContain("code");
     });
 
@@ -1092,7 +1105,7 @@ describe("useEditorStore", () => {
         ],
         edges: [],
       });
-      useEditorStore.getState().duplicateSelection();
+      useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
       const state = useEditorStore.getState();
       // 복제본 2개(신규 id)의 라벨은 서로 다르고, 원본 라벨 "Dup" 과도 겹치지 않는다.
       const cloneLabels = state.nodes
@@ -1101,6 +1114,100 @@ describe("useEditorStore", () => {
       expect(cloneLabels).toHaveLength(2);
       expect(new Set(cloneLabels).size).toBe(2); // 두 복제본 라벨 서로 다름
       expect(cloneLabels).not.toContain("Dup"); // 원본과도 다름
+    });
+
+    describe("고를 수 없는 통합 참조 비우기 (REQ-EDITOR-059)", () => {
+      // Alice 가 Bob 이 작성한 워크플로우에 붙여 넣는다. Alice 의 개인 통합은 이 워크플로우에서 쓸 수 없다.
+      const refFilter: IntegrationRefFilterContext = {
+        currentUserId: "alice",
+        workflowAuthorId: "bob",
+        integrations: new Map([
+          ["org-1", { scope: "organization", createdBy: "bob" }],
+          ["alice-personal", { scope: "personal", createdBy: "alice" }],
+        ]),
+      };
+      const integrationNodes = () => [
+        makeNode("p", {
+          selected: true,
+          data: {
+            type: "send_email",
+            label: "Mail",
+            config: { integrationId: "alice-personal", to: "x" },
+          },
+        }),
+        makeNode("o", {
+          selected: true,
+          data: {
+            type: "send_email",
+            label: "Org mail",
+            config: { integrationId: "org-1" },
+          },
+        }),
+      ];
+      const pastedConfigs = () =>
+        Object.fromEntries(
+          useEditorStore
+            .getState()
+            .nodes.filter((n) => n.id !== "p" && n.id !== "o")
+            .map((n) => {
+              const data = n.data as { label: string; config: unknown };
+              return [data.label, data.config];
+            }),
+        );
+
+      beforeEach(() => {
+        toastWarningMock.mockClear();
+        useLocaleStore.setState({ locale: "en" });
+      });
+
+      it("pasteClipboard 는 쓸 수 없는 참조를 비우고 새 레이블로 경고한다", () => {
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore.getState().copySelection();
+        useEditorStore.getState().pasteClipboard(undefined, refFilter);
+        expect(pastedConfigs()).toEqual({
+          "Mail 2": { to: "x" },
+          "Org mail 2": { integrationId: "org-1" },
+        });
+        expect(toastWarningMock).toHaveBeenCalledTimes(1);
+        expect(toastWarningMock.mock.calls[0][0]).toContain("Mail 2");
+        expect(toastWarningMock.mock.calls[0][0]).not.toContain("Org mail");
+      });
+
+      it("duplicateSelection 도 같은 규칙으로 비운다", () => {
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore.getState().duplicateSelection(refFilter);
+        expect(pastedConfigs()).toEqual({
+          "Mail 2": { to: "x" },
+          "Org mail 2": { integrationId: "org-1" },
+        });
+        expect(toastWarningMock).toHaveBeenCalledTimes(1);
+      });
+
+      it("비울 근거를 모르거나 비운 것이 없으면 그대로 두고 경고하지 않는다", () => {
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore.getState().duplicateSelection(NO_REF_FILTER);
+        expect(pastedConfigs()).toEqual({
+          "Mail 2": { integrationId: "alice-personal", to: "x" },
+          "Org mail 2": { integrationId: "org-1" },
+        });
+
+        useEditorStore.setState({ nodes: integrationNodes(), edges: [] });
+        useEditorStore
+          .getState()
+          .duplicateSelection({ ...refFilter, workflowAuthorId: "alice" });
+        expect(pastedConfigs()["Mail 2"]).toEqual({
+          integrationId: "alice-personal",
+          to: "x",
+        });
+        expect(toastWarningMock).not.toHaveBeenCalled();
+      });
+
+      it("setWorkflow 는 워크플로우 작성자를 담고 모르면 null 로 둔다", () => {
+        useEditorStore.getState().setWorkflow("wf-1", "W", [], [], "bob");
+        expect(useEditorStore.getState().workflowCreatedBy).toBe("bob");
+        useEditorStore.getState().setWorkflow("wf-2", "W", [], []);
+        expect(useEditorStore.getState().workflowCreatedBy).toBeNull();
+      });
     });
 
     it("selectAll / deselectAll", () => {

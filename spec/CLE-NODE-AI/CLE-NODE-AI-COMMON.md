@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "c054496b90236c190aff389c74e56d175ee5d7fbc02d6f4c4c3c259f3b4ac476"
+content_hash: "1bac78491e79a171f646fb84882edf9a568ad3d1bc7d39244419f4f18fb8850f"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "19b8a7707f5f6f53204ae5f1d261ea0e2679d40389a198635c1da65d592c9ec1"
-etag: "sha256-14708dc4786247536340e0fb316c18b7b104bc2a81a8a1fff5c9b50ca85e8d8b"
+mirror_sha256: "5325a3ad4925fa435df42bf6f4f2a42fded3dfe7c3c053d0d40b91ad0dff065d"
+etag: "sha256-9e1241597d41b7c8b4fdeba7c4ac30014e31b23d323aa349579babea5d070520"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -98,6 +98,8 @@ AI 에이전트 노드는 워크스페이스에 등록된 MCP 지원 통합(MCP-
 | `toolOverrides` | `{ toolName: string; description?: string }[]`? | 도구별 description 덮어쓰기. 이름은 바꿀 수 없다 |
 
 도구 이름·메타도구·실행 모델·에러 격리 정책의 단일 기준은 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 다. 이 표는 노드 설정 쪽 요약이다.
+
+**실행 중에 채우는 값 `fromExpression`**: McpServerRef 항목에는 위 표의 설정 필드 말고 `fromExpression`(Boolean?)이 붙을 수 있다. 실행 중에 채우는 값이며 사용자 설정이 아니다. AI 에이전트 핸들러가 첫 턴에 그 항목의 `integrationId` 가 평가 전 원본에서 표현식이었는지 계산해 덮어쓴다. 사용자 설정에 같은 키가 있어도 읽지 않는다. 읽는 쪽은 값이 `false` 일 때만 리터럴로 보고 값이 없으면 표현식으로 본다. 이 값은 개인 통합 판정([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용))에 쓰인다. 재개·재시도 턴으로 이어지는 규칙은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint) 가 정한다.
 
 ## 멀티턴 차단 모드
 
@@ -395,6 +397,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 - `codebase/backend/src/nodes/ai/shared/conversation-context-injection.ts` (대화 맥락 주입 공유 유틸)
 - `codebase/backend/src/nodes/ai/shared/conversation-context-schema.ts` (대화 맥락 설정 공유 스키마 조각)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`
+- `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (McpServerRef 의 `fromExpression` 을 정하고 읽는다)
 - `codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts`
 - `codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
 - `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` (`LlmCallRecord`·`TurnDebugEntry` 공통 타입)

@@ -201,9 +201,11 @@ describe('AssistantToolRouter', () => {
       );
       expect(reviewCompleted).toBe(false);
       // 요청자를 넘긴다 — 통합 목록은 요청자에게 보이는 것만(남의 personal 제외, spec 통합 §8).
+      // 편집 중인 워크플로우도 넘긴다 — 작성자가 아닌 요청자에게는 자기 개인 통합도 빠진다(REQ-ASSIST-062).
       expect(exploreTools.listIntegrations).toHaveBeenCalledWith(
         'ws-1',
         'u-1',
+        'wf-1',
         'crm',
       );
       expect(result).toEqual([{ id: 'i1' }]);

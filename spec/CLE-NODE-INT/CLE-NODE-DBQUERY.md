@@ -2,21 +2,21 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "a057fbf5638a596fc96c0a3d1106b39fd36269047b5adbff3e4b5d8b00c4454d"
+content_hash: "148f6593fe27b748073184be0f7e7dfa239c88d3935cbfa388ffcc3603292e54"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "140b424a613dbd6153c969be33ece1b76b5b5aae9ffdbde21e90d54b2fe4957b"
-etag: "sha256-8b8ede6516447e5284405904b57201d4c9ee6b26e0d0b6c77d6a79291aa29f80"
+mirror_sha256: "124e7f877df73866c815afa2c3c3f7460f6bdf5d82e165c9db3677f5cd206c8b"
+etag: "sha256-3baf40741bcaa5fb6c4ef9e915f300af6534a70f87e60a99b8bcff32cb50d4c3"
 ---
-> 구현 상태: 부분 구현 (개인 통합 판정 인자 전달과 통합을 얻기 전 실패의 활동 로그 생략은 미구현) · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 

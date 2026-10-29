@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "05159877c34611bbabe7fccfb0b4b2b65cc465fd1424ecbe80cc0fe6c328b70c"
+content_hash: "5f9313d9d47fb940e31e4fc0a54bb5417195b4296dde7dfa2aa48d657491d875"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "8dcd742278029114bbfa36bb587ee77ddf6fa31508dc1e97dbdcd76299a3bc41"
-etag: "sha256-27786d0a3800a13fd6bd11b0776a3e903f3775b80b585c83d3ea2944ef97036a"
+mirror_sha256: "0ea586c9de8e1d3797ecb7b6a80ca8b54188b5505f199e2e41eec366ff8edca1"
+etag: "sha256-2c0da495d8a5ccbb8e2e1d72e1a41118e9f89a052431af1c291ec367a1e055a8"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -212,7 +212,8 @@ Presentation 노드의 `interaction` 과 멀티턴 AI 노드의 `message_receive
 - **모양**: `_retryState` 와 같은 부분집합(messages·turnCount·model·temperature·maxTokens·knowledgeBases·RAG·MCP·`pendingFormToolCall?` 등)이다. 다만 `expiresAt`(TTL)이 없다. 입력 대기 실행은 기한 없이 보존되므로 대화는 오래 쉰 뒤에도 이어져야 한다. `lastUserMessage` 도 없다. 재개할 때 도착한 사용자 메시지를 그대로 첫 턴으로 처리한다.
 - **자격 증명 제외**: 자격 증명과 컨텍스트 결속 필드는 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 하나씩 열거하는 허용 목록 방식이다.
 - **두 재유도 경로**: 재개할 때 **조작 필드**(`llmConfigId`·`maxTurns`·`conditions`·`presentationTools` 등)는 `node.config` 를 다시 평가해 만든다. **식별 필드**는 호출하는 쪽 컨텍스트에서 다시 만든다. `workflowId` 는 `execution.workflowId`, `nodeId` 는 재개할 노드 행의 `node.id`, 재개 대상 `nodeExecutionId` 는 대기·재시도 노드 실행 행의 PK(`buildRetryReentryState` 옵션), `workspaceId` 는 실행 컨텍스트에서 가져온다. `workflowId` 는 실행의 루트 워크플로우라서 서브 워크플로우 안의 노드에서는 그 노드가 속한 워크플로우와 다르다. 노드가 속한 워크플로우가 필요하면 `nodeId` 로 찾는다.
-- **MCP 서버 항목의 표현식 여부**: AI 에이전트 노드 핸들러는 첫 턴에 MCP 서버 항목(`mcpServers[]`)마다 `fromExpression`(그 항목의 통합 참조가 평가 전 원본에서 표현식이었는지)을 정해 항목에 함께 저장한다(미구현). 첫 턴에 원본을 확인하지 못한 항목은 표현식(`true`)으로 저장한다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 의 리터럴 판정). 재개·재시도 턴은 저장된 값을 쓰고 원본 설정의 위치로 다시 맞추지 않는다. 핸들러가 첫 턴에 늘 계산해 덮어쓰므로 사용자 설정에 같은 키가 있어도 읽지 않는다. 값이 없는 항목(이 규칙 전에 저장한 체크포인트와 `_retryState`)은 표현식으로 본다. 그래서 읽을 때는 `fromExpression !== false` 를 표현식으로 판정한다. 이 판정과, 체크포인트 스키마가 서버 항목의 키를 지우지 않는 성질(`resume-state.schema.ts` 의 `mcpServers: z.array(z.unknown())`)은 단위 테스트로 지킨다(미구현). 항목 스키마를 `z.object` 로 좁히면 zod 가 모르는 키를 지워 `fromExpression` 이 사라지고 모든 서버가 표현식으로 보인다. 이 값을 쓰는 판정은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다.
+- **MCP 서버 항목의 표현식 여부**: AI 에이전트 노드 핸들러는 첫 턴에 MCP 서버 항목(`mcpServers[]`)마다 `fromExpression`(그 항목의 통합 참조가 평가 전 원본에서 표현식이었는지)을 정해 항목에 함께 저장한다. 첫 턴에 원본을 확인하지 못한 항목은 표현식(`true`)으로 저장한다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 의 리터럴 판정). 재개·재시도 턴은 저장된 값을 쓰고 원본 설정의 위치로 다시 맞추지 않는다. 서버 목록이 통째로 없을 때는 아래 「서버 목록이 통째로 없는 AI 재개 체크포인트」 가 예외다. 핸들러가 첫 턴에 늘 계산해 덮어쓰므로 사용자 설정에 같은 키가 있어도 읽지 않는다. 값이 없는 항목(이 규칙 전에 저장한 체크포인트와 `_retryState`)은 표현식으로 본다. 그래서 읽을 때는 `fromExpression !== false` 를 표현식으로 판정한다. 이 판정과, 체크포인트 스키마가 서버 항목의 키를 지우지 않는 성질(`resume-state.schema.ts` 의 `mcpServers: z.array(z.unknown())`)은 단위 테스트로 지킨다(`mcp-server-ref-use.spec.ts`, `resume-state.schema.spec.ts`). 항목 스키마를 `z.object` 로 좁히면 zod 가 모르는 키를 지워 `fromExpression` 이 사라지고 모든 서버가 표현식으로 보인다. 이 값을 쓰는 판정은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다. 항목의 필드 표는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#mcp-서버-연결-ai-에이전트-전용) 의 McpServerRef 구조에 있다.
+- **서버 목록이 통째로 없는 AI 재개 체크포인트**: 위의 "값이 없는 항목은 표현식으로 본다" 는 목록이 있고 그 항목에만 값이 없을 때의 규칙이다. AI 재개 체크포인트나 `_retryState` 에 `mcpServers` 키 자체가 없으면 `buildRetryReentryState` 가 현재 `node.config` 를 다시 평가한 목록으로 서버 목록을 다시 만든다. 이때 `fromExpression` 은 첫 턴과 같은 방법으로 다시 정한다. 현재 `node.config` 의 평가 전 원본과 평가한 목록을 같은 순서의 항목끼리 비교한다. 원본 값이 문자열이고 평가한 값과 같으면 `false`(리터럴), 아니면 `true` 다. 원본 목록이 배열이 아니거나 길이가 다르면 모든 항목이 `true` 다. 노드 설정에 사용자가 넣은 `fromExpression` 은 쓰지 않는다. 그래서 목록이 없는 AI 재개 체크포인트로 재개하면 지금 노드 설정에서 리터럴로 고른 서버는 리터럴로 판정되고 표현식 서버는 표현식으로 판정된다. 빈 배열은 목록이 있는 것으로 보고 그대로 쓴다.
 - **스키마 버전**: 체크포인트는 정수 `CHECKPOINT_SCHEMA_VERSION` 을 함께 싣는다. 재개할 때 버전이 없거나(기능 배포 전 행) 현재 코드 버전 이하이면 빠진 필드를 기본값으로 채워 다시 만든다. 현재 코드 버전보다 크면(롤링 배포 중 옛 인스턴스가 새 형식을 받음) 안전하게 만들 수 없으므로 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. MCP 서버 항목의 `fromExpression` 처럼 값이 없을 때의 뜻이 정해진 필드는 버전을 올리지 않고 더한다([Rationale](#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다-2026-10-25)).
 - **소비**: rehydration 이 `outputData._resumeCheckpoint` 를 읽고 버전을 검사한 뒤 `buildRetryReentryState`(`_retryState` 와 공유)로 `_resumeState` 를 다시 만든다. 핵심 필드가 빠졌으면 기본값으로 채운다. `driveResumeAwaited`·`driveResumeFrame` 이 도착한 재개 페이로드를 `dispatchResumeTurn` 을 거쳐 `handleAiResumeTurn` → `processAiResumeTurn`(한 턴 처리기)에 넘긴다. 체크포인트가 없거나(기능 배포 전 행) 손상됐거나 미래 버전이면 `RESUME_INCOMPATIBLE_STATE` 로 정리한다.
 - **재개 payload 기준**: 재개 큐 `'continue'` 메시지 payload 의 표시 값(폼 제출이면 `{ type: 'form_submitted', formData }`)과 `processAiResumeTurn` 이 이 값으로 나누는 분기는 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#폼-제출-wire-format) 이 기준이다.
@@ -236,7 +237,7 @@ sequenceDiagram
 
 소비하는 곳은 노드 유형마다 다르다. `ai_agent` 의 provider 도구 `IntegrationUsageLog` 는 조건부라 필드가 없으면 로그가 빠진다. 두 노드의 LLM 호출이 남기는 `llm_usage_log`(`LlmUsageLogService.record`, `?? null`)는 조건이 없어 필드가 없거나 틀리면 로그가 빠지지 않고 귀속이 오염된다. provider 도구가 없는 `information_extractor` 재개가 이 경우다. 현재 이 불변식은 회귀 테스트로만 강제되므로 `CREDENTIAL_CONTEXT_FIELDS`·`resumeStateSchema` 를 고칠 때 반드시 지킨다. 사용량 기록 구조는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md) 과 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 에 있다.
 
-**개인 통합 판정의 식별 필드**: 재개·재시도 턴의 도구 프로바이더는 재구성 결과의 `nodeId` 를 개인 통합 조회에 넘긴다(미구현). `nodeId` 도 `CREDENTIAL_CONTEXT_FIELDS` 에 있어 체크포인트에서 빠지므로 위 귀속 불변식처럼 재구성 때 다시 넣어야 한다. 이 값이 빠지면 통합 서비스가 워크플로우 작성자를 구하지 못해 개인 통합을 쓰는 서버가 모두 거절된다. 남의 개인 통합이 쓰이지는 않지만 워크플로우 작성자 자신의 개인 통합도 쓰지 못한다.
+**개인 통합 판정의 식별 필드**: 재개·재시도 턴의 도구 프로바이더는 재구성 결과의 `nodeId` 를 개인 통합 조회에 넘긴다. `nodeId` 도 `CREDENTIAL_CONTEXT_FIELDS` 에 있어 체크포인트에서 빠지므로 위 귀속 불변식처럼 재구성 때 다시 넣어야 한다. 이 값이 빠지면 통합 서비스가 워크플로우 작성자를 구하지 못해 개인 통합을 쓰는 서버가 모두 거절된다. 남의 개인 통합이 쓰이지는 않지만 워크플로우 작성자 자신의 개인 통합도 쓰지 못한다.
 
 ### 보존 예외 `_retryState`
 
@@ -302,9 +303,11 @@ sequenceDiagram
 
 - `codebase/backend/src/modules/execution-engine/state/state-machine.ts` (`ALLOWED_TRANSITIONS`, `canTransition`, `allowRetryReentry`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`updateExecutionStatus`, `stripControlFields`, `buildRetryReentryState`, `buildResumeCheckpoint`)
+- `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (`resumeStateSchema`. `mcpServers` 항목의 키를 지우지 않는다)
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts`
 - `codebase/backend/src/modules/execution-engine/retry-turn.service.ts`
 - `codebase/backend/src/modules/execution-engine/form-interaction.service.ts`, `button-interaction.service.ts`
+- `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (`markMcpServerRefOrigins`·`mcpServerRefUse`. MCP 서버 항목의 `fromExpression` 을 정하고 읽는다)
 - `codebase/backend/src/shared/execution-resume/**`
 - `codebase/backend/src/modules/executions/executions.service.ts` (`findById`, `reconcilePreParkWaitingStatus`)
 - `codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` (`isNodeWaitingForInput`)
@@ -363,9 +366,10 @@ DB 는 깨지지 않았다. `WHERE status IN (...)` 조건이 쓰기 자체를 �
 
 NERV Task `CLE-T-MG0EQZ` 에서 표현식으로 정한 통합 참조는 조직 통합만 쓰게 했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「표현식으로 정한 통합 참조는 조직 통합만 쓴다」). 멀티턴 재개·재시도 턴은 실행 컨텍스트 없이 들어오므로 서버마다 표현식이었는지를 체크포인트에서 알아야 한다.
 
-- **위치로 맞추지 않는다**: 재개 턴의 서버 목록은 첫 턴에 평가한 값인데 `rawConfig` 는 재개마다 현재 `node.config` 로 다시 만든다([실행 컨텍스트](CLE-EXEC-CONTEXT.md) 「멀티턴 설정은 턴마다 새로 만든다」). 위치로 다시 맞추면 정지 중에 서버를 재정렬하거나 지웠을 때 다른 서버의 값을 읽는다. 서버 항목의 키로 맞추는 안도 봤다. 항목에는 `integrationId` 말고 고유 키가 없고 표현식 항목은 원본에 그 ID 가 없어서 쓰지 않았다(finding 01a16e8a-37c4-75b6-b818-981efecea074 · 01a16e8a-fd4f-7739-a7b4-cc9d4b7394a6).
+- **위치로 맞추지 않는다**: 재개 턴의 서버 목록은 첫 턴에 평가한 값인데 `rawConfig` 는 재개마다 현재 `node.config` 로 다시 만든다([실행 컨텍스트](CLE-EXEC-CONTEXT.md) 「멀티턴 설정은 턴마다 새로 만든다」). 위치로 다시 맞추면 정지 중에 서버를 재정렬하거나 지웠을 때 다른 서버의 값을 읽는다. 서버 항목의 키로 맞추는 안도 봤다. 항목에는 `integrationId` 말고 고유 키가 없고 표현식 항목은 원본에 그 ID 가 없어서 쓰지 않았다(finding 01a16e8a-37c4-75b6-b818-981efecea074 · 01a16e8a-fd4f-7739-a7b4-cc9d4b7394a6). 서버 목록이 통째로 없어 현재 `node.config` 에서 목록을 함께 다시 만드는 경우는 아래 «목록이 통째로 없으면 첫 턴처럼 다시 정한다» 가 예외다([보존 예외 `_resumeCheckpoint`](#보존-예외-_resumecheckpoint) 의 「서버 목록이 통째로 없는 AI 재개 체크포인트」).
 - **핸들러가 늘 덮어쓴다**: API 나 가져오기로 사용자 설정의 서버 항목에 `fromExpression: false` 가 들어와도 표현식 참조의 거절을 피하지 못하게 하려는 것이다(finding 01a16e9c-6666-7109-bac3-367e8095657c).
 - **값이 없으면 표현식이다**: 기본값을 리터럴로 두면 배포 전에 표현식으로 고른 개인 통합이 재개 턴에서 판정을 피한다. 대가로 배포 때 입력 대기 중이던 대화는 워크플로우 작성자 자신의 개인 통합 서버도 재개 턴에서 건너뛴다. 그 수를 세고 다루는 방법은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#개인-통합의-역할-하한과-노드-사용-기준을-정한다-2026-10-24) 이행이 정한다(finding 01a16e9c-174b-712a-87a9-b4cdc2b579b3 · 01a16e9d-4969-72ba-bbf6-742891d939c5).
+- **목록이 통째로 없으면 첫 턴처럼 다시 정한다**: 이때 서버 목록은 AI 재개 체크포인트가 아니라 현재 `node.config` 에서 나온다. 그 목록의 `fromExpression` 을 노드 설정에 적힌 값 그대로 쓰면 사용자가 넣은 `fromExpression: false` 로 판정을 피할 수 있다. 그래서 첫 턴과 같이 평가 전 원본과 평가한 값을 비교해 다시 정한다. 목록이 함께 다시 만들어지므로 위치가 어긋날 일이 없다. 항목 하나에만 값이 없을 때는 그 항목을 원본과 다시 맞출 수 없어서 표현식으로 본다. 목록 전체가 없으면 현재 설정에서 목록을 다시 만들 수 있어서 그렇게 볼 이유가 없다. 모든 항목을 표현식으로 보는 안은 고르지 않았다. 그렇게 하면 지금 노드 설정에서 리터럴로 고른 서버까지 표현식으로 판정된다. 그러면 워크플로우 작성자 자신의 개인 통합 서버도 재개 턴에서 거절된다.
 - **스키마 버전을 올리지 않는다**: 버전을 올리면 롤링 배포 중 옛 인스턴스가 새 체크포인트를 미래 버전으로 보고 대화를 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. 올리지 않아도 깨지는 쪽이 없다. 옛 인스턴스는 개인 통합 판정을 하지 않아 이 값을 읽지 않고 `resumeStateSchema` 는 `mcpServers` 항목의 모양을 보지 않는다. 새 인스턴스는 값이 없는 옛 항목을 위 규칙대로 표현식으로 본다(finding 01a17052-f9a4-7697-b5d9-d153a6a25255).
 
 ### `_resumeCheckpoint` 를 남긴다 (옛 "WARN #6 미영속" 번복)

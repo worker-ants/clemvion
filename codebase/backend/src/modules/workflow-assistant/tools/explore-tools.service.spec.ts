@@ -103,8 +103,17 @@ describe('ExploreToolsService — listIntegrations', () => {
     const { svc, repos } = makeService();
     const qb = makeQueryBuilder({ many: [] });
     repos.integration.createQueryBuilder.mockReturnValue(qb);
+    repos.workflow.findOne.mockResolvedValue({
+      id: CURRENT_WF,
+      createdBy: 'u-1',
+    });
 
-    const result = await svc.listIntegrations('ws-1', 'u-1', 'http');
+    const result = await svc.listIntegrations(
+      'ws-1',
+      'u-1',
+      CURRENT_WF,
+      'http',
+    );
 
     expect(qb.where).toHaveBeenCalledWith('i.workspace_id = :workspaceId', {
       workspaceId: 'ws-1',
@@ -112,8 +121,36 @@ describe('ExploreToolsService — listIntegrations', () => {
     expect(qb.andWhere).toHaveBeenCalledWith(integrationVisibilityClause('i'), {
       [INTEGRATION_USER_PARAM]: 'u-1',
     });
+    // 요청자가 작성자면 자기 개인 통합도 남는다.
+    expect(qb.andWhere).not.toHaveBeenCalledWith(
+      'i.scope = :organizationScope',
+      expect.anything(),
+    );
     expect(result).toEqual({ ok: true, items: [] });
   });
+
+  it.each<[string, unknown]>([
+    ['다른 사용자가 작성한 워크플로우', { id: CURRENT_WF, createdBy: 'u-2' }],
+    ['찾지 못한 워크플로우', null],
+  ])(
+    '요청자가 작성자가 아니면(%s) 조직 통합만 담는다 (REQ-ASSIST-062)',
+    async (_label, workflow) => {
+      const { svc, repos } = makeService();
+      const qb = makeQueryBuilder({ many: [] });
+      repos.integration.createQueryBuilder.mockReturnValue(qb);
+      repos.workflow.findOne.mockResolvedValue(workflow);
+
+      await svc.listIntegrations('ws-1', 'u-1', CURRENT_WF);
+
+      expect(repos.workflow.findOne).toHaveBeenCalledWith({
+        where: { id: CURRENT_WF, workspaceId: 'ws-1' },
+        select: { id: true, createdBy: true },
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('i.scope = :organizationScope', {
+        organizationScope: 'organization',
+      });
+    },
+  );
 });
 
 describe('ExploreToolsService — execution read tools', () => {

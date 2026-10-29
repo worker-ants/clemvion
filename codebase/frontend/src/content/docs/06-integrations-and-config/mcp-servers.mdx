@@ -6,7 +6,7 @@ order: 4
 summary: "외부 MCP 서버를 등록하고 AI Agent에 연결해서 LLM이 외부 도구·리소스를 호출하게 만드는 방법을 설명해요."
 summary_en: "Register an MCP server and wire it into the AI Agent so the LLM can call external tools and resources."
 spec: ["CLE-NODE-AGENT", "CLE-INT-MCP"]
-code: ["codebase/backend/src/modules/mcp/mcp-client.service.ts", "codebase/backend/src/modules/mcp/mcp-test-connection.service.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integrations.service.ts"]
+code: ["codebase/backend/src/modules/mcp/mcp-client.service.ts", "codebase/backend/src/modules/mcp/mcp-test-connection.service.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integrations.service.ts", "codebase/frontend/src/components/integrations/mcp-server-selector.tsx"]
 ---
 
 이 페이지에서는 외부 **MCP(Model Context Protocol) 서버**를 워크스페이스 통합으로 등록하고, AI Agent 노드에 연결해 LLM이 그 서버의 도구·리소스·프롬프트를 직접 호출하도록 만드는 방법을 설명해요.
@@ -56,6 +56,15 @@ AI Agent 설정 패널의 **MCP Servers** 멀티 선택 필드에서 등록한 M
 ]} />
 
 LLM이 도구를 호출하면 AI Agent가 통합의 자격 증명을 사용해 MCP 서버에 요청하고, 결과를 다음 LLM 호출의 `tool_result` 로 다시 넣어줘요. 도구 이름은 LLM 측에서 충돌이 없도록 `mcp_<sid>__<toolName>` 형식으로 sanitize 되어 노출돼요.
+
+MCP 서버를 추가하는 목록에는 이 워크플로우에서 쓸 수 없는 Personal 통합이 비활성으로 보여요. 내가 워크플로우를 만든 사람이 아니면 내 Personal 통합 이름 옆에 "이 워크플로우에서는 쓸 수 없음"이 붙고, 목록 아래에 이유를 알려 주는 안내가 나와요. 이럴 때는 Organization 통합을 고르거나, 워크플로우를 만든 사람이 자기 통합으로 설정하도록 부탁해요. 실행할 때 쓸 수 없는 Personal MCP 서버는 그 서버만 건너뛰고, 노드는 나머지 서버로 계속 실행돼요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/integrations/mcp-server-selector.tsx"
+  symbol="notAuthorHint"
+  describes="AI Agent 노드의 MCP 서버 추가 목록에서 쓸 수 없는 Personal 통합을 비활성으로 표시하고 이유를 안내"
+/>
 
 <Example title="AI Agent에 MCP 서버 두 개 연결">
 ```ts

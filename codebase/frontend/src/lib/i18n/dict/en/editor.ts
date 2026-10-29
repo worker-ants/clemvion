@@ -119,6 +119,8 @@ export const editor: Dict["editor"] = {
   restoreDialogMessage: "The current canvas will be replaced with the snapshot from v{{version}}. The replacement is itself recorded as a new version, so you can always restore back.",
   restoreDialogClose: "Close",
   restoreFailedDefault: "Restore failed",
+  restoreIntegrationRefsCleared: "Restoring cleared the integration on {{labels}} because runs would fail with it. Pick an integration again in the node settings.",
+  pastedIntegrationRefsCleared: "Cleared the integration on {{labels}} because it can't be used in this workflow. Pick an integration again in the node settings.",
   restoring: "Restoring…",
   restoreBtn: "Restore",
   versionDetailLabel: "Version detail",

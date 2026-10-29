@@ -55,6 +55,13 @@ export interface ProviderBuildCtx {
   config: Record<string, unknown>;
   workspaceId: string;
   /**
+   * 지금 실행 중인 AI 에이전트 노드 ID. 통합을 쓰는 프로바이더가 실행 시점 조회 인자(`use.nodeId`)로 넘긴다. 첫 턴은
+   * `context.nodeId`, 재개 · 재시도 턴은 재구성한 상태의 `nodeId` 다. 없으면 워크플로우 작성자를 알 수 없어 개인 통합은
+   * 거절된다(CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」). 서버 항목의 표현식 여부는 `config.mcpServers[]`
+   * 항목의 `fromExpression` 에 있다.
+   */
+  nodeId?: string | null;
+  /**
    * 외부 자원 캐싱 단위. `executionId` 가 같은 buildTools/execute 호출은 같은
    * 노드 실행에 속한다 — provider 는 이 키로 세션 등을 캐시해 한 노드 실행 내에서
    * 외부 connect 가 1회만 일어나도록 보장한다 (spec/5-system/11-mcp-client.md §4.3).

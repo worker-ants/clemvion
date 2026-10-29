@@ -16,6 +16,7 @@ import { type TFunction } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { DeleteBlockedDialog } from "./delete-blocked-dialog";
+import { ScopeToPersonalWarningDialog } from "./scope-to-personal-warning-dialog";
 
 // ---------------- Danger zone ----------------
 
@@ -36,6 +37,9 @@ export function DangerTab({
   const [blockedUsages, setBlockedUsages] = useState<UsageWorkflow[] | null>(
     null,
   );
+  const [authorMismatchUsages, setAuthorMismatchUsages] = useState<
+    UsageWorkflow[] | null
+  >(null);
 
   const scopeMutation = useMutation({
     mutationFn: () => integrationsApi.updateScope(integration.id, nextScope),
@@ -47,6 +51,21 @@ export function DangerTab({
       const e = err as { response?: { data?: { message?: string } } };
       toast.error(e.response?.data?.message ?? t("integrations.scopeUpdateFailedDefault"));
     },
+  });
+
+  // 조직 → 개인 전환 (REQ-INTMGMT-057): 전환 전에 사용처를 보고, 통합 소유자가 아닌 사람이 작성한 워크플로우가 있으면
+  // 그 목록과 함께 확인받는다. 없으면 확인만 받는다. 사용처를 확인하지 못하면 바꾸지 않는다.
+  const toPersonalPrecheckMutation = useMutation({
+    mutationFn: () => integrationsApi.usages(integration.id),
+    onSuccess: (usages) => {
+      const affected = usages.filter((w) => !w.authorIsIntegrationOwner);
+      if (affected.length > 0) {
+        setAuthorMismatchUsages(affected);
+      } else if (window.confirm(t("integrations.scopeToPersonalConfirm"))) {
+        scopeMutation.mutate();
+      }
+    },
+    onError: () => toast.error(t("integrations.scopeUsagesFailed")),
   });
 
   // 삭제 흐름 (§4.7):
@@ -115,17 +134,20 @@ export function DangerTab({
           <Button
             variant="outline"
             onClick={() => {
-              if (nextScope !== integration.scope) {
-                if (window.confirm(t("integrations.scopeChangeConfirm"))) {
-                  scopeMutation.mutate();
-                }
+              if (nextScope === integration.scope) return;
+              if (nextScope === "personal") {
+                toPersonalPrecheckMutation.mutate();
+              } else if (window.confirm(t("integrations.scopeChangeConfirm"))) {
+                scopeMutation.mutate();
               }
             }}
             disabled={
-              nextScope === integration.scope || scopeMutation.isPending
+              nextScope === integration.scope ||
+              scopeMutation.isPending ||
+              toPersonalPrecheckMutation.isPending
             }
           >
-            {scopeMutation.isPending ? (
+            {scopeMutation.isPending || toPersonalPrecheckMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
             {t("integrations.scopeApply")}
@@ -180,6 +202,19 @@ export function DangerTab({
         }}
         integrationName={integration.name}
         usages={blockedUsages ?? []}
+        t={t}
+      />
+
+      <ScopeToPersonalWarningDialog
+        open={authorMismatchUsages !== null}
+        onOpenChange={(open) => {
+          if (!open) setAuthorMismatchUsages(null);
+        }}
+        usages={authorMismatchUsages ?? []}
+        onConfirm={() => {
+          setAuthorMismatchUsages(null);
+          scopeMutation.mutate();
+        }}
         t={t}
       />
     </div>

@@ -16,6 +16,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Workflow } from './entities/workflow.entity';
+import { lockWorkflowInWorkspace } from './workflow-ownership.util';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { ImportWorkflowDto } from './dto/import-workflow.dto';
@@ -39,6 +40,12 @@ import {
   type GraphWarningRuleResult,
 } from '../../nodes/core/graph-warning-rule';
 import { Integration } from '../integrations/entities/integration.entity';
+import {
+  type ClearedIntegrationRef,
+  assertNodeIntegrationRefsUsable,
+  clearUnusableNodeIntegrationRefs,
+} from '../integrations/node-integration-ref-check';
+import { filterExecutionUsableIntegrations } from '../integrations/personal-integration-use-facts';
 import { isUnreadableCredentials } from '../integrations/services/credentials-transformer';
 import { evaluateAiAgentToolPayloadWarnings } from '../../nodes/ai/ai-agent/tool-payload-save-warning';
 import { toolBudgetStrictSave } from '../../nodes/ai/ai-agent/tool-payload-budget';
@@ -364,7 +371,7 @@ export class WorkflowsService {
     id: string,
     workspaceId: string,
     userId: string,
-  ): Promise<Workflow> {
+  ): Promise<Workflow & { clearedIntegrationRefs: ClearedIntegrationRef[] }> {
     // 권한·존재 확인은 트랜잭션 밖에서 (없으면 트랜잭션 자체를 열지 않는다).
     const original = await this.findById(id, workspaceId);
 
@@ -437,6 +444,13 @@ export class WorkflowsService {
           containerId: remap(node.containerId),
           toolOwnerId: remap(node.toolOwnerId),
         }));
+        // 복제는 요청자가 사본의 작성자다. 사본을 실행하면 실패할 통합 참조는 비우고 응답으로 알린다(REQ-WFLIST-055).
+        const cleared = await this.clearCopiedNodeRefs(
+          manager,
+          workspaceId,
+          userId,
+          nodeRows,
+        );
         if (nodeRows.length > 0) {
           await manager.insert(
             Node,
@@ -475,7 +489,7 @@ export class WorkflowsService {
           );
         }
 
-        return savedCopy;
+        return Object.assign(savedCopy, { clearedIntegrationRefs: cleared });
       },
     );
     // 트랜잭션 커밋 뒤 기록. `details.duplicatedFrom` 으로 원본을 남긴다 — 복제본은 별개
@@ -538,7 +552,7 @@ export class WorkflowsService {
     workspaceId: string,
     userId: string,
     dto: ImportWorkflowDto,
-  ): Promise<Workflow> {
+  ): Promise<Workflow & { clearedIntegrationRefs: ClearedIntegrationRef[] }> {
     // Imported JSON is new data, never a historical snapshot of this
     // workspace — the legacy-data escape that `restoreVersion` gets does not
     // apply, so the reserved-name gate is always on here.
@@ -630,6 +644,14 @@ export class WorkflowsService {
           toolOwnerId,
         };
       });
+      // 가져오기도 복제와 같은 규칙이다. 요청자가 새 워크플로우의 작성자이고, 다른 워크스페이스에서 내보낸 파일의 통합 id 는
+      // 이 워크스페이스에 없으니 모두 비워진다(REQ-WFLIST-054, CLE-WF-LIST 가져오기 5단계).
+      const cleared = await this.clearCopiedNodeRefs(
+        manager,
+        workspaceId,
+        userId,
+        nodeRows,
+      );
       if (nodeRows.length > 0) {
         await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
       }
@@ -657,7 +679,7 @@ export class WorkflowsService {
         await manager.insert(Edge, edgeRows as QueryDeepPartialEntity<Edge>[]);
       }
 
-      return savedWorkflow;
+      return Object.assign(savedWorkflow, { clearedIntegrationRefs: cleared });
     });
     // 트랜잭션 커밋 뒤 기록. import 도 `create`/`duplicate` 와 같은 **신규 워크플로 생성**이라
     // 같은 액션을 쓴다. `details.imported` 로 유입 경로를 남긴다 — 외부 JSON 이 들어온 것이라
@@ -680,14 +702,35 @@ export class WorkflowsService {
     workspaceId: string,
     userId: string,
     dto: SaveCanvasDto,
-    // `restoreVersion` passes true: a historical snapshot may pre-date a gate
-    // introduced later, and restoring it must not be blocked by data that was
-    // valid when saved. User-initiated `POST /:id/save` keeps every gate on.
-    // Currently guards the Manual Trigger parameter schema and the reserved
-    // `__` variable-name rule.
-    skipLegacyDataGates = false,
   ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
-    const workflow = await this.findById(id, workspaceId);
+    const { clearedIntegrationRefs: _cleared, ...result } =
+      await this.writeCanvas(id, workspaceId, userId, dto, 'save');
+    return result;
+  }
+
+  /**
+   * 캔버스 저장과 버전 복원이 함께 쓰는 쓰기(CLE-WF-DATA 저장 흐름). 둘은 노드 `config` 의 통합 참조에서만 갈린다. 저장은 바뀐
+   * 참조가 쓸 수 없으면 거절하고(REQ-INTMGMT-054), 복원은 지금 노드와 다른 참조 가운데 실행하면 실패할 것을 비운다(REQ-WFVER-026).
+   * 저장은 늘 빈 `clearedIntegrationRefs` 를 돌려준다.
+   */
+  private async writeCanvas(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    dto: SaveCanvasDto,
+    // `restore`: a historical snapshot may pre-date a gate introduced later,
+    // and restoring it must not be blocked by data that was valid when saved.
+    // User-initiated `POST /:id/save` keeps every gate on. Currently guards the
+    // Manual Trigger parameter schema and the reserved `__` variable-name rule.
+    origin: 'save' | 'restore',
+  ): Promise<{
+    workflow: Workflow;
+    nodes: Node[];
+    edges: Edge[];
+    clearedIntegrationRefs: ClearedIntegrationRef[];
+  }> {
+    await this.findById(id, workspaceId);
+    const skipLegacyDataGates = origin === 'restore';
 
     // Server-side validation: Manual Trigger must exist and be unique
     this.validateManualTrigger(dto, skipLegacyDataGates);
@@ -697,15 +740,37 @@ export class WorkflowsService {
     if (!skipLegacyDataGates) this.validateReservedVariableNames(dto.nodes);
 
     return this.dataSource.transaction(async (manager) => {
-      // Update workflow name if provided
+      // 트랜잭션의 첫 문장으로 워크플로우 행을 잠근다. 같은 워크플로우의 동시 저장이 여기서 줄을 서므로 아래에서 읽는 저장된
+      // 노드가 통합 참조 검사의 기준선이 된다(CLE-WF-DATA 저장 3단계). 잠근 행의 값에 1 을 더하므로 버전 UPDATE 도 늘 나간다.
+      const workflow = await lockWorkflowInWorkspace(manager, id, workspaceId);
       if (dto.name !== undefined) {
         workflow.name = dto.name;
       }
       workflow.currentVersion = (workflow.currentVersion ?? 0) + 1;
       await manager.save(Workflow, workflow);
 
-      const savedNodes = await this.syncNodes(manager, id, dto);
-      const savedEdges = await this.syncEdges(manager, id, dto);
+      const existingNodes = await manager.find(Node, {
+        where: { workflowId: id },
+      });
+      const { nodes: checkedNodes, clearedIntegrationRefs } =
+        await this.applyIntegrationRefRules(
+          manager,
+          workspaceId,
+          userId,
+          workflow,
+          dto.nodes,
+          existingNodes,
+          origin,
+        );
+      const canvas: SaveCanvasDto = { ...dto, nodes: checkedNodes };
+
+      const savedNodes = await this.syncNodes(
+        manager,
+        id,
+        canvas,
+        existingNodes,
+      );
+      const savedEdges = await this.syncEdges(manager, id, canvas);
 
       // parallel-p2 §6 (결정 D + E, 2026-05-30) — cross-node graphWarningRules
       // 의 backend 측 enforcement. 같은 transaction 안에서 평가 → severity
@@ -724,6 +789,7 @@ export class WorkflowsService {
         manager,
         savedNodes,
         workspaceId,
+        workflow.createdBy ?? null,
       );
 
       // Snapshot creation runs in the same transaction so canvas + version
@@ -737,8 +803,109 @@ export class WorkflowsService {
         manager,
       );
 
-      return { workflow, nodes: savedNodes, edges: savedEdges };
+      return {
+        workflow,
+        nodes: savedNodes,
+        edges: savedEdges,
+        clearedIntegrationRefs,
+      };
     });
+  }
+
+  /**
+   * 복제 · 가져오기가 새로 만드는 노드 행의 쓸 수 없는 통합 참조를 비운다(REQ-WFLIST-054 · 055). 요청자가 새 워크플로우의
+   * 작성자다. `nodeRows` 의 `config` 를 비운 사본으로 바꾸고 비운 참조를 돌려준다. 두 경로가 같은 규칙을 한 곳에서 쓴다.
+   */
+  private async clearCopiedNodeRefs(
+    manager: EntityManager,
+    workspaceId: string,
+    userId: string,
+    nodeRows: Array<{
+      id: string;
+      type: string;
+      label: string;
+      config: Record<string, unknown>;
+    }>,
+  ): Promise<ClearedIntegrationRef[]> {
+    const { configs, cleared } = await clearUnusableNodeIntegrationRefs(
+      manager,
+      this.logger,
+      {
+        workspaceId,
+        workflowAuthorId: userId,
+        check: { path: 'clone' },
+        nodes: nodeRows.map((row) => ({
+          nodeId: row.id,
+          nodeLabel: row.label,
+          type: row.type,
+          config: row.config,
+        })),
+      },
+    );
+    nodeRows.forEach((row, i) => {
+      row.config = configs[i];
+    });
+    return cleared;
+  }
+
+  /**
+   * 캔버스 노드의 통합 참조를 저장된 노드와 비교해 경로 규칙대로 다룬다(CLE-PLAT-DATA 「참조의 소속」). 워크플로우 행을 잠근 뒤
+   * 같은 트랜잭션에서 부른다. 저장된 노드의 유형이 기준이다(`syncNodes` 는 저장된 노드의 유형을 바꾸지 않는다).
+   */
+  private async applyIntegrationRefRules(
+    manager: EntityManager,
+    workspaceId: string,
+    userId: string,
+    workflow: Workflow,
+    nodes: SaveCanvasDto['nodes'],
+    existingNodes: Node[],
+    origin: 'save' | 'restore',
+  ): Promise<{
+    nodes: SaveCanvasDto['nodes'];
+    clearedIntegrationRefs: ClearedIntegrationRef[];
+  }> {
+    const existingNodeMap = new Map(existingNodes.map((n) => [n.id, n]));
+    const refNodes = nodes.map((node, i) => {
+      const stored = existingNodeMap.get(node.id);
+      return {
+        nodeId: node.id,
+        nodeLabel: node.label,
+        type: stored?.type ?? node.type,
+        config: node.config ?? {},
+        stored: stored
+          ? { type: stored.type, config: stored.config }
+          : undefined,
+        fieldPrefix: `nodes[${i}].`,
+      };
+    });
+    const workflowAuthorId = workflow.createdBy ?? null;
+    if (origin === 'save') {
+      await assertNodeIntegrationRefsUsable(manager, this.logger, {
+        workspaceId,
+        workflowAuthorId,
+        saverId: userId,
+        nodes: refNodes,
+      });
+      return { nodes, clearedIntegrationRefs: [] };
+    }
+    const { configs, cleared } = await clearUnusableNodeIntegrationRefs(
+      manager,
+      this.logger,
+      {
+        workspaceId,
+        workflowAuthorId,
+        check: { path: 'restore' },
+        nodes: refNodes,
+      },
+    );
+    return {
+      nodes: nodes.map((node, i) =>
+        configs[i] === refNodes[i].config
+          ? node
+          : { ...node, config: configs[i] },
+      ),
+      clearedIntegrationRefs: cleared,
+    };
   }
 
   async restoreVersion(
@@ -746,7 +913,12 @@ export class WorkflowsService {
     workspaceId: string,
     versionId: string,
     userId: string,
-  ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
+  ): Promise<{
+    workflow: Workflow;
+    nodes: Node[];
+    edges: Edge[];
+    clearedIntegrationRefs: ClearedIntegrationRef[];
+  }> {
     await this.findById(workflowId, workspaceId);
     const target = await this.workflowVersionsService.findOne(
       workflowId,
@@ -778,13 +950,7 @@ export class WorkflowsService {
       changeSummary: `Restored from v${target.version}`,
     };
 
-    return this.saveCanvas(
-      workflowId,
-      workspaceId,
-      userId,
-      dto,
-      /* skipLegacyDataGates */ true,
-    );
+    return this.writeCanvas(workflowId, workspaceId, userId, dto, 'restore');
   }
 
   private buildSnapshot(
@@ -843,9 +1009,13 @@ export class WorkflowsService {
     hasError: boolean;
     hasWarning: boolean;
   }> {
-    const [nodes, edges] = await Promise.all([
+    const [nodes, edges, workflow] = await Promise.all([
       this.nodeRepository.find({ where: { workflowId } }),
       this.edgeRepository.find({ where: { workflowId } }),
+      this.workflowRepository.findOne({
+        where: { id: workflowId, workspaceId },
+        select: { id: true, createdBy: true },
+      }),
     ]);
     // AI Agent 저장 시점 도구 payload 예산 경고(backend-only async rule) 를
     // 결과 배열에 append — 이 backend-only 결과의 표면화는 본 조회 endpoint 가
@@ -853,6 +1023,7 @@ export class WorkflowsService {
     const toolBudgetResults = await this.evaluateToolPayloadWarnings(
       nodes,
       workspaceId,
+      workflow?.createdBy ?? null,
     );
     const results: GraphWarningRuleResult[] = [
       ...evaluateGraphWarningRulesForGraph(
@@ -917,11 +1088,17 @@ export class WorkflowsService {
   private evaluateToolPayloadWarnings(
     nodes: Node[],
     workspaceId: string,
+    workflowAuthorId: string | null,
     repo: Repository<Integration> = this.integrationRepository,
   ): Promise<GraphWarningRuleResult[]> {
     return evaluateAiAgentToolPayloadWarnings(nodes, {
       loadIntegrations: (ids) =>
-        this.loadIntegrationsForBudget(ids, workspaceId, repo),
+        this.loadIntegrationsForBudget(
+          ids,
+          workspaceId,
+          workflowAuthorId,
+          repo,
+        ),
     });
   }
 
@@ -939,11 +1116,13 @@ export class WorkflowsService {
     manager: EntityManager,
     nodes: Node[],
     workspaceId: string,
+    workflowAuthorId: string | null,
   ): Promise<void> {
     if (!toolBudgetStrictSave()) return;
     const results = await this.evaluateToolPayloadWarnings(
       nodes,
       workspaceId,
+      workflowAuthorId,
       manager.getRepository(Integration),
     );
     const errors = results.filter((r) => r.severity === 'error');
@@ -962,19 +1141,28 @@ export class WorkflowsService {
    * 과 동일하게 credentials 가 entity transformer 로 복호화된 row 를 주되,
    * not-found·credentials unreadable 은 Map 에서 제외해(해당 server 는 재현에서
    * skip) 저장/조회를 절대 깨뜨리지 않는다.
+   *
+   * 개인 통합은 실행 시점과 같은 판정(CLE-INT-MANAGE 「개인 통합 사용 판정」)을 통과한 것만 넣는다. 실행이 건너뛸 MCP 서버를
+   * 예산에 넣지 않기 위해서다. 참조는 리터럴만 모으므로 표현식 조건은 늘 통과한다. 경고 계산이라 거절 로그는 남기지 않는다.
    */
   private async loadIntegrationsForBudget(
     ids: readonly string[],
     workspaceId: string,
+    workflowAuthorId: string | null,
     repo: Repository<Integration>,
   ): Promise<Map<string, Integration>> {
     const map = new Map<string, Integration>();
     if (ids.length === 0) return map;
-    const rows = await repo.find({
-      where: { id: In([...ids]), workspaceId },
-    });
-    for (const row of rows) {
-      if (isUnreadableCredentials(row.credentials)) continue;
+    const rows = (
+      await repo.find({
+        where: { id: In([...ids]), workspaceId },
+      })
+    ).filter((row) => !isUnreadableCredentials(row.credentials));
+    for (const row of await filterExecutionUsableIntegrations(
+      repo,
+      { workspaceId, workflowAuthorId },
+      rows,
+    )) {
       map.set(row.id, row);
     }
     return map;
@@ -1146,10 +1334,9 @@ export class WorkflowsService {
     manager: EntityManager,
     workflowId: string,
     dto: SaveCanvasDto,
+    // 워크플로우 행을 잠근 뒤 읽은 이 워크플로우의 노드(`writeCanvas`). 통합 참조 검사와 같은 기준선을 쓴다.
+    existingNodes: Node[],
   ): Promise<Node[]> {
-    const existingNodes = await manager.find(Node, {
-      where: { workflowId },
-    });
     const existingNodeMap = new Map(existingNodes.map((n) => [n.id, n]));
     await this.assertNewNodeIdsUnused(manager, dto, existingNodeMap);
     const submittedNodeIds = new Set(dto.nodes.map((n) => n.id));

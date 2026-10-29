@@ -13,6 +13,8 @@ import {
 } from "../mcp-server-selector";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useEditorStore } from "@/lib/stores/editor-store";
 import type {
   NodeDefinition,
   Cafe24NodeExtras,
@@ -254,5 +256,56 @@ describe("McpServerSelector — MakeShop allowlist section", () => {
       name: /작업 허용 목록/,
     });
     expect(toggle.textContent).toContain("1");
+  });
+});
+
+describe("McpServerSelector — workflow author rule (REQ-INTMGMT-056)", () => {
+  const ORG_MCP = { ...MCP, scope: "organization", createdBy: "bob" };
+  const MY_MCP = {
+    id: "mcp-mine",
+    name: "My MCP",
+    serviceType: "mcp",
+    status: "connected",
+    scope: "personal",
+    createdBy: "alice",
+  };
+  const HINT = /you didn't create this workflow/i;
+
+  beforeEach(() => {
+    listMock.mockReset();
+    listMock.mockResolvedValue({ data: [ORG_MCP, MY_MCP] });
+    useLocaleStore.setState({ locale: "en" });
+    useAuthStore.setState({ user: { id: "alice" } as never });
+  });
+
+  async function openPicker() {
+    render(wrap(<McpServerSelector value={[]} onChange={vi.fn()} />));
+    const addBtn = await screen.findByRole("button", { name: /Add MCP Server/ });
+    await waitFor(() =>
+      expect((addBtn as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(addBtn);
+    return (name: string) =>
+      screen.getByText(name).closest("button") as HTMLButtonElement;
+  }
+
+  it("disables the user's own personal servers with the reason when they are not the workflow author", async () => {
+    useEditorStore.setState({ workflowCreatedBy: "bob" });
+    const item = await openPicker();
+
+    expect(item("My MCP").disabled).toBe(true);
+    expect(item("My MCP").textContent).toContain(
+      "can't be used in this workflow",
+    );
+    expect(item("Generic MCP").disabled).toBe(false);
+    expect(screen.getByText(HINT)).toBeDefined();
+  });
+
+  it("keeps personal servers selectable for the workflow author", async () => {
+    useEditorStore.setState({ workflowCreatedBy: "alice" });
+    const item = await openPicker();
+
+    expect(item("My MCP").disabled).toBe(false);
+    expect(screen.queryByText(HINT)).toBeNull();
   });
 });

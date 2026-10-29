@@ -50,14 +50,19 @@ describe('NodesController', () => {
 
     it('create forwards workspaceId to the service', async () => {
       const dto = { type: 't', category: 'logic', label: 'L' } as never;
-      await controller.create('wf-1', WS, dto);
-      expect(nodesService.create).toHaveBeenCalledWith('wf-1', WS, dto);
+      await controller.create('wf-1', WS, 'user-1', dto);
+      expect(nodesService.create).toHaveBeenCalledWith(
+        'wf-1',
+        WS,
+        'user-1',
+        dto,
+      );
     });
 
     it('update forwards workspaceId to the service', async () => {
       const dto = { label: 'L2' } as never;
-      await controller.update('n1', WS, dto);
-      expect(nodesService.update).toHaveBeenCalledWith('n1', WS, dto);
+      await controller.update('n1', WS, 'user-1', dto);
+      expect(nodesService.update).toHaveBeenCalledWith('n1', WS, 'user-1', dto);
     });
 
     it('remove forwards workspaceId to the service', async () => {

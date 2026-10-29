@@ -8,6 +8,10 @@ import type {
   McpSession,
 } from '../../../../modules/mcp/mcp-client.service';
 import type { IntegrationsService } from '../../../../modules/integrations/integrations.service';
+import {
+  makeIntegrationsServiceMock,
+  type IntegrationsServiceMock,
+} from '../../../../modules/integrations/__test-utils__/integrations-service.mock';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import { TimeoutError } from '../../../../common/utils/with-timeout';
 
@@ -103,14 +107,14 @@ describe('mcpToolName / parseMcpToolName', () => {
 
 describe('McpToolProvider', () => {
   let mcpClient: { connect: jest.Mock<Promise<McpSession>, [unknown]> };
-  let integrations: {
-    getForExecution: jest.Mock<Promise<Integration>, [string, string]>;
-  };
+  let integrations: Pick<IntegrationsServiceMock, 'getForExecution'>;
   let provider: McpToolProvider;
 
   beforeEach(() => {
     mcpClient = { connect: jest.fn() };
-    integrations = { getForExecution: jest.fn() };
+    integrations = {
+      getForExecution: makeIntegrationsServiceMock().getForExecution,
+    };
     provider = new McpToolProvider(
       mcpClient as unknown as McpClientService,
       integrations as unknown as IntegrationsService,
@@ -161,14 +165,20 @@ describe('McpToolProvider', () => {
 
     it('connects via Integration credentials and lists tools', async () => {
       const tools = await provider.buildTools({
-        config: { mcpServers: [{ integrationId: integration.id }] },
+        config: {
+          mcpServers: [
+            { integrationId: integration.id, fromExpression: false },
+          ],
+        },
         workspaceId: 'ws-1',
         executionId: 'exec-1',
+        nodeId: 'node-1',
       });
 
       expect(integrations.getForExecution).toHaveBeenCalledWith(
         integration.id,
         'ws-1',
+        { nodeId: 'node-1', fromExpression: false },
       );
       expect(mcpClient.connect).toHaveBeenCalledWith({
         authType: 'bearer_token',

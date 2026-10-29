@@ -13,7 +13,11 @@ function makeService() {
     integrations: { findAll: jest.fn() },
     llmConfigs: { findAll: jest.fn() },
     knowledgeBases: { findAll: jest.fn() },
-    exploreTools: { listWorkflows: jest.fn() },
+    exploreTools: {
+      listWorkflows: jest.fn(),
+      // 기본은 요청자가 편집 중인 워크플로우의 작성자다.
+      requesterIsWorkflowAuthor: jest.fn().mockResolvedValue(true),
+    },
   };
   const service = new CandidateLookupService(
     mocks.integrations as never,
@@ -146,6 +150,77 @@ describe('CandidateLookupService', () => {
       expect(out[0].candidates).toEqual([
         { id: 'kb-1', label: 'Product docs' },
       ]);
+    });
+  });
+
+  describe('워크플로우 작성자 조건 (REQ-ASSIST-062)', () => {
+    const integrationField: PendingUserConfigField = {
+      field: 'integrationId',
+      widget: 'integration-selector',
+      label: 'Integration',
+      selectionMode: 'single',
+      candidates: [],
+    };
+    const mcpField: PendingUserConfigField = {
+      field: 'mcpServers',
+      widget: 'mcp-server-selector',
+      label: 'MCP Servers',
+      selectionMode: 'multi',
+      candidates: [],
+    };
+
+    it('요청자가 작성자가 아니면 통합 · MCP 서버 후보를 조직 통합으로 좁히고 작성자는 한 번만 조회한다', async () => {
+      const { service, mocks } = makeService();
+      mocks.exploreTools.requesterIsWorkflowAuthor.mockResolvedValue(false);
+      mocks.integrations.findAll.mockResolvedValue({ data: [] });
+
+      await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
+        integrationField,
+        mcpField,
+      ]);
+
+      expect(
+        mocks.exploreTools.requesterIsWorkflowAuthor,
+      ).toHaveBeenCalledTimes(1);
+      expect(mocks.exploreTools.requesterIsWorkflowAuthor).toHaveBeenCalledWith(
+        'ws-1',
+        'wf-1',
+        'u-1',
+      );
+      for (const [, , query] of mocks.integrations.findAll.mock.calls) {
+        expect(query).toMatchObject({ scope: 'organization' });
+      }
+      expect(mocks.integrations.findAll).toHaveBeenCalledTimes(2);
+    });
+
+    it('요청자가 작성자면 scope 로 좁히지 않는다', async () => {
+      const { service, mocks } = makeService();
+      mocks.integrations.findAll.mockResolvedValue({ data: [] });
+
+      await service.fillCandidates('ws-1', 'u-1', 'wf-1', [integrationField]);
+
+      expect(mocks.integrations.findAll.mock.calls[0][2]).not.toHaveProperty(
+        'scope',
+      );
+    });
+
+    it('통합 위젯이 없으면 작성자를 조회하지 않는다', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmConfigs.findAll.mockResolvedValue({ data: [] });
+
+      await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
+        {
+          field: 'llmConfigId',
+          widget: 'llm-config-selector',
+          label: 'LLM',
+          selectionMode: 'single',
+          candidates: [],
+        },
+      ]);
+
+      expect(
+        mocks.exploreTools.requesterIsWorkflowAuthor,
+      ).not.toHaveBeenCalled();
     });
   });
 

@@ -834,10 +834,7 @@ export class IntegrationOAuthService {
           lock: { mode: 'pessimistic_write' },
         });
         if (!integration) {
-          throw new NotFoundException({
-            code: 'RESOURCE_NOT_FOUND',
-            message: 'Integration not found',
-          });
+          throw integrationNotFoundError();
         }
         // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
         await this.assertRequesterStillAllowed(integration, record, manager);

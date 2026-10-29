@@ -2,21 +2,21 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "2921c118be0ec55eca7c61ae8e1d6d2524f29eee24bd29dc51f6c9bc45f88ffb"
+content_hash: "34865b182d86ab80e1f2bd63c6616382a8590ea6920ae417ebed479a36770894"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "a9e9ea0971f0f9a60a60406d42d1e384c552b9232b8d8441b884f3f20fdb04f1"
-etag: "sha256-02d47e5f2c7a8e65b9bf7bffec4101a44e6ff8bcb35945b08d5616625d196baa"
+mirror_sha256: "199573df59eaaf78cdbab480f97b1347e661953faf231d8b4408a80573f05268"
+etag: "sha256-cefb0fbbfac7f21b70c56e358c76361df18ce382460429691003dfdfad0eeeee"
 ---
-> 구현 상태: 부분 구현 (개인 통합의 사용 판정과 커밋 직전 재판정의 `EDITOR_REQUIRED`, `logUsage` 가 얻은 통합을 받는 서명은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (커밋 직전 재판정의 `EDITOR_REQUIRED`, `logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -439,7 +439,7 @@ sequenceDiagram
 ```
 
 - 토큰 만료가 가깝거나 지난 것은 조회 실패 조건이 아니다. Cafe24·MakeShop 클라이언트가 호출 직전에 토큰을 갱신하고, 401 을 받으면 갱신 뒤 다시 시도한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
-- 그림에서 `getForExecution` 의 `use` 인자와 `logUsage` 가 얻은 통합을 받는 서명은 목표 서명이다(미구현). 지금 서명과 목표 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
+- 그림에서 `logUsage` 가 얻은 통합을 받는 서명은 목표 서명이다(미구현, NERV Task `CLE-T-PTC4SF`). 지금 `IntegrationsService.logUsage` 는 통합 ID 를 받는다. 그때까지는 핸들러 공통 베이스가 조회가 거절된 통합의 기록을 건너뛴다. 조회 거절이 아닌 실패는 지금도 설정의 통합 ID 로 기록한다. 워크스페이스 확인 실패, 일시 에러, 자격 증명 읽기 실패(`IntegrationCredentialsUnreadableError`)가 해당한다. 이 목록의 정본은 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 이다. `getForExecution` 의 `use` 인자와 개인 통합 사용 판정은 구현됐다. 지금 서명과 목표 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
 - 서비스 유형과 연결 상태는 서비스가 아니라 핸들러 기반 클래스가 3단계에서 검증한다(`integration-handler-base.ts`, [통합 노드 공통 「IntegrationHandlerBase」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationhandlerbase)). 연결 상태 실패의 메시지에는 상태와 사유를 싣는다. 통합을 얻은 뒤의 실패라 그 통합에 활동 로그를 남긴다(REQ-INTMGMT-062).
 - `logUsage` 는 예외를 던지지 않는다. 기록 실패가 노드 실행을 깨지 않도록 삼킨다. `nodeExecutionId` 가 없으면 행을 쓰지 않는다.
 - Cafe24·MakeShop 의 인증 실패와 네트워크 실패로 인한 오류 전이는 `logUsage` 가 아니라 각 클라이언트의 `markAuthFailed`·`recordNetworkFailure` 가 한다. 노드 실행 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
@@ -468,7 +468,8 @@ sequenceDiagram
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그, `reauthorize`·`requestScopes` 의 재설치 대기 표시)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그, `reauthorize`·`requestScopes` 의 재설치 대기 표시, `getForExecution` 의 개인 통합 사용 판정)
+- `codebase/backend/src/modules/integrations/personal-integration-use.ts` · `personal-integration-use-facts.ts` (개인 통합 사용 판정 함수와 판정에 넘길 사실 읽기. 사실 읽기는 실행 경로와 저장 경로가 함께 쓴다)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth begin·콜백·설치, `handleInstall` 의 재설치 대기 분기, `assertRequesterStillAllowed`, `markIntegrationCallbackError`)
 - `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**` 설치·콜백 엔드포인트)
 - `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너)

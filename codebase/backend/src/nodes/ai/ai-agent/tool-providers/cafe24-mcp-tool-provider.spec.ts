@@ -21,6 +21,11 @@ import {
 } from '../../../integration/cafe24/metadata/index';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import type { ToolCall } from '../../../../modules/llm/interfaces/llm-client.interface';
+import {
+  asIntegrationsService,
+  makeIntegrationsServiceMock,
+  type IntegrationsServiceMock,
+} from '../../../../modules/integrations/__test-utils__/integrations-service.mock';
 
 type Mock = jest.Mock;
 
@@ -76,21 +81,18 @@ const PRODUCT_LIST_API = {
 } as const;
 
 describe('Cafe24McpToolProvider', () => {
-  let integrationsService: { getForExecution: Mock; logUsage: Mock };
+  let integrationsService: IntegrationsServiceMock;
   let apiClient: { call: Mock; refreshTokenViaQueue: Mock };
   let provider: Cafe24McpToolProvider;
 
   beforeEach(() => {
-    integrationsService = {
-      getForExecution: jest.fn(),
-      logUsage: jest.fn().mockResolvedValue(undefined),
-    };
+    integrationsService = makeIntegrationsServiceMock();
     apiClient = {
       call: jest.fn(),
       refreshTokenViaQueue: jest.fn().mockResolvedValue(undefined),
     };
     provider = new Cafe24McpToolProvider(
-      integrationsService as never,
+      asIntegrationsService(integrationsService),
       apiClient as unknown as Cafe24ApiClient,
     );
   });
@@ -434,6 +436,58 @@ describe('Cafe24McpToolProvider', () => {
       ]);
       // 정상 회복이라 skipReason 없음.
       expect(summaries[0].skipReason).toBeUndefined();
+    });
+
+    // CLE-INT-MCP 「통합 조회 기준」 — 토큰 갱신 뒤 다시 읽는 조회도 첫 조회와 같은 `use` 로 판정한다.
+    it('첫 조회와 토큰 갱신 뒤 재조회에 같은 use(nodeId · fromExpression)를 넘긴다', async () => {
+      const expiredRow = makeIntegration({ status: 'expired' });
+      const freshRow = makeIntegration({ status: 'connected' });
+      integrationsService.getForExecution
+        .mockResolvedValueOnce(expiredRow)
+        .mockResolvedValueOnce(freshRow);
+      apiClient.refreshTokenViaQueue.mockResolvedValue(undefined);
+
+      await provider.buildTools({
+        config: {
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', fromExpression: false },
+          ],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeId: 'node-1',
+      });
+
+      const use = { nodeId: 'node-1', fromExpression: false };
+      expect(integrationsService.getForExecution).toHaveBeenNthCalledWith(
+        1,
+        'abcdef1234567890',
+        'ws-1',
+        use,
+      );
+      expect(integrationsService.getForExecution).toHaveBeenNthCalledWith(
+        2,
+        'abcdef1234567890',
+        'ws-1',
+        use,
+      );
+    });
+
+    it('fromExpression 이 없는 서버 항목(옛 체크포인트)은 표현식으로 조회한다', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({ status: 'connected' }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeId: 'node-1',
+      });
+      expect(integrationsService.getForExecution).toHaveBeenCalledWith(
+        'abcdef1234567890',
+        'ws-1',
+        { nodeId: 'node-1', fromExpression: true },
+      );
     });
 
     it('skips expired+refresh_token when refresh fails with auth_failed', async () => {

@@ -41,13 +41,19 @@ export function integrationVisibilityClause(alias: string): string {
 export const INTEGRATION_USER_PARAM = 'integrationUserId';
 
 /**
- * «없다» — 없는 통합과 남의 personal 이 **같은** 응답을 받는다(구별되면 존재를 드러낸다). 같은 리터럴이 두 서비스에
+ * «없다» 응답의 문구. 404 본문과 저장 검사 400 의 `details[].message`(`INTEGRATION_REF_INVALID_MESSAGE`)가 같은 값을 쓴다.
+ * 한쪽만 바뀌면 두 응답의 문구가 갈려 통합이 있는지 알려 주는 신호가 되므로 이 상수 하나에서 가져간다.
+ */
+export const INTEGRATION_NOT_FOUND_MESSAGE = 'Integration not found';
+
+/**
+ * «없다» — 없는 통합과 남의 personal 이 **같은** 응답을 받는다(구별되면 존재를 드러낸다). 같은 리터럴이 여러 서비스에
  * 흩어지지 않도록 여기서만 만든다.
  */
 export function integrationNotFoundError(): NotFoundException {
   return new NotFoundException({
     code: 'RESOURCE_NOT_FOUND',
-    message: 'Integration not found',
+    message: INTEGRATION_NOT_FOUND_MESSAGE,
   });
 }
 

@@ -440,6 +440,14 @@ export class IntegrationUsageItemDto {
   @ApiProperty({ type: Boolean })
   isActive: boolean;
 
+  // 공개 범위 전환 다이얼로그가 쓴다(REQ-INTMGMT-057).
+  /**
+   * 워크플로우 작성자(`workflow.created_by`)가 통합 소유자(`integration.created_by`)인가. 개인으로 전환하면 `false` 인
+   * 워크플로우의 노드는 이 통합을 쓰지 못한다. 작성자 id 는 싣지 않는다.
+   */
+  @ApiProperty({ type: Boolean })
+  authorIsIntegrationOwner: boolean;
+
   @ApiProperty({ type: [IntegrationUsageNodeDto] })
   nodes: IntegrationUsageNodeDto[];
 }

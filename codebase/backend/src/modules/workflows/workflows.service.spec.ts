@@ -125,6 +125,8 @@ describe('WorkflowsService', () => {
   // 매니저의 getRepository(Integration) 로 같은 mock 을 얻는다.
   const mockIntegrationRepository = {
     find: jest.fn().mockResolvedValue([]),
+    // 도구 payload 예산의 개인 통합 판정이 소유자 멤버십을 읽는다.
+    query: jest.fn().mockResolvedValue([]),
   };
 
   // folderId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 폴더.
@@ -142,6 +144,13 @@ describe('WorkflowsService', () => {
     remove: jest.fn().mockResolvedValue(undefined),
     create: jest.fn().mockImplementation((_entity, data) => data),
     getRepository: jest.fn().mockReturnValue(mockIntegrationRepository),
+    // 캔버스 저장 · 버전 복원이 트랜잭션 첫 문장으로 워크플로우 행을 잠근다(`lockWorkflowInWorkspace`). 잠근 행은
+    // `findById` 와 같은 저장소 mock 에서 꺼내 테스트마다 정한 워크플로우를 그대로 쓴다.
+    findOne: jest.fn((_entity: unknown, options: unknown) =>
+      mockRepository.findOne(options),
+    ),
+    // 통합 참조 판정의 통합 · 멤버 조회(`loadIntegrationRefRows` · `loadWorkspaceMemberIds`). 기본은 빈 결과다.
+    query: jest.fn().mockResolvedValue([]),
   };
 
   const mockDataSource = {
@@ -748,6 +757,67 @@ describe('WorkflowsService', () => {
         'user-uuid-1',
       );
       expect(result.name).toBe('Test Workflow (Copy)');
+    });
+
+    describe('통합 참조 비우기 (REQ-WFLIST-055)', () => {
+      const PERSONAL = '7c000000-0000-4000-8000-000000000001';
+      const mailNode = {
+        ...origNodes[0],
+        id: 'n-mail',
+        type: 'send_email',
+        category: NodeCategory.INTEGRATION,
+        label: 'Mail',
+        config: { integrationId: PERSONAL, subject: 's' },
+      };
+
+      beforeEach(() => {
+        mockTransactionManager.find = jest
+          .fn()
+          .mockImplementation((entity: unknown) =>
+            Promise.resolve(entity === Node ? [mailNode] : []),
+          );
+        mockTransactionManager.query.mockResolvedValueOnce([
+          { id: PERSONAL, scope: 'personal', created_by: 'user-uuid-1' },
+        ]);
+      });
+
+      afterEach(() => {
+        mockTransactionManager.query.mockReset().mockResolvedValue([]);
+      });
+
+      it('요청자가 소유자가 아닌 개인 통합 참조는 비우고 새 노드 id 로 알린다', async () => {
+        const result = await service.duplicate(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'user-uuid-2',
+        );
+
+        const [row] = insertedRows(Node)!;
+        expect(row.config).toEqual({ subject: 's' });
+        expect(result.clearedIntegrationRefs).toEqual([
+          { nodeId: row.id, nodeLabel: 'Mail', field: 'config.integrationId' },
+        ]);
+        expect(row.id).not.toBe('n-mail');
+        // 원본 노드의 설정은 그대로다.
+        expect(mailNode.config).toEqual({
+          integrationId: PERSONAL,
+          subject: 's',
+        });
+      });
+
+      it('요청자 자신의 개인 통합 참조는 남긴다', async () => {
+        const result = await service.duplicate(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'user-uuid-1',
+        );
+
+        expect(insertedRows(Node)![0].config).toEqual({
+          integrationId: PERSONAL,
+          subject: 's',
+        });
+        expect(result.clearedIntegrationRefs).toEqual([]);
+      });
     });
 
     it('사본 메타는 (Copy) 접미 · 비활성 · 요청자 소유이고 메타 필드를 승계한다', async () => {
@@ -1840,15 +1910,19 @@ describe('WorkflowsService', () => {
         expect(mockDataSource.transaction).not.toHaveBeenCalled();
       });
 
-      // 버전 복원(`skipLegacyDataGates=true`)은 옛 데이터 호환 게이트만 끈다 — 참조 검사는 워크스페이스 경계라 끄지 않는다.
+      // 버전 복원(`origin='restore'`)은 옛 데이터 호환 게이트만 끈다 — 참조 검사는 워크스페이스 경계라 끄지 않는다.
       // 이 검사를 그 조건 안으로 옮기면 복원 경로가 교차 참조의 우회로가 된다(`review/code/2026/09/27/22_11_22` W1).
       it('버전 복원 경로에서도 참조 검사를 건너뛰지 않는다', async () => {
         const dto = {
           nodes: [trigger, code('n-a', 'A', { containerId: 'elsewhere-1' })],
           edges: [],
         } as unknown as SaveCanvasDto;
-        const err = await service
-          .saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto, true)
+        const err = await (
+          service as unknown as {
+            writeCanvas: (...args: unknown[]) => Promise<unknown>;
+          }
+        )
+          .writeCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto, 'restore')
           .catch((err_: unknown) => err_);
         expect(err).toMatchObject({
           response: {
@@ -1990,6 +2064,13 @@ describe('WorkflowsService', () => {
   // AI Agent 저장 시점 도구 payload 예산 경고(backend-only async rule)의 배선.
   // getGraphWarnings 는 결과 배열에 append, saveCanvas 는 severity error 차단.
   describe('AI Agent tool-payload budget (config-time warning)', () => {
+    // 캔버스 저장의 통합 참조 검사(REQ-INTMGMT-054)는 UUID 모양인 id 만 조회한다.
+    const INT_1 = '7a000000-0000-4000-8000-000000000001';
+    const orgIntegrationRow = {
+      id: INT_1,
+      scope: 'organization',
+      created_by: 'user-uuid-1',
+    };
     const BUDGET_ENV = [
       'AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES',
       'AI_AGENT_TOOL_PAYLOAD_HARD_BYTES',
@@ -2014,7 +2095,7 @@ describe('WorkflowsService', () => {
     // makeshop 은 granted-scope pre-filter 가 없어 connected 통합의 전체 카탈로그를
     // 재현하므로 scope 셋업 없이 도구 payload 를 확보할 수 있다.
     const connectedMakeshop = {
-      id: 'int-1',
+      id: INT_1,
       workspaceId: 'ws-uuid-1',
       serviceType: 'makeshop',
       name: 'Shop',
@@ -2029,7 +2110,7 @@ describe('WorkflowsService', () => {
           id: 'ai-1',
           type: 'ai_agent',
           label: 'Agent',
-          config: { mcpServers: [{ integrationId: 'int-1' }] },
+          config: { mcpServers: [{ integrationId: INT_1 }] },
         },
       ]);
       mockEdgeRepository.find.mockResolvedValue([]);
@@ -2061,7 +2142,7 @@ describe('WorkflowsService', () => {
           id: 'ai-1',
           type: 'ai_agent',
           label: 'Agent',
-          config: { mcpServers: [{ integrationId: 'int-1' }] },
+          config: { mcpServers: [{ integrationId: INT_1 }] },
         },
       ]);
       mockEdgeRepository.find.mockResolvedValue([]);
@@ -2084,6 +2165,7 @@ describe('WorkflowsService', () => {
         (_entity: unknown, data: unknown) => Promise.resolve(data),
       );
       mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
+      mockTransactionManager.query.mockResolvedValueOnce([orgIntegrationRow]);
 
       const dto: SaveCanvasDto = {
         name: 'wf',
@@ -2103,7 +2185,7 @@ describe('WorkflowsService', () => {
             label: 'Agent',
             positionX: 100,
             positionY: 0,
-            config: { mcpServers: [{ integrationId: 'int-1' }] },
+            config: { mcpServers: [{ integrationId: INT_1 }] },
           },
         ],
         edges: [],
@@ -2128,6 +2210,7 @@ describe('WorkflowsService', () => {
       // 아예 하지 않는다 (dead-path 비용 회피). mockResolvedValue 는 설정하되
       // 호출되지 않음을 아래에서 단정.
       mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
+      mockTransactionManager.query.mockResolvedValueOnce([orgIntegrationRow]);
 
       const dto: SaveCanvasDto = {
         name: 'wf',
@@ -2147,7 +2230,7 @@ describe('WorkflowsService', () => {
             label: 'Agent',
             positionX: 100,
             positionY: 0,
-            config: { mcpServers: [{ integrationId: 'int-1' }] },
+            config: { mcpServers: [{ integrationId: INT_1 }] },
           },
         ],
         edges: [],
@@ -2173,7 +2256,7 @@ describe('WorkflowsService', () => {
           id: 'ai-1',
           type: 'ai_agent',
           label: 'Agent',
-          config: { mcpServers: [{ integrationId: 'int-1' }] },
+          config: { mcpServers: [{ integrationId: INT_1 }] },
         },
       ]);
       mockEdgeRepository.find.mockResolvedValue([]);
@@ -2217,6 +2300,76 @@ describe('WorkflowsService', () => {
       expect(
         results.some((r) => r.ruleId === 'ai_agent:tool-payload-budget'),
       ).toBe(false);
+    });
+
+    // 개인 통합은 실행 시점 판정(CLE-INT-MANAGE 「개인 통합 사용 판정」)을 통과한 것만 예산에 넣는다.
+    // 실행이 건너뛸 MCP 서버로 경고를 내지 않기 위해서다.
+    describe('개인 통합', () => {
+      const AUTHOR = '7b000000-0000-4000-8000-000000000001';
+      const OTHER = '7b000000-0000-4000-8000-000000000002';
+      const personalMakeshop = (createdBy: string) => ({
+        ...connectedMakeshop,
+        scope: 'personal',
+        createdBy,
+      });
+      const hasBudgetWarning = async () =>
+        (await service.getGraphWarnings('wf-uuid-1', 'ws-uuid-1')).results.some(
+          (r) => r.ruleId === 'ai_agent:tool-payload-budget',
+        );
+
+      beforeEach(() => {
+        process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
+        mockNodeRepository.find.mockResolvedValue([
+          {
+            id: 'ai-1',
+            type: 'ai_agent',
+            label: 'Agent',
+            config: { mcpServers: [{ integrationId: INT_1 }] },
+          },
+        ]);
+        mockEdgeRepository.find.mockResolvedValue([]);
+        mockRepository.findOne.mockResolvedValueOnce({
+          id: 'wf-uuid-1',
+          createdBy: AUTHOR,
+        });
+      });
+      afterEach(() => {
+        mockIntegrationRepository.query.mockReset().mockResolvedValue([]);
+      });
+
+      it('워크플로우 작성자가 소유자이고 소유자가 멤버면 예산에 넣는다', async () => {
+        mockIntegrationRepository.find.mockResolvedValue([
+          personalMakeshop(AUTHOR),
+        ]);
+        mockIntegrationRepository.query.mockResolvedValueOnce([
+          { user_id: AUTHOR },
+        ]);
+
+        expect(await hasBudgetWarning()).toBe(true);
+        expect(mockRepository.findOne).toHaveBeenCalledWith({
+          where: { id: 'wf-uuid-1', workspaceId: 'ws-uuid-1' },
+          select: { id: true, createdBy: true },
+        });
+        expect(mockIntegrationRepository.query).toHaveBeenCalledWith(
+          expect.stringContaining('FROM workspace_member'),
+          ['ws-uuid-1', [AUTHOR]],
+        );
+      });
+
+      it.each<[string, string, Array<{ user_id: string }>]>([
+        ['워크플로우 작성자가 소유자가 아니다', OTHER, [{ user_id: OTHER }]],
+        ['소유자가 멤버가 아니다', AUTHOR, []],
+      ])(
+        '%s → 실행처럼 건너뛰어 예산에 넣지 않는다',
+        async (_label, owner, members) => {
+          mockIntegrationRepository.find.mockResolvedValue([
+            personalMakeshop(owner),
+          ]);
+          mockIntegrationRepository.query.mockResolvedValueOnce(members);
+
+          expect(await hasBudgetWarning()).toBe(false);
+        },
+      );
     });
   });
 
@@ -2336,6 +2489,52 @@ describe('WorkflowsService', () => {
       (mockTransactionManager.insert as jest.Mock).mock.calls.find(
         ([entity]) => entity === Node,
       )?.[1] as Array<Record<string, unknown>> | undefined;
+
+    it('이 워크스페이스에 없는 통합 참조는 비우고 발급한 노드 id 로 알린다 (REQ-WFLIST-054)', async () => {
+      const foreign = '7d000000-0000-4000-8000-000000000001';
+      const result = await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'ai_agent',
+            category: NodeCategory.AI,
+            label: 'Agent',
+            positionX: 0,
+            positionY: 0,
+            config: {
+              mcpServers: [
+                { integrationId: foreign, enabledTools: ['x'] },
+                { integrationId: '{{ $var.server }}' },
+              ],
+            },
+          },
+        ],
+        edges: [],
+      });
+
+      expect(mockTransactionManager.query).toHaveBeenCalledWith(
+        expect.stringContaining('workspace_id = $2'),
+        [[foreign], 'ws-uuid-1'],
+      );
+      const agent = insertedNodes()!.find((n) => n.label === 'Agent')!;
+      expect(agent.config).toMatchObject({
+        mcpServers: [{ integrationId: '{{ $var.server }}' }],
+      });
+      expect(result.clearedIntegrationRefs).toEqual([
+        {
+          nodeId: agent.id,
+          nodeLabel: 'Agent',
+          field: 'config.mcpServers[0].integrationId',
+        },
+      ]);
+    });
 
     it('remaps containerIndex to the new node UUID', async () => {
       const dto = {
@@ -2846,6 +3045,178 @@ describe('WorkflowsService', () => {
     });
   });
 
+  describe('노드 config 의 통합 참조 (CLE-PLAT-DATA 「참조의 소속」)', () => {
+    const PERSONAL = '7b000000-0000-4000-8000-000000000001';
+    const OTHER_USER = 'user-uuid-2';
+    const trigger = {
+      id: 'node-1',
+      type: 'manual_trigger',
+      category: NodeCategory.TRIGGER,
+      label: 'Trigger',
+      positionX: 0,
+      positionY: 0,
+      config: {},
+    };
+    const mailNode = (config: Record<string, unknown>) => ({
+      id: 'mail-1',
+      type: 'send_email',
+      category: NodeCategory.INTEGRATION,
+      label: '메일',
+      positionX: 100,
+      positionY: 0,
+      config,
+    });
+    const personalRow = {
+      id: PERSONAL,
+      scope: 'personal',
+      created_by: 'user-uuid-1',
+    };
+
+    // 이 워크플로우의 저장된 노드. 새 노드 id 의 사용 여부 조회(`where.id`)에는 빈 결과를 준다.
+    function storeNodes(nodes: Array<Record<string, unknown>>) {
+      mockTransactionManager.find.mockImplementation(
+        (entity: unknown, options?: { where?: { workflowId?: string } }) =>
+          Promise.resolve(
+            entity === Node && options?.where?.workflowId
+              ? nodes.map((n) => ({ ...n }))
+              : [],
+          ),
+      );
+    }
+
+    beforeEach(() => {
+      mockRepository.findOne.mockResolvedValue(mockWorkflow);
+      mockTransactionManager.save.mockImplementation(
+        (_entity: unknown, data: unknown) => Promise.resolve(data),
+      );
+      storeNodes([]);
+    });
+
+    afterEach(() => {
+      mockTransactionManager.find.mockReset().mockResolvedValue([]);
+      mockTransactionManager.query.mockReset().mockResolvedValue([]);
+    });
+
+    it('saveCanvas 는 트랜잭션 첫 문장으로 워크플로우 행을 잠근다', async () => {
+      await service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', {
+        nodes: [trigger],
+        edges: [],
+      });
+
+      expect(mockTransactionManager.findOne).toHaveBeenCalledWith(Workflow, {
+        where: { id: 'wf-uuid-1', workspaceId: 'ws-uuid-1' },
+        lock: { mode: 'for_no_key_update' },
+      });
+      const lockOrder =
+        mockTransactionManager.findOne.mock.invocationCallOrder[0];
+      for (const mock of [
+        mockTransactionManager.save,
+        mockTransactionManager.find,
+        mockTransactionManager.query,
+      ]) {
+        for (const order of mock.mock.invocationCallOrder) {
+          expect(order).toBeGreaterThan(lockOrder);
+        }
+      }
+    });
+
+    it('saveCanvas 는 저장자가 소유자가 아닌 개인 통합을 새로 넣으면 없는 통합과 같은 400 으로 거절한다', async () => {
+      mockTransactionManager.query.mockResolvedValueOnce([personalRow]);
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', OTHER_USER, {
+          nodes: [trigger, mailNode({ integrationId: PERSONAL })],
+          edges: [],
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'VALIDATION_ERROR',
+          details: [
+            {
+              field: 'nodes[1].config.integrationId',
+              code: 'INVALID_FIELD',
+              message: 'Integration not found',
+            },
+          ],
+        },
+      });
+      expect(mockTransactionManager.query).toHaveBeenCalledWith(
+        expect.stringContaining('workspace_id = $2'),
+        [[PERSONAL], 'ws-uuid-1'],
+      );
+      expect(mockWorkflowVersionsService.createVersion).not.toHaveBeenCalled();
+    });
+
+    it('saveCanvas 는 저장된 노드와 같은 참조를 다시 판정하지 않는다', async () => {
+      storeNodes([mailNode({ integrationId: PERSONAL })]);
+
+      const result = await service.saveCanvas(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        OTHER_USER,
+        {
+          nodes: [
+            trigger,
+            mailNode({ integrationId: PERSONAL, subject: '바뀐 제목' }),
+          ],
+          edges: [],
+        },
+      );
+
+      expect(mockTransactionManager.query).not.toHaveBeenCalled();
+      expect(result).not.toHaveProperty('clearedIntegrationRefs');
+    });
+
+    function restoreSnapshot(nodes: Array<Record<string, unknown>>) {
+      mockWorkflowVersionsService.findOne.mockResolvedValue({
+        id: 'v-uuid-1',
+        workflowId: 'wf-uuid-1',
+        version: 2,
+        snapshot: { name: 'Snapshot', nodes, edges: [] },
+      });
+    }
+
+    it('restoreVersion 은 소유자가 멤버가 아닌 개인 통합 참조를 비우고 알린다', async () => {
+      restoreSnapshot([trigger, mailNode({ integrationId: PERSONAL })]);
+      mockTransactionManager.query
+        .mockResolvedValueOnce([personalRow])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.restoreVersion(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        'v-uuid-1',
+        'user-uuid-1',
+      );
+
+      expect(result.clearedIntegrationRefs).toEqual([
+        { nodeId: 'mail-1', nodeLabel: '메일', field: 'config.integrationId' },
+      ]);
+      const savedNodes = (
+        mockTransactionManager.save.mock.calls as unknown[][]
+      ).find(([entity]) => entity === Node)?.[1] as Array<{
+        id: string;
+        config: Record<string, unknown>;
+      }>;
+      expect(savedNodes.find((n) => n.id === 'mail-1')?.config).toEqual({});
+    });
+
+    it('restoreVersion 은 지금 노드와 같은 참조를 비우지 않는다', async () => {
+      restoreSnapshot([trigger, mailNode({ integrationId: PERSONAL })]);
+      storeNodes([trigger, mailNode({ integrationId: PERSONAL })]);
+
+      const result = await service.restoreVersion(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        'v-uuid-1',
+        'user-uuid-1',
+      );
+
+      expect(result.clearedIntegrationRefs).toEqual([]);
+      expect(mockTransactionManager.query).not.toHaveBeenCalled();
+    });
+  });
+
   describe('restoreVersion', () => {
     it('should throw BadRequestException when snapshot is malformed', async () => {
       mockRepository.findOne.mockResolvedValue(mockWorkflow);
@@ -2898,9 +3269,7 @@ describe('WorkflowsService', () => {
         },
       });
 
-      const saveCanvasSpy = jest.spyOn(service, 'saveCanvas');
-
-      await service.restoreVersion(
+      const result = await service.restoreVersion(
         'wf-uuid-1',
         'ws-uuid-1',
         'v-uuid-1',
@@ -2911,19 +3280,15 @@ describe('WorkflowsService', () => {
         'wf-uuid-1',
         'v-uuid-1',
       );
-      expect(saveCanvasSpy).toHaveBeenCalledWith(
+      // 캔버스 저장과 같은 쓰기로 새 버전을 만든다. 옛 데이터 호환 게이트를 건너뛰는지는 아래 테스트가 본다.
+      expect(mockWorkflowVersionsService.createVersion).toHaveBeenCalledWith(
         'wf-uuid-1',
-        'ws-uuid-1',
         'user-uuid-1',
-        expect.objectContaining({
-          name: 'Snapshot Name',
-          changeSummary: 'Restored from v2',
-        }),
-        // skipLegacyDataGates — historical snapshots may pre-date a save-time
-        // gate (trigger param schema, reserved variable names) and must not be
-        // blocked on restore.
-        true,
+        expect.objectContaining({ name: 'Snapshot Name' }),
+        'Restored from v2',
+        mockTransactionManager,
       );
+      expect(result.clearedIntegrationRefs).toEqual([]);
     });
 
     it('restores a snapshot with a malformed trigger parameter without a 400', async () => {

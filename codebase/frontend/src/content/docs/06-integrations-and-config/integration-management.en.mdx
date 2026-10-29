@@ -21,6 +21,15 @@ Supported service types:
 
 Integrations created with Organization scope in a team workspace are automatically usable by every member. Integrations created with Personal scope in the same team workspace, though, are visible only to the person who created them — other members can't find them in the list or even by navigating straight to the detail page, and the rule has no role exception: Owners and Admins can't see another member's Personal integrations either. Switching workspaces from the sidebar refreshes the integration list for the selected workspace.
 
+Which integrations a node can use also depends on scope.
+
+- **Organization integrations**: usable from the nodes of any workflow in the workspace.
+- **Personal integrations**: usable only from the nodes of workflows created by the person who created the integration. Even that person can't use it in a workflow another member created.
+
+The check is based on **the person who created the workflow**, not the person who started the run. Automatic runs from a schedule or webhook, and runs as a sub-workflow, follow the same rule; a sub-workflow is judged by the person who created that sub-workflow. A Personal integration also can't be used once the person who created it has left the workspace, or when the node picks the integration through an expression (`{{ }}`). Only Organization integrations work in those cases.
+
+A node that uses a Personal integration the rule doesn't allow fails at run time with the same "integration not found" error as a node that references an integration that doesn't exist. The error alone can't tell you whether the integration is missing or just not usable. For an AI Agent node, an MCP server entry like that is skipped and the node keeps running.
+
 Permissions:
 
 <FieldTable rows={[
@@ -30,6 +39,21 @@ Permissions:
 ]} />
 
 <Callout type="tip">Integrations in a personal workspace are visible only to the owner. To share with a team, create the integration inside the team workspace. The same external account is a separate record per workspace.</Callout>
+
+### Switching an Organization integration to Personal
+
+On the integration's Danger zone tab, switching an Organization integration to Personal means workflows created by anyone other than the person who created the integration can no longer use it in their nodes. So the integration's usages are checked before the switch.
+
+- If any such workflow exists, a warning dialog titled "Some workflows will fail after switching to Personal" appears. It lists those workflows and nodes, and clicking `Switch to Personal` goes ahead with the switch. The switch isn't blocked.
+- If none exist, only a confirmation prompt appears: "After switching to Personal, only the person who created this integration can see and use it. Continue?"
+- If the usages can't be checked, the scope isn't changed and an error toast appears: "Couldn't check where this integration is used, so the scope wasn't changed".
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx"
+  symbol="ScopeToPersonalWarningDialog"
+  describes="Warning dialog on the Danger zone tab that lists workflows whose runs will fail before an Organization integration is switched to Personal"
+/>
 
 ## Adding an integration
 
@@ -55,7 +79,7 @@ The detail page tabs cover almost every operational task.
   { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red." },
   { name: "Usage", type: "Tab", required: "Always", description: "Lists workflows and nodes referencing this integration. `Open in editor` jumps you straight there." },
   { name: "Activity", type: "Tab", required: "Always", description: "Shows the last 7 days of call history with API, status, duration, and error columns. The `API` column shows which endpoint was called. Cafe24 integrations display a human-friendly operation label; other services show the HTTP method and path as-is. If neither is available, it shows `—`. When the integration isn't connected (`error` · `expired` · `pending_install`), new calls aren't recorded, so a warning banner appears above the list with a `View status` button to check and reconnect on the Overview tab." },
-  { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. Deleting an Organization integration requires Admin or above; deleting your own Personal integration requires being its creator with the Editor role or above (Viewers can't delete even their own). Switching scope always requires Admin or above. When it's still in use, deletion is blocked and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
+  { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. Deleting an Organization integration requires Admin or above; deleting your own Personal integration requires being its creator with the Editor role or above (Viewers can't delete even their own). Switching scope always requires Admin or above. When you switch from Organization to Personal, the usages are checked first, and a warning dialog appears if any workflow was created by someone other than the person who created the integration. Deletion is blocked when the integration is still in use, and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
 ]} />
 
 <Callout type="note">
@@ -101,6 +125,17 @@ In the workflow editor, adding an HTTP Request, Send Email, or Database Query no
 
 Send Email works the same way. The SMTP integration's `default_from` becomes the default sender; each node can still override it.
 
+If you didn't create the workflow, your own Personal integrations still appear in the list but are disabled, with "can't be used in this workflow" next to the name. A hint appears under the dropdown: "You didn't create this workflow, so you can't pick your personal integrations. Nodes can use organization integrations and the workflow creator's personal integrations only." In that case, pick an Organization integration, or ask the person who created the workflow to set it up with their own integration.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/editor/settings-panel/node-configs/integration-selector.tsx"
+  symbol="notAuthorHint"
+  describes="Integration selector in the node settings panel that disables Personal integrations the workflow can't use and explains why"
+/>
+
+When you save, the server checks only the integration choices that are new or changed. If creating or changing a node, or saving the canvas, brings in an integration that can't be used (one that doesn't exist, or a Personal integration you can't use), the save is rejected with an "integration not found" error. Choices that were already saved aren't re-checked. Duplicating a workflow, importing JSON, and restoring a version don't reject the save; they clear the choices that can't be used. See [Editing and arranging nodes](/docs/03-workflow-editor/editing-nodes), [Saving, autosave, and import/export](/docs/03-workflow-editor/saving-and-sharing), and [Version history](/docs/05-run-and-debug/version-history) for how that works.
+
 ## Tips & notes
 
 - Credentials are stored encrypted with AES-256-GCM. API responses return only masked previews like `****4f2a`.
@@ -108,3 +143,4 @@ Send Email works the same way. The SMTP integration's `default_from` becomes the
 - To register multiple accounts for the same service, add separate integrations with different aliases. Aliases must be unique within a workspace.
 - An integration in use cannot be deleted. Clicking `Delete integration` first checks its usages; if it's still in use, a delete-blocked dialog shows which workflows and nodes reference it (AI Agent MCP-server references are marked with an `MCP` badge). Follow the workflow link in the dialog, switch the node's `integrationId` to another integration or remove the node, then delete again.
 - To expose external tools and resources to the LLM from an AI Agent, register an MCP server integration and wire it into the AI Agent node's `MCP Servers` field. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
+- If your own Personal integration appears disabled in a workflow someone else created, see the answer in the [FAQ](/docs/99-faq/faq).

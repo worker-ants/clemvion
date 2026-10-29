@@ -3,7 +3,10 @@ import { describe, it, expect } from '@jest/globals';
 import { contractForDto } from '../../../../shared/testing/response-contract';
 import {
   CanvasSaveResultDto,
+  DuplicateWorkflowResultDto,
   ExportWorkflowDto,
+  ImportWorkflowResultDto,
+  RestoreVersionResultDto,
 } from './workflow-response.dto';
 
 /**
@@ -11,6 +14,8 @@ import {
  *
  * - `CanvasSaveResultDto` — `POST /workflows/:id/save` · `POST /workflows/:id/versions/:versionId/restore`
  * - `ExportWorkflowDto` — `GET /workflows/:id/export`
+ * - `DuplicateWorkflowResultDto` · `ImportWorkflowResultDto` · `RestoreVersionResultDto` — 복제 · 가져오기 · 버전 복원.
+ *   세 응답의 `clearedIntegrationRefs` 원소는 `ClearedIntegrationRefDto` 다.
  *
  * ## 왜 e2e 계약 대조로 부족한가
  *
@@ -25,6 +30,21 @@ describe('워크플로우 응답 DTO 의 원소 선언', () => {
     { dto: CanvasSaveResultDto, key: 'edges', ref: 'EdgeDto' },
     { dto: ExportWorkflowDto, key: 'nodes', ref: 'ExportedNodeDto' },
     { dto: ExportWorkflowDto, key: 'edges', ref: 'ExportedEdgeDto' },
+    {
+      dto: DuplicateWorkflowResultDto,
+      key: 'clearedIntegrationRefs',
+      ref: 'ClearedIntegrationRefDto',
+    },
+    {
+      dto: ImportWorkflowResultDto,
+      key: 'clearedIntegrationRefs',
+      ref: 'ClearedIntegrationRefDto',
+    },
+    {
+      dto: RestoreVersionResultDto,
+      key: 'clearedIntegrationRefs',
+      ref: 'ClearedIntegrationRefDto',
+    },
   ])(
     '$dto.name 의 $key 원소는 $ref 참조다 — 타입 없는 객체가 아니다',
     async ({ dto, key, ref }) => {

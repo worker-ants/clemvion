@@ -37,7 +37,7 @@ import {
   NodeDto,
 } from './dto/responses/node-response.dto';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { WorkspaceId } from '../../common/decorators';
+import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Nodes')
@@ -103,7 +103,9 @@ export class NodesController {
     format: 'uuid',
   })
   @ApiCreatedWrappedResponse(NodeDto, { description: '생성된 노드' })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 또는 쓸 수 없는 통합 참조(config)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({
@@ -113,9 +115,10 @@ export class NodesController {
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: CreateNodeDto,
   ) {
-    return this.nodesService.create(workflowId, workspaceId, dto);
+    return this.nodesService.create(workflowId, workspaceId, userId, dto);
   }
 
   @Patch('nodes/:id')
@@ -126,7 +129,9 @@ export class NodesController {
   })
   @ApiParam({ name: 'id', description: '노드 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(NodeDto, { description: '수정된 노드' })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 또는 쓸 수 없는 통합 참조(config)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 노드를 찾을 수 없음' })
@@ -134,9 +139,10 @@ export class NodesController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: UpdateNodeDto,
   ) {
-    return this.nodesService.update(id, workspaceId, dto);
+    return this.nodesService.update(id, workspaceId, userId, dto);
   }
 
   @Delete('nodes/:id')

@@ -43,10 +43,14 @@ The exported JSON contains the workflow's name, description, tags, settings, and
   <Step>Once the import finishes, a new workflow appears in the list.</Step>
 </Steps>
 
-Importing never overwrites an existing workflow — it **always adds a new one**. If the file is corrupted or isn't in the right format, you'll see an error notice.
+Importing never overwrites an existing workflow — it **always adds a new one**. If the file is corrupted or isn't in the right format, you'll see an error notice. Import is only available on the Workflows page; the `⋮` menu in the editor header has no import item.
 
 <Callout type="note">
 The **Import Workflow** button is only shown to members with editor role or higher.
+</Callout>
+
+<Callout type="note">
+The person who imports a workflow becomes its creator. The same goes for a workflow you **Duplicate** from the `⋯` menu in the list: you become the creator of the copy. So any integration choice you can't use in this workspace is cleared. That covers a node that used another person's Personal integration, and a file exported from a different workspace, whose integrations don't exist here. If you move a workflow to another workspace, even Organization integration choices are cleared, so pick them again. When the import or duplicate finishes, you get a success toast and one more warning toast naming the nodes whose integration was cleared. Open the editor and pick an Organization integration or one of your own again. For the full rule, see [Managing integrations](/docs/06-integrations-and-config/integration-management).
 </Callout>
 
 To move a workflow to a different workspace, [switch workspaces](/docs/07-workspace-and-team/workspaces-and-members) first, then import the same file — it's added as a new workflow in that workspace.

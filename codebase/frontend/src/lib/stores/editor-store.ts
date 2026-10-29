@@ -27,11 +27,22 @@ import {
 import { useCanvasHoverStore } from "./canvas-hover-store";
 import { registerAssistantEditorBridge } from "./assistant-editor-bridge";
 import { useRecentNodesStore } from "./recent-nodes-store";
+import { useLocaleStore } from "./locale-store";
+import { translate } from "@/lib/i18n/core";
+import {
+  clearUnusableIntegrationRefsInNodes,
+  type IntegrationRefFilterContext,
+} from "@/lib/integrations/node-integration-refs";
 
 interface EditorState {
   // Workflow metadata
   workflowId: string | null;
   workflowName: string;
+  /**
+   * 워크플로우 작성자(`workflow.createdBy`). 통합 선택기와 붙여넣기 필터가 지금 사용자와 견준다(REQ-INTMGMT-056 ·
+   * REQ-EDITOR-059). 모르면 `null` 이고 그때는 고르는 화면이 거르지 않는다.
+   */
+  workflowCreatedBy: string | null;
   isDirty: boolean;
   isSaving: boolean;
 
@@ -84,7 +95,13 @@ interface EditorState {
   redoStack: Array<{ nodes: Node[]; edges: Edge[] }>;
 
   // Actions
-  setWorkflow: (id: string, name: string, nodes: Node[], edges: Edge[]) => void;
+  setWorkflow: (
+    id: string,
+    name: string,
+    nodes: Node[],
+    edges: Edge[],
+    createdBy?: string | null,
+  ) => void;
   setWorkflowName: (name: string) => void;
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -119,10 +136,18 @@ interface EditorState {
    * §3.3 editorClipboard 를 붙여넣기 — 신규 id·오프셋 배치·유니크 라벨·containerId
    * 재도출. `anchor` 지정 시 복사 묶음의 좌상단이 anchor 에 오도록, 미지정 시 원본
    * 대비 +40,+40 오프셋. 붙여넣은 노드가 새 선택이 된다. clipboard null 이면 no-op.
+   * `refFilter` 는 지금 사용자가 고를 수 없는 통합 참조를 비우고 경고하는 데 쓴다(REQ-EDITOR-059). 필수 인자라서 호출하는 쪽이
+   * 빠뜨리면 컴파일 단계에서 걸린다. 비울 근거를 모르면(`integrations: null` 등) 비우지 않는다.
    */
-  pasteClipboard: (anchor?: { x: number; y: number }) => void;
-  /** §3.3 Ctrl+D — 선택된 노드(+내부 엣지)를 클립보드 경유 없이 즉시 복제 (단일 undo). */
-  duplicateSelection: () => void;
+  pasteClipboard: (
+    anchor: { x: number; y: number } | undefined,
+    refFilter: IntegrationRefFilterContext,
+  ) => void;
+  /**
+   * §3.3 Ctrl+D — 선택된 노드(+내부 엣지)를 클립보드 경유 없이 즉시 복제 (단일 undo). `refFilter` 는
+   * `pasteClipboard` 와 같다.
+   */
+  duplicateSelection: (refFilter: IntegrationRefFilterContext) => void;
   /** §3.2 Ctrl+A — 모든 노드 선택. */
   selectAll: () => void;
   /** §3.2 Escape — 모든 노드 선택 해제. */
@@ -606,6 +631,27 @@ function cloneNodesWithOffset(
 }
 
 /**
+ * REQ-EDITOR-059 — 붙여넣거나 복제한 노드에서 지금 사용자가 고를 수 없는 통합 참조를 비운다. 비운 노드의 레이블은
+ * `warnClearedIntegrationRefs` 가 알린다.
+ */
+function clearPastedIntegrationRefs(
+  nodes: Node[],
+  refFilter: IntegrationRefFilterContext,
+): { nodes: Node[]; clearedLabels: string[] } {
+  return clearUnusableIntegrationRefsInNodes(nodes, refFilter);
+}
+
+/** 붙여넣기 · 복제에서 통합 참조를 비운 노드를 경고 토스트로 알린다. set 업데이터 밖에서 부른다. */
+export function warnClearedIntegrationRefs(labels: string[]): void {
+  if (labels.length === 0) return;
+  toast.warning(
+    translate(useLocaleStore.getState().locale, "editor.pastedIntegrationRefsCleared", {
+      labels: [...new Set(labels)].join(", "),
+    }),
+  );
+}
+
+/**
  * §4.1 — 노드 배열의 각 타입을 최근 사용으로 기록한다. `addNode`(단일 choke point)를
  * 우회하는 배치 경로(paste/duplicate)에서 사용한다. set 업데이터 밖에서 호출해 순수성을
  * 지킨다.
@@ -653,6 +699,7 @@ function buildEdgeDataForConnection(
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
   workflowName: "Untitled Workflow",
+  workflowCreatedBy: null,
   isDirty: false,
   isSaving: false,
   nodes: [],
@@ -666,7 +713,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveCount: 0,
   graphWarnings: { results: [], hasError: false, hasWarning: false },
 
-  setWorkflow: (id, name, nodes, edges) => {
+  setWorkflow: (id, name, nodes, edges, createdBy = null) => {
     // Re-derive containerId from the loaded edges so the in-memory state
     // matches the canonical "edges are the source of truth" model. This
     // recovers stale data (containerId persisted but no longer wired) and
@@ -677,6 +724,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       workflowId: id,
       workflowName: name,
+      workflowCreatedBy: createdBy,
       nodes: derived,
       edges,
       isDirty: recovered,
@@ -887,10 +935,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ editorClipboard: { nodes: clonedNodes, edges: clonedEdges } });
   },
 
-  pasteClipboard: (anchor) => {
+  pasteClipboard: (anchor, refFilter) => {
     const clip = get().editorClipboard;
     if (!clip || clip.nodes.length === 0) return;
     get().pushUndo();
+    let clearedLabels: string[] = [];
     set((state) => {
       // anchor 지정 시 복사 묶음의 좌상단이 anchor 로 오도록 오프셋 계산, 아니면 기본 오프셋.
       let offset: { x: number; y: number } = PASTE_DUPLICATE_OFFSET;
@@ -908,11 +957,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         existingLabels,
         offset,
       );
+      // 경고에는 캔버스에 보이는 새 레이블을 적으려고 복제한 뒤에 거른다.
+      const usable = clearPastedIntegrationRefs(cloned.nodes, refFilter);
+      clearedLabels = usable.clearedLabels;
       // 기존 선택을 해제하고 붙여넣은 노드를 새 선택으로 만든다.
       const deselectedExisting = state.nodes.map((n) =>
         n.selected ? { ...n, selected: false } : n,
       );
-      const allNodes = [...deselectedExisting, ...cloned.nodes];
+      const allNodes = [...deselectedExisting, ...usable.nodes];
       const allEdges = [...state.edges, ...cloned.edges];
       return {
         nodes: deriveContainerAssignments(allNodes, allEdges),
@@ -923,13 +975,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // §4.1 — paste 는 addNode(recent choke point)를 우회하므로 붙여넣은 타입을 여기서
     // 기록한다 (set 업데이터는 순수하게 유지). clone 은 원본 타입을 그대로 보유한다.
     recordRecentNodeTypesFrom(clip.nodes);
+    warnClearedIntegrationRefs(clearedLabels);
   },
 
-  duplicateSelection: () => {
+  duplicateSelection: (refFilter) => {
     const { nodes, edges } = get();
     const selected = nodes.filter((n) => n.selected);
     if (selected.length === 0) return;
     get().pushUndo();
+    let clearedLabels: string[] = [];
     set((state) => {
       const ids = new Set(selected.map((n) => n.id));
       const internalEdges = edges.filter(
@@ -944,10 +998,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         existingLabels,
         PASTE_DUPLICATE_OFFSET,
       );
+      const usable = clearPastedIntegrationRefs(cloned.nodes, refFilter);
+      clearedLabels = usable.clearedLabels;
       const deselectedExisting = state.nodes.map((n) =>
         n.selected ? { ...n, selected: false } : n,
       );
-      const allNodes = [...deselectedExisting, ...cloned.nodes];
+      const allNodes = [...deselectedExisting, ...usable.nodes];
       const allEdges = [...state.edges, ...cloned.edges];
       return {
         nodes: deriveContainerAssignments(allNodes, allEdges),
@@ -957,6 +1013,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
     // §4.1 — duplicate 도 addNode 를 우회하므로 복제한 타입을 recent 로 기록.
     recordRecentNodeTypesFrom(selected);
+    warnClearedIntegrationRefs(clearedLabels);
   },
 
   selectAll: () => {

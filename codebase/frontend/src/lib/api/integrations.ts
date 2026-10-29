@@ -172,6 +172,10 @@ export interface UsageWorkflow {
   workflowId: string;
   workflowName: string;
   isActive: boolean;
+  /**
+   * 워크플로우 작성자가 통합 소유자인지. 조직 통합을 개인으로 바꾸면 `false` 인 워크플로우의 노드가 이 통합을 쓰지 못한다.
+   */
+  authorIsIntegrationOwner: boolean;
   nodes: { id: string; label: string; type: string; usageKind: "direct" | "mcp" }[];
 }
 

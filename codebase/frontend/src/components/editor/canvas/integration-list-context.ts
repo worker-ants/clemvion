@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useEditorStore } from "@/lib/stores/editor-store";
+import type {
+  IntegrationRefFilterContext,
+  VisibleIntegration,
+} from "@/lib/integrations/node-integration-refs";
 
 /**
  * 워크스페이스 integration id 집합 — `WorkflowCanvas` 가 한 번 조회해 Context 로
@@ -51,4 +59,50 @@ export function deriveIntegrationIds(
   if (isLoading || listData === undefined) return null;
   if (listData.data.length < listData.pagination.totalItems) return null;
   return new Set(listData.data.map((i) => i.id));
+}
+
+/**
+ * 캔버스 전용 무필터 통합 목록 조회. 캔버스의 배지와 붙여넣기 필터가 같은 키 · 같은 조회로 한 번만 받는다.
+ */
+export function useCanvasIntegrationList() {
+  return useQuery({
+    queryKey: INTEGRATIONS_LIST_QUERY_KEY,
+    queryFn: () => integrationsApi.list({ limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * 붙여넣기 필터가 쓸 통합 목록(id 별 공개 범위 · 통합 소유자)을 도출한다. 확정되지 않은 목록은 `deriveIntegrationIds` 와 같은
+ * 규칙으로 `null` 이다. 모르는 참조를 비우면 쓸 수 있는 참조까지 잃는다(REQ-EDITOR-059).
+ */
+export function deriveVisibleIntegrations(
+  listData:
+    | {
+        data: Pick<IntegrationDto, "id" | "scope" | "createdBy">[];
+        pagination: { totalItems: number };
+      }
+    | undefined,
+  isLoading: boolean,
+): ReadonlyMap<string, VisibleIntegration> | null {
+  if (isLoading || listData === undefined) return null;
+  if (listData.data.length < listData.pagination.totalItems) return null;
+  return new Map(
+    listData.data.map((i) => [i.id, { scope: i.scope, createdBy: i.createdBy }]),
+  );
+}
+
+/** 붙여넣기 · 복제가 `editor-store` 에 넘길 필터 문맥(REQ-EDITOR-059). */
+export function useIntegrationRefFilterContext(): IntegrationRefFilterContext {
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+  const workflowAuthorId = useEditorStore((s) => s.workflowCreatedBy);
+  const { data, isLoading } = useCanvasIntegrationList();
+  const integrations = useMemo(
+    () => deriveVisibleIntegrations(data, isLoading),
+    [data, isLoading],
+  );
+  return useMemo(
+    () => ({ currentUserId, workflowAuthorId, integrations }),
+    [currentUserId, workflowAuthorId, integrations],
+  );
 }

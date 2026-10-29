@@ -87,6 +87,68 @@ export class CanvasSaveResultDto {
   edges: EdgeDto[];
 }
 
+// 비우는 규칙: CLE-PLAT-DATA 「참조의 소속」 의 「통합 참조」.
+/**
+ * 복제 · 가져오기 · 버전 복원이 비운 노드 통합 참조 하나. 비운 이유는 싣지 않는다.
+ *
+ * `field` 는 노드 안의 상대 경로다. 400 `VALIDATION_ERROR` 의 `details[].field`(캔버스 저장은 `nodes[i].` 로 시작한다)와
+ * 기준이 다르다.
+ */
+export class ClearedIntegrationRefDto {
+  /** 작업 뒤 노드 UUID. 복제 · 가져오기는 새로 발급한 id 다. */
+  @ApiProperty({ format: 'uuid' })
+  nodeId: string;
+
+  /** 노드 레이블 */
+  @ApiProperty({ example: '주문 알림 메일' })
+  nodeLabel: string;
+
+  /** 노드 안의 경로. MCP 서버 항목의 첨자는 비우기 전 순서다. */
+  @ApiProperty({
+    example: 'config.mcpServers[0].integrationId',
+    description:
+      '노드 안의 상대 경로(`config.integrationId` 또는 `config.mcpServers[j].integrationId`). 400 VALIDATION_ERROR 의 `details[].field` 와 기준이 다르다.',
+  })
+  field: string;
+}
+
+/**
+ * 워크플로우 복제 결과. 새 워크플로우에 비운 통합 참조 목록을 더한 것이다.
+ *
+ * 복제는 노드 · 엣지를 포함한 캔버스 전체를 한 트랜잭션으로 복사한다. 노드는 새 UUID 를 받고 노드 간 참조(컨테이너 · Tool Area
+ * · 엣지 endpoint)는 사본 UUID 로 다시 이어진다. 버전 이력 · 트리거 · 테스트 데이터셋 · 실행 이력은 복제하지 않고 사본은
+ * 버전 1 로 시작한다.
+ */
+export class DuplicateWorkflowResultDto extends WorkflowDto {
+  /**
+   * 복제하며 비운 통합 참조. 요청자가 사본의 작성자라서 요청자가 쓸 수 없는 통합 참조(없는 통합, 남의 개인 통합)를 비운다.
+   * 없으면 빈 배열이다.
+   */
+  @ApiProperty({ type: () => [ClearedIntegrationRefDto] })
+  clearedIntegrationRefs: ClearedIntegrationRefDto[];
+}
+
+/**
+ * 워크플로우 가져오기 결과. 새 워크플로우에 비운 통합 참조 목록을 더한 것이다.
+ */
+export class ImportWorkflowResultDto extends WorkflowDto {
+  /** 가져오며 비운 통합 참조. 없으면 빈 배열이다. */
+  @ApiProperty({ type: () => [ClearedIntegrationRefDto] })
+  clearedIntegrationRefs: ClearedIntegrationRefDto[];
+}
+
+/**
+ * 버전 복원 결과. 캔버스 저장 결과에 비운 통합 참조 목록을 더한 것이다.
+ */
+export class RestoreVersionResultDto extends CanvasSaveResultDto {
+  /**
+   * 복원하며 비운 통합 참조. 지금 노드와 다른 통합 참조 가운데 실행하면 실패할 것(없는 통합, 워크플로우를 만든 사람이 쓸 수
+   * 없는 개인 통합)을 비운다. 없으면 빈 배열이다.
+   */
+  @ApiProperty({ type: () => [ClearedIntegrationRefDto] })
+  clearedIntegrationRefs: ClearedIntegrationRefDto[];
+}
+
 /**
  * 개별 graph warning rule 평가 결과.
  */

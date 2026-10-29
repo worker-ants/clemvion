@@ -187,6 +187,7 @@ export class AssistantToolRouter {
         return this.exploreTools.listIntegrations(
           workspaceId,
           userId,
+          currentWorkflowId,
           typeof args.category === 'string' ? args.category : undefined,
         );
       case 'list_workflows':

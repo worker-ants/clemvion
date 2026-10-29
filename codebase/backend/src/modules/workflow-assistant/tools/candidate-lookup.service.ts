@@ -21,6 +21,7 @@ import type {
  *   - integration-selector : connected Integration, `integrationServiceType`
  *     힌트가 있으면 해당 service_type 만 필터. 요청자에게 보이는 것만 — 남의
  *     personal 은 후보에서 빠진다(spec 통합 §8, `IntegrationsService.findAll`).
+ *     요청자가 워크플로우 작성자가 아니면 자기 personal 도 빠진다(REQ-ASSIST-062).
  *   - llm-config-selector  : 워크스페이스 LlmConfig 전체 (최근 수정순).
  *   - kb-selector          : 워크스페이스 KnowledgeBase 전체.
  *   - workflow-selector    : 같은 워크스페이스 워크플로 + 현재 편집 중 워크플로 제외.
@@ -32,6 +33,12 @@ import type {
  * 에서만 발동하므로 LLM 의 closing mention 은 여전히 올바르게 강제된다).
  */
 const MAX_CANDIDATES = 20;
+
+/** 통합을 후보로 담는 위젯. 워크플로우 작성자 조건(REQ-ASSIST-062)을 함께 본다. */
+const INTEGRATION_WIDGETS: ReadonlySet<string> = new Set([
+  'integration-selector',
+  'mcp-server-selector',
+]);
 
 @Injectable()
 export class CandidateLookupService {
@@ -55,6 +62,13 @@ export class CandidateLookupService {
     pending: PendingUserConfigField[],
   ): Promise<PendingUserConfigField[]> {
     if (pending.length === 0) return [];
+    // 통합 · MCP 서버 후보는 요청자가 워크플로우 작성자가 아니면 조직 통합만 담는다(REQ-ASSIST-062). 작성자 조회는 그 위젯이
+    // 있을 때 한 번만 한다.
+    const integrationScope = pending.some((field) =>
+      INTEGRATION_WIDGETS.has(field.widget),
+    )
+      ? this.integrationCandidateScope(workspaceId, userId, currentWorkflowId)
+      : Promise.resolve(undefined);
     return Promise.all(
       pending.map(async (field) => ({
         ...field,
@@ -63,9 +77,23 @@ export class CandidateLookupService {
           userId,
           currentWorkflowId,
           field,
+          integrationScope,
         ),
       })),
     );
+  }
+
+  private async integrationCandidateScope(
+    workspaceId: string,
+    userId: string,
+    currentWorkflowId: string,
+  ): Promise<'organization' | undefined> {
+    const isAuthor = await this.exploreTools.requesterIsWorkflowAuthor(
+      workspaceId,
+      currentWorkflowId,
+      userId,
+    );
+    return isAuthor ? undefined : 'organization';
   }
 
   private async lookup(
@@ -73,6 +101,7 @@ export class CandidateLookupService {
     userId: string,
     currentWorkflowId: string,
     field: PendingUserConfigField,
+    integrationScope: Promise<'organization' | undefined>,
   ): Promise<CandidateEntry[]> {
     try {
       switch (field.widget) {
@@ -80,6 +109,7 @@ export class CandidateLookupService {
           return await this.lookupIntegrations(
             workspaceId,
             userId,
+            await integrationScope,
             field.integrationServiceType,
           );
         case 'llm-config-selector':
@@ -89,7 +119,11 @@ export class CandidateLookupService {
         case 'workflow-selector':
           return await this.lookupWorkflows(workspaceId, currentWorkflowId);
         case 'mcp-server-selector':
-          return await this.lookupMcpServers(workspaceId, userId);
+          return await this.lookupMcpServers(
+            workspaceId,
+            userId,
+            await integrationScope,
+          );
         default:
           return [];
       }
@@ -109,16 +143,21 @@ export class CandidateLookupService {
     }
   }
 
-  /** 요청자에게 보이는 통합만 — 남의 personal 은 후보에서 빠진다(`IntegrationsService.findAll`, spec 통합 §8). */
+  /**
+   * 요청자에게 보이는 통합만 — 남의 personal 은 후보에서 빠진다(`IntegrationsService.findAll`, spec 통합 §8). `scope` 가
+   * `organization` 이면 요청자 자신의 개인 통합도 뺀다.
+   */
   private async lookupIntegrations(
     workspaceId: string,
     userId: string,
+    scope: 'organization' | undefined,
     serviceType?: string,
   ): Promise<CandidateEntry[]> {
     const query: ListIntegrationsQueryDto = {
       page: 1,
       limit: MAX_CANDIDATES,
       status: 'connected',
+      ...(scope ? { scope } : {}),
       // serviceType 은 enum 배열로 받음 (IntegrationsService.findAll 은
       // `IN (:...serviceTypes)` 로 내부 처리). hint 가 없으면 전체 connected.
       ...(serviceType ? { serviceType: [serviceType] } : {}),
@@ -168,6 +207,7 @@ export class CandidateLookupService {
   private async lookupMcpServers(
     workspaceId: string,
     userId: string,
+    scope: 'organization' | undefined,
   ): Promise<CandidateEntry[]> {
     // MCP-capable Integration: external HTTP transport (`service_type='mcp'`)
     // + Internal Bridge transports (currently `'cafe24'`). The AI Agent
@@ -178,6 +218,7 @@ export class CandidateLookupService {
       limit: MAX_CANDIDATES,
       status: 'connected',
       serviceType: [...MCP_CAPABLE_SERVICE_TYPES],
+      ...(scope ? { scope } : {}),
     };
     const result = await this.integrations.findAll(workspaceId, userId, query);
     return result.data.slice(0, MAX_CANDIDATES).map((i) => ({

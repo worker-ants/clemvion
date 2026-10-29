@@ -161,9 +161,27 @@ export class ExploreToolsService {
     };
   }
 
+  /**
+   * 요청자가 편집 중인 워크플로우의 작성자인지 본다. 워크플로우를 찾지 못하거나 작성자를 모르면 작성자가 아니다. 개인 통합은
+   * 워크플로우 작성자가 통합 소유자일 때만 쓰이므로, 작성자가 아닌 요청자에게는 자기 개인 통합도 통합 목록 도구와 통합 · MCP
+   * 서버 후보에서 뺀다(REQ-ASSIST-062).
+   */
+  async requesterIsWorkflowAuthor(
+    workspaceId: string,
+    workflowId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const workflow = await this.workflowRepo.findOne({
+      where: { id: workflowId, workspaceId },
+      select: { id: true, createdBy: true },
+    });
+    return workflow?.createdBy === userId;
+  }
+
   async listIntegrations(
     workspaceId: string,
     userId: string,
+    currentWorkflowId: string,
     category?: string,
   ): Promise<unknown> {
     // 요청자에게 보이는 통합만 — 남의 personal 은 목록에서 빠진다(에러가 아니다). spec 통합 §8 · 어시스턴트 §4.1.
@@ -173,6 +191,17 @@ export class ExploreToolsService {
       .andWhere(integrationVisibilityClause('i'), {
         [INTEGRATION_USER_PARAM]: userId,
       });
+    if (
+      !(await this.requesterIsWorkflowAuthor(
+        workspaceId,
+        currentWorkflowId,
+        userId,
+      ))
+    ) {
+      qb.andWhere('i.scope = :organizationScope', {
+        organizationScope: 'organization',
+      });
+    }
     if (category) {
       qb.andWhere('i.service_type = :t', { t: category });
     }

@@ -2,21 +2,21 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "38720e6bdbd2a2dc7ad90bedac715e215c083f4f09ec69958bac5c54ebefccd5"
+content_hash: "1df117a8d3f0c69f9b3a952d454caa65ce38325d80c987c8cd8ebbb793fc033e"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "81a40edf10510d248fdff6f91616d62c09e162c32771349da39116e77456fa06"
-etag: "sha256-36e7bd2c3d9f1a38529bf92f333f30b56f753c793cbd71e1f0401ff6e1055c3e"
+mirror_sha256: "8f222c90809a78b26f2aa0656dd69fdf1cb0156fbe6165a2a04101e613779b8f"
+etag: "sha256-360b334d87dfc8ea5855612dafda9a4924af99f8f4d3cb23fe5e91be10c04b8e"
 ---
-> 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증, `mcpServers` 의 개인 통합 사용 판정, 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -659,6 +659,7 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-diagnostics.ts` (`finalizeMcpDiagnostics`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 내부 MCP 브리지)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 내부 MCP 브리지)
+- `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (서버 항목의 표현식 여부 `fromExpression` 을 정하고 통합 조회에 넘길 인자를 만든다. [통합 조회 기준](#통합-조회-기준))
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 건너뛴 호출의 결과)
 - `codebase/backend/src/nodes/core/dry-run.util.ts` (내부 MCP 브리지 operation 의 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)

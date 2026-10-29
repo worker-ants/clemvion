@@ -7,6 +7,7 @@ import { Plus, X, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
+import { useIntegrationPickBlocked } from "@/lib/integrations/use-integration-pick-blocked";
 import { Cafe24AllowlistEditor } from "@/components/integrations/cafe24-allowlist-editor";
 import { MakeshopAllowlistEditor } from "@/components/integrations/makeshop-allowlist-editor";
 
@@ -95,6 +96,8 @@ export function McpServerSelector({ value, onChange }: Props) {
   const allMcp: IntegrationDto[] = (data?.data ?? []) as IntegrationDto[];
   const attached = new Set(safe.map((r) => r.integrationId));
   const available = allMcp.filter((i) => !attached.has(i.id));
+  // REQ-INTMGMT-056 — 워크플로우 작성자가 아니면 자기 개인 통합은 고를 수 없는 항목으로 보인다.
+  const isBlocked = useIntegrationPickBlocked();
 
   function add(integrationId: string) {
     onChange([
@@ -325,9 +328,15 @@ export function McpServerSelector({ value, onChange }: Props) {
                         key={i.id}
                         type="button"
                         onClick={() => add(i.id)}
-                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-[hsl(var(--accent))]"
+                        disabled={isBlocked(i)}
+                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                       >
                         <span className="truncate">{i.name}</span>
+                        {isBlocked(i) && (
+                          <span className="shrink-0 text-[9px] text-[hsl(var(--muted-foreground))]">
+                            {t("nodeConfigs.integrationSelector.notAuthorSuffix")}
+                          </span>
+                        )}
                         <span className="ml-auto text-[9px] uppercase text-[hsl(var(--muted-foreground))]">
                           {i.status}
                         </span>
@@ -337,6 +346,11 @@ export function McpServerSelector({ value, onChange }: Props) {
                 ),
               )}
             </div>
+          )}
+          {available.some(isBlocked) && (
+            <p className="px-1 pt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+              {t("nodeConfigs.integrationSelector.notAuthorHint")}
+            </p>
           )}
           <Button
             variant="ghost"

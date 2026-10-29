@@ -6,9 +6,11 @@ import {
 import { In } from 'typeorm';
 import { NodesService } from './nodes.service';
 import { Node, NodeCategory } from './entities/node.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { UpdateNodeDto } from './dto/update-node.dto';
 
 const WS = 'ws-1';
+const USER = 'user-1';
 
 function makeWorkflow(id: string, workspaceId: string) {
   return { id, workspaceId };
@@ -43,6 +45,11 @@ describe('NodesService', () => {
   let service: NodesService;
   let mockRepo: any;
   let mockWorkflowRepo: any;
+  let txManager: {
+    findOne: jest.Mock;
+    getRepository: jest.Mock;
+    query: jest.Mock;
+  };
 
   beforeEach(() => {
     mockRepo = {
@@ -55,6 +62,20 @@ describe('NodesService', () => {
     mockWorkflowRepo = {
       // Default: workflow belongs to the caller's workspace.
       findOne: jest.fn().mockResolvedValue(makeWorkflow('wf-1', WS)),
+    };
+    // 생성 · 수정은 워크플로우 행을 잠근 트랜잭션에서 저장한다. 잠금(`findOne(Workflow, …)`)은 워크플로우 저장소 mock 으로,
+    // 노드 조회 · 저장은 노드 저장소 mock 으로 보낸다. `query` 는 통합 참조 판정의 통합 조회다.
+    txManager = {
+      findOne: jest.fn((entity: unknown, options: unknown) =>
+        entity === Workflow
+          ? mockWorkflowRepo.findOne(options)
+          : mockRepo.findOne(options),
+      ),
+      getRepository: jest.fn(() => mockRepo),
+      query: jest.fn().mockResolvedValue([]),
+    };
+    mockRepo.manager = {
+      transaction: jest.fn((cb: (m: unknown) => unknown) => cb(txManager)),
     };
     service = new NodesService(mockRepo, mockWorkflowRepo);
   });
@@ -71,7 +92,7 @@ describe('NodesService', () => {
     it('create throws NotFoundException for a workflow in another workspace', async () => {
       mockWorkflowRepo.findOne.mockResolvedValue(null);
       await expect(
-        service.create('wf-other', WS, {
+        service.create('wf-other', WS, USER, {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
           label: 'HTTP Request',
@@ -86,7 +107,7 @@ describe('NodesService', () => {
         makeNode('n1', 'HTTP Request', 'wf-other', 'ws-other'),
       );
       await expect(
-        service.update('n1', WS, { label: 'API Call' }),
+        service.update('n1', WS, USER, { label: 'API Call' }),
       ).rejects.toThrow(NotFoundException);
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
@@ -94,7 +115,7 @@ describe('NodesService', () => {
     it('update throws NotFoundException when the node does not exist', async () => {
       mockRepo.findOne.mockResolvedValue(null);
       await expect(
-        service.update('missing', WS, { label: 'API Call' }),
+        service.update('missing', WS, USER, { label: 'API Call' }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -128,7 +149,7 @@ describe('NodesService', () => {
       mockRepo.create.mockReturnValue(makeNode('n1', 'HTTP Request', 'wf-1'));
       mockRepo.save.mockResolvedValue(makeNode('n1', 'HTTP Request', 'wf-1'));
 
-      const result = await service.create('wf-1', WS, {
+      const result = await service.create('wf-1', WS, USER, {
         type: 'http_request',
         category: NodeCategory.INTEGRATION,
         label: 'HTTP Request',
@@ -143,7 +164,7 @@ describe('NodesService', () => {
       );
 
       await expect(
-        service.create('wf-1', WS, {
+        service.create('wf-1', WS, USER, {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
           label: 'HTTP Request',
@@ -156,7 +177,7 @@ describe('NodesService', () => {
       mockRepo.findOne.mockResolvedValue(null);
       mockRepo.find.mockResolvedValueOnce([]);
       const err = await service
-        .create('wf-1', WS, {
+        .create('wf-1', WS, USER, {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
           label: 'HTTP Request',
@@ -179,7 +200,7 @@ describe('NodesService', () => {
       mockRepo.findOne.mockResolvedValue(null);
       mockRepo.find.mockResolvedValueOnce([]);
       const err = await service
-        .create('wf-1', WS, {
+        .create('wf-1', WS, USER, {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
           label: 'HTTP Request',
@@ -211,7 +232,7 @@ describe('NodesService', () => {
       mockRepo.findOne.mockResolvedValue(existing);
       mockRepo.save.mockResolvedValue({ ...existing, config: { url: 'test' } });
 
-      const result = await service.update('n1', WS, {
+      const result = await service.update('n1', WS, USER, {
         label: 'HTTP Request',
         config: { url: 'test' },
       });
@@ -224,11 +245,15 @@ describe('NodesService', () => {
       // First findOne loads the node with its workflow relation
       mockRepo.findOne
         .mockResolvedValueOnce(existing)
-        // Second findOne for assertLabelUnique
+        // 잠근 뒤 다시 읽는다
+        .mockResolvedValueOnce(existing)
+        // Third findOne for assertLabelUnique
         .mockResolvedValueOnce(null);
       mockRepo.save.mockResolvedValue({ ...existing, label: 'API Call' });
 
-      const result = await service.update('n1', WS, { label: 'API Call' });
+      const result = await service.update('n1', WS, USER, {
+        label: 'API Call',
+      });
       expect(result.label).toBe('API Call');
     });
 
@@ -237,10 +262,11 @@ describe('NodesService', () => {
       const conflicting = makeNode('n2', 'API Call', 'wf-1');
       mockRepo.findOne
         .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(conflicting);
 
       await expect(
-        service.update('n1', WS, { label: 'API Call' }),
+        service.update('n1', WS, USER, { label: 'API Call' }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -257,11 +283,13 @@ describe('NodesService', () => {
       });
       mockRepo.findOne
         .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(null);
 
       const result = await service.update(
         'n1',
         WS,
+        USER,
         Object.assign(new UpdateNodeDto(), { label: 'API Call' }),
       );
       expect(result).toMatchObject({
@@ -275,12 +303,12 @@ describe('NodesService', () => {
     });
 
     it('toolOwnerId 는 대상 노드의 워크플로로 조회한다 — 없으면 400', async () => {
-      mockRepo.findOne.mockResolvedValueOnce(
+      mockRepo.findOne.mockResolvedValue(
         makeNode('n1', 'HTTP Request', 'wf-1'),
       );
       mockRepo.find.mockResolvedValueOnce([]);
       const err = await service
-        .update('n1', WS, { toolOwnerId: 'agent-other' })
+        .update('n1', WS, USER, { toolOwnerId: 'agent-other' })
         .catch((err_: unknown) => err_);
       expect(mockRepo.find).toHaveBeenCalledWith({
         where: { id: In(['agent-other']), workflowId: 'wf-1' },
@@ -293,19 +321,21 @@ describe('NodesService', () => {
     });
 
     it('null(배치 해제)은 조회하지 않고 통과한다', async () => {
+      const existing = makeNode('n1', 'HTTP Request', 'wf-1');
       mockRepo.findOne
-        .mockResolvedValueOnce(makeNode('n1', 'HTTP Request', 'wf-1'))
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(null);
-      await service.update('n1', WS, { containerId: null });
+      await service.update('n1', WS, USER, { containerId: null });
       expect(mockRepo.find).not.toHaveBeenCalled();
     });
 
     // IDOR 검사용으로 함께 읽은 `workflow` 관계가 응답에 부모 워크플로 행째로 실렸다(`NodeDto` 미선언).
     it('응답에 IDOR 검사용 workflow 관계를 싣지 않는다', async () => {
       const existing = makeNode('n1', 'HTTP Request', 'wf-1');
-      mockRepo.findOne.mockResolvedValueOnce(existing);
+      mockRepo.findOne.mockResolvedValue(existing);
 
-      const result = await service.update('n1', WS, {
+      const result = await service.update('n1', WS, USER, {
         label: 'HTTP Request',
       });
       expect(result).toHaveProperty('workflowId', 'wf-1');
@@ -316,11 +346,12 @@ describe('NodesService', () => {
     it('명시적 null 은 로드한 값을 지운다', async () => {
       const existing = makeNode('n1', 'HTTP Request', 'wf-1');
       Object.assign(existing, { description: 'memo', containerId: 'box-1' });
-      mockRepo.findOne.mockResolvedValueOnce(existing);
+      mockRepo.findOne.mockResolvedValue(existing);
 
       const result = await service.update(
         'n1',
         WS,
+        USER,
         Object.assign(new UpdateNodeDto(), {
           description: null,
           containerId: null,
@@ -330,76 +361,128 @@ describe('NodesService', () => {
     });
   });
 
-  describe('bulkCreate', () => {
-    it('throws NotFoundException for a workflow in another workspace (IDOR guard)', async () => {
-      mockWorkflowRepo.findOne.mockResolvedValue(null);
-      await expect(
-        service.bulkCreate('wf-other', WS, [
+  describe('노드 config 의 통합 참조 (REQ-INTMGMT-054)', () => {
+    const PERSONAL = '7e000000-0000-4000-8000-000000000001';
+    const OTHER_PERSONAL = '7e000000-0000-4000-8000-000000000002';
+    const OWNER = 'owner-1';
+
+    beforeEach(() => {
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...makeWorkflow('wf-1', WS),
+        createdBy: OWNER,
+      });
+      txManager.query.mockImplementation(async (sql: string) =>
+        sql.includes('FROM integration')
+          ? [
+              { id: PERSONAL, scope: 'personal', created_by: OWNER },
+              { id: OTHER_PERSONAL, scope: 'personal', created_by: OWNER },
+            ]
+          : [],
+      );
+    });
+
+    function mailNode(config: Record<string, unknown>): Node {
+      const node = makeNode('n1', 'Mail', 'wf-1');
+      node.type = 'send_email';
+      node.config = config;
+      return node;
+    }
+
+    it('create 는 트랜잭션에서 워크플로우 행을 잠그고 남의 개인 통합 참조를 400 으로 거절한다', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      const err = await service
+        .create('wf-1', WS, USER, {
+          type: 'send_email',
+          category: NodeCategory.INTEGRATION,
+          label: 'Mail',
+          config: { integrationId: PERSONAL },
+        })
+        .catch((err_: unknown) => err_);
+
+      expect(txManager.findOne).toHaveBeenCalledWith(Workflow, {
+        where: { id: 'wf-1', workspaceId: WS },
+        lock: { mode: 'for_no_key_update' },
+      });
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        details: [
           {
-            type: 'http_request',
-            category: NodeCategory.INTEGRATION,
-            label: 'HTTP Request',
+            field: 'config.integrationId',
+            code: 'INVALID_FIELD',
+            message: 'Integration not found',
           },
-        ]),
-      ).rejects.toThrow(NotFoundException);
+        ],
+      });
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
-    it('should throw on duplicate labels within the batch', async () => {
-      await expect(
-        service.bulkCreate('wf-1', WS, [
-          {
-            type: 'http_request',
-            category: NodeCategory.INTEGRATION,
-            label: 'HTTP Request',
-          },
-          {
-            type: 'http_request',
-            category: NodeCategory.INTEGRATION,
-            label: 'HTTP Request',
-          },
-        ]),
-      ).rejects.toThrow(ConflictException);
+    it('create 는 작성자 · 저장자가 소유자인 개인 통합 참조를 저장한다', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      await service.create('wf-1', WS, OWNER, {
+        type: 'send_email',
+        category: NodeCategory.INTEGRATION,
+        label: 'Mail',
+        config: { integrationId: PERSONAL },
+      });
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ config: { integrationId: PERSONAL } }),
+      );
     });
 
-    it('should throw when batch label conflicts with existing node', async () => {
-      mockRepo.find.mockResolvedValue([
-        makeNode('existing', 'HTTP Request', 'wf-1'),
-      ]);
+    it('update 는 config 를 보내지 않으면 통합 참조를 판정하지 않는다', async () => {
+      mockRepo.findOne.mockResolvedValue(mailNode({ integrationId: PERSONAL }));
 
-      await expect(
-        service.bulkCreate('wf-1', WS, [
-          {
-            type: 'code',
-            category: NodeCategory.DATA,
-            label: 'HTTP Request',
-          },
-        ]),
-      ).rejects.toThrow(ConflictException);
+      await service.update('n1', WS, USER, { positionX: 10 });
+
+      expect(txManager.query).not.toHaveBeenCalled();
+      expect(mockRepo.save).toHaveBeenCalled();
     });
 
-    it('should create nodes when all labels are unique', async () => {
-      mockRepo.find.mockResolvedValue([]);
-      const nodes = [
-        makeNode('n1', 'HTTP Request', 'wf-1'),
-        makeNode('n2', 'Code', 'wf-1'),
-      ];
-      mockRepo.save.mockResolvedValue(nodes);
+    it('update 는 저장된 값과 같은 참조를 다시 판정하지 않는다', async () => {
+      mockRepo.findOne.mockResolvedValue(mailNode({ integrationId: PERSONAL }));
 
-      const result = await service.bulkCreate('wf-1', WS, [
-        {
-          type: 'http_request',
-          category: NodeCategory.INTEGRATION,
-          label: 'HTTP Request',
-        },
-        {
-          type: 'code',
-          category: NodeCategory.DATA,
-          label: 'Code',
-        },
-      ]);
+      await service.update('n1', WS, USER, {
+        config: { integrationId: PERSONAL, subject: '바뀐 제목' },
+      });
 
-      expect(result).toHaveLength(2);
+      expect(txManager.query).not.toHaveBeenCalled();
+    });
+
+    it('update 는 잠근 뒤 다시 읽은 노드를 기준선으로 바뀐 참조를 가린다', async () => {
+      // 잠그기 전에 읽은 노드는 PERSONAL 이었지만 그 사이 다른 저장이 OTHER_PERSONAL 로 바꿨다.
+      mockRepo.findOne
+        .mockResolvedValueOnce(mailNode({ integrationId: PERSONAL }))
+        .mockResolvedValueOnce(mailNode({ integrationId: OTHER_PERSONAL }));
+
+      const err = await service
+        .update('n1', WS, USER, { config: { integrationId: PERSONAL } })
+        .catch((err_: unknown) => err_);
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(mockRepo.findOne).toHaveBeenNthCalledWith(2, {
+        where: { id: 'n1', workflowId: 'wf-1' },
+      });
+      const lockOrder = txManager.findOne.mock.invocationCallOrder.find(
+        (_order, i) => txManager.findOne.mock.calls[i][0] === Workflow,
+      )!;
+      expect(mockRepo.findOne.mock.invocationCallOrder[1]).toBeGreaterThan(
+        lockOrder,
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('update 는 잠근 뒤 노드가 지워졌으면 404 다', async () => {
+      mockRepo.findOne
+        .mockResolvedValueOnce(mailNode({}))
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.update('n1', WS, USER, { label: 'x' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { useT, type TFunction } from "@/lib/i18n";
+import { useIntegrationPickBlocked } from "@/lib/integrations/use-integration-pick-blocked";
 
 interface IntegrationSelectorProps {
   value: string;
@@ -29,6 +30,9 @@ export function IntegrationSelector({
   });
 
   const integrations: IntegrationDto[] = data?.data ?? [];
+  // REQ-INTMGMT-056 — 워크플로우 작성자가 아니면 자기 개인 통합은 고를 수 없는 항목으로 보인다.
+  const isBlocked = useIntegrationPickBlocked();
+  const hasBlocked = integrations.some(isBlocked);
   const hasSavedButMissing =
     !isLoading &&
     value !== "" &&
@@ -56,8 +60,10 @@ export function IntegrationSelector({
             : t("nodeConfigs.integrationSelector.select")}
         </option>
         {integrations.map((i) => (
-          <option key={i.id} value={i.id}>
-            {optionLabel(i, t)}
+          <option key={i.id} value={i.id} disabled={isBlocked(i)}>
+            {isBlocked(i)
+              ? `${optionLabel(i, t)} — ${t("nodeConfigs.integrationSelector.notAuthorSuffix")}`
+              : optionLabel(i, t)}
           </option>
         ))}
         {hasSavedButMissing && (
@@ -66,6 +72,11 @@ export function IntegrationSelector({
           </option>
         )}
       </select>
+      {hasBlocked && (
+        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+          {t("nodeConfigs.integrationSelector.notAuthorHint")}
+        </p>
+      )}
       {empty && (
         <Link
           href={createHref}

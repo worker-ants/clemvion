@@ -117,6 +117,8 @@ export const editor = {
   restoreDialogMessage: "현재 캔버스가 v{{version}}의 스냅샷으로 교체돼요. 교체도 새 버전으로 기록되므로 언제든 되돌릴 수 있어요.",
   restoreDialogClose: "닫기",
   restoreFailedDefault: "복원에 실패했어요",
+  restoreIntegrationRefsCleared: "복원하면서 {{labels}} 노드의 통합 선택을 비웠어요. 그대로 실행하면 실패할 통합이었어요. 노드 설정에서 통합을 다시 골라 주세요.",
+  pastedIntegrationRefsCleared: "{{labels}} 노드에서 이 워크플로우에 쓸 수 없는 통합 선택을 비웠어요. 노드 설정에서 통합을 다시 골라 주세요.",
   restoring: "복원 중…",
   restoreBtn: "복원",
   versionDetailLabel: "버전 상세",

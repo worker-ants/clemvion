@@ -10,6 +10,10 @@ import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 import { dropStaleEdges, enrichEdgesWithPortData } from "@/lib/utils/edge-utils";
 import { translate } from "@/lib/i18n/core";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import {
+  clearedIntegrationRefLabels,
+  takeRestoreClearedIntegrationRefs,
+} from "@/lib/integrations/cleared-integration-refs";
 
 interface EditorLoaderProps {
   workflowId: string;
@@ -84,7 +88,20 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
           (wf.name as string) || translate(currentLocale, "editor.untitled"),
           flowNodes,
           flowEdges,
+          typeof wf.createdBy === "string" ? wf.createdBy : null,
         );
+
+        // REQ-WFVER-027 — 버전 복원이 다시 불러오기 전에 넘겨 둔 비운 통합 참조를 알린다.
+        const restoredLabels = clearedIntegrationRefLabels(
+          takeRestoreClearedIntegrationRefs(workflowId),
+        );
+        if (restoredLabels.length > 0) {
+          toast.warning(
+            translate(currentLocale, "editor.restoreIntegrationRefsCleared", {
+              labels: restoredLabels.join(", "),
+            }),
+          );
+        }
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : translate(currentLocale, "editor.loadFailed"));

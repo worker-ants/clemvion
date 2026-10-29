@@ -134,6 +134,7 @@ import {
   AI_LLM_PROVIDER_NODE_TYPES,
   AI_NO_LLM_PROVIDER_MESSAGE,
 } from '../../nodes/ai/llm-provider-rule';
+import { markMcpServerRefOrigins } from '../../nodes/ai/ai-agent/mcp-server-ref-use';
 import {
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
@@ -5559,7 +5560,15 @@ export class ExecutionEngineService
       maxToolCalls: resolvedConfig.maxToolCalls ?? 10,
       conditions: resolvedConfig.conditions ?? [],
       presentationTools: resolvedConfig.presentationTools ?? [],
-      mcpServers: resumeFields.mcpServers ?? resolvedConfig.mcpServers ?? [],
+      // 체크포인트에 서버 목록이 없으면 노드 설정에서 다시 만든다. 이때 항목의 `fromExpression` 은 첫 턴과 같이
+      // 평가 전 원본과 맞춰 정한다. 노드 설정의 사용자 값을 그대로 쓰면 `fromExpression: false` 로 개인 통합
+      // 사용 판정을 피할 수 있다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」).
+      mcpServers:
+        resumeFields.mcpServers ??
+        markMcpServerRefOrigins(
+          rawNodeConfig.mcpServers,
+          resolvedConfig.mcpServers,
+        ),
       // information_extractor config 필드 재유도 (node.config) + 고유 runtime
       // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —
       // ai_agent 핸들러가 읽지 않으며, IE 핸들러만 자기 필드를 소비한다.

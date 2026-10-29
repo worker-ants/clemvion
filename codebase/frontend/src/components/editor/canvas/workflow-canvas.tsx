@@ -18,7 +18,10 @@ import "@xyflow/react/dist/style.css";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { useEditorStore } from "@/lib/stores/editor-store";
+import {
+  useEditorStore,
+  warnClearedIntegrationRefs,
+} from "@/lib/stores/editor-store";
 import { getNodeDefinition, useNodeDefinitionsStore } from "@/lib/node-definitions";
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
 import { buildNodeInitialConfig } from "@/lib/utils/build-node-initial-config";
@@ -56,9 +59,10 @@ import { HasDefaultLlmConfigProvider } from "./has-default-llm-config-context";
 import {
   IntegrationListProvider,
   deriveIntegrationIds,
-  INTEGRATIONS_LIST_QUERY_KEY,
+  useCanvasIntegrationList,
+  useIntegrationRefFilterContext,
 } from "./integration-list-context";
-import { integrationsApi } from "@/lib/api/integrations";
+import { buildDuplicatedNode } from "./duplicate-node";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { useEdgeReconnect } from "./use-edge-reconnect";
@@ -149,6 +153,8 @@ export function WorkflowCanvas() {
   const addNode = useEditorStore((s) => s.addNode);
   const requestNodeDelete = useEditorStore((s) => s.requestNodeDelete);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
+  // REQ-EDITOR-059 — 붙여넣기 · 복제가 지금 사용자가 고를 수 없는 통합 참조를 비울 때 쓴다.
+  const integrationRefFilter = useIntegrationRefFilterContext();
   const editorClipboard = useEditorStore((s) => s.editorClipboard);
   const pendingContainerDelete = useEditorStore((s) => s.pendingContainerDelete);
   const confirmContainerDelete = useEditorStore(
@@ -200,11 +206,7 @@ export function WorkflowCanvas() {
   // 구독)을 피하는 llmConfig 패턴과 동일. custom-node 렌더러가 자기
   // config.integrationId 실재를 이 집합과 대조한다.
   const { data: integrationListData, isLoading: integrationListLoading } =
-    useQuery({
-      queryKey: INTEGRATIONS_LIST_QUERY_KEY,
-      queryFn: () => integrationsApi.list({ limit: 100 }),
-      staleTime: 5 * 60 * 1000,
-    });
+    useCanvasIntegrationList();
   const integrationIds = useMemo(
     () => deriveIntegrationIds(integrationListData, integrationListLoading),
     [integrationListData, integrationListLoading],
@@ -457,19 +459,14 @@ export function WorkflowCanvas() {
           const currentLabel =
             (node.data as Record<string, unknown>).label as string ??
             definition.label;
-          const newNode = {
-            id: crypto.randomUUID(),
-            type: "custom",
-            position: {
-              x: node.position.x + 50,
-              y: node.position.y + 50,
-            },
-            data: {
-              ...node.data,
-              label: generateUniqueLabel(currentLabel, existingLabels),
-            },
-          };
+          const { node: newNode, clearedLabels } = buildDuplicatedNode(
+            node,
+            currentLabel,
+            existingLabels,
+            integrationRefFilter,
+          );
           addNode(newNode);
+          warnClearedIntegrationRefs(clearedLabels);
           break;
         }
         case "disable": {
@@ -509,6 +506,7 @@ export function WorkflowCanvas() {
       selectNode,
       pushUndo,
       addNode,
+      integrationRefFilter,
       requestNodeDelete,
       canDeleteNode,
       updateNodeConfig,
@@ -531,7 +529,7 @@ export function WorkflowCanvas() {
           break;
         case "paste":
           // §3.3 — 클립보드를 우클릭 위치에 붙여넣는다 (묶음 좌상단이 클릭 지점).
-          pasteClipboard(canvasContextMenu.flowPosition);
+          pasteClipboard(canvasContextMenu.flowPosition, integrationRefFilter);
           break;
         case "select-all":
           onNodesChange(
@@ -544,7 +542,14 @@ export function WorkflowCanvas() {
       }
       setCanvasContextMenu(null);
     },
-    [canvasContextMenu, nodes, onNodesChange, pasteClipboard, openNodeSearchPopupAt],
+    [
+      canvasContextMenu,
+      nodes,
+      onNodesChange,
+      pasteClipboard,
+      integrationRefFilter,
+      openNodeSearchPopupAt,
+    ],
   );
 
   // §11.3 — Delete/Backspace 삭제 시 자식 있는 컨테이너는 즉시 삭제하지 않고 확인

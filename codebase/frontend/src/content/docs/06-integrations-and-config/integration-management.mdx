@@ -6,7 +6,7 @@ order: 1
 summary: "Third-party 서비스 연동을 추가하고, 테스트하고, 워크플로우 노드에서 재사용하는 방법을 설명해요."
 summary_en: "How to add, test, and reuse third-party integrations across workflow nodes."
 spec: ["CLE-INT-MANAGE", "CLE-INT-AUTH", "CLE-INT-OAUTH", "CLE-INT-STATUS"]
-code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "codebase/backend/src/modules/integrations/integrations.service.ts", "codebase/backend/src/modules/integrations/database-connection-tester.ts", "codebase/backend/src/modules/integrations/http-connection-tester.ts", "codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/security-tab.tsx"]
+code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "codebase/backend/src/modules/integrations/integrations.service.ts", "codebase/backend/src/modules/integrations/database-connection-tester.ts", "codebase/backend/src/modules/integrations/http-connection-tester.ts", "codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/security-tab.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx", "codebase/frontend/src/components/editor/settings-panel/node-configs/integration-selector.tsx"]
 ---
 
 이 페이지에서는 외부 서비스와의 통합(Integration, 연동)을 중앙에서 관리하는 방법을 설명해요. HTTP Request나 Send Email 같은 노드가 여기서 만든 연동을 재사용해요.
@@ -32,6 +32,15 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 
 팀 워크스페이스에 Organization 범위로 만든 통합은 그 워크스페이스의 모든 멤버가 자동으로 함께 사용할 수 있어요. 반면 같은 팀 워크스페이스라도 Personal 범위로 만든 통합은 만든 사람에게만 보여요 — 다른 멤버는 목록에서도, 상세 페이지 주소로 직접 이동해도 찾을 수 없고, 이 규칙은 역할과 무관해서 Owner·Admin 도 다른 멤버의 Personal 통합을 볼 수 없어요. 사용자가 사이드바에서 워크스페이스를 전환하면 통합 목록도 해당 워크스페이스 기준으로 갱신돼요.
 
+노드에서 쓸 수 있는 통합도 범위에 따라 갈려요.
+
+- **Organization 통합**: 워크스페이스의 어느 워크플로우 노드에서나 쓸 수 있어요.
+- **Personal 통합**: 그 통합을 만든 사람이 직접 만든 워크플로우의 노드에서만 쓸 수 있어요. 통합을 만든 사람이라도 다른 멤버가 만든 워크플로우에서는 쓸 수 없어요.
+
+판정 기준은 실행을 시작한 사람이 아니라 **워크플로우를 만든 사람**이에요. 그래서 스케줄·웹훅으로 자동 실행될 때와 서브 워크플로우로 실행될 때도 같은 규칙을 따라요. 서브 워크플로우는 그 워크플로우를 만든 사람을 기준으로 해요. 통합을 만든 사람이 워크스페이스를 떠났을 때와 통합 선택을 표현식(`{{ }}`)으로 정했을 때도 Personal 통합은 쓸 수 없고 Organization 통합만 쓸 수 있어요.
+
+규칙에 맞지 않는 Personal 통합을 쓰는 노드는 실행할 때 존재하지 않는 통합을 참조했을 때와 똑같은 "통합을 찾을 수 없음" 오류로 실행이 실패해요. 오류만 봐서는 없는 통합인지 쓸 수 없는 통합인지 구분되지 않아요. AI Agent 노드의 MCP 서버 항목은 해당 서버만 건너뛰고 노드는 계속 실행돼요.
+
 권한 정책은 다음과 같아요.
 
 <FieldTable rows={[
@@ -41,6 +50,21 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 ]} />
 
 <Callout type="tip">개인 워크스페이스의 통합은 본인만 보고 사용할 수 있어요. 팀과 공유하려면 팀 워크스페이스에서 새로 만들어요. 같은 외부 계정도 워크스페이스마다 별개의 통합 레코드를 포함해요.</Callout>
+
+### Organization 통합을 Personal 로 바꿀 때
+
+통합 상세의 Danger zone 탭에서 Organization 통합을 Personal 로 바꾸면, 그 통합을 만든 사람이 아닌 사람이 만든 워크플로우는 이 통합을 노드에서 쓸 수 없게 돼요. 그래서 바꾸기 전에 이 통합의 사용처를 먼저 확인해요.
+
+- 그런 워크플로우가 있으면 "개인으로 바꾸면 실행이 실패하는 워크플로우가 있어요" 경고 대화상자가 떠요. 해당 워크플로우와 노드 목록이 함께 나오고, `개인으로 바꾸기` 를 누르면 그대로 전환돼요. 전환을 막지는 않아요.
+- 그런 워크플로우가 없으면 "개인으로 바꾸면 이 통합을 만든 사람만 이 통합을 보고 쓸 수 있어요. 계속할까요?" 라는 확인 창만 떠요.
+- 사용처를 확인하지 못하면 범위를 바꾸지 않고 "사용처를 확인하지 못해 공개 범위를 바꾸지 않았어요" 오류 토스트가 떠요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx"
+  symbol="ScopeToPersonalWarningDialog"
+  describes="Danger zone 탭에서 Organization 통합을 Personal 로 바꾸기 전에 실행이 실패할 워크플로우를 알리는 경고 대화상자"
+/>
 
 ## 연동 추가하기
 
@@ -66,7 +90,7 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
   { name: "Scope & Permissions", type: "탭", required: "OAuth", description: "현재 scope를 확인하고 추가 scope를 요청해요. `insufficient_scope` 에러일 때 누락 항목이 빨간 배지로 표시돼요." },
   { name: "Usage", type: "탭", required: "항상", description: "연동을 참조하는 워크플로우·노드 목록이 나와요. `Open in editor` 링크로 바로 이동해요." },
   { name: "Activity", type: "탭", required: "항상", description: "최근 7일간 호출 기록을 API · 상태 · 소요 · 오류 열로 확인해요. `API` 열에는 어떤 endpoint 가 호출됐는지 표시돼요. Cafe24 통합은 operation 라벨을, 그 외 서비스는 HTTP 메서드와 경로를 그대로 보여줘요. 두 값이 모두 없으면 `—` 로 표시해요. 연동이 연결 안 됨(`error` · `expired` · `pending_install`) 상태면 새 호출이 기록되지 않아 목록 위에 경고 배너가 뜨고, `상태 확인` 버튼으로 Overview 탭에서 상태 확인·재연결할 수 있어요." },
-  { name: "Danger zone", type: "탭", required: "Admin · 본인", description: "삭제와 Personal ↔ Organization 범위 전환을 해요. Organization 통합의 삭제는 Admin 이상만, 자신이 만든 Personal 통합의 삭제는 Editor 이상인 만든 사람이 할 수 있고(Viewer 는 자기 것도 삭제할 수 없어요), 범위 전환은 언제나 Admin 이상만 할 수 있어요. 사용처가 있으면 삭제가 차단되고, 삭제 차단 다이얼로그가 열려 사용 중인 워크플로우·노드 목록과 각 워크플로우로 가는 바로가기 링크를 보여줘요. AI Agent의 MCP 서버로 참조되는 노드는 `MCP` 배지로 표시돼요." }
+  { name: "Danger zone", type: "탭", required: "Admin · 본인", description: "삭제와 Personal ↔ Organization 범위 전환을 해요. Organization 통합의 삭제는 Admin 이상만, 자신이 만든 Personal 통합의 삭제는 Editor 이상인 만든 사람이 할 수 있고(Viewer 는 자기 것도 삭제할 수 없어요), 범위 전환은 언제나 Admin 이상만 할 수 있어요. Organization 에서 Personal 로 바꿀 때는 먼저 사용처를 확인하고, 통합을 만든 사람이 만들지 않은 워크플로우가 있으면 경고 대화상자로 알려줘요. 삭제는 사용처가 있으면 차단되고, 삭제 차단 다이얼로그가 열려 사용 중인 워크플로우·노드 목록과 각 워크플로우로 가는 바로가기 링크를 보여줘요. AI Agent의 MCP 서버로 참조되는 노드는 `MCP` 배지로 표시돼요." }
 ]} />
 
 <Callout type="note">
@@ -112,6 +136,17 @@ Database는 연결을 열어 `SELECT 1`을 실행해요. 비밀번호가 틀렸�
 
 Send Email 노드도 같은 방식이에요. SMTP 연동의 `default_from` 값이 자동으로 기본 발신자가 되고, 필요하면 노드에서 개별적으로 덮어쓸 수 있어요.
 
+내가 이 워크플로우를 만든 사람이 아니면 내 Personal 통합은 목록에 보이지만 고를 수 없게 비활성으로 표시되고, 이름 옆에 "이 워크플로우에서는 쓸 수 없음"이 붙어요. 드롭다운 아래에는 "이 워크플로우를 만든 사람이 아니어서 내 개인 통합은 고를 수 없어요. 노드에는 조직 통합과 워크플로우를 만든 사람의 개인 통합만 쓸 수 있어요." 안내가 나와요. 이럴 때는 Organization 통합을 고르거나, 워크플로우를 만든 사람이 자기 통합으로 설정하도록 부탁해요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/editor/settings-panel/node-configs/integration-selector.tsx"
+  symbol="notAuthorHint"
+  describes="노드 설정 패널의 통합 선택기에서 쓸 수 없는 Personal 통합을 비활성으로 표시하고 이유를 안내"
+/>
+
+저장할 때는 서버가 새로 들어온(바뀐) 통합 선택만 검사해요. 노드를 만들거나 바꿀 때, 캔버스를 저장할 때 쓸 수 없는 통합(없는 통합이나 쓸 수 없는 Personal 통합)이 새로 들어 있으면 "통합을 찾을 수 없음" 오류로 저장이 거부돼요. 이미 저장돼 있던 선택은 다시 검사하지 않아요. 워크플로우를 복제하거나 JSON 을 가져오거나 버전을 복원할 때는 저장을 거부하지 않고 쓸 수 없는 선택을 비워요. 비워지는 방식은 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes), [저장·자동저장·가져오기/내보내기](/docs/03-workflow-editor/saving-and-sharing), [버전 히스토리](/docs/05-run-and-debug/version-history)에서 확인해요.
+
 ## 팁 & 참고
 
 - 자격 증명은 AES-256-GCM으로 암호화돼 저장되고, API 응답에서는 `****4f2a` 처럼 마스킹된 프리뷰만 돌아와요.
@@ -119,3 +154,4 @@ Send Email 노드도 같은 방식이에요. SMTP 연동의 `default_from` 값�
 - 하나의 서비스에 여러 계정을 등록하려면 별칭을 다르게 해서 반복 추가하면 돼요. 워크스페이스 내에서 별칭은 유일해야 해요.
 - 사용처가 있는 연동은 삭제할 수 없어요. `Delete integration` 을 누르면 먼저 사용처를 조회해서, 사용 중이면 삭제 차단 다이얼로그에 어떤 워크플로우·노드가 참조 중인지(AI Agent의 MCP 서버 참조는 `MCP` 배지로 구분) 보여줘요. 다이얼로그의 워크플로우 링크로 이동해 노드의 `integrationId` 를 다른 연동으로 바꾸거나 해당 노드를 제거한 뒤 다시 삭제해요.
 - AI Agent에서 외부 도구·리소스를 LLM에게 노출하려면 MCP 서버 통합을 등록하고 AI Agent 노드의 `MCP Servers` 필드에 연결해요. 자세한 흐름은 [MCP 서버 통합](/docs/06-integrations-and-config/mcp-servers)에서 확인해요.
+- 다른 사람이 만든 워크플로우에서 내 Personal 통합이 비활성으로 보인다면 [자주 묻는 질문](/docs/99-faq/faq)의 답을 참고해요.

@@ -2,21 +2,21 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "add27c2af647729764a2db74ea169b8cc21f7abcb59cda6e6b2ae317ac315f36"
+content_hash: "9447e005cff60f83293a46a1b57153301bf091b745b1a38a6792177f06a24337"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-1BQZ10"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "da827b2b0f99419020fa27a176b563639b975d90138e40f1b1312261ce47dc8c"
-etag: "sha256-637f98327e66328dfd99633d010d671c2bf594660425490255ff0d082b6466e3"
+mirror_sha256: "0d2de6329842469f3143808618a944ca3cd45f7674cd6792c9a25be490572b71"
+etag: "sha256-9e122611879f6ebf148d52a7e2b4c1c4d46d68f283d960847ff4384755da43e4"
 ---
-> 구현 상태: 부분 구현 (`nodeId` 로 워크플로우 작성자를 구하는 개인 통합 판정은 미구현) · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -71,7 +71,7 @@ etag: "sha256-637f98327e66328dfd99633d010d671c2bf594660425490255ff0d082b6466e3"
      - **L1 사전 검증**: 두 노드의 `validateConfig` 가 글자 그대로의 `__` 이름을 돌려주고 엔진이 `INVALID_NODE_CONFIG` 로 실행 직전에 막는다. 저장 게이트를 우회해 들어온 데이터의 안전망이다.
      - **L2 런타임**: 핸들러 `execute` 가 **평가된** 이름을 다시 검사해 예외를 던진다. `{{ }}` 로 만든 이름은 여기서만 실제 값이 드러나므로 이 층이 실질 강제 지점이다. 기준 코드는 `reserved-variable-name.util.ts` 이고 carousel `button.id` 의 `__item_` 접두 스키마 거부가 선례다.
    - `importWorkflow` 는 `restoreVersion` 과 달리 옛 데이터 예외가 없다. 가져오는 JSON 은 이 워크스페이스의 과거 스냅샷이 아닌 새 데이터이므로 `__` 이름을 400 으로 거부한다. 규칙 도입 전에 내보낸 워크플로우를 다시 가져오면 이 게이트에 걸릴 수 있다. 사용자가 JSON 의 이름을 고쳐 다시 시도한다.
-   - **강제 범위 밖(Code 노드)**: Code 노드는 `$vars` 를 통째로 바꿔 넣으므로(`nodes/data/code/code.handler.ts`) 사용자 코드가 `$vars.__workspaceId` 를 써도 거르지 않고 `context.variables` 를 덮어쓴다. `__workspaceId` 는 통합 자격 증명 조회(`getForExecution(id, workspaceId)`)·모델 설정 해석·서브 워크플로우 dispatch 의 워크스페이스 신뢰 경계로 쓰이므로 Code 노드로 이를 위조하면 원칙적으로 다른 워크스페이스 리소스에 접근을 시도할 수 있다. 이 위험은 기존부터 있었다. 근본 대책(워크스페이스 식별자를 사용자가 바꿀 수 있는 `variables` 맵 밖으로 옮기기)은 별도 과제다. park 필터는 여전히 `__*` 를 버리지만 두 변수 노드 경로에서는 L0·L1·L2 로 사용자 정의 `__*` 변수가 애초에 생기지 않아 조용히 사라지는 문제는 없어졌다. 노드 쪽 설명은 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 에 있다.
+   - **강제 범위 밖(Code 노드)**: Code 노드는 `$vars` 를 통째로 바꿔 넣으므로(`nodes/data/code/code.handler.ts`) 사용자 코드가 `$vars.__workspaceId` 를 써도 거르지 않고 `context.variables` 를 덮어쓴다. `__workspaceId` 는 통합 자격 증명 조회(`getForExecution(id, workspaceId, use)`)·모델 설정 해석·서브 워크플로우 dispatch 의 워크스페이스 신뢰 경계로 쓰이므로 Code 노드로 이를 위조하면 원칙적으로 다른 워크스페이스 리소스에 접근을 시도할 수 있다. 이 위험은 기존부터 있었다. 근본 대책(워크스페이스 식별자를 사용자가 바꿀 수 있는 `variables` 맵 밖으로 옮기기)은 별도 과제다. park 필터는 여전히 `__*` 를 버리지만 두 변수 노드 경로에서는 L0·L1·L2 로 사용자 정의 `__*` 변수가 애초에 생기지 않아 조용히 사라지는 문제는 없어졌다. 노드 쪽 설명은 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 에 있다.
 
 ### 새 필드 추가 결정
 
@@ -268,6 +268,7 @@ type ExecuteOptions = {
 - `codebase/backend/src/modules/executions/utils/execution-trigger.ts` (`deriveExecutionTrigger`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`execute`, park 저장)
 - `codebase/backend/src/modules/execution-engine/utils/load-trigger-parameter-schema.ts` (`loadTriggerParameterSchema`)
+- `codebase/backend/src/modules/integrations/personal-integration-use-facts.ts` (`loadExecutionUseFacts`. `nodeId` 로 노드가 속한 워크플로우의 작성자를 구한다)
 
 ## Rationale
 
