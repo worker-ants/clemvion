@@ -293,7 +293,7 @@ export class PreviewTestResultDto {
 
 // 근거: [OAuth 연결과 토큰 갱신 「oauth/begin 요청과 응답」](CLE-INT-OAUTH#oauthbegin-요청과-응답)
 /**
- * OAuth 시작 결과 — 두 가지 분기.
+ * OAuth 시작 결과 — 세 가지 분기.
  *
  * 1. 일반 흐름 (google/github/cafe24 Public): `OAuthBeginPopupResultDto`
  *    = `{ authUrl, state }`. 사용자 브라우저를 authorize URL 로 보낸다.
@@ -305,10 +305,15 @@ export class PreviewTestResultDto {
  *    재인증(`:id/reauthorize`) · 권한 추가(`:id/request-scopes`)는 재설치 요청
  *    (`reinstall_requested_at`)을 남기고 같은 App URL 을 돌려준다. 사용자가
  *    Cafe24 에서 「테스트 실행」을 누르면 그 URL 이 OAuth 로 보낸다.
+ * 3. MakeShop 흐름: `OAuthBeginMakeshopPendingResultDto`
+ *    = `{ mode: 'makeshop_pending_install', integrationId, appUrl,
+ *    callbackUrl, scope }`. 상점 식별자(`shop_uid`)는 설치 단계에서야 알려져
+ *    OAuth 를 먼저 시작하지 않는다. 사용자에게 MakeShop 파트너센터에 등록할
+ *    URL 만 돌려준다.
  *
- * Swagger 표현 — 두 분기를 명시적으로 보여주기 위해 controller 가
- * `ApiOkWrappedOneOfResponse([Popup, Cafe24Pending], ...)` 를 사용해
- * `data: oneOf` 스키마로 문서화한다.
+ * Swagger 표현 — 세 분기를 명시적으로 보여주기 위해 controller 가
+ * `ApiOkWrappedOneOfResponse([Popup, Cafe24Pending, MakeshopPending], ...)` 를
+ * 사용해 `data: oneOf` 스키마로 문서화한다.
  */
 export class OAuthBeginPopupResultDto {
   /** OAuth provider 인증 URL. 사용자 브라우저를 이 URL 로 redirect. */
@@ -357,6 +362,54 @@ export class OAuthBeginCafe24PendingResultDto {
    */
   @ApiProperty({ required: false, type: [String] })
   scopesAdded?: string[];
+
+  /**
+   * `oauth/begin`(`new`)이 만들거나 다시 쓴 행의 공개 범위. 다시 쓴 행이면 요청 본문의 `scope` 와
+   * 다를 수 있다. 재인증 · 권한 추가의 재설치 요청 안내에는 없다.
+   */
+  @ApiProperty({
+    required: false,
+    enum: ['personal', 'organization'],
+    description:
+      'oauth/begin new 모드가 만들거나 다시 쓴 설치 대기 행의 공개 범위. 다시 쓴 행이면 요청한 공개 범위와 다를 수 있다. 재인증 · 권한 추가 응답에는 없다',
+  })
+  scope?: string;
+}
+
+export class OAuthBeginMakeshopPendingResultDto {
+  /** 분기 식별자 — MakeShop 설치 흐름. */
+  @ApiProperty({
+    enum: ['makeshop_pending_install'],
+    description:
+      'MakeShop 설치 흐름 — 파트너센터에 등록할 URL 을 안내한다. 일반 흐름에서는 본 DTO 가 아닌 OAuthBeginPopupResultDto 가 반환된다.',
+  })
+  mode!: 'makeshop_pending_install';
+
+  /** 대상 통합 ID. 새 설치 대기 행이거나 다시 쓴 설치 대기 행. */
+  @ApiProperty({
+    format: 'uuid',
+    description: '대상 통합 ID. 새로 만들었거나 다시 쓴 설치 대기 행',
+  })
+  integrationId!: string;
+
+  /** MakeShop 파트너센터 ShopStore 앱의 "App URL" 에 등록할 URL. */
+  @ApiProperty({ description: 'MakeShop 파트너센터 App URL 등록용 URL' })
+  appUrl!: string;
+
+  /** MakeShop 파트너센터의 "Redirect URI" 에 등록할 URL. */
+  @ApiProperty({ description: 'MakeShop 파트너센터 Redirect URI 등록용 URL' })
+  callbackUrl!: string;
+
+  /**
+   * `oauth/begin`(`new`)이 만들거나 다시 쓴 설치 대기 행의 공개 범위. 다시 쓴 행이면 요청 본문의 `scope` 와
+   * 다를 수 있다. 응답에 늘 있다.
+   */
+  @ApiProperty({
+    enum: ['personal', 'organization'],
+    description:
+      '만들거나 다시 쓴 설치 대기 행의 공개 범위. 다시 쓴 행이면 요청한 공개 범위와 다를 수 있다',
+  })
+  scope!: string;
 }
 
 /** precheck 응답의 식별자 필드 공통 조건 — 두 필드 설명이 같은 문장을 쓴다. */

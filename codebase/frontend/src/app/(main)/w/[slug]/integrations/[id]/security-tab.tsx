@@ -11,6 +11,7 @@ import {
   type IntegrationDto,
   type AuthVariant,
 } from "@/lib/api/integrations";
+import { useIntegrationPermissions } from "../_shared/integration-permissions";
 import { prettyAuthType } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
 import {
@@ -52,6 +53,10 @@ export function SecurityTab({
   t: TFunction;
 }) {
   const isOAuth = integration.authType === "oauth2";
+  // 재인증 · 자격 증명 교체는 할 수 있는 사람에게만 보인다(CLE-INT-MANAGE 「권한」).
+  const permissions = useIntegrationPermissions(integration);
+  const showReauthorize = isOAuth && permissions.reauthorize;
+  const showRotate = !isOAuth && permissions.rotate;
   const disabledReason = reauthorizeDisabledReason(integration);
   const disabledHint =
     disabledReason === null
@@ -101,7 +106,7 @@ export function SecurityTab({
         </p>
       </section>
 
-      {isOAuth ? (
+      {showReauthorize && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{t("integrations.reauthorizeSection")}</h3>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
@@ -130,7 +135,8 @@ export function SecurityTab({
             </p>
           )}
         </section>
-      ) : (
+      )}
+      {showRotate && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">{t("integrations.rotateSection")}</h3>

@@ -7,7 +7,8 @@ import axios, { type AxiosError } from "axios";
 export type ApiErrorBody = {
   code?: string;
   message?: string;
-  error?: { code?: string; message?: string };
+  details?: unknown;
+  error?: { code?: string; message?: string; details?: unknown };
 };
 
 export function extractApiCode(err: AxiosError<ApiErrorBody>): string | undefined {
@@ -18,6 +19,12 @@ export function extractApiCode(err: AxiosError<ApiErrorBody>): string | undefine
 export function extractApiMessage(err: AxiosError<ApiErrorBody>): string | undefined {
   const data = err.response?.data;
   return data?.message ?? data?.error?.message;
+}
+
+/** 코드별로 모양이 다른 부가 정보(`details`). 응답에 없으면 `undefined`. */
+export function extractApiDetails(err: AxiosError<ApiErrorBody>): unknown {
+  const data = err.response?.data;
+  return data?.details ?? data?.error?.details;
 }
 
 /**

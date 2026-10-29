@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { PATH_METADATA } from '@nestjs/common/constants';
+import { ROLES_KEY } from '../../common/guards/roles.guard';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import type { Integration } from './entities/integration.entity';
@@ -305,7 +306,7 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
     it.each(['reauthorize', 'request_scopes'])(
       '%s — 본인 personal 의 integrationId 는 통과해 OAuth 흐름을 시작한다',
       async (mode) => {
-        role = 'viewer'; // 본인 personal 은 역할과 무관하다
+        role = 'editor'; // 뷰어는 라우트 가드가 먼저 막는다(REQ-INTOAUTH-063) — 여기는 가드 뒤의 판정이다
         integrationRepo.findOne.mockResolvedValue(googlePersonal());
         await begin(CREATOR, mode, 'int-1');
         expect(oauthBegin).toHaveBeenCalledWith(
@@ -314,10 +315,137 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
       },
     );
 
-    it("mode 'new' 는 integrationId 를 쓰지 않으므로 판정하지 않는다", async () => {
+    it("mode 'new' 는 integrationId 를 쓰지 않으므로 그 통합을 읽지 않는다", async () => {
       await begin(OTHER, 'new', 'int-1');
       expect(integrationRepo.findOne).not.toHaveBeenCalled();
       expect(oauthBegin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * `new` 모드는 통합 생성과 같은 판정을 받는다(REQ-INTOAUTH-064). 관리자 미만이 조직 공개 범위를 고르면 다시 쓸 설치 대기
+   * 행을 찾거나 새로 만들기 전에 거절한다 — 요청 본문만 본다. 뷰어 거절(REQ-INTOAUTH-063)은 라우트 가드 몫이라 아래
+   * «라우트 역할 가드» 표가 고정한다.
+   */
+  describe("oauth/begin mode 'new' — 통합 생성과 같은 판정", () => {
+    const SERVICES: Array<[string, Record<string, unknown>]> = [
+      [
+        'cafe24',
+        {
+          mallId: 'my-mall',
+          appType: 'private',
+          clientId: 'cid',
+          clientSecret: 'secret',
+        },
+      ],
+      ['makeshop', { clientId: 'cid', clientSecret: 'secret' }],
+      ['google', {}],
+    ];
+    const beginNew = (
+      service: string,
+      extra: Record<string, unknown>,
+      scope?: string,
+    ) =>
+      controller.oauthBegin('ws-1', userOf(CREATOR), {
+        service,
+        scopes: [],
+        mode: 'new',
+        scope,
+        ...extra,
+      } as never);
+
+    it.each(SERVICES)(
+      '%s — 편집자가 조직 공개 범위를 고르면 403 ADMIN_REQUIRED · begin 을 부르지 않는다',
+      async (service, extra) => {
+        role = 'editor';
+        await expect(
+          beginNew(service, extra, 'organization'),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ADMIN_REQUIRED',
+            message:
+              'Organization 통합을 만들려면 Admin 이상의 권한이 필요합니다.',
+          },
+        });
+        expect(oauthBegin).not.toHaveBeenCalled();
+      },
+    );
+
+    // 요청자 역할을 begin 에 넘긴다 — 설치 대기 행 재사용 판정(조직 행은 관리자 이상, REQ-INTOAUTH-062)에 쓴다.
+    it.each(['admin', 'owner'])(
+      '%s 는 조직 공개 범위로 begin 을 부르고 역할을 넘긴다',
+      async (r) => {
+        role = r;
+        await beginNew('makeshop', SERVICES[1][1], 'organization');
+        expect(oauthBegin).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'new',
+            scope: 'organization',
+            requesterRole: r,
+          }),
+        );
+      },
+    );
+
+    it.each([['personal'], [undefined]])(
+      '편집자의 개인 공개 범위(%s)는 begin 을 부르고 역할을 넘긴다',
+      async (scope) => {
+        role = 'editor';
+        await beginNew('cafe24', SERVICES[0][1], scope);
+        expect(oauthBegin).toHaveBeenCalledTimes(1);
+        expect(oauthBegin).toHaveBeenCalledWith(
+          expect.objectContaining({ requesterRole: 'editor' }),
+        );
+      },
+    );
+  });
+
+  /**
+   * 라우트 역할 가드 — 개인 통합 쓰기는 편집자 이상, 공개 범위 전환은 관리자 이상, 삭제만 뷰어 이상이다(CLE-INT-MANAGE
+   * 「권한」 2026-10-24 판정 규칙). 뷰어가 받는 코드는 이 가드가 정한다(`EDITOR_REQUIRED` · `ADMIN_REQUIRED`). 핸들러 전부를
+   * 리플렉션으로 세어 표에 없는 핸들러가 생기면 실패한다 — 새 라우트는 가드를 정해 표에 올려야 한다.
+   */
+  describe('라우트 역할 가드', () => {
+    const ROUTE_ROLES: Record<string, readonly string[] | undefined> = {
+      findAll: undefined,
+      getAvailableServices: undefined,
+      getServiceCatalog: undefined,
+      previewTest: ['editor'],
+      oauthBegin: ['editor'],
+      cafe24Precheck: undefined,
+      makeshopPrecheck: undefined,
+      findOne: undefined,
+      listUsages: undefined,
+      activity: undefined,
+      create: ['editor'],
+      update: ['editor'],
+      testConnection: undefined,
+      rotate: ['editor'],
+      reauthorize: ['editor'],
+      requestScopes: ['editor'],
+      updateScope: ['admin'],
+      remove: ['viewer'],
+    };
+    const proto = IntegrationsController.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+
+    it('핸들러 전부가 표에 있다 (리플렉션 전수)', () => {
+      const handlers = Object.getOwnPropertyNames(proto).filter(
+        (name) =>
+          name !== 'constructor' &&
+          typeof proto[name] === 'function' &&
+          Reflect.getMetadata(PATH_METADATA, proto[name]) !== undefined,
+      );
+      expect(handlers.length).toBeGreaterThan(0);
+      expect([...handlers].sort()).toEqual(Object.keys(ROUTE_ROLES).sort());
+    });
+
+    it.each(Object.entries(ROUTE_ROLES))('%s — @Roles %j', (name, roles) => {
+      expect(Reflect.getMetadata(ROLES_KEY, proto[name] as object)).toEqual(
+        roles,
+      );
     });
   });
 

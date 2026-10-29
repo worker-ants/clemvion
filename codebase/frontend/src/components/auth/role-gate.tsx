@@ -32,14 +32,21 @@ interface Props {
  */
 export function RoleGate({ minRole, children, fallback = null }: Props) {
   const role = useWorkspaceStore(selectCurrentRole);
-  if (!role) return <>{fallback}</>;
-  if (ROLE_LEVEL[role] < ROLE_LEVEL[minRole]) return <>{fallback}</>;
+  if (!hasMinRole(role, minRole)) return <>{fallback}</>;
   return <>{children}</>;
 }
 
 /** 훅 형태 — boolean으로 권한 확인이 필요한 곳 */
 export function useHasRole(minRole: WorkspaceRole): boolean {
   const role = useWorkspaceStore(selectCurrentRole);
+  return hasMinRole(role, minRole);
+}
+
+/** 순수 함수 형태 — 역할을 이미 읽었거나 다른 조건(통합 소유자 등)과 함께 판정하는 곳. 역할을 모르면 `false`. */
+export function hasMinRole(
+  role: WorkspaceRole | null,
+  minRole: WorkspaceRole,
+): boolean {
   if (!role) return false;
   return ROLE_LEVEL[role] >= ROLE_LEVEL[minRole];
 }

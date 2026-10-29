@@ -6,7 +6,7 @@ order: 5
 summary: "Cafe24 쇼핑몰을 통합으로 등록하고, 워크플로 cafe24 노드와 AI Agent의 MCP 도구 양쪽에서 같은 인증을 사용해 Admin API 18개 카테고리를 호출하는 방법을 설명해요."
 summary_en: "Register a Cafe24 mall as an integration and call any of its 18 Admin API categories from both the cafe24 workflow node and the AI Agent's MCP tool surface using the same credentials."
 spec: ["CLE-INT-MANAGE", "CLE-INT-OAUTH", "CLE-NODE-CAFE24", "CLE-C24-META", "CLE-INT-MCP"]
-code: ["codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts", "codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts"]
+code: ["codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts", "codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts", "codebase/backend/src/modules/integrations/pending-install-reuse.ts"]
 ---
 
 이 페이지에서는 한국의 이커머스 SaaS **Cafe24** 의 Admin API 를 통합으로 등록해서 워크플로 노드와 AI Agent 양쪽에서 활용하는 방법을 설명해요.
@@ -71,6 +71,29 @@ OAuth 버튼을 누르기 전에 다음 정보가 필요해요. Cafe24 는 URL �
 4. [Cafe24 Developers](https://developers.cafe24.com) 에서 해당 앱 → **테스트 실행** 버튼을 클릭합니다.
 5. Cafe24 가 등록된 App URL 로 HMAC 서명된 요청을 보내고, 서비스가 이를 검증한 뒤 자동으로 OAuth 동의 화면으로 리다이렉트해요.
 6. 동의하면 토큰이 발급되고 통합 상태가 `pending_install` → `connected` 로 전환됩니다.
+
+**설치 대기 중인 통합이 이미 있을 때:**
+같은 상점으로 설치를 기다리는 Private 통합이 있으면 새 통합을 또 만들지 않고 그 통합을 이어서 써요. 누가 시작한 통합인지에 따라 결과가 달라요.
+
+- **내가 시작한 개인 통합**: 그 통합을 이어서 써요.
+- **다른 멤버가 시작한 개인 통합**: 추가할 수 없어요. "같은 상점에 다른 멤버가 시작한 Cafe24 Private 설치가 기다리고 있어요. (시각) 이후에 다시 시도해 주세요." 토스트가 떠요. 이 시각은 그 설치의 기한으로, App URL 을 발급하고 24시간 뒤예요. 기한이 지나 설치 대기가 만료되면 다시 추가할 수 있어요.
+- **조직 통합으로 시작한 설치 대기**: Admin 이상만 이어서 쓸 수 있어요. Admin 미만에게는 "조직 통합은 관리자 이상만 추가하거나 바꿀 수 있어요." 토스트가 떠요.
+
+이어서 쓴 통합은 공개 범위가 바뀌지 않아요. 요청한 공개 범위와 다르면 "설치를 기다리던 기존 통합을 이어서 써요. 공개 범위는 기존 값인 «조직» 그대로예요." 안내가 떠요. «조직» 자리에는 그 통합의 공개 범위(«개인» 또는 «조직»)가 들어가요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="noticeIfScopeKept"
+  describes="이어서 쓴 설치 대기 통합의 공개 범위가 요청과 다를 때 띄우는 안내 토스트"
+/>
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/lib/api/integration-error-codes.ts"
+  symbol="CAFE24_INSTALL_PENDING_BY_OTHER"
+  describes="다른 멤버의 설치 대기 통합과 겹칠 때 설치 기한을 붙인 토스트 문구로 바꾸는 매핑"
+/>
 
 > 토큰은 자동 갱신돼요. `access_token` 만료 시각이 60초 안에 임박하면 노드 실행 직전 백엔드가 mall_id 의존 endpoint 로 갱신 호출을 보내요. 갱신 실패가 누적되면 통합 상태가 `expired` 로 전이되고 알림이 발사돼요.
 

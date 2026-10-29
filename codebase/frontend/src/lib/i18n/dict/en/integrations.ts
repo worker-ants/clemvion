@@ -258,6 +258,21 @@ export const integrations: Dict["integrations"] = {
   cafe24DuplicateMallViewExisting: "Open existing integration",
   cafe24DuplicateMallToast:
     "This mall ID is already connected and cannot be added",
+  // Add-integration error toasts (CLE-T-EDQYGH). Install-pending 409s append the retry sentence.
+  cafe24InstallPendingByOtherToast:
+    "Another member's Cafe24 Private install for this mall is still pending.",
+  makeshopInstallPendingByOtherToast:
+    "Another member's MakeShop install for this client_id is still pending.",
+  retryAfterPendingInstallExpiry:
+    "Try again after {{expiresAt}}.",
+  editorRequiredToast:
+    "Only Editors and above can add or change integrations.",
+  adminRequiredToast:
+    "Only Admins and above can add or change organization integrations.",
+  addIntegrationForbidden:
+    "Only Editors and above can add integrations.",
+  pendingInstallScopeKept:
+    "Continuing an integration that was already waiting for install. Its scope stays {{scope}}.",
   cafe24DuplicateMallChecking: "Checking…",
   // ----- Cafe24 begin-time validation (frontend pre-check) -----
   cafe24ValidateMallIdPattern:

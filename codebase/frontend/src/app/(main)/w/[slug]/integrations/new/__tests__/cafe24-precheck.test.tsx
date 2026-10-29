@@ -14,6 +14,7 @@ import { render, screen, act, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -97,6 +98,8 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     currentSearchParams = new URLSearchParams("service=cafe24");
     useLocaleStore.setState({ locale: "ko" });
+    // 추가 화면은 편집자 이상만 쓴다(CLE-T-EDQYGH).
+    seedWorkspaceViewer("owner");
     cleanup();
     servicesMock.mockResolvedValue([CAFE24_SERVICE]);
     precheckMock.mockResolvedValue({ conflict: false });
@@ -204,7 +207,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
 
     // 기존 통합 deep link
     const link = screen.getByRole("link", { name: /기존 통합 열기/ });
-    expect(link).toHaveAttribute("href", "/integrations/int-abc");
+    expect(link).toHaveAttribute("href", "/w/team-1/integrations/int-abc");
     expect(link.textContent).toContain("myshop (Cafe24)");
   });
 

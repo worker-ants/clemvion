@@ -1,5 +1,10 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { createHmac } from 'crypto';
+import { In } from 'typeorm';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { encryptJson } from './services/credentials-transformer';
 import { makeFakeJwt } from './__test-utils__/make-fake-jwt';
@@ -141,14 +146,20 @@ describe('IntegrationOAuthService — Cafe24', () => {
     previewRepo = makeRepo();
     dataSource = {
       query: jest.fn().mockResolvedValue([]),
+      // 콜백의 반환값을 돌려준다 — begin 의 설치 대기 행 쓰기가 트랜잭션 결과를 쓴다.
       transaction: jest
         .fn()
         .mockImplementation(
-          async (cb: (manager: { getRepository: Mock }) => Promise<void>) => {
-            await cb({
+          (
+            cb: (manager: {
+              getRepository: Mock;
+              query: Mock;
+            }) => Promise<unknown>,
+          ) =>
+            cb({
               getRepository: jest.fn().mockReturnValue(integrationRepo),
-            });
-          },
+              query: jest.fn().mockResolvedValue([]),
+            }),
         ),
     };
 
@@ -476,6 +487,8 @@ describe('IntegrationOAuthService — Cafe24', () => {
         .catch((err: Error) => err);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      // 겹친 행의 통합 ID 는 싣지 않는다(REQ-INTOAUTH-065).
+      expect(response).not.toHaveProperty('integrationId');
       // No row should be created — the duplicate guard fires before save.
       expect(integrationRepo.save).not.toHaveBeenCalled();
     });
@@ -486,6 +499,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         workspaceId: 'ws-1',
         status: 'pending_install',
         serviceType: 'cafe24',
+        // 재사용은 통합 소유자만 한다(REQ-INTOAUTH-058) — 요청자 u-1 의 개인 행.
+        scope: 'personal',
+        createdBy: 'u-1',
         installToken: 'old-token',
         credentials: {
           mall_id: 'priv-shop',
@@ -533,6 +549,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         workspaceId: 'ws-1',
         status: 'pending_install',
         serviceType: 'cafe24',
+        // 재사용은 통합 소유자만 한다(REQ-INTOAUTH-058) — 요청자 u-1 의 개인 행.
+        scope: 'personal',
+        createdBy: 'u-1',
         installToken: 'preserved-token',
         installTokenIssuedAt: new Date('2026-05-15T00:00:00Z'),
         credentials: {
@@ -567,6 +586,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         workspaceId: 'ws-1',
         status: 'pending_install',
         serviceType: 'cafe24',
+        // 재사용은 통합 소유자만 한다(REQ-INTOAUTH-058) — 요청자 u-1 의 개인 행.
+        scope: 'personal',
+        createdBy: 'u-1',
         installToken: 'preserved-token',
         installTokenIssuedAt: new Date('2026-05-15T00:00:00Z'),
         credentials: {
@@ -595,6 +617,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         workspaceId: 'ws-1',
         status: 'pending_install',
         serviceType: 'cafe24',
+        // 재사용은 통합 소유자만 한다(REQ-INTOAUTH-058) — 요청자 u-1 의 개인 행.
+        scope: 'personal',
+        createdBy: 'u-1',
         installToken: null,
         installTokenIssuedAt: null,
         credentials: {
@@ -715,10 +740,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
       'translates idx_integration_workspace_service_mall violation → CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409) — %s',
       async (_label, makeError) => {
         // No existing row in the pre-check (in-memory guard passes), but the
-        // concurrent INSERT triggers the unified UNIQUE constraint.
+        // INSERT triggers the unified UNIQUE constraint — 다시 판정해도 또 걸린다
+        // (begin 이 다시 쓰지 않는 같은 상점의 행이 있다).
         integrationRepo.find = jest.fn().mockResolvedValue([]);
         integrationRepo.create.mockImplementation((d: unknown) => d);
-        integrationRepo.save = jest.fn().mockRejectedValueOnce(makeError());
+        integrationRepo.save = jest.fn().mockRejectedValue(makeError());
 
         const error = await service
           .begin(privateBeginParams())
@@ -726,8 +752,144 @@ describe('IntegrationOAuthService — Cafe24', () => {
         expect((error as { response?: { code?: string } }).response?.code).toBe(
           'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
         );
+        // 한 번만 다시 판정한다.
+        expect(dataSource.transaction).toHaveBeenCalledTimes(2);
+        expect(integrationRepo.save).toHaveBeenCalledTimes(2);
       },
     );
+
+    describe('늦은 begin 은 한 번 다시 판정한다 — 앞선 begin 이 만든 행이 보인다', () => {
+      const uniqueViolation = (
+        constraint = 'idx_integration_workspace_service_mall',
+      ) =>
+        Object.assign(new Error('duplicate key'), {
+          code: '23505',
+          constraint,
+        });
+      /** 첫 판정은 빈 상점, 다시 판정할 때는 앞선 begin 이 만든 행이 보인다. */
+      function competitorWins(
+        row: Record<string, unknown>,
+        constraint?: string,
+      ) {
+        let attempt = 0;
+        dataSource.transaction.mockImplementation(
+          (
+            cb: (m: { getRepository: Mock; query: Mock }) => Promise<unknown>,
+          ) => {
+            attempt += 1;
+            const seen = attempt === 1 ? [] : [row];
+            const repo = {
+              ...integrationRepo,
+              find: jest
+                .fn()
+                .mockImplementation((opts: { where?: { mallId?: unknown } }) =>
+                  Promise.resolve(
+                    typeof opts.where?.mallId === 'string' ||
+                      !opts.where?.mallId
+                      ? seen
+                      : [],
+                  ),
+                ),
+            };
+            return cb({
+              getRepository: jest.fn().mockReturnValue(repo),
+              query: jest.fn().mockResolvedValue([]),
+            });
+          },
+        );
+        integrationRepo.save = jest
+          .fn()
+          .mockRejectedValueOnce(uniqueViolation(constraint))
+          .mockImplementation((e: unknown) => Promise.resolve(e));
+      }
+
+      it('자기 개인 행이면 그 행을 다시 쓴다', async () => {
+        competitorWins(
+          buildFakeCafe24Integration({
+            id: 'won-by-me',
+            status: 'pending_install',
+            appType: 'private',
+            clientId: 'cid',
+            clientSecret: 'csec',
+            installToken: 'WonWonWonWonWonWonWonW',
+            scope: 'personal',
+            createdBy: 'u-1',
+          }),
+        );
+        const result = (await service.begin(privateBeginParams())) as {
+          integrationId: string;
+          appUrl: string;
+        };
+        expect(result.integrationId).toBe('won-by-me');
+        expect(result.appUrl).toContain('WonWonWonWonWonWonWonW');
+        expect(dataSource.transaction).toHaveBeenCalledTimes(2);
+      });
+
+      // 같은 화면의 두 begin 은 이름이 같아서 이름 UNIQUE 가 상점 식별자 UNIQUE 보다 먼저 걸린다(e2e 에서 확인).
+      it('이름 UNIQUE 에 걸려도 다시 판정해 앞선 행을 다시 쓴다', async () => {
+        competitorWins(
+          buildFakeCafe24Integration({
+            id: 'won-by-me',
+            status: 'pending_install',
+            appType: 'private',
+            clientId: 'cid',
+            clientSecret: 'csec',
+            installToken: 'WonWonWonWonWonWonWonW',
+            scope: 'personal',
+            createdBy: 'u-1',
+          }),
+          'integration_workspace_name_unique',
+        );
+        const result = (await service.begin(privateBeginParams())) as {
+          integrationId: string;
+        };
+        expect(result.integrationId).toBe('won-by-me');
+        expect(dataSource.transaction).toHaveBeenCalledTimes(2);
+      });
+
+      it('다시 판정해도 이름 UNIQUE 에 걸리면 원래 오류를 그대로 던진다', async () => {
+        integrationRepo.find = jest.fn().mockResolvedValue([]);
+        integrationRepo.create.mockImplementation((d: unknown) => d);
+        const nameTaken = uniqueViolation('integration_workspace_name_unique');
+        integrationRepo.save = jest.fn().mockRejectedValue(nameTaken);
+
+        await expect(service.begin(privateBeginParams())).rejects.toBe(
+          nameTaken,
+        );
+        expect(dataSource.transaction).toHaveBeenCalledTimes(2);
+      });
+
+      it('다른 제약의 23505 는 다시 판정하지 않는다', async () => {
+        integrationRepo.find = jest.fn().mockResolvedValue([]);
+        integrationRepo.create.mockImplementation((d: unknown) => d);
+        const other = uniqueViolation('some_other_unique');
+        integrationRepo.save = jest.fn().mockRejectedValue(other);
+
+        await expect(service.begin(privateBeginParams())).rejects.toBe(other);
+        expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      });
+
+      it('남의 개인 행이면 409 CAFE24_PRIVATE_APP_INSTALL_PENDING', async () => {
+        competitorWins(
+          buildFakeCafe24Integration({
+            id: 'won-by-other',
+            status: 'pending_install',
+            appType: 'private',
+            installToken: 'WonWonWonWonWonWonWonW',
+            installTokenIssuedAt: new Date('2026-10-28T09:00:00.000Z'),
+            scope: 'personal',
+            createdBy: 'u-other',
+          }),
+        );
+        await expect(service.begin(privateBeginParams())).rejects.toMatchObject(
+          {
+            response: expect.objectContaining({
+              code: 'CAFE24_PRIVATE_APP_INSTALL_PENDING',
+            }),
+          },
+        );
+      });
+    });
 
     it('re-throws non-unique-violation errors from the race-backstop catch', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([]);
@@ -740,6 +902,238 @@ describe('IntegrationOAuthService — Cafe24', () => {
       await expect(service.begin(privateBeginParams())).rejects.toMatchObject({
         message: 'connection reset',
       });
+    });
+  });
+
+  // NERV CLE-INT-OAUTH 「설치 대기 행 재사용의 권한」 — Task CLE-T-N7ENKQ.
+  describe('begin — private app 설치 대기 행 재사용의 권한 (REQ-INTOAUTH-058 · 062 · 066 · 067)', () => {
+    const ISSUED_AT = new Date('2026-10-28T09:00:00.000Z');
+    const KEPT_TOKEN = 'KeptKeptKeptKeptKeptKe';
+
+    function beginAs(
+      requesterRole: string,
+      scope?: 'personal' | 'organization',
+    ) {
+      return service.begin({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'cafe24',
+        scopes: ['mall.read_product'],
+        mode: 'new',
+        scope,
+        requesterRole,
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'cid',
+          client_secret: 'csec',
+        },
+      });
+    }
+
+    function pendingRow(scope: 'personal' | 'organization', createdBy: string) {
+      return buildFakeCafe24Integration({
+        id: `pending-${scope}-${createdBy}`,
+        status: 'pending_install',
+        appType: 'private',
+        clientId: 'cid',
+        clientSecret: 'csec',
+        installToken: KEPT_TOKEN,
+        installTokenIssuedAt: ISSUED_AT,
+        scope,
+        createdBy,
+      });
+    }
+
+    /** 상점 조회(`mallId` 문자열)와 잠금 조회(`lock`)에 각각 답한다. legacy 조회(`IsNull()`)는 비운다. */
+    function answerFind(
+      rows: Record<string, unknown>[],
+      lockedRows: Record<string, unknown>[] = rows,
+    ) {
+      integrationRepo.find = jest
+        .fn()
+        .mockImplementation(
+          (opts: { lock?: unknown; where?: { mallId?: unknown } }) =>
+            Promise.resolve(
+              opts.lock
+                ? lockedRows
+                : typeof opts.where?.mallId === 'string'
+                  ? rows
+                  : [],
+            ),
+        );
+    }
+
+    it('남의 개인 행 — 소유자 역할이어도 409 CAFE24_PRIVATE_APP_INSTALL_PENDING 이고 설치 기한만 싣는다', async () => {
+      answerFind([pendingRow('personal', 'u-other')]);
+      const error = await beginAs('owner').catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ConflictException);
+      const body = (error as ConflictException).getResponse() as Record<
+        string,
+        unknown
+      >;
+      expect(body.code).toBe('CAFE24_PRIVATE_APP_INSTALL_PENDING');
+      expect(body.details).toEqual({
+        pendingInstallExpiresAt: '2026-10-29T09:00:00.000Z',
+      });
+      // 그 행의 통합 ID 와 App URL(설치 토큰)은 싣지 않는다(REQ-INTOAUTH-061).
+      expect(JSON.stringify(body)).not.toContain('pending-personal-u-other');
+      expect(JSON.stringify(body)).not.toContain(KEPT_TOKEN);
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('조직 행 · 편집자 — 403 ADMIN_REQUIRED 이고 행을 바꾸지 않는다', async () => {
+      answerFind([pendingRow('organization', 'u-1')]);
+      const error = await beginAs('editor').catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect(
+        ((error as ForbiddenException).getResponse() as { code: string }).code,
+      ).toBe('ADMIN_REQUIRED');
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('조직 행 · 관리자 — 다시 쓰고 공개 범위 · 소유자는 그대로이며 응답 scope 는 organization', async () => {
+      answerFind([pendingRow('organization', 'u-other')]);
+      // 요청 본문의 공개 범위는 판정에도 결과에도 쓰지 않는다.
+      const result = (await beginAs('admin', 'personal')) as {
+        integrationId: string;
+        appUrl: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('pending-organization-u-other');
+      expect(result.scope).toBe('organization');
+      expect(result.appUrl).toContain(KEPT_TOKEN);
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.scope).toBe('organization');
+      expect(saved.createdBy).toBe('u-other');
+      expect(integrationRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('자기 개인 행 — 편집자가 다시 쓰고 응답 scope 는 personal', async () => {
+      answerFind([pendingRow('personal', 'u-1')]);
+      const result = (await beginAs('editor')) as {
+        integrationId: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('pending-personal-u-1');
+      expect(result.scope).toBe('personal');
+    });
+
+    it('다시 쓸 행이 없으면 요청한 공개 범위로 새 행을 만들고 응답에 싣는다', async () => {
+      answerFind([]);
+      const result = (await beginAs('admin', 'organization')) as {
+        scope: string;
+      };
+      expect(result.scope).toBe('organization');
+      expect(integrationRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: 'organization', createdBy: 'u-1' }),
+      );
+    });
+
+    it('판정 전에 후보 행을 트랜잭션 안에서 FOR UPDATE 로 잠근다', async () => {
+      answerFind([pendingRow('personal', 'u-1')]);
+      await beginAs('editor');
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      const lockCall = (
+        integrationRepo.find.mock.calls as Array<[Record<string, unknown>]>
+      ).find(([opts]) => opts.lock !== undefined);
+      expect(lockCall?.[0]).toEqual({
+        where: { id: In(['pending-personal-u-1']), status: 'pending_install' },
+        order: { createdAt: 'ASC', id: 'ASC' },
+        lock: { mode: 'pessimistic_write' },
+      });
+    });
+
+    it('잠근 뒤 설치 대기가 아니게 된 행은 다시 쓰지 않고 새 행을 만든다', async () => {
+      // 잠금을 기다리는 동안 다른 요청이 설치를 마쳤다 — 잠금 조회의 WHERE 에서 빠진다.
+      answerFind([pendingRow('personal', 'u-other')], []);
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
+      expect(integrationRepo.create).toHaveBeenCalled();
+    });
+
+    // 아래 세 케이스의 목은 «잠근 뒤 WHERE 를 다시 평가한 결과» 를 대신 답한다. 그 재평가(READ COMMITTED)는 Postgres 가
+    // 하므로 실제 DB 동작은 e2e(`integration-pending-install-reuse.e2e-spec.ts`)가 본다. 여기서는 서비스가 잠근 뒤의
+    // 결과로 다시 판정하는지만 본다.
+    it('잠근 뒤 일부 행만 남으면 남은 행으로 다시 판정한다 — 앞선 남의 행이 빠지면 409 가 아니라 자기 행을 다시 쓴다', async () => {
+      answerFind(
+        [pendingRow('personal', 'u-other'), pendingRow('personal', 'u-1')],
+        [pendingRow('personal', 'u-1')],
+      );
+      const result = (await beginAs('editor')) as {
+        integrationId: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('pending-personal-u-1');
+      expect(integrationRepo.create).not.toHaveBeenCalled();
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.id).toBe('pending-personal-u-1');
+    });
+
+    it('잠금 조회가 설치 대기가 아닌 행을 돌려줘도 다시 걸러 새 행을 만든다', async () => {
+      answerFind(
+        [pendingRow('personal', 'u-other')],
+        [
+          buildFakeCafe24Integration({
+            id: 'pending-personal-u-other',
+            status: 'connected',
+            appType: 'private',
+            scope: 'personal',
+            createdBy: 'u-other',
+          }),
+        ],
+      );
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
+      expect(integrationRepo.create).toHaveBeenCalled();
+    });
+
+    it('잠근 뒤 다른 상점의 행이 되었으면 다시 쓰지 않는다', async () => {
+      answerFind(
+        [pendingRow('personal', 'u-other')],
+        [
+          buildFakeCafe24Integration({
+            id: 'pending-personal-u-other',
+            status: 'pending_install',
+            appType: 'private',
+            mallId: 'moved-shop',
+            scope: 'personal',
+            createdBy: 'u-other',
+          }),
+        ],
+      );
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
+    });
+
+    it('같은 상점의 행을 읽은 뒤에 잠그고, 잠근 뒤에 저장한다', async () => {
+      answerFind([pendingRow('personal', 'u-1')]);
+      await beginAs('editor');
+      const finds = integrationRepo.find.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      const lockIndex = finds.findIndex(([opts]) => opts.lock !== undefined);
+      expect(lockIndex).toBeGreaterThan(0);
+      const order = integrationRepo.find.mock.invocationCallOrder;
+      expect(order[lockIndex]).toBeGreaterThan(order[0]);
+      expect(integrationRepo.save.mock.invocationCallOrder[0]).toBeGreaterThan(
+        order[lockIndex],
+      );
     });
   });
 
@@ -777,6 +1171,8 @@ describe('IntegrationOAuthService — Cafe24', () => {
         .catch((err: Error) => err);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      // 겹친 행의 통합 ID 는 싣지 않는다(REQ-INTOAUTH-065).
+      expect(response).not.toHaveProperty('integrationId');
       // No OAuth state row created — the guard fires before save.
       expect(stateRepo.save).not.toHaveBeenCalled();
     });
@@ -870,13 +1266,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           integrationId: 'target-public',
         })
         .catch((err: Error) => err);
-      expect(
-        (error as { response?: { code?: string; integrationId?: string } })
-          .response,
-      ).toMatchObject({
-        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-        integrationId: 'other-connected',
-      });
+      const response = (error as { response?: Record<string, unknown> })
+        .response;
+      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      // 겹친 행의 통합 ID 는 싣지 않는다(REQ-INTOAUTH-065).
+      expect(response).not.toHaveProperty('integrationId');
       expect(stateRepo.save).not.toHaveBeenCalled();
     });
 
@@ -898,13 +1292,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           integrationId: 'existing-public-connected',
         })
         .catch((err: Error) => err);
-      expect(
-        (error as { response?: { code?: string; integrationId?: string } })
-          .response,
-      ).toMatchObject({
-        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-        integrationId: 'existing-public-connected',
-      });
+      const response = (error as { response?: Record<string, unknown> })
+        .response;
+      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      // 겹친 행의 통합 ID 는 싣지 않는다(REQ-INTOAUTH-065).
+      expect(response).not.toHaveProperty('integrationId');
       expect(stateRepo.save).not.toHaveBeenCalled();
     });
 
@@ -2153,6 +2545,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const markedRow = {
         id: 'marked-int-id',
         workspaceId: 'ws-1',
+        serviceType: 'cafe24',
         status: 'connected',
         scope: 'personal',
         createdBy: 'u-1',

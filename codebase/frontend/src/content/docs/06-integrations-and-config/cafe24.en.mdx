@@ -60,6 +60,29 @@ Instead of a popup, you'll see an instruction screen with two values: **App URL*
 4. Cafe24 sends an HMAC-signed request to the App URL. This service verifies the signature and redirects to Cafe24's consent screen.
 5. After consent, the token is issued and the integration status transitions from `pending_install` → `connected`.
 
+**When an integration is already waiting for install:**
+If a Private integration for the same mall is already waiting for install, the service reuses it instead of creating another one. What happens depends on who started it.
+
+- **A personal integration you started**: you continue with that integration.
+- **A personal integration another member started**: you can't add one. A toast reads "Another member's Cafe24 Private install for this mall is still pending." followed by "Try again after (time)." The time is that install's deadline, 24 hours after the App URL was issued. Once the deadline passes and the pending install expires, you can add the integration again.
+- **A pending install started as an Organization integration**: only Admins and above can continue it. Below Admin, a toast reads "Only Admins and above can add or change organization integrations."
+
+A reused integration keeps its scope. If that differs from the scope you asked for, a notice reads "Continuing an integration that was already waiting for install. Its scope stays Organization." where "Organization" is replaced by that integration's scope (Personal or Organization).
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="noticeIfScopeKept"
+  describes="Notice toast shown when a reused pending-install integration keeps a scope different from the one requested"
+/>
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/lib/api/integration-error-codes.ts"
+  symbol="CAFE24_INSTALL_PENDING_BY_OTHER"
+  describes="Mapping that turns a clash with another member's pending install into a toast message with the install deadline"
+/>
+
 > Tokens auto-refresh. When `access_token` is within 60 seconds of expiring, the backend issues a refresh call to the mall-specific token URL just before the next node call. Repeated refresh failures flip the integration to `expired` and fire a notification.
 
 ### 5) Reauthorize a Private app or add scopes

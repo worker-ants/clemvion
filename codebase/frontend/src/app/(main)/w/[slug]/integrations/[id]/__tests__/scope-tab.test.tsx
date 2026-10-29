@@ -9,6 +9,8 @@ import type {
   ServiceDefinition,
 } from "@/lib/api/integrations";
 import { useT } from "@/lib/i18n";
+import type { WorkspaceRole } from "@/lib/stores/workspace-store";
+import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
 const requestScopesMock = vi.fn();
 const toastSuccessMock = vi.fn();
@@ -125,6 +127,7 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useLocaleStore.setState({ locale: "en" });
+    seedWorkspaceViewer("owner");
     cleanup();
   });
 
@@ -359,4 +362,47 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
       screen.queryByRole("button", { name: "Request scopes" }),
     ).toBeNull();
   });
+});
+
+/*
+ * 권한 추가 요청은 바꿀 수 있는 사람에게만 보인다 — NERV CLE-INT-MANAGE 「권한」 표, Task CLE-T-EDQYGH.
+ * 현재 권한 목록은 조회라 누구에게나 보인다.
+ */
+describe("ScopeTab — 역할과 통합 소유에 따른 표시", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+  });
+
+  it.each([
+    ["조직 통합 · 편집자", "editor", { scope: "organization" }, false],
+    ["조직 통합 · 관리자", "admin", { scope: "organization" }, true],
+    ["자기 개인 통합 · 뷰어", "viewer", { scope: "personal" }, false],
+    ["자기 개인 통합 · 편집자", "editor", { scope: "personal" }, true],
+    [
+      "남의 개인 통합 · 소유자",
+      "owner",
+      { scope: "personal", createdBy: "user-other" },
+      false,
+    ],
+  ] as [string, WorkspaceRole, Partial<IntegrationDto>, boolean][])(
+    "%s",
+    async (_label, role, overrides, visible) => {
+      seedWorkspaceViewer(role);
+      const { render: renderFn } = renderScopeTab({
+        integration: buildIntegration(overrides),
+      });
+      await act(async () => {
+        renderFn();
+      });
+
+      expect(
+        screen.queryByRole("button", { name: "Request scopes" }) !== null,
+      ).toBe(visible);
+      expect(screen.queryByText("Write product") !== null).toBe(visible);
+      // 현재 권한은 역할과 상관없이 보인다.
+      expect(screen.getAllByText("mall.read_product").length).toBeGreaterThan(0);
+    },
+  );
 });

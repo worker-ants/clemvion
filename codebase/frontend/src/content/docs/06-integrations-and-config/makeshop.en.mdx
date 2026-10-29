@@ -46,6 +46,29 @@ After Connect, the integration is created in a **pending** state and two URLs ap
 
 After registering both URLs, install the app from your store. The install redirect calls the App URL and completes OAuth. This screen **auto-polls** for install completion and routes to the integration detail page once connected. If it doesn't connect within 10 minutes you'll see a "still pending" notice (the integration remains on the backend, and polling resumes when you reopen or refresh).
 
+**When an integration is already waiting for install:**
+If an integration in the same workspace with the same `client_id` is already waiting for install, the service reuses it instead of creating another one. What happens depends on who started it.
+
+- **A personal integration you started**: you continue with that integration.
+- **A personal integration another member started**: you can't add one. A toast reads "Another member's MakeShop install for this client_id is still pending." followed by "Try again after (time)." The time is that install's deadline, 24 hours after the App URL was issued. Once the deadline passes and the pending install expires, you can add the integration again.
+- **A pending install started as an Organization integration**: only Admins and above can continue it. Below Admin, a toast reads "Only Admins and above can add or change organization integrations."
+
+A reused integration keeps its scope. If that differs from the scope you asked for, a notice reads "Continuing an integration that was already waiting for install. Its scope stays Organization." where "Organization" is replaced by that integration's scope (Personal or Organization).
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="noticeIfScopeKept"
+  describes="Notice toast shown when a reused pending-install integration keeps a scope different from the one requested"
+/>
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/lib/api/integration-error-codes.ts"
+  symbol="MAKESHOP_INSTALL_PENDING_BY_OTHER"
+  describes="Mapping that turns a clash with another member's pending install into a toast message with the install deadline"
+/>
+
 ## Using it in a workflow — the `MakeShop` node
 
 Drop a `MakeShop` node on the canvas and in its config panel:

@@ -12,7 +12,7 @@ import type { Integration } from './entities/integration.entity';
  */
 
 /**
- * 재설치 요청 표시의 유효 시간. 설치 대기 TTL(`integration-expiry-scanner.service.ts` 의 `PENDING_INSTALL_TTL_HOURS`,
+ * 재설치 요청 표시의 유효 시간. 설치 대기 TTL(`pending-install-reuse.ts` 의 `PENDING_INSTALL_TTL_HOURS`,
  * 24시간)과 같은 값이다 — 두 흐름이 "App URL 이 OAuth 로 보내는 창"의 길이를 맞춘다. 한쪽을 바꾸면 다른 쪽도 본다.
  */
 export const REINSTALL_REQUEST_TTL_HOURS = 24;

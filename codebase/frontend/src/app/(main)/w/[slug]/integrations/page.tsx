@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
-import { RoleGate } from "@/components/auth/role-gate";
+import { RoleGate, useHasRole } from "@/components/auth/role-gate";
 import { cn } from "@/lib/utils/cn";
 import {
   integrationsApi,
@@ -137,8 +137,12 @@ export default function IntegrationsPage() {
     return { org, personal };
   }, [integrations]);
 
+  // 추가 버튼과 같은 하한이다. 뷰어는 단축키로도 추가 창을 열지 못한다(CLE-INT-MANAGE 「권한」).
+  const canAdd = useHasRole("editor");
+
   // `N` keyboard shortcut — open Add Integration modal when not typing.
   useEffect(() => {
+    if (!canAdd) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "n" && e.key !== "N") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -156,7 +160,7 @@ export default function IntegrationsPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [canAdd]);
 
   return (
     <div className="space-y-6">

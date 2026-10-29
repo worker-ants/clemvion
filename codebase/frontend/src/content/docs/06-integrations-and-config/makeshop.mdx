@@ -6,7 +6,7 @@ order: 11
 summary: "메이크샵 쇼핑몰을 통합으로 등록하고, 워크플로 makeshop 노드와 AI Agent의 MCP 도구 양쪽에서 같은 인증으로 Shop API 7개 리소스(161개 작업)를 호출하는 방법을 설명해요."
 summary_en: "Register a MakeShop store as an integration and call its Shop API (7 resources, 161 operations) from both the makeshop workflow node and the AI Agent's MCP tool surface using the same credentials."
 spec: ["CLE-INT-MANAGE", "CLE-INT-OAUTH", "CLE-NODE-MAKESHOP", "CLE-MKS-META", "CLE-INT-MCP"]
-code: ["codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts", "codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts"]
+code: ["codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts", "codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts", "codebase/backend/src/modules/integrations/pending-install-reuse.ts"]
 ---
 
 이 페이지에서는 한국의 이커머스 SaaS **MakeShop(메이크샵)** 의 Shop API 를 통합으로 등록해서 워크플로 노드와 AI Agent 양쪽에서 활용하는 방법을 설명해요.
@@ -56,6 +56,29 @@ Connect 를 누르면 통합이 **연결 대기(pending)** 상태로 생성되�
 | **Redirect URI** | 파트너센터의 **Redirect URI** 필드. 정확히 일치해야 해요 (trailing slash / `http` vs `https` / 포트 / 오타 모두 정확히) |
 
 두 URL 을 등록한 뒤, 상점에서 앱을 설치하면 설치 redirect 가 App URL 을 호출하면서 OAuth 가 완료돼요. 이 화면은 설치 완료를 **자동으로 폴링** 하다가, 연결되면 통합 상세 페이지로 이동해요. 10분이 지나도 연결되지 않으면 "아직 대기 중" 안내가 나와요 (백엔드에는 통합이 그대로 남아 있어, 다시 열거나 새로고침하면 폴링이 재개됩니다).
+
+**설치 대기 중인 통합이 이미 있을 때:**
+같은 워크스페이스에서 같은 `client_id` 로 설치를 기다리는 통합이 있으면 새 통합을 또 만들지 않고 그 통합을 이어서 써요. 누가 시작한 통합인지에 따라 결과가 달라요.
+
+- **내가 시작한 개인 통합**: 그 통합을 이어서 써요.
+- **다른 멤버가 시작한 개인 통합**: 추가할 수 없어요. "같은 client_id 로 다른 멤버가 시작한 MakeShop 설치가 기다리고 있어요. (시각) 이후에 다시 시도해 주세요." 토스트가 떠요. 이 시각은 그 설치의 기한으로, App URL 을 발급하고 24시간 뒤예요. 기한이 지나 설치 대기가 만료되면 다시 추가할 수 있어요.
+- **조직 통합으로 시작한 설치 대기**: Admin 이상만 이어서 쓸 수 있어요. Admin 미만에게는 "조직 통합은 관리자 이상만 추가하거나 바꿀 수 있어요." 토스트가 떠요.
+
+이어서 쓴 통합은 공개 범위가 바뀌지 않아요. 요청한 공개 범위와 다르면 "설치를 기다리던 기존 통합을 이어서 써요. 공개 범위는 기존 값인 «조직» 그대로예요." 안내가 떠요. «조직» 자리에는 그 통합의 공개 범위(«개인» 또는 «조직»)가 들어가요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="noticeIfScopeKept"
+  describes="이어서 쓴 설치 대기 통합의 공개 범위가 요청과 다를 때 띄우는 안내 토스트"
+/>
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/lib/api/integration-error-codes.ts"
+  symbol="MAKESHOP_INSTALL_PENDING_BY_OTHER"
+  describes="다른 멤버의 설치 대기 통합과 겹칠 때 설치 기한을 붙인 토스트 문구로 바꾸는 매핑"
+/>
 
 ## 워크플로에서 사용하기 — `MakeShop` 노드
 

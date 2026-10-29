@@ -22,6 +22,11 @@ export interface Cafe24PrivatePendingBase {
   integrationId: string;
   appUrl: string;
   callbackUrl: string;
+  /**
+   * `oauth/begin`(`new`)이 만들거나 다시 쓴 설치 대기 행의 공개 범위. 다시 쓴 행은 공개 범위가 바뀌지 않아 요청과
+   * 다를 수 있다(REQ-INTOAUTH-067). 재인증 · 추가 권한 요청 응답에는 없다.
+   */
+  scope?: IntegrationScope;
 }
 
 /**
@@ -36,6 +41,8 @@ export interface MakeshopPendingBase {
   integrationId: string;
   appUrl: string;
   callbackUrl: string;
+  /** 만들거나 다시 쓴 설치 대기 행의 공개 범위(REQ-INTOAUTH-067). */
+  scope?: IntegrationScope;
 }
 
 export type OAuthBeginResult =

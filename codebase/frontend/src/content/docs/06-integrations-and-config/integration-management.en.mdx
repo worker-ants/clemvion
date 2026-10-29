@@ -33,10 +33,23 @@ A node that uses a Personal integration the rule doesn't allow fails at run time
 Permissions:
 
 <FieldTable rows={[
-  { name: "Viewer", type: "Role", required: "-", description: "Can view and test Organization integrations and your own Personal integrations, and can re-auth or request extra scopes on your own Personal integrations. Cannot create, edit, delete, or rotate credentials." },
-  { name: "Editor", type: "Role", required: "-", description: "Can create your own Personal integrations and edit, delete, re-auth, rotate credentials, or request scopes for them directly. For Organization integrations, you can only view and test." },
-  { name: "Admin / Owner", type: "Role", required: "-", description: "Can create, edit, delete, re-auth, rotate credentials, and request scopes for Organization integrations, and manage your own Personal integrations with the same range as an Editor. Only Admins and above can switch scope between Personal and Organization, and only for integrations you can already see (your own Personal or Organization integrations)." }
+  { name: "Viewer", type: "Role", required: "-", description: "Can view Organization integrations and your own Personal integrations, and can test a saved integration's connection. Cannot add or change integrations. The one exception: you can delete a Personal integration you created." },
+  { name: "Editor", type: "Role", required: "-", description: "Can create your own Personal integrations and edit, re-auth, rotate credentials, request scopes for, or delete them directly. Cannot switch a Personal integration's scope. For Organization integrations, you can only view and test." },
+  { name: "Admin / Owner", type: "Role", required: "-", description: "Can create, edit, delete, re-auth, rotate credentials, and request scopes for Organization integrations, and manage your own Personal integrations with the same range as an Editor. Only Admins and above can switch scope between Personal and Organization, and only for integrations you can already see (your own Personal or Organization integrations). Even an Owner can't change another member's Personal integration." }
 ]} />
+
+By action, it works out like this. A Personal integration can only be handled by the person who created it, and the role in the table is the minimum role that person needs.
+
+| Action | Personal integration | Organization integration |
+| --- | --- | --- |
+| View (list, detail, usages, activity) | Any role | Every member |
+| `Test connection` on a saved integration | Any role | Every member |
+| Add a new integration | Editor or above | Admin or above |
+| Rename, re-auth, rotate credentials, request scopes | Editor or above | Admin or above |
+| Switch scope between Personal and Organization | Admin or above | Admin or above |
+| Delete | Any role | Admin or above |
+
+The screen and the server enforce the same rules. Buttons and input areas for actions you can't take are not shown, so you never press something only to be turned down.
 
 <Callout type="tip">Integrations in a personal workspace are visible only to the owner. To share with a team, create the integration inside the team workspace. The same external account is a separate record per workspace.</Callout>
 
@@ -59,9 +72,25 @@ On the integration's Danger zone tab, switching an Organization integration to P
 
 Click `[+ Add Integration]` in the top-right of [Integrations](/integrations). Pick a service in the modal; the flow then transitions into a dedicated page starting from the auth step (`/integrations/new?service=...&step=auth`).
 
+Only Editors and above can add integrations. Viewers don't see the `[+ Add Integration]` button, and pressing `N` on the list doesn't open the service picker. If a Viewer goes straight to the add page's address, the page shows only the notice "Only Editors and above can add integrations." and a link back to the list.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx"
+  symbol="canAdd"
+  describes="Check that opens the Add button and the N shortcut on the integrations list to Editors and above only"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="AddIntegrationForbidden"
+  describes="Notice and link back to the list shown to a Viewer who opens the add-integration page by its address"
+/>
+
 <Steps>
 <Step>In the service-picker modal, click one of Google, GitHub, HTTP, Database, Email, Webhook.</Step>
-<Step>In Step 2, set an alias (`name`) and scope (Personal / Organization). In a team workspace, only admins can pick Organization scope.</Step>
+<Step>In Step 2, set an alias (`name`) and scope (Personal / Organization). In a team workspace, only Admins and above can pick Organization scope. Below Admin, Organization is disabled and can't be selected.</Step>
 <Step>Enter service-specific credentials. OAuth services use scope checkboxes; click `[Connect with ...]` to authenticate through a popup.</Step>
 <Step>Step 3 auto-runs `POST /api/integrations/preview-test`. `[Save integration]` activates once the test passes.</Step>
 <Step>On save, you're redirected to the detail page (`/integrations/[id]`) with an `Integration created` toast.</Step>
@@ -69,18 +98,27 @@ Click `[+ Add Integration]` in the top-right of [Integrations](/integrations). P
 
 <Callout type="warn">If the OAuth popup doesn't return within 5 minutes, the attempt times out. The credentials you entered aren't restored for safety reasons — restart from Step 2.</Callout>
 
+<Callout type="note">Cafe24 Private and MakeShop integrations stay in a pending-install state until the app install finishes. If another member's personal install for the same mall (Cafe24 Private) or the same `client_id` (MakeShop) is still waiting, you can't add a new one. See the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24) and the [MakeShop integration guide](/docs/06-integrations-and-config/makeshop) for details.</Callout>
+
 ## Testing, editing, and rotating credentials
 
 The detail page tabs cover almost every operational task.
 
 <FieldTable rows={[
-  { name: "Overview", type: "Tab", required: "Always", description: "Run `Test connection` and rename the alias." },
-  { name: "Security", type: "Tab", required: "Always", description: "OAuth integrations: the `Reauthorize` button refreshes the token. Non-OAuth integrations: the `Rotate credentials` form, where the new values replace the old only after the connection test passes." },
-  { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red." },
+  { name: "Overview", type: "Tab", required: "Always", description: "Run `Test connection` and rename the alias. Anyone who can see the integration can use `Test connection`; the `Edit` button that renames the alias is shown only to people who can change the integration." },
+  { name: "Security", type: "Tab", required: "Always", description: "OAuth integrations: the `Reauthorize` button refreshes the token. Non-OAuth integrations: the `Rotate credentials` form, where the new values replace the old only after the connection test passes. Both areas are shown only to people who can change the integration." },
+  { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red. Anyone can see the current scopes; the area for requesting more is shown only to people who can change the integration." },
   { name: "Usage", type: "Tab", required: "Always", description: "Lists workflows and nodes referencing this integration. `Open in editor` jumps you straight there." },
   { name: "Activity", type: "Tab", required: "Always", description: "Shows the last 7 days of call history with API, status, duration, and error columns. The `API` column shows which endpoint was called. Cafe24 integrations display a human-friendly operation label; other services show the HTTP method and path as-is. If neither is available, it shows `—`. When the integration isn't connected (`error` · `expired` · `pending_install`), new calls aren't recorded, so a warning banner appears above the list with a `View status` button to check and reconnect on the Overview tab." },
-  { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. Deleting an Organization integration requires Admin or above; deleting your own Personal integration requires being its creator with the Editor role or above (Viewers can't delete even their own). Switching scope always requires Admin or above. When you switch from Organization to Personal, the usages are checked first, and a warning dialog appears if any workflow was created by someone other than the person who created the integration. Deletion is blocked when the integration is still in use, and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
+  { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. The tab appears only when you can do at least one of the two, and the part you can't do is not shown. Admins and above can both delete and switch scope on an Organization integration. Anyone can delete a Personal integration they created, Viewers included, but only Admins and above can switch its scope. So a Viewer or Editor who opens their own Personal integration sees only the delete part, and doesn't see the tab at all on an Organization integration. When you switch from Organization to Personal, the usages are checked first, and a warning dialog appears if any workflow was created by someone other than the person who created the integration. Deletion is blocked when the integration is still in use, and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
 ]} />
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/integration-permissions.ts"
+  symbol="hasDangerZoneAction"
+  describes="Check on the detail page that decides, by role and ownership, whether the edit, re-auth, rotate, request-scopes, switch-scope and delete controls and the Danger zone tab are shown"
+/>
 
 <Callout type="note">
 How reauthorizing and adding scopes (Request scopes) work depends on the provider.

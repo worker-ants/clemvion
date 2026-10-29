@@ -240,9 +240,13 @@ export class OAuthBeginDto {
   @MaxLength(255)
   integrationName?: string;
 
-  /** 통합 범위 */
+  /**
+   * 공개 범위. `organization` 은 관리자 이상만 고를 수 있다. `new` 모드가 설치 대기 행을 다시 쓰면 그 행의 공개 범위를
+   * 그대로 쓰고 응답 `scope` 에 싣는다.
+   */
   @ApiPropertyOptional({
-    description: '통합 범위. personal=개인, organization=조직',
+    description:
+      '공개 범위. personal=개인, organization=조직. organization 은 관리자 이상만 고를 수 있다. new 모드가 설치 대기 행을 다시 쓰면 그 행의 공개 범위를 유지한다',
     enum: ['personal', 'organization'],
     example: 'personal',
   })

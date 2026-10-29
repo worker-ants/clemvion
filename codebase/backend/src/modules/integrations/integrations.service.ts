@@ -726,7 +726,8 @@ export class IntegrationsService {
 
   /**
    * Organization 통합의 변경은 Admin 이상이다(§8) — 판정 · 거부 문구는 공유 함수(`assertOrgScopeModifiable`)가 OAuth 콜백의
-   * 재판정과 함께 쓴다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 본인은 역할과 무관하게 바꾼다.
+   * 재판정과 함께 쓴다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 쓰기의 편집자 하한은 라우트
+   * 가드가 본다(삭제만 뷰어 이상).
    *
    * rotate 는 이 판정을 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행) 두 지점에서 부른다 — 보안 직결 판정이라 조건 ·
    * 에러 코드를 이 한 곳에 두지 않으면 두 지점이 drift 한다.
@@ -797,6 +798,22 @@ export class IntegrationsService {
   }
 
   /**
+   * 새 통합의 공개 범위를 고를 수 있는가 — Organization 은 Admin 이상이다(생략하면 personal). `POST /api/integrations` 와
+   * `oauth/begin` 의 `new` 모드(컨트롤러가 부른다, REQ-INTOAUTH-064)가 같은 판정을 받는다. 편집자 하한은 두 라우트의 가드가
+   * 본다.
+   */
+  assertCanCreate(
+    requestedScope: 'personal' | 'organization' | undefined,
+    userRole: string | null,
+  ): void {
+    this.assertCanModify(
+      { scope: requestedScope ?? 'personal' },
+      userRole,
+      'create',
+    );
+  }
+
+  /**
    * 보이는가(404) → Organization 이면 Admin 인가(403) 순서로 판정해 행을 돌려준다. `:id` 로 통합을 바꾸는 경로와
    * `oauth/begin` 의 `reauthorize` · `request_scopes` 모드(`integrationId` 지정 — 컨트롤러가 부른다)가 같은 판정을 받는다.
    */
@@ -836,7 +853,7 @@ export class IntegrationsService {
     this.validateServiceAuthType(body.serviceType, body.authType);
 
     const requestedScope = body.scope ?? 'personal';
-    this.assertCanModify({ scope: requestedScope }, userRole, 'create');
+    this.assertCanCreate(requestedScope, userRole);
 
     let credentials: Record<string, unknown> = body.credentials ?? {};
     let tokenExpiresAt: Date | null = null;

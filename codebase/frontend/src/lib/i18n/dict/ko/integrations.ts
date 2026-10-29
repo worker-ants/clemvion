@@ -256,6 +256,21 @@ export const integrations = {
   cafe24DuplicateMallViewExisting: "기존 통합 열기",
   // 사후 toast 의 한글 primary 메시지. backend 영문 message 는 (괄호) 안에 보조 표시.
   cafe24DuplicateMallToast: "이 mall ID 는 이미 연결되어 있어 추가할 수 없어요",
+  // 통합 추가 오류 토스트(CLE-T-EDQYGH). 설치 대기 409 는 기한 문장을 뒤에 붙인다.
+  cafe24InstallPendingByOtherToast:
+    "같은 상점에 다른 멤버가 시작한 Cafe24 Private 설치가 기다리고 있어요.",
+  makeshopInstallPendingByOtherToast:
+    "같은 client_id 로 다른 멤버가 시작한 MakeShop 설치가 기다리고 있어요.",
+  retryAfterPendingInstallExpiry:
+    "{{expiresAt}} 이후에 다시 시도해 주세요.",
+  editorRequiredToast:
+    "편집자 이상만 통합을 추가하거나 바꿀 수 있어요.",
+  adminRequiredToast:
+    "조직 통합은 관리자 이상만 추가하거나 바꿀 수 있어요.",
+  addIntegrationForbidden:
+    "통합 추가는 편집자 이상만 할 수 있어요.",
+  pendingInstallScopeKept:
+    "설치를 기다리던 기존 통합을 이어서 써요. 공개 범위는 기존 값인 «{{scope}}» 그대로예요.",
   cafe24DuplicateMallChecking: "확인 중…",
   // ----- Cafe24 begin-time validation (frontend 사전 검증) -----
   // backend OAuth begin 의 mirror — 사용자가 popup 열기 전에 잡아준다.
