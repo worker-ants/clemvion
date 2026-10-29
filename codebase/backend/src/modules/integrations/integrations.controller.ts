@@ -87,7 +87,7 @@ const OAUTH_BEGIN_RESULT_DTOS = [
  * 항상 optional 마커 (`scopesAdded?`) 로 노출한다 (spec §9.2 §9.3).
  */
 const OAUTH_BEGIN_RESULT_DESCRIPTION =
-  '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl, scopesAdded? }.';
+  '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl, scopesAdded?, scope? }. oauth/begin 의 MakeShop 흐름은 { mode: makeshop_pending_install, integrationId, appUrl, callbackUrl, scope } 다. scope 는 new 모드가 만들거나 다시 쓴 설치 대기 행의 공개 범위다.';
 
 /*
  * 403 · 404 설명 — 거부 코드는 공유 거부 표(`common/constants/workspace-roles.ts`)의 `.code` 를 보간한다(코드명이 바뀌면
@@ -254,7 +254,7 @@ export class IntegrationsController {
   @ApiForbiddenResponse({
     description: forbiddenWithService(
       forbiddenForRole('editor'),
-      `new 모드에서 Organization 공개 범위를 고르거나 reauthorize · request_scopes 모드에서 Organization 통합을 바꾸려면 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+      `new 모드에서 Organization 공개 범위를 고르거나, new 모드가 다시 쓸 설치 대기 행이 Organization 통합이거나, reauthorize · request_scopes 모드에서 Organization 통합을 바꾸려면 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
     ),
   })
   @ApiNotFoundResponse({
@@ -265,7 +265,8 @@ export class IntegrationsController {
   //   - [OAuth 연결과 토큰 갱신 「CAFE24_PRIVATE_APP_ALREADY_CONNECTED 이름을 유지한다」](CLE-INT-OAUTH#cafe24_private_app_already_connected-이름을-유지한다)
   @ApiConflictResponse({
     description:
-      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 의미는 "app_type 무관" 이다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록.',
+      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 의미는 "app_type 무관" 이다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록. 겹친 행의 통합 ID 는 싣지 않는다. ' +
+      'CAFE24_PRIVATE_APP_INSTALL_PENDING · MAKESHOP_INSTALL_PENDING — new 모드가 다시 쓸 설치 대기 행(Cafe24 Private 은 같은 상점, MakeShop 은 같은 client_id)이 다른 멤버의 개인 통합. 그 행의 통합 ID 와 App URL 은 싣지 않고 설치 기한 `details.pendingInstallExpiresAt`(ISO 8601)만 싣는다.',
   })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,
@@ -276,20 +277,21 @@ export class IntegrationsController {
     // `integrationId` 를 지정한 재인증 · scope 추가는 그 통합의 자격 증명을 덮어쓴다 — `:id/reauthorize` ·
     // `:id/request-scopes` 와 같은 판정을 받아야 한다(없으면 그 두 경로를 우회하는 입구가 된다, spec §8).
     const action = modifyActionOfBeginMode(mode);
+    let requesterRole: string | null = null;
     if (action && body.integrationId) {
-      const role = await this.roleOf(workspaceId, user);
+      requesterRole = await this.roleOf(workspaceId, user);
       await this.integrationsService.requireModifiable(
         body.integrationId,
         workspaceId,
         user.sub,
-        role,
+        requesterRole,
         action,
       );
     } else if (mode === 'new') {
       // `new` 는 통합 생성과 같은 판정이다 — 관리자 미만의 Organization 공개 범위는 다시 쓸 설치 대기 행을 찾거나
-      // 만들기 전에 요청 본문만 보고 거절한다(REQ-INTOAUTH-064).
-      const role = await this.roleOf(workspaceId, user);
-      this.integrationsService.assertCanCreate(body.scope, role);
+      // 만들기 전에 요청 본문만 보고 거절한다(REQ-INTOAUTH-064). 같은 역할로 서비스가 설치 대기 행 재사용을 판정한다.
+      requesterRole = await this.roleOf(workspaceId, user);
+      this.integrationsService.assertCanCreate(body.scope, requesterRole);
     }
     let providerMeta: Record<string, unknown> | undefined;
     if (body.service === 'cafe24') {
@@ -323,6 +325,7 @@ export class IntegrationsController {
       integrationId: body.integrationId,
       integrationName: body.integrationName,
       scope: body.scope,
+      requesterRole,
       providerMeta,
     });
   }

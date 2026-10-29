@@ -13,6 +13,7 @@ import {
   Repository,
 } from 'typeorm';
 import { Integration } from './entities/integration.entity';
+import { PENDING_INSTALL_TTL_HOURS } from './pending-install-reuse';
 import {
   IntegrationExpiryDispatch,
   ExpiryThreshold,
@@ -32,9 +33,6 @@ export const INTEGRATION_EXPIRY_QUEUE = 'integration-expiry-scanner';
 
 /** Usage-log retention window (spec §2.10.1). */
 const USAGE_LOG_RETENTION_DAYS = 90;
-
-/** Cafe24 Private install TTL — spec/2-navigation/4-integration.md §6 / ## Rationale. */
-const PENDING_INSTALL_TTL_HOURS = 24;
 
 /**
  * Each pass runs as its own BullMQ job so failures are independently

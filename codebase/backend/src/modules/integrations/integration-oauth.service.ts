@@ -13,6 +13,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
   EntityManager,
+  In,
   IsNull,
   LessThan,
   Repository,
@@ -28,6 +29,7 @@ import {
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
 import {
+  adminRequiredError,
   assertOrgScopeModifiable,
   assertPersonalWriteRole,
   INTEGRATION_NOT_FOUND_CODE,
@@ -39,6 +41,11 @@ import {
   isInstallFlowRow,
   isReinstallRequestActive,
 } from './reinstall-request';
+import {
+  makeshopPendingLockKey,
+  pendingInstallConflict,
+  pickPendingToReuse,
+} from './pending-install-reuse';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
   IntegrationOAuthState,
@@ -103,6 +110,11 @@ export interface BeginParams {
   integrationId?: string;
   integrationName?: string;
   scope?: 'personal' | 'organization';
+  /**
+   * 요청자의 워크스페이스 역할. `new` 모드가 설치 대기 행을 다시 쓸 때 조직 행은 관리자 이상만 다시 쓴다
+   * (REQ-INTOAUTH-062). 컨트롤러가 채운다. 없으면 관리자 미만으로 본다.
+   */
+  requesterRole?: string | null;
   /** Provider-specific begin-time metadata. Currently used by cafe24. */
   providerMeta?: Cafe24BeginMeta | Record<string, unknown>;
 }
@@ -116,6 +128,11 @@ export type BeginResult =
       callbackUrl: string;
       /** scopes 가 변경된 경우 (request-scopes 진입점에서 채워짐) */
       scopesAdded?: string[];
+      /**
+       * `oauth/begin`(`new`)이 만들거나 다시 쓴 행의 공개 범위(REQ-INTOAUTH-067). 다시 쓴 행이면 요청 본문의
+       * `scope` 와 다를 수 있다. 재인증 · 권한 추가의 재설치 요청 안내에는 싣지 않는다.
+       */
+      scope?: string;
     }
   | {
       mode: 'makeshop_pending_install';
@@ -126,7 +143,45 @@ export type BeginResult =
       /** `${APP_URL}/api/3rd-party/makeshop/callback` — Redirect URI 등록용 */
       callbackUrl: string;
       scopesAdded?: string[];
+      /** 만들거나 다시 쓴 행의 공개 범위(REQ-INTOAUTH-067). */
+      scope: string;
     };
+
+/** 검증을 마친 Cafe24 Private `oauth/begin` 메타. 상점과 자격 증명이 다 있다. */
+type Cafe24PrivateBeginMeta = Required<
+  Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
+> &
+  Cafe24BeginMeta;
+
+/** 설치 대기 행을 쓴 결과. 응답의 App URL 은 저장된 설치 토큰으로 만든다. */
+interface PendingInstallWrite {
+  saved: Integration;
+  installToken: string;
+}
+
+/** 상점 식별자 UNIQUE(V072) 위반인가. 같은 상점의 행을 다른 요청이 먼저 썼다. */
+function isStoreIdentifierConflict(err: unknown): boolean {
+  return (
+    isPostgresUniqueViolation(err) &&
+    pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
+  );
+}
+
+/** 워크스페이스 안 통합 이름 UNIQUE. `IntegrationsService.throwIfUniqueViolation` 이 같은 이름을 본다. */
+const WORKSPACE_NAME_UNIQUE_CONSTRAINT = 'integration_workspace_name_unique';
+
+/**
+ * 설치 대기 행 INSERT 가 동시에 들어온 begin 과 부딪혔을 수 있는가. 같은 화면에서 온 두 begin 은 이름도 같아서
+ * 이름 UNIQUE 가 상점 식별자 UNIQUE 보다 먼저 걸리기도 한다. 그래서 둘 다 다시 판정할 이유로 본다.
+ */
+function isPendingInsertRace(err: unknown): boolean {
+  if (!isPostgresUniqueViolation(err)) return false;
+  const constraint = pgErrorConstraint(err);
+  return (
+    constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT ||
+    constraint === WORKSPACE_NAME_UNIQUE_CONSTRAINT
+  );
+}
 
 /**
  * MakeShop ShopStore install redirect query (App URL 호출 시 MakeShop 이 전송).
@@ -531,10 +586,7 @@ export class IntegrationOAuthService {
         }
         return this.createPrivatePendingIntegration(
           params,
-          meta as Required<
-            Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
-          > &
-            Cafe24BeginMeta,
+          meta as Cafe24PrivateBeginMeta,
         );
       } else {
         const envClientId = this.oauthEnv.cafe24.clientId;
@@ -563,11 +615,11 @@ export class IntegrationOAuthService {
           meta.mall_id,
           params.mode !== 'new' ? params.integrationId : undefined,
         );
+        // 겹친 행의 통합 ID 는 싣지 않는다. 남의 개인 통합일 수 있다(REQ-INTOAUTH-065).
         if (existingConnected) {
           throw new ConflictException({
             code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
             message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
-            integrationId: existingConnected.id,
           });
         }
       }
@@ -1288,46 +1340,101 @@ export class IntegrationOAuthService {
 
   private async createPrivatePendingIntegration(
     params: BeginParams,
-    meta: Required<
-      Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
-    > &
-      Cafe24BeginMeta,
+    meta: Cafe24PrivateBeginMeta,
   ): Promise<BeginResult> {
     const appUrl = getAppBaseUrl();
 
-    // Duplicate-prevention — shared helper (also used by public-flow begin
-    // and the precheck endpoint). 동일 (workspaceId, mall_id) 의 `connected`
-    // cafe24 row 가 있으면 즉시 409 로 거부. spec §9.2 "app_type 무관".
-    const allSameMall = await this.findAllCafe24RowsForMall(
-      params.workspaceId,
-      meta.mall_id,
-    );
-    const alreadyConnected = allSameMall.find(
-      (row) => row.status === 'connected',
-    );
-    if (alreadyConnected) {
-      throw new ConflictException({
-        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-        message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
-        integrationId: alreadyConnected.id,
-      });
-    }
-    // 기존 pending_install 재사용은 private app 끼리만 의미가 있다.
-    // (public app 의 pending 행은 OAuth 흐름 자체가 다름.)
-    const existingPending = allSameMall.find(
-      (row) =>
-        row.status === 'pending_install' &&
-        row.credentials?.app_type === 'private',
-    );
-
-    // 16바이트 base64url (22자, 128-bit) — INSTALL_TOKEN_BYTES 상수에서
-    // 길이 정의. spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24
-    // App URL 100자 한도 대응" 참조.
-    const installToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
-    const installTokenIssuedAt = new Date();
-    let saved: Integration;
+    // 같은 상점의 설치 대기 행을 두 begin 이 동시에 만들면 늦은 쪽의 INSERT 가 23505 로 막힌다. 걸리는 제약은 상점 식별자
+    // UNIQUE(V072 — STORE_IDENTIFIER_UNIQUE_CONSTRAINT)이거나, 두 요청의 이름이 같으면 먼저 검사되는 이름 UNIQUE 다.
+    // 늦은 쪽은 한 번만 다시 판정한다. 그때는 앞선 begin 이 만든 행이 보여서 재사용이나 409 로 끝난다. 다시 판정해도
+    // 상점 식별자 UNIQUE 에 걸리면 begin 이 다시 쓰지 않는 같은 상점의 행(만료됨 · 오류)이 있는 것이다. 그 경우는
+    // ALREADY_CONNECTED_BY_SERVICE 의 409 로 바꾼다(throwIfUniqueViolation 과 같은 코드 · 문구). 이름 UNIQUE 에 또 걸리면
+    // 다른 통합이 그 이름을 쓰는 것이라 원래 오류를 그대로 던진다.
+    let written: PendingInstallWrite;
     try {
-      if (existingPending) {
+      written = await this.writePrivatePending(params, meta);
+    } catch (err) {
+      if (!isPendingInsertRace(err)) throw err;
+      try {
+        written = await this.writePrivatePending(params, meta);
+      } catch (retryErr) {
+        if (!isStoreIdentifierConflict(retryErr)) throw retryErr;
+        const mapped = ALREADY_CONNECTED_BY_SERVICE['cafe24'];
+        throw new ConflictException({
+          code: mapped.code,
+          message: mapped.message,
+        });
+      }
+    }
+    // install_token 이 path segment 로 들어가 cafe24 Developers "테스트
+    // 실행" 시 단일 row 조회를 가능하게 한다. spec/2-navigation/4-integration.md
+    // §9.2 + Rationale "install_token 을 App URL path 식별 키로 승격".
+    return {
+      mode: 'cafe24_private_pending',
+      integrationId: written.saved.id,
+      appUrl: buildCafe24InstallUrl(appUrl, written.installToken),
+      callbackUrl: buildOauthCallbackUrl(appUrl, 'cafe24'),
+      scope: written.saved.scope,
+    };
+  }
+
+  /**
+   * Cafe24 Private 설치 대기 행을 한 트랜잭션에서 고르고 잠그고 판정한 뒤 쓴다(REQ-INTOAUTH-058 · 062 · 066).
+   * 근거: [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT-OAUTH#설치-대기-행-재사용의-권한)
+   */
+  private writePrivatePending(
+    params: BeginParams,
+    meta: Cafe24PrivateBeginMeta,
+  ): Promise<PendingInstallWrite> {
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Integration);
+      // Duplicate-prevention — shared helper (also used by public-flow begin
+      // and the precheck endpoint). 동일 (workspaceId, mall_id) 의 `connected`
+      // cafe24 row 가 있으면 즉시 409 로 거부. spec §9.2 "app_type 무관".
+      // 겹친 행의 통합 ID 는 싣지 않는다. 남의 개인 통합일 수 있다(REQ-INTOAUTH-065).
+      const allSameMall = await this.findAllCafe24RowsForMall(
+        params.workspaceId,
+        meta.mall_id,
+        repo,
+      );
+      if (allSameMall.some((row) => row.status === 'connected')) {
+        throw new ConflictException({
+          code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+          message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
+        });
+      }
+      // 기존 pending_install 재사용은 private app 끼리만 의미가 있다.
+      // (public app 의 pending 행은 OAuth 흐름 자체가 다름.) 잠근 뒤에도 같은 조건으로 다시 거른다.
+      const isReusable = (row: Integration) =>
+        row.status === 'pending_install' &&
+        row.credentials?.app_type === 'private' &&
+        (row.mallId ?? row.credentials?.mall_id) === meta.mall_id;
+      const locked = (
+        await this.lockPendingRows(
+          repo,
+          allSameMall.filter(isReusable).map((row) => row.id),
+        )
+      ).filter(isReusable);
+      const picked = pickPendingToReuse(
+        locked,
+        params.userId,
+        params.requesterRole ?? null,
+      );
+      if (picked?.verdict === 'owned_by_other') {
+        throw pendingInstallConflict('cafe24', picked.row);
+      }
+      if (picked?.verdict === 'admin_required') {
+        throw adminRequiredError('modify');
+      }
+
+      // 16바이트 base64url (22자, 128-bit) — INSTALL_TOKEN_BYTES 상수에서
+      // 길이 정의. spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24
+      // App URL 100자 한도 대응" 참조.
+      const installToken =
+        randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
+      const installTokenIssuedAt = new Date();
+      let target: Integration;
+      if (picked) {
         // Reuse the existing row instead of accumulating duplicate pending
         // rows for the same mall. **install_token 보존 (idempotent begin)**:
         // 같은 mall_id 에 대해 begin 을 여러 번 호출해도 사용자가 처음
@@ -1338,6 +1445,8 @@ export class IntegrationOAuthService {
         //
         // 옛 동작 (매 호출 토큰 재발급) 은 "Connect 버튼 두 번 누르면 첫 번째
         // URL 이 갑자기 무효화" UX 버그를 일으켰다 (2026-05-15 운영 보고).
+        // 공개 범위와 통합 소유자(`created_by`)는 바꾸지 않는다.
+        const existingPending = picked.row;
         const credsChanged =
           existingPending.credentials?.mall_id !== meta.mall_id ||
           existingPending.credentials?.client_id !== meta.client_id ||
@@ -1358,9 +1467,9 @@ export class IntegrationOAuthService {
         };
         existingPending.statusReason = null;
         existingPending.lastError = null;
-        saved = await this.integrationRepository.save(existingPending);
+        target = existingPending;
       } else {
-        const integration = this.integrationRepository.create({
+        target = repo.create({
           workspaceId: params.workspaceId,
           createdBy: params.userId,
           serviceType: 'cafe24',
@@ -1379,41 +1488,30 @@ export class IntegrationOAuthService {
             scopes: params.scopes,
           },
         });
-        saved = await this.integrationRepository.save(integration);
       }
-    } catch (err) {
-      // Concurrent INSERT race: another request inserted the same
-      // (workspace_id, service_type, mall_id) just now. 통일 store-identifier
-      // UNIQUE (V072 — STORE_IDENTIFIER_UNIQUE_CONSTRAINT) caught it.
-      // Translate to the same 409 the in-memory check would have raised,
-      // using the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
-      // code/message stays in sync with throwIfUniqueViolation.
-      if (
-        isPostgresUniqueViolation(err) &&
-        pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
-      ) {
-        const mapped = ALREADY_CONNECTED_BY_SERVICE['cafe24'];
-        throw new ConflictException({
-          code: mapped.code,
-          message: mapped.message,
-        });
-      }
-      throw err;
-    }
-    // install_token 이 path segment 로 들어가 cafe24 Developers "테스트
-    // 실행" 시 단일 row 조회를 가능하게 한다. spec/2-navigation/4-integration.md
-    // §9.2 + Rationale "install_token 을 App URL path 식별 키로 승격".
-    //
-    // existingPending 재사용 분기에서는 기존 token 을 보존할 수 있으므로
-    // DB 에 실제 저장된 `saved.installToken` 을 반환해야 한다 (방금 발급한
-    // installToken 변수가 아니라).
-    const finalToken = saved.installToken ?? installToken;
-    return {
-      mode: 'cafe24_private_pending',
-      integrationId: saved.id,
-      appUrl: buildCafe24InstallUrl(appUrl, finalToken),
-      callbackUrl: buildOauthCallbackUrl(appUrl, 'cafe24'),
-    };
+      const saved = await repo.save(target);
+      // 재사용 분기에서는 기존 token 을 보존할 수 있으므로 DB 에 실제 저장된
+      // `saved.installToken` 을 쓴다 (방금 발급한 installToken 변수가 아니라).
+      return { saved, installToken: saved.installToken ?? installToken };
+    });
+  }
+
+  /**
+   * 다시 쓸 후보 행을 `FOR UPDATE` 로 잠그고 아직 설치 대기인 행만 `created_at` · `id` 순으로 돌려준다. 잠금을 기다리는
+   * 동안 다른 요청이 설치를 마치거나 만료시킨 행은 Postgres 가 잠근 뒤 WHERE 를 다시 평가해 뺀다(READ COMMITTED).
+   * 남은 행이 없으면 호출자는 새 행을 만든다. 다시 고르는 일은 이 한 번뿐이다.
+   */
+  private async lockPendingRows(
+    repo: Repository<Integration>,
+    ids: readonly string[],
+  ): Promise<Integration[]> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return [];
+    return repo.find({
+      where: { id: In(unique), status: 'pending_install' },
+      order: { createdAt: 'ASC', id: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -1717,6 +1815,9 @@ export class IntegrationOAuthService {
    * (workspaceId, client_id) to keep begin idempotent and avoid accumulating
    * dangling pending rows on repeated "Connect" clicks.
    *
+   * 재사용은 요청자가 그 행을 바꿀 수 있을 때만 한다. 판정과 덮어쓰기는 한 트랜잭션에서 한다(REQ-INTOAUTH-059 · 060 ·
+   * 062 · 066). 근거: [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT-OAUTH#설치-대기-행-재사용의-권한)
+   *
    * spec/2-navigation/4-integration.md §5.9, makeshop node §9.1/§9.3.
    */
   private async createMakeshopPendingIntegration(
@@ -1725,79 +1826,116 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = getAppBaseUrl();
 
-    // Reuse an existing pending_install makeshop row for the same workspace +
-    // client_id (idempotent begin). shop_uid is not yet known, so we cannot
-    // dedup by mall_id here.
-    const existingPending = await this.findMakeshopPendingByClient(
-      params.workspaceId,
-      meta.client_id,
+    const { saved, installToken } = await this.dataSource.transaction(
+      async (manager): Promise<PendingInstallWrite> => {
+        // 같은 `(workspace_id, client_id)` 의 begin 을 줄 세운다. MakeShop 설치 대기 행은 `mall_id` 가 비어 있어
+        // 상점 식별자 UNIQUE 가 막지 못한다. 이 잠금이 없으면 동시에 들어온 두 begin 이 모두 다시 쓸 행이 없다고 보고
+        // 설치 대기 행을 둘 만든다.
+        await manager.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [makeshopPendingLockKey(params.workspaceId, meta.client_id)],
+        );
+        const repo = manager.getRepository(Integration);
+        // shop_uid is not yet known, so we cannot dedup by mall_id here.
+        const sameClient = (row: Integration) =>
+          row.credentials?.client_id === meta.client_id;
+        const candidates = await this.findMakeshopPendingByClient(
+          params.workspaceId,
+          meta.client_id,
+          repo,
+        );
+        const locked = (
+          await this.lockPendingRows(
+            repo,
+            candidates.map((row) => row.id),
+          )
+        ).filter(sameClient);
+        // 같은 client_id 의 설치 대기 행이 여럿이면 바꿀 수 있는 행을 먼저 고른다.
+        const picked = pickPendingToReuse(
+          locked,
+          params.userId,
+          params.requesterRole ?? null,
+        );
+        if (picked?.verdict === 'owned_by_other') {
+          throw pendingInstallConflict('makeshop', picked.row);
+        }
+        if (picked?.verdict === 'admin_required') {
+          throw adminRequiredError('modify');
+        }
+
+        const newToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
+        let target: Integration;
+        if (picked) {
+          // 설치 토큰은 없을 때만 새로 발급한다. client_secret 이 바뀌어도 그대로 둔다(Cafe24 Private 과 다르다).
+          // 공개 범위와 통합 소유자(`created_by`)는 바꾸지 않는다.
+          const existingPending = picked.row;
+          if (!existingPending.installToken) {
+            existingPending.installToken = newToken;
+            existingPending.installTokenIssuedAt = new Date();
+          }
+          existingPending.credentials = {
+            ...existingPending.credentials,
+            client_id: meta.client_id,
+            client_secret: meta.client_secret,
+            scopes: params.scopes,
+          };
+          existingPending.statusReason = null;
+          existingPending.lastError = null;
+          target = existingPending;
+        } else {
+          target = repo.create({
+            workspaceId: params.workspaceId,
+            createdBy: params.userId,
+            serviceType: 'makeshop',
+            authType: 'oauth2',
+            name: params.integrationName || 'MakeShop',
+            scope: params.scope ?? 'personal',
+            status: 'pending_install',
+            installToken: newToken,
+            installTokenIssuedAt: new Date(),
+            // mallId (=shop_uid projection) stays NULL until install callback.
+            credentials: {
+              client_id: meta.client_id,
+              client_secret: meta.client_secret,
+              scopes: params.scopes,
+            },
+          });
+        }
+        const written = await repo.save(target);
+        return {
+          saved: written,
+          installToken: written.installToken ?? newToken,
+        };
+      },
     );
 
-    const installToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
-    const installTokenIssuedAt = new Date();
-    let saved: Integration;
-    if (existingPending) {
-      const needNewToken = !existingPending.installToken;
-      if (needNewToken) {
-        existingPending.installToken = installToken;
-        existingPending.installTokenIssuedAt = installTokenIssuedAt;
-      }
-      existingPending.credentials = {
-        ...existingPending.credentials,
-        client_id: meta.client_id,
-        client_secret: meta.client_secret,
-        scopes: params.scopes,
-      };
-      existingPending.statusReason = null;
-      existingPending.lastError = null;
-      saved = await this.integrationRepository.save(existingPending);
-    } else {
-      const integration = this.integrationRepository.create({
-        workspaceId: params.workspaceId,
-        createdBy: params.userId,
-        serviceType: 'makeshop',
-        authType: 'oauth2',
-        name: params.integrationName || 'MakeShop',
-        scope: params.scope ?? 'personal',
-        status: 'pending_install',
-        installToken,
-        installTokenIssuedAt,
-        // mallId (=shop_uid projection) stays NULL until install callback.
-        credentials: {
-          client_id: meta.client_id,
-          client_secret: meta.client_secret,
-          scopes: params.scopes,
-        },
-      });
-      saved = await this.integrationRepository.save(integration);
-    }
-
-    const finalToken = saved.installToken ?? installToken;
     return {
       mode: 'makeshop_pending_install',
       integrationId: saved.id,
-      appUrl: buildMakeshopInstallUrl(appUrl, finalToken),
+      appUrl: buildMakeshopInstallUrl(appUrl, installToken),
       callbackUrl: buildOauthCallbackUrl(appUrl, 'makeshop'),
+      scope: saved.scope,
     };
   }
 
   /**
-   * Find an existing `pending_install` makeshop row for `(workspaceId,
-   * client_id)`. Used by begin to keep the flow idempotent (reuse the
-   * install_token rather than minting a new one each click).
+   * `(workspaceId, client_id)` 의 `pending_install` makeshop 행을 `created_at` · `id` 순으로 모두 찾는다. begin 이
+   * 다시 쓸 행을 고를 때 쓴다. `client_id` 는 암호화한 자격 증명 안에 있어 복호화한 뒤 비교한다.
    */
   private async findMakeshopPendingByClient(
     workspaceId: string,
     clientId: string,
-  ): Promise<Integration | null> {
-    const rows = await this.integrationRepository.find({
+    repo: Repository<Integration> = this.integrationRepository,
+  ): Promise<Integration[]> {
+    const rows = await repo.find({
       where: {
         workspaceId,
         serviceType: 'makeshop',
         status: 'pending_install',
       },
+      order: { createdAt: 'ASC', id: 'ASC' },
     });
-    return rows.find((r) => r.credentials?.client_id === clientId) ?? null;
+    return rows.filter((r) => r.credentials?.client_id === clientId);
   }
 
   /**
@@ -1919,7 +2057,8 @@ export class IntegrationOAuthService {
     // Project shop_uid onto the mall_id column + credentials. This is the
     // moment shop_uid becomes known (begin didn't have it). 409 duplicate
     // detection: if another connected makeshop row in this workspace already
-    // owns this shop_uid, refuse before starting OAuth.
+    // owns this shop_uid, refuse before starting OAuth. 겹친 행의 통합 ID 는
+    // 싣지 않는다. 남의 개인 통합일 수 있다(REQ-INTOAUTH-065).
     const existingConnected = await this.findConnectedMakeshopShopIntegration(
       target.workspaceId,
       query.shop_uid,
@@ -1929,7 +2068,6 @@ export class IntegrationOAuthService {
       throw new ConflictException({
         code: 'MAKESHOP_ALREADY_CONNECTED',
         message: `A MakeShop integration for shop_uid "${query.shop_uid}" already exists and is connected. Use the existing integration or delete it first.`,
-        integrationId: existingConnected.id,
       });
     }
 
@@ -1942,10 +2080,7 @@ export class IntegrationOAuthService {
       // — another install for the same shop_uid won.
       // Uses the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
       // code/message stays in sync with throwIfUniqueViolation.
-      if (
-        isPostgresUniqueViolation(err) &&
-        pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
-      ) {
+      if (isStoreIdentifierConflict(err)) {
         const mapped = ALREADY_CONNECTED_BY_SERVICE['makeshop'];
         throw new ConflictException({
           code: mapped.code,
@@ -2167,8 +2302,8 @@ export class IntegrationOAuthService {
    * 뒤 legacy 쿼리 + filter 블록을 삭제. 동시에 V046 partial UNIQUE 의
    * `mall_id IS NOT NULL` 조건도 검토 (NOT NULL constraint 로 강화 가능).
    *
-   * Shared by `createPrivatePendingIntegration` (begin private guard +
-   * pending_install reuse), the public-flow begin guard, and
+   * Shared by `writePrivatePending` (begin private guard + pending_install
+   * reuse, inside its transaction via `repo`), the public-flow begin guard, and
    * `precheckCafe24Mall` (frontend pre-detection endpoint).
    *
    * Performance — `Promise.all` 병렬 발행으로 평균 응답 latency 절반.
@@ -2177,12 +2312,13 @@ export class IntegrationOAuthService {
   private async findAllCafe24RowsForMall(
     workspaceId: string,
     mallId: string,
+    repo: Repository<Integration> = this.integrationRepository,
   ): Promise<Integration[]> {
     const [direct, legacyRaw] = await Promise.all([
-      this.integrationRepository.find({
+      repo.find({
         where: { workspaceId, serviceType: 'cafe24', mallId },
       }),
-      this.integrationRepository.find({
+      repo.find({
         where: { workspaceId, serviceType: 'cafe24', mallId: IsNull() },
       }),
     ]);

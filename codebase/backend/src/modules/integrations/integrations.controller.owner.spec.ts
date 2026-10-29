@@ -363,30 +363,39 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
         ).rejects.toMatchObject({
           response: {
             code: 'ADMIN_REQUIRED',
-            message: 'Organization 통합을 만들려면 Admin 이상의 권한이 필요합니다.',
+            message:
+              'Organization 통합을 만들려면 Admin 이상의 권한이 필요합니다.',
           },
         });
         expect(oauthBegin).not.toHaveBeenCalled();
       },
     );
 
+    // 요청자 역할을 begin 에 넘긴다 — 설치 대기 행 재사용 판정(조직 행은 관리자 이상, REQ-INTOAUTH-062)에 쓴다.
     it.each(['admin', 'owner'])(
-      '%s 는 조직 공개 범위로 begin 을 부른다',
+      '%s 는 조직 공개 범위로 begin 을 부르고 역할을 넘긴다',
       async (r) => {
         role = r;
         await beginNew('makeshop', SERVICES[1][1], 'organization');
         expect(oauthBegin).toHaveBeenCalledWith(
-          expect.objectContaining({ mode: 'new', scope: 'organization' }),
+          expect.objectContaining({
+            mode: 'new',
+            scope: 'organization',
+            requesterRole: r,
+          }),
         );
       },
     );
 
     it.each([['personal'], [undefined]])(
-      '편집자의 개인 공개 범위(%s)는 begin 을 부른다',
+      '편집자의 개인 공개 범위(%s)는 begin 을 부르고 역할을 넘긴다',
       async (scope) => {
         role = 'editor';
         await beginNew('cafe24', SERVICES[0][1], scope);
         expect(oauthBegin).toHaveBeenCalledTimes(1);
+        expect(oauthBegin).toHaveBeenCalledWith(
+          expect.objectContaining({ requesterRole: 'editor' }),
+        );
       },
     );
   });

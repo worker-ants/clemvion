@@ -11,6 +11,7 @@ import {
   type MakeshopInstallQuery,
 } from './integration-oauth.service';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
+import { makeshopPendingLockKey } from './pending-install-reuse';
 
 type Mock = jest.Mock;
 
@@ -105,6 +106,8 @@ describe('IntegrationOAuthService — MakeShop', () => {
   let stateRepo: Record<string, Mock>;
   let previewRepo: Record<string, Mock>;
   let dataSource: { query: Mock; transaction: Mock };
+  /** 트랜잭션 매니저의 `query` — begin 의 advisory lock 이 쓴다. */
+  let managerQuery: Mock;
   let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
   // review W2: OAUTH_STUB_MODE 초기값 보존 — suite 진입 전 값을 afterEach 에서 원복.
   let savedOAuthStub: string | undefined;
@@ -113,16 +116,23 @@ describe('IntegrationOAuthService — MakeShop', () => {
     integrationRepo = makeRepo();
     stateRepo = makeRepo();
     previewRepo = makeRepo();
+    managerQuery = jest.fn().mockResolvedValue([]);
     dataSource = {
       query: jest.fn().mockResolvedValue([]),
+      // 콜백의 반환값을 돌려준다 — begin 의 설치 대기 행 쓰기가 트랜잭션 결과를 쓴다.
       transaction: jest
         .fn()
         .mockImplementation(
-          async (cb: (manager: { getRepository: Mock }) => Promise<void>) => {
-            await cb({
+          (
+            cb: (manager: {
+              getRepository: Mock;
+              query: Mock;
+            }) => Promise<unknown>,
+          ) =>
+            cb({
               getRepository: jest.fn().mockReturnValue(integrationRepo),
-            });
-          },
+              query: managerQuery,
+            }),
         ),
     };
 
@@ -304,6 +314,158 @@ describe('IntegrationOAuthService — MakeShop', () => {
       const r = result as { appUrl: string };
       expect(r.appUrl).toContain('OldOldOldOldOldOldOldO');
       expect(integrationRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // NERV CLE-INT-OAUTH 「설치 대기 행 재사용의 권한」 — Task CLE-T-N7ENKQ.
+  describe('begin — makeshop 설치 대기 행 재사용의 권한 (REQ-INTOAUTH-059 · 060 · 062 · 066 · 067)', () => {
+    const ISSUED_AT = new Date('2026-10-28T09:00:00.000Z');
+
+    function beginAs(
+      requesterRole: string,
+      scope?: 'personal' | 'organization',
+    ) {
+      return service.begin({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'makeshop',
+        scopes: ['store.read'],
+        mode: 'new',
+        scope,
+        requesterRole,
+        providerMeta: {
+          client_id: 'mk-client-id',
+          client_secret: 'mk-client-secret',
+        },
+      });
+    }
+
+    function pendingRow(
+      id: string,
+      scope: 'personal' | 'organization',
+      createdBy: string,
+      clientId = 'mk-client-id',
+    ) {
+      return {
+        ...buildFakeMakeshopIntegration({ id, scope, createdBy, clientId }),
+        installTokenIssuedAt: ISSUED_AT,
+      };
+    }
+
+    /** 읽기 조회와 잠금 조회(`lock`)에 각각 답한다. 잠금 조회는 요청한 id 만 돌려준다. */
+    function answerFind(rows: Record<string, unknown>[]) {
+      integrationRepo.find = jest
+        .fn()
+        .mockImplementation(
+          (opts: { lock?: unknown; where?: { id?: { value?: string[] } } }) =>
+            Promise.resolve(
+              opts.lock
+                ? rows.filter((r) =>
+                    (opts.where?.id?.value ?? []).includes(r.id as string),
+                  )
+                : rows,
+            ),
+        );
+    }
+
+    it('행을 고르기 전에 (workspace_id, client_id) advisory lock 을 잡는다', async () => {
+      answerFind([]);
+      await beginAs('editor');
+      expect(managerQuery).toHaveBeenCalledWith(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [makeshopPendingLockKey('ws-1', 'mk-client-id')],
+      );
+      expect(managerQuery.mock.invocationCallOrder[0]).toBeLessThan(
+        integrationRepo.find.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('후보는 created_at · id 순으로 읽고 다시 쓸 행을 FOR UPDATE 로 잠근다', async () => {
+      answerFind([pendingRow('mine', 'personal', 'u-1')]);
+      await beginAs('editor');
+      const calls = integrationRepo.find.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      expect(calls[0][0]).toMatchObject({
+        order: { createdAt: 'ASC', id: 'ASC' },
+      });
+      expect(calls.some(([opts]) => opts.lock !== undefined)).toBe(true);
+      expect(calls.find(([opts]) => opts.lock !== undefined)?.[0].lock).toEqual(
+        { mode: 'pessimistic_write' },
+      );
+    });
+
+    it('남의 개인 행 — 409 MAKESHOP_INSTALL_PENDING 이고 설치 기한만 싣는다', async () => {
+      answerFind([pendingRow('others', 'personal', 'u-other')]);
+      const error = await beginAs('owner').catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ConflictException);
+      const body = (error as ConflictException).getResponse() as Record<
+        string,
+        unknown
+      >;
+      expect(body.code).toBe('MAKESHOP_INSTALL_PENDING');
+      expect(body.details).toEqual({
+        pendingInstallExpiresAt: '2026-10-29T09:00:00.000Z',
+      });
+      expect(JSON.stringify(body)).not.toContain('others');
+      expect(JSON.stringify(body)).not.toContain(INSTALL_TOKEN);
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('남의 행이 앞서도 자기 행을 먼저 골라 다시 쓴다', async () => {
+      answerFind([
+        pendingRow('others-older', 'personal', 'u-other'),
+        pendingRow('mine-newer', 'personal', 'u-1'),
+      ]);
+      const result = (await beginAs('editor')) as {
+        integrationId: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('mine-newer');
+      expect(result.scope).toBe('personal');
+      expect(integrationRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('client_id 가 다른 설치 대기 행은 고르지 않는다', async () => {
+      answerFind([pendingRow('other-client', 'personal', 'u-other', 'x-id')]);
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
+    });
+
+    it('조직 행 · 편집자 — 403 ADMIN_REQUIRED', async () => {
+      answerFind([pendingRow('org', 'organization', 'u-1')]);
+      const error = await beginAs('editor').catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect(
+        ((error as ForbiddenException).getResponse() as { code: string }).code,
+      ).toBe('ADMIN_REQUIRED');
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('조직 행 · 관리자 — 다시 쓰고 응답 scope 는 organization, 소유자는 그대로', async () => {
+      answerFind([pendingRow('org', 'organization', 'u-other')]);
+      const result = (await beginAs('admin', 'personal')) as {
+        integrationId: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('org');
+      expect(result.scope).toBe('organization');
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.createdBy).toBe('u-other');
+    });
+
+    it('다시 쓸 행이 없으면 요청한 공개 범위로 새 행을 만들고 응답에 싣는다', async () => {
+      answerFind([]);
+      const result = (await beginAs('admin', 'organization')) as {
+        scope: string;
+      };
+      expect(result.scope).toBe('organization');
     });
   });
 
@@ -514,9 +676,14 @@ describe('IntegrationOAuthService — MakeShop', () => {
       integrationRepo.find = jest.fn().mockResolvedValue([connectedDup]);
 
       const query = makeInstallQuery('myshop', 'mk-client-secret');
-      await expect(
-        service.handleMakeshopInstall(INSTALL_TOKEN, query),
-      ).rejects.toBeInstanceOf(ConflictException);
+      const error = await service
+        .handleMakeshopInstall(INSTALL_TOKEN, query)
+        .catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ConflictException);
+      // 겹친 행의 통합 ID 는 싣지 않는다(REQ-INTOAUTH-065).
+      expect((error as ConflictException).getResponse()).not.toHaveProperty(
+        'integrationId',
+      );
     });
 
     it('routes a connected row to the frontend detail page (post-install navigation)', async () => {

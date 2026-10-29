@@ -357,6 +357,18 @@ export class OAuthBeginCafe24PendingResultDto {
    */
   @ApiProperty({ required: false, type: [String] })
   scopesAdded?: string[];
+
+  /**
+   * `oauth/begin`(`new`)이 만들거나 다시 쓴 행의 공개 범위(REQ-INTOAUTH-067). 다시 쓴 행이면 요청 본문의 `scope` 와
+   * 다를 수 있다. 재인증 · 권한 추가의 재설치 요청 안내에는 없다.
+   */
+  @ApiProperty({
+    required: false,
+    enum: ['personal', 'organization'],
+    description:
+      'oauth/begin new 모드가 만들거나 다시 쓴 설치 대기 행의 공개 범위. 다시 쓴 행이면 요청한 공개 범위와 다를 수 있다. 재인증 · 권한 추가 응답에는 없다',
+  })
+  scope?: string;
 }
 
 /** precheck 응답의 식별자 필드 공통 조건 — 두 필드 설명이 같은 문장을 쓴다. */
