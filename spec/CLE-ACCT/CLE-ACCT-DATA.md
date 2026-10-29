@@ -2,21 +2,21 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "a7c67ddca1bddb67d244c28189bbe59af7498fdceb6f7c2c768244c1322c25f2"
+content_hash: "81e83ba049f0dd505cd9d61405dfb675b79561f616060b5fe0421e4558ed8623"
 read_as: "approved_fallback"
-task: "CLE-T-A3W8B8"
+task: "CLE-T-TGZGM9"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "aa46cda50ceac39416192e02681e25df4c495db5468e6c108a3a3b3184040b6e"
-etag: "sha256-752f4e9cf76ef9e27339ff8d77c37e6b30c0f5f94a364985b7b85f55f2ca0d98"
+mirror_sha256: "601a17a3c7593d640f289a533481a98f51a8139d29711eab9b68b169d0acc7ce"
+etag: "sha256-bd289a0a2bc767c51bf8e3ba2527838c2f383fb2977cc07bf367d465481f4f6f"
 ---
-> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정, 멤버 제거·나가기 때의 개인 통합 삭제는 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -526,7 +526,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 역할 변경 `PATCH .../members/:memberId` | `UPDATE workspace_member.role` | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이나 새 역할이 소유자면 403 `OWNER_ROLE_PROTECTED`. 대상의 지금 역할이나 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 관리자가 자기 역할을 바꾸는 요청도 여기에 걸린다 |
 | 소유자 이양 `POST .../transfer-ownership` | 한 트랜잭션에서 현재 소유자 `role='admin'`, 대상 `role='owner'`, `workspace.owner_id = 대상 userId` | 소유자가 아닌 요청 403 `OWNER_REQUIRED`, 개인 워크스페이스 403 `CANNOT_TRANSFER_PERSONAL`, 자기 자신 400 `TARGET_IS_SELF`, 대상 없음 404 `MEMBER_NOT_FOUND`, 대상이 이미 소유자 409 `TARGET_ALREADY_OWNER` |
-| 멤버 제거 `DELETE .../members/:memberId` | `DELETE workspace_member`. 자기 자신은 나가기로 넘긴다 | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
+| 멤버 제거 `DELETE .../members/:memberId` | 한 트랜잭션에서 `DELETE workspace_member`(소유자가 아닌 행) 다음 그 멤버의 개인 통합을 `DELETE integration` 한다(트랜잭션과 통합 삭제는 미구현, NERV Task `CLE-T-PS7JQY`). 자기 자신은 나가기로 넘긴다 | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
 | 직접 추가 `POST .../members`(`addMemberByEmail`) | 메일 없이 `INSERT workspace_member` | 새 역할이 소유자면 403 `CANNOT_ASSIGN_OWNER`. 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 나머지는 [워크스페이스와 멤버 §직접 추가](CLE-ACCT-WS.md#직접-추가) |
 | 초대 재발송 | 새 `token`, `expires_at = now+7d`, `invited_by` 갱신과 메일 재발송(`resend`) | [워크스페이스와 멤버 §초대 에러 코드](CLE-ACCT-WS.md#초대-에러-코드). 초대 역할은 보지 않는다 |
 | 초대 취소 | 대기 초대 행 물리 삭제(`revoke`, repository `remove`) | 초대 재발송과 같다 |
@@ -546,7 +546,9 @@ sequenceDiagram
 
 잠금 순서(워크스페이스, 멤버십)는 소유자 이양과 같다. 둘이 겹칠 때 교착하지 않게 하기 위해서다.
 
-나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다.
+나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 멤버십 DELETE 다음 그 멤버의 개인 통합을 지운다(미구현, NERV Task `CLE-T-PS7JQY`).
+
+멤버 제거와 나가기는 멤버십, 통합 순으로 잠근다. 개인 통합 행을 만드는 트랜잭션도 통합 행을 다루기 전에 통합 소유자의 멤버십 행을 `FOR SHARE` 로 읽는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) REQ-INTMGMT-066). 순서가 같아 두 경로가 겹쳐도 교착하지 않는다. 개인 통합 삭제의 테이블 쓰기는 [통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다.
 
 ## 테이블 쓰기 매핑
 
@@ -576,6 +578,7 @@ sequenceDiagram
 | `workspace_member` | 가입·초대 수락·직접 추가 | INSERT `workspace_id, user_id, role, invited_at, joined_at` | `(workspace_id, user_id) UNIQUE`, `(user_id)`(V129) |
 | `workspace_member` | 역할 변경 | UPDATE `role` | 없음 |
 | `workspace_member` | 멤버 제거·나가기 | DELETE | 없음 |
+| `integration` | 멤버 제거·나가기 | 멤버십 DELETE 와 같은 트랜잭션에서 DELETE `WHERE workspace_id, created_by, scope='personal'`(미구현, [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)) | 없음 |
 | `workspace_invitation` | 발급 | INSERT `workspace_id, email, role, token, invited_by, expires_at, created_at`. 대기 초대가 있으면 그 행 UPDATE | `token UNIQUE`(V017), `(email)`, `(workspace_id)`, 부분 UNIQUE `(workspace_id, email) WHERE accepted_at IS NULL` |
 | `workspace_invitation` | 재발송 | UPDATE `token, invited_by, expires_at` | 없음 |
 | `workspace_invitation` | 수락 | UPDATE `accepted_at, accepted_by`(`WHERE accepted_at IS NULL`) | 없음 |
@@ -867,3 +870,7 @@ STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 �
 NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard` 하나가 맡는다. 그래서 요청 빈도 제한 표의 전역 행에 범위가 HTTP API 라는 것을 밝히고 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 으로 넘겼다. 표 위 문단의 집계 키 설명도 HTTP 요청 기준으로 고쳤다.
 
 2026-10-10 [「요청 한도의 집계 기준을 코드에 맞췄다」](#요청-한도의-집계-기준을-코드에-맞췄다) 의 집계 기준은 HTTP 요청에 그대로 유효하다. 기각한 대안은 [HTTP API 규약 「전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)」](../CLE-API/CLE-API-CONV.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22) 에 있다. 경위는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
+
+### 멤버 제거와 나가기가 개인 통합도 지운다 (2026-10-29)
+
+NERV Task `CLE-T-TGZGM9` 에서 정했다. 멤버십을 지우는 트랜잭션이 그 멤버의 개인 통합도 지운다. 규칙과 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가, 테이블 쓰기는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다. 이 문서에는 멤버 제거를 한 트랜잭션으로 묶는 것과 잠금 순서만 적었다. 머리 줄 구현 상태의 미구현 목록에 이 삭제를 더했다.

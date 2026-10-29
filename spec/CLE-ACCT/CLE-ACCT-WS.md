@@ -2,21 +2,21 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
-requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068"]
+requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "65e29aaf6226aa759c720a2a4424f3e9b17038941f9164d9023bd5cdab38e137"
+content_hash: "10326448b7e20678037a3999600d5eed6d238b964c4ed46e9aee65a56e86a8fe"
 read_as: "approved_fallback"
-task: "CLE-T-JQVHFJ"
+task: "CLE-T-TGZGM9"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "48142835e0f79b003c54f0f44163b7292c3a20f6a4ac928142616a5de5571c00"
-etag: "sha256-d74fde2486073fa63c5748e22ff402e0914b57f22ea18a3dabc2a80b45f78c2b"
+mirror_sha256: "c382494e647bccb696fdeb8eae7cf91635f0aa967ca783c18bcacbaa368b139f"
+etag: "sha256-a0034ff34231b3b848e8bfafcfaeeb17b62729d7cbcdfeb1edaae952600cf1e4"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (나가기 · 제거 때의 개인 통합 삭제와 그 안내는 미구현) · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -108,6 +108,7 @@ etag: "sha256-d74fde2486073fa63c5748e22ff402e0914b57f22ea18a3dabc2a80b45f78c2b"
 - REQ-WSPACE-066 IF 로그인 힌트 쿠키(`has_session`)가 없는 사용자가 초대 가입 링크를 열고 토큰 메타 조회 뒤 `POST /api/auth/check-email` 이 초대 이메일을 가입된 이메일로 답하면 THE SYSTEM SHALL 가입 폼 대신 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 - REQ-WSPACE-067 IF 초대 토큰 가입이 토큰 이메일 중복으로 거부되면 THE SYSTEM SHALL 사용자를 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 - REQ-WSPACE-068 IF 초대 가입 화면의 가입 여부 확인(`POST /api/auth/check-email`)이 실패하거나(429 · 네트워크 에러) 5초 안에 끝나지 않으면 THE SYSTEM SHALL 가입되지 않은 이메일로 보고 가입 폼을 보여 준다.
+- REQ-WSPACE-069 WHEN 나가기나 멤버 제거 확인 다이얼로그를 보이면 THE SYSTEM SHALL 그 멤버가 이 워크스페이스에 둔 개인 통합도 함께 지워진다는 문장을 보인다. 개인 통합이 있는지와 그 개수는 보이지 않고 늘 같은 문장을 보인다. (미구현, NERV Task `CLE-T-PS7JQY`)
 
 ## 워크스페이스 종류와 생성
 
@@ -171,7 +172,7 @@ etag: "sha256-d74fde2486073fa63c5748e22ff402e0914b57f22ea18a3dabc2a80b45f78c2b"
 | --- | --- | --- |
 | 개요 | Name 입력, Slug(읽기 전용), Type(개인·팀), 내 Role, 임베드 허용 도메인 섹션 | 이름과 임베드 허용 도메인은 관리자 이상만 편집한다. 그 밖의 역할에는 읽기 전용으로 보인다 |
 | 멤버 (팀 워크스페이스 전용) | 역할 범례(소유자 모든 권한, 관리자 멤버 관리, 편집자 워크플로우 편집, 뷰어 읽기만), 초대 입력(이메일, 역할 선택, [초대]), 대기 중 초대 목록(이메일·역할·만료일, [재발송]·[취소]), 현재 멤버 목록(이름·이메일·역할 드롭다운·제거) | [멤버 관리](#멤버-관리) 표의 권한을 따른다. 소유자가 아닌 관리자에게는 역할 선택지에 관리자가 없고 관리자 멤버의 역할은 읽기 전용 배지로 보인다([관리자 역할 규칙](#관리자-역할-규칙)) |
-| 위험 영역 | [워크스페이스 나가기], [소유자 이양], [워크스페이스 삭제] | 나가기는 소유자가 아닌 모든 멤버, 소유자 이양은 소유자만(새 소유자 이메일 재입력 확인), 삭제는 소유자만(이름 재입력 확인 필수) |
+| 위험 영역 | [워크스페이스 나가기], [소유자 이양], [워크스페이스 삭제] | 나가기는 소유자가 아닌 모든 멤버(확인 다이얼로그를 거친다), 소유자 이양은 소유자만(새 소유자 이메일 재입력 확인), 삭제는 소유자만(이름 재입력 확인 필수) |
 
 역할 이름은 사전 표준(소유자·관리자·편집자·뷰어)으로 적는다. 현재 화면 라벨은 편집자를 "멤버" 로 보여 준다. 이 차이는 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「editor 역할의 화면 라벨」 항목(D10)이다.
 
@@ -210,8 +211,8 @@ etag: "sha256-d74fde2486073fa63c5748e22ff402e0914b57f22ea18a3dabc2a80b45f78c2b"
 | 초대 취소 | 관리자 이상 | 대기 중(`acceptedAt IS NULL`) 초대만 취소한다. 행을 물리 삭제한다. 관리자 역할 초대도 관리자 이상이 취소한다 |
 | 직접 추가 | 관리자 이상. 관리자 역할 추가는 소유자 | 이미 가입한 사용자를 이메일로 메일 없이 바로 멤버로 넣는다 |
 | 역할 변경 | 관리자 이상. 관리자 역할이 걸리면 소유자 | 드롭다운으로 역할을 바꾼다. 대상의 지금 역할이나 새 역할이 관리자면 소유자만 바꾼다. 관리자가 자기 역할을 바꾸는 것도 같다. 소유자 역할을 주거나 뺏는 것은 소유자 이양으로만 한다. [관리자 역할 규칙](#관리자-역할-규칙) |
-| 제거 | 관리자 이상 | 확인 다이얼로그 뒤 멤버를 제거한다. 관리자도 제거할 수 있다. 소유자는 제거할 수 없다. 자기 자신은 나가기로 넘긴다 |
-| 나가기 | 본인 | 스스로 탈퇴한다. 유일한 소유자는 막는다. 먼저 다른 소유자를 정하거나 삭제로 간다 |
+| 제거 | 관리자 이상 | 확인 다이얼로그 뒤 멤버를 제거한다. 관리자도 제거할 수 있다. 소유자는 제거할 수 없다. 자기 자신은 나가기로 넘긴다. 그 멤버의 개인 통합도 함께 지워지고 다이얼로그가 이를 알린다(REQ-WSPACE-069) |
+| 나가기 | 본인 | 확인 다이얼로그 뒤 스스로 탈퇴한다. 유일한 소유자는 막는다. 먼저 다른 소유자를 정하거나 삭제로 간다. 자기 개인 통합도 함께 지워지고 다이얼로그가 이를 알린다(REQ-WSPACE-069) |
 | 워크스페이스 삭제 | 소유자 | 이름 재입력 확인 뒤 삭제한다 |
 | 소유자 이양 | 소유자 | 같은 워크스페이스의 소유자 아닌 멤버 중 한 명을 고르고 그 사람 이메일을 다시 입력해 확인한다 |
 
@@ -266,7 +267,7 @@ etag: "sha256-d74fde2486073fa63c5748e22ff402e0914b57f22ea18a3dabc2a80b45f78c2b"
 | --- | --- | --- |
 | `PATCH /api/workspaces/:id/members/:memberId { role }` | 소유자·관리자. 관리자 역할이 걸리면 소유자 | `workspace_member.role` 을 바꾼다. 대상의 현재 역할이 소유자이거나 부여하려는 역할이 소유자면 무조건 `OWNER_ROLE_PROTECTED` 로 막는다. 소유자 부여·박탈은 소유자 이양으로만 한다. 그다음 대상의 현재 역할이나 새 역할이 관리자면 소유자만 바꿀 수 있고 그 밖의 요청자는 403 `OWNER_REQUIRED` 다. 대상이 요청자 자신이어도 같다 |
 | `POST /api/workspaces/:id/transfer-ownership { newOwnerMemberId }` | 소유자(`@Roles('owner')` 가드와 서비스 재검증) | 한 트랜잭션에서 (1) 현재 소유자를 관리자로, (2) 대상 멤버를 소유자로, (3) `workspace.owner_id` 를 대상 사용자로 바꾼다. 자기 자신을 지정하면 400 `TARGET_IS_SELF`, 대상이 이미 소유자면 409 `TARGET_ALREADY_OWNER`, 개인 워크스페이스는 이양할 수 없다(`CANNOT_TRANSFER_PERSONAL`). `newOwnerMemberId` 는 사용자 ID 가 아니라 멤버 ID 다 |
-| `DELETE /api/workspaces/:id/members/:memberId` | 소유자·관리자 | 멤버십을 지운다. 관리자도 제거할 수 있다. 소유자는 제거할 수 없다(`CANNOT_REMOVE_OWNER`). 자기 자신 제거는 나가기(`leaveWorkspace`)로 넘겨 유일 소유자 보호 같은 공통 가드를 받는다 |
+| `DELETE /api/workspaces/:id/members/:memberId` | 소유자·관리자 | 멤버십을 지운다. 같은 트랜잭션에서 그 멤버가 이 워크스페이스에 둔 개인 통합도 지운다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29), 미구현). 관리자도 제거할 수 있다. 소유자는 제거할 수 없다(`CANNOT_REMOVE_OWNER`). 자기 자신 제거는 나가기(`leaveWorkspace`)로 넘겨 유일 소유자 보호 같은 공통 가드를 받는다 |
 
 이 표에 나온 거부 코드의 HTTP 상태(현재 구현)는 [계정과 워크스페이스 데이터 흐름 §멤버 변경과 직접 추가](CLE-ACCT-DATA.md#멤버-변경과-직접-추가) 에 모았다.
 
@@ -274,7 +275,7 @@ etag: "sha256-d74fde2486073fa63c5748e22ff402e0914b57f22ea18a3dabc2a80b45f78c2b"
 
 | 동작 | 권한 | 규칙 |
 | --- | --- | --- |
-| `POST /api/workspaces/:id/leave` | 멤버 본인 | 팀 워크스페이스만(개인은 403 `CANNOT_LEAVE_PERSONAL`). 유일한 소유자는 403 `SOLE_OWNER_CANNOT_LEAVE`. 유일 소유자 판정과 멤버십 삭제를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다 |
+| `POST /api/workspaces/:id/leave` | 멤버 본인 | 팀 워크스페이스만(개인은 403 `CANNOT_LEAVE_PERSONAL`). 유일한 소유자는 403 `SOLE_OWNER_CANNOT_LEAVE`. 유일 소유자 판정과 멤버십 삭제를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 나가는 멤버가 이 워크스페이스에 둔 개인 통합도 지운다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29), 미구현) |
 | `DELETE /api/workspaces/:id` | 소유자 | 팀 워크스페이스만(개인은 403 `CANNOT_DELETE_PERSONAL`). 트리거 외부 자원([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md))을 해제한 뒤 한 트랜잭션에서 초대, 멤버, 워크스페이스 순으로 지운다. 권한 검사 시점, 잠금 순서, 트리거 시크릿 정리, 실패 처리는 [계정과 워크스페이스 데이터 흐름 §워크스페이스 삭제와 나가기](CLE-ACCT-DATA.md#워크스페이스-삭제와-나가기) |
 
 ## 초대
@@ -824,3 +825,13 @@ effect 를 그대로 두고 이동 가드만 보강하는 안은 택하지 않�
 자세한 근거와 기각한 안은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 에 있다.
 
 2026-10-29 에 이 결정과 통합 라우트의 역할 하한을 구현했다. 그래서 머리 줄 구현 상태를 「구현됨」 으로 되돌리고 ‡ 각주에서 뷰어의 삭제가 아직 코드에 없다는 문장을 지웠다.
+
+### 나가기와 제거는 개인 통합도 지운다 (2026-10-29)
+
+멤버가 나가거나 제거되면 그 사람이 이 워크스페이스에 둔 개인 통합도 함께 지운다. 개인 통합은 통합 소유자에게만 보여서 남겨 두면 아무도 보거나 지울 수 없다. 2026-10-29 에 사용자가 정했다(NERV Task `CLE-T-TGZGM9`). 삭제 규칙과 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 이 문서는 확인 다이얼로그의 안내(REQ-WSPACE-069)만 정한다.
+
+- 다이얼로그는 개인 통합이 있든 없든 같은 문장을 보인다. 제거하는 관리자는 남의 개인 통합을 볼 수 없는데, 개수나 이름을 보이면 그 존재가 드러난다.
+- 나가는 본인에게는 개수를 보여도 드러날 것이 없다. 그래도 두 다이얼로그를 같은 규칙으로 둔다. 통합 소유자는 통합 목록에서 자기 통합을 볼 수 있다.
+- 제거는 멤버십을 끝내는 동작이다. 개인 통합 삭제는 통합 소유자가 이 워크스페이스에서 사라진 결과이고 제거하는 관리자가 남의 개인 통합을 보거나 고르는 권한을 얻는 것은 아니다.
+
+머리 줄 구현 상태를 「부분 구현」 으로 바꿨다. REQ-WSPACE-069 와 나가기 · 제거 때의 개인 통합 삭제는 NERV Task `CLE-T-PS7JQY` 가 구현한다. 구현되면 「구현됨」 으로 되돌린다.
