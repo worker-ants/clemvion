@@ -41,6 +41,7 @@ import {
   IntegrationDto,
   IntegrationUsagesDto,
   OAuthBeginCafe24PendingResultDto,
+  OAuthBeginMakeshopPendingResultDto,
   OAuthBeginPopupResultDto,
   PreviewTestResultDto,
   ServiceCatalogDto,
@@ -72,13 +73,15 @@ import {
 /**
  * OAuth begin / reauthorize / request-scopes 세 엔드포인트가 동일한 분기
  * 응답을 갖는다 (popup `{ authUrl, state }` vs Cafe24 Private
- * `{ mode, integrationId, appUrl, callbackUrl, scopesAdded? }`). DTO 가 추가될
+ * `{ mode, integrationId, appUrl, callbackUrl, scopesAdded? }` vs MakeShop
+ * `{ mode, integrationId, appUrl, callbackUrl, scope }`). DTO 가 추가될
  * 때 세 데코레이터를 따로 수정하지 않도록 공유 상수로 추출 (shotgun surgery
  * 방지).
  */
 const OAUTH_BEGIN_RESULT_DTOS = [
   OAuthBeginPopupResultDto,
   OAuthBeginCafe24PendingResultDto,
+  OAuthBeginMakeshopPendingResultDto,
 ] as const;
 
 /**
