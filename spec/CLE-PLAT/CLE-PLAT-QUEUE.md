@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "9cf264ceea91bbbc617d3ae7dbbc9ad2c1bbe25250d76cba34036b213284a47f"
+content_hash: "0d1acc7ea7f2e315dff9988e8046ae29f3dd43c13c0fdfa5294861cdff969ee0"
 read_as: "approved_fallback"
-task: "CLE-T-Z35F7P"
+task: "CLE-T-N7ENKQ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "f8e08e6ba2cf44cd7f7903b9ce561c970eb007ce0be06d95c22d9a97ede21271"
-etag: "sha256-a509c3c2d19d209f8b2198cc8dfe61a0c99b05c39cf62f2fa3b213a912271af8"
+mirror_sha256: "7c338d2ce38a8160e1025f9d110a18cd50ae1d35a389b9c803b03ddff7d9bad0"
+etag: "sha256-314850e01057e95b0b8e9acf33b70e02e8d0f3551457c225c91687912f1cf5ab"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -137,7 +137,7 @@ etag: "sha256-a509c3c2d19d209f8b2198cc8dfe61a0c99b05c39cf62f2fa3b213a912271af8"
 - Socket.IO 구독 채널(`execution:<id>`, `workflow:<id>`, `background:run:<id>`)
 - 메모리 Map 라우팅 키(`bg:<executionId>:<backgroundRunId>`)
 - BullMQ 내부 키(`bull:<queue>:*`)
-- PostgreSQL advisory lock 키(`trigger-config:<triggerId>`, `exec-cap:<workspaceId>`)
+- PostgreSQL advisory lock 키(`trigger-config:<triggerId>`, `exec-cap:<workspaceId>`, `makeshop-pending:<workspaceId>:<client_id 해시>`)
 
 구분 기준과 advisory lock 키 공간 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 에 있다.
 

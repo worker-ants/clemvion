@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "1ebdfbb26a74438e1dd63736fb2b3d724c6b63a6561eb25e999d87e0b77dfac6"
+content_hash: "4345708de54f67351f3a6195df6b043a18e498a9b05700713537df3c98a01171"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-N7ENKQ"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "7844a4e1cc4f828ca6102440b62fbd205f4cd97d119b7b6f9312c6d79dbf6c66"
-etag: "sha256-9b19efbc88e08a7266d30abb8652bd12be36509a8f55bf9107d00b2c59146323"
+mirror_sha256: "25715c1be36cc4d9ce576f665172d60afd389dca76019206a437bc22a984f9b1"
+etag: "sha256-d3b8a4703bf43f323fc1a9d713e53dc3900e1ac33d43ef38f40f5931e3bf5844"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -25,7 +25,7 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 1. 키 형태 규칙
 2. 키에 워크스페이스 세그먼트를 넣을지 가리는 기준
 3. 새 키를 만들 때의 등재 의무
-4. 이름 모양이 비슷하지만 Redis 키가 아닌 인접 이름의 구분
+4. 이름 모양이 비슷하지만 Redis 키가 아닌 인접 이름의 구분과 PostgreSQL advisory lock 키 계열의 목록·키 모양·해시 함수
 
 범위 밖:
 
@@ -43,7 +43,7 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 6. 한 모듈이 이미 쓰는 접두를 더 늘리지 않는다. 이미 여러 접두를 쓰는 모듈에 통일을 강제하지는 않는다.
 7. 새 Redis 키나 pub/sub 채널을 만들면 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 한 줄을 더하고 용도·TTL·실패 정책은 소유 문서에 적는다. 이 의무가 없으면 목록은 만든 시점의 스냅샷으로 굳는다.
 8. 이름 모양이 비슷해도 Redis 를 거치지 않는 이름은 Redis 키 목록에 넣지 않는다([인접 이름](#redis-키가-아닌-인접-이름)).
-9. PostgreSQL advisory lock 키 계열을 새로 들이면 [인접 이름](#redis-키가-아닌-인접-이름) 표에 올린다.
+9. PostgreSQL advisory lock 키 계열을 새로 들이면 [인접 이름](#redis-키가-아닌-인접-이름) 표에 키 모양과 해시 함수를 올린다. 새 계열의 해시는 64비트 `hashtextextended(<키>, 0)` 를 쓴다.
 
 ## 키 형태
 
@@ -83,16 +83,19 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 
 ## Redis 키가 아닌 인접 이름
 
-다음 이름은 `{도메인}:{용도}:{id}` 꼴이지만 Redis 를 거치지 않는다. Redis 키 목록에 넣지 않는다.
+다음 이름은 `{도메인}:{용도}:{id}` 꼴이지만 Redis 를 거치지 않는다. Redis 키 목록에 넣지 않는다. PostgreSQL advisory lock 키 계열의 키 모양과 해시 함수는 이 표가 정본이다. 그 키로 잠그는 기능 문서는 언제 잠그는지만 적고 이 표를 링크한다.
 
 | 이름 | 실체 | 기준 문서 |
 | --- | --- | --- |
 | `background:run:<id>` · `execution:<id>` · `workflow:<id>` | **Socket.IO 채널** (`server.to(channel).emit()`) | [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) |
 | `bg:<executionId>:<backgroundRunId>` | **메모리 Map 라우팅 키** (`_contextKey`) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) |
 | `bull:<queue>:*` | BullMQ 내부 키(라이브러리 표준) | [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) |
-| `trigger-config:<triggerId>` · `exec-cap:<workspaceId>` (`workspaceId` 가 없으면 `<workflowId>`) | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtext(<키>))` 에 넣는 문자열 | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) · [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
+| `trigger-config:<triggerId>` · `exec-cap:<workspaceId>` (`workspaceId` 가 없으면 `<workflowId>`) | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtext(<키>))` 에 넣는 문자열. 해시는 32비트 `hashtext()` 다 | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) · [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
+| `makeshop-pending:<workspaceId>:<client_id 의 SHA-256 hex>` | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtextextended(<키>, 0))` 에 넣는 문자열. 해시는 64비트 `hashtextextended(<키>, 0)` 다. MakeShop `oauth/begin` 이 같은 `(workspace_id, client_id)` 의 설치 대기 행 재사용을 줄 세운다 | [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) |
 
-advisory lock 키는 계열이 달라도 한 공간을 쓴다. `hashtext()` 는 int4(32비트)를 내므로 접두가 달라도 모든 계열이 같은 키 공간을 나눠 쓴다. 해시가 충돌해도 결과는 과직렬화(관계없는 두 요청이 서로를 기다림)뿐이라 정합성은 깨지지 않는다. 새 계열을 들이면 이 표에 올린다(규칙 9). 계열이 늘어 불필요한 대기가 관측되면 키 공간 분리를 다시 검토한다.
+`makeshop-pending` 키의 마지막 세그먼트는 `client_id` 원문이 아니라 그 SHA-256 hex 다. `client_id` 는 암호화해 저장하는 자격 증명의 값이라 키 문자열에 원문을 넣지 않는다.
+
+advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 `pg_advisory_xact_lock(bigint)` 의 한 키 공간을 나눠 쓴다. `hashtext()` 계열은 int4(32비트)를 내므로 그 안의 int4 범위에만 놓이고 `hashtextextended()` 계열은 64비트 전체에 퍼진다. 그래서 64비트 계열의 키는 32비트 계열의 키와도, 64비트 계열의 키끼리도 거의 겹치지 않는다. 해시가 충돌해도 결과는 과직렬화(관계없는 두 요청이 서로를 기다림)뿐이라 정합성은 깨지지 않는다. 새 계열을 들이면 64비트 해시를 쓰고 이 표에 올린다(규칙 9). 계열이 늘어 불필요한 대기가 관측되면 키 공간 분리를 다시 검토한다.
 
 이 표는 같은 모양의 이름을 모두 담지는 않는다. 현재 구현에는 같은 꼴의 이름이 더 있다.
 
@@ -132,3 +135,9 @@ NERV 로 옮기면서 전역 목록은 이 문서에서 [비동기 큐와 Redis 
 ### 인접 이름을 따로 적는 이유
 
 이 규약의 초안이 `background:run:<id>`(Socket.IO 채널)를 Redis 키로 잘못 올린 일이 있었다. 이름 모양이 같으면 종류도 같다고 넘겨짚기 쉽다. 그 혼동을 문서 안에서 미리 끊는다.
+
+### 새 advisory lock 계열은 64비트 해시를 쓴다 (2026-10-29)
+
+`makeshop-pending` 계열은 32비트 `hashtext()` 대신 64비트 `hashtextextended(<키>, 0)` 로 잠근다. 관계없는 키가 같은 락에 걸릴 확률을 줄이려는 것이다. 해시가 겹쳐도 정합성은 깨지지 않지만 관계없는 요청이 서로를 기다리게 된다. 키 공간이 32비트에서 64비트로 넓어지면 그런 겹침은 훨씬 드물어진다.
+
+기존 `trigger-config`·`exec-cap` 계열은 바꾸지 않는다. 해시 함수를 바꾸면 배포 전환기에 옛 판과 새 판의 서버가 같은 키를 서로 다른 락 번호로 잡는다. 그동안은 두 서버가 서로를 막지 못한다. 앞으로 들이는 계열은 64비트를 쓴다(규칙 9).

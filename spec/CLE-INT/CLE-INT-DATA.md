@@ -2,21 +2,21 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "34865b182d86ab80e1f2bd63c6616382a8590ea6920ae417ebed479a36770894"
+content_hash: "571204b2e1a2c51747e078cdeabc0c85aa755b5f287d7506af9efc057ab2ef95"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-N7ENKQ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "199573df59eaaf78cdbab480f97b1347e661953faf231d8b4408a80573f05268"
-etag: "sha256-cefb0fbbfac7f21b70c56e358c76361df18ce382460429691003dfdfad0eeeee"
+mirror_sha256: "01131cc729d941e8ea924dcb0388661c52bafe0692399fca83ca38b0060f03c0"
+etag: "sha256-dd587dabb5afa727a3ba4b4a0720ec30004e1d669ec97037ba1afdb348b0d66c"
 ---
-> 구현 상태: 부분 구현 (커밋 직전 재판정의 `EDITOR_REQUIRED`, `logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -338,7 +338,7 @@ sequenceDiagram
 
 - 통합 재인증과 설치 대기 행은 자격 증명을 통째로 바꾸고, 추가 권한 요청은 기존 자격 증명에 합치고 권한 범위를 갱신한다. 설치 토큰은 보존한다. 재설치 대기 표시(`reinstall_requested_at`)는 같은 UPDATE 에서 지운다.
 - 콜백이 실패하면(토큰 교환 실패 등) state 를 소비한 뒤 식별된 행에 `markIntegrationCallbackError` 가 `status_reason`(`normalizeStatusReason` 으로 union 정규화)과 `last_error={code,message,at}` 을 기록한다. 상태를 바꾸는지는 실패 종류와 행의 현재 상태에 따라 다르다. 연결됨 행의 통합 재인증 토큰 교환 실패는 `error(auth_failed)` 로 바뀐다. 재설치 대기 표시가 유효한 행, 설치 대기 행, state 단계 실패는 상태를 보존한다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 콜백 실패는 재설치 대기 표시를 지우지 않는다. 표는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑이 소유한다.
-- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고, 같은 수집 경로가 `last_error` 에 `RESOURCE_NOT_FOUND`, `EDITOR_REQUIRED`(개인 통합), `ADMIN_REQUIRED` 가운데 하나를 기록한다. 상태는 보존한다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 `EDITOR_REQUIRED` 를 가드 거부 코드로만 적는다. 서비스 계층이 내는 경우를 더하는 일은 NERV Task `CLE-T-5BZ3M2` 가 맡는다.
+- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고 상태는 보존한다. `EDITOR_REQUIRED`(개인 통합)와 `ADMIN_REQUIRED` 는 같은 수집 경로가 `last_error` 에 기록한다. `RESOURCE_NOT_FOUND` 는 요청자에게 그 행이 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑) 의 에러 매핑). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 `EDITOR_REQUIRED` 를 가드 거부 코드로만 적는다. 서비스 계층이 내는 경우를 더하는 일은 NERV Task `CLE-T-5BZ3M2` 가 맡는다.
 - 설치 대기 행과, 재설치 대기 표시가 유효한 Cafe24 Private 행은 커밋 직전 인가 재판정을 하지 않는다. 이 행의 state 는 App URL(설치 토큰과 HMAC 이 인가한다)이 만들어 `user_id` 가 요청자가 아니라 통합 소유자다. 표시를 남긴 요청자의 인가는 표시를 남길 때 이미 확인했다. 재판정하면 관리자가 요청한 조직 통합의 재설치가 통합 소유자 기준으로 `ADMIN_REQUIRED` 가 되어 실패한다. Cafe24 Public 행과 MakeShop 행은 표시 값과 관계없이 재판정하고 표시를 남긴 지 24시간이 지난 Cafe24 Private 행도 재판정한다.
 - 설치 토큰이 있는 Cafe24 Private 행의 통합 재인증과 추가 권한 요청은 `oauth/begin` 을 거치지 않고 state 도 만들지 않는다. 통합 재인증은 판정한 행 조건으로 `reinstall_requested_at` 만 현재 시각으로 UPDATE 하고 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 추가 권한 요청은 `credentials.scopes` 를 합쳐 저장하면서 설치 대기가 아니면 같은 값을 쓴다. 이미 표시가 있으면 새 시각으로 덮어써 24시간을 다시 센다. 상태·상태 사유·토큰은 그대로다. state 는 사용자가 «테스트 실행» 을 눌러 App URL 이 불릴 때 생긴다([Cafe24 Private 앱 설치](#cafe24-private-앱-설치)).
 - 자격 증명 교체(`POST /api/integrations/:id/rotate`)는 OAuth 흐름이 아니다. 연결 테스트를 통과하면 자격 증명을 합치고 `last_rotated_at` 을 갱신하며 연결됨으로 되돌린다.

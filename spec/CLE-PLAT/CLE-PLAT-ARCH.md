@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "bc0fb4ad2e7a5782b987ae31c49479f438da9026e36c6dd40aa3228570b28d8b"
+content_hash: "d05f2b00527c998b49f65c5259c691b563d58fb06920ce5413b52d7671e9abad"
 read_as: "approved_fallback"
-task: "CLE-T-Z35F7P"
+task: "CLE-T-N7ENKQ"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "8400e42ea129294adaec9b3c0d0f0d87dd6794cde72401babed83d95f9a55a7c"
-etag: "sha256-662931e7559baf605087a71ca9673627c2c8da1421612b43d09042bc6311969b"
+mirror_sha256: "10c9dc13068f2b53070ab6fbbee8816f60a937a360be165dbbaaec4102d4be34"
+etag: "sha256-fad095dabaf5b930ceae0a3ab9985cbd43feb4dd27ab99a00857196cd27d9aa7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -202,7 +202,7 @@ flowchart LR
 
 - **상태 없는 백엔드**: 모든 컨트롤러와 서비스는 상태를 갖지 않는다. 인스턴스 사이의 작업 조정은 Redis(BullMQ 영속 큐와 보조 pub/sub)가 맡는다. 서버 인스턴스마다 따로 두는 캐시 · 레지스트리 · EIA SSE 구독자는 아래 pub/sub 채널로 맞춘다.
 - **재개 전달**: 폼 제출·버튼 클릭 같은 비동기 재개 신호는 재개 큐(`execution-continuation`, `ContinuationBusService`)로 전달한다. 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스의 BullMQ 워커가 받아 재개할 수 있다. 재개는 rehydration 한 경로로만 한다. park 가 늘 코루틴을 놓아 주므로 메모리에서 깨울 대기자가 없다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)).
-- **인스턴스 사이 직렬화**: Redis 큐 말고도 PostgreSQL advisory lock 을 쓴다. 트리거 설정 잠금(`trigger-config:<triggerId>`)과 워크스페이스 단위 동시 실행 제한(`exec-cap:<workspaceId>`)이 그 예다. 트리거 설정 잠금은 트리거 `config` 를 다시 쓰는 경로만 잡지 않는다. 알림 서명 시크릿 교체(`rotate-secret`)가 `notification_secret_v2` 를 쓸 때와 승격이 그 값을 정식 참조로 옮기고 비울 때도 같은 잠금을 잡는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md), [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체)). 잠금 키 공간 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
+- **인스턴스 사이 직렬화**: Redis 큐 말고도 PostgreSQL advisory lock 을 쓴다. 트리거 설정 잠금(`trigger-config:<triggerId>`), 워크스페이스 단위 동시 실행 제한(`exec-cap:<workspaceId>`), MakeShop 설치 대기 행 재사용의 begin 직렬화(`makeshop-pending:…`, [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한))가 그 예다. 트리거 설정 잠금은 트리거 `config` 를 다시 쓰는 경로만 잡지 않는다. 알림 서명 시크릿 교체(`rotate-secret`)가 `notification_secret_v2` 를 쓸 때와 승격이 그 값을 정식 참조로 옮기고 비울 때도 같은 잠금을 잡는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md), [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체)). 잠금 키 공간 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 - **인스턴스 로컬 캐시 무효화**: 통합 자격 증명을 교체하거나 삭제하면 pub/sub 채널 `integration:cache:invalidate` 로 모든 인스턴스의 로컬 캐시(예: Database Query 노드 연결 풀)를 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)).
 - **서버 인스턴스 로컬 레지스트리 전파**: 채팅 채널 트리거를 트리거 단위 listener 레지스트리에 등록하거나 해제하면 pub/sub 채널 `chat-channel:listener` 로 모든 서버 인스턴스의 레지스트리에 같은 변경을 반영한다. 구독이 끊긴 사이 놓친 등록은 구독이 다시 확립될 때 DB 에서 다시 읽어 메운다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-30).
 - **EIA SSE 전달**: EIA SSE 구독자는 어느 서버 인스턴스에 붙어도 그 실행의 이벤트를 모두 받는다. 서버 인스턴스마다 자기 프로세스에서 난 실행 이벤트를 실행별 pub/sub 채널 `eia:sse:live:<executionId>` 로 발행한다. 그 실행의 구독자가 있는 서버 인스턴스만 이 채널을 구독한다. 재연결 replay 버퍼(5분)와 실행당 동시 연결 상한도 Redis 에 두어 모든 서버 인스턴스가 함께 쓴다. 그래서 다른 서버 인스턴스로 다시 연결해도 replay 를 받는다. 연결 수는 모든 서버 인스턴스를 합쳐 센다. 트리거 단위 토큰이 무효가 되면 전역 채널 `eia:sse:close` 로 모든 서버 인스턴스에 알려 그 토큰으로 연 스트림을 닫는다. sticky session 에 기대지 않는다. 키와 채널의 용도 · TTL, Redis 를 쓸 수 없을 때의 동작은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다.
