@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "87e66013ef679f0efc181024def0a9485a59ff4d35c1bb3647cc3cf340eecf15"
+content_hash: "2ea3efde4492f0afad9bb429a661cedaa24ad33760647ad58ec69d7a8a26520b"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-G56XCH"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "af0620188df77ce495fc08382f926e83b6a5cf31855718c06d4bb225f8191c7b"
-etag: "sha256-4d698d58a3605ff4a3afc71112a8cb81890d5c4caf18e80618151c0495011eac"
+mirror_sha256: "d33feb846358bb3fd96911e8d20ce0d5a354d393760102a11c160736e5952ef4"
+etag: "sha256-5aa8443e360620b4d09851272a4e01ee41aac689d416a9bb6db83b6fe60a8407"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -168,6 +168,8 @@ etag: "sha256-4d698d58a3605ff4a3afc71112a8cb81890d5c4caf18e80618151c0495011eac"
 | `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패. `RolesGuard` 의 멤버십 거부(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않고 요구 역할과도 무관)와 전환(`/api/auth/workspaces/:id/switch`)·탈퇴·멤버십 확인 경로(`auth.service`, `workspaces.service`)가 발행한다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
 
 `EMAIL_VERIFICATION_REQUIRED`(401)는 비밀번호는 맞지만 이메일 인증 전인 계정의 로그인에 쓰기로 정한 코드다. 아직 발행하지 않으므로 규칙 9 에 따라 위 표에 등재하지 않았다. 지금은 `LOGIN_FAILED` 로 모인다. 조건의 정의는 [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) 에 있고 구현(NERV Task `CLE-T-AYT4VB`)과 함께 이 표에 등재한다.
+
+`NOT_A_MEMBER` 는 개인 통합 행을 만드는 트랜잭션의 멤버십 재확인에서도 내기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) REQ-INTMGMT-066). 그 경로는 아직 이 코드를 내지 않아 위 표의 발행처에는 넣지 않았고 구현(NERV Task `CLE-T-PS7JQY`)과 함께 더한다.
 
 `NOT_A_MEMBER`·`EDITOR_REQUIRED`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드 거부 코드(guard rejection codes)다. 가드 거부에 전용 코드를 쓰게 된 결정은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부에-에러-코드를-붙인다) 의 「가드 거부에 에러 코드를 붙인다」 Rationale(2026-09-25)에 있고 403 응답 설명에 싣는 규칙은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 새 엔드포인트 체크리스트에 있다. 이 가운데 `NOT_A_MEMBER`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드를 통과한 뒤 서비스 계층에서도 난다. 서비스 계층은 같은 뜻의 거부에 가드와 같은 코드를 쓴다. 예외는 초대 모듈이다. 초대 모듈(`WorkspaceInvitationsService`)의 서비스 계층 두 번째 방어선은 비멤버와 관리자 미만 멤버를 모두 §3 의 소문자 `admin_required` 로 거부한다. 초대 라우트는 가드가 먼저 `NOT_A_MEMBER` · `ADMIN_REQUIRED` 로 거부하므로 이 코드는 HTTP 로 나가지 않는다.
 

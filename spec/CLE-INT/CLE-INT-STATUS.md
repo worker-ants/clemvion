@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "ff8e3e2d28c490d2db22c1c0363cd2ca1fa7ed910ba63bbb27ca551d0b3128f6"
+content_hash: "7f291b7bfef670162a7412ed63f70335cb499ca2befcc099a96918a8ba9d037e"
 read_as: "approved_fallback"
-task: "CLE-T-TGZGM9"
+task: "CLE-T-G56XCH"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "80de32eabd89e60de0f19c942438baa614e7dacc6c868f1ee538d2092014afcf"
-etag: "sha256-c3dbc5be8ed683e80af12ddbd842a0a2b52251a541876120ce38e5068d5ee361"
+mirror_sha256: "fa809773320eee82f1858da3b8144aee980b796cc2c64bc0b438dfcce65318d9"
+etag: "sha256-29b73b6ddaa9bcfbc6ad688174b47a99cb69faf46112b612701e46bd4435824c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ etag: "sha256-c3dbc5be8ed683e80af12ddbd842a0a2b52251a541876120ce38e5068d5ee361"
 - REQ-INTSTAT-011 WHEN 외부 MCP 서버 호출이 인증 실패로 끝나면 THE SYSTEM SHALL 상태를 `error`, 사유를 `auth_failed` 로 바꾼다.
 - REQ-INTSTAT-012 WHEN 통합 재인증이나 자격 증명 교체가 성공하면 THE SYSTEM SHALL `expired`·`error` 통합을 `connected` 로 되돌린다.
 - REQ-INTSTAT-013 WHEN OAuth 가 아닌 통합에 통합 재인증을 요청하면 THE SYSTEM SHALL OAuth 왕복 없이 바로 `connected` 로 되돌린다.
-- REQ-INTSTAT-014 IF 사용자가 삭제 동작을 하지 않았으면 THE SYSTEM SHALL 통합을 자동으로 삭제하지 않는다.
+- REQ-INTSTAT-014 IF 사용자가 삭제 동작을 하지 않았으면 THE SYSTEM SHALL 통합을 자동으로 삭제하지 않는다. 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거될 때 그 개인 통합을 지우는 것(REQ-INTMGMT-065)은 예외다.
 - REQ-INTSTAT-015 WHILE 통합이 `connected` 가 아닌 동안 THE SYSTEM SHALL 그 통합을 쓰는 통합 노드 실행을 `INTEGRATION_NOT_CONNECTED` 로 실패시킨다.
 - REQ-INTSTAT-016 WHILE 통합이 `connected` 가 아닌 동안 THE SYSTEM SHALL AI 에이전트에 그 통합의 MCP 도구를 노출하지 않는다.
 - REQ-INTSTAT-017 WHEN 사용자가 통합 목록이나 상세를 보면 THE SYSTEM SHALL 연결됨·만료 임박·만료됨·오류·설치 대기 상태를 아이콘과 문구로 표시한다. (원본: NAV-IN-05)
@@ -130,14 +130,14 @@ stateDiagram-v2
 | 전이 | 트리거 |
 | --- | --- |
 | `pending_install` → `connected` | 설치 흐름의 HMAC 검증과 OAuth 콜백이 성공했다. 설치 토큰은 보존한다(App URL 재호출의 식별 키. [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)) |
-| `pending_install` → `expired` | 설치 토큰 발급 뒤 24시간 안에 콜백이 성공하지 않았다. `pending-install-ttl` 작업이 `status='expired'`, `status_reason='install_timeout'`, `install_token=NULL`, `mall_id=NULL` 로 바꾼다(`mall_id` 는 REQ-INTSTAT-040, 미구현). 설치 토큰이 지워져 App URL 이 없으므로 Cafe24 Private·MakeShop 모두 통합 재인증으로 되살릴 수 없다. 사용자가 삭제한 뒤 새로 등록한다. 상점 식별자를 비우므로 지우기 전에도 같은 상점을 다시 등록할 수 있다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 화면은 통합 재인증 버튼을 막는다 |
+| `pending_install` → `expired` | 설치 토큰 발급 뒤 24시간 안에 콜백이 성공하지 않았다. `pending-install-ttl` 작업이 `status='expired'`, `status_reason='install_timeout'`, `install_token=NULL`, `mall_id=NULL` 로 바꾼다(`mall_id` 는 REQ-INTSTAT-040, 미구현). 설치 토큰이 지워져 App URL 이 없으므로 Cafe24 Private·MakeShop 모두 통합 재인증으로 되살릴 수 없다. 사용자가 삭제한 뒤 새로 등록한다. 상점 식별자를 비우므로 지우기 전에도 같은 상점을 다시 등록할 수 있다. 이름은 그대로라 같은 이름이면 409 `INTEGRATION_NAME_TAKEN` 이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 화면은 통합 재인증 버튼을 막는다 |
 | `pending_install` → `pending_install` | OAuth 콜백 처리 중 토큰 교환 실패, state 불일치·만료 등이 났다. 상태와 설치 토큰은 보존하고 `last_error` 와 사유(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope` 등)만 갱신한다. 사용자가 Cafe24 쪽 설정을 고치고 «테스트 실행» 을 다시 누르면 새 OAuth state 로 다시 시도한다 |
 | `connected` → `error(auth_failed)` | 토큰 갱신에서 refresh token 자체가 무효(`invalid_grant`)다. 외부 MCP 서버 호출이 인증 실패다. Cafe24·MakeShop 클라이언트가 401 뒤 토큰 갱신과 1회 재시도에도 401 을 받았거나 403 을 받았다(`markAuthFailed`). 그 밖의 서비스(HTTP·Database·Email) 노드 실행 중 401·403 이 상태를 바꾸는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | `connected` → `error(insufficient_scope)` | 노드 실행 중 403 과 서비스별 권한 부족 신호를 받았다. 현재 이 신호를 감지해 전이하는 실행 경로는 Cafe24(`cafe24-api.client.ts`, `cafe24-mcp-tool-provider.ts`)뿐이다. HTTP·Database·Email 핸들러로 넓히는 일은 미구현이다 |
 | `connected` → `error(network)` | 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 났다(`consecutive_network_failures`, V049). Cafe24·MakeShop 클라이언트의 `recordNetworkFailure` 가 판정한다 |
 | `connected` → `expired(token_expired)` | refresh token 이 없는 통합의 토큰 만료 시각이 지나 만료 스캐너가 당일 임계에서 격하했다 |
 | `expired`·`error` → `connected` | 통합 재인증 또는 자격 증명 교체가 성공했다(연결 테스트 통과). OAuth 가 아닌 통합은 통합 재인증이 OAuth 왕복 없이 바로 연결됨으로 되돌린다. Cafe24 Private 은 설치 토큰이 있으면 통합 재인증이 [재설치 대기 표시](#재설치-대기-표시)를 남기고 사용자가 24시간 안에 «테스트 실행» 으로 OAuth 를 마쳐야 연결됨이 된다. 설치 토큰이 없는 Cafe24 Private 행과 MakeShop 통합은 통합 재인증이 없어 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)). 내부 MCP 브리지가 `expired` 통합을 스스로 되살리는지는 [미결 사항](#미결-사항) 이다 |
-| 모든 상태 → 삭제 | 사용자가 명시적으로 삭제했을 때만. 자동 삭제는 없다. 설치 대기 24시간 초과도 `expired` 로만 바꾼다 |
+| 모든 상태 → 삭제 | 사용자가 명시적으로 삭제했을 때와 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거됐을 때(REQ-INTMGMT-065, 미구현)뿐이다. 시간이나 상태로 지우는 자동 삭제는 없다. 설치 대기 24시간 초과도 `expired` 로만 바꾼다 |
 
 `error` 상태에서는 반드시 상태 사유를 기록한다. 토큰 갱신 실패는 `expired` 가 아니라 `error(auth_failed)` 로 바꾼다. 그래서 `expired` 가 되는 경로는 두 가지뿐이다. refresh token 이 없는 통합의 `token_expired` 와 설치 대기의 `install_timeout` 이다. Cafe24 는 refresh token 을 가지므로 Cafe24 의 `expired` 는 사실상 `install_timeout` 하나만 남는다.
 
@@ -179,7 +179,7 @@ stateDiagram-v2
 | `attention` | `status IN (expired, error)` OR (`status='connected' AND token_expires_at IS NOT NULL AND token_expires_at > NOW() AND token_expires_at <= NOW() + INTERVAL '7d' AND NOT autoRefresh`) |
 
 - 설치 대기는 두 값 모두에서 뺀다. 사용자가 외부(Cafe24 개발자 센터, ShopStore)에서 흐름을 진행하는 정상 상태로 본다. 사유가 채워진 설치 대기도 같다.
-- `install_timeout` 으로 `expired` 가 된 행은 주의 필요에 들어간다. 삭제 후 재등록해야 하는 운영 신호다. 상점 식별자를 비우므로 지우기 전에 같은 상점을 다시 등록할 수도 있다(REQ-INTSTAT-040). 그래도 만료 행은 지울 때까지 주의 필요에 남는다.
+- `install_timeout` 으로 `expired` 가 된 행은 주의 필요에 들어간다. 삭제 후 재등록해야 하는 운영 신호다. 상점 식별자를 비우므로 지우기 전에 같은 상점을 다시 등록할 수도 있다(REQ-INTSTAT-040). 이름은 놓지 않아서 같은 이름이면 409 `INTEGRATION_NAME_TAKEN` 이다. 그래도 만료 행은 지울 때까지 주의 필요에 남는다.
 - 자동 갱신 통합은 만료 임박 분기에서 뺀다. Cafe24 access token(2시간)처럼 수명이 짧은 토큰의 거짓 양성을 막는다. 자동 갱신이 실패해 `error(auth_failed)`·`error(network)` 가 되면 `status IN (expired, error)` 분기로 그대로 들어가므로 사용자 신호가 사라지지 않는다.
 - 재설치 대기 표시는 두 값 모두의 조건에 쓰지 않는다([재설치 대기 표시](#재설치-대기-표시)).
 - 목록 상태 칩은 `All` / `Attention` / `Connected` / `Expiring` / `Expired` / `Error` 이고 하나만 고른다. 설치 대기 칩은 두지 않는다.
@@ -403,3 +403,7 @@ Cafe24 refresh token 은 14일 유효하고 갱신할 때마다 새 refresh toke
 스케줄러 ID `cafe24-background-refresh-daily` 는 옛 이름을 그대로 쓴다. BullMQ `upsertJobScheduler` 는 같은 ID 의 기존 항목만 멱등으로 갱신하므로 ID 를 바꾸면 옛 Redis 항목이 고아로 남아 매일과 6시간 주기가 함께 도는 회귀 위험이 있다. 이름은 옛것이고 실제 주기는 6시간이다.
 
 새 Cafe24 통합은 `integrations.service.create()` 가 `lastRotatedAt = new Date()` 로 채운다. 옛 행이나 다른 진입점에서 NULL 로 저장된 경우를 대비해 쿼리 조건은 `Or(LessThan(cutoff), IsNull())` 로 이중 방어한다. 이 작업은 큐에 넣기만 하고 실제 갱신은 `cafe24-token-refresh` 큐 워커가 한다. 호출 직전 갱신과 같은 `jobId` 중복 제거로 충돌 없이 함께 쓴다. 다른 세 작업은 알림, 24시간 기한, 90일 보존이라는 성격이 매일 주기와 맞아 매일 00:00 UTC 로 둔다.
+
+### 개인 통합 소유자의 나가기·제거는 자동 삭제의 예외다 (2026-10-29)
+
+2026-10-29 에 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 개인 통합을 지우기로 했다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)). 상태 다이어그램에는 그 경로를 넣었지만 REQ-INTSTAT-014 와 상태 전이 표의 «모든 상태 → 삭제» 행은 «자동 삭제는 없다» 로 남아 서로 어긋났다. 같은 날 리뷰에서 찾아(finding 01a186cc-30c7-726f-992a-8d018445e60f · 01a186d0-4796-77f7-959d-81696d6fbadf) 두 곳에 예외를 적었다(NERV Task `CLE-T-G56XCH`). 이 삭제는 시간이나 상태가 아니라 멤버십이 끝난 결과라서 «시간이나 상태로 지우는 자동 삭제는 없다» 는 그대로다.
