@@ -1057,6 +1057,84 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(result.integrationId).toBe('fresh-id');
       expect(integrationRepo.create).toHaveBeenCalled();
     });
+
+    // 아래 세 케이스의 목은 «잠근 뒤 WHERE 를 다시 평가한 결과» 를 대신 답한다. 그 재평가(READ COMMITTED)는 Postgres 가
+    // 하므로 실제 DB 동작은 e2e(`integration-pending-install-reuse.e2e-spec.ts`)가 본다. 여기서는 서비스가 잠근 뒤의
+    // 결과로 다시 판정하는지만 본다.
+    it('잠근 뒤 일부 행만 남으면 남은 행으로 다시 판정한다 — 앞선 남의 행이 빠지면 409 가 아니라 자기 행을 다시 쓴다', async () => {
+      answerFind(
+        [pendingRow('personal', 'u-other'), pendingRow('personal', 'u-1')],
+        [pendingRow('personal', 'u-1')],
+      );
+      const result = (await beginAs('editor')) as {
+        integrationId: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('pending-personal-u-1');
+      expect(integrationRepo.create).not.toHaveBeenCalled();
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.id).toBe('pending-personal-u-1');
+    });
+
+    it('잠금 조회가 설치 대기가 아닌 행을 돌려줘도 다시 걸러 새 행을 만든다', async () => {
+      answerFind(
+        [pendingRow('personal', 'u-other')],
+        [
+          buildFakeCafe24Integration({
+            id: 'pending-personal-u-other',
+            status: 'connected',
+            appType: 'private',
+            scope: 'personal',
+            createdBy: 'u-other',
+          }),
+        ],
+      );
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
+      expect(integrationRepo.create).toHaveBeenCalled();
+    });
+
+    it('잠근 뒤 다른 상점의 행이 되었으면 다시 쓰지 않는다', async () => {
+      answerFind(
+        [pendingRow('personal', 'u-other')],
+        [
+          buildFakeCafe24Integration({
+            id: 'pending-personal-u-other',
+            status: 'pending_install',
+            appType: 'private',
+            mallId: 'moved-shop',
+            scope: 'personal',
+            createdBy: 'u-other',
+          }),
+        ],
+      );
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
+    });
+
+    it('같은 상점의 행을 읽은 뒤에 잠그고, 잠근 뒤에 저장한다', async () => {
+      answerFind([pendingRow('personal', 'u-1')]);
+      await beginAs('editor');
+      const finds = integrationRepo.find.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      const lockIndex = finds.findIndex(([opts]) => opts.lock !== undefined);
+      expect(lockIndex).toBeGreaterThan(0);
+      const order = integrationRepo.find.mock.invocationCallOrder;
+      expect(order[lockIndex]).toBeGreaterThan(order[0]);
+      expect(integrationRepo.save.mock.invocationCallOrder[0]).toBeGreaterThan(
+        order[lockIndex],
+      );
+    });
   });
 
   // Public 흐름 사전 가드 (2026-05-16). 옛 코드는 public begin 단계에서

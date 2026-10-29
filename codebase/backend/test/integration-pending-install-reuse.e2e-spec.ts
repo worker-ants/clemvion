@@ -22,6 +22,7 @@ import {
  *   - 남의 개인 설치 대기 행은 다시 쓰지 않는다. 409 에 그 행의 통합 ID · App URL 이 없고 설치 기한만 있다
  *   - 조직 설치 대기 행은 관리자 이상만 다시 쓴다. 다시 쓰면 응답 `scope` 는 그 행의 공개 범위다
  *   - MakeShop 설치 대기 행이 여럿이면 요청자가 바꿀 수 있는 행을 먼저 고른다
+ *   - FOR UPDATE 로 기다리는 사이 다른 요청이 그 행을 설치 완료 · 만료시키면 begin 은 그 행을 덮지 않는다(잠근 뒤 WHERE 재평가)
  *   - 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 겹친 행의 통합 ID 를 싣지 않는다
  *
  * 액터: Owner · Admin(승격) · Editor A · Editor B.
@@ -31,11 +32,37 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
 type Actor = { userId: string; accessToken: string };
 
+/**
+ * `lockerPid` 연결이 쥔 잠금 때문에 다른 연결이 기다리는 것을 볼 때까지 기다린다. begin 의 `FOR UPDATE` 잠금 조회
+ * (`lockPendingRows`)가 행 잠금을 기다리는 모습이다. `pg_stat_activity.query` 의 문장 끝(`FOR UPDATE`)은 길이 한도로
+ * 잘릴 수 있어 문장을 보지 않고 `pg_blocking_pids` 로 본다. 대기를 보지 못하면 «기다리는 사이 행이 바뀌는» 순서를
+ * 보장할 수 없다. 조용히 넘어가면 이 테스트가 잠금을 거치지 않는 경로만 지나도 통과하므로 던진다.
+ */
+async function waitUntilBlockedBy(
+  db: Client,
+  lockerPid: number,
+): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const res = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND $1::int = ANY (pg_blocking_pids(pid))`,
+      [lockerPid],
+    );
+    if (res.rows[0].n > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('no begin was observed waiting on the held integration row');
+}
+
 /** 동시 begin 수. 잠금이 없으면 이만큼 행이 생긴다. */
 const CONCURRENT_BEGINS = 5;
 
 describe('oauth/begin pending-install reuse (e2e)', () => {
   let db: Client;
+  /** 행 잠금을 쥐는 쪽 — 요청이 도는 동안 열려 있어야 하므로 검증용 `db` 와 다른 연결이다. */
+  let locker: Client;
   let owner: Actor;
   let admin: Actor;
   let editorA: Actor;
@@ -109,6 +136,8 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
+    locker = createDbClient();
+    await locker.connect();
 
     owner = await registerAndLogin(BASE_URL, uniqueEmail('ipr-own'), db);
     ws = await createTeamWorkspace(
@@ -153,8 +182,44 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
   }, 120_000);
 
   afterAll(async () => {
+    await locker.end();
     await db.end();
   });
+
+  /**
+   * `rowId` 의 행 잠금을 쥔 채 `fire` 가 쏜 begin 이 `FOR UPDATE` 에서 기다리게 한 뒤, 같은 트랜잭션에서 그 행을 `to`
+   * 상태로 바꾸고 COMMIT 해 begin 을 푼다. 다른 요청이 그 사이 설치를 마치거나 행을 만료시킨 경우를 만든다. begin 의
+   * 첫 읽기는 잠금 없이 이뤄지므로 begin 은 행을 «설치 대기» 로 읽고 기다리기 시작한다.
+   */
+  const beginWhileRowChanges = async (
+    rowId: string,
+    to: 'connected' | 'expired',
+    fire: () => request.Test,
+  ): Promise<request.Response> => {
+    let inFlight: Promise<request.Response> | undefined;
+    const pid = await locker.query<{ pid: number }>(
+      'SELECT pg_backend_pid() AS pid',
+    );
+    await locker.query('BEGIN');
+    try {
+      await locker.query(
+        'SELECT id FROM integration WHERE id = $1 FOR UPDATE',
+        [rowId],
+      );
+      inFlight = fire().then((res) => res);
+      await waitUntilBlockedBy(db, pid.rows[0].pid);
+      await locker.query('UPDATE integration SET status = $2 WHERE id = $1', [
+        rowId,
+        to,
+      ]);
+      await locker.query('COMMIT');
+      return await inFlight;
+    } finally {
+      // COMMIT 을 이미 탔으면 no-op 이다. 단언이 먼저 실패한 경우에만 실제로 잠금을 푼다.
+      await locker.query('ROLLBACK').catch(() => undefined);
+      await inFlight?.catch(() => undefined);
+    }
+  };
 
   describe('MakeShop', () => {
     it(`같은 client_id 의 begin ${CONCURRENT_BEGINS}건이 동시에 들어와도 설치 대기 행은 하나다`, async () => {
@@ -267,6 +332,40 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
       });
       expect(await countPending('makeshop')).toBe(before);
     });
+
+    it('FOR UPDATE 로 기다리는 사이 남의 행이 만료되면 409 가 아니라 새 설치 대기 행을 만든다', async () => {
+      const clientId = freshClientId();
+      const first = await begin(editorA, makeshop(clientId));
+      expect(first.status).toBe(200);
+      const staleId = (first.body.data as { integrationId: string })
+        .integrationId;
+
+      const res = await beginWhileRowChanges(staleId, 'expired', () =>
+        begin(editorB, makeshop(clientId)),
+      );
+      // 잠근 뒤 WHERE(status = 'pending_install')를 다시 평가해 만료된 행을 뺀다 — 남의 행이라는 409 도 아니고 덮어쓰기도 아니다.
+      expect(answerOf(res)).toBe('200');
+      const freshId = (res.body.data as { integrationId: string })
+        .integrationId;
+      expect(freshId).not.toBe(staleId);
+
+      const rows = await db.query<{
+        id: string;
+        status: string;
+        created_by: string;
+      }>(`SELECT id, status, created_by FROM integration WHERE id = ANY($1)`, [
+        [staleId, freshId],
+      ]);
+      const byId = new Map(rows.rows.map((r) => [r.id, r]));
+      expect(byId.get(staleId)).toMatchObject({
+        status: 'expired',
+        created_by: editorA.userId,
+      });
+      expect(byId.get(freshId)).toMatchObject({
+        status: 'pending_install',
+        created_by: editorB.userId,
+      });
+    }, 60_000);
   });
 
   describe('Cafe24 Private', () => {
@@ -345,5 +444,36 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
       expect(answerOf(res)).toBe('409 CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
       expect(JSON.stringify(res.body)).not.toContain(connected.rows[0].id);
     });
+
+    it('FOR UPDATE 로 기다리는 사이 그 행의 설치가 끝나면 덮어쓰지 않고 409 CAFE24_PRIVATE_APP_ALREADY_CONNECTED 를 낸다', async () => {
+      const mallId = freshMall();
+      const first = await begin(editorA, cafe24Private(mallId));
+      expect(first.status).toBe(200);
+      const rowId = (first.body.data as { integrationId: string })
+        .integrationId;
+      const before = await db.query<{ install_token: string }>(
+        'SELECT install_token FROM integration WHERE id = $1',
+        [rowId],
+      );
+
+      const res = await beginWhileRowChanges(rowId, 'connected', () =>
+        begin(editorA, {
+          ...cafe24Private(mallId),
+          clientSecret: 'e2e-cafe24-secret-changed',
+        }),
+      );
+      expect(answerOf(res)).toBe('409 CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      expect(JSON.stringify(res.body)).not.toContain(rowId);
+
+      // 설치를 마친 행은 새 자격 증명으로 덮이지 않고 설치 토큰도 그대로다.
+      const after = await db.query<{ status: string; install_token: string }>(
+        'SELECT status, install_token FROM integration WHERE id = $1',
+        [rowId],
+      );
+      expect(after.rows[0]).toEqual({
+        status: 'connected',
+        install_token: before.rows[0].install_token,
+      });
+    }, 60_000);
   });
 });

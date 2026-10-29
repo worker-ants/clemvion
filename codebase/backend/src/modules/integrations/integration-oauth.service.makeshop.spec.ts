@@ -352,17 +352,24 @@ describe('IntegrationOAuthService — MakeShop', () => {
       };
     }
 
-    /** 읽기 조회와 잠금 조회(`lock`)에 각각 답한다. 잠금 조회는 요청한 id 만 돌려준다. */
-    function answerFind(rows: Record<string, unknown>[]) {
+    /**
+     * 읽기 조회와 잠금 조회(`lock`)에 각각 답한다. 잠금 조회는 요청한 id 만 돌려준다. `lockedRows` 를 주면 잠금 조회가
+     * 대신 그 행을 그대로 돌려준다 — 잠금을 기다리는 사이 행이 바뀐 경우를 흉내 낸다.
+     */
+    function answerFind(
+      rows: Record<string, unknown>[],
+      lockedRows?: Record<string, unknown>[],
+    ) {
       integrationRepo.find = jest
         .fn()
         .mockImplementation(
           (opts: { lock?: unknown; where?: { id?: { value?: string[] } } }) =>
             Promise.resolve(
               opts.lock
-                ? rows.filter((r) =>
-                    (opts.where?.id?.value ?? []).includes(r.id as string),
-                  )
+                ? (lockedRows ??
+                    rows.filter((r) =>
+                      (opts.where?.id?.value ?? []).includes(r.id as string),
+                    ))
                 : rows,
             ),
         );
@@ -378,6 +385,85 @@ describe('IntegrationOAuthService — MakeShop', () => {
       expect(managerQuery.mock.invocationCallOrder[0]).toBeLessThan(
         integrationRepo.find.mock.invocationCallOrder[0],
       );
+    });
+
+    it('advisory lock → 후보 읽기 → FOR UPDATE 잠금 → 저장 순으로 부른다', async () => {
+      answerFind([pendingRow('mine', 'personal', 'u-1')]);
+      await beginAs('editor');
+      const finds = integrationRepo.find.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      const readOrder = integrationRepo.find.mock.invocationCallOrder[0];
+      const lockIndex = finds.findIndex(([opts]) => opts.lock !== undefined);
+      expect(lockIndex).toBe(1);
+      const lockOrder =
+        integrationRepo.find.mock.invocationCallOrder[lockIndex];
+      const advisoryOrder = managerQuery.mock.invocationCallOrder[0];
+      const saveOrder = integrationRepo.save.mock.invocationCallOrder[0];
+      expect(advisoryOrder).toBeLessThan(readOrder);
+      expect(readOrder).toBeLessThan(lockOrder);
+      expect(lockOrder).toBeLessThan(saveOrder);
+      // 같은 트랜잭션 안이어야 한다 — advisory lock 은 트랜잭션이 끝날 때 풀린다.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('후보가 없으면 FOR UPDATE 잠금 조회를 하지 않고 새 행을 만든다', async () => {
+      answerFind([]);
+      await beginAs('editor');
+      const finds = integrationRepo.find.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      expect(finds.some(([opts]) => opts.lock !== undefined)).toBe(false);
+      expect(integrationRepo.create).toHaveBeenCalled();
+    });
+
+    // 아래 세 케이스의 목은 «잠근 뒤 WHERE 를 다시 평가한 결과» 를 대신 답한다. 그 재평가(READ COMMITTED)는 Postgres 가
+    // 하므로 실제 DB 동작은 e2e(`integration-pending-install-reuse.e2e-spec.ts`)가 본다. 여기서는 서비스가 잠근 뒤의
+    // 결과로 다시 판정하는지만 본다.
+    it('잠근 뒤 설치 대기가 아니게 된 남의 행은 409 가 아니라 새 행을 만든다', async () => {
+      // 잠금을 기다리는 동안 다른 요청이 설치를 마치거나 행을 만료시켰다 — 잠금 조회의 WHERE 에서 빠진다.
+      answerFind([pendingRow('others', 'personal', 'u-other')], []);
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as {
+        integrationId: string;
+        scope: string;
+      };
+      expect(result.integrationId).toBe('fresh-id');
+      expect(result.scope).toBe('personal');
+      expect(integrationRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'pending_install',
+          createdBy: 'u-1',
+        }),
+      );
+    });
+
+    it('잠근 뒤 일부 행만 남으면 남은 행으로 다시 판정한다 — 앞선 남의 행이 빠지면 자기 행을 다시 쓴다', async () => {
+      answerFind(
+        [
+          pendingRow('others-older', 'personal', 'u-other'),
+          pendingRow('mine-newer', 'personal', 'u-1'),
+        ],
+        [pendingRow('mine-newer', 'personal', 'u-1')],
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('mine-newer');
+      expect(integrationRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('잠금 조회가 client_id 가 다른 행을 돌려줘도 다시 걸러 새 행을 만든다', async () => {
+      // 읽을 때는 같은 client_id 였지만 잠근 뒤에는 다른 client_id 가 된 행.
+      answerFind(
+        [pendingRow('moved', 'personal', 'u-other')],
+        [pendingRow('moved', 'personal', 'u-other', 'changed-client-id')],
+      );
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'fresh-id' }),
+      );
+      const result = (await beginAs('editor')) as { integrationId: string };
+      expect(result.integrationId).toBe('fresh-id');
     });
 
     it('후보는 created_at · id 순으로 읽고 다시 쓸 행을 FOR UPDATE 로 잠근다', async () => {
