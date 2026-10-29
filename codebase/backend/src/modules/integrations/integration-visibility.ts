@@ -2,6 +2,8 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import {
   ADMIN_ROLES,
   ROLE_REQUIRED,
+  WORKSPACE_ROLE_LEVEL,
+  workspaceRoleLevel,
 } from '../../common/constants/workspace-roles';
 import type { Integration } from './entities/integration.entity';
 
@@ -45,6 +47,8 @@ export const INTEGRATION_USER_PARAM = 'integrationUserId';
  * 한쪽만 바뀌면 두 응답의 문구가 갈려 통합이 있는지 알려 주는 신호가 되므로 이 상수 하나에서 가져간다.
  */
 export const INTEGRATION_NOT_FOUND_MESSAGE = 'Integration not found';
+/** 없는 통합 · 남의 personal 의 응답 코드 — 콜백 기록 경로가 이 코드로 «요청자가 볼 수 없는 행» 을 가린다. */
+export const INTEGRATION_NOT_FOUND_CODE = 'RESOURCE_NOT_FOUND';
 
 /**
  * «없다» — 없는 통합과 남의 personal 이 **같은** 응답을 받는다(구별되면 존재를 드러낸다). 같은 리터럴이 여러 서비스에
@@ -52,7 +56,7 @@ export const INTEGRATION_NOT_FOUND_MESSAGE = 'Integration not found';
  */
 export function integrationNotFoundError(): NotFoundException {
   return new NotFoundException({
-    code: 'RESOURCE_NOT_FOUND',
+    code: INTEGRATION_NOT_FOUND_CODE,
     message: INTEGRATION_NOT_FOUND_MESSAGE,
   });
 }
@@ -94,8 +98,8 @@ export function adminRequiredError(
 }
 
 /**
- * Organization 통합의 변경은 Admin 이상이다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 본인은
- * 역할과 무관하게 바꾼다(가시성은 {@link isIntegrationVisibleTo} 가 먼저 본다).
+ * Organization 통합의 변경은 Admin 이상이다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고(가시성은
+ * {@link isIntegrationVisibleTo} 가 먼저 본다) 쓰기의 편집자 하한은 라우트 가드나 {@link assertPersonalWriteRole} 이 본다.
  */
 export function assertOrgScopeModifiable(
   row: Pick<Integration, 'scope'>,
@@ -105,4 +109,19 @@ export function assertOrgScopeModifiable(
   if (row.scope !== 'organization') return;
   if (userRole && ADMIN_ROLES.has(userRole)) return;
   throw adminRequiredError(action);
+}
+
+/**
+ * 개인 통합 쓰기는 편집자 이상이다(REQ-INTMGMT-035). 요청 경로는 라우트 가드(`@Roles('editor')`)가 보고, 가드가 닿지 않는
+ * OAuth 콜백의 커밋 직전 재판정(REQ-INTOAUTH-026)이 이 함수를 부른다. 거부 본문은 라우트 가드와 같다(`ROLE_REQUIRED.editor`).
+ * 역할을 모르면(`null` — 멤버가 아니게 됐거나 조회할 수 없다) 거부한다.
+ */
+export function assertPersonalWriteRole(userRole: string | null): void {
+  if (
+    userRole &&
+    workspaceRoleLevel(userRole) >= WORKSPACE_ROLE_LEVEL.editor
+  ) {
+    return;
+  }
+  throw new ForbiddenException({ ...ROLE_REQUIRED.editor });
 }

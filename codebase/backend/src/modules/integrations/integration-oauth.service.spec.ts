@@ -68,6 +68,18 @@ describe('IntegrationOAuthService', () => {
     );
   });
 
+  /** 콜백의 커밋 직전 재판정을 통과하는 요청자(편집자) — 재인증 · scope 추가 콜백의 성공 경로가 쓴다. */
+  const serviceAsEditor = () =>
+    new IntegrationOAuthService(
+      integrationRepo as never,
+      stateRepo as never,
+      previewRepo as never,
+      dataSource as never,
+      oauthMock.configService as never,
+      undefined,
+      { getMemberRole: jest.fn(async () => 'editor') } as never,
+    );
+
   afterEach(() => {
     if (savedOAuthStub === undefined) delete process.env.OAUTH_STUB_MODE;
     else process.env.OAUTH_STUB_MODE = savedOAuthStub;
@@ -241,8 +253,10 @@ describe('IntegrationOAuthService', () => {
         workspaceId: 'ws-1',
         credentials: { access_token: 'old' },
         status: 'error',
+        scope: 'personal',
+        createdBy: 'u-1',
       });
-      const result = await service.handleCallback('google', {
+      const result = await serviceAsEditor().handleCallback('google', {
         code: 'code',
         state: 'abc',
       });
@@ -280,8 +294,10 @@ describe('IntegrationOAuthService', () => {
           scopes: ['https://www.googleapis.com/auth/drive'],
         },
         status: 'error',
+        scope: 'personal',
+        createdBy: 'u-1',
       });
-      const result = await service.handleCallback('google', {
+      const result = await serviceAsEditor().handleCallback('google', {
         code: 'code',
         state: 'abc',
       });
@@ -414,17 +430,102 @@ describe('IntegrationOAuthService', () => {
       },
     );
 
-    it('본인 personal 은 역할을 조회하지 않고 커밋한다', async () => {
-      dataSource.query.mockResolvedValue(stateOf('reauthorize'));
-      integrationRepo.findOne.mockResolvedValue(
-        rowOf({ scope: 'personal', createdBy: 'u-1' }),
-      );
-      await serviceWithRole('viewer').handleCallback('google', {
-        code: 'code',
-        state: 'abc',
+    // REQ-INTOAUTH-026 — begin 은 라우트 가드가 뷰어를 막지만 시작과 콜백 사이에 뷰어로 강등된 요청자는 콜백에서 막아야 한다.
+    it.each([
+      ['reauthorize', 'viewer'],
+      ['request_scopes', 'viewer'],
+      ['reauthorize', null],
+    ])(
+      '%s — 본인 personal 이라도 요청자가 그 사이 %s 가 됐으면 403 EDITOR_REQUIRED · 쓰지 않는다',
+      async (mode, role) => {
+        dataSource.query.mockResolvedValue(stateOf(mode));
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ scope: 'personal', createdBy: 'u-1' }),
+        );
+        await expect(
+          serviceWithRole(role).handleCallback('google', {
+            code: 'code',
+            state: 'abc',
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'EDITOR_REQUIRED',
+            message: 'Editor 이상의 권한이 필요합니다.',
+          },
+        });
+        expect(getMemberRole).toHaveBeenCalledWith(
+          'ws-1',
+          'u-1',
+          expect.objectContaining({ getRepository: expect.any(Function) }),
+        );
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['editor', 'admin', 'owner'])(
+      '본인 personal — 요청자가 %s 면 커밋한다',
+      async (role) => {
+        dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ scope: 'personal', createdBy: 'u-1' }),
+        );
+        await serviceWithRole(role).handleCallback('google', {
+          code: 'code',
+          state: 'abc',
+        });
+        expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    /**
+     * 재판정 실패를 행의 `last_error` 에 남기는가. 요청자에게 보이는 행의 역할 거절(`EDITOR_REQUIRED` · `ADMIN_REQUIRED`)은
+     * 남긴다. 요청자가 더는 볼 수 없는 행(`RESOURCE_NOT_FOUND`)에는 쓰지 않는다 — 남의 개인 통합에 그 사람이 모르는 오류를
+     * 남기게 된다. 거절은 요청자의 응답으로만 알린다.
+     */
+    describe('재판정 실패의 기록 (handleCallbackWithErrorCapture)', () => {
+      const capture = async (
+        role: string | null,
+        row: Record<string, unknown>,
+      ) => {
+        const svc = serviceWithRole(role);
+        const mark = jest
+          .spyOn(svc, 'markIntegrationCallbackError')
+          .mockResolvedValue(undefined);
+        dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+        integrationRepo.findOne.mockResolvedValue(rowOf(row));
+        const err: unknown = await svc
+          .handleCallbackWithErrorCapture('google', {
+            code: 'code',
+            state: 'abc',
+          })
+          .catch((e: unknown) => e);
+        return { err, calls: [...mark.mock.calls] };
+      };
+
+      it('남의 personal 이 됐으면 404 만 내고 last_error 를 쓰지 않는다', async () => {
+        const { err, calls } = await capture('owner', {
+          scope: 'personal',
+          createdBy: 'u-2',
+        });
+        expect(err).toMatchObject({
+          response: { code: 'RESOURCE_NOT_FOUND' },
+        });
+        expect(calls).toEqual([]);
       });
-      expect(getMemberRole).not.toHaveBeenCalled();
-      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+
+      it.each([
+        ['EDITOR_REQUIRED', 'viewer', { scope: 'personal', createdBy: 'u-1' }],
+        ['ADMIN_REQUIRED', 'editor', { scope: 'organization' }],
+      ])(
+        '보이는 행의 역할 거절(%s)은 last_error 에 남긴다',
+        async (code, role, row) => {
+          const { err, calls } = await capture(role, row);
+          expect(err).toMatchObject({ response: { code } });
+          expect(calls).toEqual([
+            ['int-1', 'ws-1', code, expect.any(String), undefined],
+          ]);
+        },
+      );
     });
 
     it('pending_install 행(설치 흐름)은 재판정하지 않는다 — state 의 userId 가 요청자가 아니라 생성자다', async () => {
@@ -546,14 +647,20 @@ describe('IntegrationOAuthService', () => {
       });
     });
 
-    it('역할을 조회할 수 없으면(WorkspacesService 미주입) Organization 재판정은 거부한다 — fail-closed', async () => {
-      dataSource.query.mockResolvedValue(stateOf('reauthorize'));
-      integrationRepo.findOne.mockResolvedValue(rowOf({}));
-      await expect(
-        service.handleCallback('google', { code: 'code', state: 'abc' }),
-      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
-      expect(integrationRepo.save).not.toHaveBeenCalled();
-    });
+    it.each([
+      ['Organization', {}, 'ADMIN_REQUIRED'],
+      ['본인 personal', { scope: 'personal', createdBy: 'u-1' }, 'EDITOR_REQUIRED'],
+    ])(
+      '역할을 조회할 수 없으면(WorkspacesService 미주입) %s 재판정은 거부한다 — fail-closed',
+      async (_name, row, code) => {
+        dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+        integrationRepo.findOne.mockResolvedValue(rowOf(row));
+        await expect(
+          service.handleCallback('google', { code: 'code', state: 'abc' }),
+        ).rejects.toMatchObject({ response: { code } });
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('handleCallback — failure observability', () => {

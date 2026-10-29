@@ -2153,6 +2153,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const markedRow = {
         id: 'marked-int-id',
         workspaceId: 'ws-1',
+        serviceType: 'cafe24',
         status: 'connected',
         scope: 'personal',
         createdBy: 'u-1',

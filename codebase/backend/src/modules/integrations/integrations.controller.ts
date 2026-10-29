@@ -101,10 +101,6 @@ const FORBIDDEN_EDITOR_OR_ORG_ADMIN = forbiddenWithService(
   forbiddenForRole('editor'),
   `Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
 );
-const FORBIDDEN_MEMBER_OR_ADMIN = forbiddenWithService(
-  FORBIDDEN_NOT_A_MEMBER,
-  `Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
-);
 const NOT_FOUND_INTEGRATION =
   '해당 통합을 찾을 수 없음 — 남의 personal 통합도 같은 응답(`RESOURCE_NOT_FOUND`)';
 
@@ -218,6 +214,8 @@ export class IntegrationsController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('preview-test')
   @HttpCode(HttpStatus.OK)
+  // 저장하지 않은 자격 증명으로 사용자가 적은 host 를 부른다 — 편집자 이상(REQ-INTMGMT-061).
+  @Roles('editor')
   @ApiOperation({
     summary: '자격 증명 사전 검증',
     description:
@@ -232,6 +230,7 @@ export class IntegrationsController {
   })
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 20회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   previewTest(@Body() body: PreviewTestDto) {
     // m-1: serviceType/authType 조합 검증은 IntegrationsService.validateServiceAuthType
     // (previewTest 내부 호출)로 이관 — controller 의 도메인 registry(findVariant) 의존 제거.
@@ -240,6 +239,8 @@ export class IntegrationsController {
 
   @Post('oauth/begin')
   @HttpCode(HttpStatus.OK)
+  // 모드와 서비스에 상관없이 편집자 이상(REQ-INTOAUTH-063) — `new` 모드는 통합 생성으로 본다.
+  @Roles('editor')
   @ApiOperation({
     summary: 'OAuth 인증 시작',
     description:
@@ -252,8 +253,8 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
     description: forbiddenWithService(
-      FORBIDDEN_NOT_A_MEMBER,
-      `reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+      forbiddenForRole('editor'),
+      `new 모드에서 Organization 공개 범위를 고르거나 reauthorize · request_scopes 모드에서 Organization 통합을 바꾸려면 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
     ),
   })
   @ApiNotFoundResponse({
@@ -284,6 +285,11 @@ export class IntegrationsController {
         role,
         action,
       );
+    } else if (mode === 'new') {
+      // `new` 는 통합 생성과 같은 판정이다 — 관리자 미만의 Organization 공개 범위는 다시 쓸 설치 대기 행을 찾거나
+      // 만들기 전에 요청 본문만 보고 거절한다(REQ-INTOAUTH-064).
+      const role = await this.roleOf(workspaceId, user);
+      this.integrationsService.assertCanCreate(body.scope, role);
     }
     let providerMeta: Record<string, unknown> | undefined;
     if (body.service === 'cafe24') {
@@ -579,6 +585,7 @@ export class IntegrationsController {
 
   @Post(':id/reauthorize')
   @HttpCode(HttpStatus.OK)
+  @Roles('editor')
   @ApiOperation({
     summary: '재인증(reauthorize) 시작',
     description:
@@ -593,7 +600,7 @@ export class IntegrationsController {
       '코드마다 처방이 다릅니다. CAFE24_PRIVATE_APP_USE_TEST_RUN(설치 대기 Cafe24 Private 통합)은 Cafe24 개발자 센터에서 「테스트 실행」을 누릅니다. CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합도 삭제 후 다시 등록하며, 지금은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되지만 이 코드는 고정 계약이 아니어서 바뀔 수 있습니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
+  @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async reauthorize(
     @Param('id', ParseUUIDPipe) id: string,
@@ -611,6 +618,7 @@ export class IntegrationsController {
 
   @Post(':id/request-scopes')
   @HttpCode(HttpStatus.OK)
+  @Roles('editor')
   @ApiOperation({
     summary: '추가 스코프 요청',
     description:
@@ -625,7 +633,7 @@ export class IntegrationsController {
       '입력값 검증 실패, OAuth 기반 통합이 아님(INTEGRATION_SCOPE_UNSUPPORTED). CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합도 삭제 후 다시 등록하며, 지금은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되지만 이 코드는 고정 계약이 아니어서 바뀔 수 있습니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
+  @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async requestScopes(
     @Param('id', ParseUUIDPipe) id: string,
@@ -644,6 +652,8 @@ export class IntegrationsController {
   }
 
   @Patch(':id/scope')
+  // 공개 범위 전환은 관리자 동작이다 — 뷰어도 `ADMIN_REQUIRED` 를 받는다(CLE-INT-MANAGE 「권한」).
+  @Roles('admin')
   @ApiOperation({
     summary: '통합 범위 변경',
     description:
@@ -655,7 +665,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ADMIN })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async updateScope(
     @Param('id', ParseUUIDPipe) id: string,
@@ -675,7 +685,9 @@ export class IntegrationsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles('editor')
+  // 뷰어도 자기 개인 통합을 지운다(REQ-INTMGMT-051). 라우트 가드는 대상의 공개 범위를 보기 전에 돌므로 Organization
+  // 통합의 관리자 검사는 서비스가 대상을 읽은 뒤에 한다(404 → 403 → 409, REQ-INTMGMT-060).
+  @Roles('viewer')
   @ApiOperation({
     summary: '통합 삭제',
     description:
@@ -684,7 +696,7 @@ export class IntegrationsController {
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })
+  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER_OR_ORG_ADMIN })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

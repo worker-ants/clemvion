@@ -29,6 +29,8 @@ import {
 import { Integration } from './entities/integration.entity';
 import {
   assertOrgScopeModifiable,
+  assertPersonalWriteRole,
+  INTEGRATION_NOT_FOUND_CODE,
   integrationNotFoundError,
   isIntegrationVisibleTo,
 } from './integration-visibility';
@@ -398,7 +400,7 @@ export class IntegrationOAuthService {
     @Optional()
     private readonly installNonceCache?: Cafe24InstallNonceCache,
     // 사용자가 시작한 재인증 · scope 추가의 커밋 직전 인가 재판정(요청자 역할 조회)용. `@Optional()` 은 수동 생성
-    // 테스트 호환일 뿐이다 — 없으면 Organization 통합의 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
+    // 테스트 호환일 뿐이다 — 없으면 역할을 모르므로 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
     @Optional()
     private readonly workspacesService?: WorkspacesService,
   ) {}
@@ -406,8 +408,8 @@ export class IntegrationOAuthService {
   /**
    * 사용자가 시작한 재인증 · scope 추가는 **커밋 직전에** 인가를 다시 본다 — begin 과 콜백 사이(state TTL)에 요청자가
    * 강등됐거나 통합이 남의 personal 로 바뀌었을 수 있다. 콜백은 자격 증명을 덮어쓰므로 begin 시점의 판정만으로는
-   * 모자란다(`spec/2-navigation/4-integration.md` §8 판정 규칙 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은
-   * 판정: 보이는가 → Organization 이면 Admin).
+   * 모자란다(REQ-INTOAUTH-026 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은 판정: 보이는가 → Organization 이면
+   * Admin, Personal 이면 편집자 이상. 요청 경로의 편집자 하한은 라우트 가드가 보지만 콜백에는 가드가 없다).
    *
    * `pending_install` 행과, 유효한 재설치 요청 표시(`reinstallRequestedAt`)가 있는 **Cafe24 Private** 행은 보지 않는다 —
    * 설치 흐름(App URL 의 install_token + HMAC 이 인가)이 만든 state 라 `userId` 가 요청자가 아니라 생성자다
@@ -430,7 +432,6 @@ export class IntegrationOAuthService {
     if (!isIntegrationVisibleTo(integration, record.userId)) {
       throw integrationNotFoundError();
     }
-    if (integration.scope !== 'organization') return;
     const role = this.workspacesService
       ? await this.workspacesService.getMemberRole(
           record.workspaceId,
@@ -438,6 +439,10 @@ export class IntegrationOAuthService {
           manager, // 행 락을 쥔 이 트랜잭션의 커넥션으로 — 풀에서 두 번째 커넥션을 빌리지 않는다
         )
       : null;
+    if (integration.scope !== 'organization') {
+      assertPersonalWriteRole(role);
+      return;
+    }
     assertOrgScopeModifiable(
       integration,
       role,
@@ -975,8 +980,14 @@ export class IntegrationOAuthService {
       return await this.handleCallback(provider, query);
     } catch (err) {
       const ctx = callbackContextOf(err);
-      if (ctx?.integrationId && ctx.workspaceId) {
-        const errorCode = readErrorCode(err);
+      const errorCode = readErrorCode(err);
+      // 요청자가 볼 수 없는 행(남의 personal 이 됐거나 지워졌다 — 재판정의 404)에는 기록하지 않는다. 그 행의 소유자가 모르는
+      // 오류를 남기게 된다. 거절은 요청자의 응답으로만 알린다.
+      if (
+        ctx?.integrationId &&
+        ctx.workspaceId &&
+        errorCode !== INTEGRATION_NOT_FOUND_CODE
+      ) {
         const message = readErrorMessage(err);
         // Cafe24 invalid_scope 콜백은 context 에 별도 승인 명단을 실어 보낸다 —
         // last_error.details.requiresCafe24Approval 로 기록 (§10.4).
