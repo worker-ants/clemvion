@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import {
+  assertPendingReusable,
   makeshopPendingLockKey,
   MAKESHOP_PENDING_LOCK_PREFIX,
   PENDING_INSTALL_TTL_HOURS,
@@ -156,6 +157,75 @@ describe('pendingInstallConflict', () => {
         pendingInstallExpiresAt: '2026-10-06T12:00:00.000Z',
       });
       expect(JSON.stringify(body)).not.toMatch(/secret-id|SecretToken/);
+    },
+  );
+});
+
+describe('assertPendingReusable', () => {
+  const stamp = {
+    installTokenIssuedAt: new Date('2026-10-05T12:00:00.000Z'),
+    createdAt: new Date('2026-10-01T00:00:00.000Z'),
+  };
+  const target = (
+    scope: 'personal' | 'organization',
+    createdBy: string,
+    id: string,
+  ) => ({ ...row(scope, createdBy, id), ...stamp });
+
+  it('고른 행이 없으면 null — 새 행을 만든다', () => {
+    expect(assertPendingReusable(null, 'cafe24')).toBeNull();
+    expect(assertPendingReusable(null, 'makeshop')).toBeNull();
+  });
+
+  it('다시 쓸 행이면 그 행을 돌려준다', () => {
+    const mine = target('personal', OWNER, 'mine');
+    expect(
+      assertPendingReusable({ row: mine, verdict: 'reuse' }, 'cafe24'),
+    ).toBe(mine);
+  });
+
+  it.each([
+    ['cafe24', 'CAFE24_PRIVATE_APP_INSTALL_PENDING'],
+    ['makeshop', 'MAKESHOP_INSTALL_PENDING'],
+  ] as const)(
+    '%s — 남의 개인 행이면 409 %s 를 던지고 설치 기한만 싣는다',
+    (service, code) => {
+      const others = target('personal', OTHER, 'others');
+      let thrown: unknown;
+      try {
+        assertPendingReusable(
+          { row: others, verdict: 'owned_by_other' },
+          service,
+        );
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ConflictException);
+      const body = (thrown as ConflictException).getResponse() as Record<
+        string,
+        unknown
+      >;
+      expect(body.code).toBe(code);
+      expect(body.details).toEqual({
+        pendingInstallExpiresAt: '2026-10-06T12:00:00.000Z',
+      });
+    },
+  );
+
+  it.each(['cafe24', 'makeshop'] as const)(
+    '%s — 관리자 미만이 만난 조직 행이면 403 ADMIN_REQUIRED 를 던진다',
+    (service) => {
+      const org = target('organization', OTHER, 'org');
+      let thrown: unknown;
+      try {
+        assertPendingReusable({ row: org, verdict: 'admin_required' }, service);
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(ForbiddenException);
+      expect(
+        ((thrown as ForbiddenException).getResponse() as { code: string }).code,
+      ).toBe('ADMIN_REQUIRED');
     },
   );
 });

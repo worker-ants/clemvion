@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import type { Integration } from './entities/integration.entity';
+import { adminRequiredError } from './integration-visibility';
 
 /*
  * `oauth/begin`(`new`)이 Cafe24 Private · MakeShop 설치 대기 행을 다시 쓸 때의 판정 — NERV CLE-INT-OAUTH
@@ -96,6 +97,35 @@ export function pendingInstallConflict(
       pendingInstallExpiresAt: pendingInstallExpiresAt(row).toISOString(),
     },
   });
+}
+
+/**
+ * {@link pickPendingToReuse} 가 고른 결과를 응답으로 옮긴다. 거절이면 던지고, 다시 쓸 행이면 그 행을 돌려준다. 고른 행이
+ * 없으면(`null`) 새 행을 만들 차례라 `null` 을 돌려준다. Cafe24 Private 과 MakeShop 이 같은 거절 응답을 내도록 두 서비스가
+ * 이 함수 하나로 처리한다. 판정 값이 늘면 아래 `never` 에서 컴파일이 멈춘다.
+ */
+export function assertPendingReusable<
+  T extends Pick<
+    Integration,
+    'scope' | 'createdBy' | 'installTokenIssuedAt' | 'createdAt'
+  >,
+>(
+  picked: { row: T; verdict: PendingReuseVerdict } | null,
+  service: keyof typeof PENDING_INSTALL_CONFLICT,
+): T | null {
+  if (!picked) return null;
+  switch (picked.verdict) {
+    case 'reuse':
+      return picked.row;
+    case 'owned_by_other':
+      throw pendingInstallConflict(service, picked.row);
+    case 'admin_required':
+      throw adminRequiredError('modify');
+    default: {
+      const unreachable: never = picked.verdict;
+      return unreachable;
+    }
+  }
 }
 
 /**

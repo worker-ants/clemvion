@@ -29,7 +29,6 @@ import {
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
 import {
-  adminRequiredError,
   assertOrgScopeModifiable,
   assertPersonalWriteRole,
   INTEGRATION_NOT_FOUND_CODE,
@@ -42,8 +41,8 @@ import {
   isReinstallRequestActive,
 } from './reinstall-request';
 import {
+  assertPendingReusable,
   makeshopPendingLockKey,
-  pendingInstallConflict,
   pickPendingToReuse,
 } from './pending-install-reuse';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -1415,17 +1414,10 @@ export class IntegrationOAuthService {
           allSameMall.filter(isReusable).map((row) => row.id),
         )
       ).filter(isReusable);
-      const picked = pickPendingToReuse(
-        locked,
-        params.userId,
-        params.requesterRole ?? null,
+      const reusable = assertPendingReusable(
+        pickPendingToReuse(locked, params.userId, params.requesterRole ?? null),
+        'cafe24',
       );
-      if (picked?.verdict === 'owned_by_other') {
-        throw pendingInstallConflict('cafe24', picked.row);
-      }
-      if (picked?.verdict === 'admin_required') {
-        throw adminRequiredError('modify');
-      }
 
       // 16바이트 base64url (22자, 128-bit) — INSTALL_TOKEN_BYTES 상수에서
       // 길이 정의. spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24
@@ -1434,7 +1426,7 @@ export class IntegrationOAuthService {
         randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
       const installTokenIssuedAt = new Date();
       let target: Integration;
-      if (picked) {
+      if (reusable) {
         // Reuse the existing row instead of accumulating duplicate pending
         // rows for the same mall. **install_token 보존 (idempotent begin)**:
         // 같은 mall_id 에 대해 begin 을 여러 번 호출해도 사용자가 처음
@@ -1446,7 +1438,7 @@ export class IntegrationOAuthService {
         // 옛 동작 (매 호출 토큰 재발급) 은 "Connect 버튼 두 번 누르면 첫 번째
         // URL 이 갑자기 무효화" UX 버그를 일으켰다 (2026-05-15 운영 보고).
         // 공개 범위와 통합 소유자(`created_by`)는 바꾸지 않는다.
-        const existingPending = picked.row;
+        const existingPending = reusable;
         const credsChanged =
           existingPending.credentials?.mall_id !== meta.mall_id ||
           existingPending.credentials?.client_id !== meta.client_id ||
@@ -1851,24 +1843,21 @@ export class IntegrationOAuthService {
           )
         ).filter(sameClient);
         // 같은 client_id 의 설치 대기 행이 여럿이면 바꿀 수 있는 행을 먼저 고른다.
-        const picked = pickPendingToReuse(
-          locked,
-          params.userId,
-          params.requesterRole ?? null,
+        const reusable = assertPendingReusable(
+          pickPendingToReuse(
+            locked,
+            params.userId,
+            params.requesterRole ?? null,
+          ),
+          'makeshop',
         );
-        if (picked?.verdict === 'owned_by_other') {
-          throw pendingInstallConflict('makeshop', picked.row);
-        }
-        if (picked?.verdict === 'admin_required') {
-          throw adminRequiredError('modify');
-        }
 
         const newToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
         let target: Integration;
-        if (picked) {
+        if (reusable) {
           // 설치 토큰은 없을 때만 새로 발급한다. client_secret 이 바뀌어도 그대로 둔다(Cafe24 Private 과 다르다).
           // 공개 범위와 통합 소유자(`created_by`)는 바꾸지 않는다.
-          const existingPending = picked.row;
+          const existingPending = reusable;
           if (!existingPending.installToken) {
             existingPending.installToken = newToken;
             existingPending.installTokenIssuedAt = new Date();
