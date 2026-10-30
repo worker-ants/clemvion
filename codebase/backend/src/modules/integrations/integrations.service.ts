@@ -94,6 +94,7 @@ import {
   GENERIC_ALREADY_CONNECTED,
   WORKSPACE_NAME_UNIQUE_CONSTRAINT,
   INTEGRATION_NAME_TAKEN,
+  INTEGRATION_OWNER_NOT_MEMBER,
 } from './integrations.constants';
 import {
   CONNECTION_TEST_CODES,
@@ -1622,11 +1623,7 @@ export class IntegrationsService {
       });
       if (lock === 'workspace_absent') this.throwIntegrationNotFound();
       if (lock === 'owner_not_member') {
-        throw new ConflictException({
-          code: 'INTEGRATION_OWNER_NOT_MEMBER',
-          message:
-            'The creator of this integration is no longer a workspace member, so it cannot be made personal. Keep it as an organization integration or delete it.',
-        });
+        throw new ConflictException({ ...INTEGRATION_OWNER_NOT_MEMBER });
       }
       const { affected } = await manager
         .getRepository(Integration)

@@ -31,6 +31,17 @@ export const INTEGRATION_NAME_TAKEN = {
 };
 
 /**
+ * 조직 → 개인 전환의 409(REQ-INTMGMT-067). 통합을 만든 사람이 이미 워크스페이스를 나갔으면 전환 뒤에 아무도 보거나 지울 수
+ * 없는 개인 통합이 생기므로 거절한다. 프런트엔드 `INTEGRATION_LOCALIZED_ERROR_CODES.OWNER_NOT_MEMBER` 와 짝이 되는 값이다.
+ * `message` 에 사용자 식별자를 넣지 않는다.
+ */
+export const INTEGRATION_OWNER_NOT_MEMBER = {
+  code: 'INTEGRATION_OWNER_NOT_MEMBER',
+  message:
+    'The creator of this integration is no longer a workspace member, so it cannot be made personal. Keep it as an organization integration or delete it.',
+};
+
+/**
  * Per-service "store identifier already connected" error mapping — used by
  * `throwIfUniqueViolation` in `integrations.service.ts` and by the
  * race-backstop catch blocks in `integration-oauth.service.ts` to translate a
