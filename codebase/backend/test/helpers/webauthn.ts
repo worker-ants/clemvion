@@ -96,6 +96,8 @@ const SOFT_KEY_SPECS: Record<SoftKeyAlgorithm, SoftKeySpec> = {
  * 단일 인증기를 모사한다. 등록 시 한 번 키를 생성하고, 매 인증마다 sign counter 를 1 씩
  * 올린다. 복제/리플레이(=counter 역행) 를 강제로 만들려면
  * `authenticationResponse(..., { bumpCounter: false })` 로 counter 를 고정한다.
+ * 처음부터 늘 `bumpCounter: false` 로 부르면 counter 가 0 에 머물러 counter 를 쓰지 않는
+ * 인증기(대부분의 플랫폼 Passkey)가 된다.
  * 키 종류는 `algorithm` 으로 고르고 기본값은 서버가 받는 EdDSA 다.
  */
 export class SoftWebAuthnDevice {
@@ -126,13 +128,14 @@ export class SoftWebAuthnDevice {
   private authenticatorData(opts: {
     includeAttested: boolean;
     uv: boolean;
+    signCount?: number;
   }): Buffer {
     const rpIdHash = sha256(Buffer.from(RP_ID, 'utf8'));
     let flags = FLAG_UP;
     if (opts.uv) flags |= FLAG_UV;
     if (opts.includeAttested) flags |= FLAG_AT;
     const counterBuf = Buffer.alloc(4);
-    counterBuf.writeUInt32BE(this.signCount);
+    counterBuf.writeUInt32BE(opts.signCount ?? this.signCount);
 
     if (!opts.includeAttested) {
       return Buffer.concat([rpIdHash, Buffer.from([flags]), counterBuf]);
@@ -198,22 +201,37 @@ export class SoftWebAuthnDevice {
    * navigator.credentials.get() 결과(AuthenticationResponseJSON) 합성.
    *  - bumpCounter:false → counter 를 올리지 않아 DB 가 기대하는 값과 같거나 낮음 → 역행.
    *  - uv:false → User Verified 플래그 미설정 → requireUserVerification:true 정책상 실패.
+   *  - signCount → 이번 응답의 authData 에만 싣는 sign counter. 기기 상태(`signCount`)는
+   *    바꾸지 않고 bumpCounter 도 보지 않는다. counter 를 임의 값으로 낮춘 응답을 만든다.
+   *  - forgeSignature:true → 등록하지 않은 새 키로 서명한다. 개인 키 없이 만든 assertion 이다.
    */
   authenticationResponse(
     challenge: string,
-    opts: { uv?: boolean; bumpCounter?: boolean } = {},
+    opts: {
+      uv?: boolean;
+      bumpCounter?: boolean;
+      signCount?: number;
+      forgeSignature?: boolean;
+    } = {},
   ) {
     const uv = opts.uv ?? true;
     const bumpCounter = opts.bumpCounter ?? true;
-    if (bumpCounter) this.signCount += 1;
+    if (opts.signCount === undefined && bumpCounter) this.signCount += 1;
 
     const clientData = this.clientDataJSON('webauthn.get', challenge);
-    const authData = this.authenticatorData({ includeAttested: false, uv });
+    const authData = this.authenticatorData({
+      includeAttested: false,
+      uv,
+      signCount: opts.signCount,
+    });
+    const signingKey = opts.forgeSignature
+      ? this.spec.generate().privateKey
+      : this.privateKey;
     // ECDSA 서명은 Node 기본값인 DER 로 나오고 WebAuthn 도 DER 를 쓴다.
     const signature = crypto.sign(
       this.spec.digest,
       Buffer.concat([authData, sha256(clientData)]),
-      this.privateKey,
+      signingKey,
     );
     return {
       id: this.credentialIdB64Url,

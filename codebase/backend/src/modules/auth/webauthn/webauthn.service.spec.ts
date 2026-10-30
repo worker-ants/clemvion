@@ -440,54 +440,106 @@ describe('WebAuthnService', () => {
       );
     });
 
-    it('deletes credential + revokes all active refresh tokens + records WEBAUTHN_COUNTER_REGRESSION on counter regression', async () => {
-      // @simplewebauthn 지금 버전(v14)의 실제 에러 메시지 문구 그대로 사용(v13 도 같다) — mock 과 실제
-      // 라이브러리 메시지가 어긋나면 역행 감지 분기가 e2e 에서만 깨진다 (regex 의
-      // "lower" 누락 회귀를 단위에서도 잠근다).
-      mockedVerifyAuthResp.mockRejectedValue(
-        new Error('Response counter value 0 was lower than expected 5'),
-      );
-      await expect(
-        service.verifyAuthentication(
-          userId,
-          'opts.tok',
-          validResponse as never,
-        ),
-      ).rejects.toMatchObject({
-        response: expect.objectContaining({
-          code: 'WEBAUTHN_COUNTER_REGRESSION',
-        }),
+    // 라이브러리는 counter 비교를 서명 검증보다 먼저 한다. 저장값을 넘기면 서명이 틀린
+    // 응답도 역행으로 거부되므로 0 을 넘겨 그 비교를 끈다(REQ-SIGNIN-070).
+    it('passes counter 0 to the library so its counter check never runs before the signature check', async () => {
+      credentialRepo.findOne.mockResolvedValue({
+        ...credentialRow,
+        counter: '7',
       });
-      expect(credentialRepo.delete).toHaveBeenCalledWith({
-        id: credentialRow.id,
+      mockedVerifyAuthResp.mockResolvedValue({
+        verified: true,
+        authenticationInfo: { newCounter: 8 },
       });
-      // 클론 공격 시 기존 활성 세션 즉시 revoke (review C-3)
-      expect(refreshTokenRepo.update).toHaveBeenCalledWith(
-        { userId, isRevoked: false },
-        { isRevoked: true },
+      await service.verifyAuthentication(
+        userId,
+        'opts.tok',
+        validResponse as never,
       );
-      expect(loginHistory.record).toHaveBeenCalledWith(
+      expect(mockedVerifyAuthResp).toHaveBeenCalledWith(
         expect.objectContaining({
-          event: 'webauthn_failed',
-          failureReason: 'WEBAUTHN_COUNTER_REGRESSION',
+          credential: expect.objectContaining({ counter: 0 }),
         }),
       );
     });
 
-    // COUNTER_REGRESSION_REASON_PATTERN 의 모든 키워드(과거/타 버전 문구 포함)가
-    // 역행 분기를 트리거하는지 잠근다 — "lower" 만 검증하면 호환 키워드 회귀를 놓친다.
-    it.each([
-      ['lower', 'Response counter value 0 was lower than expected 5'],
-      [
-        'less',
-        'Response counter value 0 is less than or equal to current counter 5',
-      ],
-      ['regress', 'authenticator counter regression detected'],
-      ['same', 'counter value is the same as the stored counter'],
-    ])(
-      'treats "%s" counter message as regression (delete + revoke)',
-      async (_keyword, message) => {
-        mockedVerifyAuthResp.mockRejectedValue(new Error(message));
+    describe('signature verified, counter compared by the service', () => {
+      it.each([
+        ['equal to stored (5 → 5)', '5', 5],
+        ['equal to stored (1 → 1)', '1', 1],
+        ['lower than stored (5 → 3)', '5', 3],
+        ['zero while stored is above zero (5 → 0)', '5', 0],
+      ])(
+        'deletes credential + revokes all active refresh tokens + records WEBAUTHN_COUNTER_REGRESSION when %s',
+        async (_label, stored, newCounter) => {
+          credentialRepo.findOne.mockResolvedValue({
+            ...credentialRow,
+            counter: stored,
+          });
+          mockedVerifyAuthResp.mockResolvedValue({
+            verified: true,
+            authenticationInfo: { newCounter },
+          });
+          await expect(
+            service.verifyAuthentication(
+              userId,
+              'opts.tok',
+              validResponse as never,
+            ),
+          ).rejects.toMatchObject({
+            response: expect.objectContaining({
+              code: 'WEBAUTHN_COUNTER_REGRESSION',
+            }),
+          });
+          expect(credentialRepo.delete).toHaveBeenCalledWith({
+            id: credentialRow.id,
+          });
+          // 클론 공격 시 기존 활성 세션 즉시 revoke (review C-3)
+          expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+            { userId, isRevoked: false },
+            { isRevoked: true },
+          );
+          expect(credentialRepo.update).not.toHaveBeenCalled();
+          expect(loginHistory.record).toHaveBeenCalledWith(
+            expect.objectContaining({
+              event: 'webauthn_failed',
+              failureReason: 'WEBAUTHN_COUNTER_REGRESSION',
+            }),
+          );
+        },
+      );
+
+      // counter 를 쓰지 않는 인증기(대부분의 플랫폼 Passkey)는 늘 0 을 보낸다.
+      it('accepts stored 0 and response 0 (authenticator without a counter)', async () => {
+        mockedVerifyAuthResp.mockResolvedValue({
+          verified: true,
+          authenticationInfo: { newCounter: 0 },
+        });
+        const result = await service.verifyAuthentication(
+          userId,
+          'opts.tok',
+          validResponse as never,
+        );
+        expect(result.verified).toBe(true);
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(credentialRepo.update).toHaveBeenCalledWith(
+          credentialRow.id,
+          expect.objectContaining({ counter: '0' }),
+        );
+      });
+    });
+
+    describe('signature not verified', () => {
+      // 비밀번호만 아는 사람이 서명 없이 counter 만 낮춘 응답을 보내는 경우다.
+      it('rejects with WEBAUTHN_INVALID and keeps the credential and sessions even if the counter went back', async () => {
+        credentialRepo.findOne.mockResolvedValue({
+          ...credentialRow,
+          counter: '5',
+        });
+        mockedVerifyAuthResp.mockResolvedValue({
+          verified: false,
+          authenticationInfo: { newCounter: 0 },
+        });
         await expect(
           service.verifyAuthentication(
             userId,
@@ -495,19 +547,38 @@ describe('WebAuthnService', () => {
             validResponse as never,
           ),
         ).rejects.toMatchObject({
-          response: expect.objectContaining({
-            code: 'WEBAUTHN_COUNTER_REGRESSION',
+          response: expect.objectContaining({ code: 'WEBAUTHN_INVALID' }),
+        });
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+        expect(credentialRepo.update).not.toHaveBeenCalled();
+        expect(loginHistory.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'webauthn_failed',
+            failureReason: 'WEBAUTHN_INVALID',
           }),
-        });
-        expect(credentialRepo.delete).toHaveBeenCalledWith({
-          id: credentialRow.id,
-        });
-        expect(refreshTokenRepo.update).toHaveBeenCalledWith(
-          { userId, isRevoked: false },
-          { isRevoked: true },
         );
-      },
-    );
+      });
+
+      // 라이브러리가 counter 문구로 던져도 서명을 확인하기 전이라 역행으로 보지 않는다.
+      // 판정이 에러 문구에 기대지 않는다는 것을 잠근다.
+      it('treats a library error mentioning the counter as WEBAUTHN_INVALID, not regression', async () => {
+        mockedVerifyAuthResp.mockRejectedValue(
+          new Error('Response counter value 0 was lower than expected 5'),
+        );
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({ code: 'WEBAUTHN_INVALID' }),
+        });
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+      });
+    });
 
     it('records WEBAUTHN_INVALID on generic verify failure', async () => {
       mockedVerifyAuthResp.mockRejectedValue(new Error('signature failed'));

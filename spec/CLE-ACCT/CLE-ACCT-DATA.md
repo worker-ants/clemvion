@@ -2,21 +2,21 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "d6a5dab5204170dfdc75aeca70e77b7e15a2f653a77d278d6e4c9ef0b076f2b1"
+content_hash: "d7256ec23e8568645f66958d3ab7faef2f005fdb49147914a49331347c7a99c8"
 read_as: "approved_fallback"
-task: "CLE-T-395HK2"
+task: "CLE-T-NWHVMN"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "b2b1f23e0e9d55db7c6d611d9df7a8608e7d910eeea734ab062fc99eab96606c"
-etag: "sha256-2aa421ddca7fc7f88811fdc7f58cb0a81713a658f0c3afecaad3ba902a9a79b0"
+mirror_sha256: "01e7665f20888ae99e1caafe6679c4ce94d1d80e630ce906d5c80dc0183c8d3c"
+etag: "sha256-e7675bb9f7952975e4d02d968d9284a58d2448fa6c6b0564538f387e93921e1a"
 ---
-> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -271,7 +271,7 @@ sequenceDiagram
   alt Passkey 기능 켜짐, credential 1개 이상
     Svc-->>C: 200 {requires2fa, methods: webauthn, challengeToken}
     C->>Svc: authenticate/options, authenticate/verify
-    Svc->>Svc: 챌린지 기록, verifyAuthenticationResponse, counter 갱신
+    Svc->>Svc: 챌린지 기록, verifyAuthenticationResponse(서명), counter 역행 판정과 갱신
   else TOTP 켜짐
     Svc-->>C: 200 {requires2fa, methods: totp, challengeToken}
     C->>Svc: POST /api/auth/login/totp {challengeToken, code}
@@ -291,7 +291,7 @@ sequenceDiagram
 - 이메일 인증 여부는 비밀번호 확인 뒤에 본다. 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 비밀번호가 맞으면 `EMAIL_NOT_VERIFIED` 로 기록하고 401 `EMAIL_VERIFICATION_REQUIRED` 를 준다. Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정은 토큰 없이 503 `WEBAUTHN_DISABLED` 를 받는다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
 - 이미 쓴 Passkey 인증 챌린지로 온 검증과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다.
 - 처음 쓰는 챌린지로 온 응답이 서명 검증을 통과했는데 counter 역행(복제 징후)이 감지되면 `webauthn/webauthn.service.ts` 의 `verifyAuthentication` 이 한 트랜잭션에서 그 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다. 응답은 401 `WEBAUTHN_COUNTER_REGRESSION` 이다. `login_history.event=webauthn_failed` 는 트랜잭션 밖에서 남긴다. 마지막 credential 이 지워져도 `webauthn_recovery_codes` 는 비우지 않는다. 이유는 [가입과 로그인 「counter 역행이면 credential 을 지운다」](CLE-ACCT-SIGNIN.md#counter-역행이면-credential-을-지운다-suspend-기각) 에 있다.
-- 이메일 인증 확인의 위치와 응답 코드, Passkey 기능이 꺼졌을 때의 503, 챌린지 기록, 서명 확인 뒤의 역행 판정은 2026-10-17 에 사람이 정했고 아직 구현되지 않았다. 지금 구현은 이메일 인증 여부를 비밀번호보다 먼저 보고 `LOGIN_FAILED` 로 거부하고, 기능이 꺼지면 Passkey 만 등록한 계정을 비밀번호만으로 로그인시키고, 챌린지를 기록하지 않고, 서명보다 counter 를 먼저 본다. 구현 Task 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 해당 절에 있다.
+- 이메일 인증 확인의 위치와 응답 코드, Passkey 기능이 꺼졌을 때의 503, 챌린지 기록은 2026-10-17 에 사람이 정했고 아직 구현되지 않았다. 지금 구현은 이메일 인증 여부를 비밀번호보다 먼저 보고 `LOGIN_FAILED` 로 거부하고, 기능이 꺼지면 Passkey 만 등록한 계정을 비밀번호만으로 로그인시키고, 챌린지를 기록하지 않는다. 구현 Task 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 해당 절에 있다.
 
 ### 소셜 로그인
 
