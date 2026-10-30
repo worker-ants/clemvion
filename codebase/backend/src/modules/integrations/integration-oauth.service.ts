@@ -217,6 +217,8 @@ async function lockForPendingWrite(
  * 같은 상점 판정의 후보가 아닌 행인가. 설치 기한이 지나 만료된 행은 상점 자리를 놓는다(REQ-INTOAUTH-068). 만료할 때
  * `mall_id` 컬럼을 비우므로 컬럼으로 찾으면 저절로 빠지지만, 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체
  * 경로는 이 판정 없이는 만료 행을 다시 찾는다. 같은 상점의 행을 찾는 곳은 모두 이 함수를 거친다.
+ * 상점을 찾지 않는 두 곳도 같은 술어를 쓴다. 콜백 트랜잭션의 되살림 차단 가드(`handleCallback`)와, 그 거절을 만료 행에
+ * 기록하지 않고 건너뛰는 `markIntegrationCallbackError` 다.
  * 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
  */
 function hasReleasedStoreSlot(

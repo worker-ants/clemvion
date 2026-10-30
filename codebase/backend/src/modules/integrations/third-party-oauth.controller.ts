@@ -351,8 +351,8 @@ export class ThirdPartyOAuthController {
       '**postMessage payload 의 에러 코드 어휘:**\n' +
       '- `OAUTH_PROVIDER_UNKNOWN` — 허용되지 않은 provider\n' +
       '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`)\n' +
-      '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` / `OAUTH_STATE_EXPIRED` — CSRF state 토큰 검증 실패\n' +
-      '- `OAUTH_STATE_EXPIRED` — state 는 유효하지만 대상 설치 대기 행이 설치 기한을 넘겨 만료됨(행을 되살리지 않음)\n' +
+      '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` — CSRF state 토큰 검증 실패\n' +
+      '- `OAUTH_STATE_EXPIRED` — state TTL 이 지났거나(`OAuth state has expired`), state 는 유효하지만 대상 통합이 설치 기한을 넘겨 만료됨(`The install window for this integration has expired`. 이 경우 행을 되살리지 않고 `last_error` 도 기록하지 않음)\n' +
       '- `OAUTH_CODE_MISSING` — authorization code 미수신\n' +
       '- `OAUTH_TOKEN_EXCHANGE_FAILED` — provider 토큰 endpoint 호출 실패\n' +
       '- `OAUTH_STATE_INVALID` — reauthorize state 의 integrationId 누락 등 구조 오류\n' +
