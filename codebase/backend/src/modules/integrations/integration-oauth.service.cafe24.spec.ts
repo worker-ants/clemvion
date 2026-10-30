@@ -2861,7 +2861,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
           serviceWithRole('editor').handleCallback('cafe24', lateCallback),
         ).rejects.toMatchObject({
           response: {
-            code: 'OAUTH_STATE_EXPIRED',
+            code: 'INTEGRATION_INSTALL_EXPIRED',
             message: expect.stringContaining('install window') as unknown,
           },
         });
@@ -2930,14 +2930,14 @@ describe('IntegrationOAuthService — Cafe24', () => {
         await expect(
           service.handleCallbackWithErrorCapture('cafe24', lateCallback),
         ).rejects.toMatchObject({
-          response: { code: 'OAUTH_STATE_EXPIRED' },
+          response: { code: 'INTEGRATION_INSTALL_EXPIRED' },
         });
 
         // 기록 경로를 실제로 탔다 — 이 단언이 없으면 컨텍스트가 빠져 기록을 시도하지 않은 경우와 구별되지 않는다.
         expect(markSpy).toHaveBeenCalledWith(
           'expired-int-id',
           'ws-1',
-          'OAUTH_STATE_EXPIRED',
+          'INTEGRATION_INSTALL_EXPIRED',
           'The install window for this integration has expired',
           undefined,
         );

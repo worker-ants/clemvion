@@ -42,6 +42,15 @@ export const INTEGRATION_OWNER_NOT_MEMBER = {
 };
 
 /**
+ * 설치 기한이 지나 만료된(`install_timeout`) 설치 대기 행에 늦게 도착한 OAuth 콜백의 400. state 는 유효하므로 state TTL 만료의
+ * `OAUTH_STATE_EXPIRED` 와 조건이 다르다. 이 거절은 행에 `last_error` 를 남기지 않는다(CLE-INT-OAUTH 「에러 매핑」).
+ */
+export const INTEGRATION_INSTALL_EXPIRED = {
+  code: 'INTEGRATION_INSTALL_EXPIRED',
+  message: 'The install window for this integration has expired',
+};
+
+/**
  * Per-service "store identifier already connected" error mapping — used by
  * `throwIfUniqueViolation` in `integrations.service.ts` and by the
  * race-backstop catch blocks in `integration-oauth.service.ts` to translate a

@@ -65,6 +65,7 @@ import {
   ALREADY_CONNECTED_BY_SERVICE,
   WORKSPACE_NAME_UNIQUE_CONSTRAINT,
   INTEGRATION_NAME_TAKEN,
+  INTEGRATION_INSTALL_EXPIRED,
 } from './integrations.constants';
 import {
   lockForIntegrationWrite,
@@ -973,10 +974,7 @@ export class IntegrationOAuthService {
         // 하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
         // 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
         if (hasReleasedStoreSlot(integration)) {
-          throw new BadRequestException({
-            code: 'OAUTH_STATE_EXPIRED',
-            message: 'The install window for this integration has expired',
-          });
+          throw new BadRequestException({ ...INTEGRATION_INSTALL_EXPIRED });
         }
         if (
           record.mode === 'reauthorize' ||
@@ -1187,7 +1185,7 @@ export class IntegrationOAuthService {
         // Row was deleted or workspace mismatch — nothing to update.
         return;
       }
-      // 설치 기한이 지나 만료된 행은 쓰지 않는다. 늦게 온 콜백의 거절(`OAUTH_STATE_EXPIRED`)이 만료 전의 오류를 덮으면
+      // 설치 기한이 지나 만료된 행은 쓰지 않는다. 늦게 온 콜백의 거절(`INTEGRATION_INSTALL_EXPIRED`)이 만료 전의 오류를 덮으면
       // 설치가 왜 안 됐는지 진단할 단서가 사라진다(CLE-INT-OAUTH 「만료된 설치 대기 행은 상점 자리를 놓는다」).
       if (hasReleasedStoreSlot(integration)) {
         return;

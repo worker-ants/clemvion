@@ -1185,7 +1185,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
         serviceWithRole('editor').handleCallback('makeshop', lateCallback),
       ).rejects.toMatchObject({
         response: {
-          code: 'OAUTH_STATE_EXPIRED',
+          code: 'INTEGRATION_INSTALL_EXPIRED',
           message: expect.stringContaining('install window') as unknown,
         },
       });
