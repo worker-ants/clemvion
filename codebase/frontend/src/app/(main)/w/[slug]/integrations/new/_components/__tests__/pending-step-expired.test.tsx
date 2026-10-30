@@ -87,6 +87,19 @@ describe("설치 대기 단계 — 만료 안내", () => {
       },
     );
 
+    it("오류 상태에 남은 install_timeout 사유는 만료 안내가 아니라 상세 화면 안내를 보인다", () => {
+      pollMock.mockReturnValue({
+        poll: poll({ status: "error", statusReason: "install_timeout" }),
+        timedOut: false,
+        lastErrorMessage: null,
+      });
+      renderStep(Step, "en");
+
+      const notice = screen.getByRole("status");
+      expect(notice).toHaveTextContent(/no longer pending/);
+      expect(notice).not.toHaveTextContent(COPY.en.reRegister);
+    });
+
     it("다른 이유의 만료는 상세 화면 안내를 보인다", () => {
       pollMock.mockReturnValue({
         poll: poll({ status: "expired", statusReason: "token_expired" }),

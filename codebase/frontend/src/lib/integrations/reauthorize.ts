@@ -3,11 +3,29 @@ import type { IntegrationDto } from "@/lib/api/integrations";
 /**
  * `status_reason` value used when a `pending_install` Cafe24 Private or
  * MakeShop row times out after the install TTL (see backend
- * integration-expiry scanner).
- * Shared so FE branches don't drift from the snake_case value the backend
- * writes.
+ * integration-expiry scanner). Branch on {@link isInstallTimedOut} instead of
+ * comparing against this value. It stays exported for tests.
  */
 export const INSTALL_TIMEOUT_REASON = "install_timeout";
+
+/**
+ * Whether an install-pending row (Cafe24 Private, MakeShop) expired because
+ * its install deadline passed. Such a row lets go of its store, so the user
+ * registers the same store again without deleting it (a reused name still
+ * conflicts). It checks `status` as well as `statusReason`, the same condition
+ * as the server's `hasReleasedStoreSlot` (`integration-oauth.service.ts`,
+ * REQ-INTOAUTH-068). If one changes, change the other. Every surface that
+ * branches on the install timeout (disabled reasons, status badge, pending
+ * steps) uses this. NERV CLE-INT-OAUTH, Task CLE-T-YMF05E.
+ */
+export function isInstallTimedOut(
+  integration: Pick<IntegrationDto, "status" | "statusReason">,
+): boolean {
+  return (
+    integration.status === "expired" &&
+    integration.statusReason === INSTALL_TIMEOUT_REASON
+  );
+}
 
 /** Why the Reauthorize action is unavailable — selects the hint copy. */
 export type ReauthorizeDisabledReason =
@@ -37,9 +55,8 @@ export function isCafe24Private(integration: IntegrationDto): boolean {
  * (`hasInstallToken` in `integrations.service.ts`). If that server condition
  * changes, change this one with it. Without an App URL the user cannot finish
  * a reinstall in Cafe24 Developers, so reauthorize and request-scopes are
- * unavailable. A row that timed out (`install_timeout`) is caught earlier and
- * the user registers the same store again without deleting it. Any other row
- * without an App URL has to be deleted and registered again.
+ * unavailable. The resolvers decide which reason wins when a row matches
+ * more than one.
  */
 function isCafe24PrivateWithoutAppUrl(integration: IntegrationDto): boolean {
   return isCafe24Private(integration) && !integration.appUrl;
@@ -47,32 +64,28 @@ function isCafe24PrivateWithoutAppUrl(integration: IntegrationDto): boolean {
 
 /**
  * Why the Reauthorize action is unavailable, or `null` when it is available.
+ * Reasons are checked in this order and the first match wins:
  *
  * - `pending_install` rows (any provider) must finish the install first.
- * - `expired` rows with `install_timeout` can't be reauthorized. The row lets
- *   go of its store, so the user registers the same store again without
- *   deleting it first (a reused name still conflicts).
- * - Cafe24 Private rows without an App URL (`no_app_url`, install_token gone)
- *   have to be deleted and registered again. They are not always timed out —
- *   a `connected` row can lack the App URL as well — so the reason is separate.
+ * - `install_timeout` ({@link isInstallTimedOut}) rows can't be reauthorized.
+ *   The row lets go of its store, so the user registers the same store again
+ *   without deleting it first (a reused name still conflicts).
  * - MakeShop integrations cannot be reauthorized at all — reinstalling the app
  *   from ShopStore does not restore an existing row, so recovery is delete and
  *   re-register.
+ * - Cafe24 Private rows without an App URL (`no_app_url`, install_token gone)
+ *   have to be deleted and registered again. They are not always timed out —
+ *   a `connected` row can lack the App URL as well — so the reason is separate.
  *
  * Cafe24 Private with an App URL is available: the server records a reinstall
  * request and the user finishes it with "테스트 실행" in Cafe24 Developers.
- * NERV CLE-INT-MANAGE · CLE-INT-OAUTH, Task CLE-T-NNENG8.
+ * NERV CLE-INT-MANAGE · CLE-INT-OAUTH, Task CLE-T-NNENG8 · CLE-T-395HK2.
  */
 export function reauthorizeDisabledReason(
   integration: IntegrationDto,
 ): ReauthorizeDisabledReason | null {
   if (integration.status === "pending_install") return "pending_install";
-  if (
-    integration.status === "expired" &&
-    integration.statusReason === INSTALL_TIMEOUT_REASON
-  ) {
-    return "install_timeout";
-  }
+  if (isInstallTimedOut(integration)) return "install_timeout";
   if (integration.serviceType === "makeshop") return "makeshop";
   if (isCafe24PrivateWithoutAppUrl(integration)) return "no_app_url";
   return null;
@@ -90,27 +103,23 @@ export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
 
 /**
  * Why "Request scopes" is unavailable, or `null` when it is available.
+ * Reasons are checked in the same order as {@link reauthorizeDisabledReason}
+ * (without `pending_install`) and the first match wins:
  *
- * - `expired` rows with `install_timeout` (Cafe24 Private and MakeShop alike)
- *   can't be granted scopes. This is checked first, in the same order as
- *   {@link reauthorizeDisabledReason}: the timed-out Cafe24 Private row has
+ * - `install_timeout` ({@link isInstallTimedOut}, Cafe24 Private and MakeShop
+ *   alike) rows can't be granted scopes. The timed-out Cafe24 Private row has
  *   no App URL too, but the user registers the same store again with the
  *   scopes they need and does not have to delete it first.
  * - MakeShop has no scope request path (delete and re-register with the scopes
  *   you need).
  * - A Cafe24 Private row without an App URL (`no_app_url`) cannot finish one.
  *
- * NERV CLE-INT-OAUTH, Task CLE-T-NNENG8.
+ * NERV CLE-INT-OAUTH, Task CLE-T-NNENG8 · CLE-T-395HK2.
  */
 export function requestScopesDisabledReason(
   integration: IntegrationDto,
 ): RequestScopesDisabledReason | null {
-  if (
-    integration.status === "expired" &&
-    integration.statusReason === INSTALL_TIMEOUT_REASON
-  ) {
-    return "install_timeout";
-  }
+  if (isInstallTimedOut(integration)) return "install_timeout";
   if (integration.serviceType === "makeshop") return "makeshop";
   if (isCafe24PrivateWithoutAppUrl(integration)) return "no_app_url";
   return null;

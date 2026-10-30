@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "b0e39a8cdae8c399d778922bafc6f43073cc28b0c3a55caa51a8c5ce787d23c8"
 read_as: "approved_fallback"
-task: "CLE-T-395HK2"
+task: "CLE-T-YMF05E"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "73a96fc0890774189637a39018eb7e987027f13a0b1d536fb148d3a92a97e27e"
-etag: "sha256-566a9e5028b5dc06a2ac317c5c094c224dce5c26a18b99ea93ae26cc10e284d1"
+mirror_sha256: "e151a9ea660d5f37ea77a716537761214d343dc9c177b933903dc4b56fb42269"
+etag: "sha256-08560ef10d5f0af11d0589c756317e97a4d35c80a4a1a3d457f52565389f7b9d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

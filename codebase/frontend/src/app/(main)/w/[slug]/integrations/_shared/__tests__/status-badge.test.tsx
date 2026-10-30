@@ -108,6 +108,14 @@ describe("computeStatus", () => {
     expect(view.detail).not.toMatch(/delete/i);
   });
 
+  it("does not surface the install_timeout hint on rows expired for another reason", () => {
+    const view = computeStatus(
+      row({ status: "expired", statusReason: "token_expired" }),
+    );
+    expect(view.label).toBe("Expired");
+    expect(view.detail).toBeUndefined();
+  });
+
   it("prefers lastError.message over status_reason for pending_install diagnostic", () => {
     const view = computeStatus(
       row({
