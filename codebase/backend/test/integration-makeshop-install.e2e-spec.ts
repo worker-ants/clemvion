@@ -12,6 +12,7 @@ import { createHmac, randomBytes } from 'crypto';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { expirePendingInstallsNow } from './helpers/pending-install-expiry';
 
 type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
 
@@ -32,6 +33,9 @@ type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
  *   - missing params → 400 MAKESHOP_INSTALL_MISSING_PARAMS
  *   - nonce replay: 동일 (shop_uid, timestamp, hmac) 두 번째 호출
  *     → 400 MAKESHOP_INSTALL_REPLAY (Redis nonce cache)
+ *   - 만료된 설치 대기 행은 상점 자리를 놓는다 (CLE-T-PS7JQY, REQ-INTSTAT-040 · REQ-INTOAUTH-068): 만료 스캐너가
+ *     설치 기한이 지난 행의 `mall_id` 를 비우면 다른 설치 대기 행이 같은 shop_uid 로 설치를 이어 간다. 토큰 만료로
+ *     `expired` 가 된 행은 여전히 409 MAKESHOP_ALREADY_CONNECTED 로 막는다
  *
  * 검증 안 함 (별 e2e 로 분리, cafe24 와 동일 정책):
  *   - OAuth callback 의 외부 token exchange — auth.makeshop.com 토큰
@@ -352,6 +356,108 @@ describe('MakeShop install endpoint (e2e)', () => {
         .get(`/api/3rd-party/makeshop/install/${installToken}`)
         .query(rawQuery2);
       expect(res2.status).toBe(302);
+    });
+  });
+
+  describe('expired pending row releases the store slot (CLE-T-PS7JQY)', () => {
+    function signedInstallQuery(shopUid: string): string {
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const base = `shop_uid=${shopUid}&timestamp=${ts}&action_type=install`;
+      const hmac = computeHmac(buildHmacMessage(base), clientSecret);
+      return `${base}&hmac=${encodeURIComponent(hmac)}`;
+    }
+
+    const precheck = (shopUid: string) =>
+      request(BASE_URL)
+        .get('/api/integrations/makeshop/precheck')
+        .query({ shopUid })
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', workspaceId);
+
+    it('설치 기한이 지나 스캐너가 만료시킨 행의 shop_uid 로 다른 설치 대기 행이 설치를 이어 간다', async () => {
+      const shopUid = newShopUid();
+      const staleId = await insertPendingInstall({
+        installToken: makeInstallToken(),
+        mallId: shopUid,
+      });
+
+      // 만료 전에는 그 행이 같은 상점을 잡고 있다(대조군).
+      const before = await precheck(shopUid);
+      expect(before.status).toBe(200);
+      expect(before.body.data.conflict).toBe(true);
+
+      await expirePendingInstallsNow(db, [staleId]);
+      const stale = await db.query<{
+        status: string;
+        status_reason: string | null;
+        mall_id: string | null;
+      }>(
+        'SELECT status, status_reason, mall_id FROM integration WHERE id = $1',
+        [staleId],
+      );
+      expect(stale.rows[0]).toEqual({
+        status: 'expired',
+        status_reason: 'install_timeout',
+        mall_id: null,
+      });
+
+      const after = await precheck(shopUid);
+      expect(after.status).toBe(200);
+      expect(after.body.data).toEqual({ conflict: false });
+
+      const installToken = makeInstallToken();
+      const freshId = await insertPendingInstall({ installToken });
+      const res = await request(BASE_URL)
+        .get(`/api/3rd-party/makeshop/install/${installToken}`)
+        .query(signedInstallQuery(shopUid));
+      expect(res.status).toBe(302);
+      const fresh = await db.query<{ mall_id: string | null }>(
+        'SELECT mall_id FROM integration WHERE id = $1',
+        [freshId],
+      );
+      expect(fresh.rows[0].mall_id).toBe(shopUid);
+    });
+
+    it('토큰 만료로 expired 가 된 행은 여전히 같은 shop_uid 의 설치를 막는다', async () => {
+      const shopUid = newShopUid();
+      await db.query(
+        `INSERT INTO integration
+          (workspace_id, service_type, auth_type, name, scope, status, status_reason,
+           mall_id, credentials, created_by)
+         VALUES ($1, 'makeshop', 'oauth2', $2, 'personal', 'expired', 'token_expired',
+           $3, $4::jsonb, $5)`,
+        [
+          workspaceId,
+          uniqueName('makeshop-token-expired'),
+          shopUid,
+          JSON.stringify({
+            client_id: 'e2e-makeshop-client-id',
+            client_secret: clientSecret,
+            scopes: ['mall.read_product'],
+            shop_uid: shopUid,
+          }),
+          owner.userId,
+        ],
+      );
+
+      const check = await precheck(shopUid);
+      expect(check.status).toBe(200);
+      expect(check.body.data.conflict).toBe(true);
+
+      const installToken = makeInstallToken();
+      const pendingId = await insertPendingInstall({ installToken });
+      const res = await request(BASE_URL)
+        .get(`/api/3rd-party/makeshop/install/${installToken}`)
+        .query(signedInstallQuery(shopUid));
+      expect(res.status).toBe(409);
+      expect(res.body?.code ?? res.body?.error?.code).toBe(
+        'MAKESHOP_ALREADY_CONNECTED',
+      );
+      const pending = await db.query<{ mall_id: string | null }>(
+        'SELECT mall_id FROM integration WHERE id = $1',
+        [pendingId],
+      );
+      expect(pending.rows[0].mall_id).toBeNull();
     });
   });
 });

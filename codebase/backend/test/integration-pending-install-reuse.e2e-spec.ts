@@ -33,6 +33,8 @@ import {
  *   - FOR UPDATE 로 기다리는 사이 다른 요청이 그 행을 설치 완료 · 만료시키면 begin 은 그 행을 덮지 않는다(잠근 뒤 WHERE 재평가)
  *   - 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 겹친 행의 통합 ID 를 싣지 않는다
  *   - begin 응답은 Swagger 가 광고한 DTO 와 같다(MakeShop 은 `scope` 필수, Cafe24 Private 은 선택)
+ *   - 설치 대기 행의 이름이 워크스페이스의 다른 통합 이름과 겹치면 409 `INTEGRATION_NAME_TAKEN` 이고 행을 만들지 않는다
+ *     (CLE-T-PS7JQY. 통합 생성 · 별칭 수정과 같은 코드다. 전에는 `RESOURCE_CONFLICT` 였다)
  *
  * 액터: Owner · Admin(승격) · Editor A · Editor B.
  */
@@ -492,5 +494,47 @@ describe('oauth/begin pending-install reuse (e2e)', () => {
         install_token: before.rows[0].install_token,
       });
     }, 60_000);
+  });
+
+  describe('설치 대기 행의 이름 충돌', () => {
+    /** 워크스페이스에 이미 있는 통합 이름. 공개 범위와 관계없이 이름은 워크스페이스 안에서 하나다. */
+    const takenName = async (): Promise<string> => {
+      const name = uniqueName('ipr-taken');
+      const res = await request(BASE_URL)
+        .post('/api/integrations')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', ws)
+        .send({
+          serviceType: 'http',
+          name,
+          authType: 'bearer_token',
+          credentials: { token: 'e2e-ipr-taken' },
+          scope: 'organization',
+        });
+      expect(answerOf(res)).toBe('201');
+      return name;
+    };
+
+    it('MakeShop begin 의 이름이 겹치면 409 INTEGRATION_NAME_TAKEN 이고 설치 대기 행을 만들지 않는다', async () => {
+      const name = await takenName();
+      const before = await countPending('makeshop');
+      const res = await begin(editorA, {
+        ...makeshop(freshClientId()),
+        integrationName: name,
+      });
+      expect(answerOf(res)).toBe('409 INTEGRATION_NAME_TAKEN');
+      expect(await countPending('makeshop')).toBe(before);
+    });
+
+    it('Cafe24 Private begin 의 이름이 겹치면 409 INTEGRATION_NAME_TAKEN 이고 설치 대기 행을 만들지 않는다', async () => {
+      const name = await takenName();
+      const before = await countPending('cafe24');
+      const res = await begin(editorA, {
+        ...cafe24Private(freshMall()),
+        integrationName: name,
+      });
+      expect(answerOf(res)).toBe('409 INTEGRATION_NAME_TAKEN');
+      expect(await countPending('cafe24')).toBe(before);
+    });
   });
 });
