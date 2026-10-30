@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, Logger } from '@nestjs/common';
+import type { ModuleRef } from '@nestjs/core';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { MEMBER_PERSONAL_INTEGRATIONS_PURGER } from './member-personal-integrations.port';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -102,6 +103,33 @@ describe('WorkspacesService', () => {
     return txQuery.mock.calls.filter(([sql]: [string]) =>
       sql.includes('DELETE FROM workspace_member'),
     );
+  }
+
+  /** 멤버 저장소의 트랜잭션 mock. 나가기 · 제거가 트랜잭션을 열었는지 본다. */
+  function transactionMock(): jest.Mock {
+    return (memberRepo as unknown as { manager: { transaction: jest.Mock } })
+      .manager.transaction;
+  }
+
+  /**
+   * 개인 통합 삭제 포트를 못 찾는 상황을 흉내 낸다(`ModuleRef.get` 이 던진다). 다른 토큰은 그대로 해석한다. 쓴 뒤에는 반드시
+   * `mockRestore()` 한다.
+   */
+  function failPurgerResolution() {
+    const moduleRef = (service as unknown as { moduleRef: ModuleRef })
+      .moduleRef;
+    const original = moduleRef.get.bind(moduleRef) as (
+      ...args: unknown[]
+    ) => unknown;
+    return jest.spyOn(moduleRef, 'get').mockImplementation(((
+      token: unknown,
+      options: unknown,
+    ) => {
+      if (token === MEMBER_PERSONAL_INTEGRATIONS_PURGER) {
+        throw new Error('purger provider not found');
+      }
+      return original(token, options);
+    }) as never);
   }
 
   beforeEach(async () => {
@@ -1081,14 +1109,56 @@ describe('WorkspacesService', () => {
         expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
       });
 
-      it('커밋 뒤 후처리가 던져도 나가기는 성공한다', async () => {
+      it('커밋 뒤 후처리가 던져도 나가기는 성공하고 오류를 남긴다', async () => {
         personalPurger.purgeInTransaction.mockResolvedValue(purged);
         personalPurger.finishAfterCommit.mockRejectedValue(new Error('boom'));
-        jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+        const error = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+        try {
+          await expect(
+            service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+          ).resolves.toBeUndefined();
+
+          // 복원하면 호출 기록이 지워지므로 단언은 finally 앞에서 한다.
+          expect(error).toHaveBeenCalledTimes(1);
+          expect(error).toHaveBeenCalledWith(
+            expect.stringMatching(/workspace=ws-uuid-1: boom/),
+          );
+        } finally {
+          error.mockRestore();
+        }
+      });
+
+      // 포트를 트랜잭션 안에서 찾으면 멤버십은 지워진 채 통합만 남는다. 해석이 트랜잭션보다 먼저인지 고정한다.
+      it('포트를 못 찾으면 트랜잭션을 열기 전에 던지고 멤버십을 지우지 않는다', async () => {
+        const get = failPurgerResolution();
+        try {
+          await expect(
+            service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+          ).rejects.toThrow('purger provider not found');
+
+          expect(transactionMock()).not.toHaveBeenCalled();
+          expect(txQuery).not.toHaveBeenCalled();
+          expect(memberRepo.remove).not.toHaveBeenCalled();
+          expect(getAudit().record).not.toHaveBeenCalled();
+          expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
+        } finally {
+          get.mockRestore();
+        }
+      });
+
+      it('트랜잭션 안 개인 통합 삭제가 실패하면 그대로 던지고 감사 · 커밋 뒤 후처리를 하지 않는다', async () => {
+        personalPurger.purgeInTransaction.mockRejectedValue(
+          new Error('purge failed'),
+        );
 
         await expect(
           service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
-        ).resolves.toBeUndefined();
+        ).rejects.toThrow('purge failed');
+
+        expect(getAudit().record).not.toHaveBeenCalled();
+        expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
       });
     });
   });
@@ -2258,15 +2328,59 @@ describe('WorkspacesService', () => {
         },
       );
 
-      it('커밋 뒤 후처리가 던져도 제거는 성공한다', async () => {
+      it('커밋 뒤 후처리가 던져도 제거는 성공하고 오류를 남긴다', async () => {
         wireMemberDelete('target-user');
         personalPurger.purgeInTransaction.mockResolvedValue(purged);
         personalPurger.finishAfterCommit.mockRejectedValue(new Error('boom'));
-        jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+        const error = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+        try {
+          await expect(
+            service.removeMember(workspaceId, memberId, requesterId),
+          ).resolves.toBeUndefined();
+
+          // 복원하면 호출 기록이 지워지므로 단언은 finally 앞에서 한다.
+          expect(error).toHaveBeenCalledTimes(1);
+          expect(error).toHaveBeenCalledWith(
+            expect.stringMatching(/workspace=ws-uuid-1: boom/),
+          );
+        } finally {
+          error.mockRestore();
+        }
+      });
+
+      // 포트를 트랜잭션 안에서 찾으면 멤버십 DELETE 만 커밋되고 통합이 남는다. 해석이 트랜잭션보다 먼저인지 고정한다.
+      it('포트를 못 찾으면 트랜잭션을 열기 전에 던지고 멤버십 DELETE 를 하지 않는다', async () => {
+        wireMemberDelete('target-user');
+        const get = failPurgerResolution();
+        try {
+          await expect(
+            service.removeMember(workspaceId, memberId, requesterId),
+          ).rejects.toThrow('purger provider not found');
+
+          expect(transactionMock()).not.toHaveBeenCalled();
+          expect(txQuery).not.toHaveBeenCalled();
+          expect(memberDeleteCalls()).toHaveLength(0);
+          expect(getAudit().record).not.toHaveBeenCalled();
+          expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
+        } finally {
+          get.mockRestore();
+        }
+      });
+
+      it('트랜잭션 안 개인 통합 삭제가 실패하면 그대로 던지고 감사 · 커밋 뒤 후처리를 하지 않는다', async () => {
+        wireMemberDelete('target-user');
+        personalPurger.purgeInTransaction.mockRejectedValue(
+          new Error('purge failed'),
+        );
 
         await expect(
           service.removeMember(workspaceId, memberId, requesterId),
-        ).resolves.toBeUndefined();
+        ).rejects.toThrow('purge failed');
+
+        expect(getAudit().record).not.toHaveBeenCalled();
+        expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
       });
     });
 

@@ -196,19 +196,21 @@ describe("멤버 제거 확인 다이얼로그 (REQ-WSPACE-069)", () => {
   it("어느 멤버든 같은 문장을 보이고 개인 통합을 조회하지 않는다", async () => {
     const user = await openMembersTab();
 
+    // 다이얼로그 전체 문구에서 멤버 이름만 가려 비교한다. 멤버마다 개수나 목록 같은 문장이 더 붙으면 둘이 달라진다.
     const texts: string[] = [];
     for (const name of ["Adam Admin", "Eddie Editor"]) {
       await user.click(removeButtonOf(name));
       const dialog = await screen.findByRole("dialog");
-      const sentence = within(dialog).getByText(removeSentence);
-      texts.push(sentence.textContent ?? "");
+      expect(within(dialog).getByText(removeSentence)).toBeTruthy();
+      texts.push((dialog.textContent ?? "").replace(name, "{{name}}"));
       await user.click(
         within(dialog).getByRole("button", { name: ko.common.cancel }),
       );
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     }
 
-    expect(texts).toEqual([removeSentence, removeSentence]);
+    expect(texts[0]).toContain(removeSentence);
+    expect(texts[1]).toBe(texts[0]);
     expect(integrationsApiCalls).not.toHaveBeenCalled();
   });
 });

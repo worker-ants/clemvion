@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { MemberPersonalIntegrationsPurgerService } from './member-personal-integrations-purger.service';
 
 describe('MemberPersonalIntegrationsPurgerService', () => {
@@ -87,17 +88,29 @@ describe('MemberPersonalIntegrationsPurgerService', () => {
       );
     });
 
-    it('한 통합의 후처리가 던져도 던지지 않고 나머지를 이어 간다', async () => {
+    it('한 통합의 후처리가 던져도 던지지 않고 나머지를 이어 가며 실패한 통합을 오류로 남긴다', async () => {
       integrationsService.finishIntegrationDeletion.mockRejectedValueOnce(
         new Error('redis down'),
       );
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        await expect(
+          purger.finishAfterCommit(purged, departure),
+        ).resolves.toBeUndefined();
+        expect(
+          integrationsService.finishIntegrationDeletion,
+        ).toHaveBeenCalledTimes(2);
 
-      await expect(
-        purger.finishAfterCommit(purged, departure),
-      ).resolves.toBeUndefined();
-      expect(
-        integrationsService.finishIntegrationDeletion,
-      ).toHaveBeenCalledTimes(2);
+        // 복원하면 호출 기록이 지워지므로 단언은 finally 앞에서 한다. 첫 통합만 실패했다.
+        expect(error).toHaveBeenCalledTimes(1);
+        expect(error).toHaveBeenCalledWith(
+          expect.stringMatching(/id=int-1 workspace=ws-1: redis down/),
+        );
+      } finally {
+        error.mockRestore();
+      }
     });
   });
 });
