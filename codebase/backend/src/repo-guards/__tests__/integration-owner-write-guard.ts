@@ -12,8 +12,8 @@ import {
 
 /**
  * 통합 행을 만들거나 공개 범위를 바꾸는 지점(`<저장소 루트 상대 경로>::<감싸는 함수>`)과 그 지점이 쓰기 잠금을 어떻게
- * 다루는지. 새 지점을 올릴 때는 {@link INTEGRATION_WRITE_LOCK_HELPERS} 를 부르거나, 부르지 않아도 되는 이유를
- * {@link UNLOCKED_INTEGRATION_OWNER_WRITES} 에 함께 적는다.
+ * 다루는지. 새 지점을 올릴 때는 {@link INTEGRATION_WRITE_LOCK_HELPERS} 를 부르거나, 부르지 않아도 되는 지점이면
+ * {@link UNLOCKED_INTEGRATION_OWNER_WRITES} 에 키를 올리고 그 이유를 이 표의 값에 적는다.
  */
 export const INTEGRATION_OWNER_WRITES: Readonly<Record<string, string>> = {
   'codebase/backend/src/modules/integrations/integrations.service.ts::create':
@@ -28,7 +28,10 @@ export const INTEGRATION_OWNER_WRITES: Readonly<Record<string, string>> = {
     'MakeShop begin 의 설치 대기 행. advisory lock 보다 먼저 lockForPendingWrite 로 잠근다',
 };
 
-/** 잠금 도우미를 부르지 않아도 되는 지점과 그 이유. {@link INTEGRATION_OWNER_WRITES} 의 부분집합이다. */
+/**
+ * 잠금 도우미를 부르지 않아도 되는 지점. {@link INTEGRATION_OWNER_WRITES} 의 부분집합이다. 이유는
+ * {@link INTEGRATION_OWNER_WRITES} 의 값에 적고 이 집합에는 키만 올린다.
+ */
 export const UNLOCKED_INTEGRATION_OWNER_WRITES: ReadonlySet<string> = new Set([
   'codebase/backend/src/modules/integrations/integrations.service.ts::updateScope',
 ]);

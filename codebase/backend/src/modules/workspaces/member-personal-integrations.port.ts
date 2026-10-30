@@ -7,8 +7,9 @@ import type { EntityManager } from 'typeorm';
  *
  * **토큰으로 지연 해석한다.** `IntegrationsModule` 이 `WorkspacesModule` 을 import 하므로 워크스페이스 서비스가 통합
  * 서비스를 직접 주입받으면 순환 의존이다. 트리거 정리 포트(`TRIGGER_RESOURCE_RELEASER`)와 같은 방식으로 호출자가
- * `ModuleRef.get(TOKEN, { strict: false })` 로 찾는다. 못 찾으면 던지고 막지 않는다. 조용히 넘어가면 나간 멤버의 개인
- * 통합이 다시 남는다. 해석은 {@link resolveMemberPersonalIntegrationsPurger} 한 곳에서만 한다.
+ * `ModuleRef.get(TOKEN, { strict: false })` 로 찾는다. 못 찾으면 던지고, 호출자는 트랜잭션을 열기 전에 해석하므로 나가기 ·
+ * 제거 전체가 실패하고 멤버십도 남는다. 조용히 넘어가면 나간 멤버의 개인 통합이 다시 남기 때문이다. 해석은
+ * {@link resolveMemberPersonalIntegrationsPurger} 한 곳에서만 한다.
  *
  * 두 단계다. 트랜잭션 안 삭제({@link MemberPersonalIntegrationsPurger.purgeInTransaction})와 커밋 뒤 후처리
  * ({@link MemberPersonalIntegrationsPurger.finishAfterCommit})를 나눠 워크스페이스 서비스가 커밋 뒤에 두 번째를 부른다.
@@ -53,7 +54,7 @@ export interface MemberPersonalIntegrationsPurger {
   ): Promise<void>;
 }
 
-/** 포트를 지연 해석한다. 못 찾으면 `ModuleRef.get` 이 던지고, 그것을 막지 않는다. */
+/** 포트를 지연 해석한다. 못 찾으면 `ModuleRef.get` 이 던지고 그 오류를 삼키지 않는다(나가기 · 제거가 실패한다). */
 export function resolveMemberPersonalIntegrationsPurger(
   moduleRef: Pick<ModuleRef, 'get'>,
 ): MemberPersonalIntegrationsPurger {

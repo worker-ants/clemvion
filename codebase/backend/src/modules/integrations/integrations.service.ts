@@ -911,8 +911,8 @@ export class IntegrationsService {
       lastRotatedAt: new Date(),
     });
 
-    // best-effort audit 의도 — spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24 Public 흐름의 begin-time 사전
-    // 가드 추가" 항목 끝의 create() 트레이드오프 분석 참조. 요약: (a) INSERT 한 문장이 atomic 이다. 트랜잭션은 그 앞의
+    // best-effort audit 의도 — [통합 관리 「감사 로그」](CLE-INT-MANAGE#감사-로그) 참조.
+    // 요약: (a) INSERT 한 문장이 atomic 이다. 트랜잭션은 그 앞의
     // 쓰기 잠금 때문에 둔다, (b) audit 실패는 row commit 후 swallow (사용자 흐름 깨지지 않음),
     // (c) preview_token 은 capability token 으로 race-loser 재사용 차단이 의도.
     // ai-review W23 (2026-05-16) + INFO 10 (audit 별도 try/catch backstop).

@@ -18,7 +18,7 @@ const SCAN_NOW = new Date('2000-01-02T00:00:01Z');
  * 그 행만 기한을 막 넘긴 시각(`SCAN_NOW`)으로 스캔한다. 다른 테스트가 남긴 행은 발급 시각이 그보다 늦어 걸리지 않는다.
  * 스캐너가 쓰는 의존성은 통합 저장소 하나라 나머지 생성자 인자는 비워 둔다.
  *
- * @returns 스캐너가 바꾼 행 수. 호출부는 `ids.length` 와 같은지 본다.
+ * @returns 스캐너가 바꾼 행 수. 지금 호출부는 이 값을 쓰지 않고 DB 의 행 상태를 읽어 확인한다.
  */
 export async function expirePendingInstallsNow(
   db: Client,

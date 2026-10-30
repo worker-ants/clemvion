@@ -683,6 +683,9 @@ export class WorkspacesService {
   /**
    * 워크스페이스 나가기 (자가 탈퇴, team 전용). 유일한 owner는 차단.
    * sole-owner 판정과 멤버십 삭제는 비관적 락이 걸린 트랜잭션 내에서 수행해 TOCTOU를 방지한다.
+   *
+   * 같은 트랜잭션에서 그 사람의 개인 통합도 지운다(REQ-INTMGMT-065). 잠금 대기가 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS` 를
+   * 넘기면 트랜잭션이 롤백되고 오류로 끝난다(멤버십도 통합도 그대로다).
    */
   async leaveWorkspace(
     workspaceId: string,
@@ -939,7 +942,7 @@ export class WorkspacesService {
     // 준다 — editor 는 누구도 제거할 수 없다. 인가를 끝내고 대상 조건을 보는 것이 형제 둘의
     // 순서와도 같다.
     if (!isAdminRole(requesterRole)) this.throwAdminRequired();
-    // 무락 읽기 위의 **이른** 가드라 이것만으로는 부족하고, 아래 DELETE 의 `role: Not('owner')`
+    // 무락 읽기 위의 **이른** 가드라 이것만으로는 부족하고, 아래 DELETE 의 `role <> 'owner'`
     // 술어가 뒤를 받는다(동시 `transferOwnership`).
     if (member.role === 'owner') this.throwCannotRemoveOwner();
 

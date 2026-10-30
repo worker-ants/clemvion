@@ -1998,7 +1998,7 @@ describe('WorkspacesService', () => {
   /**
    * 동시 제거 두 건이 `member.removed` 감사를 두 번 남기던 결함의 회귀 테스트.
    * 형제 다섯(#1369~#1372)과 같은 클래스이고, 이 자리엔 락이 없어 처방도 통합 경로와 같다 —
-   * 원자적 `DELETE` 의 `affected` 를 판별자로 쓴다.
+   * 원자적 `DELETE … RETURNING` 이 돌려받은 행 수를 판별자로 쓴다.
    */
   describe('removeMember — 동시 제거', () => {
     const workspaceId = 'ws-uuid-1';
@@ -2106,7 +2106,7 @@ describe('WorkspacesService', () => {
      * 다른 블록은 «감사를 두 번 남기지 않는다» 이고 이것은 «owner 를 지우지 않는다» 다.
      *
      * 무락 선조회는 `editor` 를 봤는데 DELETE 시점엔 `transferOwnership` 이 그 행을 승격시킨
-     * 상태다. 술어 `role: Not('owner')` 가 0행을 만들고, 0-행 경로의 재조회가 **행이 남아
+     * 상태다. 술어 `role <> 'owner'` 가 0행을 만들고, 0-행 경로의 재조회가 **행이 남아
      * 있음**을 보고 403 으로 간다. 술어를 빼면 owner 가 지워지고 `workspace.ownerId` 가
      * 멤버십 없는 사용자를 가리킨다 (e2e 로 재현: 고치기 전 200).
      */

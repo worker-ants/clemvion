@@ -261,11 +261,13 @@ export class IntegrationExpiryScannerService
    * Transitions them to `expired(install_timeout)` and clears install_token
    * so further App URL calls with that token cleanly 404, and clears the
    * `mall_id` store identifier so the row stops holding the store slot
-   * (REQ-INTSTAT-040). Manual delete
-   * remains the only path that removes the row — we keep history for audit.
+   * (REQ-INTSTAT-040). The sweep never deletes the row, so history stays
+   * for audit. The row goes away only through a manual delete or, for a
+   * personal integration, when its owner leaves or is removed from the
+   * workspace (REQ-INTMGMT-065).
    *
-   * spec/2-navigation/4-integration.md §6 (pending_install → expired) +
-   * ## Rationale "install_token TTL 24h".
+   * Spec: [상태 전이](CLE-INT-STATUS#상태-전이) (pending_install → expired) +
+   * [설치 대기는 24시간 뒤 만료된다](CLE-INT-STATUS#설치-대기는-24시간-뒤-만료된다).
    */
   async expirePendingInstalls(now: Date): Promise<number> {
     const cutoff = new Date(
