@@ -17,8 +17,9 @@ export const WEBAUTHN_AUTH_CHALLENGE_EXPIRY_MARGIN_SEC = 60;
  * CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 (REQ-SIGNIN-030 · 068 · 069).
  *
  * `SET key 1 EX ttl NX` 단일 호출이라 여러 서버 인스턴스에서도 원자적이다. 같은 챌린지로
- * 동시에 온 요청 가운데 하나만 `true` 를 받는다. 기록은 만료 시각이 지나면 Redis TTL 로
- * 사라지므로 정리 작업이 없다.
+ * 동시에 온 요청 가운데 하나만 `true` 를 받는다. 기록은 만료 시각에 여유 시간
+ * (`WEBAUTHN_AUTH_CHALLENGE_EXPIRY_MARGIN_SEC`, 60초)을 더한 때에 Redis TTL 로 사라지므로
+ * 정리 작업이 없다.
  *
  * 다른 Redis 소비자(`ChatChannelDedupService` · `Cafe24InstallNonceCache`)와 달리
  * fail-open 하지 않는다. Redis 설정이 없거나 명령이 실패하면 예외를 그대로 던지고 호출자가
@@ -32,6 +33,7 @@ export class WebAuthnAuthChallengeService {
   /**
    * 챌린지를 쓴 것으로 기록한다.
    *
+   * @param challenge 옵션 토큰의 `challenge`(base64url). 기록 키의 일부가 된다
    * @param expSec 옵션 토큰의 만료 시각(Unix 초)
    * @returns `true` = 처음 쓰는 챌린지(기록함) / `false` = 이미 쓴 챌린지
    * @throws Redis 설정 누락 · 명령 실패

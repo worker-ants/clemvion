@@ -389,29 +389,7 @@ export class WebAuthnService {
       'webauthn_auth',
       userId,
     );
-    let firstUse: boolean;
-    try {
-      firstUse = await this.authChallenges.consume(
-        payload.challenge,
-        payload.exp,
-      );
-    } catch (err) {
-      this.logger.error(
-        `WebAuthn auth challenge could not be recorded for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      throw new ServiceUnavailableException({
-        code: 'SERVICE_UNAVAILABLE',
-        message:
-          '서비스를 일시적으로 사용할 수 없어요. 잠시 뒤 다시 시도해 주세요.',
-      });
-    }
-    if (!firstUse) {
-      return this.rejectInvalidAuthentication(
-        userId,
-        ctx,
-        'challenge already used',
-      );
-    }
+    await this.consumeAuthChallengeOrReject(userId, payload, ctx);
 
     const { rpID, origins } = this.getConfig();
     const credentialId = response.id;
@@ -467,7 +445,7 @@ export class WebAuthnService {
         const { newCounter } = verification.authenticationInfo;
         if (isSignCounterRegression(newCounter, Number(credential.counter))) {
           // credential 행 삭제와 활성 세션 전체 무효화를 한 트랜잭션에서 커밋해 한쪽만
-          // 적용되는 일을 막는다(ai-review C-3).
+          // 적용되는 일을 막는다.
           await credRepo.delete({ id: credential.id });
           await manager
             .getRepository(RefreshToken)
@@ -517,6 +495,43 @@ export class WebAuthnService {
       return this.rejectInvalidAuthentication(userId, ctx, outcome.reason);
     }
     return { verified: true };
+  }
+
+  /**
+   * 옵션 토큰의 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로
+   * 거부하고, 기록하지 못하면 503 `SERVICE_UNAVAILABLE` 로 멈춘다(fail-closed). 처음 쓰는
+   * 챌린지만 정상 반환한다.
+   *
+   * 기록 없이 서명 · counter 판정으로 보내면 같은 assertion 의 두 번째 요청이 counter 역행으로
+   * 처분돼 credential 이 지워지므로 저장소 오류는 삼키지 않는다.
+   */
+  private async consumeAuthChallengeOrReject(
+    userId: string,
+    payload: Pick<OptionsTokenPayload, 'challenge' | 'exp'>,
+    ctx: WebAuthnLoginContext,
+  ): Promise<void> {
+    let firstUse: boolean;
+    try {
+      firstUse = await this.authChallenges.consume(
+        payload.challenge,
+        payload.exp,
+      );
+    } catch (err) {
+      this.logger.error(
+        `WebAuthn auth challenge could not be recorded for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: '서비스를 일시적으로 사용할 수 없습니다.',
+      });
+    }
+    if (!firstUse) {
+      await this.rejectInvalidAuthentication(
+        userId,
+        ctx,
+        'challenge already used',
+      );
+    }
   }
 
   /**

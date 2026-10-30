@@ -480,6 +480,7 @@ describe('WebAuthnService', () => {
     describe('signature verified, counter compared by the service', () => {
       it.each([
         ['equal to stored (5 → 5)', '5', 5],
+        ['equal to stored (1 → 1)', '1', 1],
         ['lower than stored (5 → 3)', '5', 3],
         ['zero while stored is above zero (5 → 0)', '5', 0],
       ])(
@@ -543,53 +544,54 @@ describe('WebAuthnService', () => {
     });
 
     describe('signature not verified', () => {
-      // 비밀번호만 아는 사람이 서명 없이 counter 만 낮춘 응답을 보내는 경우다. 라이브러리가
-      // counter 문구로 던져도 서명을 확인하기 전이라 역행으로 보지 않는다. 판정이 에러
-      // 문구에 기대지 않는다는 것을 함께 잠근다.
-      it.each([
-        [
-          'the library returns verified=false with a lower counter',
-          () =>
-            mockedVerifyAuthResp.mockResolvedValue({
-              verified: false,
-              authenticationInfo: { newCounter: 0 },
-            }),
-        ],
-        [
-          'the library throws an error mentioning the counter',
-          () =>
-            mockedVerifyAuthResp.mockRejectedValue(
-              new Error('Response counter value 0 was lower than expected 5'),
-            ),
-        ],
-      ])(
-        'rejects with WEBAUTHN_INVALID and keeps the credential and sessions when %s',
-        async (_label, arrange) => {
-          credentialRepo.findOne.mockResolvedValue({
-            ...credentialRow,
-            counter: '5',
-          });
-          arrange();
-          await expect(
-            service.verifyAuthentication(
-              userId,
-              'opts.tok',
-              validResponse as never,
-            ),
-          ).rejects.toMatchObject({
-            response: expect.objectContaining({ code: 'WEBAUTHN_INVALID' }),
-          });
-          expect(credentialRepo.delete).not.toHaveBeenCalled();
-          expect(refreshTokenRepo.update).not.toHaveBeenCalled();
-          expect(credentialRepo.update).not.toHaveBeenCalled();
-          expect(loginHistory.record).toHaveBeenCalledWith(
-            expect.objectContaining({
-              event: 'webauthn_failed',
-              failureReason: 'WEBAUTHN_INVALID',
-            }),
-          );
-        },
-      );
+      // 비밀번호만 아는 사람이 서명 없이 counter 만 낮춘 응답을 보내는 경우다.
+      it('rejects with WEBAUTHN_INVALID and keeps the credential and sessions even if the counter went back', async () => {
+        credentialRepo.findOne.mockResolvedValue({
+          ...credentialRow,
+          counter: '5',
+        });
+        mockedVerifyAuthResp.mockResolvedValue({
+          verified: false,
+          authenticationInfo: { newCounter: 0 },
+        });
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({ code: 'WEBAUTHN_INVALID' }),
+        });
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+        expect(credentialRepo.update).not.toHaveBeenCalled();
+        expect(loginHistory.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'webauthn_failed',
+            failureReason: 'WEBAUTHN_INVALID',
+          }),
+        );
+      });
+
+      // 라이브러리가 counter 문구로 던져도 서명을 확인하기 전이라 역행으로 보지 않는다.
+      // 판정이 에러 문구에 기대지 않는다는 것을 잠근다.
+      it('treats a library error mentioning the counter as WEBAUTHN_INVALID, not regression', async () => {
+        mockedVerifyAuthResp.mockRejectedValue(
+          new Error('Response counter value 0 was lower than expected 5'),
+        );
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({ code: 'WEBAUTHN_INVALID' }),
+        });
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+      });
     });
 
     describe('Passkey authentication challenge single use', () => {
@@ -653,7 +655,10 @@ describe('WebAuthnService', () => {
           ),
         ).rejects.toMatchObject({
           status: 503,
-          response: expect.objectContaining({ code: 'SERVICE_UNAVAILABLE' }),
+          response: expect.objectContaining({
+            code: 'SERVICE_UNAVAILABLE',
+            message: '서비스를 일시적으로 사용할 수 없습니다.',
+          }),
         });
         expect(dataSource.transaction).not.toHaveBeenCalled();
         expect(credentialRepo.delete).not.toHaveBeenCalled();

@@ -49,6 +49,9 @@ function optionsResponse(optionsToken: string) {
   };
 }
 
+// 서버 응답이 끝나지 않는 검증 중 상태. 응답을 기다리는 동안의 화면을 확인하는 데 쓴다.
+const verifyPending = new Promise<never>(() => {});
+
 async function reachPasskeyStep() {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText("이메일"), "alice@example.com");
@@ -83,7 +86,7 @@ describe("LoginForm — Passkey 2단계", () => {
 
   it("검증 응답을 기다리는 동안 버튼을 잠가 같은 시도를 다시 보내지 않는다", async () => {
     mockOptions.mockResolvedValue(optionsResponse("opts-1"));
-    mockVerify.mockReturnValue(new Promise(() => {}));
+    mockVerify.mockReturnValue(verifyPending);
     render(<LoginForm />);
 
     const user = await reachPasskeyStep();
@@ -100,20 +103,27 @@ describe("LoginForm — Passkey 2단계", () => {
     mockOptions
       .mockResolvedValueOnce(optionsResponse("opts-1"))
       .mockResolvedValueOnce(optionsResponse("opts-2"));
+    // 서버가 보내는 실제 에러 봉투는 `{ error: { code, message, requestId } }` 이다.
+    // 로그인 화면은 `data.message` 를 읽으므로 서버 문구 대신 폴백 문구가 보인다.
     mockVerify
       .mockRejectedValueOnce({
         response: {
           status: 401,
-          data: { code: "WEBAUTHN_INVALID", message: "WebAuthn 인증에 실패했어요." },
+          data: {
+            error: {
+              code: "WEBAUTHN_INVALID",
+              message: "WebAuthn 인증에 실패했어요.",
+            },
+          },
         },
       })
-      .mockReturnValueOnce(new Promise(() => {}));
+      .mockReturnValueOnce(verifyPending);
     render(<LoginForm />);
 
     const user = await reachPasskeyStep();
 
     expect(
-      await screen.findByText("WebAuthn 인증에 실패했어요."),
+      await screen.findByText("Passkey 인증에 실패했어요."),
     ).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Passkey · 보안 키로 인증" }),
