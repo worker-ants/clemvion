@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { createHash, createHmac } from 'crypto';
+import { Workspace } from '../workspaces/entities/workspace.entity';
 import {
   IntegrationOAuthService,
   buildMakeshopHmacMessage,
@@ -108,6 +109,8 @@ describe('IntegrationOAuthService — MakeShop', () => {
   let dataSource: { query: Mock; transaction: Mock };
   /** 트랜잭션 매니저의 `query` — begin 의 advisory lock 이 쓴다. */
   let managerQuery: Mock;
+  /** 트랜잭션 매니저의 `findOne` — 쓰기 잠금 도우미의 워크스페이스 · 멤버십 읽기(REQ-INTMGMT-066). */
+  let managerFindOne: Mock;
   let oauthMock: ReturnType<typeof makeOAuthConfigMock>;
   // review W2: OAUTH_STUB_MODE 초기값 보존 — suite 진입 전 값을 afterEach 에서 원복.
   let savedOAuthStub: string | undefined;
@@ -117,6 +120,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
     stateRepo = makeRepo();
     previewRepo = makeRepo();
     managerQuery = jest.fn().mockResolvedValue([]);
+    managerFindOne = jest.fn().mockResolvedValue({ id: 'locked-row' });
     dataSource = {
       query: jest.fn().mockResolvedValue([]),
       // 콜백의 반환값을 돌려준다 — begin 의 설치 대기 행 쓰기가 트랜잭션 결과를 쓴다.
@@ -125,11 +129,13 @@ describe('IntegrationOAuthService — MakeShop', () => {
         .mockImplementation(
           (
             cb: (manager: {
+              findOne: Mock;
               getRepository: Mock;
               query: Mock;
             }) => Promise<unknown>,
           ) =>
             cb({
+              findOne: managerFindOne,
               getRepository: jest.fn().mockReturnValue(integrationRepo),
               query: managerQuery,
             }),
@@ -374,6 +380,94 @@ describe('IntegrationOAuthService — MakeShop', () => {
             ),
         );
     }
+
+    // NERV CLE-INT-MANAGE REQ-INTMGMT-066 — Task CLE-T-PS7JQY.
+    it('advisory lock 보다 먼저 워크스페이스 → 요청자의 멤버십을 잠근다', async () => {
+      answerFind([]);
+      await beginAs('editor', 'personal');
+
+      expect(managerFindOne).toHaveBeenNthCalledWith(
+        1,
+        Workspace,
+        expect.objectContaining({
+          where: { id: 'ws-1' },
+          lock: { mode: 'for_key_share' },
+        }),
+      );
+      expect(managerFindOne).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        expect.objectContaining({
+          where: { workspaceId: 'ws-1', userId: 'u-1' },
+          lock: { mode: 'pessimistic_read' },
+        }),
+      );
+      const memberOrder = managerFindOne.mock.invocationCallOrder[1];
+      expect(memberOrder).toBeLessThan(
+        managerQuery.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('조직 범위면 워크스페이스만 잠그고 advisory lock 으로 넘어간다', async () => {
+      answerFind([]);
+      await beginAs('admin', 'organization');
+
+      expect(managerFindOne).toHaveBeenCalledTimes(1);
+      expect(managerFindOne).toHaveBeenCalledWith(Workspace, expect.anything());
+      expect(managerFindOne.mock.invocationCallOrder[0]).toBeLessThan(
+        managerQuery.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('멤버십이 없으면 403 NOT_A_MEMBER 이고 advisory lock 도 행 읽기도 하지 않는다', async () => {
+      answerFind([]);
+      managerFindOne.mockImplementation((entity: unknown) =>
+        Promise.resolve(entity === Workspace ? { id: 'ws-1' } : null),
+      );
+
+      const error = (await beginAs('editor', 'personal').catch(
+        (err: unknown) => err,
+      )) as ForbiddenException;
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect(error.getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
+      expect(managerQuery).not.toHaveBeenCalled();
+      expect(integrationRepo.find).not.toHaveBeenCalled();
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    // REQ-INTMGMT-005 — 설치 대기 행을 만드는 것도 생성이다.
+    it('설치 대기 행을 만들다 이름 UNIQUE 에 걸리면 409 INTEGRATION_NAME_TAKEN 이다', async () => {
+      answerFind([]);
+      integrationRepo.save = jest.fn().mockRejectedValue(
+        Object.assign(new Error('duplicate key'), {
+          driverError: {
+            code: '23505',
+            constraint: 'integration_workspace_name_unique',
+          },
+        }),
+      );
+
+      const error = (await beginAs('editor').catch(
+        (err: unknown) => err,
+      )) as ConflictException;
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error.getResponse()).toEqual({
+        code: 'INTEGRATION_NAME_TAKEN',
+        message: 'Integration name is already in use within this workspace',
+      });
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('이름 UNIQUE 가 아닌 오류는 그대로 던진다', async () => {
+      answerFind([]);
+      const other = Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'some_other_unique',
+      });
+      integrationRepo.save = jest.fn().mockRejectedValue(other);
+
+      await expect(beginAs('editor')).rejects.toBe(other);
+    });
 
     it('행을 고르기 전에 (workspace_id, client_id) advisory lock 을 잡는다', async () => {
       answerFind([]);
@@ -973,6 +1067,30 @@ describe('IntegrationOAuthService — MakeShop', () => {
         'u-1',
       );
       expect(result).toEqual({ conflict: true });
+    });
+
+    // REQ-INTOAUTH-068 — 같은 상점을 찾는 곳은 만료 행 제외 술어 하나를 거친다. 만료 행은 `mall_id` 가 비어 DB 조회에
+    // 잡히지 않지만, 조회가 돌려줘도 빼는지 본다.
+    it('설치 기한이 지나 만료된 행은 충돌로 알리지 않고 다른 만료 행은 알린다', async () => {
+      const expired = (id: string, statusReason: string) => ({
+        ...buildFakeMakeshopIntegration({
+          id,
+          status: 'expired',
+          mallId: 'myshop',
+        }),
+        statusReason,
+      });
+      integrationRepo.find = jest
+        .fn()
+        .mockResolvedValueOnce([expired('timeout', 'install_timeout')])
+        .mockResolvedValueOnce([expired('token', 'token_expired')]);
+
+      await expect(
+        service.precheckMakeshopShop('ws-1', 'myshop', 'u-1'),
+      ).resolves.toEqual({ conflict: false });
+      await expect(
+        service.precheckMakeshopShop('ws-1', 'myshop', 'u-1'),
+      ).resolves.toMatchObject({ conflict: true, status: 'expired' });
     });
   });
 

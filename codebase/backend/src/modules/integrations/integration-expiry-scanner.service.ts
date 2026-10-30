@@ -259,7 +259,9 @@ export class IntegrationExpiryScannerService
    * Sweep `pending_install` rows whose install_token was issued more than
    * `PENDING_INSTALL_TTL_HOURS` (24h) ago and never reached `connected`.
    * Transitions them to `expired(install_timeout)` and clears install_token
-   * so further App URL calls with that token cleanly 404. Manual delete
+   * so further App URL calls with that token cleanly 404, and clears the
+   * `mall_id` store identifier so the row stops holding the store slot
+   * (REQ-INTSTAT-040). Manual delete
    * remains the only path that removes the row — we keep history for audit.
    *
    * spec/2-navigation/4-integration.md §6 (pending_install → expired) +
@@ -284,10 +286,13 @@ export class IntegrationExpiryScannerService
     const result = await this.integrationRepository
       .createQueryBuilder()
       .update()
+      // 상점 식별자(`mall_id`)도 같은 갱신에서 비운다(REQ-INTSTAT-040). 남겨 두면 만료 행이 상점 식별자 UNIQUE(V072)를
+      // 잡아 그 행을 지울 수 없는 다른 멤버가 같은 상점을 다시 등록하지 못한다. `credentials` 안의 상점 값은 그대로 둔다.
       .set({
         status: 'expired',
         statusReason: 'install_timeout',
         installToken: null,
+        mallId: null,
       })
       .where('status = :status', { status: 'pending_install' })
       .andWhere('COALESCE(install_token_issued_at, created_at) < :cutoff', {

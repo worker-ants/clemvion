@@ -9,12 +9,14 @@ import { IntegrationExpiryDispatch } from './entities/integration-expiry-dispatc
 import { Node } from '../nodes/entities/node.entity';
 import { User } from '../users/entities/user.entity';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
+import { MEMBER_PERSONAL_INTEGRATIONS_PURGER } from '../workspaces/member-personal-integrations.port';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { McpModule } from '../mcp/mcp.module';
 import { IntegrationsController } from './integrations.controller';
 import { ThirdPartyOAuthController } from './third-party-oauth.controller';
 import { IntegrationsService } from './integrations.service';
+import { MemberPersonalIntegrationsPurgerService } from './member-personal-integrations-purger.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
@@ -57,6 +59,14 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
     IntegrationActionRequiredNotifier,
     Cafe24InstallNonceCache,
     Cafe24InstallRateLimitService,
+    // 멤버가 나가거나 제거될 때 그 사람의 개인 통합을 지운다(REQ-INTMGMT-065). **토큰 별칭**은 워크스페이스 서비스가
+    // 모듈 import 없이 `ModuleRef.get(TOKEN, { strict: false })` 로 찾는 입구다. 이 모듈이 WorkspacesModule 을 import
+    // 하므로 반대로 import 하면 순환이 닫힌다(`member-personal-integrations.port.ts`).
+    MemberPersonalIntegrationsPurgerService,
+    {
+      provide: MEMBER_PERSONAL_INTEGRATIONS_PURGER,
+      useExisting: MemberPersonalIntegrationsPurgerService,
+    },
   ],
   exports: [
     IntegrationsService,

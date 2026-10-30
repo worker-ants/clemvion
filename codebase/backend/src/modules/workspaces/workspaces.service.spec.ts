@@ -1,10 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, Logger } from '@nestjs/common';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
+import { MEMBER_PERSONAL_INTEGRATIONS_PURGER } from './member-personal-integrations.port';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DeleteResult, FindOperator } from 'typeorm';
 import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
-import { WorkspacesService } from './workspaces.service';
+import {
+  MEMBER_DEPARTURE_LOCK_TIMEOUT_MS,
+  WorkspacesService,
+} from './workspaces.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
@@ -70,8 +73,41 @@ describe('WorkspacesService', () => {
     }),
   };
 
+  /** 나가기 · 제거가 같은 트랜잭션에서 부르는 개인 통합 삭제 포트(통합 모듈이 구현한다). */
+  const personalPurger = {
+    purgeInTransaction: jest.fn(),
+    finishAfterCommit: jest.fn(),
+  };
+
+  /**
+   * 트랜잭션 매니저의 raw query. 멤버 제거의 `DELETE … RETURNING` 과 잠금 대기 상한(`SET LOCAL lock_timeout`)이
+   * 지나간다. 멤버 제거의 DELETE 결과는 {@link wireMemberDelete} 로 정한다.
+   */
+  let txQuery: jest.Mock;
+
+  /** 멤버 제거의 DELETE 가 돌려줄 사용자 ID. `null` 이면 0행이다(동시 제거 · 동시 이양). */
+  function wireMemberDelete(userId: string | null): void {
+    txQuery.mockImplementation((sql: string) => {
+      if (sql.includes('DELETE FROM workspace_member')) {
+        return Promise.resolve(
+          userId === null ? [[], 0] : [[{ user_id: userId }], 1],
+        );
+      }
+      return Promise.resolve([]);
+    });
+  }
+
+  /** 멤버 제거의 DELETE 호출. 판정에서 끝나는 경로는 0건이어야 한다. */
+  function memberDeleteCalls(): unknown[][] {
+    return txQuery.mock.calls.filter(([sql]: [string]) =>
+      sql.includes('DELETE FROM workspace_member'),
+    );
+  }
+
   beforeEach(async () => {
     deleteEvents.length = 0;
+    personalPurger.purgeInTransaction.mockReset().mockResolvedValue([]);
+    personalPurger.finishAfterCommit.mockReset().mockResolvedValue(undefined);
     // 전역 clearAllMocks 대신 이 mock 만 — 다른 케이스의 mock 상태를 건드리지 않는다.
     Object.values(triggerReleaser).forEach((fn) => fn.mockClear());
     const module: TestingModule = await Test.createTestingModule({
@@ -115,6 +151,10 @@ describe('WorkspacesService', () => {
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
         { provide: TRIGGER_RESOURCE_RELEASER, useValue: triggerReleaser },
+        {
+          provide: MEMBER_PERSONAL_INTEGRATIONS_PURGER,
+          useValue: personalPurger,
+        },
       ],
     }).compile();
 
@@ -128,7 +168,10 @@ describe('WorkspacesService', () => {
     const invRepo = {
       delete: jest.fn().mockResolvedValue({ affected: 0 }),
     };
+    txQuery = jest.fn();
+    wireMemberDelete(null);
     const fakeManager = {
+      query: txQuery,
       getRepository: jest.fn().mockImplementation((entity: unknown) => {
         if (entity === WorkspaceMember) return memberRepo;
         if (entity === Workspace) return workspaceRepo;
@@ -953,6 +996,101 @@ describe('WorkspacesService', () => {
         service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
       ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
+
+    /** REQ-INTMGMT-065 — 나가기도 멤버십을 지운 같은 트랜잭션에서 그 사람의 개인 통합을 지운다. */
+    describe('개인 통합 삭제', () => {
+      const purged = [{ id: 'int-1', serviceType: 'google', name: 'Drive' }];
+
+      beforeEach(() => {
+        workspaceRepo.findOne.mockResolvedValue({
+          ...mockWorkspace,
+          type: 'team',
+        });
+        memberRepo.findOne.mockResolvedValue({
+          id: 'mem-1',
+          role: 'editor',
+          userId: 'user-uuid-1',
+        });
+      });
+
+      it('멤버십 remove 다음에 같은 트랜잭션에서 지우고 행위자는 나간 멤버다', async () => {
+        const order: string[] = [];
+        txQuery.mockImplementation((sql: string) => {
+          if (sql.includes('lock_timeout')) order.push('lock_timeout');
+          return Promise.resolve([]);
+        });
+        memberRepo.remove.mockImplementation(() => {
+          order.push('member-remove');
+          return Promise.resolve(undefined);
+        });
+        personalPurger.purgeInTransaction.mockImplementation(() => {
+          order.push('purge');
+          return Promise.resolve(purged);
+        });
+        getAudit().record.mockImplementation(() => {
+          order.push('member.removed');
+          return Promise.resolve();
+        });
+        personalPurger.finishAfterCommit.mockImplementation(() => {
+          order.push('finish');
+          return Promise.resolve();
+        });
+
+        await service.leaveWorkspace('ws-uuid-1', 'user-uuid-1');
+
+        expect(order).toEqual([
+          'lock_timeout',
+          'member-remove',
+          'purge',
+          'member.removed',
+          'finish',
+        ]);
+        expect(personalPurger.purgeInTransaction).toHaveBeenCalledWith(
+          expect.objectContaining({ query: txQuery }),
+          { workspaceId: 'ws-uuid-1', userId: 'user-uuid-1' },
+        );
+        expect(personalPurger.finishAfterCommit).toHaveBeenCalledWith(purged, {
+          workspaceId: 'ws-uuid-1',
+          actorUserId: 'user-uuid-1',
+          mode: 'left',
+          memberUserId: 'user-uuid-1',
+        });
+      });
+
+      it('유일한 owner 의 나가기 거절에서는 통합을 지우지 않는다', async () => {
+        memberRepo.findOne.mockResolvedValue({
+          id: 'mem-1',
+          role: 'owner',
+          userId: 'user-uuid-1',
+        });
+        memberRepo.find.mockResolvedValue([
+          { id: 'mem-1', role: 'owner', userId: 'user-uuid-1' },
+        ]);
+
+        await expect(
+          service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toMatchObject({
+          response: { code: 'SOLE_OWNER_CANNOT_LEAVE' },
+        });
+        expect(personalPurger.purgeInTransaction).not.toHaveBeenCalled();
+        expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
+      });
+
+      it('지운 통합이 없으면 커밋 뒤 후처리를 부르지 않는다', async () => {
+        await service.leaveWorkspace('ws-uuid-1', 'user-uuid-1');
+        expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
+      });
+
+      it('커밋 뒤 후처리가 던져도 나가기는 성공한다', async () => {
+        personalPurger.purgeInTransaction.mockResolvedValue(purged);
+        personalPurger.finishAfterCommit.mockRejectedValue(new Error('boom'));
+        jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+
+        await expect(
+          service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).resolves.toBeUndefined();
+      });
+    });
   });
 
   /**
@@ -1700,9 +1838,8 @@ describe('WorkspacesService', () => {
               : { role: 'admin' },
           ),
       );
-      // 이 테스트의 전제는 «한 행이 실제로 지워졌다» 이다. 공유 mock 의 기본값은
-      // `deleteWorkspace` 의 cascade 용 `{affected: 0}` 이므로 여기서 명시한다.
-      memberRepo.delete.mockResolvedValue({ affected: 1 });
+      // 이 테스트의 전제는 «한 행이 실제로 지워졌다» 이다. 공유 mock 의 기본값은 0행이므로 여기서 명시한다.
+      wireMemberDelete('user-y');
       const audit = getAudit();
       await service.removeMember('ws-uuid-1', 'mem-y', 'user-uuid-1');
       expect(audit.record).toHaveBeenCalledWith(
@@ -1909,24 +2046,19 @@ describe('WorkspacesService', () => {
 
     beforeEach(() => {
       wireFindOne({ id: memberId, userId: 'target-user', role: 'editor' });
-      memberRepo.delete.mockResolvedValue({ affected: 1 });
+      wireMemberDelete('target-user');
     });
 
     it('한 행을 지우면 그 멤버의 감사를 남긴다', async () => {
       await service.removeMember(workspaceId, memberId, requesterId);
 
-      // `Not('owner')` 는 deep-equality 에 불투명하다 — `toHaveBeenCalledWith` 로는
-      // «술어가 있다» 를 확인할 수 없고(형제 `sessions.service.spec.ts` 가 같은 이유로
-      // criteria 객체를 직접 본다), 그래서 FindOperator 를 풀어 본다.
-      // 이 단언은 «술어를 넘겼다» 까지만 고정한다 — «그것이 SQL 로 옳게 렌더된다» 는
+      // 이 단언은 «술어를 넘겼다» 까지만 고정한다 — «그것이 옳게 동작한다» 는
       // 실 DB 만 오라클이고 `member-remove-concurrency.e2e-spec.ts` 가 고정한다.
-      const [criteria] = memberRepo.delete.mock.calls[0] as [
-        { id: string; workspaceId: string; role: FindOperator<string> },
-      ];
-      expect(criteria.id).toBe(memberId);
-      expect(criteria.workspaceId).toBe(workspaceId);
-      expect(criteria.role.type).toBe('not');
-      expect(criteria.role.value).toBe('owner');
+      const [[sql, params]] = memberDeleteCalls() as [[string, unknown[]]];
+      expect(sql.replace(/\s+/g, ' ')).toContain(
+        "WHERE id = $1 AND workspace_id = $2 AND role <> 'owner' RETURNING user_id",
+      );
+      expect(params).toEqual([memberId, workspaceId]);
       expect(getAudit().record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AUDIT_ACTIONS.MEMBER_REMOVED,
@@ -1959,7 +2091,7 @@ describe('WorkspacesService', () => {
         undefined,
         null,
       );
-      memberRepo.delete.mockResolvedValue({ affected: 0 });
+      wireMemberDelete(null);
 
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
@@ -1988,7 +2120,7 @@ describe('WorkspacesService', () => {
           role: 'owner',
         },
       );
-      memberRepo.delete.mockResolvedValue({ affected: 0 });
+      wireMemberDelete(null);
 
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
@@ -2012,7 +2144,7 @@ describe('WorkspacesService', () => {
         undefined,
         { id: memberId, userId: 'target-user', role: 'admin' },
       );
-      memberRepo.delete.mockResolvedValue({ affected: 0 });
+      wireMemberDelete(null);
 
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
@@ -2023,25 +2155,120 @@ describe('WorkspacesService', () => {
     });
 
     /**
-     * 판정이 `affected === 0` **명시 비교**인 이유를 붙드는 대조군.
-     * `null`·`undefined` 는 드라이버가 «보고하지 않았다» 는 뜻이지 «못 지웠다» 가 아니다 —
-     * `!affected` 로 되돌리면 정상 삭제가 404 로 뒤집힌다. #1371 에서 이 대조군이 빠져
-     * 같은 뮤턴트가 32건을 통과했다.
+     * 판정은 `RETURNING` 으로 돌려받은 행이다. 결과 형태가 어긋나면 지웠는지 알 수 없으므로 던져 트랜잭션을 되돌린다.
+     * 0행으로 읽으면 실제로 지운 멤버를 404 로 보고하고 개인 통합은 남긴다.
      */
-    it.each([[undefined], [null]])(
-      'affected 가 %p(드라이버 미보고)면 정상 삭제로 취급한다',
-      async (affected) => {
-        memberRepo.delete.mockResolvedValue({
-          affected,
-          raw: [],
-        } as unknown as DeleteResult);
+    it('DELETE 결과 형태가 어긋나면 던지고 감사 · 통합 삭제를 하지 않는다', async () => {
+      txQuery.mockImplementation((sql: string) =>
+        Promise.resolve(
+          sql.includes('DELETE FROM workspace_member') ? { rowCount: 1 } : [],
+        ),
+      );
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toThrow(/RETURNING/);
+      expect(personalPurger.purgeInTransaction).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /** REQ-INTMGMT-065 — 1행을 지웠을 때만, 같은 트랜잭션 매니저로, RETURNING 의 사용자 ID 로 지운다. */
+    describe('개인 통합 삭제', () => {
+      const purged = [{ id: 'int-1', serviceType: 'cafe24', name: 'my-mall' }];
+
+      it('멤버십 DELETE 다음에 같은 매니저로 그 멤버의 개인 통합을 지우고 커밋 뒤 후처리를 부른다', async () => {
+        const order: string[] = [];
+        txQuery.mockImplementation((sql: string) => {
+          if (sql.includes('lock_timeout')) order.push('lock_timeout');
+          if (sql.includes('DELETE FROM workspace_member')) {
+            order.push('member-delete');
+            return Promise.resolve([[{ user_id: 'returned-user' }], 1]);
+          }
+          return Promise.resolve([]);
+        });
+        personalPurger.purgeInTransaction.mockImplementation(
+          (manager: { query: unknown }) => {
+            // 호출자의 트랜잭션 매니저다.
+            expect(manager.query).toBe(txQuery);
+            order.push('purge');
+            return Promise.resolve(purged);
+          },
+        );
+        getAudit().record.mockImplementation(() => {
+          order.push('member.removed');
+          return Promise.resolve();
+        });
+        personalPurger.finishAfterCommit.mockImplementation(() => {
+          order.push('finish');
+          return Promise.resolve();
+        });
+
+        await service.removeMember(workspaceId, memberId, requesterId);
+
+        expect(order).toEqual([
+          'lock_timeout',
+          'member-delete',
+          'purge',
+          'member.removed',
+          'finish',
+        ]);
+        // 선조회의 userId('target-user')가 아니라 지운 행이 돌려준 사용자 ID 다.
+        expect(personalPurger.purgeInTransaction).toHaveBeenCalledWith(
+          expect.anything(),
+          { workspaceId, userId: 'returned-user' },
+        );
+        expect(personalPurger.finishAfterCommit).toHaveBeenCalledWith(purged, {
+          workspaceId,
+          actorUserId: requesterId,
+          mode: 'removed',
+          memberUserId: 'returned-user',
+        });
+      });
+
+      it('잠금 대기 상한은 MEMBER_DEPARTURE_LOCK_TIMEOUT_MS 다', async () => {
+        wireMemberDelete('target-user');
+        await service.removeMember(workspaceId, memberId, requesterId);
+        expect(txQuery).toHaveBeenCalledWith(
+          `SET LOCAL lock_timeout = '${MEMBER_DEPARTURE_LOCK_TIMEOUT_MS}ms'`,
+        );
+      });
+
+      it.each([
+        ['동시 제거(행 없음)', null, 'MEMBER_NOT_FOUND'],
+        [
+          '동시 이양(owner)',
+          { id: memberId, userId: 'target-user', role: 'owner' },
+          'CANNOT_REMOVE_OWNER',
+        ],
+      ])(
+        '멤버십 DELETE 가 0행이면(%s) 통합을 건드리지 않는다',
+        async (_label, reread, code) => {
+          wireFindOne(
+            { id: memberId, userId: 'target-user', role: 'editor' },
+            undefined,
+            reread,
+          );
+          wireMemberDelete(null);
+
+          await expect(
+            service.removeMember(workspaceId, memberId, requesterId),
+          ).rejects.toMatchObject({ response: { code } });
+          expect(personalPurger.purgeInTransaction).not.toHaveBeenCalled();
+          expect(personalPurger.finishAfterCommit).not.toHaveBeenCalled();
+        },
+      );
+
+      it('커밋 뒤 후처리가 던져도 제거는 성공한다', async () => {
+        wireMemberDelete('target-user');
+        personalPurger.purgeInTransaction.mockResolvedValue(purged);
+        personalPurger.finishAfterCommit.mockRejectedValue(new Error('boom'));
+        jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
 
         await expect(
           service.removeMember(workspaceId, memberId, requesterId),
         ).resolves.toBeUndefined();
-        expect(getAudit().record).toHaveBeenCalled();
-      },
-    );
+      });
+    });
 
     it('대상이 없으면 삭제를 시도하지 않는다', async () => {
       wireFindOne(null);
@@ -2049,7 +2276,7 @@ describe('WorkspacesService', () => {
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       expect(getAudit().record).not.toHaveBeenCalled();
     });
 
@@ -2059,7 +2286,7 @@ describe('WorkspacesService', () => {
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'CANNOT_REMOVE_OWNER' } });
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       expect(getAudit().record).not.toHaveBeenCalled();
     });
 
@@ -2086,7 +2313,7 @@ describe('WorkspacesService', () => {
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       expect(getAudit().record).not.toHaveBeenCalled();
     });
 
@@ -2113,7 +2340,7 @@ describe('WorkspacesService', () => {
         (c: [{ where?: { id?: string } }]) => c[0]?.where?.id === memberId,
       );
       expect(targetLookups).toHaveLength(0);
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       expect(getAudit().record).not.toHaveBeenCalled();
     });
 
@@ -2134,7 +2361,7 @@ describe('WorkspacesService', () => {
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
     });
 
     /**
@@ -2150,7 +2377,7 @@ describe('WorkspacesService', () => {
       await service.removeMember(workspaceId, memberId, requesterId);
 
       expect(leave).toHaveBeenCalledWith(workspaceId, requesterId);
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       leave.mockRestore();
     });
 
@@ -2176,7 +2403,7 @@ describe('WorkspacesService', () => {
       ).resolves.toBeUndefined();
 
       expect(leave).toHaveBeenCalledWith(workspaceId, requesterId);
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       leave.mockRestore();
     });
 
@@ -2201,7 +2428,7 @@ describe('WorkspacesService', () => {
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
-      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(memberDeleteCalls()).toHaveLength(0);
       expect(getAudit().record).not.toHaveBeenCalled();
     });
 
@@ -2217,7 +2444,7 @@ describe('WorkspacesService', () => {
      */
     it('요청자 role 을 한 번만 조회한다', async () => {
       wireFindOne({ id: memberId, userId: 'target-user', role: 'editor' });
-      memberRepo.delete.mockResolvedValue({ affected: 1 });
+      wireMemberDelete('target-user');
 
       await service.removeMember(workspaceId, memberId, requesterId);
 

@@ -17,6 +17,19 @@
 export const STORE_IDENTIFIER_UNIQUE_CONSTRAINT =
   'idx_integration_workspace_service_mall';
 
+/** 워크스페이스 안 통합 이름 UNIQUE(공개 범위 무관). */
+export const WORKSPACE_NAME_UNIQUE_CONSTRAINT =
+  'integration_workspace_name_unique';
+
+/**
+ * 이름 UNIQUE 위반의 409(REQ-INTMGMT-005). 생성 · 별칭 수정(`throwIfUniqueViolation`)과 Cafe24 Private · MakeShop
+ * begin 의 설치 대기 행 쓰기가 같은 코드와 문구를 낸다.
+ */
+export const INTEGRATION_NAME_TAKEN = {
+  code: 'INTEGRATION_NAME_TAKEN',
+  message: 'Integration name is already in use within this workspace',
+};
+
 /**
  * Per-service "store identifier already connected" error mapping — used by
  * `throwIfUniqueViolation` in `integrations.service.ts` and by the

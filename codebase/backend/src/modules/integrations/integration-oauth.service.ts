@@ -60,7 +60,13 @@ import {
 import {
   STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
   ALREADY_CONNECTED_BY_SERVICE,
+  WORKSPACE_NAME_UNIQUE_CONSTRAINT,
+  INTEGRATION_NAME_TAKEN,
 } from './integrations.constants';
+import {
+  lockForIntegrationWrite,
+  throwUnlessIntegrationCreateLocked,
+} from './integration-owner-write-lock';
 import { normalizeStatusReason } from './integration-status-reason';
 import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
@@ -166,8 +172,44 @@ function isStoreIdentifierConflict(err: unknown): boolean {
   );
 }
 
-/** 워크스페이스 안 통합 이름 UNIQUE. `IntegrationsService.throwIfUniqueViolation` 이 같은 이름을 본다. */
-const WORKSPACE_NAME_UNIQUE_CONSTRAINT = 'integration_workspace_name_unique';
+/** 워크스페이스 안 통합 이름 UNIQUE 위반인가. 다른 통합이 그 이름을 쓴다. */
+function isNameConflict(err: unknown): boolean {
+  return (
+    isPostgresUniqueViolation(err) &&
+    pgErrorConstraint(err) === WORKSPACE_NAME_UNIQUE_CONSTRAINT
+  );
+}
+
+/**
+ * 설치 대기 행 쓰기의 잠금(REQ-INTMGMT-066). 트랜잭션의 첫 문장이다. 워크스페이스는 공개 범위와 관계없이 잡고 멤버십은
+ * 요청 공개 범위가 개인일 때만 잡는다. 다시 쓰는 행의 공개 범위는 아직 모르지만, 개인 행을 다시 쓰는 사람은 그 행의 통합
+ * 소유자라 요청 범위가 조직이어도 새 개인 행은 생기지 않는다. 기존 행은 나가기 · 제거의 통합 DELETE 가 행 잠금을 기다린 뒤
+ * 지운다.
+ */
+async function lockForPendingWrite(
+  manager: EntityManager,
+  params: Pick<BeginParams, 'workspaceId' | 'userId' | 'scope'>,
+): Promise<void> {
+  throwUnlessIntegrationCreateLocked(
+    await lockForIntegrationWrite(manager, {
+      workspaceId: params.workspaceId,
+      personalOwnerId:
+        (params.scope ?? 'personal') === 'personal' ? params.userId : null,
+    }),
+  );
+}
+
+/**
+ * 같은 상점 판정의 후보가 아닌 행인가. 설치 기한이 지나 만료된 행은 상점 자리를 놓는다(REQ-INTOAUTH-068). 만료할 때
+ * `mall_id` 컬럼을 비우므로 컬럼으로 찾으면 저절로 빠지지만, 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체
+ * 경로는 이 판정 없이는 만료 행을 다시 찾는다. 같은 상점의 행을 찾는 곳은 모두 이 함수를 거친다.
+ * 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+ */
+function hasReleasedStoreSlot(
+  row: Pick<Integration, 'status' | 'statusReason'>,
+): boolean {
+  return row.status === 'expired' && row.statusReason === 'install_timeout';
+}
 
 /**
  * 설치 대기 행 INSERT 가 동시에 들어온 begin 과 부딪혔을 수 있는가. 같은 화면에서 온 두 begin 은 이름도 같아서
@@ -1348,7 +1390,7 @@ export class IntegrationOAuthService {
     // 늦은 쪽은 한 번만 다시 판정한다. 그때는 앞선 begin 이 만든 행이 보여서 재사용이나 409 로 끝난다. 다시 판정해도
     // 상점 식별자 UNIQUE 에 걸리면 begin 이 다시 쓰지 않는 같은 상점의 행(만료됨 · 오류)이 있는 것이다. 그 경우는
     // ALREADY_CONNECTED_BY_SERVICE 의 409 로 바꾼다(throwIfUniqueViolation 과 같은 코드 · 문구). 이름 UNIQUE 에 또 걸리면
-    // 다른 통합이 그 이름을 쓰는 것이라 원래 오류를 그대로 던진다.
+    // 다른 통합이 그 이름을 쓰는 것이라 생성과 같은 409 INTEGRATION_NAME_TAKEN 으로 바꾼다(REQ-INTMGMT-005).
     let written: PendingInstallWrite;
     try {
       written = await this.writePrivatePending(params, meta);
@@ -1357,6 +1399,9 @@ export class IntegrationOAuthService {
       try {
         written = await this.writePrivatePending(params, meta);
       } catch (retryErr) {
+        if (isNameConflict(retryErr)) {
+          throw new ConflictException({ ...INTEGRATION_NAME_TAKEN });
+        }
         if (!isStoreIdentifierConflict(retryErr)) throw retryErr;
         const mapped = ALREADY_CONNECTED_BY_SERVICE['cafe24'];
         throw new ConflictException({
@@ -1386,6 +1431,8 @@ export class IntegrationOAuthService {
     meta: Cafe24PrivateBeginMeta,
   ): Promise<PendingInstallWrite> {
     return this.dataSource.transaction(async (manager) => {
+      // 통합 행을 읽거나 잠그기 전에 워크스페이스 → 멤버십 순으로 잠근다(REQ-INTMGMT-066).
+      await lockForPendingWrite(manager, params);
       const repo = manager.getRepository(Integration);
       // Duplicate-prevention — shared helper (also used by public-flow begin
       // and the precheck endpoint). 동일 (workspaceId, mall_id) 의 `connected`
@@ -1818,8 +1865,47 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = getAppBaseUrl();
 
-    const { saved, installToken } = await this.dataSource.transaction(
+    const { saved, installToken } = await this.writeMakeshopPending(
+      params,
+      meta,
+    );
+
+    return {
+      mode: 'makeshop_pending_install',
+      integrationId: saved.id,
+      appUrl: buildMakeshopInstallUrl(appUrl, installToken),
+      callbackUrl: buildOauthCallbackUrl(appUrl, 'makeshop'),
+      scope: saved.scope,
+    };
+  }
+
+  /**
+   * MakeShop 설치 대기 행을 한 트랜잭션에서 고르고 잠그고 판정한 뒤 쓴다. 이름 UNIQUE 에 걸리면 생성과 같은 409
+   * `INTEGRATION_NAME_TAKEN` 이다(REQ-INTMGMT-005). 같은 `client_id` 의 begin 은 advisory lock 으로 줄 세우므로
+   * Cafe24 Private 처럼 다시 판정할 경쟁이 없다.
+   */
+  private async writeMakeshopPending(
+    params: BeginParams,
+    meta: Required<MakeshopBeginMeta>,
+  ): Promise<PendingInstallWrite> {
+    try {
+      return await this.writeMakeshopPendingTx(params, meta);
+    } catch (err) {
+      if (isNameConflict(err)) {
+        throw new ConflictException({ ...INTEGRATION_NAME_TAKEN });
+      }
+      throw err;
+    }
+  }
+
+  private writeMakeshopPendingTx(
+    params: BeginParams,
+    meta: Required<MakeshopBeginMeta>,
+  ): Promise<PendingInstallWrite> {
+    return this.dataSource.transaction(
       async (manager): Promise<PendingInstallWrite> => {
+        // advisory lock 보다 먼저 워크스페이스 → 멤버십 순으로 잠근다(REQ-INTMGMT-066).
+        await lockForPendingWrite(manager, params);
         // 같은 `(workspace_id, client_id)` 의 begin 을 줄 세운다. MakeShop 설치 대기 행은 `mall_id` 가 비어 있어
         // 상점 식별자 UNIQUE 가 막지 못한다. 이 잠금이 없으면 동시에 들어온 두 begin 이 모두 다시 쓸 행이 없다고 보고
         // 설치 대기 행을 둘 만든다.
@@ -1897,14 +1983,6 @@ export class IntegrationOAuthService {
         };
       },
     );
-
-    return {
-      mode: 'makeshop_pending_install',
-      integrationId: saved.id,
-      appUrl: buildMakeshopInstallUrl(appUrl, installToken),
-      callbackUrl: buildOauthCallbackUrl(appUrl, 'makeshop'),
-      scope: saved.scope,
-    };
   }
 
   /**
@@ -2127,12 +2205,24 @@ export class IntegrationOAuthService {
     shopUid: string,
     excludeId?: string,
   ): Promise<Integration | null> {
-    const rows = await this.integrationRepository.find({
-      where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
-    });
+    const rows = await this.findMakeshopRowsForShop(workspaceId, shopUid);
     return (
       rows.find((r) => r.status === 'connected' && r.id !== excludeId) ?? null
     );
+  }
+
+  /**
+   * `(workspaceId, shop_uid)` 의 MakeShop 행. 설치 엔드포인트의 중복 검사와 precheck 가 쓴다. MakeShop 은 옛 행 대체
+   * 경로가 없어 `mall_id` 컬럼만 보지만 만료 행 제외는 Cafe24 와 같은 {@link hasReleasedStoreSlot} 를 거친다.
+   */
+  private async findMakeshopRowsForShop(
+    workspaceId: string,
+    shopUid: string,
+  ): Promise<Integration[]> {
+    const rows = await this.integrationRepository.find({
+      where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
+    });
+    return rows.filter((row) => !hasReleasedStoreSlot(row));
   }
 
   /**
@@ -2146,9 +2236,7 @@ export class IntegrationOAuthService {
     shopUid: string,
     userId: string,
   ): Promise<PrecheckResult> {
-    const all = await this.integrationRepository.find({
-      where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
-    });
+    const all = await this.findMakeshopRowsForShop(workspaceId, shopUid);
     return pickPrecheckConflict(all, userId);
   }
 
@@ -2191,13 +2279,17 @@ export class IntegrationOAuthService {
     // full-scan + HMAC 연산 amplification 가능. `take: RECOVERY_CANDIDATE_LIMIT`
     // 로 후보 상한을 둬 amplification 을 차단. 정상 운영에서는 per-mall 행
     // 수가 보통 1~2 이므로 영향 없음. 한도 초과 시 회복 포기 (404).
-    const sameMall = await this.integrationRepository.find({
-      where: {
-        mallId: query.mall_id,
-        serviceType: 'cafe24',
-      },
-      take: RECOVERY_CANDIDATE_LIMIT + 1, // +1 to detect overflow
-    });
+    // 만료 행 제외는 같은 상점을 찾는 다른 곳과 같은 술어다(REQ-INTOAUTH-068). 만료 행은 `mall_id` 가 비어 이 조회에
+    // 잡히지 않으므로 그 행의 옛 App URL 은 상세 화면 대신 404 안내가 된다.
+    const sameMall = (
+      await this.integrationRepository.find({
+        where: {
+          mallId: query.mall_id,
+          serviceType: 'cafe24',
+        },
+        take: RECOVERY_CANDIDATE_LIMIT + 1, // +1 to detect overflow
+      })
+    ).filter((row) => !hasReleasedStoreSlot(row));
 
     if (sameMall.length > RECOVERY_CANDIDATE_LIMIT) {
       this.logger.warn(
@@ -2295,6 +2387,9 @@ export class IntegrationOAuthService {
    * reuse, inside its transaction via `repo`), the public-flow begin guard, and
    * `precheckCafe24Mall` (frontend pre-detection endpoint).
    *
+   * 설치 기한이 지나 만료된 행은 두 경로 모두에서 뺀다({@link hasReleasedStoreSlot}, REQ-INTOAUTH-068). 컬럼 경로는
+   * 만료 때 `mall_id` 를 비워 저절로 빠지고, 대체 경로는 `credentials.mall_id` 가 남아 있어 이 판정이 뺀다.
+   *
    * Performance — `Promise.all` 병렬 발행으로 평균 응답 latency 절반.
    * legacy 쿼리는 backfill 완료 후 제거 예정이며 그 시점에 단일 쿼리로 회귀.
    */
@@ -2314,7 +2409,7 @@ export class IntegrationOAuthService {
     const legacy = legacyRaw.filter(
       (row) => row.credentials?.mall_id === mallId,
     );
-    return [...direct, ...legacy];
+    return [...direct, ...legacy].filter((row) => !hasReleasedStoreSlot(row));
   }
 
   /**
