@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "636a22ed2ceec163f25c427c2d799d692fcbbadebbd8a499d7584b550ce1fd64"
+content_hash: "bad396b3ee422ec9d7e157d8bda4be8ed495bf08b3e25cee16e2ea228b06606e"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-395HK2"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "0ba7703f7fedc87df594705d3ed2585bb6d2de59b65bdc64907017d63ea3e597"
-etag: "sha256-5515efc0b311ec64db53832672caf2384520e27037f14fc0bace520521e11030"
+mirror_sha256: "0286bce118c79a83cad201d53c231a5bdd7105ad1e032a6f4d3ebaad58007964"
+etag: "sha256-88da578026cca83f630ebb1e0689215d3c08511bf62e5b56a172cfd62fa9ab06"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -411,7 +411,7 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 
 | 값 | 뜻 | 적용 프로바이더 |
 |----|------|---------------|
-| `expired_install_timeout` | Cafe24 Private 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없고 사용자가 지우고 다시 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | cafe24 |
+| `expired_install_timeout` | Cafe24 Private 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록하고 이름이 겹치면 다른 이름을 쓴다. 이 통합을 쓰던 AI 에이전트는 새 통합을 다시 고른다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | cafe24 |
 | `expired_refresh_failed` | `expired` 상태에서 `buildTools` 의 1회 갱신 시도가 `invalid_grant` 로 실패. worker 가 `error(auth_failed)` 로 전이한다([Cafe24 노드 §만료된 통합의 도구 목록 처리](../CLE-NODE-INT/CLE-NODE-CAFE24.md#만료된-통합의-도구-목록-처리)) | cafe24 |
 | `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없다. 갱신할 수 없어 통합 재인증이 필요하다 | cafe24 |
 | `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 정식 회복은 외부에서 하는 명시적 재인증이다([인증 실패 상태 전환](#인증-실패-상태-전환)) | cafe24 / mcp |

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "26d7add73f0e3f63efa65e5cc0d24cae2d06974f1f2315f76945cbc4d7c09aa6"
+content_hash: "d6a5dab5204170dfdc75aeca70e77b7e15a2f653a77d278d6e4c9ef0b076f2b1"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-395HK2"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "127ef4833da95b31f1463be9c8ae46134e6cb2d447db0794192d2de5dac413ab"
-etag: "sha256-19a579d92fd0345d0c26de95ceb18534e6a789c8d632aa3222deae4fa77a9953"
+mirror_sha256: "b2b1f23e0e9d55db7c6d611d9df7a8608e7d910eeea734ab062fc99eab96606c"
+etag: "sha256-2aa421ddca7fc7f88811fdc7f58cb0a81713a658f0c3afecaad3ba902a9a79b0"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -548,7 +548,7 @@ sequenceDiagram
 
 나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 멤버십 DELETE 다음 그 멤버의 개인 통합을 지운다.
 
-나가기와 멤버 제거(`DELETE /api/workspaces/:id/members/:memberId`)는 트랜잭션을 열자마자 잠금 대기 상한을 5초로 건다(`SET LOCAL lock_timeout`, 코드 상수 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS`). 이 상한은 멤버십 행 잠금과 개인 통합 DELETE, 그 통합의 CASCADE 자식 행 잠금에 모두 걸린다. 토큰 갱신 같은 짧은 쓰기와 겹쳐 5초 안에 잠금을 잡지 못하면 트랜잭션을 롤백하고 에러로 끝낸다(PostgreSQL `55P03`). 이 에러는 따로 매핑하지 않아 응답은 일반 500 이다. 롤백이라 멤버십과 개인 통합은 그대로이고 감사 로그도 남지 않는다. 커밋 뒤 정리(통합 삭제 감사와 자격 증명 캐시 무효화)도 일어나지 않는다. 사용자는 다시 시도하면 된다. 워크스페이스 삭제와 워크플로우 삭제가 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 넘겼을 때와 같은 처리다. 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
+나가기와 멤버 제거(`DELETE /api/workspaces/:id/members/:memberId`)는 트랜잭션을 열자마자 잠금 대기 상한을 5초로 건다(`SET LOCAL lock_timeout`, 코드 상수 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS`). 이 상한은 멤버십 행 잠금과 개인 통합 DELETE, 그 통합의 CASCADE 자식 행 잠금에 모두 걸린다. 토큰 갱신 같은 짧은 쓰기와 겹쳐 5초 안에 잠금을 잡지 못하면 트랜잭션을 롤백하고 에러로 끝낸다(PostgreSQL `55P03`). 이 에러는 따로 매핑하지 않아 응답은 일반 500(`INTERNAL_ERROR`)이다. 롤백이라 멤버십과 개인 통합은 그대로이고 감사 로그도 남지 않는다. 커밋 뒤 정리(통합 삭제 감사와 자격 증명 캐시 무효화)도 일어나지 않는다. 사용자는 다시 시도하면 된다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 넘기면 에러로 끝난다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 그 에러에도 따로 정한 코드가 없어 응답은 같은 일반 500 이다. 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
 
 통합을 만들거나 개인으로 바꾸는 트랜잭션은 워크스페이스, 멤버십, 통합 순으로 잠근다. 멤버십은 개인 통합일 때만 잠근다. 잠금 방식과 범위는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 멤버 제거와 나가기는 워크스페이스 행을 잠그지 않는다. 멤버십을 지운 다음 개인 통합을 지우므로 이 순서를 어기지 않는다. 삭제 조건은 [통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다.
 
@@ -680,7 +680,9 @@ stateDiagram-v2
 
 ## 미결 사항
 
-없음. 2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 와 「요청 한도의 집계 기준을 코드에 맞췄다」 에 있다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는 문제는 이 문서가 아니라 [세션과 토큰](CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-BYCGF1`).
+- **잠금 대기 초과의 응답 코드**: 나가기 · 멤버 제거와 워크스페이스 삭제 · 워크플로우 삭제는 잠금 대기 상한 5초를 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다([워크스페이스 삭제와 나가기](#워크스페이스-삭제와-나가기)). 트리거 · 스케줄 화면 삭제도 같다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 다시 시도하면 대개 통과하는 일시적 실패인데 500 이라 [HTTP API 규약 §6](../CLE-API/CLE-API-CONV.md#6-http-상태-코드) 의 500 · 503 구분과 잘 맞지 않는다. 이 경로들의 응답 코드는 NERV Task `CLE-T-1C2JE0` 가 함께 정한다. 지금 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
+
+2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 와 「요청 한도의 집계 기준을 코드에 맞췄다」 에 있다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는 문제는 이 문서가 아니라 [세션과 토큰](CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-BYCGF1`).
 
 ## 구현 위치
 
@@ -885,4 +887,4 @@ NERV Task `CLE-T-TGZGM9` 에서 정했다. 멤버십을 지우는 트랜잭션�
 
 ### 나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)
 
-NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠금 대기 상한을 새 실패 경로로 짚었다. 상한을 넘긴 요청은 매핑되지 않은 500 으로 끝나는데 스펙에 그 동작과 재시도 안내가 없었다. 같은 날 이 에러에 응답 코드를 따로 두지 않고 동작을 스펙에 적기로 정했다. 한도를 넘기면 트랜잭션이 롤백되므로 데이터가 상하지 않는다. 겹칠 상대가 짧은 쓰기라 다시 시도하면 대개 통과한다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 걸고 이 에러를 따로 매핑하지 않는다. 나가기와 멤버 제거만 503 이나 409 로 바꾸면 같은 원인의 실패가 엔드포인트마다 다른 코드로 나간다. 그래서 한도 초과의 응답 코드는 이 동작들을 함께 다룰 때 정한다. 두 엔드포인트의 API 문서 설명에도 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하라는 안내를 넣었다.
+NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠금 대기 상한을 새 실패 경로로 짚었다. 상한을 넘긴 요청은 매핑되지 않은 500 으로 끝나는데 스펙에 그 동작과 재시도 안내가 없었다. 같은 날 이 에러에 응답 코드를 따로 두지 않고 동작을 스펙에 적기로 정했다. 한도를 넘기면 트랜잭션이 롤백되므로 데이터가 상하지 않는다. 겹칠 상대가 짧은 쓰기라 다시 시도하면 대개 통과한다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 걸고 이 에러를 따로 매핑하지 않는다. 나가기와 멤버 제거만 503 이나 409 로 바꾸면 같은 원인의 실패가 엔드포인트마다 다른 코드로 나간다. 그래서 한도 초과의 응답 코드는 이 동작들을 함께 다룰 때 정한다. 두 엔드포인트의 API 문서 설명에도 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하라는 안내를 넣었다. 잠금 대기 상한을 거는 경로들의 응답 코드를 함께 정하는 일은 NERV Task `CLE-T-1C2JE0` 가 맡는다([미결 사항](#미결-사항)).
