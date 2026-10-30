@@ -13,9 +13,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
   EntityManager,
+  FindOptionsWhere,
   In,
   IsNull,
   LessThan,
+  Not,
+  Or,
   Repository,
 } from 'typeorm';
 import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
@@ -220,6 +223,21 @@ function hasReleasedStoreSlot(
   row: Pick<Integration, 'status' | 'statusReason'>,
 ): boolean {
   return row.status === 'expired' && row.statusReason === 'install_timeout';
+}
+
+/**
+ * {@link hasReleasedStoreSlot} 가 거짓인 행만 고르는 SQL 조건(`NOT (status = 'expired' AND status_reason =
+ * 'install_timeout')`). `status` 는 NOT NULL 이지만 `status_reason` 은 NULL 일 수 있고, 사유가 NULL 인 만료 행은 상점 자리를
+ * 놓지 않은 행이다. `status_reason <> 'install_timeout'` 만 쓰면 NULL 행이 빠지므로 NULL 을 따로 받는다. `where` 는 배열로 넘긴
+ * 갈래의 합집합(OR)이라 호출자의 공통 조건에 이 두 갈래를 각각 펼쳐 넣는다.
+ */
+function keptStoreSlotBranches(): Array<
+  Pick<FindOptionsWhere<Integration>, 'status' | 'statusReason'>
+> {
+  return [
+    { status: Not('expired') },
+    { status: 'expired', statusReason: Or(IsNull(), Not('install_timeout')) },
+  ];
 }
 
 /**
@@ -2399,7 +2417,8 @@ export class IntegrationOAuthService {
    * `precheckCafe24Mall` (frontend pre-detection endpoint).
    *
    * 설치 기한이 지나 만료된 행은 두 경로 모두에서 뺀다({@link hasReleasedStoreSlot}, REQ-INTOAUTH-068). 컬럼 경로는
-   * 만료 때 `mall_id` 를 비워 저절로 빠지고, 대체 경로는 `credentials.mall_id` 가 남아 있어 이 판정이 뺀다.
+   * 만료 때 `mall_id` 를 비워 저절로 빠진다. 대체 경로는 `credentials.mall_id` 가 남아 있어 만료 행이 걸리므로
+   * SQL 조건({@link keptStoreSlotBranches})으로 먼저 빼 `credentials` 를 읽고 복호화하지 않는다. 읽은 뒤의 판정은 방어선이다.
    *
    * Performance — `Promise.all` 병렬 발행으로 평균 응답 latency 절반.
    * legacy 쿼리는 backfill 완료 후 제거 예정이며 그 시점에 단일 쿼리로 회귀.
@@ -2413,8 +2432,15 @@ export class IntegrationOAuthService {
       repo.find({
         where: { workspaceId, serviceType: 'cafe24', mallId },
       }),
+      // 만료로 `mall_id` 가 비워진 install_timeout 행이 시간이 지날수록 이 집합에 쌓인다. 그 행은 어차피 아래에서 빠지므로
+      // SQL 에서 먼저 빼 `credentials` 를 읽고 복호화하는 비용을 내지 않는다. 아래 `hasReleasedStoreSlot` 필터는 방어선으로 남긴다.
       repo.find({
-        where: { workspaceId, serviceType: 'cafe24', mallId: IsNull() },
+        where: keptStoreSlotBranches().map((branch) => ({
+          workspaceId,
+          serviceType: 'cafe24',
+          mallId: IsNull(),
+          ...branch,
+        })),
       }),
     ]);
     const legacy = legacyRaw.filter(

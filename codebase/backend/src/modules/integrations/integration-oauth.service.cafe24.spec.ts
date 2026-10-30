@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { createHmac } from 'crypto';
-import { In } from 'typeorm';
+import { In, IsNull, Not, Or } from 'typeorm';
 import { Workspace } from '../workspaces/entities/workspace.entity';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { encryptJson } from './services/credentials-transformer';
@@ -1719,6 +1719,45 @@ describe('IntegrationOAuthService — Cafe24', () => {
         await expect(
           service.precheckCafe24Mall('ws-1', 'priv-shop', 'u-1'),
         ).resolves.toEqual({ conflict: false });
+      });
+
+      // 만료 때 `mall_id` 가 비워진 행은 옛 행 대체 조회(`mall_id IS NULL`)의 집합에 들어온다. 읽은 뒤에 버리면 `credentials` 를
+      // 읽고 복호화하는 비용을 이미 낸 뒤라서 SQL 조건으로 먼저 뺀다. 이 단언은 조건이 빠지면 깨진다.
+      it('옛 행 대체 조회는 install_timeout 만료 행을 SQL 조건으로 먼저 빼고 사유가 NULL 인 만료 행은 남긴다', async () => {
+        answerByBranch([], []);
+
+        await service.precheckCafe24Mall('ws-1', 'priv-shop', 'u-1');
+
+        const calls = (
+          integrationRepo.find.mock.calls as Array<
+            [
+              {
+                where: Record<string, unknown> | Array<Record<string, unknown>>;
+              },
+            ]
+          >
+        ).map(([opts]) => opts.where);
+        const legacyWheres = calls.filter((where) => Array.isArray(where));
+        expect(legacyWheres).toHaveLength(1);
+        const common = {
+          workspaceId: 'ws-1',
+          serviceType: 'cafe24',
+          mallId: IsNull(),
+        };
+        // OR 두 갈래: 만료가 아니거나, 만료여도 사유가 NULL 이거나 install_timeout 이 아니다.
+        // `status_reason <> 'install_timeout'` 만 쓰면 사유가 NULL 인 만료 행이 같이 빠진다(SQL 의 NULL 비교).
+        expect(legacyWheres[0]).toEqual([
+          { ...common, status: Not('expired') },
+          {
+            ...common,
+            status: 'expired',
+            statusReason: Or(IsNull(), Not('install_timeout')),
+          },
+        ]);
+        // 상점 컬럼 조회는 `mall_id` 가 맞는 행만 읽으므로 이 조건이 없다.
+        expect(calls.filter((where) => !Array.isArray(where))).toEqual([
+          { workspaceId: 'ws-1', serviceType: 'cafe24', mallId: 'priv-shop' },
+        ]);
       });
 
       it('install_timeout 이 아닌 만료 행은 옛 행 경로에서도 충돌이다', async () => {

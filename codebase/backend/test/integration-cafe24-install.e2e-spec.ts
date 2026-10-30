@@ -185,6 +185,8 @@ describe('Cafe24 install endpoint (e2e)', () => {
     installToken: string | null;
     status: 'connected' | 'error' | 'expired';
     statusReason?: string;
+    /** true 이면 `mall_id` 컬럼을 비운다(만료 스캐너가 비운 행 · V045 이전 옛 행). 상점 값은 credentials 안에만 남는다. */
+    clearMallIdColumn?: boolean;
   }): Promise<string> {
     // 설치가 끝난 Cafe24 Private 행. credentials 는 insertPendingInstall 과 같은 이유로 평문 JSONB 다.
     const credentials = {
@@ -208,7 +210,7 @@ describe('Cafe24 install endpoint (e2e)', () => {
         uniqueName('cafe24-reinstall'),
         opts.status,
         opts.statusReason ?? null,
-        opts.mallId,
+        opts.clearMallIdColumn ? null : opts.mallId,
         opts.installToken,
         JSON.stringify(credentials),
         owner.userId,
@@ -783,6 +785,30 @@ describe('Cafe24 install endpoint (e2e)', () => {
         created_by: other.userId,
       });
     });
+
+    // `mall_id` 컬럼이 빈 행은 옛 행 대체 조회(`mall_id IS NULL`)로 찾는다. 그 조회가 install_timeout 만료 행만 SQL 에서 빼는지,
+    // 사유가 NULL 이거나 다른 만료 행은 `status_reason <> 'install_timeout'` 의 NULL 비교에 빠지지 않고 남는지 실제 DB 로 본다.
+    it.each([
+      ['install_timeout', false],
+      ['token_expired', true],
+      [undefined, true],
+    ] as const)(
+      '컬럼이 빈 만료 행(사유 %s)이 같은 상점을 막는가: %s',
+      async (statusReason, blocks) => {
+        const mallId = 'mall-' + randomBytes(4).toString('hex');
+        await insertPrivateIntegration({
+          mallId,
+          installToken: null,
+          status: 'expired',
+          statusReason,
+          clearMallIdColumn: true,
+        });
+
+        const check = await precheck(mallId);
+        expect(check.status).toBe(200);
+        expect(check.body.data.conflict).toBe(blocks);
+      },
+    );
 
     it('토큰 만료로 expired 가 된 행은 여전히 같은 상점을 막는다', async () => {
       const mallId = 'mall-' + randomBytes(4).toString('hex');
