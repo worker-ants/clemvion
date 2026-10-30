@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "9f8003cda31b42bd2aa111a0257f19d2e20e2b0e587709e5e100e8afc031e2ff"
 read_as: "approved_fallback"
-task: "CLE-T-G56XCH"
+task: "CLE-T-PS7JQY"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "c58a2ae2b9654df72fe12656a24c568b9a39b4ef7ff0825f9048735dd7d36879"
-etag: "sha256-7a3b50e64e1b547b1d6b8d7553277201da48ce94555160e6199b6d54866692eb"
+mirror_sha256: "327a561fd1a6063c31b620187e6aabf7d49cb5b8406abd6b30486169c3efd6a4"
+etag: "sha256-a7c626c8a6926494a171e54a5a5c83aaf47efd8b6bbf438063d8891f1360ca23"
 ---
 > 구현 상태: 부분 구현 (나가기 · 제거 때의 개인 통합 삭제와 그 안내, 멤버 제거 확인 다이얼로그는 미구현) · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

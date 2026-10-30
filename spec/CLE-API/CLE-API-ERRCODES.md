@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
 content_hash: "2ea3efde4492f0afad9bb429a661cedaa24ad33760647ad58ec69d7a8a26520b"
 read_as: "approved_fallback"
-task: "CLE-T-G56XCH"
+task: "CLE-T-PS7JQY"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "d33feb846358bb3fd96911e8d20ce0d5a354d393760102a11c160736e5952ef4"
-etag: "sha256-5aa8443e360620b4d09851272a4e01ee41aac689d416a9bb6db83b6fe60a8407"
+mirror_sha256: "305a7a2ea944bca0d317acf1485ff97628717a7532ca32ed34f7fb562c2fe1c8"
+etag: "sha256-3a64abe16d70b4f22a3f7bd8a42d1e4d5b9b50e299a10e8c2a92674ff142c0b7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
