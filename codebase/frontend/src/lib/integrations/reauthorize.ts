@@ -3,20 +3,20 @@ import type { IntegrationDto } from "@/lib/api/integrations";
 /**
  * `status_reason` value used when a `pending_install` Cafe24 Private or
  * MakeShop row times out after the install TTL (see backend
- * integration-expiry scanner).
- * Shared so FE branches don't drift from the snake_case value the backend
- * writes.
+ * integration-expiry scanner). Branch on {@link isInstallTimedOut} instead of
+ * comparing against this value. It stays exported for tests.
  */
 export const INSTALL_TIMEOUT_REASON = "install_timeout";
 
 /**
  * Whether an install-pending row (Cafe24 Private, MakeShop) expired because
- * its install deadline passed. Both `status` and `statusReason` must match:
- * the reason alone also shows up on rows in other states. Such a row lets go
- * of its store, so the user registers the same store again without deleting
- * it (a reused name still conflicts). Every surface that branches on the
- * install timeout (disabled reasons, status badge, pending steps) uses this.
- * NERV CLE-INT-OAUTH, Task CLE-T-YMF05E.
+ * its install deadline passed. Such a row lets go of its store, so the user
+ * registers the same store again without deleting it (a reused name still
+ * conflicts). It checks `status` as well as `statusReason`, the same condition
+ * as the server's `hasReleasedStoreSlot` (`integration-oauth.service.ts`,
+ * REQ-INTOAUTH-068). If one changes, change the other. Every surface that
+ * branches on the install timeout (disabled reasons, status badge, pending
+ * steps) uses this. NERV CLE-INT-OAUTH, Task CLE-T-YMF05E.
  */
 export function isInstallTimedOut(
   integration: Pick<IntegrationDto, "status" | "statusReason">,
@@ -79,7 +79,7 @@ function isCafe24PrivateWithoutAppUrl(integration: IntegrationDto): boolean {
  *
  * Cafe24 Private with an App URL is available: the server records a reinstall
  * request and the user finishes it with "테스트 실행" in Cafe24 Developers.
- * NERV CLE-INT-MANAGE · CLE-INT-OAUTH, Task CLE-T-NNENG8.
+ * NERV CLE-INT-MANAGE · CLE-INT-OAUTH, Task CLE-T-NNENG8 · CLE-T-395HK2.
  */
 export function reauthorizeDisabledReason(
   integration: IntegrationDto,
@@ -114,7 +114,7 @@ export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
  *   you need).
  * - A Cafe24 Private row without an App URL (`no_app_url`) cannot finish one.
  *
- * NERV CLE-INT-OAUTH, Task CLE-T-NNENG8.
+ * NERV CLE-INT-OAUTH, Task CLE-T-NNENG8 · CLE-T-395HK2.
  */
 export function requestScopesDisabledReason(
   integration: IntegrationDto,

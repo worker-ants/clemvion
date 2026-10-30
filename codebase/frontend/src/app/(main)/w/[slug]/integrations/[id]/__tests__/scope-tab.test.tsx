@@ -333,8 +333,41 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     ).toBeDisabled();
   });
 
+  // 설치 기한 초과가 아닌 만료는 상점 자리를 놓지 않는다. MakeShop 행은 그대로 삭제 후 재등록 안내다.
+  it("keeps the delete-and-register-again hint for a MakeShop row expired for another reason", async () => {
+    const { render: renderFn } = renderScopeTab({
+      integration: buildIntegration({
+        status: "expired",
+        statusReason: "token_expired",
+        serviceType: "makeshop",
+        meta: { appType: null },
+      }),
+    });
+    await act(async () => {
+      renderFn();
+    });
+
+    expect(
+      screen.getByText(/MakeShop integrations can't be granted new scopes/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/expired because the install timed out/)).toBeNull();
+  });
+
   // 설치 시간이 지나 만료된 행은 App URL 도 비어 있지만(설치 토큰이 지워진다) 삭제 없이 같은 상점을 다시 등록하면 된다.
-  // 문구는 언어마다 사전 값으로 비교한다. 삭제한 뒤 다시 등록하라는 두 문구(App URL 없음 · MakeShop)는 보이지 않는다.
+  // 안내 문구는 언어마다 알아보는 구절로 내용을 확인한다. 삭제를 요구하는 말은 없어야 한다.
+  const INSTALL_TIMEOUT_COPY = {
+    en: {
+      reRegister: /register the same store again with the scopes you need without deleting this one/,
+      renameOnConflict: /If the name is taken, use a different name/,
+      deleteRequired: /delete (it|the integration) and register/i,
+    },
+    ko: {
+      reRegister: /이 통합을 지우지 않아도 필요한 권한으로 같은 상점을 새로 등록할 수 있어요/,
+      renameOnConflict: /이름이 겹치면 다른 이름으로 등록해 주세요/,
+      deleteRequired: /삭제/,
+    },
+  } as const;
+
   describe.each(["en", "ko"] as const)("locale %s", (locale) => {
     beforeEach(() => {
       useLocaleStore.setState({ locale });
@@ -368,11 +401,16 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
           renderFn();
         });
 
-        expect(
-          screen.getByText(
-            translate(locale, "integrations.requestScopesDisabledInstallTimeout"),
-          ),
-        ).toBeInTheDocument();
+        const hint = screen.getByText(
+          translate(locale, "integrations.requestScopesDisabledInstallTimeout"),
+        );
+        expect(hint).toHaveTextContent(INSTALL_TIMEOUT_COPY[locale].reRegister);
+        expect(hint).toHaveTextContent(
+          INSTALL_TIMEOUT_COPY[locale].renameOnConflict,
+        );
+        expect(hint).not.toHaveTextContent(
+          INSTALL_TIMEOUT_COPY[locale].deleteRequired,
+        );
         expect(
           screen.queryByText(
             translate(locale, "integrations.requestScopesDisabledNoAppUrl"),

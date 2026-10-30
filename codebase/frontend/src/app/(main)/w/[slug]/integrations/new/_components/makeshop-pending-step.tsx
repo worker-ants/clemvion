@@ -121,6 +121,10 @@ export function MakeshopPendingStep({
           {t("integrations.makeshopPendingTimedOut")}
         </p>
       )}
+      {/* Polling stops when status transitions out of pending_install. An
+       * install_timeout expiry tells the user to register the same store again
+       * (the row let go of its store, so no delete is needed). Any other ending
+       * points to the detail page. */}
       {poll &&
         poll.status !== "pending_install" &&
         poll.status !== "connected" && (
