@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "efd1151265a572a050b63a87320d917d66ea55611a47d1c7bf795d1e3b3cb614"
+content_hash: "60029d1f47e3f62de93b2154c344c59fe2e8a17ccafe9ab3df6b12a67309cab1"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-NWHVMN"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "460925cfb1f70d020939983f428a1a5ccfe00005f8ea57427de9777a5798cc8f"
-etag: "sha256-3690ac079a54960c7a26ec934d8598a1ab73ffb512a3d53f062db0131ff5812d"
+mirror_sha256: "b96ddb214d10748be161f3f024da87199aa21a298b18f71d460f02d88d738fdb"
+etag: "sha256-e7803ec89d4a08beb5123918fef7db999ce0976788083fd2cd032c2c4d991589"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -182,8 +182,8 @@ etag: "sha256-3690ac079a54960c7a26ec934d8598a1ab73ffb512a3d53f062db0131ff5812d"
 | `INVALID_OPTIONS_TOKEN` | 400 | WebAuthn register·verify 의 optionsToken(짧은 수명의 서명 토큰) 무효 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `CHALLENGE_INVALID` | 401 | 로그인 2단계의 챌린지 토큰(`challengeToken`, `mfa_challenge` JWT)이 만료 · 위조됐거나 2단계용 토큰이 아님. TOTP 검증(`POST /api/auth/login/totp`)과 Passkey 옵션 · 검증 · 복구 코드 경로가 함께 쓴다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `CHALLENGE_METHOD_MISMATCH` | 401 | 로그인 2단계에서 챌린지 토큰(`challengeToken`)이 정한 방식과 다른 경로를 부름. TOTP 챌린지(`methods: ['totp']`)로 받은 토큰을 Passkey 옵션 · 검증 · 복구 코드 경로에 보낸 경우다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
-| `WEBAUTHN_INVALID` | 401 | Passkey 로그인 2단계 검증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이 두 경우는 아직 구현되지 않았다([가입과 로그인 「sign counter 역행과 동시성」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성)). counter 역행은 별도 코드 `WEBAUTHN_COUNTER_REGRESSION` 이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `WEBAUTHN_COUNTER_REGRESSION` | 401 | Passkey 로그인 2단계에서 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 인증기의 sign counter 가 저장값 이하로 돌아감(저장값과 응답 값이 모두 0 이면 역행이 아니다). 서버가 그 credential 을 지우고 사용자의 리프레시 토큰을 모두 무효화한 뒤 이 코드로 거부한다. 처음 쓰는 챌린지와 서명 통과라는 조건은 아직 구현되지 않았다. 로그인 이력 `failure_reason` 에는 같은 이름의 사유값이 남는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
+| `WEBAUTHN_INVALID` | 401 | Passkey 로그인 2단계 검증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이미 쓴 챌린지 거부는 아직 구현되지 않았다([가입과 로그인 「sign counter 역행과 동시성」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성)). counter 역행은 별도 코드 `WEBAUTHN_COUNTER_REGRESSION` 이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `WEBAUTHN_COUNTER_REGRESSION` | 401 | Passkey 로그인 2단계에서 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 인증기의 sign counter 가 저장값 이하로 돌아감(저장값과 응답 값이 모두 0 이면 역행이 아니다). 서버가 그 credential 을 지우고 사용자의 리프레시 토큰을 모두 무효화한 뒤 이 코드로 거부한다. 처음 쓰는 챌린지라는 조건은 아직 구현되지 않았다. 로그인 이력 `failure_reason` 에는 같은 이름의 사유값이 남는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)을 부름. Passkey 가 있으면 TOTP 로 로그인할 수 없다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 TOTP 로 로그인하므로 나지 않는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 TOTP 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. Passkey 만 등록한 계정도 여기에 든다. 이메일 변경과 로그인 세션 강제 종료의 계정 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |

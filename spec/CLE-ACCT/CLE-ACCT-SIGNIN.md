@@ -2,21 +2,21 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "4a7838f5931db64afc025902584c7f41786ba3f5fc90a562a2abb08ea90a9246"
+content_hash: "e319239f14c0c71a4768cb217492fbde4c8ee0dc7cfefc01e895cf0b23e1977b"
 read_as: "approved_fallback"
 task: "CLE-T-NWHVMN"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "2d6919df3f1144ff92872c4387e16c5318f408d6c936346506f1ebe7bff68bdb"
-etag: "sha256-71fa56a7cd29cfd3211ff7f5a9e7dd68453e70d4a9b8247862436e764abd9723"
+mirror_sha256: "19a8702f2641e1baaa34c3d69fc7324e8a4209623e8837186b938f9249ba2d8b"
+etag: "sha256-fdb0441922dda914f86a774f77fc4cef5c9b605af3a4173bfdc67c87bc109843"
 ---
-> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용, 서명 확인 뒤의 counter 판정은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -104,7 +104,7 @@ etag: "sha256-71fa56a7cd29cfd3211ff7f5a9e7dd68453e70d4a9b8247862436e764abd9723"
 - REQ-SIGNIN-067 IF Passkey 기능이 꺼져 있는 동안 Passkey credential 이 1개 이상 있고 TOTP 가 꺼진 사용자가 로그인 1단계를 통과하면 THE SYSTEM SHALL 토큰을 발급하지 않고 503 `WEBAUTHN_DISABLED` 로 거부한다. (미구현)
 - REQ-SIGNIN-068 WHEN 로그인 2단계 Passkey 인증 검증 요청을 받으면 THE SYSTEM SHALL 서명과 counter 를 판정하기 전에 그 요청의 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)를 만료 시각까지 다시 쓰지 못하게 기록한다. (미구현)
 - REQ-SIGNIN-069 IF 이미 인증 검증에 쓴 Passkey 인증 챌린지로 인증 검증 요청이 오면 THE SYSTEM SHALL credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 로 거부한다. (미구현)
-- REQ-SIGNIN-070 IF Passkey 인증 응답이 서명 검증을 통과하지 못하면 THE SYSTEM SHALL counter 값과 상관없이 credential 을 지우지 않고 401 `WEBAUTHN_INVALID` 로 거부한다. (부분 구현)
+- REQ-SIGNIN-070 IF Passkey 인증 응답이 서명 검증을 통과하지 못하면 THE SYSTEM SHALL counter 값과 상관없이 credential 을 지우지 않고 401 `WEBAUTHN_INVALID` 로 거부한다.
 - REQ-SIGNIN-071 IF Passkey 인증 검증이 실패하면 THE SYSTEM SHALL 같은 챌린지 토큰(`challengeToken`)으로 새 옵션을 받거나 Passkey 복구 코드로 통과할 수 있게 둔다.
 
 ## 인증 화면 공통
@@ -390,7 +390,7 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 1. `POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }`. 서버가 챌린지 토큰을 검증하고 `generateAuthenticationOptions` 와 `optionsToken`(`kind=webauthn_auth`, 5분)을 준다.
 2. 클라이언트가 `navigator.credentials.get(options)` 를 호출한다.
-3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버가 먼저 그 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 `verifyAuthenticationResponse` 로 검증하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
+3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버가 먼저 그 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 `verifyAuthenticationResponse` 로 서명을 검증한다. 서명이 맞으면 counter 역행을 판정하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
 
 복구 코드로 통과할 때는 `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }` 를 부른다. 서버는 `webauthn_recovery_codes` 해시와 비교해 맞으면 그 항목을 지우고 JWT 를 발급한다.
 
@@ -413,7 +413,9 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 역행은 응답의 sign counter 가 저장값 이하인 경우다. 저장값과 응답 값이 모두 0 이면 counter 를 쓰지 않는 인증기로 보고 역행으로 판정하지 않는다. `@simplewebauthn/server` 의 판정과 같다.
 
-서명 검증을 통과하지 못한 응답은 counter 값과 상관없이 401 `WEBAUTHN_INVALID` 이고 credential 을 지우지 않는다. 서명이 틀린 응답으로 지우면 그 사용자의 비밀번호만 아는 사람이 인증기 없이 credential 을 지우고 로그인 세션을 모두 끝낼 수 있기 때문이다. 지금 구현은 서명을 확인하기 전에 counter 역행으로 판정한다. NERV Task `CLE-T-NWHVMN` 이 고친다.
+서명 검증을 통과하지 못한 응답은 counter 값과 상관없이 401 `WEBAUTHN_INVALID` 이고 credential 을 지우지 않는다. 서명이 틀린 응답으로 지우면 그 사용자의 비밀번호만 아는 사람이 인증기 없이 credential 을 지우고 로그인 세션을 모두 끝낼 수 있기 때문이다.
+
+이 문서에서 서명 검증을 통과했다는 것은 `verifyAuthenticationResponse` 가 `verified: true` 를 돌려줬다는 뜻이다. 라이브러리는 그 안에서 challenge · origin · rpID · 사용자 확인 플래그(UV)를 확인하고 저장된 공개 키로 서명을 확인한다. 라이브러리도 counter 를 비교하지만 서명보다 먼저 비교해서 서명이 틀린 응답도 역행 에러로 끝낸다. 그래서 서비스는 라이브러리에 저장 counter 대신 0 을 넘겨 그 비교를 끄고, `verified: true` 를 받은 뒤에 위 규칙으로 직접 비교한다. 라이브러리가 검증 중에 에러를 던지거나 `verified: false` 를 돌려주면 모두 401 `WEBAUTHN_INVALID` 다.
 
 `verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. credential 행은 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 의 두 요청은 같은 챌린지를 쓰므로 챌린지 기록에서 한쪽만 이 트랜잭션에 들어가고 다른 쪽은 401 `WEBAUTHN_INVALID` 를 받는다. 다른 챌린지로 같은 credential 의 요청이 동시에 오면 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다. 지금 구현에는 챌린지 기록이 없다. 그래서 같은 assertion 의 두 번째 요청이 갱신된 counter 를 읽고 역행으로 처분된다. credential 이 지워지고 첫 요청이 받은 로그인 세션도 끝난다(NERV Task `CLE-T-GK9J2B`). 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
 
@@ -646,7 +648,7 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 | POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT). `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다. 기능이 꺼져 있으면 503 `WEBAUTHN_DISABLED` |
 | POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 에러 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID`, TOTP 챌린지로 받은 챌린지 토큰 401 `CHALLENGE_METHOD_MISMATCH` |
-| POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. 이미 쓴 챌린지 거부와 서명 확인 뒤의 counter 판정은 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
+| POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. 이미 쓴 챌린지 거부는 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
 | POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID`. 챌린지 토큰 실패는 options 와 같다 |
 | GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ items: [{ id, deviceName, transports, lastUsedAt, createdAt }] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다 |
 | PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 내 것이 아니면 404(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
@@ -695,7 +697,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `INVALID_OPTIONS_TOKEN` | 400 | `optionsToken` 무효 |
 | `CHALLENGE_INVALID` | 401 | 로그인 2단계 챌린지 토큰이 만료 · 위조됐거나 챌린지 토큰이 아님. TOTP 검증과 Passkey 옵션 · 검증 · 복구 코드가 함께 쓴다 |
 | `CHALLENGE_METHOD_MISMATCH` | 401 | TOTP 챌린지(`methods: ['totp']`)로 받은 챌린지 토큰을 Passkey 옵션 · 검증 · 복구 코드에 보냄 |
-| `WEBAUTHN_INVALID` | 401 | Passkey 인증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이 두 경우는 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)). counter 역행은 아래 `WEBAUTHN_COUNTER_REGRESSION` 이다 |
+| `WEBAUTHN_INVALID` | 401 | Passkey 인증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이미 쓴 챌린지 거부는 아직 구현되지 않았다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)). counter 역행은 아래 `WEBAUTHN_COUNTER_REGRESSION` 이다 |
 | `WEBAUTHN_COUNTER_REGRESSION` | 401 | 처음 쓰는 Passkey 인증 챌린지로 온 인증 응답이 서명 검증을 통과했는데 sign counter 가 저장값 이하로 돌아감(둘 다 0 이면 역행이 아니다). 그 credential 을 지우고 리프레시 토큰을 모두 무효화한 뒤 거부한다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
 | `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 TOTP 로 로그인 2단계를 통과하려 함(`POST /api/auth/login/totp`). Passkey 만 있는 계정은 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 나지 않는다 |
 | `RECOVERY_CODE_INVALID` | 401 | Passkey 복구 코드 불일치 |
@@ -719,7 +721,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/backend/src/common/utils/postgres-text.ts` (표시 이름의 NUL 문자 · 코드 포인트 수 검증기)
 - `codebase/backend/src/common/utils/postgres-text.spec.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.spec.ts` (표시 이름 검증기와 등록 검증 · 이름 변경 DTO 의 단위 테스트)
 - `codebase/backend/test/totp-disable.e2e-spec.ts` (TOTP 끄기의 비밀번호·코드 확인과 DB 상태)
-- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
+- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 서명이 틀린 응답의 거부, counter 가 늘 0 인 인증기, 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
 - `codebase/frontend/src/app/(auth)/**` (`callback/callback-content.tsx` 의 소셜 로그인 복귀 포함)
 - `codebase/frontend/src/components/auth/**` (`register-form.tsx` · `login-form.tsx` 포함)
 - `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동할 곳, 소셜 로그인의 복귀 경로 저장과 꺼내기, 초대 수락 페이지로 돌아오는 로그인 경로 `buildInvitationLoginHref`. 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다)
@@ -770,7 +772,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### Passkey 라이브러리: `@simplewebauthn/server` 와 `@simplewebauthn/browser`
 
-같은 메인테이너가 서버와 브라우저 모듈을 함께 관리한다. FIDO2 L3·WebAuthn 명세를 빨리 따라가고, 등록과 인증의 `generate`·`verify` 쌍이 대칭이라 코드가 단순하다. 서버 라이브러리가 origin·rpID·challenge 일관성 검증과 counter 역행 감지를 제공해 이 문서의 보안 요구를 그대로 만족한다.
+같은 메인테이너가 서버와 브라우저 모듈을 함께 관리한다. FIDO2 L3·WebAuthn 명세를 빨리 따라가고, 등록과 인증의 `generate`·`verify` 쌍이 대칭이라 코드가 단순하다. 서버 라이브러리가 origin·rpID·challenge 일관성과 서명을 검증한다. counter 역행 판정은 라이브러리에 맡기지 않는다. 라이브러리는 counter 를 서명보다 먼저 비교하므로 서비스가 서명을 확인한 뒤 직접 비교한다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)). 라이브러리를 올릴 때는 저장 counter 자리에 0 을 넘기면 counter 비교로 에러가 나지 않는지와 `authenticationInfo.newCounter` 가 응답의 counter 인지 확인한다.
 
 서버와 브라우저 모두 v14 를 쓴다. `@simplewebauthn/server` 를 v13 에서 v14 로 올리면서 정한 것은 다음과 같다(2026-10-16, NERV Task `CLE-T-34HB5X`).
 
@@ -780,7 +782,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - 기본 목록을 그대로 받는 안은 기각했다. ML-DSA 키로 등록한 credential 은 인증할 때마다 런타임의 실험 기능에 기댄다. 런타임을 바꾸거나 그 기능이 바뀌면 그 사용자가 로그인하지 못할 수 있다. PQC 도입은 런타임 지원이 안정된 뒤 따로 정한다.
 - 등록 옵션만 고정하는 안도 기각했다. 옵션을 따르지 않는 클라이언트가 ML-DSA 키를 보내면 등록 검증이 받아들인다. 그래서 등록 검증도 목록 밖 알고리즘을 400 `WEBAUTHN_VERIFY_FAILED` 로 거부한다.
 - v13 에 머무는 안도 기각했다. 14.0.0(2026-09-02) 뒤로 v13 라인 릴리스가 없고 그 뒤 수정은 모두 v14 릴리스로 나왔다.
-- 이미 등록된 credential 은 v13 과 같은 알고리즘이라 그대로 인증된다. counter 역행을 알리는 에러 메시지도 v13 과 같아서 역행 감지가 그대로 동작한다.
+- 이미 등록된 credential 은 v13 과 같은 알고리즘이라 그대로 인증된다. 올릴 때는 counter 역행을 알리는 라이브러리 에러 메시지가 v13 과 같은지도 확인했다. 2026-10-30 부터 역행 판정은 이 메시지에 기대지 않는다(「counter 역행이면 credential 을 지운다」).
 
 ### 등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다 (2026-10-16)
 
@@ -843,6 +845,12 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 counter 역행은 인증기 복제 공격이나 인증기 firmware 에러 둘 중 하나다. 둘 다 신뢰가 깨진 상태라 바로 신뢰를 거둔다. 같은 assertion 의 중복 요청은 챌린지 기록에서 먼저 거부되고 서명이 틀린 응답은 역행으로 판정하지 않는다. 그래서 역행 판정까지 오는 응답은 이 두 경우뿐이다(2026-10-17, 「Passkey 인증 챌린지는 한 번만 쓴다」). suspend(`disabled_at` 컬럼과 명시적 재활성화)는 사용자에게 재활성화 선택지를 주는데, 복제한 공격자가 본인인 척 재활성화해도 효과가 같아 보안 이득이 작다. 추가 컬럼·UI 흐름·테스트가 줄어 운영이 단순하고 재등록 비용은 작다.
 
 2026-10-17 추가(NERV Task `CLE-T-D331TT`): counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 비우지 않는다. 사용자가 마지막 credential 을 지울 때는 비우므로 둘이 다르다. 지금 구현이 이렇게 동작하고 이번에 문서에 적었다. 남은 코드는 쓸 곳이 거의 없다. credential 이 없으면 로그인 응답이 `methods: ['webauthn']` 가 아니다. 쓸 수 있는 곳은 삭제 전에 `methods: ['webauthn']` 로 발급된 챌린지 토큰(`challengeToken`, 5분)뿐이고 그 토큰은 로그인 1단계를 통과해야 받는다. 첫 등록은 credential 수가 0 인지로 판정하므로 다음 등록 때 새 코드로 바뀐다. 역행 트랜잭션에서 복구 코드도 비우는 안은 처음에 미뤘다. counter 역행 처분의 범위를 정하는 사람 결정이 남아 있었기 때문이다. 그 결정으로 범위가 처음 쓰는 챌린지에서 서명이 맞는 응답으로 좁혀졌다. 범위가 좁혀져도 남은 코드를 쓸 곳은 그대로라 비워서 얻는 것이 없다. 그래서 비우는 안은 기각하고 지금 동작을 유지한다. 이 Task 는 이 동작을 바꾸지 않는다.
+
+2026-10-30 추가(NERV Task `CLE-T-NWHVMN`): 역행은 서명이 확인된 응답에서만 판정한다. 그 전 구현은 `@simplewebauthn/server` 의 counter 비교를 그대로 썼다. 라이브러리는 counter 를 서명보다 먼저 비교한다. 그래서 서명이 틀린 응답도 counter 만 저장값 이하면 역행 에러가 났고 서비스는 credential 을 지우고 리프레시 토큰을 모두 무효화했다. 저장 counter 가 0 보다 크면 인증기 없이 이런 응답을 만들 수 있다. 비밀번호로 로그인 1단계를 통과하면 인증 옵션의 `allowCredentials` 에서 credential id 를 받기 때문이다. 그러면 그 사용자는 Passkey 를 잃고 로그인 세션이 모두 끝난다. 지워진 것이 마지막 Passkey 이고 TOTP 도 없으면 다음 로그인은 2단계 인증 없이 비밀번호만으로 통과한다.
+
+- **기각: 서명을 확인하기 전에 counter 로 처분한다.** 라이브러리의 판정을 그대로 쓰는 그 전 동작이다. 위 공격을 막지 못한다.
+- **기각: 라이브러리 에러 메시지로 역행을 가려낸다.** 그 전 구현은 에러 문구를 정규식으로 맞춰 역행과 다른 실패를 갈랐다. 라이브러리가 문구를 바꾸면 역행이 조용히 `WEBAUTHN_INVALID` 로 바뀐다. 서명 확인 뒤에 서비스가 직접 비교하면 문구에 기대지 않는다.
+- **기각: 서명 확인을 따로 한다.** 라이브러리의 counter 에러를 받은 뒤 서명을 다시 확인하거나 서명 확인 함수를 직접 부르는 안이다. 라이브러리가 하는 challenge · origin · rpID · 사용자 확인 플래그(UV) 확인까지 서비스가 다시 맞춰야 한다. 저장 counter 자리에 0 을 넘기면 라이브러리의 확인을 그대로 쓰고 counter 비교만 서비스로 옮긴다.
 
 ### 로그인에서 TOTP 로 자동 전환하지 않는다
 
