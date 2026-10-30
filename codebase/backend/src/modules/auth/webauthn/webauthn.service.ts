@@ -30,6 +30,7 @@ import { UsersService } from '../../users/users.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { LoginHistoryService } from '../login-history.service';
+import { WebAuthnAuthChallengeService } from './webauthn-auth-challenge.service';
 import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
 import { hasNoNulCharacter } from '../../../common/utils/postgres-text';
 
@@ -38,7 +39,8 @@ const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1
 
 /**
  * sign counter 역행 판정. 응답 값이 저장값 이하면 역행이다. 둘 다 0 이면 counter 를 쓰지 않는
- * 인증기라 역행으로 보지 않는다(`@simplewebauthn/server` 의 판정과 같다, REQ-SIGNIN-028).
+ * 인증기라 역행으로 보지 않는다. 라이브러리(`@simplewebauthn/server`)가 원래 쓰던 판정식과
+ * 같다(REQ-SIGNIN-028).
  * 서명이 확인된 응답에만 부른다(REQ-SIGNIN-070).
  */
 function isSignCounterRegression(
@@ -130,6 +132,7 @@ export class WebAuthnService {
     private readonly configService: ConfigService,
     private readonly loginHistory: LoginHistoryService,
     private readonly dataSource: DataSource,
+    private readonly authChallenges: WebAuthnAuthChallengeService,
   ) {}
 
   private getConfig(): WebAuthnConfig {
@@ -348,8 +351,15 @@ export class WebAuthnService {
   }
 
   /**
-   * verify 후 counter 갱신. counter 역행 시 row 즉시 삭제 + LoginHistory `webauthn_failed`.
-   * (spec Rationale 1.4.E)
+   * 로그인 2단계 Passkey 인증 검증. CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 ·
+   * 「sign counter 역행과 동시성」.
+   *
+   * 챌린지 1회 사용 (REQ-SIGNIN-030 · 068 · 069):
+   *   옵션 토큰을 검증한 뒤, 서명과 counter 를 판정하기 전에 그 챌린지를 쓴 것으로 기록한다.
+   *   이미 쓴 챌린지면 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID`.
+   *   같은 assertion 의 중복 요청(버튼 두 번 누르기 · 재전송)이 여기서 끝나므로 counter
+   *   역행 판정까지 오는 응답은 처음 쓰는 챌린지뿐이다. 기록하지 못하면 503
+   *   `SERVICE_UNAVAILABLE` 로 판정 전에 멈춘다(fail-closed).
    *
    * 판정 순서 (REQ-SIGNIN-028 · 070):
    *   `@simplewebauthn/server` 는 counter 비교를 서명 검증보다 먼저 한다. 저장 counter 를
@@ -357,17 +367,15 @@ export class WebAuthnService {
    *   credential 을 지우고 세션을 끝낼 수 있다(TOTP 가 없으면 2단계 인증이 벗겨진다).
    *   그래서 라이브러리에는 counter 0 을 넘겨 그 비교를 끄고, 서명이 확인된 응답에서만
    *   `newCounter` 와 저장값을 직접 비교한다. 서명이 틀리면 counter 와 상관없이 `invalid`.
+   *   역행이면 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다.
    *
-   * 동시 verify race 차단 (review W-8 → follow-up §7):
-   *   SELECT FOR UPDATE 으로 credential row 를 pessimistic lock 해서 counter read·write
-   *   를 직렬화한다. 두 동시 요청이 같은 assertion 으로 들어와도 한쪽은 lock 대기 →
-   *   첫 요청이 counter=N+1 로 갱신한 뒤 두 번째 요청은 갱신된 counter=N+1 을 읽으므로
-   *   역행으로 판정된다(같은 assertion 의 중복 요청을 챌린지 일회 사용으로 막는 일은
-   *   NERV Task `CLE-T-GK9J2B` 가 맡는다).
+   * 같은 credential 의 동시 요청:
+   *   SELECT FOR UPDATE 로 credential 행을 잠가 counter 읽기 · 쓰기를 직렬화한다. 다른
+   *   챌린지로 온 두 요청은 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다.
    *
-   * audit log (`LoginHistory.record`) 는 트랜잭션 *밖* 에서 호출 — rollback 시 phantom
-   * 로그 회피 + LoginHistory 자체 swallow 로 보안 핵심 경로(credential delete + token
-   * revoke) 가 audit 실패에 막히지 않도록.
+   * 로그인 이력(`LoginHistory.record`)은 트랜잭션 *밖* 에서 호출한다. rollback 때 없는
+   * 일을 기록하지 않고, 이력 기록이 실패해도 credential 삭제와 토큰 무효화 커밋이 막히지 않게
+   * 하려는 것이다(LoginHistory 가 자기 오류를 삼킨다).
    */
   async verifyAuthentication(
     userId: string,
@@ -381,6 +389,30 @@ export class WebAuthnService {
       'webauthn_auth',
       userId,
     );
+    let firstUse: boolean;
+    try {
+      firstUse = await this.authChallenges.consume(
+        payload.challenge,
+        payload.exp,
+      );
+    } catch (err) {
+      this.logger.error(
+        `WebAuthn auth challenge could not be recorded for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message:
+          '서비스를 일시적으로 사용할 수 없어요. 잠시 뒤 다시 시도해 주세요.',
+      });
+    }
+    if (!firstUse) {
+      return this.rejectInvalidAuthentication(
+        userId,
+        ctx,
+        'challenge already used',
+      );
+    }
+
     const { rpID, origins } = this.getConfig();
     const credentialId = response.id;
 
@@ -434,8 +466,8 @@ export class WebAuthnService {
 
         const { newCounter } = verification.authenticationInfo;
         if (isSignCounterRegression(newCounter, Number(credential.counter))) {
-          // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
-          // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.
+          // credential 행 삭제와 활성 세션 전체 무효화를 한 트랜잭션에서 커밋해 한쪽만
+          // 적용되는 일을 막는다(ai-review C-3).
           await credRepo.delete({ id: credential.id });
           await manager
             .getRepository(RefreshToken)
@@ -482,25 +514,38 @@ export class WebAuthnService {
       });
     }
     if (outcome.kind === 'invalid') {
-      const email =
-        (await this.usersService.findById(userId))?.email ?? 'unknown';
-      await this.loginHistory.record({
-        userId,
-        email,
-        event: 'webauthn_failed',
-        ip: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        failureReason: 'WEBAUTHN_INVALID',
-      });
-      this.logger.warn(
-        `WebAuthn auth verify failed for user ${userId}: ${outcome.reason}`,
-      );
-      throw new UnauthorizedException({
-        code: 'WEBAUTHN_INVALID',
-        message: 'WebAuthn 인증에 실패했어요.',
-      });
+      return this.rejectInvalidAuthentication(userId, ctx, outcome.reason);
     }
     return { verified: true };
+  }
+
+  /**
+   * 로그인 이력 `webauthn_failed`(`WEBAUTHN_INVALID`)를 남기고 401 `WEBAUTHN_INVALID` 로
+   * 거부한다. 서명이 맞지 않는 응답과 이미 쓴 챌린지가 함께 쓴다. 둘의 구분은 warn 로그에만
+   * 남긴다.
+   */
+  private async rejectInvalidAuthentication(
+    userId: string,
+    ctx: WebAuthnLoginContext,
+    reason: string,
+  ): Promise<never> {
+    const email =
+      (await this.usersService.findById(userId))?.email ?? 'unknown';
+    await this.loginHistory.record({
+      userId,
+      email,
+      event: 'webauthn_failed',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+      failureReason: 'WEBAUTHN_INVALID',
+    });
+    this.logger.warn(
+      `WebAuthn auth verify failed for user ${userId}: ${reason}`,
+    );
+    throw new UnauthorizedException({
+      code: 'WEBAUTHN_INVALID',
+      message: 'WebAuthn 인증에 실패했어요.',
+    });
   }
 
   /**

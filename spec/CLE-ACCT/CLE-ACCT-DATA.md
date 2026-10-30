@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "d7256ec23e8568645f66958d3ab7faef2f005fdb49147914a49331347c7a99c8"
 read_as: "approved_fallback"
-task: "CLE-T-NWHVMN"
+task: "CLE-T-GK9J2B"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "01e7665f20888ae99e1caafe6679c4ce94d1d80e630ce906d5c80dc0183c8d3c"
-etag: "sha256-e7675bb9f7952975e4d02d968d9284a58d2448fa6c6b0564538f387e93921e1a"
+mirror_sha256: "dca195a3c5614dc95ae93b8a9b69025dc6ad85434698bb41eb90027c9e4bc159"
+etag: "sha256-24b4890cf0c8bdd994bbf44ad421866937d1e668fbc2efd9a2ee56be330e459f"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
