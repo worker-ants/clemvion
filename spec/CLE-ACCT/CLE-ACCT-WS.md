@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 18
+version: 19
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "6e68c8813b85645da860acff3fd0dd9ffe2dbd5c0ae999c5ee5761002fc5b6c3"
+content_hash: "cef729058ee7f2e6739522abf21867b71fa7fe0b250cd2ac6e2d6d3aa9ea02ec"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-395HK2"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "d70a9071c785a4a920ae40cab4aebeb5dd9d1bfae82a6050f25bb9bccf5b97c1"
-etag: "sha256-0a52f408a533f654db3adfade5689a5c3ceb06ffa466eb5fbe3aa9d6d2548bfb"
+mirror_sha256: "94e797bb7403ff563709c6420ccc2b15b27060e0f619f8fd1457c556fd14ed44"
+etag: "sha256-aef6326f41493a44c1f04ee7c8552352c972730aa08cb5c482446bf7a5c1344d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -477,7 +477,8 @@ sequenceDiagram
 - 비멤버는 요구 역할과 상관없이 `NOT_A_MEMBER` 다. 부재와 비멤버도 구분하지 않는다. `getMemberRole` 이 `workspace_member` 만 보므로 둘 다 `NOT_A_MEMBER` 이고, 이것이 경로 라우트에서 워크스페이스 존재가 새는 것을 가드 층에서 막는다.
 - `OWNER_REQUIRED` 는 가드 밖에서도 난다. 관리자 역할을 주거나 빼는 요청은 가드를 통과한 뒤 서비스 계층이 같은 코드로 거부한다. 문구는 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 로 가드의 «Owner 권한이 필요합니다.» 와 다르다([관리자 역할 규칙](#관리자-역할-규칙)).
 - 통합 OAuth 콜백도 가드 밖에서 `EDITOR_REQUIRED`·`ADMIN_REQUIRED` 를 낸다. 통합 재인증·추가 권한 요청 콜백의 커밋 직전 인가 재판정이 서비스 계층에서 개인 통합은 편집자 미만을 `EDITOR_REQUIRED` 로, 조직 통합은 관리자 미만을 `ADMIN_REQUIRED` 로 거부한다. 이 거부는 콜백 팝업과 통합의 `last_error` 로 알린다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
-- `NOT_A_MEMBER` 도 가드 밖에서 난다. 개인 통합 행을 만드는 트랜잭션이 요청자의 멤버십을 잠가 다시 읽고 없으면 이 코드로 거부한다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) REQ-INTMGMT-066). 가드를 지난 뒤 같은 사람이 나가거나 제거된 경쟁에서만 난다.
+- `NOT_A_MEMBER` 도 가드 밖에서 난다. 통합 행을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 맨 먼저 워크스페이스 행을 잠근다. 그 사이 워크스페이스가 지워졌으면 공개 범위와 관계없이 이 코드로 거부한다(조직 공개 범위는 REQ-INTMGMT-068, 개인 공개 범위는 REQ-INTMGMT-066). 개인 통합이면 이어서 요청자의 멤버십을 잠가 다시 읽고 없을 때도 이 코드다(REQ-INTMGMT-066). 둘 다 가드를 지난 뒤 워크스페이스가 지워지거나 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 경로는 가드처럼 없는 워크스페이스와 비멤버를 구분하지 않는다. 워크스페이스 관리 경로는 같은 경합에서 404 `WORKSPACE_NOT_FOUND` 를 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 코드의 뜻은 [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) 에 있다.
+- 조직 통합을 개인으로 바꾸는 전환은 같은 순서로 잠그지만 `NOT_A_MEMBER` 를 쓰지 않는다. 워크스페이스가 그 사이 지워졌으면 통합도 함께 지워져 404 `RESOURCE_NOT_FOUND` 다. 통합을 만든 사람이 멤버가 아니면 409 `INTEGRATION_OWNER_NOT_MEMBER` 다. 요청자는 멤버이고 거절 이유는 통합을 만든 사람에게 있다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29)).
 - 코드를 붙이지 않는 가드 거부 두 자리가 남는다. 미인증 요청이 `@Roles()` 라우트에 닿는 경우(`JwtAuthGuard` 가 먼저 401 을 내므로 실제로 닿지 않는다)와 `@Roles()` 라우트에 워크스페이스 컨텍스트가 전혀 없는 경우(가입 직후에도 토큰이 개인 워크스페이스를 갖는다)다. 도달 경로가 없어 범위 밖이다.
 
 ### 워크스페이스를 찾지 못할 때
@@ -490,6 +491,7 @@ sequenceDiagram
 | 액세스 토큰 검증(`jwt.strategy`) | 401 | 토큰은 유효한데 현재 워크스페이스로 쓸 곳이 없다. 클레임이 가리키는 워크스페이스의 멤버십, 개인 워크스페이스, 첫 멤버십이 모두 없다 | `No workspace found for user` |
 
 - 관리 경로는 인가를 먼저 한다. 비멤버와 없는 워크스페이스는 그 단계에서 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부된다([가드 거부 에러 코드](#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워진다. 그래서 404 는 사실상 인가와 조회 사이에 다른 요청이 그 워크스페이스를 지운 경합에서만 난다.
+- 통합을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 같은 경합에서 이 코드를 쓰지 않는다. 워크스페이스 자체가 아니라 그 안에 통합을 만드는 요청이라 가드와 같은 403 `NOT_A_MEMBER` 로 거부한다([가드 거부 에러 코드](#가드-거부-에러-코드)). 공개 범위 전환은 대상 통합도 워크스페이스와 함께 지워졌으므로 404 `RESOURCE_NOT_FOUND` 다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#위험-영역-탭)).
 - 토큰 검증의 401 은 액세스 토큰으로 인증하는 모든 요청에서 날 수 있다. 예를 들어 초대로 가입해 개인 워크스페이스가 없는 사용자가 유일한 팀 워크스페이스에서 나가면 그 뒤 요청은 이 401 이 된다. 토큰 클레임을 대신할 워크스페이스를 찾는 순서는 [전환 API 와 토큰](#전환-api-와-토큰) 과 같다.
 - 한 코드가 두 상태와 두 뜻으로 쓰이는 점은 [미결 사항](#미결-사항) 에 있다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 
@@ -719,6 +721,8 @@ sequenceDiagram
 적용 범위는 전역이다. `RolesGuard` 는 `APP_GUARD` 라 경로 라우트 15곳만이 아니라 `@Roles()` 가 붙은 모든 라우트와 헤더 위조 거부에 적용된다. 결정 당시 `@Roles()` 라우트는 `editor` 63, `admin` 9, `owner` 3, `viewer` 4 로 합 79였고, 이 변경이 경로 라우트에 `admin` 8, `owner` 1 을 붙여 합 88이 됐다(AST 로 다시 셌다). 그 라우트들의 역할·멤버십 거부 에러 코드가 `FORBIDDEN` 에서 위 코드로 바뀌었고 상태 코드는 403 그대로다.
 
 비멤버에게 어떤 코드를 줄지 두 규칙을 견줬다. (가) "라우트 요구 역할의 코드" 는 비멤버도 관리자 라우트에서 `ADMIN_REQUIRED` 를 받는다. (나) "비멤버는 항상 `NOT_A_MEMBER`, 멤버의 역할 미달만 역할 코드" 다. (가) 는 경로 라우트의 서비스 시절 본문을 비멤버까지 그대로 두지만, 헤더 위조 거부가 `editor` 라우트 63곳에서 `EDITOR_REQUIRED` 가 된다. 비멤버에게 "편집자 권한이 필요하다" 는 틀린 말이고, 프론트엔드가 "이 워크스페이스에 더는 속하지 않는다" 를 알아챌 단일 신호를 잃는다. 그래서 (나) 를 택했다. 대가로 경로 라우트 중 관리자·소유자 요구 10곳에서 비멤버가 받는 코드가 `ADMIN_REQUIRED`·`OWNER_REQUIRED` 에서 `NOT_A_MEMBER` 로 바뀌었다. 비멤버는 그 화면에 닿지 않고, 멤버가 받는 본문은 모두 보존된다.
+
+2026-10-30 에 「가드 거부 에러 코드」 의 가드 밖 `NOT_A_MEMBER` 항목을 구현에 맞췄다(NERV Task `CLE-T-395HK2`). 워크스페이스가 그 사이 지워진 경우와 조직 통합을 더했다. 같은 순서로 잠그는 공개 범위 전환이 이 코드를 쓰지 않는다는 것과 그 응답도 적었다. 워크스페이스 관리 경로의 404 `WORKSPACE_NOT_FOUND` 와 갈리는 이유는 [워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때) 에 적었다.
 
 ### 슬러그는 화면 라우팅 기준이고 서버 인가 기준이 아니다
 

@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
-requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067"]
+requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067", "REQ-INTMGMT-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "375a3dafcdceddd71af0cbde85023e1c27255b51f32f5bed86529c71fc2fba6e"
+content_hash: "143bbab6aedb1ba1d41278a96303b9facf63958fd61bd6c39c6c5268d04bfea6"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-395HK2"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "456230a0487bd661dc1c356d78043027877cd53c8f871c8df16971c4340db15f"
-etag: "sha256-c6f8a667b07974620c022fe05394009d2b0cc1d15de738a774ead3b47b2f4281"
+mirror_sha256: "d7598fe52895b548628400d0cf762638145a98a07079b0e72ecc73ad48564919"
+etag: "sha256-966c29e19fd8dd86c6d6c463dbd856289ac437d325b5175d3a36e65307f402a4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,8 +100,9 @@ etag: "sha256-c6f8a667b07974620c022fe05394009d2b0cc1d15de738a774ead3b47b2f4281"
 - REQ-INTMGMT-063 WHEN 통합 목록이나 상세 화면을 보이면 THE SYSTEM SHALL 지금 사용자가 역할이나 통합 소유 때문에 할 수 없는 변경 동작(목록 헤더와 빈 상태의 통합 추가, 별칭 수정, 통합 재인증, 자격 증명 교체, 추가 권한 요청, 공개 범위 전환, 삭제)의 버튼을 보이지 않고 공개 범위 전환과 삭제를 둘 다 할 수 없으면 위험 영역 탭도 보이지 않는다. 통합 추가를 할 수 없으면 `N` 키로도 추가 모달이 열리지 않는다. 연결 테스트처럼 조회성 동작의 버튼은 보인다.
 - REQ-INTMGMT-064 IF 뷰어가 통합 추가 화면 주소(`/integrations/new`)로 들어오면 THE SYSTEM SHALL 추가 단계 대신 편집자 이상만 통합을 추가할 수 있다는 안내와 목록으로 돌아가는 링크를 보인다.
 - REQ-INTMGMT-065 WHEN 멤버가 워크스페이스를 나가거나 제거되면 THE SYSTEM SHALL 멤버십을 지우는 트랜잭션 안에서 그 멤버가 통합 소유자인 그 워크스페이스의 개인 통합을 상태와 사용처에 관계없이 모두 지운다. 커밋 뒤 지운 통합마다 캐시를 무효화하고 `details.mode` 와 `details.memberUserId` 를 실은 `integration.deleted` 감사 로그를 남긴다.
-- REQ-INTMGMT-066 WHEN 개인 통합 행을 만들면(통합 생성, Cafe24 Private·MakeShop `oauth/begin` 의 설치 대기 행) THE SYSTEM SHALL 같은 트랜잭션에서 워크스페이스, 멤버십, 통합 순으로 잠그고 통합 소유자의 멤버십을 다시 읽어 없으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십이 있는지만 보고 역할은 보지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+- REQ-INTMGMT-066 WHEN 개인 통합 행을 만들거나(통합 생성) Cafe24 Private·MakeShop `oauth/begin` 이 개인 공개 범위 요청으로 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 같은 트랜잭션에서 워크스페이스, 멤버십, 통합 순으로 잠그고 통합 소유자의 멤버십을 다시 읽어 없으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십이 있는지만 보고 역할은 보지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
 - REQ-INTMGMT-067 IF 관리자가 조직 통합을 개인으로 전환하려는데 통합을 만든 사람(`created_by`)이 그 워크스페이스 멤버가 아니면 THE SYSTEM SHALL 409 `INTEGRATION_OWNER_NOT_MEMBER` 로 거절하고 통합을 바꾸지 않는다. 판정은 전환 트랜잭션 안에서 REQ-INTMGMT-066 과 같은 순서로 잠근 멤버십으로 한다.
+- REQ-INTMGMT-068 WHEN 조직 공개 범위로 통합 행을 만들거나(통합 생성) Cafe24 Private·MakeShop `oauth/begin` 이 조직 공개 범위 요청으로 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 같은 트랜잭션에서 통합 행보다 먼저 워크스페이스 행을 잠그고 워크스페이스가 그 사이 지워졌으면 403 `NOT_A_MEMBER` 로 거절한다. 멤버십은 잠그지 않는다. 잠금 순서는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
 
 통합 참조가 놓이는 자리와 저장 검사가 거절할 값 모양(문자열이 아닌 값, 표현식이 아니면서 UUID 모양이 아닌 문자열)은 [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다. 위 054 의 거절 대상도 이 규칙을 따른다.
 
@@ -265,7 +266,7 @@ stateDiagram-v2
 | 이유 값 | 조건 | 막는 이유 | 안내 문구 |
 | --- | --- | --- | --- |
 | `pending_install` | 설치 대기(서비스 무관) | 설치가 끝나지 않았다. 외부 «테스트 실행»·앱 설치가 정식 경로다 | "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요." |
-| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 삭제 후 재등록한다. 상점 식별자를 비우므로 지우기 전에도 다시 등록할 수는 있다. 이름은 그대로 남아 같은 이름으로 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 삭제한 뒤 다시 등록해 주세요." |
+| `install_timeout` | `status='expired' AND status_reason='install_timeout'` | 설치 기한이 지나 설치 토큰이 지워졌다. 상점 식별자를 비우므로 이 행을 지우지 않아도 같은 상점을 새로 등록한다. 이름은 그대로 남아 같은 이름으로 등록하면 409 `INTEGRATION_NAME_TAKEN` 이라 다른 이름으로 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요." |
 | `makeshop` | MakeShop 통합 | 서버가 재인증을 시작할 수 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 삭제 후 재등록한다 | "MakeShop 통합은 재인증할 수 없어요. 문제가 생기면 통합을 삭제한 뒤 다시 등록해 주세요. 상점에서 앱을 다시 설치해도 기존 통합은 복구되지 않아요." |
 | `no_app_url` | App URL(`appUrl`)이 없는 Cafe24 Private 통합 | 설치 토큰이 없어 «테스트 실행» 이 이 행으로 돌아올 수 없다. 삭제 후 재등록한다 | "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요." |
 
@@ -274,7 +275,7 @@ stateDiagram-v2
 
 ### 권한 탭
 
-OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 통합 재인증의 비활성 이유가 `makeshop`·`no_app_url` 인 통합(MakeShop 통합과 App URL 이 없는 Cafe24 Private 통합)은 권한 요청 버튼도 막고 삭제 후 재등록 안내를 보인다(`isRequestScopesDisabled`). 추가 권한 요청이 `cafe24_private_pending` 으로 끝나면 통합을 다시 조회하므로 재설치 대기 표시가 남은 경우 [재설치 대기 안내](#재설치-대기-안내)가 바로 나온다.
+OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 설치 기한이 지나 만료된 통합, MakeShop 통합, App URL 이 없는 Cafe24 Private 통합은 권한 요청 버튼도 막고 이유별 안내를 보인다(`requestScopesDisabledReason`). 이유는 `install_timeout`·`makeshop`·`no_app_url` 순서로 판정하고 통합 재인증 비활성 이유와 같은 순서다. 설치 기한 만료는 이 통합을 지우지 않고 필요한 권한으로 같은 상점을 새로 등록하라고 안내하고 나머지 둘은 삭제 후 재등록을 안내한다. 이유별 문구는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 권한 탭 요소 표가 정한다. 추가 권한 요청이 `cafe24_private_pending` 으로 끝나면 통합을 다시 조회하므로 재설치 대기 표시가 남은 경우 [재설치 대기 안내](#재설치-대기-안내)가 바로 나온다.
 
 ### 사용 탭
 
@@ -325,7 +326,7 @@ OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는
 
 조직에서 개인으로 바꾸는 다이얼로그는 전환 전에 `GET /api/integrations/:id/usages` 를 확인한다. 워크플로우 작성자가 통합 소유자가 아닌 워크플로우(응답의 `authorIsIntegrationOwner` 가 `false`)가 있으면 그 목록과 함께 전환 뒤 그 워크플로우의 노드가 이 통합을 쓰지 못해 실행에서 실패한다는 안내를 보인다(REQ-INTMGMT-057). 관리자가 확인하면 전환한다. 그런 워크플로우가 없으면 안내 없이 확인만 받는다. 통합을 만든 사람이 이미 워크스페이스를 나갔으면 서버가 전환을 409 `INTEGRATION_OWNER_NOT_MEMBER` 로 거절한다(REQ-INTMGMT-067). 화면은 전환하지 않고 «이 통합을 만든 사람이 워크스페이스에 없어 개인 통합으로 바꿀 수 없어요. 조직 통합으로 두거나 삭제해 주세요.» 를 에러 토스트로 보인다. 확인 창과 경고 다이얼로그는 요청 전에 닫힌다. 이 문구는 에러 코드로 고른 사전 항목(ko/en)이고 [다국어와 화면 문구 규칙 5](../CLE-UI/CLE-UI-I18N.md#규칙) 의 «통합 화면 에러 응답 코드» 행을 따른다.
 
-API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감사 로그 `integration.scope_changed` 를 남긴다. 서버는 사용처가 있어도 전환을 거절하지 않는다. 다이얼로그를 연 뒤에 생긴 사용처는 경고에 나오지 않는다. 통합을 만든 사람이 멤버가 아니라 거절한 전환(REQ-INTMGMT-067)은 감사 로그를 남기지 않는다.
+API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감사 로그 `integration.scope_changed` 를 남긴다. 서버는 사용처가 있어도 전환을 거절하지 않는다. 다이얼로그를 연 뒤에 생긴 사용처는 경고에 나오지 않는다. 통합을 만든 사람이 멤버가 아니라 거절한 전환(REQ-INTMGMT-067)은 감사 로그를 남기지 않는다. 전환 트랜잭션이 잠글 워크스페이스 행이 그 사이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 워크스페이스와 함께 그 통합도 지워졌으므로 없는 통합과 같은 응답이다.
 
 ## 사용처 추적과 삭제 차단
 
@@ -355,7 +356,7 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 
 - 서버의 `DELETE /api/integrations/:id` 도 같은 조건을 확인해 409 `INTEGRATION_IN_USE` 를 돌려준다. 사용처 목록은 에러 봉투의 `details.usages` 에 싣는다. 사전 조회와 삭제 사이에 사용처가 생겨 409 가 오면 화면은 그 목록으로 같은 차단 다이얼로그를 띄우고 목록이 없으면 토스트로 알린다. 현재 구현은 이 목록을 응답에 싣지 못한다([미결 사항](#미결-사항)).
 - 통합을 MCP 도구로 참조하는 AI 에이전트 노드도 차단 대상이다. 쓰이고 있는 MCP 통합을 실수로 지워 AI 에이전트가 실행 중에 깨지는 것을 막는다. 다이얼로그의 MCP 노드 행에도 `MCP` 배지를 붙인다.
-- 삭제 후 재등록으로 복구하는 통합(MakeShop, 설치 토큰이 없는 Cafe24 Private)은 이 차단 때문에 노드의 통합 참조를 먼저 비우거나 바꿔야 지울 수 있다. 다시 등록한 뒤에는 노드에서 새 통합을 다시 고른다. 순서와 이유는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 이 정한다.
+- 삭제 후 재등록으로 복구하는 통합(MakeShop, 설치 토큰 보존 전에 연결된 옛 Cafe24 Private)은 이 차단 때문에 노드의 통합 참조를 먼저 비우거나 바꿔야 지울 수 있다. 다시 등록한 뒤에는 노드에서 새 통합을 다시 고른다. 순서와 이유는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 이 정한다. 24시간 설치 기한을 넘겨 만료된 설치 대기 행(`install_timeout`)은 서비스와 관계없이 지우지 않고 같은 상점을 새로 등록하므로 삭제 전에 참조를 먼저 비우는 단계가 없다. 이 행을 쓰던 노드와 AI 에이전트가 있으면 새로 등록한 통합을 다시 고른다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
 - 멤버가 나가거나 제거될 때 그 사람의 개인 통합을 지우는 경로는 이 차단을 거치지 않는다(REQ-INTMGMT-065). 그 통합을 참조하던 노드는 삭제된 통합과 같다. 에디터의 선택기에는 `(missing)` 옵션(REQ-INTMGMT-046)이 보이고 캔버스에는 [삭제된 통합 표시](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#삭제된-통합-표시) 배지가 붙는다. 통합 노드는 실행에서 실패한다. AI 에이전트의 MCP 서버 항목은 도구 목록에서 빠진다([MCP 클라이언트](CLE-INT-MCP.md)). 이유는 [나간 멤버의 개인 통합은 나갈 때 지운다](#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 에 있다.
 
 통합이 만료됨이나 오류가 되면 그 통합을 참조하는 모든 노드는 워크플로우 에디터에서 경고 배지(🟡·🔴)와 tooltip "Integration needs attention — open settings" 를 보인다. 노드 설정 패널에는 통합 상세로 가는 바로가기 링크를 둔다.
@@ -552,8 +553,8 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `INTEGRATION_TEST_FAILED` | [미결](#미결-사항) | 연결 테스트 실패. 무엇을 확인하는지는 서비스마다 다르다([서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md)). HTTP 는 `base_url` 이 401·403 을 돌려줄 때만 자격 증명 거부를 안다 |
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스 유형·인증 유형 조합. 생성과 저장 전 연결 테스트가 공유하는 `IntegrationsService.validateServiceAuthType` 이 서비스 레지스트리(`findVariant`)에 없는 조합을 거부한다. 메시지 `Unsupported service/auth combination: {serviceType}/{authType}` |
 | `INTEGRATION_ROTATE_UNSUPPORTED` | | `oauth2` 통합에 자격 증명 교체를 요청했다 |
-| `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합 |
-| `NOT_A_MEMBER` | 403 | 개인 통합 행을 만드는 트랜잭션이 통합 소유자(요청자)의 멤버십을 다시 읽었는데 없다(REQ-INTMGMT-066). 라우트 가드가 멤버십을 확인한 뒤 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 트랜잭션이 먼저 잠글 워크스페이스 행이 그 사이 지워졌을 때도 공개 범위와 관계없이 같은 코드다. 가드 거부와 같은 코드다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)) |
+| `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합. 공개 범위 전환 도중 워크스페이스와 함께 지워진 통합도 같다([위험 영역 탭](#위험-영역-탭)) |
+| `NOT_A_MEMBER` | 403 | 개인 통합 행을 만드는 트랜잭션이 통합 소유자(요청자)의 멤버십을 다시 읽었는데 없다(REQ-INTMGMT-066). 라우트 가드가 멤버십을 확인한 뒤 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 트랜잭션이 먼저 잠글 워크스페이스 행이 그 사이 지워졌을 때도 공개 범위와 관계없이 같은 코드다(조직 통합은 REQ-INTMGMT-068). 가드 거부와 같은 코드다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)) |
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 조직 통합을 개인으로 바꾸려는데 통합을 만든 사람(`created_by`, 전환하면 통합 소유자가 된다)이 워크스페이스 멤버가 아니다(REQ-INTMGMT-067). 통합은 바뀌지 않는다. 요청자는 멤버이고 통합의 상태와 부딪힌 요청이라 `NOT_A_MEMBER` 를 쓰지 않는다 |
 | `ADMIN_REQUIRED` | 403 | 관리자 미만이 조직 통합을 만들거나 바꾸려 했다. `oauth/begin` 이 다시 쓸 조직 설치 대기 행을 관리자 미만이 만난 경우도 같다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 공개 범위 전환은 라우트 가드가 이 코드를 낸다. 삭제는 라우트 가드가 뷰어를 막지 않아 뷰어의 조직 통합 삭제도 이 코드다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정도 관리자 미만인 요청자의 조직 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 `oauth/begin` 과 이 콜백 재판정을 발행처로 적지 않았다. 정리는 NERV Task `CLE-T-5BZ3M2` 가 맡는다. 뷰어가 이 코드와 `EDITOR_REQUIRED` 가운데 무엇을 받는지는 [권한](#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 가 정한다 |
 | `EDITOR_REQUIRED` | 403 | 뷰어가 편집자 이상 라우트(생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 저장 전 연결 테스트, `oauth/begin`)를 불렀다. 대상의 공개 범위와 상관없이 라우트 가드가 낸다. 뷰어의 조회, 저장된 통합의 연결 테스트, 삭제는 이 코드를 내지 않는다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정이 시작과 콜백 사이에 뷰어로 강등된 요청자의 개인 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 이 발행처를 적지 않았다. 정리는 NERV Task `CLE-T-5BZ3M2` 가 맡는다 |
@@ -566,7 +567,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 상점의 Cafe24 통합이 있다(앱 유형 무관). `new` 가 아닌 모드의 begin(통합 재인증·추가 권한 요청)은 대상 통합 자신을 빼고 본다. 겹친 행의 통합 ID 는 싣지 않는다. 발행 경로와 이름의 유래는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
 | `CAFE24_PRIVATE_APP_INSTALL_PENDING` | 409 | Cafe24 Private `oauth/begin`(`new`)이 다시 쓸 같은 상점의 설치 대기 행이 남의 개인 통합이다. 통합 ID 와 App URL 을 싣지 않고 `details.pendingInstallExpiresAt` 에 그 행의 설치 기한을 싣는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 이름이 통합 상태 값 `pending_install` 과 비슷하지만 상태 값이 아니고 `oauth/begin` 이 내는 충돌 코드다 |
 | `CAFE24_PRIVATE_APP_USE_TEST_RUN` | 400 | 우리 서버가 OAuth 를 시작할 수 없는 Cafe24 Private 통합에 OAuth 시작을 요청했다. 설치는 «테스트 실행» 이 App URL 을 거쳐 마친다. 나오는 자리는 `client_id`·`client_secret` 을 갖춘 `oauth/begin` 의 `new` 외 모드와 설치 토큰이 있는 설치 대기 Cafe24 Private 통합의 `:id/reauthorize` 다. 설치 대기여도 설치 토큰이 없으면 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 이다. 설치 토큰이 있고 설치 대기가 아닌 통합의 통합 재인증과 추가 권한 요청은 이 코드 대신 재설치 대기 표시를 남긴다. 2026-10-10 에 낼 자리가 좁아졌지만 뜻이 같아 이름을 유지했다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
-| `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` | 400 | 설치 토큰이 없는 Cafe24 Private 통합(24시간 설치 기한을 넘긴 행, 설치 토큰 보존 전에 연결된 옛 행)에 통합 재인증이나 추가 권한 요청을 했다. App URL 이 없어 «테스트 실행» 이 이 통합으로 돌아오지 못한다. 복구는 삭제 후 재등록이다. 행에 설치 토큰이 저장돼 있지 않다는 조건이라 App URL 경로의 설치 토큰으로 행을 찾지 못한 `CAFE24_INSTALL_INVALID_TOKEN`(404)과 다르다. 설치 대기 행이어도 설치 토큰이 없으면 이 코드다. 2026-10-15 에 새로 뒀다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
+| `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` | 400 | 설치 토큰이 없는 Cafe24 Private 통합(24시간 설치 기한을 넘긴 행, 설치 토큰 보존 전에 연결된 옛 행)에 통합 재인증이나 추가 권한 요청을 했다. App URL 이 없어 «테스트 실행» 이 이 통합으로 돌아오지 못한다. 복구는 행에 따라 다르다. 24시간 설치 기한을 넘긴 행은 지우지 않고 같은 상점을 새로 등록한다. 설치 토큰 보존 전에 연결된 옛 행은 삭제 후 재등록한다. 행에 설치 토큰이 저장돼 있지 않다는 조건이라 App URL 경로의 설치 토큰으로 행을 찾지 못한 `CAFE24_INSTALL_INVALID_TOKEN`(404)과 다르다. 설치 대기 행이어도 설치 토큰이 없으면 이 코드다. 2026-10-15 에 새로 뒀다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
 | `CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED` | 400 | Cafe24 Private `oauth/begin` 본문에 `client_id`·`client_secret` 이 없다. 콜백의 토큰 교환에서 OAuth state 에 자격 증명이 없을 때도 같은 코드가 난다 |
 | `CAFE24_INVALID_MALL_ID` | 400 | Cafe24 `oauth/begin` 의 상점 식별자가 없거나 형식(`^[a-z0-9-]{3,50}$`)이 틀렸다. 통합 재인증과 추가 권한 요청은 행의 `credentials.mall_id` 를 넘기므로 그 값이 없는 옛 행에서 난다. 노드 실행에서 나는 같은 이름의 코드는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 가 정한다 |
 | `CAFE24_INVALID_APP_TYPE` | 400 | Cafe24 `oauth/begin` 의 앱 유형이 `public`·`private` 가 아니다. 통합 재인증과 추가 권한 요청에서는 `credentials.app_type` 이 없는 옛 행에서 난다 |
@@ -647,7 +648,7 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/*.tsx`
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/integration-permissions.ts` (화면의 변경 동작 판정 `integrationPermissions`·`hasDangerZoneAction`)
 - `codebase/frontend/src/components/auth/role-gate.tsx` (역할 게이트 `RoleGate`·`useHasRole`)
-- `codebase/frontend/src/lib/integrations/*.ts` (`reauthorize.ts`: `reauthorizeDisabledReason`·`isRequestScopesDisabled`, 프런트엔드 `node-integration-refs.ts`: `canUseIntegrationInWorkflow` 와 붙여넣기 · 복제의 참조 비우기, `use-integration-pick-blocked.ts`: 통합 선택기의 `useIntegrationPickBlocked`, `cleared-integration-refs.ts`: 비운 참조의 경고)
+- `codebase/frontend/src/lib/integrations/*.ts` (`reauthorize.ts`: `reauthorizeDisabledReason`·`requestScopesDisabledReason`·`isRequestScopesDisabled`, 프런트엔드 `node-integration-refs.ts`: `canUseIntegrationInWorkflow` 와 붙여넣기 · 복제의 참조 비우기, `use-integration-pick-blocked.ts`: 통합 선택기의 `useIntegrationPickBlocked`, `cleared-integration-refs.ts`: 비운 참조의 경고)
 - `codebase/frontend/src/components/editor/canvas/duplicate-node.ts` (컨텍스트 메뉴 복제의 참조 비우기)
 - `codebase/frontend/src/lib/api/integrations.ts`
 - `codebase/frontend/src/lib/api/integration-error-codes.ts`
@@ -691,6 +692,7 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 통합 쓰기의 잠금 순서는 이 절이 정한다. 다른 문서는 이 절을 링크한다. 순서는 워크스페이스, 멤버십, 통합이다. 워크스페이스 삭제와 소유자 이양이 워크스페이스, 멤버십 순으로 잠그므로([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md#워크스페이스-삭제와-나가기)) 그 뒤에 통합을 붙였다.
 
 - 통합 행을 INSERT 할 수 있는 쓰기는 공개 범위와 상관없이 트랜잭션에서 맨 먼저 워크스페이스 행을 `FOR KEY SHARE` 로 잡는다. 통합 생성과 Cafe24 Private·MakeShop `oauth/begin`(조직 · 개인 공개 범위 모두)이 해당한다. begin 은 다시 쓸 후보 행을 잠근 뒤 그 행을 고치거나 새 행을 INSERT 한다. 통합 INSERT 의 외래 키 확인도 워크스페이스 행에 `FOR KEY SHARE` 를 잡는다. 이 잠금이 멤버십이나 통합 행의 잠금 뒤에 오면 워크스페이스 삭제·소유자 이양과 순서가 엇갈리고 교착(`40P01`)이 날 수 있다. 그래서 워크스페이스를 먼저 명시적으로 잠근다. 이 적용 범위는 2026-10-30 에 사용자가 정했다(NERV Task `CLE-T-G56XCH` 리뷰 후속). 개인 통합 쓰기에만 거는 안은 아래 «기각한 안» 에 있다.
+- 워크스페이스가 그 사이 지워져 잠글 행이 없으면 통합 생성과 begin 은 공개 범위와 관계없이 403 `NOT_A_MEMBER` 로 끝낸다(REQ-INTMGMT-066·068). 통합을 만드는 경로(통합 생성, `oauth/begin`)는 트랜잭션 안의 재확인에도 라우트 가드와 같은 거부 코드를 쓴다. 가드는 없는 워크스페이스와 비멤버를 구분하지 않고 `NOT_A_MEMBER` 로 답한다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워지므로 그 뒤에 가드를 다시 거쳐도 같은 코드가 나온다. 같은 경쟁에서 다른 응답을 내는 경로가 둘 있다. 워크스페이스 관리 경로는 대상 워크스페이스 자체를 다루는 요청이라 404 `WORKSPACE_NOT_FOUND` 를 낸다([워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때)). 조직에서 개인으로 바꾸는 전환은 이미 있는 통합을 바꾸는 요청이다. 워크스페이스와 함께 그 통합도 지워졌으므로 없는 통합과 같은 404 `RESOURCE_NOT_FOUND` 로 끝낸다.
 - 개인 통합 행을 만드는 트랜잭션은 그다음 통합 소유자의 멤버십 행을 `FOR SHARE` 로 읽는다(REQ-INTMGMT-066). 멤버십 잠금은 개인 공개 범위에만 더한다. 조직 통합은 만든 사람이 나가도 지우지 않으므로 멤버십을 잡지 않는다.
 - 설치 대기 행을 다시 쓰는 begin 은 요청 공개 범위가 개인일 때만 멤버십을 잡는다. 요청이 조직인데 개인 설치 대기 행을 다시 쓰는 사람은 그 행의 통합 소유자다. 그래서 새 개인 행이 생기지 않는다. 그 기존 행은 나가기·제거의 통합 DELETE 가 행 잠금을 기다렸다가 지운다.
 - MakeShop begin 은 이 잠금 다음에 `(workspace_id, client_id)` advisory lock 을 잡고 그다음 다시 쓸 후보 행을 `FOR UPDATE` 로 잠근다.
@@ -780,6 +782,20 @@ NERV Task `CLE-T-PS7JQY` 의 구현을 반영했다.
 - 잠금 절에 적용 범위를 더했다. 통합을 INSERT 할 수 있는 쓰기는 공개 범위와 상관없이 워크스페이스를 먼저 잡고 멤버십은 개인 공개 범위에만 잡는다. 사용자가 고른 안이다(NERV Task `CLE-T-G56XCH` 리뷰 후속). 쓰기 도우미 이름과 그 도우미를 건너뛰지 않는지 보는 가드도 적었다.
 - [권한](#권한) 의 «개인 통합에는 역할 우위가 없다» 에 멤버 제거 때의 삭제 예외를 더했다.
 - [위험 영역 탭](#위험-영역-탭) 의 전환 거절 안내를 구현대로 에러 토스트로 고치고 문구가 따르는 다국어 규칙의 행을 링크했다.
+
+### 요구사항 변경 이력 (2026-10-30, Task CLE-T-395HK2)
+
+NERV Task `CLE-T-PS7JQY` 의 스펙 consistency 검토가 남긴 INFO 를 정리했다.
+
+- 새 요구사항은 REQ-INTMGMT-068 이다. 조직 통합 행을 만들 때 워크스페이스를 먼저 잠그고 워크스페이스가 지워졌으면 `NOT_A_MEMBER` 로 끝내는 규칙은 잠금 절 · 에러 표 · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에만 있었다. [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 은 이 규칙을 개인 통합만 다루는 REQ-INTMGMT-066 으로 인용했다. 규칙은 2026-10-30 승인본의 잠금 절과 같고 요구사항 줄로 올린 것이다. `oauth/begin` 이 조직 공개 범위 요청으로 설치 대기 행을 다시 쓸 때도 같은 잠금이라 요구사항 줄에 함께 적었다.
+
+같은 날 바꾼 본문:
+
+- 통합 재인증 비활성 이유 표의 `install_timeout` 행을 지금 동작에 맞췄다. 만료된 설치 대기 행은 상점 자리를 놓으므로 지우지 않아도 같은 상점을 새로 등록한다. 안내 문구(사전 키 `integrations.reauthorizeDisabledInstallTimeout`)도 같은 Task 에서 «삭제한 뒤 다시 등록» 을 이 동작으로 고쳤다. 이 변경은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29) 의 «화면 안내 문구는 «삭제한 뒤 다시 등록» 을 그대로 둔다» 를 뒤집은 것이고 이유는 그 절의 2026-10-30 번복에 있다. Rationale 의 «비활성 안내는 이유마다 따로 보인다» 항목도 이 동작에 맞췄다.
+- [권한 탭](#권한-탭) 의 권한 요청 비활성 이유에 설치 기한 만료(`install_timeout`)를 더했다. 같은 Task 의 코드 수정으로 이 이유를 먼저 판정한다. 만료된 Cafe24 Private 행은 App URL 도 없어 그 전에는 «삭제 후 재등록» 을 보였다. 판정 함수는 이유를 돌려주는 `requestScopesDisabledReason` 으로 적었다(불리언 래퍼 `isRequestScopesDisabled` 는 그대로 있다).
+- 사용처 절의 삭제 후 재등록 통합 목록과 에러 표 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 행에서 24시간 설치 기한을 넘긴 행을 뺐다. 그 행은 지우지 않고 같은 상점을 새로 등록한다.
+- 개인 통합 잠금 요구사항(REQ-INTMGMT-066)에 `oauth/begin` 의 설치 대기 행 다시 쓰기를 넣어 REQ-INTMGMT-068 과 맞췄다. 코드의 `lockForPendingWrite` 는 개인 요청이면 만들기와 다시 쓰기 모두 요청자의 멤버십을 잠근다. 동작 변경은 없다.
+- [위험 영역 탭](#위험-영역-탭) 에 워크스페이스가 그 사이 지워진 전환의 응답(404 `RESOURCE_NOT_FOUND`)을 적었다. 에러 코드 표의 `RESOURCE_NOT_FOUND` 행에도 같은 경우를 더했다. 잠금 절에는 워크스페이스가 없을 때의 응답과 그 근거를 더했다. 같은 경쟁에서 워크스페이스 관리 경로가 404 `WORKSPACE_NOT_FOUND` 를 내는 것과 무엇이 다른지도 적었다.
 
 ### 통합 화면은 할 수 없는 변경 동작을 숨긴다 (2026-10-29)
 
@@ -985,5 +1001,5 @@ Cafe24 «앱으로 가기»·«테스트 실행» 의 HMAC 실패 에러 페이�
 
 - **Cafe24 Private 은 App URL 이 남아 있으면 버튼을 연다.** 서버가 재설치 대기 표시를 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다. 응답에 `authUrl` 이 없어 열 팝업이 없으므로 화면은 토스트와 재설치 대기 안내로 다음 할 일을 알린다.
 - **MakeShop 은 버튼을 막는다.** ShopStore 재설치가 설치를 마친 통합을 되살리지 않아 복구 경로가 삭제 후 재등록뿐이다. 두 서비스를 다르게 정한 이유와 기각한 선택지는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 에 있다.
-- **비활성 안내는 이유마다 따로 보인다.** 이유마다 사용자가 할 일이 다르다. 설치 대기는 설치를 마치면 된다. 설치 기한이 지난 행과 App URL 이 없는 행은 둘 다 삭제 후 재등록해야 하지만 문구를 나눈다. App URL 이 없는 행이 모두 설치 기한이 지난 행은 아니어서 «설치 시간이 지나 만료» 라는 문구가 맞지 않는다(코드 리뷰 결과, Task CLE-T-NNENG8). MakeShop 은 상점에서 앱을 다시 설치해도 복구되지 않는다는 점까지 알아야 한다.
+- **비활성 안내는 이유마다 따로 보인다.** 이유마다 사용자가 할 일이 다르다. 설치 대기는 설치를 마치면 된다. 설치 기한이 지난 행은 지우지 않고 같은 상점을 새로 등록하면 되고 App URL 이 없는 행은 삭제한 뒤 다시 등록해야 한다(2026-10-30, NERV Task `CLE-T-395HK2`. 그 전에는 둘 다 삭제 후 재등록으로 안내했다). 처음 문구를 나눈 이유도 그대로다. App URL 이 없는 행이 모두 설치 기한이 지난 행은 아니어서 «설치 시간이 지나 만료» 라는 문구가 맞지 않는다(코드 리뷰 결과, Task CLE-T-NNENG8). MakeShop 은 상점에서 앱을 다시 설치해도 복구되지 않는다는 점까지 알아야 한다.
 - **재설치 대기 안내는 상태 배지와 따로 info 톤으로 둔다.** 표시는 상태가 아니라서 상태 배지로 보일 수 없다. 안내는 다음에 할 일을 알리는 것이고 오류·만료됨 같은 상태 문제는 상태 배지가 이미 경고 톤으로 보인다. 그래서 안내에 경고 톤을 겹치지 않는다. 처음 초안은 «표시가 있어도 지금 토큰으로 실행이 계속된다» 를 이유로 들고 안내 설명에도 그 문장을 넣었다. 오류·만료됨 행은 콜백이 성공할 때까지 노드 실행이 막히므로 코드 리뷰에서 그 문장을 뺐다. 권한 탭의 인라인 안내는 요청 직후 그 탭에만 보이고 다음 요청 때 초기화된다. 표시는 콜백이 성공하거나 24시간이 지날 때까지 남으므로 탭 위에 따로 둔다.
