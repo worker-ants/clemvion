@@ -2,21 +2,21 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "280a3d7cc469415a40b8bdb4aeb30c134e75fa2a1b537a6f75c0550c842de422"
+content_hash: "4f83292067cfb4892be64c9d18848f306d7c77b3e69d45986f4a947bf99bbe40"
 read_as: "approved_fallback"
 task: "CLE-T-PS7JQY"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "441d51f25b60277e84fada38e738d8af40099fc371413531369a1b45a21b9322"
-etag: "sha256-eeed311bd02d900129e50bfc5856739f35f804b23710564a87369b60e357be8d"
+mirror_sha256: "ffc72a8a152b731aa9cad073bef5408243eeec0f6c3159acad9f247399d76bc0"
+etag: "sha256-3b42a8c105dc26a851d51c23fe4dc8855c8ba7d7fa1054e00750ee3b40895e73"
 ---
-> 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략, 만료 때 `mall_id` 비우기, 나간 멤버의 개인 통합 삭제와 개인 통합을 만들거나 개인으로 바꿀 때의 멤버십 재확인은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -60,7 +60,7 @@ erDiagram
 | status | Enum | 통합 상태. `connected` / `expired` / `error` / `pending_install`. 전이 규칙은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
 | install_token | String? | 설치 토큰. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치 대기 통합을 가리키는 식별 키다. 그 밖의 서비스 유형은 NULL 이다. 발급 시 16바이트를 base64url(패딩 없음, 22자)로 인코딩한다. 통합이 살아 있는 동안 보존한다(App URL 경로 식별 키). 예외로 `oauth/begin` 이 설치 대기 행을 다시 쓰면서 새로 발급할 때가 있다. Cafe24 Private 은 다른 `client_id`·`client_secret` 으로 다시 쓰거나 설치 토큰이 없는 옛 행일 때, MakeShop 은 설치 토큰이 없는 행일 때다(REQ-INTOAUTH-012, 조건은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#oauthbegin-요청과-응답) 이 정한다). 연결 성공 콜백에서도 보존하고, 설치 대기 24시간 만료 또는 통합 삭제에서만 NULL 로 지운다. `varchar(64)`, V042 |
 | install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 설치 토큰을 새로 발급할 때만 갱신한다. 설치 대기 행을 다시 써도 설치 토큰을 보존하면 그대로 두고 연결 성공 콜백에서도 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
-| mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. NULL 인 경우는 셋이다. V045 이전 행은 다음 저장(콜백·재인증)에서 채운다. MakeShop 설치 대기 행은 App URL 을 거쳐 `shop_uid` 를 받을 때 채운다. 설치 대기 행이 설치 기한을 넘겨 만료(`install_timeout`)되면 NULL 로 비운다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이), 미구현). 만료 행은 다시 채우지 않는다. 콜백, begin 의 행 재사용, App URL 은 설치 대기 행만 다룬다. NULL 이 세 뜻이라 같은 상점을 찾을 때 NULL 로 가르지 않는다(아래 상점 식별자 유일성의 조회 함수). Cafe24·MakeShop 행에서도 NOT NULL 로 강화하지 않는다. V045 |
+| mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. NULL 인 경우는 셋이다. V045 이전 행은 다음 저장(콜백·재인증)에서 채운다. MakeShop 설치 대기 행은 App URL 을 거쳐 `shop_uid` 를 받을 때 채운다. 설치 대기 행이 설치 기한을 넘겨 만료(`install_timeout`)되면 NULL 로 비운다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 이 규칙 전에 만료된 행은 V154 가 한 번 비웠다. 만료 행은 다시 채우지 않는다. 콜백, begin 의 행 재사용, App URL 은 설치 대기 행만 다룬다. NULL 이 세 뜻이라 같은 상점을 찾을 때 NULL 로 가르지 않는다(아래 상점 식별자 유일성의 조회 함수). Cafe24·MakeShop 행에서도 NOT NULL 로 강화하지 않는다. V045 |
 | status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [통합 상태와 만료 알림](CLE-INT-STATUS.md). `VARCHAR(64)`, V008 |
 | consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
 | token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
@@ -68,7 +68,7 @@ erDiagram
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
 | reinstall_requested_at | Timestamp? | 재설치 대기 표시(reinstall request mark). 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청이 들어온 시각이고 사용자가 Cafe24 «테스트 실행» 으로 OAuth 를 마치기를 기다린다는 뜻이다. App URL 이 이 값을 보고 OAuth 로 보낸다. 상태·상태 사유와 따로 둔 컬럼이라 표시를 남겨도 상태·상태 사유·자격 증명은 바뀌지 않는다. 남긴 시각부터 24시간 동안만 유효하고 그 뒤에는 서버가 표시가 없는 것으로 본다. 콜백이 성공할 때만 NULL 로 지운다(자격 증명 교체와 같은 트랜잭션). 24시간이 지난 값은 지우지 않고 판정에서 무시한다. 다시 요청하면 새 시각으로 덮어쓴다. 설치 대기 행과 그 밖의 서비스 유형은 늘 NULL 이다. 상태 모델과의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md#재설치-대기-표시), 남기고 지우는 규칙은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시). `TIMESTAMPTZ NULL`, V151 |
 | last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다([암호화](#암호화)). `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
-| created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`). 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 행을 지운다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29), 미구현) |
+| created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`). 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 행을 지운다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -76,7 +76,7 @@ erDiagram
 
 - `UNIQUE(workspace_id, name)`: 워크스페이스 안에서 별칭은 하나뿐이다. 공개 범위와 상관없다.
 - 상점 식별자 유일성: 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 의 통합은 최대 1행이다. Cafe24 는 앱 유형과 상관없다. 한 상점에 Public 앱 통합과 Private 앱 통합을 함께 두면 토큰과 웹훅 처리 주체가 갈려 사용자 혼란과 회계 충돌이 생기므로 금지한다. 서로 다른 서비스 유형이 같은 `mall_id` 값을 쓰는 것은 괜찮다. 설치 기한을 넘겨 만료된 행은 `mall_id` 를 비우므로 이 유일성에 들지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
-  - 같은 상점의 행을 찾는 네 지점(중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복)은 조회 함수 하나를 거친다. 만료 행 제외는 그 함수가 한다. `mall_id` 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체 경로(`findAllCafe24RowsForMall`)도 같은 함수 안에서 만료 행을 거른다(REQ-INTOAUTH-068, 미구현).
+  - 같은 상점의 행을 찾는 네 지점(중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복)은 조회 함수 하나를 거친다. 만료 행 제외는 그 함수가 한다. `mall_id` 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체 경로(`findAllCafe24RowsForMall`)도 같은 함수 안에서 만료 행을 거른다(REQ-INTOAUTH-068).
   - 만료 행은 상점 자리를 놓아도 이름은 그대로다. 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다.
 
 응답 전용 값: `IntegrationDto` 는 DB 컬럼이 아닌 두 값 `autoRefresh`·`appUrl` 을 응답 시점에 계산해 싣는다. 정의는 [통합 관리](CLE-INT-MANAGE.md) 의 API 절이 소유한다. 복호화에 실패한 행을 응답에서 `statusReason='credentials_unreadable'` 로 표시하는 규칙도 DB 저장값이 아니다([통합 상태와 만료 알림](CLE-INT-STATUS.md)). `reinstall_requested_at` 은 컬럼 값을 `reinstallRequestedAt`(ISO 8601 또는 `null`)으로 내보낸다. 남긴 지 24시간이 지난 값은 `null` 로 내보낸다.
@@ -305,6 +305,8 @@ sequenceDiagram
 
 `last_rotated_at` 을 생성 시각으로 채우는 이유는 NULL 로 두면 Cafe24 백그라운드 갱신의 기준 시각 비교에서 계속 빠질 수 있어서다. 스캐너 조건에 `IS NULL` 분기도 따로 둔다.
 
+INSERT 는 트랜잭션 안에서 한다. 트랜잭션을 열면 먼저 워크스페이스, 멤버십 순으로 잠그고(`lockForIntegrationWrite`) 그다음 통합을 INSERT 한다. 멤버십은 개인 통합일 때만 잠근다. 개인 통합인데 요청자의 멤버십이 그 사이 없어졌으면 403 `NOT_A_MEMBER` 다(REQ-INTMGMT-066). 미리보기 토큰 소비와 자격 증명 검증은 잠그기 전에 끝낸다. 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+
 ### OAuth 연결과 설치
 
 `integration_oauth_state.mode` 는 `new` / `reauthorize` / `request_scopes` 세 가지다. 진입점과 API 계약은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 여기서는 테이블에 무엇을 쓰는지만 적는다.
@@ -453,14 +455,18 @@ sequenceDiagram
 
 ### 멤버가 나가거나 제거될 때
 
-멤버 제거(`removeMember`)와 나가기(`leaveWorkspace`)는 멤버십을 지우는 트랜잭션 안에서 그 멤버의 개인 통합을 지운다(REQ-INTMGMT-065, 미구현). 규칙과 근거, 잠금 순서는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 이 절은 삭제 조건과 모듈 경계를 정한다. 다른 문서는 삭제 조건을 이 절에서 링크한다.
+멤버 제거(`removeMember`)와 나가기(`leaveWorkspace`)는 멤버십을 지우는 트랜잭션 안에서 그 멤버의 개인 통합을 지운다(REQ-INTMGMT-065). 규칙과 근거, 잠금 순서는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 이 절은 삭제 조건과 모듈 경계를 정한다. 다른 문서는 삭제 조건을 이 절에서 링크한다.
 
-- 멤버십 DELETE 와 통합 DELETE 를 한 트랜잭션에서 한다.
-- 멤버십 DELETE 가 1행을 지웠을 때만 통합을 지운다. 0행이면 통합을 건드리지 않고 지금 판정(`MEMBER_NOT_FOUND`, `CANNOT_REMOVE_OWNER`)을 그대로 낸다. 지운 멤버의 사용자 ID 는 `RETURNING` 으로 받아 통합 삭제 조건과 감사 로그에 쓴다.
+- 멤버십 DELETE 와 통합 DELETE 를 한 트랜잭션에서 한다. 이 트랜잭션의 잠금 대기 상한과 그 상한을 넘겼을 때의 처리는 [계정과 워크스페이스 데이터 흐름 「워크스페이스 삭제와 나가기」](../CLE-ACCT/CLE-ACCT-DATA.md#워크스페이스-삭제와-나가기) 가 정한다.
+- 멤버십 DELETE 가 1행을 지웠을 때만 통합을 지운다. 0행이면 통합을 건드리지 않고 지금 판정(`MEMBER_NOT_FOUND`, `CANNOT_REMOVE_OWNER`)을 그대로 낸다. 멤버 제거는 지운 멤버의 사용자 ID 를 `RETURNING` 으로 받아 통합 삭제 조건과 감사 로그에 쓴다. 나가기는 요청자가 그 멤버다.
 - 통합 삭제는 `DELETE integration WHERE workspace_id = :ws AND created_by = :user AND scope = 'personal' RETURNING id, service_type, name` 이다. 상태와 사용처는 보지 않는다.
-- 통합 모듈이 이미 워크스페이스 모듈을 가져온다. 워크스페이스 서비스가 통합 서비스를 직접 부르면 순환 의존이 된다. 그래서 워크스페이스 모듈이 «멤버의 개인 통합 일괄 삭제» 포트를 정의하고 통합 모듈이 구현한다. 포트는 호출자의 트랜잭션 매니저를 받아 그 안에서 지우고 지운 행의 `id`·`serviceType`·`name` 을 돌려준다. `service_type` 을 `serviceType` 으로 바꾸는 것도 포트가 한다. raw `DELETE … RETURNING` 으로 지우면 결과는 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 대로 읽는다.
-- 커밋 뒤 지운 통합마다 캐시를 무효화하고 `integration.deleted` 감사 로그를 남긴다([통합 관리](CLE-INT-MANAGE.md#감사-로그)). 일반 삭제(`DELETE /api/integrations/:id`)도 판정(역할, 사용처 차단)과 삭제 후처리(캐시 무효화, 감사, 서비스 유형별 정리)를 나누고 두 경로가 같은 후처리를 쓴다. 감사 `details` 의 `mode`·`memberUserId` 만 다르다.
-- 커밋과 후처리 사이에 프로세스가 멈추면 캐시에 지운 통합이 남을 수 있다. 그래도 그 통합을 쓰는 노드는 통합 소유자가 멤버가 아니라서 REQ-INTMGMT-058 로 거절된다. 같은 창에서 `integration.deleted` 감사 행도 빠질 수 있다. 감사 기록 실패가 리소스 변경을 되돌리지 않는다는 계약([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md))과 같은 쪽이라 받아들인다.
+- 통합 모듈이 이미 워크스페이스 모듈을 가져온다. 워크스페이스 서비스가 통합 서비스를 직접 부르면 순환 의존이 된다. 그래서 워크스페이스 모듈이 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER`(`workspaces/member-personal-integrations.port.ts`)를 정의하고 통합 모듈의 `MemberPersonalIntegrationsPurgerService` 가 구현한다.
+- 워크스페이스 서비스는 트랜잭션을 열기 전에 `ModuleRef.get(MEMBER_PERSONAL_INTEGRATIONS_PURGER, { strict: false })` 로 포트를 찾는다. 트리거 정리 포트(`TRIGGER_RESOURCE_RELEASER`)와 같은 방식이다. 찾지 못하면 에러를 던지므로 나가기와 제거가 실패하고 멤버십도 그대로 남는다. 조용히 넘어가면 나간 멤버의 개인 통합이 다시 남기 때문이다.
+- 포트에는 두 단계가 있다.
+  1. 트랜잭션 안 삭제 `purgeInTransaction(manager, { workspaceId, userId })`. 멤버십 DELETE 뒤에 호출자의 트랜잭션 매니저로 위 DELETE 를 하고 지운 행의 `id`·`serviceType`·`name` 을 돌려준다. 결과는 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 대로 `updateReturningRows` 로 읽고 `service_type` 을 `serviceType` 으로 바꾼다.
+  2. 커밋 뒤 후처리 `finishAfterCommit(purged, departure)`. 워크스페이스 서비스가 커밋 뒤에 `member.removed` 감사 로그를 남기고 이 단계를 부른다. 지운 통합이 없으면 부르지 않는다. 이 단계는 지운 통합마다 일반 삭제(`DELETE /api/integrations/:id`)와 같은 후처리 `IntegrationsService.finishIntegrationDeletion` 을 부른다. 그 후처리가 `integration.deleted` 감사 로그를 남기고([통합 관리](CLE-INT-MANAGE.md#감사-로그)) 모든 인스턴스에 자격 증명 캐시 무효화를 알린다. 감사의 행위자는 나가기면 나간 멤버이고 제거면 제거한 관리자다. 일반 삭제와 다른 것은 감사 `details` 의 `mode`(`left` 또는 `removed`)와 `memberUserId` 뿐이다. 이 단계는 던지지 않는다. 한 통합의 후처리가 실패해도 나머지를 이어 가고 에러 로그만 남긴다.
+- 일반 삭제는 판정(역할, 사용처 차단)을 거친 뒤 지우고 같은 후처리를 쓴다. 나가기와 제거의 삭제는 이 판정을 거치지 않는다.
+- 후처리가 실패하거나 커밋과 후처리 사이에 프로세스가 멈추면 캐시에 지운 통합이 남을 수 있다. 그래도 그 통합을 쓰는 노드는 통합 소유자가 멤버가 아니라서 REQ-INTMGMT-058 로 거절된다. 같은 창에서 `integration.deleted` 감사 행도 빠질 수 있다. 감사 기록 실패가 리소스 변경을 되돌리지 않는다는 계약([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md))과 같은 쪽이라 받아들인다.
 
 ### Redis 와 외부 대상
 
@@ -481,11 +487,14 @@ sequenceDiagram
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그, `reauthorize`·`requestScopes` 의 재설치 대기 표시, `getForExecution` 의 개인 통합 사용 판정)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그, `reauthorize`·`requestScopes` 의 재설치 대기 표시, `getForExecution` 의 개인 통합 사용 판정, 삭제 뒤 후처리 `finishIntegrationDeletion`)
 - `codebase/backend/src/modules/integrations/personal-integration-use.ts` · `personal-integration-use-facts.ts` (개인 통합 사용 판정 함수와 판정에 넘길 사실 읽기. 사실 읽기는 실행 경로와 저장 경로가 함께 쓴다)
+- `codebase/backend/src/modules/integrations/integration-owner-write-lock.ts` (통합 행을 만들거나 개인으로 바꾸는 쓰기의 잠금 도우미 `lockForIntegrationWrite` 와 생성 거절 `throwUnlessIntegrationCreateLocked`)
+- `codebase/backend/src/modules/workspaces/member-personal-integrations.port.ts` (멤버의 개인 통합을 지우는 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 와 지연 해석 `resolveMemberPersonalIntegrationsPurger`)
+- `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (그 포트의 구현 `MemberPersonalIntegrationsPurgerService`)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth begin·콜백·설치, `handleInstall` 의 재설치 대기 분기, `assertRequesterStillAllowed`, `markIntegrationCallbackError`)
 - `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**` 설치·콜백 엔드포인트)
-- `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너)
+- `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너. 설치 대기 만료 때 `mall_id` 비우기 포함)
 - `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림)
 - `codebase/backend/src/modules/integrations/services/credentials-transformer.ts` (자격 증명 컬럼 암호화)
 - `codebase/backend/src/modules/auth-configs/entities/auth-config.entity.ts` (같은 transformer 를 쓰는 인증 설정 엔티티)
@@ -494,6 +503,8 @@ sequenceDiagram
 - `codebase/backend/src/scripts/encrypt-auth-config.ts` (`auth_config.config` 평문 행을 암호화하는 1회용 스크립트)
 - `codebase/backend/src/modules/integrations/entities/` (엔티티)
 - `codebase/backend/migrations/V151__integration_reinstall_requested_at.sql` (재설치 대기 표시 컬럼)
+- `codebase/backend/migrations/V153__purge_departed_member_personal_integrations.sql` (통합 소유자가 멤버가 아닌 개인 통합을 한 번 지운다)
+- `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 설치 기한을 넘겨 만료된 행의 `mall_id` 를 한 번 비운다)
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (클라이언트의 토큰 갱신·상태 전이, 갱신 큐 워커)
 - `codebase/backend/src/modules/secret-store/**` (시크릿 저장소)
 
@@ -536,3 +547,7 @@ OAuth 응답 본문에 토큰 일부가 섞일 수 있다. 그래서 `last_error
 ### 재설치 대기 표시를 상태와 따로 둔 시각 컬럼으로 둔다 (2026-10-10)
 
 Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서(Task CLE-T-NNENG8) «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 저장할 자리가 필요했다. `status`·`status_reason` 과 따로 둔 nullable 시각 컬럼 `reinstall_requested_at`(V151)을 택했다. 시각이라 화면이 요청 시각을 보이고 서버가 24시간 유효 기간을 판정할 수 있다. 상태 컬럼을 쓰지 않으므로 만료 스캐너, 주의 필요 술어, 노드 실행 가드가 바뀌지 않는다. 지난 값은 지우지 않고 판정할 때 시각을 비교하므로 정리 작업도 없다. 설치 대기 재사용, 연결됨의 새 상태 사유, 새 상태 값을 기각한 이유와 24시간 유효 기간을 둔 이유는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 Rationale «재설치 대기 표시는 상태와 따로 둔 컬럼이다» 에 있다.
+
+### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
+
+2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 나간 멤버의 개인 통합 삭제, 통합 쓰기의 잠금, 설치 기한 만료 때 `mall_id` 비우기를 구현했다. 그래서 머리 줄 미구현 목록에서 세 항목을 빼고 본문의 미구현 표시를 걷었다. 「멤버가 나가거나 제거될 때」 는 구현한 두 단계 포트에 맞춰 고쳤다. 일반 삭제 후처리에 적었던 «서비스 유형별 정리» 는 구현에 없어 뺐다. 같은 날 사용자가 NERV Task `CLE-T-G56XCH` 리뷰 후속으로 잠금 규칙을 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)로 넓혔다. 이 문서의 「통합 생성」 에는 잠금 순서만 적고 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 한 곳에 둔다.

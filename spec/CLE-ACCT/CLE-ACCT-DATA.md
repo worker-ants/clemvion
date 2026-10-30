@@ -2,21 +2,21 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "ff4a990b5050a69132283656bb7a3f7b36f99b1617c72b6832f3a19f8f564272"
+content_hash: "26d7add73f0e3f63efa65e5cc0d24cae2d06974f1f2315f76945cbc4d7c09aa6"
 read_as: "approved_fallback"
 task: "CLE-T-PS7JQY"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "4c87e37a74ed2e7aa3a6ebcf692569d5e41838144bb26e1ab90736d63e8c35c4"
-etag: "sha256-cf3ee9becbb5bb8f1ac66c65d908e71444c78440d60a5341260685195c0e73e1"
+mirror_sha256: "127ef4833da95b31f1463be9c8ae46134e6cb2d447db0794192d2de5dac413ab"
+etag: "sha256-19a579d92fd0345d0c26de95ceb18534e6a789c8d632aa3222deae4fa77a9953"
 ---
-> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정, 멤버 제거·나가기 때의 개인 통합 삭제와 개인 통합을 만들거나 개인으로 바꿀 때의 멤버십 잠금은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -526,7 +526,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 역할 변경 `PATCH .../members/:memberId` | `UPDATE workspace_member.role` | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이나 새 역할이 소유자면 403 `OWNER_ROLE_PROTECTED`. 대상의 지금 역할이나 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 관리자가 자기 역할을 바꾸는 요청도 여기에 걸린다 |
 | 소유자 이양 `POST .../transfer-ownership` | 한 트랜잭션에서 현재 소유자 `role='admin'`, 대상 `role='owner'`, `workspace.owner_id = 대상 userId` | 소유자가 아닌 요청 403 `OWNER_REQUIRED`, 개인 워크스페이스 403 `CANNOT_TRANSFER_PERSONAL`, 자기 자신 400 `TARGET_IS_SELF`, 대상 없음 404 `MEMBER_NOT_FOUND`, 대상이 이미 소유자 409 `TARGET_ALREADY_OWNER` |
-| 멤버 제거 `DELETE .../members/:memberId` | 한 트랜잭션에서 `DELETE workspace_member`(소유자가 아닌 행)를 하고 1행을 지웠을 때만 그 멤버의 개인 통합을 지운다(미구현, 조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 자기 자신은 나가기로 넘긴다 | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
+| 멤버 제거 `DELETE .../members/:memberId` | 한 트랜잭션에서 `DELETE workspace_member`(소유자가 아닌 행)를 하고 1행을 지웠을 때만 그 멤버의 개인 통합을 지운다(조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 자기 자신은 나가기로 넘긴다 | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
 | 직접 추가 `POST .../members`(`addMemberByEmail`) | 메일 없이 `INSERT workspace_member` | 새 역할이 소유자면 403 `CANNOT_ASSIGN_OWNER`. 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 나머지는 [워크스페이스와 멤버 §직접 추가](CLE-ACCT-WS.md#직접-추가) |
 | 초대 재발송 | 새 `token`, `expires_at = now+7d`, `invited_by` 갱신과 메일 재발송(`resend`) | [워크스페이스와 멤버 §초대 에러 코드](CLE-ACCT-WS.md#초대-에러-코드). 초대 역할은 보지 않는다 |
 | 초대 취소 | 대기 초대 행 물리 삭제(`revoke`, repository `remove`) | 초대 재발송과 같다 |
@@ -546,9 +546,11 @@ sequenceDiagram
 
 잠금 순서(워크스페이스, 멤버십)는 소유자 이양과 같다. 둘이 겹칠 때 교착하지 않게 하기 위해서다.
 
-나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 멤버십 DELETE 다음 그 멤버의 개인 통합을 지운다(미구현).
+나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 멤버십 DELETE 다음 그 멤버의 개인 통합을 지운다.
 
-개인 통합을 쓰는 트랜잭션은 위 순서(워크스페이스, 멤버십) 뒤에 통합을 붙여 잠근다. 멤버 제거와 나가기는 멤버십을 지운 다음 통합을 지운다. 개인 통합을 만들거나 개인으로 바꾸는 트랜잭션은 워크스페이스(`FOR KEY SHARE`), 멤버십(`FOR SHARE`), 통합 순으로 잠근다(미구현). 순서와 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29), 삭제 조건은 [통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다.
+나가기와 멤버 제거(`DELETE /api/workspaces/:id/members/:memberId`)는 트랜잭션을 열자마자 잠금 대기 상한을 5초로 건다(`SET LOCAL lock_timeout`, 코드 상수 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS`). 이 상한은 멤버십 행 잠금과 개인 통합 DELETE, 그 통합의 CASCADE 자식 행 잠금에 모두 걸린다. 토큰 갱신 같은 짧은 쓰기와 겹쳐 5초 안에 잠금을 잡지 못하면 트랜잭션을 롤백하고 에러로 끝낸다(PostgreSQL `55P03`). 이 에러는 따로 매핑하지 않아 응답은 일반 500 이다. 롤백이라 멤버십과 개인 통합은 그대로이고 감사 로그도 남지 않는다. 커밋 뒤 정리(통합 삭제 감사와 자격 증명 캐시 무효화)도 일어나지 않는다. 사용자는 다시 시도하면 된다. 워크스페이스 삭제와 워크플로우 삭제가 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 넘겼을 때와 같은 처리다. 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
+
+통합을 만들거나 개인으로 바꾸는 트랜잭션은 워크스페이스, 멤버십, 통합 순으로 잠근다. 멤버십은 개인 통합일 때만 잠근다. 잠금 방식과 범위는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 멤버 제거와 나가기는 워크스페이스 행을 잠그지 않는다. 멤버십을 지운 다음 개인 통합을 지우므로 이 순서를 어기지 않는다. 삭제 조건은 [통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다.
 
 ## 테이블 쓰기 매핑
 
@@ -578,7 +580,7 @@ sequenceDiagram
 | `workspace_member` | 가입·초대 수락·직접 추가 | INSERT `workspace_id, user_id, role, invited_at, joined_at` | `(workspace_id, user_id) UNIQUE`, `(user_id)`(V129) |
 | `workspace_member` | 역할 변경 | UPDATE `role` | 없음 |
 | `workspace_member` | 멤버 제거·나가기 | DELETE | 없음 |
-| `integration` | 멤버 제거·나가기 | 멤버십 DELETE 와 같은 트랜잭션에서 그 멤버의 개인 통합을 DELETE(미구현, 조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)) | 없음 |
+| `integration` | 멤버 제거·나가기 | 멤버십 DELETE 와 같은 트랜잭션에서 그 멤버의 개인 통합을 DELETE(조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)) | 없음 |
 | `workspace_invitation` | 발급 | INSERT `workspace_id, email, role, token, invited_by, expires_at, created_at`. 대기 초대가 있으면 그 행 UPDATE | `token UNIQUE`(V017), `(email)`, `(workspace_id)`, 부분 UNIQUE `(workspace_id, email) WHERE accepted_at IS NULL` |
 | `workspace_invitation` | 재발송 | UPDATE `token, invited_by, expires_at` | 없음 |
 | `workspace_invitation` | 수락 | UPDATE `accepted_at, accepted_by`(`WHERE accepted_at IS NULL`) | 없음 |
@@ -695,6 +697,8 @@ stateDiagram-v2
 - `codebase/backend/migrations/V152__webauthn_device_name_empty_to_null.sql` (이름 변경이 남긴 빈 문자열 `device_name` 을 NULL 로 바꾼다)
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`, `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts`
+- `codebase/backend/src/modules/workspaces/member-personal-integrations.port.ts`, `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (멤버 제거 · 나가기 트랜잭션이 개인 통합을 지우는 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 와 그 구현)
+- `codebase/backend/migrations/V153__purge_departed_member_personal_integrations.sql` (통합 소유자가 멤버가 아닌 개인 통합을 한 번 지운다)
 - `codebase/backend/src/common/constants/workspace-roles.ts` (`ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
 - `codebase/backend/src/app.module.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`, `codebase/backend/src/common/utils/http-context.ts`, `codebase/backend/src/common/constants/throttle.ts` (요청 빈도 제한과 집계 키, HTTP 요청만 세는 판정 `isHttpContext`, `SENSITIVE_ACTION_THROTTLE`)
 - `codebase/backend/src/modules/mail/mail.service.ts`, `codebase/backend/src/modules/mail/mail.module.ts`, `codebase/backend/src/modules/mail/mail.transporter.ts` (SMTP 전송기와 TLS 강제)
@@ -876,3 +880,9 @@ NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 Web
 NERV Task `CLE-T-TGZGM9` 에서 정했다. 멤버십을 지우는 트랜잭션이 그 멤버의 개인 통합도 지운다. 규칙과 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가, 테이블 쓰기는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다. 이 문서에는 멤버 제거를 한 트랜잭션으로 묶는 것만 적고 잠금 순서와 삭제 조건은 링크한다. 머리 줄 구현 상태의 미구현 목록에 이 삭제를 더했다.
 
 2026-10-29 에 잠금 순서를 고쳤다(NERV Task `CLE-T-G56XCH`). 처음에는 «멤버십, 통합 순이라 교착하지 않는다» 고 적었다. 그런데 멤버십만 먼저 잠그는 개인 통합 생성은 통합 INSERT 의 외래 키 확인이 워크스페이스 행을 그 뒤에 잠근다. 워크스페이스, 멤버십 순으로 잠그는 워크스페이스 삭제·소유자 이양과 순서가 엇갈려 교착할 수 있었다. 그래서 워크스페이스, 멤버십, 통합의 전역 순서로 고쳤다.
+
+2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 이 삭제와 통합 쓰기의 잠금을 구현했다. 그래서 머리 줄 미구현 목록에서 두 항목을 빼고 본문의 미구현 표시를 걷었다. 같은 날 사용자가 NERV Task `CLE-T-G56XCH` 리뷰 후속으로 잠금 규칙을 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)로 넓혔다. 기각한 안은 [통합 관리 「나간 멤버의 개인 통합은 나갈 때 지운다」](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 에 있다. 잠금 방식은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 한 곳에만 두고 「워크스페이스 삭제와 나가기」 에는 순서만 남겼다. 그 절에 멤버 제거와 나가기가 워크스페이스 행을 잠그지 않는다는 문장도 더했다.
+
+### 나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)
+
+NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠금 대기 상한을 새 실패 경로로 짚었다. 상한을 넘긴 요청은 매핑되지 않은 500 으로 끝나는데 스펙에 그 동작과 재시도 안내가 없었다. 같은 날 이 에러에 응답 코드를 따로 두지 않고 동작을 스펙에 적기로 정했다. 한도를 넘기면 트랜잭션이 롤백되므로 데이터가 상하지 않는다. 겹칠 상대가 짧은 쓰기라 다시 시도하면 대개 통과한다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 걸고 이 에러를 따로 매핑하지 않는다. 나가기와 멤버 제거만 503 이나 409 로 바꾸면 같은 원인의 실패가 엔드포인트마다 다른 코드로 나간다. 그래서 한도 초과의 응답 코드는 이 동작들을 함께 다룰 때 정한다. 두 엔드포인트의 API 문서 설명에도 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하라는 안내를 넣었다.
