@@ -98,12 +98,14 @@ describe("computeStatus", () => {
     expect(computeStatus(row({ status: "expired" })).detail).toBeUndefined();
   });
 
-  it("surfaces install_timeout hint on expired Cafe24 Private rows", () => {
+  it("surfaces install_timeout hint on expired install-pending rows", () => {
     const view = computeStatus(
       row({ status: "expired", statusReason: "install_timeout" }),
     );
     expect(view.label).toBe("Expired");
-    expect(view.detail).toContain("delete and re-register");
+    // The expired row lets go of its store, so re-registering doesn't need a delete first (CLE-T-395HK2).
+    expect(view.detail).toContain("register the store again");
+    expect(view.detail).not.toMatch(/delete/i);
   });
 
   it("prefers lastError.message over status_reason for pending_install diagnostic", () => {

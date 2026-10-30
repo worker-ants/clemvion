@@ -26,8 +26,9 @@ const REQUEST_SCOPES_DISABLED_HINT_KEYS: Record<
   RequestScopesDisabledReason,
   TranslationKey
 > = {
-  makeshop: "integrations.requestScopesDisabledMakeshop",
+  install_timeout: "integrations.requestScopesDisabledInstallTimeout",
   no_app_url: "integrations.requestScopesDisabledNoAppUrl",
+  makeshop: "integrations.requestScopesDisabledMakeshop",
 };
 
 function readRequiresApproval(
