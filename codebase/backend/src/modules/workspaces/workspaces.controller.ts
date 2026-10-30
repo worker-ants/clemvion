@@ -253,7 +253,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '워크스페이스 나가기(본인)',
     description:
-      '팀 워크스페이스에서 본인의 멤버십을 제거합니다. 유일한 owner는 나갈 수 없습니다.',
+      '팀 워크스페이스에서 본인의 멤버십을 제거하고 그 워크스페이스에 만든 개인 통합도 함께 삭제합니다. 유일한 owner는 나갈 수 없습니다. 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하세요.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(OkResultDto, { description: '나가기 결과' })
@@ -400,7 +400,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '멤버 제거(또는 자가 탈퇴)',
     description:
-      '멤버를 워크스페이스에서 제거합니다. 본인(자가 탈퇴) 또는 Admin+ 권한으로 다른 멤버를 제거할 수 있습니다.',
+      '멤버를 제거하고 그 멤버가 이 워크스페이스에 만든 개인 통합도 함께 삭제합니다. 본인(자가 탈퇴) 또는 Admin+ 권한으로 다른 멤버를 제거할 수 있습니다. 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하세요.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiParam({ name: 'memberId', description: '멤버 UUID', format: 'uuid' })

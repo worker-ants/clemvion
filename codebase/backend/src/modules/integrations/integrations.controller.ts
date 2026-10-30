@@ -269,7 +269,8 @@ export class IntegrationsController {
   @ApiConflictResponse({
     description:
       'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 의미는 "app_type 무관" 이다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록. 겹친 행의 통합 ID 는 싣지 않는다. ' +
-      'CAFE24_PRIVATE_APP_INSTALL_PENDING · MAKESHOP_INSTALL_PENDING — new 모드가 다시 쓸 설치 대기 행(Cafe24 Private 은 같은 상점, MakeShop 은 같은 client_id)이 다른 멤버의 개인 통합. 그 행의 통합 ID 와 App URL 은 싣지 않고 설치 기한 `details.pendingInstallExpiresAt`(ISO 8601)만 싣는다.',
+      'CAFE24_PRIVATE_APP_INSTALL_PENDING · MAKESHOP_INSTALL_PENDING — new 모드가 다시 쓸 설치 대기 행(Cafe24 Private 은 같은 상점, MakeShop 은 같은 client_id)이 다른 멤버의 개인 통합. 그 행의 통합 ID 와 App URL 은 싣지 않고 설치 기한 `details.pendingInstallExpiresAt`(ISO 8601)만 싣는다. ' +
+      'INTEGRATION_NAME_TAKEN — new 모드가 설치 대기 행을 만들다 이름이 워크스페이스의 다른 통합과 겹침(Cafe24 Private · MakeShop). 통합 생성 · 별칭 수정과 같은 코드다.',
   })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,
@@ -493,7 +494,11 @@ export class IntegrationsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })
-  @ApiConflictResponse({ description: '동일 조건의 통합이 이미 존재' })
+  // 근거: [통합 관리 「에러 코드」](CLE-INT-MANAGE#에러-코드)
+  @ApiConflictResponse({
+    description:
+      '동일 조건의 통합이 이미 존재(상점 식별자 중복). INTEGRATION_NAME_TAKEN — 이름이 워크스페이스의 다른 통합과 겹침',
+  })
   async create(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -673,6 +678,11 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
+  // 근거: [통합 관리 「에러 코드」](CLE-INT-MANAGE#에러-코드)
+  @ApiConflictResponse({
+    description:
+      'INTEGRATION_OWNER_NOT_MEMBER — 조직 통합을 개인으로 바꾸려는데 통합을 만든 사람이 워크스페이스 멤버가 아님. 통합은 바뀌지 않는다.',
+  })
   async updateScope(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
