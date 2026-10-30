@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils/cn";
 import type { IntegrationDto } from "@/lib/api/integrations";
 import {
-  INSTALL_TIMEOUT_REASON,
+  isInstallTimedOut,
   pickErrorMessage,
 } from "@/lib/integrations/reauthorize";
 
@@ -68,10 +68,9 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       label: "Expired",
       dotClassName: "bg-yellow-500",
       tone: "warn",
-      detail:
-        integration.statusReason === INSTALL_TIMEOUT_REASON
-          ? "Install timed out — register the store again"
-          : undefined,
+      detail: isInstallTimedOut(integration)
+        ? "Install timed out — register the store again"
+        : undefined,
     };
   }
   // expiresSoon 분기는 autoRefresh=false 통합에만 적용 — 짧은-수명 OAuth

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { isInstallTimedOut } from "@/lib/integrations/reauthorize";
 import { useMakeshopPendingPolling } from "@/lib/integrations/use-makeshop-pending-polling";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
@@ -127,8 +128,7 @@ export function MakeshopPendingStep({
             role="status"
             className="text-xs text-amber-700 dark:text-amber-300"
           >
-            {poll.status === "expired" &&
-            poll.statusReason === "install_timeout"
+            {isInstallTimedOut(poll)
               ? t("integrations.makeshopPendingExpired")
               : t("integrations.makeshopPendingTerminal")}
           </p>

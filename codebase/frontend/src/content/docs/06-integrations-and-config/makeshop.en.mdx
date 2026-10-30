@@ -138,7 +138,7 @@ MakeShop integrations support neither reauthorization nor adding scopes (Request
   describes="Request scopes button on the Scope tab of the integration detail page, and the MakeShop disabled reason"
 />
 
-There is only one way to recover: delete the integration and register it again. If you need more scopes, register it again with every scope you need ticked. Registering again repeats the original flow: put the new App URL into MakeShop Partner Center and install the app from ShopStore.
+To recover, delete the integration and register it again. An integration that expired because its install deadline passed is the exception. Register the same store again; you don't need to delete that integration first. See "A pending install that passed its deadline" above. If you need more scopes, register it again with every scope you need ticked. Registering again repeats the original flow: put the new App URL into MakeShop Partner Center and install the app from ShopStore.
 
 <Callout type="warn">Reinstalling the app from ShopStore does not restore an integration that has already finished installing (connected, error, or expired). The install link only takes you to that integration's detail page. An integration still waiting for its first install (`pending_install`) continues when you install the app from ShopStore.</Callout>
 
@@ -146,6 +146,6 @@ There is only one way to recover: delete the integration and register it again. 
 
 - **Where do I enter shop_uid?** — You don't. It arrives automatically when the app is installed.
 - **It won't connect** — Verify the App URL / Redirect URI are registered exactly in Partner Center, including the trailing install token. A single mismatched character fails HMAC verification and the call is rejected.
-- **How do I reauthorize?** — MakeShop integrations cannot be reauthorized. Delete the integration and register it again. Reinstalling the app from ShopStore does not restore an integration that is already connected.
-- **I need more scopes** — MakeShop integrations cannot be granted new scopes. Tick every scope you need, delete the integration, and register it again.
+- **How do I reauthorize?** — MakeShop integrations cannot be reauthorized. Delete the integration and register it again. For an integration that expired because its install deadline passed, register the same store again; you don't need to delete that integration first. Reinstalling the app from ShopStore does not restore an integration that is already connected.
+- **I need more scopes** — MakeShop integrations cannot be granted new scopes. Tick every scope you need, delete the integration, and register it again. For an integration that expired because its install deadline passed, register the same store again; you don't need to delete that integration first.
 - **I didn't receive an expiry notification — why was my connection disrupted?** — No notification is sent while automatic renewal is succeeding. An `integration_action_required` alert is sent only when automatic renewal fails. See the recovery entry above.

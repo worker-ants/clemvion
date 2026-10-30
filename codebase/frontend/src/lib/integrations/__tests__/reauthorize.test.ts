@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   INSTALL_TIMEOUT_REASON,
+  isInstallTimedOut,
   isReauthorizeDisabled,
   isRequestScopesDisabled,
   pickErrorMessage,
@@ -32,6 +33,21 @@ function row(overrides: Partial<IntegrationDto>): IntegrationDto {
     ...overrides,
   } as IntegrationDto;
 }
+
+// 설치 기한 초과는 이 술어 하나로 판정한다. 상태와 사유를 둘 다 본다(NERV CLE-INT-OAUTH, Task CLE-T-YMF05E).
+// 설치 대기 단계의 조회 결과처럼 행 전체가 아닌 값도 받는다.
+describe("isInstallTimedOut", () => {
+  it.each([
+    ["expired", INSTALL_TIMEOUT_REASON, true],
+    ["expired", "token_expired", false],
+    ["expired", null, false],
+    ["error", INSTALL_TIMEOUT_REASON, false],
+    ["pending_install", INSTALL_TIMEOUT_REASON, false],
+    ["connected", null, false],
+  ] as const)("status=%s, statusReason=%s → %s", (status, statusReason, expected) => {
+    expect(isInstallTimedOut({ status, statusReason })).toBe(expected);
+  });
+});
 
 describe("isReauthorizeDisabled", () => {
   it("disables pending_install regardless of provider", () => {
@@ -169,6 +185,23 @@ describe("reauthorizeDisabledReason", () => {
       }),
       "install_timeout",
     ],
+    [
+      row({
+        status: "expired",
+        statusReason: INSTALL_TIMEOUT_REASON,
+        serviceType: "makeshop",
+      }),
+      "install_timeout",
+    ],
+    // 설치 기한 초과가 아닌 만료는 상점 자리를 놓지 않는다. MakeShop 은 그대로 삭제 후 재등록이다.
+    [
+      row({
+        status: "expired",
+        statusReason: "token_expired",
+        serviceType: "makeshop",
+      }),
+      "makeshop",
+    ],
   ] as const)("%# → %s", (integration, reason) => {
     expect(reauthorizeDisabledReason(integration)).toBe(reason);
   });
@@ -284,6 +317,18 @@ describe("requestScopesDisabledReason", () => {
         }),
       ),
     ).toBe("no_app_url");
+  });
+
+  it("MakeShop expired for another reason → makeshop", () => {
+    expect(
+      requestScopesDisabledReason(
+        row({
+          status: "expired",
+          statusReason: "token_expired",
+          serviceType: "makeshop",
+        }),
+      ),
+    ).toBe("makeshop");
   });
 
   // 설치 시간 초과가 먼저다 — reauthorizeDisabledReason 과 같은 순서. 그 행은 App URL 도 없지만

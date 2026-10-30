@@ -8,7 +8,7 @@ import type {
   RequestScopesResult,
   ServiceDefinition,
 } from "@/lib/api/integrations";
-import { useT } from "@/lib/i18n";
+import { translate, useT } from "@/lib/i18n";
 import type { WorkspaceRole } from "@/lib/stores/workspace-store";
 import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
@@ -334,52 +334,65 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
   });
 
   // 설치 시간이 지나 만료된 행은 App URL 도 비어 있지만(설치 토큰이 지워진다) 삭제 없이 같은 상점을 다시 등록하면 된다.
-  it.each([
-    [
-      "Cafe24 Private",
-      {
-        status: "expired" as const,
-        statusReason: "install_timeout",
-        appUrl: null,
-      },
-    ],
-    [
-      "MakeShop",
-      {
-        status: "expired" as const,
-        statusReason: "install_timeout",
-        serviceType: "makeshop" as const,
-        meta: { appType: null },
-      },
-    ],
-  ])(
-    "tells the user to register the same store again for an install-timeout %s row",
-    async (_name, overrides) => {
-      const { render: renderFn } = renderScopeTab({
-        integration: buildIntegration(overrides),
-      });
-      await act(async () => {
-        renderFn();
-      });
+  // 문구는 언어마다 사전 값으로 비교한다. 삭제한 뒤 다시 등록하라는 두 문구(App URL 없음 · MakeShop)는 보이지 않는다.
+  describe.each(["en", "ko"] as const)("locale %s", (locale) => {
+    beforeEach(() => {
+      useLocaleStore.setState({ locale });
+    });
 
-      expect(
-        screen.getByText(
-          /expired because the install timed out, so it can't be granted new scopes/,
-        ),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/without deleting this one/),
-      ).toBeInTheDocument();
-      // 옛 «삭제한 뒤 다시 등록» 문구들이 섞이지 않는다.
-      expect(screen.queryByText(/Delete it and register it again/)).toBeNull();
-      expect(screen.queryByText(/delete the integration and register/)).toBeNull();
-      expect(getCheckbox("Write product")).toBeDisabled();
-      expect(
-        screen.getByRole("button", { name: "Request scopes" }),
-      ).toBeDisabled();
-      expect(requestScopesMock).not.toHaveBeenCalled();
-    },
-  );
+    it.each([
+      [
+        "Cafe24 Private",
+        {
+          status: "expired" as const,
+          statusReason: "install_timeout",
+          appUrl: null,
+        },
+      ],
+      [
+        "MakeShop",
+        {
+          status: "expired" as const,
+          statusReason: "install_timeout",
+          serviceType: "makeshop" as const,
+          meta: { appType: null },
+        },
+      ],
+    ])(
+      "tells the user to register the same store again for an install-timeout %s row",
+      async (_name, overrides) => {
+        const { render: renderFn } = renderScopeTab({
+          integration: buildIntegration(overrides),
+        });
+        await act(async () => {
+          renderFn();
+        });
+
+        expect(
+          screen.getByText(
+            translate(locale, "integrations.requestScopesDisabledInstallTimeout"),
+          ),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            translate(locale, "integrations.requestScopesDisabledNoAppUrl"),
+          ),
+        ).toBeNull();
+        expect(
+          screen.queryByText(
+            translate(locale, "integrations.requestScopesDisabledMakeshop"),
+          ),
+        ).toBeNull();
+        expect(getCheckbox("Write product")).toBeDisabled();
+        expect(
+          screen.getByRole("button", {
+            name: translate(locale, "integrations.requestScopesBtn"),
+          }),
+        ).toBeDisabled();
+        expect(requestScopesMock).not.toHaveBeenCalled();
+      },
+    );
+  });
 
   it("keeps the delete-and-register-again hint for a Cafe24 Private row expired for another reason", async () => {
     const { render: renderFn } = renderScopeTab({

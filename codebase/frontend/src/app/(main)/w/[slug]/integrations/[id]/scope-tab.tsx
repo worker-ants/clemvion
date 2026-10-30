@@ -73,9 +73,10 @@ export function ScopeTab({
   // `IntegrationDto.lastError` 의 union 분기를 안전하게 좁히기 위해 type guard
   // 함수 사용 — 백엔드가 details 를 omit 한 케이스도 깨끗히 처리.
   const requiresApprovalFromError = readRequiresApproval(integration.lastError);
-  // MakeShop 은 권한 추가 경로가 없고(삭제 후 재등록), App URL 이 없는 Cafe24
-  // Private 행은 재설치를 마칠 수 없다. 사유마다 문구가 다르다.
-  // NERV CLE-INT-OAUTH · CLE-T-NNENG8.
+  // 권한 추가를 막는 사유는 세 가지이고 이 순서로 본다. 설치 기한이 지나 만료된
+  // 행은 지우지 않고 같은 상점을 새로 등록한다. MakeShop 은 권한 추가 경로가 없어
+  // 삭제 후 재등록이다. App URL 이 없는 Cafe24 Private 행은 재설치를 마칠 수 없다.
+  // 사유마다 문구가 다르다. NERV CLE-INT-OAUTH · CLE-T-NNENG8 · CLE-T-395HK2.
   const disabledReason = requestScopesDisabledReason(integration);
   const requestDisabledHint =
     disabledReason === null
