@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "d8266a6da28b3857128f130d4396df8013e25ecd7af1e98b98f5a434e7ad5c48"
+content_hash: "d9ae65120b4152148afe8426428ce6bb5fac0c2864b3f25778a435014de55222"
 read_as: "approved_fallback"
 task: "CLE-T-PS7JQY"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "7f563e2c7c6dc13faaa082b753c200c89703be8081a895891b4e3f4078fa0adc"
-etag: "sha256-ddf14f41698e7166abbcb30cd15347bc449d5e30d44a144656dc5c8cc6c51768"
+mirror_sha256: "d7c61bed27f474a345b3e6b78e094b4a5b4aafbc2dcd50c788825b0d078c4ba1"
+etag: "sha256-1a571fa07bb35d843727ce66304f993608e167434eadf15988e91b34017021b9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -123,7 +123,7 @@ sequenceDiagram
 | --- | --- | --- | --- | --- |
 | `integration.created` | integration | `integrations/integrations.service.ts` | 통합 생성 | 구현됨 |
 | `integration.updated` | integration | 〃 | 통합 수정 | 구현됨 |
-| `integration.deleted` | integration | 〃 | 통합 삭제. 멤버가 나가거나 제거되면서 그 사람의 개인 통합을 함께 지우면 통합마다 남기고 `member.removed` 와 같은 `details.mode`(`'left'` 또는 `'removed'`)와 `details.memberUserId` 를 싣는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#감사-로그)). 이 삭제 경로는 미구현이다(NERV Task `CLE-T-PS7JQY`) | 부분 구현 |
+| `integration.deleted` | integration | 〃 | 통합 삭제. 멤버가 나가거나 제거되면서 그 사람의 개인 통합을 함께 지우면 나가기·제거 트랜잭션이 커밋된 뒤 `member.removed` 다음에 지운 통합마다 한 행씩 남긴다. 기록은 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 의 커밋 뒤 처리에서 일반 삭제와 같은 `finishIntegrationDeletion` 을 불러 남긴다([통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 행위자는 나가기면 나간 멤버, 제거면 제거한 관리자다. `details` 에는 `member.removed` 와 같은 `mode`(`'left'` 또는 `'removed'`)와 `memberUserId` 를 싣는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#감사-로그)). 일반 삭제의 행에는 두 키가 없다 | 구현됨 |
 | `integration.rotated` | integration | 〃 | 자격 증명 교체 | 구현됨 |
 | `integration.scope_changed` | integration | 〃 | 공개 범위(`Integration.scope`) 전환. personal ↔ organization. `details.from`·`to` | 구현됨 |
 | `integration.reauthorized` | integration | 〃 | 통합 재인증. OAuth 제공자가 없는 통합의 reset 경로에서만 남는다(`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 에 위임하므로 시작과 콜백 어디에서도 남지 않는다(커버리지 갭, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)) | 부분 구현 |
@@ -168,7 +168,7 @@ sequenceDiagram
 
 - 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다.
 - **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
-- **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다.
+- **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다. 멤버가 나가거나 제거될 때 남는 `member.removed` 한 행과 `integration.deleted` 여러 행은 이 규칙(REQ-AUDIT-010)의 대상이 아니다. 지운 개인 통합은 멤버십과 서로의 행을 맞추는 짝 리소스가 아니고 그 요청으로 실제로 지워진 리소스라서 통합마다 남긴다.
 - **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다. 트리거 생성 · 수정 요청이 첫 알림 서명 시크릿이나 트리거 단위 토큰을 발급하는 일에는 전용 감사 액션을 두지 않는다. 그 요청의 `trigger.created` · `trigger.updated` 행이 `details.issuedSecrets` 로 발급을 표시한다([Rationale](#첫-발급-표시는-생성과-수정-기록에-싣는다)).
 - **Telegram 인바운드 서명의 서버 재발급에는 전용 감사 액션이 없다.** Telegram 어댑터는 `setupChannel()` 이 불릴 때마다 `secret_token` 을 새로 만들어 등록한다. 서버는 그 값을 다시 저장한다([채팅 채널 「인바운드 서명 자료 변경」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-서명-자료-변경)). 이 재발급은 사용자가 고른 자격 증명 교체가 아니라 프로바이더 등록의 일부라서 위 세 교체 감사 액션의 대상이 아니다. 재발급을 일으킨 요청의 감사 액션(`trigger.created`, `trigger.updated`, `trigger.chat_channel_bot_token_rotated`)이 그 기록을 겸한다. 감사 로그 조회에서 서명 재발급만 따로 거를 수는 없다(알려진 한계, [Rationale](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다)).
 - **모델 설정 레거시 행**: 모델 설정 통합(2026-08-01) 전에 `llm_config.*`·`rerank_config.*` 로 남은 행은 append-only 로 보존하고 다시 쓰지 않는다. 모델 설정 감사를 조회할 때는 두 집합(`model_config.*` 또는 `llm_config.*`·`rerank_config.*`)을 OR 로 묶는다.
@@ -371,3 +371,7 @@ NERV Task `CLE-T-W11BQ9` 에서 정했다. 2026-09-10 의 consistency 검토가 
 ### 레거시 감사 액션 행은 고치지 않는다
 
 예전 `re_run_initiated` 는 resource 접두 없이 적재돼 과거분사형 통합 감사 액션과 섞였다. cross-audit G-02 에서 `execution.re_run` 으로 고쳤지만 새 행부터 적용했고 기존 행은 감사 기록 불변 원칙에 따라 그대로 둔다. 모델 설정 통합 전의 `llm_config.*`·`rerank_config.*` 행도 같다. 이 때문에 조회 응답의 `action` 은 닫힌 enum 이 아니다.
+
+### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
+
+2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 나간 멤버의 개인 통합 삭제를 구현해 카탈로그의 `integration.deleted` 행을 구현됨으로 바꿨다. 감사 행은 나가기·제거 트랜잭션이 커밋된 뒤에 남기므로 그 트랜잭션이 롤백되면 `member.removed` 와 `integration.deleted` 둘 다 남지 않는다.

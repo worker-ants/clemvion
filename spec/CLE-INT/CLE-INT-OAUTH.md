@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH"
 title: "OAuth 연결과 토큰 갱신"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057", "REQ-INTOAUTH-058", "REQ-INTOAUTH-059", "REQ-INTOAUTH-060", "REQ-INTOAUTH-061", "REQ-INTOAUTH-062", "REQ-INTOAUTH-063", "REQ-INTOAUTH-064", "REQ-INTOAUTH-065", "REQ-INTOAUTH-066", "REQ-INTOAUTH-067", "REQ-INTOAUTH-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "32a22d003c3150494a96e304fefc6d033bd4663ee20e40657c30a80c48b5c553"
+content_hash: "62ed5979867d18d04091ba19c1997ee48e3a50237b2e1c91659d0bf56f71cb28"
 read_as: "approved_fallback"
 task: "CLE-T-PS7JQY"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "5139b2540784c5aea8668ba4fa69df1b16c44c32c6cc18fe0569a4829f69792c"
-etag: "sha256-bbd0f8003d8bb3e79b5f2a52b4c2d198ea6e946e175d7be429e7130ab277e4d6"
+mirror_sha256: "605e41b6defb3d8f75b9095c3dd502d71efffb0b84093f5dfec11aaea7567137"
+etag: "sha256-4733edccb934a52b6a8d145f4d0bfdd63e6f7e6870c96c770741f9ea450bcdd0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -108,7 +108,7 @@ etag: "sha256-bbd0f8003d8bb3e79b5f2a52b4c2d198ea6e946e175d7be429e7130ab277e4d6"
 - REQ-INTOAUTH-065 WHEN `oauth/begin`·설치 엔드포인트가 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED`·`MAKESHOP_ALREADY_CONNECTED` 를 내면 THE SYSTEM SHALL 겹친 행의 통합 ID 를 응답에 싣지 않는다.
 - REQ-INTOAUTH-066 WHEN `oauth/begin` 이 설치 대기 행을 다시 쓰면 THE SYSTEM SHALL 그 행을 잠근 뒤 재사용 권한을 판정하고 같은 트랜잭션에서 덮어쓴다. MakeShop 은 같은 `(workspace_id, client_id)` 의 begin 을 트랜잭션 잠금으로 줄 세운다.
 - REQ-INTOAUTH-067 WHEN Cafe24 Private·MakeShop `oauth/begin` 이 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 응답에 그 행의 공개 범위 `scope` 를 싣는다.
-- REQ-INTOAUTH-068 WHEN 중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복이 같은 상점의 Cafe24·MakeShop 통합을 찾으면 THE SYSTEM SHALL 설치 기한이 지나 만료된 행(`status='expired'`, `status_reason='install_timeout'`)을 빼고 찾는다. `mall_id` 컬럼이 비어 `credentials.mall_id` 로 상점을 맞추는 행도 같다. (미구현, NERV Task `CLE-T-PS7JQY`)
+- REQ-INTOAUTH-068 WHEN 중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복이 같은 상점의 Cafe24·MakeShop 통합을 찾으면 THE SYSTEM SHALL 설치 기한이 지나 만료된 행(`status='expired'`, `status_reason='install_timeout'`)을 빼고 찾는다. `mall_id` 컬럼이 비어 `credentials.mall_id` 로 상점을 맞추는 행도 같다.
 
 ## OAuth 연결 흐름
 
@@ -140,12 +140,12 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
   - Public: 연결됨 행이 있으면 begin 을 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 바로 거절한다. Public 은 begin 에서 행을 만들지 않으므로 이 사전 검사가 없으면 사용자가 OAuth 동의까지 마친 뒤에야 충돌을 알게 된다. `new` 가 아닌 모드(`reauthorize`·`request_scopes`)에서는 `integrationId` 가 가리키는 대상 통합 자신을 중복으로 보지 않는다. 대상이 아닌 연결됨 행이 있으면 같은 409 로 거절한다.
   - Private: 연결됨 행이 있으면 같은 코드로 거절한다. `app_type='private'` 인 설치 대기 행이 있으면 새 행을 만들지 않고 그 행을 재사용한다(멱등 begin). 설치 토큰과 발급 시각(`install_token_issued_at`)은 보존한다. 다만 `client_id`·`client_secret` 가운데 하나라도 바뀌었거나 설치 토큰이 없는 옛 행이면 설치 토큰을 새로 발급하고 발급 시각도 그때로 바꾼다. 설치 기한은 그때부터 다시 센다. 재사용은 요청자가 그 행을 바꿀 수 있을 때만 한다. 아래 «설치 대기 행 재사용의 권한» 을 따른다. `new` 가 아닌 모드는 이 검사에 닿지 않는다. 자격 증명을 갖춘 요청은 REQ-INTOAUTH-013 이 먼저 거절하고, `:id/reauthorize`·`:id/request-scopes` 는 REQ-INTOAUTH-055·056 대로 begin 전에 거절한다.
   - 만료됨·오류 행은 begin 의 사전 검사가 막지 않는다. 상점 식별자 UNIQUE(V072)가 마지막 방어로 같은 409 를 낸다. Public 은 최종 생성 단계에서, Private 은 begin 이 설치 대기 행을 만들 때 이 제약에 걸린다. 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 통합은 최대 1행이므로 사용자는 기존 통합을 쓰거나 지우고 다시 등록한다.
-    - 설치 기한이 지나 만료된 행(`install_timeout`)은 예외다. 만료할 때 상점 식별자를 비우므로([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)) 이 제약에 걸리지 않는다. 그 행을 지우지 않아도 누구든 그 상점을 다시 등록할 수 있다(REQ-INTOAUTH-068, 미구현).
+    - 설치 기한이 지나 만료된 행(`install_timeout`)은 예외다. 만료할 때 상점 식별자를 비우므로([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)) 이 제약에 걸리지 않는다. 그 행을 지우지 않아도 누구든 그 상점을 다시 등록할 수 있다(REQ-INTOAUTH-068).
     - 이름은 놓지 않는다. Cafe24 Private 의 기본 이름은 상점 식별자로 만들어서 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이 흔하다. 사용자는 이름을 바꿔 다시 등록한다.
 - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 세 경로에서 같은 코드로 나온다. 첫째는 begin 의 사전 SELECT 다. 연결됨 행만 차단하고 `new` 가 아닌 모드의 대상 통합은 뺀다. 둘째는 Cafe24 Private begin 이 `23505` 뒤 판정을 한 번 더 했는데도 상점 식별자 UNIQUE 에 걸린 경우다([설치 대기 행 재사용의 권한](#설치-대기-행-재사용의-권한)). 셋째는 `POST /api/integrations` 최종 생성에서 `idx_integration_workspace_service_mall` 위반(`23505`)을 `throwIfUniqueViolation` 이 서비스 유형이 cafe24 인 분기로 바꾼 것이다. 앱 유형과 상관없이 쓴다. 이름의 `PRIVATE` 는 옛 이름이 남은 것이고 뜻은 «같은 상점의 Cafe24 통합이 이미 있다» 다. 클라이언트는 이름이 아니라 이 뜻으로 분기한다(아래 Rationale).
 - MakeShop 은 begin 시점에 `shop_uid` 를 모르므로 같은 `(workspace_id, client_id)` 의 설치 대기 행을 재사용하고 상점 중복은 설치 콜백에서 `MAKESHOP_ALREADY_CONNECTED`(409)로 막는다. 재사용 조건은 Cafe24 Private 과 같다. 설치 토큰과 발급 시각은 `client_secret` 이 바뀌어도 그대로 두고 설치 토큰이 없는 행에만 새로 발급한다. Cafe24 Private 과 다른 이 조건은 [미결 사항](#미결-사항) 에 있다.
 - 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED`·`MAKESHOP_ALREADY_CONNECTED` 는 겹친 행의 통합 ID 를 싣지 않는다(REQ-INTOAUTH-065). 겹친 행이 남의 개인 통합일 수 있어서다. 예외 객체도 `code`·`message` 만 담는다(2026-10-29 코드 확인).
-- Cafe24 Private·MakeShop begin 이 설치 대기 행을 만들다 이름 UNIQUE(`integration_workspace_name_unique`)에 걸리면 409 `INTEGRATION_NAME_TAKEN` 이다(REQ-INTMGMT-005). 설치 대기 행을 만드는 것도 통합 생성이라 생성과 같은 코드를 낸다. 동시 begin 이 이름 UNIQUE 에 걸렸을 때 한 번 더 판정하는 순서는 [설치 대기 행 재사용의 권한](#설치-대기-행-재사용의-권한) 에 있다(미구현, NERV Task `CLE-T-PS7JQY`).
+- Cafe24 Private·MakeShop begin 이 설치 대기 행을 만들다 이름 UNIQUE(`integration_workspace_name_unique`)에 걸리면 409 `INTEGRATION_NAME_TAKEN` 이다(REQ-INTMGMT-005). 설치 대기 행을 만드는 것도 통합 생성이라 생성과 같은 코드를 낸다. 동시 begin 이 이름 UNIQUE 에 걸렸을 때 한 번 더 판정하는 순서는 [설치 대기 행 재사용의 권한](#설치-대기-행-재사용의-권한) 에 있다.
 
 #### 설치 대기 행 재사용의 권한
 
@@ -163,13 +163,13 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 - 판정 순서는 뷰어 거절(REQ-INTOAUTH-063), 관리자 미만의 조직 공개 범위 거절(REQ-INTOAUTH-064), 이 표다. 앞의 둘은 요청 본문만 보므로 다시 쓸 행이 있어도 먼저 걸린다.
 - 이 표는 요청 본문의 공개 범위를 보지 않는다. 다시 쓸 행의 공개 범위와 통합 소유자만 본다. 재사용해도 그 행의 공개 범위와 통합 소유자(`created_by`)는 바뀌지 않는다. 그래서 관리자가 개인 공개 범위로 요청해도 다시 쓸 행이 조직 행이면 결과는 조직 통합이다. 응답의 `scope` 는 만들거나 다시 쓴 행의 공개 범위라서 요청과 다른지 클라이언트가 알 수 있다(REQ-INTOAUTH-067). 이때 개인으로 쓰려던 `client_secret` 이 조직 통합에 들어가지만 재사용은 그대로 한다(2026-10-29 사용자 결정). 화면은 응답 `scope` 가 요청과 다르면 설치를 기다리던 기존 통합을 이어 쓰고 공개 범위는 그 통합의 값 그대로라는 안내를 info 토스트로 띄운다.
 - MakeShop 은 같은 `(workspace_id, client_id)` 의 설치 대기 행이 여럿일 수 있다. 여럿이면 요청자가 바꿀 수 있는 행을 먼저 고르고, 같은 조건 안에서는 `created_at`·`id` 가 앞선 행을 고른다. 바꿀 수 있는 행이 없으면 같은 순서의 첫 행으로 위 표의 거절을 정한다. Cafe24 Private 은 상점 식별자 UNIQUE(V072) 때문에 다시 쓸 행이 하나뿐이다.
-- 개인 설치 대기 행을 만들 수 있는 begin(요청 공개 범위가 개인)의 트랜잭션은 워크스페이스 행(`FOR KEY SHARE`)과 요청자의 멤버십 행(`FOR SHARE`)을 먼저 잡는다(REQ-INTMGMT-066, 미구현, NERV Task `CLE-T-PS7JQY`). advisory lock 과 다시 쓸 후보 행의 `FOR UPDATE` 는 그 뒤다. 후보 행을 먼저 잠그면 멤버십을 지운 뒤 통합을 지우는 나가기·제거와 교착한다. 순서와 근거는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+- 설치 대기 행을 만들거나 다시 쓰는 begin 의 트랜잭션은 워크스페이스, 멤버십, 통합 순으로 잠근다(REQ-INTMGMT-066). 멤버십은 요청 공개 범위가 개인일 때만 잠근다. 다시 쓸 후보 행의 `FOR UPDATE` 는 그 뒤이고 MakeShop 은 그 사이에 advisory lock 을 잡는다. 후보 행을 먼저 잠그면 멤버십을 지운 뒤 통합을 지우는 나가기·제거와 교착한다. 잠금 방식과 근거는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
 - 판정과 덮어쓰기는 한 트랜잭션에서 한다. 다시 쓸 후보 행들의 ID 를 `status='pending_install'` 조건과 함께 `FOR UPDATE` 로 한 번에 잠근다. 잠금을 기다리는 사이 설치를 마쳤거나 만료된 행은 PostgreSQL 이 WHERE 를 다시 평가해 결과에서 빠진다(READ COMMITTED). 남은 행 안에서 위 표로 다시 골라 판정하고 그 행을 덮는다. 남은 행이 없으면 새 행을 만든다. 잠금을 기다린 뒤 다시 고르는 일은 한 트랜잭션에서 한 번이고 되풀이하지 않는다. Cafe24 Private 의 INSERT 가 동시 begin 과 부딪혀 트랜잭션을 한 번 더 여는 경우는 아래 항목이 정한다. MakeShop 은 행을 고르기 전에 같은 `(workspace_id, client_id)` 의 begin 을 트랜잭션 advisory lock 으로 줄 세운다. 잠금 키의 모양과 해시 함수는 [Redis 키 명명 규약 「Redis 키가 아닌 인접 이름」](../CLE-ENG/CLE-ENG-REDIS.md#redis-키가-아닌-인접-이름) 표가 정본이다. 이 잠금이 없으면 동시에 들어온 두 begin 이 모두 다시 쓸 행이 없다고 보고 설치 대기 행을 둘 만든다(REQ-INTOAUTH-066).
 - Cafe24 Private 은 같은 상점의 설치 대기 행을 두 begin 이 동시에 만들면 늦은 쪽 INSERT 가 `23505` 로 막힌다. 걸리는 제약은 상점 식별자 UNIQUE(V072)다. 같은 화면에서 온 두 begin 은 이름도 같아서 이름 UNIQUE(`integration_workspace_name_unique`)가 먼저 걸리기도 한다. 늦은 쪽은 어느 제약에 걸렸든 트랜잭션을 한 번만 더 열어 행 선택과 판정을 다시 한다. 그때는 앞선 begin 이 만든 행이 보여서 위 표대로 재사용하거나 409 `CAFE24_PRIVATE_APP_INSTALL_PENDING` 등으로 거절한다.
   - 다시 해도 상점 식별자 UNIQUE 에 걸리면 begin 이 다시 쓰지 않는 같은 상점의 행(만료됨·오류)이 있는 것이다. 이때는 409 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 로 바꾼다. 코드와 문구는 `throwIfUniqueViolation` 과 같다.
-  - 다시 해도 이름 UNIQUE 에 걸리면 다른 통합이 그 이름을 쓰는 것이라 다시 판정하지 않고 409 `INTEGRATION_NAME_TAKEN` 으로 바꾼다([통합 관리](CLE-INT-MANAGE.md#에러-코드)). MakeShop 도 설치 대기 행을 만들다 이름 UNIQUE 에 걸리면 같은 코드다(미구현).
+  - 다시 해도 이름 UNIQUE 에 걸리면 다른 통합이 그 이름을 쓰는 것이라 다시 판정하지 않고 409 `INTEGRATION_NAME_TAKEN` 으로 바꾼다([통합 관리](CLE-INT-MANAGE.md#에러-코드)). MakeShop 도 설치 대기 행을 만들다 이름 UNIQUE 에 걸리면 같은 코드다.
   - 만료된 설치 대기 행은 상점 자리를 놓아도 이름은 그대로 남아서 같은 상점을 같은 이름으로 다시 등록하면 이 코드가 난다.
-  - 호환성: 이 경로가 내던 `RESOURCE_CONFLICT` 가 `INTEGRATION_NAME_TAKEN` 으로 바뀐다. 코드 값으로 분기하던 클라이언트는 새 코드를 처리해야 한다. 이 코드는 생성과 별칭 수정이 이미 내는 코드다.
+  - 호환성: 이 경로가 내던 `RESOURCE_CONFLICT` 가 `INTEGRATION_NAME_TAKEN` 으로 바뀐다. 코드 값으로 분기하던 클라이언트는 새 코드를 처리해야 한다. 이 코드는 생성과 별칭 수정이 이미 내는 코드다. 자사 프런트엔드는 옛 코드 `RESOURCE_CONFLICT` 로 이 경우를 가르지 않았다(저장소 검색으로 확인).
   - 곧바로 409 를 내지 않는 이유는 [남의 개인 설치 대기 행은 409 로 거절한다](#남의-개인-설치-대기-행은-409-로-거절한다-2026-10-24) 의 2026-10-29 보완에 있다.
 - 남의 개인 설치 대기 행은 목록에 보이지 않는다. 409 는 그 행이 있다는 것을 드러낸다. Cafe24 Private 은 상점 식별자 유일성이 이미 드러내는 정도라서 받아들였다([통합 관리](CLE-INT-MANAGE.md) Rationale «개인 통합 소유자를 강제한다» 의 받아들인 잔여). MakeShop 설치 대기 행에는 상점 식별자 UNIQUE 가 없다. 대신 요청자가 그 `client_id` 를 이미 알고 입력한 같은 워크스페이스 멤버라서 받아들였다. 409 가 더 알려 주는 것은 동료가 같은 앱을 설치하는 중이라는 사실과 설치 기한뿐이다([남의 개인 설치 대기 행은 409 로 거절한다](#남의-개인-설치-대기-행은-409-로-거절한다-2026-10-24)).
 
@@ -330,7 +330,7 @@ sequenceDiagram
 
 `CAFE24_INSTALL_MISSING_PARAMS` 는 capability 토큰 가정(설치 토큰은 추측할 수 없다)과 무관한 파라미터 누락이라 404·403 합산 정책과 별개 코드다. HMAC 실패의 세 갈래(`mall_id` 불일치, `client_secret` 없음, HMAC 불일치)는 같은 403 을 돌려준다. 대신 `logger.warn` 에 갈래, URL 과 DB `mall_id` 의 일치 여부, DB 앱 유형·상태·사유, 설치 토큰 앞뒤 4자를 남긴다. `client_secret` 은 절대 로그에 남기지 않는다(`SECRET_LEAK_PATTERNS` 정책).
 
-⑨ 는 연결됨 행만 본다. 오류·만료됨인 같은 상점 행이 남아 있으면 ⑨ 를 지난 뒤 `shop_uid` 를 `mall_id` 컬럼에 쓰는 순간 상점 식별자 UNIQUE(V072) 위반이 나고 같은 409 `MAKESHOP_ALREADY_CONNECTED` 로 바뀐다. 그래서 오류·만료됨 행이 남은 상점에 MakeShop 통합을 다시 등록해 설치하려면 기존 통합을 먼저 지워야 한다. 순서는 사용처 교체, 기존 통합 삭제, 재등록과 ShopStore 앱 설치다. 사용처가 남아 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다([통합 관리](CLE-INT-MANAGE.md#사용처-추적과-삭제-차단)). 설치 기한이 지나 만료된 행(`install_timeout`)은 예외다. 만료할 때 상점 식별자를 비우므로 이 위반을 내지 않는다. 그 행을 지우지 않아도 다시 설치할 수 있다(REQ-INTOAUTH-068, 미구현). 만료 행의 이름은 그대로라 같은 이름으로 begin 하면 409 `INTEGRATION_NAME_TAKEN` 이다.
+⑨ 는 연결됨 행만 본다. 오류·만료됨인 같은 상점 행이 남아 있으면 ⑨ 를 지난 뒤 `shop_uid` 를 `mall_id` 컬럼에 쓰는 순간 상점 식별자 UNIQUE(V072) 위반이 나고 같은 409 `MAKESHOP_ALREADY_CONNECTED` 로 바뀐다. 그래서 오류·만료됨 행이 남은 상점에 MakeShop 통합을 다시 등록해 설치하려면 기존 통합을 먼저 지워야 한다. 순서는 사용처 교체, 기존 통합 삭제, 재등록과 ShopStore 앱 설치다. 사용처가 남아 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다([통합 관리](CLE-INT-MANAGE.md#사용처-추적과-삭제-차단)). 설치 기한이 지나 만료된 행(`install_timeout`)은 예외다. 만료할 때 상점 식별자를 비우므로 이 위반을 내지 않는다. 그 행을 지우지 않아도 다시 설치할 수 있다(REQ-INTOAUTH-068). 만료 행의 이름은 그대로라 같은 이름으로 begin 하면 409 `INTEGRATION_NAME_TAKEN` 이다.
 
 보안 계층을 한 표로 모으면 이렇다.
 
@@ -409,7 +409,8 @@ GET /api/3rd-party/:provider/callback
 | Cafe24 `invalid_scope` (인가·토큰 교환 두 단계 모두) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | 상태 보존 + `status_reason='oauth_invalid_scope'` + `last_error.code='OAUTH_INVALID_SCOPE'` + `last_error.details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합). 상세 화면이 이 단서를 읽어 «이 권한은 카페24 별도 승인이 필요해요» 를 보인다. `oauth_token_exchange_failed` 와 진입 경로가 다르다. 이쪽은 Cafe24 가 권한 범위를 명시적으로 거부한 경우이고 저쪽은 그 밖의 토큰 교환 실패 전부(네트워크, 서버 오류, 알 수 없는 `invalid_grant` 등)다 |
 | state 불일치·만료 (state 소비 뒤) | `Security validation failed.` / `OAuth state has expired.` | 통합을 알 수 있으면 `status_reason='oauth_state_mismatch'` 또는 `oauth_state_expired` 만 기록, 상태 보존 |
 | 토큰 발급 뒤 행 조회 실패 | `Integration not found.` | 변경 불가. 행이 사라져 갱신할 대상이 없다 |
-| 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`, 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 행도 아님. 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 됨) | 서버 메시지 그대로. `Integration not found`(`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`). 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED` | 자격 증명 불변(롤백), 상태 보존. `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 는 `last_error` 에 그 코드를 기록한다. `RESOURCE_NOT_FOUND` 는 그 행이 요청자에게 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다 |
+| 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`, 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 행도 아님. 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 됨) | 서버 메시지 그대로. `Integration not found`(`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`). 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED` | 자격 증명 불변(롤백), 상태 보존. `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 는 `last_error` 에 그 코드를 기록한다. `RESOURCE_NOT_FOUND` 는 그 행이 요청자에게 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다. 설치 기한이 지나 만료된 행이면 `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 도 `last_error` 에 쓰지 않는다(아래 행) |
+| 설치 기한이 지나 만료된 설치 대기 행에 늦게 도착한 콜백 (요청자 재판정을 통과한 뒤) | `The install window for this integration has expired` | 변경 없음. 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절하고 상태 · 상태 사유 · 상점 식별자(`mall_id`) · `last_error` 를 그대로 둔다. state 는 유효하므로 state 유효 시간이 지난 경우의 `OAUTH_STATE_EXPIRED` 와 코드가 다르다. 설치 기한이 지나 만료된 행에는 이 표의 다른 콜백 실패도 `last_error` · `status_reason` 을 쓰지 않는다 |
 | 네트워크 오류 | `Connection error.` | 통합을 알 수 있으면 `last_error` 만 기록, 상태 보존 |
 
 상태 사유 저장값(snake_case)과 API 에러 코드(UPPER_SNAKE_CASE)의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 에 있다.
@@ -529,17 +530,21 @@ Cafe24 의 `access_token`·`refresh_token` 은 JWT 다. 그래서 JWT `exp` clai
 ## 구현 위치
 
 - `codebase/backend/migrations/V151__integration_reinstall_requested_at.sql` (재설치 대기 표시 컬럼)
+- `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 만료된 설치 대기 행의 상점 식별자를 비운다)
 - `codebase/backend/src/modules/integrations/entities/integration.entity.ts` (`reinstallRequestedAt`)
 - `codebase/backend/src/modules/integrations/reinstall-request.ts` (표시의 24시간 유효 판정 `isReinstallRequestActive`, App URL 분기 `isInstallFlowRow`, `isCafe24PrivateRow`)
 - `codebase/backend/src/modules/integrations/integrations.service.ts` (`reauthorize`·`requestScopes`, `isCafe24PrivateWithInstallToken`·`buildCafe24PrivatePendingResult`)
-- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (begin·콜백·설치. `begin`, `handleInstall`, `assertRequesterStillAllowed`, `markIntegrationCallbackError`)
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (begin·콜백·설치. `begin`, `handleInstall`, `assertRequesterStillAllowed`, `markIntegrationCallbackError`, 같은 상점 판정의 만료 행 제외 `hasReleasedStoreSlot`)
+- `codebase/backend/src/modules/integrations/integration-owner-write-lock.ts` (통합 쓰기 잠금 도우미 `lockForIntegrationWrite`·`throwUnlessIntegrationCreateLocked`. 설치 대기 행을 만드는 begin 이 트랜잭션 첫 문장으로 부른다)
 - `codebase/backend/src/modules/integrations/pending-install-reuse.ts` (설치 대기 행 재사용 판정 `pickPendingToReuse`·`assertPendingReusable`, 설치 기한 `pendingInstallExpiresAt`, MakeShop 잠금 키 `makeshopPendingLockKey`)
 - `codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts` (`reinstallRequestedAt`)
 - `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**`, rate limit)
 - `codebase/backend/src/modules/integrations/cafe24-install-nonce-cache.service.ts`, `cafe24-install-rate-limit.service.ts`
 - `codebase/backend/src/modules/integrations/jwt-exp.ts`, `cafe24-token-utils.ts`
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (API 클라이언트, 갱신 큐 워커)
-- `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx` (추가 흐름, 설정 안내 화면)
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx` (추가 흐름, 설정 안내 화면, begin 의 이름 충돌 표시)
+- `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/auth-step.tsx` (이름 칸과 이름 칸 에러 표시)
+- `codebase/frontend/src/lib/api/integration-error-codes.ts` (통합 에러 코드의 사전 문구 매핑, `isIntegrationNameTaken`·`formatIntegrationErrorToast`)
 - `codebase/frontend/src/lib/integrations/reauthorize.ts` (`reauthorizeDisabledReason`·`requestScopesDisabledReason`)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/scope-tab.tsx` (권한 탭), `reinstall-requested-notice.tsx` (재설치 대기 안내), `page.tsx` (상세 화면)
 
@@ -786,7 +791,7 @@ Cafe24 Private·MakeShop 의 `oauth/begin`(`new`)은 같은 상점(MakeShop 은 
   - 2026-09-25 에 기각한 «403 과 새 에러 코드» 는 목록에서 숨긴 통합의 존재를 `:id` 경로가 확인해 주는 문제였다. 이 409 는 새 통합을 만드는 요청의 충돌이다. 중복 사전 감지가 이미 알리는 충돌 여부와 상태에 설치 기한만 더한다. 상태 코드는 같은 흐름의 `*_ALREADY_CONNECTED` 와 같은 409 다.
   - 설치 기한 시각은 2026-09-25 에 «precheck 가 식별자(ID, 이름)를 싣지 않는 데서 멈춘다» 고 정한 경계보다 하나를 더 싣는다. 식별자가 아닌 시각이고 요청자가 언제까지 기다릴지 알려면 필요해서 받아들였다.
 - 기한이 지났지만 만료 스캐너가 아직 돌지 않은 행에도 409 가 나고 지난 기한이 실린다. 스캐너가 돌 때까지만 생기는 일이라 받아들였다.
-- 설치 기한이 지난 설치 대기 행은 만료 스캐너가 만료됨으로 바꿀 뿐 지우지 않아 상점 식별자 UNIQUE 를 계속 잡았다. 그 행은 통합 소유자만 지울 수 있어서 같은 상점을 다른 멤버가 바로 다시 등록할 수 없었다. Cafe24 Private 행과, App URL 까지 와서 `shop_uid` 를 받은 MakeShop 행이 그랬다. 2026-10-29 에 만료할 때 상점 식별자를 비우기로 정했다. 구현하면(NERV Task `CLE-T-PS7JQY`) 이 잔여가 풀린다([만료된 설치 대기 행은 상점 자리를 놓는다](#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 이 항목은 처음에 MakeShop 설치 대기 행은 `shop_uid` 를 몰라 이 제약에 걸리지 않는다고 적었는데, App URL 을 거친 행은 그때 상점 식별자를 받는다.
+- 설치 기한이 지난 설치 대기 행은 만료 스캐너가 만료됨으로 바꿀 뿐 지우지 않아 상점 식별자 UNIQUE 를 계속 잡았다. 그 행은 통합 소유자만 지울 수 있어서 같은 상점을 다른 멤버가 바로 다시 등록할 수 없었다. Cafe24 Private 행과, App URL 까지 와서 `shop_uid` 를 받은 MakeShop 행이 그랬다. 2026-10-29 에 만료할 때 상점 식별자를 비우기로 정했고 2026-10-30 에 구현해 이 잔여가 풀렸다(NERV Task `CLE-T-PS7JQY`, [만료된 설치 대기 행은 상점 자리를 놓는다](#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 이 항목은 처음에 MakeShop 설치 대기 행은 `shop_uid` 를 몰라 이 제약에 걸리지 않는다고 적었는데, App URL 을 거친 행은 그때 상점 식별자를 받는다.
 
 같은 결정에서 정한 것:
 
@@ -838,14 +843,15 @@ Cafe24 Private·MakeShop 의 `oauth/begin`(`new`)은 같은 상점(MakeShop 은 
 - 상점 식별자를 비운 행은 상점 중복 판정의 후보가 아니다(REQ-INTOAUTH-068). 컬럼으로 찾는 경로에서는 저절로 빠진다. `mall_id` 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체 경로는 만료 행을 따로 뺀다. 빼지 않으면 그 경로가 만료 행을 같은 상점으로 다시 찾아서 중복 사전 감지가 계속 충돌을 알린다. 네 지점과 대체 경로는 조회 함수 하나를 거치고 제외는 그 함수에만 둔다([통합 데이터와 흐름](CLE-INT-DATA.md#통합-integration) 의 상점 식별자 유일성).
 - `mall_id` 컬럼의 NULL 은 세 뜻(V045 이전 행, `shop_uid` 를 아직 모르는 MakeShop 설치 대기 행, 만료 행)이 된다. 그래서 같은 상점을 찾을 때 NULL 로 가르지 않고 위 조회 함수가 상태로 가른다. Cafe24·MakeShop 행의 `mall_id` 를 NOT NULL 로 강화하지 않는다.
 - `credentials` 안의 `mall_id`·`shop_uid` 는 지우지 않는다. 어느 상점의 통합이었는지 상세 화면에 보이고 진단에 쓴다.
-- 만료 행은 설치 토큰이 지워져 통합 재인증으로 되살릴 수 없다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 그래서 비운 상점 식별자를 다시 채울 일도 없다. MakeShop 설치 엔드포인트도 설치 대기가 아닌 행에는 `shop_uid` 를 쓰지 않고 상세 화면으로 보낸다. 구현은 콜백과 설치 엔드포인트가 만료 행을 다시 채우지 않는지 테스트로 확인한다(NERV Task `CLE-T-PS7JQY`).
-- 이름은 놓지 않는다. 같은 상점을 같은 이름으로 다시 등록하면 만료 행의 이름과 겹친다. Cafe24 Private 의 기본 이름은 상점 식별자로 만들어서 이 일이 흔하다. 그때는 409 `INTEGRATION_NAME_TAKEN` 으로 이름 칸에 알리고 사용자가 이름을 바꾼다([통합 관리](CLE-INT-MANAGE.md#에러-코드)).
+- 만료 행은 설치 토큰이 지워져 통합 재인증으로 되살릴 수 없다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 그래서 비운 상점 식별자를 다시 채울 일도 없다. MakeShop 설치 엔드포인트도 설치 대기가 아닌 행에는 `shop_uid` 를 쓰지 않고 상세 화면으로 보낸다. 만료됨 행에서 이 동작은 테스트로 고정돼 있다. 콜백도 만료 행을 되살리지 않는다. 콜백 트랜잭션은 행을 잠그고 요청자를 먼저 다시 판정한다(행이 보이지 않으면 404, 역할을 잃었으면 403 역할 에러로 지금과 같다). 그 판정을 통과한 행이 설치 기한이 지나 만료된 행(`status='expired'`, `status_reason='install_timeout'`)이면 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절한다. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에 도착하는 경우다. state 는 유효하므로 state 유효 시간이 지난 경우의 `OAUTH_STATE_EXPIRED` 와 조건이 다르고 `last_error` 를 남기는지도 다르다. 그래서 코드를 따로 둔다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 6). 만료된 설치 대기 행에는 콜백 실패를 기록하지 않는다. 상태 · 상태 사유 · `mall_id` 와 만료 전의 `last_error` 가 그대로 남아 설치가 왜 안 됐는지 보는 단서를 잃지 않는다. 이 동작은 Cafe24 와 MakeShop 단위 테스트로 고정돼 있다(NERV Task `CLE-T-PS7JQY`).
+- 이름은 놓지 않는다. 같은 상점을 같은 이름으로 다시 등록하면 만료 행의 이름과 겹친다. Cafe24 Private 의 기본 이름은 상점 식별자로 만들어서 이 일이 흔하다. 그때 추가 화면은 409 `INTEGRATION_NAME_TAKEN` 을 이름 칸의 에러 표시와 토스트로 알리고 이름을 고치면 이름 칸의 에러 표시를 지운다. 사용자는 이름을 바꿔 다시 등록한다([통합 관리](CLE-INT-MANAGE.md#에러-코드)).
 - 화면 안내 문구는 «삭제한 뒤 다시 등록» 을 그대로 둔다([통합 관리](CLE-INT-MANAGE.md) 의 `install_timeout` 안내). 통합 소유자는 지우지 않고 다시 등록할 수도 있다. 다만 이름이 같으면 `INTEGRATION_NAME_TAKEN` 에 걸린다. 지우지 않은 만료 행은 주의 필요에 계속 남는다([통합 상태와 만료 알림](CLE-INT-STATUS.md)). 상점 자리를 놓는 것은 그 행을 지울 수 없는 다른 멤버를 위한 것이다.
 
 기각한 안:
 
 - 만료 때 행을 지우는 안: [통합 상태와 만료 알림](CLE-INT-STATUS.md#설치-대기는-24시간-뒤-만료된다) 이 행을 지우던 정의를 만료됨으로 번복한 이유(진단 단서와 감사)를 되돌린다.
 - begin 이 만료 행을 다시 쓰는 안: 남의 개인 행이면 넘겨받기와 같다. 넘겨받기는 위 「남의 개인 설치 대기 행은 409 로 거절한다」 에서 기각했다.
+- 늦게 온 콜백의 거절에 `OAUTH_STATE_EXPIRED` 를 다시 쓰는 안(2026-10-30, NERV Task `CLE-T-PS7JQY` 리뷰): 팝업은 서버 문구를 그대로 보이므로 화면만 보면 차이가 없다. 그러나 state 유효 시간이 지난 경우는 행에 사유와 `last_error` 를 남기고 이 거절은 남기지 않는다. 한 코드가 조건이 다른 두 경우를 가리키게 되어 기각했다.
 - V072 부분 인덱스 조건에 상태를 넣는 안: 인덱스를 다시 만들어야 하고 상점 자리를 잡는지가 상태 두 컬럼에 달린다. 비우면 «상점 자리를 잡는 행은 `mall_id` 가 있는 행» 하나로 끝난다. 조회 쪽의 만료 행 제외는 `credentials.mall_id` 대체 경로 때문에 어느 안이든 필요하다. 그래서 그 제외는 조회 함수 하나에 둔다(2026-10-29 보정, NERV Task `CLE-T-G56XCH`. 처음에는 «조회마다 같은 상태 조건을 따로 걸어야 한다» 를 이 안만의 비용으로 적었다).
 
 받아들인 잔여:
@@ -885,3 +891,7 @@ Cafe24 Private·MakeShop 의 `oauth/begin`(`new`)은 같은 상점(MakeShop 은 
 - REQ-INTOAUTH-026: 콜백의 커밋 직전 재판정에 개인 통합의 편집자 하한을 더했다. begin 은 라우트 가드가 뷰어를 막는데 시작과 콜백 사이에 뷰어로 강등된 요청자는 콜백에서 막히지 않았다(finding 01a16e25-6561-717a-999a-88cc990d8450).
 
 새 요구사항은 REQ-INTOAUTH-058 부터다. REQ-INTOAUTH-059 는 본문에만 있던 MakeShop 설치 대기 행 재사용을 같은 조건으로 요구사항에 올린 것이다. REQ-INTOAUTH-066·067 은 2026-10-25 에 더했다.
+
+### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
+
+2026-10-30 에 REQ-INTOAUTH-068 과 begin 의 이름 충돌 409 `INTEGRATION_NAME_TAKEN`(Cafe24 Private 의 다시 한 판정 뒤, MakeShop 의 설치 대기 행 생성)을 구현해 미구현 표시를 지웠다. 요구사항의 뜻은 바꾸지 않았다. 설치 대기 행을 만드는 begin 의 잠금 범위는 2026-10-30 에 사용자가 정했다(NERV Task `CLE-T-G56XCH` 리뷰 후속). 공개 범위와 관계없이 워크스페이스를 먼저 잠그고 멤버십은 개인 공개 범위일 때만 잠근다. 잠금 방식과 근거의 정본은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 다. 같은 날 콜백이 만료된 설치 대기 행을 새 코드 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절하고 그 행에 콜백 실패를 기록하지 않게 했다([만료된 설치 대기 행은 상점 자리를 놓는다](#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).

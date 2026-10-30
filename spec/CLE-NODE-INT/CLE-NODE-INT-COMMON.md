@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "feb220a0aa345d92f9829bcd4110fc03164c55f308c6bae7e6d8ccd22f03173e"
+content_hash: "e6217652d94b28ba5f208ad281c86d3d6d38fc6e9b6235928a532fb63fa32479"
 read_as: "approved_fallback"
 task: "CLE-T-PS7JQY"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "3525c44d1a6d8edaa3c7ee422b70ecd8192ff7bcdeb0bd011a75ec06aa84deef"
-etag: "sha256-6628612746525928e611e9f99429d76afb9e2fe18ce18cc6a255c2187dfc68c5"
+mirror_sha256: "badc9d75261b5caf699c2ce4166c0819d713e3fec2bbc6cd6a53b8a927e8f03e"
+etag: "sha256-b2f6321900a2a7ef826e2db5eaf2536a4f4bb5fd85f17b5b6bbefe65294ab936"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 의 목표 서명, 통합을 얻기 전 실패 가운데 조회 거절이 아닌 실패의 활동 로그 생략, 워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -305,7 +305,7 @@ HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않�
 - 목록이 확정되지 않았으면 에디터의 붙여넣기와 복제도 통합 참조를 비우지 않는다([에디터 §노드 조작](../CLE-WF/CLE-WF-EDITOR.md#노드-조작)). 남은 참조가 쓸 수 없는 통합이면 저장 검사가 400 으로 막는다.
 - `integrationId` 가 비어 있으면(미선택) 이 배지 대신 각 노드 스키마의 `warningRules`(필드 미선택 경고)가 표시된다. 복제·가져오기·버전 복원·붙여넣기가 비운 참조도 미선택이라 이 배지가 아니라 필드 미선택 경고가 붙는다.
 - 워크플로우 작성자가 아닌 사용자에게는 워크플로우 작성자의 개인 통합이 통합 목록에 없다. 그래서 그 노드에도 이 배지가 붙는다. 통합이 지워진 것은 아니고 노드는 실행된다. 워크플로우 작성자에게는 배지가 붙지 않는다. 이 화면 차이는 받아들인 잔여다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」).
-- 멤버가 나가거나 제거되면 그 사람의 개인 통합은 사용처와 관계없이 지워진다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29), REQ-INTMGMT-065). 그 통합을 참조하던 노드에는 이 배지가 붙는다. 실제로 지워진 통합이라 모든 사용자에게 같다(삭제는 미구현, NERV Task `CLE-T-PS7JQY`).
+- 멤버가 나가거나 제거되면 그 사람의 개인 통합은 사용처와 관계없이 지워진다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29), REQ-INTMGMT-065). 그 통합을 참조하던 노드에는 이 배지가 붙는다. 실제로 지워진 통합이라 모든 사용자에게 같다.
 - HTTP Request 노드의 `integrationId` 는 `authentication === "integration"` 일 때만 유효하다. 다른 인증 방식에 남은 값에는 배지를 붙이지 않는다. 나머지 통합 노드에는 조건 없이 적용한다.
 - 시각적으로는 캔버스의 `⚠ Missing workflow` 배지와 같은 앰버 계열이다. 그래프 경고 배지(`AlertTriangle`)와 겹쳐 보이지 않도록 연결 끊김 아이콘(`Unplug`)과 별도 슬롯에 렌더한다.
 - 백엔드와 `warningRules` DSL 은 바꾸지 않았다.
@@ -424,3 +424,7 @@ NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로�
 - **조회가 성공하면 그 ID 를 지운다.** 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 같은 복사본으로 핸들러를 다시 부른다. 앞 시도의 조회가 거절됐어도 같은 노드 실행의 다음 시도가 통합을 얻었다면 그 시도는 얻은 통합으로 실행한 것이라 기록해야 한다. 지움은 그 시도의 기록을 살리려는 것이다. 담는 기준은 한 번의 조회 결과를 보고 지움은 같은 노드 실행의 다음 조회 결과를 보므로 두 규칙은 부딪치지 않는다.
 - **남는 경로**: 워크스페이스 확인 실패, 일시 에러, 자격 증명 읽기 실패의 기록은 이 장치가 막지 않는다. 이 경로에서는 설정의 `integrationId` 가 가리키는 통합에 기록이 남는다. 이 경로를 받아들인 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 이행의 «활동 로그 규칙(REQ-INTMGMT-053·062)은 노드 사용 기준보다 늦게 내지 않는다» 항목에 있다.
 - **걷는 시점**: NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸면 얻지 못한 통합은 넘길 값이 없다. 그때 이 장치와 `acquireIntegration` 의 기록 코드를 지운다.
+
+### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
+
+2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 나간 멤버의 개인 통합 삭제를 구현해 「삭제된 통합 표시」 의 미구현 표시를 걷었다.

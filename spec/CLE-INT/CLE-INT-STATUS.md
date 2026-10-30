@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "7f291b7bfef670162a7412ed63f70335cb499ca2befcc099a96918a8ba9d037e"
+content_hash: "2d1f12c2c7ec44fb49528cee9fcbd4c741fe473405d174e634917c12e0ea7cb7"
 read_as: "approved_fallback"
 task: "CLE-T-PS7JQY"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "e98d8543db55e4f171ba05a9befb1dd8dcd55f6b44dc2a2ceb66c632a7396ab3"
-etag: "sha256-220fe183de12fac5f63b7ef11dbd599d03f53db31df114b5a2dc89970130aac7"
+mirror_sha256: "82a74556c6c8ac6e6a71405468ee10a2800ce0f8a35ba8f9428005b3fed41e06"
+etag: "sha256-4bf6a1b45dea5931ddcffc77fdfa6721082da0906c0162d62acf4fbc7521a77a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -78,7 +78,7 @@ etag: "sha256-220fe183de12fac5f63b7ef11dbd599d03f53db31df114b5a2dc89970130aac7"
 - REQ-INTSTAT-037 WHEN 만료 스캐너·주의 필요 술어·알림이 통합을 판정하면 THE SYSTEM SHALL 재설치 대기 표시를 판정에 쓰지 않는다.
 - REQ-INTSTAT-038 IF MakeShop 통합이 오류나 만료됨이 되면 THE SYSTEM SHALL 통합 재인증 없이 삭제 후 재등록을 복구 경로로 안내한다.
 - REQ-INTSTAT-039 WHEN 재설치 대기 표시를 남긴 시각부터 24시간이 지나면 THE SYSTEM SHALL 그 표시를 없는 것으로 판정한다.
-- REQ-INTSTAT-040 WHEN 설치 대기 통합이 `install_timeout` 으로 만료되면 THE SYSTEM SHALL 같은 갱신에서 상점 식별자(`mall_id`)를 비운다. `credentials` 안의 상점 값은 그대로 둔다. (미구현, NERV Task `CLE-T-PS7JQY`)
+- REQ-INTSTAT-040 WHEN 설치 대기 통합이 `install_timeout` 으로 만료되면 THE SYSTEM SHALL 같은 갱신에서 상점 식별자(`mall_id`)를 비운다. `credentials` 안의 상점 값은 그대로 둔다.
 
 ## 상태 값과 상태 사유
 
@@ -100,7 +100,7 @@ etag: "sha256-220fe183de12fac5f63b7ef11dbd599d03f53db31df114b5a2dc89970130aac7"
 | `pending_install` | 콜백 실패 진단 단서(상태는 보존): `oauth_token_exchange_failed`, `oauth_state_invalid`, `oauth_state_mismatch`, `oauth_state_expired`, `oauth_provider_error`, `oauth_invalid_scope`(Cafe24 가 권한 범위를 거부, `last_error.details.requiresCafe24Approval` 동반. [Cafe24 별도 승인 scope](CLE-C24-SCOPES)), `oauth_preview_invalid`, `oauth_preview_expired`(union 예약값. 미리보기 토큰 소비 실패의 API 에러 코드와 같은 어휘) |
 | `connected` | NULL |
 
-- DB 저장값은 snake_case 이고, 같은 뜻의 API 에러 코드는 `OAUTH_*` UPPER_SNAKE_CASE 다. 대응은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑 표에 있다.
+- DB 저장값은 snake_case 이고, 같은 뜻의 API 에러 코드는 `OAUTH_*` UPPER_SNAKE_CASE 다. 대응은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑 표에 있다. 설치 기한이 지나 만료된 행에 늦게 온 콜백의 `INTEGRATION_INSTALL_EXPIRED` 는 행에 사유를 남기지 않아 짝이 되는 저장값이 없다.
 - `resource_not_found` 는 행 자체가 사라진 경우라 DB 를 갱신할 수 없어 허용값에 없다.
 - `token_expired` 는 이 컬럼 전용이다. JWT 만료 REST 에러 `TOKEN_EXPIRED`, WebSocket 이벤트 `auth.token_expired` 와 표기가 비슷하지만 이름공간이 다르다.
 - MakeShop 설치 안내 화면이 매핑하는 `hmac_verification_failed` 는 union 에 없다. [미결 사항](#미결-사항) 참조.
@@ -130,14 +130,14 @@ stateDiagram-v2
 | 전이 | 트리거 |
 | --- | --- |
 | `pending_install` → `connected` | 설치 흐름의 HMAC 검증과 OAuth 콜백이 성공했다. 설치 토큰은 보존한다(App URL 재호출의 식별 키. [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)) |
-| `pending_install` → `expired` | 설치 토큰 발급 뒤 24시간 안에 콜백이 성공하지 않았다. `pending-install-ttl` 작업이 `status='expired'`, `status_reason='install_timeout'`, `install_token=NULL`, `mall_id=NULL` 로 바꾼다(`mall_id` 는 REQ-INTSTAT-040, 미구현). 설치 토큰이 지워져 App URL 이 없으므로 Cafe24 Private·MakeShop 모두 통합 재인증으로 되살릴 수 없다. 사용자가 삭제한 뒤 새로 등록한다. 상점 식별자를 비우므로 지우기 전에도 같은 상점을 다시 등록할 수 있다. 이름은 그대로라 같은 이름이면 409 `INTEGRATION_NAME_TAKEN` 이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 화면은 통합 재인증 버튼을 막는다 |
+| `pending_install` → `expired` | 설치 토큰 발급 뒤 24시간 안에 콜백이 성공하지 않았다. `pending-install-ttl` 작업이 `status='expired'`, `status_reason='install_timeout'`, `install_token=NULL`, `mall_id=NULL` 로 바꾼다(`mall_id` 는 REQ-INTSTAT-040). 설치 토큰이 지워져 App URL 이 없으므로 Cafe24 Private·MakeShop 모두 통합 재인증으로 되살릴 수 없다. 사용자가 삭제한 뒤 새로 등록한다. 상점 식별자를 비우므로 지우기 전에도 같은 상점을 다시 등록할 수 있다. 이름은 그대로라 같은 이름이면 409 `INTEGRATION_NAME_TAKEN` 이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 화면은 통합 재인증 버튼을 막는다 |
 | `pending_install` → `pending_install` | OAuth 콜백 처리 중 토큰 교환 실패, state 불일치·만료 등이 났다. 상태와 설치 토큰은 보존하고 `last_error` 와 사유(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope` 등)만 갱신한다. 사용자가 Cafe24 쪽 설정을 고치고 «테스트 실행» 을 다시 누르면 새 OAuth state 로 다시 시도한다 |
 | `connected` → `error(auth_failed)` | 토큰 갱신에서 refresh token 자체가 무효(`invalid_grant`)다. 외부 MCP 서버 호출이 인증 실패다. Cafe24·MakeShop 클라이언트가 401 뒤 토큰 갱신과 1회 재시도에도 401 을 받았거나 403 을 받았다(`markAuthFailed`). 그 밖의 서비스(HTTP·Database·Email) 노드 실행 중 401·403 이 상태를 바꾸는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | `connected` → `error(insufficient_scope)` | 노드 실행 중 403 과 서비스별 권한 부족 신호를 받았다. 현재 이 신호를 감지해 전이하는 실행 경로는 Cafe24(`cafe24-api.client.ts`, `cafe24-mcp-tool-provider.ts`)뿐이다. HTTP·Database·Email 핸들러로 넓히는 일은 미구현이다 |
 | `connected` → `error(network)` | 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 났다(`consecutive_network_failures`, V049). Cafe24·MakeShop 클라이언트의 `recordNetworkFailure` 가 판정한다 |
 | `connected` → `expired(token_expired)` | refresh token 이 없는 통합의 토큰 만료 시각이 지나 만료 스캐너가 당일 임계에서 격하했다 |
 | `expired`·`error` → `connected` | 통합 재인증 또는 자격 증명 교체가 성공했다(연결 테스트 통과). OAuth 가 아닌 통합은 통합 재인증이 OAuth 왕복 없이 바로 연결됨으로 되돌린다. Cafe24 Private 은 설치 토큰이 있으면 통합 재인증이 [재설치 대기 표시](#재설치-대기-표시)를 남기고 사용자가 24시간 안에 «테스트 실행» 으로 OAuth 를 마쳐야 연결됨이 된다. 설치 토큰이 없는 Cafe24 Private 행과 MakeShop 통합은 통합 재인증이 없어 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)). 내부 MCP 브리지가 `expired` 통합을 스스로 되살리는지는 [미결 사항](#미결-사항) 이다 |
-| 모든 상태 → 삭제 | 사용자가 명시적으로 삭제했을 때와 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거됐을 때(REQ-INTMGMT-065, 미구현)뿐이다. 시간이나 상태로 지우는 자동 삭제는 없다. 설치 대기 24시간 초과도 `expired` 로만 바꾼다 |
+| 모든 상태 → 삭제 | 사용자가 명시적으로 삭제했을 때와 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거됐을 때(REQ-INTMGMT-065)뿐이다. 시간이나 상태로 지우는 자동 삭제는 없다. 설치 대기 24시간 초과도 `expired` 로만 바꾼다 |
 
 `error` 상태에서는 반드시 상태 사유를 기록한다. 토큰 갱신 실패는 `expired` 가 아니라 `error(auth_failed)` 로 바꾼다. 그래서 `expired` 가 되는 경로는 두 가지뿐이다. refresh token 이 없는 통합의 `token_expired` 와 설치 대기의 `install_timeout` 이다. Cafe24 는 refresh token 을 가지므로 Cafe24 의 `expired` 는 사실상 `install_timeout` 하나만 남는다.
 
@@ -207,7 +207,7 @@ stateDiagram-v2
 | 작업 | 스케줄러 ID | 주기 | 대상 | 동작 |
 | --- | --- | --- | --- | --- |
 | `connected-expiry` | `connected-expiry-daily` | 매일 `0 0 * * *` UTC | `status NOT IN (expired, error, pending_install) AND token_expires_at IS NOT NULL AND token_expires_at <= now+7d` | 아래 흐름 |
-| `pending-install-ttl` | `pending-install-ttl-daily` | 매일 `0 0 * * *` UTC | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h`. 서비스 유형 조건이 없다(Cafe24 Private·MakeShop 공통) | `status='expired', status_reason='install_timeout', install_token=NULL, mall_id=NULL` 로 한 번의 bulk UPDATE(`mall_id` 는 미구현). 알림은 보내지 않는다 |
+| `pending-install-ttl` | `pending-install-ttl-daily` | 매일 `0 0 * * *` UTC | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h`. 서비스 유형 조건이 없다(Cafe24 Private·MakeShop 공통) | `status='expired', status_reason='install_timeout', install_token=NULL, mall_id=NULL` 로 한 번의 bulk UPDATE. 알림은 보내지 않는다 |
 | `usage-log-prune` | `usage-log-prune-daily` | 매일 `0 0 * * *` UTC | `integration_usage_log.at < now-90d` | 행 삭제(보존 정책) |
 | `cafe24-background-refresh` | `cafe24-background-refresh-daily` (이름만 옛것, 실제 6시간) | 6시간 `0 */6 * * *` UTC | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` | `cafe24-token-refresh` 큐에 `jobId = integrationId` 로 넣는다(source `background`). 14일 동안 쓰지 않은 Cafe24 통합의 refresh token 도 갱신한다 |
 
@@ -270,7 +270,7 @@ flowchart TD
 ### 채널과 이메일
 
 - 수신자의 `notification_preferences.integrationExpiryEmail` 이 켜져 있으면 `Notification.channel='both'` 로, 아니면 `'in_app'` 으로 만든다. 조치 필요 알림도 같은 토글을 쓴다(전용 토글은 없다).
-- 통합 소유자가 워크스페이스를 떠난 개인 통합은 노드에서 쓸 수 없다(REQ-INTMGMT-058). 통합 소유자가 나가거나 제거되면 그 개인 통합을 지우므로([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) 그 통합의 알림과 Cafe24 백그라운드 갱신도 끝난다. 지우기를 구현하기 전(NERV Task `CLE-T-PS7JQY`)에는 알림이 멤버십을 보지 않고 통합 소유자에게 간다.
+- 통합 소유자가 워크스페이스를 떠난 개인 통합은 노드에서 쓸 수 없다(REQ-INTMGMT-058). 통합 소유자가 나가거나 제거되면 그 개인 통합을 지우므로([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) 그 통합의 알림과 Cafe24 백그라운드 갱신도 끝난다.
 - 뷰어가 소유한 개인 통합도 같은 알림을 받는다. 뷰어는 통합 재인증과 자격 증명 교체를 할 수 없으므로 알림을 받고 할 수 있는 일은 통합 삭제와 역할 변경 요청뿐이다. 알림 문구는 역할로 나누지 않는다([통합 관리](CLE-INT-MANAGE.md) Rationale 의 받아들인 잔여).
 - 이 토글은 opt-in 이고 기본값은 꺼짐이다. 저장 위치는 `User.notification_preferences` JSONB 이고 설정 화면은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다.
 - `channel='both'` 인 알림은 `NotificationsService.dispatchEmails`(`MailService` 주입)가 이메일을 best-effort 로 보낸다.
@@ -290,10 +290,11 @@ flowchart TD
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너)
+- `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너. `pending-install-ttl` 이 같은 갱신에서 `mall_id` 를 비운다)
 - `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림)
 - `codebase/backend/src/modules/integrations/integration-status-reason.ts` (상태 사유 union)
 - `codebase/backend/migrations/V151__integration_reinstall_requested_at.sql`, `codebase/backend/src/modules/integrations/entities/integration.entity.ts` (재설치 대기 표시 `reinstallRequestedAt`)
+- `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 `install_timeout` 으로 만료된 행의 `mall_id` 를 한 번 비운다)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (`markIntegrationCallbackError`: 콜백 실패의 상태 보존)
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (`markAuthFailed`·`recordNetworkFailure`)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx` (목록·배너·칩)
@@ -407,3 +408,7 @@ Cafe24 refresh token 은 14일 유효하고 갱신할 때마다 새 refresh toke
 ### 개인 통합 소유자의 나가기·제거는 자동 삭제의 예외다 (2026-10-29)
 
 2026-10-29 에 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 개인 통합을 지우기로 했다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)). 상태 다이어그램에는 그 경로를 넣었지만 REQ-INTSTAT-014 와 상태 전이 표의 «모든 상태 → 삭제» 행은 «자동 삭제는 없다» 로 남아 서로 어긋났다. 같은 날 리뷰에서 찾아(finding 01a186cc-30c7-726f-992a-8d018445e60f · 01a186d0-4796-77f7-959d-81696d6fbadf) 두 곳에 예외를 적었다(NERV Task `CLE-T-G56XCH`). 이 삭제는 시간이나 상태가 아니라 멤버십이 끝난 결과라서 «시간이나 상태로 지우는 자동 삭제는 없다» 는 그대로다.
+
+### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
+
+2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 설치 기한 만료 때 `mall_id` 비우기(REQ-INTSTAT-040)와 나간 멤버의 개인 통합 삭제를 구현했다. 그래서 요구사항과 상태 전이 표, 만료 스캐너 표의 미구현 표시를 걷고 «지우기를 구현하기 전에는 알림이 통합 소유자에게 간다» 는 문장을 뺐다. 이미 만료된 행은 V154 가 한 번 비웠다.
