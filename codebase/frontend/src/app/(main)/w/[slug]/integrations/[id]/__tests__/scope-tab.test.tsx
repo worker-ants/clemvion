@@ -333,6 +333,72 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     ).toBeDisabled();
   });
 
+  // 설치 시간이 지나 만료된 행은 App URL 도 비어 있지만(설치 토큰이 지워진다) 삭제 없이 같은 상점을 다시 등록하면 된다.
+  it.each([
+    [
+      "Cafe24 Private",
+      {
+        status: "expired" as const,
+        statusReason: "install_timeout",
+        appUrl: null,
+      },
+    ],
+    [
+      "MakeShop",
+      {
+        status: "expired" as const,
+        statusReason: "install_timeout",
+        serviceType: "makeshop" as const,
+        meta: { appType: null },
+      },
+    ],
+  ])(
+    "tells the user to register the same store again for an install-timeout %s row",
+    async (_name, overrides) => {
+      const { render: renderFn } = renderScopeTab({
+        integration: buildIntegration(overrides),
+      });
+      await act(async () => {
+        renderFn();
+      });
+
+      expect(
+        screen.getByText(
+          /expired because the install timed out, so it can't be granted new scopes/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/without deleting this one/),
+      ).toBeInTheDocument();
+      // 옛 «삭제한 뒤 다시 등록» 문구들이 섞이지 않는다.
+      expect(screen.queryByText(/Delete it and register it again/)).toBeNull();
+      expect(screen.queryByText(/delete the integration and register/)).toBeNull();
+      expect(getCheckbox("Write product")).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Request scopes" }),
+      ).toBeDisabled();
+      expect(requestScopesMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the delete-and-register-again hint for a Cafe24 Private row expired for another reason", async () => {
+    const { render: renderFn } = renderScopeTab({
+      integration: buildIntegration({
+        status: "expired",
+        statusReason: "token_expired",
+        appUrl: null,
+      }),
+    });
+    await act(async () => {
+      renderFn();
+    });
+
+    expect(
+      screen.getByText(/has no App URL, so a scope request can't be made/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/expired because the install timed out/)).toBeNull();
+  });
+
   it("keeps scope requests enabled for a Cafe24 Private row with an App URL", async () => {
     const { render: renderFn } = renderScopeTab({});
     await act(async () => {

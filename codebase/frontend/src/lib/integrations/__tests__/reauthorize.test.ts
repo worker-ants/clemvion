@@ -271,10 +271,66 @@ describe("requestScopesDisabledReason", () => {
     },
   );
 
+  // `expired` 라도 설치 시간 초과가 아닌 사유(토큰 만료 등)는 상점 자리를 놓지 않으므로 삭제 후 재등록이다.
+  it("Cafe24 Private expired for another reason without an App URL → no_app_url", () => {
+    expect(
+      requestScopesDisabledReason(
+        row({
+          status: "expired",
+          statusReason: "token_expired",
+          serviceType: "cafe24",
+          meta: { appType: "private" },
+          appUrl: null,
+        }),
+      ),
+    ).toBe("no_app_url");
+  });
+
+  // 설치 시간 초과가 먼저다 — reauthorizeDisabledReason 과 같은 순서. 그 행은 App URL 도 없지만
+  // 사용자에게는 삭제 없이 같은 상점을 다시 등록하면 된다고 알린다.
+  it.each([
+    [
+      "Cafe24 Private",
+      row({
+        status: "expired",
+        statusReason: INSTALL_TIMEOUT_REASON,
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: null,
+      }),
+    ],
+    [
+      "MakeShop",
+      row({
+        status: "expired",
+        statusReason: INSTALL_TIMEOUT_REASON,
+        serviceType: "makeshop",
+      }),
+    ],
+  ] as const)("%s expired by install_timeout → install_timeout", (_name, integration) => {
+    expect(requestScopesDisabledReason(integration)).toBe("install_timeout");
+  });
+
+  it("install_timeout 은 expired + install_timeout 사유에만 쓴다", () => {
+    const reasons = [
+      row({ status: "connected" }),
+      row({ status: "expired", statusReason: "token_expired" }),
+      row({ status: "error", statusReason: INSTALL_TIMEOUT_REASON }),
+      row({ serviceType: "makeshop" }),
+      row({
+        serviceType: "cafe24",
+        meta: { appType: "private" },
+        appUrl: null,
+      }),
+    ].map((r) => requestScopesDisabledReason(r));
+    expect(reasons).not.toContain("install_timeout");
+  });
+
   it("agrees with isRequestScopesDisabled", () => {
     const rows = [
       row({}),
       row({ serviceType: "makeshop" }),
+      row({ status: "expired", statusReason: INSTALL_TIMEOUT_REASON }),
       row({ serviceType: "cafe24", meta: { appType: "private" }, appUrl: null }),
       row({
         serviceType: "cafe24",

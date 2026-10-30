@@ -44,7 +44,7 @@ const COPY: Record<
   en: {
     reRegister: /register the same store again without deleting this integration/,
     renameOnConflict: /If the name is taken, use a different name/,
-    deleteRequired: /Delete/,
+    deleteRequired: /delete/i,
   },
 };
 

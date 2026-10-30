@@ -126,6 +126,8 @@ export const integrations: Dict["integrations"] = {
   requestScopesFailed: "Failed to request scopes",
   requestScopesDisabledMakeshop:
     "MakeShop integrations can't be granted new scopes. If you need more, delete the integration and register it again with the scopes you need.",
+  requestScopesDisabledInstallTimeout:
+    "This integration expired because the install timed out, so it can't be granted new scopes. You can register the same store again with the scopes you need without deleting this one. If the name is taken, use a different name.",
   requestScopesDisabledNoAppUrl:
     "This Cafe24 Private integration has no App URL, so a scope request can't be made. Delete it and register it again.",
   cafe24PrivateScopeRequestTitle:

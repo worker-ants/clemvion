@@ -124,6 +124,8 @@ export const integrations = {
   requestScopesFailed: "권한 요청에 실패했어요",
   requestScopesDisabledMakeshop:
     "MakeShop 통합은 권한을 추가할 수 없어요. 권한이 더 필요하면 통합을 삭제한 뒤 필요한 권한으로 다시 등록해 주세요.",
+  requestScopesDisabledInstallTimeout:
+    "설치 시간이 지나 만료된 통합은 권한을 추가할 수 없어요. 이 통합을 지우지 않아도 필요한 권한으로 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
   requestScopesDisabledNoAppUrl:
     "App URL 이 없어 권한 추가를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요.",
   cafe24PrivateScopeRequestTitle:

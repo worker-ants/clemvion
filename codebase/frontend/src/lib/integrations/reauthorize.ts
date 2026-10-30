@@ -17,7 +17,10 @@ export type ReauthorizeDisabledReason =
   | "makeshop";
 
 /** Why "Request scopes" is unavailable — selects the hint copy. */
-export type RequestScopesDisabledReason = "makeshop" | "no_app_url";
+export type RequestScopesDisabledReason =
+  | "install_timeout"
+  | "no_app_url"
+  | "makeshop";
 
 /** Cafe24 Private app integration (`meta.appType === "private"`). */
 export function isCafe24Private(integration: IntegrationDto): boolean {
@@ -34,7 +37,9 @@ export function isCafe24Private(integration: IntegrationDto): boolean {
  * (`hasInstallToken` in `integrations.service.ts`). If that server condition
  * changes, change this one with it. Without an App URL the user cannot finish
  * a reinstall in Cafe24 Developers, so reauthorize and request-scopes are
- * unavailable and the only recovery is delete and re-register.
+ * unavailable. A row that timed out (`install_timeout`) is caught earlier and
+ * the user registers the same store again without deleting it. Any other row
+ * without an App URL has to be deleted and registered again.
  */
 function isCafe24PrivateWithoutAppUrl(integration: IntegrationDto): boolean {
   return isCafe24Private(integration) && !integration.appUrl;
@@ -48,7 +53,7 @@ function isCafe24PrivateWithoutAppUrl(integration: IntegrationDto): boolean {
  *   go of its store, so the user registers the same store again without
  *   deleting it first (a reused name still conflicts).
  * - Cafe24 Private rows without an App URL (`no_app_url`, install_token gone)
- *   can only be deleted and re-registered too. They are not always timed out —
+ *   have to be deleted and registered again. They are not always timed out —
  *   a `connected` row can lack the App URL as well — so the reason is separate.
  * - MakeShop integrations cannot be reauthorized at all — reinstalling the app
  *   from ShopStore does not restore an existing row, so recovery is delete and
@@ -85,13 +90,27 @@ export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
 
 /**
  * Why "Request scopes" is unavailable, or `null` when it is available.
- * MakeShop has no scope request path (delete and re-register with the scopes
- * you need), and a Cafe24 Private row without an App URL (`no_app_url`) cannot
- * finish one. NERV CLE-INT-OAUTH, Task CLE-T-NNENG8.
+ *
+ * - `expired` rows with `install_timeout` (Cafe24 Private and MakeShop alike)
+ *   can't be granted scopes. This is checked first, in the same order as
+ *   {@link reauthorizeDisabledReason}: the timed-out Cafe24 Private row has
+ *   no App URL too, but the user registers the same store again with the
+ *   scopes they need and does not have to delete it first.
+ * - MakeShop has no scope request path (delete and re-register with the scopes
+ *   you need).
+ * - A Cafe24 Private row without an App URL (`no_app_url`) cannot finish one.
+ *
+ * NERV CLE-INT-OAUTH, Task CLE-T-NNENG8.
  */
 export function requestScopesDisabledReason(
   integration: IntegrationDto,
 ): RequestScopesDisabledReason | null {
+  if (
+    integration.status === "expired" &&
+    integration.statusReason === INSTALL_TIMEOUT_REASON
+  ) {
+    return "install_timeout";
+  }
   if (integration.serviceType === "makeshop") return "makeshop";
   if (isCafe24PrivateWithoutAppUrl(integration)) return "no_app_url";
   return null;
