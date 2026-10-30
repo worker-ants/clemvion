@@ -2766,6 +2766,71 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(savedIntegration.lastError).toBeNull();
     });
 
+    // 만료 직전에 App URL 이 만든 state 의 콜백이 설치 기한 뒤에 도착한 경우 — CLE-INT-OAUTH 「만료된 설치 대기 행은
+    // 상점 자리를 놓는다」. 만료 행은 되살리지 않고 비운 상점 식별자도 다시 채우지 않는다.
+    it('install_timeout 으로 만료된 행 — 콜백이 행을 되살리지 않고 상점 식별자도 다시 채우지 않는다', async () => {
+      const expiredIntegration = {
+        id: 'expired-int-id',
+        workspaceId: 'ws-1',
+        status: 'expired',
+        statusReason: 'install_timeout',
+        mallId: null,
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-id',
+          client_secret: 'priv-secret',
+          scopes: [],
+        },
+        installToken: null,
+        lastError: null,
+        tokenExpiresAt: null,
+        lastRotatedAt: null,
+      };
+      integrationRepo.findOne = jest.fn().mockResolvedValue(expiredIntegration);
+      dataSource.query.mockResolvedValueOnce([
+        [
+          {
+            id: 'state-expired',
+            state: 'state-token-expired',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            provider: 'cafe24',
+            serviceType: 'cafe24',
+            mode: 'reauthorize',
+            integrationId: 'expired-int-id',
+            requestedScopes: ['mall.read_product'],
+            integrationName: 'priv-shop (Cafe24 Private)',
+            scope: 'personal',
+            providerMeta: {
+              mall_id: 'priv-shop',
+              app_type: 'private',
+              client_id: 'priv-id',
+              client_secret: 'priv-secret',
+            },
+            expiresAt: new Date(Date.now() + 60_000),
+            createdAt: new Date(),
+          },
+        ],
+        1,
+      ]);
+
+      const error = await service
+        .handleCallback('cafe24', {
+          code: 'authz-code',
+          state: 'state-token-expired',
+        })
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'OAUTH_STATE_EXPIRED',
+      });
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(expiredIntegration.status).toBe('expired');
+      expect(expiredIntegration.mallId).toBeNull();
+    });
+
     it('재설치 요청 표시가 있는 connected 행 — 콜백 성공이 자격 증명을 바꾸고 표시를 지운다', async () => {
       const markedRow = {
         id: 'marked-int-id',

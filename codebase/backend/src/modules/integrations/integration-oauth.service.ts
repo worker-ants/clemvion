@@ -963,6 +963,16 @@ export class IntegrationOAuthService {
         if (!integration) {
           throw integrationNotFoundError();
         }
+        // 설치 기한이 지나 만료된 행은 되살리지 않는다. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에 도착해도
+        // 요청자 판정 전에 여기서 끝낸다(행 상태만 보는 판정이다). 되살리면 만료 때 비운 상점 식별자를 다시 채워
+        // 그 사이 같은 상점을 등록한 행과 부딪힌다.
+        // 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+        if (hasReleasedStoreSlot(integration)) {
+          throw new BadRequestException({
+            code: 'OAUTH_STATE_EXPIRED',
+            message: 'The install window for this integration has expired',
+          });
+        }
         // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
         await this.assertRequesterStillAllowed(integration, record, manager);
         if (

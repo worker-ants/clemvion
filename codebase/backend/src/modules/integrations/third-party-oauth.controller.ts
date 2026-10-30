@@ -352,6 +352,7 @@ export class ThirdPartyOAuthController {
       '- `OAUTH_PROVIDER_UNKNOWN` — 허용되지 않은 provider\n' +
       '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`)\n' +
       '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` / `OAUTH_STATE_EXPIRED` — CSRF state 토큰 검증 실패\n' +
+      '- `OAUTH_STATE_EXPIRED` — state 는 유효하지만 대상 설치 대기 행이 설치 기한을 넘겨 만료됨(행을 되살리지 않음)\n' +
       '- `OAUTH_CODE_MISSING` — authorization code 미수신\n' +
       '- `OAUTH_TOKEN_EXCHANGE_FAILED` — provider 토큰 endpoint 호출 실패\n' +
       '- `OAUTH_STATE_INVALID` — reauthorize state 의 integrationId 누락 등 구조 오류\n' +
