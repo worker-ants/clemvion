@@ -350,7 +350,11 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     expect(
       screen.getByText(/MakeShop integrations can't be granted new scopes/),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/expired because the install timed out/)).toBeNull();
+    expect(
+      screen.queryByText(
+        translate("en", "integrations.requestScopesDisabledInstallTimeout"),
+      ),
+    ).toBeNull();
   });
 
   // 설치 시간이 지나 만료된 행은 App URL 도 비어 있지만(설치 토큰이 지워진다) 삭제 없이 같은 상점을 다시 등록하면 된다.
@@ -359,7 +363,7 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     en: {
       reRegister: /register the same store again with the scopes you need without deleting this one/,
       renameOnConflict: /If the name is taken, use a different name/,
-      deleteRequired: /delete (it|the integration) and register/i,
+      deleteRequired: /delete/i,
     },
     ko: {
       reRegister: /이 통합을 지우지 않아도 필요한 권한으로 같은 상점을 새로 등록할 수 있어요/,
@@ -447,7 +451,11 @@ describe("ScopeTab — Cafe24 Private request-scopes UI", () => {
     expect(
       screen.getByText(/has no App URL, so a scope request can't be made/),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/expired because the install timed out/)).toBeNull();
+    expect(
+      screen.queryByText(
+        translate("en", "integrations.requestScopesDisabledInstallTimeout"),
+      ),
+    ).toBeNull();
   });
 
   it("keeps scope requests enabled for a Cafe24 Private row with an App URL", async () => {
