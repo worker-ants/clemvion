@@ -963,9 +963,12 @@ export class IntegrationOAuthService {
         if (!integration) {
           throw integrationNotFoundError();
         }
+        // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
+        await this.assertRequesterStillAllowed(integration, record, manager);
         // 설치 기한이 지나 만료된 행은 되살리지 않는다. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에 도착해도
-        // 요청자 판정 전에 여기서 끝낸다(행 상태만 보는 판정이다). 되살리면 만료 때 비운 상점 식별자를 다시 채워
-        // 그 사이 같은 상점을 등록한 행과 부딪힌다.
+        // 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
+        // 요청자 판정 뒤에 둔다 — 볼 수 없는 요청자는 404 · 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
+        // 하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
         // 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
         if (hasReleasedStoreSlot(integration)) {
           throw new BadRequestException({
@@ -973,8 +976,6 @@ export class IntegrationOAuthService {
             message: 'The install window for this integration has expired',
           });
         }
-        // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
-        await this.assertRequesterStillAllowed(integration, record, manager);
         if (
           record.mode === 'reauthorize' ||
           integration.status === 'pending_install'
@@ -1182,6 +1183,11 @@ export class IntegrationOAuthService {
       });
       if (!integration) {
         // Row was deleted or workspace mismatch — nothing to update.
+        return;
+      }
+      // 설치 기한이 지나 만료된 행은 쓰지 않는다. 늦게 온 콜백의 거절(`OAUTH_STATE_EXPIRED`)이 만료 전의 오류를 덮으면
+      // 설치가 왜 안 됐는지 진단할 단서가 사라진다(CLE-INT-OAUTH 「만료된 설치 대기 행은 상점 자리를 놓는다」).
+      if (hasReleasedStoreSlot(integration)) {
         return;
       }
       const detailsObj: Record<string, unknown> | undefined =

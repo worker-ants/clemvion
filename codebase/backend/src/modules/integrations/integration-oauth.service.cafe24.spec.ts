@@ -2767,68 +2767,186 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
 
     // 만료 직전에 App URL 이 만든 state 의 콜백이 설치 기한 뒤에 도착한 경우 — CLE-INT-OAUTH 「만료된 설치 대기 행은
-    // 상점 자리를 놓는다」. 만료 행은 되살리지 않고 비운 상점 식별자도 다시 채우지 않는다.
-    it('install_timeout 으로 만료된 행 — 콜백이 행을 되살리지 않고 상점 식별자도 다시 채우지 않는다', async () => {
-      const expiredIntegration = {
-        id: 'expired-int-id',
-        workspaceId: 'ws-1',
-        status: 'expired',
-        statusReason: 'install_timeout',
-        mallId: null,
-        credentials: {
-          mall_id: 'priv-shop',
-          app_type: 'private',
-          client_id: 'priv-id',
-          client_secret: 'priv-secret',
-          scopes: [],
-        },
-        installToken: null,
-        lastError: null,
-        tokenExpiresAt: null,
-        lastRotatedAt: null,
+    // 상점 자리를 놓는다」. 만료 행은 되살리지 않고 비운 상점 식별자도 다시 채우지 않으며 만료 전의 오류도 덮지 않는다.
+    describe('설치 기한이 지나 만료된 행에 늦게 도착한 콜백', () => {
+      const PRIOR_ERROR = {
+        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+        message: '설치 중에 남은 원인',
+        at: '2026-10-01T00:00:00.000Z',
       };
-      integrationRepo.findOne = jest.fn().mockResolvedValue(expiredIntegration);
-      dataSource.query.mockResolvedValueOnce([
-        [
-          {
-            id: 'state-expired',
-            state: 'state-token-expired',
-            workspaceId: 'ws-1',
-            userId: 'u-1',
-            provider: 'cafe24',
-            serviceType: 'cafe24',
-            mode: 'reauthorize',
-            integrationId: 'expired-int-id',
-            requestedScopes: ['mall.read_product'],
-            integrationName: 'priv-shop (Cafe24 Private)',
-            scope: 'personal',
-            providerMeta: {
-              mall_id: 'priv-shop',
-              app_type: 'private',
-              client_id: 'priv-id',
-              client_secret: 'priv-secret',
-            },
-            expiresAt: new Date(Date.now() + 60_000),
-            createdAt: new Date(),
+      let getMemberRole: Mock;
+      // 이 스위트의 기본 서비스는 workspacesService 가 없어 요청자 역할이 null 이고, 요청자 판정이 먼저 403 으로 거절한다.
+      // 그러면 가드를 빼도 테스트가 실패해 거절한 쪽이 가드인지 요청자 판정인지 알 수 없다. 편집자를 주입해 가드만이
+      // 400 을 만드는 요인이 되게 한다.
+      function serviceWithRole(role: string | null): IntegrationOAuthService {
+        getMemberRole = jest.fn().mockResolvedValue(role);
+        return new IntegrationOAuthService(
+          integrationRepo as never,
+          stateRepo as never,
+          previewRepo as never,
+          dataSource as never,
+          oauthMock.configService as never,
+          undefined,
+          { getMemberRole } as never,
+        );
+      }
+
+      function expiredRow(
+        overrides: Record<string, unknown> = {},
+      ): Record<string, unknown> {
+        return {
+          id: 'expired-int-id',
+          workspaceId: 'ws-1',
+          serviceType: 'cafe24',
+          status: 'expired',
+          statusReason: 'install_timeout',
+          scope: 'personal',
+          createdBy: 'u-1',
+          mallId: null,
+          credentials: {
+            mall_id: 'priv-shop',
+            app_type: 'private',
+            client_id: 'priv-id',
+            client_secret: 'priv-secret',
+            scopes: [],
           },
-        ],
-        1,
-      ]);
+          installToken: null,
+          lastError: PRIOR_ERROR,
+          tokenExpiresAt: null,
+          lastRotatedAt: null,
+          ...overrides,
+        };
+      }
 
-      const error = await service
-        .handleCallback('cafe24', {
-          code: 'authz-code',
-          state: 'state-token-expired',
-        })
-        .catch((err: unknown) => err);
+      function queueLateCallbackState(): void {
+        dataSource.query.mockResolvedValueOnce([
+          [
+            {
+              id: 'state-expired',
+              state: 'state-token-expired',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              provider: 'cafe24',
+              serviceType: 'cafe24',
+              mode: 'reauthorize',
+              integrationId: 'expired-int-id',
+              requestedScopes: ['mall.read_product'],
+              integrationName: 'priv-shop (Cafe24 Private)',
+              scope: 'personal',
+              providerMeta: {
+                mall_id: 'priv-shop',
+                app_type: 'private',
+                client_id: 'priv-id',
+                client_secret: 'priv-secret',
+              },
+              expiresAt: new Date(Date.now() + 60_000),
+              createdAt: new Date(),
+            },
+          ],
+          1,
+        ]);
+      }
 
-      expect(error).toBeInstanceOf(BadRequestException);
-      expect((error as BadRequestException).getResponse()).toMatchObject({
-        code: 'OAUTH_STATE_EXPIRED',
+      const lateCallback = {
+        code: 'authz-code',
+        state: 'state-token-expired',
+      };
+
+      it('install_timeout 으로 만료된 행 — 요청자 판정을 통과해도 콜백이 행을 되살리지 않고 상점 식별자도 다시 채우지 않는다', async () => {
+        const row = expiredRow();
+        integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+        queueLateCallbackState();
+
+        await expect(
+          serviceWithRole('editor').handleCallback('cafe24', lateCallback),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'OAUTH_STATE_EXPIRED',
+            message: expect.stringContaining('install window') as unknown,
+          },
+        });
+
+        // 요청자 판정이 통과했으므로 400 은 가드가 만든 것이다.
+        expect(getMemberRole).toHaveBeenCalledTimes(1);
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(row.status).toBe('expired');
+        expect(row.statusReason).toBe('install_timeout');
+        expect(row.mallId).toBeNull();
+        expect(row.lastError).toBe(PRIOR_ERROR);
       });
-      expect(integrationRepo.save).not.toHaveBeenCalled();
-      expect(expiredIntegration.status).toBe('expired');
-      expect(expiredIntegration.mallId).toBeNull();
+
+      // 가드는 상점 자리를 놓은 행(`install_timeout`)만 막는다. 다른 사유의 만료 행으로 넓히면 이 케이스가 깨진다.
+      it.each([['auth_failed'], [null]])(
+        'status=expired 라도 statusReason=%s 이면 가드가 막지 않는다 — 콜백이 평소대로 커밋한다',
+        async (statusReason) => {
+          const row = expiredRow({ statusReason });
+          integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+          queueLateCallbackState();
+
+          await expect(
+            serviceWithRole('editor').handleCallback('cafe24', lateCallback),
+          ).resolves.toMatchObject({ integrationId: 'expired-int-id' });
+
+          expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+          expect(row.status).toBe('connected');
+        },
+      );
+
+      // 가드는 요청자 판정 뒤에 있다 — 요청자 판정의 응답(404 · 403)이 만료 응답에 가려지면 안 되고, 만료 응답으로
+      // 볼 수 없는 행의 존재가 드러나도 안 된다.
+      it('요청자가 볼 수 없는 만료 행 — 만료 응답이 아니라 404 로 거절한다', async () => {
+        const row = expiredRow({ createdBy: 'u-9' });
+        integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+        queueLateCallbackState();
+
+        await expect(
+          serviceWithRole('editor').handleCallback('cafe24', lateCallback),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('역할을 잃은 요청자의 만료 행 콜백 — 만료 응답이 아니라 403 으로 거절한다', async () => {
+        const row = expiredRow();
+        integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+        queueLateCallbackState();
+
+        await expect(
+          serviceWithRole('viewer').handleCallback('cafe24', lateCallback),
+        ).rejects.toMatchObject({ response: { code: 'EDITOR_REQUIRED' } });
+
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      });
+
+      // 컨트롤러는 handleCallback 이 아니라 handleCallbackWithErrorCapture 를 부른다. 거절을 만료 행의 last_error 에
+      // 기록하는 경로(markIntegrationCallbackError)까지 거쳐도 행에는 아무것도 쓰지 않는다 — 만료 전의 오류가 남는다.
+      it('handleCallbackWithErrorCapture 경유 — 거절을 만료 행에 기록하지 않고 만료 전의 lastError 를 남긴다', async () => {
+        const row = expiredRow();
+        integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+        queueLateCallbackState();
+        const service = serviceWithRole('editor');
+        const markSpy = jest.spyOn(service, 'markIntegrationCallbackError');
+
+        await expect(
+          service.handleCallbackWithErrorCapture('cafe24', lateCallback),
+        ).rejects.toMatchObject({
+          response: { code: 'OAUTH_STATE_EXPIRED' },
+        });
+
+        // 기록 경로를 실제로 탔다 — 이 단언이 없으면 컨텍스트가 빠져 기록을 시도하지 않은 경우와 구별되지 않는다.
+        expect(markSpy).toHaveBeenCalledWith(
+          'expired-int-id',
+          'ws-1',
+          'OAUTH_STATE_EXPIRED',
+          'The install window for this integration has expired',
+          undefined,
+        );
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(row.status).toBe('expired');
+        expect(row.statusReason).toBe('install_timeout');
+        expect(row.mallId).toBeNull();
+        expect(row.lastError).toBe(PRIOR_ERROR);
+      });
     });
 
     it('재설치 요청 표시가 있는 connected 행 — 콜백 성공이 자격 증명을 바꾸고 표시를 지운다', async () => {

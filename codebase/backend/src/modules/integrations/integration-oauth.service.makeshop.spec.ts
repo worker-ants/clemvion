@@ -1095,6 +1095,127 @@ describe('IntegrationOAuthService — MakeShop', () => {
   });
 
   // -------------------------------------------------------------------
+  // 설치 기한이 지나 만료된 행에 늦게 도착한 콜백 (CLE-INT-OAUTH 「만료된 설치 대기 행은 상점 자리를 놓는다」)
+  // -------------------------------------------------------------------
+  // 되살림 차단 가드는 provider 와 무관한 공용 경로에 있다. MakeShop 은 콜백이 `credentials.shop_uid` 를 `mall_id` 컬럼으로
+  // 다시 채우는 분기가 있어 가드가 없으면 만료 때 비운 상점 자리를 다시 차지한다.
+  describe('handleCallback — 설치 기한이 지나 만료된 행', () => {
+    let getMemberRole: Mock;
+    // 기본 서비스는 workspacesService 가 없어 요청자 판정이 먼저 403 으로 거절한다. 편집자를 주입해 가드만이 400 을
+    // 만드는 요인이 되게 한다.
+    function serviceWithRole(role: string | null): IntegrationOAuthService {
+      getMemberRole = jest.fn().mockResolvedValue(role);
+      return new IntegrationOAuthService(
+        integrationRepo as never,
+        stateRepo as never,
+        previewRepo as never,
+        dataSource as never,
+        oauthMock.configService as never,
+        undefined,
+        { getMemberRole } as never,
+      );
+    }
+
+    function expiredRow(
+      overrides: Record<string, unknown> = {},
+    ): Record<string, unknown> {
+      return {
+        id: 'mk-expired-int',
+        workspaceId: 'ws-1',
+        serviceType: 'makeshop',
+        status: 'expired',
+        statusReason: 'install_timeout',
+        scope: 'personal',
+        createdBy: 'u-1',
+        mallId: null,
+        credentials: {
+          shop_uid: 'myshop',
+          client_id: 'mk-cid',
+          client_secret: 'mk-secret',
+          scopes: ['store.read'],
+        },
+        installToken: null,
+        lastError: null,
+        tokenExpiresAt: null,
+        lastRotatedAt: null,
+        ...overrides,
+      };
+    }
+
+    function queueLateCallbackState(): void {
+      dataSource.query.mockResolvedValueOnce([
+        [
+          {
+            id: 'mk-state-expired',
+            state: 'mk-state-expired',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            provider: 'makeshop',
+            serviceType: 'makeshop',
+            mode: 'reauthorize',
+            integrationId: 'mk-expired-int',
+            requestedScopes: ['store.read'],
+            integrationName: 'MakeShop',
+            scope: 'personal',
+            providerMeta: {
+              shop_uid: 'myshop',
+              client_id: 'mk-cid',
+              client_secret: 'mk-secret',
+              code_verifier: 'verifier-xyz',
+            },
+            expiresAt: new Date(Date.now() + 60_000),
+            createdAt: new Date(),
+          },
+        ],
+        1,
+      ]);
+    }
+
+    const lateCallback = {
+      code: 'authz-code',
+      state: 'mk-state-expired',
+    };
+
+    it('install_timeout 으로 만료된 행 — 요청자 판정을 통과해도 콜백이 행을 되살리지 않고 shop_uid 를 mall_id 로 다시 채우지 않는다', async () => {
+      const row = expiredRow();
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+      queueLateCallbackState();
+
+      await expect(
+        serviceWithRole('editor').handleCallback('makeshop', lateCallback),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'OAUTH_STATE_EXPIRED',
+          message: expect.stringContaining('install window') as unknown,
+        },
+      });
+
+      // 요청자 판정이 통과했으므로 400 은 가드가 만든 것이다.
+      expect(getMemberRole).toHaveBeenCalledTimes(1);
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(row.status).toBe('expired');
+      expect(row.statusReason).toBe('install_timeout');
+      expect(row.mallId).toBeNull();
+    });
+
+    // 가드는 상점 자리를 놓은 행(`install_timeout`)만 막는다. 이 케이스는 MakeShop 분기가 `shop_uid` 를 다시 채우는 경로가
+    // 가드 밖에서는 열려 있다는 대조다.
+    it('status=expired 라도 statusReason=auth_failed 이면 가드가 막지 않는다 — 콜백이 평소대로 커밋한다', async () => {
+      const row = expiredRow({ statusReason: 'auth_failed' });
+      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+      queueLateCallbackState();
+
+      await expect(
+        serviceWithRole('editor').handleCallback('makeshop', lateCallback),
+      ).resolves.toMatchObject({ integrationId: 'mk-expired-int' });
+
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      expect(row.status).toBe('connected');
+      expect(row.mallId).toBe('myshop');
+    });
+  });
+
+  // -------------------------------------------------------------------
   // token exchange (handleCallback → exchangeCodeForToken)
   // -------------------------------------------------------------------
   describe('token exchange — makeshop', () => {
