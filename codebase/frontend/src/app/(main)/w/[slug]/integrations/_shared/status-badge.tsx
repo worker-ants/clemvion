@@ -60,15 +60,17 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "expired") {
-    // install_timeout is Cafe24-private-specific: user must delete
-    // and re-register since there's no reauthorize entry point.
+    // install_timeout marks an install-pending row (Cafe24 Private, MakeShop)
+    // whose install deadline passed. It can't be reauthorized, but it lets go
+    // of its store, so the user registers the store again without deleting
+    // it first. NERV CLE-INT-OAUTH, Task CLE-T-395HK2.
     return {
       label: "Expired",
       dotClassName: "bg-yellow-500",
       tone: "warn",
       detail:
         integration.statusReason === INSTALL_TIMEOUT_REASON
-          ? "Install timed out — delete and re-register"
+          ? "Install timed out — register the store again"
           : undefined,
     };
   }

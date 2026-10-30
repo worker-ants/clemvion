@@ -119,9 +119,9 @@ export function Cafe24PrivatePendingStep({
         </p>
       )}
       {/* Polling stops when status transitions out of pending_install — the
-       * user otherwise sees a silent UI. expired (TTL) and error both need
-       * an explicit "delete and re-register" hint since Cafe24 Private has
-       * no reauthorize entry point. */}
+       * user otherwise sees a silent UI. An install_timeout expiry tells the
+       * user to register the same store again (the row let go of its store,
+       * so no delete is needed). Any other ending points to the detail page. */}
       {poll &&
         poll.status !== "pending_install" &&
         poll.status !== "connected" && (

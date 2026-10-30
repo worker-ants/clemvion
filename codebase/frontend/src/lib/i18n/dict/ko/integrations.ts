@@ -93,7 +93,7 @@ export const integrations = {
   reauthorizeDisabledPendingInstall:
     "설치가 끝나지 않은 통합은 재인증할 수 없어요. 설치를 먼저 마쳐 주세요.",
   reauthorizeDisabledInstallTimeout:
-    "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 삭제한 뒤 다시 등록해 주세요.",
+    "설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
   reauthorizeDisabledNoAppUrl:
     "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요.",
   reauthorizeDisabledMakeshop:
@@ -209,7 +209,7 @@ export const integrations = {
   cafe24PrivatePendingTimedOut:
     "10분이 지나도 활성화되지 않았어요. 페이지를 새로고침해 다시 확인하거나 통합 상세를 여세요.",
   cafe24PrivatePendingExpired:
-    "Install 이 24시간 안에 완료되지 않아 만료됐어요. 통합을 삭제하고 다시 등록해 주세요.",
+    "설치가 24시간 안에 완료되지 않아 만료됐어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
   cafe24PrivatePendingTerminal:
     "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
   cafe24PrivatePendingLastErrorLabel: "마지막 콜백 오류",
@@ -307,7 +307,7 @@ export const integrations = {
   makeshopPendingTimedOut:
     "10분이 지나도 활성화되지 않았어요. 페이지를 새로고침해 다시 확인하거나 통합 상세를 여세요.",
   makeshopPendingExpired:
-    "설치가 제한 시간 안에 완료되지 않아 만료됐어요. 통합을 삭제하고 다시 등록해 주세요.",
+    "설치가 제한 시간 안에 완료되지 않아 만료됐어요. 이 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 이름이 겹치면 다른 이름으로 등록해 주세요.",
   makeshopPendingTerminal:
     "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
   makeshopPendingLastErrorLabel: "마지막 콜백 오류",

@@ -187,7 +187,9 @@ describe("SecurityTab — 재인증 연결부", () => {
     /** 사유별 문구의 식별 구절 — 다른 사유의 문구가 섞이면 이 표가 깨진다(키 매핑이 틀린 경우를 잡는다). */
     const HINTS = {
       pending_install: /hasn't finished installing/,
-      install_timeout: /expired because the install timed out/,
+      // 만료된 설치 대기 행은 상점 자리를 놓으므로 지우지 않아도 다시 등록할 수 있다(CLE-T-395HK2).
+      install_timeout:
+        /expired because the install timed out.*register the same store again without deleting this one/,
       no_app_url: /has no App URL, so a reinstall can't be requested/,
       makeshop: /MakeShop integrations can't be reauthorized/,
     } as const;

@@ -1,8 +1,9 @@
 import type { IntegrationDto } from "@/lib/api/integrations";
 
 /**
- * `status_reason` value used when a `pending_install` Cafe24 Private row
- * times out after the install TTL (see backend integration-expiry scanner).
+ * `status_reason` value used when a `pending_install` Cafe24 Private or
+ * MakeShop row times out after the install TTL (see backend
+ * integration-expiry scanner).
  * Shared so FE branches don't drift from the snake_case value the backend
  * writes.
  */
@@ -43,7 +44,9 @@ function isCafe24PrivateWithoutAppUrl(integration: IntegrationDto): boolean {
  * Why the Reauthorize action is unavailable, or `null` when it is available.
  *
  * - `pending_install` rows (any provider) must finish the install first.
- * - `expired` rows with `install_timeout` can only be deleted and re-registered.
+ * - `expired` rows with `install_timeout` can't be reauthorized. The row lets
+ *   go of its store, so the user registers the same store again without
+ *   deleting it first (a reused name still conflicts).
  * - Cafe24 Private rows without an App URL (`no_app_url`, install_token gone)
  *   can only be deleted and re-registered too. They are not always timed out —
  *   a `connected` row can lack the App URL as well — so the reason is separate.

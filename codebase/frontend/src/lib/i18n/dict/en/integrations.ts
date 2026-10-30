@@ -95,7 +95,7 @@ export const integrations: Dict["integrations"] = {
   reauthorizeDisabledPendingInstall:
     "You can't reauthorize an integration that hasn't finished installing. Complete the install first.",
   reauthorizeDisabledInstallTimeout:
-    "This integration expired because the install timed out, so it can't be reauthorized. Delete it and register it again.",
+    "This integration expired because the install timed out, so it can't be reauthorized. You can register the same store again without deleting this one. If the name is taken, use a different name.",
   reauthorizeDisabledNoAppUrl:
     "This Cafe24 Private integration has no App URL, so a reinstall can't be requested. Delete it and register it again.",
   reauthorizeDisabledMakeshop:
@@ -213,7 +213,7 @@ export const integrations: Dict["integrations"] = {
   cafe24PrivatePendingTimedOut:
     "Still pending after 10 minutes. Reload this page to keep checking, or open the integration details.",
   cafe24PrivatePendingExpired:
-    "Install timed out (24h). Delete this integration and register again to retry.",
+    "Install timed out (24h). You can register the same store again without deleting this integration. If the name is taken, use a different name.",
   cafe24PrivatePendingTerminal:
     "This integration is no longer pending. Open the details for status and next steps.",
   cafe24PrivatePendingLastErrorLabel: "Last callback error",
@@ -304,7 +304,7 @@ export const integrations: Dict["integrations"] = {
   makeshopPendingTimedOut:
     "Still not active after 10 minutes. Refresh the page to re-check or open the integration detail.",
   makeshopPendingExpired:
-    "The install expired before it completed. Delete the integration and register it again.",
+    "The install expired before it completed. You can register the same store again without deleting this integration. If the name is taken, use a different name.",
   makeshopPendingTerminal:
     "This integration is no longer pending. Check its status and next steps on the detail page.",
   makeshopPendingLastErrorLabel: "Last callback error",
