@@ -181,6 +181,17 @@ function isNameConflict(err: unknown): boolean {
 }
 
 /**
+ * begin 이 새로 만드는 설치 대기 행의 공개 범위. 요청에 없으면 개인이다. 멤버십을 잠글지 정하는 판정
+ * ({@link lockForPendingWrite})과 행을 넣는 INSERT 가 이 함수 하나로 같은 값을 쓴다. 한쪽의 기본값이 따로 바뀌면 멤버십
+ * 잠금 없이 개인 행이 생긴다.
+ */
+function resolveBeginScope(
+  params: Pick<BeginParams, 'scope'>,
+): 'personal' | 'organization' {
+  return params.scope ?? 'personal';
+}
+
+/**
  * 설치 대기 행 쓰기의 잠금(REQ-INTMGMT-066). 트랜잭션의 첫 문장이다. 워크스페이스는 공개 범위와 관계없이 잡고 멤버십은
  * 요청 공개 범위가 개인일 때만 잡는다. 다시 쓰는 행의 공개 범위는 아직 모르지만, 개인 행을 다시 쓰는 사람은 그 행의 통합
  * 소유자라 요청 범위가 조직이어도 새 개인 행은 생기지 않는다. 기존 행은 나가기 · 제거의 통합 DELETE 가 행 잠금을 기다린 뒤
@@ -194,7 +205,7 @@ async function lockForPendingWrite(
     await lockForIntegrationWrite(manager, {
       workspaceId: params.workspaceId,
       personalOwnerId:
-        (params.scope ?? 'personal') === 'personal' ? params.userId : null,
+        resolveBeginScope(params) === 'personal' ? params.userId : null,
     }),
   );
 }
@@ -1514,7 +1525,7 @@ export class IntegrationOAuthService {
           serviceType: 'cafe24',
           authType: 'oauth2',
           name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
-          scope: params.scope ?? 'personal',
+          scope: resolveBeginScope(params),
           status: 'pending_install',
           installToken,
           installTokenIssuedAt,
@@ -1964,7 +1975,7 @@ export class IntegrationOAuthService {
             serviceType: 'makeshop',
             authType: 'oauth2',
             name: params.integrationName || 'MakeShop',
-            scope: params.scope ?? 'personal',
+            scope: resolveBeginScope(params),
             status: 'pending_install',
             installToken: newToken,
             installTokenIssuedAt: new Date(),
