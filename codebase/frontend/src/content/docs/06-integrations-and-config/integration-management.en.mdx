@@ -26,7 +26,7 @@ Which integrations a node can use also depends on scope.
 - **Organization integrations**: usable from the nodes of any workflow in the workspace.
 - **Personal integrations**: usable only from the nodes of workflows created by the person who created the integration. Even that person can't use it in a workflow another member created.
 
-The check is based on **the person who created the workflow**, not the person who started the run. Automatic runs from a schedule or webhook, and runs as a sub-workflow, follow the same rule; a sub-workflow is judged by the person who created that sub-workflow. A Personal integration also can't be used once the person who created it has left the workspace, or when the node picks the integration through an expression (`{{ }}`). Only Organization integrations work in those cases.
+The check is based on **the person who created the workflow**, not the person who started the run. Automatic runs from a schedule or webhook, and runs as a sub-workflow, follow the same rule; a sub-workflow is judged by the person who created that sub-workflow. A Personal integration also can't be used when the node picks the integration through an expression (`{{ }}`). Only Organization integrations work in that case.
 
 A node that uses a Personal integration the rule doesn't allow fails at run time with the same "integration not found" error as a node that references an integration that doesn't exist. The error alone can't tell you whether the integration is missing or just not usable. For an AI Agent node, an MCP server entry like that is skipped and the node keeps running.
 
@@ -53,6 +53,18 @@ The screen and the server enforce the same rules. Buttons and input areas for ac
 
 <Callout type="tip">Integrations in a personal workspace are visible only to the owner. To share with a team, create the integration inside the team workspace. The same external account is a separate record per workspace.</Callout>
 
+### When a member leaves or is removed
+
+When a member leaves the workspace, or an admin removes a member, every Personal integration that member added to this workspace is deleted along with the membership.
+
+- **Status and usage don't matter.** Connected, pending install, expired, and error integrations are all deleted, even when a workflow node uses them. A regular integration delete is blocked while the integration is in use, but this one isn't.
+- **Some integrations stay.** Organization integrations the member created, and other members' Personal integrations, are kept.
+- **It is recorded in the audit log.** Each deleted integration leaves an integration-deleted entry in the audit log.
+- **Nodes fail at run time.** A workflow node that used a deleted Personal integration fails to run until you pick another integration for it.
+- **Sometimes nothing is deleted.** The sole Owner can't leave and an Owner can't be removed, so in those cases nothing is deleted.
+
+If the same person is invited again and rejoins, the deleted integrations do not come back. See [Workspaces and members](/docs/07-workspace-and-team/workspaces-and-members) for the leave and remove-member screens.
+
 ### Switching an Organization integration to Personal
 
 On the integration's Danger zone tab, switching an Organization integration to Personal means workflows created by anyone other than the person who created the integration can no longer use it in their nodes. So the integration's usages are checked before the switch.
@@ -66,6 +78,15 @@ On the integration's Danger zone tab, switching an Organization integration to P
   file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx"
   symbol="ScopeToPersonalWarningDialog"
   describes="Warning dialog on the Danger zone tab that lists workflows whose runs will fail before an Organization integration is switched to Personal"
+/>
+
+If the person who created the integration has already left the workspace, the switch is rejected. The integration stays an Organization integration and an error toast appears: "The person who created this integration is no longer in the workspace, so it can't be made personal. Keep it as an organization integration or delete it." In that case, keep it as an Organization integration or delete it.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx"
+  symbol="formatIntegrationErrorToast"
+  describes="Danger zone tab handling that shows the message matching the reason as an error toast when a scope switch is rejected"
 />
 
 ## Adding an integration
@@ -100,6 +121,22 @@ Only Editors and above can add integrations. Viewers don't see the `[+ Add Integ
 
 <Callout type="note">Cafe24 Private and MakeShop integrations stay in a pending-install state until the app install finishes. If another member's personal install for the same mall (Cafe24 Private) or the same `client_id` (MakeShop) is still waiting, you can't add a new one. See the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24) and the [MakeShop integration guide](/docs/06-integrations-and-config/makeshop) for details.</Callout>
 
+### A pending install that passed its deadline
+
+A Cafe24 Private or MakeShop integration that is waiting for install changes to expired (install deadline passed) if the install isn't finished within 24 hours of the install token being issued. At that moment it also lets go of the store identifier (Cafe24 mall ID, MakeShop store) it was holding.
+
+- **You can register the same store again.** You don't have to delete the expired integration first. It isn't deleted automatically and stays flagged as `Need attention`, so delete it yourself if you don't need it.
+- **The old App URL (install link) no longer works.** Opening the App URL of an expired integration shows an error saying the install link is not valid.
+- **The integration name is kept.** If you register again with the same name as the expired integration, the add-integration screen shows "An integration with this name already exists. Enter a different name." under the name field, and a toast with the same message appears. Change the name and the field error goes away. Cafe24 Private builds its default name from the mall ID, so this happens often.
+- **Expired or errored for another reason is an exception.** An integration for the same store that expired or errored for a reason other than the install deadline (a token expiry, for example) keeps holding the store. Cafe24 stops you at the registration step with a notice that the mall ID is already connected, and MakeShop stops you at the install step with an error that the store is already connected. Reauthorize that integration, or delete it and register again. A MakeShop integration can't be reauthorized, so delete it and register again.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="isIntegrationNameTaken"
+  describes="Add-integration screen handling that shows an error under the name field when an integration with the same name exists, and clears it when the name changes"
+/>
+
 ## Testing, editing, and rotating credentials
 
 The detail page tabs cover almost every operational task.
@@ -124,7 +161,7 @@ The detail page tabs cover almost every operational task.
 How reauthorizing and adding scopes (Request scopes) work depends on the provider.
 
 - **Google, GitHub, and Cafe24 Public apps**: a popup opens and you authenticate again on the provider's consent screen.
-- **Cafe24 Private apps**: no popup opens. After you submit the request, a notice appears below the detail page header and you finish by clicking **Test Run** in Cafe24 Developers. See the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24) for the steps. If the integration expired because the install timed out, or it has no App URL, delete it and register it again.
+- **Cafe24 Private apps**: no popup opens. After you submit the request, a notice appears below the detail page header and you finish by clicking **Test Run** in Cafe24 Developers. See the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24) for the steps. An integration that expired because the install timed out can't be reauthorized. Register the same store again; you don't need to delete that integration first. If the integration has no App URL, delete it and register it again.
 - **MakeShop**: reauthorizing and adding scopes are not supported. Both buttons are disabled, so delete the integration and register it again. See the [MakeShop integration guide](/docs/06-integrations-and-config/makeshop).
 </Callout>
 
@@ -179,6 +216,6 @@ When you save, the server checks only the integration choices that are new or ch
 - Credentials are stored encrypted with AES-256-GCM. API responses return only masked previews like `****4f2a`.
 - For non-OAuth integrations, `Rotate credentials` only overwrites the existing secret after the new value passes the connection test. On failure, the existing credential is untouched.
 - To register multiple accounts for the same service, add separate integrations with different aliases. Aliases must be unique within a workspace.
-- An integration in use cannot be deleted. Clicking `Delete integration` first checks its usages; if it's still in use, a delete-blocked dialog shows which workflows and nodes reference it (AI Agent MCP-server references are marked with an `MCP` badge). Follow the workflow link in the dialog, switch the node's `integrationId` to another integration or remove the node, then delete again.
+- An integration in use cannot be deleted. The exception is when a member leaves or is removed: that member's Personal integrations are deleted along with the membership even if they are in use. Clicking `Delete integration` first checks its usages; if it's still in use, a delete-blocked dialog shows which workflows and nodes reference it (AI Agent MCP-server references are marked with an `MCP` badge). Follow the workflow link in the dialog, switch the node's `integrationId` to another integration or remove the node, then delete again.
 - To expose external tools and resources to the LLM from an AI Agent, register an MCP server integration and wire it into the AI Agent node's `MCP Servers` field. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
 - If your own Personal integration appears disabled in a workflow someone else created, see the answer in the [FAQ](/docs/99-faq/faq).

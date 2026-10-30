@@ -362,8 +362,10 @@ export class RequestScopesDto {
 
 export class UpdateScopeDto {
   /** 변경할 통합 범위 */
+  // 근거: [통합 관리 「에러 코드」](CLE-INT-MANAGE#에러-코드)
   @ApiProperty({
-    description: '변경할 통합 범위. personal=개인, organization=조직',
+    description:
+      '변경할 통합 범위. personal=개인, organization=조직. 통합을 만든 사람이 워크스페이스 멤버가 아니면 personal 로 바꿀 수 없다(409).',
     enum: ['personal', 'organization'],
     example: 'organization',
   })

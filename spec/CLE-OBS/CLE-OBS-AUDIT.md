@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
 content_hash: "d8266a6da28b3857128f130d4396df8013e25ecd7af1e98b98f5a434e7ad5c48"
 read_as: "approved_fallback"
-task: "CLE-T-G56XCH"
+task: "CLE-T-PS7JQY"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "34690081630cc54180f1aeea9ebf1b16b2b27308271d7abebf7945e10901e6cc"
-etag: "sha256-4be7a904f6b4c74b14fadeb1b9a70a969a2dc9d9304256b4c886dca1a77ddfbc"
+mirror_sha256: "7f563e2c7c6dc13faaa082b753c200c89703be8081a895891b4e3f4078fa0adc"
+etag: "sha256-ddf14f41698e7166abbcb30cd15347bc449d5e30d44a144656dc5c8cc6c51768"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

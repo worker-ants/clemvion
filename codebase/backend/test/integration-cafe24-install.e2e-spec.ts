@@ -12,6 +12,7 @@ import { createHmac, randomBytes } from 'crypto';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { expirePendingInstallsNow } from './helpers/pending-install-expiry';
 
 type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
 
@@ -29,6 +30,9 @@ type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
  *     → 400 CAFE24_INSTALL_REPLAY (Redis nonce cache)
  *   - **재설치 대기 표시** (CLE-T-NNENG8): 설치가 끝난 행은 App URL 이 상세 화면으로 보내다가
  *     `:id/reauthorize` · `:id/request-scopes` 가 `reinstall_requested_at` 을 남기면 authorize URL 로 보낸다
+ *   - **만료된 설치 대기 행은 상점 자리를 놓는다** (CLE-T-PS7JQY, REQ-INTSTAT-040 · REQ-INTOAUTH-068): 만료 스캐너가
+ *     설치 기한이 지난 행을 `expired`(`install_timeout`)로 바꾸며 `mall_id` 를 비우면 다른 멤버가 같은 상점으로 다시
+ *     begin 한다. 그 행의 옛 App URL 은 404 다. 토큰 만료로 `expired` 가 된 행은 여전히 같은 상점을 막는다
  *
  * 검증 안 함 (별 e2e 로 분리):
  *   - OAuth callback 의 외부 token exchange — Cafe24 token endpoint 를 mock 해야
@@ -181,6 +185,8 @@ describe('Cafe24 install endpoint (e2e)', () => {
     installToken: string | null;
     status: 'connected' | 'error' | 'expired';
     statusReason?: string;
+    /** true 이면 `mall_id` 컬럼을 비운다(만료 스캐너가 비운 행 · V045 이전 옛 행). 상점 값은 credentials 안에만 남는다. */
+    clearMallIdColumn?: boolean;
   }): Promise<string> {
     // 설치가 끝난 Cafe24 Private 행. credentials 는 insertPendingInstall 과 같은 이유로 평문 JSONB 다.
     const credentials = {
@@ -204,7 +210,7 @@ describe('Cafe24 install endpoint (e2e)', () => {
         uniqueName('cafe24-reinstall'),
         opts.status,
         opts.statusReason ?? null,
-        opts.mallId,
+        opts.clearMallIdColumn ? null : opts.mallId,
         opts.installToken,
         JSON.stringify(credentials),
         owner.userId,
@@ -674,6 +680,152 @@ describe('Cafe24 install endpoint (e2e)', () => {
         .get(`/api/3rd-party/cafe24/install/${installToken}`)
         .query(rawQuery2);
       expect(res2.status).toBe(302);
+    });
+  });
+
+  describe('expired pending row releases the store slot (CLE-T-PS7JQY)', () => {
+    /** 같은 워크스페이스의 다른 멤버. 만료 행의 통합 소유자가 아니라 그 행을 지울 수 없다. */
+    let other: RegisterResult;
+
+    beforeAll(async () => {
+      other = await registerAndLogin(BASE_URL, uniqueEmail('cafe24-slot'), db);
+      await db.query(
+        `INSERT INTO workspace_member (workspace_id, user_id, role, joined_at)
+         VALUES ($1, $2, 'editor', now())`,
+        [workspaceId, other.userId],
+      );
+    }, 60_000);
+
+    const precheck = (mallId: string) =>
+      request(BASE_URL)
+        .get('/api/integrations/cafe24/precheck')
+        .query({ mallId })
+        .set('Authorization', `Bearer ${other.accessToken}`)
+        .set('X-Workspace-Id', workspaceId);
+
+    const beginPrivate = (mallId: string) =>
+      request(BASE_URL)
+        .post('/api/integrations/oauth/begin')
+        .set('Authorization', `Bearer ${other.accessToken}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({
+          scopes: [],
+          mode: 'new',
+          service: 'cafe24',
+          mallId,
+          appType: 'private',
+          clientId: 'e2e-cafe24-client',
+          clientSecret: 'e2e-cafe24-secret',
+        });
+
+    it('설치 기한이 지나 스캐너가 만료시킨 행은 같은 상점의 다른 멤버 begin 을 막지 않고 옛 App URL 은 404 다', async () => {
+      const mallId = 'mall-' + randomBytes(4).toString('hex');
+      const installToken = makeInstallToken();
+      const staleId = await insertPendingInstall({ mallId, installToken });
+
+      // 만료 전에는 남의 설치 대기 행이 같은 상점을 막는다(대조군).
+      const before = await precheck(mallId);
+      expect(before.status).toBe(200);
+      expect(before.body.data.conflict).toBe(true);
+
+      await expirePendingInstallsNow(db, [staleId]);
+      const stale = await db.query<{
+        status: string;
+        status_reason: string | null;
+        mall_id: string | null;
+        install_token: string | null;
+        credentials: { mall_id?: string };
+      }>(
+        `SELECT status, status_reason, mall_id, install_token, credentials
+           FROM integration WHERE id = $1`,
+        [staleId],
+      );
+      expect(stale.rows[0]).toMatchObject({
+        status: 'expired',
+        status_reason: 'install_timeout',
+        mall_id: null,
+        install_token: null,
+      });
+      // 상점 값은 자격 증명 안에 남는다. 컬럼만 비운다.
+      expect(stale.rows[0].credentials.mall_id).toBe(mallId);
+
+      // 옛 App URL 은 설치 토큰이 비어 찾지 못하고, 상점 식별자로 되찾는 경로도 만료 행을 고르지 않는다.
+      const oldUrl = await request(BASE_URL)
+        .get(`/api/3rd-party/cafe24/install/${installToken}`)
+        .query(signedInstallQuery(mallId));
+      expect(oldUrl.status).toBe(404);
+      expect(oldUrl.body?.code ?? oldUrl.body?.error?.code).toBe(
+        'CAFE24_INSTALL_INVALID_TOKEN',
+      );
+
+      const after = await precheck(mallId);
+      expect(after.status).toBe(200);
+      expect(after.body.data).toEqual({ conflict: false });
+
+      const res = await beginPrivate(mallId);
+      expect(res.status).toBe(200);
+      const freshId = (res.body.data as { integrationId: string })
+        .integrationId;
+      expect(freshId).not.toBe(staleId);
+      const rows = await db.query<{
+        id: string;
+        status: string;
+        mall_id: string | null;
+        created_by: string;
+      }>(
+        'SELECT id, status, mall_id, created_by FROM integration WHERE id = ANY($1)',
+        [[staleId, freshId]],
+      );
+      const byId = new Map(rows.rows.map((r) => [r.id, r]));
+      // 만료 행 자체는 지우지 않는다.
+      expect(byId.get(staleId)).toMatchObject({ status: 'expired' });
+      expect(byId.get(freshId)).toMatchObject({
+        status: 'pending_install',
+        mall_id: mallId,
+        created_by: other.userId,
+      });
+    });
+
+    // `mall_id` 컬럼이 빈 행은 옛 행 대체 조회(`mall_id IS NULL`)로 찾는다. 그 조회가 install_timeout 만료 행만 SQL 에서 빼는지,
+    // 사유가 NULL 이거나 다른 만료 행은 `status_reason <> 'install_timeout'` 의 NULL 비교에 빠지지 않고 남는지 실제 DB 로 본다.
+    it.each([
+      ['install_timeout', false],
+      ['token_expired', true],
+      [undefined, true],
+    ] as const)(
+      '컬럼이 빈 만료 행(사유 %s)이 같은 상점을 막는가: %s',
+      async (statusReason, blocks) => {
+        const mallId = 'mall-' + randomBytes(4).toString('hex');
+        await insertPrivateIntegration({
+          mallId,
+          installToken: null,
+          status: 'expired',
+          statusReason,
+          clearMallIdColumn: true,
+        });
+
+        const check = await precheck(mallId);
+        expect(check.status).toBe(200);
+        expect(check.body.data.conflict).toBe(blocks);
+      },
+    );
+
+    it('토큰 만료로 expired 가 된 행은 여전히 같은 상점을 막는다', async () => {
+      const mallId = 'mall-' + randomBytes(4).toString('hex');
+      await insertPrivateIntegration({
+        mallId,
+        installToken: null,
+        status: 'expired',
+        statusReason: 'token_expired',
+      });
+
+      const check = await precheck(mallId);
+      expect(check.status).toBe(200);
+      expect(check.body.data.conflict).toBe(true);
+
+      const res = await beginPrivate(mallId);
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
     });
   });
 });

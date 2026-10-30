@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "280a3d7cc469415a40b8bdb4aeb30c134e75fa2a1b537a6f75c0550c842de422"
 read_as: "approved_fallback"
-task: "CLE-T-G56XCH"
+task: "CLE-T-PS7JQY"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "53115665a6015799494401d716b2eb6d4217b7a47206608223e7e8a0d1249cd2"
-etag: "sha256-d81c7e9af5c3d2fade0d027b41525f7f5b1e0878f15265966d8a1c81cb45eb85"
+mirror_sha256: "441d51f25b60277e84fada38e738d8af40099fc371413531369a1b45a21b9322"
+etag: "sha256-eeed311bd02d900129e50bfc5856739f35f804b23710564a87369b60e357be8d"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략, 만료 때 `mall_id` 비우기, 나간 멤버의 개인 통합 삭제와 개인 통합을 만들거나 개인으로 바꿀 때의 멤버십 재확인은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

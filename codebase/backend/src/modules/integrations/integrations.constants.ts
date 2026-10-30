@@ -17,6 +17,39 @@
 export const STORE_IDENTIFIER_UNIQUE_CONSTRAINT =
   'idx_integration_workspace_service_mall';
 
+/** 워크스페이스 안 통합 이름 UNIQUE(공개 범위 무관). */
+export const WORKSPACE_NAME_UNIQUE_CONSTRAINT =
+  'integration_workspace_name_unique';
+
+/**
+ * 이름 UNIQUE 위반의 409(REQ-INTMGMT-005). 생성 · 별칭 수정(`throwIfUniqueViolation`)과 Cafe24 Private · MakeShop
+ * begin 의 설치 대기 행 쓰기가 같은 코드와 문구를 낸다.
+ */
+export const INTEGRATION_NAME_TAKEN = {
+  code: 'INTEGRATION_NAME_TAKEN',
+  message: 'Integration name is already in use within this workspace',
+};
+
+/**
+ * 조직 → 개인 전환의 409(REQ-INTMGMT-067). 통합을 만든 사람이 이미 워크스페이스를 나갔으면 전환 뒤에 아무도 보거나 지울 수
+ * 없는 개인 통합이 생기므로 거절한다. 프런트엔드 `INTEGRATION_LOCALIZED_ERROR_CODES.OWNER_NOT_MEMBER` 와 짝이 되는 값이다.
+ * `message` 에 사용자 식별자를 넣지 않는다.
+ */
+export const INTEGRATION_OWNER_NOT_MEMBER = {
+  code: 'INTEGRATION_OWNER_NOT_MEMBER',
+  message:
+    'The creator of this integration is no longer a workspace member, so it cannot be made personal. Keep it as an organization integration or delete it.',
+};
+
+/**
+ * 설치 기한이 지나 만료된(`install_timeout`) 설치 대기 행에 늦게 도착한 OAuth 콜백의 400. state 는 유효하므로 state TTL 만료의
+ * `OAUTH_STATE_EXPIRED` 와 조건이 다르다. 이 거절은 행에 `last_error` 를 남기지 않는다(CLE-INT-OAUTH 「에러 매핑」).
+ */
+export const INTEGRATION_INSTALL_EXPIRED = {
+  code: 'INTEGRATION_INSTALL_EXPIRED',
+  message: 'The install window for this integration has expired',
+};
+
 /**
  * Per-service "store identifier already connected" error mapping — used by
  * `throwIfUniqueViolation` in `integrations.service.ts` and by the

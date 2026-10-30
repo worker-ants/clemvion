@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { TFunction } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
-import { formatIntegrationErrorToast } from "../integration-error-codes";
+import {
+  formatIntegrationErrorToast,
+  isIntegrationNameTaken,
+} from "../integration-error-codes";
 
 /*
  * 통합 추가 화면의 오류 토스트 — NERV CLE-INT-MANAGE 「오류 코드」 · CLE-INT-OAUTH 「설치 대기 행 재사용의 권한」,
@@ -46,6 +49,8 @@ describe("formatIntegrationErrorToast", () => {
     ],
     ["EDITOR_REQUIRED", "integrations.editorRequiredToast"],
     ["ADMIN_REQUIRED", "integrations.adminRequiredToast"],
+    ["INTEGRATION_NAME_TAKEN", "integrations.nameTakenToast"],
+    ["INTEGRATION_OWNER_NOT_MEMBER", "integrations.ownerNotMemberToast"],
   ])(
     "감싼 응답의 %s 를 번역 문구로 바꾸고 서버 문구는 괄호에 둔다",
     (code, key) => {
@@ -105,5 +110,21 @@ describe("formatIntegrationErrorToast", () => {
     ).toBe("Network Error");
     expect(formatIntegrationErrorToast({}, t, FALLBACK)).toBe(FALLBACK);
     expect(formatIntegrationErrorToast(null, t, FALLBACK)).toBe(FALLBACK);
+  });
+});
+
+describe("isIntegrationNameTaken", () => {
+  it("감싼 응답과 평탄한 응답의 INTEGRATION_NAME_TAKEN 을 알아본다", () => {
+    expect(isIntegrationNameTaken(wrapped("INTEGRATION_NAME_TAKEN"))).toBe(true);
+    expect(
+      isIntegrationNameTaken(axiosError({ code: "INTEGRATION_NAME_TAKEN" })),
+    ).toBe(true);
+  });
+
+  it("다른 코드나 본문 없는 오류는 이름 충돌이 아니다", () => {
+    // 이 경로가 예전에 내던 코드다. 코드 값으로 분기하는 화면은 새 코드만 이름 충돌로 본다.
+    expect(isIntegrationNameTaken(wrapped("RESOURCE_CONFLICT"))).toBe(false);
+    expect(isIntegrationNameTaken(new Error("Network Error"))).toBe(false);
+    expect(isIntegrationNameTaken(null)).toBe(false);
   });
 });

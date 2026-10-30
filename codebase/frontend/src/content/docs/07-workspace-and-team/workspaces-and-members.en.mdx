@@ -120,9 +120,47 @@ When you create a schedule without specifying a timezone, the workspace's **defa
 
 You can set it from the **Default timezone** card on the **Overview** tab of the settings screen. Editing requires Admin or above; all members can view. Clearing the field and saving removes the workspace default timezone.
 
+## Removing a member
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/page.tsx"
+  symbol="removeTarget"
+  describes="Workspace settings → Members tab: the confirmation dialog that opens when you press the trash button on a member"
+/>
+
+Admins and above remove a member with the trash button on the member's row in **Workspace settings → Members**. Pressing it doesn't remove the member right away. A confirmation dialog opens first.
+
+- The dialog is titled `Remove member` and asks "Remove Jane from the workspace?", with the member's own name in place of Jane.
+- Below it you see "Personal integrations this member added to this workspace will also be deleted."
+- `Remove` removes the member. `Cancel` changes nothing.
+
+The dialog doesn't show whether the member has personal integrations or how many. The notice is the same sentence even if there are none. An Owner can't be removed. What happens to the personal integrations is described in the "Leaving or being removed also deletes personal integrations" section below.
+
 ## Leaving · deleting
 
-- **Leave** (Danger zone tab) — Removes only your own membership. Blocked if you're the sole Owner — use [Transfer ownership] or [Delete workspace] first.
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/page.tsx"
+  symbol="DangerZoneTab"
+  describes="Workspace settings → Danger zone tab: the Leave button and the leave confirmation dialog"
+/>
+
+- **Leave** (Danger zone tab) — Removes your own membership and also deletes the personal integrations you added to this workspace. The confirmation dialog always shows "Personal integrations you added to this workspace will also be deleted." Blocked if you're the sole Owner — use [Transfer ownership] or [Delete workspace] first.
 - **Transfer ownership** — Pick a non-Owner member to receive the role. Both members' roles swap atomically (target → Owner, you → Admin).
 - **Delete workspace** — Owner-only. Re-enter the workspace name to confirm; members, invitations, and the workspace itself are removed in one transaction.
+
+### Leaving or being removed also deletes personal integrations
+
+When a member leaves the workspace, or an admin removes a member, every personal integration (Personal) that member added to this workspace is deleted along with the membership.
+
+- **Status and usage don't matter.** Connected, pending install, expired, and error integrations are all deleted, even when a workflow node uses them. A regular integration delete is blocked while the integration is in use, but this one isn't.
+- **Some integrations stay.** Organization integrations the member created, and other members' personal integrations, are kept.
+- **It is recorded in the audit log.** Each deleted integration leaves an integration-deleted entry in the audit log.
+- **Nodes fail at run time.** A workflow node that used a deleted personal integration fails to run until you pick another integration for it.
+- **Sometimes nothing is deleted.** The sole Owner can't leave and an Owner can't be removed, so in those cases nothing is deleted.
+
+<Callout type="warn">If the same person is invited again and rejoins, the deleted integrations do not come back. Create them again if you need them.</Callout>
+
+See [Managing integrations](/docs/06-integrations-and-config/integration-management) for integration scope and permissions.
 

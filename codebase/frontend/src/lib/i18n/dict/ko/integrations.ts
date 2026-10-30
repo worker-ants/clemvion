@@ -267,6 +267,12 @@ export const integrations = {
     "편집자 이상만 통합을 추가하거나 바꿀 수 있어요.",
   adminRequiredToast:
     "조직 통합은 관리자 이상만 추가하거나 바꿀 수 있어요.",
+  // 이름 충돌(INTEGRATION_NAME_TAKEN)과 만든 사람이 나간 조직 통합의 개인 전환 거절(INTEGRATION_OWNER_NOT_MEMBER).
+  // NERV CLE-INT-MANAGE 「에러 코드」 · REQ-INTMGMT-067, Task CLE-T-PS7JQY.
+  nameTakenToast:
+    "같은 이름의 통합이 이미 있어요. 다른 이름을 입력해 주세요.",
+  ownerNotMemberToast:
+    "이 통합을 만든 사람이 워크스페이스에 없어 개인 통합으로 바꿀 수 없어요. 조직 통합으로 두거나 삭제해 주세요.",
   addIntegrationForbidden:
     "통합 추가는 편집자 이상만 할 수 있어요.",
   pendingInstallScopeKept:

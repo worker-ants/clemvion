@@ -83,6 +83,28 @@ A reused integration keeps its scope. If that differs from the scope you asked f
   describes="Mapping that turns a clash with another member's pending install into a toast message with the install deadline"
 />
 
+**A pending install that passed its deadline:**
+If you don't finish the install with **Test Run** within 24 hours of the App URL being issued, the integration changes to expired (install deadline passed). At that moment it also lets go of the mall ID it was holding.
+
+- **You can register the same store again.** You don't have to delete the expired integration first. Register the same mall ID as a new integration. The expired integration isn't deleted automatically and stays flagged as needing attention, so delete it yourself if you don't need it.
+- **The old App URL no longer works.** Opening the App URL of an expired integration shows an error saying the install link is not valid. Registering again gives you a new App URL.
+- **The integration name is kept.** If you register again with the same name as the expired integration, the add-integration screen shows "An integration with this name already exists. Enter a different name." under the name field, and a toast with the same message appears. Change the name and the field error goes away. Cafe24 Private builds its default name from the mall ID, so this happens often.
+- **Expired or errored for another reason is an exception.** An integration for the same mall ID that expired or errored for a reason other than the install deadline (a token expiry, for example) keeps holding the mall ID. At the registration step a notice reads "This mall ID is already connected", so you can't add it. Reauthorize that integration, or delete it and register again.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="isIntegrationNameTaken"
+  describes="Add-integration screen handling that shows an error under the name field when an integration with the same name exists, and clears it when the name changes"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/auth-step.tsx"
+  symbol="cafe24DuplicateMallTitle"
+  describes="Notice on the Cafe24 registration step that the mall ID is already connected when an integration for it exists"
+/>
+
 > Tokens auto-refresh. When `access_token` is within 60 seconds of expiring, the backend issues a refresh call to the mall-specific token URL just before the next node call. Repeated refresh failures flip the integration to `expired` and fire a notification.
 
 ### 5) Reauthorize a Private app or add scopes
@@ -121,7 +143,7 @@ You can reauthorize a connected Private-app integration or add scopes to it. Unl
 - The request stays valid for 24 hours. If you do not click Test Run within that time, the notice disappears and the App URL no longer leads to the consent screen. Click **Reauthorize** or **Request scopes** again.
 - If consent fails, the notice stays. Click **Test Run** again.
 
-<Callout type="warn">A Private integration that expired because the install timed out, and a Private integration with no App URL, cannot be reauthorized or granted new scopes. A hint appears under the buttons: delete the integration and register it again.</Callout>
+<Callout type="warn">A Private integration that expired because the install timed out, and a Private integration with no App URL, cannot be reauthorized or granted new scopes. A hint appears under the buttons. For one that expired because the install timed out, register the same store again; you don't need to delete that integration first. For one with no App URL, delete it and register it again.</Callout>
 
 ## Use it in a workflow — the `Cafe24` node
 
@@ -216,7 +238,7 @@ Yes. The **Private app** flow works without any App Store review. Note that unli
 4. Cafe24 calls the App URL → HMAC verified → OAuth consent screen → token issued → integration `connected`.
 
 **Q. How do I get a fresh token or add scopes to a Private-app integration?**
-On the integration detail page, click **Reauthorize** on the **Security** tab or **Request scopes** on the **Scope** tab. No popup opens, and a reinstall-requested notice appears below the page header. Then click **Test Run** on the app in [Cafe24 Developers](https://developers.cafe24.com) to open the consent screen. After you approve, the integration switches to the new token and the notice disappears. If you added scopes, tick them under **Permissions** of the Cafe24 Developers app first, for the same reason as the `invalid_scope` entry above. A Private integration that expired because the install timed out, or one with no App URL, cannot be reauthorized or granted new scopes. Delete it and register it again. The full sequence is in section 5) above, "Reauthorize a Private app or add scopes".
+On the integration detail page, click **Reauthorize** on the **Security** tab or **Request scopes** on the **Scope** tab. No popup opens, and a reinstall-requested notice appears below the page header. Then click **Test Run** on the app in [Cafe24 Developers](https://developers.cafe24.com) to open the consent screen. After you approve, the integration switches to the new token and the notice disappears. If you added scopes, tick them under **Permissions** of the Cafe24 Developers app first, for the same reason as the `invalid_scope` entry above. A Private integration that expired because the install timed out, or one with no App URL, cannot be reauthorized or granted new scopes. For the expired one, register the same store again; for the one with no App URL, delete it and register it again. The full sequence is in section 5) above, "Reauthorize a Private app or add scopes".
 
 **Q. I mistyped the mall_id — how do I fix it?**
 Only the integration's display name (alias) can be edited after creation. Recreate the integration. An invalid mall_id is rejected at the OAuth begin step (`/^[a-z0-9-]{3,50}$/`).

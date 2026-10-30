@@ -69,6 +69,21 @@ A reused integration keeps its scope. If that differs from the scope you asked f
   describes="Mapping that turns a clash with another member's pending install into a toast message with the install deadline"
 />
 
+**A pending install that passed its deadline:**
+If you don't finish installing the app from ShopStore within 24 hours of the App URL being issued, the integration changes to expired (install deadline passed). At that moment it also lets go of the store it was holding.
+
+- **You can register the same store again.** You don't have to delete the expired integration first. Register the same store as a new integration. The expired integration isn't deleted automatically and stays flagged as needing attention, so delete it yourself if you don't need it.
+- **The old App URL (install link) no longer works.** Opening the App URL of an expired integration shows an error saying the install link is not valid. Registering again gives you a new App URL.
+- **The integration name is kept.** If you register again with the same name as the expired integration, the add-integration screen shows "An integration with this name already exists. Enter a different name." under the name field, and a toast with the same message appears. Change the name and the field error goes away.
+- **Expired or errored for another reason is an exception.** An integration for the same store that expired or errored for a reason other than the install deadline (a token expiry, for example) keeps holding the store. The install step stops with an error that the store is already connected. A MakeShop integration can't be reauthorized, so delete it and register again.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="isIntegrationNameTaken"
+  describes="Add-integration screen handling that shows an error under the name field when an integration with the same name exists, and clears it when the name changes"
+/>
+
 ## Using it in a workflow — the `MakeShop` node
 
 Drop a `MakeShop` node on the canvas and in its config panel:

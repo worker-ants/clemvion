@@ -37,7 +37,7 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 - **Organization 통합**: 워크스페이스의 어느 워크플로우 노드에서나 쓸 수 있어요.
 - **Personal 통합**: 그 통합을 만든 사람이 직접 만든 워크플로우의 노드에서만 쓸 수 있어요. 통합을 만든 사람이라도 다른 멤버가 만든 워크플로우에서는 쓸 수 없어요.
 
-판정 기준은 실행을 시작한 사람이 아니라 **워크플로우를 만든 사람**이에요. 그래서 스케줄·웹훅으로 자동 실행될 때와 서브 워크플로우로 실행될 때도 같은 규칙을 따라요. 서브 워크플로우는 그 워크플로우를 만든 사람을 기준으로 해요. 통합을 만든 사람이 워크스페이스를 떠났을 때와 통합 선택을 표현식(`{{ }}`)으로 정했을 때도 Personal 통합은 쓸 수 없고 Organization 통합만 쓸 수 있어요.
+판정 기준은 실행을 시작한 사람이 아니라 **워크플로우를 만든 사람**이에요. 그래서 스케줄·웹훅으로 자동 실행될 때와 서브 워크플로우로 실행될 때도 같은 규칙을 따라요. 서브 워크플로우는 그 워크플로우를 만든 사람을 기준으로 해요. 통합 선택을 표현식(`{{ }}`)으로 정했을 때도 Personal 통합은 쓸 수 없고 Organization 통합만 쓸 수 있어요.
 
 규칙에 맞지 않는 Personal 통합을 쓰는 노드는 실행할 때 존재하지 않는 통합을 참조했을 때와 똑같은 "통합을 찾을 수 없음" 오류로 실행이 실패해요. 오류만 봐서는 없는 통합인지 쓸 수 없는 통합인지 구분되지 않아요. AI Agent 노드의 MCP 서버 항목은 해당 서버만 건너뛰고 노드는 계속 실행돼요.
 
@@ -64,6 +64,18 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 
 <Callout type="tip">개인 워크스페이스의 통합은 본인만 보고 사용할 수 있어요. 팀과 공유하려면 팀 워크스페이스에서 새로 만들어요. 같은 외부 계정도 워크스페이스마다 별개의 통합 레코드를 포함해요.</Callout>
 
+### 멤버가 나가거나 제거될 때
+
+멤버가 워크스페이스를 나가거나 관리자가 멤버를 제거하면 그 멤버가 이 워크스페이스에 추가한 Personal 통합이 모두 함께 삭제돼요.
+
+- **상태와 사용 여부를 가리지 않아요.** 연결됨 · 설치 대기 · 만료 · 오류 어느 상태든 삭제해요. 워크플로우 노드가 쓰고 있어도 삭제해요. 평소의 통합 삭제는 사용처가 있으면 막히지만 이 경우는 막히지 않아요.
+- **남는 통합이 있어요.** 그 멤버가 만든 Organization 통합과 다른 멤버의 Personal 통합은 그대로 남아요.
+- **감사 로그에 남아요.** 삭제된 통합마다 통합 삭제 기록이 감사 로그에 남아요.
+- **노드는 실행이 실패해요.** 삭제된 Personal 통합을 쓰던 워크플로우 노드는 다른 통합을 고르기 전까지 실행이 실패해요.
+- **아무것도 삭제되지 않는 경우도 있어요.** 유일한 Owner 는 나갈 수 없고 Owner 는 제거할 수 없어서 그때는 아무것도 삭제되지 않아요.
+
+같은 사람이 다시 초대받아 들어와도 삭제된 통합은 돌아오지 않아요. 나가기와 멤버 제거 화면은 [워크스페이스와 멤버](/docs/07-workspace-and-team/workspaces-and-members)에서 확인해요.
+
 ### Organization 통합을 Personal 로 바꿀 때
 
 통합 상세의 Danger zone 탭에서 Organization 통합을 Personal 로 바꾸면, 그 통합을 만든 사람이 아닌 사람이 만든 워크플로우는 이 통합을 노드에서 쓸 수 없게 돼요. 그래서 바꾸기 전에 이 통합의 사용처를 먼저 확인해요.
@@ -77,6 +89,15 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
   file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx"
   symbol="ScopeToPersonalWarningDialog"
   describes="Danger zone 탭에서 Organization 통합을 Personal 로 바꾸기 전에 실행이 실패할 워크플로우를 알리는 경고 대화상자"
+/>
+
+바꾸려는 통합을 만든 사람이 이미 워크스페이스를 나갔다면 전환이 거절돼요. 통합은 Organization 통합으로 그대로 남고 "이 통합을 만든 사람이 워크스페이스에 없어 개인 통합으로 바꿀 수 없어요. 조직 통합으로 두거나 삭제해 주세요." 오류 토스트가 떠요. 이럴 때는 Organization 통합으로 두거나 삭제해요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/danger-tab.tsx"
+  symbol="formatIntegrationErrorToast"
+  describes="Danger zone 탭에서 공개 범위 전환이 거절됐을 때 거절 사유에 맞는 문구를 오류 토스트로 보이는 처리"
 />
 
 ## 연동 추가하기
@@ -111,6 +132,22 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 
 <Callout type="note">Cafe24 Private 과 MakeShop 은 앱 설치를 마칠 때까지 설치 대기 상태로 남아요. 같은 상점(Cafe24 Private)이나 같은 `client_id`(MakeShop)로 다른 멤버가 시작한 개인 설치가 기다리고 있으면 새로 추가할 수 없어요. 자세한 내용은 [Cafe24 통합](/docs/06-integrations-and-config/cafe24)과 [MakeShop 통합](/docs/06-integrations-and-config/makeshop)에서 확인해요.</Callout>
 
+### 설치 기한이 지난 설치 대기 통합
+
+Cafe24 Private 과 MakeShop 의 설치 대기 통합은 설치 토큰을 발급하고 24시간 안에 설치를 마치지 않으면 상태가 만료(설치 기한 초과)로 바뀌어요. 이때 통합이 쥐고 있던 상점 식별자(Cafe24 mall ID · MakeShop 상점) 자리도 놓아요.
+
+- **같은 상점을 다시 등록할 수 있어요.** 만료된 통합을 지우지 않아도 같은 상점을 새로 등록할 수 있어요. 만료된 통합은 저절로 지워지지 않고 주의 필요 대상으로 남아요. 필요 없으면 직접 삭제해요.
+- **옛 App URL(설치 링크)은 쓸 수 없어요.** 만료된 통합의 App URL 을 열면 유효하지 않은 설치 링크라는 오류가 나요.
+- **통합 이름은 그대로예요.** 만료된 통합과 같은 이름으로 다시 등록하면 통합 추가 화면의 이름 칸 아래에 "같은 이름의 통합이 이미 있어요. 다른 이름을 입력해 주세요." 오류가 보이고 같은 문구의 토스트도 떠요. 이름을 고치면 이름 칸 오류가 사라져요. Cafe24 Private 은 기본 이름이 mall ID 로 만들어져서 이런 일이 흔해요.
+- **설치 기한 초과가 아닌 만료·오류는 예외예요.** 토큰 만료처럼 다른 이유로 만료되거나 오류가 난 같은 상점의 통합은 상점 자리를 그대로 쥐고 있어요. Cafe24 는 등록 단계에서 같은 mall ID 가 이미 연결돼 있다는 안내로, MakeShop 은 설치 단계에서 같은 상점이 이미 연결돼 있다는 오류로 막혀요. 그 통합을 재인증하거나 삭제한 뒤 다시 등록해요. MakeShop 통합은 재인증할 수 없으니 삭제한 뒤 다시 등록해요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx"
+  symbol="isIntegrationNameTaken"
+  describes="통합 추가 화면에서 같은 이름의 통합이 있을 때 이름 칸 아래에 오류를 보이고 이름을 고치면 지우는 처리"
+/>
+
 ## 연동 테스트·수정·회전
 
 상세 페이지의 탭에서 거의 모든 운영 작업을 할 수 있어요.
@@ -135,7 +172,7 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
 재인증과 권한 추가(권한 요청)가 동작하는 방식은 제공자마다 달라요.
 
 - **Google · GitHub · Cafe24 Public 앱**: 팝업이 열리고 제공자의 동의 화면에서 다시 인증해요.
-- **Cafe24 Private 앱**: 팝업이 열리지 않아요. 요청을 남기면 상세 화면 머리글 아래에 안내가 뜨고 Cafe24 Developers 에서 **테스트 실행** 을 눌러야 끝나요. 순서는 [Cafe24 통합](/docs/06-integrations-and-config/cafe24) 에서 확인해요. 설치 시간이 지나 만료된 통합과 App URL 이 없는 통합은 삭제한 뒤 다시 등록해요.
+- **Cafe24 Private 앱**: 팝업이 열리지 않아요. 요청을 남기면 상세 화면 머리글 아래에 안내가 뜨고 Cafe24 Developers 에서 **테스트 실행** 을 눌러야 끝나요. 순서는 [Cafe24 통합](/docs/06-integrations-and-config/cafe24) 에서 확인해요. 설치 시간이 지나 만료된 통합은 재인증할 수 없어요. 같은 상점을 새로 등록하면 되고 그 통합을 먼저 지우지 않아도 돼요. App URL 이 없는 통합은 삭제한 뒤 다시 등록해요.
 - **MakeShop**: 재인증과 권한 추가를 지원하지 않아요. 두 버튼이 비활성이고 통합을 삭제한 뒤 다시 등록해야 해요. 자세한 내용은 [MakeShop 통합](/docs/06-integrations-and-config/makeshop) 에서 확인해요.
 </Callout>
 
@@ -190,6 +227,6 @@ Send Email 노드도 같은 방식이에요. SMTP 연동의 `default_from` 값�
 - 자격 증명은 AES-256-GCM으로 암호화돼 저장되고, API 응답에서는 `****4f2a` 처럼 마스킹된 프리뷰만 돌아와요.
 - 비OAuth 연동의 `Rotate credentials` 는 새 값의 테스트가 통과해야 기존 값을 덮어써요. 실패하면 기존 자격 증명은 그대로 유지돼요.
 - 하나의 서비스에 여러 계정을 등록하려면 별칭을 다르게 해서 반복 추가하면 돼요. 워크스페이스 내에서 별칭은 유일해야 해요.
-- 사용처가 있는 연동은 삭제할 수 없어요. `Delete integration` 을 누르면 먼저 사용처를 조회해서, 사용 중이면 삭제 차단 다이얼로그에 어떤 워크플로우·노드가 참조 중인지(AI Agent의 MCP 서버 참조는 `MCP` 배지로 구분) 보여줘요. 다이얼로그의 워크플로우 링크로 이동해 노드의 `integrationId` 를 다른 연동으로 바꾸거나 해당 노드를 제거한 뒤 다시 삭제해요.
+- 사용처가 있는 연동은 삭제할 수 없어요. 다만 멤버가 나가거나 제거될 때 그 멤버의 Personal 통합이 함께 삭제되는 경우는 사용처가 있어도 막히지 않아요. `Delete integration` 을 누르면 먼저 사용처를 조회해서, 사용 중이면 삭제 차단 다이얼로그에 어떤 워크플로우·노드가 참조 중인지(AI Agent의 MCP 서버 참조는 `MCP` 배지로 구분) 보여줘요. 다이얼로그의 워크플로우 링크로 이동해 노드의 `integrationId` 를 다른 연동으로 바꾸거나 해당 노드를 제거한 뒤 다시 삭제해요.
 - AI Agent에서 외부 도구·리소스를 LLM에게 노출하려면 MCP 서버 통합을 등록하고 AI Agent 노드의 `MCP Servers` 필드에 연결해요. 자세한 흐름은 [MCP 서버 통합](/docs/06-integrations-and-config/mcp-servers)에서 확인해요.
 - 다른 사람이 만든 워크플로우에서 내 Personal 통합이 비활성으로 보인다면 [자주 묻는 질문](/docs/99-faq/faq)의 답을 참고해요.

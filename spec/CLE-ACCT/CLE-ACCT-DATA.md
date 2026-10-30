@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "ff4a990b5050a69132283656bb7a3f7b36f99b1617c72b6832f3a19f8f564272"
 read_as: "approved_fallback"
-task: "CLE-T-G56XCH"
+task: "CLE-T-PS7JQY"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "e72c9e2909960ea23ed0394c3631777172a9cbb7f96aaaf96a17a506eeee9712"
-etag: "sha256-3f53e28b67ddf6d141c6fd9921c2ab05b68e01297183fb948c490c2f04857862"
+mirror_sha256: "4c87e37a74ed2e7aa3a6ebcf692569d5e41838144bb26e1ab90736d63e8c35c4"
+etag: "sha256-cf3ee9becbb5bb8f1ac66c65d908e71444c78440d60a5341260685195c0e73e1"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 기록, 서명 확인 뒤의 counter 판정, 멤버 제거·나가기 때의 개인 통합 삭제와 개인 통합을 만들거나 개인으로 바꿀 때의 멤버십 잠금은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

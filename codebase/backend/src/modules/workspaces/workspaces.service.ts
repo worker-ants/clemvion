@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Not, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
@@ -20,6 +20,14 @@ import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto'
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
+import { setLocalLockTimeout } from '../triggers/trigger-config-lock';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
+import {
+  type MemberDeparture,
+  type MemberPersonalIntegrationsPurger,
+  type PurgedPersonalIntegration,
+  resolveMemberPersonalIntegrationsPurger,
+} from './member-personal-integrations.port';
 import {
   ADMIN_ROLES,
   assertMayChangeAdminRole,
@@ -28,6 +36,13 @@ import {
   ROLE_REQUIRED,
   type WorkspaceRoleName,
 } from '../../common/constants/workspace-roles';
+
+/**
+ * 나가기 · 제거 트랜잭션의 잠금 대기 상한. 멤버십 행 잠금이 개인 통합 생성 · begin · 개인 전환의 `FOR SHARE`(쓰기 잠금
+ * 도우미)와 겹치면 그 커밋을 기다린다. 그쪽은 잠금을 쥔 동안 외부 호출을 하지 않아 짧다. 넘기면 `55P03` 으로 아무것도
+ * 바꾸지 않고 실패한다.
+ */
+export const MEMBER_DEPARTURE_LOCK_TIMEOUT_MS = 5_000;
 
 @Injectable()
 export class WorkspacesService {
@@ -381,7 +396,7 @@ export class WorkspacesService {
 
   /**
    * «owner 는 제거할 수 없다» — `removeMember` 의 **두 자리**가 쓴다: 무락 선조회 위의 이른
-   * 가드와, DELETE 가 0행일 때 `role: Not('owner')` 술어가 걸렀음을 확인한 자리다.
+   * 가드와, DELETE 가 0행일 때 `role <> 'owner'` 술어가 걸렀음을 확인한 자리다.
    * 같은 이유로 헬퍼다 — 리터럴을 두 벌 두면 한쪽 문구만 바뀌어 같은 코드가 다른 메시지를 낸다
    * (바로 위 `throwMemberNotFound()` 가 세 벌 복제로 지적받아 생긴 선례).
    */
@@ -668,6 +683,9 @@ export class WorkspacesService {
   /**
    * 워크스페이스 나가기 (자가 탈퇴, team 전용). 유일한 owner는 차단.
    * sole-owner 판정과 멤버십 삭제는 비관적 락이 걸린 트랜잭션 내에서 수행해 TOCTOU를 방지한다.
+   *
+   * 같은 트랜잭션에서 그 사람의 개인 통합도 지운다(REQ-INTMGMT-065). 잠금 대기가 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS` 를
+   * 넘기면 트랜잭션이 롤백되고 오류로 끝난다(멤버십도 통합도 그대로다).
    */
   async leaveWorkspace(
     workspaceId: string,
@@ -692,8 +710,12 @@ export class WorkspacesService {
       });
     }
 
+    // 트랜잭션 전에 찾는다. 못 찾으면 던지고, 멤버십도 지우지 않는다.
+    const purger = resolveMemberPersonalIntegrationsPurger(this.moduleRef);
     let leftMembershipId: string | undefined;
+    let purged: PurgedPersonalIntegration[] = [];
     await this.memberRepository.manager.transaction(async (manager) => {
+      await setLocalLockTimeout(manager, MEMBER_DEPARTURE_LOCK_TIMEOUT_MS);
       const memRepo = manager.getRepository(WorkspaceMember);
 
       const membership = await memRepo.findOne({
@@ -717,6 +739,12 @@ export class WorkspacesService {
       // remove() 는 in-memory 엔티티의 id 를 지우므로 커밋 후 감사용으로 미리 캡처한다.
       leftMembershipId = membership.id;
       await memRepo.remove(membership);
+      // 같은 트랜잭션에서 그 사람의 개인 통합을 지운다(REQ-INTMGMT-065). 위에서 잠근 멤버십 행을 지운 뒤라 순서는 멤버십
+      // 다음 통합이다. 위 거절(유일한 owner)에 걸리면 여기까지 오지 않고 통합도 그대로다.
+      purged = await purger.purgeInTransaction(manager, {
+        workspaceId,
+        userId: requesterId,
+      });
     });
 
     // 감사 로그는 트랜잭션 커밋 후 best-effort. 자가 탈퇴는 mode='left' 로 admin 제거(removed)와 구분.
@@ -728,6 +756,33 @@ export class WorkspacesService {
       resourceId: leftMembershipId ?? requesterId,
       details: { mode: 'left', memberUserId: requesterId },
     });
+    await this.finishPersonalIntegrationPurge(purger, purged, {
+      workspaceId,
+      actorUserId: requesterId,
+      mode: 'left',
+      memberUserId: requesterId,
+    });
+  }
+
+  /**
+   * 나가기 · 제거가 지운 개인 통합의 커밋 뒤 후처리(캐시 무효화, `integration.deleted` 감사). 포트는 던지지 않기로 했지만
+   * 여기서도 막는다. 멤버십과 통합은 이미 지워졌으므로 후처리 실패가 나가기 · 제거를 실패로 돌려서는 안 된다.
+   */
+  private async finishPersonalIntegrationPurge(
+    purger: MemberPersonalIntegrationsPurger,
+    purged: readonly PurgedPersonalIntegration[],
+    departure: MemberDeparture,
+  ): Promise<void> {
+    if (purged.length === 0) return;
+    try {
+      await purger.finishAfterCommit(purged, departure);
+    } catch (err) {
+      this.logger.error(
+        `Post-commit cleanup of purged personal integrations failed workspace=${departure.workspaceId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**
@@ -843,9 +898,11 @@ export class WorkspacesService {
    * 대상의 존재·owner 여부를 알아낸다.
    *
    * 동시성 보장: 잠글 행이 없어 동시 요청들이 모두 무락 검사를 통과할 수 있지만, 단일
-   * 원자적 `DELETE`(`affected === 0` 명시 비교)가 승자만 갈라 **둘**을 막는다 —
+   * 원자적 `DELETE … RETURNING`(돌려받은 행 수)이 승자만 갈라 **둘**을 막는다 —
    * 감사 로그 중복(동시 제거), 그리고 **owner 삭제**(동시 `transferOwnership`).
-   * 후자는 `role: Not('owner')` 술어가 DELETE 안으로 들어가 막는다.
+   * 후자는 `role <> 'owner'` 술어가 DELETE 안으로 들어가 막는다.
+   *
+   * 그 DELETE 가 1행을 지웠을 때만 같은 트랜잭션에서 그 멤버의 개인 통합을 지운다(REQ-INTMGMT-065).
    */
   async removeMember(
     workspaceId: string,
@@ -885,10 +942,9 @@ export class WorkspacesService {
     // 준다 — editor 는 누구도 제거할 수 없다. 인가를 끝내고 대상 조건을 보는 것이 형제 둘의
     // 순서와도 같다.
     if (!isAdminRole(requesterRole)) this.throwAdminRequired();
-    // 무락 읽기 위의 **이른** 가드라 이것만으로는 부족하고, 아래 DELETE 의 `role: Not('owner')`
+    // 무락 읽기 위의 **이른** 가드라 이것만으로는 부족하고, 아래 DELETE 의 `role <> 'owner'`
     // 술어가 뒤를 받는다(동시 `transferOwnership`).
     if (member.role === 'owner') this.throwCannotRemoveOwner();
-    const removedMemberUserId = member.userId;
 
     // 위 `findOne` 은 잠그지 않으므로 동시 제거 두 건이 **둘 다** 여기까지 온다. 종전의
     // `remove(member)` 는 0행이어도 던지지 않아 둘 다 감사를 남겼다 (실측: 한 memberId 에
@@ -897,9 +953,9 @@ export class WorkspacesService {
     // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장은 그 자체로 원자적이라
     // 둘 중 하나만 1행을 지운다.
     //
-    // 판정은 `affected === 0` **명시 비교**다. `null`·`undefined` 는 드라이버가 «보고하지
-    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
-    // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
+    // 판정은 `RETURNING` 으로 돌려받은 행 수다. 종전의 `delete()` 는 `affected` 를 봤는데 드라이버가 그것을 보고하지
+    // 않으면(`null`·`undefined`) 판정할 수 없었다. 돌려받은 행은 그런 모호함이 없고, 지운 멤버의 사용자 ID 도 함께 준다.
+    // 결과 형태는 `updateReturningRows` 가 읽고 어긋나면 던져 트랜잭션을 되돌린다(CLE-ENG-RAWQUERY).
     //
     // **owner 가드도 같은 문장 안에서 판정한다.** 위 `member.role === 'owner'` 검사와 이 DELETE
     // 사이에 동시 `transferOwnership` 이 대상을 승격시키면, 술어가 없을 때 owner 가 지워지고
@@ -914,12 +970,33 @@ export class WorkspacesService {
     // (동시 실행 수)를 조건으로 삼아 조건부 문장만으로는 TOCTOU 가 남고 advisory lock 이
     // 따로 필요했다. 여기 조건은 **지우려는 바로 그 행 자신의 컬럼**이라 위 재평가가 곧
     // 원자성이다 — 같은 모양이지만 보장이 다르다.
-    const { affected } = await this.memberRepository.delete({
-      id: memberId,
-      workspaceId,
-      role: Not('owner'),
-    });
-    if (affected === 0) {
+    //
+    // **개인 통합은 같은 트랜잭션에서 지운다(REQ-INTMGMT-065).** 멤버십 DELETE 가 1행일 때만이다. 0행이면 통합을 건드리지
+    // 않고 아래 판정을 그대로 낸다. 워크스페이스 행은 잠그지 않는다. 순서는 멤버십 다음 통합이라 개인 통합 쓰기의 잠금
+    // 순서(워크스페이스 → 멤버십 → 통합)를 어기지 않는다.
+    const purger = resolveMemberPersonalIntegrationsPurger(this.moduleRef);
+    const removed = await this.memberRepository.manager.transaction(
+      async (manager) => {
+        await setLocalLockTimeout(manager, MEMBER_DEPARTURE_LOCK_TIMEOUT_MS);
+        const rows = updateReturningRows<{ user_id: string }>(
+          await manager.query(
+            `DELETE FROM workspace_member
+             WHERE id = $1 AND workspace_id = $2 AND role <> 'owner'
+             RETURNING user_id`,
+            [memberId, workspaceId],
+          ),
+          `member remove, workspace ${workspaceId} member ${memberId} — 트랜잭션을 롤백한다`,
+        );
+        if (rows.length === 0) return null;
+        const memberUserId = rows[0].user_id;
+        const purged = await purger.purgeInTransaction(manager, {
+          workspaceId,
+          userId: memberUserId,
+        });
+        return { memberUserId, purged };
+      },
+    );
+    if (!removed) {
       // 0 의 이유가 **둘**이다 — 행이 사라졌나(동시 제거), owner 였나(동시 이양).
       // 0-행 경로에서만 한 번 더 읽어 가른다. 이 재조회는 잠그지 않는다: 고르는 것은 에러
       // 코드뿐이고 어느 답이든 **어떤 직렬화의 정당한 결과**다.
@@ -941,7 +1018,13 @@ export class WorkspacesService {
       action: AUDIT_ACTIONS.MEMBER_REMOVED,
       resourceType: 'member',
       resourceId: memberId,
-      details: { mode: 'removed', memberUserId: removedMemberUserId },
+      details: { mode: 'removed', memberUserId: removed.memberUserId },
+    });
+    await this.finishPersonalIntegrationPurge(purger, removed.purged, {
+      workspaceId,
+      actorUserId: requesterId,
+      mode: 'removed',
+      memberUserId: removed.memberUserId,
     });
   }
 

@@ -6,6 +6,7 @@ import {
   assertGuardBelowKnownTimeouts,
 } from '../../src/shared/testing/overlap-preconditions';
 import { TRIGGER_DELETE_LOCK_TIMEOUT_MS } from '../../src/modules/triggers/trigger-config-lock';
+import { MEMBER_DEPARTURE_LOCK_TIMEOUT_MS } from '../../src/modules/workspaces/workspaces.service';
 
 /**
  * 아래 검사가 비교하는 상한들. **여기 있는 것만 검사된다.**
@@ -15,6 +16,7 @@ import { TRIGGER_DELETE_LOCK_TIMEOUT_MS } from '../../src/modules/triggers/trigg
  */
 const KNOWN_LOCK_TIMEOUTS_MS: ReadonlyArray<readonly [string, number]> = [
   ['TRIGGER_DELETE_LOCK_TIMEOUT_MS', TRIGGER_DELETE_LOCK_TIMEOUT_MS],
+  ['MEMBER_DEPARTURE_LOCK_TIMEOUT_MS', MEMBER_DEPARTURE_LOCK_TIMEOUT_MS],
 ];
 
 /**
@@ -110,4 +112,51 @@ export async function raceUnderHeldLock<T>(
     // 락이 풀리면 대기하던 요청들이 끝난다 — 그 rejection 이 unhandled 로 새지 않게 흡수한다.
     await pending?.catch(() => undefined);
   }
+}
+
+/**
+ * `lockerPid` 연결이 쥔 잠금을 직접 또는 다른 대기자를 거쳐 기다리는 연결이 `count` 개가 될 때까지 기다린다.
+ *
+ * `raceUnderHeldLock` 이 못 덮는 «요청 A 가 잠금 지점에서 멈춘 것을 본 뒤 요청 B 를 보낸다» 형태의 인터리빙 e2e 가
+ * 쓴다. 예를 들어 A 가 locker 를 기다리는 동안 B 가 A 의 잠금을 기다리면 둘 다 센다. 문장 끝의 `FOR UPDATE` 같은 표지는
+ * `pg_stat_activity.query` 의 길이 한도로 잘릴 수 있어 문장을 보지 않고 `pg_blocking_pids` 사슬로 본다.
+ *
+ * 기다리는 연결을 보지 못하면 그 인터리빙을 만들지 못한 것이고, 호출부의 단언은 잠금을 거치지 않는 코드도 통과시킨다.
+ * 그래서 조용히 넘어가지 않고 던진다.
+ *
+ * @param db 관측용 연결. `lockerPid` 연결과 달라야 한다(잠금을 쥔 연결로 물으면 그 연결은 문장을 끝낼 때까지 답하지 않는다).
+ * @param lockerPid 잠금을 쥔 연결의 `pg_backend_pid()`.
+ * @param count 기다리는 연결 수. 사슬 전체를 센다.
+ * @param label 실패 메시지에 넣을 이름.
+ */
+export async function waitForLockWaiters(
+  db: Client,
+  lockerPid: number,
+  count: number,
+  label: string,
+  timeoutMs = 10_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let seen = 0;
+  while (Date.now() < deadline) {
+    const res = await db.query<{ n: number }>(
+      `WITH RECURSIVE waiters(pid) AS (
+         SELECT pid FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND $1::int = ANY (pg_blocking_pids(pid))
+         UNION
+         SELECT a.pid FROM pg_stat_activity a
+           JOIN waiters w ON w.pid = ANY (pg_blocking_pids(a.pid))
+          WHERE a.datname = current_database()
+       )
+       SELECT count(*)::int AS n FROM waiters`,
+      [lockerPid],
+    );
+    seen = res.rows[0].n;
+    if (seen >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `${label}: expected ${count} connection(s) waiting on locker pid ${lockerPid}, saw ${seen}`,
+  );
 }

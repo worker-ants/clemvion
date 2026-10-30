@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "636a22ed2ceec163f25c427c2d799d692fcbbadebbd8a499d7584b550ce1fd64"
 read_as: "approved_fallback"
-task: "CLE-T-TGZGM9"
+task: "CLE-T-PS7JQY"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "6b2c09fb508fab2447467e6a3eb35c92902c0cf702ff879a653d903b2a93484e"
-etag: "sha256-31359394f181d5f5a27e507977adaca7191d527e793bb0a301cff256ec581ea2"
+mirror_sha256: "0ba7703f7fedc87df594705d3ed2585bb6d2de59b65bdc64907017d63ea3e597"
+etag: "sha256-5515efc0b311ec64db53832672caf2384520e27037f14fc0bace520521e11030"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

@@ -12,6 +12,7 @@ import {
   type IntegrationScope,
   type UsageWorkflow,
 } from "@/lib/api/integrations";
+import { formatIntegrationErrorToast } from "@/lib/api/integration-error-codes";
 import { type TFunction } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
@@ -50,9 +51,16 @@ export function DangerTab({
       toast.success(t("integrations.scopeUpdated"));
       onScopeChanged();
     },
+    // 통합을 만든 사람이 워크스페이스를 나갔으면 서버가 개인 전환을 409 `INTEGRATION_OWNER_NOT_MEMBER` 로 거절하고
+    // 통합을 바꾸지 않는다(REQ-INTMGMT-067). 사전에 있는 코드는 그 문구를 보인다.
     onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message ?? t("integrations.scopeUpdateFailedDefault"));
+      toast.error(
+        formatIntegrationErrorToast(
+          err,
+          t,
+          "integrations.scopeUpdateFailedDefault",
+        ),
+      );
     },
   });
 

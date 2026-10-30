@@ -11,6 +11,10 @@ import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import {
+  lockForIntegrationWrite,
+  throwUnlessIntegrationCreateLocked,
+} from './integration-owner-write-lock';
+import {
   INTEGRATION_USER_PARAM,
   adminRequiredError,
   assertOrgScopeModifiable,
@@ -88,6 +92,9 @@ import {
   STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
   ALREADY_CONNECTED_BY_SERVICE,
   GENERIC_ALREADY_CONNECTED,
+  WORKSPACE_NAME_UNIQUE_CONSTRAINT,
+  INTEGRATION_NAME_TAKEN,
+  INTEGRATION_OWNER_NOT_MEMBER,
 } from './integrations.constants';
 import {
   CONNECTION_TEST_CODES,
@@ -905,15 +912,24 @@ export class IntegrationsService {
       lastRotatedAt: new Date(),
     });
 
-    // 트랜잭션 미적용 + best-effort audit 의도 — spec/2-navigation/4-integration.md
-    // §9.2 Rationale "Cafe24 Public 흐름의 begin-time 사전 가드 추가" 항목 끝의
-    // create() 트레이드오프 분석 참조. 요약: (a) save() 단일 INSERT 가 atomic,
-    // (b) audit 실패는 row commit 후 swallow (사용자 흐름 깨지지 않음),
+    // best-effort audit 의도 — [통합 관리 「감사 로그」](CLE-INT-MANAGE#감사-로그) 참조.
+    // 요약: (a) INSERT 한 문장이 atomic 이다. 트랜잭션은 그 앞의
+    // 쓰기 잠금 때문에 둔다, (b) audit 실패는 row commit 후 swallow (사용자 흐름 깨지지 않음),
     // (c) preview_token 은 capability token 으로 race-loser 재사용 차단이 의도.
     // ai-review W23 (2026-05-16) + INFO 10 (audit 별도 try/catch backstop).
+    // 저장은 쓰기 잠금 도우미 뒤에 한다(REQ-INTMGMT-066). 개인 통합이면 통합 소유자(요청자)가 그 사이 나가거나 제거됐는지
+    // 멤버십을 잠가 다시 읽는다. 위의 미리보기 토큰 소비 · 자격 증명 검증은 잠금 밖에서 끝낸다.
     let saved!: Integration;
     try {
-      saved = await this.integrationRepository.save(entity);
+      saved = await this.dataSource.transaction(async (manager) => {
+        throwUnlessIntegrationCreateLocked(
+          await lockForIntegrationWrite(manager, {
+            workspaceId,
+            personalOwnerId: requestedScope === 'personal' ? userId : null,
+          }),
+        );
+        return manager.save(Integration, entity);
+      });
     } catch (err) {
       this.throwIfUniqueViolation(err, body.serviceType);
       throw err;
@@ -1035,20 +1051,43 @@ export class IntegrationsService {
       this.judgedRow(entity),
     );
     if (affected === 0) this.throwIntegrationNotFound();
+    // `delete(criteria)` 는 entity 를 변형하지 않지만, 위 findOne 이 읽은 스냅샷 대신 요청 파라미터 `id` 를 쓰는 편이 명확하다.
+    await this.finishIntegrationDeletion(
+      { id, serviceType: entity.serviceType, name: entity.name },
+      { workspaceId, userId },
+    );
+  }
+
+  /**
+   * 통합 삭제의 커밋 뒤 후처리. `integration.deleted` 감사를 남기고 전 인스턴스의 자격 증명 캐시를 무효화한다. 일반 삭제
+   * ({@link remove})와 멤버가 나가거나 제거될 때의 삭제(`MemberPersonalIntegrationsPurgerService`)가 함께 쓴다. 판정
+   * (역할, 사용처 차단)은 각 경로가 하고 여기서는 하지 않는다.
+   *
+   * `departure` 는 나가기 · 제거의 맥락이다. 있으면 감사 `details` 에 같은 요청의 `member.removed` 와 같은 키인 `mode` ·
+   * `memberUserId` 를 더한다. 일반 삭제에는 두 키가 없다.
+   * 근거: [통합 관리 「감사 로그」](CLE-INT-MANAGE#감사-로그), [통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](CLE-INT-DATA#멤버가-나가거나-제거될-때)
+   */
+  async finishIntegrationDeletion(
+    deleted: { id: string; serviceType: string; name: string },
+    actor: { workspaceId: string; userId: string },
+    departure?: { mode: 'left' | 'removed'; memberUserId: string },
+  ): Promise<void> {
     await this.auditLogsService.record({
-      workspaceId,
-      userId,
+      workspaceId: actor.workspaceId,
+      userId: actor.userId,
       action: AUDIT_ACTIONS.INTEGRATION_DELETED,
       resourceType: 'integration',
-      resourceId: id,
+      resourceId: deleted.id,
       details: {
-        serviceType: entity.serviceType,
-        name: entity.name,
+        serviceType: deleted.serviceType,
+        name: deleted.name,
+        ...(departure
+          ? { mode: departure.mode, memberUserId: departure.memberUserId }
+          : {}),
       },
     });
-    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (delete(criteria) 는 entity 를
-    // 변형하지 않지만, 위 findOne 이 읽은 스냅샷 대신 요청 파라미터 `id` 를 쓰는 편이 명확하다).
-    await this.broadcastCredentialChange(id);
+    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리한다.
+    await this.broadcastCredentialChange(deleted.id);
   }
 
   // ---------------------------------------------------------------
@@ -1547,11 +1586,15 @@ export class IntegrationsService {
     const entity = await this.requireVisible(id, workspaceId, userId);
     const from = entity.scope;
     if (from === body.scope) return this.toPublic(entity);
-    const { affected } = await this.integrationRepository.update(
-      this.judgedRow(entity),
-      { scope: body.scope },
-    );
-    if (affected === 0) this.throwIntegrationNotFound();
+    if (body.scope === 'personal') {
+      await this.switchToPersonalLocked(entity);
+    } else {
+      const { affected } = await this.integrationRepository.update(
+        this.judgedRow(entity),
+        { scope: body.scope },
+      );
+      if (affected === 0) this.throwIntegrationNotFound();
+    }
     const saved = await this.reloadOrNotFound(id, workspaceId);
     await this.auditLogsService.record({
       workspaceId,
@@ -1562,6 +1605,31 @@ export class IntegrationsService {
       details: { from, to: body.scope },
     });
     return this.toPublic(saved);
+  }
+
+  /**
+   * 조직 → 개인 전환(REQ-INTMGMT-067). 전환해도 `created_by` 는 그대로라 통합을 만든 사람이 통합 소유자가 된다. 그 사람이
+   * 이미 나갔으면 아무도 보거나 지울 수 없는 개인 통합이 다시 생기므로 409 `INTEGRATION_OWNER_NOT_MEMBER` 로 거절한다.
+   *
+   * 생성과 같은 쓰기 잠금 도우미로 워크스페이스 → 만든 사람의 멤버십 순으로 잠근 뒤 통합 행을 바꾼다. `created_by` 의 첫
+   * 읽기는 잠그지 않았으므로 UPDATE 를 판정한 행(`scope='organization'`)에만 걸고 0행이면 404 다. 거절하면 아무것도 바꾸지
+   * 않았으므로 감사 로그를 남기지 않는다. 409 에는 `details` 를 싣지 않고 `message` 에 사용자 식별자를 넣지 않는다.
+   */
+  private async switchToPersonalLocked(entity: Integration): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const lock = await lockForIntegrationWrite(manager, {
+        workspaceId: entity.workspaceId,
+        personalOwnerId: entity.createdBy,
+      });
+      if (lock === 'workspace_absent') this.throwIntegrationNotFound();
+      if (lock === 'owner_not_member') {
+        throw new ConflictException({ ...INTEGRATION_OWNER_NOT_MEMBER });
+      }
+      const { affected } = await manager
+        .getRepository(Integration)
+        .update(this.judgedRow(entity), { scope: 'personal' });
+      if (affected === 0) this.throwIntegrationNotFound();
+    });
   }
 
   // ---------------------------------------------------------------
@@ -1877,11 +1945,8 @@ export class IntegrationsService {
     const code = (err as { code?: string })?.code;
     const constraint = (err as { constraint?: string })?.constraint;
     if (code !== '23505') return;
-    if (constraint === 'integration_workspace_name_unique') {
-      throw new ConflictException({
-        code: 'INTEGRATION_NAME_TAKEN',
-        message: 'Integration name is already in use within this workspace',
-      });
+    if (constraint === WORKSPACE_NAME_UNIQUE_CONSTRAINT) {
+      throw new ConflictException({ ...INTEGRATION_NAME_TAKEN });
     }
     // 통일 store-identifier UNIQUE `(workspace_id, service_type, mall_id) WHERE
     // mall_id IS NOT NULL` (V072) — cafe24 Public finalize race / begin pre-check

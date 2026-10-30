@@ -23,6 +23,12 @@ export const workspace = {
   adminRoleOwnerOnly: "관리자 역할은 소유자만 주거나 바꿀 수 있어요.",
   removeMember: "멤버 제거",
   removeMemberConfirm: "{{name}}님을 워크스페이스에서 제거할까요?",
+  removeMemberBtn: "제거",
+  // 나가기 · 멤버 제거 확인 다이얼로그(REQ-WSPACE-069). 개인 통합이 있는지와 그 개수와 무관하게 늘 같은 문장이다.
+  removePurgesPersonalIntegrations:
+    "이 멤버가 이 워크스페이스에 추가한 개인 통합도 함께 삭제돼요.",
+  leavePurgesPersonalIntegrations:
+    "내가 이 워크스페이스에 추가한 개인 통합도 함께 삭제돼요.",
   memberRemoved: "멤버를 제거했어요",
   removeFailed: "멤버 제거에 실패했어요",
   roleUpdated: "역할을 변경했어요",

@@ -32,6 +32,9 @@ import { raceUnderHeldLock, VACUITY_GUARD_MS } from './helpers/concurrency';
  * COMMIT 으로 함께 풀린다.
  *
  * 판별력: 고치기 전 코드는 **둘 다 200** 을 돌려주고 감사 행이 **2** 가 된다.
+ *
+ * 제거는 멤버십 DELETE 가 1행일 때만 같은 트랜잭션에서 그 멤버의 개인 통합을 지운다(REQ-INTMGMT-065). 그래서 대상에게
+ * 개인 통합을 하나씩 주고, 동시 제거의 진 쪽과 owner 승격으로 0행이 된 제거가 통합을 건드리지 않는지도 본다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -63,6 +66,41 @@ describe('Workspace member remove concurrency (e2e)', () => {
     await db.end();
   });
 
+  /** 대상 멤버의 개인 통합 하나. 제거가 1행을 지웠을 때만 같은 트랜잭션에서 지워진다(REQ-INTMGMT-065). */
+  const createPersonalIntegration = async (
+    accessToken: string,
+    ws: string,
+  ): Promise<string> => {
+    const res = await request(BASE_URL)
+      .post('/api/integrations')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('X-Workspace-Id', ws)
+      .send({
+        serviceType: 'http',
+        name: uniqueName('memdel-personal'),
+        authType: 'bearer_token',
+        credentials: { token: 'e2e-memdel' },
+        scope: 'personal',
+      });
+    expect(res.status).toBe(201);
+    return (res.body.data as { id: string }).id;
+  };
+
+  const integrationState = async (integrationId: string) => {
+    const row = await db.query('SELECT id FROM integration WHERE id = $1', [
+      integrationId,
+    ]);
+    const audits = await db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM audit_log
+        WHERE action = 'integration.deleted' AND resource_id = $1`,
+      [integrationId],
+    );
+    return {
+      exists: row.rows.length === 1,
+      deletedAudits: audits.rows[0].count,
+    };
+  };
+
   it('두 제거 요청이 겹쳐도 감사 행은 하나이고 진 쪽은 404 다', async () => {
     const invitee = await inviteAndAccept(
       BASE_URL,
@@ -79,6 +117,10 @@ describe('Workspace member remove concurrency (e2e)', () => {
     );
     expect(memberRow.rows).toHaveLength(1);
     const memberId = memberRow.rows[0].id;
+    const personal = await createPersonalIntegration(
+      invitee.accessToken,
+      workspaceId,
+    );
 
     const fireRemove = () =>
       request(BASE_URL)
@@ -116,6 +158,12 @@ describe('Workspace member remove concurrency (e2e)', () => {
       [memberId],
     );
     expect(audits.rows[0].count).toBe('1');
+
+    // 진 쪽은 멤버십 DELETE 가 0행이라 통합을 건드리지 않는다. 그래서 개인 통합의 삭제 감사도 하나다.
+    expect(await integrationState(personal)).toEqual({
+      exists: false,
+      deletedAudits: '1',
+    });
   }, 120_000);
 
   /**
@@ -227,6 +275,10 @@ describe('Workspace member remove concurrency (e2e)', () => {
     );
     expect(memberRow.rows).toHaveLength(1);
     const memberId = memberRow.rows[0].id;
+    const personal = await createPersonalIntegration(
+      target.accessToken,
+      isolatedWorkspaceId,
+    );
 
     let pending: Promise<{ status: number; code?: string }> | undefined;
     await locker.query('BEGIN');
@@ -291,5 +343,11 @@ describe('Workspace member remove concurrency (e2e)', () => {
       [memberId],
     );
     expect(audits.rows[0].count).toBe('0');
+
+    // 멤버십 DELETE 가 0행이면 그 멤버의 개인 통합도 그대로다.
+    expect(await integrationState(personal)).toEqual({
+      exists: true,
+      deletedAudits: '0',
+    });
   }, 120_000);
 });

@@ -805,10 +805,13 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
     // Bulk UPDATE — predicate is part of the WHERE clause so a concurrent
     // callback that flips the row to `connected` between our read and write
     // is not racy: only rows still pending_install at write time are touched.
+    // 상점 식별자도 같은 갱신에서 비운다(REQ-INTSTAT-040). 남겨 두면 만료 행이 상점 식별자 UNIQUE 를 잡아 같은
+    // 상점을 다시 등록하지 못한다. `credentials` 는 건드리지 않는다.
     expect(updateBuilder.set).toHaveBeenCalledWith({
       status: 'expired',
       statusReason: 'install_timeout',
       installToken: null,
+      mallId: null,
     });
     expect(updateBuilder.where).toHaveBeenCalledWith('status = :status', {
       status: 'pending_install',

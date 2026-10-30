@@ -12,7 +12,10 @@ import {
   type IntegrationScope,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
-import { formatIntegrationErrorToast } from "@/lib/api/integration-error-codes";
+import {
+  formatIntegrationErrorToast,
+  isIntegrationNameTaken,
+} from "@/lib/api/integration-error-codes";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
   useCafe24MallIdPrecheck,
@@ -81,6 +84,9 @@ function NewIntegrationWizard() {
   const variant: AuthVariant | undefined = service?.authVariants[variantIndex];
 
   const [name, setName] = useState("");
+  // begin 이 설치 대기 행을 만들다 이름이 겹치면(409 `INTEGRATION_NAME_TAKEN`) 이름 칸에 알린다. 이름을 고치면 지운다.
+  // NERV CLE-INT-OAUTH 「만료된 설치 대기 행」.
+  const [nameTaken, setNameTaken] = useState(false);
   const [scope, setScope] = useState<IntegrationScope>("personal");
   const [credentials, setCredentials] = useState<Record<string, unknown>>({});
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
@@ -137,7 +143,7 @@ function NewIntegrationWizard() {
 
   // Cafe24 mall_id 사전 중복 감지 — 350ms debounce + AbortController + state 묶음을
   // `useCafe24MallIdPrecheck` 훅으로 분리해 page.tsx 응집도 향상 (ai-review W9,
-  // 2026-05-16). spec/2-navigation/4-integration.md §9.2.
+  // 2026-05-16). [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다).
   const isCafe24OAuth =
     variant?.authType === "oauth2" && serviceType === "cafe24";
   const cafe24MallIdInput = String(credentials.mall_id ?? "").trim();
@@ -200,7 +206,7 @@ function NewIntegrationWizard() {
       // Cafe24 needs mall_id + app_type (and private-app credentials) on
       // the begin call so the backend can build the mall-specific
       // authorize URL and persist them on the OAuth state row.
-      // spec/2-navigation/4-integration.md §3.2 / §9.2.
+      // [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](CLE-INT-OAUTH#oauthbegin-요청과-응답).
       const cafe24Extra =
         serviceType === "cafe24"
           ? {
@@ -219,7 +225,7 @@ function NewIntegrationWizard() {
       // MakeShop is confidential-client install-first — pass client_id /
       // client_secret at begin (shop_uid is learned at install, NOT here).
       // Backend reads body.clientId / body.clientSecret (same OAuthBeginDto
-      // fields cafe24 Private uses). spec/2-navigation/4-integration.md §5.9.
+      // fields cafe24 Private uses). [OAuth 연결과 토큰 갱신 「MakeShop」](CLE-INT-OAUTH#makeshop).
       const makeshopExtra =
         serviceType === "makeshop"
           ? {
@@ -262,6 +268,7 @@ function NewIntegrationWizard() {
       startPopup(result.authUrl);
     },
     onError: (err: unknown) => {
+      if (isIntegrationNameTaken(err)) setNameTaken(true);
       toast.error(formatErrorToast(err, "integrations.oauthStartFailed"));
     },
   });
@@ -382,7 +389,11 @@ function NewIntegrationWizard() {
           variantIndex={variantIndex}
           setVariantIndex={setVariantIndex}
           name={name}
-          setName={setName}
+          setName={(next) => {
+            setName(next);
+            setNameTaken(false);
+          }}
+          nameError={nameTaken ? t("integrations.nameTakenToast") : null}
           scope={scope}
           setScope={setScope}
           credentials={credentials}

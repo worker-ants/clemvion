@@ -19,12 +19,14 @@ import {
   PreviewTestResultDto,
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
-import type { Integration } from './entities/integration.entity';
+import { Integration } from './entities/integration.entity';
 import {
   INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
 } from './integration-visibility';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { Workspace } from '../workspaces/entities/workspace.entity';
+import { WorkspaceMember } from '../workspaces/entities/workspace-member.entity';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { SERVICE_REGISTRY } from './services/service-registry';
 import { createTransport } from 'nodemailer';
@@ -121,6 +123,11 @@ describe('IntegrationsService', () => {
   let mcpTestConnection: { test: Mock };
   let integrationCacheBus: { publish: Mock };
   let dataSource: { transaction: Mock; query: Mock };
+  /**
+   * `dataSource.transaction` 이 콜백에 넘기는 매니저. `findOne` 은 쓰기 잠금 도우미(`lockForIntegrationWrite`)의
+   * 워크스페이스 · 멤버십 읽기다. 기본은 둘 다 있다.
+   */
+  let txManager: { getRepository: Mock; findOne: Mock; save: Mock };
   let integration: Integration;
 
   beforeEach(() => {
@@ -178,12 +185,19 @@ describe('IntegrationsService', () => {
     // `rotate()` 의 임계 구간은 `dataSource.transaction` 안에서 돈다 — 그 안의
     // `manager.getRepository()` 는 같은 mock repo 를 돌려준다(모듈 형제
     // `integration-oauth.service.spec.ts` 와 같은 패턴).
+    txManager = {
+      getRepository: jest.fn().mockReturnValue(integrationRepo),
+      findOne: jest.fn().mockResolvedValue({ id: 'locked-row' }),
+      // 생성은 `manager.save(Integration, entity)` 로 저장한다. 저장소 mock 으로 넘겨 기존 단언을 그대로 쓴다.
+      save: jest.fn((_target: unknown, entity: unknown) =>
+        integrationRepo.save(entity),
+      ),
+    };
     dataSource = {
       transaction: jest
         .fn()
         .mockImplementation(
-          async (cb: (manager: { getRepository: jest.Mock }) => unknown) =>
-            cb({ getRepository: jest.fn().mockReturnValue(integrationRepo) }),
+          async (cb: (manager: typeof txManager) => unknown) => cb(txManager),
         ),
       // 개인 통합의 실행 시점 판정 사실(`loadExecutionUseFacts`). 기본은 작성자 = 소유자(`user-1`) · 소유자가 멤버다.
       query: jest
@@ -1437,6 +1451,15 @@ describe('IntegrationsService', () => {
       expect(integrationCacheBus.publish).toHaveBeenCalledWith('int-1');
     });
 
+    it('일반 삭제의 감사 details 에는 나가기 · 제거의 키(mode · memberUserId)가 없다', async () => {
+      await service.remove('int-1', 'ws-1', 'user-1', 'editor');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          details: { serviceType: 'google', name: 'My Google' },
+        }),
+      );
+    });
+
     it('throws NotFoundException when the integration is absent', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
       await expect(
@@ -1520,6 +1543,46 @@ describe('IntegrationsService', () => {
         service.remove('int-1', 'ws-1', 'user-1', 'editor'),
       ).rejects.toThrow(ConflictException);
       expect(integrationRepo.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  /** 일반 삭제와 나가기 · 제거의 삭제가 함께 쓰는 커밋 뒤 후처리(CLE-INT-DATA 「멤버가 나가거나 제거될 때」). */
+  describe('finishIntegrationDeletion', () => {
+    const deleted = { id: 'int-9', serviceType: 'cafe24', name: 'my-mall' };
+
+    it('나가기 · 제거면 감사 details 에 member.removed 와 같은 mode · memberUserId 를 싣는다', async () => {
+      await service.finishIntegrationDeletion(
+        deleted,
+        { workspaceId: 'ws-1', userId: 'admin-1' },
+        { mode: 'removed', memberUserId: 'user-7' },
+      );
+
+      expect(auditLogsService.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'admin-1',
+        action: AUDIT_ACTIONS.INTEGRATION_DELETED,
+        resourceType: 'integration',
+        resourceId: 'int-9',
+        details: {
+          serviceType: 'cafe24',
+          name: 'my-mall',
+          mode: 'removed',
+          memberUserId: 'user-7',
+        },
+      });
+      expect(integrationCacheBus.publish).toHaveBeenCalledWith('int-9');
+    });
+
+    it('맥락이 없으면 일반 삭제와 같은 details 다', async () => {
+      await service.finishIntegrationDeletion(deleted, {
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+      });
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          details: { serviceType: 'cafe24', name: 'my-mall' },
+        }),
+      );
     });
   });
 
@@ -2211,6 +2274,127 @@ describe('IntegrationsService', () => {
         }),
       );
     });
+
+    /**
+     * 조직 → 개인 전환(REQ-INTMGMT-067). `created_by` 가 통합 소유자가 되므로 그 사람의 멤버십을 생성과 같은 순서
+     * (워크스페이스 → 멤버십)로 잠가 다시 읽는다.
+     */
+    describe('조직 → 개인', () => {
+      const orgRow = () =>
+        makeIntegration({ scope: 'organization', createdBy: 'creator-1' });
+
+      it('워크스페이스 · 만든 사람의 멤버십을 잠근 뒤 조직 행에만 쓴다', async () => {
+        integrationRepo.findOne
+          .mockResolvedValueOnce(orgRow())
+          .mockResolvedValueOnce({ ...orgRow(), scope: 'personal' });
+
+        const result = await service.updateScope(
+          'int-1',
+          'ws-1',
+          'admin-1',
+          'admin',
+          { scope: 'personal' },
+        );
+
+        expect(result.scope).toBe('personal');
+        expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+        expect(txManager.findOne).toHaveBeenNthCalledWith(
+          1,
+          Workspace,
+          expect.objectContaining({ lock: { mode: 'for_key_share' } }),
+        );
+        // 요청자(admin-1)가 아니라 통합을 만든 사람이다.
+        expect(txManager.findOne).toHaveBeenNthCalledWith(
+          2,
+          WorkspaceMember,
+          expect.objectContaining({
+            where: { workspaceId: 'ws-1', userId: 'creator-1' },
+            lock: { mode: 'pessimistic_read' },
+          }),
+        );
+        expect(integrationRepo.update).toHaveBeenCalledWith(
+          { id: 'int-1', workspaceId: 'ws-1', scope: 'organization' },
+          { scope: 'personal' },
+        );
+        expect(auditLogsService.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
+            details: { from: 'organization', to: 'personal' },
+          }),
+        );
+      });
+
+      it('만든 사람이 멤버가 아니면 409 INTEGRATION_OWNER_NOT_MEMBER 이고 통합 · 감사가 그대로다', async () => {
+        integrationRepo.findOne.mockResolvedValueOnce(orgRow());
+        txManager.findOne
+          .mockResolvedValueOnce({ id: 'ws-1' })
+          .mockResolvedValueOnce(null);
+
+        const err = await service
+          .updateScope('int-1', 'ws-1', 'admin-1', 'admin', {
+            scope: 'personal',
+          })
+          .then(
+            () => {
+              throw new Error('expected rejection');
+            },
+            (err_: ConflictException) => err_,
+          );
+
+        expect(err).toBeInstanceOf(ConflictException);
+        const body = err.getResponse() as Record<string, unknown>;
+        expect(body.code).toBe('INTEGRATION_OWNER_NOT_MEMBER');
+        // 새 409 는 details 를 싣지 않고 message 에 사용자 식별자를 넣지 않는다.
+        expect(Object.keys(body).sort()).toEqual(['code', 'message']);
+        expect(String(body.message)).not.toContain('creator-1');
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+        expect(auditLogsService.record).not.toHaveBeenCalled();
+      });
+
+      it('워크스페이스 행이 없으면 404 다', async () => {
+        integrationRepo.findOne.mockResolvedValueOnce(orgRow());
+        txManager.findOne.mockResolvedValueOnce(null);
+
+        await expect(
+          service.updateScope('int-1', 'ws-1', 'admin-1', 'admin', {
+            scope: 'personal',
+          }),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('판정 순서: 같은 공개 범위면 잠그지 않고 그대로 돌려준다', async () => {
+        integrationRepo.findOne.mockResolvedValueOnce(
+          makeIntegration({ scope: 'personal', createdBy: 'user-1' }),
+        );
+        txManager.findOne.mockResolvedValue(null);
+
+        const result = await service.updateScope(
+          'int-1',
+          'ws-1',
+          'user-1',
+          'admin',
+          { scope: 'personal' },
+        );
+        expect(result.scope).toBe('personal');
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+      });
+
+      it('개인 → 조직은 멤버십을 잠그지 않는다', async () => {
+        integrationRepo.findOne
+          .mockResolvedValueOnce(integration)
+          .mockResolvedValueOnce({ ...integration, scope: 'organization' });
+        txManager.findOne.mockResolvedValue(null);
+
+        await service.updateScope('int-1', 'ws-1', 'user-1', 'admin', {
+          scope: 'organization',
+        });
+        expect(txManager.findOne).not.toHaveBeenCalledWith(
+          WorkspaceMember,
+          expect.anything(),
+        );
+      });
+    });
   });
 
   // -----------------------------------------------------------------
@@ -2716,6 +2900,86 @@ describe('IntegrationsService', () => {
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: AUDIT_ACTIONS.INTEGRATION_CREATED }),
       );
+    });
+
+    /** REQ-INTMGMT-066 — 통합 행을 다루기 전에 워크스페이스 → 통합 소유자의 멤버십 순으로 잠가 다시 읽는다. */
+    describe('쓰기 잠금', () => {
+      const httpBody = (scope?: 'personal' | 'organization') => ({
+        serviceType: 'http' as const,
+        authType: 'api_key' as const,
+        name: 'My API',
+        ...(scope ? { scope } : {}),
+        credentials: { location: 'header', key_name: 'X', value: 'v' },
+      });
+
+      it('개인 통합은 트랜잭션 안에서 잠근 뒤 저장한다', async () => {
+        const order: string[] = [];
+        txManager.findOne.mockImplementation((entity: unknown) => {
+          order.push(entity === Workspace ? 'workspace' : 'member');
+          return Promise.resolve({ id: 'row' });
+        });
+        integrationRepo.save.mockImplementation((entity: Integration) => {
+          order.push('save');
+          return Promise.resolve(entity);
+        });
+
+        await service.create('ws-1', 'user-1', 'editor', httpBody());
+
+        expect(order).toEqual(['workspace', 'member', 'save']);
+        // 저장도 잠근 트랜잭션의 매니저로 한다.
+        expect(txManager.save).toHaveBeenCalledWith(
+          Integration,
+          expect.objectContaining({ workspaceId: 'ws-1', createdBy: 'user-1' }),
+        );
+        expect(txManager.findOne).toHaveBeenCalledWith(
+          WorkspaceMember,
+          expect.objectContaining({
+            where: { workspaceId: 'ws-1', userId: 'user-1' },
+          }),
+        );
+      });
+
+      it('조직 통합은 워크스페이스만 잠근다', async () => {
+        await service.create(
+          'ws-1',
+          'admin-1',
+          'admin',
+          httpBody('organization'),
+        );
+
+        expect(txManager.findOne).toHaveBeenCalledTimes(1);
+        expect(txManager.findOne).toHaveBeenCalledWith(
+          Workspace,
+          expect.objectContaining({ lock: { mode: 'for_key_share' } }),
+        );
+      });
+
+      it('멤버십이 없으면 403 NOT_A_MEMBER 이고 저장 · 감사를 하지 않는다', async () => {
+        txManager.findOne
+          .mockResolvedValueOnce({ id: 'ws-1' })
+          .mockResolvedValueOnce(null);
+
+        await expect(
+          service.create('ws-1', 'user-1', 'editor', httpBody()),
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(auditLogsService.record).not.toHaveBeenCalled();
+      });
+
+      it('잠금 안의 이름 UNIQUE 위반은 그대로 409 INTEGRATION_NAME_TAKEN 이다', async () => {
+        integrationRepo.save.mockRejectedValueOnce(
+          Object.assign(new Error('dup'), {
+            code: '23505',
+            constraint: 'integration_workspace_name_unique',
+          }),
+        );
+
+        await expect(
+          service.create('ws-1', 'user-1', 'editor', httpBody()),
+        ).rejects.toMatchObject({
+          response: { code: 'INTEGRATION_NAME_TAKEN' },
+        });
+      });
     });
 
     // 회귀 — 신규 통합 생성 시 lastRotatedAt 이 명시 초기화되어야 한다.
