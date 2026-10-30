@@ -12,7 +12,10 @@ import {
   type IntegrationScope,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
-import { formatIntegrationErrorToast } from "@/lib/api/integration-error-codes";
+import {
+  formatIntegrationErrorToast,
+  isIntegrationNameTaken,
+} from "@/lib/api/integration-error-codes";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
   useCafe24MallIdPrecheck,
@@ -81,6 +84,9 @@ function NewIntegrationWizard() {
   const variant: AuthVariant | undefined = service?.authVariants[variantIndex];
 
   const [name, setName] = useState("");
+  // begin 이 설치 대기 행을 만들다 이름이 겹치면(409 `INTEGRATION_NAME_TAKEN`) 이름 칸에 알린다. 이름을 고치면 지운다.
+  // NERV CLE-INT-OAUTH 「만료된 설치 대기 행」.
+  const [nameTaken, setNameTaken] = useState(false);
   const [scope, setScope] = useState<IntegrationScope>("personal");
   const [credentials, setCredentials] = useState<Record<string, unknown>>({});
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
@@ -262,6 +268,7 @@ function NewIntegrationWizard() {
       startPopup(result.authUrl);
     },
     onError: (err: unknown) => {
+      if (isIntegrationNameTaken(err)) setNameTaken(true);
       toast.error(formatErrorToast(err, "integrations.oauthStartFailed"));
     },
   });
@@ -382,7 +389,11 @@ function NewIntegrationWizard() {
           variantIndex={variantIndex}
           setVariantIndex={setVariantIndex}
           name={name}
-          setName={setName}
+          setName={(next) => {
+            setName(next);
+            setNameTaken(false);
+          }}
+          nameError={nameTaken ? t("integrations.nameTakenToast") : null}
           scope={scope}
           setScope={setScope}
           credentials={credentials}

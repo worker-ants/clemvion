@@ -327,6 +327,48 @@ describe("DangerTab — organization → personal warning (REQ-INTMGMT-057)", ()
     expect(updateScopeMock).not.toHaveBeenCalled();
   });
 
+  it("shows the dictionary sentence and keeps the scope when the creator has left (REQ-INTMGMT-067)", async () => {
+    const onScopeChanged = vi.fn();
+    usagesMock.mockResolvedValue([MIXED_USAGES[0]]);
+    updateScopeMock.mockRejectedValue(
+      Object.assign(new Error("Request failed with status code 409"), {
+        response: {
+          status: 409,
+          data: {
+            error: {
+              code: "INTEGRATION_OWNER_NOT_MEMBER",
+              message: "Integration creator is not a workspace member",
+            },
+          },
+        },
+      }),
+    );
+    const integration = buildIntegration({ scope: "organization" });
+    function Host() {
+      const t = useT();
+      return (
+        <DangerTab
+          integration={integration}
+          onScopeChanged={onScopeChanged}
+          t={t}
+        />
+      );
+    }
+    await act(async () => {
+      render(<Host />, { wrapper: Wrapper });
+    });
+
+    await applyScope("personal");
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "The person who created this integration is no longer in the workspace, so it can't be made personal. Keep it as an organization integration or delete it. (Integration creator is not a workspace member)",
+      );
+    });
+    expect(onScopeChanged).not.toHaveBeenCalled();
+    expect(toastSuccessMock).not.toHaveBeenCalled();
+  });
+
   it("does not check usages when switching personal → organization", async () => {
     await act(async () => {
       renderDangerTab({ scope: "personal" });

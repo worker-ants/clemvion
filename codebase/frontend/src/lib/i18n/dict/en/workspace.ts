@@ -25,6 +25,13 @@ export const workspace: Dict["workspace"] = {
   adminRoleOwnerOnly: "Only the owner can grant or change the admin role.",
   removeMember: "Remove member",
   removeMemberConfirm: "Remove {{name}} from the workspace?",
+  removeMemberBtn: "Remove",
+  // Leave · remove-member confirm dialogs (REQ-WSPACE-069). Always the same sentence, whether or not personal
+  // integrations exist and however many there are.
+  removePurgesPersonalIntegrations:
+    "Personal integrations this member added to this workspace will also be deleted.",
+  leavePurgesPersonalIntegrations:
+    "Personal integrations you added to this workspace will also be deleted.",
   memberRemoved: "Member removed",
   removeFailed: "Failed to remove member",
   roleUpdated: "Role updated",

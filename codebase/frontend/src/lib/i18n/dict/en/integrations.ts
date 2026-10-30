@@ -269,6 +269,12 @@ export const integrations: Dict["integrations"] = {
     "Only Editors and above can add or change integrations.",
   adminRequiredToast:
     "Only Admins and above can add or change organization integrations.",
+  // Name conflict (INTEGRATION_NAME_TAKEN) and the rejected switch to personal when the creator has left
+  // (INTEGRATION_OWNER_NOT_MEMBER). NERV CLE-INT-MANAGE "Error codes" · REQ-INTMGMT-067, Task CLE-T-PS7JQY.
+  nameTakenToast:
+    "An integration with this name already exists. Enter a different name.",
+  ownerNotMemberToast:
+    "The person who created this integration is no longer in the workspace, so it can't be made personal. Keep it as an organization integration or delete it.",
   addIntegrationForbidden:
     "Only Editors and above can add integrations.",
   pendingInstallScopeKept:

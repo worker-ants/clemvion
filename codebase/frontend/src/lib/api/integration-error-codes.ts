@@ -39,6 +39,13 @@ export const INTEGRATION_LOCALIZED_ERROR_CODES = {
   /** 역할 하한 거부. 코드를 고르는 규칙은 NERV CLE-INT-MANAGE 「권한」. */
   EDITOR_REQUIRED: "EDITOR_REQUIRED",
   ADMIN_REQUIRED: "ADMIN_REQUIRED",
+  /**
+   * 워크스페이스에 같은 이름의 통합이 있다. 생성 · 별칭 수정과 Cafe24 Private · MakeShop `oauth/begin` 이 낸다.
+   * NERV CLE-INT-MANAGE 「에러 코드」.
+   */
+  NAME_TAKEN: "INTEGRATION_NAME_TAKEN",
+  /** 통합을 만든 사람이 워크스페이스를 나가 조직 통합을 개인으로 바꿀 수 없다(REQ-INTMGMT-067). */
+  OWNER_NOT_MEMBER: "INTEGRATION_OWNER_NOT_MEMBER",
 } as const;
 
 export type IntegrationLocalizedErrorCode =
@@ -58,6 +65,9 @@ export const INTEGRATION_ERROR_CODE_TO_I18N: Readonly<
     "integrations.editorRequiredToast",
   [INTEGRATION_LOCALIZED_ERROR_CODES.ADMIN_REQUIRED]:
     "integrations.adminRequiredToast",
+  [INTEGRATION_LOCALIZED_ERROR_CODES.NAME_TAKEN]: "integrations.nameTakenToast",
+  [INTEGRATION_LOCALIZED_ERROR_CODES.OWNER_NOT_MEMBER]:
+    "integrations.ownerNotMemberToast",
 };
 
 /**
@@ -95,6 +105,14 @@ function readIntegrationError(err: unknown): {
     errorMessage: e.message,
     details: extractApiDetails(e),
   };
+}
+
+/** 이름 충돌(`INTEGRATION_NAME_TAKEN`) 응답인지 본다. 통합 추가 화면이 이름 칸에 오류를 보일 때 쓴다. */
+export function isIntegrationNameTaken(err: unknown): boolean {
+  return (
+    readIntegrationError(err).code ===
+    INTEGRATION_LOCALIZED_ERROR_CODES.NAME_TAKEN
+  );
 }
 
 /** 설치 대기 409 의 `details.pendingInstallExpiresAt`. 없거나 문자열이 아니면 `null`. */

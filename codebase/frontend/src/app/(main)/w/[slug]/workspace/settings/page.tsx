@@ -591,6 +591,9 @@ function MembersTab({ workspaceId }: MembersTabProps) {
     adminMode && member.role !== "owner" && !isAdminRoleLocked(member);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("editor");
+  // 제거 확인 다이얼로그의 대상 멤버. 확인하기 전에는 제거 요청을 보내지 않는다(REQ-WSPACE-069).
+  const [removeTarget, setRemoveTarget] =
+    useState<WorkspaceMemberSummary | null>(null);
 
   const membersQuery = useQuery<WorkspaceMemberSummary[]>({
     queryKey: ["workspace-members", workspaceId],
@@ -682,6 +685,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       workspacesApi.removeMember(workspaceId, memberId),
     onSuccess: () => {
       toast.success(t("workspace.memberRemoved"));
+      setRemoveTarget(null);
       queryClient.invalidateQueries({
         queryKey: ["workspace-members", workspaceId],
       });
@@ -923,9 +927,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() =>
-                              removeMemberMutation.mutate(m.id)
-                            }
+                            onClick={() => setRemoveTarget(m)}
                             title={t("workspace.removeTooltip")}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -940,6 +942,46 @@ function MembersTab({ workspaceId }: MembersTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* 제거하면 그 멤버의 개인 통합도 함께 지워진다. 개인 통합이 있는지와 그 개수는 보이지 않고 늘 같은 문장을
+          보인다(REQ-WSPACE-069). 그래서 이 다이얼로그는 통합 목록을 읽지 않는다. */}
+      <Dialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("workspace.removeMember")}</DialogTitle>
+            <DialogDescription>
+              {t("workspace.removeMemberConfirm", {
+                name: removeTarget?.name || removeTarget?.email || "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {t("workspace.removePurgesPersonalIntegrations")}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (removeTarget) removeMemberMutation.mutate(removeTarget.id);
+              }}
+              disabled={removeMemberMutation.isPending}
+            >
+              {removeMemberMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("workspace.removeMemberBtn")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1140,6 +1182,10 @@ function DangerZoneTab({
             <DialogTitle>{t("workspace.dangerLeaveTitle")}</DialogTitle>
             <DialogDescription>{t("workspace.leaveConfirm")}</DialogDescription>
           </DialogHeader>
+          {/* 나가면 내 개인 통합도 함께 지워진다. 있는지와 개수와 무관하게 늘 같은 문장이다(REQ-WSPACE-069). */}
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {t("workspace.leavePurgesPersonalIntegrations")}
+          </p>
           <DialogFooter>
             <Button
               variant="outline"

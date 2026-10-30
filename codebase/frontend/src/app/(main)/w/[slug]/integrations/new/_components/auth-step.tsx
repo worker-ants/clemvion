@@ -30,6 +30,8 @@ interface AuthStepProps {
   setVariantIndex: (i: number) => void;
   name: string;
   setName: (s: string) => void;
+  /** 이름 칸 아래에 보일 서버 오류(이름 충돌). 없으면 `null`. */
+  nameError: string | null;
   scope: IntegrationScope;
   setScope: (s: IntegrationScope) => void;
   credentials: Record<string, unknown>;
@@ -54,6 +56,7 @@ export function AuthStep({
   setVariantIndex,
   name,
   setName,
+  nameError,
   scope,
   setScope,
   credentials,
@@ -94,7 +97,18 @@ export function AuthStep({
           placeholder={t("integrations.namePlaceholderWithService", {
             name: service.name,
           })}
+          aria-invalid={nameError ? true : undefined}
+          aria-describedby={nameError ? "int-name-error" : undefined}
         />
+        {nameError && (
+          <p
+            id="int-name-error"
+            role="alert"
+            className="mt-1 text-xs text-red-600 dark:text-red-400"
+          >
+            {nameError}
+          </p>
+        )}
       </div>
 
       <div>
