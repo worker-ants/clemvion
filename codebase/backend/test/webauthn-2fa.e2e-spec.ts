@@ -176,6 +176,8 @@ describe('WebAuthn 2FA (e2e)', () => {
 
     // credential row 즉시 삭제 (Rationale 1.4.E — suspend 아님).
     expect(await credentialRows(userId)).toHaveLength(0);
+    // 역행 삭제는 사용자가 마지막 credential 을 지울 때(케이스 D)와 달리 복구 코드를 비우지 않는다.
+    expect(await recoveryCodes(userId)).toHaveLength(10);
 
     // 활성 세션 전체 revoke → 1차에서 받은 refresh 쿠키 무효.
     const refresh = await request(BASE_URL)
@@ -616,6 +618,133 @@ describe('WebAuthn 2FA (e2e)', () => {
       expect(second.rowCount).toBe(0);
     } finally {
       await db.query('ROLLBACK');
+    }
+  });
+
+  // 라이브러리는 counter 비교를 서명 검증보다 먼저 한다. 서버가 저장 counter 를 그대로 넘기면
+  // 비밀번호만 아는 사람이 서명을 위조하고 counter 를 낮춘 응답으로 credential 을 지우고 세션을
+  // 끝낼 수 있었다. TOTP 가 없으면 다음 로그인에 2단계 인증이 빠진다(REQ-SIGNIN-070).
+  it.each([
+    ['0 으로 낮춘', 0],
+    ['저장값과 같은', 1],
+    ['저장값보다 큰', 5],
+  ])(
+    'O. 서명을 위조한 응답은 counter 를 %s 값이어도 401 WEBAUTHN_INVALID 이고 credential · 세션 · 2단계 인증이 남는다',
+    async (_label, forgedCount) => {
+      const email = uniqueEmail('webauthn-o');
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        email,
+        db,
+      );
+      const device = new SoftWebAuthnDevice();
+      await registerDevice(BASE_URL, accessToken, device);
+
+      // 정상 인증으로 저장 counter 를 1 로 올리고 로그인 세션을 받는다.
+      const ct1 = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+      const opt1 = await fetchAuthOptions(BASE_URL, ct1);
+      const ok = await request(BASE_URL)
+        .post('/api/auth/2fa/webauthn/authenticate/verify')
+        .send({
+          challengeToken: ct1,
+          optionsToken: opt1.optionsToken,
+          response: device.authenticationResponse(opt1.challenge),
+        });
+      expect(ok.status).toBe(200);
+      const sessionCookie = extractRefreshCookie(
+        ok.headers['set-cookie'] as unknown as string[],
+      )!;
+      expect((await credentialRows(userId))[0].counter).toBe('1');
+
+      // 비밀번호로 받은 챌린지와 옵션의 challenge 로 서명만 위조한다.
+      const ct2 = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+      const opt2 = await fetchAuthOptions(BASE_URL, ct2);
+      const forged = await request(BASE_URL)
+        .post('/api/auth/2fa/webauthn/authenticate/verify')
+        .send({
+          challengeToken: ct2,
+          optionsToken: opt2.optionsToken,
+          response: device.authenticationResponse(opt2.challenge, {
+            signCount: forgedCount,
+            forgeSignature: true,
+          }),
+        });
+      expect(forged.status).toBe(401);
+      expect(forged.body.error.code).toBe('WEBAUTHN_INVALID');
+
+      // credential 은 남고 counter 도 그대로다.
+      const rows = await credentialRows(userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].counter).toBe('1');
+
+      // 앞서 받은 로그인 세션이 그대로 쓰인다.
+      const refresh = await request(BASE_URL)
+        .post('/api/auth/refresh')
+        .set('Cookie', sessionCookie);
+      expect(refresh.status).toBe(200);
+
+      const hist = await db.query<{ failure_reason: string | null }>(
+        `SELECT failure_reason FROM login_history
+           WHERE user_id = $1 AND event = 'webauthn_failed'
+           ORDER BY created_at DESC LIMIT 1`,
+        [userId],
+      );
+      expect(hist.rows[0]?.failure_reason).toBe('WEBAUTHN_INVALID');
+
+      // 다음 로그인도 Passkey 2단계를 요구하고 진짜 인증기로 통과한다.
+      const ct3 = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+      const opt3 = await fetchAuthOptions(BASE_URL, ct3);
+      const again = await request(BASE_URL)
+        .post('/api/auth/2fa/webauthn/authenticate/verify')
+        .send({
+          challengeToken: ct3,
+          optionsToken: opt3.optionsToken,
+          response: device.authenticationResponse(opt3.challenge),
+        });
+      expect(again.status).toBe(200);
+      expect((await credentialRows(userId))[0].counter).toBe('2');
+    },
+  );
+
+  // counter 를 쓰지 않는 인증기는 늘 0 을 보낸다. 저장값과 응답 값이 모두 0 이면 역행이 아니다.
+  it('P. counter 가 늘 0 인 인증기는 로그인할 때마다 통과하고 credential 이 남는다', async () => {
+    const email = uniqueEmail('webauthn-p');
+    const { userId, accessToken } = await registerAndLogin(BASE_URL, email, db);
+    const device = new SoftWebAuthnDevice();
+    await registerDevice(BASE_URL, accessToken, device);
+
+    for (let i = 0; i < 2; i += 1) {
+      const ct = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+      const opt = await fetchAuthOptions(BASE_URL, ct);
+      const res = await request(BASE_URL)
+        .post('/api/auth/2fa/webauthn/authenticate/verify')
+        .send({
+          challengeToken: ct,
+          optionsToken: opt.optionsToken,
+          response: device.authenticationResponse(opt.challenge, {
+            bumpCounter: false,
+          }),
+        });
+      expect(res.status).toBe(200);
+      const rows = await credentialRows(userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].counter).toBe('0');
     }
   });
 });

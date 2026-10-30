@@ -37,13 +37,19 @@ const RECOVERY_CODE_COUNT = 10;
 const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1.4.C)
 
 /**
- * counter 역행을 나타내는 `@simplewebauthn/server` 검증 에러 메시지의 키워드.
- *  - `lower`  : 지금 버전(v14) 실제 문구 "Response counter value N was lower than expected M". v13 도 같다
- *  - `regress`/`same`/`less` : 과거/타 버전 문구 호환
- * 라이브러리 업그레이드 시 메시지 변경을 즉시 감지하도록 단위(webauthn.service.spec.ts)
- * 와 e2e(webauthn-2fa.e2e-spec.ts case B) 가 본 패턴을 회귀 잠금한다.
+ * sign counter 역행 판정. 응답 값이 저장값 이하면 역행이다. 둘 다 0 이면 counter 를 쓰지 않는
+ * 인증기라 역행으로 보지 않는다(`@simplewebauthn/server` 의 판정과 같다, REQ-SIGNIN-028).
+ * 서명이 확인된 응답에만 부른다(REQ-SIGNIN-070).
  */
-const COUNTER_REGRESSION_REASON_PATTERN = /regress|same|less|lower/i;
+function isSignCounterRegression(
+  responseCounter: number,
+  storedCounter: number,
+): boolean {
+  return (
+    (responseCounter > 0 || storedCounter > 0) &&
+    responseCounter <= storedCounter
+  );
+}
 
 /**
  * 등록 옵션과 등록 검증이 받는 공개 키 알고리즘. `@simplewebauthn/server` v13 의 기본값과 같다.
@@ -345,11 +351,19 @@ export class WebAuthnService {
    * verify 후 counter 갱신. counter 역행 시 row 즉시 삭제 + LoginHistory `webauthn_failed`.
    * (spec Rationale 1.4.E)
    *
+   * 판정 순서 (REQ-SIGNIN-028 · 070):
+   *   `@simplewebauthn/server` 는 counter 비교를 서명 검증보다 먼저 한다. 저장 counter 를
+   *   넘기면 서명이 틀린 응답도 역행으로 처분돼, 비밀번호만 아는 사람이 인증기 없이
+   *   credential 을 지우고 세션을 끝낼 수 있다(TOTP 가 없으면 2단계 인증이 벗겨진다).
+   *   그래서 라이브러리에는 counter 0 을 넘겨 그 비교를 끄고, 서명이 확인된 응답에서만
+   *   `newCounter` 와 저장값을 직접 비교한다. 서명이 틀리면 counter 와 상관없이 `invalid`.
+   *
    * 동시 verify race 차단 (review W-8 → follow-up §7):
    *   SELECT FOR UPDATE 으로 credential row 를 pessimistic lock 해서 counter read·write
    *   를 직렬화한다. 두 동시 요청이 같은 assertion 으로 들어와도 한쪽은 lock 대기 →
    *   첫 요청이 counter=N+1 로 갱신한 뒤 두 번째 요청은 갱신된 counter=N+1 을 읽으므로
-   *   `@simplewebauthn/server` 가 counter <= stored 로 reject 한다.
+   *   역행으로 판정된다(같은 assertion 의 중복 요청을 챌린지 일회 사용으로 막는 일은
+   *   NERV Task `CLE-T-GK9J2B` 가 맡는다).
    *
    * audit log (`LoginHistory.record`) 는 트랜잭션 *밖* 에서 호출 — rollback 시 phantom
    * 로그 회피 + LoginHistory 자체 swallow 로 보안 핵심 경로(credential delete + token
@@ -400,26 +414,14 @@ export class WebAuthnService {
             credential: {
               id: credential.credentialId,
               publicKey: new Uint8Array(credential.publicKey),
-              counter: Number(credential.counter),
+              // 라이브러리의 counter 비교는 서명 검증보다 먼저라 0 을 넘겨 끈다.
+              // 역행은 서명이 확인된 뒤 아래에서 판정한다(REQ-SIGNIN-070).
+              counter: 0,
               transports: credential.transports,
             },
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          const counterRegression =
-            /counter/i.test(msg) && COUNTER_REGRESSION_REASON_PATTERN.test(msg);
-          if (counterRegression) {
-            // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
-            // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.
-            await credRepo.delete({ id: credential.id });
-            await manager
-              .getRepository(RefreshToken)
-              .update({ userId, isRevoked: false }, { isRevoked: true });
-            return {
-              kind: 'counter_regression',
-              credentialUuid: credential.id,
-            };
-          }
           return { kind: 'invalid', reason: msg };
         }
 
@@ -430,8 +432,22 @@ export class WebAuthnService {
           };
         }
 
+        const { newCounter } = verification.authenticationInfo;
+        if (isSignCounterRegression(newCounter, Number(credential.counter))) {
+          // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
+          // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.
+          await credRepo.delete({ id: credential.id });
+          await manager
+            .getRepository(RefreshToken)
+            .update({ userId, isRevoked: false }, { isRevoked: true });
+          return {
+            kind: 'counter_regression',
+            credentialUuid: credential.id,
+          };
+        }
+
         await credRepo.update(credential.id, {
-          counter: String(verification.authenticationInfo.newCounter),
+          counter: String(newCounter),
           lastUsedAt: new Date(),
         });
         return { kind: 'ok' };
