@@ -20,6 +20,7 @@ import {
   ApiOperation,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiServiceUnavailableResponse,
   ApiBearerAuth,
   ApiParam,
   ApiNoContentResponse,
@@ -193,13 +194,18 @@ export class WebAuthnController {
   @ApiOperation({
     summary: 'WebAuthn 로그인 2FA verify',
     description:
-      'WebAuthn 응답을 검증하고 access/refresh 토큰을 발급합니다. counter 역행 감지 시 credential 즉시 삭제 + LoginHistory `webauthn_failed` 기록.',
+      'WebAuthn 응답을 검증하고 access/refresh 토큰을 발급합니다. optionsToken 하나는 검증에 한 번만 쓸 수 있고, 이미 쓴 optionsToken 은 credential 을 건드리지 않고 거부합니다. counter 역행 감지 시 credential 즉시 삭제 + LoginHistory `webauthn_failed` 기록.',
   })
   @ApiOkWrappedResponse(AccessTokenDto, {
     description: '2FA 통과 + 정식 토큰 발급',
   })
   @ApiUnauthorizedResponse({
-    description: 'challengeToken/optionsToken 만료, 검증 실패, counter 역행',
+    description:
+      'challengeToken/optionsToken 만료, 검증 실패, 이미 쓴 Passkey 인증 챌린지, counter 역행',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      '챌린지 사용 기록을 남기지 못해 검증하지 않음 (`SERVICE_UNAVAILABLE`). 잠시 뒤 authenticate/options 로 옵션을 새로 받아 다시 시도할 수 있습니다.',
   })
   async webauthnAuthVerify(
     @Body() dto: WebAuthnAuthVerifyDto,

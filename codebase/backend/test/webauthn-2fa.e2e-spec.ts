@@ -25,12 +25,13 @@ import {
 
 /**
  * e2e: WebAuthn(Passkey · 보안 키) 2FA 의 HTTP → service → DB 전 구간을 실 인프라에서
- * 검증한다. `webauthn.service.spec.ts` 는 `@simplewebauthn/server` 를 mock 하므로 실제
- * attestation/assertion 검증·DB persist·트랜잭션 경계(counter 역행 시 credential 삭제 +
- * 세션 revoke 의 원자성)·실 라이브러리 에러 메시지는 cover 하지 못한다 — 본 suite 가 그
- * 갭을 메운다.
+ * 검증한다. `webauthn.service.spec.ts` 는 `@simplewebauthn/server` 와 챌린지 기록을 mock
+ * 하므로 실제 attestation/assertion 검증·DB persist·트랜잭션 경계(counter 역행 시 credential
+ * 삭제 + 세션 revoke 의 원자성)·서명 검증과 counter 판정 순서(케이스 O · P)·Redis 에 둔
+ * Passkey 인증 챌린지 1회 사용(케이스 Q · R · S)은 cover 하지 못한다 — 본 suite 가 그 갭을
+ * 메운다.
  *
- * spec: spec/5-system/1-auth.md §1.4 + Rationale 1.4.A~E.
+ * spec: CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 · 「sign counter 역행과 동시성」.
  * 활성 전제: docker-compose.e2e.yml backend-e2e 가 WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN 을
  *   설정해 기능을 켜둔다(미설정 시 503). helper 의 RP_ID/RP_ORIGIN 과 반드시 일치.
  */
@@ -71,6 +72,46 @@ describe('WebAuthn 2FA (e2e)', () => {
       [userId],
     );
     return res.rows;
+  }
+
+  async function latestWebauthnFailure(
+    userId: string,
+  ): Promise<string | null | undefined> {
+    const res = await db.query<{ failure_reason: string | null }>(
+      `SELECT failure_reason FROM login_history
+         WHERE user_id = $1 AND event = 'webauthn_failed'
+         ORDER BY created_at DESC LIMIT 1`,
+      [userId],
+    );
+    return res.rows[0]?.failure_reason;
+  }
+
+  /** 로그인 1단계를 통과하고 Passkey 인증 옵션까지 받는다. */
+  async function startPasskeyLogin(email: string): Promise<{
+    challengeToken: string;
+    challenge: string;
+    optionsToken: string;
+  }> {
+    const challengeToken = await loginForWebauthnChallenge(
+      BASE_URL,
+      email,
+      TEST_PASSWORD,
+    );
+    const { challenge, optionsToken } = await fetchAuthOptions(
+      BASE_URL,
+      challengeToken,
+    );
+    return { challengeToken, challenge, optionsToken };
+  }
+
+  function postPasskeyVerify(body: {
+    challengeToken: string;
+    optionsToken: string;
+    response: unknown;
+  }) {
+    return request(BASE_URL)
+      .post('/api/auth/2fa/webauthn/authenticate/verify')
+      .send(body);
   }
 
   async function recoveryCodes(userId: string): Promise<string[] | null> {
@@ -746,5 +787,154 @@ describe('WebAuthn 2FA (e2e)', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].counter).toBe('0');
     }
+  });
+  // 라이브러리는 counter 비교를 서명 검증보다 먼저 한다는 케이스 O 의 대조군이다. 서명이 맞으면
+  // 같은 counter 0 응답이 역행으로 처분된다. 헬퍼의 `signCount` 옵션이 서명을 깨지 않는다는
+  // 자기 검증이기도 하다.
+  it('O-대조. 서명은 맞고 counter 만 0 으로 낮춘 응답은 401 WEBAUTHN_COUNTER_REGRESSION 이고 credential 이 지워진다', async () => {
+    const email = uniqueEmail('webauthn-oc');
+    const { userId, accessToken } = await registerAndLogin(BASE_URL, email, db);
+    const device = new SoftWebAuthnDevice();
+    await registerDevice(BASE_URL, accessToken, device);
+
+    const first = await startPasskeyLogin(email);
+    const ok = await postPasskeyVerify({
+      challengeToken: first.challengeToken,
+      optionsToken: first.optionsToken,
+      response: device.authenticationResponse(first.challenge),
+    });
+    expect(ok.status).toBe(200);
+    expect((await credentialRows(userId))[0].counter).toBe('1');
+
+    const second = await startPasskeyLogin(email);
+    const lowered = await postPasskeyVerify({
+      challengeToken: second.challengeToken,
+      optionsToken: second.optionsToken,
+      response: device.authenticationResponse(second.challenge, {
+        signCount: 0,
+      }),
+    });
+    expect(lowered.status).toBe(401);
+    expect(lowered.body.error.code).toBe('WEBAUTHN_COUNTER_REGRESSION');
+    expect(await credentialRows(userId)).toHaveLength(0);
+  });
+
+  // 버튼을 두 번 누르거나 네트워크 계층이 요청을 다시 보내면 같은 assertion 이 다시 온다.
+  // 챌린지 기록이 없을 때는 counter 를 올리는 인증기의 두 번째 요청이 역행으로 처분됐다.
+  it('Q. 같은 챌린지 · 옵션 토큰 · assertion 을 다시 보내면 401 WEBAUTHN_INVALID 이고 credential 과 첫 세션이 남는다', async () => {
+    const email = uniqueEmail('webauthn-q');
+    const { userId, accessToken } = await registerAndLogin(BASE_URL, email, db);
+    const device = new SoftWebAuthnDevice();
+    await registerDevice(BASE_URL, accessToken, device);
+
+    const login = await startPasskeyLogin(email);
+    const body = {
+      challengeToken: login.challengeToken,
+      optionsToken: login.optionsToken,
+      response: device.authenticationResponse(login.challenge),
+    };
+    const ok = await postPasskeyVerify(body);
+    expect(ok.status).toBe(200);
+    const sessionCookie = extractRefreshCookie(
+      ok.headers['set-cookie'] as unknown as string[],
+    )!;
+    expect(sessionCookie).toBeTruthy();
+
+    const replay = await postPasskeyVerify(body);
+    expect(replay.status).toBe(401);
+    expect(replay.body.error.code).toBe('WEBAUTHN_INVALID');
+    expect(replay.headers['set-cookie']).toBeUndefined();
+
+    const rows = await credentialRows(userId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].counter).toBe('1');
+    const refresh = await request(BASE_URL)
+      .post('/api/auth/refresh')
+      .set('Cookie', sessionCookie);
+    expect(refresh.status).toBe(200);
+
+    // 거부는 로그인 이력에 남고 비밀번호 실패 카운터는 건드리지 않는다.
+    expect(await latestWebauthnFailure(userId)).toBe('WEBAUTHN_INVALID');
+    const attempts = await db.query<{ login_attempts: number }>(
+      'SELECT login_attempts FROM "user" WHERE id = $1',
+      [userId],
+    );
+    expect(attempts.rows[0].login_attempts).toBe(0);
+
+    // 같은 챌린지 토큰으로 옵션을 다시 받으면 새 챌린지로 통과한다(REQ-SIGNIN-071).
+    const retry = await fetchAuthOptions(BASE_URL, login.challengeToken);
+    const again = await postPasskeyVerify({
+      challengeToken: login.challengeToken,
+      optionsToken: retry.optionsToken,
+      response: device.authenticationResponse(retry.challenge),
+    });
+    expect(again.status).toBe(200);
+    expect((await credentialRows(userId))[0].counter).toBe('2');
+  });
+
+  // 기록이 원자적이지 않으면 두 요청이 모두 판정으로 가서 한쪽이 역행으로 처분된다.
+  it('R. 같은 assertion 을 동시에 보내면 하나만 200 이고 나머지는 401 WEBAUTHN_INVALID 이며 credential 이 남는다', async () => {
+    const email = uniqueEmail('webauthn-r');
+    const { userId, accessToken } = await registerAndLogin(BASE_URL, email, db);
+    const device = new SoftWebAuthnDevice();
+    await registerDevice(BASE_URL, accessToken, device);
+
+    const login = await startPasskeyLogin(email);
+    const body = {
+      challengeToken: login.challengeToken,
+      optionsToken: login.optionsToken,
+      response: device.authenticationResponse(login.challenge),
+    };
+    const responses = await Promise.all(
+      Array.from({ length: 3 }, () => postPasskeyVerify(body)),
+    );
+
+    const statuses = responses.map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 401, 401]);
+    for (const r of responses.filter((res) => res.status === 401)) {
+      expect(r.body.error.code).toBe('WEBAUTHN_INVALID');
+    }
+    const winner = responses.find((r) => r.status === 200)!;
+    const sessionCookie = extractRefreshCookie(
+      winner.headers['set-cookie'] as unknown as string[],
+    )!;
+
+    const rows = await credentialRows(userId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].counter).toBe('1');
+    const refresh = await request(BASE_URL)
+      .post('/api/auth/refresh')
+      .set('Cookie', sessionCookie);
+    expect(refresh.status).toBe(200);
+  });
+
+  // counter 가 늘 0 인 인증기는 counter 로 재전송을 가를 수 없다. 챌린지 기록이 없을 때는
+  // 같은 assertion 이 다시 통과해 토큰이 한 번 더 나왔다.
+  it('S. counter 가 늘 0 인 인증기의 assertion 을 다시 보내면 401 WEBAUTHN_INVALID 이고 토큰을 다시 주지 않는다', async () => {
+    const email = uniqueEmail('webauthn-s');
+    const { userId, accessToken } = await registerAndLogin(BASE_URL, email, db);
+    const device = new SoftWebAuthnDevice();
+    await registerDevice(BASE_URL, accessToken, device);
+
+    const login = await startPasskeyLogin(email);
+    const body = {
+      challengeToken: login.challengeToken,
+      optionsToken: login.optionsToken,
+      response: device.authenticationResponse(login.challenge, {
+        bumpCounter: false,
+      }),
+    };
+    const ok = await postPasskeyVerify(body);
+    expect(ok.status).toBe(200);
+
+    const replay = await postPasskeyVerify(body);
+    expect(replay.status).toBe(401);
+    expect(replay.body.error.code).toBe('WEBAUTHN_INVALID');
+    expect(replay.body.data?.accessToken).toBeUndefined();
+    expect(replay.headers['set-cookie']).toBeUndefined();
+
+    const rows = await credentialRows(userId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].counter).toBe('0');
   });
 });

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
 content_hash: "e319239f14c0c71a4768cb217492fbde4c8ee0dc7cfefc01e895cf0b23e1977b"
 read_as: "approved_fallback"
-task: "CLE-T-NWHVMN"
+task: "CLE-T-GK9J2B"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "19a8702f2641e1baaa34c3d69fc7324e8a4209623e8837186b938f9249ba2d8b"
-etag: "sha256-fdb0441922dda914f86a774f77fc4cef5c9b605af3a4173bfdc67c87bc109843"
+mirror_sha256: "e82aaa540c9fce9f2bf0d2fec3cabda1ea8b734a5e49996a0db9ef9aa23fd30f"
+etag: "sha256-8efa619f41a8dadd0fb1fa6d66f8fca07470ff3e32e8c4617e6b29fa11413a6e"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단, Passkey 인증 챌린지 1회 사용은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

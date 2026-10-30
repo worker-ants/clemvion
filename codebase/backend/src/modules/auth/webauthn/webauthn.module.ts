@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { WebAuthnService } from './webauthn.service';
+import { WebAuthnAuthChallengeService } from './webauthn-auth-challenge.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { LoginHistory } from '../entities/login-history.entity';
@@ -39,7 +40,11 @@ import { UsersModule } from '../../users/users.module';
     }),
     UsersModule,
   ],
-  providers: [WebAuthnService, LoginHistoryService],
+  providers: [
+    WebAuthnService,
+    WebAuthnAuthChallengeService,
+    LoginHistoryService,
+  ],
   exports: [WebAuthnService],
 })
 export class WebAuthnModule {}

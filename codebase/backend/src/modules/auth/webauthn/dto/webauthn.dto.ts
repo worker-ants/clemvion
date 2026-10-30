@@ -87,7 +87,7 @@ export class WebAuthnAuthVerifyDto {
 
   @ApiProperty({
     description:
-      '서버가 authenticate/options 응답에 발급한 stateless JWT (`kind=webauthn_auth`, exp 5분).',
+      '서버가 authenticate/options 응답에 발급한 JWT (`kind=webauthn_auth`, exp 5분). 옵션 토큰 하나는 검증에 한 번만 쓸 수 있습니다. 다시 쓰면 거부되므로 시도할 때마다 authenticate/options 로 옵션을 새로 받습니다.',
   })
   @IsString()
   optionsToken: string;

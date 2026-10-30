@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
 content_hash: "0d1acc7ea7f2e315dff9988e8046ae29f3dd43c13c0fdfa5294861cdff969ee0"
 read_as: "approved_fallback"
-task: "CLE-T-N7ENKQ"
+task: "CLE-T-GK9J2B"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "7c338d2ce38a8160e1025f9d110a18cd50ae1d35a389b9c803b03ddff7d9bad0"
-etag: "sha256-314850e01057e95b0b8e9acf33b70e02e8d0f3551457c225c91687912f1cf5ab"
+mirror_sha256: "4b43856f4e06d0bfec09c0dc159c7f8baf52ea0a69e072bf3ef89525486295be"
+etag: "sha256-a05b936e36a18af9ef914b5eb1da0d60e00644b4a19f82e4088ef6624fa0e0d2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

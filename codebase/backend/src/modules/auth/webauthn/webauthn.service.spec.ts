@@ -17,6 +17,7 @@ import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { UsersService } from '../../users/users.service';
 import { LoginHistoryService } from '../login-history.service';
+import { WebAuthnAuthChallengeService } from './webauthn-auth-challenge.service';
 
 jest.mock('@simplewebauthn/server', () => ({
   generateRegistrationOptions: jest.fn(),
@@ -44,6 +45,8 @@ describe('WebAuthnService', () => {
   let usersService: jest.Mocked<any>;
   let jwtService: jest.Mocked<JwtService>;
   let loginHistory: jest.Mocked<LoginHistoryService>;
+  let authChallenges: { consume: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
 
   const userId = 'user-uuid-1';
   const mockUser = {
@@ -90,6 +93,32 @@ describe('WebAuthnService', () => {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<LoginHistoryService>;
 
+    authChallenges = { consume: jest.fn().mockResolvedValue(true) };
+
+    // 트랜잭션 콜백을 즉시 실행하고, manager.getRepository(Entity) 호출은
+    // beforeEach 에서 만든 동일 mock 으로 라우팅한다. 행 잠금과 챌린지 기록의 동시성은
+    // 실제 DB · Redis 로 도는 e2e(`test/webauthn-2fa.e2e-spec.ts`)가 검증한다.
+    dataSource = {
+      transaction: jest
+        .fn()
+        .mockImplementation(
+          (
+            cb: (manager: {
+              getRepository: (entity: unknown) => unknown;
+            }) => Promise<unknown>,
+          ) =>
+            cb({
+              getRepository: (entity: unknown) => {
+                if (entity === WebAuthnCredential) return credentialRepo;
+                if (entity === RefreshToken) return refreshTokenRepo;
+                throw new Error(
+                  `unexpected entity in mock manager.getRepository: ${String(entity)}`,
+                );
+              },
+            }),
+        ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebAuthnService,
@@ -120,32 +149,8 @@ describe('WebAuthnService', () => {
           },
         },
         { provide: LoginHistoryService, useValue: loginHistory },
-        {
-          provide: DataSource,
-          useValue: {
-            // 트랜잭션 콜백을 즉시 실행하고, manager.getRepository(Entity) 호출은
-            // beforeEach 에서 만든 동일 mock 으로 라우팅 — 락 동작 자체는 외부 통합
-            // 테스트(W-8 race) 가 별도 검증한다.
-            transaction: jest
-              .fn()
-              .mockImplementation(
-                (
-                  cb: (manager: {
-                    getRepository: (entity: unknown) => unknown;
-                  }) => Promise<unknown>,
-                ) =>
-                  cb({
-                    getRepository: (entity: unknown) => {
-                      if (entity === WebAuthnCredential) return credentialRepo;
-                      if (entity === RefreshToken) return refreshTokenRepo;
-                      throw new Error(
-                        `unexpected entity in mock manager.getRepository: ${String(entity)}`,
-                      );
-                    },
-                  }),
-              ),
-          },
-        },
+        { provide: DataSource, useValue: dataSource },
+        { provide: WebAuthnAuthChallengeService, useValue: authChallenges },
       ],
     }).compile();
 
@@ -411,11 +416,14 @@ describe('WebAuthnService', () => {
       clientExtensionResults: {},
     };
 
+    const challengeExp = 1_800_000_300;
+
     beforeEach(() => {
       jwtService.verify = jest.fn().mockReturnValue({
         kind: 'webauthn_auth',
         sub: userId,
         challenge: 'auth-challenge',
+        exp: challengeExp,
       });
       credentialRepo.findOne.mockResolvedValue(credentialRow);
       mockedVerifyAuthResp.mockResolvedValue({
@@ -461,6 +469,12 @@ describe('WebAuthnService', () => {
           credential: expect.objectContaining({ counter: 0 }),
         }),
       );
+      // 라이브러리에 0 을 넘겨도 저장값 비교는 서비스가 한다. 7 → 8 은 정상 증가다.
+      expect(credentialRepo.update).toHaveBeenCalledWith(
+        credentialRow.id,
+        expect.objectContaining({ counter: '8' }),
+      );
+      expect(credentialRepo.delete).not.toHaveBeenCalled();
     });
 
     describe('signature verified, counter compared by the service', () => {
@@ -577,6 +591,99 @@ describe('WebAuthnService', () => {
         });
         expect(credentialRepo.delete).not.toHaveBeenCalled();
         expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Passkey authentication challenge single use', () => {
+      it('records the challenge and its exp from the verified options token', async () => {
+        await service.verifyAuthentication(
+          userId,
+          'opts.tok',
+          validResponse as never,
+        );
+        expect(authChallenges.consume).toHaveBeenCalledWith(
+          'auth-challenge',
+          challengeExp,
+        );
+      });
+
+      // 판정 뒤에 기록하면 동시에 온 두 요청이 모두 판정으로 간다(REQ-SIGNIN-068).
+      it('records the challenge before the signature and counter judgment', async () => {
+        await service.verifyAuthentication(
+          userId,
+          'opts.tok',
+          validResponse as never,
+        );
+        expect(authChallenges.consume.mock.invocationCallOrder[0]).toBeLessThan(
+          dataSource.transaction.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('rejects a used challenge with WEBAUTHN_INVALID without touching the credential or sessions', async () => {
+        authChallenges.consume.mockResolvedValue(false);
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          status: 401,
+          response: expect.objectContaining({ code: 'WEBAUTHN_INVALID' }),
+        });
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+        expect(mockedVerifyAuthResp).not.toHaveBeenCalled();
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(credentialRepo.update).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+        expect(loginHistory.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'webauthn_failed',
+            failureReason: 'WEBAUTHN_INVALID',
+          }),
+        );
+      });
+
+      // 기록하지 못하면 한 번만 쓴다는 보장이 없어 판정으로 보내지 않는다(fail-closed).
+      it('answers 503 SERVICE_UNAVAILABLE when the challenge cannot be recorded', async () => {
+        authChallenges.consume.mockRejectedValue(new Error('connection lost'));
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          status: 503,
+          response: expect.objectContaining({
+            code: 'SERVICE_UNAVAILABLE',
+            message: '서비스를 일시적으로 사용할 수 없습니다.',
+          }),
+        });
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+        expect(credentialRepo.delete).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.update).not.toHaveBeenCalled();
+        expect(loginHistory.record).not.toHaveBeenCalled();
+      });
+
+      // 위조 · 만료 · 다른 사용자의 옵션 토큰으로 남의 챌린지를 미리 소진하지 못한다.
+      it('does not record anything when the options token is rejected', async () => {
+        jwtService.verify = jest.fn().mockReturnValue({
+          kind: 'webauthn_auth',
+          sub: 'someone-else',
+          challenge: 'auth-challenge',
+          exp: challengeExp,
+        });
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({ code: 'INVALID_OPTIONS_TOKEN' }),
+        });
+        expect(authChallenges.consume).not.toHaveBeenCalled();
       });
     });
 
@@ -839,6 +946,7 @@ describe('WebAuthnService', () => {
       '%s throws ServiceUnavailable (WEBAUTHN_DISABLED)',
       async (_name, fn) => {
         await expect(fn()).rejects.toThrow(ServiceUnavailableException);
+        expect(authChallenges.consume).not.toHaveBeenCalled();
       },
     );
   });
