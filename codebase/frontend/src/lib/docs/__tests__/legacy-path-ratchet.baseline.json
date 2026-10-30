@@ -485,7 +485,6 @@
     "codebase/backend/test/users-avatar-upload.e2e-spec.ts": 1,
     "codebase/backend/test/users-change-password.e2e-spec.ts": 1,
     "codebase/backend/test/users-email-change.e2e-spec.ts": 1,
-    "codebase/backend/test/webauthn-2fa.e2e-spec.ts": 1,
     "codebase/backend/test/webchat-idle-reaper.e2e-spec.ts": 1,
     "codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts": 2,
     "codebase/backend/test/webhook-trigger.e2e-spec.ts": 3,
