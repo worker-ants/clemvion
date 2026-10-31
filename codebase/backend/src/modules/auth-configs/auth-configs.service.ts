@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -22,7 +21,7 @@ import {
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
-import { ErrorCode } from '../../nodes/core/error-codes';
+import { throwInvalidReferences } from '../../common/utils/reference-in-scope';
 import {
   isUnreadableCredentials,
   UNREADABLE_ORIGINAL_KEY,
@@ -59,7 +58,8 @@ function safeUsageCount(raw: string | undefined | null): number {
 
 /**
  * Basic Auth `config` 에서 `keys` 가운데 빈 값인 것을 모두 모아 400 `VALIDATION_ERROR` 로 거부한다
- * (REQ-AUTHCFG-027 · 028). `details` 는 `CustomValidationPipe` 와 같은 배열 `[{ field, message, code: 'INVALID_FIELD' }]` 이다.
+ * (REQ-AUTHCFG-027 · 028). 응답 본문은 `throwInvalidReferences` 가 만든다 — `CustomValidationPipe` 와 같은 배열
+ * `[{ field, message, code: 'INVALID_FIELD' }]` 이고, 이름은 «참조» 지만 필드별 400 본문을 만드는 단일 헬퍼다.
  *
  * «비었다» 는 없음 · 빈 문자열이고, 웹훅 인증(`verifyBasicAuth`)이 빈 기대값을 401 로 거부하는 기준과 같다. 저장 때는
  * 여기에 더해 문자열이 아닌 값도 거부한다 — 인증은 기대값을 문자열로 비교하므로 그런 값으로는 인증되지 않는다.
@@ -73,16 +73,12 @@ function assertBasicAuthValues(
     (k) => typeof config[k] !== 'string' || config[k] === '',
   );
   if (invalid.length === 0) return;
-  const details = invalid.map((k) => ({
-    field: `config.${k}`,
-    message: `config.${k} must be a non-empty string`,
-    code: ErrorCode.INVALID_FIELD,
-  }));
-  throw new BadRequestException({
-    code: 'VALIDATION_ERROR',
-    message: details.map((d) => d.message).join('; '),
-    details,
-  });
+  throwInvalidReferences(
+    invalid.map((k) => ({
+      field: `config.${k}`,
+      message: `config.${k} must be a non-empty string`,
+    })),
+  );
 }
 
 export interface WebhookAuthContext {
