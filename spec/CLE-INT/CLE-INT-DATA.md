@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "4f83292067cfb4892be64c9d18848f306d7c77b3e69d45986f4a947bf99bbe40"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-3G8XZ3"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "ffc72a8a152b731aa9cad073bef5408243eeec0f6c3159acad9f247399d76bc0"
-etag: "sha256-3b42a8c105dc26a851d51c23fe4dc8855c8ba7d7fa1054e00750ee3b40895e73"
+mirror_sha256: "f44a273a0d47831fd858d2d1b4f20b87e5e58e344cc48db2bd3b232dcca6d83b"
+etag: "sha256-cc10cbc7bb5dea7ff47ece38244880c12b7c4a4982fef430db3146f530fb3958"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

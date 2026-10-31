@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
 content_hash: "7b74940d766f9eb1cc54a3aac9493e423107f038d6dcb73fdc27803f025cd3e5"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-3G8XZ3"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "4a56ed9bef77981270e8a50d3101a4d94a04e5f5667948b9e18116dde2f97b45"
-etag: "sha256-eeec25766a469b3b63021ccd5ad42c82ee7795818898a20fcb1680456668c4ff"
+mirror_sha256: "8cd19a91cc8c2df7dc44063674c896a38a13f396f88abe73a9be803997a20de8"
+etag: "sha256-ee977eb1f3ebeae730618d88ee022bbe5939b0273aff856495edb648bf0ca4d5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
