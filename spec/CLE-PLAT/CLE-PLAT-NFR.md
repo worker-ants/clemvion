@@ -2,19 +2,19 @@
 id: "CLE-PLAT-NFR"
 title: "비기능 요구사항"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047", "REQ-NFR-048"]
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "96317d7d3d16f8c760c81fca703083630dce23486fbe36d398619650a14f5b65"
+content_hash: "a2770f9c71919d2f1a4ca2a77e8944d0998362116aff495a7b1c3c4b519c5ff3"
 read_as: "approved_fallback"
-task: "CLE-T-ERAJ7P"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "7388530b2509785b4b27aca5235b525d37fdb177d86fbb1b62a9c38dbe68cb4b"
-etag: "sha256-707171a2d9656c75cb17af0b295d26ffdd579cb1e22c215aeead0cb5144511c7"
+mirror_sha256: "32b1639061cae915b2bfd69ffc9a11f7c979bd228550a65b67ca74f0472e5149"
+etag: "sha256-00ecad82c162f8e081d9a1455f08384e82275dc85d9883c3462c5177fb353ee4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ etag: "sha256-707171a2d9656c75cb17af0b295d26ffdd579cb1e22c215aeead0cb5144511c7"
 
 - REQ-NFR-007 WHEN 사용자가 로그인하면 THE SYSTEM SHALL 이메일·비밀번호 또는 OAuth 소셜 로그인으로 인증한다. (원본: NF-SC-01, 필수)
 - REQ-NFR-008 WHEN 워크스페이스 리소스에 접근하면 THE SYSTEM SHALL 소유자·관리자·편집자·뷰어 네 역할로 접근을 제어한다. (원본: NF-SC-02, 필수)
-- REQ-NFR-009 WHEN API Key·OAuth 토큰 같은 민감 정보를 저장하면 THE SYSTEM SHALL AES-256 이상으로 암호화한다. (원본: NF-SC-03, 필수)
+- REQ-NFR-009 WHEN API Key·OAuth 토큰 같은 민감 정보를 저장하면 THE SYSTEM SHALL 운영 환경(`NODE_ENV=production`)에서는 AES-256 이상으로 암호화하고 시크릿 저장소에 두는 비밀과 LLM API 키는 환경과 상관없이 암호화한다. 운영 환경 밖과 이미 평문으로 저장된 값의 예외는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 를 본다. 운영 환경에서도 시크릿 저장소 밖에 두는 필드는 [시크릿 저장소 「저장소 예외 필드」](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 를 본다. (원본: NF-SC-03, 필수)
 - REQ-NFR-010 WHEN 데이터를 주고받으면 THE SYSTEM SHALL TLS 1.2 이상으로 전송 구간을 암호화한다. (원본: NF-SC-04, 필수)
 - REQ-NFR-011 WHEN 요청을 처리하면 THE SYSTEM SHALL CSRF·XSS·SQL Injection 등 OWASP Top 10 위협에 대응한다. (원본: NF-SC-05, 필수)
 - REQ-NFR-012 WHEN 주요 액션이 일어나면 THE SYSTEM SHALL 감사 로그에 기록한다. (원본: NF-SC-06, 필수)
@@ -182,3 +182,24 @@ etag: "sha256-707171a2d9656c75cb17af0b295d26ffdd579cb1e22c215aeead0cb5144511c7"
 - 한 요구에 두 동작을 그대로 두고 "(부분 구현)" 을 붙이는 안. 두 동작의 구현 상태가 다르고 후속 Task 가 한쪽만 맡아서 ID 를 나눴다.
 - 요구 전체를 미구현으로 적는 안. 유효 기간 제한은 구현돼 있어 사실과 다르다.
 - 동시 로그인 세션 제한을 "계획" 으로 표시하는 안. "계획" 은 구현 상태 어휘에 없다.
+
+### NF-SC-03 을 운영 환경으로 한정한 이유
+
+2026-10-31, NERV Task `CLE-T-KQ37NJ` 의 변경이다.
+
+v2 의 REQ-NFR-009 는 민감 정보 암호화를 조건 없이 요구했다. 실제로 보장되는 범위는 그보다 좁다.
+
+- 운영 환경(`NODE_ENV=production`)에서는 운영 환경 가드(`assertProductionConfig`)가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`) 없이 서버를 기동하지 않는다. 키가 공백뿐이거나 공개 예시 값이어도 기동하지 않는다. 이 결정은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다(2026-10-10, NERV Task `CLE-T-2V7SBC`).
+- 운영 환경 밖에서는 통합 암호화 키가 없으면 통합 자격 증명 같은 값을 경고 뒤 평문으로 저장한다.
+- 이미 평문으로 저장된 행은 그대로 둔다. 서버는 그 행을 일괄로 다시 암호화하지 않는다.
+
+그래서 요구를 운영 환경에서 저장하는 값으로 한정하고 예외는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 를 가리키게 했다. 운영 환경 밖에서 저장한 값과 옛 평문 행은 이 요구의 보장 범위 밖이다. 평문 행을 다시 암호화할 수단은 아직 정하지 않았다(2026-10-31 기준). 그 미결은 [통합 데이터와 흐름 「미결 사항」](../CLE-INT/CLE-INT-DATA.md#미결-사항) 에 있다.
+
+마스터키(`ENCRYPTION_KEY`)로 암호화하는 시크릿 저장소와 LLM API 키는 이 예외에 들지 않는다. 마스터키가 없으면 환경과 상관없이 부팅을 멈춘다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 17). 이 점은 요구 문장의 SHALL 에도 적었다. 운영 환경 조건만 적으면 운영 환경 밖에서는 어떤 값도 암호화되지 않는다고 읽을 수 있어서다.
+
+운영 환경에서도 시크릿 저장소 밖에 평문으로 두는 필드가 있다. 트리거 단위 토큰(`itk_*`)이 그 예다. `itk_*` 의 평문 보관은 현재 구현의 선택이고 바뀌면 이 예외도 줄어든다. 어느 필드를 어떤 근거로 저장소 밖에 두는지는 [시크릿 저장소 「저장소 예외 필드」](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 가 정한다. 그래서 요구 문장의 예외 안내에 이 절을 함께 링크했다. 필드 목록은 이 문서에 옮기지 않는다. 예외 필드가 바뀔 때 고칠 곳을 한 곳으로 두기 위해서다. 저장소 예외 필드 밖에도 이미 저장된 행에 남은 옛 평문 `notification.signing.secret` 이 있다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 14).
+
+기각한 대안은 둘이다.
+
+- 요구 문장을 그대로 두고 "(부분 구현)" 을 붙이는 안. 운영 환경 밖의 평문 저장은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 그대로 두기로 한 동작이라 남은 구현 작업이 아니다. 보장 범위를 요구 문장에 적어야 읽는 사람이 어디까지 믿을 수 있는지 안다.
+- 운영 환경에서 저장하는 값과 마스터키로 암호화하는 값을 두 요구로 나누는 안. [NF-SC-07 을 두 요구로 나눈 이유](#nf-sc-07-을-두-요구로-나눈-이유) 선례와 견주면 이번 경우는 ID 를 나눌 기준에 들지 않는다. 그 선례는 두 동작의 구현 상태가 달라서 ID 를 나눴다. 이번 두 범위는 모두 구현돼 있다. 그래서 두 범위를 한 요구의 SHALL 안에 함께 적었다.

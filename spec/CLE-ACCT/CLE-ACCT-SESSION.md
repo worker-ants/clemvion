@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "ec35273a2544243647b130646ac90c86249866fb7cbd393ec5a32355b8ec9504"
+content_hash: "ab485fe915ebfec0f211c846a0dd305d56263c902729a20ae93c755171d5c704"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "d07028f60cc3165cff9c6eafcf40c372be49c81a33c2dbe8b4c889d4fa50f028"
-etag: "sha256-15bcc7203af4d37370517cb0371015c37f934444a620c7c6914cf8f46aad4a9e"
+mirror_sha256: "b473d0c8c02aa42812f0476ed67d03650817f9d91a18095eb54942fe2fa7bf2e"
+etag: "sha256-09d819d6b40d29214fe8d6cfda7131429b440b1522b471849442db0a12952d09"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일과 로그인 힌트 쿠키는 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -418,14 +418,19 @@ OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-passwor
 `NODE_ENV=production` 에서 핵심 비밀이나 플래그가 안전하지 않은 상태로 부팅하려 하면 바로 throw 해 기동을 거부한다(`common/config/production-guards.ts` 의 `assertProductionConfig`, `main.ts` 가 bootstrap 첫 단계에서 부른다). 대상은 다음과 같다.
 
 - `JWT_SECRET`: 없거나 기본 sentinel(`dev-jwt-secret`)·`.env.example` placeholder 이거나 32자 미만(CWE-521 약한 비밀). 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 통째로 우회할 수 있다.
-- `ENCRYPTION_KEY`: 없거나 공개된 `.env.example` 예시 키. 예시 키로 운영하면 시크릿 저장소가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
+- `ENCRYPTION_KEY`(마스터키): 시크릿 저장소와 LLM 프로바이더 API 키를 암호화하는 키다. 없거나 공백뿐이거나 저장소에 커밋된 예시 키(`.env.example` · 배포 예시 · README 등에 적힌 값. 상수 `KNOWN_EXAMPLE_ENCRYPTION_KEYS`)면 거부한다. 예시 키로 운영하면 시크릿 저장소가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
+- `INTEGRATION_ENCRYPTION_KEY`(통합 암호화 키): 컬럼 transformer(`credentials-transformer.ts`)가 통합 자격 증명 · 인증 설정 같은 컬럼을 암호화할 때 쓰는 키다. 마스터키 `ENCRYPTION_KEY` 와 다른 키다. 없거나 공백뿐이거나 저장소에 커밋된 예시 값(상수 `INSECURE_INTEGRATION_ENCRYPTION_KEYS`. 마스터키 예시 키도 들어 있다)이면 거부한다. 키가 없으면 transformer 가 경고만 남기고 이 컬럼들을 평문으로 저장한다. 대상 컬럼은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 표에 있다. 결정 배경은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - `MCP_ALLOW_INSECURE_URL`: true 면 throw 한다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 의 "운영 절대 금지" 를 실제로 막는다.
 - `OAUTH_STUB_MODE`: true 면 throw 한다. 실제 OAuth 제공자 검증을 우회하는 stub 이라 운영에서 켜지면 소셜 로그인 인증이 무력해진다. 예전 `main.ts` 인라인 가드를 이 함수로 모았다.
 - `LLM_STUB_MODE`: true 면 throw 한다. 실제 LLM 호출을 가짜 응답으로 바꾸는 stub 이라 운영에서 켜지면 AI 기능이 검증 없는 stub 출력을 준다.
 
+두 암호화 키는 원래 값과 앞뒤 공백을 뗀 값을 모두 예시값 목록과 대조한다. 그래서 `.env` 나 Secret 에 옮기다 앞뒤 공백이나 끝 개행이 붙은 예시값도 거부한다. 뗀 값은 대조에만 쓰고 키로 쓰는 값은 바꾸지 않는다. 두 키 모두 거부 메시지에 키 값을 싣지 않는다.
+
 한 블록에 모은 이유는 이렇다. 같은 성격의 비밀·stub(`INTERACTION_JWT_SECRET`, `OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었고, 위치(`main.ts` 부팅)와 패턴이 같아 한 함수로 모으면 비밀을 추가할 때 빠뜨리는 것을 구조적으로 막는다. 환경 변수만으로 부팅 직전에 판정할 수 있는 절대 금지 항목만 넣는다. DI 나 요청 컨텍스트가 필요한 항목(예: `INTERACTION_JWT_SECRET` 생성자 throw)과 정당한 용도가 있는 항목(예: throw 가 아니라 warn 인 `ALLOW_PRIVATE_HOST_TARGETS`)은 일부러 뺐다. 설정이 없으면 기동을 거부하는 것은 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다.
 
-이 문서는 인증 계열의 공통 부팅 가드를 기록하는 곳이다. 도메인 고유 부팅 가드는 각 도메인 문서에 둔다. 예를 들어 EIA 의 종료 토큰 폐기 스케줄러 등록 fail-fast 는 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 있다. 워크스페이스 멤버십 가드의 부팅 자가 검증은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
+이 문서는 `assertProductionConfig` 의 공통 부팅 가드를 모두 기록하는 곳이다. 도메인 고유 부팅 가드는 각 도메인 문서에 둔다. 예를 들어 EIA 의 종료 토큰 폐기 스케줄러 등록 fail-fast 는 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 있다. 워크스페이스 멤버십 가드의 부팅 자가 검증은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
+
+`INTEGRATION_ENCRYPTION_KEY` 항목은 2026-10-31 NERV Task `CLE-T-KQ37NJ` 에서 더했다. `CLE-T-2V7SBC` 의 후속이다. `assertProductionConfig` 는 이 키를 이미 검사했는데 위 목록에는 빠져 있었다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 에는 부팅 가드 전체 목록이 이 절에 있다고 적혀 있다. 이 항목을 더해 목록이 `assertProductionConfig` 의 여섯 항목과 같아졌고 다시 전체 목록이 됐다. 바로 위 범위 문장도 «인증 계열의 공통 부팅 가드» 에서 «`assertProductionConfig` 의 공통 부팅 가드» 로 바꿨다. 목록에는 원래 `MCP_ALLOW_INSECURE_URL` · `LLM_STUB_MODE` 같은 인증 밖 항목이 있어 «인증 계열» 이 사실과 맞지 않았다. 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장되므로 운영 환경에서는 부팅을 거부한다. 결정 배경은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. 길이 하한은 두지 않는다. transformer 는 SHA-256 으로 키를 만들므로 키 길이와 상관없이 동작한다. 또 이미 그 키로 암호화한 행은 키를 바꾸면 복호화되지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 예시값 목록의 정본은 `production-guards.ts` 의 두 상수와 단위 테스트 `production-guards.spec.ts` 다. 이 문서에는 암호화 키 예시값을 옮기지 않는다.
 
 ### 세션 API 를 리프레시 쿠키 Path 아래로 옮겼다
 

@@ -2,19 +2,19 @@
 id: "CLE-INT"
 title: "통합"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "c6ccb0823f9dabad00505ee2876f28eb8f9e4e24c687b01d45fa72a65bf7cb3a"
-read_as: "approved"
-task: null
+content_hash: "05e6a76955e465bbd5d6258782463c52d9ef396178559263153640b27a52fd7f"
+read_as: "approved_fallback"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "1c3c54988a4ef7f63e0843353502eb75efadedbb5fc964e729882f0db1255a94"
-etag: "sha256-a3728d0bf4dde837e80db55df5360865610c6961744ebf7b9929475c17945fe8"
+mirror_sha256: "54df1a95034e42790c04aab780957522551f7020a55cc1165f890f3df699b3d6"
+etag: "sha256-e242997f972fc917cdab6d9454bfc297c18600d2dc85befb9450f9a08430997e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/4-integration/_product-overview.md` (§1), `spec/2-navigation/4-integration.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -26,7 +26,7 @@ etag: "sha256-a3728d0bf4dde837e80db55df5360865610c6961744ebf7b9929475c17945fe8"
 
 이 영역이 보장하는 것:
 
-- 자격 증명을 암호화해 저장하고 응답에서는 가린다.
+- 자격 증명을 암호화해 저장하고 응답에서는 가린다. 암호화는 운영 환경 기준으로 보장한다. 예외는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 에 있다. 결정 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - OAuth 토큰을 자동으로 갱신하고 갱신할 수 없는 만료와 오류는 상태·배지·인앱 알림으로 알린다.
 - 쓰이고 있는 통합은 지우지 못하게 막고 통합마다 사용처와 최근 호출 기록을 보여 준다.
 - 개인 통합은 통합 소유자만, 조직 통합의 변경은 관리자 이상만 다룬다.

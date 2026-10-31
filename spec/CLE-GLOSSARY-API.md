@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
 content_hash: "5bd3756d5f1fe8d4b61bab1b16f9808c324b4cebb8567cb2859f6854f7705cde"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-KQ37NJ"
 source_paths: []
-mirror_sha256: "5d47dc834721ae17ae84766cd3cd550b13f6674681f58c806bf91002e7f72dd7"
-etag: "sha256-84db25710d18b1ad06c4ae96d9f08f3454f0c3214f6f7577c8a27eab97b50f4b"
+mirror_sha256: "ae95f18a0fcc4958c682454ea3a9c3c972f527ef11e521142ffdf726c543b1b8"
+etag: "sha256-6d790ba1a8e4f23414c2682a475951889937a96bc136977e7b21095b44286f27"
 ---
 ## 개요
 

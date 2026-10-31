@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "3850762aab04d0d28a7272fb856d937c22854ea945e7122d611545ce6c231f9f"
+content_hash: "6b92ad9613881d0a9712371d8d0d92572c1629a9208e1939253f99f991d4e412"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "ac6eec6f0af2f684ffab32a81560271d5b1ffe087a56999953ddbcbb1456793f"
-etag: "sha256-4903f4b8465c2464e907722435ab3b17898ddca8bd2719bae9b770ee4da5443e"
+mirror_sha256: "5e948c516ab030d9323513cf82a85c82d2945d0de6156719d0d89871a9f6045b"
+etag: "sha256-17d03b72f36e80cb3b1cf7faa42f157842751a8de9e120782db8970ad7442d7a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -256,7 +256,7 @@ PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. �
 서명 비밀은 설정 네임스페이스 `interaction.jwtSecret`(= `INTERACTION_JWT_SECRET`)을 먼저 보고, 없으면 `jwt.secret`(= `JWT_SECRET`)을 쓴다. 서비스 코드는 `process.env` 를 직접 읽지 않고 `registerAs` 네임스페이스로 읽는다. 두 값이 모두 없을 때의 동작은 환경마다 다르다.
 
 - 개발 환경: 프로세스 시작 때 한 번 만든 임시 무작위 키(`randomBytes(32)`)로 서명한다. 예측 가능한 고정 비밀이 버전 기록에 남지 않고, 재시작하면 개발용 토큰이 모두 무효가 된다.
-- 운영 환경(`NODE_ENV=production`): `InteractionTokenService` 생성자가 예외를 던져 부팅을 막는다. 다른 운영 설정 가드(`OAUTH_STUB_MODE`·`LLM_STUB_MODE`·`JWT_SECRET`·`ENCRYPTION_KEY`)는 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 모여 있지만, 이 가드만은 모듈 안 컨텍스트가 필요해 생성자에 남아 있다.
+- 운영 환경(`NODE_ENV=production`): `InteractionTokenService` 생성자가 예외를 던져 부팅을 막는다. 다른 운영 환경 가드는 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 모여 있다(전체 목록은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드)). 이 가드만은 모듈 안 컨텍스트가 필요해 생성자에 남아 있다.
 
 토큰의 저장·폐기 흐름과 상태 전이(발급 → 갱신 → 폐기·만료)는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에서 정한다. 갱신 엔드포인트와 토큰 검증 실패 응답은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 에서 정한다.
 
@@ -549,3 +549,7 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 - 생성 때만 발급하는 안: PATCH 로 `per_trigger` 로 바꾼 트리거에는 토큰이 없다. 알림 서명 시크릿을 생성 때만 발급하는 안을 기각한 것과 같은 이유다.
 - 인터랙션을 켤 때마다 새로 발급하는 안: 인터랙션을 꺼도 토큰 값을 남긴다는 결정(2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답(finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`))과 어긋난다. 호출자가 쓰던 토큰도 알림 없이 바뀐다.
 - 전략을 `per_trigger` 로 되돌릴 때 재발급(`revoke-token`)으로 새 토큰을 받는 규칙(2026-10-09, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 「서버가 만든 EIA 값의 발급 · 보존 · 교체 잠금」): 이제 그 PATCH 가 새 토큰을 발급한다. 옛 규칙의 목적은 지운 옛 토큰이 다시 살아나지 않게 하는 것이었다. PATCH 가 발급하는 토큰도 새 값이므로 그 목적은 그대로 지켜진다. 바꾼 이유는 생성 때 발급하는 것과 같다. 되돌린 트리거도 재발급을 따로 부르지 않고 바로 쓸 수 있어야 한다.
+
+### 운영 환경 가드 목록은 링크로 둔다 (2026-10-31)
+
+「인터랙션 토큰」 절에는 `assertProductionConfig` 의 가드를 나열하지 않고 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 링크만 둔다. 이전 본문의 사본에는 `INTEGRATION_ENCRYPTION_KEY` · `MCP_ALLOW_INSECURE_URL` 가드가 빠져 있었다. 가드가 늘 때마다 사본은 낡으므로 목록은 한 곳에만 둔다(NERV Task `CLE-T-KQ37NJ`).

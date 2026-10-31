@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "5402de411893b76d0cd692811064fd5a43ca9c731af555a96989c5c27e732e1c"
+content_hash: "cb98373fa414e6ddc599beee9109dcf48a62ba023be46106b527898d1c240cbc"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-KQ37NJ"
 source_paths: []
-mirror_sha256: "26baadba1b9d6ce92a507af239fb9dca40eaea3f78fcb3b687741afaff88b69f"
-etag: "sha256-720e60c4f8f84a9379eb0a4ac3f147cde2b611b9514ceba79313dcda79cd4f1f"
+mirror_sha256: "d560ab5974478f96adda6cbdac904b6275f2fe010d0425bd11d5cbd8340ec60d"
+etag: "sha256-7c0f26655083af5b54e48992cea2c83ec28c9a611f5c8cef46a4bfe245efefe9"
 ---
 ## 개요
 
@@ -66,7 +66,9 @@ etag: "sha256-720e60c4f8f84a9379eb0a4ac3f147cde2b611b9514ceba79313dcda79cd4f1f"
 | 중복 사전 감지 | precheck | 상점 식별자를 입력할 때 같은 상점 통합이 이미 있는지 미리 알려 주는 조회. | 없음 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 통합 선택기 | `IntegrationSelector` | 노드 설정 패널의 통합 선택 드롭다운. | Integration 선택 드롭다운 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
 | 삭제된 통합 표시 | Missing integration | 지워진 통합을 참조하는 노드에 캔버스가 붙이는 경고. | 없음 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
-| 통합 암호화 키 | `INTEGRATION_ENCRYPTION_KEY` | 통합 자격 증명 컬럼을 암호화하는 키. 시크릿 저장소의 `ENCRYPTION_KEY` 와 다르다(결정 항목 D40). | 없음 | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
+| 통합 암호화 키 | `INTEGRATION_ENCRYPTION_KEY` | 통합 자격 증명과 인증 설정을 비롯해 [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) 표의 컬럼을 모두 암호화하는 키. 마스터키(`ENCRYPTION_KEY`)와 다른 키다. 두 키를 따로 두는 결정은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. | 없음 | [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) |
+| 마스터키 | master key, `ENCRYPTION_KEY` | 시크릿 저장소(`secret_store`) 값과 모델 설정의 API 키를 암호화하는 키. 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)와 다른 키다. | 없음 | [시크릿 저장소 「마스터키」](CLE-INT/CLE-INT-SECRET.md#마스터키) |
+| 복호화 불가 표식 | `__unreadable` | 통합 암호화 키로 암호화한 컬럼을 복호화하지 못할 때(키 교체 등) 컬럼 transformer 가 값 대신 돌려주는 저장 층의 표식 객체. 응답 층의 상태값과 다르다. | 없음 | [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) |
 | 사설망 허용 플래그 | `ALLOW_PRIVATE_HOST_TARGETS` | 셀프 호스팅에서 사설망 주소 차단을 끄는 설정. MCP 는 `MCP_ALLOW_INSECURE_URL` 을 따로 쓴다. | 없음 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
 | 시크릿 저장소 | SecretStore, `secret_store` | 비밀을 AES-256-GCM 으로 암호화해 보관하고 `secret://` 참조로 가리키는 저장소. 통합 자격 증명과 인증 설정은 여기 두지 않는다. | Secret Store, secret store(본문) | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
 | 시크릿 참조 | secret ref, `secret://<scope>/<id>/<name>` | 시크릿 저장소 값을 가리키는 문자열. | ref(단독) | [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) |
@@ -136,3 +138,13 @@ NERV Task `CLE-T-MG0EQZ` 가 개인 통합을 노드에서 쓸 수 있는 조건
 - 「워크플로우 작성자」 의 뜻은 통합 노드 판정에서 쓰는 뜻이다. «워크플로우를 만드는 사람» 이라는 일반어 쓰임은 막지 않는다.
 - 「워크플로우 작성자」 정의에 버전 목록의 작성자와 다르다는 문장을 2026-10-25 에 더했다. [버전 기록](CLE-WF/CLE-WF-VERSION.md) 의 버전 목록은 그 버전을 저장한 사람을 «작성자» 로 보여 준다. 판정 문장에서 맨몸의 «작성자» 를 쓰면 어느 쪽인지 흐려진다.
 - 남은 용례: [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 NERV Task `CLE-T-KD2AZ2` 가 고친다. [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 «워크플로우 소유자만 실행 결과를 조회할 수 있어» 는 실행 결과 조회 권한을 말한다. 같은 뜻인지 확인하지 못해 같은 Task 가 먼저 뜻을 확인한다. 이 내용은 처음에 「워크플로우 작성자」 행의 정의 칸에 적었다가 용어 사전의 한 줄 정의 원칙에 맞춰 여기로 옮겼다(finding 01a16e9b-c598-7756-9ff5-1d832e11a7ba).
+
+### 「통합 암호화 키」 정의를 넓히고 두 용어를 더했다 (2026-10-31)
+
+NERV Task `CLE-T-KQ37NJ` 가 고쳤다. 운영 환경 가드가 통합 암호화 키를 검사하게 한 NERV Task `CLE-T-2V7SBC` 의 후속이다.
+
+- 결정 항목 D40(「통합 자격 증명 암호화 키 이름이 문서마다 다르다」)은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 결정됐다(2026-10-10 사용자 결정). 그래서 「통합 암호화 키」 정의에서 번호를 지우고 그 항목을 가리킨다. 「정의 보정 (2026-10-03)」 에서 번호를 붙였다는 줄은 그때의 이력이라 그대로 둔다.
+- 옛 정의는 대상을 통합 자격 증명 컬럼으로만 적었다. 이 키는 [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) 표의 컬럼을 모두 암호화한다. 인증 설정 · 최근 호출 실패 요약 · 통합 OAuth state · 미리보기 토큰의 컬럼도 그 표에 든다. 정의에는 통합 자격 증명과 인증 설정만 적고 나머지는 그 표를 가리킨다. 표의 목록을 정의 칸에 옮기지 않는 이유는 2026-10-17 항목의 기각한 대안과 같다.
+- 「통합 암호화 키」 의 기준 문서 칸을 시크릿 저장소에서 [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) 로 옮겼다. 이 키와 transformer 동작의 규범은 그 절 한 곳에 있다. 두 키를 따로 두는 결정의 위치는 정의 안의 시크릿 저장소 링크로 남겼다.
+- 「마스터키」 를 더했다. 「통합 암호화 키」 정의가 마스터키와 다른 키라고 적는데 마스터키를 정의한 행이 용어 사전 하위 문서 어디에도 없었다(2026-10-31 NERV 검색).
+- 「복호화 불가 표식」 을 더했다. 키를 바꾸면 그 전 키로 암호화한 행이 이 표식이 된다. 저장 층의 표식과 응답 층의 `needs_reauth` · `credentials_unreadable` 을 같은 것으로 읽기 쉬워서 정의에는 층이 다르다는 것만 적었다. 표식에 원래 값을 담는 조건과 컬럼마다 표식이 어떻게 드러나는지는 기준 문서 칸이 가리키는 [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) 에 맡긴다. 이유는 2026-10-17 항목의 기각한 대안과 같다. 그 규칙은 표식이 된 원인과 컬럼에 따라 갈린다. 정의 칸에 옮기면 기준 문서와 어긋나도 잡아 줄 가드가 없다.
