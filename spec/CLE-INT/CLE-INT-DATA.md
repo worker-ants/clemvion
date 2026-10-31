@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "4f83292067cfb4892be64c9d18848f306d7c77b3e69d45986f4a947bf99bbe40"
+content_hash: "5d8aee879ca430cbd0eaf990034486639b9f144e002b34aa7a3b5f69bd7fff52"
 read_as: "approved_fallback"
 task: "CLE-T-3G8XZ3"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "f44a273a0d47831fd858d2d1b4f20b87e5e58e344cc48db2bd3b232dcca6d83b"
-etag: "sha256-cc10cbc7bb5dea7ff47ece38244880c12b7c4a4982fef430db3146f530fb3958"
+mirror_sha256: "28226dfb8806209d5a61a4f5e64307a0295bfee898c176ff48256e257b8d95d5"
+etag: "sha256-63384bd7722077a6a14cde5b3a86bf7a252640e10fb779cb174bca61625959fd"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -263,7 +263,7 @@ erDiagram
 - 평문으로 저장된 행(키 없이 쓴 행과 옛 행)은 그대로 읽힌다. 키가 있는 환경에서 그 컬럼을 다음에 쓸 때 암호화된다.
 - 서버는 평문 행을 일괄로 다시 암호화하지 않는다. 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - 복호화는 예외를 던지지 않는다. 값을 읽지 못하면 복호화 불가 표식(`__unreadable: true` 인 객체)을 돌려준다. 키가 다를 때(키 교체 등), 암호문이 깨졌을 때, 암호문인데 키가 없을 때, 저장된 내용을 JSON 으로 해석하지 못할 때다.
-- 인증 태그 검증에 실패했거나(키가 맞지 않거나 암호문이 깨진 경우) 복호화한 내용이나 평문 문자열을 JSON 으로 해석하지 못해 표식이 된 값은 원래 저장값을 표식에 함께 담는다. 이 값을 다시 저장하면 원래 저장값이 그대로 저장된다.
+- 인증 태그 검증에 실패했거나(키가 맞지 않거나 암호문이 깨진 경우) 복호화한 내용이나 평문 문자열을 JSON 으로 해석하지 못해 표식이 된 값은 원래 저장값을 표식의 `__original_ciphertext` 키에 함께 담는다. 이 값을 다시 저장하면 원래 저장값이 그대로 저장된다.
 - 암호문인데 키가 없거나(운영 환경 밖) 봉투 길이나 버전이 맞지 않아 표식이 된 값은 원래 값을 담지 않는다. 이 값을 다시 저장하면 표식 자체가 저장된다. 키가 있으면 표식을 암호화해 저장하고 키가 없으면 평문 JSON 으로 저장한다.
 - 복호화하지 못한 행은 지우지 않는다. 그 행이 어떻게 드러나는지는 컬럼마다 다르다.
 
@@ -271,7 +271,7 @@ erDiagram
 | --- | --- |
 | `integration.credentials` | 응답에서 `credentialsStatus='needs_reauth'`(`status='error'`, `statusReason='credentials_unreadable'`)로 드러난다. 노드 실행은 `IntegrationCredentialsUnreadableError` 로 멈춘다([노드 실행의 통합 사용](#노드-실행의-통합-사용)). 사용자가 통합을 다시 연결한다 |
 | `integration.last_error` | 응답의 `lastError` 가 `null` 이다(`integrations.service.ts` 의 `toPublic`) |
-| `auth_config.config` | `needs_reauth` 같은 표시가 없다. 그 설정을 쓰는 웹훅 인증은 요청을 401 `AUTH_FAILED` 로 거부한다. 복호화 불가 표식에는 기대값(`username` · `password` · `token` · `key` · `secret`)이 없다. 웹훅 인증의 판정은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다. 복구 방법은 [미결 사항](#미결-사항) 에 있다 |
+| `auth_config.config` | `needs_reauth` 같은 표시가 없다. 인증 설정 응답에는 표식을 싣고 표식에 담긴 원래 저장값은 싣지 않는다([외부 호출 인증 설정 「마스킹 규칙」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#마스킹-규칙)). 그 설정을 쓰는 웹훅 인증은 요청을 401 `AUTH_FAILED` 로 거부한다. 복호화 불가 표식에는 기대값(`username` · `password` · `token` · `key` · `secret`)이 없다. 웹훅 인증의 판정은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다. 복구 방법은 [미결 사항](#미결-사항) 에 있다 |
 | `integration_oauth_state.provider_meta` · `integration_oauth_preview.credentials` | 짧게 쓰고 버리는 행이다. 진행 중인 연결 흐름이 실패하므로 사용자가 연결을 처음부터 다시 시작한다 |
 
 ### 그 밖의 규칙
@@ -483,7 +483,7 @@ sequenceDiagram
 
 - **재암호화 스크립트의 키 길이 하한**: `auth_config.config` 의 평문 행을 암호화하는 1회용 스크립트 `codebase/backend/src/scripts/encrypt-auth-config.ts`(백엔드 `package.json` 스크립트 `encrypt-auth-config`)는 키가 32자 미만이면 실행을 거부한다. 운영 환경 가드(`assertProductionConfig`)에는 길이 하한이 없어서 두 기준이 맞지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
 - **평문 행과 공개 예시 값 행의 재암호화**: 평문으로 저장된 행과 공개 예시 값으로 암호화된 행을 다시 암호화할 수단이 없다. 위 스크립트는 `auth_config.config` 의 평문 행만 암호화하고 나머지 네 컬럼에는 이런 스크립트가 없다. 공개 예시 값으로 암호화된 행은 키를 바꾸면 복호화되지 않는다. 재암호화 방법은 NERV Task `CLE-T-C6GCKV` 가 정한다.
-- **복호화하지 못한 인증 설정의 복구**: 키가 바뀌어 복호화하지 못한 인증 설정은 키 재생성으로 고쳐지지 않는다. 표식이 담긴 설정을 저장하면 옛 암호문이 그대로 다시 저장된다. 재생성 응답에는 저장되지 않은 새 키가 실린다. 지금은 사용자가 인증 설정을 새로 만들어 트리거에 다시 연결해야 한다. 재생성 결함은 NERV Task `CLE-T-SAMVX8` 이 고친다.
+- **복호화하지 못한 인증 설정의 복구**: 키가 바뀌어 복호화하지 못한 인증 설정은 키 재생성으로 고쳐지지 않는다. 키가 바뀌어 생긴 표식에는 원래 저장값이 담겨 있다. 그래서 그 설정을 저장하면 원래 저장값이 그대로 다시 저장된다. 재생성 응답에는 저장되지 않은 새 키가 실린다. 편집 `PATCH` 로 보낸 비밀이 아닌 config 도 같은 이유로 저장되지 않는다([외부 호출 인증 설정 「미결 사항」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#미결-사항)). 지금은 사용자가 인증 설정을 새로 만들어 트리거에 다시 연결해야 한다. 재생성과 편집의 결함은 NERV Task `CLE-T-SAMVX8` 이 고친다.
 
 ## 구현 위치
 
