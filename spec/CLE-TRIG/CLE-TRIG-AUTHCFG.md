@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG"
 title: "외부 호출 인증 설정"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025"]
+requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025", "REQ-AUTHCFG-026"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "7b74940d766f9eb1cc54a3aac9493e423107f038d6dcb73fdc27803f025cd3e5"
+content_hash: "0ae0e71c8b2261aa39cc46f7ebe2eae171abab2b2371ccba12cecb07e2b7563f"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-3G8XZ3"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "4a56ed9bef77981270e8a50d3101a4d94a04e5f5667948b9e18116dde2f97b45"
-etag: "sha256-eeec25766a469b3b63021ccd5ad42c82ee7795818898a20fcb1680456668c4ff"
+mirror_sha256: "caf3dde4a10a89f335b0a840b02b767fbc19b2e672211eda76e6728ee2c5eede"
+etag: "sha256-9df871282274660b201668431ceb439ca5b3a55115a19020ad76d3882e7ed24a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,6 +61,7 @@ etag: "sha256-eeec25766a469b3b63021ccd5ad42c82ee7795818898a20fcb1680456668c4ff"
 - REQ-AUTHCFG-023 WHILE 사용자가 편집자나 뷰어인 동안 THE SYSTEM SHALL 변경 액션 버튼(Add Config·활성 토글·Reveal·Edit·Regenerate·Delete)을 노출하지 않는다.
 - REQ-AUTHCFG-024 WHEN 뷰어 이상이 목록·상세·사용 내역을 조회하면 THE SYSTEM SHALL 비밀 값을 가린 채 응답한다.
 - REQ-AUTHCFG-025 WHEN `GET /api/auth-configs/:id/usage` 가 호출되면 THE SYSTEM SHALL `totalCalls`·`lastUsedAt`·`periodCounts`·`recentCalls`(최근 20건)를 돌려준다.
+- REQ-AUTHCFG-026 WHEN 인증 설정이 복호화 불가 표식으로 읽히면 THE SYSTEM SHALL 목록·상세·편집·재생성·평문 보기 응답의 `config` 에서 원래 저장값을 빼고 표식은 남긴다.
 
 ## 화면 구조
 
@@ -162,6 +163,7 @@ etag: "sha256-eeec25766a469b3b63021ccd5ad42c82ee7795818898a20fcb1680456668c4ff"
   - `POST /api/auth-configs`(생성): 자동 발급한 값을 한 번 응답한다.
   - `POST /api/auth-configs/:id/regenerate`: 새 값을 한 번 응답한다.
   - `POST /api/auth-configs/:id/reveal`: 현재 로그인 비밀번호를 다시 확인한 뒤 평문을 한 번 응답한다(관리자 이상, 감사 로그 `auth_config.reveal`).
+- 복호화하지 못한 인증 설정은 복호화 불가 표식으로 읽힌다. 이 표식에는 원래 저장값이 함께 담길 수 있다. 목록·상세·편집·재생성·평문 보기 어느 응답에도 원래 저장값은 싣지 않는다. 표식은 응답 `config` 에 남긴다. 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
 
 채팅 채널 봇 토큰처럼 평문 보기로 읽을 수 없는 입력 전용 필드에는 이 마스킹 규칙을 쓰지 않는다([트리거 관리](CLE-TRIG-MANAGE.md)).
 
@@ -221,6 +223,7 @@ sequenceDiagram
 ## 미결 사항
 
 - **복호화 불가 인증 설정의 재생성**: 복호화 불가 인증 설정은 재생성으로 복구되지 않는다. 새로 만들어 트리거에 다시 연결한다. 복호화 불가 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 다룬다. NERV Task `CLE-T-SAMVX8` 이 고치면 이 항목을 걷는다.
+- **복호화 불가 인증 설정의 편집**: 복호화 불가 인증 설정에 편집 `PATCH` 로 비밀이 아닌 config(예: `headerName`)를 보내면 그 값을 표식에 병합한다. 원래 저장값을 담은 표식이면 응답에는 병합한 값이 보이지만 저장되지는 않는다. 다시 저장할 때 원래 저장값이 그대로 저장되기 때문이다. 키를 바꿔 생긴 표식이 이 경우다. 원래 저장값이 없는 표식이면 병합한 값이 든 표식 자체가 저장된다. NERV Task `CLE-T-SAMVX8` 이 고치면 이 항목을 걷는다. 응답 `config` 에 남는 표식을 통합처럼 상태 표시로 바꿀지도 같은 Task 가 정한다.
 - **Basic Auth 빈 값의 생성·수정 검증**: Basic Auth 인증 설정의 생성에서 빈 사용자 이름이나 비밀번호를, 수정(`PATCH`)에서 빈 사용자 이름을 받을지 정하지 않았다. 수정은 `password` 를 받지 않는다(`SECRET_CONFIG_KEYS` 로 무시한다). 지금은 빈 값을 받아 저장하고 웹훅 인증 때 거부한다. 거부 규칙은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다. NERV Task `CLE-T-ATVH78` 이 정하면 이 항목을 걷는다.
 
 ## 구현 위치
@@ -275,4 +278,28 @@ Basic Auth 의 사용자 이름과 비밀번호는 사용자가 입력하는 값
 
 ### 복호화 불가 인증 설정은 재생성으로 복구되지 않는다 (2026-10-31)
 
-재생성 요구사항(REQ-AUTHCFG-013)의 알려진 결함을 [미결 사항](#미결-사항) 항목으로 적었다. 키를 바꿔 복호화하지 못한 인증 설정에서 재생성을 부르면 응답에는 새 값이 실리지만 저장되지 않는다. 복호화 불가 표식이 담긴 설정을 저장하면 옛 암호문이 그대로 다시 저장되기 때문이다. 그래서 지금은 인증 설정을 새로 만들어 트리거에 다시 연결해야 한다. 이 결함은 NERV Task `CLE-T-SAMVX8` 이 고친다. 고치면 미결 사항 항목을 걷고 이 단락도 정리한다. 요구사항 문장은 고친 뒤의 동작을 정하므로 바꾸지 않았다. 표식과 컬럼별 드러나는 모습은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
+재생성 요구사항(REQ-AUTHCFG-013)의 알려진 결함을 [미결 사항](#미결-사항) 항목으로 적었다. 키를 바꿔 복호화하지 못한 인증 설정에서 재생성을 부르면 응답에는 새 값이 실리지만 저장되지 않는다. 키를 바꿔 생긴 표식에는 원래 저장값이 담겨 있어서 그 설정을 저장하면 원래 저장값이 그대로 다시 저장되기 때문이다. 그래서 지금은 인증 설정을 새로 만들어 트리거에 다시 연결해야 한다. 이 결함은 NERV Task `CLE-T-SAMVX8` 이 고친다. 고치면 미결 사항 항목을 걷고 이 단락도 정리한다. 요구사항 문장은 고친 뒤의 동작을 정하므로 바꾸지 않았다. 표식의 정의는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다. 인증 설정 응답에 표식을 싣는 방식은 이 문서의 [마스킹 규칙](#마스킹-규칙) 이 정한다.
+
+### 복호화 불가 인증 설정의 응답에서 원래 저장값을 뺀다 (2026-10-31)
+
+복호화하지 못한 인증 설정의 표식에는 원래 저장값(코드의 `__original_ciphertext`)이 함께 담길 수 있다. 다시 저장할 때 행을 그대로 쓰려고 붙인 값이다. 전에는 응답에서 `key`·`token`·`secret`·`password` 만 가렸다. 그래서 이 값이 목록(`GET /api/auth-configs`)과 상세(`GET /api/auth-configs/:id`) 응답에 그대로 실렸다. 두 API 는 뷰어도 부른다. 원래 저장값이 암호문이면 옛 키가 공개 예시 값이던 배포에서 풀 수 있다. 원래 저장값이 평문이면 그대로 읽힌다. 그러면 평문 보기 권한이 없는 뷰어도 비밀 값을 얻는다. 편집·재생성·평문 보기 응답에도 같은 값이 실렸다.
+
+그래서 목록·상세·편집·재생성·평문 보기 다섯 응답 모두에서 원래 저장값을 뺀다(REQ-AUTHCFG-026).
+
+빼는 곳은 응답을 만드는 경계다. `AuthConfigsService.toResponseConfig` 는 표식이면 원래 저장값을 뺀 복제본을 돌려준다. 목록·상세·편집 응답은 그 결과를 필드 마스킹해 싣는다. 재생성·평문 보기 응답은 그 결과를 그대로 싣는다. 엔티티와 transformer 는 바꾸지 않는다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 그래서 키를 바꿔 읽지 못한 설정은 원래 키를 되돌리면 다시 읽힌다.
+
+원래 저장값을 보존하는 목적은 이름 변경 같은 무관한 재저장에서 행을 원래 모습대로 다시 쓰는 것이다. 새 값을 쓰려는 저장(재생성, config 편집)은 NERV Task `CLE-T-SAMVX8` 이 따로 푼다.
+
+웹훅 수신 헤더는 저장할 때 가린다([웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유」](CLE-TRIG-WEBHOOK.md#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)). 그 원칙은 복구에 쓰지 않는 값에 적용한다. 원래 저장값은 키를 복구할 때 필요하다. 그래서 저장해 두고 응답 경계에서 뺀다.
+
+이 선택은 기존 규약과 같은 방향이다. [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 의 규칙 4 는 저장소 밖에 사는 비밀을 응답에 싣지 않게 한다. 규칙 6 은 엔티티를 그대로 반환하는 경로에서 그 값을 응답 경계에서 지우게 한다. [OpenAPI 문서화 「5-1. 응답 DTO 위치」](../CLE-API/CLE-API-SWAGGER.md#5-1-응답-dto-위치) 도 응답의 비밀값을 가리거나 빼게 한다.
+
+다음 세 방법은 견주고 접었다.
+
+- transformer 가 표식을 만들 때 원래 저장값을 버린다: 그 설정을 다시 저장하면 표식 자체가 저장된다. 그러면 원래 키를 되돌려도 설정이 복구되지 않는다.
+- 엔티티의 `config` 컬럼을 응답에서 통째로 숨긴다: 정상 행의 마스킹 표시(`***<last4>`)까지 사라진다.
+- 원래 저장값의 키를 비밀 마스킹 대상 키에 넣어 `***<last4>` 로 가린다: 끝 네 글자가 응답에 남는다. 복구용으로 보관하는 내부 값이 사용자 비밀 값의 마스킹 규칙에 섞인다.
+
+표식은 응답 `config` 에 남긴다. 인증 설정 응답에는 통합의 `credentialsStatus` 같은 상태 표시가 없다. 그래서 지금은 표식이 «읽지 못한 설정» 을 알리는 유일한 신호다. 표식을 상태 표시로 바꿀지는 NERV Task `CLE-T-SAMVX8` 이 정한다.
+
+이 변경은 NERV Task `CLE-T-3G8XZ3` 이 구현했다. NERV Task `CLE-T-KQ37NJ` 의 코드 리뷰 라운드에서 security 리뷰어가 경고로 올린 발견이 계기다.
