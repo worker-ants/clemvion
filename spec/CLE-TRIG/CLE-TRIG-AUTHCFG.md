@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG"
 title: "외부 호출 인증 설정"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "ce273b18ed5d0cb3e7b21936f4f746751a2c52378976a7a4db685fa7303c8edf"
+content_hash: "7b74940d766f9eb1cc54a3aac9493e423107f038d6dcb73fdc27803f025cd3e5"
 read_as: "approved_fallback"
 task: "CLE-T-KQ37NJ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "238b4e54dacad37b0927f06d93e946292671e6cf84cc29c5f45cf313db71547e"
-etag: "sha256-be5b018d7d652cdb4f47c6a2d954b96f6406d13fa3166425fe43fc1547dee90b"
+mirror_sha256: "4a56ed9bef77981270e8a50d3101a4d94a04e5f5667948b9e18116dde2f97b45"
+etag: "sha256-eeec25766a469b3b63021ccd5ad42c82ee7795818898a20fcb1680456668c4ff"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ etag: "sha256-be5b018d7d652cdb4f47c6a2d954b96f6406d13fa3166425fe43fc1547dee90b"
 - REQ-AUTHCFG-001 WHEN 관리자 이상이 인증 설정을 만들면 THE SYSTEM SHALL 외부 호출자가 트리거를 부를 때 쓸 인증 방식(API Key·Bearer Token·Basic Auth·HMAC)을 저장한다. (원본: NAV-CA-01)
 - REQ-AUTHCFG-002 WHEN API Key 유형을 만들면 THE SYSTEM SHALL `wfk_<hex24>` 키를 자동으로 발급한다. (원본: NAV-CA-02)
 - REQ-AUTHCFG-003 WHEN Bearer Token 유형을 만들면 THE SYSTEM SHALL `wft_<hex32>` 토큰을 자동으로 발급하고 사용자가 입력한 토큰은 받지 않는다. (원본: NAV-CA-03)
-- REQ-AUTHCFG-004 WHEN Basic Auth 유형을 만들면 THE SYSTEM SHALL 사용자 이름과 비밀번호를 사용자 입력으로 받는다. 둘 중 하나라도 비어 있으면 그 설정으로 받는 웹훅 요청은 늘 401 `AUTH_FAILED` 로 거부된다. (원본: NAV-CA-04)
+- REQ-AUTHCFG-004 WHEN Basic Auth 유형을 만들면 THE SYSTEM SHALL 사용자 이름과 비밀번호를 사용자 입력으로 받는다. (원본: NAV-CA-04)
 - REQ-AUTHCFG-005 WHEN HMAC 유형을 만들면 THE SYSTEM SHALL `whs_<hex32>` 시크릿을 자동으로 발급하고 서명 헤더 이름과 알고리즘(`sha256`·`sha512`)을 받는다.
 - REQ-AUTHCFG-006 WHEN 사용자가 IP Whitelist 를 입력하면 THE SYSTEM SHALL 모든 유형에서 한 줄에 IP 나 CIDR 하나씩 받아 저장한다. (원본: NAV-CA-05)
 - REQ-AUTHCFG-007 IF IP Whitelist 항목이 단일 IP 나 CIDR(IPv4·IPv6) 형식이 아니면 THE SYSTEM SHALL 생성·수정을 400 으로 거부한다.
@@ -110,6 +110,8 @@ etag: "sha256-be5b018d7d652cdb4f47c6a2d954b96f6406d13fa3166425fe43fc1547dee90b"
 | Username | 사용자 이름(사용자 입력). 식별을 돕는 값이라 응답에 평문으로 나간다 |
 | Password | 비밀번호(사용자 입력, 가린 입력창). 저장 뒤 응답은 `***<last4>` 로 가린다. 평문 재확인은 평문 보기로만 한다 |
 | IP Whitelist | 허용 IP 목록(선택) |
+
+사용자 이름이나 비밀번호가 비어 있는 설정으로 받은 웹훅 요청은 인증 단계에서 늘 401 `AUTH_FAILED` 로 거부된다. 이 요구는 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
 
 ### HMAC
 
@@ -219,6 +221,7 @@ sequenceDiagram
 ## 미결 사항
 
 - **복호화 불가 인증 설정의 재생성**: 복호화 불가 인증 설정은 재생성으로 복구되지 않는다. 새로 만들어 트리거에 다시 연결한다. 복호화 불가 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 다룬다. NERV Task `CLE-T-SAMVX8` 이 고치면 이 항목을 걷는다.
+- **Basic Auth 빈 값의 생성·수정 검증**: Basic Auth 인증 설정의 생성에서 빈 사용자 이름이나 비밀번호를, 수정(`PATCH`)에서 빈 사용자 이름을 받을지 정하지 않았다. 수정은 `password` 를 받지 않는다(`SECRET_CONFIG_KEYS` 로 무시한다). 지금은 빈 값을 받아 저장하고 웹훅 인증 때 거부한다. 거부 규칙은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다. NERV Task `CLE-T-ATVH78` 이 정하면 이 항목을 걷는다.
 
 ## 구현 위치
 
@@ -266,9 +269,9 @@ Basic Auth 의 사용자 이름과 비밀번호는 사용자가 입력하는 값
 
 인증 시점 거부는 빈 기대값이 생기는 경로를 모두 막는다. 생성 때 들어온 빈 입력, 편집(`PATCH`)으로 `username` 을 비운 설정, 이미 빈 값으로 저장된 옛 행, 키를 바꾼 뒤 복호화하지 못해 표식이 담긴 설정 등이 그런 경로다. 생성 시점 검증은 2026-10-31 현재 없다. 편집 `PATCH` 도 `username` 값을 검사하지 않는다. 둘 다 NERV Task `CLE-T-KQ37NJ` 에서 코드로 확인했다.
 
-인증 시점 거부는 2026-10-10 NERV Task `CLE-T-2V7SBC` 가 넣었다(커밋 `19c35954d`). 커밋 메시지에 적힌 동기는 키 교체다. 키를 바꾸면 `auth_config.config` 가 복호화 불가 표식으로 읽힌다. 그러면 Basic Auth 와 HMAC 이 빈 기대값으로 비교돼 열린다. 빈 기대값을 받아들이던 동작은 그 전부터 있던 결함이고 이 커밋에서 함께 막았다. 생성 시점 검증과 견주고 접은 기록은 없다. 같은 때 HMAC 의 빈 secret 도 거부하게 됐다. API Key 와 Bearer Token 은 그 전부터 빈 기대값을 거부했다.
+인증 시점 거부는 2026-10-10 NERV Task `CLE-T-2V7SBC` 가 넣었다(PR #1521, main 커밋 `6cbf22acb`). 커밋 메시지에 적힌 동기는 키 교체다. 키를 바꾸면 `auth_config.config` 가 복호화 불가 표식으로 읽힌다. 그러면 Basic Auth 와 HMAC 이 빈 기대값으로 비교돼 열린다. 빈 기대값을 받아들이던 동작은 그 전부터 있던 결함이고 이 커밋에서 함께 막았다. 생성 시점 검증과 견주고 접은 기록은 없다. 같은 때 HMAC 의 빈 secret 도 거부하게 됐다. API Key 와 Bearer Token 은 그 전부터 빈 기대값을 거부했다.
 
-그래서 REQ-AUTHCFG-004 는 두 값을 «필수» 로 쓰지 않는다. 사용자 입력으로 받는다고만 쓰고 비어 있으면 인증 때 늘 거부된다는 사실을 함께 적는다. 웹훅 인증의 요구사항은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
+그래서 REQ-AUTHCFG-004 는 두 값을 «필수» 로 쓰지 않고 사용자 입력으로 받는다고만 쓴다. 빈 값을 인증 때 거부하는 요구는 웹훅 문서 한 곳에 두고 이 문서 본문은 그 요구를 가리킨다. 한 동작을 두 요구에 적으면 한쪽만 고쳤을 때 어긋나기 때문이다. 웹훅 인증의 요구사항은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
 
 ### 복호화 불가 인증 설정은 재생성으로 복구되지 않는다 (2026-10-31)
 

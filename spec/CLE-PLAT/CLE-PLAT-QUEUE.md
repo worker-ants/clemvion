@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "0d1acc7ea7f2e315dff9988e8046ae29f3dd43c13c0fdfa5294861cdff969ee0"
+content_hash: "1c038602a18172e584210ddcc51d09d538b01d4c9118342a6a3f7d23eccc575e"
 read_as: "approved_fallback"
-task: "CLE-T-GK9J2B"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "4b43856f4e06d0bfec09c0dc159c7f8baf52ea0a69e072bf3ef89525486295be"
-etag: "sha256-a05b936e36a18af9ef914b5eb1da0d60e00644b4a19f82e4088ef6624fa0e0d2"
+mirror_sha256: "b162f71d3d66efdd0490066a6a3cf95da3ff435dead11d1fc9e588e2340e7ec8"
+etag: "sha256-c9cc91e7796cf1aac4ab3378a597487c07afd3e18fdc5059f5852ecfa40494ee"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -127,6 +127,7 @@ etag: "sha256-a05b936e36a18af9ef914b5eb1da0d60e00644b4a19f82e4088ef6624fa0e0d2"
 | `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
+| `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |
 
 한 모듈이 접두를 여럿 쓴다. `external-interaction` 은 `iext:`·`interaction:`·`eia:` 를, `chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다. 통일을 강제하지 않지만 모듈마다 접두가 더 늘지 않게 한다. 규칙의 예외 두 계열은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 
@@ -161,6 +162,7 @@ etag: "sha256-a05b936e36a18af9ef914b5eb1da0d60e00644b4a19f82e4088ef6624fa0e0d2"
 - `codebase/backend/src/modules/chat-channel/**/*.ts`
 - `codebase/backend/src/modules/hooks/**/*.ts`
 - `codebase/backend/src/modules/integrations/**/*.ts`
+- `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
 - `codebase/backend/src/modules/system-status/system-status.constants.ts` (`MONITORED_QUEUES`)
