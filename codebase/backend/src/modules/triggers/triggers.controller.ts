@@ -38,6 +38,11 @@ import {
 import { TriggersService } from './triggers.service';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
+import {
+  RAW_CONFIG_MERGE_SUMMARY,
+  RAW_CONFIG_REJECTION_FIELD_NOTE,
+  RAW_CONFIG_REJECTION_SUMMARY,
+} from './trigger-config-internal-fields';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { QueryTriggerDto } from './dto/query-trigger.dto';
 import { ChatChannelRotateBotTokenDto } from './dto/responses/chat-channel-rotate-bot-token-response.dto';
@@ -115,12 +120,7 @@ export class TriggersController {
   })
   @ApiCreatedWrappedResponse(TriggerDto, { description: '생성된 트리거 정보' })
   @ApiBadRequestResponse({
-    description:
-      '입력값 검증 실패. 원시 config 에 서버가 관리하는 시크릿 참조 · 평문 필드를 실으면 ' +
-      'details.field 가 원시 config 경로("config.chatChannel.botTokenRef")인 단일 object 로 거부합니다. ' +
-      '서버가 발급하는 트리거 단위 토큰(config.interaction.triggerToken)도 같습니다. ' +
-      '그 밖에 원시 config 바로 아래의 notification · interaction · chatChannel 키(details.field="config.<키>")와 ' +
-      'secret:// 로 시작하는 문자열 값(details.field 는 그 값의 경로, 배열은 "config.custom.refs[1]")도 같은 형식으로 거부합니다.',
+    description: `입력값 검증 실패. 원시 config 거부: ${RAW_CONFIG_REJECTION_SUMMARY} ${RAW_CONFIG_REJECTION_FIELD_NOTE}`,
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
@@ -146,8 +146,7 @@ export class TriggersController {
       '인터랙션을 per_trigger 로 켰는데 트리거 단위 토큰이 없으면 서버가 itk_* 를 발급하고 평문이 data.secrets.interactionToken 에 한 번만 실립니다. 토큰이 이미 있으면(끈 뒤 다시 켜는 경우 포함) 새로 발급하지 않습니다. ' +
       'interaction.tokenStrategy 가 per_trigger 가 아니게 되면 저장된 트리거 단위 토큰(itk_*)을 지우고 그 토큰으로 연 SSE 스트림을 닫습니다. ' +
       '인터랙션을 끄면(enabled=false) 토큰 값은 남기고 그 토큰으로 연 SSE 스트림을 닫습니다. ' +
-      'config 는 저장된 config 위에 최상위 키 단위로 병합합니다. 보낸 키는 그 값으로 바꾸고 보내지 않은 키는 그대로 두며 값이 null 인 키는 지웁니다. ' +
-      'notification · interaction · chatChannel 은 config 로 받지 않으므로 config 만 보낸 PATCH 는 세 설정을 바꾸지 않습니다. ' +
+      `config: ${RAW_CONFIG_MERGE_SUMMARY} ` +
       'schedule 타입 트리거는 name·isActive 만 수정할 수 있으며, 그 외 필드(endpointPath, config, authConfigId, notification, interaction, chatChannel)를 포함하면 400 VALIDATION_ERROR 를 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
@@ -163,11 +162,7 @@ export class TriggersController {
       'flat("botToken") 입니다, ' +
       '(2) chatChannel 이 없는 트리거에 처음 붙이려는 경우: details.field="chatChannel" ' +
       '(최초 설정은 생성 POST 한정), (3) provider 를 바꾸려는 경우: details.field="provider". ' +
-      '원시 config 에 서버가 관리하는 시크릿 참조 · 평문 필드를 실으면 details 는 단일 object 이고 ' +
-      'field 는 원시 config 경로("config.chatChannel.botTokenRef") 입니다. ' +
-      '서버가 발급하는 트리거 단위 토큰(config.interaction.triggerToken)도 같습니다. ' +
-      '원시 config 바로 아래의 notification · interaction · chatChannel 키(details.field="config.<키>")와 ' +
-      'secret:// 로 시작하는 문자열 값(details.field 는 그 값의 경로)도 같은 형식으로 거부합니다.',
+      `원시 config 거부: ${RAW_CONFIG_REJECTION_SUMMARY} ${RAW_CONFIG_REJECTION_FIELD_NOTE}`,
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })

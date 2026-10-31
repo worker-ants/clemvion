@@ -1295,6 +1295,8 @@ export class TriggersService {
     ]);
   }
 
+  // 이 세 타입 필드는 `RAW_CONFIG_TYPED_KEYS` 와 같은 집합이다. 생성 · 수정 DTO 의 중첩 검증 필드와 그 목록이 같은지는
+  // `trigger-config-internal-fields.spec.ts` 가 고정한다. 필드를 더하면 여기와 목록을 함께 고친다.
   private mergeExternalConfig(
     base: Record<string, unknown>,
     notification: NotificationConfigDto | undefined,

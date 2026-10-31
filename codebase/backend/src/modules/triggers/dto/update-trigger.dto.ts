@@ -10,7 +10,10 @@ import {
 import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { RAW_CONFIG_REJECTION_SUMMARY } from '../trigger-config-internal-fields';
+import {
+  RAW_CONFIG_MERGE_SUMMARY,
+  RAW_CONFIG_REJECTION_SUMMARY,
+} from '../trigger-config-internal-fields';
 import { NotificationConfigDto } from './notification-config.dto';
 import { InteractionConfigDto } from './interaction-config.dto';
 import { ChatChannelUpdateConfigDto } from './chat-channel-config.dto';
@@ -40,7 +43,7 @@ export class UpdateTriggerDto {
   // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약)
   /** 타입별 설정값 */
   @ApiPropertyOptional({
-    description: `타입별 부가 설정값. 저장된 config 위에 최상위 키 단위로 병합한다. 보낸 키는 그 값으로 바꾸고(키 아래는 병합하지 않는다) 보내지 않은 키는 두며 값이 null 인 키는 지운다. ${RAW_CONFIG_REJECTION_SUMMARY}`,
+    description: `타입별 부가 설정값. ${RAW_CONFIG_MERGE_SUMMARY} ${RAW_CONFIG_REJECTION_SUMMARY}`,
     type: 'object',
     additionalProperties: true,
     example: { method: 'POST' },

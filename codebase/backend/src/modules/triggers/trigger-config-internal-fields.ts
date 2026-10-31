@@ -96,6 +96,9 @@ export function assertConfigCarriesNoInternalFields(config: unknown): void {
  *
  * 타입 필드는 DTO 검증 · 알림 URL 검사 · 채널 붙이기와 `provider` 변경 거부 · 서버가 만드는 값의 판정을 거친다.
  * 원시 `config` 는 `@IsObject` 뿐이라 같은 키를 받으면 그 검사를 모두 건너뛴다.
+ *
+ * 이 목록은 생성 · 수정 DTO 에서 `@ValidateNested` 로 검증하는 필드와 같은 집합이어야 한다. 한쪽만 늘면 원시 `config`
+ * 우회가 다시 열리므로 `trigger-config-internal-fields.spec.ts` 가 두 DTO 의 메타데이터와 이 목록을 대조한다.
  */
 export const RAW_CONFIG_TYPED_KEYS = [
   'notification',
@@ -110,6 +113,28 @@ export const RAW_CONFIG_REJECTION_SUMMARY =
   `서버가 관리하는 시크릿 참조 · 평문 필드(${CONFIG_INTERNAL_FIELD_PATHS.join(', ')})를 실으면 400 VALIDATION_ERROR 로 거부한다. ` +
   `${RAW_CONFIG_TYPED_KEYS.join(' · ')} 키는 값과 상관없이 400 이다. 이 설정은 요청 본문의 최상위 필드로 보낸다. ` +
   `어느 위치든 ${SECRET_REF_PREFIX} 로 시작하는 문자열 값도 400 이다.`;
+
+/**
+ * 거부 응답의 `details` 형식을 적은 문장. 생성 · 수정 컨트롤러의 400 설명이 같은 문장을 쓴다.
+ * 거부 규칙({@link RAW_CONFIG_REJECTION_SUMMARY})과 함께 한 곳에서만 고친다.
+ */
+export const RAW_CONFIG_REJECTION_FIELD_NOTE =
+  '거부 응답의 details 는 단일 object 이고 field 는 거부한 위치의 원시 config 경로다. ' +
+  '내부 필드는 "config.chatChannel.botTokenRef", 타입 키는 "config.<키>", ' +
+  `${SECRET_REF_PREFIX} 값은 그 값의 경로이며 배열 원소는 "config.custom.refs[1]" 형식이다.`;
+
+/**
+ * PATCH 의 원시 `config` 병합 규칙을 적은 문장. 수정 DTO 의 `config` 설명과 컨트롤러의 PATCH 설명이 같은 문장을 쓴다.
+ * 동작의 정본은 `TriggersService.mergeRawConfig` 이다.
+ *
+ * `config` 자체가 `null` 인 입력은 DTO 가 통과시킨다(`@IsOptional`). 종전에도 «보내지 않음» 으로 처리했으므로
+ * 그 동작을 유지한다.
+ */
+export const RAW_CONFIG_MERGE_SUMMARY =
+  '저장된 config 위에 최상위 키 단위로 병합한다. 보낸 키는 그 값으로 바꾸고(키 아래는 병합하지 않는다) 보내지 않은 키는 두며 값이 null 인 키는 지운다. ' +
+  'config 자체가 null 이면 보내지 않은 것으로 본다. ' +
+  `${RAW_CONFIG_TYPED_KEYS.join(' · ')} 은 config 로 받지 않으므로 config 만 보낸 PATCH 는 그 설정을 바꾸지 않는다. ` +
+  `조회 응답의 config 에는 저장된 ${RAW_CONFIG_TYPED_KEYS.join(' · ')} 이 들어 있으므로 응답의 config 를 그대로 되보내면 400 이다.`;
 
 /**
  * 원시 `config` 아래에서 `secret://` 로 시작하는 첫 문자열 값의 경로를 찾는다. 없으면 `null` 이다.

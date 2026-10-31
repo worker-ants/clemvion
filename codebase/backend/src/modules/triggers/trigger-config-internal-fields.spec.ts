@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { getMetadataStorage } from 'class-validator';
 
 import { CHAT_CHANNEL_BLOCKED_FIELDS } from './chat-channel-rejection-messages.const';
+import { CreateTriggerDto } from './dto/create-trigger.dto';
+import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import {
   assertConfigCarriesNoInternalFields,
   assertRawConfigAccepted,
@@ -254,5 +257,26 @@ describe('assertRawConfigAccepted', () => {
     ['숫자 · 불리언 · null 값', { a: 0, b: false, c: null }],
   ])('%s 는 통과한다', (_label, config) => {
     expect(rawRejection(config)).toBeNull();
+  });
+});
+
+// 같은 사실(요청 본문 최상위의 타입 필드 = `@ValidateNested` 로 검증하는 필드)이 DTO 와 `RAW_CONFIG_TYPED_KEYS` 에 따로
+// 적혀 있다. 한쪽만 늘면 원시 `config` 우회가 다시 열리므로 DTO 의 중첩 검증 메타데이터와 목록을 대조한다.
+describe('RAW_CONFIG_TYPED_KEYS 와 트리거 DTO 의 타입 필드', () => {
+  function nestedValidatedFields(dto: new () => object): string[] {
+    return getMetadataStorage()
+      .getTargetValidationMetadatas(dto, '', true, false)
+      .filter((metadata) => metadata.type === 'nestedValidation')
+      .map((metadata) => metadata.propertyName)
+      .sort();
+  }
+
+  it.each([
+    ['CreateTriggerDto', CreateTriggerDto],
+    ['UpdateTriggerDto', UpdateTriggerDto],
+  ])('%s 의 중첩 검증 필드가 목록과 같다', (_name, dto) => {
+    expect(nestedValidatedFields(dto)).toEqual(
+      [...RAW_CONFIG_TYPED_KEYS].sort(),
+    );
   });
 });
