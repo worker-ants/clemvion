@@ -3,18 +3,18 @@ id: "CLE-NODE-EXTRACTOR"
 title: "정보 추출기 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-EXTRACT-001", "REQ-EXTRACT-002", "REQ-EXTRACT-003", "REQ-EXTRACT-004", "REQ-EXTRACT-005", "REQ-EXTRACT-006", "REQ-EXTRACT-007", "REQ-EXTRACT-008", "REQ-EXTRACT-009", "REQ-EXTRACT-010", "REQ-EXTRACT-011", "REQ-EXTRACT-012", "REQ-EXTRACT-013", "REQ-EXTRACT-014", "REQ-EXTRACT-015", "REQ-EXTRACT-016", "REQ-EXTRACT-017", "REQ-EXTRACT-018", "REQ-EXTRACT-019", "REQ-EXTRACT-020", "REQ-EXTRACT-021", "REQ-EXTRACT-022", "REQ-EXTRACT-023", "REQ-EXTRACT-024", "REQ-EXTRACT-025", "REQ-EXTRACT-026", "REQ-EXTRACT-027", "REQ-EXTRACT-028", "REQ-EXTRACT-029"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
 content_hash: "fdda91ea2df75cf8e71ce7cb7f6f0d711b27dab5b6f5ce66a8c798e6ff12fdb8"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-SFH6RG"
 source_paths: ["spec/4-nodes/3-ai/3-information-extractor.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4966e8eb454b617497e28358ffd33a44305e24b566c677d1c4848595b9fb5235"
-etag: "sha256-b47591a99aac9ff4a5a3d10fa4e5a8aa68061877e6c4699abe36e2714a7f88a7"
+mirror_sha256: "e7d7283612091b50487341e48b0b070544db9c85fa9031081030f420a6f57d6b"
+etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/3-information-extractor.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.4), `spec/4-nodes/_product-overview.md` (§6.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

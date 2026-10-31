@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "24d8d5b03e89709e78b7bf304879c888de78e10c9073d617a3718fd6158262df"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-SFH6RG"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "466ce0c1a8a5d0be28a8a8d5de61b2d9691cab655a2333dc69e367c1357d4b03"
-etag: "sha256-9922619ad4c7e62e6f80b839417efb2eb2226269ee319d98672bf0d3a1f12807"
+mirror_sha256: "53ca6b02ebd1378ba4fe6ccf3de07a30d4cac1d1dcbc642d4b9cacad1177a013"
+etag: "sha256-24395b688cc5352e2eefa555f4eadc8cb101d51ba50804c860e35addda0a9f03"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

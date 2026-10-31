@@ -23,6 +23,7 @@ import { buildSystemContextPrefixFromContext } from '../shared/system-context-pr
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 import { injectConversationContext } from '../shared/conversation-context-injection';
 import type { ConversationContextInjectionResult } from '../shared/conversation-context-injection';
+import { rethrowIfNodeCancelled } from '../shared/llm-cancellation';
 import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import {
   buildRecallBlock,
@@ -533,6 +534,8 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
           },
         );
       } catch (err) {
+        // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
+        rethrowIfNodeCancelled(err, context.abortSignal);
         const errMessage = err instanceof Error ? err.message : String(err);
         return this.buildErrorOutput(configEcho, {
           code: 'LLM_CALL_FAILED',
@@ -1026,10 +1029,9 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
       let trace: LlmCallRecord;
       let result: ChatResult;
       try {
-        // multi-turn 루프의 각 LLM 호출에 abortSignal 전파 (node-cancellation §2.1)
-        // — cancel-others-on-fail / 사용자 cancel 발화 시 진행 중 turn 의 LLM 호출이
-        // 즉시 abort 된다. abort 시 SDK 가 throw 하는 AbortError 는 그대로 전파돼
-        // 엔진이 cancelled 로 분류한다 (§5.1).
+        // multi-turn 루프의 각 LLM 호출에 abortSignal 을 넘긴다([신호 전파](CLE-EXEC-CANCEL#신호-전파-흐름)).
+        // 신호가 켜지면 진행 중인 LLM 호출이 바로 끊긴다. 그 실패는 아래 catch 가 데이터로
+        // 돌려주기 전에 AbortError 로 던져 엔진이 cancelled 로 분류한다([취소 에러 분류](CLE-EXEC-CANCEL#취소-에러-분류)).
         const call = await this.traceChat(
           params.llmConfig,
           {
@@ -1045,6 +1047,7 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
         result = call.result;
         trace = call.trace;
       } catch (err) {
+        rethrowIfNodeCancelled(err, params.abortSignal);
         return {
           kind: 'error',
           error: err instanceof Error ? err.message : String(err),

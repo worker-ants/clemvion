@@ -14,6 +14,7 @@ import { textClassifierNodeMetadata } from './text-classifier.schema';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 import { injectConversationContext } from '../shared/conversation-context-injection';
+import { rethrowIfNodeCancelled } from '../shared/llm-cancellation';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 
@@ -209,6 +210,8 @@ export class TextClassifierHandler implements NodeHandler {
         },
       );
     } catch (err) {
+      // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
+      rethrowIfNodeCancelled(err, context.abortSignal);
       const message = err instanceof Error ? err.message : String(err);
       // CONVENTIONS §7 — truncate originalInput in the error envelope so long
       // user prompts / PII don't land full-length in `output.error.details`.

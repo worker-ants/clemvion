@@ -3,18 +3,18 @@ id: "CLE-NODE-CLASSIFIER"
 title: "텍스트 분류기 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-CLASSIFY-001", "REQ-CLASSIFY-002", "REQ-CLASSIFY-003", "REQ-CLASSIFY-004", "REQ-CLASSIFY-005", "REQ-CLASSIFY-006", "REQ-CLASSIFY-007", "REQ-CLASSIFY-008", "REQ-CLASSIFY-009", "REQ-CLASSIFY-010", "REQ-CLASSIFY-011", "REQ-CLASSIFY-012", "REQ-CLASSIFY-013", "REQ-CLASSIFY-014", "REQ-CLASSIFY-015", "REQ-CLASSIFY-016", "REQ-CLASSIFY-017", "REQ-CLASSIFY-018", "REQ-CLASSIFY-019"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
 content_hash: "f0b8465a4c7456eeeadb317e1780228e11913b98f35dcf983a6fad257b9456a6"
-read_as: "approved"
-task: null
+read_as: "task_basis"
+task: "CLE-T-SFH6RG"
 source_paths: ["spec/4-nodes/3-ai/2-text-classifier.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3e3d1fc8a0ff0f8d52ba1ba5c16be0a748b467a48758d2dc4449308f1cf52b14"
-etag: "sha256-949d0310e263ade62ec20e2726d50332cdc6a1a18665e0306680457744538e4f"
+mirror_sha256: "6ecb8e6a14252c060edf8b746c7c360194c846c95aa2f4ca840d5ae36ed76510"
+etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/3-ai/2-text-classifier.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.3), `spec/4-nodes/_product-overview.md` (§6.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
