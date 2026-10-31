@@ -2,19 +2,19 @@
 id: "CLE-NODE-CLASSIFIER"
 title: "텍스트 분류기 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-CLASSIFY-001", "REQ-CLASSIFY-002", "REQ-CLASSIFY-003", "REQ-CLASSIFY-004", "REQ-CLASSIFY-005", "REQ-CLASSIFY-006", "REQ-CLASSIFY-007", "REQ-CLASSIFY-008", "REQ-CLASSIFY-009", "REQ-CLASSIFY-010", "REQ-CLASSIFY-011", "REQ-CLASSIFY-012", "REQ-CLASSIFY-013", "REQ-CLASSIFY-014", "REQ-CLASSIFY-015", "REQ-CLASSIFY-016", "REQ-CLASSIFY-017", "REQ-CLASSIFY-018", "REQ-CLASSIFY-019"]
+requirements: ["REQ-CLASSIFY-001", "REQ-CLASSIFY-002", "REQ-CLASSIFY-003", "REQ-CLASSIFY-004", "REQ-CLASSIFY-005", "REQ-CLASSIFY-006", "REQ-CLASSIFY-007", "REQ-CLASSIFY-008", "REQ-CLASSIFY-009", "REQ-CLASSIFY-010", "REQ-CLASSIFY-011", "REQ-CLASSIFY-012", "REQ-CLASSIFY-013", "REQ-CLASSIFY-014", "REQ-CLASSIFY-015", "REQ-CLASSIFY-016", "REQ-CLASSIFY-017", "REQ-CLASSIFY-018", "REQ-CLASSIFY-019", "REQ-CLASSIFY-020"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "f0b8465a4c7456eeeadb317e1780228e11913b98f35dcf983a6fad257b9456a6"
-read_as: "task_basis"
-task: "CLE-T-SFH6RG"
+content_hash: "18bb3af1789487abeb14fb84d8dd74a12128b321459f2ad7bd62b00edd380a49"
+read_as: "approved_fallback"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/3-ai/2-text-classifier.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "6ecb8e6a14252c060edf8b746c7c360194c846c95aa2f4ca840d5ae36ed76510"
-etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
+mirror_sha256: "a10eec56162d052a881658c993e8b871e656fa382e14970720966e36d87c87b6"
+etag: "sha256-e2358ed3c4c76fc9915c8e34452e84cf57baa6c02e424cdfbc9178860cf52e87"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/3-ai/2-text-classifier.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.3), `spec/4-nodes/_product-overview.md` (§6.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
 
 텍스트 분류기 노드(Text Classifier, `text_classifier`)는 LLM 으로 입력 텍스트를 미리 정의한 분류 카테고리(`CategoryDef`)로 나누고 카테고리마다 출력 포트로 보낸다. 단일 레이블(정확히 한 카테고리 또는 매칭 없음)과 다중 레이블(해당하는 카테고리를 모두 동시에 켬) 두 방식을 지원한다. 단일 턴 노드이며 상태가 없다.
 
-이 문서는 설정, 설정 화면, 포트, 실행 로직, 출력 구조, 에러 코드, 캔버스 요약을 정한다. 모델 선택, 대화 맥락 설정, 시스템 컨텍스트 접두, 출력 묶음과 에러 계약은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 을 따른다. 노드 출력 5필드의 일반 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
+이 문서는 설정, 설정 화면, 포트, 실행 로직, 출력 구조, 에러 코드, 캔버스 요약을 정한다. 모델 선택, 대화 맥락 설정, 시스템 컨텍스트 접두, 출력 묶음과 에러 계약은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 을 따른다. 노드 출력 5필드의 일반 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다. 노드 취소 신호를 받았을 때의 동작은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다.
 
 ## 요구사항
 
@@ -37,14 +37,15 @@ etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
 - REQ-CLASSIFY-009 IF 어떤 카테고리에도 매칭되지 않으면 THE SYSTEM SHALL `fallback` 포트로 보낸다.
 - REQ-CLASSIFY-010 WHEN `includeEvidence` 가 `true` 면 THE SYSTEM SHALL 입력에서 발췌한 분류 근거를 최대 20개, 항목당 200자 이하로 싣는다.
 - REQ-CLASSIFY-011 IF LLM 응답 JSON 파싱에 실패하면 THE SYSTEM SHALL 카테고리 이름 부분 문자열 매칭으로 대신 분류한다.
-- REQ-CLASSIFY-012 IF LLM 호출이 예외를 던지면 THE SYSTEM SHALL `error` 포트로 `LLM_CALL_FAILED` 를 보낸다.
+- REQ-CLASSIFY-012 IF LLM 호출이 노드 취소가 아닌 예외를 던지면 THE SYSTEM SHALL `error` 포트로 `LLM_CALL_FAILED` 를 보낸다. 노드 취소로 끝난 호출은 REQ-CLASSIFY-020 을 따른다.
 - REQ-CLASSIFY-013 IF provider 가 429 를 돌려주면 THE SYSTEM SHALL `LLM_RATE_LIMIT` 을 `retryable: true` 로 보낸다.
 - REQ-CLASSIFY-014 IF 카테고리 `id` 가 없거나 비었거나 slug 형식이 아니면 THE SYSTEM SHALL 인덱스 기반 포트 ID `class_${i}` 를 쓴다.
 - REQ-CLASSIFY-015 IF 카테고리 `name`·`id` 가 시스템 포트 예약어와 같거나 카테고리 간 `id` 가 겹치거나 `name` 이 `__none__` 이면 THE SYSTEM SHALL 설정을 거부한다.
 - REQ-CLASSIFY-016 IF 카테고리가 비었거나 `inputField` 가 비었거나 모델이 설정되지 않았으면 THE SYSTEM SHALL 캔버스 경고를 내고 실행 전 검증에서 거부한다.
 - REQ-CLASSIFY-017 WHEN `contextScope` 가 `none` 이 아니면 THE SYSTEM SHALL 분류 LLM 호출 직전에 대화 스레드를 주입한다.
-- REQ-CLASSIFY-018 WHEN 에러로 끝나면 THE SYSTEM SHALL `details.originalInput` 을 500자로 잘라 싣고 토큰 필드를 `0` 으로 채운다.
+- REQ-CLASSIFY-018 WHEN `error` 포트로 끝나면 THE SYSTEM SHALL `details.originalInput` 을 500자로 잘라 싣고 토큰 필드를 `0` 으로 채운다.
 - REQ-CLASSIFY-019 WHEN 캔버스에 노드를 그리면 THE SYSTEM SHALL `{model} · {N} categories` 요약을 보인다.
+- REQ-CLASSIFY-020 IF 노드 취소 신호(`context.abortSignal`)가 켜진 뒤 LLM 호출이 실패하면 THE SYSTEM SHALL `error` 포트로 보내지 않고 `AbortError` 로 엔진에 다시 던진다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3).
 
 ## 설정
 
@@ -105,7 +106,7 @@ etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
 |------|-------|------|---------|------|
 | `<category.id>` 또는 `class_${i}` | `<category.name>` | data | true | 카테고리별 동적 포트. `category.id` 가 있으면 그대로 쓰고, 없거나 비었거나 slug 형식이 아니면 `class_0`·`class_1` 같은 인덱스 포트를 쓴다. resolver 와 핸들러가 같은 규칙으로 만든다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 6) |
 | `fallback` | Fallback | data | false | 어느 카테고리에도 맞지 않을 때(단일 레이블: LLM 이 `__none__` 을 돌려주거나 매칭 실패, 다중 레이블: 빈 배열) |
-| `error` | Error | error | false | LLM API 오류, 타임아웃, rate limit 등 |
+| `error` | Error | error | false | LLM API 오류, 타임아웃, rate limit 등. 노드 취소는 이 포트로 보내지 않는다(REQ-CLASSIFY-020) |
 
 - 다중 레이블이면 매칭된 카테고리 포트가 동시에 켜져 `port: string[]`(fan-out, Principle 5)로 돌려준다. 단일 레이블은 늘 단일 포트(`port: string`)다.
 - 카테고리 `name`·`id` 가 시스템 포트 예약어(`out`·`error`·`default`·`done`·`user_ended`·`max_turns`·`completed`·`fallback`·`continue`)와 같으면 스키마가 거부한다. `validateTextClassifierConfig` 가 `RESERVED_PORT_WORDS`(`text-classifier.schema.ts`) 와의 충돌과 카테고리 간 `id` 중복을 모두 거부한다.
@@ -119,7 +120,9 @@ etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
     - 다중 레이블: `categories: { type: 'array', items: { name: enum, … } }`. 매칭 없음은 빈 배열이다.
 3. **옵션 필드**: `includeConfidence`·`includeEvidence` 가 `true` 면 응답 스키마에 `confidence: number`·`evidence: string[]` 를 더하고 시스템 프롬프트에 필드 설명을 넣는다.
 4. **대화 맥락 주입**: `contextScope ≠ none` 이면 `injectConversationContext()` 로 자기 노드 턴을 뺀 스레드를 `contextInjectionMode` 에 따라 messages 앞이나 시스템 프롬프트 뒤에 붙인다. `none`(기본)이면 바뀌지 않는다.
-5. **LLM 호출**: `LlmService.chat` 을 부른다. 실패하면 `error` 포트로 `LLM_CALL_FAILED` 를 보낸다.
+5. **LLM 호출**: `LlmService.chat` 을 부르고 `context.abortSignal` 을 `signal` 로 넘긴다. 호출이 실패하면 catch 첫 줄에서 `rethrowIfNodeCancelled` 로 노드 취소인지 먼저 가른다.
+    - 노드 취소: `context.abortSignal.aborted` 가 참이면 에러 이름과 상관없이 노드 취소로 본다. 에러 이름이 `AbortError` 면 그대로 던진다. 아니면 이름이 `AbortError` 인 새 에러로 감싸 원래 에러를 `cause` 로 남기고 던진다. Anthropic·OpenAI SDK 가 끊긴 요청에 던지는 `APIUserAbortError` 는 `name` 이 `'Error'` 라서 그대로 두면 엔진이 취소로 분류하지 못한다. 엔진은 노드 실행을 `cancelled` 로 기록하고 `output_data` 를 쓰지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 노드는 어느 출력 포트로도 보내지 않는다.
+    - 그 밖의 실패: 신호가 없거나 열려 있으면 노드 자신의 실패다. `error` 포트로 `LLM_CALL_FAILED` 를 보낸다(429 는 `LLM_RATE_LIMIT`). 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 여기에 든다.
 6. **응답 파싱**: JSON 응답을 파싱한다. 실패하면 카테고리 이름 부분 문자열 매칭으로 대신한다. 이 경우에도 지정 id 라우팅은 유지한다.
 7. **결과 처리**
     - 단일 레이블: `category` 미반환·`__none__`·정의되지 않은 카테고리면 `port: 'fallback'`, `result.category: null`. 성공이면 `port: '<category.id>'` 또는 `class_${i}`.
@@ -300,7 +303,7 @@ etag: "sha256-7f5c6605c1523eafc1de4d84fd72c71d9af4139982d8b98a534fcbae050ea65f"
 | `port` | `'error'` | 핸들러 반환 | |
 | `status` | `'ended'` | 핸들러 반환 | |
 
-JSON 파싱에 실패하면 부분 문자열 대체 매칭으로 회복하므로 `LLM_RESPONSE_INVALID` 는 나지 않는다. 대체 매칭에도 실패하면 `fallback` 케이스(`category: null`)로 정상 종료한다. `error` 포트는 LLM API 호출 자체의 예외만 받는다.
+JSON 파싱에 실패하면 부분 문자열 대체 매칭으로 회복하므로 `LLM_RESPONSE_INVALID` 는 나지 않는다. 대체 매칭에도 실패하면 `fallback` 케이스(`category: null`)로 정상 종료한다. `error` 포트는 LLM API 호출 자체의 예외만 받는다. 노드 취소 신호가 켜진 뒤 실패한 호출은 이 포트로 오지 않는다. 노드가 `AbortError` 를 엔진에 던지고 엔진이 노드 실행을 `cancelled` 로 기록하므로 이 절의 출력이 생기지 않는다(REQ-CLASSIFY-020). 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 `LLM_CALL_FAILED` 로 이 포트에 온다.
 
 표현식 접근 예: `$node["Intent"].output.error.code` → `"LLM_CALL_FAILED"`, `$node["Intent"].port` → `"error"`.
 
@@ -308,9 +311,11 @@ JSON 파싱에 실패하면 부분 문자열 대체 매칭으로 회복하므로
 
 | 코드 | 뜻 | 발생 조건 | 시점 |
 |------|------|-----------|------|
-| `LLM_CALL_FAILED` | LLM provider 호출 실패 | 네트워크·타임아웃·5xx·SDK 예외 | 실행 중(`error` 포트) |
+| `LLM_CALL_FAILED` | LLM provider 호출 실패 | 네트워크·타임아웃·5xx·SDK 예외. 노드 취소 신호가 켜진 뒤의 실패는 빠진다(REQ-CLASSIFY-020) | 실행 중(`error` 포트) |
 | `LLM_RATE_LIMIT` | provider 429 | rate limit. `details.retryable: true`, `Retry-After` 신호가 있으면 `retryAfterSec` 도 싣는다 | 실행 중(`error` 포트) |
 | `LLM_RESPONSE_INVALID` | 응답 형식 오류 | JSON 파싱과 부분 문자열 대체가 모두 실패. 지금은 대체로 회복해 나지 않는 예약 코드다 | 실행 중 |
+
+노드 취소는 이 표의 코드를 쓰지 않는다. 엔진이 `NodeExecution.error` 에 `{ code: 'AbortError', message }` 를 남긴다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19).
 
 **실행 전 검증** ([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.1, 스키마 warningRules + `validateTextClassifierConfig`)
 
@@ -329,13 +334,14 @@ JSON 파싱에 실패하면 부분 문자열 대체 매칭으로 회복하므로
 
 ## 미결 사항
 
-- **인증 실패(401·403)의 재시도 가능 분류**: 이 문서의 원문과 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 인증 실패를 `retryable: false` 로 정한다. 현재 핸들러(`text-classifier.handler.ts` 234~241행)는 `LLM_CALL_FAILED` 를 늘 `retryable: true` 로 채운다. 정보 추출기는 문서부터 늘 `true` 로 정한다. 세 노드 전체 쟁점은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 미결 사항에 있다. 문서와 코드 중 어느 쪽에 맞출지 결정 필요.
+- **인증 실패(401·403)의 재시도 가능 분류**: 이 문서의 원문과 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 은 인증 실패를 `retryable: false` 로 정한다. 현재 핸들러(`text-classifier.handler.ts` 의 `execute` 에서 LLM 호출 catch 가 `isLlmRateLimit` 로 코드를 가르는 블록)는 `LLM_CALL_FAILED` 를 늘 `retryable: true` 로 채운다. 정보 추출기는 문서부터 늘 `true` 로 정한다. 세 노드 전체 쟁점은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 미결 사항에 있다. 문서와 코드 중 어느 쪽에 맞출지 결정 필요.
 - **에러 출력의 `meta` 와 `llmCalls` 형태**: 이 노드는 에러 때 토큰을 `0` 으로 채우고 `turnDebug` 대신 평면 `meta.llmCalls` 를 쓴다. 공통 규약에 없는 형태다. [AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항 참조.
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts`
 - `codebase/backend/src/nodes/ai/text-classifier/text-classifier.schema.ts` (`textClassifierNodeConfigSchema`, `validateTextClassifierConfig`, `RESERVED_PORT_WORDS`)
+- `codebase/backend/src/nodes/ai/shared/llm-cancellation.ts` (`rethrowIfNodeCancelled`, 노드 취소 판정)
 - `codebase/frontend/src/lib/utils/node-config-summary.ts` (캔버스 요약)
 
 ## Rationale
@@ -351,3 +357,14 @@ JSON 파싱에 실패하면 부분 문자열 대체 매칭으로 회복하므로
 ### `originalInput` 경로를 통일한 이유 (D6)
 
 `originalInput` 은 정상(`output.result.originalInput`, 전체)과 에러(`output.error.details.originalInput`, 500자로 자름) 양쪽을 각각 한 경로로 통일했다. 최상위 `output.originalInput` 은 쓰지 않는다.
+
+### 노드 취소는 `error` 포트로 보내지 않는다 (2026-10-31)
+
+[노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 은 노드 취소 신호로 생긴 취소를 노드가 `AbortError` 로 엔진에 던진다고 정한다. 이 문서는 LLM 호출의 모든 예외를 `error` 포트의 `LLM_CALL_FAILED` 로 보낸다고 적었고 핸들러도 그렇게 했다. 그래서 Parallel 의 cancel-others-on-fail 로 멈춘 분기가 `cancelled` 로 끝나지 않고 에러 포트로 라우팅돼 하류 노드를 실행했다.
+
+`error` 포트 원칙은 노드 자신의 실패를 한 경로로 모으는 규칙이다. 노드 취소는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19 의 중단이라 이 원칙의 범위 밖이다. [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지) 도 노드 취소에는 에러 처리 정책을 적용하지 않고 엔진이 `AbortError` 를 실패로 보지 않는다고 정한다.
+
+- 채택: 노드 취소 신호가 켜진 뒤 실패한 호출은 `AbortError` 로 엔진에 다시 던진다. 엔진이 노드 실행을 `cancelled` 로 기록하고 출력을 쓰지 않는다.
+- 기각: 취소도 `LLM_CALL_FAILED` 로 보낸다. 취소된 분기가 에러 포트로 라우팅돼 하류 노드를 실행하므로 취소된 분기의 일이 계속된다. 2026-10-31 까지 이 문서와 핸들러가 이 방식이었다.
+
+취소 판정은 에러 이름이 아니라 노드 취소 신호로 한다. provider SDK 마다 끊긴 요청에 던지는 에러의 이름이 다르기 때문이다. 판정 기준의 근거는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#rationale) Rationale 의 2026-10-31 항목에 있다. 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 지금처럼 노드 자신의 실패(`LLM_CALL_FAILED`, `retryable: true`)다.

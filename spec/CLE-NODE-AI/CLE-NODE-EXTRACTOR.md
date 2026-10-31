@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR"
 title: "정보 추출기 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-EXTRACT-001", "REQ-EXTRACT-002", "REQ-EXTRACT-003", "REQ-EXTRACT-004", "REQ-EXTRACT-005", "REQ-EXTRACT-006", "REQ-EXTRACT-007", "REQ-EXTRACT-008", "REQ-EXTRACT-009", "REQ-EXTRACT-010", "REQ-EXTRACT-011", "REQ-EXTRACT-012", "REQ-EXTRACT-013", "REQ-EXTRACT-014", "REQ-EXTRACT-015", "REQ-EXTRACT-016", "REQ-EXTRACT-017", "REQ-EXTRACT-018", "REQ-EXTRACT-019", "REQ-EXTRACT-020", "REQ-EXTRACT-021", "REQ-EXTRACT-022", "REQ-EXTRACT-023", "REQ-EXTRACT-024", "REQ-EXTRACT-025", "REQ-EXTRACT-026", "REQ-EXTRACT-027", "REQ-EXTRACT-028", "REQ-EXTRACT-029"]
+requirements: ["REQ-EXTRACT-001", "REQ-EXTRACT-002", "REQ-EXTRACT-003", "REQ-EXTRACT-004", "REQ-EXTRACT-005", "REQ-EXTRACT-006", "REQ-EXTRACT-007", "REQ-EXTRACT-008", "REQ-EXTRACT-009", "REQ-EXTRACT-010", "REQ-EXTRACT-011", "REQ-EXTRACT-012", "REQ-EXTRACT-013", "REQ-EXTRACT-014", "REQ-EXTRACT-015", "REQ-EXTRACT-016", "REQ-EXTRACT-017", "REQ-EXTRACT-018", "REQ-EXTRACT-019", "REQ-EXTRACT-020", "REQ-EXTRACT-021", "REQ-EXTRACT-022", "REQ-EXTRACT-023", "REQ-EXTRACT-024", "REQ-EXTRACT-025", "REQ-EXTRACT-026", "REQ-EXTRACT-027", "REQ-EXTRACT-028", "REQ-EXTRACT-029", "REQ-EXTRACT-030"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "fdda91ea2df75cf8e71ce7cb7f6f0d711b27dab5b6f5ce66a8c798e6ff12fdb8"
+content_hash: "4f3ef9315e2139403130e51e827a0788a29025f5924bca3be02ec3468112a5e0"
 read_as: "approved_fallback"
 task: "CLE-T-SFH6RG"
 source_paths: ["spec/4-nodes/3-ai/3-information-extractor.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e7d7283612091b50487341e48b0b070544db9c85fa9031081030f420a6f57d6b"
-etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
+mirror_sha256: "8547e08233b1bd4afd3d314011c8ab526e59c4ce6270a691eb6f30ce7fa6a888"
+etag: "sha256-c152ce045026f5e61276d204053965e686de7c84d70fab44fd054a1d9ee58b5f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/3-information-extractor.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.4), `spec/4-nodes/_product-overview.md` (§6.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 
 정보 추출기 노드(Information Extractor, `information_extractor`)는 LLM 으로 비정형 텍스트에서 출력 스키마(`outputSchema`)에 정의한 구조화 필드를 뽑는다. 캔버스 표시 이름은 "Info Extractor" 다. 단일 턴(`single_turn`)은 LLM 을 한 번 불러 JSON 응답을 받는다. 멀티턴(`multi_turn`)은 워크플로우 실행을 멈추고 사용자와 대화해 부족한 필드를 채우며, LLM 이 `finalize_extraction` 도구를 부르면 끝난다.
 
-이 문서는 설정, 설정 화면, 포트, 실행 로직, 출력 구조, 에러 코드, 에이전트 메모리 사용 방식을 정한다. 모델 선택, 멀티턴 차단 모드의 공통 동작, 출력 묶음(`output.result`·`output.error`·`output.interaction`), 대화 맥락 설정, 메모리 전략, 시스템 컨텍스트 접두, 캔버스 요약은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 을 따른다. 에이전트 메모리 저장소·범위 키·추출·회수는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md), 입력 대기·재개 상태 전이는 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 가 정한다.
+이 문서는 설정, 설정 화면, 포트, 실행 로직, 출력 구조, 에러 코드, 에이전트 메모리 사용 방식을 정한다. 모델 선택, 멀티턴 차단 모드의 공통 동작, 출력 묶음(`output.result`·`output.error`·`output.interaction`), 대화 맥락 설정, 메모리 전략, 시스템 컨텍스트 접두, 캔버스 요약은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 을 따른다. 에이전트 메모리 저장소·범위 키·추출·회수는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md), 입력 대기·재개 상태 전이는 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 가 정한다. 노드 취소 신호를 받았을 때의 동작은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다.
 
 ## 요구사항
 
@@ -34,7 +34,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 - REQ-EXTRACT-006 WHEN 사용자가 예시 입력·출력을 넣으면 THE SYSTEM SHALL few-shot 예시로 시스템 프롬프트에 넣는다. (원본: ND-IE-06)
 - REQ-EXTRACT-007 WHEN 단일 턴이면 THE SYSTEM SHALL `inputField` 값을 사용자 메시지로 해 JSON 응답 형식으로 LLM 을 한 번 부른다.
 - REQ-EXTRACT-008 IF 단일 턴 JSON 파싱에 실패하면 THE SYSTEM SHALL 최대 2번 다시 시도하고, 모두 실패하면 `LLM_RESPONSE_INVALID` 로 `error` 포트에 보낸다.
-- REQ-EXTRACT-009 IF LLM 호출이 예외를 던지면 THE SYSTEM SHALL `LLM_CALL_FAILED` 로 `error` 포트에 보낸다.
+- REQ-EXTRACT-009 IF LLM 호출이 노드 취소가 아닌 예외를 던지면 THE SYSTEM SHALL `LLM_CALL_FAILED` 로 `error` 포트에 보낸다. 노드 취소로 끝난 호출은 REQ-EXTRACT-030 을 따른다.
 - REQ-EXTRACT-010 WHEN 멀티턴이면 THE SYSTEM SHALL `finalize_extraction` 도구를 LLM 에 노출한다.
 - REQ-EXTRACT-011 IF 멀티턴 첫 진입에서 `inputField` 가 비었으면 THE SYSTEM SHALL LLM 을 부르지 않고 `turnCount: 0` 으로 입력 대기에 들어간다.
 - REQ-EXTRACT-012 WHEN LLM 이 `finalize_extraction` 을 부르면 THE SYSTEM SHALL 인자를 부분 결과에 병합하고 `null`·`undefined` 값은 기존 값을 유지한다.
@@ -46,7 +46,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 - REQ-EXTRACT-018 WHILE 멀티턴 사용자 응답을 기다리는 동안 THE SYSTEM SHALL 타임아웃 없이 기다린다.
 - REQ-EXTRACT-019 WHEN LLM 이 도구 호출 없이 텍스트만 돌려주면 THE SYSTEM SHALL 후속 질문으로 보고 입력 대기에 들어간다.
 - REQ-EXTRACT-020 WHEN 멀티턴 대화가 `completed`·`max_turns`·`user_ended` 로 끝나면 THE SYSTEM SHALL 최종 추출 스냅샷을 `ai_assistant` 턴으로 대화 스레드에 한 번 누적한다.
-- REQ-EXTRACT-021 IF 멀티턴이 LLM 호출 실패(`error`)로 끝나면 THE SYSTEM SHALL 대화 스레드에 누적하지 않는다.
+- REQ-EXTRACT-021 IF 멀티턴이 LLM 호출 실패(`error`)로 끝나면 THE SYSTEM SHALL 대화 스레드에 누적하지 않는다. 노드 취소로 끝난 멀티턴은 REQ-EXTRACT-030 을 따른다.
 - REQ-EXTRACT-022 WHEN 사용자 메시지를 받아 재개하고 종료 조건에 닿지 않으면 THE SYSTEM SHALL `status: 'resumed'` 스냅샷을 한 번 낸다. (미구현)
 - REQ-EXTRACT-023 WHEN `memoryStrategy` 가 `persistent` 면 THE SYSTEM SHALL 추출 LLM 호출 전에 에이전트 메모리를 한 번 회수해 시스템 메시지 뒤 안정 프리픽스에 넣는다.
 - REQ-EXTRACT-024 WHEN `memoryStrategy` 가 `persistent` 이고 대화 스레드에 결과를 누적하면 THE SYSTEM SHALL 메모리 추출을 비동기로 넣는다.
@@ -55,6 +55,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 - REQ-EXTRACT-027 WHEN `contextScope` 가 `none` 이 아니고 메모리 전략이 `manual` 이면 THE SYSTEM SHALL 단일 턴은 LLM 호출 직전, 멀티턴은 첫 진입 때 한 번 대화 스레드를 주입한다.
 - REQ-EXTRACT-028 IF 출력 스키마가 비었거나 단일 턴인데 `inputField` 가 비었거나 모델이 설정되지 않았으면 THE SYSTEM SHALL 캔버스 경고를 낸다.
 - REQ-EXTRACT-029 WHEN `mode` 를 바꾸면 THE SYSTEM SHALL 출력 포트를 모드에 맞게 다시 계산한다.
+- REQ-EXTRACT-030 IF 노드 취소 신호(`context.abortSignal`)가 켜진 뒤 LLM 호출이 실패하면 THE SYSTEM SHALL `error` 포트로 보내지 않고 `AbortError` 로 엔진에 다시 던지고 멀티턴에서도 부분 결과(`output.result`)·대화 스레드 누적·메모리 추출을 만들지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3).
 
 ## 설정
 
@@ -134,7 +135,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 | id | label | type | dynamic | 설명 |
 |------|-------|------|---------|------|
 | `out` | Output | system | true (모드에서 유도) | 추출 성공(`resolveDynamicPorts` 가 `system` 으로 발행) |
-| `error` | Error | error | true (모드에서 유도) | LLM 호출 실패, JSON 파싱 재시도 소진 |
+| `error` | Error | error | true (모드에서 유도) | LLM 호출 실패, JSON 파싱 재시도 소진. 노드 취소는 이 포트로 보내지 않는다 |
 
 **멀티턴**
 
@@ -143,7 +144,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 | `completed` | Completed | system | true (모드에서 유도) | 필수 필드를 모두 채워 자연 완료 |
 | `user_ended` | User Ended | system | true (모드에서 유도) | 사용자가 `execution.end_conversation` 으로 종료 |
 | `max_turns` | Max Turns | system | true (모드에서 유도) | `turnCount >= maxTurns` (`maxTurns > 0` 일 때) |
-| `error` | Error | error | true (모드에서 유도) | LLM 호출 실패 또는 `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| `error` | Error | error | true (모드에서 유도) | LLM 호출 실패 또는 `MAX_COLLECTION_RETRIES_EXCEEDED`. 노드 취소는 이 포트로 보내지 않는다 |
 
 - 모드를 바꾸면 동적 출력 포트를 바로 다시 계산한다.
 - 사용자가 정의한 추출 필드는 포트가 아니라 결과 객체의 키가 된다.
@@ -159,7 +160,7 @@ etag: "sha256-8072fee73507a632e5647a9899cd3d62dc59f318f0111be5f48e8b42d1f33f17"
 3. **시스템 프롬프트 구성**: 스키마 설명, `instructions`, `examples`, "JSON 으로만 응답" 지시를 넣는다.
 4. **대화 맥락 주입**: `contextScope ≠ none` 이면 `injectConversationContext()` 로 자기 노드 턴을 뺀 스레드를 messages 앞이나 시스템 프롬프트 뒤에 붙인다.
 5. **에이전트 메모리 회수**: `memoryStrategy === 'persistent'` 면 LLM 호출 직전 `AgentMemoryService.recall(workspaceId, scopeKey, queryText, {topK, threshold, embeddingModelConfigId})` 로 회수해 시스템 메시지 뒤 안정 프리픽스(회수 블록)에 넣는다. `scopeKey = resolveScopeKey(memoryKey, executionId)`, `queryText = inputField`(비면 시스템 프롬프트로 대신)다. `manual` 이면 부르지 않는다. 회수 실패는 빈 회수로 처리한다.
-6. **LLM 호출**: 평가된 `inputField` 를 사용자 메시지로, `responseFormat: 'json'` 과 `jsonSchema` 옵션을 붙여 `LlmService.chat` 을 부른다. 예외가 나면 바로 `error` 포트와 `LLM_CALL_FAILED` 다.
+6. **LLM 호출**: 평가된 `inputField` 를 사용자 메시지로, `responseFormat: 'json'` 과 `jsonSchema` 옵션을 붙여 `LlmService.chat` 을 부른다. `context.abortSignal` 을 `signal` 로 넘긴다. 예외가 나면 먼저 노드 취소인지 가른다. 노드 취소 신호가 켜졌으면 `AbortError` 로 엔진에 다시 던진다([노드 취소 신호 처리](#노드-취소-신호-처리)). 그 밖의 예외는 바로 `error` 포트와 `LLM_CALL_FAILED` 다.
 7. **파싱과 출력**: 응답을 `JSON.parse` 한다. 성공하면 결과를 `output.result.extracted` 에 담아 `out` 포트로 보낸다. 스레드에 `ai_assistant` 턴(`JSON.stringify(extracted)`)을 누적한 직후 `persistent` 면 `AgentMemoryService.scheduleExtraction(...)` 으로 메모리 추출을 비동기로 넣는다.
 8. **파싱 재시도**: 파싱에 실패하면 최대 2번 다시 시도한다(모두 3회). 모두 실패하면 `error` 포트와 `LLM_RESPONSE_INVALID` 다.
 
@@ -178,12 +179,16 @@ stateDiagram-v2
     턴처리 --> 입력대기: 후속 질문
     턴처리 --> 완료: 필수 필드 충족
     턴처리 --> 최대턴: maxTurns 도달
-    턴처리 --> 에러: LLM 실패 또는 수집 재시도 초과
+    턴처리 --> 에러: LLM 실패(노드 취소 제외) 또는 수집 재시도 초과
+    턴처리 --> 취소: 노드 취소 신호(첫 경로만)
     완료 --> [*]
     최대턴 --> [*]
     사용자종료 --> [*]
     에러 --> [*]
+    취소 --> [*]
 ```
+
+`취소` 는 노드 취소 신호가 켜진 뒤 LLM 호출이 실패한 경우다. 노드는 출력을 내지 않고 엔진이 노드 실행을 `cancelled` 로 기록한다([노드 취소 신호 처리](#노드-취소-신호-처리)). 노드 취소 신호는 첫 경로(`executeMultiTurn`)에만 전파되므로 재개 뒤의 턴 처리에서는 이 전이가 생기지 않는다.
 
 1. **첫 턴**
     - `inputField` 가 비면 LLM 호출을 건너뛰고 `turnCount: 0` 으로 바로 `waiting_for_input` 을 돌려준다. 사용자가 첫 메시지를 보낼 때까지 기다린다.
@@ -193,16 +198,35 @@ stateDiagram-v2
     - LLM 응답에 `finalize_extraction` 호출이 있으면 인자를 파싱해 `partialResult` 에 병합한다(`null`·`undefined` 는 기존 값 유지). 필수 필드가 모두 채워지면 `completed` 다. 부족하면 `tool` 역할 메시지로 누락 필드를 알리고 `collectionRetryCount += 1` 한 뒤 같은 턴에서 다시 부른다.
     - `collectionRetryCount > maxCollectionRetries`(0 제외)면 `forcedEnd: 'max_retries'` 로 끝낸다(`error` 포트, `MAX_COLLECTION_RETRIES_EXCEEDED`).
     - 도구 호출 없이 텍스트만 있으면 후속 질문으로 보고 `waiting_for_input` 을 돌려준다.
+    - LLM 호출이 실패하면 catch 첫 줄에서 노드 취소를 먼저 가른다. 노드 취소면 부분 결과(`kind: 'error'`)를 돌려주기 전에 `AbortError` 를 던진다. 아니면 `kind: 'error'` 로 돌려주고 호출한 쪽이 `LLM_CALL_FAILED` 로 `error` 포트에 보낸다.
 3. **종결 판정** (각 턴 끝)
     - `forcedEnd` 가 있으면 그 사유로 끝낸다.
     - 필수 필드를 모두 채우면 `completed` 포트(`endReason: 'completed'`)다.
     - `turnCount >= maxTurns`(`maxTurns > 0`)면 `max_turns` 포트다.
-    - **종결 누적과 메모리 추출**: `buildMultiTurnFinalOutput` 종결 경로(`completed`·`max_turns`·`user_ended`)에서 최종 추출 스냅샷을 `ai_assistant` 턴(`JSON.stringify(extracted)`)으로 한 번 누적한다(단일 턴과 같음, [대화 스레드](../CLE-IX/CLE-IX-THREAD.md)). 입력 대기 중에는 누적하지 않는다. `error`(LLM 호출 실패)는 불완전한 결과를 쌓지 않으려 누적하지 않는다. 누적 직후 `persistent` 면 그 스레드를 소스로 메모리 추출을 비동기로 넣는다. 이 누적이 추출 소스와 다운스트림의 대화 맥락 가시성을 준다.
-4. **`processMultiTurnMessage(userMessage, _resumeState)`**: 엔진이 사용자 메시지를 받으면 부른다. 메시지를 대화에 더하고 2~3을 반복한다.
+    - **종결 누적과 메모리 추출**: `buildMultiTurnFinalOutput` 종결 경로(`completed`·`max_turns`·`user_ended`)에서 최종 추출 스냅샷을 `ai_assistant` 턴(`JSON.stringify(extracted)`)으로 한 번 누적한다(단일 턴과 같음, [대화 스레드](../CLE-IX/CLE-IX-THREAD.md)). 입력 대기 중에는 누적하지 않는다. `error`(LLM 호출 실패)는 불완전한 결과를 쌓지 않으려 누적하지 않는다. 노드 취소도 누적하지 않는다(REQ-EXTRACT-030). 누적 직후 `persistent` 면 그 스레드를 소스로 메모리 추출을 비동기로 넣는다. 이 누적이 추출 소스와 다운스트림의 대화 맥락 가시성을 준다.
+4. **`processMultiTurnMessage(userMessage, _resumeState)`**: 엔진이 사용자 메시지를 받으면 부른다. 메시지를 대화에 더하고 2~3을 반복한다. 이 경로에는 전파할 노드 취소 신호가 없다([노드 취소 신호 처리](#노드-취소-신호-처리)).
 5. **`endMultiTurnConversation(_resumeState, endReason)`**: 사용자가 `execution.end_conversation` 을 보내면 엔진이 부른다. `endReason` 에 따라 `user_ended`·`max_turns`·`error` 포트로 보낸다.
 6. **재개 스냅샷**: 사용자 메시지로 재개했지만 종결 조건에 닿지 않으면 다음 `waiting_for_input` 직전에 `status: 'resumed'` 와 `output.interaction.{type, data, receivedAt}` 스냅샷을 한 번 내는 것이 목표 계약이다. 지금은 내지 않는다(미구현, 아래 재개 절).
 
 단일 기준은 `information-extractor.handler.ts` 다. 시스템 프롬프트와 도구 정의는 같은 파일의 `buildMultiTurnSystemPrompt`·`buildFinalizationTool` 이다.
+
+### 노드 취소 신호 처리
+
+노드 취소 신호(`context.abortSignal`)는 지금 Parallel 노드의 cancel-others-on-fail 만 켠다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). 정보 추출기는 이 신호를 LLM 호출에 `signal` 로 넘긴다. 호출이 실패하면 catch 첫 줄에서 `rethrowIfNodeCancelled`(`shared/llm-cancellation.ts`)로 노드 취소인지 먼저 가른다.
+
+- **판정**: 신호가 켜져 있으면 에러 이름과 상관없이 노드 취소로 본다. 에러 이름이 `AbortError` 면 그대로 던진다. 아니면 이름이 `AbortError` 인 새 에러로 감싸 원래 에러를 `cause` 로 남기고 던진다. Anthropic·OpenAI SDK 가 끊긴 요청에 던지는 `APIUserAbortError` 는 `name` 이 `'Error'` 라서 그대로 두면 엔진이 취소로 분류하지 못한다.
+- **결과**: 엔진이 노드 실행을 `cancelled` 로 기록하고 `output_data` 를 쓰지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 노드는 어느 출력 포트로도 보내지 않는다.
+- **노드 자신의 실패**: 신호가 없거나 열려 있으면 기존 에러 매핑(`LLM_CALL_FAILED`·`LLM_RATE_LIMIT`, `retryable`)을 그대로 쓴다. 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 `LLM_CALL_FAILED` 다.
+
+경로마다 판정하는 곳은 다음과 같다.
+
+| 경로 | 판정하는 곳 | 취소 때 |
+|------|-------------|---------|
+| 단일 턴 | LLM 호출 catch(파싱 재시도의 호출 포함) | `AbortError` 를 던진다. 스레드 누적과 메모리 추출에 닿지 않는다 |
+| 멀티턴 첫 경로(`executeMultiTurn`) | `runTurnWithCollectionRetries` 의 catch. 부분 결과(`kind: 'error'`)를 돌려주기 전이다. 수집 재시도로 다시 부른 호출도 같다 | `AbortError` 를 던진다. 부분 결과(`output.result`)·대화 스레드 누적·메모리 추출을 만들지 않는다 |
+| 멀티턴 재개(`processMultiTurnMessage`) | 없음. 전파할 신호가 없다(`ResumableMessageOptions.signal` 이 늘 `undefined`) | 사용자 실행 중지는 엔진이 턴 경계에서 실행 행을 다시 읽어 알아챈다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#db-관측-취소-가드) 규칙 10·12) |
+
+사용자 실행 중지는 어느 경로에서도 신호를 만들지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 규칙 9). 그래서 이 절의 판정은 Parallel 분기 취소에만 걸린다.
 
 ## 출력 구조
 
@@ -217,6 +241,9 @@ stateDiagram-v2
 | 멀티턴 입력 대기 | 없음 | `waiting_for_input` |
 | 멀티턴 재개 | 없음 | `resumed` (미구현) |
 | 멀티턴 종결 4종 | `completed` / `user_ended` / `max_turns` / `error`(`max_retries`) | `ended` |
+| 노드 취소 | 없음 | - |
+
+노드 취소는 출력을 내지 않는다. 엔진이 노드 실행을 `cancelled` 로 기록한다([노드 취소 신호 처리](#노드-취소-신호-처리)).
 
 ### 단일 턴 정상 (`out`)
 
@@ -286,7 +313,7 @@ stateDiagram-v2
 
 ### 에러 (`error`)
 
-단일 턴 LLM 호출 실패·JSON 파싱 재시도 소진, 멀티턴 LLM 호출 실패가 모두 이 포트로 간다(`max_retries` 는 종결 절). 멀티턴 대화 중 실패하면 `output.error` 와 함께 `output.result` 가 부분 수집 결과로 남는다.
+단일 턴 LLM 호출 실패·JSON 파싱 재시도 소진, 멀티턴 LLM 호출 실패가 모두 이 포트로 간다(`max_retries` 는 종결 절). 멀티턴 대화 중 실패하면 `output.error` 와 함께 `output.result` 가 부분 수집 결과로 남는다. 노드 취소 신호가 켜진 뒤 실패한 LLM 호출은 이 포트로 오지 않는다([노드 취소 신호 처리](#노드-취소-신호-처리)).
 
 ```json
 {
@@ -327,7 +354,7 @@ stateDiagram-v2
 | `output.error.details.retryable` | boolean | 핸들러 | 모든 에러 경로가 `retryabilityDetails` 헬퍼(`buildErrorOutput`)로 채운다. 원문 불변식은 `LLM_CALL_FAILED`·`LLM_RATE_LIMIT` 은 `true`, `LLM_RESPONSE_INVALID`·`MAX_COLLECTION_RETRIES_EXCEEDED` 는 `false` 다. 인증 실패(401·403)도 `true` 가 되어 다른 노드와 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | `output.error.details.retryAfterSec` | number? | 핸들러 | provider 신호가 있을 때 권장 대기(초). `retryable === true` 일 때만 |
 | `output.error.details`(기타) | object? | 핸들러 | `attempts`·`originalInput`·`lastResponse`·`turnCount`·`collectionRetryCount` 등 |
-| `output.result` | object? | 핸들러 | 멀티턴 `LLM_CALL_FAILED` 한정. `extracted`·`endReason: 'error'`·`turnCount`·`messages` 부분 결과 |
+| `output.result` | object? | 핸들러 | 멀티턴 `LLM_CALL_FAILED` 한정. `extracted`·`endReason: 'error'`·`turnCount`·`messages` 부분 결과. 노드 취소로 끝난 멀티턴에는 출력 자체가 없다(REQ-EXTRACT-030) |
 | `meta.durationMs` | number | 핸들러·엔진 | 실행 시간 |
 | `meta.model` | string? | LLM 응답 | 호출이 일부라도 성공했을 때만. 공통 규약과 다르다([AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항) |
 | `meta.collectionRetryCount` | number? | 핸들러 | 멀티턴 에러 때 누적값 |
@@ -335,7 +362,7 @@ stateDiagram-v2
 | `port` | `'error'` | 핸들러 | |
 | `status` | `'ended'` | 핸들러 | |
 
-멀티턴 대화 중 LLM 호출이 실패하면 `output.error`(`LLM_CALL_FAILED`)와 `output.result`(부분 추출)가 함께 나온다. 후속 노드는 `output.error` 가 있는지로 판단하고 부분 결과는 `output.result.extracted` 에서 가져온다. 표현식 접근 예: `$node["X"].output.error.code`, `$node["X"].output.error.details.originalInput`, `$node["X"].output.result?.extracted`(단일 턴 에러면 `undefined`).
+멀티턴 대화 중 LLM 호출이 실패하면 `output.error`(`LLM_CALL_FAILED`)와 `output.result`(부분 추출)가 함께 나온다. 노드 취소 신호가 켜진 뒤 실패한 호출은 여기에 들지 않는다. 엔진이 노드 실행을 `cancelled` 로 기록하고 출력을 쓰지 않으므로 `output.error`·`output.result` 가 모두 없다(REQ-EXTRACT-030). 후속 노드는 `output.error` 가 있는지로 판단하고 부분 결과는 `output.result.extracted` 에서 가져온다. 표현식 접근 예: `$node["X"].output.error.code`, `$node["X"].output.error.details.originalInput`, `$node["X"].output.result?.extracted`(단일 턴 에러면 `undefined`).
 
 정보 추출기는 마지막 턴 재시도(`execution.retry_last_turn`)를 지원하지 않는다. 재시도 가능 에러여도 `_retryState` 를 만들지 않는다. 그래서 AI 에이전트가 `_retryState` 에 싣는 실패 사용자 메시지(`failedUserMessage`)도 담지 않는다. 현재 구현의 근거는 `information-extractor.handler.ts` 의 주석이다. 화면은 실시간 `system_error` 를 AI 에이전트 노드(`ai_agent`)에만 붙이므로 정보 추출기 실패에는 [다시 시도] 버튼이 보이지 않는다([대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건)). `retryable=true` 인데 버튼이 없는 이 상태가 버튼 노출 규약과 어긋나는 문제는 [미결 사항](#미결-사항), [노드 출력 규약 미결 사항](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항) 참조.
 
@@ -553,10 +580,12 @@ stateDiagram-v2
 
 | code | 발생 조건 | 포트 | 분류 |
 |------|-----------|------|------|
-| `LLM_CALL_FAILED` | provider 네트워크·타임아웃·5xx·기타 예외 | `error` | 실행 중. 단일 턴은 바로, 멀티턴은 `result` 와 함께 |
+| `LLM_CALL_FAILED` | provider 네트워크·타임아웃·5xx·기타 예외. 노드 취소 신호가 켜진 뒤의 실패는 빠진다(REQ-EXTRACT-030) | `error` | 실행 중. 단일 턴은 바로, 멀티턴은 `result` 와 함께 |
 | `LLM_RATE_LIMIT` | 429(provider 가 따로 분류할 때) | `error` | 실행 중 |
 | `LLM_RESPONSE_INVALID` | 단일 턴 JSON 파싱이 모든 재시도(기본 3회)에서 실패 | `error` | 실행 중 |
 | `MAX_COLLECTION_RETRIES_EXCEEDED` | 멀티턴 `collectionRetryCount > maxCollectionRetries` | `error` | 실행 중. `result` 와 함께(`max_retries`) |
+
+노드 취소는 이 표의 코드를 쓰지 않는다. 엔진이 `NodeExecution.error` 에 `{ code: 'AbortError', message }` 를 남긴다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19).
 
 **실행 전 검증** ([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.1, 예외를 던진다)
 
@@ -608,6 +637,7 @@ stateDiagram-v2
 - `codebase/backend/src/nodes/ai/information-extractor/information-extractor.schema.ts` (`informationExtractorNodeConfigSchema`)
 - `codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts`
 - `codebase/backend/src/nodes/ai/shared/agent-memory-schema.ts`
+- `codebase/backend/src/nodes/ai/shared/llm-cancellation.ts` (`rethrowIfNodeCancelled`, 노드 취소 판정)
 
 진행 중 작업: `plan/in-progress/node-output-redesign/information-extractor.md`
 
@@ -632,3 +662,16 @@ stateDiagram-v2
 ### 설정 에코 기본값 생략
 
 `includeSystemContext`·`systemContextSections` 는 기본값과 같으면 설정 에코에서 뺀다([AI 노드 공통](CLE-NODE-AI-COMMON.md)).
+
+### 노드 취소는 `error` 포트로 보내지 않는다 (2026-10-31)
+
+[노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 은 노드 취소 신호로 생긴 취소를 노드가 `AbortError` 로 엔진에 던진다고 정한다. 이 문서는 LLM 호출의 모든 예외를 `error` 포트의 `LLM_CALL_FAILED` 로 보낸다고 적었고 핸들러도 단일 턴과 멀티턴 첫 경로 모두 그렇게 했다. 그래서 Parallel 의 cancel-others-on-fail 로 멈춘 분기가 `cancelled` 로 끝나지 않고 에러 포트로 라우팅돼 하류 노드를 실행했다.
+
+`error` 포트 원칙은 노드 자신의 실패를 한 경로로 모으는 규칙이다. 노드 취소는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19 의 중단이라 이 원칙의 범위 밖이다. [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지) 도 노드 취소에는 에러 처리 정책을 적용하지 않고 엔진이 `AbortError` 를 실패로 보지 않는다고 정한다.
+
+- 채택: 노드 취소 신호가 켜진 뒤 실패한 호출은 `AbortError` 로 엔진에 다시 던진다. 엔진이 노드 실행을 `cancelled` 로 기록하고 출력을 쓰지 않는다.
+- 기각: 취소도 `LLM_CALL_FAILED` 로 보낸다. 취소된 분기가 에러 포트로 라우팅돼 하류 노드를 실행하므로 취소된 분기의 일이 계속된다. 2026-10-31 까지 이 문서와 핸들러가 이 방식이었다.
+
+멀티턴도 같다. 취소된 멀티턴은 부분 결과(`output.result`)를 내지 않고 대화 스레드와 메모리에 누적하지 않는다. 입력 대기 중에는 누적하지 않아 미완성 결과가 스레드와 메모리에 쌓이지 않게 한 결정([멀티턴 종결 누적을 함께 들인 이유](#멀티턴-종결-누적을-함께-들인-이유))과 같은 이유다. 취소된 대화는 끝나지 않았으므로 그때까지의 추출 결과도 미완성이다. 취소에도 부분 결과를 남기는 대안은 기각했다. [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19 에 따라 엔진은 취소된 노드 실행의 `output_data` 를 쓰지 않는다. 쓰게 하더라도 하류 노드가 미완성 결과를 읽게 된다.
+
+취소 판정은 에러 이름이 아니라 노드 취소 신호로 한다. provider SDK 마다 끊긴 요청에 던지는 에러의 이름이 다르기 때문이다. 판정 기준의 근거는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#rationale) Rationale 의 2026-10-31 항목에 있다. 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 지금처럼 노드 자신의 실패(`LLM_CALL_FAILED`, `retryable: true`)다. 멀티턴 재개 경로에는 전파할 신호가 없어 이 판정이 걸리지 않는다. 그 경로의 사용자 실행 중지는 턴 경계 DB 관측이 맡는다.
