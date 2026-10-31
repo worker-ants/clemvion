@@ -123,13 +123,13 @@ Slack supports all field types (`text`, `email`, `textarea`, `select`, etc.) in 
 ## 5.5 Changing the bot token or signing secret
 
 **Bot token** changes go through the rotate API only —
-`POST /api/triggers/:id/chat-channel/rotate-bot-token`. Sending `config.chatChannel.botToken`
+`POST /api/triggers/:id/chat-channel/rotate-bot-token`. Sending `chatChannel.botToken`
 in a trigger PATCH returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`).
 
 - Errors: credential rejection (invalid bot token) → 400 `BOT_TOKEN_INVALID`; anything else
   (Slack response failure, network error, etc.) → 502 `CHAT_CHANNEL_SETUP_FAILED`
 
-**The signing secret cannot be changed yet.** Sending `config.chatChannel.inboundSigningPlaintext` in a
+**The signing secret cannot be changed yet.** Sending `chatChannel.inboundSigningPlaintext` in a
 PATCH also returns 400 (`details.field='chatChannel.inboundSigningPlaintext'`). If you
 regenerated it in Slack, delete the trigger and create it again.
 
@@ -140,7 +140,7 @@ regenerated it in Slack, delete the trigger and create it again.
 
 ## 6. Customizing notification messages (`languageHints` / `languageLocale`)
 
-You can override the bot's built-in notification messages via `config.chatChannel.languageHints`.
+You can override the bot's built-in notification messages via `chatChannel.languageHints`.
 
 ### 6.1 `languageLocale` — default locale
 
