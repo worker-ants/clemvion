@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "00288217facebc0cadb5d31b585c37b3137692acca54112ff49ef5a1381bd076"
+content_hash: "9b79992e62e5550f840e67a67080202098b9c55b422dddfd6e83545180c57871"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-NAT45Z"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "563f24ae7ad2836b0a8ae20053b598b3f97316ebcf809ce333db8622987f9b56"
-etag: "sha256-ebc08807542e7065917357eba781f8e5d3aa491c07728f9317e9610a139f221b"
+mirror_sha256: "40eb1309cd56cabfd47e182ef31688136fa44646aefd0ea0d8f179b1ff7aef58"
+etag: "sha256-a5c5fd60f6f0b492a98578916def69ab8d7c7e503bf879a74d402a7091a646a1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -389,7 +389,7 @@ gpt-oss 계열 모델(예: gpt-oss-120b)은 `<|channel|>final<|message|>...` 같
 ## API 키 보안
 
 - 저장: AES-256-GCM 으로 암호화한다(기존 `encrypt`/`decrypt` 유틸리티). 암호화 위치와 복호화 시점은 [LLM 사용량 기록](CLE-AI-USAGE.md) 의 모델 설정 엔티티 절에서 정한다.
-- 암호화 키: 환경 변수 `ENCRYPTION_KEY`.
+- 암호화 키: 마스터키(`ENCRYPTION_KEY`). 시크릿 저장소와 같은 키다([시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키)).
 - API 응답: 필드 마스킹(`***<last4>`)을 적용한다. 현재 구현은 `****` 뒤에 마지막 4자를 붙인다.
 - 로그: API 키를 절대 로깅하지 않는다.
 
@@ -398,7 +398,7 @@ gpt-oss 계열 모델(예: gpt-oss-120b)은 `<|channel|>final<|message|>...` 같
 LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-spec.ts`)가 실제 LLM 키와 외부 호출 없이 멀티턴 AI 노드의 park·재개·rehydration 경로를 늘 같은 결과로 검증하게 하는 환경 변수 게이트 스텁 클라이언트다(`OAUTH_STUB_MODE` 선례).
 
 - `LlmService.createClient` 는 ConfigService 의 `llm.stubMode`(env `LLM_STUB_MODE` 유래, `registerAs('llm')` 네임스페이스)가 켜져 있으면 캐시·복호화 경로보다 먼저 `StubLlmClient` 를 돌려준다. 스텁이 항상 먼저 잡히므로 실제 클라이언트가 먼저 캐시된 상태에서 생기는 오염을 막는다. 이 경로에서는 모델 설정의 `apiKey` 를 쓰지 않는다.
-- 운영 차단: 부팅 가드가 `NODE_ENV=production` 과 `LLM_STUB_MODE=true` 조합을 fail-closed 로 throw 한다. 그래서 운영 환경에서는 절대 켜지지 않는다. 가드는 `main.ts` 가 부르는 `assertProductionConfig`(`common/config/production-guards.ts`)에 있다. 이 함수가 검사하는 대상의 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) Rationale 「운영 환경 가드」 에 있다.
+- 운영 차단: `NODE_ENV=production` 에서 `LLM_STUB_MODE` 가 켜져 있으면 운영 환경 가드가 fail-closed 로 throw 한다. 그래서 운영 환경에서는 절대 켜지지 않는다. 가드는 `main.ts` 가 부르는 `assertProductionConfig`(`common/config/production-guards.ts`)에 있다. 이 함수가 검사하는 대상의 전체 목록과 플래그를 켜진 것으로 보는 값은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 있다.
 - 스텁 응답 계약(`StubLlmClient`, `codebase/backend/src/modules/llm/clients/stub.client.ts`): `chat` 은 마지막 user 메시지를 `[stub] received: <msg>` 로 되돌려 주고 도구 호출을 만들지 않는다. 멀티턴 AI 노드가 응답을 내보낸 뒤 다시 park 하므로 매 턴의 cold rehydration 경로를 반복해서 검증할 수 있다. `embed` 는 0 벡터, `listModels` 는 `stub-model` 1건을 돌려준다.
 
 ## 스트리밍
@@ -600,4 +600,6 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 
 ### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다 (2026-10-31)
 
-LLM 스텁 모드 절은 운영 환경 가드가 검사하는 대상을 열거했었다. 가드가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)도 검사하게 된 뒤에도 이 열거는 바뀌지 않았다. 가드 대상이 늘 때마다 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) Rationale 「운영 환경 가드」 를 가리킨다. NERV Task `CLE-T-KQ37NJ` 에서 정했다.
+LLM 스텁 모드 절은 운영 환경 가드가 검사하는 대상을 열거했었다. 가드가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)도 검사하게 된 뒤에도 이 열거는 바뀌지 않았다. 가드 대상이 늘 때마다 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 목록을 가리킨다. NERV Task `CLE-T-KQ37NJ` 에서 정했다.
+
+그 목록은 처음에 세션과 토큰의 Rationale 「운영 환경 가드」 절에 있었다. 2026-10-31 NERV Task `CLE-T-NAT45Z` 가 목록을 본문 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 절로 옮겨 링크도 그 절을 가리키게 고쳤다. 옛 문장은 `LLM_STUB_MODE=true` 만 적었지만 가드는 `true` 와 `1` 을 모두 켜짐으로 본다. 그래서 켜짐 판정은 링크한 절을 따른다고 적었다. 스텁을 실제로 켜는 설정(`llm.config.ts` 의 `stubMode`)은 `true` 만 본다. 가드가 막는 값이 더 넓어서 운영 환경에서 스텁이 켜진 채 기동하는 일은 없다. 같은 Task 에서 「API 키 보안」 의 암호화 키를 용어 사전의 «마스터키» 로 적었다. 이 키가 무엇을 암호화하는지는 [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키) 가 정한다.

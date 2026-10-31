@@ -2,19 +2,19 @@
 id: "CLE-PLAT-NFR"
 title: "비기능 요구사항"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047", "REQ-NFR-048"]
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "a2770f9c71919d2f1a4ca2a77e8944d0998362116aff495a7b1c3c4b519c5ff3"
+content_hash: "50b711eeee87853472fd117f590d23ce3455619dd3488277c25a2475d55457d6"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-NAT45Z"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "32b1639061cae915b2bfd69ffc9a11f7c979bd228550a65b67ca74f0472e5149"
-etag: "sha256-00ecad82c162f8e081d9a1455f08384e82275dc85d9883c3462c5177fb353ee4"
+mirror_sha256: "ee368c71a4356bb10872e0d60c859aef459f278ab09e4fd31ba8c088a2cbdb97"
+etag: "sha256-1aa95d8d5d19dec073f70fef19320a4cae510d78b6a029bd6478e9c79468f43a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -189,7 +189,7 @@ etag: "sha256-00ecad82c162f8e081d9a1455f08384e82275dc85d9883c3462c5177fb353ee4"
 
 v2 의 REQ-NFR-009 는 민감 정보 암호화를 조건 없이 요구했다. 실제로 보장되는 범위는 그보다 좁다.
 
-- 운영 환경(`NODE_ENV=production`)에서는 운영 환경 가드(`assertProductionConfig`)가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`) 없이 서버를 기동하지 않는다. 키가 공백뿐이거나 공개 예시 값이어도 기동하지 않는다. 이 결정은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다(2026-10-10, NERV Task `CLE-T-2V7SBC`).
+- 운영 환경(`NODE_ENV=production`)에서는 운영 환경 가드(`assertProductionConfig`)가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)가 없거나 쓸 수 없는 값이면 서버를 기동하지 않는다. 무엇을 쓸 수 없는 값으로 보는지는 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 에 있다. 이 결정은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다(2026-10-10, NERV Task `CLE-T-2V7SBC`).
 - 운영 환경 밖에서는 통합 암호화 키가 없으면 통합 자격 증명 같은 값을 경고 뒤 평문으로 저장한다.
 - 이미 평문으로 저장된 행은 그대로 둔다. 서버는 그 행을 일괄로 다시 암호화하지 않는다.
 
@@ -203,3 +203,7 @@ v2 의 REQ-NFR-009 는 민감 정보 암호화를 조건 없이 요구했다. �
 
 - 요구 문장을 그대로 두고 "(부분 구현)" 을 붙이는 안. 운영 환경 밖의 평문 저장은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 그대로 두기로 한 동작이라 남은 구현 작업이 아니다. 보장 범위를 요구 문장에 적어야 읽는 사람이 어디까지 믿을 수 있는지 안다.
 - 운영 환경에서 저장하는 값과 마스터키로 암호화하는 값을 두 요구로 나누는 안. [NF-SC-07 을 두 요구로 나눈 이유](#nf-sc-07-을-두-요구로-나눈-이유) 선례와 견주면 이번 경우는 ID 를 나눌 기준에 들지 않는다. 그 선례는 두 동작의 구현 상태가 달라서 ID 를 나눴다. 이번 두 범위는 모두 구현돼 있다. 그래서 두 범위를 한 요구의 SHALL 안에 함께 적었다.
+
+### 운영 환경 가드의 거부 기준을 링크로 바꿨다 (2026-10-31)
+
+「NF-SC-03 을 운영 환경으로 한정한 이유」 의 첫 목록에서 운영 환경 가드 항목은 처음에 가드가 거부하는 값(공백뿐인 값, 공개 예시 값)을 직접 적었다. NERV Task `CLE-T-NAT45Z` 가 그 기준을 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 한 곳에 모으면서 이 항목도 링크로 바꿨다. 가드 조건이 바뀌어도 이 문서를 함께 고치지 않아도 되게 하려는 것이다. 이 항목은 결정이 아니라 가드 조건을 옮겨 적은 사본이라 링크로 바꿨다. 결정 내용(운영 환경에서 키가 없으면 기동하지 않는다)은 그대로다.
