@@ -3350,7 +3350,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
           workflowId: 'wf-1',
           type: 'chat_channel',
           name: 'C',
-          config: { chatChannel: { provider: 'slack' } },
+          // 채널은 top-level `chatChannel` 로만 붙인다(원시 `config` 는 400, NERV Task `CLE-T-EA7B5M`). telegram 은
+          // 생성 본문에 서명 평문이 필요 없어 타입 필드 검사를 지난다.
+          chatChannel: { provider: 'telegram' },
         } as never,
         'u-cc',
       )
@@ -5478,92 +5480,127 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
 
   // 원시 `config` 는 `config` 전체를 바꾼다. 그 안의 `interaction` 에도 같은 토큰 규칙을 건다(NERV Task `CLE-T-EQDYC1`).
   // 호출자는 `interaction.triggerToken` 을 보낼 수 없으므로(`CONFIG_INTERNAL_FIELDS`) 저장된 토큰은 서버가 이어받는다.
-  describe('원시 config PATCH 의 interaction — 트리거 단위 토큰', () => {
+  // 원시 `config` 는 저장된 `config` 위에 최상위 키 단위로 병합한다. 타입 키는 받지 않으므로 늘 저장값이 남는다
+  // (NERV Task `CLE-T-EA7B5M`, [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약)).
+  describe('원시 config PATCH — 최상위 키 병합', () => {
     beforeEach(() => build());
-    const WITH_TOKEN = {
+    const STORED = {
       interaction: {
         enabled: true,
         tokenStrategy: 'per_trigger',
         triggerToken: 'itk_old',
       },
+      notification: {
+        url: 'https://x.example/hook',
+        signing: { secretRef: 'secret://trigger/t1/notification-signing' },
+      },
+      chatChannel: {
+        provider: 'slack',
+        inboundSigningRef: 'secret://trigger/t1/inbound-signing',
+      },
+      memo: { a: 1, b: 2 },
+      keep: 'stored',
     };
 
-    it('결과가 켜진 per_trigger 면 저장된 토큰을 이어받고 스트림을 닫지 않는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+    it('보낸 키만 바꾸고 보내지 않은 키와 타입 키는 저장값을 지킨다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
       const result = await service.update(
         't1',
         'ws',
-        {
-          config: {
-            interaction: { enabled: true, tokenStrategy: 'per_trigger' },
-            custom: 1,
-          },
-        },
+        { config: { memo: { c: 3 }, added: true } },
         'u',
       );
-      expect(savedConfig().interaction).toEqual(WITH_TOKEN.interaction);
-      expect(savedConfig().custom).toBe(1);
+      expect(savedConfig()).toEqual({ ...STORED, memo: { c: 3 }, added: true });
       expect(result).not.toHaveProperty('secrets');
       expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+      expect(secrets.rotate).not.toHaveBeenCalled();
     });
 
-    it('인터랙션을 끄면 토큰은 남기고 커밋 뒤 그 토큰으로 연 스트림을 닫는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+    it('값이 null 인 키는 지우고 저장값에 없던 null 키는 무시한다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
+      await service.update(
+        't1',
+        'ws',
+        { config: { memo: null, absent: null } },
+        'u',
+      );
+      expect(savedConfig()).not.toHaveProperty('memo');
+      expect(savedConfig()).not.toHaveProperty('absent');
+      expect(savedConfig().keep).toBe('stored');
+      expect(savedConfig().chatChannel).toEqual(STORED.chatChannel);
+    });
+
+    it('빈 원시 config 는 저장된 config 를 바꾸지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
+      await service.update('t1', 'ws', { config: {} }, 'u');
+      expect(savedConfig()).toEqual(STORED);
+    });
+
+    it('병합 기준은 잠금 뒤 다시 읽은 행이다', async () => {
+      triggerRepo.findOne
+        .mockResolvedValueOnce(stored({ keep: 'first-read' }))
+        .mockResolvedValue(stored({ keep: 'locked-read', other: 1 }));
+      await service.update('t1', 'ws', { config: { added: true } }, 'u');
+      expect(savedConfig()).toEqual({
+        keep: 'locked-read',
+        other: 1,
+        added: true,
+      });
+    });
+
+    it('top-level 타입 필드와 함께 오면 그 키만 타입 필드 규칙으로 바꾼다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
       await service.update(
         't1',
         'ws',
         {
-          config: {
-            interaction: { enabled: false, tokenStrategy: 'per_trigger' },
-          },
+          config: { added: true },
+          interaction: { enabled: false, tokenStrategy: 'per_trigger' },
         },
         'u',
       );
-      expect(savedConfig().interaction.triggerToken).toBe('itk_old');
-      expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
-      expect(callOrder(triggerRepo.save)).toBeLessThan(
-        callOrder(closer.closeTriggerTokenStreams),
-      );
+      expect(savedConfig().added).toBe(true);
+      expect(savedConfig().interaction).toEqual({
+        enabled: false,
+        tokenStrategy: 'per_trigger',
+        triggerToken: 'itk_old',
+      });
+      expect(savedConfig().notification).toEqual(STORED.notification);
     });
 
-    it.each([
-      [
-        '전략을 바꿈',
-        { interaction: { enabled: true, tokenStrategy: 'per_execution' } },
-      ],
-      ['interaction 을 뺌', { custom: 1 }],
-    ])(
-      '%s 이면 토큰을 지우고 커밋 뒤 스트림을 닫는다',
-      async (_label, config) => {
-        triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
-        await service.update('t1', 'ws', { config }, 'u');
-        expect(
-          (savedConfig().interaction ?? {}) as Record<string, unknown>,
-        ).not.toHaveProperty('triggerToken');
-        expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+    it('JSON 의 __proto__ 키는 자기 키로 남고 프로토타입을 바꾸지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored({ keep: 'stored' }));
+      const config = JSON.parse('{"__proto__":{"polluted":true}}') as Record<
+        string,
+        unknown
+      >;
+      await service.update('t1', 'ws', { config }, 'u');
+      const saved = savedConfig();
+      expect(Object.getPrototypeOf(saved)).toBe(Object.prototype);
+      expect(Object.hasOwn(saved, '__proto__')).toBe(true);
+      expect((saved as { polluted?: unknown }).polluted).toBeUndefined();
+      expect(saved.keep).toBe('stored');
+    });
+
+    it.each(['interaction', 'notification', 'chatChannel'])(
+      '원시 config 의 %s 는 400 이고 쓰지 않는다',
+      async (key) => {
+        triggerRepo.findOne.mockResolvedValue(stored(STORED));
+        await expect(
+          service.update('t1', 'ws', { config: { [key]: {} } }, 'u'),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'VALIDATION_ERROR',
+            details: { field: `config.${key}`, code: 'INVALID_FIELD' },
+          },
+        });
+        expect(triggerRepo.save).not.toHaveBeenCalled();
+        expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
       },
     );
 
-    it('토큰이 없던 행을 켜진 per_trigger 로 바꾸면 발급해 그 응답에만 싣는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(stored({}));
-      const result = await service.update(
-        't1',
-        'ws',
-        {
-          config: {
-            interaction: { enabled: true, tokenStrategy: 'per_trigger' },
-          },
-        },
-        'u',
-      );
-      const token = (result as { secrets?: { interactionToken?: string } })
-        .secrets?.interactionToken;
-      expect(token).toMatch(/^itk_[a-f0-9]{64}$/);
-      expect(savedConfig().interaction.triggerToken).toBe(token);
-    });
-
-    it('원시 config 로 triggerToken 을 심으면 400 이고 쓰지 않는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+    it('원시 config 로 triggerToken 을 심으면 내부 필드 경로로 400 이다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
       await expect(
         service.update(
           't1',
@@ -5587,10 +5624,27 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(triggerRepo.save).not.toHaveBeenCalled();
     });
 
-    it('config 를 싣지 않은 PATCH 는 저장된 interaction 을 건드리지 않는다', async () => {
-      triggerRepo.findOne.mockResolvedValue(stored(WITH_TOKEN));
+    it('원시 config 의 secret:// 값은 그 경로로 400 이다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
+      await expect(
+        service.update(
+          't1',
+          'ws',
+          { config: { custom: { refs: ['ok', 'secret://trigger/t2/x'] } } },
+          'u',
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          details: { field: 'config.custom.refs[1]', code: 'INVALID_FIELD' },
+        },
+      });
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('config 를 싣지 않은 PATCH 는 저장된 config 를 건드리지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
       await service.update('t1', 'ws', { name: 'renamed' }, 'u');
-      expect(savedConfig().interaction).toEqual(WITH_TOKEN.interaction);
+      expect(savedConfig()).toEqual(STORED);
       expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
     });
   });
@@ -5870,16 +5924,20 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(secrets.rotate).not.toHaveBeenCalled();
     });
 
-    it('원시 config 의 per_trigger 인터랙션도 같은 규칙으로 발급한다', async () => {
+    // 인터랙션은 top-level `interaction` 으로만 받는다(NERV Task `CLE-T-EA7B5M`).
+    it('원시 config 의 interaction 은 400 이고 INSERT 하지 않는다', async () => {
       insertsWithId();
-      const result = await create({
-        config: {
-          interaction: { enabled: true, tokenStrategy: 'per_trigger' },
-        },
+      await expect(
+        create({
+          config: {
+            interaction: { enabled: true, tokenStrategy: 'per_trigger' },
+          },
+        }),
+      ).rejects.toMatchObject({
+        response: { details: { field: 'config.interaction' } },
       });
-      const token = interactionTokenOf(result);
-      expect(token).toMatch(/^itk_[a-f0-9]{64}$/);
-      expect(writtenConfig().interaction.triggerToken).toBe(token);
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(transactionCount()).toBe(0);
     });
 
     it.each([
@@ -5978,7 +6036,9 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       },
     );
 
-    it('원시 config 로 보낸 평문이 있으면 그 값을 쓰고 발급하지 않는다', async () => {
+    // 옛 평문 `signing.secret` 을 새로 받던 유일한 경로다. 이미 저장된 옛 평문은 PATCH 저장 뒤 정규화가 옮긴다
+    // (NERV Task `CLE-T-EA7B5M`).
+    it('원시 config 로 옛 평문 notification 을 보내면 400 이고 INSERT · 시크릿 쓰기를 하지 않는다', async () => {
       const rawNotification = {
         url: 'https://customer.example.com/cb',
         signing: { algorithm: 'hmac-sha256', secret: 'caller-plain' },
@@ -5986,7 +6046,7 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       (triggerRepo.save as jest.Mock).mockImplementation((x: Trigger) =>
         Promise.resolve({ ...x, id: 't1' }),
       );
-      const result = await service.create(
+      const rejection = service.create(
         'ws',
         {
           workflowId: 'wf-1',
@@ -5996,23 +6056,14 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         },
         'u',
       );
-      expect(secrets.rotate).toHaveBeenCalledWith(
-        REF,
-        'ws',
-        'caller-plain',
-        TX_MANAGER,
-      );
-      expect(result).not.toHaveProperty('secrets');
-      // 옛 평문 키는 `config` 에 남지 않는다 — 평문은 시크릿 저장소에만 둔다(규칙 14). 이 줄이 빠지면 호출자가 보낸
-      // 평문이 `trigger.config` JSONB 에 그대로 저장된다. `rotate` 호출만 봐서는 보이지 않는다.
-      const written = (triggerRepo.update as jest.Mock).mock.calls[0][1] as {
-        config: { notification: { signing: Record<string, unknown> } };
-      };
-      expect(written.config.notification.signing).toEqual({
-        algorithm: 'hmac-sha256',
-        secretRef: REF,
+      await expect(rejection).rejects.toMatchObject({
+        response: {
+          details: { field: 'config.notification', code: 'INVALID_FIELD' },
+        },
       });
-      expect(written.config.notification.signing).not.toHaveProperty('secret');
+      await expect(rejection).rejects.not.toThrow('caller-plain');
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(secrets.rotate).not.toHaveBeenCalled();
     });
   });
 

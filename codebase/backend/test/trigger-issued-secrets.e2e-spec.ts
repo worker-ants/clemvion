@@ -357,19 +357,49 @@ describe('트리거가 발급하는 비밀 (e2e)', () => {
       ).toBe(issued);
     });
 
-    it('PATCH: triggerToken 없는 원시 config 로 per_trigger 를 유지하면 저장된 토큰을 지킨다', async () => {
+    // 원시 `config` 는 `interaction` 키를 받지 않고 저장된 `config` 위에 최상위 키 단위로 병합한다
+    // (NERV Task `CLE-T-EA7B5M`). 그래서 원시 `config` 만 보낸 PATCH 는 토큰을 건드리지 않는다.
+    it('PATCH: 원시 config 만 보내면 저장된 interaction 과 토큰을 지킨다', async () => {
       const created = await createTrigger({ interaction: PER_TRIGGER_ON });
       expect(created.status).toBe(201);
       const triggerId = created.body.data.id as string;
       const issued = created.body.data.secrets.interactionToken as string;
 
       const res = await api().patch(`/api/triggers/${triggerId}`, {
-        config: { interaction: PER_TRIGGER_ON, custom: { note: 'raw' } },
+        config: { custom: { note: 'raw' } },
       });
       expect(res.status).toBe(200);
       expect(res.body.data).not.toHaveProperty('secrets');
       const row = await readTrigger(triggerId);
-      expect(row.config.interaction?.triggerToken).toBe(issued);
+      expect(row.config.interaction).toEqual({
+        ...PER_TRIGGER_ON,
+        triggerToken: issued,
+      });
+      expect((row.config as { custom?: unknown }).custom).toEqual({
+        note: 'raw',
+      });
+    });
+
+    it('PATCH: 원시 config 의 interaction 은 triggerToken 이 없어도 400 이고 토큰은 그대로다', async () => {
+      const created = await createTrigger({ interaction: PER_TRIGGER_ON });
+      expect(created.status).toBe(201);
+      const triggerId = created.body.data.id as string;
+      const issued = created.body.data.secrets.interactionToken as string;
+
+      const res = await api().patch(`/api/triggers/${triggerId}`, {
+        config: {
+          interaction: { enabled: false, tokenStrategy: 'per_trigger' },
+        },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error.details).toEqual({
+        field: 'config.interaction',
+        code: 'INVALID_FIELD',
+      });
+      expect((await readTrigger(triggerId)).config.interaction).toEqual({
+        ...PER_TRIGGER_ON,
+        triggerToken: issued,
+      });
     });
   });
 

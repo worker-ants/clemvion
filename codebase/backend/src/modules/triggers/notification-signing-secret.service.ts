@@ -41,7 +41,7 @@ export interface SettledNotificationSigning {
  * | 메서드 | 부르는 자리 | 잠금 |
  * |---|---|---|
  * | `settle` | 생성 · `notification` 이 실린 PATCH | 호출부가 잡은 잠금 안에서 부른다 |
- * | `migrateLegacyPlaintext` | 원시 `config` PATCH 의 옛 평문 정규화 | 스스로 잡는다 |
+ * | `migrateLegacyPlaintext` | PATCH 저장 뒤 저장된 옛 평문 정규화 | 스스로 잡는다 |
  * | `writeRotation` | `rotate-secret` | 스스로 잡는다 |
  * | `promoteRotated` | 승격 cron | 트리거마다 스스로 잡는다 |
  */
@@ -114,9 +114,9 @@ export class NotificationSigningSecretService {
    *
    * 이미 `secretRef` 만 있는 경우 noop. signing 자체가 없는 경우도 noop.
    *
-   * **지금은 `TriggersService.update()` 의 원시 `config` 경로만 쓴다.** 생성과 top-level `notification` 이 실린
-   * PATCH 는 {@link settle} 이 평문 이전과 첫 발급을 한 잠금 안에서 한다(NERV Task `CLE-T-M6PERB`). 원시 `config`
-   * 경로의 계약은 NERV Task `CLE-T-EA7B5M` 이 맡는다.
+   * **`TriggersService.update()` 가 저장 뒤 부른다.** 원시 `config` 는 `notification` 을 받지 않으므로
+   * (NERV Task `CLE-T-EA7B5M`) 여기 오는 평문은 이미 저장돼 있던 옛 평문이다. top-level `notification` 이 실린 PATCH
+   * 와 생성은 {@link settle} 이 평문 이전과 첫 발급을 한 잠금 안에서 한다(NERV Task `CLE-T-M6PERB`).
    *
    * @param trigger 저장을 마친 엔티티. 호출부가 이 엔티티를 응답에 쓰므로 in-memory `config` 도 맞춘다.
    */
@@ -126,9 +126,9 @@ export class NotificationSigningSecretService {
     if (!notificationCfg || typeof notificationCfg !== 'object') return;
     const signing = (notificationCfg as { signing?: unknown }).signing;
     if (!signing || typeof signing !== 'object') return;
-    // `readStoredSigningSecret` 으로 읽지 않는다. 그 함수는 «발급해야 하는가» 를 판정하려고 참조를 앞세운다. 여기는 호출자가
-    // 방금 원시 `config` 로 보낸 평문 `secret` 을 시크릿 저장소로 옮기는 자리라서, 참조가 이미 있어도 비어 있지 않은 평문이
-    // 있으면 옮긴다. 평문이 없거나 비어 있으면 건너뛰는 규칙은 두 곳이 같다.
+    // `readStoredSigningSecret` 으로 읽지 않는다. 그 함수는 «발급해야 하는가» 를 판정하려고 참조를 앞세운다. 여기는 저장된
+    // 옛 평문 `secret` 을 시크릿 저장소로 옮기는 자리라서 참조가 이미 있어도 비어 있지 않은 평문이 있으면 옮긴다. 평문이
+    // 없거나 비어 있으면 건너뛰는 규칙은 두 곳이 같다.
     const plaintext = (signing as { secret?: unknown }).secret;
     if (typeof plaintext !== 'string' || plaintext.length === 0) return;
 

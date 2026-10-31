@@ -62,7 +62,7 @@ import {
   extractInboundSigningRef,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
-import { assertConfigCarriesNoInternalFields } from './trigger-config-internal-fields';
+import { assertRawConfigAccepted } from './trigger-config-internal-fields';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
@@ -542,8 +542,9 @@ export class TriggersService {
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
     assertChatChannelInputSafe(chatChannel, 'create');
-    // 원시 `config` 는 `@IsObject` 뿐이라 위 타입 필드 검사를 지나친다(CLE-T-M9QKKX).
-    assertConfigCarriesNoInternalFields(config);
+    // 원시 `config` 는 `@IsObject` 뿐이라 위 타입 필드 검사를 지나친다. 그래서 내부 필드(CLE-T-M9QKKX)와 타입 키 ·
+    // `secret://` 값(CLE-T-EA7B5M)을 따로 막는다.
+    assertRawConfigAccepted(config);
     // 연결 워크플로는 같은 워크스페이스의 것만 — 실행 엔진은 워크플로를 id 로만 읽어, 종전엔 다른 워크스페이스의 워크플로가
     // 이 트리거로 그쪽 실행으로 돌았다(spec 1-data-model §1.1).
     await assertReferenceInScope(
@@ -626,9 +627,9 @@ export class TriggersService {
    * 행이 아직 커밋되지 않아 다른 요청이 볼 수 없으므로 잠금을 기다릴 일은 없다. 그래도 «시크릿 저장소 쓰기는 잠금을
    * 쥔 트랜잭션에서 한다» 는 규칙을 생성에도 같게 지킨다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
    *
-   * 판정의 기준 행은 INSERT 한 행이다. 원시 `config` 로 보낸 옛 평문은 시크릿 저장소로 옮기고 없으면 첫 시크릿을
-   * 발급한다. `triggerToken` 은 호출자가 심을 수 없으므로(`CONFIG_INTERNAL_FIELDS`) 저장된 토큰이 없다. 그래서
-   * 인터랙션이 켜진 `per_trigger` 면 늘 발급한다.
+   * 판정의 기준 행은 INSERT 한 행이다. 원시 `config` 는 `notification` · `interaction` 을 받지 않으므로
+   * (`assertRawConfigAccepted`) 옮길 옛 평문도 저장된 토큰도 없다. 그래서 첫 시크릿을 발급하고 인터랙션이 켜진
+   * `per_trigger` 면 토큰도 늘 발급한다.
    *
    * @throws Error `config` 쓰기가 0행이면. 같은 트랜잭션이 방금 INSERT 한 행이라 정상이면 일어나지 않는다. 던져서
    *   트랜잭션을 롤백한다. 행이 없는데 평문을 응답에 실으면 쓸 수 없는 비밀을 건네는 것이다.
@@ -713,8 +714,8 @@ export class TriggersService {
     ).triggerToken;
     const hasStoredToken =
       typeof storedToken === 'string' && storedToken.length > 0;
-    // 요청 본문의 `interaction: null` 은 검증을 통과해(`@IsOptional()`) 여기까지 온다. 원시 `config` 가 `interaction` 을
-    // 싣지 않았을 때도 여기다. 객체가 아니면 그 값을 그대로 저장한다(종전 동작). 빈 객체로 바꿔 저장하지 않는다.
+    // 요청 본문의 `interaction: null` 은 검증을 통과해(`@IsOptional()`) 여기까지 온다. 객체가 아니면 그 값을 그대로
+    // 저장한다(종전 동작). 빈 객체로 바꿔 저장하지 않는다.
     // 저장된 토큰은 그 값과 함께 사라지므로 지웠다고 알려 커밋 뒤 스트림을 닫게 한다.
     const requested = nextConfig.interaction;
     if (!isPlainRecord(requested)) {
@@ -747,7 +748,8 @@ export class TriggersService {
    * 생성 · PATCH 의 **서버가 만드는 두 값**(트리거 단위 토큰 · 알림 서명 시크릿)을 잠금 안에서 정한다.
    *
    * 두 값은 요청이 입력으로 보낼 수 없다. top-level `interaction` · `notification` 은 그 키를 받지 않고(받으면 전역
-   * 검증 파이프가 400), 원시 `config` 는 `CONFIG_INTERNAL_FIELDS` 가 막는다. 그래서 통째 교체가 그대로 지우던 자리다.
+   * 검증 파이프가 400), 원시 `config` 는 두 값의 부모 키(`interaction` · `notification`)부터 받지 않는다
+   * (`assertRawConfigAccepted`). 그래서 통째 교체가 그대로 지우던 자리다.
    * 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약).
    *
    * - `settleInteraction` → {@link settleTriggerToken}. 토큰을 지웠거나 인터랙션을 껐으면 `closeTokenStreams` 로 알려
@@ -858,7 +860,7 @@ export class TriggersService {
     }
     this.assertNotificationUrlSafe(notification);
     assertChatChannelInputSafe(chatChannel, 'update');
-    assertConfigCarriesNoInternalFields(config);
+    assertRawConfigAccepted(config);
     // [R-CC-21 / D-1] `chatChannel` 이 실린 PATCH 는 비밀을 받지 않으므로, **최초 setup 을
     // PATCH 로 할 수 없다** — bot token 을 실어 보낼 방법이 없다. 그런데 그냥 두면
     // `setupChannel` 이 secret store 에서 토큰을 못 찾아 실패하고, 그 실패는 CCH-SE-01 의
@@ -913,8 +915,8 @@ export class TriggersService {
       await this.triggerRepository.manager
         .transaction(async (m) => {
           await acquireTriggerConfigLock(m, trigger.id);
-          // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 요청이 `config` 를 통째로 보냈으면
-          // 그것이 사용자의 의도이므로 그대로 쓰고, 아니면 **재읽은 행**을 기준으로 삼는다.
+          // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 원시 `config` 는 **재읽은 행** 위에 최상위 키 단위로 병합한다
+          // (`mergeRawConfig`).
           //
           // **`findById` 와 같은 관계를 싣는다.** 아래에서 이 엔티티가 저장 대상이자 응답의
           // 원본이 되므로, 관계를 빼고 읽으면 `chatChannel` 없는 PATCH 응답에서만 `workflow`
@@ -929,7 +931,7 @@ export class TriggersService {
             previousInboundSigningRef;
           // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
           const baseConfig = this.stripInlineAuthKeys(
-            config ?? fresh?.config ?? trigger.config ?? {},
+            this.mergeRawConfig(fresh?.config ?? trigger.config ?? {}, config),
           );
           let mergedConfig = this.mergeExternalConfig(
             baseConfig,
@@ -961,14 +963,11 @@ export class TriggersService {
           const target = this.assertTriggerFound(fresh);
           // **서버가 만든 EIA 값은 재읽은 행을 보고 정한다**(NERV Task `CLE-T-M6PERB`).
           //
-          // 트리거 단위 토큰은 원시 `config` 를 실은 PATCH 에서도 정한다(NERV Task `CLE-T-EQDYC1`). 원시 `config` 는
-          // `interaction` 을 통째로 바꾸므로 그대로 두면 토큰이 사라지는데 그 토큰으로 연 스트림은 닫히지 않았다. 알림
-          // 서명 시크릿은 top-level `notification` 이 실렸을 때만 정한다. 원시 `config` 의 `notification` 은 저장 뒤
-          // 옛 평문 정규화가 맡는다(계약은 NERV Task `CLE-T-EA7B5M`).
+          // 두 값은 top-level `interaction` · `notification` 이 실렸을 때만 정한다. 원시 `config` 는 두 키를 받지 않으므로
+          // (NERV Task `CLE-T-EA7B5M`) 저장된 값이 병합에서 그대로 남는다.
           const eia = await this.applyServerManagedEiaValues(m, target, {
             config: mergedConfig,
-            settleInteraction:
-              interaction !== undefined || config !== undefined,
+            settleInteraction: interaction !== undefined,
             settleNotification: notification !== undefined,
           });
           mergedConfig = eia.config;
@@ -1268,6 +1267,28 @@ export class TriggersService {
         message: check.reason ?? 'Notification URL is not allowed',
       });
     }
+  }
+
+  /**
+   * PATCH 의 원시 `config` 를 저장된 `config` 위에 최상위 키 단위로 병합한다. 원시 `config` 가 없으면 `base` 를 그대로
+   * 돌려준다.
+   *
+   * 보낸 키는 그 값으로 바꾸고(키 아래는 병합하지 않는다) 보내지 않은 키는 두고 값이 `null` 인 키는 지운다. 타입 키
+   * (`notification` · `interaction` · `chatChannel`)는 원시 `config` 로 오지 않으므로(`assertRawConfigAccepted`) 늘
+   * 저장값이 남는다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약), 결정은 NERV Task
+   * `CLE-T-EA7B5M`. 종전에는 원시 `config` 가 저장된 `config` 를 통째로 바꿔 저장된 채팅 채널의 서명 참조까지 지웠다.
+   *
+   * `Object.fromEntries` 로 만든다. 대입(`next[key] = value`)은 `__proto__` 키에서 프로토타입 setter 를 부른다.
+   */
+  private mergeRawConfig(
+    base: Record<string, unknown>,
+    patch: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    if (patch === undefined) return base;
+    return Object.fromEntries([
+      ...Object.entries(base).filter(([key]) => !Object.hasOwn(patch, key)),
+      ...Object.entries(patch).filter(([, value]) => value !== null),
+    ]);
   }
 
   private mergeExternalConfig(
