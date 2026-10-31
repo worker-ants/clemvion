@@ -89,6 +89,23 @@ describe('UpdateTriggerDto', () => {
       const errors = await validate(dto, VALIDATE_OPTIONS);
       expect(errors.length).toBe(0);
     });
+
+    // 서비스는 `config: null` 을 «보내지 않음» 으로 본다(`TriggersService.mergeRawConfig`). 그 전제는 DTO 가 null 을
+    // 통과시키는 것이다. DTO 가 null 을 막게 바뀌면 400 이 되므로 이 사례와 서비스 사례를 함께 고친다.
+    it('config 가 null 이어도 검증을 통과한다', async () => {
+      const dto = plainToInstance(UpdateTriggerDto, { config: null });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.length).toBe(0);
+    });
+
+    it.each([
+      ['문자열', 'text'],
+      ['배열', []],
+    ])('config 가 %s 이면 거부한다', async (_label, config) => {
+      const dto = plainToInstance(UpdateTriggerDto, { config });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.map((e) => e.property)).toEqual(['config']);
+    });
   });
 });
 

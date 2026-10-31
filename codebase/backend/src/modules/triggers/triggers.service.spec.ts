@@ -5478,8 +5478,6 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
     });
   });
 
-  // 원시 `config` 는 `config` 전체를 바꾼다. 그 안의 `interaction` 에도 같은 토큰 규칙을 건다(NERV Task `CLE-T-EQDYC1`).
-  // 호출자는 `interaction.triggerToken` 을 보낼 수 없으므로(`CONFIG_INTERNAL_FIELDS`) 저장된 토큰은 서버가 이어받는다.
   // 원시 `config` 는 저장된 `config` 위에 최상위 키 단위로 병합한다. 타입 키는 받지 않으므로 늘 저장값이 남는다
   // (NERV Task `CLE-T-EA7B5M`, [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약)).
   describe('원시 config PATCH — 최상위 키 병합', () => {
@@ -5534,6 +5532,20 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       triggerRepo.findOne.mockResolvedValue(stored(STORED));
       await service.update('t1', 'ws', { config: {} }, 'u');
       expect(savedConfig()).toEqual(STORED);
+    });
+
+    // 수정 DTO 의 `config` 는 `@IsOptional` 이라 null 이 검증을 지난다. 종전처럼 «보내지 않음» 으로 보고 200 이어야 한다.
+    it('원시 config 가 null 이면 보내지 않은 것으로 보고 저장된 config 를 바꾸지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(stored(STORED));
+      await service.update(
+        't1',
+        'ws',
+        { config: null as unknown as Record<string, unknown> },
+        'u',
+      );
+      expect(savedConfig()).toEqual(STORED);
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+      expect(secrets.rotate).not.toHaveBeenCalled();
     });
 
     it('병합 기준은 잠금 뒤 다시 읽은 행이다', async () => {

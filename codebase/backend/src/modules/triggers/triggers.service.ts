@@ -1278,13 +1278,17 @@ export class TriggersService {
    * 저장값이 남는다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약), 결정은 NERV Task
    * `CLE-T-EA7B5M`. 종전에는 원시 `config` 가 저장된 `config` 를 통째로 바꿔 저장된 채팅 채널의 서명 참조까지 지웠다.
    *
+   * `config` 자체가 `null` 인 입력도 «보내지 않음» 으로 본다. 수정 DTO 의 `config` 는 `@IsOptional` 이라 `null` 이
+   * 검증을 지나므로 타입(`Record | undefined`)보다 런타임 입력이 넓다. 종전에도 `config ?? 저장값` 이라 200 · 저장값
+   * 무변경이었다.
+   *
    * `Object.fromEntries` 로 만든다. 대입(`next[key] = value`)은 `__proto__` 키에서 프로토타입 setter 를 부른다.
    */
   private mergeRawConfig(
     base: Record<string, unknown>,
-    patch: Record<string, unknown> | undefined,
+    patch: Record<string, unknown> | null | undefined,
   ): Record<string, unknown> {
-    if (patch === undefined) return base;
+    if (!isPlainRecord(patch)) return base;
     return Object.fromEntries([
       ...Object.entries(base).filter(([key]) => !Object.hasOwn(patch, key)),
       ...Object.entries(patch).filter(([, value]) => value !== null),

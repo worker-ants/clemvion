@@ -36,8 +36,9 @@ describe('notificationAttemptsFromRetry', () => {
     expect(notificationAttemptsFromRetry({ maxAttempts: 0 })).toBe(1);
   });
 
-  // 타입 필드는 DTO 가 0~10 정수로 막지만 원시 `config` 로 들어온 값은 검증을 지나지 않는다.
-  it('원시 config 로 들어온 범위 밖 값은 1~10 으로 자른다', () => {
+  // 타입 필드는 DTO 가 0~10 정수로 막는다. 원시 `config` 의 `notification` 은 이제 400 이지만(NERV Task `CLE-T-EA7B5M`)
+  // 그 전에 원시 `config` 로 저장된 옛 행의 값은 그 검증을 지나지 않았다.
+  it('옛 행에 저장된 범위 밖 값은 1~10 으로 자른다', () => {
     expect(MAX_NOTIFICATION_ATTEMPTS).toBe(10);
     expect(notificationAttemptsFromRetry({ maxAttempts: 11 })).toBe(10);
     expect(notificationAttemptsFromRetry({ maxAttempts: 1000 })).toBe(10);

@@ -248,6 +248,16 @@ describe('트리거 원시 config 계약 (e2e)', () => {
       expect(config.keep).toBe('stored');
     });
 
+    it('config 가 null 이면 보내지 않은 것으로 보고 저장된 config 를 바꾸지 않는다', async () => {
+      const { triggerId } = await createWithServerValues();
+      const before = (await readTrigger(triggerId)).config;
+      const res = await api().patch(`/api/triggers/${triggerId}`, {
+        config: null,
+      });
+      expect(res.status).toBe(200);
+      expect((await readTrigger(triggerId)).config).toEqual(before);
+    });
+
     it('저장된 chatChannel 과 그 서명 참조를 지운다면 인바운드 검증이 열리므로 그대로 둔다', async () => {
       const { triggerId } = await createWithServerValues();
       // 채팅 채널 설정은 외부 프로바이더 호출이 있어 생성 대신 저장 행에 직접 둔다. 병합은 타입 키 값을 보지 않는다.
