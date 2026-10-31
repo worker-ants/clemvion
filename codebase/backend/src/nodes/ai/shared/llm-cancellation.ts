@@ -13,7 +13,11 @@ import { isAbortErrorLike } from '../../integration/_base/abort-cascade.util';
  * rejects with a DOMException named `AbortError`. The node signal decides
  * instead: once `context.abortSignal` has aborted, the failed call is the
  * cancellation. An `AbortError` is rethrown as it is. Anything else is wrapped
- * in a new `AbortError` that keeps it as `cause`.
+ * in a new `AbortError` that keeps it as `cause`. The wrapper's message is
+ * fixed: the engine copies it into the node execution's `error` and the
+ * `execution.node.cancelled` event, and a failure that only lost the race to
+ * the cancellation (a 401, a 5xx) carries provider text that should not go
+ * there.
  *
  * The LLM call timeout (`withTimeout`) aborts its own controller and leaves
  * `context.abortSignal` open, so a timeout stays the node's failure.
@@ -24,9 +28,7 @@ export function rethrowIfNodeCancelled(
 ): void {
   if (signal?.aborted !== true) return;
   if (isAbortErrorLike(err)) throw err;
-  const message =
-    err instanceof Error && err.message ? err.message : 'LLM call was aborted';
-  const abortError = new Error(message, { cause: err });
+  const abortError = new Error('LLM call was aborted', { cause: err });
   abortError.name = 'AbortError';
   throw abortError;
 }

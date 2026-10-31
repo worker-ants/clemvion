@@ -69,13 +69,26 @@ describe('rethrowIfNodeCancelled', () => {
     expect(thrown).toBeInstanceOf(Error);
     expect(thrown).toMatchObject({
       name: 'AbortError',
-      message: 'Request was aborted.',
+      message: 'LLM call was aborted',
       cause: sdkErr,
     });
     expect(isAbortError(thrown)).toBe(true);
   });
 
-  it('wraps a non-Error rejection with a fallback message', () => {
+  it('keeps the provider message out of the wrapper and only in cause', () => {
+    // 엔진은 취소 에러의 message 를 노드 실행 error 와 execution.node.cancelled 이벤트에 싣는다.
+    const providerErr = new Error('401 Unauthorized: invalid x-api-key');
+    const thrown = catchThrown(() =>
+      rethrowIfNodeCancelled(providerErr, abortedSignal()),
+    );
+    expect(thrown).toMatchObject({
+      name: 'AbortError',
+      message: 'LLM call was aborted',
+      cause: providerErr,
+    });
+  });
+
+  it('wraps a non-Error rejection with the same message', () => {
     const thrown = catchThrown(() =>
       rethrowIfNodeCancelled('boom', abortedSignal()),
     );
