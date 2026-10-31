@@ -114,6 +114,67 @@ describe('AiTurnExecutor', () => {
       }
     });
 
+    // [노드 취소](CLE-EXEC-CANCEL#노드-핸들러-의무) 규칙 3 — 노드 취소 신호가 켜진 뒤의 LLM 실패는
+    // AbortError 로 엔진까지 가야 `cancelled` 로 기록된다. Anthropic · OpenAI SDK 는 abort 때
+    // name 이 'Error' 인 APIUserAbortError 를 던지므로 그대로 올리면 엔진이 `failed` 로 본다.
+    it('rethrows as AbortError when the first chat call fails after the node signal aborted', async () => {
+      const controller = new AbortController();
+      const sdkAbort = new Error('Request was aborted.');
+      mockLlmService.chat.mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.reject(sdkAbort);
+      });
+      const executor = buildExecutor();
+      await expect(
+        executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          { ...baseContext, abortSignal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+    });
+
+    it('rethrows as AbortError when a tool-loop chat call fails after the node signal aborted', async () => {
+      const controller = new AbortController();
+      const sdkAbort = new Error('Request was aborted.');
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [{ id: 'tc-1', name: 'lookup', arguments: '{}' }],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockImplementationOnce(() => {
+          controller.abort();
+          return Promise.reject(sdkAbort);
+        });
+      const executor = buildExecutor();
+      await expect(
+        executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          { ...baseContext, abortSignal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+    });
+
+    it('lets an LLM failure propagate unchanged while the node signal is open', async () => {
+      // 노드 취소 신호가 열려 있으면 실패를 바꾸지 않는다. 단일 턴 LLM 실패를 error 포트로
+      // 보내는 일은 NERV Task CLE-T-ZHBMAC 가 맡는다.
+      const failure = new Error('503 Service Unavailable');
+      mockLlmService.chat.mockRejectedValueOnce(failure);
+      const executor = buildExecutor();
+      await expect(
+        executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          { ...baseContext, abortSignal: new AbortController().signal },
+        ),
+      ).rejects.toBe(failure);
+    });
+
     it('propagates AI_AGENT_LLM_CALL_TIMEOUT_MS=0 (disabled) through to chat opts', async () => {
       const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
       process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = '0';

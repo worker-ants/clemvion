@@ -11,6 +11,7 @@ import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 import { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
+  ChatResult,
   ToolCall,
   ToolDef,
 } from '../../../modules/llm/interfaces/llm-client.interface';
@@ -46,6 +47,7 @@ import {
 } from './tool-payload-budget';
 import { aiAgentLlmCallTimeoutMs } from './llm-call-timeout';
 import { injectConversationContext } from '../shared/conversation-context-injection';
+import { rethrowIfNodeCancelled } from '../shared/llm-cancellation';
 import {
   compactMessagesToTail,
   readExtractionWatermark,
@@ -1690,27 +1692,34 @@ export class AiTurnExecutor {
       tools: tools.length > 0 ? tools : undefined,
     };
     let callStartedAt = Date.now();
-    let result = await this.llmService.chat(
-      llmConfig,
-      {
-        model: model || llmConfig.defaultModel,
-        messages,
-        temperature,
-        maxTokens,
-        responseFormat,
-        jsonSchema,
-        tools: tools.length > 0 ? tools : undefined,
-      },
-      // [Spec 7-llm-usage §1.3] LlmCallContext — workflowId/executionId/nodeExecutionId 전달로
-      // llm_usage_log 의 해당 컬럼이 NULL 이 되는 attribution 갭 해소 (WARNING#5).
-      {
-        workflowId: context.workflowId,
-        executionId: context.executionId,
-        nodeExecutionId: context.nodeExecutionId,
-      },
-      // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃(무기한 hang 백스톱).
-      { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
-    );
+    let result: ChatResult;
+    try {
+      result = await this.llmService.chat(
+        llmConfig,
+        {
+          model: model || llmConfig.defaultModel,
+          messages,
+          temperature,
+          maxTokens,
+          responseFormat,
+          jsonSchema,
+          tools: tools.length > 0 ? tools : undefined,
+        },
+        // [Spec 7-llm-usage §1.3] LlmCallContext — workflowId/executionId/nodeExecutionId 전달로
+        // llm_usage_log 의 해당 컬럼이 NULL 이 되는 attribution 갭 해소 (WARNING#5).
+        {
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+          nodeExecutionId: context.nodeExecutionId,
+        },
+        // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃(무기한 hang 백스톱).
+        { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
+      );
+    } catch (err) {
+      // 노드 취소는 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3). 그 밖의 실패는 그대로 올린다.
+      rethrowIfNodeCancelled(err, context.abortSignal);
+      throw err;
+    }
     llmCalls.push({
       requestPayload: firstRequest,
       responsePayload: result,
@@ -1828,21 +1837,27 @@ export class AiTurnExecutor {
         tools,
       };
       callStartedAt = Date.now();
-      result = await this.llmService.chat(
-        llmConfig,
-        {
-          model: model || llmConfig.defaultModel,
-          messages,
-          temperature,
-          maxTokens,
-          responseFormat,
-          jsonSchema,
-          tools,
-        },
-        undefined,
-        // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃.
-        { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
-      );
+      try {
+        result = await this.llmService.chat(
+          llmConfig,
+          {
+            model: model || llmConfig.defaultModel,
+            messages,
+            temperature,
+            maxTokens,
+            responseFormat,
+            jsonSchema,
+            tools,
+          },
+          undefined,
+          // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃.
+          { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
+        );
+      } catch (err) {
+        // 노드 취소는 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
+        rethrowIfNodeCancelled(err, context.abortSignal);
+        throw err;
+      }
       llmCalls.push({
         requestPayload: loopRequest,
         responsePayload: result,

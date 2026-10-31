@@ -42,7 +42,8 @@ export function linkUpstreamAbort(
  * True when `err` looks like an `AbortError`. Matches on `name` instead of
  * `instanceof Error`: a real `fetch` rejects with a DOMException that may come
  * from another realm (jest's VM sandbox), and `instanceof Error` would miss it.
- * HTTP Request · Cafe24 · MakeShop use this check for an abort. The engine's
+ * HTTP Request · Cafe24 · MakeShop use this check for an abort, and so does
+ * the AI nodes' `rethrowIfNodeCancelled` (`nodes/ai/shared`). The engine's
  * `isAbortError` (`execution-engine.service.ts`) decides the same way. The two
  * stay separate so node modules do not import the execution-engine module, and
  * `abort-error-parity.spec.ts` next to the engine fails when their verdicts

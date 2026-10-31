@@ -408,6 +408,43 @@ describe('TextClassifierHandler', () => {
       expect(details.retryAfterSec).toBeUndefined();
     });
 
+    // [노드 취소](CLE-EXEC-CANCEL#노드-핸들러-의무) 규칙 3 — 노드 취소 신호가 켜진 뒤의 LLM 실패는
+    // error 포트로 보내지 않고 AbortError 로 던져 엔진이 `cancelled` 로 기록하게 한다.
+    // Anthropic · OpenAI SDK 는 abort 때 name 이 'Error' 인 APIUserAbortError 를 던진다.
+    it('rethrows as AbortError when the LLM call fails after the node signal aborted', async () => {
+      const controller = new AbortController();
+      const sdkAbort = new Error('Request was aborted.');
+      mockLlmService.chat.mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.reject(sdkAbort);
+      });
+      await expect(
+        handler.execute({}, baseConfig, {
+          ...createContext(),
+          abortSignal: controller.signal,
+        }),
+      ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+    });
+
+    it('keeps routing an AbortError to the error port while the node signal is open', async () => {
+      // 노드 취소 신호에서 오지 않은 AbortError(호출 자신의 타임아웃 등)는 노드 자신의 실패다.
+      const ownAbort = Object.assign(new Error('This operation was aborted'), {
+        name: 'AbortError',
+      });
+      mockLlmService.chat.mockRejectedValueOnce(ownAbort);
+      const result = (await handler.execute({}, baseConfig, {
+        ...createContext(),
+        abortSignal: new AbortController().signal,
+      })) as unknown as Record<string, unknown>;
+      expect((result as any).port).toBe('error');
+      const err = (result.output as Record<string, unknown>).error as Record<
+        string,
+        unknown
+      >;
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect((err.details as Record<string, unknown>).retryable).toBe(true);
+    });
+
     it('should classify a 429 throw as retryable LLM_RATE_LIMIT with retryAfterSec', async () => {
       const rateLimitErr = Object.assign(new Error('429 Too Many Requests'), {
         headers: { 'retry-after': '15' },

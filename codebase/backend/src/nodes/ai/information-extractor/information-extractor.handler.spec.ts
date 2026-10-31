@@ -513,6 +513,68 @@ describe('InformationExtractorHandler', () => {
       expect(details.retryAfterSec).toBeUndefined();
     });
 
+    // [노드 취소](CLE-EXEC-CANCEL#노드-핸들러-의무) 규칙 3 — 노드 취소 신호가 켜진 뒤의 LLM 실패는
+    // error 포트로 보내지 않고 AbortError 로 던져 엔진이 `cancelled` 로 기록하게 한다.
+    // Anthropic · OpenAI SDK 는 abort 때 name 이 'Error' 인 APIUserAbortError 를 던진다.
+    it('rethrows as AbortError when the LLM call fails after the node signal aborted', async () => {
+      const controller = new AbortController();
+      const sdkAbort = new Error('Request was aborted.');
+      mockLlmService.chat.mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(sdkAbort);
+      });
+
+      await expect(
+        handler.execute(
+          {},
+          {
+            inputField: 'x',
+            outputSchema: [
+              {
+                name: 'field1',
+                type: 'string',
+                description: 'desc',
+                required: true,
+              },
+            ],
+          },
+          { ...context, abortSignal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps routing an AbortError to the error port while the node signal is open', async () => {
+      // 노드 취소 신호에서 오지 않은 AbortError(호출 자신의 타임아웃 등)는 노드 자신의 실패다.
+      mockLlmService.chat.mockRejectedValue(
+        Object.assign(new Error('This operation was aborted'), {
+          name: 'AbortError',
+        }),
+      );
+
+      const rawResult = await handler.execute(
+        {},
+        {
+          inputField: 'x',
+          outputSchema: [
+            {
+              name: 'field1',
+              type: 'string',
+              description: 'desc',
+              required: true,
+            },
+          ],
+        },
+        { ...context, abortSignal: new AbortController().signal },
+      );
+
+      const { output, port } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      const err = getError(output);
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect((err.details as Record<string, unknown>).retryable).toBe(true);
+    });
+
     it('sets retryAfterSec from the provider Retry-After header on LLM_CALL_FAILED', async () => {
       const rateLimitErr = Object.assign(new Error('429 rate limited'), {
         headers: { 'retry-after': '30' },
@@ -751,6 +813,54 @@ describe('InformationExtractorHandler', () => {
         expect.objectContaining({ executionId: context.executionId }),
         expect.objectContaining({ signal: controller.signal }),
       );
+    });
+
+    // [노드 취소](CLE-EXEC-CANCEL#노드-핸들러-의무) 규칙 3 — 수집 재시도 루프(runTurnWithCollectionRetries)가
+    // 실패를 데이터로 돌려주기 전에 노드 취소를 AbortError 로 던진다.
+    it('multi-turn initial path rethrows as AbortError when the LLM call fails after the node signal aborted', async () => {
+      const controller = new AbortController();
+      const sdkAbort = new Error('Request was aborted.');
+      mockLlmService.chat.mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(sdkAbort);
+      });
+
+      await expect(
+        handler.execute(
+          {},
+          {
+            mode: 'multi_turn',
+            inputField: 'John ORD-1',
+            outputSchema: multiTurnSchema,
+          },
+          { ...context, abortSignal: controller.signal },
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('multi-turn initial path keeps routing an AbortError to the error port while the node signal is open', async () => {
+      mockLlmService.chat.mockRejectedValue(
+        Object.assign(new Error('This operation was aborted'), {
+          name: 'AbortError',
+        }),
+      );
+
+      const rawResult = await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          inputField: 'John ORD-1',
+          outputSchema: multiTurnSchema,
+        },
+        { ...context, abortSignal: new AbortController().signal },
+      );
+
+      const { output, port } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      const err = getError(output);
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect((err.details as Record<string, unknown>).retryable).toBe(true);
     });
   });
 
