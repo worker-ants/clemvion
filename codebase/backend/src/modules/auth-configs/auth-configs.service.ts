@@ -21,6 +21,10 @@ import {
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import {
+  isUnreadableCredentials,
+  UNREADABLE_ORIGINAL_KEY,
+} from '../integrations/services/credentials-transformer';
 
 // HMAC 알고리즘 허용 목록. 외부 입력(인증 설정)이 crypto.createHmac 에 전달되므로
 // 화이트리스트로 좁혀 임의 알고리즘·약한 다이제스트 사용을 차단한다.
@@ -292,7 +296,7 @@ export class AuthConfigsService {
       resourceId: id,
       ipAddress,
     });
-    return saved;
+    return { ...saved, config: this.toResponseConfig(saved.config) };
   }
 
   /** 삭제 후 `auth_config.delete` 감사 기록 (resourceId 는 삭제 전 id 보존). 계약은 {@link create} 참조. */
@@ -372,7 +376,7 @@ export class AuthConfigsService {
       resourceId: id,
       ipAddress,
     });
-    return { config: config.config };
+    return { config: this.toResponseConfig(config.config) };
   }
 
   /**
@@ -568,7 +572,21 @@ export class AuthConfigsService {
   }
 
   private toMasked(ac: AuthConfig): AuthConfig {
-    return { ...ac, config: this.maskConfig(ac.config) };
+    return { ...ac, config: this.maskConfig(this.toResponseConfig(ac.config)) };
+  }
+
+  /**
+   * 응답에 싣는 config. 복호화 불가 표식이면 원래 암호문(`__original_ciphertext`)을 빼고 표식만 남긴다.
+   * 원래 암호문은 재저장 때 행을 그대로 다시 쓰려고 표식에 붙여 둔 값이다. 옛 키가 공개 예시 값이던
+   * 배포라면 풀 수 있으므로 조회 · 편집 · 재생성 · 평문 보기 어느 응답에도 싣지 않는다. 엔티티는
+   * 바꾸지 않고 복제본을 돌려준다.
+   */
+  private toResponseConfig(
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!isUnreadableCredentials(config)) return config;
+    const { [UNREADABLE_ORIGINAL_KEY]: _original, ...rest } = config;
+    return rest;
   }
 
   private maskConfig(config: Record<string, unknown>): Record<string, unknown> {

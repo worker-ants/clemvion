@@ -525,6 +525,85 @@ describe('AuthConfigsService', () => {
     });
   });
 
+  // 키를 바꿔 복호화하지 못한 행은 `{__unreadable: true, __original_ciphertext: 'enc:v1:...'}` 로
+  // 읽힌다. 원래 암호문은 저장 왕복용이다. 옛 키가 공개 예시 값이던 배포라면 풀 수 있으므로 어떤
+  // 응답에도 싣지 않고 표식만 남긴다. 저장할 값은 건드리지 않는다(재저장이 원래 암호문을 그대로
+  // 다시 써야 한다).
+  describe('복호화 불가 표식 — 응답에서 원래 암호문을 뺀다', () => {
+    const CIPHERTEXT = 'enc:v1:AW9sZC1rZXktY2lwaGVydGV4dC1zYW1wbGU=';
+
+    async function seedUnreadable(type: string): Promise<AuthConfig> {
+      return repo.save({
+        workspaceId: WS,
+        name: 'unreadable',
+        type,
+        isActive: true,
+        config: { __unreadable: true, __original_ciphertext: CIPHERTEXT },
+      } as unknown as AuthConfig);
+    }
+
+    it('상세 응답: 표식만 남고 저장된 값의 원래 암호문은 그대로다', async () => {
+      const ac = await seedUnreadable('api_key');
+      const res = await service.findByIdForResponse(ac.id, WS);
+      expect(res.config).toEqual({ __unreadable: true });
+      expect(repo.store.get(ac.id)!.config.__original_ciphertext).toBe(
+        CIPHERTEXT,
+      );
+    });
+
+    it('목록 응답: 표식만 남는다', async () => {
+      const ac = await seedUnreadable('bearer_token');
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(1),
+        getMany: jest.fn().mockResolvedValue([ac]),
+      };
+      Object.assign(repo, { createQueryBuilder: jest.fn(() => qb) });
+      const res = await service.findAll(WS, {});
+      expect(res.data).toHaveLength(1);
+      expect(res.data[0].config).toEqual({ __unreadable: true });
+    });
+
+    // config 편집은 넣지 않는다. 표식에 병합한 값은 재저장 때 원래 암호문에 덮여 저장되지 않는다
+    // (`encryptJson`). 그 결함은 이 응답 규칙과 따로 다룬다(NERV Task `CLE-T-SAMVX8`).
+    it('편집 응답: 표식만 남고 저장에는 원래 암호문이 그대로 간다', async () => {
+      const ac = await seedUnreadable('api_key');
+      repo.save.mockClear();
+      const res = await service.update(ac.id, WS, { name: 'renamed' }, USER);
+      expect(res.name).toBe('renamed');
+      expect(res.config).toEqual({ __unreadable: true });
+      const saved = repo.save.mock.calls[0][0];
+      expect(saved.config.__original_ciphertext).toBe(CIPHERTEXT);
+    });
+
+    // 새 키(`config.key`)는 단언하지 않는다. 표식 행에 얹은 새 키는 재저장 때 원래 암호문에 덮여
+    // 저장되지 않아서(`encryptJson`) 응답에 실린 키가 쓸 수 없는 값이다. 편집과 같은 결함이므로
+    // 응답 계약으로 고정하지 않는다. 재생성 경로의 정정은 NERV Task `CLE-T-SAMVX8` 가 맡는다.
+    it('재생성 응답: 원래 암호문을 싣지 않고 표식은 유지한다', async () => {
+      const ac = await seedUnreadable('api_key');
+      const res = await service.regenerate(ac.id, WS, USER);
+      expect(res.config).not.toHaveProperty('__original_ciphertext');
+      expect(res.config.__unreadable).toBe(true);
+    });
+
+    it('평문 보기 응답: 원래 암호문을 싣지 않는다', async () => {
+      const ac = await seedUnreadable('bearer_token');
+      userRepo.findOne.mockResolvedValue({
+        id: USER,
+        passwordHash: await bcrypt.hash('pw', 4),
+      });
+      const res = await service.reveal(ac.id, WS, USER, 'pw');
+      expect(res.config).toEqual({ __unreadable: true });
+      expect(repo.store.get(ac.id)!.config.__original_ciphertext).toBe(
+        CIPHERTEXT,
+      );
+    });
+  });
+
   describe('verifyWebhookRequest', () => {
     async function seed(
       type: string,
