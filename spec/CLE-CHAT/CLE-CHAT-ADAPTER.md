@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "c58839459a6a398bfd7eb24f1c172eee9040cd254560ac9088d99d26f2b12e37"
+content_hash: "91497a886fd94c234b2af8912f9ecb4f14ed348563430bef1297d60d3f24f742"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-EA7B5M"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "9dfd26d0c1631d1bb59a62492f225ca2ac70a2bcc04d6294682bd2bf47ae8824"
-etag: "sha256-f46313254145c86eb88b7246a4aa299e29cd5e00285ae27d5058e8be94530f7f"
+mirror_sha256: "d88d9afbfeb99a75fe33171ae495741743dd824869addbe77d23f51bd55928b2"
+etag: "sha256-bcd96effaa974f675b893fe5c07c3251ec8516f2b8442787afa3dae9baa31b90"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -329,6 +329,7 @@ interface ChatChannelConfig {
    * 인바운드 서명 자료 참조(secret://triggers/{id}/inbound-signing). 프로바이더 공통 단일 슬롯이고,
    * 검증 알고리즘과 발급 주체는 백엔드가 프로바이더별로 나눈다(아래 표).
    * 선택: 서명 자료 없이 URL 무작위성만으로 인증하는 프로바이더가 생길 수 있어 ? 로 둔다. v1 세 프로바이더는 모두 필수다.
+   * 지금 구현은 이 참조가 없는 행에서 서명 검증을 건너뛴다. CLE-T-AAGZRW 가 정할 때까지의 임시 동작이다(미결 사항).
    */
   inboundSigningRef?: string;
   /**
@@ -366,6 +367,8 @@ interface ChatChannelConfig {
 | Telegram | shared secret(서버 발급) | 어댑터 `setupChannel` 의 `randomBytes` | `X-Telegram-Bot-Api-Secret-Token` 헤더 동일성 |
 | Slack | HMAC-SHA256 signing secret | Slack 앱 설치 때 발급, 사용자가 직접 입력 | `X-Slack-Signature` = HMAC-SHA256(secret, "v0:" + ts + ":" + body) |
 | Discord | ed25519 application public key | Discord Developer Portal 발급, 사용자가 직접 입력 | `X-Signature-Ed25519` ed25519 검증(raw body + timestamp) |
+
+v1 세 프로바이더는 모두 서명 자료가 필수다. 지금 구현은 저장된 `inboundSigningRef` 가 없는 행(옛 행 등)에서 인바운드 서명 검증을 건너뛴다. `CLE-T-AAGZRW` 가 정할 때까지의 임시 동작이다([미결 사항](#미결-사항)). 그런 행이 생기는 길은 [채팅 채널 데이터와 흐름 §인바운드 서명 자료 참조가 없는 행](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적었다.
 
 ### SetupResult와 SendResult
 
@@ -565,7 +568,7 @@ interface ChannelAdapterRegistry {
 
 - `botTokenRef`·`inboundSigningRef` 같은 자격 증명은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 참조만 둔다(CCH-SE-03). 평문은 설정 JSON, 로그, metric 에 절대 드러내지 않는다(실패 원문 속 토큰은 규칙 10 이 정한다). `SetupResult.issuedInboundSigning` 한 번 외에는 어떤 경로로도 평문이 어댑터 밖으로 나가지 않는다.
 - `sendMessage` 의 외부 API 호출은 프로바이더별 고정 URL 만 쓴다. 사용자가 정한 URL 은 쓰지 않는다(SSRF 차단).
-- `parseUpdate` 는 raw body 의 출처를 검증한 뒤에 부른다. 진입점 핸들러가 프로바이더별 인바운드 서명(Telegram `X-Telegram-Bot-Api-Secret-Token` 등)을 먼저 검증한다.
+- `parseUpdate` 는 raw body 의 출처를 검증한 뒤에 부른다. 진입점 핸들러가 프로바이더별 인바운드 서명(Telegram `X-Telegram-Bot-Api-Secret-Token` 등)을 먼저 검증한다. 지금 구현은 저장된 `inboundSigningRef` 가 없는 행에서 이 검증을 건너뛴다. `CLE-T-AAGZRW` 가 정할 때까지의 임시 동작이다([ChatChannelConfig](#chatchannelconfig), [미결 사항](#미결-사항)).
 
 ## 변경 관리
 
@@ -580,6 +583,7 @@ interface ChannelAdapterRegistry {
 - **`revokeBotToken` 이 `code` 를 던지는지**: 실패 판별 절은 `revokeBotToken` 도 `BOT_TOKEN_INVALID` 를 실어 던진다고 적었고, 인터페이스와 함수 책임 표는 내부 에러를 흡수해 호출자에 전파하지 않는다고 적었다. 흡수로 정리해 판별 대상에서 뺄지 결정 필요.
 - **`sendMessage` 의 중복 제거 책임**: 원문은 "호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 중복을 거른다" 고 적었다. 어댑터는 서버 안 `executionEvents$` 를 받아 웹훅 헤더가 없고, 현재 구현(chat-channel 모듈)에서 해당 헤더 참조는 0건이며 `seq` 는 전달만 된다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 결정 필요.
 - **`WORKER_HEARTBEAT_TIMEOUT` 분류**: EIA 는 `execution.failed` 가 `WORKER_HEARTBEAT_TIMEOUT` 을 실을 수 있다고 적었지만 분류 표에 없어 매번 알 수 없는 코드(`executionFailedInternal` 과 warn 로그)로 처리된다. timeout 이나 internal 행을 더할지 결정 필요.
+- **인바운드 서명 자료 참조가 없는 행의 검증 생략**: v1 세 프로바이더는 모두 서명 자료가 필수다. 그런데 지금 구현은 저장된 `inboundSigningRef` 가 없는 행에서 인바운드 서명 검증을 건너뛴다. 현행 동작은 [채팅 채널 데이터와 흐름 §인바운드 서명 자료 참조가 없는 행](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적었다. 401 로 막을지는 NERV Task `CLE-T-AAGZRW` 가 운영 데이터에서 그런 행 수를 잰 뒤 정한다. 0건이면 401(fail-closed)로 바꾼다. 1건이라도 있으면 현행 유지를 스펙 결정으로 올린다.
 
 ## 구현 위치
 

@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND"
 title: "EIA 수신 API와 SSE"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-EIAIN-001", "REQ-EIAIN-002", "REQ-EIAIN-003", "REQ-EIAIN-004", "REQ-EIAIN-005", "REQ-EIAIN-006", "REQ-EIAIN-007", "REQ-EIAIN-008", "REQ-EIAIN-009", "REQ-EIAIN-010", "REQ-EIAIN-011", "REQ-EIAIN-012", "REQ-EIAIN-013", "REQ-EIAIN-014", "REQ-EIAIN-015", "REQ-EIAIN-016", "REQ-EIAIN-017", "REQ-EIAIN-018", "REQ-EIAIN-019", "REQ-EIAIN-020", "REQ-EIAIN-021", "REQ-EIAIN-022", "REQ-EIAIN-023", "REQ-EIAIN-024", "REQ-EIAIN-025", "REQ-EIAIN-026", "REQ-EIAIN-027", "REQ-EIAIN-028", "REQ-EIAIN-029", "REQ-EIAIN-030", "REQ-EIAIN-031", "REQ-EIAIN-032", "REQ-EIAIN-033", "REQ-EIAIN-034", "REQ-EIAIN-035", "REQ-EIAIN-036", "REQ-EIAIN-037", "REQ-EIAIN-038", "REQ-EIAIN-039", "REQ-EIAIN-040", "REQ-EIAIN-041", "REQ-EIAIN-042", "REQ-EIAIN-043", "REQ-EIAIN-044", "REQ-EIAIN-045", "REQ-EIAIN-046", "REQ-EIAIN-047"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "1f671274af83cabbc2030e016339c7577ab812ade768bb214089bb9df68d55cf"
+content_hash: "3289d44e29176504e4f26e54ad9e9cd8adbb68c52232a890f94d9213222f8103"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-EA7B5M"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "5bd3592c3100b6765252be8a1c9d84e7ef932a5a1bc705d427073e8be5fd0e7f"
-etag: "sha256-d0dc8872af8cb50f3b5204567122f87d6c92e2a300a4b67f595c477d67d4320a"
+mirror_sha256: "80db0481df0fc1929f6f408f77aba8f57dfa7bb6a15ad3032058c62b8aba9464"
+etag: "sha256-d41d2b9f7ae158b9f0022eb0297108f687b2b00ac03793aab216a2da735d7a52"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.2, §5, §11, Rationale R3·R5·R8·R11·R13·R14·R16·R17 앞부분·R18·R-replay-unavailable) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -279,7 +279,7 @@ SSE 는 알림 웹훅 이벤트(`execution.waiting_for_input`·`completed`·`fai
 - `execution.replay_unavailable` 은 실행 순번을 배정받지 않는 제어 프레임이다. SSE 연결을 시작할 때만 보낸다. 순번 자리에 `0` 을 쓰고 SSE `id:` 줄을 생략한다(`writeSseFrame` 은 순번이 0 이하면 쓰지 않는다). 브라우저 `EventSource` 의 Last-Event-Id 가 `0` 으로 바뀌어 다음 자동 재연결이 전체 재전송을 일으키는 것을 막는다.
 - 신호를 보낸 뒤에도 스트림은 닫지 않는다. 위젯은 이 신호를 받으면 상태 조회 스냅샷으로 다시 맞춘다. 스냅샷이 이미 종료 상태면 공백 사이에 종료 이벤트까지 잃은 것이므로 종료를 확정한다. 소비 규칙은 [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md) 이 정한다.
 - 종료 이벤트(`execution.completed`·`failed`·`cancelled`)를 보낸 뒤 서버가 연결을 닫는다.
-- 트리거 단위 토큰(`itk_*`)으로 연 스트림은 종료 이벤트 전이라도 서버가 닫을 수 있다. 그 토큰을 재발급할 때, PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꿔 토큰을 지울 때, PATCH 가 인터랙션을 끌 때, 트리거를 지울 때다. 원시 `config` 로 `interaction` 을 바꾸는 PATCH 도 같다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 가드를 통과한 뒤 무효가 된 토큰을 놓치지 않도록 서버는 구독을 등록하고 연결 자리를 얻은 뒤 SSE 헤더를 보내기 전에 토큰을 다시 확인한다. 토큰이 무효면 `401 TOKEN_INVALID` 로 거부한다. 그 사이 그 토큰의 닫기 신호가 와도 같은 401 이다([스트림 연결 오류](#스트림-연결-오류)).
+- 트리거 단위 토큰(`itk_*`)으로 연 스트림은 종료 이벤트 전이라도 서버가 닫을 수 있다. 그 토큰을 재발급할 때, PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꿔 토큰을 지울 때, PATCH 가 인터랙션을 끌 때, 트리거를 지울 때다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 가드를 통과한 뒤 무효가 된 토큰을 놓치지 않도록 서버는 구독을 등록하고 연결 자리를 얻은 뒤 SSE 헤더를 보내기 전에 토큰을 다시 확인한다. 토큰이 무효면 `401 TOKEN_INVALID` 로 거부한다. 그 사이 그 토큰의 닫기 신호가 와도 같은 401 이다([스트림 연결 오류](#스트림-연결-오류)).
 - SSE 헤더를 보낸 뒤에 닫으면 따로 보내는 이벤트 없이 200 응답이 끝난다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 재발급 · 전략 변경 · 인터랙션 끄기 뒤에는 `TOKEN_INVALID` 이고 트리거를 지운 뒤에는 `EXECUTION_NOT_FOUND` 다. 브라우저 `EventSource` 는 200 이 아닌 응답을 받으면 자동 재연결을 멈춘다. `itk_*` 를 쓰는 서버 간 자동화는 이 401 을 받으면 같은 토큰으로 다시 연결하지 않는다.
 - 실행 단위 토큰(`iext_*`)으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않는다. 그 실행의 종료 이벤트까지 이어진다([EIA 데이터와 흐름 「실행 단위 토큰」](CLE-EIA-DATA.md#실행-단위-토큰)).
 - 동시 연결 한도는 모든 서버 인스턴스의 연결을 합해 센다. 한도를 넘으면 `429 TOO_MANY_CONNECTIONS` 다. 연결마다 15초 heartbeat 가 그 연결 자리의 시각도 갱신한다. 서버 인스턴스가 죽어 연결 종료를 기록하지 못해도 그 자리는 마지막 heartbeat 뒤 45초(heartbeat 간격의 세 배)가 지나면 빠진다.
