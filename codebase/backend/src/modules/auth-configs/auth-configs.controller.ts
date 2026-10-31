@@ -95,7 +95,10 @@ export class AuthConfigsController {
       '새 인증 설정을 생성합니다. type이 api_key/bearer_token인 경우 키/토큰을 자동으로 발급합니다.',
   })
   @ApiCreatedWrappedResponse(AuthConfigDto, { description: '생성된 인증 설정' })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description:
+      '입력값 검증 실패 (basic_auth 의 config.username · config.password 가 없거나 빈 값인 경우 포함)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   async create(
@@ -118,7 +121,10 @@ export class AuthConfigsController {
   })
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigDto, { description: '수정된 인증 설정' })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description:
+      '입력값 검증 실패 (basic_auth 에 보낸 config.username 이 빈 값인 경우 포함)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })

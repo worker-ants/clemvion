@@ -49,7 +49,7 @@ export class CreateAuthConfigDto {
    */
   @ApiPropertyOptional({
     description:
-      '인증 상세 설정. api_key: { key 자동발급, headerName?="X-API-Key" }. bearer_token: { token 자동발급 }. basic_auth: { username, password } 사용자 입력 필수. hmac: { secret 자동발급, header?="X-Hub-Signature-256", algorithm?="sha256"|"sha512" }.',
+      '인증 상세 설정. api_key: { key 자동발급, headerName?="X-API-Key" }. bearer_token: { token 자동발급 }. basic_auth: { username, password } 사용자 입력 필수. 둘 중 하나라도 없거나 빈 문자열이거나 문자열이 아니면 400 VALIDATION_ERROR(details 의 field 는 config.username · config.password). hmac: { secret 자동발급, header?="X-Hub-Signature-256", algorithm?="sha256"|"sha512" }.',
     type: 'object',
     additionalProperties: true,
     example: { headerName: 'X-API-Key' },
