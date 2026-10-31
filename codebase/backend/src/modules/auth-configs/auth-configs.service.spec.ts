@@ -580,12 +580,14 @@ describe('AuthConfigsService', () => {
       expect(saved.config.__original_ciphertext).toBe(CIPHERTEXT);
     });
 
-    it('재생성 응답: 원래 암호문을 싣지 않는다', async () => {
+    // 새 키(`config.key`)는 단언하지 않는다. 표식 행에 얹은 새 키는 재저장 때 원래 암호문에 덮여
+    // 저장되지 않아서(`encryptJson`) 응답에 실린 키가 쓸 수 없는 값이다. 편집과 같은 결함이므로
+    // 응답 계약으로 고정하지 않는다. 재생성 경로의 정정은 NERV Task `CLE-T-SAMVX8` 가 맡는다.
+    it('재생성 응답: 원래 암호문을 싣지 않고 표식은 유지한다', async () => {
       const ac = await seedUnreadable('api_key');
       const res = await service.regenerate(ac.id, WS, USER);
       expect(res.config).not.toHaveProperty('__original_ciphertext');
       expect(res.config.__unreadable).toBe(true);
-      expect(res.config.key).toMatch(/^wfk_/);
     });
 
     it('평문 보기 응답: 원래 암호문을 싣지 않는다', async () => {
