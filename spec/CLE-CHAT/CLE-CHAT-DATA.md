@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "97dee1eda716f496a7b731c1b457326c144da4e67554254512e2270ae40606d1"
+content_hash: "314f157dbb510cebc67aa225b32561d2e3542036674ac2c277915775a25c2536"
 read_as: "approved_fallback"
-task: "CLE-T-EQDYC1"
+task: "CLE-T-EA7B5M"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "043f802a5f6469842c33d994cf129bafed18b937a4f4c60bc22b3cfcb1c86464"
-etag: "sha256-0ba38db7e3ddf2dfee0b1fd63b412a4f710ea6e8b723295f2085476e3713634f"
+mirror_sha256: "246b54618967b8aa84a7e63938d276cd0f03ff4f61f8006f815be8ded26e2093"
+etag: "sha256-c8b04dd5ba539f0c975bd2da6bc705a11b79ddfc31740602196a3533cd555ff5"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -30,17 +30,20 @@ etag: "sha256-0ba38db7e3ddf2dfee0b1fd63b412a4f710ea6e8b723295f2085476e3713634f"
 
 `chatChannel` 이 없으면 일반 웹훅 트리거다(기존 동작 그대로). 이 필드는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 트리거의 `config` JSONB 안에 있다. 메모리 표현 타입(`ChatChannelConfig`)은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 정하고, 필드 계약은 이 절이 정한다. `languageLocale` 을 포함한 `chatChannel` 필드 전체 목록의 기준도 이 절이다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 여기를 가리킨다).
 
+요청 본문에서는 이 설정을 최상위 필드 `chatChannel` 로만 받는다. 생성 · 수정 요청 본문의 `config` 키(원시 `config`) 아래에 `chatChannel` 키가 있으면 값과 상관없이 400 `VALIDATION_ERROR`(`details.field='config.chatChannel'`)다. 그 아래에 내부 필드 경로(`config.chatChannel.botTokenRef` 등)가 함께 실렸으면 그 경로의 거부가 먼저 걸린다. 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다.
+
 ```jsonc
 {
   "chatChannel": {
     "provider": "telegram",                    // 채널 프로바이더. 지원 목록은 채팅 채널 문서의 카탈로그(v1: telegram / slack / discord)
-    "botToken": "<provider 발급 plaintext>",   // 입력 전용. POST /api/triggers 요청 본문에서만 받는다. 서비스가 SecretResolver.rotate 로 옮긴 뒤 지운다. 응답·DB JSONB 에 없다(SS-SE-01).
+    "botToken": "<provider 발급 plaintext>",   // 입력 전용. 생성 요청(POST /api/triggers) 본문의 chatChannel.botToken 으로만 받는다. 원시 config.chatChannel.botToken 은 400 이다(트리거 관리 REQ-TRIG-053). 서비스가 SecretResolver.rotate 로 옮긴 뒤 지운다. 응답·DB JSONB 에 없다(SS-SE-01).
                                                // telegram = BotFather `\d+:[A-Za-z0-9_-]+` (입력 안내일 뿐 서버 형식 검증은 없다. 잘못된 토큰은 setupChannel 실패 때 BOT_TOKEN_INVALID 로 드러난다)
                                                // slack = `xoxb-*` / discord = Developer Portal Bot Token
     "inboundSigningPlaintext": "<provider-issued plaintext>",  // 입력 전용, slack·discord 만(telegram 은 서버가 발급). slack = 소문자 hex 32자(signing secret), discord = 소문자 hex 64자(ed25519 application public key).
+                                               // 생성 요청 본문의 chatChannel.inboundSigningPlaintext 로만 받는다. 원시 config.chatChannel 아래로는 받지 않는다.
                                                // 서비스가 SecretResolver.rotate(inboundSigningRef, ws, plaintext) 뒤 지운다. telegram 에 넣으면 400 VALIDATION_ERROR(field='inboundSigningPlaintext')
-    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // DB JSONB 에만 둔다. 응답에서는 지운다. 프로바이더 공통
-    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // DB JSONB 에만 둔다. 응답에서는 지운다. 프로바이더 공통 단일 슬롯(검증 알고리즘은 백엔드가 프로바이더별로 나눈다)
+    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // DB JSONB 에만 둔다. 응답에서는 지운다. 요청 본문으로는 받지 않는다(chatChannel.botTokenRef · 원시 config.chatChannel.botTokenRef 모두 400). 프로바이더 공통
+    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // DB JSONB 에만 둔다. 응답에서는 지운다. 요청 본문으로는 받지 않는다(chatChannel.inboundSigningRef · 원시 config.chatChannel.inboundSigningRef 모두 400). 프로바이더 공통 단일 슬롯(검증 알고리즘은 백엔드가 프로바이더별로 나눈다)
     "botIdentity": {                            // setupChannel 결과 캐시(생성 뒤 읽기 전용)
       "botId": 123456789,
       "username": "myworkflow_bot",
@@ -257,7 +260,7 @@ sequenceDiagram
   Hk-->>Ext: 202 executionId
 ```
 
-서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 새 대화의 `execute()` 입력에는 `__triggerSource:'webhook'` 과 `chatChannel:{provider, conversationKey, channelUserKey}` 가 들어가고 `trigger.last_triggered_at` 을 갱신한다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)).
+서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 새 대화의 `execute()` 입력에는 `__triggerSource:'webhook'` 과 `chatChannel:{provider, conversationKey, channelUserKey}` 가 들어가고 `trigger.last_triggered_at` 을 갱신한다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)). 저장된 설정에 인바운드 서명 자료 참조가 없는 행은 서명 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행)).
 
 관문의 순서는 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 위 다이어그램은 그 순서를 따르되 `/help`·`/cancel` 같은 분기를 생략했다. 비활성 트리거와 비활성 워크플로우가 막는 범위의 차이도 그 절에 있다. 세 경로에 공통인 관문 규칙은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 워크플로우가 비활성이면 새 실행을 시작할 update(새 대화, `/start`)만 `202 ignored` 로 끝나고 채널 대화 상태, 채널 건강도, 중복 제거 키는 그대로다. 활성 실행이 있는 대화의 입력과 `/cancel`·`/help` 는 워크플로우가 비활성이어도 아래 표대로 처리한다.
 
@@ -276,6 +279,22 @@ sequenceDiagram
 활성 실행으로 가는 재개 명령(`submit_message`·`click_button`·`submit_form`)을 재개 큐에 넣지 못하면(`queued:false`) 내부 신뢰 호출이라 `503` 이 나지 않는다. 이때 `HooksService` 는 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 고정 문구는 `/cancel` 의 큐 적재 실패와 같다. 입력이 실행에 닿지 않았으므로 실행은 입력 대기에 그대로 남는다. 사용자가 같은 입력을 다시 보내면 새 update 로 들어와 다시 처리된다. 규칙은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-076 과 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다.
 
 분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅의 IP 한도(`PublicWebhookThrottleGuard`)와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 인바운드 서명 인증을 쓰므로 그 가드의 "인증 없음" 조건에 기댈 수 없다.
+
+### 인바운드 서명 자료 참조가 없는 행
+
+이 절은 지금 코드의 동작을 적는다. 요구사항이 아니다.
+
+인바운드 서명 검증(`ChatChannelInboundAuthenticator.verify`)은 저장된 `config.chatChannel.inboundSigningRef` 가 없는 행에서 검증을 건너뛴다. Telegram · Slack · Discord 가 모두 같다. 그런 행으로 온 요청은 서명이 없거나 틀려도 다음 관문으로 넘어간다. 남는 방어는 웹훅 경로(`endpointPath`)가 v4 UUID 라 짐작하기 어렵다는 점뿐이다. 참조가 있는 행은 검증을 건너뛰지 않는다. 참조가 가리키는 비밀을 시크릿 저장소에서 풀지 못해도 401 이다.
+
+참조가 없는 행은 다음 길로 생긴다. 운영 DB 에 이런 행이 실제로 있는지는 재지 않았다.
+
+- 지금의 참조 보존 규칙이 생기기 전에 만들거나 고친 옛 행. 예를 들어 `chatChannel` 이 실린 PATCH 가 Slack · Discord 행의 `inboundSigningRef` 를 잃던 결함을 고치기 전에 그 PATCH 를 거친 행이다(`chat-channel-binder.service.ts` 의 참조 보존 주석).
+- 원시 `config` 로 `chatChannel` 을 붙인 행. 생성 · 수정은 요청 본문의 최상위 필드 `chatChannel` 이 있을 때만 `setupChatChannel` 을 부르므로 이 길로 붙인 설정에는 참조가 실리지 않았다. 원시 `config` 는 이제 `chatChannel` 키를 받지 않으므로 이 길로는 새 행이 생기지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행은 남는다.
+- Telegram 생성에서 `setupChannel()` 이 실패한 행. 이 길은 가설이다. Telegram 의 서명 자료는 사용자에게 받지 않고 `setupChannel()` 이 발급한 값만 저장한다. 코드를 읽으면 생성 때 `setupChannel()` 이 실패해 `degraded` 로 저장되는 행에는 참조가 실리지 않는다. 테스트로 확인하지 않았고 이런 행의 수도 재지 않았다.
+
+Slack · Discord 는 생성 때 서명 자료(`inboundSigningPlaintext`)를 필수로 받고 `setupChannel()` 앞에서 시크릿 저장소에 넣는다. 그래서 지금 생성 경로에서는 `setupChannel()` 의 성공 여부와 상관없이 참조가 실린다.
+
+검증을 건너뛰지 않고 401 로 막을지는 NERV Task `CLE-T-AAGZRW` 가 정한다. 그 Task 는 운영 DB 에서 참조가 없는 채팅 채널 행 수를 잰다. 그런 행이 없으면 401 로 바꾼다. 있으면 지금 동작을 유지한다는 결정을 스펙에 올린다. 근거는 [Rationale](#rationale) 의 「인바운드 서명 자료 참조가 없는 행의 검증 생략은 운영 데이터를 잰 뒤 정한다 (2026-10-31)」 에 있다.
 
 ## 아웃바운드 흐름
 
@@ -329,10 +348,10 @@ sequenceDiagram
 | 단계 | 흐름 | 저장 |
 |---|---|---|
 | 최초 setup(생성 `POST /api/triggers` 때만) | `setupChatChannel` 이 평문(`botToken`, 프로바이더 발급 `inboundSigningPlaintext`)을 시크릿 저장소에 UPSERT 하고 `adapter.setupChannel(config, callbackUrl)` 을 부른다. Telegram 은 서버 발급 `issuedInboundSigning` 을 돌려주므로 따로 저장한다. 설정에 `botTokenRef`·`inboundSigningRef`·`botIdentity` 를 합친다 | `secret_store` 행, UPDATE `trigger.config`·`chat_channel_setup_at`·`chat_channel_health='healthy'`, 레지스트리 등록 |
-| `chatChannel` 이 실린 PATCH | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 사용자가 보낸 비밀은 쓰지 않아 봇 토큰과 Slack·Discord 서명 값은 그대로다. Telegram 은 새 `secret_token` 이 등록되므로 `inboundSigningRef` 가 매번 갱신된다(건너뛰면 인바운드 401). 두 참조는 트리거 id 에서 다시 만든다(`buildSecretRef`) | UPDATE `trigger.config`·`chat_channel_setup_at`·건강도. `secret_store` 는 봇 토큰·Slack·Discord 서명 무변경, Telegram `inbound-signing` 행만 갱신 |
+| `chatChannel` 이 실린 PATCH | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 사용자가 보낸 비밀은 쓰지 않아 봇 토큰과 Slack·Discord 서명 값은 그대로다. Telegram 은 새 `secret_token` 이 등록되므로 `inboundSigningRef` 가 매번 갱신된다(건너뛰면 인바운드 401). `botTokenRef` · `inboundSigningRef` 의 값은 저장값을 쓰지 않고 트리거 id 에서 만든다(`chatChannelSecretRef`). `botTokenRef` 는 저장할 설정에 늘 싣는다. `inboundSigningRef` 는 이번 요청에서 서명 자료를 새로 저장했거나(Telegram 의 `issuedInboundSigning`) 요청 전 저장값이나 잠금 안에서 다시 읽은 행에 이미 있을 때만 싣는다. 참조가 없던 행에는 싣지 않는다. 서명 자료가 없는 행에 참조를 실으면 인바운드 검증 결과가 달라진다. 구현은 `chat-channel-binder.service.ts` 의 `setupChatChannel` 이다. `triggers.service.ts` 의 `update` 가 병합 전에 집어 둔 `inboundSigningRef` 를 이 함수에 넘긴다 | UPDATE `trigger.config`·`chat_channel_setup_at`·건강도. `secret_store` 는 봇 토큰·Slack·Discord 서명 무변경, Telegram `inbound-signing` 행만 갱신 |
 | 켜고 끄는 PATCH(`{ isActive }` 만) | `setupChannel()` · `teardownChannel()` 을 부르지 않는다. 봇 토큰 · 인바운드 서명 · 프로바이더 등록이 그대로다. 켤 때만 트리거 단위 listener 레지스트리에 등록한다. 레지스트리는 메모리에 있고 등록은 pub/sub 로 다른 서버 인스턴스에 알린다. 끌 때는 해제하지 않는다. 근거는 [채팅 채널](CLE-CHAT-CORE.md) R-CC-29 다 | `trigger.is_active` 만 바뀐다. 시크릿 저장소는 무변경 |
 | PATCH 거부 | 비밀 필드를 실었거나, 채팅 채널을 나중에 붙이려 했거나, `provider` 를 바꾸려 했으면 `400 VALIDATION_ERROR` 로 아무것도 쓰지 않고 끝난다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 변경 단일 경로 | 무변경(DB·시크릿 저장소) |
-| 재발급 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 토큰 resolve(없으면 ② 건너뜀) ② v2 참조(`bot-token.v2`)에 토큰 보관 ③ primary 참조에 새 토큰 UPSERT ④ 새 토큰으로 `setupChannel` 재호출(서명 자료 재발급) ⑤ `issuedInboundSigning` 저장 ⑥ 트리거 컬럼 갱신. ② 에서 v2 참조에 옛 토큰을 백업하고 ③ 에서 primary 를 새 토큰으로 바꾸므로 v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C) | UPDATE `chat_channel_token_v2`(v2 참조), `chat_channel_rotated_at`, `chat_channel_health='healthy'` |
+| 재발급 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 토큰 resolve(없으면 ② 건너뜀) ② v2 참조(`bot-token.v2`)에 토큰 보관 ③ primary 참조에 새 토큰 UPSERT ④ 새 토큰으로 `setupChannel` 재호출(서명 자료 재발급) ⑤ `issuedInboundSigning` 저장 ⑥ 트리거 컬럼 갱신. ② 에서 v2 참조에 옛 토큰을 백업하고 ③ 에서 primary 를 새 토큰으로 바꾸므로 v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C). `botTokenRef` · `inboundSigningRef` 는 저장값을 쓰지 않고 `rotateBotToken` 이 `chatChannelSecretRef(trigger.id, …)` 로 트리거 id 에서 만든다(NERV Task `CLE-T-M9QKKX`). ④ 에서 `setupChannel` 에 넘기는 설정에는 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24) | UPDATE `chat_channel_token_v2`(v2 참조), `chat_channel_rotated_at`, `chat_channel_health='healthy'` |
 | 유예 종료 정리 | BullMQ `chat-channel-token-rotator` 큐의 repeatable job(`0 * * * *`, `upsertJobScheduler` 라 여러 인스턴스에서도 전역 1회)이 `cleanupRotatedChatChannelTokens` 를 부른다. `chat_channel_token_v2 IS NOT NULL AND chat_channel_rotated_at <= now-24h` 후보마다 프로바이더 `revokeBotToken?` 을 실패 흡수 방식으로 부르고(Slack `auth.revoke` 만, Telegram·Discord 는 revoke API 없음) `secrets.delete(v2Ref)` 한다. revoke 시점은 정의가 갈린다([미결 사항](#미결-사항)) | `secret_store` v2 행 DELETE, UPDATE `chat_channel_token_v2=NULL`·`chat_channel_rotated_at=NULL` |
 
 재발급 실패의 응답 분류(자격 증명 거부 `400 BOT_TOKEN_INVALID`, 그 밖 `502 CHAT_CHANNEL_SETUP_FAILED`)는 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 재발급 API 가 기준이라 여기 다시 적지 않는다. 봇 토큰 변경은 재발급 API 한 경로다.
@@ -404,10 +423,12 @@ stateDiagram-v2
 
 - **`revokeBotToken` 호출 시점**: 데이터 흐름 원문과 [Slack 어댑터](CLE-CHAT-SLACK.md) 는 24시간 유예가 끝난 정리에서 v2 토큰을 revoke 한다고 적었고, [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 재발급 시점에 이전 토큰을 revoke 한다고 적었다. 현재 구현은 정리 작업에서 부른다. 결정 필요.
 - **`languageHints` 키 목록**: 프로바이더 문서가 참조하는 `executionCancelled`(Telegram 일반 취소 안내)와 `formModalTitle`(Discord 모달 제목 fallback)이 필드 목록에 없다. 코드 주석에는 `slashPrefix` 키도 있다(현재 구현). 목록에 올리고 기본 문구를 둘지 결정 필요.
+- **인바운드 서명 자료 참조가 없는 행의 검증 생략**: [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 401 로 막을지 NERV Task `CLE-T-AAGZRW` 가 운영 데이터를 잰 뒤 정한다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율, 워크플로우 활성 관문, `/start` 의 기존 실행 취소 `stopForRestart`)
+- `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`: 프로바이더별 인바운드 서명 검증(`verify`). 저장된 `inboundSigningRef` 가 없는 행은 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행))
 - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD, `executionId` 의 compare-and-set 정리(`clearExecutionIdIfMatches`), Form 제출 잠금
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 인바운드 중복 제거 선점(`claim`)과 해제(`release`)
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`), Form 대기 상태 갱신 가드, 종결 이벤트의 대화 상태 정리
@@ -465,3 +486,16 @@ NERV Task `CLE-T-EQDYC1` · `CLE-T-EMB0YG` 의 결정이다. `/cancel` 의 취�
 NERV Task `CLE-T-EMB0YG` 의 승인본 동기화다. 이 문서는 `chat_channel_health` 와 `notification_health` 를 공용 DB 타입으로 합치는 것을 나중에 검토한다고 적었다. 두 컬럼은 이미 같은 방식으로 값을 막는다. 둘 다 `VARCHAR(16)` 이고 세 값만 받는 CHECK 제약이 있다(V059 · V062). 이 저장소의 마이그레이션에서 Postgres enum 타입(`CREATE TYPE`)은 V001 에만 있다. 검토를 맡은 Task 도 없었다. 그래서 검토 문구를 지우고 지금 저장 형태를 [트리거 컬럼](#트리거-컬럼) 에 적었다.
 
 기각한 대안은 공용 enum 타입으로 합치는 것이다. 값을 더할 때 `ALTER TYPE` 이 필요하다. 두 컬럼은 이미 같은 값 집합을 각자의 CHECK 제약으로 막고 있어 합쳐서 막을 수 있는 잘못된 값이 없다.
+
+### 인바운드 서명 자료 참조가 없는 행의 검증 생략은 운영 데이터를 잰 뒤 정한다 (2026-10-31)
+
+NERV Task `CLE-T-EA7B5M` 에서 사람이 정했다(NERV 질문 `01a19048-6f1c-7782-8fce-2c3a060f9291`). 이 Task 는 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 스펙에 적는 데까지 한다. 바꿀지는 NERV Task `CLE-T-AAGZRW` 가 운영 DB 의 행 수를 잰 뒤 정한다.
+
+원시 `config` 계약을 정하면서 이 동작이 드러났다. 원시 `config` 로 채팅 채널을 붙이면 참조 없는 행이 생길 수 있었고 그 행은 서명 검증 없이 인바운드를 받았다. 원시 `config` 의 타입 키 거부로 그 길은 닫힌다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행과 다른 길로 생긴 행은 남는다.
+
+지금 고르지 않은 안은 둘이다(후속 Task `CLE-T-AAGZRW` 가 계측 결과로 고른다).
+
+- 지금 401 로 막는다. 참조 없는 옛 Slack · Discord 행이 있으면 그 채널의 수신이 바로 끊긴다. 두 프로바이더의 서명 자료는 PATCH 로 넣을 수 없어서(v1 미정의) 트리거를 다시 만들어야 한다.
+- 지금 동작을 유지한다는 결정을 스펙에 올린다. 참조 없는 행은 웹훅 경로의 무작위성에만 기댄다.
+
+두 안 모두 참조 없는 행이 몇 개인지 모르는 채로 정해야 한다. 그래서 먼저 잰다. 참조가 없는 행이 0 이면 401 로 막고 하나라도 있으면 지금 동작을 유지한다는 결정을 스펙에 올린다.

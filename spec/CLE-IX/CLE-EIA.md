@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "465fd7d9947cab1ac6001ab2cda20f3eb2ec48ee5e98fbcd2331e126b5e6a0f1"
+content_hash: "3850762aab04d0d28a7272fb856d937c22854ea945e7122d611545ce6c231f9f"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-EA7B5M"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "8aff70bd2e7aba28c504732074a6e7a8628b3c46c66b19ace5533cda99023a20"
-etag: "sha256-f2becf044c175aeaa10d84b7af8481bdb76f5da1c48b7965a70859cc73612a62"
+mirror_sha256: "ac6eec6f0af2f684ffab32a81560271d5b1ffe087a56999953ddbcbb1456793f"
+etag: "sha256-4903f4b8465c2464e907722435ab3b17898ddca8bd2719bae9b770ee4da5443e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,7 +53,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-002 WHEN `interaction.enabled=true` 인 웹훅 트리거가 호출되면 THE SYSTEM SHALL 202 응답에 `status` 와 `interaction.endpoints`(stream·submit·status·cancel·refresh 다섯 경로)를 함께 싣는다. (원본: §4.1, §9.2 · 응답 모양의 기준은 [웹훅 「수신 API」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api))
 - REQ-EIA-003 WHEN 그 트리거의 `tokenStrategy` 가 `per_execution` 이면 THE SYSTEM SHALL `interaction` 블록에 새 실행 단위 토큰(`token`)과 `expiresAt` 을 함께 싣는다. (원본: §4.1)
 - REQ-EIA-004 WHEN PATCH 로 `interaction` 객체를 보내면 THE SYSTEM SHALL 사용자가 정하는 `interaction` 필드를 병합하지 않고 통째로 바꾸고 서버가 만든 `triggerToken` 은 요청에서 받지 않는다. (원본: §4 · 토큰을 정하는 규칙은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약))
-- REQ-EIA-005 WHEN 트리거를 만들거나 PATCH 가 EIA 알림 웹훅 설정을 처음 붙여서 서버가 알림 서명 시크릿(`wsk_*`)을 발급하면 THE SYSTEM SHALL 그 평문을 그 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 싣고 이후 응답에는 싣지 않는다. (원본: EIA-AU-01 · 발급 조건과 호출자 평문 우선은 [EIA 알림 웹훅 「요구사항」](CLE-EIA-NOTIFY.md#요구사항) 의 REQ-EIANOTI-037)
+- REQ-EIA-005 WHEN 트리거를 만들거나 PATCH 가 EIA 알림 웹훅 설정을 처음 붙여서 서버가 알림 서명 시크릿(`wsk_*`)을 발급하면 THE SYSTEM SHALL 그 평문을 그 응답의 `data.secrets.notificationSigningSecret` 에 한 번만 싣고 이후 응답에는 싣지 않는다. (원본: EIA-AU-01 · 발급 조건과 저장된 옛 평문 처리는 [EIA 알림 웹훅 「요구사항」](CLE-EIA-NOTIFY.md#요구사항) 의 REQ-EIANOTI-037)
 
 ### 인터랙션 토큰
 
@@ -65,7 +65,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-011 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 새 트리거 단위 토큰을 발급하고 옛 토큰을 새 요청에 대해 즉시 무효로 만들며 옛 토큰으로 연 SSE 스트림을 닫는다. (원본: EIA-AU-07)
 - REQ-EIA-012 WHEN 트리거 단위 토큰을 재발급하면 THE SYSTEM SHALL 감사 로그에 `trigger.interaction_token_revoked` 를 남긴다. (원본: EIA-AU-07)
 - REQ-EIA-038 WHEN 인터랙션을 켜고(`interaction.enabled=true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 그 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정 · [생성과 PATCH 응답에 싣는 일회성 비밀](#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17))
-- REQ-EIA-039 WHEN 최상위 `interaction` 이나 원시 `config` 를 바꾼 PATCH 의 결과가 인터랙션을 켠 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 트리거 단위 토큰을 발급해 그 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정)
+- REQ-EIA-039 WHEN 최상위 `interaction` 을 바꾼 PATCH 의 결과가 인터랙션을 켠 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 트리거 단위 토큰을 발급해 그 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정)
 - REQ-EIA-040 WHEN PATCH 결과가 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 있으면 THE SYSTEM SHALL 그 토큰을 이어받고 새 토큰을 발급하지 않는다. (2026-10-17 결정)
 - REQ-EIA-041 WHEN PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꾸면 THE SYSTEM SHALL 저장된 트리거 단위 토큰을 지우고 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09 결정 · [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약))
 - REQ-EIA-042 WHEN PATCH 가 `per_trigger` 전략인 트리거의 인터랙션을 끄면 THE SYSTEM SHALL 트리거 단위 토큰 값은 남기고 그 토큰으로 오는 요청을 401 로 거부하며 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답(finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`))
@@ -154,7 +154,7 @@ POST /api/triggers
 
 PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. 그래서 `appearance` 만 고칠 때도 `enabled`·`tokenStrategy` 를 함께 보내야 한다. 반대로 외부 API 호출자가 `appearance` 없이 `interaction` 을 PATCH 하면 저장된 외형이 경고 없이 사라진다. 외형을 지키려면 `appearance` 를 함께 보내거나, `GET /api/triggers/:id` 로 현재 값을 읽어 합친 뒤 PATCH 한다.
 
-서버가 만든 트리거 단위 토큰(`interaction.triggerToken`)은 이 통째 교체에서 빠진다. 호출자가 top-level `interaction` 이나 원시 `config` 에 이 필드를 실으면 400 `VALIDATION_ERROR` 다. 서버는 PATCH 결과에 따라 저장된 토큰을 이어받거나 새로 발급하거나 지운다(REQ-EIA-039 ~ 042). 최상위 `interaction` 으로 바꾸든 원시 `config` 로 바꾸든 규칙은 같다. 규칙의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 발급 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055(생성) · 056(PATCH) 이다.
+서버가 만든 트리거 단위 토큰(`interaction.triggerToken`)은 이 통째 교체에서 빠진다. 호출자가 top-level `interaction` 에 이 필드를 실으면 400 `VALIDATION_ERROR` 다. 원시 `config`(요청 본문의 `config` 키) 바로 아래에는 `interaction` 키를 실을 수 없다. 생성과 PATCH 모두 이 키가 있으면 값과 상관없이 400 `VALIDATION_ERROR` 다. 그래서 인터랙션 설정은 top-level `interaction` 으로만 바꿀 수 있다. 서버는 PATCH 결과에 따라 저장된 토큰을 이어받거나 새로 발급하거나 지운다(REQ-EIA-039 ~ 042). 원시 `config` 계약과 이 규칙의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 발급 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055(생성) · 056(PATCH) 이다.
 
 생성 응답(`201 Created`)은 다음과 같다. 전역 `TransformInterceptor` 가 트리거 리소스를 응답 봉투 `data` 로 감싼다.
 
@@ -537,7 +537,9 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 
 알림 서명 시크릿(`wsk_*`)의 서버 발급과 웹훅 202 응답의 `message` 는 2026-10-09 에 정했다(NERV Task `CLE-T-M6PERB`). 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 와 [웹훅 「웹훅 202 응답 모양을 지금 코드에 맞춘다」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 에 있다. 이 문서의 미결 사항에 남아 있던 두 항목은 2026-10-17 에 그 결정대로 본문을 고치고 닫았다(NERV Task `CLE-T-EMB0YG`).
 
-트리거 단위 토큰(`itk_*`)의 발급은 2026-10-17 에 사용자가 정했다(NERV Task `CLE-T-EMB0YG`). 인터랙션을 켠 `per_trigger` 트리거를 만들면 서버가 발급한다. PATCH 결과가 인터랙션을 켠 `per_trigger` 이고 저장된 토큰이 없을 때도 발급한다. 최상위 `interaction` 으로 바꾼 PATCH 든 원시 `config` 로 바꾼 PATCH 든 같다. 저장된 토큰이 있으면 이어받는다. 그래서 인터랙션을 껐다가 다시 켜면 같은 토큰을 쓴다. 이렇게 정한 이유는 두 가지다. 생성 때 발급하지 않으면 `per_trigger` 로 만든 트리거는 재발급을 한 번 더 불러야 인바운드 경로를 쓸 수 있다. 또 서버가 만든 비밀을 그 비밀이 생긴 응답에서 한 번 보여 준다는 규칙이 알림 서명 시크릿과 같아진다. 저장과 잠금의 근거는 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다. 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055 · 056 이다.
+트리거 단위 토큰(`itk_*`)의 발급은 2026-10-17 에 사용자가 정했다(NERV Task `CLE-T-EMB0YG`). 인터랙션을 켠 `per_trigger` 트리거를 만들면 서버가 발급한다. PATCH 결과가 인터랙션을 켠 `per_trigger` 이고 저장된 토큰이 없을 때도 발급한다. 2026-10-17 당시: 최상위 `interaction` 으로 바꾼 PATCH 든 원시 `config` 로 바꾼 PATCH 든 같다. 저장된 토큰이 있으면 이어받는다. 그래서 인터랙션을 껐다가 다시 켜면 같은 토큰을 쓴다. 이렇게 정한 이유는 두 가지다. 생성 때 발급하지 않으면 `per_trigger` 로 만든 트리거는 재발급을 한 번 더 불러야 인바운드 경로를 쓸 수 있다. 또 서버가 만든 비밀을 그 비밀이 생긴 응답에서 한 번 보여 준다는 규칙이 알림 서명 시크릿과 같아진다. 저장과 잠금의 근거는 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다. 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055 · 056 이다.
+
+2026-10-31 부터 원시 `config` 는 `interaction` 키를 받지 않는다. 그래서 앞 문단의 «원시 `config` 로 바꾼 PATCH» 갈래는 없어졌다. REQ-EIA-039 는 최상위 `interaction` 을 바꾼 PATCH 만 적는다. 결정과 근거는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) Rationale 의 「원시 `config` 계약 (2026-10-31)」 에 있다(NERV Task `CLE-T-EA7B5M`).
 
 인터랙션을 끄는 것은 토큰 폐기가 아니고 중지다. 그래서 다시 켜면 같은 토큰이 통한다. 토큰 전략을 바꾸면 값을 지운다. 이 경우는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 의 범위다. 끄기와 전략 변경을 가르는 근거 전문은 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다.
 

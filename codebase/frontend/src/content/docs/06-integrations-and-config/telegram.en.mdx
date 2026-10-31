@@ -41,11 +41,9 @@ curl -X POST https://<your-host>/api/triggers \
     "type": "webhook",
     "name": "telegram-bot",
     "workflowId": "<workflow-id>",
-    "config": {
-      "chatChannel": {
-        "provider": "telegram",
-        "botToken": "<your BotFather token>"
-      }
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<your BotFather token>"
     }
   }'
 ```
@@ -105,7 +103,7 @@ In the API response, the last error is the `chatChannelLastError` field.
 
 ## 6. Rotating the bot token (single-path)
 
-Token changes go through the rotate API only. Sending `config.chatChannel.botToken` in a PATCH body returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`). The internal identifier `botTokenRef` is rejected too — it was never an input field.
+Token changes go through the rotate API only. Sending `chatChannel.botToken` in a PATCH body returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`). The internal identifier `botTokenRef` is rejected too — it was never an input field.
 
 ```bash
 curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \
@@ -120,7 +118,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 ## 7. Customizing notification messages (`languageHints` / `languageLocale`)
 
-You can override the bot's built-in notification messages via `config.chatChannel.languageHints`.
+You can override the bot's built-in notification messages via `chatChannel.languageHints`.
 
 ### 7.1 `languageLocale` — default locale
 

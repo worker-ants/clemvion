@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "096841bf4d7b48a24b720a7e5eaf2b12235a8fca112871890740170c81e8cbdb"
+content_hash: "735925039190ea4bade22d2f26a099cd093a6e56710a536c00275bf778a4e363"
 read_as: "approved_fallback"
-task: "CLE-T-EQDYC1"
+task: "CLE-T-EA7B5M"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "718cef777f95ac7d16e45524fdc599737178be8729c1325ef58947bc7c36454c"
-etag: "sha256-d9d9f74c1d1cb57a8ce663b5bf32a6cdf6e34ce7e72fdd0905117c382e8715d5"
+mirror_sha256: "f9bec7fb9391ce1cb20d875c59cb09b2028b4d502ad3146fba890dfe1feb7186"
+etag: "sha256-936ec7b00ad0dcef8fe941876bc222fd4a975d60db3ca62be658114689867179"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -233,7 +233,7 @@ flowchart TD
   W -- "활성 또는 워크스페이스에 없음" --> S["/start 면 기존 실행 취소, 새 실행 시작"]
 ```
 
-1. **서명 검증**: 프로바이더 서명을 검증한다. 틀리면 `401` 이다(REQ-CHAT-056).
+1. **서명 검증**: 프로바이더 서명을 검증한다. 틀리면 `401` 이다(REQ-CHAT-056). 저장된 `inboundSigningRef` 가 없는 행의 현행 동작은 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적는다.
 2. **트리거 활성 관문**: 트리거가 비활성이면 `202`·`{ executionId: 'ignored' }` 다(REQ-CHAT-057). handshake 에도 답하지 않고 진행 중인 대화의 입력도 전달하지 않는다.
 3. **핸드셰이크 응답**: Slack `url_verification` 과 Discord PING 에 답한다. 워크플로우가 비활성이어도 답한다(REQ-CHAT-067).
 4. **파싱과 중복 제거, 분당 한도**: `parseUpdate` 뒤 중복 제거와 분당 한도를 지난다(REQ-CHAT-033·046). 그룹 대화와 지원하지 않는 update 는 여기서 버린다(REQ-CHAT-017).
@@ -383,9 +383,9 @@ sequenceDiagram
 | 토큰 변경 | 늘 [봇 토큰 재발급 API](#봇-토큰-재발급-api) 만 쓴다. PATCH 본문의 `chatChannel.botTokenRef`(참조)와 `chatChannel.botToken`(평문)은 모두 `400 VALIDATION_ERROR` 다. `details.field` 의 모양은 아래 표를 본다 | 24시간 유예 적용 |
 | `chatChannel` 이 실린 PATCH(`uiMapping`, `rateLimitPerMinute` 등 편집) | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 시크릿 저장소의 봇 토큰은 바꾸지 않아 요청 전후 값이 같다. `botTokenRef` 는 설정에서 보존되는 것이 아니라 트리거 id 에서 다시 만든다(`buildSecretRef`). 이 행은 봇 토큰만 다룬다. 인바운드 서명 자료는 [인바운드 서명 자료 변경](#인바운드-서명-자료-변경) 을 본다 | 변경 없음 |
 
-생성 · PATCH 가 비밀 필드를 거부할 때 `details.field` 모양은 보낸 값의 형태와 위치에 따라 갈린다. 세 갈래 모두 `INVALID_FIELD` 를 싣는다(배열이면 `details[].code`, 단일 object 면 `details.code`). 첫째 · 둘째 행은 단위 테스트(`trigger-dto-validation.spec.ts`)로 확인했고 HTTP 왕복은 e2e 로 확인하지 않았다. 셋째 행은 단위 테스트(`trigger-config-internal-fields.spec.ts`)와 e2e(`trigger-config-internal-fields.e2e-spec.ts`)로 확인했다.
+생성 · PATCH 가 비밀 필드나 원시 `config` 의 `chatChannel` 키를 거부할 때 `details.field` 모양은 보낸 값의 형태와 위치에 따라 갈린다. 네 갈래 모두 `INVALID_FIELD` 를 싣는다(배열이면 `details[].code`, 단일 object 면 `details.code`). 첫째 · 둘째 행은 단위 테스트(`trigger-dto-validation.spec.ts`)로 확인했고 HTTP 왕복은 e2e 로 확인하지 않았다. 셋째 행은 단위 테스트(`trigger-config-internal-fields.spec.ts`)와 e2e(`trigger-config-internal-fields.e2e-spec.ts`)로 확인했다. 넷째 행은 e2e(`trigger-raw-config-contract.e2e-spec.ts`)로 확인했다.
 
-이 문서에서 `chatChannel.<field>` 는 요청 본문의 top-level `chatChannel` 필드다. `config.chatChannel.<field>` 는 저장 위치(`Trigger.config.chatChannel`)를 뜻한다. 표의 셋째 행에서만 요청 본문의 `config` 키 아래(원시 `config`)를 뜻한다.
+이 문서에서 `chatChannel.<field>` 는 요청 본문의 top-level `chatChannel` 필드다. `config.chatChannel.<field>` 는 저장 위치(`Trigger.config.chatChannel`)를 뜻한다. 표의 셋째 · 넷째 행에서만 요청 본문의 `config` 키 아래(원시 `config`)를 뜻한다. 원시 `config` 의 `chatChannel` 은 받지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)).
 
 차단 필드는 다섯이다. `botTokenRef` · `inboundSigningRef` · `inboundSigning` 은 생성 · PATCH 모두 막는 내부 필드이고 `botToken` · `inboundSigningPlaintext` 는 PATCH 에서만 막는 값 필드다. 원시 `config` 에서는 다섯 모두 생성에서도 막는다(`setupChannel()` 과 평문 제거가 돌지 않기 때문이다). 코드의 단일 기준은 `chat-channel-rejection-messages.const.ts` 의 `CHAT_CHANNEL_BLOCKED_FIELDS` 다.
 
@@ -394,8 +394,11 @@ sequenceDiagram
 | 비어 있지 않은 문자열 | 전역 `CustomValidationPipe` | 중첩 경로 `chatChannel.<field>` | 배열 |
 | `null` 이나 `''` | `@IsEmpty()` 를 통과한 뒤 서비스 가드(`chat-channel-input-rules.ts`) | 평평한 `<field>` | 단일 object |
 | 원시 `config.chatChannel.<field>` 의 어떤 값(생성 · 수정 모두) | 서비스 가드(`trigger-config-internal-fields.ts`) | 원시 `config` 경로 `config.chatChannel.<field>` | 단일 object |
+| 요청 본문의 원시 `config` 아래 `chatChannel` 키 자체(생성 · 수정 모두, 값과 상관없이) | 서비스 가드(`trigger-config-internal-fields.ts`) | 원시 `config` 경로 `config.chatChannel` | 단일 object |
 
 `details.field` 의 기준을 하나로 고르지 않는 것은 확정된 설계다. DTO 선언(전역 파이프)과 서비스 가드는 서로 다른 입력을 받으므로, 하나를 고르면 다른 입력에서 문서가 틀리게 된다. 셋째 행은 같은 필드가 요청 본문의 다른 위치(원시 `config`)에 실린 경우라 그 위치를 경로로 싣는다. 규칙은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이 정한다(2026-10-04).
+
+넷째 행은 원시 `config` 에 `chatChannel` 키가 있는 경우다. 그 아래에 차단 필드가 없거나 값이 `null` · 빈 객체여도 거부한다(2026-10-31). 셋째 행의 검사가 넷째 행보다 먼저 돈다. 그래서 원시 `config.chatChannel` 아래에 차단 필드가 있으면 `details.field` 는 셋째 행의 `config.chatChannel.<field>` 다. 차단 필드가 없을 때만 넷째 행의 `config.chatChannel` 이다. 원시 `config` 검사 전체의 순서는 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이 정한다.
 
 PATCH 로 토큰 값을 바꾸면 다음 피해가 생긴다. (a) 외부 프로바이더(Telegram)에 등록된 웹훅은 그대로라 수신이 바로 끊긴다. (b) 재발급 API 의 24시간 유예 정책과 어긋난다. (c) 감사 로그가 `trigger.updated` 와 `trigger.chat_channel_bot_token_rotated` 로 섞인다. 그래서 한 경로만 둔다. 차단 기준은 필드 이름이 아니라 "PATCH 요청자가 자기 비밀로 값을 바꾸는가" 다. 프로바이더가 등록 동작의 일부로 강제하는 재발급(Telegram `secret_token`)은 이 기준의 대상이 아니다. 근거는 R-CC-10 과 R-CC-21 에 있다.
 
@@ -413,6 +416,8 @@ PATCH 로 토큰 값을 바꾸면 다음 피해가 생긴다. (a) 외부 프로�
 두 제약은 R-CC-21(PATCH 는 비밀을 받지 않는다)에서 저절로 따라 나온 것이라 새 결정이 아니다. 나중에 붙이기를 막지 않으면 `setupChannel` 이 반드시 실패하고, 그 실패가 REQ-CHAT-032 의 실패 흡수에 묻혀 `chatChannelHealth='degraded'` 로 200 이 된다. 사용자에게는 저장된 것처럼 보이는데 봇은 죽어 있게 된다. 명시적 400 이 이 조용한 실패를 막는다.
 
 최상위 코드는 기존 `VALIDATION_ERROR` 를 다시 쓰므로 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 새로 올릴 코드는 없다. `details[].code` 는 두 경우 모두 `INVALID_FIELD` 다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 "`field` 를 실으면 `code` 도 싣는다"). 최상위가 이미 도메인 코드인 자리(`authConfigId` 의 `AUTH_CONFIG_NOT_FOUND`)의 판정은 HTTP API 규약의 판별 기준을 따르며 이 두 경우와 관계없다.
+
+요청 본문의 원시 `config` 로도 두 제약을 우회할 수 없다. 원시 `config` 에 `chatChannel` 키가 있으면 값과 상관없이 `400 VALIDATION_ERROR` 다. `details.field` 모양은 [봇 토큰 변경 단일 경로](#봇-토큰-변경-단일-경로) 표의 셋째 · 넷째 행과 같다.
 
 ### 인바운드 서명 자료 변경
 
@@ -564,7 +569,7 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 - `codebase/backend/src/modules/triggers/chat-channel-*.ts`: `chat-channel-binder.service.ts`(어댑터 setup·teardown, 시크릿 쓰기와 참조 보존, 켤 때의 레지스트리 등록 `registerListenerOnActivation`), `chat-channel-input-rules.ts`(입출력 도메인 규칙 순수 함수, R-CC-21 입력 규칙과 `translateSetupChannelError`), `chat-channel-rejection-messages.const.ts`(PATCH 금지 필드와 거부 문구의 단일 기준. 원시 `config` 가드도 이 필드 목록을 쓴다), `chat-channel-token-rotator.service.ts`(봇 토큰 정리 매시간 워커)
 - `codebase/backend/src/modules/triggers/dto/**/chat-channel-*.dto.ts`: `chat-channel-config.dto.ts`(생성·수정 검증 분리), `responses/chat-channel-rotate-bot-token-response.dto.ts`
 - `codebase/backend/src/modules/triggers/trigger-callback-url*.ts`: 웹훅 콜백 URL 조립 순수 함수
-- `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`: 원시 `config` 의 내부 필드 거부(`details.field` 표 셋째 행)
+- `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`: 원시 `config` 의 내부 필드 거부와 `chatChannel` 키 거부(`details.field` 표 셋째 · 넷째 행)
 - `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션, 켜는 PATCH 커밋 뒤 레지스트리 등록), `trigger-resource-releaser.service.ts`(트리거 행을 없앨 때의 외부 해제와 채팅 채널 트리거의 레지스트리 해제), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(새 실행 시작 앞의 워크플로우 활성 관문 포함), 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts`: 워크플로우 활성 관문 `isWorkflowInactive`(트리거의 워크스페이스 안에서만 찾는다)
@@ -722,7 +727,7 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 **세 축.** 차단 기준은 "PATCH 요청자가 자기 비밀로 값을 바꾸는가" 다. 이 축은 봇 토큰과 인바운드 서명의 자원 성격 대조(외부 등록 여부)와 직교하고, "회전 주체가 누구인가" 축과도 직교한다. 회전 주체 축은 서버 발급(Telegram)·프로바이더 발급(Slack·Discord) 구분과 같다. v2 가 인바운드 서명 회전을 정해도 봇 토큰(R-CC-10 유지)과 Telegram 서버 발급 자료(우리 정책 대상이 아니고, 휩쓸면 서명 검증이 깨진다)에는 닿지 않는다. v2 후보 A·B·C 는 Slack·Discord 축 전용이다.
 
-**`details[].code` 이력.** 서비스 가드 갈래는 한때 `code` 를 싣지 않았다(`#1314` 단위 테스트). `#1317`(2026-09-11)이 "`field` 를 실으면 `code` 도 싣는다" 를 배선해 지금은 두 갈래 모두 `INVALID_FIELD` 다. 2026-10-04 에 더한 셋째 갈래(원시 `config`)도 같은 헬퍼(`throwInvalidField`)로 `INVALID_FIELD` 를 싣는다.
+**`details[].code` 이력.** 서비스 가드 갈래는 한때 `code` 를 싣지 않았다(`#1314` 단위 테스트). `#1317`(2026-09-11)이 "`field` 를 실으면 `code` 도 싣는다" 를 배선해 지금은 두 갈래 모두 `INVALID_FIELD` 다. 2026-10-04 에 더한 셋째 갈래(원시 `config`)도 같은 헬퍼(`throwInvalidField`)로 `INVALID_FIELD` 를 싣는다. 2026-10-31(NERV Task `CLE-T-EA7B5M`)에 더한 넷째 갈래(요청 본문 원시 `config` 의 `chatChannel` 키 거부)도 같은 `INVALID_FIELD` 를 싣는다.
 
 ### R-CC-22 triggers 모듈 안의 구현 경로를 글로브로 적는다
 

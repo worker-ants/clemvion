@@ -262,8 +262,9 @@ describe('트리거 config 안의 시크릿 참조 (e2e)', () => {
     expect(res.body.error.details).toEqual({ field, code: 'INVALID_FIELD' });
   });
 
-  // 원시 config 로 chatChannel 을 붙이는 경로 자체는 이 Task 밖이다(NERV Task `CLE-T-EA7B5M`). 그래서
-  // 양성 사례는 chatChannel 없는 config 로 고정한다.
+  // 원시 config 의 chatChannel 키는 값과 상관없이 400 이다(NERV Task `CLE-T-EA7B5M`,
+  // `trigger-raw-config-contract.e2e-spec.ts`). 그래서 양성 사례는 타입 키 없는 config 로 고정한다.
+  // 이 파일의 거부 사례는 내부 필드 검사가 타입 키 검사보다 먼저 돌아 `details.field` 가 내부 필드 경로로 남는다.
   it('내부 필드가 없는 config 는 생성 · 수정 모두 그대로 받는다', async () => {
     const created = await attackerCreate({
       config: { custom: { note: 'created' } },

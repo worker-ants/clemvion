@@ -42,8 +42,9 @@ export const MAX_NOTIFICATION_ATTEMPTS = 10;
  * 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리) — `maxAttempts` 는 첫 시도를
  * 포함한 총 시도 횟수이고 BullMQ `attempts` 와 같은 뜻이다. 기본 5, 상한 10, 0 은 1(큐 재시도 없음).
  *
- * 타입 필드는 DTO 가 0~10 정수로 막지만 원시 `config` 로 저장된 값은 그 검증을 지나지 않는다. 그래서
- * 숫자가 아니면 기본값으로, 범위 밖이면 1~10 으로 자른다. 발송 단계에서 던지면 알림 한 건이 통째로 사라진다.
+ * 타입 필드는 DTO 가 0~10 정수로 막는다. 원시 `config` 의 `notification` 은 이제 400 이지만(NERV Task `CLE-T-EA7B5M`)
+ * 그 전에 원시 `config` 로 저장된 옛 행의 값은 그 검증을 지나지 않았다. 그래서 숫자가 아니면 기본값으로, 범위 밖이면
+ * 1~10 으로 자른다. 발송 단계에서 던지면 알림 한 건이 통째로 사라진다.
  */
 export function notificationAttemptsFromRetry(retry: unknown): number {
   const raw =

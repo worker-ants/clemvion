@@ -52,11 +52,9 @@ curl -X POST https://<your-host>/api/triggers \
     "type": "webhook",
     "name": "telegram-bot",
     "workflowId": "<workflow-id>",
-    "config": {
-      "chatChannel": {
-        "provider": "telegram",
-        "botToken": "<BotFather에서 받은 token>"
-      }
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<BotFather에서 받은 token>"
     }
   }'
 ```
@@ -118,7 +116,7 @@ API 응답에서는 `chatChannelLastError` 필드가 마지막 오류예요.
 
 ## 6. Bot Token 회전 (single-path)
 
-토큰 변경은 **항상 아래 rotate API 만** 사용해요. PATCH 본문에 `config.chatChannel.botToken` 을 실으면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='chatChannel.botToken'`). 내부 식별자인 `botTokenRef` 도 마찬가지로 받지 않아요 — 그건 애초에 입력 필드가 아니에요.
+토큰 변경은 **항상 아래 rotate API 만** 사용해요. PATCH 본문에 `chatChannel.botToken` 을 실으면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='chatChannel.botToken'`). 내부 식별자인 `botTokenRef` 도 마찬가지로 받지 않아요 — 그건 애초에 입력 필드가 아니에요.
 
 ```bash
 curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \
@@ -133,7 +131,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 ## 7. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
 
-봇이 사용자에게 보내는 자체 안내 문구는 `config.chatChannel.languageHints` 로 override 할 수 있어요.
+봇이 사용자에게 보내는 자체 안내 문구는 `chatChannel.languageHints` 로 override 할 수 있어요.
 
 ### 7.1 `languageLocale` — 기본 locale 선택
 

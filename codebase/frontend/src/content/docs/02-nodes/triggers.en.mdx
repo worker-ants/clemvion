@@ -374,20 +374,19 @@ Each provider's credential requirements and external portal steps are covered in
 
 1. Create a bot with [Telegram BotFather](https://t.me/botfather) using `/newbot` and copy the **API Token**.
 2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (external bot)" → Provider = Telegram → paste Bot Token → Create.** `setWebhook` is called automatically to wire the bot to the workflow endpoint.
-3. To register via API instead, send `config.chatChannel` in the trigger create body:
+3. To register via API instead, send `chatChannel` as a top-level field of the trigger create body:
 
 ```bash
 curl -X POST https://<your-host>/api/triggers \
   -H 'Authorization: Bearer <your-token>' \
+  -H 'Content-Type: application/json' \
   -d '{
     "type": "webhook",
     "name": "telegram-bot",
     "workflowId": "<workflow-id>",
-    "config": {
-      "chatChannel": {
-        "provider": "telegram",
-        "botToken": "<your BotFather token>"
-      }
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<your BotFather token>"
     }
   }'
 ```
@@ -439,11 +438,12 @@ Check `chatChannelHealth` on the trigger detail view:
 
 A chat channel can only be configured **when the trigger is created**. PATCHing a `chatChannel` onto a trigger that does not have one returns 400 `VALIDATION_ERROR` (`details.field='chatChannel'`, `details.code='INVALID_FIELD'`), and changing `provider` returns 400 (`details.field='provider'`, `details.code='INVALID_FIELD'`) — to switch providers, delete the trigger and create it again.
 
-Token changes go through the rotate API only. Sending `config.chatChannel.botToken` in a PATCH body returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`). The internal identifier `botTokenRef` is rejected too — it was never an input field.
+Token changes go through the rotate API only. Sending `chatChannel.botToken` in a PATCH body returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`). The internal identifier `botTokenRef` is rejected too — it was never an input field.
 
 ```bash
 curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \
   -H 'Authorization: Bearer <your-token>' \
+  -H 'Content-Type: application/json' \
   -d '{ "newBotToken": "<new token>" }'
 ```
 
