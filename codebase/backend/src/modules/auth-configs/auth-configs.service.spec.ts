@@ -287,6 +287,26 @@ describe('AuthConfigsService', () => {
       });
     });
 
+    it.each(['api_key', 'bearer_token', 'hmac'] as const)(
+      '편집: %s 설정은 config.username 을 검사하지 않는다 (판정은 basic_auth 에만 걸린다)',
+      async (type) => {
+        const ac = await service.create(
+          WS,
+          { type, name: 'n' } as Partial<AuthConfig>,
+          USER,
+        );
+        await expect(
+          service.update(
+            ac.id,
+            WS,
+            { config: { username: '' } } as Partial<AuthConfig>,
+            USER,
+          ),
+        ).resolves.toBeDefined();
+        expect(repo.store.get(ac.id)!.config.username).toBe('');
+      },
+    );
+
     it('편집: config.username 을 싣지 않으면 빈 값으로 저장된 옛 설정도 고칠 수 있다', async () => {
       const id = await seedBasic({ username: '', password: '' });
       await service.update(
