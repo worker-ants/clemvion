@@ -2,21 +2,21 @@
 id: "CLE-RESEARCH-COMPETITORS"
 title: "경쟁 분석: n8n · Flowise"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-RESEARCH"
 ancestors: ["CLE-VISION", "CLE-RESEARCH"]
 area: "CLE-RESEARCH"
-content_hash: "4414430fd2eeaf95be102f97d6d6a1f5bb57dedf95e15b66708e8194e89aa491"
+content_hash: "7f63dec36f479f2d2449c6397a64b0c3869bedf15a9ad9897c58a6b011bf8da5"
 read_as: "approved_fallback"
-task: "CLE-T-0W7CA7"
+task: "CLE-T-KQ37NJ"
 source_paths: []
-mirror_sha256: "bb1eea5a6e5e356a33b7ead0a2920923dd282b7048d3ae531e1dde240c0d4eb8"
-etag: "sha256-027025d118fa990a235f736405b6a97fca83a81d742c0b9d2cc2785cf49b9d9b"
+mirror_sha256: "320fc3fcd0ec7af539ac6067652050845272ad23f7598dff0c7ef80cc474a061"
+etag: "sha256-757380d255308964e38f096625f0927600ca53399e8e6615db4fbbb743867cc8"
 ---
-> 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 · 2026-10-10 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 · 2026-10-10 · 2026-10-31 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -43,7 +43,7 @@ v2 는 2026-06-03 에 썼다. 실행 엔진, AI · RAG, 노드와 통합, 데이
 | P1-3 템플릿 갤러리 MVP | P1 | 마켓플레이스 백로그에서 템플릿만 떼어 먼저 낸다 | `marketplace-and-plugin-sdk` 계획의 워크플로우 템플릿 마켓 단계가 소유한다. | [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md) |
 | P2-1 LLMOps 레이어 | P2 | 리랭커 · 청킹 전략 · 평가 · 프롬프트 버전 관리 · LLM 트레이싱(Langfuse) 연결의 스펙이 필요한지 | 일부 구현됨. 리랭킹(`cross_encoder`, `cross_encoder_llm`)과 검색 지표 평가 하네스가 들어갔다. 청킹 개선과 생성 품질 평가는 `rag-quality-improvement` 계획이 소유한다. 프롬프트 버전 관리와 LLM 트레이싱 연결은 추적처가 없다. | [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [RAG 품질 평가](../CLE-KB/CLE-KB-EVAL.md), [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
 | P2-2 멀티에이전트 · A2A 채택 조사 | P2 | Dify · Langflow · Gumloop 벤치마크 | 미착지. 다른 계획에 집이 없다. | [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
-| P2-3 보안 백로그 | P2 | `JWT_SECRET` fallback, `ENCRYPTION_KEY` 분리, 인증 설정 감사 | 해소됨(PR #539). 운영(`NODE_ENV=production`)에서 `JWT_SECRET` 이 없거나 기본값이면 부팅을 거부한다. 인증 설정 변경 감사는 `auth_config.*` 액션으로 구현됐다. 암호화 키 두 개(`ENCRYPTION_KEY`, `INTEGRATION_ENCRYPTION_KEY`)의 정리는 시크릿 저장소 문서의 미결 사항이다. | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) |
+| P2-3 보안 백로그 | P2 | `JWT_SECRET` fallback, `ENCRYPTION_KEY` 분리, 인증 설정 감사 | 해소됨(PR #539). 운영(`NODE_ENV=production`)에서 `JWT_SECRET` 이 없거나 기본값이면 부팅을 거부한다. 인증 설정 변경 감사는 `auth_config.*` 액션으로 구현됐다. 암호화 키 두 개의 정리는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 결정했다(2026-10-10). 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 는 마스터키 `ENCRYPTION_KEY` 와 따로 둔다. 마스터키 하나를 시크릿 저장소와 LLM API 키가 함께 쓰는 구조는 [시크릿 저장소 「R6. 마스터키를 LLM API 키와 함께 쓴다」](../CLE-INT/CLE-INT-SECRET.md#r6-마스터키를-llm-api-키와-함께-쓴다) 대로 둔다. 운영에서는 어느 키든 없거나 예시 값이면 부팅을 거부한다. | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) |
 | P3 업마켓 전환 여부 결정 | P3 | SSO/SAML/SCIM, 조직 수준, 메트릭, Helm, 실시간 협업에 투자할 트리거 | 결정은 미착지다. 구성 요소 일부는 따로 움직였다. Prometheus 메트릭은 구현됐다. Docker Compose · Helm 배포는 `self-hosting-deployment`, LDAP/SAML 은 `spec-sync-auth-gaps` 계획이 소유한다. SCIM 과 실시간 협업은 추적처가 없다. | [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 
 2026-07-16 교정의 결론은 이렇다. 다른 계획에 집이 없는 미착지 전략 항목은 P1-2(알림톡 대행사 노드), P2-2(멀티에이전트 · A2A 조사), P3(업마켓 전환 결정) 세 건이다. NERV 로 옮기며 다시 확인하니 P1-1(MCP-first 포지셔닝)과 P2-1 의 나머지(프롬프트 버전 관리, LLM 트레이싱)도 추적처가 없다. 이 항목들이 이 문서를 살아 있게 하는 실질 내용이다.
@@ -140,7 +140,7 @@ v1 이 놓친 강점이다. n8n · Dify 커뮤니티 에디션보다 앞선다.
 - **⑩ 실시간 협업 없음**: CRDT · Yjs 가 없다. 원문은 저장이 last-write-wins 에 충돌 알림만 있다고 적었다. 워크스페이스 전환 API(`/switch`)도 없었다. **현재**: 워크스페이스 전환 API(`POST /api/auth/workspaces/:id/switch`)는 구현됐다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)). 에디터 문서 기준으로 동시 편집 충돌 감지는 구현된 적이 없다. 저장은 수동 저장과 실행 직전 저장 두 경로뿐이다([워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md)).
 - **⑪ DB 커넥터가 좁다**: PostgreSQL · MySQL 두 종류뿐이다(MongoDB · Redis · BigQuery 없음). 임베딩은 Anthropic embed 를 지원하지 않는다. 기준 문서는 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 와 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 다.
 - **⑫ Prometheus 메트릭 부재**: OTel 트레이스만 있었고 `/metrics` 와 MeterProvider 가 없었다. **현재**: 구현됐다. `OTEL_ENABLED=true` 이면 OTel MeterProvider 가 Prometheus `/metrics` 로 메트릭을 노출한다([비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md), [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md)).
-- **⑬ 보안 백로그**: `JWT_SECRET` 하드코딩 fallback(`'dev-jwt-secret'`, CWE-798, 운영 부팅 강제 없음), `ENCRYPTION_KEY` 단일 마스터키의 여러 도메인 재사용, 인증 설정 CRUD 감사의 부분 구현, reveal 엔드포인트의 rate limit 부재. **현재**: `JWT_SECRET` 은 운영에서 없거나 기본값이면 부팅을 거부한다(PR #539, [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)). 인증 설정 감사는 `auth_config.create` · `update` · `delete` · `regenerate` · `reveal` 이 모두 구현됐다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)). 암호화 키 정리는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 미결 사항이다.
+- **⑬ 보안 백로그**: `JWT_SECRET` 하드코딩 fallback(`'dev-jwt-secret'`, CWE-798, 운영 부팅 강제 없음), `ENCRYPTION_KEY` 단일 마스터키의 여러 도메인 재사용, 인증 설정 CRUD 감사의 부분 구현, reveal 엔드포인트의 rate limit 부재. **현재**: `JWT_SECRET` 은 운영에서 없거나 기본값이면 부팅을 거부한다(PR #539, [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)). 인증 설정 감사는 `auth_config.create` · `update` · `delete` · `regenerate` · `reveal` 이 모두 구현됐다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)). 암호화 키 정리는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 결정했다(2026-10-10). 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 는 마스터키 `ENCRYPTION_KEY` 와 따로 둔다. 마스터키 하나를 시크릿 저장소와 LLM API 키가 함께 쓰는 구조는 [시크릿 저장소 「R6. 마스터키를 LLM API 키와 함께 쓴다」](../CLE-INT/CLE-INT-SECRET.md#r6-마스터키를-llm-api-키와-함께-쓴다) 대로 둔다. 운영에서는 어느 키든 없거나 예시 값이면 부팅을 거부한다.
 - **⑭ 브랜드 · 시장 검증 없음**: Dify(131k★, 100만 앱, 280 엔터프라이즈)와 n8n(182k★)에 비해 신생이다.
 
 ## 실행 엔진 신뢰성 분석
@@ -323,3 +323,9 @@ v2.3 까지는 "한국 커머스 버티컬 수직 통합" 을 코어이자 진�
 ### 강점에서 동시 로그인 세션 제한을 뺐다 (2026-10-10)
 
 원문은 「인증 깊이」 강점에 동시 세션 수 제한을 함께 적었다. 2026-10-10 에 코드를 확인하니 한 사용자의 로그인 세션 수를 세거나 한도를 넘는 로그인 세션을 끊는 코드가 없었다. 그래서 강점 문장에서 이 기능을 빼고 **현재** 표시로 미구현 상태를 적었다. 이 판단은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항과 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 구현 상태에 맞췄다. 구현은 후속 NERV Task `CLE-T-VBQV4H` 로 추적한다.
+
+### 암호화 키 정리를 미결에서 결정으로 고쳤다 (2026-10-31)
+
+P2-3 행과 ⑬ 은 암호화 키 두 개의 정리를 시크릿 저장소의 미결 사항으로 적었다. 이 사항은 2026-10-10 에 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 결정됐으므로 두 곳을 결정 내용으로 고쳤다(NERV Task `CLE-T-KQ37NJ`).
+
+R13 은 통합 암호화 키를 마스터키와 따로 두는 일만 정했다. ⑬ 의 원래 항목인 "`ENCRYPTION_KEY` 단일 마스터키의 여러 도메인 재사용" 가운데 마스터키 하나를 시크릿 저장소와 LLM API 키가 함께 쓰는 부분은 그대로 남는다. 이 구조는 [시크릿 저장소 「R6. 마스터키를 LLM API 키와 함께 쓴다」](../CLE-INT/CLE-INT-SECRET.md#r6-마스터키를-llm-api-키와-함께-쓴다) 가 정한 대로다. 결정 문장만 적으면 이 부분까지 R13 이 닫은 것으로 읽힌다. 그래서 두 곳에 R6 도 함께 적었다.

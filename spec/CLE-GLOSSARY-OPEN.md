@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OPEN"
 title: "용어 사전 — 결정이 필요한 표기"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "9df82f268e9063dd364fa23121c7c848915d2ae46a0d454f2ba768676151f302"
+content_hash: "7e4cc9a65e7f05e708f8b6635672a6bb713d2cac898952a13dd4064a093be951"
 read_as: "approved_fallback"
-task: "CLE-T-K9S0TE"
+task: "CLE-T-KQ37NJ"
 source_paths: []
-mirror_sha256: "d6d430757a73de4f1acc4039212f02c15b65bd9280f8180cf92baaa22e5396be"
-etag: "sha256-9e3e504751b07423c0171ccdda864abd90669b4445d05267141477e430676cac"
+mirror_sha256: "cb458ec5c658f321aff9184a9b49b4f355a35ff718c3b4eac22267e8a4f1d438"
+etag: "sha256-b542ab81b4a5ccebacbef2201866fd9587ab4306aed5dae0487f93ff349a378d"
 ---
 ## 개요
 
@@ -65,7 +65,6 @@ etag: "sha256-9e3e504751b07423c0171ccdda864abd90669b4445d05267141477e430676cac"
 | D37 | 사용자 가이드 표기가 네 가지이고 /docs 경로가 둘이다 | 사용자 가이드 / 유저 가이드 / 사용자 매뉴얼 / User Guide · /docs(가이드) / /docs(Swagger UI) | 사용자 가이드 | info |
 | D38 | AI 어시스턴트 계획 카드의 화면 제목이 "실행 계획" 이다 | 실행 계획(화면) / 계획 카드 / Plan 카드 | 계획 카드 | info |
 | D39 | AI PRD 가 AI 어시스턴트를 "AI 에이전트" 로 부른다 | AI 에이전트(노드) / AI 어시스턴트(에디터 기능) | AI 에이전트 노드, AI 어시스턴트 | info |
-| D40 | 통합 자격 증명 암호화 키 이름이 문서마다 다르다 | ENCRYPTION_KEY / INTEGRATION_ENCRYPTION_KEY | 통합 암호화 키는 `INTEGRATION_ENCRYPTION_KEY`, 시크릿 저장소 키는 `ENCRYPTION_KEY` | warning |
 | D41 | "자동 갱신" 이 서로 다른 두 판정을 가리킨다 | 자동 갱신 표시(`autoRefresh`, google 포함) / 갱신 가능 판정(`isRefreshCapable`, google 제외) | 자동 갱신 표시, 갱신 가능 통합 | warning |
 | D42 | chat_channel_token_v2 가 옛 토큰인지 새 토큰인지 문서마다 다르다 | v2 = 옛 토큰 백업 / v2 = 새 토큰 | 값 설명은 CLE-CHAT-DATA 한 곳에서 정한다 | warning |
 | D43 | 워크플로우 변수 루트 이름이 세 가지다 | `$var`(표현식) / `$vars`(Code 노드) / `$variables`(엔진 문서) | 표현식은 `$var`, Code 노드는 `$vars` | warning |
@@ -104,3 +103,11 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 - Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다(NERV Task `CLE-T-V22XN8`).
 - 하위 문서의 용어 행이 「(결정 항목)」 으로만 가리키던 곳에 이 표의 번호를 붙였다. NERV Task `CLE-T-V22XN8` 본문이 두 안(번호를 붙이는 안, 이 표에 「관련 용어 행」 열을 두는 안)을 제시했고 번호를 택했다. 열을 두면 용어 행이 바뀔 때마다 이 표도 고쳐야 한다. 결정이 나면 번호로 짝을 찾아 함께 고친다. 본문에서는 번호를 항목 이름과 함께 쓴다(색인 표기 원칙 10).
+
+### 결정 항목 D40 을 걷었다 (2026-10-31)
+
+결정 항목 D40(통합 자격 증명 암호화 키 이름이 문서마다 다르다)은 [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) 의 Rationale R13 「통합 암호화 키를 마스터키와 따로 둔다」 에서 결정돼 표에서 걷었다(2026-10-31, NERV Task `CLE-T-KQ37NJ`).
+
+- R13 은 2026-10-10 사용자 결정이다(NERV Task `CLE-T-2V7SBC`). 통합 암호화 키는 `INTEGRATION_ENCRYPTION_KEY`, 마스터키는 `ENCRYPTION_KEY` 로 따로 둔다. 임시 표준과 결론이 같다.
+- 임시 표준이 「시크릿 저장소 키」 로 부른 `ENCRYPTION_KEY` 를 R13 은 마스터키로 부른다.
+- 다른 항목의 번호는 바꾸지 않았다. 하위 문서의 용어 행과 Rationale 이 번호로 이 표를 가리키기 때문이다. D40 은 다른 항목에 다시 쓰지 않는다.

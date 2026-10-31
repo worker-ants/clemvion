@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067", "REQ-INTMGMT-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "143bbab6aedb1ba1d41278a96303b9facf63958fd61bd6c39c6c5268d04bfea6"
+content_hash: "4c14491c5cba3142f8e56bbd5920668de24eac871ae626d6f3700b624f4367fd"
 read_as: "approved_fallback"
-task: "CLE-T-YMF05E"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "0f72e4275da963e3827206f317e9aacf65939dc1cfba81d7717cfeecc62802b5"
-etag: "sha256-4c2eaf16190a9ba08b9780192d08f60b795397e97594fbe966794a335516f4ad"
+mirror_sha256: "44fc4fc43e9a09614777fb5261c4fd690222f59aafecafbbcec20d3bebf32df8"
+etag: "sha256-a79c16f3c17e1b1e9696ca898853cbf45379ad093ff57fbac3907ceb7952b8f9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ etag: "sha256-4c2eaf16190a9ba08b9780192d08f60b795397e97594fbe966794a335516f4ad"
 - REQ-INTMGMT-009 WHEN 자격 증명이 바뀌면 THE SYSTEM SHALL 보안 탭에 마지막 교체 시각을 상대 시간과 절대 시간으로 보인다. (원본: INT-MG-06)
 - REQ-INTMGMT-010 WHEN 관리자 이상이 공개 범위 전환을 확인하면 THE SYSTEM SHALL 개인과 조직 사이를 바꾸고 기존 자격 증명을 승계하며 감사 로그를 남긴다. 조직에서 개인으로 바꿀 때 통합을 만든 사람이 멤버가 아니면 바꾸지 않는다(REQ-INTMGMT-067). (원본: INT-MG-07)
 - REQ-INTMGMT-011 WHEN 사용자가 통합을 만들면 THE SYSTEM SHALL 서비스에 맞게 OAuth 2.0·API Key·Bearer Token·Basic·Connection String·SMTP 인증을 받는다. (원본: INT-AU-02, INT-AU-03, INT-AU-08, INT-AU-09, INT-AU-10, NAV-IN-04)
-- REQ-INTMGMT-012 WHEN 통합을 저장하면 THE SYSTEM SHALL 자격 증명을 암호화해 저장하고 응답에서는 가린 미리보기만 보인다. (원본: INT-AU-05)
+- REQ-INTMGMT-012 WHEN 통합을 저장하면 THE SYSTEM SHALL 자격 증명을 암호화해 저장하고 응답에서는 가린 미리보기만 보인다. 암호화는 운영 환경(`NODE_ENV=production`) 기준이다. 예외는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 에 있다. (원본: INT-AU-05)
 - REQ-INTMGMT-013 WHEN 사용자가 연결 테스트를 누르면 THE SYSTEM SHALL 저장된 자격 증명으로 외부 서비스 연결을 확인하고 결과를 보인다. (원본: NAV-IN-06)
 - REQ-INTMGMT-014 WHEN 추가 위저드가 연결 테스트 단계에 들어가면 THE SYSTEM SHALL 저장하지 않은 자격 증명으로 저장 전 연결 테스트를 자동으로 부르고 성공해야 저장 버튼을 활성화한다.
 - REQ-INTMGMT-015 IF 설치 대기 통합에 연결 테스트를 요청하면 THE SYSTEM SHALL 외부를 부르지 않고 200 과 `{ success:false, code:'INTEGRATION_INCOMPLETE' }` 를 돌려준다.
@@ -796,6 +796,10 @@ NERV Task `CLE-T-PS7JQY` 의 스펙 consistency 검토가 남긴 INFO 를 정리
 - 사용처 절의 삭제 후 재등록 통합 목록과 에러 표 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 행에서 24시간 설치 기한을 넘긴 행을 뺐다. 그 행은 지우지 않고 같은 상점을 새로 등록한다.
 - 개인 통합 잠금 요구사항(REQ-INTMGMT-066)에 `oauth/begin` 의 설치 대기 행 다시 쓰기를 넣어 REQ-INTMGMT-068 과 맞췄다. 코드의 `lockForPendingWrite` 는 개인 요청이면 만들기와 다시 쓰기 모두 요청자의 멤버십을 잠근다. 동작 변경은 없다.
 - [위험 영역 탭](#위험-영역-탭) 에 워크스페이스가 그 사이 지워진 전환의 응답(404 `RESOURCE_NOT_FOUND`)을 적었다. 에러 코드 표의 `RESOURCE_NOT_FOUND` 행에도 같은 경우를 더했다. 잠금 절에는 워크스페이스가 없을 때의 응답과 그 근거를 더했다. 같은 경쟁에서 워크스페이스 관리 경로가 404 `WORKSPACE_NOT_FOUND` 를 내는 것과 무엇이 다른지도 적었다.
+
+### 요구사항 변경 이력 (2026-10-31, Task CLE-T-KQ37NJ)
+
+- REQ-INTMGMT-012: 자격 증명 암호화에 운영 환경(`NODE_ENV=production`) 한정을 달고 예외를 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 로 링크했다. 요구는 조건 없이 적혀 있었지만 실제로 보장하는 것은 운영 환경에서 새로 쓰는 값뿐이다. 운영 환경 가드(`assertProductionConfig`)는 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)가 없으면 서버를 기동하지 않는다. 이 결정의 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 이다. 운영 환경 밖에서는 키가 없으면 경고를 남기고 평문으로 저장한다. 이미 평문으로 저장된 행은 키가 있는 환경에서 그 컬럼을 다음에 쓸 때까지 평문으로 남는다. 이 둘은 보장 밖이다. 옛 평문 행을 다시 암호화하는 수단은 아직 정하지 않았다(2026-10-31, NERV Task `CLE-T-KQ37NJ`).
 
 ### 통합 화면은 할 수 없는 변경 동작을 숨긴다 (2026-10-29)
 

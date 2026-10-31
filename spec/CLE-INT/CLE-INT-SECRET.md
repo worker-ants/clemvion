@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "b4196fb2e56f033899881ad8616fda934ac9abe026cfaa4579bf3cb5150d7658"
+content_hash: "0b9f80dc6ab12c3b336926f4ec1f00334aceb74a96793c408186927d044e4cc5"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "14dc7b8ad1269b03edc87f9dcacf4338fd468f156802daff87b4648802ab0f55"
-etag: "sha256-110ea7796fa1aa087cbbdccb27e363a7aec433672b27fa481ef5419e1e920c6c"
+mirror_sha256: "3a5f434accc2746fcb8e9fb926f10e2efe9a0742bd0bc4f750737ab299651d2d"
+etag: "sha256-f66b1780c8ecdc6a1a14f2a1081b0e6ff271f838d6915afe935eeaf0e75f315d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -351,7 +351,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 ## 구현 위치
 
 - `codebase/backend/src/modules/secret-store/**`
-- 규칙 17 · 26 의 운영 환경 가드: `codebase/backend/src/common/config/production-guards.ts`(`assertProductionConfig`, 공개 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS`), 가드를 부르는 곳 `codebase/backend/src/main.ts`
+- 규칙 17 · 26 의 운영 환경 가드: `codebase/backend/src/common/config/production-guards.ts`(`assertProductionConfig`, 규칙 17 의 공개 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS`, 규칙 26 의 공개 예시 값 목록 `INSECURE_INTEGRATION_ENCRYPTION_KEYS`. 뒤 목록은 앞 목록의 상위 집합이다), 가드를 부르는 곳 `codebase/backend/src/main.ts`
 - 규칙 14 의 알려진 비밀 치환: `codebase/backend/src/shared/utils/sanitize-error-message.ts`(`replaceKnownSecret`), 채팅 채널 클라이언트 `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts` · `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts` · `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
 - 규칙 23 의 시행: `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`(원시 `config` 거부. 내부 필드 경로 목록 · 타입 키 · `secret://` 값을 `assertRawConfigAccepted` 가 본다), `codebase/backend/src/modules/triggers/triggers.service.ts`(`rotateBotToken` 의 참조 유도)
 - 규칙 4 의 면제 응답 DTO: `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts`(`TriggerIssuedSecretsDto`), `codebase/backend/src/modules/triggers/dto/responses/trigger-response.dto.ts`(생성 · PATCH 응답의 `secrets`)
@@ -383,6 +383,8 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 ### R5. `.env.example` 에는 형식 예시만 두고 production 에서 막는다
 
 `.env.example` 의 `ENCRYPTION_KEY` 는 실제 키가 아니라 형식만 보이는 all-zero placeholder 다. 옛 버전은 복사해 쓸 수 있는 구체적인 64-hex 값을 실었고, 그 값을 그대로 운영에 옮긴 배포는 공개 저장소의 알려진 키로 저장소 전체를 암호화해 사실상 평문 상태였다. 그래서 두 겹으로 막는다. 눈에 띄는 all-zero placeholder 와 «MUST regenerate(`openssl rand -hex 32`)» 주석이 하나이고, `NODE_ENV=production` 에서 `main.ts` 가 부르는 운영 환경 가드(`assertProductionConfig`, `production-guards.ts`)가 키가 없거나 공백뿐이거나 공개 예시 값이면 기동을 거부하는 것이 둘이다. 빈 값만 막는 `SecretResolver` 초기화 검사를 보완해 «예시 값 복사» 운영 사고까지 막는다. `JWT_SECRET`·`MCP_ALLOW_INSECURE_URL` 과 함께 하나의 fail-closed 가드 블록으로 모았다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「운영 환경 가드」). dev·test·e2e 는 영향이 없다(refactor 04 M-4).
+
+2026-10-10 에 NERV Task `CLE-T-2V7SBC` 가 이 가드를 세 가지로 넓혔다. 첫째, k8s 예시 Secret 과 루트 README 예시의 자리표시 값도 거부 목록(`KNOWN_EXAMPLE_ENCRYPTION_KEYS`)에 더했다. 이 값들도 공개 저장소에 있어 그대로 옮겨 쓰면 `.env.example` 값을 옮긴 것과 같은 사고가 난다. 둘째, 예시 값을 앞뒤 공백을 뗀 값으로도 대조한다. `.env` 나 Secret 에 옮기다 공백이나 끝 개행이 붙은 예시 값이 목록을 빠져나가지 않게 하려는 것이다. 뗀 값은 대조에만 쓰고 실제로 쓰는 키는 바꾸지 않는다. 셋째, 공백뿐인 값을 거부한다. `SecretResolver` 초기화는 키가 없거나 빈 문자열일 때만 막는다. 공백뿐인 값은 막지 않고 SHA-256 으로 키를 만든다. 이 키는 누구나 짐작할 수 있어 공개 예시 값과 다르지 않다. 감수한 비용도 있다. 이 값들로 돌던 운영 배포는 기동하지 못한다. 키를 새로 만들면 옛 키로 암호화한 `secret_store` 값과 LLM 프로바이더 API 키를 읽지 못한다. 옛 키로 풀어 새 키로 다시 암호화하는 수단은 없다. 공개된 키로 암호화한 값은 이미 평문과 같으므로 기동 거부를 택했다. 이 확장의 이유와 비용은 2026-10-31 에 이 단락에 적었다(NERV Task `CLE-T-KQ37NJ`).
 
 ### R6. 마스터키를 LLM API 키와 함께 쓴다
 
@@ -464,8 +466,8 @@ NERV Task `CLE-T-M6PERB` 의 재검토에서 첫 알림 서명 시크릿을 언�
 동작의 규범은 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 한 곳에 둔다. 공개 예시 값 목록은 스펙에 옮기지 않는다. 정본은 `production-guards.ts` 의 `INSECURE_INTEGRATION_ENCRYPTION_KEYS` 이고 그 단위 테스트가 저장소의 예시 파일 값과 대조한다.
 
 - **기동을 막는 기준과 배포 영향.** 운영 환경 가드는 정당한 용도가 없는 설정만 기동을 막는다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「운영 환경 가드」). 키가 없는 운영 설정은 새로 쓰는 자격 증명을 평문으로 저장하므로 이 기준에 따라 막는다. 그래서 통합과 인증 설정을 쓰지 않는 운영 배포도 이 키를 설정해야 한다. `.env.example` 과 k8s 예시 Secret(`k8s/base/secret.example.yaml`)에는 이미 이 키 이름이 있다.
-- **요구사항과의 관계.** [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-009 와 [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-012 가 요구하는 암호화는 지금 운영 환경에서 새로 쓰는 값에만 보장된다. 요구사항 문구의 범위를 좁히는 일은 후속 NERV Task `CLE-T-KQ37NJ` 가 맡는다.
-- **키 길이에 하한을 두지 않는 이유.** 하한을 넣으면 짧은 키로 운영 중인 환경은 키를 바꿔야 한다. 키를 바꾸면 옛 키로 암호화한 행은 복호화되지 않는다. `JWT_SECRET` 은 서명에 쓰는 키라 하한을 둔다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
+- **요구사항과의 관계.** [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-009 와 [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-012 가 요구하는 암호화는 지금 운영 환경에서 새로 쓰는 값에만 보장된다. 요구사항 문구의 범위를 좁히는 일은 후속 NERV Task `CLE-T-KQ37NJ` 가 맡는다. 2026-10-31 에 그 Task 가 두 요구사항 문구를 운영 환경(`NODE_ENV=production`) 기준으로 좁히고 예외를 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 로 링크했다. 같은 날 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 요구 문구에는 마스터키가 암호화하는 시크릿 저장소의 비밀과 LLM API 키는 환경과 상관없이 암호화한다는 문장도 넣었다. 이 항목 첫 문장의 «운영 환경에서 새로 쓰는 값에만» 은 통합 암호화 키가 암호화하는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 표의 컬럼에 걸리는 한정이고 마스터키가 암호화하는 값에는 걸리지 않는다(규칙 17).
+- **키 길이에 하한을 두지 않는 이유.** 하한을 넣으면 짧은 키로 운영 중인 환경은 키를 바꿔야 한다. 키를 바꾸면 옛 키로 암호화한 행은 복호화되지 않는다. `JWT_SECRET` 은 서명에 쓰는 키라 하한을 둔다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 이 근거는 짧아도 비밀인 키를 막지 않는 데만 쓴다. 공개 예시 값은 길이와 상관없이 기밀성이 없다. 그래서 R5 와 같은 논리(공개된 값은 막는다)로 막는다. 예시 값으로 운영 중인 배포도 키를 바꿔야 하지만 그 비용을 근거로 예시 값을 받아 주지는 않는다. 이 구분은 2026-10-31 에 더했다(NERV Task `CLE-T-KQ37NJ`).
 - **저장소 예외 근거를 고친 경위.** [저장소 예외 필드](#저장소-예외-필드) 의 `AuthConfig.config` 근거는 «동등하게 암호화된다» 였다. transformer 는 AAD 를 쓰지 않고 운영 환경 밖에서는 평문으로 저장하므로 «다른 메커니즘으로 암호화된다» 로 고쳤다.
 
 견준 안과 택하지 않은 이유는 다음과 같다.
@@ -476,6 +478,7 @@ NERV Task `CLE-T-M6PERB` 의 재검토에서 첫 알림 서명 시크릿을 언�
 이번에 정하지 않은 것도 있다.
 
 - 부팅이나 마이그레이션 때 평문 행을 자동으로 다시 암호화할지는 정하지 않는다. 방법과 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
+- 이 가드에 막히는 운영 배포의 이행 경로도 정하지 않았다. 키 없이 돌던 배포에는 그동안 평문으로 쓴 행이 남는다. 예시 값으로 돌던 배포는 키를 바꿔야 기동한다. 키를 바꾸면 예시 값으로 암호화한 행은 복호화되지 않는다. 이 행들을 새 키로 암호화하는 이행 경로도 NERV Task `CLE-T-C6GCKV` 가 맡는다. 이 항목은 2026-10-31 에 더했다(NERV Task `CLE-T-KQ37NJ`).
 - 운영 환경 밖에서도 키가 없으면 기동을 멈출지(규칙 17 의 마스터키 처리와 같게)는 결정 때 견주지 않았다. 운영 환경 밖은 지금 동작(경고 후 평문 저장)을 유지했다. 두 키의 처리가 다른 이유는 따로 정하지 않았다. transformer 는 키가 없어도 동작하도록 만들어져 있다.
 
 ### R14. 생성의 첫 발급을 INSERT 와 한 트랜잭션에 묶는다 (2026-10-17)

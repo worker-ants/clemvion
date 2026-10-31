@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 16
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "60029d1f47e3f62de93b2154c344c59fe2e8a17ccafe9ab3df6b12a67309cab1"
+content_hash: "4f53207eae96caf5d4032bbcdef8a0af59d99b1e85462ad7bce9160f51aef7b7"
 read_as: "approved_fallback"
-task: "CLE-T-GK9J2B"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "1760c10c7ba220811235c1e5d7ca9f8bcbf5edfbff3ea32e640cb853c8a67c7e"
-etag: "sha256-c2b7ec381b93b53e29d231cd91da13b615944f7551085539716bbbc06c79ead7"
+mirror_sha256: "048258572529d4f4a7b76b6329681cedc0b078bd8e16c2c2ce4f4cf3a77f161b"
+etag: "sha256-12a1339f1a1ea61a8d104851eb9fe6603c37dd32e04edbe2ce7246f1f5a04521"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -148,7 +148,7 @@ etag: "sha256-c2b7ec381b93b53e29d231cd91da13b615944f7551085539716bbbc06c79ead7"
 | 코드 | 이름 | 설명 | 사용자 메시지 | 정의 문서 |
 |------|------|------|--------------|-----------|
 | `INTERNAL_ERROR` | 내부 서버 에러 | 예상하지 못한 서버 에러. 5xx 기본 코드 | "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 발행처는 [미결 사항](#미결-사항) 참조 | "서비스를 일시적으로 사용할 수 없습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
+| `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때(Redis 장애) 낸다([가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)) | "서비스를 일시적으로 사용할 수 없습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `DATABASE_ERROR` | DB 에러 | 데이터베이스 연결·쿼리 실패. 발행처는 [미결 사항](#미결-사항) 참조 | "데이터 처리 중 오류가 발생했습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `RATE_LIMITED` | 요청 빈도 제한 | 요청 빈도 제한 초과. 429 기본 코드 | "요청이 너무 많습니다. {retry_after}초 후 다시 시도해 주세요." | [HTTP API 규약](CLE-API-CONV.md) |
 
@@ -182,8 +182,8 @@ etag: "sha256-c2b7ec381b93b53e29d231cd91da13b615944f7551085539716bbbc06c79ead7"
 | `INVALID_OPTIONS_TOKEN` | 400 | WebAuthn register·verify 의 optionsToken(짧은 수명의 서명 토큰) 무효 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `CHALLENGE_INVALID` | 401 | 로그인 2단계의 챌린지 토큰(`challengeToken`, `mfa_challenge` JWT)이 만료 · 위조됐거나 2단계용 토큰이 아님. TOTP 검증(`POST /api/auth/login/totp`)과 Passkey 옵션 · 검증 · 복구 코드 경로가 함께 쓴다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `CHALLENGE_METHOD_MISMATCH` | 401 | 로그인 2단계에서 챌린지 토큰(`challengeToken`)이 정한 방식과 다른 경로를 부름. TOTP 챌린지(`methods: ['totp']`)로 받은 토큰을 Passkey 옵션 · 검증 · 복구 코드 경로에 보낸 경우다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
-| `WEBAUTHN_INVALID` | 401 | Passkey 로그인 2단계 검증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)로 온 검증도 이 코드이고 credential 을 지우지 않는다. 이미 쓴 챌린지 거부는 아직 구현되지 않았다([가입과 로그인 「sign counter 역행과 동시성」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성)). counter 역행은 별도 코드 `WEBAUTHN_COUNTER_REGRESSION` 이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `WEBAUTHN_COUNTER_REGRESSION` | 401 | Passkey 로그인 2단계에서 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 인증기의 sign counter 가 저장값 이하로 돌아감(저장값과 응답 값이 모두 0 이면 역행이 아니다). 서버가 그 credential 을 지우고 사용자의 리프레시 토큰을 모두 무효화한 뒤 이 코드로 거부한다. 처음 쓰는 챌린지라는 조건은 아직 구현되지 않았다. 로그인 이력 `failure_reason` 에는 같은 이름의 사유값이 남는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
+| `WEBAUTHN_INVALID` | 401 | Passkey 로그인 2단계 검증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)로 온 검증도 이 코드이고 credential 을 지우지 않는다. counter 역행은 별도 코드 `WEBAUTHN_COUNTER_REGRESSION` 이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `WEBAUTHN_COUNTER_REGRESSION` | 401 | Passkey 로그인 2단계에서 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 인증기의 sign counter 가 저장값 이하로 돌아감(저장값과 응답 값이 모두 0 이면 역행이 아니다). 서버가 그 credential 을 지우고 사용자의 리프레시 토큰을 모두 무효화한 뒤 이 코드로 거부한다. 로그인 이력 `failure_reason` 에는 같은 이름의 사유값이 남는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)을 부름. Passkey 가 있으면 TOTP 로 로그인할 수 없다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 TOTP 로 로그인하므로 나지 않는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 TOTP 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. Passkey 만 등록한 계정도 여기에 든다. 이메일 변경과 로그인 세션 강제 종료의 계정 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
@@ -346,7 +346,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 웹훅(`auth_config_id IS NULL`)의 IP 단위(IP 를 식별하지 못하면 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과(`PublicWebhookThrottleGuard`, 기본 분당 10) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅 IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, 인증 설정의 기대값(key · token · 사용자 이름 · 비밀번호 · secret)이 비어 있거나 복호화 불가 표식이라 읽지 못함([웹훅 「인증」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#인증)), `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 [Rationale](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `WORKFLOW_INACTIVE` | 410 | 트리거는 활성인데 그 트리거의 워크플로우가 비활성임(`workflow.is_active=false`). 채팅 채널 트리거는 이 코드를 내지 않는다. 확인 순서와 경로별 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
@@ -474,7 +474,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 ## 미결 사항
 
-- **발행처가 없는 등재 코드**: `SERVICE_UNAVAILABLE`·`DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
+- **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **카탈로그에 아직 없는 통합 도메인 코드**: `INTEGRATION_*`, `OAUTH_CONFIG_MISSING`, `INSUFFICIENT_SCOPE`, `CAFE24_*` 등은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 API 에러 절에만 있고 이 카탈로그에 없다. 도메인 참조 절로 옮겨 등재할지 결정이 필요하다. 발행하는데 행이 없는 코드의 정리는 NERV Task `CLE-T-5BZ3M2` 에서 한다.
 - **발행하는데 행이 없는 어시스턴트 스트림 코드**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 스트림 `error` 이벤트는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `ASSISTANT_STREAM_FAILED` 를 내는데 이 카탈로그에 행이 없다(규칙 8). §6.19 는 세션 REST 코드만 싣는다. 어시스턴트 코드의 등재는 NERV Task `CLE-T-YFDSY7` 이 `CLE-T-5BZ3M2` 가 정하는 하위 구조를 따라 한다. 이 코드들에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
 - **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_CREDENTIAL_NOT_FOUND` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다.
@@ -646,11 +646,11 @@ NERV Task `CLE-T-D331TT` 에서 바로잡았다. `WEBAUTHN_COUNTER_REGRESSION` �
 
 ### 로그인 결정 셋을 카탈로그에 옮겼다 (2026-10-17)
 
-NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카탈로그에 옮겼다. 결정과 이유의 정본은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) Rationale 이다. 셋 다 아직 구현되지 않았고 구현 Task 는 그 문서 본문에 있다.
+NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카탈로그에 옮겼다. 결정과 이유의 정본은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) Rationale 이다. 처음에는 셋 다 구현되지 않았다. Passkey 인증 챌린지는 2026-10-30 에 구현됐다(아래 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」). 나머지 둘(`EMAIL_VERIFICATION_REQUIRED`, 로그인의 `WEBAUTHN_DISABLED`)은 아직 구현되지 않았다. 구현 Task 는 그 문서 본문에 있다.
 
 - **이메일 인증 전 계정**: 비밀번호가 맞을 때만 새 코드 `EMAIL_VERIFICATION_REQUIRED`(401)로 알린다. 아직 발행하지 않아 §6.2 표가 아니라 표 아래 문장에 적었고 구현과 함께 표에 등재한다(규칙 9). 사용자가 할 일이 자격 증명 확인과 달라 규칙 6 의 새 조건이다. 같은 코드로 묶는 은닉은 이 응답이 비밀번호가 맞을 때만 나서 해당하지 않는다. 클라이언트는 이 코드로 안내 문구를 고른다(규칙 4). 이름은 감사 사유값 `EMAIL_NOT_VERIFIED` 와 겹치지 않게 골랐다. 처음 초안은 `LOGIN_FAILED` 에 메시지만 다르게 두었다. 그러면 규칙 4 · 6 과 어긋나 사람이 다시 정했다. `LOGIN_FAILED` 행의 「잘못된 자격 증명」 은 그대로 맞다([가입과 로그인 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다-2026-10-17)).
 - **Passkey 기능이 꺼졌을 때의 로그인**: Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인도 `WEBAUTHN_DISABLED`(503)를 받는다. 그래서 그 행에 로그인을 더하고 `WEBAUTHN_REQUIRED` 행의 이유를 고쳤다. 기능이 꺼지면 credential 을 0개로 본다는 이유는 이 결정으로 맞지 않게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)).
-- **Passkey 인증 챌린지**: 이미 쓴 챌린지와 서명이 틀린 응답은 `WEBAUTHN_INVALID` 이고 credential 을 지우지 않는다. `WEBAUTHN_COUNTER_REGRESSION` 은 처음 쓰는 챌린지에서 서명이 맞는 응답에만 난다. 새 코드는 만들지 않았다. 두 경우 모두 사용자가 할 일은 Passkey 로 다시 시도하는 것이라 `WEBAUTHN_INVALID` 의 뜻에 든다([가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17)).
+- **Passkey 인증 챌린지**: 이미 쓴 챌린지와 서명이 틀린 응답은 `WEBAUTHN_INVALID` 이고 credential 을 지우지 않는다. `WEBAUTHN_COUNTER_REGRESSION` 은 처음 쓰는 챌린지에서 서명이 맞는 응답에만 난다. 새 코드는 만들지 않았다. 두 경우 모두 사용자가 할 일은 Passkey 로 다시 시도하는 것이라 `WEBAUTHN_INVALID` 의 뜻에 든다([가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17)). 2026-10-30 에 NERV Task `CLE-T-GK9J2B` 가 구현했다.
 
 ### 트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다 (2026-10-17)
 
@@ -668,3 +668,18 @@ NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카
 ### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
 
 통합 행을 만드는 트랜잭션의 첫 잠금이 `NOT_A_MEMBER` 를 내게 되어 §6.2 행의 발행처에 더하고 구현과 함께 더한다던 표 아래 문단을 지웠다. 워크스페이스가 그 사이 지워진 경우도 구현이 같은 코드로 거절하므로 행에 함께 적었다.
+
+### 구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)
+
+- 이미 쓴 Passkey 인증 챌린지를 거부하는 동작이 구현되어 §6.3 `WEBAUTHN_INVALID` · `WEBAUTHN_COUNTER_REGRESSION` 행의 미구현 표시를 걷었다.
+- 로그인 2단계 Passkey 인증 검증은 Passkey 인증 챌린지를 기록하지 못하면(Redis 장애) 503 `SERVICE_UNAVAILABLE` 로 거부한다. 이 코드의 첫 발행처라 §6.1 행에 적고 「미결 사항」 의 발행처가 없는 등재 코드에서 뺐다.
+- 상태 코드는 503 이다. [HTTP API 규약](CLE-API-CONV.md) 규칙 11 이 503 을 우리 인프라 의존성의 일시 장애에 쓴다고 정했고 Redis 는 우리 인프라다. 그래서 `WEBAUTHN_DISABLED` 처럼 예외로 등록할 필요가 없다.
+- 새 코드를 만들지 않았다. 카탈로그에 같은 뜻의 `SERVICE_UNAVAILABLE` 이 이미 있어 규칙 6 의 새 조건이 아니다.
+- 저장소 장애를 `WEBAUTHN_INVALID` 로 합치지 않았다. 인증 실패와 인프라 장애는 뜻이 갈린다. 합치면 클라이언트가 다시 시도할지 판단할 수 없다(규칙 6).
+
+### 구현 반영 (2026-10-31, NERV Task `CLE-T-KQ37NJ`)
+
+커밋 `19c35954d`(NERV Task `CLE-T-2V7SBC`)가 웹훅 인증에서 인증 설정의 빈 기대값을 거부하게 했다. 그 동작을 §6.10 `AUTH_FAILED` 행의 조건에 적었다. 전에는 `basic_auth` 의 사용자 이름 · 비밀번호나 `hmac` 의 secret 이 비어 있으면 빈 값끼리 비교해 요청이 통과했다. `bearer_token` · `api_key` 는 그 전부터 빈 기대값을 거부했다. 복호화 불가 표식이 담긴 인증 설정은 기대값을 읽지 못해 네 유형 모두 같은 401 로 거부한다.
+
+- **새 코드를 만들지 않았다.** 기대값이 비었거나 읽지 못하는 경우는 §6.10 `AUTH_FAILED` 행의 한 응답 정책(열거 공격 · 정보 노출 차단)에 든다. 웹훅 호출자는 아직 인증을 통과하지 않은 상대라 서버 쪽 인증 설정의 상태를 가려서 알리지 않는다. 그래서 이 경우도 `is_active=false` 인증 설정이나 서명 · 토큰 불일치와 같은 `AUTH_FAILED` 한 응답으로 둔다. 서버 쪽 데이터 문제를 `AUTH_FAILED` 로 감춘 선례는 같은 행에 먼저 있다. 트리거가 저장 경계 이전에 남은 교차 행이라 인증 설정을 트리거의 워크스페이스에서 찾지 못하는 경우다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 웹훅 수신에서 호출자에게 서버 쪽 사정을 감추는 선례는 [`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에도 있다. 규칙 6 의 단서는 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건만 묶는다. 이 결정은 그 단서에 기대지 않는다.
+- **`WEBAUTHN_INVALID` 선례와 경우가 다르다.** 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 은 다시 시도하면 풀리는 Redis 장애를 인증 실패와 갈랐지만 이번 경우는 운영자가 인증 설정을 바로잡기 전에는 다시 보내도 풀리지 않아 호출자가 재시도를 판단할 일이 없다.

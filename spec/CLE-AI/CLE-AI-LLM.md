@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "f8474897a17b9b7d564dea9ddf89399f181998c1a86fdca9b86c77a23c156488"
+content_hash: "00288217facebc0cadb5d31b585c37b3137692acca54112ff49ef5a1381bd076"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "af6e7ed30a72cbe3987fd444433567adeed1ffd07db7f2ab7eb11a5f085e77e0"
-etag: "sha256-9a40029de32b3d34004691b6a13ae81baa1b5ab029bf7e5a578ad56ddffc1de6"
+mirror_sha256: "563f24ae7ad2836b0a8ae20053b598b3f97316ebcf809ce333db8622987f9b56"
+etag: "sha256-ebc08807542e7065917357eba781f8e5d3aa491c07728f9317e9610a139f221b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -398,7 +398,7 @@ gpt-oss 계열 모델(예: gpt-oss-120b)은 `<|channel|>final<|message|>...` 같
 LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-spec.ts`)가 실제 LLM 키와 외부 호출 없이 멀티턴 AI 노드의 park·재개·rehydration 경로를 늘 같은 결과로 검증하게 하는 환경 변수 게이트 스텁 클라이언트다(`OAUTH_STUB_MODE` 선례).
 
 - `LlmService.createClient` 는 ConfigService 의 `llm.stubMode`(env `LLM_STUB_MODE` 유래, `registerAs('llm')` 네임스페이스)가 켜져 있으면 캐시·복호화 경로보다 먼저 `StubLlmClient` 를 돌려준다. 스텁이 항상 먼저 잡히므로 실제 클라이언트가 먼저 캐시된 상태에서 생기는 오염을 막는다. 이 경로에서는 모델 설정의 `apiKey` 를 쓰지 않는다.
-- 운영 차단: 부팅 가드가 `NODE_ENV=production` 과 `LLM_STUB_MODE=true` 조합을 fail-closed 로 throw 한다. 가드는 `main.ts` 가 부르는 `assertProductionConfig`(`common/config/production-guards.ts`)에 있다. 이 함수는 `JWT_SECRET`·`ENCRYPTION_KEY`·`MCP_ALLOW_INSECURE_URL`·`OAUTH_STUB`·`LLM_STUB` 을 모은 운영 환경 가드다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) Rationale 「운영 환경 가드」). 운영 환경에서는 절대 켜지지 않는다.
+- 운영 차단: 부팅 가드가 `NODE_ENV=production` 과 `LLM_STUB_MODE=true` 조합을 fail-closed 로 throw 한다. 그래서 운영 환경에서는 절대 켜지지 않는다. 가드는 `main.ts` 가 부르는 `assertProductionConfig`(`common/config/production-guards.ts`)에 있다. 이 함수가 검사하는 대상의 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) Rationale 「운영 환경 가드」 에 있다.
 - 스텁 응답 계약(`StubLlmClient`, `codebase/backend/src/modules/llm/clients/stub.client.ts`): `chat` 은 마지막 user 메시지를 `[stub] received: <msg>` 로 되돌려 주고 도구 호출을 만들지 않는다. 멀티턴 AI 노드가 응답을 내보낸 뒤 다시 park 하므로 매 턴의 cold rehydration 경로를 반복해서 검증할 수 있다. `embed` 는 0 벡터, `listModels` 는 `stub-model` 1건을 돌려준다.
 
 ## 스트리밍
@@ -597,3 +597,7 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 모델 설정 화면은 chat·embedding·rerank 어느 설정이든 테스트하고 모델을 불러온다. Chat 종류만 찾는 경로를 거치면 embedding·rerank 설정이 `MODEL_CONFIG_NOT_FOUND` 로 거부돼 연결 테스트와 모델 불러오기가 깨진다. 실제로 그런 회귀가 있었다. 그래서 `testConnection`·`listModels` 는 `ModelConfigService.findEntity`(종류 무관)를 바로 쓴다.
 
 모듈 순환도 같은 작업에서 정리했다. 예전에는 모델 설정 컨트롤러가 부속 엔드포인트를 위해 `LlmService`·`LlmPreviewService` 를 주입하고, 수정·삭제에서 `LlmService.clearClientCache` 를 직접 불러 `LlmModule` 과 `ModelConfigModule` 이 서로 forwardRef 로 물려 있었다. 부속 엔드포인트를 llm 모듈의 `LlmModelConfigController` 로 옮기고(공개 경로는 그대로), 캐시 무효화를 `ModelConfigService.onConfigInvalidated` 옵저버로 뒤집어 한 방향 의존으로 만들었다.
+
+### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다 (2026-10-31)
+
+LLM 스텁 모드 절은 운영 환경 가드가 검사하는 대상을 열거했었다. 가드가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)도 검사하게 된 뒤에도 이 열거는 바뀌지 않았다. 가드 대상이 늘 때마다 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) Rationale 「운영 환경 가드」 를 가리킨다. NERV Task `CLE-T-KQ37NJ` 에서 정했다.

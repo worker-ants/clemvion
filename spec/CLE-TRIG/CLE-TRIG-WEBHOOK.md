@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
-requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052"]
+requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "00f814d82dd3c4ca22aa3a472f7655f8bb44aa5754c6ab7cb5ee69ee25e63d7a"
+content_hash: "c758fa65f16831fb4ca0548528215f42055626440b56ed2c57dfa65e0ebe7a1f"
 read_as: "approved_fallback"
-task: "CLE-T-G0Y6MW"
+task: "CLE-T-KQ37NJ"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "b5f2ce6fd7e4b647d9127ae9c2f0c3b079069c63e23c103cca428d2778f7062c"
-etag: "sha256-fde204164a7bd3c76b2710574fff12f58c580c5e1ad58039c1559345175b2012"
+mirror_sha256: "4c566ce63754aef4c406b80e2ab6385f53a9f693eb7065ebfec5d55c95943a96"
+etag: "sha256-23cf6f5332dfbd216fa887d99226b91f2d5c28508465e642e6fa62e255340653"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,6 +75,7 @@ etag: "sha256-fde204164a7bd3c76b2710574fff12f58c580c5e1ad58039c1559345175b2012"
 - REQ-WEBHOOK-024 WHEN 인증이 성공하면 THE SYSTEM SHALL 트랜잭션 밖에서 `AuthConfig.last_used_at` 을 fire-and-forget 으로 갱신하고 실패하면 갱신하지 않는다. (원본: WH-SC-08)
 - REQ-WEBHOOK-025 IF 인증 설정에 `ip_whitelist` 가 있는데 클라이언트 IP 가 목록에 없거나 IP 를 알 수 없으면 THE SYSTEM SHALL `401 AUTH_FAILED` 로 거부한다. (원본: WH-SC-09)
 - REQ-WEBHOOK-026 IF 연결된 인증 설정이 비활성(`is_active=false`)이면 THE SYSTEM SHALL 곧바로 `401 AUTH_FAILED` 로 거부한다.
+- REQ-WEBHOOK-053 WHEN 연결된 인증 설정의 기대값(`api_key` 의 `config.key`, `bearer_token` 의 `config.token`, `basic_auth` 의 `config.username`·`config.password`, `hmac` 의 `config.secret`)이 비었거나 인증 설정이 복호화 불가 표식으로 읽히면 THE SYSTEM SHALL 요청 값과 상관없이 `401 AUTH_FAILED` 로 거부한다. 복호화 불가 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
 - REQ-WEBHOOK-027 WHEN 웹훅 요청이 실행을 시작하면 THE SYSTEM SHALL 실행을 기다리지 않고 `202 Accepted` 와 `executionId` 를 응답한다. (원본: WH-RS-01)
 - REQ-WEBHOOK-028 IF 엔드포인트 경로에 맞는 웹훅 트리거가 없으면 THE SYSTEM SHALL `404 TRIGGER_NOT_FOUND` 로 응답한다. (원본: WH-RS-02)
 - REQ-WEBHOOK-029 IF 요청 본문 파싱이 실패하면 THE SYSTEM SHALL `400 Bad Request` 로 응답한다. (원본: WH-RS-03)
@@ -215,7 +216,7 @@ POST /api/hooks/:endpointPath
 |------|------|------|
 | `400 Bad Request` | | 요청 본문 파싱 실패 |
 | `400 Bad Request` | `INVALID_WEBHOOK_PAYLOAD` | required 트리거 파라미터 누락, 타입 강제 변환 실패([400 응답 형식](#400-응답-형식)) |
-| `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 트리거의 워크스페이스에 없는 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치 모두 같은 코드다 |
+| `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 트리거의 워크스페이스에 없는 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치, 기대값이 비었거나 복호화 불가 표식으로 읽히는 인증 설정(REQ-WEBHOOK-053) 모두 같은 코드다 |
 | `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다(REQ-WEBHOOK-047). 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다(REQ-CHAT-059) |
 | `405 Method Not Allowed` | | POST 가 아닌 메서드([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
 | `410 Gone` | `TRIGGER_INACTIVE` | 트리거가 비활성이다. 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다 |
@@ -240,10 +241,12 @@ POST /api/hooks/:endpointPath
 | 유형 | 요청 헤더 | 검증 방식 |
 |------|----------|----------|
 | 인증 없음(공개) | 없음 | `auth_config_id IS NULL`. 누구나 부를 수 있고 엔드포인트 경로 UUID 가 사실상 비밀 키 역할을 한다 |
-| `hmac` | `{config.header}: {config.algorithm}=<hex-digest>`(기본 헤더 `X-Hub-Signature-256`) | `HMAC-{config.algorithm}(config.secret, rawBody)` 가 헤더 값과 같은지. GitHub 웹훅과 같은 방식이다. `config.algorithm` 은 `sha256`·`sha512` 만 허용하고 다른 값은 인증 실패다. 파싱 전 원본 바이트가 필요하므로 NestJS 부트스트랩에서 `rawBody: true` 를 켜야 한다 |
-| `bearer_token` | `Authorization: Bearer <token>` | `token === config.token` |
-| `api_key` | `{config.headerName}: <key>`(기본 헤더 `X-API-Key`) | 헤더 값 `=== config.key` |
-| `basic_auth` | `Authorization: Basic base64(username:password)` | 디코드한 사용자 이름·비밀번호가 `config.username` / `config.password` 와 같은지 |
+| `hmac` | `{config.header}: {config.algorithm}=<hex-digest>`(기본 헤더 `X-Hub-Signature-256`) | `HMAC-{config.algorithm}(config.secret, rawBody)` 가 헤더 값과 같은지. GitHub 웹훅과 같은 방식이다. `config.algorithm` 은 `sha256`·`sha512` 만 허용하고 다른 값은 인증 실패다. `config.secret` 이 비었으면 인증 실패다. 파싱 전 원본 바이트가 필요하므로 NestJS 부트스트랩에서 `rawBody: true` 를 켜야 한다 |
+| `bearer_token` | `Authorization: Bearer <token>` | `token === config.token`. `config.token` 이 비었으면 인증 실패다 |
+| `api_key` | `{config.headerName}: <key>`(기본 헤더 `X-API-Key`) | 헤더 값 `=== config.key`. `config.key` 가 비었으면 인증 실패다 |
+| `basic_auth` | `Authorization: Basic base64(username:password)` | 디코드한 사용자 이름·비밀번호가 `config.username` / `config.password` 와 같은지. 둘 가운데 하나라도 비었으면 인증 실패다 |
+
+표의 기대값(`config.secret` · `config.token` · `config.key` · `config.username` · `config.password`)이 비었으면 요청 값과 상관없이 `401 AUTH_FAILED` 다(REQ-WEBHOOK-053). 빈 기대값과 빈 요청 값이 같다고 판정되지 않게 막는 규칙이다. 인증 설정이 복호화 불가 표식으로 읽혀도 기대값을 읽지 못하므로 네 유형 모두 `401 AUTH_FAILED` 다. 통합 암호화 키를 바꾸면 그 전에 저장한 인증 설정이 이 표식으로 읽힌다. 표식이 생기는 경우는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
 
 ## 워크플로우 입력 구조
 
@@ -367,7 +370,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
    2. 인증 설정을 트리거의 워크스페이스 안에서 찾는다. 없으면 `401 AUTH_FAILED` 다. 다른 워크스페이스의 인증 설정을 가리키는 저장된 행도 여기서 막힌다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)).
    3. 인증 설정이 비활성이면 `401 AUTH_FAILED`.
    4. `ip_whitelist` 가 있으면 클라이언트 IP 를 검사한다. 맞지 않으면 401.
-   5. 유형별(`bearer_token` / `api_key` / `basic_auth` / `hmac`)로 상수 시간 비교를 한다.
+   5. 유형별(`bearer_token` / `api_key` / `basic_auth` / `hmac`)로 상수 시간 비교를 한다. 인증 설정의 기대값이 비었거나 인증 설정이 복호화 불가 표식으로 읽히면 요청 값과 상관없이 `401 AUTH_FAILED` 다(REQ-WEBHOOK-053). 복호화 불가 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
    6. 성공하면 `last_used_at` 을 fire-and-forget 으로 갱신한다.
    7. 실패하면 `401 AUTH_FAILED` 이고 갱신하지 않는다.
 8. `resolveTriggerParameters(workflow, body)` 로 파라미터를 추출·검증한다. 파라미터 스키마는 트리거의 워크스페이스 안에서만 읽는다. 워크플로우가 그 워크스페이스에 없으면 스키마가 없는 것으로 보고 10 에서 404 가 된다. required 누락이나 변환 실패면 `400 INVALID_WEBHOOK_PAYLOAD` 이고 실행을 만들지 않는다.
@@ -397,7 +400,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 | 항목 | 대책 |
 |------|------|
 | 엔드포인트 추측 방지 | UUID 기반 랜덤 경로(무차별 대입 불가) |
-| 비밀 키 저장 | 웹훅 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장한다. API 응답에서는 항상 가리고 평문은 생성·재생성·평문 보기 세 경로에서만 나간다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)) |
+| 비밀 키 저장 | 웹훅 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장한다. 암호화 키는 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)다. 이 보장은 운영 환경에서 새로 쓰는 값 기준이다. 예외는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 에 있다. 결정 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. API 응답에서는 항상 가리고 평문은 생성·재생성·평문 보기 세 경로에서만 나간다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)) |
 | 요청 민감 헤더 노출 | 인증·시크릿성 헤더는 저장 전에 `[REDACTED]` 로 가린다. 실행 상세·`$trigger`·`output.request` 어디로도 원본이 새지 않는다. 인증은 가리기 전 원본으로 해 영향이 없다 |
 | `last_used_at` 갱신 | 인증 성공 직후 fire-and-forget UPDATE. 트랜잭션 밖이라 경합하면 마지막 쓰기가 이기고 실패하면 갱신하지 않는다(활성 가시성만 잃는다) |
 | 본문 크기 제한 | 공개 웹훅 32KB, 인증 웹훅 1MB, 그 밖의 라우트 100KB. 공개 진입점은 DoS·남용 표면이라 32KB 보수 한도를 유지한다 |
@@ -531,3 +534,12 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - 일반 웹훅은 비활성 트리거와 같은 `410 Gone` 이고 코드는 새로 둔 `WORKFLOW_INACTIVE` 다(사용자 결정). 코드가 다르면 호출자와 운영자가 트리거와 워크플로우 가운데 무엇을 활성으로 바꿔야 하는지 응답만 보고 안다.
 - 확인 자리는 비활성 트리거 확인 바로 뒤, 인증 앞이다. 두 비활성 응답이 같은 자리에서 나간다. 경로를 아는 호출자는 지금도 인증 없이 410 으로 트리거가 비활성임을 안다. 새 코드로 더 알 수 있는 것은 비활성인 쪽이 워크플로우라는 사실뿐이다.
 - 채팅 채널은 비활성 트리거와 같은 `202` ignored 다. provider 가 2xx 가 아닌 응답을 받으면 웹훅을 끄거나 재시도를 쏟아내는 사정([채팅 채널 분기](#채팅-채널-분기))이 그대로 적용된다.
+
+### 빈 기대값과 복호화 불가 인증 설정을 거부한다 (2026-10-31)
+
+인증 설정의 기대값이 비었거나 인증 설정이 복호화 불가 표식으로 읽히면 요청 값과 상관없이 `401 AUTH_FAILED` 로 거부한다(REQ-WEBHOOK-053). 이 규칙은 2026-10-31 에 문서에 적었다(NERV Task `CLE-T-KQ37NJ`).
+
+- 기대값이 비어 있으면 빈 요청 값과 비교했을 때 같다고 판정돼 인증이 통과했다. `basic_auth` 설정의 사용자 이름과 비밀번호가 비어 있으면 빈 사용자 이름과 빈 비밀번호를 담은 `Authorization: Basic Og==` 가 통과했다. `hmac` 설정의 secret 이 비어 있으면 빈 키로 계산한 서명이 통과했다.
+- 통합 암호화 키를 바꾸면 같은 구멍이 열린다. 옛 키로 암호화한 인증 설정은 복호화 불가 표식으로 읽히고 기대값을 하나도 읽지 못한다. 그래서 복호화 불가 표식도 빈 기대값과 같이 거부한다. 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
+- 코드는 2026-10-10 NERV Task `CLE-T-2V7SBC` 에서 `basic_auth` · `hmac` 에도 빈 기대값 거부를 넣었다. `bearer_token` · `api_key` 는 그 전부터 빈 기대값을 거부했다.
+- 같은 개정에서 [보안 고려사항](#보안-고려사항) 의 비밀 키 저장 항목에 운영 환경 한정을 달았다. 운영 환경 밖에서 통합 암호화 키가 없으면 transformer 가 값을 평문으로 저장하고 이미 평문인 행은 그대로 두기 때문이다. 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
