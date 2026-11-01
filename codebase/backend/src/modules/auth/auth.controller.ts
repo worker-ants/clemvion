@@ -273,6 +273,8 @@ export class AuthController {
   @Post('2fa/setup')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
+  @Throttle(SENSITIVE_ACTION_THROTTLE)
   @ApiOperation({
     summary: '2FA 설정 시작',
     description:
