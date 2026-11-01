@@ -39,7 +39,8 @@ export class UpdateAuthConfigDto {
     description:
       '변경할 인증 상세 설정. 전달된 키만 기존 설정에 병합(shallow-merge)하며, ' +
       '비밀값(key/token/secret/password)은 본 엔드포인트로 변경할 수 없습니다 ' +
-      '(생성·재발급 전용). 마스킹된 비밀값을 보내도 무시됩니다.',
+      '(생성·재발급 전용). 마스킹된 비밀값을 보내도 무시됩니다. ' +
+      'basic_auth 에 username 을 보내면 빈 문자열이 아닌 문자열이어야 하며, 아니면 400 VALIDATION_ERROR 입니다.',
     type: 'object',
     additionalProperties: true,
   })

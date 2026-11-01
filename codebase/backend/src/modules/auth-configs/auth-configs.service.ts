@@ -21,6 +21,7 @@ import {
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import { throwInvalidReferences } from '../../common/utils/reference-in-scope';
 import {
   isUnreadableCredentials,
   UNREADABLE_ORIGINAL_KEY,
@@ -53,6 +54,31 @@ const USAGE_PERIOD_WINDOWS_MS = {
 function safeUsageCount(raw: string | undefined | null): number {
   const n = Number(raw ?? 0);
   return isNaN(n) || n < 0 ? 0 : n;
+}
+
+/**
+ * Basic Auth `config` 에서 `keys` 가운데 빈 값인 것을 모두 모아 400 `VALIDATION_ERROR` 로 거부한다
+ * (REQ-AUTHCFG-027 · 028). 응답 본문은 `throwInvalidReferences` 가 만든다 — `CustomValidationPipe` 와 같은 배열
+ * `[{ field, message, code: 'INVALID_FIELD' }]` 이고, 이름은 «참조» 지만 필드별 400 본문을 만드는 단일 헬퍼다.
+ *
+ * «비었다» 는 없음 · 빈 문자열이고, 웹훅 인증(`verifyBasicAuth`)이 빈 기대값을 401 로 거부하는 기준과 같다. 저장 때는
+ * 여기에 더해 문자열이 아닌 값도 거부한다 — 인증은 기대값을 문자열로 비교하므로 그런 값으로는 인증되지 않는다.
+ * 공백만 있는 값은 인증이 통과시키므로 받는다.
+ */
+function assertBasicAuthValues(
+  config: Record<string, unknown>,
+  keys: readonly string[],
+): void {
+  const invalid = keys.filter(
+    (k) => typeof config[k] !== 'string' || config[k] === '',
+  );
+  if (invalid.length === 0) return;
+  throwInvalidReferences(
+    invalid.map((k) => ({
+      field: `config.${k}`,
+      message: `config.${k} must be a non-empty string`,
+    })),
+  );
 }
 
 export interface WebhookAuthContext {
@@ -185,6 +211,9 @@ export class AuthConfigsService {
   ): Promise<AuthConfig> {
     const config: Record<string, unknown> =
       (data.config as Record<string, unknown>) || {};
+    if (data.type === 'basic_auth') {
+      assertBasicAuthValues(config, ['username', 'password']);
+    }
 
     // type 별 비밀값은 항상 제품이 자동 발급 — 사용자 입력 비밀값은 받지 않는다
     // (spec/1-data-model.md §2.17.1 / §2.17.3: "사용자 입력 옵션 제거, 자동 발급 강제").
@@ -246,6 +275,17 @@ export class AuthConfigsService {
       type: _type,
       ...rest
     } = data;
+    // Basic Auth 편집에서 바뀌는 값은 username 뿐이다(password 는 아래 비밀값 규칙대로 무시). 싣지 않은 PATCH 는 저장된 값을
+    // 보지 않는다 — 빈 값으로 저장된 옛 설정도 이름 · 활성 상태는 고칠 수 있어야 한다. 아래 대입보다 먼저
+    // 거부해야 `findById` 가 돌려준 엔티티가 반쯤 바뀐 채로 남지 않는다.
+    if (
+      config.type === 'basic_auth' &&
+      configPatch &&
+      typeof configPatch === 'object' &&
+      Object.hasOwn(configPatch, 'username')
+    ) {
+      assertBasicAuthValues(configPatch, ['username']);
+    }
     // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `ipWhitelist` 가 null 로
     // 실리고 `isActive` 가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
     Object.assign(config, omitUndefined(rest));

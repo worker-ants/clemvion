@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DeleteResult } from 'typeorm';
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { AuthConfigsService } from './auth-configs.service';
@@ -143,6 +143,181 @@ describe('AuthConfigsService', () => {
       expect(ac.config.username).toBe('u');
       expect(ac.config.password).toBe('p');
       expect(ac.config.key).toBeUndefined();
+    });
+  });
+
+  describe('Basic Auth 빈 값 — 생성 · 편집 PATCH 를 400 으로 거부 (REQ-AUTHCFG-027 · 028)', () => {
+    /** 400 `VALIDATION_ERROR` 로 거부됐는지 확인하고 `details[].field` 목록을 돌려준다. */
+    async function rejectedFields(
+      pending: Promise<unknown>,
+    ): Promise<string[]> {
+      const err: unknown = await pending.then(
+        () => {
+          throw new Error('거부되지 않았다');
+        },
+        (err_: unknown) => err_,
+      );
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as {
+        code: string;
+        details: { field: string; message: string; code: string }[];
+      };
+      expect(body.code).toBe('VALIDATION_ERROR');
+      for (const d of body.details) {
+        expect(d.code).toBe('INVALID_FIELD');
+        expect(d.message).toEqual(expect.any(String));
+      }
+      return body.details.map((d) => d.field);
+    }
+
+    function createBasic(config: unknown) {
+      return service.create(
+        WS,
+        { type: 'basic_auth', name: 'b', config } as Partial<AuthConfig>,
+        USER,
+      );
+    }
+
+    it.each<[string, unknown, string[]]>([
+      ['config 없음', undefined, ['config.username', 'config.password']],
+      [
+        'username · password 둘 다 빈 문자열',
+        { username: '', password: '' },
+        ['config.username', 'config.password'],
+      ],
+      [
+        'username 만 빈 문자열',
+        { username: '', password: 'p' },
+        ['config.username'],
+      ],
+      [
+        'password 만 빈 문자열',
+        { username: 'u', password: '' },
+        ['config.password'],
+      ],
+      ['password 없음', { username: 'u' }, ['config.password']],
+      [
+        'username 이 문자열이 아님',
+        { username: 123, password: 'p' },
+        ['config.username'],
+      ],
+      [
+        'password 가 null',
+        { username: 'u', password: null },
+        ['config.password'],
+      ],
+    ])(
+      '생성: %s → 400, 저장 · 감사 기록 없음',
+      async (_label, config, fields) => {
+        await expect(rejectedFields(createBasic(config))).resolves.toEqual(
+          fields,
+        );
+        expect(repo.save).not.toHaveBeenCalled();
+        expect(audit.record).not.toHaveBeenCalled();
+      },
+    );
+
+    it('생성: 공백만 있는 값은 받는다 (웹훅 인증이 같은 값을 보낸 요청을 통과시킨다)', async () => {
+      const ac = await createBasic({ username: ' ', password: ' ' });
+      expect(repo.store.get(ac.id)?.config).toEqual({
+        username: ' ',
+        password: ' ',
+      });
+    });
+
+    async function seedBasic(config: Record<string, unknown>) {
+      const ac = await createBasic({ username: 'u', password: 'p' });
+      repo.store.get(ac.id)!.config = config;
+      repo.save.mockClear();
+      audit.record.mockClear();
+      return ac.id;
+    }
+
+    it.each<[string, unknown]>([
+      ['빈 문자열', ''],
+      ['null', null],
+      ['문자열이 아닌 값', 42],
+    ])(
+      '편집: config.username 이 %s → 400 · 아무것도 바꾸지 않는다',
+      async (_label, username) => {
+        const id = await seedBasic({ username: 'u', password: 'p' });
+        await expect(
+          rejectedFields(
+            service.update(
+              id,
+              WS,
+              { name: 'renamed', config: { username } } as Partial<AuthConfig>,
+              USER,
+            ),
+          ),
+        ).resolves.toEqual(['config.username']);
+        expect(repo.save).not.toHaveBeenCalled();
+        expect(audit.record).not.toHaveBeenCalled();
+        const stored = repo.store.get(id)!;
+        expect(stored.name).toBe('b');
+        expect(stored.config).toEqual({ username: 'u', password: 'p' });
+      },
+    );
+
+    it('편집: 올바른 config.username 은 바꾼다', async () => {
+      const id = await seedBasic({ username: 'u', password: 'p' });
+      await service.update(
+        id,
+        WS,
+        { config: { username: 'next' } } as Partial<AuthConfig>,
+        USER,
+      );
+      expect(repo.store.get(id)!.config).toEqual({
+        username: 'next',
+        password: 'p',
+      });
+    });
+
+    it('편집: password 는 빈 값이어도 무시하고 거부하지 않는다', async () => {
+      const id = await seedBasic({ username: 'u', password: 'p' });
+      await service.update(
+        id,
+        WS,
+        { config: { password: '' } } as Partial<AuthConfig>,
+        USER,
+      );
+      expect(repo.store.get(id)!.config).toEqual({
+        username: 'u',
+        password: 'p',
+      });
+    });
+
+    it.each(['api_key', 'bearer_token', 'hmac'] as const)(
+      '편집: %s 설정은 config.username 을 검사하지 않는다 (판정은 basic_auth 에만 걸린다)',
+      async (type) => {
+        const ac = await service.create(
+          WS,
+          { type, name: 'n' } as Partial<AuthConfig>,
+          USER,
+        );
+        await expect(
+          service.update(
+            ac.id,
+            WS,
+            { config: { username: '' } } as Partial<AuthConfig>,
+            USER,
+          ),
+        ).resolves.toBeDefined();
+        expect(repo.store.get(ac.id)!.config.username).toBe('');
+      },
+    );
+
+    it('편집: config.username 을 싣지 않으면 빈 값으로 저장된 옛 설정도 고칠 수 있다', async () => {
+      const id = await seedBasic({ username: '', password: '' });
+      await service.update(
+        id,
+        WS,
+        { name: 'renamed', config: {} } as Partial<AuthConfig>,
+        USER,
+      );
+      const stored = repo.store.get(id)!;
+      expect(stored.name).toBe('renamed');
+      expect(stored.config).toEqual({ username: '', password: '' });
     });
   });
 
@@ -704,13 +879,21 @@ describe('AuthConfigsService', () => {
     describe('빈 기대값 · 복호화하지 못한 설정 → 401', () => {
       const emptyBasic = Buffer.from(':').toString('base64'); // `Og==`
 
+      // 생성은 빈 값을 400 으로 거부하므로(REQ-AUTHCFG-027) 올바른 값으로 만든 뒤 그 규칙 전에 저장된
+      // 옛 행처럼 바꿔 둔다.
+      async function seedLegacyBasic(config: Record<string, unknown>) {
+        const ac = await seed('basic_auth', { username: 'u', password: 'p' });
+        ac.config = config;
+        return ac;
+      }
+
       it.each([
         ['username · password 둘 다 빈 문자열', { username: '', password: '' }],
         ['password 만 빈 문자열', { username: 'u', password: '' }],
         ['username 만 빈 문자열', { username: '', password: 'p' }],
         ['username · password 키 없음', {}],
       ])('basic_auth: %s 이면 `:` 자격 증명을 거부', async (_label, config) => {
-        const ac = await seed('basic_auth', config);
+        const ac = await seedLegacyBasic(config);
         await expect(
           service.verifyWebhookRequest(ac.id, WS, {
             headers: { authorization: `Basic ${emptyBasic}` },
@@ -720,7 +903,7 @@ describe('AuthConfigsService', () => {
       });
 
       it('basic_auth: password 만 빈 설정은 올바른 username 에 빈 password 로도 거부', async () => {
-        const ac = await seed('basic_auth', { username: 'u', password: '' });
+        const ac = await seedLegacyBasic({ username: 'u', password: '' });
         const b64 = Buffer.from('u:').toString('base64');
         await expect(
           service.verifyWebhookRequest(ac.id, WS, {
