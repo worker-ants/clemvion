@@ -535,25 +535,21 @@ describe('AuthController', () => {
       ).rejects.toThrow(UnauthorizedException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
+  });
 
-    it('2fa/setup 은 비밀번호 추측을 막으려고 민감 tier(분당 10회) throttle 을 건다', () => {
-      const handler = AuthController.prototype.setup2fa;
-      expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
-        SENSITIVE_ACTION_THROTTLE.default.limit,
-      );
-      expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
-        SENSITIVE_ACTION_THROTTLE.default.ttl,
-      );
-    });
-
-    it('2fa/disable 은 민감 tier(분당 10회) throttle 을 건다', () => {
-      const handler = AuthController.prototype.disable2fa;
-      expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
-        SENSITIVE_ACTION_THROTTLE.default.limit,
-      );
-      expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
-        SENSITIVE_ACTION_THROTTLE.default.ttl,
-      );
-    });
+  // 비밀번호를 다시 확인하는 2FA 라우트는 추측을 막으려고 민감 tier(분당 10회)를 건다.
+  describe('2FA throttle', () => {
+    it.each(['setup2fa', 'disable2fa'] as const)(
+      '%s 는 민감 tier(분당 10회) throttle 을 건다',
+      (method) => {
+        const handler = AuthController.prototype[method];
+        expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
+          SENSITIVE_ACTION_THROTTLE.default.limit,
+        );
+        expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
+          SENSITIVE_ACTION_THROTTLE.default.ttl,
+        );
+      },
+    );
   });
 });
