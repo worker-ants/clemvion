@@ -564,6 +564,24 @@ interface TurnOutputAccumulators {
   toolCallTraces: ToolCallTrace[];
 }
 
+/**
+ * 단일 턴의 thread 주입 결과. {@link AiTurnExecutor.applySingleTurnMemoryInjection}
+ * 이 반환하고 {@link AiTurnExecutor.buildSingleTurnMeta} ·
+ * {@link AiTurnExecutor.buildSingleTurnLlmErrorOutput} 이 `meta.contextInjection` 에 쓴다.
+ */
+type SingleTurnInjection = ReturnType<AiTurnExecutor['injectThreadContext']>;
+
+/**
+ * 단일 턴 자동 메모리 전략 메타(spec §7 `meta.memory`). manual 전략이면 없다.
+ * {@link MultiTurnMemoryMeta} 와 달리 압축 메시지 수(`compactedMessages`)는 싣지 않는다.
+ */
+type SingleTurnMemoryMeta = {
+  strategy: MemoryStrategy;
+  summarized: boolean;
+  recalledCount: number;
+  tokenBudgetUsed: number;
+};
+
 /** 단일 턴 `meta` 의 토큰 4종. */
 interface TokenTotals {
   inputTokens: number;
@@ -637,6 +655,8 @@ const TOOL_BUDGET_EXCEEDED_ERROR = 'tool_call_budget_exceeded';
  * throw 해 orchestrator 가 조립한다. 두 경로의 `code` · `details.retryable` 은 같은
  * `extractAiTurnErrorPayload`(`nodes/ai/shared/llm-error-payload.ts`)가 정한다. 단일 턴
  * catch 는 맨 앞에서 `rethrowIfNodeCancelled` 로 노드 취소를 AbortError 로 던진다.
+ * 단일 턴 catch 는 첫 호출과 도구 반복의 `chat` 두 곳만 감싼다. 롤링 요약 `chat` ·
+ * 요약 모델 설정 해석 실패는 이 catch 밖이라 아직 노드 실패로 끝난다(CLE-T-Q38K9F).
  */
 export class AiTurnExecutor {
   constructor(
@@ -1188,15 +1208,8 @@ export class AiTurnExecutor {
   }): Promise<{
     messages: ChatMessage[];
     finalSystemPrompt: string;
-    memoryMeta:
-      | {
-          strategy: MemoryStrategy;
-          summarized: boolean;
-          recalledCount: number;
-          tokenBudgetUsed: number;
-        }
-      | undefined;
-    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
+    memoryMeta: SingleTurnMemoryMeta | undefined;
+    singleTurnInjection: SingleTurnInjection;
   }> {
     const {
       context,
@@ -1215,14 +1228,7 @@ export class AiTurnExecutor {
       messages,
       finalSystemPrompt,
     });
-    let memoryMeta:
-      | {
-          strategy: MemoryStrategy;
-          summarized: boolean;
-          recalledCount: number;
-          tokenBudgetUsed: number;
-        }
-      | undefined;
+    let memoryMeta: SingleTurnMemoryMeta | undefined;
     if (memoryStrategy === 'manual') {
       messages = singleTurnInjection.messages;
       finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
@@ -1591,8 +1597,15 @@ export class AiTurnExecutor {
   /**
    * 단일 턴 출력 `meta` 조립. 정상 완료(`out`)와 LLM 실패(`error` 포트)가 같은 키
    * 집합을 쓰도록 한 곳에서 만든다. 키를 더하거나 고칠 때 두 경로가 함께 바뀐다.
-   * `tokens` 의 의미는 호출부가 정한다. 정상 완료는 마지막 `chat` 결과 하나의 usage,
-   * 실패는 성공한 호출 usage 의 합이다(각 호출부 주석 참조).
+   * 조건 라우팅 종결은 {@link AiTurnExecutor.buildConditionOutput} 이 따로 조립한다.
+   *
+   * `tokens` 의 의미는 호출부가 정하며 두 경로가 다르다. 토큰 의미의 정본은 여기다.
+   *  - 정상 완료: 마지막 `chat` 결과 하나의 usage 만 싣는다(기존 동작). 도구 반복이
+   *    있으면 앞선 호출의 usage 는 합산하지 않아 과소 집계다. 호출별 usage 는
+   *    `turnDebug[0].llmCalls[].responsePayload.usage` 에 남는다. 조건 라우팅 종결
+   *    (`handleSingleTurnConditionRoute`)도 같다.
+   *  - LLM 실패: 실패 전에 성공한 호출 usage 의 합이다({@link sumLlmCallUsage}).
+   * 정상 완료도 성공 호출의 합으로 맞추는 일은 후속 Task CLE-T-9VRXGD 가 맡는다.
    */
   private static buildSingleTurnMeta(args: {
     durationMs: number;
@@ -1600,10 +1613,8 @@ export class AiTurnExecutor {
     tokens: TokenTotals;
     toolCallCount: number;
     accumulators: TurnOutputAccumulators;
-    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
-    memoryMeta: Awaited<
-      ReturnType<AiTurnExecutor['applySingleTurnMemoryInjection']>
-    >['memoryMeta'];
+    singleTurnInjection: SingleTurnInjection;
+    memoryMeta: SingleTurnMemoryMeta | undefined;
   }): Record<string, unknown> {
     const {
       durationMs,
@@ -1663,12 +1674,11 @@ export class AiTurnExecutor {
    * 단일 턴 LLM 호출(첫 호출 · 도구 반복) 실패의 `error` 포트 출력(REQ-AGENT-024).
    * `code` · `details.retryable` 은 멀티턴 재개와 같은 {@link extractAiTurnErrorPayload}
    * 로 정한다. `meta` 는 {@link AiTurnExecutor.buildSingleTurnMeta} 로 정상 완료와 같은
-   * 키에 실패 전까지 쌓인 값만 싣는다. 토큰은 실패 전에 성공한 호출 usage 의 합이다
-   * (정상 완료의 마지막 호출 하나와 다르다. `executeSingleTurn` 의 반환부 주석 참조).
+   * 키에 실패 전까지 쌓인 값만 싣는다(토큰 의미는 그 JSDoc 참조).
    * 최종 `ai_assistant` thread push 와 메모리 추출은 하지 않는다. 노드 취소는 여기
    * 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled` 로 던진다.
    */
-  private buildSingleTurnLlmErrorOutput(args: {
+  private static buildSingleTurnLlmErrorOutput(args: {
     err: unknown;
     singleTurnConfigEcho: Record<string, unknown>;
     model: string | undefined;
@@ -1676,10 +1686,8 @@ export class AiTurnExecutor {
     toolCallCount: number;
     accumulators: TurnOutputAccumulators;
     singleTurnStartedAt: number;
-    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
-    memoryMeta: Awaited<
-      ReturnType<AiTurnExecutor['applySingleTurnMemoryInjection']>
-    >['memoryMeta'];
+    singleTurnInjection: SingleTurnInjection;
+    memoryMeta: SingleTurnMemoryMeta | undefined;
   }): NodeHandlerOutput {
     const {
       err,
@@ -1865,7 +1873,7 @@ export class AiTurnExecutor {
       err: unknown,
       toolCallsSoFar: number,
     ): NodeHandlerOutput =>
-      this.buildSingleTurnLlmErrorOutput({
+      AiTurnExecutor.buildSingleTurnLlmErrorOutput({
         err,
         singleTurnConfigEcho,
         model,
@@ -2117,11 +2125,7 @@ export class AiTurnExecutor {
             : {}),
         },
       },
-      // 토큰은 마지막 `chat` 결과 하나의 usage 만 싣는다(기존 동작). 도구 반복이 있으면
-      // 앞선 호출의 usage 는 합산하지 않아 과소 집계다. 호출별 usage 는
-      // `turnDebug[0].llmCalls[].responsePayload.usage` 에 남는다. 합산으로 바꾸는 것은
-      // 별도 Task 다. 조건 라우팅 종결(`handleSingleTurnConditionRoute`)도 같다. 반면
-      // 실패 경로는 성공한 호출 usage 의 합이다(`buildSingleTurnLlmErrorOutput`).
+      // 토큰은 마지막 `chat` 결과 하나의 usage 다. 의미는 `buildSingleTurnMeta` JSDoc 참조.
       meta: AiTurnExecutor.buildSingleTurnMeta({
         durationMs: singleTurnDurationMs,
         model: result.model,
