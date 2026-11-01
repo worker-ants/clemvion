@@ -86,6 +86,9 @@ describe('AiAgentHandler cleanup hook', () => {
 
     expect(result.port).toBe('error');
     expect(provider.cleanup).toHaveBeenCalledTimes(1);
+    expect(provider.cleanup).toHaveBeenCalledWith({
+      executionId: 'exec-cleanup',
+    });
   });
 
   it('calls provider.cleanup even when a node cancellation throws', async () => {
@@ -108,6 +111,9 @@ describe('AiAgentHandler cleanup hook', () => {
     ).rejects.toMatchObject({ name: 'AbortError' });
 
     expect(provider.cleanup).toHaveBeenCalledTimes(1);
+    expect(provider.cleanup).toHaveBeenCalledWith({
+      executionId: 'exec-cleanup',
+    });
   });
 
   it('calls provider.cleanup when multi-turn enters waiting_for_input', async () => {

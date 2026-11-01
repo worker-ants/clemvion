@@ -1,6 +1,6 @@
 import { extractAiTurnErrorPayload } from './llm-error-payload';
 
-// AI 에이전트 LLM 실패 분류의 단위 테스트(testing-W req W_json). 단일 턴(AiTurnExecutor)과
+// AI 에이전트 LLM 실패 분류의 단위 테스트. 단일 턴(AiTurnExecutor)과
 // 멀티턴 재개(AiTurnOrchestrator)가 이 함수를 함께 쓴다.
 describe('extractAiTurnErrorPayload', () => {
   // CLE-NODE-OUTPUT Principle 3.2.1 — LLM 계열 노드는
@@ -101,7 +101,7 @@ describe('extractAiTurnErrorPayload', () => {
     expect(JSON.stringify(result.details)).toContain('***');
   });
 
-  it('details 가 순환참조 객체이면 직렬화 실패 시 fallback 문자열 반환 (req W_json)', () => {
+  it('details 가 순환참조 객체이면 직렬화 실패 시 fallback 문자열 반환', () => {
     const circular: Record<string, unknown> = { name: 'circular' };
     circular['self'] = circular;
     const err = Object.assign(new Error('circular error'), {
@@ -118,7 +118,7 @@ describe('extractAiTurnErrorPayload', () => {
     });
   });
 
-  it('비-Error 객체 throw 시 JSON.stringify 실패해도 throw 하지 않는다 (req W_json)', () => {
+  it('비-Error 객체 throw 시 JSON.stringify 실패해도 throw 하지 않는다', () => {
     const nonSerializable: Record<string, unknown> = {};
     nonSerializable['self'] = nonSerializable; // circular
     expect(() => extractAiTurnErrorPayload(nonSerializable)).not.toThrow();

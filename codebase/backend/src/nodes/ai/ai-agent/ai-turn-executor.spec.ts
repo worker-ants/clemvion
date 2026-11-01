@@ -199,10 +199,13 @@ describe('AiTurnExecutor', () => {
         ...baseContext,
         abortSignal: new AbortController().signal,
       };
-      type ErrorPortOutput = {
+      // 단일 턴 결과의 공통 shape. `error` 포트는 `output.error` 를, `out` 포트는
+      // `output.result` 를 싣는다.
+      type SingleTurnOutput = {
         config: Record<string, unknown>;
         output: {
-          error: {
+          result?: Record<string, unknown>;
+          error?: {
             code: string;
             message: string;
             details: Record<string, unknown>;
@@ -214,17 +217,27 @@ describe('AiTurnExecutor', () => {
         port: string;
         status: string;
       };
+      const executeSingleTurnAs = async (
+        executor: AiTurnExecutor,
+        config: Record<string, unknown>,
+        context: ExecutionContext,
+      ) =>
+        (await executor.executeSingleTurn(
+          undefined,
+          config,
+          context,
+        )) as unknown as SingleTurnOutput;
 
       it('routes a first-call 503 to the error port as retryable LLM_CALL_FAILED', async () => {
         mockLlmService.chat.mockRejectedValueOnce(
           httpError(503, '503 Service Unavailable'),
         );
         const executor = buildExecutor();
-        const result = (await executor.executeSingleTurn(
-          undefined,
+        const result = await executeSingleTurnAs(
+          executor,
           { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
           openSignalContext,
-        )) as unknown as ErrorPortOutput;
+        );
 
         expect(result.port).toBe('error');
         expect(result.status).toBe('ended');
@@ -255,15 +268,15 @@ describe('AiTurnExecutor', () => {
           }),
         );
         const executor = buildExecutor();
-        const result = (await executor.executeSingleTurn(
-          undefined,
+        const result = await executeSingleTurnAs(
+          executor,
           { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
           openSignalContext,
-        )) as unknown as ErrorPortOutput;
+        );
 
         expect(result.port).toBe('error');
-        expect(result.output.error.code).toBe('LLM_RATE_LIMIT');
-        expect(result.output.error.details).toEqual({
+        expect(result.output.error?.code).toBe('LLM_RATE_LIMIT');
+        expect(result.output.error?.details).toEqual({
           retryable: true,
           retryAfterSec: 30,
         });
@@ -274,15 +287,31 @@ describe('AiTurnExecutor', () => {
           httpError(401, 'Incorrect API key provided'),
         );
         const executor = buildExecutor();
-        const result = (await executor.executeSingleTurn(
-          undefined,
+        const result = await executeSingleTurnAs(
+          executor,
           { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
           openSignalContext,
-        )) as unknown as ErrorPortOutput;
+        );
 
         expect(result.port).toBe('error');
-        expect(result.output.error.code).toBe('LLM_CALL_FAILED');
-        expect(result.output.error.details.retryable).toBe(false);
+        expect(result.output.error?.code).toBe('LLM_CALL_FAILED');
+        expect(result.output.error?.details.retryable).toBe(false);
+      });
+
+      it('treats the chat app-level timeout as retryable', async () => {
+        // `LlmService.chat` 의 타임아웃(`withTimeout`)이 던지는 메시지 그대로다.
+        mockLlmService.chat.mockRejectedValueOnce(
+          new Error('Request timed out after 600000ms'),
+        );
+        const executor = buildExecutor();
+        const result = await executeSingleTurnAs(
+          executor,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          openSignalContext,
+        );
+
+        expect(result.port).toBe('error');
+        expect(result.output.error?.details.retryable).toBe(true);
       });
 
       it('keeps an AbortError from the call itself (e.g. its own timeout) on the error port', async () => {
@@ -293,14 +322,14 @@ describe('AiTurnExecutor', () => {
           }),
         );
         const executor = buildExecutor();
-        const result = (await executor.executeSingleTurn(
-          undefined,
+        const result = await executeSingleTurnAs(
+          executor,
           { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
           openSignalContext,
-        )) as unknown as ErrorPortOutput;
+        );
 
         expect(result.port).toBe('error');
-        expect(result.output.error.code).toBe('LLM_CALL_FAILED');
+        expect(result.output.error?.code).toBe('LLM_CALL_FAILED');
       });
 
       it('routes a tool-loop failure to the error port with the partial trace so far', async () => {
@@ -308,21 +337,23 @@ describe('AiTurnExecutor', () => {
           .mockResolvedValueOnce(toolCallTurn)
           .mockRejectedValueOnce(httpError(500, 'Internal server error'));
         const executor = buildExecutor({ toolProviders: [okToolProvider()] });
-        const result = (await executor.executeSingleTurn(
-          undefined,
+        const result = await executeSingleTurnAs(
+          executor,
           toolLoopConfig,
           openSignalContext,
-        )) as unknown as ErrorPortOutput;
+        );
 
         expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
         expect(result.port).toBe('error');
-        expect(result.output.error.code).toBe('LLM_CALL_FAILED');
-        expect(result.output.error.details.retryable).toBe(true);
+        expect(result.output.error?.code).toBe('LLM_CALL_FAILED');
+        expect(result.output.error?.details.retryable).toBe(true);
         // 실패 전에 성공한 첫 호출과 도구 실행 1건이 남는다.
         expect(result.meta).toMatchObject({
           inputTokens: 10,
           outputTokens: 5,
           totalTokens: 15,
+          // 호출 usage 에 thinkingTokens 가 없어도 합은 NaN 이 아니라 0 이다.
+          thinkingTokens: 0,
           toolCalls: 1,
         });
         expect(result.meta.turnDebug[0].llmCalls).toHaveLength(1);
@@ -404,23 +435,12 @@ describe('AiTurnExecutor', () => {
           model: 'gpt-4o',
           finishReason: 'stop',
         };
-        const run = async (
-          executor: AiTurnExecutor,
-          config: Record<string, unknown>,
-          context: typeof openSignalContext,
-        ) =>
-          (await executor.executeSingleTurn(
-            undefined,
-            config,
-            context,
-          )) as unknown as ErrorPortOutput;
-
         it('sums every usage field of the successful calls, thinkingTokens included', async () => {
           mockLlmService.chat
             .mockResolvedValueOnce(turnA)
             .mockResolvedValueOnce(turnB)
             .mockRejectedValueOnce(httpError(503, 'unavailable'));
-          const result = await run(
+          const result = await executeSingleTurnAs(
             buildExecutor({ toolProviders: [diagnosticToolProvider()] }),
             diagnosticConfig,
             openSignalContext,
@@ -439,12 +459,33 @@ describe('AiTurnExecutor', () => {
           expect(result.meta.turnDebug[0].llmCalls).toHaveLength(2);
         });
 
+        it('keeps the token sum finite when a successful call reports no usage', async () => {
+          mockLlmService.chat
+            .mockResolvedValueOnce(turnA)
+            .mockResolvedValueOnce({ ...turnB, usage: undefined })
+            .mockRejectedValueOnce(httpError(503, 'unavailable'));
+          const result = await executeSingleTurnAs(
+            buildExecutor({ toolProviders: [diagnosticToolProvider()] }),
+            diagnosticConfig,
+            openSignalContext,
+          );
+
+          expect(result.port).toBe('error');
+          // usage 없는 둘째 호출은 0 으로 더해져 첫 호출 값만 남는다.
+          expect(result.meta).toMatchObject({
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            thinkingTokens: 3,
+          });
+        });
+
         it('carries the rag, mcp and presentation diagnostics gathered before the failure', async () => {
           mockLlmService.chat
             .mockResolvedValueOnce(turnA)
             .mockResolvedValueOnce(turnB)
             .mockRejectedValueOnce(httpError(503, 'unavailable'));
-          const result = await run(
+          const result = await executeSingleTurnAs(
             buildExecutor({ toolProviders: [diagnosticToolProvider()] }),
             diagnosticConfig,
             openSignalContext,
@@ -494,7 +535,7 @@ describe('AiTurnExecutor', () => {
           mockLlmService.chat.mockRejectedValueOnce(
             httpError(503, 'unavailable'),
           );
-          const result = await run(
+          const result = await executeSingleTurnAs(
             buildExecutor(),
             { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
             openSignalContext,
@@ -533,7 +574,7 @@ describe('AiTurnExecutor', () => {
           mockLlmService.chat.mockRejectedValueOnce(
             httpError(503, 'unavailable'),
           );
-          const result = await run(
+          const result = await executeSingleTurnAs(
             buildExecutor({ thread }),
             {
               mode: 'single_turn',
@@ -556,10 +597,19 @@ describe('AiTurnExecutor', () => {
         });
 
         it('echoes meta.memory for an auto memory strategy and no contextInjection', async () => {
+          // thread 를 주입한 실행기는 `ai_user` 턴을 컨텍스트에 push 하므로 공유 컨텍스트 대신
+          // 이 테스트 전용 컨텍스트를 만든다.
+          const context = makeExecutionContext({
+            executionId: 'exec-mem',
+            workflowId: 'wf-1',
+            nodeId: 'agent-1',
+            variables: { __workspaceId: 'ws-1' },
+            abortSignal: new AbortController().signal,
+          });
           mockLlmService.chat.mockRejectedValueOnce(
             httpError(503, 'unavailable'),
           );
-          const result = await run(
+          const result = await executeSingleTurnAs(
             buildExecutor({ thread: new ConversationThreadService() }),
             {
               mode: 'single_turn',
@@ -568,7 +618,7 @@ describe('AiTurnExecutor', () => {
               memoryStrategy: 'summary_buffer',
               memoryTokenBudget: 100000,
             },
-            openSignalContext,
+            context,
           );
 
           expect(result.port).toBe('error');
@@ -581,7 +631,8 @@ describe('AiTurnExecutor', () => {
         });
 
         // 두 경로가 `buildSingleTurnMeta` 를 함께 쓰는지(복제로 다시 갈라지지 않는지)를 키
-        // 집합으로 고정한다. 값(특히 토큰: 정상 완료는 마지막 호출, 실패는 합)은 비교하지 않는다.
+        // 집합으로 고정한다. 정상 완료의 토큰은 마지막 호출 하나, 실패는 성공 호출의 합이라
+        // 값은 두 경로를 서로 비교하지 않고 각각 단언한다(실패 쪽은 위 합산 테스트).
         it('gives the normal completion and the error port the same meta key set', async () => {
           const buildSeeded = () => {
             const thread = new ConversationThreadService();
@@ -615,19 +666,33 @@ describe('AiTurnExecutor', () => {
             .mockResolvedValueOnce(turnB)
             .mockResolvedValueOnce(finalTurn);
           const ok = buildSeeded();
-          const success = (await ok.executor.executeSingleTurn(
-            undefined,
+          const success = await executeSingleTurnAs(
+            ok.executor,
             config,
             ok.context,
-          )) as unknown as ErrorPortOutput;
+          );
           expect(success.port).toBe('out');
+          // 정상 완료는 마지막 호출(finalTurn) 하나의 usage 만 싣는다. 도구 호출 둘의 usage
+          // (30 · 15 · 45)는 합산하지 않는다. 합산으로 바꾸는 후속 Task 는 CLE-T-9VRXGD 다.
+          expect(success.meta).toMatchObject({
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+            thinkingTokens: 0,
+            model: 'gpt-4o',
+            toolCalls: 2,
+          });
 
           mockLlmService.chat
             .mockResolvedValueOnce(turnA)
             .mockResolvedValueOnce(turnB)
             .mockRejectedValueOnce(httpError(503, 'unavailable'));
           const bad = buildSeeded();
-          const failure = await run(bad.executor, config, bad.context);
+          const failure = await executeSingleTurnAs(
+            bad.executor,
+            config,
+            bad.context,
+          );
           expect(failure.port).toBe('error');
 
           const successKeys = Object.keys(success.meta).sort();
@@ -681,11 +746,11 @@ describe('AiTurnExecutor', () => {
           httpError(503, 'unavailable'),
         );
 
-        const result = (await executor.executeSingleTurn(
-          undefined,
+        const result = await executeSingleTurnAs(
+          executor,
           { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
           context,
-        )) as unknown as ErrorPortOutput;
+        );
 
         expect(result.port).toBe('error');
         // LLM 호출 전에 넣은 ai_user 턴만 남는다.
