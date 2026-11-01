@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
 content_hash: "30e11b45c9fbbb15857d804aa320c5b34cb3a9edd333dcc342fa232f5ac52063"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-DCQWEB"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "18a9154e590ca31858690fd3acb3a19d07f35229a9dd0ac5cb480d8796d7ad2e"
-etag: "sha256-5057073b3392969cbb3daa4b5b22aa1ac9703ba499e1daa5e34507ab25bc0341"
+mirror_sha256: "1f9dd5c3c8c90d12c6863be649520c61e83593833c0e8497e097853de7920c90"
+etag: "sha256-0338284557c14e5ae47d51a9bf25abcb505036b1cb505a2c212b30718696c124"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
