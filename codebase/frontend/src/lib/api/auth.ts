@@ -141,10 +141,11 @@ export const authApi = {
       code,
     }),
 
-  setup2fa: () =>
+  /** 2FA 설정 시작. 계정 비밀번호를 다시 받는다(NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV). */
+  setup2fa: (password: string) =>
     apiClient.post<{
       data: { otpauthUrl: string; qrCodeDataUrl: string };
-    }>("/auth/2fa/setup"),
+    }>("/auth/2fa/setup", { password }),
 
   verify2fa: (code: string) =>
     apiClient.post<{ data: { recoveryCodes: string[] } }>("/auth/2fa/verify", {
