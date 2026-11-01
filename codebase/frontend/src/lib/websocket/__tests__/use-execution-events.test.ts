@@ -2153,6 +2153,43 @@ describe("useExecutionEvents", () => {
       ).toHaveLength(0);
     });
 
+    // 단일 턴 AI 에이전트의 LLM 실패도 error 포트 출력(output.output.error)을 싣는다(REQ-AGENT-024).
+    // 앞선 다른 노드의 대화가 store 에 있어도 단일 턴 실패는 대화에 system_error 를 붙이지 않는다.
+    // 붙이면 동작하지 않는 [다시 시도](_retryState 없음)가 함께 뜬다.
+    it.each(["failed", "completed"] as const)(
+      "node.%s for a single-turn ai_agent error does NOT append system_error",
+      (event) => {
+        useExecutionStore.getState().startExecution("exec-1");
+        seedConversation();
+        const handlers = bindNodeHandlers();
+
+        handlers[event]?.({
+          nodeId: "agent-2",
+          nodeType: "ai_agent",
+          nodeLabel: "Summarizer",
+          nodeExecutionId: "33333333-3333-4333-8333-333333333333",
+          error: "503 Service Unavailable",
+          output: {
+            config: { mode: "single_turn", model: "gpt-4o" },
+            output: {
+              error: {
+                code: "LLM_CALL_FAILED",
+                message: "503 Service Unavailable",
+                details: { retryable: true },
+              },
+            },
+            meta: {},
+            port: "error",
+            status: "ended",
+          },
+        });
+
+        const items = useExecutionStore.getState().conversationMessages;
+        expect(items).toHaveLength(3);
+        expect(items.every((i) => i.type !== "system_error")).toBe(true);
+      },
+    );
+
     it("node.completed with output.output.error APPENDs system_error (multi-turn AI port=error)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();

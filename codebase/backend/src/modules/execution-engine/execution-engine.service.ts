@@ -93,8 +93,8 @@ import { assertTransition } from './state/state-machine';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 // C-1 step2 — sanitizeLastErrorMessage / extractRetryAfterMs 는 AI turn 오류
-// 분류(extractAiTurnErrorPayload)에서만 쓰였고 그 cluster 는 AiTurnOrchestrator
-// 로 이동했다. 엔진에서는 더 이상 참조하지 않으므로 import 제거.
+// 분류(extractAiTurnErrorPayload)에서만 쓰였고 그 cluster 는 지금
+// nodes/ai/shared/llm-error-payload.ts 에 있다. 엔진에서는 더 이상 참조하지 않으므로 import 제거.
 import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,

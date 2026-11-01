@@ -153,14 +153,25 @@ function makeSystemErrorItem(args: {
  * Agent multi-turn conversation that needs an inline `system_error` item
  * appended to the timeline (spec §9.7 contract). Heuristic:
  *
- * - Host node is an `ai_agent` (single-turn AI Agent never accumulates a
- *   thread of its own so a system_error in the thread is meaningless).
+ * - Host node is a multi-turn `ai_agent`. A single-turn run never feeds this
+ *   store itself (it emits no waiting / AI message event), so any messages
+ *   here belong to an earlier node, and it keeps no retry state for
+ *   `[다시 시도]` to roll back. It is told apart by its config echo
+ *   (`output.config.mode === "single_turn"`), since its error-port output
+ *   carries the same `output.output.error` as a multi-turn one.
  * - The store already holds conversation messages — i.e. at least one turn
  *   was emitted before the failure. Without prior turns there's no thread
  *   to mark, and the standalone Error tab handles plain failures.
  */
-function isMultiTurnAiContext(nodeType?: string): boolean {
+function isMultiTurnAiContext(
+  nodeType?: string,
+  rawOutput?: unknown,
+): boolean {
   if (nodeType !== "ai_agent") return false;
+  // 단일 턴 실패도 error 포트 출력(`output.output.error`)을 싣는다. 앞선 다른 노드의 대화가
+  // store 에 남아 있어도 단일 턴은 이어 붙일 대화도 `[다시 시도]` 로 되돌릴 턴도 없다.
+  const mode = asRecord(asRecord(rawOutput)?.config)?.mode;
+  if (mode === "single_turn") return false;
   return useExecutionStore.getState().conversationMessages.length > 0;
 }
 
@@ -828,7 +839,10 @@ export function useExecutionEvents({
         // conversation thread 마지막에 system_error item 을 APPEND 해 사용자가
         // 어디서 끊겼는지 인지할 수 있게 한다.
         const errorPayload = extractNodeErrorPayload(payload.output);
-        if (errorPayload && isMultiTurnAiContext(payload.nodeType)) {
+        if (
+          errorPayload &&
+          isMultiTurnAiContext(payload.nodeType, payload.output)
+        ) {
           const retryable =
             typeof errorPayload.details?.retryable === "boolean"
               ? errorPayload.details.retryable
@@ -924,7 +938,10 @@ export function useExecutionEvents({
         // `payload.output` 을 **반드시 넘긴다** — top-level `error` 는 문자열이라
         // 구조화 객체는 여기에만 있다. 종전 `undefined` 가 이 배너를 죽여 놨다.
         const errorPayload = extractNodeErrorPayload(payload.output);
-        if (errorPayload && isMultiTurnAiContext(payload.nodeType)) {
+        if (
+          errorPayload &&
+          isMultiTurnAiContext(payload.nodeType, payload.output)
+        ) {
           const retryable =
             typeof errorPayload.details?.retryable === "boolean"
               ? errorPayload.details.retryable
