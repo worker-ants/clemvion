@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "37d0af2d5e03185249443168152bfeeeeb51e1d1b80818aa336da8b44529fcd5"
+content_hash: "1fc66f1003fb9cae9a52d894d2fd3346e045be5ec66e50a7cca07471e2404e7d"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-ZHBMAC"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "b8b99eb80ca80b45c96c2d7d0b18e37bab2a401befab1f2be0a23773cecf11d0"
-etag: "sha256-2254bc2600b824e5d120cf78ca44d566456e28dfb705748686f7e7f31327d0df"
+mirror_sha256: "642def91c024a73251f5a1c06a4d576e5b1b134891a46bffe732b23ddd5f22a1"
+etag: "sha256-8958186cf76ad90ee4397fbc5135e7d0cef39ccda1bbcf242e2a14fc3acc167c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -135,7 +135,7 @@ etag: "sha256-2254bc2600b824e5d120cf78ca44d566456e28dfb705748686f7e7f31327d0df"
 | `meta.durationMs` | number | 엔진 + 핸들러 | 노드 실행 소요 시간(ms) |
 | `meta.model` | string | LLM provider 응답 | 실제로 부른 모델 ID(`config.model` 평가 결과) |
 | `meta.inputTokens`·`outputTokens`·`totalTokens` | number | LLM provider 응답 | 토큰 회계([AI 노드 공통](CLE-NODE-AI-COMMON.md)) |
-| `meta.thinkingTokens` | number? | LLM provider 응답 | 모델이 thinking 토큰을 보고할 때만 |
+| `meta.thinkingTokens` | number | LLM provider 응답 | 늘 싣는다. 모델이 보고하지 않으면 `0`([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
 | `meta.toolCalls` | number | 핸들러 누적 | 도구 호출 횟수 합산. 조건 도구는 뺀다. 현재 구현은 프로바이더(지식 저장소·MCP·표시) 실행 수와 일반 도구 stub 수를 더한다 |
 | `meta.ragSources` | Array | `RagAccumulator` | 지식 저장소 도구가 가져온 청크 누적(chunkId 중복 제거). graph 모드 지식 저장소는 `origin: 'seed' \| 'expanded'` 를 붙인다. 스키마는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) |
 | `meta.ragDiagnostics` | object | `RagAccumulator` | 검색 진단(`attempted`·`searchedKbCount`·`queriesUsed`·`resultCount`·`skipReason?`·`rerank?`). `rerank?` 는 리랭킹이 켜진 지식 저장소 호출 때만 싣는다. 스키마는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) |
@@ -214,7 +214,9 @@ etag: "sha256-2254bc2600b824e5d120cf78ca44d566456e28dfb705748686f7e7f31327d0df"
 
 타임아웃, rate limit, LLM API 오류 등 모든 오류에 쓴다.
 
-> 구현 현황: 이 출력 형태는 목표 계약이다. 현재 `executeSingleTurn` 의 일반 `llmService.chat` 호출(첫 호출과 도구 반복)은 try/catch 로 감싸지 않아, 단일 턴 LLM 호출 실패(타임아웃·rate limit·API 오류)는 이 포트로 가지 않고 엔진 레벨의 분류 없는 `FAILED` 로 끝난다(부분 구현). 예외로 도구 정의 크기 예산 초과(`ToolDefinitionPayloadExceededError`)만 `buildSingleTurnToolsOrError` 의 사전 점검 try/catch 가 받아 이 형태로 돌려준다. 일반 `chat` 실패 감싸기는 후속이며 `plan/in-progress/node-output-redesign/ai-agent.md` 가 추적한다. 멀티턴 에러 종결은 엔진 `handleAiTurnError` 공통 경로로 이미 구현돼 있다.
+단일 턴의 첫 LLM 호출이나 도구 루프 안 LLM 호출이 실패하면 이 형태로 나온다. 노드 취소는 이 포트를 쓰지 않는다. 노드 signal 이 abort 된 뒤의 실패는 AbortError 로 던지고 노드는 `cancelled` 로 끝난다. 도구 정의 크기 예산 초과(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)도 이 형태로 나온다. 다만 LLM 을 부르기 전이라 `meta` 에는 `model`·`durationMs` 만 있다.
+
+아래 예시는 지식 저장소 없이 설정한 노드의 첫 LLM 호출이 503 으로 실패한 경우다. 성공한 호출이 없어 `turnDebug[0].llmCalls` 는 빈 배열이고 토큰은 0 이다.
 
 ```json
 {
@@ -222,14 +224,29 @@ etag: "sha256-2254bc2600b824e5d120cf78ca44d566456e28dfb705748686f7e7f31327d0df"
   "output": {
     "error": {
       "code": "LLM_CALL_FAILED",
-      "message": "OpenAI API returned 503 after 3 retries",
-      "details": { "retryable": true, "retryAfterSec": 30, "provider": "openai", "statusCode": 503, "attempt": 3 }
+      "message": "503 status code (no body)",
+      "details": { "retryable": true }
     }
   },
   "meta": {
     "durationMs": 15230,
     "model": "gpt-4o",
-    "turnDebug": [ { "turnIndex": 1, "llmCalls": [], "totalDurationMs": 15230 } ]
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "totalTokens": 0,
+    "thinkingTokens": 0,
+    "toolCalls": 0,
+    "ragSources": [],
+    "ragDiagnostics": { "attempted": false, "searchedKbCount": 0, "queriesUsed": [], "resultCount": 0, "skipReason": "empty_kb_list" },
+    "turnDebug": [
+      {
+        "turnIndex": 1,
+        "llmCalls": [],
+        "totalDurationMs": 15230,
+        "ragSources": [],
+        "ragDiagnostics": { "attempted": false, "searchedKbCount": 0, "queriesUsed": [], "resultCount": 0, "skipReason": "empty_kb_list" }
+      }
+    ]
   },
   "port": "error",
   "status": "ended"
@@ -239,10 +256,15 @@ etag: "sha256-2254bc2600b824e5d120cf78ca44d566456e28dfb705748686f7e7f31327d0df"
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `output.error.code` | string (UPPER_SNAKE_CASE) | 에러 분류. 코드 표는 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 에러 코드 절 |
-| `output.error.message` | string | 사람이 읽는 메시지(로그·디버깅용 원문, 국제화 없음) |
-| `output.error.details` | object? | 노드별 추가 맥락(provider·statusCode·attempt 등). 아래 두 키 포함 |
-| `output.error.details.retryable` | boolean | 필수. 일시적 오류인지. `true` 는 HTTP 429·5xx·타임아웃 같은 일시 오류(예: 503), `false` 는 인증 실패·스키마 치명 오류·사용자 취소 |
+| `output.error.message` | string | 사람이 읽는 메시지(로그·디버깅용 원문에서 민감값을 지운 것, 국제화 없음) |
+| `output.error.details` | object | 에러 객체가 실은 `details`(민감값 제거) 위에 `retryable` 과 `retryAfterSec` 를 얹은 것. provider·statusCode·attempt 같은 키는 에러 객체에 있을 때만 들어간다. 예: 503 은 `{ "retryable": true }`, Retry-After 30초인 429 는 `{ "retryable": true, "retryAfterSec": 30 }` |
+| `output.error.details.retryable` | boolean | 필수. 일시적 오류인지. `true` 는 HTTP 429·5xx·타임아웃 같은 일시 오류(예: 503), `false` 는 인증 실패·스키마 치명 오류. 단일 턴은 `_retryState` 를 만들지 않아 `true` 여도 [다시 시도] 버튼이 없다([대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건)). |
 | `output.error.details.retryAfterSec` | number? | 재시도 권장 대기 초(있을 때). 멀티턴 에러와 같은 형식 |
+| `meta.*` | | 정상 완료와 같은 키를 실패 직전까지 모은 값으로 싣는다. `durationMs`(단일 턴 시작부터)·`model`·토큰·`toolCalls`·`ragSources`·`ragDiagnostics`·`mcpDiagnostics?`·`turnDebug` 가 들어간다. `presentationCalls`·`presentationSchemaViolations`·`contextInjection`·`memory` 는 있을 때만 싣는다. 도구 정의 크기 예산 초과는 `model`·`durationMs` 만 싣는다 |
+| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | 실패 전에 성공한 LLM 호출의 `usage` 합([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)). 첫 호출이 실패하면 0. 정상 완료 `out` 의 토큰은 마지막 호출 1건 값이라 기준이 다르다. 이 차이는 NERV Task `CLE-T-9VRXGD` 가 맡는다 |
+| `meta.thinkingTokens` | number | LLM 호출 실패 출력에는 늘 싣고 보고가 없으면 `0` 이다. 실패 전에 성공한 호출의 합이다. 도구 정의 크기 예산 초과 에러에는 싣지 않는다(`meta.*` 행) |
+| `meta.toolCalls` | number | 실패 전까지 실행한 도구 호출 수 |
+| `meta.turnDebug[0].llmCalls` | Array | 성공한 LLM 호출만 담는다. 실패한 호출은 응답이 없어 넣지 않는다. 첫 호출이 실패하면 `[]` |
 | `status` | `"ended"` | 에러 종결 상태 |
 | `port` | `"error"` | |
 
@@ -698,6 +720,7 @@ type PresentationPayload = {
 - `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts` (설정 에코, 단일 턴 출력(정상 · 조건 · 에러), 멀티턴 입력 대기와 종결 출력, 표시물 페이로드 운반, `meta.turnDebug`)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` (멀티턴 사용자 종료와 최대 턴 도달의 진입점)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-condition-evaluator.ts` (조건 매칭의 `condition.reason`)
+- `codebase/backend/src/nodes/ai/shared/llm-error-payload.ts` (단일 턴 에러 출력의 LLM 에러 분류. 멀티턴 재개와 공유)
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 에러와 재개 경로)
 - `codebase/backend/src/modules/execution-engine/retry-turn.service.ts` (마지막 턴 재시도)
 - `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (재개 체크포인트와 재시도 상태 필드)
@@ -726,3 +749,7 @@ type PresentationPayload = {
 
 - 다운스트림도 막기(처음 구현 유지): 재시도로 대화를 살린 뒤 나머지 분기를 따로 재실행해야 한다. "한 노드만 살리고 나머지 흐름은 그대로" 라는 재시도의 목적과 맞지 않는다.
 - 별도 `execution.retry_last_turn_and_resume` 명령으로 나누기: 사용자가 두 재시도를 골라야 하는 부담이 생긴다. 재시도의 본질은 늘 "그 노드를 살리고 워크플로우를 정상 진행" 이라 나눌 이유가 없다.
+
+### 단일 턴 에러 예시를 구현에 맞춘 이유 (2026-11-01)
+
+단일 턴 에러 절의 JSON 예시와 `output.error.details` 설명을 구현이 실제로 내는 값에 맞췄다. 이전 판 예시의 `provider`·`statusCode`·`attempt` 와 메시지의 "after 3 retries" 는 구현이 내지 않는 목표 예시였다.

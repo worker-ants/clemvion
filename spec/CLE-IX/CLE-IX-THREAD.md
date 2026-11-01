@@ -2,19 +2,19 @@
 id: "CLE-IX-THREAD"
 title: "대화 스레드"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "98c82970a68f86a1e2e8734c6a7d09a4c5c643300d99aa8a889bf296fa5b6d63"
+content_hash: "b6cd448c7116a50d539641b8f1a55c2510921cd947fc795da85e418dab4564ee"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-ZHBMAC"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "aa22d332778350f4357a97a964bc0c01f81575f536b34a822119dcd9a1943889"
-etag: "sha256-8bec08f5a9bfd7f2ab317a7d4c516e9b1cc2a49315d10ab0f71354b3c5ea38e0"
+mirror_sha256: "164db998b6163146c26cce1a27462378090aee9a9c5ffc83bf56e6dcbd9bddff"
+etag: "sha256-d4bcd76891d2ceb682f15e095edc8d9556c9499c00f1701f5b32aa50cb80bb9a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§1~§8, 1–467행. §9 미리보기 렌더 규칙과 §8.1·§8.2·§8.5 근거는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ etag: "sha256-8bec08f5a9bfd7f2ab317a7d4c516e9b1cc2a49315d10ab0f71354b3c5ea38e0"
 2. `seq` 는 스레드 안에서 단조 증가하고 유일하다. 쌓인 순서가 곧 시간 순서다. `nextSeq` 는 오래된 항목을 버린 뒤에도 줄지 않는다.
 3. `turn.text` 에 출처 접두(`[from <nodeLabel>]`)를 넣지 않는다. LLM payload 빌더가 보낼 때만 붙인다.
 4. Presentation 노드를 거친 사용자 출처 텍스트(폼 제출값·버튼 라벨·URL)는 LLM 쪽 텍스트에서 사용자 입력 마커(`[user-input]…[/user-input]`)로 감싼다. 마커 안에 마커 토큰이 다시 나오면 zero-width separator 로 escape 한다.
-5. `ai_user`(AI Agent 멀티턴의 명시적 사용자 메시지)는 사용자 입력 마커로 감싸지 않는다.
+5. `ai_user`(AI 에이전트 멀티턴의 명시적 사용자 메시지와 단일 턴의 사용자 프롬프트)는 사용자 입력 마커로 감싸지 않는다.
 6. 출처 접두와 사용자 입력 마커 말고 다른 인라인 마커(예: BBCode 풍 `[#…]`)를 새로 들이지 않는다. 새 보안 마커가 필요하면 이 규칙을 먼저 고친다.
 7. 라벨·이벤트·메타(버튼 라벨, URL 등)는 `turn.data` 의 일급 필드가 기준이다. UI 와 LLM payload 빌더는 마커가 든 `text` 를 파싱하지 않는다.
 8. UI 는 `turn.text` 를 원문 그대로 보여 주지 않는다. 출처별 렌더와 마커 지우기는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 규칙을 따른다.
@@ -59,7 +59,7 @@ etag: "sha256-8bec08f5a9bfd7f2ab317a7d4c516e9b1cc2a49315d10ab0f71354b3c5ea38e0"
 | 값 | 발생원 |
 |---|---|
 | `presentation_user` | Form·Carousel·Table·Chart·Template 의 `output.interaction.type` 이 `form_submitted`·`button_click`·`button_continue` 일 때. AI Agent `render_form` 폼을 사용자가 제출할 때도 이 값으로 쌓고 `data.via: 'ai_render'` 를 붙인다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)) |
-| `ai_user` | AI Agent 멀티턴의 `output.interaction.type='message_received'` 시점 |
+| `ai_user` | AI Agent 멀티턴의 `output.interaction.type='message_received'` 시점. AI 에이전트 단일 턴은 LLM 호출 전 `userPrompt` 를 해석한 직후에 한 번 쌓는다 |
 | `ai_assistant` | AI Agent(단일 턴·멀티턴)의 최종 어시스턴트 응답. `text_classifier`·`information_extractor` 의 최종 결과도 이 값으로 쌓는다(핸들러의 `pushClassifierTurn`·`pushExtractorTurn` 이 `appendAiAssistantMessage` 를 부름) |
 | `ai_tool` | 지식 저장소·MCP·조건 도구 결과. `includeToolTurns: true` 일 때만 |
 | `system` | 명시적으로 넣는 시스템 텍스트(예약. v1 에는 자동 누적 없음). 어시스턴트 메시지의 `role: 'system'` 과 관계없고, 워크플로우 수준에서 손으로 넣는 경우(예: 첫 시스템 안내) 전용이다 |
@@ -68,7 +68,7 @@ etag: "sha256-8bec08f5a9bfd7f2ab317a7d4c516e9b1cc2a49315d10ab0f71354b3c5ea38e0"
 
 #### `system_error`
 
-`system_error` 는 프런트엔드 store 와 내역 화면 전용 출처다. AI Agent(단일 턴·멀티턴)가 `output.error` 와 함께 끝나면, WS `execution.node.failed` 나 `output.error` 가 설정된 `execution.node.completed` 를 받았을 때 store 와 내역 화면이 그 자리에 인라인 `system_error` 항목을 붙인다(`use-execution-events.ts`). 데이터 형태는 아래 [`system_error` 데이터](#system_error-데이터), 시각 규칙은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 정한다.
+`system_error` 는 프런트엔드 store 와 내역 화면 전용 출처다. 멀티턴 AI Agent 가 `output.error` 와 함께 끝나면 store 가 대화 끝에 인라인 `system_error` 항목을 붙인다. 실시간 경로는 WS `execution.node.failed` 나 `output.error` 가 설정된 `execution.node.completed` 를 받을 때 붙인다(`use-execution-events.ts`). 내역 화면은 영속된 대화 메시지(`output.result.messages`) 끝에 `output.error` 로 같은 항목을 합성한다(`parseHistoryMessages`). 단일 턴 AI Agent 의 실패 출력에도 `output.error` 가 있지만 실시간 `system_error` 는 붙이지 않는다. 조건은 [대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건) 에 있다. 단일 턴 실패에 붙이지 않는 이유는 [대화 미리보기 §단일 턴 실패에는 `system_error` 를 붙이지 않는다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01) 에 있다. 단일 턴 실패 출력에는 `output.result.messages` 가 없어서 대화형 출력(`isConversationOutput`)으로 보지 않고 내역 화면도 이 항목을 합성하지 않는다(`parseHistoryMessages` 가 빈 목록을 돌려준다). 데이터 형태는 아래 [`system_error` 데이터](#system_error-데이터), 시각 규칙은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 정한다.
 
 #### `rag`
 
@@ -185,14 +185,16 @@ Presentation 노드가 그린 표시물(`{ config, output }`)은 스레드에 �
 | 단일 턴 최종 `output.result.response` | `ai_assistant`(한 번) |
 | 도구 루프 중 어시스턴트와 도구 결과 | `ai_assistant`·`ai_tool`(`includeToolTurns: true` 일 때만) |
 
+AI 에이전트 단일 턴은 LLM 호출 전에 `ai_user` 항목을 쌓는다. LLM 호출이 실패하거나 노드가 취소되면 최종 `ai_assistant` 항목은 쌓지 않는다. 그래서 `ai_user` 항목이 응답 없이 남는다. 도구 기록(`includeToolTurns`)을 켰으면 실패나 취소 전까지 도구 반복에서 쌓은 assistant 항목과 도구 결과 항목도 남는다. 남은 항목의 처리는 [미결 사항](#미결-사항) 에 있다.
+
 - **정보 추출기 종결 쌓기**: 추출 노드는 단일 턴 최종 응답 뒤와 멀티턴 종결 뒤에 최종 어시스턴트 항목을 한 번 쌓는다([텍스트 변환 규칙](#텍스트-변환-규칙) 의 `information_extractor` 행). 어느 종결 사유에서 쌓는지와 그 이유는 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 가 정한다.
-- **`ai_user` 쌓는 시점과 실시간 조기 표시**: 위 표의 `ai_user` 는 핸들러(`processMultiTurnMessageInner`)가 쌓으며 시점과 책임은 그대로다. 이와 별개로 엔진은 메시지를 받는 즉시(LLM 호출 전) WS `execution.user_message` 를 내, 실시간 대화 타임라인이 같은 논리적 턴의 `ai_user` 를 낙관적으로 먼저 보여 주게 한다. 맞춤의 권위 출처는 턴 끝의 `execution.ai_message.messages` 스냅샷이다. 새 항목 출처 값은 더하지 않는다. 낙관적 말풍선은 기존 `ai_user` 분기를 쓴다. 변환 계약은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다.
+- **`ai_user` 쌓는 시점과 실시간 조기 표시**: 위 표의 멀티턴 `ai_user` 는 핸들러(`processMultiTurnMessageInner`)가 쌓으며 시점과 책임은 그대로다. 이와 별개로 엔진은 메시지를 받는 즉시(LLM 호출 전) WS `execution.user_message` 를 내, 실시간 대화 타임라인이 같은 논리적 턴의 `ai_user` 를 낙관적으로 먼저 보여 주게 한다. 맞춤의 권위 출처는 턴 끝의 `execution.ai_message.messages` 스냅샷이다. 새 항목 출처 값은 더하지 않는다. 낙관적 말풍선은 기존 `ai_user` 분기를 쓴다. 변환 계약은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다.
 
 ### 적용 범위
 
 | 동작 | 적용 노드(구현됨) |
 |---|---|
-| 항목 쌓기 | `ai_agent`(멀티턴 user·assistant, 단일 턴 최종 assistant) + `text_classifier`·`information_extractor` 최종 assistant |
+| 항목 쌓기 | `ai_agent`(멀티턴 user·assistant, 단일 턴 사용자 프롬프트·최종 assistant) + `text_classifier`·`information_extractor` 최종 assistant |
 | 자동 주입(대화 맥락 설정) | `ai_agent`·`text_classifier`·`information_extractor`. 세 노드가 같은 인터페이스(공유 유틸 `shared/conversation-context-injection.ts`)를 쓴다 |
 | 자동 메모리 주입(`memoryStrategy`) | `ai_agent`(`summary_buffer`·`persistent`) + `information_extractor`(`persistent` 만). `text_classifier` 는 지원하지 않는다(단일 턴이고 상태가 없어 회수·추출할 대상이 없다) |
 
@@ -310,7 +312,9 @@ system_text 모드의 systemPrompt 조립 순서(System Context Prefix → 사�
 
 ## 미결 사항
 
-없음. 2026-10-10 에 «`rag` 가 나타내는 검색이 무엇인가» 를 닫았다. 결정은 Rationale 「`rag` 를 프런트엔드 합성 출처로 둔다」 에 있다.
+- **실패하거나 취소된 단일 턴이 남긴 항목**: AI 에이전트 단일 턴이 실패하거나 취소되면 응답 없는 `ai_user` 항목이 남는다. 도구 기록을 켰으면 도구 항목도 남는다([자동 누적 > AI Agent](#ai-agent)). 이 항목을 지울지 실패 표시를 붙일지 정하지 않았다. 어느 쪽이든 [규칙](#규칙) 1(쌓인 항목은 바꾸지 않는다)에 예외를 두거나 별도 항목을 더해야 한다. 취소된 경우는 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#노드-취소는-error-포트로-보내지-않는다-2026-10-31) 의 결정과 맞출지도 함께 정한다. 정보 추출기는 취소되면 스레드에 아무것도 쌓지 않는다. 지금 영향이 보이는 곳은 다른 노드의 입력 대기 스냅샷([대화 미리보기 §단일 턴 실패에는 `system_error` 를 붙이지 않는다](../CLE-EXEC/CLE-EXEC-PREVIEW.md#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01) 의 알려진 한계), 사용자 메시지를 말풍선으로 그리는 [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md), 뒤따르는 AI 노드가 받는 대화 맥락이다.
+
+닫은 결정: 2026-10-10 에 «`rag` 가 나타내는 검색이 무엇인가» 를 닫았다. 결정은 Rationale 「`rag` 를 프런트엔드 합성 출처로 둔다」 에 있다.
 
 ## 구현 위치
 
