@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "63df369d2dc80f68e253bde00fe850ff085be5114a6a2ef35902a2bba6ac4fd6"
+content_hash: "92fc5b37280ad3d5706f39a29c84319d870ad96893cc8f8ad6e111f0a6c461d3"
 read_as: "approved_fallback"
-task: "CLE-T-YKA9CJ"
+task: "CLE-T-94FTMV"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "3af130b0a96f21b60097f81aa763c918c1e55828b0f2494a27b6c06c9d3df3e6"
-etag: "sha256-301e173d81b05f4345b7d4c8e462c70f537ecdab74adda63531140c18169a50c"
+mirror_sha256: "45099e75ff9bf3c35708091aedf7b918b6254f1d88c7807c46fd6e5e84bdbbda"
+etag: "sha256-454401a6ea9053e4a7d0cfb4d356f24951d82bbc8716a24b1cadefd711279802"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,7 +74,7 @@ erDiagram
 | notification_preferences | JSONB | 사용자 알림 환경설정 (기본 `{}`). 키는 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) |
 | theme | Enum | `light` / `dark` / `system` (기본 `light`). CHECK `chk_user_theme`. `system` 을 화면에 적용하는 방식은 [내 프로필](CLE-ACCT-PROFILE.md) 이 정한다 |
 | two_factor_enabled | Boolean | TOTP 사용 여부. Passkey 등록과는 독립이라 Passkey 만 등록한 사용자는 false |
-| two_factor_secret | String? | TOTP secret (base32, RFC 6238). 활성화 검증 전에는 값이 있어도 `two_factor_enabled = false`. 끄면 NULL |
+| two_factor_secret | String? | TOTP secret (base32, RFC 6238). 활성화 검증 전에는 값이 있어도 `two_factor_enabled = false`. TOTP 가 켜진 동안에는 설정 시작이 거부돼 바뀌지 않는다. 끄면 NULL |
 | totp_recovery_codes | String[]? | TOTP 활성화 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 쓰면 항목 제거 |
 | webauthn_recovery_codes | String[]? | 첫 Passkey 등록 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 사용자가 마지막 credential 을 지우면 NULL. 이 NULL 처리는 DB 트리거가 아니라 애플리케이션(`WebAuthnService.deleteCredential`) 책임이다. counter 역행으로 서버가 지운 경우는 비우지 않는다([가입과 로그인 「복구 코드」](CLE-ACCT-SIGNIN.md#복구-코드)). 사용자가 재발급해도 갱신 |
 | created_at | Timestamp | 생성 시각 |
@@ -566,7 +566,7 @@ sequenceDiagram
 | `user` | 프로필 수정 | UPDATE `name, avatar_url, locale, theme`. `theme` 이 `light`·`dark`·`system` 밖이면 API 가 먼저 400 `VALIDATION_ERROR` 로 막는다 | `chk_user_theme` |
 | `user` | 로그인 실패 | UPDATE `login_attempts, locked_until` | 없음 |
 | `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id` | 없음 |
-| `user` | TOTP 켜기·끄기 | UPDATE `two_factor_enabled, two_factor_secret, totp_recovery_codes`. 끄기는 비밀번호와 코드(6자리 TOTP 코드나 TOTP 복구 코드)를 모두 확인한 뒤 세 컬럼을 `false`·NULL·NULL 로 바꾼다. 코드가 틀리면 401 `TOTP_INVALID` 이고 컬럼은 그대로다. 코드 확인 실패는 로그인 이력에 쓰지 않는다 | 없음 |
+| `user` | TOTP 켜기·끄기 | UPDATE `two_factor_enabled, two_factor_secret, totp_recovery_codes`. 설정 시작은 비밀번호를 확인한 뒤 `two_factor_secret` 을 쓴다. 활성화 검증은 `two_factor_enabled=true` 와 `totp_recovery_codes` 를 쓴다. 두 쓰기는 조건부 UPDATE 다. 설정 시작은 `two_factor_enabled = false` 일 때만 쓰고, 활성화 검증은 그에 더해 `two_factor_secret` 이 코드를 확인한 secret 과 같을 때만 쓴다. TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 컬럼은 그대로다. 활성화 검증에서 그 사이 secret 이 바뀌었으면 401 `TOTP_INVALID` 다. 끄기는 비밀번호와 코드(6자리 TOTP 코드나 TOTP 복구 코드)를 모두 확인한 뒤 세 컬럼을 `false`·NULL·NULL 로 바꾼다. 코드가 틀리면 401 `TOTP_INVALID` 이고 컬럼은 그대로다. 코드 확인 실패는 로그인 이력에 쓰지 않는다 | 없음 |
 | `user` | Passkey 복구 코드 발급·소진·재발급 | UPDATE `webauthn_recovery_codes` | 없음 |
 | `user` | 이메일 변경 | UPDATE `pending_email, email_change_token, email_change_expires_at`, 확정 때 `email, email_verified` | `email UNIQUE`, `LOWER(email)`(V101) |
 | `webauthn_credential` | 등록·이름 변경·삭제·인증 | INSERT(등록 검증), UPDATE `counter, last_used_at, device_name`, DELETE(개별 삭제, 서명 검증을 통과한 응답의 counter 역행) | `credential_id UNIQUE`, `(user_id)` |
@@ -612,6 +612,7 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 | 전역 (모든 HTTP API) | 분당 100회 | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts`, `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`) |
 | `register`·`login` | 분당 10회 | IP | `auth.controller.ts` 의 `@Throttle` |
 | `forgot-password`·`resend-verification`·`check-email` | 분당 5회 | IP | `auth.controller.ts` |
+| `2fa/setup` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
 | `2fa/disable` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
 | 이메일 변경 `request`·`resend` | 분당 5회 | 사용자 | `users.controller.ts` |
 | `auth/sessions/:familyId/revoke`·`auth/sessions/revoke-others` | 분당 10회·5회 | 사용자 | `sessions.controller.ts` |
@@ -620,7 +621,7 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 
 전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
 
-초대 발송 · provider probe · 2단계 인증 끄기는 `SENSITIVE_ACTION_THROTTLE` 하나를 공유한다.
+초대 발송 · provider probe · 2단계 인증 설정 시작 · 2단계 인증 끄기는 `SENSITIVE_ACTION_THROTTLE` 하나를 공유한다.
 
 `register`·`login` 의 IP 단위 요청 빈도 제한은 계정 잠금(5회 실패, 10분)과 별개의 이중 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 빈도 제한이 먼저 막는다. 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
 
@@ -692,11 +693,11 @@ stateDiagram-v2
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/auth/auth.controller.ts`, `codebase/backend/src/modules/auth/auth.service.ts` (가입·로그인·갱신·로그아웃)
+- `codebase/backend/src/modules/auth/auth.controller.ts`, `codebase/backend/src/modules/auth/auth.service.ts` (가입·로그인·갱신·로그아웃, TOTP 설정 시작과 끄기의 비밀번호 재확인)
 - `codebase/backend/src/modules/auth/auth-oauth.service.ts` (OAuth state 발급과 콜백)
 - `codebase/backend/src/modules/auth/sessions.controller.ts`, `codebase/backend/src/modules/auth/sessions.service.ts` (세션 목록과 강제 종료 `/api/auth/sessions*`, 로그인 이력 조회 `/api/users/me/login-history`)
 - `codebase/backend/src/modules/auth/login-history.service.ts`, `codebase/backend/src/modules/auth/jobs/login-history-pruner.service.ts`
-- `codebase/backend/src/modules/auth/totp.service.ts`, `codebase/backend/src/modules/auth/dto/totp.dto.ts` (TOTP 켜기·끄기, 끄기의 코드 확인 `verifyForDisable`)
+- `codebase/backend/src/modules/auth/totp.service.ts`, `codebase/backend/src/modules/auth/dto/totp.dto.ts` (TOTP 켜기·끄기, 설정 시작 · 활성화 검증의 조건부 UPDATE, 끄기의 코드 확인 `verifyForDisable`)
 - `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts`, `codebase/backend/src/modules/auth/webauthn/webauthn.service.ts`
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts` (Passkey 인증 챌린지 기록)
 - `codebase/backend/src/modules/auth/webauthn/entities/webauthn-credential.entity.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.ts` (`webauthn_credential` 엔티티, 표시 이름을 확인하는 등록 검증 · 이름 변경 DTO)
@@ -715,6 +716,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/mail/mail.transporter.spec.ts`, `codebase/backend/src/common/config/mail.config.spec.ts` (TLS 강제 · 설정 기본값 · 운영 경고 판정 테스트)
 - `codebase/backend/src/shared/testing/user-secret-absence.ts` (`USER_SECRET_KEYS`)
 - `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 거부), `codebase/backend/test/session-revocation.e2e-spec.ts` (세션 경로와 현재 세션 식별)
+- `codebase/backend/test/totp-enable-guard.e2e-spec.ts` (TOTP 설정 시작 · 활성화 검증이 켜진 계정을 거부한 뒤의 `user` 컬럼 상태)
 
 ## Rationale
 
@@ -876,7 +878,7 @@ STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 �
 
 2026-10-10 변경이다(NERV Task `CLE-T-75TDTN`). `POST /api/auth/2fa/disable` 은 예전에 비밀번호만 받았다. 이제 `{ password, code }` 를 받고 둘 다 맞아야 `two_factor_enabled`·`two_factor_secret`·`totp_recovery_codes` 를 지운다. `code` 는 6자리 TOTP 코드나 TOTP 복구 코드이고 로그인 2단계와 같은 검증을 쓴다(`TotpService.verifyForDisable`). 틀리면 401 `TOTP_INVALID` 다.
 
-비밀번호만 받던 방식은 비밀번호와 로그인 세션을 함께 빼앗기면 2단계 인증까지 꺼질 수 있어 바꿨다. 켜진 상태의 setup/verify 가 닫히기 전까지 효과는 부분적이다([가입과 로그인](CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항, NERV Task `CLE-T-94FTMV`). 복구 코드를 받지 않는 안은 기각했다. 기기를 잃고 복구 코드로 로그인한 사용자가 2단계 인증을 끌 방법이 없어진다. 규칙의 정본은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이다.
+비밀번호만 받던 방식은 비밀번호와 로그인 세션을 함께 빼앗기면 2단계 인증까지 꺼질 수 있어 바꿨다. 이 변경 때는 켜진 계정에서도 setup/verify 로 secret 을 바꿀 수 있어서 효과가 부분적이었다. 2026-11-01 에 NERV Task `CLE-T-94FTMV` 가 그 길을 닫았다([TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다](#totp-켜기-쓰기를-조건부-update-로-바꾸고-설정-시작에-요청-한도를-걸었다-2026-11-01)). 복구 코드를 받지 않는 안은 기각했다. 기기를 잃고 복구 코드로 로그인한 사용자가 2단계 인증을 끌 방법이 없어진다. 규칙의 정본은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이다.
 
 ### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
 
@@ -899,3 +901,13 @@ NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠�
 ### Passkey 인증 챌린지 기록을 Redis 키에 둔다 (2026-10-30)
 
 NERV Task `CLE-T-GK9J2B` 에서 Passkey 인증 챌린지 기록을 테이블이 아니라 Redis 키에 두기로 정했다. 근거와 기각한 안은 [가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17) 에 있다. 같은 문서의 [OAuth state 를 한 번의 DELETE 로 소비한다](#oauth-state-를-한-번의-delete-로-소비한다) 와 저장소가 다른 것은 OAuth state 는 시작할 때 만든 행을 콜백에서 지워 소비하지만 이 기록은 검증할 때마다 새로 쓰고 TTL 로 사라지기만 하면 되기 때문이다.
+
+### TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다 (2026-11-01)
+
+NERV Task `CLE-T-94FTMV` 에서 바꿨다. 규칙과 근거, 기각한 안은 [가입과 로그인 「TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다」](CLE-ACCT-SIGNIN.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01) 에 있다. 이 문서에는 테이블 쓰기와 요청 한도만 적는다.
+
+- 그 전에는 TOTP 가 켜진 계정에서도 설정 시작이 `two_factor_secret` 을 새 값으로 바꿨고 활성화 검증이 `totp_recovery_codes` 를 다시 발급했다. 이제 둘 다 켜진 계정을 409 `TOTP_ALREADY_ENABLED` 로 거부하고 컬럼을 쓰지 않는다.
+- 켜짐 여부를 읽은 뒤 저장하기 전에 다른 요청이 TOTP 를 켤 수 있다. 조건 없이 쓰는 `UsersService.update` 로 쓰면 막 켜진 계정의 secret 과 복구 코드를 덮어쓴다. 그래서 두 쓰기를 조건부 UPDATE 로 바꾸고 `TotpService` 가 `User` 저장소로 직접 쓴다. 판정을 DB 단일 UPDATE 의 원자성에 맡기는 것은 「토큰 회전은 트랜잭션과 조건부 UPDATE 로 원자화한다」 와 같다.
+- 설정 시작의 조건은 `two_factor_enabled = false` 하나라서 영향 행이 0 이면 바로 409 다. 활성화 검증은 `two_factor_secret` 도 조건에 넣는다. 확인한 코드가 그 사이 다른 설정 시작이 바꾼 secret 과 맞지 않을 수 있기 때문이다. 영향 행이 0 이면 다시 읽어 켜져 있으면 409, 아니면 401 `TOTP_INVALID` 로 가른다.
+- 끄기는 바꾸지 않았다. 비밀번호와 코드를 확인한 뒤 조건 없이 세 컬럼을 비운다.
+- 설정 시작은 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐다. 그래서 TOTP 끄기와 같은 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 활성화 검증에는 전용 한도를 두지 않았다. 비밀번호 재확인 라우트들의 한도를 맞추는 일은 [가입과 로그인](CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-FRCRF7`).
