@@ -1,6 +1,7 @@
 /**
  * Verifies that the handler invokes `provider.cleanup({ executionId })` on
- * every execute() return path — happy success, exception, and the multi-turn
+ * every execute() return path — happy success, an LLM failure returned on the
+ * `error` port, a node cancellation thrown as AbortError, and the multi-turn
  * `waiting_for_input` transition. Catches review WARNING #14.
  */
 

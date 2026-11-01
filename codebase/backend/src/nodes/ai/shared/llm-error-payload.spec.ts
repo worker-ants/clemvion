@@ -72,7 +72,7 @@ describe('extractAiTurnErrorPayload', () => {
     // 읽지 않으므로 LLM_RATE_LIMIT 으로 승격되지 않는다 (code 보존 + retryable=false).
     expect(result.code).toBe('LLM_API_ERROR');
     // 기존 details 필드 보존 + Principle 3.2.1 retryable 추가.
-    // LLM_API_ERROR 는 RETRYABLE_CODES 에 없어 retryable=false (보수적 default).
+    // LLM_API_ERROR 는 429 · 5xx · network 분기에 안 걸려 retryable=false (보수적 default).
     expect(result.details).toEqual({
       retryAfter: 60,
       status: 429,

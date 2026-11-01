@@ -564,6 +564,39 @@ interface TurnOutputAccumulators {
   toolCallTraces: ToolCallTrace[];
 }
 
+/** 단일 턴 `meta` 의 토큰 4종. */
+interface TokenTotals {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  thinkingTokens: number;
+}
+
+/** `chat` 결과 하나의 usage 를 `meta` 토큰 4종으로 옮긴다. usage 가 없으면 0. */
+function toTokenTotals(usage: ChatResult['usage'] | undefined): TokenTotals {
+  return {
+    inputTokens: usage?.inputTokens ?? 0,
+    outputTokens: usage?.outputTokens ?? 0,
+    totalTokens: usage?.totalTokens ?? 0,
+    thinkingTokens: usage?.thinkingTokens ?? 0,
+  };
+}
+
+/** `llmCalls` 에 기록된(성공한) 호출 전부의 usage 합. 호출이 없으면 전부 0. */
+function sumLlmCallUsage(llmCalls: readonly LlmCallRecord[]): TokenTotals {
+  const sum = toTokenTotals(undefined);
+  for (const call of llmCalls) {
+    const usage = toTokenTotals(
+      (call.responsePayload as ChatResult | undefined)?.usage,
+    );
+    sum.inputTokens += usage.inputTokens;
+    sum.outputTokens += usage.outputTokens;
+    sum.totalTokens += usage.totalTokens;
+    sum.thinkingTokens += usage.thinkingTokens;
+  }
+  return sum;
+}
+
 /**
  * 비-provider 도구 결과 stub 문자열 (single/multi-turn 도구 루프 공유, 03 C-2
  * review INFO-2). condition deferral 은 "최종 판단 유도" 신호, budget 초과는
@@ -1556,12 +1589,84 @@ export class AiTurnExecutor {
   }
 
   /**
+   * 단일 턴 출력 `meta` 조립. 정상 완료(`out`)와 LLM 실패(`error` 포트)가 같은 키
+   * 집합을 쓰도록 한 곳에서 만든다. 키를 더하거나 고칠 때 두 경로가 함께 바뀐다.
+   * `tokens` 의 의미는 호출부가 정한다. 정상 완료는 마지막 `chat` 결과 하나의 usage,
+   * 실패는 성공한 호출 usage 의 합이다(각 호출부 주석 참조).
+   */
+  private static buildSingleTurnMeta(args: {
+    durationMs: number;
+    model: string | undefined;
+    tokens: TokenTotals;
+    toolCallCount: number;
+    accumulators: TurnOutputAccumulators;
+    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
+    memoryMeta: Awaited<
+      ReturnType<AiTurnExecutor['applySingleTurnMemoryInjection']>
+    >['memoryMeta'];
+  }): Record<string, unknown> {
+    const {
+      durationMs,
+      model,
+      tokens,
+      toolCallCount,
+      accumulators,
+      singleTurnInjection,
+      memoryMeta,
+    } = args;
+    const {
+      ragAcc,
+      turnRagAcc,
+      mcpDiagnosticsAcc,
+      presentationCalls,
+      presentationSchemaViolations,
+      llmCalls,
+      toolCallTraces,
+    } = accumulators;
+    return {
+      durationMs,
+      model,
+      ...tokens,
+      toolCalls: toolCallCount,
+      ragSources: ragAcc.getSources(),
+      ragDiagnostics: ragAcc.getDiagnostics(),
+      ...(AiTurnExecutor.buildMcpDiagnosticsMeta(mcpDiagnosticsAcc) ?? {}),
+      // Render tool (`render_*`) trace + schema violations (spec §7.10, §4.1).
+      ...(presentationCalls.length > 0 ? { presentationCalls } : {}),
+      ...(presentationSchemaViolations.length > 0
+        ? { presentationSchemaViolations }
+        : {}),
+      // ConversationThread injection debug echo (spec §5.3). Echo only
+      // when injection actually happened so noop runs keep the meta lean.
+      ...(singleTurnInjection.injection.appliedScope !== 'none'
+        ? { contextInjection: singleTurnInjection.injection }
+        : {}),
+      // Auto-memory echo (spec §7 meta.memory). Echo only for non-manual
+      // strategies (manual 경로는 meta.memory 미출현 — 하위호환 불변식).
+      ...(memoryMeta ? { memory: memoryMeta } : {}),
+      turnDebug: [
+        {
+          turnIndex: 1,
+          llmCalls,
+          totalDurationMs: durationMs,
+          ...(toolCallTraces.length > 0
+            ? { toolCalls: [...toolCallTraces] }
+            : {}),
+          ragSources: turnRagAcc.getSources(),
+          ragDiagnostics: turnRagAcc.getDiagnostics(),
+        },
+      ],
+    };
+  }
+
+  /**
    * 단일 턴 LLM 호출(첫 호출 · 도구 반복) 실패의 `error` 포트 출력(REQ-AGENT-024).
    * `code` · `details.retryable` 은 멀티턴 재개와 같은 {@link extractAiTurnErrorPayload}
-   * 로 정한다. `meta` 는 정상 완료와 같은 키에 실패 전까지 쌓인 값만 싣는다. 토큰은
-   * 성공한 호출 usage 의 합이다. 최종 `ai_assistant` thread push 와 메모리 추출은 하지
-   * 않는다. 노드 취소는 여기 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled`
-   * 로 던진다.
+   * 로 정한다. `meta` 는 {@link AiTurnExecutor.buildSingleTurnMeta} 로 정상 완료와 같은
+   * 키에 실패 전까지 쌓인 값만 싣는다. 토큰은 실패 전에 성공한 호출 usage 의 합이다
+   * (정상 완료의 마지막 호출 하나와 다르다. `executeSingleTurn` 의 반환부 주석 참조).
+   * 최종 `ai_assistant` thread push 와 메모리 추출은 하지 않는다. 노드 취소는 여기
+   * 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled` 로 던진다.
    */
   private buildSingleTurnLlmErrorOutput(args: {
     err: unknown;
@@ -1587,65 +1692,22 @@ export class AiTurnExecutor {
       singleTurnInjection,
       memoryMeta,
     } = args;
-    const {
-      ragAcc,
-      turnRagAcc,
-      mcpDiagnosticsAcc,
-      presentationCalls,
-      presentationSchemaViolations,
-      llmCalls,
-      toolCallTraces,
-    } = accumulators;
     const error = extractAiTurnErrorPayload(err);
     AiTurnExecutor.logger.warn(
       `AI Agent single-turn LLM call failed (code=${error.code}): ${error.message}`,
     );
-    const tokens = {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      thinkingTokens: 0,
-    };
-    for (const call of llmCalls) {
-      const usage = (call.responsePayload as ChatResult | undefined)?.usage;
-      tokens.inputTokens += usage?.inputTokens ?? 0;
-      tokens.outputTokens += usage?.outputTokens ?? 0;
-      tokens.totalTokens += usage?.totalTokens ?? 0;
-      tokens.thinkingTokens += usage?.thinkingTokens ?? 0;
-    }
-    const durationMs = Date.now() - singleTurnStartedAt;
     return {
       config: singleTurnConfigEcho,
       output: { error },
-      meta: {
-        durationMs,
+      meta: AiTurnExecutor.buildSingleTurnMeta({
+        durationMs: Date.now() - singleTurnStartedAt,
         model: model || llmConfig.defaultModel,
-        ...tokens,
-        toolCalls: toolCallCount,
-        ragSources: ragAcc.getSources(),
-        ragDiagnostics: ragAcc.getDiagnostics(),
-        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(mcpDiagnosticsAcc) ?? {}),
-        ...(presentationCalls.length > 0 ? { presentationCalls } : {}),
-        ...(presentationSchemaViolations.length > 0
-          ? { presentationSchemaViolations }
-          : {}),
-        ...(singleTurnInjection.injection.appliedScope !== 'none'
-          ? { contextInjection: singleTurnInjection.injection }
-          : {}),
-        ...(memoryMeta ? { memory: memoryMeta } : {}),
-        turnDebug: [
-          {
-            turnIndex: 1,
-            llmCalls,
-            totalDurationMs: durationMs,
-            ...(toolCallTraces.length > 0
-              ? { toolCalls: [...toolCallTraces] }
-              : {}),
-            ragSources: turnRagAcc.getSources(),
-            ragDiagnostics: turnRagAcc.getDiagnostics(),
-          },
-        ],
-      },
+        tokens: sumLlmCallUsage(accumulators.llmCalls),
+        toolCallCount,
+        accumulators,
+        singleTurnInjection,
+        memoryMeta,
+      }),
       port: 'error',
       status: 'ended',
     };
@@ -1787,6 +1849,17 @@ export class AiTurnExecutor {
     const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
+    // 정상 완료 · 조건 라우팅 종결 · LLM 실패 종결이 같은 누적기 묶음을 쓴다.
+    const accumulators: TurnOutputAccumulators = {
+      ragAcc,
+      turnRagAcc,
+      mcpDiagnosticsAcc,
+      presentationPayloads,
+      presentationCalls,
+      presentationSchemaViolations,
+      llmCalls,
+      toolCallTraces,
+    };
     // LLM 호출(첫 호출 · 도구 반복) 실패의 error 포트 출력. 두 호출부가 같은 누적기를 넘긴다.
     const llmErrorOutput = (
       err: unknown,
@@ -1798,16 +1871,7 @@ export class AiTurnExecutor {
         model,
         llmConfig,
         toolCallCount: toolCallsSoFar,
-        accumulators: {
-          ragAcc,
-          turnRagAcc,
-          mcpDiagnosticsAcc,
-          presentationPayloads,
-          presentationCalls,
-          presentationSchemaViolations,
-          llmCalls,
-          toolCallTraces,
-        },
+        accumulators,
         singleTurnStartedAt,
         singleTurnInjection,
         memoryMeta,
@@ -1885,16 +1949,7 @@ export class AiTurnExecutor {
           model,
           llmConfig,
           toolCallCount,
-          accumulators: {
-            ragAcc,
-            turnRagAcc,
-            mcpDiagnosticsAcc,
-            presentationPayloads,
-            presentationCalls,
-            presentationSchemaViolations,
-            llmCalls,
-            toolCallTraces,
-          },
+          accumulators,
           singleTurnStartedAt,
           rawConfig,
         });
@@ -2062,43 +2117,20 @@ export class AiTurnExecutor {
             : {}),
         },
       },
-      meta: {
+      // 토큰은 마지막 `chat` 결과 하나의 usage 만 싣는다(기존 동작). 도구 반복이 있으면
+      // 앞선 호출의 usage 는 합산하지 않아 과소 집계다. 호출별 usage 는
+      // `turnDebug[0].llmCalls[].responsePayload.usage` 에 남는다. 합산으로 바꾸는 것은
+      // 별도 Task 다. 조건 라우팅 종결(`handleSingleTurnConditionRoute`)도 같다. 반면
+      // 실패 경로는 성공한 호출 usage 의 합이다(`buildSingleTurnLlmErrorOutput`).
+      meta: AiTurnExecutor.buildSingleTurnMeta({
         durationMs: singleTurnDurationMs,
         model: result.model,
-        inputTokens: result.usage?.inputTokens ?? 0,
-        outputTokens: result.usage?.outputTokens ?? 0,
-        totalTokens: result.usage?.totalTokens ?? 0,
-        thinkingTokens: result.usage?.thinkingTokens ?? 0,
-        toolCalls: toolCallCount,
-        ragSources: ragAcc.getSources(),
-        ragDiagnostics: ragAcc.getDiagnostics(),
-        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(mcpDiagnosticsAcc) ?? {}),
-        // Render tool (`render_*`) trace + schema violations (spec §7.10, §4.1).
-        ...(presentationCalls.length > 0 ? { presentationCalls } : {}),
-        ...(presentationSchemaViolations.length > 0
-          ? { presentationSchemaViolations }
-          : {}),
-        // ConversationThread injection debug echo (spec §5.3). Echo only
-        // when injection actually happened so noop runs keep the meta lean.
-        ...(singleTurnInjection.injection.appliedScope !== 'none'
-          ? { contextInjection: singleTurnInjection.injection }
-          : {}),
-        // Auto-memory echo (spec §7 meta.memory). Echo only for non-manual
-        // strategies (manual 경로는 meta.memory 미출현 — 하위호환 불변식).
-        ...(memoryMeta ? { memory: memoryMeta } : {}),
-        turnDebug: [
-          {
-            turnIndex: 1,
-            llmCalls,
-            totalDurationMs: singleTurnDurationMs,
-            ...(toolCallTraces.length > 0
-              ? { toolCalls: [...toolCallTraces] }
-              : {}),
-            ragSources: turnRagAcc.getSources(),
-            ragDiagnostics: turnRagAcc.getDiagnostics(),
-          },
-        ],
-      },
+        tokens: toTokenTotals(result.usage),
+        toolCallCount,
+        accumulators,
+        singleTurnInjection,
+        memoryMeta,
+      }),
       port: 'out',
       status: 'ended',
     };
