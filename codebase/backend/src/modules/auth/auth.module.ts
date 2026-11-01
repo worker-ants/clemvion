@@ -47,7 +47,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       RefreshToken,
       AuthOAuthState,
       LoginHistory,
-      // `User` 는 UsersModule 소유다. `TotpService` 의 조건부 갱신(`setup` · `verifyAndEnable`)만 직접 쓴다.
+      // `User` 는 UsersModule 소유다. `TotpService` 의 조건부 갱신용이고 사유는 그 클래스 주석에 있다.
       User,
     ]),
     BullModule.registerQueue({ name: LOGIN_HISTORY_PRUNER_QUEUE }),

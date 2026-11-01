@@ -50,14 +50,15 @@ function totpInvalid(): UnauthorizedException {
 }
 
 /**
- * 사용자의 2FA 컬럼(`twoFactorEnabled` · `twoFactorSecret` · `totpRecoveryCodes`)을 쓰는 경로가 둘이다.
- * - `userRepository.update` 로 직접 쓰는 곳은 `setup` · `verifyAndEnable` 둘뿐이다. 두 곳은 "TOTP 가 꺼져 있다"(`verifyAndEnable`
- *   은 "확인한 secret 이 그대로다"도)를 WHERE 조건으로 거는 조건부 갱신이 필요하다. `UsersService.update` 는 id 만으로 조건
- *   없이 쓰므로 읽은 뒤 다른 요청이 TOTP 를 켜면 켜진 계정의 secret · 복구 코드를 덮어쓸 수 있다.
+ * 사용자의 2FA 컬럼(`twoFactorEnabled` · `twoFactorSecret` · `totpRecoveryCodes`)을 쓰는 방식이 둘이다.
+ * - `userRepository.update` 로 직접 쓰는 곳은 `setup` · `verifyAndEnable` 뿐이다. 이 둘은 "TOTP 가 꺼져 있다"
+ *   (`verifyAndEnable` 은 "확인한 secret 이 그대로다"도)를 WHERE 조건으로 거는 조건부 갱신이 필요하다.
+ *   `UsersService.update` 는 id 만으로 조건 없이 쓰므로 읽은 뒤 다른 요청이 TOTP 를 켜면 켜진 계정의 secret · 복구 코드를
+ *   덮어쓸 수 있다. `AuthModule` 이 `User` 를 `forFeature` 로 등록한 것도 이 때문이다.
  * - 나머지(`disableUnchecked` · `verifyForLogin` 의 복구 코드 소비)는 조건이 필요 없어 소유 모듈의 `usersService.update` 를 거친다.
  *
- * 조건부 갱신을 `UsersService` 의 메서드로 옮기면 `AuthModule` 의 `User` forFeature 등록도 뺄 수 있다. 다만 users 모듈을 바꾸는
- * 일이라 CLE-T-94FTMV 범위 밖이다. 2FA 컬럼이나 `UsersService.update` 의 부수 동작을 바꿀 때는 위 두 곳을 함께 본다.
+ * 2FA 컬럼이나 `UsersService.update` 의 부수 동작을 바꿀 때는 `setup` · `verifyAndEnable` 과 `usersService.update` 를 쓰는
+ * 메서드를 함께 본다. 조건부 갱신을 `UsersService` 의 메서드로 옮기면 `User` 등록도 뺄 수 있지만 users 모듈을 바꿔야 해서 옮기지 않았다.
  */
 @Injectable()
 export class TotpService {
@@ -66,8 +67,7 @@ export class TotpService {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-    // 켜짐 여부를 조건으로 거는 갱신(setup · verifyAndEnable)에만 쓴다. `UsersService.update` 는 조건 없이 쓰므로
-    // 읽은 뒤 다른 요청이 TOTP 를 켜면 켜진 계정의 secret · 복구 코드를 덮어쓸 수 있다.
+    // 직접 쓰는 사유는 클래스 주석에 있다.
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
