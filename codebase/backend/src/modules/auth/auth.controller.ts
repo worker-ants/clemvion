@@ -278,7 +278,7 @@ export class AuthController {
   @ApiOperation({
     summary: '2FA 설정 시작',
     description:
-      '계정 비밀번호를 다시 확인한 뒤 TOTP secret을 발급하고 Authenticator 앱이 스캔할 수 있는 QR 코드(data URL)를 반환합니다. 검증 전까지 활성화되지 않습니다. 2FA 가 이미 켜져 있으면 secret 을 바꾸지 않고 거부합니다. 다시 설정하려면 먼저 끕니다.',
+      '계정 비밀번호를 다시 확인한 뒤 TOTP secret 과 QR 코드(data URL)를 발급합니다. 검증하기 전에는 활성화되지 않습니다. 이미 켜진 계정은 secret 을 바꾸지 않고 거부합니다.',
   })
   @ApiOkWrappedResponse(TotpSetupDto, {
     description: 'TOTP secret 의 otpauth URL 및 QR 코드 data URL',
