@@ -50,8 +50,10 @@ describe('2FA 켜기 가드 (e2e)', () => {
 
     const missing = await request(BASE_URL)
       .post('/api/auth/2fa/setup')
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({});
     expect(missing.status).toBe(400);
+    expect(missing.body.error.code).toBe('VALIDATION_ERROR');
 
     const row = await readTwoFactor(db, user.userId);
     expect(row.two_factor_enabled).toBe(false);
