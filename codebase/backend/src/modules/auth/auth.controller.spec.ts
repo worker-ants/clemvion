@@ -41,6 +41,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
+      startTwoFactorSetup: jest.fn(),
       disableTwoFactor: jest.fn(),
       switchWorkspace: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
@@ -412,6 +413,31 @@ describe('AuthController', () => {
     beforeEach(() => {
       // 테스트 격리: CF 신뢰 env leak 시 IP 단언이 깨질 수 있어 off(부재)로 고정.
       delete process.env.TRUST_CF_CONNECTING_IP;
+    });
+
+    it('setup2fa 는 비밀번호 확인과 설정 시작을 AuthService 에 맡기고 secret 은 응답에 넣지 않는다', async () => {
+      authService.startTwoFactorSetup.mockResolvedValue({
+        secret: 'SECRET',
+        otpauthUrl: 'otpauth://totp/x?secret=SECRET',
+        qrCodeDataUrl: 'data:image/png;base64,AA',
+      });
+
+      const result = await controller.setup2fa(payload, {
+        password: 'OldP@ssw0rd1',
+      });
+
+      // 비밀번호 → 설정 시작 순서는 AuthService.startTwoFactorSetup 한 메서드가 지킨다(auth.service.spec 이 고정).
+      expect(authService.startTwoFactorSetup).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+      );
+      expect(totpService.setup).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        data: {
+          otpauthUrl: 'otpauth://totp/x?secret=SECRET',
+          qrCodeDataUrl: 'data:image/png;base64,AA',
+        },
+      });
     });
 
     it('records user.2fa_enabled (with ipAddress) on verify2fa', async () => {

@@ -14,6 +14,7 @@ import { WebAuthnController } from './webauthn/webauthn.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { LoginHistory } from './entities/login-history.entity';
+import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
@@ -42,7 +43,12 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
         },
       }),
     }),
-    TypeOrmModule.forFeature([RefreshToken, AuthOAuthState, LoginHistory]),
+    TypeOrmModule.forFeature([
+      RefreshToken,
+      AuthOAuthState,
+      LoginHistory,
+      User,
+    ]),
     BullModule.registerQueue({ name: LOGIN_HISTORY_PRUNER_QUEUE }),
     // forwardRef: UsersController(UsersModule)가 비밀번호 변경 시 세션 회전을 위해
     // AuthService 를 주입한다(refactor 04 A-1) — AuthModule↔UsersModule 순환을 forwardRef 로 해소.

@@ -56,7 +56,12 @@ import { Public, CurrentUser, WorkspaceParam } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
-import { LoginTotpDto, Verify2faDto, Disable2faDto } from './dto/totp.dto';
+import {
+  LoginTotpDto,
+  Setup2faDto,
+  Verify2faDto,
+  Disable2faDto,
+} from './dto/totp.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -271,14 +276,28 @@ export class AuthController {
   @ApiOperation({
     summary: '2FA 설정 시작',
     description:
-      'TOTP secret을 발급하고 Authenticator 앱이 스캔할 수 있는 QR 코드(data URL)를 반환합니다. 검증 전까지 활성화되지 않습니다.',
+      '계정 비밀번호를 다시 확인한 뒤 TOTP secret을 발급하고 Authenticator 앱이 스캔할 수 있는 QR 코드(data URL)를 반환합니다. 검증 전까지 활성화되지 않습니다. 2FA 가 이미 켜져 있으면 secret 을 바꾸지 않고 거부합니다. 다시 설정하려면 먼저 끕니다.',
   })
   @ApiOkWrappedResponse(TotpSetupDto, {
     description: 'TOTP secret 의 otpauth URL 및 QR 코드 data URL',
   })
-  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async setup2fa(@CurrentUser() user: JwtPayload) {
-    const result = await this.totpService.setup(user.sub);
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 (비밀번호 누락 포함)',
+  })
+  @ApiUnauthorizedResponse({
+    description:
+      '인증 실패, 토큰 만료, 비밀번호 불일치(PASSWORD_INVALID) 또는 비밀번호가 없는 계정(PASSWORD_REQUIRED)',
+  })
+  @ApiConflictResponse({
+    description: '2FA 가 이미 켜져 있음(TOTP_ALREADY_ENABLED)',
+  })
+  async setup2fa(@CurrentUser() user: JwtPayload, @Body() dto: Setup2faDto) {
+    // 비밀번호 확인 → 설정 시작 순서는 AuthService 한 메서드가 지킨다. 로그인 세션만으로는 TOTP 를 켜지 못한다
+    // (NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV).
+    const result = await this.authService.startTwoFactorSetup(
+      user.sub,
+      dto.password,
+    );
     return {
       data: {
         otpauthUrl: result.otpauthUrl,
@@ -293,13 +312,20 @@ export class AuthController {
   @ApiOperation({
     summary: '2FA 검증·활성화',
     description:
-      'setup으로 발급한 secret과 일치하는 6자리 코드를 검증해 2FA를 활성화하고 복구 코드 10개를 반환합니다(일회성 표시).',
+      'setup으로 발급한 secret과 일치하는 6자리 코드를 검증해 2FA를 활성화하고 복구 코드 10개를 반환합니다(일회성 표시). 2FA 가 이미 켜져 있으면 코드를 확인하지 않고 거부하며 복구 코드를 다시 발급하지 않습니다.',
   })
   @ApiOkWrappedResponse(TotpVerifyDto, {
     description: '2FA 활성화 성공 및 복구 코드 반환 (일회성 표시)',
   })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 코드 불일치' })
-  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 또는 설정 시작 전(TOTP_NOT_INITIALIZED)',
+  })
+  @ApiUnauthorizedResponse({
+    description: '인증 실패, 토큰 만료 또는 코드 불일치(TOTP_INVALID)',
+  })
+  @ApiConflictResponse({
+    description: '2FA 가 이미 켜져 있음(TOTP_ALREADY_ENABLED)',
+  })
   async verify2fa(
     @CurrentUser() user: JwtPayload,
     @Body() dto: Verify2faDto,

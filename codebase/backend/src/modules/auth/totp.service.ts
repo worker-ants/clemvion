@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
 import { createHash, randomBytes } from 'crypto';
@@ -28,6 +31,24 @@ function hashRecoveryCode(code: string): string {
   return createHash('sha256').update(code).digest('hex');
 }
 
+/**
+ * TOTP 가 켜진 계정의 설정 재실행 거부. 켜진 뒤 secret · 복구 코드를 바꾸는 길은 끄기(비밀번호 + 인증 코드) 뒤 다시 켜는
+ * 흐름뿐이다(NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV).
+ */
+function totpAlreadyEnabled(): ConflictException {
+  return new ConflictException({
+    code: 'TOTP_ALREADY_ENABLED',
+    message: '2단계 인증이 이미 켜져 있습니다. 다시 설정하려면 먼저 끄세요.',
+  });
+}
+
+function totpInvalid(): UnauthorizedException {
+  return new UnauthorizedException({
+    code: 'TOTP_INVALID',
+    message: '인증 코드가 올바르지 않습니다.',
+  });
+}
+
 @Injectable()
 export class TotpService {
   private readonly logger = new Logger(TotpService.name);
@@ -35,6 +56,10 @@ export class TotpService {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
+    // 켜짐 여부를 조건으로 거는 갱신(setup · verifyAndEnable)에만 쓴다. `UsersService.update` 는 조건 없이 쓰므로
+    // 읽은 뒤 다른 요청이 TOTP 를 켜면 켜진 계정의 secret · 복구 코드를 덮어쓸 수 있다.
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   /**
@@ -63,6 +88,10 @@ export class TotpService {
   /**
    * 사용자에게 임시 secret을 발급하고 QR 코드(data URL)를 반환한다.
    * 검증(verify) 전까지는 `twoFactorSecret`만 저장되고 `twoFactorEnabled`는 false 유지.
+   * TOTP 가 이미 켜져 있으면 secret 을 쓰지 않고 409 `TOTP_ALREADY_ENABLED` 로 거부한다. 저장은 TOTP 가 꺼져 있을 때만
+   * 쓰는 조건부 갱신이라 읽은 뒤 다른 요청이 켠 경우도 같은 409 다.
+   * 비밀번호는 확인하지 않는다. `AuthService.startTwoFactorSetup` 이 먼저 확인하고 부른다. `AuthModule` 이 `TotpService` 를
+   * export 하지 않아 다른 모듈은 주입받지 못한다.
    */
   async setup(
     userId: string,
@@ -74,6 +103,7 @@ export class TotpService {
         message: '사용자를 찾을 수 없습니다.',
       });
     }
+    if (user.twoFactorEnabled) throw totpAlreadyEnabled();
     const secret = generateSecret();
     const otpauthUrl = generateURI({
       issuer: ISSUER,
@@ -81,13 +111,20 @@ export class TotpService {
       secret,
     });
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
-    await this.usersService.update(userId, { twoFactorSecret: secret });
+    const { affected } = await this.userRepository.update(
+      { id: userId, twoFactorEnabled: false },
+      { twoFactorSecret: secret },
+    );
+    if (!affected) throw totpAlreadyEnabled();
     return { secret, otpauthUrl, qrCodeDataUrl };
   }
 
   /**
    * setup으로 발급한 secret으로 6자리 코드를 검증해 활성화한다.
    * 활성화 시 복구 코드 10개를 발급해 평문(일회성)으로 반환하고, 해시만 저장한다.
+   * TOTP 가 이미 켜져 있으면 코드를 확인하지 않고 409 `TOTP_ALREADY_ENABLED` 로 거부한다(복구 코드를 다시 발급하지 않는다).
+   * 저장은 TOTP 가 꺼져 있고 코드를 확인한 secret 이 그대로일 때만 쓰는 조건부 갱신이다. 그 사이 다른 요청이 켰으면 409,
+   * 다른 setup 이 secret 을 바꿨으면 확인한 코드가 지금 secret 과 맞지 않으므로 401 `TOTP_INVALID` 다.
    */
   async verifyAndEnable(
     userId: string,
@@ -100,20 +137,27 @@ export class TotpService {
         message: '2FA 설정을 먼저 시작해주세요.',
       });
     }
+    if (user.twoFactorEnabled) throw totpAlreadyEnabled();
     const isValid = this.verifyCode(code, user.twoFactorSecret);
-    if (!isValid) {
-      throw new UnauthorizedException({
-        code: 'TOTP_INVALID',
-        message: '인증 코드가 올바르지 않습니다.',
-      });
-    }
+    if (!isValid) throw totpInvalid();
     const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
       generateRecoveryCode(),
     );
-    await this.usersService.update(userId, {
-      twoFactorEnabled: true,
-      totpRecoveryCodes: codes.map(hashRecoveryCode),
-    });
+    const { affected } = await this.userRepository.update(
+      {
+        id: userId,
+        twoFactorEnabled: false,
+        twoFactorSecret: user.twoFactorSecret,
+      },
+      {
+        twoFactorEnabled: true,
+        totpRecoveryCodes: codes.map(hashRecoveryCode),
+      },
+    );
+    if (!affected) {
+      const current = await this.usersService.findById(userId);
+      throw current?.twoFactorEnabled ? totpAlreadyEnabled() : totpInvalid();
+    }
     return { recoveryCodes: codes };
   }
 
@@ -125,10 +169,7 @@ export class TotpService {
   async verifyForDisable(userId: string, code: string): Promise<void> {
     const user = await this.usersService.findById(userId);
     if (!user || !(await this.verifyForLogin(user, code))) {
-      throw new UnauthorizedException({
-        code: 'TOTP_INVALID',
-        message: '인증 코드가 올바르지 않습니다.',
-      });
+      throw totpInvalid();
     }
   }
 
