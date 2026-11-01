@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "5d8aee879ca430cbd0eaf990034486639b9f144e002b34aa7a3b5f69bd7fff52"
+content_hash: "dd95e9e4d92d2fcc1b41f9ee4a2342348d894f48bd4214057a6c6da926e1d0c4"
 read_as: "approved_fallback"
-task: "CLE-T-3G8XZ3"
+task: "CLE-T-NAT45Z"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "28226dfb8806209d5a61a4f5e64307a0295bfee898c176ff48256e257b8d95d5"
-etag: "sha256-63384bd7722077a6a14cde5b3a86bf7a252640e10fb779cb174bca61625959fd"
+mirror_sha256: "5548a6b76bebb4f1a798c55c57737e71d57348dc04fbb7f9a4b14cd542dfe1f5"
+etag: "sha256-ffe52b67363d464c079fbd487168bbae0c6d8b5b4935c63b5b8bf2986c5f3e0e"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -233,7 +233,7 @@ erDiagram
 
 ## 암호화
 
-통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)로 아래 다섯 JSONB 컬럼을 암호화한다. TypeORM 컬럼 transformer(`credentials-transformer.ts`)가 ORM 경계에서 AES-256-GCM 으로 암호화하고 복호화한다. 이 키와 transformer 동작의 규범은 이 절 한 곳에 둔다.
+통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)로 아래 다섯 JSONB 컬럼을 암호화한다. TypeORM 컬럼 transformer(`credentials-transformer.ts`)가 ORM 경계에서 AES-256-GCM 으로 암호화하고 복호화한다. 이 키와 transformer 동작의 규범은 이 절 한 곳에 둔다. 다만 운영 환경 가드가 이 키를 거부하는 기준은 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 에 둔다.
 
 | 컬럼 | 담는 값 |
 | --- | --- |
@@ -252,9 +252,8 @@ erDiagram
 
 ### 키가 없을 때
 
-- `NODE_ENV=production` 에서 키가 없거나 공백뿐이거나 공개 예시 값이면 서버가 기동하지 않는다. 앞뒤에 공백이 붙은 공개 예시 값도 같다.
-- 공개 예시 값은 `.env.example` 과 배포 예시 파일에 실린 자리표시 값이다. 목록의 정본은 `production-guards.ts` 의 `INSECURE_INTEGRATION_ENCRYPTION_KEYS` 다.
-- 이 검사는 부팅 때 환경 변수를 보는 검사다. `main.ts` 가 부르는 운영 환경 가드(`assertProductionConfig`, `production-guards.ts`)가 검사한다. 요청 경로의 transformer 는 키 때문에 예외를 던지지 않는다.
+- `NODE_ENV=production` 에서 키가 없거나 쓸 수 없는 값이면 서버가 기동하지 않는다. 부팅 때 `main.ts` 가 부르는 운영 환경 가드(`assertProductionConfig`, `production-guards.ts`)가 환경 변수를 검사한다. 무엇을 쓸 수 없는 값으로 보는지는 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 에 있다. 예시 값 목록은 그 절이 가리키는 `production-guards.ts` 상수가 정본이다.
+- 요청 경로의 transformer 는 키 때문에 예외를 던지지 않는다.
 - 운영 환경 밖에서 키가 없으면 transformer 가 프로세스마다 경고를 한 번 남기고 값을 평문 JSON 으로 저장한다.
 - 그래서 암호화가 보장되는 범위는 운영 환경에서 새로 쓰는 값이다.
 
@@ -551,3 +550,9 @@ Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실�
 ### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
 
 2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 나간 멤버의 개인 통합 삭제, 통합 쓰기의 잠금, 설치 기한 만료 때 `mall_id` 비우기를 구현했다. 그래서 머리 줄 미구현 목록에서 세 항목을 빼고 본문의 미구현 표시를 걷었다. 「멤버가 나가거나 제거될 때」 는 구현한 두 단계 포트에 맞춰 고쳤다. 일반 삭제 후처리에 적었던 «서비스 유형별 정리» 는 구현에 없어 뺐다. 같은 날 사용자가 NERV Task `CLE-T-G56XCH` 리뷰 후속으로 잠금 규칙을 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)로 넓혔다. 이 문서의 「통합 생성」 에는 잠금 순서만 적고 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 한 곳에 둔다.
+
+### 운영 환경 가드의 키 거부 기준을 세션과 토큰으로 옮겼다 (2026-10-31)
+
+「키가 없을 때」 는 운영 환경 가드가 통합 암호화 키를 거부하는 기준(공백뿐인 값, 공개 예시 값, 앞뒤 공백을 뗀 값 대조)과 예시 값 목록의 정본을 직접 적었다. 같은 기준이 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [시크릿 저장소](CLE-INT-SECRET.md), [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 에도 사본으로 있었다. NERV Task `CLE-T-NAT45Z` 가 기준을 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 한 곳에 모으면서 이 절에는 링크만 남겼다. 마스터키와 통합 암호화 키를 같은 함수가 같은 규칙으로 검사하므로 가드 목록 옆에 둔다.
+
+「암호화」 머리의 «이 키와 transformer 동작의 규범은 이 절 한 곳에 둔다» 는 그대로 두고 가드 거부 기준만 예외로 적었다. 키를 만드는 방식, 적용 컬럼, 운영 환경 밖에서 키가 없을 때의 동작, 복호화 실패 처리는 계속 이 문서가 정한다. 옮긴 것은 운영 환경 가드의 거부 기준뿐이다.
