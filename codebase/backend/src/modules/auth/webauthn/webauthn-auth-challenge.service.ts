@@ -14,7 +14,7 @@ export const WEBAUTHN_AUTH_CHALLENGE_EXPIRY_MARGIN_SEC = 60;
 
 /**
  * 로그인 2단계 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)를 한 번만 쓰게 하는 기록.
- * CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 (REQ-SIGNIN-030 · 068 · 069).
+ * CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 (REQ-SIGNIN-030 · 068 · 069 · 072).
  *
  * `SET key 1 EX ttl NX` 단일 호출이라 여러 서버 인스턴스에서도 원자적이다. 같은 챌린지로
  * 동시에 온 요청 가운데 하나만 `true` 를 받는다. 기록은 만료 시각에 여유 시간

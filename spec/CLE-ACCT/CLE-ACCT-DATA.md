@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "5f1c6d83d6103c4e70e1cf3f2126b11a8eb2c4dbbf7e1f5becf5cd84ca2ede09"
+content_hash: "63df369d2dc80f68e253bde00fe850ff085be5114a6a2ef35902a2bba6ac4fd6"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-YKA9CJ"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "e405cdc2b18c507fbb03125bd4b74ab9e85ef2ecd6bb274e8814925b71663d50"
-etag: "sha256-d0052ba070da332ce7ecf844e2265a8cc6106efabaa9b6e7bc103291181479ad"
+mirror_sha256: "3af130b0a96f21b60097f81aa763c918c1e55828b0f2494a27b6c06c9d3df3e6"
+etag: "sha256-301e173d81b05f4345b7d4c8e462c70f537ecdab74adda63531140c18169a50c"
 ---
 > 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -200,7 +200,10 @@ erDiagram
 | last_used_at | Timestamp? | 마지막 인증 성공 시각 |
 | created_at | Timestamp | 등록 시각 |
 
-인덱스: `credential_id UNIQUE`, `(user_id)`. 등록·인증 옵션 토큰의 챌린지는 stateless JWT 로 발급하고 테이블에 두지 않는다. 만료 5분, payload `{ kind: 'webauthn_register'|'webauthn_auth', sub, challenge, exp }` 다. Passkey 인증 챌린지(`webauthn_auth` 의 `challenge` 값)는 한 번만 쓰므로 서버가 쓴 값을 만료 시각까지 기록한다. 챌린지 토큰(`challengeToken`)은 기록하지 않는다([가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)). 기록은 테이블이 아니라 Redis 키 `auth:webauthn-auth-challenge:<challenge>` 에 둔다([Redis 와 배치](#redis-와-배치)).
+인덱스: `credential_id UNIQUE`, `(user_id)`.
+
+- **옵션 토큰**: 등록·인증 옵션 토큰(`optionsToken`)의 챌린지는 stateless JWT 로 발급하고 테이블에 두지 않는다. 만료 5분, payload `{ kind: 'webauthn_register'|'webauthn_auth', sub, challenge, exp }` 다.
+- **Passkey 인증 챌린지 기록**: Passkey 인증 챌린지(`webauthn_auth` 의 `challenge` 값)는 한 번만 쓰므로 서버가 쓴 값을 기록한다. 챌린지 토큰(`challengeToken`)은 기록하지 않는다. 이 기록의 보존 기간과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다. 기록은 테이블이 아니라 Redis 키에 둔다([Redis 와 배치](#redis-와-배치)).
 
 ### AuthOauthState
 
@@ -271,7 +274,7 @@ sequenceDiagram
   alt Passkey 기능 켜짐, credential 1개 이상
     Svc-->>C: 200 {requires2fa, methods: webauthn, challengeToken}
     C->>Svc: authenticate/options, authenticate/verify
-    Svc->>Svc: 챌린지 기록, verifyAuthenticationResponse(서명), counter 역행 판정과 갱신
+    Svc->>Svc: Passkey 인증 챌린지 기록, verifyAuthenticationResponse(서명), counter 역행 판정과 갱신
   else TOTP 켜짐
     Svc-->>C: 200 {requires2fa, methods: totp, challengeToken}
     C->>Svc: POST /api/auth/login/totp {challengeToken, code}
@@ -285,12 +288,12 @@ sequenceDiagram
   Svc-->>C: { accessToken } + 리프레시 쿠키
 ```
 
-- 2단계 검증이 실패하면 Passkey 는 `webauthn_failed`, TOTP 는 `totp_failed` 를 기록하고 401 을 준다.
+- 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed`, TOTP 는 `totp_failed` 를 기록하고 401 을 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿).
 - 성공 응답 본문은 `{ accessToken }` 뿐이다. 리프레시 토큰은 httpOnly 쿠키로만 내려가고 `user` 객체는 없다(`auth.controller.ts` 의 `login`).
 - Passkey 를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 때 받은 복구 코드를 내 2단계를 통과한다(`webauthn/webauthn.controller.ts`).
 - 이메일 인증 여부는 비밀번호 확인 뒤에 본다. 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 비밀번호가 맞으면 `EMAIL_NOT_VERIFIED` 로 기록하고 401 `EMAIL_VERIFICATION_REQUIRED` 를 준다. Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정은 토큰 없이 503 `WEBAUTHN_DISABLED` 를 받는다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
-- 이미 쓴 Passkey 인증 챌린지로 온 검증과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다. 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다.
-- Passkey 인증 챌린지를 기록하지 못하면(Redis 장애) 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 이다. credential · 리프레시 토큰 · 로그인 이력을 바꾸지 않는다. 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다.
+- 이미 쓴 Passkey 인증 챌린지로 온 요청과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다. 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) · [「sign counter 역행과 동시성」](CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성) 에 있다.
+- Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 이다. credential · 리프레시 토큰 · 로그인 이력을 바꾸지 않는다. 기록하지 못하는 조건과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다.
 - 처음 쓰는 챌린지로 온 응답이 서명 검증을 통과했는데 counter 역행(복제 징후)이 감지되면 `webauthn/webauthn.service.ts` 의 `verifyAuthentication` 이 한 트랜잭션에서 그 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다. 응답은 401 `WEBAUTHN_COUNTER_REGRESSION` 이다. `login_history.event=webauthn_failed` 는 트랜잭션 밖에서 남긴다. 마지막 credential 이 지워져도 `webauthn_recovery_codes` 는 비우지 않는다. 이유는 [가입과 로그인 「counter 역행이면 credential 을 지운다」](CLE-ACCT-SIGNIN.md#counter-역행이면-credential-을-지운다-suspend-기각) 에 있다.
 - 이메일 인증 확인의 위치와 응답 코드, Passkey 기능이 꺼졌을 때의 503 은 2026-10-17 에 사람이 정했고 아직 구현되지 않았다. 지금 구현은 이메일 인증 여부를 비밀번호보다 먼저 보고 `LOGIN_FAILED` 로 거부하고, 기능이 꺼지면 Passkey 만 등록한 계정을 비밀번호만으로 로그인시킨다. 구현 Task 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 해당 절에 있다.
 
@@ -598,7 +601,7 @@ sequenceDiagram
 
 두 큐 모두 멀티 인스턴스에서도 전역 1회만 돈다.
 
-BullMQ 내부 키를 빼면 이 영역이 직접 만드는 Redis 키는 Passkey 인증 챌린지 기록 `auth:webauthn-auth-challenge:<challenge>` 하나다. 기록은 옵션 토큰이 만료된 뒤 TTL 로 사라지므로 정리 배치가 없다. 용도 · TTL · 실패 정책은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정하고 키 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 에 있다.
+BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 인증 챌린지 기록 `auth:webauthn-auth-challenge:<challenge>` 가 있다. 챌린지 기록은 TTL 로 사라지므로 정리 배치가 없다. 이 기록의 보존 기간 · 용도 · 실패 정책은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다. 이 영역이 만드는 키의 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 가 정본이다.
 
 요청 빈도 제한은 Redis 가 아니라 `@nestjs/throttler` 의 in-memory 카운터로 구현했다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
 
@@ -895,4 +898,4 @@ NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠�
 
 ### Passkey 인증 챌린지 기록을 Redis 키에 둔다 (2026-10-30)
 
-NERV Task `CLE-T-GK9J2B` 에서 정했다. 기록은 옵션 토큰이 유효한 5분 남짓만 있으면 된다. 테이블에 두면 같은 챌린지를 두 번 받지 않는 유니크 제약과 마이그레이션이 더 든다. 검증할 때마다 DB 쓰기도 하나 는다. Redis 키로 두면 여러 서버 인스턴스에서도 한 요청만 기록된다. 기록은 TTL 로 사라진다. 기록 명령과 TTL 은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다. 자세한 근거는 [가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17) 에 있다.
+NERV Task `CLE-T-GK9J2B` 에서 Passkey 인증 챌린지 기록을 테이블이 아니라 Redis 키에 두기로 정했다. 근거와 기각한 안은 [가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17) 에 있다. 같은 문서의 [OAuth state 를 한 번의 DELETE 로 소비한다](#oauth-state-를-한-번의-delete-로-소비한다) 와 저장소가 다른 것은 OAuth state 는 시작할 때 만든 행을 콜백에서 지워 소비하지만 이 기록은 검증할 때마다 새로 쓰고 TTL 로 사라지기만 하면 되기 때문이다.
