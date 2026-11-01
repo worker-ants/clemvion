@@ -71,9 +71,30 @@ describe('AiAgentHandler cleanup hook', () => {
     });
   });
 
-  it('calls provider.cleanup even when LLM throws', async () => {
+  it('calls provider.cleanup when an LLM failure ends on the error port', async () => {
     const llm = makeMockLlmService();
     llm.chat.mockRejectedValueOnce(new Error('LLM down'));
+    const provider = makeProvider();
+    const handler = new AiAgentHandler(llm as never, [provider]);
+
+    const result = await handler.execute(
+      {},
+      { userPrompt: 'hi', mode: 'single_turn' },
+      baseContext,
+    );
+
+    expect(result.port).toBe('error');
+    expect(provider.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls provider.cleanup even when a node cancellation throws', async () => {
+    // 노드 취소는 error 포트가 아니라 AbortError throw 라 finally 정리 경로를 탄다.
+    const controller = new AbortController();
+    const llm = makeMockLlmService();
+    llm.chat.mockImplementationOnce(() => {
+      controller.abort();
+      return Promise.reject(new Error('Request was aborted.'));
+    });
     const provider = makeProvider();
     const handler = new AiAgentHandler(llm as never, [provider]);
 
@@ -81,9 +102,9 @@ describe('AiAgentHandler cleanup hook', () => {
       handler.execute(
         {},
         { userPrompt: 'hi', mode: 'single_turn' },
-        baseContext,
+        { ...baseContext, abortSignal: controller.signal },
       ),
-    ).rejects.toThrow('LLM down');
+    ).rejects.toMatchObject({ name: 'AbortError' });
 
     expect(provider.cleanup).toHaveBeenCalledTimes(1);
   });
