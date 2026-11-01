@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "bad396b3ee422ec9d7e157d8bda4be8ed495bf08b3e25cee16e2ea228b06606e"
+content_hash: "9721b736c8aa782ecf161633b78a9420caf1530f64c12fc6e39a7c818ac3d8b8"
 read_as: "approved_fallback"
 task: "CLE-T-DCQWEB"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "1f6ae78fb4b2800c005a9e6b52e62fbd6ef5df44adf04b0aa5115817dbe75494"
-etag: "sha256-be6e319d4f71c02fa92742b7932368d48087fc8a2a6b6553fbb3907a78e28d6a"
+mirror_sha256: "97c171e6f25dc6dbbae63f5f956466917b338040cde6c198e4895af8730ab336"
+etag: "sha256-6a4c783f037ef8ea5fe3eca39e4b78bca5e5ab9219710b3d5cf898d07810af05"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -136,9 +136,11 @@ URL 검증과 SSRF 차단은 외부 HTTP transport 에만 적용한다. 내부 M
 
 1. `url` 은 HTTPS 만 받는다. 연결 테스트에서 `https://` 로 시작하는지 확인하고, 아니면 `MCP_HTTPS_REQUIRED` 를 낸다.
 2. 호스트가 다음 중 하나이면 같은 코드(`MCP_HTTPS_REQUIRED`)로 막는다.
-   - loopback(`127.0.0.0/8`, `::1`), link-local(`169.254.0.0/16`, `fe80::/10`)
+   - loopback(`127.0.0.0/8`, `::1`, `localhost`), link-local(`169.254.0.0/16`, `fe80::/10`)
    - RFC 1918 사설 대역(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+   - 그 밖의 특수 대역(통신사 공유 주소 CGNAT `100.64.0.0/10`, `0.0.0.0/8`, IPv6 미지정 주소 `::`)
    - IPv6 unique-local(`fc00::/7`)
+   - IPv4 를 품은 IPv6 리터럴. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), 상태 없는 변환 SIIT(`::ffff:0:0:0/96`), IPv6→IPv4 변환 NAT64 의 well-known prefix(`64:ff9b::/96`) 는 품은 IPv4 를 위 대역으로 판정한다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 보지 않는다. 판정 범위의 기준 문서는 [알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) 다
    - 클라우드 메타데이터 호스트 이름(`metadata.google.internal`, `metadata.azure.com` 등)
 3. 호스트 이름이 IP literal 이 아니면 DNS 결과를 기다려 바로 막지는 않는다. connect 단계에서 SDK 가 실제로 fetch 할 때 사설망 IP 로 풀리더라도 transport 가 같은 검증을 한 번 더 한다.
 4. 이 규칙은 MCP 등록 단계에서 일관되게 적용한다. 다른 아웃바운드 경로의 SSRF 가드는 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직)와 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#ssrf-가드)에 있다.
@@ -652,6 +654,7 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 ## 구현 위치
 
 - `codebase/backend/src/modules/mcp/mcp-client.service.ts` (Streamable HTTP 클라이언트, URL 검증)
+- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (URL 검증이 쓰는 IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`)
 - `codebase/backend/src/modules/mcp/mcp-test-connection.service.ts` (연결 테스트)
 - `codebase/backend/src/modules/mcp/mcp-error-codes.ts` (`MCP_ERROR_CODES`, `sanitizeMcpErrorMessage`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts` (도구 프로바이더 인터페이스, `ProviderExecCtx.dryRun`)
@@ -688,6 +691,17 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 ### SSRF 우회 플래그를 throw 와 warn 으로 나눈다
 
 운영 환경 부팅 차단에서 «절대 금지» 플래그(`MCP_ALLOW_INSECURE_URL`)는 부팅 throw 로, «정당한 용도가 있는» 플래그(`ALLOW_PRIVATE_HOST_TARGETS`, VPC 내부 호스트 같은 셀프 호스팅 용도)는 warn 으로 나눈다. 기준은 그 플래그에 정당한 운영 용도가 있느냐다. 잘못 나누면 정당한 셀프 호스팅 배포를 막거나(지나친 throw) SSRF 표면을 열어 둔다(지나친 warn).
+
+### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)
+
+외부 MCP 서버 URL 의 호스트가 IPv4 를 품은 IPv6 리터럴이면 품은 IPv4 를 IPv4 차단 대역으로 다시 판정한다. 작업은 NERV Task `CLE-T-DCQWEB` 다.
+
+- 그때까지 MCP 가드는 점 표기(`::ffff:127.0.0.1`)만 보는 정규식으로 IPv4-mapped 를 판정했다. 그러나 Node 의 `URL` 은 hostname 을 `[::ffff:7f00:1]` 같은 16진 표기로 바꿔 돌려준다. 그래서 그 정규식은 한 번도 맞지 않았고 loopback · 메타데이터 주소가 통과했다.
+- 판정 범위는 IPv4-mapped · IPv4-compatible · SIIT · NAT64 `/96` 넷이다. 근거는 [알림 웹훅 Rationale 「IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)」](../CLE-IX/CLE-EIA-NOTIFY.md#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다. IPv4-mapped 만 판정하는 안은 기각했다. NAT64 망에서는 다른 표기로도 사설 IPv4 에 닿을 수 있기 때문이다.
+- 두 가드는 IPv6 리터럴 정규화(`normalizeIpv6Literal`)와 품은 IPv4 추출(`embeddedIpv4FromIpv6`)을 같이 쓴다. 꺼낸 IPv4 를 판정하는 대역표는 가드마다 따로 있다. 한 모듈로 모으는 일은 NERV Task `CLE-T-753725` 가 맡는다.
+- HTTP Request 노드 가드는 IPv4-mapped 만 판정한다. 두 범위를 맞출지는 NERV Task `CLE-T-63RSH6` 가 정한다.
+- 본문 「자격 증명과 URL 검증」 2항에 더한 `localhost` · CGNAT · `0.0.0.0/8` · `::` 는 구현이 이미 막던 대역이다. 본문을 구현에 맞췄다.
+- 이 헬퍼는 환경 변수를 읽지 않는다. 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 MCP 가드에 닿지 않고, MCP 의 우회 수단은 `MCP_ALLOW_INSECURE_URL` 뿐이다(위 「SSRF 우회 플래그를 throw 와 warn 으로 나눈다」).
 
 ### 타임아웃을 `TimeoutError` 로 분류한다
 
