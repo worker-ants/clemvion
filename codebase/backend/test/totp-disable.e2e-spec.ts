@@ -5,6 +5,7 @@ import { generateSync } from 'otplib';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
 import { registerAndLogin, TEST_PASSWORD } from './helpers/auth';
+import { enableTotp, readTwoFactor } from './helpers/totp';
 
 /**
  * e2e: NERV CLE-ACCT-SIGNIN 「2단계 인증 해제」(CLE-T-75TDTN).
@@ -14,12 +15,6 @@ import { registerAndLogin, TEST_PASSWORD } from './helpers/auth';
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
-
-interface TwoFactorRow {
-  two_factor_enabled: boolean;
-  two_factor_secret: string | null;
-  totp_recovery_codes: string[] | null;
-}
 
 describe('2FA 해제 (e2e)', () => {
   let db: Client;
@@ -32,35 +27,6 @@ describe('2FA 해제 (e2e)', () => {
   afterAll(async () => {
     await db.end();
   });
-
-  async function readTwoFactor(userId: string): Promise<TwoFactorRow> {
-    const { rows } = await db.query<TwoFactorRow>(
-      'SELECT two_factor_enabled, two_factor_secret, totp_recovery_codes FROM "user" WHERE id = $1',
-      [userId],
-    );
-    return rows[0];
-  }
-
-  /** setup 응답의 otpauth URL 에서 secret 을 꺼내 활성화하고 secret 과 복구 코드를 돌려준다. */
-  async function enableTotp(
-    token: string,
-  ): Promise<{ secret: string; recoveryCodes: string[] }> {
-    const setup = await request(BASE_URL)
-      .post('/api/auth/2fa/setup')
-      .set('Authorization', `Bearer ${token}`);
-    expect(setup.status).toBe(200);
-    const otpauthUrl: string = setup.body.data.otpauthUrl;
-    const secret = new URL(otpauthUrl).searchParams.get('secret');
-    if (!secret)
-      throw new Error(`otpauth URL 에 secret 이 없다: ${otpauthUrl}`);
-
-    const verify = await request(BASE_URL)
-      .post('/api/auth/2fa/verify')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ code: generateSync({ secret }) });
-    expect(verify.status).toBe(200);
-    return { secret, recoveryCodes: verify.body.data.recoveryCodes };
-  }
 
   function disable(token: string, body: Record<string, string>) {
     return request(BASE_URL)
@@ -81,12 +47,14 @@ describe('2FA 해제 (e2e)', () => {
       uniqueEmail('totp-nocode'),
       db,
     );
-    await enableTotp(user.accessToken);
+    await enableTotp(BASE_URL, user.accessToken);
 
     const res = await disable(user.accessToken, { password: TEST_PASSWORD });
     expect(res.status).toBe(400);
 
-    expect((await readTwoFactor(user.userId)).two_factor_enabled).toBe(true);
+    expect((await readTwoFactor(db, user.userId)).two_factor_enabled).toBe(
+      true,
+    );
   }, 60_000);
 
   it('틀린 코드면 401 TOTP_INVALID 이고 2FA 는 그대로다', async () => {
@@ -95,7 +63,7 @@ describe('2FA 해제 (e2e)', () => {
       uniqueEmail('totp-wrong'),
       db,
     );
-    const { secret } = await enableTotp(user.accessToken);
+    const { secret } = await enableTotp(BASE_URL, user.accessToken);
 
     const res = await disable(user.accessToken, {
       password: TEST_PASSWORD,
@@ -104,7 +72,7 @@ describe('2FA 해제 (e2e)', () => {
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('TOTP_INVALID');
 
-    const row = await readTwoFactor(user.userId);
+    const row = await readTwoFactor(db, user.userId);
     expect(row.two_factor_enabled).toBe(true);
     expect(row.two_factor_secret).not.toBeNull();
   }, 60_000);
@@ -115,7 +83,7 @@ describe('2FA 해제 (e2e)', () => {
       uniqueEmail('totp-badpw'),
       db,
     );
-    const { secret } = await enableTotp(user.accessToken);
+    const { secret } = await enableTotp(BASE_URL, user.accessToken);
 
     const res = await disable(user.accessToken, {
       password: 'Wrong!Passw0rd',
@@ -124,12 +92,14 @@ describe('2FA 해제 (e2e)', () => {
     expect(res.status).toBe(401);
     expect(res.body.error.code).not.toBe('TOTP_INVALID');
 
-    expect((await readTwoFactor(user.userId)).two_factor_enabled).toBe(true);
+    expect((await readTwoFactor(db, user.userId)).two_factor_enabled).toBe(
+      true,
+    );
   }, 60_000);
 
   it('비밀번호와 올바른 TOTP 코드면 200 이고 2FA 상태를 지운다', async () => {
     const user = await registerAndLogin(BASE_URL, uniqueEmail('totp-ok'), db);
-    const { secret } = await enableTotp(user.accessToken);
+    const { secret } = await enableTotp(BASE_URL, user.accessToken);
 
     const res = await disable(user.accessToken, {
       password: TEST_PASSWORD,
@@ -138,7 +108,7 @@ describe('2FA 해제 (e2e)', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ ok: true });
 
-    expect(await readTwoFactor(user.userId)).toEqual({
+    expect(await readTwoFactor(db, user.userId)).toEqual({
       two_factor_enabled: false,
       two_factor_secret: null,
       totp_recovery_codes: null,
@@ -151,7 +121,7 @@ describe('2FA 해제 (e2e)', () => {
       uniqueEmail('totp-recovery'),
       db,
     );
-    const { recoveryCodes } = await enableTotp(user.accessToken);
+    const { recoveryCodes } = await enableTotp(BASE_URL, user.accessToken);
 
     const res = await disable(user.accessToken, {
       password: TEST_PASSWORD,
@@ -159,6 +129,8 @@ describe('2FA 해제 (e2e)', () => {
     });
     expect(res.status).toBe(200);
 
-    expect((await readTwoFactor(user.userId)).two_factor_enabled).toBe(false);
+    expect((await readTwoFactor(db, user.userId)).two_factor_enabled).toBe(
+      false,
+    );
   }, 60_000);
 });

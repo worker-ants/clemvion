@@ -48,7 +48,11 @@ describe('AuthService', () => {
     revokeAllFamilies: jest.Mock;
     reauthenticate: jest.Mock;
   };
-  let totpService: { verifyForDisable: jest.Mock; disableUnchecked: jest.Mock };
+  let totpService: {
+    setup: jest.Mock;
+    verifyForDisable: jest.Mock;
+    disableUnchecked: jest.Mock;
+  };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -194,9 +198,11 @@ describe('AuthService', () => {
           },
         },
         {
-          // 2FA 해제의 재인증 순서(비밀번호 → 코드 → 해제)를 AuthService.disableTwoFactor 가 지킨다.
+          // 2FA 해제의 재인증 순서(비밀번호 → 코드 → 해제)를 AuthService.disableTwoFactor 가,
+          // 설정 시작의 순서(비밀번호 → 설정 시작)를 AuthService.startTwoFactorSetup 이 지킨다.
           provide: TotpService,
           useValue: {
+            setup: jest.fn(),
             verifyForDisable: jest.fn().mockResolvedValue(undefined),
             disableUnchecked: jest.fn().mockResolvedValue(undefined),
           },
@@ -610,16 +616,16 @@ describe('AuthService', () => {
     });
   });
 
-  describe('disableTwoFactor — 비밀번호 → 코드 → 해제 순서', () => {
-    /** 비밀번호 확인이 사용자를 읽는 순간을 `order` 에 남긴다(비밀번호 확인이 가장 먼저인지 보려는 것). */
-    async function withPasswordUser(order: string[] = []): Promise<void> {
-      const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
-      usersService.findById.mockImplementation(() => {
-        order.push('password');
-        return Promise.resolve({ ...mockUser, passwordHash: hash } as User);
-      });
-    }
+  /** 비밀번호 확인이 사용자를 읽는 순간을 `order` 에 남긴다(비밀번호 확인이 가장 먼저인지 보려는 것). */
+  async function withPasswordUser(order: string[] = []): Promise<void> {
+    const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
+    usersService.findById.mockImplementation(() => {
+      order.push('password');
+      return Promise.resolve({ ...mockUser, passwordHash: hash } as User);
+    });
+  }
 
+  describe('disableTwoFactor — 비밀번호 → 코드 → 해제 순서', () => {
     it('비밀번호와 코드가 모두 맞으면 비밀번호 → 코드 → 해제 순서로 끈다', async () => {
       const order: string[] = [];
       await withPasswordUser(order);
@@ -673,6 +679,77 @@ describe('AuthService', () => {
         response: { code: 'TOTP_INVALID' },
       });
       expect(totpService.disableUnchecked).not.toHaveBeenCalled();
+    });
+  });
+
+  // 로그인 세션만 가진 사람이 자기 인증 앱으로 TOTP 를 켜지 못하게 설정 시작에서 비밀번호를 다시 확인한다
+  // (NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV).
+  describe('startTwoFactorSetup — 비밀번호 → 설정 시작 순서', () => {
+    const SETUP = {
+      secret: 'SECRET',
+      otpauthUrl: 'otpauth://totp/x?secret=SECRET',
+      qrCodeDataUrl: 'data:image/png;base64,AA',
+    };
+
+    it('비밀번호가 맞으면 비밀번호 확인 뒤 설정을 시작하고 그 결과를 돌려준다', async () => {
+      const order: string[] = [];
+      await withPasswordUser(order);
+      totpService.setup.mockImplementation(() => {
+        order.push('setup');
+        return Promise.resolve(SETUP);
+      });
+
+      await expect(
+        service.startTwoFactorSetup('user-uuid', 'CorrectP@ss1'),
+      ).resolves.toEqual(SETUP);
+
+      expect(order).toEqual(['password', 'setup']);
+      expect(totpService.setup).toHaveBeenCalledWith('user-uuid');
+    });
+
+    it('비밀번호가 틀리면 401 PASSWORD_INVALID 이고 secret 을 만들지 않는다', async () => {
+      await withPasswordUser();
+
+      await expect(
+        service.startTwoFactorSetup('user-uuid', 'WrongP@ss1'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_INVALID' },
+      });
+      expect(totpService.setup).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 없는 계정(OAuth 전용)은 401 PASSWORD_REQUIRED 이고 secret 을 만들지 않는다', async () => {
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        passwordHash: null,
+      } as unknown as User);
+
+      await expect(
+        service.startTwoFactorSetup('user-uuid', 'Anything!1'),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'PASSWORD_REQUIRED' },
+      });
+      expect(totpService.setup).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 맞아도 TOTP 가 켜져 있으면 설정 시작의 409 TOTP_ALREADY_ENABLED 를 그대로 낸다', async () => {
+      await withPasswordUser();
+      totpService.setup.mockRejectedValue(
+        new ConflictException({
+          code: 'TOTP_ALREADY_ENABLED',
+          message:
+            '2단계 인증이 이미 켜져 있습니다. 다시 설정하려면 먼저 끄세요.',
+        }),
+      );
+
+      await expect(
+        service.startTwoFactorSetup('user-uuid', 'CorrectP@ss1'),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: { code: 'TOTP_ALREADY_ENABLED' },
+      });
     });
   });
 

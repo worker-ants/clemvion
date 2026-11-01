@@ -14,6 +14,7 @@ import { WebAuthnController } from './webauthn/webauthn.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { LoginHistory } from './entities/login-history.entity';
+import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
@@ -42,7 +43,13 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
         },
       }),
     }),
-    TypeOrmModule.forFeature([RefreshToken, AuthOAuthState, LoginHistory]),
+    TypeOrmModule.forFeature([
+      RefreshToken,
+      AuthOAuthState,
+      LoginHistory,
+      // `User` 는 UsersModule 소유다. `TotpService` 의 조건부 갱신용이고 사유는 그 클래스 주석에 있다.
+      User,
+    ]),
     BullModule.registerQueue({ name: LOGIN_HISTORY_PRUNER_QUEUE }),
     // forwardRef: UsersController(UsersModule)가 비밀번호 변경 시 세션 회전을 위해
     // AuthService 를 주입한다(refactor 04 A-1) — AuthModule↔UsersModule 순환을 forwardRef 로 해소.
@@ -66,8 +73,9 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     SessionsService,
     LoginHistoryPrunerService,
   ],
-  // `TotpService` 는 export 하지 않는다 — `disableUnchecked` 가 재인증을 확인하지 않아, 이 모듈 밖에서 주입받으면 2FA 해제의
-  // 재인증(`AuthService.disableTwoFactor`)을 건너뛸 수 있다.
+  // `TotpService` 는 export 하지 않는다 — `setup` 과 `disableUnchecked` 가 재인증을 확인하지 않아, 이 모듈 밖에서 주입받으면
+  // 2FA 설정 시작의 비밀번호 확인(`AuthService.startTwoFactorSetup`)과 해제의 재인증(`AuthService.disableTwoFactor`)을
+  // 건너뛸 수 있다.
   exports: [AuthService, LoginHistoryService, WebAuthnModule],
 })
 export class AuthModule {}

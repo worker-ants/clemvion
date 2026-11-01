@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "0313d28e1cee6ad6db362a9a028ef5ac92edcf0e2fe7500a3658bf286adee03a"
+content_hash: "a35402a3c3ac6ebd07431f6f3bca30ee5d8836c937fa60aed565d1161c783445"
 read_as: "approved_fallback"
-task: "CLE-T-NAT45Z"
+task: "CLE-T-94FTMV"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "6760a594777b1bb9b112fa8aea6126d68c081b5b60861a54ded4ee578f77a2bb"
-etag: "sha256-b5674df7e644420157344fc4bfc398414d01f7dec678689cee70ac1d080ea3f5"
+mirror_sha256: "06da7bbc8078cf7570811103d38bfa04929b075feda37fe4c262774fe8a81f7c"
+etag: "sha256-c03c37ad4848c300a079ddd5b118f2159d31c3e532e61aae4992ecbfdbd2528b"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일과 로그인 힌트 쿠키는 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -138,6 +138,8 @@ etag: "sha256-b5674df7e644420157344fc4bfc398414d01f7dec678689cee70ac1d080ea3f5"
 | 리프레시 쿠키 Path | `/api/auth` 로 한정한다(`refresh-cookie.ts` 의 `REFRESH_COOKIE_PATH`). refresh·login·logout 같은 auth 엔드포인트와 세션 API(`/api/auth/sessions…`)에만 쿠키가 붙어 노출 표면이 줄어든다. 현재 로그인 세션을 쿠키로 가려야 하는 라우트는 Path 를 넓히지 않고 이 Path 아래에 둔다. 설정과 삭제는 같은 Path 를 써야 한다 |
 | 갱신 CSRF | `SameSite=none` 에서 cross-site 강제 갱신을 막기 위해 갱신 요청의 `Origin` 을 CORS 허용 목록(`isOriginAllowed`)과 비교한다. 목록 밖이거나 불투명(`'null'`)한 Origin 은 403 이다. Origin 이 없으면(같은 origin·브라우저 아닌 도구) 통과한다. 다른 엔드포인트는 Bearer 액세스 토큰 기반이라 쿠키 CSRF 와 무관하다. 예외는 로그아웃이다. 로그아웃은 Bearer 없이 쿠키만으로 동작하지만 새 토큰을 발급하지 않아 Origin 검증을 두지 않는다. 세션 API 는 쿠키를 읽지만 Bearer 액세스 토큰이 있어야 동작하고 쿠키는 현재 로그인 세션을 가리는 데만 쓴다. 그래서 Origin 검증을 두지 않는다 |
 
+2026-11-01 부터 TOTP 설정 시작이 비밀번호를 다시 확인하므로 비밀번호 없이 TOTP 가 켜진 상태는 그 전에 켠 계정에만 남는다([가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기)). 지금 비밀번호가 없는 계정이 계정 재인증 수단을 늘리려면 비밀번호 재설정으로 비밀번호를 먼저 만든다.
+
 ## 본인 확인 에러 코드
 
 본인 확인은 두 헬퍼로 나뉜다. 에러 코드와 상태가 서로 다르다.
@@ -145,11 +147,12 @@ etag: "sha256-b5674df7e644420157344fc4bfc398414d01f7dec678689cee70ac1d080ea3f5"
 | 헬퍼 | 쓰는 곳 | 에러 코드 |
 | --- | --- | --- |
 | 계정 재인증 `SessionsService.verifyReauth` | 세션 강제 종료, 일괄 종료, 이메일 변경 | 요청에 비밀번호·TOTP 어느 쪽도 없거나 충족 안 됨 `REAUTH_REQUIRED`(400), 비밀번호 불일치 `PASSWORD_INVALID`(401), TOTP 불일치 `TOTP_INVALID`(401), 계정 재인증 수단 없음(계정에 비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함) `REAUTH_NOT_AVAILABLE`(403) |
-| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 복구 코드 재발급 | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 2단계 인증 끄기는 비밀번호 확인 뒤 인증 코드를 확인하고 틀리면 401 `TOTP_INVALID` |
+| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 설정 시작(`/api/auth/2fa/setup`), 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 복구 코드 재발급 | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 2단계 인증 설정 시작은 비밀번호 확인 뒤 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED`. 2단계 인증 끄기는 비밀번호 확인 뒤 인증 코드를 확인하고 틀리면 401 `TOTP_INVALID` |
 | 비밀번호 변경 `UsersService.changePassword` | `POST /api/users/me/change-password` 의 현재 비밀번호 확인 | 비밀번호 미설정(`passwordHash` 없음) `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401), 사용자 없음 `USER_NOT_FOUND`(404) |
 
-- `PASSWORD_INVALID` 는 세 헬퍼가 같은 코드를 쓴다. `TOTP_INVALID` 는 로그인 2단계 TOTP 검증과 2단계 인증 끄기에서도 같은 코드다.
+- `PASSWORD_INVALID` 는 세 헬퍼가 같은 코드를 쓴다. `TOTP_INVALID` 는 로그인 2단계 TOTP 검증, TOTP 활성화 검증, 2단계 인증 끄기에서도 같은 코드다.
 - 2단계 인증 끄기(`POST /api/auth/2fa/disable`)는 비밀번호를 먼저 확인한다. 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 다. 여기서 실패하면 인증 코드는 확인하지 않는다. 비밀번호가 맞으면 인증 코드를 확인한다(`TotpService.verifyForDisable`). 인증 코드는 로그인 2단계와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드이고, 복구 코드로 통과하면 그 코드를 소비한다. 코드가 맞지 않으면 401 `TOTP_INVALID` 다. TOTP 가 켜져 있지 않을 때도 401 `TOTP_INVALID` 다. 순서와 끄기 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md#totp-끄기) 이 정한다.
+- 2단계 인증 설정 시작(`POST /api/auth/2fa/setup { password }`)도 비밀번호를 먼저 확인한다. 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 다. 이때는 TOTP secret 을 만들지 않는다. 그래서 OAuth 전용 계정은 비밀번호 재설정으로 비밀번호를 만들기 전에는 TOTP 를 켤 수 없다. 비밀번호 확인은 TOTP 가 켜져 있는지 보기 전에 한다. 비밀번호가 맞고 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 secret 을 바꾸지 않는다. 켜기 순서와 규칙은 [가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기) 이 정한다.
 - 비밀번호 변경은 비밀번호 재확인 헬퍼와 같은 두 코드를 쓰지만 헬퍼는 다르다. 이유는 [Rationale](#rationale) 에 있다.
 - OAuth 전용 계정이 비밀번호를 추가하려면 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 비밀번호 재설정 경로를 쓴다.
 - 로그인 이력 `failure_reason` 의 `INVALID_PASSWORD` 는 로그인 실패 기록값(`AuthService.login`)이라 층이 다르다. 같은 이름의 wire 에러 코드는 2026-09-02 에 은퇴했다.

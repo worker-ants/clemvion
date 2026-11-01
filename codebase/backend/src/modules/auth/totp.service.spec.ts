@@ -1,6 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { generateSync } from 'otplib';
 import { TotpService } from './totp.service';
@@ -19,6 +24,7 @@ describe('TotpService', () => {
     findById: jest.Mock;
     update: jest.Mock;
   };
+  let userRepository: { update: jest.Mock };
 
   const makeUser = (over: Partial<User> = {}): User =>
     ({
@@ -35,11 +41,15 @@ describe('TotpService', () => {
       findById: jest.fn(),
       update: jest.fn().mockResolvedValue(undefined),
     };
+    userRepository = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TotpService,
         { provide: UsersService, useValue: usersService },
         { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: getRepositoryToken(User), useValue: userRepository },
       ],
     }).compile();
     service = module.get(TotpService);
@@ -56,9 +66,26 @@ describe('TotpService', () => {
       expect(res.otpauthUrl).toContain('otpauth://totp/Clemvion:');
       expect(res.otpauthUrl).toContain('issuer=Clemvion');
       expect(res.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
-      expect(usersService.update).toHaveBeenCalledWith('user-1', {
-        twoFactorSecret: res.secret,
-      });
+      // TOTP 가 꺼져 있을 때만 쓰는 조건부 갱신이다.
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: 'user-1', twoFactorEnabled: false },
+        { twoFactorSecret: res.secret },
+      );
+    });
+
+    it('TOTP 가 켜진 계정이면 409 TOTP_ALREADY_ENABLED 이고 secret 을 쓰지 않는다', async () => {
+      usersService.findById.mockResolvedValue(
+        makeUser({ twoFactorEnabled: true, twoFactorSecret: 'OLD' }),
+      );
+      await expectAlreadyEnabled(service.setup('user-1'));
+      expect(userRepository.update).not.toHaveBeenCalled();
+      expect(usersService.update).not.toHaveBeenCalled();
+    });
+
+    it('읽은 뒤 다른 요청이 켜서 조건부 갱신이 0행이면 409 TOTP_ALREADY_ENABLED', async () => {
+      usersService.findById.mockResolvedValue(makeUser());
+      userRepository.update.mockResolvedValueOnce({ affected: 0 });
+      await expectAlreadyEnabled(service.setup('user-1'));
     });
 
     it('사용자가 없으면 BadRequestException', async () => {
@@ -80,11 +107,78 @@ describe('TotpService', () => {
       const { recoveryCodes } = await service.verifyAndEnable('user-1', code);
 
       expect(recoveryCodes).toHaveLength(10);
-      const lastCall = usersService.update.mock.calls.at(-1);
+      const lastCall = userRepository.update.mock.calls.at(-1);
+      // TOTP 가 꺼져 있고 코드를 확인한 secret 이 그대로일 때만 켠다.
+      expect(lastCall[0]).toEqual({
+        id: 'user-1',
+        twoFactorEnabled: false,
+        twoFactorSecret: secret,
+      });
       expect(lastCall[1].twoFactorEnabled).toBe(true);
       // 평문이 아니라 해시(64 hex)만 저장
       expect(lastCall[1].totpRecoveryCodes).toHaveLength(10);
       expect(lastCall[1].totpRecoveryCodes[0]).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('TOTP 가 켜진 계정이면 맞는 코드여도 409 TOTP_ALREADY_ENABLED 이고 복구 코드를 다시 발급하지 않는다', async () => {
+      usersService.findById.mockResolvedValue(
+        makeUser({
+          twoFactorEnabled: true,
+          twoFactorSecret: RFC6238_SECRET_B32,
+          totpRecoveryCodes: ['h1'],
+        }),
+      );
+      await expectAlreadyEnabled(
+        service.verifyAndEnable(
+          'user-1',
+          generateSync({ secret: RFC6238_SECRET_B32 }),
+        ),
+      );
+      expect(userRepository.update).not.toHaveBeenCalled();
+      expect(usersService.update).not.toHaveBeenCalled();
+    });
+
+    it('TOTP 가 켜진 계정이면 틀린 코드에도 401 이 아니라 409 다(코드를 확인하지 않는다)', async () => {
+      usersService.findById.mockResolvedValue(
+        makeUser({
+          twoFactorEnabled: true,
+          twoFactorSecret: RFC6238_SECRET_B32,
+        }),
+      );
+      await expectAlreadyEnabled(service.verifyAndEnable('user-1', '000000'));
+    });
+
+    it('코드 확인 뒤 다른 요청이 먼저 켜서 조건부 갱신이 0행이면 409 TOTP_ALREADY_ENABLED', async () => {
+      const secret = RFC6238_SECRET_B32;
+      usersService.findById
+        .mockResolvedValueOnce(makeUser({ twoFactorSecret: secret }))
+        .mockResolvedValueOnce(
+          makeUser({ twoFactorEnabled: true, twoFactorSecret: secret }),
+        );
+      userRepository.update.mockResolvedValueOnce({ affected: 0 });
+      await expectAlreadyEnabled(
+        service.verifyAndEnable('user-1', generateSync({ secret })),
+      );
+    });
+
+    it('코드 확인 뒤 다른 setup 이 secret 을 바꿔 조건부 갱신이 0행이면 401 TOTP_INVALID', async () => {
+      const secret = RFC6238_SECRET_B32;
+      usersService.findById
+        .mockResolvedValueOnce(makeUser({ twoFactorSecret: secret }))
+        .mockResolvedValueOnce(makeUser({ twoFactorSecret: 'OTHER' }));
+      userRepository.update.mockResolvedValueOnce({ affected: 0 });
+      const err = await service
+        .verifyAndEnable('user-1', generateSync({ secret }))
+        .then(
+          () => {
+            throw new Error('expected rejection');
+          },
+          (err_: unknown) => err_,
+        );
+      expect(err).toBeInstanceOf(UnauthorizedException);
+      expect((err as UnauthorizedException).getResponse()).toMatchObject({
+        code: 'TOTP_INVALID',
+      });
     });
 
     it('틀린 코드면 UnauthorizedException', async () => {
@@ -274,4 +368,17 @@ async function bootstrapSecret(
   } as unknown as User);
   const { secret } = await service.setup('user-1');
   return { secret };
+}
+
+async function expectAlreadyEnabled(promise: Promise<unknown>): Promise<void> {
+  const err = await promise.then(
+    () => {
+      throw new Error('거부되지 않았다');
+    },
+    (err_: unknown) => err_,
+  );
+  expect(err).toBeInstanceOf(ConflictException);
+  expect((err as ConflictException).getResponse()).toMatchObject({
+    code: 'TOTP_ALREADY_ENABLED',
+  });
 }

@@ -104,6 +104,20 @@ export class AuthService {
     await this.totpService.disableUnchecked(userId);
   }
 
+  /**
+   * TOTP 설정을 시작한다. 비밀번호 재확인 → 설정 시작 순서를 이 메서드 하나가 지킨다. 로그인 세션만 가진 사람이 자기 인증 앱으로
+   * TOTP 를 켜 원래 사용자의 다음 로그인을 막지 못하게 한다. 비밀번호가 틀리면 secret 을 만들지 않는다. 실패는 비밀번호 확인의
+   * 401(`PASSWORD_REQUIRED` · `PASSWORD_INVALID`)과 `TotpService.setup` 의 409(`TOTP_ALREADY_ENABLED`) 그대로다
+   * (NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV).
+   */
+  async startTwoFactorSetup(
+    userId: string,
+    plainPassword: string,
+  ): Promise<{ secret: string; otpauthUrl: string; qrCodeDataUrl: string }> {
+    await this.verifyPasswordForUser(userId, plainPassword);
+    return this.totpService.setup(userId);
+  }
+
   // ========== REGISTER ==========
   async register(
     dto: {

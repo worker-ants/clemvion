@@ -41,6 +41,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
+      startTwoFactorSetup: jest.fn(),
       disableTwoFactor: jest.fn(),
       switchWorkspace: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
@@ -414,6 +415,31 @@ describe('AuthController', () => {
       delete process.env.TRUST_CF_CONNECTING_IP;
     });
 
+    it('setup2fa 는 비밀번호 확인과 설정 시작을 AuthService 에 맡기고 secret 은 응답에 넣지 않는다', async () => {
+      authService.startTwoFactorSetup.mockResolvedValue({
+        secret: 'SECRET',
+        otpauthUrl: 'otpauth://totp/x?secret=SECRET',
+        qrCodeDataUrl: 'data:image/png;base64,AA',
+      });
+
+      const result = await controller.setup2fa(payload, {
+        password: 'OldP@ssw0rd1',
+      });
+
+      // 비밀번호 → 설정 시작 순서는 AuthService.startTwoFactorSetup 한 메서드가 지킨다(auth.service.spec 이 고정).
+      expect(authService.startTwoFactorSetup).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+      );
+      expect(totpService.setup).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        data: {
+          otpauthUrl: 'otpauth://totp/x?secret=SECRET',
+          qrCodeDataUrl: 'data:image/png;base64,AA',
+        },
+      });
+    });
+
     it('records user.2fa_enabled (with ipAddress) on verify2fa', async () => {
       totpService.verifyAndEnable.mockResolvedValue({
         recoveryCodes: ['a', 'b'],
@@ -509,15 +535,21 @@ describe('AuthController', () => {
       ).rejects.toThrow(UnauthorizedException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
+  });
 
-    it('2fa/disable 은 민감 tier(분당 10회) throttle 을 건다', () => {
-      const handler = AuthController.prototype.disable2fa;
-      expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
-        SENSITIVE_ACTION_THROTTLE.default.limit,
-      );
-      expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
-        SENSITIVE_ACTION_THROTTLE.default.ttl,
-      );
-    });
+  // 비밀번호를 다시 확인하는 2FA 라우트는 추측을 막으려고 민감 tier(분당 10회)를 건다.
+  describe('2FA throttle', () => {
+    it.each(['setup2fa', 'disable2fa'] as const)(
+      '%s 는 민감 tier(분당 10회) throttle 을 건다',
+      (method) => {
+        const handler = AuthController.prototype[method];
+        expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
+          SENSITIVE_ACTION_THROTTLE.default.limit,
+        );
+        expect(Reflect.getMetadata(`${THROTTLER_TTL}default`, handler)).toBe(
+          SENSITIVE_ACTION_THROTTLE.default.ttl,
+        );
+      },
+    );
   });
 });

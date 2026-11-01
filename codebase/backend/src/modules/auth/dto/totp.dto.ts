@@ -12,6 +12,13 @@ export class LoginTotpDto {
   code: string;
 }
 
+export class Setup2faDto {
+  @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+
 export class Verify2faDto {
   @ApiProperty({ description: 'Authenticator 앱이 표시한 6자리 코드' })
   @IsString()
