@@ -104,6 +104,11 @@ function canonicalIPv6(stripped: string): string {
  * 서버에 `http://[::ffff:127.0.0.1]/` 이 200(macOS · `node:24-alpine` 실측). 그래서 품은 IPv4 를 같은 대역표로 판정한다.
  * IPv4 를 품는 다른 표기(IPv4-compatible `::a.b.c.d` · SIIT `::ffff:0:…` · NAT64 `64:ff9b::/96` · 6to4 `2002::/16`)는 같은
  * 실측에서 닿지 않았다(`EHOSTUNREACH`/`ENETUNREACH`).
+ *
+ * 알림 웹훅 · MCP 가드(`common/utils/ssrf-safe-url.util.ts` 의 `normalizeIpv6Literal` · `embeddedIpv4FromIpv6`)는 같은
+ * 정규화와 IPv4 추출을 따로 갖고, NAT64 망에서 변환되는 `64:ff9b::/96` 까지 /96 넷을 모두 막는다. 정책 차이의 이유는 그쪽
+ * `embeddedIpv4FromIpv6` JSDoc 에 있다. 두 구현을 모으는 일은 NERV Task `CLE-T-753725`, 판정 범위를 맞출지는 `CLE-T-63RSH6` 가
+ * 정한다. 여기 정책이나 `canonicalIPv6` 를 바꿀 때는 그쪽도 함께 본다.
  */
 function mappedIPv4(canonical: string): string | null {
   const m = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical);

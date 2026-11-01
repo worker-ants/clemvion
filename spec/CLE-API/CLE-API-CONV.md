@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "7bba5ff6bfaa713cc4a1f296c6cf203ab251fb4202cc7f42f14793cca4f62dea"
+content_hash: "83c50e9a5f9964c07f6b7439d1b15ba8a6604b99def304aa243d393c06db5738"
 read_as: "approved_fallback"
-task: "CLE-T-ZPKDF5"
+task: "CLE-T-YKA9CJ"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "97f3e58c0b06cfe44fc4d4c9e7ba067019bbf52878a13a07c102b7b6d8e44113"
-etag: "sha256-d34991482df96d71b65bbd92a49eded8743a7ed032ed4ef0d164645bb07263ac"
+mirror_sha256: "6ffd1f2055b7d4ca710fea7c6f80c3b002e1c0e28c6659f8090f25e1f1a148dd"
+etag: "sha256-bc460d274327446fc142a77c69d49766faf286c79b62f8f17849fbd2f292e93a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -262,7 +262,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 429 | Too Many Requests | 요청 빈도 제한 초과 |
 | 500 | Internal Server Error | 서버 에러 |
 | 502 | Bad Gateway | **외부 제3자 API**(채팅 채널 provider 등) 호출 실패. 다시 시도할 수 있다. 코드: `CHAT_CHANNEL_SETUP_FAILED`(채팅 채널 `setupChannel` 실패, [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 아래 `503` 과 구분한다. `502` 는 외부 제3자, `503` 은 우리 인프라다. `WEBAUTHN_DISABLED` 의 `503` 예외는 `503` 행에 있다. 노드 출력 안의 `statusCode` 와는 다른 축이다. 그쪽은 HTTP Request 노드가 받은 응답 상태이고 이 표는 우리 API 가 클라이언트에 주는 상태다 |
-| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령)은 큐에 넣지 못해도 이 `503` 을 돌려주지 않는다. `202` 로 답하고 채널 건강도를 `degraded` 로 둔다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 클라이언트는 다시 시도하지 않고 가용성 조회 결과에 따라 기능을 숨긴다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다 |
+| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락)·`SERVICE_UNAVAILABLE`(로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함, [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령)은 큐에 넣지 못해도 이 `503` 을 돌려주지 않는다. `202` 로 답하고 채널 건강도를 `degraded` 로 둔다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절이고 `SERVICE_UNAVAILABLE` 은 시스템 절이다. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 클라이언트는 다시 시도하지 않고 가용성 조회 결과에 따라 기능을 숨긴다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다 |
 
 자원을 만들지 않는 POST 액션의 성공 코드를 정하는 행은 아직 없다. [미결 사항](#미결-사항) 참조.
 

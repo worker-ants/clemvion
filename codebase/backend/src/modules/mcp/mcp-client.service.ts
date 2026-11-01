@@ -4,6 +4,10 @@ import pLimit, { LimitFunction } from 'p-limit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { TimeoutError } from '../../common/utils/with-timeout';
+import {
+  embeddedIpv4FromIpv6,
+  normalizeIpv6Literal,
+} from '../../common/utils/ssrf-safe-url.util';
 
 /**
  * Identifier sent to MCP servers in `clientInfo`. The MCP spec is happy with
@@ -405,16 +409,20 @@ export class McpClientService {
   }
 
   private isBlockedIPv6(host: string): boolean {
-    const lower = host.toLowerCase();
+    // URL.hostname is already canonical (`[::ffff:127.0.0.1]` becomes
+    // `::ffff:7f00:1`), so a dotted-only pattern never matches it.
+    const lower = normalizeIpv6Literal(host);
+    // Unparseable literal — fail closed like isBlockedIPv4.
+    if (lower === null) return true;
     if (lower === '::1' || lower === '::') return true;
-    // ::ffff:a.b.c.d (IPv4-mapped) — enforce v4 rules
-    const v4Mapped = lower.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
-    if (v4Mapped) return this.isBlockedIPv4(v4Mapped[1]);
     // fc00::/7 unique-local, fe80::/10 link-local
     if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
     if (lower.startsWith('fe8') || lower.startsWith('fe9')) return true;
     if (lower.startsWith('fea') || lower.startsWith('feb')) return true;
-    return false;
+    // IPv4-mapped / -compatible / SIIT / NAT64 — enforce v4 rules on the
+    // embedded address
+    const v4 = embeddedIpv4FromIpv6(lower);
+    return v4 !== null && this.isBlockedIPv4(v4);
   }
 
   /**

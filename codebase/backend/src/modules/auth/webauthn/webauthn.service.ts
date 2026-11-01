@@ -354,7 +354,7 @@ export class WebAuthnService {
    * 로그인 2단계 Passkey 인증 검증. CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 ·
    * 「sign counter 역행과 동시성」.
    *
-   * 챌린지 1회 사용 (REQ-SIGNIN-030 · 068 · 069):
+   * 챌린지 1회 사용 (REQ-SIGNIN-030 · 068 · 069 · 072):
    *   옵션 토큰을 검증한 뒤, 서명과 counter 를 판정하기 전에 그 챌린지를 쓴 것으로 기록한다.
    *   이미 쓴 챌린지면 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID`.
    *   같은 assertion 의 중복 요청(버튼 두 번 누르기 · 재전송)이 여기서 끝나므로 counter
@@ -499,8 +499,8 @@ export class WebAuthnService {
 
   /**
    * 옵션 토큰의 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로
-   * 거부하고, 기록하지 못하면 503 `SERVICE_UNAVAILABLE` 로 멈춘다(fail-closed). 처음 쓰는
-   * 챌린지만 정상 반환한다.
+   * 거부하고, 기록하지 못하면 503 `SERVICE_UNAVAILABLE` 로 멈춘다(fail-closed, REQ-SIGNIN-072).
+   * 처음 쓰는 챌린지만 정상 반환한다.
    *
    * 기록 없이 서명 · counter 판정으로 보내면 같은 assertion 의 두 번째 요청이 counter 역행으로
    * 처분돼 credential 이 지워지므로 저장소 오류는 삼키지 않는다.

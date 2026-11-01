@@ -1117,6 +1117,68 @@ describe('TriggersService — notification/interaction config 병합 (External I
     expect(triggerRepo.create).not.toHaveBeenCalled();
   });
 
+  // IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다(NERV Task `CLE-T-DCQWEB`). URL 이 hex 형으로 바꿔도 등록에서 막는다.
+  it.each([
+    ['https://[::ffff:127.0.0.1]/x', 'IPv4-mapped → loopback'],
+    ['https://[::ffff:169.254.169.254]/x', 'IPv4-mapped → 메타데이터'],
+    ['https://[::127.0.0.1]/x', 'IPv4-compatible → loopback'],
+    ['https://[::ffff:0:a00:1]/x', 'SIIT → 10/8'],
+    ['https://[64:ff9b::a9fe:a9fe]/x', 'NAT64 → 메타데이터'],
+    // 앞뒤 16비트가 달라서 순서를 바꿔 읽으면 `1.1.192.168` 이 되어 통과하는 값
+    ['https://[::ffff:c0a8:101]/x', 'IPv4-mapped → 192.168.1.1 (hi/lo 비대칭)'],
+  ])(
+    'create — notification.url %s (%s) 면 INVALID_NOTIFICATION_URL',
+    async (url) => {
+      await expect(
+        service.create(
+          'ws',
+          {
+            workflowId: 'wf-1',
+            type: 'webhook',
+            name: 'hook',
+            notification: { url, events: ['execution.completed'] },
+          },
+          'u-spec',
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_NOTIFICATION_URL' },
+      });
+      expect(triggerRepo.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('update — notification.url 을 IPv4-mapped loopback 으로 바꾸면 INVALID_NOTIFICATION_URL', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'old',
+      config: {
+        notification: {
+          url: 'https://old.example.com',
+          events: ['execution.failed'],
+        },
+      },
+    } as unknown as Trigger);
+
+    await expect(
+      service.update(
+        't1',
+        'ws',
+        {
+          notification: {
+            url: 'https://[::ffff:7f00:1]/x',
+            events: ['execution.failed'],
+          },
+        },
+        'u-spec',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'INVALID_NOTIFICATION_URL' },
+    });
+    expect(triggerRepo.save).not.toHaveBeenCalled();
+  });
+
   it('create — notification.url 이 https 미사용 → INVALID_NOTIFICATION_URL', async () => {
     const orig = process.env.ALLOW_HTTP_HOOKS;
     delete process.env.ALLOW_HTTP_HOOKS;

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "d141640d9aca77ce6ca47b671360b1bcc708b7cc5961af06fcdfa9158d23bb96"
+content_hash: "436e373c3fcd77e5f044c0b8bf38b8ffca7d436498bc3d9487505f3bac8472e9"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-VTYPA1"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "aecc9ce9f517232ea1a14810af32239b29ed1b1fbbc21e1792379fcc09f403aa"
-etag: "sha256-c745e770d51786165093dcdc850a2496490617cf0e8d049c0242546dbbb4275a"
+mirror_sha256: "4c83ba622bbeee9a37466c77a9c22d54ac564307fed9208c9452f609647c6384"
+etag: "sha256-ea32f7507ce0f7275291299220a516a6007e985d6e43c72b4f9b78128204f044"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -82,7 +82,9 @@ ForEach 와 Map 의 결과 배열은 원본 배열과 **같은 인덱스**를 �
 | Loop | `iterations` | 없음(입력을 나누지 않음) | `{ iterations: [...], count }` |
 | ForEach | `items` | `items[]`(본문 입력 분배) | `{ items: [...], count }`, 실패 항목이 있으면 `skipped` 도 |
 | Map | `mapped` | `items[]`(본문 입력 분배) | `{ mapped: [...], count }` |
-| Parallel | `branches` | 없음(분기별 빈 입력) | `{ branches: [...], count }` |
+| Parallel | `branches` | 없음(`output: null`, 같은 입력을 병렬 분기마다 복제) | `{ branches: [...], count }`, 실패한 병렬 분기가 있으면 `skipped` 도 |
+
+Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기마다 어느 노드의 출력을 담는지는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#출력-구조) 가 정한다.
 
 시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 park · 재구동 없이 이어진 실행에서 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 배열이 남고 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
 
@@ -198,7 +200,7 @@ sequenceDiagram
 
 ### 결과 배열이 원본 인덱스를 지킨다
 
-ForEach·Map 뒤의 노드는 원본 항목과 결과를 짝지어 쓰는 경우가 많다. 실패한 항목을 빼고 배열을 당기면 짝이 어긋나므로 실패한 자리도 채워 인덱스를 지킨다. 실패 정보를 어디에 두는지는 노드마다 다르게 정했다. ForEach 는 성공과 실패가 한 배열에 섞이지 않도록 `skipped` 로 따로 모은다.
+ForEach·Map 뒤의 노드는 원본 항목과 결과를 짝지어 쓰는 경우가 많다. 실패한 항목을 빼고 배열을 당기면 짝이 어긋나므로 실패한 자리도 채워 인덱스를 지킨다. 실패 정보를 어디에 두는지는 노드마다 다르게 정했다. ForEach 는 성공과 실패가 한 배열에 섞이지 않도록 `skipped` 로 따로 모은다. Parallel 도 실패한 병렬 분기 자리를 `null` 로 채워 병렬 분기 번호를 지키고 실패는 `skipped` 로 따로 모은다.
 
 ### 반복 변수 표면은 표현식 언어를 따른다
 

@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "30e11b45c9fbbb15857d804aa320c5b34cb3a9edd333dcc342fa232f5ac52063"
+content_hash: "615f632a7bb3fb3e0803ca00a02c8efc65532c91ceb17eafd074f77ca360dd7b"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-DCQWEB"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "18a9154e590ca31858690fd3acb3a19d07f35229a9dd0ac5cb480d8796d7ad2e"
-etag: "sha256-5057073b3392969cbb3daa4b5b22aa1ac9703ba499e1daa5e34507ab25bc0341"
+mirror_sha256: "a6b1263b320b33ce461ebb81d1aa72ec52cfe2022d1991cb531def99709a6183"
+etag: "sha256-faa02b2c97fb2fee55da02cfb6078f4efced96d1b476f9deae53ca53d195a344"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -314,11 +314,12 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 `notification.url` 을 등록할 때(`TriggersService.assertNotificationUrlSafe`)와 보내기 직전(`checkSsrfSafeUrl`)에 두 번 검증한다.
 
-- 호스트 이름이 사설 IP(10/8, 172.16/12, 192.168/16, 169.254/16, ::1, fe80::/10, fc00::/7)나 loopback·메타데이터 서비스 IP(169.254.169.254 등)로 풀리면 거부한다.
+- 호스트 이름이 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, fc00::/7, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)로 풀리면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다.
+- 마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`) 가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 달라 보지 않는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 범위를 쓴다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다.
 - DNS rebinding 방어: 등록 때 IP 와 실제 발송 때 IP 가 다르면 발송을 거부한다. 비용이 커서 선택 사항이고, `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 켠다(기본 꺼짐).
 - 발송은 리다이렉트를 따라가지 않는다. 등록 때와 발송 직전의 검사는 등록 URL 의 호스트만 본다. 리다이렉트가 가리키는 주소는 어느 검사도 보지 않는다. 따라가면 공개 호스트가 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 이 검사들을 통과한다. 307 · 308 이면 서명한 본문도 그 주소로 간다. 3xx 응답의 처리는 [재시도와 실패 처리](#재시도와-실패-처리) 가 정한다.
 - 워크스페이스 단위 허용·차단 목록(원문 표기 `workspace_settings.notification_url_allow_pattern`)을 설정할 수 있어야 한다. [미결 사항](#미결-사항) 참조.
-- URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다.
+- URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 이 플래그는 스킴만 연다. 호스트 검사를 끄는 플래그는 없다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)의 사설망 허용 플래그(`ALLOW_PRIVATE_HOST_TARGETS`)도 이 검사에는 적용되지 않는다.
 
 ## 시크릿 교체
 
@@ -350,6 +351,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 검사·발송 건강도, 3xx 를 따라가지 않고 실패로 처리)
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts` (서명 계산, `verifySignatureHeader`)
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts` (폭주 감지 카운터)
+- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp`, IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`, `assertNotificationUrlSafe`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰는 서비스다. 첫 시크릿 발급이나 옛 평문 옮기기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 시크릿 발급 판정 `decideNotificationSigning`, 발송 처리기와 함께 쓰는 «있음» 판정 `readStoredSigningSecret`)
@@ -437,3 +439,19 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - **3xx 를 받으면 재시도 없이 바로 최종 실패(`degraded`)로 둔다**: 임시 리다이렉트는 상대 서버가 고치거나 사용자가 URL 을 고치면 회복될 수 있다. 다른 `2xx` 가 아닌 응답과 같은 재시도 규칙(REQ-EIANOTI-008)을 따르면 처리 분기가 늘지 않는다. 대신 영구 리다이렉트도 재시도가 끝날 때까지 `degraded` 표시가 늦어진다. 기본 설정(총 시도 5)이면 간격만 더해 85초, 총 시도 횟수 상한 10 이면 12,165초(약 3.4시간) 늦어진다.
 
 DNS rebinding 가드의 기본값과 [SSRF 방지](#ssrf-방지) 본문 · REQ-EIANOTI-012 의 어긋남은 후속 NERV Task `CLE-T-YR4EK5` 가 맡는다.
+
+### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)
+
+마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 를 IPv4 대역표로 다시 판정한다. 이 문제는 코드 리뷰 발견 finding `01a14d38-c347-74c0-82c6-956fd95881f2` 가 찾았다. IPv4-mapped 리터럴(`[::ffff:7f00:1]`)이 loopback · 메타데이터 주소를 등록 검사와 발송 직전 검사에 통과시킨다는 지적이다. 리뷰 대상은 NERV Task `CLE-T-ZGYXSZ` 의 코드 리뷰 라운드 2 였다. 그 PR 이 만든 결함은 아니고 그 전부터 있던 동작이다. 작업은 NERV Task `CLE-T-DCQWEB` 다.
+
+- Node.js 의 `URL` 은 `https://[::ffff:127.0.0.1]/` 의 hostname 을 `[::ffff:7f00:1]` 로, `https://[::ffff:169.254.169.254]/` 를 `[::ffff:a9fe:a9fe]` 로 바꾼다. 그때까지 검사는 IPv6 에서 `::1` · `::` · fe80::/10 · fc00::/7 만 막았다. 그래서 두 주소가 등록 검사와 발송 직전 검사를 모두 지났다.
+- IPv4-mapped 주소는 IPv4 대상에 그대로 닿는다. 통합 노드 가드 코드(`http-safety.ts` 의 `mappedIPv4`)도 같은 이유로 IPv4-mapped 를 품은 IPv4 로 판정한다. 그 판정 범위와 실측은 아직 스펙에 없고 코드 주석에만 있다. 알림 웹훅에서는 서명한 POST 가 loopback · 메타데이터 주소로 가고 그 응답 코드가 `notification_last_error` 에 보인다.
+- `dns.resolve6` 는 mapped 주소를 점 표기(`::ffff:127.0.0.1`)로 돌려준다. 발송 직전 DNS 결과 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1`)도 같은 판정을 쓴다. 가드의 기본값은 바꾸지 않았다(후속 NERV Task `CLE-T-YR4EK5`).
+- IPv4-compatible · SIIT · NAT64 표기도 같은 방식으로 본다. 통합 노드 가드는 이 셋을 막지 않는다. 그 코드 주석은 macOS · `node:24-alpine` 실측에서 이 표기로 IPv4 대상에 닿지 않았다고 적는다. 그러나 NAT64 는 `64:ff9b::a.b.c.d` 를 IPv4 `a.b.c.d` 로 바꿔 보내는 변환이다(RFC 6052 · RFC 6146). NAT64 게이트웨이가 있는 IPv6 전용 망에 배포하면 닿을 수 있다. 품은 IPv4 가 사설 · 특수 대역일 때만 막으므로 공인 주소로 가는 수신 서버는 영향이 없다.
+- 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 판정하지 않는다. 6to4 주소로 보낸 패킷은 그 IPv4 의 6to4 라우터가 받아 뒤쪽 IPv6 망으로 넘긴다. 품은 IPv4 의 TCP 서비스로는 가지 않는다. local-use prefix 는 운영자가 접두 길이를 정한다(RFC 8215). 그래서 IPv4 가 놓이는 자리가 망마다 다르다. 마지막 32비트를 읽으면 엉뚱한 IPv4 로 판정하게 된다.
+- [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 정규화 · 추출 헬퍼를 쓰고 판정 범위가 같다. 꺼낸 IPv4 를 판정하는 대역표는 가드마다 따로 있다.
+- 알림 웹훅 · MCP 가드와 통합 노드 · LLM 가드의 판정 범위를 맞출지, 공용 가드를 어디에 둘지는 NERV Task `CLE-T-63RSH6` 가 정한다. 정하면 그 결정과 실측을 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) Rationale 과 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)에 남긴다. 그 결정에 따라 판정 코드를 한 모듈로 모으는 일은 NERV Task `CLE-T-753725` 가 맡는다. 공용 판정을 쓰더라도 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 알림 웹훅 가드에 닿지 않는다. 알림 웹훅의 호스트 검사에는 우회 플래그가 없다. `ALLOW_HTTP_HOOKS` 는 `http://` 스킴만 연다.
+
+기각한 대안:
+
+- **IPv4-mapped 만 판정한다(통합 노드 가드 코드와 같은 범위)**: 구현 착수 전 일관성 검토가 이 범위를 제안했다. 두 가드가 같은 범위를 쓰면 보안 범위가 한 가지로 남는다. 그러나 NAT64 망에서는 IPv4-mapped 가 아닌 표기로도 사설 IPv4 에 닿을 수 있다. 사설 IPv4 를 품은 경우만 막아서 정상 수신 서버가 잃는 것이 없다. 외부 MCP 서버 URL 검사도 같은 범위를 쓴다.

@@ -143,6 +143,60 @@ describe('McpClientService', () => {
       }
     });
 
+    // Node 의 URL 은 `[::ffff:127.0.0.1]` 의 hostname 을 `[::ffff:7f00:1]` 로 바꾼다. 점 형만 보던 검사는 이 모양을
+    // 지나보냈다(NERV Task `CLE-T-DCQWEB`). IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다.
+    it.each([
+      ['[::ffff:127.0.0.1]', 'IPv4-mapped → loopback'],
+      ['[::ffff:169.254.169.254]', 'IPv4-mapped → 메타데이터'],
+      ['[::ffff:7f00:1]', 'IPv4-mapped hex 형'],
+      ['[::ffff:6440:1]', 'IPv4-mapped → 100.64.0.1 (CGNAT)'],
+      ['[::127.0.0.1]', 'IPv4-compatible → loopback'],
+      ['[::ffff:0:a00:1]', 'SIIT → 10/8'],
+      ['[64:ff9b::a9fe:a9fe]', 'NAT64 → 메타데이터'],
+      // 앞뒤 16비트가 달라서 순서를 바꿔 읽으면 `1.1.192.168` 이 되어 통과하는 값
+      ['[::ffff:c0a8:101]', 'IPv4-mapped → 192.168.1.1 (hi/lo 비대칭)'],
+    ])('blocks IPv6 literal %s (%s)', async (host) => {
+      await expect(
+        service.connect({ url: `https://${host}/mcp`, authType: 'none' }),
+      ).rejects.toThrow(McpHttpsRequiredError);
+      expect(mockTransportInstances).toHaveLength(0);
+    });
+
+    // 통합 노드의 사설망 허용 플래그는 MCP 에 적용되지 않는다(우회는 MCP_ALLOW_INSECURE_URL 뿐).
+    it('blocks an IPv4-mapped loopback even when ALLOW_PRIVATE_HOST_TARGETS=true', async () => {
+      const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+      try {
+        await expect(
+          service.connect({
+            url: 'https://[::ffff:7f00:1]/mcp',
+            authType: 'none',
+          }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+        expect(mockTransportInstances).toHaveLength(0);
+      } finally {
+        if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
+      }
+    });
+
+    it('allows an IPv4-mapped literal that carries a public IPv4', async () => {
+      await service.connect({
+        url: 'https://[::ffff:8.8.8.8]/mcp',
+        authType: 'none',
+      });
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+
+    // `1.1.10.0` 은 공인이고 앞뒤를 바꿔 읽은 `10.0.1.1` 은 사설이다. 변환 순서가 뒤집히면 이 연결이 막힌다.
+    it('allows an IPv4-mapped literal whose swapped reading would be private', async () => {
+      await service.connect({
+        url: 'https://[::ffff:101:a00]/mcp',
+        authType: 'none',
+      });
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+
     it('allows public HTTPS URLs', async () => {
       await service.connect({
         url: 'https://mcp.example.com',
