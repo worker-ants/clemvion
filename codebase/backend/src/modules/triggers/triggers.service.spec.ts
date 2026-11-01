@@ -1124,6 +1124,8 @@ describe('TriggersService — notification/interaction config 병합 (External I
     ['https://[::127.0.0.1]/x', 'IPv4-compatible → loopback'],
     ['https://[::ffff:0:a00:1]/x', 'SIIT → 10/8'],
     ['https://[64:ff9b::a9fe:a9fe]/x', 'NAT64 → 메타데이터'],
+    // 앞뒤 16비트가 달라서 순서를 바꿔 읽으면 `1.1.192.168` 이 되어 통과하는 값
+    ['https://[::ffff:c0a8:101]/x', 'IPv4-mapped → 192.168.1.1 (hi/lo 비대칭)'],
   ])(
     'create — notification.url %s (%s) 면 INVALID_NOTIFICATION_URL',
     async (url) => {

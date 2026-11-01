@@ -66,14 +66,22 @@ export function normalizeIpv6Literal(host: string): string | null {
   }
 }
 
+/**
+ * 정규화된 IPv6 문자열을 16비트 그룹 여덟 개로 푼다. 정규화된 모양이 아니면 null.
+ * 각 그룹은 소문자 16진 1~4자리여야 한다. 점 표기(`::ffff:127.0.0.1`) · 대문자 · 대괄호 · zone id · `::` 가 둘 이상 ·
+ * 그룹 수가 8이 아닌 입력은 `parseInt` 가 앞쪽 16진수만 읽어 틀린 값을 돌려주므로 여기서 거른다.
+ */
 function ipv6Groups(normalized: string): number[] | null {
   const halves = normalized.split('::');
   if (halves.length > 2) return null;
   const head = halves[0] ? halves[0].split(':') : [];
   const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  // `::` 는 0 그룹 하나 이상을 줄인다. 그룹이 이미 8개 이상이면 줄일 자리가 없다(`Array(음수)` 는 RangeError).
   const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (halves.length === 2 && fill < 1) return null;
   const groups = [...head, ...Array<string>(fill).fill('0'), ...tail];
   if (groups.length !== 8) return null;
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
   return groups.map((g) => parseInt(g, 16));
 }
 
@@ -85,7 +93,18 @@ function ipv6Groups(normalized: string): number[] | null {
  * - NAT64 well-known prefix `64:ff9b::/96` (RFC 6052)
  *
  * 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 위치가 달라 보지 않는다.
- * 인자는 {@link normalizeIpv6Literal} 이 돌려준 값이다.
+ *
+ * 인자는 {@link normalizeIpv6Literal} 이 돌려준 값이다(소문자 · 대괄호 없음 · 점 표기 없음). 그 모양이 아니면 틀린 IPv4 를
+ * 돌려주지 않고 null 을 돌려준다. null 은 "품은 IPv4 가 없다" 와 "정규화된 입력이 아니다" 를 함께 뜻하므로, 값을 직접 받아 쓰는
+ * 호출자는 먼저 `normalizeIpv6Literal` 을 거친다.
+ *
+ * **통합 노드 가드(`nodes/integration/http-request/http-safety.ts` 의 `mappedIPv4`)와 판정 범위가 다르다.** 그쪽은 IPv4-mapped
+ * 만 품은 IPv4 로 본다. macOS · `node:24-alpine` 에서 127.0.0.1 전용 서버에 닿는 표기가 mapped 뿐이었고, compatible · SIIT ·
+ * NAT64 는 `EHOSTUNREACH`/`ENETUNREACH` 로 닿지 않았기 때문이다. 알림 웹훅 · MCP 는 NAT64(RFC 6052 · 6146) 망에서
+ * `64:ff9b::a.b.c.d` 가 NAT64 게이트웨이를 거쳐 IPv4 `a.b.c.d` 로 변환되므로 /96 넷을 모두 막는다. 막는 것은 품은 IPv4 가 사설 ·
+ * 특수 대역일 때뿐이라 공인 수신 서버에는 영향이 없다. 6to4 · NAT64 local-use prefix 는 IPv4 자리가 마지막 32비트가 아니라 판정하지
+ * 않는다. 두 가드의 정규화와 IPv4 대역표가 따로 있는 중복은 NERV Task `CLE-T-753725` 가 모으고, 판정 범위를 맞출지는
+ * `CLE-T-63RSH6` 가 정한다. 한쪽 정책을 바꿀 때는 `http-safety.ts` 의 `mappedIPv4` 와 그 테스트를 함께 본다.
  */
 export function embeddedIpv4FromIpv6(normalized: string): string | null {
   const groups = ipv6Groups(normalized);
@@ -102,6 +121,8 @@ export function embeddedIpv4FromIpv6(normalized: string): string | null {
 
 export function isPrivateIpv6(host: string): boolean {
   const lower = normalizeIpv6Literal(host);
+  // null 은 IPv6 리터럴이 아니라는 뜻이라 사설로 보지 않는다(fail-open). 호출자 셋이 넘기는 값은 `':'` 가 든 `URL.hostname` 이나
+  // `dns.resolve6` 결과뿐이라 URL 파서 · DNS 가 이미 IPv6 로 받은 문자열이다. 이 분기는 호출 경로에서 닿지 않는다.
   if (lower === null) return false;
   if (lower === '::1' || lower === '::') return true;
   if (

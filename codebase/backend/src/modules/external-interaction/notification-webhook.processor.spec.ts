@@ -319,6 +319,8 @@ describe('NotificationWebhookProcessor.process', () => {
     ['https://[::7f00:1]/x', 'IPv4-compatible → loopback'],
     ['https://[::ffff:0:c0a8:1]/x', 'SIIT → 192.168.0.1'],
     ['https://[64:ff9b::10.0.0.5]/x', 'NAT64 → 10/8'],
+    // 앞뒤 16비트가 달라서 순서를 바꿔 읽으면 `1.1.192.168` 이 되어 통과하는 값
+    ['https://[::ffff:c0a8:101]/x', 'IPv4-mapped → 192.168.1.1 (hi/lo 비대칭)'],
   ])('SSRF — 알림 URL 이 %s (%s) 면 degraded + skip', async (url) => {
     triggerRepo.findOne.mockResolvedValue(
       makeTrigger({

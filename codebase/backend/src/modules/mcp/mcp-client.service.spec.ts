@@ -153,6 +153,8 @@ describe('McpClientService', () => {
       ['[::127.0.0.1]', 'IPv4-compatible → loopback'],
       ['[::ffff:0:a00:1]', 'SIIT → 10/8'],
       ['[64:ff9b::a9fe:a9fe]', 'NAT64 → 메타데이터'],
+      // 앞뒤 16비트가 달라서 순서를 바꿔 읽으면 `1.1.192.168` 이 되어 통과하는 값
+      ['[::ffff:c0a8:101]', 'IPv4-mapped → 192.168.1.1 (hi/lo 비대칭)'],
     ])('blocks IPv6 literal %s (%s)', async (host) => {
       await expect(
         service.connect({ url: `https://${host}/mcp`, authType: 'none' }),
@@ -181,6 +183,15 @@ describe('McpClientService', () => {
     it('allows an IPv4-mapped literal that carries a public IPv4', async () => {
       await service.connect({
         url: 'https://[::ffff:8.8.8.8]/mcp',
+        authType: 'none',
+      });
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+
+    // `1.1.10.0` 은 공인이고 앞뒤를 바꿔 읽은 `10.0.1.1` 은 사설이다. 변환 순서가 뒤집히면 이 연결이 막힌다.
+    it('allows an IPv4-mapped literal whose swapped reading would be private', async () => {
+      await service.connect({
+        url: 'https://[::ffff:101:a00]/mcp',
         authType: 'none',
       });
       expect(mockTransportInstances).toHaveLength(1);
