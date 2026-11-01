@@ -2,19 +2,19 @@
 id: "CLE-EXEC-PREVIEW"
 title: "대화 미리보기"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-CONVPV-001", "REQ-CONVPV-002", "REQ-CONVPV-003", "REQ-CONVPV-004", "REQ-CONVPV-005", "REQ-CONVPV-006", "REQ-CONVPV-007", "REQ-CONVPV-008", "REQ-CONVPV-009", "REQ-CONVPV-010", "REQ-CONVPV-011", "REQ-CONVPV-012", "REQ-CONVPV-013", "REQ-CONVPV-014", "REQ-CONVPV-015", "REQ-CONVPV-016", "REQ-CONVPV-017", "REQ-CONVPV-018", "REQ-CONVPV-019", "REQ-CONVPV-020", "REQ-CONVPV-021", "REQ-CONVPV-022", "REQ-CONVPV-023", "REQ-CONVPV-024", "REQ-CONVPV-025", "REQ-CONVPV-026", "REQ-CONVPV-027", "REQ-CONVPV-028", "REQ-CONVPV-029", "REQ-CONVPV-030", "REQ-CONVPV-031", "REQ-CONVPV-032", "REQ-CONVPV-033", "REQ-CONVPV-034", "REQ-CONVPV-035", "REQ-CONVPV-036", "REQ-CONVPV-037", "REQ-CONVPV-038", "REQ-CONVPV-039", "REQ-CONVPV-040", "REQ-CONVPV-041", "REQ-CONVPV-042", "REQ-CONVPV-043", "REQ-CONVPV-044", "REQ-CONVPV-045", "REQ-CONVPV-046", "REQ-CONVPV-047"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "a02b5d5219b6da3b59392ef316a43df5c285ff853ad9f4844ba9fe51a738d3ad"
+content_hash: "a596a21a1315cd3e7af7d0ed64de192303d50df5823c9f7916eec935c3e02113"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-ZHBMAC"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "bceb9d7a82e89fda2e6fb0bf55de26df814dae5aa68e92545d893bd56ec94e15"
-etag: "sha256-ec644d456fb91820dead795920f85d523b43de07fcac3f0eaca8a47ef0c08e4b"
+mirror_sha256: "435a961fcdb5412bef5b9a6e1f84b899209c902c1452c6584c81ac89d4148c6e"
+etag: "sha256-520afda45975aac6478fe9c9a93c13fd29a5bb7666e98e5281a97793dd7db5a6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§9 미리보기 UI 렌더 규칙, 줄 433–756. 근거는 §8.1·§8.2·§8.3·§8.5·§8.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -23,7 +23,7 @@ etag: "sha256-ec644d456fb91820dead795920f85d523b43de07fcac3f0eaca8a47ef0c08e4b"
 대화 미리보기(Conversation Preview)는 실행 결과의 미리보기 탭 안에서 대화 스레드(`ConversationThread`)를 항목 출처별 모양으로 그리는 화면이다. 이 문서는 대화 미리보기와 실행 트리의 대화 타임라인이 지켜야 하는 렌더 규칙을 정한다. 두 축으로 나뉜다.
 
 - **시각 매핑**: 항목 출처(`ConversationTurnSource`)마다 어떤 모양으로 그리는지, 무엇으로 서로 구분하는지, 어떤 데이터를 1차 소스로 쓰는지.
-- **UI 계약**: 실시간 이벤트가 프런트 store 를 어떻게 바꾸는지, 실행 단계별 store 초기화, 빈 content 판정, UI 불변량(Inv-1~Inv-9), 회귀 차단 시나리오(CT-S1~CT-S20), 변환 함수 계약, 요소별 시각 표시.
+- **UI 계약**: 실시간 이벤트가 프런트 store 를 어떻게 바꾸는지, 실행 단계별 store 초기화, 빈 content 판정, UI 불변량(Inv-1~Inv-9), 회귀 차단 시나리오(CT-S1~CT-S21), 변환 함수 계약, 요소별 시각 표시.
 
 대상 화면은 에디터와 콘솔의 디버깅 화면이다. 실행 결과 드로어의 미리보기 탭과 실행 트리, 실행 내역 화면의 실행 상세가 여기에 들어간다. 탭 가시성과 기본 탭 고르기는 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 이 정한다.
 
@@ -75,7 +75,7 @@ etag: "sha256-ec644d456fb91820dead795920f85d523b43de07fcac3f0eaca8a47ef0c08e4b"
 - REQ-CONVPV-037 WHILE 스레드 스냅샷이 도구 항목을 뺀 lean 형태인 동안 THE SYSTEM SHALL store 의 라이브 도구 행을 보존한다. (원본: Inv-4)
 - REQ-CONVPV-038 IF 대화형 노드가 오류로 끝났으면 THE SYSTEM SHALL `result.status` 와 상관없이 그 대화를 대화 미리보기에서 볼 수 있게 한다. (원본: Inv-8)
 - REQ-CONVPV-039 WHEN `rag` 줄·📚 칩·참조 탭이 같은 `turnIndex` 를 표시하면 THE SYSTEM SHALL 같은 `sources[]` 를 보여 준다. (원본: Inv-9)
-- REQ-CONVPV-040 WHEN 대화 타임라인 관련 코드를 고치는 PR 이 올라오면 THE SYSTEM SHALL 회귀 차단 시나리오 CT-S1~CT-S20 의 단위 테스트 통과를 요구한다. (원본: CT §9.10)
+- REQ-CONVPV-040 WHEN 대화 타임라인 관련 코드를 고치는 PR 이 올라오면 THE SYSTEM SHALL 회귀 차단 시나리오 CT-S1~CT-S21 의 단위 테스트 통과를 요구한다. (원본: CT §9.10)
 - REQ-CONVPV-041 WHEN 새 변환 경로를 도입하면 THE SYSTEM SHALL 변환 함수 계약 표를 갱신하고 등가성 정의를 만족하는지 검토한다. (원본: CT §9.11)
 - REQ-CONVPV-042 WHEN 디버깅 화면이 멀티턴 대화 항목을 표시하면 THE SYSTEM SHALL 항목마다 절대 발생 시각을 표시하고 assistant·tool 항목에는 소요 시간도 표시한다. (원본: CT §9.12)
 - REQ-CONVPV-043 IF 항목에 발생 시각이나 소요 시간이 없으면 THE SYSTEM SHALL 그 표기를 생략하고 배치를 깨지 않는다. (원본: CT §9.12)
@@ -154,7 +154,7 @@ sequenceDiagram
 1. `data.retryable === true` 다.
 2. 항목에 `nodeExecutionId` 가 있다. 이 값은 마지막 턴 재시도 명령(`execution.retry_last_turn`)의 payload 키다([대화 스레드 §`system_error` 데이터](../CLE-IX/CLE-IX-THREAD.md#system_error-데이터)). 실시간 이벤트로 만든 store 항목에만 있고 내역 화면이 `output.error` 로 합성한 항목에는 없다([데이터 소스](#데이터-소스)).
 
-현재 구현(`conversation-inspector.tsx`)은 이 두 조건에 더해 재시도 명령 콜백(`onRetry`)이 연결돼 있는지도 확인한다. 실시간 `system_error` 는 AI 에이전트 노드(`ai_agent`)이고 store 에 대화가 이미 있을 때만 붙인다(`use-execution-events.ts` 의 `isMultiTurnAiContext`). 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도 상태(`_retryState`)를 만들지 않는다. 지금은 정보 추출기 실패에 실시간 `system_error` 가 붙지 않아 버튼도 나타나지 않는다. 이 노드 유형 조건이 없으면 정보 추출기에서 버튼을 눌렀을 때 `RETRY_STATE_NOT_FOUND` 가 난다. 정보 추출기에 마지막 턴 재시도를 들일지는 [정보 추출기 §미결 사항](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#미결-사항) 에서 다룬다.
+현재 구현(`conversation-inspector.tsx`)은 이 두 조건에 더해 재시도 명령 콜백(`onRetry`)이 연결돼 있는지도 확인한다. 실시간 `system_error` 는 AI 에이전트 노드(`ai_agent`)이고 store 에 대화가 이미 있을 때만 붙인다(`use-execution-events.ts` 의 `isMultiTurnAiContext`). AI 에이전트 단일 턴의 실패(출력의 설정 에코 `config.mode` 가 `single_turn`)에는 store 에 앞선 대화가 있어도 붙이지 않는다. 단일 턴에는 마지막 턴 재시도 상태가 없어서 붙이면 [다시 시도] 를 눌렀을 때 `RETRY_STATE_NOT_FOUND` 가 난다. 이 결정의 근거는 [Rationale §단일 턴 실패에는 `system_error` 를 붙이지 않는다](#단일-턴-실패에는-system_error-를-붙이지-않는다-2026-11-01) 에 있다. 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도 상태(`_retryState`)를 만들지 않는다. 지금은 정보 추출기 실패에 실시간 `system_error` 가 붙지 않아 버튼도 나타나지 않는다. 이 노드 유형 조건이 없으면 정보 추출기에서 버튼을 눌렀을 때 `RETRY_STATE_NOT_FOUND` 가 난다. 정보 추출기에 마지막 턴 재시도를 들일지는 [정보 추출기 §미결 사항](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md#미결-사항) 에서 다룬다.
 
 ## 세 가지 구분 신호
 
@@ -338,10 +338,11 @@ LLM 프로바이더가 content 를 어떤 모양으로 보내든(Anthropic `null
 | CT-S18 | 한 턴에 **지식 저장소 도구(`kb_*`) 호출**이 청크를 가져옴(`turnDebug[].ragSources` 가 비어 있지 않음). 같은 호출이 🔧 `ai_tool` 줄로도 보임 | (a) 🔎 `rag` 줄과 🔧 `ai_tool` 줄이 **각각 독립 행** (b) 세 가지 구분 신호가 모두 다름 (c) `groupToolCallItems` 가 `rag` 를 묶지 않아 도구 자식이 밀려나지 않음 (d) 📚 칩 병존 (e) **대화 미리보기와 실행 트리 두 화면에 동시에 표시** (f) **Inv-9**, 같은 turnIndex 에서 🔎 줄·📚 칩·참조 탭의 `sources[]` 가 같음 | `conversation-utils.test.ts`, `result-detail.test.tsx`, `result-timeline.test.tsx` |
 | CT-S19 | `meta.turnDebug` 없음(옛 실행, legacy payload) | 🔎 줄 **생략**, 배치 손상 없음([요소별 시각과 소요 시간](#요소별-시각과-소요-시간) 의 결측 허용). 나머지 턴 렌더는 영향 없음 | `conversation-utils.test.ts`, `result-detail.test.tsx` |
 | CT-S20 | **여러 노드가 공유하는 스레드**: 다른 노드(Presentation, 다른 AI 노드)의 턴이 섞인 스레드에서 선택한 노드의 `meta.turnDebug` 만 있음 | 선택한 노드가 만들지 않은 턴 앞에는 🔎 줄이 **붙지 않는다**. 스레드는 실행 범위지만 `meta` 는 노드 범위라 두 데이터의 범위가 다름을 고정한다. "노드 필터 없음" 원칙의 **예외가 아니다** | `conversation-utils.test.ts` |
+| CT-S21 | AI 에이전트 단일 턴(설정 에코 `config.mode: 'single_turn'`)의 LLM 호출이 실패해 `port: 'error'` 와 `output.error` 를 실은 `node.failed` 나 `node.completed` 가 옴. store 에는 앞선 노드의 대화가 있음 | (a) 대화 미리보기 목록에 `system_error` 줄이 붙지 않음. `details.retryable === true` 여도 같음 (b) `[다시 시도]` **없음** (c) 실패는 오류 탭과 노드 결과 `output.error` 로 보임 | `use-execution-events.test.ts` |
 
 시나리오의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 한 export 로 둔다. 새 시나리오를 찾으면 이 표, fixture, 해당 테스트를 함께 추가하는 것이 PR 리뷰의 의무다.
 
-**충족 테스트 매핑**: 아래 표는 CT-S1~CT-S8 을 채우는 기존 단위 테스트다. CT-S9~CT-S20 은 위 시나리오 표의 "1차 테스트 파일" 열이 대응 파일을 가리키고 테스트 이름 단위 매핑은 아직 이 표에 적지 않았다. 새 시나리오를 더하면 이 표의 충족 테스트도 함께 갱신한다.
+**충족 테스트 매핑**: 아래 표는 CT-S1~CT-S8 을 채우는 기존 단위 테스트다. CT-S9~CT-S21 은 위 시나리오 표의 "1차 테스트 파일" 열이 대응 파일을 가리키고 테스트 이름 단위 매핑은 아직 이 표에 적지 않았다. 새 시나리오를 더하면 이 표의 충족 테스트도 함께 갱신한다.
 
 | ID | 충족 테스트 |
 | --- | --- |
@@ -451,6 +452,16 @@ store 보존(Inv-6)과 별도로 렌더 층 도달성을 Inv-8 로 두고 [데�
 - **`status` 를 게이트로 쓰지 않는 이유**: 엔진은 실패해도 `nodeExec.outputData` 를 저장하고 `node.failed` 이벤트에 함께 싣는다. 즉 `status` 는 대화 데이터가 있는지와 상관없는 축이다. 데이터 유무(`isConversationOutput(outputData)` 또는 store 의 `system_error` 보유)로 판정해야 매체가 있는 한 늘 닿을 수 있다. `status` 로 막으면 데이터가 있는데도 막는 거짓 음성이 생긴다.
 - **retryable 과 상관없이 넓힌 이유**: 원래 예외의 근거는 [다시 시도] 버튼에 묶여 있어 저절로 넓어지지 않는다. 그래서 따로 근거를 둔다. 대화 시간축을 보존하는 가치는 재시도 가능성과 독립이다. retryable 이 아닌 종료(예: 인증 실패)에서도 사용자는 "어느 턴에서 어떤 맥락으로 끊겼는지" 를 먼저 봐야 한다. `system_error` 는 retryable 여부와 상관없이 스레드에 인라인으로 표시된다(retryable 이 아니면 액션 영역만 빈다). 오류 탭은 명시적으로 골라 계속 열 수 있어 에러 정보에 닿는 길은 줄지 않는다. 원래 예외가 기본 탭 일반 원칙(ED-EX-13)과의 긴장을 푼 것과 같은 논증이다.
 - **기각: 백엔드가 실패 노드에 대화 페이로드를 더 싣기.** 이미 싣고 있다(실측). 프런트가 버렸을 뿐이라 백엔드 계약을 바꿀 필요가 없다. `node.failed` 는 노드와 상관없는 공통 실패 경로라 AI 전용 페이로드를 더하면 계층을 침범한다.
+
+### 단일 턴 실패에는 `system_error` 를 붙이지 않는다 (2026-11-01)
+
+AI 에이전트 단일 턴이 실패하면 대화 미리보기 목록에 `system_error` 줄을 붙이지 않는다. 실패는 오류 탭과 노드 결과의 `output.error` 로 보인다. 단일 턴의 LLM 호출 실패가 `error` 포트 출력으로 바뀌어(NERV Task `CLE-T-ZHBMAC`) 단일 턴 실패 출력에도 `output.error` 가 실리게 되면서 이 경우를 따로 정했다.
+
+- **목록에 단일 턴 자신의 대화가 없다**: 미리보기의 대화 목록은 입력 대기 이벤트(`waiting_for_input`)의 스레드 스냅샷과 멀티턴 `execution.ai_message` 이벤트로만 채워진다. 단일 턴은 두 이벤트를 모두 내지 않는다. 그래서 단일 턴이 실패할 때 목록에 있는 대화는 앞선 노드의 것이다. 단일 턴 자신의 턴은 그 시점에 목록에 없어서 실패 줄이 들어갈 자리가 없다.
+- **[다시 시도] 가 되돌릴 재시도 상태가 없다**: 단일 턴은 마지막 턴 재시도 상태(`_retryState`)를 만들지 않는다. 줄을 붙이면 [다시 시도] 를 눌러도 `RETRY_STATE_NOT_FOUND` 로 끝난다.
+- **Inv-8 과의 관계**: [보존과 도달성을 나눈다 (Inv-8)](#보존과-도달성을-나눈다-inv-8) 는 멀티턴 대화 안의 실패 줄을 retryable 과 상관없이 남기고 버튼만 비우는 결정이다. `finding 01a196a2-ba60-7424-85d8-ea7e992b3c0d` 가 단일 턴에도 `system_error` 줄은 두고 버튼만 숨기는 안을 제기했다. 그 안은 고르지 않았다. 단일 턴은 대화 미리보기 목록을 스스로 채우지 않으므로 줄을 두면 목록에 있는 앞선 다른 노드의 대화 끝에 붙는다. 그 줄이 보여 줄 정보는 오류 탭과 노드 결과의 `output.error` 에 이미 있다.
+- **내역 화면도 합성하지 않는다**: 내역 화면 재구성도 단일 턴 실패에는 `system_error` 를 합성하지 않는다. 단일 턴 실패 출력에는 `output.result.messages` 가 없어 대화형 출력으로 보지 않기 때문이다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md#system_error)).
+- **알려진 한계**: 단일 턴은 LLM 호출 전에 백엔드 스레드에 `ai_user` 항목을 쌓는다. 실패하면 최종 `ai_assistant` 항목 없이 `ai_user` 항목이 남는다. 도구 기록(`includeToolTurns`)을 켰으면 실패 전 도구 반복의 assistant 항목과 도구 결과 항목도 남는다. 실행이 다른 노드의 입력 대기로 이어지면 그 스냅샷에 이 항목들이 에러 표시 없이 보일 수 있다. 노드가 취소된 단일 턴도 같은 항목이 남는다. 이 `ai_user` 잔존은 [대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항) 에 있다.
 
 ### `rag` 줄을 보조 관찰성 레인으로 둔다
 

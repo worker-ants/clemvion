@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "1bac78491e79a171f646fb84882edf9a568ad3d1bc7d39244419f4f18fb8850f"
+content_hash: "df5b630cfdf23ecfd2467c156899cc6345439fcc7bdae64cebfe4c18086a1f08"
 read_as: "approved_fallback"
-task: "CLE-T-SFH6RG"
+task: "CLE-T-ZHBMAC"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "356116f1bed7a73fddbac4ae46e2cee8959d25612f63c93bb7a21faed5ecdb68"
-etag: "sha256-423fcd389f73ac75132ca1a58e041afcbcdfc934658b2e45d490aed0f2439050"
+mirror_sha256: "7478486745faccf85467fa69cbbfabebd92510f8c57744ea50a5edb36f5ff116"
+etag: "sha256-831b3e51da0cbd94d8cd850dc17756860ed8bbfff789a0f13b2f1eea8c002a6d"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -44,7 +44,7 @@ AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드]
 6. 도메인 결과는 `output.result.*`, 에러는 `output.error.{code, message, details?}`, 사용자 입력 기록은 `output.interaction.*` 에 둔다.
 7. AI 노드의 에러는 `details.retryable: boolean` 을 반드시 싣는다. `details.retryAfterSec` 은 `retryable === true` 일 때만 싣는다.
 8. 멀티턴이 에러로 끝나도 부분 결과(`output.result`)를 `output.error` 와 함께 남긴다. 에러인지는 `output.error` 가 있는지로 판단한다.
-9. LLM 호출 결과의 `meta` 에는 `model`·`inputTokens`·`outputTokens`·`totalTokens`·`durationMs` 를 싣는다. `thinkingTokens` 와 `turnDebug` 는 있을 때만 싣는다.
+9. LLM 호출 결과의 `meta` 에는 `model`·`inputTokens`·`outputTokens`·`totalTokens`·`durationMs` 를 싣는다. `thinkingTokens` 와 `turnDebug` 는 있을 때만 싣는다. 단 AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력은 `meta.thinkingTokens` 를 늘 싣고 보고가 없으면 `0` 으로 채운다([토큰 회계](#토큰-회계)).
 10. provider 도구를 부른 노드는 `meta.ragSources`·`meta.ragDiagnostics`·`meta.mcpDiagnostics` 누적치를 싣는다. 멀티턴에서는 턴별 delta 의 합이 누적치와 같아야 한다.
 11. 대화 맥락 설정의 기본값은 `contextScope: 'none'` 이다. 사용자가 명시적으로 켤 때만 주입한다.
 12. 메모리 전략이 자동(`summary_buffer`·`persistent`)이면 범위 필드 4개(`contextScope`·`contextScopeN`·`contextInjectionMode`·`includeToolTurns`)는 무효다.
@@ -147,11 +147,13 @@ AI 노드는 `output.result.*`·`output.error.*`·`output.interaction.*` 세 묶
 | `meta.inputTokens` | 필수 | 입력 토큰 수 |
 | `meta.outputTokens` | 필수 | 출력 토큰 수 |
 | `meta.totalTokens` | 필수 | 입력과 출력의 합 |
-| `meta.thinkingTokens` | 선택 | 모델이 thinking 토큰을 보고할 때 |
+| `meta.thinkingTokens` | 선택 | 모델이 thinking 토큰을 보고할 때. AI 에이전트 단일 턴은 LLM 호출 단계까지 간 출력에 늘 싣고 보고가 없으면 `0` 이다 |
 | `meta.durationMs` | 필수 | 실행 소요 시간 |
 | `meta.turnDebug` | 선택 | 턴별 LLM 호출 기록. `[{ turnIndex, llmCalls, totalDurationMs, toolCalls?, ragSources?, ragDiagnostics?, mcpDiagnostics? }, ...]` |
 
 텍스트 분류기는 `turnDebug` 대신 평면 배열 `meta.llmCalls` 에 호출 기록을 싣는다. 에러 출력의 `meta` 규칙은 노드마다 다르다. [미결 사항](#미결-사항) 참조.
+
+AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `out`, 조건 분기 `<조건 id>`, LLM 호출 실패 `error`)은 `meta.inputTokens` · `meta.outputTokens` · `meta.totalTokens` · `meta.thinkingTokens` 네 값을 늘 싣는다. 보고가 없는 값은 `0` 이다. 그래서 단일 턴의 `thinkingTokens` 가 `0` 이면 모델이 0 을 보고했는지 보고하지 않았는지 가르지 않는다. 출력 경로와 상관없이 같은 키를 싣도록 구현이 `0` 으로 채운다. LLM 호출 실패 출력의 네 값은 실패 전에 성공한 LLM 호출 usage 의 합이다. 성공한 호출이 없으면 네 값은 모두 `0` 이다. 정상 완료와 조건 분기의 토큰은 지금 마지막 LLM 호출 하나의 usage 다. 그래서 도구 루프로 LLM 을 여러 번 부르면 두 경로의 집계 기준이 다르다. 기준을 맞추는 일은 NERV Task `CLE-T-9VRXGD` 가 맡는다. 도구 정의 크기 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 을 부르기 전에 끝나므로 토큰 필드 없이 `model` · `durationMs` 만 싣는다([미결 사항](#미결-사항)).
 
 **공통 타입의 단일 기준**: `LlmCallRecord` 와 `TurnDebugEntry` 의 타입 정의는 `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` 하나다. AI 에이전트와 정보 추출기가 함께 쓴다.
 
@@ -366,8 +368,8 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 
 | 호출 경로 | 앱 타임아웃 | 한도를 넘거나 호출이 실패하면 | 소유 문서 |
 |-----------|-------------|-------------------------------|-----------|
-| AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 멀티턴 재개는 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 단일 턴은 에러 코드 없이 노드가 실패한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 3.1 의 런타임 에러 처리를 아직 지키지 못하는 구현 공백이다(NERV Task `CLE-T-ZHBMAC`) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
-| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패한다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다([미결 사항](#미결-사항)) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 타임아웃이 나면 단일 턴과 멀티턴 재개 모두 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 그 밖의 실패 분류는 [AI 에이전트 노드의 에러 분류](CLE-NODE-AGENT.md#에러-코드)를 따른다. 단일 턴에서는 노드가 두 경우의 에러를 모두 `error` 포트로 낸다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패한다. 단일 턴에서는 `error` 포트가 아니라 에러 코드 없는 노드 실패로 끝난다. 요약 모델 설정(`summaryModelConfigId`)을 해석하지 못할 때도 단일 턴은 같은 노드 실패로 끝난다. 단일 턴의 이 두 노드 실패는 NERV Task `CLE-T-Q38K9F` 가 맡는다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다([미결 사항](#미결-사항)) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
 | 텍스트 분류기·정보 추출기 | 없음 | `LLM_CALL_FAILED` | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
 | 워크플로우 AI 어시스턴트 턴 | 없음. 스트리밍 호출(`chatStream`)만 쓴다 | 스트림 에러 코드로 턴이 끝난다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) |
 | 문서 임베딩 배치 | 60초 | 그 호출이 실패하고, 일시 오류로 보아 다시 시도한다 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
@@ -382,7 +384,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 
 - **인증 실패(401·403)의 재시도 가능 분류**: [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 [AI 에이전트 노드](CLE-NODE-AGENT.md)·[텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 문서는 인증 실패를 `retryable: false` 로 정한다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 고정한다. 코드도 갈린다. 정보 추출기 핸들러(`retryabilityDetails`)는 코드 기준이라 늘 `true` 이고, 텍스트 분류기 핸들러(`text-classifier.handler.ts` 234~241행)는 자기 문서와 달리 `LLM_CALL_FAILED` 를 늘 `true` 로 채운다. 같은 인증 실패에서 노드마다 [다시 시도] 버튼 노출이 달라진다. HTTP status 기준 분류로 통일할지, 정보 추출기의 코드 기준 예외를 규약에 적을지 결정 필요.
 - **자동 메모리 전략에서 opt-out 필드 노출**: 이 문서는 자동 전략에서 `excludeFromConversationThread` 가 유효하다고 정한다. 설정 화면은 자동 전략일 때 대화 맥락 필드 5개를 모두 숨긴다(`gateOnManualMemoryStrategy`). 원문 AI 에이전트 문서의 `memoryStrategy` 행과 원본 ND-AG-27 은 "`manual` 외 선택 시 5필드 무효" 라고 적었다. 자동 전략에서 opt-out 필드를 화면에 보일지 결정 필요.
-- **에러 출력의 `meta` 필수 여부**: 토큰 회계 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
+- **에러 출력의 `meta` 필수 여부**: 토큰 회계 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. AI 에이전트 단일 턴의 LLM 호출 실패 에러는 실패 전에 성공한 호출의 usage 를 더해 토큰으로 싣는다. 첫 호출이 실패하면 토큰은 `0` 이다. 이 에러는 `turnDebug` 를 늘 싣는다. 같은 노드의 도구 정의 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 호출 전에 나므로 `meta` 에 `model` · `durationMs` 만 싣는다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
 - **포트 type 표기**: [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 포트 정의 `type` enum 은 `data`·`control`·`error` 세 값이다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 는 시스템 포트에 `system` 을 쓴다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 는 시스템 포트와 에러 포트를 `data` 로 적는다. [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 는 에러 포트를 `error` 로 적는다. 현재 프런트엔드 `resolve-dynamic-ports.ts` 는 `DynamicPortType` 에 `system` 을 두고 AI 에이전트 시스템 포트에도 `system` 을 쓴다. enum 에 `system` 을 더할지, 노드 포트 표를 어느 값으로 맞출지 결정 필요.
 - **앱 타임아웃이 없는 호출의 상한**: [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표에서 앱 타임아웃이 「없음」 인 경로 가운데 다음은 상한을 정한 결정이 없다. 2026-10-10 결정은 문서를 코드에 맞추는 데까지였다([Rationale](#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10), 120초 하향안 기각 이력 포함). 결정 필요. NERV Task `CLE-T-0R5SYN`.
   - 롤링 요약 호출: 타임아웃도 취소 신호도 없고 실패하면 턴이 실패한다. 신호를 넘기지 않는 것은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 2 의 구현 공백이다.
