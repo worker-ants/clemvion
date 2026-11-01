@@ -400,6 +400,10 @@ export interface ResumableMessageOptions {
    * `node-cancellation-infrastructure` 후속. 본 필드는 그 소스가 생겼을 때 핸들러의
    * chat 호출까지 signal 이 도달하도록 **executor-side plumbing 을 미리 열어둔 것**
    * 이다(있으면 전파, 없으면 no-op). timeout 백스톱(§12.16)은 signal 과 독립 동작.
+   * 소스를 만들 때 함께 걸 일: AI 에이전트 resume chat 두 호출의 `rethrowIfNodeCancelled`
+   * catch 와 orchestrator `handleAiMessageTurn` 의 AbortError 처리. 지금은 둘 다 없어서
+   * 소스만 만들면 취소로 끊긴 resume chat 실패가 `handleAiTurnError` 로 가 error 종결이
+   * 된다(노드 취소 규칙 3 위반).
    */
   signal?: AbortSignal;
 }

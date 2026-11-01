@@ -439,4 +439,53 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
     expect(thread.getThread(context).turns).toHaveLength(0);
     expect(memory.scheduleExtraction).not.toHaveBeenCalled();
   });
+
+  // REQ-EXTRACT-030 — 수집 재시도 중 노드 취소로 끊긴 호출은 AbortError 로 올라가고
+  // 부분 결과 · thread 누적 · 메모리 추출을 남기지 않는다(노드 취소 규칙 3).
+  it('node cancel on a collection-retry call throws AbortError without thread push or extraction', async () => {
+    const controller = new AbortController();
+    const sdkAbort = new Error('Request was aborted.');
+    llm.chat
+      // 첫 호출: 필수 필드가 빠진 finalize → 수집 재시도로 두 번째 호출이 간다.
+      .mockResolvedValueOnce({
+        content: '',
+        toolCalls: [
+          {
+            id: 'tc1',
+            name: 'finalize_extraction',
+            arguments: JSON.stringify({ name: 'Bob' }),
+          },
+        ],
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        model: 'gpt-4o-mini',
+      })
+      .mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.reject(sdkAbort);
+      });
+    const context = makeExecutionContext({
+      executionId: 'exec-cancel',
+      nodeId: 'ie-1',
+      variables: { __workspaceId: 'ws-1' },
+      abortSignal: controller.signal,
+    });
+
+    await expect(
+      handler.execute(
+        {},
+        mtConfig({
+          memoryStrategy: 'persistent',
+          memoryKey: 'k',
+          outputSchema: [
+            { name: 'name', type: 'string', required: true },
+            { name: 'email', type: 'string', required: true },
+          ],
+        }),
+        context,
+      ),
+    ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+    expect(llm.chat).toHaveBeenCalledTimes(2);
+    expect(thread.getThread(context).turns).toHaveLength(0);
+    expect(memory.scheduleExtraction).not.toHaveBeenCalled();
+  });
 });

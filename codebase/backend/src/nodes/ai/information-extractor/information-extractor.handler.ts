@@ -987,6 +987,10 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
    *      needed, bump `collectionRetryCount`, and loop. If the retry budget
    *      is spent, return with `forcedEnd='max_retries'` so the caller
    *      routes to the `error` port.
+   *
+   * A failed LLM call comes back as `{ kind: 'error' }`. Throws an `AbortError`
+   * instead when the call failed after `params.abortSignal` aborted (node
+   * cancellation, REQ-EXTRACT-030).
    */
   private async runTurnWithCollectionRetries(
     params: {
@@ -1047,6 +1051,7 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
         result = call.result;
         trace = call.trace;
       } catch (err) {
+        // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
         rethrowIfNodeCancelled(err, params.abortSignal);
         return {
           kind: 'error',
@@ -1195,6 +1200,9 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
    *     catches every provider error (429 / timeout / 5xx included) and returns
    *     `{ kind: 'error' }`, so {@link processMultiTurnMessage} /
    *     {@link executeMultiTurn} emit {@link buildErrorOutput} directly (§5.3).
+   *     The one exception is a node cancellation: a call that failed after the
+   *     abort signal fired is rethrown as `AbortError` (REQ-EXTRACT-030) and
+   *     ends the node `cancelled` without reaching this method either.
    *     The engine's generic `handleAiTurnError` → this method is only a safety
    *     net for an *uncaught* throw before the turn loop (e.g.
    *     `llmService.resolveConfig` / {@link hydrateState}), and the `error`

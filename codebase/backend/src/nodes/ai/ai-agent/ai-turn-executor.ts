@@ -48,6 +48,7 @@ import {
 import { aiAgentLlmCallTimeoutMs } from './llm-call-timeout';
 import { injectConversationContext } from '../shared/conversation-context-injection';
 import { rethrowIfNodeCancelled } from '../shared/llm-cancellation';
+import { extractAiTurnErrorPayload } from '../shared/llm-error-payload';
 import {
   compactMessagesToTail,
   readExtractionWatermark,
@@ -595,6 +596,14 @@ const TOOL_BUDGET_EXCEEDED_ERROR = 'tool_call_budget_exceeded';
  *
  * 두 경로 모두 최종적으로 사용자에게는 동일한 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`
  * error 포트 output 이 도달한다 — 차이는 "어느 계층이 조립하는가" 뿐이다.
+ *
+ * ### LLM 호출 실패 (REQ-AGENT-024)
+ *
+ * `llmService.chat` 실패도 같은 방향으로 갈린다. `executeSingleTurn` 은 잡아서
+ * `error` 포트 output 을 return 하고(`buildSingleTurnLlmErrorOutput`), 멀티턴 재개는
+ * throw 해 orchestrator 가 조립한다. 두 경로의 `code` · `details.retryable` 은 같은
+ * `extractAiTurnErrorPayload`(`nodes/ai/shared/llm-error-payload.ts`)가 정한다. 단일 턴
+ * catch 는 맨 앞에서 `rethrowIfNodeCancelled` 로 노드 취소를 AbortError 로 던진다.
  */
 export class AiTurnExecutor {
   constructor(
@@ -1546,6 +1555,102 @@ export class AiTurnExecutor {
     }
   }
 
+  /**
+   * 단일 턴 LLM 호출(첫 호출 · 도구 반복) 실패의 `error` 포트 출력(REQ-AGENT-024).
+   * `code` · `details.retryable` 은 멀티턴 재개와 같은 {@link extractAiTurnErrorPayload}
+   * 로 정한다. `meta` 는 정상 완료와 같은 키에 실패 전까지 쌓인 값만 싣는다. 토큰은
+   * 성공한 호출 usage 의 합이다. 최종 `ai_assistant` thread push 와 메모리 추출은 하지
+   * 않는다. 노드 취소는 여기 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled`
+   * 로 던진다.
+   */
+  private buildSingleTurnLlmErrorOutput(args: {
+    err: unknown;
+    singleTurnConfigEcho: Record<string, unknown>;
+    model: string | undefined;
+    llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
+    toolCallCount: number;
+    accumulators: TurnOutputAccumulators;
+    singleTurnStartedAt: number;
+    singleTurnInjection: ReturnType<AiTurnExecutor['injectThreadContext']>;
+    memoryMeta: Awaited<
+      ReturnType<AiTurnExecutor['applySingleTurnMemoryInjection']>
+    >['memoryMeta'];
+  }): NodeHandlerOutput {
+    const {
+      err,
+      singleTurnConfigEcho,
+      model,
+      llmConfig,
+      toolCallCount,
+      accumulators,
+      singleTurnStartedAt,
+      singleTurnInjection,
+      memoryMeta,
+    } = args;
+    const {
+      ragAcc,
+      turnRagAcc,
+      mcpDiagnosticsAcc,
+      presentationCalls,
+      presentationSchemaViolations,
+      llmCalls,
+      toolCallTraces,
+    } = accumulators;
+    const error = extractAiTurnErrorPayload(err);
+    AiTurnExecutor.logger.warn(
+      `AI Agent single-turn LLM call failed (code=${error.code}): ${error.message}`,
+    );
+    const tokens = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      thinkingTokens: 0,
+    };
+    for (const call of llmCalls) {
+      const usage = (call.responsePayload as ChatResult | undefined)?.usage;
+      tokens.inputTokens += usage?.inputTokens ?? 0;
+      tokens.outputTokens += usage?.outputTokens ?? 0;
+      tokens.totalTokens += usage?.totalTokens ?? 0;
+      tokens.thinkingTokens += usage?.thinkingTokens ?? 0;
+    }
+    const durationMs = Date.now() - singleTurnStartedAt;
+    return {
+      config: singleTurnConfigEcho,
+      output: { error },
+      meta: {
+        durationMs,
+        model: model || llmConfig.defaultModel,
+        ...tokens,
+        toolCalls: toolCallCount,
+        ragSources: ragAcc.getSources(),
+        ragDiagnostics: ragAcc.getDiagnostics(),
+        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(mcpDiagnosticsAcc) ?? {}),
+        ...(presentationCalls.length > 0 ? { presentationCalls } : {}),
+        ...(presentationSchemaViolations.length > 0
+          ? { presentationSchemaViolations }
+          : {}),
+        ...(singleTurnInjection.injection.appliedScope !== 'none'
+          ? { contextInjection: singleTurnInjection.injection }
+          : {}),
+        ...(memoryMeta ? { memory: memoryMeta } : {}),
+        turnDebug: [
+          {
+            turnIndex: 1,
+            llmCalls,
+            totalDurationMs: durationMs,
+            ...(toolCallTraces.length > 0
+              ? { toolCalls: [...toolCallTraces] }
+              : {}),
+            ragSources: turnRagAcc.getSources(),
+            ragDiagnostics: turnRagAcc.getDiagnostics(),
+          },
+        ],
+      },
+      port: 'error',
+      status: 'ended',
+    };
+  }
+
   async executeSingleTurn(
     _input: unknown,
     config: Record<string, unknown>,
@@ -1682,6 +1787,31 @@ export class AiTurnExecutor {
     const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
+    // LLM 호출(첫 호출 · 도구 반복) 실패의 error 포트 출력. 두 호출부가 같은 누적기를 넘긴다.
+    const llmErrorOutput = (
+      err: unknown,
+      toolCallsSoFar: number,
+    ): NodeHandlerOutput =>
+      this.buildSingleTurnLlmErrorOutput({
+        err,
+        singleTurnConfigEcho,
+        model,
+        llmConfig,
+        toolCallCount: toolCallsSoFar,
+        accumulators: {
+          ragAcc,
+          turnRagAcc,
+          mcpDiagnosticsAcc,
+          presentationPayloads,
+          presentationCalls,
+          presentationSchemaViolations,
+          llmCalls,
+          toolCallTraces,
+        },
+        singleTurnStartedAt,
+        singleTurnInjection,
+        memoryMeta,
+      });
     const firstRequest = {
       model: model || llmConfig.defaultModel,
       messages: [...messages],
@@ -1716,9 +1846,9 @@ export class AiTurnExecutor {
         { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
       );
     } catch (err) {
-      // 노드 취소는 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3). 그 밖의 실패는 그대로 올린다.
+      // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
       rethrowIfNodeCancelled(err, context.abortSignal);
-      throw err;
+      return llmErrorOutput(err, 0);
     }
     llmCalls.push({
       requestPayload: firstRequest,
@@ -1854,9 +1984,9 @@ export class AiTurnExecutor {
           { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
         );
       } catch (err) {
-        // 노드 취소는 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
+        // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
         rethrowIfNodeCancelled(err, context.abortSignal);
-        throw err;
+        return llmErrorOutput(err, toolCallCount);
       }
       llmCalls.push({
         requestPayload: loopRequest,
@@ -2821,6 +2951,9 @@ export class AiTurnExecutor {
       // §12.16 defense-in-depth — resume 턴 chat 에도 app-level 타임아웃. signal 은
       // 현재 resume 경로에 abort 소스가 없어(node-cancellation.md, follow-up)
       // 대개 undefined 지만, 소스가 생기면 options 로 전파되도록 배선해 둔다.
+      // 이 호출과 아래 도구 반복 호출에는 `rethrowIfNodeCancelled` catch 가 없다. 신호
+      // 소스를 만들 때 두 호출의 catch 와 orchestrator `handleAiMessageTurn` 의 AbortError
+      // 처리를 함께 건다(노드 취소 규칙 3).
       { signal: options?.signal, timeoutMs: aiAgentLlmCallTimeoutMs() },
     );
     llmCalls.push({
@@ -2967,6 +3100,7 @@ export class AiTurnExecutor {
         // [Spec 7-llm-usage §1.3] tool-call 루프 내 후속 chat 도 동일 attribution 전달.
         llmContext,
         // §12.16 defense-in-depth — 후속 chat 도 app-level 타임아웃 대칭 적용.
+        // 취소 catch 가 없는 이유는 첫 resume chat 호출의 주석과 같다.
         { signal: options?.signal, timeoutMs: aiAgentLlmCallTimeoutMs() },
       );
       llmCalls.push({
