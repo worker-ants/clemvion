@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "297c238702f13f4194b3761a803d01885f1e80b2b4f5d7c4f32e12165a75bad3"
+content_hash: "0d66d5448c01dcff63105358f38a07c12dccf35a4a56f7a6bce44532b9622750"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-VTYPA1"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ebd278c7c26f8d689707177c712d3d17efc09d9d80266e02554591f78d520d2f"
-etag: "sha256-6221ab33b35b73a31e882ab9c2ee4268c5c37a09e5eb03f390308d824ceb6bc6"
+mirror_sha256: "89e818d777a0aeafe32db55eaf87a21d704fa59adc87dbc0f5566d9a24ce5d7b"
+etag: "sha256-9434484030253ee1463f603501c5ee766282b5e2174d23dbb633797de34b20e0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -122,10 +122,10 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 | 값 | 동작 |
 |------|------|
 | `stop` (기본) | 첫 병렬 분기가 실패하면 에러를 던진다(Parallel 노드 실패) |
-| `continue` | 모든 병렬 분기가 끝나기를 기다리고 실패한 분기는 `output.branches[i].error` 로 모은다 |
+| `continue` | 모든 병렬 분기가 끝나기를 기다린다. 실패한 병렬 분기 자리는 `output.branches[i] = null` 로 두고 실패 정보는 `output.skipped[]` 로 따로 모은다(ForEach 와 같은 형태) |
 | `cancel-others-on-fail` | 첫 실패에서 진행 중인 다른 병렬 분기를 `AbortSignal` 로 중단한다. signal 을 받는 노드만 일찍 정리하는 best-effort 동작이다 |
 
-ForEach 의 결과 분리 형태는 [ForEach 노드](CLE-NODE-FOREACH.md), Map 의 인라인 표시 형태는 [Map 노드](CLE-NODE-MAP.md) 가 정한다. 두 노드가 다른 형태를 쓰는 이유는 [Rationale](#rationale) 에 있다. 결과 배열이 원본 인덱스를 지키는 규칙은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 이 정한다.
+ForEach 의 결과 분리 형태는 [ForEach 노드](CLE-NODE-FOREACH.md), Map 의 인라인 표시 형태는 [Map 노드](CLE-NODE-MAP.md), Parallel 의 결과 분리 형태는 [Parallel 노드](CLE-NODE-PARALLEL.md#출력-구조) 가 정한다. ForEach 와 Map 이 다른 형태를 쓰는 이유와 Parallel 이 ForEach 형태를 따르는 이유는 [Rationale](#rationale) 에 있다. 결과 배열이 원본 인덱스를 지키는 규칙은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 이 정한다.
 
 ### 반복 결과 출력 구조
 
@@ -270,7 +270,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
   나머지 Logic 노드는 두 표의 형식이 같다. 다만 옛 캔버스 표에는 Filter 행이 없고 If/Else 는 첫 조건만 적고 `combineMode` 표시를 적지 않는다.
 - **실행 중 컨테이너 헤더의 진행 인덱스** (info): 이 문서와 Loop · Map 문서는 실행 중 헤더에 "Iteration 3/10" 같은 진행 인덱스를 보인다고 적는다. [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md) 의 컨테이너 절에는 이 요소가 없고 프론트엔드 캔버스 코드에서도 찾지 못했다. 캔버스 문서에 정의할지 미구현으로 표시할지 결정 필요.
 - **`skip` 과 `continue` 의 차이** (info): 노드 PRD 는 건너뛰기와 계속을 다른 정책으로 보여 준다. ForEach · Map 문서에서 두 값의 결과 형태는 같고 이 문서는 `continue` 가 노드 실행 기록에도 에러를 남긴다는 차이만 적는다. 관측할 수 있는 차이를 더 적을지 하나로 합칠지 결정 필요.
-- **완료 출력의 `port` 가 노드 출력 규약 Principle 5 와 맞지 않는다** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 5 는 `port: undefined` 를 노드 정의상 출력이 1개인 노드에, `port: string[]` 을 Parallel 핸들러와 텍스트 분류기에 둔다. Loop · ForEach · Map 은 출력 포트가 `body` 와 `done` 둘인데 완료 출력에 `port` 가 없다. 이 문서의 [노드 출력 사용 패턴](#노드-출력-사용-패턴) 표는 Parallel 이 끝날 때 `'done'` 을 싣는다고 적지만 구현은 배열 `['done']` 을 싣는다. 두 사실 모두 `execution-engine.service.ts` 의 컨테이너 완료 처리와 Parallel 완료 처리에서 확인했다. 규약과 이 문서 가운데 어느 쪽을 고칠지 결정 필요.
+- **완료 출력의 `port` 가 노드 출력 규약 Principle 5 와 맞지 않는다** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 5 는 `port: undefined` 를 노드 정의상 출력이 1개인 노드에, `port: string[]` 을 Parallel 핸들러와 텍스트 분류기에 둔다. Loop · ForEach · Map 은 출력 포트가 `body` 와 `done` 둘인데 완료 출력에 `port` 가 없다. 이 사실은 `execution-engine.service.ts` 의 컨테이너 완료 처리에서 확인했다. 규약과 이 문서 가운데 어느 쪽을 고칠지 결정 필요. Parallel 의 완료 `port` 는 이 문서의 [노드 출력 사용 패턴](#노드-출력-사용-패턴) 표대로 `'done'` 문자열로 정했다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#rationale)). 구현은 아직 배열 `['done']` 을 싣고 NERV Task `CLE-T-2HD471` 이 고친다.
 - **완료 덮어쓰기가 노드 실행 기록에 남지 않는다** (warning): [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 규칙 3 은 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에서 시작 시점 배열을 감추는 부분을 미구현으로 적는다. 현재 구현은 완료 때 실행 컨텍스트의 출력만 바꾸고 노드 실행 기록(`node_execution.output_data`)은 저장하지 않는다. 그래서 Map · ForEach 의 실행 기록에는 시작 시점의 `output: items[]` 와 핸들러가 돌려준 `meta` 만 남는다. 완료 출력과 엔진이 합친 `meta.iterations` · `meta.skippedCount` 는 없다. Loop · Parallel 도 완료 때 실행 컨텍스트만 바꾸고 실행 기록은 갱신하지 않는다. park 뒤 재개와 크래시 뒤 재구동의 rehydration 경로도 같은 저장값을 복원한다. 이전 실행의 직속 상류 출력을 복원하는 단일 노드 실행과 캔버스 · 실행 트리의 실행 시간 표시도 이 저장값을 읽는다([에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md)). 다음 노드 표현식은 실행 컨텍스트를 읽으므로 park · 재구동이 없으면 완료 출력을 보고 rehydration 뒤에는 시작 시점 값을 본다. 2026-10-24 e2e 실행의 노드 실행 기록으로 확인했다. 이 갭은 모든 재개를 rehydration 한 경로로 모아 손실 없이 되살린다는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md#park-즉시-해제와-rehydration-단일-경로-phase-b) 의 전제를 지금 어긴다. 그래서 설계를 바꾼 것으로 보지 않고 결함으로 둔다. ForEach · Map 의 `done` 포트 뒤에 Form · Carousel 같은 입력 대기 노드가 오면 재개 뒤의 노드부터 이 경로에 닿는다. 실행 기록을 완료 출력으로 갱신할지 규칙 3 을 실제에 맞게 고칠지 결정 필요. 규칙 3 을 고치는 쪽이면 그 전제와 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 의 rehydration 기준 문장도 함께 고친다. 후속 작업은 NERV Task `CLE-T-JXD0W5` 가 맡는다.
 
 ## 구현 위치
@@ -308,6 +308,8 @@ ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 
 - **ForEach** 는 "독립 항목 반복" 계약이다. 반복 회차가 서로 독립이므로 성공과 실패가 한 배열에 섞이지 않는 편이 뜻이 분명하다. `items[]` 에는 성공과 `null` 만, `skipped[]` 에는 실패만 둔다.
 
 그래서 두 형태를 하나로 합치지 않고 현재 정책을 유지한다.
+
+Parallel 의 `continue` 도 병렬 분기가 서로 독립이라 ForEach 형태를 따른다. `branches[]` 에는 병렬 분기 결과와 실패 자리의 `null` 만, `skipped[]` 에는 실패만 둔다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#rationale)).
 
 ### 컨테이너의 범위
 

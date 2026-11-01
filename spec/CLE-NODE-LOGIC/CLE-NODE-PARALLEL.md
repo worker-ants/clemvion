@@ -2,27 +2,27 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028"]
+requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "1d129ab2d0ad0fd739eda54e54e0baa547d56467caa871360ac962910650935c"
+content_hash: "b98297f8eee4e36e17d199b73267a5224cc3d35bc1a766628aeab796721aa597"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-E5BD74"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c514a076dc1cc29ef38eb064fa41ee98c68178b88fdfcb207935f8e4d241f5fb"
-etag: "sha256-06ab933a02400553e23b8eb38796fc9e42817d922c435673fa10fc88abf7c202"
+mirror_sha256: "9e3d94e63d3f55fff17ac0211a80ef03acc221f389587923fd97df5e396ad6fb"
+etag: "sha256-e3729ae305df1767b9d6f0d5565966d82be0306d1f72f32545dfa05eaa1ceea9"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(branch) N개를 동시에 실행하는 노드다(`executionMetadata.kind = 'parallel'`). 컨테이너는 아니지만 엔진 덮어쓰기를 받는 노드다. 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 한꺼번에 활성화하고 모든 병렬 분기가 끝나면 엔진이 `done` 포트로 `{ branches, count }` 결과를 내보낸다. `branches[i]` 는 `Promise.allSettled` 모델을 따른다. 성공이면 `{ status: 'fulfilled', value }`, 실패면 `{ status: 'rejected', error: { code, message } }` 다.
+Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(branch) N개를 동시에 실행하는 노드다(`executionMetadata.kind = 'parallel'`). 컨테이너는 아니지만 엔진 덮어쓰기를 받는 노드다. 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 한꺼번에 활성화하고 모든 병렬 분기가 끝나면 엔진이 `done` 포트로 `{ branches, count, skipped? }` 결과를 내보낸다. `branches[i]` 는 `branch_i` 병렬 분기의 결과다. 그 병렬 분기에서 실제로 실행된 노드 가운데 위상 순서가 가장 늦은 노드의 출력을 그대로 담는다. `errorPolicy='continue'` 에서 실패한 병렬 분기는 `branches[i]` 를 `null` 로 두고 실패 정보를 `output.skipped` 에 `{ index, error: { code, message } }` 로 따로 모은다. 이 두 가지는 [ForEach 노드](CLE-NODE-FOREACH.md) 와 같고 `meta.skippedCount` 는 싣지 않는다.
 
-**구현 상태**: `ParallelExecutor` 가 `p-limit` 과 `Promise.allSettled` 로 병렬 분기를 동시에 실행한다. 기본으로 켜져 있다(`PARALLEL_ENGINE=v1` 이 기본값). `PARALLEL_ENGINE=off` 로 명시하면 엔진이 위상 순서로 차례로 실행하는 되돌림 경로를 쓴다. 이 환경 변수는 모듈을 불러올 때 한 번 읽으므로 바꾸면 인스턴스를 다시 시작해야 반영된다. `branchCount` 2~16, `maxConcurrency` 0(제한 없음)·1~16 을 지원한다. 병렬 분기 안에 블로킹 노드와 되돌아가는 연결선은 둘 수 없다. 중첩 Parallel 은 깊이 2까지 허용하고 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 조용히 줄인다. `waitAll` 은 항상 `true` 로 동작하고 `false` 는 지원하지 않는다. fire-and-forget 이 필요하면 [Background 노드](CLE-NODE-BACKGROUND.md) 를 쓴다.
+**구현 상태**: `ParallelExecutor` 가 `p-limit` 과 `Promise.allSettled` 로 병렬 분기를 동시에 실행한다. 기본으로 켜져 있다(`PARALLEL_ENGINE=v1` 이 기본값). `PARALLEL_ENGINE=off` 로 명시하면 엔진이 위상 순서로 차례로 실행하는 되돌림 경로를 쓴다. 이 환경 변수는 모듈을 불러올 때 한 번 읽으므로 바꾸면 인스턴스를 다시 시작해야 반영된다. `branchCount` 2~16, `maxConcurrency` 0(제한 없음)·1~16 을 지원한다. 병렬 분기 안에 블로킹 노드와 되돌아가는 연결선은 둘 수 없다. 중첩 Parallel 은 깊이 2까지 허용하고 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 조용히 줄인다. `waitAll` 은 항상 `true` 로 동작하고 `false` 는 지원하지 않는다. fire-and-forget 이 필요하면 [Background 노드](CLE-NODE-BACKGROUND.md) 를 쓴다. 2026-11-01 에 정한 완료 출력(실패한 병렬 분기의 `null` 자리와 `output.skipped`, 실제로 실행된 노드 가운데 위상 순서가 가장 늦은 노드 고르기, `'done'` 문자열 `port`)과 `branchCount` 범위 문구 합치기는 아직 구현되지 않았고 NERV Task `CLE-T-2HD471` 이 구현한다.
 
 이 문서는 Parallel 노드의 설정, 포트, 실행 로직, 병렬 분기 격리, 출력 구조, 에러, 중첩 Parallel 제한을 정한다. 항목 에러 정책의 값 비교와 엔진 덮어쓰기 계약은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md) 이 정한다. 엔진 덮어쓰기의 실행 흐름은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md), `abortSignal` 전파 규칙은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md), 실행 컨텍스트 필드 분류는 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), 저장·캔버스 단계의 중첩 경고 규칙은 [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 이 정한다.
 
@@ -30,7 +30,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 
 - REQ-PARALLEL-001 WHEN Parallel 노드가 실행되면 THE SYSTEM SHALL 여러 병렬 분기를 동시에 실행한다. (원본: ND-PL-01)
 - REQ-PARALLEL-002 WHEN 사용자가 `branchCount` 를 바꾸면 THE SYSTEM SHALL 병렬 분기 출력 포트(`branch_<index>`)를 그 수만큼 동적으로 만들거나 없앤다. (원본: ND-PL-02)
-- REQ-PARALLEL-003 WHEN 모든 병렬 분기가 끝나면 THE SYSTEM SHALL `done` 포트로 `{ branches, count }` 결과를 한 번에 합쳐 보낸다. (원본: ND-PL-03, Merge `wait_all` 로 우회하는 구성은 선택 사항)
+- REQ-PARALLEL-003 WHEN 모든 병렬 분기가 끝나면 THE SYSTEM SHALL `done` 포트로 `{ branches, count, skipped? }` 결과를 한 번에 합쳐 보낸다. (원본: ND-PL-03, Merge `wait_all` 로 우회하는 구성은 선택 사항)
 - REQ-PARALLEL-004 WHEN 사용자가 `maxConcurrency` 를 설정하면 THE SYSTEM SHALL 동시에 실행하는 병렬 분기 수를 그 값으로 제한한다. (원본: ND-PL-04)
 - REQ-PARALLEL-005 WHEN `maxConcurrency` 가 `0` 이면 THE SYSTEM SHALL 동시 실행 수를 `branchCount` 와 같게 둔다.
 - REQ-PARALLEL-006 WHEN 핸들러가 시작 시점 출력을 반환하면 THE SYSTEM SHALL `output: null` 과 `port: string[]` (`branch_0` ~ `branch_{N-1}`)을 반환해 모든 병렬 분기를 활성화한다.
@@ -39,12 +39,12 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - REQ-PARALLEL-009 WHEN 병렬 분기 컨텍스트를 만들면 THE SYSTEM SHALL `nodeOutputCache` · `structuredOutputCache` 를 얕게 복사하고 `itemContext` · `loopContext` 를 비운다.
 - REQ-PARALLEL-010 WHILE 실행 환경이 `development` 나 `test` 인 동안 THE SYSTEM SHALL 병렬 분기 복제 직후 공유 캐시 값 객체를 깊게 얼려 값 내부 변경을 `TypeError` 로 드러낸다.
 - REQ-PARALLEL-011 IF 항목 에러 정책이 `stop` 이고 병렬 분기가 처음 실패하면 THE SYSTEM SHALL 곧바로 에러를 던져 Parallel 노드를 실패로 전이한다.
-- REQ-PARALLEL-012 IF 항목 에러 정책이 `continue` 고 병렬 분기가 실패하면 THE SYSTEM SHALL 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기를 `status: 'rejected'` 결과로 모은다.
+- REQ-PARALLEL-012 IF 항목 에러 정책이 `continue` 고 병렬 분기가 실패하면 THE SYSTEM SHALL 모든 병렬 분기가 끝나기를 기다린 뒤 그 병렬 분기의 `output.branches[i]` 를 `null` 로 두고 실패 정보를 `output.skipped` 에 `{ index, error: { code, message } }` 로 모은다. (미구현)
 - REQ-PARALLEL-013 IF 항목 에러 정책이 `cancel-others-on-fail` 이고 병렬 분기가 처음 실패하면 THE SYSTEM SHALL 자기 그룹의 `AbortController` 를 abort 해 다른 병렬 분기의 외부 I/O 를 중단하고 모든 병렬 분기가 끝난 뒤 첫 원인 에러를 Parallel 노드의 에러로 던진다.
 - REQ-PARALLEL-014 WHEN `cancel-others-on-fail` 로 원인 에러를 고르면 THE SYSTEM SHALL `AbortError` 가 아닌 첫 실패를 원인으로 쓰고 `AbortError` 는 사용자에게 드러내지 않는다.
 - REQ-PARALLEL-015 WHEN 상위 `context.abortSignal` 이 abort 되면 THE SYSTEM SHALL 그 abort 를 Parallel 그룹의 병렬 분기에도 전파한다.
 - REQ-PARALLEL-016 IF `config.errorPolicy` 가 설정되지 않았으면 THE SYSTEM SHALL 공통 `errorHandling.policy` 가 `skip_node` / `use_default_output` / `route_to_error_port` 일 때 `continue`, 그 밖이면 `stop` 을 쓴다.
-- REQ-PARALLEL-017 WHEN 모든 병렬 분기가 끝나면 THE SYSTEM SHALL 노드 `output` 을 `{ branches, count }` 로 덮어쓰고 `port: 'done'` 을 싣는다.
+- REQ-PARALLEL-017 WHEN 모든 병렬 분기가 끝나면 THE SYSTEM SHALL 노드 `output` 을 `{ branches, count, skipped? }` 로 덮어쓰고 `port: 'done'`(단일 문자열)을 싣는다. (미구현)
 - REQ-PARALLEL-018 IF `waitAll` 이 `false` 면 THE SYSTEM SHALL `handler.validate` 에서 거부하고 Background 노드를 쓰라고 안내한다.
 - REQ-PARALLEL-019 IF `branchCount` 가 정수가 아니거나 2~16 밖이면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-PARALLEL-020 IF `maxConcurrency` 가 숫자가 아니거나 정수가 아니거나 0~16 밖이면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
@@ -56,6 +56,8 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - REQ-PARALLEL-026 WHEN 워크플로우를 저장하거나 캔버스를 편집하면 THE SYSTEM SHALL 중첩 깊이 위반은 저장을 거부하고 동시 실행 수 곱 초과는 경고 배지로 먼저 알린다.
 - REQ-PARALLEL-027 WHEN `PARALLEL_ENGINE=off` 로 설정하면 THE SYSTEM SHALL 병렬 분기를 위상 순서로 차례로 실행한다.
 - REQ-PARALLEL-028 WHEN Parallel 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트를 두지 않는다.
+- REQ-PARALLEL-029 IF 실패한 병렬 분기가 없으면 THE SYSTEM SHALL 완료 출력에 `output.skipped` 를 싣지 않는다. (미구현)
+- REQ-PARALLEL-030 WHEN 병렬 분기의 결과를 정하면 THE SYSTEM SHALL 그 병렬 분기에서 실제로 실행된 노드 가운데 위상 순서가 가장 늦은 노드의 출력을 `output.branches[i]` 에 담고 실행된 노드가 없으면 `null` 을 담는다. (미구현)
 
 ## 설정
 
@@ -85,7 +87,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 |------|------|-------|------|---------|------|
 | 입력 | `in` | Input | data | false | 외부 데이터 진입. 모든 병렬 분기에 같은 입력을 복제해 넘긴다 |
 | 출력 | `branch_0` ~ `branch_{N-1}` | Branch i | data | true | `branchCount` 에 따라 동적으로 만든다(`dynamicPorts.kind = 'parallel-branches'`). 병렬 분기마다의 진입점 |
-| 출력 | `done` | Done | data | false | 모든 병렬 분기가 끝난 뒤 `{ branches, count }` 를 넘긴다(`branches[i]` 는 allSettled 모양) |
+| 출력 | `done` | Done | data | false | 모든 병렬 분기가 끝난 뒤 `{ branches, count }` 를 넘긴다. 실패한 병렬 분기가 있으면 `skipped` 도 넘긴다 |
 
 동적 포트 ID 는 `branch_<index>` 형식이다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `<prefix>_<index>` 규칙). 동적 포트도 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#동적-포트-id-불변성) 의 ID 불변성을 따른다. `branchCount` 를 바꿔 포트를 다시 구성해도 기존 인덱스의 포트 ID 는 유지된다.
 
@@ -97,9 +99,9 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 4. 병렬 분기마다 `ExecutionContext` 의 얕은 복사본을 받는다. `variables` 는 `structuredClone` 으로 깊게 복사하고 `itemContext` / `loopContext` 는 병렬 분기에 들어갈 때 `undefined` 로 비운다(중첩 ForEach · Loop 상태가 새지 않게).
 5. 항목 에러 정책을 적용한다.
    - `stop` (기본): 첫 병렬 분기가 실패하면 곧바로 에러를 던지고 Parallel 노드가 실패로 전이한다.
-   - `continue`: 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 정보를 모아 [완료 시점](#완료-시점-done-포트) 결과에 넣는다.
+   - `continue`: 모든 병렬 분기가 끝나기를 기다린다. 실패한 병렬 분기는 [완료 시점](#완료-시점-done-포트) 결과의 `branches[i]` 를 `null` 로 두고 실패 정보를 `output.skipped` 에 모은다. Parallel 노드는 `done` 포트로 끝난다.
    - `cancel-others-on-fail`: 자기 그룹용 `AbortController` 를 만들어 병렬 분기 컨텍스트의 `abortSignal` 에 넣는다. 첫 병렬 분기가 실패하면 `controller.abort()` 를 부른다. 다른 병렬 분기의 외부 I/O 노드 가운데 취소 규칙을 따르는 노드(HTTP · DB · AI · Cafe24 · MakeShop)가 best-effort 로 정리한다. Email 은 보내기 전 abort 확인만 하고 이미 진행 중인 SMTP 전송은 끊지 않는다. 모든 병렬 분기가 끝나면 원인 에러를 Parallel 노드의 에러로 다시 던진다(Parallel 노드 실패). 상위 `context.abortSignal` 이 있으면 그 abort 도 이어서 전파한다. 노드별 신호 처리 규칙은 [노드 취소 §노드 핸들러 의무](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 가 정한다.
-6. 모든 병렬 분기가 끝나면 엔진이 `output` 을 `{ branches: [...], count }` 로 덮어쓰고 `done` 포트(`port: 'done'`, 단일 문자열)로 보낸다. `branches[i]` 는 `Promise.allSettled` 모델(`{ status: 'fulfilled', value }` 또는 `{ status: 'rejected', error: { code, message } }`)이다.
+6. 모든 병렬 분기가 끝나면 엔진이 `output` 을 `{ branches: [...], count, skipped? }` 로 덮어쓰고 `done` 포트(`port: 'done'`, 단일 문자열)로 보낸다. `branches[i]` 는 `branch_i` 병렬 분기에서 실제로 실행된 노드 가운데 위상 순서가 가장 늦은 노드의 출력이다. 병렬 분기 안의 If · Switch 가 고르지 않은 경로의 노드는 실행되지 않았으므로 고르지 않는다. 실행된 노드가 없거나 병렬 분기가 실패했으면 `null` 이다.
 
 ```mermaid
 flowchart LR
@@ -107,7 +109,7 @@ flowchart LR
   B --> C1[병렬 분기 0]
   B --> C2[병렬 분기 1]
   B --> C3[병렬 분기 N-1]
-  C1 --> D[모든 분기 종료 대기]
+  C1 --> D[모든 병렬 분기 종료 대기]
   C2 --> D
   C3 --> D
   D --> E[엔진이 output 을 branches 와 count 로 덮어쓰기]
@@ -137,42 +139,49 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 
 ### 완료 시점 (`done` 포트)
 
+`errorPolicy='continue'` 에서 `branch_2` 가 실패한 예다.
+
 ```json
 {
   "config": { "branchCount": 3, "maxConcurrency": 0 },
   "output": {
     "branches": [
-      { "status": "fulfilled", "value": { "userId": "u-1", "step": "validate", "ok": true } },
-      { "status": "fulfilled", "value": { "userId": "u-1", "step": "enrich", "ok": true } },
-      { "status": "rejected",  "error": { "code": "Error", "message": "notify failed" } }
+      { "userId": "u-1", "step": "validate", "ok": true },
+      { "userId": "u-1", "step": "enrich", "ok": true },
+      null
     ],
-    "count": 3
+    "count": 3,
+    "skipped": [
+      { "index": 2, "error": { "code": "Error", "message": "notify failed" } }
+    ]
   },
   "port": "done"
 }
 ```
 
+실패한 병렬 분기가 없으면 `output.skipped` 필드 자체가 없다(REQ-PARALLEL-029).
+
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.branchCount` | Integer (원래 값) | 설정 에코 | 시작 시점과 같음 |
 | `config.maxConcurrency` | Integer (원래 값) | 설정 에코 | 시작 시점과 같음 |
-| `output.branches` | `Array<BranchResult>` | 엔진 덮어쓰기 | 병렬 분기마다의 결과(`Promise.allSettled` 모델). `branches[i]` 는 `branch_i` 병렬 분기의 결과. 컬렉션 키는 `branches` ([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) |
-| `output.branches[i].status` | `'fulfilled' \| 'rejected'` | 엔진 | 병렬 분기 종료 상태 |
-| `output.branches[i].value` | unknown | 엔진 | (`status: 'fulfilled'` 일 때) 병렬 분기의 마지막 노드 출력 |
-| `output.branches[i].error` | `{ code, message }` | 엔진 | (`status: 'rejected'` 일 때) `errorPolicy='continue'` 에서 실패한 병렬 분기의 에러 정보. `code` 는 `error.name` (없으면 `'UNKNOWN_ERROR'`), `message` 는 `error.message` |
-| `output.count` | Integer | 엔진 덮어쓰기 | 끝난 병렬 분기 수(`branches.length`). 컬렉션 키와 `count` 를 함께 내는 공통 규칙을 따른다 |
+| `output.branches` | `Array<unknown \| null>` | 엔진 덮어쓰기 | 병렬 분기마다의 결과. `branches[i]` 는 `branch_i` 병렬 분기에서 실제로 실행된 노드 가운데 위상 순서가 가장 늦은 노드의 출력이고 `_selectedPort` 같은 엔진 내부 제어 필드는 뺀다. 실행된 노드가 없거나 병렬 분기가 실패했으면 `null` 이다. 컬렉션 키는 `branches` ([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) |
+| `output.count` | Integer | 엔진 덮어쓰기 | 병렬 분기 수(`branches.length`). 실패한 병렬 분기도 자리를 지키므로 함께 센다. 컬렉션 키와 `count` 를 함께 내는 공통 규칙을 따른다 |
+| `output.skipped?` | `Array<{ index, error }>` | 엔진 덮어쓰기 | `errorPolicy='continue'` 에서 실패한 병렬 분기. `index` 는 병렬 분기 번호(`branch_<index>` 의 index), `error.code` 는 `error.name`(없으면 `'UNKNOWN_ERROR'`), `error.message` 는 `error.message` 다. 실패가 0건이면 필드 자체를 뺀다. 실행 상태 `skipped`(실행하지 않고 건너뜀)와는 다른 뜻이다 |
 | `port` | `'done'` | 엔진 | 단일 문자열. 모든 병렬 분기 완료 경로 |
 
-완료 출력의 `meta` 는 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `{ clampedConcurrency }` 로 싣고 그 밖에는 싣지 않는다(REQ-PARALLEL-025). 병렬 분기 수와 실패 수는 `meta` 에 따로 두지 않는다. 다음 노드는 `output.count` 와 `output.branches[i].status` 로 읽는다. `meta.durationMs` 도 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 병렬 분기 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)).
+완료 출력의 `meta` 는 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `{ clampedConcurrency }` 로 싣고 그 밖에는 싣지 않는다(REQ-PARALLEL-025). 병렬 분기 수와 실패 수는 `meta` 에 따로 두지 않는다. 다음 노드는 병렬 분기 수를 `output.count` 로, 실패는 `output.skipped` 로 읽는다(실패 수는 `output.skipped.length`). `meta.durationMs` 도 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 병렬 분기 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)).
 
-`errorPolicy='stop'` 에서는 첫 실패에 곧바로 에러를 던져 `done` 포트를 거치지 않으므로 `branches[i]` 는 모두 `fulfilled` 다(Parallel 노드는 실패로 전이). `rejected` 항목은 `errorPolicy='continue'` 에서만 보인다.
+`errorPolicy` 가 `stop` 이나 `cancel-others-on-fail` 이면 병렬 분기가 실패할 때 Parallel 노드가 실패로 전이하고 `done` 포트를 거치지 않는다. 그래서 실패 자리의 `null` 과 `output.skipped` 는 `errorPolicy='continue'` 에서만 보인다.
 
 표현식 접근 예:
 
-- `$node["Parallel"].output.branches[0].value` → `branch_0` 병렬 분기의 마지막 출력(성공 시)
-- `$node["Parallel"].output.branches[2].error.message` → `branch_2` 의 에러 메시지(실패 시)
+- `$node["Parallel"].output.branches[0]` → `branch_0` 병렬 분기의 결과(실패했으면 `null`)
+- `$node["Parallel"].output.branches[0].ok` → `branch_0` 결과의 필드
+- `$node["Parallel"].output.skipped[0].error.message` → 첫 번째로 모인 실패의 에러 메시지(실패가 있을 때)
+- `$node["Parallel"].output.skipped[0].index` → 그 실패가 난 병렬 분기 번호
 - `$node["Parallel"].output.branches.length` → 병렬 분기 수(`output.count` 와 같은 값)
-- `$node["Parallel"].output.count` → 끝난 병렬 분기 수
+- `$node["Parallel"].output.count` → 병렬 분기 수(실패한 병렬 분기 포함)
 - `$node["Parallel"].port` → `"done"`
 
 ### 엔진 덮어쓰기 계약
@@ -180,29 +189,30 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 | 시점 | `output` 형태 | `port` | 출처 |
 |------|-------------|------|------|
 | 시작(병렬 분기 fan-out 직전) | `output: null` | `string[]` (`branch_0` ~ `branch_{N-1}`) | 핸들러 반환. 병렬 분기 포트를 여는 용도 |
-| 완료(모든 병렬 분기 종료 뒤) | `output: { branches: Array<{ status, value? \| error? }>, count }` | `'done'` (단일 문자열) | **엔진 덮어쓰기** |
+| 완료(모든 병렬 분기 종료 뒤) | `output: { branches: Array<unknown \| null>, count, skipped? }` | `'done'` (단일 문자열) | **엔진 덮어쓰기** |
 
 1. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["Parallel"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 시작 시점의 `output: null` 을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
 2. 핸들러가 시작 시점에 반환한 `output: null` 은 엔진이 덮어쓰기 전의 중간 단계다(Loop · ForEach · Map 과 같은 방식). 밖의 표현식에 드러나지 않는 범위는 1번과 같다.
-3. `port` 는 시작 시점에 `string[]` (fan-out)이고 완료 시점에 `'done'` 문자열(단일 포트)이다. 엔진 덮어쓰기 대상 노드 가운데 노드 출력에 `port` 를 직접 싣는 것은 Parallel 뿐이다.
+3. `port` 는 시작 시점에 `string[]` (fan-out)이고 완료 시점에 `'done'` 문자열(단일 포트)이다. 엔진 덮어쓰기 대상 노드 가운데 노드 출력에 `port` 를 직접 싣는 것은 Parallel 뿐이다. 엔진이 연결선을 고르려고 내부 캐시에 두는 `_selectedPort` 도 노드 출력 `port` 와 같은 모양이라([실행 엔진](../CLE-EXEC/CLE-EXEC-ENGINE.md) 의 `_selectedPort` 처리) 완료 시점에 `'done'` 이다.
 4. 병렬 분기 입력은 `ParallelExecutor` 가 `ExecutionContext` 얕은 복사본(`variables` 는 깊은 복사)으로 나눠 준다. 핸들러의 시작 시점 `output` 에 기대지 않는다.
 
 ## 에러
 
 Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 검증 에러로 던지고 병렬 분기 실행 중의 에러는 항목 에러 정책으로 처리한다. 메시지는 영문 원문이 기준이고 캔버스는 프론트엔드 i18n 으로 한국어를 렌더링한다.
 
+`branchCount` 범위 검사는 노드 경고 규칙 한 곳에만 둔다. `handler.validate` 는 경고 규칙과 `validateConfig` 의 결과를 합쳐 돌려주므로 같은 문구가 캔버스 배지와 검증 결과에 한 번씩 보인다. `validateConfig`(`validateParallelConfig`)는 경고 규칙의 표현식으로 쓸 수 없는 정수 검사만 맡는다.
+
 | 발생 조건 | 메시지 / 코드 | 시점 |
 |-----------|--------------|------|
-| `branchCount` 가 2 미만 또는 16 초과 | `branchCount must be 2 to 16.` | 노드 경고 규칙(캔버스 배지) |
+| `branchCount` 가 `[2, 16]` 밖 | `branchCount must be a value between 2 and 16.` | 노드 경고 규칙(캔버스 배지와 `handler.validate`) |
 | `branchCount` 가 정수 아님 | `branchCount must be an integer.` | `handler.validate` |
-| `branchCount` 가 `[2, 16]` 밖 | `branchCount must be a value between 2 and 16.` | `handler.validate` |
 | `maxConcurrency` 가 숫자 아님 | `maxConcurrency must be a number.` | `handler.validate` |
 | `maxConcurrency` 가 정수 아님 | `maxConcurrency must be an integer.` | `handler.validate` |
 | `maxConcurrency` 가 `[0, 16]` 밖 | `maxConcurrency must be a value between 0 and 16 (0 = unlimited).` | `handler.validate` |
 | `waitAll` 이 불리언 아님 | `waitAll must be a boolean.` | `handler.validate` |
 | `waitAll === false` | `waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics.` | `handler.validate` |
 | 병렬 분기 에러(`errorPolicy=stop`) | 첫 실패한 병렬 분기의 에러를 던짐. Parallel 노드 실패 | 엔진 런타임([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책)) |
-| 병렬 분기 에러(`errorPolicy=continue`) | 실패 정보를 모아 노드 실행 기록에 남김(모든 병렬 분기 종료 대기) | 엔진 런타임 |
+| 병렬 분기 에러(`errorPolicy=continue`) | 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 자리를 `output.branches[i] = null` 로 두고 실패 정보를 `output.skipped` 에 모음. Parallel 노드는 `done` 으로 끝남 | 엔진 런타임 |
 | 병렬 분기 에러(`errorPolicy=cancel-others-on-fail`) | 자기 그룹 `AbortController.abort()` → 다른 병렬 분기 외부 I/O 중단 + 원인 에러를 던짐 → Parallel 실패. 규칙: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) | 런타임(`ParallelExecutor`) |
 | 병렬 분기 안에 블로킹 노드(form / buttons / ai_conversation) | `PARALLEL_INVALID_CHILD` | 엔진 그래프 검증 |
 | 병렬 분기 안에 되돌아가는 연결선 | `PARALLEL_BACK_EDGE` | 엔진 그래프 검증(`planParallelBody`) |
@@ -296,10 +306,31 @@ Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 �
 
 ### 완료 `meta` 에 병렬 분기 수와 실패 수를 따로 싣지 않는다 (2026-10-24)
 
-옛 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 컨테이너 행은 `meta.branches?` 를 적었지만 엔진은 `meta.clampedConcurrency` 만 싣는다. 병렬 분기 수는 `output.count`, 성공과 실패는 `output.branches[i].status` 로 이미 알 수 있으므로 지금 동작을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`).
+옛 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 컨테이너 행은 `meta.branches?` 를 적었지만 엔진은 `meta.clampedConcurrency` 만 싣는다. 병렬 분기 수는 `output.count` 로, 성공과 실패는 `output.branches[i].status` 로 알 수 있다고 보고 지금 동작을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 당시 문서는 `branches[i]` 를 allSettled 모양으로 적었지만 엔진에는 그 모양이 없었다. 2026-11-01 에 완료 출력 형태를 바꿔 실패는 `output.skipped` 로 읽는다([아래 절](#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다-2026-11-01)). 실패 수를 `meta` 에 두지 않는다는 판단은 그대로다. 실패 수는 `output.skipped.length` 로 셀 수 있다.
 
-기각한 대안은 완료 `meta` 에 `branches` · `fulfilledCount` · `rejectedCount` 를 더하는 안이다. 엔진 코드를 바꿔야 하고 지금 이 값을 요구하는 화면 · 요구사항이 없다. 실패 수는 `branches[i].status` 로 셀 수 있다. `meta.durationMs` 는 이 판단에 넣지 않았다. 노드 전체 실행 시간을 둘 곳은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항) 의 미결 사항 「컨테이너 · Parallel 노드의 실행 시간」 에서 정한다.
+기각한 대안은 완료 `meta` 에 `branches` · `fulfilledCount` · `rejectedCount` 를 더하는 안이다. 엔진 코드를 바꿔야 하고 지금 이 값을 요구하는 화면 · 요구사항이 없다. `meta.durationMs` 는 이 판단에 넣지 않았다. 노드 전체 실행 시간을 둘 곳은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항) 의 미결 사항 「컨테이너 · Parallel 노드의 실행 시간」 에서 정한다.
 
 출력 균일성을 겹침 제거보다 앞에 둔 2026-06-03 결정 B([`done` 출력에 `count` 를 싣는다](#done-출력에-count-를-싣는다-2026-06-03-결정-b))는 `output` 필드에 대한 결정이다. 그래서 이 판단과 부딪치지 않는다. [Map 노드](CLE-NODE-MAP.md#rationale) 가 완료 `meta` 에 `iterations` · `skippedCount` 를 더한 것은 같은 실행기를 쓰는 ForEach 와 `meta` 를 맞추려는 것이라 이 경우와 다르다.
 
 병렬 분기 수나 실패 수를 `meta` 로 읽어야 하는 화면이나 요구사항이 생기면 다시 본다.
+
+### 완료 출력은 병렬 분기 결과를 그대로 두고 실패를 따로 모은다 (2026-11-01)
+
+이 문서는 한때 `branches[i]` 를 `Promise.allSettled` 모양(`{ status: 'fulfilled', value }` / `{ status: 'rejected', error }`)으로 적었다. 엔진은 처음부터 병렬 분기 마지막 노드의 출력을 그대로 `branches[i]` 에 넣었고 그렇게 감싸는 코드는 없었다(2026-06-25 재검증에서 찾은 어긋남, NERV Task `CLE-T-VTYPA1`). `errorPolicy='continue'` 에서 실행기가 모은 실패 목록도 엔진이 읽지 않아 실패한 병렬 분기가 출력에 드러나지 않았다. 사용자 가이드는 지금 구현 모양(`{{ $input.branches[0].data }}`)으로 설명해 왔다.
+
+두 방향을 사람에게 올려 정했다(NERV 질문 `01a19678-6efb`).
+
+- **(A) 스펙대로 allSettled 모양으로 감싼다** (기각): 스펙 수정은 가장 적다. 그러나 `branches[i].<필드>` 로 읽던 기존 워크플로우의 표현식이 에러 없이 `undefined` 가 되고 가이드도 바뀐다. `stop` · `cancel-others-on-fail` 은 병렬 분기가 실패하면 노드가 실패하므로 `done` 에는 성공만 오는데도 모든 읽기에 `.value` 한 단계가 늘어난다.
+- **(B) 지금 모양을 지키고 실패를 따로 모은다** (채택): 기존 워크플로우와 가이드가 그대로 동작한다. 병렬 분기는 서로 독립이라 ForEach 의 "독립 항목 반복" 계약과 같다. 그래서 ForEach 와 같은 형태(실패 자리 `null` + 실패 목록 `output.skipped`)를 쓴다. ForEach 와 Map 이 실패를 다르게 적는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다. ForEach 는 실패 수를 `meta.skippedCount` 로도 싣지만 Parallel 은 2026-10-24 결정대로 `meta` 에 실패 수를 두지 않는다. 요구하는 화면이나 요구사항이 생기면 ForEach 와 같은 값으로 더한다.
+
+**필드 이름 `skipped`**: ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.skipped` 에 따로 모인다" 하나만 익히면 된다. 질문에서는 Parallel 에 `skip` 정책이 없으니 `failed` 를 쓰는 안도 함께 올렸지만 ForEach 와 이름이 갈려 기각했다. 실행 상태 `skipped`(실행하지 않고 건너뜀)와 철자가 같아서 출력 표에 다른 뜻이라고 적었다.
+
+**병렬 분기 결과로 고르는 노드**: 엔진은 병렬 분기 안의 노드 전체를 위상 순서로 놓고 마지막 노드를 읽었다. 병렬 분기 안의 If · Switch 가 그 노드를 고르지 않으면 성공한 병렬 분기도 결과가 비었다. 그래서 실제로 실행된 노드 가운데 위상 순서가 가장 늦은 노드를 고른다고 정했다(REQ-PARALLEL-030). 실행된 노드가 없으면 `null` 이다.
+
+**완료 출력 `port`**: 문서는 `'done'`, 엔진의 구조화 출력은 `['done']` 이었다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 5 에서 배열은 여러 포트를 동시에 여는 fan-out 이다. 완료 시점은 `done` 하나만 열므로 문자열로 정했다. `['done']` 으로 문서를 맞추는 안은 fan-out 이 아닌 값에 배열을 쓰게 되어 기각했다. 엔진 내부 `_selectedPort` 도 노드 출력 `port` 와 같은 모양이라([실행 엔진](../CLE-EXEC/CLE-EXEC-ENGINE.md)) 함께 `'done'` 이 된다. 연결선 활성화는 문자열과 배열을 모두 받으므로 `done` 연결선만 여는 동작은 그대로다.
+
+**`branchCount` 범위 문구**: 노드 경고 규칙(`branchCount must be 2 to 16.`)과 `validateParallelConfig`(`branchCount must be a value between 2 and 16.`)가 같은 범위를 따로 검사했다. `handler.validate` 는 두 결과를 합치므로 `branchCount=1` 이면 같은 뜻의 문구가 두 번 나왔다. 범위 검사는 경고 규칙 한 곳에만 두고 문구는 `maxConcurrency` 문구와 같은 모양으로 정했다. 두 문구를 그대로 두고 이 문서의 에러 표만 실제에 맞추는 안은 같은 뜻의 문구가 계속 두 번 보여 기각했다.
+
+**`error.code` 의 값**: ForEach 와 같이 `error.name`(없으면 `'UNKNOWN_ERROR'`)을 쓴다. 이 값은 [API 에러 코드](../CLE-API/CLE-API-ERRCODES.md) 의 `UPPER_SNAKE_CASE` 규칙과 맞지 않는다(2026-11-01 consistency 검토). ForEach 에서 이어진 문제라 이번 결정에서는 바꾸지 않고 두 노드를 함께 정리하는 후속으로 남긴다.
+
+**기존 워크플로우 영향**: 성공한 병렬 분기를 `branches[i].<필드>` 로 읽던 워크플로우는 그대로 동작한다. 바뀌는 것은 세 가지다. `errorPolicy='continue'` 의 실패 자리가 `null` 이 되고 `output.skipped` 가 생긴다. 병렬 분기 안에 If · Switch 가 있어 비어 있던 결과가 실제 실행된 노드의 출력으로 채워진다. `$node["Parallel"].port` 가 `["done"]` 에서 `"done"` 으로 바뀐다. 구현은 NERV Task `CLE-T-2HD471` 이 한다.
