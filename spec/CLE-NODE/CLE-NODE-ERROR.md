@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "fc3c86b7690c2f614a3f7181766c6da0e58d09d537635aef81090ce9e935cda7"
+content_hash: "4eba1d122f4f089e6879cfb13a39c3ffa5063b970adb99a0d04b3388bb33e876"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-ZHBMAC"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "0d6ac9dc3e79ec042f3e6e3adaa84bc53fbcee9be61d728216de9de42d39a1c3"
-etag: "sha256-12055a1db62c1967cb600ced3476bf75da6c0f322df6c61a7d25167053670587"
+mirror_sha256: "108d0f2c3214f46d6ac33836c026118ae8507c8d675d46fea889c0bf2da64756"
+etag: "sha256-293e45d956b3227cf97e685cd61be5ebb3ad539d801c9b3ecbe70d99e5fc2b9d"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -102,6 +102,8 @@ flowchart TD
    - 자세한 규칙은 [2. 에러 포트로 라우팅](#2-에러-포트로-라우팅)에 있다.
 
 노드 취소에는 에러 처리 정책을 적용하지 않는다. 엔진은 `AbortError` 와 `ExecutionCancelledError` 를 실패로 보지 않는다. 노드 실행 상태를 `cancelled` 로 기록하고 에러를 다시 던진다(`execution-engine.service.ts` 의 `executeNode`). 노드 재시도도 이 두 에러는 다시 실행하지 않는다. 취소 흐름은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)가 정한다.
+
+핸들러가 런타임 실패를 throw 하지 않고 `port: 'error'` 출력으로 돌려주면 엔진은 그 실패에 에러 처리 정책을 적용하지 않는다. 노드 재시도도 하지 않는다. 엔진은 핸들러가 throw 한 실패에만 정책을 건다(`execution-engine.service.ts` 의 `executeNode`). 그 출력이 어디로 가는지는 [2. 에러 포트로 라우팅](#2-에러-포트로-라우팅) 규칙을 따른다.
 
 정책은 `config.errorHandling = { policy, retryConfig?, defaultOutput? }` 에 저장한다. `policy` enum 은 엔진의 `error-policy.handler.ts` 와 같다.
 
@@ -227,3 +229,16 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 엔진 원문은 노드 카테고리마다 기본 재시도를 달리 두었다. 이 문서 3절과 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 모든 노드의 기본 정책을 워크플로우 중단으로 두고, 재시도는 사용자가 고를 때만 `maxRetries` 기본값 3 으로 적용한다. 현재 구현도 그렇다. 그래서 현행을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 원문 표의 내용과 옮기지 않은 이유는 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#노드-카테고리별-기본-재시도-표를-옮기지-않는다) 에 있다.
 
 기각한 대안은 Logic 노드에서 재시도를 막는 안이다. Logic 노드도 다섯 정책을 모두 고를 수 있게 둔 결정([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale))과 맞지 않고, 설정 패널과 엔진에 카테고리 검사를 새로 넣어야 한다.
+
+### `error` 포트로 돌려준 실패에 정책을 걸지 않는다 (2026-11-01)
+
+엔진은 전부터 핸들러가 throw 한 실패에만 에러 처리 정책을 걸었다. 하지만 이 규칙을 적은 문서가 없었다. AI 에이전트 단일 턴의 LLM 호출 실패를 `error` 포트로 옮기면서(NERV Task `CLE-T-ZHBMAC`) 이 차이가 사용자에게 보이게 됐다. 단일 턴 에이전트에 `retry` 같은 정책을 건 워크플로우는 이제 LLM 호출 실패에 그 정책을 쓰지 않는다.
+
+[노드 카테고리별 기본 재시도를 두지 않는다](#노드-카테고리별-기본-재시도를-두지-않는다-2026-10-24)는 결정(2026-10-24)은 카테고리마다 기본 재시도를 두지 않고 재시도는 작성자가 노드마다 고를 때만 적용한다고 정했다. 카테고리별 기본 재시도를 두지 않는 그 결정은 그대로다. 이 규칙은 작성자가 고른 정책이 걸리는 범위를 핸들러가 throw 한 실패로 정할 뿐이다.
+
+기존 워크플로우에는 영향이 있다. AI 에이전트 단일 턴에 `retry` · `skip_node` · `use_default_output` 을 걸어 둔 워크플로우는 LLM 호출이 실패해도 그 정책이 걸리지 않는다. `error` 연결선이 없으면 엔진은 `ERROR_PORT_FALLBACK` 을 남기고 워크플로우 중단으로 처리한다. 같은 처리가 필요하면 `error` 포트에 에이전트를 다시 실행하거나 기본값을 내는 분기를 잇는다. [노드 포트와 설정 패널 §에러 처리 정책 설정](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정)의 정책 설명에 이 단서를 더하는 일은 NERV Task `CLE-T-KPDDKB` 가 맡는다.
+
+기각한 대안은 두 가지다.
+
+- 엔진이 `error` 포트 출력에도 `retry` 정책을 적용하는 안. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)와 [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)처럼 이미 `error` 포트를 쓰는 노드의 동작까지 바뀐다. 작성자가 `error` 연결선으로 고른 처리와 엔진 재시도가 겹친다.
+- `error` 포트를 쓰는 노드에서 정책 선택 UI 를 막는 안. AI 에이전트에는 아직 throw 경로가 남아 있다. 롤링 요약 호출 실패와 요약 모델 설정 해석 실패가 그렇다(NERV Task `CLE-T-Q38K9F`). 이 실패에는 지금도 정책이 걸린다.

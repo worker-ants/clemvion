@@ -2,25 +2,25 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 20
+version: 22
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "5d17e823dfc00bd2af795d48f6f983ead0d15350fb4d921f75eeb15e8758c8bc"
+content_hash: "243bad30ab078e1d3aefc47622f38779915c2e43f17f8031394406822a93180a"
 read_as: "approved_fallback"
-task: "CLE-T-YKA9CJ"
+task: "CLE-T-H9QJTA"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "ab4ff3aa5c421212c5369aac5321a4f88617930fdc90cf203aa33467685192b7"
-etag: "sha256-cea088c851bc4d3344d12ef4ffe710b4ce5f89ccefea774e2f739ccc45622fcc"
+mirror_sha256: "d5649911966d8262a15188cfa6bc25301b89ce08635763f3ac0735ba0af5e3ea"
+etag: "sha256-575bdef815798a497bdeb991003be4b59b3a6e9f95d66bb48c98111bf836a61e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 에러 코드(error code, `error.code`)의 이름 규칙과 안정성 규율, 그리고 제품 전체의 에러 코드 카탈로그를 정한다. 이름 규칙을 따르지 않지만 호환 때문에 유지하는 예외 등록 코드(historical artifact)와 더 이상 내보내지 않는 은퇴 코드(retired code)의 기록도 이 문서에 둔다.
+이 문서는 에러 코드(error code, `error.code`)의 이름 규칙과 안정성 규율, 그리고 제품 전체의 에러 코드 카탈로그를 정한다. 이름 규칙(규칙 1~3)을 따르지 않지만 호환 때문에 유지하는 예외 등록 코드(historical artifact)와 더 이상 내보내지 않는 은퇴 코드(retired code)의 기록도 이 문서에 둔다.
 
 **적용 범위**: 이 규율은 `ErrorCode` const 뿐 아니라 프로젝트 전체의 에러 코드 문자열에 적용한다. API·통합·OAuth 등에서 인라인 문자열로 발행하는 코드(`CAFE24_*`, `OAUTH_*` 등)도 포함한다.
 
@@ -41,7 +41,7 @@ etag: "sha256-cea088c851bc4d3344d12ef4ffe710b4ce5f89ccefea774e2f739ccc45622fcc"
 4. 클라이언트는 코드의 의미로 분기한다. 이름의 부분 문자열이나 `message` 문자열을 파싱해 분기하지 않는다. 코드의 정의(문서 본문)가 기준이고 이름은 그 정의를 읽히게 하는 라벨이다.
 5. 에러 코드 이름 바꾸기는 호환성을 깨는 변경이다. 이름을 더 정확하게 하려는 목적만으로 바꾸지 않는다.
 6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)와 비활성 워크플로우의 `WORKFLOW_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다. 이 규칙에는 예외가 하나 있다. 웹훅 인증(§6.10)에서 인증 설정의 기대값이 비었거나 읽지 못하는 경우는 새 코드를 만들지 않고 `AUTH_FAILED` 를 쓴다. 이 예외는 그 경우에만 쓰고 다른 조건이나 다른 표면으로 넓히지 않는다. 근거는 [웹훅 인증 설정의 기대값이 비었거나 읽지 못해도 `AUTH_FAILED` 를 쓴다](#웹훅-인증-설정의-기대값이-비었거나-읽지-못해도-auth_failed-를-쓴다-2026-10-31) 에 있다.
-7. 규칙을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
+7. 이름 규칙(규칙 1~3)을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
 9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다.
 10. 교체한 옛 코드는 §5 은퇴 코드 표에 흡수 등급과 함께 남긴다.
@@ -52,7 +52,7 @@ etag: "sha256-cea088c851bc4d3344d12ef4ffe710b4ce5f89ccefea774e2f739ccc45622fcc"
 
 - **의미를 적는다**: `CAFE24_INSTALL_INVALID_HMAC`(HMAC 검증 실패), `INTEGRATION_INCOMPLETE`(통합 미완성), `OAUTH_STATE_MISMATCH`(state 불일치). 이름만으로 분기의 뜻이 드러난다.
 
-**도메인 prefix (규칙 3)**: `VALIDATION_ERROR` 같은 시스템 전역 공용 코드(§6.1, §6.4)는 prefix 없이 쓰는 기존 범주이고 원칙의 예외가 아니다.
+**도메인 prefix (규칙 3)**: `VALIDATION_ERROR` 같은 시스템 전역 공용 코드(§6.1, §6.4)는 prefix 없이 쓰는 기존 범주다. 규칙 3 이 공용 코드는 prefix 없이 쓴다고 정했으므로 이름 규칙의 예외가 아니고 §3 에 올리지 않는다.
 
 **prefix 없는 공용 코드 `INVALID_TOOL_ARGUMENTS`**: AI 에이전트의 tool_use 인자 검증 실패 코드([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md))는 `MCP_` prefix 를 붙이지 않는다. MCP 전용이 아니라 모든 도구 프로바이더 경로가 함께 쓰는 LLM 인자 검증 범주이기 때문이다(`VALIDATION_ERROR` 와 같은 부류). LLM 이 `tool_result.error` 로 이 값을 보고 다음 턴에 인자를 고치므로 값이 곧 계약이고 이름을 바꾸면 호환만 깨진다.
 
@@ -62,7 +62,7 @@ etag: "sha256-cea088c851bc4d3344d12ef4ffe710b4ce5f89ccefea774e2f739ccc45622fcc"
 
 ## 3. 예외 등록 코드
 
-§1 원칙을 따르지 않는 기존 코드를 여기에 등록한다. 부정확한 이름이지만 유지하는 활성 코드의 등록부다. 교체·은퇴한 옛 코드는 §5 에 둔다(목적이 다르다). 새 코드는 예외를 선례로 삼지 않는다. 기존 코드를 새 조건에 다시 쓰는 예외는 규칙 6 에 있다.
+이름 규칙(규칙 1~3)을 따르지 않는 기존 코드를 여기에 등록한다. 부정확한 이름이지만 유지하는 활성 코드의 등록부다. 교체·은퇴한 옛 코드는 §5 에 둔다(목적이 다르다). 새 코드는 예외를 선례로 삼지 않는다. 기존 코드를 다시 쓰는 결정은 이름을 정하는 결정이 아니어서 이 등록부에 올리지 않는다. 예를 들어 규칙 6 의 예외(웹훅 인증의 `AUTH_FAILED`), 규칙 6 의 단서(같은 표면 안의 다른 워크스페이스 조건), 뜻이 같아 새 조건이 아닌 재사용이 그렇다.
 
 | 코드 | HTTP | 이름이 부정확한 이유 | 실제 뜻 | 정의 문서 |
 |---|---|---|---|---|
@@ -188,11 +188,12 @@ etag: "sha256-cea088c851bc4d3344d12ef4ffe710b4ce5f89ccefea774e2f739ccc45622fcc"
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 TOTP 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. Passkey 만 등록한 계정도 여기에 든다. 이메일 변경과 로그인 세션 강제 종료의 계정 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
 | `REAUTH_REQUIRED` | 400 | 계정 재인증 자격 증명이 없거나 부족함(비밀번호와 TOTP 어느 것도 검증할 수 없음) | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `PASSWORD_INVALID` | 401 | 비밀번호 재확인 **불일치**. 계정 재인증(`verifyReauth`), 2FA 비활성화·Passkey 복구 코드 재발급의 재확인(`verifyPasswordForUser`), 비밀번호 변경이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `PASSWORD_REQUIRED` | 401 | 비밀번호가 **설정되지 않았거나(OAuth 전용) 입력되지 않음**. 2FA 비활성화·Passkey 복구 코드 재발급 같은 민감 동작의 `verifyPasswordForUser` 재확인과 비밀번호 변경이 함께 쓴다. 불일치는 형제 코드 `PASSWORD_INVALID` 다. 계정 재인증의 입력 누락 `REAUTH_REQUIRED`(400, `verifyReauth`)와는 발행 헬퍼도 상태 코드도 다른 별개 코드다 | [세션과 토큰 「본인 확인 에러 코드」](../CLE-ACCT/CLE-ACCT-SESSION.md#본인-확인-에러-코드) |
+| `PASSWORD_INVALID` | 401 | 비밀번호 재확인 **불일치**. 계정 재인증(`verifyReauth`), TOTP 설정 시작·2FA 비활성화·Passkey 복구 코드 재발급의 재확인(`verifyPasswordForUser`), 비밀번호 변경이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
+| `PASSWORD_REQUIRED` | 401 | 비밀번호가 **설정되지 않았거나(OAuth 전용) 입력되지 않음**. TOTP 설정 시작·2FA 비활성화·Passkey 복구 코드 재발급 같은 민감 동작의 `verifyPasswordForUser` 재확인과 비밀번호 변경이 함께 쓴다. 불일치는 형제 코드 `PASSWORD_INVALID` 다. 계정 재인증의 입력 누락 `REAUTH_REQUIRED`(400, `verifyReauth`)와는 발행 헬퍼도 상태 코드도 다른 별개 코드다 | [세션과 토큰 「본인 확인 에러 코드」](../CLE-ACCT/CLE-ACCT-SESSION.md#본인-확인-에러-코드) |
 | `TOTP_INVALID` | 401 | TOTP 코드 불일치. 계정 재인증, 로그인 2FA, 2FA 켜기 확인, 2FA 비활성화(`POST /api/auth/2fa/disable`)가 함께 쓴다. 로그인 2FA 와 2FA 비활성화는 6자리 TOTP 코드나 TOTP 복구 코드를 받고 둘 다 맞지 않으면 이 코드다. 2FA 비활성화는 2FA 가 켜져 있지 않을 때도 이 코드를 낸다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2FA 챌린지(`AuthService.loginWithTotp`)에서 계정의 2FA 가 꺼져 있거나 사용자가 없음. 로그인 2FA 챌린지 전용이고 클라이언트는 다시 로그인하게 안내한다. 2FA 비활성화에서 2FA 가 꺼져 있을 때는 이 코드가 아니라 `TOTP_INVALID` 다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `TOTP_NOT_INITIALIZED` | 400 | 2FA 켜기 확인(`TotpService.verifyAndEnable`)에서 사용자가 없거나 TOTP secret 이 없음. 설정(`setup`)을 거치지 않고 확인을 부른 경우다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `TOTP_ALREADY_ENABLED` | 409 | TOTP 가 이미 켜진 계정의 설정 시작(`POST /api/auth/2fa/setup`)과 활성화 검증(`POST /api/auth/2fa/verify`). secret 과 TOTP 복구 코드를 바꾸지 않는다. 바꾸려면 TOTP 를 끄고 다시 켠다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 
 - 이 표는 도메인 문서 본문에 문서화된 코드만 등재한다.
 - 로그인 실패 자체는 `LOGIN_FAILED`(§6.2)로 돌려준다(`PASSWORD_INVALID` 아님). 감사 기록은 `login_history` 의 `event`(`totp_failed` 등 소문자 값)와 `failure_reason`(`TOTP_INVALID`, `INVALID_PASSWORD` 등 대문자 사유값)에 남는다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). 사유값과 응답 에러 코드는 별개 층이다. `TOTP_INVALID` · `WEBAUTHN_COUNTER_REGRESSION` 처럼 이름이 같은 값도 있고 `INVALID_PASSWORD` 처럼 응답에서는 다른 코드(`LOGIN_FAILED`)로 나가는 값도 있다. 알 수 없는 이메일로 로그인하면 `failure_reason` 은 `USER_NOT_FOUND` 이고 응답은 `LOGIN_FAILED`(401)다(`auth.service.ts`).
@@ -275,7 +276,7 @@ etag: "sha256-cea088c851bc4d3344d12ef4ffe710b4ce5f89ccefea774e2f739ccc45622fcc"
 | 노드 취소 | `AbortError` (§3 예외 등록 코드) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
 
 - **`HTTP_TIMEOUT` 은 발행하지 않는다.** enum 에는 있지만 HTTP Request 핸들러는 타임아웃 때 `AbortController.abort()` 로 fetch 를 멈추고 그 reject 를 다른 전송 에러와 함께 `HTTP_TRANSPORT_FAILED` 로 발행한다(`http-request.handler.ts`). 그래서 `output.error.code` 로 `HTTP_TIMEOUT` 이 보이는 경로는 없다. 앞으로 세분화할 여지와 방어적 매핑을 위해 enum 과 분류 표에 코드를 남긴다.
-- **`LLM_TIMEOUT` 도 발행하지 않는다.** enum 에는 있지만 어느 LLM 호출 경로도 이 코드를 내지 않는다(2026-10-10 결정). LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 오고, 경로에 따라서는 아직 코드 없이 실패한다. LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 호출 경로별 결과와 구현 공백은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 실패 분류 표는 `HTTP_TIMEOUT` 처럼 이 코드를 «발행 안 됨» 으로 표시해 남긴다. 등재를 지울지는 [미결 사항](#미결-사항)이다.
+- **`LLM_TIMEOUT` 도 발행하지 않는다.** enum 에는 있지만 어느 LLM 호출 경로도 이 코드를 내지 않는다(2026-10-10 결정). LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 단일 턴 AI 에이전트의 롤링 요약 호출은 아직 코드 없이 실패한다. LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 호출 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 실패 분류 표는 `HTTP_TIMEOUT` 처럼 이 코드를 «발행 안 됨» 으로 표시해 남긴다. 등재를 지울지는 [미결 사항](#미결-사항)이다.
 - 옛 코드 `NODE_EXECUTION_FAILED`·`INTEGRATION_ERROR`·`LLM_ERROR` 는 노드 출력에 더 이상 쓰지 않는다. 노드 실패가 Stop Workflow 로 격상된 엔진 수준에서만 `NodeExecution.error.message` 맥락으로 남는다.
 - 채팅 채널 어댑터는 이 enum 으로 사용자 안내 메시지를 고른다([채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)). enum 을 늘리면 분류 표에 행을 더할지 함께 검토한다.
 - **워크스페이스 격리 가드 `WORKFLOW_FORBIDDEN_WORKSPACE`**: 다른 워크스페이스(또는 호출자 컨텍스트 누락)의 서브 워크플로우 호출을 막는다(fail-closed). `assertSameWorkspace` 가 typed `WorkflowForbiddenWorkspaceError` 를 던지고 서브 워크플로우 핸들러(`mapSubWorkflowError`)가 이를 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 바꿔 에러 포트(`output.error.code`)에 싣는다.
@@ -663,7 +664,7 @@ NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카
 
 ### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)
 
-`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. LLM 타임아웃은 지금처럼 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 단일 턴 AI 에이전트는 아직 코드 없이 실패한다(구현 공백, NERV Task `CLE-T-ZHBMAC`). 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. enum 과 등재를 지울지는 규칙 9 정리와 함께 NERV Task `CLE-T-8WXV7T` 가 정한다.
+`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. LLM 타임아웃은 지금처럼 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 그때 단일 턴 AI 에이전트는 코드 없이 실패했다(구현 공백). 그 뒤의 변화는 아래 「구현 반영 (2026-11-01, NERV Task `CLE-T-ZHBMAC`)」 에 적었다. 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. enum 과 등재를 지울지는 규칙 9 정리와 함께 NERV Task `CLE-T-8WXV7T` 가 정한다.
 
 ### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
 
@@ -673,7 +674,7 @@ NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카
 
 - 이미 쓴 Passkey 인증 챌린지를 거부하는 동작이 구현되어 §6.3 `WEBAUTHN_INVALID` · `WEBAUTHN_COUNTER_REGRESSION` 행의 미구현 표시를 걷었다.
 - 로그인 2단계 Passkey 인증 검증은 Passkey 인증 챌린지를 기록하지 못하면 503 `SERVICE_UNAVAILABLE` 로 거부한다. 이 코드의 첫 발행처라 §6.1 행에 적고 「미결 사항」 의 발행처가 없는 등재 코드에서 뺐다.
-- 상태 코드는 503 이다. [HTTP API 규약](CLE-API-CONV.md) 규칙 11 이 503 을 우리 인프라 의존성의 일시 장애에 쓴다고 정했고 Redis 는 우리 인프라다. 그래서 `WEBAUTHN_DISABLED` 처럼 예외로 등록할 필요가 없다.
+- 상태 코드는 503 이다. [HTTP API 규약](CLE-API-CONV.md) 규칙 11 이 503 을 우리 인프라 의존성의 일시 장애에 쓴다고 정했고 Redis 는 우리 인프라다. 그래서 `WEBAUTHN_DISABLED` 처럼 규칙 11 의 예외로 적을 필요가 없다.
 - 새 코드를 만들지 않았다. 카탈로그에 같은 뜻의 `SERVICE_UNAVAILABLE` 이 이미 있어 규칙 6 의 새 조건이 아니다.
 - 저장소 장애를 `WEBAUTHN_INVALID` 로 합치지 않았다. 인증 실패와 인프라 장애는 뜻이 갈린다. 합치면 클라이언트가 다시 시도할지 판단할 수 없다(규칙 6).
 
@@ -685,12 +686,28 @@ NERV Task `CLE-T-2V7SBC`(PR #1521, main 커밋 `6cbf22acb`)가 웹훅 인증에�
 
 ### 웹훅 인증 설정의 기대값이 비었거나 읽지 못해도 `AUTH_FAILED` 를 쓴다 (2026-10-31)
 
-NERV Task `CLE-T-KQ37NJ` 에서 정했다. 처음에는 「구현 반영 (2026-10-31, NERV Task `CLE-T-KQ37NJ`)」 절의 한 불릿에 적었고 2026-11-01 에 NERV Task `CLE-T-YKA9CJ` 가 이 제목으로 옮겨 나눴다. 결정의 내용은 바꾸지 않았다. 옮기면서 §3 예외 등록부의 범위를 규칙 7 대신 §3 첫 문단으로 인용했다. 규칙 7 의 「규칙」 은 명명 규칙만 가리키지 않기 때문이다.
+NERV Task `CLE-T-KQ37NJ` 에서 정했다. 처음에는 「구현 반영 (2026-10-31, NERV Task `CLE-T-KQ37NJ`)」 절의 한 불릿에 적었고 2026-11-01 에 NERV Task `CLE-T-YKA9CJ` 가 이 제목으로 옮겨 나눴다. 결정의 내용은 바꾸지 않았다.
 
 - **결정: 새 코드를 만들지 않는다(규칙 6 의 예외).** 웹훅 인증에서 인증 설정의 기대값이 비었거나 읽지 못하는 경우는 §6.10 `AUTH_FAILED` 로 거부한다.
 - **근거: 한 응답 정책에 든다.** 이 경우는 §6.10 `AUTH_FAILED` 행의 한 응답 정책(열거 공격 · 정보 노출 차단)에 든다. 웹훅 호출자는 아직 인증을 통과하지 않은 상대라 서버 쪽 인증 설정의 상태를 가려서 알리지 않는다. 그래서 이 경우도 `is_active=false` 인증 설정이나 서명 · 토큰 불일치와 같은 `AUTH_FAILED` 한 응답으로 둔다.
 - **선례**: 서버 쪽 데이터 문제를 `AUTH_FAILED` 로 감춘 선례는 §6.10 `AUTH_FAILED` 행에 먼저 있다. 트리거가 저장 경계 이전에 남은 교차 행이라 인증 설정을 트리거의 워크스페이스에서 찾지 못하는 경우다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 웹훅 수신에서 호출자에게 서버 쪽 사정을 감추는 선례는 [`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에도 있다.
 - **규칙 6 의 단서에 들지 않아 예외로 둔다.** 규칙 6 은 새 조건에 새 코드를 만들게 한다. 그 단서는 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건만 묶는다. 이 경우는 그 단서에 들지 않는다.
 - **예외의 범위**: 웹훅 인증에서 인증 설정의 기대값이 비었거나 읽지 못하는 경우뿐이다. 다른 조건이나 다른 표면으로 넓히지 않는다.
-- **§3 예외 등록부에 올리지 않는다.** 이 예외는 이름을 정하는 결정이 아니라 기존 코드를 다시 쓰는 결정이다. §3 은 §1 명명 원칙을 따르지 않는 기존 코드를 적는 등록부다(§3 첫 문단). 규칙 7 이 §3 에 적게 하는 「규칙을 따르지 않는 기존 코드」 에도 들지 않는다. 이 예외는 규칙 6 본문에 적혀 있으므로 규칙을 어긴 것이 아니다.
+- **§3 예외 등록부에 올리지 않는다.** 이 예외는 이름을 정하는 결정이 아니라 기존 코드를 다시 쓰는 결정이다. §3 은 이름 규칙(규칙 1~3)을 따르지 않는 기존 코드를 적는 등록부다(규칙 7 · §3 첫 문단). `AUTH_FAILED` 는 이름 규칙을 따른다.
 - **`WEBAUTHN_INVALID` 선례와 경우가 다르다.** 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 은 다시 시도하면 풀리는 Redis 장애를 인증 실패와 갈랐지만 이번 경우는 사람이 인증 설정을 바로잡기 전에는 다시 보내도 풀리지 않아 호출자가 재시도를 판단할 일이 없다.
+
+### 구현 반영 (2026-11-01, NERV Task `CLE-T-ZHBMAC`)
+
+- 단일 턴 AI 에이전트의 LLM 호출(첫 호출과 도구 루프 호출)이 실패하면 노드는 멀티턴과 같은 분류의 에러를 `error` 포트로 낸다. 타임아웃은 재시도할 수 있는 `LLM_CALL_FAILED` 다. 2026-10-10 결정대로 `LLM_TIMEOUT` 은 내지 않는다.
+- 「LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)」 에 적은 단일 턴의 구현 공백은 이 구현으로 없어졌다.
+- 단일 턴의 롤링 요약 호출(`summary_buffer` · `persistent` 메모리 전략의 요약 호출)은 LLM 호출 실패를 `error` 포트로 내는 처리 밖에 있다. 이 호출이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 해석하지 못하면 아직 에러 코드 없이 노드가 실패한다(후속 NERV Task `CLE-T-Q38K9F`).
+- §6.6 `LLM_TIMEOUT` 불릿에는 「경로에 따라서는」 대신 이 경로의 이름을 적었다. 경로별 결과의 링크는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 으로 바꿨다.
+
+### 규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다 (2026-11-01)
+
+NERV Task `CLE-T-H9QJTA` 에서 고쳤다. 규칙 7 은 「규칙을 따르지 않지만 유지하는 기존 코드」 를 §3 에 적게 했다. 그런데 개요 · 규칙 2 · §3 첫 문단은 §3 을 이름 규칙을 따르지 않는 코드의 등록부로 적는다. 규칙 7 만 넓게 읽혀서 규칙 6 의 예외를 §3 에 올릴지 판단할 근거가 둘로 갈렸다. 그래서 규칙 7 을 이름 규칙(규칙 1~3)으로 좁히고 개요 · 규칙 7 · §3 첫 문단을 같은 말로 맞췄다. 기존 코드를 다시 쓰는 결정은 이름을 정하는 결정이 아니어서 §3 에 올리지 않는다는 것도 §3 첫 문단에 적었다. 등록부의 코드와 다른 결정은 바꾸지 않았다.
+
+- 「웹훅 인증 설정의 기대값이 비었거나 읽지 못해도 `AUTH_FAILED` 를 쓴다 (2026-10-31)」 첫 문단에 있던 「규칙 7 의 「규칙」 은 명명 규칙만 가리키지 않는다」 는 문장을 지웠다. NERV Task `CLE-T-YKA9CJ` 에서 그 항목을 옮기며 더한 문장인데 규칙 7 을 좁히면서 맞지 않게 됐다.
+- §1 「도메인 prefix (규칙 3)」 의 「원칙의 예외가 아니다」 를 규칙 3 과 §3 을 직접 가리키는 문장으로 고쳤다. §3 첫 문단이 「§1 원칙」 대신 「이름 규칙(규칙 1~3)」 을 쓰게 되면서 「원칙」 이 무엇을 가리키는지 흐려졌기 때문이다. prefix 없는 공용 코드는 규칙 3 을 따른 것이라 §3 에 올리지 않는다.
+- 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 셋째 불릿의 「예외로 등록할 필요가 없다」 를 「규칙 11 의 예외로 적을 필요가 없다」 로 고쳤다. 그 예외는 [HTTP API 규약](CLE-API-CONV.md) 규칙 11 의 예외이고 §3 등록과 다르다.
+- 기각한 대안은 규칙 7 을 넓게 두고 개요 · 규칙 2 · §3 첫 문단을 그 범위로 넓히는 안이다. 그러면 기존 코드를 다시 쓰는 결정도 §3 에 올려야 해서 이름이 부정확한 코드를 찾는 표에 이름이 정확한 코드(`AUTH_FAILED` 등)가 섞인다.
