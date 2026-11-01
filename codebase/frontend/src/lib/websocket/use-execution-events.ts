@@ -153,9 +153,10 @@ function makeSystemErrorItem(args: {
  * Agent multi-turn conversation that needs an inline `system_error` item
  * appended to the timeline (spec §9.7 contract). Heuristic:
  *
- * - Host node is an `ai_agent` (single-turn AI Agent never accumulates a
- *   thread of its own so a system_error in the thread is meaningless).
- *   A single-turn run is told apart by its config echo
+ * - Host node is a multi-turn `ai_agent`. A single-turn run never feeds this
+ *   store itself (it emits no waiting / AI message event), so any messages
+ *   here belong to an earlier node, and it keeps no retry state for
+ *   `[다시 시도]` to roll back. It is told apart by its config echo
  *   (`output.config.mode === "single_turn"`), since its error-port output
  *   carries the same `output.output.error` as a multi-turn one.
  * - The store already holds conversation messages — i.e. at least one turn

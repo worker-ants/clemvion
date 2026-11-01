@@ -3,7 +3,7 @@ import { sanitizeLastErrorMessage } from '../../../shared/utils/sanitize-error-m
 import { extractRetryAfterMs } from '../../../shared/utils/retry-after';
 
 /**
- * W12 (Maintainability) — network/timeout 분류용 패턴 상수화. errno 코드
+ * network/timeout 분류용 패턴 상수. errno 코드
  * (`err.code`) 와 메시지 본문을 각각 매칭한다. `extractAiTurnErrorPayload` /
  * `classifyLlmError` 가 공유.
  */
@@ -34,7 +34,7 @@ function extractHttpStatus(err: unknown): number | undefined {
 }
 
 /**
- * W12 (Maintainability) — `extractAiTurnErrorPayload` 의 분기 트리를 분리한
+ * `extractAiTurnErrorPayload` 의 분기 트리를 분리한
  * 순수 분류 함수. HTTP status / explicit code / message 만 보고 [AI 에이전트
  * 「에러 코드」](CLE-NODE-AGENT#에러-코드) 의 `{ code, retryable }` 를 도출한다.
  *
@@ -46,7 +46,7 @@ function extractHttpStatus(err: unknown): number | undefined {
  *    CLE-NODE-AGENT 「에러 코드」 는 별도 `AI_*` fallback 코드를 두지 않고
  *    LLM 단일 taxonomy 를 유지한다)
  *
- * client SSE 계층의 `LLM_CONNECTION_ERROR` (spec llm-client §6) 는 AI 에이전트
+ * client SSE 계층의 `LLM_CONNECTION_ERROR`([LLM 클라이언트](CLE-AI-LLM)) 는 AI 에이전트
  * 경로에 도달하지 않으나, 누출 대비 network 로 매핑한다.
  */
 function classifyLlmError(
@@ -120,7 +120,7 @@ export function extractAiTurnErrorPayload(err: unknown): {
   } else {
     // Circular-reference or other non-serializable objects: fall back to a
     // safe placeholder rather than letting JSON.stringify throw and re-enter
-    // the WAITING_FOR_INPUT regression path (req W_json).
+    // the WAITING_FOR_INPUT regression path.
     try {
       rawMessage = JSON.stringify(err);
     } catch {
@@ -143,7 +143,7 @@ export function extractAiTurnErrorPayload(err: unknown): {
   if (rawDetails !== undefined) {
     // JSON.stringify → sanitize → JSON.parse chain: strips secret tokens from
     // nested details fields. Wrapped in try/catch because rawDetails may be
-    // non-serializable (circular refs, BigInt, etc.) — req W_json.
+    // non-serializable (circular refs, BigInt, etc.).
     try {
       const parsed = JSON.parse(
         sanitizeLastErrorMessage(JSON.stringify(rawDetails)),
