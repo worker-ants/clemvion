@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG"
 title: "외부 호출 인증 설정"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
-requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025", "REQ-AUTHCFG-026"]
+requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025", "REQ-AUTHCFG-026", "REQ-AUTHCFG-027", "REQ-AUTHCFG-028"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "0ae0e71c8b2261aa39cc46f7ebe2eae171abab2b2371ccba12cecb07e2b7563f"
+content_hash: "0f82c10f2eb4cb40b359baa39c3bc52106e00ea7e056985fafdea5137b0f0e17"
 read_as: "approved_fallback"
-task: "CLE-T-3G8XZ3"
+task: "CLE-T-ATVH78"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "caf3dde4a10a89f335b0a840b02b767fbc19b2e672211eda76e6728ee2c5eede"
-etag: "sha256-9df871282274660b201668431ceb439ca5b3a55115a19020ad76d3882e7ed24a"
+mirror_sha256: "1e613f574a95ac02bd784b81b15e48d657bca980846b7b273988a44aebb676aa"
+etag: "sha256-5efd59d42268be82e31c70108324d25179cc4a4569b91f70e54b63ce8223fc31"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ etag: "sha256-9df871282274660b201668431ceb439ca5b3a55115a19020ad76d3882e7ed24a"
 - REQ-AUTHCFG-001 WHEN 관리자 이상이 인증 설정을 만들면 THE SYSTEM SHALL 외부 호출자가 트리거를 부를 때 쓸 인증 방식(API Key·Bearer Token·Basic Auth·HMAC)을 저장한다. (원본: NAV-CA-01)
 - REQ-AUTHCFG-002 WHEN API Key 유형을 만들면 THE SYSTEM SHALL `wfk_<hex24>` 키를 자동으로 발급한다. (원본: NAV-CA-02)
 - REQ-AUTHCFG-003 WHEN Bearer Token 유형을 만들면 THE SYSTEM SHALL `wft_<hex32>` 토큰을 자동으로 발급하고 사용자가 입력한 토큰은 받지 않는다. (원본: NAV-CA-03)
-- REQ-AUTHCFG-004 WHEN Basic Auth 유형을 만들면 THE SYSTEM SHALL 사용자 이름과 비밀번호를 사용자 입력으로 받는다. (원본: NAV-CA-04)
+- REQ-AUTHCFG-004 WHEN Basic Auth 유형을 만들면 THE SYSTEM SHALL 사용자 이름과 비밀번호를 필수 사용자 입력으로 받는다. (원본: NAV-CA-04)
 - REQ-AUTHCFG-005 WHEN HMAC 유형을 만들면 THE SYSTEM SHALL `whs_<hex32>` 시크릿을 자동으로 발급하고 서명 헤더 이름과 알고리즘(`sha256`·`sha512`)을 받는다.
 - REQ-AUTHCFG-006 WHEN 사용자가 IP Whitelist 를 입력하면 THE SYSTEM SHALL 모든 유형에서 한 줄에 IP 나 CIDR 하나씩 받아 저장한다. (원본: NAV-CA-05)
 - REQ-AUTHCFG-007 IF IP Whitelist 항목이 단일 IP 나 CIDR(IPv4·IPv6) 형식이 아니면 THE SYSTEM SHALL 생성·수정을 400 으로 거부한다.
@@ -55,13 +55,15 @@ etag: "sha256-9df871282274660b201668431ceb439ca5b3a55115a19020ad76d3882e7ed24a"
 - REQ-AUTHCFG-017 WHEN 사용자가 키·토큰 복사 버튼을 누르면 THE SYSTEM SHALL 마스킹된 문자열을 복사한다.
 - REQ-AUTHCFG-018 WHEN 관리자 이상이 편집 폼을 저장하면 THE SYSTEM SHALL 이름·IP Whitelist·비밀이 아닌 config(`headerName`·`header`·`algorithm`·`username`)만 바꾼다.
 - REQ-AUTHCFG-019 WHEN 편집 PATCH 가 config 를 받으면 THE SYSTEM SHALL 기존 config 에 shallow-merge 하고 되돌아온 마스킹 값(`***<last4>`)은 무시해 저장된 비밀을 지킨다.
-- REQ-AUTHCFG-020 IF 편집 폼에서 유형이나 비밀 값을 바꾸려 하면 THE SYSTEM SHALL 허용하지 않는다.
+- REQ-AUTHCFG-020 IF 편집 PATCH 가 유형(`type`)이나 비밀 값(`key`·`token`·`secret`·`password`)을 실으면 THE SYSTEM SHALL 그 값을 무시하고 저장된 유형과 비밀 값을 그대로 둔다.
 - REQ-AUTHCFG-021 WHEN 관리자 이상이 재생성을 확인하면 THE SYSTEM SHALL 기존 키·토큰·시크릿을 폐기하고 새 값을 발급한다.
 - REQ-AUTHCFG-022 IF 편집자나 뷰어가 인증 설정 생성·수정·활성 토글·재생성·평문 보기·삭제 API 를 부르면 THE SYSTEM SHALL 403 `ADMIN_REQUIRED` 로 거부한다.
 - REQ-AUTHCFG-023 WHILE 사용자가 편집자나 뷰어인 동안 THE SYSTEM SHALL 변경 액션 버튼(Add Config·활성 토글·Reveal·Edit·Regenerate·Delete)을 노출하지 않는다.
 - REQ-AUTHCFG-024 WHEN 뷰어 이상이 목록·상세·사용 내역을 조회하면 THE SYSTEM SHALL 비밀 값을 가린 채 응답한다.
 - REQ-AUTHCFG-025 WHEN `GET /api/auth-configs/:id/usage` 가 호출되면 THE SYSTEM SHALL `totalCalls`·`lastUsedAt`·`periodCounts`·`recentCalls`(최근 20건)를 돌려준다.
 - REQ-AUTHCFG-026 WHEN 인증 설정이 복호화 불가 표식으로 읽히면 THE SYSTEM SHALL 목록·상세·편집·재생성·평문 보기 응답의 `config` 에서 원래 저장값을 빼고 표식은 남긴다.
+- REQ-AUTHCFG-027 IF Basic Auth 유형 생성 요청의 `config.username` 이나 `config.password` 가 없거나 문자열이 아니거나 빈 문자열이면 THE SYSTEM SHALL 생성을 400 `VALIDATION_ERROR` 로 거부한다.
+- REQ-AUTHCFG-028 IF Basic Auth 인증 설정의 편집 PATCH 가 `config.username` 을 싣고 그 값이 문자열이 아니거나 빈 문자열이면 THE SYSTEM SHALL 수정을 400 `VALIDATION_ERROR` 로 거부한다.
 
 ## 화면 구조
 
@@ -112,7 +114,9 @@ etag: "sha256-9df871282274660b201668431ceb439ca5b3a55115a19020ad76d3882e7ed24a"
 | Password | 비밀번호(사용자 입력, 가린 입력창). 저장 뒤 응답은 `***<last4>` 로 가린다. 평문 재확인은 평문 보기로만 한다 |
 | IP Whitelist | 허용 IP 목록(선택) |
 
-사용자 이름이나 비밀번호가 비어 있는 설정으로 받은 웹훅 요청은 인증 단계에서 늘 401 `AUTH_FAILED` 로 거부된다. 이 요구는 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
+사용자 이름과 비밀번호는 필수다. 생성 요청에서 둘 중 하나라도 없거나 문자열이 아니거나 빈 문자열이면 400 `VALIDATION_ERROR` 로 거부한다(REQ-AUTHCFG-027). 편집에서 사용자 이름을 비우는 요청도 400 이다([편집](#편집)). 공백만 있는 값은 거부하지 않는다. 화면의 생성·편집 폼은 사용자 이름의 앞뒤 공백을 지워 보내고 사용자 이름이나 생성 때의 비밀번호가 비면 저장하지 않는다.
+
+이 검증이 생기기 전에 빈 값으로 저장된 설정은 그대로 남는다. 사용자 이름이나 비밀번호가 비어 있는 설정으로 받은 웹훅 요청은 인증 단계에서 늘 401 `AUTH_FAILED` 로 거부된다. 이 요구는 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
 
 ### HMAC
 
@@ -137,6 +141,8 @@ etag: "sha256-9df871282274660b201668431ceb439ca5b3a55115a19020ad76d3882e7ed24a"
 - 비밀이 아닌 config: API Key 의 `headerName`, HMAC 의 `header`·`algorithm`, Basic Auth 의 `username`
 
 유형과 비밀 값은 편집할 수 없다. 비밀을 바꾸는 것은 재생성 하나로 모은다. 편집 PATCH 는 config 를 통째로 바꾸지 않고 shallow-merge 해 암호화된 비밀 값을 보존한다. 마스킹 값(`***<last4>`)이 되돌아와도 무시한다.
+
+Basic Auth 설정에 `config.username` 을 빈 문자열이나 문자열이 아닌 값으로 보내면 400 `VALIDATION_ERROR` 로 거부한다(REQ-AUTHCFG-028). `password` 는 편집 PATCH 가 무시하므로 이 검증 대상이 아니다. `config.username` 을 싣지 않은 요청은 저장된 사용자 이름을 검사하지 않는다. 그래서 빈 값으로 저장된 옛 설정도 이름·IP Whitelist·활성 상태를 고칠 수 있다.
 
 ## 사용 내역
 
@@ -220,11 +226,13 @@ sequenceDiagram
 
 인증 설정을 지우면 연결된 트리거의 `auth_config_id` 는 FK SET NULL 로 끊긴다([트리거 데이터와 흐름](CLE-TRIG-DATA.md)).
 
+생성·수정의 입력 검증 실패는 400 `VALIDATION_ERROR` 이고 `details` 는 배열 `[{ field, message, code: 'INVALID_FIELD' }]` 다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 요청 형식 검증(IP Whitelist 형식 등)과 Basic Auth 빈 값 검증이 같은 모양이다. Basic Auth 빈 값의 `field` 는 `config.username`·`config.password` 이고 둘 다 틀리면 두 항목을 싣는다.
+
 ## 미결 사항
 
 - **복호화 불가 인증 설정의 재생성**: 복호화 불가 인증 설정은 재생성으로 복구되지 않는다. 새로 만들어 트리거에 다시 연결한다. 복호화 불가 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 다룬다. NERV Task `CLE-T-SAMVX8` 이 고치면 이 항목을 걷는다.
 - **복호화 불가 인증 설정의 편집**: 복호화 불가 인증 설정에 편집 `PATCH` 로 비밀이 아닌 config(예: `headerName`)를 보내면 그 값을 표식에 병합한다. 원래 저장값을 담은 표식이면 응답에는 병합한 값이 보이지만 저장되지는 않는다. 다시 저장할 때 원래 저장값이 그대로 저장되기 때문이다. 키를 바꿔 생긴 표식이 이 경우다. 원래 저장값이 없는 표식이면 병합한 값이 든 표식 자체가 저장된다. NERV Task `CLE-T-SAMVX8` 이 고치면 이 항목을 걷는다. 응답 `config` 에 남는 표식을 통합처럼 상태 표시로 바꿀지도 같은 Task 가 정한다.
-- **Basic Auth 빈 값의 생성·수정 검증**: Basic Auth 인증 설정의 생성에서 빈 사용자 이름이나 비밀번호를, 수정(`PATCH`)에서 빈 사용자 이름을 받을지 정하지 않았다. 수정은 `password` 를 받지 않는다(`SECRET_CONFIG_KEYS` 로 무시한다). 지금은 빈 값을 받아 저장하고 웹훅 인증 때 거부한다. 거부 규칙은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다. NERV Task `CLE-T-ATVH78` 이 정하면 이 항목을 걷는다.
+- **Basic Auth 설정의 재생성 응답**: Basic Auth 설정을 재생성하면 새 값을 발급하지 않고 저장된 사용자 이름과 비밀번호를 평문으로 응답에 싣는다. 평문 보기의 비밀번호 재확인(REQ-AUTHCFG-015)과 `auth_config.reveal` 감사를 거치지 않는 경로다. NERV Task `CLE-T-SCDNDC` 가 재생성을 거부할지 응답을 가릴지 정하면 이 항목을 걷는다.
 
 ## 구현 위치
 
@@ -268,13 +276,31 @@ sequenceDiagram
 
 ### Basic Auth 의 빈 값은 인증 때 거부한다 (2026-10-31)
 
-Basic Auth 의 사용자 이름과 비밀번호는 사용자가 입력하는 값이다. 생성 API 는 지금 빈 값을 막지 않는다. 서비스에 검증이 없고 API 설명(`create-auth-config.dto.ts`)에는 «사용자 입력 필수» 라고만 적혀 있다. 빈 값을 막는 곳은 웹훅 인증이다. 사용자 이름이나 비밀번호가 비어 있는 설정으로 받은 요청은 늘 401 `AUTH_FAILED` 다. 전에는 빈 기대값끼리 비교해서 `Authorization: Basic Og==` 가 통과했다.
+Basic Auth 의 사용자 이름과 비밀번호는 사용자가 입력하는 값이다. 이 절을 쓴 때(v2~v4)는 생성 API 가 빈 값을 막지 않았다. 서비스에 검증이 없었고 API 설명(`create-auth-config.dto.ts`)에는 «사용자 입력 필수» 라고만 적혀 있었다. 빈 값을 막는 곳은 웹훅 인증이다. 사용자 이름이나 비밀번호가 비어 있는 설정으로 받은 요청은 인증 단계에서 늘 401 `AUTH_FAILED` 다. 전에는 빈 기대값끼리 비교해서 `Authorization: Basic Og==` 가 통과했다.
 
-인증 시점 거부는 빈 기대값이 생기는 경로를 모두 막는다. 생성 때 들어온 빈 입력, 편집(`PATCH`)으로 `username` 을 비운 설정, 이미 빈 값으로 저장된 옛 행, 키를 바꾼 뒤 복호화하지 못해 표식이 담긴 설정 등이 그런 경로다. 생성 시점 검증은 2026-10-31 현재 없다. 편집 `PATCH` 도 `username` 값을 검사하지 않는다. 둘 다 NERV Task `CLE-T-KQ37NJ` 에서 코드로 확인했다.
+인증 시점 거부는 빈 기대값이 생기는 경로를 모두 막는다. 생성 때 들어온 빈 입력, 편집(`PATCH`)으로 `username` 을 비운 설정, 이미 빈 값으로 저장된 옛 행, 키를 바꾼 뒤 복호화하지 못해 표식이 담긴 설정 등이 그런 경로다. 그때는 생성 시점 검증이 없었고 편집 `PATCH` 도 `username` 값을 검사하지 않았다. 둘 다 NERV Task `CLE-T-KQ37NJ` 에서 코드로 확인했다. 지금은 앞의 두 경로를 저장 때 400 으로 막는다([아래 절](#basic-auth-의-빈-값은-생성과-편집에서도-거부한다-2026-10-31)). 뒤의 두 경로는 여전히 인증 단계 거부만 막는다.
 
 인증 시점 거부는 2026-10-10 NERV Task `CLE-T-2V7SBC` 가 넣었다(PR #1521, main 커밋 `6cbf22acb`). 커밋 메시지에 적힌 동기는 키 교체다. 키를 바꾸면 `auth_config.config` 가 복호화 불가 표식으로 읽힌다. 그러면 Basic Auth 와 HMAC 이 빈 기대값으로 비교돼 열린다. 빈 기대값을 받아들이던 동작은 그 전부터 있던 결함이고 이 커밋에서 함께 막았다. 생성 시점 검증과 견주고 접은 기록은 없다. 같은 때 HMAC 의 빈 secret 도 거부하게 됐다. API Key 와 Bearer Token 은 그 전부터 빈 기대값을 거부했다.
 
-그래서 REQ-AUTHCFG-004 는 두 값을 «필수» 로 쓰지 않고 사용자 입력으로 받는다고만 쓴다. 빈 값을 인증 때 거부하는 요구는 웹훅 문서 한 곳에 두고 이 문서 본문은 그 요구를 가리킨다. 한 동작을 두 요구에 적으면 한쪽만 고쳤을 때 어긋나기 때문이다. 웹훅 인증의 요구사항은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
+그래서 그때는 REQ-AUTHCFG-004 에 두 값을 «필수» 로 쓰지 않고 사용자 입력으로 받는다고만 썼다. 빈 값을 인증 때 거부하는 요구는 웹훅 문서 한 곳에 두고 이 문서 본문은 그 요구를 가리킨다. 한 동작을 두 요구에 적으면 한쪽만 고쳤을 때 어긋나기 때문이다. 웹훅 인증의 요구사항은 [웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증) 이 정한다.
+
+### Basic Auth 의 빈 값은 생성과 편집에서도 거부한다 (2026-10-31)
+
+생성 요청의 빈 사용자 이름·비밀번호와 편집 `PATCH` 의 빈 사용자 이름을 400 `VALIDATION_ERROR` 로 거부한다(REQ-AUTHCFG-027·028). 인증 단계 거부([웹훅 「인증」](CLE-TRIG-WEBHOOK.md#인증))는 그대로 둔다. 이미 빈 값으로 저장된 설정과 키를 바꿔 복호화하지 못한 설정은 저장 때 검사로 막을 수 없기 때문이다. 그래서 REQ-AUTHCFG-004 에 «필수» 를 넣었다. REQ-AUTHCFG-004 는 두 입력이 필수라는 것을 정하고 REQ-AUTHCFG-027·028 은 그 규칙을 어긴 요청을 어떻게 거부하는지 정한다.
+
+빈 값 설정은 어느 웹훅 요청도 통과시키지 못한다. 저장을 받아 주면 잘못된 설정이 웹훅을 부를 때의 401 로만 드러난다. 그 401 은 자격 증명이 틀린 요청과 구분되지 않아서 원인을 찾기 어렵다. 저장 때 거부하면 설정을 만드는 관리자가 바로 알 수 있다. API 설명은 이미 두 값을 «사용자 입력 필수» 로 적었다. 화면의 폼도 빈 사용자 이름과 생성 때의 빈 비밀번호를 저장하지 않았다. 그래서 빈 값은 API 를 직접 부른 경우에만 들어갔다. 같은 생성·수정 API 는 IP Whitelist 형식도 저장 때 400 으로 거부한다(REQ-AUTHCFG-007). 잘못된 값이 웹훅을 부를 때에야 드러나 원인을 찾기 어렵다는 같은 이유다([트리거 데이터와 흐름 「인증 설정 도메인 결정」](CLE-TRIG-DATA.md#인증-설정-도메인-결정)).
+
+값이 없거나 빈 문자열이면 비었다고 본다. 인증 단계가 빈 기대값을 401 로 거부하는 기준과 같다. 저장 때는 여기에 더해 문자열이 아닌 값도 거부한다. 인증 단계는 기대값을 문자열로 비교하므로 그런 값으로는 어떤 요청도 인증되지 않는다. 그런 기대값을 인증 단계가 어떤 응답으로 거부할지는 웹훅 문서가 아직 정하지 않았다(NERV Task `CLE-T-0Q768N`). 공백만 있는 값은 받는다. 인증 단계가 같은 공백 값을 보낸 요청을 통과시키므로 동작하는 설정이다. 화면이 사용자 이름의 앞뒤 공백을 지우는 것은 입력 실수를 막는 폼의 처리이고 API 계약과는 따로다.
+
+편집에서는 `password` 를 검사하지 않는다. 편집 `PATCH` 는 비밀 값을 무시하므로(REQ-AUTHCFG-020) 편집으로 비밀번호가 비는 경로가 없다. `config.username` 을 싣지 않은 편집도 저장된 값을 검사하지 않는다. 빈 값으로 저장된 옛 설정의 이름·IP Whitelist·활성 상태를 고치는 요청까지 막지 않으려는 것이다. 옛 설정을 고치는 데이터 이전은 하지 않는다. 그런 설정은 인증 단계에서 이미 401 로 막혀 있고 빈 값을 무엇으로 채울지는 설정을 만든 관리자만 정할 수 있다.
+
+편집 요구 REQ-AUTHCFG-020 의 동사는 «허용하지 않는다» 에서 «무시하고 그대로 둔다» 로 바꿨다. 편집 `PATCH` 는 유효한 유형 값과 비밀 값을 거부하지 않고 무시해 왔다. 마스킹 값이 되돌아와도 실제 비밀을 지키는 규칙([편집 폼에서 비밀을 다시 입력받지 않는 이유](#편집-폼에서-비밀을-다시-입력받지-않는-이유))과 같은 방향이라 문서를 코드에 맞췄다. 유형 목록에 없는 `type` 값과 요청 본문에 정의되지 않은 최상위 키는 이와 따로 요청 형식 검증에서 400 이다. 편집이 비밀 값을 무시하고 재생성도 Basic Auth 값을 새로 발급하지 않으므로 Basic Auth 비밀번호를 바꾸려면 설정을 지우고 다시 만든다.
+
+검사는 서비스(`AuthConfigsService` 의 생성·수정)가 한다. 편집은 저장된 유형을 읽어야 Basic Auth 인지 알 수 있다. 거부 응답은 요청 형식 검증과 같은 `details` 배열이다. 한 요청에서 두 필드가 함께 틀릴 수 있고 같은 API 의 다른 400 과 같은 방식으로 읽힌다.
+
+접은 선택지는 빈 값을 계속 받고 API 설명만 고치는 것이다. v4 까지의 상태이고 이 결정을 맡은 NERV Task `CLE-T-ATVH78` 이 함께 견준 길이다. 빈 값 설정을 받아 둘 쓸모가 없어서 접었다.
+
+이 결정은 NERV Task `CLE-T-ATVH78` 이 내렸다. 계기는 NERV Task `CLE-T-KQ37NJ` 의 consistency finding `01a19169-d131-72ec-a93c-719c88c7ca40` 이다. 생성·수정이 두 값을 검사하지 않아 동작하지 않는 설정이 저장된다는 지적이었다.
 
 ### 복호화 불가 인증 설정은 재생성으로 복구되지 않는다 (2026-10-31)
 
