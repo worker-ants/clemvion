@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "0db91c2a9be38eec17e04c8ad99838f8c9cdc7db06150414de72a43f1dfb51b4"
+content_hash: "038a3de51b285ef1f3be9853226a49e206ffdc9e3d3fb5f6d1336b748d076d65"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-YKA9CJ"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "336721a4999356c0095d1407f105f2f79e8b5547bb3fadb3a2687cf172980b4b"
-etag: "sha256-9c85e4ea6b7f59c211c20f90985f2a39581f142a1a75f5fa5637d66a230990b7"
+mirror_sha256: "e284d11c5a0f7490bb9cea11e471873bb7497ea633c5ecffc54d637c627cb506"
+etag: "sha256-2e4963031d3ebcca4966d2923bb9563c6d55099971d18d5736ab2198e58cacce"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -102,7 +102,7 @@ etag: "sha256-9c85e4ea6b7f59c211c20f90985f2a39581f142a1a75f5fa5637d66a230990b7"
 - REQ-SIGNIN-065 WHEN 로그인 요청을 받으면 THE SYSTEM SHALL 이메일 인증 여부를 비밀번호 확인 뒤에 확인한다. (미구현)
 - REQ-SIGNIN-066 IF 비밀번호가 맞지만 이메일 인증을 마치지 않은 계정이 로그인하면 THE SYSTEM SHALL 토큰을 발급하지 않고 401 `EMAIL_VERIFICATION_REQUIRED` 로 거부한다. (미구현)
 - REQ-SIGNIN-067 IF Passkey 기능이 꺼져 있는 동안 Passkey credential 이 1개 이상 있고 TOTP 가 꺼진 사용자가 로그인 1단계를 통과하면 THE SYSTEM SHALL 토큰을 발급하지 않고 503 `WEBAUTHN_DISABLED` 로 거부한다. (미구현)
-- REQ-SIGNIN-068 WHEN 로그인 2단계 Passkey 인증 검증 요청을 받으면 THE SYSTEM SHALL 서명과 counter 를 판정하기 전에 그 요청의 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)를 만료 시각까지 다시 쓰지 못하게 기록한다.
+- REQ-SIGNIN-068 WHEN 로그인 2단계 Passkey 인증 검증 요청을 받으면 THE SYSTEM SHALL 서명과 counter 를 판정하기 전에 그 요청의 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)를 옵션 토큰의 만료 시각에 여유 시간을 더한 때까지 다시 쓰지 못하게 기록한다.
 - REQ-SIGNIN-069 IF 이미 인증 검증에 쓴 Passkey 인증 챌린지로 인증 검증 요청이 오면 THE SYSTEM SHALL credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 로 거부한다.
 - REQ-SIGNIN-070 IF Passkey 인증 응답이 서명 검증을 통과하지 못하면 THE SYSTEM SHALL counter 값과 상관없이 credential 을 지우지 않고 401 `WEBAUTHN_INVALID` 로 거부한다.
 - REQ-SIGNIN-071 IF Passkey 인증 검증이 실패하면 THE SYSTEM SHALL 같은 챌린지 토큰(`challengeToken`)으로 새 옵션을 받거나 Passkey 복구 코드로 통과할 수 있게 둔다.
@@ -392,7 +392,7 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 1. `POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }`. 서버가 챌린지 토큰을 검증하고 `generateAuthenticationOptions` 와 `optionsToken`(`kind=webauthn_auth`, 5분)을 준다.
 2. 클라이언트가 `navigator.credentials.get(options)` 를 호출한다.
-3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버는 챌린지 토큰과 옵션 토큰을 확인한 뒤 그 Passkey 인증 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 `verifyAuthenticationResponse` 로 서명을 검증한다. 서명이 맞으면 counter 역행을 판정하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
+3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버는 챌린지 토큰과 옵션 토큰을 검증한 뒤 그 Passkey 인증 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 `verifyAuthenticationResponse` 로 서명을 검증한다. 서명이 맞으면 counter 역행을 판정하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
 
 복구 코드로 통과할 때는 `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }` 를 부른다. 서버는 `webauthn_recovery_codes` 해시와 비교해 맞으면 그 항목을 지우고 JWT 를 발급한다.
 
@@ -400,15 +400,15 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 로그인 2단계 인증의 챌린지는 한 번만 쓴다. 이 문서에서 Passkey 인증 챌린지는 `optionsToken`(`kind=webauthn_auth`)에 든 `challenge` 값을 말한다. 챌린지 토큰(`challengeToken`)이나 로그인 1단계 응답의 `methods: ['webauthn']` · `methods: ['totp']` 챌린지와는 다르다. 줄여서 「Passkey 챌린지」 라고 쓰지 않는다.
 
-- 서버는 인증 검증 요청을 받으면 서명과 counter 를 판정하기 전에 그 챌린지를 만료 시각(`exp`)에서 60초가 더 지날 때까지 쓴 것으로 기록한다.
+- 서버는 인증 검증 요청을 받으면 서명과 counter 를 판정하기 전에 그 챌린지를 쓴 것으로 기록한다. 기록은 아래 보존 기간 동안 남는다.
 - 기록은 여러 서버 인스턴스에서 원자적이다. 같은 챌린지로 동시에 온 요청 가운데 하나만 판정으로 간다.
 - 이미 기록된 챌린지면 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 로 거부한다.
 - 검증 결과와 상관없이 기록한다. 챌린지 토큰은 기록하지 않는다. 그래서 검증이 실패해도 같은 챌린지 토큰으로 옵션을 다시 받거나 Passkey 복구 코드를 쓸 수 있다. 로그인 화면은 시도할 때마다 옵션을 새로 받는다(`login-form.tsx`). 검증 응답을 기다리는 동안에는 인증 버튼을 잠근다.
 - 등록 챌린지(`kind=webauthn_register`)는 이 규칙 밖이다.
 - 기록은 Redis 키 `auth:webauthn-auth-challenge:<challenge>` 에 `SET … EX … NX` 명령 하나로 남긴다. 키 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 에 있다.
-- 기록은 옵션 토큰의 만료 시각(`exp`)보다 60초 더 오래 남긴다. 시계가 늦은 서버 인스턴스는 다른 서버 인스턴스에서 이미 만료된 옵션 토큰도 받으므로 그동안 기록이 남아 있어야 한다. 기록은 TTL 로 사라지므로 정리 작업이 없다.
-- 기록은 옵션 토큰의 서명 · `kind` · `sub` · `exp` 를 확인한 뒤 credential 을 조회하기 전에 한다. 기록은 credential 트랜잭션 밖에서 한다.
-- 기록하지 못하면(Redis 설정 누락 · 명령 실패) 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 로 거부한다. 다시 시도할 수 있는 응답이다. credential · 리프레시 토큰 · 로그인 이력은 바꾸지 않는다. Passkey 복구 코드로 통과하는 경로는 이 기록을 쓰지 않는다.
+- **보존 기간**: 기록은 옵션 토큰의 만료 시각(`exp`)에 여유 시간 60초(`WEBAUTHN_AUTH_CHALLENGE_EXPIRY_MARGIN_SEC`)를 더한 때까지 남긴다. 시계가 늦은 서버 인스턴스는 다른 서버 인스턴스에서 이미 만료된 옵션 토큰도 받는다. 그동안 기록이 남아 있도록 여유를 둔다. 기록은 TTL 로 사라지므로 정리 작업이 없다. 이 문서와 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에서 Passkey 인증 챌린지 기록의 「보존 기간」 은 이 정의를 따른다.
+- 기록은 옵션 토큰의 서명 · `kind` · `sub` · `exp` 를 검증한 뒤 credential 을 조회하기 전에 한다. 기록은 credential 트랜잭션 밖에서 한다.
+- 기록하지 못하면(Redis 연결 · 명령 실패) 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 로 거부한다. 다시 시도할 수 있는 응답이다. credential · 리프레시 토큰 · 로그인 이력은 바꾸지 않는다. Passkey 복구 코드로 통과하는 경로는 이 기록을 쓰지 않는다.
 - 기록은 서명 검증보다 먼저 하므로 실패한 시도도 그 옵션 토큰을 쓴 것이 된다. 다시 시도하려면 옵션부터 다시 받는다.
 - 이미 쓴 챌린지로 온 요청은 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 서명이 틀린 응답과 같은 처리다.
 
@@ -424,7 +424,7 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 이 문서에서 서명 검증을 통과했다는 것은 `verifyAuthenticationResponse` 가 `verified: true` 를 돌려줬다는 뜻이다. 라이브러리는 그 안에서 challenge · origin · rpID · 사용자 확인 플래그(UV)를 확인하고 저장된 공개 키로 서명을 검증한다. 라이브러리도 counter 를 비교하지만 서명보다 먼저 비교해서 서명이 틀린 응답도 역행 에러로 끝낸다. 그래서 서비스는 라이브러리에 저장 counter 대신 0 을 넘겨 그 비교를 끄고, `verified: true` 를 받은 뒤에 위 규칙으로 직접 비교한다. 라이브러리가 검증 중에 에러를 던지거나 `verified: false` 를 돌려주면 모두 401 `WEBAUTHN_INVALID` 다.
 
-`verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. credential 행은 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 의 두 요청은 같은 챌린지를 쓰므로 챌린지 기록에서 한쪽만 이 트랜잭션에 들어가고 다른 쪽은 401 `WEBAUTHN_INVALID` 를 받는다. 다른 챌린지로 같은 credential 의 요청이 동시에 오면 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다. 그 요청의 응답 counter 가 갱신된 값 이하이면 역행으로 판정된다. 두 탭에서 거의 동시에 인증해 인증기가 서명한 응답 두 개가 뒤바뀐 순서로 도착하는 경우다. 챌린지 기록으로는 이 경우를 막지 못한다([counter 역행이면 credential 을 지운다](#counter-역행이면-credential-을-지운다-suspend-기각)). 이 경우의 처분은 정하지 않았다([미결 사항](#미결-사항)). 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
+`verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. credential 행은 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 의 두 요청은 같은 챌린지를 쓰므로 챌린지 기록에서 한쪽만 이 트랜잭션에 들어가고 다른 쪽은 401 `WEBAUTHN_INVALID` 를 받는다. 다른 챌린지로 같은 credential 의 요청이 동시에 오면 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다. 그 요청의 응답 counter 가 갱신된 값 이하이면 역행으로 판정된다. 다른 챌린지로 온 정상 응답 두 개의 순서가 뒤바뀌어도 이렇게 판정되고 그 처분은 [미결 사항](#미결-사항) 에서 정한다. 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
 
 ## 비밀번호 재설정
 
@@ -700,7 +700,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)에서 사용자가 없거나 TOTP 가 꺼져 있다. Passkey 만 등록하고 TOTP 를 켜지 않은 계정도 이 코드다. 메시지는 다시 로그인하라고 안내한다 |
 | `TOTP_NOT_INITIALIZED` | 400 | TOTP 활성화 검증(`POST /api/auth/2fa/verify`)을 설정 시작(`POST /api/auth/2fa/setup`) 없이 불러 secret 이 없다 |
 | `WEBAUTHN_DISABLED` | 503 | Passkey 기능이 꺼져 있다. 가용성 조회를 뺀 Passkey 엔드포인트와, Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)이 이 코드다. 운영자가 설정을 바꿀 때까지 회복되지 않으므로 재시도 대상이 아니다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 11). 로그인의 이 응답은 아직 구현되지 않았다 |
-| `SERVICE_UNAVAILABLE` | 503 | 로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함(Redis 장애). 서명과 counter 를 판정하지 않는다 |
+| `SERVICE_UNAVAILABLE` | 503 | 로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함(Redis 연결 · 명령 실패, [Passkey 등록·인증 흐름](#passkey-등록인증-흐름)). 서명과 counter 를 판정하지 않는다 |
 | `WEBAUTHN_VERIFY_FAILED` | 400 | Passkey 등록 검증 실패. 허용 목록 밖 알고리즘의 공개 키와 형식이 틀린 transport 목록(문자열 배열이 아니거나 NUL 문자가 든 경우)도 이 코드다 |
 | `INVALID_OPTIONS_TOKEN` | 400 | `optionsToken` 무효 |
 | `CHALLENGE_INVALID` | 401 | 로그인 2단계 챌린지 토큰이 만료 · 위조됐거나 챌린지 토큰이 아님. TOTP 검증과 Passkey 옵션 · 검증 · 복구 코드가 함께 쓴다 |
@@ -847,27 +847,25 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ### Passkey 옵션 토큰의 챌린지를 stateless JWT 로 둔다
 
-이 절의 챌린지는 등록 · 인증 옵션 토큰(`optionsToken`)에 담는 `challenge` 값이다. WebAuthn 명세의 challenge unique·fresh 요건은 challenge 가 random 이고 검증 때 클라이언트 응답과 맞는지 확인하면 충족된다. 서버 DB 의 단명 행이 필수는 아니다. JWT 만료 5분과 `kind` 검증으로 등록·인증 흐름의 교차 사용을 막는다. 발급할 때는 행을 만들지 않으므로 발급 쪽에는 단명 행 정리 배치와 인덱스가 필요 없다. 다만 JWT 만으로는 같은 챌린지를 다시 쓰는 것을 막지 못한다. 그래서 Passkey 인증 챌린지는 쓴 기록을 따로 두고 그 기록은 만료 시각이 지나면 TTL 로 사라진다(「Passkey 인증 챌린지는 한 번만 쓴다」).
+이 절의 챌린지는 등록 · 인증 옵션 토큰(`optionsToken`)에 담는 `challenge` 값이다. WebAuthn 명세의 challenge unique·fresh 요건은 challenge 가 random 이고 검증 때 클라이언트 응답과 맞는지 확인하면 충족된다. 서버 DB 의 단명 행이 필수는 아니다. JWT 만료 5분과 `kind` 검증으로 등록·인증 흐름의 교차 사용을 막는다. 발급할 때는 행을 만들지 않으므로 발급 쪽에는 단명 행 정리 배치와 인덱스가 필요 없다. 다만 JWT 만으로는 같은 챌린지를 다시 쓰는 것을 막지 못한다. 그래서 Passkey 인증 챌린지는 쓴 기록을 따로 두고 그 기록은 보존 기간이 지나면 TTL 로 사라진다(「Passkey 인증 챌린지는 한 번만 쓴다」).
 
 2026-10-17 정정(NERV Task `CLE-T-D331TT`): 이 절은 같은 5분 안에 같은 JWT 로 두 번째 검증을 시도해도 서버 라이브러리가 challenge·response 쌍의 암호학적 고유성으로 거부하고 counter 는 한 번만 오른다고 적었다. 라이브러리에는 쓴 챌린지를 기억하는 상태가 없어 그렇지 않았다. counter 를 올리는 인증기는 두 번째 검증이 counter 역행으로 처분됐다. counter 가 늘 0 인 인증기는 두 번째 검증도 통과했다.
 
 ### counter 역행이면 credential 을 지운다 (suspend 기각)
 
-counter 역행은 인증기 복제 공격이나 인증기 firmware 에러 둘 중 하나다. 둘 다 신뢰가 깨진 상태라 바로 신뢰를 거둔다. 같은 assertion 의 중복 요청은 챌린지 기록에서 먼저 거부되고 서명이 틀린 응답은 역행으로 판정하지 않는다. 그래서 역행 판정까지 오는 응답은 이 두 경우뿐이다(2026-10-17, 「Passkey 인증 챌린지는 한 번만 쓴다」). 2026-10-30 에 예외를 하나 찾았다(아래 「2026-10-30 추가」 문단). suspend(`disabled_at` 컬럼과 명시적 재활성화)는 사용자에게 재활성화 선택지를 주는데, 복제한 공격자가 본인인 척 재활성화해도 효과가 같아 보안 이득이 작다. 추가 컬럼·UI 흐름·테스트가 줄어 운영이 단순하고 재등록 비용은 작다.
+counter 역행은 인증기 복제 공격이나 인증기 firmware 에러 둘 중 하나다. 둘 다 신뢰가 깨진 상태라 바로 신뢰를 거둔다. 같은 assertion 의 중복 요청은 챌린지 기록에서 먼저 거부되고 서명이 틀린 응답은 역행으로 판정하지 않는다. 그래서 역행 판정까지 오는 응답은 이 두 경우뿐이다(2026-10-17, 「Passkey 인증 챌린지는 한 번만 쓴다」). 2026-10-30 에 예외를 하나 찾았다(NERV Task `CLE-T-GK9J2B`). 다른 챌린지로 온 정상 응답 두 개의 순서가 뒤바뀐 경우이고 처분은 [미결 사항](#미결-사항) 에서 정한다. suspend(`disabled_at` 컬럼과 명시적 재활성화)는 사용자에게 재활성화 선택지를 주는데, 복제한 공격자가 본인인 척 재활성화해도 효과가 같아 보안 이득이 작다. 추가 컬럼·UI 흐름·테스트가 줄어 운영이 단순하고 재등록 비용은 작다.
 
 2026-10-17 추가(NERV Task `CLE-T-D331TT`): counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 비우지 않는다. 사용자가 마지막 credential 을 지울 때는 비우므로 둘이 다르다. 지금 구현이 이렇게 동작하고 이번에 문서에 적었다. 남은 코드는 쓸 곳이 거의 없다. credential 이 없으면 로그인 응답이 `methods: ['webauthn']` 가 아니다. 쓸 수 있는 곳은 삭제 전에 `methods: ['webauthn']` 로 발급된 챌린지 토큰(`challengeToken`, 5분)뿐이고 그 토큰은 로그인 1단계를 통과해야 받는다. 첫 등록은 credential 수가 0 인지로 판정하므로 다음 등록 때 새 코드로 바뀐다. 역행 트랜잭션에서 복구 코드도 비우는 안은 처음에 미뤘다. counter 역행 처분의 범위를 정하는 사람 결정이 남아 있었기 때문이다. 그 결정으로 범위가 처음 쓰는 챌린지에서 서명이 맞는 응답으로 좁혀졌다. 범위가 좁혀져도 남은 코드를 쓸 곳은 그대로라 비워서 얻는 것이 없다. 그래서 비우는 안은 기각하고 지금 동작을 유지한다. 이 Task 는 이 동작을 바꾸지 않는다.
 
 2026-10-30 에 역행 판정 자리를 서명 검증 뒤로 옮겼다(NERV Task `CLE-T-NWHVMN`). 이유와 기각한 안은 [역행은 서명 검증을 통과한 응답에서만 판정한다](#역행은-서명-검증을-통과한-응답에서만-판정한다-2026-10-30) 에 있다.
 
-2026-10-30 추가(NERV Task `CLE-T-GK9J2B`): 챌린지 기록으로 막지 못하는 역행이 하나 남는다. 두 탭에서 거의 동시에 인증하면 인증기가 서명한 응답 두 개가 서로 다른 챌린지로 뒤바뀐 순서로 도착할 수 있다. 먼저 서명된 응답이 나중에 처리되면 갱신된 counter 를 읽고 역행으로 판정된다. 챌린지 기록은 같은 챌린지의 재사용만 막으므로 이 경우를 막지 못한다. 지금 구현은 이 경우에도 credential 을 지운다. 이 결정은 역행이 인증기 복제 공격이나 firmware 에러 둘 중 하나라고 보고 내렸다. 정상 인증기의 응답 순서가 뒤바뀐 이 경우를 결정에 넣을지는 아직 정하지 않았다. [미결 사항](#미결-사항) 에 올렸고 NERV Task `CLE-T-XFG7AE` 에서 정한다.
-
 ### 역행은 서명 검증을 통과한 응답에서만 판정한다 (2026-10-30)
 
 NERV Task `CLE-T-NWHVMN` 에서 정했다. 역행은 서명 검증을 통과한 응답에서만 판정한다. 그 전 구현은 `@simplewebauthn/server` 의 counter 비교를 그대로 썼다. 라이브러리는 counter 를 서명보다 먼저 비교한다. 그래서 서명이 틀린 응답도 counter 만 저장값 이하면 역행 에러가 났고 서비스는 credential 을 지우고 리프레시 토큰을 모두 무효화했다. 저장 counter 가 0 보다 크면 인증기 없이 이런 응답을 만들 수 있다. 비밀번호로 로그인 1단계를 통과하면 인증 옵션의 `allowCredentials` 에서 credential id 를 받기 때문이다. 그러면 그 사용자는 Passkey 를 잃고 로그인 세션이 모두 끝난다. 지워진 것이 마지막 Passkey 이고 TOTP 도 없으면 다음 로그인은 2단계 인증 없이 비밀번호만으로 통과한다.
 
-- **기각: 서명을 확인하기 전에 counter 로 처분한다.** 라이브러리의 판정을 그대로 쓰는 그 전 동작이다. 위 공격을 막지 못한다.
+- **기각: 서명을 검증하기 전에 counter 로 처분한다.** 라이브러리의 판정을 그대로 쓰는 그 전 동작이다. 위 공격을 막지 못한다.
 - **기각: 라이브러리 에러 메시지로 역행을 가려낸다.** 그 전 구현은 에러 문구를 정규식으로 맞춰 역행과 다른 실패를 갈랐다. 라이브러리가 문구를 바꾸면 역행이 조용히 `WEBAUTHN_INVALID` 로 바뀐다. 서명 검증 뒤에 서비스가 직접 비교하면 문구에 기대지 않는다.
-- **기각: 서명 확인을 따로 한다.** 구현 완료 검토에서 대안으로 나왔다. 라이브러리의 counter 에러를 받은 뒤 서명을 다시 검증하거나 서명 검증 함수를 직접 부르는 안이다. 라이브러리가 하는 challenge · origin · rpID · 사용자 확인 플래그(UV) 확인까지 서비스가 다시 맞춰야 한다. 저장 counter 자리에 0 을 넘기면 라이브러리의 확인을 그대로 쓰고 counter 비교만 서비스로 옮긴다.
+- **기각: 서명 검증을 따로 한다.** 구현 완료 검토에서 대안으로 나왔다. 라이브러리의 counter 에러를 받은 뒤 서명을 다시 검증하거나 서명 검증 함수를 직접 부르는 안이다. 라이브러리가 하는 challenge · origin · rpID · 사용자 확인 플래그(UV) 확인까지 서비스가 다시 맞춰야 한다. 저장 counter 자리에 0 을 넘기면 라이브러리의 확인을 그대로 쓰고 counter 비교만 서비스로 옮긴다.
 
 ### 로그인에서 TOTP 로 자동 전환하지 않는다
 
@@ -887,23 +885,25 @@ Passkey 는 피싱에 강하고 TOTP 는 코드를 입력하는 순간 피싱에
 
 ### Passkey 인증 챌린지는 한 번만 쓴다 (2026-10-17)
 
-NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 이 두 번 오는 일은 공격이 아니어도 생긴다. 버튼을 두 번 누르거나 네트워크 계층이 요청을 다시 보내는 경우다. 챌린지 기록이 없을 때 counter 를 올리는 인증기는 두 번째 요청이 counter 역행으로 처분됐다. credential 이 지워지고 첫 요청이 받은 로그인 세션까지 끝났다. counter 가 늘 0 인 인증기(대부분의 플랫폼 Passkey)는 같은 assertion 이 다시 통과해 토큰이 한 번 더 나왔다. 챌린지를 한 번만 쓰면 두 경우 모두 credential 을 지우지 않는 401 로 끝난다. 처음 쓰는 챌린지에서 서명이 맞는데 counter 가 역행한 응답만 복제 신호로 남는다. (2026-10-30 정정: 다른 챌린지로 온 정상 응답이 뒤바뀐 순서로 도착해도 역행으로 판정된다. [미결 사항](#미결-사항) 참고.)
+NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 이 두 번 오는 일은 공격이 아니어도 생긴다. 버튼을 두 번 누르거나 네트워크 계층이 요청을 다시 보내는 경우다. 챌린지 기록이 없을 때 counter 를 올리는 인증기는 두 번째 요청이 counter 역행으로 처분됐다. credential 이 지워지고 첫 요청이 받은 로그인 세션까지 끝났다. counter 가 늘 0 인 인증기(대부분의 플랫폼 Passkey)는 같은 assertion 이 다시 통과해 토큰이 한 번 더 나왔다. 챌린지를 한 번만 쓰면 두 경우 모두 credential 을 지우지 않는 401 로 끝난다. 처음 쓰는 챌린지에서 서명이 맞는데 counter 가 역행한 응답만 복제 신호로 남는다. (2026-10-30 정정: 다른 챌린지로 온 정상 응답의 순서가 뒤바뀌어도 역행으로 판정된다([미결 사항](#미결-사항)).)
 
 - **기각: counter 가 같은 값과 작은 값을 나눠 처분한다.** counter 가 같으면 거부만 하고 작을 때만 지우는 안이다. 둘 다 0 인 경우는 어느 안에서도 역행이 아니다. 구현은 간단하다. 하지만 counter 가 늘 0 인 인증기의 재전송을 막지 못하고 같은 counter 를 내는 복제 인증기도 놓친다.
 - **기각: 지금 동작을 문서에 적고 화면에서 중복 제출을 막는다.** 화면을 거치지 않는 재전송과 counter 0 인증기의 토큰 재발급이 남는다.
 - **기록 시점**: 서명과 counter 를 판정하기 전에 기록한다. 판정 뒤에 기록하면 동시에 온 두 요청이 모두 판정으로 가서 지금과 같은 역행 처분이 난다. 검증 결과와 상관없이 기록하므로 실패한 사용자는 옵션을 다시 받아야 한다. 옵션 요청은 챌린지 토큰만 있으면 되고 로그인 화면은 이미 시도마다 옵션을 새로 받는다.
-- **비용**: 쓴 챌린지를 만료 시각까지 담는 공유 저장소가 필요하다. 챌린지를 JWT 에 담아 발급하는 방식(「Passkey 옵션 토큰의 챌린지를 stateless JWT 로 둔다」)은 그대로 둔다. 원자적 기록, 만료된 기록 정리, 저장소 장애 때의 동작은 구현 Task 에서 정했다(아래 「2026-10-30 구현」). 한 번만 쓰는 값을 원자적으로 소비하는 선례는 [계정과 워크스페이스 데이터 흐름 「OAuth state 를 한 번의 DELETE 로 소비한다」](CLE-ACCT-DATA.md#oauth-state-를-한-번의-delete-로-소비한다) 에 있다.
+- **비용**: 쓴 챌린지를 [보존 기간](#passkey-등록인증-흐름) 동안 담는 공유 저장소가 필요하다. 챌린지를 JWT 에 담아 발급하는 방식(「Passkey 옵션 토큰의 챌린지를 stateless JWT 로 둔다」)은 그대로 둔다. 원자적 기록, 만료된 기록 정리, 저장소 장애 때의 동작은 구현 Task 에서 정했다(아래 「2026-10-30 구현」). 한 번만 쓰는 값을 원자적으로 소비하는 선례는 [계정과 워크스페이스 데이터 흐름 「OAuth state 를 한 번의 DELETE 로 소비한다」](CLE-ACCT-DATA.md#oauth-state-를-한-번의-delete-로-소비한다) 에 있다.
 
 2026-10-30 구현(NERV Task `CLE-T-GK9J2B`): 구현하면서 다음을 정했다.
 
 - **저장소는 Redis 키다.** 쓴 챌린지마다 키 하나를 `SET` 명령 하나(`NX` · `EX`)로 남긴다. 명령 하나라서 여러 서버 인스턴스에서도 원자적이다. 기록은 TTL 로 사라지므로 정리 배치와 마이그레이션이 없다.
-- **기각: OAuth state 처럼 테이블에 넣는다.** 테이블에 넣으면 유니크 제약과 마이그레이션이 더 든다. 검증할 때마다 DB 쓰기도 하나 는다. 기록은 5분 남짓만 있으면 된다. 기록을 잃을 수 있다는 점은 아래 「받아들인 위험」 에 적었다.
-- **키에 챌린지 원문을 넣는다.** 해시하지 않는다. 챌린지는 옵션 응답으로 클라이언트에 이미 내려가는 값이다. 챌린지는 서버가 만든 무작위 값이고 서명된 옵션 토큰 안에 있다. 그래서 키만으로는 아무것도 할 수 없다. 한 번 쓴 챌린지는 다시 쓸 수도 없다.
-- **기록하지 못하면 판정하지 않는다(fail-closed).** 기록 없이 판정으로 보내면 같은 assertion 의 두 번째 요청이 갱신된 counter 를 읽고 역행으로 처분된다. 그러면 credential 이 지워지고 첫 요청이 받은 로그인 세션도 끝난다. 이 결정이 막으려던 경우가 그대로 돌아온다. 같은 Redis 를 쓰는 다른 기능(`ChatChannelDedupService` · `Cafe24InstallNonceCache`)은 fail-open 이지만 여기서는 따르지 않았다. 그 대신 Redis 장애 중에는 Passkey 로 로그인 2단계를 통과할 수 없고 Passkey 복구 코드 경로만 열린다. 장애는 `/api/health` 의 Redis 점검과 error 로그로 드러난다.
+- **기각: OAuth state 처럼 테이블에 넣는다.** 테이블에 넣으면 유니크 제약과 마이그레이션이 더 든다. 검증할 때마다 DB 쓰기도 하나 는다. 기록은 [보존 기간](#passkey-등록인증-흐름) 동안만 있으면 되고 그 기간은 길어야 약 6분이다. 기록을 잃을 수 있다는 점은 아래 「받아들인 위험」 에 적었다.
+- **키에 챌린지 원문을 넣는다.** 해시하지 않는다. 챌린지는 옵션 응답으로 클라이언트에 이미 내려가는 값이다. 챌린지는 서버가 만든 무작위 값이고 서명된 옵션 토큰 안에 있다. 그래서 키만으로는 아무것도 할 수 없다. 한 번 쓴 챌린지는 다시 쓸 수도 없다. [Redis 키 명명 규약 「Redis 키가 아닌 인접 이름」](../CLE-ENG/CLE-ENG-REDIS.md#redis-키가-아닌-인접-이름) 의 PostgreSQL advisory lock 키 `makeshop-pending` 은 `client_id` 를 SHA-256 hex 로 바꿔 넣는다. `client_id` 는 자격 증명이기 때문이다. 챌린지는 비밀이 아니라서 해시하지 않는다.
+- **기록하지 못하면 판정하지 않는다(fail-closed).** 기록 없이 판정으로 보내면 같은 assertion 의 두 번째 요청이 갱신된 counter 를 읽고 역행으로 처분된다. 그러면 credential 이 지워지고 첫 요청이 받은 로그인 세션도 끝난다. 이 결정이 막으려던 경우가 그대로 돌아온다. 같은 Redis 를 쓰는 다른 기능(`ChatChannelDedupService` · `Cafe24InstallNonceCache`)은 fail-open 이지만 여기서는 따르지 않았다. 실패 정책은 키마다 그 키를 소유한 문서가 정한다([용어 사전 — API 와 개발 규약](../CLE-GLOSSARY-API.md) 「fail-open」). [EIA 데이터 「인프라 장애에는 fail-open 한다」](../CLE-IX/CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 도 그 모듈의 키에 정한 원칙이고 이 키는 이 문서가 소유한다. 그 대신 Redis 장애 중에는 Passkey 로 로그인 2단계를 통과할 수 없고 Passkey 복구 코드 경로만 열린다. 이 상태는 2026-10-17 에 기각한 「기능이 꺼진 동안 Passkey 복구 코드로만 로그인을 연다」 와 닮았다([Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 그 안을 기각한 이유는 새 `methods` 값과 화면이 필요하다는 것과 복구 코드가 곧 바닥난다는 것이었다. 여기서는 새 응답 값이나 화면이 필요 없다. 복구 코드 입력은 [Passkey 인증 화면](#passkey-인증-화면) 에 이미 있다. 복구 코드가 바닥날 위험은 장애가 이어지는 동안 남는다. 장애는 `/api/health` 의 Redis 점검과 error 로그로 드러난다.
 - **기각: 저장소 장애를 401 `WEBAUTHN_INVALID` 로 돌려준다.** 저장소 장애는 사용자가 인증에 실패한 것이 아니다. 같은 엔드포인트에서 인증 실패와 인프라 장애를 한 코드로 묶으면 클라이언트가 다시 시도할지 가를 수 없다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6). [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 11 은 우리 인프라 의존성의 일시 장애에 `503` 을 쓰게 한다. Redis 는 우리 인프라라서 카탈로그에 이미 있는 503 `SERVICE_UNAVAILABLE` 을 쓰고 새 코드를 만들지 않았다.
 - **이미 쓴 챌린지는 서명이 틀린 응답과 같게 처리한다.** 로그인 이력 사유는 `WEBAUTHN_INVALID` 이고 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 로그인 1단계를 통과한 뒤의 실패라서 기존 2단계 실패와 같게 둔다.
 - **전용 요청 빈도 제한은 두지 않았다.** 이 경로는 `@Public` 이라 전역 한도(IP 당 분당 100회)가 걸린다. 재사용 거부는 저장소 조회 한 번이라 비용이 작다.
-- **받아들인 위험: 한 번만 쓴다는 보장은 Redis 가 키를 잃지 않는다는 전제에 기댄다.** 영속 설정 없이 재시작하거나 failover 로 키를 잃으면 만료 시각에서 60초가 지날 때까지 이미 쓴 챌린지를 다시 쓸 수 있다. 다시 보내려면 챌린지 토큰 · 옵션 토큰 · assertion 이 모두 있어야 하고 그 기간은 길어야 약 6분이다. counter 를 쓰지 않는 인증기(counter 가 늘 0)에는 이 기록이 유일한 재전송 방어다. Redis 퇴거 정책은 `noeviction` 이 전제다.
+- **받아들인 위험: 한 번만 쓴다는 보장은 Redis 가 키를 잃지 않는다는 전제에 기댄다.** 영속 설정 없이 재시작하거나 failover 로 키를 잃으면 보존 기간이 끝날 때까지 이미 쓴 챌린지를 다시 쓸 수 있다. 다시 보내려면 챌린지 토큰 · 옵션 토큰 · assertion 이 모두 있어야 하고 그 기간은 길어야 약 6분이다. counter 를 쓰지 않는 인증기(counter 가 늘 0)에는 이 기록이 유일한 재전송 방어다. Redis 퇴거 정책은 `noeviction` 이 전제다.
+
+2026-11-01 정리(NERV Task `CLE-T-YKA9CJ`): 기록의 보존 기간(옵션 토큰의 만료 시각에 여유 60초를 더한 때)을 [Passkey 등록·인증 흐름](#passkey-등록인증-흐름) 에 한 번 정의하고 다른 곳은 그 정의를 가리키게 했다. REQ-SIGNIN-068 은 「만료 시각까지」 라고만 적어 여유를 빠뜨렸으므로 요구사항 문장도 맞췄다. 여유 60초는 이미 승인된 값이고 바꾸지 않았다. 기록하지 못하는 원인에서 「Redis 설정 누락」 을 뺐다. Redis 연결 설정에는 기본값(`localhost:6379`)이 있어 실행 중인 서버는 설정 누락으로 기록에 실패하지 않는다. 남는 원인은 연결 · 명령 실패다. 둘 다 다시 시도하면 풀릴 수 있어 「다시 시도할 수 있는 응답」 이라는 서술과 맞는다. 503 으로 막는 결정은 그대로다.
 
 ### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다 (2026-10-17)
 

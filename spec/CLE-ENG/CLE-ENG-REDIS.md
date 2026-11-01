@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "4345708de54f67351f3a6195df6b043a18e498a9b05700713537df3c98a01171"
+content_hash: "5affd2d98b04612ab1b2880cf9e086e0d23f4fe26d0d30c7192d0e02a688426d"
 read_as: "approved_fallback"
-task: "CLE-T-N7ENKQ"
+task: "CLE-T-YKA9CJ"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "25715c1be36cc4d9ce576f665172d60afd389dca76019206a437bc22a984f9b1"
-etag: "sha256-d3b8a4703bf43f323fc1a9d713e53dc3900e1ac33d43ef38f40f5931e3bf5844"
+mirror_sha256: "d9779a2e2c161bd1e8f7bf2c582c0490233592e4b880fc54e064c6538a8c3a08"
+etag: "sha256-77dd63886d3fb30ec4dfb5a7ece9469346e7f77e38c1c73c66241d0f3a951403"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -30,7 +30,7 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 범위 밖:
 
 - 지금 있는 Redis 키와 pub/sub 채널의 전체 목록(인벤토리)과 BullMQ 큐 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 단일 기준이다.
-- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 가 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
+- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
 - BullMQ 가 큐마다 안에서 만드는 `bull:<queue>:*` 키는 라이브러리 표준이라 이 규약 밖이다.
 
 ## 규칙
@@ -111,6 +111,7 @@ advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 
 - `codebase/backend/src/modules/hooks/**/*.ts`
 - `codebase/backend/src/modules/integrations/**/*.ts`
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
+- `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
 
 ## Rationale
@@ -128,7 +129,7 @@ advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 
 
 ### 목록은 위치만, 상세는 소유 문서에 두는 이유
 
-Redis 키는 7개 모듈(`execution-engine`·`websocket`·`external-interaction`·`chat-channel`·`hooks`·`integrations`·`common/redis`)에 흩어져 있다. TTL·용도·실패 정책까지 한 표에 모으면 각 영역 문서와 기준이 둘이 되고 둘이 어긋나는 순간 어느 쪽이 맞는지 판정할 근거가 없어진다. 전역 목록이 맡는 일은 "이 키가 어디 있는지" 까지다.
+Redis 키는 여러 모듈(`execution-engine`·`websocket`·`external-interaction`·`chat-channel`·`hooks`·`integrations`·`auth`·`common/redis` 등)에 흩어져 있다. TTL·용도·실패 정책까지 한 표에 모으면 각 영역 문서와 기준이 둘이 되고 둘이 어긋나는 순간 어느 쪽이 맞는지 판정할 근거가 없어진다. 전역 목록이 맡는 일은 "이 키가 어디 있는지" 까지다.
 
 NERV 로 옮기면서 전역 목록은 이 문서에서 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 으로 옮겼다. 실행 엔진 키의 용도·TTL 도 그 문서가 정한다. 이 문서에는 이름 규칙만 남겼다.
 
