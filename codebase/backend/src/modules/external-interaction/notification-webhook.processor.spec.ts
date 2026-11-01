@@ -309,6 +309,39 @@ describe('NotificationWebhookProcessor.process', () => {
     );
   });
 
+  // IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다(NERV Task `CLE-T-DCQWEB`). 등록 뒤 저장값이 바뀌었어도 발송 직전에 막는다.
+  it.each([
+    ['https://[::ffff:127.0.0.1]/x', 'IPv4-mapped → loopback'],
+    [
+      'https://[::ffff:a9fe:a9fe]/latest/meta-data/',
+      'IPv4-mapped → 메타데이터',
+    ],
+    ['https://[::7f00:1]/x', 'IPv4-compatible → loopback'],
+    ['https://[::ffff:0:c0a8:1]/x', 'SIIT → 192.168.0.1'],
+    ['https://[64:ff9b::10.0.0.5]/x', 'NAT64 → 10/8'],
+  ])('SSRF — 알림 URL 이 %s (%s) 면 degraded + skip', async (url) => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url,
+            events: ['execution.completed'],
+            signing: { algorithm: 'hmac-sha256', secret: SECRET },
+          },
+        },
+      }),
+    );
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+      notificationHealth: 'degraded',
+      notificationLastError:
+        'outbound URL 거부: URL hostname must not be a private IPv6 address',
+    });
+  });
+
   it('Secret 미설정 — degraded + skip', async () => {
     triggerRepo.findOne.mockResolvedValue(
       makeTrigger({
