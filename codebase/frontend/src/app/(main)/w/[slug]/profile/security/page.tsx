@@ -57,6 +57,7 @@ export default function SecurityPage() {
     }
     setQrDataUrl(null);
     setCode("");
+    setSetupPassword("");
     toast.info(t("profile.security.alreadyEnabled"));
     void refreshUser();
     return true;
@@ -71,10 +72,10 @@ export default function SecurityPage() {
     },
     onError: (err) => {
       if (handleAlreadyEnabled(err)) return;
-      const code = axios.isAxiosError(err) ? extractApiCode(err) : undefined;
+      const apiCode = axios.isAxiosError(err) ? extractApiCode(err) : undefined;
       toast.error(
         t(
-          (code && SETUP_PASSWORD_ERRORS[code]) ||
+          (apiCode && SETUP_PASSWORD_ERRORS[apiCode]) ||
             "profile.security.setupStartFailed",
         ),
       );

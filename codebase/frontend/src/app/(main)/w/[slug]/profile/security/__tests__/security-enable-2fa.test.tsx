@@ -174,6 +174,22 @@ describe("SecurityPage 2FA 설정", () => {
     expect(await screen.findByText(security.active)).toBeTruthy();
   });
 
+  it("설정 시작이 409 TOTP_ALREADY_ENABLED 면 입력해 둔 비밀번호를 화면에 남기지 않는다", async () => {
+    // 서버가 켜짐 여부를 아직 돌려주지 않아 설정 화면이 그대로 남는 경우에도 입력값은 비운다.
+    get.mockResolvedValue({ data: { data: DISABLED_ME } });
+    post.mockRejectedValueOnce(apiError(409, "TOTP_ALREADY_ENABLED"));
+    renderPage();
+    startSetup();
+
+    await waitFor(() => {
+      expect(toast.info).toHaveBeenCalledWith(security.alreadyEnabled);
+    });
+    const input = screen.getByPlaceholderText(
+      security.accountPasswordPlaceholder,
+    ) as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+
   it("활성화 검증이 409 TOTP_ALREADY_ENABLED 면 QR 을 닫고 이미 켜졌다고 안내한다", async () => {
     post
       .mockResolvedValueOnce(SETUP_OK)
