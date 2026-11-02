@@ -368,7 +368,7 @@ export const nodeConfigs = {
     dataFieldPlaceholder: "예: items",
     dataFieldHint: "입력 객체에서 데이터 배열이 든 키 (비워 두면 입력 자체를 배열로 사용)",
     chartLegacyDataSource: "데이터 소스 (이전 설정)",
-    chartLegacyDataSourceNotice: "예전 설정 화면에서 저장한 표현식이에요. 데이터 필드가 비어 있을 때만 이 값을 써요. 데이터 필드로 옮긴 뒤 지워 주세요.",
+    chartLegacyDataSourceNotice: "예전 설정 화면에서 저장한 표현식이에요. 데이터 필드가 비어 있을 때만 이 값을 써요. 표현식은 데이터 필드로 옮길 수 없어요. 다른 노드의 데이터를 그리려면 Chart 앞에 그 데이터를 내는 노드를 두고 입력으로 연결한 뒤 이 값을 지워 주세요.",
     chartLegacyDataSourceClear: "지우기",
     xAxis: "X축",
     xFieldPlaceholder: "x 필드 경로",

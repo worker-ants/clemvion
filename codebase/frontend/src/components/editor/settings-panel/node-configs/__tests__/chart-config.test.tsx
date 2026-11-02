@@ -25,6 +25,10 @@ describe("ChartConfig 설정 화면 (CLE-NODE-CHART)", () => {
     const legacy = screen.getByTestId("chart-legacy-data-source");
     expect(legacy.textContent).toContain("{{$var.items}}");
     expect(legacy.textContent).toContain("used only while Data Field is empty");
+    // 표현식은 Data Field 로 옮길 수 없으므로 옮기라는 안내가 아니라 입력으로 연결하라고 안내한다.
+    expect(legacy.textContent).toContain("cannot be moved to Data Field");
+    expect(legacy.textContent).toContain("connect it as the input");
+    expect(legacy.textContent).not.toContain("Move it to Data Field");
     fireEvent.click(screen.getByRole("button", { name: /Clear/ }));
     expect(onChange).toHaveBeenCalledWith({ chartType: "bar", title: "T" });
   });

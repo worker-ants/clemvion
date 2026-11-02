@@ -370,7 +370,7 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     dataFieldPlaceholder: "e.g. items",
     dataFieldHint: "Key in the input object that holds the data array (leave empty to use the input itself)",
     chartLegacyDataSource: "Data Source (legacy)",
-    chartLegacyDataSourceNotice: "Saved by the previous settings screen. This value is used only while Data Field is empty. Move it to Data Field, then clear it.",
+    chartLegacyDataSourceNotice: "Saved by the previous settings screen. This value is used only while Data Field is empty. An expression cannot be moved to Data Field. To chart another node's data, put the node that produces it before Chart, connect it as the input, then clear this value.",
     chartLegacyDataSourceClear: "Clear",
     xAxis: "X Axis",
     xFieldPlaceholder: "x field path",
