@@ -339,6 +339,7 @@ Modifying a variable that has not been declared raises an error. Always declare 
 - Max Concurrency caps the number of concurrent branches to protect resources.
 - Nodes inside one branch run one at a time in topological order. From the second node on, each node receives the previous node's output as its input, and a path that an If or Switch inside the branch did not pick does not run.
 - When every branch completes, the output of **the latest node that actually ran** in each branch goes into `done.branches`. Nodes that did not run are not used as the result.
+- If more than one end node runs in a branch (for example, both B and C run after A), which one becomes the result depends on internal node ID order. Editing nodes or connections can change it, so to pin the result, collect those paths into a single Merge node at the end of the branch.
 
 ### Reading results and failures
 
