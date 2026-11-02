@@ -20,6 +20,7 @@ import {
   type ReauthMode,
 } from "./components/revoke-confirm-dialog";
 import { LoginHistoryList } from "./components/login-history-list";
+import { nextReauthMode } from "./reauth-mode";
 
 type DialogState =
   | { open: false }
@@ -51,12 +52,11 @@ export function SessionsPanel() {
     queryFn: () => sessionsApi.listSessions(),
   });
 
-  const [reauthOverride, setReauthOverride] = useState<ReauthMode | null>(null);
-
   // 비밀번호가 있는 계정은 비밀번호로 확인한다. TOTP 를 켠 계정도 인증 앱을 잃었을 때 비밀번호로
   // 세션을 끊을 수 있어야 한다. /users/me 는 비밀번호 유무를 싣지 않으므로 비밀번호를 먼저 받고
-  // 서버 응답으로 바꾼다(handleConfirm). 근거: [세션과 토큰 REQ-SESSION-025](CLE-ACCT-SESSION)
-  const reauthMode: ReauthMode = reauthOverride ?? "password";
+  // 서버 응답으로 바꾼다(handleConfirm → nextReauthMode).
+  // 근거: [세션과 토큰 REQ-SESSION-025](CLE-ACCT-SESSION)
+  const [reauthMode, setReauthMode] = useState<ReauthMode>("password");
 
   const revokeMutation = useMutation<
     SessionDto[],
@@ -77,7 +77,7 @@ export function SessionsPanel() {
           : t("profile.sessions.sessionRevokedToast"),
       );
       setDialog({ open: false });
-      setReauthOverride(null);
+      setReauthMode("password");
     },
     // onError 에서는 toast 만 띄우고 mutation 결과를 컨슈머(handleConfirm) 가 처리하도록
     // re-throw 하지 않는다. handleConfirm 의 try/catch 에서 인라인 에러 표시.
@@ -104,27 +104,8 @@ export function SessionsPanel() {
         await revokeMutation.mutateAsync({ scope: "all", payload });
       }
     } catch (err) {
-      // 서버가 REAUTH_NOT_AVAILABLE (403) 을 돌려주면 다이얼로그를
-      // "재인증 불가" 모드로 전환해 다음 시도에 사용자에게 명확히 안내한다.
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        const code = err.response.data?.error?.code ?? err.response.data?.code;
-        if (code === "REAUTH_NOT_AVAILABLE") {
-          setReauthOverride("unavailable");
-        }
-      }
-      // 비밀번호가 없는 계정은 비밀번호를 보내면 REAUTH_REQUIRED (400) 를 받는다.
-      // TOTP 가 켜진 계정이면 인증 코드 입력으로 바꾼다.
-      if (
-        axios.isAxiosError(err) &&
-        err.response?.status === 400 &&
-        reauthMode === "password" &&
-        user?.twoFactorEnabled
-      ) {
-        const code = err.response.data?.error?.code ?? err.response.data?.code;
-        if (code === "REAUTH_REQUIRED") {
-          setReauthOverride("totp");
-        }
-      }
+      const next = nextReauthMode(err, reauthMode, Boolean(user?.twoFactorEnabled));
+      if (next) setReauthMode(next);
       toast.error(axiosMessage(err, t("profile.sessions.revokeFailedToast")));
       throw err instanceof Error ? err : new Error(String(err));
     }
