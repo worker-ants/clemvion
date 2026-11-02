@@ -2,52 +2,56 @@
 id: "CLE-NODE-CHART"
 title: "Chart 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-CHART-001", "REQ-CHART-002", "REQ-CHART-003", "REQ-CHART-004", "REQ-CHART-005", "REQ-CHART-006", "REQ-CHART-007", "REQ-CHART-008", "REQ-CHART-009", "REQ-CHART-010", "REQ-CHART-011", "REQ-CHART-012", "REQ-CHART-013", "REQ-CHART-014", "REQ-CHART-015", "REQ-CHART-016"]
+requirements: ["REQ-CHART-001", "REQ-CHART-002", "REQ-CHART-003", "REQ-CHART-004", "REQ-CHART-005", "REQ-CHART-006", "REQ-CHART-007", "REQ-CHART-008", "REQ-CHART-009", "REQ-CHART-010", "REQ-CHART-011", "REQ-CHART-012", "REQ-CHART-013", "REQ-CHART-014", "REQ-CHART-015", "REQ-CHART-016", "REQ-CHART-017", "REQ-CHART-018", "REQ-CHART-019", "REQ-CHART-020"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "7dce1913a895915af29d56d8c9163d63e88dfb82d5f70d33f7689f85fad6a75e"
-read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+content_hash: "7b90e4a9b4b89276c45a6e6758fe840f8e4147762889787ffc7dabf73c9c5327"
+read_as: "task_basis"
+task: "CLE-T-9W8F72"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "954e339966ee71a312976a2db2d83505a7b1063a325653f49da9966433940099"
-etag: "sha256-37a3c6a90f816cc313d8131a9d0cf584d0df1e4022b1bb0da5dc1699c0c13476"
+mirror_sha256: "52ef59fe0990adb80c67055d6482bcdabd50dde1d3d43033db8ac7d16a74194c"
+etag: "sha256-add04aa6ab06b1ac5131f6c0513658eb0d6f93750fb0595625b2b7bb2d126b87"
 ---
-> 구현 상태: 부분 구현 (`groupBy` 다중 시리즈 미구현. 핸들러는 `groupBy` 를 설정 에코에만 실음) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (`groupBy` 다중 시리즈, `dataField` · `dataSource` 우선순위, Data Field 설정 화면, 출력 스키마의 노드 출력 형태, 에디터 렌더러의 `colors`, 웹채팅 위젯의 단일 시리즈 bar 색이 미구현) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입력 배열을 `xAxis` 기준으로 묶고 `yAxis.aggregation` 으로 집계해 `{ x, y }` 포인트 배열을 만든다. 화면은 이 배열로 bar·line·area·pie·donut 같은 차트를 그린다.
+Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입력 배열을 `xAxis` 기준으로 묶고 `yAxis.aggregation` 으로 집계해 `{ x, y }` 포인트 배열을 만든다. `groupBy` 를 쓰면 포인트마다 시리즈 이름 `series` 를 실어 시리즈 여러 개를 한 배열에 담는다. 화면은 이 배열로 bar·line·area·pie·donut 같은 차트를 그린다.
 
 전역 버튼이 하나라도 있으면 블로킹 모드로 들어간다. 항목 버튼은 없다.
 
 범위 밖:
 
 - 버튼 정의·버튼 편집기·포트 구성·블로킹 모드 흐름·재개 출력 규격: [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md)
-- 실행 결과 드로어의 Chart 표시: [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#실행-결과-드로어-표시)
+- 실행 결과 드로어의 Chart 표시: [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#실행-결과-드로어-표시). 다중 시리즈와 색 규칙은 이 문서의 [시리즈와 색](#시리즈와-색)이 정한다
 - 표시 도구 `render_chart`: [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#표시-도구-모드)
 
 ## 요구사항
 
 - REQ-CHART-001 WHEN 사용자가 차트 유형을 고르면 THE SYSTEM SHALL 고른 유형에 맞춰 X-Y 축 차트(bar·line·area) 또는 라벨-값 차트(pie·donut)로 그린다. (원본: ND-CH-01)
 - REQ-CHART-002 WHEN 사용자가 축을 설정하면 THE SYSTEM SHALL X축·Y축 필드 매핑과 Y축 집계(`sum`·`count`·`avg`·`min`·`max`)를 받는다. (원본: ND-CH-02)
-- REQ-CHART-003 WHEN `groupBy` 가 지정되면 THE SYSTEM SHALL 그룹마다 시리즈를 만들어 다중 시리즈 차트를 지원한다. (원본: ND-CH-03) (미구현)
-- REQ-CHART-004 WHEN 사용자가 차트 제목이나 색상을 설정하면 THE SYSTEM SHALL 그 제목과 색상 배열로 차트를 그리고 색상이 없으면 기본 팔레트를 쓴다. (원본: ND-CH-04)
+- REQ-CHART-003 WHEN 차트 유형이 bar·line·area 이고 `groupBy` 가 지정되면 THE SYSTEM SHALL 각 항목의 `groupBy` 필드 값을 시리즈 이름으로 삼아 포인트마다 `series` 를 싣고, 화면은 시리즈마다 막대·선·면을 하나씩 범례와 함께 그린다. (원본: ND-CH-03) (미구현)
+- REQ-CHART-004 WHEN 사용자가 차트 제목이나 색상을 설정하면 THE SYSTEM SHALL 그 제목과 색상 배열로 차트를 그리고 색상이 없으면 기본 팔레트를 쓴다. (원본: ND-CH-04) (부분 구현)
 - REQ-CHART-005 WHEN 노드가 결과를 내면 THE SYSTEM SHALL 집계 결과를 구조화된 출력 값 `output.data` 로 내고 SVG 스냅샷은 만들지 않는다. (원본: ND-CH-05)
-- REQ-CHART-006 WHEN 화면이 차트를 그리면 THE SYSTEM SHALL 프런트엔드가 recharts 로 `output.data` 와 `config.{chartType, title, xAxis, yAxis, colors}` 를 받아 직접 그린다. (원본: ND-CH-05)
+- REQ-CHART-006 WHEN 화면이 차트를 그리면 THE SYSTEM SHALL 프런트엔드가 recharts 로 `output.data` 와 `config.{chartType, title, xAxis, yAxis, colors}` 를 받아 직접 그린다. (원본: ND-CH-05) (부분 구현)
 - REQ-CHART-007 WHEN 사용자가 버튼을 설정하면 THE SYSTEM SHALL 링크 버튼과 포트 버튼을 노드당 최대 5개까지 라벨·스타일·URL(링크 버튼)과 함께 받는다. (원본: ND-CH-06)
 - REQ-CHART-008 WHEN 버튼이 하나라도 있으면 THE SYSTEM SHALL 실행을 입력 대기로 멈추고 사용자가 누른 버튼의 포트로 실행을 재개한다. (원본: ND-CH-07)
-- REQ-CHART-009 WHEN `dataField` 가 있고 입력이 객체이면 THE SYSTEM SHALL `input[dataField]` 를 데이터 배열로 쓰고 배열이 아니면 `[]` 로 대신한다.
-- REQ-CHART-010 IF `dataField` 가 없거나 입력이 객체가 아니면 THE SYSTEM SHALL 입력이 배열이면 그대로, 아니면 `[input]` 으로 쓴다.
-- REQ-CHART-011 WHEN `yAxis.aggregation` 이 지정되면 THE SYSTEM SHALL X 값이 같은 행의 Y 값을 그 방식으로 집계한다.
+- REQ-CHART-009 WHEN `dataField` 가 비어 있지 않고 입력이 객체이면 THE SYSTEM SHALL 저장된 `dataSource` 와 상관없이 `input[dataField]` 를 데이터 배열로 쓰고 배열이 아니면 `[]` 로 대신한다. (부분 구현)
+- REQ-CHART-010 IF `dataField` 가 있는데 입력이 객체가 아니거나, `dataField` 와 저장된 `dataSource` 가 모두 비어 있으면 THE SYSTEM SHALL 입력이 배열이면 그대로, 아니면 `[input]` 으로 쓴다.
+- REQ-CHART-011 WHEN `yAxis.aggregation` 이 지정되면 THE SYSTEM SHALL X 값이 같은 행의 Y 값을 그 방식으로 집계하고, `groupBy` 를 쓰면 X 값과 시리즈가 모두 같은 행끼리 집계한다. (부분 구현)
 - REQ-CHART-012 IF `yAxis.aggregation` 이 알 수 없는 값이면 THE SYSTEM SHALL `sum` 으로 집계한다.
 - REQ-CHART-013 WHEN `yAxis.aggregation` 이 없으면 THE SYSTEM SHALL 집계하지 않고 원래 Y 값을 그대로 쓴다.
 - REQ-CHART-014 IF Y 값을 숫자로 바꿀 수 없거나 null·undefined 이면 THE SYSTEM SHALL 그 값을 `0` 으로 바꿔 집계에 넣는다.
 - REQ-CHART-015 IF `chartType`·`xAxis.field`·`yAxis.field` 가 비어 있으면 THE SYSTEM SHALL 노드 경고 규칙으로 캔버스에 알린다.
 - REQ-CHART-016 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 런타임 에러 포트는 쓰지 않는다.
+- REQ-CHART-017 IF 차트 유형이 pie·donut 이면 THE SYSTEM SHALL `groupBy` 가 있어도 쓰지 않고 포인트에 `series` 를 싣지 않는 단일 시리즈로 집계한다.
+- REQ-CHART-018 WHEN `dataField` 가 비어 있고 저장된 설정에 `dataSource` 값이 있으면 THE SYSTEM SHALL 그 값을 데이터 배열로 쓰고 배열이 아니면 `[dataSource]` 로 감싸며, 빈 문자열과 `null` 은 값이 없는 것으로 본다. (부분 구현)
+- REQ-CHART-019 WHEN 사용자가 Chart 설정 화면을 열면 THE SYSTEM SHALL 데이터 입력으로 `dataField` 입력란을 보여 주고, 노드에 저장된 `dataSource` 값이 있으면 그 값을 호환 안내와 함께 보여 주며 지울 수 있게 한다. (미구현)
+- REQ-CHART-020 WHEN 화면이 차트를 그리면 THE SYSTEM SHALL bar·line·area 는 처음 나온 순서로 i 번째 시리즈에 `colors[i % colors.length]` 를, pie·donut 은 i 번째 조각에 `colors[i % colors.length]` 를 쓰고, `colors` 가 없거나 비면 기본 팔레트에 같은 규칙을 쓴다. (부분 구현)
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
@@ -58,10 +62,10 @@ Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
 | `chartType` | Enum | ✓ | `bar` | `bar` / `line` / `area` / `pie` / `donut`. 설정 스키마와 실행 검증이 같은 목록(`CHART_TYPES`)을 쓴다 |
-| `dataField` | String? | ✗ | `''` | 입력이 객체일 때 데이터 배열이 든 필드 경로. 없거나 입력이 객체가 아니면 입력 자체를 배열로 쓴다 |
+| `dataField` | String? | ✗ | `''` | 입력이 객체일 때 데이터 배열이 든 최상위 키. 점 경로를 따라가지 않는다. 다른 설정 값처럼 `{{ }}` 를 쓰면 엔진이 먼저 평가하고 그 결과 문자열을 키로 쓴다. 비어 있으면 저장된 `dataSource` 를, 그것도 없으면 입력 자체를 배열로 쓴다 |
 | `xAxis` | AxisDef | ✓ | `{ field: '' }` | X축 정의 |
 | `yAxis` | AxisDef | ✓ | `{ field: '' }` | Y축 정의(`aggregation` 포함) |
-| `groupBy` | String? | ✗ | 없음 | 그룹 필드(다중 시리즈) |
+| `groupBy` | String? | ✗ | 없음 | 시리즈를 나눌 항목 필드. bar·line·area 에서만 쓰고 pie·donut 은 쓰지 않는다 |
 | `title` | String? | ✗ | 없음 | 차트 제목. 표현식을 쓸 수 있다 |
 | `colors` | String[]? | ✗ | 없음 | 사용자 색상 배열. 없으면 기본 팔레트 |
 | `buttons` | ButtonDef[] | ✗ | `[]` | 버튼 정의 배열. 비어 있지 않으면 블로킹 모드. 구조는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#버튼-정의) |
@@ -76,16 +80,18 @@ Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입
 
 스키마 단일 기준은 `codebase/backend/src/nodes/presentation/chart/chart.schema.ts` 의 `chartConfigSchema` 다.
 
+**호환 키 `dataSource`:** 이전 설정 화면은 Data Source 입력에 표현식(`{{$var.items}}` 같은)을 받아 `dataSource` 키로 저장했다. 이 키는 `chartConfigSchema` 에 선언하지 않는다. 스키마가 `.passthrough()` 라 이미 저장된 값은 남고, 핸들러는 `dataField` 가 비어 있을 때만 이 값을 읽는다([실행 로직](#실행-로직) 1단계). 저장된 표현식은 다른 설정 값처럼 엔진이 핸들러 호출 전에 평가하므로 핸들러는 평가된 값(보통 배열)을 받는다. 새 설정 화면은 이 키를 새로 쓰지 않는다. 지금처럼 설정 에코에도 싣지 않으므로 `$node["Ch"].config` 로는 이 값이 보이지 않는다.
+
 ## 설정 화면
 
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 |------|------|---------------|------|
 | 기본 | 맨 위 | Chart Type 드롭다운, Title | 차트 유형을 고르면 설정 폼이 유형에 맞게 바뀐다 |
-| 데이터 | 기본 아래 | Data Field | 필드 경로를 자동완성한다 |
+| 데이터 | 기본 아래 | Data Field | 입력 객체에서 데이터 배열이 든 키를 적는다. 노드에 저장된 `dataSource` 가 있으면 그 표현식을 호환 안내, 지우기 버튼과 함께 보여 준다. 현재 화면은 Data Field 대신 `dataSource` 표현식 입력을 보여 주고, 비우면 빈 문자열을 저장한다(미구현) |
 | X Axis | 데이터 아래 | Field, Label | 필드 경로를 자동완성한다 |
 | Y Axis | X Axis 아래 | Field, Label, Aggregation 드롭다운 | 필드 경로를 자동완성한다 |
-| 그룹과 색상 | Y Axis 아래 | Group By(선택), Colors(색 칩과 `[+]`) | 다중 시리즈와 색을 정한다 |
-| Preview | 아래쪽 | 차트 미리보기 | 마지막 실행 데이터로 차트를 미리 그린다 |
+| 그룹과 색상 | Y Axis 아래 | Group By(선택), Colors(색 칩과 `[+]`) | 다중 시리즈와 색을 정한다. pie·donut 을 고르면 Group By 입력을 감추고 저장된 값은 지우지 않는다. 현재 화면에는 Colors 입력이 없다(미구현) |
+| Preview | 아래쪽 | 차트 미리보기 | 마지막 실행 데이터로 차트를 미리 그린다. 현재 화면에는 없다(미구현) |
 | Buttons 섹션 | 맨 아래 | 전역 버튼 편집기 | [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#버튼-편집기) 의 버튼 편집기를 쓴다 |
 
 pie·donut 은 `xAxis` 대신 labelField·valueField 를 쓰려는 의도였지만 지금 스키마는 같은 `xAxis`·`yAxis` 를 쓴다.
@@ -112,13 +118,15 @@ pie·donut 은 `xAxis` 대신 labelField·valueField 를 쓰려는 의도였지�
 
 ## 실행 로직
 
-1. 입력 데이터 배열을 정규화한다. 핸들러 `execute` 의 우선순위는 다음과 같다.
-   - `dataField` 가 있고 입력이 객체이면 `input[dataField]` 를 뽑는다. 배열이 아니면 `[]` 로 대신한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 Principle 10 예외이고 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 의 예외 표에 있다.
+1. 입력 데이터 배열을 정규화한다. 우선순위는 다음과 같다.
+   - `dataField` 가 비어 있지 않고 입력이 객체이면 `input[dataField]` 를 뽑는다. 배열이 아니면 `[]` 로 대신한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 Principle 10 예외이고 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 의 예외 표에 있다.
+   - `dataField` 가 비어 있지 않은데 입력이 객체가 아니면 마지막 규칙으로 간다. 저장된 `dataSource` 는 읽지 않는다.
+   - `dataField` 가 비어 있고 저장된 `dataSource` 에 값이 있으면 그 값을 쓴다. 배열은 그대로 쓰고 단일 값은 `[v]` 로 감싼다. `undefined`·`null`·빈 문자열은 값이 없는 것으로 본다.
    - 그 밖에는 `Array.isArray(input) ? input : [input]` 을 쓴다.
-   - 현재 구현은 이보다 먼저 `config.dataSource` 가 있으면 그 값을 쓴다. 배열은 그대로 쓰고 단일 값은 `[v]` 로 감싼다(`ChartHandler.execute` 의 데이터 원천 선택 분기). `dataSource` 는 `chartConfigSchema` 에 없는 키이고 스키마가 `.passthrough()` 라 저장만 통과한다. 정식 설정 항목이 아니며 정식 데이터 추출 경로는 `dataField` 다.
-2. 각 항목에서 `{ x: item[xAxis.field], y: item[yAxis.field] }` 포인트를 만든다. `yAxis` 가 없으면 `y` 를 생략한다.
-3. `yAxis.aggregation` 이 있으면 아래 [집계 규칙](#집계-규칙)대로 같은 X 키 묶음 안에서 집계해 `data: { x, y }[]` 를 만든다. 없으면 집계하지 않는다.
-4. `groupBy` 가 있으면 그룹별 시리즈를 만든다(다중 시리즈). 현재 핸들러는 `groupBy` 로 시리즈를 나누지 않고 설정 에코에만 싣는다.
+   - 현재 구현(`ChartHandler.execute` 의 데이터 원천 선택 분기)은 `dataSource` 를 `dataField` 보다 먼저 보고 빈 문자열도 값으로 본다(미구현).
+2. 각 항목에서 `{ x: item[xAxis.field], y: item[yAxis.field] }` 포인트를 만든다. `yAxis` 가 없으면 `y` 를 생략한다. 차트 유형이 bar·line·area 이고 `groupBy` 가 비어 있지 않으면 `series: String(item[groupBy] ?? '')` 를 더한다. 그룹 값이 `undefined`·`null` 인 항목은 빈 문자열 시리즈로 묶는다.
+3. `yAxis.aggregation` 이 있으면 아래 [집계 규칙](#집계-규칙)대로 같은 X 키 묶음 안에서 집계해 `data: { x, y }[]` 를 만든다. 포인트에 `series` 가 있으면 묶음 키는 (series, X) 이고 결과는 `{ x, y, series }[]` 다. 결과 순서는 묶음이 입력에서 처음 나온 순서다. `aggregation` 이 없으면 집계하지 않는다.
+4. 다중 시리즈는 시리즈마다 배열을 따로 만들지 않고 한 배열 안에서 `series` 로 구분한다(긴 형식). 화면이 그리는 규칙은 [시리즈와 색](#시리즈와-색)에 있다. 현재 핸들러는 `groupBy` 로 시리즈를 나누지 않고 설정 에코에만 싣는다(미구현).
 5. 차트 그리기는 **프런트엔드가 recharts 로 `output.data` 와 `config.{chartType, title, xAxis, yAxis, colors}` 를 받아 직접 한다**. 백엔드는 SVG 스냅샷을 채우지 않는다.
 6. **블로킹 모드**(`config.buttons.length > 0`): [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#블로킹-모드-실행-흐름) 흐름으로 입력 대기 출력을 낸다.
 7. **표시 전용**(`buttons` 가 빈 배열, 없음, 배열 아님): `out` 포트로 출력한다.
@@ -136,6 +144,18 @@ X 값이 겹치면(예: 같은 월이 여러 행) `yAxis.aggregation` 에 따라
 | `max` | 같은 X 키의 Y 값 최댓값 | |
 
 `aggregation` 이 없으면 집계하지 않고 원래 포인트를 그대로 쓴다. 숫자로 바꿀 수 없는 Y 값은 `0` 으로 바꿔 집계에 넣는다(`Number(y)` → `NaN` → `0`). null·undefined 도 `0` 이 되므로 "건너뜀" 이 필요하면 앞에 필터 노드를 두는 것을 권한다.
+
+### 시리즈와 색
+
+에디터 실행 결과 렌더러와 웹채팅 위젯 렌더러는 `output.data` 를 다음 규칙으로 그린다. 표시 도구 `render_chart` 의 페이로드도 같은 규칙을 따른다([표시 도구 페이로드](#표시-도구-페이로드)).
+
+- 포인트에 `series` 가 하나도 없으면 단일 시리즈로 그린다.
+- `series` 가 있으면 X 값이 처음 나온 순서로 X축 카테고리를 만들고, 시리즈가 처음 나온 순서로 막대·선·면을 하나씩 그린다. 범례에 시리즈 이름을 보여 준다. 빈 문자열 시리즈의 범례 표기는 화면 문구로 정한다.
+- 렌더러는 시리즈 이름을 데이터 행의 키로 그대로 쓰지 않는다. 시리즈 순번 같은 내부 키로 펼치고 이름은 범례와 툴팁에만 쓴다. 그래서 시리즈 이름이 `x`·`y`·빈 문자열이어도 다른 값과 섞이지 않는다.
+- `series` 가 있는데 집계 없이 같은 (series, X) 포인트가 여러 번 나오면 마지막 값을 그린다. 값을 모두 반영하려면 `yAxis.aggregation` 을 정한다.
+- 색 규칙은 REQ-CHART-020 이 정한다. bar·line·area 는 시리즈마다 한 색이고, 단일 시리즈면 모든 막대에 `colors[0]` 을 쓴다. pie·donut 은 조각마다 색을 바꾼다.
+
+현재 구현은 이 규칙과 다르다(미구현). 두 렌더러 모두 `series` 를 읽지 않는다. 에디터 렌더러 `ChartContent` 는 `config.colors` 를 읽지 않고 기본 팔레트만 쓴다. bar·line·area 는 첫 색만, pie·donut 은 조각마다 팔레트 색을 쓴다. 웹채팅 위젯은 `config.colors` 를 읽지만 단일 시리즈 bar 를 막대마다 다른 색으로 칠한다.
 
 ## 출력 구조
 
@@ -172,9 +192,9 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.title` | String? | 설정 에코 | 차트 제목. `{{ }}` 원문을 보존한다. 출력 값에 싣지 않는다 |
 | `config.xAxis` / `config.yAxis` | AxisDef | 설정 에코 | 축 정의 |
 | `config.dataField?` | String | 설정 에코 | 데이터 배열이 든 필드 경로 |
-| `config.groupBy?` | String | 설정 에코 | 그룹 필드. 현재 핸들러는 이 값으로 시리즈를 나누지 않는다 |
+| `config.groupBy?` | String | 설정 에코 | 시리즈를 나눈 항목 필드. pie·donut 이면 에코만 하고 쓰지 않는다 |
 | `config.colors?` | String[] | 설정 에코 | 사용자 색상 배열 |
-| `output.data` | `{ x, y? }[]` | 런타임 집계 | 입력을 `xAxis.field` 기준으로 묶고 `yAxis.aggregation` 을 적용한 결과 |
+| `output.data` | `{ x, y?, series? }[]` | 런타임 집계 | 입력을 `xAxis.field`(`groupBy` 를 쓰면 시리즈까지) 기준으로 묶고 `yAxis.aggregation` 을 적용한 결과. `series` 는 `groupBy` 를 쓴 bar·line·area 에만 있다 |
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `port` | undefined | 없음 | 단일 출력(`out` 포트) |
 
@@ -184,6 +204,37 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 - `$node["Ch"].config.title` → `"Monthly Revenue"`
 - `$node["Ch"].output.data[0].x` → `"Jan"`
 - `$node["Ch"].output.data[0].y` → `1200`
+
+**`groupBy` 를 쓴 다중 시리즈:**
+
+```json
+{
+  "config": {
+    "chartType": "line",
+    "title": "Monthly Revenue by Region",
+    "dataField": "sales",
+    "xAxis": { "field": "month" },
+    "yAxis": { "field": "revenue", "aggregation": "sum" },
+    "groupBy": "region"
+  },
+  "output": {
+    "data": [
+      { "x": "Jan", "y": 1200, "series": "Seoul" },
+      { "x": "Jan", "y": 800, "series": "Busan" },
+      { "x": "Feb", "y": 1500, "series": "Seoul" },
+      { "x": "Feb", "y": 900, "series": "Busan" }
+    ]
+  },
+  "meta": {
+    "durationMs": 14
+  }
+}
+```
+
+표현식 접근 예:
+
+- `$node["Ch"].output.data[1].series` → `"Busan"`
+- `$node["Ch"].output.data[1].y` → `800`
 
 ### 입력 대기(전역 버튼 대기)
 
@@ -224,7 +275,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 |------|------|------|------|
 | `config.buttons` | ButtonDef[] | 설정 에코 | 사용자가 정한 버튼 정의 원문 |
 | `config.buttonConfig.buttons` | ButtonDef[] | 핸들러(블로킹 쌍 식별) | 블로킹 모드에 들어갈 때 핸들러가 내는 평가된 버튼 목록. 실행 내역 화면과 버튼 바가 쓴다 |
-| `output.data` | `{ x, y? }[]` | 런타임 집계 | 표시 전용과 같다. 입력 대기 시점의 바뀌지 않는 스냅샷이고 재개에서도 같다 |
+| `output.data` | `{ x, y?, series? }[]` | 런타임 집계 | 표시 전용과 같다. 입력 대기 시점의 바뀌지 않는 스냅샷이고 재개에서도 같다 |
 | `meta.interactionType` | `"buttons"` | 핸들러 반환 | 대기 표면. 화면이 버튼 바 모드를 알아본다 |
 | `meta.durationMs` | number | 엔진 주입 | 집계까지 걸린 시간 |
 | `status` | `"waiting_for_input"` | 핸들러 반환 | 블로킹 진입. 사용자 클릭을 기다린다 |
@@ -338,6 +389,22 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 
 Chart 는 항목 버튼이 없으므로 `output.interaction.data.selectedItem` 을 쓰지 않는다.
 
+### 표시 도구 페이로드
+
+표시 도구 `render_chart` 의 페이로드는 설정 필드와 함께 `data` 를 싣는다. `data` 의 모양은 [표시 전용](#표시-전용buttons-없음) 출력의 `output.data` 와 같은 `{ x, y?, series? }[]` 다. 화면은 노드 출력과 같은 렌더러와 [시리즈와 색](#시리즈와-색) 규칙으로 그린다. 도구 정의는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#표시-도구-모드) 이, 기본 설명 문구는 그 문서의 [도구 카탈로그](CLE-NODE-PRES-COMMON.md#도구-카탈로그) 가 정한다.
+
+도구 파라미터 스키마인 `chartConfigSchema` 에는 `data` 가 없다. 그래서 LLM 은 도구 설명 문구를 보고 이 모양을 알아야 한다. 현재 코드의 기본 문구(`render-tool-provider.ts`)는 `data` 를 "xAxis/yAxis/values 또는 series" 로 적어 이 모양과 다르다.
+
+### 출력 스키마(자동완성)
+
+노드의 `outputSchema` 는 표현식 자동완성이 쓰는 출력 모양 힌트다. `chart.component.ts` 가 `chartOutputSchema` 를 등록한다. [Table 노드](CLE-NODE-TABLE.md) · [Carousel 노드](CLE-NODE-CAROUSEL.md) 와 같이 노드 출력 다섯 필드 형태(`config`·`output` 아래로 나눈 모양)로 선언한다.
+
+- `config`: 설정 에코 필드(`chartType`·`title`·`dataField`·`xAxis`·`yAxis`·`groupBy`·`colors`·`buttons`·`buttonConfig`)를 모두 선택 필드로 둔다.
+- `output`: `data: { x, y?, series? }[]` 와 재개 때 생기는 `interaction`(`type`·`data`·`receivedAt`)을 둔다.
+- 노드 종류를 가리는 `type: 'chart'` 와 리터럴 설정인 `chartType`·`title` 을 `output` 이나 최상위에 선언하지 않는다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다) Principle 1.1, [4.2](../CLE-NODE/CLE-NODE-OUTPUT.md#42-폐기할-필드--구조)).
+
+현재 구현은 옛 형태 `{ type: 'chart', chartType, title?, data }` 를 선언한다(미구현). 그래서 자동완성 힌트가 실제 출력과 다르다.
+
 ## 에러 코드
 
 Chart 는 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 전 설정 검증 단계에서 던진다.
@@ -363,15 +430,16 @@ Chart 는 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 
 ## 미결 사항
 
-- **채팅 채널 렌더러가 기대하는 차트 입력**: 채팅 채널 어댑터 문서와 렌더러는 차트 입력을 `output.payload.{title, series, labels}` 로 찾지만 이 노드는 `output.data` 를 `{ x, y? }[]` 로 내고 제목은 `config.title` 에 둔다. 매트릭스와 렌더러를 고칠지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다. 두 선택지 모두 이 문서의 [출력 구조](#출력-구조)를 노드 출력의 기준으로 둔다.
-- **출력 스키마가 폐기한 필드를 선언한다**: `chart.schema.ts` 의 `chartOutputSchema` 는 `data` 말고도 `type: 'chart'`·`chartType`·`title` 을 선언한다. `chart.component.ts` 가 이 스키마를 노드의 `outputSchema` 로 등록한다. 핸들러가 출력 값에 싣는 것은 `data` 뿐이다. 세 필드 선언은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 1.1 · 4.2 와 어긋나므로 정리 대상이다.
+- **채팅 채널 렌더러가 기대하는 차트 입력**: 채팅 채널 어댑터 문서와 렌더러는 차트 입력을 `output.payload.{title, series, labels}` 로 찾지만 이 노드는 `output.data` 를 `{ x, y?, series? }[]` 로 내고 제목은 `config.title` 에 둔다. 매트릭스와 렌더러를 고칠지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다. 두 선택지 모두 이 문서의 [출력 구조](#출력-구조)를 노드 출력의 기준으로 둔다. 다중 시리즈는 `output.data` 의 `series` 로 담으므로(긴 형식) 채팅 렌더러의 `series[]` 는 렌더러나 변환 층이 `series` 값으로 묶어 만든다.
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/presentation/chart/chart.component.ts`
 - `codebase/backend/src/nodes/presentation/chart/chart.handler.ts` (`validate`, 집계)
 - `codebase/backend/src/nodes/presentation/chart/chart.schema.ts` (`CHART_TYPES`, `chartConfigSchema`, `warningRules`)
-- `codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx` (recharts 렌더러)
+- `codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx` (recharts 렌더러 `ChartContent`)
+- `codebase/frontend/src/components/editor/settings-panel/node-configs/presentation-configs.tsx` (설정 화면 `ChartConfig`)
+- `codebase/channel-web-chat/src/lib/presentation.ts` (`toChart`), `codebase/channel-web-chat/src/widget/components/presentations.tsx` (웹채팅 위젯 렌더러)
 
 ## Rationale
 
@@ -403,3 +471,31 @@ Chart 는 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 문자열 · 숫자 · 객체처럼 `null` · `undefined` 가 아닌 값도 빈 차트로 그린다. 승인본 요구사항 REQ-CHART-009 는 값의 타입을 나누지 않고 배열이 아니면 `[]` 로 대신한다고 정했다. 핸들러도 `input[dataField]` 가 배열이 아니면 타입과 상관없이 `[]` 로 집계한다(`chart.handler.ts`). 이런 값이 와도 Chart 는 실행을 멈추지 않고 빈 차트를 보여 준다. 빈 차트가 화면에 바로 보이므로 사용자는 데이터가 잘못 들어온 것을 알아챌 수 있다.
 
 기각한 대안은 Principle 10 대로 throw 하는 안이다. 데이터가 아직 없을 때 빈 차트를 보여 주던 워크플로우가 실패로 바뀐다.
+
+### 다중 시리즈는 `output.data` 의 `series` 로 담는다 (2026-11-01)
+
+`groupBy` 는 설정 스키마 · 설정 화면 · 설정 에코 · 사용자 문서에 있었지만 핸들러와 렌더러가 쓰지 않아 값을 넣어도 아무 일이 없었다. 사람이 세 선택지 가운데 긴 형식 지원을 골랐다(NERV 질문 `01a19676-fcb8-70bb-9c05-d545aa3914ba`, 2026-11-01, Task `CLE-T-BRB8E6`).
+
+긴 형식은 이전 판 [출력 구조](#출력-구조)의 `output.data: { x, y? }[]` 계약을 그대로 두고 포인트에 `series` 하나만 더한다. `groupBy` 를 비워 둔 노드는 출력이 지금과 같고 `$node["Ch"].output.data[i].x` · `.y` 표현식도 그대로 동작한다. `groupBy` 가 이미 저장된 bar·line·area 노드는 구현 뒤 (series, X) 단위로 집계되어 `output.data` 의 길이와 값이 바뀐다. 지금은 그 값이 아무 일도 하지 않으므로 사용자가 넣은 뜻대로 바뀌는 것이다. `render_chart` 페이로드도 같은 모양이라 두 렌더러가 노드 출력과 표시 도구를 한 규칙으로 그린다.
+
+기각한 대안은 두 가지다. 넓은 형식 `{ labels, series: [{ name, data }] }` 는 채팅 채널 렌더러(Telegram · Slack · Discord)가 찾는 모양과 맞는다. 하지만 `output.data` 계약, 기존 표현식, 두 렌더러, `render_chart` 페이로드를 모두 바꿔야 한다. 채팅 렌더러와의 차이는 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 미결 사항이 따로 다룬다. 지원하지 않는 안은 비용이 가장 적지만 필수 요구(REQ-CHART-003)를 철회하고 이미 화면에 있는 설정을 거둬야 한다.
+
+pie · donut 은 원 하나에 시리즈 하나만 보여 줄 수 있어 `groupBy` 를 쓰지 않는다. 설정 화면은 이 두 유형에서 Group By 입력을 감추지만 저장된 값은 지우지 않는다. 사용자가 유형을 bar 로 되돌리면 같은 시리즈를 다시 쓸 수 있게 하려는 것이다. 시리즈 이름을 문자열로 바꾸는 이유는 범례에 그 이름을 그대로 보여 주고, 숫자 `1` 과 문자열 `"1"` 처럼 범례 표기가 같은 값을 한 시리즈로 묶기 위해서다.
+
+색 규칙(REQ-CHART-020)은 다중 시리즈를 넣으며 함께 정했다. X-Y 차트에서 색은 시리즈를 구분하는 표지다. 그래서 단일 시리즈 bar 도 한 색으로 칠한다. 웹채팅 위젯이 단일 시리즈 bar 를 막대마다 다른 색으로 칠하던 동작은 이 규칙으로 바뀐다. 에디터 렌더러가 `config.colors` 를 읽지 않던 차이(REQ-CHART-004 · 006)도 같은 구현에서 닫는다.
+
+### 데이터 키는 `dataField` 가 정식이고 `dataSource` 는 호환용으로만 읽는다 (2026-11-01)
+
+2026-10-10 일관성 검토(CLE-T-V0JAG1 라운드)가 이중 키를 짚었다. 설정 화면은 표현식 입력으로 `dataSource` 만 저장했고, 스키마는 `dataField` 만 선언했고, 핸들러는 `dataSource` 를 먼저 읽었다. 사람이 `dataField` 를 정식으로 두고 설정 화면을 `dataField` 입력으로 바꾸는 안을 골랐다(NERV 질문 `01a19677-22d3-7731-a9b2-ec4a7a0903c1`, 2026-11-01).
+
+Data Field 는 데이터를 가리키는 표현식이 아니라 키 이름을 받는다. 그래서 설정 화면에서 다른 노드나 변수의 데이터를 표현식으로 골라 넣는 입력은 없어진다. 다른 곳의 데이터를 그리려면 앞에 데이터 노드를 두어 Chart 의 입력으로 넘긴다. [Table 노드](CLE-NODE-TABLE.md) 는 여전히 `dataSource` 가 정식 키라 두 노드의 키가 다르다. 이 차이를 알고 택했다.
+
+이미 `dataSource` 로 저장된 표현식은 `dataField` 로 자동 변환할 수 없다. 그래서 핸들러는 이 값을 계속 읽는다. 두 키가 함께 있으면 `dataField` 가 이긴다. 새 화면에서 고친 노드가 화면에 보이는 값대로 동작하게 하려는 것이다. 화면은 남아 있는 `dataSource` 를 지우기 버튼과 함께 보여 준다(REQ-CHART-019). 화면에 보이지 않는 값이 데이터를 바꾸는 일을 막는다. 이전 화면은 입력을 비우면 빈 문자열을 저장했고, 핸들러가 그 값을 데이터로 보아 점 하나짜리 차트를 그렸다. 그래서 빈 문자열은 값이 없는 것으로 본다(REQ-CHART-018). 배열이 아닌 값을 `[v]` 로 감싸는 것은 이미 저장된 설정의 동작을 그대로 두려는 것이다.
+
+`dataField` 는 최상위 키만 읽고 점 경로를 따라가지 않는다. 지금 핸들러가 `input[dataField]` 로 읽고, 축 필드도 `item[xAxis.field]` 처럼 같은 방식으로 읽는다.
+
+기각한 대안은 `dataSource` 를 정식으로 올리는 안(Table 과 키가 같아지고 화면을 바꾸지 않아도 된다. 사람은 승인본 v2 가 이미 정식 경로로 적은 `dataField` 를 유지하는 쪽을 골랐다)과 두 키를 모두 정식으로 두는 안(같은 일을 하는 입력이 둘이라 설정이 헷갈린다)이다.
+
+### 출력 스키마는 노드 출력 다섯 필드 형태로 선언한다 (2026-11-01)
+
+2026-10-10 일관성 검토(CLE-T-V0JAG1 라운드)가 `chartOutputSchema` 의 `type: 'chart'`·`chartType`·`title` 선언을 짚었다. 이 이전 판까지 미결 사항에 있던 항목이다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 1.1 · 4.2 가 이미 이 필드를 쓰지 않는다고 정했고, Table · Carousel 의 출력 스키마는 이미 그 형태다. 그래서 사람 결정 없이 같은 형태를 따른다. 핸들러는 출력 재설계 뒤로 이 필드를 출력에 싣지 않았다. 그래서 `$node["Ch"].output.chartType` 같은 표현식은 지금도 값이 없고, 스키마를 고쳐도 깨지는 워크플로우가 없다.

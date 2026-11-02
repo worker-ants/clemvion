@@ -1,0 +1,112 @@
+/**
+ * Chart 노드 `output.data`(`{ x, y?, series? }[]`)를 recharts 가 그릴 모양으로 펼친다.
+ * 규칙은 CLE-NODE-CHART 「시리즈와 색」 · REQ-CHART-020 이다. `render_chart` 페이로드도 같은
+ * 규칙을 따른다.
+ */
+
+/** 에디터 전용 기본 팔레트. 웹채팅 위젯은 자기 팔레트(위젯의 DEFAULT_CHART_COLORS)를 따로 쓴다. */
+export const EDITOR_DEFAULT_CHART_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
+];
+
+/**
+ * 차트 색으로 받는 문자열 모양. `#hex`(3 · 4 · 6 · 8자리), `rgb()` · `rgba()` · `hsl()` · `hsla()`
+ * (괄호 안은 숫자 · 단위 · 구분자만), 색 이름만 허용한다. 웹채팅 위젯의 `sanitizeChartColors` 와
+ * 같은 규칙이다(그쪽은 범례 칩이 `style.background` 로 쓰므로 `url(...)` 을 막아야 한다).
+ */
+const CHART_COLOR_PATTERNS = [
+  /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,
+  /^(?:rgba?|hsla?)\([0-9a-z.,%+\-\s/]*\)$/i,
+  /^[a-z]+$/i,
+];
+const CHART_COLOR_MAX_LENGTH = 64;
+
+function isChartColor(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const color = value.trim();
+  return (
+    color.length > 0 &&
+    color.length <= CHART_COLOR_MAX_LENGTH &&
+    CHART_COLOR_PATTERNS.some((re) => re.test(color))
+  );
+}
+
+export interface ChartSeries {
+  /** recharts `dataKey`. 시리즈 이름이 `x` · `y` · 빈 문자열이어도 섞이지 않도록 순번으로 만든다. */
+  key: string;
+  /** 범례와 툴팁에 보여 줄 시리즈 이름. */
+  name: string;
+}
+
+export interface ChartSeriesModel {
+  /** recharts `data` 행. 다중 시리즈면 `{ x, s0, s1, … }`, 단일 시리즈면 받은 포인트 그대로다. */
+  rows: Array<Record<string, unknown>>;
+  /** 처음 나온 순서의 시리즈 목록. 포인트에 `series` 가 하나도 없으면 빈 배열(단일 시리즈)이다. */
+  series: ChartSeries[];
+}
+
+/**
+ * `config.colors` 에서 허용 형식의 색만 남긴다. 남은 색이 없으면 기본 팔레트를 쓴다
+ * (REQ-CHART-004 · 020).
+ */
+export function resolveChartColors(colors: unknown): string[] {
+  if (!Array.isArray(colors)) return EDITOR_DEFAULT_CHART_COLORS;
+  const valid = colors.filter(isChartColor).map((c) => c.trim());
+  return valid.length > 0 ? valid : EDITOR_DEFAULT_CHART_COLORS;
+}
+
+/** i 번째 시리즈 · 조각의 색. 색 배열을 돌려 쓴다. */
+export function chartColorAt(colors: string[], index: number): string {
+  return colors[index % colors.length];
+}
+
+/**
+ * `data.data` 에서 객체인 항목만 남긴다. `render_chart` 페이로드는 LLM 이 만든 값이라 null 이나
+ * 숫자가 섞일 수 있다. 모두 객체면 받은 배열을 그대로 돌려준다.
+ */
+export function chartPointsOf(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  const isPoint = (item: unknown): item is Record<string, unknown> =>
+    typeof item === "object" && item !== null && !Array.isArray(item);
+  return value.every(isPoint) ? value : value.filter(isPoint);
+}
+
+function seriesNameOf(point: Record<string, unknown>): string | undefined {
+  const value = point.series;
+  return value === undefined || value === null ? undefined : String(value);
+}
+
+/**
+ * 긴 형식 포인트 배열을 X 카테고리 행으로 펼친다. X 와 시리즈는 처음 나온 순서를 지키고,
+ * 같은 (series, X) 가 여러 번 나오면 마지막 값을 쓴다.
+ */
+export function toChartSeriesModel(
+  rawPoints: Array<Record<string, unknown>>,
+): ChartSeriesModel {
+  const points = chartPointsOf(rawPoints);
+  if (!points.some((p) => seriesNameOf(p) !== undefined)) {
+    return { rows: points, series: [] };
+  }
+  const series: ChartSeries[] = [];
+  const seriesKeyByName = new Map<string, string>();
+  const rows: Array<Record<string, unknown>> = [];
+  const rowByX = new Map<unknown, Record<string, unknown>>();
+  for (const point of points) {
+    const name = seriesNameOf(point) ?? "";
+    let key = seriesKeyByName.get(name);
+    if (key === undefined) {
+      key = `s${series.length}`;
+      seriesKeyByName.set(name, key);
+      series.push({ key, name });
+    }
+    let row = rowByX.get(point.x);
+    if (row === undefined) {
+      row = { x: point.x };
+      rowByX.set(point.x, row);
+      rows.push(row);
+    }
+    row[key] = point.y;
+  }
+  return { rows, series };
+}

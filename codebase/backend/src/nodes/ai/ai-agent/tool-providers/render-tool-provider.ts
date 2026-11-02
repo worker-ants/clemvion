@@ -65,7 +65,7 @@ const DEFAULT_DESCRIPTIONS: Record<PresentationType, string> = {
   table:
     '표 형태로 정형 데이터를 표시. **rows (Array<Object>) 와 columns (Array<{field,label}>) 가 필수** — 모두 채워서 호출. 비교·집계 결과 공유에 적합.',
   chart:
-    '차트 (bar/line/area/pie/donut) 로 데이터를 시각화. **chartType + data (xAxis/yAxis/values 또는 series) 가 필수**. 시계열·분포·비율 표현에 적합.',
+    '차트 (bar/line/area/pie/donut) 로 데이터를 시각화. **chartType + data 가 필수**. data 는 `{ x, y?, series? }[]` 배열 — 포인트마다 x(카테고리)·y(값)를 넣고, 여러 시리즈는 포인트마다 series(시리즈 이름 문자열)로 구분한다(pie/donut 은 series 없이). 시계열·분포·비율 표현에 적합.',
   carousel:
     '카드 슬라이드 모음. **mode="static" + items (Array<{title, description?, image?, buttons?}>) 가 필수** — 한 카드라도 비우지 말 것. mode=dynamic 은 데이터 바인딩 워크플로 전용이라 LLM 직접 호출에는 사용 금지. 추천 항목·상품 카드 카탈로그에 적합.',
   template:
@@ -219,7 +219,9 @@ function checkRenderToolSemanticIssues(
       break;
     }
     case 'chart':
-      // Chart schema already enforces chartType + data shape via zod refines.
+      // `data` 는 `chartConfigSchema` 밖이라 zod 검증을 받지 않는다. 모양
+      // `{ x, y?, series? }[]` 은 DEFAULT_DESCRIPTIONS.chart 문구가 LLM 에 주는
+      // 계약이다(CLE-NODE-CHART 「표시 도구 페이로드」).
       break;
   }
   return issues;
