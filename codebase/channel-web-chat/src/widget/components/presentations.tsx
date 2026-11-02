@@ -226,11 +226,17 @@ function numericPoints(data: ChartData["points"]): Array<{ label: string; value:
   return data.map((d) => ({ label: cellText(d.x), value: numericValue(d.y) }));
 }
 
+interface CartesianEntry {
+  /** labels 안의 X 순번. */
+  xi: number;
+  v: number;
+}
+
 interface CartesianSeries {
   /** 시리즈 이름. 단일 시리즈면 빈 문자열이고 범례를 그리지 않는다. */
   name: string;
-  /** labels 와 같은 순서의 값. 그 X 에 포인트가 없으면 undefined. */
-  values: Array<number | undefined>;
+  /** 값이 있는 X 만 xi 오름차순으로 담는다. 포인트가 없는 X 는 항목이 없다(O(포인트 수)). */
+  entries: CartesianEntry[];
 }
 
 interface CartesianModel {
@@ -249,7 +255,7 @@ function toCartesianModel(data: ChartData["points"]): CartesianModel {
   if (!data.some((d) => d.series !== undefined)) {
     return {
       labels: data.map((d) => cellText(d.x)),
-      series: [{ name: "", values: data.map((d) => numericValue(d.y)) }],
+      series: [{ name: "", entries: data.map((d, xi) => ({ xi, v: numericValue(d.y) })) }],
       multi: false,
     };
   }
@@ -277,7 +283,7 @@ function toCartesianModel(data: ChartData["points"]): CartesianModel {
     labels,
     series: named.map(({ name, byX }) => ({
       name,
-      values: labels.map((_, xi) => byX.get(xi)),
+      entries: Array.from(byX, ([xi, v]) => ({ xi, v })).sort((a, b) => a.xi - b.xi),
     })),
     multi: true,
   };
@@ -316,6 +322,122 @@ function ChartView({ payload, onButton }: PresentationProps) {
   );
 }
 
+/** 막대 · 선이 함께 쓰는 좌표 계산 결과. */
+interface CartesianLayout {
+  mL: number;
+  mT: number;
+  plotH: number;
+  innerW: number;
+  /** X 카테고리 하나가 차지하는 가로 폭. */
+  slotW: number;
+  min: number;
+  baseY: number;
+  yOf: (v: number) => number;
+}
+
+interface CartesianSeriesStyle {
+  colorOf: (si: number) => string;
+  /** si 번째 시리즈의 xi 번째 X 값 v 에 붙일 툴팁 문구. */
+  tip: (si: number, xi: number, v: number) => string;
+}
+
+/** 값이 있는 항목의 최솟값 · 최댓값. 0 과 1 을 늘 포함한다. */
+function valueRange(series: CartesianSeries[]): { min: number; max: number } {
+  let min = 0;
+  let max = 1;
+  for (const s of series) {
+    for (const { v } of s.entries) {
+      if (v > max) max = v;
+      if (v < min) min = v;
+    }
+  }
+  return { min, max };
+}
+
+/** line · area — 시리즈마다 선(area 면 채움 포함)과 점을 그린다. 빠진 X 는 건너뛰어 있는 점만 잇는다. */
+function renderLineSeries(
+  model: CartesianModel,
+  layout: CartesianLayout,
+  type: "line" | "area",
+  { colorOf, tip }: CartesianSeriesStyle,
+): React.ReactNode {
+  const { mL, mT, plotH, innerW, yOf } = layout;
+  const stepX = model.labels.length > 1 ? innerW / (model.labels.length - 1) : 0;
+  return model.series.map((s, si) => {
+    const pts = s.entries.map(({ xi, v }) => ({ xi, v, cx: mL + xi * stepX, cy: yOf(v) }));
+    if (!pts.length) return null;
+    const coords = pts.map((p) => `${p.cx},${p.cy}`).join(" ");
+    const color = colorOf(si);
+    return (
+      <g key={si}>
+        {type === "area" && (
+          <polygon
+            points={`${pts[0].cx},${mT + plotH} ${coords} ${pts[pts.length - 1].cx},${mT + plotH}`}
+            fill={color}
+            fillOpacity={0.2}
+          />
+        )}
+        <polyline points={coords} fill="none" stroke={color} strokeWidth={2} />
+        {pts.map((p) => (
+          <circle key={p.xi} cx={p.cx} cy={p.cy} r={2.5} fill={color}>
+            <title>{tip(si, p.xi, p.v)}</title>
+          </circle>
+        ))}
+      </g>
+    );
+  });
+}
+
+/** bar — 같은 X 안에서 시리즈 막대를 옆으로 나란히 놓는다. */
+function renderBarSeries(
+  model: CartesianModel,
+  layout: CartesianLayout,
+  { colorOf, tip }: CartesianSeriesStyle,
+): React.ReactNode {
+  const { mL, slotW, min, baseY, yOf } = layout;
+  const barW = (slotW * 0.7) / model.series.length;
+  return model.series.map((s, si) =>
+    s.entries.map(({ xi, v }) => {
+      const top = yOf(Math.max(v, min === 0 ? 0 : min));
+      const h = Math.abs(baseY - yOf(v));
+      return (
+        <rect
+          key={`${si}-${xi}`}
+          x={mL + xi * slotW + slotW * 0.15 + si * barW}
+          y={Math.min(top, baseY)}
+          width={barW}
+          height={Math.max(0, h)}
+          fill={colorOf(si)}
+        >
+          <title>{tip(si, xi, v)}</title>
+        </rect>
+      );
+    }),
+  );
+}
+
+/** 다중 시리즈 범례. 시리즈 색 칩과 이름을 시리즈 순서대로 나열한다. */
+function ChartLegend({
+  names,
+  colorOf,
+  label,
+}: {
+  names: string[];
+  colorOf: (si: number) => string;
+  label: string;
+}) {
+  return (
+    <ul className="wc-chart-legend" aria-label={label}>
+      {names.map((name, si) => (
+        <li key={si}>
+          <span className="wc-legend-swatch" style={{ background: colorOf(si) }} />
+          {truncLabel(name, 10)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * bar/line/area — 축 레이블·x틱·값 툴팁(<title>) 포함. 색은 i 번째 시리즈에 colors[i % n] 이라
  * 단일 시리즈 bar 는 모든 막대가 colors[0] 이다(REQ-CHART-020). 다중 시리즈면 범례를 붙인다.
@@ -334,7 +456,7 @@ function CartesianChart({
   yLabel?: string;
 }) {
   const t = useTranslation();
-  const { labels, series: seriesList, multi } = model;
+  const { labels, series, multi } = model;
   const W = CHART_SVG_W;
   const mL = CHART_MARGIN_LEFT;        // 좌측 여백 (y눈금 텍스트 공간)
   const mR = CHART_MARGIN_RIGHT;       // 우측 여백
@@ -343,72 +465,23 @@ function CartesianChart({
   const plotH = CHART_SVG_H;
   const H = mT + plotH + mB;
   const innerW = W - mL - mR;
-  const values = seriesList.flatMap((s) => s.values.filter((v): v is number => v !== undefined));
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
+  const slotW = innerW / labels.length;
+  const { min, max } = valueRange(series);
   const range = max - min || 1;
   const yOf = (v: number) => mT + plotH - ((v - min) / range) * plotH;
-  const baseY = yOf(Math.max(0, min));
+  const layout: CartesianLayout = { mL, mT, plotH, innerW, slotW, min, baseY: yOf(Math.max(0, min)), yOf };
   const colorOf = (si: number) => colors[si % colors.length];
-  const seriesName = (s: CartesianSeries) => (s.name === "" ? t("chart.emptySeries") : s.name);
-  const tip = (s: CartesianSeries, i: number, v: number) =>
-    multi ? `${seriesName(s)} · ${labels[i]}: ${v}` : `${labels[i]}: ${v}`;
-
-  let series: React.ReactNode;
-  if (type === "line" || type === "area") {
-    const stepX = labels.length > 1 ? innerW / (labels.length - 1) : 0;
-    series = seriesList.map((s, si) => {
-      const pts = s.values.flatMap((v, i) =>
-        v === undefined ? [] : [{ i, v, cx: mL + i * stepX, cy: yOf(v) }],
-      );
-      if (!pts.length) return null;
-      const coords = pts.map((p) => `${p.cx},${p.cy}`).join(" ");
-      const color = colorOf(si);
-      return (
-        <g key={si}>
-          {type === "area" && (
-            <polygon
-              points={`${pts[0].cx},${mT + plotH} ${coords} ${pts[pts.length - 1].cx},${mT + plotH}`}
-              fill={color}
-              fillOpacity={0.2}
-            />
-          )}
-          <polyline points={coords} fill="none" stroke={color} strokeWidth={2} />
-          {pts.map((p) => (
-            <circle key={p.i} cx={p.cx} cy={p.cy} r={2.5} fill={color}>
-              <title>{tip(s, p.i, p.v)}</title>
-            </circle>
-          ))}
-        </g>
-      );
-    });
-  } else {
-    const slotW = innerW / labels.length;
-    const barW = (slotW * 0.7) / seriesList.length;
-    series = seriesList.map((s, si) =>
-      s.values.map((v, i) => {
-        if (v === undefined) return null;
-        const top = yOf(Math.max(v, min === 0 ? 0 : min));
-        const h = Math.abs(baseY - yOf(v));
-        return (
-          <rect
-            key={`${si}-${i}`}
-            x={mL + i * slotW + slotW * 0.15 + si * barW}
-            y={Math.min(top, baseY)}
-            width={barW}
-            height={Math.max(0, h)}
-            fill={colorOf(si)}
-          >
-            <title>{tip(s, i, v)}</title>
-          </rect>
-        );
-      }),
-    );
-  }
+  const names = series.map((s) => (s.name === "" ? t("chart.emptySeries") : s.name));
+  const tip = (si: number, xi: number, v: number) =>
+    multi ? `${names[si]} · ${labels[xi]}: ${v}` : `${labels[xi]}: ${v}`;
+  const style: CartesianSeriesStyle = { colorOf, tip };
+  const plot =
+    type === "bar"
+      ? renderBarSeries(model, layout, style)
+      : renderLineSeries(model, layout, type, style);
 
   // x틱 라벨(촘촘하면 일부만).
   const tickStep = Math.ceil(labels.length / CHART_MAX_X_TICKS);
-  const slotW = innerW / labels.length;
   return (
     <>
       <svg
@@ -426,7 +499,7 @@ function CartesianChart({
         </text>
         <line x1={mL} y1={mT} x2={mL} y2={mT + plotH} className="wc-chart-axis" />
         <line x1={mL} y1={mT + plotH} x2={mL + innerW} y2={mT + plotH} className="wc-chart-axis" />
-        {series}
+        {plot}
         {labels.map((label, i) =>
           i % tickStep === 0 ? (
             <text
@@ -455,16 +528,7 @@ function CartesianChart({
           </text>
         )}
       </svg>
-      {multi && (
-        <ul className="wc-chart-legend" aria-label={t("chart.legend")}>
-          {seriesList.map((s, si) => (
-            <li key={si}>
-              <span className="wc-legend-swatch" style={{ background: colorOf(si) }} />
-              {truncLabel(seriesName(s), 10)}
-            </li>
-          ))}
-        </ul>
-      )}
+      {multi && <ChartLegend names={names} colorOf={colorOf} label={t("chart.legend")} />}
     </>
   );
 }
