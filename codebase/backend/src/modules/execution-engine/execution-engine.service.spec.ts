@@ -15266,6 +15266,24 @@ describe('ExecutionEngineService', () => {
           return (doneReceived[0] as { branches: unknown[] }).branches[1];
         };
 
+        // 앞 실행이 남긴 출력이 캐시에 있는 채로 Parallel 이 시작하는 상황(메인 그래프의
+        // 되돌아가는 연결선 사이클, 재시도)을 만든다. 루트 컨텍스트의 캐시에 미리 심고
+        // 병렬 분기 사본이 그 값을 그대로 들고 시작하게 한다.
+        const seedRootCache = (seed: Record<string, unknown>) => {
+          const contextService = (
+            service as unknown as { contextService: ExecutionContextService }
+          ).contextService;
+          const createContext =
+            contextService.createContext.bind(contextService);
+          return jest
+            .spyOn(contextService, 'createContext')
+            .mockImplementation((...args) => {
+              const created = createContext(...args);
+              Object.assign(created.nodeOutputCache, seed);
+              return created;
+            });
+        };
+
         it('분기 안 If 가 위상 순서상 마지막 노드를 고르지 않으면 실제로 실행된 노드의 출력을 담는다', async () => {
           // 위상 순서: cond → n-false → n-true. cond 가 false 를 고르므로 n-true 는
           // 실행되지 않고 n-false 가 결과다.
@@ -15338,24 +15356,35 @@ describe('ExecutionEngineService', () => {
           expect(doneReceived[0]).not.toHaveProperty('skipped');
         });
 
-        it('캐시에 남은 앞 반복 출력은 결과로 고르지 않는다 (이번에 건너뛴 노드)', async () => {
-          // 반복 본문 안의 Parallel 은 앞 반복이 남긴 출력을 캐시에 들고 들어간다.
-          // 이번 실행에서 skip_node 로 건너뛴 노드의 옛 출력이 결과가 되면 안 된다.
+        it('위상 순서상 마지막 노드가 skip_node 로 건너뛰어지면 앞서 실행된 노드의 출력을 담는다', async () => {
+          // 건너뛴 노드는 출력을 남기지 않으므로 b2 가 아니라 b1 이 결과다.
+          registerHandler('first_node', async () =>
+            mockOutput({ first: true }),
+          );
           registerHandler('fail_node', async () => {
             throw new Error('skipped by policy');
           });
-          const contextService = (
-            service as unknown as { contextService: ExecutionContextService }
-          ).contextService;
-          const createContext =
-            contextService.createContext.bind(contextService);
-          const createSpy = jest
-            .spyOn(contextService, 'createContext')
-            .mockImplementation((...args) => {
-              const created = createContext(...args);
-              created.nodeOutputCache.skip = { stale: true };
-              return created;
-            });
+
+          const result = await withBranch1(
+            [
+              pNode('b1', 'first_node'),
+              pNode('b2', 'fail_node', {
+                errorHandling: { policy: 'skip_node' },
+              }),
+            ],
+            [pEdge('par', 'branch_1', 'b1'), pEdge('b1', 'out', 'b2')],
+          );
+
+          expect(result).toEqual({ first: true });
+        });
+
+        // Parallel 이 같은 실행에서 다시 실행되면 앞 실행의 출력이 캐시에 남아 있다.
+        // 이번 실행이 쓴 노드만 결과로 센다.
+        it('캐시에 남은 앞 실행 출력은 결과로 고르지 않는다 (이번에 건너뛴 노드)', async () => {
+          registerHandler('fail_node', async () => {
+            throw new Error('skipped by policy');
+          });
+          const seedSpy = seedRootCache({ skip: { stale: true } });
           try {
             const result = await withBranch1(
               [
@@ -15367,7 +15396,65 @@ describe('ExecutionEngineService', () => {
             );
             expect(result).toBeNull();
           } finally {
-            createSpy.mockRestore();
+            seedSpy.mockRestore();
+          }
+        });
+
+        it('캐시에 앞 실행 출력이 있어도 이번에 다시 실행한 노드는 새 출력을 담는다', async () => {
+          registerHandler('fresh_node', async () =>
+            mockOutput({ fresh: true }),
+          );
+          const seedSpy = seedRootCache({ b1: { stale: true } });
+          try {
+            const result = await withBranch1(
+              [pNode('b1', 'fresh_node')],
+              [pEdge('par', 'branch_1', 'b1')],
+            );
+            expect(result).toEqual({ fresh: true });
+          } finally {
+            seedSpy.mockRestore();
+          }
+        });
+
+        it('이번 출력이 앞 실행 출력과 같은 원시값이어도 새로 쓴 노드로 센다', async () => {
+          // 객체가 아닌 출력은 캐시에 값 그대로 들어가 참조가 아니라 값이 같다.
+          registerHandler('same_value_node', async () =>
+            mockOutput('same-value'),
+          );
+          const seedSpy = seedRootCache({ b1: 'same-value' });
+          try {
+            const result = await withBranch1(
+              [pNode('b1', 'same_value_node')],
+              [pEdge('par', 'branch_1', 'b1')],
+            );
+            expect(result).toBe('same-value');
+          } finally {
+            seedSpy.mockRestore();
+          }
+        });
+
+        it('use_default_output 이 앞 실행과 같은 defaultOutput 참조를 다시 써도 새로 쓴 노드로 센다', async () => {
+          // defaultOutput 은 설정에 든 객체 하나라서 실패할 때마다 같은 참조가 캐시에 쓰인다.
+          registerHandler('fail_node', async () => {
+            throw new Error('always fails');
+          });
+          const defaultOutput = { fallback: true };
+          const seedSpy = seedRootCache({ b1: defaultOutput });
+          try {
+            const result = await withBranch1(
+              [
+                pNode('b1', 'fail_node', {
+                  errorHandling: {
+                    policy: 'use_default_output',
+                    defaultOutput,
+                  },
+                }),
+              ],
+              [pEdge('par', 'branch_1', 'b1')],
+            );
+            expect(result).toEqual({ fallback: true });
+          } finally {
+            seedSpy.mockRestore();
           }
         });
 
@@ -15392,6 +15479,175 @@ describe('ExecutionEngineService', () => {
           );
 
           expect(result).toEqual({ leaf: 'n-c' });
+        });
+      });
+
+      // 병렬 분기 사본에 출력을 옮기는 쓰기 지점마다 하나씩 고정한다
+      // (`commitNodeOutput`: 일반 노드 · use_default_output · route_to_error_port ·
+      // 분기 안 컨테이너 마감과 구조화 캐시).
+      describe('분기 캐시 동기화 (REQ-PARALLEL-009)', () => {
+        // branch_0 이 테스트 대상이고 branch_1 은 늘 ok 노드 하나다.
+        const runBranch0 = async (
+          branch0Nodes: Partial<Node>[],
+          branch0Edges: Partial<Edge>[],
+          parallelConfig: Record<string, unknown> = {},
+        ) => {
+          registerHandler('ok_node', async () => mockOutput({ ok: true }));
+          await runGraph(
+            parallelConfig,
+            [
+              ...branch0Nodes,
+              pNode('b', 'ok_node'),
+              pNode('sink', 'sink_node'),
+            ],
+            [
+              ...branch0Edges,
+              pEdge('par', 'branch_1', 'b'),
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+          return doneReceived[0] as {
+            branches: unknown[];
+            skipped?: {
+              index: number;
+              error: { code: string; message: string };
+            }[];
+          };
+        };
+
+        // src → fe(body → emit) → after. 본문 노드는 아이템마다 n 을 두 배로 만든다.
+        const foreachBranchGraph = (withAfter: boolean) => {
+          handlerRegistry.register('foreach', new ForEachHandler(), {
+            kind: 'container',
+          });
+          registerHandler('items_node', async () =>
+            mockOutput({ items: [{ n: 1 }, { n: 2 }] }),
+          );
+          registerHandler('double_node', async (input) =>
+            mockOutput({ doubled: (input as { n: number }).n * 2 }),
+          );
+          return {
+            nodes: [
+              pNode('src', 'items_node'),
+              pNode('fe', 'foreach', { arrayField: 'items' }),
+              { ...pNode('body', 'double_node'), containerId: 'fe' },
+              ...(withAfter ? [pNode('after', 'after_node')] : []),
+            ],
+            edges: [
+              pEdge('par', 'branch_0', 'src'),
+              pEdge('src', 'out', 'fe'),
+              pEdge('fe', 'body', 'body'),
+              { ...pEdge('body', 'out', 'fe'), targetPort: 'emit' },
+              ...(withAfter ? [pEdge('fe', 'done', 'after')] : []),
+            ],
+          };
+        };
+
+        it('분기 안 ForEach 가 결과 노드면 branches[i] 에 컨테이너 최종 출력({ items, count })을 담는다', async () => {
+          const g = foreachBranchGraph(false);
+
+          const result = await runBranch0(g.nodes, g.edges);
+
+          expect(result.branches[0]).toEqual({
+            items: [{ doubled: 2 }, { doubled: 4 }],
+            count: 2,
+          });
+        });
+
+        it('분기 안 ForEach 의 done 뒤 노드는 컨테이너 최종 출력을 입력으로 받는다', async () => {
+          const afterInputs: unknown[] = [];
+          registerHandler('after_node', async (input) => {
+            afterInputs.push(input);
+            return mockOutput({ after: true });
+          });
+          const g = foreachBranchGraph(true);
+
+          const result = await runBranch0(g.nodes, g.edges);
+
+          // 핸들러가 처음 낸 출력({ output: null })이 아니라 마감한 출력이다.
+          expect(afterInputs).toEqual([
+            { items: [{ doubled: 2 }, { doubled: 4 }], count: 2 },
+          ]);
+          expect(result.branches[0]).toEqual({ after: true });
+        });
+
+        it('use_default_output 으로 이어진 노드는 defaultOutput 을 입력으로 받는다', async () => {
+          const nextInputs: unknown[] = [];
+          registerHandler('fail_node', async () => {
+            throw new Error('always fails');
+          });
+          registerHandler('next_node', async (input) => {
+            nextInputs.push(input);
+            return mockOutput({ next: true });
+          });
+
+          const result = await runBranch0(
+            [
+              pNode('ud', 'fail_node', {
+                errorHandling: {
+                  policy: 'use_default_output',
+                  defaultOutput: { fallback: true },
+                },
+              }),
+              pNode('next', 'next_node'),
+            ],
+            [pEdge('par', 'branch_0', 'ud'), pEdge('ud', 'out', 'next')],
+          );
+
+          expect(nextInputs).toEqual([{ fallback: true }]);
+          expect(result.branches[0]).toEqual({ next: true });
+        });
+
+        it('route_to_error_port 노드 뒤 노드는 에러 정보를 입력으로 받는다', async () => {
+          const errorInputs: unknown[] = [];
+          registerHandler('fail_node', async () => {
+            throw new Error('routed failure');
+          });
+          registerHandler('on_error_node', async (input) => {
+            errorInputs.push(input);
+            return mockOutput({ handled: true });
+          });
+
+          const result = await runBranch0(
+            [
+              pNode('re', 'fail_node', {
+                errorHandling: { policy: 'route_to_error_port' },
+              }),
+              pNode('on-error', 'on_error_node'),
+            ],
+            [pEdge('par', 'branch_0', 're'), pEdge('re', 'error', 'on-error')],
+          );
+
+          expect(errorInputs).toEqual([
+            { error: { code: 'Error', message: 'routed failure' } },
+          ]);
+          expect(result.branches[0]).toEqual({ handled: true });
+        });
+
+        it('분기 안에서 실행 중에 waiting_for_input 을 내는 노드는 PARALLEL_INVALID_CHILD 로 분기를 실패시킨다', async () => {
+          // 정적 검증(planParallelBody)은 메타데이터가 blocking 인 노드만 막는다. 실행해
+          // 봐야 대기 상태가 되는 노드는 분기 루프의 런타임 가드가 막는다. 분기 사본에 출력이
+          // 보여야 이 가드가 동작한다.
+          registerHandler('waiting_node', async () =>
+            mockOutput(null, { status: 'waiting_for_input' }),
+          );
+
+          const result = await runBranch0(
+            [pNode('wait', 'waiting_node')],
+            [pEdge('par', 'branch_0', 'wait')],
+            { errorPolicy: 'continue' },
+          );
+
+          expect(result.branches).toEqual([null, { ok: true }]);
+          expect(result.skipped).toEqual([
+            {
+              index: 0,
+              error: {
+                code: 'Error',
+                message: expect.stringContaining('PARALLEL_INVALID_CHILD'),
+              },
+            },
+          ]);
         });
       });
 
