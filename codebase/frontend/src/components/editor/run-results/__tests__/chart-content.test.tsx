@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ChartContent } from "../renderers/presentation-renderers";
-import { DEFAULT_CHART_COLORS } from "../renderers/chart-series";
+import { EDITOR_DEFAULT_CHART_COLORS } from "../renderers/chart-series";
 
 // recharts 는 jsdom 에서 크기를 재지 못해 아무것도 그리지 않는다. 차트 요소를 props 를
 // 드러내는 div 로 바꿔 ChartContent 가 넘기는 dataKey · 이름 · 색을 확인한다.
@@ -102,8 +102,8 @@ describe("ChartContent 시리즈와 색 (CLE-NODE-CHART · REQ-CHART-020)", () =
   it("colors 가 없으면 기본 팔레트를 같은 규칙으로 쓴다", () => {
     render(<ChartContent data={{ data: multiSeries }} config={{ chartType: "line" }} />);
     expect(marks("line").map((m) => m.color)).toEqual([
-      DEFAULT_CHART_COLORS[0],
-      DEFAULT_CHART_COLORS[1],
+      EDITOR_DEFAULT_CHART_COLORS[0],
+      EDITOR_DEFAULT_CHART_COLORS[1],
     ]);
   });
 

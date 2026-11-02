@@ -283,6 +283,7 @@ function toCartesianModel(data: ChartData["points"]): CartesianModel {
   };
 }
 
+/** 위젯 전용 기본 팔레트. 위젯 브랜드 색에서 시작하며 에디터의 EDITOR_DEFAULT_CHART_COLORS 와 별개다. */
 const DEFAULT_CHART_COLORS = ["#5B4FE9", "#22B8CF", "#F59F00", "#E64980", "#37B24D"];
 
 /** 긴 라벨은 축 표기용으로 잘라낸다. */

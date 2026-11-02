@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  DEFAULT_CHART_COLORS,
+  EDITOR_DEFAULT_CHART_COLORS,
   chartColorAt,
   resolveChartColors,
   toChartSeriesModel,
@@ -81,9 +81,53 @@ describe("resolveChartColors · chartColorAt (REQ-CHART-020)", () => {
   it.each([[undefined], [null], [[]], ["#111"], [[1, ""]]])(
     "colors 가 없거나 비면 기본 팔레트를 쓴다 (%j)",
     (colors) => {
-      expect(resolveChartColors(colors)).toBe(DEFAULT_CHART_COLORS);
+      expect(resolveChartColors(colors)).toBe(EDITOR_DEFAULT_CHART_COLORS);
     },
   );
+
+  it.each([
+    "#fff",
+    "#ffff",
+    "#ffffff",
+    "#ffffffaa",
+    "#ABCDEF",
+    "rgb(1, 2, 3)",
+    "rgba(1,2,3,.5)",
+    "hsl(120 50% 50% / 0.5)",
+    "hsla(120, 50%, 50%, 0.5)",
+    "red",
+    "RebeccaPurple",
+  ])("허용 형식의 색은 그대로 쓴다 (%s)", (color) => {
+    expect(resolveChartColors([color])).toEqual([color]);
+  });
+
+  it("앞뒤 공백은 지우고 쓴다", () => {
+    expect(resolveChartColors(["  #111  ", "\tblue\n"])).toEqual(["#111", "blue"]);
+  });
+
+  it.each([
+    "url(https://attacker.example/p?d=1)",
+    "URL( 'https://attacker.example/p' )",
+    "red;background:url(x)",
+    "red} body{display:none",
+    "var(--brand)",
+    "expression(alert(1))",
+    "rgb(url(x))",
+    "rgb(1, 2, 3",
+    "#12",
+    "#12345",
+    "#gggggg",
+    "not a color",
+    "   ",
+    `#${"a".repeat(70)}`,
+    `rgb(${"1,".repeat(40)})`,
+  ])("허용 밖의 값은 버리고 남은 색이 없으면 기본 팔레트를 쓴다 (%s)", (color) => {
+    expect(resolveChartColors([color])).toBe(EDITOR_DEFAULT_CHART_COLORS);
+  });
+
+  it("허용 밖의 값만 걸러 내고 나머지 순서는 지킨다", () => {
+    expect(resolveChartColors(["url(x)", "#111", 3, "", "blue"])).toEqual(["#111", "blue"]);
+  });
 
   it("i 번째 색은 colors[i % n] 이다", () => {
     const colors = ["#111", "#222"];

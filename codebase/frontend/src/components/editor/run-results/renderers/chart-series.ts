@@ -4,10 +4,33 @@
  * 규칙을 따른다.
  */
 
-export const DEFAULT_CHART_COLORS = [
+/** 에디터 전용 기본 팔레트. 웹채팅 위젯은 자기 팔레트(위젯의 DEFAULT_CHART_COLORS)를 따로 쓴다. */
+export const EDITOR_DEFAULT_CHART_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
   "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
 ];
+
+/**
+ * 차트 색으로 받는 문자열 모양. `#hex`(3 · 4 · 6 · 8자리), `rgb()` · `rgba()` · `hsl()` · `hsla()`
+ * (괄호 안은 숫자 · 단위 · 구분자만), 색 이름만 허용한다. 웹채팅 위젯의 `sanitizeChartColors` 와
+ * 같은 규칙이다(그쪽은 범례 칩이 `style.background` 로 쓰므로 `url(...)` 을 막아야 한다).
+ */
+const CHART_COLOR_PATTERNS = [
+  /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,
+  /^(?:rgba?|hsla?)\([0-9a-z.,%+\-\s/]*\)$/i,
+  /^[a-z]+$/i,
+];
+const CHART_COLOR_MAX_LENGTH = 64;
+
+function isChartColor(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const color = value.trim();
+  return (
+    color.length > 0 &&
+    color.length <= CHART_COLOR_MAX_LENGTH &&
+    CHART_COLOR_PATTERNS.some((re) => re.test(color))
+  );
+}
 
 export interface ChartSeries {
   /** recharts `dataKey`. 시리즈 이름이 `x` · `y` · 빈 문자열이어도 섞이지 않도록 순번으로 만든다. */
@@ -23,11 +46,14 @@ export interface ChartSeriesModel {
   series: ChartSeries[];
 }
 
-/** `config.colors` 가 없거나 비면 기본 팔레트를 쓴다(REQ-CHART-004 · 020). */
+/**
+ * `config.colors` 에서 허용 형식의 색만 남긴다. 남은 색이 없으면 기본 팔레트를 쓴다
+ * (REQ-CHART-004 · 020).
+ */
 export function resolveChartColors(colors: unknown): string[] {
-  if (!Array.isArray(colors)) return DEFAULT_CHART_COLORS;
-  const valid = colors.filter((c): c is string => typeof c === "string" && c !== "");
-  return valid.length > 0 ? valid : DEFAULT_CHART_COLORS;
+  if (!Array.isArray(colors)) return EDITOR_DEFAULT_CHART_COLORS;
+  const valid = colors.filter(isChartColor).map((c) => c.trim());
+  return valid.length > 0 ? valid : EDITOR_DEFAULT_CHART_COLORS;
 }
 
 /** i 번째 시리즈 · 조각의 색. 색 배열을 돌려 쓴다. */

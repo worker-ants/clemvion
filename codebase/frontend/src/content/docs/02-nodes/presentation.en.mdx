@@ -177,7 +177,8 @@ A Y value that cannot be converted to a number, and null or undefined, is not sk
 
 - Bar, line, and area charts give the i-th series the color at position `i % number of colors` in `colors`. With a single series, every bar uses the first color.
 - Pie and donut charts cycle through `colors` slice by slice.
-- If `colors` is empty, the default palette is used with the same rules.
+- Colors must be a hex value such as `#3B82F6`, `rgb()`, `rgba()`, `hsl()`, `hsla()`, or a color name such as `red`. Values in any other format are skipped.
+- If `colors` is empty or has no usable color, the default palette is used with the same rules.
 
 ### Example
 

