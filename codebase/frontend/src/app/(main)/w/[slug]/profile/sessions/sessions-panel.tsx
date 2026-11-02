@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
@@ -53,13 +53,10 @@ export function SessionsPanel() {
 
   const [reauthOverride, setReauthOverride] = useState<ReauthMode | null>(null);
 
-  const reauthMode: ReauthMode = useMemo(() => {
-    if (reauthOverride) return reauthOverride;
-    // /users/me 는 보안상 passwordHash 를 노출하지 않으므로 2FA 활성 여부로 1차 추정.
-    // 서버가 REAUTH_NOT_AVAILABLE (HTTP 403) 을 돌려주면 unavailable 로 전환한다.
-    const has2fa = !!user?.twoFactorEnabled;
-    return has2fa ? "totp" : "password";
-  }, [reauthOverride, user?.twoFactorEnabled]);
+  // 비밀번호가 있는 계정은 비밀번호로 확인한다(NERV CLE-ACCT-SESSION REQ-SESSION-025). TOTP 를 켠 계정도
+  // 인증 앱을 잃었을 때 비밀번호로 세션을 끊을 수 있어야 한다. /users/me 는 비밀번호 유무를 싣지 않으므로
+  // 비밀번호를 먼저 받고 서버 응답으로 바꾼다(handleConfirm).
+  const reauthMode: ReauthMode = reauthOverride ?? "password";
 
   const revokeMutation = useMutation<
     SessionDto[],
@@ -113,6 +110,19 @@ export function SessionsPanel() {
         const code = err.response.data?.error?.code ?? err.response.data?.code;
         if (code === "REAUTH_NOT_AVAILABLE") {
           setReauthOverride("unavailable");
+        }
+      }
+      // 비밀번호가 없는 계정은 비밀번호를 보내면 REAUTH_REQUIRED (400) 를 받는다.
+      // TOTP 가 켜진 계정이면 인증 코드 입력으로 바꾼다.
+      if (
+        axios.isAxiosError(err) &&
+        err.response?.status === 400 &&
+        reauthMode === "password" &&
+        user?.twoFactorEnabled
+      ) {
+        const code = err.response.data?.error?.code ?? err.response.data?.code;
+        if (code === "REAUTH_REQUIRED") {
+          setReauthOverride("totp");
         }
       }
       toast.error(axiosMessage(err, t("profile.sessions.revokeFailedToast")));
