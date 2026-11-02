@@ -337,7 +337,8 @@ Modifying a variable that has not been declared raises an error. Always declare 
 - On input, **the same value is emitted simultaneously** to `branch_0`, `branch_1`, and so on.
 - Branches run **truly in parallel** by default. If the server sets `PARALLEL_ENGINE=off`, branches run one at a time in topological order. In that mode the completion output below (`branches`, `count`, `skipped`) is not produced.
 - Max Concurrency caps the number of concurrent branches to protect resources.
-- When every branch completes, the output of **the latest node that actually ran** in each branch goes into `done.branches`. Nodes on a path that an If or Switch inside the branch did not pick never ran, so they are not used as the result.
+- Nodes inside one branch run one at a time in topological order. From the second node on, each node receives the previous node's output as its input, and a path that an If or Switch inside the branch did not pick does not run.
+- When every branch completes, the output of **the latest node that actually ran** in each branch goes into `done.branches`. Nodes that did not run are not used as the result.
 
 ### Reading results and failures
 
@@ -353,15 +354,9 @@ Nodes after the `done` port can read:
 {{ $node["Parallel"].port }}                            // "done"
 ```
 
+`port` is the string `"done"`. Reading it as an array with `port[0]` returns its first character, `"d"`.
+
 Check which branch failed with the `index` in `skipped`. With Error Policy `stop` or `cancel-others-on-fail`, a branch failure fails the Parallel node and the `done` port never fires.
-
-<Callout type="note">
-**What changed**: expressions that read a successful branch as `branches[i].field` keep working. Three things are different:
-
-- Under `continue`, a failed branch's slot is `null` and its failure info is collected in `skipped`.
-- A result that used to be empty because an If or Switch inside the branch did not pick the last node now holds the output of the node that actually ran.
-- `$node["Parallel"].port` changed from `["done"]` to `"done"`. Reading `port[0]` now returns `"d"`, so read `port` instead.
-</Callout>
 
 ### Usage patterns
 
@@ -405,7 +400,7 @@ Both patterns can coexist — use `done` for the full list and Merge for a resha
 </Example>
 
 <Callout type="warn">
-Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
+Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. If a node in a branch ends up waiting for user input while it runs, that branch fails. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
 </Callout>
 
 <Callout type="tip">
