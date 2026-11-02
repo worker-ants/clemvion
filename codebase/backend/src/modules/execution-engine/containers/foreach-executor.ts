@@ -100,6 +100,9 @@ export class ForEachExecutor {
             throw err;
           }
           const errorMessage = err instanceof Error ? err.message : String(err);
+          // Parallel(`parallel-executor.ts` 의 `BranchFailure.code`)은 빈 `name` 도
+          // `'UNKNOWN_ERROR'` 로 바꾼다. 두 실행기의 규칙 통일은 NERV Task
+          // `CLE-T-REC4X3` 이 정한다. 그 전까지 한쪽만 고치지 않는다.
           const errorCode = err instanceof Error ? err.name : 'UNKNOWN_ERROR';
 
           switch (errorPolicy) {

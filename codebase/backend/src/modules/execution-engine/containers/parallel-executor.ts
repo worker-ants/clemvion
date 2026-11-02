@@ -74,8 +74,14 @@ export interface BranchFailure {
   error: Error;
   /**
    * 완료 출력 `skipped[].error.code` 값. 던진 값이 `Error` 면 그 `name`, 아니거나
-   * `name` 이 비었으면 `'UNKNOWN_ERROR'` 다(ForEach 실패 규칙과 같다). `error` 는
-   * Error 가 아닌 값을 감싼 뒤라 `name` 이 늘 `'Error'` 여서 감싸기 전에 정한다.
+   * `name` 이 비었으면 `'UNKNOWN_ERROR'` 다. `error` 는 Error 가 아닌 값을 감싼 뒤라
+   * `name` 이 늘 `'Error'` 여서 감싸기 전에 정한다.
+   *
+   * ForEach 의 `skipped[].error.code`(`foreach-executor.ts`)와 같은 계약이지만 코드는
+   * 따로 구현돼 있고 한 가지가 다르다. `name` 이 빈 문자열이면 ForEach 는 `''` 를,
+   * 여기서는 `'UNKNOWN_ERROR'` 를 낸다. 값이 `UPPER_SNAKE_CASE` 이름 규칙과 카탈로그에
+   * 맞지 않는 문제와 두 실행기의 규칙 통일은 NERV Task `CLE-T-REC4X3` 이 함께 정한다.
+   * 그 전까지 한쪽만 고치면 두 실행기가 어긋난다.
    */
   code: string;
 }
@@ -269,13 +275,11 @@ export class ParallelExecutor {
       const result = settled[i];
       if (result.status === 'rejected') {
         const reason: unknown = result.reason;
+        const isError = reason instanceof Error;
         failures.push({
           branchIndex: i,
-          error: reason instanceof Error ? reason : new Error(String(reason)),
-          code:
-            reason instanceof Error && reason.name
-              ? reason.name
-              : 'UNKNOWN_ERROR',
+          error: isError ? reason : new Error(String(reason)),
+          code: isError && reason.name ? reason.name : 'UNKNOWN_ERROR',
         });
       }
     }
