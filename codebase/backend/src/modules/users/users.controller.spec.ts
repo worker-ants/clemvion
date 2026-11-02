@@ -8,6 +8,7 @@ import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { AuthService } from '../auth/auth.service';
 import type { JwtPayload } from '../../common/decorators';
 import type { User } from './entities/user.entity';
+import { expectNoUserSecrets } from '../../shared/testing/user-secret-absence';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -106,12 +107,12 @@ describe('UsersController', () => {
         jest.spyOn(service, 'findById').mockResolvedValue({
           ...mockUser,
           twoFactorEnabled: enabled,
+          totpRecoveryCodes: ['hashed-recovery-code'],
         } as User);
 
         const result = await controller.getMe(payload);
         expect(result.data.twoFactorEnabled).toBe(enabled);
-        expect(result.data).not.toHaveProperty('twoFactorSecret');
-        expect(result.data).not.toHaveProperty('totpRecoveryCodes');
+        expectNoUserSecrets(result);
       },
     );
 
