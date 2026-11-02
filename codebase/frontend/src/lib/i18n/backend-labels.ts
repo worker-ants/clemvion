@@ -168,8 +168,8 @@ const LABEL_KO: Record<string, string> = {
 
 const HINT_KO: Record<string, string> = {
   "0 = deterministic, 2 = creative": "0 = 결정적, 2 = 창의적",
-  "stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches, collect rejected branches in output.branches[i].error. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).":
-    "stop: 첫 분기 실패 시 즉시 throw (Parallel 노드 FAILED). continue: 모든 분기 종료 대기 후 실패 정보를 output.branches[i].error 에 수집. cancel-others-on-fail: 첫 실패 시 AbortSignal 로 다른 분기의 외부 I/O 즉시 abort (signal 인지 노드만 cleanup, best-effort).",
+  "stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).":
+    "stop: 첫 분기 실패 시 즉시 throw (Parallel 노드 FAILED). continue: 모든 분기 종료 대기 후 실패한 분기 자리는 output.branches[i] 에 null 로 두고 에러는 output.skipped 에 수집. cancel-others-on-fail: 첫 실패 시 AbortSignal 로 다른 분기의 외부 I/O 즉시 abort (signal 인지 노드만 cleanup, best-effort).",
   "Brand/style fixed values that override LLM payload on deep-merge":
     "brand/style 고정값. LLM 페이로드와 deep-merge 시 이 값이 우선 적용돼요.",
   "Let the LLM render tables / charts / carousels / templates / forms in chat by calling render_* tools.":
@@ -440,7 +440,6 @@ export const WARNING_KO: Record<string, string> = {
   "cc must be an array of email addresses": "CC 는 이메일 주소 배열이어야 합니다.",
   "to is required and must be a non-empty array of email addresses": "수신자(To) 는 최소 1명 이상의 이메일 주소 배열이어야 합니다.",
   "Y-axis field must be entered.": "Y축 필드를 입력해야 합니다.",
-  "branchCount must be 2 to 16.": "branchCount 는 2 이상 16 이하여야 합니다.",
   "branchCount must be a value between 2 and 16.": "branchCount는 2 이상 16 이하의 값이어야 합니다.",
   "branchCount must be an integer.": "branchCount는 정수여야 합니다.",
   "maxConcurrency must be a number.": "maxConcurrency는 숫자여야 합니다.",

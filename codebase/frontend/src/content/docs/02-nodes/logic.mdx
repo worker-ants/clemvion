@@ -334,21 +334,45 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 <FieldTable rows={[
   { name: "Branch Count", required: true, type: "number", description: "동시에 실행할 분기 수예요. 2~16 사이로 지정해요.", default: "2" },
   { name: "Max Concurrency", required: false, type: "number", description: "동시에 실행할 최대 분기 수예요. 0이면 전부 동시에, 1~16이면 그 수만큼만 동시에 실행해요.", default: "0 (무제한)" },
-  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "분기에서 오류가 났을 때의 정책이에요. `stop`은 첫 실패에서 Parallel 전체를 실패시키고, `continue`는 모든 분기가 끝날 때까지 기다린 뒤 실패 정보까지 함께 모아요. `cancel-others-on-fail`은 첫 실패가 나는 순간 다른 분기의 외부 호출(HTTP 등)을 즉시 취소해 자원을 아껴요.", default: "stop" }
+  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "분기에서 오류가 났을 때의 정책이에요. `stop`은 첫 실패에서 Parallel 전체를 실패시키고, `continue`는 모든 분기가 끝날 때까지 기다린 뒤 실패한 분기 자리를 `null`로 두고 실패 정보를 `skipped`에 모아요. `cancel-others-on-fail`은 첫 실패가 나는 순간 다른 분기의 외부 호출(HTTP 등)을 즉시 취소해 자원을 아껴요.", default: "stop" }
 ]} />
 
 ### 포트
 
 - **입력**: `in` — 모든 분기에 동일한 입력이 복제 전달돼요.
 - **분기 출력**: `branch_0`, `branch_1`, … — Branch Count에 따라 동적으로 생성돼요. 각 분기의 시작 노드를 여기에 연결해요.
-- **done 출력**: `done` — 모든 분기가 완료된 뒤 결과를 모아서 내보내요. 출력 형태는 `{ branches: [분기0결과, 분기1결과, ...] }` 배열이에요.
+- **done 출력**: `done` — 모든 분기가 완료된 뒤 결과를 모아서 내보내요. 출력 형태는 `{ branches: [분기0결과, 분기1결과, ...], count }`예요. `continue`에서 실패한 분기가 있으면 `skipped`도 함께 실려요.
 
 ### 동작
 
 - 입력이 들어오면 `branch_0`, `branch_1`, … 모든 분기 포트로 **동일한 입력을 동시에** 내보내요.
-- `PARALLEL_ENGINE=v1` 환경변수가 설정되면 각 분기가 **진짜 병렬로** 실행돼요. 설정하지 않으면 기존과 동일하게 순차 실행해요.
+- 각 분기는 기본으로 **진짜 병렬로** 실행돼요. 서버에서 `PARALLEL_ENGINE=off`로 끄면 분기를 위상 순서대로 하나씩 실행해요. 이때는 아래 완료 출력(`branches` · `count` · `skipped`)을 만들지 않아요.
 - Max Concurrency를 지정하면 리소스를 보호하면서 동시 실행 수를 제한할 수 있어요.
-- 모든 분기가 완료되면 각 분기의 마지막 노드 출력이 `done` 포트의 `branches` 배열로 수집돼요.
+- 모든 분기가 완료되면 각 분기에서 **실제로 실행된 노드 가운데 가장 뒤에 있는 노드**의 출력이 `done` 포트의 `branches` 배열에 담겨요. 분기 안의 If·Switch가 고르지 않은 경로의 노드는 실행되지 않았으니 결과로 쓰이지 않아요.
+
+### 결과와 실패 읽기
+
+`done` 포트 뒤 노드에서는 다음 값을 읽을 수 있어요.
+
+- `branches[i]` — `branch_i` 분기의 결과예요. 그 분기가 실패했거나 실행된 노드가 없으면 `null`이에요.
+- `count` — 분기 수예요. 실패한 분기 자리도 함께 세요.
+- `skipped` — Error Policy가 `continue`일 때 실패한 분기 목록이에요. 항목은 `{ index, error: { code, message } }`이고 `index`는 분기 번호예요. 실패한 분기가 없으면 이 필드는 아예 없어요.
+
+```ts
+{{ $node["Parallel"].output.branches[0].ok }}           // 0번 분기 결과의 필드
+{{ $node["Parallel"].output.skipped[0].error.message }} // 첫 번째 실패의 에러 메시지
+{{ $node["Parallel"].port }}                            // "done"
+```
+
+어느 분기가 실패했는지는 `skipped`의 `index`로 확인해요. Error Policy가 `stop`이나 `cancel-others-on-fail`이면 분기가 실패할 때 Parallel 노드가 실패하고 `done` 포트로 넘어가지 않아요.
+
+<Callout type="note">
+**바뀐 점**: 성공한 분기를 `branches[i].필드`로 읽던 표현식은 그대로 동작해요. 다음 세 가지가 달라졌어요.
+
+- `continue`에서 실패한 분기 자리는 `null`이고 실패 정보는 `skipped`에 모여요.
+- 분기 안의 If·Switch가 마지막 노드를 고르지 않아 비어 있던 결과에 이제 실제로 실행된 노드의 출력이 담겨요.
+- `$node["Parallel"].port` 값이 `["done"]`에서 `"done"`으로 바뀌었어요. `port[0]`으로 읽으면 `"d"`가 나오니 `port`로 고쳐 주세요.
+</Callout>
 
 ### 사용 패턴
 

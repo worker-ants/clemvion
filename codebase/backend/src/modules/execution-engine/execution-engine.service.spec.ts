@@ -14887,6 +14887,571 @@ describe('ExecutionEngineService', () => {
       // 16 branches actually fired (clamp upper bound respected).
       expect(branchHandler.execute).toHaveBeenCalledTimes(16);
     });
+
+    // CLE-NODE-PARALLEL v3 (CLE-T-2HD471) — 완료 출력 `{ branches, count, skipped? }`
+    // 와 `port: 'done'`(단일 문자열). 실패한 병렬 분기 자리는 `null`, 실패 정보는
+    // `skipped[{ index, error: { code, message } }]` (REQ-PARALLEL-012 · 017 · 029).
+    describe('done 포트 완료 출력 (CLE-NODE-PARALLEL v3)', () => {
+      const pNode = (
+        id: string,
+        type: string,
+        config: Record<string, unknown> = {},
+      ): Partial<Node> => ({
+        id,
+        workflowId,
+        type,
+        category:
+          type === 'test_node' ? NodeCategory.TRIGGER : NodeCategory.LOGIC,
+        label: id,
+        config,
+        isDisabled: false,
+        containerId: undefined,
+        toolOwnerId: undefined,
+      });
+      const pEdge = (
+        source: string,
+        sourcePort: string,
+        target: string,
+      ): Partial<Edge> => ({
+        id: `${source}.${sourcePort}->${target}`,
+        workflowId,
+        sourceNodeId: source,
+        sourcePort,
+        targetNodeId: target,
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      });
+
+      let doneReceived: unknown[];
+      let sinkConfigs: Record<string, unknown>[];
+      let structuredSpy: jest.SpyInstance;
+
+      const parallelStructured = () => {
+        const calls = structuredSpy.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'par',
+        );
+        return calls.length > 0
+          ? (calls[calls.length - 1][2] as Record<string, unknown>)
+          : undefined;
+      };
+
+      const registerHandler = (
+        type: string,
+        execute: (input: unknown) => Promise<unknown>,
+      ) => {
+        const handler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(execute) as NodeHandler['execute'],
+        };
+        handlerRegistry.register(type, handler);
+        return handler;
+      };
+
+      beforeEach(() => {
+        mockConfigService.get.mockImplementation(
+          (key: string, defaultValue?: unknown) => {
+            if (key === 'PARALLEL_ENGINE') return 'v1';
+            if (key === 'MAX_NODE_ITERATIONS') return 100;
+            return defaultValue;
+          },
+        );
+        doneReceived = [];
+        sinkConfigs = [];
+        const parallelHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async (_input: unknown, config) => ({
+            config,
+            output: null,
+            port: ['branch_0', 'branch_1'],
+          })),
+        };
+        handlerRegistry.register('parallel', parallelHandler, {
+          kind: 'parallel',
+        });
+        const sinkHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async (input: unknown, config) => {
+            doneReceived.push(input);
+            sinkConfigs.push(config);
+            return mockOutput({ sink: true });
+          }),
+        };
+        handlerRegistry.register('sink_node', sinkHandler);
+        const contextService = (
+          service as unknown as { contextService: ExecutionContextService }
+        ).contextService;
+        structuredSpy = jest.spyOn(contextService, 'setStructuredOutput');
+      });
+
+      afterEach(() => {
+        structuredSpy.mockRestore();
+      });
+
+      const runGraph = async (
+        parallelConfig: Record<string, unknown>,
+        extraNodes: Partial<Node>[],
+        extraEdges: Partial<Edge>[],
+      ) => {
+        mockNodeRepo.findBy.mockResolvedValue([
+          pNode('trigger', 'test_node'),
+          pNode('par', 'parallel', { branchCount: 2, ...parallelConfig }),
+          ...extraNodes,
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          pEdge('trigger', 'out', 'par'),
+          ...extraEdges,
+        ]);
+        await service.execute(
+          workflowId,
+          { start: true },
+          { workspaceId: 'ws-1' },
+        );
+        await flushPromises();
+      };
+
+      // trigger → par → [branch_0 → a(ok), branch_1 → b(fail)] | done → sink
+      const failingGraph = (failure: () => never) => {
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        registerHandler('fail_node', async () => failure());
+        return {
+          nodes: [
+            pNode('a', 'ok_node'),
+            pNode('b', 'fail_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          edges: [
+            pEdge('par', 'branch_0', 'a'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        };
+      };
+
+      it('continue 에서 실패한 병렬 분기 자리는 null 이고 skipped 에 { index, error: { code, message } } 가 모인다', async () => {
+        const g = failingGraph(() => {
+          throw new Error('notify failed');
+        });
+        await runGraph({ errorPolicy: 'continue' }, g.nodes, g.edges);
+
+        expect(doneReceived).toEqual([
+          {
+            branches: [{ ok: true }, null],
+            count: 2,
+            skipped: [
+              { index: 1, error: { code: 'Error', message: 'notify failed' } },
+            ],
+          },
+        ]);
+        expect(parallelStructured()).toEqual(
+          expect.objectContaining({
+            output: {
+              branches: [{ ok: true }, null],
+              count: 2,
+              skipped: [
+                {
+                  index: 1,
+                  error: { code: 'Error', message: 'notify failed' },
+                },
+              ],
+            },
+            port: 'done',
+          }),
+        );
+      });
+
+      it('skipped[].error.code 는 error.name 이고 Error 가 아닌 값을 던지면 UNKNOWN_ERROR 다', async () => {
+        class NotifyError extends Error {
+          override name = 'NotifyError';
+        }
+        let call = 0;
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        registerHandler('fail_node', async () => {
+          call += 1;
+          if (call === 1) throw new NotifyError('custom');
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentionally exercises the non-Error branch (executor coerces to UNKNOWN_ERROR)
+          throw 'plain string failure';
+        });
+        await runGraph(
+          { errorPolicy: 'continue', branchCount: 3 },
+          [
+            pNode('a', 'ok_node'),
+            pNode('b', 'fail_node'),
+            pNode('c', 'fail_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'a'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'branch_2', 'c'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        const received = doneReceived[0] as {
+          branches: unknown[];
+          count: number;
+          skipped: { index: number; error: Record<string, unknown> }[];
+        };
+        expect(received.branches).toEqual([{ ok: true }, null, null]);
+        expect(received.count).toBe(3);
+        // index 오름차순. error 는 code · message 두 필드만 싣는다(스택 · 원본 객체 없음).
+        expect(received.skipped.map((s) => s.index)).toEqual([1, 2]);
+        const codes = received.skipped.map((s) => s.error.code).sort();
+        expect(codes).toEqual(['NotifyError', 'UNKNOWN_ERROR']);
+        for (const s of received.skipped) {
+          expect(Object.keys(s.error).sort()).toEqual(['code', 'message']);
+        }
+        expect(
+          received.skipped.find((s) => s.error.code === 'UNKNOWN_ERROR')?.error
+            .message,
+        ).toBe('plain string failure');
+      });
+
+      it('실패한 병렬 분기가 없으면 skipped 키를 싣지 않는다 (REQ-PARALLEL-029)', async () => {
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        await runGraph(
+          { errorPolicy: 'continue' },
+          [
+            pNode('a', 'ok_node'),
+            pNode('b', 'ok_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'a'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        expect(doneReceived).toHaveLength(1);
+        expect(doneReceived[0]).not.toHaveProperty('skipped');
+        expect(doneReceived[0]).toEqual({
+          branches: [{ ok: true }, { ok: true }],
+          count: 2,
+        });
+        const structured = parallelStructured();
+        expect(structured?.output).not.toHaveProperty('skipped');
+        expect(structured?.port).toBe('done');
+        expect(structured).not.toHaveProperty('meta');
+      });
+
+      it.each(['stop', 'cancel-others-on-fail'])(
+        'errorPolicy=%s 면 병렬 분기 실패 때 done 포트를 거치지 않는다',
+        async (errorPolicy) => {
+          const g = failingGraph(() => {
+            throw new Error('notify failed');
+          });
+          await runGraph({ errorPolicy }, g.nodes, g.edges);
+
+          expect(doneReceived).toHaveLength(0);
+          expect(parallelStructured()?.port).not.toBe('done');
+        },
+      );
+
+      it('_selectedPort 와 port 는 done 문자열이고 branches[i] 에 엔진 제어 필드가 없다', async () => {
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        const contextService = (
+          service as unknown as { contextService: ExecutionContextService }
+        ).contextService;
+        const createSpy = jest.spyOn(contextService, 'createContext');
+        try {
+          await runGraph(
+            {},
+            [
+              pNode('a', 'ok_node'),
+              pNode('b', 'ok_node'),
+              pNode('sink', 'sink_node'),
+            ],
+            [
+              pEdge('par', 'branch_0', 'a'),
+              pEdge('par', 'branch_1', 'b'),
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+          const rootContext = createSpy.mock.results[0]?.value as {
+            nodeOutputCache: Record<string, Record<string, unknown>>;
+          };
+          expect(rootContext.nodeOutputCache.par._selectedPort).toBe('done');
+          // 분기 노드는 done 포트 뒤에 다시 실행되지 않는다(문자열 _selectedPort 가
+          // branch_N 연결선을 막는다).
+          expect(doneReceived).toHaveLength(1);
+        } finally {
+          createSpy.mockRestore();
+        }
+        const branches = (doneReceived[0] as { branches: unknown[] }).branches;
+        for (const b of branches) {
+          expect(b).not.toHaveProperty('_selectedPort');
+        }
+        expect(parallelStructured()?.port).toBe('done');
+      });
+
+      it('done 뒤 노드의 표현식이 branches[0].<필드> 와 port 를 읽는다', async () => {
+        registerHandler('ok_node', async () => mockOutput({ ok: true, n: 7 }));
+        await runGraph(
+          {},
+          [
+            pNode('a', 'ok_node'),
+            pNode('b', 'ok_node'),
+            pNode('sink', 'sink_node', {
+              picked: '{{ $node["par"].output.branches[0].n }}',
+              port: '{{ $node["par"].port }}',
+            }),
+          ],
+          [
+            pEdge('par', 'branch_0', 'a'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        expect(sinkConfigs).toHaveLength(1);
+        expect(sinkConfigs[0]).toEqual(
+          expect.objectContaining({ picked: 7, port: 'done' }),
+        );
+      });
+
+      // 병렬 분기 컨텍스트는 캐시 얕은 복사본을 쓴다(REQ-PARALLEL-009). 분기 안에서
+      // 방금 실행한 노드 출력이 그 사본에 보여야 다음 노드 입력과 포트 라우팅이 맞다.
+      it('병렬 분기 안 다음 노드는 앞 노드 출력을 입력으로 받는다', async () => {
+        const seen: Record<string, unknown> = {};
+        registerHandler('first_node', async () => mockOutput({ step: 1 }));
+        registerHandler('second_node', async (input) => {
+          seen.second = input;
+          return mockOutput({ step: 2 });
+        });
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        await runGraph(
+          {},
+          [
+            pNode('a1', 'first_node'),
+            pNode('a2', 'second_node'),
+            pNode('b', 'ok_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'a1'),
+            pEdge('a1', 'out', 'a2'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        expect(seen.second).toEqual({ step: 1 });
+        expect(doneReceived[0]).toEqual({
+          branches: [{ step: 2 }, { ok: true }],
+          count: 2,
+        });
+      });
+
+      describe('결과 노드 (REQ-PARALLEL-030)', () => {
+        // branch_0 → a(ok). branch_1 은 테스트마다 다르다.
+        const withBranch1 = async (
+          branch1Nodes: Partial<Node>[],
+          branch1Edges: Partial<Edge>[],
+        ) => {
+          registerHandler('ok_node', async () => mockOutput({ ok: true }));
+          await runGraph(
+            {},
+            [
+              pNode('a', 'ok_node'),
+              ...branch1Nodes,
+              pNode('sink', 'sink_node'),
+            ],
+            [
+              pEdge('par', 'branch_0', 'a'),
+              ...branch1Edges,
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+          return (doneReceived[0] as { branches: unknown[] }).branches[1];
+        };
+
+        it('분기 안 If 가 위상 순서상 마지막 노드를 고르지 않으면 실제로 실행된 노드의 출력을 담는다', async () => {
+          // 위상 순서: cond → n-false → n-true. cond 가 false 를 고르므로 n-true 는
+          // 실행되지 않고 n-false 가 결과다.
+          const executed: string[] = [];
+          registerHandler('cond_node', async () =>
+            mockOutput({ checked: true }, { port: 'false' }),
+          );
+          registerHandler('mark_node', async (input) => {
+            executed.push(JSON.stringify(input));
+            return mockOutput({ picked: 'false-path' });
+          });
+          registerHandler('never_node', async () => {
+            executed.push('never');
+            return mockOutput({ picked: 'true-path' });
+          });
+
+          const result = await withBranch1(
+            [
+              pNode('cond', 'cond_node'),
+              pNode('n-false', 'mark_node'),
+              pNode('n-true', 'never_node'),
+            ],
+            [
+              pEdge('par', 'branch_1', 'cond'),
+              pEdge('cond', 'false', 'n-false'),
+              pEdge('cond', 'true', 'n-true'),
+            ],
+          );
+
+          expect(executed).toEqual([JSON.stringify({ checked: true })]);
+          expect(result).toEqual({ picked: 'false-path' });
+        });
+
+        it('앞쪽 노드만 실행되면 그 노드의 출력을 담고 엔진 제어 필드는 뺀다', async () => {
+          // cond 가 연결선이 없는 true 를 고르므로 뒤 노드는 실행되지 않는다.
+          registerHandler('cond_node', async () =>
+            mockOutput({ checked: true }, { port: 'true' }),
+          );
+          registerHandler('never_node', async () =>
+            mockOutput({ picked: 'false-path' }),
+          );
+
+          const result = await withBranch1(
+            [pNode('cond', 'cond_node'), pNode('later', 'never_node')],
+            [pEdge('par', 'branch_1', 'cond'), pEdge('cond', 'false', 'later')],
+          );
+
+          expect(result).toEqual({ checked: true });
+          expect(result).not.toHaveProperty('_selectedPort');
+        });
+
+        it('실행된 노드가 없으면 null 이다 (비활성 노드 · skip_node 로 건너뛴 노드)', async () => {
+          registerHandler('fail_node', async () => {
+            throw new Error('skipped by policy');
+          });
+          const disabled = { ...pNode('off', 'ok_node'), isDisabled: true };
+
+          const result = await withBranch1(
+            [
+              pNode('skip', 'fail_node', {
+                errorHandling: { policy: 'skip_node' },
+              }),
+              disabled,
+            ],
+            [pEdge('par', 'branch_1', 'skip'), pEdge('skip', 'out', 'off')],
+          );
+
+          expect(result).toBeNull();
+          // skip_node 는 실패가 아니라 건너뜀이라 skipped 에 들어가지 않는다.
+          expect(doneReceived[0]).not.toHaveProperty('skipped');
+        });
+
+        it('캐시에 남은 앞 반복 출력은 결과로 고르지 않는다 (이번에 건너뛴 노드)', async () => {
+          // 반복 본문 안의 Parallel 은 앞 반복이 남긴 출력을 캐시에 들고 들어간다.
+          // 이번 실행에서 skip_node 로 건너뛴 노드의 옛 출력이 결과가 되면 안 된다.
+          registerHandler('fail_node', async () => {
+            throw new Error('skipped by policy');
+          });
+          const contextService = (
+            service as unknown as { contextService: ExecutionContextService }
+          ).contextService;
+          const createContext =
+            contextService.createContext.bind(contextService);
+          const createSpy = jest
+            .spyOn(contextService, 'createContext')
+            .mockImplementation((...args) => {
+              const created = createContext(...args);
+              created.nodeOutputCache.skip = { stale: true };
+              return created;
+            });
+          try {
+            const result = await withBranch1(
+              [
+                pNode('skip', 'fail_node', {
+                  errorHandling: { policy: 'skip_node' },
+                }),
+              ],
+              [pEdge('par', 'branch_1', 'skip')],
+            );
+            expect(result).toBeNull();
+          } finally {
+            createSpy.mockRestore();
+          }
+        });
+
+        it('끝나는 노드가 둘 이상 실행되면 엔진 위상 정렬 순서(같은 단계는 노드 ID 순)의 마지막 노드를 고른다', async () => {
+          registerHandler('start_node', async () =>
+            mockOutput({ start: true }),
+          );
+          registerHandler('leaf_b', async () => mockOutput({ leaf: 'n-b' }));
+          registerHandler('leaf_c', async () => mockOutput({ leaf: 'n-c' }));
+
+          const result = await withBranch1(
+            [
+              pNode('n-a', 'start_node'),
+              pNode('n-c', 'leaf_c'),
+              pNode('n-b', 'leaf_b'),
+            ],
+            [
+              pEdge('par', 'branch_1', 'n-a'),
+              pEdge('n-a', 'out', 'n-c'),
+              pEdge('n-a', 'out', 'n-b'),
+            ],
+          );
+
+          expect(result).toEqual({ leaf: 'n-c' });
+        });
+      });
+
+      it('PARALLEL_ENGINE=off 되돌림 경로는 분기를 차례로 실행하고 완료 출력을 만들지 않는다', async () => {
+        mockConfigService.get.mockImplementation(
+          (key: string, defaultValue?: unknown) => {
+            if (key === 'PARALLEL_ENGINE') return 'off';
+            if (key === 'MAX_NODE_ITERATIONS') return 100;
+            return defaultValue;
+          },
+        );
+        const executed: string[] = [];
+        registerHandler('ok_node', async () => {
+          executed.push('ok');
+          return mockOutput({ ok: true });
+        });
+        await runGraph(
+          {},
+          [
+            pNode('a', 'ok_node'),
+            pNode('b', 'ok_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'a'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        expect(executed).toEqual(['ok', 'ok']);
+        // done 뒤 노드는 Parallel 자신의 출력을 받는다. 완료 출력(branches · count ·
+        // skipped)은 v1 경로만 만든다.
+        expect(doneReceived).toHaveLength(1);
+        expect(doneReceived[0]).not.toHaveProperty('branches');
+        expect(parallelStructured()).toMatchObject({
+          output: null,
+          port: ['branch_0', 'branch_1'],
+        });
+      });
+
+      it('Parallel 뒤에 노드가 없어도 continue 실패가 완료 출력에 남는다', async () => {
+        const g = failingGraph(() => {
+          throw new Error('notify failed');
+        });
+        await runGraph(
+          { errorPolicy: 'continue' },
+          g.nodes.filter((n) => n.id !== 'sink'),
+          g.edges.filter((e) => e.targetNodeId !== 'sink'),
+        );
+
+        expect(parallelStructured()?.output).toEqual({
+          branches: [{ ok: true }, null],
+          count: 2,
+          skipped: [
+            { index: 1, error: { code: 'Error', message: 'notify failed' } },
+          ],
+        });
+      });
+    });
   });
 
   describe('AI no-llm-provider rule post-filter', () => {
