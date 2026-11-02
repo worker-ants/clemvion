@@ -605,4 +605,118 @@ describe("chart — 시리즈와 색 (CLE-NODE-CHART · REQ-CHART-020)", () => {
       "(빈 값)",
     ]);
   });
+  describe("기하 · 색 순환", () => {
+    // B 에는 Feb 포인트가 없다. 가로 눈금 간격은 (280 - 30 - 8) / 2 = 121 이다.
+    const gap = [
+      { x: "Jan", y: 10, series: "A" },
+      { x: "Jan", y: 20, series: "B" },
+      { x: "Feb", y: 30, series: "A" },
+      { x: "Mar", y: 40, series: "A" },
+      { x: "Mar", y: 50, series: "B" },
+    ];
+    const renderChart = (chartType: string, data: unknown[], colors?: string[]) => {
+      render(
+        <PresentationBlock
+          payload={{ config: { chartType, ...(colors ? { colors } : {}) }, output: { data } }}
+          onButton={vi.fn()}
+        />,
+      );
+      return screen.getByTestId("wc-chart");
+    };
+    const pointsOf = (el: Element) =>
+      (el.getAttribute("points") ?? "").split(" ").map((p) => p.split(",").map(Number));
+    const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
+
+    it.each(["line", "area"])("%s 는 빠진 X 를 건너뛰고 시리즈마다 있는 점만 잇는다", (chartType) => {
+      const chart = renderChart(chartType, gap);
+      const lines = Array.from(chart.querySelectorAll("polyline")).map(pointsOf);
+      expect(lines.map((pts) => pts.map(([x]) => x))).toEqual([
+        [30, 151, 272],
+        [30, 272],
+      ]);
+      // 점마다 원이 하나다.
+      expect(chart.querySelectorAll("circle")).toHaveLength(5);
+    });
+
+    it("area 는 시리즈마다 다각형을 하나 그리고 시작 · 끝 x 를 그 시리즈의 첫 · 마지막 점에서 잡는다", () => {
+      const chart = renderChart("area", gap);
+      const polygons = Array.from(chart.querySelectorAll("polygon")).map(pointsOf);
+      expect(polygons).toHaveLength(2);
+      // 바닥은 mT + plotH = 148 이다. 다각형은 [바닥 시작, 선의 점들, 바닥 끝] 이다.
+      const [a, b] = polygons;
+      expect([a[0], a[a.length - 1]]).toEqual([[30, 148], [272, 148]]);
+      expect([b[0], b[b.length - 1]]).toEqual([[30, 148], [272, 148]]);
+      expect(a).toHaveLength(5);
+      expect(b).toHaveLength(4);
+    });
+
+    it("line 은 점이 하나뿐인 시리즈도 선 하나로 그린다", () => {
+      const chart = renderChart("line", [
+        { x: "Jan", y: 1, series: "A" },
+        { x: "Feb", y: 2, series: "A" },
+        { x: "Feb", y: 3, series: "B" },
+      ]);
+      const lines = Array.from(chart.querySelectorAll("polyline")).map(pointsOf);
+      expect(lines.map((pts) => pts.length)).toEqual([2, 1]);
+      expect(chart.querySelector(".wc-chart-legend")!.querySelectorAll("li")).toHaveLength(2);
+    });
+
+    it("다중 시리즈 bar 는 같은 X 안에서 시리즈 막대를 옆으로 나란히 놓는다", () => {
+      const chart = renderChart("bar", gap);
+      const rects = Array.from(chart.querySelectorAll("rect"));
+      // 막대는 A: Jan · Feb · Mar, B: Jan · Mar 순서다.
+      expect(rects).toHaveLength(5);
+      const [aJan, aFeb, aMar, bJan, bMar] = rects;
+      const width = num(aJan, "width");
+      expect(width).toBeGreaterThan(0);
+      for (const r of rects) expect(num(r, "width")).toBeCloseTo(width, 6);
+      // 같은 X 에서 B 는 A 바로 오른쪽에서 시작한다.
+      expect(num(bJan, "x") - num(aJan, "x")).toBeCloseTo(width, 6);
+      expect(num(bMar, "x") - num(aMar, "x")).toBeCloseTo(width, 6);
+      // 다음 X 의 막대는 앞 X 의 두 막대 오른쪽에 있다.
+      expect(num(aFeb, "x")).toBeGreaterThan(num(bJan, "x") + width);
+      expect(num(aMar, "x")).toBeGreaterThan(num(aFeb, "x") + width);
+    });
+
+    it("시리즈가 colors 보다 많으면 색을 돌려 쓴다 (colors[i % n])", () => {
+      const three = [
+        { x: "Jan", y: 1, series: "A" },
+        { x: "Jan", y: 2, series: "B" },
+        { x: "Jan", y: 3, series: "C" },
+      ];
+      const bar = renderChart("bar", three, ["red", "blue"]);
+      expect(fills(bar.querySelectorAll("rect"))).toEqual(["red", "blue", "red"]);
+      const swatches = Array.from(bar.querySelectorAll(".wc-legend-swatch")).map(
+        (el) => (el as HTMLElement).style.background,
+      );
+      expect(swatches).toEqual(["red", "blue", "red"]);
+    });
+
+    it("line 도 시리즈가 colors 보다 많으면 선 색을 돌려 쓴다", () => {
+      const chart = renderChart(
+        "line",
+        [
+          { x: "Jan", y: 1, series: "A" },
+          { x: "Jan", y: 2, series: "B" },
+          { x: "Jan", y: 3, series: "C" },
+        ],
+        ["red", "blue"],
+      );
+      const strokes = Array.from(chart.querySelectorAll("polyline")).map((el) =>
+        el.getAttribute("stroke"),
+      );
+      expect(strokes).toEqual(["red", "blue", "red"]);
+    });
+
+    it("colors 가 없으면 기본 팔레트를 처음부터 쓴다", () => {
+      const single = renderChart("bar", [{ x: "a", y: 1 }, { x: "b", y: 2 }]);
+      expect(fills(single.querySelectorAll("rect"))).toEqual(["#5B4FE9", "#5B4FE9"]);
+    });
+
+    it("colors 가 없는 다중 시리즈는 기본 팔레트의 [0] · [1] 을 쓴다", () => {
+      const chart = renderChart("bar", gap);
+      const colors = Array.from(new Set(fills(chart.querySelectorAll("rect"))));
+      expect(colors).toEqual(["#5B4FE9", "#22B8CF"]);
+    });
+  });
 });
