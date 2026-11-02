@@ -3,6 +3,7 @@ import { evaluateWarnings } from '@workflow/node-summary';
 import {
   chartConfigSchema,
   chartMetadata,
+  chartOutputSchema,
   validateChartConfig,
 } from './chart.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
@@ -152,5 +153,91 @@ describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.
     expect(
       jsonSchema.properties?.buttons?.items?.properties?.userMessage,
     ).toBeDefined();
+  });
+});
+
+// CLE-NODE-CHART 「출력 스키마(자동완성)」 — 노드 출력 다섯 필드 형태.
+describe('chartOutputSchema', () => {
+  type JsonNode = {
+    properties?: Record<string, JsonNode>;
+    items?: JsonNode;
+  };
+  const json = z.toJSONSchema(chartOutputSchema) as unknown as JsonNode;
+
+  it('declares the node output envelope fields only', () => {
+    expect(Object.keys(json.properties ?? {}).sort()).toEqual([
+      'config',
+      'meta',
+      'output',
+      'port',
+      'status',
+    ]);
+  });
+
+  it('does not declare the legacy discriminator or literal config in output', () => {
+    const output = json.properties?.output?.properties ?? {};
+    expect(output.type).toBeUndefined();
+    expect(output.chartType).toBeUndefined();
+    expect(output.title).toBeUndefined();
+    expect(json.properties?.type).toBeUndefined();
+    expect(json.properties?.chartType).toBeUndefined();
+  });
+
+  it('declares output.data as { x, y?, series? }[] and output.interaction', () => {
+    const output = json.properties?.output?.properties ?? {};
+    expect(Object.keys(output.data?.items?.properties ?? {}).sort()).toEqual([
+      'series',
+      'x',
+      'y',
+    ]);
+    expect(
+      Object.keys(output.interaction?.properties ?? {}).sort(),
+    ).toEqual(['data', 'receivedAt', 'type']);
+  });
+
+  it('declares every config echo field', () => {
+    expect(Object.keys(json.properties?.config?.properties ?? {}).sort()).toEqual(
+      [
+        'buttonConfig',
+        'buttons',
+        'chartType',
+        'colors',
+        'dataField',
+        'groupBy',
+        'title',
+        'xAxis',
+        'yAxis',
+      ],
+    );
+  });
+
+  it('accepts display, multi-series and resumed handler outputs', () => {
+    const shapes = [
+      {
+        config: { chartType: 'bar', xAxis: { field: 'm' } },
+        output: { data: [{ x: 'Jan', y: 1 }] },
+      },
+      {
+        config: { chartType: 'line', groupBy: 'region' },
+        output: { data: [{ x: 'Jan', y: 1, series: 'Seoul' }] },
+      },
+      {
+        config: { chartType: 'bar', buttons: [{ id: 'ok', label: 'OK' }] },
+        output: {
+          data: [{ x: 'Jan', y: 1 }],
+          interaction: {
+            type: 'button_click',
+            data: { buttonId: 'ok', buttonLabel: 'OK' },
+            receivedAt: '2026-04-19T12:34:56.000Z',
+          },
+        },
+        meta: { interactionType: 'buttons', durationMs: 5 },
+        port: 'ok',
+        status: 'resumed',
+      },
+    ];
+    for (const shape of shapes) {
+      expect(chartOutputSchema.safeParse(shape).success).toBe(true);
+    }
   });
 });

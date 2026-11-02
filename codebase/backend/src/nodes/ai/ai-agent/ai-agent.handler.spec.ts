@@ -3802,6 +3802,39 @@ describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
     expect(systemMsg!.content).toContain('다시 호출하지');
   });
 
+  // CLE-NODE-CHART 「표시 도구 페이로드」 — render_chart 의 data 모양 안내.
+  // 옛 문구("xAxis/yAxis/values 또는 series")는 최상위 series 배열을 부추겼다.
+  it('systemPrompt 의 render_chart 안내가 data 를 { x, y?, series? }[] 로 적는다', async () => {
+    mockLlmService.chat.mockResolvedValueOnce({
+      content: 'ok',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      model: 'gpt-4o',
+      finishReason: 'stop',
+    });
+
+    await handler.execute(
+      { x: 1 },
+      {
+        systemPrompt: 'sys',
+        userPrompt: 'hello',
+        model: 'gpt-4o',
+        includeSystemContext: false,
+        presentationTools: [{ type: 'chart' }],
+      },
+      ctx,
+    );
+
+    const callArgs = mockLlmService.chat.mock.calls.at(-1)![1] as {
+      messages: Array<{ role: string; content?: string }>;
+    };
+    const systemMsg = callArgs.messages.find((m) => m.role === 'system');
+    const chartLine = systemMsg!.content!
+      .split('\n')
+      .find((line) => line.includes('`render_chart`'));
+    expect(chartLine).toContain('`{ x, y?, series? }[]`');
+    expect(chartLine).not.toContain('values');
+  });
+
   it('retry-gate: silently drops 2nd schema violation for the same tool (spec §4.1)', async () => {
     // First tool_use: invalid JSON arguments → schema_violation, attempts=1.
     // LLM retries with the same broken payload → 2nd violation → silent drop.

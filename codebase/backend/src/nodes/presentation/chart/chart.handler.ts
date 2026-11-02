@@ -8,6 +8,43 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.j
 import { ButtonDef } from '../_shared/button.types.js';
 import { CHART_TYPES, chartMetadata } from './chart.schema.js';
 
+/** `groupBy` 로 시리즈를 나누는 차트 유형. pie · donut 은 원 하나에 시리즈 하나라 쓰지 않는다. */
+const SERIES_CHART_TYPES: ReadonlySet<string> = new Set(['bar', 'line', 'area']);
+
+type ChartPoint = { x: unknown; y?: unknown; series?: string };
+
+function isPresent(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== '';
+}
+
+/**
+ * 데이터 배열을 고른다(CLE-NODE-CHART 실행 로직 1단계).
+ * `dataField`(입력이 객체일 때) → 저장된 호환 키 `dataSource` → 입력 자체 순서다.
+ * `dataSource` 의 `undefined` · `null` · 빈 문자열은 값이 없는 것으로 본다.
+ */
+function selectChartRows(
+  input: unknown,
+  config: Record<string, unknown>,
+): unknown[] {
+  const dataField = config.dataField;
+  if (typeof dataField === 'string' && dataField !== '') {
+    if (typeof input === 'object' && input !== null) {
+      const rows = (input as Record<string, unknown>)[dataField];
+      return Array.isArray(rows) ? rows : [];
+    }
+  } else if (isPresent(config.dataSource)) {
+    const dataSource = config.dataSource;
+    return Array.isArray(dataSource) ? dataSource : [dataSource];
+  }
+  return Array.isArray(input) ? input : [input];
+}
+
+function fieldOf(item: unknown, field: string): unknown {
+  return typeof item === 'object' && item !== null
+    ? (item as Record<string, unknown>)[field]
+    : undefined;
+}
+
 export class ChartHandler implements NodeHandler {
   metadata = chartMetadata;
 
@@ -41,26 +78,20 @@ export class ChartHandler implements NodeHandler {
     const xAxis = config.xAxis as { field: string };
     const yAxis = config.yAxis as
       { field: string; aggregation?: string } | undefined;
-    const dataField = config.dataField as string | undefined;
+    const groupBy =
+      typeof config.groupBy === 'string' &&
+      config.groupBy !== '' &&
+      SERIES_CHART_TYPES.has(config.chartType as string)
+        ? config.groupBy
+        : undefined;
 
-    let inputArray: unknown[];
-    if (config.dataSource !== undefined && config.dataSource !== null) {
-      inputArray = Array.isArray(config.dataSource)
-        ? (config.dataSource as unknown[])
-        : [config.dataSource];
-    } else if (dataField && typeof input === 'object' && input !== null) {
-      inputArray = (input as Record<string, unknown>)[dataField] as unknown[];
-      if (!Array.isArray(inputArray)) inputArray = [];
-    } else {
-      inputArray = Array.isArray(input) ? input : [input];
-    }
-
-    const data = inputArray.map((item: Record<string, unknown>) => {
-      const point: Record<string, unknown> = {
-        x: item[xAxis.field],
-      };
+    const data = selectChartRows(input, config).map((item) => {
+      const point: ChartPoint = { x: fieldOf(item, xAxis.field) };
       if (yAxis) {
-        point.y = item[yAxis.field];
+        point.y = fieldOf(item, yAxis.field);
+      }
+      if (groupBy !== undefined) {
+        point.series = String(fieldOf(item, groupBy) ?? '');
       }
       return point;
     });
@@ -105,20 +136,28 @@ export class ChartHandler implements NodeHandler {
     return Promise.resolve({ config: configEcho, output: payload });
   }
 
-  private aggregate(
-    data: Record<string, unknown>[],
-    aggregation: string,
-  ): Record<string, unknown>[] {
-    const groups = new Map<unknown, number[]>();
+  /** (series, X) 묶음마다 Y 를 집계한다. 결과 순서는 묶음이 처음 나온 순서다. */
+  private aggregate(data: ChartPoint[], aggregation: string): ChartPoint[] {
+    const groups: { x: unknown; series?: string; values: number[] }[] = [];
+    const bySeries = new Map<string | undefined, Map<unknown, number[]>>();
 
     for (const point of data) {
-      const key = point.x;
+      let byX = bySeries.get(point.series);
+      if (!byX) {
+        byX = new Map();
+        bySeries.set(point.series, byX);
+      }
+      let values = byX.get(point.x);
+      if (!values) {
+        values = [];
+        byX.set(point.x, values);
+        groups.push({ x: point.x, series: point.series, values });
+      }
       const val = Number(point.y);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(isNaN(val) ? 0 : val);
+      values.push(isNaN(val) ? 0 : val);
     }
 
-    return Array.from(groups.entries()).map(([x, values]) => {
+    return groups.map(({ x, series, values }) => {
       let y: number;
       switch (aggregation) {
         case 'sum':
@@ -139,7 +178,7 @@ export class ChartHandler implements NodeHandler {
         default:
           y = values.reduce((a, b) => a + b, 0);
       }
-      return { x, y };
+      return series === undefined ? { x, y } : { x, y, series };
     });
   }
 }

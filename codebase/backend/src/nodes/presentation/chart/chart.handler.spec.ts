@@ -250,6 +250,237 @@ describe('ChartHandler', () => {
       });
     });
 
+    // CLE-NODE-CHART 실행 로직 1단계 — dataField → 저장된 dataSource → 입력 순서.
+    describe('data source priority (REQ-CHART-009 · 010 · 018)', () => {
+      const stats = [
+        { category: 'A', value: 1 },
+        { category: 'B', value: 2 },
+      ];
+      const legacy = [{ category: 'L', value: 9 }];
+
+      it('prefers dataField over a stored dataSource when input is an object', async () => {
+        const result = (await handler.execute(
+          { stats },
+          { ...config, dataField: 'stats', dataSource: legacy },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([
+          { x: 'A', y: 1 },
+          { x: 'B', y: 2 },
+        ]);
+      });
+
+      it('does not read dataSource when dataField is set but input is not an object', async () => {
+        const result = (await handler.execute(
+          'raw',
+          { ...config, dataField: 'stats', dataSource: legacy },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        // 마지막 규칙: [input]. 문자열 항목에는 축 필드가 없다.
+        expect(result.output.data).toEqual([{ x: undefined, y: undefined }]);
+      });
+
+      it('falls back to [] when dataField points to a non-array even if dataSource exists', async () => {
+        const result = (await handler.execute(
+          { stats: 'not-array' },
+          { ...config, dataField: 'stats', dataSource: legacy },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([]);
+      });
+
+      it('reads the stored dataSource when dataField is empty', async () => {
+        const result = (await handler.execute(
+          { stats },
+          { ...config, dataField: '', dataSource: legacy },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([{ x: 'L', y: 9 }]);
+      });
+
+      it('treats an empty-string dataSource as absent and uses the input', async () => {
+        const result = (await handler.execute(
+          stats,
+          { ...config, dataField: '', dataSource: '' },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([
+          { x: 'A', y: 1 },
+          { x: 'B', y: 2 },
+        ]);
+      });
+
+      it('treats a null dataSource as absent when dataField is empty', async () => {
+        const result = (await handler.execute(
+          { category: 'Solo', value: 3 },
+          { ...config, dataSource: null },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([{ x: 'Solo', y: 3 }]);
+      });
+
+      it('does not throw on non-object items', async () => {
+        const result = (await handler.execute(
+          [null, { category: 'A', value: 1 }],
+          config,
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([
+          { x: undefined, y: undefined },
+          { x: 'A', y: 1 },
+        ]);
+      });
+
+      it('does not throw on null input', async () => {
+        const result = (await handler.execute(null, config, context)) as unknown as {
+          output: { data: unknown[] };
+        };
+        expect(result.output.data).toEqual([{ x: undefined, y: undefined }]);
+      });
+    });
+
+    // CLE-NODE-CHART 실행 로직 2~4단계 — 긴 형식 다중 시리즈.
+    describe('groupBy series (REQ-CHART-003 · 011 · 017)', () => {
+      const sales = [
+        { month: 'Jan', region: 'Seoul', revenue: 700 },
+        { month: 'Jan', region: 'Busan', revenue: 800 },
+        { month: 'Jan', region: 'Seoul', revenue: 500 },
+        { month: 'Feb', region: 'Seoul', revenue: 1500 },
+        { month: 'Feb', region: 'Busan', revenue: 900 },
+      ];
+      const base = {
+        xAxis: { field: 'month' },
+        yAxis: { field: 'revenue', aggregation: 'sum' },
+        groupBy: 'region',
+      };
+
+      it.each(['bar', 'line', 'area'])(
+        'aggregates by (series, X) in first-appearance order for %s',
+        async (chartType) => {
+          const result = (await handler.execute(
+            sales,
+            { ...base, chartType },
+            context,
+          )) as unknown as { output: { data: unknown[] } };
+          expect(result.output.data).toEqual([
+            { x: 'Jan', y: 1200, series: 'Seoul' },
+            { x: 'Jan', y: 800, series: 'Busan' },
+            { x: 'Feb', y: 1500, series: 'Seoul' },
+            { x: 'Feb', y: 900, series: 'Busan' },
+          ]);
+        },
+      );
+
+      it('counts rows per (series, X)', async () => {
+        const result = (await handler.execute(
+          sales,
+          {
+            ...base,
+            chartType: 'bar',
+            yAxis: { field: 'revenue', aggregation: 'count' },
+          },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([
+          { x: 'Jan', y: 2, series: 'Seoul' },
+          { x: 'Jan', y: 1, series: 'Busan' },
+          { x: 'Feb', y: 1, series: 'Seoul' },
+          { x: 'Feb', y: 1, series: 'Busan' },
+        ]);
+      });
+
+      it('attaches series to every raw point when aggregation is absent', async () => {
+        const result = (await handler.execute(
+          sales.slice(0, 3),
+          { ...base, chartType: 'bar', yAxis: { field: 'revenue' } },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([
+          { x: 'Jan', y: 700, series: 'Seoul' },
+          { x: 'Jan', y: 800, series: 'Busan' },
+          { x: 'Jan', y: 500, series: 'Seoul' },
+        ]);
+      });
+
+      it('stringifies group values so 1 and "1" share one series', async () => {
+        const result = (await handler.execute(
+          [
+            { month: 'Jan', grade: 1, revenue: 10 },
+            { month: 'Jan', grade: '1', revenue: 5 },
+          ],
+          { ...base, chartType: 'bar', groupBy: 'grade' },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([{ x: 'Jan', y: 15, series: '1' }]);
+      });
+
+      it('groups null / undefined group values into the empty-string series', async () => {
+        const result = (await handler.execute(
+          [
+            { month: 'Jan', region: null, revenue: 1 },
+            { month: 'Jan', revenue: 2 },
+            { month: 'Jan', region: 'Seoul', revenue: 4 },
+          ],
+          { ...base, chartType: 'line' },
+          context,
+        )) as unknown as { output: { data: unknown[] } };
+        expect(result.output.data).toEqual([
+          { x: 'Jan', y: 3, series: '' },
+          { x: 'Jan', y: 4, series: 'Seoul' },
+        ]);
+      });
+
+      it.each(['pie', 'donut'])(
+        'ignores groupBy for %s and aggregates a single series',
+        async (chartType) => {
+          const result = (await handler.execute(
+            sales,
+            { ...base, chartType },
+            context,
+          )) as unknown as {
+            output: { data: Record<string, unknown>[] };
+            config: Record<string, unknown>;
+          };
+          expect(result.output.data).toEqual([
+            { x: 'Jan', y: 2000 },
+            { x: 'Feb', y: 2400 },
+          ]);
+          // 설정 에코에는 남는다(쓰지 않을 뿐이다).
+          expect(result.config.groupBy).toBe('region');
+        },
+      );
+
+      it('keeps the single-series output when groupBy is empty', async () => {
+        const result = (await handler.execute(
+          sales,
+          { ...base, chartType: 'bar', groupBy: '' },
+          context,
+        )) as unknown as { output: { data: Record<string, unknown>[] } };
+        expect(result.output.data).toEqual([
+          { x: 'Jan', y: 2000 },
+          { x: 'Feb', y: 2400 },
+        ]);
+        expect(result.output.data.some((p) => 'series' in p)).toBe(false);
+      });
+
+      it('carries series into the waiting_for_input snapshot', async () => {
+        const result = (await handler.execute(
+          sales.slice(0, 2),
+          {
+            ...base,
+            chartType: 'bar',
+            buttons: [{ id: 'ok', label: 'OK', type: 'port' }],
+          },
+          context,
+        )) as unknown as { status: string; output: { data: unknown[] } };
+        expect(result.status).toBe('waiting_for_input');
+        expect(result.output.data).toEqual([
+          { x: 'Jan', y: 700, series: 'Seoul' },
+          { x: 'Jan', y: 800, series: 'Busan' },
+        ]);
+      });
+    });
+
     describe('axis mapping', () => {
       it('should include y field only when yAxis is set', async () => {
         const input = [{ category: 'A', value: 10 }];
