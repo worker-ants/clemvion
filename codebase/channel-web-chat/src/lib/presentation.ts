@@ -57,6 +57,8 @@ export interface TableData {
 export interface ChartPoint {
   x: unknown;
   y?: number | string;
+  /** 시리즈 이름(`groupBy` 를 쓴 bar · line · area). 없으면 단일 시리즈다. */
+  series?: string;
 }
 
 export interface ChartData {
@@ -260,7 +262,8 @@ export function toTable(p: unknown): TableData {
 const CHART_TYPES = new Set(["bar", "line", "area", "pie", "donut"]);
 
 /**
- * presentation envelope → ChartData. output.data[{x,y}] 배열에서 point 목록 추출.
+ * presentation envelope → ChartData. output.data[{x,y,series?}] 배열에서 point 목록 추출.
+ * series 는 문자열로 바꾸고 undefined · null 이면 싣지 않는다.
  * chartType 이 알 수 없는 값이면 "bar" 기본값. colors 미설정 시 렌더러가 DEFAULT_CHART_COLORS 사용.
  * xLabel/yLabel 은 config.xAxis.label / config.yAxis.label 에서 추출(빈 문자열이면 undefined).
  */
@@ -269,6 +272,7 @@ export function toChart(p: unknown): ChartData {
   const points: ChartPoint[] = asArray<Record<string, unknown>>(output.data).map((d) => ({
     x: d.x,
     y: typeof d.y === "number" || typeof d.y === "string" ? d.y : undefined,
+    ...(d.series === undefined || d.series === null ? {} : { series: String(d.series) }),
   }));
   const chartType = CHART_TYPES.has(config.chartType as string)
     ? (config.chartType as ChartData["chartType"])

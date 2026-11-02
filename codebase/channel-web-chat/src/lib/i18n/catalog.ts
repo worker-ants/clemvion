@@ -55,6 +55,7 @@ export const WIDGET_STRINGS = deepFreeze({
     "chart.cartesianLabel": "{{type}} 차트",
     "chart.pie": "원형 차트",
     "chart.donut": "도넛 차트",
+    "chart.emptySeries": "(빈 값)",
     // dynamic form
     "form.selectPlaceholder": "선택",
     "form.submit": "제출",
@@ -93,6 +94,7 @@ export const WIDGET_STRINGS = deepFreeze({
     "chart.cartesianLabel": "{{type}} chart",
     "chart.pie": "Pie chart",
     "chart.donut": "Donut chart",
+    "chart.emptySeries": "(empty)",
     "form.selectPlaceholder": "Select",
     "form.submit": "Submit",
     "error.generic": "Something went wrong. Please start a new chat and try again shortly.",

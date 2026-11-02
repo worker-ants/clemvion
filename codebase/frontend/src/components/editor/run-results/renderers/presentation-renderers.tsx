@@ -8,6 +8,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -17,13 +18,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useT } from "@/lib/i18n";
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { cn } from "@/lib/utils/cn";
-
-const CHART_COLORS = [
-  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
-  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
-];
+import { chartColorAt, resolveChartColors, toChartSeriesModel } from "./chart-series";
 
 function isHttpUrl(url: unknown): url is string {
   if (typeof url !== "string") return false;
@@ -321,38 +319,60 @@ export function ChartContent({
   data: Record<string, unknown>;
   config?: Record<string, unknown>;
 }) {
-  // 차트 시각화는 client-side recharts 로 렌더링 (Principle 1.1 직교 — chartType/title 은 config 리터럴).
-  // backend `output.rendered` (SVG snapshot) 의존은 폐기됨 — `output.data` (런타임 집계) + `config.{chartType, title}` 로 재구성.
+  const t = useT();
+  // 차트 시각화는 client-side recharts 로 렌더링 (Principle 1.1 직교 — chartType/title/colors 는 config 리터럴).
+  // backend `output.rendered` (SVG snapshot) 의존은 폐기됨 — `output.data` (런타임 집계) + `config` 로 재구성.
+  // 다중 시리즈 · 색 규칙은 CLE-NODE-CHART 「시리즈와 색」(REQ-CHART-020) 이다.
   const chartType = (config?.chartType as string) ?? "bar";
   const title = config?.title as string | undefined;
   const points = Array.isArray(data.data) ? (data.data as Array<Record<string, unknown>>) : [];
 
   if (points.length === 0) return <JsonContent data={data} />;
 
+  const colors = resolveChartColors(config?.colors);
+  const { rows, series } = toChartSeriesModel(points);
+  // 단일 시리즈는 `y` 하나를 colors[0] 으로 칠한다. 다중 시리즈는 i 번째 시리즈에 colors[i % n].
+  const marks =
+    series.length > 0
+      ? series.map((s, i) => ({
+          key: s.key,
+          name: s.name === "" ? t("editor.runResults.chartEmptySeries") : s.name,
+          color: chartColorAt(colors, i),
+        }))
+      : [{ key: "y", name: undefined, color: colors[0] }];
+  const showLegend = series.length > 0;
+
   const renderChart = () => {
     switch (chartType) {
       case "line":
         return (
-          <LineChart data={points}>
+          <LineChart data={rows}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="x" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Line type="monotone" dataKey="y" stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
+            {showLegend && <Legend />}
+            {marks.map((m) => (
+              <Line key={m.key} type="monotone" dataKey={m.key} name={m.name} stroke={m.color} strokeWidth={2} dot={{ r: 3 }} />
+            ))}
           </LineChart>
         );
       case "area":
         return (
-          <AreaChart data={points}>
+          <AreaChart data={rows}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="x" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Area type="monotone" dataKey="y" stroke={CHART_COLORS[0]} fill={CHART_COLORS[0]} fillOpacity={0.3} />
+            {showLegend && <Legend />}
+            {marks.map((m) => (
+              <Area key={m.key} type="monotone" dataKey={m.key} name={m.name} stroke={m.color} fill={m.color} fillOpacity={0.3} />
+            ))}
           </AreaChart>
         );
       case "pie":
       case "donut":
+        // pie · donut 은 시리즈를 쓰지 않고 조각마다 colors[i % n] 을 쓴다.
         return (
           <PieChart>
             <Tooltip />
@@ -367,7 +387,7 @@ export function ChartContent({
               label={(entry: { x: unknown; y: unknown }) => String(entry.x)}
             >
               {points.map((_, i) => (
-                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                <Cell key={i} fill={chartColorAt(colors, i)} />
               ))}
             </Pie>
           </PieChart>
@@ -375,12 +395,15 @@ export function ChartContent({
       case "bar":
       default:
         return (
-          <BarChart data={points}>
+          <BarChart data={rows}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="x" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Bar dataKey="y" fill={CHART_COLORS[0]} />
+            {showLegend && <Legend />}
+            {marks.map((m) => (
+              <Bar key={m.key} dataKey={m.key} name={m.name} fill={m.color} />
+            ))}
           </BarChart>
         );
     }

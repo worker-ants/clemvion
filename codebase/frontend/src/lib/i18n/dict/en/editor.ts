@@ -316,6 +316,7 @@ export const editor: Dict["editor"] = {
     formFileSizeExceeded: "Each file must be {{max}}MB or smaller.",
     formFileTotalExceeded: "Total file size must be {{max}}MB or smaller.",
     formFileCountExceeded: "You can upload at most {{max}} file(s).",
+    chartEmptySeries: "(empty)",
     formMaskedDefaultHint:
       "The default value was detected as a credential and hidden. Please enter the value yourself.",
   },

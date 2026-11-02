@@ -218,11 +218,69 @@ function TableView({ payload, onButton }: PresentationProps) {
   );
 }
 
+function numericValue(y: ChartData["points"][number]["y"]): number {
+  return typeof y === "number" ? y : Number(y) || 0;
+}
+
 function numericPoints(data: ChartData["points"]): Array<{ label: string; value: number }> {
-  return data.map((d) => ({
-    label: cellText(d.x),
-    value: typeof d.y === "number" ? d.y : Number(d.y) || 0,
-  }));
+  return data.map((d) => ({ label: cellText(d.x), value: numericValue(d.y) }));
+}
+
+interface CartesianSeries {
+  /** 시리즈 이름. 단일 시리즈면 빈 문자열이고 범례를 그리지 않는다. */
+  name: string;
+  /** labels 와 같은 순서의 값. 그 X 에 포인트가 없으면 undefined. */
+  values: Array<number | undefined>;
+}
+
+interface CartesianModel {
+  labels: string[];
+  series: CartesianSeries[];
+  /** 포인트에 series 가 하나라도 있으면 true(범례를 그린다). */
+  multi: boolean;
+}
+
+/**
+ * bar · line · area 의 X 카테고리와 시리즈(CLE-NODE-CHART 「시리즈와 색」). series 가 하나도
+ * 없으면 포인트마다 카테고리 하나인 단일 시리즈다. series 가 있으면 X 와 시리즈를 처음 나온
+ * 순서로 모으고, 같은 (series, X) 는 마지막 값을 쓴다. 시리즈 이름은 키로 쓰지 않고 순번으로 둔다.
+ */
+function toCartesianModel(data: ChartData["points"]): CartesianModel {
+  if (!data.some((d) => d.series !== undefined)) {
+    return {
+      labels: data.map((d) => cellText(d.x)),
+      series: [{ name: "", values: data.map((d) => numericValue(d.y)) }],
+      multi: false,
+    };
+  }
+  const labels: string[] = [];
+  const xIndex = new Map<unknown, number>();
+  const named: Array<{ name: string; byX: Map<number, number> }> = [];
+  const seriesIndex = new Map<string, number>();
+  for (const d of data) {
+    let xi = xIndex.get(d.x);
+    if (xi === undefined) {
+      xi = labels.length;
+      xIndex.set(d.x, xi);
+      labels.push(cellText(d.x));
+    }
+    const name = d.series ?? "";
+    let si = seriesIndex.get(name);
+    if (si === undefined) {
+      si = named.length;
+      seriesIndex.set(name, si);
+      named.push({ name, byX: new Map() });
+    }
+    named[si].byX.set(xi, numericValue(d.y));
+  }
+  return {
+    labels,
+    series: named.map(({ name, byX }) => ({
+      name,
+      values: labels.map((_, xi) => byX.get(xi)),
+    })),
+    multi: true,
+  };
 }
 
 const DEFAULT_CHART_COLORS = ["#5B4FE9", "#22B8CF", "#F59F00", "#E64980", "#37B24D"];
@@ -245,7 +303,7 @@ function ChartView({ payload, onButton }: PresentationProps) {
         <PieChart pts={pts} colors={colors} donut={chart.chartType === "donut"} />
       ) : (
         <CartesianChart
-          pts={pts}
+          model={toCartesianModel(chart.points)}
           colors={colors}
           type={chart.chartType as "bar" | "line" | "area"}
           xLabel={chart.xLabel}
@@ -257,21 +315,25 @@ function ChartView({ payload, onButton }: PresentationProps) {
   );
 }
 
-/** bar/line/area — 축 레이블·x틱·값 툴팁(<title>) 포함. */
+/**
+ * bar/line/area — 축 레이블·x틱·값 툴팁(<title>) 포함. 색은 i 번째 시리즈에 colors[i % n] 이라
+ * 단일 시리즈 bar 는 모든 막대가 colors[0] 이다(REQ-CHART-020). 다중 시리즈면 범례를 붙인다.
+ */
 function CartesianChart({
-  pts,
+  model,
   colors,
   type,
   xLabel,
   yLabel,
 }: {
-  pts: Array<{ label: string; value: number }>;
+  model: CartesianModel;
   colors: string[];
   type: "bar" | "line" | "area";
   xLabel?: string;
   yLabel?: string;
 }) {
   const t = useTranslation();
+  const { labels, series: seriesList, multi } = model;
   const W = CHART_SVG_W;
   const mL = CHART_MARGIN_LEFT;        // 좌측 여백 (y눈금 텍스트 공간)
   const mR = CHART_MARGIN_RIGHT;       // 우측 여백
@@ -280,105 +342,129 @@ function CartesianChart({
   const plotH = CHART_SVG_H;
   const H = mT + plotH + mB;
   const innerW = W - mL - mR;
-  const max = Math.max(...pts.map((p) => p.value), 1);
-  const min = Math.min(...pts.map((p) => p.value), 0);
+  const values = seriesList.flatMap((s) => s.values.filter((v): v is number => v !== undefined));
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
   const range = max - min || 1;
   const yOf = (v: number) => mT + plotH - ((v - min) / range) * plotH;
   const baseY = yOf(Math.max(0, min));
+  const colorOf = (si: number) => colors[si % colors.length];
+  const seriesName = (s: CartesianSeries) => (s.name === "" ? t("chart.emptySeries") : s.name);
+  const tip = (s: CartesianSeries, i: number, v: number) =>
+    multi ? `${seriesName(s)} · ${labels[i]}: ${v}` : `${labels[i]}: ${v}`;
 
   let series: React.ReactNode;
   if (type === "line" || type === "area") {
-    const stepX = pts.length > 1 ? innerW / (pts.length - 1) : 0;
-    const coords = pts.map((p, i) => `${mL + i * stepX},${yOf(p.value)}`);
-    series = (
-      <>
-        {type === "area" && (
-          <polygon
-            points={`${mL},${mT + plotH} ${coords.join(" ")} ${mL + innerW},${mT + plotH}`}
-            fill={colors[0]}
-            fillOpacity={0.2}
-          />
-        )}
-        <polyline points={coords.join(" ")} fill="none" stroke={colors[0]} strokeWidth={2} />
-        {pts.map((p, i) => (
-          <circle key={i} cx={mL + i * stepX} cy={yOf(p.value)} r={2.5} fill={colors[0]}>
-            <title>{`${p.label}: ${p.value}`}</title>
-          </circle>
-        ))}
-      </>
-    );
+    const stepX = labels.length > 1 ? innerW / (labels.length - 1) : 0;
+    series = seriesList.map((s, si) => {
+      const pts = s.values.flatMap((v, i) =>
+        v === undefined ? [] : [{ i, v, cx: mL + i * stepX, cy: yOf(v) }],
+      );
+      if (!pts.length) return null;
+      const coords = pts.map((p) => `${p.cx},${p.cy}`).join(" ");
+      const color = colorOf(si);
+      return (
+        <g key={si}>
+          {type === "area" && (
+            <polygon
+              points={`${pts[0].cx},${mT + plotH} ${coords} ${pts[pts.length - 1].cx},${mT + plotH}`}
+              fill={color}
+              fillOpacity={0.2}
+            />
+          )}
+          <polyline points={coords} fill="none" stroke={color} strokeWidth={2} />
+          {pts.map((p) => (
+            <circle key={p.i} cx={p.cx} cy={p.cy} r={2.5} fill={color}>
+              <title>{tip(s, p.i, p.v)}</title>
+            </circle>
+          ))}
+        </g>
+      );
+    });
   } else {
-    const barW = innerW / pts.length;
-    series = (
-      <>
-        {pts.map((p, i) => {
-          const top = yOf(Math.max(p.value, min === 0 ? 0 : min));
-          const h = Math.abs(baseY - yOf(p.value));
-          return (
-            <rect
-              key={i}
-              x={mL + i * barW + barW * 0.15}
-              y={Math.min(top, baseY)}
-              width={barW * 0.7}
-              height={Math.max(0, h)}
-              fill={colors[i % colors.length]}
-            >
-              <title>{`${p.label}: ${p.value}`}</title>
-            </rect>
-          );
-        })}
-      </>
+    const slotW = innerW / labels.length;
+    const barW = (slotW * 0.7) / seriesList.length;
+    series = seriesList.map((s, si) =>
+      s.values.map((v, i) => {
+        if (v === undefined) return null;
+        const top = yOf(Math.max(v, min === 0 ? 0 : min));
+        const h = Math.abs(baseY - yOf(v));
+        return (
+          <rect
+            key={`${si}-${i}`}
+            x={mL + i * slotW + slotW * 0.15 + si * barW}
+            y={Math.min(top, baseY)}
+            width={barW}
+            height={Math.max(0, h)}
+            fill={colorOf(si)}
+          >
+            <title>{tip(s, i, v)}</title>
+          </rect>
+        );
+      }),
     );
   }
 
   // x틱 라벨(촘촘하면 일부만).
-  const tickStep = Math.ceil(pts.length / CHART_MAX_X_TICKS);
-  const slotW = innerW / pts.length;
+  const tickStep = Math.ceil(labels.length / CHART_MAX_X_TICKS);
+  const slotW = innerW / labels.length;
   return (
-    <svg
-      className="wc-chart-svg"
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label={t("chart.cartesianLabel", { type })}
-    >
-      {/* y축 min/max 눈금 */}
-      <text x={mL - 3} y={mT + 4} className="wc-chart-tick" textAnchor="end">
-        {max}
-      </text>
-      <text x={mL - 3} y={mT + plotH} className="wc-chart-tick" textAnchor="end">
-        {min}
-      </text>
-      <line x1={mL} y1={mT} x2={mL} y2={mT + plotH} className="wc-chart-axis" />
-      <line x1={mL} y1={mT + plotH} x2={mL + innerW} y2={mT + plotH} className="wc-chart-axis" />
-      {series}
-      {pts.map((p, i) =>
-        i % tickStep === 0 ? (
+    <>
+      <svg
+        className="wc-chart-svg"
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label={t("chart.cartesianLabel", { type })}
+      >
+        {/* y축 min/max 눈금 */}
+        <text x={mL - 3} y={mT + 4} className="wc-chart-tick" textAnchor="end">
+          {max}
+        </text>
+        <text x={mL - 3} y={mT + plotH} className="wc-chart-tick" textAnchor="end">
+          {min}
+        </text>
+        <line x1={mL} y1={mT} x2={mL} y2={mT + plotH} className="wc-chart-axis" />
+        <line x1={mL} y1={mT + plotH} x2={mL + innerW} y2={mT + plotH} className="wc-chart-axis" />
+        {series}
+        {labels.map((label, i) =>
+          i % tickStep === 0 ? (
+            <text
+              key={i}
+              x={mL + i * slotW + slotW / 2}
+              y={mT + plotH + 11}
+              className="wc-chart-tick"
+              textAnchor="middle"
+            >
+              {truncLabel(label)}
+            </text>
+          ) : null,
+        )}
+        {xLabel && (
+          <text x={mL + innerW / 2} y={H - 4} className="wc-chart-axis-label" textAnchor="middle">
+            {xLabel}
+          </text>
+        )}
+        {yLabel && (
           <text
-            key={i}
-            x={mL + i * slotW + slotW / 2}
-            y={mT + plotH + 11}
-            className="wc-chart-tick"
+            transform={`translate(9 ${mT + plotH / 2}) rotate(-90)`}
+            className="wc-chart-axis-label"
             textAnchor="middle"
           >
-            {truncLabel(p.label)}
+            {yLabel}
           </text>
-        ) : null,
+        )}
+      </svg>
+      {multi && (
+        <ul className="wc-chart-legend" aria-label={t("chart.legend")}>
+          {seriesList.map((s, si) => (
+            <li key={si}>
+              <span className="wc-legend-swatch" style={{ background: colorOf(si) }} />
+              {truncLabel(seriesName(s), 10)}
+            </li>
+          ))}
+        </ul>
       )}
-      {xLabel && (
-        <text x={mL + innerW / 2} y={H - 4} className="wc-chart-axis-label" textAnchor="middle">
-          {xLabel}
-        </text>
-      )}
-      {yLabel && (
-        <text
-          transform={`translate(9 ${mT + plotH / 2}) rotate(-90)`}
-          className="wc-chart-axis-label"
-          textAnchor="middle"
-        >
-          {yLabel}
-        </text>
-      )}
-    </svg>
+    </>
   );
 }
 

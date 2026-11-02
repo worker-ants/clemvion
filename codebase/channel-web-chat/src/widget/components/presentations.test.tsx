@@ -502,3 +502,107 @@ describe("복원 thread presentation (PresentationPayload) 렌더", () => {
     expect(screen.queryByText(/표시돼요\./)).not.toBeInTheDocument();
   });
 });
+
+describe("chart — 시리즈와 색 (CLE-NODE-CHART · REQ-CHART-020)", () => {
+  const multi = [
+    { x: "Jan", y: 1200, series: "Seoul" },
+    { x: "Jan", y: 800, series: "Busan" },
+    { x: "Feb", y: 1500, series: "Seoul" },
+  ];
+  const fills = (els: NodeListOf<Element>) => Array.from(els).map((el) => el.getAttribute("fill"));
+  const titlesOf = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll("title")).map((t) => t.textContent);
+
+  it("단일 시리즈 bar 는 모든 막대를 colors[0] 으로 칠하고 범례가 없다", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "bar", colors: ["#111111", "#222222"] },
+          output: { data: [{ x: "a", y: 1 }, { x: "b", y: 2 }, { x: "c", y: 3 }] },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    expect(fills(chart.querySelectorAll("rect"))).toEqual(["#111111", "#111111", "#111111"]);
+    expect(chart.querySelector(".wc-chart-legend")).toBeNull();
+  });
+
+  it("다중 시리즈 bar 는 시리즈마다 colors[i % n] · 범례 · 시리즈 툴팁을 쓴다", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "bar", colors: ["#111111", "#222222"] },
+          output: { data: multi },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    // Feb 에는 Busan 포인트가 없어 막대가 3개다.
+    expect(fills(chart.querySelectorAll("rect"))).toEqual(["#111111", "#111111", "#222222"]);
+    const legend = chart.querySelector(".wc-chart-legend");
+    expect(Array.from(legend!.querySelectorAll("li")).map((li) => li.textContent)).toEqual([
+      "Seoul",
+      "Busan",
+    ]);
+    expect(titlesOf(chart)).toEqual(["Seoul · Jan: 1200", "Seoul · Feb: 1500", "Busan · Jan: 800"]);
+    // X 카테고리는 처음 나온 순서로 한 번씩만 눈금을 그린다.
+    const ticks = Array.from(chart.querySelectorAll("text.wc-chart-tick")).map((t) => t.textContent);
+    expect(ticks.filter((t) => t === "Jan" || t === "Feb")).toEqual(["Jan", "Feb"]);
+  });
+
+  it.each(["line", "area"])("%s 다중 시리즈는 시리즈마다 선 하나를 다른 색으로 그린다", (chartType) => {
+    render(
+      <PresentationBlock
+        payload={{ config: { chartType }, output: { data: multi } }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    const strokes = Array.from(chart.querySelectorAll("polyline")).map((el) =>
+      el.getAttribute("stroke"),
+    );
+    expect(strokes).toHaveLength(2);
+    expect(strokes[0]).not.toBe(strokes[1]);
+  });
+
+  it("같은 (series, X) 가 여러 번 나오면 마지막 값을 그린다", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "bar" },
+          output: { data: [{ x: "Jan", y: 1, series: "S" }, { x: "Jan", y: 5, series: "S" }] },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(titlesOf(screen.getByTestId("wc-chart"))).toEqual(["S · Jan: 5"]);
+  });
+
+  it("시리즈 이름이 x · y · 빈 문자열이어도 따로 그리고 빈 이름은 화면 문구로 보여 준다", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "bar" },
+          output: {
+            data: [
+              { x: "A", y: 1, series: "x" },
+              { x: "A", y: 2, series: "y" },
+              { x: "A", y: 3, series: "" },
+            ],
+          },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    expect(chart.querySelectorAll("rect")).toHaveLength(3);
+    const legend = chart.querySelector(".wc-chart-legend");
+    expect(Array.from(legend!.querySelectorAll("li")).map((li) => li.textContent)).toEqual([
+      "x",
+      "y",
+      "(빈 값)",
+    ]);
+  });
+});

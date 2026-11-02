@@ -94,6 +94,25 @@ describe("converters", () => {
     expect(c.chartType).toBe("bar");
     expect(c.points).toEqual([{ x: "a", y: 3 }]);
   });
+  it("toChart — series 는 문자열로 싣고 undefined · null 이면 싣지 않는다", () => {
+    const c = toChart({
+      config: { chartType: "bar" },
+      output: {
+        data: [
+          { x: "a", y: 1, series: "S" },
+          { x: "a", y: 2, series: 1 },
+          { x: "b", y: 3, series: null },
+          { x: "c", y: 4 },
+        ],
+      },
+    });
+    expect(c.points).toEqual([
+      { x: "a", y: 1, series: "S" },
+      { x: "a", y: 2, series: "1" },
+      { x: "b", y: 3 },
+      { x: "c", y: 4 },
+    ]);
+  });
   it("toChart — xAxis/yAxis.label 추출", () => {
     const c = toChart({
       config: { chartType: "line", xAxis: { field: "m", label: "월" }, yAxis: { field: "v", label: "매출" } },
