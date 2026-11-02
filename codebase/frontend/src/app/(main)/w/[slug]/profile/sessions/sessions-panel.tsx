@@ -53,9 +53,9 @@ export function SessionsPanel() {
 
   const [reauthOverride, setReauthOverride] = useState<ReauthMode | null>(null);
 
-  // 비밀번호가 있는 계정은 비밀번호로 확인한다(NERV CLE-ACCT-SESSION REQ-SESSION-025). TOTP 를 켠 계정도
-  // 인증 앱을 잃었을 때 비밀번호로 세션을 끊을 수 있어야 한다. /users/me 는 비밀번호 유무를 싣지 않으므로
-  // 비밀번호를 먼저 받고 서버 응답으로 바꾼다(handleConfirm).
+  // 비밀번호가 있는 계정은 비밀번호로 확인한다. TOTP 를 켠 계정도 인증 앱을 잃었을 때 비밀번호로
+  // 세션을 끊을 수 있어야 한다. /users/me 는 비밀번호 유무를 싣지 않으므로 비밀번호를 먼저 받고
+  // 서버 응답으로 바꾼다(handleConfirm). 근거: [세션과 토큰 REQ-SESSION-025](CLE-ACCT-SESSION)
   const reauthMode: ReauthMode = reauthOverride ?? "password";
 
   const revokeMutation = useMutation<
