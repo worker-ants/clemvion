@@ -7,6 +7,9 @@ import {
   validateChartConfig,
 } from './chart.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+import { ChartHandler } from './chart.handler';
+import type { ExecutionContext } from '../../core/node-handler.interface';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('chartMetadata.warningRules', () => {
   const firedIds = (config: unknown) =>
@@ -213,33 +216,89 @@ describe('chartOutputSchema', () => {
     ]);
   });
 
-  it('accepts display, multi-series and resumed handler outputs', () => {
-    const shapes = [
-      {
-        config: { chartType: 'bar', xAxis: { field: 'm' } },
-        output: { data: [{ x: 'Jan', y: 1 }] },
-      },
-      {
-        config: { chartType: 'line', groupBy: 'region' },
-        output: { data: [{ x: 'Jan', y: 1, series: 'Seoul' }] },
-      },
-      {
-        config: { chartType: 'bar', buttons: [{ id: 'ok', label: 'OK' }] },
+  describe('against real ChartHandler outputs', () => {
+    const handler = new ChartHandler();
+    const context: ExecutionContext = {
+      executionId: 'schema-exec',
+      workflowId: 'schema-wf',
+      variables: {},
+      nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
+      recursionDepth: 0,
+    };
+    const sales = [
+      { month: 'Jan', region: 'Seoul', revenue: 700 },
+      { month: 'Jan', region: 'Busan', revenue: 800 },
+      { month: 'Feb', region: 'Seoul', revenue: 1500 },
+    ];
+    const base = {
+      chartType: 'bar',
+      xAxis: { field: 'month' },
+      yAxis: { field: 'revenue', aggregation: 'sum' },
+    };
+    const run = async (config: Record<string, unknown>) =>
+      (await handler.execute(sales, config, context)) as unknown;
+
+    it('accepts a display-only output', async () => {
+      const result = await run(base);
+      expect(chartOutputSchema.safeParse(result).success).toBe(true);
+    });
+
+    it('accepts a multi-series output and keeps series as a string', async () => {
+      const result = (await run({
+        ...base,
+        chartType: 'line',
+        groupBy: 'region',
+        colors: ['#111111', '#222222'],
+      })) as { output: { data: Array<{ series?: string }> } };
+      expect(result.output.data.map((p) => p.series)).toEqual([
+        'Seoul',
+        'Busan',
+        'Seoul',
+      ]);
+      expect(chartOutputSchema.safeParse(result).success).toBe(true);
+    });
+
+    it('accepts a waiting_for_input output with buttons and buttonConfig', async () => {
+      const result = (await run({
+        ...base,
+        buttons: [{ id: 'ok', label: 'OK', type: 'port' }],
+      })) as { status: string; config: Record<string, unknown> };
+      expect(result.status).toBe('waiting_for_input');
+      expect(result.config).toHaveProperty('buttonConfig');
+      expect(chartOutputSchema.safeParse(result).success).toBe(true);
+    });
+
+    it('accepts the resumed output the engine builds from a waiting one', async () => {
+      const waiting = (await run({
+        ...base,
+        buttons: [{ id: 'ok', label: 'OK', type: 'port' }],
+      })) as { output: Record<string, unknown> };
+      const resumed = {
+        ...waiting,
         output: {
-          data: [{ x: 'Jan', y: 1 }],
+          ...waiting.output,
           interaction: {
             type: 'button_click',
             data: { buttonId: 'ok', buttonLabel: 'OK' },
             receivedAt: '2026-04-19T12:34:56.000Z',
           },
         },
-        meta: { interactionType: 'buttons', durationMs: 5 },
         port: 'ok',
         status: 'resumed',
-      },
-    ];
-    for (const shape of shapes) {
-      expect(chartOutputSchema.safeParse(shape).success).toBe(true);
-    }
+      };
+      expect(chartOutputSchema.safeParse(resumed).success).toBe(true);
+    });
+
+    it.each([
+      ['a non-string series', { output: { data: [{ x: 'a', series: 3 }] } }],
+      ['a chartType outside the enum', { config: { chartType: 'scatter' } }],
+      ['a non-array data', { output: { data: { x: 'a' } } }],
+      ['non-string colors', { config: { colors: [1, 2] } }],
+    ])('rejects %s', (_label, bad) => {
+      expect(chartOutputSchema.safeParse(bad).success).toBe(false);
+    });
   });
 });
