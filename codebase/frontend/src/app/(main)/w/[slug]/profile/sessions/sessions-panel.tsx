@@ -42,9 +42,7 @@ function axiosMessage(err: unknown, fallback: string): string {
 export function SessionsPanel() {
   const t = useT();
   const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user) as
-    | { passwordHash?: unknown; twoFactorEnabled?: boolean }
-    | null;
+  const user = useAuthStore((s) => s.user);
 
   const [dialog, setDialog] = useState<DialogState>({ open: false });
 

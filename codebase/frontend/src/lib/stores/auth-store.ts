@@ -11,6 +11,8 @@ interface User {
   avatarUrl?: string;
   locale: string;
   theme: string;
+  /** TOTP 2단계 인증이 켜져 있는지. Passkey 등록 여부는 담지 않는다. */
+  twoFactorEnabled: boolean;
 }
 
 interface AuthState {
