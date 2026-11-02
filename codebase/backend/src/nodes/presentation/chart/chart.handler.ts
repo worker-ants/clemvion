@@ -9,7 +9,11 @@ import { ButtonDef } from '../_shared/button.types.js';
 import { CHART_TYPES, chartMetadata } from './chart.schema.js';
 
 /** `groupBy` 로 시리즈를 나누는 차트 유형. pie · donut 은 원 하나에 시리즈 하나라 쓰지 않는다. */
-const SERIES_CHART_TYPES: ReadonlySet<string> = new Set(['bar', 'line', 'area']);
+const SERIES_CHART_TYPES: ReadonlySet<string> = new Set([
+  'bar',
+  'line',
+  'area',
+]);
 
 type ChartPoint = { x: unknown; y?: unknown; series?: string };
 
@@ -91,6 +95,8 @@ export class ChartHandler implements NodeHandler {
         point.y = fieldOf(item, yAxis.field);
       }
       if (groupBy !== undefined) {
+        // 스펙이 `String(item[groupBy] ?? '')` 로 정했다. 객체 값은 '[object Object]' 가 된다.
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string
         point.series = String(fieldOf(item, groupBy) ?? '');
       }
       return point;

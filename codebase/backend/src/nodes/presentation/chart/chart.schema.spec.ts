@@ -190,25 +190,27 @@ describe('chartOutputSchema', () => {
       'x',
       'y',
     ]);
-    expect(
-      Object.keys(output.interaction?.properties ?? {}).sort(),
-    ).toEqual(['data', 'receivedAt', 'type']);
+    expect(Object.keys(output.interaction?.properties ?? {}).sort()).toEqual([
+      'data',
+      'receivedAt',
+      'type',
+    ]);
   });
 
   it('declares every config echo field', () => {
-    expect(Object.keys(json.properties?.config?.properties ?? {}).sort()).toEqual(
-      [
-        'buttonConfig',
-        'buttons',
-        'chartType',
-        'colors',
-        'dataField',
-        'groupBy',
-        'title',
-        'xAxis',
-        'yAxis',
-      ],
-    );
+    expect(
+      Object.keys(json.properties?.config?.properties ?? {}).sort(),
+    ).toEqual([
+      'buttonConfig',
+      'buttons',
+      'chartType',
+      'colors',
+      'dataField',
+      'groupBy',
+      'title',
+      'xAxis',
+      'yAxis',
+    ]);
   });
 
   it('accepts display, multi-series and resumed handler outputs', () => {

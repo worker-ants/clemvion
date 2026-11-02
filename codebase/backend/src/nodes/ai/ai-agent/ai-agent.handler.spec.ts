@@ -3828,8 +3828,8 @@ describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
       messages: Array<{ role: string; content?: string }>;
     };
     const systemMsg = callArgs.messages.find((m) => m.role === 'system');
-    const chartLine = systemMsg!.content!
-      .split('\n')
+    const chartLine = systemMsg!
+      .content!.split('\n')
       .find((line) => line.includes('`render_chart`'));
     expect(chartLine).toContain('`{ x, y?, series? }[]`');
     expect(chartLine).not.toContain('values');

@@ -332,7 +332,11 @@ describe('ChartHandler', () => {
       });
 
       it('does not throw on null input', async () => {
-        const result = (await handler.execute(null, config, context)) as unknown as {
+        const result = (await handler.execute(
+          null,
+          config,
+          context,
+        )) as unknown as {
           output: { data: unknown[] };
         };
         expect(result.output.data).toEqual([{ x: undefined, y: undefined }]);

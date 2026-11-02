@@ -17,9 +17,13 @@ vi.mock("recharts", () => {
       {children}
     </div>
   );
-  const Mark =
-    (kind: string) =>
-    (props: { dataKey?: string; name?: string; fill?: string; stroke?: string }) => (
+  const Mark = (kind: string) => {
+    const MockMark = (props: {
+      dataKey?: string;
+      name?: string;
+      fill?: string;
+      stroke?: string;
+    }) => (
       <div
         data-testid={kind}
         data-key={props.dataKey}
@@ -27,6 +31,8 @@ vi.mock("recharts", () => {
         data-color={props.fill ?? props.stroke}
       />
     );
+    return MockMark;
+  };
   return {
     ResponsiveContainer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     BarChart: Container,
