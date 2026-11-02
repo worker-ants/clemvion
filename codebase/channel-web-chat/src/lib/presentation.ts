@@ -289,18 +289,20 @@ export function sanitizeChartColors(colors: unknown): string[] {
 
 /**
  * presentation envelope → ChartData. output.data[{x,y,series?}] 배열에서 point 목록 추출.
- * series 는 문자열로 바꾸고 undefined · null 이면 싣지 않는다.
+ * 객체가 아닌 항목은 건너뛰고, series 는 문자열로 바꾸고 undefined · null 이면 싣지 않는다.
  * chartType 이 알 수 없는 값이면 "bar" 기본값. colors 는 허용 형식만 남기고(sanitizeChartColors),
  * 남은 색이 없으면 렌더러가 위젯 기본 팔레트를 쓴다.
  * xLabel/yLabel 은 config.xAxis.label / config.yAxis.label 에서 추출(빈 문자열이면 undefined).
  */
 export function toChart(p: unknown): ChartData {
   const { config, output } = asEnvelope(p);
-  const points: ChartPoint[] = asArray<Record<string, unknown>>(output.data).map((d) => ({
-    x: d.x,
-    y: typeof d.y === "number" || typeof d.y === "string" ? d.y : undefined,
-    ...(d.series === undefined || d.series === null ? {} : { series: String(d.series) }),
-  }));
+  const points: ChartPoint[] = asArray(output.data)
+    .filter((d): d is Record<string, unknown> => typeof d === "object" && d !== null && !Array.isArray(d))
+    .map((d) => ({
+      x: d.x,
+      y: typeof d.y === "number" || typeof d.y === "string" ? d.y : undefined,
+      ...(d.series === undefined || d.series === null ? {} : { series: String(d.series) }),
+    }));
   const chartType = CHART_TYPES.has(config.chartType as string)
     ? (config.chartType as ChartData["chartType"])
     : "bar";

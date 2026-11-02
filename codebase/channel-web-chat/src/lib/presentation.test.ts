@@ -113,6 +113,16 @@ describe("converters", () => {
       { x: "c", y: 4 },
     ]);
   });
+  it("toChart — 객체가 아닌 data 항목은 건너뛴다", () => {
+    const c = toChart({
+      config: { chartType: "bar" },
+      output: { data: [null, { x: "a", y: 1 }, 5, "s", undefined, [1], { x: "b", y: 2 }] },
+    });
+    expect(c.points).toEqual([
+      { x: "a", y: 1 },
+      { x: "b", y: 2 },
+    ]);
+  });
   it("toChart — colors 는 허용 형식만 남기고 앞뒤 공백을 지운다", () => {
     const c = toChart({
       config: {

@@ -61,6 +61,17 @@ export function chartColorAt(colors: string[], index: number): string {
   return colors[index % colors.length];
 }
 
+/**
+ * `data.data` 에서 객체인 항목만 남긴다. `render_chart` 페이로드는 LLM 이 만든 값이라 null 이나
+ * 숫자가 섞일 수 있다. 모두 객체면 받은 배열을 그대로 돌려준다.
+ */
+export function chartPointsOf(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  const isPoint = (item: unknown): item is Record<string, unknown> =>
+    typeof item === "object" && item !== null && !Array.isArray(item);
+  return value.every(isPoint) ? value : value.filter(isPoint);
+}
+
 function seriesNameOf(point: Record<string, unknown>): string | undefined {
   const value = point.series;
   return value === undefined || value === null ? undefined : String(value);
@@ -71,8 +82,9 @@ function seriesNameOf(point: Record<string, unknown>): string | undefined {
  * 같은 (series, X) 가 여러 번 나오면 마지막 값을 쓴다.
  */
 export function toChartSeriesModel(
-  points: Array<Record<string, unknown>>,
+  rawPoints: Array<Record<string, unknown>>,
 ): ChartSeriesModel {
+  const points = chartPointsOf(rawPoints);
   if (!points.some((p) => seriesNameOf(p) !== undefined)) {
     return { rows: points, series: [] };
   }

@@ -21,7 +21,7 @@ import {
 import { useT } from "@/lib/i18n";
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { cn } from "@/lib/utils/cn";
-import { chartColorAt, resolveChartColors, toChartSeriesModel } from "./chart-series";
+import { chartColorAt, chartPointsOf, resolveChartColors, toChartSeriesModel } from "./chart-series";
 
 function isHttpUrl(url: unknown): url is string {
   if (typeof url !== "string") return false;
@@ -325,7 +325,7 @@ export function ChartContent({
   // 다중 시리즈 · 색 규칙은 CLE-NODE-CHART 「시리즈와 색」(REQ-CHART-020) 이다.
   const chartType = (config?.chartType as string) ?? "bar";
   const title = config?.title as string | undefined;
-  const points = Array.isArray(data.data) ? (data.data as Array<Record<string, unknown>>) : [];
+  const points = chartPointsOf(data.data);
 
   if (points.length === 0) return <JsonContent data={data} />;
 

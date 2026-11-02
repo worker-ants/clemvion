@@ -128,4 +128,38 @@ describe("ChartContent 시리즈와 색 (CLE-NODE-CHART · REQ-CHART-020)", () =
       screen.getAllByTestId("cell").map((el) => el.getAttribute("data-color")),
     ).toEqual(["#111111", "#222222", "#111111"]);
   });
+  it("data 에 객체가 아닌 항목이 섞여도 건너뛰고 나머지를 그린다", () => {
+    const mixed = [null, multiSeries[0], 7, "x", multiSeries[1], undefined, [1], multiSeries[2]];
+    expect(() =>
+      render(
+        <ChartContent
+          data={{ data: mixed }}
+          config={{ chartType: "bar", colors: ["#111111", "#222222"] }}
+        />,
+      ),
+    ).not.toThrow();
+    expect(marks("bar").map((m) => m.name)).toEqual(["Seoul", "Busan"]);
+    expect(JSON.parse(screen.getByTestId("chart").getAttribute("data-rows")!)).toEqual([
+      { x: "Jan", s0: 1200, s1: 800 },
+      { x: "Feb", s0: 1500 },
+    ]);
+  });
+
+  it("단일 시리즈에서도 객체가 아닌 항목은 행에서 뺀다", () => {
+    render(
+      <ChartContent
+        data={{ data: [null, { x: "A", y: 1 }, undefined, { x: "B", y: 2 }] }}
+        config={{ chartType: "line" }}
+      />,
+    );
+    expect(JSON.parse(screen.getByTestId("chart").getAttribute("data-rows")!)).toEqual([
+      { x: "A", y: 1 },
+      { x: "B", y: 2 },
+    ]);
+  });
+
+  it("data 가 모두 객체가 아니면 차트 대신 원본 JSON 을 보여 준다", () => {
+    render(<ChartContent data={{ data: [null, 3] }} config={{ chartType: "bar" }} />);
+    expect(screen.queryByTestId("chart")).toBeNull();
+  });
 });

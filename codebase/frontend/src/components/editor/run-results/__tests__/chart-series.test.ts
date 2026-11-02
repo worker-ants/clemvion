@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   EDITOR_DEFAULT_CHART_COLORS,
   chartColorAt,
+  chartPointsOf,
   resolveChartColors,
   toChartSeriesModel,
 } from "../renderers/chart-series";
@@ -70,6 +71,49 @@ describe("toChartSeriesModel (CLE-NODE-CHART 시리즈와 색)", () => {
       { x: "Feb", y: 2, series: "1" },
     ]);
     expect(model.series).toEqual([{ key: "s0", name: "1" }]);
+  });
+});
+
+describe("객체가 아닌 포인트 방어", () => {
+  it("chartPointsOf 는 객체가 아닌 항목을 뺀다", () => {
+    expect(chartPointsOf([null, { x: 1 }, 3, "s", undefined, [1], { x: 2 }])).toEqual([
+      { x: 1 },
+      { x: 2 },
+    ]);
+    expect(chartPointsOf("nope")).toEqual([]);
+    expect(chartPointsOf(undefined)).toEqual([]);
+  });
+
+  it("chartPointsOf 는 모두 객체면 받은 배열을 그대로 돌려준다", () => {
+    const points = [{ x: 1 }, { x: 2 }];
+    expect(chartPointsOf(points)).toBe(points);
+  });
+
+  it("toChartSeriesModel 은 null 이 섞여도 던지지 않고 건너뛴다", () => {
+    const points = [
+      null,
+      { x: "Jan", y: 1, series: "S" },
+      7,
+      { x: "Feb", y: 2, series: "S" },
+    ] as unknown as Array<Record<string, unknown>>;
+    const model = toChartSeriesModel(points);
+    expect(model.series).toEqual([{ key: "s0", name: "S" }]);
+    expect(model.rows).toEqual([
+      { x: "Jan", s0: 1 },
+      { x: "Feb", s0: 2 },
+    ]);
+  });
+
+  it("series 가 없는 포인트 사이의 null 도 단일 시리즈로 처리한다", () => {
+    const points = [{ x: "A", y: 1 }, null, { x: "B", y: 2 }] as unknown as Array<
+      Record<string, unknown>
+    >;
+    const model = toChartSeriesModel(points);
+    expect(model.series).toEqual([]);
+    expect(model.rows).toEqual([
+      { x: "A", y: 1 },
+      { x: "B", y: 2 },
+    ]);
   });
 });
 
