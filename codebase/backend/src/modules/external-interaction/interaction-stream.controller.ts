@@ -37,13 +37,12 @@ import {
 } from './sse-fanout.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
-// 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1`.
+// 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`.
 /**
  * `itk_*` 로 연 스트림이 토큰을 다시 확인하는 주기(ms). heartbeat 몇 번마다 한 번으로 센다.
  *
- * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`. 닫기 신호는
- * Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른 서버 인스턴스의 스트림에 닿지 않는다. 그래도 이
- * 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
+ * 닫기 신호는 Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른 서버 인스턴스의 스트림에 닿지
+ * 않는다. 그래도 이 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
  */
 export const SSE_TOKEN_RECHECK_INTERVAL_MS = 60_000;
 
@@ -53,6 +52,7 @@ const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
   Math.round(SSE_TOKEN_RECHECK_INTERVAL_MS / SSE_HEARTBEAT_INTERVAL_MS),
 );
 
+// 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1`.
 /**
  * [Spec EIA §5.2] — Server-Sent Events stream.
  *
