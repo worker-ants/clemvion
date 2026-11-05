@@ -238,8 +238,11 @@ export class UsersController {
       payload.sub,
       ctx,
     );
+    // 이 라우트는 refresh 쿠키(Path /api/auth)를 받지 못해 현재 세션의 로그인 유지 여부를
+    // 알 수 없다. 토큰 행(generateTokens(user, false))과 같은 7일로 맞춘다.
     setRefreshTokenCookie(res, tokens.refreshToken, {
       cookieDomain: this.cookieDomain,
+      rememberMe: false,
     });
 
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터의 현재 세션 workspaceId 에 귀속
@@ -316,8 +319,11 @@ export class UsersController {
       dto.token,
       ctx,
     );
+    // 이 라우트는 refresh 쿠키(Path /api/auth)를 받지 못해 현재 세션의 로그인 유지 여부를
+    // 알 수 없다. 토큰 행(generateTokens(user, false))과 같은 7일로 맞춘다.
     setRefreshTokenCookie(res, tokens.refreshToken, {
       cookieDomain: this.cookieDomain,
+      rememberMe: false,
     });
 
     // [Spec Auth §4.1 / Rationale 4.1.B] 액터 현재 세션 workspaceId 귀속, ipAddress 포렌식.

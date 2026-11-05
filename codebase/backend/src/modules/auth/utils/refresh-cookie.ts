@@ -38,14 +38,15 @@ export function getRefreshCookieSameSite(
  * @param res Express 응답 — `res.cookie` 로 `Set-Cookie` 발급.
  * @param token 발급할 refresh 토큰 값.
  * @param options.cookieDomain 빈 문자열이면 Domain 미지정(backend origin 한정), 아니면 해당 Domain.
- * @param options.rememberMe `true` 면 30일 maxAge, 아니면 7일(기본).
+ * @param options.rememberMe `true` 면 30일 maxAge, 아니면 7일. 필수 인자다. 빠뜨리면 컴파일이 깨진다
+ *   (토큰 행의 수명과 쿠키 수명이 어긋나지 않게 하려는 장치, CLE-T-BYCGF1).
  * @remarks `SameSite` 는 `COOKIE_SAMESITE` env(기본 `none`)에서 읽고, `Path` 는 `/api/auth`
  *   로 한정한다(표면 축소). `clearRefreshTokenCookie` 와 **동일 Path** 사용 필수 — §2.3/Rationale 2.3.B.
  */
 export function setRefreshTokenCookie(
   res: Express.Response,
   token: string,
-  options: { cookieDomain: string; rememberMe?: boolean },
+  options: { cookieDomain: string; rememberMe: boolean },
 ): void {
   const maxAge = options.rememberMe
     ? REMEMBER_ME_MAX_AGE_MS

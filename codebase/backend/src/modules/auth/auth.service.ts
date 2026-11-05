@@ -190,7 +190,7 @@ export class AuthService {
     refreshToken: string;
   }> {
     const meta = await this.invitationsService.getMetaByToken(invitationToken);
-    if (meta.email.toLowerCase() !== normalizeEmail(dto.email)) {
+    if (normalizeEmail(meta.email) !== normalizeEmail(dto.email)) {
       throw new BadRequestException({
         code: 'invitation_email_mismatch',
         message: '초대 이메일과 가입 이메일이 일치하지 않습니다.',
@@ -899,7 +899,7 @@ export class AuthService {
     // 2) 신규 이메일 검증 — 현재와 동일(대소문자 무시) 금지 + 타 계정 사용 중 금지.
     // 저장 값은 앞뒤 공백을 지운 소문자다(CLE-T-SFWX84).
     const email = normalizeEmail(newEmail);
-    if (email === user.email.toLowerCase()) {
+    if (email === normalizeEmail(user.email)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: '현재 이메일과 동일한 주소예요.',

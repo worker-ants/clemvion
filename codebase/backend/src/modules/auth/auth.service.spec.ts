@@ -462,6 +462,39 @@ describe('AuthService', () => {
       expect(workspacesService.createPersonalWorkspace).not.toHaveBeenCalled();
     });
 
+    it('초대 가입이 발급한 토큰 행은 로그인 유지가 아니다(7일, CLE-T-BYCGF1)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      invitationsService.getMetaByToken.mockResolvedValue({
+        workspaceName: 'Team',
+        invitedByName: 'Alice',
+        email: 'Invited@Example.com',
+        role: 'editor',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      invitationsService.consumeForRegistration.mockResolvedValue({
+        workspaceId: 'team-ws-1',
+        role: 'editor',
+        email: 'invited@example.com',
+      });
+      const before = Date.now();
+
+      await service.register({
+        name: 'Invitee',
+        email: 'invited@example.com',
+        password: 'Test123!@#',
+        invitationToken: 'a'.repeat(64),
+      });
+
+      const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+        rememberMe: boolean;
+        expiresAt: Date;
+      };
+      expect(created.rememberMe).toBe(false);
+      const lifetime = created.expiresAt.getTime() - before;
+      expect(lifetime).toBeGreaterThanOrEqual(7 * 24 * 60 * 60 * 1000);
+      expect(lifetime).toBeLessThan(7 * 24 * 60 * 60 * 1000 + 60_000);
+    });
+
     it('propagates GoneException when token is already consumed (transaction rolls back)', async () => {
       usersService.emailExists.mockResolvedValue(false);
       invitationsService.getMetaByToken.mockRejectedValue(
@@ -922,6 +955,47 @@ describe('AuthService', () => {
         expect(refreshTokenRepo.create).toHaveBeenLastCalledWith(
           expect.objectContaining({ rememberMe }),
         );
+      },
+    );
+
+    it.each([true, false])(
+      'issueTokensAfterMfa(Passkey)는 rememberMe=%s 를 토큰 행에 싣는다 (CLE-T-BYCGF1)',
+      async (rememberMe) => {
+        const days = rememberMe ? 30 : 7;
+        const before = Date.now();
+
+        await service.issueTokensAfterMfa(mockUser as User, rememberMe);
+
+        const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+          rememberMe: boolean;
+          expiresAt: Date;
+        };
+        expect(created.rememberMe).toBe(rememberMe);
+        const lifetime = created.expiresAt.getTime() - before;
+        expect(lifetime).toBeGreaterThanOrEqual(days * 24 * 60 * 60 * 1000);
+        expect(lifetime).toBeLessThan(days * 24 * 60 * 60 * 1000 + 60_000);
+      },
+    );
+
+    it.each([true, false])(
+      'consumeChallengeToken 은 challenge 의 rememberMe=%s 를 그대로 돌려준다',
+      async (rememberMe) => {
+        (jwtService as unknown as { verify: jest.Mock }).verify = jest
+          .fn()
+          .mockReturnValue({
+            sub: mockUser.id,
+            mfa_challenge: true,
+            method: 'webauthn',
+            rememberMe,
+          });
+        usersService.findById.mockResolvedValue(mockUser as User);
+
+        const result = await service.consumeChallengeToken(
+          'challenge',
+          'webauthn',
+        );
+
+        expect(result.rememberMe).toBe(rememberMe);
       },
     );
 

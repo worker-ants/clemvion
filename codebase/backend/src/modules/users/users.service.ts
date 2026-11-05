@@ -228,7 +228,12 @@ export class UsersService {
     if (matches.length === 0) return { kind: 'none' };
     if (matches.length === 1) return { kind: 'found', user: matches[0] };
     const exact = matches.find((u) => u.email === input);
-    return exact ? { kind: 'found', user: exact } : { kind: 'ambiguous' };
+    if (exact) return { kind: 'found', user: exact };
+    // 이메일 원문은 남기지 않는다. 운영자가 중복 계정 정리 대상을 가늠할 수 있게 묶음 크기만 적는다.
+    this.logger.warn(
+      `email lookup ambiguous — ${matches.length} accounts differ only by case`,
+    );
+    return { kind: 'ambiguous' };
   }
 
   /**

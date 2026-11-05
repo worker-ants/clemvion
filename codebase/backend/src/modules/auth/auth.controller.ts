@@ -142,6 +142,7 @@ export class AuthController {
     if ('accessToken' in result) {
       setRefreshTokenCookie(res, result.refreshToken, {
         cookieDomain: this.cookieDomain,
+        rememberMe: false,
       });
       return {
         data: { message: result.message, accessToken: result.accessToken },
@@ -176,6 +177,7 @@ export class AuthController {
     );
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
+      rememberMe: false,
     });
     return { data: { accessToken: result.accessToken } };
   }
@@ -241,7 +243,7 @@ export class AuthController {
     }
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
-      rememberMe: dto.rememberMe,
+      rememberMe: !!dto.rememberMe,
     });
     return { data: { accessToken: result.accessToken } };
   }
