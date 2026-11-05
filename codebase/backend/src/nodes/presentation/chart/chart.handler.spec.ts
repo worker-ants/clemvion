@@ -15,13 +15,15 @@ interface SharedSeriesCase {
   render: { series: string[] };
   sum: unknown[];
 }
+// 이 파일(codebase/backend/src/nodes/presentation/chart/)에서 다섯 단계 위가 codebase/ 다.
+const SHARED_SERIES_FIXTURE = resolve(
+  __dirname,
+  '../../../../../shared-fixtures/chart/series.json',
+);
 const sharedSeriesCases = (
-  JSON.parse(
-    readFileSync(
-      resolve(__dirname, '../../../../../shared-fixtures/chart/series.json'),
-      'utf8',
-    ),
-  ) as { cases: SharedSeriesCase[] }
+  JSON.parse(readFileSync(SHARED_SERIES_FIXTURE, 'utf8')) as {
+    cases: SharedSeriesCase[];
+  }
 ).cases;
 
 describe('ChartHandler', () => {

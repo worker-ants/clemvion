@@ -15,6 +15,33 @@
 
 웹채팅 위젯 테스트는 `codebase/channel-web-chat/src/test-support/chart-fixtures.ts` 를 거쳐 읽는다.
 
+## 형식
+
+세 스택은 런타임이 달라 로더와 타입을 따로 둔다. 아래 형식을 바꾸면 그 타입 선언(에디터 `chart-series.test.ts`,
+위젯 `chart-fixtures.ts`, 백엔드 `chart.handler.spec.ts` 의 `SharedSeriesCase`)을 함께 고친다.
+
+`chart/colors.json`
+
+| 필드 | 형식 | 뜻 |
+| --- | --- | --- |
+| `maxLength` | number | 앞뒤 공백을 지운 뒤 허용하는 최대 길이. `accepted` 의 가장 긴 값과 같고 `rejected` 에 한 글자 더 긴 값이 있다 |
+| `accepted` | string[] | 그대로 남는 값 |
+| `trimmed` | [입력, 남는 값][] | 앞뒤 공백을 지운 값이 남는 입력 |
+| `rejected` | unknown[] | 버려지는 값. 문자열이 아닌 값도 들어 있다 |
+
+`chart/series.json` 의 `cases[]`
+
+| 필드 | 형식 | 뜻 |
+| --- | --- | --- |
+| `name` | string | 사례 이름. 테스트 제목에 쓴다 |
+| `points` | `{ x, y?, series? }[]` | 렌더러 입력(Chart `output.data` · `render_chart` `data`). 백엔드는 같은 값으로 행을 만든다 |
+| `render.x` | unknown[] | X 카테고리 순서 |
+| `render.series` | string[] | 시리즈 이름 순서. 시리즈가 없으면 빈 배열(단일 시리즈)이고 백엔드는 이때 `groupBy` 를 두지 않는다 |
+| `render.values` | (number \| null)[][] | `values[i][j]` 는 i 번째 시리즈의 j 번째 X 값. 포인트가 없으면 null |
+| `sum` | `{ x, y, series? }[]` | 백엔드가 `groupBy` · `yAxis.aggregation=sum` 으로 집계한 `output.data` |
+
+백엔드 테스트는 `colors.json` 을 읽지 않는다. 색은 렌더러가 거르고 백엔드는 `colors` 를 그대로 넘긴다.
+
 ## 고칠 때
 
 - 규칙을 바꾸면 픽스처를 먼저 고치고 세 스택 테스트를 모두 돌린다. 한 스택만 통과하면 나머지 구현을 맞춘다.

@@ -14,6 +14,7 @@ import {
  * `codebase/shared-fixtures/chart/` 에 있다. 웹채팅 위젯 · 백엔드 핸들러 테스트도 같은 파일을 읽어서
  * 한쪽 규칙만 바뀌면 그쪽 테스트가 실패한다.
  */
+// 이 파일(codebase/frontend/src/components/editor/run-results/__tests__/)에서 여섯 단계 위가 codebase/ 다.
 const FIXTURE_DIR = path.resolve(__dirname, "../../../../../../shared-fixtures/chart");
 
 interface ColorCorpus {

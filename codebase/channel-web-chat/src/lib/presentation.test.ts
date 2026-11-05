@@ -168,6 +168,14 @@ describe("converters", () => {
         expect(colorsOf([value])).toEqual([]);
       },
     );
+    it("코퍼스의 길이 경계가 maxLength 와 맞물린다", () => {
+      const lengths = chartColorCorpus.accepted.map((c) => c.length);
+      expect(Math.max(...lengths)).toBe(chartColorCorpus.maxLength);
+      const tooLong = chartColorCorpus.rejected.filter(
+        (v): v is string => typeof v === "string" && v.length === chartColorCorpus.maxLength + 1,
+      );
+      expect(tooLong.length).toBeGreaterThan(0);
+    });
   });
   it("toChart — colors 가 배열이 아니거나 남은 값이 없으면 빈 배열이다", () => {
     expect(toChart({ config: { colors: "#111" }, output: { data: [] } }).colors).toEqual([]);

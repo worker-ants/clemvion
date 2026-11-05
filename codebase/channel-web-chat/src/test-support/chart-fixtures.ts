@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 // jsdom 환경에서는 import.meta.url 이 file: URL 이 아니라서 __dirname 으로 찾는다.
+// 이 파일(codebase/channel-web-chat/src/test-support/)에서 세 단계 위가 codebase/ 다.
 const FIXTURE_DIR = path.resolve(__dirname, "../../../shared-fixtures/chart");
 
 export interface ChartColorCorpus {
