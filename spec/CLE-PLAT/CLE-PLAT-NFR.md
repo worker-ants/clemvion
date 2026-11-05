@@ -2,19 +2,19 @@
 id: "CLE-PLAT-NFR"
 title: "비기능 요구사항"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047", "REQ-NFR-048"]
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "50b711eeee87853472fd117f590d23ce3455619dd3488277c25a2475d55457d6"
+content_hash: "a763fbead00aef384291b205ecc52f91ea111e3187fbf3e77d516a7d882dbbba"
 read_as: "approved_fallback"
-task: "CLE-T-NAT45Z"
+task: "CLE-T-693G4E"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "ee368c71a4356bb10872e0d60c859aef459f278ab09e4fd31ba8c088a2cbdb97"
-etag: "sha256-1aa95d8d5d19dec073f70fef19320a4cae510d78b6a029bd6478e9c79468f43a"
+mirror_sha256: "31974173f7c08b482e43f2b8012a3cd88721b1d165192e8dd0a1c5bf6aa9c75e"
+etag: "sha256-7c744e7b791fb13eedc90e98690bb670653354822a3cfef7c6000d0d3228ae49"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -112,7 +112,7 @@ etag: "sha256-1aa95d8d5d19dec073f70fef19320a4cae510d78b6a029bd6478e9c79468f43a"
 - **로그인 세션 유효 기간과 동시 로그인 세션 제한(NF-SC-07)**: 세션 정책은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 정한다. 이 원문 요구는 부분 구현이다(2026-10-10 코드 확인).
   - 유효 기간 제한은 구현돼 있다. 값은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 을 본다. 리프레시 토큰은 토큰 회전 때마다 그 시점부터 수명을 다시 센다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는 문제는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md#미결-사항) 에 있다. 유효 기간을 제한한다는 요구의 판정에는 영향이 없다.
   - 동시 로그인 세션 수 제한은 미구현이다. 초과 시 가장 오래된 로그인 세션을 끝내는 동작도 없다. 구현 요구는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 REQ-SESSION-033 이 소유한다. 한도 값과 설정 주체는 후속 NERV Task `CLE-T-VBQV4H` 가 정한다.
-- **2단계 인증(NF-SC-10)**: TOTP 와 Passkey·보안 키(WebAuthn, 여러 개 등록 가능)를 지원한다. 방식마다 복구 코드 10개를 따로 발급한다. Passkey·보안 키를 우선하고 TOTP 로 자동 전환하지 않는다. 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다.
+- **2단계 인증(NF-SC-10)**: TOTP 와 Passkey·보안 키(WebAuthn, 여러 개 등록 가능)를 지원한다. 방식마다 복구 코드 10개를 따로 발급한다. Passkey·보안 키를 우선하고 TOTP 로 자동 전환하지 않는다. 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다. Passkey 기능이 꺼진 서버의 예외는 [가입과 로그인 「2단계 인증 방식 선택」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-방식-선택) 에 있다.
 - **샌드박싱(NF-SC-09)**: 샌드박싱 정책은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 와 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 가 정한다.
 
 ### 가용성

@@ -2,21 +2,21 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "49a0d8146db16433ad49ca1f6d3b793909a1b08e53533b206c2d7ba896d60aff"
+content_hash: "2cc834e5a15cc00d5bdb358e3880b3128da99c7881a6290f78ffa8e1f3c9e7c5"
 read_as: "approved_fallback"
-task: "CLE-T-FRCRF7"
+task: "CLE-T-693G4E"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "08692d62d5cff313f538eefdaa75fa332eb8b4147dca11946161bd2e14804494"
-etag: "sha256-1cd88ad7521d128f74cc042d3279b9e1fe2b179378faf9deaece964911586b6d"
+mirror_sha256: "fab018a08580aa56a70dd845e329e6a6c82a0b8c795091ac35586d1c1cf27457"
+etag: "sha256-714c88c81d892f7bfe801034d1a7fdd2b2b121f68adf7c11f3beadcafe31dd8c"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -41,7 +41,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 2. 자원 액션 경로 `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 동사(구)다. 목적어는 경로에 두고 액션 이름에 넣지 않는다.
 3. Boolean 상태 필드를 바꿀 때는 전용 엔드포인트를 만들지 않는다. `PATCH /:id { field: value }` 로 바꾼다. 예외는 §12.1 에 등록한다.
 4. 리소스 API 는 현재 워크스페이스 안에서만 동작한다. 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다.
-5. 성공 응답은 `{ data: ... }` 로 감싼다. 페이지 목록은 `{ data: [...], pagination }` 이고 작은 본인 목록은 `{ data: { items } }` 다.
+5. 성공 응답은 `{ data: ... }` 로 감싼다. 페이지 목록은 `{ data: [...], pagination }` 이고 작은 본인 목록은 `{ data: { items } }` 다. 영역 문서의 API 표와 본문은 봉투를 빼고 `data` 안의 내용만 적는다.
 6. 응답에서 값이 없을 때 기본 표현은 `null` 이다. 키를 빼는 것은 §5.5 의 두 기준 중 하나에 해당할 때만이고 그 필드를 문서화하는 절에 사유를 적는다.
 7. DTO 선언은 wire 를 그대로 반영한다. TS 타입이 `| null` 이면 OpenAPI 에 `nullable: true` 를 반드시 선언한다.
 8. 요청 PATCH 는 키 생략·`null`·값이 각각 다른 뜻인 PATCH 삼중 상태(tri-state)다. 응답 부재 표현 규칙을 요청 DTO 에 적용하지 않는다.
@@ -262,7 +262,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 429 | Too Many Requests | 요청 빈도 제한 초과 |
 | 500 | Internal Server Error | 서버 에러 |
 | 502 | Bad Gateway | **외부 제3자 API**(채팅 채널 provider 등) 호출 실패. 다시 시도할 수 있다. 코드: `CHAT_CHANNEL_SETUP_FAILED`(채팅 채널 `setupChannel` 실패, [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 아래 `503` 과 구분한다. `502` 는 외부 제3자, `503` 은 우리 인프라다. `WEBAUTHN_DISABLED` 의 `503` 예외는 `503` 행에 있다. 노드 출력 안의 `statusCode` 와는 다른 축이다. 그쪽은 HTTP Request 노드가 받은 응답 상태이고 이 표는 우리 API 가 클라이언트에 주는 상태다 |
-| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락)·`SERVICE_UNAVAILABLE`(로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함, [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령)은 큐에 넣지 못해도 이 `503` 을 돌려주지 않는다. `202` 로 답하고 채널 건강도를 `degraded` 로 둔다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절이고 `SERVICE_UNAVAILABLE` 은 시스템 절이다. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 클라이언트는 다시 시도하지 않고 가용성 조회 결과에 따라 기능을 숨긴다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 로그인의 이 응답은 아직 구현되지 않았다 |
+| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락)·`SERVICE_UNAVAILABLE`(로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함, [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령)은 큐에 넣지 못해도 이 `503` 을 돌려주지 않는다. `202` 로 답하고 채널 건강도를 `degraded` 로 둔다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절이고 `SERVICE_UNAVAILABLE` 은 시스템 절이다. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 클라이언트는 다시 시도하지 않는다. Passkey 설정 화면은 가용성 조회 결과로 기능을 숨긴다. 로그인 화면은 이 코드를 받으면 안내 문구를 보여 준다 |
 
 자원을 만들지 않는 POST 액션의 성공 코드를 정하는 행은 아직 없다. [미결 사항](#미결-사항) 참조.
 
@@ -485,6 +485,7 @@ Content-Type: application/json
 
 - **`204` 삭제 응답의 건수 헤더**: [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 의 범위 삭제(`DELETE /api/agent-memories?scopeKey=`)가 프로젝트 첫 커스텀 응답 헤더 `X-Deleted-Count` 를 쓴다. `204` 라 본문이 없어 실제 삭제 행 수를 헤더로 싣고(0 가능, 멱등 삭제) cross-origin 에서 읽히도록 CORS `exposedHeaders` 에 넣는다. 그 문서는 이 방식을 이 규약의 공통 규칙(멱등 DELETE 와 커스텀 건수 헤더)으로 올리는 일을 별도 작업으로 넘겼다. 공통 규칙으로 올릴지 결정이 필요하다.
 - **자원을 만들지 않는 POST 의 성공 코드**: §6 은 `200` 을 조회·수정에, `201` 을 생성에 배정한다. 저장소에는 `@HttpCode(200)` 을 단 액션 POST 가 여럿 있고 OAuth 시작(설치 대기 통합 행 생성)이나 초대 수락(멤버십 행 생성)처럼 부수적으로 행을 만드는 POST 도 `200` 이다. [OpenAPI 문서화](CLE-API-SWAGGER.md) 는 광고한 코드와 실제 코드의 짝만 강제하고 어느 코드가 맞는지는 정하지 않는다고 스스로 적는다. §6 에 "액션 POST(자원 생성 없음 또는 부수 생성) = `200`" 행을 둘지 결정이 필요하다.
+- **서버 설정으로 꺼진 기능의 상태 코드**: `WEBAUTHN_DISABLED` 는 503 이고 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 두 코드를 한 상태로 맞출지, 맞춘다면 어느 쪽으로 맞출지 결정이 필요하다. 배경은 Rationale 「Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다」 에 있다.
 
 ## 구현 위치
 
@@ -639,12 +640,12 @@ NERV Task `CLE-T-V4WVF2` 의 결정이다. 채팅 채널 `/start` 는 활성 실
 
 ### Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다 (2026-10-17)
 
-NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 예외의 범위는 코드 하나 그대로다.
+NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회와 credential 목록 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 예외의 범위는 코드 하나 그대로다.
 
 - 상태 코드는 그대로 두고 규칙 11 과 §6 의 `503` 행에 예외로 적었다. [채팅 채널 「setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 는 4xx · 5xx 경계를 누가 고칠 수 있는가로 정했다. 같은 결정은 `503` 사용처에 `WEBAUTHN_DISABLED` 를 이미 들었다. 서버 설정은 운영자만 고칠 수 있으므로 5xx 가 맞다.
-- 지금 저장소 안 클라이언트는 이 코드로 분기하지 않는다(프론트엔드 · 패키지에 0건). 로그인 차단을 구현하면 로그인 화면이 이 코드에 안내를 보여 준다(NERV Task `CLE-T-RFSJXQ`). 저장소 밖 호출자가 이 상태에 기대는지는 배제할 수 없어 상태 코드를 바꾸지 않았다.
+- 저장소 안에서는 로그인 화면만 이 코드로 분기해 안내 문구를 고른다(`codebase/frontend/src/components/auth/login-form.tsx`). Passkey 설정 화면은 가용성 조회로 기능을 미리 숨기고 이 코드로 분기하지 않는다. 저장소 밖 호출자가 이 상태에 기대는지는 배제할 수 없어 상태 코드를 바꾸지 않았다.
 - 클라이언트는 이 응답을 다시 시도하지 않는다. Passkey 엔드포인트의 이 응답은 설정이 바뀐 직후의 요청에서만 난다. 화면이 가용성 조회(`GET /api/auth/2fa/webauthn/availability`)로 기능을 미리 숨기기 때문이다. 로그인의 이 응답은 기능이 꺼져 있는 동안 계속 난다.
-- 예외는 `WEBAUTHN_DISABLED` 하나로 한정했다. 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). "서버 설정으로 꺼진 기능은 `503`" 을 일반 규칙으로 적으면 이 코드와 부딪친다. 두 코드를 한 상태로 맞출지는 이번에 정하지 않았다.
+- 예외는 `WEBAUTHN_DISABLED` 하나로 한정했다. 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). "서버 설정으로 꺼진 기능은 `503`" 을 일반 규칙으로 적으면 이 코드와 부딪친다. 두 코드를 한 상태로 맞출지는 이번에 정하지 않았다([미결 사항](#미결-사항)).
 - **기각: 다른 상태 코드로 바꾼다.** 403 은 권한 부족으로 읽혀 사용자가 고칠 수 있는 것처럼 보이지만 사용자는 고칠 수 없다. 409 는 요청과 자원 상태의 충돌이라 서버 설정 상태와 맞지 않는다. 500 은 `OAUTH_CONFIG_MISSING` 과 맞출 수 있지만 발행 중인 상태를 바꾸는 일이라 위 불릿의 이유로 하지 않았다.
 - **감시 영향**: 로그인의 이 응답은 기능이 꺼져 있는 동안 Passkey 만 등록한 사용자가 로그인할 때마다 난다. 5xx 비율로 경보를 거는 감시는 이 응답도 센다. 운영자가 변수를 설정하면 그치는 응답이라 이 위험은 받아들였다.
 - 설정 상태로 `503` 을 내는 곳은 전에도 있었다. `GET /api/health` 는 Redis 가 설정되지 않은 경우(`unconfigured`)에도 503 이다([로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md)). 그 응답은 에러 봉투를 쓰지 않는 probe 응답이라 이 규칙의 예외로 적지 않았다.
