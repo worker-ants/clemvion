@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "d5546dbbb2f2c92372e7d56acd0c9eafbf2022819a4471539ca1c1a069cedb08"
+content_hash: "b0e02c46f31e4b7ae3963a6886cbfdf9e8157d60a68a5cc265991946aa47559c"
 read_as: "approved_fallback"
-task: "CLE-T-9W8F72"
+task: "CLE-T-REC4X3"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "ead145a5311485e61185fde39eea1f63bfece2ab6444a0c14412cb94206cc857"
-etag: "sha256-cddc49b30d2c179681ec2e9b58a0bc779f05362373ddc3fce80a9a68d27da272"
+mirror_sha256: "6e5c7c146228ac2a44e4434cfe8c669ea95ced6593c521488809558d37f9ca10"
+etag: "sha256-0c1b7a1f0555adf018d98e673ee908b38eb97e633caa96851394b7b0c85a3cdf"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ etag: "sha256-cddc49b30d2c179681ec2e9b58a0bc779f05362373ddc3fce80a9a68d27da272"
 
 5. 다섯 필드 목록을 넓히지 않는다. wire 전용 키는 핸들러가 만드는 값이 아니라 전송 조립 계층이 만드는 값이다. 정본 목록은 `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS` 다. 컴파일 타임 assertion 이 다섯 필드를 묶고 나머지 8키는 리터럴 테스트가 지킨다. 범위 표는 [응답 자격 증명 마스킹 §3.8](../CLE-API/CLE-API-EGRESS.md#38-외부-nodeoutput-의-fail-closed-허용-목록-2026-08-23-2026-08-24)이 가진다. 갈래 라벨은 그 표와 같은 문구를 쓴다.
 6. 내부 최상위 필드 세 개는 다섯 필드 밖 최상위 위치를 예외로 허용한다. `_resumeState`(멀티턴 입력 대기·재개 중 내부 전달), `_resumeCheckpoint`(재시작 뒤 재개용 DB 보존 부분집합), `_retryState`(재시도 가능 에러로 끝날 때 DB 보존)다. 세 필드는 표현식 해석기와 자동완성에 노출하지 않고, 자격 증명 제외 정책도 같다. 자세한 규칙은 [4.2.1](#421-보존-예외--_resumecheckpoint--_retrystate)에 있다.
-7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 이 규칙이 아직 닿지 않는 경로와 `null` 출력의 결함은 [미결 사항](#미결-사항)에 있다.
+7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 이 규칙이 아직 닿지 않는 경로는 [미결 사항](#미결-사항)에 있다.
 
 ### Principle 1. 출력 값에는 비즈니스 결과만 둔다
 
@@ -455,7 +455,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 배열 키(컬렉션 키)는 노드마다 다르다. 다음 노드는 `$node["X"].output.<컬렉션 키>[i]` 와 `$node["X"].output.count` 로 읽는다.
 
-`skipped` 는 ForEach 와 Parallel 만 싣는 선택 필드다. 항목은 `{ index, error: { code, message } }` 이고 `index` 는 컬렉션 배열의 인덱스다. Map 은 `skipped` 를 싣지 않고 실패를 `mapped[i]` 자리에 적는다([Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md)). `skipped[].error.code` 는 던진 값이 Error 면 그 `name` 이고 Error 가 아니면 `'UNKNOWN_ERROR'` 다. 이 값은 [3.2](#32-outputerror-표준-형태) 의 `UPPER_SNAKE_CASE` 규칙에서 벗어난 임시 예외다. NERV Task `CLE-T-REC4X3` 이 ForEach 와 함께 정리하고 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 에 올릴지도 그 Task 가 정한다. 예외의 정본 서술은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 에 있다.
+`skipped` 는 ForEach 와 Parallel 만 싣는 선택 필드다. 항목은 `{ index, error: { code, message } }` 이고 `index` 는 컬렉션 배열의 인덱스다. Map 은 `skipped` 를 싣지 않고 실패를 `mapped[i]` 자리에 적는다([Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md)). `skipped[].error.code` 는 백엔드가 직접 싣는 카탈로그 코드이거나 `AbortError`(취소로 끝난 항목 · 병렬 분기)이거나 `UNKNOWN_ERROR` 다. ForEach · Map · Parallel 이 한 규칙으로 고르고 그 규칙은 [Logic 노드 공통 「반복 결과 출력 구조」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4번이 정한다. `AbortError` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 등록 코드다. `UNKNOWN_ERROR` 는 같은 문서 §6.6 에 있다.
 
 #### 9.3 반복 중 접근
 
@@ -532,7 +532,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 - **일반 노드의 `meta.durationMs` 를 채우는 주체(Principle 2)**: 여러 노드 문서가 `meta.durationMs` 의 출처를 "엔진 주입" 으로 적는다. 2026-10-24 에 확인한 코드에서 엔진이 이 값을 넣는 곳은 폼 재개 경로뿐이다. Chart · Carousel · Table · Template 의 버튼 대기는 핸들러가 `0` 을 싣고 버튼 재개는 그 값을 바꾸지 않는다. 버튼이 없는 Chart · Carousel · Table · Template 은 `meta` 를 싣지 않는다. If/Else · Switch · Filter · Merge · Split · 변수 선언 · 변수 수정 핸들러도 이 값을 싣지 않는다. 결정 필요: 엔진이 모든 노드 완료 때 실제 값을 넣도록 바꿀지, 노드 문서를 지금 동작에 맞출지. 영향을 받는 노드 문서 목록과 후속 작업은 NERV Task `CLE-T-1GJKB2` 가 다룬다.
 - **컨테이너 · Parallel 노드의 실행 시간(Principle 2)**: Loop · ForEach · Map · Parallel 은 핸들러가 시작 시점 값을 돌려주면 엔진이 바로 노드 실행 기록을 완료로 저장한다. 그래서 기록의 `node_execution.finished_at` · `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러 실행 시간이고 반복 회차 · 병렬 분기 시간은 들어 있지 않다. 성공한 실행에서는 이 기록을 다시 갱신하지 않는다. 그래서 네 노드의 기록 행에는 노드 전체 실행 시간이 없고 본문 노드 행(Parallel 은 병렬 분기 행)의 시각으로 따로 계산해야 한다. `node_execution.duration_ms` 를 노드 실행 시간으로 쓰는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 의 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드별 평균 실행 시간과 병목 강조에서도 네 노드가 실제보다 짧게 잡힌다. 결정 필요: 완료 시점에 실행 기록의 끝 시각과 실행 시간을 갱신할지, 완료 `meta` 에 `meta.durationMs` 를 더할지. 실행 기록의 완료 출력 갱신과 함께 NERV Task `CLE-T-JXD0W5` 가 다룬다.
 - **흐름 지시 상태 값 `started`(Principle 0)**: 이 규약은 `status` 를 엔진 흐름을 바꾸는 값으로 정의한다. [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)의 비동기 호출은 최상위 `status: 'started'` 를 돌려준다. 자세한 내용은 그 문서의 미결 사항에 있다.
-- **배열 · 원시값 `output` 이 `{ data }` 로 감싸이는 갭(Principle 0 · 8)**: 다음 노드의 `$input` 과 `$node["X"].output` 은 [Principle 0](#principle-0-노드-출력의-다섯-필드) 7번대로 배열 · 원시값을 그대로 받는다. 엔진 안의 값을 그대로 쓰는 경로는 아직 이 규칙을 따르지 않는다. 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(워크플로우 호출 노드의 `output.result`)는 마지막 노드의 엔진 내부 값이다. 그 노드의 출력 값이 배열 · 원시값이고 `port` 가 있으면 `{ data: <값>, _selectedPort: <포트> }` 가 들어가고, 객체면 `_selectedPort` 키가 붙는다. `port` 가 있는 객체 출력은 `$node["X"].output` 에도 `_selectedPort` 키가 붙는다. `$input` 에는 붙지 않는다. Background 노드 본문은 큐로 넘어온 엔진 내부 값(`nodeOutputCache` 스냅샷)만 받는다. 그래서 본문 밖 노드의 출력 값이 배열 · 원시값이고 `port` 가 있으면 본문 안의 `$node["X"].output` 이 `{ data: <값>, _selectedPort: <포트> }` 로 보인다. DB 에서 되살린 값으로 실행을 이어 가는 경로도 같은지는 아직 확인하지 않았다. 결정 필요: 이 경로들도 핸들러 `output` 을 그대로 쓰게 할지, 실행 결과는 노드 출력 다섯 필드 전체로 둘지. 후속 작업은 NERV Task `CLE-T-JDYHCF` 가 다룬다. 따로 Code 가 `null` 을 돌려주거나 값을 돌려주지 않으면 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열린다. 이 결함은 NERV Task `CLE-T-X3AH4F` 가 다룬다. 정상 동작은 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 문서가 정한다.
+- **배열 · 원시값 `output` 이 `{ data }` 로 감싸이는 갭(Principle 0 · 8)**: 다음 노드의 `$input` 과 `$node["X"].output` 은 [Principle 0](#principle-0-노드-출력의-다섯-필드) 7번대로 배열 · 원시값을 그대로 받는다. 엔진 안의 값을 그대로 쓰는 경로는 아직 이 규칙을 따르지 않는다. 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(워크플로우 호출 노드의 `output.result`)는 마지막 노드의 엔진 내부 값이다. 그 노드의 출력 값이 배열 · 원시값(`null` 포함)이고 `port` 가 있으면 `{ data: <값>, _selectedPort: <포트> }` 가 들어가고, 객체면 `_selectedPort` 키가 붙는다. `port` 가 있는 객체 출력은 `$node["X"].output` 에도 `_selectedPort` 키가 붙는다. `$input` 에는 붙지 않는다. Background 노드 본문은 큐로 넘어온 엔진 내부 값(`nodeOutputCache` 스냅샷)만 받는다. 그래서 본문 밖 노드의 출력 값이 배열 · 원시값이고 `port` 가 있으면 본문 안의 `$node["X"].output` 이 `{ data: <값>, _selectedPort: <포트> }` 로 보인다. DB 에서 되살린 값으로 실행을 이어 가는 경로도 같은지는 아직 확인하지 않았다. 결정 필요: 이 경로들도 핸들러 `output` 을 그대로 쓰게 할지, 실행 결과는 노드 출력 다섯 필드 전체로 둘지. 후속 작업은 NERV Task `CLE-T-JDYHCF` 가 다룬다.
 
 ## 구현 위치
 
@@ -622,10 +622,14 @@ spread 로 싣지 않는 이유는 세 가지다.
 
 표를 맞추는 일에는 기각한 대안이 없다. 출력 형태는 노드 문서가 정했고 이 개정은 규약 표를 그 결정에 맞추기만 한다. `port` 를 배열이 아닌 문자열로 둔 이유는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다-2026-11-01) 에 있다.
 
-`skipped[].error.code` 는 [3.2](#32-outputerror-표준-형태) 의 `UPPER_SNAKE_CASE` 규칙을 따르지 않는다. 그래서 9.2 에 임시 예외로 적었다. 미룬 대안은 지금 `UPPER_SNAKE_CASE` 코드로 바꾸는 안이다. ForEach 가 같은 값을 내고 있어 Parallel 만 따로 고치면 두 노드의 값이 갈린다. 그래서 NERV Task `CLE-T-REC4X3` 이 ForEach 와 함께 정리하도록 미뤘다. 예외의 정본 서술은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 에 있다.
+`skipped[].error.code` 는 [3.2](#32-outputerror-표준-형태) 의 `UPPER_SNAKE_CASE` 규칙을 따르지 않는다. 그래서 9.2 에 임시 예외로 적었다. 미룬 대안은 지금 `UPPER_SNAKE_CASE` 코드로 바꾸는 안이다. ForEach 가 같은 값을 내고 있어 Parallel 만 따로 고치면 두 노드의 값이 갈린다. 그래서 NERV Task `CLE-T-REC4X3` 이 ForEach 와 함께 정리하도록 미뤘다. 예외의 정본 서술은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 에 있다. 이 임시 예외는 2026-11-05 에 닫았다([`skipped[].error.code` 의 임시 예외를 닫는다](#skippederrorcode-의-임시-예외를-닫는다-2026-11-05)).
 
 ### 배열 · 원시값 출력을 감싸지 않는다 (2026-11-05)
 
-이 규약의 목표는 노드 종류를 몰라도 값 위치를 예측하는 것이다([노드 종류를 몰라도 값 위치를 예측할 수 있게 한다](#노드-종류를-몰라도-값-위치를-예측할-수-있게-한다)). 이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감싸 다음 노드에 넘겼다. 그래서 Code 의 `return [...]` 는 다음 노드에서 배열이 아니라 `$input.data` 로 읽어야 했고, Merge · 변수 선언 · Transform · If/Else · Switch 처럼 `port` 나 `meta` 를 싣는 노드의 배열 출력도 늘 감싸였다. Code · Transform 의 반환값을 `output` 최상위에 둔다는 [Principle 8.2](#82-통일된-1차-이름)와도 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 앞서 컨테이너 입력에 한해 `meta` 만 있을 때 감싸지 않게 한 수정(NERV Task `CLE-T-3HJ8MM`)은 이 결정에 포함됐다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다.
+이 규약의 목표는 노드 종류를 몰라도 값 위치를 예측하는 것이다([노드 종류를 몰라도 값 위치를 예측할 수 있게 한다](#노드-종류를-몰라도-값-위치를-예측할-수-있게-한다)). 이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감싸 다음 노드에 넘겼다. 그래서 Code 의 `return [...]` 는 다음 노드에서 배열이 아니라 `$input.data` 로 읽어야 했고, Merge · 변수 선언 · Transform · If/Else · Switch 처럼 `port` 나 `meta` 를 싣는 노드의 배열 출력도 늘 감싸였다. Code · Transform 의 반환값을 `output` 최상위에 둔다는 [Principle 8.2](#82-통일된-1차-이름)와도 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 앞서 컨테이너 입력에 한해 `meta` 만 있을 때 감싸지 않게 한 수정(NERV Task `CLE-T-3HJ8MM`)은 이 결정에 포함됐다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다. 같은 날 Code 가 `null` 을 돌려주거나 값을 돌려주지 않는 경우도 이 규칙에 맞췄다(NERV Task `CLE-T-X3AH4F`). 그 전에는 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열렸다. 이제 success 포트만 열리고 다음 노드는 `null` 을 받는다.
 
 기각한 대안은 둘이다. 첫째는 감싼 값을 함께 읽게 하는 별칭이다. `$input` 은 값을 주고 `$input.data` 도 계속 같은 값을 주게 하는 방식인데, 원시값에는 속성을 붙일 수 없고 배열에 `data` 속성을 붙이면 사용자 값의 모양이 바뀐다. 둘째는 노드별 적용이다. Code 만 감싸지 않고 다른 노드는 감싸기를 유지하면 노드 종류를 알아야 값 위치를 알 수 있어 이 규약의 목표와 맞지 않는다. 저장된 워크플로우의 `$input.data` 를 자동으로 고치는 마이그레이션도 두지 않았다. 앞 노드의 출력이 배열 · 원시값인지는 실행해 봐야 알 수 있어서 표현식만 보고 고칠 곳을 가를 수 없다.
+
+### `skipped[].error.code` 의 임시 예외를 닫는다 (2026-11-05)
+
+NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 실패 회차 `error.code` 를 한 규칙으로 정리했다. 값은 이제 백엔드가 직접 싣는 카탈로그 코드, [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 `AbortError`, 대체값 `UNKNOWN_ERROR` 중 하나다. 그래서 9.2 의 임시 예외 문장을 지우고 그 규칙을 가리키게 했다. `UNKNOWN_ERROR` 의 §6.6 행은 이 문서와 함께 검토 요청한 ERRCODES 초안에 있다. 규칙과 근거, 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다. 이 개정은 규약 문장을 그 결정에 맞추기만 하므로 따로 기각한 대안이 없다.
