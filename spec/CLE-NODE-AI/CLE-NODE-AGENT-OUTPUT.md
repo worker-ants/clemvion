@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "1fc66f1003fb9cae9a52d894d2fd3346e045be5ec66e50a7cca07471e2404e7d"
+content_hash: "b5eef9472c5e16643d84dbb04e1d25553ca90dc3744fe5d1928db31bfea95fa5"
 read_as: "approved_fallback"
 task: "CLE-T-Q38K9F"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "605740dab29f5781c32ae3b1581d69f2a2678c2609bc7e2bff5d317a438c070f"
-etag: "sha256-2edd57ba880e0a311f9f008e2203f53d3e6b1f6076fbf56273c0c9116de46df5"
+mirror_sha256: "d9db0f7fd9d20aece3d417034144c1044f4111b56bfee1a62ca02091cd4e48f4"
+etag: "sha256-fb5230970b30c664b4ec491a114244a0b8dba79cd7bd17a8fb7e5a910146f8b2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -214,7 +214,7 @@ etag: "sha256-2edd57ba880e0a311f9f008e2203f53d3e6b1f6076fbf56273c0c9116de46df5"
 
 타임아웃, rate limit, LLM API 오류 등 모든 오류에 쓴다.
 
-단일 턴의 첫 LLM 호출이나 도구 루프 안 LLM 호출이 실패하면 이 형태로 나온다. 노드 취소는 이 포트를 쓰지 않는다. 노드 signal 이 abort 된 뒤의 실패는 AbortError 로 던지고 노드는 `cancelled` 로 끝난다. 도구 정의 크기 예산 초과(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)도 이 형태로 나온다. 다만 LLM 을 부르기 전이라 `meta` 에는 `model`·`durationMs` 만 있다.
+단일 턴의 첫 LLM 호출이나 도구 루프 안 LLM 호출이 실패하면 이 형태로 나온다. 자동 메모리 전략의 롤링 요약 호출이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못해도 같다. 이때는 턴 응답 LLM 호출 전이라 토큰이 0 이고 `turnDebug` 의 `llmCalls` 가 비어 있다. `contextInjection`·`memory` 도 싣지 않는다. `durationMs` 는 도구 정의 크기 예산 초과와 같이 단일 턴 실행 진입부터 잰다(LLM 호출 실패는 첫 LLM 호출 직전부터다). 노드 취소는 이 포트를 쓰지 않는다. 노드 signal 이 abort 된 뒤의 실패는 AbortError 로 던지고 노드는 `cancelled` 로 끝난다. 도구 정의 크기 예산 초과(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)도 이 형태로 나온다. 다만 LLM 을 부르기 전이라 `meta` 에는 `model`·`durationMs` 만 있다.
 
 아래 예시는 지식 저장소 없이 설정한 노드의 첫 LLM 호출이 503 으로 실패한 경우다. 성공한 호출이 없어 `turnDebug[0].llmCalls` 는 빈 배열이고 토큰은 0 이다.
 
