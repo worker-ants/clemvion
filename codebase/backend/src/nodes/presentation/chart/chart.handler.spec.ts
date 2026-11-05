@@ -1,7 +1,28 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ChartHandler } from './chart.handler.js';
 import { chartConfigSchema } from './chart.schema.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+
+/**
+ * 시리즈 묶음 규칙의 공유 사례. 에디터 · 웹채팅 위젯 렌더러 테스트도 같은 파일을 읽는다
+ * (codebase/shared-fixtures/chart/series.json, NERV Task CLE-T-NRN1RR).
+ */
+interface SharedSeriesCase {
+  name: string;
+  points: Array<{ x: unknown; y?: unknown; series?: unknown }>;
+  render: { series: string[] };
+  sum: unknown[];
+}
+const sharedSeriesCases = (
+  JSON.parse(
+    readFileSync(
+      resolve(__dirname, '../../../../../shared-fixtures/chart/series.json'),
+      'utf8',
+    ),
+  ) as { cases: SharedSeriesCase[] }
+).cases;
 
 describe('ChartHandler', () => {
   let handler: ChartHandler;
@@ -341,6 +362,36 @@ describe('ChartHandler', () => {
         };
         expect(result.output.data).toEqual([{ x: undefined, y: undefined }]);
       });
+    });
+
+    // 렌더러와 같은 사례를 백엔드 집계로 돌린다. 렌더러는 같은 (series, X) 의 마지막 값을,
+    // 핸들러는 묶은 값을 쓰므로 기대값은 사례의 `sum` 이다.
+    describe('공유 시리즈 사례 (codebase/shared-fixtures/chart/series.json)', () => {
+      it('사례를 읽었다 (vacuous 방지)', () => {
+        expect(sharedSeriesCases.length).toBeGreaterThanOrEqual(8);
+      });
+
+      it.each(sharedSeriesCases.map((c) => [c.name, c] as const))(
+        '%s',
+        async (_name, c) => {
+          const rows = c.points.map((p) => ({
+            month: p.x,
+            revenue: p.y,
+            ...('series' in p ? { region: p.series } : {}),
+          }));
+          const result = (await handler.execute(
+            rows,
+            {
+              chartType: 'bar',
+              xAxis: { field: 'month' },
+              yAxis: { field: 'revenue', aggregation: 'sum' },
+              ...(c.render.series.length > 0 ? { groupBy: 'region' } : {}),
+            },
+            context,
+          )) as unknown as { output: { data: unknown[] } };
+          expect(result.output.data).toEqual(c.sum);
+        },
+      );
     });
 
     // CLE-NODE-CHART 실행 로직 2~4단계 — 긴 형식 다중 시리즈.

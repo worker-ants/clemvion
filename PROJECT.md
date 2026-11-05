@@ -13,6 +13,7 @@
 | 서버 | `codebase/backend/` | NestJS 12, TypeScript, TypeORM, Socket.io |
 | 공유 패키지 | `codebase/packages/expression-engine/`, `codebase/packages/node-summary/` | TypeScript. `codebase/{frontend,backend}` 가 `workspace:*` (pnpm workspace) 로 참조 |
 | API 카탈로그 | `codebase/api-catalogs/` | Cafe24 · MakeShop endpoint 카탈로그(md · OpenAPI JSON · 생성기). backend · frontend 대조 테스트가 읽는 데이터이고 NERV `CLE-C24-*` · `CLE-MKS-*` 의 정본이다(`codebase/api-catalogs/README.md`) |
+| 공유 테스트 픽스처 | `codebase/shared-fixtures/` | 여러 스택이 같은 규칙을 따로 구현할 때 그 테스트들이 함께 읽는 JSON 기대값. 지금은 차트 색 허용 규칙 · 시리즈 묶음 규칙(`chart/`)이다. 빌드 산출물에는 들어가지 않는다(`codebase/shared-fixtures/README.md`) |
 | 인프라 매니페스트 | `k8s/` | Kubernetes deployment, service, ingress |
 | 빌드 helper | `scripts/` | Python 검증 스크립트, setup-githooks.sh |
 

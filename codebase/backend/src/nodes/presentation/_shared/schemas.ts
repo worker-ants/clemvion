@@ -9,7 +9,7 @@
  * presentation types are added (e.g. future `chart3d`, `dashboard`, …).
  */
 export { tableNodeConfigSchema } from '../table/table.schema';
-export { chartConfigSchema } from '../chart/chart.schema';
+export { chartConfigSchema, CHART_DATA_SHAPE } from '../chart/chart.schema';
 export { carouselNodeConfigSchema } from '../carousel/carousel.schema';
 export { templateNodeConfigSchema } from '../template/template.schema';
 export { formNodeConfigSchema } from '../form/form.schema';

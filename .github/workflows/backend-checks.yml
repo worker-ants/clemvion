@@ -64,6 +64,9 @@ jobs:
         # 색인 frontmatter 테스트가 이 디렉터리를 읽는다. 카탈로그만 바꾼 PR(생성기 재실행 등)도
         # 그 대조를 돌려야 한다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
+        # 세 스택이 함께 읽는 테스트 픽스처. backend 의 `chart.handler.spec.ts` 가 차트 시리즈 사례를
+        # 읽는다. 픽스처만 바꾼 PR 도 그 대조를 돌려야 한다(`codebase/shared-fixtures/README.md`).
+        codebase/shared-fixtures/**
         # 운영 부팅 가드의 예시 키 대조. `production-guards.spec.ts` 의 마지막 describe 가 저장소에
         # 커밋된 예시 파일의 ENCRYPTION_KEY · INTEGRATION_ENCRYPTION_KEY 값이 거부 목록에 다 있는지
         # 읽는다. `codebase/backend/.env.example` 만 위 `codebase/backend/**` 에 들어 있고, 아래 세

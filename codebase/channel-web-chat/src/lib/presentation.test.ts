@@ -7,6 +7,7 @@ import {
   toTable,
   toTemplate,
 } from "./presentation";
+import { chartColorCorpus } from "@/test-support/chart-fixtures";
 
 describe("classifyPresentation", () => {
   it("chart — chartType 또는 output.data", () => {
@@ -145,6 +146,28 @@ describe("converters", () => {
       output: { data: [{ x: "a", y: 1 }] },
     });
     expect(c.colors).toEqual(["#111111", "rgb(1, 2, 3)", "hsla(120, 50%, 50%, 0.5)", "red"]);
+  });
+  describe("toChart — colors 공유 코퍼스 (CLE-NODE-CHART REQ-CHART-020)", () => {
+    const colorsOf = (colors: unknown[]) =>
+      toChart({ config: { chartType: "bar", colors }, output: { data: [] } }).colors;
+
+    it("코퍼스를 읽었다 (vacuous 방지)", () => {
+      expect(chartColorCorpus.accepted.length).toBeGreaterThan(10);
+      expect(chartColorCorpus.rejected.length).toBeGreaterThan(10);
+      expect(chartColorCorpus.trimmed.length).toBeGreaterThan(0);
+    });
+    it.each(chartColorCorpus.accepted)("허용 색은 그대로 남긴다 (%s)", (color) => {
+      expect(colorsOf([color])).toEqual([color]);
+    });
+    it.each(chartColorCorpus.trimmed)("앞뒤 공백은 지운다 (%j)", (input, color) => {
+      expect(colorsOf([input])).toEqual([color]);
+    });
+    it.each(chartColorCorpus.rejected.map((v) => [JSON.stringify(v), v] as const))(
+      "허용 밖 값은 버린다 (%s)",
+      (_label, value) => {
+        expect(colorsOf([value])).toEqual([]);
+      },
+    );
   });
   it("toChart — colors 가 배열이 아니거나 남은 값이 없으면 빈 배열이다", () => {
     expect(toChart({ config: { colors: "#111" }, output: { data: [] } }).colors).toEqual([]);

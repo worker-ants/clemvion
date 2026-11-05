@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   EDITOR_DEFAULT_CHART_COLORS,
@@ -6,6 +8,67 @@ import {
   resolveChartColors,
   toChartSeriesModel,
 } from "../renderers/chart-series";
+
+/**
+ * 색 허용 규칙과 시리즈 묶음 규칙의 기대값은 세 스택이 함께 읽는 공유 픽스처
+ * `codebase/shared-fixtures/chart/` 에 있다. 웹채팅 위젯 · 백엔드 핸들러 테스트도 같은 파일을 읽어서
+ * 한쪽 규칙만 바뀌면 그쪽 테스트가 실패한다.
+ */
+const FIXTURE_DIR = path.resolve(__dirname, "../../../../../../shared-fixtures/chart");
+
+interface ColorCorpus {
+  maxLength: number;
+  accepted: string[];
+  trimmed: Array<[string, string]>;
+  rejected: unknown[];
+}
+
+interface SeriesCase {
+  name: string;
+  points: Array<Record<string, unknown>>;
+  render: { x: unknown[]; series: string[]; values: Array<Array<number | null>> };
+}
+
+function readFixture<T>(file: string): T {
+  return JSON.parse(readFileSync(path.join(FIXTURE_DIR, file), "utf8")) as T;
+}
+
+const colorCorpus = readFixture<ColorCorpus>("colors.json");
+const seriesCases = readFixture<{ cases: SeriesCase[] }>("series.json").cases;
+
+/** 모델을 픽스처 `render` 모양(X 순서 · 시리즈 이름 · 시리즈 × X 값)으로 바꾼다. */
+function renderShapeOf(points: Array<Record<string, unknown>>): SeriesCase["render"] {
+  const model = toChartSeriesModel(points);
+  if (model.series.length === 0) {
+    return {
+      x: model.rows.map((r) => r.x),
+      series: [],
+      values: [model.rows.map((r) => r.y as number)],
+    };
+  }
+  return {
+    x: model.rows.map((r) => r.x),
+    series: model.series.map((s) => s.name),
+    values: model.series.map((s) =>
+      model.rows.map((r) => (s.key in r ? (r[s.key] as number) : null)),
+    ),
+  };
+}
+
+describe("공유 픽스처를 읽는다 (vacuous 방지)", () => {
+  it("색 코퍼스와 시리즈 사례가 비어 있지 않다", () => {
+    expect(colorCorpus.accepted.length).toBeGreaterThan(10);
+    expect(colorCorpus.rejected.length).toBeGreaterThan(10);
+    expect(colorCorpus.trimmed.length).toBeGreaterThan(0);
+    expect(seriesCases.length).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("toChartSeriesModel — 공유 시리즈 사례 (CLE-NODE-CHART 시리즈와 색)", () => {
+  it.each(seriesCases.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(renderShapeOf(c.points)).toEqual(c.render);
+  });
+});
 
 describe("toChartSeriesModel (CLE-NODE-CHART 시리즈와 색)", () => {
   it("series 가 하나도 없으면 포인트를 그대로 단일 시리즈로 둔다", () => {
@@ -46,32 +109,7 @@ describe("toChartSeriesModel (CLE-NODE-CHART 시리즈와 색)", () => {
     expect(model.rows).toEqual([{ x: "A", s0: 1, s1: 2, s2: 3 }]);
   });
 
-  it("같은 (series, X) 가 여러 번 나오면 마지막 값을 쓴다", () => {
-    const model = toChartSeriesModel([
-      { x: "Jan", y: 1, series: "S" },
-      { x: "Jan", y: 5, series: "S" },
-    ]);
-    expect(model.rows).toEqual([{ x: "Jan", s0: 5 }]);
-  });
-
-  it("series 가 일부에만 있으면 없는 포인트를 빈 문자열 시리즈로 묶는다", () => {
-    const model = toChartSeriesModel([
-      { x: "Jan", y: 1, series: "S" },
-      { x: "Jan", y: 2 },
-    ]);
-    expect(model.series).toEqual([
-      { key: "s0", name: "S" },
-      { key: "s1", name: "" },
-    ]);
-  });
-
-  it("문자열이 아닌 series 는 문자열로 바꿔 같은 이름과 묶는다", () => {
-    const model = toChartSeriesModel([
-      { x: "Jan", y: 1, series: 1 },
-      { x: "Feb", y: 2, series: "1" },
-    ]);
-    expect(model.series).toEqual([{ key: "s0", name: "1" }]);
-  });
+  // 마지막 값 · 일부만 있는 series · 문자열이 아닌 series 는 공유 시리즈 사례가 덮는다.
 });
 
 describe("객체가 아닌 포인트 방어", () => {
@@ -129,44 +167,32 @@ describe("resolveChartColors · chartColorAt (REQ-CHART-020)", () => {
     },
   );
 
-  it.each([
-    "#fff",
-    "#ffff",
-    "#ffffff",
-    "#ffffffaa",
-    "#ABCDEF",
-    "rgb(1, 2, 3)",
-    "rgba(1,2,3,.5)",
-    "hsl(120 50% 50% / 0.5)",
-    "hsla(120, 50%, 50%, 0.5)",
-    "red",
-    "RebeccaPurple",
-  ])("허용 형식의 색은 그대로 쓴다 (%s)", (color) => {
+  it("기본 팔레트는 바꿀 수 없다", () => {
+    expect(Object.isFrozen(EDITOR_DEFAULT_CHART_COLORS)).toBe(true);
+  });
+
+  it.each(colorCorpus.accepted)("공유 코퍼스의 허용 색은 그대로 쓴다 (%s)", (color) => {
     expect(resolveChartColors([color])).toEqual([color]);
   });
 
-  it("앞뒤 공백은 지우고 쓴다", () => {
-    expect(resolveChartColors(["  #111  ", "\tblue\n"])).toEqual(["#111", "blue"]);
+  it.each(colorCorpus.trimmed)("앞뒤 공백은 지우고 쓴다 (%j)", (input, color) => {
+    expect(resolveChartColors([input])).toEqual([color]);
   });
 
-  it.each([
-    "url(https://attacker.example/p?d=1)",
-    "URL( 'https://attacker.example/p' )",
-    "red;background:url(x)",
-    "red} body{display:none",
-    "var(--brand)",
-    "expression(alert(1))",
-    "rgb(url(x))",
-    "rgb(1, 2, 3",
-    "#12",
-    "#12345",
-    "#gggggg",
-    "not a color",
-    "   ",
-    `#${"a".repeat(70)}`,
-    `rgb(${"1,".repeat(40)})`,
-  ])("허용 밖의 값은 버리고 남은 색이 없으면 기본 팔레트를 쓴다 (%s)", (color) => {
-    expect(resolveChartColors([color])).toBe(EDITOR_DEFAULT_CHART_COLORS);
+  it.each(colorCorpus.rejected.map((v) => [JSON.stringify(v), v] as const))(
+    "공유 코퍼스의 허용 밖 값은 버리고 남은 색이 없으면 기본 팔레트를 쓴다 (%s)",
+    (_label, value) => {
+      expect(resolveChartColors([value])).toBe(EDITOR_DEFAULT_CHART_COLORS);
+    },
+  );
+
+  it("코퍼스의 길이 경계가 maxLength 와 맞물린다", () => {
+    const lengths = colorCorpus.accepted.map((c) => c.length);
+    expect(Math.max(...lengths)).toBe(colorCorpus.maxLength);
+    const tooLong = colorCorpus.rejected.filter(
+      (v): v is string => typeof v === "string" && v.length === colorCorpus.maxLength + 1,
+    );
+    expect(tooLong.length).toBeGreaterThan(0);
   });
 
   it("허용 밖의 값만 걸러 내고 나머지 순서는 지킨다", () => {
