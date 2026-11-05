@@ -8,6 +8,8 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  ServiceUnavailableException,
+  Logger,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { BCRYPT_ROUNDS } from '../../common/utils/password.util';
@@ -52,6 +54,10 @@ describe('AuthService', () => {
     setup: jest.Mock;
     verifyForDisable: jest.Mock;
     disableUnchecked: jest.Mock;
+  };
+  let webauthnService: {
+    countStoredCredentials: jest.Mock;
+    isEnabled: jest.Mock;
   };
 
   const mockUser: Partial<User> = {
@@ -147,7 +153,7 @@ describe('AuthService', () => {
         {
           provide: WebAuthnService,
           useValue: {
-            countCredentials: jest.fn().mockResolvedValue(0),
+            countStoredCredentials: jest.fn().mockResolvedValue(0),
             isEnabled: jest.fn().mockReturnValue(false),
           },
         },
@@ -221,6 +227,7 @@ describe('AuthService', () => {
     loginHistoryService = module.get(LoginHistoryService);
     sessionsService = module.get(SessionsService);
     totpService = module.get(TotpService);
+    webauthnService = module.get(WebAuthnService);
   });
 
   it('should be defined', () => {
@@ -497,20 +504,6 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw for unverified email', async () => {
-      usersService.findByEmail.mockResolvedValue({
-        ...mockUser,
-        emailVerified: false,
-      } as User);
-
-      await expect(
-        service.login({
-          email: 'test@example.com',
-          password: 'Test123!@#',
-        }),
-      ).rejects.toThrow(UnauthorizedException);
-    });
-
     // regression: void → await race (fix-login-history-race).
     // login() 응답이 loginHistory.record() 의 INSERT 완료를 기다리지 않으면, 곧바로 이어지는
     // GET /api/users/me/login-history 가 새 row 를 못 보고 끝난다. 같은 핸들러 내에서
@@ -561,6 +554,329 @@ describe('AuthService', () => {
           event: 'login_success',
         }),
       );
+    });
+  });
+
+  // NERV CLE-ACCT-SIGNIN 「로그인 처리」 3번 · REQ-SIGNIN-014 · 065 · 066 (CLE-T-AYT4VB).
+  // 1단계는 없는 이메일 → 계정 잠금 → 비밀번호 없음 → 비밀번호 불일치 → 이메일 인증 전 순서다.
+  // 이메일 인증 여부는 비밀번호가 맞을 때만 알린다.
+  describe('login — 1단계 확인 순서', () => {
+    const PASSWORD = 'Test123!@#';
+    let hash: string;
+
+    beforeAll(async () => {
+      hash = await bcrypt.hash(PASSWORD, BCRYPT_ROUNDS);
+    });
+
+    async function loginError(password = PASSWORD): Promise<unknown> {
+      try {
+        await service.login({ email: 'test@example.com', password });
+      } catch (err) {
+        return err;
+      }
+      throw new Error('login() 이 거부하지 않았다');
+    }
+
+    function errorBody(err: unknown): { code?: string; message?: string } {
+      return (err as UnauthorizedException).getResponse() as {
+        code?: string;
+        message?: string;
+      };
+    }
+
+    function lastFailureReason(): unknown {
+      const calls = loginHistoryService.record.mock.calls;
+      return (calls[calls.length - 1]?.[0] as { failureReason?: string })
+        ?.failureReason;
+    }
+
+    it('없는 이메일은 LOGIN_FAILED 이고 사유는 USER_NOT_FOUND 다', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+
+      const err = await loginError();
+
+      expect(err).toBeInstanceOf(UnauthorizedException);
+      expect(errorBody(err)).toEqual({
+        code: 'LOGIN_FAILED',
+        message: 'Invalid email or password',
+      });
+      expect(lastFailureReason()).toBe('USER_NOT_FOUND');
+    });
+
+    it('잠긴 인증 전 계정은 인증 여부를 알리지 않고 ACCOUNT_LOCKED 다', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+        passwordHash: hash,
+      } as User);
+      usersService.isLocked.mockResolvedValue(true);
+
+      const err = await loginError();
+
+      expect(errorBody(err).code).toBe('ACCOUNT_LOCKED');
+      expect(lastFailureReason()).toBe('ACCOUNT_LOCKED');
+      expect(usersService.resetLoginAttempts).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 없는 인증 전 계정은 LOGIN_FAILED 이고 사유는 PASSWORD_NOT_SET 이다', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+        passwordHash: null,
+      } as unknown as User);
+
+      const err = await loginError();
+
+      expect(errorBody(err)).toEqual({
+        code: 'LOGIN_FAILED',
+        message: 'Invalid email or password',
+      });
+      expect(lastFailureReason()).toBe('PASSWORD_NOT_SET');
+    });
+
+    it('비밀번호가 틀린 인증 전 계정은 인증 여부를 알리지 않고 LOGIN_FAILED 다', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+        passwordHash: hash,
+      } as User);
+
+      const err = await loginError('Wrong123!@#');
+
+      expect(errorBody(err)).toEqual({
+        code: 'LOGIN_FAILED',
+        message: 'Invalid email or password',
+      });
+      expect(lastFailureReason()).toBe('INVALID_PASSWORD');
+      expect(usersService.incrementLoginAttempts).toHaveBeenCalledWith(
+        mockUser.id,
+      );
+      expect(usersService.resetLoginAttempts).not.toHaveBeenCalled();
+    });
+
+    it('비밀번호가 맞는 인증 전 계정은 토큰 없이 401 EMAIL_VERIFICATION_REQUIRED 다', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+        passwordHash: hash,
+      } as User);
+
+      const err = await loginError();
+
+      expect(err).toBeInstanceOf(UnauthorizedException);
+      expect(errorBody(err)).toEqual({
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+        message: 'Please verify your email before logging in',
+      });
+      expect(loginHistoryService.record).toHaveBeenCalledTimes(1);
+      expect(loginHistoryService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: mockUser.id,
+          event: 'login_failed',
+          failureReason: 'EMAIL_NOT_VERIFIED',
+        }),
+      );
+      // 비밀번호가 맞았으므로 실패 횟수는 되돌린다. 실패 횟수를 더하지 않는다.
+      expect(usersService.resetLoginAttempts).toHaveBeenCalledWith(mockUser.id);
+      expect(usersService.incrementLoginAttempts).not.toHaveBeenCalled();
+      expect(jwtService.sign).not.toHaveBeenCalled();
+      expect(refreshTokenRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('2단계 인증이 켜진 인증 전 계정도 챌린지 전에 EMAIL_VERIFICATION_REQUIRED 로 끝난다', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+        passwordHash: hash,
+        twoFactorEnabled: true,
+      } as User);
+      webauthnService.isEnabled.mockReturnValue(true);
+      webauthnService.countStoredCredentials.mockResolvedValue(1);
+
+      const err = await loginError();
+
+      expect(errorBody(err).code).toBe('EMAIL_VERIFICATION_REQUIRED');
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+  });
+
+  // NERV CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」 · REQ-SIGNIN-067 (CLE-T-RFSJXQ).
+  // countStoredCredentials 는 기능이 꺼져도 저장된 credential 수를 그대로 센다. 분기는 isEnabled 로 고른다.
+  describe('login — 2단계 인증 방식 선택', () => {
+    const PASSWORD = 'Test123!@#';
+    let hash: string;
+
+    beforeAll(async () => {
+      hash = await bcrypt.hash(PASSWORD, BCRYPT_ROUNDS);
+    });
+
+    function arrange(opts: {
+      enabled: boolean;
+      credentials: number;
+      totp: boolean;
+    }): void {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+        twoFactorEnabled: opts.totp,
+      } as User);
+      webauthnService.isEnabled.mockReturnValue(opts.enabled);
+      webauthnService.countStoredCredentials.mockResolvedValue(
+        opts.credentials,
+      );
+    }
+
+    function signedMethod(): unknown {
+      return (jwtService.sign.mock.calls[0]?.[0] as { method?: string })
+        ?.method;
+    }
+
+    it.each([
+      ['켜짐 · credential 1 · TOTP 꺼짐', true, 1, false],
+      [
+        '켜짐 · credential 1 · TOTP 켜짐 (TOTP 로 내려가지 않는다)',
+        true,
+        1,
+        true,
+      ],
+    ])('%s → webauthn 챌린지', async (_label, enabled, credentials, totp) => {
+      arrange({ enabled, credentials, totp });
+
+      const result = await service.login({
+        email: 'test@example.com',
+        password: PASSWORD,
+      });
+
+      expect(result).toEqual({
+        requires2fa: true,
+        methods: ['webauthn'],
+        challengeToken: 'mock-access-token',
+      });
+      expect(signedMethod()).toBe('webauthn');
+    });
+
+    it.each([
+      ['켜짐 · credential 0 · TOTP 켜짐', true, 0],
+      ['꺼짐 · credential 1 · TOTP 켜짐', false, 1],
+      ['꺼짐 · credential 0 · TOTP 켜짐', false, 0],
+    ])('%s → totp 챌린지', async (_label, enabled, credentials) => {
+      arrange({ enabled, credentials, totp: true });
+
+      const result = await service.login({
+        email: 'test@example.com',
+        password: PASSWORD,
+      });
+
+      expect(result).toEqual({
+        requires2fa: true,
+        methods: ['totp'],
+        challengeToken: 'mock-access-token',
+      });
+      expect(signedMethod()).toBe('totp');
+    });
+
+    it.each([
+      ['켜짐 · credential 0 · TOTP 꺼짐', true],
+      ['꺼짐 · credential 0 · TOTP 꺼짐', false],
+    ])('%s → 즉시 로그인', async (_label, enabled) => {
+      arrange({ enabled, credentials: 0, totp: false });
+
+      const result = await service.login({
+        email: 'test@example.com',
+        password: PASSWORD,
+      });
+
+      expect(result).toMatchObject({ accessToken: 'mock-access-token' });
+      expect(refreshTokenRepo.save).toHaveBeenCalled();
+    });
+
+    it('꺼짐 · credential 1 · TOTP 꺼짐 → 토큰 없이 503 WEBAUTHN_DISABLED', async () => {
+      arrange({ enabled: false, credentials: 1, totp: false });
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+
+      const attempt = service.login({
+        email: 'test@example.com',
+        password: PASSWORD,
+      });
+
+      await expect(attempt).rejects.toBeInstanceOf(ServiceUnavailableException);
+      await expect(attempt).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'WEBAUTHN_DISABLED' }),
+      });
+      expect(jwtService.sign).not.toHaveBeenCalled();
+      expect(refreshTokenRepo.save).not.toHaveBeenCalled();
+      // 챌린지 발급과 같이 로그인 이력을 남기지 않는다(자격 증명 실패가 아니다).
+      expect(loginHistoryService.record).not.toHaveBeenCalled();
+      // 이력이 없으니 운영 쪽 단서는 로그다.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('WEBAUTHN_RP_ID'),
+      );
+      warn.mockRestore();
+    });
+  });
+
+  // NERV CLE-ACCT-SIGNIN `WEBAUTHN_REQUIRED` 행: Passkey 기능이 꺼져 있으면 나지 않는다.
+  describe('loginWithTotp — Passkey 백스탑', () => {
+    const verifier = jest.fn();
+
+    function arrange(opts: { enabled: boolean; credentials: number }): void {
+      (jwtService as unknown as { verify: jest.Mock }).verify = jest
+        .fn()
+        .mockReturnValue({
+          sub: mockUser.id,
+          mfa_challenge: true,
+          method: 'totp',
+        });
+      usersService.findById.mockResolvedValue({
+        ...mockUser,
+        twoFactorEnabled: true,
+      } as User);
+      webauthnService.isEnabled.mockReturnValue(opts.enabled);
+      webauthnService.countStoredCredentials.mockResolvedValue(
+        opts.credentials,
+      );
+      verifier.mockReset().mockResolvedValue(true);
+    }
+
+    it('기능이 켜져 있고 credential 이 있으면 WEBAUTHN_REQUIRED 다', async () => {
+      arrange({ enabled: true, credentials: 1 });
+
+      await expect(
+        service.loginWithTotp('challenge', '123456', verifier),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'WEBAUTHN_REQUIRED' }),
+      });
+      expect(verifier).not.toHaveBeenCalled();
+    });
+
+    it('기능이 꺼져 있으면 credential 이 있어도 TOTP 로 로그인한다', async () => {
+      arrange({ enabled: false, credentials: 1 });
+
+      const result = await service.loginWithTotp(
+        'challenge',
+        '123456',
+        verifier,
+      );
+
+      expect(verifier).toHaveBeenCalled();
+      expect(result).toMatchObject({ accessToken: 'mock-access-token' });
+    });
+
+    // 켜짐 여부만 보는 판정이면 첫 행이 WEBAUTHN_REQUIRED 로 바뀐다. credential 수만 보는 판정은 위 테스트가 잡는다.
+    it.each([
+      ['켜짐 · credential 0', true],
+      ['꺼짐 · credential 0', false],
+    ])('%s → TOTP 로 로그인한다', async (_label, enabled) => {
+      arrange({ enabled, credentials: 0 });
+
+      const result = await service.loginWithTotp(
+        'challenge',
+        '123456',
+        verifier,
+      );
+
+      expect(verifier).toHaveBeenCalled();
+      expect(result).toMatchObject({ accessToken: 'mock-access-token' });
     });
   });
 

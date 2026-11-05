@@ -36,6 +36,11 @@ vi.mock("@/lib/api/client", () => ({
   setAccessToken: (...args: unknown[]) => mockSetAccessToken(...args),
 }));
 
+const mockGetMe = vi.fn();
+vi.mock("@/lib/api/users", () => ({
+  usersApi: { getMe: (...args: unknown[]) => mockGetMe(...args) },
+}));
+
 const mockToastInfo = vi.fn();
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: (...a: unknown[]) => mockToastInfo(...a) },
@@ -43,6 +48,8 @@ vi.mock("sonner", () => ({
 
 import { RegisterForm } from "../register-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { hasSessionHint } from "@/lib/auth/session-hint";
 import { stubLocationHref } from "@/test/stub-location-href";
 import { REGISTERED_EMAIL_CHECK_TIMEOUT_MS } from "@/lib/auth/registered-email";
 
@@ -67,6 +74,19 @@ describe("RegisterForm — invitation token flow", () => {
     mockGetByToken.mockReset();
     mockSetAccessToken.mockReset();
     mockToastInfo.mockReset();
+    mockGetMe.mockReset().mockResolvedValue({
+      data: {
+        data: {
+          id: "u1",
+          email: "invited@example.com",
+          name: "Invitee",
+          locale: "ko",
+          theme: "light",
+          twoFactorEnabled: false,
+        },
+      },
+    });
+    useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: true });
     // 초대 흐름은 메타 조회 뒤 가입 여부를 묻는다. 기본은 «가입 안 함» 이다.
     mockCheckEmail.mockResolvedValue({ data: { data: { available: true } } });
   });
@@ -150,9 +170,13 @@ describe("RegisterForm — invitation token flow", () => {
       email: "invited@example.com",
       invitationToken: VALID_TOKEN,
     });
-    await waitFor(() => expect(mockSetAccessToken).toHaveBeenCalledWith("fresh-access"));
-    expect(mockPush).toHaveBeenCalledWith("/dashboard");
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
+    expect(mockSetAccessToken).toHaveBeenCalledWith("fresh-access");
     expect(mockPush).not.toHaveBeenCalledWith("/verify-email");
+    // REQ-SESSION-037 — 자동 로그인도 로그인 상태와 힌트 쿠키를 둔다. 없으면 proxy 가 /login 으로
+    // 되돌린다(CLE-T-1X7DMR).
+    expect(hasSessionHint()).toBe(true);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
   it("on register without accessToken (no invitation), goes to /verify-email", async () => {

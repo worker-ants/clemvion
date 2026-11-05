@@ -120,7 +120,7 @@
     "codebase/backend/src/modules/auth-configs/dto/is-ip-or-cidr.validator.ts": 2,
     "codebase/backend/src/modules/auth/auth.controller.ts": 2,
     "codebase/backend/src/modules/auth/auth.service.spec.ts": 2,
-    "codebase/backend/src/modules/auth/auth.service.ts": 6,
+    "codebase/backend/src/modules/auth/auth.service.ts": 4,
     "codebase/backend/src/modules/auth/sessions.service.ts": 1,
     "codebase/backend/src/modules/auth/webauthn/entities/webauthn-credential.entity.ts": 1,
     "codebase/backend/src/modules/auth/webauthn/webauthn.module.ts": 1,

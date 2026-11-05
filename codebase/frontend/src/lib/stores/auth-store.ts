@@ -21,6 +21,11 @@ interface AuthState {
   isLoading: boolean;
   setUser: (user: User | null) => void;
   setAuthenticated: (token: string, user: User) => void;
+  /**
+   * 토큰은 받았지만 사용자 정보는 아직 없다. 액세스 토큰과 로그인 힌트 쿠키만 둔다.
+   * 로그인 상태(`isAuthenticated`)는 `setAuthenticated` 가 표시한다. `lib/auth/establish-session.ts` 가 쓴다.
+   */
+  markSessionIssued: (token: string) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
 }
@@ -37,6 +42,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Set session hint cookie for middleware (non-httpOnly, visible to server)
     setSessionHint();
     set({ user, isAuthenticated: true, isLoading: false });
+  },
+
+  markSessionIssued: (token) => {
+    setAccessToken(token);
+    setSessionHint();
   },
 
   logout: () => {

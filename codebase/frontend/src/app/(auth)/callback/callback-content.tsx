@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { refreshAccessToken } from "@/lib/api/client";
-import { usersApi } from "@/lib/api/users";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { establishSession } from "@/lib/auth/establish-session";
 import { consumeOauthRedirect } from "@/lib/auth/post-login-redirect";
 import {
   Card,
@@ -17,6 +16,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
 
+/**
+ * 소셜 로그인 콜백의 로그인 마무리. 액세스 토큰을 받지 못하면 `false` 다.
+ *
+ * decision A (2026-05-31) — OAuth 콜백은 액세스 토큰을 URL 로 받지 않는다. 콜백 응답이 리프레시 토큰을
+ * httpOnly 쿠키로 이미 설정했으므로 `refreshAccessToken()`(`POST /auth/refresh`)으로 액세스 토큰을 받는다.
+ * 이어서 비밀번호 로그인과 같은 진입점으로 로그인 상태와 힌트 쿠키(`has_session`)를 둔다. 사용자 조회만
+ * 실패하면 힌트 쿠키를 둔 채 이동하고 목적지 화면의 AuthProvider 가 다시 복원한다(establishSession 주석).
+ *
+ * StrictMode 가 effect 를 두 번 돌리면 첫 실행은 취소된다. 리프레시는 `refreshAccessToken` 이 한 번으로
+ * 합치고, 취소된 실행은 사용자 조회를 건너뛴다.
+ */
+async function finishOauthSignIn(isCancelled: () => boolean): Promise<boolean> {
+  const token = await refreshAccessToken().catch(() => null);
+  if (!token) return false;
+  if (!isCancelled()) await establishSession(token);
+  return true;
+}
+
 interface CallbackContentProps {
   success?: string;
   error?: string;
@@ -25,7 +42,6 @@ interface CallbackContentProps {
 export function CallbackContent({ success, error }: CallbackContentProps) {
   const t = useT();
   const router = useRouter();
-  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const initialError = !!error || !success;
   const [status, setStatus] = useState<"loading" | "error">(
     initialError ? "error" : "loading",
@@ -39,37 +55,15 @@ export function CallbackContent({ success, error }: CallbackContentProps) {
     if (initialError) return;
     const redirectTo = redirectToRef.current;
     let cancelled = false;
-    // decision A (2026-05-31) — OAuth 콜백은 access token 을 URL 로 받지 않는다.
-    // 콜백 응답이 refresh token 을 httpOnly 쿠키로 이미 설정했으므로,
-    // `refreshAccessToken()` (`POST /auth/refresh`, withCredentials) 로 access
-    // token 을 발급받아 메모리에 적재한 뒤 돌아갈 경로로 이동한다.
-    refreshAccessToken()
-      .then(async (token) => {
-        if (cancelled) return;
-        if (!token) {
-          setStatus("error");
-          return;
-        }
-        // 비밀번호 로그인과 같이 세션을 표시한다. setAuthenticated 가 심는 `has_session` 힌트 쿠키가
-        // 없으면 proxy 가 보호 경로를 다시 /login 으로 돌린다.
-        try {
-          const user = (await usersApi.getMe()).data.data;
-          if (user && !cancelled) setAuthenticated(token, user);
-        } catch {
-          // 사용자 조회에 실패하면 `has_session` 힌트 쿠키를 심지 못한다(`(auth)` 그룹에는 AuthProvider 가
-          // 없어 이 페이지에서 복구하지 않는다). 그대로 이동하면 proxy 가 보호 경로를 `/login?redirect=<경로와
-          // 쿼리>` 로 돌려보내므로 돌아갈 경로는 잃지 않고, 사용자는 다시 로그인하게 된다.
-          // 이 실패의 처리 정책(재시도 · 오류 화면)은 세션 확립 로직을 모을 때 정한다(CLE-T-1X7DMR).
-        }
-        if (!cancelled) router.push(redirectTo);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("error");
-      });
+    void finishOauthSignIn(() => cancelled).then((signedIn) => {
+      if (cancelled) return;
+      if (signedIn) router.push(redirectTo);
+      else setStatus("error");
+    });
     return () => {
       cancelled = true;
     };
-  }, [initialError, router, setAuthenticated]);
+  }, [initialError, router]);
 
   if (status === "loading") {
     return (

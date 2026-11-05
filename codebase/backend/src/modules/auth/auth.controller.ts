@@ -23,6 +23,7 @@ import {
   ApiOperation,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiServiceUnavailableResponse,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiFoundResponse,
@@ -213,7 +214,12 @@ export class AuthController {
       '로그인 성공. 2FA 비활성 계정: `{ accessToken }`. 2FA 활성 계정: `{ requires2fa, methods, challengeToken }` — 후속 verify 호출 필요.',
   })
   @ApiUnauthorizedResponse({
-    description: '이메일/비밀번호 불일치, 이메일 미검증, 또는 계정 잠김',
+    description:
+      '`LOGIN_FAILED`: 없는 이메일 · 비밀번호 없음 · 비밀번호 불일치. `EMAIL_VERIFICATION_REQUIRED`: 비밀번호는 맞지만 이메일 인증 전. `ACCOUNT_LOCKED`: 계정 잠김',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      '`WEBAUTHN_DISABLED`: Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정',
   })
   async login(
     @Body() dto: LoginDto,

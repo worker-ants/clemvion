@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "1bbee0e3fc99f5ee7a7cbeb155c52c008e56d27fc5e87506a4e2b14a8c0d7cde"
+content_hash: "dc93ba3c532d33584770d5e37565be8f18301655f760b6409f5ad87d064c82fb"
 read_as: "approved_fallback"
-task: "CLE-T-395HK2"
+task: "CLE-T-693G4E"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "da07d2f612a7555fc42309c3c8fbf3616fcae259c1992ddf51cf0e006be44c4c"
-etag: "sha256-c428b10d90bbbbf7bb2109ceb68bf35cdb7620c8917fd59ccd7428b748ffcf9c"
+mirror_sha256: "229d35e388feee82dd5d48431d75749d8a4ce5f87f71b62d727b5e7ab6ff4715"
+etag: "sha256-db8f29619555bc23bee949609535998e09530790be87b1c6b30ac5c010853375"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -78,6 +78,8 @@ etag: "sha256-c428b10d90bbbbf7bb2109ceb68bf35cdb7620c8917fd59ccd7428b748ffcf9c"
 - REQ-AUDIT-032 WHEN 트리거 생성이나 수정(PATCH)이 일회성 평문(첫 알림 서명 시크릿, 트리거 단위 토큰)을 발급하면 THE SYSTEM SHALL 그 요청의 `trigger.created` · `trigger.updated` 행 `details.issuedSecrets` 에 발급한 비밀의 종류 이름만 싣고 평문은 싣지 않는다.
 
 ## 감사 로그 기록
+
+이 문서의 코드 경로는 따로 적지 않으면 `codebase/backend/src/modules/` 아래 경로다.
 
 ### 기록 계약
 
@@ -176,7 +178,7 @@ sequenceDiagram
 
 ## 감사 로그 조회
 
-`GET /api/audit-logs`(`audit-logs.controller.ts` → `AuditLogsService.findAll`)가 감사 로그를 돌려준다.
+`GET /api/audit-logs`(`audit-logs/audit-logs.controller.ts` → `AuditLogsService.findAll`)가 감사 로그를 돌려준다.
 
 | 항목 | 규칙 |
 | --- | --- |
@@ -221,7 +223,7 @@ sequenceDiagram
 
 - 기록하는 쪽은 인증 도메인의 세 서비스(`AuthService`·`SessionsService`·`WebAuthnService`)뿐이다.
 - 기기 라벨(`deviceLabel`)은 인자로 받지 않는다. 서비스 안에서 `userAgent` 로 만든다(`deriveDeviceLabel`, `auth/utils/device-label.ts`). 외부 라이브러리 없이 정규식만 쓴다. 알아보지 못하면 UA 원문을 64자로 줄여 쓴다.
-- 호출하는 쪽은 반드시 `await` 한다. `void` 로 던져 두면 바로 뒤의 HTTP 요청(예: 로그인 이력 조회)의 SELECT 가 INSERT 보다 먼저 실행되는 읽기 경쟁이 생긴다. 커넥션 풀이 읽기와 쓰기를 다른 커넥션에 실을 때 일어난다. `login-history.service.ts` 의 `record` 주석에 적힌 계약이고 현재 호출부는 모두 `await` 한다.
+- 호출하는 쪽은 반드시 `await` 한다. `void` 로 던져 두면 바로 뒤의 HTTP 요청(예: 로그인 이력 조회)의 SELECT 가 INSERT 보다 먼저 실행되는 읽기 경쟁이 생긴다. 커넥션 풀이 읽기와 쓰기를 다른 커넥션에 실을 때 일어난다. `auth/login-history.service.ts` 의 `record` 주석에 적힌 계약이고 현재 호출부는 모두 `await` 한다.
 - 적재가 실패하면 예외를 흡수하고 `Logger.error` 만 남긴다. 감사 로그와 달리 카운터가 없다. 이 차이는 [Rationale](#적재-실패-관측이-감사-로그와-로그인-이력에서-다르다) 에 있다.
 
 ### 조회 API
@@ -269,7 +271,7 @@ sequenceDiagram
 | created_at | Timestamp | 발생 시각 |
 
 - 테이블은 V001 에서 만들었다. 인덱스는 V002 의 `idx_audit_log_workspace_created (workspace_id, created_at DESC)` 다.
-- 두 테이블 모두 외부 시스템으로 내보내지 않는다. 알림 규칙 평가(`alerts-evaluator.service.ts`)도 두 테이블을 읽지 않는다.
+- 두 테이블 모두 외부 시스템으로 내보내지 않는다. 알림 규칙 평가(`alerts/alerts-evaluator.service.ts`)도 두 테이블을 읽지 않는다.
 - `AuditLog.details` 는 에러 응답의 `details` 와 이름만 같은 다른 필드다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)).
 
 ### 외부 의존
@@ -305,7 +307,7 @@ sequenceDiagram
 이 동작들은 모두 로그인한 세션에서만 일어난다(`POST /users/me/change-password`, TOTP, WebAuthn 모두 JwtAuthGuard 뒤에 있다). 인증 요청은 항상 JWT 로 워크스페이스를 싣고 오므로 그 워크스페이스에 귀속하면 스키마를 바꾸지 않고 제약을 채운다. 이는 카탈로그의 "인증(현재 워크스페이스가 있는 동작)" 분류를 구체화한 것이다. 로그인·로그아웃·로그인 실패(워크스페이스 없음)는 로그인 이력으로 간다는 규칙은 그대로다.
 
 - **WebAuthn 추가 등록도 `user.2fa_enabled` 다.** 이미 2단계 인증이 켜진 상태에서 두 번째 이후 인증기를 등록하는 것은 "2단계 인증 활성화" 사건은 아니다. 하지만 계정 보안 속성(인증 수단)을 더하는 일이라 추적한다. 새 감사 액션을 만들기보다 `details.firstCredential=false` 로 구분하는 편이 조회·집계에 단순하다. `webauthn.controller` 는 복구 코드를 발급했는지로 `firstCredential` 을 판정한다.
-- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. Passkey 삭제에는 막는 로직이 없다([가입과 로그인 「2단계 인증 설정 화면」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-설정-화면)). 이 항목은 2026-10-17 에 고쳤다(NERV Task `CLE-T-D331TT`). 전에는 끄기를 막는 로직이 없다고만 적었다. TOTP 끄기가 비밀번호 확인으로 막히는 경로를 반영했다.
+- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. Passkey 삭제에는 막는 로직이 없다([가입과 로그인 「2단계 인증 설정 화면」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-설정-화면)).
 
 기각한 대안:
 
@@ -382,3 +384,7 @@ NERV Task `CLE-T-W11BQ9` 에서 정했다. 2026-09-10 의 consistency 검토가 
 - **대가**: 요청 하나가 여러 행으로 남는다. 같은 요청의 행은 행위자와 `details.mode` · `details.memberUserId` 로 묶어 본다. 두 키는 `member.removed` 와 같은 값이다.
 
 감사 행은 나가기·제거 트랜잭션이 커밋된 뒤에 남긴다. 그래서 그 트랜잭션이 롤백되면 `member.removed` 와 `integration.deleted` 둘 다 남지 않는다. 2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 이 기록을 구현해 카탈로그의 `integration.deleted` 행을 구현됨으로 바꿨다. 이 절은 그때 둔 「구현 반영」 절을 대신한다(NERV Task `CLE-T-395HK2`).
+
+### OAuth 전용 계정의 2단계 인증 끄기 서술을 고쳤다 (2026-10-17)
+
+NERV Task `CLE-T-D331TT` 에서 고쳤다. 전에는 끄기를 막는 로직이 없다고만 적었다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. 이 경로를 [사용자 보안 감사 액션을 현재 워크스페이스에 귀속한다](#사용자-보안-감사-액션을-현재-워크스페이스에-귀속한다) 의 해당 불릿에 반영했다. 이 이력은 처음에 그 불릿 안에 있었고 NERV Task `CLE-T-693G4E` 에서 이 절로 옮겼다.

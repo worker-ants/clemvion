@@ -20,6 +20,7 @@ export const auth: Dict["auth"] = {
     invalidCredentials: "Invalid email or password",
     failed: "Sign in failed",
     verifyEmailFirst: "Please verify your email first",
+    passkeyLoginDisabled: "Passkey sign-in is unavailable on this server. Please contact your administrator.",
     welcomeBack: "Welcome back! Sign in to your account.",
     invitationHint: "Sign in to continue to the invitation.",
     signedIn: "Signed in successfully!",

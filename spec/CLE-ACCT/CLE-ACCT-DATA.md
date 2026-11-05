@@ -2,21 +2,21 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "5d723a08bdfad6694a37f97d9d2a77f87cb93fa8a4c1d94b9d86b28561c88c83"
+content_hash: "b7fe19bb5d05b2204a62e8ae59d195bbe892127f2af0849d1aa83741657d4d8b"
 read_as: "approved_fallback"
-task: "CLE-T-FRCRF7"
+task: "CLE-T-693G4E"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "172f629fa9c065c5f076475c6655f0fe72a11b6c21f896a993bed3aef24603e2"
-etag: "sha256-496d3d78dbb692f6762ac52f4a604ac6e8e9e9bcc29884c7b5c06ced70a07248"
+mirror_sha256: "4d6eac894b73cea7c31da248242033575395fbccb135012114c571ae33d07505"
+etag: "sha256-c47a63978ef6d1251601ebd0c4bdf04045fd540f636b6d0e92d52c5590caf27e"
 ---
-> 구현 상태: 부분 구현 (로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단은 미구현) · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -200,13 +200,13 @@ erDiagram
 | counter | BigInt | 재전송 방어용 sign counter. 인증마다 갱신한다. 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 역행하면(응답 값이 저장값 이하. 둘 다 0 이면 역행이 아니다) 그 행을 바로 지우고(suspend 컬럼은 두지 않는다) 로그인 이력에 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`)를 남긴다 |
 | transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 서버는 문자열 배열인지와 NUL 문자가 없는지만 확인하고 값은 바꾸지 않는다. 필드가 없으면 빈 배열로 저장한다. `null` 은 문자열 배열이 아니므로 등록 검증이 거부한다. 표준 값과 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」 이 정한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다 |
 | aaguid | UUID? | 인증기 모델 식별자 (선택) |
-| device_name | String? | 사용자가 붙인 표시 이름. 유니코드 코드 포인트 100개까지 받는다(`varchar(100)`). NUL 문자는 저장할 수 없어서 받지 않는다. 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」, 결정 근거는 같은 문서 Rationale 「Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다」 |
+| device_name | String? | 사용자가 붙인 표시 이름. 유니코드 코드 포인트 100개까지 받는다(`varchar(100)`). 길이는 앞뒤 공백을 지우기 전의 값으로 센다. NUL 문자는 저장할 수 없어서 받지 않는다. 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」, 결정 근거는 같은 문서 Rationale 「Passkey 표시 이름은 요청 DTO 에서 코드 포인트 수와 NUL 문자를 확인한다」 와 「Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다」 |
 | last_used_at | Timestamp? | 마지막 인증 성공 시각 |
 | created_at | Timestamp | 등록 시각 |
 
 인덱스: `credential_id UNIQUE`, `(user_id)`.
 
-- **옵션 토큰**: 등록·인증 옵션 토큰(`optionsToken`)의 챌린지는 stateless JWT 로 발급하고 테이블에 두지 않는다. 만료 5분, payload `{ kind: 'webauthn_register'|'webauthn_auth', sub, challenge, exp }` 다.
+- **옵션 토큰**: 등록·인증 옵션 토큰(`optionsToken`)의 챌린지는 stateless JWT 로 발급한다. 만료 5분, payload `{ kind: 'webauthn_register'|'webauthn_auth', sub, challenge, exp }` 다. 발급할 때는 테이블에 두지 않는다. 로그인에서 쓴 Passkey 인증 챌린지는 바로 아래 「Passkey 인증 챌린지 기록」 대로 남긴다.
 - **Passkey 인증 챌린지 기록**: Passkey 인증 챌린지(`webauthn_auth` 의 `challenge` 값)는 한 번만 쓰므로 서버가 쓴 값을 기록한다. 챌린지 토큰(`challengeToken`)은 기록하지 않는다. 이 기록의 보존 기간과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다. 기록은 테이블이 아니라 Redis 키에 둔다([Redis 와 배치](#redis-와-배치)).
 
 ### AuthOauthState
@@ -261,19 +261,31 @@ sequenceDiagram
   participant Hist as LoginHistoryService
   C->>Svc: POST /api/auth/login {email, password, rememberMe}
   Svc->>PG: SELECT user WHERE email
+  alt 사용자 없음
+    Svc->>Hist: login_failed, USER_NOT_FOUND
+    Svc-->>C: 401 LOGIN_FAILED
+  end
   alt locked_until > now
     Svc->>Hist: login_failed, ACCOUNT_LOCKED
     Svc-->>C: 401 ACCOUNT_LOCKED
+  end
+  alt password_hash 없음(OAuth 전용)
+    Svc->>Hist: login_failed, PASSWORD_NOT_SET
+    Svc-->>C: 401 LOGIN_FAILED
   end
   Svc->>Svc: bcrypt.compare
   alt 비밀번호 불일치
     Svc->>PG: login_attempts 증가, 한도면 잠금
     Svc->>Hist: login_failed, INVALID_PASSWORD
-    Svc-->>C: 401
+    Svc-->>C: 401 LOGIN_FAILED
   end
+  Svc->>PG: login_attempts=0
   alt 이메일 인증 전
     Svc->>Hist: login_failed, EMAIL_NOT_VERIFIED
     Svc-->>C: 401 EMAIL_VERIFICATION_REQUIRED
+  end
+  alt Passkey 기능 꺼짐, credential 1개 이상, TOTP 꺼짐
+    Svc-->>C: 503 WEBAUTHN_DISABLED (로그인 이력 없음, 서버 경고 로그)
   end
   alt Passkey 기능 켜짐, credential 1개 이상
     Svc-->>C: 200 {requires2fa, methods: webauthn, challengeToken}
@@ -283,11 +295,8 @@ sequenceDiagram
     Svc-->>C: 200 {requires2fa, methods: totp, challengeToken}
     C->>Svc: POST /api/auth/login/totp {challengeToken, code}
     Svc->>Svc: TOTP 코드 또는 TOTP 복구 코드 검증
-  else Passkey 기능 꺼짐, credential 1개 이상
-    Svc-->>C: 503 WEBAUTHN_DISABLED
   end
   Svc->>PG: INSERT refresh_token (새 family_id, token_hash, ip, ua, device_label)
-  Svc->>PG: login_attempts=0
   Svc->>Hist: login_success
   Svc-->>C: { accessToken } + 리프레시 쿠키
 ```
@@ -295,11 +304,10 @@ sequenceDiagram
 - 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed`, TOTP 는 `totp_failed` 를 기록하고 401 을 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿).
 - 성공 응답 본문은 `{ accessToken }` 뿐이다. 리프레시 토큰은 httpOnly 쿠키로만 내려가고 `user` 객체는 없다(`auth.controller.ts` 의 `login`).
 - Passkey 를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 때 받은 복구 코드를 내 2단계를 통과한다(`webauthn/webauthn.controller.ts`).
-- 이메일 인증 여부는 비밀번호 확인 뒤에 본다. 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 비밀번호가 맞으면 `EMAIL_NOT_VERIFIED` 로 기록하고 401 `EMAIL_VERIFICATION_REQUIRED` 를 준다. Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정은 토큰 없이 503 `WEBAUTHN_DISABLED` 를 받는다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
+- 이메일 인증 여부는 비밀번호 확인 뒤에 본다. 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 비밀번호가 맞으면 `EMAIL_NOT_VERIFIED` 로 기록하고 401 `EMAIL_VERIFICATION_REQUIRED` 를 준다. Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정은 토큰 없이 503 `WEBAUTHN_DISABLED` 를 받는다. 이 503 은 로그인 이력을 남기지 않고 서버 경고 로그만 남긴다. 두 경우 모두 비밀번호가 맞았으므로 `login_attempts` 는 0 으로 되돌린다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
 - 이미 쓴 Passkey 인증 챌린지로 온 요청과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다. 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) · [「sign counter 역행과 동시성」](CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성) 에 있다.
 - Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 이다. credential · 리프레시 토큰 · 로그인 이력을 바꾸지 않는다. 기록하지 못하는 조건과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다.
 - 처음 쓰는 챌린지로 온 응답이 서명 검증을 통과했는데 counter 역행(복제 징후)이 감지되면 `webauthn/webauthn.service.ts` 의 `verifyAuthentication` 이 한 트랜잭션에서 그 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다. 응답은 401 `WEBAUTHN_COUNTER_REGRESSION` 이다. `login_history.event=webauthn_failed` 는 트랜잭션 밖에서 남긴다. 마지막 credential 이 지워져도 `webauthn_recovery_codes` 는 비우지 않는다. 이유는 [가입과 로그인 「counter 역행이면 credential 을 지운다」](CLE-ACCT-SIGNIN.md#counter-역행이면-credential-을-지운다-suspend-기각) 에 있다.
-- 이메일 인증 확인의 위치와 응답 코드, Passkey 기능이 꺼졌을 때의 503 은 2026-10-17 에 사람이 정했고 아직 구현되지 않았다. 지금 구현은 이메일 인증 여부를 비밀번호보다 먼저 보고 `LOGIN_FAILED` 로 거부하고, 기능이 꺼지면 Passkey 만 등록한 계정을 비밀번호만으로 로그인시킨다. 구현 Task 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 해당 절에 있다.
 
 ### 소셜 로그인
 
@@ -486,7 +494,7 @@ sequenceDiagram
 
 `auth.service.registerWithInvitation()` 이 한 트랜잭션에서 다음을 한다.
 
-1. `INSERT INTO "user"`.
+1. `INSERT INTO "user"`. 초대 메일을 받은 주소로 가입하므로 `email_verified=true` 로 만든다.
 2. `invitationsService.consumeForRegistration()` 이 초대받은 팀의 `workspace_member`(`role=invitation.role`)를 넣고 초대 수락(`accepted_at`, `accepted_by`)을 함께 처리한다.
 
 이 경로에서는 개인 워크스페이스를 만들지 않는다. 초대받은 팀 워크스페이스가 가입 때 현재 워크스페이스의 기준이고, JWT `activeWorkspaceId` 도 그 팀으로 발급한다(`auth.service.ts` 의 `resolveTokenWorkspaceContext`).
