@@ -93,7 +93,6 @@ const KNOWN_MISSES: Record<string, ReadonlySet<string>> = {
   ]),
   hint: new Set([
     "Boolean expression — loop exits when truthy. Re-evaluated after every iteration.",
-    "stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches, collect rejected branches in output.branches[i].error.",
     "Include before/after snapshots in meta.modifications (masked). Off by default.",
   ]),
   group: new Set<string>(),

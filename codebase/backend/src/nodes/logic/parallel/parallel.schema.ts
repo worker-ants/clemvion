@@ -6,9 +6,10 @@ import {
 } from '../../core/node-component.interface';
 
 /**
- * Parallel fans the input out to branch_0..branch_{N-1} ports. Its own
- * `output` passes through the input (branch outputs are handled by
- * ParallelExecutor). `port` is an array (multi-port routing).
+ * Parallel fans the input out to branch_0..branch_{N-1} ports. 핸들러는 시작
+ * 시점에 `output: null` 과 `port: string[]`(branch_0..N-1)을 반환하고, 모든
+ * 병렬 분기가 끝나면 엔진이 `output` 을 `{ branches, count, skipped? }` 로,
+ * `port` 를 `'done'`(단일 문자열)으로 덮어쓴다(CLE-NODE-PARALLEL 「출력 구조」).
  */
 export const parallelNodeOutputSchema = z
   .object({
@@ -77,7 +78,7 @@ export const parallelNodeConfigSchema = z
         ui: {
           label: 'Error Policy',
           widget: 'select',
-          hint: 'stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches, collect rejected branches in output.branches[i].error. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).',
+          hint: 'stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).',
         },
       }),
   })
@@ -92,11 +93,11 @@ export const parallelNodePorts: NodePorts = {
 };
 
 /**
- * Imperative escape hatch — the cross-field "maxConcurrency must be an
- * integer in [0, 16]" + "branchCount must be an integer in [2, 16]" rules
- * are already enforced by the zod schema (`int().min().max()`), so the
- * remaining domain check is just the integer-ness guard for explicit values.
- * Kept here to match handler.validate's warning messages 1:1.
+ * Imperative escape hatch — 경고 규칙 DSL 로 쓸 수 없는 검사만 맡는다.
+ * `branchCount` 는 정수 검사만 하고 `[2, 16]` 범위는 `warningRules` 의
+ * `parallel:branch-count-out-of-range` 한 곳에 둔다(CLE-NODE-PARALLEL 「에러」).
+ * handler.validate 가 두 결과를 합쳐 돌려주므로 범위 문구가 두 번 나오지 않게
+ * 여기서는 범위를 보지 않는다.
  */
 export function validateParallelConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
@@ -104,12 +105,12 @@ export function validateParallelConfig(config: unknown): string[] {
 
   const rawBranch = c.branchCount;
   if (rawBranch !== undefined) {
-    if (typeof rawBranch !== 'number' || !Number.isFinite(rawBranch)) {
+    if (
+      typeof rawBranch !== 'number' ||
+      !Number.isFinite(rawBranch) ||
+      !Number.isInteger(rawBranch)
+    ) {
       errors.push('branchCount must be an integer.');
-    } else if (!Number.isInteger(rawBranch)) {
-      errors.push('branchCount must be an integer.');
-    } else if (rawBranch < 2 || rawBranch > 16) {
-      errors.push('branchCount must be a value between 2 and 16.');
     }
   }
 
@@ -167,18 +168,15 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
   dynamicPorts: { kind: 'parallel-branches' },
   summaryTemplate: '{{branchCount}} branches',
   // SSOT for warnings (frontend canvas + backend handler.validate).
-  // Mirror points:
-  //  - branchCount range/integer rules from handler.validate
-  //  - maxConcurrency range/integer rules from handler.validate
-  //  - waitAll type rule from handler.validate
-  // The mini-DSL rule below catches the most common mistake at canvas-badge
-  // level (out-of-range branchCount); the typed/integer/cross-field guards
-  // live in `validateConfig` because the mini-DSL has no Number.isInteger.
+  // branchCount 범위 검사는 아래 규칙 한 곳에만 둔다(캔버스 배지와 handler.validate
+  // 에 같은 문구가 한 번씩 보인다). 범위 검사가 여기에만 있으므로 심각도는 기본
+  // blocking 을 지킨다. 정수 · maxConcurrency · waitAll 검사는 mini-DSL 에
+  // Number.isInteger 가 없어 `validateConfig` 가 맡는다.
   warningRules: [
     {
       id: 'parallel:branch-count-out-of-range',
       when: 'branchCount < 2 || branchCount > 16',
-      message: 'branchCount must be 2 to 16.',
+      message: 'branchCount must be a value between 2 and 16.',
     },
   ],
   // parallel-p2 결정 D + E + I (2026-05-30). rule 정의의 SSOT 는 shared
