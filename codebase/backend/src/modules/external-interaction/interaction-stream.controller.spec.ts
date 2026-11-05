@@ -1,12 +1,14 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import type { Response } from 'express';
 import {
   InteractionStreamController,
+  SSE_TOKEN_RECHECK_INTERVAL_MS,
   writeSseFrame,
 } from './interaction-stream.controller';
 import { SseAdapter, type SseSubscriber } from './sse-adapter.service';
 import { SseFanoutService } from './sse-fanout.service';
+import type { SseStreamEligibilityService } from './sse-stream-eligibility.service';
 import type {
   ExternalInteractionRequestContext,
   InteractionGuard,
@@ -32,6 +34,7 @@ interface Harness {
   subject: Subject<ExecutionChannelEvent>;
   guard: {
     reverifyTriggerToken: jest.Mock<Promise<void>, [RequestWithInteraction]>;
+    isTriggerTokenValid: jest.Mock<Promise<boolean>, [RequestWithInteraction]>;
     rejectTriggerToken: jest.Mock<never, [RequestWithInteraction]>;
   };
   controller: InteractionStreamController;
@@ -47,11 +50,17 @@ function makeHarness(): Harness {
     new SseFanoutService({
       getClientOrNull: () => null,
     } as unknown as RedisConnectionProvider),
+    {
+      canOpenStream: () => Promise.resolve(true),
+    } as unknown as SseStreamEligibilityService,
   );
   adapter.onModuleInit();
   const guard = {
     reverifyTriggerToken: jest.fn<Promise<void>, [RequestWithInteraction]>(() =>
       Promise.resolve(),
+    ),
+    isTriggerTokenValid: jest.fn<Promise<boolean>, [RequestWithInteraction]>(
+      () => Promise.resolve(true),
     ),
     rejectTriggerToken: jest.fn<never, [RequestWithInteraction]>(() => {
       throw new UnauthorizedException({
@@ -274,6 +283,100 @@ describe('InteractionStreamController.stream — 구독 등록 뒤 토큰 재확
     expect(sentSseHeaders(res)).toBe(false);
     expect(res.end).toHaveBeenCalledTimes(1);
     expect(jest.getTimerCount()).toBe(h.baseTimers);
+  });
+});
+
+// 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE` — 닫기 신호를
+// 놓친 스트림도 주기적으로 토큰을 다시 확인해 닫는다.
+describe('InteractionStreamController.stream — 트리거 단위 토큰 주기 재확인', () => {
+  let h: Harness;
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    jest.useFakeTimers();
+    h = makeHarness();
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    h.adapter.onModuleDestroy();
+    warn.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it('60초마다 다시 확인한다', async () => {
+    const { done } = openStream(h, ITK_CTX);
+    await done;
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS - 1);
+    expect(h.guard.isTriggerTokenValid).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    expect(h.guard.isTriggerTokenValid).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS);
+    expect(h.guard.isTriggerTokenValid).toHaveBeenCalledTimes(2);
+  });
+
+  it('토큰이 무효가 됐으면 구독을 풀고 응답을 끝낸다', async () => {
+    const { done, res } = openStream(h, ITK_CTX);
+    await done;
+    h.guard.isTriggerTokenValid.mockResolvedValue(false);
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS);
+    expect(res.end).toHaveBeenCalledTimes(1);
+    expect(h.adapter.subscriberCount('exec-1')).toBe(0);
+    expect(jest.getTimerCount()).toBe(h.baseTimers);
+  });
+
+  it('조회가 실패하면 스트림을 두고 경고를 남긴 뒤 다음 주기에 다시 확인한다', async () => {
+    const { done, res } = openStream(h, ITK_CTX);
+    await done;
+    h.guard.isTriggerTokenValid.mockRejectedValueOnce(new Error('db down'));
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS);
+    expect(res.end).not.toHaveBeenCalled();
+    expect(h.adapter.subscriberCount('exec-1')).toBe(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('db down'));
+    h.guard.isTriggerTokenValid.mockResolvedValue(false);
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS);
+    expect(res.end).toHaveBeenCalledTimes(1);
+  });
+
+  it('확인이 끝나기 전에 다음 주기가 와도 겹쳐 확인하지 않는다', async () => {
+    const { done } = openStream(h, ITK_CTX);
+    await done;
+    let resolve: (valid: boolean) => void = () => undefined;
+    h.guard.isTriggerTokenValid.mockReturnValueOnce(
+      new Promise<boolean>((r) => {
+        resolve = r;
+      }),
+    );
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS * 2);
+    expect(h.guard.isTriggerTokenValid).toHaveBeenCalledTimes(1);
+    resolve(true);
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS);
+    expect(h.guard.isTriggerTokenValid).toHaveBeenCalledTimes(2);
+  });
+
+  it('확인하는 사이 스트림이 끝났으면 아무것도 하지 않는다', async () => {
+    const { done, res, disconnect } = openStream(h, ITK_CTX);
+    await done;
+    let resolve: (valid: boolean) => void = () => undefined;
+    h.guard.isTriggerTokenValid.mockReturnValueOnce(
+      new Promise<boolean>((r) => {
+        resolve = r;
+      }),
+    );
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS);
+    disconnect();
+    const unsubscribe = jest.spyOn(h.adapter, 'unsubscribe');
+    resolve(false);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(unsubscribe).not.toHaveBeenCalled();
+    expect(res.end).toHaveBeenCalledTimes(1);
+  });
+
+  it('실행 단위 토큰으로 연 스트림은 다시 확인하지 않는다', async () => {
+    const { done } = openStream(h, IEXT_CTX);
+    await done;
+    await jest.advanceTimersByTimeAsync(SSE_TOKEN_RECHECK_INTERVAL_MS * 2);
+    expect(h.guard.isTriggerTokenValid).not.toHaveBeenCalled();
   });
 });
 

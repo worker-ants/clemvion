@@ -17,7 +17,9 @@ export class FakeRedisServer {
    * pipeline 안에서 이 명령만 실패한다. ioredis 의 `pipeline().exec()` 는 명령 하나가 실패해도 reject 하지 않고
    * 그 자리에 `[Error, null]` 을 돌려준다. 실패한 명령은 서버에 적용하지 않는다.
    */
-  readonly failPipelineCommands = new Set<'xadd' | 'pexpire' | 'publish'>();
+  readonly failPipelineCommands = new Set<
+    'xadd' | 'pexpire' | 'publish' | 'zadd'
+  >();
   /** `true` 면 pipeline `exec()` 가 결과 없이 `null` 로 끝난다(ioredis 가 결과를 돌려주지 못할 때 그렇게 돌려준다). */
   pipelineExecReturnsNull = false;
   /** 설정하면 XRANGE 가 응답하기 전에 기다린다. 구독 순서의 경쟁을 만드는 데 쓴다. */
@@ -31,6 +33,8 @@ export class FakeRedisServer {
   readonly expiresAt = new Map<string, number>();
   readonly published: Array<{ channel: string; message: string }> = [];
   readonly channelSubscribers = new Map<string, Set<FakeRedisClient>>();
+  /** `duplicate()` 로 만든 연결(서비스의 구독 연결). 만든 순서대로 쌓는다. 테스트가 `ready` 를 흉내 낼 때 쓴다. */
+  readonly duplicates: FakeRedisClient[] = [];
   private lastIdMs = 0;
   private lastIdSeq = 0;
 
@@ -101,7 +105,9 @@ export class FakeRedisClient {
   constructor(readonly server: FakeRedisServer) {}
 
   duplicate(): FakeRedisClient {
-    return new FakeRedisClient(this.server);
+    const client = new FakeRedisClient(this.server);
+    this.server.duplicates.push(client);
+    return client;
   }
 
   on(event: string, listener: Listener): this {
@@ -321,10 +327,7 @@ class FakePipeline {
     return this.client.run(() => {
       if (this.client.server.pipelineExecReturnsNull) return null;
       return this.ops.map(({ name, run }): [Error | null, unknown] => {
-        if (
-          name !== 'zadd' &&
-          this.client.server.failPipelineCommands.has(name)
-        ) {
+        if (this.client.server.failPipelineCommands.has(name)) {
           return [new Error(`fake redis ${name} failed`), null];
         }
         try {

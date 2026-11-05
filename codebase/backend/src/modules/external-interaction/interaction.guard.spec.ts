@@ -430,6 +430,80 @@ describe('InteractionGuard.reverifyTriggerToken', () => {
     },
   );
 
+  describe('isTriggerTokenValid', () => {
+    it('트리거의 지금 설정으로 토큰이 맞으면 true 이고 응답을 건드리지 않는다', async () => {
+      const verifyPerTrigger = jest.fn().mockReturnValue(true);
+      const { guard } = makeGuard({
+        triggerFindOne: jest
+          .fn()
+          .mockResolvedValue({ id: 'trg-1', config: ITK_CONFIG }),
+        verifyPerTrigger,
+      });
+      const ctx = makeReq(ITK_INTERACTION);
+      await expect(guard.isTriggerTokenValid(ctx.req as never)).resolves.toBe(
+        true,
+      );
+      expect(verifyPerTrigger).toHaveBeenCalledWith('itk_secret', 'itk_secret');
+      expect(ctx.setHeader).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        '재발급으로 토큰이 바뀌었다',
+        { id: 'trg-1', config: ITK_CONFIG },
+        false,
+      ],
+      [
+        '인터랙션을 껐다',
+        {
+          id: 'trg-1',
+          config: {
+            interaction: { ...ITK_CONFIG.interaction, enabled: false },
+          },
+        },
+        true,
+      ],
+      ['트리거를 지웠다', null, true],
+    ])('%s → false 이고 응답을 건드리지 않는다', async (_l, trigger, ok) => {
+      const { guard } = makeGuard({
+        triggerFindOne: jest.fn().mockResolvedValue(trigger),
+        verifyPerTrigger: jest.fn().mockReturnValue(ok),
+      });
+      const ctx = makeReq(ITK_INTERACTION);
+      await expect(guard.isTriggerTokenValid(ctx.req as never)).resolves.toBe(
+        false,
+      );
+      expect(ctx.setHeader).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['가드 컨텍스트 없음', undefined, 'Bearer itk_secret'],
+      ['실행 단위 토큰', ITK_INTERACTION, 'Bearer iext_xxx'],
+    ])(
+      '%s → DB 를 읽지 않고 false',
+      async (_label, interaction, authorization) => {
+        const triggerFindOne = jest.fn();
+        const { guard } = makeGuard({ triggerFindOne });
+        const ctx = makeReq(interaction, authorization);
+        await expect(guard.isTriggerTokenValid(ctx.req as never)).resolves.toBe(
+          false,
+        );
+        expect(triggerFindOne).not.toHaveBeenCalled();
+      },
+    );
+
+    it('DB 조회가 실패하면 그 오류를 던진다', async () => {
+      const dbError = new Error('db down');
+      const { guard } = makeGuard({
+        triggerFindOne: jest.fn().mockRejectedValue(dbError),
+      });
+      const ctx = makeReq(ITK_INTERACTION);
+      await expect(guard.isTriggerTokenValid(ctx.req as never)).rejects.toBe(
+        dbError,
+      );
+    });
+  });
+
   it('rejectTriggerToken 은 같은 401 을 던진다', () => {
     const { guard } = makeGuard({});
     const ctx = makeReq(ITK_INTERACTION);

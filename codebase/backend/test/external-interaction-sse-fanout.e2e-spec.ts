@@ -12,14 +12,16 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * e2e: EIA SSE 스트림의 Redis 쪽 동작과 트리거 단위 토큰 무효 때 닫기.
  *
  * 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림),
- * [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1`.
+ * [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1` ·
+ * `CLE-T-1GR2JE` · `CLE-T-XPG8DQ`.
  *
  * 백엔드 인스턴스는 하나다. 다른 서버 인스턴스는 이 테스트가 Redis 에 직접 쓰는 것으로 흉내 낸다. 버퍼 Stream 에 넣기,
  * live 채널 · 닫기 채널 발행, 연결 상한 ZSET 채우기다. 서버 인스턴스 둘 사이의 전달 자체는 단위 테스트
  * (`sse-adapter.service.spec.ts`)가 Redis 대역으로 본다. 여기서는 키 이름 · 메시지 형식 · Lua 스크립트가 실제 Redis 와
  * 맞는지 본다.
  *
- * 실행 행은 DB 에 직접 넣는다. 워크플로가 돌지 않으므로 스트림의 이벤트는 이 테스트가 넣은 것뿐이다.
+ * 실행 행은 DB 에 직접 넣는다. 워크플로가 돌지 않으므로 스트림의 이벤트는 이 테스트가 넣은 것뿐이다. Redis 쓰기 대상
+ * 판정을 보는 테스트만 워크플로를 실제로 돌린다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -130,6 +132,18 @@ async function waitEnded(conn: SseConnection, label: string): Promise<void> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** 백엔드의 구독 연결 이름. `SSE_SUBSCRIBER_CONNECTION_NAME` 과 같다. */
+const SUBSCRIBER_CONNECTION_NAME = 'eia-sse-sub';
+
+/** 크기 상한을 넘어 이벤트 대신 실린 생략 표시 메시지. */
+function omittedMessage(executionId: string, seq: number): string {
+  return JSON.stringify({
+    v: 1,
+    origin: OTHER_ORIGIN,
+    omitted: { executionId, seq, eventType: 'execution.node.completed' },
+  });
 }
 
 function eventMessage(executionId: string, seq: number): string {
@@ -310,7 +324,57 @@ describe('EIA SSE — Redis fan-out 과 트리거 단위 토큰 무효 때 닫�
     await waitEnded(conn, '닫기 신호 뒤 스트림 종료');
   });
 
-  it('replay 버퍼(Redis Stream)에서 Last-Event-Id 뒤의 이벤트를 다시 보낸다', async () => {
+  /** 다른 서버 인스턴스가 쓰는 형식(`seq` · `data` 필드)으로 버퍼에 넣는다. */
+  async function appendBuffer(
+    executionId: string,
+    seq: number,
+    message: string,
+  ): Promise<void> {
+    const key = `eia:sse:buf:${executionId}`;
+    await redis.xadd(
+      key,
+      'MAXLEN',
+      '~',
+      1000,
+      '*',
+      'seq',
+      String(seq),
+      'data',
+      message,
+    );
+    await redis.pexpire(key, 300_000);
+  }
+
+  async function waitLiveSubscribed(executionId: string): Promise<void> {
+    const channel = `eia:sse:live:${executionId}`;
+    await waitFor(
+      async () =>
+        Number(((await redis.pubsub('NUMSUB', channel)) as unknown[])[1]),
+      (n) => n >= 1,
+      'live 채널 구독',
+    );
+  }
+
+  it('replay 버퍼에서 seq 필드가 있는 항목을 Last-Event-Id 뒤부터 다시 보낸다', async () => {
+    const { triggerId, itk } = await createItkTrigger();
+    const executionId = await insertWaitingExecution(triggerId);
+    for (const seq of [1, 2, 3]) {
+      await appendBuffer(executionId, seq, eventMessage(executionId, seq));
+    }
+
+    const conn = await openSse(executionId, itk, '1');
+    expect(conn.status).toBe(200);
+    const got = await waitFor(
+      () => frames(conn.body()),
+      (f) => f.some((x) => x.id === '3'),
+      'replay 프레임',
+    );
+    conn.close();
+    expect(got.map((f) => f.id)).toEqual(['2', '3']);
+  });
+
+  // 배포 중에는 이전 버전 서버 인스턴스가 `data` 필드만 있는 항목을 쓴다. 그 항목도 읽어야 한다.
+  it('replay 버퍼(Redis Stream)에서 Last-Event-Id 뒤의 이벤트를 다시 보낸다 — seq 필드가 없는 이전 형식', async () => {
     const { triggerId, itk } = await createItkTrigger();
     const executionId = await insertWaitingExecution(triggerId);
     const key = `eia:sse:buf:${executionId}`;
@@ -372,6 +436,100 @@ describe('EIA SSE — Redis fan-out 과 트리거 단위 토큰 무효 때 닫�
     ]);
   });
 
+  // 근거: NERV Task `CLE-T-1GR2JE` — 구독 연결이 끊긴 사이 발행된 이벤트는 live 로 오지 않는다. 다시 준비되면 버퍼로 채운다.
+  it('구독 연결이 끊겼다가 다시 준비되면 그 사이 버퍼에만 들어간 이벤트를 채우고 실시간 전달을 이어 간다', async () => {
+    const { triggerId, itk } = await createItkTrigger();
+    const executionId = await insertWaitingExecution(triggerId);
+    const channel = `eia:sse:live:${executionId}`;
+    const conn = await openSse(executionId, itk);
+    expect(conn.status).toBe(200);
+    await waitLiveSubscribed(executionId);
+
+    await appendBuffer(executionId, 1, eventMessage(executionId, 1));
+    await redis.publish(channel, eventMessage(executionId, 1));
+    await waitFor(
+      () => frames(conn.body()),
+      (f) => f.some((x) => x.id === '1'),
+      'live 프레임 1',
+    );
+
+    // 백엔드의 구독 연결을 끊는다. 다시 연결하기 전에 다른 서버 인스턴스가 낸 이벤트는 버퍼에만 있다.
+    const list = (await redis.client('LIST')) as string;
+    const ids = list
+      .split('\n')
+      .filter((line) => line.includes(` name=${SUBSCRIBER_CONNECTION_NAME} `))
+      .map((line) => /(?:^|\s)id=(\d+)/.exec(line)?.[1])
+      .filter((id): id is string => id !== undefined);
+    expect(ids.length).toBeGreaterThan(0);
+    await appendBuffer(executionId, 2, eventMessage(executionId, 2));
+    for (const id of ids) await redis.client('KILL', 'ID', id);
+
+    await waitFor(
+      () => frames(conn.body()),
+      (f) => f.some((x) => x.id === '2'),
+      '다시 준비된 뒤 따라잡은 프레임 2',
+    );
+    // 다시 구독했으므로 live 채널로 오는 이벤트도 받는다.
+    await waitLiveSubscribed(executionId);
+    await appendBuffer(executionId, 3, eventMessage(executionId, 3));
+    await redis.publish(channel, eventMessage(executionId, 3));
+    const got = await waitFor(
+      () => frames(conn.body()),
+      (f) => f.some((x) => x.id === '3'),
+      'live 프레임 3',
+    );
+    conn.close();
+    expect(got.map((f) => f.id)).toEqual(['1', '2', '3']);
+  });
+
+  // 근거: NERV Task `CLE-T-XPG8DQ` — 크기 상한을 넘은 이벤트는 다른 서버 인스턴스에 생략 표시로만 온다.
+  it('live 채널로 생략 표시가 오면 그 자리에서 replay_unavailable 을 보내고 실시간 전달을 이어 간다', async () => {
+    const { triggerId, itk } = await createItkTrigger();
+    const executionId = await insertWaitingExecution(triggerId);
+    const channel = `eia:sse:live:${executionId}`;
+    const conn = await openSse(executionId, itk);
+    expect(conn.status).toBe(200);
+    await waitLiveSubscribed(executionId);
+
+    await redis.publish(channel, eventMessage(executionId, 1));
+    await redis.publish(channel, omittedMessage(executionId, 2));
+    await redis.publish(channel, eventMessage(executionId, 3));
+    const got = await waitFor(
+      () => frames(conn.body()),
+      (f) => f.some((x) => x.id === '3'),
+      'live 프레임 3',
+    );
+    conn.close();
+    expect(got.map((f) => [f.event, f.id])).toEqual([
+      ['execution.node.started', '1'],
+      ['execution.replay_unavailable', undefined],
+      ['execution.node.started', '3'],
+    ]);
+    expect(JSON.parse(got[1].data!)).toMatchObject({ lastEventId: 1 });
+  });
+
+  it('replay 범위에 생략 표시가 있으면 구간이 끊긴 것으로 보고 replay_unavailable 만 보낸다', async () => {
+    const { triggerId, itk } = await createItkTrigger();
+    const executionId = await insertWaitingExecution(triggerId);
+    await appendBuffer(executionId, 1, eventMessage(executionId, 1));
+    await appendBuffer(executionId, 2, omittedMessage(executionId, 2));
+    await appendBuffer(executionId, 3, eventMessage(executionId, 3));
+
+    const conn = await openSse(executionId, itk, '1');
+    expect(conn.status).toBe(200);
+    await waitFor(
+      () => frames(conn.body()),
+      (f) => f.length > 0,
+      'replay_unavailable 프레임',
+    );
+    // 부분 replay 가 뒤따르지 않는지 잠시 더 본다.
+    await new Promise((r) => setTimeout(r, 300));
+    conn.close();
+    expect(frames(conn.body()).map((f) => f.event)).toEqual([
+      'execution.replay_unavailable',
+    ]);
+  });
+
   it('버퍼 키가 없고 순번 카운터가 Last-Event-Id 보다 크면 replay_unavailable 을 보낸다', async () => {
     const { triggerId, itk } = await createItkTrigger();
     const executionId = await insertWaitingExecution(triggerId);
@@ -412,5 +570,84 @@ describe('EIA SSE — Redis fan-out 과 트리거 단위 토큰 무효 때 닫�
     expect(await redis.zscore(key, 'other-1')).toBeNull();
     admitted.close();
     await redis.del(key);
+  });
+
+  // 근거: NERV Task `CLE-T-XPG8DQ` — EIA SSE 로 열릴 수 있는 실행(트리거가 있거나 실행 토큰 행이 있음)의 이벤트만 Redis 에
+  // 쓴다. 같은 워크플로를 웹훅과 수동 실행으로 돌려 비교한다.
+  describe('Redis 쓰기 대상', () => {
+    // 꺼진 워크플로는 웹훅으로 실행되지 않는다. 이 묶음만 켠 워크플로를 쓴다.
+    let activeWorkflowId: string;
+    beforeAll(async () => {
+      const wf = await request(BASE_URL)
+        .post('/api/workflows')
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({ name: uniqueName('sse-fo-active'), isActive: true });
+      expect(wf.status).toBe(201);
+      activeWorkflowId = wf.body.data.id as string;
+    });
+
+    async function waitTerminal(executionId: string): Promise<void> {
+      await waitFor(
+        async () => {
+          const r = await db.query<{ status: string }>(
+            'SELECT status FROM execution WHERE id = $1',
+            [executionId],
+          );
+          return r.rows[0]?.status ?? null;
+        },
+        (status) =>
+          status === 'completed' ||
+          status === 'failed' ||
+          status === 'cancelled',
+        '실행 종료',
+      );
+    }
+
+    it('트리거로 시작한 실행은 replay 버퍼에 쓴다', async () => {
+      const endpointPath = randomUUID();
+      const created = await api('post', '/api/triggers').send({
+        workflowId: activeWorkflowId,
+        type: 'webhook',
+        name: uniqueName('sse-fo-hook'),
+        endpointPath,
+      });
+      expect(created.status).toBe(201);
+      triggerIds.push(created.body.data.id as string);
+
+      const hook = await request(BASE_URL)
+        .post(`/api/hooks/${endpointPath}`)
+        .send({ payload: 'sse' });
+      expect(hook.status).toBe(202);
+      const executionId = hook.body.data.executionId as string;
+      executionIds.push(executionId);
+      await waitTerminal(executionId);
+      await waitFor(
+        () => redis.xlen(`eia:sse:buf:${executionId}`),
+        (n) => n > 0,
+        '버퍼 항목',
+      );
+      const [[, fields]] = (await redis.xrange(
+        `eia:sse:buf:${executionId}`,
+        '-',
+        '+',
+      )) as Array<[string, string[]]>;
+      expect(fields[0]).toBe('seq');
+      expect(fields[2]).toBe('data');
+    });
+
+    it('트리거도 실행 토큰도 없는 수동 실행은 Redis 에 쓰지 않는다', async () => {
+      const exec = await api(
+        'post',
+        `/api/workflows/${activeWorkflowId}/execute`,
+      ).send({});
+      expect(exec.status).toBe(202);
+      const executionId = exec.body.data.executionId as string;
+      executionIds.push(executionId);
+      await waitTerminal(executionId);
+      // 판정과 쓰기는 이벤트 뒤에 비동기로 일어난다. 트리거 실행이 버퍼를 채우는 시간보다 넉넉히 기다린다.
+      await new Promise((r) => setTimeout(r, 500));
+      expect(await redis.exists(`eia:sse:buf:${executionId}`)).toBe(0);
+    });
   });
 });

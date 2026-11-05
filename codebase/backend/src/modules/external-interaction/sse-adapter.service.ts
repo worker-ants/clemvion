@@ -9,19 +9,16 @@ import type { InteractionStreamCloserPort } from './interaction-stream-closer';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 import {
   SSE_BUFFER_MAX_EVENTS,
+  SSE_BUFFER_MAX_MESSAGE_BYTES,
   SSE_MAX_CONNECTIONS_PER_EXECUTION,
   SSE_REPLAY_WINDOW_MS,
+  SSE_TERMINAL_EVENT_TYPES,
   SseFanoutService,
   type BufferedSseEvent,
 } from './sse-fanout.service';
+import { SseStreamEligibilityService } from './sse-stream-eligibility.service';
 
-const TERMINAL_EVENT_TYPES = new Set([
-  'execution.completed',
-  'execution.failed',
-  'execution.cancelled',
-]);
-
-/** 메모리 버퍼에서 마지막 이벤트 뒤 5분이 지난 실행을 지우는 주기(ms). */
+/** 메모리 버퍼 · 쓰기 대상 판정에서 마지막 이벤트 뒤 5분이 지난 실행을 지우는 주기(ms). */
 const MEMORY_BUFFER_SWEEP_INTERVAL_MS = 60_000;
 
 /**
@@ -56,6 +53,14 @@ export interface SseSubscriber {
   close: () => void;
 }
 
+/**
+ * 실시간 전달로 바꾸기 전에 모아 두는 것. `omitted` 는 다른 서버 인스턴스의 이벤트가 크기 상한을 넘어 생략 표시만 온
+ * 자리다. 보낼 때 `execution.replay_unavailable` 이 된다.
+ */
+type PendingItem =
+  | { kind: 'event'; event: ExecutionChannelEvent }
+  | { kind: 'omitted'; seq: number };
+
 interface SubscriberEntry {
   readonly subscriber: SseSubscriber;
   /**
@@ -65,13 +70,34 @@ interface SubscriberEntry {
   phase: 'admitting' | 'catching_up' | 'live' | 'closed';
   /** 연결 상한 안에 들었는지. 이 서버 인스턴스 안에서 셀 때 쓴다. */
   admitted: boolean;
-  pending: ExecutionChannelEvent[];
+  pending: PendingItem[];
   /** `pending` 이 상한을 넘어 앞쪽을 버렸는지. */
   pendingOverflowed: boolean;
   /** 마지막으로 보낸 seq. 이 이하의 seq 는 버린다(replay 와 live 의 겹침). */
   lastSeq: number;
+  /**
+   * 클라이언트가 받은 위치를 아는지. `Last-Event-Id` 로 연결했거나 이벤트를 하나라도 보냈으면 안다. 모르면 구독이 다시
+   * 확정됐을 때 놓친 구간을 버퍼로 채울 기준이 없다.
+   */
+  anchored: boolean;
+  /** replay 중에 구독이 다시 확정됐다. 실시간 상태로 바꾼 직후 한 번 더 따라잡는다. */
+  resyncRequested: boolean;
   holdsRedisSlot: boolean;
   retainsLive: boolean;
+}
+
+/**
+ * 실행 하나의 Redis 쓰기 판정. `pending` 이면 판정을 기다리며 이벤트를 `queued` 에 순서대로 모은다. `write` 면 쓰고
+ * `skip` 이면 버린다(EIA SSE 로 열릴 수 없는 실행). 한 번 정하면 종료 이벤트나 5분 동안 이벤트가 없어 지울 때까지
+ * 바꾸지 않는다. 조회에 실패해 `write` 로 정했어도 그렇다.
+ */
+interface WriteScope {
+  decision: 'pending' | 'write' | 'skip';
+  queued: ExecutionChannelEvent[];
+  /** 마지막 이벤트 시각(ms). 5분 동안 이벤트가 없으면 주기 정리가 지운다. */
+  touchedAt: number;
+  /** 크기 상한 경고를 이 실행에서 남겼는지. */
+  omittedWarned: boolean;
 }
 
 /**
@@ -83,10 +109,13 @@ interface SubscriberEntry {
  *
  * 책임:
  * 1. 자기 프로세스의 `WebsocketService.executionEvents$` 이벤트를 Redis 버퍼에 넣고 로컬 구독자에게 바로 보낸다.
- *    다른 서버 인스턴스의 이벤트는 live 채널로 받는다.
+ *    다른 서버 인스턴스의 이벤트는 live 채널로 받는다. Redis 에는 EIA SSE 로 열릴 수 있는 실행의 이벤트만 쓴다
+ *    ({@link SseStreamEligibilityService}, NERV Task `CLE-T-XPG8DQ`).
  * 2. 구독 순서: 등록(도착 이벤트를 모음) → 연결 상한 → live 채널 SUBSCRIBE 확인 → `lastEventId` 이후 replay → 모은 이벤트를
  *    보내고 실시간으로 바꾼다. 구독자마다 마지막으로 보낸 seq 이하는 버린다. seq 가 0 이하인 제어 프레임은 예외다.
- * 3. 종료 이벤트와 트리거 단위 토큰 무효 때 스트림을 끝낸다. 닫기 신호는 다른 서버 인스턴스에도 보낸다.
+ * 3. 구독이 다시 확정되면(구독 연결 재준비 · 늦은 SUBSCRIBE 확인) 실시간 구독자마다 그 사이 놓친 구간을 같은 판정으로
+ *    채우거나 `execution.replay_unavailable` 을 보낸다(NERV Task `CLE-T-1GR2JE`).
+ * 4. 종료 이벤트와 트리거 단위 토큰 무효 때 스트림을 끝낸다. 닫기 신호는 다른 서버 인스턴스에도 보낸다.
  *
  * Redis 를 쓸 수 없으면(부팅 때 없거나 명령 실패) 이 서버 인스턴스의 메모리로 동작한다. 메모리 버퍼는 마지막 이벤트
  * 뒤 5분이 지나면 주기 타이머가 지운다.
@@ -96,8 +125,12 @@ export class SseAdapter
   implements OnModuleInit, OnModuleDestroy, InteractionStreamCloserPort
 {
   private readonly logger = new Logger(SseAdapter.name);
-  /** Redis 에 넣지 못한 이벤트의 버퍼. Redis 를 쓸 수 없을 때만 채운다. */
+  /**
+   * Redis 에 이벤트 전체를 넣지 못한 이벤트의 버퍼. Redis 를 쓸 수 없을 때와 크기 상한을 넘어 생략 표시만 넣었을 때 채운다.
+   */
   private readonly memoryBuffers = new Map<string, BufferedSseEvent[]>();
+  /** 실행별 Redis 쓰기 판정. 종료 이벤트나 5분 동안 이벤트가 없으면 지운다. */
+  private readonly writeScopes = new Map<string, WriteScope>();
   private readonly entries = new Map<string, SubscriberEntry>();
   private readonly entriesByExecution = new Map<string, Set<SubscriberEntry>>();
   private subscription: { unsubscribe: () => void } | null = null;
@@ -106,13 +139,18 @@ export class SseAdapter
   constructor(
     private readonly websocketService: WebsocketService,
     private readonly fanout: SseFanoutService,
+    private readonly eligibility: SseStreamEligibilityService,
   ) {}
 
   onModuleInit(): void {
     this.fanout.bind({
       onLiveEvent: (event) => this.dispatch(event),
-      onRemoteClose: (triggerIds) =>
-        this.closeLocalTriggerTokenStreams(triggerIds),
+      onLiveOmitted: (executionId, seq) =>
+        this.dispatchOmitted(executionId, seq),
+      onRemoteClose: (triggerIds) => {
+        this.closeLocalTriggerTokenStreams(triggerIds);
+      },
+      onLiveResumed: (executionIds) => this.resync(executionIds),
     });
     this.subscription = this.websocketService.executionEvents$.subscribe({
       next: (event) => this.handleEvent(event),
@@ -122,7 +160,7 @@ export class SseAdapter
         ),
     });
     this.sweepTimer = setInterval(
-      () => this.sweepMemoryBuffers(),
+      () => this.sweep(),
       MEMORY_BUFFER_SWEEP_INTERVAL_MS,
     );
     this.sweepTimer.unref?.();
@@ -142,6 +180,7 @@ export class SseAdapter
       this.unsubscribe(entry.subscriber);
     }
     this.memoryBuffers.clear();
+    this.writeScopes.clear();
   }
 
   /**
@@ -195,10 +234,13 @@ export class SseAdapter
       lastEventId >= 0
         ? Math.floor(lastEventId)
         : undefined;
-    if (replayAfter !== undefined) entry.lastSeq = replayAfter;
+    if (replayAfter !== undefined) {
+      entry.lastSeq = replayAfter;
+      entry.anchored = true;
+    }
     if (this.fanout.isEnabled()) {
       entry.retainsLive = true;
-      // 실패해도 이어 간다. 이 서버 인스턴스의 이벤트는 그대로 받는다.
+      // 실패해도 이어 간다. 이 서버 인스턴스의 이벤트는 그대로 받는다. 늦게 확인되면 `onLiveResumed` 로 따라잡는다.
       await this.fanout.retainLive(subscriber.executionId);
       if (this.isClosed(entry)) return;
     }
@@ -206,20 +248,7 @@ export class SseAdapter
       await this.replay(entry, replayAfter);
       if (this.isClosed(entry)) return;
     }
-    entry.phase = 'live';
-    const pending = entry.pending;
-    entry.pending = [];
-    if (entry.pendingOverflowed) {
-      entry.pendingOverflowed = false;
-      this.deliverNow(
-        entry,
-        this.buildReplayUnavailableEvent(subscriber.executionId, entry.lastSeq),
-      );
-    }
-    for (const event of pending) {
-      if (this.isClosed(entry)) return;
-      this.deliverNow(entry, event);
-    }
+    this.goLive(entry);
   }
 
   /**
@@ -295,6 +324,8 @@ export class SseAdapter
       pending: [],
       pendingOverflowed: false,
       lastSeq: 0,
+      anchored: false,
+      resyncRequested: false,
       holdsRedisSlot: false,
       retainsLive: false,
     };
@@ -329,6 +360,88 @@ export class SseAdapter
   }
 
   /**
+   * 모은 것을 보내고 실시간 상태로 바꾼다. 모은 것이 상한을 넘어 앞쪽을 버렸으면 먼저 `execution.replay_unavailable` 을
+   * 보낸다. 모은 순서대로 보낸다. 그 사이 구독이 다시 확정됐으면 바로 한 번 더 따라잡는다.
+   */
+  private goLive(entry: SubscriberEntry): void {
+    entry.phase = 'live';
+    const pending = entry.pending;
+    entry.pending = [];
+    if (entry.pendingOverflowed) {
+      entry.pendingOverflowed = false;
+      this.deliverNow(
+        entry,
+        this.buildReplayUnavailableEvent(
+          entry.subscriber.executionId,
+          entry.lastSeq,
+        ),
+      );
+    }
+    for (const item of pending) {
+      if (this.isClosed(entry)) return;
+      if (item.kind === 'event') {
+        this.deliverNow(entry, item.event);
+      } else {
+        this.signalOmitted(entry, item.seq);
+      }
+    }
+    if (entry.resyncRequested && !this.isClosed(entry)) {
+      void this.catchUp(entry);
+    }
+  }
+
+  /**
+   * 구독이 다시 확정된 실행의 구독자를 따라잡게 한다. 실시간 상태면 바로 따라잡는다. 아직 replay 중이면 표시만 해 두고
+   * 실시간 상태로 바꾼 직후 따라잡는다. 아직 live 채널을 구독하지 않은 구독자는 그 뒤에 구독하므로 대상이 아니다.
+   */
+  private resync(executionIds: readonly string[]): void {
+    for (const executionId of executionIds) {
+      const set = this.entriesByExecution.get(executionId);
+      if (!set) continue;
+      for (const entry of Array.from(set)) {
+        if (!entry.retainsLive) continue;
+        if (entry.phase === 'live') {
+          void this.catchUp(entry);
+        } else if (entry.phase === 'catching_up') {
+          entry.resyncRequested = true;
+        }
+      }
+    }
+  }
+
+  /**
+   * 구독이 끊겼던 사이 놓친 구간을 채운다. 그동안 온 이벤트는 다시 모은다. 기준 순번은 마지막으로 보낸 seq 이고 판정은
+   * 재연결 replay 와 같다. 클라이언트가 받은 위치를 모르면(`Last-Event-Id` 없이 연결했고 보낸 이벤트가 없음) 연결 전
+   * 이벤트와 놓친 이벤트를 가를 수 없으므로 버퍼를 읽지 않고 `execution.replay_unavailable` 을 보낸다.
+   */
+  private async catchUp(entry: SubscriberEntry): Promise<void> {
+    entry.resyncRequested = false;
+    entry.phase = 'catching_up';
+    const executionId = entry.subscriber.executionId;
+    try {
+      if (entry.anchored) {
+        await this.replay(entry, entry.lastSeq);
+      } else {
+        this.deliverNow(
+          entry,
+          this.buildReplayUnavailableEvent(executionId, entry.lastSeq),
+        );
+      }
+    } catch (err) {
+      // replay 는 던지지 않는 계약이다. 어겨도 구독자가 모으는 상태에 묶이지 않게 신호를 보내고 이어 간다.
+      this.logger.warn(
+        `SseAdapter 따라잡기 실패 (id=${entry.subscriber.id}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.deliverNow(
+        entry,
+        this.buildReplayUnavailableEvent(executionId, entry.lastSeq),
+      );
+    }
+    if (this.isClosed(entry)) return;
+    this.goLive(entry);
+  }
+
+  /**
    * 재연결 replay. `lastEventId` 이후 이벤트가 버퍼에 있으면 {@link replayOrSignalUnavailable} 로 넘긴다.
    *
    * 버퍼에 그 이후 이벤트가 없을 때가 둘로 갈린다. 버퍼를 다 읽었고 비어 있지 않으면 버퍼에 그 실행의 마지막 이벤트가
@@ -340,7 +453,7 @@ export class SseAdapter
     lastEventId: number,
   ): Promise<void> {
     const executionId = entry.subscriber.executionId;
-    const buffer = await this.readBuffer(executionId);
+    const buffer = await this.readBuffer(executionId, lastEventId);
     if (this.isClosed(entry)) return;
     // 클라이언트가 아직 못 받은 이벤트. 만료됐지만 아직 버퍼에 남은 항목도 센다.
     const wanted = buffer.events.filter((e) => e.seq > lastEventId);
@@ -348,7 +461,9 @@ export class SseAdapter
       this.replayOrSignalUnavailable(entry, lastEventId, wanted);
       return;
     }
-    if (buffer.complete && buffer.events.length > 0) return;
+    if (buffer.complete && (buffer.events.length > 0 || buffer.skipped > 0)) {
+      return;
+    }
     const latest = await this.fanout.readLatestSeq(executionId);
     if (this.isClosed(entry)) return;
     if (this.mayHaveMissed(entry, lastEventId, latest)) {
@@ -361,7 +476,8 @@ export class SseAdapter
 
   /**
    * 버퍼 없이 판정한다. 카운터를 읽지 못하면(키가 없음 · Redis 장애 · 메모리 모드) 근거가 없으므로 놓쳤을 수 있다고 본다.
-   * 카운터가 `lastEventId` 보다 크면 그 사이 seq 중 replay 를 기다리며 모은 이벤트에 없는 것이 있을 때 놓친 것이다.
+   * 카운터가 `lastEventId` 보다 크면 그 사이 seq 중 replay 를 기다리며 모은 이벤트에 없는 것이 있을 때 놓친 것이다. 생략
+   * 표시는 받은 이벤트로 세지 않는다.
    */
   private mayHaveMissed(
     entry: SubscriberEntry,
@@ -370,11 +486,12 @@ export class SseAdapter
   ): boolean {
     if (latest === null) return true;
     if (latest <= lastEventId) return false;
-    const collected = new Set(
-      entry.pending
-        .map((e) => e.seq)
-        .filter((seq) => seq > lastEventId && seq <= latest),
-    );
+    const collected = new Set<number>();
+    for (const item of entry.pending) {
+      if (item.kind !== 'event') continue;
+      const seq = item.event.seq;
+      if (seq > lastEventId && seq <= latest) collected.add(seq);
+    }
     return collected.size < latest - lastEventId;
   }
 
@@ -384,6 +501,9 @@ export class SseAdapter
    * 유실) 부분 replay 대신 `execution.replay_unavailable` 을 **한 번** push → 클라이언트는
    * `GET /api/external/executions/:id` 로 현재 상태를 REST 재조회한다.
    * (Spec EIA §5.2 / EIA-IN-07 / EIA-NF-03 — 만료분 silent drop 을 명시 신호로 대체.)
+   *
+   * 생략 표시만 남은 항목(이벤트 전체가 다른 서버 인스턴스의 메모리에만 있음)은 다시 보낼 수 없으므로 구간이 끊긴 것으로
+   * 본다.
    *
    * @param wanted 버퍼에서 seq 가 `lastEventId` 보다 큰 항목. 비어 있지 않다.
    */
@@ -401,22 +521,22 @@ export class SseAdapter
     // seq 가 `lastEventId + 1` 이 아니면 그 사이 구간이 유실된 것 → 완전 replay 불가. 선두뿐
     // 아니라 배열 중간에 hole(예: seq 유실로 `[6,7,9]`)이 있어도 gap 으로 판정한다 — 이
     // 기능이 없애려는 바로 그 silent drop 을 놓치지 않도록 전 구간 연속성을 확인한다.
-    const contiguous =
-      replayable.length > 0 &&
-      replayable[0].seq === lastEventId + 1 &&
-      replayable.every(
-        (e, i) => i === 0 || e.seq === replayable[i - 1].seq + 1,
-      );
-    if (!contiguous) {
+    const events: ExecutionChannelEvent[] = [];
+    for (const [i, item] of replayable.entries()) {
+      const expected = i === 0 ? lastEventId + 1 : replayable[i - 1].seq + 1;
+      if (item.seq !== expected || item.event === null) break;
+      events.push(item.event);
+    }
+    if (events.length === 0 || events.length !== replayable.length) {
       this.deliverNow(
         entry,
         this.buildReplayUnavailableEvent(executionId, lastEventId),
       );
       return;
     }
-    for (const item of replayable) {
+    for (const event of events) {
       if (this.isClosed(entry)) return;
-      this.deliverNow(entry, item.event);
+      this.deliverNow(entry, event);
     }
   }
 
@@ -443,22 +563,39 @@ export class SseAdapter
   }
 
   /**
-   * Redis 버퍼와 메모리 버퍼를 합쳐 읽는다. 메모리 버퍼에는 Redis 에 넣지 못한 이벤트만 있다. 같은 seq 는 하나만 둔다.
-   * `complete` 는 버퍼를 다 읽었는지다. Redis 로 동작하는데 읽지 못했으면 `false` 다.
+   * Redis 버퍼와 메모리 버퍼를 합쳐 읽는다. 메모리 버퍼에는 Redis 에 이벤트 전체를 넣지 못한 이벤트만 있다. 같은 seq 는
+   * 하나만 두고 생략 표시보다 이벤트 전체를 앞세운다. Redis 버퍼에서 `afterSeq` 이하 항목은 파싱하지 않고 `skipped` 로
+   * 센다. `complete` 는 버퍼를 다 읽었는지다. Redis 로 동작하는데 읽지 못했으면 `false` 다.
    */
   private async readBuffer(
     executionId: string,
-  ): Promise<{ events: BufferedSseEvent[]; complete: boolean }> {
+    afterSeq: number,
+  ): Promise<{
+    events: BufferedSseEvent[];
+    skipped: number;
+    complete: boolean;
+  }> {
     const local = this.memoryBuffers.get(executionId) ?? [];
-    if (!this.fanout.isEnabled()) return { events: local, complete: true };
-    const remote = await this.fanout.readBuffer(executionId);
-    if (remote === null) return { events: local, complete: false };
-    if (local.length === 0) return { events: remote, complete: true };
-    const bySeq = new Map<number, BufferedSseEvent>();
-    for (const item of [...remote, ...local]) {
-      if (!bySeq.has(item.seq)) bySeq.set(item.seq, item);
+    if (!this.fanout.isEnabled()) {
+      return { events: local, skipped: 0, complete: true };
     }
-    return { events: Array.from(bySeq.values()), complete: true };
+    const remote = await this.fanout.readBuffer(executionId, afterSeq);
+    if (remote === null) return { events: local, skipped: 0, complete: false };
+    if (local.length === 0) {
+      return { events: remote.events, skipped: remote.skipped, complete: true };
+    }
+    const bySeq = new Map<number, BufferedSseEvent>();
+    for (const item of [...remote.events, ...local]) {
+      const existing = bySeq.get(item.seq);
+      if (!existing || (existing.event === null && item.event !== null)) {
+        bySeq.set(item.seq, item);
+      }
+    }
+    return {
+      events: Array.from(bySeq.values()),
+      skipped: remote.skipped,
+      complete: true,
+    };
   }
 
   /**
@@ -491,20 +628,129 @@ export class SseAdapter
   }
 
   private handleEvent(event: ExecutionChannelEvent): void {
-    if (this.fanout.isEnabled()) {
-      // 다른 서버 인스턴스의 구독자와 replay 를 위해 Redis 에 넣는다. 넣지 못하면 메모리 버퍼에 둔다.
-      // `append` 는 던지지 않는 계약이다. 어겨서 거부돼도 처리되지 않은 거부로 새지 않게 메모리 버퍼에 둔다.
-      void this.fanout.append(event).then(
-        (stored) => {
-          if (!stored) this.remember(event);
-        },
-        () => this.remember(event),
-      );
-    } else {
-      this.remember(event);
-    }
+    this.store(event);
     // 이 서버 인스턴스의 구독자에게는 Redis 를 거치지 않고 바로 보낸다.
     this.dispatch(event);
+  }
+
+  /**
+   * 다른 서버 인스턴스의 구독자와 replay 를 위해 이벤트를 Redis 에 둔다. EIA SSE 로 열릴 수 있는 실행만 둔다. Redis 없이
+   * 부팅했으면 판정 없이 메모리 버퍼에 둔다(이 서버 인스턴스의 replay 용이고 Redis 쓰기량과 무관하다).
+   *
+   * 라우팅 컨텍스트의 `triggerId` 가 이벤트에 붙어 있으면 바로 쓴다. 없으면 실행마다 한 번
+   * {@link SseStreamEligibilityService} 로 판정하고, 판정을 기다리는 동안 온 이벤트는 순서대로 모았다가 판정 뒤에 쓰거나
+   * 버린다. 라우팅 컨텍스트만 보지 않는 것은 모든 이벤트 경로가 `triggerId` 를 등록하지는 않기 때문이다(웹훅 실행의 종료
+   * 이벤트를 라우팅 해제 뒤에 내는 경로 등). 근거: CLE-EIA-DATA 「SSE 스트림」, NERV Task `CLE-T-XPG8DQ`.
+   */
+  private store(event: ExecutionChannelEvent): void {
+    if (!this.fanout.isEnabled()) {
+      this.remember(event);
+      return;
+    }
+    const executionId = event.executionId;
+    let scope = this.writeScopes.get(executionId);
+    if (!scope) {
+      scope = {
+        decision: 'pending',
+        queued: [],
+        touchedAt: 0,
+        omittedWarned: false,
+      };
+      this.writeScopes.set(executionId, scope);
+      if (!hasRoutingTrigger(event)) void this.resolveScope(executionId, scope);
+    }
+    scope.touchedAt = Date.now();
+    if (scope.decision === 'pending' && hasRoutingTrigger(event)) {
+      this.decide(scope, true);
+    }
+    if (scope.decision === 'write') {
+      this.write(event, scope);
+    } else if (scope.decision === 'pending') {
+      scope.queued.push(event);
+      // 판정이 늦어 모은 이벤트가 상한에 닿으면 더 기다리지 않고 쓴다. 버리지 않는 쪽으로 정한다.
+      if (scope.queued.length >= SSE_BUFFER_MAX_EVENTS)
+        this.decide(scope, true);
+    }
+    // 종료 이벤트 뒤에는 그 실행의 이벤트가 더 오지 않는다. 판정 중이면 그 판정이 모은 이벤트를 마저 처리한다.
+    if (SSE_TERMINAL_EVENT_TYPES.has(event.eventType)) {
+      this.writeScopes.delete(executionId);
+    }
+  }
+
+  private async resolveScope(
+    executionId: string,
+    scope: WriteScope,
+  ): Promise<void> {
+    let open: boolean;
+    try {
+      open = await this.eligibility.canOpenStream(executionId);
+    } catch {
+      // `canOpenStream` 은 던지지 않는 계약이다. 어겨도 놓치지 않는 쪽으로 쓴다.
+      open = true;
+    }
+    this.decide(scope, open);
+  }
+
+  /** 판정을 정하고 모은 이벤트를 순서대로 쓰거나 버린다. 이미 정했으면 아무것도 하지 않는다. */
+  private decide(scope: WriteScope, open: boolean): void {
+    if (scope.decision !== 'pending') return;
+    scope.decision = open ? 'write' : 'skip';
+    const queued = scope.queued;
+    scope.queued = [];
+    if (!open) return;
+    for (const event of queued) this.write(event, scope);
+  }
+
+  /**
+   * Redis 에 넣는다. 이벤트 전체를 넣지 못하면 메모리 버퍼에 둔다. `append` 는 던지지 않는 계약이다. 어겨서 거부돼도
+   * 처리되지 않은 거부로 새지 않게 메모리 버퍼에 둔다.
+   */
+  private write(event: ExecutionChannelEvent, scope: WriteScope): void {
+    void this.fanout.append(event).then(
+      (result) => {
+        if (result === 'stored') return;
+        this.remember(event);
+        if (result === 'omitted') this.warnOmitted(event, scope);
+      },
+      () => this.remember(event),
+    );
+  }
+
+  private warnOmitted(event: ExecutionChannelEvent, scope: WriteScope): void {
+    if (scope.omittedWarned) return;
+    scope.omittedWarned = true;
+    this.logger.warn(
+      `EIA SSE 이벤트가 크기 상한(${SSE_BUFFER_MAX_MESSAGE_BYTES}바이트)을 넘어 Redis 에 생략 표시만 올렸다 — 다른 서버 인스턴스의 구독자는 execution.replay_unavailable 을 받는다(이 실행에서는 다시 남기지 않는다). executionId=${event.executionId} seq=${event.seq} eventType=${event.eventType}`,
+    );
+  }
+
+  /** 다른 서버 인스턴스의 이벤트가 크기 상한을 넘어 생략 표시만 왔다. 구독자마다 그 순번 자리에서 신호를 보낸다. */
+  private dispatchOmitted(executionId: string, seq: number): void {
+    const set = this.entriesByExecution.get(executionId);
+    if (!set) return;
+    for (const entry of Array.from(set)) {
+      if (entry.phase === 'closed') continue;
+      if (entry.phase !== 'live') {
+        this.collect(entry, { kind: 'omitted', seq });
+      } else {
+        this.signalOmitted(entry, seq);
+      }
+    }
+  }
+
+  /**
+   * 생략 표시 자리에서 `execution.replay_unavailable` 을 보낸다. 그 순번 이상을 이미 보냈으면 보내지 않는다. 생략 표시는
+   * 받은 이벤트가 아니므로 마지막으로 보낸 seq 를 바꾸지 않는다.
+   */
+  private signalOmitted(entry: SubscriberEntry, seq: number): void {
+    if (seq <= entry.lastSeq) return;
+    this.deliverNow(
+      entry,
+      this.buildReplayUnavailableEvent(
+        entry.subscriber.executionId,
+        entry.lastSeq,
+      ),
+    );
   }
 
   private dispatch(event: ExecutionChannelEvent): void {
@@ -519,14 +765,18 @@ export class SseAdapter
   private deliver(entry: SubscriberEntry, event: ExecutionChannelEvent): void {
     if (entry.phase === 'closed') return;
     if (entry.phase !== 'live') {
-      entry.pending.push(event);
-      if (entry.pending.length > SSE_BUFFER_MAX_EVENTS) {
-        entry.pending.shift();
-        entry.pendingOverflowed = true;
-      }
+      this.collect(entry, { kind: 'event', event });
       return;
     }
     this.deliverNow(entry, event);
+  }
+
+  private collect(entry: SubscriberEntry, item: PendingItem): void {
+    entry.pending.push(item);
+    if (entry.pending.length > SSE_BUFFER_MAX_EVENTS) {
+      entry.pending.shift();
+      entry.pendingOverflowed = true;
+    }
   }
 
   private deliverNow(
@@ -537,6 +787,7 @@ export class SseAdapter
     if (event.seq > 0) {
       if (event.seq <= entry.lastSeq) return;
       entry.lastSeq = event.seq;
+      entry.anchored = true;
     }
     const subscriber = entry.subscriber;
     try {
@@ -546,7 +797,7 @@ export class SseAdapter
         `SseAdapter push 실패 (id=${subscriber.id}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    if (TERMINAL_EVENT_TYPES.has(event.eventType)) {
+    if (SSE_TERMINAL_EVENT_TYPES.has(event.eventType)) {
       // 종료 이벤트 뒤에는 스트림을 끝낸다. 응답 종료는 다음 턴에 한다.
       this.unsubscribe(subscriber);
       setImmediate(() => this.closeSafely(subscriber));
@@ -565,8 +816,8 @@ export class SseAdapter
     this.memoryBuffers.set(event.executionId, buffer);
   }
 
-  /** 마지막 이벤트 뒤 5분이 지난 실행의 메모리 버퍼를 지운다. */
-  private sweepMemoryBuffers(): void {
+  /** 마지막 이벤트 뒤 5분이 지난 실행의 메모리 버퍼와 쓰기 판정을 지운다. */
+  private sweep(): void {
     const cutoff = Date.now() - SSE_REPLAY_WINDOW_MS;
     for (const [executionId, buffer] of this.memoryBuffers) {
       const last = buffer[buffer.length - 1];
@@ -574,5 +825,14 @@ export class SseAdapter
         this.memoryBuffers.delete(executionId);
       }
     }
+    for (const [executionId, scope] of this.writeScopes) {
+      if (scope.touchedAt < cutoff) this.writeScopes.delete(executionId);
+    }
   }
+}
+
+/** 라우팅 컨텍스트가 이벤트에 `triggerId` 를 붙였는지. 붙었으면 트리거가 있는 실행이라 판정 조회 없이 쓴다. */
+function hasRoutingTrigger(event: ExecutionChannelEvent): boolean {
+  const triggerId = event.payload?.triggerId;
+  return typeof triggerId === 'string' && triggerId.length > 0;
 }

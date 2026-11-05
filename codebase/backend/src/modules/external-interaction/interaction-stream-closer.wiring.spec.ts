@@ -12,6 +12,7 @@ import {
 } from './interaction-stream-closer';
 import { SseAdapter, type SseSubscriber } from './sse-adapter.service';
 import { SseFanoutService } from './sse-fanout.service';
+import { SseStreamEligibilityService } from './sse-stream-eligibility.service';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /**
@@ -39,8 +40,9 @@ describe('INTERACTION_STREAM_CLOSER 와이어링', () => {
     expect(declared).toMatchObject({ useExisting: SseAdapter });
     // 가리키는 클래스가 같은 모듈의 provider 여야 한다.
     expect(providers).toContain(SseAdapter);
-    // SseAdapter 가 주입받는 Redis 쪽 서비스도 같은 모듈에 있다.
+    // SseAdapter 가 주입받는 Redis 쪽 서비스와 Redis 쓰기 대상 판정도 같은 모듈에 있다.
     expect(providers).toContain(SseFanoutService);
+    expect(providers).toContain(SseStreamEligibilityService);
   });
 
   it('선언 그대로 ModuleRef(strict: false)로 해석되어 itk 스트림을 닫는다', async () => {
@@ -48,6 +50,10 @@ describe('INTERACTION_STREAM_CLOSER 와이어링', () => {
       providers: [
         SseAdapter,
         SseFanoutService,
+        {
+          provide: SseStreamEligibilityService,
+          useValue: { canOpenStream: () => Promise.resolve(true) },
+        },
         // Redis 없이 부팅한 것과 같다. 이 서버 인스턴스의 구독자를 닫는 경로를 본다.
         {
           provide: RedisConnectionProvider,

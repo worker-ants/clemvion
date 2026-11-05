@@ -276,11 +276,13 @@ WHERE notification_last_error LIKE 'HTTP 3%';
 
 외부 인터랙션 SSE 는 서버 인스턴스가 여러 대여도 이벤트와 재연결 replay 가 끊기지 않도록 Redis 를 씁니다. 큐(BullMQ)와 같은 Redis 라서 배포 전에 용량과 정책을 확인합니다.
 
-- 서버 인스턴스는 자기가 처리하는 **모든 실행 이벤트**를 Redis 에 씁니다. SSE 구독자가 없는 실행과 외부 인터랙션을 쓰지 않는 실행(에디터 수동 실행 등)도 같습니다. 이벤트 하나마다 `XADD` · `PEXPIRE` · `PUBLISH` 세 명령이 pipeline 하나로 나갑니다.
-- 실행마다 replay 버퍼 `eia:sse:buf:<executionId>`(Redis Stream)가 생깁니다. 항목은 대략 1000개까지 두고 마지막 이벤트 5분 뒤에 사라집니다. 제한은 항목 수뿐이고 크기는 제한하지 않습니다. 그래서 최대 사용량은 **최근 5분 안에 이벤트를 낸 실행 수 × 1000 × 이벤트 payload 크기** 정도입니다.
+- 서버 인스턴스는 **SSE 스트림으로 열릴 수 있는 실행**의 이벤트만 Redis 에 씁니다. 트리거로 시작한 실행과 실행 단위 토큰(`iext_*`)을 발급한 실행입니다. 에디터 수동 실행처럼 트리거도 토큰도 없는 실행은 쓰지 않습니다. 판정은 실행마다 첫 이벤트 때 DB 를 한 번 읽어 정합니다. 이벤트에 트리거 id 가 이미 붙어 있으면 읽지 않습니다. 이벤트 하나마다 `XADD` · `PEXPIRE` · `PUBLISH` 세 명령이 pipeline 하나로 나갑니다.
+- 대상 실행마다 replay 버퍼 `eia:sse:buf:<executionId>`(Redis Stream)가 생깁니다. 항목은 대략 1000개까지 두고 마지막 이벤트 5분 뒤에 사라집니다. 직렬화한 이벤트가 64 KiB 를 넘으면 이벤트 대신 작은 생략 표시만 넣습니다. 이벤트 전체는 그 서버 인스턴스의 메모리에만 두고, 다른 서버 인스턴스의 구독자는 그 자리에서 `execution.replay_unavailable` 을 받습니다. 종료 이벤트(`execution.completed` · `failed` · `cancelled`)는 크기와 상관없이 그대로 넣습니다. 그래서 최대 사용량은 종료 이벤트를 빼면 **최근 5분 안에 이벤트를 낸 대상 실행 수 × 1000 × 64 KiB** 를 넘지 않습니다. 실제로는 이벤트 대부분이 이보다 훨씬 작습니다.
 - 연결 상한 키 `eia:sse:subs:<executionId>` 는 TTL 이 45초이고 작습니다. 실시간 전달과 닫기 신호 채널(`eia:sse:live:*` · `eia:sse:close`)은 Pub/Sub 이라 Redis 에 저장되지 않습니다.
 - Redis `maxmemory-policy` 는 `noeviction` 이어야 합니다(BullMQ 의 요구입니다). 이 저장소의 매니페스트는 `maxmemory` 와 `maxmemory-policy` 를 정하지 않습니다. 관리형 Redis(ElastiCache 등)는 파라미터 그룹에서 값을 확인하고, 위 최대 사용량을 더한 용량을 잡습니다.
+- 서버 인스턴스의 Pub/Sub 구독 연결은 `CLIENT LIST` 에 `name=eia-sse-sub` 로 보입니다. 이 연결이 끊겼다가 다시 붙으면 서버 인스턴스는 열린 스트림마다 그 사이 놓친 이벤트를 replay 버퍼로 채웁니다. 채울 수 없으면 `execution.replay_unavailable` 을 보냅니다.
 - Redis 가 없거나 명령이 실패하면 서버 인스턴스는 자기 메모리로만 동작합니다(fail-open). 이때 다른 서버 인스턴스가 낸 이벤트는 받지 못하고 연결 상한도 인스턴스마다 셉니다. 실패는 로그에 `EIA SSE Redis … 실패` 로 한 번 남고 복구되면 `… 복구` 가 남습니다.
+- 닫기 신호(`eia:sse:close`) 발행이 실패하면 실패할 때마다 error 로그 `EIA SSE Redis 닫기 신호 발행 실패` 가 남습니다. 다른 서버 인스턴스에 붙은 트리거 단위 토큰(`itk_*`) 스트림은 신호를 받지 못해도 60초마다 하는 토큰 재확인 때 닫힙니다.
 
 ---
 
