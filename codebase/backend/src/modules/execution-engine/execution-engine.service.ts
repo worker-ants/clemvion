@@ -637,6 +637,20 @@ export class ExecutionEngineService
   private readonly containerCancelCheckedAtMs = new Map<string, number>();
 
   /**
+   * 병렬 분기 컨텍스트의 `nodeOutputCache`(분기 전용 얕은 복사본) → 이번 분기 실행에서
+   * 엔진이 출력을 쓴 노드 ID 집합. {@link syncParallelBranchCacheEntry} 가 채우고
+   * {@link executeParallelBranchBody} 가 결과 노드(REQ-PARALLEL-030)를 고를 때 읽는다.
+   * 캐시 값을 앞뒤로 비교하지 않고 "썼다" 는 사실을 직접 적으므로, 앞 실행이 남긴
+   * 출력과 값이 같거나(원시값 출력) 같은 객체여도(`use_default_output` 의
+   * `defaultOutput` 참조) 새로 쓴 노드로 센다. 키가 캐시 객체라 분기가 끝나면
+   * 가비지 컬렉션이 항목을 거둔다.
+   */
+  private readonly parallelBranchWrittenNodeIds = new WeakMap<
+    object,
+    Set<string>
+  >();
+
+  /**
    * ai-review W10 (2026-07-26) — 컨테이너 아이템 경계 cancel 가드의 스로틀 간격(ms).
    * 200~300ms 권장 범위의 중간값. 취소 관측이 이 간격만큼 늦어질 수 있는데,
    * `spec/conventions/node-cancellation.md` §2.2(CPU 바운드 / 즉시 완료 노드)가
@@ -6142,11 +6156,7 @@ export class ExecutionEngineService
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
       const finalOutput = this.applyPortSelection(flatForCache);
-      this.contextService.setNodeOutput(
-        this.contextKeyOf(context),
-        node.id,
-        finalOutput,
-      );
+      this.commitNodeOutput(context, node.id, finalOutput);
       executedNodes.add(node.id);
 
       // Check if this is a blocking node (waiting_for_input).
@@ -6322,11 +6332,7 @@ export class ExecutionEngineService
           break;
 
         case 'use_default':
-          this.contextService.setNodeOutput(
-            this.contextKeyOf(context),
-            node.id,
-            result.output,
-          );
+          this.commitNodeOutput(context, node.id, result.output);
           nodeExecution.status = NodeExecutionStatus.COMPLETED;
           nodeExecution.outputData =
             (result.output as Record<string, unknown>) ?? {};
@@ -6339,11 +6345,7 @@ export class ExecutionEngineService
           break;
 
         case 'route_error':
-          this.contextService.setNodeOutput(
-            this.contextKeyOf(context),
-            node.id,
-            result.output,
-          );
+          this.commitNodeOutput(context, node.id, result.output);
           nodeExecution.status = NodeExecutionStatus.FAILED;
           nodeExecution.error = {
             message: err instanceof Error ? err.message : String(err),
@@ -6469,8 +6471,8 @@ export class ExecutionEngineService
   /**
    * 노드 출력이 error 포트로 라우팅됐는지 판정. `toEngineFlatShape` +
    * `applyPortSelection` 을 거친 flat output 의 `_selectedPort === 'error'`
-   * (문자열) 여부로 본다. Parallel 의 `_selectedPort: ['done']` (배열) 등은
-   * 매칭되지 않는다.
+   * (문자열) 여부로 본다. Parallel 완료의 `_selectedPort: 'done'` 처럼 다른
+   * 포트는 매칭되지 않는다.
    */
   private isErrorPortRouted(finalOutput: unknown): boolean {
     return (
@@ -7635,6 +7637,18 @@ export class ExecutionEngineService
    * mid-flight (validation in {@link planParallelBody} covers statically-
    * declared blocking nodes; this guards against ones emitted via
    * `waiting_for_input` at runtime).
+   *
+   * 반환값은 이 병렬 분기의 결과 노드 ID 다(REQ-PARALLEL-030). 분기 루프가 위상
+   * 순서대로 하나씩 실행하므로 마지막으로 실행해 출력을 남긴 노드가 "실제로 실행된
+   * 노드 가운데 위상 순서가 가장 늦은 노드" 다. 비활성 노드 · `skip_node` 로 건너뛴
+   * 노드(출력 없음) · 분기 안 컨테이너의 본문 노드(이 루프가 아니라
+   * {@link runContainer} 가 실행)는 후보가 아니다. 실행된 노드가 없으면
+   * `undefined` 다.
+   *
+   * "출력을 남겼는가" 는 {@link parallelBranchWrittenNodeIds} 로 판정한다. 엔진이
+   * 분기 캐시에 쓸 때마다 {@link commitNodeOutput} 이 노드 ID 를 적으므로, 캐시에 앞
+   * 실행의 출력이 남아 있어도(Parallel 이 같은 실행에서 다시 실행되는 경우) 값이나
+   * 참조가 같은지 비교하지 않고 이번 실행이 쓴 노드만 센다.
    */
   private async executeParallelBranchBody(
     parallelNode: Node,
@@ -7646,9 +7660,15 @@ export class ExecutionEngineService
     executedNodes: Set<string>,
     executionMeta: { startedAt?: string; mode?: string },
     branchInput: unknown,
-  ): Promise<void> {
-    if (plan.sortedNodeIds.length === 0) return;
+  ): Promise<string | undefined> {
+    if (plan.sortedNodeIds.length === 0) return undefined;
     const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
+    let resultNodeId: string | undefined;
+    const writtenNodeIds = new Set<string>();
+    this.parallelBranchWrittenNodeIds.set(
+      context.nodeOutputCache,
+      writtenNodeIds,
+    );
 
     const reachable = new Set<string>();
     for (const id of plan.entryNodeIds) {
@@ -7707,6 +7727,8 @@ export class ExecutionEngineService
         executionMeta,
         plan.outgoingEdgeMap,
       );
+      // `skip_node` 는 출력을 남기지 않으므로 후보에서 빠진다.
+      if (writtenNodeIds.has(nodeId)) resultNodeId = nodeId;
 
       // PR-G — metadata flag dispatch (CRIT #3 시나리오 D).
       const branchDispatchKind = this.handlerRegistry.getMetadata(
@@ -7755,6 +7777,71 @@ export class ExecutionEngineService
         reachable,
       );
     }
+    return resultNodeId;
+  }
+
+  /**
+   * 노드 출력을 실행 컨텍스트의 `nodeOutputCache` 에 쓰고, 병렬 분기 안이면 그 분기의
+   * 사본에도 옮긴다. 병렬 분기 컨텍스트는 `nodeOutputCache` · `structuredOutputCache`
+   * 의 얕은 복사본을 들고 있고(REQ-PARALLEL-009) `contextService` 는 등록된 루트
+   * 컨텍스트에만 쓰기 때문에, 사본에 옮기지 않으면 같은 분기의 다음 노드 입력
+   * ({@link gatherNodeInput}) · 포트 라우팅(`propagateReachability`) · 표현식이 방금
+   * 쓴 출력을 못 본다.
+   *
+   * **병렬 분기 안에서 실행되는 노드의 출력은 모두 이 메서드로 쓴다.** 쓰기와 사본
+   * 반영을 따로 부르면 한쪽을 빠뜨려도 예외 없이 입력이 비거나 결과 노드가 `null` 이
+   * 되므로 두 동작을 한 곳에 묶었다. 구조화 출력(`setStructuredOutput`)은 이 메서드를
+   * 부르기 전에 써 둔다. 사본 반영이 `structuredOutputCache` 항목도 함께 옮긴다.
+   * `contextService.setNodeOutput` 을 직접 부르는 다른 지점은 병렬 분기 본문에서
+   * 닿지 않는다. 재개 시 캐시 복원, 서브워크플로 호출자 출력 주입, 서브워크플로 트리거
+   * 출력은 분기 사본이 만들어지기 전이거나 별도 그래프의 루프에서 실행되고, 폼 · 버튼
+   * · AI 턴 상호작용은 분기 금지 노드(블로킹)가 쓴다.
+   */
+  private commitNodeOutput(
+    context: ExecutionContext,
+    nodeId: string,
+    output: unknown,
+  ): void {
+    this.contextService.setNodeOutput(
+      this.contextKeyOf(context),
+      nodeId,
+      output,
+    );
+    this.syncParallelBranchCacheEntry(context, nodeId);
+  }
+
+  /**
+   * {@link commitNodeOutput} 의 사본 반영 단계. 등록된 컨텍스트의 캐시와 `context` 의
+   * 캐시가 같은 객체면(분기 밖, 컨테이너 반복 컨텍스트) 아무것도 하지 않는다. 다르면
+   * (병렬 분기 사본) 방금 쓴 항목을 사본에 옮기고, 그 사본을 쓰는 분기 루프가
+   * 결과 노드를 고를 수 있게 노드 ID 를 {@link parallelBranchWrittenNodeIds} 에 적는다.
+   */
+  private syncParallelBranchCacheEntry(
+    context: ExecutionContext,
+    nodeId: string,
+  ): void {
+    const registered = this.contextService.getContext(
+      this.contextKeyOf(context),
+    );
+    if (!registered) return;
+    if (
+      registered.nodeOutputCache !== context.nodeOutputCache &&
+      Object.hasOwn(registered.nodeOutputCache, nodeId)
+    ) {
+      context.nodeOutputCache[nodeId] = registered.nodeOutputCache[nodeId];
+      this.parallelBranchWrittenNodeIds
+        .get(context.nodeOutputCache)
+        ?.add(nodeId);
+    }
+    const registeredStructured = registered.structuredOutputCache;
+    if (
+      registeredStructured &&
+      context.structuredOutputCache &&
+      registeredStructured !== context.structuredOutputCache &&
+      Object.hasOwn(registeredStructured, nodeId)
+    ) {
+      context.structuredOutputCache[nodeId] = registeredStructured[nodeId];
+    }
   }
 
   /**
@@ -7765,7 +7852,7 @@ export class ExecutionEngineService
    *    `maxConcurrency` via p-limit and aggregates failures per
    *    `errorPolicy`.
    * 3. After all branches settle, replace the Parallel node's output with
-   *    `_selectedPort: ['done']` so the main loop's propagateReachability
+   *    `_selectedPort: 'done'` so the main loop's propagateReachability
    *    activates only the `done` port edges while suppressing `branch_N`
    *    edges (preventing re-execution of branch body nodes).
    * 4. Re-propagate reachability from each branch's exit nodes into the
@@ -7963,12 +8050,16 @@ export class ExecutionEngineService
       ? { ...context, parentNodeExecutionId }
       : context;
 
+    // 병렬 분기마다의 결과 노드 ID(REQ-PARALLEL-030). 실패한 분기는 채워지지 않는다.
+    const resultNodeIds: (string | undefined)[] = new Array<string | undefined>(
+      plan.branches.length,
+    );
     const parallelResult = await this.parallelExecutor.execute(
       { branchCount, maxConcurrency, waitAll: true, errorPolicy },
       branchParentContext,
       async (branchIndex, branchContext) => {
         const branchPlan = plan.branches[branchIndex];
-        await this.executeParallelBranchBody(
+        resultNodeIds[branchIndex] = await this.executeParallelBranchBody(
           parallelNode,
           branchPlan,
           allNodes,
@@ -7986,26 +8077,43 @@ export class ExecutionEngineService
       parentParallelConcurrency,
     );
 
-    // Collect each branch's terminal output for the `done` port.
-    // The last node in each branch's topological order is the terminal.
+    // CLE-NODE-PARALLEL v3 — 완료 출력 `{ branches, count, skipped? }`.
+    // 실패한 병렬 분기(`errorPolicy='continue'` 에서만 여기까지 온다) 자리는 `null`
+    // 이고 실패 정보는 `skipped` 에 병렬 분기 번호 오름차순으로 모은다
+    // (ForEach 와 같은 형태, REQ-PARALLEL-012). 실패가 없으면 `skipped` 를 싣지
+    // 않는다(REQ-PARALLEL-029).
+    const failedBranches = new Map(
+      parallelResult.failures.map((f) => [f.branchIndex, f]),
+    );
     const branchResults: unknown[] = [];
     for (const branch of plan.branches) {
-      if (branch.sortedNodeIds.length === 0) {
-        branchResults.push(undefined);
+      const resultNodeId = resultNodeIds[branch.branchIndex];
+      if (
+        failedBranches.has(branch.branchIndex) ||
+        resultNodeId === undefined
+      ) {
+        branchResults.push(null);
         continue;
       }
-      const lastNodeId = branch.sortedNodeIds[branch.sortedNodeIds.length - 1];
-      const rawOutput = context.nodeOutputCache[lastNodeId];
-      branchResults.push(this.stripControlFields(rawOutput));
+      const rawOutput = context.nodeOutputCache[resultNodeId];
+      branchResults.push(this.stripControlFields(rawOutput) ?? null);
     }
-
-    // Replace Parallel's output: `_selectedPort: ['done']` ensures only the
-    // `done` port fires while branch_N edges stay suppressed. The `done`
-    // downstream node receives `{ branches, count }` (CONVENTIONS §9.2).
-    context.nodeOutputCache[parallelNode.id] = {
-      _selectedPort: ['done'],
+    const skipped = parallelResult.failures.map((f) => ({
+      index: f.branchIndex,
+      error: { code: f.code, message: f.error.message },
+    }));
+    const doneOutput = {
       branches: branchResults,
       count: branchResults.length,
+      ...(skipped.length > 0 ? { skipped } : {}),
+    };
+
+    // Replace Parallel's output: `_selectedPort: 'done'` ensures only the
+    // `done` port fires while branch_N edges stay suppressed. `_selectedPort`
+    // 는 노드 출력 `port` 와 같은 모양이라 단일 문자열이다(CLE-EXEC-ENGINE).
+    context.nodeOutputCache[parallelNode.id] = {
+      _selectedPort: 'done',
+      ...doneOutput,
     };
     // parallel-p2 결정 #3 + G + D (runtime 부분, 2026-05-30): 중첩 Parallel 의
     // concurrency cap silent clamp 발생 시 meta.clampedConcurrency 에 기록 —
@@ -8017,8 +8125,8 @@ export class ExecutionEngineService
       parallelNode.id,
       {
         config: echoConfig,
-        output: { branches: branchResults, count: branchResults.length },
-        port: ['done'],
+        output: doneOutput,
+        port: 'done',
         ...(parallelResult.clampedConcurrency
           ? { meta: { clampedConcurrency: parallelResult.clampedConcurrency } }
           : {}),
@@ -8319,11 +8427,7 @@ export class ExecutionEngineService
         ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
       },
     );
-    this.contextService.setNodeOutput(
-      this.contextKeyOf(context),
-      containerNode.id,
-      structuredOutput,
-    );
+    this.commitNodeOutput(context, containerNode.id, structuredOutput);
   }
 
   /**

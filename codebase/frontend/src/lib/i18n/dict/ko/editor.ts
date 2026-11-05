@@ -311,6 +311,7 @@ export const editor = {
     formFileSizeExceeded: "파일 크기는 {{max}}MB 이하여야 합니다.",
     formFileTotalExceeded: "전체 파일 크기는 {{max}}MB 이하여야 합니다.",
     formFileCountExceeded: "최대 {{max}}개까지 업로드할 수 있습니다.",
+    chartEmptySeries: "(빈 값)",
     formMaskedDefaultHint:
       "기본값이 자격증명으로 판별되어 가려졌어요. 값을 직접 입력해 주세요.",
   },

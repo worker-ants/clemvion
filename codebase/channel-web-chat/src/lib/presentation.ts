@@ -57,6 +57,8 @@ export interface TableData {
 export interface ChartPoint {
   x: unknown;
   y?: number | string;
+  /** 시리즈 이름(`groupBy` 를 쓴 bar · line · area). 없으면 단일 시리즈다. */
+  series?: string;
 }
 
 export interface ChartData {
@@ -260,16 +262,47 @@ export function toTable(p: unknown): TableData {
 const CHART_TYPES = new Set(["bar", "line", "area", "pie", "donut"]);
 
 /**
- * presentation envelope → ChartData. output.data[{x,y}] 배열에서 point 목록 추출.
- * chartType 이 알 수 없는 값이면 "bar" 기본값. colors 미설정 시 렌더러가 DEFAULT_CHART_COLORS 사용.
+ * 차트 색으로 받는 문자열 모양. 범례 칩은 `style.background` 에 이 값을 넣으므로 `url(...)` 처럼
+ * 외부 주소를 가져오는 값은 받지 않는다. `#hex`(3 · 4 · 6 · 8자리), `rgb()` · `rgba()` · `hsl()` ·
+ * `hsla()`(괄호 안은 숫자 · 단위 · 구분자만), 색 이름만 허용한다.
+ * 에디터의 `resolveChartColors` 도 같은 규칙으로 거른다.
+ */
+const CHART_COLOR_PATTERNS = [
+  /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,
+  /^(?:rgba?|hsla?)\([0-9a-z.,%+\-\s/]*\)$/i,
+  /^[a-z]+$/i,
+];
+const CHART_COLOR_MAX_LENGTH = 64;
+
+/** `config.colors` 에서 허용 형식의 색만 남긴다. 빈 문자열과 허용 밖의 값은 버린다. */
+export function sanitizeChartColors(colors: unknown): string[] {
+  return asArray(colors).flatMap((c) => {
+    if (typeof c !== "string") return [];
+    const color = c.trim();
+    return color.length > 0 &&
+      color.length <= CHART_COLOR_MAX_LENGTH &&
+      CHART_COLOR_PATTERNS.some((re) => re.test(color))
+      ? [color]
+      : [];
+  });
+}
+
+/**
+ * presentation envelope → ChartData. output.data[{x,y,series?}] 배열에서 point 목록 추출.
+ * 객체가 아닌 항목은 건너뛰고, series 는 문자열로 바꾸고 undefined · null 이면 싣지 않는다.
+ * chartType 이 알 수 없는 값이면 "bar" 기본값. colors 는 허용 형식만 남기고(sanitizeChartColors),
+ * 남은 색이 없으면 렌더러가 위젯 기본 팔레트를 쓴다.
  * xLabel/yLabel 은 config.xAxis.label / config.yAxis.label 에서 추출(빈 문자열이면 undefined).
  */
 export function toChart(p: unknown): ChartData {
   const { config, output } = asEnvelope(p);
-  const points: ChartPoint[] = asArray<Record<string, unknown>>(output.data).map((d) => ({
-    x: d.x,
-    y: typeof d.y === "number" || typeof d.y === "string" ? d.y : undefined,
-  }));
+  const points: ChartPoint[] = asArray(output.data)
+    .filter((d): d is Record<string, unknown> => typeof d === "object" && d !== null && !Array.isArray(d))
+    .map((d) => ({
+      x: d.x,
+      y: typeof d.y === "number" || typeof d.y === "string" ? d.y : undefined,
+      ...(d.series === undefined || d.series === null ? {} : { series: String(d.series) }),
+    }));
   const chartType = CHART_TYPES.has(config.chartType as string)
     ? (config.chartType as ChartData["chartType"])
     : "bar";
@@ -283,7 +316,7 @@ export function toChart(p: unknown): ChartData {
     xLabel: axisLabel(config.xAxis),
     yLabel: axisLabel(config.yAxis),
     points,
-    colors: asArray<string>(config.colors).filter((c) => typeof c === "string"),
+    colors: sanitizeChartColors(config.colors),
     buttons: asButtons(config.buttons),
   };
 }

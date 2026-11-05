@@ -56,6 +56,21 @@ describe('Parallel node', () => {
       expect(handler.validate({ branchCount: 17 }).valid).toBe(false);
     });
 
+    // CLE-NODE-PARALLEL v3 「에러」 — 범위 문구는 경고 규칙 한 곳에서만 나오고
+    // 정수 검사는 validateConfig 가 맡는다. 어느 쪽이든 handler.validate 는 거부한다.
+    it.each([
+      [1, ['branchCount must be a value between 2 and 16.']],
+      [17, ['branchCount must be a value between 2 and 16.']],
+      [2.5, ['branchCount must be an integer.']],
+    ])(
+      'branchCount=%p 는 handler.validate 가 정확히 그 문구 하나로 거부한다',
+      (branchCount, expected) => {
+        const result = handler.validate({ branchCount });
+        expect(result.valid).toBe(false);
+        expect(result.errors).toEqual(expected);
+      },
+    );
+
     it('maxConcurrency: 0~16 범위 내는 valid (0=제한 없음)', () => {
       expect(
         handler.validate({ branchCount: 4, maxConcurrency: 0 }).valid,
@@ -125,6 +140,18 @@ describe('Parallel node', () => {
         'parallel:branch-count-out-of-range',
       );
     });
+
+    // 범위 검사는 이 규칙 한 곳에만 있으므로 advisory 로 낮추면 handler.validate
+    // 가 범위 밖 값을 통과시킨다. 기본(blocking) 심각도를 지킨다.
+    it('parallel:branch-count-out-of-range — 문구는 스펙 문구이고 심각도는 blocking 이다', () => {
+      const rule = parallelNodeMetadata.warningRules?.find(
+        (r) => r.id === 'parallel:branch-count-out-of-range',
+      );
+      expect(rule?.message).toBe(
+        'branchCount must be a value between 2 and 16.',
+      );
+      expect(rule?.severity ?? 'blocking').toBe('blocking');
+    });
   });
 
   describe('validateParallelConfig (imperative)', () => {
@@ -144,10 +171,9 @@ describe('Parallel node', () => {
       );
     });
 
-    it('rejects branchCount=1 (out of range)', () => {
-      expect(validateParallelConfig({ branchCount: 1 })).toContain(
-        'branchCount must be a value between 2 and 16.',
-      );
+    it('branchCount 범위는 경고 규칙 몫이라 정수인 범위 밖 값은 여기서 거부하지 않는다', () => {
+      expect(validateParallelConfig({ branchCount: 1 })).toEqual([]);
+      expect(validateParallelConfig({ branchCount: 17 })).toEqual([]);
     });
 
     it('rejects maxConcurrency=-1', () => {
@@ -213,12 +239,11 @@ describe('Parallel node', () => {
       ).toEqual([]);
     });
 
-    it('surfaces both declarative and imperative messages for branchCount=1', () => {
+    it('branchCount=1 의 범위 문구는 정확히 한 번 나온다', () => {
       const errors = evaluateMetadataBlockingErrors(parallelNodeMetadata, {
         branchCount: 1,
       });
-      expect(errors).toContain('branchCount must be 2 to 16.');
-      expect(errors).toContain('branchCount must be a value between 2 and 16.');
+      expect(errors).toEqual(['branchCount must be a value between 2 and 16.']);
     });
   });
 

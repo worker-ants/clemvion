@@ -72,6 +72,18 @@ export interface ParallelConfig {
 export interface BranchFailure {
   branchIndex: number;
   error: Error;
+  /**
+   * 완료 출력 `skipped[].error.code` 값. 던진 값이 `Error` 면 그 `name`, 아니거나
+   * `name` 이 비었으면 `'UNKNOWN_ERROR'` 다. `error` 는 Error 가 아닌 값을 감싼 뒤라
+   * `name` 이 늘 `'Error'` 여서 감싸기 전에 정한다.
+   *
+   * ForEach 의 `skipped[].error.code`(`foreach-executor.ts`)와 같은 계약이지만 코드는
+   * 따로 구현돼 있고 한 가지가 다르다. `name` 이 빈 문자열이면 ForEach 는 `''` 를,
+   * 여기서는 `'UNKNOWN_ERROR'` 를 낸다. 값이 `UPPER_SNAKE_CASE` 이름 규칙과 카탈로그에
+   * 맞지 않는 문제와 두 실행기의 규칙 통일은 NERV Task `CLE-T-REC4X3` 이 함께 정한다.
+   * 그 전까지 한쪽만 고치면 두 실행기가 어긋난다.
+   */
+  code: string;
 }
 
 export interface ClampedConcurrency {
@@ -220,8 +232,8 @@ export class ParallelExecutor {
             variables: structuredClone(context.variables),
             // INFO #9 (Concurrency) — `nodeOutputCache` / `structuredOutputCache` 의
             // **shallow copy**. 현재 spec 상 parallel 의 각 branch 는 배타적 노드
-            // 집합 (서로 다른 nodeId 들) 을 갖도록 강제되므로 (planParallelBody +
-            // CONTAINER_INVALID_CHILD 검증) 같은 키 충돌은 발생할 수 없지만,
+            // 집합 (서로 다른 nodeId 들) 을 갖도록 강제되므로 (planParallelBody 가
+            // 여러 분기에서 닿는 노드를 join 노드로 빼낸다) 같은 키 충돌은 발생할 수 없지만,
             // 향후 sub-workflow 가 branch 안에서 부모와 같은 nodeId 를 가질
             // 가능성에 대비해 top-level reference 를 분리해 last-write-wins 를
             // 컴파일 타임 차단한다. 값 객체는 여전히 공유 (deep clone 비용 회피)
@@ -263,9 +275,11 @@ export class ParallelExecutor {
       const result = settled[i];
       if (result.status === 'rejected') {
         const reason: unknown = result.reason;
+        const isError = reason instanceof Error;
         failures.push({
           branchIndex: i,
-          error: reason instanceof Error ? reason : new Error(String(reason)),
+          error: isError ? reason : new Error(String(reason)),
+          code: isError && reason.name ? reason.name : 'UNKNOWN_ERROR',
         });
       }
     }

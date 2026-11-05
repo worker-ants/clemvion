@@ -118,6 +118,16 @@ describe('RenderToolProvider.buildTools', () => {
     expect(chart.description).toContain('차트');
   });
 
+  // CLE-NODE-CHART 「표시 도구 페이로드」 — `data` 는 chartConfigSchema 밖이라
+  // 설명 문구가 LLM 에 주는 유일한 모양 계약이다.
+  it('describes render_chart data as { x, y?, series? }[] in the default copy', async () => {
+    const tools = await provider.buildTools(buildCtx([{ type: 'chart' }]));
+    const chart = tools.find((t) => t.name === 'render_chart')!;
+    expect(chart.description).toContain('`{ x, y?, series? }[]`');
+    expect(chart.description).not.toContain('values');
+    expect(chart.description).not.toContain('xAxis/yAxis');
+  });
+
   it('attaches JSON Schema parameters from the presentation node zod schema', async () => {
     const tools = await provider.buildTools(buildCtx([{ type: 'table' }]));
     expect(tools[0].parameters).toBeDefined();

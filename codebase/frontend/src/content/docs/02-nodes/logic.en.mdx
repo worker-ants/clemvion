@@ -323,21 +323,41 @@ Modifying a variable that has not been declared raises an error. Always declare 
 <FieldTable rows={[
   { name: "Branch Count", required: true, type: "number", description: "Number of branches to run in parallel. Between 2 and 16.", default: "2" },
   { name: "Max Concurrency", required: false, type: "number", description: "Max branches running at once. `0` runs everything in parallel; 1–16 caps the concurrent count.", default: "0 (unlimited)" },
-  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "What happens when a branch fails. `stop` fails the whole Parallel on the first failure. `continue` waits for every branch to finish and collects failure info alongside successes. `cancel-others-on-fail` aborts other branches' in-flight external I/O (e.g. HTTP) the moment the first failure surfaces.", default: "stop" }
+  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "What happens when a branch fails. `stop` fails the whole Parallel on the first failure. `continue` waits for every branch to finish, leaves `null` in a failed branch's slot, and collects the failure info in `skipped`. `cancel-others-on-fail` aborts other branches' in-flight external I/O (e.g. HTTP) the moment the first failure surfaces.", default: "stop" }
 ]} />
 
 ### Ports
 
 - **Input**: `in` — the same input is copied to every branch.
 - **Branch outputs**: `branch_0`, `branch_1`, ... — generated dynamically based on Branch Count. Connect the first node of each branch here.
-- **done output**: `done` — fires once every branch has finished, emitting a `{ branches: [branch0Result, branch1Result, ...] }` array.
+- **done output**: `done` — fires once every branch has finished, emitting `{ branches: [branch0Result, branch1Result, ...], count }`. When a branch fails under `continue`, `skipped` is included too.
 
 ### Behavior
 
 - On input, **the same value is emitted simultaneously** to `branch_0`, `branch_1`, and so on.
-- When the env var `PARALLEL_ENGINE=v1` is set, branches run **truly in parallel**. Otherwise they execute sequentially as before.
+- Branches run **truly in parallel** by default. If the server sets `PARALLEL_ENGINE=off`, branches run one at a time in topological order. In that mode the completion output below (`branches`, `count`, `skipped`) is not produced.
 - Max Concurrency caps the number of concurrent branches to protect resources.
-- When every branch completes, each branch's last-node output is collected into `done.branches`.
+- Nodes inside one branch run one at a time in topological order. From the second node on, each node receives the previous node's output as its input, and a path that an If or Switch inside the branch did not pick does not run.
+- When every branch completes, the output of **the latest node that actually ran** in each branch goes into `done.branches`. Nodes that did not run are not used as the result.
+- If more than one end node runs in a branch (for example, both B and C run after A), which one becomes the result depends on internal node ID order. Editing nodes or connections can change it, so to pin the result, collect those paths into a single Merge node at the end of the branch.
+
+### Reading results and failures
+
+Nodes after the `done` port can read:
+
+- `branches[i]` — the result of branch `branch_i`. It is `null` when that branch failed or no node in it ran.
+- `count` — the number of branches. Failed branches keep their slot and are counted.
+- `skipped` — the failed branches when Error Policy is `continue`. Each entry is `{ index, error: { code, message } }`, where `index` is the branch number. When no branch failed, this field is absent.
+
+```ts
+{{ $node["Parallel"].output.branches[0].ok }}           // a field of branch 0's result
+{{ $node["Parallel"].output.skipped[0].error.message }} // error message of the first failure
+{{ $node["Parallel"].port }}                            // "done"
+```
+
+`port` is the string `"done"`. Reading it as an array with `port[0]` returns its first character, `"d"`.
+
+Check which branch failed with the `index` in `skipped`. With Error Policy `stop` or `cancel-others-on-fail`, a branch failure fails the Parallel node and the `done` port never fires.
 
 ### Usage patterns
 
@@ -381,7 +401,7 @@ Both patterns can coexist — use `done` for the full list and Merge for a resha
 </Example>
 
 <Callout type="warn">
-Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
+Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. If a node in a branch ends up waiting for user input while it runs, that branch fails. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
 </Callout>
 
 <Callout type="tip">

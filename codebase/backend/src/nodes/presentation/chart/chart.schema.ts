@@ -128,12 +128,69 @@ export type ChartConfig = z.infer<typeof chartConfigSchema>;
 
 export const chartInputSchema = z.unknown();
 
-export const chartOutputSchema = z.object({
-  type: z.literal('chart'),
-  chartType: z.enum(CHART_TYPES),
-  title: z.string().optional(),
-  data: z.array(z.record(z.string(), z.unknown())),
-});
+/**
+ * Chart runtime output — 표현식 자동완성 힌트(CLE-NODE-CHART 「출력 스키마」).
+ * Table · Carousel 과 같은 노드 출력 다섯 필드 형태다. `output.data` 는 런타임
+ * 집계 결과 `{ x, y?, series? }[]` 이고 `series` 는 `groupBy` 를 쓴 bar · line ·
+ * area 에만 있다. 리터럴 설정(`chartType` · `title`)과 옛 판별자 `type: 'chart'`
+ * 는 출력 값에 두지 않는다(노드 출력 규약 Principle 1.1). 버튼을 누르면 엔진이
+ * `output.interaction.{type, data, receivedAt}` 을 채운다.
+ */
+export const chartOutputSchema = z
+  .object({
+    config: z
+      .object({
+        chartType: z.enum(CHART_TYPES).optional(),
+        title: z.string().optional(),
+        dataField: z.string().optional(),
+        xAxis: xAxisSchema.optional(),
+        yAxis: yAxisSchema.optional(),
+        groupBy: z.string().optional(),
+        colors: z.array(z.string()).optional(),
+        buttons: z.array(buttonDefSchema).optional(),
+        buttonConfig: z.record(z.string(), z.unknown()).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        data: z
+          .array(
+            z
+              .object({
+                x: z.unknown(),
+                y: z.unknown().optional(),
+                series: z.string().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+        interaction: z
+          .object({
+            type: z.string().optional(),
+            data: z.record(z.string(), z.unknown()).optional(),
+            receivedAt: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        interactionType: z.string().optional(),
+        durationMs: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
 
 export const chartPorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],

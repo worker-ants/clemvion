@@ -231,16 +231,39 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
 }
 
 // ===== Chart =====
+/** `groupBy` 로 시리즈를 나누는 차트 유형. pie · donut 은 Group By 입력을 감추고 저장된 값은 둔다. */
+const SERIES_CHART_TYPES = new Set(["bar", "line", "area"]);
+
+function hasValue(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== "";
+}
+
 export function ChartConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   const t = useT();
+  const chartType = (config.chartType as string) ?? "bar";
   const xAxis = (config.xAxis as { field?: string; label?: string } | undefined) ?? {};
   const yAxis =
     (config.yAxis as { field?: string; label?: string; aggregation?: string } | undefined) ?? {};
+  // 이전 화면이 저장한 호환 키 `dataSource`. 새로 쓰지 않고 안내와 지우기만 둔다(CLE-NODE-CHART 설정 화면).
+  const legacyDataSource = config.dataSource;
+
+  const clearLegacyDataSource = () => {
+    const { dataSource: _dataSource, ...rest } = config;
+    void _dataSource;
+    onChange(rest);
+  };
+
+  const changeAggregation = (v: string) => {
+    const { aggregation: _aggregation, ...restY } = yAxis;
+    void _aggregation;
+    onChange({ ...config, yAxis: v ? { ...restY, aggregation: v } : restY });
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <SelectField
         label={t("nodeConfigs.presentation.chartType")}
-        value={(config.chartType as string) ?? "bar"}
+        value={chartType}
         onChange={(v) => onChange({ ...config, chartType: v })}
         options={[
           { value: "bar", label: t("nodeConfigs.presentation.chartBar") },
@@ -251,12 +274,48 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
         ]}
       />
       <ExpressionInput
-        label={t("nodeConfigs.presentation.dataSource")}
-        value={(config.dataSource as string) ?? ""}
-        onChange={(v) => onChange({ ...config, dataSource: v })}
-        placeholder="{{$var.items}}"
-        hint={t("nodeConfigs.presentation.chartDataHint")}
+        label={t("nodeConfigs.presentation.title")}
+        value={(config.title as string) ?? ""}
+        onChange={(v) => onChange({ ...config, title: v })}
+        placeholder={t("nodeConfigs.presentation.chartTitle")}
       />
+      <SectionTitle>{t("nodeConfigs.presentation.chartDataSection")}</SectionTitle>
+      <ExpressionInput
+        label={t("nodeConfigs.presentation.dataField")}
+        value={(config.dataField as string) ?? ""}
+        onChange={(v) => onChange({ ...config, dataField: v })}
+        placeholder={t("nodeConfigs.presentation.dataFieldPlaceholder")}
+        hint={t("nodeConfigs.presentation.dataFieldHint")}
+      />
+      {hasValue(legacyDataSource) && (
+        <div
+          data-testid="chart-legacy-data-source"
+          className="flex flex-col gap-1 rounded-md border border-[hsl(var(--border))] p-2"
+        >
+          <span className="text-xs font-medium">
+            {t("nodeConfigs.presentation.chartLegacyDataSource")}
+          </span>
+          <div className="flex items-center gap-1">
+            <code className="flex-1 truncate rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[11px]">
+              {typeof legacyDataSource === "string"
+                ? legacyDataSource
+                : JSON.stringify(legacyDataSource)}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 shrink-0 text-xs"
+              onClick={clearLegacyDataSource}
+            >
+              <X size={12} className="mr-1" />
+              {t("nodeConfigs.presentation.chartLegacyDataSourceClear")}
+            </Button>
+          </div>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            {t("nodeConfigs.presentation.chartLegacyDataSourceNotice")}
+          </span>
+        </div>
+      )}
       <SectionTitle>{t("nodeConfigs.presentation.xAxis")}</SectionTitle>
       <ExpressionInput
         label={t("nodeConfigs.presentation.field")}
@@ -285,9 +344,10 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
       />
       <SelectField
         label={t("nodeConfigs.presentation.aggregation")}
-        value={yAxis.aggregation ?? "sum"}
-        onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, aggregation: v } })}
+        value={yAxis.aggregation ?? ""}
+        onChange={changeAggregation}
         options={[
+          { value: "", label: t("nodeConfigs.presentation.aggNone") },
           { value: "sum", label: t("nodeConfigs.presentation.aggSum") },
           { value: "count", label: t("nodeConfigs.presentation.aggCount") },
           { value: "avg", label: t("nodeConfigs.presentation.aggAverage") },
@@ -295,18 +355,17 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
           { value: "max", label: t("nodeConfigs.presentation.aggMax") },
         ]}
       />
-      <ExpressionInput
-        label={t("nodeConfigs.presentation.groupBy")}
-        value={(config.groupBy as string) ?? ""}
-        onChange={(v) => onChange({ ...config, groupBy: v })}
-        placeholder={t("nodeConfigs.presentation.groupByHint")}
-      />
-      <ExpressionInput
-        label={t("nodeConfigs.presentation.title")}
-        value={(config.title as string) ?? ""}
-        onChange={(v) => onChange({ ...config, title: v })}
-        placeholder={t("nodeConfigs.presentation.chartTitle")}
-      />
+      {SERIES_CHART_TYPES.has(chartType) && (
+        <>
+          <SectionTitle>{t("nodeConfigs.presentation.chartGroupSection")}</SectionTitle>
+          <ExpressionInput
+            label={t("nodeConfigs.presentation.groupBy")}
+            value={(config.groupBy as string) ?? ""}
+            onChange={(v) => onChange({ ...config, groupBy: v })}
+            placeholder={t("nodeConfigs.presentation.groupByHint")}
+          />
+        </>
+      )}
 
       <ButtonsConfig config={config} onChange={onChange} />
     </div>

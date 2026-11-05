@@ -47,7 +47,8 @@ export class ParallelHandler implements NodeHandler {
     //
     // CONVENTIONS Principle 9 (container handler / engine override):
     // `output: null` mirrors loop/foreach/map. The engine overrides on
-    // completion with `{ branches: [...] }` (allSettled-shaped entries).
+    // completion with `{ branches, count, skipped? }` — 성공한 병렬 분기는 결과를
+    // 그대로 담고 실패한 자리는 `null` 이다(CLE-NODE-PARALLEL 「완료 시점」).
     const rawConfig = context.rawConfig ?? config;
     return {
       config: {

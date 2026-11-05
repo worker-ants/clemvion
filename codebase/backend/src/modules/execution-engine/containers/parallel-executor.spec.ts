@@ -216,10 +216,44 @@ describe('ParallelExecutor', () => {
     expect(result.failures.length).toBe(1);
     expect(result.failures[0].branchIndex).toBe(2);
     expect(result.failures[0].error.message).toBe('branch-2-fail');
+    expect(result.failures[0].code).toBe('Error');
     // Other branches still succeeded
     expect(result.settled.filter((s) => s.status === 'fulfilled').length).toBe(
       2,
     );
+  });
+
+  // CLE-NODE-PARALLEL v3 — skipped[].error.code 는 error.name, 없으면 UNKNOWN_ERROR.
+  it('errorPolicy=continue: failure code 는 error.name 이고 Error 가 아니거나 name 이 비면 UNKNOWN_ERROR', async () => {
+    class NotifyError extends Error {
+      override name = 'NotifyError';
+    }
+    const result = await executor.execute(
+      {
+        branchCount: 3,
+        maxConcurrency: 0,
+        waitAll: true,
+        errorPolicy: 'continue',
+      },
+      baseContext,
+      async (branchIndex) => {
+        if (branchIndex === 0) throw new NotifyError('custom');
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentionally exercises the non-Error branch (executor coerces to UNKNOWN_ERROR)
+        if (branchIndex === 1) throw 'plain string';
+        const nameless = new Error('nameless');
+        nameless.name = '';
+        throw nameless;
+      },
+      undefined,
+    );
+
+    expect(
+      result.failures.map((f) => [f.branchIndex, f.code, f.error.message]),
+    ).toEqual([
+      [0, 'NotifyError', 'custom'],
+      [1, 'UNKNOWN_ERROR', 'plain string'],
+      [2, 'UNKNOWN_ERROR', 'nameless'],
+    ]);
   });
 
   // ai-review C5 (2026-07-26) — 대칭: foreach-executor.spec.ts §ai-review C3.

@@ -94,6 +94,64 @@ describe("converters", () => {
     expect(c.chartType).toBe("bar");
     expect(c.points).toEqual([{ x: "a", y: 3 }]);
   });
+  it("toChart — series 는 문자열로 싣고 undefined · null 이면 싣지 않는다", () => {
+    const c = toChart({
+      config: { chartType: "bar" },
+      output: {
+        data: [
+          { x: "a", y: 1, series: "S" },
+          { x: "a", y: 2, series: 1 },
+          { x: "b", y: 3, series: null },
+          { x: "c", y: 4 },
+        ],
+      },
+    });
+    expect(c.points).toEqual([
+      { x: "a", y: 1, series: "S" },
+      { x: "a", y: 2, series: "1" },
+      { x: "b", y: 3 },
+      { x: "c", y: 4 },
+    ]);
+  });
+  it("toChart — 객체가 아닌 data 항목은 건너뛴다", () => {
+    const c = toChart({
+      config: { chartType: "bar" },
+      output: { data: [null, { x: "a", y: 1 }, 5, "s", undefined, [1], { x: "b", y: 2 }] },
+    });
+    expect(c.points).toEqual([
+      { x: "a", y: 1 },
+      { x: "b", y: 2 },
+    ]);
+  });
+  it("toChart — colors 는 허용 형식만 남기고 앞뒤 공백을 지운다", () => {
+    const c = toChart({
+      config: {
+        chartType: "bar",
+        colors: [
+          "#111111",
+          " rgb(1, 2, 3) ",
+          "hsla(120, 50%, 50%, 0.5)",
+          "red",
+          "",
+          "   ",
+          3,
+          null,
+          "url(https://attacker.example/p?d=1)",
+          "red;background:url(x)",
+          "var(--brand)",
+          "#12345",
+        ],
+      },
+      output: { data: [{ x: "a", y: 1 }] },
+    });
+    expect(c.colors).toEqual(["#111111", "rgb(1, 2, 3)", "hsla(120, 50%, 50%, 0.5)", "red"]);
+  });
+  it("toChart — colors 가 배열이 아니거나 남은 값이 없으면 빈 배열이다", () => {
+    expect(toChart({ config: { colors: "#111" }, output: { data: [] } }).colors).toEqual([]);
+    expect(
+      toChart({ config: { colors: ["url(x)", ""] }, output: { data: [] } }).colors,
+    ).toEqual([]);
+  });
   it("toChart — xAxis/yAxis.label 추출", () => {
     const c = toChart({
       config: { chartType: "line", xAxis: { field: "m", label: "월" }, yAxis: { field: "v", label: "매출" } },

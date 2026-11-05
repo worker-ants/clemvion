@@ -130,29 +130,55 @@ Table has pagination on by default. With a hard cap of 200 rows/page, large data
 ### When to use it
 
 - To visualize numeric data as a **bar, line, pie, donut, or area** chart.
-- Duplicate X values are combined via aggregation automatically.
+- In bar, line, and area charts, `groupBy` splits the data into series so one chart can show several series.
+- When you set `yAxis.aggregation`, rows that share an X value are combined (sum, average, and so on). Without it, nothing is aggregated and the input rows are drawn as they are.
 
 ### Fields
 
 <FieldTable rows={[
   {name: "chartType", required: true, type: "`bar` / `line` / `pie` / `donut` / `area`", description: "Chart type.", default: "bar"},
-  {name: "dataField", required: true, type: "string", description: "Path to the data array.", default: "-"},
+  {name: "dataField", required: false, type: "string", description: "When the input is an object, the top-level key that holds the data array. Dot paths are not followed. If empty, the input itself is used as the array (a non-array input counts as a one-item array). If you set `dataField` but the value at that key is not an array, the chart is empty.", default: "Empty"},
   {name: "xAxis", required: true, type: "AxisDef", description: "X-axis definition. `field` (required) and optional `label`.", default: "-"},
-  {name: "yAxis", required: true, type: "AxisDef", description: "Y-axis definition. `field`, `label`, `aggregation` (sum/count/avg/min/max).", default: "-"},
-  {name: "groupBy", required: false, type: "string", description: "Field to group by for multi-series charts.", default: "-"},
+  {name: "yAxis", required: true, type: "AxisDef", description: "Y-axis definition. `field`, `label`, `aggregation` (sum/count/avg/min/max). `aggregation` is optional.", default: "-"},
+  {name: "groupBy", required: false, type: "string", description: "Field that splits the data into series. Used only by bar, line, and area charts. Pie and donut charts do not use it.", default: "-"},
   {name: "title", required: false, type: "string", description: "Chart title.", default: "-"},
-  {name: "colors", required: false, type: "string[]", description: "Custom color palette.", default: "-"},
+  {name: "colors", required: false, type: "string[]", description: "Color list. If empty, the default palette is used. See \"Series and colors\" below for the rules. The settings screen has no color input yet.", default: "-"},
   {name: "buttons", required: false, type: "ButtonDef[]", description: "Blocking buttons.", default: "[]"}
 ]} />
 
+<Callout type="note">
+If a node saved a Data Source expression from the earlier settings screen, the settings screen shows a **Data Source (legacy)** notice with a **Clear** button. That value is used only while `dataField` is empty. An expression cannot be moved to `dataField`. To chart another node's data, put the node that produces it before Chart, connect it as the input, then press **Clear** to remove this value.
+</Callout>
+
 ### Aggregation rules
 
+When you set `yAxis.aggregation`, rows with the same X value are grouped and their Y values are aggregated. With `groupBy`, rows must share both the X value and the series to be grouped together.
+
 <FieldTable rows={[
-  {name: "sum (default)", required: false, type: "Same X key", description: "Sum Y values mapped to the same X key. null/undefined are skipped.", default: "-"},
-  {name: "count", required: false, type: "Row count", description: "Count rows that share an X key, including null Y values.", default: "-"},
-  {name: "avg / min / max", required: false, type: "Average / min / max", description: "null/undefined Y values are skipped — and excluded from the denominator in avg.", default: "-"},
-  {name: "null X axis", required: false, type: "Excluded", description: "Rows with null/undefined X are dropped from the chart.", default: "-"}
+  {name: "Not set", required: false, type: "No aggregation", description: "Nothing is aggregated and the values of the input rows are used as they are. There is no default aggregation. In the settings screen dropdown this is **None (raw values)**.", default: "-"},
+  {name: "sum", required: false, type: "Total", description: "Sum the Y values in the same group. An unknown `aggregation` value is also treated as sum.", default: "-"},
+  {name: "count", required: false, type: "Row count", description: "Count the rows in the same group, including rows whose Y value is null.", default: "-"},
+  {name: "avg / min / max", required: false, type: "Average / min / max", description: "Compute the average, minimum, or maximum of the Y values in the same group.", default: "-"}
 ]} />
+
+A Y value that cannot be converted to a number, and null or undefined, is not skipped. It is **turned into 0** and included in the aggregation, and it also counts in the denominator of avg. A row without an X value stays as a group whose X value is empty. To drop such rows, put a [Filter](/docs/02-nodes/logic#filter) node before the Chart.
+
+### Series and colors
+
+**Splitting into series (`groupBy`)**
+
+- In bar, line, and area charts, `groupBy` converts each item's group field value to a string and uses it as the series name. Every point in `output.data` gets a `series`, and all series live together in the single `output.data` array.
+- Each series is drawn as its own bar, line, or area, and the legend shows the series names. X values and series appear in the order they first occur in the input.
+- Items whose group value is null or missing are grouped into a series with an empty name. The legend shows it as "(empty)".
+- Aggregation runs for each (series, X value) group. If you do not set an aggregation and the same (series, X value) occurs more than once, the last value is drawn. Set `aggregation` to include all values.
+- Pie and donut charts do not use `groupBy`. The settings screen hides the **Group By** input for them, but the saved value stays. If you switch the chart type back to bar, line, or area, that value is used again.
+
+**Colors (`colors`)**
+
+- Bar, line, and area charts give the i-th series the color at position `i % number of colors` in `colors`. With a single series, every bar uses the first color.
+- Pie and donut charts cycle through `colors` slice by slice.
+- Colors must be a hex value such as `#3B82F6`, `rgb()`, `rgba()`, `hsl()`, `hsla()`, or a color name such as `red`. Values in any other format are skipped.
+- If `colors` is empty or has no usable color, the default palette is used with the same rules.
 
 ### Example
 
@@ -170,6 +196,42 @@ Table has pagination on by default. With a hard cap of 200 rows/page, large data
 }
 ```
 </Example>
+
+This config sums the `sales` array of the input object by month (`month`) and creates one bar series per `region` value. The first series is drawn in `#3B82F6` and the second in `#10B981`.
+
+<Example title="Creating a series per region with groupBy">
+```ts
+// input
+{
+  sales: [
+    { month: "Jan", region: "Seoul", revenue: 700 },
+    { month: "Jan", region: "Seoul", revenue: 500 },
+    { month: "Jan", region: "Busan", revenue: 800 },
+    { month: "Feb", region: "Seoul", revenue: 1500 },
+    { month: "Feb", region: "Busan", revenue: 900 }
+  ]
+}
+
+// config
+{
+  chartType: "line",
+  dataField: "sales",
+  xAxis: { field: "month" },
+  yAxis: { field: "revenue", aggregation: "sum" },
+  groupBy: "region"
+}
+
+// output.data: one array of points, summed per (series, X) group
+[
+  { x: "Jan", y: 1200, series: "Seoul" },
+  { x: "Jan", y: 800, series: "Busan" },
+  { x: "Feb", y: 1500, series: "Seoul" },
+  { x: "Feb", y: 900, series: "Busan" }
+]
+```
+</Example>
+
+With `groupBy`, each point carries a `series`. If the node is named `Chart`, `{{ $node["Chart"].output.data[1].series }}` is `"Busan"` and `{{ $node["Chart"].output.data[1].y }}` is `800`. Without `groupBy`, you only get `{ x, y }` points with no `series`.
 
 ## Form
 
