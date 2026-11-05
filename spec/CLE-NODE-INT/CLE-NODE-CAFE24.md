@@ -2,21 +2,21 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "a67cfaeb2c66877ee6c438a52cec31531f531c56892998328828d8713cb4be57"
+content_hash: "b8442aaf993c95d1bf368966ffc763d00a511a3b3ddcf550c0fb1d3799819357"
 read_as: "approved_fallback"
 task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ec514f16ef44f9e25af4e3035975cfa5afc363a0a5cdccadc758b8b8e0f5c6fb"
-etag: "sha256-694ba1b5b3cb835265ea11330d391233a3cb4884405d70e7abad97f23089b7c2"
+mirror_sha256: "3ab81027257a067038d39aa174ee98fc2ff6782fa00cb75a3c9c21b655eaf1ed"
+etag: "sha256-62a99a52afc5723b15bcaf93a5966a7522f60efe2df15ac02ac0648feee9de9e"
 ---
-> 구현 상태: 부분 구현 (통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -168,7 +168,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
    - 401 을 받으면 리프레시 토큰으로 액세스 토큰을 한 번 갱신하고 같은 요청을 한 번 재시도한다. 6단계의 사전 갱신이 경쟁 구간에서 빗나간 경우를 이렇게 되살린다. 재시도가 2xx 면 정상 흐름으로 가고, 재시도도 401 이면 인증 실패로 격하한다(아래 "인증 실패 처리"). 403 은 이 갱신 대상이 아니며 즉시 격하한다.
    - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
 10. **응답 파싱**: JSON 본문을 그대로 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs`, `meta.callUsage`(헤더 `X-Cafe24-Call-Usage`), `meta.callRemain`(헤더 `X-Cafe24-Call-Remain`)을 채운다.
-11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 1건 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 아래 에러 코드 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 1건 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). operation 조회(1단계)와 필수 필드 검사(5단계)의 실패도 통합을 얻기 전에 끝나므로 남기지 않는다. 현재 구현은 5단계 검사를 3단계보다 먼저 한다. dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 아래 에러 코드 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
     - `api_label` = 카탈로그 키 `cafe24.<resource>.<operation>`(예: `cafe24.product.product_list`). 프론트엔드가 `GET /api/integrations/services/cafe24/catalog` 응답의 `labelKey` 와 i18n 사전으로 사람이 읽는 라벨을 만든다. DB 에는 언어 정보가 없는 카탈로그 키만 저장한다.
     - `api_method` = 메타데이터 행의 `method`(`GET`·`POST`·`PUT`·`DELETE`).
     - `api_path` = 메타데이터 행의 `path` 템플릿. placeholder 를 그대로 둔다(예: `products/{product_no}`). 실제 호출 URL 의 치환값을 넣지 않는다. 엔드포인트 단위로 묶고 path 안 ID 에 담긴 개인정보가 새지 않게 하기 위해서다.

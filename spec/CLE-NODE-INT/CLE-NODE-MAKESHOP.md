@@ -2,21 +2,21 @@
 id: "CLE-NODE-MAKESHOP"
 title: "MakeShop 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046", "REQ-MKSNODE-047"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "60cc88cab4e30d516eda61229cb86c3436dd002f07e0d7e088011a9144536f40"
+content_hash: "0338a092764b597ad967773bff8804d553bc36a26b6920cde026c49e0d8b88aa"
 read_as: "approved_fallback"
 task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "d5efecd1dfa2c04940d361623fb1c7752cd971f71b471d578156a44a7063171b"
-etag: "sha256-7312d02cbd3a95a787ee1b76672283ad42d2f44973d1bbcf642f96dbb771aa3b"
+mirror_sha256: "e14d938c2d30fab1eae3ae854ddd390ca85b98032d7dffd491e7d49c10ec644c"
+etag: "sha256-5a0f25f45c906eedb0378601f5ca5e413c8b357b63164011c4e0170f409e6d07"
 ---
-> 구현 상태: 부분 구현 (통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다. 일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -441,7 +441,7 @@ Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
 
 - 페이지네이션 전송(REQ-MKSNODE-005, Task CLE-T-XVS8H7): 원래 "페이지네이션 입력을 보여 주고 그 값을 query 로 보낸다" 였다. 이제는 `limit` · `page` 로 바꿔 보내고 `offset` 은 보내지 않는다.
 - 설정 에코(REQ-MKSNODE-028, Task CLE-T-XVS8H7): 에코하는 값이 사용자가 넣은 원래 값(`offset` 포함)이라고 밝혔다.
-- 활동 로그(REQ-MKSNODE-029): 원래 "호출이 끝나면 성공·실패와 관계없이 활동 로그를 1건 남긴다" 였다. 통합을 해소한 뒤(당시 표현) 끝난 실행으로 범위를 좁히고 노드 취소 신호로 끝난 호출은 남기지 않는다고 더했다. 해소 전 실패의 기록은 알려진 결함(Task CLE-T-PTC4SF)이라 요구사항으로 굳히지 않는다.
+- 활동 로그(REQ-MKSNODE-029): 원래 "호출이 끝나면 성공·실패와 관계없이 활동 로그를 1건 남긴다" 였다. 통합을 해소한 뒤(당시 표현) 끝난 실행으로 범위를 좁히고 노드 취소 신호로 끝난 호출은 남기지 않는다고 더했다. 해소 전 실패의 기록은 알려진 결함(Task CLE-T-PTC4SF)이라 요구사항으로 굳히지 않는다. 2026-11-05 에 CLE-T-PTC4SF 가 고쳐 통합을 얻기 전에 끝난 실패는 남기지 않는다.
 - 페이지네이션 세부 규칙(REQ-MKSNODE-038 ~ REQ-MKSNODE-046, Task CLE-T-XVS8H7): 경계값 · 거절 · `fields` 와의 우선순위 · 사전 검증 · 설정 화면 동작을 새로 두었다.
 
 ### dry-run 판정과 활동 로그 (2026-10-23)

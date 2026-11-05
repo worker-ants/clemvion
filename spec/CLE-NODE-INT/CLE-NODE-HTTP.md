@@ -2,21 +2,21 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033", "REQ-HTTP-034", "REQ-HTTP-035", "REQ-HTTP-036", "REQ-HTTP-037"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "11ddcfd95e20fb4e22e662b129b1c18939fa151fcde86c830fe6bd020356d5f5"
+content_hash: "0416b1cd1ddd2bc1cd552eb4a9eabad9fb2163676884c416ffa92c2c348f4211"
 read_as: "approved_fallback"
 task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "80fddd8762faacf6071c1cb665f99c847f6c06ca316cca2ab538659d0f405e7c"
-etag: "sha256-2a206f5bd8286504e6d6dfaea5849f13f560d013ba60c88003552b27618d6388"
+mirror_sha256: "10d65eb6d8e6a7f16f713f974e05d76c599deb7614c59cf37e4b7eea39db88a0"
+etag: "sha256-2e8b4c99495b2273c2dfe98fff353b8368c57ef6039a2e7a7a315f612d7764ec"
 ---
-> 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글과 통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 

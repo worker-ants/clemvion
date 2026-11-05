@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067", "REQ-INTMGMT-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "4c14491c5cba3142f8e56bbd5920668de24eac871ae626d6f3700b624f4367fd"
+content_hash: "210e9478dd95639274486f5d9c1412b513206cb73e175b4b2c3a3a06238cf30e"
 read_as: "approved_fallback"
 task: "CLE-T-PTC4SF"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "b47888eddda60c8b45003a6651367f4b99cff2f1aead358d393a40476ebe1832"
-etag: "sha256-cc787463fe773bb4adbf46762f6d91aabfe23cc2b78e30e3c760aca449398334"
+mirror_sha256: "a5b41194788ab08cf8597b22a4a888a37ba5c8142f7f73a1336c82018d54ecc1"
+etag: "sha256-f53b53b8f24b88e7b9af466b88589edb3c1141ba40cb799096abd4b92a400c53"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -87,7 +87,7 @@ etag: "sha256-cc787463fe773bb4adbf46762f6d91aabfe23cc2b78e30e3c760aca449398334"
 - REQ-INTMGMT-050 WHEN 통합 재인증 응답이 `cafe24_private_pending` 이면 THE SYSTEM SHALL 팝업을 열지 않고 info 토스트를 보인 뒤 통합을 다시 조회한다.
 - REQ-INTMGMT-051 WHEN 뷰어가 자기 개인 통합을 삭제하면 THE SYSTEM SHALL 다른 역할과 같은 사용처 검사를 거쳐 허용한다.
 - REQ-INTMGMT-052 IF 실행 중인 노드가 워크플로우 작성자가 통합 소유자가 아닌 개인 통합을 참조하면 THE SYSTEM SHALL 없는 통합을 참조할 때와 똑같이 통합 노드는 같은 노드 에러 코드로 실패시키고 AI 에이전트의 MCP 서버 항목은 그 서버만 건너뛴다.
-- REQ-INTMGMT-053 IF 통합 노드나 MCP 서버 항목이 통합을 얻기 전에 실패하면 THE SYSTEM SHALL 설정의 통합 ID 로 활동 로그를 남기지 않고 그 통합의 `last_used_at`·`last_error` 도 쓰지 않는다. (부분 구현, NERV Task `CLE-T-PTC4SF`)
+- REQ-INTMGMT-053 IF 통합 노드나 MCP 서버 항목이 통합을 얻기 전에 실패하면 THE SYSTEM SHALL 설정의 통합 ID 로 활동 로그를 남기지 않고 그 통합의 `last_used_at`·`last_error` 도 쓰지 않는다.
 - REQ-INTMGMT-054 IF 노드 생성·노드 설정 수정·캔버스 저장 요청이 새로 넣거나 바꾼 통합 참조가 워크스페이스에 없는 통합이나 저장자 또는 워크플로우 작성자가 통합 소유자가 아닌 개인 통합을 가리키면 THE SYSTEM SHALL 거절 이유를 구분하지 않고 400 `VALIDATION_ERROR`(`details[].code`=`INVALID_FIELD`)로 거절한다. 복제·가져오기·버전 복원은 거절하지 않고 참조를 비운다(REQ-WFLIST-054·055, REQ-WFVER-026). 참조 값이 표현식이면 거절하지도 비우지도 않고 실행 시점 판정에 맡긴다(REQ-INTMGMT-059).
 - REQ-INTMGMT-055 IF 실행 중 노드가 속한 워크플로우의 작성자를 알 수 없으면 THE SYSTEM SHALL 그 노드의 개인 통합 참조를 워크플로우 작성자가 통합 소유자가 아닐 때와 같이 처리한다.
 - REQ-INTMGMT-056 IF 지금 사용자가 워크플로우 작성자가 아니면 THE SYSTEM SHALL 통합 선택기에서 자기 개인 통합을 고를 수 없는 항목으로 보이고 그 이유를 함께 보인다.
@@ -96,7 +96,7 @@ etag: "sha256-cc787463fe773bb4adbf46762f6d91aabfe23cc2b78e30e3c760aca449398334"
 - REQ-INTMGMT-059 IF 실행 중 노드의 통합 참조 값이 표현식으로 정해지고 그 값이 개인 통합을 가리키면 THE SYSTEM SHALL 그 참조를 워크플로우 작성자가 통합 소유자가 아닐 때와 같이 처리한다. 평가 전 원본 값을 확인하지 못한 참조도 표현식으로 정한 참조로 본다.
 - REQ-INTMGMT-060 WHEN 통합 삭제 요청을 받으면 THE SYSTEM SHALL 존재와 조회 권한(404), 역할(403), 사용처(409) 순으로 판정하고 셋을 모두 통과한 뒤에만 캐시 무효화와 감사 로그를 남긴다.
 - REQ-INTMGMT-061 IF 뷰어가 저장 전 연결 테스트를 부르면 THE SYSTEM SHALL 403 `EDITOR_REQUIRED` 로 거절한다.
-- REQ-INTMGMT-062 WHEN 활동 로그를 기록하면 THE SYSTEM SHALL 실행 중에 조회해 얻은 통합에만 활동 로그와 그 통합의 `last_used_at`·`last_error` 를 쓴다. (미구현, NERV Task `CLE-T-PTC4SF`)
+- REQ-INTMGMT-062 WHEN 활동 로그를 기록하면 THE SYSTEM SHALL 실행 중에 조회해 얻은 통합에만 활동 로그와 그 통합의 `last_used_at`·`last_error` 를 쓴다.
 - REQ-INTMGMT-063 WHEN 통합 목록이나 상세 화면을 보이면 THE SYSTEM SHALL 지금 사용자가 역할이나 통합 소유 때문에 할 수 없는 변경 동작(목록 헤더와 빈 상태의 통합 추가, 별칭 수정, 통합 재인증, 자격 증명 교체, 추가 권한 요청, 공개 범위 전환, 삭제)의 버튼을 보이지 않고 공개 범위 전환과 삭제를 둘 다 할 수 없으면 위험 영역 탭도 보이지 않는다. 통합 추가를 할 수 없으면 `N` 키로도 추가 모달이 열리지 않는다. 연결 테스트처럼 조회성 동작의 버튼은 보인다.
 - REQ-INTMGMT-064 IF 뷰어가 통합 추가 화면 주소(`/integrations/new`)로 들어오면 THE SYSTEM SHALL 추가 단계 대신 편집자 이상만 통합을 추가할 수 있다는 안내와 목록으로 돌아가는 링크를 보인다.
 - REQ-INTMGMT-065 WHEN 멤버가 워크스페이스를 나가거나 제거되면 THE SYSTEM SHALL 멤버십을 지우는 트랜잭션 안에서 그 멤버가 통합 소유자인 그 워크스페이스의 개인 통합을 상태와 사용처에 관계없이 모두 지운다. 커밋 뒤 지운 통합마다 캐시를 무효화하고 `details.mode` 와 `details.memberUserId` 를 실은 `integration.deleted` 감사 로그를 남긴다.
@@ -400,11 +400,6 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 - **설치 대기 행 재사용은 공개 범위를 넓힐 수 있다.** 개인 공개 범위로 시작한 `oauth/begin` 이 같은 상점(MakeShop 은 같은 `client_id`)의 조직 설치 대기 행을 다시 쓰면 결과 통합은 조직 공개 범위가 된다. 행의 공개 범위는 바뀌지 않고 요청과 달라질 뿐이다. 그래서 `integration.scope_changed` 감사 로그를 남기지 않는다. 이것은 [위험 영역 탭](#위험-영역-탭) 의 공개 범위 전환 확인 규칙 밖의 명시적 예외다. 그 행은 관리자 이상만 다시 쓸 수 있고 응답의 `scope` 와 [추가 흐름 안내](#인증-단계)로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)).
 - **고르는 화면은 저장 검사를 통과할 통합만 고르게 한다.** 노드 설정 패널의 통합 선택기는 지금 사용자가 워크플로우 작성자가 아니면 그 사용자의 개인 통합을 고를 수 없는 항목으로 보인다. 어시스턴트의 통합 목록 도구와 노드 후보는 그 통합을 아예 뺀다. 붙여넣거나 복제한 노드는 지금 사용자가 고를 수 없는 참조를 비우고 경고한다. 화면 규칙은 [워크플로우 에디터](#워크플로우-에디터), [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#위젯별-후보-조회-범위), [에디터](../CLE-WF/CLE-WF-EDITOR.md#노드-조작) 가 정한다.
 
-정했지만 아직 코드에 없는 것:
-
-- 활동 로그. NERV Task `CLE-T-PTC4SF` 가 맡는다. 통합을 얻기 전에 끝난 실패의 기록(REQ-INTMGMT-053)과 얻은 통합에만 쓰는 활동 로그(REQ-INTMGMT-062)다. `logUsage` 가 통합 ID 대신 얻은 통합을 받도록 서명을 바꾸는 일도 이 Task 가 맡는다.
-  - 지금은 조회가 거절된 통합의 기록만 임시 장치로 건너뛴다. 어디까지 기록하지 않는지는 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 가 정하고, 장치의 동작과 걷는 시점은 [같은 문서 Rationale 「거절된 조회는 임시 장치로 건너뛴다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#거절된-조회는-임시-장치로-건너뛴다-2026-10-25) 에 있다.
-
 MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 사항](#미결-사항) 에 있다.
 
 ### 개인 통합 사용 판정
@@ -556,8 +551,8 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합. 공개 범위 전환 도중 워크스페이스와 함께 지워진 통합도 같다([위험 영역 탭](#위험-영역-탭)) |
 | `NOT_A_MEMBER` | 403 | 개인 통합 행을 만드는 트랜잭션이 통합 소유자(요청자)의 멤버십을 다시 읽었는데 없다(REQ-INTMGMT-066). 라우트 가드가 멤버십을 확인한 뒤 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 트랜잭션이 먼저 잠글 워크스페이스 행이 그 사이 지워졌을 때도 공개 범위와 관계없이 같은 코드다(조직 통합은 REQ-INTMGMT-068). 가드 거부와 같은 코드다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)) |
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 조직 통합을 개인으로 바꾸려는데 통합을 만든 사람(`created_by`, 전환하면 통합 소유자가 된다)이 워크스페이스 멤버가 아니다(REQ-INTMGMT-067). 통합은 바뀌지 않는다. 요청자는 멤버이고 통합의 상태와 부딪힌 요청이라 `NOT_A_MEMBER` 를 쓰지 않는다 |
-| `ADMIN_REQUIRED` | 403 | 관리자 미만이 조직 통합을 만들거나 바꾸려 했다. `oauth/begin` 이 다시 쓸 조직 설치 대기 행을 관리자 미만이 만난 경우도 같다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 공개 범위 전환은 라우트 가드가 이 코드를 낸다. 삭제는 라우트 가드가 뷰어를 막지 않아 뷰어의 조직 통합 삭제도 이 코드다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정도 관리자 미만인 요청자의 조직 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 `oauth/begin` 과 이 콜백 재판정을 발행처로 적지 않았다. 정리는 NERV Task `CLE-T-5BZ3M2` 가 맡는다. 뷰어가 이 코드와 `EDITOR_REQUIRED` 가운데 무엇을 받는지는 [권한](#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 가 정한다 |
-| `EDITOR_REQUIRED` | 403 | 뷰어가 편집자 이상 라우트(생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 저장 전 연결 테스트, `oauth/begin`)를 불렀다. 대상의 공개 범위와 상관없이 라우트 가드가 낸다. 뷰어의 조회, 저장된 통합의 연결 테스트, 삭제는 이 코드를 내지 않는다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정이 시작과 콜백 사이에 뷰어로 강등된 요청자의 개인 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 아직 이 발행처를 적지 않았다. 정리는 NERV Task `CLE-T-5BZ3M2` 가 맡는다 |
+| `ADMIN_REQUIRED` | 403 | 관리자 미만이 조직 통합을 만들거나 바꾸려 했다. `oauth/begin` 이 다시 쓸 조직 설치 대기 행을 관리자 미만이 만난 경우도 같다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 공개 범위 전환은 라우트 가드가 이 코드를 낸다. 삭제는 라우트 가드가 뷰어를 막지 않아 뷰어의 조직 통합 삭제도 이 코드다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정도 관리자 미만인 요청자의 조직 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). 발행처는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에도 있다. 뷰어가 이 코드와 `EDITOR_REQUIRED` 가운데 무엇을 받는지는 [권한](#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 가 정한다 |
+| `EDITOR_REQUIRED` | 403 | 뷰어가 편집자 이상 라우트(생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 저장 전 연결 테스트, `oauth/begin`)를 불렀다. 대상의 공개 범위와 상관없이 라우트 가드가 낸다. 뷰어의 조회, 저장된 통합의 연결 테스트, 삭제는 이 코드를 내지 않는다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정이 시작과 콜백 사이에 뷰어로 강등된 요청자의 개인 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). 발행처는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에도 있다 |
 | `OAUTH_STATE_MISMATCH` | 400 | OAuth state 불일치 |
 | `OAUTH_STATE_EXPIRED` | 400 | OAuth state 의 유효 시간이 지났다 |
 | `INTEGRATION_INSTALL_EXPIRED` | 400 | 설치 기한이 지나 만료된(`install_timeout`) 설치 대기 행에 OAuth 콜백이 늦게 도착했다. 행을 되살리지 않고 `last_error` 도 쓰지 않는다([OAuth 연결과 토큰 갱신 「에러 매핑」](CLE-INT-OAUTH.md#에러-매핑)) |
@@ -590,8 +585,8 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 핸들러 실행 계약은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md) 이 정한다. 통합 쪽에서 보는 핵심은 이렇다.
 
 - 모든 통합 핸들러는 `IntegrationsService.getForExecution` 으로 자격 증명을 꺼내고 호출 결과를 그 통합과 함께 `IntegrationsService.logUsage` 로 기록한다. 개인 통합이면 조회가 [개인 통합 사용 판정](#개인-통합-사용-판정) 을 거친다. 부르는 쪽이 넘기는 인자와 통합 서비스가 워크플로우 작성자를 구하는 방법은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다.
-- 통합을 얻기 전에 끝난 실행은 조회 거절이든 그 앞 단계의 실패든 활동 로그를 남기지 않는다. 설정의 통합 ID 가 가리키는 통합의 `last_used_at`·`last_error` 도 쓰지 않는다(REQ-INTMGMT-053). 지금은 조회가 거절된 통합의 기록만 건너뛴다. 아직 기록하는 경로는 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 에 있다(NERV Task `CLE-T-PTC4SF`).
-- `logUsage` 는 조회가 돌려준 통합을 인자로 받는다. 그래서 얻지 못한 통합에는 기록할 수 없다(REQ-INTMGMT-062). 이 서명은 미구현이고 지금 동작은 [권한](#권한) 의 «정했지만 아직 코드에 없는 것» 에 있다(NERV Task `CLE-T-PTC4SF`).
+- 통합을 얻기 전에 끝난 실행은 조회 거절이든 그 앞 단계의 실패든 활동 로그를 남기지 않는다. 설정의 통합 ID 가 가리키는 통합의 `last_used_at`·`last_error` 도 쓰지 않는다(REQ-INTMGMT-053). 자격 증명을 읽지 못한 통합도 얻지 못한 통합으로 본다([통합 노드 공통 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)).
+- `logUsage` 는 조회가 돌려준 통합을 인자로 받는다. 그래서 얻지 못한 통합에는 기록할 수 없다(REQ-INTMGMT-062).
 - 엔진은 노드 실행 직전에 `ExecutionContext.nodeExecutionId` 를 넣어 활동 로그의 귀속을 보장한다.
 - 실패하면 핸들러는 `IntegrationError(code, message)` 를 throw 하지 않고 `port: 'error'` 와 `output.error` 로 보낸다. 통합을 얻은 뒤의 실패면 `logUsage(통합, { status: 'failed' })` 로 기록한다. config 형식 오류(`handler.validate` 실패)만 throw 로 남는다. 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
 - 노드 에러 코드(`INTEGRATION_CALL_FAILED`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_AUTH_UNSUPPORTED`·`INTEGRATION_SERVICE_UNAVAILABLE` 등 공통 코드와 노드별 코드)는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 각 노드 문서가 정한다. 존재하지 않거나 다른 워크스페이스의 통합은 별도 `INTEGRATION_NOT_FOUND` 없이 `INTEGRATION_CALL_FAILED` 다.
@@ -660,7 +655,7 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
   - `codebase/backend/src/modules/integrations/personal-integration-use.ts` (판정 함수 `judgePersonalIntegrationUse`)
   - `codebase/backend/src/modules/integrations/personal-integration-use-facts.ts` (경로마다 사실 모으기, 거절 로그, 예산 계산의 실행 시점 판정 `filterExecutionUsableIntegrations`. 테스트 `personal-integration-use-facts.spec.ts`)
   - `codebase/backend/src/modules/integrations/node-integration-refs.ts` · `codebase/backend/src/modules/integrations/node-integration-ref-check.ts` (백엔드. 노드 `config` 의 통합 참조 꺼내기, 저장 검사, 비우기)
-  - `codebase/backend/src/nodes/integration/_base/integration-handler-base.ts` (`acquireIntegration` · `assertUsable`, 임시 장치 `rejectedLookups`)
+  - `codebase/backend/src/nodes/integration/_base/integration-handler-base.ts` (`acquireIntegration` · `assertUsable`)
   - `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (MCP 서버 항목의 표현식 여부)
   - `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts` · `candidate-lookup.service.ts` (`requesterIsWorkflowAuthor`, 어시스턴트 후보 거르기)
 - 가드: `codebase/backend/src/repo-guards/__tests__/integration-visibility-bypass-guard.ts`(가시성 판정을 거치지 않는 통합 읽기) · `codebase/backend/src/repo-guards/__tests__/node-row-writers-guard.ts`(노드 `config` 를 쓰는 지점의 허용 목록) · `codebase/backend/src/repo-guards/__tests__/integration-owner-write.spec.ts`(통합 쓰기 경로가 `lockForIntegrationWrite` 를 건너뛰지 않는지 보는 AST 가드)
@@ -840,7 +835,7 @@ NERV Task `CLE-T-PS7JQY` 의 스펙 consistency 검토가 남긴 INFO 를 정리
 15. **워크플로우 작성자는 통합 서비스가 노드 ID 로 구한다.** 앞선 승인본은 서브 워크플로우에 들어갈 때 실행 컨텍스트의 워크플로우 작성자를 바꾸고 나올 때 되돌린다고 적었다. 서브 워크플로우를 나오는 경로 하나라도 되돌리기를 빠뜨리면 부모 워크플로우의 다음 노드가 서브 워크플로우 작성자로 판정된다. 2026-10-24 승인본은 그 대신 엔진이 노드마다 워크플로우 작성자를 실행 컨텍스트의 새 필드로 넣게 했다. 근거로 든 «통합 모듈은 워크플로우 저장소를 읽지 않는다» 는 코드와 맞지 않았다. 통합 모듈은 사용처 조회에서 이미 노드를 거쳐 워크플로우를 읽는다. 그래서 부르는 쪽은 엔진이 이미 노드마다 넣는 `nodeId` 를 넘기고 통합 서비스가 개인 통합일 때만 그 노드가 속한 워크플로우의 작성자를 읽는다. 새 실행 컨텍스트 필드도 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 규칙 3 의 예외도 필요 없다. 방식과 기각한 안은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) Rationale 「남의 개인 통합 조회는 없는 통합과 같게 실패한다」 에 있다. 재개 턴의 서버별 표현식 여부를 서버 항목에 저장하는 규칙과 이유는 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 가 정한다(finding 01a17059-b861-7577-a9f0-ed2fcfd71aef · 01a17053-eeb5-71bd-b490-3e9f53bf530c · 01a17052-f9a3-77c3-8fb1-8c06cb38d696 · 01a17052-87d3-72bf-b816-51dd41946e83).
 16. **삭제 판정 순서를 정한다.** 결정 6 으로 삭제 라우트가 뷰어까지 열리면 조직 통합 삭제의 역할 검사는 서비스 계층에만 남는다. 순서를 정하지 않으면 사용처 조회나 캐시 무효화가 역할 검사보다 먼저 돌 수 있다. 그러면 뷰어가 409 와 403 의 차이로 조직 통합의 사용처 여부를 알거나 거절된 요청이 부수 효과를 남긴다. 404 를 먼저 보는 것은 «남의 개인 통합은 없는 통합과 같다» 를 지키기 위해서다(finding 01a16e29-19e3-7689-9e20-d6cb0968b6de).
 17. **활동 로그는 얻은 통합에만 쓴다.** 결정 4 를 내리며 코드를 보다가 지금도 다른 워크스페이스 통합 ID 를 넣은 노드가 그 통합에 활동 로그와 `last_error` 를 남긴다는 것을 확인했다(2026-10-24, 다섯 통합 핸들러의 바깥 catch 가 조회 실패에도 `logUsage` 를 부르고 `logUsage` 는 워크스페이스를 보지 않는다). 핸들러마다 규칙을 지키게 하는 것만으로는 핸들러가 새로 생길 때 같은 결함이 다시 생긴다. 그래서 `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다. 얻지 못한 통합은 넘길 값이 없으므로 REQ-INTMGMT-053 이 부르는 쪽의 규율 없이 지켜진다. 얻은 통합은 이미 워크스페이스 검사와 개인 통합 판정을 통과했다. 2026-10-24 승인본은 `logUsage` 가 통합의 워크스페이스와 실행의 워크스페이스를 비교하게 했다. 그 검사는 다른 워크스페이스 통합만 거르고 같은 워크스페이스의 남의 개인 통합은 여전히 부르는 쪽의 규율에 맡겼다(finding 01a16e25-a3ef-77b3-a05e-15410d8b0fe7 · 01a17059-b863-7142-b35b-1c6ee3be9152).
-   - 2026-10-25 에 노드 사용 기준(NERV Task `CLE-T-1BQZ10`)을 먼저 구현했고 `logUsage` 서명은 NERV Task `CLE-T-PTC4SF` 가 바꾼다. 그 사이에는 조회가 거절된 통합의 기록만 임시 장치로 건너뛴다. 아래 이행의 «활동 로그 규칙은 노드 사용 기준보다 늦게 내지 않는다» 가운데 조회 거절 부분을 지키려는 것이다. 장치의 동작과 그 장치를 둔 이유는 [통합 노드 공통 Rationale 「거절된 조회는 임시 장치로 건너뛴다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#거절된-조회는-임시-장치로-건너뛴다-2026-10-25) 에 있다. 장치가 막지 않는 경로를 받아들인 근거는 아래 이행의 같은 항목에 있다.
+   - 2026-10-25 에 노드 사용 기준(NERV Task `CLE-T-1BQZ10`)을 먼저 구현했고 `logUsage` 서명은 NERV Task `CLE-T-PTC4SF` 가 바꾼다. 그 사이에는 조회가 거절된 통합의 기록만 임시 장치로 건너뛴다. 아래 이행의 «활동 로그 규칙은 노드 사용 기준보다 늦게 내지 않는다» 가운데 조회 거절 부분을 지키려는 것이다. 장치의 동작과 그 장치를 둔 이유는 [통합 노드 공통 Rationale 「거절된 조회는 임시 장치로 건너뛴다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#거절된-조회는-임시-장치로-건너뛴다-2026-10-25) 에 있다. 장치가 막지 않는 경로를 받아들인 근거는 아래 이행의 같은 항목에 있다. 2026-11-05 에 NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸고 임시 장치를 지웠다. 남던 경로(워크스페이스 확인 실패 · 조회 중 일시 오류 · 자격 증명 읽기 실패)도 이제 기록하지 않는다.
 18. **판정과 참조 위치를 한 곳에 둔다.** 승인본은 «개인 통합을 쓸 수 있는가» 를 여러 문서에서 문장으로 되풀이했고 참조 위치 목록도 문서마다 적었다. 하나를 바꾸면 나머지가 어긋난다. 판정은 이 문서의 [개인 통합 사용 판정](#개인-통합-사용-판정), 참조 위치는 [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 한 곳에 두고 다른 문서는 링크한다. 백엔드도 판정과 참조 추출을 한 곳에 구현한다(finding 01a16e25-a3ec-7784-8910-78247233609a · 01a16e25-a3ed-75ce-a469-c72cf4918fa3). 판정이 사는 자리는 2026-10-25 에 정했다. 판정은 저장소를 읽지 않는 함수로 두고 부르는 쪽이 사실을 모아 넘긴다. 판정을 `IntegrationsService` 안에 두면 저장 경로가 그 서비스를 주입해야 한다. 그런데 워크플로우 모듈은 모듈 순환을 피하려고 통합 모듈을 import 하지 않고 `Integration` 엔티티만 등록한다. 개인 통합 가시성 판정(`integration-visibility.ts`)이 이미 같은 모양으로 통합 모듈과 워크플로우 어시스턴트에서 쓰인다. 통합 선택기와 붙여넣기는 판정을 서버에 묻지 않는다. 지금 사용자에게 보이는 개인 통합은 늘 자기 것이라 조건이 «지금 사용자가 워크플로우 작성자인가» 로 줄어들기 때문이다. 이 거르기는 편의이고 권위는 저장 검사에 있다(finding 01a17059-b862-76dd-bcc6-1b9592d2e64b). 어시스턴트의 통합 목록 도구와 노드 후보가 판정 함수 대신 쿼리 조건(`scope = 'organization'`)으로 미리 거르는 것도 같은 예외다. 조회가 후보 수를 `LIMIT` 으로 자르므로 자른 뒤에 행마다 거르면 후보가 모자랄 수 있어서다. 권위는 여기서도 저장 검사에 있다.
 
 초안에서 정한 세부 두 가지(Task 본문에서 «초안에서 확정» 으로 남긴 것):
@@ -899,7 +894,7 @@ NERV Task `CLE-T-PS7JQY` 의 스펙 consistency 검토가 남긴 INFO 를 정리
       - **전제**: 잔여가 생기려면 노드 설정에 이 워크플로우가 쓸 수 없는 통합 id 가 이미 들어 있어야 한다. 그리고 그 실행이 조회 거절이 아닌 이유(위 세 경로)로 실패해야 한다. 이 작업을 배포한 뒤 새로 저장하는 참조는 저장 검사(REQ-INTMGMT-054)가 거절한다. 그래서 남는 것은 배포 전에 저장된 참조다.
       - **기록이 남는 범위**: 실패한 실행 한 번에 그 통합의 활동 로그 한 행과 `last_used_at` · `last_error` 가 남는다. 기록을 남긴 쪽이 그 기록을 읽을 길은 없다. 이 경로로 기록을 남기려면 그 통합의 UUID 를 알아야 한다.
       - **늦춰도 되는 이유**: 남는 경로는 이 작업 전부터 있던 결함이다(NERV Task `CLE-T-PTC4SF`, 2026-10-10 발견). 이 작업이 새로 만드는 거절 경로는 쓸 수 없는 개인 통합의 조회 거절이다. 그 경로의 기록은 임시 장치가 막는다. 그래서 이 작업이 기록이 남는 경로를 늘리지는 않는다.
-      - **일정**: `CLE-T-PTC4SF` 는 2026-10-25 기준 아직 착수하지 않았고 일정을 정하지 않았다. 남는 경로가 실제로 얼마나 나는지는 재지 않았다.
+      - **일정**: `CLE-T-PTC4SF` 는 2026-10-25 기준 아직 착수하지 않았고 일정을 정하지 않았다. 남는 경로가 실제로 얼마나 나는지는 재지 않았다. 2026-11-05 에 `CLE-T-PTC4SF` 가 남는 경로를 닫았다(위 결정 17).
   - 노드 사용 기준(저장 검사, 실행 시점 조회, 고르는 화면, 참조 비우기)은 한 배포로 낸다. 실행 기준만 먼저 나가면 선택기에서 고른 통합이 실행에서 실패한다. 저장 검사만 먼저 나가면 선택기가 보인 후보를 저장이 거절한다.
 - 실측한 뒤 배포하기 전까지 생긴 참조는 막지 못한다. 그 사이에는 저장 검사가 코드에 없어서다. 그런 노드는 배포 뒤 실행에서 없는 통합과 같이 실패한다. 0건에서 출발하고 그 사이가 짧아 받아들였다.
 

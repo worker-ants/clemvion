@@ -2,21 +2,21 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "e6217652d94b28ba5f208ad281c86d3d6d38fc6e9b6235928a532fb63fa32479"
+content_hash: "508ef982234169fa8a5b0d7890ace8a660700e86dc544ab173de1fd085e1c7e2"
 read_as: "approved_fallback"
 task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "74207d986633613d4104c6c7c0fe2269df37617b2e966db14fd4c75f969e22e5"
-etag: "sha256-305f1a06535a330e0ff37c269110675e468c5d5a5dd9199a24f1cd33c0721c02"
+mirror_sha256: "1a4c45ede8ab610b5d82d95d571ecfb6f6f49bb0aeabd52b8c1b0d4cb4250361"
+etag: "sha256-750ea02009699f501ce484bb59648493d186989a02dbc97ffdf7fdf1455c362e"
 ---
-> 구현 상태: 부분 구현 (`logUsage` 의 목표 서명, 통합을 얻기 전 실패 가운데 조회 거절이 아닌 실패의 활동 로그 생략, 워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -40,7 +40,7 @@ etag: "sha256-305f1a06535a330e0ff37c269110675e468c5d5a5dd9199a24f1cd33c0721c02"
 4. 통합 노드는 블로킹 노드가 아니다. 흐름 지시 상태(`status`)는 비워 둔다. 예외는 [Send Email 노드](CLE-NODE-EMAIL.md)의 DI 미주입 식별값 하나다(아래 "서비스 미주입과 워크스페이스 누락").
 5. 모든 통합 핸들러는 아래 "핸들러 실행 계약" 의 6단계를 따른다.
 6. 사전 검증 에러(`handler.validate()` 실패)만 throw 로 실행을 실패시킨다. `execute()` 안에서 난 실패는 모두 에러 포트(`port: 'error'`)와 `output.error.{code, message, details?}` 로 내보낸다(D4 결정).
-7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다. 이 규칙을 서명으로 지키는 `logUsage` 는 목표 서명이고 미구현이다(NERV Task `CLE-T-PTC4SF`). 지금 구현이 지키는 범위는 [공통 에러 코드](#공통-에러-코드) 에 있다.
+7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다. `logUsage` 는 얻은 통합만 받으므로 얻지 못한 통합에는 기록할 수 없다. 통합을 얻기 전에 끝나는 실패의 목록은 [공통 에러 코드](#공통-에러-코드) 에 있다.
 8. HTTP Request·Database Query·Send Email 노드는 사설망 차단을 기본으로 켠다. 끄는 방법은 `ALLOW_PRIVATE_HOST_TARGETS=true` 하나뿐이다.
 9. 차단 코드(`HTTP_BLOCKED`·`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)는 차단 판정에만 쓴다. 클라이언트에 나가는 차단 메시지에는 차단된 호스트나 IP 를 넣지 않는다.
 10. 캔버스 요약은 노드 스키마의 `summaryTemplate` 으로 렌더하고, 렌더된 한 줄을 40자에서 자른다.
@@ -97,7 +97,7 @@ etag: "sha256-305f1a06535a330e0ff37c269110675e468c5d5a5dd9199a24f1cd33c0721c02"
 | 3. 유형·상태 검증 | `serviceType` 이 노드 기대값과 같은지, `status === 'connected'` 인지 확인한다 |
 | 4. 자격 증명 충족 검증 | 서비스별 필수 필드가 빠지면 `INTEGRATION_INCOMPLETE` |
 | 5. 외부 호출 | 서비스별 SDK 나 드라이버로 부른다 |
-| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 1단계에서 끝난 실패와 2단계의 조회 거절은 얻은 통합이 없어 기록하지 않는다(REQ-INTMGMT-053). 얻은 통합을 넘기는 서명은 목표 서명이고 미구현이다(NERV Task `CLE-T-PTC4SF`). 지금 구현은 [공통 에러 코드](#공통-에러-코드) 를 본다 |
+| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 1·2단계에서 끝난 실패는 얻은 통합이 없어 기록하지 않는다(REQ-INTMGMT-053). 조회 거절, 조회 중 일시 에러, 자격 증명 읽기 실패가 모두 해당한다. 전체 목록은 [공통 에러 코드](#공통-에러-코드) 에 있다 |
 
 6단계의 `api` 식별 정보(`{ label?, method?, path? }`)는 동반이 의무다. 이 값은 `integration_usage_log.api_label`·`api_method`·`api_path` 에 저장된다. 통합별로 무엇을 채우는지는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)의 INT-US-05 표가 정하고, 각 노드 문서는 자기 노드의 값만 적는다. 값이 길면 백엔드(`logUsage` 내부)가 `varchar(128)`·`varchar(8)`·`varchar(256)` 한도로 자르고 끝에 `…` 를 붙인다(`clampMessage` 패턴). 호출하는 쪽이 직접 자를 필요는 없다.
 
@@ -118,20 +118,19 @@ class IntegrationsService {
   /**
    * 노드 실행이 끝나면 부른다. 성공·실패 여부와 durationMs 를 기록하고
    * integration.last_used_at / last_error 를 갱신한다.
+   * integration 은 getForExecution 이 돌려준 통합이다.
    */
-  logUsage(params: {
-    integrationId: UUID;
-    nodeExecutionId: UUID;
-    workflowId: UUID;
-    status: "success" | "failed";
-    durationMs: number;
-    error?: { code?: string; message?: string } | null;
-    api?: { label?: string; method?: string; path?: string };
-  }): Promise<void>;
-  // 목표 서명(미구현, NERV Task CLE-T-PTC4SF). integration 은 getForExecution 이 돌려준 통합이다.
-  // 그 전의 동작은 「공통 에러 코드」 의 «통합을 얻기 전에 끝난 실행의 기록» 이 정한다.
-  // logUsage(integration: Integration,
-  //   params: { nodeExecutionId; workflowId; status; durationMs; error?; api? }): Promise<void>;
+  logUsage(
+    integration: Integration,
+    params: {
+      nodeExecutionId: UUID;
+      workflowId: UUID;
+      status: "success" | "failed";
+      durationMs: number;
+      error?: { code?: string; message?: string } | null;
+      api?: { label?: string | null; method?: string | null; path?: string | null };
+    },
+  ): Promise<void>;
 }
 ```
 
@@ -140,7 +139,7 @@ class IntegrationsService {
 - `use.nodeId` 는 지금 실행 중인 노드의 ID 다. 통합 서비스는 조회한 통합이 개인 통합일 때만 그 노드 행과 노드가 속한 워크플로우 행을 읽어 `created_by` 를 구한다. 그 워크플로우는 실행의 워크스페이스(`workspaceId` 인자)에 있어야 한다. 조직 통합은 노드를 읽지 않는다.
 - `use.nodeId` 가 `null` 이거나, 노드 행이 없거나, 그 워크플로우가 실행의 워크스페이스에 없으면 워크플로우 작성자를 알 수 없다. 이때는 개인 통합을 거절하고 응답은 워크플로우 작성자가 통합 소유자가 아닐 때와 같다(REQ-INTMGMT-055).
 - 워크플로우 작성자는 노드마다 그 노드가 속한 워크플로우의 것이다. 동기 호출 서브 워크플로우는 부모 실행 안에서 인라인으로 돌고([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)) `context.workflowId` 는 실행 시작 때 고정된다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)). 그래서 `context.workflowId` 로는 구하지 않는다. 서브 워크플로우의 노드 행은 서브 워크플로우에 속하므로 서브 워크플로우 작성자로 판정된다. 비동기 호출도 같다.
-- 통합 노드는 공통 베이스의 `acquireIntegration`(`resolveIntegration` 이 부른다)이 `context.nodeId` 를 넘긴다. 엔진은 노드 실행마다 한 번 만드는 실행 컨텍스트 복사본에 `nodeId` 를 이미 넣는다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), [노드 핸들러 계약 「핸들러용 실행 컨텍스트는 노드 실행마다 하나다」](../CLE-EXEC/CLE-EXEC-HANDLER.md#핸들러용-실행-컨텍스트는-노드-실행마다-하나다)). 핸들러 시그니처와 실행 컨텍스트 필드는 바꾸지 않는다.
+- 통합 노드는 공통 베이스의 `acquireIntegration` 이 `context.nodeId` 를 넘긴다. 엔진은 노드 실행마다 한 번 만드는 실행 컨텍스트 복사본에 `nodeId` 를 이미 넣는다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), [노드 핸들러 계약 「핸들러용 실행 컨텍스트는 노드 실행마다 하나다」](../CLE-EXEC/CLE-EXEC-HANDLER.md#핸들러용-실행-컨텍스트는-노드-실행마다-하나다)). 핸들러 시그니처와 실행 컨텍스트 필드는 바꾸지 않는다.
 - AI 에이전트 노드는 핸들러가 도구 목록 구성 문맥(`ProviderBuildCtx`)에 `nodeId` 를 싣고, 통합을 쓰는 도구 프로바이더(외부 MCP 서버용 · Cafe24 · MakeShop)가 그 값을 넘긴다. 첫 턴은 `context.nodeId` 를 싣는다. 멀티턴 재개·재시도 턴은 재구성 결과의 `nodeId` 를 싣는다([실행 상태 머신과 대기·재개 「보존 예외 `_resumeCheckpoint`」](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint)).
 - 도구 프로바이더는 도구 목록을 만들 때만 통합을 조회한다. 내부 MCP 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 이 단계 안에서 일어난다([MCP 클라이언트 「통합 조회 기준」](../CLE-INT/CLE-INT-MCP.md#통합-조회-기준)). 도구를 실행할 때는 도구 목록을 만들 때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션). 그래서 도구 프로바이더 실행 문맥(`ProviderExecCtx`)에는 노드 ID 를 더하지 않는다. 도구 실행은 서버 항목의 `fromExpression` 도 읽지 않는다.
 - 참조 값이 표현식이었는지(`fromExpression`)는 부르는 쪽이 평가 전 원본 설정의 같은 위치를 보고 정한다. 통합 노드는 `context.rawConfig.integrationId` 를 본다. AI 에이전트 노드는 첫 턴에 평가 전 `mcpServers` 의 같은 위치를 보고 서버 항목마다 `fromExpression` 을 정해 그 항목에 싣는다. 도구 프로바이더는 도구 목록 구성 문맥의 `config` 로 받은 서버 항목에서 이 값을 읽는다. `execute` 가 받는 `config` 는 평가가 끝난 값이라 이것으로는 알 수 없다([노드 핸들러](../CLE-EXEC/CLE-EXEC-HANDLER.md)). 표현식이었고 조회한 통합이 개인 통합이면 거절한다(REQ-INTMGMT-059).
@@ -150,7 +149,7 @@ class IntegrationsService {
 - 재개·재시도 턴의 서버별 `fromExpression` 은 첫 턴에 저장한 값을 쓴다. 저장 규칙과 값이 없는 옛 항목의 기본값은 [실행 상태 머신과 대기·재개 「보존 예외 `_resumeCheckpoint`」](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint) 가 정한다.
 - 노드 ID 와 표현식 여부는 `variables` 에서 읽지 않는다. Code 노드가 `__*` 를 포함한 `context.variables` 를 덮어쓸 수 있어서다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 규칙 5).
 
-`logUsage` 는 best-effort 다. 내부 예외를 삼키므로 실행 흐름을 멈추지 않는다. `logUsage` 가 갱신하는 통합 컬럼은 `last_used_at` 과 `last_error` 다. MCP `AUTH_FAILED` 로 실패하면 `status`·`status_reason` 도 바꾼다([통합 데이터와 흐름 「노드 실행의 통합 사용」](../CLE-INT/CLE-INT-DATA.md#노드-실행의-통합-사용)). 목표 서명에서 통합을 받아도 필요한 컬럼만 고치는 UPDATE 한 번으로 쓰고 받은 엔티티를 저장하지 않는다. 노드 실행 결과로 통합 상태가 바뀌는 범위는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다.
+`logUsage` 는 best-effort 다. 내부 예외를 삼키므로 실행 흐름을 멈추지 않는다. `logUsage` 가 갱신하는 통합 컬럼은 `last_used_at` 과 `last_error` 다. MCP `AUTH_FAILED` 로 실패하면 `status`·`status_reason` 도 바꾼다([통합 데이터와 흐름 「노드 실행의 통합 사용」](../CLE-INT/CLE-INT-DATA.md#노드-실행의-통합-사용)). 받은 통합에서는 `id` 만 읽어 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 의 조건으로 쓴다. 통합 행은 필요한 컬럼만 고치는 UPDATE 한 번으로 고치고 받은 엔티티를 저장하지 않는다. 노드 실행 결과로 통합 상태가 바뀌는 범위는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다.
 
 ### IntegrationHandlerBase
 
@@ -158,37 +157,37 @@ class IntegrationsService {
 class IntegrationHandlerBase {
   constructor(protected readonly integrationsService?: IntegrationsService) {}
 
-  protected resolveIntegration(
-    integrationId: UUID,
-    context: ExecutionContext,
-    expectedServiceType: string,
-  ): Promise<Integration>; // acquireIntegration 과 assertUsable 을 이어 부른다
   protected acquireIntegration(integrationId: UUID, context: ExecutionContext): Promise<Integration>; // 1·2단계
   protected assertUsable(integration: Integration, expectedServiceType: string): void; // 3단계
 
+  // integration 은 acquireIntegration 이 돌려준 통합이다(6단계).
   protected logUsage(
+    integration: Integration,
     context: ExecutionContext,
     params: IntegrationUsageParams, // api 식별 정보 포함
   ): Promise<void>;
-  // 목표 서명(미구현, NERV Task CLE-T-PTC4SF). integration 은 acquireIntegration 이 돌려준 통합이다.
-  // 그 전의 동작은 「공통 에러 코드」 의 «통합을 얻기 전에 끝난 실행의 기록» 이 정한다.
-  // protected logUsage(integration: Integration, context: ExecutionContext,
-  //   params: Omit<IntegrationUsageParams, "integrationId">): Promise<void>;
+}
+
+interface IntegrationUsageParams {
+  status: "success" | "failed";
+  durationMs: number;
+  error?: { code?: string; message?: string } | null;
+  api?: { label?: string | null; method?: string | null; path?: string | null };
 }
 ```
 
-`resolveIntegration` 은 검증에 실패하면 `IntegrationError(code, message)` 를 던진다. `code` 는 아래 "공통 에러 코드" 의 값이다. 핸들러는 이 예외를 잡아 에러 포트로 내보낸다.
+`assertUsable` 은 검증에 실패하면 `IntegrationError(code, message)` 를 던진다. `code` 는 아래 "공통 에러 코드" 의 값이다. 핸들러는 이 예외를 잡아 에러 포트로 내보낸다.
 
-공통 베이스는 통합을 얻는 `acquireIntegration` 과 검증하는 `assertUsable` 을 따로 둔다. `resolveIntegration` 은 둘을 이어 부르는 얇은 합성이다. 이 문서의 다른 절이 말하는 `resolveIntegration` 은 이 합성이다. 다섯 통합 노드는 지금 모두 `resolveIntegration` 을 부른다.
+공통 베이스는 통합을 얻는 `acquireIntegration` 과 검증하는 `assertUsable` 을 따로 둔다. 다섯 통합 노드는 두 메서드를 따로 부른다.
 
 - `acquireIntegration` 은 1·2단계를 맡는다. `context.nodeId` 와 `context.rawConfig` 로 `use` 인자를 만들어 `getForExecution` 을 부르고 얻은 통합을 돌려준다. 실패하면 예외를 던진다. 워크스페이스 누락이 지금 일반 `Error` 로 나가는 것은 아래 "서비스 미주입과 워크스페이스 누락" 에 있다.
 - `assertUsable` 은 3단계를 맡는다. 실패하면 `IntegrationError` 를 던진다.
-- 목표 서명의 `logUsage` 가 들어오면 핸들러는 `acquireIntegration` 이 돌려준 통합을 들고 있다가 3단계 이후에 실패해도 그 통합으로 활동 로그를 남긴다(미구현). 지금은 실패하면 설정의 `integrationId` 로 남긴다.
+- `logUsage` 는 `acquireIntegration` 이 돌려준 통합을 받는다. 핸들러는 얻은 통합을 지역 변수(`integration: Integration | undefined`)로 들고 있다가 3단계 이후에 실패해도 그 통합으로 활동 로그를 남긴다. 바깥 catch 도 통합을 얻었을 때만 기록한다. 통합을 얻기 전에 끝난 실패는 넘길 통합이 없어 기록하지 않는다.
 - `IntegrationError` 에는 코드와 메시지만 싣는다. 통합을 싣지 않는다. 통합의 `credentials` 는 복호화된 평문이라 예외에 실으면 예외를 잡거나 로그로 남기는 모든 곳으로 퍼진다.
 
 ### 호출 순서
 
-실행 엔진은 노드 실행을 만들고 `context.nodeExecutionId` 를 주입한 다음 표현식을 평가해 핸들러를 부른다. 핸들러는 통합을 해소하고 외부 서비스를 부른 뒤 활동 로그를 남긴다. 엔진은 핸들러가 돌려준 노드 출력으로 노드 실행 상태를 마감한다. 그림의 `logUsage(통합, …)` 는 목표 서명이고 미구현이다(NERV Task `CLE-T-PTC4SF`). 지금 구현은 [공통 에러 코드](#공통-에러-코드) 를 본다.
+실행 엔진은 노드 실행을 만들고 `context.nodeExecutionId` 를 주입한 다음 표현식을 평가해 핸들러를 부른다. 핸들러는 통합을 해소하고 외부 서비스를 부른 뒤 활동 로그를 남긴다. 엔진은 핸들러가 돌려준 노드 출력으로 노드 실행 상태를 마감한다.
 
 ```mermaid
 sequenceDiagram
@@ -200,8 +199,9 @@ sequenceDiagram
   E->>E: context.nodeExecutionId 주입
   E->>E: 표현식 평가 (resolvedConfig)
   E->>H: execute(input, resolvedConfig, context)
-  H->>S: resolveIntegration → getForExecution
+  H->>S: acquireIntegration → getForExecution
   S-->>H: 통합 (복호화된 자격 증명)
+  H->>H: assertUsable (유형·상태 검증)
   H->>X: 외부 호출
   X-->>H: 응답 또는 실패
   H->>S: logUsage(통합, status, durationMs, error?, api)
@@ -226,25 +226,25 @@ sequenceDiagram
 
 HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않으므로 이 표의 대상이 아니다. Send Email 노드의 두 예외는 [Send Email 노드](CLE-NODE-EMAIL.md)에서 자세히 정한다.
 
-워크스페이스 누락 열은 부분 구현이다. 현재 구현의 공통 베이스 `acquireIntegration`(`resolveIntegration` 이 부른다)은 `__workspaceId` 가 없으면 `IntegrationError` 가 아닌 일반 `Error('Missing workspace context …')` 를 던진다. 그래서 HTTP Request·Cafe24·MakeShop 노드는 기본 규칙대로 `INTEGRATION_CALL_FAILED` 를, Database Query 노드는 드라이버 에러 분류기(`mapDbError`)의 결과를 내보내는 것으로 보인다. [미결 사항](#미결-사항) 참조.
+워크스페이스 누락 열은 부분 구현이다. 현재 구현의 공통 베이스 `acquireIntegration` 은 `__workspaceId` 가 없으면 `IntegrationError` 가 아닌 일반 `Error('Missing workspace context …')` 를 던진다. 그래서 HTTP Request·Cafe24·MakeShop 노드는 기본 규칙대로 `INTEGRATION_CALL_FAILED` 를, Database Query 노드는 드라이버 에러 분류기(`mapDbError`)의 결과를 내보내는 것으로 보인다. [미결 사항](#미결-사항) 참조.
 
 ## 공통 에러 코드
 
 | 코드 | 의미 |
 |------|------|
-| `INTEGRATION_TYPE_MISMATCH` | 참조한 통합의 `serviceType` 이 노드 기대 유형과 다르다. `resolveIntegration` 이 `IntegrationError` 를 던진다 |
-| `INTEGRATION_NOT_CONNECTED` | 통합 상태가 `connected` 가 아니다(`expired`, `error`, `pending_install`). `resolveIntegration` 이 `IntegrationError` 를 던진다 |
+| `INTEGRATION_TYPE_MISMATCH` | 참조한 통합의 `serviceType` 이 노드 기대 유형과 다르다. `assertUsable` 이 `IntegrationError` 를 던진다 |
+| `INTEGRATION_NOT_CONNECTED` | 통합 상태가 `connected` 가 아니다(`expired`, `error`, `pending_install`). `assertUsable` 이 `IntegrationError` 를 던진다 |
 | `INTEGRATION_INCOMPLETE` | credentials JSONB 에 서비스별 필수 필드가 없다. 각 핸들러가 자격 증명을 검증할 때 `IntegrationError` 를 던진다 |
 | `INTEGRATION_CALL_FAILED` | 분류되지 않은 그 밖의 실패. `IntegrationError` 가 아닌 예외의 기본 코드다(`toLogError` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 자체의 고장)도 이 코드로 나온다. 노드마다 시점 차이가 있다(HTTP Request 는 preflight 와 리다이렉트 홉이 다르다) |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입 또는 workspace context 누락(배포 구성 에러). 에러 포트로 내보낸다 |
 
 - **통합이 없거나 다른 워크스페이스 소속일 때**: `IntegrationsService.getForExecution` 안의 `requireEntity` 가 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다. 이 예외는 `IntegrationError` 가 아니므로 전용 코드로 보존되지 않는다. 대부분의 노드는 `INTEGRATION_CALL_FAILED` 로, Send Email 노드는 `EMAIL_SEND_FAILED` 로 내보낸다. 별도의 `INTEGRATION_NOT_FOUND` 코드는 현재 코드에 없다(`integrations.service.ts` `requireEntity`, `_base/integration-handler-base.ts` `toLogError`).
 - **[개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못한 개인 통합일 때**: 위와 같은 코드와 같은 문구로 실패한다. 노드 출력만 보고는 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 구분할 수 없다.
-- **통합을 얻기 전에 끝난 실행의 기록**: 위 세 경우와 워크스페이스 확인(1단계) 실패는 통합을 얻지 못한 실패다. 활동 로그를 남기지 않고 설정의 `integrationId` 가 가리키는 통합의 `last_used_at`·`last_error` 도 바꾸지 않는다(REQ-INTMGMT-053). 노드별 문서의 «매 호출 활동 로그» 서술은 통합을 얻은 뒤의 호출을 말한다. 유형 불일치·미연결·자격 증명 부족은 통합을 얻은 뒤의 실패라 활동 로그를 남긴다.
-  - 지금 구현은 이 규칙의 일부만 지킨다. 조회가 거절된 위 세 경우만 기록하지 않는다. 그 임시 장치의 동작과 걷는 시점은 [Rationale 「거절된 조회는 임시 장치로 건너뛴다」](#거절된-조회는-임시-장치로-건너뛴다-2026-10-25) 에 있다.
-  - 워크스페이스 확인 실패와 조회 중 일시 에러(DB 연결 에러 등)는 아직 설정의 `integrationId` 로 기록한다(미구현). 서비스가 주입되지 않은 경우는 기록할 서비스가 없어 남지 않는다.
-  - 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)는 조회가 통합을 찾은 경우라 지금처럼 기록한다. 이 경우를 얻은 통합으로 볼지는 NERV Task `CLE-T-PTC4SF` 가 정한다.
-- **기록할 통합은 얻은 통합뿐이다**: `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다(REQ-INTMGMT-062, 미구현). 얻지 못한 통합은 넘길 수 없으므로 위 규칙을 핸들러와 도구 프로바이더가 따로 지키지 않아도 된다. 다른 워크스페이스 통합도 `getForExecution` 이 돌려주지 않으므로 기록되지 않는다. 이 서명으로 바꾸는 일은 `CLE-T-PTC4SF` 가 맡고 그때 임시 장치를 지운다.
+- **통합을 얻기 전에 끝난 실행의 기록**: 통합을 얻기 전에 끝난 실패는 활동 로그를 남기지 않는다. 설정의 `integrationId` 가 가리키는 통합의 `last_used_at`·`last_error` 도 바꾸지 않는다(REQ-INTMGMT-053). 노드별 문서의 «매 호출 활동 로그» 서술은 통합을 얻은 뒤의 호출을 말한다. 유형 불일치·미연결·자격 증명 부족과 그 뒤의 실패는 통합을 얻은 뒤의 실패라 얻은 통합으로 활동 로그를 남긴다.
+  - 통합을 얻기 전에 끝나는 실패는 워크스페이스 확인(1단계) 실패, 조회 거절(위 세 경우), 조회 중 일시 에러(DB 연결 에러 등), 자격 증명 읽기 실패다. 통합을 얻기 전의 노드 사전 검사 실패도 여기에 든다. Cafe24·MakeShop 노드의 API 클라이언트 미주입, operation 조회 실패(`CAFE24_UNKNOWN_OPERATION`·`MAKESHOP_UNKNOWN_OPERATION`), 필수 필드·조건 검사 실패(`CAFE24_MISSING_FIELDS`·`MAKESHOP_MISSING_FIELDS`), MakeShop 노드의 `MAKESHOP_INVALID_PAGINATION`, Database Query 노드의 파라미터 파싱 실패가 해당한다. HTTP Request 노드는 인증 방식이 `none`·`custom` 이면 `integrationId` 가 남아 있어도 통합을 조회하지 않으므로 기록하지 않는다.
+  - 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)는 조회가 통합을 찾았어도 얻지 못한 통합으로 본다. `getForExecution` 이 통합을 돌려주지 않고 이 예외를 던지기 때문이다. 근거는 [Rationale 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05) 에 있다.
+  - 서비스가 주입되지 않은 경우는 기록할 서비스가 없어 남지 않는다.
+- **기록할 통합은 얻은 통합뿐이다**: `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다(REQ-INTMGMT-062). 얻지 못한 통합은 넘길 수 없으므로 위 규칙을 핸들러와 도구 프로바이더가 따로 지키지 않아도 된다. 다른 워크스페이스 통합도 `getForExecution` 이 돌려주지 않으므로 기록되지 않는다.
 - **에러 포트 라우팅(D4)**: 위 코드가 생기는 모든 경우는 핸들러 안에서 잡혀 `port: 'error'` 와 `output.error.{code, message, details?}` 로 나간다. 다섯 노드 모두 Send Email 노드의 catch 패턴으로 통일했다. `IntegrationError` 를 throw 해서 노드 실행이 실패하는 경로는 없다. 모든 `IntegrationError.code` 는 `output.error.code` 로 나온다. 통합을 얻은 뒤의 실패는 활동 로그에 `status: 'failed'` 와 `error: {code, message}` 로 기록한다. 통합을 얻기 전의 실패는 위 «통합을 얻기 전에 끝난 실행의 기록» 대로 남기지 않는다.
 - 노드별 코드(`HTTP_*`, `DB_*`, `EMAIL_*`, `CAFE24_*`, `MAKESHOP_*`)와 `INTEGRATION_AUTH_UNSUPPORTED`(HTTP 전용)는 각 노드 문서가 정한다. 어느 코드가 어느 문서에 있는지는 아래 "노드별 코드 색인" 에 모았다.
 - 자격 증명을 복호화할 수 없을 때(`IntegrationCredentialsUnreadableError`)의 출력 코드는 정해지지 않았다. [미결 사항](#미결-사항) 참조.
@@ -332,7 +332,7 @@ HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않�
 
 ## 구현 위치
 
-- `codebase/backend/src/nodes/integration/_base/integration-handler-base.ts` (공통 베이스, `resolveIntegration`·`acquireIntegration`·`assertUsable`·`logUsage`·`toLogError`, 거절된 조회의 기록을 건너뛰는 임시 장치 `rejectedLookups`)
+- `codebase/backend/src/nodes/integration/_base/integration-handler-base.ts` (공통 베이스, `acquireIntegration`·`assertUsable`·`logUsage`·`toLogError`)
 - `codebase/backend/src/nodes/integration/*/*.handler.ts` (노드별 핸들러)
 - `codebase/backend/src/modules/integrations/integrations.service.ts` (`getForExecution`·`logUsage`·`requireEntity`)
 - `codebase/backend/src/modules/integrations/personal-integration-use.ts` (`judgePersonalIntegrationUse`·`isLiteralReference`. 개인 통합 사용 판정과 리터럴 판정)
@@ -425,6 +425,19 @@ NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로�
 - **남는 경로**: 워크스페이스 확인 실패, 일시 에러, 자격 증명 읽기 실패의 기록은 이 장치가 막지 않는다. 이 경로에서는 설정의 `integrationId` 가 가리키는 통합에 기록이 남는다. 이 경로를 받아들인 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 이행의 «활동 로그 규칙(REQ-INTMGMT-053·062)은 노드 사용 기준보다 늦게 내지 않는다» 항목에 있다.
 - **걷는 시점**: NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸면 얻지 못한 통합은 넘길 값이 없다. 그때 이 장치와 `acquireIntegration` 의 기록 코드를 지운다.
 
+2026-11-05 에 NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸고 이 장치를 지웠다. 자격 증명을 읽지 못한 경우의 분류는 [「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05) 에서 정했다.
+
 ### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
 
 2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 나간 멤버의 개인 통합 삭제를 구현해 「삭제된 통합 표시」 의 미구현 표시를 걷었다.
+
+### 자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다 (2026-11-05)
+
+NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸면서 자격 증명을 읽지 못한 통합을 어느 쪽으로 볼지 정했다. `getForExecution` 은 통합을 찾은 뒤 복호화에 실패하면 통합을 돌려주지 않고 `IntegrationCredentialsUnreadableError` 를 던진다. 이 경우를 얻지 못한 통합으로 본다. 핸들러에 넘길 통합이 없으므로 활동 로그를 남기지 않고 `last_used_at`·`last_error` 도 바꾸지 않는다.
+
+- «얻은 통합» 의 기준을 `getForExecution` 이 돌려준 통합 하나로 둔다. 예외에 엔티티를 실어 기록하게 하면 복호화에 실패한 엔티티가 핸들러의 catch 와 로그 경로로 흘러간다. 예외에 통합을 싣지 않는 이유는 [「통합을 얻는 단계와 검증하는 단계를 나눈다」](#통합을-얻는-단계와-검증하는-단계를-나눈다-2026-10-25) 와 같다.
+- 이 경우만 통합 ID 로 기록하면 REQ-INTMGMT-062 가 없앤 ID 기록 경로가 다시 생긴다. `logUsage` 가 다시 ID 를 받아야 하므로 얻은 통합에만 기록한다는 규칙을 서명으로 지킬 수 없다.
+- 이 상태는 활동 로그가 없어도 드러난다. 통합 응답(`IntegrationsService.toPublic`)에서 자격 증명을 읽지 못한 통합은 `status: 'error'`·`statusReason: 'credentials_unreadable'`·`credentialsStatus: 'needs_reauth'` 로 나간다. 사용자는 이 표시를 보고 통합을 다시 연결한다([통합 데이터와 흐름 「이미 저장된 값」](../CLE-INT/CLE-INT-DATA.md#이미-저장된-값)).
+- 기각: 예외에 통합을 실어 기록하는 안. 위 첫째 이유로 뺐다.
+- 기각: 이 경우만 통합 ID 로 기록하는 안. 위 둘째 이유로 뺐다.
+- 이 예외의 노드 출력 코드는 이 결정으로 정하지 않았다. [미결 사항](#미결-사항) 의 «자격 증명 복호화 실패의 출력 코드» 는 그대로 남는다.
