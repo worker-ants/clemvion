@@ -7,6 +7,18 @@ import { useAuthStore } from "@/lib/stores/auth-store";
  */
 export const ESTABLISH_SESSION_TIMEOUT_MS = 10_000;
 
+/** axios 에서 `timeout: 0` 은 시간 상한이 없다는 뜻이다. 로그인 상태 복원 경로가 쓴다. */
+export const NO_SESSION_TIMEOUT = 0;
+
+export interface EstablishSessionOptions {
+  /**
+   * 사용자 조회를 기다리는 상한(밀리초). 기본은 {@link ESTABLISH_SESSION_TIMEOUT_MS}.
+   * 호출하는 쪽이 정한다. 로그인 상태 복원은 이전부터 시간 상한 없이 조회했으므로
+   * {@link NO_SESSION_TIMEOUT} 을 넘겨, 느린 회선에서 유효한 세션이 로그아웃되지 않게 한다.
+   */
+  timeoutMs?: number;
+}
+
 /**
  * 액세스 토큰을 받은 뒤 로그인 상태를 표시하는 진입점(NERV CLE-ACCT-SESSION REQ-SESSION-037 ·
  * 「로그인 힌트 쿠키」). 토큰을 받는 경로는 모두 이 함수를 쓴다.
@@ -33,11 +45,12 @@ export const ESTABLISH_SESSION_TIMEOUT_MS = 10_000;
  */
 export async function establishSession(
   accessToken: string,
+  { timeoutMs = ESTABLISH_SESSION_TIMEOUT_MS }: EstablishSessionOptions = {},
 ): Promise<UserProfile | null> {
   const { markSessionIssued, setAuthenticated } = useAuthStore.getState();
   markSessionIssued(accessToken);
   try {
-    const res = await usersApi.getMe({ timeout: ESTABLISH_SESSION_TIMEOUT_MS });
+    const res = await usersApi.getMe({ timeout: timeoutMs });
     const user = res.data.data;
     if (!user) return null;
     setAuthenticated(accessToken, user);

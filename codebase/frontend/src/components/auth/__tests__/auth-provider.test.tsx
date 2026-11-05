@@ -99,6 +99,24 @@ describe("AuthProvider", () => {
     expect(hasSessionHint()).toBe(true);
   });
 
+  it("세션 복원의 사용자 조회에는 시간 상한을 두지 않는다 (느린 회선에서 로그아웃되지 않게)", async () => {
+    mockRefreshAccessToken.mockResolvedValue("refreshed-token");
+    vi.mocked(usersApi.getMe).mockResolvedValue({
+      data: { data: mockUser },
+    } as never);
+
+    render(
+      <AuthProvider>
+        <div data-testid="content">Protected</div>
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("content")).toBeDefined();
+    });
+    expect(usersApi.getMe).toHaveBeenCalledWith({ timeout: 0 });
+  });
+
   it("redirects to login when refresh fails", async () => {
     mockRefreshAccessToken.mockRejectedValue(new Error("refresh failed"));
 

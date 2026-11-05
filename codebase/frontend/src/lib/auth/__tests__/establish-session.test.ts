@@ -17,6 +17,7 @@ vi.mock("@/lib/api/auth", () => ({
 
 import {
   ESTABLISH_SESSION_TIMEOUT_MS,
+  NO_SESSION_TIMEOUT,
   establishSession,
 } from "../establish-session";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -61,6 +62,14 @@ describe("establishSession", () => {
 
     expect(getMe).toHaveBeenCalledWith({ timeout: ESTABLISH_SESSION_TIMEOUT_MS });
     expect(ESTABLISH_SESSION_TIMEOUT_MS).toBeGreaterThan(0);
+  });
+
+  it("호출하는 쪽이 시간 상한을 정할 수 있다 (복원 경로는 상한 없음)", async () => {
+    getMe.mockResolvedValue({ data: { data: USER } });
+
+    await establishSession("access-1", { timeoutMs: NO_SESSION_TIMEOUT });
+
+    expect(getMe).toHaveBeenCalledWith({ timeout: 0 });
   });
 
   it.each([
