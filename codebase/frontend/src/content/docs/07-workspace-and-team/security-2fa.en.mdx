@@ -94,6 +94,11 @@ After [Login](/login) succeeds, the 2FA screen follows this priority:
 2. **Otherwise, if TOTP is enabled**, the existing TOTP screen is shown.
 3. **If neither is set up**, the 2FA step is skipped entirely.
 
+If the server has the Passkey feature turned off (see "Self-hosting" below), registered Passkeys are not used for sign-in.
+
+- If TOTP is enabled, the TOTP screen is shown.
+- If TOTP is off, you see "Passkey sign-in is unavailable on this server. Please contact your administrator." and sign-in does not complete. You can sign in again once the administrator turns the Passkey feature back on.
+
 > To fall back to TOTP, delete every Passkey from [Profile → Security](/profile/security) first. Automatic downgrade from a phishing-resistant factor (Passkey) to a weaker factor (TOTP) is intentionally blocked.
 
 ### When Passkey fails
@@ -130,4 +135,4 @@ If your production hostname differs from the SaaS deployment, set these env vars
 | `WEBAUTHN_RP_NAME` | `Clemvion` | Name shown in the browser authentication prompt |
 | `WEBAUTHN_ORIGIN` | `https://app.example.com,https://www.example.com` | Comma-separated origin list (multi-origin under the same RP) |
 
-The backend warns and falls back to `FRONTEND_URL` if these are missing, but explicit configuration is recommended in production. Passkeys registered against a wrong RP / origin always fail authentication.
+If either `WEBAUTHN_RP_ID` or `WEBAUTHN_ORIGIN` is missing, the backend logs a warning and starts with the Passkey feature turned off. Passkey registration and Passkey sign-in are then rejected, and accounts that have only Passkeys with TOTP off cannot sign in. For development or demos, `WEBAUTHN_ALLOW_FALLBACK=1` uses `FRONTEND_URL` instead, but set both variables explicitly in production. Passkeys registered against a wrong RP / origin always fail authentication.

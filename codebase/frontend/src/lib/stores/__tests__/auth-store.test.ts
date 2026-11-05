@@ -50,6 +50,17 @@ describe("useAuthStore", () => {
     expect(state.isLoading).toBe(false);
   });
 
+  it("markSessionIssued sets token and hint cookie but not the authenticated flag", () => {
+    document.cookie = "has_session=; max-age=0; path=/";
+    useAuthStore.getState().markSessionIssued("token-123");
+
+    const state = useAuthStore.getState();
+    expect(setAccessToken).toHaveBeenCalledWith("token-123");
+    expect(document.cookie.split("; ")).toContain("has_session=1");
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.user).toBeNull();
+  });
+
   it("logout clears state and token", () => {
     const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light", twoFactorEnabled: false };
     useAuthStore.getState().setAuthenticated("token-123", user);

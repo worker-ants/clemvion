@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import { executionsApi, type ExecutionData } from "../api/executions";
-import { useExecutionStore } from "../stores/execution-store";
-import { applyExecutionSnapshot } from "./apply-execution-snapshot";
+import { executionsApi } from "../api/executions";
+import {
+  selectStoreExecutionFinished,
+  useExecutionStore,
+} from "../stores/execution-store";
+import {
+  applyExecutionSnapshot,
+  isTerminalServerExecutionStatus,
+} from "./apply-execution-snapshot";
 
 /**
- * REST 폴링 간격. 실행 상세 페이지(`executions/[executionId]/page.tsx`)의
- * `refetchInterval` 과 같은 2초다.
+ * REST 폴링 간격(CLE-EXEC-RUN 「REST 폴링 대체 경로」의 2초). 실행 상세 페이지
+ * (`executions/[executionId]/page.tsx`)의 상시 폴링 `refetchInterval` 도 이 값을 쓴다.
  */
 export const EXECUTION_POLL_INTERVAL_MS = 2000;
 
@@ -27,10 +33,7 @@ const UNRECOVERABLE_STATUSES: ReadonlySet<number> = new Set([
   400, 401, 403, 404,
 ]);
 
-const TERMINAL_EXECUTION_STATUSES: ReadonlySet<ExecutionData["status"]> =
-  new Set(["completed", "failed", "cancelled"]);
-
-interface PollFailure {
+export interface PollFailure {
   /** HTTP 응답 상태. 응답이 없는 네트워크 오류면 `undefined`. */
   status: number | undefined;
   message: string;
@@ -73,12 +76,77 @@ function readRetryAfterMs(headers: unknown): number | undefined {
   return seconds * 1000;
 }
 
-/** 연속 실패 `failures`(1부터) 번째 뒤의 대기 시간: 2s → 4s → 8s … 30s 상한. */
-function backoffDelayMs(failures: number): number {
+/**
+ * 요청이 실패한 뒤 다음 요청까지 기다릴 시간. `null` 이면 멈춘다.
+ *
+ * - 400 · 401 · 403 · 404 는 다시 보내도 같으므로 `null`.
+ * - 응답에 읽을 수 있는 `Retry-After` 가 있으면 그 값을 2초~60초로 잘라 따른다.
+ * - 그 밖(429 · 5xx · 네트워크 오류)은 연속 실패 `failures`(1부터) 번째에 맞춰
+ *   2s → 4s → 8s … 30s 상한으로 늘린다.
+ */
+export function nextRetryDelayMs(
+  failure: PollFailure,
+  failures: number,
+): number | null {
+  if (
+    failure.status !== undefined &&
+    UNRECOVERABLE_STATUSES.has(failure.status)
+  ) {
+    return null;
+  }
+  if (failure.retryAfterMs !== undefined) {
+    return Math.min(
+      Math.max(failure.retryAfterMs, EXECUTION_POLL_INTERVAL_MS),
+      MAX_RETRY_AFTER_MS,
+    );
+  }
   return Math.min(
     EXECUTION_POLL_INTERVAL_MS * 2 ** (failures - 1),
     EXECUTION_POLL_MAX_BACKOFF_MS,
   );
+}
+
+/** 응답 폐기 판정에 쓰는 store 값. 요청을 보낼 때와 응답이 왔을 때 두 번 읽는다. */
+export type PollStoreView = Pick<
+  ReturnType<typeof useExecutionStore.getState>,
+  "executionId" | "status" | "nodeStatuses" | "nodeResults"
+>;
+
+/**
+ * 받은 응답을 어떻게 할지.
+ * - `apply`: store 에 넣는다.
+ * - `discard`: 이 응답만 버리고 다음 요청을 예약한다.
+ * - `stop`: 응답을 버리고 폴링을 멈춘다.
+ */
+export type PollResponseDecision = "apply" | "discard" | "stop";
+
+/**
+ * 응답을 store 에 넣을지 가른다. `sent` 는 요청을 보낼 때, `current` 는 응답이 왔을 때의
+ * store 다.
+ *
+ * - store 의 실행 ID 가 이 폴링의 것과 다르거나(드로어를 닫아 `reset` 됐거나 새 실행이
+ *   시작됨) store 가 이미 끝난 실행이면 `stop`.
+ * - 요청을 보낸 뒤 다른 경로(WS 이벤트 · 사용자의 대기 응답)가 노드 상태 · 노드 결과 ·
+ *   실행 상태를 바꿨으면 `discard`. 노드 상태와 노드 결과는 참조로 가른다. store 는 두
+ *   필드를 쓸 때마다 새 참조를 만든다(`execution-store.ts` 의 필드 설명과 계약 테스트).
+ * - 그 밖에는 `apply`.
+ */
+export function decidePollResponse(
+  sent: PollStoreView,
+  current: PollStoreView,
+  executionId: string,
+): PollResponseDecision {
+  if (
+    current.executionId !== executionId ||
+    selectStoreExecutionFinished(current)
+  ) {
+    return "stop";
+  }
+  const changedSinceSent =
+    current.nodeStatuses !== sent.nodeStatuses ||
+    current.nodeResults !== sent.nodeResults ||
+    current.status !== sent.status;
+  return changedSinceSent ? "discard" : "apply";
 }
 
 interface UseExecutionPollingFallbackOptions {
@@ -126,9 +194,7 @@ export function useExecutionPollingFallback({
   executionId,
   enabled,
 }: UseExecutionPollingFallbackOptions): void {
-  const storeFinished = useExecutionStore(
-    (s) => s.status === "completed" || s.status === "failed",
-  );
+  const storeFinished = useExecutionStore(selectStoreExecutionFinished);
   const active = enabled && !!executionId && !storeFinished;
 
   useEffect(() => {
@@ -139,42 +205,32 @@ export function useExecutionPollingFallback({
     let failures = 0;
 
     const poll = async () => {
-      let nextDelayMs: number | null = EXECUTION_POLL_INTERVAL_MS;
       // 요청을 보내는 시점의 store. 응답이 올 때까지 다른 경로가 바꿨는지 가른다.
       const sent = useExecutionStore.getState();
+      let nextDelayMs: number | null = EXECUTION_POLL_INTERVAL_MS;
       try {
         const execution = await executionsApi.getById(executionId);
         if (disposed) return;
         failures = 0;
-        // effect 정리가 아직 돌지 않은 구간의 응답을 거른다(위 docblock). 정리가 곧
+        // effect 정리가 아직 돌지 않은 구간의 응답도 여기서 거른다(위 docblock). 정리가 곧
         // 이 폴링을 끝내는 경우가 대부분이지만, 정리가 늦어도 옛 응답이 닫은 드로어를
-        // 다시 열거나 새 실행에 섞이지 않게 여기서 멈춘다.
-        const store = useExecutionStore.getState();
-        if (
-          store.executionId !== executionId ||
-          store.status === "completed" ||
-          store.status === "failed"
-        ) {
-          return;
-        }
-        const changedSinceSent =
-          store.nodeStatuses !== sent.nodeStatuses ||
-          store.nodeResults !== sent.nodeResults ||
-          store.status !== sent.status;
-        if (!changedSinceSent) {
+        // 다시 열거나 새 실행에 섞이지 않게 멈춘다.
+        const decision = decidePollResponse(
+          sent,
+          useExecutionStore.getState(),
+          executionId,
+        );
+        if (decision === "stop") return;
+        if (decision === "apply") {
           applyExecutionSnapshot(execution, () => disposed);
-          if (TERMINAL_EXECUTION_STATUSES.has(execution.status)) {
-            nextDelayMs = null;
-          }
+          if (isTerminalServerExecutionStatus(execution.status)) return;
         }
       } catch (err) {
         if (disposed) return;
         failures += 1;
         const failure = describePollFailure(err);
-        if (
-          failure.status !== undefined &&
-          UNRECOVERABLE_STATUSES.has(failure.status)
-        ) {
+        nextDelayMs = nextRetryDelayMs(failure, failures);
+        if (nextDelayMs === null) {
           console.warn(
             "[useExecutionPollingFallback] REST poll stopped — not recoverable",
             { status: failure.status, message: failure.message },
@@ -188,17 +244,8 @@ export function useExecutionPollingFallback({
             { status: failure.status, message: failure.message },
           );
         }
-        nextDelayMs =
-          failure.retryAfterMs !== undefined
-            ? Math.min(
-                Math.max(failure.retryAfterMs, EXECUTION_POLL_INTERVAL_MS),
-                MAX_RETRY_AFTER_MS,
-              )
-            : backoffDelayMs(failures);
       }
-      if (nextDelayMs !== null) {
-        timer = setTimeout(() => void poll(), nextDelayMs);
-      }
+      timer = setTimeout(() => void poll(), nextDelayMs);
     };
 
     void poll();

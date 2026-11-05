@@ -909,10 +909,14 @@ describe('WebAuthnService', () => {
       expect(credentialRepo.find).not.toHaveBeenCalled();
     });
 
-    it('countCredentials returns 0 without DB hit', async () => {
-      const result = await service.countCredentials(userId);
-      expect(result).toBe(0);
-      expect(credentialRepo.count).not.toHaveBeenCalled();
+    // 기능이 꺼져도 저장된 credential 수를 그대로 센다. 로그인은 isEnabled() 와 함께 보고
+    // Passkey 만 등록한 계정을 503 WEBAUTHN_DISABLED 로 막는다(NERV CLE-ACCT-SIGNIN
+    // 「2단계 인증 방식 선택」, CLE-T-RFSJXQ). 0 을 돌려주면 그 계정이 비밀번호만으로 로그인한다.
+    it('countStoredCredentials still counts stored rows', async () => {
+      credentialRepo.count.mockResolvedValue(2);
+      const result = await service.countStoredCredentials(userId);
+      expect(result).toBe(2);
+      expect(credentialRepo.count).toHaveBeenCalledWith({ where: { userId } });
     });
 
     it.each([

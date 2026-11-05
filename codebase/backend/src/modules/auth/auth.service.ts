@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
   ConflictException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -292,6 +293,23 @@ export class AuthService {
   }
 
   // ========== LOGIN ==========
+  /**
+   * 로그인 경로가 Passkey 를 어떻게 다룰지 정하는 한 곳. `login` 과 `loginWithTotp` 가 같은 판정을 쓴다.
+   * - `active`: 기능이 켜져 있고 저장된 credential 이 1개 이상이다. 이때 TOTP 로 자동 전환하지 않는다.
+   * - `storedCount`: 기능이 꺼져 있어도 센 저장된 credential 수. 꺼진 동안 Passkey 만 등록한 계정을
+   *   비밀번호만으로 들이지 않는 판정(REQ-SIGNIN-067)에 쓴다.
+   */
+  private async passkeyState(
+    userId: string,
+  ): Promise<{ active: boolean; storedCount: number }> {
+    const storedCount =
+      await this.webauthnService.countStoredCredentials(userId);
+    return {
+      active: this.webauthnService.isEnabled() && storedCount > 0,
+      storedCount,
+    };
+  }
+
   async login(
     dto: {
       email: string;
@@ -339,21 +357,6 @@ export class AuthService {
       });
     }
 
-    if (!user.emailVerified) {
-      await this.loginHistory.record({
-        userId: user.id,
-        email: user.email,
-        event: 'login_failed',
-        ip: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        failureReason: 'EMAIL_NOT_VERIFIED',
-      });
-      throw new UnauthorizedException({
-        code: 'LOGIN_FAILED',
-        message: 'Please verify your email before logging in',
-      });
-    }
-
     if (!user.passwordHash) {
       await this.loginHistory.record({
         userId: user.id,
@@ -386,18 +389,38 @@ export class AuthService {
       });
     }
 
+    // 비밀번호가 맞았으므로 실패 횟수를 되돌린다. 이메일 인증 전 계정도 같다.
     await this.usersService.resetLoginAttempts(user.id);
 
-    // 2FA 활성 사용자: 5분 만료 challenge token 발급. spec/5-system/1-auth.md §1.4.2 —
-    //   WebAuthn credential ≥ 1 → methods=['webauthn'] (TOTP fallback 자동 금지)
-    //   else two_factor_enabled=true → methods=['totp']
-    // WebAuthnService.countCredentials() 는 기능 비활성(§1.4.3) 시 0 을 반환해
-    // TOTP/일반 분기로 폴백 — 운영자 미설정에 사용자가 락아웃되지 않도록.
-    const webauthnCount = await this.webauthnService.countCredentials(user.id);
+    // 이메일 인증 여부는 비밀번호가 맞을 때만 알린다. 비밀번호가 틀린 인증 전 계정은 위에서
+    // LOGIN_FAILED 로 끝난다(NERV CLE-ACCT-SIGNIN 「로그인 처리」 3 · 7번, REQ-SIGNIN-065 · 066).
+    if (!user.emailVerified) {
+      await this.loginHistory.record({
+        userId: user.id,
+        email: user.email,
+        event: 'login_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'EMAIL_NOT_VERIFIED',
+      });
+      throw new UnauthorizedException({
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+        message: 'Please verify your email before logging in',
+      });
+    }
+
+    // 2단계 인증 방식 선택(NERV CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」). 챌린지는 5분 만료다.
+    //   Passkey 기능 켜짐 + credential ≥ 1 → methods=['webauthn'] (TOTP 로 자동 전환하지 않는다)
+    //   그 밖에 two_factor_enabled → methods=['totp']
+    //   Passkey 기능 꺼짐 + credential ≥ 1 + TOTP 꺼짐 → 503 WEBAUTHN_DISABLED (REQ-SIGNIN-067).
+    //     비밀번호만으로 2단계 인증을 건너뛰지 않게 막는다. 챌린지 발급처럼 로그인 이력은 남기지 않는다.
+    const { active: useWebauthn, storedCount: webauthnCount } =
+      await this.passkeyState(user.id);
     const hasTotp = user.twoFactorEnabled;
-    if (webauthnCount > 0 || hasTotp) {
-      const methods: Array<'webauthn' | 'totp'> =
-        webauthnCount > 0 ? ['webauthn'] : ['totp'];
+    if (useWebauthn || hasTotp) {
+      const methods: Array<'webauthn' | 'totp'> = useWebauthn
+        ? ['webauthn']
+        : ['totp'];
       const challengeToken = this.jwtService.sign(
         {
           sub: user.id,
@@ -412,6 +435,17 @@ export class AuthService {
         methods,
         challengeToken,
       };
+    }
+    if (webauthnCount > 0) {
+      // 로그인 이력은 남기지 않으므로 운영 쪽이 이 락아웃을 알 단서는 로그뿐이다.
+      this.logger.warn(
+        `Login blocked for passkey-only user ${user.id}: WebAuthn is disabled. Set WEBAUTHN_RP_ID and WEBAUTHN_ORIGIN to enable it.`,
+      );
+      throw new ServiceUnavailableException({
+        code: 'WEBAUTHN_DISABLED',
+        message:
+          'Passkey 로그인이 이 서버에서 꺼져 있어요. 관리자에게 문의해 주세요.',
+      });
     }
 
     const tokens = await this.generateTokens(
@@ -462,11 +496,10 @@ export class AuthService {
         message: '이 계정은 2FA가 비활성 상태예요. 다시 로그인해 주세요.',
       });
     }
-    // spec/5-system/1-auth.md Rationale 1.4.D — WebAuthn credential 보유 사용자는
-    // TOTP 자동 fallback 차단. WebAuthnService.countCredentials() 는 §1.4.3 비활성 시
-    // 0 을 반환해 백스탑을 자동으로 풀어준다 (락아웃 방지).
-    const webauthnCount = await this.webauthnService.countCredentials(user.id);
-    if (webauthnCount > 0) {
+    // Passkey 가 등록된 사용자는 TOTP 로 자동 전환하지 않는다. Passkey 기능이 꺼져 있으면
+    // 이 백스탑을 건너뛴다. 꺼진 동안 TOTP 가 켜진 사용자는 TOTP 로 로그인한다
+    // (NERV CLE-ACCT-SIGNIN `WEBAUTHN_REQUIRED` 행 · 「Passkey 기능 켜기와 환경 변수」).
+    if ((await this.passkeyState(user.id)).active) {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_REQUIRED',
         message:

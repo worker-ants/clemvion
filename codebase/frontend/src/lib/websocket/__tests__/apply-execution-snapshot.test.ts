@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   applyExecutionSnapshot,
   isNodeWaitingForInput,
+  isTerminalServerExecutionStatus,
+  nextExecutionRefetchInterval,
   loadHistoricalExecution,
 } from "../apply-execution-snapshot";
 import { useExecutionStore } from "../../stores/execution-store";
@@ -1306,4 +1308,36 @@ describe("loadHistoricalExecution (§7 / §10.10)", () => {
     });
     expect(state.nodeStatuses.get("node-a")?.status).toBe("completed");
   });
+});
+
+describe("isTerminalServerExecutionStatus", () => {
+  it.each(["completed", "failed", "cancelled"] as const)(
+    "%s 는 종결 상태다",
+    (status) => {
+      expect(isTerminalServerExecutionStatus(status)).toBe(true);
+    },
+  );
+
+  it.each(["pending", "running", "waiting_for_input"] as const)(
+    "%s 는 종결 상태가 아니다",
+    (status) => {
+      expect(isTerminalServerExecutionStatus(status)).toBe(false);
+    },
+  );
+});
+
+describe("nextExecutionRefetchInterval", () => {
+  it.each(["completed", "failed", "cancelled"] as const)(
+    "%s 이면 폴링을 멈춘다",
+    (status) => {
+      expect(nextExecutionRefetchInterval(status, 2000)).toBe(false);
+    },
+  );
+
+  it.each([undefined, "pending", "running", "waiting_for_input"] as const)(
+    "%s 이면 간격을 돌려준다",
+    (status) => {
+      expect(nextExecutionRefetchInterval(status, 2000)).toBe(2000);
+    },
+  );
 });

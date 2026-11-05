@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
 content_hash: "1a2c3bd6faa92251a4efbaf198155b6a7c93366a24c176f4fd461cdfe4279114"
 read_as: "approved_fallback"
-task: "CLE-T-SCDNDC"
+task: "CLE-T-693G4E"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "a59e102554d16e1a1fb064a511aa041d8a7c226652e6a25ce864876bd113ab8e"
-etag: "sha256-bca3fc9bb7159e1a1ce686c9ffbdfd5e47e90234263a4cdc8302e457bbf18792"
+mirror_sha256: "52b362559c0ed0bad5a2bae77a01065f63c89a5e2977de70c50b5b4fd462d10e"
+etag: "sha256-3753893721996364d53f34eb5a63cfe5906f9c17c11c7e976b0c03666cf32e4e"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

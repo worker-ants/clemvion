@@ -35,17 +35,71 @@ interface UseExecutionEventsReturn {
   isConnected: boolean;
   /**
    * WS 로 이 실행의 실시간 데이터를 받지 못하는 중이라 REST 폴링으로 store 를
-   * 채워야 하는지. 구독이 실패했거나(`subscribed` 실패 ack · 연결 실패) 스냅샷과
-   * 이벤트가 10초 안에 오지 않으면 켜지고, 스냅샷이나 이 실행의 이벤트가 오면
-   * 꺼진다. 폴링은 호출자가 `useExecutionPollingFallback` 으로 붙인다(에디터).
-   * 10초 지연 토스트(i18n 키 `executions.realtimeFallback`)와 켜지는 시점이 다르다.
-   * 구독 실패가 분명하면 이 값은 바로 켜지고 토스트는 10초를 기다린다.
+   * 채워야 하는지. 실시간 경로 상태(`RealtimePhase`)가 `fallback` 일 때 켜진다.
+   * 구독이 실패했거나(`subscribed` 실패 ack · 연결 실패) 스냅샷과 이벤트가 10초 안에
+   * 오지 않으면 켜지고, 스냅샷이나 이 실행의 이벤트가 오면 꺼진다. 폴링은 호출자가
+   * `useExecutionPollingFallback` 으로 붙인다(에디터). 10초 지연 토스트(i18n 키
+   * `executions.realtimeFallback`)와 켜지는 시점이 다르다. 구독 실패가 분명하면 이 값은
+   * 바로 켜지고 토스트는 10초를 기다린다.
    */
   needsRestPolling: boolean;
 }
 
-/** 스냅샷 · 이벤트가 이 시간 안에 오지 않으면 경고 토스트를 띄우고 REST 폴링으로 넘긴다. */
+/** 스냅샷 · 이벤트가 이 시간 안에 오지 않으면 REST 폴링으로 넘기고 지연 토스트를 띄운다. */
 const REALTIME_TIMEOUT_MS = 10_000;
+
+/**
+ * 이 실행의 실시간 경로 상태(CLE-EXEC-RUN 「REST 폴링 대체 경로」).
+ * - `awaiting`: 이 실행의 스냅샷 · 이벤트를 기다린다(구독 직후, 연결이 끊긴 뒤).
+ * - `receiving`: 이 실행의 스냅샷이나 이벤트를 받았다. 실시간 경로가 살아 있다.
+ * - `fallback`: 구독 · 연결이 실패했거나 10초 동안 받지 못했다. REST 폴링이 store 를 채운다.
+ */
+export type RealtimePhase = "awaiting" | "receiving" | "fallback";
+
+/**
+ * 실시간 경로 상태를 바꾸는 신호.
+ * - `received`: 이 실행의 스냅샷이나 실행 이벤트가 왔다.
+ * - `disconnected`: 소켓 연결이 끊겼다.
+ * - `failed`: 구독 실패 응답(`subscribed` 의 `success: false`)이 왔거나 연결 대기가 실패했다.
+ * - `timedOut`: 기다리기 시작한 뒤 `REALTIME_TIMEOUT_MS` 가 지났다.
+ */
+export type RealtimeSignal = "received" | "disconnected" | "failed" | "timedOut";
+
+/**
+ * 신호를 받은 뒤의 실시간 경로 상태.
+ *
+ * 실패와 10초 경과는 아직 받은 데이터가 없을 때(`awaiting`)만 폴링으로 넘긴다. 실패 응답에는
+ * 채널이 없어 어느 구독의 실패인지 가릴 수 없으므로(CLE-API-WS 「구독 인가」) 이 실행의
+ * 데이터를 이미 받은 뒤에 온 실패는 이 실행의 것으로 보지 않는다. 연결이 끊기면 수신 표시만
+ * 지우고 10초를 다시 잰다. 이미 폴링 중이면 끊겨도 폴링을 이어 간다.
+ */
+export function nextRealtimePhase(
+  phase: RealtimePhase,
+  signal: RealtimeSignal,
+): RealtimePhase {
+  switch (signal) {
+    case "received":
+      return "receiving";
+    case "disconnected":
+      return phase === "receiving" ? "awaiting" : phase;
+    case "failed":
+    case "timedOut":
+      return phase === "awaiting" ? "fallback" : phase;
+    default:
+      return assertNever(signal, "RealtimeSignal");
+  }
+}
+
+/**
+ * 스냅샷이 이 실행의 것인지. 같은 소켓으로 앞 실행 채널의 늦은 스냅샷이 올 수 있어서 서버가
+ * 싣는 `executionId`(없으면 `execution.id`)로 거른다.
+ */
+function isSnapshotFor(
+  payload: { executionId?: unknown; execution?: ExecutionData } | null,
+  executionId: string,
+): boolean {
+  return (payload?.executionId ?? payload?.execution?.id) === executionId;
+}
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -180,22 +234,15 @@ export function useExecutionEvents({
 }: UseExecutionEventsOptions): UseExecutionEventsReturn {
   const t = useT();
   const [isConnected, setIsConnected] = useState(false);
-  // realtimeReceived: WS `execution.snapshot` 이나 이 실행의 이벤트가 도착했는지.
-  // WS handshake 완료 (isConnected) 보다 더 정확한 "real-time data 수신" 신호 —
-  // backend 가 subscribe 즉시 발송하는 snapshot 이 도착해야 비로소 진짜 events
-  // 흐름이 보장된다. Fix D toast 의 false positive 차단을 위해 isConnected 대신
-  // 본 신호를 사용. executionId 변경 / disconnect 시 reset.
-  const [realtimeReceived, setRealtimeReceived] = useState(false);
-  // fallbackRequested: 구독 실패 또는 10초 무수신으로 REST 폴링이 필요하다고
-  // 판정했는지. 실시간 데이터가 오면 끈다. 반환값은 realtimeReceived 로 한 번 더
-  // 거른다(이미 받은 effect 의 실패 ack 는 effect 안에서 거르지만, 렌더를 넘어 남은
-  // 값이 폴링을 켜지 않게 하는 마지막 방어선).
-  const [fallbackRequested, setFallbackRequested] = useState(false);
+  // 이 실행의 실시간 경로 상태(`nextRealtimePhase`). 폴링 신호(`needsRestPolling`)와 지연
+  // 토스트가 모두 이 값 하나에서 나온다. WS handshake(isConnected)로는 실시간 수신을 가릴 수
+  // 없다. 싱글턴 소켓이 이미 연결돼 있으면 connect 가 다시 오지 않기 때문이다. 그래서 이
+  // 실행의 스냅샷 · 이벤트가 왔는지로 가른다.
+  const [realtimePhase, setRealtimePhase] = useState<RealtimePhase>("awaiting");
   // React 19 권장 패턴 — render-time prop-change reset (useEffect+setState 대신).
-  // executionId 가 새 값으로 바뀌면 두 신호를 즉시 false 로 reset 해 새
-  // execution 의 snapshot 을 기다린다. set-state-in-effect lint rule 충돌 회피.
+  // executionId 가 새 값으로 바뀌면 새 실행의 스냅샷을 기다리는 상태로 바로 되돌린다.
+  // set-state-in-effect lint rule 충돌 회피.
   const [prevExecutionId, setPrevExecutionId] = useState(executionId);
-  const cancelledRef = useRef(false);
   // 마지막으로 적용한 `conversationThread.nextSeq`. 동일 nextSeq 재emit
   // (WS reconnect) 만 skip 하고, message snapshot 으로 thread 가 덮어써진
   // 뒤 새 waiting tick 이 오면 nextSeq 가 advance 했다면 재적용해 source
@@ -205,8 +252,7 @@ export function useExecutionEvents({
   const lastAppliedThreadSeqRef = useRef<number | null>(null);
   if (prevExecutionId !== executionId) {
     setPrevExecutionId(executionId);
-    setRealtimeReceived(false);
-    setFallbackRequested(false);
+    setRealtimePhase("awaiting");
   }
 
   const {
@@ -1049,11 +1095,11 @@ export function useExecutionEvents({
   useEffect(() => {
     if (!executionId) return;
 
-    cancelledRef.current = false;
-    // 이 effect 실행만의 해제 표시. cancelledRef 는 다음 실행이 곧바로 false 로
-    // 되돌리므로, 앞 실행의 늦은 콜백(연결 실패 · ack)이 새 실행의 폴링 신호를
-    // 켜지 않게 하려면 실행마다 따로 둔다.
+    // 이 effect 실행의 해제 표시. 실행마다 따로 두므로 앞 실행의 늦은 콜백(토큰 갱신 · 연결
+    // 대기 · 재연결 · 스냅샷 · ack)은 새 실행이 시작된 뒤에도 이 값으로 걸러진다. 실행 사이에
+    // 공유하는 ref 는 새 실행이 곧바로 false 로 되돌려서 앞 실행이 옛 채널을 구독할 수 있었다.
     let disposed = false;
+    const isDisposed = () => disposed;
     // executionId 가 바뀐 turn 의 첫 effect 진입 시 thread snapshot 적용
     // history 를 리셋해야 다음 execution 의 첫 waiting tick 이 반드시 적용된다.
     // (render-time 에서 reset 하면 react-hooks/refs 룰 위반)
@@ -1073,33 +1119,26 @@ export function useExecutionEvents({
     } else {
       void (async () => {
         const refreshed = await ensureFreshAccessToken();
-        if (cancelledRef.current || !refreshed) return;
+        if (disposed || !refreshed) return;
         client.connect(refreshed);
       })();
     }
 
-    // 이 effect 안에서 이 실행의 실시간 데이터(스냅샷 · 이벤트)를 이미 받았는지.
-    // state 의 realtimeReceived 는 다음 렌더에야 반영되므로, 같은 틱에 늦게 온 실패 ack 를
-    // 거르는 데는 이 지역 변수를 쓴다. disconnect 때 지워 재연결 뒤 다시 기다린다.
-    let realtimeSeen = false;
+    // 실시간 경로 상태를 바꾼다. 함수형 갱신이라 같은 틱에 이어 온 신호(스냅샷 뒤의 늦은
+    // 실패 ack 등)도 앞 신호가 반영된 상태에서 판정된다. 해제된 실행의 콜백은 버린다.
+    const signal = (s: RealtimeSignal) => {
+      if (disposed) return;
+      setRealtimePhase((phase) => nextRealtimePhase(phase, s));
+    };
 
-    // Track connection state. disconnect 시 realtimeReceived 도 reset —
-    // 재연결 후 새 snapshot 을 기다려야 "real-time data 수신" 다시 보장.
-    const onConnect = () => setIsConnected(true);
+    // Track connection state. 끊기면 수신 표시를 지워 재연결 뒤 새 스냅샷을 다시 기다린다.
+    const onConnect = () => {
+      if (!disposed) setIsConnected(true);
+    };
     const onDisconnect = () => {
+      if (disposed) return;
       setIsConnected(false);
-      setRealtimeReceived(false);
-      realtimeSeen = false;
-    };
-
-    // 실시간 데이터 수신 표시 — 폴링 대체 경로를 끄고 토스트를 닫게 한다.
-    const markRealtimeReceived = () => {
-      realtimeSeen = true;
-      setRealtimeReceived(true);
-      setFallbackRequested(false);
-    };
-    const requestFallback = () => {
-      if (!disposed) setFallbackRequested(true);
+      signal("disconnected");
     };
 
     // M-6 (06 concurrency) — 이중 등록 방어. 등록 직전 동일 (event, handler 참조)를
@@ -1158,17 +1197,18 @@ export function useExecutionEvents({
     // useExecutionPollingFallback) 이 같은 함수를 호출하여 single source of
     // truth 보장 + WS 가 실패해도 REST 가 store 를 hydrate.
     const handleSnapshot = (data: unknown) => {
-      const payload = data as { execution?: ExecutionData } | null;
-      applyExecutionSnapshot(
-        payload?.execution,
-        () => cancelledRef.current,
-      );
-      // WS 로 처음 snapshot 수신 = 진짜 real-time event 흐름 보장 시점.
-      // Fix D toast 의 트리거 신호. setter 가 idempotent 하므로 매 snapshot
-      // 마다 호출해도 안전 (React 가 같은 값에 bail-out).
-      // 주의: REST 폴링의 applyExecutionSnapshot 은 이 표시를 하지 않음 —
-      // REST 는 real-time 이 아니라 fallback.
-      markRealtimeReceived();
+      if (disposed) return;
+      const payload = data as {
+        executionId?: unknown;
+        execution?: ExecutionData;
+      } | null;
+      // 다른 실행의 스냅샷(앞 실행 채널의 늦은 스냅샷 등)은 store 에 넣지 않고 실시간 수신으로도
+      // 세지 않는다. 세면 이 실행의 폴링 대체가 켜지지 않는다.
+      if (!isSnapshotFor(payload, executionId)) return;
+      applyExecutionSnapshot(payload?.execution, isDisposed);
+      // WS 로 스냅샷을 받았다 = 실시간 흐름이 살아 있다. 같은 상태로 되풀이 갱신해도 React 가
+      // bail-out 한다. REST 폴링의 applyExecutionSnapshot 은 이 신호를 내지 않는다(대체 경로).
+      signal("received");
     };
 
     bind("execution.snapshot", handleSnapshot);
@@ -1178,7 +1218,7 @@ export function useExecutionEvents({
     // 올 수 있어 executionId 로 거른다.
     const markOnExecutionEvent = (data: unknown) => {
       if (asRecord(data)?.executionId === executionId) {
-        markRealtimeReceived();
+        signal("received");
       }
     };
     for (const [name] of executionEventHandlers) {
@@ -1189,20 +1229,18 @@ export function useExecutionEvents({
     // 넘긴다. 서버의 실패 ack 에는 channel 이 없어(CLE-API-WS 「구독 인가」) 어느 구독의 실패인지
     // 가릴 수 없다. 싱글턴 소켓의 다른 채널 구독이 거부돼도 켜질 수 있지만, 이 실행의
     // 실시간 데이터가 오면 꺼지므로 잠깐의 불필요한 폴링에 그친다. 이 실행의 데이터를
-    // 이미 받은 effect 안에서는 켜지 않는다.
+    // 이미 받은 뒤에는 켜지 않는다(`nextRealtimePhase`).
     const onSubscribed = (data: unknown) => {
       if (asRecord(data)?.success !== false) return;
-      if (realtimeSeen) return;
-      requestFallback();
+      signal("failed");
     };
     bind("subscribed", onSubscribed);
 
     const trySubscribe = async () => {
       try {
         await client.waitForConnect();
-        if (!cancelledRef.current) {
-          client.subscribe(channel);
-        }
+        if (disposed) return;
+        client.subscribe(channel);
       } catch (err) {
         // WS subscribe 실패 — REST polling 이 fallback 으로 store 를 hydrate
         // 하므로 사용자 워크플로 실행은 계속 진행 (Fix A: REST → store bridge).
@@ -1211,12 +1249,12 @@ export function useExecutionEvents({
           "[useExecutionEvents] WS subscribe failed — REST polling will hydrate store as fallback",
           err,
         );
-        requestFallback();
+        signal("failed");
       }
     };
 
     const onReconnect = () => {
-      if (!cancelledRef.current) {
+      if (!disposed) {
         void trySubscribe();
       }
     };
@@ -1225,7 +1263,6 @@ export function useExecutionEvents({
     void trySubscribe();
 
     return () => {
-      cancelledRef.current = true;
       disposed = true;
       client.off("subscribed", onSubscribed);
       for (const [name, handler] of executionEventHandlers) {
@@ -1269,34 +1306,40 @@ export function useExecutionEvents({
     updateConversationConfig,
   ]);
 
-  // Fix D 회귀 fix — WS 연결 상태 UX feedback (realtimeReceived 기반).
+  const awaitingRealtime = !!executionId && realtimePhase === "awaiting";
+  const receivingRealtime = realtimePhase === "receiving";
+
+  // 10초 무수신 → 폴링 대체. 기다리는 동안(`awaiting`)만 잰다. 실행이 바뀌거나 연결이 끊겨
+  // 다시 기다리기 시작하면 처음부터 잰다. 구독 실패로 이미 폴링 중이면 잴 것이 없다.
+  useEffect(() => {
+    if (!awaitingRealtime) return;
+    const timer = setTimeout(() => {
+      setRealtimePhase((phase) => nextRealtimePhase(phase, "timedOut"));
+    }, REALTIME_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [awaitingRealtime, executionId]);
+
+  // 지연 토스트 — 실시간 경로 상태의 결과(이 실행의 데이터를 받고 있는가)만 본다. 폴링 신호는
+  // 바꾸지 않는다.
   //
-  // 이전 버전은 `isConnected` (WS handshake) 를 신호로 사용했으나, WS singleton
-  // 이 페이지 navigation 간 재사용되어 이미 connect 된 상태일 때 connect event
-  // 가 재발화하지 않아 isConnected 가 영구히 false → false positive toast.
-  //
-  // 새 신호: `realtimeReceived` — backend 가 subscribe 즉시 발송하는
-  // `execution.snapshot` 이나 이 실행의 이벤트를 받았는지. 이 시점부터 실제
-  // real-time event 흐름이 보장된다 (subscribe race window 도 자연 해소 —
-  // backend 가 missed events 를 snapshot 으로 보상).
-  //
-  // Threshold 5s → 10s — 느린 dev / cold-start 환경 친화. 영구 실패 (e.g.,
-  // backend down) 는 10초 후에도 정상 감지.
+  // 신호를 WS handshake(`isConnected`)가 아니라 실시간 수신으로 잡은 이유: 싱글턴 소켓이 페이지
+  // 이동 사이에 재사용되면 이미 연결된 상태라 connect 가 다시 오지 않아 isConnected 가 계속
+  // false 로 남고 토스트가 잘못 뜬다(Fix D 회귀). 서버가 구독 즉시 보내는 스냅샷이나 이 실행의
+  // 이벤트가 오면 실시간 흐름이 보장된다. 놓친 이벤트는 스냅샷이 보상한다.
   //
   // 의도된 동작:
-  //  - 정상: 1초 안에 snapshot 도착 → toast 미발생
-  //  - 페이지 재방문: singleton 이 이미 connect 됐어도 새 채널 subscribe + snapshot
-  //    수신 사이클을 거쳐 → 1초 안에 다시 set → toast 미발생
-  //  - WS 영구 실패: 10초 후 toast 유지 + fallbackRequested 를 켜서 REST
-  //    polling 이 store hydrate (Fix A. 에디터는 useExecutionPollingFallback,
-  //    실행 상세는 상시 폴링)
-  //  - WS 일시 disconnect → 재연결: realtimeReceived reset → 재연결 + 새 snapshot
-  //    수신 시 자동 dismiss
-  //  - 구독 실패 ack · 연결 실패: fallbackRequested 는 바로 켜지만 toast 는 그대로
-  //    10초 뒤에 띄운다(만료 토큰 재연결처럼 곧 회복되는 실패에서 깜빡이지 않게)
+  //  - 정상: 1초 안에 스냅샷 도착 → 토스트 없음
+  //  - 페이지 재방문: 싱글턴이 이미 연결됐어도 새 채널 구독 → 스냅샷 수신 → 토스트 없음
+  //  - WS 영구 실패: 10초 뒤 토스트를 띄워 유지한다. 폴링은 위의 10초 타이머가 켠다(Fix A.
+  //    에디터는 useExecutionPollingFallback, 실행 상세는 상시 폴링)
+  //  - WS 일시 disconnect → 재연결: 수신 표시가 지워졌다가 새 스냅샷을 받으면 닫는다
+  //  - 구독 실패 ack · 연결 실패: 폴링은 바로 켜지지만(`fallback`) 이 값은 수신 중이 아니므로
+  //    토스트는 그대로 10초 뒤에 뜬다(만료 토큰 재연결처럼 곧 회복되는 실패에서 깜빡이지 않게)
+  //
+  // 10초는 느린 dev · cold-start 환경을 고려한 값이다(예전 5초).
   useEffect(() => {
     if (!executionId) return;
-    if (realtimeReceived) {
+    if (receivingRealtime) {
       // m-5 (06 concurrency) — dismiss hysteresis. snapshot 이 잠깐 도착했다 다시
       // 끊기는 reconnect flap 에서 warning toast 를 즉시 dismiss→재표시로 깜빡이지
       // 않도록, 짧은 지연 후 dismiss 한다. 지연 내에 다시 미수신되면(effect 재실행)
@@ -1311,13 +1354,12 @@ export function useExecutionEvents({
         duration: Infinity,
         id: "ws-connection-warning",
       });
-      setFallbackRequested(true);
     }, REALTIME_TIMEOUT_MS);
     return () => clearTimeout(warnTimer);
-  }, [executionId, realtimeReceived, t]);
+  }, [executionId, receivingRealtime, t]);
 
   return {
     isConnected,
-    needsRestPolling: !!executionId && fallbackRequested && !realtimeReceived,
+    needsRestPolling: !!executionId && realtimePhase === "fallback",
   };
 }

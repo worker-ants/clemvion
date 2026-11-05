@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OPEN"
 title: "용어 사전 — 결정이 필요한 표기"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "7e4cc9a65e7f05e708f8b6635672a6bb713d2cac898952a13dd4064a093be951"
+content_hash: "46576bec642c0db984457481f40e7d9dba81110b482ad0e4fc4936878754ec4f"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-693G4E"
 source_paths: []
-mirror_sha256: "cb458ec5c658f321aff9184a9b49b4f355a35ff718c3b4eac22267e8a4f1d438"
-etag: "sha256-b542ab81b4a5ccebacbef2201866fd9587ab4306aed5dae0487f93ff349a378d"
+mirror_sha256: "ac3debf3df27858e4650735d0e529e6e0ebc7551e7f2c1fa2d9cfa866112ce57"
+etag: "sha256-b95c5b01290216adf54e4c710304a4c26b65edd754123948ddac4c8ad009639d"
 ---
 ## 개요
 
@@ -85,7 +85,7 @@ etag: "sha256-b542ab81b4a5ccebacbef2201866fd9587ab4306aed5dae0487f93ff349a378d"
 | D58 | 건강도(health) 값 집합이 표면마다 다르다 | healthy·degraded·down(큐) / healthy·unhealthy(헬스 체크) / unknown·healthy·degraded(발송 건강도 · 채널 건강도) | 큐 건강도, 헬스 체크, 발송 건강도, 채널 건강도 | info |
 | D59 | 현재 워크스페이스를 활성 워크스페이스로도 부른다 | 현재 워크스페이스(화면) / 활성 워크스페이스 / 워크스페이스 컨텍스트 | 현재 워크스페이스 | info |
 | D60 | 로그인 세션을 디바이스 세션으로도 부른다 | 로그인 세션(화면) / 디바이스 세션 / family | 로그인 세션 | info |
-| D61 | 데이터 흐름 문서가 2단계 인증 전환을 "TOTP fallback" 으로 적는다 | WebAuthn 우선·TOTP fallback(data-flow) / TOTP 자동 전환 금지(1-auth) | Passkey·보안 키가 있으면 그 방식만 쓰고 TOTP 로 자동 전환하지 않는다 | warning |
+| D61 | 데이터 흐름 문서가 2단계 인증 전환을 "TOTP fallback" 으로 적는다 | WebAuthn 우선·TOTP fallback(data-flow) / TOTP 자동 전환 금지(1-auth) | Passkey·보안 키가 있으면 그 방식만 쓰고 TOTP 로 자동 전환하지 않는다. Passkey 기능이 꺼진 서버의 예외는 [가입과 로그인 「2단계 인증 방식 선택」](CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-방식-선택) 에 있다 | warning |
 | D62 | 단일 진실과 단일 기준 표기가 갈린다 | 단일 진실 / SoT / single source of truth / 단일 기준 | 단일 기준 | info |
 | D63 | 없어진 Config 메뉴 이름이 남아 있다 | Config 서브메뉴 / 모델 설정 / 인증 | 모델 설정, 인증(인증 설정) | info |
 | D64 | 트리거 호출 이력과 인증 설정 사용 내역이 같은 이름으로 적혀 있다 | 호출 이력(트리거) / 사용 내역(인증 설정, 화면) / 호출 이력(인증 설정, 스펙) | 트리거는 호출 이력, 인증 설정은 사용 내역 | info |

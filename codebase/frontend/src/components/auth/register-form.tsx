@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
-import { setAccessToken } from "@/lib/api/client";
+import { establishSession } from "@/lib/auth/establish-session";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import { INVITATION_ERROR } from "@/lib/api/invitations";
 import {
@@ -155,9 +155,9 @@ function RegisterFormInner({
       const result = response.data.data;
       const accessToken = result?.accessToken;
       if (accessToken) {
-        // 초대 토큰 가입 — 백엔드가 이메일 인증을 건너뛰고 자동 로그인.
-        // Access Token 을 메모리에 셋하고 Refresh Token 쿠키는 이미 응답에서 셋됐다.
-        setAccessToken(accessToken);
+        // 초대 토큰 가입 — 백엔드가 이메일 인증을 건너뛰고 자동 로그인한다. 리프레시 쿠키는 응답에서 이미
+        // 설정됐다. 비밀번호 로그인과 같은 진입점으로 로그인 상태와 힌트 쿠키(`has_session`)를 둔다.
+        await establishSession(accessToken);
         toast.success(t("auth.register.invitationSuccess"));
         router.push("/dashboard");
       } else {

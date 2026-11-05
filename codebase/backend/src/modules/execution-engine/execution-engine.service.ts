@@ -112,7 +112,6 @@ import type { ResumeCheckpoint } from './utils/resume-state.schema';
 import {
   ExecutionContext,
   NodeHandler,
-  NodeHandlerOutput,
   ParallelBranchContext,
   ResumableMessageSource,
 } from '../../nodes/core/node-handler.interface';
@@ -150,7 +149,10 @@ import {
 import {
   adaptHandlerReturn,
   isCanonicalHandlerOutput,
+  isWrappedValueEnvelope,
+  markWrappedValueEnvelope,
   toEngineFlatShape,
+  unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -4600,7 +4602,6 @@ export class ExecutionEngineService
           savedExecution,
           singleNodeId,
           incomingEdgeMap,
-          nodeMap,
           context,
           executedNodes,
         );
@@ -6151,7 +6152,7 @@ export class ExecutionEngineService
         node.id,
         resolvedConfig,
       );
-      const flatForCache = this.toCacheShape(node.type, adapted);
+      const flatForCache = toEngineFlatShape(adapted);
 
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
@@ -6675,7 +6676,6 @@ export class ExecutionEngineService
     savedExecution: Execution,
     targetNodeId: string,
     incomingEdgeMap: Map<string, GraphEdge[]>,
-    nodeMap: Map<string, Node>,
     context: ExecutionContext,
     executedNodes: Set<string>,
   ): Promise<void> {
@@ -6709,9 +6709,7 @@ export class ExecutionEngineService
       this.contextService.setNodeOutput(
         ctxKey,
         predId,
-        this.applyPortSelection(
-          this.toCacheShape(nodeMap.get(predId)?.type ?? '', adapted),
-        ),
+        this.applyPortSelection(toEngineFlatShape(adapted)),
       );
       executedNodes.add(predId);
     }
@@ -6807,24 +6805,6 @@ export class ExecutionEngineService
   }
 
   /**
-   * 핸들러 출력을 엔진 캐시(flat) 모양으로 바꾼다. 노드 완료 경로와 단일 노드 실행의
-   * 상류 출력 복원 경로가 같은 규칙을 쓰도록 한 곳에 둔다.
-   *
-   * 컨테이너(`kind: 'container'`)는 입력 배열을 `output` 으로 돌려주고 컨테이너 실행이
-   * 구조화 캐시에서 그 배열을 읽는다. 함께 온 `meta` 만으로 `{ data }` 로 감싸면
-   * `setNodeOutput` 이 구조화 캐시의 `output` 까지 바꿔 컨테이너가 배열을 못 본다.
-   * 그래서 `kind` 가 컨테이너인 노드는 감싸기 판단에서 `meta` 를 뺀다.
-   * 노드 유형 이름이 아니라 등록 때 받은 `kind` 로 정하므로 새 컨테이너도 선언만 따라온다
-   * (`executionMetadata` 자기선언, `NodeTypeMetadata`).
-   */
-  private toCacheShape(nodeType: string, adapted: NodeHandlerOutput): unknown {
-    return toEngineFlatShape(adapted, {
-      ignoreMetaForWrap:
-        this.handlerRegistry.getMetadata(nodeType).kind === 'container',
-    });
-  }
-
-  /**
    * If a handler returned { port, data, ... }, convert to { ...data, _selectedPort }
    * so downstream routing can filter edges by port.
    * Extra root-level fields (e.g. expression, value) are preserved for the execution record.
@@ -6837,6 +6817,10 @@ export class ExecutionEngineService
    * 그 결과 다음 노드 input 이 깨진 객체로 도착해 `dataField='data'` 추출이 실패.
    * 따라서 **`data` 가 plain object 일 때만 unwrap**, array/primitive 는 `data`
    * 키 그대로 보존하고 `port → _selectedPort` 만 변환.
+   *
+   * 어댑터가 배열 · 원시값 output 을 싣으려고 만든 봉투라면 새 객체에도 봉투 표지를
+   * 옮긴다. 다운스트림 `$input` · `$node[X].output` 이 그 표지를 보고 `data` 를
+   * 푼다(`isWrappedValueEnvelope`, NERV Task CLE-T-T30D5S).
    */
   // C-1 step2 — EngineDriver member (port 라우팅, orchestrator 가 driver 경유).
   public applyPortSelection(output: unknown): unknown {
@@ -6855,7 +6839,10 @@ export class ExecutionEngineService
       }
       // data 가 array / primitive / null: unwrap 시 array spread 가 발생해
       // next input 이 `{0:..., 1:...}` 로 깨지므로 키 보존.
-      return { ...extra, data, _selectedPort: port };
+      const routed = { ...extra, data, _selectedPort: port };
+      return isWrappedValueEnvelope(output)
+        ? markWrappedValueEnvelope(routed)
+        : routed;
     }
     return output;
   }
@@ -6883,8 +6870,14 @@ export class ExecutionEngineService
    * The `structuredOutputCache` (what `$node["X"].port` resolves against)
    * is not touched — downstream expressions can still read the predecessor's
    * control fields explicitly by node reference.
+   *
+   * 배열 · 원시값 output 을 실은 엔진 봉투면 제어 필드를 지우는 대신 안의 값을
+   * 그대로 돌려준다. 다운스트림은 핸들러 `output` 을 받는다(NERV Task CLE-T-T30D5S).
    */
   private stripControlFields(output: unknown): unknown {
+    if (isWrappedValueEnvelope(output)) {
+      return output.data;
+    }
     if (!output || typeof output !== 'object' || Array.isArray(output)) {
       return output;
     }
@@ -7107,7 +7100,9 @@ export class ExecutionEngineService
     if (!reachable.has(emitSourceNodeId)) {
       return undefined;
     }
-    return context.nodeOutputCache[emitSourceNodeId];
+    // 배열 · 원시값 emit 은 엔진 봉투가 아니라 그 안의 값을 모은다. 객체 emit 은
+    // 지금처럼 flat 값 그대로다(NERV Task CLE-T-T30D5S).
+    return unwrapEngineFlatValue(context.nodeOutputCache[emitSourceNodeId]);
   }
 
   /**

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
-import { setAccessToken } from "@/lib/api/client";
+import { establishSession } from "@/lib/auth/establish-session";
 import {
   Card,
   CardHeader,
@@ -43,8 +43,9 @@ export function VerifyEmailContent() {
       try {
         const response = await authApi.verifyEmail(token!);
         const accessToken = response.data.data?.accessToken;
+        // 이메일 인증 자동 로그인. 비밀번호 로그인과 같은 진입점으로 로그인 상태와 힌트 쿠키를 둔다.
         if (accessToken) {
-          setAccessToken(accessToken);
+          await establishSession(accessToken);
         }
         setStatus("success");
         toast.success(translate(currentLocale, "auth.verifyEmail.verifiedToast"));

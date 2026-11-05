@@ -95,7 +95,9 @@ describe('Auth flow (e2e)', () => {
     expect(res.body.error.code).toBe('LOGIN_FAILED');
   });
 
-  it('D. login with unverified email → 401 LOGIN_FAILED (이메일 enumeration 방지)', async () => {
+  // NERV CLE-ACCT-SIGNIN 「로그인 처리」 3 · 7번(REQ-SIGNIN-065 · 066, CLE-T-AYT4VB).
+  // 이메일 인증 여부는 비밀번호가 맞을 때만 알린다. 비밀번호가 틀리면 인증 전 계정도 LOGIN_FAILED 다.
+  it('D. 이메일 인증 전 계정 — 비밀번호가 틀리면 LOGIN_FAILED, 맞으면 EMAIL_VERIFICATION_REQUIRED', async () => {
     const email = uniqueEmail('auth-d');
     await request(BASE_URL)
       .post('/api/auth/register')
@@ -106,14 +108,58 @@ describe('Auth flow (e2e)', () => {
         termsAccepted: true,
       })
       .expect(201);
-    // email_verified=false 유지 — login 거부되어야 함.
+    // email_verified=false 유지.
 
-    const res = await request(BASE_URL).post('/api/auth/login').send({
+    async function latest(): Promise<{
+      failure_reason: string | null;
+      login_attempts: number;
+    }> {
+      const res = await db.query<{
+        failure_reason: string | null;
+        login_attempts: number;
+      }>(
+        `SELECT h.failure_reason, u.login_attempts
+           FROM login_history h JOIN "user" u ON u.email = h.email
+          WHERE h.email = $1
+          ORDER BY h.created_at DESC
+          LIMIT 1`,
+        [email],
+      );
+      return res.rows[0];
+    }
+
+    const wrong = await request(BASE_URL).post('/api/auth/login').send({
+      email,
+      password: 'WrongPass!9999',
+    });
+    expect(wrong.status).toBe(401);
+    expect(wrong.body.error.code).toBe('LOGIN_FAILED');
+    expect(wrong.body.error.message).toBe('Invalid email or password');
+    expect(await latest()).toEqual({
+      failure_reason: 'INVALID_PASSWORD',
+      login_attempts: 1,
+    });
+
+    const right = await request(BASE_URL).post('/api/auth/login').send({
       email,
       password: TEST_PASSWORD,
     });
-    expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('LOGIN_FAILED');
+    expect(right.status).toBe(401);
+    expect(right.body.error.code).toBe('EMAIL_VERIFICATION_REQUIRED');
+    expect(right.body.error.message).toBe(
+      'Please verify your email before logging in',
+    );
+    expect(right.body).not.toHaveProperty('accessToken');
+    expect(
+      extractRefreshCookie(
+        right.headers['set-cookie'] as unknown as string[] | undefined,
+      ),
+    ).toBeNull();
+    // 비밀번호가 맞았으므로 실패 횟수는 0 으로 돌아간다.
+    expect(await latest()).toEqual({
+      failure_reason: 'EMAIL_NOT_VERIFIED',
+      login_attempts: 0,
+    });
   });
 
   it('E. verify-email 토큰으로 인증 완료 → 개인 워크스페이스 자동 생성', async () => {

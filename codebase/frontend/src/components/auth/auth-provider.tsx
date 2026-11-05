@@ -4,12 +4,15 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
-import { usersApi } from "@/lib/api/users";
 import { switchWorkspaceApi, decodeActiveWorkspaceId } from "@/lib/api/auth";
 import {
   refreshAccessToken,
   setSessionRestoreInProgress,
 } from "@/lib/api/client";
+import {
+  establishSession,
+  NO_SESSION_TIMEOUT,
+} from "@/lib/auth/establish-session";
 import {
   buildLoginHref,
   resolvePostLoginRedirect,
@@ -20,7 +23,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
-  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
   const setLoading = useAuthStore((s) => s.setLoading);
   const logout = useAuthStore((s) => s.logout);
   // Prevent duplicate initialization across re-renders
@@ -40,13 +42,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error("No access token");
         }
 
-        const userRes = await usersApi.getMe();
-        const user = userRes.data.data;
+        // 로그인 경로와 같은 진입점으로 로그인 상태와 힌트 쿠키를 다시 둔다. 사용자 조회에 실패하면
+        // 아래 catch 가 로그아웃해 힌트 쿠키를 지우고 로그인 화면으로 보낸다.
+        // 복원 경로는 이전처럼 시간 상한 없이 조회한다. 느린 회선에서 유효한 세션이 풀리지 않게 한다.
+        const user = await establishSession(accessToken, {
+          timeoutMs: NO_SESSION_TIMEOUT,
+        });
         if (!user) {
           throw new Error("No user data");
         }
-
-        setAuthenticated(accessToken, user);
 
         // reconcile-on-load (결정1): /auth/refresh 로 재발급된 토큰은 활성 워크스페이스가
         // personal/first 로 재해석된다(refresh 는 클레임 미보존). 이전에 선택했던
@@ -93,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     restoreSession();
-  }, [isAuthenticated, setAuthenticated, setLoading, logout, router, pathname]);
+  }, [isAuthenticated, setLoading, logout, router, pathname]);
 
   // Show loading spinner while restoring session
   if (isLoading && !isAuthenticated) {

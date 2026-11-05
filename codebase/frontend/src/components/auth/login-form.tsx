@@ -13,9 +13,8 @@ import {
   startAuthentication,
 } from "@simplewebauthn/browser";
 import { authApi, isTwoFactorChallenge } from "@/lib/api/auth";
-import { usersApi } from "@/lib/api/users";
-import { setAccessToken } from "@/lib/api/client";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { extractApiCode, type ApiErrorBody } from "@/lib/api/errors";
+import { establishSession } from "@/lib/auth/establish-session";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +62,6 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
   const [showRecoveryInput, setShowRecoveryInput] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState("");
   const webauthnAttemptedRef = useRef(false);
-  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
 
   // defined inside component so validation messages pick up the current locale via t()
   const loginSchema = useMemo(
@@ -83,20 +81,13 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
 
   const completeLogin = useCallback(
     async (accessToken: string) => {
-      setAccessToken(accessToken);
-      try {
-        const userRes = await usersApi.getMe();
-        const user = userRes.data.data;
-        if (user) {
-          setAuthenticated(accessToken, user);
-        }
-      } catch {
-        /* AuthProvider will restore on next page load */
-      }
+      // 사용자 조회에 실패해도 이동한다. 힌트 쿠키는 심겨 있어 목적지 화면의 AuthProvider 가
+      // 로그인 상태를 다시 복원한다(establishSession 주석).
+      await establishSession(accessToken);
       toast.success(t("auth.login.signedIn"));
       router.push(redirectTo);
     },
-    [redirectTo, router, setAuthenticated, t],
+    [redirectTo, router, t],
   );
 
   async function onSubmitTotp(e: React.FormEvent) {
@@ -144,6 +135,21 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
   const showGithub = enabledProviders.includes("github");
   const showOauth = showGoogle || showGithub;
 
+  /**
+   * 로그인 1단계 거부 안내. 코드로 문구를 고른다(NERV CLE-ACCT-SIGNIN 「로그인 처리」 7 · 9번).
+   * 그 밖의 코드는 지금 동작 그대로다. 응답 메시지를 읽는 경로를 고치는 일은 CLE-T-MFWBE1 이 맡는다.
+   */
+  function passwordLoginErrorMessage(error: AxiosError<ApiErrorBody>): string {
+    switch (extractApiCode(error)) {
+      case "EMAIL_VERIFICATION_REQUIRED":
+        return t("auth.login.verifyEmailFirst");
+      case "WEBAUTHN_DISABLED":
+        return t("auth.login.passkeyLoginDisabled");
+      default:
+        return error.response?.data?.message ?? t("auth.login.genericFailed");
+    }
+  }
+
   async function onSubmit(data: LoginFormValues) {
     setIsLoading(true);
     try {
@@ -172,9 +178,7 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
       }
       await completeLogin(payload.accessToken);
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      const message = error.response?.data?.message ?? t("auth.login.genericFailed");
-      toast.error(message);
+      toast.error(passwordLoginErrorMessage(err as AxiosError<ApiErrorBody>));
     } finally {
       setIsLoading(false);
     }

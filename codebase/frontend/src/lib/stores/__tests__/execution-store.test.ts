@@ -3,6 +3,7 @@ import {
   useExecutionStore,
   findReconcilableOptimisticIdx,
   selectSortedNodeResults,
+  selectStoreExecutionFinished,
 } from "../execution-store";
 import type {
   ConversationItem,
@@ -982,5 +983,99 @@ describe("drawerExpanded (§10.12 Run Results 드로어 토글)", () => {
     expect(useExecutionStore.getState().drawerExpanded).toBe(false);
     useExecutionStore.getState().reset();
     expect(useExecutionStore.getState().drawerExpanded).toBe(false);
+  });
+});
+
+// CLE-T-TP2T6Q — store 가 끝난 실행을 담고 있는지 가르는 selector. store 는 서버의
+// `cancelled` 를 `failed` 로 담으므로 completed · failed 두 값만 끝난 것으로 본다.
+describe("selectStoreExecutionFinished", () => {
+  it.each([
+    ["completed", true],
+    ["failed", true],
+    ["idle", false],
+    ["running", false],
+    ["waiting_for_input", false],
+  ] as const)("status %s → %s", (status, expected) => {
+    expect(selectStoreExecutionFinished({ status })).toBe(expected);
+  });
+});
+
+// CLE-T-TP2T6Q — REST 폴링 대체 경로(`use-execution-polling-fallback.ts`)는 요청을 보낸 뒤
+// store 가 바뀌었는지를 `nodeStatuses` · `nodeResults` 의 참조로 가른다. 그래서 두 필드를
+// 쓰는 액션은 값을 제자리에서 고치지 않고 매번 새 참조를 만들어야 한다. 이 계약을 고정한다.
+describe("nodeStatuses · nodeResults 쓰기마다 새 참조 (폴링 응답 폐기 판정의 계약)", () => {
+  beforeEach(() => {
+    useExecutionStore.getState().reset();
+    useExecutionStore.getState().startExecution("exec-1");
+  });
+
+  type Writer = [string, () => void];
+  const nodeStatusWriters: Writer[] = [
+    [
+      "updateNodeStatus",
+      () =>
+        useExecutionStore
+          .getState()
+          .updateNodeStatus("n1", { status: "running" }),
+    ],
+    [
+      "failExecution(error)",
+      () => useExecutionStore.getState().failExecution("boom"),
+    ],
+    ["startExecution", () => useExecutionStore.getState().startExecution("exec-2")],
+    [
+      "startHistoryView",
+      () => useExecutionStore.getState().startHistoryView("exec-2", null),
+    ],
+    ["reset", () => useExecutionStore.getState().reset()],
+  ];
+  it.each(nodeStatusWriters)("%s 는 nodeStatuses 를 새 Map 으로 바꾼다", (_name, write) => {
+    useExecutionStore.getState().updateNodeStatus("n0", { status: "completed" });
+    const before = useExecutionStore.getState().nodeStatuses;
+    write();
+    expect(useExecutionStore.getState().nodeStatuses).not.toBe(before);
+  });
+
+  const nodeResultWriters: Writer[] = [
+    [
+      "addNodeResult(새 행)",
+      () =>
+        useExecutionStore
+          .getState()
+          .addNodeResult(makeResult({ nodeId: "n2", nodeExecutionId: "ne-2" })),
+    ],
+    [
+      "addNodeResult(같은 행 갱신)",
+      () =>
+        useExecutionStore.getState().addNodeResult(
+          makeResult({
+            nodeId: "n1",
+            nodeExecutionId: "ne-1",
+            status: "completed",
+            outputData: { ok: true },
+          }),
+        ),
+    ],
+    ["startExecution", () => useExecutionStore.getState().startExecution("exec-2")],
+    [
+      "startHistoryView",
+      () => useExecutionStore.getState().startHistoryView("exec-2", null),
+    ],
+    ["reset", () => useExecutionStore.getState().reset()],
+  ];
+  it.each(nodeResultWriters)("%s 는 nodeResults 를 새 배열로 바꾼다", (_name, write) => {
+    useExecutionStore
+      .getState()
+      .addNodeResult(
+        makeResult({ nodeId: "n1", nodeExecutionId: "ne-1", status: "running" }),
+      );
+    const before = useExecutionStore.getState().nodeResults;
+    const beforeRow = before[0];
+    write();
+    expect(useExecutionStore.getState().nodeResults).not.toBe(before);
+    // 옛 배열과 옛 행은 그대로다(제자리 수정이 없다).
+    expect(before).toHaveLength(1);
+    expect(before[0]).toBe(beforeRow);
+    expect(beforeRow.status).toBe("running");
   });
 });
