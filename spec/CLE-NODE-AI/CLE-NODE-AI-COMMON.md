@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
 content_hash: "df5b630cfdf23ecfd2467c156899cc6345439fcc7bdae64cebfe4c18086a1f08"
 read_as: "approved_fallback"
-task: "CLE-T-ZHBMAC"
+task: "CLE-T-Q38K9F"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7478486745faccf85467fa69cbbfabebd92510f8c57744ea50a5edb36f5ff116"
-etag: "sha256-831b3e51da0cbd94d8cd850dc17756860ed8bbfff789a0f13b2f1eea8c002a6d"
+mirror_sha256: "af031fe205d854d668580658aa049b7015fcf7ee791d60b5e00e8fe4c4a72901"
+etag: "sha256-c7234208a132030a33ff8cdda4a9b045878b9e5a9b0cfc2cf2ff25cadf4cb641"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

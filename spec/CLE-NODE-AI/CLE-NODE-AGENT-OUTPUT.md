@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
 content_hash: "1fc66f1003fb9cae9a52d894d2fd3346e045be5ec66e50a7cca07471e2404e7d"
 read_as: "approved_fallback"
-task: "CLE-T-ZHBMAC"
+task: "CLE-T-Q38K9F"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "642def91c024a73251f5a1c06a4d576e5b1b134891a46bffe732b23ddd5f22a1"
-etag: "sha256-8958186cf76ad90ee4397fbc5135e7d0cef39ccda1bbcf242e2a14fc3acc167c"
+mirror_sha256: "605740dab29f5781c32ae3b1581d69f2a2678c2609bc7e2bff5d317a438c070f"
+etag: "sha256-2edd57ba880e0a311f9f008e2203f53d3e6b1f6076fbf56273c0c9116de46df5"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

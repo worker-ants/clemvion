@@ -572,6 +572,20 @@ interface TurnOutputAccumulators {
 type SingleTurnInjection = ReturnType<AiTurnExecutor['injectThreadContext']>;
 
 /**
+ * {@link AiTurnExecutor.applySingleTurnMemoryInjection} 의 결과. 자동 메모리 주입(롤링 요약
+ * `chat` · 요약 모델 설정 해석 등)이 실패하면 `memoryError` 쪽이다. 호출부가 그 오류로
+ * `error` 포트 출력을 만든다(REQ-AGENT-024, NERV Task CLE-T-Q38K9F).
+ */
+type SingleTurnMemoryInjectionResult =
+  | {
+      messages: ChatMessage[];
+      finalSystemPrompt: string;
+      memoryMeta: SingleTurnMemoryMeta | undefined;
+      singleTurnInjection: SingleTurnInjection;
+    }
+  | { memoryError: unknown; singleTurnInjection: SingleTurnInjection };
+
+/**
  * 단일 턴 자동 메모리 전략 메타(spec §7 `meta.memory`). manual 전략이면 없다.
  * {@link MultiTurnMemoryMeta} 와 달리 압축 메시지 수(`compactedMessages`)는 싣지 않는다.
  */
@@ -655,8 +669,9 @@ const TOOL_BUDGET_EXCEEDED_ERROR = 'tool_call_budget_exceeded';
  * throw 해 orchestrator 가 조립한다. 두 경로의 `code` · `details.retryable` 은 같은
  * `extractAiTurnErrorPayload`(`nodes/ai/shared/llm-error-payload.ts`)가 정한다. 단일 턴
  * catch 는 맨 앞에서 `rethrowIfNodeCancelled` 로 노드 취소를 AbortError 로 던진다.
- * 단일 턴 catch 는 첫 호출과 도구 반복의 `chat` 두 곳만 감싼다. 롤링 요약 `chat` ·
- * 요약 모델 설정 해석 실패는 이 catch 밖이라 아직 노드 실패로 끝난다(CLE-T-Q38K9F).
+ * 단일 턴은 첫 호출 · 도구 반복의 `chat` 과 자동 메모리 주입(롤링 요약 `chat` · 요약 모델
+ * 설정 해석, `applySingleTurnMemoryInjection`) 실패를 이렇게 처리한다(CLE-T-Q38K9F).
+ * 노드 LLM 설정(`llmConfigId`) 해석 실패는 아직 이 catch 밖이라 노드 실패로 끝난다.
  */
 export class AiTurnExecutor {
   constructor(
@@ -1194,6 +1209,11 @@ export class AiTurnExecutor {
    * caller 가 이후 turn 경계 scheduleMemoryExtraction(2.7)에서도 동일 값을 쓰기 때문.
    * 호출측이 반환값으로 `messages`/`finalSystemPrompt`/`memoryMeta`/`singleTurnInjection`
    * 을 **반드시** 갱신해야 한다 (공유 accumulator 는 호출측 scope 유지 — 본 메서드에 흡수 안 함).
+   *
+   * 자동 전략의 `injectMemoryContext` 가 던지면(롤링 요약 `chat` · `summaryModelConfigId`
+   * 해석 실패 등) 노드 취소만 `rethrowIfNodeCancelled` 로 AbortError 를 던지고, 나머지는
+   * `memoryError` 로 돌려준다. 호출부가 LLM 호출 실패와 같은 `error` 포트 출력을 만든다
+   * (REQ-AGENT-024, NERV Task CLE-T-Q38K9F).
    */
   private async applySingleTurnMemoryInjection(args: {
     context: ExecutionContext;
@@ -1205,12 +1225,7 @@ export class AiTurnExecutor {
     model: string | undefined;
     workspaceId: string;
     userPrompt: string;
-  }): Promise<{
-    messages: ChatMessage[];
-    finalSystemPrompt: string;
-    memoryMeta: SingleTurnMemoryMeta | undefined;
-    singleTurnInjection: SingleTurnInjection;
-  }> {
+  }): Promise<SingleTurnMemoryInjectionResult> {
     const {
       context,
       config,
@@ -1233,36 +1248,44 @@ export class AiTurnExecutor {
       messages = singleTurnInjection.messages;
       finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
     } else {
-      const mem = await this.memoryManager.injectMemoryContext({
-        strategy: memoryStrategy,
-        target: context,
-        selfNodeId: context.nodeId ?? '',
-        config,
-        messages,
-        finalSystemPrompt,
-        llmConfig,
-        model: model || llmConfig.defaultModel,
-        // 요약 전용 모델 (미설정이면 injectMemoryContext 가 model 로 폴백).
-        summaryModelConfigId: config.summaryModelConfigId as string | undefined,
-        workspaceId,
-        executionId: context.executionId,
-        // [Spec 7-llm-usage §1.3] 요약 압축 attribution — single-turn 은 context 가용.
-        llmContext: {
-          workflowId: context.workflowId,
-          executionId: context.executionId,
-          nodeExecutionId: context.nodeExecutionId,
-        },
-        queryText: userPrompt,
-        tailMode: 'prepend',
-      });
-      messages = mem.messages;
-      finalSystemPrompt = mem.finalSystemPrompt;
-      memoryMeta = mem.memory;
       // 자동 전략은 contextScope 계열 무효 — contextInjection meta 미echo (spec §5·§1).
       singleTurnInjection = {
         ...singleTurnInjection,
         injection: { ...singleTurnInjection.injection, appliedScope: 'none' },
       };
+      let mem: Awaited<ReturnType<AiMemoryManager['injectMemoryContext']>>;
+      try {
+        mem = await this.memoryManager.injectMemoryContext({
+          strategy: memoryStrategy,
+          target: context,
+          selfNodeId: context.nodeId ?? '',
+          config,
+          messages,
+          finalSystemPrompt,
+          llmConfig,
+          model: model || llmConfig.defaultModel,
+          // 요약 전용 모델 (미설정이면 injectMemoryContext 가 model 로 폴백).
+          summaryModelConfigId: config.summaryModelConfigId as
+            string | undefined,
+          workspaceId,
+          executionId: context.executionId,
+          // [Spec 7-llm-usage §1.3] 요약 압축 attribution — single-turn 은 context 가용.
+          llmContext: {
+            workflowId: context.workflowId,
+            executionId: context.executionId,
+            nodeExecutionId: context.nodeExecutionId,
+          },
+          queryText: userPrompt,
+          tailMode: 'prepend',
+        });
+      } catch (err) {
+        // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
+        rethrowIfNodeCancelled(err, context.abortSignal);
+        return { memoryError: err, singleTurnInjection };
+      }
+      messages = mem.messages;
+      finalSystemPrompt = mem.finalSystemPrompt;
+      memoryMeta = mem.memory;
     }
     return { messages, finalSystemPrompt, memoryMeta, singleTurnInjection };
   }
@@ -1671,7 +1694,8 @@ export class AiTurnExecutor {
   }
 
   /**
-   * 단일 턴 LLM 호출(첫 호출 · 도구 반복) 실패의 `error` 포트 출력(REQ-AGENT-024).
+   * 단일 턴 LLM 호출 실패의 `error` 포트 출력(REQ-AGENT-024). 첫 호출 · 도구 반복의
+   * `chat` 과 자동 메모리 주입(롤링 요약 `chat` · 요약 모델 설정 해석) 실패가 여기로 온다.
    * `code` · `details.retryable` 은 멀티턴 재개와 같은 {@link extractAiTurnErrorPayload}
    * 로 정한다. `meta` 는 {@link AiTurnExecutor.buildSingleTurnMeta} 로 정상 완료와 같은
    * 키에 실패 전까지 쌓인 값만 싣는다(토큰 의미는 그 JSDoc 참조).
@@ -1679,36 +1703,40 @@ export class AiTurnExecutor {
    * 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled` 로 던진다.
    */
   private static buildSingleTurnLlmErrorOutput(args: {
+    /** 로그에 남길 실패 단계. */
+    failedStep: 'LLM call' | 'memory injection';
     err: unknown;
     singleTurnConfigEcho: Record<string, unknown>;
     model: string | undefined;
     llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
     toolCallCount: number;
     accumulators: TurnOutputAccumulators;
-    singleTurnStartedAt: number;
+    /** `meta.durationMs` 의 시작 시각. LLM 호출 실패는 첫 호출 직전, 메모리 주입 실패는 노드 진입. */
+    startedAt: number;
     singleTurnInjection: SingleTurnInjection;
     memoryMeta: SingleTurnMemoryMeta | undefined;
   }): NodeHandlerOutput {
     const {
+      failedStep,
       err,
       singleTurnConfigEcho,
       model,
       llmConfig,
       toolCallCount,
       accumulators,
-      singleTurnStartedAt,
+      startedAt,
       singleTurnInjection,
       memoryMeta,
     } = args;
     const error = extractAiTurnErrorPayload(err);
     AiTurnExecutor.logger.warn(
-      `AI Agent single-turn LLM call failed (code=${error.code}): ${error.message}`,
+      `AI Agent single-turn ${failedStep} failed (code=${error.code}): ${error.message}`,
     );
     return {
       config: singleTurnConfigEcho,
       output: { error },
       meta: AiTurnExecutor.buildSingleTurnMeta({
-        durationMs: Date.now() - singleTurnStartedAt,
+        durationMs: Date.now() - startedAt,
         model: model || llmConfig.defaultModel,
         tokens: sumLlmCallUsage(accumulators.llmCalls),
         toolCallCount,
@@ -1803,6 +1831,40 @@ export class AiTurnExecutor {
     // memoryStrategy 는 caller scope 에 둔다 — 이후 turn 경계 scheduleMemoryExtraction(2.7,
     // condition-route·tool-loop·final completion)에서도 동일 값을 참조한다.
     const memoryStrategy = this.memoryManager.resolveMemoryStrategy(config);
+
+    // spec §7.1 config echo (CONVENTIONS Principle 7 — raw user input, `{{ }}`
+    // 보존). 메모리 주입 전에 조립해 정상 `out` 종결, §4.2 payload-budget error
+    // 종결, 메모리 주입 · LLM 호출 실패의 error 종결이 **동일 shape** 를 공유하도록 한다.
+    // (03 W1 — private 헬퍼 추출)
+    const singleTurnConfigEcho = this.assembleSingleTurnConfigEcho({
+      rawConfig,
+      model,
+      systemPrompt,
+      userPrompt,
+      responseFormat,
+      conditions,
+      defaultModel: llmConfig.defaultModel,
+    });
+
+    // Per-call trace so the frontend LlmInformationTab can inspect each
+    // request/response/usage even for single-turn runs (tool loop commonly
+    // spans several calls).
+    // Canonical shared trace type (C-1 follow-up ③ / dev 1b). The shared type is
+    // an all-optional superset; the push sites below always supply every field.
+    const llmCalls: LlmCallRecord[] = [];
+    const toolCallTraces: ToolCallTrace[] = [];
+    // 정상 완료 · 조건 라우팅 종결 · 메모리 주입 실패 · LLM 실패 종결이 같은 누적기 묶음을 쓴다.
+    const accumulators: TurnOutputAccumulators = {
+      ragAcc,
+      turnRagAcc,
+      mcpDiagnosticsAcc,
+      presentationPayloads,
+      presentationCalls,
+      presentationSchemaViolations,
+      llmCalls,
+      toolCallTraces,
+    };
+
     const memInjection = await this.applySingleTurnMemoryInjection({
       context,
       config,
@@ -1814,24 +1876,27 @@ export class AiTurnExecutor {
       workspaceId,
       userPrompt,
     });
+    // 롤링 요약 `chat` · 요약 모델 설정 해석 실패도 LLM 호출 실패와 같은 error 포트로
+    // 끝낸다(REQ-AGENT-024, NERV Task CLE-T-Q38K9F). 주입이 끝나지 않았으므로 `meta.memory` 는 없다.
+    if ('memoryError' in memInjection) {
+      return AiTurnExecutor.buildSingleTurnLlmErrorOutput({
+        failedStep: 'memory injection',
+        err: memInjection.memoryError,
+        singleTurnConfigEcho,
+        model,
+        llmConfig,
+        toolCallCount: 0,
+        accumulators,
+        startedAt: preflightStartedAt,
+        singleTurnInjection: memInjection.singleTurnInjection,
+        memoryMeta: undefined,
+      });
+    }
     messages = memInjection.messages;
     // 주입된 system prompt 는 `memInjection.messages` 안에 이미 들어 있다 — 아래 경로는
     // `messages` 만 소비하므로 지역 `finalSystemPrompt` 를 갱신하지 않는다.
     const memoryMeta = memInjection.memoryMeta;
     const singleTurnInjection = memInjection.singleTurnInjection;
-
-    // spec §7.1 config echo (CONVENTIONS Principle 7 — raw user input, `{{ }}`
-    // 보존). buildTools 전에 조립해 정상 `out` 종결과 §4.2 payload-budget error
-    // 종결이 **동일 shape** 를 공유하도록 한다. (03 W1 — private 헬퍼 추출)
-    const singleTurnConfigEcho = this.assembleSingleTurnConfigEcho({
-      rawConfig,
-      model,
-      systemPrompt,
-      userPrompt,
-      responseFormat,
-      conditions,
-      defaultModel: llmConfig.defaultModel,
-    });
 
     // spec §4.2 / §7.3 — pre-flight buildTools + payload 예산 error 포트 라우팅.
     // 전파 계약(single=return / multi=throw)은 클래스 JSDoc 참고 (03 W2).
@@ -1849,38 +1914,21 @@ export class AiTurnExecutor {
     if ('errorOutput' in toolsResult) return toolsResult.errorOutput;
     const tools = toolsResult.tools;
 
-    // Per-call trace so the frontend LlmInformationTab can inspect each
-    // request/response/usage even for single-turn runs (tool loop commonly
-    // spans several calls).
-    // Canonical shared trace type (C-1 follow-up ③ / dev 1b). The shared type is
-    // an all-optional superset; the push sites below always supply every field.
-    const llmCalls: LlmCallRecord[] = [];
-    const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
-    // 정상 완료 · 조건 라우팅 종결 · LLM 실패 종결이 같은 누적기 묶음을 쓴다.
-    const accumulators: TurnOutputAccumulators = {
-      ragAcc,
-      turnRagAcc,
-      mcpDiagnosticsAcc,
-      presentationPayloads,
-      presentationCalls,
-      presentationSchemaViolations,
-      llmCalls,
-      toolCallTraces,
-    };
     // LLM 호출(첫 호출 · 도구 반복) 실패의 error 포트 출력. 두 호출부가 같은 누적기를 넘긴다.
     const llmErrorOutput = (
       err: unknown,
       toolCallsSoFar: number,
     ): NodeHandlerOutput =>
       AiTurnExecutor.buildSingleTurnLlmErrorOutput({
+        failedStep: 'LLM call',
         err,
         singleTurnConfigEcho,
         model,
         llmConfig,
         toolCallCount: toolCallsSoFar,
         accumulators,
-        singleTurnStartedAt,
+        startedAt: singleTurnStartedAt,
         singleTurnInjection,
         memoryMeta,
       });
