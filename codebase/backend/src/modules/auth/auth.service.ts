@@ -734,7 +734,7 @@ export class AuthService {
       // 새 토큰은 옛 행의 로그인 유지 여부를 이어받고 수명은 회전 시점부터 다시 센다
       // (REQ-SESSION-047, CLE-T-BYCGF1). 옛 구현은 늘 false 로 넘겨 30일 세션이 첫 회전에서
       // 7일로 줄었다.
-      const rememberMe = stored.rememberMe === true;
+      const rememberMe = !!stored.rememberMe;
       const tokens = await this.generateTokens(
         user,
         rememberMe,

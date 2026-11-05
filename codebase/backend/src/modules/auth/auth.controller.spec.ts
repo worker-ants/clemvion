@@ -37,6 +37,9 @@ describe('AuthController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     authService = {
+      register: jest.fn(),
+      verifyEmail: jest.fn(),
+      login: jest.fn(),
       refresh: jest.fn(),
       loginWithTotp: jest.fn(),
       logout: jest.fn(),
@@ -90,6 +93,68 @@ describe('AuthController', () => {
       expect(result).toEqual({ data: { accessToken: 'switched-access' } });
       // 전환은 refresh cookie 를 건드리지 않는다(access token 만 재발급).
       expect(mockRes.cookie).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('쿠키 수명 (CLE-T-BYCGF1)', () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const req = {} as never;
+
+    it.each([
+      [true, 30],
+      [false, 7],
+      [undefined, 7],
+    ])(
+      'login: rememberMe=%s 이면 쿠키 maxAge 는 %i일이다',
+      async (rememberMe, days) => {
+        authService.login.mockResolvedValue({
+          accessToken: 'a',
+          refreshToken: 'r',
+        } as never);
+
+        await controller.login({ rememberMe } as never, req, mockRes as never);
+
+        expect(mockRes.cookie).toHaveBeenLastCalledWith(
+          'refreshToken',
+          'r',
+          expect.objectContaining({ maxAge: days * DAY_MS }),
+        );
+      },
+    );
+
+    it('register: 초대 가입은 7일 쿠키를 발급한다', async () => {
+      authService.register.mockResolvedValue({
+        message: 'ok',
+        accessToken: 'a',
+        refreshToken: 'r',
+      } as never);
+
+      await controller.register({} as never, req, mockRes as never);
+
+      expect(mockRes.cookie).toHaveBeenLastCalledWith(
+        'refreshToken',
+        'r',
+        expect.objectContaining({ maxAge: 7 * DAY_MS }),
+      );
+    });
+
+    it('verifyEmail: 7일 쿠키를 발급한다', async () => {
+      authService.verifyEmail.mockResolvedValue({
+        accessToken: 'a',
+        refreshToken: 'r',
+      } as never);
+
+      await controller.verifyEmail(
+        { token: 't' } as never,
+        req,
+        mockRes as never,
+      );
+
+      expect(mockRes.cookie).toHaveBeenLastCalledWith(
+        'refreshToken',
+        'r',
+        expect.objectContaining({ maxAge: 7 * DAY_MS }),
+      );
     });
   });
 

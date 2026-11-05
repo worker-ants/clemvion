@@ -140,6 +140,8 @@ export class AuthController {
       authContextFromRequest(req),
     );
     if ('accessToken' in result) {
+      // 초대 가입은 로그인 유지를 고르는 화면이 없어 늘 7일 세션이다. service 의
+      // generateTokens(user, false) 와 같은 값이라 정책을 바꾸면 두 곳을 함께 고친다.
       setRefreshTokenCookie(res, result.refreshToken, {
         cookieDomain: this.cookieDomain,
         rememberMe: false,
@@ -175,6 +177,8 @@ export class AuthController {
       dto.token,
       authContextFromRequest(req),
     );
+    // 이메일 인증 뒤 첫 세션은 로그인 유지를 고르지 않아 7일이다. service 의
+    // generateTokens(user, false) 와 같은 값이라 정책을 바꾸면 두 곳을 함께 고친다.
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
       rememberMe: false,
