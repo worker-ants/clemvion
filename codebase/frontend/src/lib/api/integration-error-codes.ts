@@ -20,14 +20,14 @@ import {
  *   3. 호출자(`formatErrorToast` 등)는 본 모듈만 import — 코드 문자열을
  *      컴포넌트에 직접 박지 않는다 (ai-review W11 — 2026-05-16).
  *
- * spec/2-navigation/4-integration.md §9.4 (errors).
+ * 코드 정의: NERV CLE-INT-MANAGE 「에러 코드」 · CLE-API-ERRCODES.
  */
 export const INTEGRATION_LOCALIZED_ERROR_CODES = {
   /**
    * 동일 (workspaceId, mall_id) cafe24 통합이 이미 존재 — app_type 무관.
    * 코드 이름의 `PRIVATE` 토큰은 historical artifact (2026-05-15 신설 당시
-   * Private 흐름 한정이었음). spec/2-navigation/4-integration.md §9.4
-   * Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED 코드명 유지 결정" 참조.
+   * Private 흐름 한정이었음). NERV CLE-INT-OAUTH Rationale
+   * 「`CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 이름을 유지한다」 참조.
    */
   CAFE24_DUPLICATE_MALL: "CAFE24_PRIVATE_APP_ALREADY_CONNECTED",
   /**

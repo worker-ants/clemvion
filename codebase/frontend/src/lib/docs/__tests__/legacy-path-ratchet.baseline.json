@@ -615,7 +615,6 @@
     "codebase/frontend/src/lib/api/auth.ts": 2,
     "codebase/frontend/src/lib/api/executions.ts": 5,
     "codebase/frontend/src/lib/api/folders.ts": 1,
-    "codebase/frontend/src/lib/api/integration-error-codes.ts": 2,
     "codebase/frontend/src/lib/api/integrations.ts": 9,
     "codebase/frontend/src/lib/api/invitations.ts": 2,
     "codebase/frontend/src/lib/api/triggers.ts": 2,

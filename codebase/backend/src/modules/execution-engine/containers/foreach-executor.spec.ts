@@ -60,10 +60,37 @@ describe('ForEachExecutor', () => {
       );
       expect(result.items).toEqual([{ ok: 1 }, null, { ok: 3 }, null]);
       expect(result.skipped).toEqual([
-        { index: 1, error: { code: 'Error', message: 'bad-2' } },
-        { index: 3, error: { code: 'Error', message: 'bad-4' } },
+        { index: 1, error: { code: 'UNKNOWN_ERROR', message: 'bad-2' } },
+        { index: 3, error: { code: 'UNKNOWN_ERROR', message: 'bad-4' } },
       ]);
       expect(result.skippedCount).toBe(2);
+    });
+
+    it(`passes a catalog code through and maps AbortError by name (${policy})`, async () => {
+      const result = await executor.execute(
+        { array: [1, 2, 3], errorPolicy: policy, collectResults: true },
+        context,
+        async (item) => {
+          if (item === 1) {
+            throw Object.assign(new Error('limited'), {
+              code: 'MAKESHOP_RATE_LIMITED',
+            });
+          }
+          if (item === 2) {
+            const abort = new Error('aborted');
+            abort.name = 'AbortError';
+            throw abort;
+          }
+          return { ok: item };
+        },
+      );
+      expect(result.skipped).toEqual([
+        {
+          index: 0,
+          error: { code: 'MAKESHOP_RATE_LIMITED', message: 'limited' },
+        },
+        { index: 1, error: { code: 'AbortError', message: 'aborted' } },
+      ]);
     });
 
     it(`captures non-Error throwables with UNKNOWN_ERROR code (${policy})`, async () => {

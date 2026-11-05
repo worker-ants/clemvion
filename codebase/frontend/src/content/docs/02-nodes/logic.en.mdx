@@ -121,6 +121,8 @@ Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item
 
 If the array path resolves to something that isn't an array (a number, string, object, `null`, or a missing path), ForEach treats it as an empty array without an error and never runs the body. In that case `$node["ForEach"].meta.fellBackToEmpty` is `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were).
 
+The `code` in `output.skipped[].error` is an error code listed in the error code catalog, unchanged (for example `MCP_TIMEOUT`, `MAKESHOP_RATE_LIMITED`). An item ended by cancellation gets `AbortError`. A code that is not listed (including system or driver codes such as `ECONNREFUSED` or `ER_DUP_ENTRY`) and a plain error with no code both get `UNKNOWN_ERROR`. Error class names such as `Error` are never used, so to match a plain error compare with `error.code == "UNKNOWN_ERROR"`. `error.message` holds the error message. The same rule applies to the `_skipped` items of Map and the `skipped` list of Parallel.
+
 ### Example
 
 <Example title="Process order items">
@@ -145,7 +147,7 @@ If the array path resolves to something that isn't an array (a number, string, o
   {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "Per-item error policy.", default: "stop"}
 ]} />
 
-Like ForEach, a non-array path is treated as an empty array and `meta.fellBackToEmpty` is set to `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were). Items passed over by `skip` or `continue` stay in the result array at their index as `{ _skipped: true, error }`.
+Like ForEach, a non-array path is treated as an empty array and `meta.fellBackToEmpty` is set to `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were). Items passed over by `skip` or `continue` stay in the result array at their index as `{ _skipped: true, error }`. The values of `error.code` are the same as in ForEach.
 
 ### Example
 
@@ -347,7 +349,7 @@ Nodes after the `done` port can read:
 
 - `branches[i]` — the result of branch `branch_i`. It is `null` when that branch failed or no node in it ran.
 - `count` — the number of branches. Failed branches keep their slot and are counted.
-- `skipped` — the failed branches when Error Policy is `continue`. Each entry is `{ index, error: { code, message } }`, where `index` is the branch number. When no branch failed, this field is absent.
+- `skipped` — the failed branches when Error Policy is `continue`. Each entry is `{ index, error: { code, message } }`, where `index` is the branch number. The values of `error.code` are the same as in ForEach (for example `AbortError` for a cancelled branch). When no branch failed, this field is absent.
 
 ```ts
 {{ $node["Parallel"].output.branches[0].ok }}           // a field of branch 0's result

@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020"]
+requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "0fecec743bf34fddd61412fc7f603b8ce1ffaab7e56a10f418f47b134a591edb"
+content_hash: "66d053c199227c848634a7bc8d9d2e9a187fcc36eb71b5acb43d9b24062b4002"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-REC4X3"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d642eb41cbab3e86f3103e765bdfd2c3222490ae070b84b761588c14286d7a26"
-etag: "sha256-4f63f7be0732bf2cefbbce5f2956fd1807eeeeda76f910d21d4a87ed1694bda6"
+mirror_sha256: "bbf188a2ca5566641fb6eed59d7497286074a3ff31fac74d368cccec3734de57"
+etag: "sha256-f8f672a3230d41cd277a2a854d56e718ef7aeb2116e7c2588c607ef324a0a623"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,6 +46,7 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 - REQ-MAP-018 WHEN Map 노드를 정의하면 THE SYSTEM SHALL 별도 `error` 출력 포트와 동적 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
 - REQ-MAP-019 WHEN 모든 반복 회차가 끝나면 THE SYSTEM SHALL 본문 실행 횟수를 `meta.iterations` 에 실어 다음 노드의 표현식에서 읽을 수 있게 한다.
 - REQ-MAP-020 WHEN 항목 에러 정책 `skip` 이나 `continue` 로 처리한 실패 항목이 있으면 THE SYSTEM SHALL 그 수를 `meta.skippedCount` 에 실어 다음 노드의 표현식에서 읽을 수 있게 하고 실패 항목이 없으면 이 필드를 싣지 않는다.
+- REQ-MAP-021 WHEN 실패한 회차를 `mapped[i]` 에 `_skipped` 로 표시하면 THE SYSTEM SHALL `error.code` 를 ForEach · Parallel 과 같은 규칙으로 고른다. 백엔드가 직접 싣는 카탈로그 코드는 그대로 두고 `name` 이 `AbortError` 인 에러는 `AbortError` 로, 그 밖은 `UNKNOWN_ERROR` 로 둔다.
 
 ## 설정
 
@@ -170,7 +171,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 
 **빈 배열 입력**: `inputField` 해석 결과가 `[]` 이거나 배열이 아니면 본문을 0회 실행하고 `output: { mapped: [], count: 0 }` 으로 `done` 포트를 곧바로 활성화한다. 배열이 아니었으면 `meta.fellBackToEmpty` 가 `true` 다. 어느 쪽이든 `meta.iterations` 는 `0` 이다.
 
-**`errorPolicy: 'skip' / 'continue'` 일 때**: 인덱스를 지키려고 실패 항목 자리에 `output.mapped[i] = { _skipped: true, error: { code, message } }` 를 넣는다. Map 의 의도는 "같은 타입으로 바꾼 배열" 이므로 다음 노드는 `_skipped` 표시로 정상과 실패를 가려야 한다. ForEach 는 `null` 자리와 별도 `skipped[]` 배열을 쓴다. 두 노드가 형태를 달리하는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다. 현재 구현은 실행기가 따로 모은 실패 목록으로 이 인라인 표시를 다시 만든다(`execution-engine.service.ts` 의 컨테이너 완료 처리).
+**`errorPolicy: 'skip' / 'continue'` 일 때**: 인덱스를 지키려고 실패 항목 자리에 `output.mapped[i] = { _skipped: true, error: { code, message } }` 를 넣는다. `error.code` 와 `error.message` 는 ForEach · Parallel 과 같은 규칙으로 고른다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4 · 5번). `AbortError` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 등록 코드다. Map 의 의도는 "같은 타입으로 바꾼 배열" 이므로 다음 노드는 `_skipped` 표시로 정상과 실패를 가려야 한다. ForEach 는 `null` 자리와 별도 `skipped[]` 배열을 쓴다. 두 노드가 형태를 달리하는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다. 현재 구현은 실행기가 따로 모은 실패 목록으로 이 인라인 표시를 다시 만든다(`execution-engine.service.ts` 의 컨테이너 완료 처리).
 
 ### 엔진 덮어쓰기 계약
 
@@ -237,3 +238,7 @@ Map 과 ForEach 는 같은 실행기를 쓰지만 뜻이 다르다. ForEach 는 
 Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[]` 로 바꿔 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 두고, Split · ForEach 처럼 `meta.fellBackToEmpty` 로 대체 여부를 알린다(NERV Task `CLE-T-3HJ8MM` · `CLE-T-PEVD3R`). 다음 노드는 진짜 빈 배열과 대체한 빈 배열을 구분할 수 있다. 기각한 대안은 Map 만 throw 로 바꾸는 안이다. 지금 0회 실행으로 지나가는 워크플로우가 실패로 바뀐다.
 
 같은 작업에서 완료 `meta` 에 `iterations` 와 `skippedCount` 를 더했다. Map 은 ForEach 와 같은 실행기를 쓰는데 완료 메트릭이 없어 실패 항목 수를 보려면 `mapped` 배열을 돌아야 했다. 그래서 ForEach 와 같은 실행기가 이미 내는 값을 Map 문서에도 적었다.
+
+### 실패한 회차의 `error.code` 를 ForEach · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
+
+Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 실행기가 고른 `error.code` 를 그대로 싣는다. 그전 값은 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-MAP-021). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. Map 만 따로 바꾸면 같은 실행기의 ForEach 와 값이 갈려 함께 바꿨다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
