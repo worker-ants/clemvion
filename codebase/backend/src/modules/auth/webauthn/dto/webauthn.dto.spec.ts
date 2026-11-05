@@ -7,7 +7,11 @@ import {
   buildSwaggerDocument,
   propertyOf,
 } from '../../../../shared/testing/swagger-probe';
-import { WebAuthnRegisterVerifyDto, WebAuthnRenameDto } from './webauthn.dto';
+import {
+  WebAuthnRegisterOptionsRequestDto,
+  WebAuthnRegisterVerifyDto,
+  WebAuthnRenameDto,
+} from './webauthn.dto';
 
 // 변형 선택자 16(U+FE0F). 화면에 보이지 않아 리터럴로 적으면 테스트의 핵심 입력이 사라진 것처럼 보인다.
 const VS16 = '\uFE0F';
@@ -165,4 +169,27 @@ describe('deviceName OpenAPI schema', () => {
       expect(propertyOf(doc, dtoName, 'deviceName').maxLength).toBe(100);
     },
   );
+});
+
+// 근거: NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 (CLE-T-FRCRF7)
+describe('WebAuthnRegisterOptionsRequestDto', () => {
+  async function constraints(body: unknown): Promise<string[]> {
+    const errors = await validate(
+      plainToInstance(WebAuthnRegisterOptionsRequestDto, body),
+      VALIDATE_OPTIONS,
+    );
+    return errors.flatMap((e) => Object.keys(e.constraints ?? {}));
+  }
+
+  it('8자 이상 비밀번호를 받는다', async () => {
+    expect(await constraints({ password: 'OldP@ss1' })).toEqual([]);
+  });
+
+  it.each([
+    { name: '비밀번호 없음', body: {} },
+    { name: '7자', body: { password: 'Short1!' } },
+    { name: '문자열이 아님', body: { password: 12345678 } },
+  ])('$name → 거부한다', async ({ body }) => {
+    expect(await constraints(body)).not.toEqual([]);
+  });
 });

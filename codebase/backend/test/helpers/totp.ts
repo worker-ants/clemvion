@@ -11,6 +11,7 @@ import { TEST_PASSWORD } from './auth';
 export interface TwoFactorRow {
   two_factor_enabled: boolean;
   two_factor_secret: string | null;
+  two_factor_setup_started_at: Date | null;
   totp_recovery_codes: string[] | null;
 }
 
@@ -19,7 +20,7 @@ export async function readTwoFactor(
   userId: string,
 ): Promise<TwoFactorRow> {
   const { rows } = await db.query<TwoFactorRow>(
-    'SELECT two_factor_enabled, two_factor_secret, totp_recovery_codes FROM "user" WHERE id = $1',
+    'SELECT two_factor_enabled, two_factor_secret, two_factor_setup_started_at, totp_recovery_codes FROM "user" WHERE id = $1',
     [userId],
   );
   return rows[0];

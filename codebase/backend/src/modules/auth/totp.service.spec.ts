@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { generateSync } from 'otplib';
-import { TotpService } from './totp.service';
+import { TotpService, isTotpSetupExpired } from './totp.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 
@@ -32,9 +32,15 @@ describe('TotpService', () => {
       email: 'user@example.com',
       twoFactorEnabled: false,
       twoFactorSecret: null,
+      twoFactorSetupStartedAt: null,
       totpRecoveryCodes: null,
       ...over,
     }) as unknown as User;
+
+  // 설정 시작 뒤 1분. 대기 secret 이 아직 살아 있다.
+  const freshStart = (): Date => new Date(Date.now() - 60_000);
+  // 설정 시작 뒤 11분. 대기 secret 이 만료됐다.
+  const staleStart = (): Date => new Date(Date.now() - 11 * 60_000);
 
   beforeEach(async () => {
     usersService = {
@@ -56,9 +62,11 @@ describe('TotpService', () => {
   });
 
   describe('setup', () => {
-    it('base32 secret·otpauth URI·QR data URL 을 발급하고 secret 을 저장한다', async () => {
+    it('base32 secret·otpauth URI·QR data URL 을 발급하고 secret 과 설정 시작 시각을 저장한다', async () => {
       usersService.findById.mockResolvedValue(makeUser());
+      const before = Date.now();
       const res = await service.setup('user-1');
+      const after = Date.now();
 
       expect(res.secret).toMatch(/^[A-Z2-7]+$/); // base32 alphabet
       // v13 generateSecret 기본 20바이트 → 32 base32 chars (>=16바이트 가드 통과)
@@ -66,11 +74,19 @@ describe('TotpService', () => {
       expect(res.otpauthUrl).toContain('otpauth://totp/Clemvion:');
       expect(res.otpauthUrl).toContain('issuer=Clemvion');
       expect(res.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
-      // TOTP 가 꺼져 있을 때만 쓰는 조건부 갱신이다.
-      expect(userRepository.update).toHaveBeenCalledWith(
-        { id: 'user-1', twoFactorEnabled: false },
-        { twoFactorSecret: res.secret },
-      );
+      // TOTP 가 꺼져 있을 때만 쓰는 조건부 갱신이다. secret 과 설정 시작 시각을 한 갱신으로 쓴다.
+      expect(userRepository.update).toHaveBeenCalledTimes(1);
+      const [where, values] = userRepository.update.mock.calls[0];
+      expect(where).toEqual({ id: 'user-1', twoFactorEnabled: false });
+      expect(Object.keys(values).sort()).toEqual([
+        'twoFactorSecret',
+        'twoFactorSetupStartedAt',
+      ]);
+      expect(values.twoFactorSecret).toBe(res.secret);
+      expect(values.twoFactorSetupStartedAt).toBeInstanceOf(Date);
+      const startedAt = (values.twoFactorSetupStartedAt as Date).getTime();
+      expect(startedAt).toBeGreaterThanOrEqual(before);
+      expect(startedAt).toBeLessThanOrEqual(after);
     });
 
     it('TOTP 가 켜진 계정이면 409 TOTP_ALREADY_ENABLED 이고 secret 을 쓰지 않는다', async () => {
@@ -100,7 +116,10 @@ describe('TotpService', () => {
     it('올바른 코드면 활성화하고 복구 코드 10개를 반환한다', async () => {
       const secret = (await bootstrapSecret(service, usersService)).secret;
       usersService.findById.mockResolvedValue(
-        makeUser({ twoFactorSecret: secret }),
+        makeUser({
+          twoFactorSecret: secret,
+          twoFactorSetupStartedAt: freshStart(),
+        }),
       );
       const code = generateSync({ secret });
 
@@ -115,6 +134,8 @@ describe('TotpService', () => {
         twoFactorSecret: secret,
       });
       expect(lastCall[1].twoFactorEnabled).toBe(true);
+      // 켜면 설정 시작 시각을 비운다.
+      expect(lastCall[1]).toHaveProperty('twoFactorSetupStartedAt', null);
       // 평문이 아니라 해시(64 hex)만 저장
       expect(lastCall[1].totpRecoveryCodes).toHaveLength(10);
       expect(lastCall[1].totpRecoveryCodes[0]).toMatch(/^[a-f0-9]{64}$/);
@@ -151,7 +172,12 @@ describe('TotpService', () => {
     it('코드 확인 뒤 다른 요청이 먼저 켜서 조건부 갱신이 0행이면 409 TOTP_ALREADY_ENABLED', async () => {
       const secret = RFC6238_SECRET_B32;
       usersService.findById
-        .mockResolvedValueOnce(makeUser({ twoFactorSecret: secret }))
+        .mockResolvedValueOnce(
+          makeUser({
+            twoFactorSecret: secret,
+            twoFactorSetupStartedAt: freshStart(),
+          }),
+        )
         .mockResolvedValueOnce(
           makeUser({ twoFactorEnabled: true, twoFactorSecret: secret }),
         );
@@ -164,7 +190,12 @@ describe('TotpService', () => {
     it('코드 확인 뒤 다른 setup 이 secret 을 바꿔 조건부 갱신이 0행이면 401 TOTP_INVALID', async () => {
       const secret = RFC6238_SECRET_B32;
       usersService.findById
-        .mockResolvedValueOnce(makeUser({ twoFactorSecret: secret }))
+        .mockResolvedValueOnce(
+          makeUser({
+            twoFactorSecret: secret,
+            twoFactorSetupStartedAt: freshStart(),
+          }),
+        )
         .mockResolvedValueOnce(makeUser({ twoFactorSecret: 'OTHER' }));
       userRepository.update.mockResolvedValueOnce({ affected: 0 });
       const err = await service
@@ -183,11 +214,81 @@ describe('TotpService', () => {
 
     it('틀린 코드면 UnauthorizedException', async () => {
       usersService.findById.mockResolvedValue(
-        makeUser({ twoFactorSecret: RFC6238_SECRET_B32 }),
+        makeUser({
+          twoFactorSecret: RFC6238_SECRET_B32,
+          twoFactorSetupStartedAt: freshStart(),
+        }),
       );
       await expect(
         service.verifyAndEnable('user-1', '000000'),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    // 근거: NERV CLE-ACCT-SIGNIN REQ-SIGNIN-084 (CLE-T-FRCRF7)
+    it.each([
+      ['설정 시작 뒤 10분이 지남', staleStart],
+      ['설정 시작 시각이 없음(규칙 전에 시작한 대기 secret)', () => null],
+    ])(
+      '%s → 맞는 코드여도 대기 secret 과 시각을 비우고 400 TOTP_NOT_INITIALIZED',
+      async (_name, startedAt) => {
+        const secret = RFC6238_SECRET_B32;
+        usersService.findById.mockResolvedValue(
+          makeUser({
+            twoFactorSecret: secret,
+            twoFactorSetupStartedAt: startedAt(),
+          }),
+        );
+
+        const err = await rejectionOf(
+          service.verifyAndEnable('user-1', generateSync({ secret })),
+        );
+
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect((err as BadRequestException).getResponse()).toMatchObject({
+          code: 'TOTP_NOT_INITIALIZED',
+        });
+        // 켜지 않고 비우기만 한다. 다른 설정 시작이 쓴 새 secret 을 지우지 않도록 읽은 secret 이 그대로일 때만 비운다.
+        expect(userRepository.update).toHaveBeenCalledTimes(1);
+        expect(userRepository.update).toHaveBeenCalledWith(
+          { id: 'user-1', twoFactorEnabled: false, twoFactorSecret: secret },
+          { twoFactorSecret: null, twoFactorSetupStartedAt: null },
+        );
+        expect(usersService.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('만료를 비우는 갱신이 0행(그 사이 새 설정 시작)이어도 400 TOTP_NOT_INITIALIZED 이고 켜지 않는다', async () => {
+      usersService.findById.mockResolvedValue(
+        makeUser({
+          twoFactorSecret: RFC6238_SECRET_B32,
+          twoFactorSetupStartedAt: staleStart(),
+        }),
+      );
+      userRepository.update.mockResolvedValueOnce({ affected: 0 });
+
+      const err = await rejectionOf(
+        service.verifyAndEnable(
+          'user-1',
+          generateSync({ secret: RFC6238_SECRET_B32 }),
+        ),
+      );
+
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        code: 'TOTP_NOT_INITIALIZED',
+      });
+      expect(userRepository.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('TOTP 가 켜진 계정은 설정 시작 시각이 없어도 만료보다 409 TOTP_ALREADY_ENABLED 가 먼저다', async () => {
+      usersService.findById.mockResolvedValue(
+        makeUser({
+          twoFactorEnabled: true,
+          twoFactorSecret: RFC6238_SECRET_B32,
+          twoFactorSetupStartedAt: null,
+        }),
+      );
+      await expectAlreadyEnabled(service.verifyAndEnable('user-1', '000000'));
+      expect(userRepository.update).not.toHaveBeenCalled();
     });
 
     it('secret 미발급이면 BadRequestException', async () => {
@@ -211,6 +312,7 @@ describe('TotpService', () => {
       expect(usersService.update).toHaveBeenCalledWith('user-1', {
         twoFactorEnabled: false,
         twoFactorSecret: null,
+        twoFactorSetupStartedAt: null,
         totpRecoveryCodes: null,
       });
     });
@@ -382,3 +484,37 @@ async function expectAlreadyEnabled(promise: Promise<unknown>): Promise<void> {
     code: 'TOTP_ALREADY_ENABLED',
   });
 }
+
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => {
+      throw new Error('거부되지 않았다');
+    },
+    (err_: unknown) => err_,
+  );
+}
+
+// 근거: NERV CLE-ACCT-SIGNIN REQ-SIGNIN-084 (CLE-T-FRCRF7)
+describe('isTotpSetupExpired', () => {
+  const now = new Date('2026-11-05T12:00:00.000Z');
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60_000);
+
+  it.each([
+    { name: '시각이 없다', startedAt: null, expired: true },
+    {
+      name: '10분 1ms 전에 시작했다',
+      startedAt: new Date(now.getTime() - 600_001),
+      expired: true,
+    },
+    { name: '11분 전에 시작했다', startedAt: minutesAgo(11), expired: true },
+    {
+      name: '정확히 10분 전에 시작했다',
+      startedAt: minutesAgo(10),
+      expired: false,
+    },
+    { name: '1분 전에 시작했다', startedAt: minutesAgo(1), expired: false },
+    { name: '방금 시작했다', startedAt: now, expired: false },
+  ])('$name → 만료 $expired', ({ startedAt, expired }) => {
+    expect(isTotpSetupExpired(startedAt, now)).toBe(expired);
+  });
+});

@@ -316,7 +316,7 @@ describe('WebAuthn 2FA (e2e)', () => {
     const res = await request(BASE_URL)
       .post('/api/auth/2fa/webauthn/register/options')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({});
+      .send({ password: TEST_PASSWORD });
     expect(res.status).toBe(200);
     const params = (
       res.body.data as {

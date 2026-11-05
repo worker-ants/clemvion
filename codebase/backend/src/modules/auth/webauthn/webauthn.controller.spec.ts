@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -35,6 +36,8 @@ describe('WebAuthnController (audit)', () => {
     } as unknown as jest.Mocked<AuthService>;
 
     webauthnService = {
+      assertEnabled: jest.fn(),
+      generateRegistrationOptionsFor: jest.fn(),
       verifyRegistration: jest.fn(),
       deleteCredential: jest.fn(),
       regenerateRecoveryCodes: jest.fn(),
@@ -303,5 +306,97 @@ describe('WebAuthnController (audit)', () => {
       ).rejects.toThrow(UnauthorizedException);
       expect(webauthnService.regenerateRecoveryCodes).not.toHaveBeenCalled();
     });
+
+    // 기능이 꺼져 있으면 비밀번호를 확인하지 않고 503 이다. 꺼진 서버가 비밀번호 대조 결과를 알려 주지 않게 한다.
+    // 근거: NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 (CLE-T-FRCRF7)
+    it('Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 WEBAUTHN_DISABLED 다', async () => {
+      webauthnService.assertEnabled.mockImplementation(() => {
+        throw webauthnDisabled();
+      });
+
+      await expect(
+        controller.webauthnRegenerateRecovery(payload, {
+          password: 'OldP@ssw0rd1',
+        } as never),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(authService.verifyPasswordForUser).not.toHaveBeenCalled();
+      expect(webauthnService.regenerateRecoveryCodes).not.toHaveBeenCalled();
+    });
+  });
+
+  // 근거: NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 (CLE-T-FRCRF7)
+  describe('webauthnRegisterOptions', () => {
+    it('기능 확인 → 비밀번호 확인 → 등록 옵션 순서로 부르고 옵션과 optionsToken 을 돌려준다', async () => {
+      const calls: string[] = [];
+      webauthnService.assertEnabled.mockImplementation(() => {
+        calls.push('assertEnabled');
+      });
+      authService.verifyPasswordForUser.mockImplementation(async () => {
+        calls.push('verifyPassword');
+      });
+      webauthnService.generateRegistrationOptionsFor.mockImplementation(
+        async () => {
+          calls.push('generate');
+          return {
+            publicKey: { challenge: 'c' } as never,
+            optionsToken: 'opts.tok',
+          };
+        },
+      );
+
+      const res = await controller.webauthnRegisterOptions(payload, {
+        password: 'OldP@ssw0rd1',
+      });
+
+      expect(calls).toEqual(['assertEnabled', 'verifyPassword', 'generate']);
+      expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+      );
+      expect(
+        webauthnService.generateRegistrationOptionsFor,
+      ).toHaveBeenCalledWith('user-uuid');
+      expect(res).toEqual({
+        data: { publicKey: { challenge: 'c' }, optionsToken: 'opts.tok' },
+      });
+    });
+
+    it.each(['PASSWORD_INVALID', 'PASSWORD_REQUIRED'])(
+      '비밀번호 확인이 %s 로 실패하면 등록 옵션과 optionsToken 을 만들지 않는다',
+      async (code) => {
+        authService.verifyPasswordForUser.mockRejectedValue(
+          new UnauthorizedException({ code }),
+        );
+
+        await expect(
+          controller.webauthnRegisterOptions(payload, {
+            password: 'WrongPass!',
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(
+          webauthnService.generateRegistrationOptionsFor,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it('Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 WEBAUTHN_DISABLED 다', async () => {
+      webauthnService.assertEnabled.mockImplementation(() => {
+        throw webauthnDisabled();
+      });
+
+      await expect(
+        controller.webauthnRegisterOptions(payload, {
+          password: 'OldP@ssw0rd1',
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(authService.verifyPasswordForUser).not.toHaveBeenCalled();
+      expect(
+        webauthnService.generateRegistrationOptionsFor,
+      ).not.toHaveBeenCalled();
+    });
   });
 });
+
+function webauthnDisabled(): ServiceUnavailableException {
+  return new ServiceUnavailableException({ code: 'WEBAUTHN_DISABLED' });
+}

@@ -50,6 +50,18 @@ export class User {
   twoFactorSecret: string | null;
 
   /**
+   * TOTP 설정 시작 시각. 설정 시작이 `twoFactorSecret` 과 같은 조건부 갱신으로 쓰고, 켜기와 끄기가 비운다.
+   * 값이 없거나 10분이 지났으면 활성화 검증이 대기 secret 을 만료로 보고 함께 비운다.
+   * 비밀은 아니지만 응답에 싣지 않는다(NERV CLE-ACCT-SIGNIN 「TOTP 켜기」, CLE-ACCT-DATA, CLE-T-FRCRF7).
+   */
+  @Column({
+    name: 'two_factor_setup_started_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  twoFactorSetupStartedAt: Date | null;
+
+  /**
    * TOTP 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
    * `two_factor_enabled = true` 인 사용자에게 활성화 시점에 10개를 일회성으로 발급한다.
    */

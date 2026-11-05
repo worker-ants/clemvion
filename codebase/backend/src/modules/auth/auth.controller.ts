@@ -311,16 +311,19 @@ export class AuthController {
   @Post('2fa/verify')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  // 대기 secret 의 6자리 코드 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
+  @Throttle(SENSITIVE_ACTION_THROTTLE)
   @ApiOperation({
     summary: '2FA 검증·활성화',
     description:
-      'setup으로 발급한 secret과 일치하는 6자리 코드를 검증해 2FA를 활성화하고 복구 코드 10개를 반환합니다(일회성 표시). 2FA 가 이미 켜져 있으면 코드를 확인하지 않고 거부하며 복구 코드를 다시 발급하지 않습니다.',
+      'setup으로 발급한 secret과 일치하는 6자리 코드를 검증해 2FA를 활성화하고 복구 코드 10개를 반환합니다(일회성 표시). 2FA 가 이미 켜져 있으면 코드를 확인하지 않고 거부하며 복구 코드를 다시 발급하지 않습니다. 설정 시작 뒤 10분이 지났으면 코드를 확인하지 않고 대기 secret 을 버린 뒤 거부합니다.',
   })
   @ApiOkWrappedResponse(TotpVerifyDto, {
     description: '2FA 활성화 성공 및 복구 코드 반환 (일회성 표시)',
   })
   @ApiBadRequestResponse({
-    description: '입력값 검증 실패 또는 설정 시작 전(TOTP_NOT_INITIALIZED)',
+    description:
+      '입력값 검증 실패, 설정 시작 전 또는 설정 시작 뒤 10분이 지남(TOTP_NOT_INITIALIZED)',
   })
   @ApiUnauthorizedResponse({
     description: '인증 실패, 토큰 만료 또는 코드 불일치(TOTP_INVALID)',

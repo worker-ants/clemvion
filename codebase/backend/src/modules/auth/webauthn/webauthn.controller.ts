@@ -15,6 +15,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -30,6 +31,7 @@ import { ApiOkWrappedResponse } from '../../../common/swagger';
 import { Public, CurrentUser } from '../../../common/decorators';
 import type { JwtPayload } from '../../../common/decorators';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { SENSITIVE_ACTION_THROTTLE } from '../../../common/constants/throttle';
 
 import { AuthService } from '../auth.service';
 import { AccessTokenDto } from '../dto/responses/auth-response.dto';
@@ -45,6 +47,7 @@ import {
   WebAuthnAuthVerifyDto,
   WebAuthnRecoveryDto,
   WebAuthnRegenerateRecoveryDto,
+  WebAuthnRegisterOptionsRequestDto,
   WebAuthnRegisterVerifyDto,
   WebAuthnRenameDto,
 } from './dto/webauthn.dto';
@@ -94,16 +97,35 @@ export class WebAuthnController {
   @Post('register/options')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
+  @Throttle(SENSITIVE_ACTION_THROTTLE)
   @ApiOperation({
     summary: 'WebAuthn 등록 options 발급',
     description:
-      'navigator.credentials.create() 에 필요한 options 와 5분 짜리 optionsToken JWT 를 발급합니다. 인증 필수.',
+      '계정 비밀번호를 다시 확인한 뒤 navigator.credentials.create() 에 필요한 options 와 5분 짜리 optionsToken JWT 를 발급합니다. 인증 필수. 비밀번호 확인에 실패하면 options 와 optionsToken 을 만들지 않습니다.',
   })
   @ApiOkWrappedResponse(WebAuthnRegisterOptionsDto, {
     description: 'options + optionsToken',
   })
-  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async webauthnRegisterOptions(@CurrentUser() user: JwtPayload) {
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 (비밀번호 누락 포함)',
+  })
+  @ApiUnauthorizedResponse({
+    description:
+      '인증 실패, 토큰 만료, 비밀번호 불일치(PASSWORD_INVALID) 또는 비밀번호가 없는 계정(PASSWORD_REQUIRED)',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'WebAuthn 기능 비활성(WEBAUTHN_DISABLED). 비밀번호를 확인하기 전에 거부한다',
+  })
+  async webauthnRegisterOptions(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: WebAuthnRegisterOptionsRequestDto,
+  ) {
+    // 기능 확인 → 비밀번호 확인 → 옵션 발급 순서다. 로그인 세션만으로는 Passkey 를 등록하지 못한다
+    // (NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」, CLE-T-FRCRF7).
+    this.webauthnService.assertEnabled();
+    await this.authService.verifyPasswordForUser(user.sub, dto.password);
     const result = await this.webauthnService.generateRegistrationOptionsFor(
       user.sub,
     );
@@ -369,6 +391,8 @@ export class WebAuthnController {
   @Post('recovery-codes/regenerate')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
+  @Throttle(SENSITIVE_ACTION_THROTTLE)
   @ApiOperation({
     summary: 'WebAuthn 복구 코드 재발급',
     description:
@@ -379,10 +403,16 @@ export class WebAuthnController {
   })
   @ApiBadRequestResponse({ description: '입력 검증 실패' })
   @ApiUnauthorizedResponse({ description: '비밀번호 불일치 또는 토큰 만료' })
+  @ApiServiceUnavailableResponse({
+    description:
+      'WebAuthn 기능 비활성(WEBAUTHN_DISABLED). 비밀번호를 확인하기 전에 거부한다',
+  })
   async webauthnRegenerateRecovery(
     @CurrentUser() user: JwtPayload,
     @Body() dto: WebAuthnRegenerateRecoveryDto,
   ) {
+    // 기능이 꺼져 있으면 비밀번호를 대조하지 않고 503 이다(NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7).
+    this.webauthnService.assertEnabled();
     // [refactor 02 C-3 §3] 비밀번호 재확인은 AuthService 로 통일(레이어 정렬,
     // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
     await this.authService.verifyPasswordForUser(user.sub, dto.password);

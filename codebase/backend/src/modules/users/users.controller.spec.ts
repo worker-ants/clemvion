@@ -124,6 +124,19 @@ describe('UsersController', () => {
       expect(result.data).not.toHaveProperty('twoFactorSecret');
     });
 
+    // 비밀은 아니지만 응답에 싣지 않는 컬럼이다(NERV CLE-ACCT-DATA, CLE-T-FRCRF7).
+    it('TOTP 설정 시작 시각은 싣지 않는다', async () => {
+      jest.spyOn(service, 'findById').mockResolvedValue({
+        ...mockUser,
+        twoFactorSecret: 'PENDING',
+        twoFactorSetupStartedAt: new Date(),
+      } as User);
+
+      const result = await controller.getMe(payload);
+      expect(result.data).not.toHaveProperty('twoFactorSetupStartedAt');
+      expectNoUserSecrets(result);
+    });
+
     it('should throw NotFoundException when user not found', async () => {
       jest.spyOn(service, 'findById').mockResolvedValue(null);
 

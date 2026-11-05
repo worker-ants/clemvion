@@ -20,6 +20,18 @@ const RECOVERY_CODE_COUNT = 10;
 // tolerance 를 초 단위로 받으며(`epochTolerance`), period 30s 기준 30 = ±1 time step.
 // 표준 Google Authenticator 호환(6자리 / 30초 step) 은 v13 기본값.
 const EPOCH_TOLERANCE_SECONDS = 30;
+// 대기 secret 의 수명. 설정 시작 뒤 이 시간이 지나면 활성화 검증이 secret 을 버린다
+// (NERV CLE-ACCT-SIGNIN REQ-SIGNIN-084, CLE-T-FRCRF7).
+const TOTP_SETUP_TTL_MS = 10 * 60_000;
+
+/**
+ * 대기 secret 이 만료됐는가. 설정 시작 시각이 없거나 `now` 기준 10분이 지났으면 만료다.
+ * 시각이 없는 대기 secret 은 이 규칙 전에 설정을 시작하고 켜지 않은 계정이다(마이그레이션이 기존 행을 바꾸지 않는다).
+ */
+export function isTotpSetupExpired(startedAt: Date | null, now: Date): boolean {
+  if (!startedAt) return true;
+  return now.getTime() - startedAt.getTime() > TOTP_SETUP_TTL_MS;
+}
 
 function generateRecoveryCode(): string {
   // xxxx-xxxx-xxxx (소문자 영숫자 12자리)
@@ -42,6 +54,10 @@ function totpAlreadyEnabled(): ConflictException {
   });
 }
 
+function totpNotInitialized(message: string): BadRequestException {
+  return new BadRequestException({ code: 'TOTP_NOT_INITIALIZED', message });
+}
+
 function totpInvalid(): UnauthorizedException {
   return new UnauthorizedException({
     code: 'TOTP_INVALID',
@@ -50,9 +66,11 @@ function totpInvalid(): UnauthorizedException {
 }
 
 /**
- * 사용자의 2FA 컬럼(`twoFactorEnabled` · `twoFactorSecret` · `totpRecoveryCodes`)을 쓰는 방식이 둘이다.
+ * 사용자의 2FA 컬럼(`twoFactorEnabled` · `twoFactorSecret` · `twoFactorSetupStartedAt` · `totpRecoveryCodes`)을 쓰는
+ * 방식이 둘이다.
  * - `userRepository.update` 로 직접 쓰는 곳은 `setup` · `verifyAndEnable` 뿐이다. 이 둘은 "TOTP 가 꺼져 있다"
- *   (`verifyAndEnable` 은 "확인한 secret 이 그대로다"도)를 WHERE 조건으로 거는 조건부 갱신이 필요하다.
+ *   (`verifyAndEnable` 은 "읽은 secret 이 그대로다"도)를 WHERE 조건으로 거는 조건부 갱신이 필요하다. 만료된 대기 secret 을
+ *   비우는 갱신도 같은 조건이다.
  *   `UsersService.update` 는 id 만으로 조건 없이 쓰므로 읽은 뒤 다른 요청이 TOTP 를 켜면 켜진 계정의 secret · 복구 코드를
  *   덮어쓸 수 있다. `AuthModule` 이 `User` 를 `forFeature` 로 등록한 것도 이 때문이다.
  * - 나머지(`disableUnchecked` · `verifyForLogin` 의 복구 코드 소비)는 조건이 필요 없어 소유 모듈의 `usersService.update` 를 거친다.
@@ -97,7 +115,8 @@ export class TotpService {
 
   /**
    * 사용자에게 임시 secret을 발급하고 QR 코드(data URL)를 반환한다.
-   * 검증(verify) 전까지는 `twoFactorSecret`만 저장되고 `twoFactorEnabled`는 false 유지.
+   * 검증(verify) 전까지는 `twoFactorSecret` 과 설정 시작 시각(`twoFactorSetupStartedAt`)만 저장되고 `twoFactorEnabled`는 false 유지.
+   * 설정 시작 시각은 대기 secret 의 10분 수명을 재는 기준이다. 다시 부르면 secret 과 시각을 함께 새로 쓴다.
    * TOTP 가 이미 켜져 있으면 secret 을 쓰지 않고 409 `TOTP_ALREADY_ENABLED` 로 거부한다. 저장은 TOTP 가 꺼져 있을 때만
    * 쓰는 조건부 갱신이라 읽은 뒤 다른 요청이 켠 경우도 같은 409 다.
    * 비밀번호는 확인하지 않는다. `AuthService.startTwoFactorSetup` 이 먼저 확인하고 부른다. `AuthModule` 이 `TotpService` 를
@@ -123,7 +142,7 @@ export class TotpService {
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
     const { affected } = await this.userRepository.update(
       { id: userId, twoFactorEnabled: false },
-      { twoFactorSecret: secret },
+      { twoFactorSecret: secret, twoFactorSetupStartedAt: new Date() },
     );
     if (!affected) throw totpAlreadyEnabled();
     return { secret, otpauthUrl, qrCodeDataUrl };
@@ -133,6 +152,8 @@ export class TotpService {
    * setup으로 발급한 secret으로 6자리 코드를 검증해 활성화한다.
    * 활성화 시 복구 코드 10개를 발급해 평문(일회성)으로 반환하고, 해시만 저장한다.
    * TOTP 가 이미 켜져 있으면 코드를 확인하지 않고 409 `TOTP_ALREADY_ENABLED` 로 거부한다(복구 코드를 다시 발급하지 않는다).
+   * 설정 시작 시각이 없거나 10분이 지났으면 코드를 확인하지 않고 대기 secret 과 시각을 비운 뒤 400 `TOTP_NOT_INITIALIZED` 다.
+   * 비우기는 TOTP 가 꺼져 있고 읽은 secret 이 그대로일 때만 쓰는 조건부 갱신이라 그 사이 다른 setup 이 쓴 새 secret 은 남는다.
    * 저장은 TOTP 가 꺼져 있고 코드를 확인한 secret 이 그대로일 때만 쓰는 조건부 갱신이다. 그 사이 다른 요청이 켰으면 409,
    * 다른 setup 이 secret 을 바꿨으면 확인한 코드가 지금 secret 과 맞지 않으므로 401 `TOTP_INVALID` 다.
    */
@@ -142,12 +163,22 @@ export class TotpService {
   ): Promise<{ recoveryCodes: string[] }> {
     const user = await this.usersService.findById(userId);
     if (!user || !user.twoFactorSecret) {
-      throw new BadRequestException({
-        code: 'TOTP_NOT_INITIALIZED',
-        message: '2FA 설정을 먼저 시작해주세요.',
-      });
+      throw totpNotInitialized('2FA 설정을 먼저 시작해주세요.');
     }
     if (user.twoFactorEnabled) throw totpAlreadyEnabled();
+    if (isTotpSetupExpired(user.twoFactorSetupStartedAt, new Date())) {
+      await this.userRepository.update(
+        {
+          id: userId,
+          twoFactorEnabled: false,
+          twoFactorSecret: user.twoFactorSecret,
+        },
+        { twoFactorSecret: null, twoFactorSetupStartedAt: null },
+      );
+      throw totpNotInitialized(
+        '2FA 설정을 시작한 지 10분이 지났습니다. 설정을 다시 시작해주세요.',
+      );
+    }
     const isValid = this.verifyCode(code, user.twoFactorSecret);
     if (!isValid) throw totpInvalid();
     const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
@@ -161,6 +192,7 @@ export class TotpService {
       },
       {
         twoFactorEnabled: true,
+        twoFactorSetupStartedAt: null,
         totpRecoveryCodes: codes.map(hashRecoveryCode),
       },
     );
@@ -192,6 +224,7 @@ export class TotpService {
     await this.usersService.update(userId, {
       twoFactorEnabled: false,
       twoFactorSecret: null,
+      twoFactorSetupStartedAt: null,
       totpRecoveryCodes: null,
     });
   }
