@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND"
 title: "EIA 수신 API와 SSE"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-EIAIN-001", "REQ-EIAIN-002", "REQ-EIAIN-003", "REQ-EIAIN-004", "REQ-EIAIN-005", "REQ-EIAIN-006", "REQ-EIAIN-007", "REQ-EIAIN-008", "REQ-EIAIN-009", "REQ-EIAIN-010", "REQ-EIAIN-011", "REQ-EIAIN-012", "REQ-EIAIN-013", "REQ-EIAIN-014", "REQ-EIAIN-015", "REQ-EIAIN-016", "REQ-EIAIN-017", "REQ-EIAIN-018", "REQ-EIAIN-019", "REQ-EIAIN-020", "REQ-EIAIN-021", "REQ-EIAIN-022", "REQ-EIAIN-023", "REQ-EIAIN-024", "REQ-EIAIN-025", "REQ-EIAIN-026", "REQ-EIAIN-027", "REQ-EIAIN-028", "REQ-EIAIN-029", "REQ-EIAIN-030", "REQ-EIAIN-031", "REQ-EIAIN-032", "REQ-EIAIN-033", "REQ-EIAIN-034", "REQ-EIAIN-035", "REQ-EIAIN-036", "REQ-EIAIN-037", "REQ-EIAIN-038", "REQ-EIAIN-039", "REQ-EIAIN-040", "REQ-EIAIN-041", "REQ-EIAIN-042", "REQ-EIAIN-043", "REQ-EIAIN-044", "REQ-EIAIN-045", "REQ-EIAIN-046", "REQ-EIAIN-047"]
+requirements: ["REQ-EIAIN-001", "REQ-EIAIN-002", "REQ-EIAIN-003", "REQ-EIAIN-004", "REQ-EIAIN-005", "REQ-EIAIN-006", "REQ-EIAIN-007", "REQ-EIAIN-008", "REQ-EIAIN-009", "REQ-EIAIN-010", "REQ-EIAIN-011", "REQ-EIAIN-012", "REQ-EIAIN-013", "REQ-EIAIN-014", "REQ-EIAIN-015", "REQ-EIAIN-016", "REQ-EIAIN-017", "REQ-EIAIN-018", "REQ-EIAIN-019", "REQ-EIAIN-020", "REQ-EIAIN-021", "REQ-EIAIN-022", "REQ-EIAIN-023", "REQ-EIAIN-024", "REQ-EIAIN-025", "REQ-EIAIN-026", "REQ-EIAIN-027", "REQ-EIAIN-028", "REQ-EIAIN-029", "REQ-EIAIN-030", "REQ-EIAIN-031", "REQ-EIAIN-032", "REQ-EIAIN-033", "REQ-EIAIN-034", "REQ-EIAIN-035", "REQ-EIAIN-036", "REQ-EIAIN-037", "REQ-EIAIN-038", "REQ-EIAIN-039", "REQ-EIAIN-040", "REQ-EIAIN-041", "REQ-EIAIN-042", "REQ-EIAIN-043", "REQ-EIAIN-044", "REQ-EIAIN-045", "REQ-EIAIN-046", "REQ-EIAIN-047", "REQ-EIAIN-048", "REQ-EIAIN-049"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "3289d44e29176504e4f26e54ad9e9cd8adbb68c52232a890f94d9213222f8103"
+content_hash: "d1262cbacc93c9573e7911774a12ec258cad8a305718b8b7269e7a89c1422057"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-1GR2JE"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "80db0481df0fc1929f6f408f77aba8f57dfa7bb6a15ad3032058c62b8aba9464"
-etag: "sha256-d41d2b9f7ae158b9f0022eb0297108f687b2b00ac03793aab216a2da735d7a52"
+mirror_sha256: "6f8d2c28d343f57e1d466a5ffff70709d3e47d539da9770eaa0f93d6ccfbcb41"
+etag: "sha256-73adfc47e05b44bf0d4af38a8adc526225d20b618dcfb4bfa124f6475137508b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.2, §5, §11, Rationale R3·R5·R8·R11·R13·R14·R16·R17 앞부분·R18·R-replay-unavailable) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -78,13 +78,15 @@ etag: "sha256-d41d2b9f7ae158b9f0022eb0297108f687b2b00ac03793aab216a2da735d7a52"
 - REQ-EIAIN-038 IF 가드가 합성한 요청 컨텍스트(`req.interaction`)가 없으면 THE SYSTEM SHALL 멱등 캐시를 건너뛰고 전역 키로 대신하지 않는다. (원본: R8)
 - REQ-EIAIN-039 WHEN SSE·상태 조회로 노드 출력과 대화 스레드를 내보내면 THE SYSTEM SHALL 디버그 전용 필드(`llmCalls` 등)를 깊이와 관계없이 빼고 자격 증명 값을 가린다. (원본: §6.2, R17)
 - REQ-EIAIN-040 IF 토큰으로 인증한 HTTP 요청이 보낸 재개 명령 네 가지(`submit_form`·`click_button`·`submit_message`·`end_conversation`)나 입력 대기 실행의 `cancel`(별칭 `/cancel` 포함)을 재개 큐에 넣지 못하면 THE SYSTEM SHALL `503 EXECUTION_ENQUEUE_FAILED` 를 돌려주고 그 응답을 멱등 캐시에 넣지 않는다. (2026-10-09 결정 · [EIA 데이터와 흐름 「인바운드 명령과 재개」](CLE-EIA-DATA.md#인바운드-명령과-재개))
-- REQ-EIAIN-041 WHEN 트리거 단위 토큰이 무효가 되거나 그 트리거의 인터랙션이 꺼지면 THE SYSTEM SHALL 그 토큰으로 연 SSE 스트림을 어느 서버 인스턴스에 붙어 있든 닫는다. (2026-10-09 결정, 서버 인스턴스 범위는 2026-10-17 결정 · [스트림 규칙](#스트림-규칙))
-- REQ-EIAIN-042 WHILE Redis 를 쓸 수 있는 동안 THE SYSTEM SHALL SSE 클라이언트가 어느 서버 인스턴스에 연결해도 그 실행의 이벤트를 빠짐없이 보내고 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 한다. (2026-10-17 결정)
+- REQ-EIAIN-041 WHEN 트리거 단위 토큰이 무효가 되거나 그 트리거의 인터랙션이 꺼지면 THE SYSTEM SHALL 그 토큰으로 연 SSE 스트림을 어느 서버 인스턴스에 붙어 있든 닫는다. 닫기 신호를 받지 못한 서버 인스턴스의 스트림은 60초마다 하는 토큰 재확인에서 닫는다. 재확인 조회가 실패하면 그 스트림을 유지한다. (2026-10-09 결정, 서버 인스턴스 범위는 2026-10-17 결정, 60초 재확인은 2026-11-05 결정 · [스트림 규칙](#스트림-규칙))
+- REQ-EIAIN-042 WHILE Redis 를 쓸 수 있는 동안 THE SYSTEM SHALL SSE 클라이언트가 어느 서버 인스턴스에 연결해도 그 실행의 이벤트를 빠짐없이 보내고 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 한다. 예외는 둘이다. 크기 상한을 넘은 이벤트(종료 이벤트 제외)는 그 이벤트를 낸 서버 인스턴스 밖의 클라이언트에게 `execution.replay_unavailable` 로 대신 알린다(REQ-EIAIN-048). 서버 인스턴스가 그 실행의 이벤트를 Redis 에 쓸지 판정하는 동안에는 다른 서버 인스턴스의 클라이언트가 그 이벤트를 최대 2초 늦게 받을 수 있다. (2026-10-17 결정, 예외는 2026-11-05 결정 · [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림))
 - REQ-EIAIN-043 IF SSE 전달에 쓰는 Redis 를 쓸 수 없으면 THE SYSTEM SHALL 서버 인스턴스 메모리로 SSE 전달과 재전송을 이어 가고 경고 로그를 남긴다. (2026-10-17 결정)
 - REQ-EIAIN-044 WHEN 재전송과 실시간 전달이 같은 순번의 이벤트를 함께 가져오면 THE SYSTEM SHALL 한 스트림에 그 순번의 이벤트를 한 번만 보낸다. (2026-10-17 결정)
 - REQ-EIAIN-045 IF 재전송 버퍼에 요청한 순번 뒤의 이벤트가 없고 버퍼가 비었거나 Redis 에서 읽지 못했으며 실행의 순번 카운터를 읽지 못하거나 카운터로 보아 클라이언트가 이벤트를 놓쳤을 수 있으면 THE SYSTEM SHALL `execution.replay_unavailable` 을 한 번 보내고 연결을 유지한다. (2026-10-17 결정 · [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림))
 - REQ-EIAIN-046 IF 연결을 준비하는 동안 모은 실시간 이벤트가 상한을 넘어 가장 오래된 것을 버렸으면 THE SYSTEM SHALL 실시간 전달로 바꾸기 전에 `execution.replay_unavailable` 을 한 번 보낸다. (2026-10-17 결정)
 - REQ-EIAIN-047 IF 트리거 단위 토큰으로 SSE 를 열 때 구독을 등록한 뒤 다시 확인한 토큰이 무효이거나 그 사이 그 토큰의 닫기 신호가 오면 THE SYSTEM SHALL SSE 헤더를 보내지 않고 `401 TOKEN_INVALID` 로 거부한다. (2026-10-17 결정 · [스트림 연결 오류](#스트림-연결-오류))
+- REQ-EIAIN-048 IF 다른 서버 인스턴스가 낸 이벤트가 크기 상한을 넘어 생략 표시만 오면 THE SYSTEM SHALL 그 순번을 아직 보내지 않은 스트림에 그 순번 자리에서 `execution.replay_unavailable` 을 한 번 보내고 그 스트림의 `lastEventId`(마지막으로 받은 순번)는 그대로 둔다. (2026-11-05 결정 · [스트림 규칙](#스트림-규칙) 5 번)
+- REQ-EIAIN-049 WHEN 서버의 실시간 구독이 끊겼다가 다시 확정되면(구독 확인이 늦게 온 경우 포함) THE SYSTEM SHALL 공백이 있던 실행의 열린 스트림마다 그 사이 놓친 이벤트를 재전송 버퍼로 채우고 채울 수 없으면 `execution.replay_unavailable` 을 한 번 보낸다. (2026-11-05 결정 · [스트림 규칙](#스트림-규칙) 4 번)
 
 ## 공통 규칙
 
@@ -270,22 +272,24 @@ SSE 는 알림 웹훅 이벤트(`execution.waiting_for_input`·`completed`·`fai
 - `id` 필드는 그 실행의 이벤트 순번(`seq`)이다. WebSocket 이벤트 래퍼의 순번, 알림 웹훅의 `seq` 와 같은 값이다.
 - `Last-Event-Id` 헤더나 `?lastEventId=` 쿼리로 다시 연결하면 5분 재전송 버퍼(SSE replay buffer)에서 놓친 이벤트를 다시 보낸다.
 - 첫 연결에서 `?lastEventId=0` 을 명시하면 버퍼의 순번 1 이상 이벤트를 모두 다시 보낸다. 구독 전에 지나간 이벤트를 채울 수 있고, 상태 조회 시드와 함께 쓴다.
-- 서버는 다음 가운데 하나면 `execution.replay_unavailable` 을 한 번 보낸다. 클라이언트는 상태 조회로 현재 상태를 다시 읽는다. payload 는 `{ executionId, lastEventId, message }` 이고 `lastEventId` 는 클라이언트가 마지막으로 받은 순번이다.
+- 서버는 다음 가운데 하나에 해당할 때마다 `execution.replay_unavailable` 을 한 번 보낸다. 클라이언트는 상태 조회로 현재 상태를 다시 읽는다. payload 는 `{ executionId, lastEventId, message }` 이고 `lastEventId` 는 클라이언트가 마지막으로 받은 순번이다. 연결한 뒤 받은 이벤트가 없으면 연결할 때 보낸 `Last-Event-Id` 이고 그것도 없으면 `0` 이다.
   1. 버퍼가 요청 범위를 다 채우지 못한다(만료나 개수 상한으로 중간 순번 유실). 다시 보낼 수 있는 가장 이른 순번이 `Last-Event-Id + 1` 이 아니면 부분 재전송 대신 이 신호를 보낸다. 구현은 `sse-adapter.service.ts` 의 `replayOrSignalUnavailable` 이다. 버퍼 안의 연속 구간 재전송은 손실 없이 동작한다.
   2. 버퍼에 `Last-Event-Id` 뒤의 이벤트가 없는데 버퍼가 비었거나 Redis 에서 읽지 못해 버퍼만으로 판정할 수 없다. 버퍼 키는 그 실행의 마지막 이벤트 뒤 5분이 지나면 사라진다. 그때 서버는 실행의 순번 카운터와 견준다. 카운터가 `Last-Event-Id` 보다 크면 그 사이 순번 가운데 연결을 준비하며 모은 실시간 이벤트에 없는 것이 있을 때 신호를 보낸다. 카운터를 읽지 못하면(키가 없음 · Redis 장애 · 메모리 모드) 놓쳤을 수 있다고 보고 신호를 보낸다. 견주는 방법과 카운터의 수명은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
   3. 연결을 준비하는 동안(연결 자리 얻기 · 토큰 다시 확인 · 재전송) 모은 실시간 이벤트가 재전송 버퍼의 개수 상한과 같은 상한을 넘었다. 서버는 가장 오래된 것부터 버린다. 실시간 전달로 바꾸기 전에 이 신호를 먼저 보내고 남은 이벤트를 보낸다.
+  4. 서버의 실시간 구독 연결이 끊겼다 복구되거나 실행 채널 구독 확인이 늦게 왔다. 서버는 그 사이 놓친 구간을 재전송 버퍼로 채운다. 1 · 2 번과 같은 판정으로 채울 수 없으면 신호를 보낸다. `Last-Event-Id` 없이 연결했고 순번이 1 이상인 이벤트를 아직 받지 않은 스트림은 기준 순번이 없어서 이때 늘 신호를 받는다. 그 신호의 `lastEventId` 는 `0` 이다. 자세한 규칙은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
+  5. 다른 서버 인스턴스가 낸 이벤트가 크기 상한을 넘어 그 서버 인스턴스 밖으로는 생략 표시(실행 id · 순번 · 이벤트 이름만 담은 표시)만 전달됐다. 실시간 전달에서는 그 순번 자리에서 신호를 보낸다. 재전송 범위에 그런 순번이 있으면 1 번처럼 구간이 끊긴 것으로 보고 신호를 보낸다. 빠진 순번은 받은 순번으로 세지 않으므로 `lastEventId` 를 바꾸지 않는다. 상한과 예외(종료 이벤트)는 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
 - 2번 조건은 놓친 이벤트가 없어도 신호를 보낼 수 있다. 이벤트를 아직 하나도 내지 않은 새 실행에 `lastEventId=0` 으로 연결하면 카운터가 없어 신호가 간다. 카운터가 만료됐거나 지워진 경우와 구별할 수 없기 때문이다. 클라이언트는 상태 조회를 한 번 더 할 뿐이고 스트림은 그대로 이어진다. 위젯은 시작할 때 이미 상태 조회로 현재 대기 표면을 시드한다([단발 상태 조회](#단발-상태-조회)).
 - `execution.replay_unavailable` 은 내부 WS 의 `replay.unavailable` 과 뜻이 같다. SSE 이벤트 이름 규칙(`execution.*`)에 맞추려고 이름만 다르게 했다.
-- `execution.replay_unavailable` 은 실행 순번을 배정받지 않는 제어 프레임이다. SSE 연결을 시작할 때만 보낸다. 순번 자리에 `0` 을 쓰고 SSE `id:` 줄을 생략한다(`writeSseFrame` 은 순번이 0 이하면 쓰지 않는다). 브라우저 `EventSource` 의 Last-Event-Id 가 `0` 으로 바뀌어 다음 자동 재연결이 전체 재전송을 일으키는 것을 막는다.
+- `execution.replay_unavailable` 은 실행 순번을 배정받지 않는 제어 프레임이다. SSE 연결을 시작할 때 보내고 위 4 · 5 번 경우에는 스트림 도중에도 보낸다. 순번 자리에 `0` 을 쓰고 SSE `id:` 줄을 생략한다(`writeSseFrame` 은 순번이 0 이하면 쓰지 않는다). 브라우저 `EventSource` 의 Last-Event-Id 가 `0` 으로 바뀌어 다음 자동 재연결이 전체 재전송을 일으키는 것을 막는다.
 - 신호를 보낸 뒤에도 스트림은 닫지 않는다. 위젯은 이 신호를 받으면 상태 조회 스냅샷으로 다시 맞춘다. 스냅샷이 이미 종료 상태면 공백 사이에 종료 이벤트까지 잃은 것이므로 종료를 확정한다. 소비 규칙은 [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md) 이 정한다.
 - 종료 이벤트(`execution.completed`·`failed`·`cancelled`)를 보낸 뒤 서버가 연결을 닫는다.
-- 트리거 단위 토큰(`itk_*`)으로 연 스트림은 종료 이벤트 전이라도 서버가 닫을 수 있다. 그 토큰을 재발급할 때, PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꿔 토큰을 지울 때, PATCH 가 인터랙션을 끌 때, 트리거를 지울 때다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 가드를 통과한 뒤 무효가 된 토큰을 놓치지 않도록 서버는 구독을 등록하고 연결 자리를 얻은 뒤 SSE 헤더를 보내기 전에 토큰을 다시 확인한다. 토큰이 무효면 `401 TOKEN_INVALID` 로 거부한다. 그 사이 그 토큰의 닫기 신호가 와도 같은 401 이다([스트림 연결 오류](#스트림-연결-오류)).
+- 트리거 단위 토큰(`itk_*`)으로 연 스트림은 종료 이벤트 전이라도 서버가 닫을 수 있다. 그 토큰을 재발급할 때, PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꿔 토큰을 지울 때, PATCH 가 인터랙션을 끌 때, 트리거를 지울 때다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 가드를 통과한 뒤 무효가 된 토큰을 놓치지 않도록 서버는 구독을 등록하고 연결 자리를 얻은 뒤 SSE 헤더를 보내기 전에 토큰을 다시 확인한다. 토큰이 무효면 `401 TOKEN_INVALID` 로 거부한다. 그 사이 그 토큰의 닫기 신호가 와도 같은 401 이다([스트림 연결 오류](#스트림-연결-오류)). 스트림이 열려 있는 동안 서버는 60초마다 토큰을 다시 확인한다. 그래서 닫기 신호가 서버 인스턴스 사이에서 유실돼도 무효가 된 토큰의 스트림은 이 간격 안에 닫힌다. 다시 확인하다 조회가 실패하면 스트림을 유지하고 다음 재확인에서 다시 본다. 이렇게 닫을 때도 따로 보내는 이벤트 없이 200 응답을 끝낸다.
 - SSE 헤더를 보낸 뒤에 닫으면 따로 보내는 이벤트 없이 200 응답이 끝난다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 재발급 · 전략 변경 · 인터랙션 끄기 뒤에는 `TOKEN_INVALID` 이고 트리거를 지운 뒤에는 `EXECUTION_NOT_FOUND` 다. 브라우저 `EventSource` 는 200 이 아닌 응답을 받으면 자동 재연결을 멈춘다. `itk_*` 를 쓰는 서버 간 자동화는 이 401 을 받으면 같은 토큰으로 다시 연결하지 않는다.
 - 실행 단위 토큰(`iext_*`)으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않는다. 그 실행의 종료 이벤트까지 이어진다([EIA 데이터와 흐름 「실행 단위 토큰」](CLE-EIA-DATA.md#실행-단위-토큰)).
 - 동시 연결 한도는 모든 서버 인스턴스의 연결을 합해 센다. 한도를 넘으면 `429 TOO_MANY_CONNECTIONS` 다. 연결마다 15초 heartbeat 가 그 연결 자리의 시각도 갱신한다. 서버 인스턴스가 죽어 연결 종료를 기록하지 못해도 그 자리는 마지막 heartbeat 뒤 45초(heartbeat 간격의 세 배)가 지나면 빠진다.
 - 서버 인스턴스가 여럿이어도 sticky-session 이 필요 없다. SSE fan-out(`SseFanoutService`)이 실행 이벤트, 5분 재전송 버퍼, 스트림 닫기 신호, 동시 연결 수를 Redis 로 서버 인스턴스끼리 나눈다. 그래서 클라이언트는 어느 서버 인스턴스에 연결해도 그 실행의 이벤트를 모두 받고 다른 서버 인스턴스로 다시 연결해도 재전송을 받는다. 재전송과 실시간 전달이 겹치면 그 스트림에 이미 보낸 순번 이하의 이벤트는 다시 보내지 않는다. 순번이 0 이하인 제어 프레임은 이 규칙에서 빠진다. 키와 TTL 은 [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림) 이 정한다.
 - Redis 를 쓸 수 없으면 서버 인스턴스 메모리로 이어 간다. 이때 클라이언트는 연결한 서버 인스턴스가 낸 이벤트만 받는다. 재전송도 그 서버 인스턴스의 버퍼에서만 한다. 동시 연결 수도 서버 인스턴스마다 따로 센다. 서버는 경고 로그를 남긴다.
-- 알려진 한계: 서버 인스턴스 사이의 실시간 전달 메시지가 유실되면 그 이벤트는 실시간으로 오지 않는다. 그 이벤트는 재전송 버퍼에 남아 있다. 5분 안에 다시 연결하면 재전송으로 받는다. 버퍼가 사라진 뒤 다시 연결하면 `execution.replay_unavailable` 을 받는다. 다시 연결하지 않으면 누락분은 다음 이벤트·스냅샷·상태 조회로 맞춰진다. 버퍼 크기(5분·최대 1000건)는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다.
+- 알려진 한계: 서버의 실시간 구독 연결이 끊겼다 복구되면 서버는 그 사이 놓친 구간을 재전송 버퍼로 채우거나 `execution.replay_unavailable` 을 보낸다(위 4 번). 남는 한계는 서버 인스턴스 사이에서 이벤트 도착 순서가 뒤집힌 경우와 크기 상한을 넘은 이벤트(위 5 번)다. 서버가 그 실행의 이벤트를 Redis 에 쓸지 정하는 동안에는 다른 서버 인스턴스에 연결한 클라이언트가 이벤트를 최대 2초 늦게 받을 수 있다. 목록과 영향은 [EIA 데이터와 흐름 「SSE 버퍼와 실시간 전달을 Redis 에 둔다」](CLE-EIA-DATA.md#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험에 있다. 버퍼 크기(5분·최대 1000건)는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다.
 
 ### 스트림 연결 오류
 
@@ -323,7 +327,7 @@ SSE 헤더를 보낸 뒤에는 상태 코드를 바꿀 수 없다. 그 뒤에 �
 - 입력 대기 상태에서는 `currentNode`(id·type·interactionType)와 `context` 도 채운다. 지금 대기 중인 노드 실행 출력(`NodeExecution.outputData` 의 `meta.interactionType` 과 구조화된 `config.buttonConfig`)에서 복원한다. 버튼은 `context.buttonConfig{ buttons, nodeOutput }`, 폼·AI 대화는 `context.nodeOutput` 에 싣는다. SSE `waiting_for_input` 과 같은 형식이라 위젯이 `parseWaitingForInput` 으로 그대로 시드할 수 있다. 빠른 첫 노드(버튼·캐러셀)가 SSE 구독 전에 발행되는 경쟁에서 현재 대기 표면을 되살리는 1차 경로다(`interaction.service.ts` 의 `getStatus()`).
 - `context.conversationThread` 에는 영속 대화 스레드 스냅샷(`Execution.conversation_thread`, [대화 스레드](CLE-IX-THREAD.md))을 SSE `waiting_for_input` 과 같은 형식으로 싣는다. 새로고침 복원이 5분 버퍼에 기대지 않고, 버퍼 만료·서버 재시작·인스턴스 전환과 관계없이 전체 기록을 되살리게 하려는 것이다.
 - 스냅샷이 없으면(배포 전 행, park 이력 없음) `context.conversationThread` 키를 생략한다. 형제 필드가 `null` 을 쓰는 것과 다르다. SSE 도 있을 때만 싣고, 위젯은 부재를 빈 기록으로 처리한다. 두 부재 표현의 선택 기준은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 부재 표현 규칙이고, 이 필드는 다른 경로와의 형식 일치 사례다.
-- `seq` 는 항상 `0` 이다. 단발 응답은 메모리의 순번 카운터에 닿지 않으므로 순번은 SSE 재전송(`Last-Event-Id`, 첫 연결 `lastEventId=0`)이 권위다.
+- `seq` 는 항상 `0` 이다. 단발 응답은 순번 카운터를 읽지 않으므로 순번은 SSE 재전송(`Last-Event-Id`, 첫 연결 `lastEventId=0`)이 권위다.
 
 ```jsonc
 GET /api/external/executions/{executionId}
@@ -437,7 +441,7 @@ Authorization: Bearer <expiring_iext_jwt>
 - 실행 시작은 외부에서 웹훅 트리거로만 한다. 디버깅 명령(`execution.continue`·`execution.step`)과 `execution.retry_last_turn` 은 외부에 노출하지 않는다.
 - SSE 이벤트 이름은 내부 이벤트 이름과 같다(노드 취소 `execution.node.cancelled` 도 포함, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). 알림 웹훅으로는 `waiting_for_input`·`ai_message`(선택 구독)·`completed`·`failed`·`cancelled` 다섯 종만 보낸다.
 - 표시 메시지 이벤트 `execution.message` 는 SSE 로만 나가고 알림 웹훅으로는 보내지 않는다([표시 메시지 이벤트](#표시-메시지-이벤트)).
-- `execution.replay_unavailable` 은 SSE 연결을 시작할 때만 보낸다. 내부 WS 에는 버퍼가 없고 실행 스냅샷 이벤트로 복구한다.
+- `execution.replay_unavailable` 은 SSE 에서만 보낸다. 연결을 시작할 때와 스트림 도중 놓친 구간이 생겼을 때 보낸다([스트림 규칙](#스트림-규칙)). 내부 WS 에는 버퍼가 없고 실행 스냅샷 이벤트로 복구한다.
 
 ## 미결 사항
 
@@ -566,6 +570,7 @@ SSE 재연결 재전송(`Last-Event-Id`) 때 5분 버퍼가 요청 범위를 다
 - **신호 뒤에도 연결을 유지한다**: 신호를 보낸 뒤에도 구독자를 활성 목록에 둔다. 클라이언트는 상태 조회로 현재 상태만 함께 보정하고 이후 이벤트는 열린 스트림으로 계속 받는다. 상태 조회의 순번은 늘 `0` 이라 재연결 근거가 없다. 그래서 다시 연결하지 않고 함께 보정하는 것이 유일하게 맞는 흐름이다.
 - **버퍼가 비면 순번 카운터와 견준다 (2026-10-17)**: 처음에는 버퍼에 `seq > Last-Event-Id` 인 이벤트가 없으면 최신으로 봤다. 그래서 버퍼가 통째로 사라진 뒤 다시 연결하면 놓친 이벤트가 있어도 신호를 보내지 못했고 이를 알려진 한계로 두었다. Redis 로 옮긴 버퍼는 마지막 이벤트 뒤 5분이 지나면 키가 사라진다. Redis 장애로 버퍼를 읽지 못하는 경우도 생긴다. 그래서 2026-10-17 에 버퍼가 비었거나 읽지 못했을 때 실행의 순번 카운터와 견주도록 바꿨다(NERV Task `CLE-T-Z35F7P`). 카운터를 읽지 못하면 신호를 보낸다. 상태 조회를 한 번 더 하게 하는 편이 이벤트를 조용히 잃는 것보다 낫다. 기각한 대안은 옛 판정을 그대로 두는 안이다. 버퍼 키가 사라진 뒤 다시 연결한 클라이언트는 놓친 이벤트를 모른 채 실시간 스트림만 받는다. 이벤트가 아직 없는 새 실행에 `lastEventId=0` 으로 연결할 때 생기는 거짓 신호는 받아들인다. 카운터가 아직 없는 경우와 만료된 경우를 가를 근거가 없고 거짓 신호의 비용은 상태 조회 한 번이다.
 - **연결을 준비하는 동안 모은 이벤트에도 상한을 둔다 (2026-10-17)**: 서버는 구독을 등록한 때부터 실시간 전달로 바꿀 때까지 온 실시간 이벤트를 모아 둔다. 실시간 채널 구독이 확정되기 전에 낸 이벤트가 재전송과 실시간 전달 사이로 빠지지 않게 하려는 것이다([EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA.md#sse-스트림)). 재전송이 오래 걸리면 모은 이벤트가 끝없이 늘 수 있다. 그래서 재전송 버퍼와 같은 개수 상한을 두고 넘으면 가장 오래된 것부터 버린다. 버린 것이 있으면 `execution.replay_unavailable` 을 보낸다(NERV Task `CLE-T-Z35F7P`). 기각한 대안은 둘이다. 상한 없이 모으는 안은 연결 하나가 메모리를 끝없이 쓸 수 있다. 상한을 넘으면 알리지 않고 버리는 안은 이 신호가 없애려는 조용한 누락을 다시 만든다.
+- **스트림 도중에도 보낸다 (2026-11-05)**: 서버의 구독 공백과 크기 상한 때문에 빠진 이벤트를 스트림 도중에 알리는 경우는 [스트림 도중에도 재전송 불가 신호를 보낸다](#스트림-도중에도-재전송-불가-신호를-보낸다-2026-11-05) 에 있다.
 
 ### `STATE_MISMATCH` 를 구현에 강제했다
 
@@ -593,3 +598,13 @@ SSE 재연결 재전송(`Last-Event-Id`) 때 5분 버퍼가 요청 범위를 다
 기각한 대안:
 
 - 닫기 전에 새 닫힘 이벤트를 보내는 안: 클라이언트가 그 이벤트를 받고 할 수 있는 일은 다시 연결해 401 을 받는 것과 같다. SSE 이벤트 목록과 WebSocket 대응표만 늘어난다.
+
+### 스트림 도중에도 재전송 불가 신호를 보낸다 (2026-11-05)
+
+`execution.replay_unavailable` 은 이전에는 SSE 연결을 시작할 때만 보냈다. 서버의 구독 공백과 크기 상한 때문에 빠진 이벤트를 알리지 않으면 그 이벤트는 그 스트림에서 조용히 빠진다. 그래서 두 경우에는 스트림 도중에도 보낸다([스트림 규칙](#스트림-규칙) 의 4 · 5 번, REQ-EIAIN-048 · REQ-EIAIN-049). 위젯은 이미 스트림 도중의 신호도 같은 방법으로 처리한다. 상태 조회 스냅샷으로 다시 맞추는 것이다(REQ-WCWIDGET-029, [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md)). 작업은 NERV Task `CLE-T-1GR2JE` · `CLE-T-XPG8DQ` 다. 자세한 근거는 [EIA 데이터와 흐름 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」](CLE-EIA-DATA.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다-2026-11-05) 에 있다.
+
+기각한 대안:
+
+- 실시간 전달에서 `seq` 공백을 보고 신호를 보내는 안: 서버 인스턴스 사이에서 도착 순서가 뒤집히면 잠깐 공백이 생겨 거짓 신호가 난다. 공백을 얼마나 기다릴지 정할 근거도 없다. EIA 데이터와 흐름이 같은 이유로 기각했다.
+
+같은 작업에서 트리거 단위 토큰으로 연 스트림은 열려 있는 동안 60초마다 토큰을 다시 확인하게 했다(REQ-EIAIN-041). 이 주기 재확인은 닫기 신호가 유실됐을 때의 보완이다. 닫기 신호는 그대로 스트림을 바로 닫는다. 2026-10-17 에 «다시 확인하지 않고 닫기 신호만 기다리는 안» 을 기각하고 둔 연결할 때의 재확인도 그대로다([트리거 단위 토큰이 무효가 되면 알리지 않고 닫는다](#트리거-단위-토큰이-무효가-되면-알리지-않고-닫는다-2026-10-17)). 주기 재확인은 그 재확인을 대신하지 않는다. 재확인 조회가 실패할 때 스트림을 유지하는 위험은 [EIA 데이터와 흐름 「인프라 장애에는 fail-open 한다」](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 에 있다.
