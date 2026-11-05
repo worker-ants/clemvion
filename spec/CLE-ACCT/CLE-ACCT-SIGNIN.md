@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
-requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078"]
+requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "3de1c02580e8af66d6192eb1192c6518dc2921693ba1445dea7f8c7efd9df16a"
+content_hash: "7282b093e6851737babee5e7638918c03222c71cc33934f3976790c596d3a06d"
 read_as: "approved_fallback"
-task: "CLE-T-94FTMV"
+task: "CLE-T-FRCRF7"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "677c30bcd93439e2d8ab2b4641da4a52975f9c38dbd53eb064e47c5de26ff69b"
-etag: "sha256-b69b1eb91f801432ead4e2f26c52d777ca0c37239a383a927b41764a4d0e22ce"
+mirror_sha256: "178593b2ecf15c6d98957f9f157d096bdd293a6523796058fb9a5303c024c342"
+etag: "sha256-6c287437dd637615372af42122322a1567657a5368a62914014f3f1542ad8550"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증, 로그인의 이메일 인증 확인 순서와 응답 코드, Passkey 기능이 꺼졌을 때 Passkey 만 등록한 계정의 로그인 차단은 미구현, 이메일 인증 뒤 자동 로그인은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -113,6 +113,13 @@ etag: "sha256-b69b1eb91f801432ead4e2f26c52d777ca0c37239a383a927b41764a4d0e22ce"
 - REQ-SIGNIN-076 IF TOTP 설정 시작이나 TOTP 활성화 검증이 계정을 읽은 뒤 저장하기 전에 다른 요청이 TOTP 를 켜면 THE SYSTEM SHALL 409 `TOTP_ALREADY_ENABLED` 로 거부하고 켜진 계정의 TOTP secret 과 TOTP 복구 코드를 덮어쓰지 않는다.
 - REQ-SIGNIN-077 IF TOTP 활성화 검증이 코드를 확인한 뒤 저장하기 전에 다른 설정 시작 요청이 TOTP secret 을 바꾸면 THE SYSTEM SHALL 401 `TOTP_INVALID` 로 거부하고 TOTP 를 켜지 않는다.
 - REQ-SIGNIN-078 WHEN TOTP 설정 시작 요청을 받으면 THE SYSTEM SHALL 사용자당 분당 10회로 요청을 제한한다.
+- REQ-SIGNIN-079 WHEN Passkey 등록 옵션 요청을 받으면 THE SYSTEM SHALL 비밀번호를 재확인한 뒤에만 등록 옵션과 옵션 토큰(`optionsToken`)을 준다.
+- REQ-SIGNIN-080 IF Passkey 등록 옵션 요청의 비밀번호 재확인이 실패하면 THE SYSTEM SHALL 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀린 비밀번호는 401 `PASSWORD_INVALID` 로 거부하고 등록 옵션과 옵션 토큰을 만들지 않는다.
+- REQ-SIGNIN-081 WHEN Passkey 등록 옵션 요청을 받으면 THE SYSTEM SHALL 사용자당 분당 10회로 요청을 제한한다.
+- REQ-SIGNIN-082 WHEN Passkey 복구 코드 재발급 요청을 받으면 THE SYSTEM SHALL 사용자당 분당 10회로 요청을 제한한다.
+- REQ-SIGNIN-083 WHEN TOTP 활성화 검증 요청을 받으면 THE SYSTEM SHALL 사용자당 분당 10회로 요청을 제한한다.
+- REQ-SIGNIN-084 IF TOTP 가 꺼진 계정의 TOTP 활성화 검증 요청에서 설정 시작 시각이 없거나 설정 시작 뒤 10분이 지났으면 THE SYSTEM SHALL 코드를 확인하지 않고 대기 secret 과 설정 시작 시각을 비운 뒤 400 `TOTP_NOT_INITIALIZED` 로 거부한다.
+- REQ-SIGNIN-085 WHEN TOTP 활성화 검증이 400 `TOTP_NOT_INITIALIZED` 로 끝나면 THE SYSTEM SHALL 설정 시간이 지났다는 안내를 보여 주고 설정 시작(비밀번호 입력) 단계로 돌아간다.
 
 ## 인증 화면 공통
 
@@ -300,7 +307,7 @@ flowchart TD
 | 방식 | 설명 |
 | --- | --- |
 | TOTP | 인증 앱이 만드는 시간 기반 6자리 코드. Google Authenticator·Authy 같은 RFC 6238 클라이언트와 호환한다. 계정 비밀번호를 다시 확인한 뒤 QR 코드를 스캔하고 6자리 코드를 넣으면 켜진다. 켜진 동안에는 다시 설정할 수 없고 끈 뒤 다시 켠다([TOTP 켜기](#totp-켜기)). `two_factor_enabled` 는 TOTP 사용 여부만 뜻한다 |
-| Passkey·보안 키 | FIDO2·WebAuthn 표준. `@simplewebauthn/server` 와 `@simplewebauthn/browser` 로 구현한다. 한 사용자가 모바일·데스크톱·보안 키처럼 credential 을 여러 개 등록할 수 있다 |
+| Passkey·보안 키 | FIDO2·WebAuthn 표준. `@simplewebauthn/server` 와 `@simplewebauthn/browser` 로 구현한다. 한 사용자가 모바일·데스크톱·보안 키처럼 credential 을 여러 개 등록할 수 있다. 등록할 때 계정 비밀번호를 재확인한다([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 
 ### 2단계 인증 설정 화면
 
@@ -309,9 +316,14 @@ flowchart TD
 | 카드 | 들어가는 요소 | 동작 |
 | --- | --- | --- |
 | TOTP | 설정 시작 폼(안내 문구, 계정 비밀번호 입력, 설정 시작 버튼), QR 코드, 확인 코드 입력, 복구 코드 표시, 끄기 폼(비밀번호와 인증 코드 입력) | 계정 비밀번호를 넣어 설정을 시작하고 인증 앱으로 QR 을 스캔한 뒤 코드를 넣어 켠다([TOTP 켜기](#totp-켜기)). 켜질 때 복구 코드 10개를 한 번 보여 준다. 끌 때는 비밀번호와 인증 코드를 함께 넣는다([TOTP 끄기](#totp-끄기)) |
-| Passkey · 보안 키 | credential 목록(이름·transport·마지막 사용·등록일), 등록 버튼, 이름 변경·삭제, 복구 코드 재발급 | credential 을 여러 개 등록하고 관리한다. 첫 등록 때 별도 복구 코드 10개를 한 번 보여 준다. 이름 변경 입력이 비었거나 공백 문자로만 돼 있으면 저장 버튼을 막는다 |
+| Passkey · 보안 키 | credential 목록(이름·transport·마지막 사용·등록일), 등록 폼(기기 이름과 계정 비밀번호 입력, 등록 버튼), 이름 변경·삭제, 복구 코드 재발급(계정 비밀번호 입력) | 계정 비밀번호를 넣어 credential 을 등록하고 여러 개를 관리한다([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)). 첫 등록 때 별도 복구 코드 10개를 한 번 보여 준다. 이름 변경 입력이 비었거나 공백 문자로만 돼 있으면 저장 버튼을 막는다 |
 
 - 프론트엔드는 보안 화면을 열 때 `GET /api/auth/2fa/webauthn/availability` 를 불러 Passkey 카드를 보일지 정한다.
+- TOTP 카드는 `GET /api/users/me` 응답의 `twoFactorEnabled` 로 TOTP 켜짐 여부를 읽어 설정 카드와 켜짐 카드 가운데 하나를 그린다. 이 필드는 [내 프로필](CLE-ACCT-PROFILE.md#api) 의 API 표(REQ-PROFILE-027)가 정한다.
+- Passkey 등록 폼은 기기 이름과 함께 계정 비밀번호를 받는다. 비밀번호가 8자보다 짧으면 화면은 등록 옵션 요청을 보내지 않고 안내를 띄운다. 등록 옵션이 `PASSWORD_INVALID` 면 비밀번호가 맞지 않는다는 안내를, `PASSWORD_REQUIRED` 면 "비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요." 를 보여 준다. [TOTP 켜기](#totp-켜기) 의 설정 시작과 같은 문구다. 그 밖의 등록 실패는 지금처럼 등록 실패 안내(`registerFailed`) 하나로 보여 준다.
+- Passkey 복구 코드 재발급 폼도 `PASSWORD_INVALID` · `PASSWORD_REQUIRED` 를 받으면 같은 안내를 보여 준다.
+- TOTP 활성화 검증이 `TOTP_NOT_INITIALIZED` 로 끝나면 화면은 설정 시간이 지났으니 처음부터 다시 시작하라는 안내를 띄우고 설정 시작(비밀번호 입력) 단계로 돌아간다([TOTP 켜기](#totp-켜기)).
+- Passkey 등록 · Passkey 복구 코드 재발급 · TOTP 설정 시작 · TOTP 활성화 검증 · TOTP 끄기 폼에서 요청 빈도 제한에 걸린 응답(429)을 받으면 [에러 응답과 클라이언트 처리 「API 에러 처리 흐름」](../CLE-API/CLE-API-ERROR.md#41-api-에러-처리-흐름) 의 공통 처리대로 토스트를 띄운다. 다만 비밀번호가 담긴 요청은 자동으로 다시 보내지 않는다.
 - 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드는 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
 - OAuth 전용 계정이 유일한 2단계 인증 수단을 끌 때 대안 로그인 경로를 어떻게 보장할지는 아직 정하지 않았다. TOTP 끄기는 비밀번호를 먼저 확인하므로 OAuth 전용 계정은 비밀번호를 추가하기 전에는 TOTP 를 끌 수 없다. Passkey 삭제에는 따로 막는 로직이 없다. 강제 2단계 인증 정책·계정 복구 흐름과 함께 정할 별개 사안이다.
 
@@ -324,22 +336,25 @@ TOTP 를 켜려면 계정 비밀번호를 넣어 설정을 시작한다. 이어�
 1. 본문을 검증한다. `password` 는 8자 이상 문자열이다. 빠지거나 짧으면 400 `VALIDATION_ERROR` 다.
 2. 비밀번호를 확인한다(`AuthService.verifyPasswordForUser`). 비밀번호가 없는 계정(OAuth 전용)은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 다. 여기서 실패하면 secret 을 만들지 않는다. 비밀번호 확인이 켜짐 여부 확인보다 먼저라서 TOTP 가 켜진 계정도 비밀번호가 틀리면 401 이다.
 3. TOTP 가 켜져 있는지 본다(`TotpService.setup`). 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 secret 을 바꾸지 않는다.
-4. 새 secret 을 만들어 `two_factor_enabled = false` 조건부 갱신으로 저장하고 `{ otpauthUrl, qrCodeDataUrl }` 를 돌려준다. `two_factor_enabled` 는 false 그대로다. 3번에서 읽은 뒤 다른 요청이 TOTP 를 켜서 갱신된 행이 없으면 409 `TOTP_ALREADY_ENABLED` 다.
+4. 새 secret 을 만들어 `two_factor_enabled = false` 조건부 갱신으로 저장하고 `{ otpauthUrl, qrCodeDataUrl }` 를 돌려준다. 같은 갱신으로 설정 시작 시각(`user.two_factor_setup_started_at`)을 지금 시각으로 쓴다. `two_factor_enabled` 는 false 그대로다. 이렇게 설정 시작이 저장했지만 아직 켜지 않은 secret 을 이 문서에서 대기 secret(pending secret)이라고 한다. 3번에서 읽은 뒤 다른 요청이 TOTP 를 켜서 갱신된 행이 없으면 409 `TOTP_ALREADY_ENABLED` 다.
 
 활성화 검증 `POST /api/auth/2fa/verify { code }` 는 다음 순서다.
 
 1. 본문을 검증한다. `code` 는 6자 문자열이다. 형식이 틀리면 400 `VALIDATION_ERROR` 다.
 2. 저장된 secret 이 없으면(설정 시작 전) 400 `TOTP_NOT_INITIALIZED` 다.
 3. TOTP 가 켜져 있으면 코드를 확인하기 전에 409 `TOTP_ALREADY_ENABLED` 로 거부한다. 복구 코드를 다시 발급하지 않는다.
-4. 코드를 저장된 secret 으로 확인한다. 인증 앱의 6자리 코드만 받고 TOTP 복구 코드는 받지 않는다. 맞지 않으면 401 `TOTP_INVALID` 다.
-5. TOTP 를 켠다. 복구 코드 10개를 만들어 SHA-256 해시로 저장하고 `two_factor_enabled` 를 true 로 바꾼다. 저장은 `two_factor_enabled = false` 이고 `two_factor_secret` 이 4번에서 확인에 쓴 secret 과 같을 때만 쓰는 조건부 갱신이다. 갱신된 행이 없으면 다시 읽는다. 그 사이 다른 요청이 켰으면 409 `TOTP_ALREADY_ENABLED`, 다른 설정 시작이 secret 을 바꿨으면 401 `TOTP_INVALID` 다. 켜면 감사 로그 `user.2fa_enabled` 를 남기고 복구 코드 평문을 한 번 돌려준다(`{ recoveryCodes }`).
+4. 설정 시작 시각이 없거나 그 시각에서 10분이 지났으면 대기 secret 이 만료된 것으로 본다. 코드를 확인하지 않고 대기 secret 과 설정 시작 시각을 NULL 로 비운 뒤 400 `TOTP_NOT_INITIALIZED` 로 거부한다. 비우기는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓰는 조건부 갱신이다. 그 사이 다른 설정 시작이 쓴 새 secret 을 지우지 않기 위해서다.
+5. 코드를 저장된 secret 으로 확인한다. 인증 앱의 6자리 코드만 받고 TOTP 복구 코드는 받지 않는다. 맞지 않으면 401 `TOTP_INVALID` 다.
+6. TOTP 를 켠다. 복구 코드 10개를 만들어 SHA-256 해시로 저장하고 `two_factor_enabled` 를 true 로 바꾸고 설정 시작 시각을 비운다. 저장은 `two_factor_enabled = false` 이고 `two_factor_secret` 이 5번에서 확인에 쓴 secret 과 같을 때만 쓰는 조건부 갱신이다. 갱신된 행이 없으면 다시 읽는다. 그 사이 다른 요청이 켰으면 409 `TOTP_ALREADY_ENABLED`, 다른 설정 시작이 secret 을 바꿨으면 401 `TOTP_INVALID` 다. 켜면 감사 로그 `user.2fa_enabled` 를 남기고 복구 코드 평문을 한 번 돌려준다(`{ recoveryCodes }`).
 
-- 활성화 검증 전에는 설정 시작을 다시 불러 secret 을 바꿀 수 있다. QR 을 다시 받는 경우다. 그러면 이전 secret 의 코드는 더 이상 맞지 않는다.
+- 활성화 검증 전에는 설정 시작을 다시 불러 secret 을 바꿀 수 있다. QR 을 다시 받는 경우다. 그러면 이전 secret 의 코드는 더 이상 맞지 않는다. 설정 시작 시각도 새로 쓰므로 10분은 마지막 설정 시작부터 센다.
 - 켜진 뒤 secret 과 TOTP 복구 코드를 바꾸는 길은 [TOTP 끄기](#totp-끄기)(비밀번호와 인증 코드) 뒤 다시 켜는 흐름 하나다.
-- 설정 시작은 사용자당 분당 10회로 제한한다(`SENSITIVE_ACTION_THROTTLE`, TOTP 끄기와 같은 상수). 탈취한 액세스 토큰만 가진 사람이 `PASSWORD_INVALID` 응답을 보고 계정 비밀번호를 추측하는 속도를 늦추기 위해서다. 활성화 검증에는 전용 한도가 없다([미결 사항](#미결-사항)).
+- 설정 시작과 활성화 검증은 사용자당 분당 10회로 제한한다(`SENSITIVE_ACTION_THROTTLE`, TOTP 끄기와 같은 상수). 한도는 라우트마다 따로 센다. 설정 시작의 한도는 탈취한 액세스 토큰만 가진 사람이 `PASSWORD_INVALID` 응답을 보고 계정 비밀번호를 추측하는 속도를 늦추기 위해서다. 활성화 검증의 한도는 대기 secret 의 6자리 코드를 추측하는 속도를 늦춘다.
+- 설정 시작 뒤 10분이 지나면 대기 secret 을 쓰지 않는다(활성화 검증 4번). 설정을 다시 시작하려면 비밀번호가 필요하므로 비밀번호 확인 한 번으로 할 수 있는 코드 추측은 10분 동안의 활성화 검증 한도(분당 10회, 최대 100회)로 묶인다. 설정 시작 시각이 없는 대기 secret 도 만료로 본다. 이 규칙 전에 설정을 시작하고 켜지 않은 계정이 그 경우이고 그 사용자는 설정을 다시 시작한다.
 - OAuth 전용 계정은 비밀번호가 없어 2번에서 `PASSWORD_REQUIRED` 로 막힌다. [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 추가한 뒤 켠다. 2026-11-01 전에 TOTP 를 켠 OAuth 전용 계정은 비밀번호 없이 TOTP 만 있을 수 있다. 이메일 변경 [동작 표](#동작-표) 의 「비밀번호 없음, TOTP 있음」 행이 그런 계정이다.
 - 화면은 `PASSWORD_INVALID` 면 비밀번호가 맞지 않는다는 안내를, `PASSWORD_REQUIRED` 면 "비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요." 를 보여 준다.
-- 설정 시작이나 활성화 검증이 409 `TOTP_ALREADY_ENABLED` 를 받으면 화면은 QR 을 닫고 이미 켜져 있다는 안내를 띄운다. 이어서 `GET /api/users/me` 로 사용자 정보를 다시 읽어 켜진 상태로 다시 그린다. 다른 탭에서 먼저 켠 경우다.
+- 활성화 검증이 400 `TOTP_NOT_INITIALIZED` 를 받으면 화면은 QR 을 닫고 설정 시간이 지났으니 처음부터 다시 시작하라는 안내를 띄운다. 이어서 설정 시작(비밀번호 입력) 단계로 돌아간다.
+- 설정 시작이나 활성화 검증이 409 `TOTP_ALREADY_ENABLED` 를 받으면 화면은 QR 을 닫고 이미 켜져 있다는 안내를 띄운다. 이어서 `GET /api/users/me` 로 사용자 정보를 다시 읽어 켜진 상태로 다시 그린다. 다른 탭에서 먼저 켠 경우다. 켜짐 여부는 그 응답의 `twoFactorEnabled` 이고 [내 프로필](CLE-ACCT-PROFILE.md#api) 의 API 표(REQ-PROFILE-027)가 정한다.
 - 켜기와 끄기가 성공한 뒤에도 사용자 정보를 다시 읽는다. 켠 뒤 카드가 켜진 상태로 바뀌어도 한 번만 보여 주는 복구 코드는 화면에 남는다. TOTP 를 끄면 지운다.
 
 ### TOTP 끄기
@@ -351,7 +366,7 @@ TOTP 를 끄려면 비밀번호와 인증 코드를 함께 넣는다. 인증 코
 1. 본문을 검증한다. `password` 는 8자 이상, `code` 는 6~32자 문자열이다. 빠지거나 형식이 틀리면 400 `VALIDATION_ERROR` 다.
 2. 비밀번호를 확인한다(`AuthService.verifyPasswordForUser`). 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 다. 여기서 실패하면 코드는 확인하지 않는다.
 3. 코드를 확인한다(`TotpService.verifyForDisable`). 로그인 2단계와 같은 `verifyForLogin` 을 쓴다. 복구 코드로 통과하면 로그인 때처럼 그 코드를 소비한다. 맞지 않으면 401 `TOTP_INVALID` 다. TOTP 가 켜져 있지 않을 때도 401 `TOTP_INVALID` 다.
-4. TOTP 를 끈다. `two_factor_enabled` 를 false 로 바꾸고 TOTP secret 과 남은 TOTP 복구 코드를 NULL 로 비운다. 감사 로그 `user.2fa_disabled` 를 남기고 200 `{ ok: true }` 를 돌려준다.
+4. TOTP 를 끈다. `two_factor_enabled` 를 false 로 바꾸고 TOTP secret, 남은 TOTP 복구 코드, 설정 시작 시각을 NULL 로 비운다. 감사 로그 `user.2fa_disabled` 를 남기고 200 `{ ok: true }` 를 돌려준다.
 
 - Passkey credential 과 Passkey 복구 코드는 건드리지 않는다. Passkey 복구 코드는 TOTP 복구 코드 묶음에 없으므로 코드 입력란에 넣으면 401 `TOTP_INVALID` 다.
 - 요청은 사용자당 분당 10회로 제한한다(`SENSITIVE_ACTION_THROTTLE`). 비밀번호를 아는 사람이 6자리 코드를 추측하는 속도를 늦추기 위해서다.
@@ -400,9 +415,13 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 등록은 `/profile/security` 의 "Passkey 등록" 에서 시작한다.
 
-1. `POST /api/auth/2fa/webauthn/register/options` (JWT 필수). 서버가 `generateRegistrationOptions` 를 만들고 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다.
+1. `POST /api/auth/2fa/webauthn/register/options { password }` (JWT 필수). 서버는 먼저 본문을 검증한다. `password` 는 8자 이상 문자열이고 빠지거나 형식이 틀리면 400 `VALIDATION_ERROR` 다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다. 이어서 비밀번호를 확인한다(`AuthService.verifyPasswordForUser`). 비밀번호가 없는 계정(OAuth 전용)은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 이고 이때 등록 옵션과 `optionsToken` 을 만들지 않는다. 확인을 통과하면 서버가 `generateRegistrationOptions` 를 만들고 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다.
 2. 클라이언트가 `navigator.credentials.create(options)` 를 호출한다.
 3. `POST /api/auth/2fa/webauthn/register/verify { optionsToken, response, deviceName? }`. 서버가 `verifyRegistrationResponse` 로 검증하고 `webauthn_credential` 행을 만든다. 첫 등록이면 복구 코드 10개를 발급해 평문으로 한 번 돌려준다.
+
+등록 검증은 1번이 준 `optionsToken` 없이는 credential 을 저장하지 않는다. 그래서 1번의 비밀번호 재확인이 등록 옵션과 등록 검증 두 요청을 모두 덮고 등록 검증은 비밀번호를 다시 받지 않는다. 이미 등록한 Passkey 는 그대로 쓴다. OAuth 전용 사용자는 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 만든 뒤 등록한다. [TOTP 켜기](#totp-켜기) 와 같은 조건이다. 등록 옵션은 사용자당 분당 10회로 제한한다(`SENSITIVE_ACTION_THROTTLE`). 등록 검증에는 전용 한도를 걸지 않는다.
+
+Passkey 복구 코드 재발급(`POST /api/auth/2fa/webauthn/recovery-codes/regenerate`)도 등록 옵션과 같은 순서다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다.
 
 등록 옵션과 등록 검증은 같은 공개 키 알고리즘 목록만 받는다. 순서대로 EdDSA(`-8`) · ES256(`-7`) · RS256(`-257`)이다. 목록 밖 알고리즘의 공개 키로 만든 credential 은 등록 검증이 400 `WEBAUTHN_VERIFY_FAILED` 로 거부하고 저장하지 않는다. 인증 검증은 등록 때 저장한 공개 키의 알고리즘으로 검증한다.
 
@@ -519,7 +538,7 @@ sequenceDiagram
 
 - 계정 재인증(reauthentication, `verifyReauth`)을 거친 뒤 새 이메일만 확인한다. 변경을 시작할 때 세션 강제 종료와 같은 계정 재인증을 요구한다. 비밀번호가 있으면 비밀번호, 없으면 등록된 TOTP 코드로 확인한다. 확인 링크는 새 이메일로만 보낸다. 옛 이메일에는 막지 않는 보안 통지만 보낸다.
 - 이메일 OTP 는 계정 재인증 수단으로 쓰지 않는다. 바꾸려는 메일함과 순환되기 때문이다. Passkey 로 하는 계정 재인증도 현재 지원하지 않는다.
-- 계정 재인증 수단이 없는 계정은 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 Passkey 를 등록했어도 `REAUTH_NOT_AVAILABLE` 로 변경할 수 없다. 이 계정은 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 설정한 뒤 이메일을 바꿀 수 있다. TOTP 를 켜려면 비밀번호가 먼저 있어야 한다([TOTP 켜기](#totp-켜기)).
+- 계정 재인증 수단이 없는 계정은 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 Passkey 를 등록했어도 `REAUTH_NOT_AVAILABLE` 로 변경할 수 없다. 이 계정은 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 설정한 뒤 이메일을 바꿀 수 있다. TOTP 를 켜려면 비밀번호가 먼저 있어야 한다([TOTP 켜기](#totp-켜기)). Passkey 를 새로 등록할 때도 비밀번호가 필요하므로 이런 계정의 Passkey 는 Passkey 등록에 비밀번호 재확인이 생기기 전에 등록한 것이다([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)).
 - 변경 확인 토큰(`emailChangeToken`)은 SHA-256 해시로만 저장하고 원래 토큰은 메일 링크로만 전달한다. 유효 시간은 1시간이다.
 - 확인은 인증이 필요하다. 새 이메일의 확인 토큰은 본인의 로그인 세션에서 부른 `POST /api/users/me/email-change/verify` 로만 소비한다. 토큰이 사용자에 묶여 있어 새어 나간 링크만으로는 쓸모가 없다. 가입 인증 `verify-email`(`@Public`)보다 강한 가드다.
 - 확인이 성공하면 비밀번호 변경과 같이 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건과 감사 로그 `user.email_changed` 1건이 함께 남는다. 로그인 세션 처리 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
@@ -531,7 +550,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 비밀번호 있음 | 비밀번호 재확인 뒤 `pending_email` 저장, 새 이메일로 1시간짜리 확인 메일 | `email = pending_email`, `email_verified=true`, 모든 로그인 세션 무효화, 현재 기기 재발급(`{ accessToken }`) |
 | 비밀번호 없음, TOTP 있음 | TOTP 코드 재확인 뒤 같음 | 같음 |
-| 비밀번호와 TOTP 모두 없음(Passkey 만 등록한 OAuth 전용 계정 포함) | 403 `REAUTH_NOT_AVAILABLE`. 변경할 수 없고 안내만 한다 | 없음 |
+| 비밀번호와 TOTP 모두 없음(Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함) | 403 `REAUTH_NOT_AVAILABLE`. 변경할 수 없고 안내만 한다 | 없음 |
 | 새 이메일이 현재 이메일과 같거나 형식이 틀림 | 400 `VALIDATION_ERROR` | 없음 |
 | 새 이메일을 다른 계정이 씀 | 409 `RESOURCE_CONFLICT` (가입 중복과 같은 코드) | 트랜잭션 안에서 UNIQUE 를 다시 검사한다. 선점됐으면 409 를 주고 대기 정보를 NULL 로 지운다 |
 | 토큰 만료(1시간 경과)나 무효 | 없음 | 400 `VALIDATION_ERROR` |
@@ -547,7 +566,7 @@ sequenceDiagram
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 | --- | --- | --- | --- |
 | 제목·안내 | 상단 | "이메일 변경", 새 이메일로 확인 메일을 보내 변경을 마친다는 안내 | 없음 |
-| 입력 | 안내 아래 | New email 입력, 계정 재인증 입력(비밀번호 또는 TOTP 코드, 계정 상태에 따라) | 없음 |
+| 입력 | 안내 아래 | New email 입력, 계정 재인증 입력. 비밀번호 입력란과 TOTP 코드 입력란(선택)을 계정 상태와 상관없이 늘 함께 보여 준다 | 없음 |
 | 버튼 | 입력 아래 | [취소], [확인 메일 보내기] | 변경 요청 |
 | 대기 표시 | 발송 뒤 | "new@example.com 으로 확인 메일을 보냈어요. 메일 링크로 변경을 완료하세요.", [재발송], [취소] | 재발송·취소 요청 |
 
@@ -682,10 +701,10 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
 | POST | `/api/auth/2fa/setup` | TOTP 설정 시작. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8자 이상). 비밀번호를 먼저 확인한 뒤 secret 을 발급하고 `{ otpauthUrl, qrCodeDataUrl }`(QR 코드 data URL)를 돌려준다. 활성화 검증 전에는 켜지지 않는다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, TOTP 가 이미 켜짐 409 `TOTP_ALREADY_ENABLED`(secret 을 바꾸지 않는다). 순서와 규칙은 [TOTP 켜기](#totp-켜기) |
-| POST | `/api/auth/2fa/verify` | TOTP 활성화 검증. 인증 필수(JWT). 본문 `{ code }`(인증 앱의 6자리 코드). 켜고 TOTP 복구 코드 10개를 한 번 돌려준다(`{ recoveryCodes }`). 본문 형식 에러 400 `VALIDATION_ERROR`, 설정 시작 전 400 `TOTP_NOT_INITIALIZED`, TOTP 가 이미 켜짐 409 `TOTP_ALREADY_ENABLED`(코드를 확인하지 않고 복구 코드를 다시 발급하지 않는다), 코드 불일치 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 켜기](#totp-켜기) |
+| POST | `/api/auth/2fa/verify` | TOTP 활성화 검증. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ code }`(인증 앱의 6자리 코드). 켜고 TOTP 복구 코드 10개를 한 번 돌려준다(`{ recoveryCodes }`). 본문 형식 에러 400 `VALIDATION_ERROR`, 설정 시작 전이거나 설정 시작 뒤 10분이 지남 400 `TOTP_NOT_INITIALIZED`(10분이 지났으면 코드를 확인하지 않고 대기 secret 을 비운다), TOTP 가 이미 켜짐 409 `TOTP_ALREADY_ENABLED`(코드를 확인하지 않고 복구 코드를 다시 발급하지 않는다), 코드 불일치 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 켜기](#totp-켜기) |
 | POST | `/api/auth/2fa/disable` | TOTP 끄기. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password, code }`. `code` 는 6~32자 문자열이고 로그인 2단계의 `code` 와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드를 받는다. 비밀번호를 먼저 확인하고 이어서 코드를 확인한다. 성공하면 TOTP secret 과 TOTP 복구 코드를 비우고 200 `{ ok: true }`. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, 코드 불일치·TOTP 꺼짐 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 끄기](#totp-끄기) |
 | GET | `/api/auth/2fa/webauthn/availability` | Passkey 기능 켜짐 여부. 인증 불요(`@Public`). 응답 `{ enabled: boolean }` |
-| POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT). `optionsToken` JWT(`kind=webauthn_register`, 5분)를 함께 준다. 기능이 꺼져 있으면 503 `WEBAUTHN_DISABLED` |
+| POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8자 이상). 비밀번호를 먼저 확인한 뒤 등록 옵션과 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 준다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(등록 옵션과 `optionsToken` 을 만들지 않는다). 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 순서와 규칙은 [Passkey 등록·인증 흐름](#passkey-등록인증-흐름) |
 | POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 에러 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID`, TOTP 챌린지로 받은 챌린지 토큰 401 `CHALLENGE_METHOD_MISMATCH` |
 | POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
@@ -693,7 +712,7 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 | GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ items: [{ id, deviceName, transports, lastUsedAt, createdAt }] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다 |
 | PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 내 것이 아니면 404(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | DELETE | `/api/auth/2fa/webauthn/credentials/:id` | credential 삭제. 인증 필수(JWT). 마지막 credential 을 지우면 `WebAuthnService.deleteCredential` 이 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 204 |
-| POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 본문 `password` 로 비밀번호 재확인. 기존 미사용 코드를 버리고 10개를 새로 발급한다. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
+| POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 사용자당 분당 10회, 본문 `password` 로 비밀번호 재확인. 기존 미사용 코드를 버리고 10개를 새로 발급한다. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
 
 2단계 인증 활성화 API 는 `/api/auth/2fa/*` 만 있다. `/api/users/me/enable-2fa`·`/api/users/me/confirm-2fa` 같은 별칭 경로는 없다.
 
@@ -725,13 +744,13 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `LOGIN_FAILED` | 401 | 로그인 실패. 없는 이메일, 비밀번호가 없는 계정(OAuth 전용), 비밀번호 불일치를 같은 코드와 같은 메시지로 거부한다. 로그인 이력 `failure_reason` 에는 각각 `USER_NOT_FOUND` · `PASSWORD_NOT_SET` · `INVALID_PASSWORD` 가 남는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 비밀번호가 맞는 이메일 인증 전 계정은 `EMAIL_VERIFICATION_REQUIRED` 다 |
 | `EMAIL_VERIFICATION_REQUIRED` | 401 | 비밀번호는 맞지만 이메일 인증을 마치지 않은 계정의 로그인. 비밀번호가 틀리면 `LOGIN_FAILED` 다. 로그인 이력 `failure_reason` 은 `EMAIL_NOT_VERIFIED` 다. 화면은 이 코드로 이메일 인증 안내를 고른다. 아직 구현되지 않았다. 지금은 비밀번호를 확인하기 전에 `LOGIN_FAILED` 와 인증 안내 메시지로 거부한다([로그인 처리](#로그인-처리)) |
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
-| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 설정 시작 본문의 `password` 누락이나 형식 에러, TOTP 활성화 검증 본문의 `code` 형식 에러, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
+| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 설정 시작 본문의 `password` 누락이나 형식 에러, TOTP 활성화 검증 본문의 `code` 형식 에러, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 등록 옵션 본문의 `password` 누락이나 형식 에러, Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복, 새 이메일 선점 |
-| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경 |
-| `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | TOTP 설정 시작·2단계 인증 끄기·Passkey 복구 코드 재발급의 비밀번호 재확인 실패. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
+| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경 |
+| `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | TOTP 설정 시작·2단계 인증 끄기·Passkey 등록 옵션·Passkey 복구 코드 재발급의 비밀번호 재확인 실패. Passkey 등록 옵션은 이때 등록 옵션과 `optionsToken` 을 만들지 않는다. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
 | `TOTP_INVALID` | 401 | 로그인 TOTP 검증 실패, TOTP 활성화 검증의 코드 불일치(확인한 뒤 다른 설정 시작이 secret 을 바꾼 경우 포함), TOTP 끄기의 코드 불일치(TOTP 가 꺼져 있을 때 포함). 계정 재인증과 같은 코드를 쓴다 |
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)에서 사용자가 없거나 TOTP 가 꺼져 있다. Passkey 만 등록하고 TOTP 를 켜지 않은 계정도 이 코드다. 메시지는 다시 로그인하라고 안내한다 |
-| `TOTP_NOT_INITIALIZED` | 400 | TOTP 활성화 검증(`POST /api/auth/2fa/verify`)을 설정 시작(`POST /api/auth/2fa/setup`) 없이 불러 secret 이 없다 |
+| `TOTP_NOT_INITIALIZED` | 400 | TOTP 활성화 검증(`POST /api/auth/2fa/verify`)을 설정 시작(`POST /api/auth/2fa/setup`) 없이 불러 secret 이 없거나, 설정 시작 뒤 10분이 지나 대기 secret 을 버렸다(설정 시작 시각이 없는 대기 secret 포함). 화면은 처음부터 다시 시작하라고 안내하고 설정 시작 단계로 돌아간다 |
 | `TOTP_ALREADY_ENABLED` | 409 | TOTP 가 이미 켜진 계정의 설정 시작(`POST /api/auth/2fa/setup`)과 활성화 검증(`POST /api/auth/2fa/verify`). secret 과 TOTP 복구 코드를 바꾸지 않는다. 바꾸려면 [TOTP 끄기](#totp-끄기) 뒤 다시 켠다. 화면은 이 코드를 받으면 사용자 정보를 다시 읽어 켜진 상태로 그린다 |
 | `WEBAUTHN_DISABLED` | 503 | Passkey 기능이 꺼져 있다. 가용성 조회를 뺀 Passkey 엔드포인트와, Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)이 이 코드다. 운영자가 설정을 바꿀 때까지 회복되지 않으므로 재시도 대상이 아니다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 11). 로그인의 이 응답은 아직 구현되지 않았다 |
 | `SERVICE_UNAVAILABLE` | 503 | 로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함(Redis 연결 · 명령 실패, [Passkey 등록·인증 흐름](#passkey-등록인증-흐름)). 서명과 counter 를 판정하지 않는다 |
@@ -749,8 +768,6 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ## 미결 사항
 
-- **Passkey 등록에는 비밀번호 재확인이 없다**: TOTP 설정 시작은 비밀번호를 다시 확인하지만 Passkey 등록(`POST /api/auth/2fa/webauthn/register/options` · `register/verify`)은 로그인 세션만 있으면 된다. 그래서 로그인 세션만 가진 사람이 자기 인증기를 Passkey 로 등록할 수 있다. Passkey 가 하나라도 있으면 로그인 2단계는 Passkey 로만 통과하므로 원래 사용자는 다음 로그인에서 막힌다. 첫 등록의 Passkey 복구 코드도 등록한 사람에게만 보인다. TOTP 설정 시작에서 막은 것과 같은 공격이다. 후속 NERV Task `CLE-T-FRCRF7` 에서 정한다.
-- **비밀번호 재확인 라우트의 요청 한도가 서로 다르다**: TOTP 설정 시작과 TOTP 끄기는 사용자당 분당 10회(`SENSITIVE_ACTION_THROTTLE`)다. Passkey 복구 코드 재발급은 비밀번호를 다시 확인하는데 전용 한도가 없어 전역 한도만 걸린다. TOTP 활성화 검증과 Passkey 등록도 전용 한도가 없다. 비밀번호 재확인을 더할 Passkey 등록까지 포함해 어느 라우트에 어떤 한도를 걸지 후속 NERV Task `CLE-T-FRCRF7` 에서 맞춘다.
 - **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 이 문서의 에러 코드 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 같은 미등재 코드 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 Passkey 인증 검증에서 401, credential 삭제 · 이름 변경에서 404 로 쓰인다. 인증 검증 행의 실패 코드에도 아직 적지 않았다. 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
 - **비밀번호 재설정 실패의 에러 코드**: 토큰 무효 · 만료와 새 비밀번호 규칙 위반이 모두 400 `VALIDATION_ERROR` 다. 사용자가 할 일은 다르다. 토큰 무효면 재설정 메일을 다시 받아야 하고 규칙 위반이면 비밀번호만 고치면 된다. 규약대로 가르려면 코드가 달라야 한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6). 응답이 바뀌는 일이라 후속 NERV Task `CLE-T-DTVTM9` 에서 정한다.
 - **다른 챌린지로 온 Passkey 응답의 순서가 뒤바뀐 경우의 역행 처분**: 두 탭에서 거의 동시에 인증하면 인증기가 서명한 정상 응답 두 개가 서로 다른 챌린지로 뒤바뀐 순서로 도착할 수 있다. 먼저 서명된 응답이 나중에 처리되면 갱신된 counter 를 읽고 역행으로 판정된다. 그러면 credential 이 지워지고 리프레시 토큰이 모두 무효가 된다. 챌린지 기록은 같은 챌린지의 재사용만 막아서 이 경우를 막지 못한다. 지금 동작을 유지할지, 대안 가운데 하나를 고를지 정해야 한다. 대안은 credential 단위로 직렬화해 처리 순서를 맞추는 안, 작은 역행을 허용하는 안, 이 경우는 credential 을 지우지 않고 거부하는 안이다. 후속 NERV Task `CLE-T-XFG7AE` 로 추적한다.
@@ -759,24 +776,30 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 - `codebase/backend/src/modules/auth/**` (가입·로그인·OAuth·TOTP)
 - `codebase/backend/src/modules/auth/auth.service.ts` (`startTwoFactorSetup` · `disableTwoFactor`, TOTP 설정 시작과 끄기의 비밀번호 재확인 순서)
-- `codebase/backend/src/modules/auth/totp.service.ts` (TOTP 설정 시작 · 활성화 검증의 켜짐 확인과 조건부 갱신, TOTP 끄기의 코드 확인)
+- `codebase/backend/src/modules/auth/totp.service.ts` (TOTP 설정 시작 · 활성화 검증의 켜짐 확인과 조건부 갱신, 설정 시작 시각 기록과 대기 secret 의 10분 만료, TOTP 끄기의 코드 확인)
 - `codebase/backend/src/modules/auth/webauthn/**` (Passkey 서비스·엔티티·DTO·컨트롤러 파일)
+- `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts` (Passkey 등록 옵션의 비밀번호 재확인, 등록 옵션 · 복구 코드 재발급의 요청 빈도 제한과 기능 꺼짐 확인 순서)
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts` (Passkey 인증 챌린지 기록)
 - `codebase/backend/src/modules/mail/**` (인증·재설정·이메일 변경 메일)
 - `codebase/backend/src/common/config/webauthn.config.ts`
-- `codebase/backend/src/common/constants/throttle.ts` (`SENSITIVE_ACTION_THROTTLE`, TOTP 설정 시작과 끄기의 요청 한도)
+- `codebase/backend/src/common/constants/throttle.ts` (`SENSITIVE_ACTION_THROTTLE`, TOTP 설정 시작 · 활성화 검증 · 끄기와 Passkey 등록 옵션 · 복구 코드 재발급의 요청 빈도 제한)
+- `codebase/backend/src/modules/auth/password-recheck-throttle.spec.ts` (`verifyPasswordForUser` 를 부르는 라우트 목록을 고정하고 핸들러마다 `SENSITIVE_ACTION_THROTTLE` 이 걸렸는지 보는 단위 테스트)
+- `codebase/backend/migrations/V*__user_two_factor_setup_started_at.sql` (`user.two_factor_setup_started_at` 컬럼 추가)
 - `codebase/backend/src/common/utils/postgres-text.ts` (표시 이름의 NUL 문자 · 코드 포인트 수 검증기)
 - `codebase/backend/src/common/utils/postgres-text.spec.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.spec.ts` (표시 이름 검증기와 등록 검증 · 이름 변경 DTO 의 단위 테스트)
 - `codebase/backend/test/totp-disable.e2e-spec.ts` (TOTP 끄기의 비밀번호·코드 확인과 DB 상태)
 - `codebase/backend/test/totp-enable-guard.e2e-spec.ts` (TOTP 설정 시작의 비밀번호 재확인, 켜진 계정의 설정 시작 · 활성화 검증 거부와 DB 상태, 끈 뒤 다시 켜기)
+- `codebase/backend/test/totp-setup-expiry.e2e-spec.ts` (TOTP 대기 secret 의 10분 만료, 시각이 없는 대기 secret, 만료 뒤 DB 상태)
 - `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 서명이 틀린 응답의 거부, counter 가 늘 0 인 인증기, 같은 응답의 재전송(차례로 · 동시에, counter 가 늘 0 인 인증기 포함), 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
+- `codebase/backend/test/webauthn-register-password.e2e-spec.ts` (Passkey 등록 옵션의 비밀번호 재확인, 실패 때 등록 옵션과 `optionsToken` 을 만들지 않음)
 - `codebase/frontend/src/app/(auth)/**` (`callback/callback-content.tsx` 의 소셜 로그인 복귀 포함)
 - `codebase/frontend/src/components/auth/**` (`register-form.tsx` · `login-form.tsx` 포함)
 - `codebase/frontend/src/components/auth/__tests__/login-form-webauthn.test.tsx` (검증 중 버튼 잠금, 실패 뒤 새 옵션)
 - `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동할 곳, 소셜 로그인의 복귀 경로 저장과 꺼내기, 초대 수락 페이지로 돌아오는 로그인 경로 `buildInvitationLoginHref`. 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다)
 - `codebase/frontend/src/lib/utils/password.ts`
-- `codebase/frontend/src/lib/api/auth.ts`, `codebase/frontend/src/lib/api/auth-providers.ts`
+- `codebase/frontend/src/lib/api/auth.ts` (`webauthnRegisterOptions` 가 비밀번호를 보낸다), `codebase/frontend/src/lib/api/auth-providers.ts`
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/change-email/**`, `codebase/frontend/src/app/(main)/w/[slug]/profile/security/**`
+- `codebase/frontend/src/app/(main)/w/[slug]/profile/security/passkey-card.tsx` (Passkey 등록 폼의 비밀번호 입력과 비밀번호 실패 안내)
 
 ## Rationale
 
@@ -1088,5 +1111,40 @@ NERV Task `CLE-T-94FTMV` 에서 사람 결정 두 건으로 정했다. 그 전�
 - **저장은 조건부 갱신이다.** 켜짐 여부를 읽은 뒤 저장하기 전에 다른 탭의 verify 가 TOTP 를 켤 수 있다. 읽은 값만 믿고 쓰면 막 켜진 계정의 secret 이나 복구 코드를 덮어쓴다. 그래서 setup 은 `two_factor_enabled = false` 일 때만 쓰고 verify 는 그에 더해 `two_factor_secret` 이 확인에 쓴 secret 과 같을 때만 쓴다. 갱신된 행이 없을 때 켜져 있으면 409 다. secret 이 바뀌었으면 확인한 코드가 지금 secret 과 맞지 않으므로 401 `TOTP_INVALID` 이고 사용자는 새 QR 의 코드로 다시 확인한다. 조건 없이 쓰는 `UsersService.update` 대신 `TotpService` 가 `User` 저장소로 직접 쓴다.
 - **비용**: OAuth 전용 계정은 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 만들기 전에는 TOTP 를 켤 수 없다. TOTP 끄기도 같은 조건이라 켜기와 끄기의 조건이 같아진다. 화면은 `PASSWORD_REQUIRED` 에 비밀번호 재설정을 먼저 하라는 안내를 보여 준다. 이 결정으로 OAuth 전용 계정이 계정 재인증 수단을 늘리는 길은 비밀번호 재설정 하나로 좁아졌다. Passkey 만 쓰는 OAuth 전용 사용자도 TOTP 를 켜려면 비밀번호 재설정을 먼저 해야 한다.
 - **setup 의 요청 한도**: 구현 뒤 코드 리뷰에서 더했다(2026-11-01). setup 이 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐기 때문이다. 탈취한 액세스 토큰만 가진 사람이 `PASSWORD_INVALID` 응답을 보고 비밀번호를 추측하는 속도를 늦춘다. bcrypt 비교가 스레드 풀을 오래 잡는 비용도 줄인다. TOTP 끄기와 같은 등급이라 같은 상수(`SENSITIVE_ACTION_THROTTLE`, 사용자당 분당 10회)를 쓴다(코드 리뷰 finding 01a196a7-c71b-71ab-b57c-7a9849a11514).
-- **후속으로 미룬 것**: Passkey 등록의 비밀번호 재확인과 다른 비밀번호 재확인 라우트의 요청 한도 정렬은 NERV Task `CLE-T-FRCRF7` 이 맡는다([미결 사항](#미결-사항)). Passkey 등록은 등록 옵션과 등록 검증 두 요청에 걸치고 화면도 따로 있어 이 Task 의 범위(TOTP 설정 시작과 활성화 검증) 밖이다. 요청 한도는 이 Task 에서 비밀번호를 새로 받게 된 setup 에만 걸었다. 여러 라우트의 한도를 함께 바꾸면 이 Task 와 관계없는 라우트의 동작도 바뀐다.
+- **후속으로 미룬 것**: Passkey 등록의 비밀번호 재확인과 다른 비밀번호 재확인 라우트의 요청 한도 정렬은 NERV Task `CLE-T-FRCRF7` 이 맡는다([미결 사항](#미결-사항)). Passkey 등록은 등록 옵션과 등록 검증 두 요청에 걸치고 화면도 따로 있어 이 Task 의 범위(TOTP 설정 시작과 활성화 검증) 밖이다. 요청 한도는 이 Task 에서 비밀번호를 새로 받게 된 setup 에만 걸었다. 여러 라우트의 한도를 함께 바꾸면 이 Task 와 관계없는 라우트의 동작도 바뀐다. 2026-11-02 에 닫았다([Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다](#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)).
 - **끄기의 꺼짐 응답은 바꾸지 않았다.** [TOTP 끄기에 비밀번호와 인증 코드를 함께 받는다](#totp-끄기에-비밀번호와-인증-코드를-함께-받는다-2026-10-10) 는 꺼진 계정의 끄기 요청을 401 `TOTP_INVALID` 로 묶었다. 이번 결정은 켜진 계정의 켜기 요청만 다룬다.
+
+### Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)
+
+NERV Task `CLE-T-FRCRF7` 에서 사람 결정 세 건으로 정했다(2026-11-02 답변). [TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01) 는 Passkey 등록의 비밀번호 재확인과 비밀번호 재확인 라우트의 요청 빈도 제한 정렬을 이 Task 로 미뤘다. 그때 TOTP 활성화 검증에는 전용 한도가 없었고 설정 시작이 저장한 [대기 secret](#totp-켜기) 에는 수명이 없었다. 이번에 셋을 함께 정하고 「미결 사항」 의 두 항목(Passkey 등록에 비밀번호 재확인이 없다 · 비밀번호 재확인 라우트의 요청 한도가 서로 다르다)을 닫았다.
+
+Passkey 등록 옵션의 비밀번호 재확인(질문 `01a199f3-3f90-7691-90ec-42ffeaa67060`):
+
+- **등록 옵션에서 비밀번호를 재확인한다.** 로그인 세션만 가진 사람이 자기 인증기를 Passkey 로 등록하면 원래 사용자는 다음 로그인에서 막힌다. Passkey 가 하나라도 있으면 로그인 2단계는 Passkey 로만 통과하기 때문이다. 첫 등록의 Passkey 복구 코드도 등록한 사람에게만 보인다. TOTP 설정 시작에서 막은 공격과 같아서 같은 본문(`{ password }`, 8자 이상 문자열), 같은 확인(`AuthService.verifyPasswordForUser`), 같은 에러 코드(401 `PASSWORD_REQUIRED` · `PASSWORD_INVALID`)를 쓴다.
+- **등록 옵션 한 곳에서만 받는다.** 등록 검증은 등록 옵션이 준 `optionsToken`(5분) 없이는 credential 을 저장하지 않는다. 그래서 등록 옵션의 재확인이 두 요청을 모두 덮고 등록 검증은 비밀번호를 다시 받지 않는다. `optionsToken` 은 발급받은 사용자(`sub`)에 묶이고 5분 안에만 유효하다. 그래서 비밀번호 재확인 한 번이 덮는 범위는 그 사용자가 그 토큰으로 5분 안에 하는 등록이다.
+- **기능이 꺼져 있으면 비밀번호를 확인하기 전에 거부한다.** Passkey 기능이 꺼진 서버에서는 등록 옵션과 Passkey 복구 코드 재발급이 본문 검증 뒤 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 끝난다. 기능을 끈 서버에서 비밀번호 대조를 돌리지 않기 위해서다. 그 전에는 복구 코드 재발급이 비밀번호를 먼저 확인했고 이 Task 의 구현에서 순서를 바꿨다. 구현 전 일관성 검토의 지적으로 더했다.
+- **이미 등록한 Passkey 는 그대로 쓴다.** 새 등록만 막고 기존 credential 에 확인을 다시 요구하지 않는다.
+- **Passkey 삭제 · 이름 변경은 이번 범위 밖이다.** 두 요청에는 비밀번호 재확인을 더하지 않았다.
+- **비용**: OAuth 전용 사용자는 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 만든 뒤 Passkey 를 등록한다. TOTP 켜기와 같은 조건이다. 그래서 비밀번호 없이 Passkey 만 등록한 OAuth 전용 계정은 이 결정 전에 등록한 경우만 남는다.
+- **기각: 비밀번호 또는 TOTP 로 계정 재인증(`SessionsService.reauthenticate`)을 받는다.** 비밀번호도 TOTP 도 없는 계정은 403 `REAUTH_NOT_AVAILABLE` 을 받는다. 비밀번호 없이 TOTP 만 있는 계정은 TOTP 코드로 등록할 수 있게 된다. 비밀번호만 받는 TOTP 설정 시작과 규칙이 갈린다.
+- **기각: 이번에도 더하지 않고 미결로 남긴다.** 로그인 세션을 탈취한 사람이 자기 인증기를 등록해 원래 사용자를 잠그는 공격이 남는다.
+
+요청 빈도 제한(질문 `01a199f3-415c-7064-89d3-339903336953`):
+
+- **`SENSITIVE_ACTION_THROTTLE` 을 세 라우트에 더 건다.** Passkey 등록 옵션, Passkey 복구 코드 재발급, TOTP 활성화 검증이다. 사용자당 분당 10회이고 넘으면 429 다. 이제 `verifyPasswordForUser` 를 부르는 라우트 넷(TOTP 설정 시작 · TOTP 끄기 · Passkey 등록 옵션 · Passkey 복구 코드 재발급)이 모두 이 한도를 쓴다. 단위 테스트가 이 라우트 목록을 고정하고 핸들러마다 한도가 걸렸는지 본다. 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
+- **한도는 라우트마다 따로 센다.** 한 라우트의 요청은 다른 라우트의 한도를 쓰지 않는다.
+- **등록 검증에는 걸지 않는다.** 비밀번호를 받지 않고 한도가 걸린 등록 옵션의 `optionsToken` 이 있어야 저장한다.
+- **기각: 비밀번호를 확인하는 라우트에만 건다.** TOTP 활성화 검증은 아래 10분 만료만으로 막는 안이다. 그러면 비밀번호 확인 한 번으로 할 수 있는 코드 추측이 전역 한도(사용자당 분당 100회)에만 묶여 10분에 최대 1,000회가 된다.
+- **기각: 바꾸지 않는다.** 복구 코드 재발급 라우트에 전용 한도가 없어 그 라우트로 설정 시작의 한도를 우회해 비밀번호를 추측할 수 있다.
+
+TOTP 대기 secret 의 10분 만료(질문 `01a199f3-42c1-721b-a0d6-dc853234191a`):
+
+- **설정 시작 뒤 10분이 지나면 대기 secret 을 쓰지 않는다.** 수명이 없으면 비밀번호를 한 번 확인한 뒤 같은 secret 의 코드를 시간 제한 없이 추측할 수 있다.
+- **시각 컬럼을 더한다.** `user.two_factor_setup_started_at`(timestamptz, NULL 허용)이다. 설정 시작이 secret 과 같은 조건부 갱신으로 쓰고 켜기와 끄기가 비운다. 활성화 검증은 만료면 대기 secret 과 함께 비운다. 응답에는 싣지 않는다. 비밀은 아니라서 [계정과 워크스페이스 데이터 흐름 「응답에 싣지 않는 민감 컬럼 7개」](CLE-ACCT-DATA.md#응답에-싣지-않는-민감-컬럼-7개) 목록에는 넣지 않는다.
+- **만료면 코드를 확인하지 않는다.** 만료된 secret 으로는 켜지 않으므로 코드가 맞는지 볼 이유가 없다. 응답은 `TOTP_NOT_INITIALIZED` 이고 새 코드를 두지 않았다. 클라이언트가 할 일(설정 시작부터 다시)이 설정 시작 없이 부른 경우와 같기 때문이다. 상태 코드도 이 코드의 기존 400 을 그대로 쓴다. 이미 발행 중인 코드의 상태 코드를 바꾸면 이 코드로 분기하는 클라이언트와의 호환이 깨진다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 5 가 코드 이름 바꾸기를 호환을 깨는 변경으로 보는 것과 같은 이유다.
+- **시각이 없는 대기 secret 은 만료로 본다.** 이 규칙 전에 설정을 시작하고 켜지 않은 계정이 그 경우다. 마이그레이션은 컬럼만 더하고 데이터를 바꾸지 않는다. 그 사용자는 설정을 다시 시작한다.
+- **추측 상한**: 설정을 다시 시작하려면 비밀번호가 필요하다. 그래서 비밀번호 확인 한 번으로 할 수 있는 코드 추측은 10분 동안의 활성화 검증 한도(분당 10회, 최대 100회)로 묶인다.
+- **화면**: 활성화 검증이 `TOTP_NOT_INITIALIZED` 로 끝나면 설정 시간이 지났다고 안내하고 설정 시작(비밀번호 입력) 단계로 돌아간다.
+- **기각: 활성화 검증이 5번 실패하면 대기 secret 을 버린다.** 실패 횟수 컬럼이 더 필요하고 시간 제한이 없어 대기 secret 이 남는다.
+- **기각: 10분 만료와 5회 실패 폐기를 함께 둔다.** 위 요청 빈도 제한과 겹쳐 얻는 것이 적다.
+- **기각: 요청 빈도 제한만 건다.** 분당 10회여도 시간 제한이 없으면 약 3주면 6자리 코드를 맞춘다.

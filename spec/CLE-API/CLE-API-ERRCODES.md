@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 22
+version: 23
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "243bad30ab078e1d3aefc47622f38779915c2e43f17f8031394406822a93180a"
+content_hash: "0217faf3fec3ae492c462863bf9e622d35408074bf070571aa265daa78459804"
 read_as: "approved_fallback"
-task: "CLE-T-H9QJTA"
+task: "CLE-T-FRCRF7"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "d5649911966d8262a15188cfa6bc25301b89ce08635763f3ac0735ba0af5e3ea"
-etag: "sha256-575bdef815798a497bdeb991003be4b59b3a6e9f95d66bb48c98111bf836a61e"
+mirror_sha256: "c3f49e03bd944de729e11492a3afde4556146c4ee79c27356bbf7d874772c5b8"
+etag: "sha256-6fe91db5cd93fca27e836a371aa3e0d3f1855daaa4b1b6f0a1195791b2784b0b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -187,12 +187,12 @@ etag: "sha256-575bdef815798a497bdeb991003be4b59b3a6e9f95d66bb48c98111bf836a61e"
 | `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)을 부름. Passkey 가 있으면 TOTP 로 로그인할 수 없다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 TOTP 로 로그인하므로 나지 않는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 TOTP 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. Passkey 만 등록한 계정도 여기에 든다. 이메일 변경과 로그인 세션 강제 종료의 계정 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `REAUTH_REQUIRED` | 400 | 계정 재인증 자격 증명이 없거나 부족함(비밀번호와 TOTP 어느 것도 검증할 수 없음) | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `PASSWORD_INVALID` | 401 | 비밀번호 재확인 **불일치**. 계정 재인증(`verifyReauth`), TOTP 설정 시작·2FA 비활성화·Passkey 복구 코드 재발급의 재확인(`verifyPasswordForUser`), 비밀번호 변경이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
-| `PASSWORD_REQUIRED` | 401 | 비밀번호가 **설정되지 않았거나(OAuth 전용) 입력되지 않음**. TOTP 설정 시작·2FA 비활성화·Passkey 복구 코드 재발급 같은 민감 동작의 `verifyPasswordForUser` 재확인과 비밀번호 변경이 함께 쓴다. 불일치는 형제 코드 `PASSWORD_INVALID` 다. 계정 재인증의 입력 누락 `REAUTH_REQUIRED`(400, `verifyReauth`)와는 발행 헬퍼도 상태 코드도 다른 별개 코드다 | [세션과 토큰 「본인 확인 에러 코드」](../CLE-ACCT/CLE-ACCT-SESSION.md#본인-확인-에러-코드) |
+| `REAUTH_REQUIRED` | 400 | 계정 재인증 자격 증명이 없거나 부족함(비밀번호와 TOTP 어느 것도 검증할 수 없음. 비밀번호가 없는 계정에 비밀번호만 보낸 경우 포함) | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
+| `PASSWORD_INVALID` | 401 | 비밀번호 재확인 **불일치**. 계정 재인증(`verifyReauth`), TOTP 설정 시작·2FA 비활성화·Passkey 등록 옵션(`POST /api/auth/2fa/webauthn/register/options`)·Passkey 복구 코드 재발급의 재확인(`verifyPasswordForUser`), 비밀번호 변경이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
+| `PASSWORD_REQUIRED` | 401 | 비밀번호가 **설정되지 않았거나(OAuth 전용) 입력되지 않음**. TOTP 설정 시작·2FA 비활성화·Passkey 등록 옵션(`POST /api/auth/2fa/webauthn/register/options`)·Passkey 복구 코드 재발급 같은 민감 동작의 `verifyPasswordForUser` 재확인과 비밀번호 변경이 함께 쓴다. 이 네 민감 동작의 라우트에서는 본문 검증이 미입력을 먼저 400 `VALIDATION_ERROR` 로 거른다. 그래서 그 라우트가 내는 `PASSWORD_REQUIRED` 는 계정에 비밀번호가 없다는 뜻이다. 불일치는 형제 코드 `PASSWORD_INVALID` 다. 계정 재인증의 입력 누락 `REAUTH_REQUIRED`(400, `verifyReauth`)와는 발행 헬퍼도 상태 코드도 다른 별개 코드다 | [세션과 토큰 「본인 확인 에러 코드」](../CLE-ACCT/CLE-ACCT-SESSION.md#본인-확인-에러-코드) |
 | `TOTP_INVALID` | 401 | TOTP 코드 불일치. 계정 재인증, 로그인 2FA, 2FA 켜기 확인, 2FA 비활성화(`POST /api/auth/2fa/disable`)가 함께 쓴다. 로그인 2FA 와 2FA 비활성화는 6자리 TOTP 코드나 TOTP 복구 코드를 받고 둘 다 맞지 않으면 이 코드다. 2FA 비활성화는 2FA 가 켜져 있지 않을 때도 이 코드를 낸다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2FA 챌린지(`AuthService.loginWithTotp`)에서 계정의 2FA 가 꺼져 있거나 사용자가 없음. 로그인 2FA 챌린지 전용이고 클라이언트는 다시 로그인하게 안내한다. 2FA 비활성화에서 2FA 가 꺼져 있을 때는 이 코드가 아니라 `TOTP_INVALID` 다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `TOTP_NOT_INITIALIZED` | 400 | 2FA 켜기 확인(`TotpService.verifyAndEnable`)에서 사용자가 없거나 TOTP secret 이 없음. 설정(`setup`)을 거치지 않고 확인을 부른 경우다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `TOTP_NOT_INITIALIZED` | 400 | 2FA 켜기 확인(`TotpService.verifyAndEnable`)에서 사용자가 없거나 TOTP secret 이 없음. 설정(`setup`)을 거치지 않고 확인을 부른 경우다. 설정 시작 뒤 10분이 지나 [대기 중인 TOTP secret](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-켜기) 이 만료된 경우도 이 코드다. 이때 서버는 그 secret 과 설정 시작 시각을 비우고 인증 코드를 확인하지 않는다. 설정 시작 시각이 없는 대기 secret 도 만료로 본다. 클라이언트는 만료 안내를 보이고 설정 시작 단계로 돌아간다 | [가입과 로그인 「TOTP 켜기」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-켜기) |
 | `TOTP_ALREADY_ENABLED` | 409 | TOTP 가 이미 켜진 계정의 설정 시작(`POST /api/auth/2fa/setup`)과 활성화 검증(`POST /api/auth/2fa/verify`). secret 과 TOTP 복구 코드를 바꾸지 않는다. 바꾸려면 TOTP 를 끄고 다시 켠다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 
 - 이 표는 도메인 문서 본문에 문서화된 코드만 등재한다.
@@ -711,3 +711,12 @@ NERV Task `CLE-T-H9QJTA` 에서 고쳤다. 규칙 7 은 「규칙을 따르지 �
 - §1 「도메인 prefix (규칙 3)」 의 「원칙의 예외가 아니다」 를 규칙 3 과 §3 을 직접 가리키는 문장으로 고쳤다. §3 첫 문단이 「§1 원칙」 대신 「이름 규칙(규칙 1~3)」 을 쓰게 되면서 「원칙」 이 무엇을 가리키는지 흐려졌기 때문이다. prefix 없는 공용 코드는 규칙 3 을 따른 것이라 §3 에 올리지 않는다.
 - 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 셋째 불릿의 「예외로 등록할 필요가 없다」 를 「규칙 11 의 예외로 적을 필요가 없다」 로 고쳤다. 그 예외는 [HTTP API 규약](CLE-API-CONV.md) 규칙 11 의 예외이고 §3 등록과 다르다.
 - 기각한 대안은 규칙 7 을 넓게 두고 개요 · 규칙 2 · §3 첫 문단을 그 범위로 넓히는 안이다. 그러면 기존 코드를 다시 쓰는 결정도 §3 에 올려야 해서 이름이 부정확한 코드를 찾는 표에 이름이 정확한 코드(`AUTH_FAILED` 등)가 섞인다.
+
+### Passkey 등록 옵션의 비밀번호 재확인과 TOTP 대기 secret 만료에 기존 코드를 쓴다 (2026-11-02)
+
+NERV Task `CLE-T-FRCRF7` 에서 사람이 정한 결정 세 건 가운데 코드 선택에 걸리는 둘을 §6.3 에 옮겼다. 동작과 근거의 정본은 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 다. 나머지 한 건은 비밀번호 재확인 라우트의 요청 빈도 제한이다. 한도를 넘으면 기존 `RATE_LIMITED`(429)를 쓰고 한도 수치는 [HTTP API 규약 「7. 요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
+
+- **Passkey 등록 옵션**: 옵션을 만들기 전에 TOTP 설정 시작과 같은 `verifyPasswordForUser` 로 비밀번호를 다시 확인한다. 그래서 `PASSWORD_INVALID` · `PASSWORD_REQUIRED` 행의 발행처에 더했다. 새 코드는 만들지 않았다. 다른 민감 동작의 재확인과 뜻이 같고 클라이언트가 할 일도 같다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 `WEBAUTHN_DISABLED`(503)로 거부한다. Passkey 복구 코드 재발급도 같다.
+- **TOTP 대기 secret 만료**: 설정 시작 뒤 10분이 지난 대기 secret 으로 활성화 검증을 부르면 서버가 그 secret 을 비우고 `TOTP_NOT_INITIALIZED`(400)로 거부한다. 응답 코드도 사람이 고른 안에 있었다. NERV 질문 `01a199f3-42c1-721b-a0d6-dc853234191a` 의 A안에 「400 `TOTP_NOT_INITIALIZED`(기존 코드)」 가 적혀 있다.
+- **상태 코드는 기존 400 을 따른다.** 만료 조건을 더해도 이 코드의 기존 응답은 바꾸지 않는다. 상태 코드를 바꾸면 API 계약이 바뀐다. 이름 바꾸기를 막는 규칙 5 와 같은 이유다.
+- **규칙 6 의 새 조건으로 보지 않았다.** 서버가 만료된 secret 을 비운 뒤의 상태는 설정을 시작하지 않은 상태와 같다. 사용자가 할 일도 설정 시작부터 다시 하는 것 하나다. 클라이언트는 설정 시작을 거친 뒤에만 활성화 검증을 부르므로 이 코드를 받으면 만료 안내를 보인다.
