@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "436e373c3fcd77e5f044c0b8bf38b8ffca7d436498bc3d9487505f3bac8472e9"
+content_hash: "081c523499d4bb813b6f9533d54b76464fd263af81bb6180a5207adfc082d3e5"
 read_as: "approved_fallback"
-task: "CLE-T-VTYPA1"
+task: "CLE-T-2HD471"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "4c83ba622bbeee9a37466c77a9c22d54ac564307fed9208c9452f609647c6384"
-etag: "sha256-ea32f7507ce0f7275291299220a516a6007e985d6e43c72b4f9b78128204f044"
+mirror_sha256: "3256968560fb11ca4c444877add9a0df301c073d63f8e35a477fce33f522e2ae"
+etag: "sha256-150436d797af26fc19830ba1699b99476bb1d0dd9cc83691d7f13a85263c4991"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-ea32f7507ce0f7275291299220a516a6007e985d6e43c72b4f9b78128204f044"
 
 컨테이너(container)는 자식 노드를 반복 실행하는 Loop·ForEach·Map 세 노드다. 자식은 `containerId` 로 소속을 나타낸다. 이 문서는 엔진이 컨테이너 본문(container body)을 어떻게 반복 실행하는지, 반복 결과를 어떻게 모으고 노드 출력을 어떻게 덮어쓰는지, 중첩된 컨테이너의 변수 스코프를 어떻게 다루는지 정한다.
 
-Parallel 노드는 컨테이너가 아니지만 끝날 때 엔진 덮어쓰기(engine override)를 받는다. 이 문서는 Parallel 의 덮어쓰기 결과만 다룬다. Background 노드도 컨테이너가 아니다. 이 문서는 엔진이 Background 본문을 별도 큐로 넘기는 부분만 다룬다.
+Parallel 노드는 컨테이너가 아니지만 끝날 때 엔진 덮어쓰기(engine override)를 받는다. 이 문서는 Parallel 의 덮어쓰기 결과만 다룬다. 병렬 분기 본문의 노드 집합 · 실행 순서 · 결과 노드는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다. Background 노드도 컨테이너가 아니다. 이 문서는 엔진이 Background 본문을 별도 큐로 넘기는 부분만 다룬다.
 
 범위 밖:
 
@@ -56,9 +56,11 @@ flowchart TD
 
 | 조건 | 결과 |
 | --- | --- |
-| `emit` 에 연결된 본문 노드가 0개 | `CONTAINER_MISSING_EMIT` 에러로 실행 실패 |
-| `emit` 에 연결된 본문 노드가 2개 이상 | `CONTAINER_MULTIPLE_EMIT` 에러로 실행 실패 |
+| `emit` 에 연결된 본문 노드가 0개 | 메시지가 `CONTAINER_MISSING_EMIT:` 으로 시작하는 에러로 실행 실패 |
+| `emit` 에 연결된 본문 노드가 2개 이상 | 메시지가 `CONTAINER_MULTIPLE_EMIT:` 으로 시작하는 에러로 실행 실패 |
 | `emit` 소스가 포트 라우팅 때문에 그 회차에 도달하지 못함 | 그 회차의 수집 값은 `undefined` |
+
+`CONTAINER_MISSING_EMIT` 과 `CONTAINER_MULTIPLE_EMIT` 은 에러 메시지 앞에 붙는 접두사다. `ErrorCode` enum 값이 아니다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴) 규칙 1). 접두사는 진단용이며 클라이언트가 분기 근거로 쓰지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 4). 안정된 코드로 올릴지는 NERV Task `CLE-T-REC4X3` 이 정한다.
 
 ### 본문 제약
 
@@ -69,6 +71,8 @@ flowchart TD
 ### 결과 배열의 인덱스
 
 ForEach 와 Map 의 결과 배열은 원본 배열과 **같은 인덱스**를 유지한다. 실패한 항목도 자리를 비우지 않는다. 그래서 뒤 노드가 원본 항목과 결과를 인덱스로 맞춰 볼 수 있다.
+
+Parallel 의 `branches` 도 병렬 분기 번호(`branch_<index>` 의 index)를 인덱스로 지킨다. `errorPolicy='continue'` 에서 실패한 병렬 분기 자리는 `null` 이다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#출력-구조)).
 
 ## 엔진 덮어쓰기
 
@@ -82,9 +86,11 @@ ForEach 와 Map 의 결과 배열은 원본 배열과 **같은 인덱스**를 �
 | Loop | `iterations` | 없음(입력을 나누지 않음) | `{ iterations: [...], count }` |
 | ForEach | `items` | `items[]`(본문 입력 분배) | `{ items: [...], count }`, 실패 항목이 있으면 `skipped` 도 |
 | Map | `mapped` | `items[]`(본문 입력 분배) | `{ mapped: [...], count }` |
-| Parallel | `branches` | 없음(`output: null`, 같은 입력을 병렬 분기마다 복제) | `{ branches: [...], count }`, 실패한 병렬 분기가 있으면 `skipped` 도 |
+| Parallel | `branches` | 없음(`output: null`, 같은 입력을 병렬 분기마다 복제) | `{ branches: [...], count }`, 실패한 병렬 분기가 있으면(`errorPolicy='continue'`) `skipped` 도 |
 
-Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기마다 어느 노드의 출력을 담는지는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#출력-구조) 가 정한다.
+Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기마다 어느 노드의 출력을 담는지는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다. `emit` 같은 수집 지점을 강제하지 않는 이유는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#결과-노드의-동률은-엔진-위상-순서로-가른다-2026-11-02) 의 Rationale 에 있다.
+
+`PARALLEL_ENGINE=off` 되돌림 경로에서는 엔진이 Parallel 을 덮어쓰지 않는다. Parallel 노드 출력은 시작 시점 형태로 남는다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
 
 시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 park · 재구동 없이 이어진 실행에서 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 배열이 남고 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
 
