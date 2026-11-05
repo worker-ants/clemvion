@@ -85,6 +85,7 @@ import { mockOutput } from './__test__/mock-output';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
+import { CodeHandler } from '../../nodes/data/code/code.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
 
 // Helper to flush pending promises (allow background execution to complete)
@@ -6654,15 +6655,16 @@ describe('ExecutionEngineService', () => {
       expect(seenInputs[0]).toEqual({ seeded: 99 });
     });
 
-    // 상류 출력 복원도 노드 완료 경로와 같은 감싸기 규칙을 따른다. 컨테이너(레지스트리
-    // `kind: 'container'`)는 meta 가 있어도 배열 그대로, 다른 노드는 meta 가 있으면 옛
-    // `{ data }` 봉투로 넘긴다.
+    // 상류 출력 복원도 노드 완료 경로와 같은 규칙을 따른다. 배열 output 은 노드 종류와
+    // 상관없이 meta · port 가 함께 와도 다음 노드에 배열 그대로 넘어간다
+    // (NERV Task CLE-T-T30D5S).
     it.each([
-      ['map', [{ v: 1 }]],
-      ['test_node', { data: [{ v: 1 }] }],
-    ])(
-      '상류 %s 의 배열 출력 + meta 를 노드 완료 경로와 같은 모양으로 seed',
-      async (predType, expectedInput) => {
+      ['map', 'meta', { meta: { fellBackToEmpty: false } }],
+      ['test_node', 'meta', { meta: { fellBackToEmpty: false } }],
+      ['test_node', 'port', { port: 'out' }],
+    ] as const)(
+      '상류 %s 의 배열 출력 + %s 를 노드 완료 경로와 같은 모양으로 seed',
+      async (predType, _extraLabel, extra) => {
         passThroughCreate();
         // 엔진은 유형 이름이 아니라 등록 때 받은 kind 로 판단한다.
         handlerRegistry.register('map', new MapHandler(), {
@@ -6689,7 +6691,7 @@ describe('ExecutionEngineService', () => {
             outputData: {
               config: {},
               output: [{ v: 1 }],
-              meta: { fellBackToEmpty: false },
+              ...extra,
             },
             finishedAt: new Date(),
           },
@@ -6709,7 +6711,7 @@ describe('ExecutionEngineService', () => {
         await flushPromises();
 
         expect(mockHandler.execute).toHaveBeenCalledTimes(1);
-        expect(seenInputs[0]).toEqual(expectedInput);
+        expect(seenInputs[0]).toEqual([{ v: 1 }]);
       },
     );
 
@@ -11693,6 +11695,189 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // 배열 · 원시값 output 이 port 와 함께 오면 엔진 flat 캐시에는 `{ data, port }` 봉투로
+  // 실린다. 다음 노드의 `$input` 과 `$node[X].output` 은 봉투가 아니라 핸들러 output 을
+  // 받아야 한다(CLE-NODE-CODE 「output 루트에 바로 배치」, NERV Task CLE-T-T30D5S).
+  describe('배열 · 원시값 output 전달 (Code 노드)', () => {
+    const vNode = (
+      id: string,
+      type: string,
+      config: Record<string, unknown> = {},
+    ): Partial<Node> => ({
+      id,
+      workflowId,
+      type,
+      category:
+        type === 'test_node' ? NodeCategory.TRIGGER : NodeCategory.LOGIC,
+      label: id,
+      config,
+      isDisabled: false,
+      containerId: undefined,
+      toolOwnerId: undefined,
+    });
+    const vEdge = (
+      source: string,
+      sourcePort: string,
+      target: string,
+    ): Partial<Edge> => ({
+      id: `${source}.${sourcePort}->${target}`,
+      workflowId,
+      sourceNodeId: source,
+      sourcePort,
+      targetNodeId: target,
+      targetPort: 'in',
+      type: EdgeType.DATA,
+    });
+
+    type SinkCall = { input: unknown; config: Record<string, unknown> };
+    let successCalls: SinkCall[];
+    let errorCalls: SinkCall[];
+
+    const registerSink = (type: string, calls: () => SinkCall[]) => {
+      handlerRegistry.register(type, {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown, config) => {
+          calls().push({ input, config });
+          return mockOutput({ sink: true });
+        }),
+      });
+    };
+
+    // Code 는 isolated-vm 에서 돌아서 마이크로태스크 몇 번으로는 끝나지 않는다. 뒤 노드가
+    // 불릴 때까지 기다리고(최대 5초) 남은 포트 처리를 마저 흘려보낸다.
+    const waitForSink = async () => {
+      const deadline = Date.now() + 5_000;
+      while (
+        successCalls.length + errorCalls.length === 0 &&
+        Date.now() < deadline
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      await flushPromises();
+      await flushPromises();
+    };
+
+    beforeEach(() => {
+      successCalls = [];
+      errorCalls = [];
+      handlerRegistry.register('code', new CodeHandler());
+      registerSink('success_sink', () => successCalls);
+      registerSink('error_sink', () => errorCalls);
+    });
+
+    // trigger → code ─success→ ok
+    //                ─error──→ err
+    const runCodeGraph = async (
+      code: string,
+      sinkConfig: Record<string, unknown> = {},
+    ) => {
+      mockNodeRepo.findBy.mockResolvedValue([
+        vNode('trigger', 'test_node'),
+        vNode('code', 'code', { code }),
+        vNode('ok', 'success_sink', sinkConfig),
+        vNode('err', 'error_sink'),
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([
+        vEdge('trigger', 'out', 'code'),
+        vEdge('code', 'success', 'ok'),
+        vEdge('code', 'error', 'err'),
+      ]);
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+      await waitForSink();
+    };
+
+    it.each([
+      [
+        'array',
+        'return [{ v: 1 }, { v: 2 }, { v: 3 }];',
+        [{ v: 1 }, { v: 2 }, { v: 3 }],
+      ],
+      ['number', 'return 42;', 42],
+      ['string', "return 'hello';", 'hello'],
+      ['zero', 'return 0;', 0],
+      ['false', 'return false;', false],
+    ])(
+      'Code 가 %s 를 돌려주면 다음 노드의 $input 과 $node["code"].output 이 그 값이다',
+      async (_label, code, expected) => {
+        await runCodeGraph(code, {
+          fromNode: '{{ $node["code"].output }}',
+          fromInput: '{{ $input }}',
+          port: '{{ $node["code"].port }}',
+        });
+
+        expect(successCalls).toHaveLength(1);
+        expect(successCalls[0].input).toEqual(expected);
+        expect(successCalls[0].config).toEqual(
+          expect.objectContaining({
+            fromNode: expected,
+            fromInput: expected,
+            port: 'success',
+          }),
+        );
+        // success 포트로만 간다. 봉투를 풀어도 라우팅은 그대로다.
+        expect(errorCalls).toHaveLength(0);
+      },
+    );
+
+    it('배열 원소를 표현식으로 바로 읽는다', async () => {
+      await runCodeGraph('return [{ v: 1 }, { v: 2 }, { v: 3 }];', {
+        count: '{{ $input.length }}',
+        second: '{{ $node["code"].output[1].v }}',
+      });
+
+      expect(successCalls[0].config).toEqual(
+        expect.objectContaining({ count: 3, second: 2 }),
+      );
+    });
+
+    it('사용자가 돌려준 { data: [...] } 객체는 풀지 않는다', async () => {
+      await runCodeGraph('return { data: [1, 2] };', {
+        dataFromNode: '{{ $node["code"].output.data }}',
+      });
+
+      expect(successCalls[0].input).toEqual({ data: [1, 2] });
+      expect(successCalls[0].config).toEqual(
+        expect.objectContaining({ dataFromNode: [1, 2] }),
+      );
+      expect(errorCalls).toHaveLength(0);
+    });
+
+    // 분기 노드가 배열을 그대로 넘겨도(If/Else · Switch 의 `output: input`) 고른 포트로만
+    // 가고 그 뒤 노드는 배열을 받는다.
+    it('배열 output 을 고른 포트로만 보내고 그 뒤 노드는 배열을 받는다', async () => {
+      handlerRegistry.register('array_router', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: {},
+          output: ['a', 'b'],
+          meta: { conditionResult: true },
+          port: 'true',
+        })),
+      });
+      mockNodeRepo.findBy.mockResolvedValue([
+        vNode('trigger', 'test_node'),
+        vNode('router', 'array_router'),
+        vNode('ok', 'success_sink', { picked: '{{ $node["router"].output }}' }),
+        vNode('err', 'error_sink'),
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([
+        vEdge('trigger', 'out', 'router'),
+        vEdge('router', 'true', 'ok'),
+        vEdge('router', 'false', 'err'),
+      ]);
+
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+      await flushPromises();
+
+      expect(successCalls).toHaveLength(1);
+      expect(successCalls[0].input).toEqual(['a', 'b']);
+      expect(successCalls[0].config).toEqual(
+        expect.objectContaining({ picked: ['a', 'b'] }),
+      );
+      expect(errorCalls).toHaveLength(0);
+    });
+  });
+
   describe('Container runtime', () => {
     beforeEach(() => {
       // Test modules don't invoke onModuleInit, so register real container
@@ -13948,6 +14133,36 @@ describe('ExecutionEngineService', () => {
         return { bodyHandler, sinkCalls, meta: captured?.meta };
       };
 
+      // 본문 마지막 노드가 배열 · 원시값을 port 와 함께 돌려주면 엔진 봉투가 아니라 그
+      // 값을 모은다(NERV Task CLE-T-T30D5S).
+      it.each([
+        [
+          'array',
+          (n: number) => [n, n * 10],
+          [
+            [1, 10],
+            [2, 20],
+            [3, 30],
+          ],
+        ],
+        ['number', (n: number) => n * 2, [2, 4, 6]],
+      ])(
+        'Map: collects a %s emit with a port as the raw value',
+        async (_label, toOutput, expectedMapped) => {
+          const { sinkCalls } = await runContainer(
+            'map',
+            { items: [1, 2, 3] },
+            { inputField: 'items' },
+            async (input) => ({
+              config: {},
+              output: toOutput(input as number),
+              port: 'out',
+            }),
+          );
+          expect(sinkCalls[0]).toEqual({ mapped: expectedMapped, count: 3 });
+        },
+      );
+
       it('Map: iterations + fellBackToEmpty=false for an array input', async () => {
         const { sinkCalls, meta } = await runContainer(
           'map',
@@ -14026,14 +14241,13 @@ describe('ExecutionEngineService', () => {
       );
     });
 
-    // 엔진은 노드 유형 이름이 아니라 레지스트리 `kind` 로 감싸기 판단에서 meta 를
-    // 뺄지 정한다. 컨테이너가 아닌 노드의 배열 출력은 meta 만 있어도 `{ data }` 로
-    // 감싸이는 현행 동작을 고정한다(노드 출력 규약과 다르다. NERV Task CLE-T-T30D5S 에서 바뀐다).
+    // meta 만으로는 배열 output 을 감싸지 않는다. 컨테이너가 아닌 노드(Merge · VarDecl ·
+    // Transform 등)도 다음 노드에 배열 그대로 넘긴다(NERV Task CLE-T-T30D5S).
     it.each([
       ['standard', { kind: 'standard' }],
       ['unregistered metadata', undefined],
     ] as const)(
-      'wraps a non-container array output that carries meta as { data } (%s)',
+      'passes a non-container array output that carries only meta through as is (%s)',
       async (_label, metadata) => {
         handlerRegistry.register(
           'array_with_meta',
@@ -14088,7 +14302,7 @@ describe('ExecutionEngineService', () => {
         await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
         await flushPromises();
 
-        expect(sinkCalls).toEqual([{ data: [1, 2, 3] }]);
+        expect(sinkCalls).toEqual([[1, 2, 3]]);
       },
     );
   });
@@ -15183,6 +15397,56 @@ describe('ExecutionEngineService', () => {
           expect(b).not.toHaveProperty('_selectedPort');
         }
         expect(parallelStructured()?.port).toBe('done');
+      });
+
+      // 분기 마지막 노드가 배열을 port 와 함께 돌려주면 branches[i] 는 엔진 봉투가 아니라
+      // 그 배열이다. done 문자열 포트는 그대로다(NERV Task CLE-T-T30D5S · CLE-T-2HD471).
+      it('분기 결과가 배열이면 branches[i] 는 그 배열이고 port 는 done 문자열이다', async () => {
+        registerHandler('array_node', async () => ({
+          config: {},
+          output: [1, 2],
+          port: 'success',
+        }));
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        const contextService = (
+          service as unknown as { contextService: ExecutionContextService }
+        ).contextService;
+        const createSpy = jest.spyOn(contextService, 'createContext');
+        let rootPort: unknown;
+        try {
+          await runGraph(
+            {},
+            [
+              pNode('a', 'array_node'),
+              pNode('b', 'ok_node'),
+              pNode('sink', 'sink_node', {
+                first: '{{ $node["par"].output.branches[0] }}',
+              }),
+            ],
+            [
+              pEdge('par', 'branch_0', 'a'),
+              pEdge('par', 'branch_1', 'b'),
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+          const rootContext = createSpy.mock.results[0]?.value as {
+            nodeOutputCache: Record<string, Record<string, unknown>>;
+          };
+          rootPort = rootContext.nodeOutputCache.par._selectedPort;
+        } finally {
+          createSpy.mockRestore();
+        }
+
+        expect(rootPort).toBe('done');
+        expect(parallelStructured()?.port).toBe('done');
+        expect(doneReceived).toHaveLength(1);
+        expect(doneReceived[0]).toEqual({
+          branches: [[1, 2], { ok: true }],
+          count: 2,
+        });
+        expect(sinkConfigs[0]).toEqual(
+          expect.objectContaining({ first: [1, 2] }),
+        );
       });
 
       it('done 뒤 노드의 표현식이 branches[0].<필드> 와 port 를 읽는다', async () => {

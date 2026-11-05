@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "56dc343448fe5a3c0cecc383be7c8f4e7120e97e2b5d900e1c0683a800773607"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-T30D5S"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "0e806f1a334ddfdc9068e1bc0b1a92c242ddc7558502330ce0f15adb50573abb"
-etag: "sha256-02296805e976fb80553c5cccc002bf75c6b17a75f1558a04e2d3b1af720ef13a"
+mirror_sha256: "b7ee556a38a0316c12418ff4012accb8ef8ae2b561e2cf97fb6831f808f51c3f"
+etag: "sha256-fa4e51950b4b25371e243f20d0f7615ba9bd76994031a95da0a2dd0f5832f99f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
