@@ -78,12 +78,15 @@ test.describe("Login form (mock-based)", () => {
       .fill("wrong");
     await page.getByRole("button", { name: /로그인|Sign in/i }).click();
 
-    // login-form 의 extractApiMessage 는 data.message 만 본다 (data.error.message
-    // 는 보지 않음). 내 mock 은 nested error 라 fallback i18n
-    // ("auth.login.genericFailed" = "로그인에 실패했어요. 다시 시도해 주세요.") 가
-    // sonner toast 로 표시된다. 다소 폭넓게 매칭.
+    // login-form 은 봉투의 error.code 를 읽어 LOGIN_FAILED 를 코드별 문구
+    // ("auth.login.invalidCredentials") 로 보여 준다(CLE-T-MFWBE1). 서버 문구가
+    // 아니라 화면 문구가 보여야 한다.
     await expect(
-      page.getByText(/실패|일치하지 않|invalid|failed|incorrect/i).first(),
+      page
+        .getByText(
+          /이메일 또는 비밀번호가 올바르지 않습니다|Invalid email or password/i,
+        )
+        .first(),
     ).toBeVisible();
 
     // 이메일은 유지 (사용자가 다시 타이핑할 필요 없음).
