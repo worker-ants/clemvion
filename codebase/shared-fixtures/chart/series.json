@@ -1,0 +1,420 @@
+{
+  "$comment": "Chart 다중 시리즈 묶음 규칙의 공유 사례(CLE-NODE-CHART 실행 로직 2 · 3단계, 「시리즈와 색」). points 는 렌더러 입력(output.data · render_chart data)이다. render 는 렌더러가 그리는 모양이다: x 는 X 카테고리 순서, series 는 시리즈 이름 순서(series 가 하나도 없으면 빈 배열 · 단일 시리즈), values[i][j] 는 i 번째 시리즈의 j 번째 X 값이고 포인트가 없으면 null 이다. sum 은 백엔드 핸들러가 같은 행을 groupBy · yAxis.aggregation=sum 으로 집계한 output.data 다(render.series 가 비면 groupBy 없이). 백엔드 ChartHandler, 에디터 toChartSeriesModel, 웹채팅 위젯 toCartesianModel 테스트가 이 파일에서 기대값을 읽는다.",
+  "cases": [
+    {
+      "name": "두 시리즈 · 세 X (Jan/Feb/Mar · Seoul/Busan)",
+      "points": [
+        {
+          "x": "Jan",
+          "y": 1200,
+          "series": "Seoul"
+        },
+        {
+          "x": "Jan",
+          "y": 800,
+          "series": "Busan"
+        },
+        {
+          "x": "Feb",
+          "y": 1500,
+          "series": "Seoul"
+        },
+        {
+          "x": "Mar",
+          "y": 700,
+          "series": "Busan"
+        }
+      ],
+      "render": {
+        "x": [
+          "Jan",
+          "Feb",
+          "Mar"
+        ],
+        "series": [
+          "Seoul",
+          "Busan"
+        ],
+        "values": [
+          [
+            1200,
+            1500,
+            null
+          ],
+          [
+            800,
+            null,
+            700
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Jan",
+          "y": 1200,
+          "series": "Seoul"
+        },
+        {
+          "x": "Jan",
+          "y": 800,
+          "series": "Busan"
+        },
+        {
+          "x": "Feb",
+          "y": 1500,
+          "series": "Seoul"
+        },
+        {
+          "x": "Mar",
+          "y": 700,
+          "series": "Busan"
+        }
+      ]
+    },
+    {
+      "name": "시리즈가 없으면 단일 시리즈이고 같은 X 도 포인트마다 그린다",
+      "points": [
+        {
+          "x": "Jan",
+          "y": 1
+        },
+        {
+          "x": "Feb",
+          "y": 2
+        },
+        {
+          "x": "Jan",
+          "y": 3
+        }
+      ],
+      "render": {
+        "x": [
+          "Jan",
+          "Feb",
+          "Jan"
+        ],
+        "series": [],
+        "values": [
+          [
+            1,
+            2,
+            3
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Jan",
+          "y": 4
+        },
+        {
+          "x": "Feb",
+          "y": 2
+        }
+      ]
+    },
+    {
+      "name": "series 가 일부에만 있으면 없는 포인트는 빈 문자열 시리즈다",
+      "points": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": "S"
+        },
+        {
+          "x": "Jan",
+          "y": 2
+        },
+        {
+          "x": "Feb",
+          "y": 3
+        }
+      ],
+      "render": {
+        "x": [
+          "Jan",
+          "Feb"
+        ],
+        "series": [
+          "S",
+          ""
+        ],
+        "values": [
+          [
+            1,
+            null
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": "S"
+        },
+        {
+          "x": "Jan",
+          "y": 2,
+          "series": ""
+        },
+        {
+          "x": "Feb",
+          "y": 3,
+          "series": ""
+        }
+      ]
+    },
+    {
+      "name": "같은 (series, X) 는 렌더러가 마지막 값을, 백엔드 집계가 묶은 값을 쓴다",
+      "points": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": "S"
+        },
+        {
+          "x": "Jan",
+          "y": 5,
+          "series": "S"
+        },
+        {
+          "x": "Feb",
+          "y": 2,
+          "series": "S"
+        }
+      ],
+      "render": {
+        "x": [
+          "Jan",
+          "Feb"
+        ],
+        "series": [
+          "S"
+        ],
+        "values": [
+          [
+            5,
+            2
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Jan",
+          "y": 6,
+          "series": "S"
+        },
+        {
+          "x": "Feb",
+          "y": 2,
+          "series": "S"
+        }
+      ]
+    },
+    {
+      "name": "시리즈 이름이 x · y · 빈 문자열이어도 섞이지 않는다",
+      "points": [
+        {
+          "x": "A",
+          "y": 1,
+          "series": "x"
+        },
+        {
+          "x": "A",
+          "y": 2,
+          "series": "y"
+        },
+        {
+          "x": "A",
+          "y": 3,
+          "series": ""
+        }
+      ],
+      "render": {
+        "x": [
+          "A"
+        ],
+        "series": [
+          "x",
+          "y",
+          ""
+        ],
+        "values": [
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "A",
+          "y": 1,
+          "series": "x"
+        },
+        {
+          "x": "A",
+          "y": 2,
+          "series": "y"
+        },
+        {
+          "x": "A",
+          "y": 3,
+          "series": ""
+        }
+      ]
+    },
+    {
+      "name": "문자열이 아닌 series 는 String() 으로 바꿔 같은 이름과 묶는다",
+      "points": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": 1
+        },
+        {
+          "x": "Feb",
+          "y": 2,
+          "series": "1"
+        }
+      ],
+      "render": {
+        "x": [
+          "Jan",
+          "Feb"
+        ],
+        "series": [
+          "1"
+        ],
+        "values": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": "1"
+        },
+        {
+          "x": "Feb",
+          "y": 2,
+          "series": "1"
+        }
+      ]
+    },
+    {
+      "name": "series 가 null 인 포인트는 빈 문자열 시리즈다",
+      "points": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": null
+        },
+        {
+          "x": "Jan",
+          "y": 2,
+          "series": "A"
+        }
+      ],
+      "render": {
+        "x": [
+          "Jan"
+        ],
+        "series": [
+          "",
+          "A"
+        ],
+        "values": [
+          [
+            1
+          ],
+          [
+            2
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Jan",
+          "y": 1,
+          "series": ""
+        },
+        {
+          "x": "Jan",
+          "y": 2,
+          "series": "A"
+        }
+      ]
+    },
+    {
+      "name": "X 순서와 시리즈 순서는 각자 처음 나온 순서다",
+      "points": [
+        {
+          "x": "Feb",
+          "y": 1,
+          "series": "B"
+        },
+        {
+          "x": "Jan",
+          "y": 2,
+          "series": "A"
+        },
+        {
+          "x": "Feb",
+          "y": 3,
+          "series": "A"
+        }
+      ],
+      "render": {
+        "x": [
+          "Feb",
+          "Jan"
+        ],
+        "series": [
+          "B",
+          "A"
+        ],
+        "values": [
+          [
+            1,
+            null
+          ],
+          [
+            3,
+            2
+          ]
+        ]
+      },
+      "sum": [
+        {
+          "x": "Feb",
+          "y": 1,
+          "series": "B"
+        },
+        {
+          "x": "Jan",
+          "y": 2,
+          "series": "A"
+        },
+        {
+          "x": "Feb",
+          "y": 3,
+          "series": "A"
+        }
+      ]
+    }
+  ]
+}

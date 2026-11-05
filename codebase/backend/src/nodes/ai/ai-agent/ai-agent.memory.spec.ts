@@ -1750,4 +1750,153 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(argB.model).toBe('gpt-4o');
     });
   });
+
+  // REQ-AGENT-024 · NERV Task CLE-T-Q38K9F — 단일 턴의 롤링 요약 `chat` 과 요약 모델 설정 해석
+  // 실패도 첫 호출 · 도구 반복 실패와 같은 분류로 `error` 포트에 낸다. 노드 취소는 AbortError 다.
+  describe('single-turn 요약 실패 → error 포트', () => {
+    type SingleTurnErrorOutput = {
+      config: Record<string, unknown>;
+      output: {
+        result?: unknown;
+        error?: { code: string; message: string; details: unknown };
+      };
+      meta: Record<string, unknown>;
+      port: string;
+      status: string;
+    };
+    const httpError = (status: number, message: string) =>
+      Object.assign(new Error(message), { status });
+
+    /** 다른 노드의 큰 turn 을 넣어 첫 단일 턴에서 롤링 요약이 돌게 한다. */
+    function seedOverBudget(context: ExecutionContext): void {
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: 'w'.repeat(600),
+        });
+      }
+    }
+
+    const singleTurnConfig = (extra: Record<string, unknown>) => ({
+      mode: 'single_turn',
+      model: 'gpt-4o',
+      llmConfigId: 'cfg-1',
+      systemPrompt: 'Sys',
+      userPrompt: 'Hi',
+      responseFormat: 'text',
+      maxToolCalls: 10,
+      memoryTokenBudget: 200,
+      ...extra,
+    });
+
+    it.each([
+      [
+        'summary_buffer',
+        httpError(503, '503 Service Unavailable'),
+        { code: 'LLM_CALL_FAILED', details: { retryable: true } },
+      ],
+      [
+        'persistent',
+        httpError(401, 'Invalid API key'),
+        { code: 'LLM_CALL_FAILED', details: { retryable: false } },
+      ],
+    ])(
+      '%s 의 롤링 요약 chat 이 실패하면 메인 호출 없이 error 포트로 끝난다',
+      async (strategy, failure, expected) => {
+        const context = makeContext({
+          abortSignal: new AbortController().signal,
+        });
+        seedOverBudget(context);
+        mockLlmService.chat.mockRejectedValueOnce(failure);
+
+        const result = (await buildHandler().execute(
+          undefined,
+          singleTurnConfig({
+            memoryStrategy: strategy,
+            ...(strategy === 'persistent' ? { memoryKey: 'user-1' } : {}),
+          }),
+          context,
+        )) as unknown as SingleTurnErrorOutput;
+
+        expect(result.port).toBe('error');
+        expect(result.status).toBe('ended');
+        expect(result.config.mode).toBe('single_turn');
+        expect(result.output.result).toBeUndefined();
+        expect(result.output.error).toMatchObject(expected);
+        // 요약 호출에서 멈췄으므로 메인 chat 은 없다.
+        expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+        expect(result.meta).toMatchObject({
+          model: 'gpt-4o',
+          inputTokens: 0,
+          totalTokens: 0,
+          toolCalls: 0,
+        });
+        // 주입이 끝나지 않았으므로 memory · contextInjection 메타가 없다.
+        expect(result.meta.memory).toBeUndefined();
+        expect(result.meta.contextInjection).toBeUndefined();
+        // 실패한 턴의 응답은 thread 에 남기지 않고 메모리 추출도 하지 않는다.
+        expect(agentMemoryService.scheduleExtraction).not.toHaveBeenCalled();
+        expect(
+          conversationThreadService
+            .getThread(context)
+            .turns.filter(
+              (t) => t.source === 'ai_assistant' && t.nodeId === 'agent-1',
+            ),
+        ).toHaveLength(0);
+      },
+    );
+
+    it('summaryModelConfigId 해석이 실패하면 LLM 호출 없이 non-retryable LLM_CALL_FAILED 로 error 포트에 낸다', async () => {
+      const context = makeContext({
+        abortSignal: new AbortController().signal,
+      });
+      const defaultResolve =
+        mockLlmService.resolveConfig.getMockImplementation();
+      mockLlmService.resolveConfig.mockImplementation((id?: string) =>
+        id === 'summary-cfg'
+          ? Promise.reject(new Error('Model config summary-cfg not found'))
+          : defaultResolve?.(id),
+      );
+
+      const result = (await buildHandler().execute(
+        undefined,
+        singleTurnConfig({
+          memoryStrategy: 'summary_buffer',
+          summaryModelConfigId: 'summary-cfg',
+          memoryTokenBudget: 100000,
+        }),
+        context,
+      )) as unknown as SingleTurnErrorOutput;
+
+      expect(result.port).toBe('error');
+      expect(result.status).toBe('ended');
+      expect(result.output.error).toEqual({
+        code: 'LLM_CALL_FAILED',
+        message: 'Model config summary-cfg not found',
+        details: { retryable: false },
+      });
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+      expect(result.meta.memory).toBeUndefined();
+    });
+
+    it('노드가 취소된 뒤의 요약 실패는 error 포트가 아니라 AbortError 로 던진다', async () => {
+      const controller = new AbortController();
+      const context = makeContext({ abortSignal: controller.signal });
+      seedOverBudget(context);
+      const sdkAbort = new Error('Request was aborted.');
+      mockLlmService.chat.mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.reject(sdkAbort);
+      });
+
+      await expect(
+        buildHandler().execute(
+          undefined,
+          singleTurnConfig({ memoryStrategy: 'summary_buffer' }),
+          context,
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError', cause: sdkAbort });
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+    });
+  });
 });

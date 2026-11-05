@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
-requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033"]
+requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033", "REQ-HTTP-034", "REQ-HTTP-035", "REQ-HTTP-036", "REQ-HTTP-037"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "b9f1476191e6880bd2c9460e15696eb320d90d55528677d6e5f42248b77044e7"
+content_hash: "11ddcfd95e20fb4e22e662b129b1c18939fa151fcde86c830fe6bd020356d5f5"
 read_as: "approved_fallback"
-task: "CLE-T-DCQWEB"
+task: "CLE-T-FC2BWA"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "af36c0c1354f00519b31ae8e61dcb99289ac9658cce1a92fd9f23967353d96ca"
-etag: "sha256-8ec11f8d66c22ac18299f8e0ccc52a53065c21e1aeadf26c1e6f66ad63196b5c"
+mirror_sha256: "b3a2d34dda2575e8e270f76c855e801cb71a32ee6d4cf783ca64697616618f4c"
+etag: "sha256-451449e8015984b41c1fa2d3932e966d515950402e0268d030bc2c204c55031f"
 ---
 > 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글과 통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -59,6 +59,10 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 - REQ-HTTP-031 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 정규화한 method, `api_path` 를 query string 을 뺀 호스트+경로로 채운다.
 - REQ-HTTP-032 WHEN dry-run 으로 실행되면 THE SYSTEM SHALL 외부 요청 없이 mock 결과를 반환하고 사설망 차단 검사를 건너뛴다.
 - REQ-HTTP-033 WHEN 노드 취소 신호(`context.abortSignal`)로 진행 중인 요청(리다이렉트 홉과 응답 본문 읽기 포함)이 `AbortError` 로 끝나면 THE SYSTEM SHALL 에러 포트로 내보내지 않고 `AbortError` 를 그대로 던져 엔진에 전달한다.
+- REQ-HTTP-034 WHEN 리다이렉트 홉 대상의 출처(scheme·host·port)가 첫 요청의 출처와 다르면 THE SYSTEM SHALL 그 홉부터 통합 자격 증명 헤더, 통합 공용 헤더(`default_headers`)와 이름이 같은 헤더, `Authorization`·`Proxy-Authorization`·`Cookie` 헤더를 싣지 않고 대상 URL 에서 통합 자격 증명 쿼리를 뺀다.
+- REQ-HTTP-035 WHILE 리다이렉트 체인에서 출처가 한 번 바뀐 뒤에는 THE SYSTEM SHALL 첫 요청의 출처로 돌아오는 홉에도 REQ-HTTP-034 에서 뺀 자격 증명을 다시 싣지 않는다.
+- REQ-HTTP-036 WHEN 리다이렉트 응답이 303 이고 요청 method 가 `GET`·`HEAD` 가 아니거나 301·302 이고 요청 method 가 `POST` 이면 THE SYSTEM SHALL 다음 홉을 본문 없는 `GET` 으로 보내고 본문 헤더(`Content-Type`·`Content-Encoding`·`Content-Language`·`Content-Location`·`Content-Length`)를 뺀다.
+- REQ-HTTP-037 WHEN 리다이렉트 응답이 REQ-HTTP-036 에 해당하지 않으면 THE SYSTEM SHALL 다음 홉에 직전 홉의 method 와 본문을 그대로 보낸다.
 
 ## 설정
 
@@ -116,7 +120,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 6. **헤더 병합**(뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 통합 자격 증명 헤더가 사용자 입력을 덮어쓴다. 사용자가 `Authorization` 을 위조해 자격 증명을 무력화하는 경로를 막기 위해서다.
 7. **본문 직렬화**: `GET`·`HEAD` 가 아니면 `bodyType` 에 따라 직렬화한다. `form-data` 는 multipart boundary 를 자동으로 붙인다(Content-Type 을 지정하지 않는다).
 8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
-9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 3xx 를 받을 때 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#rationale) 에 있다.
+9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 3xx 를 받을 때 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 홉 대상의 출처가 첫 요청과 다르면 그 홉부터 자격 증명을 싣지 않고, 303 과 301·302 의 `POST` 는 본문 없는 `GET` 으로 바꾼다(아래 [리다이렉트 홉의 자격 증명과 method](#리다이렉트-홉의-자격-증명과-method)). 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#rationale) 에 있다.
 10. **응답 파싱**: `responseType='json'` 이면 `res.json()`(실패하면 `null`), 그 밖(`text`·`binary`)은 `res.text()` 다. 본문을 읽다가 노드 취소 신호가 취소되면 `null` 로 삼키지 않고 `AbortError` 를 다시 던진다.
 11. **활동 로그 기록**: `integration` 인증일 때만 `success`·`failed` 를 남긴다(아래 "활동 로그"). 노드 취소 신호로 끝난 호출과 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)).
 12. **반환**:
@@ -137,6 +141,33 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 | 그 밖 | `INTEGRATION_AUTH_UNSUPPORTED` 로 에러 포트(D4) | — |
 
 HTTP 통합에서 `auth_type` 을 `none` 으로 저장할 수 있는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+
+### 리다이렉트 홉의 자격 증명과 method
+
+`integration` 인증의 리다이렉트 홉(9단계)에 적용한다. HTTP 통합 연결 테스트([서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md))도 같은 함수(`followRedirectsSafely`)에 같은 자격 증명을 넘겨 같은 규칙을 따른다.
+
+**출처 비교.** 홉 대상 URL(`Location` 을 직전 URL 기준으로 푼 값)의 scheme·host·port 를 첫 요청 URL 과 비교한다. 기본 port 를 적은 URL(`https://api.example.com:443`)은 적지 않은 URL 과 같은 출처다. 하위 도메인이 바뀌거나 `https` 가 `http` 로 바뀌거나 port 가 바뀌면 다른 출처다.
+
+| 홉 | 헤더 | 대상 URL 의 쿼리 |
+|----|------|------------------|
+| 출처가 같고 그 전에 출처가 바뀐 적이 없음 | 첫 요청과 같다 | 그대로 |
+| 출처가 다름. 그 뒤의 모든 홉(원래 출처로 돌아와도) | 아래 헤더를 이름의 대소문자와 관계없이 뺀다. 사용자가 적은 헤더 가운데 이름이 겹치지 않는 것은 남긴다 | 통합 자격 증명 쿼리와 이름·값이 모두 같은 항목을 뺀다. 다른 쿼리는 그대로 둔다 |
+
+출처가 바뀐 홉에서 빼는 헤더:
+
+- 통합 자격 증명 헤더의 이름(`api_key` 의 `key_name`, `bearer_token`·`basic` 의 `Authorization`)
+- 통합 공용 헤더(`default_headers`)의 이름
+- `Authorization`·`Proxy-Authorization`·`Cookie`. 사용자가 직접 적은 값이어도 뺀다
+
+홉 사설망 검사와 결과 URL(활동 로그의 `api_path`, `output.error.details.url`)은 쿼리를 뺀 URL 을 쓴다.
+
+**method 와 본문.** Fetch 표준의 리다이렉트 규칙을 따른다. 바뀐 method 는 그 뒤의 홉에도 이어진다.
+
+| 응답 | 요청 method | 다음 홉 |
+|------|-------------|---------|
+| 303 | `GET`·`HEAD` 가 아닌 것 | 본문 없는 `GET`. `Content-Type`·`Content-Encoding`·`Content-Language`·`Content-Location`·`Content-Length` 를 뺀다 |
+| 301·302 | `POST` | 위와 같다 |
+| 그 밖(307·308, 301·302 의 `POST` 가 아닌 method, 303 의 `GET`·`HEAD`) | — | method 와 본문을 그대로 보낸다 |
 
 ### 활동 로그
 
@@ -364,7 +395,7 @@ API 식별 정보는 다음처럼 채운다. 통합별 채우기 정책의 전�
 - `codebase/backend/src/nodes/integration/http-request/http-request.handler.ts`
 - `codebase/backend/src/nodes/integration/http-request/http-request.schema.ts`
 - `codebase/backend/src/nodes/integration/http-request/http-safety.ts` (사설망 차단 가드)
-- `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` (리다이렉트 직접 추적)
+- `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` (리다이렉트 직접 추적, 출처가 바뀐 홉의 자격 증명 제거, 리다이렉트 method 규칙)
 - `codebase/backend/src/nodes/integration/http-request/http-credentials.ts` (`auth_type` 별 자격 증명)
 - `codebase/backend/src/nodes/integration/_base/sanitize-response-headers.util.ts` (응답 헤더 가림)
 - `codebase/backend/src/nodes/integration/_base/abort-cascade.util.ts` (노드 취소 신호 연쇄 `linkUpstreamAbort`·`isUpstreamAbort`, Cafe24·MakeShop 과 공용)
@@ -425,3 +456,14 @@ D4 이전에는 `IntegrationError`·`Error` throw 로 노드 실행이 실패하
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
 
 - 요구사항 변경: REQ-HTTP-029 는 «노드 취소 신호로 끝난 호출을 빼고» 에서 «통합을 얻은 뒤의 호출 가운데 노드 취소 신호로 끝난 호출을 빼고» 로 범위를 좁혔다.
+
+### 출처가 바뀐 리다이렉트 홉에는 자격 증명을 싣지 않는다 (2026-11-05)
+
+이전 구현은 리다이렉트 홉마다 첫 요청과 같은 요청 옵션을 다시 썼다. 그래서 통합의 `Authorization`·API 키 헤더와 자격 증명 쿼리가 `Location` 이 가리키는 다른 호스트로도 나갔다. API 호스트에 열린 리다이렉트(open redirect)가 하나만 있어도 통합 자격 증명이 제3자에게 넘어간다. method 도 응답 코드와 관계없이 그대로였다. 303 을 받은 `POST` 가 다음 호스트에 같은 본문을 다시 보냈다. NERV Task `CLE-T-FC2BWA` 가 이 둘을 고쳤다.
+
+- **기준은 Fetch 표준과 curl 이다.** Fetch 는 출처가 바뀐 리다이렉트에서 `Authorization` 을 지운다. curl 은 `--location-trusted` 없이 host 가 바뀌면 `Authorization` 과 `Cookie` 를 보내지 않는다. 출처는 Fetch 처럼 scheme·host·port 로 정한다.
+- **통합 헤더는 이름으로 모두 뺀다.** 통합 자격 증명 헤더는 정의상 자격 증명이다. `default_headers` 도 통합 자격 증명 묶음에 저장되고 사용자 정의 인증 토큰을 담을 수 있어 함께 뺀다. 사용자가 노드에 적은 헤더는 작성자가 의도한 값이라 남긴다. 다만 `Authorization`·`Proxy-Authorization`·`Cookie` 는 출처와 상관없이 자격 증명을 실어 나르는 헤더라 뺀다.
+- **한 번 바뀌면 끝까지 뺀다.** 원래 출처로 돌아올 때 다시 싣는 안은 기각했다. 그러면 다른 출처의 서버가 원래 출처의 경로를 골라 인증된 요청을 보내게 할 수 있다(307 로 `POST` 와 본문을 유지한 채). Fetch 도 한 번 지운 헤더를 다시 붙이지 않는다.
+- **쿼리는 이름과 값이 모두 같을 때만 뺀다.** 이름만 같으면 빼는 안은 기각했다. 대상 서비스가 같은 이름의 다른 값을 쓸 수 있다. 쿼리를 모두 지우는 안도 기각했다. `state` 같은 값을 쿼리로 넘기는 리다이렉트가 깨진다. 막으려는 것은 우리 자격 증명 값이 새는 것이다.
+- **method 규칙은 Fetch 표준을 따른다.** 본문 헤더 목록에 `Content-Length` 를 더한 이유는 Node 의 fetch 가 사용자가 적은 `Content-Length` 를 막지 않기 때문이다. 본문 없는 요청에 남으면 길이가 맞지 않는다.
+- **연결 테스트도 같은 함수를 쓴다.** `base_url` 이 다른 출처로 리다이렉트하면 노드도 자격 증명 없이 그 출처를 부른다. 연결 테스트도 같은 결과(대개 `HTTP_AUTH_FAILED`)를 내야 테스트 통과가 실행 성공을 뜻한다.

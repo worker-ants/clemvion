@@ -617,3 +617,116 @@ describe('wrapped value envelope', () => {
     expect(wrapBareAsNodeHandlerOutput(userObject).output).toBe(userObject);
   });
 });
+
+// Code 가 `null` 을 돌려주거나 값을 돌려주지 않으면 output 이 null · undefined 이고 port 는
+// 'success' 다. 이때 설정 에코를 펼친 객체를 만들면 `data` 키가 없어 `applyPortSelection` 이
+// `_selectedPort` 를 달지 못하고 success · error 포트가 함께 열렸다. 포트 하나를 고른 null ·
+// undefined 출력도 배열 · 원시값과 같은 표지 봉투로 싣는다(NERV Task CLE-T-X3AH4F).
+describe('null · undefined output 의 포트 봉투', () => {
+  const codeConfig = { code: 'return null;', language: 'javascript' };
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+  ])(
+    '%s output 에 포트 하나가 있으면 설정 에코 없이 표지 봉투로 싣는다',
+    (_label, output) => {
+      const flat = toEngineFlatShape({
+        config: codeConfig,
+        output,
+        port: 'success',
+      }) as Record<string, unknown>;
+
+      expect(Object.keys(flat).sort()).toEqual(['data', 'port']);
+      expect(flat.data).toBe(output);
+      expect(flat.port).toBe('success');
+      expect(isWrappedValueEnvelope(flat)).toBe(true);
+      expect(unwrapEngineFlatValue(flat)).toBe(output);
+      expect(wrapBareAsNodeHandlerOutput(flat).output).toBe(output);
+    },
+  );
+
+  // 입력 대기 노드는 output: null 에 대기 선언을 config 로 싣는다. 대기 판정 · 대기 이벤트가
+  // 그 선언을 엔진 값의 최상위에서 읽으므로 설정 에코를 펼친 모양을 그대로 둔다.
+  it('입력 대기 선언(status)은 설정 에코를 펼친 모양을 그대로 둔다', () => {
+    const fields = [{ name: 'email' }];
+    const flat = toEngineFlatShape({
+      config: { fields },
+      output: null,
+      status: 'waiting_for_input',
+    });
+
+    expect(flat).toEqual({ fields, status: 'waiting_for_input' });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  it('포트와 입력 대기 선언이 함께 있어도 설정 에코를 펼친 모양을 그대로 둔다', () => {
+    const flat = toEngineFlatShape({
+      config: { fields: [] },
+      output: null,
+      port: 'submitted',
+      status: 'waiting_for_input',
+    });
+
+    expect(flat).toEqual({
+      fields: [],
+      port: 'submitted',
+      status: 'waiting_for_input',
+    });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  // 재개 상태만 싣고 status 가 없는 출력도 봉투 조건에서 빠진다. 재개 경로가
+  // `_resumeState` 를 엔진 값의 최상위에서 읽기 때문이다.
+  it('재개 상태(_resumeState)만 있고 status 가 없어도 설정 에코를 펼친 모양을 그대로 둔다', () => {
+    const resumeState = { turn: 2 };
+    const flat = toEngineFlatShape({
+      config: { mode: 'multi' },
+      output: null,
+      port: 'success',
+      _resumeState: resumeState,
+    });
+
+    expect(flat).toEqual({
+      mode: 'multi',
+      port: 'success',
+      _resumeState: resumeState,
+    });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  // 봉투 조건은 status 값을 가리지 않는다. 대기가 아닌 status(`ended` 등)도 엔진이 최상위
+  // `status` 를 읽으므로 옛 모양을 그대로 둔다.
+  it("대기가 아닌 status('ended')도 설정 에코를 펼친 모양을 그대로 둔다", () => {
+    const flat = toEngineFlatShape({
+      config: { mode: 'multi' },
+      output: null,
+      port: 'error',
+      status: 'ended',
+    });
+
+    expect(flat).toEqual({ mode: 'multi', port: 'error', status: 'ended' });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  // Parallel 핸들러는 output: null 에 분기 포트 전부를 배열로 싣는다. 완료 출력은 엔진이
+  // 다시 만들고, `PARALLEL_ENGINE=off` 경로는 `_selectedPort` 가 없어 done 포트까지 여는
+  // 지금 동작에 기댄다. 그래서 배열 포트는 봉투로 바꾸지 않는다.
+  it('배열 포트(Parallel 분기 선언)는 설정 에코를 펼친 모양을 그대로 둔다', () => {
+    const flat = toEngineFlatShape({
+      config: { branchCount: 2 },
+      output: null,
+      port: ['branch_0', 'branch_1'],
+    });
+
+    expect(flat).toEqual({ branchCount: 2, port: ['branch_0', 'branch_1'] });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  it('제어 필드도 설정 에코도 없으면 output 을 그대로 돌려준다', () => {
+    expect(toEngineFlatShape({ config: {}, output: null })).toBeNull();
+    expect(
+      toEngineFlatShape({ config: {}, output: undefined }),
+    ).toBeUndefined();
+  });
+});

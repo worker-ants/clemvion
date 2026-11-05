@@ -180,6 +180,10 @@ export function unwrapEngineFlatValue(value: unknown): unknown {
  * `{ data, ...control }` 봉투로 감싸고 표지를 붙인다({@link isWrappedValueEnvelope}).
  * `meta` 는 봉투에 실리지 않으므로 `meta` 만으로는 감싸지 않는다. 예전에는 컨테이너만
  * 그랬고(`ignoreMetaForWrap`) 이제 모든 노드의 규칙이다(NERV Task CLE-T-T30D5S).
+ *
+ * `null` · `undefined` output 은 포트 하나(문자열)만 있고 `status` · `_resumeState` 가
+ * 없을 때 같은 표지 봉투 `{ data, port }` 로 싣는다. 그 밖에는 설정 에코와 제어 필드를
+ * 펼친 옛 모양을 유지한다(입력 대기 선언 · Parallel 배열 포트, NERV Task CLE-T-X3AH4F).
  */
 export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
   const output = adapted.output;
@@ -190,6 +194,19 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
   // to read. Handlers in `waiting_for_input` state typically carry
   // `output: null` with the meaningful declaration in `config`.
   if (output === null || output === undefined) {
+    // 포트 하나만 고르고 대기 선언이 없는 노드(Code 의 `return null` · 반환 없음 등)는
+    // 배열 · 원시값처럼 `data` 봉투에 싣는다. 설정 에코를 펼치면 `data` 가 없어
+    // `applyPortSelection` 이 `_selectedPort` 를 두지 않고, 모든 출력 포트가 열리며
+    // 다음 노드가 설정 에코를 입력으로 받는다(NERV Task CLE-T-X3AH4F).
+    // 입력 대기 노드(`status`)는 설정 선언을 펼친 모양을 읽는 경로가 있어 아래 분기에 남기고,
+    // 배열 포트(Parallel 분기 선언)도 포트 하나를 고르는 출력이 아니라 그대로 둔다.
+    if (
+      typeof adapted.port === 'string' &&
+      adapted.status === undefined &&
+      adapted._resumeState === undefined
+    ) {
+      return markWrappedValueEnvelope({ data: output, port: adapted.port });
+    }
     const hasConfig =
       adapted.config !== null &&
       adapted.config !== undefined &&

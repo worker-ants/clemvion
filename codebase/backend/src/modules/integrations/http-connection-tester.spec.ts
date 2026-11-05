@@ -299,6 +299,49 @@ describe('testHttpConnection', () => {
     expect(init.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
   });
 
+  it('출처가 바뀐 홉에는 노드와 같이 자격 증명 헤더 · 공용 헤더를 싣지 않는다', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        respond(302, { location: 'https://login.example.net/v1' }),
+      )
+      .mockResolvedValueOnce(respond(200));
+
+    await testHttpConnection('bearer_token', {
+      ...bearer,
+      default_headers: { 'X-Tenant': 'acme' },
+    });
+
+    const [first, firstInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(first).toBe('https://api.example.com/v1');
+    expect(firstInit.headers).toMatchObject({
+      Authorization: 'Bearer tok-123',
+      'X-Tenant': 'acme',
+    });
+    const [second, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(second).toBe('https://login.example.net/v1');
+    expect(init.headers).toEqual({});
+  });
+
+  it('출처가 바뀐 홉의 URL 에서 query 자격 증명을 뺀다', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        respond(302, {
+          location: 'https://login.example.net/v1?api_key=k-1&next=%2Fhome',
+        }),
+      )
+      .mockResolvedValueOnce(respond(200));
+
+    await testHttpConnection('api_key', {
+      base_url: 'https://api.example.com/v1',
+      location: 'query',
+      key_name: 'api_key',
+      value: 'k-1',
+    });
+
+    const [second] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(second).toBe('https://login.example.net/v1?next=%2Fhome');
+  });
+
   it('리다이렉트 뒤에서 거부하면 HTTP_AUTH_FAILED 로 잡는다', async () => {
     fetchMock
       .mockResolvedValueOnce(
