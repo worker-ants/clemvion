@@ -1339,6 +1339,23 @@ describe('AuthConfigsService', () => {
         },
       );
 
+      it.each(NON_STRINGS)(
+        'hmac: algorithm 이 %s 면 기본 알고리즘으로 바꾸지 않고 401',
+        async (_l, value) => {
+          const rawBody = Buffer.from('{"a":1}');
+          const sig = `sha256=${crypto.createHmac('sha256', 'whs_x').update(rawBody).digest('hex')}`;
+          await expectRejected(
+            'hmac',
+            {
+              secret: 'whs_x',
+              header: 'X-Hub-Signature-256',
+              algorithm: value,
+            },
+            { headers: { 'x-hub-signature-256': sig }, rawBody },
+          );
+        },
+      );
+
       it('api_key: headerName 키가 없으면 기본 X-API-Key 를 쓴다 (기존 동작)', async () => {
         const ac = await seed('api_key', {});
         ac.config = { key: 'wfk_x' };
