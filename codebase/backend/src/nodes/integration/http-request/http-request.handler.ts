@@ -434,13 +434,19 @@ export class HttpRequestHandler
     // Follow redirects manually so that a redirect to an internal host does
     // not bypass `assertSafeOutboundUrl` — `followRedirectsSafely` honours up to
     // `MAX_REDIRECT_HOPS` and re-validates each target (shared with the
-    // integration connection test).
+    // integration connection test). It also drops the integration credentials
+    // (headers and query) on hops whose origin differs from the first request.
     fetchOptions.redirect = 'manual';
 
     try {
       let res = await fetch(url, fetchOptions);
       if (authentication === 'integration') {
-        const followed = await followRedirectsSafely(res, url, fetchOptions);
+        const followed = await followRedirectsSafely(
+          res,
+          url,
+          fetchOptions,
+          credentials,
+        );
         if (followed.blocked) {
           // spec §4.2/§6 — redirect 대상의 SSRF 차단 · 한도 초과 모두 HTTP_BLOCKED. 원본 host/IP 는
           // 서버 로그에만, 클라이언트엔 일반화(preflight 경로와 대칭).

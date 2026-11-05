@@ -1,3 +1,6 @@
+import type { LookupAddress } from 'node:dns';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import pLimit, { LimitFunction } from 'p-limit';
@@ -264,6 +267,7 @@ export class McpClientService {
   async connect(params: McpConnectParams): Promise<McpSession> {
     const url = this.requireSafeHttpsUrl(params.url);
     const headers = this.buildHeaders(params);
+    await this.requireSafeResolvedHost(url);
 
     return this.limit(() => this.connectInner(url, headers));
   }
@@ -318,10 +322,8 @@ export class McpClientService {
    * Validate URL is well-formed, https-only, and the host is not a known
    * SSRF-sensitive endpoint. Returns the parsed URL for downstream use.
    *
-   * Note: this is a literal-only check (we do NOT resolve DNS to try to
-   * detect a private IP behind a public hostname). Defense in depth against
-   * DNS rebinding belongs at the transport layer or a corporate egress
-   * proxy — out of scope for the first pass but tracked in spec §3.2.
+   * This is the literal check. A hostname that resolves to a private address
+   * is caught right after by {@link requireSafeResolvedHost}.
    */
   private requireSafeHttpsUrl(raw: string): URL {
     let parsed: URL;
@@ -365,6 +367,43 @@ export class McpClientService {
       );
     }
     return parsed;
+  }
+
+  /**
+   * 호스트 이름(IP literal 이 아닌 것)을 연결 직전에 DNS 로 해석해, 나온 주소 가운데 하나라도
+   * {@link isBlockedHost} 에 걸리면 literal 차단과 같은 {@link McpHttpsRequiredError} 를 던진다
+   * (CLE-INT-MCP 「자격 증명과 URL 검증」 3항, NERV Task `CLE-T-RAPNHB`).
+   *
+   * - 오류 메시지에는 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 내부망 정찰에 쓰일 수 있어 서버 로그에만 남긴다.
+   * - `MCP_ALLOW_INSECURE_URL`(`allowInsecureUrl`)이 켜져 있으면 literal 검사처럼 건너뛴다. 통합 노드의
+   *   `ALLOW_PRIVATE_HOST_TARGETS` 는 보지 않는다.
+   * - DNS 해석 실패는 막지 않는다(fail-open). 같은 이름은 SDK 의 fetch 에서도 풀리지 않아 연결 실패로 드러난다.
+   * - 검사와 SDK 의 실제 연결은 각자 해석하므로, 그 사이 DNS 응답이 바뀌는 rebinding 창은 남는다. HTTP Request 노드의
+   *   해석 검사(`assertSafeOutboundHostResolved`)와 같은 한계다.
+   */
+  private async requireSafeResolvedHost(url: URL): Promise<void> {
+    if (this.allowInsecureUrl) return;
+    const host = url.hostname.toLowerCase();
+    // IPv6 literal 은 `[...]` 로 오고 IPv4 literal 은 그대로 온다. 둘 다 literal 검사가 이미 봤다.
+    if (host.startsWith('[') || isIP(host) !== 0) return;
+
+    let addresses: LookupAddress[];
+    try {
+      addresses = await lookup(host, { all: true, verbatim: true });
+    } catch {
+      return;
+    }
+    const blocked = addresses.find((entry) =>
+      this.isBlockedHost(entry.address.toLowerCase()),
+    );
+    if (blocked) {
+      this.logger.warn(
+        `[mcp] SSRF block: host ${host} resolved to ${blocked.address}`,
+      );
+      throw new McpHttpsRequiredError(
+        `MCP server host is blocked by SSRF policy (host=${host})`,
+      );
+    }
   }
 
   /**

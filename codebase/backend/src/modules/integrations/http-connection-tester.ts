@@ -128,10 +128,12 @@ export async function testHttpConnection(
       redirect: 'manual',
       signal: AbortSignal.timeout(HTTP_TEST_TIMEOUT_MS),
     };
+    // 출처가 바뀐 홉에서 자격 증명을 빼는 규칙도 노드와 같다 — 같은 `credentials` 를 넘긴다.
     const followed = await followRedirectsSafely(
       await fetch(url, init),
       url,
       init,
+      resolved.credentials,
     );
     if (followed.blocked) return blocked(followed.reason);
     await discardBody(followed.response);

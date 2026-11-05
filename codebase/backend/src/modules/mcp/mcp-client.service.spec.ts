@@ -1,3 +1,6 @@
+import type { LookupAddress } from 'node:dns';
+import { lookup } from 'node:dns/promises';
+import { Logger } from '@nestjs/common';
 import {
   McpClientService,
   McpHttpsRequiredError,
@@ -58,6 +61,21 @@ jest.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
     }),
 }));
 
+// DNS 는 가짜로 둔다. `connect` 는 IP literal 이 아닌 호스트를 해석해 사설망 주소인지 본다(NERV Task `CLE-T-RAPNHB`).
+// 실물로 두면 `mcp.example.com` 을 쓰는 테스트가 실제 조회를 나가 네트워크 없는 환경에서 flaky 가 된다. 기본값은 공인
+// 주소 하나로 답하고, 해석 결과로 막는 경로는 테스트마다 정한다.
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(),
+}));
+// `lookup(host, { all: true })` 오버로드만 쓴다 — `jest.mocked(lookup)` 은 단일 주소 오버로드로 잡혀 배열을 거부한다.
+const mockedLookup = lookup as unknown as jest.MockedFunction<
+  (
+    hostname: string,
+    options: { all: true; verbatim?: boolean },
+  ) => Promise<LookupAddress[]>
+>;
+const PUBLIC_ADDRESS: LookupAddress = { address: '93.184.216.34', family: 4 };
+
 describe('McpClientService', () => {
   let service: McpClientService;
   // refactor M-6: MCP_ALLOW_INSECURE_URL 은 `mcp.allowInsecureUrl`(boolean) config 로 이전 —
@@ -72,6 +90,8 @@ describe('McpClientService', () => {
   beforeEach(() => {
     mockClientInstances.length = 0;
     mockTransportInstances.length = 0;
+    mockedLookup.mockReset();
+    mockedLookup.mockResolvedValue([PUBLIC_ADDRESS]);
     allowInsecure = false;
     service = new McpClientService(mockConfigService as never);
   });
@@ -232,6 +252,143 @@ describe('McpClientService', () => {
           service.connect({ url: 'file:///etc/passwd', authType: 'none' }),
         ).rejects.toThrow(McpHttpsRequiredError);
       });
+    });
+  });
+
+  // CLE-INT-MCP 「자격 증명과 URL 검증」 3항 — 호스트 이름은 연결 직전에 해석해 나온 주소마다 literal 과 같은 판정을 한다.
+  describe('connect — DNS-resolved address check (CLE-T-RAPNHB)', () => {
+    it.each([
+      ['10.0.0.5', 4],
+      ['127.0.0.1', 4],
+      ['169.254.169.254', 4],
+      ['100.64.1.1', 4],
+      ['192.168.0.10', 4],
+      ['0.0.0.0', 4],
+      ['::1', 6],
+      ['fd00::1', 6],
+      ['fe80::1', 6],
+      ['::ffff:7f00:1', 6],
+      ['::ffff:10.0.0.1', 6],
+      ['64:ff9b::a9fe:a9fe', 6],
+    ])(
+      '호스트 이름이 사설망 주소 %s 로 풀리면 막는다',
+      async (address, family) => {
+        mockedLookup.mockResolvedValue([{ address, family }]);
+
+        await expect(
+          service.connect({
+            url: 'https://mcp.example.com/mcp',
+            authType: 'none',
+          }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+        expect(mockedLookup).toHaveBeenCalledWith('mcp.example.com', {
+          all: true,
+          verbatim: true,
+        });
+        expect(mockTransportInstances).toHaveLength(0);
+      },
+    );
+
+    it('여러 주소 가운데 하나라도 사설망이면 막는다', async () => {
+      mockedLookup.mockResolvedValue([
+        PUBLIC_ADDRESS,
+        { address: '10.1.2.3', family: 4 },
+      ]);
+
+      await expect(
+        service.connect({ url: 'https://mcp.example.com', authType: 'none' }),
+      ).rejects.toThrow(McpHttpsRequiredError);
+      expect(mockTransportInstances).toHaveLength(0);
+    });
+
+    it('오류 메시지에는 호스트 이름만 싣고 해석된 주소는 서버 로그에만 남긴다', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      mockedLookup.mockResolvedValue([{ address: '10.9.8.7', family: 4 }]);
+      try {
+        const err = (await service
+          .connect({ url: 'https://mcp.example.com/mcp', authType: 'none' })
+          .catch((err_: unknown) => err_)) as Error;
+
+        expect(err).toBeInstanceOf(McpHttpsRequiredError);
+        expect(err.message).toContain('mcp.example.com');
+        expect(err.message).not.toContain('10.9.8.7');
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('10.9.8.7'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('공인 주소로만 풀리면 연결한다', async () => {
+      mockedLookup.mockResolvedValue([
+        PUBLIC_ADDRESS,
+        { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+      ]);
+
+      await service.connect({
+        url: 'https://mcp.example.com',
+        authType: 'none',
+      });
+
+      expect(mockedLookup).toHaveBeenCalledTimes(1);
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+
+    it('IP literal 은 해석하지 않는다', async () => {
+      await service.connect({ url: 'https://8.8.8.8/mcp', authType: 'none' });
+      await service.connect({
+        url: 'https://[2001:4860:4860::8888]/mcp',
+        authType: 'none',
+      });
+
+      expect(mockedLookup).not.toHaveBeenCalled();
+      expect(mockTransportInstances).toHaveLength(2);
+    });
+
+    it('DNS 해석이 실패하면 막지 않고 연결을 시도한다(실패는 연결 단계에서 드러난다)', async () => {
+      mockedLookup.mockRejectedValue(
+        Object.assign(new Error('getaddrinfo ENOTFOUND mcp.example.com'), {
+          code: 'ENOTFOUND',
+        }),
+      );
+
+      await service.connect({
+        url: 'https://mcp.example.com',
+        authType: 'none',
+      });
+
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+
+    it('allowInsecureUrl=true 면 해석하지 않는다', async () => {
+      allowInsecure = true;
+      mockedLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+
+      await service.connect({
+        url: 'http://mcp.internal.test/mcp',
+        authType: 'none',
+      });
+
+      expect(mockedLookup).not.toHaveBeenCalled();
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+
+    // 통합 노드의 사설망 허용 플래그는 MCP 에 적용되지 않는다(우회는 MCP_ALLOW_INSECURE_URL 뿐).
+    it('ALLOW_PRIVATE_HOST_TARGETS=true 여도 해석 결과 검사를 건너뛰지 않는다', async () => {
+      const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+      mockedLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+      try {
+        await expect(
+          service.connect({ url: 'https://mcp.example.com', authType: 'none' }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+      } finally {
+        if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
+      }
     });
   });
 
