@@ -6,6 +6,9 @@ import { MCP_ERROR_CODES } from '../../mcp/mcp-error-codes';
  * 리터럴 유니온, `new IntegrationError('…', …)` 처럼 생성자 첫 인자로 넘기는 리터럴이다.
  * `ErrorCode.X` 로 싣는 클래스(`ExecutionTimeLimitError` 등)는 아래 `ErrorCode` 값이 덮는다.
  *
+ * 소스 스캔이 놓치는 형태: 변수로 넘기는 `code`, `ErrorCode.X` 로 싣는 클래스(런타임 케이스로 확인),
+ * 이름이 `Error` 로 끝나지 않는 클래스. 이런 클래스를 더하면 이 목록과 테스트를 손으로 맞춘다.
+ *
  * 새 에러 클래스가 이 목록에 없으면 그 값이 `UNKNOWN_ERROR` 로 바뀐다. 그래서
  * `iteration-error-code.spec.ts` 가 소스의 클래스 `code` 리터럴이 모두 여기 있는지,
  * 여기 있는 값이 아직 소스에 있는지 본다.

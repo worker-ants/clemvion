@@ -14308,6 +14308,39 @@ describe('ExecutionEngineService', () => {
       });
 
       it.each(['skip', 'continue'])(
+        'Map: `_skipped` error.code passes a catalog code and maps AbortError under errorPolicy=%s',
+        async (errorPolicy) => {
+          const { sinkCalls } = await runContainer(
+            'map',
+            { items: [1, 2, 3] },
+            { inputField: 'items', errorPolicy },
+            async (input) => {
+              if (input === 1) {
+                throw Object.assign(new Error('limited'), {
+                  code: 'MAKESHOP_RATE_LIMITED',
+                });
+              }
+              if (input === 2) {
+                const abort = new Error('aborted');
+                abort.name = 'AbortError';
+                throw abort;
+              }
+              return mockOutput({ v: input });
+            },
+          );
+          const payload = sinkCalls[0] as { mapped: unknown[] };
+          expect(payload.mapped[0]).toEqual({
+            _skipped: true,
+            error: { code: 'MAKESHOP_RATE_LIMITED', message: 'limited' },
+          });
+          expect(payload.mapped[1]).toEqual({
+            _skipped: true,
+            error: { code: 'AbortError', message: 'aborted' },
+          });
+        },
+      );
+
+      it.each(['skip', 'continue'])(
         'Map: skippedCount mirrors `_skipped` markers under errorPolicy=%s',
         async (errorPolicy) => {
           const { sinkCalls, meta } = await runContainer(

@@ -121,7 +121,7 @@ Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item
 
 If the array path resolves to something that isn't an array (a number, string, object, `null`, or a missing path), ForEach treats it as an empty array without an error and never runs the body. In that case `$node["ForEach"].meta.fellBackToEmpty` is `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were).
 
-The `code` in `output.skipped[].error` is the error code the failed node raised, unchanged (for example `MCP_TIMEOUT`, `MAKESHOP_RATE_LIMITED`). An item ended by cancellation gets `AbortError`. A plain error with no code gets `UNKNOWN_ERROR`. Error class names such as `Error` are never used, so to match a plain error compare with `error.code == "UNKNOWN_ERROR"`. `error.message` holds the error message. The same rule applies to the `_skipped` items of Map and the `skipped` list of Parallel.
+The `code` in `output.skipped[].error` is an error code listed in the error code catalog, unchanged (for example `MCP_TIMEOUT`, `MAKESHOP_RATE_LIMITED`). An item ended by cancellation gets `AbortError`. A code that is not listed (including system or driver codes such as `ECONNREFUSED` or `ER_DUP_ENTRY`) and a plain error with no code both get `UNKNOWN_ERROR`. Error class names such as `Error` are never used, so to match a plain error compare with `error.code == "UNKNOWN_ERROR"`. `error.message` holds the error message. The same rule applies to the `_skipped` items of Map and the `skipped` list of Parallel.
 
 ### Example
 

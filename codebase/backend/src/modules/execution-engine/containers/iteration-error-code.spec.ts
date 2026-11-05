@@ -6,6 +6,7 @@ import {
   ITERATION_PASSTHROUGH_CODES,
   resolveIterationErrorCode,
 } from './iteration-error-code';
+import { ExecutionTimeLimitError } from '../workflow-errors';
 import { MakeshopRateLimitedError } from '../../../nodes/integration/makeshop/makeshop-api.client';
 import { IntegrationError } from '../../../nodes/integration/_base/integration-handler-base';
 import {
@@ -73,6 +74,13 @@ describe('resolveIterationErrorCode', () => {
     ).toBe(code);
   });
 
+  // 소스 스캔은 `ErrorCode.X` 로 싣는 클래스를 보지 못한다. 실제 인스턴스로 확인한다.
+  it('ErrorCode.X 로 code 를 싣는 클래스(ExecutionTimeLimitError)는 그 code 를 낸다', () => {
+    expect(resolveIterationErrorCode(new ExecutionTimeLimitError(10, 5))).toBe(
+      'EXECUTION_TIME_LIMIT_EXCEEDED',
+    );
+  });
+
   it('IntegrationError 의 code 를 낸다', () => {
     expect(
       resolveIterationErrorCode(
@@ -100,7 +108,8 @@ describe('resolveIterationErrorCode', () => {
 //   1. 이름이 `…Error` 인 클래스의 `code` 필드 초기값 리터럴 (`readonly code = 'X'`, `as const` 포함)
 //   2. 그 클래스의 `code` 필드 · 생성자 인자 타입의 문자열 리터럴 유니온
 //   3. 생성자 첫 인자가 `code` 인 클래스를 `new X('CODE', …)` 로 만드는 리터럴
-// `ErrorCode.X` 처럼 상수로 싣는 값과 변수로 넘기는 값은 보지 않는다(앞의 것은 허용 목록이 `ErrorCode` 를 통째로 담는다).
+// `ErrorCode.X` 처럼 상수로 싣는 값과 변수로 넘기는 값은 보지 않는다(앞의 것은 허용 목록이 `ErrorCode` 를 통째로 담고
+// 위 `resolveIterationErrorCode` 블록의 런타임 케이스가 확인한다). 이름이 `Error` 로 끝나지 않는 클래스도 보지 않는다.
 describe('ERROR_CLASS_CODES 와 소스의 에러 클래스 code 리터럴', () => {
   const SRC_ROOT = path.resolve(__dirname, '../../..');
   const SKIP_SEGMENTS = new Set(['__tests__', '__test-utils__', 'testing']);

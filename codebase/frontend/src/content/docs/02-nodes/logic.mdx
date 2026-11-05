@@ -132,7 +132,7 @@ body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참�
 
 배열 경로가 배열이 아닌 값(숫자 · 문자열 · 객체 · `null` · 없는 경로)으로 풀리면 에러 없이 빈 배열로 보고 body를 한 번도 실행하지 않아요. 이때 `$node["ForEach"].meta.fellBackToEmpty`가 `true`예요. body를 실행한 횟수는 `meta.iterations`, 건너뛴 항목이 있으면 그 수는 `meta.skippedCount`로 확인해요.
 
-`output.skipped[].error`의 `code`는 실패한 노드가 낸 에러 코드를 그대로 담아요(예: `MCP_TIMEOUT`, `MAKESHOP_RATE_LIMITED`). 취소로 끝난 항목은 `AbortError`예요. 코드가 없는 일반 에러는 `UNKNOWN_ERROR`예요. 에러 클래스 이름(`Error` 등)은 들어가지 않으므로 일반 에러를 가려내려면 `error.code == "UNKNOWN_ERROR"`로 비교해요. `error.message`에는 에러 메시지가 담겨요. 같은 규칙이 Map의 `_skipped` 항목과 Parallel의 `skipped`에도 적용돼요.
+`output.skipped[].error`의 `code`에는 에러 코드 카탈로그에 등재된 코드가 그대로 담겨요(예: `MCP_TIMEOUT`, `MAKESHOP_RATE_LIMITED`). 취소로 끝난 항목은 `AbortError`예요. 등재되지 않은 코드(`ECONNREFUSED`, `ER_DUP_ENTRY` 같은 시스템·드라이버 코드 포함)와 코드가 없는 일반 에러는 `UNKNOWN_ERROR`예요. 에러 클래스 이름(`Error` 등)은 들어가지 않으므로 일반 에러를 가려내려면 `error.code == "UNKNOWN_ERROR"`로 비교해요. `error.message`에는 에러 메시지가 담겨요. 같은 규칙이 Map의 `_skipped` 항목과 Parallel의 `skipped`에도 적용돼요.
 
 ### 예시
 
