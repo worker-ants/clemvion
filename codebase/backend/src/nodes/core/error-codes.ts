@@ -118,6 +118,10 @@ export const ErrorCode = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   // INVALID_FIELD: VALIDATION_ERROR 응답 `details[].code` — 개별 field 검증 실패 사유.
   INVALID_FIELD: 'INVALID_FIELD',
+  // UNKNOWN_ERROR: ForEach · Map · Parallel 의 실패 회차 `error.code` 중 백엔드가 싣지 않은
+  // 에러(평범한 Error, Error 가 아닌 값, 런타임 · 드라이버 code). 고르는 규칙은
+  // `modules/execution-engine/containers/iteration-error-code.ts`.
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

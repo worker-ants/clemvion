@@ -60,8 +60,8 @@ describe('ForEachExecutor', () => {
       );
       expect(result.items).toEqual([{ ok: 1 }, null, { ok: 3 }, null]);
       expect(result.skipped).toEqual([
-        { index: 1, error: { code: 'Error', message: 'bad-2' } },
-        { index: 3, error: { code: 'Error', message: 'bad-4' } },
+        { index: 1, error: { code: 'UNKNOWN_ERROR', message: 'bad-2' } },
+        { index: 3, error: { code: 'UNKNOWN_ERROR', message: 'bad-4' } },
       ]);
       expect(result.skippedCount).toBe(2);
     });

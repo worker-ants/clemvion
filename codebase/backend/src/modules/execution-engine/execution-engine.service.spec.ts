@@ -13551,7 +13551,7 @@ describe('ExecutionEngineService', () => {
       expect(sinkPayload.items[1]).toBeNull();
       expect(sinkPayload.items[2]).toEqual({ ok: 3 });
       expect(sinkPayload.skipped).toEqual([
-        { index: 1, error: { code: 'Error', message: 'boom' } },
+        { index: 1, error: { code: 'UNKNOWN_ERROR', message: 'boom' } },
       ]);
       // Phase 2 (C — spec/4-nodes/1-logic/9-foreach.md §5.2): meta.iterations
       // counts every body launch (skip placeholder slots included), so the
@@ -13713,7 +13713,7 @@ describe('ExecutionEngineService', () => {
       expect(sinkPayload.items).toHaveLength(3);
       expect(sinkPayload.items[1]).toBeNull();
       expect(sinkPayload.skipped).toEqual([
-        { index: 1, error: { code: 'Error', message: 'boom' } },
+        { index: 1, error: { code: 'UNKNOWN_ERROR', message: 'boom' } },
       ]);
       // Phase 2 (C): same meta contract as `errorPolicy: 'skip'` — iterations
       // counts every launched body (3) and skippedCount mirrors skipped.length.
@@ -14232,7 +14232,7 @@ describe('ExecutionEngineService', () => {
           const payload = sinkCalls[0] as { mapped: unknown[]; count: number };
           expect(payload.mapped[1]).toEqual({
             _skipped: true,
-            error: { code: 'Error', message: 'boom' },
+            error: { code: 'UNKNOWN_ERROR', message: 'boom' },
           });
           expect(meta).toEqual({
             fellBackToEmpty: false,
@@ -15292,7 +15292,10 @@ describe('ExecutionEngineService', () => {
             branches: [{ ok: true }, null],
             count: 2,
             skipped: [
-              { index: 1, error: { code: 'Error', message: 'notify failed' } },
+              {
+                index: 1,
+                error: { code: 'UNKNOWN_ERROR', message: 'notify failed' },
+              },
             ],
           },
         ]);
@@ -15304,7 +15307,7 @@ describe('ExecutionEngineService', () => {
               skipped: [
                 {
                   index: 1,
-                  error: { code: 'Error', message: 'notify failed' },
+                  error: { code: 'UNKNOWN_ERROR', message: 'notify failed' },
                 },
               ],
             },
@@ -15313,15 +15316,16 @@ describe('ExecutionEngineService', () => {
         );
       });
 
-      it('skipped[].error.code 는 error.name 이고 Error 가 아닌 값을 던지면 UNKNOWN_ERROR 다', async () => {
-        class NotifyError extends Error {
-          override name = 'NotifyError';
+      // CLE-T-REC4X3 — 공용 규칙(`containers/iteration-error-code.ts`). 백엔드가 싣는 code 는 그대로 나간다.
+      it('skipped[].error.code 는 백엔드가 실은 code 이고 Error 가 아닌 값을 던지면 UNKNOWN_ERROR 다', async () => {
+        class LimitedError extends Error {
+          readonly code = 'MAKESHOP_RATE_LIMITED';
         }
         let call = 0;
         registerHandler('ok_node', async () => mockOutput({ ok: true }));
         registerHandler('fail_node', async () => {
           call += 1;
-          if (call === 1) throw new NotifyError('custom');
+          if (call === 1) throw new LimitedError('custom');
           // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentionally exercises the non-Error branch (executor coerces to UNKNOWN_ERROR)
           throw 'plain string failure';
         });
@@ -15351,7 +15355,7 @@ describe('ExecutionEngineService', () => {
         // index 오름차순. error 는 code · message 두 필드만 싣는다(스택 · 원본 객체 없음).
         expect(received.skipped.map((s) => s.index)).toEqual([1, 2]);
         const codes = received.skipped.map((s) => s.error.code).sort();
-        expect(codes).toEqual(['NotifyError', 'UNKNOWN_ERROR']);
+        expect(codes).toEqual(['MAKESHOP_RATE_LIMITED', 'UNKNOWN_ERROR']);
         for (const s of received.skipped) {
           expect(Object.keys(s.error).sort()).toEqual(['code', 'message']);
         }
@@ -15947,7 +15951,7 @@ describe('ExecutionEngineService', () => {
             {
               index: 0,
               error: {
-                code: 'Error',
+                code: 'UNKNOWN_ERROR',
                 message: expect.stringContaining('PARALLEL_INVALID_CHILD'),
               },
             },
@@ -16007,7 +16011,10 @@ describe('ExecutionEngineService', () => {
           branches: [{ ok: true }, null],
           count: 2,
           skipped: [
-            { index: 1, error: { code: 'Error', message: 'notify failed' } },
+            {
+              index: 1,
+              error: { code: 'UNKNOWN_ERROR', message: 'notify failed' },
+            },
           ],
         });
       });

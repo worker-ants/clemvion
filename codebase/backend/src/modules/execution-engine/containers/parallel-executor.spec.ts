@@ -216,21 +216,25 @@ describe('ParallelExecutor', () => {
     expect(result.failures.length).toBe(1);
     expect(result.failures[0].branchIndex).toBe(2);
     expect(result.failures[0].error.message).toBe('branch-2-fail');
-    expect(result.failures[0].code).toBe('Error');
+    expect(result.failures[0].code).toBe('UNKNOWN_ERROR');
     // Other branches still succeeded
     expect(result.settled.filter((s) => s.status === 'fulfilled').length).toBe(
       2,
     );
   });
 
-  // CLE-NODE-PARALLEL v3 — skipped[].error.code 는 error.name, 없으면 UNKNOWN_ERROR.
-  it('errorPolicy=continue: failure code 는 error.name 이고 Error 가 아니거나 name 이 비면 UNKNOWN_ERROR', async () => {
+  // CLE-T-REC4X3 — skipped[].error.code 는 ForEach · Map 과 같은 공용 규칙(`iteration-error-code.ts`)이다.
+  // 백엔드가 싣는 code 는 그대로, AbortError 는 AbortError, 그 밖은 UNKNOWN_ERROR.
+  it('errorPolicy=continue: failure code 는 공용 규칙(백엔드 code · AbortError · UNKNOWN_ERROR)을 따른다', async () => {
     class NotifyError extends Error {
       override name = 'NotifyError';
     }
+    class CodedError extends Error {
+      readonly code = 'MAKESHOP_RATE_LIMITED';
+    }
     const result = await executor.execute(
       {
-        branchCount: 3,
+        branchCount: 5,
         maxConcurrency: 0,
         waitAll: true,
         errorPolicy: 'continue',
@@ -240,6 +244,12 @@ describe('ParallelExecutor', () => {
         if (branchIndex === 0) throw new NotifyError('custom');
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentionally exercises the non-Error branch (executor coerces to UNKNOWN_ERROR)
         if (branchIndex === 1) throw 'plain string';
+        if (branchIndex === 3) throw new CodedError('limited');
+        if (branchIndex === 4) {
+          const aborted = new Error('aborted');
+          aborted.name = 'AbortError';
+          throw aborted;
+        }
         const nameless = new Error('nameless');
         nameless.name = '';
         throw nameless;
@@ -250,9 +260,11 @@ describe('ParallelExecutor', () => {
     expect(
       result.failures.map((f) => [f.branchIndex, f.code, f.error.message]),
     ).toEqual([
-      [0, 'NotifyError', 'custom'],
+      [0, 'UNKNOWN_ERROR', 'custom'],
       [1, 'UNKNOWN_ERROR', 'plain string'],
       [2, 'UNKNOWN_ERROR', 'nameless'],
+      [3, 'MAKESHOP_RATE_LIMITED', 'limited'],
+      [4, 'AbortError', 'aborted'],
     ]);
   });
 
