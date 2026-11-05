@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "56dc343448fe5a3c0cecc383be7c8f4e7120e97e2b5d900e1c0683a800773607"
+content_hash: "842826303405afd9c9746a3ee9aa9ceda881c8d7a1d2f68fd782c8b59a8644f0"
 read_as: "approved_fallback"
 task: "CLE-T-T30D5S"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "b7ee556a38a0316c12418ff4012accb8ef8ae2b561e2cf97fb6831f808f51c3f"
-etag: "sha256-fa4e51950b4b25371e243f20d0f7615ba9bd76994031a95da0a2dd0f5832f99f"
+mirror_sha256: "3c7c88ab705f21141bf64ea83e04f6bbfe45cc6a9d2d7c0d20f2560036e9e5ee"
+etag: "sha256-06622affab8ea0188c2b2537681aba7aa0f85bc09286e416c1623aa635e794bc"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -131,7 +131,9 @@ return {
 
 엔진의 `applyPortSelection(output)` 은 `output.port` 를 읽어 `_selectedPort` 에 기록하고 뒤 노드의 입력은 `output.output` 이 된다. `_selectedPort` 로 연결선을 여는 규칙은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 에 있다.
 
-옛 `{ port, data }` 반환 방식은 없앴다. 이행 기간 호환을 위해 `output.data` 가 있으면 `output.output` 으로 자동 보정한다.
+출력 값이 배열이나 원시값이면 엔진은 `port` · `status` 를 함께 들고 다니려고 엔진 안에서만 `{ data: <출력 값>, _selectedPort, … }` 객체를 만든다. 이 객체는 포트 라우팅과 대기 판정에만 쓴다. 다음 노드의 `$input`(`gatherNodeInput`), `$node["X"].output`, 컨테이너 본문이 `emit` 으로 넘기는 값, Parallel 분기 결과에는 이 객체 대신 핸들러가 `output` 에 둔 값이 간다. 사용자 코드가 돌려준 `{ data: ... }` 객체와 모양이 같으므로 엔진은 자기가 만든 객체에 표지를 붙여 둘을 가른다. 표지는 메모리에만 있어 DB 에서 되살린 값에는 없다. `meta` 만 있을 때는 이 객체를 만들지 않는다. 출력 쪽 규칙은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이고, 이 객체가 아직 새는 경로는 그 문서의 [미결 사항](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)에 있다.
+
+옛 `{ port, data }` 반환 방식은 없앴다. 핸들러 반환값에 `config` 와 `output` 이 없으면 엔진 경계(`adaptHandlerReturn`)가 에러를 낸다. 엔진은 사용자 출력 값 안의 `data` 키를 보정하지도 풀지도 않는다.
 
 ## 핸들러 레지스트리
 
@@ -239,8 +241,8 @@ flowchart TD
 - `codebase/backend/src/nodes/core/node-type-metadata.ts`
 - `codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts`
 - `codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts`
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeNode`, `executeWithRetry`, `applyPortSelection`, Template 입력 펼치기)
-- `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts`
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeNode`, `executeWithRetry`, `applyPortSelection`, `stripControlFields`, Template 입력 펼치기)
+- `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts` (`toEngineFlatShape`, `isWrappedValueEnvelope`)
 
 ## Rationale
 
@@ -274,3 +276,13 @@ flowchart TD
 
 - 시도마다 새 복사본을 만들면 복사본을 키로 둔 값이 시도 사이에 이어지지 않는다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 `rejectedLookups` 가 그런 값이다.
 - 노드 실행을 넘어 복사본을 공유하면 병렬 분기의 노드 실행이 같은 복사본을 쓰게 되어 값이 섞인다.
+
+### 배열 · 원시값 출력의 엔진 내부 객체를 표지로 가른다 (2026-11-05)
+
+[포트 선택](#포트-선택)의 엔진 내부 `{ data }` 객체를 다음 노드에 넘기지 않으려고 고른 방식이다(NERV Task `CLE-T-T30D5S`).
+
+- 엔진은 라우팅(`_selectedPort`)과 대기 판정(`status`)을 값의 최상위 키로 읽는다. 배열 · 원시값에는 키를 달 수 없어 엔진 안에서는 `{ data }` 객체가 필요하다.
+- 모양(`data` 키와 제어 필드)으로 이 객체를 알아보는 안은 기각했다. 사용자가 `{ data: [...] }` 객체를 돌려주고 `port` 가 붙으면 같은 모양이 되어 사용자 객체를 잘못 풀게 된다.
+- 엔진 캐시에 제어 필드를 따로 두어 `{ data }` 객체를 없애는 안은 미뤘다. 라우팅 · 대기 판정 · 재개 · 서브워크플로 경로를 모두 바꿔야 하고, 객체 출력과 분기 노드의 포트 라우팅을 바꾸지 않는다는 작업 경계를 넘는다.
+- 컨테이너 입력에 한해 `meta` 만 있을 때 감싸지 않게 한 앞선 수정(NERV Task `CLE-T-3HJ8MM`)은 일반 노드에 같은 결함을 남겼다. 라우팅은 `meta` 를 읽지 않으므로 모든 노드에서 `meta` 만으로는 감싸지 않게 바꿨다.
+- 표지는 `WeakSet` 이라 값의 모양과 JSON 직렬화를 바꾸지 않는다. 대신 객체를 새로 만들면 표지가 따라가지 않으므로 객체를 새로 만드는 `applyPortSelection` 이 표지를 옮긴다.
