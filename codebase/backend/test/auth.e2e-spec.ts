@@ -397,6 +397,78 @@ describe('Auth flow (e2e)', () => {
     );
   });
 
+  it.each([
+    [true, 30],
+    [false, 7],
+  ])(
+    'J. rememberMe=%s 로그인 세션은 회전해도 로그인 유지 여부를 이어받고 회전 시점부터 %i일 유효하다 (CLE-T-BYCGF1)',
+    async (rememberMe, days) => {
+      const DAY_S = 24 * 60 * 60;
+      const email = uniqueEmail(`auth-j-${days}`);
+      await request(BASE_URL)
+        .post('/api/auth/register')
+        .send({
+          name: 'J User',
+          email,
+          password: TEST_PASSWORD,
+          termsAccepted: true,
+        })
+        .expect(201);
+      await db.query(
+        'UPDATE "user" SET email_verified = true WHERE email = $1',
+        [email],
+      );
+
+      const login = await request(BASE_URL)
+        .post('/api/auth/login')
+        .send({ email, password: TEST_PASSWORD, rememberMe });
+      expect(login.status).toBe(200);
+      let cookie = extractRefreshCookie(
+        login.headers['set-cookie'] as unknown as string[],
+      );
+      expect(cookie).not.toBeNull();
+
+      // 마지막 갱신에서 8일이 지난 것처럼 만든다. 옛 구현은 첫 회전에서 7일로 줄여
+      // rememberMe=true 세션도 여기서 만료됐다.
+      const ageRows = async (): Promise<void> => {
+        await db.query(
+          `UPDATE refresh_token
+              SET created_at = created_at - interval '8 days',
+                  expires_at = expires_at - interval '8 days'
+            WHERE user_id = (SELECT id FROM "user" WHERE email = $1)
+              AND is_revoked = false`,
+          [email],
+        );
+      };
+
+      for (let round = 0; round < 2; round += 1) {
+        if (rememberMe) await ageRows();
+        const res = await request(BASE_URL)
+          .post('/api/auth/refresh')
+          .set('Cookie', cookie!);
+        expect(res.status).toBe(200);
+        const setCookie = (
+          res.headers['set-cookie'] as unknown as string[]
+        ).find((c) => c.startsWith('refreshToken='));
+        expect(setCookie).toMatch(new RegExp(`Max-Age=${days * DAY_S}(;|$)`));
+        cookie = extractRefreshCookie([setCookie!]);
+
+        const live = await db.query<{ remember_me: boolean; ttl_s: number }>(
+          `SELECT remember_me,
+                  EXTRACT(EPOCH FROM (expires_at - now()))::int AS ttl_s
+             FROM refresh_token
+            WHERE user_id = (SELECT id FROM "user" WHERE email = $1)
+              AND is_revoked = false`,
+          [email],
+        );
+        expect(live.rows).toHaveLength(1);
+        expect(live.rows[0].remember_me).toBe(rememberMe);
+        expect(live.rows[0].ttl_s).toBeGreaterThan(days * DAY_S - 120);
+        expect(live.rows[0].ttl_s).toBeLessThanOrEqual(days * DAY_S);
+      }
+    },
+  );
+
   it('G. refresh rotation — 같은 refresh 두 번 사용 시 두 번째 호출은 401', async () => {
     const email = uniqueEmail('auth-g');
     await request(BASE_URL)

@@ -269,9 +269,10 @@ export class AuthController {
       (user, code) => this.totpService.verifyForLogin(user, code),
       authContextFromRequest(req),
     );
+    // challenge 에 실린 로그인 유지 여부로 발급한 토큰 행과 같은 수명을 쓴다(CLE-T-BYCGF1).
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
-      rememberMe: false,
+      rememberMe: result.rememberMe,
     });
     return { data: { accessToken: result.accessToken } };
   }
@@ -460,8 +461,10 @@ export class AuthController {
       token,
       authContextFromRequest(req),
     );
+    // 쿠키 수명은 회전한 토큰 행의 로그인 유지 여부를 따른다(REQ-SESSION-047).
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
+      rememberMe: result.rememberMe,
     });
     return { data: { accessToken: result.accessToken } };
   }

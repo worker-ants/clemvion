@@ -38,6 +38,7 @@ describe('AuthController', () => {
     jest.clearAllMocks();
     authService = {
       refresh: jest.fn(),
+      loginWithTotp: jest.fn(),
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
@@ -92,6 +93,35 @@ describe('AuthController', () => {
     });
   });
 
+  describe('loginTotp', () => {
+    it.each([
+      [true, 30],
+      [false, 7],
+    ])(
+      '쿠키 maxAge 는 발급한 토큰의 rememberMe=%s 를 따라 %i일이다 (CLE-T-BYCGF1)',
+      async (rememberMe, days) => {
+        authService.loginWithTotp.mockResolvedValue({
+          accessToken: 'a',
+          refreshToken: 'r',
+          rememberMe,
+        });
+
+        const result = await controller.loginTotp(
+          { challengeToken: 'c', code: '123456' } as never,
+          {} as never,
+          mockRes as never,
+        );
+
+        expect(result).toEqual({ data: { accessToken: 'a' } });
+        expect(mockRes.cookie).toHaveBeenLastCalledWith(
+          'refreshToken',
+          'r',
+          expect.objectContaining({ maxAge: days * 24 * 60 * 60 * 1000 }),
+        );
+      },
+    );
+  });
+
   describe('refresh', () => {
     it('should throw UnauthorizedException when no cookie token provided', async () => {
       const req = { cookies: {} } as never;
@@ -99,6 +129,29 @@ describe('AuthController', () => {
         UnauthorizedException,
       );
     });
+
+    it.each([
+      [true, 30],
+      [false, 7],
+    ])(
+      '갱신 응답의 쿠키 maxAge 는 회전한 토큰의 rememberMe=%s 를 따라 %i일이다 (CLE-T-BYCGF1)',
+      async (rememberMe, days) => {
+        const req = { cookies: { refreshToken: 'valid-token' } } as never;
+        authService.refresh.mockResolvedValue({
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          rememberMe,
+        });
+
+        await controller.refresh(req, mockRes as never);
+
+        expect(mockRes.cookie).toHaveBeenLastCalledWith(
+          'refreshToken',
+          'new-refresh',
+          expect.objectContaining({ maxAge: days * 24 * 60 * 60 * 1000 }),
+        );
+      },
+    );
 
     it('should throw UnauthorizedException when cookies object is missing', async () => {
       const req = {} as never;
@@ -112,6 +165,7 @@ describe('AuthController', () => {
       authService.refresh.mockResolvedValue({
         accessToken: 'new-access',
         refreshToken: 'new-refresh',
+        rememberMe: false,
       });
 
       const result = await controller.refresh(req, mockRes as never);
@@ -187,6 +241,7 @@ describe('AuthController', () => {
         authService.refresh.mockResolvedValue({
           accessToken: 'a',
           refreshToken: 'r',
+          rememberMe: false,
         });
         const req = {
           cookies: { refreshToken: 'valid-token' },

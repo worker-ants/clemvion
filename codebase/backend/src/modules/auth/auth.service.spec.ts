@@ -899,6 +899,32 @@ describe('AuthService', () => {
       expect(result).toMatchObject({ accessToken: 'mock-access-token' });
     });
 
+    it.each([true, false])(
+      'challenge 의 rememberMe=%s 를 발급한 토큰 행과 반환값에 싣는다 (CLE-T-BYCGF1)',
+      async (rememberMe) => {
+        arrange({ enabled: false, credentials: 0 });
+        (jwtService as unknown as { verify: jest.Mock }).verify = jest
+          .fn()
+          .mockReturnValue({
+            sub: mockUser.id,
+            mfa_challenge: true,
+            method: 'totp',
+            rememberMe,
+          });
+
+        const result = await service.loginWithTotp(
+          'challenge',
+          '123456',
+          verifier,
+        );
+
+        expect(result.rememberMe).toBe(rememberMe);
+        expect(refreshTokenRepo.create).toHaveBeenLastCalledWith(
+          expect.objectContaining({ rememberMe }),
+        );
+      },
+    );
+
     // 켜짐 여부만 보는 판정이면 첫 행이 WEBAUTHN_REQUIRED 로 바뀐다. credential 수만 보는 판정은 위 테스트가 잡는다.
     it.each([
       ['켜짐 · credential 0', true],
@@ -1120,6 +1146,43 @@ describe('AuthService', () => {
       const result = await service.refresh('valid-refresh-token');
       expect(result.accessToken).toBe('mock-access-token');
       expect(refreshTokenRepo.update).toHaveBeenCalled();
+    });
+
+    describe('로그인 유지 여부를 이어받는다 (CLE-T-BYCGF1, REQ-SESSION-047)', () => {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+
+      it.each([
+        [true, 30],
+        [false, 7],
+      ])(
+        'rememberMe=%s 토큰을 회전하면 새 토큰도 같은 값이고 회전 시점부터 %i일 뒤 만료된다',
+        async (rememberMe, days) => {
+          refreshTokenRepo.findOne.mockResolvedValue({
+            id: 'rt-1',
+            userId: mockUser.id,
+            familyId: 'family-1',
+            isRevoked: false,
+            rememberMe,
+            expiresAt: new Date(Date.now() + DAY_MS),
+            user: mockUser,
+          });
+          const before = Date.now();
+
+          const result = await service.refresh('valid-refresh-token');
+
+          expect(result.rememberMe).toBe(rememberMe);
+          const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+            rememberMe: boolean;
+            familyId: string;
+            expiresAt: Date;
+          };
+          expect(created.rememberMe).toBe(rememberMe);
+          expect(created.familyId).toBe('family-1');
+          const lifetime = created.expiresAt.getTime() - before;
+          expect(lifetime).toBeGreaterThanOrEqual(days * DAY_MS);
+          expect(lifetime).toBeLessThan(days * DAY_MS + 60_000);
+        },
+      );
     });
 
     it('rotates revoke + issue inside a single transaction (05 C-1 atomicity)', async () => {

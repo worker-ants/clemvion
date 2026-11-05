@@ -475,7 +475,11 @@ export class AuthService {
     code: string,
     verifier: (user: User, code: string) => Promise<boolean>,
     ctx: AuthContext = {},
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    rememberMe: boolean;
+  }> {
     let payload: { sub: string; mfa_challenge?: boolean; rememberMe?: boolean };
     try {
       payload = this.jwtService.verify(challengeToken);
@@ -523,12 +527,8 @@ export class AuthService {
         message: '인증 코드가 올바르지 않아요.',
       });
     }
-    const tokens = await this.generateTokens(
-      user,
-      !!payload.rememberMe,
-      undefined,
-      ctx,
-    );
+    const rememberMe = !!payload.rememberMe;
+    const tokens = await this.generateTokens(user, rememberMe, undefined, ctx);
     await this.loginHistory.record({
       userId: user.id,
       email: user.email,
@@ -536,7 +536,8 @@ export class AuthService {
       ip: ctx.ip ?? null,
       userAgent: ctx.userAgent ?? null,
     });
-    return tokens;
+    // 컨트롤러가 쿠키 `maxAge` 를 토큰 행 수명과 맞춘다(CLE-T-BYCGF1).
+    return { ...tokens, rememberMe };
   }
 
   /**
@@ -644,6 +645,8 @@ export class AuthService {
   ): Promise<{
     accessToken: string;
     refreshToken: string;
+    /** 새 토큰이 이어받은 로그인 유지 여부. 컨트롤러가 갱신 쿠키 `maxAge` 를 정한다. */
+    rememberMe: boolean;
   }> {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.refreshTokenRepository.findOne({
@@ -728,7 +731,18 @@ export class AuthService {
         });
       }
       // Issue new tokens in same family — INSERT joins this transaction.
-      return this.generateTokens(user, false, stored.familyId, ctx, manager);
+      // 새 토큰은 옛 행의 로그인 유지 여부를 이어받고 수명은 회전 시점부터 다시 센다
+      // (REQ-SESSION-047, CLE-T-BYCGF1). 옛 구현은 늘 false 로 넘겨 30일 세션이 첫 회전에서
+      // 7일로 줄었다.
+      const rememberMe = stored.rememberMe === true;
+      const tokens = await this.generateTokens(
+        user,
+        rememberMe,
+        stored.familyId,
+        ctx,
+        manager,
+      );
+      return { ...tokens, rememberMe };
     });
   }
 
@@ -1169,6 +1183,7 @@ export class AuthService {
       tokenHash,
       familyId: familyId ?? uuidv4(),
       expiresAt,
+      rememberMe,
       ipAddress: ctx.ip ?? null,
       userAgent,
       deviceLabel: userAgent ? deriveDeviceLabel(userAgent) : null,
