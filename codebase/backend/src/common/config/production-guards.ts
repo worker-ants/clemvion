@@ -5,8 +5,10 @@
  * 부팅하려 하면 즉시 throw 해 기동을 거부한다. 기존 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`
  * 인라인 가드(옛 main.ts)를 같은 블록으로 응집하고, 동형 secret(`INTERACTION_JWT_SECRET` 의
  * fail-closed — `InteractionTokenService` 생성자 throw)과 대칭을 맞춘다.
- * SoT: spec/5-system/1-auth.md §Rationale "Production fail-closed 가드",
- * spec/5-system/14-external-interaction-api.md §8.3.
+ * 정본: NERV 스펙 `CLE-ACCT-SESSION` 「운영 환경 가드」(미러 `spec/CLE-ACCT/CLE-ACCT-SESSION.md`) 표가 이
+ * 함수가 검사하는 대상의 전체 목록이다. 검사를 더하거나 빼면 표에도 행을 더하거나 뺀다 —
+ * `production-guards.spec.ts` 가 이 함수가 읽는 환경 변수와 표의 첫 열을 대조한다.
+ * `INTERACTION_JWT_SECRET` 은 `CLE-EIA` 가 정한다.
  *
  * **dev/test/e2e 영향 없음**: 전부 `NODE_ENV !== 'production'` 에서 early-return.
  * (e2e 는 `NODE_ENV=test` — docker-compose.e2e.yml.)
@@ -25,13 +27,20 @@
  */
 
 /**
- * production 에서 거부되는 JWT_SECRET 값 — 코드 기본 sentinel(`jwt.config.ts`) + `.env.example`
- * placeholder. **동기화 의무**: `jwt.config.ts` 의 dev fallback 이나 `.env.example` 의 JWT_SECRET
- * placeholder 를 바꾸면 그 값을 여기에 추가해야 한다(예측 가능 키가 production 부팅을 통과하지 않도록).
+ * production 에서 거부되는 JWT_SECRET 값 — 코드 기본 sentinel(`jwt.config.ts`)과 저장소에 커밋된 예시 값
+ * (`.env.example` · k8s 예시 · 로컬 overlay · e2e compose · 루트 README). 가드는 앞뒤 공백을 뗀 값으로
+ * 이 목록을 조회한다.
+ * **동기화 의무**: `jwt.config.ts` 의 dev fallback 이나 예시 파일의 JWT_SECRET 값을 바꾸면 *옛 값을 지우지
+ * 말고* 새 값을 더한다 — 옛 예시 값으로 운영 중인 배포도 계속 막아야 한다. 예시 파일 목록과 값 대조는
+ * `production-guards.spec.ts` 가 한다.
  */
 export const INSECURE_JWT_SECRETS: ReadonlySet<string> = new Set([
   'dev-jwt-secret', // jwt.config.ts dev fallback
   'change-me-to-a-long-random-jwt-secret', // .env.example placeholder
+  'REPLACE_ME_AT_LEAST_32_BYTES', // k8s/base/secret.example.yaml
+  'local-dev-jwt-secret-change-me-32-bytes-minimum', // k8s/overlays/local/secret.yaml
+  'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7', // docker-compose.e2e.yml
+  '<secret>', // 루트 README.md 예시
 ]);
 
 /**
@@ -140,15 +149,17 @@ export function assertProductionConfig(
 
   // 04 C-1 — JWT_SECRET 미설정/기본 sentinel/예시값이면 기본 secret 으로 서명된
   // 토큰 위조(인증 우회)가 가능하므로 부팅 거부. INTERACTION_JWT_SECRET 의 fail-closed 와 동형.
-  const jwtSecret = env.JWT_SECRET;
+  // 앞뒤 공백을 뗀 값으로 검사한다(CLE-T-HD6SJ4) — Secret · `.env` 로 옮기다 붙은 개행이 예시 값 대조와
+  // 길이 하한을 빠져나가지 않게 한다. 뗀 값은 검사에만 쓰고 서명에 쓰는 값(`jwt.config.ts`)은 그대로다.
+  const jwtSecret = env.JWT_SECRET?.trim();
   if (!jwtSecret || INSECURE_JWT_SECRETS.has(jwtSecret)) {
     fail(
-      'JWT_SECRET 가 미설정이거나 예시/기본값입니다 — 운영용 무작위 secret 을 설정하세요 ' +
+      'JWT_SECRET 가 미설정이거나 공백뿐이거나 예시/기본값입니다 — 운영용 무작위 secret 을 설정하세요 ' +
         '(기본값 서명은 인증 우회 위험).',
     );
   } else if (jwtSecret.length < MIN_JWT_SECRET_LENGTH) {
     fail(
-      `JWT_SECRET 가 너무 짧습니다(${jwtSecret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
+      `JWT_SECRET 가 너무 짧습니다(앞뒤 공백을 뺀 길이 ${jwtSecret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
         '약한 secret 은 무차별 대입에 취약합니다. `openssl rand -hex 32` 등으로 충분히 긴 ' +
         '무작위 값을 설정하세요(CWE-521).',
     );
@@ -195,6 +206,17 @@ export function assertProductionConfig(
     fail(
       'MCP_ALLOW_INSECURE_URL=true 는 NODE_ENV=production 에서 허용되지 않습니다 ' +
         '(SSRF 방어 우회).',
+    );
+  }
+
+  // CLE-T-VSAXG6 — ALLOW_HTTP_HOOKS 는 알림 웹훅 URL 에 http:// 를 허용하는 개발용 플래그다. 운영에서
+  // 켜지면 서명한 알림 본문과 `X-Clemvion-*` 헤더가 평문으로 나간다. 운영에서 켤 정당한 용도가 없어
+  // warn 이 아니라 throw 한다. 기능은 `'1'` 일 때만 켜지지만(`ssrf-safe-url.util.ts`) 다른 플래그와 같은
+  // `isFlagOn` 으로 `'true'` 도 막는다 — 가드가 막는 값이 켜지는 값을 모두 담으면 된다.
+  if (isFlagOn(env.ALLOW_HTTP_HOOKS)) {
+    fail(
+      'ALLOW_HTTP_HOOKS 는 NODE_ENV=production 에서 켤 수 없습니다 ' +
+        '(알림 웹훅이 평문 http 로 나감).',
     );
   }
 }

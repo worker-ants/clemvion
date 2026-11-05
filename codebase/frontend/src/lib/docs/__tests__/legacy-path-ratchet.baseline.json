@@ -83,7 +83,6 @@
     "codebase/backend/src/common/config/app.config.ts": 1,
     "codebase/backend/src/common/config/interaction.config.ts": 1,
     "codebase/backend/src/common/config/llm.config.ts": 1,
-    "codebase/backend/src/common/config/production-guards.ts": 2,
     "codebase/backend/src/common/config/s3.config.ts": 1,
     "codebase/backend/src/common/config/webauthn.config.ts": 1,
     "codebase/backend/src/common/constants/throttle.ts": 1,
