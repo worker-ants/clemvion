@@ -6,14 +6,20 @@
 
 import { useMemo, useState } from "react";
 import {
+  cellText,
   classifyPresentation,
   toCarousel,
   toChart,
   toTable,
   toTemplate,
-  type ChartData,
   type PresentationButton,
 } from "@/lib/presentation";
+import {
+  numericPoints,
+  toCartesianModel,
+  valueRange,
+  type CartesianModel,
+} from "@/lib/chart-model";
 import { renderTemplateHtml } from "@/lib/safe-html";
 import { useTranslation } from "@/lib/i18n";
 
@@ -173,12 +179,6 @@ function CarouselView({ payload, onButton }: PresentationProps) {
   );
 }
 
-function cellText(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
-}
-
 function TableView({ payload, onButton }: PresentationProps) {
   const t = useTranslation();
   const { columns, rows, buttons, truncated, totalCount } = toTable(payload);
@@ -216,77 +216,6 @@ function TableView({ payload, onButton }: PresentationProps) {
       <ButtonBar buttons={buttons} onButton={onButton} />
     </div>
   );
-}
-
-function numericValue(y: ChartData["points"][number]["y"]): number {
-  return typeof y === "number" ? y : Number(y) || 0;
-}
-
-function numericPoints(data: ChartData["points"]): Array<{ label: string; value: number }> {
-  return data.map((d) => ({ label: cellText(d.x), value: numericValue(d.y) }));
-}
-
-interface CartesianEntry {
-  /** labels 안의 X 순번. */
-  xi: number;
-  v: number;
-}
-
-interface CartesianSeries {
-  /** 시리즈 이름. 단일 시리즈면 빈 문자열이고 범례를 그리지 않는다. */
-  name: string;
-  /** 값이 있는 X 만 xi 오름차순으로 담는다. 포인트가 없는 X 는 항목이 없다(O(포인트 수)). */
-  entries: CartesianEntry[];
-}
-
-interface CartesianModel {
-  labels: string[];
-  series: CartesianSeries[];
-  /** 포인트에 series 가 하나라도 있으면 true(범례를 그린다). */
-  multi: boolean;
-}
-
-/**
- * bar · line · area 의 X 카테고리와 시리즈(CLE-NODE-CHART 「시리즈와 색」). series 가 하나도
- * 없으면 포인트마다 카테고리 하나인 단일 시리즈다. series 가 있으면 X 와 시리즈를 처음 나온
- * 순서로 모으고, 같은 (series, X) 는 마지막 값을 쓴다. 시리즈 이름은 키로 쓰지 않고 순번으로 둔다.
- */
-function toCartesianModel(data: ChartData["points"]): CartesianModel {
-  if (!data.some((d) => d.series !== undefined)) {
-    return {
-      labels: data.map((d) => cellText(d.x)),
-      series: [{ name: "", entries: data.map((d, xi) => ({ xi, v: numericValue(d.y) })) }],
-      multi: false,
-    };
-  }
-  const labels: string[] = [];
-  const xIndex = new Map<unknown, number>();
-  const named: Array<{ name: string; byX: Map<number, number> }> = [];
-  const seriesIndex = new Map<string, number>();
-  for (const d of data) {
-    let xi = xIndex.get(d.x);
-    if (xi === undefined) {
-      xi = labels.length;
-      xIndex.set(d.x, xi);
-      labels.push(cellText(d.x));
-    }
-    const name = d.series ?? "";
-    let si = seriesIndex.get(name);
-    if (si === undefined) {
-      si = named.length;
-      seriesIndex.set(name, si);
-      named.push({ name, byX: new Map() });
-    }
-    named[si].byX.set(xi, numericValue(d.y));
-  }
-  return {
-    labels,
-    series: named.map(({ name, byX }) => ({
-      name,
-      entries: Array.from(byX, ([xi, v]) => ({ xi, v })).sort((a, b) => a.xi - b.xi),
-    })),
-    multi: true,
-  };
 }
 
 /** 위젯 전용 기본 팔레트. 위젯 브랜드 색에서 시작하며 에디터의 EDITOR_DEFAULT_CHART_COLORS 와 별개다. */
@@ -339,19 +268,6 @@ interface CartesianSeriesStyle {
   colorOf: (si: number) => string;
   /** si 번째 시리즈의 xi 번째 X 값 v 에 붙일 툴팁 문구. */
   tip: (si: number, xi: number, v: number) => string;
-}
-
-/** 값이 있는 항목의 최솟값 · 최댓값. 0 과 1 을 늘 포함한다. */
-function valueRange(series: CartesianSeries[]): { min: number; max: number } {
-  let min = 0;
-  let max = 1;
-  for (const s of series) {
-    for (const { v } of s.entries) {
-      if (v > max) max = v;
-      if (v < min) min = v;
-    }
-  }
-  return { min, max };
 }
 
 /** line · area — 시리즈마다 선(area 면 채움 포함)과 점을 그린다. 빠진 X 는 건너뛰어 있는 점만 잇는다. */

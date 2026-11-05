@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "cebddf1dfe03bfcca8c2ce85d0ffd814228fdc9c244aa41ec8cd4c241a124781"
+content_hash: "19be0646f5e16cdef5e9345d0ed3b53b29b5224474b793388ca1cabf8c1a7310"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-HD6SJ4"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "d161931518684513642ded9088f008017b290a5bb354d1d7277163360aeecad8"
-etag: "sha256-21c7687a8329ab131ce9257a71a1a4afcda4f9a6327055fcfac59944e451c621"
+mirror_sha256: "496ed2efb59b7f487efbc8293699e0fdea71f94987e3f1fc3377cd2fd07e4e78"
+etag: "sha256-4424d0fadcdcc4f25144fbed6de7eadf78b513b92f340ed218ba04def3f04550"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ etag: "sha256-21c7687a8329ab131ce9257a71a1a4afcda4f9a6327055fcfac59944e451c621"
 - REQ-SESSION-003 WHEN 로그인 유지를 켜고 로그인하면 THE SYSTEM SHALL 리프레시 토큰을 30일 동안 유효하게 하고, 끄면 7일 동안 유효하게 한다. (부분 구현, [미결 사항](#미결-사항))
 - REQ-SESSION-004 WHEN 액세스 토큰을 서명하면 THE SYSTEM SHALL 현재 워크스페이스를 `activeWorkspaceId` 클레임으로만 발행한다.
 - REQ-SESSION-005 WHEN 액세스 토큰을 읽으면 THE SYSTEM SHALL `activeWorkspaceId ?? workspaceId` 로 옛 클레임 이름의 토큰도 받는다.
-- REQ-SESSION-006 IF `NODE_ENV=production` 에서 `JWT_SECRET` 이 없거나 기본 sentinel·예시값이거나 32자 미만이면 THE SYSTEM SHALL 부팅을 거부한다.
+- REQ-SESSION-006 IF `NODE_ENV=production` 에서 `JWT_SECRET` 이 없거나 공백뿐이거나 기본 sentinel·예시값이거나 앞뒤 공백을 뗀 길이가 32자 미만이면 THE SYSTEM SHALL 부팅을 거부한다.
 - REQ-SESSION-007 WHEN 클라이언트가 API 에서 401 을 받아 액세스 토큰 만료를 감지하면 THE SYSTEM SHALL `POST /api/auth/refresh` 로 새 토큰을 받는다.
 - REQ-SESSION-008 WHEN 리프레시 토큰으로 갱신을 요청받으면 THE SYSTEM SHALL 새 액세스 토큰과 같은 로그인 세션의 새 리프레시 토큰을 주고 옛 리프레시 토큰을 바로 무효화한다.
 - REQ-SESSION-009 IF 이미 무효화된 리프레시 토큰이 다시 쓰이면 THE SYSTEM SHALL 그 로그인 세션 전체를 무효화하고 로그인 이력에 `token_reuse_detected` 를 남긴 뒤 401 `TOKEN_INVALID` 로 거부한다.
@@ -343,18 +343,21 @@ sequenceDiagram
 
 `NODE_ENV=production` 에서 아래 설정 가운데 하나라도 안전하지 않으면 서버가 기동하지 않는다. `main.ts` 가 bootstrap 첫 단계에서 `assertProductionConfig`(`common/config/production-guards.ts`)를 부른다. 이 함수는 첫 위반에서 바로 예외를 던진다. 그래서 여러 설정이 함께 걸려도 메시지에는 코드가 먼저 검사한 하나만 나온다. 아래 표의 행 순서는 검사 순서가 아니다. 예외 메시지는 `production fail-closed 가드:` 로 시작한다. 개발·테스트·e2e(`NODE_ENV≠production`)에서는 검사하지 않는다.
 
-이 절이 `assertProductionConfig` 가 검사하는 대상의 전체 목록이다. 다른 문서는 목록을 옮겨 적지 않고 이 절을 링크한다.
+이 절이 `assertProductionConfig` 가 검사하는 대상의 전체 목록이다. 다른 문서는 목록을 옮겨 적지 않고 이 절을 링크한다. 검사를 더하거나 빼면 아래 표에도 행을 더하거나 뺀다. 단위 테스트 `production-guards.spec.ts` 가 `assertProductionConfig` 가 읽는 환경 변수와 표의 첫 열을 대조한다.
 
 | 설정 | 기동을 막는 값 | 막는 위험 |
 | --- | --- | --- |
-| `JWT_SECRET` | 없음, 기본 sentinel(`dev-jwt-secret`), `.env.example` 의 placeholder, 32자 미만 | 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 우회한다(CWE-521 약한 비밀) |
+| `JWT_SECRET` | 없음, 공백뿐인 값, 기본 sentinel(`dev-jwt-secret`), 저장소에 커밋된 예시 값, 앞뒤 공백을 뗀 길이가 32자 미만 | 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 우회한다(CWE-521 약한 비밀) |
 | `ENCRYPTION_KEY`(마스터키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 시크릿 저장소 값과 모델 설정의 API 키가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
 | `INTEGRATION_ENCRYPTION_KEY`(통합 암호화 키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 통합 자격 증명과 인증 설정이 평문으로 저장된다. 대상 컬럼은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 표에 있다 |
 | `MCP_ALLOW_INSECURE_URL` | 켜짐 | MCP 클라이언트의 SSRF 방어(https 만 허용, 호스트 차단 목록)를 통째로 우회한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) |
 | `OAUTH_STUB_MODE` | 켜짐 | 실제 OAuth 제공자 검증을 건너뛰어 소셜 로그인 인증이 무력해진다 |
 | `LLM_STUB_MODE` | 켜짐 | 실제 LLM 호출 대신 스텁 응답을 돌려준다([LLM 클라이언트 「LLM 스텁 모드」](../CLE-AI/CLE-AI-LLM.md#llm-스텁-모드)) |
+| `ALLOW_HTTP_HOOKS` | 켜짐 | 알림 웹훅 URL 에 `http://` 를 허용한다. 그러면 서명한 알림 본문과 `X-Clemvion-*` 헤더가 평문으로 나간다([EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지)) |
 
-이 가드는 플래그 값이 정확히 `true` 또는 `1` 이면 켜진 것으로 보고 기동을 막는다(`isFlagOn`). `TRUE` · `yes` · `on` · 빈 문자열은 꺼진 것으로 본다. 기능을 실제로 켜는 판정은 설정마다 따로 한다. `OAUTH_STUB_MODE` · `LLM_STUB_MODE` 는 `true` 일 때만, `MCP_ALLOW_INSECURE_URL` 은 `true` 나 `1` 일 때 켜진다. 가드가 막는 값이 켜지는 값을 모두 담으므로 운영 환경에서 이 기능이 켜진 채 기동하는 일은 없다. `JWT_SECRET` 은 앞뒤 공백을 떼지 않은 값 그대로 대조하고 길이를 잰다.
+이 가드는 플래그 값이 정확히 `true` 또는 `1` 이면 켜진 것으로 보고 기동을 막는다(`isFlagOn`). `TRUE` · `yes` · `on` · 빈 문자열은 꺼진 것으로 본다. 기능을 실제로 켜는 판정은 설정마다 따로 한다. `OAUTH_STUB_MODE` · `LLM_STUB_MODE` 는 `true` 일 때만, `MCP_ALLOW_INSECURE_URL` 은 `true` 나 `1` 일 때, `ALLOW_HTTP_HOOKS` 는 `1` 일 때만 켜진다. 가드가 막는 값이 켜지는 값을 모두 담으므로 운영 환경에서 이 기능이 켜진 채 기동하는 일은 없다. 단위 테스트가 설정마다 기능을 켜는 판정과 가드를 대조해 이 관계를 확인한다.
+
+`JWT_SECRET` 은 앞뒤 공백을 뗀 값으로 검사한다. 뗀 값이 비었으면 공백뿐인 값으로 보고 막는다. 예시 값 대조와 길이 하한도 뗀 값에 적용한다. 뗀 값은 검사에만 쓰고 토큰 서명에 쓰는 값은 바꾸지 않는다. 예시 값 목록의 정본은 `production-guards.ts` 의 `INSECURE_JWT_SECRETS` 다. 코드의 기본 sentinel 과 저장소에 커밋된 예시 값(`.env.example`, 배포 예시 Secret, 로컬 · e2e 설정, README)을 담는다. 이 문서에는 예시 값을 옮기지 않는다. 단위 테스트가 저장소의 예시 파일 값과 이 목록을 대조한다.
 
 ### 암호화 키 검사
 
@@ -384,7 +387,6 @@ sequenceDiagram
 - **로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는다**: 로그인 유지를 켜고 로그인하면 첫 리프레시 토큰과 쿠키는 30일이다. 그런데 갱신(`AuthService.refresh`)은 새 토큰을 `generateTokens(user, false, …)` 로 발급해 수명이 7일이다. 갱신 응답의 쿠키도 `setRefreshTokenCookie` 기본값인 7일이다. `refresh_token` 행에 로그인 유지 여부를 담는 칸이 없어 회전할 때 이어받을 수 없다. 액세스 토큰이 15분이라 첫 갱신은 곧 일어나므로 로그인 유지를 켜도 실제로는 마지막 사용 뒤 7일짜리 세션이 된다. 회전할 때 로그인 유지 여부를 이어받게 할지, 지금 동작을 규칙으로 받아들이고 REQ-SESSION-003 을 고칠지 결정 필요.
 - **`/auth/` 아래 다른 JWT 라우트는 401 에서 갱신하지 않는다**: 클라이언트의 갱신 제외 규칙은 `/auth/sessions` 만 예외로 둔다. 2단계 인증 설정·켜기·끄기(`/auth/2fa/setup`·`/auth/2fa/verify`·`/auth/2fa/disable`), Passkey 등록 · 관리(`/auth/2fa/webauthn/*` 의 JWT 라우트), 워크스페이스 전환(`/auth/workspaces/:id/switch`)도 Bearer 액세스 토큰이 필요한 라우트다. 이 라우트들은 액세스 토큰이 만료된 뒤 첫 호출이 갱신 없이 401 로 끝난다. 제외 조건을 갱신이 필요 없는 라우트의 명시 목록(`/auth/login`, `/auth/login/totp`, `/auth/refresh` 등)으로 좁힐지 결정 필요.
 - **전체 화면 오류의 세션 만료 변형은 쿼리를 담지 않는다**: 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 `/login?redirect=<현재 경로>` 에 경로만 담는다. 쿼리가 화면을 정하는 경로(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아온다. [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 REQ-ERRPAGE-004 · 005 는 로그인 뒤 원래 URL 로 돌아온다고 적는다. 두 문서와 구현을 맞추는 일은 `CLE-T-2NQ857` 이 맡는다.
-- **공백뿐인 `JWT_SECRET` 은 막지 않는다**: 운영 환경 가드는 `JWT_SECRET` 을 앞뒤 공백을 떼지 않고 대조하고 길이를 잰다. 그래서 공백만으로 된 32자 이상 값이면 기동한다. 두 암호화 키처럼 공백뿐인 값을 막을지 결정 필요. 코드를 바꾸는 일이라 문서만 정리한 `CLE-T-NAT45Z` 에서는 다루지 않았다.
 
 ## 구현 위치
 
@@ -394,8 +396,8 @@ sequenceDiagram
 - `codebase/backend/src/modules/auth/utils/refresh-cookie.ts` (리프레시 쿠키 설정·삭제, Path 상수 `REFRESH_COOKIE_PATH`)
 - `codebase/backend/src/modules/auth/utils/client-ip.ts` (`extractClientIp`)
 - `codebase/backend/src/common/config/app.config.ts` (`computeCookieDomain`)
-- `codebase/backend/src/common/config/production-guards.ts` (`assertProductionConfig`, 플래그 판정 `isFlagOn`, 암호화 키 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` · `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
-- `codebase/backend/src/common/config/production-guards.spec.ts` (가드 분기와 저장소 예시 파일 값 대조)
+- `codebase/backend/src/common/config/production-guards.ts` (`assertProductionConfig`, 플래그 판정 `isFlagOn`, `JWT_SECRET` 예시 값 목록 `INSECURE_JWT_SECRETS`, 암호화 키 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` · `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
+- `codebase/backend/src/common/config/production-guards.spec.ts` (가드 분기, 저장소 예시 파일 값 대조, 설정마다 기능을 켜는 판정과 가드의 대조, 이 문서 「운영 환경 가드」 표와 검사 대상의 대조)
 - `codebase/backend/src/main.ts` (가드를 부르는 곳, 경고만 남기는 완화 플래그 판정)
 - `codebase/backend/src/common/guards/*.ts` (`JwtAuthGuard`)
 - `codebase/backend/test/session-revocation.e2e-spec.ts`, `codebase/backend/test/helpers/auth.ts` (쿠키를 Path 가 맞는 요청에만 붙이는 세션 e2e)
@@ -474,7 +476,7 @@ OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-passwor
 
 `NODE_ENV=production` 의 부팅 거부 검사를 `assertProductionConfig` 한 함수에 모았다. 같은 성격의 비밀·stub(`INTERACTION_JWT_SECRET`, `OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었다. 위치(`main.ts` 부팅)와 패턴도 같았다. 한 함수로 모으면 비밀을 더할 때 빠뜨리는 일을 구조로 막는다. 환경 변수만으로 부팅 직전에 판정할 수 있는 절대 금지 항목만 넣는다. DI 나 요청 컨텍스트가 필요한 항목(예: `INTERACTION_JWT_SECRET` 생성자 throw)과 정당한 용도가 있는 항목(예: throw 가 아니라 warn 인 `ALLOW_PRIVATE_HOST_TARGETS`)은 일부러 뺐다. 설정이 없으면 기동을 거부하는 쪽이 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다. 무엇을 막는지는 본문 [운영 환경 가드](#운영-환경-가드) 절에 있다.
 
-`JWT_SECRET` 에는 32자 길이 하한을 두고 두 암호화 키에는 두지 않는다. `JWT_SECRET` 은 서명 키라 짧으면 무차별 대입에 약하다. 두 암호화 키는 이미 그 키로 암호화한 값이 있으면 키를 바꾸는 순간 그 값을 복호화하지 못한다. 그래서 짧아도 비밀인 키는 막지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 공백뿐인 값과 앞뒤 공백이 붙은 예시 값까지 막는 이유는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 에 있다. `JWT_SECRET` 은 앞뒤 공백을 떼지 않고 대조한다. 두 암호화 키의 공백 처리는 R5 가 정했고 `JWT_SECRET` 에는 같은 결정이 없었다. 그래서 공백만으로 된 32자 이상 값은 통과한다. 이 값을 막을지는 [미결 사항](#미결-사항) 에 있다.
+`JWT_SECRET` 에는 32자 길이 하한을 두고 두 암호화 키에는 두지 않는다. `JWT_SECRET` 은 서명 키라 짧으면 무차별 대입에 약하다. 두 암호화 키는 이미 그 키로 암호화한 값이 있으면 키를 바꾸는 순간 그 값을 복호화하지 못한다. 그래서 짧아도 비밀인 키는 막지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 공백뿐인 값과 앞뒤 공백이 붙은 예시 값까지 막는 이유는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 에 있다. `JWT_SECRET` 은 처음에 앞뒤 공백을 떼지 않고 대조했다. 두 암호화 키의 공백 처리는 R5 가 정했고 `JWT_SECRET` 에는 같은 결정이 없었다. 2026-11-05 에 두 암호화 키처럼 뗀 값으로 검사하도록 바꿨다(아래 「`JWT_SECRET` 을 앞뒤 공백을 뗀 값으로 검사하고 알림 웹훅 http 허용 플래그를 가드에 더했다」).
 
 `INTEGRATION_ENCRYPTION_KEY` 항목은 2026-10-31 NERV Task `CLE-T-KQ37NJ` 에서 더했다. `CLE-T-2V7SBC` 의 후속이다. `assertProductionConfig` 는 이 키를 이미 검사했는데 그때 목록에는 빠져 있었다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 에는 부팅 가드 전체 목록이 그 절에 있다고 적혀 있다. 이 항목을 더해 목록이 `assertProductionConfig` 의 여섯 항목과 같아졌고 다시 전체 목록이 됐다. 범위 문장도 «인증 계열의 공통 부팅 가드» 에서 «`assertProductionConfig` 의 공통 부팅 가드» 로 바꿨다. 목록에는 원래 `MCP_ALLOW_INSECURE_URL` · `LLM_STUB_MODE` 같은 인증 밖 항목이 있어 «인증 계열» 이 사실과 맞지 않았다. 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장되므로 운영 환경에서는 부팅을 거부한다. 결정 배경은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. 이때 목록은 Rationale 「운영 환경 가드」 절에 있었다. 2026-10-31 NERV Task `CLE-T-NAT45Z` 가 본문 「운영 환경 가드」 절로 옮겼다(아래 「운영 환경 가드 목록을 본문으로 옮기고 암호화 키 검사 규칙을 한 곳에 모았다」).
 
@@ -489,6 +491,17 @@ NERV Task `CLE-T-NAT45Z` 의 변경이다. `CLE-T-KQ37NJ` 리뷰의 지적(findi
 - 날짜가 붙은 결정 기록(시크릿 저장소 R13 의 결정 목록, R5 의 2026-10-10 확장 단락 등)은 그때의 사실이라 문장을 그대로 두었다. 지금의 규칙을 말하는 문장만 링크로 바꿨다.
 - 같은 묶음에서 두 군데를 코드와 용어 사전에 맞췄다. 옛 목록은 플래그 셋을 «true 면 throw» 라고 적었지만 코드(`isFlagOn`)는 `true` 와 `1` 을 모두 켜짐으로 본다. 마스터키가 암호화하는 대상의 «LLM 프로바이더 API 키» 는 용어 사전의 «모델 설정의 API 키» 로 바꿨다.
 - 요구사항 줄은 더하지 않았다. 이번 변경은 문서 위치와 사본을 정리한 것이고 가드 동작은 그대로다. 요구사항 줄이 있는 항목은 `JWT_SECRET`(REQ-SESSION-006)뿐이다. 두 암호화 키와 세 플래그의 부팅 거부는 본문 [운영 환경 가드](#운영-환경-가드) 절이 정한다. 이 항목들을 요구사항 줄로 올리는 일은 새 요구 번호를 받아 따로 다룬다.
+
+### `JWT_SECRET` 을 앞뒤 공백을 뗀 값으로 검사하고 알림 웹훅 http 허용 플래그를 가드에 더했다 (2026-11-05)
+
+NERV Task `CLE-T-HD6SJ4` · `CLE-T-VSAXG6` 의 변경이다.
+
+- **`JWT_SECRET` 의 앞뒤 공백**: 예전 가드는 원래 값만 목록과 대조하고 길이를 쟀다. 그래서 공개 placeholder 뒤에 개행이 붙은 값(38자)이 운영 부팅을 통과했다. Kubernetes Secret 이나 `.env` 로 값을 옮기다 보면 개행이 붙기 쉽다. 공백만으로 된 32자 이상 값도 통과했다. 두 암호화 키는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 의 결정대로 이미 뗀 값으로도 대조했다. 같은 함수 안에서 키마다 공백 처리를 달리할 이유가 없어 `JWT_SECRET` 도 같은 방식으로 바꿨다. NERV Task `CLE-T-NAT45Z` 코드 리뷰의 지적(finding `01a19241-0a81-7615-896f-c2e16d71b5fc`)에서 나왔다.
+- **길이 하한도 뗀 값으로 잰다**: 앞뒤 공백은 비밀을 강하게 만들지 않는다. 31자 비밀 뒤에 개행을 붙여 32자를 채운 값은 31자 비밀과 같다. 그래서 운영 중인 배포라도 뗀 길이가 32자 미만이면 이제 부팅이 막힌다. 그 배포는 서명 키를 새로 만들어야 하고, 키를 바꾸면 이미 발급한 토큰이 무효가 되어 사용자가 다시 로그인한다.
+- **서명에 쓰는 값은 바꾸지 않는다**: `jwt.config.ts` 에서 값을 다듬어 서명에도 뗀 값을 쓰는 안을 견줬다. 그러면 앞뒤 공백이 붙은 키로 운영 중인 배포는 이 변경과 함께 서명 키가 바뀌어 발급한 토큰이 모두 무효가 된다. 가드의 목적은 약한 키로 기동하지 않게 하는 것이라 서명 동작은 그대로 두었다.
+- **커밋된 예시 값**: 로컬 overlay 와 e2e compose 의 `JWT_SECRET` 은 32자를 넘고 목록에 없어 운영 부팅을 통과했다. 두 암호화 키처럼 저장소에 커밋된 예시 값을 모두 목록에 넣고 단위 테스트가 예시 파일과 목록을 대조한다. 두 설정은 `NODE_ENV` 가 production 이 아니어서 지금 동작은 바뀌지 않는다.
+- **`ALLOW_HTTP_HOOKS`**: 개발용 플래그인데 가드 목록에 없었다. 운영에서 켜지면 `http://` 알림 URL 을 등록할 수 있고 서명한 본문과 헤더가 평문으로 나간다. `ALLOW_PRIVATE_HOST_TARGETS` 와 달리 운영에서 켤 정당한 용도가 없어서 경고가 아니라 기동 거부로 둔다. 이 플래그는 `1` 일 때만 기능을 켜지만 가드는 다른 플래그와 같은 `isFlagOn` 판정으로 `true` 도 막는다. 가드가 막는 값이 켜지는 값을 모두 담으면 충분하고, 플래그마다 판정을 따로 두면 오히려 빠뜨리기 쉽다. NERV Task `CLE-T-ZGYXSZ` 코드 리뷰의 security · documentation 지적에서 나왔다.
+- **표와 코드를 테스트로 잇는다**: 이 문서의 표와 `assertProductionConfig` 사이에 대조하는 장치가 없어서, 검사를 더하고 표를 고치지 않아도 알 수 없었다(finding `01a1923f-edc9-7070-8cec-ca96e5867baa`). 이제 단위 테스트가 함수가 읽는 환경 변수를 기록해 표의 첫 열과 견준다. 테스트는 저장소의 스펙 미러를 읽는다. 그래서 검사를 더한 코드는 표에 행을 더한 스펙이 승인되고 미러를 받기 전까지 단위 테스트를 통과하지 못한다. 스펙보다 코드가 먼저 머지되지 않게 하려는 의도다.
 
 ### 세션 API 를 리프레시 쿠키 Path 아래로 옮겼다
 

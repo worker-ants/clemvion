@@ -259,13 +259,25 @@ export function toTable(p: unknown): TableData {
   };
 }
 
+/** 표 셀 · 차트 X 라벨에 보여 줄 문자열. null · undefined 는 빈 문자열, 객체는 JSON 이다. */
+export function cellText(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
 const CHART_TYPES = new Set(["bar", "line", "area", "pie", "donut"]);
 
 /**
  * 차트 색으로 받는 문자열 모양. 범례 칩은 `style.background` 에 이 값을 넣으므로 `url(...)` 처럼
- * 외부 주소를 가져오는 값은 받지 않는다. `#hex`(3 · 4 · 6 · 8자리), `rgb()` · `rgba()` · `hsl()` ·
- * `hsla()`(괄호 안은 숫자 · 단위 · 구분자만), 색 이름만 허용한다.
- * 에디터의 `resolveChartColors` 도 같은 규칙으로 거른다.
+ * 외부 주소를 가져오는 값은 받지 않는다. 앞뒤 공백을 지운 뒤 64자 이하이고 다음 셋 중 하나여야 한다.
+ * - `#hex` 3 · 4 · 6 · 8자리
+ * - `rgb()` · `rgba()` · `hsl()` · `hsla()`. 괄호 안에는 영문자 · 숫자 · `.` · `,` · `%` · `+` · `-` ·
+ *   `/` · 공백만 온다. 괄호 · 따옴표 · `:` · `;` 가 들어갈 수 없어서 `url(...)` 같은 함수를 넣지 못한다.
+ * - 영문자로만 된 색 이름
+ *
+ * 에디터의 `resolveChartColors` 도 같은 규칙으로 거른다. 두 구현이 같은지는 공유 픽스처
+ * `codebase/shared-fixtures/chart/colors.json` 을 두 테스트가 함께 읽어 확인한다.
  */
 const CHART_COLOR_PATTERNS = [
   /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,

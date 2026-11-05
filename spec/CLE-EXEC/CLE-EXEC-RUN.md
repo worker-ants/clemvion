@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN"
 title: "에디터 실행과 디버깅"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054", "REQ-EXECRUN-055", "REQ-EXECRUN-056"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "8492d56aae618b97cad287baab98100ee4583dcebee227f259fec701376c8bd2"
+content_hash: "aef859223869afe9f69e50661823cb2ef2d14639ea71dbfae56a5242475fcb3a"
 read_as: "approved_fallback"
-task: "CLE-T-TP2T6Q"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "67bb6e1d1d4fa1f5520cd1667640230a0e5734d2e5b9e393979aa55c5d93ac21"
-etag: "sha256-ca4dd187965945b588490de3926c0571b77099b90c6b80e5533479db676b41dc"
+mirror_sha256: "3acb7661f08600c689d0ff8a433c7639cd839ad224631d53afb95e69a4e21caf"
+etag: "sha256-a080521c7b3c63e0e3cab61d2f17fdf7557556eae985b01a2390fa45f1d2c02d"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -62,7 +62,7 @@ etag: "sha256-ca4dd187965945b588490de3926c0571b77099b90c6b80e5533479db676b41dc"
 - REQ-EXECRUN-026 WHEN 사용자가 멀티턴 대화가 끝난 실행을 다시 열면 THE SYSTEM SHALL 전체 대화 기록을 다시 보여 준다. (원본: ED-EX-11)
 - REQ-EXECRUN-027 WHEN 사용자가 completed·failed·cancelled·waiting_for_input 상태의 노드를 고르면 THE SYSTEM SHALL 미리보기·입력·출력·설정·오류 결과 상세 탭을 표시하고 AI 노드에는 LLM 사용량 탭을 더한다. (원본: ED-EX-12)
 - REQ-EXECRUN-028 WHEN 사용자가 실행 트리에서 노드를 고르면 THE SYSTEM SHALL 오류, 미리보기, 출력 순서로 기본 탭을 고른다. (원본: ED-EX-13)
-- REQ-EXECRUN-029 IF 대화형 AI 노드가 오류로 끝났으면 THE SYSTEM SHALL retryable 여부와 상관없이 미리보기 탭을 기본 탭으로 고른다. (원본: ED-EX-13)
+- REQ-EXECRUN-029 IF 멀티턴 AI 노드가 대화 출력(`output.result.messages`)을 남기고 오류로 끝났으면 THE SYSTEM SHALL retryable 여부와 상관없이 미리보기 탭을 기본 탭으로 고른다. (원본: ED-EX-13)
 - REQ-EXECRUN-030 WHEN 사용자가 멀티턴 타임라인에서 assistant 메시지를 고르면 THE SYSTEM SHALL 탭 구성을 미리보기·응답·요청·LLM 사용량으로 바꾼다. (원본: ED-EX-14)
 - REQ-EXECRUN-031 IF 한 턴에 LLM 호출이 여러 개면 THE SYSTEM SHALL 호출 선택기를 표시하고 응답·요청·LLM 사용량 탭 사이를 오가도 고른 호출을 유지한다. (원본: ED-EX-14)
 - REQ-EXECRUN-032 IF 고른 탭이 선택 변경으로 사라지면 THE SYSTEM SHALL 미리보기 탭이나 남은 첫 탭으로 바꾼다.
@@ -361,7 +361,7 @@ completed·failed·cancelled·waiting_for_input 상태 노드는 머리 아래�
 
 ```mermaid
 flowchart TD
-  A[노드 선택] --> B{대화형 AI 노드가 오류로 끝났나}
+  A[노드 선택] --> B{멀티턴 AI 대화가 오류로 끝났나}
   B -- 예 --> P[미리보기 탭]
   B -- 아니오 --> C{에러가 있나}
   C -- 예 --> E[오류 탭]
@@ -374,9 +374,11 @@ flowchart TD
 2. Presentation 노드이고 `outputData` 가 있거나 AI 대화형·Form·버튼 대기 UI 가 있으면 미리보기 탭.
 3. 그 밖에는 출력 탭.
 
-예외가 하나 있다. 대화형 AI 노드가 **오류로 끝났으면**(`output.error` 가 채워짐, retryable 여부와 상관없음) 미리보기 탭이 먼저다. 대화 스레드 안에 `system_error` 항목이 인라인으로 표시되므로 사용자는 대화 흐름 안에서 에러를 보고 retryable 이면 [다시 시도] 버튼까지 그 자리에서 쓸 수 있다. 오류 탭은 디버깅용으로 계속 열 수 있다.
+예외가 하나 있다. 멀티턴 AI 노드가 대화 출력(`output.result.messages`)을 남기고 **오류로 끝났으면**(`output.error` 가 채워짐, retryable 여부와 상관없음) 미리보기 탭이 먼저다. 대화 스레드 안에 `system_error` 항목이 인라인으로 표시되므로 사용자는 대화 흐름 안에서 에러를 보고 retryable 이면 [다시 시도] 버튼까지 그 자리에서 쓸 수 있다. 오류 탭은 디버깅용으로 계속 열 수 있다.
 
-이 예외는 `execution.node.failed` 로 판정한다. 엔진은 대화형 AI 노드의 턴 오류를 예외 없이 `finalizeAiNode(finalStatus: 'FAILED')` 로 FAILED 처리하므로([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)) 실제로 오는 경로는 `execution.node.failed` 뿐이다. 핸들러 출력의 `port: 'error'`·`status: 'ended'` 만으로는 `node.completed` 가 발생하지 않는다. 그래서 `port: 'error'` 를 기본 탭 판정 조건으로 쓰지 않는다.
+이 예외는 `execution.node.failed` 로 판정한다. 엔진은 멀티턴 AI 노드의 턴 오류를 예외 없이 `finalizeAiNode(finalStatus: 'FAILED')` 로 FAILED 처리하므로([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)) 실제로 오는 경로는 `execution.node.failed` 뿐이다. 핸들러 출력의 `port: 'error'`·`status: 'ended'` 만으로는 `node.completed` 가 발생하지 않는다. 그래서 `port: 'error'` 를 기본 탭 판정 조건으로 쓰지 않는다.
+
+단일 턴 AI 에이전트의 LLM 호출 실패는 이 예외에 들지 않고 오류 탭이 기본 탭이다. 단일 턴 출력에는 대화 기록(`output.result.messages`)이 없고 대화 스레드에 `system_error` 항목도 생기지 않는다. 엔진은 `error` 포트로 돌려준 이 실패도 노드 실행을 `failed` 로 마감하므로 오류 탭에 에러가 표시된다.
 
 **AI 노드의 출력 탭**: AI 노드(AI 에이전트, 정보 추출기, 텍스트 분류기)의 출력 탭은 JSON 위에 다음 요소를 더 표시한다.
 
@@ -705,9 +707,11 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 - **모든 작업이 편집자 이상**: 테스트 입력 자체가 에디터(편집자 이상) 기능이라 데이터셋 CRUD 와 복제도 편집자 이상으로 맞췄다.
 - 이 결정은 "사용자 소유 + 워크스페이스 읽기 전용 공유 + 복제" 권한 모델의 코드베이스 첫 사례다.
 
-### 대화형 AI 노드가 오류로 끝나면 미리보기 탭이 먼저다
+### 멀티턴 AI 노드가 오류로 끝나면 미리보기 탭이 먼저다
 
 대화 스레드 안에 `system_error` 항목이 인라인으로 표시되므로 사용자는 대화 흐름 안에서 에러를 그 자리에서 보고 retryable 이면 [다시 시도] 를 바로 쓸 수 있다. 오류 탭은 명시적으로 골라 계속 열 수 있어 에러 정보에 닿는 길은 줄지 않는다. 이 예외를 retryable 여부와 상관없이 넓힌 근거와, 판정에 `status` 를 쓰지 않는 근거는 [대화 미리보기](CLE-EXEC-PREVIEW.md) 의 Rationale(Inv-8)에 있다.
+
+이 예외는 대화 출력을 남기는 멀티턴 AI 노드(AI 에이전트 멀티턴 · 정보 추출기 멀티턴)에만 둔다. 둘 다 오류 종료 출력에 대화 기록(`output.result.messages`)을 남긴다. 단일 턴 AI 에이전트는 대화 스레드에 대화를 쌓지 않고 [다시 시도] 로 되돌릴 마지막 턴 재시도 상태(`_retryState`)도 남기지 않는다. 미리보기 탭을 먼저 열어도 대화 흐름 안에서 보여 줄 에러가 없으므로 일반 규칙대로 오류 탭을 연다.
 
 ### LLM 탭은 하나의 탭 아래에 두지 않고 최상위로 편다
 

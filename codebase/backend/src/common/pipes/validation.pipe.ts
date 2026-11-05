@@ -43,9 +43,14 @@ export class CustomValidationPipe implements PipeTransform<unknown> {
     if (type === 'custom' || !metatype || !this.toValidate(metatype)) {
       return value;
     }
+    // 값이 없으면 빈 객체로 보고 검증한다(CLE-T-GDBMF8). Express 는 Content-Type 없이 온 요청의 `req.body` 를
+    // 채우지 않아 `@Body()` 값이 `undefined` 다. 그대로 넘기면 `validate(undefined)` 가 TypeError 를 던져 500 이
+    // 났다. 이제 필수 필드가 있으면 400 `VALIDATION_ERROR`, 모두 선택이면 빈 인스턴스로 통과한다. NestJS 기본
+    // `ValidationPipe` 의 `toEmptyIfNil` 과 같은 처리다.
+    const plain = value === undefined || value === null ? {} : value;
     const object = plainToInstance(
       metatype,
-      value as Record<string, unknown>,
+      plain as Record<string, unknown>,
     ) as object;
     const errors = await validate(object, {
       whitelist: true,

@@ -1,0 +1,79 @@
+{
+  "$comment": "Chart colors 허용 규칙의 공유 코퍼스(CLE-NODE-CHART REQ-CHART-020 「시리즈와 색」). 에디터 resolveChartColors 와 웹채팅 위젯 sanitizeChartColors 테스트가 이 파일에서 기대값을 읽는다. 한쪽 규칙만 바뀌면 다른 쪽 테스트가 실패한다.",
+  "maxLength": 64,
+  "accepted": [
+    "#fff",
+    "#ffff",
+    "#ffffff",
+    "#ffffffaa",
+    "#ABCDEF",
+    "#AbCdEf12",
+    "rgb(1, 2, 3)",
+    "rgba(1,2,3,.5)",
+    "RGB(1 2 3)",
+    "hsl(120 50% 50% / 0.5)",
+    "hsla(120, 50%, 50%, 0.5)",
+    "hsl(120deg 50% 50%)",
+    "rgb(+1, -2, 3e1)",
+    "red",
+    "RebeccaPurple",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "rgb(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1)"
+  ],
+  "trimmed": [
+    [
+      "  #111  ",
+      "#111"
+    ],
+    [
+      "\tblue\n",
+      "blue"
+    ],
+    [
+      " rgb(1, 2, 3) ",
+      "rgb(1, 2, 3)"
+    ],
+    [
+      "  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+  ],
+  "rejected": [
+    "url(https://attacker.example/p?d=1)",
+    "URL( 'https://attacker.example/p' )",
+    "Url(x)",
+    "red;background:url(x)",
+    "red} body{display:none",
+    "red url(x)",
+    "var(--brand)",
+    "expression(alert(1))",
+    "EXPRESSION(alert(1))",
+    "rgb(url(x))",
+    "rgb(1, 2, 3",
+    "rgb(1, 2, 3))",
+    "rgb('1')",
+    "rgb(1:2)",
+    "image-set(x)",
+    "linear-gradient(red, blue)",
+    "#12",
+    "#12345",
+    "#1234567",
+    "#123456789",
+    "#gggggg",
+    "#",
+    "0xffffff",
+    "not a color",
+    "red1",
+    "   ",
+    "",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "rgb(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,12)",
+    3,
+    null,
+    true,
+    {},
+    [
+      "#fff"
+    ]
+  ]
+}

@@ -5,6 +5,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { jwtConfig } from './jwt.config';
+import { llmConfig } from './llm.config';
+import { mcpConfig } from './mcp.config';
+import { isOAuthStubModeAllowed } from '../utils/oauth-stub-mode';
+import { checkSsrfSafeUrl } from '../utils/ssrf-safe-url.util';
 import {
   assertProductionConfig,
   isFlagOn,
@@ -12,7 +16,10 @@ import {
   INSECURE_JWT_SECRETS,
   INSECURE_INTEGRATION_ENCRYPTION_KEYS,
   KNOWN_EXAMPLE_ENCRYPTION_KEYS,
+  MIN_JWT_SECRET_LENGTH,
 } from './production-guards';
+
+const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 
 const VALID_JWT = 'a-real-long-random-production-jwt-secret-0123456789';
 const VALID_ENC =
@@ -27,6 +34,38 @@ function prodEnv(over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     INTEGRATION_ENCRYPTION_KEY: VALID_INTEGRATION_ENC,
     ...over,
   };
+}
+
+/** 가드가 던진 메시지. 던지지 않으면 테스트를 실패시킨다. */
+function thrownMessage(env: NodeJS.ProcessEnv): string {
+  try {
+    assertProductionConfig(env);
+  } catch (err) {
+    return (err as Error).message;
+  }
+  throw new Error('assertProductionConfig did not throw');
+}
+
+/** `process.env` 의 몇 키를 바꿔 `fn` 을 부르고 원래 값으로 되돌린다(`undefined` 는 키를 지운다). */
+function withProcessEnv<T>(
+  over: Record<string, string | undefined>,
+  fn: () => T,
+): T {
+  const saved = Object.keys(over).map((k) => [k, process.env[k]] as const);
+  const apply = (
+    entries: ReadonlyArray<readonly [string, string | undefined]>,
+  ) => {
+    for (const [k, v] of entries) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  };
+  try {
+    apply(Object.entries(over));
+    return fn();
+  } finally {
+    apply(saved);
+  }
 }
 
 describe('assertProductionConfig', () => {
@@ -50,16 +89,32 @@ describe('assertProductionConfig', () => {
     expect(() => assertProductionConfig(prodEnv())).not.toThrow();
   });
 
-  it('throws when OAUTH_STUB_MODE=true in production', () => {
-    expect(() =>
-      assertProductionConfig(prodEnv({ OAUTH_STUB_MODE: 'true' })),
-    ).toThrow(/OAUTH_STUB_MODE/);
-  });
-
-  it('throws when LLM_STUB_MODE=true in production', () => {
-    expect(() =>
-      assertProductionConfig(prodEnv({ LLM_STUB_MODE: 'true' })),
-    ).toThrow(/LLM_STUB_MODE/);
+  // 켜짐으로 보는 값은 `isFlagOn` 하나가 정한다 — 정확히 'true' · '1'. 기능이 실제로 켜지는 값이 이 안에
+  // 드는지는 아래 「flag guard covers every value that turns the feature on」 이 본다.
+  describe.each([
+    'OAUTH_STUB_MODE',
+    'LLM_STUB_MODE',
+    'MCP_ALLOW_INSECURE_URL',
+    'ALLOW_HTTP_HOOKS',
+  ])('flag %s', (flag) => {
+    it.each(['true', '1'])('throws when set to %p in production', (v) => {
+      expect(() => assertProductionConfig(prodEnv({ [flag]: v }))).toThrow(
+        new RegExp(flag),
+      );
+    });
+    it.each(['TRUE', 'True', 'yes', 'on', '0', 'false', '', ' 1', 'true\n'])(
+      'does NOT throw for non-standard value %p (treated as off)',
+      (v) => {
+        expect(() =>
+          assertProductionConfig(prodEnv({ [flag]: v })),
+        ).not.toThrow();
+      },
+    );
+    it('passes when unset', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ [flag]: undefined })),
+      ).not.toThrow();
+    });
   });
 
   describe('JWT_SECRET (04 C-1)', () => {
@@ -91,6 +146,53 @@ describe('assertProductionConfig', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ JWT_SECRET: 'x'.repeat(48) })),
       ).not.toThrow();
+    });
+    // 앞뒤 공백을 뗀 값으로 검사한다(CLE-T-HD6SJ4). Secret · `.env` 로 옮기다 붙은 개행이 예시 값 대조와 길이
+    // 하한을 빠져나가지 못하게 한다. 뗀 값은 검사에만 쓰고 서명에 쓰는 값(`jwt.config.ts`)은 바꾸지 않는다.
+    it.each([' ', '\n', ' \t\n ', ' '.repeat(MIN_JWT_SECRET_LENGTH + 8)])(
+      'throws when whitespace-only (%p)',
+      (v) => {
+        expect(() =>
+          assertProductionConfig(prodEnv({ JWT_SECRET: v })),
+        ).toThrow(/JWT_SECRET/);
+      },
+    );
+    it.each(['{key}\n', ' {key} ', '\t{key}\r\n'])(
+      'throws for a known example value padded with whitespace (%p)',
+      (template) => {
+        for (const bad of INSECURE_JWT_SECRETS) {
+          expect(() =>
+            assertProductionConfig(
+              prodEnv({ JWT_SECRET: template.replace('{key}', bad) }),
+            ),
+          ).toThrow(/JWT_SECRET/);
+        }
+      },
+    );
+    it('measures the minimum length after trimming', () => {
+      const short = 'x'.repeat(MIN_JWT_SECRET_LENGTH - 1);
+      for (const padded of [`${short}\n`, ` ${short} `, `\t\t${short}`]) {
+        // 원래 값은 하한 이상이지만 뗀 값은 하한보다 한 글자 짧다.
+        expect(padded.length).toBeGreaterThanOrEqual(MIN_JWT_SECRET_LENGTH);
+        expect(() =>
+          assertProductionConfig(prodEnv({ JWT_SECRET: padded })),
+        ).toThrow(/JWT_SECRET/);
+      }
+    });
+    it('passes for a long non-example secret that has surrounding whitespace', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ JWT_SECRET: ` ${VALID_JWT}\n` })),
+      ).not.toThrow();
+    });
+    it('does not echo the rejected value in the error message', () => {
+      for (const bad of [
+        'change-me-to-a-long-random-jwt-secret\n',
+        'short-but-not-blocklisted',
+      ]) {
+        const message = thrownMessage(prodEnv({ JWT_SECRET: bad }));
+        expect(message).toMatch(/JWT_SECRET/);
+        expect(message).not.toContain(bad.trim());
+      }
     });
   });
 
@@ -138,6 +240,26 @@ describe('assertProductionConfig', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ ENCRYPTION_KEY: VALID_ENC })),
       ).not.toThrow();
+    });
+    it('does not echo the rejected value in the error message', () => {
+      for (const bad of KNOWN_EXAMPLE_ENCRYPTION_KEYS) {
+        const message = thrownMessage(prodEnv({ ENCRYPTION_KEY: bad }));
+        expect(message).toMatch(/\bENCRYPTION_KEY/);
+        expect(message).not.toContain(bad);
+      }
+    });
+    // CLE-ACCT-SESSION 「암호화 키 검사」: 통합 키 목록은 마스터키 목록을 모두 담지만 반대는 아니다. 통합 키에만 있는
+    // 예시 값을 마스터키 자리에 넣으면 막지 않는다. 지금의 비대칭을 고정한다 — 바꾸면 스펙도 함께 고친다.
+    it('passes for an example value listed only for INTEGRATION_ENCRYPTION_KEY (documented asymmetry)', () => {
+      const integrationOnly = [...INSECURE_INTEGRATION_ENCRYPTION_KEYS].filter(
+        (v) => !KNOWN_EXAMPLE_ENCRYPTION_KEYS.has(v),
+      );
+      expect(integrationOnly.length).toBeGreaterThan(0);
+      for (const v of integrationOnly) {
+        expect(() =>
+          assertProductionConfig(prodEnv({ ENCRYPTION_KEY: v })),
+        ).not.toThrow();
+      }
     });
   });
 
@@ -226,28 +348,6 @@ describe('assertProductionConfig', () => {
     });
   });
 
-  describe('MCP_ALLOW_INSECURE_URL (04 M-7)', () => {
-    it.each(['true', '1'])('throws when set to %s in production', (v) => {
-      expect(() =>
-        assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: v })),
-      ).toThrow(/MCP_ALLOW_INSECURE_URL/);
-    });
-    it('passes when false/unset', () => {
-      expect(() =>
-        assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: 'false' })),
-      ).not.toThrow();
-    });
-    // isFlagOn 은 정확히 'true'/'1' 만 ON — 비표준 truthy 값은 모두 OFF 로 본다.
-    it.each(['TRUE', 'yes', 'on', '0', ''])(
-      'does NOT throw for non-standard flag value %p (treated as off)',
-      (v) => {
-        expect(() =>
-          assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: v })),
-        ).not.toThrow();
-      },
-    );
-  });
-
   it('does NOT throw for ALLOW_PRIVATE_HOST_TARGETS=true (warn-only policy, handled in main.ts)', () => {
     expect(() =>
       assertProductionConfig(prodEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' })),
@@ -263,11 +363,119 @@ describe('assertProductionConfig', () => {
       ),
     ).toThrow(/OAUTH_STUB_MODE/);
   });
+});
 
-  it('passes when MCP_ALLOW_INSECURE_URL is undefined (unset)', () => {
-    expect(() =>
-      assertProductionConfig(prodEnv({ MCP_ALLOW_INSECURE_URL: undefined })),
-    ).not.toThrow();
+// 가드가 막는 값 ⊇ 기능이 켜지는 값. 각 기능이 실제로 쓰는 판정(설정 모듈 · 헬퍼)을 불러 대조한다.
+// 켜지는 값이 스펙 CLE-ACCT-SESSION 「운영 환경 가드」 에 적혀 있어 `onValues` 로 고정한다 — 판정을 바꾸면 스펙도 고친다.
+describe('flag guard covers every value that turns the feature on', () => {
+  const CANDIDATES = [
+    'true',
+    '1',
+    'TRUE',
+    'True',
+    'yes',
+    'on',
+    'y',
+    '0',
+    'false',
+    'off',
+    '',
+    ' true',
+    'true ',
+    ' 1',
+    '1\n',
+  ];
+  const FEATURES: {
+    flag: string;
+    isOn: () => boolean;
+    onValues: string[];
+  }[] = [
+    // OAuth 스텁의 단일 판정(W-74). 운영 환경에서는 늘 꺼지므로 NODE_ENV=test 로 판정만 본다.
+    {
+      flag: 'OAUTH_STUB_MODE',
+      isOn: () => isOAuthStubModeAllowed(),
+      onValues: ['true'],
+    },
+    {
+      flag: 'LLM_STUB_MODE',
+      isOn: () => llmConfig().stubMode,
+      onValues: ['true'],
+    },
+    {
+      flag: 'MCP_ALLOW_INSECURE_URL',
+      isOn: () => mcpConfig().allowInsecureUrl,
+      onValues: ['true', '1'],
+    },
+    // 알림 웹훅 URL 검사. 이 플래그는 http 스킴만 연다.
+    {
+      flag: 'ALLOW_HTTP_HOOKS',
+      isOn: () => checkSsrfSafeUrl('http://example.com/hook').ok,
+      onValues: ['1'],
+    },
+  ];
+
+  it.each(FEATURES)('$flag', ({ flag, isOn, onValues }) => {
+    const turnedOn = CANDIDATES.filter((v) =>
+      withProcessEnv({ NODE_ENV: 'test', [flag]: v }, isOn),
+    );
+    expect(turnedOn).toEqual(onValues);
+    for (const v of turnedOn) {
+      expect(() => assertProductionConfig(prodEnv({ [flag]: v }))).toThrow(
+        new RegExp(flag),
+      );
+    }
+  });
+});
+
+// 정본 가드 목록(CLE-ACCT-SESSION 「운영 환경 가드」 표)과 코드를 잇는다. 함수가 읽는 환경 변수를 기록해 표의 첫 열과
+// 견준다. 검사를 더하거나 빼면 표에 행을 더한 스펙이 승인되고 미러를 받을 때까지 이 테스트가 실패한다(의도).
+describe('production guard list matches CLE-ACCT-SESSION 「운영 환경 가드」', () => {
+  const SPEC_MIRROR = path.join(REPO_ROOT, 'spec/CLE-ACCT/CLE-ACCT-SESSION.md');
+
+  function settingsInSpecTable(markdown: string): string[] {
+    const start = markdown.indexOf('\n## 운영 환경 가드\n');
+    // 헤딩이 바뀌었거나 미러 형식이 달라지면 빈 표끼리 비교해 통과하지 않도록 원인을 알린다.
+    if (start < 0) {
+      throw new Error(
+        `${SPEC_MIRROR} 에서 「## 운영 환경 가드」 절을 찾지 못했다 — 헤딩이 바뀌었는지 확인한다.`,
+      );
+    }
+    const rest = markdown.slice(start + 1);
+    const end = rest.search(/\n#{2,3} /);
+    const section = end === -1 ? rest : rest.slice(0, end);
+    const rows = [...section.matchAll(/^\| `([A-Z][A-Z0-9_]*)`/gm)].map(
+      (m) => m[1],
+    );
+    if (rows.length === 0) {
+      throw new Error(
+        '「운영 환경 가드」 절에서 `| \\`KEY\\`` 로 시작하는 표 행을 하나도 파싱하지 못했다 — 표 형식을 확인한다.',
+      );
+    }
+    return rows;
+  }
+
+  function envKeysReadByGuard(): string[] {
+    const read = new Set<string>();
+    const env = new Proxy(prodEnv(), {
+      get(target, prop, receiver) {
+        if (typeof prop === 'string') read.add(prop);
+        return Reflect.get(target, prop, receiver) as unknown;
+      },
+    });
+    // 이 방식은 두 전제에 기댄다. 가드가 첫 위반에서 throw 하므로 모든 값이 유효해야 모든 검사가 값을 읽고, 가드는
+    // `env.KEY` 로 직접 읽어야 한다(구조 분해 · `in` · 전체 복사는 get 트랩을 지난다고 보장하지 못한다).
+    expect(() => assertProductionConfig(env)).not.toThrow();
+    read.delete('NODE_ENV');
+    // 읽은 키가 없으면 정렬한 두 빈 목록이 같지 않아도 원인이 흐려지므로 먼저 막는다.
+    expect(read.size).toBeGreaterThan(0);
+    return [...read];
+  }
+
+  it('the table rows equal the env vars assertProductionConfig reads', () => {
+    const markdown = fs.readFileSync(SPEC_MIRROR, 'utf-8');
+    expect(settingsInSpecTable(markdown).sort()).toEqual(
+      envKeysReadByGuard().sort(),
+    );
   });
 });
 
@@ -396,11 +604,10 @@ describe('blacklist Set sync — .env.example & jwt.config.ts', () => {
   });
 });
 
-// 저장소에 커밋된 예시 · 로컬 · e2e 설정의 두 키 값이 운영 가드의 예시값 집합에 다 들어 있는지 본다.
-// 누가 이 값을 그대로 운영에 복사해도 부팅이 막혀야 한다. 파일에 키 줄을 더하거나 값을 바꾸면
+// 저장소에 커밋된 예시 · 로컬 · e2e 설정의 `JWT_SECRET` 과 두 암호화 키 값이 운영 가드의 예시값 집합에 다 들어 있는지
+// 본다. 누가 이 값을 그대로 운영에 복사해도 부팅이 막혀야 한다. 파일에 키 줄을 더하거나 값을 바꾸면
 // 집합도 함께 고쳐야 이 테스트가 통과한다(옛 값은 집합에서 지우지 않는다).
 describe('example key values committed in the repo are all rejected in production', () => {
-  const REPO_ROOT = path.resolve(__dirname, '../../../../..');
   // `KEY=value` (dotenv · README) 와 `KEY: value` / `KEY: "value"` (YAML) 를 함께 받는다.
   const keyLine = (key: string) =>
     new RegExp(`^[ \\t]*${key}[ \\t]*[=:][ \\t]*"?([^"\\s#]+)"?`, 'gm');
@@ -418,11 +625,24 @@ describe('example key values committed in the repo are all rejected in productio
 
   it.each(FILES)('%s', (rel) => {
     const content = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+    const jwtValues = valuesOf(content, 'JWT_SECRET');
     const encValues = valuesOf(content, 'ENCRYPTION_KEY');
     const integrationValues = valuesOf(content, 'INTEGRATION_ENCRYPTION_KEY');
-    // 파일마다 두 키가 한 줄 이상 잡혀야 한다 — 정규식이 아무것도 못 잡아 통과하는 것을 막는다.
+    // 파일마다 세 키가 한 줄 이상 잡혀야 한다 — 정규식이 아무것도 못 잡아 통과하는 것을 막는다.
+    expect(jwtValues.length).toBeGreaterThan(0);
     expect(encValues.length).toBeGreaterThan(0);
     expect(integrationValues.length).toBeGreaterThan(0);
+    for (const v of jwtValues) {
+      expect({
+        key: 'JWT_SECRET',
+        value: v,
+        rejected: INSECURE_JWT_SECRETS.has(v),
+      }).toEqual({
+        key: 'JWT_SECRET',
+        value: v,
+        rejected: true,
+      });
+    }
     for (const v of encValues) {
       expect({
         key: 'ENCRYPTION_KEY',

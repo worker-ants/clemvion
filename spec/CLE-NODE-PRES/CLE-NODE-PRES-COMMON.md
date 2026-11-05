@@ -2,21 +2,21 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "0a0ee8ac4019a8ae304a7132ac4205758186ef7b4e32b936729f930d7eec2460"
+content_hash: "9da390a2d61dca14b588b6e3dd0ccca47188e2c2bf6b20e3672af296dcd7be86"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-9W8F72"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8d90c7a1757d0aca2a4e194067490638b1df21dac4a30eb43fd759cd7fd45e93"
-etag: "sha256-750c09e57db5bc6919c616ccdd98c2620d8f2a10e6ae73a9c80a26a1f2196919"
+mirror_sha256: "8876ad9fc39c68ca771f5fd08b29c7fe37836c4eb5cfc4fe411fcd561c2082f4"
+etag: "sha256-ab0515f92d72339e90bf1712825a1daf1bfb4ac3942f53e4e2a9a27e60768c4e"
 ---
-> 구현 상태: 구현됨 (대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출은 미구현) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, `render_chart` `data` 의미 검사, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -295,10 +295,11 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 | 항목 | 설명 |
 |------|------|
-| 렌더링 | 프런트엔드가 recharts 로 `output.data` 와 `config.{chartType, title, xAxis, yAxis, colors}` 를 받아 차트를 직접 그린다. 백엔드는 SVG 를 만들지 않는다([Chart 노드](CLE-NODE-CHART.md)) |
-| 인터랙션 | 데이터 포인트에 마우스를 올리면 값 툴팁. 범례와 축 라벨 |
+| 렌더링 | 에디터는 recharts 로 `output.data` 와 `config.{chartType, title, xAxis, yAxis, colors}` 를 받아 차트를 직접 그린다. 웹채팅 위젯은 자체 SVG 렌더러로 그린다. 백엔드는 SVG 를 만들지 않는다([Chart 노드](CLE-NODE-CHART.md)) |
+| 인터랙션 | 데이터 포인트에 마우스를 올리면 값 툴팁. 축 라벨(`config.xAxis.label`·`config.yAxis.label`)은 에디터가 아직 그리지 않는다(미구현, CLE-T-ETS2WE) |
 | 차트 유형 | bar·line·area 는 X-Y 축 차트, pie·donut 은 라벨-값 차트 |
-| 빈 데이터 | 축만 있는 빈 차트와 "No data" 메시지 |
+| 시리즈와 색 | bar·line·area 는 포인트의 `series` 이름별로 시리즈를 나눠 그리고 범례를 보여 준다. 시리즈 묶음과 색 순서는 [Chart 노드](CLE-NODE-CHART.md#시리즈와-색) 가 정한다 |
+| 빈 데이터 | 그릴 포인트가 없으면 차트 대신 받은 출력 값을 JSON 으로 보여 준다. `output.data` 가 배열이 아니거나 빈 배열이거나 객체인 항목이 하나도 없는 경우다. 객체가 아닌 항목은 건너뛰고 나머지로 그린다. 빈 차트 대신 JSON 을 보여 주는 이유는 [Chart 노드](CLE-NODE-CHART.md#그릴-포인트가-없으면-에디터는-출력-값을-json-으로-보여-준다-2026-11-05) 에 있다 |
 | 크기 변경 | 드로어 크기가 바뀌면 차트도 따라 바뀐다 |
 | 버튼 대기 중(`waiting_for_input`) | 차트 아래에 버튼 바를 보여 준다. 동작은 Carousel 과 같다 |
 | 버튼 클릭 후 | Carousel 과 같다 |
@@ -351,12 +352,14 @@ AI 에이전트 노드의 `presentationTools[]` 설정을 켜면 LLM 이 이 카
 
 zod 를 JSON Schema 로 바꾸는 일은 단일 유틸(`zodToToolParams`)이 맡는다. 다섯 노드 스키마를 고치면 LLM 도구 정의에 자동으로 반영되므로 구조적으로 어긋날 수 없다. 백엔드 `_shared/button.types.ts` 의 `MAX_BUTTONS_PER_NODE` 같은 이 문서의 상수도 같은 변환에 자동으로 반영된다.
 
+**예외는 `render_chart` 의 `data` 다.** 차트 포인트 배열 `data` 는 `chartConfigSchema` 에 없다. 그래서 LLM 에 주는 `data` 모양의 계약은 도구 설명 문구(`DEFAULT_DESCRIPTIONS.chart`) 하나뿐이고 시스템 안내가 같은 표기를 한 번 더 싣는다([도구 카탈로그](#도구-카탈로그)). `chartConfigSchema` 는 Chart 노드의 설정 스키마이면서 도구 파라미터 스키마다. 여기에 런타임 값인 `data` 를 넣으면 설정에 출력 값이 들어가 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다) Principle 1.1 과 부딪친다. 스키마가 `data` 를 검사하지 않으므로 `data` 의 최소 의미 검사는 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 가 정하고 [스키마 위반 처리와 정규화](#스키마-위반-처리와-정규화) 2단계의 도구 의미 검사로 한다. 이 검사는 아직 구현되지 않았다(구현 Task `CLE-T-N901G9`).
+
 ### 도구 카탈로그
 
 | 도구 이름 | 모드 | 기본 description(바꿀 수 있음) |
 |---|---|---|
 | `render_table` | 표시 전용 | "표 형태로 정형 데이터를 표시. rows/columns 정의 필요. 비교·집계 결과 공유에 적합." |
-| `render_chart` | 표시 전용 | "차트 (bar/line/area/pie/donut) 로 데이터를 시각화. 시계열·분포·비율 표현에 적합." |
+| `render_chart` | 표시 전용 | "차트 (bar/line/area/pie/donut) 로 데이터를 시각화. **chartType + data 가 필수**. data 는 `{ x, y?, series? }[]` 배열 — 포인트마다 x(카테고리)·y(값)를 넣고, 여러 시리즈는 포인트마다 series(시리즈 이름 문자열)로 구분한다(pie/donut 은 series 없이). 시계열·분포·비율 표현에 적합." |
 | `render_carousel` | 표시 전용 | "카드·이미지·미니멀 레이아웃의 슬라이드 모음. 추천 항목 목록·상품 카드 등 시각 카탈로그에 적합." |
 | `render_template` | 표시 전용 | "사용자 정의 HTML/Markdown/Text 템플릿 렌더링. 정형화된 안내문·요약 카드 작성에 적합." |
 | `render_form` | **입력 대기(interactive)** | "사용자에게 입력 폼을 표시하고 제출을 대기. 추가 정보 수집·승인 요청 등 사용자 응답이 필요한 경우." |
@@ -364,6 +367,8 @@ zod 를 JSON Schema 로 바꾸는 일은 단일 유틸(`zodToToolParams`)이 맡
 사용자가 `PresentationToolDef.description` 에 값을 넣으면 위 기본 문구 대신 그 값을 LLM 에 보여 준다. 워크플로우 도메인(예: "전자상거래 상품 카드 표시")에 맞춘 안내를 줄 수 있다.
 
 `render_chart` 기본 문구는 차트 유형 다섯 가지를 적는다. Chart 노드 실행도 같은 다섯 유형(`bar`·`line`·`area`·`pie`·`donut`)을 받는다([Chart 노드](CLE-NODE-CHART.md#차트-유형은-다섯-가지가-정본이고-실행-검증이-스키마-목록을-그대로-쓴다)).
+
+`render_chart` 기본 문구의 `data` 모양 표기 `{ x, y?, series? }[]` 는 `chart.schema.ts` 의 상수 `CHART_DATA_SHAPE` 다. 도구 설명(`DEFAULT_DESCRIPTIONS.chart`)과 AI 에이전트 시스템 안내(`ai-turn-executor.ts` 의 `PRESENTATION_TOOLS_GUIDANCE`)가 이 상수 하나를 함께 쓰므로 두 곳의 표기가 어긋나지 않는다. 시스템 안내는 `presentationTools` 가 비어 있지 않으면 늘 붙는다. 그래서 사용자가 `description` 을 바꿔 도구 설명에서 표기가 빠져도 시스템 안내에는 남는다. 포인트 모양의 기준은 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 다.
 
 ### defaults 덮어쓰기 규칙
 
@@ -399,7 +404,7 @@ flowchart LR
 ```
 
 1. LLM 페이로드를 해당 노드의 zod 스키마로 검증한다.
-2. 필수 필드 누락, 타입 불일치, 정합성 위배처럼 스키마를 어기거나 1MB 한도를 넘으면 도구 결과로 `{error: 'INVALID_PAYLOAD', issues: [...]}` 를 돌려준다. 한도 초과는 Carousel·Table 을 뒤에서 잘라도 원소가 하나도 들어가지 않는 경우처럼 한도를 적용할 수 없는 때를 말한다.
+2. 필수 필드 누락, 타입 불일치, 정합성 위배처럼 스키마를 어기거나 1MB 한도를 넘으면 도구 결과로 `{error: 'INVALID_PAYLOAD', issues: [...]}` 를 돌려준다. 한도 초과는 Carousel·Table 을 뒤에서 잘라도 원소가 하나도 들어가지 않는 경우처럼 한도를 적용할 수 없는 때를 말한다. 스키마 검증을 통과해도 도구 의미 검사(`checkRenderToolSemanticIssues`)에 걸리면 같은 `INVALID_PAYLOAD` 를 돌려준다. 의미 검사는 스키마가 잡지 못하는 조건을 본다. `render_chart` 의 `data` 최소 모양 검사가 그 예이고 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 가 정한다. chart 분기는 아직 구현되지 않았다(`CLE-T-N901G9`). 의미 검사에 걸린 호출은 스키마 위반과 똑같이 다룬다. 아래 5번의 재시도 · 버림과 위반 기록이 그대로 적용되고, [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 말하는 스키마 위반에도 이 경우가 들어간다.
 3. **`button.id` UUID v4 채우기**: defaults 병합과 출력 크기 한도를 적용한 뒤 남은 버튼 가운데 `id` 가 없는 것에만 UUID v4 를 채운다. 대상은 carousel `buttons`·`itemButtons`·`items[].buttons` 와 table·chart·template `buttons` 다. `id` 가 있는 버튼은 그대로 둔다. [버튼 정의](#버튼-정의)의 "id 는 자동 생성하고 바꾸지 않는다" 원칙을 표시 도구 모드에도 적용한다. 워크플로우 에디터가 `crypto.randomUUID()` 로 id 를 넣는 것과 같은 의미를 백엔드 `render-tool-provider` 가 보장한다. 한도 적용 뒤에 하므로 잘려 나간 원소 안의 버튼은 처리하지 않는다. 프런트엔드에 닿지 않는 버튼이라 의도한 최적화다. 이 단계의 함수는 `backfillButtonUuids` 처럼 알아볼 수 있는 이름을 쓴다. 그래프 노드용 `normalizeNodeButtonIds`(label 을 slug 로 바꿈)와 섞이지 않게 하려는 것이다.
 4. **폼 `option.value` 결정적 채우기**: `render_form` 에만 적용한다. defaults 병합과 출력 크기 한도를 적용한 뒤 `fields[].options[]` 가운데 `value` 가 빈 문자열 `""`·`null`·`undefined` 인 항목에 결정적 값 `opt-{fieldIdx}-{optIdx}` 를 채운다. 형식은 인덱스 하나뿐이다. label 로 slug 를 만드는 방식은 한글 같은 다국어 label 에서 빈 slug 가 나와 다시 충돌하므로 쓰지 않는다. LLM 이 옵션의 `value` 를 빠뜨리면 zod 기본값이 모든 옵션 value 를 똑같이 `""` 로 만든다. 그러면 프런트엔드 `<select>` 의 placeholder(`value=""`)와 모든 옵션이 DOM 에서 같아져 골라도 placeholder 가 남는다. 3단계 버튼 ID 채우기와 같은 문제이므로 같은 층에서 푼다. UUID 대신 결정적 값을 쓰는 이유는 [Rationale](#폼-옵션-값-채우기) 에 적는다. 한도 적용 뒤에 하므로 잘려 나간 옵션은 처리하지 않는다. 이 단계의 함수는 3단계와 나란히 `backfillFormOptionValues` 처럼 이름 붙인다.
 5. LLM 은 같은 턴 안에서 다시 시도할 수 있다. 한 번 다시 시도해도 실패하면 조용히 버리고 `meta.presentationSchemaViolations[]` 에 쌓는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
@@ -496,7 +501,7 @@ AI 에이전트 멀티턴은 턴마다 rehydration 으로 단발 처리기 `proc
 
 ## 미결 사항
 
-- **채팅 채널 렌더러가 기대하는 입력 형태가 노드 출력과 다르다**: 채팅 채널 렌더러([Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md), [Slack 어댑터](../CLE-CHAT/CLE-CHAT-SLACK.md), [Discord 어댑터](../CLE-CHAT/CLE-CHAT-DISCORD.md))는 차트 입력을 `output.payload.{title, series, labels}`, 캐러셀 카드 이미지를 `imageUrl` 로 찾는다. 노드 출력의 기준인 [Chart 노드](CLE-NODE-CHART.md)는 `output.data` 를, [Carousel 노드](CLE-NODE-CAROUSEL.md)는 `items[].image` 를 낸다. 매트릭스와 렌더러를 노드 출력에 맞출지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다.
+- **채팅 채널 렌더러가 기대하는 입력 형태가 노드 출력과 다르다**: 채팅 채널 렌더러([Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md), [Slack 어댑터](../CLE-CHAT/CLE-CHAT-SLACK.md), [Discord 어댑터](../CLE-CHAT/CLE-CHAT-DISCORD.md))는 차트 입력을 `output.payload.{title, series, labels}`, 캐러셀 카드 이미지를 `imageUrl` 로 찾는다. 노드 출력의 기준인 [Chart 노드](CLE-NODE-CHART.md)는 `output.data` 를, [Carousel 노드](CLE-NODE-CAROUSEL.md)는 `items[].image` 를 낸다. Chart 다중 시리즈는 긴 형식(포인트마다 `series`)으로 확정했다. 렌더러가 읽는 `series` 는 시리즈마다 이름과 값 배열을 담은 `{ name?, data? }[]` 이므로 렌더러나 변환 층이 포인트를 시리즈 이름별로 묶어 만든다. 매트릭스와 렌더러를 노드 출력에 맞출지, 렌더러 앞에 변환 층을 둘지는 [채팅 채널 어댑터 규약 미결 사항](../CLE-CHAT/CLE-CHAT-ADAPTER.md#미결-사항) 에서 정한다. 그 항목은 Chart 출력을 아직 `{ x, y? }[]` 로 적고 `series` 를 다루지 않는다. 포인트를 어디서 시리즈별로 묶을지는 그 결정을 따른다.
 - **실행 결과 드로어의 Table 표시 행 수와 조작**: 이 문서의 원문은 드로어 Table 에 "페이지네이션 강제(최대 200행/페이지)" 와 정렬 토글·페이지네이션 컨트롤·포맷 적용을 적었다. [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md)은 "최대 50행 표시" 로 적는다. 현재 구현(`presentation-renderers.tsx` 의 `TableContent`)은 앞 50행만 보여 주고 정렬 토글·페이지네이션 컨트롤·포맷 적용이 없다. 어느 쪽을 표시 계약으로 할지 결정 필요. 같은 충돌이 [에디터 실행과 디버깅 미결 사항](../CLE-EXEC/CLE-EXEC-RUN.md#미결-사항) 의 "Table 최대 표시 행 수" 항목에 있다. Table 노드의 `pagination` 플래그 문제([Table 노드](CLE-NODE-TABLE.md) 미결 사항)와 함께 정한다.
 
 ## 구현 위치
@@ -504,6 +509,8 @@ AI 에이전트 멀티턴은 턴마다 rehydration 으로 단발 처리기 `proc
 - `codebase/backend/src/nodes/presentation/_shared/**` (버튼 정의, `MAX_BUTTONS_PER_NODE = 5`, `validateButtons`, 출력 크기 한도)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`continueExecution` 의 표시 값 감싸기)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts` (표시 도구 zod 검증, `userMessage: z.string().optional()`, `backfillButtonUuids`, `backfillFormOptionValues`)
+- `codebase/backend/src/nodes/presentation/chart/chart.schema.ts` (`render_chart` `data` 모양 표기 `CHART_DATA_SHAPE`. `render-tool-provider.ts` 의 `DEFAULT_DESCRIPTIONS.chart` 와 함께 쓴다)
+- `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts` (표시 도구 시스템 안내 `PRESENTATION_TOOLS_GUIDANCE`)
 - `codebase/backend/src/shared/conversation-thread/**` (`appendInternal` 의 opt-out 검사)
 - `codebase/frontend/src/components/editor/run-results/**` (드로어 렌더러, `presentation-renderers.tsx`, `dynamic-form-ui.tsx`)
 - 버튼 수 한도: 백엔드 `validateButtons`(전역)와 carousel `validateCarouselItemButtons`(항목)가 모두 6개 이상을 거부한다. 프런트엔드 `ButtonListEditor` 기본값 `maxButtons = 5`.

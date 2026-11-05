@@ -56,6 +56,9 @@ jobs:
         # Cafe24 · MakeShop 카탈로그. frontend 의 i18n catalog-sync 테스트가 이 디렉터리를
         # 읽는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
+        # 세 스택이 함께 읽는 테스트 픽스처. frontend 의 `chart-series.test.ts` 가 차트 색 · 시리즈
+        # 사례를 읽는다(`codebase/shared-fixtures/README.md`).
+        codebase/shared-fixtures/**
         pnpm-lock.yaml
         pnpm-workspace.yaml
         scripts/ci-paths-changed.sh

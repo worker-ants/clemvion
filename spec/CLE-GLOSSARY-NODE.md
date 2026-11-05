@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-NODE"
 title: "용어 사전 — 노드"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "04e027a2521296e210e53debf7fbb32796501e1015f1ffdab333dd4ef6cc988c"
+content_hash: "217729ad5acc97ba7a027c8ed7ca6a3c6a1d3bfc655906b8e1d7c80c8353a4ba"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-KPDDKB"
 source_paths: []
-mirror_sha256: "1e9f166cd92cba6ab6520c064c70c05f8eb41043e1564c6d319f0774468a6b46"
-etag: "sha256-95ab9f4f6105edfb3aa0f0da7edaed3c5ab36b8903c035efa156c6f4adf43125"
+mirror_sha256: "3d09d6f2f6b736348292ad2e940b2417f44ba17ae16bf7ea66e8ea75357d0422"
+etag: "sha256-326dcb4e8f24ce41d6c2156db78c8f19b538a5d75464563fb5693f467c517e41"
 ---
 ## 개요
 
@@ -102,7 +102,7 @@ etag: "sha256-95ab9f4f6105edfb3aa0f0da7edaed3c5ab36b8903c035efa156c6f4adf43125"
 | 롤링 요약 | running summary, `runningSummary` | 한 실행 안에서 오래된 대화 턴을 줄여 둔 요약. | working-memory 압축, 요약 블록 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
 | 시스템 컨텍스트 접두 | `includeSystemContext` | AI 노드 시스템 프롬프트 앞에 현재 시각과 시간대를 자동으로 붙이는 옵션. | System Context Prefix(본문) | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
 | 종료 사유 | `endReason` | AI 노드 대화가 끝난 이유. AI 에이전트와 정보 추출기가 값 집합을 따로 둔다. | 없음 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
-| 재시도 가능 여부 | `details.retryable` | LLM 계열 에러가 일시적인지 알리는 필수 필드. true 면 화면에 다시 시도 버튼이 보인다. | 없음 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
+| 재시도 가능 여부 | `details.retryable` | LLM 계열 에러가 일시적인지 알리는 필수 필드. true 이고 마지막 턴 재시도 상태가 남아 있으면 화면에 다시 시도 버튼이 보인다. 이 상태는 멀티턴 AI 에이전트만 남긴다. | 없음 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
 | LLM 호출 기록 | `meta.turnDebug`, `meta.llmCalls` | 턴마다 남기는 LLM 요청·응답 원문. 결과 상세의 응답·요청 탭이 쓴다. | 없음 | [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) |
 | 출력 스키마 | `outputSchema` | 정보 추출기가 뽑을 필드 목록. 설정 에코에서는 `schema` 키로 나온다. | 없음 | [정보 추출기 노드](CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) |
 | 수집 재시도 | `maxCollectionRetries` | 정보 추출기 멀티턴에서 필수 필드가 비었을 때 다시 묻는 횟수. | 없음 | [정보 추출기 노드](CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) |

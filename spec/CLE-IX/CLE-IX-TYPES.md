@@ -2,19 +2,19 @@
 id: "CLE-IX-TYPES"
 title: "인터랙션 타입 레지스트리"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "9aaced4d852138fcd21bfc1173a3b750d36202e28a126a7da408e80dd5368ceb"
-read_as: "approved"
-task: null
+content_hash: "2ba1f28f29da929eecc64297b9d99113ed652a175636cb56d4a7ebd34858b275"
+read_as: "approved_fallback"
+task: "CLE-T-YR4EK5"
 source_paths: ["spec/conventions/interaction-type-registry.md"]
-mirror_sha256: "b4ea25d59a5cc0ca79a2d5b24ed19b2a615f953ed69b463827bec710bc4e2cd0"
-etag: "sha256-08f7b143c5edb2a851cc6f475ed55e85ede94f35c2ea6ee346b149159a8a5fb6"
+mirror_sha256: "e7ab36de036613da635c60d47ee0c6181aa8a6d20ecc47d02bc807c9b47bd7ec"
+etag: "sha256-58e1b2343a952e3240a4787ae010c6d9a98783c6bdb7259dc1758b223b36f618"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/interaction-type-registry.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -62,7 +62,7 @@ etag: "sha256-08f7b143c5edb2a851cc6f475ed55e85ede94f35c2ea6ee346b149159a8a5fb6"
 
 ### 명령 허용 판정
 
-재개 명령의 publisher 사전 검증(`waiting-surface-guard.ts` 의 `WaitingSurface` = `form`·`buttons`·`ai_conversation`)도 네 값을 세 값으로 합쳐 쓴다. `ai_form_render` 를 `ai_conversation` 으로 흡수해 대기 표면별 허용 명령 집합을 판정하고, 맞지 않으면 `INVALID_EXECUTION_STATE` 로 거부한다(EIA 에서는 `409 STATE_MISMATCH`). 검증 규칙은 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 가 정한다. `WaitingSurface`(세 값, 명령 허용 판정)는 `WaitingInteractionType`(네 값, 처리 분기)에서 파생한 보기일 뿐 별도 값 목록의 기준이 아니다.
+재개 명령의 publisher 사전 검증(`waiting-surface-guard.ts` 의 `WaitingSurface` = `form`·`buttons`·`ai_conversation`)도 네 값을 세 값으로 합쳐 쓴다. `ai_form_render` 를 `ai_conversation` 으로 흡수해 대기 표면별 허용 명령 집합을 판정하고, 맞지 않으면 `INVALID_EXECUTION_STATE` 로 거부한다(EIA 에서는 `409 STATE_MISMATCH`). 검증 규칙은 [큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증) 이 정한다. `WaitingSurface`(세 값, 명령 허용 판정)는 `WaitingInteractionType`(네 값, 처리 분기)에서 파생한 보기일 뿐 별도 값 목록의 기준이 아니다.
 
 ### 처리 분기 매트릭스
 

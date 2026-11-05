@@ -85,6 +85,9 @@ jobs:
         # API 카탈로그. `codebase/` 전체를 훑는 가드(옛 경로 래칫 · 키 실재 · 리뷰 인용 형식)가
         # 이 디렉터리의 파일도 읽는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
+        # 공유 테스트 픽스처. `codebase/` 전체를 훑는 가드가 README 와 JSON 도 읽는다
+        # (`codebase/shared-fixtures/README.md`).
+        codebase/shared-fixtures/**
         # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
         # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(당시 spec·plan·
         # review 전부)를 잡았다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.

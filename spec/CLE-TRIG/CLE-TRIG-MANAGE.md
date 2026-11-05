@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "523309c2122e8be7721b9ccca42487e79e02d6dd12618556b96f383d30daaa90"
+content_hash: "7ee82a19b17cb9dddbb859312501789f74b10891a26289489500343eb6cf5b73"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-0QAJ5M"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "8fa01f3490ee23a22c1b5e4352c6fce8b4a696ecc1377df3e06ee1120d566085"
-etag: "sha256-b488729ec2d9434d7c6d38233bd7c621f93777e69d434785b26e52ff3e335813"
+mirror_sha256: "2bdeac1a3904bb48e52e8661ca62e5eb1c41ecbf58bbfb2057b376bc792f207b"
+etag: "sha256-458ab4940007869cf8cc1eb91261a0467db4988d09f6c2e3eeb98b2fac0bbe7b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -368,11 +368,12 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 
 트리거 행을 없애는 모든 경로는 그 트리거의 자원을 정리한다(2026-09-17 결정). 경로는 트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제다.
 
-정리하는 자원은 셋이다. 외부 자원(스케줄 BullMQ 작업, 채팅 채널 provider 등록, listener registry), `secret_store` 의 `secret://triggers/<id>/` 비밀, 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림이다. 자원별 정리 시점과 순서, 부모 삭제 때 대상 트리거를 고르는 방법, 정리가 닿지 않는 남은 창은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
+정리하는 자원은 셋이다. 외부 자원(스케줄 BullMQ 작업, 채팅 채널 provider 등록, listener 레지스트리), `secret_store` 의 `secret://triggers/<id>/` 비밀, 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림이다. 자원별 정리 시점과 순서, 부모 삭제 때 대상 트리거를 고르는 방법, 정리가 닿지 않는 남은 창은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
 
 외부 자원 해제가 실패했을 때의 정책은 다음과 같다.
 
 - 채팅 채널 provider 등록 해제는 best-effort 라 실패해도 삭제를 계속한다.
+- listener 레지스트리 해제를 다른 서버 인스턴스에 알리는 변경 메시지(`chat-channel:listener`)는 best-effort 라 보내지 못해도 삭제를 계속한다. 근거는 [채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다) 에 있다.
 - 스케줄 작업 해제가 실패하면 삭제를 멈춘다.
 - SSE 스트림 닫기는 best-effort 라 실패해도 삭제 결과는 그대로다. 닫는 범위는 모든 서버 인스턴스이고 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다.
 - 여러 작업을 해제하는 워크플로우·워크스페이스 삭제는 전부 시도한 뒤, 이미 해제한 활성 작업을 다시 등록하고 멈춘다. 스케줄은 활성인데 발사하지 않는 상태를 남기지 않으려는 것이다.

@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "ee1ec7f1e8f3727e04100b5c350c802b4c02a6fadb5f787138c2076ea534238a"
+content_hash: "4cb9457917d69570df6e3baf4ce82bafb2e7d220af4211b022a1c16041bfe927"
 read_as: "approved_fallback"
-task: "CLE-T-G0Y6MW"
+task: "CLE-T-0QAJ5M"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "6f441cf789c03bf52d82b7adddae42bf36b922a377c3871122bf2e30b2c9e464"
-etag: "sha256-48c9b71cb4bc71be59c1586f3a13754a410001d40c498ebe9a177b107595844f"
+mirror_sha256: "395479c0a09f662b6b4eadf97f1b5b1a35c8285a5018bf0ad92a27eb1aebe43e"
+etag: "sha256-004313e435e45e0ba42c613b1934ff04ee6a533260b18cd098deb434bbdf50ad"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -372,7 +372,8 @@ sequenceDiagram
 
 | 자원 | 시점 | 이유 |
 |------|------|------|
-| 외부 자원: 스케줄 BullMQ 작업, 채널 프로바이더 등록(해제는 best-effort), listener registry | 행 삭제 전, DB 트랜잭션 밖 | 채팅 채널 해제는 `secret_store` 의 봇 토큰을 읽는다(Telegram·Discord). 외부 호출은 트리거 설정 잠금 안에 두지 않는다 |
+| 외부 자원: 스케줄 BullMQ 작업, 채널 프로바이더 등록(해제는 best-effort), listener 레지스트리 | 행 삭제 전, DB 트랜잭션 밖 | 채팅 채널 해제는 `secret_store` 의 봇 토큰을 읽는다(Telegram·Discord). 외부 호출은 트리거 설정 잠금 안에 두지 않는다 |
+| 다른 서버 인스턴스의 listener 레지스트리 항목(Redis `chat-channel:listener` 변경 메시지) | 행 삭제 전 외부 해제 단계에서 자기 서버 인스턴스의 항목을 뺀 뒤, best-effort. 응답은 최대 2초까지 기다린다 | listener 레지스트리는 서버 인스턴스마다 따로 있다. 해제 대상은 [채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책) 이 정한다. 실패 정책의 근거는 [채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다) 에 있다 |
 | 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림(모든 서버 인스턴스, `eia:sse:close`) | 행 삭제가 커밋된 뒤, best-effort | 트리거가 사라지면 그 토큰도 무효가 된다. 네 삭제 경로 모두 같다. 닫을 트리거는 비밀 삭제가 쓰는 열거를 그대로 쓰고 새 조회를 더하지 않는다. 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다 |
 | `secret_store` 의 `secret://triggers/<id>/` 비밀 | 행 삭제가 커밋된 뒤 | 삭제와 겹친 쓰기가 비밀을 고아로 남기지 않게 한다. 쓰기 쪽의 "쓰지 못했으면 되돌린다" 보상과 짝이다 |
 
@@ -400,6 +401,8 @@ sequenceDiagram
 
 - 외부 해제용 열거 뒤에 새로 생긴 트리거.
 - 해제한 뒤 행을 지우기 전에 동시 요청이 다시 만든 채널 프로바이더 등록이나 스케줄 작업.
+- listener 레지스트리 해제를 다른 서버 인스턴스에 알린 뒤 행 삭제가 실패한 경우. 그 트리거는 모든 서버 인스턴스의 레지스트리에서 빠진다. 트리거가 활성이면 다음 구독 재확립이나 재시작 때의 일괄 등록이 다시 넣는다([채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다)).
+- listener 레지스트리를 해제한 뒤 행을 지우기 전에 그 트리거를 켜는 PATCH 가 커밋된 경우. 항목이 모든 서버 인스턴스에 다시 생긴다. 그 항목은 행을 지운 뒤에도 남는다. dispatcher 가 DB 에서 트리거를 찾지 못해 건너뛰므로 메시지가 잘못 나가지는 않는다.
 - 워크스페이스 삭제의 권한 선검사와 잠금 안 재검사 사이에 역할이 바뀌어 재검사가 거부한 경우. 워크스페이스는 남지만 외부 해제는 이미 끝났다. 서버 error 로그로 드러난다.
 - 행 삭제 커밋과 `secret_store` 비밀 삭제 사이에 프로세스가 죽으면 비밀이 남는다.
 
@@ -453,7 +456,7 @@ stateDiagram-v2
 
 | 상태 | 뜻 |
 |------|----|
-| `true` | 웹훅 라우팅이 켜져 있다. 스케줄은 BullMQ job scheduler 에 등록돼 있다 |
+| `true` | 웹훅 라우팅이 켜져 있다. 스케줄은 BullMQ job scheduler 에 등록돼 있다. 채팅 채널 트리거를 켜는 PATCH 는 커밋 뒤 그 트리거를 트리거 단위 listener 레지스트리에 등록한다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)) |
 | `false` | 일반 웹훅 호출은 `410 Gone`(`TRIGGER_INACTIVE`)이다. 없는 트리거의 404 와 구분된다. 채팅 채널 트리거는 410 이 아니라 inbound 서명 검증 뒤 `202` 와 `{ executionId: 'ignored' }` 다. 스케줄은 스케줄 API 나 트리거 API 로 토글하면 `removeJob` 으로 BullMQ 작업을 해제한다 |
 
 스케줄과의 활성 상태 동기화는 양방향이다([트리거와 스케줄 동기화](#트리거와-스케줄-동기화)). 워크플로우 활성 상태(`workflow.is_active`)는 이 값과 따로 본다. 트리거가 활성이어도 워크플로우가 비활성이면 웹훅 · 채팅 채널 · 스케줄로 새 실행이 생기지 않는다. 워크플로우를 비활성으로 바꿔도 트리거와 스케줄의 `is_active` 는 바뀌지 않는다([워크플로우 활성 관문](#워크플로우-활성-관문)).

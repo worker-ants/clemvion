@@ -41,6 +41,9 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/web-chat-sdk/**
         codebase/packages/sdk/**
+        # 세 스택이 함께 읽는 테스트 픽스처. 위젯의 `presentation.test.ts` · `chart-model.test.ts` 가
+        # 차트 색 · 시리즈 사례를 읽는다(`codebase/shared-fixtures/README.md`).
+        codebase/shared-fixtures/**
         pnpm-lock.yaml
         pnpm-workspace.yaml
         scripts/ci-paths-changed.sh

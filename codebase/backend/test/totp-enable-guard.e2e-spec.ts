@@ -19,6 +19,8 @@ import {
  * 설정 시작(setup)은 계정 비밀번호를 다시 확인한다. 로그인 세션만 가진 사람이 자기 인증 앱으로 TOTP 를 켜지 못한다.
  * TOTP 가 켜진 계정에서는 setup 이 secret 을 덮어쓰지 못하고 활성화 검증(verify)이 복구 코드를 다시 발급하지 못한다.
  * 인증 수단을 바꾸려면 끄기(비밀번호 + 인증 코드) 뒤 다시 켜는 흐름만 남는지를 실 DB 로 본다.
+ *
+ * 본문 없이 온 setup 은 전역 검증 파이프가 500 이 아니라 400 `VALIDATION_ERROR` 로 거부한다(CLE-T-GDBMF8).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -54,6 +56,16 @@ describe('2FA 켜기 가드 (e2e)', () => {
       .send({});
     expect(missing.status).toBe(400);
     expect(missing.body.error.code).toBe('VALIDATION_ERROR');
+
+    // 본문도 Content-Type 도 없는 요청. Express 가 `req.body` 를 채우지 않아 예전에는 검증 파이프가 500 을 냈다.
+    const noBody = await request(BASE_URL)
+      .post('/api/auth/2fa/setup')
+      .set('Authorization', `Bearer ${user.accessToken}`);
+    expect(noBody.status).toBe(400);
+    expect(noBody.body.error.code).toBe('VALIDATION_ERROR');
+    expect(
+      (noBody.body.error.details as { field: string }[]).map((d) => d.field),
+    ).toContain('password');
 
     const row = await readTwoFactor(db, user.userId);
     expect(row.two_factor_enabled).toBe(false);
