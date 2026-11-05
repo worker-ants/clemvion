@@ -142,20 +142,21 @@ export default function ExecutionDetailPage({
   // (waitingNodeId / waitingInteractionType) 가 영영 update 안 되어
   // Preview 탭 buttons 가 disabled stuck.
   //
-  // 변경: REST 폴링 결과도 같은 applyExecutionSnapshot 으로 store 에
-  // hydrate. WS 가 정상 동작하면 양쪽이 동일 state 를 set (idempotent),
-  // WS 가 실패하면 REST 가 fallback (2s 마다 store 갱신).
+  // 변경: REST 폴링 결과도 같은 applyExecutionSnapshot 으로 store 에 넣는다. 이 페이지는
+  // WS 상태와 관계없이 종결까지 `EXECUTION_POLL_INTERVAL_MS` 마다 받는다. WS 가 살아 있으면
+  // 양쪽이 같은 상태를 넣고(idempotent), WS 가 끊겨도 REST 응답이 store 를 채운다.
   //
   // 에디터의 폴링 대체 경로(useExecutionPollingFallback 의 decidePollResponse)처럼 늦은 응답을
-  // 거르지 않는다(CLE-T-TP2T6Q 판단).
-  //  - 실행 ID: 이 페이지는 store 의 executionId 를 채우지 않는다. reset 뒤 null 이고 WS
-  //    `execution.started` 가 올 때만 채워지므로 에디터의 실행 ID 비교를 쓰면 응답을 거의 다
-  //    버린다. 응답은 query key 의 executionId 로 묶여 있고 실행이 바뀌면 위 effect 가 store 를 비운다.
+  // 거르지 않는다.
+  //  - 실행 ID: store 의 executionId 는 reset 뒤 null 이다. WS `execution.started` 나 idle
+  //    store 에 들어온 `running` 스냅샷(REST · WS)만 채우므로, 대기 · 종결 상태로 연 실행은
+  //    계속 null 이다. 에디터처럼 실행 ID 를 비교하면 그런 실행의 응답을 첫 번째부터 버린다.
+  //    응답은 query key 의 executionId 로 묶여 있고 실행이 바뀌면 위 effect 가 store 를 비운다.
   //  - 종결: 종결 응답을 받으면 refetchInterval 이 멈춘다. store 가 이미 끝난 뒤의 `running` 응답은
   //    applyExecutionSnapshot 이 반영하지 않는다.
   //  - 요청 뒤 store 변경: WS 가 먼저 채운 노드 결과를 옛 응답이 덮어도 이 페이지는 종결까지
-  //    2초마다 다시 받으므로 다음 응답이 바로잡는다. 에디터는 WS 가 살아나면 폴링을 멈춰
-  //    덮인 값이 남기 때문에 거른다.
+  //    다시 받으므로 다음 응답이 바로잡는다. 에디터는 WS 가 살아나면 폴링을 멈춰 덮인 값이
+  //    남기 때문에 거른다.
   useEffect(() => {
     if (executionQuery.data) {
       applyExecutionSnapshot(executionQuery.data);

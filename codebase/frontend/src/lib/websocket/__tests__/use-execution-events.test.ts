@@ -191,7 +191,7 @@ describe("useExecutionEvents", () => {
       expect(mockToast.warning).toHaveBeenCalled();
 
       mockToast.dismiss.mockClear();
-      // snapshot 도착 → realtimeReceived=true → dismiss 를 1s 지연 예약.
+      // snapshot 도착 → realtimePhase=receiving → dismiss 를 1s 지연 예약.
       act(() => {
         emitSnapshot(createMockExecution());
       });
@@ -2608,11 +2608,11 @@ describe("useExecutionEvents", () => {
     });
   });
 
-  // Fix D 회귀 fix — realtimeReceived 기반 toast 신호.
+  // Fix D 회귀 fix — 실시간 수신(realtimePhase=receiving) 기반 toast 신호.
   // 이전 isConnected 기반 toast 가 WS singleton 의 기존 연결 상태를 무시하여
   // 페이지 navigation 마다 false positive 발화. 새 신호 (handleSnapshot 이
   // 받았는지) 로 정확도 향상.
-  describe("WS toast — realtimeReceived signal (Fix D 회귀)", () => {
+  describe("WS toast — realtimePhase signal (Fix D 회귀)", () => {
     beforeEach(() => {
       mockToast.warning.mockClear();
       mockToast.dismiss.mockClear();
@@ -2625,7 +2625,7 @@ describe("useExecutionEvents", () => {
     it("snapshot 수신 시 즉시 toast dismiss + 이후 timer 발화 안 함", async () => {
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-      // 초기 mount — realtimeReceived=false → 10초 timer 가 시작됨.
+      // 초기 mount — realtimePhase=awaiting → 10초 timer 가 시작됨.
       expect(mockToast.warning).not.toHaveBeenCalled();
 
       // WS snapshot 도착 시뮬.
@@ -2635,7 +2635,7 @@ describe("useExecutionEvents", () => {
         execution: createMockExecution({ status: "running" }),
       });
 
-      // dismiss 호출 (realtimeReceived → true 의 effect).
+      // dismiss 호출 (realtimePhase → receiving 의 effect).
       // React state update 가 다음 microtask 에 propagate.
       await vi.runOnlyPendingTimersAsync();
       expect(mockToast.dismiss).toHaveBeenCalledWith("ws-connection-warning");
@@ -2662,13 +2662,13 @@ describe("useExecutionEvents", () => {
       );
     });
 
-    it("executionId 변경 시 realtimeReceived reset → 새 timer 시작", async () => {
+    it("executionId 변경 시 realtimePhase reset → 새 timer 시작", async () => {
       const { rerender } = renderHook(
         ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
         { initialProps: { id: "exec-1" } },
       );
 
-      // exec-1 의 snapshot 도착 → realtimeReceived=true.
+      // exec-1 의 snapshot 도착 → realtimePhase=receiving.
       const snapshotHandler = getHandler("execution.snapshot");
       snapshotHandler({
         executionId: "exec-1",
@@ -2678,8 +2678,8 @@ describe("useExecutionEvents", () => {
       mockToast.warning.mockClear();
       mockToast.dismiss.mockClear();
 
-      // exec-2 로 navigate — render-time prop change reset 이 realtimeReceived
-      // 를 false 로 되돌려 새 timer 시작.
+      // exec-2 로 navigate — render-time prop change reset 이 realtimePhase
+      // 를 awaiting 으로 되돌려 새 timer 시작.
       rerender({ id: "exec-2" });
       expect(mockToast.warning).not.toHaveBeenCalled();
 
