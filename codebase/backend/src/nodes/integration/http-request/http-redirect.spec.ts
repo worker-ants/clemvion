@@ -211,6 +211,49 @@ describe('followRedirectsSafely — 출처가 바뀐 홉의 자격 증명', () =
     expect(out).toMatchObject({ blocked: false, url });
   });
 
+  it('인코딩이 필요한 값(공백 · & · + · / · =)의 자격 증명 query 도 다른 출처 홉에서 지운다', async () => {
+    const secret = 'k 1&2+3/=';
+    await followRedirectsSafely(
+      redirect(
+        302,
+        `https://cb.example.net/done?api_key=${encodeURIComponent(secret)}&state=1`,
+      ),
+      START,
+      { method: 'GET', headers: { ...baseHeaders } },
+      { ...credentials, queryParams: { api_key: secret } },
+    );
+
+    const parsed = new URL(hopCall(0)[0]);
+    expect(parsed.searchParams.has('api_key')).toBe(false);
+    expect(parsed.searchParams.get('state')).toBe('1');
+    expect(parsed.search).not.toContain('k%201');
+  });
+
+  it.each([307, 308])(
+    '출처가 바뀐 %i POST 는 method · body · Content-Type 을 남기고 자격 증명 헤더는 뺀다',
+    async (status) => {
+      await followRedirectsSafely(
+        redirect(status, 'https://cdn.example.net/upload'),
+        START,
+        {
+          method: 'POST',
+          body: '{"a":1}',
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+        },
+        credentials,
+      );
+
+      const [url, hopInit] = hopCall(0);
+      expect(url).toBe('https://cdn.example.net/upload');
+      expect(hopInit.method).toBe('POST');
+      expect(hopInit.body).toBe('{"a":1}');
+      expect(hopInit.headers).toEqual({
+        'X-Request-Id': 'req-1',
+        'Content-Type': 'application/json',
+      });
+    },
+  );
+
   it('자격 증명 query 가 없는 다른 출처 URL 은 문자열을 바꾸지 않는다', async () => {
     await followRedirectsSafely(
       redirect(302, 'https://cb.example.net/done?q=a%20b&x=1'),

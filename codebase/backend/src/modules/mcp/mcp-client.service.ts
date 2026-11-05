@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import pLimit, { LimitFunction } from 'p-limit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { TimeoutError } from '../../common/utils/with-timeout';
+import { TimeoutError, withTimeout } from '../../common/utils/with-timeout';
 import {
   embeddedIpv4FromIpv6,
   normalizeIpv6Literal,
@@ -377,7 +377,9 @@ export class McpClientService {
    * - 오류 메시지에는 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 내부망 정찰에 쓰일 수 있어 서버 로그에만 남긴다.
    * - `MCP_ALLOW_INSECURE_URL`(`allowInsecureUrl`)이 켜져 있으면 literal 검사처럼 건너뛴다. 통합 노드의
    *   `ALLOW_PRIVATE_HOST_TARGETS` 는 보지 않는다.
-   * - DNS 해석 실패는 막지 않는다(fail-open). 같은 이름은 SDK 의 fetch 에서도 풀리지 않아 연결 실패로 드러난다.
+   * - 해석에는 connect 타임아웃(`mcp.connectTimeoutMs`)과 같은 상한을 둔다. 시간 초과는 `TimeoutError` 로 던져
+   *   `MCP_TIMEOUT` 으로 분류된다(검사를 건너뛰지 않는다).
+   * - 시간 초과가 아닌 DNS 해석 실패는 막지 않는다(fail-open). 같은 이름은 SDK 의 fetch 에서도 풀리지 않아 연결 실패로 드러난다.
    * - 검사와 SDK 의 실제 연결은 각자 해석하므로, 그 사이 DNS 응답이 바뀌는 rebinding 창은 남는다. HTTP Request 노드의
    *   해석 검사(`assertSafeOutboundHostResolved`)와 같은 한계다.
    */
@@ -389,8 +391,14 @@ export class McpClientService {
 
     let addresses: LookupAddress[];
     try {
-      addresses = await lookup(host, { all: true, verbatim: true });
-    } catch {
+      addresses = await withTimeout(
+        lookup(host, { all: true, verbatim: true }),
+        this.connectTimeoutMs,
+        `resolve ${host}`,
+      );
+    } catch (err) {
+      // 시간 초과는 넘기지 않는다. 느린 응답으로 검사를 건너뛰게 할 수 없고, connect 타임아웃과 같은 MCP_TIMEOUT 으로 분류된다.
+      if (err instanceof TimeoutError) throw err;
       return;
     }
     const blocked = addresses.find((entry) =>
@@ -407,8 +415,8 @@ export class McpClientService {
   }
 
   /**
-   * Pure-literal SSRF host blocklist. Returns true if the hostname is a
-   * private/loopback/metadata endpoint that must not be reachable from a
+   * SSRF host blocklist. host 이름(literal)과 DNS 로 해석된 주소({@link requireSafeResolvedHost}) 모두에 쓴다.
+   * Returns true if the host is a private/loopback/metadata endpoint that must not be reachable from a
    * workspace-controlled URL. See spec §3.2.
    */
   private isBlockedHost(host: string): boolean {

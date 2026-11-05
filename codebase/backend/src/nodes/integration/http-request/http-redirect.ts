@@ -99,7 +99,7 @@ function headersWithout(
  */
 function withoutCredentialHeaders(
   init: RequestInit,
-  credentials: HttpCredentials,
+  credentials: Pick<HttpCredentials, 'headers' | 'defaultHeaders'>,
 ): RequestInit {
   const drop = new Set(
     [
@@ -154,6 +154,41 @@ function asBodylessGet(init: RequestInit): RequestInit {
   };
 }
 
+/** {@link prepareRedirectHop} 의 입력. `crossedOrigin` 은 앞선 홉에서 이미 출처가 바뀌었는지다. */
+interface RedirectHopInput {
+  status: number;
+  target: URL;
+  origin: URL;
+  crossedOrigin: boolean;
+  init: RequestInit;
+  credentials: Pick<
+    HttpCredentials,
+    'headers' | 'defaultHeaders' | 'queryParams'
+  >;
+}
+
+/**
+ * 리다이렉트 홉 하나의 요청 변환(순수 함수). 출처가 처음 바뀌는 홉이면 자격 증명 헤더를 빼고, 출처가 바뀐 뒤의 모든 홉
+ * 에서는 대상 URL 의 자격 증명 query 를 빼며, {@link switchesToGet} 이 참이면 본문 없는 GET 으로 바꾼다. 입력은 바꾸지 않는다.
+ */
+function prepareRedirectHop(input: RedirectHopInput): {
+  target: URL;
+  init: RequestInit;
+  crossedOrigin: boolean;
+} {
+  const { status, origin, credentials } = input;
+  let { target, init, crossedOrigin } = input;
+  if (!crossedOrigin && !isSameOrigin(origin, target)) {
+    crossedOrigin = true;
+    init = withoutCredentialHeaders(init, credentials);
+  }
+  if (crossedOrigin) {
+    target = withoutCredentialQuery(target, credentials.queryParams);
+  }
+  if (switchesToGet(status, init.method)) init = asBodylessGet(init);
+  return { target, init, crossedOrigin };
+}
+
 /**
  * `redirect: 'manual'` 로 받은 첫 응답에서 시작해 리다이렉트를 최대 {@link MAX_REDIRECT_HOPS} 홉 따라간다. 홉마다 대상
  * URL 을 {@link outboundBlockReason} 으로 다시 검사한다 — 공개 host 가 내부 host 로 리다이렉트해 첫 검사를 우회하지
@@ -164,6 +199,9 @@ function asBodylessGet(init: RequestInit): RequestInit {
  * query 를 뺀다. 한 번 출처가 바뀌면 원래 출처로 돌아와도 다시 싣지 않는다. 노드와 연결 테스트가 같은 `credentials` 를
  * 넘겨 같은 규칙을 쓴다. 303 과 301 · 302 의 POST 는 본문과 본문 헤더 없는 GET 으로 바꾼다({@link switchesToGet}).
  * 호출자의 `init` 은 바꾸지 않고 홉마다 새 객체를 만든다.
+ *
+ * @param credentials 통합 자격 증명 묶음. 출처가 바뀐 홉에서 뺄 헤더 이름(`headers` · `defaultHeaders`)과 query(`queryParams`)를
+ *   정하는 데 쓴다. 헤더 · query 값 자체는 요청에 싣지 않는다(첫 요청은 호출자가 이미 만들었다).
  *
  * 차단(대상 가드 실패 · 홉 초과)은 던지지 않고 `{ blocked: true, reason }` 으로 돌려준다 — `reason` 에는 차단된 host/IP 가
  * 들어 있을 수 있으므로 호출자는 서버 로그에만 남기고 클라이언트에는 `SSRF_BLOCKED_CLIENT_MESSAGE` 를 준다.
@@ -190,17 +228,17 @@ export async function followRedirectsSafely(
         reason: `redirect chain exceeded ${MAX_REDIRECT_HOPS} hops`,
       };
     }
-    let target = new URL(response.headers.get('location') as string, url);
-    if (!crossedOrigin && !isSameOrigin(origin, target)) {
-      crossedOrigin = true;
-      hopInit = withoutCredentialHeaders(hopInit, credentials);
-    }
-    if (crossedOrigin) {
-      target = withoutCredentialQuery(target, credentials.queryParams);
-    }
-    if (switchesToGet(response.status, hopInit.method)) {
-      hopInit = asBodylessGet(hopInit);
-    }
+    const hop = prepareRedirectHop({
+      status: response.status,
+      target: new URL(response.headers.get('location') as string, url),
+      origin,
+      crossedOrigin,
+      init: hopInit,
+      credentials,
+    });
+    const { target } = hop;
+    crossedOrigin = hop.crossedOrigin;
+    hopInit = hop.init;
     const next = target.toString();
     const reason = await outboundBlockReason(next);
     if (reason !== null) return { blocked: true, reason };

@@ -363,6 +363,24 @@ describe('McpClientService', () => {
       expect(mockTransportInstances).toHaveLength(1);
     });
 
+    // 시간 초과를 fail-open 으로 두면 느린 DNS 응답으로 검사를 건너뛰게 할 수 있다. connect 타임아웃과 같은 MCP_TIMEOUT 으로 분류되게 TimeoutError 를 던진다.
+    it('해석이 connect 타임아웃 안에 끝나지 않으면 TimeoutError 를 던지고 연결하지 않는다', async () => {
+      jest.useFakeTimers();
+      try {
+        mockedLookup.mockReturnValue(new Promise(() => undefined));
+        const p = service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'none',
+        });
+        const assertion = expect(p).rejects.toBeInstanceOf(TimeoutError);
+        await jest.advanceTimersByTimeAsync(10_000);
+        await assertion;
+        expect(mockTransportInstances).toHaveLength(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('allowInsecureUrl=true 면 해석하지 않는다', async () => {
       allowInsecure = true;
       mockedLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
