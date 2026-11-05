@@ -293,6 +293,23 @@ export class AuthService {
   }
 
   // ========== LOGIN ==========
+  /**
+   * 로그인 경로가 Passkey 를 어떻게 다룰지 정하는 한 곳. `login` 과 `loginWithTotp` 가 같은 판정을 쓴다.
+   * - `active`: 기능이 켜져 있고 저장된 credential 이 1개 이상이다. 이때 TOTP 로 자동 전환하지 않는다.
+   * - `storedCount`: 기능이 꺼져 있어도 센 저장된 credential 수. 꺼진 동안 Passkey 만 등록한 계정을
+   *   비밀번호만으로 들이지 않는 판정(REQ-SIGNIN-067)에 쓴다.
+   */
+  private async passkeyState(
+    userId: string,
+  ): Promise<{ active: boolean; storedCount: number }> {
+    const storedCount =
+      await this.webauthnService.countStoredCredentials(userId);
+    return {
+      active: this.webauthnService.isEnabled() && storedCount > 0,
+      storedCount,
+    };
+  }
+
   async login(
     dto: {
       email: string;
@@ -397,11 +414,9 @@ export class AuthService {
     //   그 밖에 two_factor_enabled → methods=['totp']
     //   Passkey 기능 꺼짐 + credential ≥ 1 + TOTP 꺼짐 → 503 WEBAUTHN_DISABLED (REQ-SIGNIN-067).
     //     비밀번호만으로 2단계 인증을 건너뛰지 않게 막는다. 챌린지 발급처럼 로그인 이력은 남기지 않는다.
-    // countCredentials() 는 기능이 꺼져도 저장된 credential 수를 그대로 센다.
-    const webauthnEnabled = this.webauthnService.isEnabled();
-    const webauthnCount = await this.webauthnService.countCredentials(user.id);
+    const { active: useWebauthn, storedCount: webauthnCount } =
+      await this.passkeyState(user.id);
     const hasTotp = user.twoFactorEnabled;
-    const useWebauthn = webauthnEnabled && webauthnCount > 0;
     if (useWebauthn || hasTotp) {
       const methods: Array<'webauthn' | 'totp'> = useWebauthn
         ? ['webauthn']
@@ -422,6 +437,10 @@ export class AuthService {
       };
     }
     if (webauthnCount > 0) {
+      // 로그인 이력은 남기지 않으므로 운영 쪽이 이 락아웃을 알 단서는 로그뿐이다.
+      this.logger.warn(
+        `Passkey 기능이 꺼져 있어 Passkey 만 등록한 계정의 로그인을 막았다 (userId=${user.id}). WEBAUTHN_RP_ID · WEBAUTHN_ORIGIN 을 설정해야 한다.`,
+      );
       throw new ServiceUnavailableException({
         code: 'WEBAUTHN_DISABLED',
         message:
@@ -480,11 +499,7 @@ export class AuthService {
     // Passkey 가 등록된 사용자는 TOTP 로 자동 전환하지 않는다. Passkey 기능이 꺼져 있으면
     // 이 백스탑을 건너뛴다. 꺼진 동안 TOTP 가 켜진 사용자는 TOTP 로 로그인한다
     // (NERV CLE-ACCT-SIGNIN `WEBAUTHN_REQUIRED` 행 · 「Passkey 기능 켜기와 환경 변수」).
-    // countCredentials() 는 기능이 꺼져도 0 을 돌려주지 않으므로 isEnabled() 를 먼저 본다.
-    if (
-      this.webauthnService.isEnabled() &&
-      (await this.webauthnService.countCredentials(user.id)) > 0
-    ) {
+    if ((await this.passkeyState(user.id)).active) {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_REQUIRED',
         message:

@@ -17,7 +17,7 @@ import { UsersModule } from '../../users/users.module';
  * spec/5-system/1-auth.md §1.4 / Rationale 1.4.H — WebAuthn 도메인 (entity·service·DTO·
  * controller) 을 AuthModule 본체에서 분리해 단방향 의존성으로 정리. AuthModule 은 본
  * 모듈을 import 해서 `WebAuthnService` 를 주입받고, login 분기에서
- * `isEnabled()` · `countCredentials()` 등을 사용.
+ * `isEnabled()` · `countStoredCredentials()` 등을 사용.
  *
  * `WebAuthnController` 는 `AuthService.consumeChallengeToken`·`issueTokensAfterMfa`
  * 를 사용해야 하므로 AuthModule 의 controllers 배열에 등록한다 — 순환 의존성을 피하기

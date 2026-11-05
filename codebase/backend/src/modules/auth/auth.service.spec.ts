@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ServiceUnavailableException,
+  Logger,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { BCRYPT_ROUNDS } from '../../common/utils/password.util';
@@ -54,7 +55,10 @@ describe('AuthService', () => {
     verifyForDisable: jest.Mock;
     disableUnchecked: jest.Mock;
   };
-  let webauthnService: { countCredentials: jest.Mock; isEnabled: jest.Mock };
+  let webauthnService: {
+    countStoredCredentials: jest.Mock;
+    isEnabled: jest.Mock;
+  };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -149,7 +153,7 @@ describe('AuthService', () => {
         {
           provide: WebAuthnService,
           useValue: {
-            countCredentials: jest.fn().mockResolvedValue(0),
+            countStoredCredentials: jest.fn().mockResolvedValue(0),
             isEnabled: jest.fn().mockReturnValue(false),
           },
         },
@@ -687,7 +691,7 @@ describe('AuthService', () => {
         twoFactorEnabled: true,
       } as User);
       webauthnService.isEnabled.mockReturnValue(true);
-      webauthnService.countCredentials.mockResolvedValue(1);
+      webauthnService.countStoredCredentials.mockResolvedValue(1);
 
       const err = await loginError();
 
@@ -697,7 +701,7 @@ describe('AuthService', () => {
   });
 
   // NERV CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」 · REQ-SIGNIN-067 (CLE-T-RFSJXQ).
-  // countCredentials 는 기능이 꺼져도 저장된 credential 수를 그대로 센다. 분기는 isEnabled 로 고른다.
+  // countStoredCredentials 는 기능이 꺼져도 저장된 credential 수를 그대로 센다. 분기는 isEnabled 로 고른다.
   describe('login — 2단계 인증 방식 선택', () => {
     const PASSWORD = 'Test123!@#';
     let hash: string;
@@ -717,7 +721,9 @@ describe('AuthService', () => {
         twoFactorEnabled: opts.totp,
       } as User);
       webauthnService.isEnabled.mockReturnValue(opts.enabled);
-      webauthnService.countCredentials.mockResolvedValue(opts.credentials);
+      webauthnService.countStoredCredentials.mockResolvedValue(
+        opts.credentials,
+      );
     }
 
     function signedMethod(): unknown {
@@ -786,6 +792,7 @@ describe('AuthService', () => {
 
     it('꺼짐 · credential 1 · TOTP 꺼짐 → 토큰 없이 503 WEBAUTHN_DISABLED', async () => {
       arrange({ enabled: false, credentials: 1, totp: false });
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
 
       const attempt = service.login({
         email: 'test@example.com',
@@ -800,6 +807,11 @@ describe('AuthService', () => {
       expect(refreshTokenRepo.save).not.toHaveBeenCalled();
       // 챌린지 발급과 같이 로그인 이력을 남기지 않는다(자격 증명 실패가 아니다).
       expect(loginHistoryService.record).not.toHaveBeenCalled();
+      // 이력이 없으니 운영 쪽 단서는 로그다.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('WEBAUTHN_RP_ID'),
+      );
+      warn.mockRestore();
     });
   });
 
@@ -820,7 +832,9 @@ describe('AuthService', () => {
         twoFactorEnabled: true,
       } as User);
       webauthnService.isEnabled.mockReturnValue(opts.enabled);
-      webauthnService.countCredentials.mockResolvedValue(opts.credentials);
+      webauthnService.countStoredCredentials.mockResolvedValue(
+        opts.credentials,
+      );
       verifier.mockReset().mockResolvedValue(true);
     }
 

@@ -176,14 +176,10 @@ export class WebAuthnService {
    * 등록된 credential 개수. 기능이 꺼져도 저장된 행을 그대로 센다(행은 보존되고 운영자가
    * 변수를 다시 설정하면 그대로 쓴다). 기능 여부는 호출하는 쪽이 `isEnabled()` 로 따로 본다.
    *
-   * 호출하는 곳은 넷이다.
-   * - `AuthService.login`: 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정을 503
-   *   `WEBAUTHN_DISABLED` 로 막는다(NERV CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」).
-   *   꺼질 때 0 을 돌려주면 그 계정이 비밀번호만으로 로그인한다.
-   * - `AuthService.loginWithTotp`: 기능이 켜져 있을 때만 `WEBAUTHN_REQUIRED` 백스탑에 쓴다.
-   * - `verifyRegistration` · `deleteCredential`: `assertEnabled()` 뒤라 기능이 켜져 있다.
+   * 이름이 "꺼져도 센다" 는 뜻이다. 기능이 꺼진 동안의 판정이 필요하면 호출하는 쪽에서
+   * `isEnabled()` 를 함께 본다. 로그인 경로는 `AuthService.passkeyState()` 한 곳에서 본다.
    */
-  async countCredentials(userId: string): Promise<number> {
+  async countStoredCredentials(userId: string): Promise<number> {
     return this.credentialRepo.count({ where: { userId } });
   }
 
@@ -297,7 +293,7 @@ export class WebAuthnService {
       });
     }
 
-    const isFirst = (await this.countCredentials(userId)) === 0;
+    const isFirst = (await this.countStoredCredentials(userId)) === 0;
     const entity = this.credentialRepo.create({
       userId,
       credentialId,
@@ -682,7 +678,7 @@ export class WebAuthnService {
     // 조건절에 `userId` 를 함께 건다 — 종전엔 `{ id }` 뿐이라 소유권이 위 무락 조회 뒤의 JS
     // 비교로만 남았다. 형제들이 워크스페이스 스코프를 조건절에 넣은 것과 같은 강화다.
     //
-    // 진 쪽이 여기서 던지므로 아래 `countCredentials`·복구 코드 NULL 화도 함께 건너뛴다.
+    // 진 쪽이 여기서 던지므로 아래 `countStoredCredentials`·복구 코드 NULL 화도 함께 건너뛴다.
     // 반환 계약 `{ remaining }` 은 그대로다 — 이긴 쪽만 도달한다.
     const { affected } = await this.credentialRepo.delete({
       id: credentialUuid,
@@ -692,7 +688,7 @@ export class WebAuthnService {
       this.throwCredentialNotFound();
     }
 
-    const remaining = await this.countCredentials(userId);
+    const remaining = await this.countStoredCredentials(userId);
     if (remaining === 0) {
       // 애플리케이션 레이어 책임 — DB 트리거 아님 (spec/1-data-model.md §2.1)
       await this.usersService.update(userId, { webauthnRecoveryCodes: null });
