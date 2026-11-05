@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021"]
+requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "8bd256014d4262dda7bd7c21d16c8892cdf6469848c366504c9d61dad00a1a6f"
+content_hash: "0a760eb166c169290999b2bab70bfb2df8fd7b8fb12a3f251d0d4f2297e21333"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-REC4X3"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d679b1ada9e50fae57ddc5842ef3b3656a757505fd6eb02ed851c2690ff24fcb"
-etag: "sha256-91e084d0dbe9ade9f98b448d588163f4d310689319424279ce9437f44051cbb0"
+mirror_sha256: "447c7eb66667f6b182f7f27ebef2920dc6ca8d06d1498d53f9a719f492f01faa"
+etag: "sha256-ff2e4e47fe0d0841d62e63da65bf815199ff0bb533312294c8416b3437e0e112"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,6 +49,7 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 - REQ-FOREACH-019 IF `errorPolicy` 가 `stop` / `skip` / `continue` 가 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-FOREACH-020 IF `emit` 포트에 본문 노드가 없거나 2개 이상이거나 본문 안에 되돌아가는 연결선이나 블로킹 노드가 있으면 THE SYSTEM SHALL 엔진 그래프 검증에서 실행을 실패시킨다.
 - REQ-FOREACH-021 WHEN ForEach 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트와 동적 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
+- REQ-FOREACH-022 WHEN 실패한 회차를 `output.skipped` 에 더하면 THE SYSTEM SHALL `error.code` 를 Map · Parallel 과 같은 규칙으로 고른다. 백엔드가 직접 싣는 카탈로그 코드는 그대로 두고 `name` 이 `AbortError` 인 에러는 `AbortError` 로, 그 밖은 `UNKNOWN_ERROR` 로 둔다.
 
 ## 설정
 
@@ -176,7 +177,7 @@ ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`
 항목 에러 정책이 `skip` 이나 `continue` 면 실패한 회차를 다음 세 곳으로 나눈다.
 
 1. `output.items[i]` 는 `null` 자리다. 입력 배열의 인덱스를 지키기 위해 둔다.
-2. `output.skipped: [{ index, error: { code, message } }]` 에는 실패한 회차의 인덱스와 에러 정보가 들어간다. 성공과 실패가 한 배열에 섞이지 않도록 나눈다.
+2. `output.skipped: [{ index, error: { code, message } }]` 에는 실패한 회차의 인덱스와 에러 정보가 들어간다. 성공과 실패가 한 배열에 섞이지 않도록 나눈다. `error.code` 와 `error.message` 는 Map · Parallel 과 같은 규칙으로 고른다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4 · 5번). `error.code` 는 카탈로그 코드 · `AbortError` · `UNKNOWN_ERROR` 가운데 하나다. `AbortError` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 등록 코드다.
 3. `meta.skippedCount: number` 는 `output.skipped.length` 를 비춘다. 다음 노드가 배열을 돌지 않고 분기·메트릭에 쓸 수 있다.
 
 ```json
@@ -190,7 +191,7 @@ ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`
     ],
     "count": 3,
     "skipped": [
-      { "index": 1, "error": { "code": "VALIDATION_FAILED", "message": "..." } }
+      { "index": 1, "error": { "code": "UNKNOWN_ERROR", "message": "..." } }
     ]
   },
   "meta": {
@@ -201,7 +202,7 @@ ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`
 }
 ```
 
-실패가 0건이면 `output.skipped` 와 `meta.skippedCount` 둘 다 필드 자체를 뺀다(`undefined` 필드는 싣지 않는다). 다음 노드는 `output.items.filter(x => x !== null)` 로 성공만 골라내거나 `output.skipped` 가 있을 때만 실패 처리 분기로 들어가면 된다.
+예시의 `"UNKNOWN_ERROR"` 는 `code` 가 없는 평범한 Error 를 던졌을 때의 값이다. 실패가 0건이면 `output.skipped` 와 `meta.skippedCount` 둘 다 필드 자체를 뺀다(`undefined` 필드는 싣지 않는다). 다음 노드는 `output.items.filter(x => x !== null)` 로 성공만 골라내거나 `output.skipped` 가 있을 때만 실패 처리 분기로 들어가면 된다.
 
 Map 은 실패 항목을 `output.mapped[i] = { _skipped: true, error }` 인라인 표시로 둔다. 두 노드가 형태를 달리하는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다.
 
@@ -271,3 +272,7 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 ### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다 (2026-10-24)
 
 ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 두고 `meta.fellBackToEmpty` 로 대체 여부를 알린다(NERV Task `CLE-T-3HJ8MM`). 기각한 대안은 ForEach 만 throw 로 바꾸는 안이다. 지금 0회 실행으로 지나가는 워크플로우가 실패로 바뀐다.
+
+### 실패한 회차의 `error.code` 를 Map · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
+
+그전 `skipped[].error.code` 는 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. Parallel 은 같은 자리에 빈 `name` 대신 `UNKNOWN_ERROR` 를 내서 두 노드가 달랐다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-FOREACH-022). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.

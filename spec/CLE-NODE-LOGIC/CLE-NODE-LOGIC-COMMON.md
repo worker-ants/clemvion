@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "eb8b4428a0a9cd5b00e2b1d19be2849413d42d862bbd28e9e4b1899e5cd0febe"
+content_hash: "c094ee453b449f0c2e9fbd4a6671b49192d68a526702e9a00da37b3e2c199185"
 read_as: "approved_fallback"
-task: "CLE-T-2HD471"
+task: "CLE-T-REC4X3"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4cb7b6afdff8d285248649ac0efd080769d1a4c2221487958a4452d8cab3b019"
-etag: "sha256-07dfec21e12e4308e49be941c29895e5477a0e325a52726bca5549746e53f68a"
+mirror_sha256: "0c97a37fbd8dd2b825a0c65275236f79bc001dcfd4d60de6c54974202da5e940"
+etag: "sha256-7ac9e48e34db9f39b58092d95c37baed64f50f4584d4331eabbe2cd3a4a20b46"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -140,7 +140,13 @@ ForEach 의 결과 분리 형태는 [ForEach 노드](CLE-NODE-FOREACH.md), Map �
 
 1. 다음 노드는 `$node["X"].output.<컬렉션 키>[i]` 로 개별 결과를, `$node["X"].output.count` 로 실행된 개수를 읽는다.
 2. 컬렉션 키는 네 노드가 모두 다르다. 같은 키를 두 노드가 함께 쓰지 않는다.
-3. ForEach 와 Parallel 은 실패한 항목이나 병렬 분기가 있을 때만 `output.skipped` 를 더 싣는다. 항목은 `{ index, error: { code, message } }` 이고 실패 자리는 컬렉션에서 `null` 이다. `error.code` 는 `UPPER_SNAKE_CASE` 표기에서 벗어난 임시 예외다. 값 규칙과 정리 계획은 [Parallel 노드](CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 에 있다. Map 은 `skipped` 를 싣지 않고 `mapped[i]` 에 실패를 인라인으로 표시한다([항목 에러 정책](#항목-에러-정책)).
+3. ForEach 와 Parallel 은 실패한 항목이나 병렬 분기가 있을 때만 `output.skipped` 를 더 싣는다. 항목은 `{ index, error: { code, message } }` 이고 실패 자리는 컬렉션에서 `null` 이다. Map 은 `skipped` 를 싣지 않고 `mapped[i] = { _skipped: true, error: { code, message } }` 로 실패를 인라인으로 표시한다([항목 에러 정책](#항목-에러-정책)).
+4. 세 노드는 실패한 회차와 병렬 분기의 `error.code` 를 한 규칙(`resolveIterationErrorCode`)으로 고른다. 위 조건부터 차례로 본다.
+   - 던진 값이 Error 가 아니면 `UNKNOWN_ERROR` 다.
+   - Error 의 `name` 이 `AbortError` 면 `AbortError` 다. 취소로 끝난 회차와 병렬 분기이고 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 코드다. 에러 객체의 `code` 보다 먼저 본다.
+   - Error 의 `code` 가 문자열이고 백엔드가 직접 싣는 코드면 그 값이다. 백엔드가 직접 싣는 코드는 `ErrorCode` · `EngineErrorCode` · `MCP_ERROR_CODES` 의 값과 에러 클래스가 `code` 로 싣는 리터럴(예 `MAKESHOP_RATE_LIMITED`)이다. 모두 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+   - 그 밖은 `UNKNOWN_ERROR` 다. `code` 가 없는 평범한 `Error` · `TypeError` 와 Node 런타임 · DB 드라이버가 싣는 `ECONNREFUSED` · `ER_DUP_ENTRY` 같은 `code` 가 여기에 든다.
+5. `error.message` 는 에러 메시지다. 던진 값이 Error 가 아니면 문자열로 바꾼 값이다. `PARALLEL_INVALID_CHILD` 같은 메시지 접두사는 `error.message` 앞에 남고 `error.code` 가 되지 않는다. 4 · 5번의 근거는 Rationale [실패한 회차와 병렬 분기의 `error.code`](#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다.
 
 ### 리소스 제한
 
@@ -282,6 +288,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
 - `codebase/backend/src/nodes/logic/*/*.schema.ts`
 - `codebase/backend/src/nodes/core/condition-evaluator.util.ts` (조건 평가, `compileUserRegex`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (엔진 덮어쓰기)
+- `codebase/backend/src/modules/execution-engine/containers/iteration-error-code.ts` (실패한 회차와 병렬 분기의 `error.code` 규칙 `resolveIterationErrorCode`)
 - `codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx` (`ITEM_ERROR_POLICY_NODE_TYPES`: 레거시 평면 키 이전에서 뺄 노드 유형)
 
 ## Rationale
@@ -340,3 +347,21 @@ Parallel 의 `continue` 도 병렬 분기가 서로 독립이라 ForEach 형태�
 
 - 이 노드들도 예외 표에 올리는 안. 이 노드들은 값을 `[]` 로 바꾸지 않고 감싸거나 입력을 쓰거나 연산을 건너뛰므로 표의 처리 방식과 맞지 않는다. 표에 올려 달라는 요구도 없다.
 - 이 노드들도 throw 하게 바꾸는 안. 지금 성공하는 워크플로우가 실패하게 되고 동작을 바꿔 달라는 요구도 없다.
+
+### 실패한 회차와 병렬 분기의 `error.code` (2026-11-05)
+
+ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code` 에 던진 Error 의 `name` 을 실어 왔다. 실제 값은 대부분 `Error` · `TypeError` 였고 일부는 `MakeshopRateLimitedError` 같은 클래스 이름이었다. 이 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 2 의 `UPPER_SNAKE_CASE` 를 따르지 않았다. Error 가 아닌 값에 쓰던 `UNKNOWN_ERROR` 는 카탈로그에 없었다. 그래서 [Parallel 노드](CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 가 임시 예외로 적어 두었다. NERV Task `CLE-T-REC4X3` 이 사람에게 두 번 물어 이 예외를 닫았다(NERV 질문 `01a1aabb-0a6b` · `01a1aaea-8263`, 2026-11-05).
+
+- 세 노드가 한 함수를 쓴다. 전에는 `name` 이 빈 문자열일 때 ForEach 는 빈 문자열을, Parallel 은 `UNKNOWN_ERROR` 를 냈다. 같은 모양의 실패 정보에서 값이 노드마다 갈리지 않게 했다.
+- 문자열 `code` 는 백엔드가 직접 싣는 코드의 허용 목록에 있을 때만 그대로 낸다. 첫 답(질문 `01a1aabb-0a6b`)은 `UPPER_SNAKE_CASE` 모양이면 그대로 내는 안이었다. 구현하면서 Node 런타임 · DB 드라이버의 에러도 `ECONNREFUSED` · `ERR_INVALID_URL` · `ER_DUP_ENTRY` 처럼 같은 모양의 `code` 를 싣는다는 것을 찾았다. 이 값은 카탈로그에 없어 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 8 과 어긋난다. 그래서 다시 물어 허용 목록으로 좁혔다(질문 `01a1aaea-8263`). 나가는 값은 늘 카탈로그 안에 있다.
+- 새 에러 클래스를 허용 목록에 빠뜨리면 그 값이 `UNKNOWN_ERROR` 로 바뀐다. 그래서 단위 테스트(`iteration-error-code.spec.ts`)가 소스의 에러 클래스 `code` 리터럴이 모두 목록에 있는지, 목록의 값이 아직 소스에 있는지 본다.
+- `AbortError` 는 `name` 으로 먼저 본다. Node 의 AbortError 는 `code: 'ABORT_ERR'` 를 싣지만 취소된 회차는 §3 예외 코드 `AbortError` 하나로 모은다.
+- 대체값은 `UNKNOWN_ERROR` 로 두고 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#66-워크플로우-실행-노드-수준-런타임) §6.6 에 올린다. 그 행은 이 문서와 함께 검토 요청한 ERRCODES 초안에 있다. 옛 코드 `NODE_EXECUTION_FAILED` 는 §6.6 이 노드 출력에 더 이상 쓰지 않는다고 적은 이름이라 다시 쓰지 않았다.
+- `PARALLEL_*` · `CONTAINER_*` 메시지 접두사는 코드로 올리지 않았다. 이 결정은 `error.code` 값만 다룬다.
+
+**기존 워크플로우 영향**: `skipped[i].error.code == "Error"` 처럼 클래스 이름으로 분기하던 표현식은 더 맞지 않는다. 코드가 없는 에러는 `UNKNOWN_ERROR` 로 비교한다. 바뀐 값은 사용자 가이드(Logic 노드)에 적었다. 에러 처리 정책 「에러 포트로 라우팅」 의 `output.error.code` 는 아직 `name` 을 싣는다. 이 결정의 범위 밖이라 NERV Task `CLE-T-KXARNK` 가 맡는다.
+
+기각한 대안은 두 가지다.
+
+- `UPPER_SNAKE_CASE` 모양이면 출처를 가리지 않고 그대로 내는 안. 런타임 · 드라이버 `code` 가 카탈로그 밖 값으로 나가 규칙 8 의 예외로 남는다.
+- 런타임 · 드라이버 모양을 걸러 내는 안(`errno` · `syscall` 속성, `ERR_` · `ER_` 접두사, `E` 로 시작하는 한 단어). 목록을 관리하지 않아도 되지만 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다.

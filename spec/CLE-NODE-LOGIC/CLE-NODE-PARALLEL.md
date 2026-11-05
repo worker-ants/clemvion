@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
-requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032"]
+requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "5a96834484e11916c2628fbc7fe1fc342c0d428eb419fa562aadb0f70ca10a57"
+content_hash: "584740c494955c09f34ae49767a8fcfabc9119d3b02b05b8605d51691203bd56"
 read_as: "approved_fallback"
-task: "CLE-T-E5BD74"
+task: "CLE-T-REC4X3"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "6fd587d02db55263b5f9bf7d9e3b59a553f1f1a1c18ad5cf2c3cbc471dc2a413"
-etag: "sha256-fa1c3cc44fa1b2fdac9a139504e4a4b8df46ca251ce3c242a29d9a6fbd120c46"
+mirror_sha256: "32b77f1c02e9764f6fa6e47e42185c5b41310ea40d0bf03405104041389371b7"
+etag: "sha256-3373987560faf7eba6b0d5c60dc8e21abda91685ea7f9ea2a0baef7986a1a0e4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,6 +60,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - REQ-PARALLEL-030 WHEN 병렬 분기의 결과를 정하면 THE SYSTEM SHALL 이번 Parallel 실행에서 그 병렬 분기가 출력을 쓴 노드 가운데 [위상 순서](#병렬-분기의-노드-집합과-위상-순서)가 가장 늦은 노드의 출력을 엔진 제어 필드(`_selectedPort` 등)를 빼고 `output.branches[i]` 에 담고 그런 노드가 없거나 그 출력이 `undefined` 면 `null` 을 담는다.
 - REQ-PARALLEL-031 WHEN 병렬 분기 안의 노드가 출력을 쓰면 THE SYSTEM SHALL 그 출력을 병렬 분기의 캐시 사본에도 옮겨 같은 병렬 분기의 다음 노드 입력과 포트 라우팅이 그 출력을 쓰게 한다.
 - REQ-PARALLEL-032 IF 병렬 분기 안의 노드가 실행 중에 `waiting_for_input` 상태를 내면 THE SYSTEM SHALL 메시지가 `PARALLEL_INVALID_CHILD:` 로 시작하는 에러로 그 병렬 분기를 실패시키고 항목 에러 정책대로 처리한다.
+- REQ-PARALLEL-033 WHEN 실패한 병렬 분기를 `output.skipped` 에 더하면 THE SYSTEM SHALL `error.code` 를 ForEach · Map 과 같은 규칙으로 고른다. 백엔드가 직접 싣는 카탈로그 코드는 그대로 두고 `name` 이 `AbortError` 인 에러는 `AbortError` 로, 그 밖은 `UNKNOWN_ERROR` 로 둔다.
 
 ## 설정
 
@@ -176,21 +177,21 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
     ],
     "count": 3,
     "skipped": [
-      { "index": 2, "error": { "code": "Error", "message": "notify failed" } }
+      { "index": 2, "error": { "code": "UNKNOWN_ERROR", "message": "notify failed" } }
     ]
   },
   "port": "done"
 }
 ```
 
-예시의 `"Error"` 는 던진 Error 의 `name` 을 그대로 실은 값이다. [API 에러 코드](../CLE-API/CLE-API-ERRCODES.md) 카탈로그의 코드가 아니다. 값 정리는 NERV Task `CLE-T-REC4X3` 이 맡는다. 실패한 병렬 분기가 없으면 `output.skipped` 필드 자체가 없다(REQ-PARALLEL-029).
+예시의 `"UNKNOWN_ERROR"` 는 `code` 가 없는 평범한 Error 를 던졌을 때의 값이다. 실패한 병렬 분기가 없으면 `output.skipped` 필드 자체가 없다(REQ-PARALLEL-029).
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | 원래 값 | 설정 에코 | 시작 시점과 같음 |
 | `output.branches` | `Array<unknown \| null>` | 엔진 덮어쓰기 | 병렬 분기마다의 결과. `branches[i]` 는 `branch_i` 병렬 분기의 결과 노드 출력이고 고르는 규칙은 REQ-PARALLEL-030 과 [병렬 분기의 노드 집합과 위상 순서](#병렬-분기의-노드-집합과-위상-순서) 가 정한다. 실패한 병렬 분기는 `null` 이다. 컬렉션 키는 `branches` ([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) |
 | `output.count` | Integer | 엔진 덮어쓰기 | 병렬 분기 수(`branches.length`). 실패한 병렬 분기도 자리를 지키므로 함께 센다. 컬렉션 키와 `count` 를 함께 내는 공통 규칙을 따른다 |
-| `output.skipped?` | `Array<{ index, error: { code, message } }>` | 엔진 덮어쓰기 | `errorPolicy='continue'` 에서 실패한 병렬 분기 목록이고 `index` 오름차순이다. `index` 는 병렬 분기 번호(`branch_<index>` 의 index)다. `error.code` 는 던진 값이 Error 면 그 `name` 이고 Error 가 아니거나 `name` 이 비었으면 `'UNKNOWN_ERROR'` 다. `error.message` 는 에러 메시지다(Error 가 아니면 문자열로 바꾼 값). `error.code` 값 정리는 NERV Task `CLE-T-REC4X3` 이 맡는다([`error.code` 의 값](#errorcode-의-값-2026-11-01)). 실패가 0건이면 필드 자체를 뺀다. 사용자 취소는 여기에 들어가지 않는다. 실행 상태 `skipped`(실행하지 않고 건너뜀)와는 다른 뜻이다 |
+| `output.skipped?` | `Array<{ index, error: { code, message } }>` | 엔진 덮어쓰기 | `errorPolicy='continue'` 에서 실패한 병렬 분기 목록이고 `index` 오름차순이다. `index` 는 병렬 분기 번호(`branch_<index>` 의 index)다. `error.code` 와 `error.message` 는 ForEach · Map 과 같은 규칙으로 고른다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4 · 5번). `error.code` 는 카탈로그 코드 · `AbortError` · `UNKNOWN_ERROR` 가운데 하나다. 실패가 0건이면 필드 자체를 뺀다. 사용자 취소는 여기에 들어가지 않는다. 실행 상태 `skipped`(실행하지 않고 건너뜀)와는 다른 뜻이다 |
 | `port` | `'done'` | 엔진 | 단일 문자열. 모든 병렬 분기 완료 경로 |
 
 완료 출력의 `meta` 는 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `{ clampedConcurrency }` 로 싣고 그 밖에는 싣지 않는다(REQ-PARALLEL-025). 병렬 분기 수와 실패 수는 `meta` 에 따로 두지 않는다. 다음 노드는 병렬 분기 수를 `output.count` 로, 실패는 `output.skipped` 로 읽는다(실패 수는 `output.skipped.length`). `meta.durationMs` 도 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 병렬 분기 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)).
@@ -229,7 +230,7 @@ Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 �
 
 `branchCount` 범위 검사는 노드 경고 규칙 한 곳에만 둔다. `handler.validate` 는 경고 규칙과 `validateConfig` 의 결과를 합쳐 돌려주므로 같은 문구가 캔버스 배지와 검증 결과에 한 번씩 보인다. `validateConfig`(`validateParallelConfig`)는 경고 규칙의 표현식으로 쓸 수 없는 정수 검사만 맡는다.
 
-표의 `PARALLEL_INVALID_CHILD` · `PARALLEL_BACK_EDGE` · `PARALLEL_NESTED_DEPTH_EXCEEDED` 는 에러 메시지 앞에 붙는 접두사다. `ErrorCode` enum 값이 아니고 `output.skipped[].error.code` 값도 아니다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴) 규칙 1 의 `CONTAINER_*` 와 같은 방식이다. 그래서 `errorPolicy='continue'` 에서 실행 중 대기로 실패한 병렬 분기는 `error.code` 가 `'Error'` 이고 접두사는 `error.message` 앞에 붙는다. 접두사는 진단용이며 클라이언트가 분기 근거로 쓰지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 4). 안정된 코드로 올릴지는 NERV Task `CLE-T-REC4X3` 이 정한다.
+표의 `PARALLEL_INVALID_CHILD` · `PARALLEL_BACK_EDGE` · `PARALLEL_NESTED_DEPTH_EXCEEDED` 는 에러 메시지 앞에 붙는 접두사다. `ErrorCode` enum 값이 아니고 `output.skipped[].error.code` 값도 아니다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴) 규칙 1 의 `CONTAINER_*` 와 같은 방식이다. 그래서 `errorPolicy='continue'` 에서 실행 중 대기로 실패한 병렬 분기는 `error.code` 가 `'UNKNOWN_ERROR'` 이고 접두사는 `error.message` 앞에 붙는다. 접두사는 진단용이며 클라이언트가 분기 근거로 쓰지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 4). 접두사는 안정된 코드로 올리지 않는다(2026-11-05, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)).
 
 | 발생 조건 | 메시지 · 처리 | 시점 |
 |-----------|--------------|------|
@@ -395,6 +396,8 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 
 ### `error.code` 의 값 (2026-11-01)
 
+**2026-11-05 정리**: NERV Task `CLE-T-REC4X3` 이 ForEach · Map 과 함께 규칙을 하나로 모으고 이 임시 예외를 닫았다. 아래 문단은 그 전의 기록이다. 지금 규칙은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4 · 5번이 정한다. 근거와 기각한 대안은 그 문서의 Rationale [실패한 회차와 병렬 분기의 `error.code`](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다.
+
 `skipped[].error.code` 는 던진 값이 Error 면 그 `name` 이고 Error 가 아니면 `'UNKNOWN_ERROR'` 다. ForEach 의 `skipped[].error.code` 도 같은 규칙으로 만든다(`foreach-executor.ts`). 두 노드의 구현에는 차이가 하나 있다. `name` 이 빈 문자열이면 Parallel 은 `'UNKNOWN_ERROR'` 를 내고 ForEach 는 빈 문자열을 그대로 낸다.
 
 이 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 2 의 `UPPER_SNAKE_CASE` 표기를 따르지 않고 `'UNKNOWN_ERROR'` 도 카탈로그에 없다(2026-11-01 consistency 검토, 2026-11-02 코드 리뷰). 지금은 임시 예외로 둔다. 이 예외의 정본 서술은 이 절이다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#92-노드별-최종-출력-값) 9.2 와 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 은 이 절을 가리킨다.
@@ -402,6 +405,7 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 NERV Task `CLE-T-REC4X3` 이 ForEach 와 함께 정리한다. 두 노드의 규칙 통일, 안정된 코드로 바꿀지, `UNKNOWN_ERROR` 를 카탈로그에 넣을지를 그 Task 가 정한다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 예외 등록부에 올릴지도 그 Task 가 정한다.
 
 기각한 대안은 지금 Parallel 만 `UPPER_SNAKE_CASE` 코드로 바꾸는 안이다. ForEach 가 같은 값을 내고 있어 Parallel 만 고치면 같은 형태의 `skipped` 에서 `code` 값이 노드마다 갈린다. 그래서 ForEach 와 함께 고치도록 미뤘다.
+
 
 ### 병렬 분기 사본에 엔진 쓰기를 옮긴다 (2026-11-02)
 
