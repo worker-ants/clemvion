@@ -9,6 +9,8 @@ export interface UserProfile {
   avatarUrl?: string;
   locale: string;
   theme: string;
+  /** TOTP 2단계 인증이 켜져 있는지. Passkey 등록 여부는 담지 않는다. */
+  twoFactorEnabled: boolean;
   /** 진행 중인 이메일 변경의 확인 대기 신규 이메일 (없으면 null). */
   pendingEmail?: string | null;
 }

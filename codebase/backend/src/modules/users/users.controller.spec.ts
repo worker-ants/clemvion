@@ -24,6 +24,7 @@ describe('UsersController', () => {
     theme: 'light',
     passwordHash: 'hashed-secret',
     twoFactorSecret: 'totp-secret',
+    twoFactorEnabled: false,
   };
 
   const payload: JwtPayload = {
@@ -90,12 +91,29 @@ describe('UsersController', () => {
           avatarUrl: undefined,
           locale: 'ko',
           theme: 'light',
+          twoFactorEnabled: false,
           pendingEmail: null,
         },
       });
 
       expect(service.findById).toHaveBeenCalledWith('user-uuid');
     });
+
+    // 보안 설정 화면은 이 값으로 TOTP 설정 카드와 켜짐 카드(끄기 폼)를 고른다(NERV CLE-ACCT-PROFILE, CLE-T-KTZ9YV).
+    it.each([true, false])(
+      'TOTP 켜짐 여부(%s)를 twoFactorEnabled 로 싣고 secret 은 싣지 않는다',
+      async (enabled) => {
+        jest.spyOn(service, 'findById').mockResolvedValue({
+          ...mockUser,
+          twoFactorEnabled: enabled,
+        } as User);
+
+        const result = await controller.getMe(payload);
+        expect(result.data.twoFactorEnabled).toBe(enabled);
+        expect(result.data).not.toHaveProperty('twoFactorSecret');
+        expect(result.data).not.toHaveProperty('totpRecoveryCodes');
+      },
+    );
 
     it('should not expose sensitive fields', async () => {
       jest.spyOn(service, 'findById').mockResolvedValue(mockUser as User);
@@ -167,6 +185,7 @@ describe('UsersController', () => {
           avatarUrl: undefined,
           locale: 'en',
           theme: 'dark',
+          twoFactorEnabled: false,
         },
       });
     });
@@ -444,6 +463,7 @@ describe('UsersController.uploadAvatar (§6.1)', () => {
       // null 이면 기본값으로 채운다 — getMe/updateMe 와 같은 규칙이어야 한다.
       locale: 'ko',
       theme: 'light',
+      twoFactorEnabled: false,
     });
     expect(res.data).not.toHaveProperty('pendingEmail');
   });

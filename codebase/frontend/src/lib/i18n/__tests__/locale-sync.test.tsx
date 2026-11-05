@@ -17,6 +17,7 @@ function setUser(locale: string) {
       name: "A",
       locale,
       theme: "light",
+      twoFactorEnabled: false,
     },
     isAuthenticated: true,
     isLoading: false,

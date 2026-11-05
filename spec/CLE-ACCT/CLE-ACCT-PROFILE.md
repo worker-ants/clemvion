@@ -2,19 +2,19 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026"]
+requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "88ec82be0bcae112cf9fa894edd0ad800806dfe0a8f23520cb5e5d946ec797c2"
+content_hash: "937dcb5f853534735531c7e37cd6f2d7406f9cc70c227aca410b01a71342260a"
 read_as: "approved_fallback"
-task: "CLE-T-E7MF3Q"
+task: "CLE-T-KTZ9YV"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "880c50d9b13a934a2ff8deaa8bac95e06ca1de09886b26f366b77f936989947e"
-etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
+mirror_sha256: "5bcd170a83cbf54bd59de5b67664cd93e723fb7bfb73b427468b23935260bbca"
+etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
 ---
 > 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,6 +61,7 @@ etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
 - REQ-PROFILE-024 WHEN 클라이언트가 `GET /api/users/me` 를 호출하면 THE SYSTEM SHALL 확인 대기 중인 새 이메일을 `pendingEmail` 로 싣고 없으면 null 을 싣는다.
 - REQ-PROFILE-025 WHEN 사용자가 보안 카드의 링크를 누르면 THE SYSTEM SHALL `/profile/security` 나 `/profile/sessions` 로 이동한다.
 - REQ-PROFILE-026 IF 프로필 수정 요청의 테마가 `light`·`dark`·`system` 밖의 값이면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 저장된 테마를 바꾸지 않는다.
+- REQ-PROFILE-027 WHEN 클라이언트가 프로필 조회(`GET /api/users/me`)·수정(`PATCH /api/users/me`)·아바타 업로드(`POST /api/users/me/avatar`)를 호출하면 THE SYSTEM SHALL 돌려주는 프로필 응답(`UserProfileDto`)에 TOTP 2단계 인증이 켜져 있는지를 `twoFactorEnabled`(boolean)로 싣는다.
 
 ## 사이드바 사용자 영역
 
@@ -138,7 +139,7 @@ etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
 | 항목 | 화면 | 규칙을 정하는 문서 |
 | --- | --- | --- |
 | 비밀번호 변경 | `/profile/change-password` | 이 문서의 [비밀번호 변경](#비밀번호-변경) |
-| 2단계 인증 설정 | `/profile/security`. TOTP 카드와 Passkey·보안 키 카드 | [가입과 로그인](CLE-ACCT-SIGNIN.md) |
+| 2단계 인증 설정 | `/profile/security`. TOTP 카드와 Passkey·보안 키 카드. TOTP 카드는 `GET /api/users/me` 의 `twoFactorEnabled` 로 설정 카드와 켜짐 카드(끄기 폼 포함) 가운데 하나를 그린다 | [가입과 로그인](CLE-ACCT-SIGNIN.md) |
 | 활성 세션 | `/profile/sessions`. 로그인 세션 목록, "현재" 배지, 개별·일괄 종료(비밀번호 또는 TOTP 로 계정 재인증) | [세션과 토큰](CLE-ACCT-SESSION.md) |
 | 로그인 이력 | `/profile/sessions` 의 이력 탭. 본인만 조회, 180일 보존 | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
 
@@ -172,9 +173,9 @@ etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| GET | `/api/users/me` | 내 프로필 조회. 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 을 싣는다. 확인 대기 중인 새 이메일이고 없으면 null 이다 |
+| GET | `/api/users/me` | 내 프로필 조회. 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 과 TOTP 켜짐 여부 `twoFactorEnabled: boolean` 을 싣는다. `pendingEmail` 은 확인 대기 중인 새 이메일이고 없으면 null 이다. `twoFactorEnabled` 는 TOTP 만 가리키고 Passkey 등록 여부는 담지 않는다. `PATCH /api/users/me` 와 아바타 업로드의 프로필 응답(`UserProfileDto`)에도 `twoFactorEnabled` 가 있고 `pendingEmail` 은 없다. 이메일 변경 대기 표시는 조회 화면이 `GET` 으로만 읽는 부가 맥락이라 수정 · 업로드 응답에서는 키를 뺀다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 「부재 표현: `null` 과 키 생략」의 키 생략 기준). 이 키 생략은 `twoFactorEnabled` 를 더한 NERV Task `CLE-T-KTZ9YV` 전부터 있던 동작이다. TOTP secret 과 복구 코드는 싣지 않는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 「응답에 싣지 않는 민감 컬럼 7개」) |
 | PATCH | `/api/users/me` | 프로필 수정(이름, `avatarUrl`, 언어, 테마). 테마는 `light`·`dark`·`system` 만 받고 다른 값은 400 `VALIDATION_ERROR` 로 거부하며 저장된 값을 바꾸지 않는다. 이메일은 바꾸지 않는다. 이메일은 `/api/users/me/email-change/*` 별도 흐름이다 |
-| POST | `/api/users/me/avatar` | 아바타 이미지 파일 업로드. `multipart/form-data` 의 `file` 필드, 최대 2MB, 확장자 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외). 성공하면 200 과 `PATCH /api/users/me` 와 같은 프로필 봉투. 파일 없음·빈 내용 400 `FILE_REQUIRED`, 확장자 불허 400 `INVALID_FILE_TYPE`, 크기 초과 413 `PAYLOAD_TOO_LARGE` |
+| POST | `/api/users/me/avatar` | 아바타 이미지 파일 업로드. `multipart/form-data` 의 `file` 필드, 최대 2MB, 확장자 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외). 성공하면 200 과 `PATCH /api/users/me` 와 같은 프로필 응답(`UserProfileDto`). 파일 없음·빈 내용 400 `FILE_REQUIRED`, 확장자 불허 400 `INVALID_FILE_TYPE`, 크기 초과 413 `PAYLOAD_TOO_LARGE` |
 | POST | `/api/users/me/change-password` | 비밀번호 변경. 성공하면 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. `{ data: { accessToken } }` 을 돌려주고 리프레시 쿠키를 바꾼다. 비밀번호 없음 401 `PASSWORD_REQUIRED`, 불일치 401 `PASSWORD_INVALID`, 사용자 없음 404 `USER_NOT_FOUND` |
 
 `/api/users/me` 아래의 다른 엔드포인트와 프로필 하위 화면이 부르는 세션 API 는 소유 문서가 정한다.
@@ -202,6 +203,7 @@ etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
 - `codebase/backend/src/modules/users/**` (`/api/users/me`, 아바타 업로드, 비밀번호 변경. 테마 허용 값은 `dto/update-me.dto.ts` 의 `USER_THEMES`)
 - `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (테마 CHECK `chk_user_theme`. V149 가 `NOT VALID` 로 걸고 V150 이 검증한 뒤 옛 제약을 지운다)
 - `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 범위 밖 값 거부)
+- `codebase/backend/test/users-me-two-factor.e2e-spec.ts` (`GET /api/users/me` 의 `twoFactorEnabled` 가 TOTP 켜기 · 끄기를 따르고 민감 컬럼을 싣지 않는다)
 
 ## Rationale
 
@@ -237,3 +239,14 @@ etag: "sha256-17922c11ea371dad3616b695ac01c2a809cb431294970ad4918099898394fe5f"
 ### 세션 API 경로를 고쳤다
 
 2026-10-10 변경이다(NERV Task `CLE-T-ERAJ7P`). API 소유 표의 세션 경로를 `/api/users/me/sessions*` 에서 `/api/auth/sessions*` 로 바꿨다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 예전 경로에는 쿠키가 실리지 않았고, 서버가 현재 세션을 가리지 못했다. 쿠키 Path 를 넓히는 안과 예전 경로를 별칭으로 남기는 안을 기각한 이유는 [세션과 토큰](CLE-ACCT-SESSION.md#세션-api-를-리프레시-쿠키-path-아래로-옮겼다) 의 Rationale 「세션 API 를 리프레시 쿠키 Path 아래로 옮겼다」 에 있다. 로그인 이력은 쿠키가 필요 없어 `/api/users/me/login-history` 에 남겼다.
+
+### `GET /api/users/me` 에 TOTP 켜짐 여부를 싣는다
+
+2026-11-02 결정이다(NERV Task `CLE-T-KTZ9YV`). 2단계 인증 설정 화면(`/profile/security`)과 활성 세션 화면(`/profile/sessions`)은 화면이 들고 있는 사용자 정보로 TOTP 켜짐 여부를 판단했다. 그런데 서버는 이 값을 어느 응답에도 싣지 않았다. 그래서 TOTP 를 켠 계정도 화면에는 꺼진 것으로 보였고 끄기 폼이 나오지 않아 화면에서 TOTP 를 끌 수 없었다. [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 2단계 인증 설정 화면 규칙(TOTP 가 켜져 있으면 설정 카드를 보여 주지 않는다)도 지켜지지 않았다.
+
+- 화면의 사용자 정보는 로그인 · 새로 고침 · OAuth 콜백 모두 `GET /api/users/me` 로 채운다. 그래서 이 응답 하나에 싣는다.
+- 기각: 로그인 응답에 싣는다. 로그인 응답은 액세스 토큰이나 2단계 인증 챌린지 토큰(`challengeToken`)만 주고 사용자 정보를 싣지 않는다. 화면은 로그인 직후에도 `GET /api/users/me` 를 부른다.
+- 기각: 2단계 인증 상태만 돌려주는 API 를 따로 둔다. 화면이 이미 읽는 사용자 정보에 boolean 하나를 더하면 되는데 요청과 캐시가 하나씩 더 생긴다.
+- 기각: Passkey 등록 여부까지 한 값으로 묶는다. Passkey 카드는 등록 목록(`GET /api/auth/2fa/webauthn/credentials`)을 따로 읽는다. 이 값이 필요한 곳은 TOTP 카드와 계정 재인증 입력이다. 그래서 TOTP 만 뜻하는 `user.two_factor_enabled` 를 같은 이름으로 옮겨 이름과 뜻을 맞췄다.
+- 켜짐 여부는 secret 이 아니다. 비밀번호 로그인 응답도 2단계 인증 수단(`methods`)을 알려 준다. TOTP secret 과 복구 코드는 지금처럼 싣지 않는다.
+- `PATCH /api/users/me` 와 아바타 업로드도 같은 프로필 응답(`UserProfileDto`)을 쓰므로 함께 싣는다. `pendingEmail` 을 조회 응답에만 싣고 수정 · 업로드 응답에서는 키를 빼는 기존 동작은 바꾸지 않았다. 이유는 [API](#api) 표의 `GET /api/users/me` 행에 있다.

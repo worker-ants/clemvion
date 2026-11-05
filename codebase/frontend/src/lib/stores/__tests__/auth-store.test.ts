@@ -27,20 +27,20 @@ describe("useAuthStore", () => {
   });
 
   it("setUser sets the user", () => {
-    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light" };
+    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light", twoFactorEnabled: false };
     useAuthStore.getState().setUser(user);
     expect(useAuthStore.getState().user).toEqual(user);
   });
 
   it("setUser can clear user with null", () => {
-    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light" };
+    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light", twoFactorEnabled: false };
     useAuthStore.getState().setUser(user);
     useAuthStore.getState().setUser(null);
     expect(useAuthStore.getState().user).toBeNull();
   });
 
   it("setAuthenticated sets token, user, and flags", () => {
-    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light" };
+    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light", twoFactorEnabled: false };
     useAuthStore.getState().setAuthenticated("token-123", user);
 
     const state = useAuthStore.getState();
@@ -51,7 +51,7 @@ describe("useAuthStore", () => {
   });
 
   it("logout clears state and token", () => {
-    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light" };
+    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light", twoFactorEnabled: false };
     useAuthStore.getState().setAuthenticated("token-123", user);
     useAuthStore.getState().logout();
 
@@ -64,7 +64,7 @@ describe("useAuthStore", () => {
 
   // REQ-SESSION-037 — proxy 는 `has_session` 힌트 쿠키로 보호 경로를 가른다.
   it("setAuthenticated sets the has_session hint cookie and logout clears it", () => {
-    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light" };
+    const user = { id: "1", email: "test@test.com", name: "Test", locale: "en", theme: "light", twoFactorEnabled: false };
     useAuthStore.getState().setAuthenticated("token-123", user);
     expect(document.cookie.split("; ")).toContain("has_session=1");
 

@@ -16,6 +16,7 @@ export function seedWorkspaceViewer(role: WorkspaceRole, userId = "user-1") {
       name: userId,
       locale: "en",
       theme: "light",
+      twoFactorEnabled: false,
     },
     isAuthenticated: true,
     isLoading: false,

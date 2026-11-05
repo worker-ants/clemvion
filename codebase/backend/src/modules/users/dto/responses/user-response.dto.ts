@@ -21,6 +21,14 @@ export class UserProfileDto {
   @ApiProperty({ enum: USER_THEMES, example: 'light' })
   theme: string;
 
+  // 근거: [내 프로필 REQ-PROFILE-027](CLE-ACCT-PROFILE)
+  @ApiProperty({
+    example: false,
+    description:
+      'TOTP 2단계 인증이 켜져 있는지. Passkey 등록 여부는 담지 않는다.',
+  })
+  twoFactorEnabled: boolean;
+
   // 근거: [가입과 로그인 「이메일 변경」](CLE-ACCT-SIGNIN#이메일-변경)
   @ApiPropertyOptional({
     nullable: true,

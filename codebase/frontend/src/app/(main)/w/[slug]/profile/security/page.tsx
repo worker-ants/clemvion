@@ -114,8 +114,7 @@ export default function SecurityPage() {
     onError: () => toast.error(t("profile.security.disableFailedDetail")),
   });
 
-  const twoFactorEnabled = (user as { twoFactorEnabled?: boolean } | null)
-    ?.twoFactorEnabled;
+  const twoFactorEnabled = user?.twoFactorEnabled;
 
   return (
     <div className="space-y-6">

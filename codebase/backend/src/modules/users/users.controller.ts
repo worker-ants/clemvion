@@ -92,6 +92,9 @@ export class UsersController {
       avatarUrl: user.avatarUrl,
       locale: user.locale ?? 'ko',
       theme: user.theme ?? 'light',
+      // TOTP 켜짐 여부만 싣는다. secret · 복구 코드는 싣지 않는다.
+      // 근거: [내 프로필 REQ-PROFILE-027](CLE-ACCT-PROFILE)
+      twoFactorEnabled: user.twoFactorEnabled ?? false,
     };
   }
 

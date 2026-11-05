@@ -112,6 +112,7 @@ function setupAuth(
           name: "Me",
           locale: "en",
           theme: "light",
+          twoFactorEnabled: false,
         }
       : null,
     isAuthenticated: !!userId,
