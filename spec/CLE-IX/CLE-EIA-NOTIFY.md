@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "74291666a7d7927499dde2ebc4ab0fa500a7701770c3285ea5e4049bacd5ed3a"
+content_hash: "09711e183e6eed55fce41d64b950e598575848420db6684b81120b5e250ac331"
 read_as: "approved_fallback"
-task: "CLE-T-YR4EK5"
+task: "CLE-T-5BZ3M2"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "60ffaa684c4adcf6185ddb20d089f33c2baa700ea849b1b58e45bd2f4cdbc688"
-etag: "sha256-3c89b796929cb6baf1fbc8ec7d127720e5e7d64141becbc83b656eaf6052727f"
+mirror_sha256: "1d7ea87cfcc41ed2786852cf0e1b4ec05649ceef2af91857894a81e62e32209c"
+etag: "sha256-9ef13d5f8e94025d1f746896f8c3e2c4de2218775160802cf38b8db9614e3c2e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,8 +38,8 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-008 IF 응답이 `2xx` 가 아니거나 10초 안에 오지 않으면 THE SYSTEM SHALL 1초에서 시작해 4배씩 늘어나되 1시간을 넘지 않는 간격(1초 · 4초 · 16초 · 64초 … 최대 1시간)으로 다시 보내고 첫 시도를 포함한 총 시도 횟수를 `notification.retry.maxAttempts`(기본 5, 상한 10, 0 은 1 로 본다)로 제한한다. (원본: EIA-NX-06)
 - REQ-EIANOTI-009 IF 마지막 시도까지 실패하면 THE SYSTEM SHALL 트리거의 발송 건강도(`notification_health`)를 `degraded` 로 바꾸고 `notification_last_error` 를 기록하되 트리거를 끄지 않는다. (원본: EIA-NX-07)
 - REQ-EIANOTI-010 WHEN EIA 알림 웹훅을 보내면 THE SYSTEM SHALL 알림 웹훅 페이로드에 그 실행의 이벤트 순번(`seq`)을 싣는다. (원본: EIA-NX-08)
-- REQ-EIANOTI-011 IF `notification.url` 이 `https://` 가 아니면 THE SYSTEM SHALL 거부하되, 개발 환경 변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. (원본: EIA-NX-09)
-- REQ-EIANOTI-012 IF `notification.url` 의 호스트가 사설 IP·loopback·메타데이터 주소의 IP 리터럴이거나 `localhost` · `0.0.0.0` 이면 THE SYSTEM SHALL 등록할 때와 보내기 직전에 모두 거부한다. 호스트 이름을 DNS 로 풀어 보는 검사는 [SSRF 방지](#ssrf-방지) 의 선택 검사이고 기본은 꺼짐이다. 그래서 기본 설정에서는 사설 IP 로 풀리는 호스트 이름을 막지 않는다. (원본: EIA-NX-10)
+- REQ-EIANOTI-011 IF `notification.url` 이 `https://` 가 아니면 THE SYSTEM SHALL 거부하되, 개발 환경 변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 트리거 생성 · 수정 요청에서는 `400 INVALID_NOTIFICATION_URL` 로 거부한다. 보내기 직전에 걸리면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. (원본: EIA-NX-09)
+- REQ-EIANOTI-012 IF `notification.url` 의 호스트가 사설 IP·loopback·메타데이터 주소의 IP 리터럴이거나 `localhost` · `0.0.0.0` 이면 THE SYSTEM SHALL 등록할 때와 보내기 직전에 모두 거부한다. 등록할 때 거부하면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다. 보내기 직전에 거부하면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. 호스트 이름을 DNS 로 풀어 보는 검사는 [SSRF 방지](#ssrf-방지) 의 선택 검사이고 기본은 꺼짐이다. 그래서 기본 설정에서는 사설 IP 로 풀리는 호스트 이름을 막지 않는다. (원본: EIA-NX-10)
 - REQ-EIANOTI-013 WHEN EIA 알림 웹훅 URL 을 검증하면 THE SYSTEM SHALL 워크스페이스 단위 허용·차단 목록을 함께 적용한다. (원본: EIA-NX-10) (미구현)
 - REQ-EIANOTI-014 WHEN 한 트리거의 발송 성공이 분당 60건을 넘으면 THE SYSTEM SHALL EIA 알림 웹훅을 버리거나 늦추지 않고 보내되 발송 건강도를 `degraded` 로, `notification_last_error` 를 폭주 전용 메시지로 기록한다. (원본: EIA-NX-11)
 - REQ-EIANOTI-015 WHEN 폭주가 멎어 분당 60건 이내로 발송에 성공하면 THE SYSTEM SHALL 발송 건강도를 `healthy` 로 되돌린다. (원본: R-outbound-flood)
@@ -317,6 +317,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 `notification.url` 을 등록할 때(`TriggersService.assertNotificationUrlSafe`)와 보내기 직전(`checkSsrfSafeUrl`)에 두 번 검증한다.
 
+등록할 때 걸리면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4). 보내기 직전 검사는 발송 작업 안에서 돌아서 응답할 HTTP 요청이 없다. 걸리면 그 알림을 보내지 않고 재시도하지도 않는다. 발송 건강도를 `degraded` 로 바꾸고 `notification_last_error` 에 거부 사유를 남긴다. 아래 DNS 결과 검사에 걸려도 같다.
+
 - 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, fc00::/7, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사를 켰을 때만 막힌다.
 - 마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`) 가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 달라 보지 않는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 범위를 쓴다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다.
 - DNS 결과 검사(DNS rebinding 방어): `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 이면 보내기 직전에 호스트 이름을 DNS 로 풀어(A · AAAA) 나온 IP 가운데 하나라도 위 대역에 들면 발송을 거부하고 발송 건강도를 `degraded` 로 둔다(`checkResolvedHostIp`). 등록 때 IP 를 저장해 발송 때 IP 와 비교하지는 않는다. DNS 조회가 실패하면 검사를 통과시킨다. 시도마다 DNS 를 조회해 비용과 지연이 늘어서 선택 사항이고 기본은 꺼짐이다. 근거는 [Rationale](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05) 에 있다.
@@ -355,7 +357,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts` (서명 계산, `verifySignatureHeader`)
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts` (폭주 감지 카운터)
 - `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp`, IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
-- `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`, `assertNotificationUrlSafe`)
+- `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`, 등록 거부 `assertNotificationUrlSafe`(`400 INVALID_NOTIFICATION_URL`))
 - `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰는 서비스다. 첫 시크릿 발급이나 옛 평문 옮기기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 시크릿 발급 판정 `decideNotificationSigning`, 발송 처리기와 함께 쓰는 «있음» 판정 `readStoredSigningSecret`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts` (트리거 id 로 알림 서명 시크릿 참조를 만든다)
@@ -481,3 +483,13 @@ NERV Task `CLE-T-YR4EK5` 에서 두 문장을 구현에 맞췄다.
 
 - **시스템 취소의 `error.message` 를 필수로 적었다.** 시스템 취소 경로는 모두 `{ code, message }` 를 손으로 만들고 `message` 에 정적 상수 문자열을 넣는다([`execution.cancelled` 행동 계약](#executioncancelled-행동-계약)). 선택으로 적으면 수신 측이 실제로 생기지 않는 부재를 처리해야 한다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 TypeScript 변형은 아직 `message?` 다. 그 문서는 어긋나면 이 문서를 따른다고 정해 두었고, 두 표기를 맞추는 일은 후속 NERV Task `CLE-T-M42X2A` 가 맡는다.
 - **최소 한 번 전달의 시작점을 발송 큐 적재로 좁혔다.** 이전 REQ-EIANOTI-022 는 조건 없이 보장한다고 읽혔다. 구현은 실행 트랜잭션이 커밋된 뒤 발송 작업을 큐에 넣고, 적재가 실패해도 실행을 막지 않는다([EIA 데이터와 흐름 「인프라 장애에는 fail-open 한다」](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다)). 적재 전에 사라진 발송은 재시도 대상이 아니므로 보장의 시작점을 적재로 적었다.
+
+### 거부가 어떻게 보이는지 본문에 적는다 (2026-11-05)
+
+NERV Task `CLE-T-5BZ3M2` 가 발행 중인 `INVALID_NOTIFICATION_URL` 을 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4 에 올린다. 그 행은 이 문서와 함께 검토 요청하는 ERRCODES 초안에 있다. 이 문서는 등록할 때와 보내기 직전에 거부한다고만 적고 그 거부가 호출자와 운영자에게 어떻게 보이는지는 적지 않았다. 그래서 REQ-EIANOTI-011 · 012 와 [SSRF 방지](#ssrf-방지) 에 등록 거부의 HTTP 상태 · 코드와 보내기 직전 거부의 결과를 적었다. 동작은 바꾸지 않았다.
+
+보내기 직전 거부를 재시도하지 않는 것도 지금 구현 그대로다. 발송 처리기(`NotificationWebhookProcessor`)는 검사에 걸리면 발송 건강도를 `degraded` 로 바꾸고 작업을 정상으로 끝낸다. 작업이 실패로 끝나지 않으므로 큐가 다시 시도하지 않는다. URL 검사는 등록 URL 만 보고 판정하므로 같은 URL 로 다시 시도해도 결과가 같다. 3xx 를 다른 실패처럼 재시도하는 결정([리다이렉트를 따라가지 않는다](#알림-웹훅-발송은-리다이렉트를-따라가지-않는다-2026-10-18))과 다른 것도 이 때문이다. 3xx 는 받는 서버의 응답이라 다음 시도에서 달라질 수 있다. DNS 결과 검사도 같은 처리를 따른다. 사설 대역으로 풀린 호스트에는 보내지 않는 것이 그 검사의 목적이다. 다음 이벤트의 알림은 처음부터 다시 검사하므로 사용자가 URL 을 고치면 그 뒤 알림부터 나간다.
+
+기각한 대안:
+
+- **보내기 직전 거부에도 에러 코드를 남긴다**: 이 초안을 쓰면서 검토했다. `notification_last_error` 는 사유 문장 하나만 담고 마지막 시도 실패와 폭주도 같은 필드를 쓴다. 코드를 따로 담으려면 저장 형식과 트리거 REST 응답이 바뀐다. 카탈로그에 올리는 일만 하는 이번 Task 의 범위를 넘는다.
