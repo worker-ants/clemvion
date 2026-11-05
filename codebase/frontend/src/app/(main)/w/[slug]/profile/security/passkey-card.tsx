@@ -21,6 +21,7 @@ import { authApi } from "@/lib/api/auth";
 import type { WebAuthnCredentialSummary } from "@/lib/api/auth";
 import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
+import { passwordRecheckErrorKey } from "./security-errors";
 
 const QK_LIST = ["webauthn", "credentials"] as const;
 
@@ -30,6 +31,7 @@ export function PasskeyCard() {
   const supported = typeof window !== "undefined" && browserSupportsWebAuthn();
 
   const [deviceName, setDeviceName] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -55,9 +57,17 @@ export function PasskeyCard() {
     enabled: supported && serverEnabled,
   });
 
+  // 등록 옵션은 계정 비밀번호를 다시 확인한다(NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7). 비밀번호가 틀리면 등록 옵션을
+  // 받지 못하므로 인증기를 부르지 않는다.
   const registerMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const optsRes = await authApi.webauthnRegisterOptions();
+    mutationFn: async ({
+      name,
+      password,
+    }: {
+      name: string;
+      password: string;
+    }) => {
+      const optsRes = await authApi.webauthnRegisterOptions(password);
       const { publicKey, optionsToken } = optsRes.data.data;
       // @ts-expect-error — simplewebauthn 타입 정의를 줄이기 위해 publicKey 를 unknown 으로 보관
       const attestation = await startRegistration({ optionsJSON: publicKey });
@@ -73,10 +83,19 @@ export function PasskeyCard() {
         setRecoveryCodes(data.webauthnRecoveryCodes);
       }
       setDeviceName("");
+      setRegisterPassword("");
       qc.invalidateQueries({ queryKey: QK_LIST });
       toast.success(t("profile.security.webauthn.registerSuccess"));
     },
-    onError: () => toast.error(t("profile.security.webauthn.registerFailed")),
+    onError: (err) =>
+      toast.error(
+        t(
+          passwordRecheckErrorKey(
+            err,
+            "profile.security.webauthn.registerFailed",
+          ),
+        ),
+      ),
   });
 
   const renameMutation = useMutation({
@@ -108,7 +127,10 @@ export function PasskeyCard() {
       setRegenPassword("");
       toast.success(t("profile.security.webauthn.regenSuccess"));
     },
-    onError: () => toast.error(t("profile.security.webauthn.regenFailed")),
+    onError: (err) =>
+      toast.error(
+        t(passwordRecheckErrorKey(err, "profile.security.webauthn.regenFailed")),
+      ),
   });
 
   const credentials = credentialsQuery.data ?? [];
@@ -139,7 +161,14 @@ export function PasskeyCard() {
             className="flex flex-col gap-2 sm:flex-row sm:items-end"
             onSubmit={(e) => {
               e.preventDefault();
-              registerMutation.mutate(deviceName);
+              if (registerPassword.length < 8) {
+                toast.error(t("profile.security.passwordRequired"));
+                return;
+              }
+              registerMutation.mutate({
+                name: deviceName,
+                password: registerPassword,
+              });
             }}
           >
             <div className="flex-1">
@@ -152,6 +181,19 @@ export function PasskeyCard() {
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
                 maxLength={100}
+              />
+            </div>
+            <div className="flex-1">
+              <Label htmlFor="webauthn-register-pw">
+                {t("profile.security.webauthn.registerPasswordLabel")}
+              </Label>
+              <Input
+                id="webauthn-register-pw"
+                type="password"
+                autoComplete="current-password"
+                placeholder={t("profile.security.accountPasswordPlaceholder")}
+                value={registerPassword}
+                onChange={(e) => setRegisterPassword(e.target.value)}
               />
             </div>
             <Button type="submit" disabled={registerMutation.isPending}>

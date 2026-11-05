@@ -205,6 +205,72 @@ describe("SecurityPage 2FA 설정", () => {
     expect(await screen.findByText(security.active)).toBeTruthy();
   });
 
+  // 설정 시작 뒤 10분이 지나면 서버가 대기 secret 을 버리고 400 TOTP_NOT_INITIALIZED 로 거부한다
+  // (NERV CLE-ACCT-SIGNIN REQ-SIGNIN-085, CLE-T-FRCRF7).
+  it("활성화 검증이 400 TOTP_NOT_INITIALIZED 면 설정 시간이 지났다고 안내하고 비밀번호 입력 단계로 돌아간다", async () => {
+    post
+      .mockResolvedValueOnce(SETUP_OK)
+      .mockRejectedValueOnce(apiError(400, "TOTP_NOT_INITIALIZED"));
+    renderPage();
+    await startSetupAndSubmitCode("123456");
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(security.setupExpired);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(screen.queryByAltText(security.qrAlt)).toBeNull();
+    expect(screen.queryByPlaceholderText(security.codePlaceholder)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: security.startSetup }),
+    ).toBeTruthy();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("설정 시간이 지나 다시 시작하면 이전에 입력한 인증 코드를 남기지 않는다", async () => {
+    post
+      .mockResolvedValueOnce(SETUP_OK)
+      .mockRejectedValueOnce(apiError(400, "TOTP_NOT_INITIALIZED"))
+      .mockResolvedValueOnce(SETUP_OK);
+    renderPage();
+    await startSetupAndSubmitCode("123456");
+    await screen.findByRole("button", { name: security.startSetup });
+
+    startSetup();
+    const input = (await screen.findByPlaceholderText(
+      security.codePlaceholder,
+    )) as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+
+  // 설정 시작 · 활성화 검증은 사용자당 분당 10회로 제한한다. 429 는 자동으로 다시 보내지 않고 안내만 한다
+  // (NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7).
+  it("설정 시작이 429 면 잠시 뒤 다시 시도하라고 안내하고 다시 보내지 않는다", async () => {
+    post.mockRejectedValueOnce(apiError(429, "RATE_LIMITED"));
+    renderPage();
+    startSetup();
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(security.rateLimited);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("활성화 검증이 429 면 잠시 뒤 다시 시도하라고 안내하고 QR 을 그대로 둔다", async () => {
+    post
+      .mockResolvedValueOnce(SETUP_OK)
+      .mockRejectedValueOnce(apiError(429, "RATE_LIMITED"));
+    renderPage();
+    await startSetupAndSubmitCode("123456");
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(security.rateLimited);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(screen.getByAltText(security.qrAlt)).toBeTruthy();
+  });
+
   it("다른 실패는 지금처럼 실패 안내를 띄우고 사용자 정보를 다시 읽지 않는다", async () => {
     post
       .mockRejectedValueOnce(apiError(500, "INTERNAL_ERROR"))
