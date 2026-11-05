@@ -72,6 +72,7 @@ import { LlmCallRecord } from '../../../shared/llm-tracing/llm-call-record';
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { isDryRun } from '../../core/dry-run.util';
 import { markMcpServerRefOrigins } from './mcp-server-ref-use';
+import { CHART_DATA_SHAPE } from '../../presentation/_shared/schemas';
 
 import type { AiAgentEndReason } from '@workflow/ai-end-reason';
 /**
@@ -234,7 +235,7 @@ const PRESENTATION_TOOLS_GUIDANCE =
   '**한 turn 안에서 페이로드를 완성** 해서 호출하세요. 빈 배열·빈 문자열·default 값에 의존한 partial 호출은 ' +
   '"No items" 같은 빈 카드만 사용자에게 보입니다. 도구별 필수 필드:\n' +
   '- `render_table`: rows (Array<Object>) + columns (Array<{field,label}>) 둘 다 채워서.\n' +
-  '- `render_chart`: chartType + data (`{ x, y?, series? }[]` — 여러 시리즈는 포인트마다 series 이름) 필수.\n' +
+  `- \`render_chart\`: chartType + data (\`${CHART_DATA_SHAPE}\` — 여러 시리즈는 포인트마다 series 이름) 필수.\n` +
   '- `render_carousel`: **mode="static"** + items (Array<{title, description?, image?, buttons?}>) 최소 1개. mode="dynamic" 호출은 reject 됩니다 (워크플로 데이터 바인딩 전용).\n' +
   '- `render_template`: content (HTML/Markdown 본문 문자열) 필수.\n' +
   '- `render_form`: fields (Array<{name, type, label, ...}>) 필수.\n' +

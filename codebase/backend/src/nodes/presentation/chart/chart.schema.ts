@@ -129,6 +129,13 @@ export type ChartConfig = z.infer<typeof chartConfigSchema>;
 export const chartInputSchema = z.unknown();
 
 /**
+ * Chart 노드 `output.data` 와 `render_chart` 도구 `data` 의 포인트 모양 표기
+ * (CLE-NODE-CHART 「출력 스키마」 · 「표시 도구 페이로드」). LLM 에 주는 도구 설명과
+ * 시스템 안내가 이 문자열 하나를 함께 쓴다.
+ */
+export const CHART_DATA_SHAPE = '{ x, y?, series? }[]';
+
+/**
  * Chart runtime output — 표현식 자동완성 힌트(CLE-NODE-CHART 「출력 스키마」).
  * Table · Carousel 과 같은 노드 출력 다섯 필드 형태다. `output.data` 는 런타임
  * 집계 결과 `{ x, y?, series? }[]` 이고 `series` 는 `groupBy` 를 쓴 bar · line ·

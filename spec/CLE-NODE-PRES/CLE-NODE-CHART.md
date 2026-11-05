@@ -10,11 +10,11 @@ parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
 content_hash: "7b90e4a9b4b89276c45a6e6758fe840f8e4147762889787ffc7dabf73c9c5327"
-read_as: "task_basis"
-task: "CLE-T-9W8F72"
+read_as: "approved_fallback"
+task: "CLE-T-NRN1RR"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "52ef59fe0990adb80c67055d6482bcdabd50dde1d3d43033db8ac7d16a74194c"
-etag: "sha256-add04aa6ab06b1ac5131f6c0513658eb0d6f93750fb0595625b2b7bb2d126b87"
+mirror_sha256: "4f953c6e0ef5ce87b55ca9e8a901370fff1f6d9273175ee07f986f3e152dbe0b"
+etag: "sha256-0f8dcfbd1b541803522aff711bca25972fa2b96461e5b425ad0d6857be284eb2"
 ---
 > 구현 상태: 부분 구현 (`groupBy` 다중 시리즈, `dataField` · `dataSource` 우선순위, Data Field 설정 화면, 출력 스키마의 노드 출력 형태, 에디터 렌더러의 `colors`, 웹채팅 위젯의 단일 시리즈 bar 색이 미구현) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
