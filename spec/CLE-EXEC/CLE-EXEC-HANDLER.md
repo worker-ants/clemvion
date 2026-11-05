@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "6086e20c76bfa00440dd3948742523a4ab91f03e9e4824aae276bcc1ed508dbc"
+content_hash: "ec871c5ea17d5105474a17521a2c120879fb376bc0fadd6315070e36ce9ee253"
 read_as: "approved_fallback"
-task: "CLE-T-X3AH4F"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "dda15ceb73b1b22517ffbe6abb793066071cbd8c0daef68fcdcf580eddd5ab92"
-etag: "sha256-0cce97b785521f74190a2bfed9aa0fc1fdc7df8f3239546833cc4415bf275941"
+mirror_sha256: "1623cb963d8baebdd451b4cc4e825f9757dcefb656632d76b11ac48d830fe56f"
+etag: "sha256-2c25ac8687ee00758a9475b6999dbb374a9890305be41312f7d6a2dab85c53fe"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -228,7 +228,7 @@ flowchart TD
 
 ### 핸들러용 실행 컨텍스트는 노드 실행마다 하나다
 
-`executeNode` 는 핸들러에 넘길 실행 컨텍스트 복사본을 노드 실행마다 한 번 만든다. 이 절 제목의 «핸들러용 실행 컨텍스트» 는 이 복사본을 말한다. 복사본은 `{ ...context, rawConfig }` 에 `nodeId` · `nodeExecutionId` 같은 노드 실행 값을 더한 객체다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 모든 시도에서 이 복사본으로 핸들러를 다시 부른다. 시도마다 새 복사본을 만들지 않는다. 그래서 핸들러가 이 복사본을 키로 둔 값은 같은 노드 실행의 재시도 사이에 남고 다른 노드 실행이나 병렬 분기의 값과는 섞이지 않는다. 이 성질에 기대는 장치는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 에 있다. 이 단위로 만드는 이유는 [Rationale](#실행-컨텍스트-복사본은-노드-실행-단위로-만든다-2026-10-25) 에 있다.
+`executeNode` 는 핸들러에 넘길 실행 컨텍스트 복사본을 노드 실행마다 한 번 만든다. 이 절 제목의 «핸들러용 실행 컨텍스트» 는 이 복사본을 말한다. 복사본은 `{ ...context, rawConfig }` 에 `nodeId` · `nodeExecutionId` 같은 노드 실행 값을 더한 객체다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 모든 시도에서 이 복사본으로 핸들러를 다시 부른다. 시도마다 새 복사본을 만들지 않는다. 그래서 핸들러가 이 복사본을 키로 둔 값은 같은 노드 실행의 재시도 사이에 남고 다른 노드 실행이나 병렬 분기의 값과는 섞이지 않는다. 이 단위로 만드는 이유는 [Rationale](#실행-컨텍스트-복사본은-노드-실행-단위로-만든다-2026-10-25) 에 있다.
 
 ## 노드 재시도 기본값
 
@@ -274,7 +274,7 @@ flowchart TD
 
 노드 실행마다 만드는 실행 컨텍스트 복사본을 시도 단위나 실행 전체 단위로 만들지 않는 이유다.
 
-- 시도마다 새 복사본을 만들면 복사본을 키로 둔 값이 시도 사이에 이어지지 않는다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 `rejectedLookups` 가 그런 값이다.
+- 시도마다 새 복사본을 만들면 복사본을 키로 둔 값이 시도 사이에 이어지지 않는다. 결정 당시에는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 `rejectedLookups` 가 그런 값이었다. 이 임시 장치는 2026-11-05 NERV Task `CLE-T-PTC4SF` 에서 지웠다.
 - 노드 실행을 넘어 복사본을 공유하면 병렬 분기의 노드 실행이 같은 복사본을 쓰게 되어 값이 섞인다.
 
 ### 배열 · 원시값 출력의 엔진 내부 객체를 표지로 가른다 (2026-11-05)

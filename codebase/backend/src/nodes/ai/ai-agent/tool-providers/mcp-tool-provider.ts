@@ -114,6 +114,11 @@ interface McpServerRefConfig {
  * to be unique within the execution (collision-free across attached servers).
  */
 interface ServerEntry {
+  /**
+   * 도구 목록을 만들 때 `getForExecution` 으로 얻은 통합. 도구 실행의 활동 로그는 이 통합으로 남긴다
+   * (REQ-INTMGMT-062). 자격 증명 평문이 들어 있으니 진단 · 로그로 내보내지 않는다.
+   */
+  integration: Integration;
   integrationId: string;
   integrationName: string;
   sid: string;
@@ -527,8 +532,7 @@ export class McpToolProvider implements AgentToolProvider {
   ): void {
     if (!ctx.nodeExecutionId || !ctx.workflowId) return;
     void this.integrationsService
-      .logUsage({
-        integrationId: entry.integrationId,
+      .logUsage(entry.integration, {
         nodeExecutionId: ctx.nodeExecutionId,
         workflowId: ctx.workflowId,
         status,
@@ -773,6 +777,7 @@ export class McpToolProvider implements AgentToolProvider {
         }
 
         return {
+          integration,
           integrationId: integration.id,
           integrationName: integration.name,
           sid,

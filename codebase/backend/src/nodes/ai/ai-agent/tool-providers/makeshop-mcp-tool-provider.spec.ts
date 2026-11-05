@@ -592,6 +592,7 @@ describe('MakeshopMcpToolProvider', () => {
       );
       // UsageLog carries the makeshop catalog key (bare operationId).
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'success',
           api: GET_PRODUCT_API,
@@ -637,6 +638,7 @@ describe('MakeshopMcpToolProvider', () => {
       const parsed = JSON.parse(res.content);
       expect(parsed.status).toBe(404);
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'MAKESHOP_404' }),
@@ -698,6 +700,7 @@ describe('MakeshopMcpToolProvider', () => {
       // Original MakeShop error body forwarded for LLM reasoning.
       expect(parsed.error.response).toEqual({ error: 'Forbidden' });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'MAKESHOP_AUTH_FAILED' }),
@@ -724,6 +727,7 @@ describe('MakeshopMcpToolProvider', () => {
       expect(res.status).toBe('error');
       expect(JSON.parse(res.content).error.code).toBe('MAKESHOP_RATE_LIMITED');
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'MAKESHOP_RATE_LIMITED' }),
@@ -752,6 +756,7 @@ describe('MakeshopMcpToolProvider', () => {
         'MAKESHOP_TRANSPORT_FAILED',
       );
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({
@@ -874,6 +879,7 @@ describe('MakeshopMcpToolProvider', () => {
         expect(parsed._dryRun).toBeUndefined();
         expect(parsed.response).toEqual({ products: [{ uid: 1 }] });
         expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'abcdef1234567890' }),
           expect.objectContaining({ status: 'success' }),
         );
       });

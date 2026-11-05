@@ -2,21 +2,21 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "4b544b0c99cca977285e71ecf74d5bc7796f333067746c084fc365e595b23563"
+content_hash: "5afa078bda1370d44c68d8b4cf9eefc42847b6ee3ebb9ea5a4970c5258a4a309"
 read_as: "approved_fallback"
-task: "CLE-T-SAMVX8"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "ba451b20dd6a77ae13f414771f820215881be6466e50cf4748b5ba38fb2aa864"
-etag: "sha256-a61bdc53469901cd03128224088f5d9c97333895bd95638b77943aecace62af0"
+mirror_sha256: "51e6b3fac9b3e15ee0cde8c4d7787edd4ec900b96957c4de83a31f58fa32a450"
+etag: "sha256-10e2b209f029d8ffb24d1cee289bd92e330e37ba5546cd9797a53c407fbb228e"
 ---
-> 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -116,7 +116,7 @@ erDiagram
 적용 범위는 두 경로다.
 
 1. 노드 핸들러 경로: cafe24·makeshop·http-request·database-query·send-email 노드는 `IntegrationHandlerBase.logUsage` 에 `api` 인자를 넘기고, 베이스 클래스가 `IntegrationsService.logUsage` 로 전달한다.
-2. 내부 MCP 브리지 경로: AI 에이전트 노드에 붙은 통합을 MCP 도구로 노출하는 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)는 노드 베이스 클래스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부른다. 이 경로도 노드 핸들러와 같은 카탈로그 키 형식으로 `api.label` 을 채운다. 이때 `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 기록하지 않는다.
+2. 내부 MCP 브리지 경로: AI 에이전트 노드에 붙은 통합을 MCP 도구로 노출하는 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)는 노드 베이스 클래스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부른다. 도구 프로바이더는 도구 목록을 만들 때 얻은 통합을 들고 있다가 도구를 실행할 때 그 통합을 넘긴다. 이 경로도 노드 핸들러와 같은 카탈로그 키 형식으로 `api.label` 을 채운다. 이때 `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 기록하지 않는다.
 
 내부 MCP 브리지 경로는 노드 베이스 클래스를 거치지 않으므로 `api` 를 빠뜨려도 노드 핸들러 테스트는 통과한다. 새 노드 핸들러나 새 브리지 도구 프로바이더를 더할 때 `logUsage` 의 `api` 동반을 반드시 확인한다.
 
@@ -442,7 +442,7 @@ sequenceDiagram
 ```
 
 - 토큰 만료가 가깝거나 지난 것은 조회 실패 조건이 아니다. Cafe24·MakeShop 클라이언트가 호출 직전에 토큰을 갱신하고, 401 을 받으면 갱신 뒤 다시 시도한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
-- 그림에서 `logUsage` 가 얻은 통합을 받는 서명은 목표 서명이다(미구현, NERV Task `CLE-T-PTC4SF`). 지금 `IntegrationsService.logUsage` 는 통합 ID 를 받는다. 그때까지는 핸들러 공통 베이스가 조회가 거절된 통합의 기록을 건너뛴다. 조회 거절이 아닌 실패는 지금도 설정의 통합 ID 로 기록한다. 워크스페이스 확인 실패, 일시 에러, 자격 증명 읽기 실패(`IntegrationCredentialsUnreadableError`)가 해당한다. 이 목록의 정본은 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 이다. `getForExecution` 의 `use` 인자와 개인 통합 사용 판정은 구현됐다. 지금 서명과 목표 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
+- `IntegrationsService.logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다(REQ-INTMGMT-062). 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 는 그 통합의 `id` 로 하고 받은 엔티티를 저장하지 않는다. 통합을 얻기 전에 끝난 실행은 넘길 통합이 없어 기록하지 않는다. 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)도 `getForExecution` 이 통합을 돌려주지 않으므로 기록하지 않는다([통합 노드 공통 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)). 얻기 전에 끝나는 실패의 목록은 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 이 정본이다. 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
 - 서비스 유형과 연결 상태는 서비스가 아니라 핸들러 기반 클래스가 3단계에서 검증한다(`integration-handler-base.ts`, [통합 노드 공통 「IntegrationHandlerBase」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationhandlerbase)). 연결 상태 실패의 메시지에는 상태와 사유를 싣는다. 통합을 얻은 뒤의 실패라 그 통합에 활동 로그를 남긴다(REQ-INTMGMT-062).
 - `logUsage` 는 예외를 던지지 않는다. 기록 실패가 노드 실행을 깨지 않도록 삼킨다. `nodeExecutionId` 가 없으면 행을 쓰지 않는다.
 - Cafe24·MakeShop 의 인증 실패와 네트워크 실패로 인한 오류 전이는 `logUsage` 가 아니라 각 클라이언트의 `markAuthFailed`·`recordNetworkFailure` 가 한다. 노드 실행 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.

@@ -237,6 +237,37 @@ describe('개인 통합 사용 판정 (e2e)', () => {
     return r.rows[0].output_data?.output?.error ?? {};
   };
 
+  /**
+   * 통합 한 건의 활동 로그 수와 마지막 사용 · 오류 기록을 읽는다. `last_error` 는 암호화 컬럼이라 통합 소유자(Alice)의
+   * 상세 응답으로 읽는다.
+   */
+  const usageOf = async (integrationId: string) => {
+    const r = await db.query<{
+      logs: string;
+      failed_logs: string;
+      last_used_at: Date | null;
+    }>(
+      `SELECT (SELECT count(*) FROM integration_usage_log u WHERE u.integration_id = i.id) AS logs,
+              (SELECT count(*) FROM integration_usage_log u
+                 WHERE u.integration_id = i.id AND u.status = 'failed') AS failed_logs,
+              i.last_used_at
+         FROM integration i WHERE i.id = $1`,
+      [integrationId],
+    );
+    expect(r.rows).toHaveLength(1);
+    const detail = await as(alice).get(`/api/integrations/${integrationId}`);
+    expect(detail.status).toBe(200);
+    const row = r.rows[0];
+    return {
+      logs: Number(row.logs),
+      failedLogs: Number(row.failed_logs),
+      lastUsedAt: row.last_used_at?.toISOString() ?? null,
+      lastErrorCode:
+        (detail.body.data as { lastError?: { code?: string } | null }).lastError
+          ?.code ?? null,
+    };
+  };
+
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
@@ -503,11 +534,25 @@ describe('개인 통합 사용 판정 (e2e)', () => {
   it('실행 — 작성자가 소유자가 아니면 없는 통합과 같이 실패하고, 실행한 사람은 보지 않는다', async () => {
     // 전제: aliceWf → personalA2(작성자 Alice), bobWf → personalA(작성자 Bob, 판정 도입 전 데이터).
     // Owner 가 둘 다 실행한다. Alice 의 워크플로우는 통합 조회를 통과해 SSRF 가드까지 간다.
+    const before = {
+      a: await usageOf(personalA),
+      a2: await usageOf(personalA2),
+    };
     expect((await runAndReadNodeError(aliceWf, aliceNode)).code).toBe(
       'HTTP_BLOCKED',
     );
     const rejected = await runAndReadNodeError(bobWf, bobNode);
     expect(rejected.message).toBe('Integration not found');
+
+    // REQ-INTMGMT-053 · 062: 얻은 통합(personalA2)에만 활동 로그와 마지막 오류가 남는다. 조회에서 거절된
+    // personalA 는 설정에 적힌 id 일 뿐이라 활동 로그도 last_used_at · last_error 도 바뀌지 않는다.
+    const after = {
+      a: await usageOf(personalA),
+      a2: await usageOf(personalA2),
+    };
+    expect(after.a).toEqual(before.a);
+    expect(after.a2.failedLogs).toBe(before.a2.failedLogs + 1);
+    expect(after.a2.lastErrorCode).toBe('HTTP_BLOCKED');
 
     await writeLegacyRef(bobNode, ABSENT_ID);
     expect(await runAndReadNodeError(bobWf, bobNode)).toEqual(rejected);

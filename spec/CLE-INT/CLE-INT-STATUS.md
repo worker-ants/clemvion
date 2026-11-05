@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "4d1d82ec4d519c55e63d80f0f4c94b8710344ec543cf814bc2457ce52240725f"
+content_hash: "ffe52fb9cf10aa785ab93fb41b65ce1c5b989d9f6459ab56db1ca14974e22cbb"
 read_as: "approved_fallback"
-task: "CLE-T-395HK2"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "0160aa22c1c1d59d055ca4bc9decb669d2d577a344da6e63023b05021b185f4b"
-etag: "sha256-e987309da01edaec0a777e56b2fcc0c595594f710eee49443862c2fbbc82925e"
+mirror_sha256: "2cc5102606c999e597b2153c04a60d1fe24e3f7a2810a3aa8b162f9ae4f0126c"
+etag: "sha256-27b7e4d721dd60351516457c5d84d4cf04e459516a6fce369c58519591f35f25"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -89,7 +89,7 @@ etag: "sha256-e987309da01edaec0a777e56b2fcc0c595594f710eee49443862c2fbbc82925e"
 | `error` | 오류. 사유를 반드시 남긴다 | 오류, `Error` |
 | `pending_install` | 설치 대기. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치가 끝나기 전 상태 | `Pending install`(배지), 필터 없음 |
 
-설치 대기 통합은 노드와 AI 에이전트가 쓸 수 없다. 직결 노드는 `resolveIntegration` 의 상태 검사(`status !== 'connected'`)에서 `INTEGRATION_NOT_CONNECTED` 로 바로 실패하고([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md)), AI 에이전트는 내부 MCP 브리지가 연결되지 않은 통합의 도구를 노출하지 않아 호출도 에러 코드도 없다. 연결 테스트 endpoint 는 따로 `INTEGRATION_INCOMPLETE` 를 돌려준다([통합 관리](CLE-INT-MANAGE.md)). Cafe24 Private 은 사용자가 Cafe24 에서 «테스트 실행» 을 끝내야, MakeShop 은 상점에서 ShopStore 앱 설치가 끝나야 연결됨이 된다.
+설치 대기 통합은 노드와 AI 에이전트가 쓸 수 없다. 직결 노드는 `assertUsable` 의 상태 검사(`status !== 'connected'`)에서 `INTEGRATION_NOT_CONNECTED` 로 바로 실패하고([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md)), AI 에이전트는 내부 MCP 브리지가 연결되지 않은 통합의 도구를 노출하지 않아 호출도 에러 코드도 없다. 연결 테스트 endpoint 는 따로 `INTEGRATION_INCOMPLETE` 를 돌려준다([통합 관리](CLE-INT-MANAGE.md)). Cafe24 Private 은 사용자가 Cafe24 에서 «테스트 실행» 을 끝내야, MakeShop 은 상점에서 ShopStore 앱 설치가 끝나야 연결됨이 된다.
 
 상태 사유 허용값은 코드 union `INTEGRATION_STATUS_REASONS`(`integration-status-reason.ts`) 한 곳이 기준이다. union 밖의 문자열은 `normalizeStatusReason` 이 `unknown_error` 로 바꾼다. 값은 모두 snake_case 이고 64자 이내다(`VARCHAR(64)`, V008).
 

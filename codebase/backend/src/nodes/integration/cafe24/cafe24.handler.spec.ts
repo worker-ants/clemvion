@@ -139,10 +139,11 @@ describe('Cafe24Handler', () => {
       expectErrorOutput(result, 'CAFE24_UNKNOWN_OPERATION');
     });
 
-    // W5 — operation lookup failure: api.label present, method/path still null (INT-US-05)
-    it('logs apiInfo.label only (method/path null) when operation lookup fails (INT-US-05)', async () => {
+    // 사전 검증(operation 조회) 실패는 통합을 얻기 전에 끝난 실행이다. 설정의 통합 ID 로 활동 로그를 남기지 않는다
+    // (REQ-INTMGMT-053). 예전에는 이 경우에도 api.label 만 채워 기록했다.
+    it('operation 조회 실패는 통합을 얻기 전이라 조회도 활동 로그도 하지 않는다 (REQ-INTMGMT-053)', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
-      await handler.execute(
+      const result = await handler.execute(
         null,
         {
           integrationId: 'id',
@@ -152,20 +153,12 @@ describe('Cafe24Handler', () => {
         },
         makeContext(),
       );
-      expect(integrationsService.logUsage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'failed',
-          api: expect.objectContaining({
-            label: 'cafe24.product.product_does_not_exist',
-          }),
-        }),
+      expect(result.port).toBe('error');
+      expect((result.output as { error: { code: string } }).error.code).toBe(
+        'CAFE24_UNKNOWN_OPERATION',
       );
-      // method and path should NOT be set (still undefined/null) since lookup failed
-      const logCall = integrationsService.logUsage.mock.calls[0][0] as {
-        api: { label?: string; method?: string | null; path?: string | null };
-      };
-      expect(logCall.api.method).toBeUndefined();
-      expect(logCall.api.path).toBeUndefined();
+      expect(integrationsService.getForExecution).not.toHaveBeenCalled();
+      expect(integrationsService.logUsage).not.toHaveBeenCalled();
     });
 
     it('CAFE24_MISSING_FIELDS when requiredFields not supplied', async () => {
@@ -338,11 +331,13 @@ describe('Cafe24Handler', () => {
 
       // Usage log (success).
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({ status: 'success' }),
       );
 
       // W3 — api field value assertion (INT-US-05)
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({
           api: expect.objectContaining({
             label: 'cafe24.product.product_list',
@@ -489,6 +484,7 @@ describe('Cafe24Handler', () => {
         error: { code: '404', message: 'Not Found' },
       });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({ status: 'failed' }),
       );
     });
@@ -516,6 +512,7 @@ describe('Cafe24Handler', () => {
       const out = result.output as { error: Record<string, unknown> };
       expect(out.error.code).toBe('CAFE24_AUTH_FAILED');
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({ status: 'failed' }),
       );
     });
@@ -707,6 +704,7 @@ describe('Cafe24Handler', () => {
       expect(output.response).toEqual({ products: [{ product_no: 1 }] });
       // A real call is logged as usual.
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({ status: 'success' }),
       );
     });

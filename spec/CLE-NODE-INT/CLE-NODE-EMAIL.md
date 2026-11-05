@@ -2,21 +2,21 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-009", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "0ca66fa781eabd9d1aade4c9df63a9886d81e805053b7576715930074b345750"
+content_hash: "452e180b285268f3f5ab176e8d412b6191f6274bc595d767f41796b447ab48d6"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7ee763c0bc5437fdb035e333568f3b010cb434add551ae7b8c10f376d8ad8089"
-etag: "sha256-6a056d55f1133673673c875ff121f286b93783fce67636c4259ef5916ed0bb21"
+mirror_sha256: "247656b28edb60ec25e680aab21242f12984be30979c3ba3a957c1c7133fb4f1"
+etag: "sha256-b61ef5b1a01fd2f2c259b3e912478ff96b49cc65bc699d9c9beb2ff005e213a1"
 ---
-> 구현 상태: 부분 구현 (일부 에러 코드 노출과 통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (일부 에러 코드 노출은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -329,7 +329,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 - `EMAIL_NO_RECIPIENTS`: 빈 `to` 가드가 try 블록 **밖**에서 일반 `Error('No valid recipients after normalizing the \`to\` field')` 를 던진다. 그래서 에러 포트로 가지 않고 노드 실행 자체가 실패한다(사전 검증 에러와 같은 결과). 가드를 try 안으로 옮겨 `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던지면 나온다. 근거: `send-email.handler.ts` 의 빈 수신자 가드.
 - 통합 없음(`INTEGRATION_NOT_FOUND` 로 부르던 경우): `getForExecution` → `requireEntity` 가 NestJS `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다. `IntegrationError` 가 아니라서 `EMAIL_SEND_FAILED` 로 흡수된다. 공통 규칙상 `INTEGRATION_NOT_FOUND` 라는 코드는 현재 없다([통합 노드 공통](CLE-NODE-INT-COMMON.md)).
-- `INTEGRATION_SERVICE_UNAVAILABLE`: `__workspaceId` 가 없으면 공통 베이스 `resolveIntegration` 이 일반 `Error('Missing workspace context …')` 를 던지고, `IntegrationError` 가 아니라서 `EMAIL_SEND_FAILED` 가 된다.
+- `INTEGRATION_SERVICE_UNAVAILABLE`: `__workspaceId` 가 없으면 공통 베이스 `acquireIntegration` 이 일반 `Error('Missing workspace context …')` 를 던지고, `IntegrationError` 가 아니라서 `EMAIL_SEND_FAILED` 가 된다.
 - `INTEGRATION_CALL_FAILED`: 공통 베이스의 fallback 코드(`toLogError`)는 **활동 로그**에만 나오고 `output.error.code` 로는 나오지 않는다.
 
 ## 캔버스 요약

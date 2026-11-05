@@ -11,6 +11,7 @@ import {
   sanitizeConfigEcho,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
@@ -148,6 +149,9 @@ export class Cafe24Handler
     // CAFE24_UNKNOWN_OPERATION / CAFE24_MISSING_FIELDS / CAFE24_INVALID_MALL_ID
     // / INTEGRATION_*) 와 환경 오류 (apiClient 미주입) 모두 catch + port:'error'.
     let mallIdForErrorDetails: string | undefined;
+    // 얻은 통합. 활동 로그는 이 통합에만 남긴다 — 얻기 전에 끝난 실패(사전 검증 · 워크스페이스 확인 · 조회 거절 ·
+    // 조회 중 일시 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
+    let integration: Integration | undefined;
     try {
       if (!this.apiClient) {
         throw new IntegrationError(
@@ -213,12 +217,9 @@ export class Cafe24Handler
         );
       }
 
-      // 3. Integration resolve (status='connected', serviceType='cafe24').
-      const integration = await this.resolveIntegration(
-        integrationId,
-        context,
-        'cafe24',
-      );
+      // 3. Integration acquire (1·2단계) + usable check (status='connected', serviceType='cafe24').
+      integration = await this.acquireIntegration(integrationId, context);
+      this.assertUsable(integration, 'cafe24');
 
       // 4. Credentials sanity: mall_id format. (Other field assertions happen
       //    inside Cafe24ApiClient.)
@@ -272,8 +273,7 @@ export class Cafe24Handler
           resource,
           operationId,
         );
-        await this.logUsage(context, {
-          integrationId,
+        await this.logUsage(integration, context, {
           status: 'failed',
           durationMs,
           error: { code: errorOutput.code, message: errorOutput.message },
@@ -313,8 +313,7 @@ export class Cafe24Handler
         if (c24.code) details.cafe24ErrorCode = c24.code;
         if (c24.message) details.cafe24Message = c24.message;
 
-        await this.logUsage(context, {
-          integrationId,
+        await this.logUsage(integration, context, {
           status: 'failed',
           durationMs,
           error: { code, message: `Cafe24 API returned ${result.status}` },
@@ -336,8 +335,7 @@ export class Cafe24Handler
       }
 
       // 8. Success.
-      await this.logUsage(context, {
-        integrationId,
+      await this.logUsage(integration, context, {
         status: 'success',
         durationMs,
         api: apiInfo,
@@ -368,13 +366,14 @@ export class Cafe24Handler
       const code =
         err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED';
       const message = err instanceof Error ? err.message : String(err);
-      await this.logUsage(context, {
-        integrationId,
-        status: 'failed',
-        durationMs,
-        error: { code, message },
-        api: apiInfo,
-      }).catch(() => {});
+      if (integration) {
+        await this.logUsage(integration, context, {
+          status: 'failed',
+          durationMs,
+          error: { code, message },
+          api: apiInfo,
+        }).catch(() => {});
+      }
       const details: Record<string, unknown> = {
         resource,
         operation: operationId,
