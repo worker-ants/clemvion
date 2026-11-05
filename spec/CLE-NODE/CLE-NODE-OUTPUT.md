@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "78457d5ee38c9d81add9cc732ffc60c3886aeb4e5ab5f007e23103a33aebcf80"
+content_hash: "dde9d45a5091bbbd5ce9c89352a43c495024a8fb7e7dd9f5d335f2b06204deb4"
 read_as: "approved_fallback"
-task: "CLE-T-T30D5S"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "20a18b31e43dcfedb3ad8427d480b76636f83436d6b455c6be4147d536a6ebde"
-etag: "sha256-777c1f4a288c991707a7f9ba0e494721fd35993c85e85118f7174452e2c35be2"
+mirror_sha256: "fcd672cd99ab02aed7a77941614ffd655a6c3ce90ee60599168d71caaec808ed"
+etag: "sha256-fce15ff2d67b8197d2edcb86a01e721436c28bae9488681ce2019d285586b063"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -121,7 +121,7 @@ etag: "sha256-777c1f4a288c991707a7f9ba0e494721fd35993c85e85118f7174452e2c35be2"
 AI 노드의 `meta` 필드는 다음과 같다.
 
 - `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`
-- `meta.thinkingTokens?`, `meta.toolCalls?`
+- `meta.thinkingTokens?`, `meta.toolCalls?`. AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 · 조건 분기 · LLM 호출 실패)은 `meta.thinkingTokens` 를 늘 싣고 보고가 없으면 `0` 이다. 기준은 [AI 노드 공통 §토큰 회계](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#토큰-회계) 다.
 - `meta.contextInjection?`: 대화 스레드를 자동으로 넣었을 때 `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` 를 싣는다. 자세한 내용은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md)의 cap 절에 있다.
 - `meta.memory?`: 메모리 전략(`memoryStrategy`)이 `manual` 이 아닐 때 `{ strategy, summarized, recalledCount, tokenBudgetUsed, compactedMessages? }` 를 싣는다. `ai_agent` 전용이다. `information_extractor` 는 persistent 전략(회수와 추출)을 지원하지만 `meta.memory` 는 싣지 않고 `meta.contextInjection` 만 싣는다. 필드 정의는 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md), 전략은 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)가 정한다.
 
@@ -165,13 +165,13 @@ AI 노드의 `meta` 필드는 다음과 같다.
 | `retryable` | `boolean` | AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)는 필수. 다른 노드는 선택(점진 채택). | 이 에러가 일시적이라 같은 호출을 다시 하면 성공할 수 있는지. `true` 는 HTTP 429, 5xx, 네트워크 타임아웃 같은 일시 장애다. `false` 는 인증 실패, 스키마 치명 오류, 사용자 취소 같은 근본 원인이다. AI 노드마다 분류가 갈린다. [미결 사항](#미결-사항) 참조. |
 | `retryAfterSec` | `number` | 선택(AI 노드와 그 밖의 노드 모두) | 프로바이더가 `Retry-After` 헤더나 같은 신호를 준 경우의 권장 대기 시간(초). `retryable === true` 일 때만 채울 수 있다. `false` 와 함께 채우면 규약 위반이다. 이 불변식의 기준은 이 절이다. |
 
-`retryable=true` 인 노드는 화면에 인라인 `[다시 시도]` 버튼과 `retryAfterSec` 카운트다운이 보인다. 예를 들어 AI 에이전트 멀티턴 대화 스레드의 `system_error` 항목이다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)).
+`retryable=true` 인 노드는 화면에 인라인 `[다시 시도]` 버튼과 `retryAfterSec` 카운트다운이 보인다. 예를 들어 AI 에이전트 멀티턴 대화 스레드의 `system_error` 항목이다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)). 버튼은 마지막 턴 재시도 상태(`_retryState`)가 있는 멀티턴 AI 에이전트에만 보인다. AI 에이전트 단일 턴은 LLM 호출 실패에도 `retryable` 을 채우지만 `_retryState` 를 남기지 않아 버튼이 보이지 않는다.
 
 #### 3.2.2 `details` 의 노드별 선택 스키마
 
 3.2.1 공통 필드 밖의 추가 메타는 각 노드 문서의 `output.error.details` 표가 정한다.
 
-- AI 에이전트: `provider`, `statusCode`([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md))
+- AI 에이전트: `provider`, `statusCode` 등. LLM 에러 객체의 `details` 에 있을 때만 들어간다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md))
 - HTTP Request: `responseHeaders`, `responseBody` 일부
 - Database Query: `pgErrorCode`, `query`
 
@@ -205,7 +205,7 @@ stateDiagram-v2
 
 1. 블로킹 노드에 도달하면 `status: "waiting_for_input"` 을 돌려주고 엔진이 실행을 멈춘다. `output` 에는 이 시점에 계산한 런타임 값만 둔다([Principle 1.1](#principle-11-설정과-출력-값은-겹치지-않는다), [4.3](#43-입력-대기-상태의-출력-값-노드별)).
 2. 사용자 입력을 받으면 `status: "resumed"` 로 통일한다. `output` 은 입력 대기 시점 값을 그대로 두고 `interaction` 을 더한다. `interaction` 은 `type`(`form_submitted`, `button_click`, `button_continue`, `message_received`), `data`(type 별 형태), `receivedAt`(ISO 8601)이다.
-3. 멀티턴 AI 노드가 종료 조건에 닿으면 `status: "ended"` 를 돌려준다. `port` 는 조건 ID 이거나 시스템 포트(`user_ended`·`max_turns`·`error`, 정보 추출기는 `completed` 도)다. `output` 은 `{ result: {...} }` 또는 `{ error: {...} }` 다. 멀티턴 AI 에이전트에는 `out` 포트가 없다. 노드별 종료 포트는 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)와 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)의 포트 절이 정한다.
+3. 멀티턴 AI 노드가 종료 조건에 닿으면 `status: "ended"` 를 돌려준다. `port` 는 조건 ID 이거나 시스템 포트(`user_ended`·`max_turns`·`error`, 정보 추출기는 `completed` 도)다. `output` 은 `{ result: {...} }` 또는 `{ error: {...} }` 다. 멀티턴 AI 에이전트에는 `out` 포트가 없다. AI 에이전트 단일 턴도 끝날 때 `status: "ended"` 를 돌려준다. 포트는 정상 완료면 `out`, 조건 분기면 조건 ID, LLM 호출 실패 · 도구 정의 크기 예산 초과면 `error` 다. 노드별 종료 포트는 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)와 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)의 포트 절이 정한다.
 4. 상태가 바뀌는 시점과 엔진이 하는 일(park, 저장, 재구성)은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)가 정한다.
 
 #### 4.2 폐기할 필드 / 구조
@@ -500,7 +500,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 ````
 
 1. JSON 예시에서 `undefined` 필드는 빼고 쓴다.
-2. 선택 필드는 표에 `?` 를 붙인다.
+2. 선택 필드는 표에 `?` 를 붙인다. 이 규약에서 선택인 필드라도 노드 문서가 그 케이스에서 늘 싣는다고 정하면 `?` 없이 쓴다. 예를 들어 AI 에이전트 단일 턴 케이스의 `meta.thinkingTokens` 다.
 3. 케이스(성공, 에러, 재개 등)마다 따로 쓴다.
 4. 다섯 필드 밖의 최상위 키를 쓰지 않는다([Principle 0](#principle-0-노드-출력의-다섯-필드)의 내부 필드 예외는 제외).
 
