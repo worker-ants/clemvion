@@ -9,6 +9,21 @@ import { getNodeDefinition } from "../node-definitions";
 import { parseHistoryMessages } from "../conversation/conversation-utils";
 
 /**
+ * 서버 실행 상태 중 종결 상태(completed · failed · cancelled, CLE-EXEC-STATE).
+ * store 는 이 중 `cancelled` 를 `failed` 로 담는다(아래 `applyExecutionSnapshot`). 그래서
+ * store 의 종결 판정은 이 집합이 아니라 `selectStoreExecutionFinished`(completed · failed)를 쓴다.
+ */
+const TERMINAL_SERVER_EXECUTION_STATUSES: ReadonlySet<ExecutionData["status"]> =
+  new Set(["completed", "failed", "cancelled"]);
+
+/** 서버 응답(REST `GET /executions/:id` · WS 스냅샷)의 실행 상태가 종결 상태인지. */
+export function isTerminalServerExecutionStatus(
+  status: ExecutionData["status"],
+): boolean {
+  return TERMINAL_SERVER_EXECUTION_STATUSES.has(status);
+}
+
+/**
  * Snapshot reconcile / REST polling 의 store hydration entry point.
  *
  * 본 helper 는 `handleSnapshot` 의 inline 로직을 추출한 standalone 함수로,
@@ -37,8 +52,8 @@ import { parseHistoryMessages } from "../conversation/conversation-utils";
  *
  * @param execution — REST `/executions/:id` 응답 또는 WS `execution.snapshot`
  *   event 의 `execution` 필드.
- * @param isCancelled — 호출자가 unmount 된 경우 작업 skip. WS handler 가
- *   `cancelledRef` 를 전달하고, REST useEffect 는 별도 cleanup ref 사용.
+ * @param isCancelled — 호출자가 unmount 된 경우 작업 skip. WS handler 와 에디터의
+ *   REST 폴링 대체 경로는 각자 effect 실행의 해제 표시(`disposed`)를 넘긴다.
  */
 export function applyExecutionSnapshot(
   execution: ExecutionData | null | undefined,
@@ -119,12 +134,8 @@ export function applyExecutionSnapshot(
   // 'waiting_for_input' 으로 격상. terminal status (completed/failed/cancelled)
   // 는 절대 reconcile 하지 않는다 (terminal 진입 후엔 nodeExec 가 stale 이라
   // 트리거하면 안 됨).
-  const isTerminal =
-    execution.status === "completed" ||
-    execution.status === "failed" ||
-    execution.status === "cancelled";
   const reconcileToWaiting =
-    !isTerminal &&
+    !isTerminalServerExecutionStatus(execution.status) &&
     execution.status !== "waiting_for_input" &&
     execution.nodeExecutions?.some(isNodeWaitingForInput);
   const effectiveExecutionStatus = reconcileToWaiting

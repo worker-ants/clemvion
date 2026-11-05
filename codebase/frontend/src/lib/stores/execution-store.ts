@@ -222,12 +222,21 @@ export interface ConversationItem {
 interface ExecutionState {
   executionId: string | null;
   status: ExecutionStatus;
+  /**
+   * 쓰기마다 새 Map 이다. 값을 제자리에서 고치지 않는다. REST 폴링 대체 경로
+   * (`use-execution-polling-fallback.ts` 의 `decidePollResponse`)가 요청을 보낸 뒤 다른
+   * 경로가 store 를 바꿨는지를 이 참조로 가른다. 계약 테스트: `execution-store.test.ts`
+   * 「nodeStatuses · nodeResults 쓰기마다 새 참조」.
+   */
   nodeStatuses: Map<string, NodeStatusInfo>;
   /**
    * Arrival-ordered (NOT sorted). The chronological timeline order is derived
    * on read via `selectSortedNodeResults`. Keeping arrival order stable means
    * array indices never shift, so the derived index Maps below stay valid
    * without rebuilds on every event.
+   *
+   * `nodeStatuses` 와 같이 쓰기마다 새 배열이고 행도 제자리에서 고치지 않는다(폴링 응답
+   * 폐기 판정이 이 참조에 기댄다).
    */
   nodeResults: NodeResult[];
   /**
@@ -1000,6 +1009,20 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       ...CLEAR_CONVERSATION_SNAPSHOT,
     }),
 }));
+
+/**
+ * store 가 끝난 실행을 담고 있는지. store 는 서버의 `cancelled` 를 `failed` 로 담으므로
+ * (`applyExecutionSnapshot` · `execution.cancelled` 핸들러) `completed` · `failed` 두 값만 본다.
+ * 서버 응답의 상태로 종결을 가르는 `isTerminalServerExecutionStatus`(completed · failed ·
+ * cancelled)와 판정 대상이 다르다.
+ *
+ * 사용 예: `useExecutionStore(selectStoreExecutionFinished)`
+ */
+export function selectStoreExecutionFinished(
+  state: Pick<ExecutionState, "status">,
+): boolean {
+  return state.status === "completed" || state.status === "failed";
+}
 
 /**
  * `waitingInteractionType === 'ai_form_render'` 인 경우 활성 form 의 toolCallId

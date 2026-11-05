@@ -62,7 +62,11 @@ import { useResultDetailWaiting } from "@/components/editor/run-results/use-resu
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
-import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
+import {
+  applyExecutionSnapshot,
+  isTerminalServerExecutionStatus,
+} from "@/lib/websocket/apply-execution-snapshot";
+import { EXECUTION_POLL_INTERVAL_MS } from "@/lib/websocket/use-execution-polling-fallback";
 
 function NodeStatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -91,7 +95,7 @@ export default function ExecutionDetailPage({
 
   // Reset store when switching between executions so stale waiting/conversation
   // state from a previously viewed execution doesn't bleed into this one.
-  // The poll loop in useExecutionEvents then repopulates from REST.
+  // 이 페이지의 상시 폴링(아래 executionQuery)과 WS 스냅샷이 다시 채운다.
   const resetStore = useExecutionStore((s) => s.reset);
   useEffect(() => {
     resetStore();
@@ -101,9 +105,9 @@ export default function ExecutionDetailPage({
     void loadNodeDefinitions();
   }, []);
 
-  // Subscribe to WebSocket events + REST polling so waiting state is
-  // hydrated into the store even when the page is opened after the
-  // waiting event was emitted.
+  // WebSocket 실행 이벤트를 구독한다. 구독 직후 오는 스냅샷이 대기 상태를 store 에 채우므로
+  // 대기 이벤트가 나간 뒤에 페이지를 열어도 대기 UI 가 보인다. REST 폴링은 이 훅이 아니라
+  // 아래 executionQuery 가 한다(이 페이지는 실시간 경로와 관계없이 늘 폴링한다).
   useExecutionEvents({ executionId });
 
   const workflowQuery = useQuery({
@@ -114,9 +118,9 @@ export default function ExecutionDetailPage({
     },
   });
 
-  // useExecutionEvents already polls REST + subscribes over WebSocket and
-  // hydrates the store. The summary card/node list are driven by this
-  // one-shot query plus React Query's cache invalidation on completion.
+  // 실행 상세 화면의 상시 REST 폴링(CLE-EXEC-RUN). 요약 카드 · 노드 목록이 이 응답을 쓰고,
+  // 아래 effect 가 같은 응답을 store 에도 넣는다. 에디터의 폴링 대체 경로
+  // (useExecutionPollingFallback)와 같은 간격이다.
   const executionQuery = useQuery<ExecutionData>({
     queryKey: ["execution", executionId],
     queryFn: () => executionsApi.getById(executionId),
@@ -125,12 +129,10 @@ export default function ExecutionDetailPage({
       // once a terminal status is reached; `waiting_for_input` continues to
       // poll so the summary card reflects the resumed run in real time.
       const status = query.state.data?.status;
-      if (!status) return 2000;
-      return status === "completed" ||
-        status === "failed" ||
-        status === "cancelled"
+      if (!status) return EXECUTION_POLL_INTERVAL_MS;
+      return isTerminalServerExecutionStatus(status)
         ? false
-        : 2000;
+        : EXECUTION_POLL_INTERVAL_MS;
     },
   });
 
@@ -144,6 +146,17 @@ export default function ExecutionDetailPage({
   // 변경: REST 폴링 결과도 같은 applyExecutionSnapshot 으로 store 에
   // hydrate. WS 가 정상 동작하면 양쪽이 동일 state 를 set (idempotent),
   // WS 가 실패하면 REST 가 fallback (2s 마다 store 갱신).
+  //
+  // 에디터의 폴링 대체 경로(useExecutionPollingFallback 의 decidePollResponse)처럼 늦은 응답을
+  // 거르지 않는다(CLE-T-TP2T6Q 판단).
+  //  - 실행 ID: 이 페이지는 store 의 executionId 를 채우지 않는다. reset 뒤 null 이고 WS
+  //    `execution.started` 가 올 때만 채워지므로 에디터의 실행 ID 비교를 쓰면 응답을 거의 다
+  //    버린다. 응답은 query key 의 executionId 로 묶여 있고 실행이 바뀌면 위 effect 가 store 를 비운다.
+  //  - 종결: 종결 응답을 받으면 refetchInterval 이 멈춘다. store 가 이미 끝난 뒤의 `running` 응답은
+  //    applyExecutionSnapshot 이 반영하지 않는다.
+  //  - 요청 뒤 store 변경: WS 가 먼저 채운 노드 결과를 옛 응답이 덮어도 이 페이지는 종결까지
+  //    2초마다 다시 받으므로 다음 응답이 바로잡는다. 에디터는 WS 가 살아나면 폴링을 멈춰
+  //    덮인 값이 남기 때문에 거른다.
   useEffect(() => {
     if (executionQuery.data) {
       applyExecutionSnapshot(executionQuery.data);

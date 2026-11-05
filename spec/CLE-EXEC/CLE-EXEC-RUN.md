@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "8492d56aae618b97cad287baab98100ee4583dcebee227f259fec701376c8bd2"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-TP2T6Q"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "c1945b6585a0de8378c0f9b1be2d42625068f137439f7149c178392ac19af121"
-etag: "sha256-989a6f294837def942e5401099a38037da7a4806124e5de068f5895d9fa9bd98"
+mirror_sha256: "67bb6e1d1d4fa1f5520cd1667640230a0e5734d2e5b9e393979aa55c5d93ac21"
+etag: "sha256-ca4dd187965945b588490de3926c0571b77099b90c6b80e5533479db676b41dc"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

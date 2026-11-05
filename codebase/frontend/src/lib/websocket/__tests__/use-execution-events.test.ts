@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useExecutionEvents } from "../use-execution-events";
+import {
+  nextRealtimePhase,
+  useExecutionEvents,
+} from "../use-execution-events";
 import {
   useExecutionStore,
   selectSortedNodeResults,
@@ -26,9 +29,17 @@ vi.mock("../ws-client", () => ({
   createWsClient: () => mockClient,
 }));
 
-// Mock API client
+// Mock API client. 토큰이 없을 때 갱신을 기다리는 경로를 시험하려고 값을 바꿀 수 있게 둔다
+// (`vi.resetAllMocks` 가 구현을 지우지 않도록 vi.fn 대신 hoisted 객체를 쓴다).
+const { tokenState } = vi.hoisted(() => ({
+  tokenState: {
+    access: "test-token" as string | null,
+    refresh: (): Promise<string | null> => Promise.resolve(null),
+  },
+}));
 vi.mock("../../api/client", () => ({
-  getAccessToken: () => "test-token",
+  getAccessToken: () => tokenState.access,
+  ensureFreshAccessToken: () => tokenState.refresh(),
 }));
 
 // Mock node-definitions
@@ -107,6 +118,8 @@ describe("useExecutionEvents", () => {
     });
     mockClient.waitForConnect.mockResolvedValue(undefined);
     mockClient.isConnected.mockReturnValue(true);
+    tokenState.access = "test-token";
+    tokenState.refresh = () => Promise.resolve(null);
   });
 
   it("does nothing when executionId is null", () => {
@@ -3010,6 +3023,247 @@ describe("useExecutionEvents", () => {
       for (const [, handler] of markers) {
         expect(offCalls).toContainEqual(["execution.node.started", handler]);
       }
+    });
+  });
+
+  // CLE-T-TP2T6Q — 실시간 경로 상태는 "수신 대기 / 실시간 수신 중 / 폴링 필요" 세 값이다.
+  // 신호마다 다음 상태를 정하는 순수 함수를 표로 고정한다.
+  describe("nextRealtimePhase — 실시간 경로 상태 전이", () => {
+    it.each([
+      // 실시간 데이터(이 실행의 스냅샷 · 이벤트)가 오면 어느 상태에서든 수신 중이 된다.
+      ["awaiting", "received", "receiving"],
+      ["receiving", "received", "receiving"],
+      ["fallback", "received", "receiving"],
+      // 연결이 끊기면 수신 표시만 지운다. 폴링 중이면 폴링을 이어 간다.
+      ["awaiting", "disconnected", "awaiting"],
+      ["receiving", "disconnected", "awaiting"],
+      ["fallback", "disconnected", "fallback"],
+      // 구독 · 연결 실패는 아직 받은 데이터가 없을 때만 폴링을 켠다.
+      ["awaiting", "failed", "fallback"],
+      ["receiving", "failed", "receiving"],
+      ["fallback", "failed", "fallback"],
+      // 10초 무수신은 기다리는 중일 때만 폴링을 켠다.
+      ["awaiting", "timedOut", "fallback"],
+      ["receiving", "timedOut", "receiving"],
+      ["fallback", "timedOut", "fallback"],
+    ] as const)("%s + %s → %s", (phase, signal, expected) => {
+      expect(nextRealtimePhase(phase, signal)).toBe(expected);
+    });
+  });
+
+  describe("needsRestPolling 전이 · effect 실행별 취소 표시 (CLE-T-TP2T6Q)", () => {
+    /** 같은 이벤트에 붙은 핸들러를 모두 부른다(실제 socket 의 emit 과 같다). */
+    function fireAll(eventName: string, data: unknown): void {
+      for (const call of (mockClient.on as Mock).mock.calls) {
+        if (call[0] === eventName) (call[1] as (d: unknown) => void)(data);
+      }
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // 폴링 중에 스냅샷이 오면 폴링 신호를 지워야 한다. 지우지 않으면 연결이 끊기는 즉시
+    // 10초를 기다리지 않고 다시 켜진다.
+    it("10초 경과(켜짐) → 스냅샷(꺼짐) → 연결 끊김(꺼짐) → 10초 경과(켜짐)", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      act(() => {
+        fireAll("disconnect", "transport close");
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(9_999);
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    // 실시간 데이터를 받은 뒤 늦게 끝난 연결 대기의 실패는 폴링을 켜지 않는다.
+    it("연결 대기 중 스냅샷이 먼저 오고 그 뒤 연결 대기가 실패해도 켜지 않는다", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      let rejectConnect: (err: Error) => void = () => {};
+      mockClient.waitForConnect.mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectConnect = reject;
+          }),
+      );
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution(),
+        });
+      });
+      await act(async () => {
+        rejectConnect(new Error("connect_error"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // 실패가 catch 에 닿았는지 확인한 뒤 신호를 본다.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(result.current.needsRestPolling).toBe(false);
+      warn.mockRestore();
+    });
+
+    // 앞 effect 실행의 연결 대기가 새 실행이 시작된 뒤에 성공해도 옛 채널을 구독하지 않는다.
+    // 예전에는 공유 ref 를 새 실행이 곧바로 false 로 되돌려 옛 채널을 구독했다.
+    it("앞 실행의 연결 대기가 새 실행 뒤에 성공해도 옛 채널을 구독하지 않는다", async () => {
+      let resolveFirst: () => void = () => {};
+      mockClient.waitForConnect.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      );
+      const { rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+      rerender({ id: "exec-2" });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mockClient.subscribe).toHaveBeenCalledWith("execution:exec-2");
+
+      await act(async () => {
+        resolveFirst();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mockClient.subscribe).not.toHaveBeenCalledWith("execution:exec-1");
+    });
+
+    it("앞 실행의 토큰 갱신이 새 실행 뒤에 끝나도 그 토큰으로 연결하지 않는다", async () => {
+      tokenState.access = null;
+      const pending: Array<(token: string) => void> = [];
+      tokenState.refresh = () =>
+        new Promise<string | null>((resolve) => {
+          pending.push(resolve);
+        });
+
+      const { rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+      rerender({ id: "exec-2" });
+      expect(pending).toHaveLength(2);
+
+      await act(async () => {
+        pending[0]("token-from-exec-1");
+        await Promise.resolve();
+      });
+      expect(mockClient.connect).not.toHaveBeenCalledWith("token-from-exec-1");
+
+      await act(async () => {
+        pending[1]("token-from-exec-2");
+        await Promise.resolve();
+      });
+      expect(mockClient.connect).toHaveBeenCalledWith("token-from-exec-2");
+    });
+
+    // cleanup 은 리스너를 떼지만 이미 떠 있던 콜백(소켓 emit 도중 · 비동기 이어 하기)은
+    // 늦게 불릴 수 있다. 앞 실행이 단 핸들러를 새 실행 뒤에 불러도 새 실행에 닿지 않는다.
+    it("앞 실행이 단 핸들러가 새 실행 뒤에 불려도 구독 · 폴링 신호 · store 에 닿지 않는다", async () => {
+      const { result, rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const firstRunHandlers = (mockClient.on as Mock).mock.calls.slice();
+      const fireFirstRun = (eventName: string, data: unknown) => {
+        for (const [name, handler] of firstRunHandlers) {
+          if (name === eventName) (handler as (d: unknown) => void)(data);
+        }
+      };
+
+      rerender({ id: "exec-2" });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      (mockClient.subscribe as Mock).mockClear();
+
+      // 재연결 콜백 → 옛 채널 재구독 금지.
+      await act(async () => {
+        fireFirstRun("connect", undefined);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mockClient.subscribe).not.toHaveBeenCalled();
+
+      // 옛 실행의 스냅샷 → 새 실행의 수신 표시 · store 반영 금지.
+      act(() => {
+        fireFirstRun("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution({ id: "exec-1", status: "completed" }),
+        });
+      });
+      expect(useExecutionStore.getState().status).toBe("idle");
+
+      // 실패 ack → 새 실행의 폴링 신호 금지.
+      act(() => {
+        fireFirstRun("subscribed", {
+          success: false,
+          error: "Not authorized to subscribe",
+          code: "FORBIDDEN",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      // 새 실행은 스냅샷을 받지 못했으므로 10초 뒤에 폴링으로 넘어간다.
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    // 같은 소켓으로 다른 실행의 스냅샷이 올 수 있다(앞 실행 채널의 늦은 스냅샷 등).
+    // 이 실행의 스냅샷만 store 에 넣고 실시간 수신으로 센다.
+    it("다른 실행의 스냅샷은 store 에 넣지 않고 실시간 수신으로 세지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-2" }),
+      );
+      act(() => {
+        fireAll("execution.snapshot", {
+          executionId: "exec-1",
+          execution: createMockExecution({ id: "exec-1", status: "completed" }),
+        });
+      });
+      expect(useExecutionStore.getState().status).toBe("idle");
+
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
     });
   });
 
