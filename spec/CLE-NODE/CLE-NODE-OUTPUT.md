@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "dde9d45a5091bbbd5ce9c89352a43c495024a8fb7e7dd9f5d335f2b06204deb4"
+content_hash: "d5546dbbb2f2c92372e7d56acd0c9eafbf2022819a4471539ca1c1a069cedb08"
 read_as: "approved_fallback"
-task: "CLE-T-KPDDKB"
+task: "CLE-T-9W8F72"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "fcd672cd99ab02aed7a77941614ffd655a6c3ce90ee60599168d71caaec808ed"
-etag: "sha256-fce15ff2d67b8197d2edcb86a01e721436c28bae9488681ce2019d285586b063"
+mirror_sha256: "ead145a5311485e61185fde39eea1f63bfece2ab6444a0c14412cb94206cc857"
+etag: "sha256-cddc49b30d2c179681ec2e9b58a0bc779f05362373ddc3fce80a9a68d27da272"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -261,7 +261,7 @@ stateDiagram-v2
 | `carousel`(정적 모드) | `{}` | `items` 가 리터럴 설정이다. 다음 노드는 `config.items` 를 읽는다. |
 | `carousel`(동적 모드) | `{ items }` | `source` 표현식을 해석하고 `titleField`·`descriptionField`·`imageField` 로 매핑해 실행 중에 만든 배열. `config.items` 와 별개다. |
 | `table` | `{ rows, totalRows, columns? }` | `rows` 는 정적 모드면 `columns[*].field` 기준으로 걸러 낸 행, 동적 모드면 `dataSource` 항목마다 평가한 행이다. `totalRows` 는 출력 크기 한도를 적용하기 전 데이터셋 크기(pageSize·정렬 적용 후)다. `columns` 는 동적 모드에서 `label` 표현식을 평가한 컬럼이다. 기준은 [Table 노드](../CLE-NODE-PRES/CLE-NODE-TABLE.md)다. |
-| `chart` | `{ data }` | 입력을 xAxis 기준으로 실행 중에 집계한 `[{x, y}, ...]`. chartType, title 은 `config` 에 있다. |
+| `chart` | `{ data }` | 입력을 xAxis 기준으로 실행 중에 집계한 `{ x, y?, series? }[]`. `groupBy` 를 쓰는 bar·line·area 는 X 값과 시리즈를 함께 기준으로 집계한다. `series` 는 포인트마다 붙는 시리즈 이름 문자열이고 `groupBy` 를 쓸 때만 있다. chartType, title, colors 는 `config` 에 있다. 기준은 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md#출력-구조)다. |
 | `template` | `{ rendered }` | 템플릿 문자열을 엔진의 표현식 해석기로 평가한 결과. `content`, `format` 은 `config` 에 있다. |
 | `ai_agent`(멀티턴) | `{ result: { messages, message, turnCount } }` | 도메인 결과는 `output.result.*` 아래에 모은다. `messages` 는 대화 누적, `turnCount` 는 지금까지 진행한 턴 수다. `maxTurns` 는 설정 전용이라 싣지 않는다. 진행률은 화면이 `config.maxTurns` 를 직접 읽는다. |
 | `information_extractor`(멀티턴) | `{ result: { messages, message, turnCount }, partial? }` | 위와 같고, 부분 수집한 추출 필드가 있으면 `output.partial.*` 에 둔다. `maxTurns` 는 싣지 않는다. |
