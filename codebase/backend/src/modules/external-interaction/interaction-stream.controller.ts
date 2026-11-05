@@ -39,6 +39,21 @@ import type { ExecutionChannelEvent } from '../websocket/websocket-events.types'
 
 // 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1`.
 /**
+ * `itk_*` 로 연 스트림이 토큰을 다시 확인하는 주기(ms). heartbeat 몇 번마다 한 번으로 센다.
+ *
+ * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`. 닫기 신호는
+ * Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른 서버 인스턴스의 스트림에 닿지 않는다. 그래도 이
+ * 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
+ */
+export const SSE_TOKEN_RECHECK_INTERVAL_MS = 60_000;
+
+/** {@link SSE_TOKEN_RECHECK_INTERVAL_MS} 를 heartbeat 횟수로 바꾼 값. */
+const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
+  1,
+  Math.round(SSE_TOKEN_RECHECK_INTERVAL_MS / SSE_HEARTBEAT_INTERVAL_MS),
+);
+
+/**
  * [Spec EIA §5.2] — Server-Sent Events stream.
  *
  * 경로: `GET /api/external/executions/:executionId/stream`.
@@ -54,21 +69,6 @@ import type { ExecutionChannelEvent } from '../websocket/websocket-events.types'
  *   마다 토큰을 다시 확인해 닫는다.
  * - execution 당 동시 연결 한도 3 — 모든 서버 인스턴스를 합쳐 센다. 초과 시 429 `TOO_MANY_CONNECTIONS`
  */
-/**
- * `itk_*` 로 연 스트림이 토큰을 다시 확인하는 주기(ms). heartbeat 몇 번마다 한 번으로 센다.
- *
- * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`. 닫기 신호는
- * Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른 서버 인스턴스의 스트림에 닿지 않는다. 그래도 이
- * 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
- */
-export const SSE_TOKEN_RECHECK_INTERVAL_MS = 60_000;
-
-/** {@link SSE_TOKEN_RECHECK_INTERVAL_MS} 를 heartbeat 횟수로 바꾼 값. */
-const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
-  1,
-  Math.round(SSE_TOKEN_RECHECK_INTERVAL_MS / SSE_HEARTBEAT_INTERVAL_MS),
-);
-
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
 @Controller('external/executions')

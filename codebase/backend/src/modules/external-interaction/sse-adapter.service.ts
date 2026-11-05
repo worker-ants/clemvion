@@ -648,6 +648,7 @@ export class SseAdapter
       return;
     }
     const executionId = event.executionId;
+    const routed = hasRoutingTrigger(event);
     let scope = this.writeScopes.get(executionId);
     if (!scope) {
       scope = {
@@ -657,10 +658,10 @@ export class SseAdapter
         omittedWarned: false,
       };
       this.writeScopes.set(executionId, scope);
-      if (!hasRoutingTrigger(event)) void this.resolveScope(executionId, scope);
+      if (!routed) void this.resolveScope(executionId, scope);
     }
     scope.touchedAt = Date.now();
-    if (scope.decision === 'pending' && hasRoutingTrigger(event)) {
+    if (scope.decision === 'pending' && routed) {
       this.decide(scope, true);
     }
     if (scope.decision === 'write') {
