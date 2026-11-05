@@ -118,5 +118,10 @@ test.describe("Forgot / reset password", () => {
     await expect(
       page.getByText(/만료|expired|invalid|유효하지 않|실패|reset|토큰/i).first(),
     ).toBeVisible();
+
+    // REQ-SIGNIN-035 — 서버가 거부하면 화면에 재요청 링크가 보인다(CLE-T-MFWBE1).
+    await expect(
+      page.getByRole("link", { name: /새 링크 요청하기|Request New Link/i }),
+    ).toHaveAttribute("href", "/forgot-password");
   });
 });

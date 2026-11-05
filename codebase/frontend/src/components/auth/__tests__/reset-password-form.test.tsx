@@ -63,6 +63,28 @@ describe("ResetPasswordForm — 재설정 실패 안내", () => {
     expect(mockResetPassword).toHaveBeenCalledWith("reset-token", "NewPass123!@#");
   });
 
+  it("제출 전에는 재요청 링크를 보여 주지 않는다", () => {
+    render(<ResetPasswordForm token="reset-token" />);
+
+    expect(
+      screen.queryByRole("link", { name: "새 링크 요청하기" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // REQ-SIGNIN-035 — 만료 · 무효 토큰을 서버가 거부하면 화면에 재요청 링크를 보인다.
+  // 거부 사유는 모두 400 VALIDATION_ERROR 라 화면은 서버가 거부한 모든 경우에 링크를 보인다.
+  it("서버가 거부하면 /forgot-password 재요청 링크를 보여 준다", async () => {
+    mockResetPassword.mockRejectedValue(
+      apiError(400, "VALIDATION_ERROR", "Reset token has expired"),
+    );
+    render(<ResetPasswordForm token="reset-token" />);
+
+    await submitNewPassword();
+
+    const link = await screen.findByRole("link", { name: "새 링크 요청하기" });
+    expect(link).toHaveAttribute("href", "/forgot-password");
+  });
+
   it("응답 본문이 없으면(네트워크 오류) 기본 문구를 보여 준다", async () => {
     mockResetPassword.mockRejectedValue(
       Object.assign(new Error("Network Error"), { isAxiosError: true }),
@@ -76,5 +98,9 @@ describe("ResetPasswordForm — 재설정 실패 안내", () => {
         "비밀번호 재설정에 실패했어요. 다시 시도해 주세요.",
       ),
     );
+    // 응답을 받지 못했으면 토큰 문제인지 알 수 없으므로 재요청 링크를 보이지 않는다.
+    expect(
+      screen.queryByRole("link", { name: "새 링크 요청하기" }),
+    ).not.toBeInTheDocument();
   });
 });
