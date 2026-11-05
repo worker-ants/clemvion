@@ -64,7 +64,7 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import {
   applyExecutionSnapshot,
-  isTerminalServerExecutionStatus,
+  nextExecutionRefetchInterval,
 } from "@/lib/websocket/apply-execution-snapshot";
 import { EXECUTION_POLL_INTERVAL_MS } from "@/lib/websocket/use-execution-polling-fallback";
 
@@ -128,11 +128,10 @@ export default function ExecutionDetailPage({
       // Refresh summary data while the execution is mid-flight. Polling stops
       // once a terminal status is reached; `waiting_for_input` continues to
       // poll so the summary card reflects the resumed run in real time.
-      const status = query.state.data?.status;
-      if (!status) return EXECUTION_POLL_INTERVAL_MS;
-      return isTerminalServerExecutionStatus(status)
-        ? false
-        : EXECUTION_POLL_INTERVAL_MS;
+      return nextExecutionRefetchInterval(
+        query.state.data?.status,
+        EXECUTION_POLL_INTERVAL_MS,
+      );
     },
   });
 
