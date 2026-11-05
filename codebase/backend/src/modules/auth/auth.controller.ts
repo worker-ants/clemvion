@@ -140,8 +140,11 @@ export class AuthController {
       authContextFromRequest(req),
     );
     if ('accessToken' in result) {
+      // 초대 가입은 로그인 유지를 고르는 화면이 없어 늘 7일 세션이다. service 의
+      // generateTokens(user, false) 와 같은 값이라 정책을 바꾸면 두 곳을 함께 고친다.
       setRefreshTokenCookie(res, result.refreshToken, {
         cookieDomain: this.cookieDomain,
+        rememberMe: false,
       });
       return {
         data: { message: result.message, accessToken: result.accessToken },
@@ -174,8 +177,11 @@ export class AuthController {
       dto.token,
       authContextFromRequest(req),
     );
+    // 이메일 인증 뒤 첫 세션은 로그인 유지를 고르지 않아 7일이다. service 의
+    // generateTokens(user, false) 와 같은 값이라 정책을 바꾸면 두 곳을 함께 고친다.
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
+      rememberMe: false,
     });
     return { data: { accessToken: result.accessToken } };
   }
@@ -241,7 +247,7 @@ export class AuthController {
     }
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
-      rememberMe: dto.rememberMe,
+      rememberMe: !!dto.rememberMe,
     });
     return { data: { accessToken: result.accessToken } };
   }
@@ -269,9 +275,10 @@ export class AuthController {
       (user, code) => this.totpService.verifyForLogin(user, code),
       authContextFromRequest(req),
     );
+    // challenge 에 실린 로그인 유지 여부로 발급한 토큰 행과 같은 수명을 쓴다(CLE-T-BYCGF1).
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
-      rememberMe: false,
+      rememberMe: result.rememberMe,
     });
     return { data: { accessToken: result.accessToken } };
   }
@@ -399,8 +406,8 @@ export class AuthController {
     return { data: { ok: true } };
   }
 
-  // WebAuthn 2FA HTTP endpoints — spec/5-system/1-auth.md §1.4.
-  // 컨트롤러는 `WebAuthnController` 로 분리되었다 (Rationale 1.4.H).
+  // WebAuthn 2FA HTTP endpoints — CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」.
+  // 컨트롤러는 `WebAuthnController` 로 분리되었다 (CLE-ACCT-SIGNIN Rationale 「Passkey 도메인 모듈을 분리한다」).
 
   @Public()
   @Post('logout')
@@ -460,8 +467,10 @@ export class AuthController {
       token,
       authContextFromRequest(req),
     );
+    // 쿠키 수명은 회전한 토큰 행의 로그인 유지 여부를 따른다(REQ-SESSION-047).
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
+      rememberMe: result.rememberMe,
     });
     return { data: { accessToken: result.accessToken } };
   }
@@ -672,6 +681,10 @@ function mapOauthError(err: unknown): string {
       return 'token_exchange_failed';
     case 'OAUTH_EMAIL_REQUIRED':
       return 'email_required';
+    // 이메일이 대소문자만 다른 여러 계정과 맞아 계정을 정할 수 없다(CLE-T-SFWX84). 새 URL 값을
+    // 만들지 않고 server_error 로 보내 운영 로그에 남긴다. 운영자가 묶음을 정리해야 풀린다.
+    case 'OAUTH_ACCOUNT_AMBIGUOUS':
+      return 'server_error';
     default:
       return 'server_error';
   }

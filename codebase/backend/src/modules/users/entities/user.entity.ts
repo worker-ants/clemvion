@@ -76,7 +76,7 @@ export class User {
   /**
    * WebAuthn 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
    * 첫 WebAuthn credential 등록 시점에 10개 발급. 모든 credential 삭제 시
-   * `WebAuthnService.deleteCredential` 이 NULL 화 (DB 트리거 아님 — spec/5-system/1-auth.md Rationale 1.4.B).
+   * `WebAuthnService.deleteCredential` 이 NULL 화 (DB 트리거 아님 — CLE-ACCT-SIGNIN REQ-SIGNIN-024 · 「복구 코드」).
    */
   @Column({
     name: 'webauthn_recovery_codes',
@@ -120,7 +120,7 @@ export class User {
   passwordResetExpiresAt: Date | null;
 
   /**
-   * 이메일 변경 흐름의 pending 신규 이메일 (spec/5-system/1-auth.md §1.1.B).
+   * 이메일 변경 흐름의 pending 신규 이메일 (CLE-ACCT-SIGNIN 「이메일 변경」).
    * request 시 저장, verify 시 `email` 로 승격되며 NULL, cancel 시 NULL.
    */
   @Column({

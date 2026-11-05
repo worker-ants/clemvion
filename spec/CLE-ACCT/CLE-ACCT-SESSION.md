@@ -2,21 +2,21 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
-requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046"]
+requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "19be0646f5e16cdef5e9345d0ed3b53b29b5224474b793388ca1cabf8c1a7310"
+content_hash: "e6f1511e8a576eda2d3406a7d929e4635010d6b8809f4a7ffefc202928dedaf4"
 read_as: "approved_fallback"
-task: "CLE-T-HD6SJ4"
+task: "CLE-T-BYCGF1"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "496ed2efb59b7f487efbc8293699e0fdea71f94987e3f1fc3377cd2fd07e4e78"
-etag: "sha256-4424d0fadcdcc4f25144fbed6de7eadf78b513b92f340ed218ba04def3f04550"
+mirror_sha256: "944d2e0c00d265776e47f1b8af3f9345e7f68fec25b1a8ffc2f5d7c7f316b854"
+etag: "sha256-1a7f749e34359925a9eca07f4d1ba93850110734ea352adab0a00540ac85a831"
 ---
-> 구현 상태: 부분 구현 (동시 세션 제한은 미구현, 로그인 유지 30일은 부분 구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -35,7 +35,7 @@ etag: "sha256-4424d0fadcdcc4f25144fbed6de7eadf78b513b92f340ed218ba04def3f04550"
 
 - REQ-SESSION-001 WHEN 로그인에 성공하면 THE SYSTEM SHALL 15분짜리 액세스 토큰을 응답 본문으로 주고 리프레시 토큰은 HttpOnly·Secure 쿠키로 준다.
 - REQ-SESSION-002 WHEN 클라이언트가 액세스 토큰을 받으면 THE SYSTEM SHALL 그 토큰을 JS 메모리에만 보관한다.
-- REQ-SESSION-003 WHEN 로그인 유지를 켜고 로그인하면 THE SYSTEM SHALL 리프레시 토큰을 30일 동안 유효하게 하고, 끄면 7일 동안 유효하게 한다. (부분 구현, [미결 사항](#미결-사항))
+- REQ-SESSION-003 WHEN 로그인 유지를 켜고 로그인하면 THE SYSTEM SHALL 리프레시 토큰을 30일 동안 유효하게 하고, 끄면 7일 동안 유효하게 한다.
 - REQ-SESSION-004 WHEN 액세스 토큰을 서명하면 THE SYSTEM SHALL 현재 워크스페이스를 `activeWorkspaceId` 클레임으로만 발행한다.
 - REQ-SESSION-005 WHEN 액세스 토큰을 읽으면 THE SYSTEM SHALL `activeWorkspaceId ?? workspaceId` 로 옛 클레임 이름의 토큰도 받는다.
 - REQ-SESSION-006 IF `NODE_ENV=production` 에서 `JWT_SECRET` 이 없거나 공백뿐이거나 기본 sentinel·예시값이거나 앞뒤 공백을 뗀 길이가 32자 미만이면 THE SYSTEM SHALL 부팅을 거부한다.
@@ -78,6 +78,7 @@ etag: "sha256-4424d0fadcdcc4f25144fbed6de7eadf78b513b92f340ed218ba04def3f04550"
 - REQ-SESSION-044 WHEN 클라이언트가 `/auth/sessions` 나 그 하위 경로 요청에서 401 을 받으면 THE SYSTEM SHALL 다른 API 처럼 액세스 토큰을 한 번 갱신하고 요청을 다시 보낸다.
 - REQ-SESSION-045 WHEN 소셜 로그인 콜백 화면(`/callback`)이 열리면 THE SYSTEM SHALL 로그인 화면이 소셜 로그인을 시작하기 전에 그 탭의 sessionStorage(키 `clemvion.postLoginRedirect`)에 둔 복귀 경로를 성공 · 실패와 관계없이 한 번 꺼내 바로 지우고 [로그인 뒤 이동](#로그인-뒤-이동) 의 기준으로 다시 검사한다.
 - REQ-SESSION-046 WHEN 사용자가 세션 강제 종료 확인 창에서 계정 재인증을 하면 THE SYSTEM SHALL 처음에는 비밀번호 입력란을 보여 주고 400 `REAUTH_REQUIRED` 를 받았는데 그 계정의 TOTP 가 켜져 있으면 TOTP 코드 입력란으로 바꾸며 403 `REAUTH_NOT_AVAILABLE` 을 받으면 입력란 없이 계정 재인증을 할 수 없다고 안내한다.
+- REQ-SESSION-047 WHEN 갱신으로 리프레시 토큰을 회전하면 THE SYSTEM SHALL 새 리프레시 토큰이 그 로그인 세션의 로그인 유지 여부를 이어받게 하고 새 리프레시 토큰과 갱신 응답의 리프레시 쿠키를 회전한 시점부터 로그인 유지를 켰으면 30일, 껐으면 7일 동안 유효하게 한다.
 
 ## 토큰
 
@@ -101,7 +102,11 @@ etag: "sha256-4424d0fadcdcc4f25144fbed6de7eadf78b513b92f340ed218ba04def3f04550"
 
 소셜 로그인은 시작 요청의 `rememberMe` 쿼리를 OAuth state 와 함께 저장해 같은 규칙을 적용한다.
 
-지금 구현은 로그인할 때 받는 첫 리프레시 토큰에만 30일을 준다. 갱신으로 회전한 토큰과 쿠키는 로그인 유지 여부와 상관없이 7일이다. 이 어긋남은 [미결 사항](#미결-사항) 에 있다.
+로그인 유지 여부는 리프레시 토큰 행의 `refresh_token.remember_me` 칸(boolean, 기본 false)에 저장한다. 칸 정의의 정본은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 이다. 토큰을 새로 발급하는 경로(로그인 · 소셜 로그인 · Passkey 로그인 · 초대 가입)가 이 값을 정한다. 초대 가입의 자동 로그인과 비밀번호 변경 · 이메일 변경의 재발급은 false 로 발급하므로 7일이다. 비밀번호 변경과 이메일 변경이 직전 로그인 세션의 값을 이어받지 않는 이유는 [세션 정책](#세션-정책) 표에 있다.
+
+갱신(`POST /api/auth/refresh`, `AuthService.refresh`)으로 토큰을 회전하면 새 토큰이 옛 행의 `remember_me` 를 이어받는다(REQ-SESSION-047). 유효 기간은 회전한 시점부터 다시 센다. 로그인 유지를 켰으면 30일이고 껐으면 7일이다. 갱신 응답의 리프레시 쿠키 `maxAge` 도 같은 값이다. 그래서 로그인 유지를 켠 로그인 세션은 마지막 갱신 뒤 30일 동안 쓰지 않으면 만료된다. 끈 로그인 세션은 7일이다. 첫 로그인 시각을 기준으로 한 고정 만료는 두지 않는다. 이유는 Rationale 「[토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)](#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05)」 에 있다.
+
+한계가 하나 남는다. 비밀번호 변경과 이메일 변경 확인은 성공하면 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다. 이 새 로그인 세션은 로그인 유지 여부를 이어받지 않고 7일이다. 두 요청은 `/api/users/me/*` 경로라 리프레시 쿠키(`Path=/api/auth`)가 붙지 않는다. 액세스 토큰에도 로그인 세션(`family_id`) 식별자가 없다. 그래서 서버는 요청한 기기의 `remember_me` 를 알 수 없다. 이 동작은 2026-11-05 변경 전부터 있었다. 로그인 유지 여부를 잇는 방법은 NERV Task `CLE-T-XF3WMA` 가 정한다.
 
 ### 액세스 토큰 payload
 
@@ -384,16 +389,17 @@ sequenceDiagram
 ## 미결 사항
 
 - **동시 세션 한도의 값과 설정 주체**: 세션 정책 표는 동시 세션 기본 5개(관리자 설정 가능)와 초과 시 가장 오래된 세션 종료를 약속하지만 둘 다 미구현이다(2026-10-10 코드 확인). 5개가 맞는 값인지, "관리자 설정" 의 주체가 운영자 환경 변수인지 워크스페이스 관리자인지 정해지지 않았다. 후속 Task CLE-T-VBQV4H 가 둘을 정하고 구현한다. 관련 요구는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다.
-- **로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는다**: 로그인 유지를 켜고 로그인하면 첫 리프레시 토큰과 쿠키는 30일이다. 그런데 갱신(`AuthService.refresh`)은 새 토큰을 `generateTokens(user, false, …)` 로 발급해 수명이 7일이다. 갱신 응답의 쿠키도 `setRefreshTokenCookie` 기본값인 7일이다. `refresh_token` 행에 로그인 유지 여부를 담는 칸이 없어 회전할 때 이어받을 수 없다. 액세스 토큰이 15분이라 첫 갱신은 곧 일어나므로 로그인 유지를 켜도 실제로는 마지막 사용 뒤 7일짜리 세션이 된다. 회전할 때 로그인 유지 여부를 이어받게 할지, 지금 동작을 규칙으로 받아들이고 REQ-SESSION-003 을 고칠지 결정 필요.
 - **`/auth/` 아래 다른 JWT 라우트는 401 에서 갱신하지 않는다**: 클라이언트의 갱신 제외 규칙은 `/auth/sessions` 만 예외로 둔다. 2단계 인증 설정·켜기·끄기(`/auth/2fa/setup`·`/auth/2fa/verify`·`/auth/2fa/disable`), Passkey 등록 · 관리(`/auth/2fa/webauthn/*` 의 JWT 라우트), 워크스페이스 전환(`/auth/workspaces/:id/switch`)도 Bearer 액세스 토큰이 필요한 라우트다. 이 라우트들은 액세스 토큰이 만료된 뒤 첫 호출이 갱신 없이 401 로 끝난다. 제외 조건을 갱신이 필요 없는 라우트의 명시 목록(`/auth/login`, `/auth/login/totp`, `/auth/refresh` 등)으로 좁힐지 결정 필요.
 - **전체 화면 오류의 세션 만료 변형은 쿼리를 담지 않는다**: 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 `/login?redirect=<현재 경로>` 에 경로만 담는다. 쿼리가 화면을 정하는 경로(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아온다. [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 REQ-ERRPAGE-004 · 005 는 로그인 뒤 원래 URL 로 돌아온다고 적는다. 두 문서와 구현을 맞추는 일은 `CLE-T-2NQ857` 이 맡는다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/auth/auth.controller.ts`, `codebase/backend/src/modules/auth/auth.service.ts` (refresh, logout, 토큰 발급)
+- `codebase/backend/src/modules/auth/entities/refresh-token.entity.ts` (로그인 유지 여부 칸 `rememberMe`)
+- `codebase/backend/migrations/V156__refresh_token_remember_me.sql` (`remember_me` 칸 추가와 배포 시점 백필)
 - `codebase/backend/src/modules/auth/sessions.controller.ts`, `codebase/backend/src/modules/auth/sessions.service.ts` (세션 목록과 강제 종료 `/api/auth/sessions…`, 로그인 이력 `/api/users/me/login-history`, `verifyReauth`)
 - `codebase/backend/src/modules/auth/sessions.controller.spec.ts` (세션 라우트가 리프레시 쿠키 Path 안에 있는지)
-- `codebase/backend/src/modules/auth/utils/refresh-cookie.ts` (리프레시 쿠키 설정·삭제, Path 상수 `REFRESH_COOKIE_PATH`)
+- `codebase/backend/src/modules/auth/utils/refresh-cookie.ts` (리프레시 쿠키 설정·삭제, Path 상수 `REFRESH_COOKIE_PATH`, 로그인 유지 여부에 맞춘 쿠키 `maxAge`)
 - `codebase/backend/src/modules/auth/utils/client-ip.ts` (`extractClientIp`)
 - `codebase/backend/src/common/config/app.config.ts` (`computeCookieDomain`)
 - `codebase/backend/src/common/config/production-guards.ts` (`assertProductionConfig`, 플래그 판정 `isFlagOn`, `JWT_SECRET` 예시 값 목록 `INSECURE_JWT_SECRETS`, 암호화 키 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` · `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
@@ -558,7 +564,7 @@ Origin 검증(REQ-SESSION-013)은 계속 갱신 요청에만 둔다.
 
 30일 비활동 만료는 지운다. REQ-SESSION-034 도 함께 지우고 그 번호는 다시 쓰지 않는다.
 
-- 리프레시 토큰은 회전할 때마다 그 시점부터 수명을 다시 센다(`AuthService.generateTokens`). 그래서 어떤 리프레시 토큰도 마지막으로 쓴 뒤 30일 안에 만료된다. 로그인 유지 없이 발급했거나 회전한 토큰은 7일 안에 만료된다.
+- 리프레시 토큰은 회전할 때마다 그 시점부터 수명을 다시 센다(`AuthService.generateTokens`). 그래서 어떤 리프레시 토큰도 마지막으로 쓴 뒤 30일 안에 만료된다. 로그인 유지 없이 발급했거나 회전한 토큰은 7일 안에 만료된다. 2026-11-05 부터는 회전한 토큰도 로그인 유지 여부를 이어받는다(「[토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)](#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05)」). 그래서 로그인 유지를 켠 로그인 세션은 회전한 뒤에도 30일이다. 어떤 토큰도 마지막으로 쓴 뒤 30일 안에 만료된다는 결론은 그대로다.
 - 30일 비활동 규칙이 토큰 만료보다 먼저 걸리는 경우가 없다. 구현해도 막는 것이 없다.
 
 동시 세션 제한은 지우지 않고 미구현으로 적는다.
@@ -665,3 +671,17 @@ NERV Task `CLE-T-1X7DMR` 에서 정리했다. 초대 토큰 가입과 이메일 
 - **기각: 조회가 성공한 뒤에만 힌트 쿠키를 심는다.** 조회가 잠깐 실패하면 리프레시 쿠키가 살아 있는데도 proxy 가 로그인 화면으로 보낸다.
 - **기각: 조회가 실패하면 토큰과 힌트 쿠키를 지우고 에러를 보인다.** 서버 쪽 리프레시 세션은 남으므로 화면과 서버 상태가 어긋난다.
 - **진입점은 워크스페이스를 다시 맞추지 않는다.** slug 없는 경로의 리다이렉트가 마지막 워크스페이스 slug 를 붙이고 `/w/<slug>` 경로의 레이아웃이 URL 에 맞춰 토큰을 바꾼다. slug 없는 경로의 로그인 상태 복원은 전처럼 AuthProvider 가 따로 맞춘다.
+
+### 토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)
+
+NERV Task `CLE-T-BYCGF1` 에서 정했다. 로그인 유지를 켜고 로그인하면 첫 리프레시 토큰과 쿠키만 30일이었다. 갱신(`AuthService.refresh`)으로 회전한 토큰과 쿠키는 로그인 유지 여부와 상관없이 7일이었다. `refresh_token` 행에 로그인 유지 여부를 담는 칸이 없어 회전할 때 이어받을 수 없었다. 액세스 토큰이 15분이라 첫 갱신은 곧 일어난다. 그래서 로그인 화면의 로그인 유지 체크박스는 사실상 효과가 없었다.
+
+- 로그인 유지 여부를 `refresh_token.remember_me` 칸에 저장하고 회전한 새 토큰이 이 값을 이어받게 했다([로그인 유지](#로그인-유지), REQ-SESSION-047).
+- 7일 세션은 이미 회전할 때마다 그 시점부터 수명을 다시 센다. 30일 세션도 같은 규칙을 쓴다. 두 세션이 같은 규칙을 쓰므로 만료는 늘 마지막 갱신 시각에서 센다.
+- 액세스 토큰 수명, 리프레시 쿠키 Path, 재사용 감지(로그인 세션 전체 무효화), 동시 세션 제한(NERV Task `CLE-T-VBQV4H`)은 바꾸지 않았다.
+- **기각: 지금 동작을 규칙으로 받아들이고 로그인 유지 요구(REQ-SESSION-003)를 고친다.** 로그인 화면의 "로그인 유지" 약속이 로그인한 뒤 첫 15분만 뜻하게 된다.
+- **기각: 첫 로그인 시각부터 30일 뒤에 끝나는 고정 만료를 둔다.** 로그인 시각을 따로 저장해야 한다. 쓰고 있는 세션도 30일째에 끊긴다. 7일 세션의 회전 규칙과도 갈린다. 위 「[30일 비활동 만료를 지우고 동시 세션 제한을 미구현으로 적는다](#30일-비활동-만료를-지우고-동시-세션-제한을-미구현으로-적는다)」 는 회전할 때마다 수명을 다시 센다는 전제로 비활동 만료를 지웠다. 고정 만료는 그 전제를 바꾼다.
+- **기각: 로그인 유지 여부를 클라이언트 쿠키나 액세스 토큰에 싣는다.** 클라이언트 쿠키는 클라이언트가 바꿀 수 있다. 그러면 클라이언트가 고른 값으로 서버 토큰 수명이 늘어난다. 갱신 요청은 리프레시 쿠키만으로 동작하고 그때 액세스 토큰은 이미 만료됐을 수 있다. 수명을 정하는 값은 서버의 토큰 행이 정본이어야 한다.
+- **배포 시점의 백필**: 마이그레이션 `V156__refresh_token_remember_me.sql` 이 칸을 NOT NULL, 기본 false 로 더한다. 이어서 배포 시점에 살아 있는 행 가운데 30일로 발급된 행을 `remember_me = true` 로 채운다. 조건은 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 다. 이 조건에는 로그인 유지를 켜고 로그인한 뒤 아직 회전하지 않은 행만 든다.
+- **백필의 한계**: 이미 한 번 회전한 행은 7일로 발급됐다. 그래서 그 행만 보고는 로그인 유지 여부를 알 수 없고 false 로 남는다. 그 사용자는 다음 로그인부터 30일을 받는다.
+- **비밀번호 변경 · 이메일 변경의 재발급은 잇지 않는다**: 두 재발급은 로그인 유지 여부를 이어받지 않고 7일이다([로그인 유지](#로그인-유지)). 쿠키 Path 를 넓혀 두 요청이 현재 로그인 세션을 알게 하는 방법은 리프레시 쿠키가 붙는 인증 표면을 넓힌다. 그래서 이 작업에서 택하지 않았다. 잇는 방법은 NERV Task `CLE-T-XF3WMA` 가 정한다.

@@ -14,7 +14,7 @@ import { UsersModule } from '../../users/users.module';
 /**
  * WebAuthn (Passkey · 보안 키) 서브모듈.
  *
- * spec/5-system/1-auth.md §1.4 / Rationale 1.4.H — WebAuthn 도메인 (entity·service·DTO·
+ * CLE-ACCT-SIGNIN Rationale 「Passkey 도메인 모듈을 분리한다」 — WebAuthn 도메인 (entity·service·DTO·
  * controller) 을 AuthModule 본체에서 분리해 단방향 의존성으로 정리. AuthModule 은 본
  * 모듈을 import 해서 `WebAuthnService` 를 주입받고, login 분기에서
  * `isEnabled()` · `countStoredCredentials()` 등을 사용.

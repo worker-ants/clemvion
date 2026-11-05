@@ -37,8 +37,10 @@ export async function registerAndLogin(
     );
   }
 
+  // 가입은 이메일을 앞뒤 공백을 지운 소문자로 저장한다(CLE-T-SFWX84). DB 조회도 그 값으로 한다.
+  const storedEmail = email.trim().toLowerCase();
   await db.query('UPDATE "user" SET email_verified = true WHERE email = $1', [
-    email,
+    storedEmail,
   ]);
 
   const loginRes = await request(baseUrl)
@@ -54,7 +56,7 @@ export async function registerAndLogin(
 
   const userRow = await db.query<{ id: string }>(
     'SELECT id FROM "user" WHERE email = $1',
-    [email],
+    [storedEmail],
   );
   if (userRow.rows.length === 0)
     throw new Error('user row missing after login');

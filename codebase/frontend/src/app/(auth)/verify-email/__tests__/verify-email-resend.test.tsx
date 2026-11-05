@@ -116,3 +116,34 @@ describe("VerifyEmailContent — 자동 로그인", () => {
     expect(hasSessionHint()).toBe(true);
   });
 });
+
+/**
+ * NERV Task `CLE-T-MFWBE1` 항목 2 — 인증 링크 확인이 실패하면 에러 봉투
+ * `{ error: { code, message } }` 의 `error.message` 를 보인다. 예전 화면은 `data.message` 를 읽어
+ * 늘 기본 문구만 보였다.
+ */
+describe("VerifyEmailContent — 인증 실패 안내", () => {
+  beforeEach(() => {
+    useLocaleStore.setState({ locale: "ko" });
+    mockVerifyEmail.mockReset();
+  });
+
+  it("에러 봉투의 error.message 를 보여 준다", async () => {
+    searchParams = new URLSearchParams({ token: "bad-token" });
+    mockVerifyEmail.mockRejectedValue(
+      Object.assign(new Error("Invalid verification token"), {
+        isAxiosError: true,
+        response: {
+          status: 400,
+          data: {
+            error: { code: "VALIDATION_ERROR", message: "Invalid verification token" },
+          },
+        },
+      }),
+    );
+
+    render(<VerifyEmailContent />);
+
+    expect(await screen.findByText("Invalid verification token")).toBeInTheDocument();
+  });
+});

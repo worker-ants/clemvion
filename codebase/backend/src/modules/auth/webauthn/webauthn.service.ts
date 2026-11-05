@@ -35,7 +35,7 @@ import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
 import { hasNoNulCharacter } from '../../../common/utils/postgres-text';
 
 const RECOVERY_CODE_COUNT = 10;
-const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1.4.C)
+const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」)
 
 /**
  * sign counter 역행 판정. 응답 값이 저장값 이하면 역행이다. 둘 다 0 이면 counter 를 쓰지 않는
@@ -115,8 +115,8 @@ function parseTransports(value: unknown): string[] | null {
 /**
  * WebAuthn (Passkey · 보안 키) 2FA 서비스.
  *
- * spec/5-system/1-auth.md §1.4 — TOTP 와 두 방식 공존, WebAuthn 우선·자동 fallback 금지.
- * Rationale 1.4.A~E.
+ * CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」 — TOTP 와 두 방식 공존, WebAuthn 우선·자동 fallback 금지.
+ * 근거는 같은 문서 Rationale 의 Passkey 항목들(라이브러리 · 복구 코드 묶음 · 옵션 토큰 · counter 역행).
  */
 @Injectable()
 export class WebAuthnService {
@@ -149,7 +149,7 @@ export class WebAuthnService {
   }
 
   /**
-   * 기능 비활성 시 503 으로 가드. spec/5-system/1-auth.md §1.4.3.
+   * 기능 비활성 시 503 으로 가드. CLE-ACCT-SIGNIN 「Passkey 기능 켜기와 환경 변수」.
    * 컨트롤러도 비밀번호를 확인하기 전에 부른다. 기능이 꺼진 서버는 비밀번호를 대조하지 않고 503 을 돌려준다
    * (NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」, CLE-T-FRCRF7).
    */

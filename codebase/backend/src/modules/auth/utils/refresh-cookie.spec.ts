@@ -46,6 +46,7 @@ describe('setRefreshTokenCookie (04 M-5)', () => {
     const res = mockRes();
     setRefreshTokenCookie(res as unknown as Express.Response, 'tok', {
       cookieDomain: '',
+      rememberMe: false,
     });
     expect(res.cookie).toHaveBeenCalledWith(
       'refreshToken',
@@ -65,6 +66,7 @@ describe('setRefreshTokenCookie (04 M-5)', () => {
     const res = mockRes();
     setRefreshTokenCookie(res as unknown as Express.Response, 'tok', {
       cookieDomain: '',
+      rememberMe: false,
     });
     expect(res.cookie).toHaveBeenCalledWith(
       'refreshToken',
@@ -90,6 +92,7 @@ describe('setRefreshTokenCookie (04 M-5)', () => {
     const res = mockRes();
     setRefreshTokenCookie(res as unknown as Express.Response, 'tok', {
       cookieDomain: '.example.com',
+      rememberMe: false,
     });
     expect(res.cookie).toHaveBeenCalledWith(
       'refreshToken',

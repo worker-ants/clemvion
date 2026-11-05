@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
-requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085"]
+requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "b37a9720c0d808e7441e2001f605ade1f227076ea11a610ea1c69d51e80d5a7d"
+content_hash: "a461781f155e53864451460d0dc9302e64230e15dc5ddd97dfb5e84ea3ff01b4"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-SFWX84"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "4927140b86df161dd87fcd686a77135dffd709f6681587efdc818041ac4fdd66"
-etag: "sha256-ea317e0028b594fd5d455df94f4b5a98723d8917bb0af68542dd4b0c1e91dd6e"
+mirror_sha256: "5dd7ee61299da9f9d15c55ec0e843b6574d7947a8ba1085bb84f5d6f5c9262c9"
+etag: "sha256-471237eb0efa3092832507648c3bc40af6968be7947146c7495669a45d5930d7"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -120,6 +120,10 @@ etag: "sha256-ea317e0028b594fd5d455df94f4b5a98723d8917bb0af68542dd4b0c1e91dd6e"
 - REQ-SIGNIN-083 WHEN TOTP 활성화 검증 요청을 받으면 THE SYSTEM SHALL 사용자당 분당 10회로 요청을 제한한다.
 - REQ-SIGNIN-084 IF TOTP 가 꺼진 계정의 TOTP 활성화 검증 요청에서 설정 시작 시각이 없거나 설정 시작 뒤 10분이 지났으면 THE SYSTEM SHALL 코드를 확인하지 않고 대기 secret 과 설정 시작 시각을 비운 뒤 400 `TOTP_NOT_INITIALIZED` 로 거부한다.
 - REQ-SIGNIN-085 WHEN TOTP 활성화 검증이 400 `TOTP_NOT_INITIALIZED` 로 끝나면 THE SYSTEM SHALL 설정 시간이 지났다는 안내를 보여 주고 설정 시작(비밀번호 입력) 단계로 돌아간다.
+- REQ-SIGNIN-086 WHEN 일반 가입 · 초대 가입 · 소셜 로그인의 새 계정 · 이메일 변경이 이메일을 저장하면 THE SYSTEM SHALL 앞뒤 공백을 지우고 소문자로 바꿔 저장한다.
+- REQ-SIGNIN-087 WHEN 로그인 · 비밀번호 재설정 요청 · 인증 메일 재발송 · 소셜 로그인의 이메일 연결이 이메일로 계정을 찾으면 THE SYSTEM SHALL 입력의 앞뒤 공백을 지운 뒤 대소문자를 구분하지 않고 비교한다.
+- REQ-SIGNIN-088 IF 이메일로 계정을 찾을 때 대소문자만 다른 기존 계정이 둘 이상 맞으면 THE SYSTEM SHALL 입력과 대소문자까지 같은 계정을 쓰고, 그런 계정이 없으면 어느 계정도 쓰지 않는다. 로그인은 401 `LOGIN_FAILED`, 비밀번호 재설정 요청과 인증 메일 재발송은 메일 없이 같은 응답, 소셜 로그인은 연결과 가입 없이 `/callback?error=server_error` 로 끝난다.
+- REQ-SIGNIN-089 WHEN 가입 중복 검사나 `POST /api/auth/check-email` 이 이메일을 확인하면 THE SYSTEM SHALL 대소문자만 다른 계정이 하나라도 있으면 이미 쓰는 이메일로 보고 가입은 409 `RESOURCE_CONFLICT`, 확인은 `available: false` 로 답한다.
 
 ## 인증 화면 공통
 
@@ -190,6 +194,7 @@ etag: "sha256-ea317e0028b594fd5d455df94f4b5a98723d8917bb0af68542dd4b0c1e91dd6e"
 - 인증에 성공하면 자동 로그인하고 개인 워크스페이스를 만든 뒤 대시보드(`/dashboard`)로 보낸다. 개인 워크스페이스 생성 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
 - 인증 토큰은 24시간 동안 유효하다.
 - 인증 메일 재발송 API 는 IP 당 분당 5회로 제한하고 이메일 존재 여부를 드러내지 않는 같은 응답을 준다.
+- 인증 페이지의 요청이 실패하면 응답 봉투의 `error.message` 를 보여 준다. 응답을 받지 못하면 일반 실패 문구를 보여 준다.
 
 ## 이메일·비밀번호 인증 규칙
 
@@ -206,6 +211,26 @@ etag: "sha256-ea317e0028b594fd5d455df94f4b5a98723d8917bb0af68542dd4b0c1e91dd6e"
 
 계정 잠금(account lock, `ACCOUNT_LOCKED`)은 `login_attempts` 가 5에 이르면 `locked_until = now + 10분` 으로 건다. 잠긴 동안 로그인하면 401 `ACCOUNT_LOCKED` 를 돌려주고 로그인 이력에 `login_failed`(`failure_reason=ACCOUNT_LOCKED`)를 남긴다. 로그인이 성공하면 카운터와 잠금을 지운다. 상태 전이는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다. IP 단위 요청 한도는 계정 잠금과 별개의 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 한도가 먼저 막고, 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
 
+## 이메일 비교 규칙
+
+이메일은 로그인 식별자다. 대소문자만 다른 이메일은 같은 이메일로 본다. 컬럼 제약과 조회 방식은 [계정과 워크스페이스 데이터 흐름 「User」](CLE-ACCT-DATA.md#user) 에 있다.
+
+- **저장**: 새로 저장하는 이메일은 앞뒤 공백을 지우고 소문자로 바꾼다. 일반 가입, 초대 가입, 소셜 로그인의 새 계정, 이메일 변경의 새 이메일이 여기에 든다.
+- **비교**: 로그인, 비밀번호 재설정 요청, 인증 메일 재발송, 소셜 로그인의 이메일 연결은 입력의 앞뒤 공백을 지운 뒤 대소문자를 구분하지 않고 계정을 찾는다. 가입 중복 검사, `POST /api/auth/check-email`, 이메일 변경의 중복 검사도 대소문자를 구분하지 않는다.
+- **기존 값**: 이미 저장된 이메일 값은 바꾸지 않는다. 그래서 정규화 전에 가입한 계정 가운데 대소문자만 다른 계정이 둘 이상 있을 수 있다.
+
+계정을 찾을 때 대소문자만 다른 계정이 둘 이상 맞으면 입력과 대소문자까지 같은 계정을 쓴다. 그런 계정이 없으면 어느 계정인지 정할 수 없다. 이 경우는 모호한 입력으로 보고 거부한다.
+
+| 동작 | 대소문자까지 같은 계정이 없을 때 |
+| --- | --- |
+| 로그인 | 없는 계정과 같은 401 `LOGIN_FAILED` |
+| 비밀번호 재설정 요청, 인증 메일 재발송 | 계정이 없을 때와 같은 응답을 주고 메일을 보내지 않는다 |
+| 소셜 로그인 | 계정을 연결하지도 새로 만들지도 않고 `{frontend_url}/callback?error=server_error` 로 보낸다. 서버 내부 코드는 `OAUTH_ACCOUNT_AMBIGUOUS` 이고 서버 에러 로그를 남긴다. 운영자가 그 계정들을 정리해야 풀린다([에러 처리](#에러-처리)) |
+
+가입 중복 검사와 `check-email` 은 대소문자만 다른 계정이 하나라도 있으면 이미 쓰는 이메일로 본다. 가입은 409 `RESOURCE_CONFLICT`, `check-email` 은 `available: false` 다. 이메일 변경도 다른 계정이 대소문자만 다른 이메일을 쓰면 409 `RESOURCE_CONFLICT` 다.
+
+근거와 기각한 안은 Rationale 「[대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)」 에 있다. 대소문자를 무시하는 유일 인덱스는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대는 아직 대소문자를 구분해 기존 사용자를 찾는다. 이 차이는 NERV Task `CLE-T-KG01YT` 가 맡는다([워크스페이스와 멤버](CLE-ACCT-WS.md)).
+
 ## 로그인
 
 ### 로그인 화면
@@ -215,7 +240,7 @@ etag: "sha256-ea317e0028b594fd5d455df94f4b5a98723d8917bb0af68542dd4b0c1e91dd6e"
 | 제목 | 카드 상단 | "Sign in to your account" | 없음 |
 | 안내 | 제목 아래 | "Welcome back! Sign in to your account." | 복귀 경로(post-login return path)가 초대 수락 페이지면 초대 안내 문구로 바뀐다. 한국어는 "로그인하면 초대 수락 화면으로 이동해요.", 영어는 "Sign in to continue to the invitation." 이다. 복귀 경로는 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다 |
 | 입력 폼 | 안내 아래 | Email, Password 입력란 | 이메일 형식과 빈 비밀번호 검사 |
-| 로그인 유지 | 입력 폼 아래 | "Remember me" 체크박스 | 리프레시 토큰 수명을 7일에서 30일로 늘린다([세션과 토큰](CLE-ACCT-SESSION.md)). 첫 토큰 회전 뒤 수명은 [세션과 토큰](CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-BYCGF1`) |
+| 로그인 유지 | 입력 폼 아래 | "Remember me" 체크박스 | 리프레시 토큰 수명을 7일에서 30일로 늘린다([세션과 토큰](CLE-ACCT-SESSION.md)). 토큰을 회전해도 로그인 유지 여부를 이어받아 회전한 때부터 30일 또는 7일이다([세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지)) |
 | 비밀번호 분실 링크 | 체크박스 옆 | "Forgot password?" | 비밀번호 재설정 화면으로 이동 |
 | 로그인 버튼 | 폼 아래 | "Sign In" | 로그인 요청 |
 | 소셜 로그인 | 버튼 아래 | "or continue with" 구분선, Google·GitHub 버튼 | [소셜 로그인](#소셜-로그인) |
@@ -233,7 +258,19 @@ etag: "sha256-ea317e0028b594fd5d455df94f4b5a98723d8917bb0af68542dd4b0c1e91dd6e"
 8. 5회 실패로 잠기면 "Account locked. Try again in 10 minutes." 를 보여 준다.
 9. Passkey 기능이 꺼진 서버에서 Passkey 만 등록하고 TOTP 가 꺼진 계정이 로그인 1단계를 통과하면 서버는 503 `WEBAUTHN_DISABLED` 를 돌려준다. 서버는 이 응답에 로그인 이력을 남기지 않는다. 2단계 인증 챌린지를 발급할 때와 같다. 대신 서버 경고 로그를 남긴다. 비밀번호가 맞았으므로 실패 횟수(`login_attempts`)는 0 으로 되돌린다. 화면은 지금 Passkey 로 로그인할 수 없으니 운영자에게 문의하라는 안내를 보여 준다. 로그인 폼이 이 응답을 직접 처리한다. 컴포넌트가 처리한 에러는 화면 전체를 덮지 않으므로 서버 에러 페이지로 넘어가지 않는다([오류 화면과 빈 상태 「감지를 Next.js 에러 바운더리로 구현한 이유」](../CLE-UI/CLE-UI-ERRORS.md#감지를-nextjs-에러-바운더리로-구현한-이유)). 그 문서의 5xx 전체 화면 처리는 페이지까지 전파된 에러에 쓴다. API 5xx 를 토스트로 보일지 전체 화면 오류 페이지로 보일지가 [에러 응답과 클라이언트 처리 「미결 사항」](../CLE-API/CLE-API-ERROR.md#미결-사항) 에서 정해지면 로그인 폼도 그 결정을 따른다. 규칙은 [Passkey 기능 켜기와 환경 변수](#passkey-기능-켜기와-환경-변수) 에 있다.
 
-화면이 응답 메시지를 읽지 못해 일반 문구를 보여 주는 문제는 NERV Task `CLE-T-MFWBE1` 이 맡는다.
+화면은 에러 응답 봉투 `{ error: { code, message } }` 의 `error.code` 로 문구를 고른다. 코드별 문구가 없는 코드는 `error.message` 를 그대로 보여 준다. 서버는 처리하지 못한 예외와 라이브러리 원문을 상태별 고정 문구로 바꿔 보내므로 이 폴백에 예외 원문은 나오지 않는다. 응답을 받지 못하면(네트워크 에러) 일반 실패 문구를 보여 준다. 에러 응답 형식은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. 코드로 문구를 고르는 방식은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 취지를 따른다. 인증 화면 행은 아직 규칙 5 의 매핑 표에 없고 NERV Task `CLE-T-1K5CWP` 가 올린다.
+
+| 단계 | 응답 코드 | 화면 문구 |
+| --- | --- | --- |
+| 로그인 1단계 | `LOGIN_FAILED` | 이메일이나 비밀번호가 틀렸다는 문구(6번) |
+| 로그인 1단계 | `ACCOUNT_LOCKED` | 계정이 잠겼으니 10분 뒤 다시 시도하라는 안내(8번) |
+| 로그인 1단계 | `EMAIL_VERIFICATION_REQUIRED`, `WEBAUTHN_DISABLED` | 코드별 안내(7번 · 9번) |
+| 로그인 1단계 | 그 밖의 코드 | 응답의 `error.message` |
+| 로그인 1단계 | 응답 없음 | 일반 실패 문구 |
+| 로그인 2단계(TOTP · Passkey · 복구 코드) | `CHALLENGE_INVALID` | 인증 시간이 지났으니 로그인을 처음부터 다시 하라는 안내 |
+| 로그인 2단계 | `TOTP_INVALID`, `WEBAUTHN_INVALID`, `RECOVERY_CODE_INVALID` | 수단별 실패 문구 |
+| 로그인 2단계 | 그 밖의 코드 | 응답의 `error.message` |
+| 로그인 2단계 | 응답 없음 | 수단별 일반 문구 |
 
 로그인 화면에서 시작한 로그인은 2단계 인증과 복구 코드를 거쳐도 모두 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한 곳으로 이동한다. 소셜 로그인은 제공자를 거쳐 돌아오므로 [콜백 처리](#콜백-처리) 를 함께 본다.
 
@@ -504,7 +541,8 @@ Passkey 복구 코드 재발급(`POST /api/auth/2fa/webauthn/recovery-codes/rege
 | 3. 새 비밀번호 입력 | 메일 링크로 연다. "Set new password" 제목, New Password 입력과 강도 바, Confirm Password 입력, "Reset Password" 버튼 | `POST /api/auth/reset-password { token, newPassword }` |
 
 - 재설정이 성공하면 "Password updated. Sign in with your new password." 를 보여 주고 로그인 화면으로 이동한다.
-- 토큰이 만료됐거나 무효하면 "This link has expired. Request a new one." 와 재요청 링크를 보여 준다.
+- 메일 링크 URL 에 토큰이 없으면 입력 폼 대신 "Invalid Link" 카드를 보여 준다. 카드에는 링크가 무효하거나 만료됐다는 안내("This password reset link is invalid or has expired.")와 "Request New Link" 버튼이 있다. 이 버튼은 재설정 요청 화면(`/forgot-password`)으로 간다.
+- 제출한 재설정 실행(`POST /api/auth/reset-password`)을 서버가 거부하면 응답 봉투의 `error.message` 를 토스트로 보여 준다. 봉투에 문구가 없으면 일반 실패 문구를 보여 준다. 이어서 폼 아래에 "Request New Link" 링크(`/forgot-password`)를 보여 준다. 토큰 무효 · 만료와 새 비밀번호 규칙 위반이 모두 400 `VALIDATION_ERROR` 라서 코드로 원인을 가를 수 없기 때문이다. 그래서 비밀번호 규칙 위반으로 거부돼도 링크가 함께 보인다. 응답을 받지 못하면(네트워크 오류) 일반 실패 문구 토스트만 보여 주고 링크는 보여 주지 않는다.
 - 재설정 토큰은 30분 동안 유효하고 쓰면 바로 무효가 된다.
 
 로그인한 상태에서 현재 비밀번호를 알고 바꾸는 비밀번호 변경은 [내 프로필](CLE-ACCT-PROFILE.md) 이 정한다.
@@ -576,7 +614,7 @@ sequenceDiagram
 | Google | Google OAuth 2.0 |
 | GitHub | GitHub OAuth Apps |
 
-- 소셜 로그인 이메일이 기존 이메일 계정과 같으면 그 계정에 자동으로 연결한다. 연결은 `oauth_provider IS NULL` 조건부 갱신이라 이미 다른 제공자에 묶인 계정을 덮어쓰지 않는다. 연결할 때 `email_verified=true` 와 아바타 URL 도 함께 설정한다.
+- 소셜 로그인 이메일이 기존 이메일 계정과 같으면 그 계정에 자동으로 연결한다. 이메일은 [이메일 비교 규칙](#이메일-비교-규칙) 대로 대소문자를 구분하지 않고 비교한다. 연결은 `oauth_provider IS NULL` 조건부 갱신이라 이미 다른 제공자에 묶인 계정을 덮어쓰지 않는다. 연결할 때 `email_verified=true` 와 아바타 URL 도 함께 설정한다.
 - 처음 소셜 로그인하면 자동으로 가입시키고 개인 워크스페이스를 만든다.
 - 소셜 로그인은 통합의 OAuth 연결과 다른 흐름이다. 통합 쪽은 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 이 정한다.
 
@@ -635,7 +673,7 @@ sequenceDiagram
 | state 검증 | 서버가 발급한 state 인지 확인한다(CSRF 방지). state 는 10분 동안 유효하고 콜백에서 한 번만 소비한다 |
 | 코드 교환 | `code` 를 제공자 토큰 엔드포인트에서 `access_token` 으로 바꾼다 |
 | 프로필 조회 | `access_token` 으로 이메일·이름·아바타를 조회한다 |
-| 사용자 매칭 | 제공자 ID 로 먼저 찾고, 없으면 이메일로 기존 사용자를 찾는다 |
+| 사용자 매칭 | 제공자 ID 로 먼저 찾고, 없으면 이메일로 기존 사용자를 찾는다. 이메일은 [이메일 비교 규칙](#이메일-비교-규칙) 대로 비교한다. 연결할 계정을 하나로 정하지 못하면 [에러 처리](#에러-처리) 의 `server_error` 로 끝난다 |
 | 기존 사용자 | OAuth 제공자 정보를 연결하고 로그인 처리한다 |
 | 신규 사용자 | 자동 가입하고 개인 워크스페이스를 만든 뒤 로그인 처리한다 |
 | 토큰 발급 | 리프레시 토큰만 HttpOnly 쿠키로 발급한다. 액세스 토큰은 콜백 페이지가 따로 받는다 |
@@ -650,11 +688,14 @@ sequenceDiagram
 | state 불일치(없음 · 만료 · 이미 소비 · 제공자 불일치) | `{frontend_url}/callback?error=invalid_state` |
 | 코드 교환 실패 | `{frontend_url}/callback?error=token_exchange_failed` |
 | 이메일 미제공 (GitHub 비공개 이메일 등) | `{frontend_url}/callback?error=email_required` |
+| 이메일이 대소문자만 다른 기존 계정 여럿과 맞고 대소문자까지 같은 계정이 없음([이메일 비교 규칙](#이메일-비교-규칙)) | `{frontend_url}/callback?error=server_error` |
 | 서버 에러 | `{frontend_url}/callback?error=server_error` |
 
 state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `OAUTH_STATE_MISMATCH` 예외를 던진다. state 를 발급한 제공자와 콜백의 제공자가 달라도 같다. 로그인 콜백에서는 컨트롤러가 이 예외를 `?error=invalid_state` 리다이렉트로 바꾸므로 사용자는 400 응답을 받지 않는다.
 
 `error=` 값은 응답 봉투의 `error.code` 가 아니라 리다이렉트 URL 쿼리 파라미터라서 `lower_snake_case` 다. 이 예외는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 예외 등록 코드 목록에 올라 있다.
+
+연결할 계정을 정하지 못한 경우는 새 `error=` 값을 두지 않고 `server_error` 를 쓴다. 서버 내부 코드 `OAUTH_ACCOUNT_AMBIGUOUS` 는 컨트롤러가 리다이렉트로 바꾸므로 응답 봉투로 나가지 않고 카탈로그에도 올리지 않는다. 이유는 Rationale 「[대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)」 에 있다.
 
 프론트엔드 `/callback` 페이지는 다음처럼 동작한다.
 
@@ -684,14 +725,14 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)). 초대 토큰 에러는 [워크스페이스와 멤버 「초대 에러 코드」](CLE-ACCT-WS.md#초대-에러-코드) 에 있다. 이메일이 이미 가입돼 있으면 409 `RESOURCE_CONFLICT`(메시지 `Email already registered`)다. 초대 가입 화면은 메시지가 아닌 `error.code` 로 이 경우를 가른다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 4). 이 응답을 전용 코드로 바꾸는 일은 NERV Task `CLE-T-2M6Q02` 가 맡는다 |
+| POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. 강도 규칙 위반은 400 `VALIDATION_ERROR` 이고 `details[].field` 는 `password` 다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)). 초대 토큰 에러는 [워크스페이스와 멤버 「초대 에러 코드」](CLE-ACCT-WS.md#초대-에러-코드) 에 있다. 이메일이 이미 가입돼 있으면(대소문자만 다른 계정 포함, [이메일 비교 규칙](#이메일-비교-규칙)) 409 `RESOURCE_CONFLICT`(메시지 `Email already registered`)다. 초대 가입 화면은 메시지가 아닌 `error.code` 로 이 경우를 가른다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 4). 이 응답을 전용 코드로 바꾸는 일은 NERV Task `CLE-T-2M6Q02` 가 맡는다 |
 | POST | `/api/auth/verify-email` | 본문 `{ token }` 으로 이메일 인증 토큰을 검증한다. 개인 워크스페이스를 만들고 액세스·리프레시 토큰을 바로 발급한다. 인증 불요(`@Public`). 토큰이 무효하거나 만료되면 400 |
 | POST | `/api/auth/resend-verification` | 인증 메일 재발송(24시간 유효). 인증 불요(`@Public`), IP 당 분당 5회. 계정 존재·인증 여부와 상관없이 같은 응답. 메일은 인증 전 계정에만 보낸다 |
-| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 저장된 이메일과 대소문자까지 같을 때만 `available: false` 다. 이메일 정규화는 NERV Task `CLE-T-SFWX84` 가 맡는다. 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다) 에 있다 |
+| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 대소문자를 구분하지 않고 비교한다. 저장된 이메일과 대소문자만 다른 계정이 있어도 `available: false` 다([이메일 비교 규칙](#이메일-비교-규칙)). 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다) 에 있다 |
 | POST | `/api/auth/login` | 로그인. IP 당 분당 10회. 본문 `{ email, password, rememberMe }`. 2단계 인증이 있으면 `{ requires2fa, methods, challengeToken }`, 없으면 `{ accessToken }` 과 리프레시 쿠키. 실패 401 `LOGIN_FAILED`, 비밀번호가 맞는 이메일 인증 전 계정 401 `EMAIL_VERIFICATION_REQUIRED`, 잠긴 계정 401 `ACCOUNT_LOCKED`, Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정 503 `WEBAUTHN_DISABLED`. 순서는 [로그인 처리](#로그인-처리) |
 | POST | `/api/auth/login/totp` | 로그인 2단계 TOTP 검증. 본문 `{ challengeToken, code }`(6자리 코드 또는 TOTP 복구 코드). 성공하면 액세스·리프레시 토큰 발급. 챌린지 토큰 무효 401 `CHALLENGE_INVALID`, TOTP 꺼짐 401 `TOTP_NOT_ENABLED`(Passkey 만 있는 계정 포함), TOTP 와 Passkey 가 모두 있는 계정 401 `WEBAUTHN_REQUIRED`, 코드 불일치 401 `TOTP_INVALID` |
 | POST | `/api/auth/forgot-password` | 비밀번호 재설정 요청. IP 당 분당 5회. 항상 같은 응답 |
-| POST | `/api/auth/reset-password` | 비밀번호 재설정. 본문 `{ token, newPassword }`. 실패는 모두 400 `VALIDATION_ERROR` 다. 지금 구현은 요청 형식이나 새 비밀번호의 길이 · 강도 규칙 위반에 `details` 를 싣고 토큰 무효 · 만료에는 싣지 않는다. 이 차이는 현재 동작이고 계약이 아니다. 클라이언트는 `details` 유무로 원인을 가르지 않는다([미결 사항](#미결-사항)). 새 비밀번호 검사가 토큰 조회보다 먼저다 |
+| POST | `/api/auth/reset-password` | 비밀번호 재설정. 본문 `{ token, newPassword }`. 실패는 모두 400 `VALIDATION_ERROR` 다. 지금 구현은 요청 형식이나 새 비밀번호의 길이 · 강도 규칙 위반에 `details` 를 싣고 토큰 무효 · 만료에는 싣지 않는다. 강도 규칙 위반의 `details[].field` 는 요청 필드 이름인 `newPassword` 다. 가입은 `password`, 비밀번호 변경은 `newPassword` 다([내 프로필](CLE-ACCT-PROFILE.md)). 이 차이는 현재 동작이고 계약이 아니다. 클라이언트는 `details` 유무로 원인을 가르지 않는다([미결 사항](#미결-사항)). 새 비밀번호 검사가 토큰 조회보다 먼저다 |
 
 ### 2단계 인증
 
@@ -738,12 +779,12 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 | 코드 | HTTP | 상황 |
 | --- | --- | --- |
-| `LOGIN_FAILED` | 401 | 로그인 실패. 없는 이메일, 비밀번호가 없는 계정(OAuth 전용), 비밀번호 불일치를 같은 코드와 같은 메시지로 거부한다. 로그인 이력 `failure_reason` 에는 각각 `USER_NOT_FOUND` · `PASSWORD_NOT_SET` · `INVALID_PASSWORD` 가 남는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 비밀번호가 맞는 이메일 인증 전 계정은 `EMAIL_VERIFICATION_REQUIRED` 다 |
+| `LOGIN_FAILED` | 401 | 로그인 실패. 없는 이메일, 비밀번호가 없는 계정(OAuth 전용), 비밀번호 불일치를 같은 코드와 같은 메시지로 거부한다. 이메일로 계정을 하나로 정할 수 없는 경우([이메일 비교 규칙](#이메일-비교-규칙))도 없는 이메일과 같다. 로그인 이력 `failure_reason` 에는 각각 `USER_NOT_FOUND` · `PASSWORD_NOT_SET` · `INVALID_PASSWORD` 가 남는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 비밀번호가 맞는 이메일 인증 전 계정은 `EMAIL_VERIFICATION_REQUIRED` 다 |
 | `EMAIL_VERIFICATION_REQUIRED` | 401 | 비밀번호는 맞지만 이메일 인증을 마치지 않은 계정의 로그인. 비밀번호가 틀리면 `LOGIN_FAILED` 다. 로그인 이력 `failure_reason` 은 `EMAIL_NOT_VERIFIED` 다. 비밀번호가 맞았으므로 실패 횟수(`login_attempts`)는 0 으로 되돌린다. 화면은 이 코드로 이메일 인증 안내를 고른다([로그인 처리](#로그인-처리)) |
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
 | `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 설정 시작 본문의 `password` 누락이나 형식 에러, TOTP 활성화 검증 본문의 `code` 형식 에러, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 등록 옵션 본문의 `password` 누락이나 형식 에러, Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복, 새 이메일 선점 |
-| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경 |
+| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경. 서버 메시지는 비밀번호를 설정하거나 TOTP 를 켜라고 안내한다. Passkey 만 등록한 계정도 같은 메시지를 받는다. 지금 구현의 문구는 한국어라 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 에 어긋나는 기존 문구다. 영문 전환은 NERV Task `CLE-T-1K5CWP` 가 맡는다 |
 | `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | TOTP 설정 시작·2단계 인증 끄기·Passkey 등록 옵션·Passkey 복구 코드 재발급의 비밀번호 재확인 실패. Passkey 등록 옵션은 이때 등록 옵션과 `optionsToken` 을 만들지 않는다. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
 | `TOTP_INVALID` | 401 | 로그인 TOTP 검증 실패, TOTP 활성화 검증의 코드 불일치(확인한 뒤 다른 설정 시작이 secret 을 바꾼 경우 포함), TOTP 끄기의 코드 불일치(TOTP 가 꺼져 있을 때 포함). 계정 재인증과 같은 코드를 쓴다 |
 | `TOTP_NOT_ENABLED` | 401 | 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)에서 사용자가 없거나 TOTP 가 꺼져 있다. Passkey 만 등록하고 TOTP 를 켜지 않은 계정도 이 코드다. 메시지는 다시 로그인하라고 안내한다 |
@@ -780,6 +821,8 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts` (Passkey 등록 옵션의 비밀번호 재확인, 등록 옵션 · 복구 코드 재발급의 요청 빈도 제한과 기능 꺼짐 확인 순서)
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts` (Passkey 인증 챌린지 기록)
 - `codebase/backend/src/modules/mail/**` (인증·재설정·이메일 변경 메일)
+- `codebase/backend/src/modules/users/utils/normalize-email.ts` (새로 저장하는 이메일의 정규화, [이메일 비교 규칙](#이메일-비교-규칙))
+- `codebase/backend/src/modules/users/users.service.ts` (`lookupByEmail` · `emailExists` · `emailTakenByOther`, 대소문자를 구분하지 않는 이메일 조회)
 - `codebase/backend/src/common/config/webauthn.config.ts`
 - `codebase/backend/src/common/constants/throttle.ts` (`SENSITIVE_ACTION_THROTTLE`, TOTP 설정 시작 · 활성화 검증 · 끄기와 Passkey 등록 옵션 · 복구 코드 재발급의 요청 빈도 제한)
 - `codebase/backend/src/modules/auth/password-recheck-throttle.spec.ts` (`verifyPasswordForUser` 를 부르는 라우트 목록을 고정하고 핸들러마다 `SENSITIVE_ACTION_THROTTLE` 이 걸렸는지 보는 단위 테스트)
@@ -797,6 +840,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 - `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동할 곳, 소셜 로그인의 복귀 경로 저장과 꺼내기, 초대 수락 페이지로 돌아오는 로그인 경로 `buildInvitationLoginHref`. 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다)
 - `codebase/frontend/src/lib/utils/password.ts`
 - `codebase/frontend/src/lib/api/auth.ts` (`webauthnRegisterOptions` 가 비밀번호를 보낸다), `codebase/frontend/src/lib/api/auth-providers.ts`
+- `codebase/frontend/src/lib/api/errors.ts` (`axiosMessage` · `extractApiMessage`, 에러 응답 봉투의 `error.message` 읽기)
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/change-email/**`, `codebase/frontend/src/app/(main)/w/[slug]/profile/security/**`
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/security/passkey-card.tsx` (Passkey 등록 폼의 비밀번호 입력과 비밀번호 실패 안내)
 
@@ -1168,7 +1212,7 @@ NERV Task `CLE-T-AYT4VB` · `CLE-T-RFSJXQ` 에서 [이메일 인증 전 계정�
 - **503 `WEBAUTHN_DISABLED` 는 로그인 이력을 남기지 않는다.** 2단계 인증 챌린지를 발급할 때 이력을 남기지 않는 것과 같다. 이 응답은 로그인 실패가 아니라 서버 설정 문제다. 대신 서버 경고 로그(warn)를 남긴다. 운영자는 이 로그로 차단이 일어난 것을 알 수 있다.
 - **credential 수 조회는 기능이 꺼져도 저장된 수를 센다.** 이 뜻이 드러나게 이름을 `WebAuthnService.countStoredCredentials()` 로 바꿨다. 켜짐 여부는 `isEnabled()` 로 따로 묻는다. 로그인(`AuthService.login`)과 TOTP 로그인(`AuthService.loginWithTotp`)은 두 값을 `AuthService.passkeyState()` 한 곳에서 판정한다.
 - **TOTP 로그인은 기능이 켜져 있을 때만 `WEBAUTHN_REQUIRED` 로 막는다.** Passkey 가 있는 계정이 TOTP 로 2단계를 넘지 못하게 하는 백스탑이다. 기능이 꺼진 동안에는 TOTP 가 켜진 사용자가 TOTP 로 로그인한다([Passkey 기능 켜기와 환경 변수](#passkey-기능-켜기와-환경-변수)).
-- **로그인 화면은 두 코드에 코드별 안내 문구를 보여 준다.** 로그인 폼(`codebase/frontend/src/components/auth/login-form.tsx`)이 `EMAIL_VERIFICATION_REQUIRED` 와 `WEBAUTHN_DISABLED` 를 보고 문구를 고른다. 다른 코드에서 응답 메시지를 읽지 못하는 문제는 NERV Task `CLE-T-MFWBE1` 이 맡는다.
+- **로그인 화면은 두 코드에 코드별 안내 문구를 보여 준다.** 로그인 폼(`codebase/frontend/src/components/auth/login-form.tsx`)이 `EMAIL_VERIFICATION_REQUIRED` 와 `WEBAUTHN_DISABLED` 를 보고 문구를 고른다. 다른 코드에서 응답 메시지를 읽지 못하는 문제는 NERV Task `CLE-T-MFWBE1` 이 맡는다. (2026-11-05 에 고쳤다. 아래 「로그인 · 2단계 · 재설정 화면이 거부 코드별 문구와 서버 문구를 보여 준다」 참고)
 
 ### 승인본 정합 경고를 정리했다 (2026-11-05)
 
@@ -1190,3 +1234,26 @@ NERV Task `CLE-T-693G4E` 에서 승인본의 정합 경고를 정리했다. 결�
 - 표시 이름 길이 · NUL 규칙이 세 곳에 나뉜 것을 합치는 일과 개정 출처 표기 정리. NERV 버전 이력에 맡긴다.
 - [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 5xx 서버 에러 페이지 요구사항 범위. [에러 응답과 클라이언트 처리 「미결 사항」](../CLE-API/CLE-API-ERROR.md#미결-사항) 에 맡긴다.
 - [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 쪽 문장. 별도 초안에서 다룬다.
+
+### 대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)
+
+NERV Task `CLE-T-SFWX84` 에서 사람 결정으로 정했다(질문 `01a1ac05-8931-7309-acc4-ae26e35086a2`, 권장안 채택). 그 전에는 가입 · 로그인 · 이메일 확인 · 소셜 로그인 연결이 이메일을 대소문자까지 같아야 같은 이메일로 봤다. 그래서 대문자를 섞어 가입한 사용자가 소문자로 입력하면 없는 계정으로 거부됐다. 대소문자만 다른 이메일로 계정을 하나 더 만들 수도 있었다.
+
+- **새로 저장하는 값은 소문자로 바꾸고 비교는 대소문자를 무시한다.** 규칙은 [이메일 비교 규칙](#이메일-비교-규칙) 에 있다.
+- **이미 저장된 값은 바꾸지 않는다.** 정규화 전에 가입한 계정 가운데 대소문자만 다른 계정 묶음이 있을 수 있다. 그 묶음에서는 입력과 대소문자까지 같은 계정만 쓴다. 그 사용자들은 지금까지 쓰던 이메일 그대로 로그인한다.
+- **대소문자까지 같은 계정이 없으면 모호로 보고 거부한다.** 서버는 입력이 어느 계정의 것인지 정할 수 없다. 로그인과 재설정 요청 · 인증 메일 재발송은 없는 계정과 같은 응답을 줘서 이런 묶음이 있다는 사실도 드러내지 않는다.
+- **기각: 기존 행을 모두 소문자로 바꾼다.** 대소문자만 다른 묶음이 `email UNIQUE` 에 걸려 바꿀 수 없다. 묶음마다 어느 계정을 남길지는 사람이 정해야 한다.
+- **기각: 묶음을 자동으로 합치거나 지운다.** 한쪽 계정의 데이터를 잃을 수 있다. 합칠지와 무엇을 남길지는 사람이 정해야 한다.
+- **기각: 가장 먼저 가입한 계정을 쓴다.** 로그인이나 재설정 메일이 입력한 사람과 다른 계정으로 갈 수 있다.
+- **기각: 소셜 로그인에 새 `error=` 값을 둔다.** 콜백의 `error=` 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §3 의 예외 등록 목록에 오른 `lower_snake_case` 예외다. 같은 문서 규칙 7 은 새 코드가 예외를 선례로 삼지 않게 한다. 값을 더하려면 그 예외 등록 목록을 개정해야 한다. 이 경우는 운영자가 정리해야 풀리고 사용자가 따로 할 일이 없다. 그래서 기존 `server_error` 를 쓴다. 서버 내부 코드 `OAUTH_ACCOUNT_AMBIGUOUS` 는 컨트롤러가 리다이렉트로 바꿔 응답 봉투로 나가지 않으므로 카탈로그에 올리지 않는다.
+- **후속**: 대소문자를 무시하는 유일 인덱스(`LOWER(email)`)는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대의 기존 사용자 조회는 NERV Task `CLE-T-KG01YT` 가 맡는다.
+
+### 로그인 · 2단계 · 재설정 화면이 거부 코드별 문구와 서버 문구를 보여 준다 (2026-11-05)
+
+NERV Task `CLE-T-MFWBE1` 에서 고쳤다. 로그인 · 로그인 2단계 · 비밀번호 재설정 · 이메일 인증 화면은 에러 응답 봉투 `{ error: { code, message } }` 를 읽지 못했다. 그래서 거부 이유와 상관없이 일반 실패 문구만 보였다.
+
+- **화면은 `error.code` 로 문구를 고른다.** 코드별 문구가 없는 코드는 서버의 `error.message` 를 보여 주고, 응답이 없으면 일반 문구를 보여 준다. 규칙은 [로그인 처리](#로그인-처리) 와 [재설정 화면](#재설정-화면) 에 있다. 봉투를 읽는 함수는 `codebase/frontend/src/lib/api/errors.ts` 한 곳에 둔다.
+- **비밀번호 강도 위반의 `details[].field` 를 요청 필드 이름에 맞췄다.** 가입은 `password`, 재설정과 비밀번호 변경은 `newPassword` 다.
+- **기각: 모든 거부에 서버의 `error.message` 를 그대로 보인다.** 화면은 코드를 키로 사전 문구를 고른다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 취지를 따른 것이다. 코드별 문구가 있는 코드까지 서버 문구로 보이면 이 취지와 어긋난다. 인증 화면 행은 아직 규칙 5 의 매핑 표에 없고 NERV Task `CLE-T-1K5CWP` 가 올린다.
+- **기각: 코드별 문구가 없는 코드도 일반 문구로 보인다.** 고치기 전 동작이다. 사용자가 거부 이유를 알 수 없다.
+- **후속**: 다른 화면의 같은 문제와 소셜 로그인 콜백 화면의 문구는 NERV Task `CLE-T-PRB4D3` 가 맡는다.

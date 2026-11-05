@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "b7fe19bb5d05b2204a62e8ae59d195bbe892127f2af0849d1aa83741657d4d8b"
+content_hash: "eb752696620a2f57b7300ba33d257ca06cea6e381ef6d1f518c29701126b0cfc"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-BYCGF1"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "4d6eac894b73cea7c31da248242033575395fbccb135012114c571ae33d07505"
-etag: "sha256-c47a63978ef6d1251601ebd0c4bdf04045fd540f636b6d0e92d52c5590caf27e"
+mirror_sha256: "6ab707c46b3e91693e0a046ce07f5359efe90dd03c0e160345f81c5eb2b459ce"
+etag: "sha256-d50fae0fe42fb0386c69b6cca022cc1bdcb12eeb61c556bce68571bc7549f1a0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -81,7 +81,19 @@ erDiagram
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-- 제약: `email UNIQUE`(V001). 대소문자를 무시한 이메일 중복 조회(`emailTakenByOther`)를 위해 `LOWER(email)` 인덱스가 있다(V101).
+- 제약: `email UNIQUE`(V001). 이 제약은 대소문자를 구분한다. `LOWER(email)` 인덱스(V101)는 조회용이고 유니크 인덱스가 아니다.
+- 새로 저장하는 이메일은 앞뒤 공백을 지우고 소문자로 저장한다(`normalizeEmail`). 일반 가입 · 초대 가입 · OAuth 새 계정 · 이메일 변경의 `pending_email` 이 이 규칙을 따른다. 이메일 변경을 확정하면 정규화한 `pending_email` 값이 `email` 이 된다.
+- 조회와 중복 확인은 `LOWER(email)` 로 비교한다(V101 인덱스). 로그인 · 비밀번호 재설정 요청 · 인증 메일 재발송 · OAuth 이메일 연결은 `UsersService.lookupByEmail` 로 계정을 찾는다. 가입 중복 확인과 `check-email` 은 `emailExists`, 이메일 변경의 중복 확인은 `emailTakenByOther` 를 쓴다. 대소문자만 다른 계정이 여럿 맞을 때의 처리를 포함한 규칙의 정본은 [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙) 이다.
+- 정규화 전에 생긴 "대소문자만 다른 계정 묶음" 이 남아 있을 수 있다. `email UNIQUE` 가 대소문자를 구분해서 이런 묶음을 막지 못했다. 기존 값은 바꾸지 않고 묶음을 합치거나 지우지도 않는다(2026-11-05 사람 결정). 묶음이 0 이 되면 `LOWER(email)` 유니크 인덱스를 건다. 이 일은 NERV Task `CLE-T-6QZCYD` 가 맡는다. 운영자는 아래 쿼리로 묶음을 찾는다.
+
+  ```sql
+  SELECT LOWER(email) AS email_key, COUNT(*) AS accounts,
+         array_agg(id ORDER BY created_at) AS user_ids
+    FROM "user"
+   GROUP BY LOWER(email)
+  HAVING COUNT(*) > 1;
+  ```
+
 - `theme` 의 CHECK 는 `chk_user_theme` 이고 `light`·`dark`·`system` 을 받는다. V001 이 인라인 CHECK 로 만든 자동 이름 제약 `user_theme_check`(`light`·`dark`)를 대신한다. 마이그레이션은 두 파일이다. `codebase/backend/migrations/V149__user_theme_allow_system.sql` 이 새 제약을 `NOT VALID` 로 걸고 `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` 이 검증한 뒤 옛 제약을 지운다. 바꾼 방식과 이유는 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 에 있다.
 - `two_factor_setup_started_at` 은 `codebase/backend/migrations/V*__user_two_factor_setup_started_at.sql` 이 더한다. 이 마이그레이션은 기존 행을 바꾸지 않는다. 그래서 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이고 활성화 검증이 만료로 본다.
 - Passkey credential 은 별도 엔티티 [WebAuthnCredential](#webauthncredential) 에 둔다. User 행에는 `webauthn_recovery_codes` 와 간접적으로 credential 개수만 영향을 준다.
@@ -156,7 +168,8 @@ erDiagram
 | token_hash | String | SHA-256(리프레시 토큰), UNIQUE |
 | family_id | UUID | 로그인 세션 식별자 (회전 뒤에도 유지) |
 | is_revoked | Boolean | 강제·자연 만료 여부 |
-| expires_at | Timestamp | 만료 시각 (기본 7일, 로그인 유지 30일) |
+| expires_at | Timestamp | 만료 시각. 발급하거나 회전한 시점부터 로그인 유지(`remember_me`)면 30일, 아니면 7일 |
+| remember_me | Boolean | 로그인 유지 여부 (NOT NULL, 기본 `false`). 로그인 · 소셜 로그인 · Passkey 로그인 · TOTP 2단계 로그인 · 초대 가입이 발급할 때 정한다. 갱신으로 회전하면 새 행이 옛 행 값을 이어받는다. 토큰 수명과 갱신 쿠키 `maxAge` 를 정하는 정본이다([세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지), REQ-SESSION-047). V156 이 더했다 |
 | device_label | String? | UA 에서 만든 표시 라벨 ("Chrome on macOS") |
 | user_agent | String? | 발급 시점 원래 UA |
 | ip_address | String? | 발급 시점 클라이언트 IP. IP 추출 순서는 [세션과 토큰](CLE-ACCT-SESSION.md) |
@@ -165,6 +178,8 @@ erDiagram
 | created_at | Timestamp | 발급 시각 |
 
 인덱스: `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040 메타데이터).
+
+`remember_me` 는 `codebase/backend/migrations/V156__refresh_token_remember_me.sql` 이 더했다. 같은 마이그레이션이 배포 시점에 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 인 행만 `true` 로 채운다. 발급 수명이 7일인 행과 30일인 행을 8일로 가른다. 이미 한 번 회전한 행은 7일로 발급돼 로그인 유지 여부를 알 수 없으므로 `false` 로 남는다. 그 사용자는 다음 로그인부터 30일을 받는다. 이유는 Rationale 「리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)」 에 있다.
 
 ### LoginHistory
 
@@ -219,7 +234,7 @@ erDiagram
 | state | String(64) | 서버가 만든 state 값. `UNIQUE`(V013) |
 | provider | String(32) | OAuth 제공자 (`google`, `github`) |
 | mode | String(16) | 시작 요청의 모드. `CHECK (mode IN ('login', 'register'))` |
-| remember_me | Boolean | 시작 요청의 로그인 유지 여부. 기본 `false` |
+| remember_me | Boolean | 시작 요청의 로그인 유지 여부. 기본 `false`. 시작 요청의 값을 콜백까지 나르는 컬럼이고 로그인 세션 수명의 정본은 `refresh_token.remember_me` 다 |
 | expires_at | Timestamp | `now + 10분` |
 | created_at | Timestamp | 생성 시각 |
 
@@ -296,7 +311,7 @@ sequenceDiagram
     C->>Svc: POST /api/auth/login/totp {challengeToken, code}
     Svc->>Svc: TOTP 코드 또는 TOTP 복구 코드 검증
   end
-  Svc->>PG: INSERT refresh_token (새 family_id, token_hash, ip, ua, device_label)
+  Svc->>PG: INSERT refresh_token (새 family_id, token_hash, remember_me, ip, ua, device_label)
   Svc->>Hist: login_success
   Svc-->>C: { accessToken } + 리프레시 쿠키
 ```
@@ -366,14 +381,14 @@ sequenceDiagram
   Note over Svc,PG: 한 트랜잭션 (무효화 + INSERT)
   Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id AND is_revoked=false AND expires_at > now
   Note over Svc: 영향 행이 0이면 동시 회전 경합으로 보고 401 TOKEN_INVALID
-  Svc->>PG: INSERT refresh_token (같은 family_id, 새 token_hash, expires_at)
-  Svc-->>C: { accessToken } + 새 리프레시 쿠키
+  Svc->>PG: INSERT refresh_token (같은 family_id, 새 token_hash, 옛 행의 remember_me, expires_at = now + 30일 또는 7일)
+  Svc-->>C: { accessToken } + 새 리프레시 쿠키 (maxAge 30일 또는 7일)
 ```
 
 - 재사용 감지(같은 `family_id` 전체 무효화와 `token_reuse_detected` 기록)는 `is_revoked=true` 인 토큰이 다시 쓰일 때만 동작한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 준다(`auth.service.ts` 의 `refresh`). 현재 구현에서 워크스페이스 JWT 층의 `TOKEN_EXPIRED` 발행처는 이 갱신 경로 하나다. 만료된 액세스 토큰에 전용 코드를 줄지는 별도 제품 결정이다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#token_expired-설명을-리프레시-토큰-만료로-맞춘-이유) 의 Rationale 「`TOKEN_EXPIRED` 설명을 리프레시 토큰 만료로 맞춘 이유」).
 - 재사용 분기의 전체 무효화는 단일 UPDATE 라 그 자체로 원자적이다. 로그인 이력 기록은 트랜잭션 밖에 둔다.
 - 정상 회전은 로그인 이력에 남기지 않는다.
-- 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는 문제는 [세션과 토큰](CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-BYCGF1`).
+- 새 행은 옛 행의 `remember_me` 를 이어받는다. `expires_at` 은 회전한 시점부터 다시 잡는다. 로그인 유지면 30일이고 아니면 7일이다. 갱신 응답의 리프레시 쿠키 `maxAge` 도 같은 값이다. 규칙은 [세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지)(REQ-SESSION-047)가 정한다.
 
 ### 세션 강제 종료
 
@@ -580,10 +595,10 @@ sequenceDiagram
 | `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id` | 없음 |
 | `user` | TOTP 켜기·끄기 | UPDATE `two_factor_enabled, two_factor_secret, two_factor_setup_started_at, totp_recovery_codes`. 설정 시작은 비밀번호를 확인한 뒤 `two_factor_secret` 과 `two_factor_setup_started_at = now` 를 한 UPDATE 로 쓴다. 활성화 검증은 `two_factor_enabled=true` 와 `totp_recovery_codes` 를 쓰고 `two_factor_setup_started_at` 을 NULL 로 비운다. 두 쓰기는 조건부 UPDATE 다. 설정 시작은 `two_factor_enabled = false` 일 때만 쓰고, 활성화 검증은 그에 더해 `two_factor_secret` 이 코드를 확인한 secret 과 같을 때만 쓴다. TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 컬럼은 그대로다. 활성화 검증에서 그 사이 secret 이 바뀌었으면 401 `TOTP_INVALID` 다. 활성화 검증은 `two_factor_setup_started_at` 이 NULL 이거나 10분이 지났으면 코드를 확인하지 않고 `two_factor_secret` 과 `two_factor_setup_started_at` 을 NULL 로 비운 뒤 400 `TOTP_NOT_INITIALIZED` 다. 이 비우기는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓰는 조건부 UPDATE 다. 끄기는 비밀번호와 코드(6자리 TOTP 코드나 TOTP 복구 코드)를 모두 확인한 뒤 `two_factor_enabled` 를 `false` 로, 나머지 세 컬럼을 NULL 로 바꾼다. 코드가 틀리면 401 `TOTP_INVALID` 이고 컬럼은 그대로다. 코드 확인 실패는 로그인 이력에 쓰지 않는다 | 없음 |
 | `user` | Passkey 복구 코드 발급·소진·재발급 | UPDATE `webauthn_recovery_codes` | 없음 |
-| `user` | 이메일 변경 | UPDATE `pending_email, email_change_token, email_change_expires_at`, 확정 때 `email, email_verified` | `email UNIQUE`, `LOWER(email)`(V101) |
+| `user` | 이메일 변경 | UPDATE `pending_email, email_change_token, email_change_expires_at`, 확정 때 `email, email_verified`. `pending_email` 은 앞뒤 공백을 지운 소문자로 저장하고 확정 때 그 값을 `email` 로 옮긴다 | `email UNIQUE`, `LOWER(email)`(V101) |
 | `webauthn_credential` | 등록·이름 변경·삭제·인증 | INSERT(등록 검증), UPDATE `counter, last_used_at, device_name`, DELETE(개별 삭제, 서명 검증을 통과한 응답의 counter 역행) | `credential_id UNIQUE`, `(user_id)` |
-| `refresh_token` | 로그인·갱신 | INSERT `user_id, token_hash, family_id, is_revoked=false, expires_at, device_label, user_agent, ip_address` | `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040) |
-| `refresh_token` | 토큰 회전 | 옛 행 UPDATE `is_revoked=true, last_used_at, last_used_ip`, 새 행 INSERT | 없음 |
+| `refresh_token` | 로그인·갱신 | INSERT `user_id, token_hash, family_id, is_revoked=false, expires_at, remember_me, device_label, user_agent, ip_address` | `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040) |
+| `refresh_token` | 토큰 회전 | 옛 행 UPDATE `is_revoked=true, last_used_at, last_used_ip`, 새 행 INSERT(옛 행의 `remember_me` 를 이어받는다) | 없음 |
 | `refresh_token` | 재사용 감지 | 같은 `family_id` 전체 UPDATE `is_revoked=true` | 없음 |
 | `auth_oauth_state` | OAuth 시작 | INSERT `state, provider, mode, remember_me, expires_at = now+10m` | `state UNIQUE`(V013) |
 | `auth_oauth_state` | OAuth 콜백 | DELETE `WHERE state=? AND expires_at > now RETURNING`(원자적 1회 소비) | 없음 |
@@ -718,7 +733,7 @@ stateDiagram-v2
 
 - **잠금 대기 초과의 응답 코드**: 나가기 · 멤버 제거와 워크스페이스 삭제 · 워크플로우 삭제는 잠금 대기 상한 5초를 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다([워크스페이스 삭제와 나가기](#워크스페이스-삭제와-나가기)). 트리거 · 스케줄 화면 삭제도 같다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 다시 시도하면 대개 통과하는 일시적 실패인데 500 이라 [HTTP API 규약 §6](../CLE-API/CLE-API-CONV.md#6-http-상태-코드) 의 500 · 503 구분과 잘 맞지 않는다. 이 경로들의 응답 코드는 NERV Task `CLE-T-1C2JE0` 가 함께 정한다. 지금 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
 
-2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 와 「요청 한도의 집계 기준을 코드에 맞췄다」 에 있다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않는 문제는 이 문서가 아니라 [세션과 토큰](CLE-ACCT-SESSION.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-BYCGF1`).
+2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 와 「요청 한도의 집계 기준을 코드에 맞췄다」 에 있다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않던 문제는 2026-11-05 에 고쳤다(NERV Task `CLE-T-BYCGF1`). 규칙은 [세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지) 에 있다.
 
 ## 구현 위치
 
@@ -731,10 +746,14 @@ stateDiagram-v2
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts` (Passkey 인증 챌린지 기록)
 - `codebase/backend/src/modules/auth/webauthn/entities/webauthn-credential.entity.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.ts` (`webauthn_credential` 엔티티, 표시 이름을 확인하는 등록 검증 · 이름 변경 DTO)
 - `codebase/backend/src/modules/auth/entities/*.entity.ts`, `codebase/backend/src/modules/users/entities/user.entity.ts`
+- `codebase/backend/src/modules/auth/entities/refresh-token.entity.ts` (`rememberMe`. `refresh_token.remember_me` 컬럼)
+- `codebase/backend/src/modules/users/utils/normalize-email.ts` (`normalizeEmail`. 새로 저장하는 이메일의 앞뒤 공백 제거와 소문자 변환)
+- `codebase/backend/src/modules/users/users.service.ts` (`lookupByEmail` · `emailExists` · `emailTakenByOther`. 대소문자를 무시한 이메일 조회와 중복 확인)
 - `codebase/backend/src/modules/users/users.controller.ts`, `codebase/backend/src/modules/users/dto/update-me.dto.ts` (프로필 수정과 테마 값 `USER_THEMES`, 이메일 변경 진입)
 - `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (`chk_user_theme` 을 `NOT VALID` 로 건 뒤 검증하고 옛 제약 `user_theme_check` 를 지운다)
 - `codebase/backend/migrations/V152__webauthn_device_name_empty_to_null.sql` (이름 변경이 남긴 빈 문자열 `device_name` 을 NULL 로 바꾼다)
 - `codebase/backend/migrations/V*__user_two_factor_setup_started_at.sql` (`user.two_factor_setup_started_at` 컬럼 추가. 기존 행은 바꾸지 않는다. NULL 허용 컬럼 추가라 NOT VALID 단계는 없고 `lock_timeout` 은 V149 와 같은 3초다)
+- `codebase/backend/migrations/V156__refresh_token_remember_me.sql` (`refresh_token.remember_me` 컬럼 추가와 배포 시점 백필. `lock_timeout` 은 3초다)
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`, `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts`
 - `codebase/backend/src/modules/workspaces/member-personal-integrations.port.ts`, `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (멤버 제거 · 나가기 트랜잭션이 개인 통합을 지우는 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 와 그 구현)
@@ -953,3 +972,23 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 �
 - 마이그레이션은 기존 행을 바꾸지 않는다. 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이라 활성화 검증이 만료로 보고 비운다. 사용자는 설정 시작부터 다시 하면 된다.
 - 이 컬럼은 응답에 싣지 않는다. 비밀이 아니라서 「응답에 싣지 않는 민감 컬럼 7개」 에는 넣지 않았다.
 - 활성화 검증, Passkey 등록 옵션, Passkey 복구 코드 재발급에 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 세 라우트 모두 로그인한 사용자만 부르므로 사용자 기준으로 센다. 수치의 정본은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다.
+
+### 리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)
+
+NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [세션과 토큰 「토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)」](CLE-ACCT-SESSION.md#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05) 에 있다. 이 문서에는 컬럼 정의와 백필 근거만 적는다.
+
+- 그 전에는 토큰 행에 로그인 유지 여부가 없어서 갱신이 토큰을 회전할 때 늘 `false` 로 넘겼다. 그래서 30일로 로그인한 세션도 첫 회전 뒤에는 7일 만료가 됐다. 회전이 이어받을 값을 남기려고 `refresh_token.remember_me`(NOT NULL, 기본 `false`)를 더했다.
+- `auth_oauth_state.remember_me` 는 그대로 둔다. 소셜 로그인 시작부터 콜백까지 값을 나르는 단명 행이고 콜백이 소비하면 사라진다. 콜백이 발급한 리프레시 토큰의 `remember_me` 가 그 값을 받는다.
+- 백필은 `expires_at - created_at` 으로 발급 수명을 가른다. 7일 행은 차이가 7일이고 30일 행은 30일이라 8일을 경계로 둔다. 이미 한 번 회전한 행은 고치기 전 규칙대로 7일로 발급돼 원래 로그인 유지 여부를 알 수 없다. 그래서 `false` 로 남긴다. 그 사용자는 다음 로그인부터 30일을 받는다.
+- **기각: 기존 행을 모두 `false` 로 두기.** 배포 시점에 30일로 로그인해 아직 한 번도 회전하지 않은 세션도 다음 회전부터 7일이 된다. 이런 행은 발급 수명으로 판별할 수 있으므로 살린다.
+- **기각: 살아 있는 행을 모두 `true` 로 채우기.** 로그인 유지를 끄고 로그인한 세션까지 30일로 늘어난다.
+- 상수 기본값이 있는 NOT NULL 컬럼 추가는 PostgreSQL 11 이상에서 메타데이터만 바꾼다. 다만 ACCESS EXCLUSIVE 잠금을 잡으므로 V149 와 같이 `lock_timeout` 을 3초로 둔다. 잡지 못하면 그 파일이 롤백되므로 다시 배포하면 된다.
+
+### 새로 저장하는 이메일을 소문자로 정규화하고 기존 행은 바꾸지 않는다 (2026-11-05)
+
+NERV Task `CLE-T-SFWX84` 에서 바꿨다. 기존 계정을 다루는 방식은 사람 결정이다(NERV 질문 `01a1ac05-8931-7309-acc4-ae26e35086a2`). 비교 규칙과 근거, 기각한 안은 [가입과 로그인 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)」](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다. 이 문서에는 데이터 쪽만 적는다.
+
+- 그 전에는 이메일을 입력한 대소문자 그대로 저장했다. 로그인 · 가입 중복 확인 · `check-email` · OAuth 이메일 연결도 대소문자를 구분해 비교했다. `LOWER(email)` 로 비교한 곳은 이메일 변경의 중복 확인(`emailTakenByOther`)뿐이었다.
+- 정규화는 새로 쓰는 값에만 건다. 기존 행을 소문자로 바꾸는 마이그레이션은 기각했다. 대소문자만 다른 묶음이 있으면 `email UNIQUE` 에 걸리고 어느 계정을 남길지 사람이 정해야 한다.
+- 비교는 `LOWER(email)` 로 하고 V101 인덱스를 쓴다. 새 인덱스는 더하지 않았다.
+- `LOWER(email)` 유니크 인덱스는 지금 걸 수 없다. 묶음이 남아 있으면 인덱스를 만들지 못한다. 운영자가 [User](#user) 의 쿼리로 묶음을 찾아 정리한 뒤 NERV Task `CLE-T-6QZCYD` 가 건다.

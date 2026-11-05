@@ -19,6 +19,10 @@ import {
   validatePasswordStrength,
 } from '../../common/utils/password.util';
 
+/** `UsersService.lookupByEmail` 결과. */
+export type EmailLookup =
+  { kind: 'found'; user: User } | { kind: 'none' } | { kind: 'ambiguous' };
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -207,8 +211,39 @@ export class UsersService {
     return this.userRepository.findOne({ where: { id } });
   }
 
+  /**
+   * 이메일로 계정을 찾는다. 대소문자를 무시하고 비교한다(`LOWER(email)`, V101 인덱스).
+   *
+   * 대소문자만 다른 기존 계정이 둘 이상 맞으면 입력(앞뒤 공백 제거)과 대소문자까지 같은
+   * 계정을 쓴다. 그런 계정이 없으면 어느 계정인지 정할 수 없으므로 `ambiguous` 다.
+   * 호출자는 `ambiguous` 를 거부로 다룬다(로그인 실패 · 메일 없음 · OAuth 연결 · 생성 금지).
+   * CLE-ACCT-SIGNIN 「이메일 비교 규칙」, CLE-T-SFWX84.
+   */
+  async lookupByEmail(email: string): Promise<EmailLookup> {
+    const input = email.trim();
+    const matches = await this.userRepository
+      .createQueryBuilder('u')
+      .where('LOWER(u.email) = LOWER(:email)', { email: input })
+      .getMany();
+    if (matches.length === 0) return { kind: 'none' };
+    if (matches.length === 1) return { kind: 'found', user: matches[0] };
+    const exact = matches.find((u) => u.email === input);
+    if (exact) return { kind: 'found', user: exact };
+    // 이메일 원문은 남기지 않는다. 운영자가 중복 계정 정리 대상을 가늠할 수 있게 묶음 크기만 적는다.
+    this.logger.warn(
+      `email lookup ambiguous — ${matches.length} accounts differ only by case`,
+    );
+    return { kind: 'ambiguous' };
+  }
+
+  /**
+   * `lookupByEmail` 의 계정만 돌려준다. 맞는 계정이 없거나 모호하면 `null` 이다.
+   * 로그인 · 비밀번호 재설정 요청 · 인증 메일 재발송이 쓴다. 이 경로들은 두 경우를
+   * 같은 응답으로 다룬다.
+   */
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
+    const result = await this.lookupByEmail(email);
+    return result.kind === 'found' ? result.user : null;
   }
 
   async findByOauth(
@@ -265,7 +300,7 @@ export class UsersService {
    *
    * @throws NotFoundException `USER_NOT_FOUND` — 사용자 없음
    * @throws UnauthorizedException `PASSWORD_REQUIRED` — passwordHash 부재(OAuth-only). 비밀번호를
-   *   추가하려면 forgot-password → reset-password 경로를 쓴다 (`spec/5-system/1-auth.md` §1.1.A)
+   *   추가하려면 forgot-password → reset-password 경로를 쓴다 (CLE-ACCT-SIGNIN 「비밀번호 재설정」)
    * @throws UnauthorizedException `PASSWORD_INVALID` — 현재 비밀번호 불일치
    *   두 코드의 SoT 는 `PASSWORD_VERIFY_CODES` 다 — 발행처 열거는 그 JSDoc 이 소유한다
    *   (여기서 다시 세면 갈릴 자리를 하나 더 만든다).
@@ -303,20 +338,27 @@ export class UsersService {
       });
     }
 
-    validatePasswordStrength(newPassword);
+    validatePasswordStrength(newPassword, 'newPassword');
 
     const passwordHash = await hashPassword(newPassword);
     await this.update(userId, { passwordHash });
   }
 
+  /**
+   * 대소문자를 무시해 이 이메일을 쓰는 계정이 있는지. 가입 중복 확인과 `check-email` 이
+   * 쓴다. 대소문자만 다른 계정이 있으면 사용 중으로 본다(CLE-T-SFWX84).
+   */
   async emailExists(email: string): Promise<boolean> {
-    const count = await this.userRepository.count({ where: { email } });
+    const count = await this.userRepository
+      .createQueryBuilder('u')
+      .where('LOWER(u.email) = LOWER(:email)', { email: email.trim() })
+      .getCount();
     return count > 0;
   }
 
   /**
    * 다른 사용자가 해당 이메일을 (대소문자 무시) 사용 중인지. 이메일 변경 흐름의
-   * 신규 이메일 중복 검사용 (spec/5-system/1-auth.md §1.1.B). 본인(excludeUserId)은 제외.
+   * 신규 이메일 중복 검사용 (CLE-ACCT-SIGNIN 「이메일 변경」). 본인(excludeUserId)은 제외.
    */
   async emailTakenByOther(
     email: string,

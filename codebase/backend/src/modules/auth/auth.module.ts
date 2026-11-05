@@ -60,7 +60,8 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     // AuthController·WebAuthnController 가 기록 — 둘 다 AuthModule host (§Rationale 4.1.B).
     AuditLogsModule,
     // WebAuthn 도메인은 별도 서브모듈 — AuthService 가 login 분기 등에서
-    // WebAuthnService.isEnabled() · countStoredCredentials() 등으로 호출 (단방향). spec §1.4.H.
+    // WebAuthnService.isEnabled() · countStoredCredentials() 등으로 호출 (단방향).
+    // CLE-ACCT-SIGNIN Rationale 「Passkey 도메인 모듈을 분리한다」.
     WebAuthnModule,
   ],
   controllers: [AuthController, SessionsController, WebAuthnController],

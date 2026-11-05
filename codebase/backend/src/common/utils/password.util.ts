@@ -56,6 +56,9 @@ export function comparePassword(plain: string, hash: string): Promise<boolean> {
  *
  * `details[]` 원소는 `{ field, message, code }` 세 키를 싣는다 — `2-api-convention.md` §5.3
  * 의 *「`details` 항목이 `field` 를 실으면 `code` 도 싣는다 — 형태 무관」*.
+ *
+ * @param field `details[].field` 에 실을 요청 필드 이름. 가입은 `password`, 재설정과
+ *   비밀번호 변경은 `newPassword` 다. 호출부마다 요청 필드가 달라 기본값을 두지 않는다.
  */
 // **`code` 를 `ErrorCode.INVALID_FIELD` 로 안 쓰는 것은 의도다.** canonical 상수는
 // `nodes/core/error-codes.ts` 에 있는데 **`common/` 이 `nodes/` 를 import 하는 선례가 0건**
@@ -63,14 +66,17 @@ export function comparePassword(plain: string, hash: string): Promise<boolean> {
 // 쓴다. 층을 거슬러 올라가는 대신 리터럴을 유지한다 — 상수를 `common/` 으로 승격하는 것은
 // 9개 모듈의 import 경로를 건드리는 별개 작업이라 트래커 항목이다.
 // (`modules/triggers/triggers.service.ts` 는 `modules/**` 라 선례가 있어 상수를 쓴다.)
-export function validatePasswordStrength(password: string): void {
+export function validatePasswordStrength(
+  password: string,
+  field: string,
+): void {
   if (password.length < 8) {
     throw new BadRequestException({
       code: 'VALIDATION_ERROR',
       message: 'Password must be at least 8 characters',
       details: [
         {
-          field: 'password',
+          field,
           message: 'Minimum 8 characters required',
           code: 'INVALID_FIELD',
         },
@@ -91,7 +97,7 @@ export function validatePasswordStrength(password: string): void {
         'Password must contain at least 3 of: lowercase, uppercase, numbers, special characters',
       details: [
         {
-          field: 'password',
+          field,
           message: 'Requires 3+ character types',
           code: 'INVALID_FIELD',
         },

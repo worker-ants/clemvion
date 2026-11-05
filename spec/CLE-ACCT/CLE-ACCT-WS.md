@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 20
+version: 21
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "3374e44c9759056ef00e54d877eb1dab0f7cae9d60be4deb7f4c5e309d4f9381"
+content_hash: "73aa5bbe28c70777b136209144e9db3dcbdcf700469ff397c32376c3a2290435"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-SFWX84"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "1b4f93980638cd2233dc2577be54e0092acfb55d5f5ba668f10be49720c9dd6f"
-etag: "sha256-4e2e5a759c7419f45a8fb4bedb7c3a5ef655ff790c044238b8c2f052ee5c738c"
+mirror_sha256: "3c14ae0515005952d7f43b24544b8c34a350750e2434db925ca289b000db9376"
+etag: "sha256-b30b6a6ddf7d1a848629ee11ad2567dd105854349e46138929114a4915e46dcf"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -790,10 +790,13 @@ v5 미결 사항의 선택지는 세 가지였다.
 
 초대 토큰 검증, 수락 API, 메일 링크 형식은 바뀌지 않았다. 바뀐 곳은 프론트엔드의 가입 화면, 로그인 화면, 수락 페이지다.
 
-한계가 둘 남는다.
+한계가 하나 남는다.
 
 - 가입 여부 확인이 실패하면(429 · 네트워크 에러 · 5초 초과) 기존 가입자도 가입 폼을 본다. 이 사용자는 이름과 비밀번호를 입력해 제출하고 409 를 받은 뒤에야 로그인 화면으로 간다. `check-email` 은 IP 단위 요청 한도 안에서 불린다([HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한)). 그래서 같은 IP 를 쓰는 사무실에서 여러 사람이 초대 링크를 열거나 새로고침을 되풀이하면 429 가 날 수 있다.
-- 대문자가 섞인 이메일로 가입한 기존 계정은 가입되지 않은 것으로 판정된다. `check-email`, 가입의 이메일 중복 확인, 로그인은 이메일을 대소문자까지 그대로 비교해 조회한다. 초대 이메일은 소문자로 저장된다. 그래서 이 사용자에게는 가입 폼이 보인다. 제출해도 가입의 중복 확인이 그 계정을 찾지 못해 409 없이 가입이 끝난다. 그 결과 소문자 이메일 계정이 새로 생기고 그 계정이 워크스페이스에 들어간다. NERV Task `CLE-T-SFWX84` 가 이메일 대소문자 정규화를 맞출 때까지의 한계다.
+
+대문자가 섞인 이메일로 가입한 기존 계정이 가입되지 않은 것으로 판정되던 한계는 2026-11-05 에 풀렸다. NERV Task `CLE-T-SFWX84` 가 `check-email`, 가입의 이메일 중복 확인, 로그인이 이메일을 대소문자 구분 없이 비교하게 했다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그래서 이 사용자도 초대 가입 화면에서 가입된 이메일로 판정되고 로그인 화면으로 간다. 그 전에는 이 사용자에게 가입 폼이 보였다. 제출해도 가입의 중복 확인이 그 계정을 찾지 못해 409 없이 가입이 끝났다. 그 결과 소문자 이메일 계정이 새로 생기고 그 계정이 워크스페이스에 들어갔다.
+
+대소문자 비교의 한계는 워크스페이스 쪽에 남는다. 멤버 직접 추가와 초대는 아직 이메일을 대소문자까지 그대로 비교해 기존 사용자를 찾는다. 직접 추가는 관리자가 입력한 이메일을 바꾸지 않고 비교한다. 그래서 입력의 대소문자가 저장된 이메일과 다르면 가입한 사용자여도 404 `USER_NOT_FOUND` 다. 초대는 초대 이메일을 소문자로 바꿔 찾는다. 그래서 정규화 전에 대문자를 섞어 가입한 계정은 찾지 못한다. 그 계정이 이미 멤버여도 409 `already_a_member` 로 막히지 않는다. 멤버가 아니면 인앱 알림 `team_invite` 가 가지 않는다. 수락은 로그인 이메일을 소문자로 바꿔 비교하므로 그 계정도 초대를 수락할 수 있다. NERV Task `CLE-T-KG01YT` 가 맡는다.
 
 ### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다
 
@@ -808,7 +811,7 @@ v5 미결 사항의 선택지는 세 가지였다.
 
 이 확인으로 드러나는 것은 가입 여부뿐이다. 응답에는 `available` 하나만 있어 인증 상태나 잠금 여부는 드러나지 않는다. 그래서 이메일 인증 전 상태를 비밀번호가 맞을 때만 알리는 로그인 규칙과 어긋나지 않는다([가입과 로그인](CLE-ACCT-SIGNIN.md) Rationale 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」).
 
-대소문자 비교의 한계는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다) 에 있다.
+`check-email` 은 2026-11-05 부터 이메일을 대소문자 구분 없이 비교한다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그 전의 대소문자 비교 한계와 워크스페이스 쪽에 남은 한계는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다) 에 있다.
 
 ### 초대 가입 뒤 도착 화면에 세션과 토큰 문서의 미결 사항을 이었다 (2026-10-22)
 
@@ -848,4 +851,4 @@ effect 를 그대로 두고 이동 가드만 보강하는 안은 택하지 않�
 
 머리 줄 구현 상태를 「부분 구현」 으로 바꿨다. REQ-WSPACE-069 와 나가기 · 제거 때의 개인 통합 삭제는 NERV Task `CLE-T-PS7JQY` 가 구현한다. 구현되면 「구현됨」 으로 되돌린다.
 
-2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 REQ-WSPACE-069 와 나가기 · 제거 때의 개인 통합 삭제를 구현했다. 멤버 제거 확인 다이얼로그도 이때 새로 만들었다. 그래서 머리 줄 구현 상태를 「구현됨」 으로 되돌리고 본문의 미구현 표시를 걷었다.
+2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 REQ-WSPACE-069 와 나가기 · 제거 때의 개인 통합 삭제를 구현했다. 멤버 제거 확인 다이얼로그도 이때 새로 만들었다. 그래서 머리 줄 구현 상태를 「구현됨」 으로 되돌리고 본문의 미결 구현 표시를 걷었다.

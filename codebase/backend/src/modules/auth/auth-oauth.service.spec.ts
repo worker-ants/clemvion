@@ -97,7 +97,7 @@ describe('AuthOauthService', () => {
           provide: UsersService,
           useValue: {
             findByOauth: jest.fn(),
-            findByEmail: jest.fn(),
+            lookupByEmail: jest.fn().mockResolvedValue({ kind: 'none' }),
             findById: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
@@ -295,7 +295,10 @@ describe('AuthOauthService', () => {
     it('conditionally links existing email user via queryBuilder', async () => {
       dataSource.query.mockResolvedValueOnce([validState]);
       usersService.findByOauth.mockResolvedValue(null);
-      usersService.findByEmail.mockResolvedValue(baseUser as User);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: baseUser as User,
+      });
       usersService.findById.mockResolvedValue({
         ...baseUser,
         oauthProvider: 'google',
@@ -312,7 +315,7 @@ describe('AuthOauthService', () => {
     it('creates new user and personal workspace on first OAuth login', async () => {
       dataSource.query.mockResolvedValueOnce([validState]);
       usersService.findByOauth.mockResolvedValue(null);
-      usersService.findByEmail.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({ kind: 'none' });
 
       await service.handleCallback('google', 'code', 'abc');
 
@@ -323,12 +326,51 @@ describe('AuthOauthService', () => {
       expect(authService.issueTokensForOauthUser).toHaveBeenCalled();
     });
 
+    it('새 계정의 이메일을 앞뒤 공백을 지우고 소문자로 저장한다 (CLE-T-SFWX84)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({ kind: 'none' });
+      jest.spyOn(service as never, 'fetchProfile').mockResolvedValue({
+        providerId: 'g-1',
+        email: ' New.User@Example.COM',
+        name: 'New User',
+        avatarUrl: null,
+      } as never);
+
+      await service.handleCallback('google', 'code', 'abc');
+
+      expect(usersService.lookupByEmail).toHaveBeenCalledWith(
+        ' New.User@Example.COM',
+      );
+      expect(workspacesService.createPersonalWorkspace).toHaveBeenCalledWith(
+        'user-new',
+        'New User',
+        'new.user@example.com',
+        expect.anything(),
+      );
+    });
+
+    it('이메일이 대소문자만 다른 여러 계정과 맞고 정확히 같은 계정이 없으면 연결도 생성도 하지 않고 실패한다 (CLE-T-SFWX84)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({ kind: 'ambiguous' });
+
+      await expect(
+        service.handleCallback('google', 'code', 'abc'),
+      ).rejects.toMatchObject({
+        response: { code: 'OAUTH_ACCOUNT_AMBIGUOUS' },
+      });
+      expect(dataSource.getRepository).not.toHaveBeenCalled();
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(authService.issueTokensForOauthUser).not.toHaveBeenCalled();
+    });
+
     it('recovers from concurrent first-time OAuth (unique violation)', async () => {
       dataSource.query.mockResolvedValueOnce([validState]);
       usersService.findByOauth
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(baseUser as User);
-      usersService.findByEmail.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({ kind: 'none' });
       // Simulate the transaction throwing a Postgres unique-violation.
       dataSource.transaction.mockRejectedValueOnce(
         Object.assign(new Error('duplicate key'), { code: '23505' }),

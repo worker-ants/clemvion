@@ -16,6 +16,7 @@ import { createHash } from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
+import { normalizeEmail } from '../users/utils/normalize-email';
 import { WebAuthnService } from './webauthn/webauthn.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
@@ -140,7 +141,7 @@ export class AuthService {
       });
     }
 
-    validatePasswordStrength(dto.password);
+    validatePasswordStrength(dto.password, 'password');
 
     if (dto.invitationToken) {
       return this.registerWithInvitation(dto, dto.invitationToken, ctx);
@@ -150,9 +151,10 @@ export class AuthService {
     const emailVerifyToken = uuidv4();
     const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+    const email = normalizeEmail(dto.email);
     await this.usersService.create({
       name: dto.name,
-      email: dto.email,
+      email,
       passwordHash,
       // Store SHA-256 hash; only the raw token is emailed (mirrors passwordResetToken).
       emailVerifyToken: this.hashToken(emailVerifyToken),
@@ -161,7 +163,7 @@ export class AuthService {
     });
 
     await this.mailService.sendVerificationEmail(
-      dto.email,
+      email,
       dto.name,
       emailVerifyToken, // raw UUID — only the hashed copy lives in DB
     );
@@ -173,7 +175,7 @@ export class AuthService {
    * Sign-up via an invitation token. The token is the proof of email
    * ownership, so we skip the verification mail and auto-login. User row +
    * workspace membership + invitation.acceptedAt all live in one transaction
-   * so a partial failure rolls back the whole thing (spec/5-system/1-auth.md §1.5.2).
+   * so a partial failure rolls back the whole thing (CLE-ACCT-DATA 「초대 가입 (미가입자)」).
    *
    * No personal workspace is auto-created — the invited team workspace is the
    * user's first context (spec/2-navigation/10-auth-flow.md §6.1).
@@ -188,7 +190,7 @@ export class AuthService {
     refreshToken: string;
   }> {
     const meta = await this.invitationsService.getMetaByToken(invitationToken);
-    if (meta.email.toLowerCase() !== dto.email.trim().toLowerCase()) {
+    if (normalizeEmail(meta.email) !== normalizeEmail(dto.email)) {
       throw new BadRequestException({
         code: 'invitation_email_mismatch',
         message: '초대 이메일과 가입 이메일이 일치하지 않습니다.',
@@ -201,7 +203,7 @@ export class AuthService {
       const userRepo = manager.getRepository(User);
       const newUser = userRepo.create({
         name: dto.name,
-        email: dto.email.trim().toLowerCase(),
+        email: normalizeEmail(dto.email),
         passwordHash,
         emailVerified: true,
       });
@@ -473,7 +475,11 @@ export class AuthService {
     code: string,
     verifier: (user: User, code: string) => Promise<boolean>,
     ctx: AuthContext = {},
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    rememberMe: boolean;
+  }> {
     let payload: { sub: string; mfa_challenge?: boolean; rememberMe?: boolean };
     try {
       payload = this.jwtService.verify(challengeToken);
@@ -521,12 +527,8 @@ export class AuthService {
         message: '인증 코드가 올바르지 않아요.',
       });
     }
-    const tokens = await this.generateTokens(
-      user,
-      !!payload.rememberMe,
-      undefined,
-      ctx,
-    );
+    const rememberMe = !!payload.rememberMe;
+    const tokens = await this.generateTokens(user, rememberMe, undefined, ctx);
     await this.loginHistory.record({
       userId: user.id,
       email: user.email,
@@ -534,7 +536,8 @@ export class AuthService {
       ip: ctx.ip ?? null,
       userAgent: ctx.userAgent ?? null,
     });
-    return tokens;
+    // 컨트롤러가 쿠키 `maxAge` 를 토큰 행 수명과 맞춘다(CLE-T-BYCGF1).
+    return { ...tokens, rememberMe };
   }
 
   /**
@@ -642,6 +645,8 @@ export class AuthService {
   ): Promise<{
     accessToken: string;
     refreshToken: string;
+    /** 새 토큰이 이어받은 로그인 유지 여부. 컨트롤러가 갱신 쿠키 `maxAge` 를 정한다. */
+    rememberMe: boolean;
   }> {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.refreshTokenRepository.findOne({
@@ -705,7 +710,8 @@ export class AuthService {
     // 닫는다 — affected=0 이면 다른 요청이 먼저 회전·무효화한 것이므로 거부한다.
     // `lastUsedAt`/`lastUsedIp` 스탬프도 같은 UPDATE 에 포함해 /profile/sessions 의
     // "last activity" 정확성을 유지한다. loginHistory 기록은 회전 원자성과 무관하고
-    // refresh 정상 회전은 보안 이벤트가 아니므로(spec §1.4) 남기지 않는다.
+    // refresh 정상 회전은 보안 이벤트가 아니므로(CLE-ACCT-DATA 「LoginHistory」 이벤트 enum 에
+    // refresh 가 없다) 남기지 않는다.
     return this.dataSource.transaction(async (manager) => {
       const now = new Date();
       const result = await manager.getRepository(RefreshToken).update(
@@ -725,7 +731,18 @@ export class AuthService {
         });
       }
       // Issue new tokens in same family — INSERT joins this transaction.
-      return this.generateTokens(user, false, stored.familyId, ctx, manager);
+      // 새 토큰은 옛 행의 로그인 유지 여부를 이어받고 수명은 회전 시점부터 다시 센다
+      // (REQ-SESSION-047, CLE-T-BYCGF1). 옛 구현은 늘 false 로 넘겨 30일 세션이 첫 회전에서
+      // 7일로 줄었다.
+      const rememberMe = !!stored.rememberMe;
+      const tokens = await this.generateTokens(
+        user,
+        rememberMe,
+        stored.familyId,
+        ctx,
+        manager,
+      );
+      return { ...tokens, rememberMe };
     });
   }
 
@@ -792,7 +809,7 @@ export class AuthService {
 
   // ========== RESET PASSWORD ==========
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    validatePasswordStrength(newPassword);
+    validatePasswordStrength(newPassword, 'newPassword');
 
     const user = await this.findUserByResetToken(token);
     if (!user) {
@@ -859,7 +876,7 @@ export class AuthService {
     return this.generateTokens(user, false, undefined, ctx);
   }
 
-  // ========== EMAIL CHANGE (spec/5-system/1-auth.md §1.1.B) ==========
+  // ========== EMAIL CHANGE (CLE-ACCT-SIGNIN 「이메일 변경」) ==========
 
   /**
    * 이메일 변경 시작. 재인증(password 또는 TOTP) → 신규 이메일 검증 → SHA-256 토큰(1h)
@@ -880,13 +897,15 @@ export class AuthService {
     }
 
     // 2) 신규 이메일 검증 — 현재와 동일(대소문자 무시) 금지 + 타 계정 사용 중 금지.
-    if (newEmail.trim().toLowerCase() === user.email.toLowerCase()) {
+    // 저장 값은 앞뒤 공백을 지운 소문자다(CLE-T-SFWX84).
+    const email = normalizeEmail(newEmail);
+    if (email === normalizeEmail(user.email)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: '현재 이메일과 동일한 주소예요.',
       });
     }
-    if (await this.usersService.emailTakenByOther(newEmail, userId)) {
+    if (await this.usersService.emailTakenByOther(email, userId)) {
       throw new ConflictException({
         code: 'RESOURCE_CONFLICT',
         message: 'Email already registered',
@@ -899,7 +918,7 @@ export class AuthService {
     // 관측 가능한 UX 저하(409 at verify time)로 수용한다 — transaction-per-request 구조.
     const rawToken = uuidv4();
     await this.usersService.update(userId, {
-      pendingEmail: newEmail,
+      pendingEmail: email,
       emailChangeToken: this.hashToken(rawToken),
       emailChangeExpiresAt: new Date(Date.now() + EMAIL_CHANGE_TTL_MS),
     });
@@ -908,7 +927,7 @@ export class AuthService {
     // (롤백 실패는 무시 — 이미 주 오류를 rethrow 했으므로 부작용 정리가 best-effort).
     try {
       await this.mailService.sendEmailChangeVerification(
-        newEmail,
+        email,
         user.name,
         rawToken,
       );
@@ -1164,6 +1183,7 @@ export class AuthService {
       tokenHash,
       familyId: familyId ?? uuidv4(),
       expiresAt,
+      rememberMe,
       ipAddress: ctx.ip ?? null,
       userAgent,
       deviceLabel: userAgent ? deriveDeviceLabel(userAgent) : null,

@@ -37,7 +37,11 @@ describe('AuthController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     authService = {
+      register: jest.fn(),
+      verifyEmail: jest.fn(),
+      login: jest.fn(),
       refresh: jest.fn(),
+      loginWithTotp: jest.fn(),
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
@@ -92,6 +96,97 @@ describe('AuthController', () => {
     });
   });
 
+  describe('쿠키 수명 (CLE-T-BYCGF1)', () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const req = {} as never;
+
+    it.each([
+      [true, 30],
+      [false, 7],
+      [undefined, 7],
+    ])(
+      'login: rememberMe=%s 이면 쿠키 maxAge 는 %i일이다',
+      async (rememberMe, days) => {
+        authService.login.mockResolvedValue({
+          accessToken: 'a',
+          refreshToken: 'r',
+        } as never);
+
+        await controller.login({ rememberMe } as never, req, mockRes as never);
+
+        expect(mockRes.cookie).toHaveBeenLastCalledWith(
+          'refreshToken',
+          'r',
+          expect.objectContaining({ maxAge: days * DAY_MS }),
+        );
+      },
+    );
+
+    it('register: 초대 가입은 7일 쿠키를 발급한다', async () => {
+      authService.register.mockResolvedValue({
+        message: 'ok',
+        accessToken: 'a',
+        refreshToken: 'r',
+      } as never);
+
+      await controller.register({} as never, req, mockRes as never);
+
+      expect(mockRes.cookie).toHaveBeenLastCalledWith(
+        'refreshToken',
+        'r',
+        expect.objectContaining({ maxAge: 7 * DAY_MS }),
+      );
+    });
+
+    it('verifyEmail: 7일 쿠키를 발급한다', async () => {
+      authService.verifyEmail.mockResolvedValue({
+        accessToken: 'a',
+        refreshToken: 'r',
+      } as never);
+
+      await controller.verifyEmail(
+        { token: 't' } as never,
+        req,
+        mockRes as never,
+      );
+
+      expect(mockRes.cookie).toHaveBeenLastCalledWith(
+        'refreshToken',
+        'r',
+        expect.objectContaining({ maxAge: 7 * DAY_MS }),
+      );
+    });
+  });
+
+  describe('loginTotp', () => {
+    it.each([
+      [true, 30],
+      [false, 7],
+    ])(
+      '쿠키 maxAge 는 발급한 토큰의 rememberMe=%s 를 따라 %i일이다 (CLE-T-BYCGF1)',
+      async (rememberMe, days) => {
+        authService.loginWithTotp.mockResolvedValue({
+          accessToken: 'a',
+          refreshToken: 'r',
+          rememberMe,
+        });
+
+        const result = await controller.loginTotp(
+          { challengeToken: 'c', code: '123456' } as never,
+          {} as never,
+          mockRes as never,
+        );
+
+        expect(result).toEqual({ data: { accessToken: 'a' } });
+        expect(mockRes.cookie).toHaveBeenLastCalledWith(
+          'refreshToken',
+          'r',
+          expect.objectContaining({ maxAge: days * 24 * 60 * 60 * 1000 }),
+        );
+      },
+    );
+  });
+
   describe('refresh', () => {
     it('should throw UnauthorizedException when no cookie token provided', async () => {
       const req = { cookies: {} } as never;
@@ -99,6 +194,29 @@ describe('AuthController', () => {
         UnauthorizedException,
       );
     });
+
+    it.each([
+      [true, 30],
+      [false, 7],
+    ])(
+      '갱신 응답의 쿠키 maxAge 는 회전한 토큰의 rememberMe=%s 를 따라 %i일이다 (CLE-T-BYCGF1)',
+      async (rememberMe, days) => {
+        const req = { cookies: { refreshToken: 'valid-token' } } as never;
+        authService.refresh.mockResolvedValue({
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          rememberMe,
+        });
+
+        await controller.refresh(req, mockRes as never);
+
+        expect(mockRes.cookie).toHaveBeenLastCalledWith(
+          'refreshToken',
+          'new-refresh',
+          expect.objectContaining({ maxAge: days * 24 * 60 * 60 * 1000 }),
+        );
+      },
+    );
 
     it('should throw UnauthorizedException when cookies object is missing', async () => {
       const req = {} as never;
@@ -112,6 +230,7 @@ describe('AuthController', () => {
       authService.refresh.mockResolvedValue({
         accessToken: 'new-access',
         refreshToken: 'new-refresh',
+        rememberMe: false,
       });
 
       const result = await controller.refresh(req, mockRes as never);
@@ -187,6 +306,7 @@ describe('AuthController', () => {
         authService.refresh.mockResolvedValue({
           accessToken: 'a',
           refreshToken: 'r',
+          rememberMe: false,
         });
         const req = {
           cookies: { refreshToken: 'valid-token' },
@@ -356,6 +476,24 @@ describe('AuthController', () => {
       );
       expect(mockRes.redirect).toHaveBeenCalledWith(
         'http://frontend.test/callback?error=email_required',
+      );
+    });
+
+    it('maps OAUTH_ACCOUNT_AMBIGUOUS to server_error (CLE-T-SFWX84)', async () => {
+      const err = Object.assign(new Error('ambiguous'), {
+        response: { code: 'OAUTH_ACCOUNT_AMBIGUOUS' },
+      });
+      oauthService.handleCallback.mockRejectedValue(err);
+      await controller.oauthCallback(
+        'google',
+        'c',
+        's',
+        undefined,
+        {} as never,
+        mockRes as never,
+      );
+      expect(mockRes.redirect).toHaveBeenCalledWith(
+        'http://frontend.test/callback?error=server_error',
       );
     });
 

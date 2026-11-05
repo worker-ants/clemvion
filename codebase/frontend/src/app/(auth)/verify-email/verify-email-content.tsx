@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
+import { extractApiMessage, type ApiErrorBody } from "@/lib/api/errors";
 import { establishSession } from "@/lib/auth/establish-session";
 import {
   Card,
@@ -51,9 +52,8 @@ export function VerifyEmailContent() {
         toast.success(translate(currentLocale, "auth.verifyEmail.verifiedToast"));
         setTimeout(() => router.push("/dashboard"), 2000);
       } catch (err) {
-        const error = err as AxiosError<{ message?: string }>;
         const message =
-          error.response?.data?.message ??
+          extractApiMessage(err as AxiosError<ApiErrorBody>) ??
           translate(currentLocale, "auth.verifyEmail.genericFailed");
         setErrorMessage(message);
         setStatus("error");

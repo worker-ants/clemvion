@@ -254,6 +254,26 @@ describe('AuthService', () => {
       );
     });
 
+    it('이메일을 앞뒤 공백을 지우고 소문자로 저장하고 그 주소로 인증 메일을 보낸다 (CLE-T-SFWX84)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      usersService.create.mockResolvedValue(mockUser as User);
+
+      await service.register({
+        name: 'Test',
+        email: ' Alice@Example.COM ',
+        password: 'Test123!@#',
+      });
+
+      expect(usersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'alice@example.com' }),
+      );
+      expect(mailService.sendVerificationEmail).toHaveBeenCalledWith(
+        'alice@example.com',
+        'Test',
+        expect.any(String),
+      );
+    });
+
     it('stores hashed emailVerifyToken in DB and emails the raw token (register round-trip)', async () => {
       usersService.emailExists.mockResolvedValue(false);
       usersService.create.mockResolvedValue(mockUser as User);
@@ -303,6 +323,23 @@ describe('AuthService', () => {
           password: 'short',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('강도 정책 위반이면 details[].field 를 요청 필드 이름 password 로 싣는다', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+
+      const err: unknown = await service
+        .register({
+          name: 'Test',
+          email: 'test@example.com',
+          password: 'short',
+        })
+        .catch((err_: unknown) => err_);
+
+      const body = (err as BadRequestException).getResponse() as {
+        details: Array<{ field: string }>;
+      };
+      expect(body.details.map((d) => d.field)).toEqual(['password']);
     });
 
     it('should throw for password with insufficient character types', async () => {
@@ -423,6 +460,39 @@ describe('AuthService', () => {
         workspacesService.findOrCreatePersonalWorkspace,
       ).not.toHaveBeenCalled();
       expect(workspacesService.createPersonalWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('초대 가입이 발급한 토큰 행은 로그인 유지가 아니다(7일, CLE-T-BYCGF1)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      invitationsService.getMetaByToken.mockResolvedValue({
+        workspaceName: 'Team',
+        invitedByName: 'Alice',
+        email: 'Invited@Example.com',
+        role: 'editor',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      invitationsService.consumeForRegistration.mockResolvedValue({
+        workspaceId: 'team-ws-1',
+        role: 'editor',
+        email: 'invited@example.com',
+      });
+      const before = Date.now();
+
+      await service.register({
+        name: 'Invitee',
+        email: 'invited@example.com',
+        password: 'Test123!@#',
+        invitationToken: 'a'.repeat(64),
+      });
+
+      const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+        rememberMe: boolean;
+        expiresAt: Date;
+      };
+      expect(created.rememberMe).toBe(false);
+      const lifetime = created.expiresAt.getTime() - before;
+      expect(lifetime).toBeGreaterThanOrEqual(7 * 24 * 60 * 60 * 1000);
+      expect(lifetime).toBeLessThan(7 * 24 * 60 * 60 * 1000 + 60_000);
     });
 
     it('propagates GoneException when token is already consumed (transaction rolls back)', async () => {
@@ -862,6 +932,73 @@ describe('AuthService', () => {
       expect(result).toMatchObject({ accessToken: 'mock-access-token' });
     });
 
+    it.each([true, false])(
+      'challenge 의 rememberMe=%s 를 발급한 토큰 행과 반환값에 싣는다 (CLE-T-BYCGF1)',
+      async (rememberMe) => {
+        arrange({ enabled: false, credentials: 0 });
+        (jwtService as unknown as { verify: jest.Mock }).verify = jest
+          .fn()
+          .mockReturnValue({
+            sub: mockUser.id,
+            mfa_challenge: true,
+            method: 'totp',
+            rememberMe,
+          });
+
+        const result = await service.loginWithTotp(
+          'challenge',
+          '123456',
+          verifier,
+        );
+
+        expect(result.rememberMe).toBe(rememberMe);
+        expect(refreshTokenRepo.create).toHaveBeenLastCalledWith(
+          expect.objectContaining({ rememberMe }),
+        );
+      },
+    );
+
+    it.each([true, false])(
+      'issueTokensAfterMfa(Passkey)는 rememberMe=%s 를 토큰 행에 싣는다 (CLE-T-BYCGF1)',
+      async (rememberMe) => {
+        const days = rememberMe ? 30 : 7;
+        const before = Date.now();
+
+        await service.issueTokensAfterMfa(mockUser as User, rememberMe);
+
+        const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+          rememberMe: boolean;
+          expiresAt: Date;
+        };
+        expect(created.rememberMe).toBe(rememberMe);
+        const lifetime = created.expiresAt.getTime() - before;
+        expect(lifetime).toBeGreaterThanOrEqual(days * 24 * 60 * 60 * 1000);
+        expect(lifetime).toBeLessThan(days * 24 * 60 * 60 * 1000 + 60_000);
+      },
+    );
+
+    it.each([true, false])(
+      'consumeChallengeToken 은 challenge 의 rememberMe=%s 를 그대로 돌려준다',
+      async (rememberMe) => {
+        (jwtService as unknown as { verify: jest.Mock }).verify = jest
+          .fn()
+          .mockReturnValue({
+            sub: mockUser.id,
+            mfa_challenge: true,
+            method: 'webauthn',
+            rememberMe,
+          });
+        usersService.findById.mockResolvedValue(mockUser as User);
+
+        const result = await service.consumeChallengeToken(
+          'challenge',
+          'webauthn',
+        );
+
+        expect(result.rememberMe).toBe(rememberMe);
+      },
+    );
+
     // 켜짐 여부만 보는 판정이면 첫 행이 WEBAUTHN_REQUIRED 로 바뀐다. credential 수만 보는 판정은 위 테스트가 잡는다.
     it.each([
       ['켜짐 · credential 0', true],
@@ -1083,6 +1220,43 @@ describe('AuthService', () => {
       const result = await service.refresh('valid-refresh-token');
       expect(result.accessToken).toBe('mock-access-token');
       expect(refreshTokenRepo.update).toHaveBeenCalled();
+    });
+
+    describe('로그인 유지 여부를 이어받는다 (CLE-T-BYCGF1, REQ-SESSION-047)', () => {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+
+      it.each([
+        [true, 30],
+        [false, 7],
+      ])(
+        'rememberMe=%s 토큰을 회전하면 새 토큰도 같은 값이고 회전 시점부터 %i일 뒤 만료된다',
+        async (rememberMe, days) => {
+          refreshTokenRepo.findOne.mockResolvedValue({
+            id: 'rt-1',
+            userId: mockUser.id,
+            familyId: 'family-1',
+            isRevoked: false,
+            rememberMe,
+            expiresAt: new Date(Date.now() + DAY_MS),
+            user: mockUser,
+          });
+          const before = Date.now();
+
+          const result = await service.refresh('valid-refresh-token');
+
+          expect(result.rememberMe).toBe(rememberMe);
+          const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+            rememberMe: boolean;
+            familyId: string;
+            expiresAt: Date;
+          };
+          expect(created.rememberMe).toBe(rememberMe);
+          expect(created.familyId).toBe('family-1');
+          const lifetime = created.expiresAt.getTime() - before;
+          expect(lifetime).toBeGreaterThanOrEqual(days * DAY_MS);
+          expect(lifetime).toBeLessThan(days * DAY_MS + 60_000);
+        },
+      );
     });
 
     it('rotates revoke + issue inside a single transaction (05 C-1 atomicity)', async () => {
@@ -1359,7 +1533,7 @@ describe('AuthService', () => {
       expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
 
-    // forgot-password 흐름은 로그인 이력 이벤트를 남기지 않는다 (spec/5-system/1-auth.md §4.3
+    // forgot-password 흐름은 로그인 이력 이벤트를 남기지 않는다 (CLE-ACCT-DATA 「LoginHistory」
     // 의 이벤트 enum 에 forgot/reset 이 빠진 의도된 설계). 회귀로 "기록 누락처럼 보여" 잘못
     // 채워 넣는 일이 없도록 명시한다.
     it('does not record a login-history event', async () => {
@@ -1398,6 +1572,36 @@ describe('AuthService', () => {
      *
      * 2026-09-03 에 이 두 줄의 `null as unknown as X` 캐스트를 걷어내며 건드린 자리다.
      */
+    /**
+     * 강도 정책 위반의 `details[].field` 는 요청 필드 이름 `newPassword` 다(NERV Task
+     * `CLE-T-MFWBE1` 항목 1). 예전에는 `password` 로 나가 클라이언트가 필드를 짚지 못했다.
+     * 토큰 조회보다 먼저 검사하므로 저장소는 부르지 않는다.
+     */
+    it('강도 정책 위반이면 details[].field 를 newPassword 로 싣는다', async () => {
+      const userRepoFindOne = jest.fn();
+      refreshTokenRepo.manager.getRepository.mockReturnValue({
+        findOne: userRepoFindOne,
+      });
+
+      const err: unknown = await service
+        .resetPassword('11111111-2222-3333-4444-555555555555', 'short')
+        .catch((err_: unknown) => err_);
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as {
+        code: string;
+        details: Array<{ field: string; code: string }>;
+      };
+      expect(body.code).toBe('VALIDATION_ERROR');
+      expect(body.details).toEqual([
+        expect.objectContaining({
+          field: 'newPassword',
+          code: 'INVALID_FIELD',
+        }),
+      ]);
+      expect(userRepoFindOne).not.toHaveBeenCalled();
+    });
+
     it('성공 시 소비된 재설정 토큰을 null 로 **명시** 대입한다', async () => {
       const rawToken = '11111111-2222-3333-4444-555555555555';
       refreshTokenRepo.manager.getRepository.mockReturnValue({
@@ -1612,7 +1816,7 @@ describe('AuthService', () => {
     });
   });
 
-  // ========== EMAIL CHANGE (W1 — spec/5-system/1-auth.md §1.1.B) ==========
+  // ========== EMAIL CHANGE (W1 — CLE-ACCT-SIGNIN 「이메일 변경」) ==========
 
   describe('requestEmailChange', () => {
     const NEW_EMAIL = 'new@example.com';
@@ -1648,6 +1852,22 @@ describe('AuthService', () => {
       );
       expect(mailService.sendEmailChangeVerification).toHaveBeenCalledWith(
         NEW_EMAIL,
+        mockUser.name,
+        expect.any(String),
+      );
+    });
+
+    it('새 이메일을 앞뒤 공백을 지우고 소문자로 pending 에 저장한다 (CLE-T-SFWX84)', async () => {
+      await service.requestEmailChange('user-uuid-1', ' New@Example.COM', {
+        password: 'somePass',
+      });
+
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({ pendingEmail: 'new@example.com' }),
+      );
+      expect(mailService.sendEmailChangeVerification).toHaveBeenCalledWith(
+        'new@example.com',
         mockUser.name,
         expect.any(String),
       );

@@ -8,9 +8,10 @@ import {
 
 /**
  * WebAuthn (Passkey · 보안 키 등) 인증기.
- * spec/1-data-model.md §2.21 WebAuthnCredential / spec/5-system/1-auth.md §1.4.
+ * CLE-ACCT-DATA 「WebAuthnCredential」 / CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」.
  *
- * counter 역행 감지 시 row 즉시 삭제 (suspend 컬럼 도입 금지 — Rationale 1.4.E).
+ * counter 역행 감지 시 row 즉시 삭제 (suspend 컬럼 도입 금지 — CLE-ACCT-SIGNIN Rationale
+ * 「counter 역행이면 credential 을 지운다 (suspend 기각)」).
  */
 @Entity('webauthn_credential')
 export class WebAuthnCredential {

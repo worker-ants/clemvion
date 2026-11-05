@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
+import { extractApiMessage, type ApiErrorBody } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,8 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
   const confirmPasswordErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  // 서버가 재설정을 거부했는지. REQ-SIGNIN-035 의 재요청 링크를 보일지 정한다.
+  const [serverRejected, setServerRejected] = useState(false);
 
   // defined inside component so validation messages pick up the current locale via t()
   const resetPasswordSchema = useMemo(
@@ -83,10 +86,14 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
       toast.success(t("auth.resetPassword.passwordChanged"));
       setTimeout(() => router.push("/login"), 3000);
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
+      // 실패는 모두 400 VALIDATION_ERROR 라 코드로 원인을 가를 수 없다. 봉투의 문구를 그대로 보인다.
+      const error = err as AxiosError<ApiErrorBody>;
       const message =
-        error.response?.data?.message ?? t("auth.resetPassword.genericFailed");
+        extractApiMessage(error) ?? t("auth.resetPassword.genericFailed");
       toast.error(message);
+      // 만료 · 무효 토큰도 같은 코드라 서버가 거부한 모든 경우에 재요청 링크를 보인다(REQ-SIGNIN-035).
+      // 응답을 받지 못했으면 토큰 문제인지 알 수 없으므로 보이지 않는다.
+      setServerRejected(Boolean(error.response));
     } finally {
       setIsLoading(false);
     }
@@ -201,6 +208,17 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
             {isLoading ? t("auth.resetPassword.submitting") : t("auth.resetPassword.submit")}
           </Button>
         </form>
+
+        {serverRejected && (
+          <p className="mt-4 text-center text-sm">
+            <Link
+              href="/forgot-password"
+              className="text-[hsl(var(--primary))] underline"
+            >
+              {t("auth.resetPassword.requestNewLink")}
+            </Link>
+          </p>
+        )}
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           <Link href="/login" className="text-[hsl(var(--primary))] underline">
