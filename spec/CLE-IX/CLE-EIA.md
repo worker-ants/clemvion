@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "6b92ad9613881d0a9712371d8d0d92572c1629a9208e1939253f99f991d4e412"
+content_hash: "950d75afa7a30203feed4cb45a3a3aab86e453757169e6b81db55bde8574ad7d"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-YR4EK5"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "5e948c516ab030d9323513cf82a85c82d2945d0de6156719d0d89871a9f6045b"
-etag: "sha256-17d03b72f36e80cb3b1cf7faa42f157842751a8de9e120782db8970ad7442d7a"
+mirror_sha256: "a7f1ba671fd6feb4e23ae73d9010225642ed201da745614e03942d5d28ebb874"
+etag: "sha256-187bfe8db6b150cf3e2e52615ea68501df176a9d0f7d93fc446ef3bfdd5f5f4b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -37,7 +37,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 
 | 시나리오 | 쓰는 채널 | 설명 |
 |---|---|---|
-| 서버 간 자동화에 사람 결재가 필요한 경우 | EIA 알림 웹훅만 | 외부 서버가 웹훅으로 워크플로우를 시작한다. Form 에 도달하면 알림을 받아 자체 UI 로 안내하고 REST 로 폼을 제출한다. |
+| 서버 간 자동화에 사람 결재가 필요한 경우 | 알림 웹훅 + 인바운드(`interaction.enabled`) | 외부 서버가 웹훅으로 워크플로우를 시작하고 웹훅 응답에서 인터랙션 토큰을 받는다([웹훅 호출 응답 확장](#웹훅-호출-응답-확장)). Form 에 도달하면 EIA 알림 웹훅을 받아 자체 UI 로 안내하고 그 토큰으로 REST 로 폼을 제출한다. 알림 웹훅에 토큰과 제출 경로를 싣는 인터랙션 안내 블록(REQ-EIANOTI-033)은 아직 구현되지 않았다. |
 | 외부 챗봇(Telegram·Slack·카카오) 위에 워크플로우 얹기, 변환층을 사용자가 직접 구현 | 알림 웹훅 + 인바운드 | `config.chatChannel` 을 쓰지 않는다. 봇 메시지로 웹훅을 불러 실행을 시작하고, AI 멀티턴에 들어가면 알림으로 어시스턴트 응답을 받고, 사용자 메시지마다 REST `submit_message` 를 보낸다. 특이한 통합이나 지원하지 않는 메신저도 운영할 수 있다. |
 | 외부 챗봇, 서버 어댑터 사용 | 알림 웹훅 + 인바운드(어댑터가 자동화) | 웹훅 트리거에 `config.chatChannel` 만 등록하면 Telegram 등과 자동으로 연결된다. 어댑터가 서버 안에서 EIA 이벤트를 받아 메신저 메시지로 바꾸고, 서버 안에서 인바운드 명령을 부른다. 사용자 코드가 필요 없다. 자세한 내용은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 에서 정한다. |
 | 외부 SaaS 가 채팅 위젯을 호스팅 | 인바운드만(SSE + REST) | 웹훅 응답으로 받은 토큰으로 SSE 스트림을 열고 REST 명령을 보낸다. 알림 웹훅은 쓰지 않는다. |
@@ -230,7 +230,7 @@ PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. �
 }
 ```
 
-응답 봉투(`{ "data": { ... } }`)는 전역 `TransformInterceptor` 가 씌운다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). 클라이언트는 `res.data` 를 풀어 읽는다. SSE 프레임은 인터셉터를 거치지 않아 봉투가 없다.
+응답 봉투(`{ "data": { ... } }`)는 전역 `TransformInterceptor` 가 씌운다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). 클라이언트는 `res.data` 를 풀어 읽는다. SSE 프레임은 인터셉터를 거치지 않아 응답 봉투가 없다.
 
 `message` 는 어느 경우에나 있다. 인터랙션을 켜지 않은 트리거의 응답 `data` 에는 `executionId` 와 `message` 만 있다. 그 응답에는 `status` 와 `interaction` 키가 없다. `null` 을 싣지 않고 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). 인터랙션을 켜면 두 키가 더해진다. 기존 클라이언트는 모르는 필드를 무시하므로 하위 호환이다. 트리거 단위 토큰 전략이면 호출자에게 이미 토큰이 있다. 그래서 `interaction` 에 `token` · `expiresAt` 키가 없다.
 

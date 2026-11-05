@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "82e1ac76004872faf5de728f9c119b0ef75fdf5312ff0fafa075b2ef668b2bb9"
+content_hash: "0bad51a1cfddabc00f2a4faaa14960433658228ca6d4c1af56a0f6dfdff3b30d"
 read_as: "approved_fallback"
-task: "CLE-T-1GR2JE"
+task: "CLE-T-YR4EK5"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "499b62f3c1a0bd015baaf8be79f3333599897c626df99315cd0cd4ab6badd434"
-etag: "sha256-b85bca75b6c914f7e27a04a0454d8ddb3b50607e5d97589fe91c5aef614d20c9"
+mirror_sha256: "a63e666c6f59bb17c2cdbe218854f141e518f57c27b61ddfa11a466cfa8f9e62"
+etag: "sha256-d0ec959bef63575bf79cbd16b081d8e91059c1d2882a1b7f21eb38318006d9c7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -302,7 +302,7 @@ sequenceDiagram
     Fan->>Tok: revokeAllForExecution, 실행 토큰 jti 전부 블랙리스트와 행 삭제
   end
   Fan->>Fan: triggerId 없으면 건너뜀(수동 실행), events 구독 확인
-  Fan->>Disp: enqueue(envelope), 커밋 뒤 시점
+  Fan->>Disp: enqueue(알림 웹훅 요청 본문), 커밋 뒤 시점
   Disp->>Proc: notification-webhook 큐 jobId=deliveryId, attempts = retry.maxAttempts(기본 5), base-4 backoff 간격 상한 1시간
   Proc->>PG: 트리거 다시 조회(삭제됐으면 건너뜀), SSRF 검사, 낡은 알림 검사
   Proc->>Proc: 시크릿 가져오기(secretRef, v2 보조) 후 HMAC 서명
@@ -314,7 +314,7 @@ sequenceDiagram
     else 정상
       Proc->>PG: notification_health healthy, last_error NULL
     end
-  else 실패
+  else 실패(2xx 아님, 3xx 는 따라가지 않음, 10초 초과)
     Proc-->>Disp: 예외로 backoff 재시도, 마지막 시도도 실패하면 degraded 와 last_error
   end
 ```
@@ -323,9 +323,9 @@ sequenceDiagram
 
 - **fanout 대상 이벤트 다섯 가지**: `execution.waiting_for_input`·`completed`·`failed`·`cancelled`·`ai_message`. 종료 때의 jti 폐기는 EIA 알림 웹훅 설정(`config.notification`) 유무와 관계없다. 인터랙션만 켠 트리거도 종료 때 토큰이 무효가 된다.
 - **낡은 알림 차단**: 진행 중 성격의 `waiting_for_input`·`ai_message` 는 보내기 직전 실행 상태를 다시 확인해 이미 종료면 건너뛴다(재시도해도 의미 없음).
-- **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. DNS rebinding 가드는 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 켠다(기본 꺼짐).
+- **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 켠다(기본 꺼짐). 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
 - **서명**: `X-Clemvion-Signature: t=<unix>,v1=<hex>[,v1=<v2hex>]`(`notification-signature.util.ts`). 정규형 `{timestamp}.{rawBody}`, 알고리즘 `hmac-sha256`(기본)·`hmac-sha512`. 시크릿이 없거나 가져오지 못하면 서명 없이 보내지 않는다. 이때 발송 건강도를 `degraded`(저하됨)로 바꾼다. 주 시크릿이 없으면 v2 가 있어도 같다. v2 는 주 시크릿이 있을 때 보조 서명으로만 쓴다. 교체 유예 중에는 `notification_secret_v2` 로도 서명해 `v1=` 를 두 개 싣는다.
-- **실패 정책**: 마지막 시도가 실패해도 트리거를 끄지 않는다. `notification_health`·`notification_last_error`(500자로 자름)만 갱신한다. BullMQ `removeOnComplete` 24시간, `removeOnFail` 7일이다.
+- **실패 정책**: 실패로 보는 응답(3xx 포함)과 재시도는 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 마지막 시도가 실패해도 트리거를 끄지 않는다. `notification_health`·`notification_last_error`(500자로 자름)만 갱신한다. BullMQ `removeOnComplete` 24시간, `removeOnFail` 7일이다.
 - **폭주 감지**: 발송 성공(2xx)마다 `OutboundNotificationRateLimiterService.consume`(Redis 고정 윈도우 `INCR`+`EXPIRE NX`, fail-open)이 트리거당 분당 발송 수를 센다. 60건을 넘으면 `healthy` 대신 `degraded` 와 폭주 전용 `notification_last_error` 로 표시한다. 발송 실패로 바뀐 `degraded` 와는 `notification_last_error` 로 원인을 가른다. 초과분도 계속 보낸다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md)).
 
 ### 서명 시크릿 교체와 승격
@@ -443,7 +443,7 @@ stateDiagram-v2
 
 | 의존 | 방향 | 참고 |
 |---|---|---|
-| 외부 웹훅 엔드포인트 | 내부 → 외부 HTTP POST | `2xx` 만 성공. 10초 제한. SSRF 이중 검증. 검증 쪽 헬퍼 `verifySignatureHeader`(±5분 허용)는 EIA 클라이언트 SDK 와 테스트가 다시 쓰도록 export |
+| 외부 웹훅 엔드포인트 | 내부 → 외부 HTTP POST | `2xx` 만 성공. 3xx 는 따라가지 않고 실패로 본다([EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리)). 10초 제한. SSRF 이중 검증. 검증 쪽 헬퍼 `verifySignatureHeader`(±5분 허용)는 EIA 클라이언트 SDK 와 테스트가 다시 쓰도록 export |
 | 외부 클라이언트(EventSource·fetch) | 외부 → 내부 | 웹채팅 위젯(`channel-web-chat`)이 대표 소비자 |
 | Redis | 내부 | 블랙리스트·멱등 캐시·순번·요청 빈도 제한·SSE 재전송 버퍼와 서버 인스턴스 사이 전달·BullMQ. 못 쓰거나 캐시가 손상되면 fail-open(가용성 우선). 경로마다 경고를 남기되 기동 때 미주입(설정 상태)만 예외다. EIA 키와 채널은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 올라 있다. 실행 엔진 표는 엔진 소유 키 전용이라 EIA 키가 없는 것이 정상이다 |
 | Telegram·Slack·Discord 같은 메신저 | 간접 | 내부 신뢰 호출의 상류([채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md)) |

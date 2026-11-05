@@ -2,19 +2,19 @@
 id: "CLE-WF-NODEPANEL"
 title: "노드 포트와 설정 패널"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-NODEUI-001", "REQ-NODEUI-002", "REQ-NODEUI-003", "REQ-NODEUI-004", "REQ-NODEUI-005", "REQ-NODEUI-006", "REQ-NODEUI-007", "REQ-NODEUI-008", "REQ-NODEUI-009", "REQ-NODEUI-010", "REQ-NODEUI-011", "REQ-NODEUI-012", "REQ-NODEUI-013", "REQ-NODEUI-014", "REQ-NODEUI-015", "REQ-NODEUI-016", "REQ-NODEUI-017", "REQ-NODEUI-018", "REQ-NODEUI-019", "REQ-NODEUI-020", "REQ-NODEUI-021", "REQ-NODEUI-022", "REQ-NODEUI-023", "REQ-NODEUI-024", "REQ-NODEUI-025", "REQ-NODEUI-026", "REQ-NODEUI-027", "REQ-NODEUI-028", "REQ-NODEUI-029", "REQ-NODEUI-030", "REQ-NODEUI-031", "REQ-NODEUI-032", "REQ-NODEUI-033", "REQ-NODEUI-034", "REQ-NODEUI-035", "REQ-NODEUI-036", "REQ-NODEUI-037", "REQ-NODEUI-038", "REQ-NODEUI-039", "REQ-NODEUI-040", "REQ-NODEUI-041"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "80edcbb6d96dfad94c6d37be689ffdb0e3b6b1821a38642d54d1f8375fac50e1"
+content_hash: "fb8884699b72e99f5104bf0f2219d8fee87f2da410dd6e9a2a866eeca45edcf4"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "b71a8adf18820ec70d7d49144ed9e1fc447cbe717e538f7f313d7601cfe7f86f"
-etag: "sha256-b9e1b0c60f3ea800f8194ff744888cb6be2066c7506884ea189c48a0463e1197"
+mirror_sha256: "28e25fa5a934fcfc1e344d146198b47e9177beddaf25a2977ebb4d49b6145b33"
+etag: "sha256-3c009bf300043a4fad3be55f0420a278eb50bc8251b7ad67146c01826c453bcf"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -249,6 +249,8 @@ config.errorHandling = {
 ```
 
 `policy` 값 집합은 실행 엔진의 `error-policy.handler.ts` 와 같다. 기본값과 실행 동작은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.
+
+에러 처리 정책은 노드 핸들러가 던진 실패에만 적용된다. 노드가 런타임 실패를 `error` 포트 출력으로 돌려주면 정책이 적용되지 않는다. 예를 들어 AI 에이전트 단일 턴의 LLM 호출 실패에는 `retry` · `skip_node` · `use_default_output` 이 걸리지 않는다. 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다-2026-11-01) 에 있다.
 
 `config.errorHandling.policy` 가 없는 노드를 불러오면 예전 평면 키 `config.errorPolicy` 의 단축값을 대응하는 에러 처리 정책으로 읽고 저장할 때 그 키를 지운다. ForEach·Map·Parallel 에서는 이 키가 항목 에러 정책(item error policy, `config.errorPolicy`)이라 옮기지도 지우지도 않는다. 저장 코드는 이 세 노드에서 `config.errorHandling` 과 `config.errorPolicy` 두 키를 모두 보존한다(`node-settings-panel.tsx`). 결정 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 의 Rationale 에 있다.
 

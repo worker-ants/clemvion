@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "b5eef9472c5e16643d84dbb04e1d25553ca90dc3744fe5d1928db31bfea95fa5"
+content_hash: "3e24384bf5bc6ec893163fbddec56793d9eb2355669cdfeb6c34556c906598f7"
 read_as: "approved_fallback"
-task: "CLE-T-Q38K9F"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "d9db0f7fd9d20aece3d417034144c1044f4111b56bfee1a62ca02091cd4e48f4"
-etag: "sha256-fb5230970b30c664b4ec491a114244a0b8dba79cd7bd17a8fb7e5a910146f8b2"
+mirror_sha256: "9de2e8ae7f9ad15a62800a20e42e6fe6477466f60e9be18fcbe9e3e7074e1289"
+etag: "sha256-c50d4d7c2357212d9aaaaea5dd92f86b66b52de78b6876c6adef45111bab588f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -261,8 +261,8 @@ etag: "sha256-fb5230970b30c664b4ec491a114244a0b8dba79cd7bd17a8fb7e5a910146f8b2"
 | `output.error.details.retryable` | boolean | 필수. 일시적 오류인지. `true` 는 HTTP 429·5xx·타임아웃 같은 일시 오류(예: 503), `false` 는 인증 실패·스키마 치명 오류. 단일 턴은 `_retryState` 를 만들지 않아 `true` 여도 [다시 시도] 버튼이 없다([대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건)). |
 | `output.error.details.retryAfterSec` | number? | 재시도 권장 대기 초(있을 때). 멀티턴 에러와 같은 형식 |
 | `meta.*` | | 정상 완료와 같은 키를 실패 직전까지 모은 값으로 싣는다. `durationMs`(단일 턴 시작부터)·`model`·토큰·`toolCalls`·`ragSources`·`ragDiagnostics`·`mcpDiagnostics?`·`turnDebug` 가 들어간다. `presentationCalls`·`presentationSchemaViolations`·`contextInjection`·`memory` 는 있을 때만 싣는다. 도구 정의 크기 예산 초과는 `model`·`durationMs` 만 싣는다 |
-| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | 실패 전에 성공한 LLM 호출의 `usage` 합([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)). 첫 호출이 실패하면 0. 정상 완료 `out` 의 토큰은 마지막 호출 1건 값이라 기준이 다르다. 이 차이는 NERV Task `CLE-T-9VRXGD` 가 맡는다 |
-| `meta.thinkingTokens` | number | LLM 호출 실패 출력에는 늘 싣고 보고가 없으면 `0` 이다. 실패 전에 성공한 호출의 합이다. 도구 정의 크기 예산 초과 에러에는 싣지 않는다(`meta.*` 행) |
+| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | 실패 전에 성공한 LLM 호출의 `usage` 합이다. 첫 호출이 실패하면 0 이다. 정상 완료 `out` 과 기준이 다른 점은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 있다 |
+| `meta.thinkingTokens` | number | 실패 전에 성공한 호출의 합이다. 늘 싣고 보고가 없으면 `0` 으로 두는 기준은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 있다. 도구 정의 크기 예산 초과 에러에는 싣지 않는다(`meta.*` 행) |
 | `meta.toolCalls` | number | 실패 전까지 실행한 도구 호출 수 |
 | `meta.turnDebug[0].llmCalls` | Array | 성공한 LLM 호출만 담는다. 실패한 호출은 응답이 없어 넣지 않는다. 첫 호출이 실패하면 `[]` |
 | `status` | `"ended"` | 에러 종결 상태 |
@@ -542,13 +542,8 @@ LLM 이 조건 도구를 불렀을 때다. 형태는 단일 턴 조건 매칭과
     },
     "error": {
       "code": "LLM_RATE_LIMIT",
-      "message": "Anthropic API returned 429 (Too Many Requests)",
-      "details": {
-        "provider": "anthropic",
-        "statusCode": 429,
-        "retryable": true,
-        "retryAfterSec": 30
-      }
+      "message": "429 status code (no body)",
+      "details": { "retryable": true, "retryAfterSec": 30 }
     }
   },
   "meta": {
@@ -581,6 +576,8 @@ LLM 이 조건 도구를 불렀을 때다. 형태는 단일 턴 조건 매칭과
 | --- | --- | --- |
 | `retryable` | boolean (필수) | 일시적이라 같은 호출을 다시 하면 성공할 수 있는지. 분류 규칙은 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 에러 코드 절 |
 | `retryAfterSec` | number? | provider 가 `Retry-After` 나 같은 뜻의 신호를 준 경우. `retryable === true` 일 때만 싣는다 |
+
+멀티턴 에러의 `details` 도 단일 턴 에러와 같은 분류 함수(`extractAiTurnErrorPayload`)로 만든다. 에러 객체가 실은 `details`(민감값 제거) 위에 `retryable` 과 `retryAfterSec` 를 얹은 것이라 provider·statusCode 같은 키는 에러 객체에 있을 때만 들어간다.
 
 **`_retryState`**: `retryable === true` 일 때만 싣는다. 형태는 입력 대기의 `_resumeState` 부분집합에 `expiresAt`(ISO 8601, TTL 기본 60분)을 더한 것이다. 자격 증명은 허용 목록 방식으로 애초에 뺀다. 표현식 resolver·자동완성에 노출하지 않는다(Principle 4.2, 4.2.1). `retryable === false` 면 `_retryState` 를 내지 않아 재시도에 들어갈 수 없다.
 
@@ -753,3 +750,7 @@ type PresentationPayload = {
 ### 단일 턴 에러 예시를 구현에 맞춘 이유 (2026-11-01)
 
 단일 턴 에러 절의 JSON 예시와 `output.error.details` 설명을 구현이 실제로 내는 값에 맞췄다. 이전 판 예시의 `provider`·`statusCode`·`attempt` 와 메시지의 "after 3 retries" 는 구현이 내지 않는 목표 예시였다.
+
+### 멀티턴 에러 예시도 구현에 맞춘다 (2026-11-05)
+
+[멀티턴 에러](#멀티턴-에러-error) 절의 JSON 예시를 단일 턴 에러 예시와 같은 기준으로 고쳤다(NERV Task `CLE-T-KPDDKB`). 멀티턴도 단일 턴과 같은 분류 함수(`extractAiTurnErrorPayload`)를 거친다. 이 함수는 에러 객체가 실은 `details` 위에 `retryable` · `retryAfterSec` 만 얹고 `provider` · `statusCode` 를 만들어 넣지 않는다. 2026-11-01 정리는 단일 턴 절만 고쳐서 멀티턴 예시에는 구현이 내지 않는 두 키가 남아 있었다.

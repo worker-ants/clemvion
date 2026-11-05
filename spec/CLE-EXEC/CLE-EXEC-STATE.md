@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "5f9313d9d47fb940e31e4fc0a54bb5417195b4296dde7dfa2aa48d657491d875"
+content_hash: "5177e547f62c3831807062c3e068f88075aeaab72d43e22aa0393387fdb79f4f"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "0ea586c9de8e1d3797ecb7b6a80ca8b54188b5505f199e2e41eec366ff8edca1"
-etag: "sha256-2c0da495d8a5ccbb8e2e1d72e1a41118e9f89a052431af1c291ec367a1e055a8"
+mirror_sha256: "21b31eb161620183fd54c28c013af196a7c1db1799f77cf62354838e79ee27bd"
+etag: "sha256-ff06401f4b34f98e2bc4f4a92874159ae0e1b45f18176b1637659450f57c1775"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -160,7 +160,7 @@ stateDiagram-v2
 | 없음(`undefined`) | 일반 완료 | 대부분의 노드 | 입력 대기가 없는 노드의 최종 출력 |
 | `waiting_for_input` | 입력 대기 | 사용자 입력 대기 | Form, 버튼이 설정된 Carousel·Chart·Table·Template, 멀티턴 AI 에이전트, 멀티턴 정보 추출기 |
 | `resumed` | 재개 출력 | 사용자 입력을 받은 직후 | 재개 시점. 관측용이며 라우팅에 영향이 없다 |
-| `ended` | 대화 종료 | 멀티턴 종료 | LLM 대화가 `completed`·`user_ended`·`max_turns`·`max_retries`·`error` 중 하나로 끝날 때 |
+| `ended` | 대화 종료 | 멀티턴 종료 · 단일 턴 AI 에이전트 종료 | 멀티턴 LLM 대화가 `completed`·`user_ended`·`max_turns`·`max_retries`·`error` 중 하나로 끝날 때. 단일 턴 AI 에이전트는 정상 완료 · 조건 분기 · `error` 포트 실패 모두 이 값으로 끝난다 |
 | `requires_integration` | 통합 필요 | 외부 통합이 연결되지 않아 준비가 필요함 | Send Email 등이 통합 없이 실행될 때 |
 | `requires_playwright` | PDF 렌더러 필요 | PDF 렌더러가 필요함 | PDF 노드 |
 
@@ -190,6 +190,7 @@ stateDiagram-v2
 - **입력 대기**: `status: "waiting_for_input"`. `output` 에는 런타임에 계산한 값만 둔다.
 - **재개 출력**: `status: "resumed"`. `output` 은 대기 시점의 런타임 필드를 그대로 두고 `interaction: { type, data, receivedAt }` 를 더한다. `type` 은 `form_submitted`·`button_click`·`button_continue`·`message_received` 중 하나다. 타입별 `data` 모양과 적용 노드는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `interaction.data` 규격이 정한다.
 - **대화 종료**: 멀티턴 LLM 이 종료 조건에 닿으면 `status: "ended"` 와 종료 사유에 따른 `port`, `output: { result }` 또는 `output: { error }` 를 낸다.
+- **단일 턴 AI 에이전트 종료**: 입력 대기 없이 한 번에 끝나는 단일 턴 AI 에이전트도 `status: "ended"` 를 낸다. `port` 는 정상 완료면 `out`, 조건 분기면 그 조건의 포트, LLM 호출 실패 · 도구 정의 크기 예산 초과면 `error` 다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)).
 
 Presentation 노드의 재개 출력도 `status: 'resumed'` 를 쓴다. 사용자가 무엇을 했는지는 `interaction.type` 으로만 나타낸다.
 

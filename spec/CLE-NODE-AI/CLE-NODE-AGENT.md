@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "a58294c898b105b1d7a2f1f1bb8301cc24a71ac65cd16bad3025b31d36190581"
+content_hash: "d65119e776d5b4c488230410706e8fb5af979120d46b87bfdecc2db7ace46672"
 read_as: "approved_fallback"
-task: "CLE-T-Q38K9F"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "1fb90df42e4f5653aef31f5fc1a9d17924c13285aac40d44093f8353c925f5a8"
-etag: "sha256-d7c69e1d93d144c2113b4f69e4c2bbc261a24e5c10e8186f10a6cd5f31978b18"
+mirror_sha256: "fb66bfa7d0631c47c31af3f543a33255e4c913fe66baaa64c30f474f9a551a27"
+etag: "sha256-6c19b057c26632c3a03d8910417179ac5fa1ec3505281593e2e327ba6d179657"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -210,7 +210,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 
 멀티턴에는 `out` 포트가 없다. 종료 사유가 늘 분명해 사유별 포트로 나눈다. 조건이 0개여도 같다. 포트 `type` 표기는 AI 노드와 코드 사이에 정의가 갈린다([AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항).
 
-단일 턴은 LLM 호출(첫 호출과 도구 루프 호출)이 실패하거나 도구 정의 크기 예산을 넘으면 `error` 포트로 보낸다. LLM 호출 실패로 나온 출력의 `meta` 토큰은 실패 전에 성공한 호출의 합이고 성공한 호출이 없으면 0 이다([AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md)). 롤링 요약 호출(`summary_buffer`·`persistent` 전략)이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회(`resolveConfig`)하지 못해도 `error` 포트로 보낸다. 분류는 LLM 호출 실패와 같다([에러 코드](#에러-코드)). 이때는 턴 응답을 만드는 LLM 호출 전이라 `meta` 토큰이 0 이다. 경로별 결과는 [AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 의 표에 있다. 노드 LLM 설정(`llmConfigId`)을 조회하지 못하면 단일 턴은 아직 에러 코드 없이 실패한다(throw). 멀티턴 재개는 같은 실패를 `error` 포트로 보낸다. REQ-AGENT-024 를 부분 구현으로 둔 것은 이 남은 범위 때문이다. 남은 범위는 NERV Task `CLE-T-T8FVCG` 가 맡는다. 노드 취소는 `error` 포트로 가지 않는다. 노드 signal 이 abort 된 뒤에 실패하면 AbortError 를 던지고 노드는 `cancelled` 로 끝난다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `error` 포트로 나온 실패에는 노드 에러 처리 정책(재시도 등)이 걸리지 않는다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)). `error` 연결선이 없으면 `ERROR_PORT_FALLBACK` 으로 워크플로우가 멈춘다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). 멀티턴 에러 종결은 엔진 `handleAiTurnError` 경로로 구현돼 있다.
+단일 턴은 LLM 호출(첫 호출과 도구 루프 호출)이 실패하거나 도구 정의 크기 예산을 넘으면 `error` 포트로 보낸다. 롤링 요약 호출(`summary_buffer`·`persistent` 전략)이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회(`resolveConfig`)하지 못해도 `error` 포트로 보낸다. 분류는 LLM 호출 실패와 같다([에러 코드](#에러-코드)). 두 실패로 나온 출력의 `meta` 토큰은 실패 전에 성공한 턴 응답 LLM 호출의 합이다. 기준은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 있고 출력 형태는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 에 있다. 호출 경로별 앱 타임아웃은 [AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 의 표에 있다. 노드 LLM 설정(`llmConfigId`)을 조회하지 못하면 단일 턴은 아직 에러 코드 없이 실패한다(throw). 멀티턴 재개는 같은 실패를 `error` 포트로 보낸다. REQ-AGENT-024 를 부분 구현으로 둔 것은 이 남은 범위 때문이다. 남은 범위는 NERV Task `CLE-T-T8FVCG` 가 맡는다. 노드 취소는 `error` 포트로 가지 않는다. 노드 signal 이 abort 된 뒤에 실패하면 AbortError 를 던지고 노드는 `cancelled` 로 끝난다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `error` 포트로 나온 실패에는 노드 에러 처리 정책(재시도 등)이 걸리지 않는다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)). `error` 연결선이 없으면 `ERROR_PORT_FALLBACK` 으로 워크플로우가 멈춘다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). 멀티턴 에러 종결은 엔진 `handleAiTurnError` 경로로 구현돼 있다.
 
 **포트 시각 구분**
 
@@ -480,9 +480,8 @@ stateDiagram-v2
 - **dry-run 재실행의 도구 목록 구성 단계**: 단일 턴 9.d.iii 의 부수효과 판정 밖에 있는 도구 목록 구성(`buildTools`) 단계를 판정 범위에 넣을지는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다(CLE-T-8B66BK).
 - **dry-run 재실행의 메모리 추출**: `persistent` 전략의 메모리 추출(단일 턴 8단계)은 dry-run 여부를 보지 않는다. 현재 구현은 dry-run 재실행에서도 추출한 사실·선호를 `agent_memory` 에 저장한다(`AiMemoryManager.scheduleMemoryExtraction` 과 공유 헬퍼 `scheduleMemoryExtraction` 에 `isDryRun` 확인이 없다). `memoryKey` 를 주면 이 기록은 실행을 넘어 이후 실행의 회수에 쓰인다. 저장과 회수 규칙의 기준 문서는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 다. dry-run 에서 추출을 막을지 정의가 없어 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 으로 넘긴다. 담당 작업은 CLE-T-C9GF9F 다.
 - 추출 기준점 저장 키 경로는 [에이전트 메모리 미결 사항](../CLE-AI/CLE-AI-MEMORY.md#미결-사항) 에서 다룬다.
-- **단일 턴 `meta` 토큰 기준**: LLM 호출 실패로 나온 `error` 출력의 토큰은 실패 전에 성공한 호출의 합이다. 정상 완료 `out` 의 토큰은 마지막 호출 1건 값이다. 두 출력의 기준이 다르다. 이 차이는 NERV Task `CLE-T-9VRXGD` 가 맡는다.
+- **단일 턴 `meta` 토큰 기준**: 정상 완료와 LLM 호출 실패의 토큰 집계 기준이 다르다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)). NERV Task `CLE-T-9VRXGD` 가 맡는다.
 - **실패하거나 취소된 단일 턴이 남긴 항목**: [대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항) 이 맡는다(단일 턴 11단계).
-- **이웃 문서의 단일 턴 `error` 포트 서술**: [노드 출력 규약 3.2.1](../CLE-NODE/CLE-NODE-OUTPUT.md#321-details-의-공통-표준-필드) · [용어 사전 — 노드](../CLE-GLOSSARY-NODE.md) 의 [다시 시도] 버튼 서술과 이웃 문서의 에러 처리 정책 · 노드 상태 서술에는 단일 턴 `error` 포트 동작(재시도 버튼 없음, 에러 처리 정책 미적용, `ended` 종료)이 아직 없다. 이웃 문서를 이 문서에 맞추는 일은 NERV Task `CLE-T-KPDDKB` 가 맡는다.
 
 ## 구현 위치
 
@@ -649,3 +648,11 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 - **호출 순서를 바꿨다.** 2026-11-01 에 이 범위를 뺀 이유가 설정 에코 조립과 호출 순서였다. 메모리 주입을 설정 에코 조립 뒤로 옮기고 주입만 감싸는 catch 를 두었다. 도구 목록 구성(`buildTools`)과 턴 응답 LLM 호출 경로는 바꾸지 않았다. `ai_user` 턴은 메모리 주입 전에 넣으므로 실패해도 남는다. 응답 턴과 메모리 추출은 만들지 않는다. 2026-11-01 결정과 같다.
 - **`meta` 토큰은 0 이다.** `meta` 토큰은 턴 응답 LLM 호출만 센다. 요약 호출의 사용량은 정상 완료에서도 `meta` 토큰에 넣지 않는다.
 - **노드 LLM 설정 조회 실패는 이번 범위에서 뺐다.** 단일 턴에서 노드 LLM 설정(`llmConfigId`)을 조회하지 못하면 아직 throw 로 끝난다. 이 조회는 실행 맨 앞에 있다. `error` 출력의 `meta.model` 과 설정 에코가 그 결과(모델 이름)를 쓴다. catch 를 넓히려면 모델을 모르는 `error` 출력의 모양부터 정해야 한다. 남은 범위는 NERV Task `CLE-T-T8FVCG` 가 맡는다.
+
+### 단일 턴 `error` 포트 서술을 이웃 문서와 나눈다 (2026-11-05)
+
+단일 턴 `error` 포트 동작을 이웃 문서에 맞추면서 같은 규칙을 여러 문서가 따로 적던 곳을 한 곳으로 모았다(NERV Task `CLE-T-KPDDKB`).
+
+- **토큰 기준은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 둔다.** 이 문서와 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 는 링크와 한 줄 요약만 둔다. 세 문서가 따로 적으면 `CLE-T-9VRXGD` 로 기준을 바꿀 때 한 곳이 낡는다.
+- **롤링 요약 · 요약 모델 설정 조회 실패의 처리는 이 문서가 정한다.** [AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 의 타임아웃 표는 결과만 한 줄로 적고 이 문서를 링크한다.
+- **이웃 문서를 맞췄으므로 미결 항목을 지웠다.** [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) · [용어 사전 — 노드](../CLE-GLOSSARY-NODE.md) · [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) · [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) · [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 이 단일 턴의 재시도 버튼 없음, 에러 처리 정책 미적용, `ended` 종료를 적는다.
