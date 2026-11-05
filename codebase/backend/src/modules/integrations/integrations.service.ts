@@ -1308,6 +1308,10 @@ export class IntegrationsService {
    * Invoked by execution engine handlers after they complete an integration
    * call.
    *
+   * `integration` 은 `getForExecution` 이 돌려준 통합이다. 얻지 못한 통합은 넘길 값이 없으므로 통합을 얻기 전에 끝난
+   * 실행은 기록되지 않는다(REQ-INTMGMT-053 · 062). 받은 엔티티는 `id` 만 읽는다. 자격 증명 평문이 든 엔티티라
+   * `save` 하지 않고, 아래 UPDATE 한 번으로 필요한 컬럼만 고친다.
+   *
    * **Side effect** — `error.code === MCP_AUTH_FAILED` flips
    * `Integration.status` to `error` with `statusReason = 'auth_failed'` so
    * the editor surfaces a "needs reauthorization" badge. Other failure codes
@@ -1316,23 +1320,26 @@ export class IntegrationsService {
    * **Never throws** — DB failures are swallowed with a console.warn so a
    * logging hiccup cannot break the surrounding tool execution.
    */
-  async logUsage(params: {
-    integrationId: string;
-    nodeExecutionId: string;
-    workflowId: string;
-    status: 'success' | 'failed';
-    durationMs: number;
-    error?: { code?: string; message?: string } | null;
-    api?: {
-      label?: string | null;
-      method?: string | null;
-      path?: string | null;
-    };
-  }): Promise<void> {
+  async logUsage(
+    // 전체 엔티티 타입이라 `{ id }` 같은 손으로 만든 값으로는 부를 수 없다. 얻은 통합만 넘기게 하는 서명이다.
+    integration: Integration,
+    params: {
+      nodeExecutionId: string;
+      workflowId: string;
+      status: 'success' | 'failed';
+      durationMs: number;
+      error?: { code?: string; message?: string } | null;
+      api?: {
+        label?: string | null;
+        method?: string | null;
+        path?: string | null;
+      };
+    },
+  ): Promise<void> {
     try {
       await this.usageLogRepository.save(
         this.usageLogRepository.create({
-          integrationId: params.integrationId,
+          integrationId: integration.id,
           nodeExecutionId: params.nodeExecutionId,
           workflowId: params.workflowId,
           status: params.status,
@@ -1366,10 +1373,7 @@ export class IntegrationsService {
           patch.statusReason = 'auth_failed';
         }
       }
-      await this.integrationRepository.update(
-        { id: params.integrationId },
-        patch,
-      );
+      await this.integrationRepository.update({ id: integration.id }, patch);
     } catch (err) {
       // Usage logging must not break execution — swallow and continue.
       this.logger.warn(

@@ -300,6 +300,7 @@ describe('DatabaseQueryHandler', () => {
       );
       expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({ status: 'success' }),
       );
       await handler.shutdown();
@@ -488,6 +489,7 @@ describe('DatabaseQueryHandler', () => {
       expect(out.output.error.details).toBeUndefined();
       expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({ status: 'failed' }),
       );
       await handler.shutdown();
@@ -508,6 +510,7 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'success',
           api: expect.objectContaining({ method: 'SELECT' }),
@@ -530,6 +533,7 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           api: expect.objectContaining({ method: 'INSERT' }),
@@ -1148,6 +1152,7 @@ describe('DatabaseQueryHandler', () => {
           expect(connectMock).not.toHaveBeenCalled();
           // 활동 로그에는 failed + DB_HOST_BLOCKED 가 기록된다.
           expect(logUsage).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'int-1' }),
             expect.objectContaining({
               status: 'failed',
               error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
@@ -1209,6 +1214,7 @@ describe('DatabaseQueryHandler', () => {
         expect(out.output.error.message).toContain('hostname.toLowerCase');
         expect(connectMock).not.toHaveBeenCalled();
         expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
           expect.objectContaining({
             status: 'failed',
             error: expect.objectContaining({ code: 'INTEGRATION_CALL_FAILED' }),
@@ -1235,6 +1241,7 @@ describe('DatabaseQueryHandler', () => {
           jest.requireMock('mysql2/promise').createPool,
         ).not.toHaveBeenCalled();
         expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
           expect.objectContaining({
             status: 'failed',
             error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),

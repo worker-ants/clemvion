@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
 content_hash: "11ddcfd95e20fb4e22e662b129b1c18939fa151fcde86c830fe6bd020356d5f5"
 read_as: "approved_fallback"
-task: "CLE-T-FC2BWA"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "b3a2d34dda2575e8e270f76c855e801cb71a32ee6d4cf783ca64697616618f4c"
-etag: "sha256-451449e8015984b41c1fa2d3932e966d515950402e0268d030bc2c204c55031f"
+mirror_sha256: "80fddd8762faacf6071c1cb665f99c847f6c06ca316cca2ab538659d0f405e7c"
+etag: "sha256-2a206f5bd8286504e6d6dfaea5849f13f560d013ba60c88003552b27618d6388"
 ---
 > 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글과 통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

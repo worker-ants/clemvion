@@ -635,8 +635,8 @@ describe('McpToolProvider — review issues', () => {
 
       expect(logUsage).toHaveBeenCalledTimes(1);
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SAMPLE_ID }),
         expect.objectContaining({
-          integrationId: SAMPLE_ID,
           nodeExecutionId: 'ne-1',
           workflowId: 'wf-1',
           status: 'success',
@@ -674,6 +674,7 @@ describe('McpToolProvider — review issues', () => {
       expect(parsed.error).toBe('MCP_AUTH_FAILED');
       expect(logUsage).toHaveBeenCalledTimes(1);
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SAMPLE_ID }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
@@ -707,6 +708,7 @@ describe('McpToolProvider — review issues', () => {
       );
       await flushMicrotasks();
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SAMPLE_ID }),
         expect.objectContaining({
           error: expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
         }),
@@ -740,6 +742,7 @@ describe('McpToolProvider — review issues', () => {
       );
       await flushMicrotasks();
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SAMPLE_ID }),
         expect.objectContaining({
           error: expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
         }),
@@ -772,6 +775,7 @@ describe('McpToolProvider — review issues', () => {
       );
       await flushMicrotasks();
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SAMPLE_ID }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'MCP_TOOL_ERROR' }),

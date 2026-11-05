@@ -3954,9 +3954,40 @@ describe('IntegrationsService', () => {
   // logUsage
   // -----------------------------------------------------------------
   describe('logUsage', () => {
+    // getForExecution 이 돌려준 통합. 자격 증명 평문까지 든 엔티티라 서비스가 이것을 저장하면 안 된다.
+    const usedIntegration = {
+      id: 'int-1',
+      name: 'Shop',
+      serviceType: 'cafe24',
+      status: 'connected',
+      credentials: { access_token: 'plain-secret' },
+    } as unknown as Integration;
+
+    it('얻은 통합의 id 로 기록하고 필요한 컬럼만 UPDATE 한다 — 받은 엔티티를 저장하지 않는다 (REQ-INTMGMT-062)', async () => {
+      await service.logUsage(usedIntegration, {
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed',
+        durationMs: 5,
+        error: { code: 'MCP_AUTH_FAILED', message: '401' },
+      });
+      expect(usageLogRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ integrationId: 'int-1' }),
+      );
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+      const [criteria, patch] = integrationRepo.update.mock.calls[0] as [
+        unknown,
+        Record<string, unknown>,
+      ];
+      expect(criteria).toEqual({ id: 'int-1' });
+      expect(Object.keys(patch).sort()).toEqual(
+        ['lastError', 'lastUsedAt', 'status', 'statusReason'].sort(),
+      );
+    });
+
     it('records success row and updates lastUsedAt', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'success',
@@ -3970,8 +4001,7 @@ describe('IntegrationsService', () => {
     });
 
     it('records lastError on failure', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'failed',
@@ -3989,8 +4019,7 @@ describe('IntegrationsService', () => {
     it('swallows DB failure (non-blocking)', async () => {
       usageLogRepo.save.mockRejectedValue(new Error('boom'));
       await expect(
-        service.logUsage({
-          integrationId: 'int-1',
+        service.logUsage(usedIntegration, {
           nodeExecutionId: 'nex-1',
           workflowId: 'wf-1',
           status: 'success',
@@ -4000,8 +4029,7 @@ describe('IntegrationsService', () => {
     });
 
     it('flips status to error(auth_failed) on MCP_AUTH_FAILED', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'failed',
@@ -4018,8 +4046,7 @@ describe('IntegrationsService', () => {
     });
 
     it('does NOT flip status for non-auth failures', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'failed',
@@ -4036,8 +4063,7 @@ describe('IntegrationsService', () => {
 
     it('clamps very long error messages before persisting', async () => {
       const huge = 'x'.repeat(10_000);
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'failed',
@@ -4054,8 +4080,7 @@ describe('IntegrationsService', () => {
     // -----------------------------------------------------------------
 
     it('persists api identification fields when provided', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'success',
@@ -4076,8 +4101,7 @@ describe('IntegrationsService', () => {
     });
 
     it('stores null api fields when api param is omitted', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'success',
@@ -4095,8 +4119,7 @@ describe('IntegrationsService', () => {
     it('truncates over-length api fields with ellipsis suffix', async () => {
       const longLabel = 'cafe24.' + 'x'.repeat(200);
       const longPath = '/' + 'p'.repeat(400);
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'success',
@@ -4117,8 +4140,7 @@ describe('IntegrationsService', () => {
     });
 
     it('coerces empty-string api fields to null', async () => {
-      await service.logUsage({
-        integrationId: 'int-1',
+      await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
         workflowId: 'wf-1',
         status: 'success',

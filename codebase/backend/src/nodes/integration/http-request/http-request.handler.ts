@@ -20,6 +20,7 @@ import {
   linkUpstreamAbort,
 } from '../_base/abort-cascade.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
   SsrfBlockedError,
@@ -202,6 +203,10 @@ export class HttpRequestHandler
     // Resolve integration-backed authentication, if requested.
     let credentials: HttpCredentials = {};
     let baseUrl: string | undefined;
+    // 얻은 통합. 통합 인증이고 통합을 얻었을 때만 값이 있다. 활동 로그는 이 통합에만 남긴다 — `none` · `custom`
+    // 인증과 통합을 얻기 전에 끝난 실패(워크스페이스 확인 · 조회 거절 · 조회 중 일시 오류)는 기록하지 않는다
+    // (REQ-INTMGMT-053 · 062).
+    let integration: Integration | undefined;
     if (authentication === 'integration' && integrationId) {
       if (!this.integrationsService) {
         // D4 (2026-05-17, plan/in-progress/node-output-redesign) — 종전 throw
@@ -221,11 +226,8 @@ export class HttpRequestHandler
         );
       }
       try {
-        const integration = await this.resolveIntegration(
-          integrationId,
-          context,
-          'http',
-        );
+        integration = await this.acquireIntegration(integrationId, context);
+        this.assertUsable(integration, 'http');
         const result = buildHttpCredentials(
           integration.authType,
           integration.credentials,
@@ -233,13 +235,14 @@ export class HttpRequestHandler
         credentials = result.credentials;
         baseUrl = result.baseUrl;
       } catch (err) {
-        await this.logUsage(context, {
-          integrationId,
-          status: 'failed',
-          durationMs: Date.now() - start,
-          error: toLogError(err),
-          api: { method, path: extractApiPath(initialUrl) },
-        });
+        if (integration) {
+          await this.logUsage(integration, context, {
+            status: 'failed',
+            durationMs: Date.now() - start,
+            error: toLogError(err),
+            api: { method, path: extractApiPath(initialUrl) },
+          });
+        }
         // D4 — 종전 throw 였으나 port:'error' 로 통일.
         return buildPreflightErrorOutput(
           err,
@@ -366,9 +369,8 @@ export class HttpRequestHandler
       if (!(err instanceof SsrfBlockedError)) {
         logger.warn(`SSRF guard failed (http-request): ${detail}`);
         const logError = toLogError(err);
-        if (authentication === 'integration' && integrationId) {
-          await this.logUsage(context, {
-            integrationId,
+        if (integration) {
+          await this.logUsage(integration, context, {
             status: 'failed',
             durationMs: Date.now() - start,
             error: logError,
@@ -391,9 +393,8 @@ export class HttpRequestHandler
       logger.warn(`SSRF block (http-request): ${detail}`);
       // Usage 로그는 integration 인증에 한정 (none/custom 은 활동 로그 미생성,
       // spec §4.2). SSRF 차단의 error 포트 라우팅(HTTP_BLOCKED)은 전 인증 공통.
-      if (authentication === 'integration' && integrationId) {
-        await this.logUsage(context, {
-          integrationId,
+      if (integration) {
+        await this.logUsage(integration, context, {
           status: 'failed',
           durationMs: Date.now() - start,
           error: {
@@ -479,9 +480,8 @@ export class HttpRequestHandler
 
       const meta = { statusCode: res.status, durationMs };
 
-      if (integrationId && authentication === 'integration') {
-        await this.logUsage(context, {
-          integrationId,
+      if (integration) {
+        await this.logUsage(integration, context, {
           status: res.ok ? 'success' : 'failed',
           durationMs,
           error: res.ok
@@ -540,9 +540,8 @@ export class HttpRequestHandler
       // redirect hop 의 SSRF 차단은 IntegrationError(HTTP_BLOCKED)로 승격돼 이 catch
       // 에 도달한다 — transport 실패로 오분류하지 말고 그 code/message(일반화)를 보존.
       if (err instanceof IntegrationError) {
-        if (integrationId && authentication === 'integration') {
-          await this.logUsage(context, {
-            integrationId,
+        if (integration) {
+          await this.logUsage(integration, context, {
             status: 'failed',
             durationMs,
             error: { code: err.code, message: err.message },
@@ -564,9 +563,8 @@ export class HttpRequestHandler
       // `toLogError` 로 마스킹하므로, 여기서만 원문이 나가면 검사 시점에 따라 노출이 갈린다. 전송 오류 문구도
       // URL 자격증명 등을 품을 수 있어 같이 가린다.
       const message = toLogError(err).message;
-      if (integrationId && authentication === 'integration') {
-        await this.logUsage(context, {
-          integrationId,
+      if (integration) {
+        await this.logUsage(integration, context, {
           status: 'failed',
           durationMs,
           error: { code: 'HTTP_TRANSPORT_FAILED', message },

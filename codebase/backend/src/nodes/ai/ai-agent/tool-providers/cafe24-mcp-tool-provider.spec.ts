@@ -784,6 +784,7 @@ describe('Cafe24McpToolProvider', () => {
       expect(parsed.status).toBe(200);
       expect(parsed.response).toEqual({ products: [{ product_no: 1 }] });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'success',
           // INT-US-05 — MCP bridge 경로도 활동 로그에 api 식별 정보 동반.
@@ -918,6 +919,7 @@ describe('Cafe24McpToolProvider', () => {
       expect(res.status).toBe('error');
       expect(JSON.parse(res.content).error.code).toBe('CAFE24_AUTH_FAILED');
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'CAFE24_AUTH_FAILED' }),
@@ -948,6 +950,7 @@ describe('Cafe24McpToolProvider', () => {
       expect(res.status).toBe('error');
       expect(JSON.parse(res.content).error.code).toBe('CAFE24_RATE_LIMITED');
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'CAFE24_RATE_LIMITED' }),
@@ -983,6 +986,7 @@ describe('Cafe24McpToolProvider', () => {
         'CAFE24_TRANSPORT_FAILED',
       );
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'abcdef1234567890' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'CAFE24_TRANSPORT_FAILED' }),
@@ -1075,6 +1079,7 @@ describe('Cafe24McpToolProvider', () => {
         expect(parsed._dryRun).toBeUndefined();
         expect(parsed.response).toEqual({ products: [{ product_no: 1 }] });
         expect(integrationsService.logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'abcdef1234567890' }),
           expect.objectContaining({ status: 'success', api: PRODUCT_LIST_API }),
         );
       });

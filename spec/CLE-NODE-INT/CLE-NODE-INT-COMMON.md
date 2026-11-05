@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
 content_hash: "e6217652d94b28ba5f208ad281c86d3d6d38fc6e9b6235928a532fb63fa32479"
 read_as: "approved_fallback"
-task: "CLE-T-PS7JQY"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "badc9d75261b5caf699c2ce4166c0819d713e3fec2bbc6cd6a53b8a927e8f03e"
-etag: "sha256-b2f6321900a2a7ef826e2db5eaf2536a4f4bb5fd85f17b5b6bbefe65294ab936"
+mirror_sha256: "74207d986633613d4104c6c7c0fe2269df37617b2e966db14fd4c75f969e22e5"
+etag: "sha256-305f1a06535a330e0ff37c269110675e468c5d5a5dd9199a24f1cd33c0721c02"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 의 목표 서명, 통합을 얻기 전 실패 가운데 조회 거절이 아닌 실패의 활동 로그 생략, 워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
 content_hash: "a67cfaeb2c66877ee6c438a52cec31531f531c56892998328828d8713cb4be57"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-PTC4SF"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0800a2c1a531a6c6e749f683ac19e2604fe23b2640997d0006cf718bc8bdc286"
-etag: "sha256-dd1b03785826f51808bb79884cbabc943298288760fbbc0a6a192da13bd51dca"
+mirror_sha256: "ec514f16ef44f9e25af4e3035975cfa5afc363a0a5cdccadc758b8b8e0f5c6fb"
+etag: "sha256-694ba1b5b3cb835265ea11330d391233a3cb4884405d70e7abad97f23089b7c2"
 ---
 > 구현 상태: 부분 구현 (통합을 얻기 전 실패의 활동 로그 생략은 미구현. 활동 로그는 지금 거절된 통합 조회만 건너뛴다) · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

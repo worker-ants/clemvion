@@ -515,8 +515,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
 
       // Usage log — success awaits; fail is fire-and-forget.
       if (ctx.nodeExecutionId && ctx.workflowId) {
-        await this.integrationsService.logUsage({
-          integrationId: integration.id,
+        await this.integrationsService.logUsage(integration, {
           nodeExecutionId: ctx.nodeExecutionId,
           workflowId: ctx.workflowId,
           status: result.status >= 400 ? 'failed' : 'success',
@@ -557,8 +556,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       const errInfo = this.classifyError(err);
       if (ctx.nodeExecutionId && ctx.workflowId) {
         await this.integrationsService
-          .logUsage({
-            integrationId: integration.id,
+          .logUsage(integration, {
             nodeExecutionId: ctx.nodeExecutionId,
             workflowId: ctx.workflowId,
             status: 'failed',

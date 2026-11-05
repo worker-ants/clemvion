@@ -16,6 +16,7 @@ import {
 } from '../_base/integration-handler-base.js';
 import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import {
   maskEmailForErrorDetails,
   truncateForErrorDetails,
@@ -157,12 +158,12 @@ export class SendEmailHandler
       method?: string | null;
       path?: string | null;
     } = { method: 'SEND', path: null };
+    // 얻은 통합. 활동 로그는 이 통합에만 남긴다 — 얻기 전에 끝난 실패(워크스페이스 확인 · 조회 거절 · 조회 중 일시
+    // 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
+    let integration: Integration | undefined;
     try {
-      const integration = await this.resolveIntegration(
-        integrationId,
-        context,
-        'email',
-      );
+      integration = await this.acquireIntegration(integrationId, context);
+      this.assertUsable(integration, 'email');
       const credentials = integration.credentials as Partial<SmtpCredentials>;
       apiInfo.path = credentials.host ?? null;
       const missing = missingSmtpFields(credentials);
@@ -208,8 +209,7 @@ export class SendEmailHandler
         rejected?: string[];
       };
       const durationMs = Date.now() - start;
-      await this.logUsage(context, {
-        integrationId,
+      await this.logUsage(integration, context, {
         status: 'success',
         durationMs,
         api: apiInfo,
@@ -232,13 +232,14 @@ export class SendEmailHandler
         err instanceof IntegrationError
           ? toLogError(err)
           : { code: 'EMAIL_SEND_FAILED', message: safeMessage(err) };
-      await this.logUsage(context, {
-        integrationId,
-        status: 'failed',
-        durationMs: Date.now() - start,
-        error: logError,
-        api: apiInfo,
-      }).catch(() => {});
+      if (integration) {
+        await this.logUsage(integration, context, {
+          status: 'failed',
+          durationMs: Date.now() - start,
+          error: logError,
+          api: apiInfo,
+        }).catch(() => {});
+      }
       // CONVENTIONS §3.2 — runtime failures route to the `error` port with
       // a standardized `output.error.{code,message,details}` envelope.
       // `IntegrationError` carries the precise cause (INTEGRATION_INCOMPLETE,

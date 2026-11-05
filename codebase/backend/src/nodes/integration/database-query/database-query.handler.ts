@@ -22,6 +22,7 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service.js';
 import {
   SsrfBlockedError,
@@ -200,7 +201,7 @@ export class DatabaseQueryHandler
     // D4 (2026-05-17, plan/in-progress/node-output-redesign) — Integration
     // 4종 모두 send-email 의 catch-all 패턴으로 통일. handler.validate() 가
     // 거른 config 형식 오류만 throw, 그 외 IntegrationError / parameters
-    // 파싱 실패 / resolveIntegration 실패 / SSRF guard 실패 모두 catch 후
+    // 파싱 실패 / 통합 얻기 · 검증 실패 / SSRF guard 실패 모두 catch 후
     // port:'error' 로 라우팅. fallback 코드는 INTEGRATION_CALL_FAILED.
     let driver: 'postgres' | 'mysql' = 'postgres';
     // INT-US-05 — api_method 는 SQL 첫 토큰 (`SELECT` / `INSERT` / ...). 첫
@@ -228,6 +229,9 @@ export class DatabaseQueryHandler
       };
     }
 
+    // 얻은 통합. 활동 로그는 이 통합에만 남긴다 — 얻기 전에 끝난 실패(파라미터 파싱 · 서비스 미주입 · 워크스페이스
+    // 확인 · 조회 거절 · 조회 중 일시 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
+    let integration: Integration | undefined;
     try {
       const parameters = parseParameters(config.parameters);
 
@@ -238,11 +242,8 @@ export class DatabaseQueryHandler
         );
       }
 
-      const integration = await this.resolveIntegration(
-        integrationId,
-        context,
-        'database',
-      );
+      integration = await this.acquireIntegration(integrationId, context);
+      this.assertUsable(integration, 'database');
       const creds = integration.credentials as Partial<DbCredentials>;
       const missing = missingDbFields(creds);
       if (missing.length > 0) {
@@ -305,8 +306,7 @@ export class DatabaseQueryHandler
               context.abortSignal,
             );
       const durationMs = Date.now() - start;
-      await this.logUsage(context, {
-        integrationId,
+      await this.logUsage(integration, context, {
         status: 'success',
         durationMs,
         api: { method: apiMethod, path: driver },
@@ -319,13 +319,14 @@ export class DatabaseQueryHandler
       };
     } catch (err) {
       const durationMs = Date.now() - start;
-      await this.logUsage(context, {
-        integrationId,
-        status: 'failed',
-        durationMs,
-        error: toLogError(err),
-        api: { method: apiMethod, path: driver },
-      }).catch(() => {});
+      if (integration) {
+        await this.logUsage(integration, context, {
+          status: 'failed',
+          durationMs,
+          error: toLogError(err),
+          api: { method: apiMethod, path: driver },
+        }).catch(() => {});
+      }
       // node-cancellation §5 — in-flight 취소로 `executePostgres`/`executeMysql`
       // 이 던진 `AbortError` (쿼리 취소로 driver 가 reject → AbortError 승격)는 D4
       // error-포트 매핑을 우회해 그대로 재throw → 엔진이 노드를 `cancelled` 로 분류.

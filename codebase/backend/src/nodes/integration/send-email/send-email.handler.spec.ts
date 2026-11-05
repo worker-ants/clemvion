@@ -288,15 +288,16 @@ describe('SendEmailHandler', () => {
       expect(out.output.body).toBe('hello');
       expect(out.output.bodyType).toBe('text');
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'success',
-          integrationId: 'int-1',
           nodeExecutionId: 'ne-1',
           workflowId: 'wf-1',
         }),
       );
       // W3 — api field value assertion (INT-US-05): SEND + SMTP host
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           api: expect.objectContaining({
             method: 'SEND',
@@ -569,6 +570,7 @@ describe('SendEmailHandler', () => {
       expect(result.output.body).toBe('hello');
       expect(result.output.bodyType).toBe('text');
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'EMAIL_SEND_FAILED' }),
@@ -576,6 +578,7 @@ describe('SendEmailHandler', () => {
       );
       // W3 — api field on failure (INT-US-05)
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           api: expect.objectContaining({
             method: 'SEND',
@@ -592,6 +595,7 @@ describe('SendEmailHandler', () => {
         integration: {
           serviceType: 'http',
           status: 'connected',
+          id: 'int-1',
           name: 'Wrong',
           credentials: {},
         },
@@ -617,6 +621,7 @@ describe('SendEmailHandler', () => {
         'INTEGRATION_TYPE_MISMATCH',
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           error: expect.objectContaining({ code: 'INTEGRATION_TYPE_MISMATCH' }),
         }),
@@ -628,6 +633,7 @@ describe('SendEmailHandler', () => {
         integration: {
           serviceType: 'email',
           status: 'expired',
+          id: 'int-1',
           name: 'Stale',
           statusReason: null,
           credentials: {},
@@ -650,6 +656,7 @@ describe('SendEmailHandler', () => {
         'INTEGRATION_NOT_CONNECTED',
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           error: expect.objectContaining({ code: 'INTEGRATION_NOT_CONNECTED' }),
         }),
@@ -661,6 +668,7 @@ describe('SendEmailHandler', () => {
         integration: {
           serviceType: 'email',
           status: 'connected',
+          id: 'int-1',
           name: 'Half Set',
           credentials: {
             host: 'smtp.example.com',
@@ -687,6 +695,7 @@ describe('SendEmailHandler', () => {
         'INTEGRATION_INCOMPLETE',
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           error: expect.objectContaining({ code: 'INTEGRATION_INCOMPLETE' }),
         }),

@@ -201,9 +201,11 @@ describe('MakeshopHandler', () => {
       expectErrorOutput(result, 'MAKESHOP_UNKNOWN_OPERATION');
     });
 
-    it('logs apiInfo.label only (method/path null) when operation lookup fails (INT-US-05)', async () => {
+    // 사전 검증(operation 조회) 실패는 통합을 얻기 전에 끝난 실행이다. 설정의 통합 ID 로 활동 로그를 남기지 않는다
+    // (REQ-INTMGMT-053). 예전에는 이 경우에도 api.label 만 채워 기록했다.
+    it('operation 조회 실패는 통합을 얻기 전이라 조회도 활동 로그도 하지 않는다 (REQ-INTMGMT-053)', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
-      await handler.execute(
+      const result = await handler.execute(
         null,
         {
           integrationId: 'id',
@@ -213,19 +215,12 @@ describe('MakeshopHandler', () => {
         },
         makeContext(),
       );
-      expect(integrationsService.logUsage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'failed',
-          api: expect.objectContaining({
-            label: 'makeshop.product.product_does_not_exist',
-          }),
-        }),
+      expect(result.port).toBe('error');
+      expect((result.output as { error: { code: string } }).error.code).toBe(
+        'MAKESHOP_UNKNOWN_OPERATION',
       );
-      const logCall = integrationsService.logUsage.mock.calls[0][0] as {
-        api: { label?: string; method?: string | null; path?: string | null };
-      };
-      expect(logCall.api.method).toBeUndefined();
-      expect(logCall.api.path).toBeUndefined();
+      expect(integrationsService.getForExecution).not.toHaveBeenCalled();
+      expect(integrationsService.logUsage).not.toHaveBeenCalled();
     });
 
     it('MAKESHOP_MISSING_FIELDS when requiredFields not supplied', async () => {
@@ -500,6 +495,7 @@ describe('MakeshopHandler', () => {
 
       // Usage log (success) with api identity (INT-US-05).
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-makeshop-1' }),
         expect.objectContaining({
           status: 'success',
           api: expect.objectContaining({
@@ -577,6 +573,7 @@ describe('MakeshopHandler', () => {
         error: { code: '404', message: 'Not Found' },
       });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-makeshop-1' }),
         expect.objectContaining({ status: 'failed' }),
       );
     });
@@ -792,6 +789,7 @@ describe('MakeshopHandler', () => {
       expect(output.response).toEqual({ list: [{ product_id: 1 }] });
       // A real call is logged as usual.
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-makeshop-1' }),
         expect.objectContaining({ status: 'success' }),
       );
     });

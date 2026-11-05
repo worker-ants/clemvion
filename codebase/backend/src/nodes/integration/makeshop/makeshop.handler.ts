@@ -11,6 +11,7 @@ import {
   sanitizeConfigEcho,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
 import {
@@ -214,6 +215,9 @@ export class MakeshopHandler
     };
 
     let shopUidForErrorDetails: string | undefined;
+    // 얻은 통합. 활동 로그는 이 통합에만 남긴다 — 얻기 전에 끝난 실패(사전 검증 · 워크스페이스 확인 · 조회 거절 ·
+    // 조회 중 일시 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
+    let integration: Integration | undefined;
     try {
       if (!this.apiClient) {
         throw new IntegrationError(
@@ -290,12 +294,9 @@ export class MakeshopHandler
         pageQuery = resolved.query;
       }
 
-      // 3. Integration resolve (status='connected', serviceType='makeshop').
-      const integration = await this.resolveIntegration(
-        integrationId,
-        context,
-        'makeshop',
-      );
+      // 3. Integration acquire (1·2단계) + usable check (status='connected', serviceType='makeshop').
+      integration = await this.acquireIntegration(integrationId, context);
+      this.assertUsable(integration, 'makeshop');
 
       // 4. Credentials sanity: shop_uid format (SSRF guard). Other field
       //    assertions happen inside MakeshopApiClient.
@@ -349,8 +350,7 @@ export class MakeshopHandler
           resource,
           operationId,
         );
-        await this.logUsage(context, {
-          integrationId,
+        await this.logUsage(integration, context, {
           status: 'failed',
           durationMs,
           error: { code: errorOutput.code, message: errorOutput.message },
@@ -390,8 +390,7 @@ export class MakeshopHandler
         if (m.code) details.makeshopErrorCode = m.code;
         if (m.message) details.makeshopMessage = m.message;
 
-        await this.logUsage(context, {
-          integrationId,
+        await this.logUsage(integration, context, {
           status: 'failed',
           durationMs,
           error: { code, message: `MakeShop API returned ${result.status}` },
@@ -413,8 +412,7 @@ export class MakeshopHandler
       }
 
       // 8. Success.
-      await this.logUsage(context, {
-        integrationId,
+      await this.logUsage(integration, context, {
         status: 'success',
         durationMs,
         api: apiInfo,
@@ -445,13 +443,14 @@ export class MakeshopHandler
       const code =
         err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED';
       const message = err instanceof Error ? err.message : String(err);
-      await this.logUsage(context, {
-        integrationId,
-        status: 'failed',
-        durationMs,
-        error: { code, message },
-        api: apiInfo,
-      }).catch(() => {});
+      if (integration) {
+        await this.logUsage(integration, context, {
+          status: 'failed',
+          durationMs,
+          error: { code, message },
+          api: apiInfo,
+        }).catch(() => {});
+      }
       const details: Record<string, unknown> = {
         resource,
         operation: operationId,

@@ -796,6 +796,7 @@ describe('HttpRequestHandler', () => {
         'Bearer abc',
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({ status: 'success' }),
       );
     });
@@ -960,6 +961,7 @@ describe('HttpRequestHandler', () => {
       // 정찰 면 축소 — output.error.message 는 차단된 host/IP 미노출 일반화 문구.
       expect(output.error.message).toBe('Request blocked by SSRF policy.');
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           // usage 로그 message 도 일반화 — Activity API(GET /integrations/:id/activity)로
@@ -1004,6 +1006,7 @@ describe('HttpRequestHandler', () => {
       expect(output.error.code).toBe('INTEGRATION_CALL_FAILED');
       expect(output.error.message).toContain('hostname.toLowerCase');
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'INTEGRATION_CALL_FAILED' }),
@@ -1060,6 +1063,32 @@ describe('HttpRequestHandler', () => {
       // `none` auth generates no Usage log (spec §4.2).
       expect(logUsage).not.toHaveBeenCalled();
     });
+
+    // 짝: 같은 SSRF 차단이라도 통합 인증으로 통합을 얻었으면 얻은 통합으로 기록한다(아래 «blocks outbound requests to
+    // private IPv4 ranges»). none · custom 인증은 설정에 integrationId 가 남아 있어도 통합을 얻지 않으므로 조회도 기록도
+    // 하지 않는다(REQ-INTMGMT-053 · 062).
+    it.each(['none', 'custom'])(
+      'authentication=%s 는 integrationId 가 남아 있어도 조회 · 기록하지 않는다',
+      async (authentication) => {
+        const { service, logUsage } = makeService('bearer_token', {
+          token: 't',
+        });
+        const handler = new HttpRequestHandler(service as never);
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'http://169.254.169.254/latest/meta-data/',
+            authentication,
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        )) as unknown as Record<string, unknown>;
+        expect(result.port).toBe('error');
+        expect(service.getForExecution).not.toHaveBeenCalled();
+        expect(logUsage).not.toHaveBeenCalled();
+      },
+    );
 
     it('blocks authentication=custom requests to private RFC1918 (04 C-3)', async () => {
       const { service } = makeService('bearer_token', { token: 't' });
@@ -1210,6 +1239,7 @@ describe('HttpRequestHandler', () => {
       );
       // usage 로그(Activity API 노출)는 일반화 — 원본 미포함.
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           error: expect.objectContaining({
             code: 'HTTP_BLOCKED',
@@ -1474,6 +1504,7 @@ describe('HttpRequestHandler', () => {
         contextWithWorkspace,
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'HTTP_TRANSPORT_FAILED' }),
@@ -1501,6 +1532,7 @@ describe('HttpRequestHandler', () => {
         contextWithWorkspace,
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'HTTP_500' }),
@@ -1530,6 +1562,7 @@ describe('HttpRequestHandler', () => {
         contextWithWorkspace,
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'success',
           api: expect.objectContaining({
@@ -1557,6 +1590,7 @@ describe('HttpRequestHandler', () => {
         contextWithWorkspace,
       );
       expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
           api: expect.objectContaining({
