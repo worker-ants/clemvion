@@ -1,8 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
-import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Socket } from 'socket.io';
 import { CustomValidationPipe, UNVALIDATED_METATYPES } from './validation.pipe';
+import { Setup2faDto } from '../../modules/auth/dto/totp.dto';
 
 class InnerDto {
   @IsString()
@@ -169,5 +176,63 @@ describe('CustomValidationPipe — 커스텀 데코레이터 인자', () => {
         { type: 'body', metatype: NarrowDto },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+/**
+ * 본문 없이 온 요청(CLE-T-GDBMF8). Express 는 Content-Type 이 없는 요청의 `req.body` 를 채우지 않아 `@Body()` 값이
+ * `undefined` 로 온다. 예전에는 `validate(undefined)` 가 TypeError 를 던져 500 이 났다. 빈 객체로 보고 검증해 필수 필드가
+ * 있는 DTO 는 400 `VALIDATION_ERROR`, 필드가 모두 선택인 DTO 는 통과한다(NestJS 기본 `ValidationPipe` 와 같다).
+ */
+describe('CustomValidationPipe — 값이 없는 본문', () => {
+  const pipe = new CustomValidationPipe();
+
+  class RequiredFieldDto {
+    @IsString()
+    password: string;
+  }
+
+  class AllOptionalDto {
+    @IsOptional()
+    @IsString()
+    note?: string;
+  }
+
+  it.each([undefined, null])(
+    '필수 필드가 있는 DTO 는 %p 를 400 VALIDATION_ERROR 로 거부한다',
+    async (value) => {
+      // 통과하면 돌려받은 인스턴스가 err 에 들어가 아래 instanceof 단언이 실패한다.
+      const err: unknown = await pipe
+        .transform(value, { type: 'body', metatype: RequiredFieldDto })
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as {
+        code: string;
+        details: { field: string; code: string }[];
+      };
+      expect(body.code).toBe('VALIDATION_ERROR');
+      expect(body.details.map((d) => d.field)).toContain('password');
+    },
+  );
+
+  it.each([undefined, null])(
+    '필드가 모두 선택인 DTO 는 %p 를 빈 인스턴스로 통과시킨다',
+    async (value) => {
+      await expect(
+        pipe.transform(value, { type: 'body', metatype: AllOptionalDto }),
+      ).resolves.toBeInstanceOf(AllOptionalDto);
+    },
+  );
+
+  it('실제 DTO(2FA setup)도 본문이 없으면 400 으로 거부한다', async () => {
+    await expect(
+      pipe.transform(undefined, { type: 'body', metatype: Setup2faDto }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('검증하지 않는 설계 타입은 undefined 를 그대로 돌려준다', async () => {
+    await expect(
+      pipe.transform(undefined, { type: 'body', metatype: Object }),
+    ).resolves.toBeUndefined();
   });
 });
