@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "df5b630cfdf23ecfd2467c156899cc6345439fcc7bdae64cebfe4c18086a1f08"
+content_hash: "b38a5420ea280f7213b6ed41cea8bc662a5501c6338ed6bb819cc6eaa54394c5"
 read_as: "approved_fallback"
 task: "CLE-T-Q38K9F"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "af031fe205d854d668580658aa049b7015fcf7ee791d60b5e00e8fe4c4a72901"
-etag: "sha256-c7234208a132030a33ff8cdda4a9b045878b9e5a9b0cfc2cf2ff25cadf4cb641"
+mirror_sha256: "9b2eb30b26a85d38e83b95b6a269da643de49032fb82f8bda915fbe20e23be2e"
+etag: "sha256-b9de36b557c5c57a48ed9cd295faa834907ee5a9885219abdf0dec5ebab553d4"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -369,7 +369,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 | 호출 경로 | 앱 타임아웃 | 한도를 넘거나 호출이 실패하면 | 소유 문서 |
 |-----------|-------------|-------------------------------|-----------|
 | AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 타임아웃이 나면 단일 턴과 멀티턴 재개 모두 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 그 밖의 실패 분류는 [AI 에이전트 노드의 에러 분류](CLE-NODE-AGENT.md#에러-코드)를 따른다. 단일 턴에서는 노드가 두 경우의 에러를 모두 `error` 포트로 낸다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
-| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패한다. 단일 턴에서는 `error` 포트가 아니라 에러 코드 없는 노드 실패로 끝난다. 요약 모델 설정(`summaryModelConfigId`)을 해석하지 못할 때도 단일 턴은 같은 노드 실패로 끝난다. 단일 턴의 이 두 노드 실패는 NERV Task `CLE-T-Q38K9F` 가 맡는다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다([미결 사항](#미결-사항)) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패한다. 단일 턴과 멀티턴 재개 모두 에러를 [AI 에이전트 노드의 에러 분류](CLE-NODE-AGENT.md#에러-코드)대로 `error` 포트로 낸다. 요약 모델 설정(`summaryModelConfigId`)을 해석하지 못할 때도 같다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 이 차이의 근거는 [AI 에이전트 노드 Rationale](CLE-NODE-AGENT.md#단일-턴-롤링-요약-실패도-error-포트로-보낸-이유-2026-11-05) 에 있다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
 | 텍스트 분류기·정보 추출기 | 없음 | `LLM_CALL_FAILED` | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
 | 워크플로우 AI 어시스턴트 턴 | 없음. 스트리밍 호출(`chatStream`)만 쓴다 | 스트림 에러 코드로 턴이 끝난다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) |
 | 문서 임베딩 배치 | 60초 | 그 호출이 실패하고, 일시 오류로 보아 다시 시도한다 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
