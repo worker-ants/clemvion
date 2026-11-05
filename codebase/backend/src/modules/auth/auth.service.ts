@@ -439,7 +439,7 @@ export class AuthService {
     if (webauthnCount > 0) {
       // 로그인 이력은 남기지 않으므로 운영 쪽이 이 락아웃을 알 단서는 로그뿐이다.
       this.logger.warn(
-        `Passkey 기능이 꺼져 있어 Passkey 만 등록한 계정의 로그인을 막았다 (userId=${user.id}). WEBAUTHN_RP_ID · WEBAUTHN_ORIGIN 을 설정해야 한다.`,
+        `Login blocked for passkey-only user ${user.id}: WebAuthn is disabled. Set WEBAUTHN_RP_ID and WEBAUTHN_ORIGIN to enable it.`,
       );
       throw new ServiceUnavailableException({
         code: 'WEBAUTHN_DISABLED',
