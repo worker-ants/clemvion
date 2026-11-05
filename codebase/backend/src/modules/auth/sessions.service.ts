@@ -217,7 +217,7 @@ export class SessionsService {
   /**
    * 본인 재인증 (민감 작업 step-up). 세션 강제 종료와 동일 계약을 재사용한다 —
    * `password` 또는 `totpCode` (password 없는 2FA 사용자). 둘 다 없는 OAuth-only 는
-   * `REAUTH_NOT_AVAILABLE`. 이메일 변경 시작(spec/5-system/1-auth.md §1.1.B)이 호출한다.
+   * `REAUTH_NOT_AVAILABLE`. 이메일 변경 시작(CLE-ACCT-SIGNIN 「이메일 변경」)이 호출한다.
    *
    * WebAuthn 은 challenge/response step-up 이 필요해 본 동기 경로에서 미지원(verifyReauth
    * 와 동일 한계) — WebAuthn-only 계정은 password/TOTP 설정 후 재시도.
@@ -241,8 +241,9 @@ export class SessionsService {
    *   3) 둘 다 가진 사용자는 1 → 2 순으로 한 가지만 통과해도 된다
    *   4) 어느 자격증명도 없거나 미입력 → `REAUTH_REQUIRED`
    *
-   * `passwordHash` 도 2FA 도 없는 OAuth-only 사용자는 `REAUTH_NOT_AVAILABLE`
-   * 로 차단한다. 본 사용자는 먼저 2FA 활성화 또는 비밀번호 설정이 필요.
+   * `passwordHash` 도 TOTP 도 없는 OAuth-only 사용자는 `REAUTH_NOT_AVAILABLE`
+   * 로 차단한다. Passkey 만 등록한 계정도 여기에 든다(Passkey 로 하는 계정 재인증은
+   * 지원하지 않는다). 이 사용자는 먼저 비밀번호를 설정하거나 TOTP 를 켜야 한다.
    */
   private async verifyReauth(
     user: {
@@ -258,8 +259,7 @@ export class SessionsService {
     if (!hasPassword && !has2fa) {
       throw new ForbiddenException({
         code: 'REAUTH_NOT_AVAILABLE',
-        message:
-          '이 작업을 수행하려면 먼저 비밀번호 설정 또는 2FA 활성화가 필요해요.',
+        message: '이 작업을 하려면 먼저 비밀번호를 설정하거나 TOTP 를 켜야 해요.',
       });
     }
 

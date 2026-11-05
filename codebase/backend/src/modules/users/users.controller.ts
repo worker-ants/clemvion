@@ -117,7 +117,7 @@ export class UsersController {
     return {
       data: {
         ...this.toProfileData(user),
-        // 진행 중인 이메일 변경 표시용 (spec/5-system/1-auth.md §1.1.B).
+        // 진행 중인 이메일 변경 표시용 (CLE-ACCT-SIGNIN 「이메일 변경」).
         pendingEmail: user.pendingEmail ?? null,
       },
     };

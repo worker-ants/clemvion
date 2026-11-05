@@ -235,6 +235,17 @@ describe('UsersService', () => {
       ).rejects.toThrow(BadRequestException);
       expect(repo.update).not.toHaveBeenCalled();
     });
+
+    it('강도 정책 위반이면 details[].field 를 요청 필드 이름 newPassword 로 싣는다', async () => {
+      repo.findOne.mockResolvedValue(await userWithHash());
+      const err: unknown = await service
+        .changePassword('user-uuid', 'OldP@ssw0rd1', 'alllowercase')
+        .catch((e: unknown) => e);
+      const body = (err as BadRequestException).getResponse() as {
+        details: Array<{ field: string }>;
+      };
+      expect(body.details.map((d) => d.field)).toEqual(['newPassword']);
+    });
   });
 
   describe('emailTakenByOther (W3 — 이메일 변경 중복 검사)', () => {

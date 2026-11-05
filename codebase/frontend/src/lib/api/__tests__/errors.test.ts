@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AxiosError } from "axios";
 import {
+  axiosMessage,
   extractApiCode,
   extractApiDetails,
   extractApiMessage,
@@ -59,5 +60,37 @@ describe("extractApiCode · extractApiMessage · extractApiDetails", () => {
     expect(extractApiCode(err)).toBeUndefined();
     expect(extractApiMessage(err)).toBeUndefined();
     expect(extractApiDetails(err)).toBeUndefined();
+  });
+});
+
+/*
+ * NERV Task `CLE-T-MFWBE1` 항목 2 — `axiosMessage` 는 `data.message` 만 읽어 감싼 응답의 문구를 놓쳤다.
+ * 그래서 화면에는 axios 의 "Request failed with status code …" 가 보였다.
+ */
+describe("axiosMessage", () => {
+  const axiosLike = (data: ApiErrorBody | undefined, message = "Request failed with status code 409") =>
+    Object.assign(new Error(message), {
+      isAxiosError: true,
+      response: data === undefined ? undefined : { status: 409, data },
+    });
+
+  it("감싼 응답의 error.message 를 쓴다", () => {
+    const err = axiosLike({ error: { code: "RESOURCE_CONFLICT", message: "서버 문구" } });
+    expect(axiosMessage(err, "기본 문구")).toBe("서버 문구");
+  });
+
+  it("평탄한 응답의 message 도 쓴다", () => {
+    const err = axiosLike({ code: "X", message: "평탄한 문구" });
+    expect(axiosMessage(err, "기본 문구")).toBe("평탄한 문구");
+  });
+
+  it("응답 본문이 없으면 axios 오류 문구, 그것도 없으면 기본 문구다", () => {
+    expect(axiosMessage(axiosLike(undefined, "Network Error"), "기본 문구")).toBe("Network Error");
+    expect(axiosMessage(axiosLike(undefined, ""), "기본 문구")).toBe("기본 문구");
+  });
+
+  it("axios 오류가 아니면 Error 문구, 그 밖의 값이면 기본 문구다", () => {
+    expect(axiosMessage(new Error("boom"), "기본 문구")).toBe("boom");
+    expect(axiosMessage("x", "기본 문구")).toBe("기본 문구");
   });
 });

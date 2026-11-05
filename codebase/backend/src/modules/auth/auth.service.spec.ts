@@ -305,6 +305,19 @@ describe('AuthService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('강도 정책 위반이면 details[].field 를 요청 필드 이름 password 로 싣는다', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+
+      const err: unknown = await service
+        .register({ name: 'Test', email: 'test@example.com', password: 'short' })
+        .catch((e: unknown) => e);
+
+      const body = (err as BadRequestException).getResponse() as {
+        details: Array<{ field: string }>;
+      };
+      expect(body.details.map((d) => d.field)).toEqual(['password']);
+    });
+
     it('should throw for password with insufficient character types', async () => {
       usersService.emailExists.mockResolvedValue(false);
 
@@ -1359,7 +1372,7 @@ describe('AuthService', () => {
       expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
 
-    // forgot-password 흐름은 로그인 이력 이벤트를 남기지 않는다 (spec/5-system/1-auth.md §4.3
+    // forgot-password 흐름은 로그인 이력 이벤트를 남기지 않는다 (CLE-ACCT-DATA 「LoginHistory」
     // 의 이벤트 enum 에 forgot/reset 이 빠진 의도된 설계). 회귀로 "기록 누락처럼 보여" 잘못
     // 채워 넣는 일이 없도록 명시한다.
     it('does not record a login-history event', async () => {
@@ -1398,6 +1411,33 @@ describe('AuthService', () => {
      *
      * 2026-09-03 에 이 두 줄의 `null as unknown as X` 캐스트를 걷어내며 건드린 자리다.
      */
+    /**
+     * 강도 정책 위반의 `details[].field` 는 요청 필드 이름 `newPassword` 다(NERV Task
+     * `CLE-T-MFWBE1` 항목 1). 예전에는 `password` 로 나가 클라이언트가 필드를 짚지 못했다.
+     * 토큰 조회보다 먼저 검사하므로 저장소는 부르지 않는다.
+     */
+    it('강도 정책 위반이면 details[].field 를 newPassword 로 싣는다', async () => {
+      const userRepoFindOne = jest.fn();
+      refreshTokenRepo.manager.getRepository.mockReturnValue({
+        findOne: userRepoFindOne,
+      });
+
+      const err: unknown = await service
+        .resetPassword('11111111-2222-3333-4444-555555555555', 'short')
+        .catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as {
+        code: string;
+        details: Array<{ field: string; code: string }>;
+      };
+      expect(body.code).toBe('VALIDATION_ERROR');
+      expect(body.details).toEqual([
+        expect.objectContaining({ field: 'newPassword', code: 'INVALID_FIELD' }),
+      ]);
+      expect(userRepoFindOne).not.toHaveBeenCalled();
+    });
+
     it('성공 시 소비된 재설정 토큰을 null 로 **명시** 대입한다', async () => {
       const rawToken = '11111111-2222-3333-4444-555555555555';
       refreshTokenRepo.manager.getRepository.mockReturnValue({
@@ -1612,7 +1652,7 @@ describe('AuthService', () => {
     });
   });
 
-  // ========== EMAIL CHANGE (W1 — spec/5-system/1-auth.md §1.1.B) ==========
+  // ========== EMAIL CHANGE (W1 — CLE-ACCT-SIGNIN 「이메일 변경」) ==========
 
   describe('requestEmailChange', () => {
     const NEW_EMAIL = 'new@example.com';

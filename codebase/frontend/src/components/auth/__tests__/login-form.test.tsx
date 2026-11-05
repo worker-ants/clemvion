@@ -287,9 +287,44 @@ describe("LoginForm — 로그인 거부 코드별 안내", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("다른 코드는 지금처럼 일반 문구를 보여 준다", async () => {
+  /**
+   * NERV Task `CLE-T-MFWBE1` 항목 2 — 에러 봉투는 `{ error: { code, message } }` 다. 예전 화면은
+   * `data.message` 를 읽어 늘 기본 문구만 보였다. 아는 코드는 사전 문구로, 모르는 코드는 봉투의
+   * `error.message` 로, 그것도 없으면 기본 문구로 안내한다.
+   */
+  it.each([
+    ["LOGIN_FAILED", 401, "Invalid email or password", "이메일 또는 비밀번호가 올바르지 않습니다"],
+    [
+      "ACCOUNT_LOCKED",
+      401,
+      "Account locked. Try again in 10 minutes.",
+      "계정이 잠겼어요. 10분 뒤 다시 시도해 주세요.",
+    ],
+  ])("%s 이면 사전 문구로 안내한다", async (code, status, serverMessage, shown) => {
+    mockLogin.mockRejectedValue(apiError(status, code, serverMessage));
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(shown));
+  });
+
+  it("모르는 코드면 에러 봉투의 error.message 를 보여 준다", async () => {
     mockLogin.mockRejectedValue(
-      apiError(401, "LOGIN_FAILED", "Invalid email or password"),
+      apiError(429, "RATE_LIMITED", "Too many requests. Please retry later."),
+    );
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Too many requests. Please retry later."),
+    );
+  });
+
+  it("응답 본문이 없으면(네트워크 오류) 기본 문구를 보여 준다", async () => {
+    mockLogin.mockRejectedValue(
+      Object.assign(new Error("Network Error"), { isAxiosError: true }),
     );
     render(<LoginForm />);
 
@@ -297,6 +332,63 @@ describe("LoginForm — 로그인 거부 코드별 안내", () => {
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("로그인에 실패했어요. 다시 시도해 주세요."),
+    );
+  });
+});
+
+describe("LoginForm — 2단계 인증(TOTP) 거부 코드별 안내", () => {
+  function apiError(status: number, code: string, message: string) {
+    return Object.assign(new Error(message), {
+      isAxiosError: true,
+      response: { status, data: { error: { code, message } } },
+    });
+  }
+
+  beforeEach(() => {
+    useLocaleStore.setState({ locale: "ko" });
+    mockPush.mockReset();
+    mockLogin.mockReset();
+    mockLoginTotp.mockReset();
+    vi.mocked(toast.error).mockReset();
+    mockLogin.mockResolvedValue({
+      data: {
+        data: { requires2fa: true, challengeToken: "ch-1", methods: ["totp"] },
+      },
+    });
+  });
+
+  async function submitTotp() {
+    const user = await submitPassword();
+    await user.type(await screen.findByLabelText("인증 코드"), "123456");
+    await user.click(screen.getByRole("button", { name: "확인" }));
+  }
+
+  it.each([
+    ["TOTP_INVALID", "Invalid code", "인증 코드가 올바르지 않아요."],
+    [
+      "CHALLENGE_INVALID",
+      "인증 세션이 만료됐어요. 다시 로그인해 주세요.",
+      "인증 세션이 만료됐어요. 처음부터 다시 로그인해 주세요.",
+    ],
+  ])("%s 이면 사전 문구로 안내한다", async (code, serverMessage, shown) => {
+    mockLoginTotp.mockRejectedValue(apiError(401, code, serverMessage));
+    render(<LoginForm />);
+
+    await submitTotp();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(shown));
+  });
+
+  it("모르는 코드면 에러 봉투의 error.message 를 보여 준다", async () => {
+    mockLoginTotp.mockRejectedValue(
+      apiError(401, "TOTP_NOT_ENABLED", "이 계정은 TOTP 가 꺼져 있어요."),
+    );
+    render(<LoginForm />);
+
+    await submitTotp();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("이 계정은 TOTP 가 꺼져 있어요."),
     );
   });
 });

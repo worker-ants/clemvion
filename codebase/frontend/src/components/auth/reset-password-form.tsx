@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
+import { extractApiMessage, type ApiErrorBody } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,9 +84,10 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
       toast.success(t("auth.resetPassword.passwordChanged"));
       setTimeout(() => router.push("/login"), 3000);
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
+      // 실패는 모두 400 VALIDATION_ERROR 라 코드로 원인을 가를 수 없다. 봉투의 문구를 그대로 보인다.
       const message =
-        error.response?.data?.message ?? t("auth.resetPassword.genericFailed");
+        extractApiMessage(err as AxiosError<ApiErrorBody>) ??
+        t("auth.resetPassword.genericFailed");
       toast.error(message);
     } finally {
       setIsLoading(false);

@@ -385,6 +385,31 @@ describe('SessionsService', () => {
         ForbiddenException,
       );
     });
+
+    /**
+     * 이 응답은 Passkey 만 등록한 계정도 받는다(REQ-SESSION-026). 그 계정은 이미 2단계 인증
+     * 수단(Passkey)을 켰으므로 "2FA 활성화" 안내는 맞지 않는다. 안내는 비밀번호 설정과 TOTP
+     * 켜기를 가리킨다(NERV Task `CLE-T-MFWBE1` 항목 3).
+     */
+    it('REAUTH_NOT_AVAILABLE 안내는 비밀번호 설정과 TOTP 를 가리키고 2FA 를 말하지 않는다', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        passwordHash: null,
+        twoFactorEnabled: false,
+        email: 'a@b.c',
+      } as never);
+      const err: unknown = await service
+        .reauthenticate('user-1', {})
+        .catch((e: unknown) => e);
+      const body = (err as ForbiddenException).getResponse() as {
+        code: string;
+        message: string;
+      };
+      expect(body.code).toBe('REAUTH_NOT_AVAILABLE');
+      expect(body.message).toContain('비밀번호');
+      expect(body.message).toContain('TOTP');
+      expect(body.message).not.toMatch(/2FA|2단계/);
+    });
   });
 
   describe('revokeAllFamilies (refactor 04 A-1 — 비밀번호 변경 후)', () => {

@@ -13,7 +13,11 @@ import {
   startAuthentication,
 } from "@simplewebauthn/browser";
 import { authApi, isTwoFactorChallenge } from "@/lib/api/auth";
-import { extractApiCode, type ApiErrorBody } from "@/lib/api/errors";
+import {
+  extractApiCode,
+  extractApiMessage,
+  type ApiErrorBody,
+} from "@/lib/api/errors";
 import { establishSession } from "@/lib/auth/establish-session";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import { Button } from "@/components/ui/button";
@@ -26,7 +30,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { useT, useLocale } from "@/lib/i18n";
+import { useT, useLocale, type TranslationKey } from "@/lib/i18n";
 import { API_BASE_URL } from "@/lib/api/constants";
 import {
   isInvitationAcceptPath,
@@ -79,6 +83,30 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
 
   type LoginFormValues = z.infer<typeof loginSchema>;
 
+  /**
+   * 로그인 2단계(TOTP · Passkey · Passkey 복구 코드) 거부 안내. 에러 봉투의 코드로 문구를 고르고,
+   * 모르는 코드는 봉투의 `error.message`, 그것도 없으면 단계별 기본 문구(`fallbackKey`)다.
+   * `CHALLENGE_INVALID` 는 챌린지 토큰이 만료되거나 이미 쓰인 경우라 처음부터 다시 로그인해야 한다.
+   */
+  const secondStepErrorMessage = useCallback(
+    (err: unknown, fallbackKey: TranslationKey): string => {
+      const error = err as AxiosError<ApiErrorBody>;
+      switch (extractApiCode(error)) {
+        case "CHALLENGE_INVALID":
+          return t("auth.login.challengeExpired");
+        case "TOTP_INVALID":
+          return t("auth.login.invalidTotp");
+        case "WEBAUTHN_INVALID":
+          return t("auth.login.webauthnFailed");
+        case "RECOVERY_CODE_INVALID":
+          return t("auth.login.recoveryFailed");
+        default:
+          return extractApiMessage(error) ?? t(fallbackKey);
+      }
+    },
+    [t],
+  );
+
   const completeLogin = useCallback(
     async (accessToken: string) => {
       // 사용자 조회에 실패해도 이동한다. 힌트 쿠키는 심겨 있어 목적지 화면의 AuthProvider 가
@@ -101,10 +129,7 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
         await completeLogin(accessToken);
       }
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      const message =
-        error.response?.data?.message ?? t("auth.login.invalidTotp");
-      toast.error(message);
+      toast.error(secondStepErrorMessage(err, "auth.login.invalidTotp"));
     } finally {
       setIsLoading(false);
     }
@@ -136,17 +161,22 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
   const showOauth = showGoogle || showGithub;
 
   /**
-   * 로그인 1단계 거부 안내. 코드로 문구를 고른다(NERV CLE-ACCT-SIGNIN 「로그인 처리」 7 · 9번).
-   * 그 밖의 코드는 지금 동작 그대로다. 응답 메시지를 읽는 경로를 고치는 일은 CLE-T-MFWBE1 이 맡는다.
+   * 로그인 1단계 거부 안내. 에러 봉투(`{ error: { code, message } }`)의 코드로 문구를 고른다
+   * (NERV CLE-ACCT-SIGNIN 「로그인 처리」 6 ~ 9번). 모르는 코드는 봉투의 `error.message`,
+   * 그것도 없으면(네트워크 오류 등) 기본 문구다.
    */
   function passwordLoginErrorMessage(error: AxiosError<ApiErrorBody>): string {
     switch (extractApiCode(error)) {
+      case "LOGIN_FAILED":
+        return t("auth.login.invalidCredentials");
+      case "ACCOUNT_LOCKED":
+        return t("auth.login.accountLocked");
       case "EMAIL_VERIFICATION_REQUIRED":
         return t("auth.login.verifyEmailFirst");
       case "WEBAUTHN_DISABLED":
         return t("auth.login.passkeyLoginDisabled");
       default:
-        return error.response?.data?.message ?? t("auth.login.genericFailed");
+        return extractApiMessage(error) ?? t("auth.login.genericFailed");
     }
   }
 
@@ -161,7 +191,7 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
       const payload = response.data.data;
       if (isTwoFactorChallenge(payload)) {
         setChallengeToken(payload.challengeToken);
-        // spec/5-system/1-auth.md §1.4.2 — WebAuthn 우선, TOTP fallback 자동 금지
+        // CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」 — WebAuthn 우선, TOTP fallback 자동 금지
         const method = payload.methods.includes("webauthn") ? "webauthn" : "totp";
         setTwoFactorMethod(method);
         webauthnAttemptedRef.current = false;
@@ -209,13 +239,11 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
         await completeLogin(accessToken);
       }
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      const msg = error.response?.data?.message ?? t("auth.login.webauthnFailed");
-      setWebauthnError(msg);
+      setWebauthnError(secondStepErrorMessage(err, "auth.login.webauthnFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [challengeToken, completeLogin, t]);
+  }, [challengeToken, completeLogin, secondStepErrorMessage, t]);
 
   useEffect(() => {
     if (
@@ -243,9 +271,7 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
         await completeLogin(accessToken);
       }
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      const msg = error.response?.data?.message ?? t("auth.login.recoveryFailed");
-      toast.error(msg);
+      toast.error(secondStepErrorMessage(err, "auth.login.recoveryFailed"));
     } finally {
       setIsLoading(false);
     }

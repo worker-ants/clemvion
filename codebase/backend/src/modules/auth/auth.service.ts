@@ -140,7 +140,7 @@ export class AuthService {
       });
     }
 
-    validatePasswordStrength(dto.password);
+    validatePasswordStrength(dto.password, 'password');
 
     if (dto.invitationToken) {
       return this.registerWithInvitation(dto, dto.invitationToken, ctx);
@@ -173,7 +173,7 @@ export class AuthService {
    * Sign-up via an invitation token. The token is the proof of email
    * ownership, so we skip the verification mail and auto-login. User row +
    * workspace membership + invitation.acceptedAt all live in one transaction
-   * so a partial failure rolls back the whole thing (spec/5-system/1-auth.md §1.5.2).
+   * so a partial failure rolls back the whole thing (CLE-ACCT-DATA 「초대 가입 (미가입자)」).
    *
    * No personal workspace is auto-created — the invited team workspace is the
    * user's first context (spec/2-navigation/10-auth-flow.md §6.1).
@@ -705,7 +705,8 @@ export class AuthService {
     // 닫는다 — affected=0 이면 다른 요청이 먼저 회전·무효화한 것이므로 거부한다.
     // `lastUsedAt`/`lastUsedIp` 스탬프도 같은 UPDATE 에 포함해 /profile/sessions 의
     // "last activity" 정확성을 유지한다. loginHistory 기록은 회전 원자성과 무관하고
-    // refresh 정상 회전은 보안 이벤트가 아니므로(spec §1.4) 남기지 않는다.
+    // refresh 정상 회전은 보안 이벤트가 아니므로(CLE-ACCT-DATA 「LoginHistory」 이벤트 enum 에
+    // refresh 가 없다) 남기지 않는다.
     return this.dataSource.transaction(async (manager) => {
       const now = new Date();
       const result = await manager.getRepository(RefreshToken).update(
@@ -792,7 +793,7 @@ export class AuthService {
 
   // ========== RESET PASSWORD ==========
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    validatePasswordStrength(newPassword);
+    validatePasswordStrength(newPassword, 'newPassword');
 
     const user = await this.findUserByResetToken(token);
     if (!user) {
@@ -859,7 +860,7 @@ export class AuthService {
     return this.generateTokens(user, false, undefined, ctx);
   }
 
-  // ========== EMAIL CHANGE (spec/5-system/1-auth.md §1.1.B) ==========
+  // ========== EMAIL CHANGE (CLE-ACCT-SIGNIN 「이메일 변경」) ==========
 
   /**
    * 이메일 변경 시작. 재인증(password 또는 TOTP) → 신규 이메일 검증 → SHA-256 토큰(1h)

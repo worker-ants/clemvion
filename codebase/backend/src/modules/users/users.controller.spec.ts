@@ -320,7 +320,7 @@ describe('UsersController', () => {
     });
   });
 
-  describe('email change (spec/5-system/1-auth.md §1.1.B)', () => {
+  describe('email change (CLE-ACCT-SIGNIN 「이메일 변경」)', () => {
     const mockReq = {
       headers: { 'user-agent': 'jest-agent', 'x-forwarded-for': '9.9.9.9' },
       ip: '9.9.9.9',

@@ -9,23 +9,23 @@ import {
 
 describe('validatePasswordStrength', () => {
   it('accepts a password that meets length and 3-type requirements', () => {
-    expect(() => validatePasswordStrength('P@ssw0rd!')).not.toThrow();
+    expect(() => validatePasswordStrength('P@ssw0rd!', 'password')).not.toThrow();
   });
 
   it('rejects passwords shorter than 8 characters', () => {
-    expect(() => validatePasswordStrength('P@ss1')).toThrow(
+    expect(() => validatePasswordStrength('P@ss1', 'password')).toThrow(
       BadRequestException,
     );
   });
 
   it('rejects passwords with fewer than 3 character types', () => {
-    expect(() => validatePasswordStrength('alllowercase')).toThrow(
+    expect(() => validatePasswordStrength('alllowercase', 'password')).toThrow(
       BadRequestException,
     );
-    expect(() => validatePasswordStrength('ALLUPPERCASE')).toThrow(
+    expect(() => validatePasswordStrength('ALLUPPERCASE', 'password')).toThrow(
       BadRequestException,
     );
-    expect(() => validatePasswordStrength('lower12345678')).toThrow(
+    expect(() => validatePasswordStrength('lower12345678', 'password')).toThrow(
       BadRequestException,
     );
   });
@@ -52,7 +52,7 @@ describe('validatePasswordStrength', () => {
     (_label, pw, message) => {
       let thrown: unknown = null;
       try {
-        validatePasswordStrength(pw);
+        validatePasswordStrength(pw, 'password');
       } catch (err) {
         thrown = (err as BadRequestException).getResponse();
       }
@@ -63,11 +63,32 @@ describe('validatePasswordStrength', () => {
     },
   );
 
+  /**
+   * **[B] `details[].field` 는 호출자가 준 요청 필드 이름이다.**
+   *
+   * 재설정(`POST /api/auth/reset-password`)과 비밀번호 변경(`PATCH /api/users/me/password`)의
+   * 요청 필드는 `newPassword` 인데 예전에는 `password` 로 고정돼 있었다(NERV Task
+   * `CLE-T-MFWBE1` 항목 1). 두 분기 모두 받은 이름을 그대로 싣는지 본다.
+   */
+  it.each([
+    ['길이 분기', 'P@ss1'],
+    ['종류 분기', 'alllowercase'],
+  ])('[B] %s — details[].field 가 호출자가 준 필드 이름이다', (_label, pw) => {
+    let thrown: unknown = null;
+    try {
+      validatePasswordStrength(pw, 'newPassword');
+    } catch (err) {
+      thrown = (err as BadRequestException).getResponse();
+    }
+    const details = (thrown as { details?: Array<{ field: string }> }).details;
+    expect(details?.map((d) => d.field)).toEqual(['newPassword']);
+  });
+
   it('accepts 3 of 4 character types', () => {
     // lower + upper + digit
-    expect(() => validatePasswordStrength('Passw0rd1')).not.toThrow();
+    expect(() => validatePasswordStrength('Passw0rd1', 'password')).not.toThrow();
     // lower + digit + special
-    expect(() => validatePasswordStrength('passw0rd!')).not.toThrow();
+    expect(() => validatePasswordStrength('passw0rd!', 'password')).not.toThrow();
   });
 });
 

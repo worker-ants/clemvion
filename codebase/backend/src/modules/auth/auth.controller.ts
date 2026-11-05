@@ -399,8 +399,8 @@ export class AuthController {
     return { data: { ok: true } };
   }
 
-  // WebAuthn 2FA HTTP endpoints — spec/5-system/1-auth.md §1.4.
-  // 컨트롤러는 `WebAuthnController` 로 분리되었다 (Rationale 1.4.H).
+  // WebAuthn 2FA HTTP endpoints — CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」.
+  // 컨트롤러는 `WebAuthnController` 로 분리되었다 (CLE-ACCT-SIGNIN Rationale 「Passkey 도메인 모듈을 분리한다」).
 
   @Public()
   @Post('logout')

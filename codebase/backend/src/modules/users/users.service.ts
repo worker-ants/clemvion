@@ -265,7 +265,7 @@ export class UsersService {
    *
    * @throws NotFoundException `USER_NOT_FOUND` — 사용자 없음
    * @throws UnauthorizedException `PASSWORD_REQUIRED` — passwordHash 부재(OAuth-only). 비밀번호를
-   *   추가하려면 forgot-password → reset-password 경로를 쓴다 (`spec/5-system/1-auth.md` §1.1.A)
+   *   추가하려면 forgot-password → reset-password 경로를 쓴다 (CLE-ACCT-SIGNIN 「비밀번호 재설정」)
    * @throws UnauthorizedException `PASSWORD_INVALID` — 현재 비밀번호 불일치
    *   두 코드의 SoT 는 `PASSWORD_VERIFY_CODES` 다 — 발행처 열거는 그 JSDoc 이 소유한다
    *   (여기서 다시 세면 갈릴 자리를 하나 더 만든다).
@@ -303,7 +303,7 @@ export class UsersService {
       });
     }
 
-    validatePasswordStrength(newPassword);
+    validatePasswordStrength(newPassword, 'newPassword');
 
     const passwordHash = await hashPassword(newPassword);
     await this.update(userId, { passwordHash });
@@ -316,7 +316,7 @@ export class UsersService {
 
   /**
    * 다른 사용자가 해당 이메일을 (대소문자 무시) 사용 중인지. 이메일 변경 흐름의
-   * 신규 이메일 중복 검사용 (spec/5-system/1-auth.md §1.1.B). 본인(excludeUserId)은 제외.
+   * 신규 이메일 중복 검사용 (CLE-ACCT-SIGNIN 「이메일 변경」). 본인(excludeUserId)은 제외.
    */
   async emailTakenByOther(
     email: string,
