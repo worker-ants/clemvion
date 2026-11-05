@@ -4,7 +4,11 @@
  * 우선순위 체인)을 분리 후 회귀 가드한다.
  */
 import { describe, it, expect } from "vitest";
-import { pickPlaintextSecret } from "../auth-config-types";
+import {
+  canRegenerate,
+  isUnreadableConfig,
+  pickPlaintextSecret,
+} from "../auth-config-types";
 
 describe("pickPlaintextSecret", () => {
   it("prefers `key` over the other secret fields", () => {
@@ -32,5 +36,27 @@ describe("pickPlaintextSecret", () => {
 
   it("returns null when the matched field is not a string", () => {
     expect(pickPlaintextSecret({ key: 1234 as unknown as string })).toBeNull();
+  });
+});
+
+describe("canRegenerate", () => {
+  it("allows the types whose secret the product issues", () => {
+    expect(canRegenerate("api_key")).toBe(true);
+    expect(canRegenerate("bearer_token")).toBe(true);
+    expect(canRegenerate("hmac")).toBe(true);
+  });
+
+  // Basic Auth 는 사용자 입력이라 새로 발급할 값이 없다. 서버도 400 으로 거부한다.
+  it("does not allow basic_auth", () => {
+    expect(canRegenerate("basic_auth")).toBe(false);
+  });
+});
+
+describe("isUnreadableConfig", () => {
+  it("is true only for the unreadable marker", () => {
+    expect(isUnreadableConfig({ __unreadable: true })).toBe(true);
+    expect(isUnreadableConfig({ key: "***1234" })).toBe(false);
+    expect(isUnreadableConfig({ __unreadable: "true" })).toBe(false);
+    expect(isUnreadableConfig(undefined)).toBe(false);
   });
 });

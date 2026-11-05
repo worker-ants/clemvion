@@ -40,6 +40,8 @@ import {
   type AuthConfig,
   type AuthConfigUsage,
   AUTH_TYPES,
+  canRegenerate,
+  isUnreadableConfig,
   pickPlaintextSecret,
 } from "./auth-config-types";
 import { useAuthConfigForm } from "./use-auth-config-form";
@@ -157,7 +159,11 @@ export default function AuthenticationPage() {
     mutationFn: async () => {
       // type·비밀값은 불변 — non-secret config(headerName 등) + IP 만 PATCH.
       // 백엔드가 config 를 shallow-merge 하므로 암호화 비밀값은 보존된다.
-      const payload = buildAuthConfigUpdatePayload(form.collectFormState());
+      // 복호화하지 못한 설정은 config 를 병합하지 않으므로 싣지 않는다.
+      const target = configs.find((c) => c.id === form.editTargetId);
+      const payload = buildAuthConfigUpdatePayload(form.collectFormState(), {
+        unreadable: isUnreadableConfig(target?.config),
+      });
       await apiClient.patch(`/auth-configs/${form.editTargetId}`, payload);
     },
     onSuccess: () => {
@@ -296,6 +302,13 @@ export default function AuthenticationPage() {
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
               {t("authentication.regenerateMessage")}
             </p>
+            {isUnreadableConfig(
+              configs.find((c) => c.id === regenerateTarget)?.config,
+            ) && (
+              <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">
+                {t("authentication.regenerateUnreadableNote")}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setRegenerateTarget(null)}>
                 {t("common.cancel")}
@@ -472,7 +485,19 @@ export default function AuthenticationPage() {
                   className="cursor-pointer transition-colors hover:bg-[hsl(var(--muted)/0.5)]"
                   onClick={() => handleRowClick(config.id)}
                 >
-                  <td className="px-4 py-3 font-medium">{config.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <span className="inline-flex items-center gap-2">
+                      {config.name}
+                      {isUnreadableConfig(config.config) && (
+                        <Badge
+                          variant="warning"
+                          title={t("authentication.unreadableHint")}
+                        >
+                          {t("authentication.unreadableBadge")}
+                        </Badge>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="inline-block rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-xs font-medium">
                       {TYPE_LABEL_KEYS[config.type]
@@ -541,15 +566,17 @@ export default function AuthenticationPage() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label={t("authentication.regenerateButton")}
-                          onClick={() => setRegenerateTarget(config.id)}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
+                        {canRegenerate(config.type) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label={t("authentication.regenerateButton")}
+                            onClick={() => setRegenerateTarget(config.id)}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"

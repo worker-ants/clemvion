@@ -119,11 +119,15 @@ Go to the [Authentication menu](/authentication) to create a config with one of 
   { name: "API Key", required: false, type: "Key compare", description: "Senders include the issued API key in the request header. The key value is shown in plaintext exactly once, at creation.", default: "-" },
   { name: "Bearer Token", required: false, type: "Token compare", description: "Senders include `Authorization: Bearer <token>`. The token is shown in plaintext exactly once, at creation.", default: "-" },
   { name: "HMAC", required: false, type: "Signature verification", description: "Senders include a header such as `X-Hub-Signature-256: sha256=<hex>`. Allowed algorithms are `sha256` and `sha512` only — same model as GitHub Webhook. The secret value is shown in plaintext exactly once, at creation.", default: "-" },
-  { name: "Basic Auth", required: false, type: "Username / password", description: "Senders include `Authorization: Basic <base64>`. Username and password are entered directly at creation time.", default: "-" }
+  { name: "Basic Auth", required: false, type: "Username / password", description: "Senders include `Authorization: Basic <base64>`. Username and password are entered directly at creation time. There is no new value to issue, so it cannot be regenerated.", default: "-" }
 ]} />
 
 <Callout type="tip">
-Auth credentials (secret, token, password) are issued, regenerated, and revealed (admin or above, requires password confirmation) only in the [Authentication menu](/authentication). The trigger panel only lets you select which auth config to link.
+Auth credentials (secret, token, password) are issued, regenerated, and revealed (admin or above, requires password confirmation) only in the [Authentication menu](/authentication). Regenerate issues a new key, token, or secret for API Key, Bearer Token, and HMAC configs. Basic Auth has no Regenerate button; to change the password, delete the config and create it again. The trigger panel only lets you select which auth config to link.
+</Callout>
+
+<Callout type="warn">
+An auth config whose stored values can no longer be read because the server encryption key changed is marked **Unreadable** in the list. A webhook linked to such a config rejects every request with `401 Unauthorized`. To recover, an operator restores the encryption key, or you regenerate the config. Regenerating creates a new key, token, or secret and resets the header name and HMAC algorithm to the defaults (`X-API-Key`, `X-Hub-Signature-256` and `sha256`), so adjust them again in Edit if needed. For Basic Auth, delete the config and create it again. Editing an unreadable config changes only its name, IP allowlist, and active state, not its detailed settings.
 </Callout>
 
 <Callout type="warn">

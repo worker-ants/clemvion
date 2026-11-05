@@ -54,6 +54,24 @@ export const AUTH_TYPES: { value: AuthConfigType; labelKey: TranslationKey }[] =
   { value: "hmac", labelKey: "authentication.typeHmac" },
 ];
 
+/**
+ * 재생성할 수 있는 유형인지. Basic Auth 의 사용자 이름과 비밀번호는 사용자 입력이라 새로 발급할 값이 없다.
+ * 서버도 Basic Auth 재생성을 400 으로 거부하므로 화면은 버튼을 보이지 않는다.
+ */
+export function canRegenerate(type: AuthConfigType): boolean {
+  return type !== "basic_auth";
+}
+
+/**
+ * 응답 config 가 복호화 불가 표식(`{ __unreadable: true }`)인지. 암호화 키가 바뀌어 저장된 값을 읽지 못한
+ * 설정이다. 화면은 이 행에 «읽을 수 없음» 표시를 붙이고 재생성 확인에 안내를 싣는다.
+ */
+export function isUnreadableConfig(
+  config: Record<string, unknown> | undefined,
+): boolean {
+  return config?.__unreadable === true;
+}
+
 /** create/regenerate/reveal 응답에서 평문 비밀값 1개를 추출 (표시용). */
 export function pickPlaintextSecret(
   config: Record<string, unknown> | undefined,

@@ -4,13 +4,14 @@ import { ApiProperty } from '@nestjs/swagger';
 /**
  * 인증 설정 평문 노출(reveal) 응답. config 의 모든 secret 류 필드가 평문으로
  * 1회 반환된다 (마스킹 없음). 호출자는 즉시 사용/복사 후 폐기해야 한다.
+ * 복호화하지 못한 설정은 평문 대신 `{ "__unreadable": true }` 만 반환한다.
  */
 export class RevealAuthConfigResponseDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
     description:
-      '평문 config (key/token/secret/password 마스킹 없음, 1회 노출)',
+      '평문 config (key/token/secret/password 마스킹 없음, 1회 노출). 복호화하지 못한 설정은 { "__unreadable": true } 만 반환합니다.',
   })
   config: Record<string, unknown>;
 }

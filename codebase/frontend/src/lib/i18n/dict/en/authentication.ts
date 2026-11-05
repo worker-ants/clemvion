@@ -42,6 +42,11 @@ export const authentication: Dict["authentication"] = {
   regenerateTitle: "Regenerate Key",
   regenerateMessage: "This will invalidate the current key. Are you sure?",
   regenerateButton: "Regenerate",
+  regenerateUnreadableNote:
+    "This config's stored values can't be read. It will be rebuilt with new values, and the header name and algorithm return to their defaults.",
+  unreadableBadge: "Unreadable",
+  unreadableHint:
+    "The encryption key changed, so the stored values can't be read. Restore the key or regenerate. For Basic Auth, delete and recreate it.",
   deleteTitleConfig: "Delete Auth Config",
   deleteMessageConfig: "Are you sure you want to delete this auth config? This action cannot be undone.",
   loadUsageFailed: "Failed to load usage data.",

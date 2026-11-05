@@ -92,12 +92,12 @@ export class AuthConfigsController {
   @ApiOperation({
     summary: '인증 설정 생성',
     description:
-      '새 인증 설정을 생성합니다. type이 api_key/bearer_token인 경우 키/토큰을 자동으로 발급합니다.',
+      '새 인증 설정을 생성합니다. type 이 api_key · bearer_token · hmac 이면 키 · 토큰 · secret 을 자동으로 발급합니다.',
   })
   @ApiCreatedWrappedResponse(AuthConfigDto, { description: '생성된 인증 설정' })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패 (basic_auth 의 config.username · config.password 가 없거나 빈 값인 경우 포함)',
+      '입력값 검증 실패 (basic_auth 의 config.username · config.password 가 없거나 빈 값인 경우, config 에 `__` 로 시작하는 키가 있는 경우 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
@@ -117,13 +117,13 @@ export class AuthConfigsController {
   @ApiOperation({
     summary: '인증 설정 수정',
     description:
-      '이름, 타입, 상세 설정, IP 화이트리스트, 활성 여부 등을 부분 수정합니다.',
+      '이름, 타입, 상세 설정, IP 화이트리스트, 활성 여부 등을 부분 수정합니다. 복호화하지 못한 설정은 config 를 바꾸지 않고 이름 · IP 화이트리스트 · 활성 여부만 바꿉니다.',
   })
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigDto, { description: '수정된 인증 설정' })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패 (basic_auth 에 보낸 config.username 이 빈 값인 경우 포함)',
+      '입력값 검증 실패 (basic_auth 에 보낸 config.username 이 빈 값인 경우, config 에 `__` 로 시작하는 키가 있는 경우 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
@@ -169,11 +169,18 @@ export class AuthConfigsController {
   @ApiOperation({
     summary: '인증 키/토큰 재발급',
     description:
-      'api_key 또는 bearer_token 타입의 설정에 대해 키/토큰을 새 값으로 교체합니다. 기존 값은 즉시 무효화됩니다.',
+      'api_key · bearer_token · hmac 설정의 키 · 토큰 · secret 을 새 값으로 교체합니다. 기존 값은 즉시 무효화됩니다. ' +
+      '헤더 이름과 알고리즘은 그대로 둡니다. 복호화하지 못한 설정은 생성 때와 같은 기본값(api_key 의 X-API-Key 헤더, ' +
+      'hmac 의 X-Hub-Signature-256 헤더 · sha256)으로 새 설정을 만듭니다. basic_auth 는 재발급할 값이 없어 400 입니다.',
   })
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigDto, {
-    description: '재발급 후 인증 설정 (새 키/토큰 포함)',
+    description:
+      '재발급 후 인증 설정. config 에 새 키 · 토큰 · secret 을 평문으로 싣습니다.',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'basic_auth 설정은 재발급할 수 없음 (code: AUTH_CONFIG_REGENERATE_UNSUPPORTED). 저장 · 감사 기록 없음',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
@@ -194,11 +201,13 @@ export class AuthConfigsController {
   @ApiOperation({
     summary: '인증 설정 평문 노출 (Reveal)',
     description:
-      '마스킹된 config 의 평문 값을 1회 반환합니다. 현재 로그인 비밀번호 재확인이 필요하며, audit_log 에 auth_config.reveal 로 기록됩니다.',
+      '마스킹된 config 의 평문 값을 1회 반환합니다. 현재 로그인 비밀번호 재확인이 필요하며, audit_log 에 auth_config.reveal 로 기록됩니다. ' +
+      '복호화하지 못한 설정은 평문 대신 { "__unreadable": true } 만 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(RevealAuthConfigResponseDto, {
-    description: '평문 config (1회 노출)',
+    description:
+      '평문 config (1회 노출). 복호화하지 못한 설정은 { "__unreadable": true }',
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 (password 누락)' })
   @ApiUnauthorizedResponse({

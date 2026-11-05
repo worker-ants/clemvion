@@ -131,22 +131,27 @@ export function buildAuthConfigPayload(
 /** PATCH /auth-configs/:id 페이로드 (편집). type·비밀값은 불변 — 미포함.
  *  config 는 non-secret 키만 담고, 백엔드가 기존 config 에 shallow-merge 하며
  *  비밀값(key/token/secret/password)은 보존한다. ipWhitelist 는 빈 배열도 전송해
- *  전체 삭제를 허용한다(생성 폼과 달리 미포함 시 "변경 없음" 이 아니라 비움 의도). */
+ *  전체 삭제를 허용한다(생성 폼과 달리 미포함 시 "변경 없음" 이 아니라 비움 의도).
+ *  복호화하지 못한 설정을 편집할 때는 config 를 싣지 않는다. */
 export interface AuthConfigUpdatePayload {
   name: string;
-  config: Record<string, unknown>;
+  config?: Record<string, unknown>;
   ipWhitelist: string[];
 }
 
-/** 편집 폼 상태 → PATCH 페이로드 (순수). secret·type 은 싣지 않는다. */
+/** 편집 폼 상태 → PATCH 페이로드 (순수). secret·type 은 싣지 않는다.
+ *  `unreadable` 이면 config 를 뺀다. 서버는 복호화하지 못한 설정의 config 를 병합하지 않고,
+ *  폼이 채운 빈 username 은 병합 전 입력 검증에 걸려 이름 · IP 편집까지 400 으로 막는다. */
 export function buildAuthConfigUpdatePayload(
   state: AuthConfigFormState,
+  options: { unreadable?: boolean } = {},
 ): AuthConfigUpdatePayload {
-  const config = buildTypeConfig(state, "edit");
+  const ipWhitelist = parseIpWhitelist(state.ipWhitelistRaw);
+  if (options.unreadable) return { name: state.name, ipWhitelist };
   return {
     name: state.name,
-    config,
-    ipWhitelist: parseIpWhitelist(state.ipWhitelistRaw),
+    config: buildTypeConfig(state, "edit"),
+    ipWhitelist,
   };
 }
 

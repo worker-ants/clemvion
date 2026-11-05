@@ -20,9 +20,16 @@ export class AuthConfigDto {
   // 근거: [외부 호출 인증 설정 「마스킹 규칙」](CLE-TRIG-AUTHCFG#마스킹-규칙)
   /**
    * 타입별 세부 설정. secret 류 필드(key/token/secret/password)는 `***<last4>` 로
-   * 마스킹된다. 평문은 create/regenerate/reveal 응답에서만.
+   * 마스킹된다. 평문은 create/regenerate/reveal 응답에서만. 복호화하지 못한 설정은
+   * `{ "__unreadable": true }` 만 싣는다(재생성 응답은 새로 만든 설정을 싣는다).
    */
-  @ApiProperty({ type: 'object', additionalProperties: true })
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description:
+      '타입별 세부 설정. key · token · secret · password 는 ***<끝 4자> 로 마스킹합니다(생성 · 재발급 응답은 평문). ' +
+      '복호화하지 못한 설정은 { "__unreadable": true } 만 싣습니다. 재발급 응답은 새로 만든 설정을 싣습니다.',
+  })
   config: Record<string, unknown>;
 
   @ApiPropertyOptional({ type: [String], nullable: true, example: [] })
