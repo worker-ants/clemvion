@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 5
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "df5b630cfdf23ecfd2467c156899cc6345439fcc7bdae64cebfe4c18086a1f08"
+content_hash: "4a09bc0478f02a2c80e991c54118b5216df91e2da10a76eabab12df1e0bb2f27"
 read_as: "approved_fallback"
-task: "CLE-T-ZHBMAC"
+task: "CLE-T-KPDDKB"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7478486745faccf85467fa69cbbfabebd92510f8c57744ea50a5edb36f5ff116"
-etag: "sha256-831b3e51da0cbd94d8cd850dc17756860ed8bbfff789a0f13b2f1eea8c002a6d"
+mirror_sha256: "a01332121381ba33abdfabc7e64fad6b6ceffb28a098f8f7eceae9f089a510eb"
+etag: "sha256-e63fcd940eabf45415ba0a353dac6d72016ec339cedea4e5d0ad59f8f2ae970e"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -153,7 +153,7 @@ AI 노드는 `output.result.*`·`output.error.*`·`output.interaction.*` 세 묶
 
 텍스트 분류기는 `turnDebug` 대신 평면 배열 `meta.llmCalls` 에 호출 기록을 싣는다. 에러 출력의 `meta` 규칙은 노드마다 다르다. [미결 사항](#미결-사항) 참조.
 
-AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `out`, 조건 분기 `<조건 id>`, LLM 호출 실패 `error`)은 `meta.inputTokens` · `meta.outputTokens` · `meta.totalTokens` · `meta.thinkingTokens` 네 값을 늘 싣는다. 보고가 없는 값은 `0` 이다. 그래서 단일 턴의 `thinkingTokens` 가 `0` 이면 모델이 0 을 보고했는지 보고하지 않았는지 가르지 않는다. 출력 경로와 상관없이 같은 키를 싣도록 구현이 `0` 으로 채운다. LLM 호출 실패 출력의 네 값은 실패 전에 성공한 LLM 호출 usage 의 합이다. 성공한 호출이 없으면 네 값은 모두 `0` 이다. 정상 완료와 조건 분기의 토큰은 지금 마지막 LLM 호출 하나의 usage 다. 그래서 도구 루프로 LLM 을 여러 번 부르면 두 경로의 집계 기준이 다르다. 기준을 맞추는 일은 NERV Task `CLE-T-9VRXGD` 가 맡는다. 도구 정의 크기 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 을 부르기 전에 끝나므로 토큰 필드 없이 `model` · `durationMs` 만 싣는다([미결 사항](#미결-사항)).
+AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `out`, 조건 분기 `<조건 id>`, LLM 호출 실패 `error`)은 `meta.inputTokens` · `meta.outputTokens` · `meta.totalTokens` · `meta.thinkingTokens` 네 값을 늘 싣는다. 보고가 없는 값은 `0` 이다. 그래서 단일 턴의 `thinkingTokens` 가 `0` 이면 모델이 0 을 보고했는지 보고하지 않았는지 가르지 않는다. 출력 경로와 상관없이 같은 키를 싣도록 구현이 `0` 으로 채운다. LLM 호출 실패 출력의 네 값은 실패 전에 성공한 LLM 호출 usage 의 합이다. 성공한 호출이 없으면 네 값은 모두 `0` 이다. 롤링 요약 호출의 사용량은 `meta` 토큰에 넣지 않는다. 그래서 롤링 요약 호출이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못해 나온 `error` 출력은 네 값을 싣되 모두 `0` 이다([AI 에이전트 노드 §출력 포트](CLE-NODE-AGENT.md#출력-포트)). 정상 완료와 조건 분기의 토큰은 지금 마지막 LLM 호출 하나의 usage 다. 그래서 도구 루프로 LLM 을 여러 번 부르면 두 경로의 집계 기준이 다르다. 기준을 맞추는 일은 NERV Task `CLE-T-9VRXGD` 가 맡는다. 도구 정의 크기 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 을 부르기 전에 끝나므로 토큰 필드 없이 `model` · `durationMs` 만 싣는다([미결 사항](#미결-사항)).
 
 **공통 타입의 단일 기준**: `LlmCallRecord` 와 `TurnDebugEntry` 의 타입 정의는 `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` 하나다. AI 에이전트와 정보 추출기가 함께 쓴다.
 
@@ -369,7 +369,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 | 호출 경로 | 앱 타임아웃 | 한도를 넘거나 호출이 실패하면 | 소유 문서 |
 |-----------|-------------|-------------------------------|-----------|
 | AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 타임아웃이 나면 단일 턴과 멀티턴 재개 모두 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 그 밖의 실패 분류는 [AI 에이전트 노드의 에러 분류](CLE-NODE-AGENT.md#에러-코드)를 따른다. 단일 턴에서는 노드가 두 경우의 에러를 모두 `error` 포트로 낸다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
-| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패한다. 단일 턴에서는 `error` 포트가 아니라 에러 코드 없는 노드 실패로 끝난다. 요약 모델 설정(`summaryModelConfigId`)을 해석하지 못할 때도 단일 턴은 같은 노드 실패로 끝난다. 단일 턴의 이 두 노드 실패는 NERV Task `CLE-T-Q38K9F` 가 맡는다. 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 가지만([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)) 요약 호출은 그렇지 않다. 현행 동작을 적은 것이고 이 차이를 정한 결정은 없다([미결 사항](#미결-사항)) | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
+| AI 에이전트 롤링 요약(`summary_buffer` 메모리 전략의 요약 호출) | 없음. 취소 신호(`signal`)도 넘기지 않는다 | 그 턴이 실패하고 단일 턴과 멀티턴 재개 모두 `error` 포트로 낸다. 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못할 때도 같다. 분류는 [AI 에이전트 노드 §출력 포트](CLE-NODE-AGENT.md#출력-포트), 근거는 [AI 에이전트 노드 Rationale](CLE-NODE-AGENT.md#단일-턴-롤링-요약-실패도-error-포트로-보낸-이유-2026-11-05) 에 있다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
 | 텍스트 분류기·정보 추출기 | 없음 | `LLM_CALL_FAILED` | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
 | 워크플로우 AI 어시스턴트 턴 | 없음. 스트리밍 호출(`chatStream`)만 쓴다 | 스트림 에러 코드로 턴이 끝난다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) |
 | 문서 임베딩 배치 | 60초 | 그 호출이 실패하고, 일시 오류로 보아 다시 시도한다 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
@@ -462,3 +462,7 @@ AI 에이전트 요약의 옛 `· {N} tools` 세그먼트는 도구 영역(Tool 
 ### 임베딩 처리를 in-process 에서 큐로 바꾼 이력
 
 AI 제품 정의는 처음에 임베딩을 in-process 비동기로 처리하기로 했다(초기 단순화, 나중에 BullMQ 로 바꿀 수 있음). 지금은 BullMQ `document-embedding` 큐로 처리한다. 자세한 결정은 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) 에 있다.
+
+### 단일 턴 토큰 기준의 정본을 이 문서에 둔다 (2026-11-05)
+
+AI 에이전트 단일 턴 `meta` 토큰 기준을 [AI 에이전트 노드](CLE-NODE-AGENT.md) · [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) · 이 문서가 따로 적고 있었다. 정본을 [토큰 회계](#토큰-회계) 한 곳으로 정하고 두 문서는 링크와 한 줄 요약만 둔다(NERV Task `CLE-T-KPDDKB`). 반대로 롤링 요약 · 요약 모델 설정 조회 실패의 처리는 AI 에이전트 노드 문서가 정하고 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표는 결과만 적는다. 토큰 기준을 맞추는 일(`CLE-T-9VRXGD`)이 끝나면 이 문서만 고치면 된다.
