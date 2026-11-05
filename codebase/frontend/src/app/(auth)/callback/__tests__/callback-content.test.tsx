@@ -133,15 +133,28 @@ describe("CallbackContent (decision A — refresh-cookie reuse)", () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
-  // 사용자 조회가 실패하면 힌트 쿠키를 심지 못한다. 이동은 그대로 하고(정책은 CLE-T-1X7DMR) 그 한계를 고정한다.
-  // proxy 가 보호 경로를 /login?redirect=<경로와 쿼리> 로 돌려보내므로 돌아갈 경로는 잃지 않는다.
-  it("still routes when /users/me fails, but cannot set the has_session hint", async () => {
+  // 사용자 조회가 실패해도 토큰은 받았으므로 힌트 쿠키를 두고 이동한다. 로그인 상태는 표시하지 않아
+  // 목적지 화면의 AuthProvider 가 다시 복원한다(establishSession, CLE-T-1X7DMR).
+  it("still routes when /users/me fails, keeping the has_session hint for AuthProvider to restore", async () => {
     refreshAccessToken.mockResolvedValue("new-access-token");
     getMe.mockRejectedValue(new Error("network"));
     render(<CallbackContent success="true" />);
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"));
-    expect(document.cookie.split("; ")).not.toContain("has_session=1");
+    expect(document.cookie.split("; ")).toContain("has_session=1");
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  // StrictMode 의 두 번째 effect 실행만 사용자 조회를 한다(첫 실행은 취소된다).
+  it("reads /users/me once under StrictMode", async () => {
+    refreshAccessToken.mockResolvedValue("new-access-token");
+    render(
+      <StrictMode>
+        <CallbackContent success="true" />
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(getMe).toHaveBeenCalledTimes(1);
   });
 });

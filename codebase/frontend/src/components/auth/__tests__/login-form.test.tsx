@@ -38,8 +38,12 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
+import { toast } from "sonner";
 import { LoginForm } from "../login-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { usersApi } from "@/lib/api/users";
+import { hasSessionHint } from "@/lib/auth/session-hint";
 import { stubLocationHref } from "@/test/stub-location-href";
 
 async function submitPassword() {
@@ -170,5 +174,129 @@ describe("LoginForm — 로그인 뒤 돌아갈 경로", () => {
     } finally {
       hrefStub.restore();
     }
+  });
+});
+
+/**
+ * REQ-SESSION-037 — 토큰을 받으면 establishSession 이 로그인 상태와 `has_session` 힌트 쿠키를 둔다
+ * (CLE-T-1X7DMR). 비밀번호 · 2단계 인증 · 복구 코드가 모두 completeLogin 을 거친다.
+ */
+describe("LoginForm — 로그인 힌트 쿠키", () => {
+  const ME = {
+    id: "u1",
+    email: "alice@example.com",
+    name: "Alice",
+    locale: "ko",
+    theme: "light",
+    twoFactorEnabled: false,
+  };
+
+  beforeEach(() => {
+    useLocaleStore.setState({ locale: "ko" });
+    mockPush.mockReset();
+    mockLogin.mockReset();
+    mockLoginTotp.mockReset();
+    document.cookie = "has_session=; max-age=0; path=/";
+    useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: true });
+    vi.mocked(usersApi.getMe).mockReset().mockResolvedValue({
+      data: { data: ME },
+    } as never);
+  });
+
+  it("비밀번호 로그인은 이동하기 전에 로그인 상태와 힌트 쿠키를 둔다", async () => {
+    mockLogin.mockResolvedValue({ data: { data: { accessToken: "at" } } });
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
+    expect(hasSessionHint()).toBe(true);
+    expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: true, user: ME });
+  });
+
+  it("2단계 인증(TOTP)을 마쳐도 같은 진입점으로 힌트 쿠키를 둔다", async () => {
+    mockLogin.mockResolvedValue({
+      data: {
+        data: { requires2fa: true, methods: ["totp"], challengeToken: "ch" },
+      },
+    });
+    mockLoginTotp.mockResolvedValue({ data: { data: { accessToken: "at2" } } });
+    render(<LoginForm />);
+
+    const user = await submitPassword();
+    await user.type(await screen.findByLabelText("인증 코드"), "123456");
+    await user.click(screen.getByRole("button", { name: "확인" }));
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
+    expect(hasSessionHint()).toBe(true);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it("사용자 조회가 실패해도 힌트 쿠키를 두고 이동한다(목적지의 AuthProvider 가 복원한다)", async () => {
+    vi.mocked(usersApi.getMe).mockRejectedValue(new Error("network"));
+    mockLogin.mockResolvedValue({ data: { data: { accessToken: "at" } } });
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
+    expect(hasSessionHint()).toBe(true);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+});
+
+/**
+ * NERV CLE-ACCT-SIGNIN 「로그인 처리」 7 · 9번 — 화면은 메시지가 아닌 코드로 안내를 고른다
+ * (CLE-T-AYT4VB · CLE-T-RFSJXQ).
+ */
+describe("LoginForm — 로그인 거부 코드별 안내", () => {
+  function apiError(status: number, code: string, message: string) {
+    return Object.assign(new Error(message), {
+      isAxiosError: true,
+      response: { status, data: { error: { code, message } } },
+    });
+  }
+
+  beforeEach(() => {
+    useLocaleStore.setState({ locale: "ko" });
+    mockPush.mockReset();
+    mockLogin.mockReset();
+    vi.mocked(toast.error).mockReset();
+  });
+
+  it.each([
+    [
+      "EMAIL_VERIFICATION_REQUIRED",
+      401,
+      "Please verify your email before logging in",
+      "이메일을 먼저 인증해 주세요",
+    ],
+    [
+      "WEBAUTHN_DISABLED",
+      503,
+      "Passkey login is disabled",
+      "지금은 Passkey 로 로그인할 수 없어요. 운영자에게 문의해 주세요.",
+    ],
+  ])("%s 이면 그 안내를 보여 준다", async (code, status, serverMessage, shown) => {
+    mockLogin.mockRejectedValue(apiError(status, code, serverMessage));
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(shown));
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("다른 코드는 지금처럼 일반 문구를 보여 준다", async () => {
+    mockLogin.mockRejectedValue(
+      apiError(401, "LOGIN_FAILED", "Invalid email or password"),
+    );
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("로그인에 실패했어요. 다시 시도해 주세요."),
+    );
   });
 });

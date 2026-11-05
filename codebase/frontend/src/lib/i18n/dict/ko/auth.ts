@@ -18,6 +18,7 @@ export const auth = {
     invalidCredentials: "이메일 또는 비밀번호가 올바르지 않습니다",
     failed: "로그인에 실패했어요",
     verifyEmailFirst: "이메일을 먼저 인증해 주세요",
+    passkeyLoginDisabled: "지금은 Passkey 로 로그인할 수 없어요. 운영자에게 문의해 주세요.",
     welcomeBack: "다시 오신 것을 환영해요! 계정에 로그인해 주세요.",
     invitationHint: "로그인하면 초대 수락 화면으로 이동해요.",
     signedIn: "로그인에 성공했어요!",

@@ -39,6 +39,7 @@ import { AuthProvider } from "../auth-provider";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { usersApi } from "@/lib/api/users";
+import { hasSessionHint } from "@/lib/auth/session-hint";
 
 const mockUser = {
   id: "1",
@@ -63,6 +64,7 @@ describe("AuthProvider", () => {
     vi.clearAllMocks();
     mockReplace.mockClear();
     mockPathname = "/dashboard";
+    document.cookie = "has_session=; max-age=0; path=/";
     window.history.replaceState(null, "", "/dashboard");
   });
 
@@ -94,6 +96,7 @@ describe("AuthProvider", () => {
       expect(screen.getByTestId("content")).toBeDefined();
     });
     expect(mockRefreshAccessToken).toHaveBeenCalled();
+    expect(hasSessionHint()).toBe(true);
   });
 
   it("redirects to login when refresh fails", async () => {
@@ -180,6 +183,9 @@ describe("AuthProvider", () => {
         "/login?redirect=%2Fdashboard",
       );
     });
+    // 진입점이 먼저 심은 힌트 쿠키를 로그아웃이 지운다. 남으면 proxy 가 다음 요청도 로그인 상태로 보고
+    // 보호된 화면을 연다.
+    expect(hasSessionHint()).toBe(false);
   });
 
   it("sets sessionRestoreInProgress true then false", async () => {

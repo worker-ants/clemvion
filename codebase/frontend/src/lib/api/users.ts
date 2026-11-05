@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from "axios";
 import { apiClient } from "./client";
 
 export type ServerTheme = "light" | "dark" | "system";
@@ -25,7 +26,8 @@ export interface EmailChangeRequestBody {
 }
 
 export const usersApi = {
-  getMe: () => apiClient.get<{ data: UserProfile }>("/users/me"),
+  getMe: (config?: Pick<AxiosRequestConfig, "timeout">) =>
+    apiClient.get<{ data: UserProfile }>("/users/me", config),
   // 이메일 변경 (spec/5-system/1-auth.md §1.1.B)
   requestEmailChange: (body: EmailChangeRequestBody) =>
     apiClient.post<{ data: { message: string } }>(

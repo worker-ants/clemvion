@@ -4,7 +4,9 @@
  * API 가 cross-domain 이라 Next 서버 미들웨어(`proxy.ts`)는 백엔드 세션을 직접 알 수 없다. 그래서 로그인하면
  * 프론트엔드 JS 가 이 쿠키를 심고 로그아웃하면 지운다. 인증 수단이 아니라 화면 전환에 쓰는 힌트다.
  *
- * - 심기 · 지우기: `auth-store` 의 `setAuthenticated` · `logout`
+ * - 심기: `auth-store` 의 `markSessionIssued` · `setAuthenticated`. 토큰을 받는 경로는 모두
+ *   `lib/auth/establish-session.ts` 의 `establishSession` 을 거쳐 이 둘을 부른다.
+ * - 지우기: `auth-store` 의 `logout`
  * - 읽기: `proxy.ts`(요청 쿠키), 가입 화면(`document.cookie`)
  *
  * `proxy.ts` 가 import 하므로 브라우저 전용 모듈에 기대지 않는다.
