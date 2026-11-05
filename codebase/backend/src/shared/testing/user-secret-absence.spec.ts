@@ -170,6 +170,8 @@ describe('USER_SECRET_KEYS ↔ user.entity.ts 대조', () => {
     // 형태를 모르는 새 비밀 컬럼(`ssn`·`recoveryEmail` 등)은 위 패턴이 못 본다.
     // 이 숫자가 틀리면 **컬럼이 늘거나 줄었다는 뜻**이니, 목록을 갱신하거나 이 수를
     // 갱신하면서 한 번 확인하게 된다. 2026-09-06 실측.
-    expect(entityColumnNames()).toHaveLength(23);
+    // 2026-11-05 `twoFactorSetupStartedAt`(TOTP 설정 시작 시각)으로 24. 응답에 싣지 않지만 비밀이 아니라서
+    // 목록에는 넣지 않았다([계정 데이터](CLE-ACCT-DATA), CLE-T-FRCRF7).
+    expect(entityColumnNames()).toHaveLength(24);
   });
 });
