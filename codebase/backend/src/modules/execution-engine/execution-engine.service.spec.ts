@@ -11876,6 +11876,46 @@ describe('ExecutionEngineService', () => {
       );
       expect(errorCalls).toHaveLength(0);
     });
+
+    // 입력 노드가 둘이면 `$input` 은 { [sourceId]: 값 } 으로 합쳐진다. 각 값은 봉투가 풀린 배열이다.
+    it('입력 노드 둘이 배열 + port 를 내보내면 $input 을 { [sourceId]: 배열 } 로 합친다', async () => {
+      const registerRouter = (type: string, output: unknown[]) =>
+        handlerRegistry.register(type, {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => ({
+            config: {},
+            output,
+            meta: { conditionResult: true },
+            port: 'true',
+          })),
+        });
+      registerRouter('array_router_a', ['a1', 'a2']);
+      registerRouter('array_router_b', ['b1']);
+      mockNodeRepo.findBy.mockResolvedValue([
+        vNode('trigger', 'test_node'),
+        vNode('ra', 'array_router_a'),
+        vNode('rb', 'array_router_b'),
+        vNode('ok', 'success_sink'),
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([
+        vEdge('trigger', 'out', 'ra'),
+        vEdge('trigger', 'out', 'rb'),
+        vEdge('ra', 'true', 'ok'),
+        vEdge('rb', 'true', 'ok'),
+      ]);
+
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+      await flushPromises();
+
+      expect(successCalls.length).toBeGreaterThan(0);
+      const last = successCalls[successCalls.length - 1].input as Record<
+        string,
+        unknown
+      >;
+      expect(last.ra).toEqual(['a1', 'a2']);
+      expect(last.rb).toEqual(['b1']);
+      expect(errorCalls).toHaveLength(0);
+    });
   });
 
   describe('Container runtime', () => {
