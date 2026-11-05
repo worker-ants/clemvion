@@ -74,7 +74,8 @@ function describeFailure(err: unknown): string {
 /**
  * HTTP/REST 통합 연결 테스트(spec/2-navigation/4-integration.md §5.3). HTTP Request 노드와 같은 방식으로 자격증명을
  * 붙여 `GET base_url` 을 보내고, 리다이렉트는 노드와 같은 `followRedirectsSafely` 로 최대 5홉 따라가며 홉마다 SSRF 를
- * 다시 검사한다 — 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다.
+ * 다시 검사한다 — 판정은 마지막 응답으로 한다. 출처(scheme · host · port)가 바뀐 홉부터는 자격 증명 헤더 · query 를 싣지
+ * 않는다. 응답 본문은 읽지 않는다.
  *
  * - 2xx(또는 `Location` 없는 3xx) → 성공
  * - 401 · 403 → `HTTP_AUTH_FAILED`
@@ -128,10 +129,12 @@ export async function testHttpConnection(
       redirect: 'manual',
       signal: AbortSignal.timeout(HTTP_TEST_TIMEOUT_MS),
     };
+    // 출처가 바뀐 홉에서 자격 증명을 빼는 규칙도 노드와 같다 — 같은 `credentials` 를 넘긴다.
     const followed = await followRedirectsSafely(
       await fetch(url, init),
       url,
       init,
+      resolved.credentials,
     );
     if (followed.blocked) return blocked(followed.reason);
     await discardBody(followed.response);

@@ -1254,6 +1254,125 @@ describe('HttpRequestHandler', () => {
       expect(global.fetch).toHaveBeenCalledTimes(6);
     });
 
+    describe('cross-origin redirect hop — integration credentials (CLE-T-FC2BWA)', () => {
+      function redirectTo(location: string) {
+        return {
+          ok: false,
+          status: 302,
+          headers: {
+            get: (h: string) =>
+              h.toLowerCase() === 'location' ? location : null,
+          },
+          text: jest.fn(),
+          json: jest.fn(),
+        };
+      }
+      const okResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ ok: true }),
+      };
+
+      it('drops the credential headers but keeps user headers when the hop leaves the origin', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce(redirectTo('https://cdn.example.net/file'))
+          .mockResolvedValueOnce(okResponse);
+        const { service } = makeService('bearer_token', {
+          token: 'abc',
+          default_headers: { 'X-Tenant': 'acme' },
+        });
+        const handler = new HttpRequestHandler(service as never);
+
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/start',
+            authentication: 'integration',
+            integrationId: 'int-1',
+            headers: [{ key: 'X-Request-Id', value: 'req-42' }],
+          },
+          contextWithWorkspace,
+        )) as unknown as Record<string, unknown>;
+
+        expect(result.port).toBe('success');
+        const calls = (global.fetch as jest.Mock).mock.calls as [
+          string,
+          RequestInit,
+        ][];
+        expect(calls).toHaveLength(2);
+        expect(calls[0][1].headers).toMatchObject({
+          Authorization: 'Bearer abc',
+          'X-Tenant': 'acme',
+        });
+        expect(calls[1][0]).toBe('https://cdn.example.net/file');
+        expect(calls[1][1].headers).toEqual({ 'X-Request-Id': 'req-42' });
+      });
+
+      it('keeps the credential headers on a same-origin hop', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce(redirectTo('/v2/start'))
+          .mockResolvedValueOnce(okResponse);
+        const { service } = makeService('bearer_token', { token: 'abc' });
+        const handler = new HttpRequestHandler(service as never);
+
+        await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/start',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        );
+
+        const calls = (global.fetch as jest.Mock).mock.calls as [
+          string,
+          RequestInit,
+        ][];
+        expect(calls[1][0]).toBe('https://api.example.com/v2/start');
+        expect(calls[1][1].headers).toMatchObject({
+          Authorization: 'Bearer abc',
+        });
+      });
+
+      it('strips the query API key from a cross-origin hop URL', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce(
+            redirectTo('https://cdn.example.net/file?token=abc&v=2'),
+          )
+          .mockResolvedValueOnce(okResponse);
+        const { service } = makeService('api_key', {
+          location: 'query',
+          key_name: 'token',
+          value: 'abc',
+        });
+        const handler = new HttpRequestHandler(service as never);
+
+        await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/x',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        );
+
+        const calls = (global.fetch as jest.Mock).mock.calls as [
+          string,
+          RequestInit,
+        ][];
+        expect(calls[0][0]).toContain('token=abc');
+        expect(calls[1][0]).toBe('https://cdn.example.net/file?v=2');
+      });
+    });
+
     it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
       const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
       process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
