@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -21,7 +22,10 @@ import {
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
-import { throwInvalidReferences } from '../../common/utils/reference-in-scope';
+import {
+  InvalidReference,
+  throwInvalidReferences,
+} from '../../common/utils/reference-in-scope';
 import {
   isUnreadableCredentials,
   UNREADABLE_ORIGINAL_KEY,
@@ -30,6 +34,19 @@ import {
 // HMAC 알고리즘 허용 목록. 외부 입력(인증 설정)이 crypto.createHmac 에 전달되므로
 // 화이트리스트로 좁혀 임의 알고리즘·약한 다이제스트 사용을 차단한다.
 const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
+
+// 헤더 이름 · 알고리즘을 정하지 않은 설정의 기본값. 생성 · 읽지 못한 설정의 재생성 · 웹훅 인증이 같은 값을 쓴다.
+const API_KEY_DEFAULT_HEADER = 'X-API-Key';
+const HMAC_DEFAULT_HEADER = 'X-Hub-Signature-256';
+const HMAC_DEFAULT_ALGORITHM = 'sha256';
+
+// 재생성할 수 있는 유형. 제품이 발급한 비밀(key · token · secret)이 있는 유형만이다. Basic Auth 의
+// 사용자 이름과 비밀번호는 사용자 입력이라 새로 발급할 값이 없다(REQ-AUTHCFG-029).
+const REGENERATABLE_TYPES = new Set(['api_key', 'bearer_token', 'hmac']);
+
+// `__` 로 시작하는 config 키는 복호화하지 못한 설정의 표식(`__unreadable` · `__original_ciphertext`)이 쓰는
+// 이름이다. 사용자 입력으로 받지 않는다(REQ-AUTHCFG-032).
+const RESERVED_CONFIG_KEY_PREFIX = '__';
 
 // 응답에서 마스킹할 config 키 (spec/1-data-model.md §2.17.2).
 const SECRET_CONFIG_KEYS = new Set(['key', 'token', 'secret', 'password']);
@@ -57,28 +74,81 @@ function safeUsageCount(raw: string | undefined | null): number {
 }
 
 /**
- * Basic Auth `config` 에서 `keys` 가운데 빈 값인 것을 모두 모아 400 `VALIDATION_ERROR` 로 거부한다
- * (REQ-AUTHCFG-027 · 028). 응답 본문은 `throwInvalidReferences` 가 만든다 — `CustomValidationPipe` 와 같은 배열
- * `[{ field, message, code: 'INVALID_FIELD' }]` 이고, 이름은 «참조» 지만 필드별 400 본문을 만드는 단일 헬퍼다.
+ * Basic Auth `config` 에서 `keys` 가운데 빈 값인 것을 모두 모은다(REQ-AUTHCFG-027 · 028). 거부는
+ * {@link assertConfigInput} 이 한 번에 한다.
  *
  * «비었다» 는 없음 · 빈 문자열이고, 웹훅 인증(`verifyBasicAuth`)이 빈 기대값을 401 로 거부하는 기준과 같다. 저장 때는
- * 여기에 더해 문자열이 아닌 값도 거부한다 — 인증은 기대값을 문자열로 비교하므로 그런 값으로는 인증되지 않는다.
+ * 여기에 더해 문자열이 아닌 값도 거부한다. 인증은 문자열이 아닌 기대값도 401 로 거부하므로 그런 값으로는 인증되지 않는다.
  * 공백만 있는 값은 인증이 통과시키므로 받는다.
  */
-function assertBasicAuthValues(
+function emptyBasicAuthFields(
   config: Record<string, unknown>,
   keys: readonly string[],
-): void {
-  const invalid = keys.filter(
-    (k) => typeof config[k] !== 'string' || config[k] === '',
-  );
-  if (invalid.length === 0) return;
-  throwInvalidReferences(
-    invalid.map((k) => ({
+): InvalidReference[] {
+  return keys
+    .filter((k) => typeof config[k] !== 'string' || config[k] === '')
+    .map((k) => ({
       field: `config.${k}`,
       message: `config.${k} must be a non-empty string`,
-    })),
-  );
+    }));
+}
+
+/**
+ * `config` 의 최상위 키 가운데 `__` 로 시작하는 것을 모은다(REQ-AUTHCFG-032). 이 이름으로 저장되면 읽을 때
+ * 표식으로 오인되거나, 저장할 때 `encryptJson` 이 표식으로 보고 입력을 암호화하지 않은 채 쓴다.
+ */
+function reservedConfigKeyFields(
+  config: Record<string, unknown>,
+): InvalidReference[] {
+  return Object.keys(config)
+    .filter((k) => k.startsWith(RESERVED_CONFIG_KEY_PREFIX))
+    .map((k) => ({
+      field: `config.${k}`,
+      message: `config.${k} uses a reserved key prefix "${RESERVED_CONFIG_KEY_PREFIX}"`,
+    }));
+}
+
+/**
+ * 모은 필드 오류를 한 번에 400 `VALIDATION_ERROR` 로 거부한다. 응답 본문은 `throwInvalidReferences` 가 만든다.
+ * `CustomValidationPipe` 와 같은 배열 `[{ field, message, code: 'INVALID_FIELD' }]` 이고, 이름은 «참조» 지만 필드별
+ * 400 본문을 만드는 단일 헬퍼다.
+ */
+function assertConfigInput(problems: InvalidReference[]): void {
+  if (problems.length > 0) throwInvalidReferences(problems);
+}
+
+/** 유형별로 제품이 발급하는 비밀을 `config` 에 새로 넣는다. 다른 키는 건드리지 않는다. */
+function issueSecret(type: string, config: Record<string, unknown>): void {
+  if (type === 'api_key') {
+    config.key = `wfk_${randomBytes(24).toString('hex')}`;
+  } else if (type === 'bearer_token') {
+    config.token = `wft_${randomBytes(32).toString('hex')}`;
+  } else if (type === 'hmac') {
+    config.secret = `whs_${randomBytes(32).toString('hex')}`;
+  }
+}
+
+/** HMAC 의 서명 헤더와 알고리즘을 정하지 않았으면 기본값을 넣는다. 생성 때와 읽지 못한 설정의 재생성 때만 쓴다. */
+function fillHmacDefaults(config: Record<string, unknown>): void {
+  if (!config.header) config.header = HMAC_DEFAULT_HEADER;
+  if (!config.algorithm) config.algorithm = HMAC_DEFAULT_ALGORITHM;
+}
+
+/**
+ * 웹훅 인증이 비교할 기대값. 문자열이 아니면 빈 값으로 본다. 저장된 config 는 jsonb 라 숫자 · 객체가 들어 있을 수
+ * 있고, 그대로 비교하면 `Buffer.from` · `createHmac` 이 TypeError 를 던져 401 대신 500 이 된다(REQ-WEBHOOK-053).
+ */
+function expectedString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * 웹훅 인증이 읽을 헤더 이름. 키가 없으면(`undefined` · `null`) 기본 헤더를 쓰고, 있는데 문자열이 아니면 `null`
+ * 을 돌려 호출한 쪽이 401 로 거부하게 한다. 기본 헤더로 바꾸면 운영자가 정하지 않은 헤더로 인증이 통과한다.
+ */
+function headerNameOrNull(value: unknown, fallback: string): string | null {
+  if (value === undefined || value === null) return fallback.toLowerCase();
+  return typeof value === 'string' ? value.toLowerCase() : null;
 }
 
 export interface WebhookAuthContext {
@@ -211,25 +281,19 @@ export class AuthConfigsService {
   ): Promise<AuthConfig> {
     const config: Record<string, unknown> =
       (data.config as Record<string, unknown>) || {};
-    if (data.type === 'basic_auth') {
-      assertBasicAuthValues(config, ['username', 'password']);
-    }
+    assertConfigInput([
+      ...(data.type === 'basic_auth'
+        ? emptyBasicAuthFields(config, ['username', 'password'])
+        : []),
+      ...reservedConfigKeyFields(config),
+    ]);
 
     // type 별 비밀값은 항상 제품이 자동 발급 — 사용자 입력 비밀값은 받지 않는다
     // (spec/1-data-model.md §2.17.1 / §2.17.3: "사용자 입력 옵션 제거, 자동 발급 강제").
     // hmac 의 header/algorithm 은 검증 메타라 사용자 입력을 보존하지만 secret 은 강제 발급.
-    if (data.type === 'api_key') {
-      config.key = `wfk_${randomBytes(24).toString('hex')}`;
-    }
-    if (data.type === 'bearer_token') {
-      config.token = `wft_${randomBytes(32).toString('hex')}`;
-    }
-    if (data.type === 'hmac') {
-      config.secret = `whs_${randomBytes(32).toString('hex')}`;
-      if (!config.header) config.header = 'X-Hub-Signature-256';
-      if (!config.algorithm) config.algorithm = 'sha256';
-    }
     // basic_auth 는 username/password 사용자 입력 — 자동 발급 없음.
+    issueSecret(data.type ?? '', config);
+    if (data.type === 'hmac') fillHmacDefaults(config);
 
     const authConfig = this.authConfigRepository.create({
       ...data,
@@ -276,20 +340,28 @@ export class AuthConfigsService {
       ...rest
     } = data;
     // Basic Auth 편집에서 바뀌는 값은 username 뿐이다(password 는 아래 비밀값 규칙대로 무시). 싣지 않은 PATCH 는 저장된 값을
-    // 보지 않는다 — 빈 값으로 저장된 옛 설정도 이름 · 활성 상태는 고칠 수 있어야 한다. 아래 대입보다 먼저
-    // 거부해야 `findById` 가 돌려준 엔티티가 반쯤 바뀐 채로 남지 않는다.
-    if (
-      config.type === 'basic_auth' &&
-      configPatch &&
-      typeof configPatch === 'object' &&
-      Object.hasOwn(configPatch, 'username')
-    ) {
-      assertBasicAuthValues(configPatch, ['username']);
+    // 보지 않는다 — 빈 값으로 저장된 옛 설정도 이름 · 활성 상태는 고칠 수 있어야 한다. `__` 로 시작하는 키도 함께 모아
+    // 한 응답으로 거부한다. 읽지 못한 설정이어도 이 검사가 먼저다. 아래 대입보다 먼저 거부해야 `findById` 가 돌려준
+    // 엔티티가 반쯤 바뀐 채로 남지 않는다.
+    if (configPatch && typeof configPatch === 'object') {
+      assertConfigInput([
+        ...(config.type === 'basic_auth' &&
+        Object.hasOwn(configPatch, 'username')
+          ? emptyBasicAuthFields(configPatch, ['username'])
+          : []),
+        ...reservedConfigKeyFields(configPatch),
+      ]);
     }
     // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `ipWhitelist` 가 null 로
     // 실리고 `isActive` 가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
     Object.assign(config, omitUndefined(rest));
-    if (configPatch && typeof configPatch === 'object') {
+    // 읽지 못한 설정에는 config 를 병합하지 않는다(REQ-AUTHCFG-031). 표식에 얹은 값은 재저장 때 `encryptJson` 이
+    // 원래 저장값을 그대로 다시 써서 저장되지 않는다. 바뀌는 것은 이름 · IP 허용 목록 · 활성 상태뿐이다.
+    if (
+      configPatch &&
+      typeof configPatch === 'object' &&
+      !isUnreadableCredentials(config.config)
+    ) {
       const merged: Record<string, unknown> = { ...config.config };
       for (const [k, v] of Object.entries(configPatch)) {
         if (SECRET_CONFIG_KEYS.has(k)) continue;
@@ -308,7 +380,17 @@ export class AuthConfigsService {
     return this.toMasked(saved);
   }
 
-  /** 키/토큰 재발급 후 `auth_config.regenerate` 감사 기록. 계약은 {@link create} 참조. */
+  /**
+   * 제품이 발급한 비밀(key · token · secret)을 새로 발급하고 `auth_config.regenerate` 감사를 남긴다. 계약은
+   * {@link create} 참조. 응답에는 새 비밀을 평문으로 싣는다. 이 응답 말고 다시 볼 길은 평문 보기다.
+   *
+   * - Basic Auth 는 400 `AUTH_CONFIG_REGENERATE_UNSUPPORTED` 로 거부한다(REQ-AUTHCFG-029). 사용자 이름과 비밀번호는
+   *   사용자 입력이라 새로 발급할 값이 없고, 재생성을 통과시키면 평문 보기의 비밀번호 재확인 없이 비밀번호를
+   *   돌려주게 된다. 저장 · 감사보다 먼저 거부한다.
+   * - 읽을 수 있는 설정은 비밀만 바꾸고 헤더 이름 · 알고리즘은 그대로 둔다.
+   * - 읽지 못한 설정은 표식을 버리고 생성 때와 같은 기본값의 새 설정을 저장한다(REQ-AUTHCFG-030). 표식에 새 비밀을
+   *   얹으면 `encryptJson` 이 원래 저장값을 그대로 다시 써서 새 비밀이 저장되지 않는다.
+   */
   async regenerate(
     id: string,
     workspaceId: string,
@@ -316,18 +398,20 @@ export class AuthConfigsService {
     ipAddress?: string,
   ): Promise<AuthConfig> {
     const config = await this.findById(id, workspaceId);
-    const configData = config.config || {};
-
-    if (config.type === 'api_key') {
-      configData.key = `wfk_${randomBytes(24).toString('hex')}`;
-    } else if (config.type === 'bearer_token') {
-      configData.token = `wft_${randomBytes(32).toString('hex')}`;
-    } else if (config.type === 'hmac') {
-      // secret 만 교체 — header/algorithm 은 보존.
-      configData.secret = `whs_${randomBytes(32).toString('hex')}`;
+    if (!REGENERATABLE_TYPES.has(config.type)) {
+      throw new BadRequestException({
+        code: 'AUTH_CONFIG_REGENERATE_UNSUPPORTED',
+        message: `Regenerate is not supported for ${config.type} auth configs`,
+      });
     }
-    config.config = configData;
-    // 재발급 응답은 신규 값을 1회 평문 노출.
+
+    const unreadable = isUnreadableCredentials(config.config);
+    const next: Record<string, unknown> = unreadable
+      ? {}
+      : { ...(config.config ?? {}) };
+    issueSecret(config.type, next);
+    if (unreadable && config.type === 'hmac') fillHmacDefaults(next);
+    config.config = next;
     const saved = await this.authConfigRepository.save(config);
     await this.recordAudit({
       action: AUDIT_ACTIONS.AUTH_CONFIG_REGENERATE,
@@ -524,18 +608,19 @@ export class AuthConfigsService {
   private verifyBearer(ac: AuthConfig, ctx: WebhookAuthContext): void {
     const authHeader = ctx.headers['authorization'] ?? '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    const expected = (ac.config.token as string) ?? '';
+    const expected = expectedString(ac.config?.token);
     if (!token || !expected || !this.constantTimeEquals(token, expected)) {
       throw this.authFailed();
     }
   }
 
   private verifyApiKey(ac: AuthConfig, ctx: WebhookAuthContext): void {
-    const headerName = (
-      (ac.config.headerName as string) ?? 'X-API-Key'
-    ).toLowerCase();
-    const provided = ctx.headers[headerName] ?? '';
-    const expected = (ac.config.key as string) ?? '';
+    const headerName = headerNameOrNull(
+      ac.config?.headerName,
+      API_KEY_DEFAULT_HEADER,
+    );
+    const provided = headerName ? (ctx.headers[headerName] ?? '') : '';
+    const expected = expectedString(ac.config?.key);
     if (
       !provided ||
       !expected ||
@@ -554,11 +639,11 @@ export class AuthConfigsService {
     const idx = decoded.indexOf(':');
     const username = idx >= 0 ? decoded.slice(0, idx) : decoded;
     const passwd = idx >= 0 ? decoded.slice(idx + 1) : '';
-    const expectedUser = (ac.config.username as string) ?? '';
-    const expectedPass = (ac.config.password as string) ?? '';
+    const expectedUser = expectedString(ac.config?.username);
+    const expectedPass = expectedString(ac.config?.password);
     // 기대값이 비어 있으면 거부 — `Authorization: Basic Og==`(`:`)가 빈 값끼리 일치해 통과하는
-    // 것을 막는다. 키를 바꿔 복호화하지 못한 설정(`__unreadable` 센티넬)도 여기서 닫힌다
-    // (`verifyBearer` · `verifyApiKey` 와 같은 규칙).
+    // 것을 막는다. 키를 바꿔 복호화하지 못한 설정(`__unreadable` 센티넬)과 문자열이 아닌 기대값도
+    // 여기서 닫힌다(`verifyBearer` · `verifyApiKey` 와 같은 규칙).
     if (!expectedUser || !expectedPass) {
       throw this.authFailed();
     }
@@ -570,17 +655,19 @@ export class AuthConfigsService {
   }
 
   private verifyHmac(ac: AuthConfig, ctx: WebhookAuthContext): void {
-    const headerName = (
-      (ac.config.header as string) ?? 'X-Hub-Signature-256'
-    ).toLowerCase();
-    const algorithm = (ac.config.algorithm as string) ?? 'sha256';
-    if (!HMAC_ALLOWED_ALGORITHMS.has(algorithm)) {
+    const headerName = headerNameOrNull(ac.config?.header, HMAC_DEFAULT_HEADER);
+    const algorithm = ac.config?.algorithm ?? HMAC_DEFAULT_ALGORITHM;
+    // 허용 목록의 `has` 는 문자열이 아닌 값에 false 라 그런 algorithm 도 여기서 닫힌다.
+    if (
+      typeof algorithm !== 'string' ||
+      !HMAC_ALLOWED_ALGORITHMS.has(algorithm)
+    ) {
       throw this.authFailed();
     }
-    const signature = ctx.headers[headerName] ?? '';
-    const secret = (ac.config.secret as string) ?? '';
+    const signature = headerName ? (ctx.headers[headerName] ?? '') : '';
+    const secret = expectedString(ac.config?.secret);
     // 빈 secret 의 HMAC 은 누구나 계산할 수 있으므로 거부한다. 복호화하지 못한 설정
-    // (`__unreadable` 센티넬)도 여기서 닫힌다.
+    // (`__unreadable` 센티넬)과 문자열이 아닌 secret 도 여기서 닫힌다.
     if (!signature || !ctx.rawBody || !secret) {
       throw this.authFailed();
     }
@@ -616,10 +703,10 @@ export class AuthConfigsService {
   }
 
   /**
-   * 응답에 싣는 config. 복호화 불가 표식이면 원래 암호문(`__original_ciphertext`)을 빼고 표식만 남긴다.
-   * 원래 암호문은 재저장 때 행을 그대로 다시 쓰려고 표식에 붙여 둔 값이다. 옛 키가 공개 예시 값이던
-   * 배포라면 풀 수 있으므로 조회 · 편집 · 재생성 · 평문 보기 어느 응답에도 싣지 않는다. 엔티티는
-   * 바꾸지 않고 복제본을 돌려준다.
+   * 응답에 싣는 config. 복호화 불가 표식이면 원래 저장값(`__original_ciphertext`)을 뺀 복제본을 돌려주고, 표식이
+   * 아니면 받은 객체를 그대로 돌려준다. 원래 저장값은 재저장 때 행을 그대로 다시 쓰려고 표식에 붙여 둔 값이다.
+   * 옛 키가 공개 예시 값이던 배포라면 풀 수 있으므로 조회 · 편집 · 평문 보기 어느 응답에도 싣지 않는다. 엔티티는
+   * 바꾸지 않는다.
    */
   private toResponseConfig(
     config: Record<string, unknown>,

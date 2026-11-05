@@ -40,6 +40,11 @@ export const authentication = {
   regenerateTitle: "키 재생성",
   regenerateMessage: "현재 키가 즉시 무효화돼요. 계속할까요?",
   regenerateButton: "재생성",
+  regenerateUnreadableNote:
+    "이 설정은 저장된 값을 읽을 수 없어요. 새 값으로 다시 만들고, 헤더 이름과 알고리즘은 기본값으로 돌아가요.",
+  unreadableBadge: "읽을 수 없음",
+  unreadableHint:
+    "암호화 키가 바뀌어 저장된 값을 읽을 수 없어요. 키를 되돌리거나 재생성하세요. Basic Auth 는 지우고 다시 만드세요.",
   deleteTitleConfig: "인증 설정 삭제",
   deleteMessageConfig: "이 인증 설정을 삭제할까요? 되돌릴 수 없어요.",
   loadUsageFailed: "사용 내역을 불러올 수 없어요.",

@@ -158,6 +158,22 @@ describe("buildAuthConfigUpdatePayload", () => {
       buildAuthConfigUpdatePayload(state({ type: "bearer_token" })).config,
     ).toEqual({});
   });
+
+  // REQ-AUTHCFG-031: 서버는 읽지 못한 설정의 config 를 병합하지 않는다. 폼이 채운 빈 username 을 보내면
+  // 병합 전에 입력 검증(REQ-AUTHCFG-028)에 걸려 이름 · IP 편집까지 400 으로 막힌다.
+  it("unreadable target: omits config so name/IP edits are not blocked by an empty username", () => {
+    expect(
+      buildAuthConfigUpdatePayload(
+        state({ type: "basic_auth", username: "", ipWhitelistRaw: "10.0.0.1" }),
+        { unreadable: true },
+      ),
+    ).toStrictEqual({ name: "Cfg", ipWhitelist: ["10.0.0.1"] });
+    expect(
+      buildAuthConfigUpdatePayload(state({ type: "basic_auth", username: "u" }), {
+        unreadable: false,
+      }).config,
+    ).toEqual({ username: "u" });
+  });
 });
 
 describe("formStateFromAuthConfig", () => {

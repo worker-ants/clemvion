@@ -12,6 +12,7 @@ import { Trigger } from '../triggers/entities/trigger.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { encryptedJsonTransformer } from '../integrations/services/credentials-transformer';
 
 /** in-memory AuthConfig repo mock — save 가 들어온 객체를 그대로 반환. */
 function makeAuthConfigRepo() {
@@ -146,30 +147,28 @@ describe('AuthConfigsService', () => {
     });
   });
 
-  describe('Basic Auth 빈 값 — 생성 · 편집 PATCH 를 400 으로 거부 (REQ-AUTHCFG-027 · 028)', () => {
-    /** 400 `VALIDATION_ERROR` 로 거부됐는지 확인하고 `details[].field` 목록을 돌려준다. */
-    async function rejectedFields(
-      pending: Promise<unknown>,
-    ): Promise<string[]> {
-      const err: unknown = await pending.then(
-        () => {
-          throw new Error('거부되지 않았다');
-        },
-        (err_: unknown) => err_,
-      );
-      expect(err).toBeInstanceOf(BadRequestException);
-      const body = (err as BadRequestException).getResponse() as {
-        code: string;
-        details: { field: string; message: string; code: string }[];
-      };
-      expect(body.code).toBe('VALIDATION_ERROR');
-      for (const d of body.details) {
-        expect(d.code).toBe('INVALID_FIELD');
-        expect(d.message).toEqual(expect.any(String));
-      }
-      return body.details.map((d) => d.field);
+  /** 400 `VALIDATION_ERROR` 로 거부됐는지 확인하고 `details[].field` 목록을 돌려준다. */
+  async function rejectedFields(pending: Promise<unknown>): Promise<string[]> {
+    const err: unknown = await pending.then(
+      () => {
+        throw new Error('거부되지 않았다');
+      },
+      (err_: unknown) => err_,
+    );
+    expect(err).toBeInstanceOf(BadRequestException);
+    const body = (err as BadRequestException).getResponse() as {
+      code: string;
+      details: { field: string; message: string; code: string }[];
+    };
+    expect(body.code).toBe('VALIDATION_ERROR');
+    for (const d of body.details) {
+      expect(d.code).toBe('INVALID_FIELD');
+      expect(d.message).toEqual(expect.any(String));
     }
+    return body.details.map((d) => d.field);
+  }
 
+  describe('Basic Auth 빈 값 — 생성 · 편집 PATCH 를 400 으로 거부 (REQ-AUTHCFG-027 · 028)', () => {
     function createBasic(config: unknown) {
       return service.create(
         WS,
@@ -321,6 +320,141 @@ describe('AuthConfigsService', () => {
     });
   });
 
+  // `__` 로 시작하는 키는 복호화하지 못한 설정의 표식(`__unreadable` · `__original_ciphertext`)이 쓰는
+  // 이름이다. 사용자가 이 키를 넣으면 저장할 때 표식으로 읽혀 입력이 버려지거나(원래 암호문 재사용),
+  // 읽을 때 표식으로 오인된다. 생성 · 편집 모두 400 으로 거부한다.
+  describe('`__` 로 시작하는 config 키 — 생성 · 편집 PATCH 를 400 으로 거부 (REQ-AUTHCFG-032)', () => {
+    it.each<[string, Record<string, unknown>, string[]]>([
+      ['__unreadable', { __unreadable: true }, ['config.__unreadable']],
+      [
+        '__original_ciphertext',
+        { __original_ciphertext: 'enc:v1:AAAA' },
+        ['config.__original_ciphertext'],
+      ],
+      [
+        '임의의 __ 키 두 개',
+        { __a: 1, headerName: 'X-K', __b: 'x' },
+        ['config.__a', 'config.__b'],
+      ],
+    ])('생성: %s → 400 · 저장 · 감사 없음', async (_label, config, fields) => {
+      await expect(
+        rejectedFields(
+          service.create(
+            WS,
+            { type: 'api_key', name: 'n', config } as Partial<AuthConfig>,
+            USER,
+          ),
+        ),
+      ).resolves.toEqual(fields);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    it('생성: basic_auth 의 빈 값과 `__` 키를 한 응답에 모은다', async () => {
+      await expect(
+        rejectedFields(
+          service.create(
+            WS,
+            {
+              type: 'basic_auth',
+              name: 'b',
+              config: { username: 'u', __unreadable: true },
+            } as Partial<AuthConfig>,
+            USER,
+          ),
+        ),
+      ).resolves.toEqual(['config.password', 'config.__unreadable']);
+    });
+
+    it('생성: `_` 하나로 시작하는 키는 받는다', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+          name: 'n',
+          config: { _note: 'x' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      expect(repo.store.get(ac.id)!.config._note).toBe('x');
+    });
+
+    it('편집: `__` 키 → 400 · 아무것도 바꾸지 않는다', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key', name: 'n' } as Partial<AuthConfig>,
+        USER,
+      );
+      const before = { ...repo.store.get(ac.id)!.config };
+      repo.save.mockClear();
+      audit.record.mockClear();
+      await expect(
+        rejectedFields(
+          service.update(
+            ac.id,
+            WS,
+            {
+              name: 'renamed',
+              config: { __unreadable: true },
+            } as Partial<AuthConfig>,
+            USER,
+          ),
+        ),
+      ).resolves.toEqual(['config.__unreadable']);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
+      expect(repo.store.get(ac.id)!.name).toBe('n');
+      expect(repo.store.get(ac.id)!.config).toEqual(before);
+    });
+
+    it('편집: basic_auth 의 빈 username 과 `__` 키를 한 응답에 모은다', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'basic_auth',
+          name: 'b',
+          config: { username: 'u', password: 'p' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      await expect(
+        rejectedFields(
+          service.update(
+            ac.id,
+            WS,
+            { config: { username: '', __x: 1 } } as Partial<AuthConfig>,
+            USER,
+          ),
+        ),
+      ).resolves.toEqual(['config.username', 'config.__x']);
+    });
+
+    it('편집: 읽지 못한 설정이어도 `__` 키 검사가 먼저다', async () => {
+      const ac = await repo.save({
+        workspaceId: WS,
+        name: 'unreadable',
+        type: 'api_key',
+        isActive: true,
+        config: { __unreadable: true, __original_ciphertext: 'enc:v1:xx' },
+      } as unknown as AuthConfig);
+      repo.save.mockClear();
+      await expect(
+        rejectedFields(
+          service.update(
+            ac.id,
+            WS,
+            {
+              name: 'x',
+              config: { __unreadable: false },
+            } as Partial<AuthConfig>,
+            USER,
+          ),
+        ),
+      ).resolves.toEqual(['config.__unreadable']);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('regenerate', () => {
     it('hmac: secret 만 교체, header/algorithm 보존', async () => {
       const ac = await service.create(
@@ -339,18 +473,63 @@ describe('AuthConfigsService', () => {
       expect(re.config.algorithm).toBe('sha512');
     });
 
-    it('api_key: key 교체', async () => {
+    it('api_key: key 만 교체, headerName 보존', async () => {
       const ac = await service.create(
         WS,
         {
           type: 'api_key',
+          config: { headerName: 'X-My-Key' },
         } as Partial<AuthConfig>,
         USER,
       );
       const old = ac.config.key;
       const re = await service.regenerate(ac.id, WS, USER);
       expect(re.config.key).not.toBe(old);
-      expect(re.config.key).toMatch(/^wfk_/);
+      expect(re.config.key).toMatch(/^wfk_[0-9a-f]{48}$/);
+      expect(re.config.headerName).toBe('X-My-Key');
+    });
+
+    it('bearer_token: token 교체', async () => {
+      const ac = await service.create(
+        WS,
+        { type: 'bearer_token' } as Partial<AuthConfig>,
+        USER,
+      );
+      const old = ac.config.token;
+      const re = await service.regenerate(ac.id, WS, USER);
+      expect(re.config.token).not.toBe(old);
+      expect(re.config.token).toMatch(/^wft_[0-9a-f]{64}$/);
+      expect(Object.keys(re.config)).toEqual(['token']);
+    });
+
+    // 사용자 이름과 비밀번호는 사용자 입력이라 새로 발급할 값이 없다. 전에는 설정을 그대로 저장하고
+    // 감사를 남긴 뒤 저장된 비밀번호를 평문으로 응답했다(평문 보기의 비밀번호 재확인을 건너뛰는 길).
+    it('basic_auth: 400 AUTH_CONFIG_REGENERATE_UNSUPPORTED · 저장 · 감사 없음 · 비밀번호를 싣지 않는다 (REQ-AUTHCFG-029)', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'basic_auth',
+          config: { username: 'u', password: 'secret-pw' },
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      repo.save.mockClear();
+      audit.record.mockClear();
+      const err: unknown = await service.regenerate(ac.id, WS, USER).then(
+        () => {
+          throw new Error('거부되지 않았다');
+        },
+        (err_: unknown) => err_,
+      );
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse();
+      expect(body).toEqual({
+        code: 'AUTH_CONFIG_REGENERATE_UNSUPPORTED',
+        message: expect.any(String),
+      });
+      expect(JSON.stringify(body)).not.toContain('secret-pw');
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
     });
   });
 
@@ -743,8 +922,12 @@ describe('AuthConfigsService', () => {
       expect(res.data[0].config).toEqual({ __unreadable: true });
     });
 
-    // config 편집은 넣지 않는다. 표식에 병합한 값은 재저장 때 원래 암호문에 덮여 저장되지 않는다
-    // (`encryptJson`). 그 결함은 이 응답 규칙과 따로 다룬다(NERV Task `CLE-T-SAMVX8`).
+    // 저장소 mock 은 transformer 를 거치지 않는다. 실제로 DB 에 쓰일 값은 엔티티의
+    // `encryptedJsonTransformer.to` 결과라 그것을 직접 계산해 본다.
+    function storedColumn(config: unknown): unknown {
+      return encryptedJsonTransformer.to(config as Record<string, unknown>);
+    }
+
     it('편집 응답: 표식만 남고 저장에는 원래 암호문이 그대로 간다', async () => {
       const ac = await seedUnreadable('api_key');
       repo.save.mockClear();
@@ -752,17 +935,96 @@ describe('AuthConfigsService', () => {
       expect(res.name).toBe('renamed');
       expect(res.config).toEqual({ __unreadable: true });
       const saved = repo.save.mock.calls[0][0];
-      expect(saved.config.__original_ciphertext).toBe(CIPHERTEXT);
+      expect(storedColumn(saved.config)).toBe(CIPHERTEXT);
     });
 
-    // 새 키(`config.key`)는 단언하지 않는다. 표식 행에 얹은 새 키는 재저장 때 원래 암호문에 덮여
-    // 저장되지 않아서(`encryptJson`) 응답에 실린 키가 쓸 수 없는 값이다. 편집과 같은 결함이므로
-    // 응답 계약으로 고정하지 않는다. 재생성 경로의 정정은 NERV Task `CLE-T-SAMVX8` 가 맡는다.
-    it('재생성 응답: 원래 암호문을 싣지 않고 표식은 유지한다', async () => {
+    // 표식에 병합한 값은 재저장 때 원래 암호문에 덮여(`encryptJson`) 저장되지 않는다. 그래서 편집이
+    // 성공으로 보이지만 바뀐 것이 없었다. config 를 무시하고 이름 · IP · 활성만 바꾼다.
+    it('편집: 읽지 못한 설정에는 config 를 병합하지 않는다 · 이름은 바뀐다 (REQ-AUTHCFG-031)', async () => {
       const ac = await seedUnreadable('api_key');
-      const res = await service.regenerate(ac.id, WS, USER);
-      expect(res.config).not.toHaveProperty('__original_ciphertext');
-      expect(res.config.__unreadable).toBe(true);
+      repo.save.mockClear();
+      const res = await service.update(
+        ac.id,
+        WS,
+        { name: 'renamed', config: { headerName: 'X-New' } },
+        USER,
+      );
+      expect(res.name).toBe('renamed');
+      expect(res.config).toEqual({ __unreadable: true });
+      const saved = repo.save.mock.calls[0][0];
+      expect(saved.config).toEqual({
+        __unreadable: true,
+        __original_ciphertext: CIPHERTEXT,
+      });
+      expect(storedColumn(saved.config)).toBe(CIPHERTEXT);
+    });
+
+    it('편집: 원래 암호문이 없는 표식에도 config 를 병합하지 않는다', async () => {
+      const ac = await repo.save({
+        workspaceId: WS,
+        name: 'unreadable',
+        type: 'bearer_token',
+        isActive: true,
+        config: { __unreadable: true },
+      } as unknown as AuthConfig);
+      repo.save.mockClear();
+      const res = await service.update(
+        ac.id,
+        WS,
+        { config: { token: 'x', extra: 'y' } },
+        USER,
+      );
+      expect(res.config).toEqual({ __unreadable: true });
+      expect(repo.save.mock.calls[0][0].config).toEqual({
+        __unreadable: true,
+      });
+    });
+
+    // 전에는 표식에 새 키를 얹어 저장했다. `encryptJson` 이 표식의 원래 암호문을 그대로 다시 써서
+    // 새 키는 저장되지 않고 응답에만 실렸다(웹훅이 그 키를 받지 않는다). 표식을 버리고 생성 때와
+    // 같은 모양의 새 설정을 만든다.
+    describe.each([
+      ['api_key', /^wfk_[0-9a-f]{48}$/, 'key'],
+      ['bearer_token', /^wft_[0-9a-f]{64}$/, 'token'],
+      ['hmac', /^whs_[0-9a-f]{64}$/, 'secret'],
+    ] as const)(
+      '재생성: 읽지 못한 %s 는 새 설정을 저장한다 (REQ-AUTHCFG-030)',
+      (type, pattern, field) => {
+        it('저장되는 값이 원래 암호문이 아니고 응답의 새 값과 같다', async () => {
+          const ac = await seedUnreadable(type);
+          repo.save.mockClear();
+          const res = await service.regenerate(ac.id, WS, USER);
+          const saved = repo.save.mock.calls[0][0];
+          const column = storedColumn(saved.config);
+          expect(column).not.toBe(CIPHERTEXT);
+          expect(encryptedJsonTransformer.from(column)).toEqual(res.config);
+          expect(res.config[field]).toMatch(pattern);
+          expect(res.config).not.toHaveProperty('__unreadable');
+          expect(res.config).not.toHaveProperty('__original_ciphertext');
+        });
+
+        it('새 설정은 생성 때 기본값과 같은 모양이다', async () => {
+          const ac = await seedUnreadable(type);
+          const res = await service.regenerate(ac.id, WS, USER);
+          const expected: Record<string, unknown> = {
+            [field]: expect.stringMatching(pattern),
+          };
+          if (type === 'hmac') {
+            expected.header = 'X-Hub-Signature-256';
+            expected.algorithm = 'sha256';
+          }
+          expect(res.config).toEqual(expected);
+        });
+      },
+    );
+
+    it('재생성: 읽지 못한 basic_auth 도 400 · 저장 없음', async () => {
+      const ac = await seedUnreadable('basic_auth');
+      repo.save.mockClear();
+      await expect(service.regenerate(ac.id, WS, USER)).rejects.toMatchObject({
+        response: { code: 'AUTH_CONFIG_REGENERATE_UNSUPPORTED' },
+      });
+      expect(repo.save).not.toHaveBeenCalled();
     });
 
     it('평문 보기 응답: 원래 암호문을 싣지 않는다', async () => {
@@ -968,6 +1230,145 @@ describe('AuthConfigsService', () => {
         await expect(
           service.verifyWebhookRequest(apiKey.id, WS, {
             headers: { 'x-api-key': '' },
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+      });
+    });
+
+    // 저장된 설정은 jsonb 라 문자열이 아닌 값이 들어 있을 수 있다(생성 · 편집이 비밀이 아닌 키의
+    // 타입을 검사하지 않는다). 전에는 그 값이 `Buffer.from` · `toLowerCase` · `createHmac` 에서
+    // TypeError 를 내 500 이 됐다. 빈 기대값과 같이 401 로 거부한다(REQ-WEBHOOK-053).
+    describe('문자열이 아닌 기대값 · 헤더 이름 → 401', () => {
+      const NON_STRINGS: ReadonlyArray<[string, unknown]> = [
+        ['숫자', 123],
+        ['객체', { a: 1 }],
+        ['배열', ['x']],
+        ['불리언', true],
+      ];
+
+      async function expectRejected(
+        type: string,
+        config: Record<string, unknown>,
+        req: { headers: Record<string, string>; rawBody?: Buffer },
+      ) {
+        // 생성 검증을 지나도록 유효한 설정으로 만든 뒤 저장된 값을 바꿔 둔다.
+        const ac = await seed(
+          type,
+          type === 'basic_auth' ? { username: 'u', password: 'p' } : {},
+        );
+        ac.config = config;
+        repo.update.mockClear();
+        const err: unknown = await service
+          .verifyWebhookRequest(ac.id, WS, req)
+          .then(
+            () => new Error('통과했다'),
+            (err_: unknown) => err_,
+          );
+        expect(err).toBeInstanceOf(UnauthorizedException);
+        expect((err as UnauthorizedException).getResponse()).toMatchObject({
+          code: 'AUTH_FAILED',
+        });
+        expect(repo.update).not.toHaveBeenCalled();
+      }
+
+      it.each(NON_STRINGS)('bearer_token: token 이 %s', async (_l, value) => {
+        await expectRejected(
+          'bearer_token',
+          { token: value },
+          { headers: { authorization: `Bearer ${String(value)}` } },
+        );
+      });
+
+      it.each(NON_STRINGS)('api_key: key 가 %s', async (_l, value) => {
+        await expectRejected(
+          'api_key',
+          { key: value },
+          { headers: { 'x-api-key': String(value) } },
+        );
+      });
+
+      it.each(NON_STRINGS)(
+        'api_key: headerName 이 %s 면 기본 헤더로 바꾸지 않는다',
+        async (_l, value) => {
+          await expectRejected(
+            'api_key',
+            { key: 'wfk_x', headerName: value },
+            { headers: { 'x-api-key': 'wfk_x' } },
+          );
+        },
+      );
+
+      it.each(NON_STRINGS)('basic_auth: username 이 %s', async (_l, value) => {
+        const b64 = Buffer.from(`${String(value)}:p`).toString('base64');
+        await expectRejected(
+          'basic_auth',
+          { username: value, password: 'p' },
+          { headers: { authorization: `Basic ${b64}` } },
+        );
+      });
+
+      it.each(NON_STRINGS)('basic_auth: password 가 %s', async (_l, value) => {
+        const b64 = Buffer.from(`u:${String(value)}`).toString('base64');
+        await expectRejected(
+          'basic_auth',
+          { username: 'u', password: value },
+          { headers: { authorization: `Basic ${b64}` } },
+        );
+      });
+
+      it.each(NON_STRINGS)('hmac: secret 이 %s', async (_l, value) => {
+        const rawBody = Buffer.from('{"a":1}');
+        const sig = `sha256=${crypto.createHmac('sha256', String(value)).update(rawBody).digest('hex')}`;
+        await expectRejected(
+          'hmac',
+          { secret: value, header: 'X-Hub-Signature-256', algorithm: 'sha256' },
+          { headers: { 'x-hub-signature-256': sig }, rawBody },
+        );
+      });
+
+      it.each(NON_STRINGS)(
+        'hmac: header 가 %s 면 기본 헤더로 바꾸지 않는다',
+        async (_l, value) => {
+          const rawBody = Buffer.from('{"a":1}');
+          const sig = `sha256=${crypto.createHmac('sha256', 'whs_x').update(rawBody).digest('hex')}`;
+          await expectRejected(
+            'hmac',
+            { secret: 'whs_x', header: value, algorithm: 'sha256' },
+            { headers: { 'x-hub-signature-256': sig }, rawBody },
+          );
+        },
+      );
+
+      it('api_key: headerName 키가 없으면 기본 X-API-Key 를 쓴다 (기존 동작)', async () => {
+        const ac = await seed('api_key', {});
+        ac.config = { key: 'wfk_x' };
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { 'x-api-key': 'wfk_x' },
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it('hmac: header 키가 없으면 기본 X-Hub-Signature-256 을 쓴다 (기존 동작)', async () => {
+        const ac = await seed('hmac', {});
+        ac.config = { secret: 'whs_x', algorithm: 'sha256' };
+        const rawBody = Buffer.from('{"a":1}');
+        const sig = `sha256=${crypto.createHmac('sha256', 'whs_x').update(rawBody).digest('hex')}`;
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { 'x-hub-signature-256': sig },
+            rawBody,
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it('config 자체가 null 이면 401', async () => {
+        const ac = await seed('bearer_token', {});
+        (ac as unknown as { config: unknown }).config = null;
+        repo.update.mockClear();
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { authorization: 'Bearer x' },
           }),
         ).rejects.toThrow(UnauthorizedException);
       });

@@ -627,6 +627,96 @@ describe('Webhook trigger (e2e)', () => {
     expect(sigged.status).toBe(202);
   });
 
+  // REQ-WEBHOOK-053. 저장된 config 는 jsonb 라 문자열이 아닌 값이 들어 있을 수 있다. 전에는 그 값이 `Buffer.from` ·
+  // `toLowerCase` · `createHmac` 에서 TypeError 를 내 500 이 됐다. 키를 바꿔 복호화하지 못한 행처럼 평문 객체로 저장된
+  // 옛 행은 그대로 읽히므로(`decryptJson`) DB 에 직접 넣어 만든다. API Key 의 헤더 이름은 편집 PATCH 로도 넣을 수 있다.
+  it('E2. 문자열이 아닌 기대값 · 헤더 이름 → 401 AUTH_FAILED (500 아님)', async () => {
+    async function hookWithStoredConfig(
+      type: string,
+      stored: Record<string, unknown>,
+    ): Promise<string> {
+      const path = crypto.randomUUID();
+      const ac = await createAuthConfig(
+        type,
+        type === 'basic_auth' ? { username: 'u', password: 'p' } : {},
+      );
+      await db.query(
+        'UPDATE auth_config SET config = $1::jsonb WHERE id = $2',
+        [JSON.stringify(stored), ac.id],
+      );
+      await createWebhookTrigger(uniqueName('hook-e2'), path, {
+        authConfigId: ac.id,
+      });
+      return path;
+    }
+    function expectAuthFailed(res: request.Response) {
+      expect({ status: res.status, code: res.body?.error?.code }).toEqual({
+        status: 401,
+        code: 'AUTH_FAILED',
+      });
+    }
+
+    const bearerPath = await hookWithStoredConfig('bearer_token', {
+      token: 123,
+    });
+    expectAuthFailed(
+      await request(BASE_URL)
+        .post(`/api/hooks/${bearerPath}`)
+        .set('Authorization', 'Bearer 123')
+        .send({}),
+    );
+
+    const basicPath = await hookWithStoredConfig('basic_auth', {
+      username: 'u',
+      password: 123,
+    });
+    expectAuthFailed(
+      await request(BASE_URL)
+        .post(`/api/hooks/${basicPath}`)
+        .set(
+          'Authorization',
+          `Basic ${Buffer.from('u:123').toString('base64')}`,
+        )
+        .send({}),
+    );
+
+    const payload = JSON.stringify({ event: 'push' });
+    const hmacPath = await hookWithStoredConfig('hmac', {
+      secret: { a: 1 },
+      header: 'X-Hub-Signature-256',
+      algorithm: 'sha256',
+    });
+    expectAuthFailed(
+      await request(BASE_URL)
+        .post(`/api/hooks/${hmacPath}`)
+        .set('Content-Type', 'application/json')
+        .set(
+          'x-hub-signature-256',
+          `sha256=${crypto.createHmac('sha256', '[object Object]').update(payload).digest('hex')}`,
+        )
+        .send(payload),
+    );
+
+    // API Key 의 헤더 이름은 편집 PATCH 로 넣는다(비밀이 아닌 키라 병합된다). 기본 헤더로 바꾸지 않는다.
+    const apiPath = crypto.randomUUID();
+    const apiKey = await createAuthConfig('api_key');
+    const patched = await request(BASE_URL)
+      .patch(`/api/auth-configs/${apiKey.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ config: { headerName: 123 } });
+    expect(patched.status).toBe(200);
+    await createWebhookTrigger(uniqueName('hook-e2'), apiPath, {
+      authConfigId: apiKey.id,
+    });
+    expectAuthFailed(
+      await request(BASE_URL)
+        .post(`/api/hooks/${apiPath}`)
+        .set('X-API-Key', apiKey.config.key as string)
+        .send({}),
+    );
+  });
+
   // ── 본문 크기 경계 (WH-NF-02 옵션 C) ──────────────────────────────
   // J/K/L/M 은 알파벳 순서가 아니라 "본문 크기 경계" 주제로 묶어 인접 배치한다
   // (인증 1MB 통과/초과, 공개 32KB, 인증 1MB 초과).

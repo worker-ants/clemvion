@@ -22,6 +22,9 @@ import {
  * 넣으면 GCM 인증 태그 검증이 실패해 표식에 원래 값이 붙는다(e2e 환경에는 통합 암호화 키가 있다).
  *
  * 판별력: 고치기 전 코드는 네 응답 모두에 `__original_ciphertext` 를 싣는다.
+ *
+ * 끝의 두 사례는 편집 · 재생성의 저장 동작을 본다(NERV Task `CLE-T-SAMVX8`, REQ-AUTHCFG-030 · 031). 고치기 전 코드는
+ * 편집에서 config 를 표식에 병합해 응답하고, 재생성에서 새 키를 응답하지만 컬럼에는 원래 암호문을 그대로 다시 쓴다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -123,5 +126,35 @@ describe('Auth config unreadable response (e2e)', () => {
     expect(reveal.status).toBe(200);
     expect(reveal.body.data.config).toEqual({ __unreadable: true });
     expect(JSON.stringify(reveal.body)).not.toContain(ciphertext);
+  });
+
+  // REQ-AUTHCFG-031. 전에는 표식에 병합해 200 과 바뀐 값을 응답했지만 재저장 때 원래 저장값이 그대로 다시 쓰여
+  // 아무것도 바뀌지 않았다.
+  it('편집: config 를 보내도 병합하지 않고 저장값은 원래 암호문 그대로다', async () => {
+    const patch = await asOwner(
+      request(BASE_URL).patch(`/api/auth-configs/${id}`),
+    ).send({ config: { headerName: 'X-Acunr-New' } });
+    expect(patch.status).toBe(200);
+    expect(patch.body.data.config).toEqual({ __unreadable: true });
+    expect(await storedConfig()).toBe(ciphertext);
+  });
+
+  // REQ-AUTHCFG-030. 행을 바꾸므로 이 파일의 마지막에 둔다. 전에는 응답에 새 키를 실었지만 저장값은 원래 암호문
+  // 그대로라 그 키로는 인증되지 않았다.
+  it('재생성: 표식을 버리고 새 설정을 저장한다 · 평문 보기가 같은 키를 돌려준다', async () => {
+    const regen = await asOwner(
+      request(BASE_URL).post(`/api/auth-configs/${id}/regenerate`),
+    ).send();
+    expect(regen.status).toBe(200);
+    const next = regen.body.data.config as Record<string, unknown>;
+    expect(next).toEqual({ key: expect.stringMatching(/^wfk_[0-9a-f]{48}$/) });
+    expect(JSON.stringify(regen.body)).not.toContain(ciphertext);
+    expect(await storedConfig()).not.toBe(ciphertext);
+
+    const reveal = await asOwner(
+      request(BASE_URL).post(`/api/auth-configs/${id}/reveal`),
+    ).send({ password: TEST_PASSWORD });
+    expect(reveal.status).toBe(200);
+    expect(reveal.body.data.config).toEqual(next);
   });
 });

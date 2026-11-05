@@ -9,6 +9,7 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -264,5 +265,132 @@ describe("AuthenticationPage — edit form §A.2", () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalled());
     const body = patchMock.mock.calls.at(-1)?.[1] as Record<string, unknown>;
     expect(body.ipWhitelist).toEqual([]);
+  });
+});
+
+describe("AuthenticationPage — regenerate by type · unreadable rows", () => {
+  const rows = [
+    {
+      id: "basic",
+      name: "Basic Row",
+      type: "basic_auth",
+      isActive: true,
+      config: { username: "u", password: "***" },
+    },
+    {
+      id: "lost",
+      name: "Lost Row",
+      type: "hmac",
+      isActive: true,
+      config: { __unreadable: true },
+    },
+    {
+      id: "ok",
+      name: "Ok Row",
+      type: "api_key",
+      isActive: true,
+      config: { headerName: "X-API-Key", key: "***1234" },
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    useLocaleStore.setState({ locale: "en" });
+    roleState.isAdmin = true;
+    getMock.mockResolvedValue({ data: { data: rows } });
+  });
+
+  afterEach(() => {
+    cleanup();
+    useLocaleStore.setState({ locale: "en" });
+  });
+
+  function rowOf(name: string): HTMLElement {
+    const row = screen.getByText(name).closest("tr");
+    expect(row).not.toBeNull();
+    return row as HTMLElement;
+  }
+
+  it("hides Regenerate on basic_auth rows only", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText("Basic Row")).toBeInTheDocument(),
+    );
+    expect(
+      within(rowOf("Basic Row")).queryByRole("button", {
+        name: /^Regenerate$/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(rowOf("Lost Row")).getByRole("button", { name: /^Regenerate$/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf("Ok Row")).getByRole("button", { name: /^Regenerate$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks only the unreadable row", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText("Lost Row")).toBeInTheDocument(),
+    );
+    expect(
+      within(rowOf("Lost Row")).getByText("Unreadable"),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf("Ok Row")).queryByText("Unreadable"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(rowOf("Basic Row")).queryByText("Unreadable"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains the rebuild in the regenerate dialog of an unreadable row only", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText("Lost Row")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      within(rowOf("Lost Row")).getByRole("button", { name: /^Regenerate$/ }),
+    );
+    expect(
+      await screen.findByText(/stored values can't be read/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Cancel$/ }));
+
+    fireEvent.click(
+      within(rowOf("Ok Row")).getByRole("button", { name: /^Regenerate$/ }),
+    );
+    expect(await screen.findByText("Regenerate Key")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/stored values can't be read/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // REQ-AUTHCFG-031: 서버가 병합하지 않는 config 를 싣지 않는다. 실으면 폼이 채운 빈 username 이
+  // 입력 검증에 걸려 이름 · IP 편집도 400 이 된다.
+  it("edits an unreadable row without sending config", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText("Lost Row")).toBeInTheDocument(),
+    );
+    fireEvent.click(
+      within(rowOf("Lost Row")).getByRole("button", { name: /^Edit$/ }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Edit Auth Config")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText(/IP whitelist/i), {
+      target: { value: "10.0.0.1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await waitFor(() => expect(patchMock).toHaveBeenCalled());
+    expect(patchMock).toHaveBeenCalledWith("/auth-configs/lost", {
+      name: "Lost Row",
+      ipWhitelist: ["10.0.0.1"],
+    });
   });
 });
