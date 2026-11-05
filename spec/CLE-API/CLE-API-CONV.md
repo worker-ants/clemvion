@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "de64309f5435d2947952c416efe949b02a6c4fbec7d495c1e6ebea11973b7950"
+content_hash: "49a0d8146db16433ad49ca1f6d3b793909a1b08e53533b206c2d7ba896d60aff"
 read_as: "approved_fallback"
-task: "CLE-T-H9QJTA"
+task: "CLE-T-FRCRF7"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "474bfa2811af312ebf52f6edb629f5e5ef43ee52d0cca9f0482343bd1c285181"
-etag: "sha256-553cf3ac9f8768359633e925d869f046fc818bc0de073cbd5a30bc5397d6b2d2"
+mirror_sha256: "08692d62d5cff313f538eefdaa75fa332eb8b4147dca11946161bd2e14804494"
+etag: "sha256-1cd88ad7521d128f74cc042d3279b9e1fe2b179378faf9deaece964911586b6d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -280,8 +280,11 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 계정 확인·복구 (`POST /api/auth/forgot-password`, `POST /api/auth/resend-verification`, `POST /api/auth/check-email`) | 5 req/min (IP 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
 | 초대 토큰 메타 조회 (`GET /api/invitations/:token`) | 30 req/min (공개 라우트라 IP 기준). 토큰 추측을 막는다. 동작 정의는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) | 같음 |
 | 로그인 세션 강제 종료 (`POST /api/auth/sessions/:familyId/revoke`, `POST /api/auth/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로, 사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
-| 2단계 인증 설정 시작 (`POST /api/auth/2fa/setup`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 2단계 인증 끄기·초대 발송·provider probe 와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
-| 2단계 인증 끄기 (`POST /api/auth/2fa/disable`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 2단계 인증 설정 시작·초대 발송·provider probe 와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
+| 2단계 인증 설정 시작 (`POST /api/auth/2fa/setup`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
+| 2단계 인증 활성화 검증 (`POST /api/auth/2fa/verify`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인 「TOTP 켜기」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-켜기) | 같음 |
+| 2단계 인증 끄기 (`POST /api/auth/2fa/disable`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
+| Passkey 등록 옵션 (`POST /api/auth/2fa/webauthn/register/options`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 등록 검증(`POST /api/auth/2fa/webauthn/register/verify`)에는 라우트별 `@Throttle` 이 없다. 동작 정의는 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) | 같음 |
+| Passkey 복구 코드 재발급 (`POST /api/auth/2fa/webauthn/recovery-codes/regenerate`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
 | 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min (사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-변경) | 같음 |
 | 웹훅 수신 | 100 req/min (전역 기본값. `ThrottlerModule` 의 `default` 등급) | 같음 |
 | 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 트리거) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
@@ -292,7 +295,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | 임베딩 테스트 (`POST /api/knowledge-bases/embedding-probe`) | 30 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
 | 지식 저장소 그래프 재추출 (`POST /api/knowledge-bases/:id/re-extract`, `POST /api/knowledge-bases/:id/documents/:docId/re-extract`) | 3 req/min, 10 req/min (순서대로, 사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) | 같음 |
 | 재실행 (`POST /api/executions/:id/re-run`) | 10 req/min (사용자 기준). `@Throttle`(60초에 10회). 넘으면 `429 RATE_LIMITED`. 동작 정의는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) | 같음 |
-| 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. provider probe·2단계 인증 설정 시작·2단계 인증 끄기와 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다 | 같음 |
+| 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다(표 아래) | 같음 |
 | 저장 전 연결 테스트 (`POST /api/integrations/preview-test`) | 20 req/min (사용자 기준). 저장하지 않은 자격 증명으로 외부 연결(Email · MCP · HTTP · Database)을 거듭 여는 것을 막는 `@Throttle` 이다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 서비스마다 실제로 접속하는지는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) | 같음 |
 | 쇼핑몰 중복 사전 감지 (`GET /api/integrations/cafe24/precheck`, `GET /api/integrations/makeshop/precheck`) | 60 req/min (사용자 기준). 이 엔드포인트 전용 `@Throttle` 이고 일반 API 한도 대신 적용한다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) | 같음 |
 | 쇼핑몰 앱 설치 진입점 (`GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`) | 30 req/min (공개 라우트라 IP 기준). 설치 토큰이 URL 에 드러나서 거는 `@Throttle` 이다. 그 위에 도메인 전용 실패 잠금이 있다. 설치 토큰 조회·HMAC 검증 실패가 쌓인 IP 는 `429 CAFE24_INSTALL_RATE_LIMITED`·`MAKESHOP_INSTALL_RATE_LIMITED` 로 거절한다(두 진입점이 `Cafe24InstallRateLimitService` 를 함께 쓴다). `MAKESHOP_INSTALL_RATE_LIMITED` 는 MakeShop 노드의 API 한도 초과 코드 `MAKESHOP_RATE_LIMITED` 와 다른 코드다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) · [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | 같음 (실패 잠금은 `Retry-After` 없음) |
@@ -304,6 +307,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 
 - HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, WebSocket 명령)은 위 콜아웃에 있다.
 - **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 요청 빈도 제한 수치의 단일 기준은 이 표다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
+- **공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`**(분당 10회, `throttle.ts`)는 2단계 인증 설정 시작 · 활성화 검증 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급, provider probe, 초대 발송·재발송 행이 함께 쓴다. 상수가 같아도 라우트마다 따로 센다. `verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)인 2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급에는 이 상수가 모두 걸려 있어야 한다. 단위 테스트가 이 라우트 목록을 고정해 두고 핸들러마다 이 상수가 걸렸는지 본다. 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
 - 인증된 HTTP 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
 - **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다.
 - **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다.
@@ -493,6 +497,7 @@ Content-Type: application/json
 - `codebase/backend/src/common/guards/user-throttler.guard.spec.ts`
 - `codebase/backend/src/common/utils/http-context.ts` (`isHttpContext`. HTTP 전용 전역 enhancer(요청 빈도 제한 가드 · 응답 래핑 · 요청 로깅)가 함께 쓰는 판정)
 - `codebase/backend/src/common/constants/throttle.ts` (§7 의 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`)
+- `codebase/backend/src/modules/auth/password-recheck-throttle.spec.ts` (`verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)의 목록을 고정하고 핸들러마다 §7 의 `SENSITIVE_ACTION_THROTTLE` 이 걸렸는지 보는 단위 테스트)
 - `codebase/backend/src/common/utils/throttler-skip.ts` (`NODE_ENV=test` skip)
 - `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (WebSocket 명령 빈도 제한)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`
@@ -722,11 +727,25 @@ NERV Task `CLE-T-94FTMV` 에서 더했다. `POST /api/auth/2fa/setup` 은 이제
 
 - 비밀번호를 대조하는 라우트가 됐으므로 계정 비밀번호 추측을 막으려고 `@Throttle(SENSITIVE_ACTION_THROTTLE)` 로 분당 10회를 걸었다. 로그인한 사용자만 부르는 라우트라 §7 키 결정 규칙대로 사용자 기준으로 센다.
 - 전용 상수를 두지 않은 이유는 「§7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)」 의 두 번째 기각 대안과 같다.
-- 끄기 행에 합치지 않고 행을 따로 두었다. 두 라우트가 막는 대상이 다르다. 설정 시작은 계정 비밀번호 추측을, 끄기는 인증 코드 추측을 막는다. 같은 상수를 쓰는 끄기 행과 초대 발송·재발송 행의 설명에도 설정 시작을 더했다.
-- 활성화 검증(`POST /api/auth/2fa/verify`)에는 라우트별 `@Throttle` 이 없어 전역 한도를 따르므로 표에 행이 없다. 활성화 검증을 포함해 재확인 라우트들의 요청 한도를 맞추는 일은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항이다(NERV Task `CLE-T-FRCRF7`).
+- 끄기 행에 합치지 않고 행을 따로 두었다. 두 라우트가 막는 대상이 다르다. 설정 시작은 계정 비밀번호 추측을, 끄기는 인증 코드 추측을 막는다. 그때 같은 상수를 쓰는 끄기 행과 초대 발송·재발송 행의 설명에도 설정 시작을 더했다. 2026-11-02 에 그 나열을 표 아래 불릿으로 모았다(아래 「§7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)」).
+- 그때 활성화 검증(`POST /api/auth/2fa/verify`)에는 라우트별 `@Throttle` 이 없어 전역 한도를 따랐고 표에 행이 없었다. 활성화 검증을 포함해 재확인 라우트들의 요청 한도를 맞추는 일은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항으로 남겼다(NERV Task `CLE-T-FRCRF7`). 2026-11-02 에 닫았다([가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)). 이 문서의 변경은 아래 「§7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)」 에 있다.
 
 ### `503` 행의 `SERVICE_UNAVAILABLE` 은 규칙 11 의 일시 장애다 (2026-11-01)
 
 NERV Task `CLE-T-H9QJTA` 에서 더했다. §6 `503` 행은 로그인 2단계 Passkey 인증 검증의 `SERVICE_UNAVAILABLE` 을 적는다. 그 검증은 Passkey 인증 챌린지를 기록하지 못하면 이 코드로 거부한다(NERV Task `CLE-T-GK9J2B`). 기록을 두는 Redis 는 우리 인프라라서 이 응답은 규칙 11 의 일시 장애에 든다. 새 코드를 만들지 않은 이유와 상태 코드를 고른 근거는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 Rationale 에 있다.
 
 - 그래서 `WEBAUTHN_DISABLED` 처럼 규칙 11 의 예외로 적지 않았다. `WEBAUTHN_DISABLED` 는 장애가 아니라 서버 설정으로 기능이 꺼진 상태라서 예외로 적었다([Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다](#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다-2026-10-17)).
+
+### §7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)
+
+NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거의 정본은 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 다.
+
+- Passkey 등록 옵션에 비밀번호 재확인을 더했다. 옵션을 만들기 전에 `verifyPasswordForUser` 로 계정 비밀번호를 확인한다. 복구 코드 재발급은 전부터 `verifyPasswordForUser` 로 비밀번호를 확인했지만 라우트별 한도가 없었다. 두 라우트에 계정 비밀번호 추측을 막는 한도를 걸었다.
+- 활성화 검증에는 인증 코드 추측을 막는 한도를 걸었다. 「§7 에 2단계 인증 설정 시작 행을 더했다 (2026-11-01)」 에서 미결로 남긴 일이다.
+- 세 라우트 모두 `@Throttle(SENSITIVE_ACTION_THROTTLE)` 로 분당 10회다. 로그인한 사용자만 부르는 라우트라 §7 키 결정 규칙대로 사용자 기준으로 센다. 전용 상수를 두지 않은 이유는 「§7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)」 의 두 번째 기각 대안과 같다.
+- 등록 검증(`POST /api/auth/2fa/webauthn/register/verify`)에는 한도를 걸지 않았다. 등록 검증은 비밀번호를 받지 않고 등록 옵션이 준 `optionsToken` 이 앞선 확인을 대신한다. `optionsToken` 은 발급받은 사용자에 묶이고 5분 동안 유효하다. 그래서 비밀번호 재확인 한 번이 그 사용자가 5분 안에 하는 등록을 모두 덮는다([가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)).
+- 같은 상수를 쓰는 행마다 다른 행을 나열하던 문장을 지우고 표 아래 불릿 한 곳에 모았다. 행마다 나열하면 행을 더할 때마다 여러 행을 함께 고쳐야 하고 한 행만 빠져도 서로 어긋난다.
+- `verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)에 한도가 빠지지 않게 단위 테스트로 고정한다. 복구 코드 재발급처럼 한도 없이 남는 라우트가 다시 생기지 않게 하려는 것이다. 테스트는 고정한 라우트 목록의 핸들러마다 한도가 걸렸는지 본다. 그래서 목록에 없는 새 라우트는 잡지 못한다.
+- 비밀번호 변경(`POST /api/users/me/change-password`), 설정 비밀 평문 노출(`POST /api/auth-configs/:id/reveal`), 계정 재인증 라우트는 이 결정의 범위 밖이다. 세 곳도 계정 비밀번호를 확인하지만 `verifyPasswordForUser` 를 부르지 않는다.
+- **기각: e2e 로 고정한다.** test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 라우트별 `@Throttle` 한도를 건너뛴다(§7). 그래서 e2e 로는 한도가 걸렸는지 볼 수 없어 단위 테스트로 고정한다.
+- 활성화 검증은 설정 시작과 행을 따로 둔다. 설정 시작은 계정 비밀번호 추측을, 활성화 검증은 인증 코드 추측을 막는다. 한도도 라우트마다 따로 센다.

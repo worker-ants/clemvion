@@ -148,8 +148,12 @@ export class WebAuthnService {
     return this.getConfig().enabled;
   }
 
-  /** 기능 비활성 시 503 으로 가드. spec/5-system/1-auth.md §1.4.3. */
-  private assertEnabled(): void {
+  /**
+   * 기능 비활성 시 503 으로 가드. spec/5-system/1-auth.md §1.4.3.
+   * 컨트롤러도 비밀번호를 확인하기 전에 부른다. 기능이 꺼진 서버는 비밀번호를 대조하지 않고 503 을 돌려준다
+   * (NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」, CLE-T-FRCRF7).
+   */
+  assertEnabled(): void {
     if (!this.getConfig().enabled) {
       throw new ServiceUnavailableException({
         code: 'WEBAUTHN_DISABLED',

@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import request from 'supertest';
 import { isoBase64URL, isoCBOR, cose } from '@simplewebauthn/server/helpers';
 
+import { TEST_PASSWORD } from './auth';
+
 /**
  * 백엔드 WebAuthn e2e 전용 소프트웨어 인증기.
  *
@@ -258,15 +260,19 @@ interface RegisterResult {
   webauthnRecoveryCodes: string[];
 }
 
-/** register/options 발급 — verify 에 넘길 challenge 와 optionsToken. */
+/**
+ * register/options 발급 — verify 에 넘길 challenge 와 optionsToken.
+ * 등록 옵션은 계정 비밀번호를 다시 받는다(NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7). 기본값은 `registerAndLogin` 의 비밀번호다.
+ */
 export async function fetchRegistrationOptions(
   baseUrl: string,
   accessToken: string,
+  password: string = TEST_PASSWORD,
 ): Promise<{ challenge: string; optionsToken: string }> {
   const optionsRes = await request(baseUrl)
     .post('/api/auth/2fa/webauthn/register/options')
     .set('Authorization', `Bearer ${accessToken}`)
-    .send({});
+    .send({ password });
   if (optionsRes.status !== 200) {
     throw new Error(
       `register/options failed: ${optionsRes.status} ${JSON.stringify(optionsRes.body)}`,

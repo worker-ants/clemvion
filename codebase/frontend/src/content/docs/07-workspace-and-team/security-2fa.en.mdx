@@ -5,7 +5,7 @@ You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as
 | Aspect | TOTP | Passkey · security key |
 |--------|------|------------------------|
 | Compatible tools | Google Authenticator, Authy, 1Password TOTP, … | Built-in passkeys (Face ID, Android, Windows Hello), security keys like YubiKey |
-| Registration | Enter account password → QR → scan with app → enter 6-digit code | Click *Register Passkey* → browser prompt → unlock device / fingerprint / PIN |
+| Registration | Enter account password → QR → scan with app → enter 6-digit code | Enter account password → click *Register Passkey* → browser prompt → unlock device / fingerprint / PIN |
 | Multiple registrations | 1 per user | **N per user** (mobile + desktop + security key all at once) |
 | Recovery codes | 10 issued at TOTP activation | 10 issued on first Passkey registration (**separate pool from TOTP**) |
 | Phishing resistance | Weak (code can leak) | Strong (origin-bound) |
@@ -26,12 +26,13 @@ While TOTP is off, you can turn it on from the **Set up 2FA** card on [Profile �
 1. Enter your **account password**. If it is shorter than 8 characters, the screen shows only "Please enter your password." and no request is sent.
 2. Click **Start setup**. If the password is correct, a QR code appears.
 3. Scan the QR code with your authenticator app.
-4. Enter the 6-digit code shown in the app and click **Verify & Enable**.
+4. Enter the 6-digit code shown in the app and click **Verify & Enable**. You must confirm within 10 minutes of starting setup.
 5. Save the 10 recovery codes, which are shown only once, somewhere safe.
 
 - If the password is wrong, the screen shows "The password is incorrect." and you do not get a QR code.
 - An account created only through social sign-in (Google, GitHub, and so on) has no password. It shows "This account has no password. Set one first with password reset." and cannot turn TOTP on. Create a password with [Forgot password](/forgot-password), then try again.
 - The recovery codes stay on screen after the card switches to the enabled state. They disappear when you turn TOTP off.
+- If more than 10 minutes pass after you start setup, the screen shows "More than 10 minutes have passed since you started setup. Please start again." and the QR code closes. You return to the password step, so enter your password again and continue with a new QR code. The earlier QR code no longer works.
 - If you have not turned it on yet (before verification), reload the page to restart setup from the beginning. Once you restart, the QR code you received earlier no longer works.
 - On an account that already has TOTP on, starting setup and verifying are rejected. If you turned it on in another tab first, the screen shows "2FA is already enabled. Disable it first to set it up again." and switches to the enabled state.
 
@@ -54,6 +55,7 @@ While TOTP is on, the 2FA card on [Profile → Security](/profile/security) show
 - A recovery code used here is consumed, just like at sign-in, and cannot be used again.
 - After TOTP is off, the TOTP secret and any remaining recovery codes are deleted. Turning it on again issues 10 new recovery codes.
 - Passkeys and their recovery codes are separate from TOTP and stay as they are.
+- If you send too many requests, the screen shows "Too many requests. Please try again in a moment." It does not resend automatically, so wait a moment and try again yourself. See "Request limits" below.
 
 ### Changing your authenticator app or phone
 
@@ -64,12 +66,19 @@ While TOTP is on, its secret and recovery codes cannot be changed. On an account
 
 ## Registering a Passkey
 
-1. Open [Profile → Security](/profile/security) → in the **Passkey · Security Key** card, optionally enter a device name and click **Register Passkey**.
+1. Open [Profile → Security](/profile/security) → in the **Passkey · Security Key** card, optionally enter a device name, enter your **account password**, and click **Register Passkey**.
 2. Your browser prompts you to pick an authenticator — built-in passkey, security key, or a passkey on another device.
 3. Unlock the authenticator (fingerprint · Face ID · PIN) and registration completes.
 4. **For your first Passkey** the screen shows a yellow box containing **10 WebAuthn recovery codes — one time only**. Save them somewhere safe (password manager).
 
-> Subsequent registrations do not re-issue recovery codes. If you lose them, use the **Regenerate** button at the bottom of the card (it discards any unused codes and issues 10 new ones).
+The password is asked for so that someone who only holds a signed-in session cannot register their own authenticator and lock out the real user. It is checked before the authenticator prompt opens.
+
+- If the password is shorter than 8 characters, no request is sent and the screen shows "Please enter your password."
+- If the password is wrong, the screen shows "The password is incorrect."
+- An account created only through social sign-in has no password and shows "This account has no password. Set one first with password reset." Create a password with [Forgot password](/forgot-password), then try again.
+- In all three cases the authenticator prompt does not open.
+
+> Subsequent registrations do not re-issue recovery codes. If you lose them, use the **Regenerate** button at the bottom of the card (it discards any unused codes and issues 10 new ones). The regenerate form also asks for your account password and shows the same messages.
 
 ### Browser support
 
@@ -98,6 +107,18 @@ After [Login](/login) succeeds, the 2FA screen follows this priority:
 - **Rename**: pencil icon → new name → **Save**.
 - **Delete**: trash icon → confirm. Deleting your last Passkey also discards the WebAuthn recovery codes.
 - Each row shows **last used**, **registration date**, and **transports** (usb · nfc · ble · internal · hybrid) so you can identify suspicious authenticators.
+
+## Request limits
+
+The following actions are limited to 10 requests per minute per user.
+
+- Registering a Passkey
+- Regenerating Passkey recovery codes
+- Starting TOTP setup
+- Verifying a TOTP code
+- Turning off two-factor authentication
+
+Over the limit, the screen shows "Too many requests. Please try again in a moment." The screen does not resend automatically, so wait a moment and try again yourself.
 
 ## Self-hosting
 

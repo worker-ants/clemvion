@@ -128,10 +128,21 @@ export class WebAuthnRenameDto {
   deviceName: string;
 }
 
+// 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름) (CLE-T-FRCRF7)
+/** WebAuthn 등록 옵션 발급 (비밀번호 재확인). 로그인 세션만으로는 Passkey 를 등록하지 못한다. */
+export class WebAuthnRegisterOptionsRequestDto {
+  @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password: string;
+}
+
 /** WebAuthn 복구 코드 재발급 (비밀번호 재확인). */
 export class WebAuthnRegenerateRecoveryDto {
   @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
   @IsString()
   @MinLength(8)
+  @MaxLength(128)
   password: string;
 }

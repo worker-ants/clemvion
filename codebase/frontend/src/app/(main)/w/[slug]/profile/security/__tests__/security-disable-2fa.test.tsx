@@ -117,4 +117,42 @@ describe("SecurityPage 2FA 비활성화", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(security.passwordRequired);
   });
+
+  // TOTP 끄기는 사용자당 분당 10회로 제한한다. 429 는 자동으로 다시 보내지 않고 안내만 한다
+  // (NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7).
+  it("429 면 잠시 뒤 다시 시도하라고 안내하고 다시 보내지 않는다", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce({
+      isAxiosError: true,
+      message: "Request failed with status code 429",
+      response: {
+        status: 429,
+        data: { error: { code: "RATE_LIMITED", message: "m" } },
+      },
+    });
+    renderPage();
+    fillAndSubmit("correct-password", "123456");
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(security.rateLimited);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("다른 실패는 지금처럼 실패 안내를 띄운다", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce({
+      isAxiosError: true,
+      message: "Request failed with status code 401",
+      response: {
+        status: 401,
+        data: { error: { code: "TOTP_INVALID", message: "m" } },
+      },
+    });
+    renderPage();
+    fillAndSubmit("correct-password", "123456");
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(security.disableFailedDetail);
+    });
+  });
 });

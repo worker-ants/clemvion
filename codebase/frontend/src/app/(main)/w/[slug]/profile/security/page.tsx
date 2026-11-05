@@ -14,15 +14,13 @@ import { authApi } from "@/lib/api/auth";
 import { extractApiCode } from "@/lib/api/errors";
 import { USER_PROFILE_QUERY_KEY, usersApi } from "@/lib/api/users";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useT, type TranslationKey } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { PasskeyCard } from "./passkey-card";
-
-// 설정 시작은 비밀번호를 다시 확인한다(NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV). 비밀번호가 없는 계정(OAuth 전용)은
-// 비밀번호 재설정으로 먼저 비밀번호를 만들어야 켤 수 있다.
-const SETUP_PASSWORD_ERRORS: Partial<Record<string, TranslationKey>> = {
-  PASSWORD_INVALID: "profile.security.passwordInvalid",
-  PASSWORD_REQUIRED: "profile.security.passwordNotSet",
-};
+import {
+  isRateLimited,
+  isTotpSetupExpired,
+  passwordRecheckErrorKey,
+} from "./security-errors";
 
 export default function SecurityPage() {
   const t = useT();
@@ -70,14 +68,11 @@ export default function SecurityPage() {
       setRecoveryCodes(null);
       setSetupPassword("");
     },
+    // 설정 시작은 비밀번호를 다시 확인한다(NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV).
     onError: (err) => {
       if (handleAlreadyEnabled(err)) return;
-      const apiCode = axios.isAxiosError(err) ? extractApiCode(err) : undefined;
       toast.error(
-        t(
-          (apiCode && SETUP_PASSWORD_ERRORS[apiCode]) ||
-            "profile.security.setupStartFailed",
-        ),
+        t(passwordRecheckErrorKey(err, "profile.security.setupStartFailed")),
       );
     },
   });
@@ -92,9 +87,20 @@ export default function SecurityPage() {
       void refreshUser();
     },
     onError: (err) => {
-      if (!handleAlreadyEnabled(err)) {
-        toast.error(t("profile.security.verifyFailed"));
+      if (handleAlreadyEnabled(err)) return;
+      if (isRateLimited(err)) {
+        toast.error(t("profile.security.rateLimited"));
+        return;
       }
+      // 설정 시작 뒤 10분이 지나면 서버가 대기 secret 을 버린다. QR 을 닫고 설정 시작(비밀번호 입력) 단계로
+      // 돌아간다(NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7).
+      if (isTotpSetupExpired(err)) {
+        setQrDataUrl(null);
+        setCode("");
+        toast.error(t("profile.security.setupExpired"));
+        return;
+      }
+      toast.error(t("profile.security.verifyFailed"));
     },
   });
 
@@ -111,7 +117,14 @@ export default function SecurityPage() {
       setRecoveryCodes(null);
       void refreshUser();
     },
-    onError: () => toast.error(t("profile.security.disableFailedDetail")),
+    onError: (err) =>
+      toast.error(
+        t(
+          isRateLimited(err)
+            ? "profile.security.rateLimited"
+            : "profile.security.disableFailedDetail",
+        ),
+      ),
   });
 
   const twoFactorEnabled = user?.twoFactorEnabled;

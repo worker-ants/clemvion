@@ -537,9 +537,11 @@ describe('AuthController', () => {
     });
   });
 
-  // 비밀번호를 다시 확인하는 2FA 라우트는 추측을 막으려고 민감 tier(분당 10회)를 건다.
+  // 2FA 라우트는 비밀번호 · 인증 코드 추측을 막으려고 민감 tier(분당 10회)를 건다. 비밀번호를 다시 확인하는 라우트 전체는
+  // password-recheck-throttle.spec.ts 가 고정하고 여기서는 2FA 컨트롤러의 세 라우트를 함께 본다.
+  // 근거: NERV CLE-API-CONV §7, CLE-ACCT-SIGNIN 「TOTP 켜기」 (CLE-T-FRCRF7)
   describe('2FA throttle', () => {
-    it.each(['setup2fa', 'disable2fa'] as const)(
+    it.each(['setup2fa', 'verify2fa', 'disable2fa'] as const)(
       '%s 는 민감 tier(분당 10회) throttle 을 건다',
       (method) => {
         const handler = AuthController.prototype[method];

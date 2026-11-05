@@ -197,9 +197,11 @@ export const authApi = {
       "/auth/2fa/webauthn/availability",
     ),
 
-  webauthnRegisterOptions: () =>
+  // 등록 옵션은 계정 비밀번호를 다시 확인한다(NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7).
+  webauthnRegisterOptions: (password: string) =>
     apiClient.post<{ data: WebAuthnRegisterOptionsResult }>(
       "/auth/2fa/webauthn/register/options",
+      { password },
     ),
 
   webauthnRegisterVerify: (

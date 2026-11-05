@@ -111,6 +111,7 @@ describe('2FA 해제 (e2e)', () => {
     expect(await readTwoFactor(db, user.userId)).toEqual({
       two_factor_enabled: false,
       two_factor_secret: null,
+      two_factor_setup_started_at: null,
       totp_recovery_codes: null,
     });
   }, 60_000);
