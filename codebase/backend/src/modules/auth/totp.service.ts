@@ -22,10 +22,12 @@ const RECOVERY_CODE_COUNT = 10;
 const EPOCH_TOLERANCE_SECONDS = 30;
 // 대기 secret 의 수명. 설정 시작 뒤 이 시간이 지나면 활성화 검증이 secret 을 버린다
 // (NERV CLE-ACCT-SIGNIN REQ-SIGNIN-084, CLE-T-FRCRF7).
-const TOTP_SETUP_TTL_MS = 10 * 60_000;
+// 만료 메시지·OpenAPI 문구·user.entity 주석이 "10분"을 글로 적는다. 값을 바꾸면 그 문구도 함께 고친다.
+export const TOTP_SETUP_TTL_MS = 10 * 60_000;
 
 /**
- * 대기 secret 이 만료됐는가. 설정 시작 시각이 없거나 `now` 기준 10분이 지났으면 만료다.
+ * 대기 secret 이 만료됐는가. 설정 시작 시각이 없거나 `now` 기준 10분을 넘었으면 만료다(정확히 10분은 유효).
+ * 시작 시각이 `now` 보다 미래이면 경과 시간이 음수라 만료가 아니다.
  * 시각이 없는 대기 secret 은 이 규칙 전에 설정을 시작하고 켜지 않은 계정이다(마이그레이션이 기존 행을 바꾸지 않는다).
  */
 export function isTotpSetupExpired(startedAt: Date | null, now: Date): boolean {

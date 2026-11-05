@@ -20,21 +20,25 @@ import { WebAuthnController } from './webauthn/webauthn.controller';
 const PASSWORD_RECHECK_ROUTES = [
   {
     controller: AuthController,
+    basePath: 'auth',
     handler: AuthController.prototype.setup2fa,
     path: '2fa/setup',
   },
   {
     controller: AuthController,
+    basePath: 'auth',
     handler: AuthController.prototype.disable2fa,
     path: '2fa/disable',
   },
   {
     controller: WebAuthnController,
+    basePath: 'auth/2fa/webauthn',
     handler: WebAuthnController.prototype.webauthnRegisterOptions,
     path: 'register/options',
   },
   {
     controller: WebAuthnController,
+    basePath: 'auth/2fa/webauthn',
     handler: WebAuthnController.prototype.webauthnRegenerateRecovery,
     path: 'recovery-codes/regenerate',
   },
@@ -43,11 +47,9 @@ const PASSWORD_RECHECK_ROUTES = [
 describe('비밀번호 재확인 라우트의 요청 빈도 제한', () => {
   it.each(PASSWORD_RECHECK_ROUTES)(
     'POST $path 는 SENSITIVE_ACTION_THROTTLE 을 건다',
-    ({ controller, handler, path }) => {
+    ({ controller, basePath, handler, path }) => {
       // 목록의 경로가 실제 핸들러와 맞는지 먼저 본다. 핸들러 이름이 바뀌어도 목록이 엉뚱한 라우트를 가리키지 않게 한다.
-      expect(Reflect.getMetadata(PATH_METADATA, controller)).toMatch(
-        /^auth(\/2fa\/webauthn)?$/,
-      );
+      expect(Reflect.getMetadata(PATH_METADATA, controller)).toBe(basePath);
       expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(path);
       expect(Reflect.getMetadata(`${THROTTLER_LIMIT}default`, handler)).toBe(
         SENSITIVE_ACTION_THROTTLE.default.limit,

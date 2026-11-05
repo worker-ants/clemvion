@@ -124,8 +124,7 @@ export class WebAuthnController {
   ) {
     // 기능 확인 → 비밀번호 확인 → 옵션 발급 순서다. 로그인 세션만으로는 Passkey 를 등록하지 못한다
     // (NERV CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」, CLE-T-FRCRF7).
-    this.webauthnService.assertEnabled();
-    await this.authService.verifyPasswordForUser(user.sub, dto.password);
+    await this.verifyPasswordWhenEnabled(user.sub, dto.password);
     const result = await this.webauthnService.generateRegistrationOptionsFor(
       user.sub,
     );
@@ -411,13 +410,21 @@ export class WebAuthnController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: WebAuthnRegenerateRecoveryDto,
   ) {
-    // 기능이 꺼져 있으면 비밀번호를 대조하지 않고 503 이다(NERV CLE-ACCT-SIGNIN, CLE-T-FRCRF7).
-    this.webauthnService.assertEnabled();
     // [refactor 02 C-3 §3] 비밀번호 재확인은 AuthService 로 통일(레이어 정렬,
     // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
-    await this.authService.verifyPasswordForUser(user.sub, dto.password);
+    await this.verifyPasswordWhenEnabled(user.sub, dto.password);
     const codes = await this.webauthnService.regenerateRecoveryCodes(user.sub);
     return { data: { webauthnRecoveryCodes: codes } };
+  }
+
+  // 근거: NERV CLE-ACCT-SIGNIN (CLE-T-FRCRF7)
+  /** 기능이 꺼져 있으면 비밀번호를 대조하지 않고 503 이다. 켜져 있을 때만 비밀번호를 확인한다. */
+  private async verifyPasswordWhenEnabled(
+    userId: string,
+    password: string,
+  ): Promise<void> {
+    this.webauthnService.assertEnabled();
+    await this.authService.verifyPasswordForUser(userId, password);
   }
 
   private mapCredential(c: {

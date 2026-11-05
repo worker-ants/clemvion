@@ -134,6 +134,7 @@ export class WebAuthnRegisterOptionsRequestDto {
   @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
   @IsString()
   @MinLength(8)
+  @MaxLength(128)
   password: string;
 }
 
@@ -142,5 +143,6 @@ export class WebAuthnRegenerateRecoveryDto {
   @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
   @IsString()
   @MinLength(8)
+  @MaxLength(128)
   password: string;
 }

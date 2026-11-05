@@ -8,7 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { generateSync } from 'otplib';
-import { TotpService, isTotpSetupExpired } from './totp.service';
+import {
+  TotpService,
+  isTotpSetupExpired,
+  TOTP_SETUP_TTL_MS,
+} from './totp.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 
@@ -40,7 +44,8 @@ describe('TotpService', () => {
   // 설정 시작 뒤 1분. 대기 secret 이 아직 살아 있다.
   const freshStart = (): Date => new Date(Date.now() - 60_000);
   // 설정 시작 뒤 11분. 대기 secret 이 만료됐다.
-  const staleStart = (): Date => new Date(Date.now() - 11 * 60_000);
+  const staleStart = (): Date =>
+    new Date(Date.now() - (TOTP_SETUP_TTL_MS + 60_000));
 
   beforeEach(async () => {
     usersService = {
@@ -503,17 +508,22 @@ describe('isTotpSetupExpired', () => {
     { name: '시각이 없다', startedAt: null, expired: true },
     {
       name: '10분 1ms 전에 시작했다',
-      startedAt: new Date(now.getTime() - 600_001),
+      startedAt: new Date(now.getTime() - (TOTP_SETUP_TTL_MS + 1)),
       expired: true,
     },
     { name: '11분 전에 시작했다', startedAt: minutesAgo(11), expired: true },
     {
       name: '정확히 10분 전에 시작했다',
-      startedAt: minutesAgo(10),
+      startedAt: new Date(now.getTime() - TOTP_SETUP_TTL_MS),
       expired: false,
     },
     { name: '1분 전에 시작했다', startedAt: minutesAgo(1), expired: false },
     { name: '방금 시작했다', startedAt: now, expired: false },
+    {
+      name: '시작 시각이 미래다',
+      startedAt: new Date(now.getTime() + 60_000),
+      expired: false,
+    },
   ])('$name → 만료 $expired', ({ startedAt, expired }) => {
     expect(isTotpSetupExpired(startedAt, now)).toBe(expired);
   });
