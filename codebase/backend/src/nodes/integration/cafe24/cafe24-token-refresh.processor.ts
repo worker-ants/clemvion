@@ -94,7 +94,7 @@ export class Cafe24TokenRefreshProcessor extends WorkerHost {
     // 수행해, 위 race 가 발생하면 사용자가 의도한 reauthorize 흐름이
     // 우회될 수 있었다. 이제 source 무관하게 connected 만 처리해 race-safe.
     //
-    // 호출자 (Cafe24ApiClient.call) 는 어차피 handler 의 `resolveIntegration`
+    // 호출자 (Cafe24ApiClient.call) 는 어차피 handler 의 `assertUsable`(3단계)
     // 에서 status='connected' 검증을 거친 뒤에만 도착하므로 proactive 경로
     // 도 이 검증이 정상 흐름에 영향을 주지 않는다.
     if (fresh.status !== 'connected') {
