@@ -173,11 +173,17 @@ export class WebAuthnService {
   }
 
   /**
-   * 등록된 credential 개수 — login() 분기 결정용. 비활성 시 0 반환 (TOTP/일반 분기로 빠짐).
-   * DB row 자체는 보존되며, 운영자가 env 를 다시 설정하면 그대로 사용 가능.
+   * 등록된 credential 개수. 기능이 꺼져도 저장된 행을 그대로 센다(행은 보존되고 운영자가
+   * 변수를 다시 설정하면 그대로 쓴다). 기능 여부는 호출하는 쪽이 `isEnabled()` 로 따로 본다.
+   *
+   * 호출하는 곳은 넷이다.
+   * - `AuthService.login`: 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정을 503
+   *   `WEBAUTHN_DISABLED` 로 막는다(NERV CLE-ACCT-SIGNIN 「2단계 인증 방식 선택」).
+   *   꺼질 때 0 을 돌려주면 그 계정이 비밀번호만으로 로그인한다.
+   * - `AuthService.loginWithTotp`: 기능이 켜져 있을 때만 `WEBAUTHN_REQUIRED` 백스탑에 쓴다.
+   * - `verifyRegistration` · `deleteCredential`: `assertEnabled()` 뒤라 기능이 켜져 있다.
    */
   async countCredentials(userId: string): Promise<number> {
-    if (!this.getConfig().enabled) return 0;
     return this.credentialRepo.count({ where: { userId } });
   }
 
