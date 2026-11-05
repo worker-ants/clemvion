@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "2395625f36a4813af1cd990cc7330d17957ca7edf7698cd746fddca8cebdcc13"
+content_hash: "3bd1ea7f18fccbb88d9fe58e7ca2dd779e1b690bc9bf4d085a6316273c61ea65"
 read_as: "approved_fallback"
-task: "CLE-T-ZHBMAC"
+task: "CLE-T-0QAJ5M"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "912ee43a4c3d3c2b0eef0330a9a6e314497f403b2c0cbf8f2062b1d42546531f"
-etag: "sha256-44aefb591943f4cbc387be2759bfb5588693be39b466b2f20aa89763ba0bc795"
+mirror_sha256: "2a3042b607a88cf285c33a3b6d85c9e9c9c69eb36441bf93d71f2ea119392e42"
+etag: "sha256-65604372ffc0c8ba3a9772574a18b9d6b5bc2b76230c4f2ed482d67fea57abba"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -560,7 +560,7 @@ interface ChannelAdapterRegistry {
 
 1. 프로바이더 문서를 만든다(구체 명세).
 2. `codebase/backend/src/modules/chat-channel/providers/<name>/<name>.adapter.ts` 에 `ChatChannelAdapter` 를 구현한다.
-3. `ChatChannelModule` 의 `onModuleInit` 에서 레지스트리에 `register()` 한다.
+3. `ChatChannelModule` 생성자에서 `registry.register(adapter)` 로 레지스트리에 등록한다.
 4. [채팅 채널](CLE-CHAT-CORE.md) 의 채널 프로바이더 카탈로그에 행을 더한다.
 5. 어댑터 구현체에 `supportsNativeForm` 값을 선언한다. 지원하면 모달 수용 필드 타입 범위를 프로바이더 문서에 적는다.
 

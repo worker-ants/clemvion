@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "1c038602a18172e584210ddcc51d09d538b01d4c9118342a6a3f7d23eccc575e"
+content_hash: "126e559bee4132f528a80a7c7b40fa20604dede122fc48874fd9e3a189038c1f"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-0QAJ5M"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "b162f71d3d66efdd0490066a6a3cf95da3ff435dead11d1fc9e588e2340e7ec8"
-etag: "sha256-c9cc91e7796cf1aac4ab3378a597487c07afd3e18fdc5059f5852ecfa40494ee"
+mirror_sha256: "2d5e31364238d8cf6f2d84e0bf91f615f6bcce5d3b2f3f41b81ad19b93a6ae98"
+etag: "sha256-426115a13bc5270c7edadecd14845ca2e78a2d2f04b39f22024af67c83a4b747"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -109,10 +109,10 @@ etag: "sha256-c9cc91e7796cf1aac4ab3378a597487c07afd3e18fdc5059f5852ecfa40494ee"
 
 | 채널 | 소유 모듈 | 용도 |
 | --- | --- | --- |
-| `integration:cache:invalidate` | `common/redis` | 통합 자격 증명을 교체하거나 삭제하면 모든 인스턴스의 로컬 자격 증명 캐시(예: Database Query 노드 연결 풀)를 곧바로 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)). 페이로드는 통합 ID 평문이다. 워크스페이스와 무관한 전역 채널이다. 메시지를 못 받아도 핸들러가 자격 증명 해시(`credsHash`)를 비교해 비우므로 안전하게 강등된다. 구독은 전용 복제 연결로 한다(공유 명령 연결은 SUBSCRIBE 를 쓰지 않는다) |
-| `chat-channel:listener` | `modules/chat-channel` | 채팅 채널의 트리거 단위 listener 레지스트리 변경을 모든 서버 인스턴스에 알린다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 워크스페이스와 무관한 전역 채널이다. 페이로드 형식과 복원 · 유실 정책은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA.md#redis-키) 가 정한다 |
+| `integration:cache:invalidate` | `common/redis` | 통합 자격 증명을 교체하거나 삭제하면 모든 서버 인스턴스의 로컬 자격 증명 캐시(예: Database Query 노드 연결 풀)를 곧바로 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)). 페이로드는 통합 ID 평문이다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 메시지를 못 받아도 핸들러가 자격 증명 해시(`credsHash`)를 비교해 비우므로 안전하게 강등된다. 구독은 전용 복제 연결로 한다(공유 명령 연결은 SUBSCRIBE 를 쓰지 않는다) |
+| `chat-channel:listener` | `modules/chat-channel` | 채팅 채널의 트리거 단위 listener 레지스트리 변경을 모든 서버 인스턴스에 알린다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 워크스페이스와 무관한 전역 pub/sub 채널이다. 놓친 등록은 구독을 다시 확립할 때만 DB 에서 다시 읽어 메운다. 구독이 끊긴 사이 놓친 해제와 구독이 이어진 동안 잃은 메시지는 메우지 않는다. 해시 비교로 놓친 메시지를 메우는 `integration:cache:invalidate` 와 달리 보정이 구독 재확립 때만 있는 예외다. 페이로드 형식은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA.md#redis-키) 가 정한다. 복원 · 유실 정책과 이 예외의 근거는 [채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다) 에 있다 |
 | `eia:sse:live:<executionId>` | `modules/external-interaction` | 실행별 EIA SSE 이벤트 채널이다. 실행 이벤트가 난 서버 인스턴스가 이 채널로 발행하고 그 실행의 SSE 구독자가 있는 서버 인스턴스만 구독한다. 그래서 구독자는 어느 서버 인스턴스에 붙어도 그 실행의 이벤트를 받는다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
-| `eia:sse:close` | `modules/external-interaction` | 트리거 단위 토큰(`itk_*`)이 무효가 되면 그 트리거를 모든 서버 인스턴스에 알린다. 받은 서버 인스턴스는 그 토큰으로 연 SSE 스트림을 닫는다. 워크스페이스와 무관한 전역 채널이다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
+| `eia:sse:close` | `modules/external-interaction` | 트리거 단위 토큰(`itk_*`)이 무효가 되면 그 트리거를 모든 서버 인스턴스에 알린다. 받은 서버 인스턴스는 그 토큰으로 연 SSE 스트림을 닫는다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
 
 ### 다른 모듈의 키
 
