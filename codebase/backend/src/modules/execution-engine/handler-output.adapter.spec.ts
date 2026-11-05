@@ -676,6 +676,39 @@ describe('null · undefined output 의 포트 봉투', () => {
     expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
+  // 재개 상태만 싣고 status 가 없는 출력도 봉투 조건에서 빠진다. 재개 경로가
+  // `_resumeState` 를 엔진 값의 최상위에서 읽기 때문이다.
+  it('재개 상태(_resumeState)만 있고 status 가 없어도 설정 에코를 펼친 모양을 그대로 둔다', () => {
+    const resumeState = { turn: 2 };
+    const flat = toEngineFlatShape({
+      config: { mode: 'multi' },
+      output: null,
+      port: 'success',
+      _resumeState: resumeState,
+    });
+
+    expect(flat).toEqual({
+      mode: 'multi',
+      port: 'success',
+      _resumeState: resumeState,
+    });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  // 봉투 조건은 status 값을 가리지 않는다. 대기가 아닌 status(`ended` 등)도 엔진이 최상위
+  // `status` 를 읽으므로 옛 모양을 그대로 둔다.
+  it("대기가 아닌 status('ended')도 설정 에코를 펼친 모양을 그대로 둔다", () => {
+    const flat = toEngineFlatShape({
+      config: { mode: 'multi' },
+      output: null,
+      port: 'error',
+      status: 'ended',
+    });
+
+    expect(flat).toEqual({ mode: 'multi', port: 'error', status: 'ended' });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
   // Parallel 핸들러는 output: null 에 분기 포트 전부를 배열로 싣는다. 완료 출력은 엔진이
   // 다시 만들고, `PARALLEL_ENGINE=off` 경로는 `_selectedPort` 가 없어 done 포트까지 여는
   // 지금 동작에 기댄다. 그래서 배열 포트는 봉투로 바꾸지 않는다.

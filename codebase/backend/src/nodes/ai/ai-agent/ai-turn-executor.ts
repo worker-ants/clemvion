@@ -567,7 +567,7 @@ interface TurnOutputAccumulators {
 /**
  * 단일 턴의 thread 주입 결과. {@link AiTurnExecutor.applySingleTurnMemoryInjection}
  * 이 반환하고 {@link AiTurnExecutor.buildSingleTurnMeta} ·
- * {@link AiTurnExecutor.buildSingleTurnLlmErrorOutput} 이 `meta.contextInjection` 에 쓴다.
+ * {@link AiTurnExecutor.buildSingleTurnErrorOutput} 이 `meta.contextInjection` 에 쓴다.
  */
 type SingleTurnInjection = ReturnType<AiTurnExecutor['injectThreadContext']>;
 
@@ -584,6 +584,12 @@ type SingleTurnMemoryInjectionResult =
       singleTurnInjection: SingleTurnInjection;
     }
   | { memoryError: unknown; singleTurnInjection: SingleTurnInjection };
+
+/**
+ * 단일 턴 `error` 포트 출력을 만든 실패 단계. 로그 문구와 `meta.durationMs` 의 시작 시각이
+ * 이 값에 따라 갈린다({@link AiTurnExecutor.buildSingleTurnErrorOutput}).
+ */
+type SingleTurnFailedStep = 'LLM call' | 'memory injection';
 
 /**
  * 단일 턴 자동 메모리 전략 메타(spec §7 `meta.memory`). manual 전략이면 없다.
@@ -665,7 +671,7 @@ const TOOL_BUDGET_EXCEEDED_ERROR = 'tool_call_budget_exceeded';
  * ### LLM 호출 실패 (REQ-AGENT-024)
  *
  * `llmService.chat` 실패도 같은 방향으로 갈린다. `executeSingleTurn` 은 잡아서
- * `error` 포트 output 을 return 하고(`buildSingleTurnLlmErrorOutput`), 멀티턴 재개는
+ * `error` 포트 output 을 return 하고(`buildSingleTurnErrorOutput`), 멀티턴 재개는
  * throw 해 orchestrator 가 조립한다. 두 경로의 `code` · `details.retryable` 은 같은
  * `extractAiTurnErrorPayload`(`nodes/ai/shared/llm-error-payload.ts`)가 정한다. 단일 턴
  * catch 는 맨 앞에서 `rethrowIfNodeCancelled` 로 노드 취소를 AbortError 로 던진다.
@@ -1694,7 +1700,7 @@ export class AiTurnExecutor {
   }
 
   /**
-   * 단일 턴 LLM 호출 실패의 `error` 포트 출력(REQ-AGENT-024). 첫 호출 · 도구 반복의
+   * 단일 턴 실패의 `error` 포트 출력(REQ-AGENT-024). 첫 호출 · 도구 반복의
    * `chat` 과 자동 메모리 주입(롤링 요약 `chat` · 요약 모델 설정 해석) 실패가 여기로 온다.
    * `code` · `details.retryable` 은 멀티턴 재개와 같은 {@link extractAiTurnErrorPayload}
    * 로 정한다. `meta` 는 {@link AiTurnExecutor.buildSingleTurnMeta} 로 정상 완료와 같은
@@ -1702,9 +1708,9 @@ export class AiTurnExecutor {
    * 최종 `ai_assistant` thread push 와 메모리 추출은 하지 않는다. 노드 취소는 여기
    * 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled` 로 던진다.
    */
-  private static buildSingleTurnLlmErrorOutput(args: {
+  private static buildSingleTurnErrorOutput(args: {
     /** 로그에 남길 실패 단계. */
-    failedStep: 'LLM call' | 'memory injection';
+    failedStep: SingleTurnFailedStep;
     err: unknown;
     singleTurnConfigEcho: Record<string, unknown>;
     model: string | undefined;
@@ -1879,7 +1885,7 @@ export class AiTurnExecutor {
     // 롤링 요약 `chat` · 요약 모델 설정 해석 실패도 LLM 호출 실패와 같은 error 포트로
     // 끝낸다(REQ-AGENT-024, NERV Task CLE-T-Q38K9F). 주입이 끝나지 않았으므로 `meta.memory` 는 없다.
     if ('memoryError' in memInjection) {
-      return AiTurnExecutor.buildSingleTurnLlmErrorOutput({
+      return AiTurnExecutor.buildSingleTurnErrorOutput({
         failedStep: 'memory injection',
         err: memInjection.memoryError,
         singleTurnConfigEcho,
@@ -1920,7 +1926,7 @@ export class AiTurnExecutor {
       err: unknown,
       toolCallsSoFar: number,
     ): NodeHandlerOutput =>
-      AiTurnExecutor.buildSingleTurnLlmErrorOutput({
+      AiTurnExecutor.buildSingleTurnErrorOutput({
         failedStep: 'LLM call',
         err,
         singleTurnConfigEcho,

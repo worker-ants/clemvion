@@ -86,6 +86,7 @@ import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
 import { CodeHandler } from '../../nodes/data/code/code.handler';
+import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
 
 // Helper to flush pending promises (allow background execution to complete)
@@ -11877,6 +11878,36 @@ describe('ExecutionEngineService', () => {
         expect(successCalls[0].config.port).toBe('success');
       },
     );
+
+    // 입력을 그대로 넘기는 분기 노드(If/Else 의 `output: input`)는 Code 의 `null` 을 받으면
+    // 자기 출력도 `null` 이 되어 같은 봉투를 탄다. 고른 포트 하나만 열고 그 뒤 노드는 `null` 을
+    // 받는다(NERV Task CLE-T-X3AH4F 의 영향 범위. Switch · Background 도 같은 모양이다).
+    it('Code 의 null 을 받은 If/Else 도 고른 포트로만 보내고 그 뒤 노드는 null 을 받는다', async () => {
+      handlerRegistry.register('if_else', new IfElseHandler());
+      mockNodeRepo.findBy.mockResolvedValue([
+        vNode('trigger', 'test_node'),
+        vNode('code', 'code', { code: 'return null;' }),
+        vNode('branch', 'if_else', {
+          conditions: [{ field: 'value', operator: 'is_null' }],
+          combineMode: 'and',
+        }),
+        vNode('ok', 'success_sink', { port: '{{ $node["branch"].port }}' }),
+        vNode('err', 'error_sink'),
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([
+        vEdge('trigger', 'out', 'code'),
+        vEdge('code', 'success', 'branch'),
+        vEdge('branch', 'true', 'ok'),
+        vEdge('branch', 'false', 'err'),
+      ]);
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+      await waitForSink();
+
+      expect(successCalls).toHaveLength(1);
+      expect(errorCalls).toHaveLength(0);
+      expect(successCalls[0].input).toBeNull();
+      expect(successCalls[0].config.port).toBe('true');
+    });
 
     it('배열 원소를 표현식으로 바로 읽는다', async () => {
       await runCodeGraph('return [{ v: 1 }, { v: 2 }, { v: 3 }];', {
