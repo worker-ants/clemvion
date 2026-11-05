@@ -86,6 +86,7 @@ import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
 import { CodeHandler } from '../../nodes/data/code/code.handler';
+import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
 
 // Helper to flush pending promises (allow background execution to complete)
@@ -7792,6 +7793,42 @@ describe('ExecutionEngineService', () => {
       expect(mockHandler.execute).toHaveBeenCalledTimes(1); // only start node
     });
 
+    // `output: null` 출력의 포트 봉투(NERV Task CLE-T-X3AH4F)는 포트 하나만 고른 출력에만
+    // 쓴다. 입력 대기 선언은 포트가 함께 있어도 예전처럼 대기로 멈춘다.
+    it.each([
+      ['포트 없음', {}],
+      ['포트 있음', { port: 'out' }],
+    ])(
+      'output 이 null 인 입력 대기 선언(%s)도 대기 이벤트를 내고 멈춘다',
+      async (_label, portField) => {
+        (formHandler.execute as jest.Mock).mockImplementationOnce(async () => ({
+          config: { fields: [{ name: 'approved', type: 'checkbox' }] },
+          output: null,
+          meta: { interactionType: 'form' },
+          status: 'waiting_for_input',
+          ...portField,
+        }));
+
+        await service.execute(
+          workflowId,
+          { data: 'test' },
+          { workspaceId: 'ws-1' },
+        );
+        await flushPromises();
+
+        expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+          executionId,
+          'execution.waiting_for_input',
+          expect.objectContaining({
+            status: 'waiting_for_input',
+            waitingNodeId: 'node-form',
+            interactionType: 'form',
+          }),
+        );
+        expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+      },
+    );
+
     it('persists outputData.meta.interactionType="form" so snapshot reconcile hydrates store correctly', async () => {
       // 페이지 재마운트 시 execution.snapshot reconcile (frontend) 이 이
       // 필드로 store 의 waitingInteractionType 을 set. 누락 시 Preview 탭
@@ -11818,6 +11855,59 @@ describe('ExecutionEngineService', () => {
         expect(errorCalls).toHaveLength(0);
       },
     );
+
+    // 예전에는 설정 에코(`code` · `language`)를 펼친 값에 `_selectedPort` 가 없어 success ·
+    // error 포트가 함께 열리고 다음 노드가 설정 에코를 받았다(NERV Task CLE-T-X3AH4F).
+    // CLE-NODE-CODE: `return` 이 없으면 `output` 은 `undefined` 다. 표현식은 없는 멤버를
+    // `null` 로 읽으므로(expression-engine 의 멤버 접근 규칙) `$node[...].output` 은 둘 다 `null` 이다.
+    it.each([
+      ['null', 'return null;', null],
+      ['반환 없음', 'const x = 1;', undefined],
+    ])(
+      'Code 가 %s 이면 success 포트만 열고 다음 노드는 설정 에코가 아니라 그 값을 받는다',
+      async (_label, code, expected) => {
+        await runCodeGraph(code, {
+          fromNode: '{{ $node["code"].output }}',
+          port: '{{ $node["code"].port }}',
+        });
+
+        expect(successCalls).toHaveLength(1);
+        expect(errorCalls).toHaveLength(0);
+        expect(successCalls[0].input).toBe(expected);
+        expect(successCalls[0].config.fromNode).toBeNull();
+        expect(successCalls[0].config.port).toBe('success');
+      },
+    );
+
+    // 입력을 그대로 넘기는 분기 노드(If/Else 의 `output: input`)는 Code 의 `null` 을 받으면
+    // 자기 출력도 `null` 이 되어 같은 봉투를 탄다. 고른 포트 하나만 열고 그 뒤 노드는 `null` 을
+    // 받는다(NERV Task CLE-T-X3AH4F 의 영향 범위. Switch · Background 도 같은 모양이다).
+    it('Code 의 null 을 받은 If/Else 도 고른 포트로만 보내고 그 뒤 노드는 null 을 받는다', async () => {
+      handlerRegistry.register('if_else', new IfElseHandler());
+      mockNodeRepo.findBy.mockResolvedValue([
+        vNode('trigger', 'test_node'),
+        vNode('code', 'code', { code: 'return null;' }),
+        vNode('branch', 'if_else', {
+          conditions: [{ field: 'value', operator: 'is_null' }],
+          combineMode: 'and',
+        }),
+        vNode('ok', 'success_sink', { port: '{{ $node["branch"].port }}' }),
+        vNode('err', 'error_sink'),
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([
+        vEdge('trigger', 'out', 'code'),
+        vEdge('code', 'success', 'branch'),
+        vEdge('branch', 'true', 'ok'),
+        vEdge('branch', 'false', 'err'),
+      ]);
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+      await waitForSink();
+
+      expect(successCalls).toHaveLength(1);
+      expect(errorCalls).toHaveLength(0);
+      expect(successCalls[0].input).toBeNull();
+      expect(successCalls[0].config.port).toBe('true');
+    });
 
     it('배열 원소를 표현식으로 바로 읽는다', async () => {
       await runCodeGraph('return [{ v: 1 }, { v: 2 }, { v: 3 }];', {

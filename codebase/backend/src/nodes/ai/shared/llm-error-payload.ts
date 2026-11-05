@@ -91,7 +91,7 @@ function classifyLlmError(
  *
  * Both AI agent paths use it. A multi-turn resume reaches it through
  * `AiTurnOrchestrator.handleAiTurnError`. A single turn calls it in
- * `AiTurnExecutor.buildSingleTurnLlmErrorOutput` and returns the payload on
+ * `AiTurnExecutor.buildSingleTurnErrorOutput` and returns the payload on
  * the `error` port. One function keeps the two paths on the same `code` and
  * `details.retryable`. It sits under `nodes/` so the executor can call it
  * without a runtime import of an `execution-engine` service.
