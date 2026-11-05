@@ -14,9 +14,9 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 1. **입력 배열을 그대로 돈다**: 컨테이너 핸들러가 입력 배열과 함께 `meta` 를
  *    돌려줘도 컨테이너가 그 배열을 돈다. 엔진의 flat 캐시가 meta 만 보고 출력을
  *    `{ data: [...] }` 로 감싸 구조화 캐시의 output 까지 바꾸던 회귀를 막는다.
- *    상류 Code 는 배열을 객체에 담아 돌려준다. Code 가 배열을 그대로 돌려주면
- *    `port: 'success'` 때문에 다운스트림이 `{ data: [...] }` 를 보는 별도 결함이 있어서다
- *    (레거시 `{ port, data }` 봉투, NERV Task CLE-T-T30D5S).
+ *    상류 Code 가 배열을 그대로 돌려줘도 컨테이너의 입력과 `$node["Code"].output` 은
+ *    그 배열이다. `port: 'success'` 때문에 엔진 안에서 `{ data: [...] }` 봉투로 실리던
+ *    값이 다운스트림까지 새던 결함을 막는다(NERV Task CLE-T-T30D5S).
  * 2. **비배열 입력은 meta 로 알린다**: 배열 경로가 원시값 · 객체로 풀리면 바디를 돌지
  *    않고 `meta.fellBackToEmpty: true` 를 남긴다. 다운스트림은
  *    `$node["<컨테이너>"].meta.*` 로 읽는다.
@@ -83,6 +83,20 @@ describe('Container array input and completion meta (e2e)', () => {
     return r.rows[0].output_data?.output ?? {};
   }
 
+  async function readInput(
+    executionId: string,
+    nodeId: string,
+  ): Promise<unknown> {
+    const r = await db.query<{ input_data: unknown }>(
+      `SELECT input_data FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, nodeId],
+    );
+    expect(r.rows.length).toBe(1);
+    return r.rows[0].input_data;
+  }
+
   async function countBodyRuns(
     executionId: string,
     bodyId: string,
@@ -103,6 +117,7 @@ describe('Container array input and completion meta (e2e)', () => {
     arrayExpr: string,
   ): Promise<{
     executionId: string;
+    ctrId: string;
     bodyId: string;
     echoId: string;
     status: string;
@@ -248,7 +263,7 @@ describe('Container array input and completion meta (e2e)', () => {
     expect(exec.status).toBe(202);
     const executionId = exec.body.data.executionId as string;
     const status = await poll(executionId);
-    return { executionId, bodyId, echoId, status };
+    return { executionId, ctrId, bodyId, echoId, status };
   }
 
   it.each<ContainerType>(['map', 'foreach'])(
@@ -260,6 +275,34 @@ describe('Container array input and completion meta (e2e)', () => {
         '{{ $node["Code"].output.items }}',
       );
       expect(status).toBe('completed');
+      expect(await countBodyRuns(executionId, bodyId)).toBe(3);
+      const echo = await readOutput(executionId, echoId);
+      expect(echo.fell).toBe(false);
+      expect(echo.iterations).toBe(3);
+      expect(echo.count).toBe(3);
+      expect(echo.first).toEqual({ v: 1, seen: 'yes' });
+    },
+    60_000,
+  );
+
+  // Code 가 배열을 그대로 돌려주는 경우. 컨테이너가 Code 의 배열을 `$node["Code"].output`
+  // 으로 읽든 `$input` 으로 읽든 세 번 돈다(NERV Task CLE-T-T30D5S).
+  it.each<[ContainerType, string]>([
+    ['map', '{{ $node["Code"].output }}'],
+    ['foreach', '{{ $node["Code"].output }}'],
+    ['map', '{{ $input }}'],
+  ])(
+    '%s iterates an array the upstream Code returned as is (%s)',
+    async (type, arrayExpr) => {
+      const items = [{ v: 1 }, { v: 2 }, { v: 3 }];
+      const { executionId, ctrId, bodyId, echoId, status } = await runGraph(
+        type,
+        'return [{ v: 1 }, { v: 2 }, { v: 3 }];',
+        arrayExpr,
+      );
+      expect(status).toBe('completed');
+      // 컨테이너 실행 행의 입력도 봉투가 아니라 Code 가 돌려준 배열이다.
+      expect(await readInput(executionId, ctrId)).toEqual(items);
       expect(await countBodyRuns(executionId, bodyId)).toBe(3);
       const echo = await readOutput(executionId, echoId);
       expect(echo.fell).toBe(false);

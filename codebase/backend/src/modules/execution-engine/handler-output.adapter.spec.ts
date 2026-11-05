@@ -1,7 +1,10 @@
 import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 import {
   adaptHandlerReturn,
+  isWrappedValueEnvelope,
+  markWrappedValueEnvelope,
   toEngineFlatShape,
+  unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -391,20 +394,42 @@ describe('toEngineFlatShape', () => {
     expect((flat as Record<string, unknown>).status).toBe('waiting_for_input');
   });
 
-  // meta 만 있어도 감싼다. 저장된 워크플로우가 `$input.data` 로 읽을 수 있어서
-  // 옵션이 없는 이 함수는 레거시 `{ data }` 봉투를 지킨다. 현행 동작을 고정한 것이고
-  // 노드 출력 규약과는 다르다(배열 · 원시값 `output` 을 그대로 노출). NERV Task
-  // CLE-T-T30D5S 에서 바뀐다. 컨테이너 예외는 `ignoreMetaForWrap` 이 맡는다.
+  // meta 는 봉투에 실리지 않는다. 그래서 meta 만으로는 감싸지 않고 배열 · 원시값을
+  // 그대로 둔다(노드 출력 규약 Principle 0 · 8, NERV Task CLE-T-T30D5S). 컨테이너만
+  // 예외로 두던 옛 `ignoreMetaForWrap` 옵션은 모든 노드의 규칙이 되어 없앴다.
   it.each([
     ['array', [1, 2, 3]],
     ['string', 'result text'],
-  ])('wraps a %s output when only meta is present', (_label, output) => {
+    ['number', 42],
+  ])('keeps a %s output bare when only meta is present', (_label, output) => {
     const flat = toEngineFlatShape({
       config: {},
       output,
       meta: { durationMs: 3 },
     });
-    expect(flat).toEqual({ data: output });
+    expect(flat).toBe(output);
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+  });
+
+  it('still wraps an array output when a control field rides with meta', () => {
+    const flat = toEngineFlatShape({
+      config: {},
+      output: [1, 2],
+      meta: { fellBackToEmpty: false },
+      port: 'body',
+    });
+    expect(flat).toEqual({ data: [1, 2], port: 'body' });
+    expect(isWrappedValueEnvelope(flat)).toBe(true);
+  });
+
+  it('does not change an object output when meta is present', () => {
+    expect(
+      toEngineFlatShape({
+        config: {},
+        output: { a: 1 },
+        meta: { iterations: 2 },
+      }),
+    ).toEqual({ a: 1 });
   });
 
   it('synthesises { data, port, status } when output is a primitive with control fields', () => {
@@ -518,52 +543,77 @@ describe('toEngineFlatShape', () => {
   });
 });
 
-describe('toEngineFlatShape ignoreMetaForWrap', () => {
-  // 컨테이너(Map · ForEach)는 입력 배열을 output 으로 돌려주고 컨테이너 실행이 구조화
-  // 캐시에서 그 배열을 읽는다. meta 때문에 감싸면 컨테이너가 배열을 못 본다.
-  // 어댑터는 노드 종류를 모른다. 켜는 쪽은 엔진이 레지스트리 kind 로 정한다.
-  it('keeps an array output bare when it carries only meta', () => {
-    const output = [{ v: 1 }, { v: 2 }];
-    const flat = toEngineFlatShape(
-      { config: {}, output, meta: { fellBackToEmpty: false } },
-      { ignoreMetaForWrap: true },
-    );
-    expect(flat).toBe(output);
+// 배열 · 원시값 output 이 제어 필드와 함께 오면 엔진 flat 캐시에는 `{ data, ...control }`
+// 봉투로 실린다. 사용자가 직접 돌려준 `{ data: [...] }` 객체와 모양이 같아서 봉투에는
+// 표지를 붙이고, 다운스트림 `$input` · `$node[X].output` 은 표지를 보고 `data` 를 푼다
+// (NERV Task CLE-T-T30D5S).
+describe('wrapped value envelope', () => {
+  it.each([
+    ['array', [{ v: 1 }, { v: 2 }]],
+    ['string', 'hello'],
+    ['number', 42],
+    ['zero', 0],
+    ['boolean false', false],
+  ])('marks the envelope for a %s output with a port', (_label, output) => {
+    const flat = toEngineFlatShape({ config: {}, output, port: 'success' });
+    expect(flat).toEqual({ data: output, port: 'success' });
+    expect(isWrappedValueEnvelope(flat)).toBe(true);
+    expect(unwrapEngineFlatValue(flat)).toBe(output);
   });
 
-  it('still wraps an array output when a control field rides with meta', () => {
-    const flat = toEngineFlatShape(
-      {
-        config: {},
-        output: [1, 2],
-        meta: { fellBackToEmpty: false },
-        port: 'body',
-      },
-      { ignoreMetaForWrap: true },
-    );
-    expect(flat).toEqual({ data: [1, 2], port: 'body' });
-  });
-
-  it('keeps the legacy envelope when the option is off', () => {
-    const adapted = {
+  it('marks the envelope when status alone triggers wrapping', () => {
+    const flat = toEngineFlatShape({
       config: {},
-      output: [1, 2],
-      meta: { inputCount: 2 },
-    };
-    expect(toEngineFlatShape(adapted)).toEqual({ data: [1, 2] });
-    expect(toEngineFlatShape(adapted, { ignoreMetaForWrap: false })).toEqual({
-      data: [1, 2],
+      output: ['a'],
+      status: 'waiting_for_input',
     });
+    expect(flat).toEqual({ data: ['a'], status: 'waiting_for_input' });
+    expect(isWrappedValueEnvelope(flat)).toBe(true);
   });
 
-  it('does not change an object output (meta never decided its wrapping)', () => {
-    const adapted = {
+  it('does not mark a user object that happens to carry a data key', () => {
+    const output = { data: [1, 2] };
+    const flat = toEngineFlatShape({ config: {}, output, port: 'success' });
+    expect(flat).toEqual({ data: [1, 2], port: 'success' });
+    expect(isWrappedValueEnvelope(flat)).toBe(false);
+    expect(unwrapEngineFlatValue(flat)).toBe(flat);
+  });
+
+  it('does not mark bare values or plain objects', () => {
+    expect(isWrappedValueEnvelope([1])).toBe(false);
+    expect(isWrappedValueEnvelope('x')).toBe(false);
+    expect(isWrappedValueEnvelope(null)).toBe(false);
+    expect(isWrappedValueEnvelope({ data: 1 })).toBe(false);
+    expect(unwrapEngineFlatValue([1])).toEqual([1]);
+    expect(unwrapEngineFlatValue(undefined)).toBeUndefined();
+  });
+
+  it('lets a caller carry the mark over to a re-shaped envelope', () => {
+    const routed = markWrappedValueEnvelope({
+      data: [1],
+      _selectedPort: 'success',
+    });
+    expect(isWrappedValueEnvelope(routed)).toBe(true);
+    expect(unwrapEngineFlatValue(routed)).toEqual([1]);
+  });
+
+  it('wrapBareAsNodeHandlerOutput restores the raw value from a marked envelope', () => {
+    const output = [{ v: 1 }];
+    const flat = toEngineFlatShape({
       config: {},
-      output: { a: 1 },
-      meta: { iterations: 2 },
-    };
-    expect(toEngineFlatShape(adapted, { ignoreMetaForWrap: true })).toEqual(
-      toEngineFlatShape(adapted),
-    );
+      output,
+      port: 'success',
+      status: 'waiting_for_input',
+    });
+    const derived = wrapBareAsNodeHandlerOutput(flat);
+    expect(derived.output).toBe(output);
+    expect(derived.port).toBe('success');
+    expect(derived.status).toBe('waiting_for_input');
+    expect(derived.config).toEqual({});
+  });
+
+  it('wrapBareAsNodeHandlerOutput keeps an unmarked { data } object as the output', () => {
+    const userObject = { data: [1, 2], port: 'success' };
+    expect(wrapBareAsNodeHandlerOutput(userObject).output).toBe(userObject);
   });
 });

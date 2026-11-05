@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-DATA"]
 area: "CLE-NODE-DATA"
 content_hash: "ea8b252a442a2c9501a0002f46eb01fffa05ad5ec138c7f8fa1aa3a0da3cd0b9"
 read_as: "approved_fallback"
-task: "CLE-T-DC8BY0"
+task: "CLE-T-T30D5S"
 source_paths: ["spec/4-nodes/5-data/2-code.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "160b78eeea69c0cc6d5aebc514481f3f610e50a54db0461ba8612336d40615ac"
-etag: "sha256-b19af2106b146c3f74b0474b0ae2215c4aa9bf14075bdbc72c6c278bd17e10c9"
+mirror_sha256: "0542a0ea5e34a3ff7c38f983dd4657e2c800a7a15722ea5105b9112cf79be569"
+etag: "sha256-fb9aa4df52edfa473261749e970fb1682acec3d5b701a85cdc489f43783a393b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/5-data/2-code.md`, `spec/4-nodes/_product-overview.md` (§8.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
