@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "09711e183e6eed55fce41d64b950e598575848420db6684b81120b5e250ac331"
+content_hash: "8676e16332b3c3d0e089d4644e9544c96ea3e3402dfee2de9b964747950296f7"
 read_as: "approved_fallback"
-task: "CLE-T-5BZ3M2"
+task: "CLE-T-4MV4BN"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "1d7ea87cfcc41ed2786852cf0e1b4ec05649ceef2af91857894a81e62e32209c"
-etag: "sha256-9ef13d5f8e94025d1f746896f8c3e2c4de2218775160802cf38b8db9614e3c2e"
+mirror_sha256: "3a4a17900a91a0a1a07d441f600fceba2d862431e1359b1b53112e8fe0f055fb"
+etag: "sha256-25edbdfe2e3ab798d281a6ba556307161e597979a83a3da52ed535c147cb9f7d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -324,7 +324,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - DNS 결과 검사(DNS rebinding 방어): `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 이면 보내기 직전에 호스트 이름을 DNS 로 풀어(A · AAAA) 나온 IP 가운데 하나라도 위 대역에 들면 발송을 거부하고 발송 건강도를 `degraded` 로 둔다(`checkResolvedHostIp`). 등록 때 IP 를 저장해 발송 때 IP 와 비교하지는 않는다. DNS 조회가 실패하면 검사를 통과시킨다. 시도마다 DNS 를 조회해 비용과 지연이 늘어서 선택 사항이고 기본은 꺼짐이다. 근거는 [Rationale](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05) 에 있다.
 - 발송은 리다이렉트를 따라가지 않는다. 등록 때와 발송 직전의 검사는 등록 URL 의 호스트만 본다. 리다이렉트가 가리키는 주소는 어느 검사도 보지 않는다. 따라가면 공개 호스트가 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 이 검사들을 통과한다. 307 · 308 이면 서명한 본문도 그 주소로 간다. 3xx 응답의 처리는 [재시도와 실패 처리](#재시도와-실패-처리) 가 정한다.
 - 워크스페이스 단위 허용·차단 목록(원문 표기 `workspace_settings.notification_url_allow_pattern`)을 설정할 수 있어야 한다. [미결 사항](#미결-사항) 참조.
-- URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 이 플래그는 스킴만 연다. 호스트 검사를 끄는 플래그는 없다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)의 사설망 허용 플래그(`ALLOW_PRIVATE_HOST_TARGETS`)도 이 검사에는 적용되지 않는다.
+- URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 운영 환경(`NODE_ENV=production`)에서 이 플래그가 `1` 이나 `true` 이면 서버가 기동하지 않는다([운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드)). 이 플래그는 스킴만 연다. 호스트 검사를 끄는 플래그는 없다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)의 사설망 허용 플래그(`ALLOW_PRIVATE_HOST_TARGETS`)도 이 검사에는 적용되지 않는다.
 
 ## 시크릿 교체
 
