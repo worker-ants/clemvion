@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Headers,
+  Logger,
   Param,
   ParseUUIDPipe,
   Req,
@@ -36,6 +37,21 @@ import {
 } from './sse-fanout.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
+// 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`.
+/**
+ * `itk_*` 로 연 스트림이 토큰을 다시 확인하는 주기(ms). heartbeat 몇 번마다 한 번으로 센다.
+ *
+ * 닫기 신호는 Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른 서버 인스턴스의 스트림에 닿지
+ * 않는다. 그래도 이 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
+ */
+export const SSE_TOKEN_RECHECK_INTERVAL_MS = 60_000;
+
+/** {@link SSE_TOKEN_RECHECK_INTERVAL_MS} 를 heartbeat 횟수로 바꾼 값. */
+const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
+  1,
+  Math.round(SSE_TOKEN_RECHECK_INTERVAL_MS / SSE_HEARTBEAT_INTERVAL_MS),
+);
+
 // 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1`.
 /**
  * [Spec EIA §5.2] — Server-Sent Events stream.
@@ -49,7 +65,8 @@ import type { ExecutionChannelEvent } from '../websocket/websocket-events.types'
  * - terminal event (`completed`/`failed`/`cancelled`) 발송 후 자동 종료
  * - `itk_*` 로 연 스트림은 그 트리거 단위 토큰이 무효가 되면(재발급 · 전략 변경 · 인터랙션 끄기 · 트리거 삭제) 서버가
  *   응답을 끝낸다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 닫힘을 알리는 이벤트는 없다. 새 토큰으로 다시 연결한다.
- *   옛 토큰으로 다시 연결하면 가드가 401 로 거부한다.
+ *   옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 닫기 신호를 놓친 스트림도 {@link SSE_TOKEN_RECHECK_INTERVAL_MS}
+ *   마다 토큰을 다시 확인해 닫는다.
  * - execution 당 동시 연결 한도 3 — 모든 서버 인스턴스를 합쳐 센다. 초과 시 429 `TOO_MANY_CONNECTIONS`
  */
 @ApiTags('External Interaction')
@@ -57,6 +74,8 @@ import type { ExecutionChannelEvent } from '../websocket/websocket-events.types'
 @Controller('external/executions')
 @UseGuards(InteractionGuard)
 export class InteractionStreamController {
+  private readonly logger = new Logger(InteractionStreamController.name);
+
   constructor(
     private readonly sseAdapter: SseAdapter,
     private readonly interactionGuard: InteractionGuard,
@@ -168,6 +187,25 @@ export class InteractionStreamController {
         ? Number(lastEventIdRaw)
         : undefined;
 
+    // `itk_*` 스트림의 토큰 주기 재확인. 무효면 서버가 닫을 때와 같이 구독을 풀고 응답을 끝낸다. 조회가 실패하면 스트림을
+    // 그대로 두고 다음 주기에 다시 본다. 확인이 끝나기 전에 다음 주기가 와도 겹쳐 확인하지 않는다.
+    let beats = 0;
+    let rechecking = false;
+    const recheckTriggerToken = async (): Promise<void> => {
+      let valid: boolean;
+      try {
+        valid = await this.interactionGuard.isTriggerTokenValid(req);
+      } catch (err) {
+        this.logger.warn(
+          `EIA SSE 트리거 단위 토큰 재확인 실패 — 스트림을 그대로 두고 다음 주기에 다시 확인한다 (executionId=${executionId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return;
+      }
+      if (valid || finished) return;
+      this.sseAdapter.unsubscribe(subscriber);
+      finish();
+    };
+
     // heartbeat. 연결 상한 자리의 시각도 함께 갱신한다.
     heartbeat = setInterval(() => {
       try {
@@ -176,6 +214,13 @@ export class InteractionStreamController {
         // 연결 끊긴 후의 write 는 무시.
       }
       this.sseAdapter.touch(subscriber);
+      if (subscriber.token.family !== 'itk') return;
+      beats += 1;
+      if (beats % TOKEN_RECHECK_EVERY_HEARTBEATS !== 0 || rechecking) return;
+      rechecking = true;
+      void recheckTriggerToken().finally(() => {
+        rechecking = false;
+      });
     }, SSE_HEARTBEAT_INTERVAL_MS);
 
     await this.sseAdapter.start(

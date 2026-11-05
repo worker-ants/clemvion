@@ -158,6 +158,20 @@ export class InteractionGuard implements CanActivate {
     await this.verifyTriggerToken(req, token, triggerId);
   }
 
+  /**
+   * 열려 있는 SSE 스트림의 트리거 단위 토큰(`itk_*`)이 아직 유효한지 본다. 응답을 건드리지 않는다(헤더 · 401 없음).
+   * DB 조회가 실패하면 그 오류를 그대로 던진다. 호출자가 스트림을 둘지 정한다.
+   *
+   * 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`. 닫기 신호를
+   * 발행하지 못하면 다른 서버 인스턴스의 스트림은 신호를 받지 못한다. 스트림이 주기적으로 다시 확인해 닫는다.
+   */
+  async isTriggerTokenValid(req: RequestWithInteraction): Promise<boolean> {
+    const token = extractToken(req);
+    const triggerId = req.interaction?.triggerId;
+    if (!token || !token.startsWith(ITK_PREFIX) || !triggerId) return false;
+    return (await this.checkTriggerToken(token, triggerId)) === 'ok';
+  }
+
   /** 트리거 단위 토큰이 무효라는 401 을 던진다. {@link reverifyTriggerToken} 과 같은 응답이다. */
   rejectTriggerToken(req: RequestWithInteraction): never {
     this.deny(req, 'TOKEN_INVALID', 'Token rejected');
@@ -169,16 +183,31 @@ export class InteractionGuard implements CanActivate {
     token: string,
     triggerId: string,
   ): Promise<void> {
+    const result = await this.checkTriggerToken(token, triggerId);
+    if (result === 'no_token') {
+      this.deny(req, 'TOKEN_INVALID', 'Trigger has no per-trigger token');
+    }
+    if (result === 'mismatch')
+      this.deny(req, 'TOKEN_INVALID', 'Token rejected');
+  }
+
+  /**
+   * 트리거의 지금 설정과 `itk_*` 를 맞춰 본다. 트리거가 없거나 트리거 단위 토큰이 없으면(인터랙션 끄기 · 전략 변경)
+   * `no_token`, 다르면(재발급) `mismatch` 다.
+   */
+  private async checkTriggerToken(
+    token: string,
+    triggerId: string,
+  ): Promise<'ok' | 'no_token' | 'mismatch'> {
     const trigger = await this.triggerRepository.findOne({
       where: { id: triggerId },
       select: { id: true, config: true },
     });
     const expected = readItkFromConfig(trigger?.config);
-    if (!expected) {
-      this.deny(req, 'TOKEN_INVALID', 'Trigger has no per-trigger token');
-    }
-    const ok = this.tokenService.verifyPerTrigger(token, expected);
-    if (!ok) this.deny(req, 'TOKEN_INVALID', 'Token rejected');
+    if (!expected) return 'no_token';
+    return this.tokenService.verifyPerTrigger(token, expected)
+      ? 'ok'
+      : 'mismatch';
   }
 
   private deny(

@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "491254a4c287e8f326be21cf1ce89e0d54105166d7f67b0c10ed57377c1a4490"
+content_hash: "82e1ac76004872faf5de728f9c119b0ef75fdf5312ff0fafa075b2ef668b2bb9"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-1GR2JE"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "a293123b7747fde7003e50aef51de477120e9c8f8eeb808154b6a91448168639"
-etag: "sha256-c4516209c8d9cc19a55bcd2c5deb779cf6822966cd20aaef366ba62f8cec06f3"
+mirror_sha256: "499b62f3c1a0bd015baaf8be79f3333599897c626df99315cd0cd4ab6badd434"
+etag: "sha256-b85bca75b6c914f7e27a04a0454d8ddb3b50607e5d97589fe91c5aef614d20c9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -36,7 +36,7 @@ External Interaction API(EIA)는 워크플로우 실행을 외부 시스템과 �
 - `entities/execution-token.entity.ts`: 실행 토큰 테이블
 - `interaction.guard.ts`·`interaction.controller.ts`·`interaction.service.ts`: `/api/external/executions/:executionId/*` REST(interact·cancel·refresh-token·상태 조회)
 - `idempotency.interceptor.ts`: 멱등 키 24시간 Redis 캐시
-- `interaction-stream.controller.ts` + `sse-adapter.service.ts` + `sse-fanout.service.ts`: SSE 스트림, 5분 재전송 버퍼, 서버 인스턴스 사이 전달. 서버 인스턴스 사이 전달은 SSE fan-out(`SseFanoutService`)이 한다. 알림 발송의 `NotificationFanout` 과는 다른 서비스다
+- `interaction-stream.controller.ts` + `sse-adapter.service.ts` + `sse-fanout.service.ts`: SSE 스트림, 5분 재전송 버퍼, SSE fan-out(`SseFanoutService`, 알림 발송의 `NotificationFanout` 과 다른 서비스)이 하는 서버 인스턴스 사이 전달
 - `notification-fanout.service.ts` → `notification-dispatcher.service.ts` → `notification-webhook.processor.ts`: 알림 발송 파이프라인(+ `notification-signature.util.ts` HMAC)
 - 발급 쪽 진입: `hooks/hooks.service.ts`(`buildInteractionResponse`), `triggers/triggers.service.ts`(첫 발급 · 시크릿 교체 · `itk_*` 발급과 재발급), `triggers/notification-signing-secret.service.ts`(`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰고 교체 쓰기와 승격도 한다), `triggers/notification-secret-rotator.service.ts`(`NotificationSecretRotatorService`. 유예가 끝난 시크릿의 승격을 매시 시작하는 스케줄러다)
 
@@ -211,7 +211,7 @@ sequenceDiagram
 
 ### SSE 스트림
 
-원천은 실행 엔진이 내는 WebSocket 이벤트 단일 싱크(`WebsocketService`)다. SSE 는 그 흐름의 어댑터일 뿐 이벤트를 스스로 만들지 않는다. 각 서버 인스턴스는 자기 프로세스의 단일 싱크에서 받은 이벤트를 Redis 에 올린다. 같은 서버 인스턴스의 구독자에게는 Redis 를 거치지 않고 바로 보낸다. 그래서 SSE 클라이언트는 어느 서버 인스턴스에 연결해도 그 실행의 이벤트를 받는다.
+원천은 실행 엔진이 내는 WebSocket 이벤트 단일 싱크(`WebsocketService`)다. SSE 는 그 흐름의 어댑터일 뿐 이벤트를 스스로 만들지 않는다. 각 서버 인스턴스는 자기 프로세스의 단일 싱크에서 받은 이벤트 가운데 EIA SSE 로 열 수 있는 실행의 이벤트를 Redis 에 올린다(아래 「Redis 에 쓰는 실행」). 같은 서버 인스턴스의 구독자에게는 Redis 를 거치지 않고 바로 보낸다. 그래서 SSE 클라이언트는 어느 서버 인스턴스에 연결해도 그 실행의 이벤트를 받는다.
 
 ```mermaid
 flowchart TD
@@ -220,7 +220,7 @@ flowchart TD
   C --> D[SseAdapter]
   C --> E[NotificationFanout 알림 발송]
   D -->|같은 서버 인스턴스의 구독자에게 바로| M[모은 이벤트를 보낸 뒤 실시간 전달]
-  D -->|SseFanoutService 가 XADD·PEXPIRE·PUBLISH 를 한 pipeline 으로| R[Redis Stream eia:sse:buf 와 실행 채널 eia:sse:live]
+  D -->|열 수 있는 실행만 SseFanoutService 가 XADD·PEXPIRE·PUBLISH 를 한 pipeline 으로| R[Redis Stream eia:sse:buf 와 실행 채널 eia:sse:live]
   R -->|실행 채널로 다른 서버 인스턴스의 구독자에게| M
   F[외부 클라이언트 GET stream] --> G{InteractionGuard 토큰 검증}
   G -->|통과| P[구독자를 대기 상태로 등록, 이때부터 실시간 이벤트를 모음]
@@ -239,18 +239,18 @@ flowchart TD
 
 - 프레임은 `event: <eventType>` / `id: <seq>` / `data: <JSON payload>` 이고 15초마다 heartbeat 주석을 보낸다. 제어 프레임(`execution.replay_unavailable`, 순번 0 이하)은 `id:` 줄을 생략한다.
 - EventSource 호환을 위해 `?token=` 쿼리를 허용한다.
-- 스트림은 열 때 토큰을 검증한다. 트리거 단위 토큰으로 연 스트림은 연결 자리를 잡은 뒤 SSE 헤더를 보내기 전에 토큰을 한 번 더 확인한다. 가드를 통과한 뒤 그 사이 토큰이 무효가 됐으면 스트림을 열지 않고 거부한다. 거부 응답은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 가 정한다. 스트림은 그 실행의 종료 이벤트를 보낸 뒤 끝난다. 종료 이벤트를 보낸 뒤 스트림을 끝내는 것은 어댑터(`SseAdapter`)다. 다른 서버 인스턴스에서 실행 채널로 받은 종료 이벤트도 같다. 트리거 단위 토큰으로 연 스트림은 종료 이벤트 전이라도 그 토큰이 무효가 되면 서버가 닫는다([트리거 단위 토큰](#트리거-단위-토큰)). 실행 단위 토큰으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않는다([실행 단위 토큰](#실행-단위-토큰)).
+- 스트림은 열 때 토큰을 검증한다. 트리거 단위 토큰으로 연 스트림은 연결 자리를 잡은 뒤 SSE 헤더를 보내기 전에 토큰을 한 번 더 확인한다. 가드를 통과한 뒤 그 사이 토큰이 무효가 됐으면 스트림을 열지 않고 거부한다. 거부 응답은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 가 정한다. 스트림은 그 실행의 종료 이벤트를 보낸 뒤 끝난다. 종료 이벤트를 보낸 뒤 스트림을 끝내는 것은 어댑터(`SseAdapter`)다. 다른 서버 인스턴스에서 실행 채널로 받은 종료 이벤트도 같다. 트리거 단위 토큰으로 연 스트림은 종료 이벤트 전이라도 그 토큰이 무효가 되면 서버가 닫는다([트리거 단위 토큰](#트리거-단위-토큰)). 트리거 단위 토큰(`itk_*`)으로 연 스트림은 열려 있는 동안 60초마다 토큰을 다시 확인한다. 간격은 `SSE_TOKEN_RECHECK_INTERVAL_MS` 이고 heartbeat 네 번에 한 번이다. 이 값은 코드 상수라 설정으로 바꿀 수 없다. 토큰이 무효면 따로 보내는 이벤트 없이 응답을 끝낸다. 닫기 신호를 받았을 때와 같다. 그래서 닫기 신호가 유실돼도 무효가 된 토큰의 스트림은 이 간격 안에 닫힌다. 다시 확인하다 DB 오류가 나면 스트림을 유지하고 경고 로그를 남긴다(fail-open). 실행 단위 토큰으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않는다. 토큰을 다시 확인하지도 않는다([실행 단위 토큰](#실행-단위-토큰)).
 - 동시 연결 상한의 수치는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 의 요청 빈도 제한 표가 정한다. 상한은 서버 인스턴스마다 세지 않는다. 실행 하나에 대해 모든 서버 인스턴스의 연결을 합쳐 센다(`eia:sse:subs:<executionId>`). 연결 자리마다 마지막 heartbeat 시각을 둔다. 이 시각은 heartbeat(15초)마다 갱신한다. 서버 인스턴스가 죽어 자리를 돌려주지 못해도 마지막 갱신에서 45초가 지나면 그 자리는 상한에 세지 않는다. Redis 를 못 쓰면(메모리 모드) 상한을 서버 인스턴스마다 센다.
 - SSE 의 `id:` 와 알림 웹훅의 `seq` 는 같은 카운터(Redis `exec:seq:<id>`)를 쓴다. 클라이언트는 SSE 와 EIA 알림 웹훅으로 받은 이벤트를 한 순서로 정렬할 수 있다.
 - 서버 인스턴스 사이 전달(`sse-fanout.service.ts`): 재전송 버퍼는 실행별 Redis Stream `eia:sse:buf:<executionId>` 이다. 실시간 전달은 실행별 Pub/Sub 채널 `eia:sse:live:<executionId>` 로 한다. 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 받는다. sticky-session 에 기대지 않는다. 같은 서버 인스턴스의 구독자에게는 Redis 를 거치지 않고 바로 보낸다. 실행 채널로 받은 메시지 가운데 자기 서버 인스턴스가 낸 것(`origin`)은 건너뛴다. 그래서 Redis 를 못 써도 같은 서버 인스턴스의 구독자는 이벤트를 받는다. 키와 채널의 용도 · TTL · 실패 정책은 아래 [Redis 와 BullMQ](#redis-와-bullmq) 표에 있다. 결정의 이유는 [SSE 버퍼와 실시간 전달을 Redis 에 둔다](#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 에 있다.
-- 실행 채널 구독: 서버 인스턴스에 그 실행의 첫 구독자가 생기면 전용 구독 연결로 실행 채널을 `SUBSCRIBE` 한다. 마지막 구독자가 떠나면 `UNSUBSCRIBE` 한다. `SUBSCRIBE` 가 실패하거나 확인이 늦어도 스트림은 그대로 이어 간다. 그때 그 서버 인스턴스가 낸 이벤트는 받는다. 다른 서버 인스턴스의 이벤트는 구독 연결이 다시 준비된 뒤부터 받는다.
+- 실행 채널 구독: 서버 인스턴스에 그 실행의 첫 구독자가 생기면 전용 구독 연결로 실행 채널을 `SUBSCRIBE` 한다. 마지막 구독자가 떠나면 `UNSUBSCRIBE` 한다. `SUBSCRIBE` 가 실패하거나 확인이 늦어도 스트림은 그대로 이어 간다. 그때 그 서버 인스턴스가 낸 이벤트는 받는다. 다른 서버 인스턴스의 이벤트는 구독 연결이 다시 준비되거나 늦은 확인이 온 뒤부터 받는다. 그 사이 놓친 구간은 아래 「구독이 다시 확정될 때」 로 채운다.
 - 구독 순서: 새 구독자는 다음 순서로 합류한다.
   1. 구독자를 대기 상태로 등록한다. 이때부터 도착한 실시간 이벤트를 모은다.
   2. 연결 자리를 잡는다(`eia:sse:subs`). 상한이면 등록을 풀고 429 `TOO_MANY_CONNECTIONS` 로 응답한다.
   3. 트리거 단위 토큰으로 연 스트림이면 토큰을 다시 확인한다. 무효면 등록을 풀고 거부한다.
   4. SSE 헤더를 보낸다.
   5. 실행 채널 `SUBSCRIBE` 확인을 기다린다.
-  6. `Last-Event-Id` 가 있으면 버퍼에서 재전송한다. 재전송 가능 여부의 판정(구간 연속성, `execution.replay_unavailable`)은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 가 정한 규칙 그대로다. 버퍼로 판정할 수 없을 때는 아래 「버퍼로 판정할 수 없을 때」 를 따른다.
+  6. `Last-Event-Id` 가 있으면 버퍼에서 재전송한다. Stream 항목에는 필드 `seq` 가 있어서 `seq` 가 `Last-Event-Id` 이하인 항목은 `data` 를 파싱하지 않는다. `seq` 필드가 없는 옛 항목은 파싱한다(롤링 배포 호환). 재전송 가능 여부의 판정(구간 연속성, `execution.replay_unavailable`)은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 가 정한 규칙 그대로다. 버퍼로 판정할 수 없을 때는 아래 「버퍼로 판정할 수 없을 때」 를 따른다.
   7. 모은 실시간 이벤트를 보내고 실시간 상태로 바꾼다.
 - 순서의 이유: 등록을 맨 앞에 두는 것은 2 · 3 단계를 기다리는 동안 온 닫기 신호도 그 구독자에게 닿게 하려는 것이다. `SUBSCRIBE` 확인은 버퍼 읽기보다 먼저 기다린다. 다른 서버 인스턴스는 `XADD` 와 `PUBLISH` 를 한 pipeline 으로 보낸다. 그래서 확인 앞에 발행된 이벤트는 버퍼에 있고 뒤에 발행된 이벤트는 실행 채널로 온다.
 - 대기 중에 모으는 이벤트는 1000건(`SSE_BUFFER_MAX_EVENTS`)까지다. 이 값은 코드 상수라 설정으로 바꿀 수 없다. 넘치면 가장 오래된 것부터 버린다. 버린 것이 있으면 모은 이벤트를 보내기 전에 `execution.replay_unavailable` 을 보낸다.
@@ -260,7 +260,28 @@ flowchart TD
   - 카운터가 N 이하면 보내지 않는다. 카운터가 N 보다 크면 대기 중에 모은 실시간 이벤트가 N 다음부터 카운터까지의 `seq` 를 모두 덮을 때만 보내지 않는다. 그 밖에는 보낸다.
   - 카운터 키의 수명은 순번 발급기(`ExecutionSeqAllocator`)가 정한다. 순번을 발급할 때마다 만료를 24시간으로 다시 건다(`EXECUTION_SEQ_TTL_SECONDS` 로 바꿀 수 있다). 종료 이벤트를 보낸 뒤에는 키를 지운다. 그래서 끝난 실행이나 마지막 이벤트 뒤 24시간이 지난 실행은 카운터 값이 없다.
 - 겹침 제거: 구독자마다 마지막으로 보낸 `seq` 를 기억한다. 그 값 이하의 `seq` 는 보내지 않는다. 재전송과 실시간 전달이 겹친 이벤트를 한 번만 보내기 위해서다. `seq` 가 0 이하인 제어 프레임은 이 규칙에서 뺀다.
-- Redis 실패: 요청 경로에서 응답을 기다리는 Redis 명령은 2초를 넘기면 실패로 본다. 실행 채널 `SUBSCRIBE`, 버퍼 `XRANGE`, 연결 자리 `EVAL`, 순번 카운터 `GET`, 닫기 신호 `PUBLISH` 가 그렇다. 실패한 명령은 그 동작만 메모리로 처리한다. 경고 로그는 동작마다 한 번 남긴다. 그 동작이 다시 성공하면 복구 로그를 남긴다. 키와 채널마다의 메모리 동작은 아래 [Redis 와 BullMQ](#redis-와-bullmq) 표에 있다.
+- 구독이 다시 확정될 때: 실행 채널 구독에 공백이 있었으면 구독이 다시 확정된 뒤 그 공백에 놓친 구간을 버퍼로 채운다.
+  - 계기는 둘이다. (가) 전용 구독 연결이 끊겼다가 다시 준비(`ready`)되고 재구독이 성공했을 때다. 이때는 그 서버 인스턴스가 구독 중인 모든 실행 채널이 대상이다. (나) 실행 채널 `SUBSCRIBE` 확인이 2초 상한을 넘겨 실패로 처리된 뒤 늦게 확인됐을 때다. 이때는 그 실행 채널이 대상이다.
+  - 대상 실행의 실시간 상태 구독자마다 다시 모으는 상태로 바꾸고 놓친 구간을 버퍼로 채운다. 기준 순번은 그 구독자에게 마지막으로 보낸 `seq` 다. 연결 때 받은 `Last-Event-Id` 가 더 크면 그 값을 쓴다. 판정은 위 6 단계와 「버퍼로 판정할 수 없을 때」 와 같다(구간 연속성, 순번 카운터와 견주기). 신호를 보내면 그 `lastEventId` 는 이 기준 순번이다. 그다음 모은 이벤트를 보내고 실시간 상태로 돌아간다.
+  - 기준 순번이 없는 구독자는 `Last-Event-Id` 없이 연결했고 순번이 1 이상인 이벤트를 아직 보내지 않은 구독자다. 이 구독자에게는 버퍼를 읽지 않고 `execution.replay_unavailable` 을 한 번 보낸다. 연결 전 이벤트와 공백 중 이벤트를 가를 근거가 없기 때문이다. 이 신호의 `lastEventId` 는 0 이다.
+  - 아직 연결을 준비 중인 구독자(7 단계 전)는 표시만 해 둔다. 실시간 상태로 바꾼 직후 한 번 더 따라잡는다.
+- Redis 실패: 요청 경로에서 응답을 기다리는 Redis 명령은 2초를 넘기면 실패로 본다. 실행 채널 `SUBSCRIBE`, 버퍼 `XRANGE`, 연결 자리 `EVAL`, 순번 카운터 `GET`, 닫기 신호 `PUBLISH` 가 그렇다. 실패한 명령은 그 동작만 메모리로 처리한다. 경고 로그는 동작마다 한 번 남긴다. 그 동작이 다시 성공하면 복구 로그를 남긴다. 키와 채널마다의 메모리 동작은 아래 [Redis 와 BullMQ](#redis-와-bullmq) 표에 있다. 이 규칙에는 예외 둘과 판정 하나가 더 있다.
+  - 닫기 신호 `PUBLISH` 가 실패하면 호출마다 error 로그를 남긴다. 로그에는 트리거 id 와 오류를 싣는다. 그 신호가 빠지면 다른 서버 인스턴스의 스트림이 토큰 재확인 간격(60초)까지 남기 때문이다. 다시 성공하면 복구 로그는 그대로 남긴다.
+  - 연결 자리 갱신은 heartbeat 마다 `ZADD` 와 `PEXPIRE` 를 한 pipeline 으로 보낸다. pipeline 전체가 실패할 때뿐 아니라 명령 하나가 실패해도 실패로 보고 경고를 남긴다. 버퍼 쓰기와 같은 기준이다.
+  - 아래 「Redis 에 쓰는 실행」 의 판정에 쓰는 DB 조회가 실패하거나 2초를 넘기면 그 실행을 쓰기 대상으로 본다(fail-open). 경고는 조회가 다시 성공할 때까지 한 번 남기고 다시 성공하면 복구 로그를 남긴다.
+- Redis 에 쓰는 실행: 각 서버 인스턴스는 EIA SSE 로 열 수 있는 실행의 이벤트만 Redis 의 재전송 Stream 과 실행 채널에 쓴다. 열 수 있는 실행은 트리거가 있는 실행(`executions.trigger_id` 가 있음)이거나 실행 토큰 행(`execution_token`)이 있는 실행이다. 판정은 다음 순서로 한다.
+  - 이벤트의 라우팅 컨텍스트에 `triggerId` 가 있으면 바로 쓴다.
+  - 없으면 그 실행에 대해 서버 인스턴스마다 한 번 DB 를 조회한다. `executions.trigger_id` 가 있으면 쓴다. 없으면 `execution_token` 행이 있는지 보고 있으면 쓴다. 실행 행이 없으면 쓴다. 놓치지 않는 쪽을 고른 것이다.
+  - 조회는 2초(`SSE_ELIGIBILITY_TIMEOUT_MS`)까지 기다린다. 이 값은 코드 상수라 설정으로 바꿀 수 없다. 2초를 넘기면 조회가 실패한 것과 같이 쓰기 대상으로 본다(fail-open).
+  - 조회를 기다리는 동안 온 그 실행의 이벤트는 Redis 에 쓰지 않고 순서대로 모아 둔다. 판정이 나면 모은 이벤트를 순서대로 쓰거나 버린다. 그래서 다른 서버 인스턴스의 구독자는 그 이벤트를 최대 2초 늦게 받을 수 있다. 같은 서버 인스턴스의 구독자에게는 판정을 기다리지 않고 바로 보낸다.
+  - 모은 이벤트가 1000건(`SSE_BUFFER_MAX_EVENTS`)에 닿으면 판정을 더 기다리지 않고 쓰기 대상으로 정한다(fail-open). 모은 이벤트는 그때 순서대로 쓴다. 모은 이벤트가 넘쳐 버려지는 일은 없다.
+  - 한 번 정한 판정은 실행마다 기억한다. 조회 실패, 2초 초과, 1000건 도달로 쓰기 대상으로 정한 판정도 같다. 그 실행의 종료 이벤트(`execution.completed` · `failed` · `cancelled`)를 받거나 5분 동안 그 실행의 이벤트가 없으면 판정을 지운다.
+  - 판정한 뒤에 실행 토큰 행이 생겨 판정이 바뀌는 경우는 없다. 실행 토큰 행은 웹훅 응답(`HooksService.buildInteractionResponse`)에서만 만들고 그 실행에는 늘 트리거가 있기 때문이다.
+  - 쓰지 않는 실행의 이벤트는 메모리 버퍼에도 두지 않는다. 같은 서버 인스턴스의 구독자에게 보내는 것은 Redis 와 상관없으므로 그대로다.
+  - Redis 없이 부팅한 서버 인스턴스는 판정하지 않고 모든 실행의 이벤트를 메모리 버퍼에 둔다. 그 서버 인스턴스의 재전송에 쓰는 버퍼라 Redis 쓰기와 상관없다.
+- 항목 크기 상한: Redis 에 올리는 메시지(JSON)가 UTF-8 로 64 KiB 를 넘으면 payload 를 Redis 에 쓰지 않는다. 상한은 `SSE_BUFFER_MAX_MESSAGE_BYTES` 이고 코드 상수라 설정으로 바꿀 수 없다. 대신 생략 표시 `{v:1, origin, omitted:{executionId, seq, eventType}}` 를 Stream 과 실행 채널에 같은 pipeline 으로 넣는다. 전체 이벤트는 그 서버 인스턴스의 메모리 버퍼에 둔다. 종료 이벤트(`execution.completed` · `failed` · `cancelled`)는 상한과 상관없이 전체를 쓴다. 스트림을 닫는 이벤트이고 실행마다 하나뿐이라 쌓이는 크기도 한정되기 때문이다.
+  - 실행 채널에서 생략 표시를 받은 서버 인스턴스는 그 구독자에게 그 순번 자리에서 `execution.replay_unavailable` 을 보낸다. 그 구독자에게 이미 그 순번 이상을 보냈으면 보내지 않는다. 구독자가 연결을 준비하는 중이면 모은 순서대로 그 자리에서 보낸다. 신호의 `lastEventId` 는 그 구독자에게 마지막으로 보낸 `seq` 다. 연결 때 받은 `Last-Event-Id` 가 더 크면 그 값이고 둘 다 없으면 0 이다. 생략 표시는 받은 이벤트가 아니므로 마지막으로 보낸 `seq` 를 바꾸지 않는다.
+  - 재전송 때 같은 `seq` 의 전체 이벤트가 메모리 버퍼에 있으면 그것을 쓴다. 생략 표시만 있는 순번이 재전송 범위에 있으면 구간이 끊긴 것으로 보고 신호를 보낸다. 순번 카운터와 견주는 판정에서 생략 표시는 받은 이벤트로 세지 않는다.
 - 대표 소비자는 웹채팅 위젯이다(`codebase/channel-web-chat/src/lib/eia-client.ts` 가 EventSource 로 이 경로를 구독). 위젯 부팅과 CORS 판정(`WebChatCorsOriginResolver` 가 실행 → 임베드 허용 도메인 `workspace.settings.interactionAllowedOrigins` 를 풀고 60초 캐시)은 [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md)·[웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 다룬다.
 
 ### 알림 웹훅 발송
@@ -354,11 +375,11 @@ flowchart TD
 | Redis | `interaction:idempotency:<executionId>:<route>:<key>` | 명령 응답 캐시 `{ bodyHash, responseJson, statusCode }` | 24시간. 캐시 대상은 `2xx`·`409`·`410` 뿐이다. 같은 키에 다른 본문은 409. 항목이 손상되면(형태 불일치·`responseJson` 파싱 실패) 버리고 새로 처리하며 경고한다(500 아님). 키는 가드가 검증한 `executionId` 와 경로(`interact`·`cancel`)로 묶는다([EIA 수신 API와 SSE](CLE-EIA-INBOUND.md)) |
 | Redis | `exec:seq:<executionId>` | `INCR`. SSE `id:`·EIA 알림 웹훅 `seq` 공용 카운터. 버퍼 키가 없는 SSE 재연결은 `GET` 으로 읽어 놓친 이벤트가 있는지 판정한다 | 발급마다 만료를 늘리는 슬라이딩 TTL 이다. 종료 이벤트 뒤에는 가능하면 지운다. 기본값과 해제 규칙은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md)·[WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 이 정한다 |
 | Redis | `eia:rl:interact:<executionId>`, `eia:rl:status:<executionId>`, `eia:notif:rl:<triggerId>` | 인바운드 명령·상태 조회의 요청 빈도 제한, EIA 알림 웹훅 발송의 폭주 감지 | 고정 윈도우, fail-open. 한도는 [External Interaction API](CLE-EIA.md) |
-| Redis | `eia:sse:buf:<executionId>` | SSE 재전송 버퍼(Stream). 각 서버 인스턴스가 자기 프로세스에서 받은 실행 이벤트를 `XADD … MAXLEN ~ 1000` 으로 넣는다. 항목은 필드 `data` 하나에 `{v:1, origin, event}` JSON 을 담는다. 재연결 때 `XRANGE` 로 읽는다. 모르는 버전이나 모양이 틀린 항목은 버린다 | 넣을 때마다 `PEXPIRE` 5분을 다시 건다. 그래서 마지막 이벤트 5분 뒤 키가 사라진다. 재전송은 항목 id 의 시각으로 받은 지 5분 이내인 항목만 쓴다. 넣지 못한 이벤트는 아래 메모리 버퍼에 둔다. 읽지 못하면 메모리 버퍼와 순번 카운터로 판정한다(fail-open, 경고 로그) |
-| Redis | `eia:sse:subs:<executionId>` | 연결 슬롯(동시 연결 상한 계산용). [SSE 스트림](#sse-스트림) 절의 연결 자리와 같다. 실행당 동시 SSE 연결(ZSET, member = 구독 id, score = 마지막 heartbeat 시각). 연결 때 Lua 스크립트 하나로 오래된 member 제거, 개수 확인, 추가를 원자적으로 한다 | heartbeat(15초)마다 score 를 갱신하고 키 TTL 을 heartbeat 간격의 3배(45초)로 다시 건다. 연결이 끝나면 `ZREM` 한다. 서버 인스턴스가 정상 종료할 때도 자기 연결의 자리를 돌려준다. heartbeat 간격의 3배보다 오래된 member 는 다음 연결 때 지운다. Redis 를 못 쓰면 서버 인스턴스마다 센다(fail-open, 경고 로그) |
-| Redis pub/sub | `eia:sse:live:<executionId>` | SSE 실시간 전달. `XADD` 와 같은 pipeline 에서 `PUBLISH` 한다. 메시지는 Stream 항목과 같은 `{v:1, origin, event}` JSON 이다. `origin` 은 발행한 서버 인스턴스의 표시다. 그 실행의 구독자가 있는 서버 인스턴스만 전용 구독 연결로 `SUBSCRIBE` 한다. 자기 `origin` 의 메시지는 건너뛴다. 자기 이벤트는 Redis 를 거치지 않고 자기 구독자에게 바로 보낸다 | 채널이라 TTL 이 없다. 구독자가 없을 때 발행한 메시지는 버려진다. 유실된 메시지는 Stream 에 남는다. Redis 를 못 쓰면 그 서버 인스턴스가 낸 이벤트만 그 서버 인스턴스의 구독자에게 간다(fail-open, 경고 로그) |
-| Redis pub/sub | `eia:sse:close` | 트리거 단위 토큰 스트림 닫기 신호 `{v:1, origin, triggerIds}`. 모든 서버 인스턴스가 구독한다. 받은 서버 인스턴스는 자기 구독자 가운데 그 트리거의 `itk_*` 스트림을 닫는다 | 채널이라 TTL 이 없다. 발행은 2초 안에 끝나지 않으면 기다리지 않는다. 발행이 실패하면 경고 로그만 남긴다(fail-open). 자기 `origin` 의 메시지는 건너뛰고 모양이 틀린 메시지는 버린다. 구독 연결이 다시 준비(`ready`)되면 다시 구독한다 |
-| 메모리 | `SseAdapter` 메모리 버퍼 | Redis 에 넣지 못한 이벤트의 실행별 버퍼. 재전송 때 Redis 버퍼와 `seq` 로 합친다(같은 `seq` 는 하나만) | 5분 보관, 최대 1000건. 60초마다 훑어 마지막 이벤트 뒤 5분이 지난 버퍼를 지운다. 그 서버 인스턴스가 낸 이벤트만 담는다 |
+| Redis | `eia:sse:buf:<executionId>` | SSE 재전송 버퍼(Stream). 각 서버 인스턴스가 자기 프로세스에서 받은 실행 이벤트를 `XADD … MAXLEN ~ 1000` 으로 넣는다. 넣는 실행은 [SSE 스트림](#sse-스트림) 절 「Redis 에 쓰는 실행」 의 대상뿐이다. 항목 필드는 `seq`(순번 문자열)와 `data` 둘이다. `data` 는 `{v:1, origin, event}` JSON 이거나 생략 표시 `{v:1, origin, omitted:{executionId, seq, eventType}}` JSON 이다. 메시지가 64 KiB 를 넘으면 생략 표시를 넣고 종료 이벤트는 크기와 상관없이 전체를 넣는다. 재연결 때 `XRANGE` 로 읽는다. `seq` 가 `Last-Event-Id` 이하인 항목은 `data` 를 파싱하지 않고 `seq` 필드가 없는 옛 항목은 파싱한다. 모르는 버전이나 모양이 틀린 항목은 버린다 | 넣을 때마다 `PEXPIRE` 5분을 다시 건다. 그래서 마지막 이벤트 5분 뒤 키가 사라진다. 재전송은 항목 id 의 시각으로 받은 지 5분 이내인 항목만 쓴다. 넣지 못한 이벤트와 생략 표시만 넣은 이벤트의 전체 내용은 아래 메모리 버퍼에 둔다. 읽지 못하면 메모리 버퍼와 순번 카운터로 판정한다(fail-open, 경고 로그) |
+| Redis | `eia:sse:subs:<executionId>` | 연결 슬롯(동시 연결 상한 계산용). [SSE 스트림](#sse-스트림) 절의 연결 자리와 같다. 실행당 동시 SSE 연결(ZSET, member = 구독 id, score = 마지막 heartbeat 시각). 연결 때 Lua 스크립트 하나로 오래된 member 제거, 개수 확인, 추가를 원자적으로 한다 | heartbeat(15초)마다 score 를 갱신하고 키 TTL 을 heartbeat 간격의 3배(45초)로 다시 건다. 이 갱신 pipeline 은 명령 하나가 실패해도 실패로 보고 경고를 남긴다. 연결이 끝나면 `ZREM` 한다. 서버 인스턴스가 정상 종료할 때도 자기 연결의 자리를 돌려준다. heartbeat 간격의 3배보다 오래된 member 는 다음 연결 때 지운다. Redis 를 못 쓰면 서버 인스턴스마다 센다(fail-open, 경고 로그) |
+| Redis pub/sub | `eia:sse:live:<executionId>` | SSE 실시간 전달. `XADD` 와 같은 pipeline 에서 `PUBLISH` 한다. 메시지는 Stream 항목의 `data` 와 같다(생략 표시 포함). `origin` 은 발행한 서버 인스턴스의 표시다. 그 실행의 구독자가 있는 서버 인스턴스만 전용 구독 연결로 `SUBSCRIBE` 한다. 자기 `origin` 의 메시지는 고정 접두(`{"v":1,"origin":"<자기 origin>",`)로 알아보고 파싱하지 않고 건너뛴다. 자기 이벤트는 Redis 를 거치지 않고 자기 구독자에게 바로 보낸다. 생략 표시를 받으면 그 순번 자리에서 `execution.replay_unavailable` 을 보낸다 | 채널이라 TTL 이 없다. 구독자가 없을 때 발행한 메시지는 버려진다. 유실된 메시지는 Stream 에 남는다. 구독 연결이 다시 준비되거나 `SUBSCRIBE` 확인이 늦게 오면 [SSE 스트림](#sse-스트림) 절 「구독이 다시 확정될 때」 로 따라잡는다. Redis 를 못 쓰면 그 서버 인스턴스가 낸 이벤트만 그 서버 인스턴스의 구독자에게 간다(fail-open, 경고 로그) |
+| Redis pub/sub | `eia:sse:close` | 트리거 단위 토큰 스트림 닫기 신호 `{v:1, origin, triggerIds}`. 모든 서버 인스턴스가 구독한다. 받은 서버 인스턴스는 자기 구독자 가운데 그 트리거의 `itk_*` 스트림을 닫는다 | 채널이라 TTL 이 없다. 발행은 2초 안에 끝나지 않으면 기다리지 않는다. 발행이 실패하면 호출마다 error 로그(트리거 id · 오류)를 남긴다(fail-open). 신호가 유실돼도 트리거 단위 토큰 스트림은 60초 재확인으로 닫힌다. 자기 `origin` 의 메시지는 건너뛰고 모양이 틀린 메시지는 버린다. 구독 연결이 다시 준비(`ready`)되면 다시 구독한다 |
+| 메모리 | `SseAdapter` 메모리 버퍼 | Redis 에 넣지 못한 이벤트와 크기 상한을 넘어 Redis 에는 생략 표시만 올린 이벤트의 전체 내용을 담는 실행별 버퍼. Redis 없이 부팅한 서버 인스턴스에서는 판정 없이 모든 실행의 이벤트를 담는다. 재전송 때 Redis 버퍼와 `seq` 로 합친다(같은 `seq` 는 하나만. 생략 표시와 겹치면 전체 이벤트를 쓴다) | 5분 보관, 최대 1000건. 60초마다 훑어 마지막 이벤트 뒤 5분이 지난 버퍼와 그 실행의 쓰기 대상 판정을 지운다. 그 서버 인스턴스가 낸 이벤트만 담는다. Redis 를 붙인 서버 인스턴스에서는 Redis 쓰기 대상이 아닌 실행의 이벤트를 담지 않는다 |
 | BullMQ | `notification-webhook` | `NotificationDispatcher.enqueue` → `NotificationWebhookProcessor` | `jobId`=deliveryId 로 중복 제거, `attempts` 는 트리거의 `notification.retry.maxAttempts`(뜻은 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md#재시도와-실패-처리)), base-4 사용자 정의 backoff(워커 `settings.backoffStrategy`, 1초에서 4배씩 늘고 한 간격은 1시간을 넘지 않음), `removeOnComplete` 24시간, `removeOnFail` 7일 |
 | BullMQ | `notification-secret-rotator` | 매시 반복(`0 * * * *`) → v2 승격 | `upsertJobScheduler` 멱등. 여러 서버 인스턴스에서 전역 한 번 |
 | BullMQ | `terminal-revoke-reconcile` | 분마다 반복(`* * * * *`) → 종료된 실행에 남은 실행 토큰 정리 → `revokeAllForExecution`(`TerminalRevokeReconcilerService`) | `upsertJobScheduler` 멱등. 전역 한 번. 즉시 경로 누락분을 최소 한 번 보강한다. 실행 토큰 테이블이 영속 outbox 역할을 하므로 전용 테이블이 없다 |
@@ -395,14 +416,14 @@ stateDiagram-v2
 
 가드는 설정의 `interaction.enabled` 가 `true` 이고 `tokenStrategy` 가 `per_trigger` 일 때만 이 값을 쓴다. 이때 요청마다 현재 설정 값과 타이밍 안전 비교를 한다(SHA-256 해시 뒤 `timingSafeEqual`, 길이 노출 차단). 조건이 맞지 않으면 401 `TOKEN_INVALID` 로 거부한다.
 
-SSE 스트림은 열 때 토큰을 검증한다. 트리거 단위 토큰으로 연 스트림은 연결 자리를 잡은 뒤 한 번 더 검증한다([SSE 스트림](#sse-스트림)). 트리거 단위 토큰이 무효가 되면 서버는 그 토큰으로 연 SSE 스트림을 닫는다. 무효가 되는 경우는 네 가지다.
+SSE 스트림은 열 때 토큰을 검증한다. 트리거 단위 토큰으로 연 스트림은 연결 자리를 잡은 뒤 한 번 더 검증하고 열려 있는 동안 60초마다 다시 확인한다([SSE 스트림](#sse-스트림)). 트리거 단위 토큰이 무효가 되면 서버는 그 토큰으로 연 SSE 스트림을 닫는다. 무효가 되는 경우는 네 가지다.
 
 1. 재발급 엔드포인트로 새 토큰을 발급할 때
 2. PATCH 가 전략을 바꾸거나 `interaction` 을 없애 값을 지울 때
 3. PATCH 가 인터랙션을 끌 때. 토큰 값은 남지만 가드가 거부한다. 인터랙션을 다시 켜면 같은 토큰이 다시 통한다
 4. 트리거를 지울 때
 
-2 · 3 의 PATCH 는 top-level `interaction` 이 실린 PATCH 다. 서버는 SSE 응답을 끝내 스트림을 닫는다. 새 이벤트 이름은 만들지 않는다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 닫기는 모든 서버 인스턴스에 미친다. 토큰을 무효로 만든 요청을 처리한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 트리거 id 를 알린다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 그 신호가 유실되면 받지 못한 서버 인스턴스의 스트림은 실행이 끝날 때까지 남는다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험). 실행 단위 토큰으로 연 스트림은 만료나 갱신으로 닫지 않는다([실행 단위 토큰](#실행-단위-토큰)). WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 두 방식의 관계는 [재검토에서 갈린 EIA 동작을 정한다](#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+2 · 3 의 PATCH 는 top-level `interaction` 이 실린 PATCH 다. 서버는 SSE 응답을 끝내 스트림을 닫는다. 새 이벤트 이름은 만들지 않는다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 닫기는 모든 서버 인스턴스에 미친다. 토큰을 무효로 만든 요청을 처리한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 트리거 id 를 알린다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 그 신호가 유실되면 받지 못한 서버 인스턴스의 스트림은 다음 재확인까지 최대 60초 남는다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험). 실행 단위 토큰으로 연 스트림은 만료나 갱신으로 닫지 않는다([실행 단위 토큰](#실행-단위-토큰)). WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 두 방식의 관계는 [재검토에서 갈린 EIA 동작을 정한다](#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
 
 ### 알림 서명 시크릿
 
@@ -433,11 +454,12 @@ stateDiagram-v2
 - `codebase/backend/src/modules/external-interaction/interaction-token.service.ts` (발급·검증·`revokeAllForExecution`·`reconcileTerminalRevocations`)
 - `codebase/backend/src/modules/external-interaction/terminal-revoke-reconciler.service.ts`
 - `codebase/backend/src/modules/external-interaction/webchat-idle-reaper.service.ts`
-- `codebase/backend/src/modules/external-interaction/interaction.guard.ts` (두 토큰 계열 검증, `itk_*` 는 인터랙션 켜짐과 `per_trigger` 일 때만)
+- `codebase/backend/src/modules/external-interaction/interaction.guard.ts` (두 토큰 계열 검증, `itk_*` 는 인터랙션 켜짐과 `per_trigger` 일 때만, 스트림 재확인용 토큰 유효 판정)
 - `codebase/backend/src/modules/external-interaction/interaction.service.ts` (명령 위임, 재개 큐 적재 실패 응답)
-- `codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts` (SSE 응답, heartbeat, 연결 상한 초과 429, 트리거 단위 토큰 재확인)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (구독자 등록과 구독 순서, 재전송 판정, 종료 이벤트 뒤 닫기, 메모리 버퍼)
-- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한, 순번 카운터 읽기)
+- `codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts` (SSE 응답, heartbeat, 연결 상한 초과 429, 트리거 단위 토큰 재확인, 열린 트리거 단위 토큰 스트림의 60초 재확인)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (구독자 등록과 구독 순서, 재전송 판정, 종료 이벤트 뒤 닫기, 메모리 버퍼, 쓰기 대상 판정 대기열, 구독 재확정 뒤 따라잡기)
+- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한, 순번 카운터 읽기, 항목 크기 상한과 생략 표시)
+- `codebase/backend/src/modules/external-interaction/sse-stream-eligibility.service.ts` (Redis 에 쓰는 실행 판정, 조회 상한 `SSE_ELIGIBILITY_TIMEOUT_MS`)
 - `codebase/backend/src/modules/external-interaction/interaction-stream-closer.ts` (트리거 단위 토큰 스트림 닫기 포트)
 - `codebase/backend/src/modules/external-interaction/idempotency.interceptor.ts`
 - `codebase/backend/src/modules/external-interaction/notification-fanout.service.ts`
@@ -475,13 +497,16 @@ SSE 와 알림 흐름이 모두 `WebsocketService.executionEvents$` 에서 출�
 
 ### 인프라 장애에는 fail-open 한다
 
-토큰 블랙리스트·멱등 캐시·jti 추적·알림 적재·SSE 서버 인스턴스 사이 전달은 모두 Redis·DB 를 못 쓸 때 fail-open 이다(기능 저하 + 경고 로그). 멱등 캐시는 적재된 항목 자체가 손상된 경우에도 fail-open 이다.
+토큰 블랙리스트·멱등 캐시·jti 추적·알림 적재·SSE 서버 인스턴스 사이 전달·SSE 쓰기 대상 판정·트리거 단위 토큰 스트림 재확인은 모두 Redis·DB 를 못 쓸 때 fail-open 이다(기능 저하 + 경고 로그). 멱등 캐시는 적재된 항목 자체가 손상된 경우에도 fail-open 이다.
 
 - 원인은 두 축이다. "미가용"(Redis 가 죽었다)과 "손상"(Redis 는 살아 있는데 값이 오염됐다)은 다른 실패다. 손상은 항목 형태 불일치나 `responseJson` 파싱 실패로 나타난다. 예전에는 그 예외가 그대로 올라가 500 이 됐는데, 이는 fail-open 원칙과 정반대였다. 지금은 손상 항목을 버리고 새 처리로 내린다.
 - 경고는 다섯 경로 중 넷에 붙는다. `IdempotencyInterceptor` 의 (1) 기동 때 미주입, (2) 조회 실패, (3) 적재 실패, (4) 직렬화 실패, (5) 항목·payload 손상 가운데 (1)만 경고하지 않는다. Redis 를 붙이지 않은 것은 장애로 보지 않고 설정 상태로 본다. 나머지는 운영자가 저하 구간을 알아야 하므로 반드시 로그를 남긴다.
 - 근거는 "인터랙션·알림은 워크플로우 실행의 부수 채널이며, 인프라 장애가 실행 자체를 멈추면 안 된다" 는 모듈 전체의 결정이다(`interaction-token.service.ts`·`notification-dispatcher.service.ts` 주석). 표마다 정책을 적어 운영자가 저하 모드의 남은 위험을 추적하게 했다. 블랙리스트 미적용이면 만료까지 토큰이 유효하고, 멱등 저하면 같은 멱등 키 재요청이 모두 캐시 미스가 되어 다운스트림이 중복 실행될 수 있다.
 - 멱등 쪽 남은 위험은 창 크기가 다르다. 정상일 때도 GET 과 SET 이 원자적이지 않아 좁은 창이 있지만, Redis 장애가 이어지는 동안에는 그 창이 장애 구간 전체로 넓어진다. 그래서 "같은 응답 24시간 재현" 은 정상 경로의 계약이고 저하 구간의 멱등성은 최선 노력이다. 운영자는 이 구간을 알아챌 수단(Redis 실패율 관측)이 필요하다.
 - 블랙리스트 조회의 fail-open 은 위 근거만으로는 설명되지 않는다. 토큰 검증이 요청을 거부해도 실행은 멈추지 않기 때문이다. 이 조회의 근거는 [External Interaction API](CLE-EIA.md#종료-토큰-폐기는-실행-토큰-테이블로-정리한다) 의 「종료 토큰 폐기는 실행 토큰 테이블로 정리한다」 가 받아들인 위험 판단이다. 실행 단위 토큰은 수명이 짧고 그 실행에만 쓰이므로 장애 창에서 폐기된 토큰이 통과해도 위험이 낮다고 본다. «수명이 짧다» 는 근거는 실행 단위 토큰(`iext_*`)에만 쓴다. 블랙리스트의 대상도 이 토큰뿐이다. 트리거 단위 토큰(`itk_*`)에는 수명이 없어 이 근거를 쓸 수 없다. 또 이 근거는 새 요청의 검증에 대한 것이다. 이미 열린 SSE 스트림은 실행 단위 토큰이 만료돼도 닫지 않는다. 그 남은 위험은 [재검토에서 갈린 EIA 동작을 정한다](#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+- **SSE 의 fail-open 두 가지 (2026-11-05)**: NERV Task `CLE-T-1GR2JE` · `CLE-T-XPG8DQ` 에서 더했다.
+  - Redis 쓰기 대상 판정의 DB 조회가 실패하거나 2초를 넘기면 그 실행의 이벤트를 Redis 에 쓴다. 다른 서버 인스턴스의 구독자가 이벤트를 놓치지 않는 쪽을 골랐다. 대가는 열 수 없는 실행의 이벤트도 Redis 에 쓸 수 있다는 점이다([SSE 스트림](#sse-스트림) 의 「Redis 에 쓰는 실행」).
+  - 트리거 단위 토큰 스트림의 60초 재확인에서 DB 조회가 실패하면 스트림을 유지하고 경고 로그를 남긴다. Redis 장애 때와 같이 인프라 장애로 SSE 스트림을 끊지 않는 쪽이다. 이 fail-open 은 인가 쪽 틈이다. 조회가 실패하는 동안 무효가 된 토큰의 스트림이 남을 수 있다. 이 틈은 받아들인 잔여 위험이다. 그 스트림은 다음 재확인이 성공하거나 닫기 신호가 오거나 실행이 끝나면 닫힌다. 닫기 신호가 오지 않고 조회 실패가 이어지면 남는 시간에 상한이 없다. 위 블랙리스트 항목의 «수명이 짧다» 는 근거는 트리거 단위 토큰에 쓸 수 없다.
 
 ### 승격 때 시크릿 저장소 참조를 교체한다
 
@@ -511,12 +536,33 @@ SSE 재전송 버퍼는 실행별 Redis Stream 에 둔다. 실시간 전달은 �
 남은 위험:
 
 - Redis 장애로 메모리 모드가 되면 서버 인스턴스는 다른 서버 인스턴스가 낸 이벤트를 받지 못한다. 그 구간에는 이전 결정의 한계가 그대로 돌아온다. 경고 로그로 그 구간을 알 수 있다. 메모리 모드에서는 동시 연결 상한도 서버 인스턴스마다 센다.
-- SSE 구독자가 없는 실행의 이벤트도 모두 Redis 에 쓴다. 이벤트 payload 는 버퍼에 5분 동안 남는다.
-- Pub/Sub 메시지가 유실되면(구독 연결이 끊긴 동안 등) 그 이벤트는 실시간으로 가지 않는다. 이벤트는 Stream 에 남는다. 클라이언트가 그보다 큰 `seq` 를 받기 전에 `Last-Event-Id` 로 다시 연결하면 재전송으로 메운다. 그보다 큰 `seq` 를 이미 받았으면 재전송 대상이 아니라서 그 이벤트는 그 스트림에서 빠진다. 5분이 지났으면 `execution.replay_unavailable` 을 받고 상태 조회로 맞춘다.
+- EIA SSE 로 열 수 있는 실행이면 SSE 구독자가 없어도 이벤트를 Redis 에 쓴다. Redis 에 쓴 payload(64 KiB 이하이거나 종료 이벤트)는 버퍼에 5분 동안 남는다(2026-11-05).
+- 실행의 첫 이벤트에 라우팅 컨텍스트의 `triggerId` 가 없으면 쓰기 대상 판정이 날 때까지 그 실행의 이벤트를 Redis 에 쓰지 않는다. 그동안 다른 서버 인스턴스의 구독자는 그 이벤트를 최대 2초 늦게 받을 수 있다. 판정 조회가 실패하거나 2초를 넘기면 열 수 없는 실행의 이벤트도 Redis 에 쓴다(2026-11-05).
+- Pub/Sub 메시지가 유실되면 그 이벤트는 실시간으로 가지 않는다. 구독 연결이 끊겼다 다시 준비되면 그 사이 구간을 버퍼로 따라잡는다([SSE 스트림](#sse-스트림) 의 「구독이 다시 확정될 때」). 남는 것은 두 경우다. 기준 순번이 없는 스트림은 따라잡지 않고 `execution.replay_unavailable` 을 받는다. 놓친 이벤트가 없어도 받으므로 거짓 양성일 수 있다. 연결이 끊기지 않은 채 메시지만 빠지면 따라잡기가 일어나지 않아 그 이벤트가 그 스트림에서 빠질 수 있다(2026-11-05).
 - 서버 인스턴스 사이에서 이벤트 도착 순서가 뒤집히면 늦게 온 작은 `seq` 는 겹침 제거로 버려진다. 클라이언트의 `Last-Event-Id` 는 이미 더 큰 `seq` 라서 다시 연결해도 그 이벤트는 재전송되지 않는다.
 - 순번 카운터는 올렸지만 아직 버퍼에 넣지 않은 순간에 버퍼 키 없이 다시 연결하면 놓친 이벤트가 없어도 `execution.replay_unavailable` 을 받을 수 있다(거짓 양성). 그때 클라이언트는 상태 조회를 한 번 더 한다.
-- 닫기 메시지가 유실되면(구독 연결이 끊긴 동안 등) 그 서버 인스턴스에 붙은 트리거 단위 토큰 스트림은 실행이 끝날 때까지 남는다. 그 토큰으로 새로 연결하거나 다시 연결하면 가드가 거부한다.
+- 닫기 메시지가 유실되면(구독 연결이 끊긴 동안 등) 그 서버 인스턴스에 붙은 트리거 단위 토큰 스트림은 다음 재확인까지 최대 60초 남는다. DB 를 읽지 못하면 그보다 오래 남을 수 있다([인프라 장애에는 fail-open 한다](#인프라-장애에는-fail-open-한다)). 그 토큰으로 새로 연결하거나 다시 연결하면 가드가 거부한다(2026-11-05).
 - 서버 인스턴스가 죽으면 그 연결의 ZSET 항목은 heartbeat 간격의 3배(45초) 동안 남아 상한을 차지한다.
+- 크기 상한을 넘은 이벤트는 그 이벤트를 낸 서버 인스턴스의 구독자만 받는다. 다른 서버 인스턴스의 구독자와 다른 서버 인스턴스로 다시 연결한 클라이언트는 `execution.replay_unavailable` 을 받고 상태 조회로 맞춘다(2026-11-05).
+
+### SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다 (2026-11-05)
+
+2026-10-17 · 10-18 코드 리뷰에서 미룬 발견을 처리한다. 작업은 NERV Task `CLE-T-1GR2JE` · `CLE-T-XPG8DQ` 다. 각 서버 인스턴스는 EIA SSE 로 열 수 있는 실행의 이벤트만 Redis 에 쓰고 64 KiB 를 넘는 항목은 생략 표시로 바꾼다. 구독이 다시 확정되면 놓친 구간을 버퍼로 채운다. 트리거 단위 토큰 스트림은 열려 있는 동안 60초마다 토큰을 다시 확인한다. 규칙은 [SSE 스트림](#sse-스트림) 과 [Redis 와 BullMQ](#redis-와-bullmq) 표에 있다.
+
+- **쓰기 대상을 라우팅 컨텍스트만으로 판정하지 않는다**: 라우팅 컨텍스트의 `triggerId` 는 모든 이벤트 경로에 등록돼 있지 않다. 실행 준비가 실패해 해제한 다음 내는 실패 이벤트, 멈춘 작업의 재시도 소진, 입력 대기 중 취소, 웹채팅 유휴 회수의 취소, 부팅 때 남은 실행 정리, 재시도 구간이 그렇다. 라우팅만 보면 웹훅 실행의 종료 이벤트처럼 꼭 필요한 이벤트를 버린다. 그래서 라우팅은 빠른 경로로만 쓰고 `triggerId` 가 없으면 DB 로 판정한다.
+- **더 좁은 판정은 기각했다**: 트리거 종류나 인터랙션 켜짐까지 보는 안이다. 인터랙션은 실행 도중 PATCH 로 켤 수 있다. 그러면 판정을 기억하는 동안 그 실행에서 다른 서버 인스턴스가 낸 이벤트가 알림 없이 빠진다.
+- **판정을 기다리다 버리지 않는다**: 판정을 기다리며 모은 이벤트를 버리면 생략 표시도 남지 않는다. 그러면 다른 서버 인스턴스의 구독자는 이벤트를 놓친 줄 모른다. 그래서 조회가 실패하거나 2초를 넘기거나 모은 이벤트가 1000건에 닿으면 쓰는 쪽으로 정한다. 대가는 둘이다. 열 수 없는 실행의 이벤트를 Redis 에 쓸 수 있다. 판정을 기다리는 동안 다른 서버 인스턴스의 구독자는 이벤트를 늦게 받는다.
+- **항목 크기 상한을 64 KiB 로 둔다**: Redis 의 pub/sub 구독 연결은 출력 버퍼 한도(`client-output-buffer-limit pubsub`, 기본 32mb 하드 · 8mb 60초 소프트)를 넘으면 끊긴다. 끊기면 그 서버 인스턴스의 모든 실행 채널 전달이 멈춘다. 항목 하나의 크기에 상한이 없으면 Stream 하나(최대 1000건)의 메모리에도 상한이 없다. 64 KiB 는 재 보고 얻은 값이 아니고 정한 값이다. 운영에서 상한에 걸리는 이벤트가 잦으면 다시 본다.
+- **넘친 항목 자리에 생략 표시를 남긴다**: 아무것도 쓰지 않으면 다른 서버 인스턴스의 구독자는 그 이벤트를 놓친 줄 모른다. 표시가 있으면 `execution.replay_unavailable` 로 알린다.
+- **종료 이벤트는 상한에서 뺀다**: 종료 이벤트는 스트림을 닫는 이벤트다. 생략 표시로 바꾸면 다른 서버 인스턴스는 그 스트림을 닫을 근거를 잃는다. 실행마다 하나뿐이라 쌓이는 크기도 한정된다.
+- **Redis 쓰기를 끄는 환경 변수는 기각했다**: 끄면 다른 서버 인스턴스로 붙은 클라이언트가 이벤트를 받지 못한다(REQ-EIAIN-042, [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md)). 쓰기 대상을 좁히면 낭비의 대부분이 빠진다.
+- **SSE 전용 Redis 분리는 미룬다**: `eia:sse:*` 의 메모리나 명령 수가 운영 문제로 드러나면 다시 본다. 배포 체크리스트 `k8s/README.md` §9 에 확인 항목이 있다. 사용량을 재 보지 않았으므로 수치를 적지 않는다.
+- **끝에서부터 페이지 단위로 읽는 안은 기각했다**: `XREVRANGE … COUNT` 로 끝에서부터 읽는 안이다. 서버 인스턴스 사이에서 도착 순서가 뒤집히면 Stream 순서와 `seq` 순서가 다르다. 그래서 «`Last-Event-Id` 이하를 만나면 멈춘다» 는 조건이 안전하지 않다. 항목에 `seq` 필드를 두고 파싱만 건너뛰면 1000건 상한의 `XRANGE` 한 번으로 충분하다.
+- **자기 메시지는 접두로 알아본다**: 메시지를 만드는 쪽이 키 순서(`v`, `origin`, 그다음 `event` 나 `omitted`)를 정한다. 그래서 접두가 고정이고 자기 메시지를 파싱하지 않고 건너뛸 수 있다.
+- **닫기 신호 유실은 주기 재확인으로 막는다**: 이전에는 닫기 신호가 유실되면 받지 못한 서버 인스턴스의 트리거 단위 토큰 스트림이 실행이 끝날 때까지 남았다. 재확인은 Redis 없이 DB 만 본다. 비용은 열린 트리거 단위 토큰 스트림마다 분당 조회 한 번이다. 닫기 신호를 Stream 에 남겨 재구독 때 따라잡는 안은 기각했다. 새 키와 따라잡기 규칙이 더 생긴다. Redis 를 쓸 수 없어 발행이 실패하면 신호는 여전히 빠진다.
+- **닫기 신호 발행 실패만 호출마다 error 로 남긴다**: 동작마다 경고 한 번으로는 알림을 걸기 어렵다. 발행 실패 하나가 다른 서버 인스턴스에서 인가 틈이 된다.
+- **구독 공백은 재확정 뒤 따라잡기로 메운다**: 구독 연결이 끊긴 동안 발행된 메시지는 그 서버 인스턴스에 오지 않는다. 그 이벤트는 Stream 에 남으므로 구독이 다시 확정되면 재전송과 같은 판정으로 채울 수 있다. 실시간 전달에서 `seq` 공백을 보고 신호를 보내는 안은 기각했다. 서버 인스턴스 사이에서 도착 순서가 뒤집히면 잠깐 공백이 생겨 거짓 신호가 난다. 공백을 얼마나 기다릴지 정할 근거도 없다.
+- **연결 자리 갱신의 명령별 실패도 본다**: 놓치면 살아 있는 연결의 자리가 45초 뒤 사라진다. 그러면 동시 연결 상한(3)이 느슨해진다.
 
 ### 트리거 단위 토큰을 생성과 PATCH 에서 발급한다 (2026-10-17)
 

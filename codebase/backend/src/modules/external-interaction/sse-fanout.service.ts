@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { validate as isUuid } from 'uuid';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
-import { withTimeout } from '../../common/utils/with-timeout';
+import { TimeoutError, withTimeout } from '../../common/utils/with-timeout';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 // 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P`.
@@ -73,6 +73,28 @@ return 1
 const MESSAGE_VERSION = 1;
 /** Stream 항목에서 메시지 JSON 을 담는 필드 이름. */
 const BUFFER_FIELD = 'data';
+/**
+ * Stream 항목에서 이벤트 순번을 담는 필드 이름. 재연결 replay 는 이 값이 `Last-Event-Id` 이하인 항목의 메시지를 파싱하지
+ * 않는다. 이 필드가 없는 항목(롤링 배포 중 옛 서버 인스턴스가 넣은 것)은 그대로 파싱한다.
+ */
+const SEQ_FIELD = 'seq';
+
+/**
+ * Redis 에 올리는 메시지 하나의 최대 크기(UTF-8 바이트). 넘으면 이벤트 대신 생략 표시만 올리고 이벤트 전체는 이 서버
+ * 인스턴스의 메모리 버퍼에 둔다. 종료 이벤트는 스트림을 끝내는 이벤트라 상한을 적용하지 않는다. 정한 값이고 재 본 값이
+ * 아니다. 근거: CLE-EIA-DATA Rationale 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」, NERV Task `CLE-T-XPG8DQ`.
+ */
+export const SSE_BUFFER_MAX_MESSAGE_BYTES = 64 * 1024;
+
+/** 스트림을 끝내는 종료 이벤트. */
+export const SSE_TERMINAL_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'execution.completed',
+  'execution.failed',
+  'execution.cancelled',
+]);
+
+/** 구독 전용 연결의 이름(`CLIENT SETNAME`). 운영에서 연결을 알아볼 때와 e2e 가 연결 끊김을 만들 때 쓴다. */
+export const SSE_SUBSCRIBER_CONNECTION_NAME = 'eia-sse-sub';
 
 /**
  * 요청 경로에서 Redis 응답을 기다리는 상한(ms). 공유 연결이 끊겨 있으면 ioredis 는 명령을 쌓아 두었다가 재연결
@@ -80,17 +102,39 @@ const BUFFER_FIELD = 'data';
  */
 const REDIS_WAIT_TIMEOUT_MS = 2000;
 
-/** 버퍼에서 읽은 이벤트 하나. `receivedAt` 은 Stream 항목 id 의 시각(ms)이다. */
+/**
+ * 버퍼에서 읽은 항목 하나. `receivedAt` 은 Stream 항목 id 의 시각(ms)이다. `event` 가 `null` 이면 크기 상한을 넘어 생략
+ * 표시만 남은 항목이다(이벤트 전체는 그 이벤트를 낸 서버 인스턴스의 메모리 버퍼에만 있다).
+ */
 export interface BufferedSseEvent {
   seq: number;
   receivedAt: number;
-  event: ExecutionChannelEvent;
+  event: ExecutionChannelEvent | null;
 }
+
+/** {@link SseFanoutService.readBuffer} 의 결과. `skipped` 는 `seq` 필드로 보아 파싱하지 않고 건너뛴 항목 수다. */
+export interface SseBufferRead {
+  events: BufferedSseEvent[];
+  skipped: number;
+}
+
+/**
+ * {@link SseFanoutService.append} 의 결과. `stored` 는 이벤트 전체를 Redis 에 넣었다. `omitted` 는 크기 상한을 넘어 생략
+ * 표시만 넣었다. `failed` 는 넣지 못했다. `stored` 가 아니면 호출자가 이벤트를 메모리 버퍼에 둔다.
+ */
+export type SseAppendResult = 'stored' | 'omitted' | 'failed';
 
 /** 다른 서버 인스턴스에서 온 신호를 받는 쪽. `SseAdapter` 가 건다. */
 export interface SseFanoutHandlers {
   onLiveEvent(event: ExecutionChannelEvent): void;
+  /** 다른 서버 인스턴스의 이벤트가 크기 상한을 넘어 생략 표시만 왔다. */
+  onLiveOmitted(executionId: string, seq: number): void;
   onRemoteClose(triggerIds: string[]): void;
+  /**
+   * 실행 채널 구독이 다시 확정됐다. 구독 연결이 다시 준비돼 재구독했거나 상한(2초)을 넘긴 SUBSCRIBE 가 늦게 확인된
+   * 경우다. 그 사이 발행된 메시지는 받지 못했을 수 있다.
+   */
+  onLiveResumed(executionIds: string[]): void;
 }
 
 /**
@@ -114,6 +158,11 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SseFanoutService.name);
   /** 이 프로세스의 id. 자기 메시지를 알아보는 데만 쓴다. */
   private readonly origin = randomUUID();
+  /**
+   * 이 서버 인스턴스가 낸 메시지의 고정 접두. {@link encodeEvent} 가 키 순서(`v`, `origin`, …)를 정하므로 이 접두로
+   * 시작하는 live 메시지는 자기 것이다. 자기 이벤트는 `SseAdapter` 가 이미 바로 전달했으므로 파싱하지 않고 버린다.
+   */
+  private readonly ownMessagePrefix = `{"v":${MESSAGE_VERSION},"origin":${JSON.stringify(this.origin)},`;
   private client: Redis | null = null;
   private subscriber: Redis | null = null;
   private handlers: SseFanoutHandlers | null = null;
@@ -136,14 +185,20 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     this.client = base;
-    const sub = base.duplicate();
+    const sub = base.duplicate({
+      connectionName: SSE_SUBSCRIBER_CONNECTION_NAME,
+    });
     sub.on('error', (err: Error) => this.degrade('구독 연결', err));
     sub.on('message', (channel: string, message: string) =>
       this.onMessage(channel, message),
     );
+    // 첫 준비 전에 보낸 SUBSCRIBE 는 오프라인 큐에서 기다렸다가 처리되고, 그 확인은 `retainLive` 가 기다리거나 늦은 확인으로
+    // 알린다. 그래서 놓친 구간을 알리는 것은 끊겼다가 다시 준비됐을 때뿐이다.
+    let readyBefore = false;
     sub.on('ready', () => {
       this.recover('구독 연결');
-      this.resubscribe(sub);
+      this.resubscribe(sub, readyBefore);
+      readyBefore = true;
     });
     sub.subscribe(SSE_CLOSE_CHANNEL).catch((err: unknown) => {
       this.degrade('닫기 채널 구독', err);
@@ -170,15 +225,26 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * 이벤트를 replay 버퍼에 넣고 live 채널로 보낸다. 버퍼에 넣었으면 `true` 다. 실패하면 `false` 이고 던지지 않는다.
+   * 이벤트를 replay 버퍼(Stream)에 넣고 live 채널로 보낸다. 결과는 {@link SseAppendResult} 이고 던지지 않는다.
    * `XADD` 와 `PUBLISH` 를 한 pipeline 으로 보내므로 PUBLISH 를 받은 쪽이 같은 연결로 읽는 버퍼에는 그 항목이 있다.
-   * JSON 으로 바꾸지 못하는 payload(BigInt 등)도 `false` 로 알린다. 호출자는 `catch` 없이 쓸 수 있다.
+   * JSON 으로 바꾸지 못하는 payload(BigInt 등)도 `failed` 로 알린다. 호출자는 `catch` 없이 쓸 수 있다.
+   *
+   * 메시지가 {@link SSE_BUFFER_MAX_MESSAGE_BYTES} 를 넘으면(종료 이벤트는 예외) 이벤트 대신 생략 표시를 넣고 `omitted`
+   * 다. 항목에는 `seq` 필드를 함께 넣어 replay 가 이미 받은 항목의 파싱을 건너뛰게 한다.
    */
-  async append(event: ExecutionChannelEvent): Promise<boolean> {
+  async append(event: ExecutionChannelEvent): Promise<SseAppendResult> {
     const client = this.client;
-    if (!client) return false;
+    if (!client) return 'failed';
     try {
-      const message = this.encodeEvent(event);
+      let message = this.encodeEvent(event);
+      let result: SseAppendResult = 'stored';
+      if (
+        !SSE_TERMINAL_EVENT_TYPES.has(event.eventType) &&
+        exceedsMessageLimit(message)
+      ) {
+        message = this.encodeOmitted(event);
+        result = 'omitted';
+      }
       const results = await client
         .pipeline()
         .xadd(
@@ -187,6 +253,8 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
           '~',
           SSE_BUFFER_MAX_EVENTS,
           '*',
+          SEQ_FIELD,
+          String(event.seq),
           BUFFER_FIELD,
           message,
         )
@@ -199,7 +267,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
         : new Error('pipeline 결과 없음');
       if (!results || xaddError) {
         this.degrade('버퍼 쓰기', xaddError);
-        return false;
+        return 'failed';
       }
       this.recover('버퍼 쓰기');
       // PEXPIRE · PUBLISH 실패는 경고만 남긴다. TTL 은 다음 이벤트의 PEXPIRE 가 다시 건다. 놓친 실시간 전달은
@@ -210,18 +278,24 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       } else {
         this.recover('버퍼 TTL · 발행');
       }
-      return true;
+      return result;
     } catch (err) {
       this.degrade('버퍼 쓰기', err);
-      return false;
+      return 'failed';
     }
   }
 
   /**
    * 실행의 replay 버퍼를 넣은 순서대로 읽는다. 5분이 지난 항목도 키가 남아 있으면 함께 돌려준다(걸러 내는 것은 호출자다).
    * 실패하면 `null` 이다. 형식이 맞지 않는 항목은 버린다.
+   *
+   * `afterSeq` 를 주면 `seq` 필드가 그 이하인 항목은 메시지를 파싱하지 않고 `skipped` 로만 센다. 클라이언트가 이미 받은
+   * 항목이다. `seq` 필드가 없는 옛 항목은 파싱해서 메시지의 `seq` 로 판단한다.
    */
-  async readBuffer(executionId: string): Promise<BufferedSseEvent[] | null> {
+  async readBuffer(
+    executionId: string,
+    afterSeq?: number,
+  ): Promise<SseBufferRead | null> {
     const client = this.client;
     if (!client) return null;
     let entries: Array<[string, string[]]>;
@@ -236,15 +310,25 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       this.degrade('버퍼 읽기', err);
       return null;
     }
-    const buffered: BufferedSseEvent[] = [];
+    const events: BufferedSseEvent[] = [];
+    let skipped = 0;
     for (const [id, fields] of entries) {
-      const raw = readField(fields, BUFFER_FIELD);
-      const parsed = raw === null ? null : this.decodeEvent(raw, executionId);
       const receivedAt = Number(id.split('-')[0]);
-      if (!parsed || !Number.isFinite(receivedAt)) continue;
-      buffered.push({ seq: parsed.event.seq, receivedAt, event: parsed.event });
+      if (!Number.isFinite(receivedAt)) continue;
+      if (afterSeq !== undefined) {
+        const seqField = readField(fields, SEQ_FIELD);
+        const seq = seqField === null ? NaN : Number(seqField);
+        if (Number.isFinite(seq) && seq <= afterSeq) {
+          skipped += 1;
+          continue;
+        }
+      }
+      const raw = readField(fields, BUFFER_FIELD);
+      const parsed = raw === null ? null : this.decodeEntry(raw, executionId);
+      if (!parsed) continue;
+      events.push({ seq: parsed.seq, receivedAt, event: parsed.event });
     }
-    return buffered;
+    return { events, skipped };
   }
 
   /**
@@ -284,8 +368,10 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       existing.refs += 1;
       return existing.confirmed;
     }
+    const subscribed = sub.subscribe(sseLiveChannel(executionId));
+    let timedOut = false;
     const confirmed = withTimeout(
-      sub.subscribe(sseLiveChannel(executionId)),
+      subscribed,
       REDIS_WAIT_TIMEOUT_MS,
       'SUBSCRIBE',
     ).then(
@@ -294,11 +380,23 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
         return true;
       },
       (err: unknown) => {
+        timedOut = err instanceof TimeoutError;
         this.degrade('live 채널 구독', err);
         return false;
       },
     );
-    this.liveChannels.set(executionId, { refs: 1, confirmed });
+    const state = { refs: 1, confirmed };
+    this.liveChannels.set(executionId, state);
+    // 상한을 넘긴 SUBSCRIBE 가 늦게 확인되면 그때부터 다른 서버 인스턴스의 이벤트가 온다. 그 사이 발행된 것은 받지 못했으니
+    // 구독자에게 따라잡게 한다. 그 사이 구독을 풀었으면 알리지 않는다.
+    subscribed.then(
+      () => {
+        if (timedOut && this.liveChannels.get(executionId) === state) {
+          this.handlers?.onLiveResumed([executionId]);
+        }
+      },
+      () => undefined,
+    );
     return confirmed;
   }
 
@@ -336,7 +434,12 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       );
       this.recover('닫기 신호 발행');
     } catch (err) {
-      this.degrade('닫기 신호 발행', err);
+      // 다른 실패와 달리 억제하지 않고 호출마다 error 로 남긴다. 신호 하나가 빠지면 다른 서버 인스턴스에 무효가 된 토큰의
+      // 스트림이 다음 토큰 재확인까지 남는다. 복구 로그를 남기려고 실패 상태는 함께 기록한다.
+      this.degradedOps.add('닫기 신호 발행');
+      this.logger.error(
+        `EIA SSE Redis 닫기 신호 발행 실패 — 다른 서버 인스턴스의 트리거 단위 토큰 스트림은 토큰 재확인 때 닫힌다. triggerIds=${triggerIds.join(',')}: ${errMessage(err)}`,
+      );
     }
   }
 
@@ -385,7 +488,18 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       .zadd(key, Date.now(), subscriberId)
       .pexpire(key, SSE_CONNECTION_SLOT_TTL_MS)
       .exec()
-      .then(() => this.recover('연결 상한 갱신'))
+      .then((results) => {
+        // pipeline 은 명령 하나가 실패해도 reject 하지 않는다. ZADD 나 PEXPIRE 가 빠지면 살아 있는 연결의 자리가
+        // 45초 뒤 사라져 상한이 느슨해지므로 명령별 결과도 본다(`append` 와 같은 기준).
+        const failure = results
+          ? results.find(([err]) => err)?.[0]
+          : new Error('pipeline 결과 없음');
+        if (failure) {
+          this.degrade('연결 상한 갱신', failure);
+        } else {
+          this.recover('연결 상한 갱신');
+        }
+      })
       .catch((err: unknown) => this.degrade('연결 상한 갱신', err));
   }
 
@@ -398,14 +512,24 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       .catch((err: unknown) => this.degrade('연결 상한 해제', err));
   }
 
-  private resubscribe(sub: Redis): void {
-    const channels = [
-      SSE_CLOSE_CHANNEL,
-      ...Array.from(this.liveChannels.keys(), sseLiveChannel),
-    ];
-    sub.subscribe(...channels).catch((err: unknown) => {
-      this.degrade('재구독', err);
-    });
+  /**
+   * 구독 연결이 준비되면 닫기 채널과 구독 중인 실행 채널을 다시 구독한다. 끊겼다가 다시 준비됐으면(`reconnected`) 끊긴
+   * 동안 발행된 메시지는 받지 못했으므로 재구독이 확인된 뒤 그 실행들을 {@link SseFanoutHandlers.onLiveResumed} 로 알린다.
+   */
+  private resubscribe(sub: Redis, reconnected: boolean): void {
+    const executionIds = Array.from(this.liveChannels.keys());
+    const channels = [SSE_CLOSE_CHANNEL, ...executionIds.map(sseLiveChannel)];
+    sub.subscribe(...channels).then(
+      () => {
+        this.recover('재구독');
+        if (!reconnected) return;
+        const still = executionIds.filter((id) => this.liveChannels.has(id));
+        if (still.length > 0) this.handlers?.onLiveResumed(still);
+      },
+      (err: unknown) => {
+        this.degrade('재구독', err);
+      },
+    );
   }
 
   private onMessage(channel: string, message: string): void {
@@ -419,10 +543,15 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     if (!channel.startsWith(SSE_LIVE_CHANNEL_PREFIX)) return;
     const executionId = channel.slice(SSE_LIVE_CHANNEL_PREFIX.length);
     if (!this.liveChannels.has(executionId)) return;
-    const parsed = this.decodeEvent(message, executionId);
+    if (message.startsWith(this.ownMessagePrefix)) return;
+    const parsed = this.decodeEntry(message, executionId);
     // 자기 이벤트는 `SseAdapter` 가 이미 바로 전달했다.
     if (!parsed || parsed.origin === this.origin) return;
-    handlers.onLiveEvent(parsed.event);
+    if (parsed.event) {
+      handlers.onLiveEvent(parsed.event);
+    } else {
+      handlers.onLiveOmitted(executionId, parsed.seq);
+    }
   }
 
   private encodeEvent(event: ExecutionChannelEvent): string {
@@ -438,17 +567,38 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /** 크기 상한을 넘은 이벤트 대신 올리는 생략 표시. 키 순서는 {@link encodeEvent} 와 같아 자기 접두로 알아본다. */
+  private encodeOmitted(event: ExecutionChannelEvent): string {
+    return JSON.stringify({
+      v: MESSAGE_VERSION,
+      origin: this.origin,
+      omitted: {
+        executionId: event.executionId,
+        seq: event.seq,
+        eventType: event.eventType,
+      },
+    });
+  }
+
   /**
-   * 버퍼 항목 · live 메시지를 이벤트로 바꾼다. 형식이 맞지 않거나 다른 실행의 것이면 `null` 이다. Redis 는 믿는 저장소지만
-   * 형식까지 믿지는 않는다.
+   * 버퍼 항목 · live 메시지를 바꾼다. 이벤트면 `event` 를, 생략 표시면 `event: null` 을 준다. 형식이 맞지 않거나 다른
+   * 실행의 것이면 `null` 이다. Redis 는 믿는 저장소지만 형식까지 믿지는 않는다.
    */
-  private decodeEvent(
+  private decodeEntry(
     message: string,
     executionId: string,
-  ): { origin: string; event: ExecutionChannelEvent } | null {
+  ): {
+    origin: string;
+    seq: number;
+    event: ExecutionChannelEvent | null;
+  } | null {
     const m = parseObject(message);
     if (!m || m.v !== MESSAGE_VERSION) return null;
     if (typeof m.origin !== 'string' || m.origin.length === 0) return null;
+    if (m.event === undefined) {
+      const seq = decodeOmitted(m.omitted, executionId);
+      return seq === null ? null : { origin: m.origin, seq, event: null };
+    }
     const e = m.event;
     if (typeof e !== 'object' || e === null || Array.isArray(e)) return null;
     const event = e as Record<string, unknown>;
@@ -467,6 +617,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     }
     return {
       origin: m.origin,
+      seq: event.seq,
       event: {
         executionId,
         eventType: event.eventType,
@@ -513,6 +664,31 @@ function parseObject(message: string): Record<string, unknown> | null {
     return null;
   }
   return raw as Record<string, unknown>;
+}
+
+/**
+ * 메시지가 {@link SSE_BUFFER_MAX_MESSAGE_BYTES} 를 넘는지 본다. UTF-16 코드 단위 하나는 UTF-8 로 1~3바이트라 길이만으로
+ * 갈리면 바이트 수를 세지 않는다.
+ */
+function exceedsMessageLimit(message: string): boolean {
+  if (message.length > SSE_BUFFER_MAX_MESSAGE_BYTES) return true;
+  if (message.length * 3 <= SSE_BUFFER_MAX_MESSAGE_BYTES) return false;
+  return Buffer.byteLength(message, 'utf8') > SSE_BUFFER_MAX_MESSAGE_BYTES;
+}
+
+/** 생략 표시의 `omitted` 를 검사해 순번을 준다. 형식이 맞지 않거나 다른 실행의 것이면 `null` 이다. */
+function decodeOmitted(raw: unknown, executionId: string): number | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return null;
+  }
+  const omitted = raw as Record<string, unknown>;
+  if (omitted.executionId !== executionId) return null;
+  if (typeof omitted.eventType !== 'string') return null;
+  const seq = omitted.seq;
+  if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq <= 0) {
+    return null;
+  }
+  return seq;
 }
 
 /** Stream 항목의 `[필드, 값, 필드, 값, …]` 에서 필드 값을 찾는다. */

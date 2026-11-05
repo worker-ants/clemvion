@@ -7,13 +7,18 @@ import {
   type SseSubscriber,
 } from './sse-adapter.service';
 import {
+  SSE_BUFFER_MAX_MESSAGE_BYTES,
   SseFanoutService,
   sseBufferKey,
   sseConnectionSlotsKey,
   sseLiveChannel,
 } from './sse-fanout.service';
 import { writeSseFrame } from './interaction-stream.controller';
-import { FakeRedisServer } from './__test-utils__/fake-redis-streams';
+import {
+  FakeRedisClient,
+  FakeRedisServer,
+} from './__test-utils__/fake-redis-streams';
+import type { SseStreamEligibilityService } from './sse-stream-eligibility.service';
 import type { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import type { WebsocketService } from '../websocket/websocket.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
@@ -22,14 +27,28 @@ interface Instance {
   adapter: SseAdapter;
   fanout: SseFanoutService;
   subject: Subject<ExecutionChannelEvent>;
+  /** Redis 로 부팅했을 때 구독 연결 대역. */
+  sub?: FakeRedisClient;
+  /** 구독 연결이 처음 `ready` 가 됐는지. */
+  readied?: boolean;
 }
 
-function makeInstance(fanout: SseFanoutService): Instance {
+/** 모든 실행이 EIA SSE 로 열릴 수 있다고 답하는 판정 대역. */
+function openEligibility(): SseStreamEligibilityService {
+  return {
+    canOpenStream: () => Promise.resolve(true),
+  } as unknown as SseStreamEligibilityService;
+}
+
+function makeInstance(
+  fanout: SseFanoutService,
+  eligibility: SseStreamEligibilityService = openEligibility(),
+): Instance {
   const subject = new Subject<ExecutionChannelEvent>();
   const ws = {
     executionEvents$: subject.asObservable(),
   } as unknown as WebsocketService;
-  const adapter = new SseAdapter(ws, fanout);
+  const adapter = new SseAdapter(ws, fanout, eligibility);
   adapter.onModuleInit();
   return { adapter, fanout, subject };
 }
@@ -44,10 +63,26 @@ function memoryInstance(): Instance {
 }
 
 /** `server` 를 나눠 쓰는 서버 인스턴스. 여럿 만들면 서버 인스턴스 여럿을 흉내 낸다. */
-function redisInstance(server: FakeRedisServer): Instance {
+function redisInstance(
+  server: FakeRedisServer,
+  eligibility?: SseStreamEligibilityService,
+): Instance {
   const fanout = new SseFanoutService(server.provider());
   fanout.onModuleInit();
-  return makeInstance(fanout);
+  return {
+    ...makeInstance(fanout, eligibility),
+    sub: server.duplicates.at(-1),
+  };
+}
+
+/** 구독 연결이 끊겼다가 다시 준비된 것을 흉내 낸다. 처음 준비된 적이 없으면 첫 준비부터 낸다. */
+function reconnectSubscriber(instance: Instance): void {
+  const sub = instance.sub!;
+  if (!instance.readied) {
+    sub.emit('ready');
+    instance.readied = true;
+  }
+  sub.emit('ready');
 }
 
 async function destroy(instance: Instance): Promise<void> {
@@ -114,6 +149,30 @@ function ev(
 }
 
 const REPLAY_UNAVAILABLE = 'execution.replay_unavailable';
+
+/** 직렬화하면 Redis 메시지 크기 상한을 넘는 이벤트. */
+function bigEv(executionId: string, seq: number): ExecutionChannelEvent {
+  return {
+    executionId,
+    eventType: 'execution.node.completed',
+    seq,
+    payload: {
+      executionId,
+      seq,
+      text: 'a'.repeat(SSE_BUFFER_MAX_MESSAGE_BYTES),
+    },
+  };
+}
+
+/** 라우팅 컨텍스트가 `triggerId` 를 붙인 이벤트. */
+function withTrigger(event: ExecutionChannelEvent): ExecutionChannelEvent {
+  return {
+    ...event,
+    payload: { ...event.payload, triggerId: TRIGGER_1_ID },
+  };
+}
+
+const TRIGGER_1_ID = '44444444-4444-4444-8444-444444444444';
 const TRIGGER_1 = '11111111-1111-4111-8111-111111111111';
 const TRIGGER_2 = '22222222-2222-4222-8222-222222222222';
 const TRIGGER_3 = '33333333-3333-4333-8333-333333333333';
@@ -990,5 +1049,388 @@ describe('SseAdapter — 서버 인스턴스 둘이 Redis 를 나눠 쓸 때', (
       a.subject.next(ev('exec-1', 'execution.node.started', 4));
       expect(s.pushed.map((e) => e.seq)).toEqual([0, 4]);
     });
+  });
+
+  // 근거: NERV Task `CLE-T-XPG8DQ` — 크기 상한을 넘는 이벤트는 Redis 에 생략 표시만 넣는다.
+  describe('크기 상한을 넘은 이벤트', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+    });
+    afterEach(() => warn.mockRestore());
+
+    it('자기 구독자는 이벤트 전체를 받고 다른 인스턴스의 구독자는 그 자리에서 replay_unavailable 을 받는다', async () => {
+      const onA = makeSub('exec-1');
+      const onB = makeSub('exec-1');
+      await open(a.adapter, onA.sub);
+      await open(b.adapter, onB.sub);
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      a.subject.next(bigEv('exec-1', 2));
+      a.subject.next(ev('exec-1', 'execution.node.started', 3));
+      await flush();
+      expect(onA.pushed.map((e) => e.seq)).toEqual([1, 2, 3]);
+      expect(onA.pushed[1]).toEqual(bigEv('exec-1', 2));
+      expect(onB.pushed.map((e) => [e.eventType, e.seq])).toEqual([
+        ['execution.started', 1],
+        [REPLAY_UNAVAILABLE, 0],
+        ['execution.node.started', 3],
+      ]);
+      expect(onB.pushed[1].payload).toMatchObject({ lastEventId: 1 });
+    });
+
+    it('생략 표시의 순번까지 이미 보냈으면 신호를 보내지 않는다', async () => {
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub);
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      a.subject.next(ev('exec-1', 'execution.node.started', 2));
+      await flush();
+      b.sub!.emit(
+        'message',
+        sseLiveChannel('exec-1'),
+        JSON.stringify({
+          v: 1,
+          origin: 'other',
+          omitted: { executionId: 'exec-1', seq: 2, eventType: 'x' },
+        }),
+      );
+      await flush();
+      expect(onB.pushed.map((e) => e.seq)).toEqual([1, 2]);
+    });
+
+    it('같은 인스턴스로 다시 연결하면 메모리에 둔 이벤트 전체로 replay 하고 다른 인스턴스는 replay_unavailable 을 보낸다', async () => {
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      a.subject.next(bigEv('exec-1', 2));
+      a.subject.next(ev('exec-1', 'execution.node.started', 3));
+      await flush();
+      expect(a.adapter.bufferSize('exec-1')).toBe(1);
+
+      const again = makeSub('exec-1');
+      await open(a.adapter, again.sub, 1);
+      expect(again.pushed.map((e) => e.seq)).toEqual([2, 3]);
+      expect(again.pushed[0]).toEqual(bigEv('exec-1', 2));
+
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub, 1);
+      expect(onB.pushed.map((e) => e.eventType)).toEqual([REPLAY_UNAVAILABLE]);
+    });
+
+    it('크기 상한 경고는 실행마다 한 번만 남긴다', async () => {
+      a.subject.next(bigEv('exec-1', 1));
+      a.subject.next(bigEv('exec-1', 2));
+      a.subject.next(bigEv('exec-2', 1));
+      await flush();
+      expect(
+        warn.mock.calls.filter(([m]) => String(m).includes('크기 상한')),
+      ).toHaveLength(2);
+    });
+  });
+
+  it('replay 할 항목을 다 받았으면 순번 카운터를 읽지 않고 신호도 보내지 않는다', async () => {
+    a.subject.next(ev('exec-1', 'execution.started', 1));
+    a.subject.next(ev('exec-1', 'execution.node.started', 2));
+    await flush();
+    const readLatestSeq = jest.spyOn(b.fanout, 'readLatestSeq');
+    const onB = makeSub('exec-1');
+    await open(b.adapter, onB.sub, 2);
+    expect(onB.pushed).toEqual([]);
+    expect(readLatestSeq).not.toHaveBeenCalled();
+  });
+
+  // 근거: NERV Task `CLE-T-1GR2JE` — 구독 연결이 끊긴 사이 발행된 이벤트는 live 로 오지 않는다.
+  describe('구독이 다시 확정됐을 때 따라잡기', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+    });
+    afterEach(() => warn.mockRestore());
+
+    /** 버퍼에는 들어가고 live 채널로는 가지 않게 이벤트를 낸다. 구독 연결이 끊긴 사이 낸 이벤트를 흉내 낸다. */
+    async function emitWhileDisconnected(
+      ...events: ExecutionChannelEvent[]
+    ): Promise<void> {
+      server.failPipelineCommands.add('publish');
+      for (const event of events) a.subject.next(event);
+      await flush();
+      server.failPipelineCommands.clear();
+    }
+
+    it('끊긴 사이 놓친 이벤트를 버퍼에서 채우고 실시간 전달을 이어 간다', async () => {
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub);
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      await flush();
+      await emitWhileDisconnected(
+        ev('exec-1', 'execution.node.started', 2),
+        ev('exec-1', 'execution.node.completed', 3),
+      );
+      expect(onB.pushed.map((e) => e.seq)).toEqual([1]);
+
+      reconnectSubscriber(b);
+      await flush();
+      expect(onB.pushed.map((e) => e.seq)).toEqual([1, 2, 3]);
+
+      a.subject.next(ev('exec-1', 'execution.node.started', 4));
+      await flush();
+      expect(onB.pushed.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+    });
+
+    it('따라잡는 사이 온 이벤트는 모았다가 겹치지 않게 보낸다', async () => {
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub);
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      await flush();
+      await emitWhileDisconnected(ev('exec-1', 'execution.node.started', 2));
+      server.beforeXrange = async () => {
+        server.beforeXrange = null;
+        a.subject.next(ev('exec-1', 'execution.node.completed', 3));
+        await flush();
+      };
+      reconnectSubscriber(b);
+      await flush();
+      await flush();
+      expect(onB.pushed.map((e) => e.seq)).toEqual([1, 2, 3]);
+    });
+
+    it('Last-Event-Id 없이 연결해 받은 이벤트가 없으면 버퍼를 읽지 않고 replay_unavailable 을 보낸다', async () => {
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub);
+      await emitWhileDisconnected(ev('exec-1', 'execution.started', 1));
+      const readBuffer = jest.spyOn(b.fanout, 'readBuffer');
+      reconnectSubscriber(b);
+      await flush();
+      expect(onB.pushed.map((e) => e.eventType)).toEqual([REPLAY_UNAVAILABLE]);
+      expect(onB.pushed[0].payload).toMatchObject({ lastEventId: 0 });
+      expect(readBuffer).not.toHaveBeenCalled();
+    });
+
+    it('Last-Event-Id 로 연결했으면 받은 이벤트가 없어도 그 순번부터 채운다', async () => {
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      a.subject.next(ev('exec-1', 'execution.node.started', 2));
+      await flush();
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub, 2);
+      expect(onB.pushed).toEqual([]);
+      await emitWhileDisconnected(ev('exec-1', 'execution.node.completed', 3));
+      reconnectSubscriber(b);
+      await flush();
+      expect(onB.pushed.map((e) => e.seq)).toEqual([3]);
+    });
+
+    it('replay 중에 구독이 다시 확정되면 실시간으로 바꾼 직후 한 번 더 따라잡는다', async () => {
+      a.subject.next(ev('exec-1', 'execution.started', 1));
+      a.subject.next(ev('exec-1', 'execution.node.started', 2));
+      await flush();
+      const realRead = b.fanout.readBuffer.bind(b.fanout);
+      let first = true;
+      const readBuffer = jest
+        .spyOn(b.fanout, 'readBuffer')
+        .mockImplementation(async (executionId, afterSeq) => {
+          const read = await realRead(executionId, afterSeq);
+          if (first) {
+            first = false;
+            // 버퍼를 읽은 뒤 replay 를 마치기 전에 끊겼다가 다시 준비된다. 그 사이 낸 이벤트는 읽은 버퍼에 없다.
+            await emitWhileDisconnected(
+              ev('exec-1', 'execution.node.completed', 3),
+            );
+            reconnectSubscriber(b);
+            await flush();
+          }
+          return read;
+        });
+      const onB = makeSub('exec-1');
+      await open(b.adapter, onB.sub, 1);
+      await flush();
+      expect(onB.pushed.map((e) => e.seq)).toEqual([2, 3]);
+      expect(readBuffer).toHaveBeenCalledTimes(2);
+    });
+
+    it('아직 live 채널을 구독하지 않은 구독자는 따라잡지 않는다', async () => {
+      const onB = makeSub('exec-1');
+      expect(await b.adapter.admit(onB.sub)).toBe(true);
+      const readBuffer = jest.spyOn(b.fanout, 'readBuffer');
+      reconnectSubscriber(b);
+      await flush();
+      expect(readBuffer).not.toHaveBeenCalled();
+      expect(onB.pushed).toEqual([]);
+    });
+  });
+});
+
+// 근거: NERV Task `CLE-T-XPG8DQ` — EIA SSE 로 열릴 수 있는 실행의 이벤트만 Redis 에 쓴다.
+describe('SseAdapter — Redis 쓰기 대상 판정', () => {
+  let server: FakeRedisServer;
+  let canOpenStream: jest.Mock<Promise<boolean>, [string]>;
+  let instance: Instance;
+
+  function eligibility(): SseStreamEligibilityService {
+    return { canOpenStream } as unknown as SseStreamEligibilityService;
+  }
+
+  /** Stream 에 들어간 seq 를 넣은 순서대로 읽는다. */
+  function streamSeqs(executionId: string): number[] {
+    return (server.streams.get(sseBufferKey(executionId)) ?? []).map(
+      ([, fields]) => Number(fields[1]),
+    );
+  }
+
+  /** 판정을 테스트가 끝내게 한다. */
+  function deferDecision(): (open: boolean) => void {
+    let resolve: (open: boolean) => void = () => undefined;
+    canOpenStream.mockReturnValueOnce(
+      new Promise<boolean>((r) => {
+        resolve = r;
+      }),
+    );
+    return (open) => resolve(open);
+  }
+
+  beforeEach(() => {
+    server = new FakeRedisServer();
+    canOpenStream = jest.fn<Promise<boolean>, [string]>(() =>
+      Promise.resolve(true),
+    );
+    instance = redisInstance(server, eligibility());
+  });
+  afterEach(async () => {
+    await destroy(instance);
+  });
+
+  it('라우팅 컨텍스트의 triggerId 가 붙은 이벤트는 판정 조회 없이 쓰고 이후 이벤트도 쓴다', async () => {
+    instance.subject.next(withTrigger(ev('exec-1', 'execution.started', 1)));
+    instance.subject.next(ev('exec-1', 'execution.node.started', 2));
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1, 2]);
+    expect(canOpenStream).not.toHaveBeenCalled();
+  });
+
+  it('triggerId 가 없으면 실행마다 한 번 판정하고 열릴 수 없는 실행은 Redis 에도 메모리에도 두지 않는다', async () => {
+    canOpenStream.mockResolvedValue(false);
+    const s = makeSub('exec-1');
+    await open(instance.adapter, s.sub);
+    instance.subject.next(ev('exec-1', 'execution.started', 1));
+    instance.subject.next(ev('exec-1', 'execution.node.started', 2));
+    await flush();
+    instance.subject.next(ev('exec-1', 'execution.node.completed', 3));
+    await flush();
+    expect(canOpenStream).toHaveBeenCalledTimes(1);
+    expect(canOpenStream).toHaveBeenCalledWith('exec-1');
+    expect(server.streams.get(sseBufferKey('exec-1'))).toBeUndefined();
+    expect(
+      server.published.filter((p) => p.channel === sseLiveChannel('exec-1')),
+    ).toEqual([]);
+    expect(instance.adapter.bufferSize('exec-1')).toBe(0);
+    // 이 서버 인스턴스의 구독자에게는 그대로 보낸다.
+    expect(s.pushed.map((e) => e.seq)).toEqual([1, 2, 3]);
+  });
+
+  it('판정을 기다리는 동안 온 이벤트는 순서대로 모았다가 판정 뒤에 쓴다', async () => {
+    const decide = deferDecision();
+    instance.subject.next(ev('exec-1', 'execution.started', 1));
+    instance.subject.next(ev('exec-1', 'execution.node.started', 2));
+    instance.subject.next(ev('exec-1', 'execution.node.completed', 3));
+    await flush();
+    expect(server.streams.get(sseBufferKey('exec-1'))).toBeUndefined();
+    decide(true);
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1, 2, 3]);
+    instance.subject.next(ev('exec-1', 'execution.node.started', 4));
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1, 2, 3, 4]);
+    expect(canOpenStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('판정 중에 triggerId 가 붙은 이벤트가 오면 모은 것부터 쓰고 늦게 온 판정은 무시한다', async () => {
+    const decide = deferDecision();
+    instance.subject.next(ev('exec-1', 'execution.started', 1));
+    instance.subject.next(ev('exec-1', 'execution.node.started', 2));
+    instance.subject.next(
+      withTrigger(ev('exec-1', 'execution.node.completed', 3)),
+    );
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1, 2, 3]);
+    decide(false);
+    await flush();
+    instance.subject.next(ev('exec-1', 'execution.node.started', 4));
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1, 2, 3, 4]);
+  });
+
+  it('판정이 계약을 어기고 거부돼도 쓴다', async () => {
+    canOpenStream.mockRejectedValue(new Error('boom'));
+    instance.subject.next(ev('exec-1', 'execution.started', 1));
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1]);
+  });
+
+  it('종료 이벤트 뒤에는 판정을 지우고 판정 중이었으면 모은 이벤트를 마저 쓴다', async () => {
+    const decide = deferDecision();
+    instance.subject.next(ev('exec-1', 'execution.started', 1));
+    instance.subject.next(ev('exec-1', 'execution.completed', 2));
+    decide(true);
+    await flush();
+    expect(streamSeqs('exec-1')).toEqual([1, 2]);
+    instance.subject.next(ev('exec-1', 'execution.node.started', 3));
+    await flush();
+    expect(canOpenStream).toHaveBeenCalledTimes(2);
+  });
+
+  it('판정을 기다리며 모은 이벤트가 상한에 닿으면 버리지 않고 바로 쓴다', async () => {
+    const decide = deferDecision();
+    for (let i = 1; i <= 999; i++) {
+      instance.subject.next(ev('exec-1', 'execution.node.started', i));
+    }
+    await flush();
+    expect(server.published).toEqual([]);
+    instance.subject.next(ev('exec-1', 'execution.node.started', 1000));
+    instance.subject.next(ev('exec-1', 'execution.node.started', 1001));
+    // 늦게 온 판정은 무시한다.
+    decide(false);
+    await flush();
+    const live = server.published
+      .filter((p) => p.channel === sseLiveChannel('exec-1'))
+      .map((p) => (JSON.parse(p.message) as { event: { seq: number } }).event);
+    expect(live.map((e) => e.seq)).toEqual(
+      Array.from({ length: 1001 }, (_, i) => i + 1),
+    );
+  });
+
+  it('5분 동안 이벤트가 없던 실행의 판정은 정리 주기에 지운다', async () => {
+    await destroy(instance);
+    jest.useFakeTimers({
+      doNotFake: ['setImmediate', 'queueMicrotask', 'nextTick'],
+      now: new Date('2026-01-01T00:00:00Z'),
+    });
+    try {
+      instance = redisInstance(server, eligibility());
+      instance.subject.next(ev('exec-1', 'execution.started', 1));
+      await flush();
+      jest.advanceTimersByTime(4 * 60_000);
+      instance.subject.next(ev('exec-1', 'execution.node.started', 2));
+      await flush();
+      expect(canOpenStream).toHaveBeenCalledTimes(1);
+      jest.advanceTimersByTime(6 * 60_000);
+      instance.subject.next(ev('exec-1', 'execution.node.started', 3));
+      await flush();
+      expect(canOpenStream).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Redis 없이 부팅했으면 판정 없이 메모리 버퍼에 둔다', () => {
+    const memory = makeInstance(
+      new SseFanoutService({
+        getClientOrNull: () => null,
+      } as unknown as RedisConnectionProvider),
+      eligibility(),
+    );
+    memory.subject.next(ev('exec-1', 'execution.started', 1));
+    expect(memory.adapter.bufferSize('exec-1')).toBe(1);
+    expect(canOpenStream).not.toHaveBeenCalled();
+    memory.adapter.onModuleDestroy();
   });
 });
