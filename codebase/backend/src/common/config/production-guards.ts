@@ -122,6 +122,41 @@ export function isSwaggerEnabled(
 }
 
 /**
+ * production 에서 켜면 부팅을 거부하는 플래그와 거부 메시지. `isFlagOn` 으로 판정한다(`'true'` · `'1'`).
+ *
+ * - `MCP_ALLOW_INSECURE_URL`(04 M-7): SSRF 방어(https-only + 호스트 블록리스트)를 통째로 우회한다. spec
+ *   (11-mcp-client §본문)이 "운영 환경에서 절대 활성화 금지" 로 명시했으므로 throw 한다. 정당한 self-host 용도가
+ *   있는 ALLOW_PRIVATE_HOST_TARGETS 는 별개로 warn 이며 main.ts 가 처리한다.
+ * - `ALLOW_HTTP_HOOKS`(CLE-T-VSAXG6): 알림 웹훅 URL 에 http:// 를 허용하는 개발용 플래그다. 켜지면 서명한 알림
+ *   본문과 `X-Clemvion-*` 헤더가 평문으로 나간다. 기능은 `'1'` 일 때만 켜지지만(`ssrf-safe-url.util.ts`) 다른
+ *   플래그와 같은 `isFlagOn` 으로 `'true'` 도 막는다 — 가드가 막는 값이 켜지는 값을 모두 담으면 된다.
+ */
+const FORBIDDEN_FLAGS: ReadonlyArray<{ key: string; message: string }> = [
+  {
+    key: 'OAUTH_STUB_MODE',
+    message:
+      'OAUTH_STUB_MODE=true 는 NODE_ENV=production 에서 허용되지 않습니다.',
+  },
+  {
+    key: 'LLM_STUB_MODE',
+    message:
+      'LLM_STUB_MODE=true 는 NODE_ENV=production 에서 허용되지 않습니다.',
+  },
+  {
+    key: 'MCP_ALLOW_INSECURE_URL',
+    message:
+      'MCP_ALLOW_INSECURE_URL=true 는 NODE_ENV=production 에서 허용되지 않습니다 ' +
+      '(SSRF 방어 우회).',
+  },
+  {
+    key: 'ALLOW_HTTP_HOOKS',
+    message:
+      'ALLOW_HTTP_HOOKS 는 NODE_ENV=production 에서 켤 수 없습니다 ' +
+      '(알림 웹훅이 평문 http 로 나감).',
+  },
+];
+
+/**
  * production 부팅 가드. 위반 시 `Error` throw (fail-closed). 비-production 은 no-op.
  *
  * @param env 검사할 환경변수 맵 (기본 `process.env`). 테스트에서 주입.
@@ -139,12 +174,10 @@ export function assertProductionConfig(
     throw new Error(`production fail-closed 가드: ${message}`);
   };
 
-  // 비보안 stub — 실 검증/실 LLM 호출을 우회하므로 운영 부팅 금지.
-  if (isFlagOn(env.OAUTH_STUB_MODE)) {
-    fail('OAUTH_STUB_MODE=true 는 NODE_ENV=production 에서 허용되지 않습니다.');
-  }
-  if (isFlagOn(env.LLM_STUB_MODE)) {
-    fail('LLM_STUB_MODE=true 는 NODE_ENV=production 에서 허용되지 않습니다.');
+  // 켜면 안 되는 플래그. 비보안 stub 은 실 검증/실 LLM 호출을 우회하고, 나머지는 SSRF 방어나 전송 구간 암호화를
+  // 끈다. 플래그를 더할 때는 `FORBIDDEN_FLAGS` 에 한 줄을 넣는다.
+  for (const { key, message } of FORBIDDEN_FLAGS) {
+    if (isFlagOn(env[key])) fail(message);
   }
 
   // 04 C-1 — JWT_SECRET 미설정/기본 sentinel/예시값이면 기본 secret 으로 서명된
@@ -168,6 +201,9 @@ export function assertProductionConfig(
   // 04 M-4 — ENCRYPTION_KEY 가 미설정이거나 공개 .env.example 예시 키면 secret store 가
   // 사실상 평문이므로 부팅 거부. (빈 값은 SecretResolver init 에서도 throw 되나, 여기서
   // 예시 키 케이스까지 부팅 초기에 일괄 차단한다.)
+  // 시크릿마다 공백 처리가 다른 것은 의도다(스펙 CLE-ACCT-SESSION 「운영 환경 가드」). JWT_SECRET 은 앞뒤 공백을 뗀
+  // 값으로 예시 대조와 길이 하한을 건다. ENCRYPTION_KEY · INTEGRATION_ENCRYPTION_KEY 는 원문과 `trim()` 한 값을
+  // 모두 예시 목록과 대조하고 길이 하한은 없다(이미 그 키로 암호화한 행이 있어 값을 다듬어 쓰지 않는다).
   const encryptionKey = env.ENCRYPTION_KEY;
   if (
     !encryptionKey ||
@@ -195,28 +231,6 @@ export function assertProductionConfig(
       'INTEGRATION_ENCRYPTION_KEY 가 미설정이거나 공개 예시 값입니다 — 이 키가 없으면 통합 ' +
         '자격 증명과 인증 설정이 평문으로 저장됩니다. `openssl rand -hex 32` 로 운영용 키를 ' +
         '새로 생성하세요.',
-    );
-  }
-
-  // 04 M-7 — MCP_ALLOW_INSECURE_URL 은 SSRF 방어(https-only + 호스트 블록리스트)를
-  // 통째로 우회한다. spec(11-mcp-client §본문)이 "운영 환경에서 절대 활성화 금지" 로
-  // 명시한 플래그이므로 throw. (정당 self-host 용도가 있는 ALLOW_PRIVATE_HOST_TARGETS 는
-  // 별개 — throw 가 아닌 warn 으로 분리하며 main.ts 가 처리한다.)
-  if (isFlagOn(env.MCP_ALLOW_INSECURE_URL)) {
-    fail(
-      'MCP_ALLOW_INSECURE_URL=true 는 NODE_ENV=production 에서 허용되지 않습니다 ' +
-        '(SSRF 방어 우회).',
-    );
-  }
-
-  // CLE-T-VSAXG6 — ALLOW_HTTP_HOOKS 는 알림 웹훅 URL 에 http:// 를 허용하는 개발용 플래그다. 운영에서
-  // 켜지면 서명한 알림 본문과 `X-Clemvion-*` 헤더가 평문으로 나간다. 운영에서 켤 정당한 용도가 없어
-  // warn 이 아니라 throw 한다. 기능은 `'1'` 일 때만 켜지지만(`ssrf-safe-url.util.ts`) 다른 플래그와 같은
-  // `isFlagOn` 으로 `'true'` 도 막는다 — 가드가 막는 값이 켜지는 값을 모두 담으면 된다.
-  if (isFlagOn(env.ALLOW_HTTP_HOOKS)) {
-    fail(
-      'ALLOW_HTTP_HOOKS 는 NODE_ENV=production 에서 켤 수 없습니다 ' +
-        '(알림 웹훅이 평문 http 로 나감).',
     );
   }
 }

@@ -434,11 +434,24 @@ describe('production guard list matches CLE-ACCT-SESSION 「운영 환경 가드
 
   function settingsInSpecTable(markdown: string): string[] {
     const start = markdown.indexOf('\n## 운영 환경 가드\n');
-    expect(start).toBeGreaterThanOrEqual(0);
+    // 헤딩이 바뀌었거나 미러 형식이 달라지면 빈 표끼리 비교해 통과하지 않도록 원인을 알린다.
+    if (start < 0) {
+      throw new Error(
+        `${SPEC_MIRROR} 에서 「## 운영 환경 가드」 절을 찾지 못했다 — 헤딩이 바뀌었는지 확인한다.`,
+      );
+    }
     const rest = markdown.slice(start + 1);
     const end = rest.search(/\n#{2,3} /);
     const section = end === -1 ? rest : rest.slice(0, end);
-    return [...section.matchAll(/^\| `([A-Z][A-Z0-9_]*)`/gm)].map((m) => m[1]);
+    const rows = [...section.matchAll(/^\| `([A-Z][A-Z0-9_]*)`/gm)].map(
+      (m) => m[1],
+    );
+    if (rows.length === 0) {
+      throw new Error(
+        '「운영 환경 가드」 절에서 `| \\`KEY\\`` 로 시작하는 표 행을 하나도 파싱하지 못했다 — 표 형식을 확인한다.',
+      );
+    }
+    return rows;
   }
 
   function envKeysReadByGuard(): string[] {
@@ -449,9 +462,12 @@ describe('production guard list matches CLE-ACCT-SESSION 「운영 환경 가드
         return Reflect.get(target, prop, receiver) as unknown;
       },
     });
-    // 모든 값이 유효해야 첫 위반에서 멈추지 않고 모든 검사가 값을 읽는다.
+    // 이 방식은 두 전제에 기댄다. 가드가 첫 위반에서 throw 하므로 모든 값이 유효해야 모든 검사가 값을 읽고, 가드는
+    // `env.KEY` 로 직접 읽어야 한다(구조 분해 · `in` · 전체 복사는 get 트랩을 지난다고 보장하지 못한다).
     expect(() => assertProductionConfig(env)).not.toThrow();
     read.delete('NODE_ENV');
+    // 읽은 키가 없으면 정렬한 두 빈 목록이 같지 않아도 원인이 흐려지므로 먼저 막는다.
+    expect(read.size).toBeGreaterThan(0);
     return [...read];
   }
 
