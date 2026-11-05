@@ -861,6 +861,23 @@ describe('AuthService', () => {
       expect(verifier).toHaveBeenCalled();
       expect(result).toMatchObject({ accessToken: 'mock-access-token' });
     });
+
+    // 켜짐 여부만 보는 판정이면 첫 행이 WEBAUTHN_REQUIRED 로 바뀐다. credential 수만 보는 판정은 위 테스트가 잡는다.
+    it.each([
+      ['켜짐 · credential 0', true],
+      ['꺼짐 · credential 0', false],
+    ])('%s → TOTP 로 로그인한다', async (_label, enabled) => {
+      arrange({ enabled, credentials: 0 });
+
+      const result = await service.loginWithTotp(
+        'challenge',
+        '123456',
+        verifier,
+      );
+
+      expect(verifier).toHaveBeenCalled();
+      expect(result).toMatchObject({ accessToken: 'mock-access-token' });
+    });
   });
 
   describe('verifyPasswordForUser', () => {
