@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES"
 title: "Presentation 노드"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "e8eb6ba058990d1813bbea9344a9c52a5d8ec89c504da8aabdbe275682c4fbd4"
-read_as: "approved"
-task: null
+content_hash: "be4e8d94da56fd3a78535498433a58370553b2800aa146f35cd8ccf80030e908"
+read_as: "approved_fallback"
+task: "CLE-T-9W8F72"
 source_paths: ["spec/4-nodes/_product-overview.md"]
-mirror_sha256: "f8692a6e4dd3c6a2464a23371e25eba47e32ccd356e34e0ac851ee2556d49111"
-etag: "sha256-a9feec33ae5bcd867776e1a8bb9b198775be7a9773505918832a77981c9fe93d"
+mirror_sha256: "4076bad6f67c132e6e58a1d6077fdbb3a96e614fd7e0ec77979394276c593902"
+etag: "sha256-d6ac480abd700efe7f234619e83aecc44b041f9f0952be08713d725e3d4bf61b"
 ---
 > 구현 상태: 구현됨 (노드별 미결 사항은 각 문서 참조) · 원문: `spec/4-nodes/_product-overview.md` (§9 머리글), `spec/4-nodes/6-presentation/` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,7 +34,7 @@ Presentation 노드의 목적은 두 가지다.
 - [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md): 버튼 정의와 버튼 편집기, 포트 구성, 블로킹 모드 흐름, 출력 포맷과 1MB 출력 크기 한도, 대화 스레드 opt-out, 실행 결과 드로어 표시, AI 에이전트 표시 도구(`render_*`) 모드.
 - [Carousel 노드](CLE-NODE-CAROUSEL.md): 정적·동적 모드 슬라이드 목록, 전역 버튼과 항목 버튼, 인터랙티브 채널과 드로어의 두 렌더 표면.
 - [Table 노드](CLE-NODE-TABLE.md): 정적·동적 모드 표, 컬럼 표현식, 정렬과 페이지 크기, 한도 전 행 수 `totalRows`.
-- [Chart 노드](CLE-NODE-CHART.md): X축 기준 집계로 `{ x, y }` 포인트를 만들고 프런트엔드가 recharts 로 그리는 차트.
+- [Chart 노드](CLE-NODE-CHART.md): X축 기준 집계로 `{ x, y?, series? }[]` 포인트 배열을 만들어 그리는 차트. 에디터는 recharts 로, 웹채팅 위젯은 자체 SVG 렌더러로 그린다. 다중 시리즈는 포인트마다 `series` 로 구분한다.
 - [Form 노드](CLE-NODE-FORM.md): 사용자 입력 폼을 보여 주고 제출을 기다리는 블로킹 노드. 필드 유형, 검증 규칙, 파일 필드 메타데이터 제출.
 - [Template 노드](CLE-NODE-TEMPLATE.md): 표현식을 채운 HTML·Markdown·Text 문자열을 `output.rendered` 로 내는 노드.
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "ea62685bb30da23cc373dfdb24ac15aa1c4e900df0145d285fd409a793f262f3"
+content_hash: "b793b2b1961e40705511541dc11bdfa299cb718832d370d7fdf6f4a917109bd2"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-9W8F72"
 source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "5bcc187147a614232dccd62a3124d4363aa273ecfc4d45bd1fd878262823bae9"
-etag: "sha256-95cf1a54683bed4f7ed93c4436df1f2eca6b6af940236aefa686740bd983d72b"
+mirror_sha256: "060ce776cded06663039f2b9d99c7b1829b5c8a09eb5000c44824fa035068dce"
+etag: "sha256-e00f268c4e1ea4df91cf3c9d570ffe1b3dbc226998bc50d5196fef67a03059bf"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -250,7 +250,8 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 ## 미결 사항
 
 - **`visualNode=text` 의 시각 메시지**: 이 문서의 매트릭스는 `text` 에서도 Chart·Table·Carousel 을 텍스트로 보낸다고 정한다. 현재 구현(`telegram-message.renderer.ts`)은 `visualNode !== 'text'` 일 때만 시각 메시지를 만들어, 버튼 대기에서 `text` 를 고르면 시각 내용이 빠진다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 결정 필요.
-- **Chart·Carousel 입력 모양**: 매트릭스의 Chart 입력(`output.payload.{title, series, labels}`)과 Carousel 카드 `imageUrl` 이 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md)(`output.data`, `{ x, y? }[]`)·[Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md)(`output.items[].image`) 출력과 다르다. 현재 구현(렌더러)도 `series`·`labels`·`imageUrl` 을 찾는다. [Presentation 노드 공통 §미결 사항](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#미결-사항) 과 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md#미결-사항) 의 미결 사항과 함께 결정 필요.
+- **Chart·Carousel 입력 모양**: 매트릭스의 Chart 입력(`output.payload.{title, series, labels}`)과 Carousel 카드 `imageUrl` 이 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md)(`output.data`, `{ x, y?, series? }[]`)·[Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md)(`output.items[].image`) 출력과 다르다. 현재 구현(렌더러)도 `series`·`labels`·`imageUrl` 을 찾는다. [Presentation 노드 공통 §미결 사항](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#미결-사항) 과 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md#미결-사항) 의 미결 사항과 함께 결정 필요.
+- **Chart `series` 의 모양 차이**: [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md#출력-구조) 의 `series` 는 `output.data` 의 포인트마다 붙는 시리즈 이름 문자열이다(긴 형식). Telegram 렌더러가 받는 `series` 는 `{ name?, data? }[]` 배열이라 모양이 다르다. 현재 렌더러(`telegram-message.renderer.ts` 의 `renderChartFallback`)는 `payload.{title, labels, series}` 를 읽는다. `labels` 는 X 값 문자열 배열이고 시리즈마다 `data` 는 인덱스로 `labels` 와 짝을 짓는 숫자 배열이다. 시리즈가 여럿이면 첫 시리즈만 그리고 나머지 시리즈를 생략했다는 안내 줄을 붙인다. 그래서 렌더러의 `series[]` 는 변환 층이나 렌더러가 포인트를 시리즈별로 묶어 만든다. 어느 쪽에서 묶을지는 위 항목에서 렌더러를 노드 출력에 맞추느냐, 변환 층을 두느냐에 따른다.
 
 ## 구현 위치
 
