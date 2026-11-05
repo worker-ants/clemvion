@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "dd95e9e4d92d2fcc1b41f9ee4a2342348d894f48bd4214057a6c6da926e1d0c4"
+content_hash: "4b544b0c99cca977285e71ecf74d5bc7796f333067746c084fc365e595b23563"
 read_as: "approved_fallback"
-task: "CLE-T-NAT45Z"
+task: "CLE-T-SAMVX8"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "5548a6b76bebb4f1a798c55c57737e71d57348dc04fbb7f9a4b14cd542dfe1f5"
-etag: "sha256-ffe52b67363d464c079fbd487168bbae0c6d8b5b4935c63b5b8bf2986c5f3e0e"
+mirror_sha256: "ba451b20dd6a77ae13f414771f820215881be6466e50cf4748b5ba38fb2aa864"
+etag: "sha256-a61bdc53469901cd03128224088f5d9c97333895bd95638b77943aecace62af0"
 ---
 > 구현 상태: 부분 구현 (`logUsage` 가 얻은 통합을 받는 서명, 조회 거절이 아닌 실패의 활동 로그 생략은 미구현) · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -270,7 +270,7 @@ erDiagram
 | --- | --- |
 | `integration.credentials` | 응답에서 `credentialsStatus='needs_reauth'`(`status='error'`, `statusReason='credentials_unreadable'`)로 드러난다. 노드 실행은 `IntegrationCredentialsUnreadableError` 로 멈춘다([노드 실행의 통합 사용](#노드-실행의-통합-사용)). 사용자가 통합을 다시 연결한다 |
 | `integration.last_error` | 응답의 `lastError` 가 `null` 이다(`integrations.service.ts` 의 `toPublic`) |
-| `auth_config.config` | `needs_reauth` 같은 표시가 없다. 인증 설정 응답에는 표식을 싣고 표식에 담긴 원래 저장값은 싣지 않는다([외부 호출 인증 설정 「마스킹 규칙」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#마스킹-규칙)). 그 설정을 쓰는 웹훅 인증은 요청을 401 `AUTH_FAILED` 로 거부한다. 복호화 불가 표식에는 기대값(`username` · `password` · `token` · `key` · `secret`)이 없다. 웹훅 인증의 판정은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다. 복구 방법은 [미결 사항](#미결-사항) 에 있다 |
+| `auth_config.config` | `needs_reauth` 같은 표시가 없다. 인증 설정 응답에는 표식을 싣고 표식에 담긴 원래 저장값은 싣지 않는다([외부 호출 인증 설정 「마스킹 규칙」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#마스킹-규칙)). 그 설정을 쓰는 웹훅 인증은 요청을 401 `AUTH_FAILED` 로 거부한다. 복호화 불가 표식에는 기대값(`username` · `password` · `token` · `key` · `secret`)이 없다. 웹훅 인증의 판정은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다. 화면은 표식을 보고 행에 «읽을 수 없음» 을 표시한다. 복구하려면 원래 키를 되돌리거나 재생성한다. 재생성은 API Key · Bearer Token · HMAC 에서 표식을 버리고 새 config 를 만든다. Basic Auth 는 재생성이 없어 지우고 다시 만든다([외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성)) |
 | `integration_oauth_state.provider_meta` · `integration_oauth_preview.credentials` | 짧게 쓰고 버리는 행이다. 진행 중인 연결 흐름이 실패하므로 사용자가 연결을 처음부터 다시 시작한다 |
 
 ### 그 밖의 규칙
@@ -482,7 +482,6 @@ sequenceDiagram
 
 - **재암호화 스크립트의 키 길이 하한**: `auth_config.config` 의 평문 행을 암호화하는 1회용 스크립트 `codebase/backend/src/scripts/encrypt-auth-config.ts`(백엔드 `package.json` 스크립트 `encrypt-auth-config`)는 키가 32자 미만이면 실행을 거부한다. 운영 환경 가드(`assertProductionConfig`)에는 길이 하한이 없어서 두 기준이 맞지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다.
 - **평문 행과 공개 예시 값 행의 재암호화**: 평문으로 저장된 행과 공개 예시 값으로 암호화된 행을 다시 암호화할 수단이 없다. 위 스크립트는 `auth_config.config` 의 평문 행만 암호화하고 나머지 네 컬럼에는 이런 스크립트가 없다. 공개 예시 값으로 암호화된 행은 키를 바꾸면 복호화되지 않는다. 재암호화 방법은 NERV Task `CLE-T-C6GCKV` 가 정한다.
-- **복호화하지 못한 인증 설정의 복구**: 키가 바뀌어 복호화하지 못한 인증 설정은 키 재생성으로 고쳐지지 않는다. 키가 바뀌어 생긴 표식에는 원래 저장값이 담겨 있다. 그래서 그 설정을 저장하면 원래 저장값이 그대로 다시 저장된다. 재생성 응답에는 저장되지 않은 새 키가 실린다. 편집 `PATCH` 로 보낸 비밀이 아닌 config 도 같은 이유로 저장되지 않는다([외부 호출 인증 설정 「미결 사항」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#미결-사항)). 지금은 사용자가 인증 설정을 새로 만들어 트리거에 다시 연결해야 한다. 재생성과 편집의 결함은 NERV Task `CLE-T-SAMVX8` 이 고친다.
 
 ## 구현 위치
 
@@ -556,3 +555,9 @@ Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실�
 「키가 없을 때」 는 운영 환경 가드가 통합 암호화 키를 거부하는 기준(공백뿐인 값, 공개 예시 값, 앞뒤 공백을 뗀 값 대조)과 예시 값 목록의 정본을 직접 적었다. 같은 기준이 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [시크릿 저장소](CLE-INT-SECRET.md), [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 에도 사본으로 있었다. NERV Task `CLE-T-NAT45Z` 가 기준을 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 한 곳에 모으면서 이 절에는 링크만 남겼다. 마스터키와 통합 암호화 키를 같은 함수가 같은 규칙으로 검사하므로 가드 목록 옆에 둔다.
 
 「암호화」 머리의 «이 키와 transformer 동작의 규범은 이 절 한 곳에 둔다» 는 그대로 두고 가드 거부 기준만 예외로 적었다. 키를 만드는 방식, 적용 컬럼, 운영 환경 밖에서 키가 없을 때의 동작, 복호화 실패 처리는 계속 이 문서가 정한다. 옮긴 것은 운영 환경 가드의 거부 기준뿐이다.
+
+### 복호화하지 못한 인증 설정의 복구를 미결에서 걷었다 (2026-11-05)
+
+「미결 사항」 의 «복호화하지 못한 인증 설정의 복구» 항목을 지웠다. 키가 바뀌어 복호화하지 못한 인증 설정은 재생성으로 고쳐지지 않았다. 재생성이 표식에 새 값을 넣어 저장했는데 표식을 저장하면 원래 저장값이 그대로 다시 저장되기 때문이었다. 편집 `PATCH` 로 보낸 비밀이 아닌 config 도 같은 이유로 저장되지 않았다. NERV Task `CLE-T-SAMVX8` 이 이 두 결함을 고쳤다. 재생성은 표식을 버리고 새 config 를 만들고, 편집은 표식에 config 를 병합하지 않는다. 정본은 [외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성) 과 [「편집」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#편집) 이다.
+
+「암호화」 의 «복호화하지 못한 행» 표에서 `auth_config.config` 행의 복구 방법도 그에 맞게 고쳤다. transformer 의 동작은 바꾸지 않았다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 응답 `config` 에 표식을 그대로 싣고 통합의 `credentialsStatus` 같은 상태 표시로 바꾸지 않는 결정은 [외부 호출 인증 설정 「복호화 불가 표식을 응답에 그대로 둔다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다. 그래서 이 문서의 표식 정의와 용어 사전 「복호화 불가 표식」 은 바꾸지 않았다.
