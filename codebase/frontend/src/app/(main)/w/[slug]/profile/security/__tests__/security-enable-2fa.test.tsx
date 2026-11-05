@@ -170,7 +170,8 @@ describe("SecurityPage 2FA 설정", () => {
       expect(toast.info).toHaveBeenCalledWith(security.alreadyEnabled);
     });
     expect(toast.error).not.toHaveBeenCalled();
-    expect(get).toHaveBeenCalledWith("/users/me");
+    // usersApi.getMe 는 요청 설정(timeout 등)을 두 번째 인자로 넘긴다. 이 화면은 설정 없이 부른다.
+    expect(get).toHaveBeenCalledWith("/users/me", undefined);
     expect(await screen.findByText(security.active)).toBeTruthy();
   });
 
