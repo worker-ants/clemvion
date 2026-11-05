@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC"
 title: "Logic 노드"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "031518d886ccc3cf632c460f4d1fe1794e04db21f3926a169912d6a977f38b0d"
-read_as: "approved"
-task: null
+content_hash: "415b3ae74d9f18b1fff1fc5ffe386a56d71e1885faecf9e11fd27bc693a5fb0c"
+read_as: "approved_fallback"
+task: "CLE-T-2HD471"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "9e426f8bea17f49012a832b3669c4b0e8a8c4adfe6e869454fe556c8d544eccc"
-etag: "sha256-713b58f384b71dafe3b84bde97ada7f90e2ce44be4dbd53cbc534af616c16e6f"
+mirror_sha256: "2011bd1c04e0042d8ff223750125f8135927f3b3ffcb3ba1782ee8063c9c95a9"
+etag: "sha256-7818243dae96ebfefbe1807f593fb1ed81ce9dccfa277b20271b2bd9023294da"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/_product-overview.md` (§4 머리말), `spec/4-nodes/1-logic/0-common.md` (문서 목록) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -32,7 +32,7 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 | 데이터 노드 | Split · Merge | 배열을 정규화하거나 여러 입력을 합친다 |
 | 병렬·비동기 | Parallel · Background | 병렬 분기를 동시에 돌리거나 본문을 비동기로 떼어 낸다 |
 
-노드 전체 구조와 카탈로그는 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md), 노드 출력 5필드 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md), 엔진이 컨테이너와 Parallel 을 도는 방식은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 이 정한다.
+노드 전체 구조와 카탈로그는 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md), 노드 출력 5필드 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md), 엔진이 컨테이너를 도는 방식과 Parallel 완료 출력의 덮어쓰기는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 이 정한다. 병렬 분기 본문의 노드 집합과 실행 순서는 [Parallel 노드](CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다.
 
 ## 문서
 
@@ -46,6 +46,6 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 - [Map 노드](CLE-NODE-MAP.md): 항목마다 본문을 실행해 변환 결과 배열(`mapped`)을 만드는 컨테이너.
 - [Filter 노드](CLE-NODE-FILTER.md): 배열 항목을 조건으로 나눠 `match` · `unmatched` 두 포트로 동시에 보내는 노드.
 - [ForEach 노드](CLE-NODE-FOREACH.md): 항목마다 본문을 차례로 실행하고 결과(`items`)와 실패(`skipped`)를 나눠 모으는 컨테이너.
-- [Parallel 노드](CLE-NODE-PARALLEL.md): 같은 입력으로 병렬 분기 N개를 동시에 실행하고 `{ branches, count }` 로 합치는 노드. 중첩 제한과 취소 정책을 포함한다.
+- [Parallel 노드](CLE-NODE-PARALLEL.md): 같은 입력으로 병렬 분기 N개를 동시에 실행하고 `{ branches, count, skipped? }` 로 합치는 노드. `errorPolicy='continue'` 에서 실패한 병렬 분기는 `skipped` 에 따로 모은다. 중첩 제한과 취소 정책을 포함한다.
 - [Merge 노드](CLE-NODE-MERGE.md): 여러 선행 노드 결과를 병합 전략과 출력 형식에 따라 하나로 합치는 데이터 노드.
 - [Background 노드](CLE-NODE-BACKGROUND.md): 본문을 별도 큐에서 fire-and-forget 으로 실행하고 메인 흐름은 바로 넘기는 노드. 본문 실행 모니터링 API 와 구독 채널을 포함한다.
