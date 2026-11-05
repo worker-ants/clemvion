@@ -437,7 +437,6 @@
     "codebase/backend/test/ai-agent-tool-payload-warning.e2e-spec.ts": 1,
     "codebase/backend/test/app.e2e-spec.ts": 1,
     "codebase/backend/test/audit-logs.e2e-spec.ts": 1,
-    "codebase/backend/test/auth.e2e-spec.ts": 1,
     "codebase/backend/test/background-monitoring.e2e-spec.ts": 1,
     "codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts": 3,
     "codebase/backend/test/cross-workspace-references.e2e-spec.ts": 2,
