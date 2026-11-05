@@ -672,6 +672,10 @@ function mapOauthError(err: unknown): string {
       return 'token_exchange_failed';
     case 'OAUTH_EMAIL_REQUIRED':
       return 'email_required';
+    // 이메일이 대소문자만 다른 여러 계정과 맞아 계정을 정할 수 없다(CLE-T-SFWX84). 새 URL 값을
+    // 만들지 않고 server_error 로 보내 운영 로그에 남긴다. 운영자가 묶음을 정리해야 풀린다.
+    case 'OAUTH_ACCOUNT_AMBIGUOUS':
+      return 'server_error';
     default:
       return 'server_error';
   }

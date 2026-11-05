@@ -254,6 +254,26 @@ describe('AuthService', () => {
       );
     });
 
+    it('이메일을 앞뒤 공백을 지우고 소문자로 저장하고 그 주소로 인증 메일을 보낸다 (CLE-T-SFWX84)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      usersService.create.mockResolvedValue(mockUser as User);
+
+      await service.register({
+        name: 'Test',
+        email: ' Alice@Example.COM ',
+        password: 'Test123!@#',
+      });
+
+      expect(usersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'alice@example.com' }),
+      );
+      expect(mailService.sendVerificationEmail).toHaveBeenCalledWith(
+        'alice@example.com',
+        'Test',
+        expect.any(String),
+      );
+    });
+
     it('stores hashed emailVerifyToken in DB and emails the raw token (register round-trip)', async () => {
       usersService.emailExists.mockResolvedValue(false);
       usersService.create.mockResolvedValue(mockUser as User);
@@ -309,8 +329,12 @@ describe('AuthService', () => {
       usersService.emailExists.mockResolvedValue(false);
 
       const err: unknown = await service
-        .register({ name: 'Test', email: 'test@example.com', password: 'short' })
-        .catch((e: unknown) => e);
+        .register({
+          name: 'Test',
+          email: 'test@example.com',
+          password: 'short',
+        })
+        .catch((err_: unknown) => err_);
 
       const body = (err as BadRequestException).getResponse() as {
         details: Array<{ field: string }>;
@@ -1424,7 +1448,7 @@ describe('AuthService', () => {
 
       const err: unknown = await service
         .resetPassword('11111111-2222-3333-4444-555555555555', 'short')
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
 
       expect(err).toBeInstanceOf(BadRequestException);
       const body = (err as BadRequestException).getResponse() as {
@@ -1433,7 +1457,10 @@ describe('AuthService', () => {
       };
       expect(body.code).toBe('VALIDATION_ERROR');
       expect(body.details).toEqual([
-        expect.objectContaining({ field: 'newPassword', code: 'INVALID_FIELD' }),
+        expect.objectContaining({
+          field: 'newPassword',
+          code: 'INVALID_FIELD',
+        }),
       ]);
       expect(userRepoFindOne).not.toHaveBeenCalled();
     });
@@ -1688,6 +1715,22 @@ describe('AuthService', () => {
       );
       expect(mailService.sendEmailChangeVerification).toHaveBeenCalledWith(
         NEW_EMAIL,
+        mockUser.name,
+        expect.any(String),
+      );
+    });
+
+    it('새 이메일을 앞뒤 공백을 지우고 소문자로 pending 에 저장한다 (CLE-T-SFWX84)', async () => {
+      await service.requestEmailChange('user-uuid-1', ' New@Example.COM', {
+        password: 'somePass',
+      });
+
+      expect(usersService.update).toHaveBeenCalledWith(
+        'user-uuid-1',
+        expect.objectContaining({ pendingEmail: 'new@example.com' }),
+      );
+      expect(mailService.sendEmailChangeVerification).toHaveBeenCalledWith(
+        'new@example.com',
         mockUser.name,
         expect.any(String),
       );

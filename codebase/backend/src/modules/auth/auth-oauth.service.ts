@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import {
   AuthOAuthMode,
 } from './entities/auth-oauth-state.entity';
 import { UsersService } from '../users/users.service';
+import { normalizeEmail } from '../users/utils/normalize-email';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
@@ -382,8 +384,19 @@ export class AuthOauthService {
     );
     if (byOauth) return byOauth;
 
-    const byEmail = await this.usersService.findByEmail(profile.email);
-    if (byEmail) {
+    // 이메일은 대소문자를 무시해 찾는다. 대소문자만 다른 계정이 여럿이고 정확히 같은 계정이
+    // 없으면 어느 계정에 붙일지 정할 수 없다. 연결도 새 계정 생성도 하지 않고 실패로 돌려보낸다
+    // (콜백은 `?error=server_error`). CLE-ACCT-SIGNIN 「이메일 비교 규칙」, CLE-T-SFWX84.
+    const lookup = await this.usersService.lookupByEmail(profile.email);
+    if (lookup.kind === 'ambiguous') {
+      throw new ConflictException({
+        code: 'OAUTH_ACCOUNT_AMBIGUOUS',
+        message:
+          'OAuth email matches several accounts that differ only in letter case',
+      });
+    }
+    if (lookup.kind === 'found') {
+      const byEmail = lookup.user;
       // Conditional link: only claim an account that is not yet bound to any
       // provider. If a different provider already owns the account, the update
       // is a no-op and we return the original record, preserving the binding.
@@ -408,7 +421,7 @@ export class AuthOauthService {
         const userRepo = manager.getRepository(User);
         const created = await userRepo.save(
           userRepo.create({
-            email: profile.email,
+            email: normalizeEmail(profile.email),
             name: profile.name,
             avatarUrl: profile.avatarUrl ?? undefined,
             emailVerified: true,

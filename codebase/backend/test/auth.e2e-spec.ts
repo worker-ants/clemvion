@@ -7,7 +7,7 @@ import { createDbClient, uniqueEmail } from './helpers/db';
 import { TEST_PASSWORD, extractRefreshCookie } from './helpers/auth';
 
 /**
- * e2e: spec/5-system/1-auth.md 의 인증 라이프사이클을 실 인프라(Postgres + JWT
+ * e2e: CLE-ACCT-SIGNIN · CLE-ACCT-SESSION 의 인증 라이프사이클을 실 인프라(Postgres + JWT
  * 발급) 위에서 검증한다. unit 테스트(auth.service.spec.ts, auth.controller.spec.ts)
  * 가 이미 단일 흐름·에러 분기를 보장하므로, 본 spec 은 multi-step (verify → login)
  * 및 트랜잭션 정합성(reset 시 refresh 무효화·refresh rotation reuse 감지) 만 다룬다.
@@ -294,6 +294,107 @@ describe('Auth flow (e2e)', () => {
       .post('/api/auth/refresh')
       .set('Cookie', refreshCookie!);
     expect(oldRefresh.status).toBe(401);
+  });
+
+  it('H. 이메일은 대소문자를 무시한다 — 소문자로 저장, 다른 대소문자로 check-email · 중복 가입 · 로그인 (CLE-T-SFWX84)', async () => {
+    const lower = uniqueEmail('auth-h');
+    const mixed = lower.replace('auth-h', 'Auth-H').toUpperCase();
+    const res = await request(BASE_URL).post('/api/auth/register').send({
+      name: 'H User',
+      email: mixed,
+      password: TEST_PASSWORD,
+      termsAccepted: true,
+    });
+    expect(res.status).toBe(201);
+
+    const stored = await db.query<{ email: string }>(
+      'SELECT email FROM "user" WHERE LOWER(email) = $1',
+      [lower],
+    );
+    expect(stored.rows.map((r) => r.email)).toEqual([lower]);
+
+    const check = await request(BASE_URL)
+      .post('/api/auth/check-email')
+      .send({ email: lower.toUpperCase() });
+    expect(check.status).toBe(200);
+    expect(check.body.data.available).toBe(false);
+
+    const dup = await request(BASE_URL).post('/api/auth/register').send({
+      name: 'H Dup',
+      email: lower.toUpperCase(),
+      password: TEST_PASSWORD,
+      termsAccepted: true,
+    });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe('RESOURCE_CONFLICT');
+
+    await db.query('UPDATE "user" SET email_verified = true WHERE email = $1', [
+      lower,
+    ]);
+    const login = await request(BASE_URL)
+      .post('/api/auth/login')
+      .send({ email: lower.toUpperCase(), password: TEST_PASSWORD });
+    expect(login.status).toBe(200);
+  });
+
+  it('I. 대소문자만 다른 기존 계정 묶음 — 정확히 같은 계정만 쓰고 없으면 거부한다 (CLE-T-SFWX84)', async () => {
+    // 정규화 전에 생긴 묶음을 흉내 낸다. 두 계정을 가입시킨 뒤 둘째의 이메일을 첫째와
+    // 대소문자만 다르게 바꾼다(`email UNIQUE` 는 대소문자를 구분한다).
+    const first = uniqueEmail('auth-i');
+    const second = uniqueEmail('auth-i2');
+    for (const email of [first, second]) {
+      await request(BASE_URL)
+        .post('/api/auth/register')
+        .send({
+          name: 'I User',
+          email,
+          password: TEST_PASSWORD,
+          termsAccepted: true,
+        })
+        .expect(201);
+    }
+    const variant = first.replace('auth-i', 'Auth-I');
+    await db.query(
+      'UPDATE "user" SET email = $1, email_verified = true WHERE email = $2',
+      [variant, second],
+    );
+    await db.query('UPDATE "user" SET email_verified = true WHERE email = $1', [
+      first,
+    ]);
+
+    const exactFirst = await request(BASE_URL)
+      .post('/api/auth/login')
+      .send({ email: first, password: TEST_PASSWORD });
+    expect(exactFirst.status).toBe(200);
+    const exactSecond = await request(BASE_URL)
+      .post('/api/auth/login')
+      .send({ email: variant, password: TEST_PASSWORD });
+    expect(exactSecond.status).toBe(200);
+
+    const ambiguous = first.toUpperCase();
+    const login = await request(BASE_URL)
+      .post('/api/auth/login')
+      .send({ email: ambiguous, password: TEST_PASSWORD });
+    expect(login.status).toBe(401);
+    expect(login.body.error.code).toBe('LOGIN_FAILED');
+
+    const check = await request(BASE_URL)
+      .post('/api/auth/check-email')
+      .send({ email: ambiguous });
+    expect(check.body.data.available).toBe(false);
+
+    await request(BASE_URL)
+      .post('/api/auth/forgot-password')
+      .send({ email: ambiguous })
+      .expect(200);
+    const resetRows = await db.query<{ password_reset_token: string | null }>(
+      'SELECT password_reset_token FROM "user" WHERE LOWER(email) = $1',
+      [first],
+    );
+    expect(resetRows.rows).toHaveLength(2);
+    expect(resetRows.rows.every((r) => r.password_reset_token === null)).toBe(
+      true,
+    );
   });
 
   it('G. refresh rotation — 같은 refresh 두 번 사용 시 두 번째 호출은 401', async () => {

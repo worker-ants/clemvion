@@ -16,6 +16,7 @@ import { createHash } from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
+import { normalizeEmail } from '../users/utils/normalize-email';
 import { WebAuthnService } from './webauthn/webauthn.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
@@ -150,9 +151,10 @@ export class AuthService {
     const emailVerifyToken = uuidv4();
     const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+    const email = normalizeEmail(dto.email);
     await this.usersService.create({
       name: dto.name,
-      email: dto.email,
+      email,
       passwordHash,
       // Store SHA-256 hash; only the raw token is emailed (mirrors passwordResetToken).
       emailVerifyToken: this.hashToken(emailVerifyToken),
@@ -161,7 +163,7 @@ export class AuthService {
     });
 
     await this.mailService.sendVerificationEmail(
-      dto.email,
+      email,
       dto.name,
       emailVerifyToken, // raw UUID — only the hashed copy lives in DB
     );
@@ -188,7 +190,7 @@ export class AuthService {
     refreshToken: string;
   }> {
     const meta = await this.invitationsService.getMetaByToken(invitationToken);
-    if (meta.email.toLowerCase() !== dto.email.trim().toLowerCase()) {
+    if (meta.email.toLowerCase() !== normalizeEmail(dto.email)) {
       throw new BadRequestException({
         code: 'invitation_email_mismatch',
         message: '초대 이메일과 가입 이메일이 일치하지 않습니다.',
@@ -201,7 +203,7 @@ export class AuthService {
       const userRepo = manager.getRepository(User);
       const newUser = userRepo.create({
         name: dto.name,
-        email: dto.email.trim().toLowerCase(),
+        email: normalizeEmail(dto.email),
         passwordHash,
         emailVerified: true,
       });
@@ -881,13 +883,15 @@ export class AuthService {
     }
 
     // 2) 신규 이메일 검증 — 현재와 동일(대소문자 무시) 금지 + 타 계정 사용 중 금지.
-    if (newEmail.trim().toLowerCase() === user.email.toLowerCase()) {
+    // 저장 값은 앞뒤 공백을 지운 소문자다(CLE-T-SFWX84).
+    const email = normalizeEmail(newEmail);
+    if (email === user.email.toLowerCase()) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: '현재 이메일과 동일한 주소예요.',
       });
     }
-    if (await this.usersService.emailTakenByOther(newEmail, userId)) {
+    if (await this.usersService.emailTakenByOther(email, userId)) {
       throw new ConflictException({
         code: 'RESOURCE_CONFLICT',
         message: 'Email already registered',
@@ -900,7 +904,7 @@ export class AuthService {
     // 관측 가능한 UX 저하(409 at verify time)로 수용한다 — transaction-per-request 구조.
     const rawToken = uuidv4();
     await this.usersService.update(userId, {
-      pendingEmail: newEmail,
+      pendingEmail: email,
       emailChangeToken: this.hashToken(rawToken),
       emailChangeExpiresAt: new Date(Date.now() + EMAIL_CHANGE_TTL_MS),
     });
@@ -909,7 +913,7 @@ export class AuthService {
     // (롤백 실패는 무시 — 이미 주 오류를 rethrow 했으므로 부작용 정리가 best-effort).
     try {
       await this.mailService.sendEmailChangeVerification(
-        newEmail,
+        email,
         user.name,
         rawToken,
       );

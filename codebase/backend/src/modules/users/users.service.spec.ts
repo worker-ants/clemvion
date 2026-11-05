@@ -10,12 +10,13 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 
-/** createQueryBuilder 체인 mock 빌더 — emailTakenByOther 테스트용. */
-function makeQb(count: number): unknown {
+/** createQueryBuilder 체인 mock 빌더 — 이메일 조회(LOWER 비교) 테스트용. */
+function makeQb(count: number, rows: unknown[] = []): unknown {
   const qb = {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     getCount: jest.fn().mockResolvedValue(count),
+    getMany: jest.fn().mockResolvedValue(rows),
   };
   return qb;
 }
@@ -240,11 +241,84 @@ describe('UsersService', () => {
       repo.findOne.mockResolvedValue(await userWithHash());
       const err: unknown = await service
         .changePassword('user-uuid', 'OldP@ssw0rd1', 'alllowercase')
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       const body = (err as BadRequestException).getResponse() as {
         details: Array<{ field: string }>;
       };
       expect(body.details.map((d) => d.field)).toEqual(['newPassword']);
+    });
+  });
+
+  describe('이메일 조회는 대소문자를 무시한다 (CLE-T-SFWX84)', () => {
+    const row = (id: string, email: string) => ({ id, email }) as User;
+
+    it('lookupByEmail 은 앞뒤 공백을 지운 입력을 LOWER 로 비교한다', async () => {
+      const qb = makeQb(0, [row('a', 'Alice@Example.com')]) as {
+        where: jest.Mock;
+      };
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.lookupByEmail('  alice@example.com ');
+
+      expect(result).toEqual({
+        kind: 'found',
+        user: row('a', 'Alice@Example.com'),
+      });
+      expect(qb.where).toHaveBeenCalledWith('LOWER(u.email) = LOWER(:email)', {
+        email: 'alice@example.com',
+      });
+    });
+
+    it('맞는 계정이 없으면 none 이다', async () => {
+      repo.createQueryBuilder.mockReturnValue(makeQb(0, []));
+      await expect(
+        service.lookupByEmail('nobody@example.com'),
+      ).resolves.toEqual({ kind: 'none' });
+    });
+
+    it('대소문자만 다른 계정이 여럿이면 입력과 대소문자까지 같은 계정을 쓴다', async () => {
+      repo.createQueryBuilder.mockReturnValue(
+        makeQb(0, [row('a', 'Alice@x.com'), row('b', 'alice@x.com')]),
+      );
+      await expect(service.lookupByEmail('alice@x.com')).resolves.toEqual({
+        kind: 'found',
+        user: row('b', 'alice@x.com'),
+      });
+    });
+
+    it('여럿인데 대소문자까지 같은 계정이 없으면 ambiguous 다', async () => {
+      repo.createQueryBuilder.mockReturnValue(
+        makeQb(0, [row('a', 'Alice@x.com'), row('b', 'alice@x.com')]),
+      );
+      await expect(service.lookupByEmail('ALICE@x.com')).resolves.toEqual({
+        kind: 'ambiguous',
+      });
+    });
+
+    it('findByEmail 은 하나만 맞으면 그 계정을, 모호하면 null 을 돌려준다', async () => {
+      repo.createQueryBuilder.mockReturnValueOnce(
+        makeQb(0, [row('a', 'Alice@x.com')]),
+      );
+      await expect(service.findByEmail('alice@X.com')).resolves.toEqual(
+        row('a', 'Alice@x.com'),
+      );
+
+      repo.createQueryBuilder.mockReturnValueOnce(
+        makeQb(0, [row('a', 'Alice@x.com'), row('b', 'aLice@x.com')]),
+      );
+      await expect(service.findByEmail('alice@x.com')).resolves.toBeNull();
+    });
+
+    it('emailExists 는 대소문자만 다른 계정도 사용 중으로 본다', async () => {
+      const qb = makeQb(1) as { where: jest.Mock };
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      await expect(service.emailExists(' alice@example.com')).resolves.toBe(
+        true,
+      );
+      expect(qb.where).toHaveBeenCalledWith('LOWER(u.email) = LOWER(:email)', {
+        email: 'alice@example.com',
+      });
     });
   });
 

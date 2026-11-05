@@ -259,7 +259,8 @@ export class SessionsService {
     if (!hasPassword && !has2fa) {
       throw new ForbiddenException({
         code: 'REAUTH_NOT_AVAILABLE',
-        message: '이 작업을 하려면 먼저 비밀번호를 설정하거나 TOTP 를 켜야 해요.',
+        message:
+          '이 작업을 하려면 먼저 비밀번호를 설정하거나 TOTP 를 켜야 해요.',
       });
     }
 

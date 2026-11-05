@@ -400,7 +400,7 @@ describe('SessionsService', () => {
       } as never);
       const err: unknown = await service
         .reauthenticate('user-1', {})
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       const body = (err as ForbiddenException).getResponse() as {
         code: string;
         message: string;

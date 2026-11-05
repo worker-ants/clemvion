@@ -359,6 +359,24 @@ describe('AuthController', () => {
       );
     });
 
+    it('maps OAUTH_ACCOUNT_AMBIGUOUS to server_error (CLE-T-SFWX84)', async () => {
+      const err = Object.assign(new Error('ambiguous'), {
+        response: { code: 'OAUTH_ACCOUNT_AMBIGUOUS' },
+      });
+      oauthService.handleCallback.mockRejectedValue(err);
+      await controller.oauthCallback(
+        'google',
+        'c',
+        's',
+        undefined,
+        {} as never,
+        mockRes as never,
+      );
+      expect(mockRes.redirect).toHaveBeenCalledWith(
+        'http://frontend.test/callback?error=server_error',
+      );
+    });
+
     it('maps OAUTH_STATE_MISMATCH to invalid_state', async () => {
       const err = Object.assign(new Error('x'), {
         response: { code: 'OAUTH_STATE_MISMATCH' },

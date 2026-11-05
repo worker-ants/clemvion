@@ -9,7 +9,9 @@ import {
 
 describe('validatePasswordStrength', () => {
   it('accepts a password that meets length and 3-type requirements', () => {
-    expect(() => validatePasswordStrength('P@ssw0rd!', 'password')).not.toThrow();
+    expect(() =>
+      validatePasswordStrength('P@ssw0rd!', 'password'),
+    ).not.toThrow();
   });
 
   it('rejects passwords shorter than 8 characters', () => {
@@ -86,9 +88,13 @@ describe('validatePasswordStrength', () => {
 
   it('accepts 3 of 4 character types', () => {
     // lower + upper + digit
-    expect(() => validatePasswordStrength('Passw0rd1', 'password')).not.toThrow();
+    expect(() =>
+      validatePasswordStrength('Passw0rd1', 'password'),
+    ).not.toThrow();
     // lower + digit + special
-    expect(() => validatePasswordStrength('passw0rd!', 'password')).not.toThrow();
+    expect(() =>
+      validatePasswordStrength('passw0rd!', 'password'),
+    ).not.toThrow();
   });
 });
 
