@@ -19,6 +19,10 @@ const TERMINAL_EVENTS = new Set<string>([
   'execution.cancelled',
 ]);
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 const FANOUT_EVENTS = new Set<string>([
   'execution.waiting_for_input',
   'execution.completed',
@@ -39,6 +43,9 @@ const FANOUT_EVENTS = new Set<string>([
  *
  * 본 service 는 ExecutionEngine 외부에 위치해 R10 (단일 sink) 유지. ExecutionEngine 은 여전히
  * WebsocketService.emit 만 호출.
+ *
+ * 이벤트마다 처리를 기다리지 않고 띄우므로 처리 중 실패는 여기서 받아 경고 로그로 남기고 그 알림은 버린다
+ * (CLE-T-AB21M6, CLE-EIA-DATA 「알림 웹훅 발송」 적재 실패). 받지 않은 거부는 Node 26 프로세스를 끝낸다.
  */
 @Injectable()
 export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
@@ -57,7 +64,12 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     this.subscription = this.websocketService.executionEvents$.subscribe({
       next: (event) => {
-        void this.handle(event);
+        // 트리거 조회 · 큐 적재 실패는 `handle` · dispatcher 가 받는다. 여기서는 그 밖의 예외를 한 번 더 받는다.
+        this.handle(event).catch((err: unknown) => {
+          this.logger.warn(
+            `NotificationFanout: ${event.eventType} 처리 실패 — 알림을 버린다 (executionId=${event.executionId}): ${errorMessage(err)}`,
+          );
+        });
       },
       error: (err) =>
         this.logger.error(
@@ -85,7 +97,7 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
         await this.tokenService.revokeAllForExecution(event.executionId);
       } catch (err) {
         this.logger.warn(
-          `NotificationFanout: revokeAllForExecution 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+          `NotificationFanout: revokeAllForExecution 실패 — fail-open: ${errorMessage(err)}`,
         );
       }
     }
@@ -103,10 +115,19 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
       );
       return;
     }
-    const trigger = await this.triggerRepository.findOne({
-      where: { id: triggerId },
-      select: { id: true, workspaceId: true, workflowId: true, config: true },
-    });
+    let trigger: Trigger | null;
+    try {
+      trigger = await this.triggerRepository.findOne({
+        where: { id: triggerId },
+        select: { id: true, workspaceId: true, workflowId: true, config: true },
+      });
+    } catch (err) {
+      // DB 장애 등으로 트리거를 다시 읽지 못하면 그 알림은 버린다. 다시 적재하지 않는다(CLE-T-AB21M6).
+      this.logger.warn(
+        `NotificationFanout: 트리거 조회 실패 — ${event.eventType} 알림을 버린다 (triggerId=${triggerId}, executionId=${event.executionId}): ${errorMessage(err)}`,
+      );
+      return;
+    }
     if (!trigger) return;
     const notificationCfg = (trigger.config as { notification?: unknown })
       .notification;

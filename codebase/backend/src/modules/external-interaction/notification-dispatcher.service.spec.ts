@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NotificationDispatcher } from './notification-dispatcher.service';
 import {
   NOTIFICATION_BACKOFF_TYPE,
@@ -96,5 +97,73 @@ describe('NotificationDispatcher.enqueue', () => {
       { attempts: 3 },
     );
     expect(add.mock.calls[0][2]).toMatchObject({ attempts: 3 });
+  });
+});
+
+// CLE-T-AB21M6 — 큐 적재(`queue.add`)가 거부되면 dispatcher 가 받아 경고 로그를 남기고 건너뛴 결과를 돌려준다.
+// Redis 연결이 끊긴 뒤 ioredis 가 재연결을 다 쓰면 `MaxRetriesPerRequestError` 로 거부된다(CLE-EIA-DATA Rationale
+// 「알림 적재 실패를 경고 로그로 받는다」의 측정). 다시 적재하지 않는다.
+describe('NotificationDispatcher.enqueue — 적재 실패', () => {
+  const job = {
+    triggerId: 'trg-1',
+    eventType: 'execution.completed',
+    executionId: 'exec-1',
+    workflowId: 'wf-1',
+    eventBody: { ok: true },
+  };
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  it('queue.add 가 거부되면 reason="enqueue_failed" 로 건너뛰고 경고를 남긴다', async () => {
+    const { queue, add } = makeQueueMock();
+    const err = Object.assign(
+      new Error(
+        'Reached the max retries per request limit (which is 20). Refer to "maxRetriesPerRequest" option for details.',
+      ),
+      { name: 'MaxRetriesPerRequestError' },
+    );
+    add.mockRejectedValue(err);
+    const d = new NotificationDispatcher(queue);
+
+    await expect(d.enqueue({ ...job, deliveryId: 'dlv-9' })).resolves.toEqual({
+      skipped: true,
+      reason: 'enqueue_failed',
+    });
+
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    expect(message).toContain('dlv-9');
+    expect(message).toContain('trg-1');
+    expect(message).toContain('max retries per request');
+  });
+
+  it('Error 가 아닌 값으로 거부돼도 건너뛴다', async () => {
+    const { queue, add } = makeQueueMock();
+    add.mockRejectedValue('connection is closed');
+    const d = new NotificationDispatcher(queue);
+
+    await expect(d.enqueue(job)).resolves.toEqual({
+      skipped: true,
+      reason: 'enqueue_failed',
+    });
+    expect(String(warn.mock.calls[0][0])).toContain('connection is closed');
+  });
+
+  it('다시 적재하지 않는다(add 는 한 번만 부른다)', async () => {
+    const { queue, add } = makeQueueMock();
+    add.mockRejectedValue(new Error('Connection is closed.'));
+    const d = new NotificationDispatcher(queue);
+    await d.enqueue(job);
+    expect(add).toHaveBeenCalledTimes(1);
   });
 });

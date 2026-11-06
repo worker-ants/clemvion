@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NotificationFanout } from './notification-fanout.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
@@ -250,5 +251,95 @@ describe('NotificationFanout — 구독 라이프사이클', () => {
   it('onModuleInit 없이 onModuleDestroy → no-op (구독 없음)', () => {
     const { fanout } = makeFanout({});
     expect(() => fanout.onModuleDestroy()).not.toThrow();
+  });
+});
+
+// CLE-T-AB21M6 — fanout 은 이벤트마다 처리를 기다리지 않고 띄운다. 트리거 조회 · 적재가 실패해도 처리되지 않은
+// 거부가 남으면 안 된다(Node 26 은 그 거부로 프로세스를 끝낸다). 실패는 경고 로그로 남기고 그 알림은 버린다.
+// 근거: CLE-EIA-DATA 「알림 웹훅 발송」 적재 실패 · Rationale 「알림 적재 실패를 경고 로그로 받는다」.
+describe('NotificationFanout — 조회 · 적재 실패를 경고 로그로 받는다', () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  /** 이벤트 루프를 몇 번 돌려 띄운 처리(`handle`)와 그 `.catch` 가 끝나게 한다. */
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setImmediate(r));
+  };
+
+  it('트리거 조회가 실패하면 경고를 남기고 적재하지 않는다(거부 없이 끝난다)', async () => {
+    const { fanout, dispatcher } = makeFanout({
+      triggerRepository: {
+        findOne: jest.fn().mockRejectedValue(new Error('db connection lost')),
+      },
+    });
+
+    await expect(
+      invoke(fanout, event('execution.completed', { triggerId: 'trg-1' })),
+    ).resolves.toBeUndefined();
+
+    expect(dispatcher.enqueue).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    expect(message).toContain('trg-1');
+    expect(message).toContain('execution.completed');
+    expect(message).toContain('db connection lost');
+  });
+
+  it('트리거 조회가 실패해도 종료 이벤트의 토큰 무효화는 먼저 끝난다', async () => {
+    const { fanout, tokenService } = makeFanout({
+      triggerRepository: {
+        findOne: jest.fn().mockRejectedValue(new Error('db connection lost')),
+      },
+    });
+    await invoke(fanout, event('execution.failed', { triggerId: 'trg-1' }));
+    expect(tokenService.revokeAllForExecution).toHaveBeenCalledWith('exec-1');
+  });
+
+  it('구독에서 띄운 처리가 거부되면 경고를 남긴다(처리되지 않은 거부가 남지 않는다)', async () => {
+    const { fanout, websocketService } = makeFanout({
+      dispatcher: {
+        enqueue: jest.fn().mockRejectedValue(new Error('enqueue exploded')),
+      },
+      triggerRepository: {
+        findOne: jest.fn().mockResolvedValue({
+          id: 'trg-1',
+          workflowId: 'wf-1',
+          config: { notification: { events: ['execution.completed'] } },
+        }),
+      },
+    });
+    fanout.onModuleInit();
+    const subscriber = websocketService.executionEvents$.subscribe.mock
+      .calls[0][0] as unknown as {
+      next: (e: ExecutionChannelEvent) => void;
+    };
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      subscriber.next(event('execution.completed', { triggerId: 'trg-1' }));
+      await flush();
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+
+    expect(unhandled).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    expect(message).toContain('execution.completed');
+    expect(message).toContain('exec-1');
+    expect(message).toContain('enqueue exploded');
   });
 });
