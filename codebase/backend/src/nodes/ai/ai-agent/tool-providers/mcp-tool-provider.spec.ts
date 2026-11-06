@@ -13,6 +13,7 @@ import {
   type IntegrationsServiceMock,
 } from '../../../../modules/integrations/__test-utils__/integrations-service.mock';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
+import { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope';
 import { TimeoutError } from '../../../../common/utils/with-timeout';
 
 function makeIntegration(overrides: Partial<Integration> = {}): Integration {
@@ -179,6 +180,7 @@ describe('McpToolProvider', () => {
         integration.id,
         'ws-1',
         { nodeId: 'node-1', fromExpression: false },
+        { scope: undefined },
       );
       expect(mcpClient.connect).toHaveBeenCalledWith({
         authType: 'bearer_token',
@@ -195,6 +197,29 @@ describe('McpToolProvider', () => {
       });
       expect(tools[0].description).toContain('Echo a message back');
       expect(tools[0].description).toContain('Demo MCP');
+    });
+
+    // CLE-T-92RQWB — 실행기가 만든 조회 범위를 그대로 넘겨 다른 프로바이더와 조회를 같이 쓴다.
+    it('실행기가 넘긴 통합 조회 범위로 조회한다', async () => {
+      const scope = new ExecutionLookupScope();
+      await provider.buildTools({
+        config: {
+          mcpServers: [
+            { integrationId: integration.id, fromExpression: false },
+          ],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-scope',
+        nodeId: 'node-1',
+        integrationLookupScope: scope,
+      });
+
+      expect(integrations.getForExecution).toHaveBeenCalledWith(
+        integration.id,
+        'ws-1',
+        { nodeId: 'node-1', fromExpression: false },
+        { scope },
+      );
     });
 
     it('§6.2 connect+list 성공 → connected serverSummary push (toolCount)', async () => {
