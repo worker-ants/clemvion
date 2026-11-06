@@ -80,6 +80,14 @@ async function setupMocks(page: Page, theme: Theme): Promise<ThemeMocks> {
       body: JSON.stringify({ data: state.user }),
     });
   });
+  // 프로필을 거치면 마지막 워크스페이스가 남아 다음 화면이 /switch 로 재조정한다. 막히면 목록이 로딩에 머문다.
+  await page.route("**/api/auth/workspaces/*/switch", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { accessToken: ACCESS } }),
+    }),
+  );
   await page.route("**/api/workspaces", (route) =>
     route.request().method() === "GET"
       ? route.fulfill({
