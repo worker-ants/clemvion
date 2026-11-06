@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
-requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076"]
+requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076", "REQ-CHAT-077"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "71da4255d0356356ab6d5ecba197b96839e58703f163df0f1aeaa6956278b964"
+content_hash: "38654667987fe8b4a0aa0a55dbfce5be3f07ecb0e47023037bdf8409846def0e"
 read_as: "approved_fallback"
-task: "CLE-T-0QAJ5M"
+task: "CLE-T-FX354C"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "22e10375f1eaf0e09bf1a0e394937f30c49188727ea0a09458532725a4558586"
-etag: "sha256-36c9555ead4e71ae4a91fd413ad3030c8d5fed3958c48d214769f8630751b967"
+mirror_sha256: "bddb1b37cc6d668521329d3addb41bc21a19b48afc1f726f22d26f68dcc066f7"
+etag: "sha256-6e1d05f8fc4b18d29d1f71ea12763be0951e470193aa8d8310fd1ffe0301cc32"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -129,6 +129,7 @@ etag: "sha256-36c9555ead4e71ae4a91fd413ad3030c8d5fed3958c48d214769f8630751b967"
 - REQ-CHAT-053 WHEN Telegram 트리거의 `setupChannel()` 이 새 `secret_token` 을 발급하면 THE SYSTEM SHALL 그 값을 `inboundSigningRef` 에 다시 저장한다. (원본: 15-chat-channel §5.4.1.1)
 - REQ-CHAT-054 WHEN `GET /api/triggers/:id` 가 채팅 채널 설정을 돌려주면 THE SYSTEM SHALL `hasBotToken` 파생 필드만 싣고 `botTokenRef` · `inboundSigningRef` 와 `botToken` 평문은 싣지 않는다. (원본: 15-chat-channel §5.4.2)
 - REQ-CHAT-055 IF 봇 토큰 재발급 중 `setupChannel` 이 실패하면 THE SYSTEM SHALL 자격 증명 거부는 `400 BOT_TOKEN_INVALID`, 그 밖은 `502 CHAT_CHANNEL_SETUP_FAILED` 로 돌려주고 프로바이더 원문은 그 에러 응답에 싣지 않는다. (원본: 15-chat-channel §5.4, R-CC-23)
+- REQ-CHAT-077 IF 봇 토큰 입력(생성의 `chatChannel.botToken`, 재발급의 `newBotToken`)이 1~256자의 보이는 ASCII(U+0021~U+007E) 문자열이 아니면 THE SYSTEM SHALL 프로바이더를 부르거나 시크릿을 저장하기 전에 400 으로 거부한다(생성 `VALIDATION_ERROR`, 재발급 `INVALID_BOT_TOKEN`). (R-CC-32)
 
 ### 인바운드 HTTP
 
@@ -161,13 +162,14 @@ etag: "sha256-36c9555ead4e71ae4a91fd413ad3030c8d5fed3958c48d214769f8630751b967"
 - 관련 REQ-CHAT-031·032: 대기 간격은 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다. `degraded` 로 바꾸는 원인은 [채널 건강도](#채널-건강도) 가 정하고 모두 자동 비활성화하지 않는다(웹훅 WH-MG-04, EIA-NX-07 과 같은 정책).
 - 관련 REQ-CHAT-033·034: 서비스는 `ChatChannelDedupService` 다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. Redis 가 없는 동안에는 중복 처리가 생길 수 있다.
 - 관련 REQ-CHAT-035: 참조 형식은 `secret://triggers/{triggerId}/bot-token`·`secret://triggers/{triggerId}/inbound-signing` 이고 DB 에는 암호문(BYTEA)만 남는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
-- 관련 REQ-CHAT-036·037: Telegram 은 재발급 때 `setWebhook` 을 다시 부른다. 정리 스케줄러는 BullMQ repeatable 이고 `NotificationSecretRotatorService` 와 같은 패턴이다. `NotificationSecretRotatorService` 는 EIA 알림 서명 시크릿의 회전 유예가 끝나면 새 시크릿(v2)을 primary 로 올리는 스케줄러다. 재발급은 primary 참조를 바로 새 토큰으로 바꾸고 v2 참조(`bot-token.v2`)에 옛 토큰을 24시간 백업한다. v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C).
+- 관련 REQ-CHAT-036·037: Telegram 은 재발급 때 `setWebhook` 을 다시 부른다. 정리 스케줄러는 BullMQ repeatable 이고 `NotificationSecretRotatorService` 와 같은 패턴이다. `NotificationSecretRotatorService` 는 EIA 알림 서명 시크릿의 회전 유예가 끝나면 새 시크릿(v2)을 primary 로 올리는 스케줄러다. 재발급은 primary 참조를 바로 새 토큰으로 바꾸고 v2 참조(`bot-token.v2`)에 옛 토큰을 24시간 백업한다. 저장된 옛 토큰이 비었거나 공백만 있으면(시크릿 저장소가 빈 평문을 거부하기 전에 저장된 행) 백업을 건너뛰고 경고 로그를 남긴다. 로그에는 트리거 id 만 싣는다. 그런 값은 보존할 토큰이 아니다. 시크릿 저장소는 공백만 있는 평문도 거부하므로 백업하려 하면 재발급이 실패한다. v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C). 유예가 끝난 정리 작업이 v2 토큰을 프로바이더에서 폐기(`revokeBotToken`, 지원하는 프로바이더만)한 뒤 지운다. 재발급 시점에는 폐기하지 않는다. 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 에 있다.
 - 관련 REQ-CHAT-046·047: 카운터는 대화 단위 fixed-window 다. `PublicWebhookQuotaService` 와 같은 `INCR`+`EXPIRE` pipeline 을 별도 키에 써서 여러 서버 인스턴스에서도 정확하다. 60 은 Telegram group rate limit 과 맞춘 값이고, 초과 안내 메시지는 v1 범위 밖이다. 현재 구현은 `ChatChannelRateLimiterService.consume` 이 세고 `HooksService.handleChatChannelWebhook` 이 `parseUpdate`·중복 제거 게이트 뒤에 확인하며, 이미 `degraded` 면 다시 쓰지 않는다(`markChatChannelRateLimited`).
 - 관련 REQ-CHAT-062~064: 활성 실행은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태(`running`·`pending`·`waiting_for_input`)를 돌려준 실행이다. 취소는 EIA `cancel`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) REQ-EIAIN-003)과 사용자 실행 중지(`POST /api/executions/:id/stop`)가 쓰는 REST 취소 경로 `ExecutionsService.stop` 을 부른다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 7). `running`·`pending` 은 원자 UPDATE 로 바로 `cancelled` 가 된다. `waiting_for_input` 은 continuation bus 에 취소를 넣어 비동기로 `cancelled` 가 된다. 새 실행은 그 취소가 끝나기를 기다리지 않는다. 이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고(REQ-CHAT-063) `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다(REQ-CHAT-064). 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. `/start` 가 아닌 메시지는 REQ-CHAT-013~015 를 그대로 따른다. 명령 이름과 안내 문구는 프로바이더 문서가 정한다. 시작 안내(`languageHints.executionStarted`)와 재시작 안내는 아직 보내지 않는다(부분 구현, NERV Task `CLE-T-0400J6`). 흐름은 [활성 실행 중 다시 시작](#활성-실행-중-다시-시작) 에 있다.
 - 관련 REQ-CHAT-065: 채널 대화 상태의 키는 `chat-channel:{triggerId}:{conversationKey}` 다. 읽은 값과 저장된 값을 비교해 바꾸는 compare-and-set 이고 다른 쓰기에 밀리면 최대 3회 다시 읽는다. Redis 를 쓸 수 없거나 끝내 비우지 못하면 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 REQ-CHAT-015 대로 새 실행을 시작한다. `/cancel` 도 취소한 실행을 가리킬 때만 같은 방식으로 비운다.
 - 관련 REQ-CHAT-066~068: 워크플로우 활성 관문의 규칙(무엇을 막고 무엇을 통과시키는지, 버릴 때 남기지 않는 기록, 워크플로우 조회 범위)은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 채팅 채널 경로에서 이 관문이 놓이는 자리는 [인바운드 관문 순서](#인바운드-관문-순서) 가 정한다. 이 문서는 채팅 채널만의 차이를 정한다. 버리는 응답은 `202`·`{ executionId: 'ignored' }` 다(REQ-CHAT-066). handshake 에는 답한다(REQ-CHAT-067). 진행 중인 대화의 입력과 `/cancel`·`/help` 는 관문에 닿지 않는다(REQ-CHAT-068). 비활성 트리거와의 차이는 [인바운드 관문 순서](#인바운드-관문-순서) 의 표에 있다. 트리거의 워크스페이스에 워크플로우가 없으면 이 관문은 통과시키고 REQ-CHAT-059 가 처리한다. 이미 진행 중인 실행은 취소하지 않고 채널 건강도도 바꾸지 않는다([R-CC-28 「비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)).
 - 관련 REQ-CHAT-069: 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 갱신하지 않는다. 렌더한 메시지의 발송은 이 조건과 관계없다. 조회한 값을 그대로 고쳐 다시 저장하므로 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 덮어쓸 수 있다. 이 한계는 [R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 의 미룬 문제에 있다.
 - 관련 REQ-CHAT-074~076: 큐 적재 실패는 둘이다. `/cancel` 이 부른 `ExecutionsService.stop` 의 `EXECUTION_ENQUEUE_FAILED` 와 내부 신뢰 호출 재개 명령의 `queued:false` 다. `running`·`pending` 실행의 취소는 원자 UPDATE 라 큐를 쓰지 않으므로 REQ-CHAT-074 는 입력 대기 실행의 `/cancel` 에서만 생긴다. `/cancel` 은 `/start` 와 같이 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 REQ-CHAT-075 이고 `EXECUTION_ENQUEUE_FAILED` 면 REQ-CHAT-074 다. `chat_channel_last_error` 에 남기는 고정 문구(원인 종류를 알 수 있는 짧은 문장)는 두 경우가 같다. 문구에는 실행 id 와 트리거 id 를 싣지 않고 경고 로그에만 남긴다. `/start` 와 달리 그 update 의 중복 제거 선점을 풀지 않는다. 실행은 입력 대기에 그대로 남으므로 사용자는 같은 명령을 다시 보낼 수 있다. 다시 보낸 명령은 새 update id 로 오므로 중복 제거에 걸리지 않는다. 프로바이더별 응답 예외(REQ-CHAT-058)는 이때도 그대로다. `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다. 근거는 [R-CC-31](#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다) 에 있다.
+- 관련 REQ-CHAT-077: 공백은 양끝이든 가운데든 거부한다. 제어 문자(CR · LF · NUL 등)와 ASCII 밖 문자도 거부한다. 생성은 DTO 에서 검증하고 길이 1~256 은 전부터 있었다. 재발급은 컨트롤러에서 검증하고 256자 상한도 이때 더했다. 두 경로는 같은 판정 코드를 쓴다. PATCH 는 봇 토큰을 받지 않는다(REQ-CHAT-048). 이미 저장된 토큰은 바꾸지 않고 알려진 비밀 치환([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10)도 그대로 둔다. 근거는 [R-CC-32](#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다) 에 있다.
 
 ## 처리 흐름
 
@@ -359,14 +361,14 @@ sequenceDiagram
 | HTTP | error.code | 사유 |
 |---|---|---|
 | 404 | `RESOURCE_NOT_FOUND` | 트리거가 없거나 워크스페이스 권한이 없다(`findById`). 재발급 도중 트리거가 삭제돼(워크플로우·워크스페이스 삭제의 FK CASCADE 포함, advisory lock 으로 못 막는다) 잠금 안 병합 쓰기가 0행에 맞은 경우도 같다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 동시 쓰기 직렬화) |
-| 400 | `INVALID_BOT_TOKEN` | `newBotToken` 이 없거나 문자열이 아니다(controller 입력 검증) |
+| 400 | `INVALID_BOT_TOKEN` | `newBotToken` 이 없거나 문자열이 아니거나 256자를 넘거나 보이는 ASCII(U+0021~U+007E) 밖의 문자(공백 · 제어 문자 · ASCII 밖 문자)가 있다(controller 입력 검증, REQ-CHAT-077). 시크릿을 저장하거나 프로바이더를 부르기 전에 거부한다 |
 | 400 | `WORKSPACE_ID_REQUIRED` | `X-Workspace-Id` 헤더와 JWT `workspaceId` 가 둘 다 없다(공용 `@WorkspaceId()`) |
 | 400 | `VALIDATION_ERROR` | `X-Workspace-Id` 헤더가 있으나 UUID 가 아니다(공용 헬퍼 `workspace-context.util.ts` 가 먼저 거부). 헤더가 없는 경우와 다르다. PATCH 본문 필드 거부의 같은 코드와도 다른 경우다 |
 | 400 | `CHAT_CHANNEL_NOT_CONFIGURED` | `config.chatChannel` 이 없는 트리거 |
 | 400 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | 레지스트리에 없는 프로바이더 |
 | 400 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | 트리거에 `endpointPath` 가 없다 |
 | 400 | `BOT_TOKEN_INVALID` | `setupChannel` 이 자격 증명 거부로 실패했다. 신호가 401/403 이든 `{ok:false, error:'invalid_auth'}`(HTTP 200)든 `verify_key` 불일치든 같은 분류이고, 어댑터가 `code` 로 선언한다([채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md), R-CC-23) |
-| 502 | `CHAT_CHANNEL_SETUP_FAILED` | 그 밖의 `setupChannel` 실패(프로바이더 5xx, 네트워크, 타임아웃). 클라이언트가 입력으로 고칠 수 없고 재시도 뒤에도 실패한 경우다. 우리 인프라 일시 장애인 `503` 과 구분한다. 제어 문자가 든 봇 토큰도 지금은 이 행으로 온다(입력 거부는 NERV Task `CLE-T-FX354C`) |
+| 502 | `CHAT_CHANNEL_SETUP_FAILED` | 그 밖의 `setupChannel` 실패(프로바이더 5xx, 네트워크, 타임아웃). 클라이언트가 입력으로 고칠 수 없고 재시도 뒤에도 실패한 경우다. 우리 인프라 일시 장애인 `503` 과 구분한다 |
 
 실패 응답에는 프로바이더 원문을 싣지 않는다. `message` 는 고정 문자열이고 `code` 가 판별자다. 원본 문구는 서버 로그에만 남긴다. 에러 원문은 URL, query, DB 컬럼명, stack, API 키 조각을 흘릴 수 있다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 의 보안 게이트, R-CC-15). 같은 원문을 채널 건강도의 마지막 오류에는 싣는 이유는 [R-CC-26](#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 에 있다.
 
@@ -559,7 +561,6 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 
 ## 미결 사항
 
-- **`revokeBotToken` 호출 시점**: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 재발급 시점에 `rotateBotToken` 이 이전 토큰을 revoke 한다고 적었고, [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md)·[Slack 어댑터](CLE-CHAT-SLACK.md) 는 24시간 유예가 끝난 정리 작업에서 v2 토큰을 revoke 한다고 적었다. 즉시 revoke 하면 유예 창이 의미를 잃는다. 현재 구현은 정리 작업(`cleanupRotatedChatChannelTokens`)에서 부른다. 결정 필요.
 - **`visualNode=text` 에서 시각 메시지 발송 여부**: REQ-CHAT-024 와 [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 매트릭스는 `text` 에서도 Chart·Table·Carousel 을 텍스트로 보낸다고 정한다(R-CC-11 (e) 는 "텍스트만" 을 뜻한다). 현재 구현(Telegram 렌더러)은 `visualNode !== 'text'` 일 때만 시각 메시지를 만들어, 버튼 대기에서 `text` 를 고르면 시각 내용이 빠진다. 결정 필요.
 - **아웃바운드 `seq` 정렬과 `X-Clemvion-Delivery` 중복 제거**: 원문 §6 과 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 어댑터가 이 둘을 내장한다고 적었다. 어댑터는 서버 안 `executionEvents$` 를 받으므로 웹훅 헤더 `X-Clemvion-Delivery` 가 없고, 데이터 흐름에도 그런 단계가 없다. 현재 구현(chat-channel 모듈)에서 해당 헤더 참조는 0건이고 `seq` 는 전달만 된다. 보장을 지울지 Planned 로 둘지 결정 필요.
 
@@ -568,9 +569,10 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 - `codebase/backend/src/modules/chat-channel/**`: 모듈, 어댑터 레지스트리(`channel-adapter.registry.ts`), 트리거 단위 listener 레지스트리(`channel-listener.registry.ts`)와 그 변경을 다른 서버 인스턴스에 알리는 pub/sub(`channel-listener.bus.ts`), 재시작 · 다시 구독 때의 일괄 등록과 그 읽기 합치기(`channel-listener.restorer.ts` 의 `ChannelListenerRestorer`), dispatcher(`chat-channel.dispatcher.ts`, 종결 이벤트에서 대화 상태 정리, Form 대기 상태 갱신 가드), 인바운드 서명 검증(`chat-channel-inbound-authenticator.ts`), 중복 제거(`chat-channel-dedup.service.ts`, 선점 해제 `release` 포함), 분당 한도(`chat-channel-rate-limiter.service.ts`), 채널 대화 상태(`channel-conversation.service.ts`, compare-and-set 정리 `clearExecutionIdIfMatches`), `types.ts`, 공용 로직(`shared/execution-failure-classifier.ts`, `shared/form-mode.ts`, `shared/language-hint-defaults.ts`), 프로바이더별 adapter·client·parser·renderer(`providers/telegram/`, `providers/slack/`, `providers/discord/`, Slack·Discord 는 `*-signing.ts`·`*.types.ts` 추가)
 - `codebase/backend/src/modules/triggers/chat-channel-*.ts`: `chat-channel-binder.service.ts`(어댑터 setup·teardown, 시크릿 쓰기와 참조 보존, 켤 때의 레지스트리 등록 `registerListenerOnActivation`), `chat-channel-input-rules.ts`(입출력 도메인 규칙 순수 함수, R-CC-21 입력 규칙과 `translateSetupChannelError`), `chat-channel-rejection-messages.const.ts`(PATCH 금지 필드와 거부 문구의 단일 기준. 원시 `config` 가드도 이 필드 목록을 쓴다), `chat-channel-token-rotator.service.ts`(봇 토큰 정리 매시간 워커)
 - `codebase/backend/src/modules/triggers/dto/**/chat-channel-*.dto.ts`: `chat-channel-config.dto.ts`(생성·수정 검증 분리), `responses/chat-channel-rotate-bot-token-response.dto.ts`
+- `codebase/backend/src/modules/triggers/dto/chat-channel-bot-token.ts`: 봇 토큰 입력 형식 판정(`BOT_TOKEN_MAX_LENGTH`, 보이는 ASCII 판정). 생성 DTO(`chat-channel-config.dto.ts`)와 재발급 컨트롤러(`triggers.controller.ts`)가 함께 쓴다(REQ-CHAT-077)
 - `codebase/backend/src/modules/triggers/trigger-callback-url*.ts`: 웹훅 콜백 URL 조립 순수 함수
 - `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`: 원시 `config` 의 내부 필드 거부와 `chatChannel` 키 거부(`details.field` 표 셋째 · 넷째 행)
-- `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션, 켜는 PATCH 커밋 뒤 레지스트리 등록), `trigger-resource-releaser.service.ts`(트리거 행을 없앨 때의 외부 해제와 채팅 채널 트리거의 레지스트리 해제), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
+- `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션, 켜는 PATCH 커밋 뒤 레지스트리 등록), `trigger-resource-releaser.service.ts`(트리거 행을 없앨 때의 외부 해제와 채팅 채널 트리거의 레지스트리 해제), `triggers.controller.ts`(`rotateBotToken` 엔드포인트, `newBotToken` 입력 검증), `dto/create-trigger.dto.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(새 실행 시작 앞의 워크플로우 활성 관문 포함), 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts`: 워크플로우 활성 관문 `isWorkflowInactive`(트리거의 워크스페이스 안에서만 찾는다)
 - `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`, `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`, `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`, `codebase/backend/test/chat-channel-listener-activation.e2e-spec.ts`(켠 뒤 등록, 켤 때와 삭제 때의 변경 메시지 발행, 다른 서버 인스턴스가 보낸 변경 메시지 반영, 다시 구독 뒤 복원)
@@ -721,9 +723,9 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 **우회의 모양.** 차단이 `botTokenRef` 라는 필드 이름에만 걸려 있었는데 값을 나르는 필드는 `botToken` 이었다. 이 필드는 PATCH·POST 공용 DTO 에서 필수였고, `chatChannel` 이 실린 PATCH 는 재발급의 24시간 유예 백업, 전용 감사 action, `chatChannelRotatedAt` 갱신을 모두 건너뛰고 시크릿 저장소를 덮어썼다. 인바운드 서명 자료도 같았다. 문서는 v1 변경 차단을 선언했지만 구현은 Slack·Discord 에서 `inboundSigningPlaintext` 가 없으면 400 으로 막아 PATCH 마다 금지된 변경을 강제했다(2026-09-10 에 구현을 맞췄다).
 
-**처방의 함정.** "PATCH DTO 에서 `botToken` 을 뺀다" 만 하면 더 나쁘다. `setupChatChannel` 은 `secrets.rotate(botTokenRef, ws, cfg.botToken ?? '')` 를 조건 없이 실행하고 `SecretResolver.rotate` 에는 빈 값 가드가 없어, 필드가 없으면 빈 문자열로 토큰을 지운다. 이어지는 `setupChannel` 은 401 을 받아 조용히 `degraded` 가 된다. 당시에는 `botToken` 이 필수라 요청이 400 으로 막혀 이 일이 일어나지 않았다. 결함이 토큰을 지키고 있었던 셈이다. 그래서 D-1(필드를 받지 않는다)과 D-2(그 경로가 두 비밀을 쓰지 않는다)를 함께 정한다. 검증 함수가 생성·수정 경로에 공유돼 있어 차단을 거기 넣으면 Slack·Discord 생성이 깨지므로 PATCH 전용 경로를 나눠야 한다.
+**처방의 함정.** "PATCH DTO 에서 `botToken` 을 뺀다" 만 하면 더 나쁘다. 그때 `setupChatChannel` 은 `secrets.rotate(botTokenRef, ws, cfg.botToken ?? '')` 를 조건 없이 실행했고 `SecretResolver.rotate` 에는 빈 값 가드가 없었다. 그래서 필드가 없으면 빈 문자열로 토큰을 지웠다. 이어지는 `setupChannel` 은 401 을 받아 조용히 `degraded` 가 됐다. 당시에는 `botToken` 이 필수라 요청이 400 으로 막혀 이 일이 일어나지 않았다. 결함이 토큰을 지키고 있었던 셈이다. 그래서 D-1(필드를 받지 않는다)과 D-2(그 경로가 두 비밀을 쓰지 않는다)를 함께 정한다. 검증 함수가 생성·수정 경로에 공유돼 있어 차단을 거기 넣으면 Slack·Discord 생성이 깨지므로 PATCH 전용 경로를 나눠야 한다. 빈 값 가드는 2026-11-06 에 들어갔다. 지금은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 `store` · `rotate` 가 빈 평문을 거부한다.
 
-**기각한 대안.** `botToken` 을 선택 필드로 두고 무시하면 사용자가 설정했다고 믿은 비밀을 말없이 버린다. `SecretResolver.rotate` 에 빈 값 가드를 넣어 이 경로만 막으면 원인을 남긴다(그 가드는 다른 호출부를 위해 따로 검토한다). Telegram 도 `rotate-inbound-signing` 전용 API 로 나누는 안은 회전 주체가 Telegram 등록 동작이라 `setupChannel` 재호출 경로가 그대로 남는다. 어댑터가 기존 서명을 다시 쓰게 하는 안은 Slack·Discord 전용 v2 유예를 Telegram 에 미리 집행하고 Telegram 어댑터 문서와 어댑터 규약을 함께 뒤집는다. `chatChannel` PATCH 에서 `setupChannel` 을 아예 부르지 않는 안은 CCH-AD-02 멱등 전제를 깨고 `endpointPath` 변경의 웹훅 재등록을 끊는다.
+**기각한 대안.** `botToken` 을 선택 필드로 두고 무시하면 사용자가 설정했다고 믿은 비밀을 말없이 버린다. `SecretResolver.rotate` 에 빈 값 가드를 넣어 이 경로만 막으면 원인을 남긴다(그 가드는 다른 호출부를 위해 따로 검토했고 2026-11-06 에 `store` · `rotate` 자체에 넣었다). Telegram 도 `rotate-inbound-signing` 전용 API 로 나누는 안은 회전 주체가 Telegram 등록 동작이라 `setupChannel` 재호출 경로가 그대로 남는다. 어댑터가 기존 서명을 다시 쓰게 하는 안은 Slack·Discord 전용 v2 유예를 Telegram 에 미리 집행하고 Telegram 어댑터 문서와 어댑터 규약을 함께 뒤집는다. `chatChannel` PATCH 에서 `setupChannel` 을 아예 부르지 않는 안은 CCH-AD-02 멱등 전제를 깨고 `endpointPath` 변경의 웹훅 재등록을 끊는다.
 
 **세 축.** 차단 기준은 "PATCH 요청자가 자기 비밀로 값을 바꾸는가" 다. 이 축은 봇 토큰과 인바운드 서명의 자원 성격 대조(외부 등록 여부)와 직교하고, "회전 주체가 누구인가" 축과도 직교한다. 회전 주체 축은 서버 발급(Telegram)·프로바이더 발급(Slack·Discord) 구분과 같다. v2 가 인바운드 서명 회전을 정해도 봇 토큰(R-CC-10 유지)과 Telegram 서버 발급 자료(우리 정책 대상이 아니고, 휩쓸면 서명 검증이 깨진다)에는 닿지 않는다. v2 후보 A·B·C 는 Slack·Discord 축 전용이다.
 
@@ -739,7 +741,7 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 4xx·5xx 경계는 누가 고칠 수 있는가로 정한다. 잘못된 토큰은 클라이언트가 고치므로 4xx, 프로바이더 장애는 재시도뿐이라 5xx 다. 전송 방식을 기준으로 삼으면 프로바이더가 방식을 바꿀 때 규칙이 조용히 틀린다. 실행 엔진의 "Redis 장애는 502 가 아니라 503" 결정과도 부딪치지 않는다. 503 사용처(`WEBAUTHN_DISABLED`, `SERVER_SHUTTING_DOWN`, `EXECUTION_ENQUEUE_FAILED`)는 모두 우리 쪽이고, 이 결정은 비어 있던 자리(외부 프로바이더 실패)를 채운다. 프로바이더 타임아웃은 두 축이 갈릴 수 있으나 지금은 재시도 뒤 일반 실패라 502 이고, 실제로 갈리면 그때 정한다. 502 는 이 저장소에서 처음 쓰여(2026-09-12 실측 0건) [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 상태 코드 카탈로그와 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 데코레이터 표에 행을 새로 둔다.
 
-같은 때 문서는 502 인데 구현은 두 분기 모두 400 을 돌려주던 결함을 찾았다(테스트가 `getStatus()` 를 보지 않았다). `#1324` 가 `BadGatewayException` 배선, `details.reason` 제거, 상태 코드 확인을 마쳤다. 예전 구현은 `details.reason: message.slice(0, 256)` 으로 프로바이더 원문을 에러 응답 봉투에 실었다. 에러 응답 봉투에서 원문은 실행 엔진의 보안 게이트와 R-CC-15 가 막는 것과 같은 누출이라 멈췄다. 진단 필드인 채널 건강도의 마지막 오류와의 차이는 R-CC-26 에 있다. 옛 "401/403 에서 드러난다" 서술이 세 문서에 복제돼 있던 것은 다시 적지 않고 링크로 바꿨다. 남은 401/403 message fallback 의 제거 조건은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 갖는다. 프로바이더에 닿지 않는 입력 형식 에러(제어 문자가 든 봇 토큰)는 지금 502 로 간다. 위 기준으로는 4xx 여야 하고 입력 거부는 NERV Task `CLE-T-FX354C` 가 다룬다(2026-10-08 보강, R-CC-26).
+같은 때 문서는 502 인데 구현은 두 분기 모두 400 을 돌려주던 결함을 찾았다(테스트가 `getStatus()` 를 보지 않았다). `#1324` 가 `BadGatewayException` 배선, `details.reason` 제거, 상태 코드 확인을 마쳤다. 예전 구현은 `details.reason: message.slice(0, 256)` 으로 프로바이더 원문을 에러 응답 봉투에 실었다. 에러 응답 봉투에서 원문은 실행 엔진의 보안 게이트와 R-CC-15 가 막는 것과 같은 누출이라 멈췄다. 진단 필드인 채널 건강도의 마지막 오류와의 차이는 R-CC-26 에 있다. 옛 "401/403 에서 드러난다" 서술이 세 문서에 복제돼 있던 것은 다시 적지 않고 링크로 바꿨다. 남은 401/403 message fallback 의 제거 조건은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 갖는다. 2026-10-08 에는 프로바이더에 닿지 않는 입력 형식 에러(제어 문자가 든 봇 토큰)가 502 로 갔다. 위 기준으로는 4xx 여야 한다(2026-10-08 보강, R-CC-26). 2026-11-06 부터는 이런 봇 토큰을 입력에서 400 으로 거부한다([R-CC-32 「봇 토큰 입력은 보이는 ASCII 만 받는다」](#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다)).
 
 ### R-CC-25 워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다
 
@@ -869,6 +871,27 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 - (a) `503` 을 그대로 둔다(그전 `/cancel` 동작). 프로바이더가 같은 `/cancel` 을 다시 보내고 non-2xx 가 이어지면 웹훅이 꺼질 수 있다. 실패가 채널 건강도에 남지 않아 운영자가 알 수 없다.
 - (b) `degraded` 없이 `202` 로 넘긴다(그전 재개 명령 동작). 사용자의 입력이 실행에 닿지 않았는데 로그도 건강도 신호도 남지 않는다.
 - (c) `/start` 처럼 중복 제거 선점을 풀고 `202` 로 답한다. `202` 에는 재전송이 오지 않으므로 풀어도 다시 처리될 update 가 없다.
+
+### R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다
+
+2026-11-06 결정이다(NERV Task `CLE-T-FX354C`). 이 문제는 NERV Task `CLE-T-H0GF4K` 의 일관성 검토에서 찾았고 R-CC-23 에 2026-10-08 보강으로 적어 두었다.
+
+**결정.** 봇 토큰 입력은 1~256자의 보이는 ASCII(U+0021~U+007E)만 받는다(REQ-CHAT-077). 공백(양끝이든 가운데든), 제어 문자(CR · LF · NUL 등), ASCII 밖 문자가 있으면 프로바이더를 부르거나 시크릿을 저장하기 전에 400 으로 거부한다.
+
+- 생성(`POST /api/triggers` 의 `chatChannel.botToken`)은 DTO 에서 검증하고 `400 VALIDATION_ERROR` 로 거부한다. 길이 1~256 은 전부터 있었고 이번에 문자 집합을 더했다.
+- 재발급(`POST /api/triggers/:id/chat-channel/rotate-bot-token` 의 `newBotToken`)은 컨트롤러에서 검증하고 `400 INVALID_BOT_TOKEN` 으로 거부한다. 새 에러 코드를 만들지 않고 이 코드의 뜻을 넓혔다. 재발급에도 생성과 같은 256자 상한을 둔다. 그전에는 값이 있는지와 문자열인지만 봤다.
+- PATCH 는 지금처럼 봇 토큰을 받지 않는다(REQ-CHAT-048).
+
+**이유.** R-CC-23 은 4xx 와 5xx 를 누가 고칠 수 있는가로 가른다. 이 기준으로 보면 이런 토큰은 사용자가 고칠 입력 오류다. 그런데 이 값은 헤더로 보낼 수 없어서 fetch 가 요청을 만들지 않았다. 그래서 프로바이더에 닿지도 않은 실패가 생성 때의 채널 설정과 그 뒤 발송에서는 채널 건강도 `degraded` 로, 재발급에서는 `502 CHAT_CHANNEL_SETUP_FAILED` 로 드러났다.
+
+**기각한 대안.**
+
+- (a) 프로바이더별 문자 집합. Telegram(`\d+:[A-Za-z0-9_-]+`), Slack(`xoxb-…`), Discord(base64url 과 `.`)의 토큰은 모두 보이는 ASCII 안에 있다. 프로바이더마다 나눠도 더 막을 입력이 없고 프로바이더가 토큰 형식을 바꾸면 정상 토큰을 막게 된다.
+- (b) 서버가 양끝 공백을 떼고 받기. 사용자가 보낸 값과 저장된 값이 달라진다. 화면(프론트엔드)은 이미 양끝 공백을 떼고 보낸다.
+
+**이미 저장된 토큰.** 이 결정 전에 저장된 토큰은 바꾸지 않는다. 그런 토큰이 남은 트리거는 지금처럼 `degraded` 로 드러나고 사용자가 재발급으로 고친다.
+
+**알려진 비밀 치환과의 관계.** 프로바이더 API 클라이언트가 실패 문장에서 그 호출의 봇 토큰을 지우는 알려진 비밀 치환([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10, [응답 자격 증명 마스킹 §1.1](../CLE-API/CLE-API-EGRESS.md#11-egress-only))은 그대로 둔다. 입력 거부는 치환을 대신하지 않고 치환 앞에 덧붙인 검사다. 입력 거부로는 이미 저장된 토큰과 다른 모양의 유입을 막지 못하고 알려진 비밀 치환은 입력 모양과 상관없이 닫는다. [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#트리거-응답의-마지막-오류를-표면에-올린-이유-2026-10-05) 이 「봇 토큰 입력에서 제어 문자만 거부하기」 를 기각한 이유와 같다.
 
 ### 카탈로그를 v1 부터 둔 이유
 

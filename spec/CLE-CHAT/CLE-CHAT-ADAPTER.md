@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "3bd1ea7f18fccbb88d9fe58e7ca2dd779e1b690bc9bf4d085a6316273c61ea65"
+content_hash: "bdf05dc9d1c53b06b5fe8db66a2ce13f16ab93c038447244630fbf0d2907029a"
 read_as: "approved_fallback"
-task: "CLE-T-0QAJ5M"
+task: "CLE-T-KX2Q2N"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "2a3042b607a88cf285c33a3b6d85c9e9c9c69eb36441bf93d71f2ea119392e42"
-etag: "sha256-65604372ffc0c8ba3a9772574a18b9d6b5bc2b76230c4f2ed482d67fea57abba"
+mirror_sha256: "36fcdc6fbdf03181f89bc0c6374a9353dcc26f41b46ff466e65ca548f69173ea"
+etag: "sha256-dcfcf00a0c9ca408d072c4547a6f829169a6e98e5ed38681b71683477e8620c9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,6 +41,7 @@ etag: "sha256-65604372ffc0c8ba3a9772574a18b9d6b5bc2b76230c4f2ed482d67fea57abba"
 11. `sendMessage` 는 프로바이더별 고정 URL 만 부른다. 사용자가 정하는 URL 은 쓰지 않는다(SSRF 차단).
 12. `provider` 식별자는 소문자 kebab-case 이고 [어댑터 레지스트리](#어댑터-레지스트리) 에 등록한다.
 13. 인터페이스를 바꾸면 [채팅 채널](CLE-CHAT-CORE.md), 영향받는 모든 프로바이더 문서, 채널 프로바이더 카탈로그를 함께 고친다([변경 관리](#변경-관리)).
+14. 프로바이더 API 클라이언트는 실패를 `ok: false` 표지로 돌려준다. 프로바이더가 돌려준 4xx 본문이든 클라이언트가 재시도를 다 쓰고 만든 합성 실패든 같다. 어댑터는 이 표지로 실패를 판정하고 프로바이더 원본 응답 필드(Discord 숫자 `code`)가 있는지로 판정하지 않는다. 실패한 `sendMessage` 는 throw 한다. `setupChannel` 이 부르는 하위 호출이 실패하면 `setupChannel` 실패다([클라이언트 실패 판정](#클라이언트-실패-판정), R-CCA-11).
 
 ## 어댑터 인터페이스
 
@@ -108,8 +109,9 @@ interface ChatChannelAdapter {
    * (선택) 봇 토큰 재발급과 관련해 이전 토큰을 외부 프로바이더에서 revoke 한다.
    * Slack auth.revoke 처럼 revoke API 가 있는 프로바이더만 구현하고 Telegram·Discord 는 구현하지 않는다(undefined).
    * 호출자는 존재 여부를 type-guard 로 확인하고 실패해도 흐름을 막지 않는다.
-   * 호출 시점(재발급 즉시 또는 24시간 유예 종료 정리)은 정의가 갈린다. 미결 사항 참조.
-   * @param oldBotToken 재발급 직전에 가지고 있던 평문 봇 토큰.
+   * 호출자는 24시간 유예가 끝난 정리 작업(TriggersService.cleanupRotatedChatChannelTokens)이다.
+   * 재발급(TriggersService.rotateBotToken) 시점에는 부르지 않는다(R-CCA-10).
+   * @param oldBotToken 24시간 유예가 끝난 이전 봇 토큰. 재발급 때 v2 참조(bot-token.v2)에 백업해 둔 평문이다.
    * @returns 외부 API 응답과 무관하게 void. 내부 에러는 호출자에 전파하지 않고 흡수한다(logger.warn).
    */
   revokeBotToken?(oldBotToken: string): Promise<void>;
@@ -146,7 +148,7 @@ interface ChatChannelAdapter {
 | `sendMessage` | 외부 API 호출. 재시도·rate limit 책임 | 외부 API 호출 | 원문은 "중복 제거는 호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 한다" 고 적었다. 정의가 갈린다([미결 사항](#미결-사항)) |
 | `ackInteraction` | 프로바이더가 요구하는 ack(Telegram `answerCallbackQuery`). 함수는 필수지만 빈 구현이어도 된다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `escapeControlText` | 제어 안내 텍스트를 프로바이더 표면에 맞게 escape | 없음 | 순수 |
-| `revokeBotToken?` | 이전 봇 토큰의 외부 revoke(Slack `auth.revoke`). API 가 없으면 구현하지 않는다. 실패는 흡수한다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
+| `revokeBotToken?` | 이전 봇 토큰의 외부 revoke(Slack `auth.revoke`). API 가 없으면 구현하지 않는다. 실패는 흡수한다. 24시간 유예가 끝난 정리 작업(`cleanupRotatedChatChannelTokens`)이 부르고 재발급 시점에는 부르지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `openFormModal?` | `form_modal` 버튼 클릭(`open_form_modal` 명령) 때 모달을 연다. Slack 은 `views.open(trigger_id, view)`, Discord 는 웹훅 응답 본문 `{ type: 9 }`. 모달 합성에 채널 대화 상태의 `pendingFormModal.fields` 가 필요해 호출자는 `HooksService` 다 | 외부 API 호출 또는 HTTP 응답 본문 합성 | 멱등 |
 | `buildFormSubmissionResponse?` | 모달 제출(`form_submission`)의 HTTP 응답 합성. ack(Slack 빈 200, Discord `{ type: 4 }` ephemeral)나 검증 실패 재표시(Slack `response_action: errors`)만 만든다 | 없음 | 순수 |
 
@@ -166,16 +168,28 @@ interface ChatChannelAdapter {
 |---|---|---|
 | 이 절의 `code` | 어댑터가 새로 던지는 `Error` 의 프로퍼티 | 우리 문자열(`'BOT_TOKEN_INVALID'`) |
 | 실행 실패 안내 분류의 `event.error.code` | EIA 이벤트 페이로드 | 실행 실패 분류용, 다른 네임스페이스 |
-| `app.code`·`res.code` | 프로바이더 원본 API 응답 필드(Discord) | 숫자 |
+| `app.code`·`res.code` | 프로바이더 원본 API 응답 필드(Discord) | 숫자. 실패 판별에 쓰지 않는다(클라이언트가 만든 합성 실패에는 없다) |
 | Node·undici 시스템 에러의 `code` | 런타임이 붙인다 | `'ENOTFOUND'`, `'ECONNREFUSED'`, `'UND_ERR_*'` |
 
-세 번째는 이름이 가깝다. Discord 어댑터는 이미 `'code' in app` 으로 원본 응답을 검사한다. 네 번째는 판별을 뒤집는다. DNS 가 죽은 `Error` 도 `.code` 가 있으므로 `if (err.code)` 같은 참거짓 판별은 네트워크 단절을 "토큰이 잘못됐다" 로 보고한다. 그래서 판별은 허용 목록 정확 일치(`err.code === 'BOT_TOKEN_INVALID'`)여야 한다. `telegram-client.ts` 주석이 이미 적고 있듯 undici 는 `ENOTFOUND` 를 이 자리로 보낸다. 구현은 `ENOTFOUND → 502` 테스트로 이 오분류를 막는다.
+세 번째는 이름이 가깝다. 이 필드는 프로바이더가 돌려준 4xx 본문에만 있고 클라이언트가 재시도를 다 쓰고 만든 합성 실패에는 없다. 그래서 어댑터는 이 필드가 있는지로 실패를 판정하지 않는다([클라이언트 실패 판정](#클라이언트-실패-판정)). 네 번째는 판별을 뒤집는다. DNS 가 죽은 `Error` 도 `.code` 가 있으므로 `if (err.code)` 같은 참거짓 판별은 네트워크 단절을 "토큰이 잘못됐다" 로 보고한다. 그래서 판별은 허용 목록 정확 일치(`err.code === 'BOT_TOKEN_INVALID'`)여야 한다. `telegram-client.ts` 주석이 이미 적고 있듯 undici 는 `ENOTFOUND` 를 이 자리로 보낸다. 구현은 `ENOTFOUND → 502` 테스트로 이 오분류를 막는다.
 
 호출자가 프로바이더 신호 방식을 추측하지 않는 이유는 방식이 서로 다르기 때문이다. Slack 은 HTTP 200 과 `{ok:false, error:'invalid_auth'}`, Discord 는 `verify_key` 불일치(상태 코드 자체가 없다), Telegram 은 `HTTP 401` 로 알린다. 문자열에서 상태 숫자를 찾는 방식은 세 프로바이더 중 두 곳에서 원리적으로 실패한다(2026-09-12 실측).
 
 **한시 예외: 호출자의 401/403 fallback.** `code` 가 없는 에러에 대해 호출자는 message 의 401/403 을 보고 `BOT_TOKEN_INVALID` 로 분류한다. "message 원문으로 분기하지 않는다"(R-CCA-5, [채팅 채널](CLE-CHAT-CORE.md) R-CC-15, 실행 엔진 보안 게이트, 에러 코드 카탈로그의 `FILE_REQUIRED` 주석)에 대한 의도적 예외다. `code` 를 아직 붙이지 않은 경로가 조용히 502 로 빠지는 것보다 400 이 사용자에게 낫다.
 
 제거 조건은 v1 프로바이더 셋(Telegram·Slack·Discord)이 모두 `code` 를 붙이는 것이다. 조건만 적고 추적하지 않으면 한시 예외가 영구 예외가 되므로 제거 판정을 별도 후속 항목으로 추적한다. 2026-09-12 에 세 프로바이더 모두 부착을 마쳤지만 실측 판정은 "아직 지우지 말 것" 이다. 부착은 각 프로바이더의 주 경로에 한정되고, fallback 이 유일한 방어인 경로가 남아 있다. 대표적으로 Slack 4xx 응답이 JSON 이 아닐 때 클라이언트가 만드는 `error: 'HTTP 401'` 은 자격 증명 값 허용 목록에 없다. 즉 위 조건은 제거의 충분조건이 아니다. 조건만 보고 지우면 그 경로들이 조용히 502 로 바뀐다.
+
+#### 클라이언트 실패 판정
+
+이 절의 앞부분은 어댑터가 호출자에게 실패 사유를 알리는 층이다. 그보다 한 층 아래에서 어댑터는 프로바이더 API 클라이언트(`providers/<프로바이더>/<프로바이더>-client.ts`)의 결과를 보고 실패인지 판정한다.
+
+- 클라이언트는 실패를 `ok: false` 표지로 돌려준다. 프로바이더가 돌려준 4xx 본문이든 클라이언트가 재시도를 다 쓰고 만든 합성 실패(fetch 예외, 429 소진, 5xx)든 같다.
+- 어댑터는 이 `ok: false` 로 실패를 판정한다. 프로바이더 원본 응답 필드(Discord 숫자 `code`)가 있는지로 판정하지 않는다. 합성 실패에는 그 필드가 없어 실패가 성공으로 처리된다.
+- 실패한 `sendMessage` 는 throw 한다. 호출자는 그 실패를 받아 채널 건강도를 `degraded` 로 둔다([채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도)).
+- `setupChannel` 이 안에서 부르는 하위 호출이 실패해도 `setupChannel` 실패다. [Discord 어댑터](CLE-CHAT-DISCORD.md) 의 slash command 일괄 등록(`PUT /applications/{app_id}/commands`)이 그 예다. 결과를 보지 않으면 등록 실패가 정상 설정으로 보인다.
+- 자격 증명 거부 판정 방식은 바꾸지 않는다. Discord 는 클라이언트가 실어 준 HTTP `status`(401/403)로 가린다. slash command 일괄 등록이 401/403 으로 실패해도 `code: 'BOT_TOKEN_INVALID'` 를 싣는다(규칙 5).
+
+Slack·Telegram 클라이언트와 어댑터는 이미 `ok` 로 판정한다. 근거는 R-CCA-11 이다.
 
 ## 입력 이벤트
 
@@ -579,7 +593,6 @@ interface ChannelAdapterRegistry {
 - **시각형 렌더러 입력 모양과 노드 출력의 불일치**: 세 프로바이더 문서의 시각형 매트릭스는 Chart 입력을 `output.payload.{title, series, labels}`, Carousel 카드를 `imageUrl` 로 적고 "노드가 무엇을 만드나" 기준이라고 못박았다. 그러나 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md) 출력은 `output.data`(`{ x, y? }[]`, 제목은 `config.title`)이고, [Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md) 출력은 `output.items[].image`(동적 모드, 정적 모드는 `config.items`)다. 현재 구현(렌더러)도 `series`·`labels`·`imageUrl` 을 찾으므로 그래프의 Chart 노드 출력이 채널에서 비어 보일 수 있다. 노드 출력 계약에 맞춰 매트릭스와 렌더러를 고칠지, 렌더러 앞에 변환 층을 둘지 결정 필요. 같은 충돌이 [Presentation 노드 공통 §미결 사항](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#미결-사항) 에도 올라 있다.
 - **버튼 달린 Template 의 입력 대기 처리**: Template 도 버튼이 있으면 블로킹 대기로 들어가지만([Template 노드](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md)), 위 buttons 대기 행과 CCH-MP-04 는 시각형 앞 메시지를 carousel·table·chart 로만 열거한다. 현재 구현(Telegram 렌더러)은 template 도 처리한다. buttons 행과 CCH-MP-04 에 template 을 더할지 결정 필요. 같은 충돌이 [Template 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md#미결-사항) 에도 올라 있다.
 - **Form 필드 `description`**: 다단계 질문의 둘째 줄과 Discord 모달 placeholder 가 `field.description` 을 쓰지만 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 의 필드 정의와 `formFieldSchema` 에는 없다. 현재 구현은 스키마 passthrough 로 통과한 값을 `form-mode.ts` 가 읽는다. 설정 화면에서 넣을 방법도 없다. 정식 필드로 둘지 프로바이더 문서에서 뺄지 결정 필요.
-- **`revokeBotToken` 호출 시점**: 인터페이스 원문은 호출자를 `TriggersService.rotateBotToken` 으로, v2 토큰을 새 토큰으로 적어 재발급 시점에 이전 토큰을 revoke 한다고 읽힌다. [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 과 현재 구현(`cleanupRotatedChatChannelTokens`)은 24시간 유예가 끝난 정리 작업에서 v2 토큰을 revoke 한다. 즉시 revoke 하면 유예가 의미를 잃는다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 결정 필요.
 - **`revokeBotToken` 이 `code` 를 던지는지**: 실패 판별 절은 `revokeBotToken` 도 `BOT_TOKEN_INVALID` 를 실어 던진다고 적었고, 인터페이스와 함수 책임 표는 내부 에러를 흡수해 호출자에 전파하지 않는다고 적었다. 흡수로 정리해 판별 대상에서 뺄지 결정 필요.
 - **`sendMessage` 의 중복 제거 책임**: 원문은 "호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 중복을 거른다" 고 적었다. 어댑터는 서버 안 `executionEvents$` 를 받아 웹훅 헤더가 없고, 현재 구현(chat-channel 모듈)에서 해당 헤더 참조는 0건이며 `seq` 는 전달만 된다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 결정 필요.
 - **`WORKER_HEARTBEAT_TIMEOUT` 분류**: EIA 는 `execution.failed` 가 `WORKER_HEARTBEAT_TIMEOUT` 을 실을 수 있다고 적었지만 분류 표에 없어 매번 알 수 없는 코드(`executionFailedInternal` 과 warn 로그)로 처리된다. timeout 이나 internal 행을 더할지 결정 필요.
@@ -660,6 +673,26 @@ R4 가 예고한 "네이티브 UI 분기" 를 실현한 것이다. capability(`s
 `code` 가 나은 이유는 컴파일러와 리팩터링 도구가 볼 수 있어서다. 문자열 접두는 오타, 번역, 문구 정리에 조용히 깨지고 깨졌다는 신호도 없다.
 
 변경 관리의 "모든 구체 어댑터 문서를 함께 고친다" 는 "영향받는 모든" 으로 읽는다. 이 결정은 프로바이더 문서 가운데 Slack 만 고쳤다. Slack 의 실패 응답 모양(HTTP 200 과 `{ok:false}`)이 이 결정의 실질 동기인데 문서에 없었기 때문이다. [setupChannel 멱등의 뜻](#setupchannel-멱등의-뜻) 도 Telegram 문서 하나만 고친 선례가 있다.
+
+### R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다
+
+이전 봇 토큰의 외부 폐기(`revokeBotToken`, Slack `auth.revoke`)는 24시간 유예가 끝난 정리 작업 `TriggersService.cleanupRotatedChatChannelTokens` 가 부른다. 이 작업은 `ChatChannelTokenRotatorService` 가 매시간 돌린다. 폐기 대상은 재발급 때 v2 참조(`bot-token.v2`)에 백업해 둔 이전 토큰이다. 재발급(`TriggersService.rotateBotToken`) 시점에는 폐기하지 않는다.
+
+유예를 두는 목적은 재발급 직후에도 이전 토큰으로 진행 중인 요청이 끝까지 처리되게 하는 것이다. 이 목적과 맞는 폐기 시점은 유예가 끝난 뒤뿐이다.
+
+기각한 대안은 재발급 즉시 폐기다. 그러면 24시간 유예 동안 이전 토큰으로 진행 중이던 요청이 실패한다. 유예를 둔 의미가 없어진다.
+
+인터페이스 원문은 호출자를 `TriggersService.rotateBotToken` 으로, v2 토큰을 새 토큰으로 적었다. 그래서 재발급 시점에 이전 토큰을 즉시 폐기한다고 읽혔다. [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 과 현재 구현(`cleanupRotatedChatChannelTokens` → `tryRevokeOldBotToken`)은 유예가 끝난 정리 작업에서 폐기한다. 2026-11-06 에 구현 쪽으로 정하고 미결 항목을 닫았다. 코드 동작은 바꾸지 않았다. 출처는 NERV Task `CLE-T-D41BY6` 와 리뷰 발견 `01a0e596-b8dd-74bb-904b-76b68a4177a6` 이다.
+
+### R-CCA-11 클라이언트 실패는 ok:false 표지로 판정한다
+
+프로바이더 API 클라이언트는 실패를 `ok: false` 표지로 돌려주고 어댑터는 그 표지로 실패를 판정한다. 프로바이더 원본 응답 필드(Discord 숫자 `code`)가 있는지로 판정하지 않는다. 실패한 `sendMessage` 는 throw 하고 `setupChannel` 의 하위 호출 실패는 `setupChannel` 실패다([클라이언트 실패 판정](#클라이언트-실패-판정)).
+
+결함은 Discord 에서 드러났다. Discord 클라이언트(`discord-client.ts` `call()`)는 3회 시도를 다 쓴 실패(fetch 예외, 429 소진, 5xx)를 `{ ok: false, message }` 로 돌려주고 Discord 원본 숫자 `code` 를 싣지 않는다. 어댑터는 `code` 가 있는지로 실패를 판정했다. 그래서 네트워크 단절이나 5xx 뒤의 `sendMessage` 가 성공으로 처리되고 `chat_channel_health` 가 `degraded` 가 되지 않았다. [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-031 · 032 위반이다. `setupChannel` 은 실제 원인 대신 고정 문구 `Discord application 응답에 id 누락` 을 던졌다. slash command 일괄 등록은 결과를 보지 않아 등록 실패가 정상 설정으로 보였다.
+
+기각한 대안은 클라이언트가 합성 실패에 가짜 숫자 `code` 를 싣는 것이다. 어댑터 판정을 그대로 두고 결함을 막을 수는 있다. 하지만 Discord 원본 `code` 네임스페이스에 우리가 만든 값이 섞인다. 그러면 「setupChannel 실패 판별」 의 `code` 네 가지 뜻 가운데 세 번째(프로바이더 원본 응답 필드)의 뜻이 흐려진다. `ok` 는 Slack·Telegram 클라이언트가 이미 쓰는 표지라 세 프로바이더의 판정 방식도 하나로 맞는다.
+
+출처는 NERV Task `CLE-T-KX2Q2N` 과 점검 Task `CLE-T-H0GF4K` 다.
 
 ### R-CC-11 uiMapping.visualNode 를 세 값으로 바꾼다
 
