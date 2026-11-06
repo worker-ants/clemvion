@@ -1584,6 +1584,27 @@ describe('IntegrationOAuthService — Cafe24', () => {
       );
     });
 
+    // `app_type` 이 빈 행은 `public` 으로 간주하지 않는다. 그런 행은 `:id/reauthorize` 가 넘기는 메타도 begin 입력 검증에서
+    // 먼저 거절되므로, 이 대조가 UI 흐름을 새로 막지는 않는다.
+    it('대상 통합에 credentials.app_type 이 없으면 Public 본문도 400 OAUTH_TARGET_MISMATCH', async () => {
+      const target = buildFakeCafe24Integration({
+        id: 'target',
+        mallId: 'shop-a',
+        appType: 'public',
+      });
+      delete (target.credentials as Record<string, unknown>).app_type;
+      integrationRepo.findOne.mockResolvedValue(target);
+
+      await expectTargetMismatch(
+        service.begin(
+          nonNewParams('reauthorize', {
+            mall_id: 'shop-a',
+            app_type: 'public',
+          }),
+        ),
+      );
+    });
+
     // 견줄 값은 `:id/reauthorize` · `:id/request-scopes` 가 넘기는 값과 같은 `credentials.mall_id` 다. 평문 `mall_id`
     // 컬럼이 빈 옛 행도 credentials 값이 같으면 통과한다.
     it('mall_id 컬럼이 빈 옛 행도 credentials.mall_id 가 같으면 state 를 만든다', async () => {
