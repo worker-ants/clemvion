@@ -80,6 +80,7 @@ import {
   ExecutionContext,
   NodeHandler,
   NodeHandlerOutput,
+  ParallelBranchContext,
 } from '../../nodes/core/node-handler.interface';
 import { mockOutput } from './__test__/mock-output';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
@@ -7410,18 +7411,39 @@ describe('ExecutionEngineService', () => {
           targetNodeId: 'p3',
         },
       ];
+      const internals = service as unknown as {
+        planParallelBody: (
+          parallelNode: unknown,
+          graph: unknown,
+          forwardEdges: unknown[],
+          backEdges: unknown[],
+          branchCount: number,
+          currentDepth: 1 | 2,
+        ) => unknown;
+        buildParallelCheckGraph: (
+          allNodes: unknown[],
+          allEdges: unknown[],
+        ) => unknown;
+      };
+      // 이 테스트의 연결선은 실행 그래프의 순방향 연결선이다. 컨테이너가 없으므로 검사
+      // 그래프에는 노드만 넣는다.
       const planParallelBody = (
-        service as unknown as {
-          planParallelBody: (
-            parallelNode: unknown,
-            allNodes: unknown[],
-            forwardEdges: unknown[],
-            backEdges: unknown[],
-            branchCount: number,
-            currentDepth: 1 | 2,
-          ) => unknown;
-        }
-      ).planParallelBody.bind(service);
+        parallelNode: unknown,
+        allNodes: unknown[],
+        forwardEdges: unknown[],
+        backEdges: unknown[],
+        branchCount: number,
+        currentDepth: 1 | 2,
+      ) =>
+        internals.planParallelBody.call(
+          service,
+          parallelNode,
+          internals.buildParallelCheckGraph.call(service, allNodes, []),
+          forwardEdges,
+          backEdges,
+          branchCount,
+          currentDepth,
+        );
 
       // depth=2 분기 body 에 또 Parallel → throw.
       expect(() =>
@@ -16681,6 +16703,439 @@ describe('ExecutionEngineService', () => {
             expect(failedMessages).toEqual([
               expect.stringMatching(/^PARALLEL_INVALID_CHILD: /),
             ]);
+          });
+        });
+      });
+
+      // CLE-T-0DGHGF — 컨테이너 본문 루프와 동기 서브 워크플로우 루프도 Parallel 을 엔진의
+      // Parallel 실행 경로로 넘긴다. 고치기 전에는 두 루프가 Parallel 핸들러만 실행했다.
+      // 핸들러가 연 branch_N 포트로 병렬 분기 노드를 차례로 실행했고 done 포트는 열리지
+      // 않았다(PARALLEL_ENGINE=off 와 같은 모양).
+      describe('컨테이너 본문 · 동기 서브 워크플로우 안의 Parallel (CLE-T-0DGHGF)', () => {
+        const recordRuns = (ids: string[]) => {
+          const runs: string[] = [];
+          const inputs: Record<string, unknown[]> = {};
+          for (const id of ids) {
+            registerHandler(`${id}_node`, async (input) => {
+              runs.push(id);
+              (inputs[id] ??= []).push(input);
+              return mockOutput({ from: id });
+            });
+          }
+          return { runs, inputs };
+        };
+        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다.
+        const structuredOf = (nodeId: string) => {
+          const matched = structuredSpy.mock.calls.filter(
+            (call: unknown[]) => call[1] === nodeId,
+          );
+          return matched.length > 0
+            ? (matched[matched.length - 1][2] as Record<string, unknown>)
+            : undefined;
+        };
+        const inFe = (node: Partial<Node>): Partial<Node> => ({
+          ...node,
+          containerId: 'fe',
+        });
+        const emitFrom = (source: string): Partial<Edge> => ({
+          ...pEdge(source, 'out', 'fe'),
+          targetPort: 'emit',
+        });
+        // src → fe(ForEach, 아이템 두 개). 본문은 테스트마다 넘긴다.
+        const foreachWithBody = (
+          body: { nodes: Partial<Node>[]; edges: Partial<Edge>[] },
+          foreachConfig: Record<string, unknown> = {},
+        ) => {
+          handlerRegistry.register('foreach', new ForEachHandler(), {
+            kind: 'container',
+          });
+          registerHandler('items_node', async () =>
+            mockOutput({ items: [{ n: 1 }, { n: 2 }] }),
+          );
+          return {
+            nodes: [
+              pNode('src', 'items_node'),
+              pNode('fe', 'foreach', { arrayField: 'items', ...foreachConfig }),
+              ...body.nodes.map(inFe),
+            ],
+            edges: [pEdge('src', 'out', 'fe'), ...body.edges],
+          };
+        };
+        // 본문: cpar.branch_0 → a, cpar.branch_1 → b, cpar.done → after → emit
+        const parallelBody = (cparConfig: Record<string, unknown> = {}) => ({
+          nodes: [
+            pNode('cpar', 'parallel', { branchCount: 2, ...cparConfig }),
+            pNode('a', 'a_node'),
+            pNode('b', 'b_node'),
+            pNode('after', 'after_node'),
+          ],
+          edges: [
+            pEdge('fe', 'body', 'cpar'),
+            pEdge('cpar', 'branch_0', 'a'),
+            pEdge('cpar', 'branch_1', 'b'),
+            pEdge('cpar', 'done', 'after'),
+            emitFrom('after'),
+          ],
+        });
+        // trigger → src 로 시작하는 그래프를 실행한다. 실행을 실패로 마감했으면 그 메시지를
+        // 돌려준다.
+        const runFromTrigger = async (
+          nodes: Partial<Node>[],
+          edges: Partial<Edge>[],
+        ) => {
+          const failSpy = jest.spyOn(
+            service as unknown as {
+              finalizeFailedExecution: (...args: unknown[]) => Promise<void>;
+            },
+            'finalizeFailedExecution',
+          );
+          try {
+            mockNodeRepo.findBy.mockResolvedValue([
+              pNode('trigger', 'test_node'),
+              ...nodes,
+            ]);
+            mockEdgeRepo.findBy.mockResolvedValue([
+              pEdge('trigger', 'out', 'src'),
+              ...edges,
+            ]);
+            await service.execute(
+              workflowId,
+              { start: true },
+              { workspaceId: 'ws-1' },
+            );
+            await flushPromises();
+            return failSpy.mock.calls.map(
+              (call: unknown[]) => (call[1] as Error).message,
+            );
+          } finally {
+            failSpy.mockRestore();
+          }
+        };
+
+        describe('컨테이너 본문', () => {
+          it('ForEach 본문 안 Parallel 이 회차마다 병렬 분기를 실행하고 done 뒤 노드가 완료 출력을 받는다', async () => {
+            const { runs, inputs } = recordRuns(['a', 'b', 'after']);
+            const g = foreachWithBody(parallelBody());
+            await runFromTrigger(
+              [...g.nodes, pNode('sink', 'sink_node')],
+              [...g.edges, pEdge('fe', 'done', 'sink')],
+            );
+
+            expect([...runs].sort()).toEqual([
+              'a',
+              'a',
+              'after',
+              'after',
+              'b',
+              'b',
+            ]);
+            // 병렬 분기 입력은 회차 아이템이다.
+            expect(inputs.a).toEqual([{ n: 1 }, { n: 2 }]);
+            const done = { branches: [{ from: 'a' }, { from: 'b' }], count: 2 };
+            expect(inputs.after).toEqual([done, done]);
+            expect(structuredOf('cpar')).toEqual(
+              expect.objectContaining({ output: done, port: 'done' }),
+            );
+            expect(doneReceived).toEqual([
+              { items: [{ from: 'after' }, { from: 'after' }], count: 2 },
+            ]);
+          });
+
+          it('병렬 분기 노드는 바깥 ForEach 의 반복 변수를 읽는다 (REQ-PARALLEL-009)', async () => {
+            const seenItems: unknown[] = [];
+            handlerRegistry.register('a_node', {
+              validate: () => ({ valid: true, errors: [] }),
+              execute: jest.fn(
+                async (
+                  _input: unknown,
+                  _cfg: unknown,
+                  ctx: ExecutionContext,
+                ) => {
+                  seenItems.push(ctx.itemContext?.item);
+                  return mockOutput({ from: 'a' });
+                },
+              ) as NodeHandler['execute'],
+            });
+            recordRuns(['b', 'after']);
+            const g = foreachWithBody(parallelBody());
+            await runFromTrigger(g.nodes, g.edges);
+
+            expect(seenItems).toEqual([{ n: 1 }, { n: 2 }]);
+          });
+
+          it('emit 원천이 병렬 분기 안 노드여도 회차 결과를 모은다', async () => {
+            recordRuns(['a', 'b']);
+            const g = foreachWithBody({
+              nodes: [
+                pNode('cpar', 'parallel', { branchCount: 2 }),
+                pNode('a', 'a_node'),
+                pNode('b', 'b_node'),
+              ],
+              edges: [
+                pEdge('fe', 'body', 'cpar'),
+                pEdge('cpar', 'branch_0', 'a'),
+                pEdge('cpar', 'branch_1', 'b'),
+                emitFrom('a'),
+              ],
+            });
+            await runFromTrigger(
+              [...g.nodes, pNode('sink', 'sink_node')],
+              [...g.edges, pEdge('fe', 'done', 'sink')],
+            );
+
+            expect(doneReceived).toEqual([
+              { items: [{ from: 'a' }, { from: 'a' }], count: 2 },
+            ]);
+          });
+
+          it('병렬 분기 안 ForEach 의 본문 Parallel 은 바깥 병렬 분기 깊이를 이어받아 곱 상한 32 를 따른다 (REQ-PARALLEL-025)', async () => {
+            recordRuns(['a', 'b', 'after', 'd']);
+            const g = foreachWithBody(parallelBody({ maxConcurrency: 4 }));
+            await runGraph(
+              { maxConcurrency: 16 },
+              [...g.nodes, pNode('d', 'd_node')],
+              [
+                pEdge('par', 'branch_0', 'src'),
+                ...g.edges,
+                pEdge('par', 'branch_1', 'd'),
+              ],
+            );
+
+            // 16 × 4 = 64 > 32 → 안쪽은 max(1, floor(32 / 16)) = 2.
+            expect(structuredOf('cpar')).toEqual(
+              expect.objectContaining({
+                port: 'done',
+                meta: {
+                  clampedConcurrency: {
+                    intended: 4,
+                    actual: 2,
+                    parentEffective: 16,
+                    cap: 32,
+                  },
+                },
+              }),
+            );
+          });
+
+          it('병렬 분기 안 ForEach 본문에서 깊이 3 이 되는 Parallel 은 바깥 병렬 분기를 시작하기 전에 실행을 실패시킨다 (REQ-PARALLEL-024)', async () => {
+            const { runs } = recordRuns(['x', 'y', 'd']);
+            // par(1).branch_0 → src → fe → 본문 cpar(2).branch_0 → cpar3(3) → x
+            const g = foreachWithBody({
+              nodes: [
+                pNode('cpar', 'parallel', { branchCount: 2 }),
+                pNode('cpar3', 'parallel', { branchCount: 2 }),
+                pNode('x', 'x_node'),
+                pNode('y', 'y_node'),
+              ],
+              edges: [
+                pEdge('fe', 'body', 'cpar'),
+                pEdge('cpar', 'branch_0', 'cpar3'),
+                pEdge('cpar3', 'branch_0', 'x'),
+                pEdge('cpar', 'branch_1', 'y'),
+                emitFrom('y'),
+              ],
+            });
+            const failSpy = jest.spyOn(
+              service as unknown as {
+                finalizeFailedExecution: (...args: unknown[]) => Promise<void>;
+              },
+              'finalizeFailedExecution',
+            );
+            try {
+              await runGraph(
+                { errorPolicy: 'continue' },
+                [...g.nodes, pNode('d', 'd_node'), pNode('sink', 'sink_node')],
+                [
+                  pEdge('par', 'branch_0', 'src'),
+                  ...g.edges,
+                  pEdge('par', 'branch_1', 'd'),
+                  pEdge('par', 'done', 'sink'),
+                ],
+              );
+
+              // 바깥 항목 에러 정책이 continue 라도 바깥 병렬 분기 1 의 d 가 실행되지 않는다.
+              expect(runs).toEqual([]);
+              expect(doneReceived).toEqual([]);
+              expect(
+                failSpy.mock.calls.map(
+                  (call: unknown[]) => (call[1] as Error).message,
+                ),
+              ).toEqual([
+                expect.stringMatching(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /),
+              ]);
+            } finally {
+              failSpy.mockRestore();
+            }
+          });
+
+          it('ForEach 본문의 깊이 위반은 회차를 시작하기 전에 실행을 실패시켜 ForEach 의 continue 가 흡수하지 않는다 (REQ-PARALLEL-024)', async () => {
+            const { runs } = recordRuns(['x', 'y']);
+            // 본문 cpar(1).branch_0 → cpar2(2).branch_0 → cpar3(3) → x
+            const g = foreachWithBody(
+              {
+                nodes: [
+                  pNode('cpar', 'parallel', { branchCount: 2 }),
+                  pNode('cpar2', 'parallel', { branchCount: 2 }),
+                  pNode('cpar3', 'parallel', { branchCount: 2 }),
+                  pNode('x', 'x_node'),
+                  pNode('y', 'y_node'),
+                ],
+                edges: [
+                  pEdge('fe', 'body', 'cpar'),
+                  pEdge('cpar', 'branch_0', 'cpar2'),
+                  pEdge('cpar2', 'branch_0', 'cpar3'),
+                  pEdge('cpar3', 'branch_0', 'x'),
+                  pEdge('cpar', 'branch_1', 'y'),
+                  emitFrom('y'),
+                ],
+              },
+              { errorPolicy: 'continue' },
+            );
+            const failedMessages = await runFromTrigger(
+              [...g.nodes, pNode('sink', 'sink_node')],
+              [...g.edges, pEdge('fe', 'done', 'sink')],
+            );
+
+            expect(runs).toEqual([]);
+            expect(doneReceived).toEqual([]);
+            expect(failedMessages).toEqual([
+              expect.stringMatching(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /),
+            ]);
+          });
+
+          it('PARALLEL_ENGINE=off 이면 컨테이너 본문 Parallel 은 지금처럼 병렬 분기 노드를 차례로 실행하고 완료 출력을 만들지 않는다', async () => {
+            mockConfigService.get.mockImplementation(
+              (key: string, defaultValue?: unknown) => {
+                if (key === 'PARALLEL_ENGINE') return 'off';
+                if (key === 'MAX_NODE_ITERATIONS') return 100;
+                return defaultValue;
+              },
+            );
+            const { runs, inputs } = recordRuns(['a', 'b', 'after']);
+            const g = foreachWithBody(parallelBody());
+            await runFromTrigger(g.nodes, g.edges);
+
+            // 메인 루프의 되돌림 경로와 같다. done 뒤 노드도 회차마다 위상 순서대로
+            // 실행되지만 완료 출력(branches · count)이 아니라 Parallel 자신의 출력을 받는다.
+            expect([...runs].sort()).toEqual([
+              'a',
+              'a',
+              'after',
+              'after',
+              'b',
+              'b',
+            ]);
+            expect(inputs.after).toHaveLength(2);
+            for (const input of inputs.after) {
+              expect(input).not.toHaveProperty('branches');
+            }
+            expect(structuredOf('cpar')).toMatchObject({
+              output: null,
+              port: ['branch_0', 'branch_1'],
+            });
+          });
+        });
+
+        describe('동기 서브 워크플로우', () => {
+          const runInline = async (
+            nodes: Partial<Node>[],
+            edges: Partial<Edge>[],
+            prepare: (ctx: ExecutionContext) => void = () => undefined,
+          ) => {
+            mockNodeRepo.findBy.mockResolvedValue(nodes);
+            mockEdgeRepo.findBy.mockResolvedValue(edges);
+            const contextService = (
+              service as unknown as { contextService: ExecutionContextService }
+            ).contextService;
+            const context = withWorkspace(
+              contextService.createContext(executionId, workflowId),
+            );
+            prepare(context);
+            const result = await service.executeInline(
+              workflowId,
+              { start: true },
+              {
+                executionId,
+                context,
+                executedNodes: new Set<string>(),
+                recursionDepth: 1,
+              },
+            );
+            return { result, context };
+          };
+
+          it('서브 워크플로우 안 Parallel 이 병렬 분기를 실행하고 done 뒤 노드가 완료 출력을 받는다', async () => {
+            const { runs, inputs } = recordRuns(['a', 'b', 'after']);
+            const { result } = await runInline(
+              [
+                pNode('spar', 'parallel', { branchCount: 2 }),
+                pNode('a', 'a_node'),
+                pNode('b', 'b_node'),
+                pNode('after', 'after_node'),
+              ],
+              [
+                pEdge('spar', 'branch_0', 'a'),
+                pEdge('spar', 'branch_1', 'b'),
+                pEdge('spar', 'done', 'after'),
+              ],
+            );
+
+            expect([...runs].sort()).toEqual(['a', 'after', 'b']);
+            expect(inputs.after).toEqual([
+              { branches: [{ from: 'a' }, { from: 'b' }], count: 2 },
+            ]);
+            expect(result).toEqual({ from: 'after' });
+          });
+
+          it('병렬 분기 안에서 불러도 서브 워크플로우의 Parallel 깊이는 새로 센다', async () => {
+            const { runs } = recordRuns(['a', 'b', 'c']);
+            // spar(1).branch_0 → spar2(2) → [a, b], spar.branch_1 → c. 호출한 쪽 깊이를
+            // 이어받으면 spar 가 깊이 2 가 되어 spar2 에서 깊이 초과로 실패한다.
+            const { context } = await runInline(
+              [
+                pNode('spar', 'parallel', {
+                  branchCount: 2,
+                  maxConcurrency: 16,
+                }),
+                pNode('spar2', 'parallel', {
+                  branchCount: 2,
+                  maxConcurrency: 4,
+                }),
+                pNode('a', 'a_node'),
+                pNode('b', 'b_node'),
+                pNode('c', 'c_node'),
+              ],
+              [
+                pEdge('spar', 'branch_0', 'spar2'),
+                pEdge('spar2', 'branch_0', 'a'),
+                pEdge('spar2', 'branch_1', 'b'),
+                pEdge('spar', 'branch_1', 'c'),
+              ],
+              (ctx) => {
+                (ctx as ParallelBranchContext).parentParallelConcurrency = 16;
+              },
+            );
+
+            expect([...runs].sort()).toEqual(['a', 'b', 'c']);
+            // spar 는 맨 바깥(깊이 1)이라 줄이지 않는다. spar2 는 spar 의 동시 실행 수를
+            // 기준으로 줄인다(16 × 4 = 64 > 32).
+            expect(structuredOf('spar')).not.toHaveProperty('meta');
+            expect(structuredOf('spar2')).toEqual(
+              expect.objectContaining({
+                meta: {
+                  clampedConcurrency: {
+                    intended: 4,
+                    actual: 2,
+                    parentEffective: 16,
+                    cap: 32,
+                  },
+                },
+              }),
+            );
+            // 호출한 쪽 컨텍스트의 값은 되돌려 놓는다.
+            expect(
+              (context as ParallelBranchContext).parentParallelConcurrency,
+            ).toBe(16);
           });
         });
       });

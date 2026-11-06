@@ -121,9 +121,12 @@ export class ParallelExecutor {
 
   /**
    * @param config — Parallel node config (branchCount, maxConcurrency, waitAll, errorPolicy).
-   * @param context — Shared execution context. Each branch receives a shallow clone
-   *   that clears `itemContext` / `loopContext` so inner ForEach/Loop containers
-   *   do not leak state across branches.
+   * @param context — Shared execution context. Each branch receives a shallow clone.
+   *   `itemContext` · `loopContext` 는 부모 컨텍스트 값을 그대로 이어받는다
+   *   (REQ-PARALLEL-009, CLE-T-0DGHGF). 컨테이너 본문 안 Parallel 의 병렬 분기 노드가 바깥
+   *   반복 변수(`$item` · `$loop`)를 읽어야 하기 때문이다. 병렬 분기마다 객체가 따로라서
+   *   병렬 분기 안 ForEach · Loop 가 두 필드를 다시 대입해도 다른 병렬 분기와 부모에 새지
+   *   않는다(두 실행기는 필드를 새 객체로 대입하고 끝나면 되돌린다).
    * @param runBranch — Engine-provided branch runner. Takes the 0-based branch
    *   index and the branch-scoped {@link ParallelBranchContext}; resolves when the
    *   branch body completes.
@@ -242,8 +245,6 @@ export class ParallelExecutor {
             structuredOutputCache: freezeSharedCacheValues({
               ...context.structuredOutputCache,
             }),
-            itemContext: undefined,
-            loopContext: undefined,
             // 결정 G: 내부 Parallel 이 자기 effective 를 clamp 하기 위해
             // 외부 effective 를 전파. 깊이 ≤ 2 가드 (planParallelBody) 하에서
             // 한 단계만 누적되므로 단순 set (overwrite).

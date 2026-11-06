@@ -21,8 +21,8 @@ describe('ParallelExecutor', () => {
     engineResolvedConfigCache: {},
     conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
-    itemContext: { item: 'stale', index: 99, isFirst: false, isLast: false },
-    loopContext: { index: 99, count: 99, isFirst: false, isLast: false },
+    itemContext: { item: 'outer', index: 3, isFirst: false, isLast: false },
+    loopContext: { index: 5, count: 9, isFirst: false, isLast: false },
   };
 
   beforeEach(() => {
@@ -44,34 +44,45 @@ describe('ParallelExecutor', () => {
     expect(result.failures.length).toBe(0);
   });
 
-  it('should run 3 branches and clear itemContext/loopContext per branch', async () => {
-    const received: Array<{
-      branchIndex: number;
-      hasItem: boolean;
-      hasLoop: boolean;
-    }> = [];
+  // CLE-T-0DGHGF — 컨테이너 본문 안 Parallel 의 병렬 분기 노드가 바깥 반복 변수
+  // (`$item` · `$loop`)를 읽도록 병렬 분기 컨텍스트가 두 필드를 이어받는다
+  // (REQ-PARALLEL-009). 병렬 분기 컨텍스트는 객체가 따로라서 병렬 분기 안
+  // ForEach · Loop 가 필드를 다시 대입해도 다른 병렬 분기와 원래 컨텍스트는 그대로다.
+  it('병렬 분기 컨텍스트는 바깥 itemContext · loopContext 를 이어받고 병렬 분기 안에서 다시 대입해도 다른 병렬 분기에 새지 않는다', async () => {
+    const outerItem = baseContext.itemContext;
+    const outerLoop = baseContext.loopContext;
+    const seen: Array<{ item: unknown; loop: unknown }> = [];
 
+    // maxConcurrency 1 이라 병렬 분기가 차례로 돈다. 컨텍스트를 함께 쓰면 뒤 병렬
+    // 분기가 앞 병렬 분기가 대입한 값을 본다.
     await executor.execute(
-      { branchCount: 3, maxConcurrency: 0, waitAll: true },
+      { branchCount: 3, maxConcurrency: 1, waitAll: true },
       baseContext,
       async (branchIndex, branchCtx) => {
-        received.push({
-          branchIndex,
-          hasItem: branchCtx.itemContext !== undefined,
-          hasLoop: branchCtx.loopContext !== undefined,
-        });
+        seen.push({ item: branchCtx.itemContext, loop: branchCtx.loopContext });
+        branchCtx.itemContext = {
+          item: `branch-${branchIndex}`,
+          index: branchIndex,
+          isFirst: true,
+          isLast: true,
+        };
+        branchCtx.loopContext = {
+          index: branchIndex,
+          count: 1,
+          isFirst: true,
+          isLast: true,
+        };
       },
       undefined,
     );
 
-    expect(received.length).toBe(3);
-    for (const r of received) {
-      expect(r.hasItem).toBe(false);
-      expect(r.hasLoop).toBe(false);
-    }
-    // Original context not mutated
-    expect(baseContext.itemContext).toBeDefined();
-    expect(baseContext.loopContext).toBeDefined();
+    expect(seen).toEqual([
+      { item: outerItem, loop: outerLoop },
+      { item: outerItem, loop: outerLoop },
+      { item: outerItem, loop: outerLoop },
+    ]);
+    expect(baseContext.itemContext).toBe(outerItem);
+    expect(baseContext.loopContext).toBe(outerLoop);
   });
 
   // refactor 06-concurrency M-5 — dev/test 환경에서 branch 의 공유 nodeOutputCache
