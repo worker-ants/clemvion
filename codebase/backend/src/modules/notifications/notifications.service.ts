@@ -8,6 +8,7 @@ import { QueryNotificationDto } from './dto/query-notification.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 import { NotificationSettingsDto } from './dto/responses/notification-settings-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { pickSortColumn } from '../../common/utils/list-sort';
 import { WebsocketService } from '../websocket/websocket.service';
 import { MailService } from '../mail/mail.service';
 
@@ -530,6 +531,6 @@ export class NotificationsService {
       created_at: 'created_at',
       type: 'type',
     };
-    return allowed[sort] || 'created_at';
+    return pickSortColumn(allowed, sort, 'created_at');
   }
 }

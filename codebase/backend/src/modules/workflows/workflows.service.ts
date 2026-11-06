@@ -26,6 +26,7 @@ import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import { pickSortColumn } from '../../common/utils/list-sort';
 import {
   assertReferenceInScope,
   type InvalidReference,
@@ -1467,6 +1468,6 @@ export class WorkflowsService {
       updated_at: 'updated_at',
       name: 'name',
     };
-    return allowed[sort] || 'created_at';
+    return pickSortColumn(allowed, sort, 'created_at');
   }
 }

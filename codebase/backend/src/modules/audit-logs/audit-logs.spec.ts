@@ -80,6 +80,21 @@ describe('AuditLogsService.findAll — 필터 (Spec Auth §4.2)', () => {
     expect(clauses).not.toContain('al.user_id = :userId');
   });
 
+  it('허용 sort=action 은 al.action 으로 정렬한다', async () => {
+    await service.findAll('ws-1', { sort: 'action', order: 'asc' } as never);
+    expect(qb.orderBy).toHaveBeenCalledWith('al.action', 'ASC');
+  });
+
+  // CLE-T-FXJ9CF: DTO 정규식을 통과하는 Object 내장 이름이다. 평범한 객체 조회는 이 값에서 내장 함수를
+  // 돌려줘 폴백을 건너뛰고 함수 소스 문자열을 ORDER BY 에 넣었다.
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
+    'Object 내장 이름 sort=%s 는 al.created_at 으로 폴백하고 방향은 지킨다',
+    async (sort) => {
+      await service.findAll('ws-1', { sort, order: 'asc' } as never);
+      expect(qb.orderBy).toHaveBeenCalledWith('al.created_at', 'ASC');
+    },
+  );
+
   /**
    * 이 컨트롤러는 엔티티를 그대로 반환하므로, join 이 `User` 를 통째로 실으면 그대로
    * 응답에 나간다 — 실제로 `passwordHash`·`totpRecoveryCodes`·`webauthnRecoveryCodes`·

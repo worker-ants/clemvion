@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { pickSortColumn } from '../../common/utils/list-sort';
 import { AuditAction } from './audit-action.const';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import type { User } from '../users/entities/user.entity';
@@ -154,6 +155,6 @@ export class AuditLogsService {
       action: 'action',
       resource_type: 'resource_type',
     };
-    return allowed[sort] || 'created_at';
+    return pickSortColumn(allowed, sort, 'created_at');
   }
 }

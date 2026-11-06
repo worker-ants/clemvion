@@ -387,6 +387,18 @@ describe('ExecutionsService', () => {
       expect(listQB3.orderBy).toHaveBeenCalledWith('e.finishedAt', 'DESC');
     });
 
+    // CLE-T-FXJ9CF: DTO 정규식을 통과하는 Object 내장 이름이다. 평범한 객체 조회는 이 값에서 내장 함수를
+    // 돌려줘 폴백을 건너뛰고 함수 소스 문자열을 ORDER BY 에 넣었다.
+    it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
+      'Object 내장 이름 sort=%s 는 e.startedAt 으로 폴백하고 방향은 지킨다',
+      async (sort) => {
+        const listQB = buildListQB([baseFake({ id: 'eb' })]);
+        executionRepo.createQueryBuilder.mockReturnValueOnce(listQB as unknown);
+        await service.findByWorkflow('w1', { sort, order: 'asc' });
+        expect(listQB.orderBy).toHaveBeenCalledWith('e.startedAt', 'ASC');
+      },
+    );
+
     it('falls back to triggerSource=unknown when triggerId is set but Trigger relation is missing', async () => {
       const row = baseFake({
         id: 'e4',

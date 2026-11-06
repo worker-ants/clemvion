@@ -16,6 +16,7 @@ import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
+import { pickSortColumn } from '../../common/utils/list-sort';
 import {
   acquireTriggerConfigLock,
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
@@ -144,7 +145,7 @@ export class SchedulesService {
       last_run_at: 's.last_run_at',
       name: 't.name',
     };
-    return allowed[sort] || 's.created_at';
+    return pickSortColumn(allowed, sort, 's.created_at');
   }
 
   async findById(id: string, workspaceId: string): Promise<Schedule> {
