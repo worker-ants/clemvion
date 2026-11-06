@@ -671,6 +671,123 @@ describe('MakeshopApiClient', () => {
       expect(repo.update).not.toHaveBeenCalled();
     });
 
+    // CLE-T-H9FQHR — 토큰 문제는 401 뿐이다. 5xx · 429 같은 상태는 갱신하지 않고
+    // 통합 상태도 바꾸지 않은 채 MAKESHOP_API_ERROR 로 돌려준다.
+    it.each([500, 429, 400])(
+      '1차 %i — MAKESHOP_API_ERROR, 갱신 없이 · 상태 격하 없이',
+      async (status) => {
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({ message: 'upstream trouble' }, { status }),
+        );
+        const integration = makeIntegration();
+
+        const result = await client.pingConnection(integration);
+
+        expect(result.success).toBe(false);
+        expect(result.code).toBe('MAKESHOP_API_ERROR');
+        expect(result.message).toContain(`returned ${status}`);
+        expect(result.message).toContain('myshop');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    function mock401ThenRefresh(integration: Integration): void {
+      txFindOne.mockResolvedValue({ ...integration });
+      fetchMock
+        .mockResolvedValueOnce(
+          makeJsonResponse({ error: 'expired' }, { status: 401 }),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            access_token: 'fresh-access',
+            refresh_token: 'fresh-refresh',
+            expires_in: 3600,
+          }),
+        );
+    }
+
+    it('401 → 갱신 → 200 — 성공, 상태는 건드리지 않는다', async () => {
+      const integration = makeIntegration();
+      mock401ThenRefresh(integration);
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ shop_uid: 'myshop' }));
+
+      const result = await client.pingConnection(integration);
+
+      expect(result).toEqual({ success: true });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(
+        (fetchMock.mock.calls[2][1] as RequestInit).headers as Record<
+          string,
+          string
+        >,
+      ).toMatchObject({ Authorization: 'Bearer fresh-access' });
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('401 → 갱신 → 다시 401 — MAKESHOP_AUTH_FAILED 와 상태 격하', async () => {
+      const integration = makeIntegration();
+      mock401ThenRefresh(integration);
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ error: 'still bad' }, { status: 401 }),
+      );
+
+      const result = await client.pingConnection(integration);
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('MAKESHOP_AUTH_FAILED');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+    });
+
+    it('401 → 갱신 → 재시도 403 — MAKESHOP_AUTH_FAILED, 상태 격하 없이 (1차 403 과 같다)', async () => {
+      const integration = makeIntegration();
+      mock401ThenRefresh(integration);
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ message: 'forbidden' }, { status: 403 }),
+      );
+
+      const result = await client.pingConnection(integration);
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('MAKESHOP_AUTH_FAILED');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it.each([500, 429])(
+      '401 → 갱신 → 재시도 %i — MAKESHOP_API_ERROR, 상태 격하 없이',
+      async (retryStatus) => {
+        const integration = makeIntegration();
+        mock401ThenRefresh(integration);
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse(
+            { message: 'upstream trouble' },
+            { status: retryStatus },
+          ),
+        );
+
+        const result = await client.pingConnection(integration);
+
+        expect(result.success).toBe(false);
+        expect(result.code).toBe('MAKESHOP_API_ERROR');
+        expect(result.message).toContain(`returned ${retryStatus}`);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          integration.id,
+          expect.objectContaining({ status: 'error' }),
+        );
+        expect(integration.status).toBe('connected');
+      },
+    );
+
     it('네트워크 실패 — MAKESHOP_TRANSPORT_FAILED, 던지지 않는다', async () => {
       fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
       const integration = makeIntegration();

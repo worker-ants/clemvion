@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH"
 title: "OAuth 연결과 토큰 갱신"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
-requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057", "REQ-INTOAUTH-058", "REQ-INTOAUTH-059", "REQ-INTOAUTH-060", "REQ-INTOAUTH-061", "REQ-INTOAUTH-062", "REQ-INTOAUTH-063", "REQ-INTOAUTH-064", "REQ-INTOAUTH-065", "REQ-INTOAUTH-066", "REQ-INTOAUTH-067", "REQ-INTOAUTH-068"]
+requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057", "REQ-INTOAUTH-058", "REQ-INTOAUTH-059", "REQ-INTOAUTH-060", "REQ-INTOAUTH-061", "REQ-INTOAUTH-062", "REQ-INTOAUTH-063", "REQ-INTOAUTH-064", "REQ-INTOAUTH-065", "REQ-INTOAUTH-066", "REQ-INTOAUTH-067", "REQ-INTOAUTH-068", "REQ-INTOAUTH-069", "REQ-INTOAUTH-070"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "b0e39a8cdae8c399d778922bafc6f43073cc28b0c3a55caa51a8c5ce787d23c8"
+content_hash: "8882d0d616ecfa356becdd33d1ec54a33346f769c4ed0ee4977f59d7dff5b0f6"
 read_as: "approved_fallback"
-task: "CLE-T-YMF05E"
+task: "CLE-T-909H23"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "e151a9ea660d5f37ea77a716537761214d343dc9c177b933903dc4b56fb42269"
-etag: "sha256-08560ef10d5f0af11d0589c756317e97a4d35c80a4a1a3d457f52565389f7b9d"
+mirror_sha256: "7f0b32f648c292029a3bf7110992e8d345d6c6d1c904238a2e496c9a62ef0a07"
+etag: "sha256-5bc9566428ebccda5a8214b2686791fc5d96dadc88ad6a1dbcda7bc919d2785a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -109,6 +109,8 @@ etag: "sha256-08560ef10d5f0af11d0589c756317e97a4d35c80a4a1a3d457f52565389f7b9d"
 - REQ-INTOAUTH-066 WHEN `oauth/begin` 이 설치 대기 행을 다시 쓰면 THE SYSTEM SHALL 그 행을 잠근 뒤 재사용 권한을 판정하고 같은 트랜잭션에서 덮어쓴다. MakeShop 은 같은 `(workspace_id, client_id)` 의 begin 을 트랜잭션 잠금으로 줄 세운다.
 - REQ-INTOAUTH-067 WHEN Cafe24 Private·MakeShop `oauth/begin` 이 설치 대기 행을 만들거나 다시 쓰면 THE SYSTEM SHALL 응답에 그 행의 공개 범위 `scope` 를 싣는다.
 - REQ-INTOAUTH-068 WHEN 중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복이 같은 상점의 Cafe24·MakeShop 통합을 찾으면 THE SYSTEM SHALL 설치 기한이 지나 만료된 행(`status='expired'`, `status_reason='install_timeout'`)을 빼고 찾는다. `mall_id` 컬럼이 비어 `credentials.mall_id` 로 상점을 맞추는 행도 같다.
+- REQ-INTOAUTH-069 IF 설치 엔드포인트 처리 중 에러 코드가 없고 `HttpException` 도 아닌 예외가 나면 THE SYSTEM SHALL 500 `CAFE24_INSTALL_FAILED`·`MAKESHOP_INSTALL_FAILED` 와 고정 문구로 답하고 예외 원문은 `requestId` 와 함께 서버 로그에만 남긴다.
+- REQ-INTOAUTH-070 WHEN 설치 엔드포인트가 실패로 답하면 THE SYSTEM SHALL JSON 본문과 HTML 페이지 모두에 응답마다 새로 발급한 `requestId` 를 싣는다.
 
 ## OAuth 연결 흐름
 
@@ -356,7 +358,9 @@ Redis 키 구성, TTL, 임계치·창 같은 상수, Redis 가 없을 때의 동
 
 회복 로그에서는 다른 테넌트의 통합 UUID 와 설치 토큰 prefix 를 빼고 `mall_id` 와 상태만 남긴다. 2개 이상 맞으면 `[cafe24-install-recovery] ambiguous: N rows passed HMAC` 로그를 남긴다.
 
-**404 HTML 안내**: 404(회복 실패 포함)이고 요청의 `Accept` 가 `text/html` 이면 에러 코드·메시지와 «통합 상세 페이지에서 현재 App URL 을 확인해 Cafe24 Developers 를 갱신하세요» 안내가 담긴 간단한 HTML 페이지를 보인다. JSON 을 기대하는 API 클라이언트에는 기존 JSON 응답을 준다.
+**실패 응답**: 실패 본문은 에러 응답 봉투 `{ error: { code, message, requestId } }` 다. 이 엔드포인트는 응답을 직접 써서 전역 예외 필터를 거치지 않으므로 컨트롤러가 봉투를 조립하고 `requestId` 를 응답마다 새로 발급한다(REQ-INTOAUTH-070). ①~③ 가드는 늘 JSON 으로 답한다. 그 뒤 서비스가 거절하고 요청의 `Accept` 에 `text/html` 이 있으면 에러 코드·메시지·`requestId` 와 «통합 상세 페이지에서 현재 App URL 을 확인해 Cafe24 Developers 를 갱신하세요» 안내가 담긴 간단한 HTML 페이지를 보인다. 주로 만나는 경우는 404(회복 실패 포함)다. JSON 을 기대하는 API 클라이언트에는 JSON 응답을 준다.
+
+**예상 밖 예외**: 설치 처리 중 에러 코드가 없는 예외가 나면 `CAFE24_INSTALL_FAILED`·`MAKESHOP_INSTALL_FAILED` 로 답한다. 코드가 없는 `HttpException` 이면 그 상태와 메시지를 싣는다. 그 밖의 예외(DB·런타임 오류 등)는 500 과 고정 문구로 답한다. 두 경우 모두 IP 실패로 세지 않는다. 500 으로 가린 예외의 메시지와 스택은 `requestId`·서비스와 함께 `logger.error` 로만 남긴다(REQ-INTOAUTH-069). 로그에 남기기 전에 비밀 값 모양의 문자열을 가린다(`SECRET_LEAK_PATTERNS` 정책). 설치 토큰은 이 로그에 넣지 않는다.
 
 ## OAuth 콜백 엔드포인트
 
@@ -539,7 +543,8 @@ Cafe24 의 `access_token`·`refresh_token` 은 JWT 다. 그래서 JWT `exp` clai
 - `codebase/backend/src/modules/integrations/integration-owner-write-lock.ts` (통합 쓰기 잠금 도우미 `lockForIntegrationWrite`·`throwUnlessIntegrationCreateLocked`. 설치 대기 행을 만드는 begin 이 트랜잭션 첫 문장으로 부른다)
 - `codebase/backend/src/modules/integrations/pending-install-reuse.ts` (설치 대기 행 재사용 판정 `pickPendingToReuse`·`assertPendingReusable`, 설치 기한 `pendingInstallExpiresAt`, MakeShop 잠금 키 `makeshopPendingLockKey`)
 - `codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts` (`reinstallRequestedAt`)
-- `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**`, rate limit)
+- `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**`, rate limit, 설치 엔드포인트 실패 응답 조립과 예상 밖 예외 가림)
+- `codebase/backend/src/modules/integrations/services/install-error.template.ts` (설치 실패 HTML 페이지)
 - `codebase/backend/src/modules/integrations/cafe24-install-nonce-cache.service.ts`, `cafe24-install-rate-limit.service.ts`
 - `codebase/backend/src/modules/integrations/jwt-exp.ts`, `cafe24-token-utils.ts`
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (API 클라이언트, 갱신 큐 워커)
@@ -909,3 +914,13 @@ Cafe24 Private·MakeShop 의 `oauth/begin`(`new`)은 같은 상점(MakeShop 은 
 ### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
 
 2026-10-30 에 REQ-INTOAUTH-068 과 begin 의 이름 충돌 409 `INTEGRATION_NAME_TAKEN`(Cafe24 Private 의 다시 한 판정 뒤, MakeShop 의 설치 대기 행 생성)을 구현해 미구현 표시를 지웠다. 요구사항의 뜻은 바꾸지 않았다. 설치 대기 행을 만드는 begin 의 잠금 범위는 2026-10-30 에 사용자가 정했다(NERV Task `CLE-T-G56XCH` 리뷰 후속). 공개 범위와 관계없이 워크스페이스를 먼저 잠그고 멤버십은 개인 공개 범위일 때만 잠근다. 잠금 방식과 근거의 정본은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 다. 같은 날 콜백이 만료된 설치 대기 행을 새 코드 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절하고 그 행에 콜백 실패를 기록하지 않게 했다([만료된 설치 대기 행은 상점 자리를 놓는다](#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
+
+### 설치 엔드포인트의 예상 밖 예외는 500 으로 가린다 (2026-11-06)
+
+NERV Task `CLE-T-909H23` 이다. 설치 엔드포인트는 코드가 없는 예외를 400 `*_INSTALL_FAILED` 로 바꾸면서 예외 메시지를 그대로 실었다. 실패 본문에는 `requestId` 가 없었다. DB·런타임 오류의 원문이 Cafe24·MakeShop 콘솔에서 연 브라우저에 보였다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2·3).
+
+- 예외를 전역 예외 필터로 다시 던지는 안은 기각했다. 필터는 JSON 만 그려서 HTML 안내 페이지를 보일 수 없다. 열거 공격 실패 카운트도 컨트롤러가 해야 한다.
+- 코드 이름은 그대로 두고 상태와 문구만 바꿨다. 이름과 상태를 정한 근거는 [에러 코드 규약과 카탈로그 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다 (2026-11-06)」](../CLE-API/CLE-API-ERRCODES.md#설치-엔드포인트의-예상-밖-예외를-500-으로-가리고-requestid-를-싣는다-2026-11-06) 에 있다.
+- 「404 HTML 안내」 문단은 HTML 페이지를 404 에만 보인다고 적었다. 코드와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.21 은 서비스가 거절한 실패에 상태와 관계없이 HTML 페이지를 보인다. 이 개정에서 문단을 「실패 응답」 으로 고쳐 코드에 맞췄다.
+
+새 요구사항은 REQ-INTOAUTH-069 부터다.

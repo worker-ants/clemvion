@@ -1,10 +1,17 @@
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import {
   ThirdPartyOAuthController,
   isValidPostMessageOrigin,
 } from './third-party-oauth.controller';
 import { IntegrationOAuthService } from './integration-oauth.service';
+import { INSTALL_UNEXPECTED_ERROR_MESSAGE } from './install-failure-response';
 
 function makeRes() {
   const res = {
@@ -354,9 +361,9 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
   });
 
   it('propagates service ForbiddenException status (403) to response', async () => {
-    const err = Object.assign(new Error('hmac fail'), {
-      status: 403,
-      response: { code: 'CAFE24_INSTALL_INVALID_HMAC', message: 'hmac fail' },
+    const err = new ForbiddenException({
+      code: 'CAFE24_INSTALL_INVALID_HMAC',
+      message: 'hmac fail',
     });
     oauthService.handleInstall.mockRejectedValue(err);
     const res = makeRes();
@@ -383,9 +390,9 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
   });
 
   it('propagates service NotFoundException status (404) to response', async () => {
-    const err = Object.assign(new Error('token gone'), {
-      status: 404,
-      response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'token gone' },
+    const err = new NotFoundException({
+      code: 'CAFE24_INSTALL_INVALID_TOKEN',
+      message: 'token gone',
     });
     oauthService.handleInstall.mockRejectedValue(err);
     const res = makeRes();
@@ -417,9 +424,9 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
    * Accept: text/html 인 경우 HTML 페이지를 렌더링한다.
    */
   it('renders HTML error page when request Accept header includes text/html', async () => {
-    const err = Object.assign(new Error('token gone'), {
-      status: 404,
-      response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'token gone' },
+    const err = new NotFoundException({
+      code: 'CAFE24_INSTALL_INVALID_TOKEN',
+      message: 'token gone',
     });
     oauthService.handleInstall.mockRejectedValue(err);
     const res = makeRes();
@@ -536,9 +543,9 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
 
     it('records failure when service throws INVALID_TOKEN (404)', async () => {
       oauthService.handleInstall.mockRejectedValue(
-        Object.assign(new Error('gone'), {
-          status: 404,
-          response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'gone' },
+        new NotFoundException({
+          code: 'CAFE24_INSTALL_INVALID_TOKEN',
+          message: 'gone',
         }),
       );
       await call(validToken);
@@ -547,9 +554,9 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
 
     it('records failure when service throws INVALID_HMAC (403)', async () => {
       oauthService.handleInstall.mockRejectedValue(
-        Object.assign(new Error('hmac'), {
-          status: 403,
-          response: { code: 'CAFE24_INSTALL_INVALID_HMAC', message: 'hmac' },
+        new ForbiddenException({
+          code: 'CAFE24_INSTALL_INVALID_HMAC',
+          message: 'hmac',
         }),
       );
       await call(validToken);
@@ -558,9 +565,9 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
 
     it('does NOT record failure on REPLAY (400 — not an enumeration signal)', async () => {
       oauthService.handleInstall.mockRejectedValue(
-        Object.assign(new Error('replay'), {
-          status: 400,
-          response: { code: 'CAFE24_INSTALL_REPLAY', message: 'replay' },
+        new BadRequestException({
+          code: 'CAFE24_INSTALL_REPLAY',
+          message: 'replay',
         }),
       );
       await call(validToken);
@@ -709,9 +716,9 @@ describe('ThirdPartyOAuthController — makeshop install routes', () => {
 
   it('propagates 403 INVALID_HMAC + records enumeration failure', async () => {
     oauthService.handleMakeshopInstall.mockRejectedValue(
-      Object.assign(new Error('hmac'), {
-        status: 403,
-        response: { code: 'MAKESHOP_INSTALL_INVALID_HMAC', message: 'hmac' },
+      new ForbiddenException({
+        code: 'MAKESHOP_INSTALL_INVALID_HMAC',
+        message: 'hmac',
       }),
     );
     const res = makeRes();
@@ -730,9 +737,9 @@ describe('ThirdPartyOAuthController — makeshop install routes', () => {
 
   it('does NOT record failure on REPLAY (400 — not an enumeration signal)', async () => {
     oauthService.handleMakeshopInstall.mockRejectedValue(
-      Object.assign(new Error('replay'), {
-        status: 400,
-        response: { code: 'MAKESHOP_INSTALL_REPLAY', message: 'replay' },
+      new BadRequestException({
+        code: 'MAKESHOP_INSTALL_REPLAY',
+        message: 'replay',
       }),
     );
     const res = makeRes();
@@ -747,6 +754,326 @@ describe('ThirdPartyOAuthController — makeshop install routes', () => {
     );
     expect(res.statusCode).toBe(400);
     expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+  });
+});
+
+// CLE-T-909H23 — 설치 엔드포인트 실패 응답은 에러 응답 봉투(requestId 포함)를 쓰고,
+// 코드가 없는 예상 밖 예외는 500 과 고정 문구로 가린다(원문은 requestId 와 함께 로그로만).
+// 근거: [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](CLE-INT-OAUTH#설치-엔드포인트-app-url)
+describe('ThirdPartyOAuthController — install failure responses', () => {
+  const UUID_V4_BODY =
+    '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+  const UUID_V4 = new RegExp(`^${UUID_V4_BODY}$`);
+  const validToken = 'AbCdEfGhIjKlMnOpQrStUv';
+  const RAW_DB_ERROR =
+    'relation "integrations" does not exist at /app/dist/integration-oauth.service.js:1802';
+
+  type ErrorBody = {
+    error: { code: string; message: string; requestId: string };
+  };
+
+  let oauthService: {
+    handleInstall: jest.Mock;
+    handleMakeshopInstall: jest.Mock;
+  };
+  let rateLimit: ReturnType<typeof makeRateLimit>;
+  let controller: ThirdPartyOAuthController;
+  let loggerError: jest.SpyInstance;
+
+  beforeEach(() => {
+    oauthService = {
+      handleInstall: jest.fn(),
+      handleMakeshopInstall: jest.fn(),
+    };
+    rateLimit = makeRateLimit();
+    controller = new ThirdPartyOAuthController(
+      oauthService as never,
+      rateLimit as never,
+    );
+    loggerError = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    loggerError.mockRestore();
+  });
+
+  const cafe24 = async (
+    opts: {
+      token?: string;
+      mallId?: string;
+      accept?: string;
+    } = {},
+  ) => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      opts.token ?? validToken,
+      'mallId' in opts ? opts.mallId : 'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        url: '/api/3rd-party/cafe24/install/X?mall_id=shop',
+        ip: '9.9.9.9',
+        headers: opts.accept ? { accept: opts.accept } : {},
+      } as never,
+      res as never,
+    );
+    return res;
+  };
+
+  const makeshop = async (
+    opts: { token?: string; shopUid?: string; accept?: string } = {},
+  ) => {
+    const res = makeRes();
+    await controller.makeshopInstall(
+      opts.token ?? validToken,
+      'shopUid' in opts ? opts.shopUid : 'myshop',
+      '1700000000',
+      'sig',
+      'install',
+      {
+        url: '/api/3rd-party/makeshop/install/X?shop_uid=myshop',
+        ip: '9.9.9.9',
+        headers: opts.accept ? { accept: opts.accept } : {},
+      } as never,
+      res as never,
+    );
+    return res;
+  };
+
+  describe('cafe24', () => {
+    it('unexpected (non-HttpException) error → 500 CAFE24_INSTALL_FAILED with a fixed message and requestId', async () => {
+      oauthService.handleInstall.mockRejectedValue(new Error(RAW_DB_ERROR));
+      const res = await cafe24();
+
+      expect(res.statusCode).toBe(500);
+      const body = res.body as ErrorBody;
+      expect(body.error.code).toBe('CAFE24_INSTALL_FAILED');
+      expect(body.error.message).toBe(INSTALL_UNEXPECTED_ERROR_MESSAGE);
+      expect(body.error.requestId).toMatch(UUID_V4);
+      expect(JSON.stringify(body)).not.toContain('does not exist');
+      // 예상 밖 실패는 enumeration 신호가 아니다.
+      expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('logs the raw error once with the same requestId and stack', async () => {
+      const err = new Error(RAW_DB_ERROR);
+      oauthService.handleInstall.mockRejectedValue(err);
+      const res = await cafe24();
+      const { requestId } = (res.body as ErrorBody).error;
+
+      expect(loggerError).toHaveBeenCalledTimes(1);
+      const [line, stack] = loggerError.mock.calls[0] as [string, string];
+      expect(line).toContain('[cafe24-install]');
+      expect(line).toContain(`requestId=${requestId}`);
+      expect(line).toContain('relation "integrations" does not exist');
+      expect(stack).toContain('Error: relation');
+      // install_token 은 capability 라 로그에 남기지 않는다.
+      expect(line).not.toContain(validToken);
+    });
+
+    it('masks secret-shaped values in the logged raw error', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        new Error('token exchange failed: client_secret=s3cr3tValue123'),
+      );
+      await cafe24();
+      const [line, stack] = loggerError.mock.calls[0] as [string, string];
+      expect(line).not.toContain('s3cr3tValue123');
+      expect(stack).not.toContain('s3cr3tValue123');
+    });
+
+    it('a thrown non-Error value is also masked to 500', async () => {
+      oauthService.handleInstall.mockRejectedValue('boom');
+      const res = await cafe24();
+      expect(res.statusCode).toBe(500);
+      expect((res.body as ErrorBody).error.message).toBe(
+        INSTALL_UNEXPECTED_ERROR_MESSAGE,
+      );
+      expect(loggerError).toHaveBeenCalledTimes(1);
+    });
+
+    it('unexpected error renders the HTML page with the requestId and without the raw message', async () => {
+      oauthService.handleInstall.mockRejectedValue(new Error(RAW_DB_ERROR));
+      const res = await cafe24({ accept: 'text/html,application/xhtml+xml' });
+
+      expect(res.statusCode).toBe(500);
+      expect(res.headers['Content-Type']).toContain('text/html');
+      const html = String(res.body);
+      expect(html).toContain('CAFE24_INSTALL_FAILED');
+      expect(html).toContain(INSTALL_UNEXPECTED_ERROR_MESSAGE);
+      expect(html).not.toContain('does not exist');
+      const [line] = loggerError.mock.calls[0] as [string];
+      const requestId = /requestId=([0-9a-f-]+)/.exec(line)?.[1];
+      expect(requestId).toMatch(UUID_V4);
+      expect(html).toContain(requestId);
+    });
+
+    it('a coded HttpException keeps its status, code and message and gains a requestId', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        new ForbiddenException({
+          code: 'CAFE24_INSTALL_INVALID_HMAC',
+          message: 'HMAC verification failed',
+        }),
+      );
+      const res = await cafe24();
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body).toEqual({
+        error: {
+          code: 'CAFE24_INSTALL_INVALID_HMAC',
+          message: 'HMAC verification failed',
+          requestId: expect.stringMatching(UUID_V4),
+        },
+      });
+      expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+      expect(loggerError).not.toHaveBeenCalled();
+    });
+
+    it('a codeless HttpException keeps its status and message under CAFE24_INSTALL_FAILED', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        new InternalServerErrorException(
+          'Cafe24 token exchange is unavailable',
+        ),
+      );
+      const res = await cafe24();
+
+      expect(res.statusCode).toBe(500);
+      const body = res.body as ErrorBody;
+      expect(body.error.code).toBe('CAFE24_INSTALL_FAILED');
+      expect(body.error.message).toBe('Cafe24 token exchange is unavailable');
+      expect(body.error.requestId).toMatch(UUID_V4);
+      expect(loggerError).not.toHaveBeenCalled();
+      expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('the HTML page for a coded rejection shows the requestId', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        new NotFoundException({
+          code: 'CAFE24_INSTALL_INVALID_TOKEN',
+          message: 'install_token not found',
+        }),
+      );
+      const res = await cafe24({ accept: 'text/html' });
+      expect(res.statusCode).toBe(404);
+      const html = String(res.body);
+      expect(html).toContain('Request ID');
+      // HTML 안에 박힌 값이라 앞뒤 고정 없는 패턴으로 찾는다.
+      expect(html).toMatch(new RegExp(UUID_V4_BODY));
+    });
+
+    it.each([
+      ['rate limited (429)', 429, 'CAFE24_INSTALL_RATE_LIMITED'],
+      ['malformed token (404)', 404, 'CAFE24_INSTALL_INVALID_TOKEN'],
+      ['missing query (400)', 400, 'CAFE24_INSTALL_MISSING_PARAMS'],
+    ] as const)(
+      'guard failure %s answers the JSON envelope with a requestId',
+      async (_label, status, code) => {
+        if (status === 429) rateLimit.isLockedOut.mockResolvedValue(true);
+        const res = await cafe24({
+          token: status === 404 ? 'too-short' : validToken,
+          mallId: status === 400 ? undefined : 'shop',
+          // 앞단 가드는 Accept 와 관계없이 JSON 이다.
+          accept: 'text/html',
+        });
+        expect(res.statusCode).toBe(status);
+        expect(res.body).toEqual({
+          error: {
+            code,
+            message: expect.any(String),
+            requestId: expect.stringMatching(UUID_V4),
+          },
+        });
+        expect(oauthService.handleInstall).not.toHaveBeenCalled();
+      },
+    );
+
+    it('issues a new requestId per response', async () => {
+      oauthService.handleInstall.mockRejectedValue(new Error(RAW_DB_ERROR));
+      const first = (await cafe24()).body as ErrorBody;
+      const second = (await cafe24()).body as ErrorBody;
+      expect(first.error.requestId).not.toBe(second.error.requestId);
+    });
+  });
+
+  describe('makeshop', () => {
+    it('unexpected error → 500 MAKESHOP_INSTALL_FAILED with a fixed message, logged with the requestId', async () => {
+      oauthService.handleMakeshopInstall.mockRejectedValue(
+        new Error(RAW_DB_ERROR),
+      );
+      const res = await makeshop();
+
+      expect(res.statusCode).toBe(500);
+      const body = res.body as ErrorBody;
+      expect(body.error.code).toBe('MAKESHOP_INSTALL_FAILED');
+      expect(body.error.message).toBe(INSTALL_UNEXPECTED_ERROR_MESSAGE);
+      expect(body.error.requestId).toMatch(UUID_V4);
+      const [line] = loggerError.mock.calls[0] as [string];
+      expect(line).toContain('[makeshop-install]');
+      expect(line).toContain(`requestId=${body.error.requestId}`);
+      expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('unexpected error renders the HTML page without the raw message', async () => {
+      oauthService.handleMakeshopInstall.mockRejectedValue(
+        new Error(RAW_DB_ERROR),
+      );
+      const res = await makeshop({ accept: 'text/html' });
+      expect(res.statusCode).toBe(500);
+      const html = String(res.body);
+      expect(html).toContain('MAKESHOP_INSTALL_FAILED');
+      expect(html).not.toContain('does not exist');
+    });
+
+    it('a coded INVALID_TOKEN rejection keeps 404, counts the failure and gains a requestId', async () => {
+      oauthService.handleMakeshopInstall.mockRejectedValue(
+        new NotFoundException({
+          code: 'MAKESHOP_INSTALL_INVALID_TOKEN',
+          message: 'install_token not found',
+        }),
+      );
+      const res = await makeshop();
+      expect(res.statusCode).toBe(404);
+      expect((res.body as ErrorBody).error).toEqual({
+        code: 'MAKESHOP_INSTALL_INVALID_TOKEN',
+        message: 'install_token not found',
+        requestId: expect.stringMatching(UUID_V4),
+      });
+      expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+    });
+
+    it.each([
+      ['rate limited (429)', 429, 'MAKESHOP_INSTALL_RATE_LIMITED'],
+      ['malformed token (404)', 404, 'MAKESHOP_INSTALL_INVALID_TOKEN'],
+      ['missing query (400)', 400, 'MAKESHOP_INSTALL_MISSING_PARAMS'],
+    ] as const)(
+      'guard failure %s answers the JSON envelope with a requestId',
+      async (_label, status, code) => {
+        if (status === 429) rateLimit.isLockedOut.mockResolvedValue(true);
+        const res = await makeshop({
+          token: status === 404 ? 'too-short' : validToken,
+          shopUid: status === 400 ? undefined : 'myshop',
+          accept: 'text/html',
+        });
+        expect(res.statusCode).toBe(status);
+        expect(res.body).toEqual({
+          error: {
+            code,
+            message: expect.any(String),
+            requestId: expect.stringMatching(UUID_V4),
+          },
+        });
+        expect(oauthService.handleMakeshopInstall).not.toHaveBeenCalled();
+      },
+    );
   });
 });
 

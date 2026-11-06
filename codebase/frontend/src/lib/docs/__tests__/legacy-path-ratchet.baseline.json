@@ -230,7 +230,7 @@
     "codebase/backend/src/modules/integrations/services/service-registry.ts": 8,
     "codebase/backend/src/modules/integrations/third-party-oauth.constants.ts": 4,
     "codebase/backend/src/modules/integrations/third-party-oauth.controller.spec.ts": 2,
-    "codebase/backend/src/modules/integrations/third-party-oauth.controller.ts": 2,
+    "codebase/backend/src/modules/integrations/third-party-oauth.controller.ts": 1,
     "codebase/backend/src/modules/knowledge-base/chunking/csv-chunker.ts": 1,
     "codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts": 1,
     "codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts": 4,

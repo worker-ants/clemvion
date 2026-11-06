@@ -2,7 +2,9 @@
  * Renders the HTML page shown when Cafe24's "테스트 실행" / "앱으로 가기"
  * call to the App URL fails (404 / 403 / 400). The page is opened directly
  * in the user's browser by Cafe24, so a JSON body is unfriendly — render a
- * minimal styled page with the error code, message, and a recovery hint.
+ * minimal styled page with the error code, message, request ID, and a
+ * recovery hint. The request ID matches the server log line of the same
+ * failure (에러 응답 봉투의 `requestId`).
  *
  * Inputs are HTML-escaped before interpolation; the template never
  * interpolates anything that touches DOM-as-attribute. Inline CSS only
@@ -11,9 +13,14 @@
 
 import { htmlEscape } from './oauth-callback.template';
 
-export function renderInstallErrorHtml(code: string, message: string): string {
+export function renderInstallErrorHtml(
+  code: string,
+  message: string,
+  requestId: string,
+): string {
   const safeCode = htmlEscape(code);
   const safeMessage = htmlEscape(message);
+  const safeRequestId = htmlEscape(requestId);
   return `<!doctype html>
 <html lang="ko">
   <head>
@@ -60,6 +67,7 @@ export function renderInstallErrorHtml(code: string, message: string): string {
       <h1>Cafe24 앱 설치 실패</h1>
       <p><strong>Error code:</strong> <code>${safeCode}</code></p>
       <p>${safeMessage}</p>
+      <p><strong>Request ID:</strong> <code>${safeRequestId}</code></p>
       <p style="margin-top:16px;"><strong>해결 방법:</strong></p>
       <ul>
         <li>Cafe24 Developers Console 의 앱 정보 화면을 열고, 현재 App URL 이 우리 서비스의 통합 상세 페이지에 표시된 URL 과 일치하는지 확인하세요.</li>
