@@ -50,7 +50,90 @@ describe('GlobalExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(413);
     const body = bodyOf(json);
     expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(body.error.message).toBe('Request payload too large.');
     expect(body.error.requestId).toBeDefined();
+  });
+
+  describe('code 를 지정하지 않은 HttpException 413 의 message (CWE-209, CLE-T-8MQMGQ)', () => {
+    // `@nestjs/platform-express` 의 `transformException` 은 multer `LIMIT_FILE_SIZE` 를
+    // `new PayloadTooLargeException(error.message)` 로 바꾼다. 응답 객체는
+    // `{ message: 'File too large', error: 'Payload Too Large', statusCode: 413 }` 이다.
+    // 아바타 · 지식 저장소 업로드가 모두 이 모양으로 413 을 낸다.
+    it('multer 원문 "File too large" 를 싣지 않고 고정 문구로 바꾼다', () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const { host, status, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new PayloadTooLargeException('File too large'),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(413);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
+      expect(body.error.message).toBe('Request payload too large.');
+      // 원문은 서버 로그에만 남긴다(http-error 분기와 같은 규칙).
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('File too large'),
+      );
+    });
+
+    it('문자열 응답으로 만든 413 HttpException 도 고정 문구로 바꾼다', () => {
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const { host, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new HttpException('/tmp/upload/abc: too big', 413),
+        host,
+      );
+
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
+      expect(body.error.message).toBe('Request payload too large.');
+    });
+
+    it('nested code 를 지정한 413(공개 웹훅 본문 한도)은 code · message 를 그대로 싣는다', () => {
+      const { host, status, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new PayloadTooLargeException({
+          error: {
+            code: 'PUBLIC_WEBHOOK_BODY_TOO_LARGE',
+            message: 'Webhook body exceeds 32768 bytes',
+          },
+        }),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(413);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('PUBLIC_WEBHOOK_BODY_TOO_LARGE');
+      expect(body.error.message).toBe('Webhook body exceeds 32768 bytes');
+    });
+
+    it('최상위 code 를 지정한 413 도 message 를 그대로 싣는다', () => {
+      const { host, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new PayloadTooLargeException({
+          code: 'SOME_DOMAIN_LIMIT',
+          message: 'Domain limit exceeded',
+        }),
+        host,
+      );
+
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('SOME_DOMAIN_LIMIT');
+      expect(body.error.message).toBe('Domain limit exceeded');
+    });
+
+    it('413 이 아닌 상태의 원문은 바꾸지 않는다 (정규화 범위는 413 하나)', () => {
+      const { host, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new BadRequestException('Unexpected field - avatar'),
+        host,
+      );
+
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.message).toBe('Unexpected field - avatar');
+    });
   });
 
   it('maps a plain http-error (status, non-HttpException) 4xx to its envelope', () => {

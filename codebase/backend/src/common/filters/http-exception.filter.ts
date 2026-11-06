@@ -30,6 +30,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    */
   private static readonly UNHANDLED_ERROR_MESSAGE =
     'An unexpected error occurred. Please try again later.';
+  /**
+   * 413 의 고정 문구. http-errors(body-parser) 413 과 `code` 를 지정하지 않은 `HttpException`
+   * 413(Nest 가 multer `LIMIT_FILE_SIZE` 를 바꾼 `PayloadTooLargeException('File too large')`)이
+   * 함께 쓴다. 원문은 `logger.warn` 으로만 남긴다(CWE-209, CLE-API-ERROR).
+   */
+  private static readonly PAYLOAD_TOO_LARGE_MESSAGE =
+    'Request payload too large.';
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -54,18 +61,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           typeof resp.error === 'object' && resp.error !== null
             ? (resp.error as Record<string, unknown>)
             : null;
-        code =
-          (resp.code as string) ||
-          (nested?.code as string) ||
-          this.getCodeFromStatus(status);
+        const explicitCode =
+          (resp.code as string) || (nested?.code as string) || undefined;
+        code = explicitCode || this.getCodeFromStatus(status);
         message =
           (resp.message as string) ||
           (nested?.message as string) ||
           exception.message;
         details = resp.details ?? nested?.details;
+        if (!explicitCode) {
+          message = this.maskUncodedPayloadTooLarge(status, message);
+        }
       } else {
         code = this.getCodeFromStatus(status);
-        message = exception.message;
+        message = this.maskUncodedPayloadTooLarge(status, exception.message);
       }
     } else if (isPostgresUniqueViolation(exception)) {
       // race window 에서의 unique constraint 위반은 클라이언트에게 409 가 옳다.
@@ -122,11 +131,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message:
           // 413 (`no-unsafe-enum-comparison` 회피 — errStatus 는 number, getCodeFromStatus 와 동형).
           errStatus === 413
-            ? 'Request payload too large.'
+            ? GlobalExceptionFilter.PAYLOAD_TOO_LARGE_MESSAGE
             : 'The request could not be processed.',
       };
     }
     return null;
+  }
+
+  /**
+   * `code` 를 지정하지 않은 `HttpException` 413 의 message 를 고정 문구로 바꾼다. multer 원문
+   * (`"File too large"`)처럼 라이브러리 힌트가 클라이언트에 가지 않게 한다(CWE-209). 다른 상태는
+   * 그대로 둔다. `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 등)은 호출부가 이
+   * 함수를 부르지 않아 도메인 문구를 보존한다.
+   */
+  private maskUncodedPayloadTooLarge(status: number, message: string): string {
+    // `no-unsafe-enum-comparison` 회피 — status 는 number 라 mapHttpErrorLike 와 같은 형태로 견준다.
+    if (status !== 413) return message;
+    this.logger.warn(`http-exception 413: ${message}`);
+    return GlobalExceptionFilter.PAYLOAD_TOO_LARGE_MESSAGE;
   }
 
   private getCodeFromStatus(status: number): string {

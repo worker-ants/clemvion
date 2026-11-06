@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -480,5 +484,36 @@ describe('UsersController.uploadAvatar (§6.1)', () => {
       twoFactorEnabled: false,
     });
     expect(res.data).not.toHaveProperty('pendingEmail');
+  });
+
+  // 리뷰 9라운드 W5(CLE-T-8MQMGQ). 형제 엔드포인트는 서비스 예외가 컨트롤러에서 삼켜지지
+  // 않는지 확인하는데 이 핸들러만 없었다. 같은 인스턴스가 나와야 필터가 code 를 읽는다.
+  it.each([
+    [
+      'INVALID_FILE_TYPE',
+      new BadRequestException({
+        code: 'INVALID_FILE_TYPE',
+        message: 'Only png, jpg, jpeg, webp, gif images are allowed',
+      }),
+    ],
+    [
+      'FILE_REQUIRED',
+      new BadRequestException({
+        code: 'FILE_REQUIRED',
+        message: 'Avatar image file is required',
+      }),
+    ],
+    [
+      'USER_NOT_FOUND',
+      new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found',
+      }),
+    ],
+  ])('서비스가 던진 %s 를 감싸지 않고 그대로 전파한다', async (_code, err) => {
+    updateAvatar.mockRejectedValueOnce(err);
+    await expect(
+      controller.uploadAvatar(payload, {} as Express.Multer.File),
+    ).rejects.toBe(err);
   });
 });

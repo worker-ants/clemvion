@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "8226ccf5b8619163c7cb5f11092dfc1121efa7861aff7b6d614611a567c8979d"
+content_hash: "c0f6c443402efc7ad24e4fe3abf0e128b3c78dba4dba9bdff298e607e1ff0eff"
 read_as: "approved_fallback"
-task: "CLE-T-APEQDD"
+task: "CLE-T-8MQMGQ"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "6390d4d5f7a29bd937712e8e3eadc69437a445e0f54ea243634c2987199667d5"
-etag: "sha256-7efbccced240d60b4c43c75335840a5d8a99b31ae1c2a3992723d06370b68e49"
+mirror_sha256: "050a0a8af8a1c78aa2f5454196bd9feb9afbb5b3eb962c1981478eda87179b18"
+etag: "sha256-e306118ca59864a7196e1b64e9ecd7fedadeac421160d2ae6265571c07c8b07d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,12 +100,13 @@ etag: "sha256-7efbccced240d60b4c43c75335840a5d8a99b31ae1c2a3992723d06370b68e49"
 |------|------|------|
 | `code` | ✓ | 클라이언트가 분기에 쓰는 에러 코드. 이름 규칙은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) |
 | `message` | ✓ | 사람이 읽을 짧은 설명. 내부 구현 원문을 싣지 않는다(아래) |
-| `requestId` | ✓ | 서버 로그와 잇는 추적용 UUID. `GlobalExceptionFilter` 가 응답마다 발급한다 |
+| `requestId` | ✓ | 서버 로그와 잇는 추적용 UUID. `GlobalExceptionFilter` 가 응답마다 발급한다. 필터를 거치지 않는 `@Res` 직접 응답 경로(설치 엔드포인트)는 컨트롤러가 같은 형식(uuid v4)으로 발급한다 |
 | `details` | 선택 | 검증 에러처럼 추가 맥락이 있을 때만 싣는다. 형태 규칙은 §2.4 |
 
 **`message` 에 내부 원문을 싣지 않는다(CWE-209 정보 노출 방지).**
 
 - body-parser 같은 http-errors 미들웨어가 던지는 4xx 는 상태별 고정 문구로 바꿔 보낸다. `413` 은 `"Request payload too large."`, 그 밖의 4xx 는 `"The request could not be processed."` 다.
+- `code` 를 지정하지 않은 `HttpException` 413 도 같은 고정 문구 `"Request payload too large."` 로 바꾼다. Nest 가 multer `LIMIT_FILE_SIZE` 를 바꾼 `PayloadTooLargeException`(원문 `"File too large"`)이 여기에 든다. `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 등)은 발행 지점이 정한 코드와 문구를 그대로 둔다.
 - 5xx 는 일반 500 으로 가린다.
 - 원문은 서버 로그(`logger.warn`)에만 남긴다.
 
@@ -263,7 +264,7 @@ flowchart TD
 
 ## 구현 위치
 
-- `codebase/backend/src/common/filters/http-exception.filter.ts` (`GlobalExceptionFilter`: 봉투 조립, 상태별 기본 코드, 4xx 고정 문구, 5xx 가림)
+- `codebase/backend/src/common/filters/http-exception.filter.ts` (`GlobalExceptionFilter`: 봉투 조립, 상태별 기본 코드, 4xx 고정 문구(http-errors 4xx · `code` 없는 `HttpException` 413), 5xx 가림)
 - `codebase/backend/src/common/pipes/validation.pipe.ts` (`CustomValidationPipe`)
 - `codebase/backend/src/common/swagger/error-response.dto.ts` (`ErrorResponseDto`)
 
@@ -282,6 +283,19 @@ HTTP 상태 코드 표에 `410 Gone` 을 등재하면서 §2.2 기본값 목록�
 ### 4xx http-error `message` 를 고정 문구로 바꾸는 이유 (CWE-209)
 
 body-parser 같은 http-errors 미들웨어가 던지는 4xx(예: 413 `request entity too large`)는 `GlobalExceptionFilter` 가 원문을 싣지 않고 상태별 고정 문구로 바꾼다. 라이브러리 원문에는 경로·버퍼 한계·미들웨어 힌트 같은 구현 세부가 섞일 수 있어 그대로 내보내면 정보가 샌다. 운영 가시성은 원문을 `logger.warn` 에만 남겨 확보한다. WebSocket `EXECUTION_INTERNAL_ERROR` 의 고정 문구 결정(내부 예외 메시지 비노출)과 같은 원칙이고 5xx 가림과도 일관된다.
+
+### `code` 를 지정하지 않은 `HttpException` 413 도 고정 문구로 바꾸는 이유 (2026-11-06)
+
+아바타 업로드(`POST /api/users/me/avatar`)와 지식 저장소 문서 업로드는 multer `limits.fileSize` 로 파일 크기를 막는다. 한도를 넘으면 Nest 가 multer `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException("File too large")` 로 바꾸고, 이 예외는 http-errors 분기가 아니라 `HttpException` 분기로 간다. 그래서 같은 413 인데도 본문 초과(body-parser)는 고정 문구를, 파일 초과는 multer 원문을 냈다. 라이브러리 원문이 응답에 실렸고 클라이언트는 두 문구를 따로 다뤄야 했다(NERV Task `CLE-T-8MQMGQ`).
+
+- 판별은 `code` 유무로 한다. `code` 를 지정한 413 은 발행 지점이 도메인 코드와 문구를 정한 것이라 그대로 둔다(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`).
+- 원문은 http-errors 분기와 같이 `logger.warn` 에만 남긴다.
+- **기각한 대안**: `code` 를 지정하지 않은 `HttpException` 4xx 전부를 고정 문구로 바꾸는 것. 발행 지점이 사람에게 보일 문구를 직접 쓴 400 · 404 예외까지 지워진다. 413 은 `code` 없이 던지는 곳이 multer 변환뿐이라 413 만 좁게 바꿨다.
+- multer 의 다른 변환(400 `"Unexpected field"` 등)은 클라이언트가 보낸 필드 이름만 담고 내부 구현 정보가 없어 이번에 바꾸지 않았다.
+
+### `@Res` 직접 응답 경로의 `requestId` (2026-11-06)
+
+설치 엔드포인트처럼 `@Res` 로 응답을 직접 쓰는 경로는 `GlobalExceptionFilter` 를 거치지 않아 필터가 `requestId` 를 붙이지 못한다. 규칙 3(요청 ID 는 모든 에러 응답에 싣는다)을 지키려고 그 컨트롤러가 필터와 같은 형식(uuid v4)으로 직접 발급한다. 형식이 같아야 로그 검색과 클라이언트 표시가 경로에 따라 갈리지 않는다. 필드 표가 필터 발급만 적어 이 경로를 빠뜨렸다는 일관성 검토 지적(NERV Task `CLE-T-909H23`, W2)으로 더했다. 위 413 변경과는 별건이다.
 
 ### 실행 에러 예시의 필드 이름을 `nodeLabel` 로 고친 이유 (2026-08-17)
 

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { DECORATORS } from '@nestjs/swagger';
+
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
@@ -62,5 +64,23 @@ describe('POST me/avatar 는 200 을 낸다 (자매 엔드포인트와 동일)',
       UsersController.prototype.uploadAvatar,
     ) as number | undefined;
     expect(code).toBe(200);
+  });
+});
+
+/**
+ * `@ApiOperation.description` 은 50~150자다(CLE-API-SWAGGER 규칙 15, 강제). 아바타 업로드를
+ * 붙이며 두 엔드포인트 설명이 150자를 넘었다(updateMe 202자 · uploadAvatar 170자,
+ * CLE-T-8MQMGQ). 저장소 전체에는 아직 범위를 벗어난 설명이 더 있어 전수 가드는 두지 않고
+ * 이 두 엔드포인트만 고정한다. 길이는 코드 포인트 수로 센다.
+ */
+describe('updateMe · uploadAvatar 의 description 은 50~150자다', () => {
+  it.each(['updateMe', 'uploadAvatar'] as const)('%s', (method) => {
+    const op = Reflect.getMetadata(
+      DECORATORS.API_OPERATION,
+      UsersController.prototype[method],
+    ) as { description?: string } | undefined;
+    const length = [...(op?.description ?? '')].length;
+    expect(length).toBeGreaterThanOrEqual(50);
+    expect(length).toBeLessThanOrEqual(150);
   });
 });

@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 27
+version: 28
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "f5c2ae1e6a6a01c90052d928459bdcba9baff426a4af7515cc1a4dd5a6d70e4a"
+content_hash: "901ed19e3ee15c41058e80b6562ce11b2cb0c01e7513d979b0c85bd315adefd0"
 read_as: "approved_fallback"
-task: "CLE-T-H9FQHR"
+task: "CLE-T-8MQMGQ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "6613ec8d5446dd3f60f4d8e4721922101269e6430e69b7f796d48933c1a28618"
-etag: "sha256-82bb720f78bcf49e6d6fcea3714d87be92906d23fff419a1f88ceb463649037e"
+mirror_sha256: "01a5a632c5e10484b75999a3954f2246b5888403ddbdcc7285c9b11986db88ec"
+etag: "sha256-b4fa184d0cafd022e248488c6c4a0c38f170cfa19c0e3ea751eb71853f6fcc52"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -211,7 +211,7 @@ etag: "sha256-82bb720f78bcf49e6d6fcea3714d87be92906d23fff419a1f88ceb463649037e"
 |------|------|------|-----------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패. 400 기본 코드. 발행 지점이 정해진 경우(`X-Workspace-Id` 형식 에러)는 아래 별도 행이다. 요청 본문의 참조 id 가 요청자의 워크스페이스나 같은 워크플로우 밖을 가리킬 때도 이 코드와 `details[].code='INVALID_FIELD'` 배열(아래 `INVALID_FIELD` 행)을 싣는다. 노드 생성 · 수정과 캔버스 저장에서 노드 `config` 의 통합 참조 자리에 쓸 수 없는 값(문자열이 아닌 값, 없는 통합, 이 워크플로우에서 쓸 수 없는 개인 통합)이 와도 같은 코드와 배열로 거절한다(`node-integration-ref-check.ts`) | 400 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
 | `PAYLOAD_TOO_LARGE` (요청 본문) | 요청 본문이 body-parser 한도를 넘음. 전역 기본 100KB, `/api/hooks/*` 인증 웹훅 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 바꾼다. `message` 는 내부 원문(`"request entity too large"` 등)을 싣지 않고 고정 문구 `"Request payload too large."` 만 돌려준다. 공개 웹훅의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§6.10) | 413 | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 고정 문구가 아니라 multer 원문 `"File too large"` 다 | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
+| `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 multer 원문(`"File too large"`)을 싣지 않고 요청 본문 행과 같은 고정 문구 `"Request payload too large."` 를 돌려준다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 「`message` 에 내부 원문을 싣지 않는다」) | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
 | `FILE_REQUIRED` | 업로드 요청에 파일이 없거나 내용이 비어 있음(`file?.buffer?.length` 가 0). 확장자 불허(`INVALID_FILE_TYPE`)와 다른 코드다. 클라이언트가 취할 행동이 다르기 때문이다("파일을 고르세요" 와 "다른 형식으로 바꾸세요"). 메시지 문자열 파싱이 금지돼 있으므로 코드로 갈라야 분기할 수 있다. 현재 발행처는 아바타 업로드다 | 400 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `INVALID_FILE_TYPE` | 확장자가 허용 목록에 없음. 지식 저장소 문서 업로드와 아바타 업로드가 함께 쓰고 허용 목록은 도메인마다 정한다(지식 저장소 `txt`·`md`·`pdf`·`csv`, 아바타 `png`·`jpg`·`jpeg`·`webp`·`gif`, SVG 제외) | 400 | [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md), [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트가 **없음**. `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다 | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
@@ -948,3 +948,12 @@ NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요�
 - 노드처럼 `*_5XX` · `*_4XX` 로 상태를 나누는 안도 기각했다. 상태 번호 이름은 §3 예외라 새 코드의 선례가 아니다(규칙 7).
 - HTTP 통합 연결 테스트처럼 401 · 403 이 아닌 4xx 를 성공으로 보는 안도 기각했다. HTTP 통합은 사용자가 정한 주소를 부르므로 4xx 응답도 서버가 살아 있다는 신호다. Cafe24 · MakeShop 연결 테스트는 정해진 진단 주소를 부르므로 4xx 도 실패다.
 - 토큰 갱신 요청 자체가 401 · 403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 `*_TRANSPORT_FAILED` 의 뜻(응답을 받지 못한 실패)과 어긋난다. 위에서 `*_TRANSPORT_FAILED` 를 기각한 근거와 같은 어긋남이며 NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.
+
+### multipart 업로드 413 의 `message` 를 고정 문구로 바꿨다 (2026-11-06)
+
+NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `message` 를 multer 원문 `"File too large"` 로 적었다. 전역 예외 필터가 http-errors 미들웨어(body-parser)의 4xx 만 고정 문구로 바꾸고, Nest 가 multer `LIMIT_FILE_SIZE` 를 바꾼 `PayloadTooLargeException` 은 `HttpException` 이라 원문이 그대로 나갔기 때문이다. 필터가 `code` 를 지정하지 않은 `HttpException` 413 도 `"Request payload too large."` 로 바꾸게 되어 행을 고쳤다.
+
+- 같은 코드의 두 행이 서로 다른 `message` 규칙을 갖지 않게 했다. 클라이언트는 `code` 로 분기하지만 `message` 를 그대로 보여 주는 화면도 있어서, 한도를 넘은 원인에 따라 문구가 달라질 이유가 없다.
+- 라이브러리 원문을 응답에 싣지 않는 규칙과 그 범위는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 가 정한다. 이 문서는 카탈로그 행만 그 규칙에 맞춘다.
+- `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`)은 그 코드와 문구를 그대로 둔다.
+- 같은 날 더한 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다」 절은 코드가 없는 `HttpException` 의 문구를 「전역 필터처럼 그대로 싣는다」고 적었다. 이 변경 뒤 전역 필터는 코드가 없는 413 의 문구를 고정 문구로 바꾸므로 그 비교는 413 을 뺀 상태에만 맞다. 설치 엔드포인트는 전역 필터를 거치지 않아 이 변경의 영향을 받지 않는다.

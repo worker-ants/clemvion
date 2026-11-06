@@ -90,6 +90,7 @@ export default function ProfilePage() {
           name: user.name,
           email: user.email,
           pendingEmail: user.pendingEmail,
+          avatarUrl: user.avatarUrl,
         }}
       />
 

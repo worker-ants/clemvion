@@ -126,11 +126,11 @@ export class UsersController {
   @Patch('me')
   @ApiOperation({
     summary: '현재 사용자 프로필 수정',
+    // CLE-API-SWAGGER 규칙 15: description 은 50~150자다(users-avatar-swagger-sync.spec.ts 가 고정).
     description:
-      '이름, 언어(locale), 테마, 아바타 URL 중 전달된 필드만 부분 갱신합니다. ' +
-      '`avatarUrl` 을 **다른 값으로** 바꾸면 직전에 업로드된 아바타 객체가 스토리지에서 ' +
-      '함께 정리됩니다(best-effort — 실패해도 이 요청은 성공합니다). 비밀번호 변경은 ' +
-      '별도 엔드포인트(`POST /users/me/change-password`)를 이용하세요.',
+      '이름·언어·테마·아바타 URL 중 보낸 필드만 갱신합니다. ' +
+      '`avatarUrl` 을 다른 값으로 바꾸면 업로드했던 옛 아바타 객체를 best-effort 로 정리합니다. ' +
+      '비밀번호는 별도 엔드포인트로 바꿉니다.',
   })
   @ApiOkWrappedResponse(UserProfileDto, { description: '수정된 프로필' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
@@ -167,10 +167,10 @@ export class UsersController {
   )
   @ApiOperation({
     summary: '아바타 이미지 업로드',
+    // CLE-API-SWAGGER 규칙 15: description 은 50~150자다(users-avatar-swagger-sync.spec.ts 가 고정).
     description:
-      '아바타 이미지를 업로드하고 프로필의 `avatarUrl` 을 갱신합니다 (최대 2MB, png/jpg/jpeg/webp/gif). ' +
-      '업로드된 이미지는 **URL 을 아는 누구나 접근할 수 있는 공개 오브젝트**이며, URL 은 추측 불가능한 ' +
-      'UUID 를 포함합니다. 기존 아바타 객체는 교체 후 정리됩니다.',
+      '아바타 이미지를 업로드하고 `avatarUrl` 을 갱신합니다(최대 2MB, png/jpg/jpeg/webp/gif). ' +
+      '이미지는 추측할 수 없는 UUID 를 담은 공개 URL 로 서빙되고 옛 아바타 객체는 교체 뒤 정리됩니다.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
