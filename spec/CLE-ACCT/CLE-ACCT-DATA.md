@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 19
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "eb752696620a2f57b7300ba33d257ca06cea6e381ef6d1f518c29701126b0cfc"
+content_hash: "5c71344f62d1f9048d2a7b9bcfc6ebacb3302f52c36853d7198b608628cbc90a"
 read_as: "approved_fallback"
-task: "CLE-T-BYCGF1"
+task: "CLE-T-KG01YT"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "6ab707c46b3e91693e0a046ce07f5359efe90dd03c0e160345f81c5eb2b459ce"
-etag: "sha256-d50fae0fe42fb0386c69b6cca022cc1bdcb12eeb61c556bce68571bc7549f1a0"
+mirror_sha256: "7b3c91c0368d567ea5e8a312712ca8e1084466fa9bf1f036f16244f365d9cecf"
+etag: "sha256-8940dbcc7fe97faf7455cc81f50d89db6a323a65ab0c4a66d34bfc14ef262fe8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -83,7 +83,7 @@ erDiagram
 
 - 제약: `email UNIQUE`(V001). 이 제약은 대소문자를 구분한다. `LOWER(email)` 인덱스(V101)는 조회용이고 유니크 인덱스가 아니다.
 - 새로 저장하는 이메일은 앞뒤 공백을 지우고 소문자로 저장한다(`normalizeEmail`). 일반 가입 · 초대 가입 · OAuth 새 계정 · 이메일 변경의 `pending_email` 이 이 규칙을 따른다. 이메일 변경을 확정하면 정규화한 `pending_email` 값이 `email` 이 된다.
-- 조회와 중복 확인은 `LOWER(email)` 로 비교한다(V101 인덱스). 로그인 · 비밀번호 재설정 요청 · 인증 메일 재발송 · OAuth 이메일 연결은 `UsersService.lookupByEmail` 로 계정을 찾는다. 가입 중복 확인과 `check-email` 은 `emailExists`, 이메일 변경의 중복 확인은 `emailTakenByOther` 를 쓴다. 대소문자만 다른 계정이 여럿 맞을 때의 처리를 포함한 규칙의 정본은 [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙) 이다.
+- 조회와 중복 확인은 `LOWER(email)` 로 비교한다(V101 인덱스). 로그인 · 비밀번호 재설정 요청 · 인증 메일 재발송 · OAuth 이메일 연결 · 워크스페이스 멤버 직접 추가와 초대는 `UsersService.lookupByEmail` 로 계정을 찾는다. 가입 중복 확인과 `check-email` 은 `emailExists`, 이메일 변경의 중복 확인은 `emailTakenByOther` 를 쓴다. 대소문자만 다른 계정이 여럿 맞을 때의 처리를 포함한 규칙의 정본은 [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙) 이다.
 - 정규화 전에 생긴 "대소문자만 다른 계정 묶음" 이 남아 있을 수 있다. `email UNIQUE` 가 대소문자를 구분해서 이런 묶음을 막지 못했다. 기존 값은 바꾸지 않고 묶음을 합치거나 지우지도 않는다(2026-11-05 사람 결정). 묶음이 0 이 되면 `LOWER(email)` 유니크 인덱스를 건다. 이 일은 NERV Task `CLE-T-6QZCYD` 가 맡는다. 운영자는 아래 쿼리로 묶음을 찾는다.
 
   ```sql

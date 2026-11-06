@@ -54,7 +54,10 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     // forwardRef: UsersController(UsersModule)가 비밀번호 변경 시 세션 회전을 위해
     // AuthService 를 주입한다(refactor 04 A-1) — AuthModule↔UsersModule 순환을 forwardRef 로 해소.
     forwardRef(() => UsersModule),
-    WorkspacesModule,
+    // forwardRef: WorkspacesModule 이 UsersModule 을 import 해(직접 추가 · 초대의 `UsersService.lookupByEmail`)
+    // WorkspacesModule → UsersModule → AuthModule → WorkspacesModule 로 순환한다. workspaces.module.ts 가 먼저
+    // 로드되면 이 자리가 undefined 가 된다(CLE-T-KG01YT).
+    forwardRef(() => WorkspacesModule),
     MailModule,
     // user.* 인증 감사 이벤트(2fa enable/disable·WebAuthn 등록/삭제)를
     // AuthController·WebAuthnController 가 기록 — 둘 다 AuthModule host (§Rationale 4.1.B).

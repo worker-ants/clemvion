@@ -24,6 +24,8 @@ import {
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
+import { normalizeEmail } from '../users/utils/normalize-email';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -75,6 +77,7 @@ export class WorkspaceInvitationsService {
     private readonly dataSource: DataSource,
     private readonly notificationsService: NotificationsService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
@@ -87,7 +90,8 @@ export class WorkspaceInvitationsService {
     role: InvitationRole,
     requesterId: string,
   ): Promise<WorkspaceInvitation> {
-    const normalized = email.trim().toLowerCase();
+    // 토큰 이메일로 저장하는 값이다. 기존 가입자 조회는 이 값이 아니라 입력을 쓴다(아래).
+    const normalized = normalizeEmail(email);
     const requesterRole = await this.requireAdminRole(workspaceId, requesterId);
 
     const workspace = await this.workspaceRepository.findOne({
@@ -107,9 +111,12 @@ export class WorkspaceInvitationsService {
     }
     assertMayChangeAdminRole(requesterRole, role);
 
-    const existingUser = await this.userRepository.findOne({
-      where: { email: normalized },
-    });
+    // 기존 가입자는 가입과 로그인 「이메일 비교 규칙」대로 찾는다. 입력을 소문자로 바꾸지 않고 넘긴다. 대소문자만 다른
+    // 계정이 여럿이면 입력과 대소문자까지 같은 계정을 고르기 때문이다. 어느 계정인지 정할 수 없으면(`ambiguous`)
+    // 가입하지 않은 이메일처럼 멤버 여부 확인과 인앱 알림 없이 초대 메일만 보낸다
+    // (NERV CLE-ACCT-WS 「초대」 REQ-WSPACE-070 · 072, CLE-T-KG01YT).
+    const lookup = await this.usersService.lookupByEmail(email);
+    const existingUser = lookup.kind === 'found' ? lookup.user : null;
     if (existingUser) {
       const existingMember = await this.memberRepository.findOne({
         where: { workspaceId, userId: existingUser.id },
