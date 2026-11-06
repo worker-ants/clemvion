@@ -123,6 +123,19 @@ class ForcedRolesBeyondTheSixTest(_RepoCase):
         d = self.evaluate(FakeClient(code_item("passed", head, reported=["documentation"])))
         self.assertFalse(d.blocked, d.reason)
 
+    def test_a_round_narrowed_by_review_agents_still_blocks(self):
+        """`REVIEW_AGENTS=security` 로 리뷰어를 좁힌 환경에서도 documentation 리포트가 없으면 막는다.
+
+        코드 리뷰 오케스트레이터는 이 환경 변수가 있으면 router 를 건너뛰고 리뷰어를 그 목록으로 좁힌다.
+        게이트가 같은 값을 읽으면 좁힌 라운드가 강제 리뷰어 없이 통과한다. 그래서 게이트는 라운드가 본
+        파일과 `.claude.project.json` 만으로 강제 목록을 정한다(모듈 docstring 2b). 이 조건은 그동안
+        docstring 에만 있었다(NERV Task `CLE-T-MGN4NZ`)."""
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        with mock.patch.dict(os.environ, {"REVIEW_AGENTS": "security"}):
+            d = self.evaluate(FakeClient(code_item("passed", head, reported=["security"])))
+        self.assertTrue(d.blocked)
+        self.assertIn("강제 리뷰어 리포트가 없다: documentation", d.reason)
+
     def test_every_missing_role_is_named(self):
         self.commit("codebase/backend/package.json", "{}\n")
         head = self.commit("codebase/backend/migrations/V1__init.sql", "select 1;\n")
