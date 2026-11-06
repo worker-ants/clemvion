@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 28
+version: 29
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "901ed19e3ee15c41058e80b6562ce11b2cb0c01e7513d979b0c85bd315adefd0"
+content_hash: "3f5972cdcc985adf2160f066ee01729116d7b9900e9cbf80e74f5cdb6cec021a"
 read_as: "approved_fallback"
-task: "CLE-T-8MQMGQ"
+task: "CLE-T-9J6W7H"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "01a5a632c5e10484b75999a3954f2246b5888403ddbdcc7285c9b11986db88ec"
-etag: "sha256-b4fa184d0cafd022e248488c6c4a0c38f170cfa19c0e3ea751eb71853f6fcc52"
+mirror_sha256: "880cee1d0f6bda869d1913e049f023b25482c96906942ca89542c9750526b6a2"
+etag: "sha256-78577345e08160f361fa68ff04b7a2a4f9e7ef1e9e3bd3eec0d68c76ebd26c27"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -510,6 +510,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `INTEGRATION_INVALID_CREDENTIALS` | 400 | 통합 생성이나 자격 증명 교체(`POST /api/integrations/:id/rotate`)의 자격 증명이 서비스의 필드 규칙(필수 필드 · 형식)에 맞지 않음. `message` 는 어긋난 항목을 `; ` 로 이어 적는다. 이름이 비슷한 `INTEGRATION_CREDENTIALS_INVALID` 와 다른 코드다(표 아래) | [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) |
 | `INTEGRATION_CREDENTIALS_INVALID` | 400 | `previewToken` 으로 통합을 만들 때(`POST /api/integrations`) 저장된 미리보기 자격 증명이 암호화되지 않은 문자열이라 쓰지 않음 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `OAUTH_PREVIEW_INVALID` · `OAUTH_PREVIEW_EXPIRED` · `OAUTH_PREVIEW_MISMATCH` | 400 | `previewToken` 으로 통합을 만들 때 미리보기 토큰을 쓸 수 없음. 순서대로 토큰이 없거나 이미 썼거나 요청자(워크스페이스 · 사용자)의 것이 아님, 발급 뒤 10분이 지남, 요청의 서비스 유형이 미리보기와 다름. 미리보기 토큰은 `new` 모드 콜백이 발급한다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `OAUTH_TARGET_MISMATCH` | 400 | `new` 가 아닌 모드의 `oauth/begin` 본문이 대상 통합(`integrationId`)과 맞지 않음. 서비스가 대상 통합의 서비스 유형과 다르거나 Cafe24 상점 식별자 · 앱 유형이 대상 통합의 값과 다름 | [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](../CLE-INT/CLE-INT-OAUTH.md#oauthbegin-요청과-응답) |
 | `INTEGRATION_OAUTH_UNSUPPORTED` | 400 | OAuth 를 쓰지 않는 서비스로 `oauth/begin` 을 요청함 | [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](../CLE-INT/CLE-INT-OAUTH.md#oauthbegin-요청과-응답) |
 | `OAUTH_CONFIG_MISSING` | 500 · 없음 (통합 `last_error.code`) | OAuth 앱 설정(서버 환경 변수)이 없음. `oauth/begin`(Cafe24 Public 과 환경 변수로 설정하는 프로바이더)과 소셜 로그인 시작(`GET /api/auth/oauth/:provider`)은 500 으로 답한다. 통합 콜백의 토큰 교환에서 나면 통합의 `last_error.code` 에 남는다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [가입과 로그인 「소셜 로그인」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#소셜-로그인) |
 | `CAFE24_INVALID_MALL_ID` | 400 · 없음 (통합 `last_error.code`) · 없음 (노드 `output.error.code`) | `mall_id` 가 형식(소문자 영숫자 · 하이픈, 3~50자)에 맞지 않거나 없음. `oauth/begin` 은 400 으로 답하고, 콜백의 토큰 교환에서 state 에 `mall_id` 가 없으면 통합의 `last_error.code` 에 남는다. Cafe24 노드는 통합의 `mall_id` 가 형식에 맞지 않으면 에러 포트로 낸다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드) |
@@ -948,6 +949,15 @@ NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요�
 - 노드처럼 `*_5XX` · `*_4XX` 로 상태를 나누는 안도 기각했다. 상태 번호 이름은 §3 예외라 새 코드의 선례가 아니다(규칙 7).
 - HTTP 통합 연결 테스트처럼 401 · 403 이 아닌 4xx 를 성공으로 보는 안도 기각했다. HTTP 통합은 사용자가 정한 주소를 부르므로 4xx 응답도 서버가 살아 있다는 신호다. Cafe24 · MakeShop 연결 테스트는 정해진 진단 주소를 부르므로 4xx 도 실패다.
 - 토큰 갱신 요청 자체가 401 · 403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 `*_TRANSPORT_FAILED` 의 뜻(응답을 받지 못한 실패)과 어긋난다. 위에서 `*_TRANSPORT_FAILED` 를 기각한 근거와 같은 어긋남이며 NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.
+
+### `new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다 (2026-11-06)
+
+NERV Task `CLE-T-9J6W7H` 다. `oauth/begin` 을 `new` 가 아닌 모드로 부르면서 본문의 서비스나 Cafe24 상점 식별자 · 앱 유형을 `integrationId` 의 대상 통합과 다르게 실으면 400 `OAUTH_TARGET_MISMATCH` 로 거절한다(§6.21). 전에는 거절하지 않아 콜백이 다른 상점이나 다른 서비스의 토큰을 대상 통합에 쓸 수 있었다. 동작과 근거의 정본은 [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](../CLE-INT/CLE-INT-OAUTH.md#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06) 다.
+
+- **새 조건이라 새 코드를 만든다(규칙 6).** 이 엔드포인트에 전에 없던 거절 조건이다.
+- **`VALIDATION_ERROR` 를 쓰지 않는다.** 본문 하나만 보면 형식이 맞는 요청이다. 대상 행과 견준 결과를 형식 검증 코드에 담으면 뜻이 갈린다.
+- **409 를 쓰지 않는다.** 대상 행의 상태와 부딪힌 것이 아니라 요청이 대상을 잘못 가리킨 것이다. 같은 요청을 다시 보내도 결과가 같은 클라이언트 오류라 400 이다.
+- **이름은 `<DOMAIN>_<CONDITION>` 이다(규칙 1 · 3).** 조건이 OAuth 흐름의 시작 요청에 속해 `OAUTH_*` 를 붙였다. 미리보기 토큰과 요청의 서비스 유형이 다를 때 쓰는 `OAUTH_PREVIEW_MISMATCH` 와 같은 꼴이다. 서비스와 상점 식별자를 나눠 코드 둘로 만드는 안은 기각했다. 클라이언트가 할 일이 «대상 통합의 값으로 다시 보낸다» 로 같다.
 
 ### multipart 업로드 413 의 `message` 를 고정 문구로 바꿨다 (2026-11-06)
 

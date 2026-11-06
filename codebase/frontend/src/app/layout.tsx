@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/lib/providers";
+import { THEME_INIT_SCRIPT } from "@/lib/theme/theme-init-script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -63,6 +64,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/*
+         * 첫 화면을 그리기 전에 이 브라우저에 기억한 테마 클래스를 <html> 에 붙인다
+         * (REQ-PROFILE-029). 클래스가 서버 HTML 과 달라지므로 <html> 의
+         * suppressHydrationWarning 이 필요하다.
+         */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="font-[family-name:var(--font-geist-sans)]">
         <Providers>{children}</Providers>
       </body>

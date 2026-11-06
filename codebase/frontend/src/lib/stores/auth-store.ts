@@ -16,11 +16,20 @@ interface User {
   twoFactorEnabled: boolean;
 }
 
+/** 내 프로필 화면이 다시 받은 사용자 정보 가운데 로그인 사용자에 맞출 값. */
+type ProfileSnapshot = Pick<User, "id" | "name" | "avatarUrl" | "locale" | "theme">;
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   setUser: (user: User | null) => void;
+  /**
+   * 내 프로필 화면이 저장 뒤 다시 받은 이름 · 아바타 · 언어 · 테마를 로그인 사용자에 맞춘다.
+   * 그래서 사이드바 사용자 영역과 앱 전체 테마가 새로 고치지 않아도 저장한 값을 쓴다.
+   * 다른 사용자의 정보거나 값이 같으면 상태를 바꾸지 않는다.
+   */
+  syncProfile: (profile: ProfileSnapshot) => void;
   setAuthenticated: (token: string, user: User) => void;
   /**
    * 토큰은 받았지만 사용자 정보는 아직 없다. 액세스 토큰과 로그인 힌트 쿠키만 둔다.
@@ -37,6 +46,30 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   setUser: (user) => set({ user }),
+
+  syncProfile: (profile) =>
+    set((state) => {
+      const current = state.user;
+      if (!current || current.id !== profile.id) return state;
+      const avatarUrl = profile.avatarUrl ?? null;
+      if (
+        current.name === profile.name &&
+        (current.avatarUrl ?? null) === avatarUrl &&
+        current.locale === profile.locale &&
+        current.theme === profile.theme
+      ) {
+        return state;
+      }
+      return {
+        user: {
+          ...current,
+          name: profile.name,
+          avatarUrl,
+          locale: profile.locale,
+          theme: profile.theme,
+        },
+      };
+    }),
 
   setAuthenticated: (token, user) => {
     setAccessToken(token);

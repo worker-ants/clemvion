@@ -2,8 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const { setThemeStoreMock, setLocaleStoreMock } = vi.hoisted(() => ({
+const {
+  setThemeStoreMock,
+  previewThemeMock,
+  clearPreviewMock,
+  setLocaleStoreMock,
+} = vi.hoisted(() => ({
   setThemeStoreMock: vi.fn(),
+  previewThemeMock: vi.fn(),
+  clearPreviewMock: vi.fn(),
   setLocaleStoreMock: vi.fn(),
 }));
 
@@ -36,7 +43,13 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/stores/theme-store", () => {
-  const state = { theme: "light" as const, setTheme: setThemeStoreMock };
+  const state = {
+    theme: "light" as const,
+    preview: null,
+    setTheme: setThemeStoreMock,
+    previewTheme: previewThemeMock,
+    clearPreview: clearPreviewMock,
+  };
   function useThemeStore<T>(selector?: (s: typeof state) => T): T {
     return (selector ? selector(state) : state) as T;
   }
@@ -99,31 +112,46 @@ describe("ProfilePreferencesCard", () => {
     expect(screen.getByTestId("pref-language-select")).toBeInTheDocument();
   });
 
-  it("dark 클릭 시 라이브 프리뷰로 setThemeStore 가 호출된다", () => {
+  it("dark 클릭은 미리보기만 하고 확정한 테마는 바꾸지 않는다", () => {
     renderCard({ locale: "ko", theme: "light" });
     fireEvent.click(screen.getByTestId("profile-pref-edit"));
     fireEvent.click(screen.getByTestId("pref-theme-dark"));
-    expect(setThemeStoreMock).toHaveBeenCalledWith("dark");
+    expect(previewThemeMock).toHaveBeenCalledWith("dark");
+    expect(setThemeStoreMock).not.toHaveBeenCalled();
   });
 
-  it("[취소] 시 theme store 가 user.theme 으로 원복되고 view 모드로 돌아간다", () => {
+  it("[취소] 시 미리보기를 거두고 view 모드로 돌아간다", () => {
     renderCard({ locale: "ko", theme: "light" });
     fireEvent.click(screen.getByTestId("profile-pref-edit"));
     fireEvent.click(screen.getByTestId("pref-theme-dark"));
-    setThemeStoreMock.mockClear();
+    clearPreviewMock.mockClear();
     fireEvent.click(screen.getByTestId("profile-pref-cancel"));
-    expect(setThemeStoreMock).toHaveBeenLastCalledWith("light");
+    expect(clearPreviewMock).toHaveBeenCalled();
+    expect(setThemeStoreMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("pref-theme-dark")).toBeNull();
   });
 
-  it("diff 모달 [취소] 시에도 theme store 가 user.theme 으로 원복된다 (spec §2.0)", () => {
+  it("diff 모달 [취소] 시에도 미리보기를 거둔다", () => {
     renderCard({ locale: "ko", theme: "light" });
     fireEvent.click(screen.getByTestId("profile-pref-edit"));
     fireEvent.click(screen.getByTestId("pref-theme-dark"));
     fireEvent.click(screen.getByTestId("profile-pref-save"));
-    setThemeStoreMock.mockClear();
+    clearPreviewMock.mockClear();
     fireEvent.click(screen.getByTestId("diff-cancel"));
-    expect(setThemeStoreMock).toHaveBeenLastCalledWith("light");
+    expect(clearPreviewMock).toHaveBeenCalled();
+    expect(setThemeStoreMock).not.toHaveBeenCalled();
+    // spec §2.0: 미리보기만 거두고 편집 모드와 임시 선택은 유지한다 (의도된 동작).
+    expect(screen.getByTestId("pref-theme-dark")).toBeInTheDocument();
+    expect(screen.getByTestId("profile-pref-save")).toBeInTheDocument();
+  });
+
+  it("편집 중에 화면을 떠나면 미리보기를 거둔다", () => {
+    const { unmount } = renderCard({ locale: "ko", theme: "light" });
+    fireEvent.click(screen.getByTestId("profile-pref-edit"));
+    fireEvent.click(screen.getByTestId("pref-theme-dark"));
+    clearPreviewMock.mockClear();
+    unmount();
+    expect(clearPreviewMock).toHaveBeenCalled();
   });
 
   it("변경 없이 [저장] 시 noChanges 토스트 후 view 복귀", () => {
@@ -147,6 +175,9 @@ describe("ProfilePreferencesCard", () => {
       });
       expect(toast.success).toHaveBeenCalled();
     });
+    // 저장해야 확정한 테마(와 이 브라우저에 기억한 값)가 바뀌고 미리보기를 거둔다.
+    expect(setThemeStoreMock).toHaveBeenCalledWith("dark");
+    expect(clearPreviewMock).toHaveBeenCalled();
   });
 
   it("locale 변경 → 확정 시 setLocaleStore 가 새 locale 로 호출된다", async () => {
@@ -178,5 +209,7 @@ describe("ProfilePreferencesCard", () => {
       expect(toast.error).toHaveBeenCalled();
     });
     expect(screen.getByTestId("pref-theme-dark")).toBeInTheDocument();
+    // 실패하면 테마를 확정하지 않는다.
+    expect(setThemeStoreMock).not.toHaveBeenCalled();
   });
 });

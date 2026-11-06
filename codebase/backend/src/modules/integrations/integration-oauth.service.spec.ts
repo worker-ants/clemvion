@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   IntegrationOAuthService,
@@ -127,6 +128,100 @@ describe('IntegrationOAuthService', () => {
       expect(result.authUrl).toContain('https');
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalled();
+    });
+
+    // REQ-INTOAUTH-071 — `new` 가 아닌 모드는 본문의 서비스가 대상 통합의 서비스 유형과 같아야 state 를 만든다. 다르면
+    // 콜백이 다른 서비스의 토큰을 대상 통합에 쓴다(CLE-T-9J6W7H).
+    describe('new 가 아닌 모드의 대상 통합 대조', () => {
+      const MODES = ['reauthorize', 'request_scopes'] as const;
+      const params = (mode: (typeof MODES)[number]) => ({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'google',
+        scopes: ['https://www.googleapis.com/auth/drive'],
+        mode,
+        integrationId: 'target',
+      });
+
+      beforeEach(() => {
+        oauthMock.env.google.clientId = 'cid-123';
+      });
+
+      it.each(MODES)(
+        'mode=%s — 대상 통합의 서비스 유형이 다르면 400 OAUTH_TARGET_MISMATCH 로 거절하고 state 를 만들지 않는다',
+        async (mode) => {
+          integrationRepo.findOne.mockResolvedValue({
+            id: 'target',
+            workspaceId: 'ws-1',
+            serviceType: 'github',
+            credentials: { access_token: 'gh' },
+          });
+
+          const error = await service
+            .begin(params(mode))
+            .catch((err: Error) => err);
+
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect(
+            (error as { response?: Record<string, unknown> }).response,
+          ).toEqual({
+            code: 'OAUTH_TARGET_MISMATCH',
+            message: expect.any(String),
+          });
+          expect(integrationRepo.findOne).toHaveBeenCalledWith({
+            where: { id: 'target', workspaceId: 'ws-1' },
+          });
+          expect(stateRepo.save).not.toHaveBeenCalled();
+        },
+      );
+
+      it.each(MODES)(
+        'mode=%s — 대상 통합과 서비스 유형이 같으면 state 를 만든다',
+        async (mode) => {
+          integrationRepo.findOne.mockResolvedValue({
+            id: 'target',
+            workspaceId: 'ws-1',
+            serviceType: 'google',
+            credentials: { access_token: 'g' },
+          });
+
+          const result = await service.begin(params(mode));
+
+          expect(result).toEqual(
+            expect.objectContaining({
+              authUrl: expect.stringContaining('client_id=cid-123'),
+            }),
+          );
+          expect(stateRepo.create).toHaveBeenCalledWith(
+            expect.objectContaining({ mode, integrationId: 'target' }),
+          );
+          expect(stateRepo.save).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it('대상 통합이 없으면 404 RESOURCE_NOT_FOUND 로 거절하고 state 를 만들지 않는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(null);
+
+        const error = await service
+          .begin(params('reauthorize'))
+          .catch((err: Error) => err);
+
+        expect(error).toBeInstanceOf(NotFoundException);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'RESOURCE_NOT_FOUND',
+        );
+        expect(stateRepo.save).not.toHaveBeenCalled();
+      });
+
+      // 판정은 state 를 만들기 직전이다. 서버 설정이 없으면 지금처럼 500 이 먼저다.
+      it('OAuth 앱 설정이 없으면 대조 전에 500 OAUTH_CONFIG_MISSING', async () => {
+        oauthMock.env.google.clientId = '';
+
+        await expect(service.begin(params('reauthorize'))).rejects.toThrow(
+          InternalServerErrorException,
+        );
+        expect(integrationRepo.findOne).not.toHaveBeenCalled();
+      });
     });
   });
 

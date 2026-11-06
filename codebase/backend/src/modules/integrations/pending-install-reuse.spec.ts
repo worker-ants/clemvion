@@ -26,41 +26,42 @@ const row = (
 ) => ({ id, scope, createdBy });
 
 describe('pendingReuseVerdict', () => {
+  // 제목의 두 번째 `%s` 가 기대 판정을 가리키도록 판정을 두 번째 칸에 둔다.
   it.each([
-    ['개인 행 · 통합 소유자', row('personal', OWNER), OWNER, 'editor', 'reuse'],
+    ['개인 행 · 통합 소유자', 'reuse', row('personal', OWNER), OWNER, 'editor'],
     // 역할 우위가 없다 — 소유자 · 관리자도 남의 개인 행을 다시 쓰지 못한다.
     [
       '개인 행 · 다른 멤버(소유자)',
+      'owned_by_other',
       row('personal', OTHER),
       OWNER,
       'owner',
-      'owned_by_other',
     ],
     [
       '개인 행 · 다른 멤버(편집자)',
+      'owned_by_other',
       row('personal', OTHER),
       OWNER,
       'editor',
-      'owned_by_other',
     ],
-    ['조직 행 · 관리자', row('organization', OTHER), OWNER, 'admin', 'reuse'],
-    ['조직 행 · 소유자', row('organization', OTHER), OWNER, 'owner', 'reuse'],
+    ['조직 행 · 관리자', 'reuse', row('organization', OTHER), OWNER, 'admin'],
+    ['조직 행 · 소유자', 'reuse', row('organization', OTHER), OWNER, 'owner'],
     // 조직 행은 만든 사람이어도 관리자 미만이면 다시 쓰지 못한다(별칭 수정과 같다).
     [
       '조직 행 · 만든 편집자',
+      'admin_required',
       row('organization', OWNER),
       OWNER,
       'editor',
-      'admin_required',
     ],
     [
       '조직 행 · 역할 모름',
+      'admin_required',
       row('organization', OTHER),
       OWNER,
       null,
-      'admin_required',
     ],
-  ] as const)('%s → %s', (_label, target, userId, role, expected) => {
+  ] as const)('%s → %s', (_label, expected, target, userId, role) => {
     expect(pendingReuseVerdict(target, userId, role)).toBe(expected);
   });
 });

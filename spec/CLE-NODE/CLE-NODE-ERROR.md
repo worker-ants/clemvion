@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "73f8df3c18f54e9fb22fdc8b24d8ebebefcd656e3197eb6b3d69a472daa8a41b"
+content_hash: "2ccbacfaed60f0f7fb78151d3ef27d417fc4753164f2b62b2be5145f960f3bf8"
 read_as: "approved_fallback"
-task: "CLE-T-HW2GKD"
+task: "CLE-T-4EV45V"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "73ed1ba3422ab4fa5be3a2e9fbd8d9792aab7915998066db3dff4d6dfed75b99"
-etag: "sha256-dfb24e61aa81d27a1ba9905c67e465ff0e0772906a661f95cd71c2223fc0b5d0"
+mirror_sha256: "619cdc176fe00786d8152dd34da279c3324326ae9fb7df3a32dcec1dfa512032"
+etag: "sha256-5e1f908dfec30900f33a1067dd385e6d504e64795ae26176f5c04750e95548e4"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -152,7 +152,7 @@ flowchart TD
 | --- | --- |
 | HTTP | `HTTP_TRANSPORT_FAILED`, `HTTP_4XX`, `HTTP_5XX`, `HTTP_TIMEOUT`(발행하지 않음), `HTTP_BLOCKED` |
 | Database | `DB_QUERY_FAILED`, `DB_CONNECTION_ERROR`, `DB_CONSTRAINT_VIOLATION`, `DB_PERMISSION_DENIED`, `DB_HOST_BLOCKED` |
-| Email | `EMAIL_SEND_FAILED`, `EMAIL_HOST_BLOCKED` |
+| Email | `EMAIL_SEND_FAILED`, `EMAIL_HOST_BLOCKED`, `EMAIL_NO_RECIPIENTS` |
 | LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `LLM_TIMEOUT`(발행하지 않음), `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code | `CODE_EXECUTION_FAILED`, `CODE_TIMEOUT`, `CODE_MEMORY_LIMIT` |
 | 서브 워크플로우 | `SUB_WORKFLOW_FAILED`, `SUB_WORKFLOW_NOT_FOUND`, `SUB_WORKFLOW_TIMEOUT`, `SUB_WORKFLOW_QUEUE_FAILED`, `WORKFLOW_FORBIDDEN_WORKSPACE`. 어떤 실패가 어떤 코드인지는 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)가 정한다. |

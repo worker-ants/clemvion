@@ -122,35 +122,6 @@ export class SendEmailHandler
     // HTML bodies would balloon NodeExecution rows otherwise.
     const cappedBody = truncateBodyForOutput(body);
 
-    if (to.length === 0) {
-      throw new Error('No valid recipients after normalizing the `to` field');
-    }
-
-    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — config 검증을 모두
-    // 통과한 뒤, 실제 SMTP 발송 직전에 mock 으로 단락한다. 어떤 SMTP/provider
-    // 도 건드리지 않으며 success 포트로 흐름을 정상 진행시킨다. wouldHaveCalled
-    // 에는 수신자(to)와 subject 만 노출한다.
-    if (isDryRun(context)) {
-      return {
-        config: configEcho,
-        output: buildDryRunMock('send_email', { to, subject }),
-        meta: { deliveryStatus: 'sent' },
-      };
-    }
-
-    if (!this.integrationsService) {
-      return {
-        config: configEcho,
-        output: {
-          subject,
-          body: cappedBody.value,
-          bodyType,
-          ...(cappedBody.truncated ? { bodyTruncated: true } : {}),
-        },
-        status: 'requires_integration',
-      };
-    }
-
     const start = Date.now();
     // INT-US-05 — apiInfo 는 외부 catch 에서도 참조한다. SMTP host 는
     // credentials resolve 성공 후 채우고, 그 전엔 NULL fallback.
@@ -162,6 +133,41 @@ export class SendEmailHandler
     // 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
     let integration: Integration | undefined;
     try {
+      // 빈 수신자는 try 안에서 던져 catch 가 에러 포트(`EMAIL_NO_RECIPIENTS`)로 보낸다(REQ-EMAIL-010).
+      // 순서는 본문 제한 · 빈 수신자 확인 → dry-run → 서비스 미주입 확인이라 dry-run 과 서비스 미주입
+      // 환경에서도 같은 에러 포트로 나간다. 통합을 얻기 전이라 활동 로그는 남지 않는다.
+      if (to.length === 0) {
+        throw new IntegrationError(
+          'EMAIL_NO_RECIPIENTS',
+          'No valid recipients after normalizing the `to` field',
+        );
+      }
+
+      // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — config 검증을 모두
+      // 통과한 뒤, 실제 SMTP 발송 직전에 mock 으로 단락한다. 어떤 SMTP/provider
+      // 도 건드리지 않으며 success 포트로 흐름을 정상 진행시킨다. wouldHaveCalled
+      // 에는 수신자(to)와 subject 만 노출한다.
+      if (isDryRun(context)) {
+        return {
+          config: configEcho,
+          output: buildDryRunMock('send_email', { to, subject }),
+          meta: { deliveryStatus: 'sent' },
+        };
+      }
+
+      if (!this.integrationsService) {
+        return {
+          config: configEcho,
+          output: {
+            subject,
+            body: cappedBody.value,
+            bodyType,
+            ...(cappedBody.truncated ? { bodyTruncated: true } : {}),
+          },
+          status: 'requires_integration',
+        };
+      }
+
       integration = await this.acquireIntegration(integrationId, context);
       this.assertUsable(integration, 'email');
       const credentials = integration.credentials as Partial<SmtpCredentials>;
@@ -226,6 +232,7 @@ export class SendEmailHandler
           ...(cappedBody.truncated ? { bodyTruncated: true } : {}),
         },
         meta: { durationMs, deliveryStatus: 'sent' },
+        port: 'out',
       };
     } catch (err) {
       const logError =
