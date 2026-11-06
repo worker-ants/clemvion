@@ -71,24 +71,25 @@ describe('KbChannelAuthorizer', () => {
   });
 
   /**
-   * 구독 인가는 워크스페이스 소유만 본다. 컨텍스트(`ChannelAuthorizerContext`)에 역할이 없어서
+   * 구독 인가는 워크스페이스 소유만 본다. 컨텍스트(`ChannelAuthorizerContext`)에 역할 필드가 없어서
    * 뷰어도 이 채널을 받는다. 그래서 발행 쪽 wire 값 마스킹이 뷰어에게 자격 증명이 원문으로
    * 가지 않게 하는 층이다(CLE-T-7ZYES5, `websocket.service.spec.ts` 「kb · background 채널 값
-   * 마스킹」). 컨텍스트의 `role` 로 뷰어를 거르기 시작하면 이 테스트가 깨지고, 그때 EGRESS 의 수신 인구 서술도 함께 고친다.
+   * 마스킹」). 이 테스트는 그 전제(컨텍스트에 `role` 이 없다)를 타입 수준에서 고정한다.
+   * 컨텍스트에 `role` 이 생기면 컴파일 단계에서 걸리고, 그때 EGRESS 의 수신 인구 서술도 함께 고친다.
    */
-  it('뷰어 역할도 구독할 수 있다 (역할을 보지 않는다)', async () => {
+  it('컨텍스트에 역할 필드가 없어 뷰어도 구독할 수 있다', async () => {
+    const contextHasNoRole: 'role' extends keyof ChannelAuthorizerContext
+      ? never
+      : true = true;
+    expect(contextHasNoRole).toBe(true);
+
     const verify = jest.fn().mockResolvedValue(true);
     const authorizer = makeAuthorizer(verify);
-    const viewerContext = {
+
+    const result = await authorizer.authorize(`kb:${VALID_DOC_ID}`, {
       workspaceId: 'ws-1',
       userId: 'viewer-1',
-      role: 'viewer',
-    } as ChannelAuthorizerContext;
-
-    const result = await authorizer.authorize(
-      `kb:${VALID_DOC_ID}`,
-      viewerContext,
-    );
+    });
 
     expect(result).toBeNull();
     expect(verify).toHaveBeenCalledWith(VALID_DOC_ID, 'ws-1');
