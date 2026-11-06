@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { renderInstallErrorHtml } from './services/install-error.template';
@@ -26,6 +34,12 @@ import {
   THIRD_PARTY_PREFIX,
 } from './third-party-oauth.constants';
 import { Cafe24InstallRateLimitService } from './cafe24-install-rate-limit.service';
+import { redactSecrets } from '../../shared/utils/sanitize-error-message';
+import {
+  installErrorBody,
+  newInstallRequestId,
+  resolveInstallFailure,
+} from './install-failure-response';
 
 // 근거: [OAuth 연결과 토큰 갱신 「Cafe24 App URL 100자 한도에 맞춰 /api/3rd-party/<provider>/ 경로를 새로 뒀다」](CLE-INT-OAUTH#cafe24-app-url-100자-한도에-맞춰-api3rd-partyprovider-경로를-새로-뒀다)
 /**
@@ -40,6 +54,8 @@ import { Cafe24InstallRateLimitService } from './cafe24-install-rate-limit.servi
 @ApiTags('Third-Party OAuth')
 @Controller(THIRD_PARTY_PREFIX)
 export class ThirdPartyOAuthController {
+  private readonly logger = new Logger(ThirdPartyOAuthController.name);
+
   constructor(
     private readonly oauthService: IntegrationOAuthService,
     private readonly installRateLimit: Cafe24InstallRateLimitService,
@@ -114,35 +130,34 @@ export class ThirdPartyOAuthController {
     // 카운트하지 않으므로 정상 사용자는 트리거되지 않는다.
     // spec/4-nodes/4-integration/4-cafe24.md §9.8 Rate limiting note.
     if (await this.installRateLimit.isLockedOut(clientIp)) {
-      res.status(429).json({
-        error: {
-          code: 'CAFE24_INSTALL_RATE_LIMITED',
-          message: 'Too many failed install attempts. Please retry later.',
-        },
-      });
+      this.sendInstallGuardError(
+        res,
+        429,
+        'CAFE24_INSTALL_RATE_LIMITED',
+        'Too many failed install attempts. Please retry later.',
+      );
       return;
     }
-    // API H-1 (2026-05-16): spec/5-system/2-api-convention.md §5.3 은
-    // 에러 응답을 `{ error: { code, message } }` envelope 으로 통일한다.
-    // 옛 코드는 bare `{ code, message }` 를 반환해 규약 위반이었다.
+    // 실패 본문은 에러 응답 봉투 `{ error: { code, message, requestId } }` 다
+    // (`sendInstallGuardError` · `sendInstallServiceError`).
     if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
       // install_token 형식 불일치 = enumeration 신호 → 실패 카운트.
       await this.installRateLimit.recordFailure(clientIp);
-      res.status(404).json({
-        error: {
-          code: 'CAFE24_INSTALL_INVALID_TOKEN',
-          message: 'install_token format invalid',
-        },
-      });
+      this.sendInstallGuardError(
+        res,
+        404,
+        'CAFE24_INSTALL_INVALID_TOKEN',
+        'install_token format invalid',
+      );
       return;
     }
     if (!mallId || !timestamp || !hmac) {
-      res.status(400).json({
-        error: {
-          code: 'CAFE24_INSTALL_MISSING_PARAMS',
-          message: 'mall_id, timestamp, hmac are required',
-        },
-      });
+      this.sendInstallGuardError(
+        res,
+        400,
+        'CAFE24_INSTALL_MISSING_PARAMS',
+        'mall_id, timestamp, hmac are required',
+      );
       return;
     }
     const rawQuery = req.url.includes('?') ? req.url.split('?', 2)[1] : '';
@@ -167,37 +182,19 @@ export class ThirdPartyOAuthController {
       );
       res.redirect(302, redirectUrl);
     } catch (err) {
-      const e = err as {
-        status?: number;
-        response?: { code?: string; message?: string };
-        message?: string;
-      };
-      const status = e.status ?? 400;
-      const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
-      const message = e.response?.message ?? e.message ?? 'Install failed';
-      // A-3 Layer 2: install_token 조회/HMAC 검증 실패만 enumeration 신호로 카운트.
-      // REPLAY(400) / MISSING_PARAMS(400) / 서버측 FAILED 는 카운트 제외. 분류 규칙은
-      // Cafe24InstallRateLimitService.isEnumerationFailureCode 가 단일 진실.
-      if (Cafe24InstallRateLimitService.isEnumerationFailureCode(code)) {
-        await this.installRateLimit.recordFailure(clientIp);
-      }
-      // Render an HTML page when the browser is the consumer (Cafe24's "테스트
-      // 실행" / "앱으로 가기" opens this URL in a new tab → user sees this page
-      // directly). JSON is still returned to API-style clients. req.headers
-      // is `?` because some test fixtures construct a bare Request object
-      // without the Express request envelope.
-      const acceptHeader = req.headers?.['accept'] ?? '';
-      const acceptsHtml =
-        typeof acceptHeader === 'string' && acceptHeader.includes('text/html');
-      if (acceptsHtml) {
-        res
-          .status(status)
-          .setHeader('Content-Type', 'text/html; charset=utf-8')
-          .send(renderInstallErrorHtml(code, message));
-      } else {
-        // API H-1: 자체 API 규약 §5.3 envelope.
-        res.status(status).json({ error: { code, message } });
-      }
+      await this.sendInstallServiceError({
+        err,
+        provider: 'cafe24',
+        fallbackCode: 'CAFE24_INSTALL_FAILED',
+        // A-3 Layer 2: install_token 조회/HMAC 검증 실패만 enumeration 신호로 카운트.
+        // REPLAY(400) / MISSING_PARAMS(400) / 서버측 FAILED 는 카운트 제외. 분류 규칙은
+        // Cafe24InstallRateLimitService.isEnumerationFailureCode 가 단일 진실.
+        isEnumerationFailure: (code) =>
+          Cafe24InstallRateLimitService.isEnumerationFailureCode(code),
+        clientIp,
+        req,
+        res,
+      });
     }
   }
 
@@ -257,31 +254,31 @@ export class ThirdPartyOAuthController {
   ) {
     const clientIp = req.ip;
     if (await this.installRateLimit.isLockedOut(clientIp)) {
-      res.status(429).json({
-        error: {
-          code: 'MAKESHOP_INSTALL_RATE_LIMITED',
-          message: 'Too many failed install attempts. Please retry later.',
-        },
-      });
+      this.sendInstallGuardError(
+        res,
+        429,
+        'MAKESHOP_INSTALL_RATE_LIMITED',
+        'Too many failed install attempts. Please retry later.',
+      );
       return;
     }
     if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
       await this.installRateLimit.recordFailure(clientIp);
-      res.status(404).json({
-        error: {
-          code: 'MAKESHOP_INSTALL_INVALID_TOKEN',
-          message: 'install_token format invalid',
-        },
-      });
+      this.sendInstallGuardError(
+        res,
+        404,
+        'MAKESHOP_INSTALL_INVALID_TOKEN',
+        'install_token format invalid',
+      );
       return;
     }
     if (!shopUid || !timestamp || !hmac) {
-      res.status(400).json({
-        error: {
-          code: 'MAKESHOP_INSTALL_MISSING_PARAMS',
-          message: 'shop_uid, timestamp, hmac are required',
-        },
-      });
+      this.sendInstallGuardError(
+        res,
+        400,
+        'MAKESHOP_INSTALL_MISSING_PARAMS',
+        'shop_uid, timestamp, hmac are required',
+      );
       return;
     }
     const rawQuery = req.url.includes('?') ? req.url.split('?', 2)[1] : '';
@@ -299,32 +296,84 @@ export class ThirdPartyOAuthController {
       );
       res.redirect(302, redirectUrl);
     } catch (err) {
-      const e = err as {
-        status?: number;
-        response?: { code?: string; message?: string };
-        message?: string;
-      };
-      const status = e.status ?? 400;
-      const code = e.response?.code ?? 'MAKESHOP_INSTALL_FAILED';
-      const message = e.response?.message ?? e.message ?? 'Install failed';
-      // enumeration 신호(INVALID_TOKEN / INVALID_HMAC)만 실패 카운트.
-      if (
-        code === 'MAKESHOP_INSTALL_INVALID_TOKEN' ||
-        code === 'MAKESHOP_INSTALL_INVALID_HMAC'
-      ) {
-        await this.installRateLimit.recordFailure(clientIp);
-      }
-      const acceptHeader = req.headers?.['accept'] ?? '';
-      const acceptsHtml =
-        typeof acceptHeader === 'string' && acceptHeader.includes('text/html');
-      if (acceptsHtml) {
-        res
-          .status(status)
-          .setHeader('Content-Type', 'text/html; charset=utf-8')
-          .send(renderInstallErrorHtml(code, message));
-      } else {
-        res.status(status).json({ error: { code, message } });
-      }
+      await this.sendInstallServiceError({
+        err,
+        provider: 'makeshop',
+        fallbackCode: 'MAKESHOP_INSTALL_FAILED',
+        // enumeration 신호(INVALID_TOKEN / INVALID_HMAC)만 실패 카운트.
+        isEnumerationFailure: (code) =>
+          code === 'MAKESHOP_INSTALL_INVALID_TOKEN' ||
+          code === 'MAKESHOP_INSTALL_INVALID_HMAC',
+        clientIp,
+        req,
+        res,
+      });
+    }
+  }
+
+  /** 설치 엔드포인트 앞단 가드(빈도 제한 · 토큰 형식 · 필수 query)의 실패 — 늘 JSON 이다. */
+  private sendInstallGuardError(
+    res: Response,
+    status: number,
+    code: string,
+    message: string,
+  ): void {
+    res
+      .status(status)
+      .json(installErrorBody(code, message, newInstallRequestId()));
+  }
+
+  // 근거: [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](CLE-INT-OAUTH#설치-엔드포인트-app-url)
+  /**
+   * 설치 서비스가 거절하거나 예외가 난 요청의 응답.
+   *
+   * 코드가 없는 예상 밖 예외는 500 과 고정 문구로 가린다. 원문은 시크릿을 가린 뒤 `requestId` 와
+   * 함께 `logger.error` 로만 남긴다. install_token 은 capability 라 로그에 싣지 않는다.
+   * 브라우저(Cafe24 "테스트 실행" / "앱으로 가기" 가 새 탭으로 연다)에는 HTML 페이지를,
+   * API 클라이언트에는 JSON 봉투를 준다. `req.headers` 가 `?` 인 이유는 일부 테스트
+   * fixture 가 Express 요청 봉투 없이 bare Request 를 만들기 때문이다.
+   */
+  private async sendInstallServiceError(args: {
+    err: unknown;
+    provider: 'cafe24' | 'makeshop';
+    fallbackCode: string;
+    isEnumerationFailure: (code: string) => boolean;
+    clientIp: string | undefined;
+    req: Request;
+    res: Response;
+  }): Promise<void> {
+    const { err, provider, fallbackCode, clientIp, req, res } = args;
+    const requestId = newInstallRequestId();
+    const failure = resolveInstallFailure(err, fallbackCode);
+    if (failure.unexpected) {
+      // 예외 원문에 시크릿 모양 값이 섞여 있어도 로그에 남지 않게 가린다(SECRET_LEAK_PATTERNS).
+      const detail = redactSecrets(
+        err instanceof Error ? err.message : String(err),
+      );
+      const stack =
+        err instanceof Error && err.stack
+          ? redactSecrets(err.stack)
+          : undefined;
+      this.logger.error(
+        `[${provider}-install] unexpected error requestId=${requestId}: ${detail}`,
+        stack,
+      );
+    }
+    if (args.isEnumerationFailure(failure.code)) {
+      await this.installRateLimit.recordFailure(clientIp);
+    }
+    const acceptHeader = req.headers?.['accept'] ?? '';
+    const acceptsHtml =
+      typeof acceptHeader === 'string' && acceptHeader.includes('text/html');
+    if (acceptsHtml) {
+      res
+        .status(failure.status)
+        .setHeader('Content-Type', 'text/html; charset=utf-8')
+        .send(renderInstallErrorHtml(failure.code, failure.message, requestId));
+    } else {
+      res
+        .status(failure.status)
+        .json(installErrorBody(failure.code, failure.message, requestId));
     }
   }
 

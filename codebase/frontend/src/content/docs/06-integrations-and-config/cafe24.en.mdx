@@ -246,6 +246,9 @@ Only the integration's display name (alias) can be edited after creation. Recrea
 **Q. I get `OAUTH_CONFIG_MISSING` on the first Public-app authentication.**
 The server `CAFE24_CLIENT_ID` / `CAFE24_CLIENT_SECRET` env vars are not set. Ask your operator to configure them, or switch App Type to Private and paste your own app's credentials.
 
+**Q. Installing the app shows an install failure page.**
+The page shows an error code and a `Request ID`. For a server-side error (`CAFE24_INSTALL_FAILED`), try installing the app from Cafe24 again in a moment. If it keeps failing, send the `Request ID` to your operator. The operator can use it to find the cause in the server logs.
+
 **Q. The AI Agent throws `CAFE24_MCP_NO_SESSION` when calling a tool.**
 The AI Agent node's `mcpServers` list must include this Cafe24 integration. Re-add it on that node — adding the integration later than the AI Agent execution start triggers this error.
 
