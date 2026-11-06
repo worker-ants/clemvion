@@ -17,8 +17,9 @@ export type StoredSigningSecret =
 /**
  * 저장된 `notification.signing` 에 쓸 수 있는 시크릿이 있는지 읽는다.
  *
- * 참조 «있음» 은 `isSecretRef`(시크릿 저장소 규칙 24)이고, 옛 평문 «있음» 은 비어 있지 않은 문자열이다.
- * 둘 다 있으면 참조가 앞선다. 빈 문자열 평문은 «없음» 이다.
+ * 참조 «있음» 은 `isSecretRef`(시크릿 저장소 규칙 24)이고, 옛 평문 «있음» 은 공백 말고 다른 문자가 있는 문자열이다.
+ * 둘 다 있으면 참조가 앞선다. 빈 문자열이나 공백만 있는 평문은 «없음» 이다. 시크릿 저장소가 그런 평문을 거부하므로
+ * (NERV Task `CLE-T-94Z6A5`) «있음» 으로 보면 옮기기가 실패해 PATCH 가 500 이 된다. 값 자체는 다듬지 않는다.
  *
  * 발급 판정({@link decideNotificationSigning})과 발송 처리기(`NotificationWebhookProcessor`)가 이 함수 하나로
  * «있음» 을 읽는다(NERV Task `CLE-T-EQDYC1`). 둘이 갈리면 발송이 «없음» 으로 보는 행을 판정이 «있음» 으로 보고
@@ -32,10 +33,20 @@ export function readStoredSigningSecret(signing: unknown): StoredSigningSecret {
   if (typeof fields.secretRef === 'string' && isSecretRef(fields.secretRef)) {
     return { kind: 'ref', secretRef: fields.secretRef };
   }
-  if (typeof fields.secret === 'string' && fields.secret.length > 0) {
+  if (isUsableLegacyPlaintext(fields.secret)) {
     return { kind: 'legacy', plaintext: fields.secret };
   }
   return { kind: 'none' };
+}
+
+/**
+ * 옛 평문 `signing.secret` 이 쓸 수 있는 값인지 본다. 문자열이고 공백 말고 다른 문자가 있어야 한다.
+ *
+ * {@link readStoredSigningSecret} 와 `NotificationSigningSecretService.migrateLegacyPlaintext` 가 같이 쓴다.
+ * 둘이 갈리면 발송이 «없음» 으로 보는 값을 정규화가 시크릿 저장소로 옮기려다 실패한다.
+ */
+export function isUsableLegacyPlaintext(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
 }
 
 /** {@link decideNotificationSigning} 의 결정. 각 값의 뜻은 그 함수의 표에 있다. */
@@ -50,7 +61,7 @@ export type NotificationSigningDecision =
  * | 저장된 `signing` | 결정 |
  * |---|---|
  * | `secretRef` 가 `secret://` 형식 | `rederive` — 참조를 트리거 id 로 다시 만들어 싣는다. 발급하지 않는다 |
- * | 참조가 없고 옛 평문 `secret` 이 비어 있지 않은 문자열 | `migrate` — 그 평문을 시크릿 저장소로 옮긴다. 발급하지 않는다 |
+ * | 참조가 없고 옛 평문 `secret` 에 공백 말고 다른 문자가 있음 | `migrate` — 그 평문을 시크릿 저장소로 옮긴다. 발급하지 않는다 |
  * | 둘 다 없음 | `issue` — 첫 시크릿을 발급한다 |
  *
  * «있음» 판정은 발송 처리기와 같은 {@link readStoredSigningSecret} 으로 읽는다.

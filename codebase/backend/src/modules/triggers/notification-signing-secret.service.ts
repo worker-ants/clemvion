@@ -14,6 +14,7 @@ import {
 import { notificationSigningSecretRef } from './notification-signing-secret-ref';
 import {
   decideNotificationSigning,
+  isUsableLegacyPlaintext,
   newNotificationSigningSecret,
   notificationWithSigningRef,
   signingWithRef,
@@ -127,10 +128,11 @@ export class NotificationSigningSecretService {
     const signing = (notificationCfg as { signing?: unknown }).signing;
     if (!signing || typeof signing !== 'object') return;
     // `readStoredSigningSecret` 으로 읽지 않는다. 그 함수는 «발급해야 하는가» 를 판정하려고 참조를 앞세운다. 여기는 저장된
-    // 옛 평문 `secret` 을 시크릿 저장소로 옮기는 자리라서 참조가 이미 있어도 비어 있지 않은 평문이 있으면 옮긴다. 평문이
-    // 없거나 비어 있으면 건너뛰는 규칙은 두 곳이 같다.
+    // 옛 평문 `secret` 을 시크릿 저장소로 옮기는 자리라서 참조가 이미 있어도 쓸 수 있는 평문이 있으면 옮긴다. 평문이
+    // 없거나 비었거나 공백만 있으면 건너뛰는 규칙은 `isUsableLegacyPlaintext` 하나로 두 곳이 같다. 공백만 있는 평문은
+    // 시크릿 저장소가 거부하므로(NERV Task `CLE-T-94Z6A5`) 옮기려 들면 저장 뒤 응답만 500 이 된다.
     const plaintext = (signing as { secret?: unknown }).secret;
-    if (typeof plaintext !== 'string' || plaintext.length === 0) return;
+    if (!isUsableLegacyPlaintext(plaintext)) return;
 
     const ref = notificationSigningSecretRef(trigger.id);
     await this.secrets.rotate(ref, trigger.workspaceId, plaintext);

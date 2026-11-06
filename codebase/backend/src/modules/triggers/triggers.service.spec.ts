@@ -4956,6 +4956,28 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(events).not.toContain('teardown');
   });
 
+  it('migrateLegacyPlaintext — 공백만 있는 옛 평문은 옮기지 않는다', async () => {
+    // 시크릿 저장소는 공백만 있는 평문을 거부한다(NERV Task `CLE-T-94Z6A5`). 옮기려 들면 저장은 커밋됐는데
+    // 응답만 500 이 된다. 발송 처리기도 이 값을 «시크릿 없음» 으로 본다(`readStoredSigningSecret`).
+    const legacy = row({
+      notification: {
+        url: 'https://x.example/cb',
+        signing: { algorithm: 'hmac-sha256', secret: '  ' },
+      },
+    });
+    const { service, repo, events } = await makeService([
+      () => legacy,
+      () => legacy,
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(legacy);
+
+    await expect(
+      service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1'),
+    ).resolves.toBeDefined();
+
+    expect(events.filter((e) => e.startsWith('rotate:'))).toEqual([]);
+  });
+
   it('migrateLegacyPlaintext — 쓰기가 성공하면 지우지 않는다 (대조군)', async () => {
     const legacy = row({
       notification: {
@@ -5876,6 +5898,39 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
         '',
         expect.anything(),
       );
+    });
+
+    // 시크릿 저장소는 공백만 있는 평문을 거부한다(NERV Task `CLE-T-94Z6A5`). 그 값을 옮기려 들면 이 PATCH 가
+    // 트랜잭션 롤백으로 500 이 되어 그 트리거의 알림 설정을 바꿀 수 없다.
+    it('옛 평문이 공백만 있으면 없는 것으로 보고 발급한다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({ notification: { signing: { secret: ' \t ' } } }),
+      );
+      secrets.rotate.mockImplementation(
+        (_ref: string, _ws: string, plaintext: string) =>
+          plaintext.trim() === ''
+            ? Promise.reject(new Error('빈 값은 저장하지 않습니다.'))
+            : Promise.resolve(),
+      );
+      const result = await service.update(
+        't1',
+        'ws',
+        { notification: NOTIFICATION },
+        'u',
+      );
+      const secret = issued(result);
+      expect(secret).toMatch(/^wsk_[a-f0-9]{64}$/);
+      expect(secrets.rotate).toHaveBeenCalledTimes(1);
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        REF,
+        'ws',
+        secret,
+        TX_MANAGER,
+      );
+      expect(savedConfig().notification).toEqual({
+        ...NOTIFICATION,
+        signing: { secretRef: REF },
+      });
     });
 
     it('참조가 secret:// 형식이 아니면 없는 것으로 보고 발급한다(규칙 24)', async () => {
