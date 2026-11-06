@@ -464,6 +464,8 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 기존 token 은 **24시간 grace** 동안 같이 받아요 — 진행 중인 update 가 유실되지 않아요. 자세한 응답·에러 형식은 [Telegram 통합 가이드 §6](/docs/06-integrations-and-config/telegram).
 
+봇 토큰은 1~256자의 보이는 ASCII 문자(영문 · 숫자 · 기호)만 받아요. 공백 · 줄바꿈 같은 제어 문자나 한글처럼 ASCII 밖 문자가 섞이면 rotate 는 400 `INVALID_BOT_TOKEN`, 트리거 생성은 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`) 가 돌아와요. 토큰을 복사할 때 앞뒤에 공백이 붙지 않았는지 확인해 주세요.
+
 ### 지원하는 인터랙션 노드
 
 Chat Channel 을 통해 아래 노드 유형이 동작해요:
