@@ -180,7 +180,7 @@ export class NotificationWebhookProcessor extends WorkerHost {
 
     // DNS rebinding 방어 (CLE-EIA-NOTIFY 「SSRF」, CLE-T-M1P83C) — 발송 직전 호스트를 OS 해석기로 풀어 사설 대역이면
     // 보내지 않는다. 운영은 기본으로 켜고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 으로만 끈다. 운영 밖은 `=1` 일 때만
-    // 켠다. 해석 실패는 통과시킨다(fail-open). 검사한 주소를 fetch 에 고정하지 않아 검사와 연결 사이의 응답 변경은 남는다.
+    // 켠다. 해석 실패와 조회 시간 초과는 통과시킨다(fail-open). 검사한 주소를 fetch 에 고정하지 않아 검사와 연결 사이의 응답 변경은 남는다.
     // 운영에서 끈 채로 기동하면 `main.ts` 가 경고를 남긴다(`shouldWarnNotificationDnsGuardOff`).
     if (isNotificationDnsGuardEnabled(process.env)) {
       let hostname: string;
@@ -199,6 +199,13 @@ export class NotificationWebhookProcessor extends WorkerHost {
           `notification skip — ${reason} (triggerId=${triggerId})`,
         );
         return;
+      }
+      if (dnsCheck.reason) {
+        // 통과인데 사유가 붙는 경우는 조회 시간 초과 경로뿐이다(`checkResolvedHostIp`). 검사 없이 나가는 발송이 보이도록
+        // 트리거 id 와 함께 경고 로그를 남기고 발송은 그대로 이어 간다. 발송 건강도는 바꾸지 않는다(CLE-EIA-NOTIFY 「SSRF」).
+        this.logger.warn(
+          `notification DNS check fail-open — ${dnsCheck.reason} (triggerId=${triggerId})`,
+        );
       }
     }
 

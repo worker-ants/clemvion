@@ -249,7 +249,8 @@ export const DNS_LOOKUP_TIMEOUT_MS = 3000;
  *   후속 작업(CLE-T-GAQCF9)이 발송 쪽 조회와 합칠 때 다룬다.
  *
  * @param hostname `new URL(url).hostname` (IPv6 리터럴은 괄호를 포함한다).
- * @returns 통과면 `{ ok: true }`, 거부면 `{ ok: false, reason }`.
+ * @returns 통과면 `{ ok: true }`, 거부면 `{ ok: false, reason }`. 조회 시간 초과만 `{ ok: true, reason }` 이다
+ *   (호출자가 경고 로그를 남긴다).
  */
 export async function checkResolvedHostIp(
   hostname: string,

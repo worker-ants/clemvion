@@ -553,11 +553,56 @@ describe('checkResolvedHostIp — 조회 타임아웃', () => {
 
   it('조회가 끝나지 않으면 제한 시간 뒤 fail-open 으로 통과시키고 사유를 남긴다', async () => {
     mockedLookup.mockReturnValue(new Promise<LookupAddress[]>(() => {}));
-    const pending = checkResolvedHostIp('example.com');
-    await jest.advanceTimersByTimeAsync(DNS_LOOKUP_TIMEOUT_MS);
+    let settled = false;
+    const pending = checkResolvedHostIp('example.com').then((r) => {
+      settled = true;
+      return r;
+    });
+    // 경계 — 제한 시간 1ms 전에는 아직 끝나지 않는다.
+    await jest.advanceTimersByTimeAsync(DNS_LOOKUP_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(settled).toBe(true);
     const r = await pending;
     expect(r.ok).toBe(true);
     expect(r.reason).toMatch(/timed out/);
+  });
+
+  // 늦은 거부가 처리되지 않으면 Jest(jest-circus)가 실제 process 에 단 처리기로 받아 이 테스트를 실패시킨다. 판별은
+  // 이 경로가 한다. `Promise.race` 를 처리기 없는 `then` 으로 바꾼 뮤턴트로 이 테스트가 실패하는 것을 확인했다.
+  // 테스트 파일의 `process` 는 Jest 가 만든 사본이라 아래 리스너에는 그 거부가 닿지 않는다(같은 뮤턴트에서 0건).
+  // 리스너 단언은 보조로만 둔다(channel-listener.bus.spec.ts 의 같은 설명 참고).
+  // Node 는 마이크로태스크 큐가 빈 뒤에야 처리되지 않은 거부를 알린다. 마이크로태스크만 흘리면 거부가 테스트가 끝난
+  // 뒤에 알려져 Jest 프로세스가 통째로 죽는다(같은 뮤턴트로 확인). 그래서 늦은 거부 뒤에 실제 타이머로 돌아가
+  // setImmediate 를 한 번 기다린다(가짜 타이머는 setImmediate 도 막는다).
+  it('제한 시간이 먼저 지난 뒤 lookup 이 거부해도 처리되지 않은 거부가 남지 않는다', async () => {
+    let rejectLate: (err: Error) => void = () => undefined;
+    mockedLookup.mockReturnValue(
+      new Promise<LookupAddress[]>((_resolve, reject) => {
+        rejectLate = reject;
+      }),
+    );
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const pending = checkResolvedHostIp('example.com');
+      await jest.advanceTimersByTimeAsync(DNS_LOOKUP_TIMEOUT_MS);
+      const r = await pending;
+      expect(r.ok).toBe(true);
+      expect(r.reason).toMatch(/timed out/);
+
+      jest.useRealTimers();
+      rejectLate(
+        Object.assign(new Error('getaddrinfo ETIMEOUT'), { code: 'ETIMEOUT' }),
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 
   it('제한 시간 안에 끝나면 타이머를 지운다', async () => {

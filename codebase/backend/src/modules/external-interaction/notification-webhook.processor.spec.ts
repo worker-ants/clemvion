@@ -20,6 +20,7 @@ import {
   verifySignatureHeader,
 } from './notification-signature.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import * as ssrfSafeUrl from '../../common/utils/ssrf-safe-url.util';
 
 // 발송 직전 DNS 결과 검사(`checkResolvedHostIp`)가 부르는 OS 해석기. 검사는 운영 기본 또는 opt-in 때만 돌아서 다른
 // 테스트는 이 가짜에 닿지 않는다. 닿으면 공인 주소 하나로 답한다(실제 DNS 를 묻지 않게).
@@ -922,6 +923,57 @@ describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () 
     await processor.process(makeJob({ eventType: 'execution.completed' }));
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // 조회가 시간 안에 끝나지 않으면 검사는 `{ ok: true, reason }` 을 돌려준다. 발송은 이어 가고 발송 건강도는 바꾸지 않으며
+  // 검사 없이 나간 발송이 보이도록 트리거 id 와 함께 경고 로그를 남긴다(CLE-EIA-NOTIFY 「SSRF」).
+  it('운영 기본 — 조회 시간 초과는 그대로 보내고 경고 로그만 남긴다', async () => {
+    setEnv('production', undefined);
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    const reason = 'DNS lookup timed out after 3000ms (fail-open)';
+    const check = jest
+      .spyOn(ssrfSafeUrl, 'checkResolvedHostIp')
+      .mockResolvedValue({ ok: true, reason });
+    const markDegraded = jest.spyOn(
+      processor as unknown as {
+        markDegraded: (triggerId: string, reason: string) => Promise<void>;
+      },
+      'markDegraded',
+    );
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(check).toHaveBeenCalledWith('customer.example.com');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(markDegraded).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+      notificationHealth: 'healthy',
+      notificationLastError: null,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      `notification DNS check fail-open — ${reason} (triggerId=trg-1)`,
+    );
+  });
+
+  it('운영 기본 — 사유 없는 통과는 경고 로그를 남기지 않는다', async () => {
+    setEnv('production', undefined);
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // 옛 평문 서명 비밀 경고는 이 트리거에서 따로 나온다. DNS 통과 경고만 없어야 한다.
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('DNS check fail-open'),
+    );
   });
 
   it('운영에서 =0 이면 검사하지 않고 보낸다', async () => {
