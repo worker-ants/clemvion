@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -38,7 +38,9 @@ import { UsersModule } from '../../users/users.module';
         signOptions: { expiresIn: 900 },
       }),
     }),
-    UsersModule,
+    // forwardRef: UsersModule → (forwardRef) AuthModule → WebAuthnModule → UsersModule 로 순환한다. users.module.ts 나
+    // workspaces.module.ts(→ UsersModule)가 먼저 로드되면 이 자리가 undefined 가 된다(CLE-T-KG01YT).
+    forwardRef(() => UsersModule),
   ],
   providers: [
     WebAuthnService,

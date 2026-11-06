@@ -13,6 +13,7 @@ import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import type { WorkspaceRole } from './dto/add-member.dto';
@@ -172,6 +173,12 @@ describe('WorkspacesService', () => {
           useValue: {
             findOne: jest.fn(),
             find: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: UsersService,
+          useValue: {
+            lookupByEmail: jest.fn().mockResolvedValue({ kind: 'none' }),
           },
         },
         {
@@ -786,6 +793,10 @@ describe('WorkspacesService', () => {
             provide: getRepositoryToken(User),
             useValue: { findOne: jest.fn() },
           },
+          {
+            provide: UsersService,
+            useValue: { lookupByEmail: jest.fn() },
+          },
           { provide: AuditLogsService, useValue: { record: jest.fn() } },
         ],
       }).compile();
@@ -1301,9 +1312,10 @@ describe('WorkspacesService', () => {
       );
     }
 
-    function userRepo(): { findOne: jest.Mock } {
-      return (service as unknown as { userRepository: { findOne: jest.Mock } })
-        .userRepository;
+    function lookupByEmail(): jest.Mock {
+      return (
+        service as unknown as { usersService: { lookupByEmail: jest.Mock } }
+      ).usersService.lookupByEmail;
     }
 
     async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -1463,7 +1475,7 @@ describe('WorkspacesService', () => {
       );
       expect(err).toBeInstanceOf(ForbiddenException);
       expect((err as ForbiddenException).getResponse()).toEqual(OWNER_ONLY);
-      expect(userRepo().findOne).not.toHaveBeenCalled();
+      expect(lookupByEmail()).not.toHaveBeenCalled();
       expect(memberRepo.save).not.toHaveBeenCalled();
     });
 
@@ -1479,7 +1491,10 @@ describe('WorkspacesService', () => {
           ...mockWorkspace,
           type: 'team',
         });
-        userRepo().findOne.mockResolvedValue({ id: 'user-added' });
+        lookupByEmail().mockResolvedValue({
+          kind: 'found',
+          user: { id: 'user-added' },
+        });
         memberRepo.save.mockResolvedValue({ id: 'mem-added' });
 
         await service.addMemberByEmail(
@@ -1493,6 +1508,106 @@ describe('WorkspacesService', () => {
         );
       },
     );
+  });
+
+  /**
+   * NERV CLE-ACCT-WS REQ-WSPACE-070 · 071 — 직접 추가는 대상 사용자를 가입과 로그인 「이메일 비교 규칙」
+   * (`UsersService.lookupByEmail`)대로 찾는다. 어느 계정인지 정할 수 없으면 가입하지 않은 이메일과 같은
+   * 404 다(CLE-T-KG01YT).
+   */
+  describe('addMemberByEmail — 대상 사용자는 이메일 비교 규칙으로 찾는다', () => {
+    const REQUESTER = 'user-requester';
+    const USER_NOT_FOUND = {
+      code: 'USER_NOT_FOUND',
+      message: '해당 이메일로 가입된 사용자가 없습니다.',
+    };
+
+    function lookupByEmail(): jest.Mock {
+      return (
+        service as unknown as { usersService: { lookupByEmail: jest.Mock } }
+      ).usersService.lookupByEmail;
+    }
+
+    beforeEach(() => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      memberRepo.findOne.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          Promise.resolve(
+            where.userId === REQUESTER ? { role: 'admin' } : null,
+          ),
+      );
+    });
+
+    it('입력을 소문자로 바꾸지 않고 조회에 넘기고 찾은 계정을 멤버로 넣는다', async () => {
+      lookupByEmail().mockResolvedValue({
+        kind: 'found',
+        user: { id: 'user-legacy', email: 'Legacy@Example.com' },
+      });
+      memberRepo.save.mockResolvedValue({ id: 'mem-added' });
+
+      await service.addMemberByEmail(
+        'ws-uuid-1',
+        'Legacy@Example.com',
+        'editor',
+        REQUESTER,
+      );
+
+      // 소문자로 바꿔 넘기면 대소문자까지 같은 계정을 고르는 규칙이 소문자 계정만 고른다.
+      expect(lookupByEmail()).toHaveBeenCalledWith('Legacy@Example.com');
+      expect(memberRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-legacy', role: 'editor' }),
+      );
+    });
+
+    it.each(['none', 'ambiguous'])(
+      '조회 결과가 %s 면 같은 404 USER_NOT_FOUND 이고 멤버를 넣지 않는다',
+      async (kind) => {
+        lookupByEmail().mockResolvedValue({ kind });
+
+        await expect(
+          service.addMemberByEmail(
+            'ws-uuid-1',
+            'Dup@Example.com',
+            'editor',
+            REQUESTER,
+          ),
+        ).rejects.toMatchObject({ status: 404, response: USER_NOT_FOUND });
+        expect(memberRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it('찾은 계정이 이미 멤버면 409 ALREADY_A_MEMBER', async () => {
+      lookupByEmail().mockResolvedValue({
+        kind: 'found',
+        user: { id: 'user-legacy' },
+      });
+      memberRepo.findOne.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          Promise.resolve(
+            where.userId === REQUESTER
+              ? { role: 'admin' }
+              : where.userId === 'user-legacy'
+                ? { id: 'mem-legacy' }
+                : null,
+          ),
+      );
+
+      await expect(
+        service.addMemberByEmail(
+          'ws-uuid-1',
+          'legacy@example.com',
+          'editor',
+          REQUESTER,
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: { code: 'ALREADY_A_MEMBER' },
+      });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('transferOwnership', () => {
@@ -1838,8 +1953,11 @@ describe('WorkspacesService', () => {
         .mockResolvedValueOnce({ role: 'admin' })
         .mockResolvedValueOnce(null);
       (
-        service as unknown as { userRepository: { findOne: jest.Mock } }
-      ).userRepository.findOne.mockResolvedValue({ id: 'user-added' });
+        service as unknown as { usersService: { lookupByEmail: jest.Mock } }
+      ).usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { id: 'user-added' },
+      });
       memberRepo.save.mockResolvedValue({ id: 'mem-added' });
       const audit = getAudit();
       await service.addMemberByEmail(
