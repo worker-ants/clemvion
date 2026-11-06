@@ -16586,6 +16586,103 @@ describe('ExecutionEngineService', () => {
             failSpy.mockRestore();
           }
         });
+
+        // CLE-T-2CW3X0 — 바깥 Parallel 이 병렬 분기를 시작하기 전에 안쪽 Parallel 본문을
+        // 미리 검사한다. 안쪽 병렬 분기 수는 아직 모르므로 설정값과 상관없이 최대값으로
+        // 잡고 모든 `branch_N` 연결선을 따라간다.
+        describe('안쪽 Parallel 본문 사전 검사', () => {
+          // par(continue).branch_0 → par2.<innerPort> → <child>, par.branch_1 → d
+          const runWithInnerChild = async (opts: {
+            innerConfig: Record<string, unknown>;
+            innerPort: string;
+            child: ReturnType<typeof pNode>[];
+            childEdges: ReturnType<typeof pEdge>[];
+          }) => {
+            const { runs } = recordingHandlers(['x', 'd']);
+            const failSpy = jest.spyOn(
+              service as unknown as {
+                finalizeFailedExecution: (...args: unknown[]) => Promise<void>;
+              },
+              'finalizeFailedExecution',
+            );
+            try {
+              await runGraph(
+                { errorPolicy: 'continue' },
+                [
+                  pNode('par2', 'parallel', opts.innerConfig),
+                  ...opts.child,
+                  pNode('d', 'd_node'),
+                  pNode('sink', 'sink_node'),
+                ],
+                [
+                  pEdge('par', 'branch_0', 'par2'),
+                  pEdge('par2', opts.innerPort, opts.child[0].id as string),
+                  ...opts.childEdges,
+                  pEdge('par', 'branch_1', 'd'),
+                  pEdge('par', 'done', 'sink'),
+                ],
+              );
+              const failedMessages = failSpy.mock.calls.map(
+                (call: unknown[]) => (call[1] as Error).message,
+              );
+              return { runs, failedMessages };
+            } finally {
+              failSpy.mockRestore();
+            }
+          };
+
+          it.each([
+            ['설정한 병렬 분기 수(2)를 넘는 branch_3', { branchCount: 2 }],
+            ['병렬 분기 수가 표현식', { branchCount: '{{ $input.count }}' }],
+          ])(
+            '안쪽 Parallel 의 %s 아래 Parallel 도 깊이 초과로 보고 병렬 분기를 시작하기 전에 실행을 실패시킨다',
+            async (_label, innerConfig) => {
+              const { runs, failedMessages } = await runWithInnerChild({
+                innerConfig,
+                innerPort: 'branch_3',
+                child: [
+                  pNode('par3', 'parallel', { branchCount: 2 }),
+                  pNode('x', 'x_node'),
+                ],
+                childEdges: [pEdge('par3', 'branch_0', 'x')],
+              });
+
+              expect(runs).toEqual([]);
+              expect(doneReceived).toEqual([]);
+              expect(failedMessages).toEqual([
+                expect.stringMatching(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /),
+              ]);
+            },
+          );
+
+          it('안쪽 Parallel 본문의 블로킹 노드도 병렬 분기를 시작하기 전에 PARALLEL_INVALID_CHILD 로 실행을 실패시킨다', async () => {
+            // 안쪽 본문은 바깥 병렬 분기 본문 안의 연결선만 따라가므로 늘 바깥 본문에도
+            // 들어 있다. 그래서 사전 검사와 바깥 본문 검사 가운데 어느 쪽이 던져도 이 테스트는
+            // 통과한다. 고정하는 것은 "바깥 병렬 분기를 시작하기 전에 실행이 실패한다" 는 동작이다.
+            handlerRegistry.register(
+              'form_like',
+              {
+                validate: () => ({ valid: true, errors: [] }),
+                execute: jest.fn(async () => mockOutput({ form: true })),
+              },
+              { kind: 'blocking', interaction: 'form' },
+            );
+
+            const { runs, failedMessages } = await runWithInnerChild({
+              innerConfig: { branchCount: 2 },
+              innerPort: 'branch_0',
+              child: [pNode('form1', 'form_like')],
+              childEdges: [],
+            });
+
+            // 바깥 항목 에러 정책이 continue 라도 바깥 병렬 분기 1 의 d 가 실행되지 않는다.
+            expect(runs).toEqual([]);
+            expect(doneReceived).toEqual([]);
+            expect(failedMessages).toEqual([
+              expect.stringMatching(/^PARALLEL_INVALID_CHILD: /),
+            ]);
+          });
+        });
       });
     });
   });
