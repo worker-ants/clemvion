@@ -329,6 +329,24 @@ describe('WorkflowsService', () => {
       );
     });
 
+    // CLE-T-FXJ9CF: DTO 정규식을 통과하는 Object 내장 이름이다. 평범한 객체 조회는 이 값에서 내장 함수를
+    // 돌려줘 폴백을 건너뛰고 함수 소스 문자열을 ORDER BY 에 넣었다.
+    it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
+      'Object 내장 이름 sort=%s 는 w.created_at 으로 폴백하고 방향은 지킨다',
+      async (sort) => {
+        mockQueryBuilder.orderBy.mockClear();
+        await service.findAll(
+          'ws-uuid-1',
+          { page: 1, limit: 20, sort, order: 'asc' },
+          'user-uuid-1',
+        );
+        expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+          'w.created_at',
+          'ASC',
+        );
+      },
+    );
+
     it("§2.4 sort='last_run' → execution 최근 실행 subquery orderBy (NULLS LAST)", async () => {
       mockQueryBuilder.orderBy.mockClear();
       await service.findAll(

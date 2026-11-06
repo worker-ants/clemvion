@@ -21,6 +21,7 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import { assertRowArray } from '../../common/utils/assert-row-array';
+import { pickSortColumn } from '../../common/utils/list-sort';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -1097,6 +1098,6 @@ export class ExecutionsService {
       status: 'status',
       duration_ms: 'durationMs',
     };
-    return allowed[sort] || 'startedAt';
+    return pickSortColumn(allowed, sort, 'startedAt');
   }
 }

@@ -4,6 +4,7 @@ import {
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import type { McpDiagnosticError, McpServerSummary } from './mcp-diagnostics';
 import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
+import type { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope';
 
 /**
  * AgentToolProvider — AI Agent 노드가 LLM 에 노출하는 "핸들러 내부 실행형" tool 의
@@ -82,6 +83,13 @@ export interface ProviderBuildCtx {
    * spec/5-system/11-mcp-client.md §6.2 / §8.1-8.2.
    */
   mcpDiagnosticErrors?: McpDiagnosticError[];
+  /**
+   * 이번 도구 목록 만들기(한 턴)의 통합 조회 범위. 실행기가 `buildTools` 호출마다 하나 만들어 모든 프로바이더에 같은 것을
+   * 넘긴다. 같은 서버 항목을 프로바이더마다 조회해도 통합 행 · 판정 사실은 한 번만 읽고 거절 로그도 한 번만 남는다
+   * (NERV Task `CLE-T-92RQWB`). 다음 턴으로 넘기지 않으므로 통합 · 멤버십 변경은 다음 턴에 반영된다. 없으면 조회마다
+   * 새로 읽는다.
+   */
+  integrationLookupScope?: ExecutionLookupScope;
 }
 
 export interface ProviderExecCtx {

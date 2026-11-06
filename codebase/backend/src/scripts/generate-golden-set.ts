@@ -32,6 +32,7 @@ import {
   GoldenSet,
 } from '../modules/knowledge-base/eval/golden-set.types';
 import { parseCliFlag } from './cli-utils';
+import { pickSortColumn } from '../common/utils/list-sort';
 
 const CHUNK_LLM_CONCURRENCY = 4;
 const GEN_TIMEOUT_MS = 60_000;
@@ -167,7 +168,7 @@ async function main(): Promise<void> {
   const questionsPerChunk = Number(parseCliFlag('--questions-per-chunk') ?? 1);
   const langArg = (parseCliFlag('--lang') ?? 'auto') as 'ko' | 'en' | 'auto';
   const llmConfigId = parseCliFlag('--llm-config-id');
-  const order = (parseCliFlag('--order') ?? 'random') as 'random' | 'id';
+  const order = parseCliFlag('--order') ?? 'random';
   const minChars = Number(parseCliFlag('--min-chars') ?? 80);
   const dryRun = process.argv.includes('--dry-run');
   const outPath = resolve(process.cwd(), parseCliFlag('--out') ?? DEFAULT_OUT);
@@ -192,9 +193,14 @@ async function main(): Promise<void> {
       workspaceId,
     );
 
-    // W7: ORDER BY 화이트리스트 const 맵 — 문자열 인터폴레이션 패턴 제거
+    // W7: ORDER BY 화이트리스트 const 맵 — 문자열 인터폴레이션 패턴 제거.
+    // 허용 밖 `--order`(`constructor` 같은 Object 내장 이름 포함)는 random 으로 폴백한다(CLE-T-FXJ9CF).
     const ALLOWED_ORDERS = { random: 'random()', id: 'id' } as const;
-    const orderBy = ALLOWED_ORDERS[order] ?? ALLOWED_ORDERS.random;
+    const orderBy = pickSortColumn(
+      ALLOWED_ORDERS,
+      order,
+      ALLOWED_ORDERS.random,
+    );
     const chunks: ChunkRow[] = await dataSource.query(
       `SELECT id, document_id, content
          FROM document_chunk

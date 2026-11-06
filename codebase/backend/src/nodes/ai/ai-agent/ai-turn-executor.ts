@@ -72,6 +72,7 @@ import { LlmCallRecord } from '../../../shared/llm-tracing/llm-call-record';
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { isDryRun } from '../../core/dry-run.util';
 import { markMcpServerRefOrigins } from './mcp-server-ref-use';
+import { ExecutionLookupScope } from '../../../modules/integrations/execution-lookup-scope';
 import { CHART_DATA_SHAPE } from '../../presentation/_shared/schemas';
 
 import type { AiAgentEndReason } from '@workflow/ai-end-reason';
@@ -3875,6 +3876,9 @@ export class AiTurnExecutor {
 
     // Provider tools (KB / MCP 등) — 핸들러 내부 실행. 우선순위 가장 높음.
     const providerTools: ToolDef[] = [];
+    // 프로바이더들이 같은 서버 항목을 각자 조회한다. 이번 도구 목록 만들기 동안만 조회를 묶고 다음 턴에는 새로 만든다
+    // (CLE-T-92RQWB).
+    const integrationLookupScope = new ExecutionLookupScope();
     for (const provider of this.toolProviders) {
       try {
         const built = await provider.buildTools({
@@ -3882,6 +3886,7 @@ export class AiTurnExecutor {
           workspaceId,
           executionId,
           nodeId,
+          integrationLookupScope,
           // provider 는 serverSummaries / errors 두 sub-array 로만 push 한다
           // (카운터는 executor 소유, execute choke point 에서 증가).
           mcpDiagnostics: mcpDiagnostics?.serverSummaries,

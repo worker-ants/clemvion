@@ -72,6 +72,10 @@ import {
   loadExecutionUseFacts,
   logPersonalIntegrationUseRejection,
 } from './personal-integration-use-facts';
+import type {
+  ExecutionLookupOptions,
+  ExecutionLookupScope,
+} from './execution-lookup-scope';
 import {
   ConnectionPreview,
   McpTestConnectionService,
@@ -1779,6 +1783,9 @@ export class IntegrationsService {
    *
    * 사용자 요청 경로의 가시성 판정({@link requireVisible})은 거치지 않는다. 실행 엔진 · 도구 프로바이더만 부른다.
    *
+   * `options.scope` 를 넘기면 한 노드 실행 · 한 에이전트 턴 안의 같은 조회가 통합 행 · 판정 사실을 한 번만 읽고 거절 로그도 한 번만
+   * 남긴다({@link ExecutionLookupScope}). 판정과 거절 응답은 범위가 있든 없든 같다.
+   *
    * Credentials on the returned object are NOT masked — callers must treat
    * the result as secret material and avoid logging it.
    */
@@ -1786,14 +1793,35 @@ export class IntegrationsService {
     id: string,
     workspaceId: string,
     use: IntegrationUse,
+    options: ExecutionLookupOptions = {},
+  ): Promise<Integration> {
+    const { scope, reread = false } = options;
+    if (!scope) return this.lookupForExecution(id, workspaceId, use);
+    return scope.lookup(
+      { workspaceId, integrationId: id, use },
+      () => this.lookupForExecution(id, workspaceId, use, scope),
+      reread,
+    );
+  }
+
+  /** {@link getForExecution} 의 조회 한 번. 범위가 있으면 판정 사실과 거절 로그를 범위에서 같이 쓴다. */
+  private async lookupForExecution(
+    id: string,
+    workspaceId: string,
+    use: IntegrationUse,
+    scope?: ExecutionLookupScope,
   ): Promise<Integration> {
     const entity = await this.requireEntity(id, workspaceId);
     if (isPersonalIntegration(entity)) {
-      const facts = await loadExecutionUseFacts(this.dataSource, {
+      const factsArgs = {
         nodeId: use.nodeId,
         workspaceId,
         integrationOwnerId: entity.createdBy,
-      });
+      };
+      const loadFacts = () => loadExecutionUseFacts(this.dataSource, factsArgs);
+      const facts = await (scope
+        ? scope.useFacts(factsArgs, loadFacts)
+        : loadFacts());
       const reason = judgePersonalIntegrationUse({
         path: 'execution',
         integrationOwnerId: entity.createdBy,
@@ -1802,13 +1830,18 @@ export class IntegrationsService {
         fromExpression: use.fromExpression,
       });
       if (reason) {
-        logPersonalIntegrationUseRejection(this.logger, {
-          path: 'execution',
+        const rejection = {
           workspaceId,
           nodeId: use.nodeId,
           integrationId: entity.id,
           reason,
-        });
+        };
+        if (!scope || scope.claimRejectionLog(rejection)) {
+          logPersonalIntegrationUseRejection(this.logger, {
+            path: 'execution',
+            ...rejection,
+          });
+        }
         this.throwIntegrationNotFound();
       }
     }

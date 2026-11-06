@@ -96,6 +96,34 @@ describe('NotificationsService — dismiss', () => {
     });
   });
 
+  describe('findAll — 정렬 허용 목록', () => {
+    it('허용 sort=type 은 n.type 으로 정렬한다', async () => {
+      const qb = makeQb(0, []);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll('ws-1', 'user-1', {
+        sort: 'type',
+        order: 'asc',
+      } as any);
+
+      expect(qb.orderBy).toHaveBeenCalledWith('n.type', 'ASC');
+    });
+
+    // CLE-T-FXJ9CF: DTO 정규식을 통과하는 Object 내장 이름이다. 평범한 객체 조회는 이 값에서 내장 함수를
+    // 돌려줘 폴백을 건너뛰고 함수 소스 문자열을 ORDER BY 에 넣었다.
+    it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
+      'Object 내장 이름 sort=%s 는 n.created_at 으로 폴백하고 방향은 지킨다',
+      async (sort) => {
+        const qb = makeQb(0, []);
+        repo.createQueryBuilder.mockReturnValue(qb);
+
+        await service.findAll('ws-1', 'user-1', { sort, order: 'asc' } as any);
+
+        expect(qb.orderBy).toHaveBeenCalledWith('n.created_at', 'ASC');
+      },
+    );
+  });
+
   describe('getUnreadCount — dismissed_at IS NULL 필터', () => {
     it('count where 절에 dismissedAt: IsNull() 을 포함한다', async () => {
       repo.count.mockResolvedValue(3);
