@@ -42,6 +42,44 @@ export interface ExecutionChannelEvent {
 }
 
 /**
+ * `FanoutEnvelope` 의 표지. 값이 없는 `declare` 라 모듈에 런타임 코드가 생기지 않는다
+ * (이 모듈의 import 0줄 불변식과 무관하다). export 하지 않으므로 다른 모듈은 이 표지를 붙인
+ * 객체 리터럴을 만들 수 없다.
+ */
+declare const fanoutEnvelopeBrand: unique symbol;
+
+/**
+ * `WebsocketService.toFanoutEnvelope` 를 지난 fanout 봉투 (EGRESS §6).
+ *
+ * 값 마스킹 → `llmCalls` 제거 → `nodeOutput` 허용 목록 → 라우팅 정보 부착을 거친 값만 이
+ * 타입이 된다. 이 타입을 만드는 단언은 `toFanoutEnvelope` 한 곳에만 있다.
+ *
+ * ## 막는 것과 못 막는 것
+ *
+ * - 평범한 객체(`Record<string, unknown>`)를 이 자리에 넣으면 컴파일 에러다. 서비스 안의 새
+ *   발행 경로가 `toFanoutEnvelope` 를 건너뛰고 fanout subject 에 넣는 것을 막는다.
+ * - 타입 단언(`as FanoutEnvelope`)은 막지 못한다. 그 단언이 `toFanoutEnvelope` 밖에 없는지는
+ *   `websocket.service.spec.ts` 의 소스 스캔 테스트가 본다.
+ * - 이미 이 타입인 봉투를 spread 해 필드를 더해도 표지가 남는다. `{ ...envelope, extra }` 는
+ *   여전히 `FanoutEnvelope` 로 통과한다.
+ */
+export type FanoutEnvelope = Record<string, unknown> & {
+  readonly [fanoutEnvelopeBrand]: true;
+};
+
+/**
+ * fanout subject 에 넣을 수 있는 이벤트. `payload` 가 {@link FanoutEnvelope} 라는 점만
+ * {@link ExecutionChannelEvent} 와 다르다.
+ *
+ * 소비처가 보는 `executionEvents$` 는 그대로 `ExecutionChannelEvent` 다. SSE 어댑터의 replay
+ * 제어 프레임과 Redis 버퍼 재구성이 그 타입을 직접 만들기 때문에 표지는 subject 입력에만
+ * 건다. 이 타입은 `ExecutionChannelEvent` 의 하위 타입이라 subject 를 그대로 노출해도 된다.
+ */
+export interface FanoutExecutionChannelEvent extends ExecutionChannelEvent {
+  payload: FanoutEnvelope;
+}
+
+/**
  * `ChatChannelDispatcher` 가 outbound 발송 시 라우팅에 사용하는 conversation
  * 식별자. 필수 두 필드는 [Spec Chat Channel §3.1 CCH-AD-05 / §4.3] 의 conversation
  * 매핑 키 — `(provider, conversationKey)` 1:1 ChannelConversation. provider 별

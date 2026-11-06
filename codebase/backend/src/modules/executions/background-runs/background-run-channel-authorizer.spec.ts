@@ -1,5 +1,6 @@
 import { BackgroundRunChannelAuthorizer } from './background-run-channel-authorizer';
 import { BackgroundRunsService } from './background-runs.service';
+import type { ChannelAuthorizerContext } from '../../websocket/channel-authorizer';
 
 const VALID_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -67,5 +68,29 @@ describe('BackgroundRunChannelAuthorizer', () => {
     });
 
     expect(result).toEqual({ error: 'Not authorized for this background run' });
+  });
+
+  /**
+   * 구독 인가는 워크스페이스 소유만 본다. 컨텍스트(`ChannelAuthorizerContext`)에 역할이 없어서
+   * 뷰어도 이 채널을 받는다. 그래서 발행 쪽 wire 값 마스킹이 뷰어에게 자격 증명이 원문으로
+   * 가지 않게 하는 층이다(CLE-T-7ZYES5, `websocket.service.spec.ts` 「kb · background 채널 값
+   * 마스킹」). 컨텍스트의 `role` 로 뷰어를 거르기 시작하면 이 테스트가 깨지고, 그때 EGRESS 의 수신 인구 서술도 함께 고친다.
+   */
+  it('뷰어 역할도 구독할 수 있다 (역할을 보지 않는다)', async () => {
+    const verify = jest.fn().mockResolvedValue(true);
+    const authorizer = makeAuthorizer(verify);
+    const viewerContext = {
+      workspaceId: 'ws-1',
+      userId: 'viewer-1',
+      role: 'viewer',
+    } as ChannelAuthorizerContext;
+
+    const result = await authorizer.authorize(
+      `background:run:${VALID_ID}`,
+      viewerContext,
+    );
+
+    expect(result).toBeNull();
+    expect(verify).toHaveBeenCalledWith(VALID_ID, 'ws-1');
   });
 });

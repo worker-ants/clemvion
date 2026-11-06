@@ -86,7 +86,8 @@ export const NODE_OUTPUT_ALLOWED_KEYS = Object.freeze([
   // 다만 이 넷은 **§R17 이 정의한 키가 아니다** — `NodeHandlerOutput` 계약 밖의,
   // chat-channel legacy flat shape 보존을 위한 **별개 carve-out** 이다. §R17 의 표가
   // 이들을 "wire 전용 (chat-channel 렌더러)" 로 **별도 갈래**에 둔 것이 그 뜻이고,
-  // 위 위젯 4키와 마찬가지로 타입이 아니라 **리터럴 테스트**가 지킨다.
+  // 위 위젯 4키와 마찬가지로 목록이 줄어드는 것은 **리터럴 테스트**가 막는다. 엔진 내부
+  // 필드와 이름이 겹치는 것은 아래 `WireOnlyNodeOutputKey` assertion 이 막는다(2026-11-06).
   'payload',
   'title',
   'rendered',
@@ -112,6 +113,62 @@ const assertAllowlistCoversHandlerContract: PublicHandlerOutputKey extends (type
   ? true
   : never = true;
 void assertAllowlistCoversHandlerContract;
+
+/**
+ * wire 전용 키 8개 — `NodeHandlerOutput` 계약 밖이지만 위젯 파서와 채팅 채널 렌더러가
+ * `nodeOutput` 최상위에서 읽는다. 위 배열의 뒤 두 갈래와 같은 목록이다.
+ *
+ * ## 이름 기반 허용 목록의 한계 (CLE-T-7ZYES5, EGRESS §3.8)
+ *
+ * 허용 목록은 키 **이름**만 본다. 그래서 엔진 내부 필드가 이 8개와 같은 이름으로
+ * `nodeOutput` 최상위에 붙으면 외부로 그대로 나간다. `_retryState` 가 deny-list 를 통과한
+ * 것과 같은 형태가 이름만 바꿔 다시 생기는 것이다.
+ *
+ * 아래 {@link assertWireOnlyKeysDoNotCollideWithHandlerContract} 가 `NodeHandlerOutput` 의
+ * 키(엔진 내부 `_resumeState`·`_retryState` 포함)와 이 8개가 겹치면 빌드를 깨뜨린다. 엔진
+ * 내부 필드는 그 타입에 선언하는 것이 이 저장소의 관례라 거기서 막는다.
+ *
+ * 타입 밖에서 붙는 필드는 막지 못한다. `NodeHandlerOutput` 에 선언하지 않고 객체에 직접 키를
+ * 더하는 경로가 그렇다. 그 경우는 리뷰 체크리스트(EGRESS §3.8)가 맡는다.
+ */
+type WireOnlyNodeOutputKey =
+  | 'formConfig'
+  | 'conversationConfig'
+  | 'buttonConfig'
+  | 'interactionType'
+  | 'payload'
+  | 'title'
+  | 'rendered'
+  | 'nodeType';
+
+type AllowedNodeOutputKey = (typeof NODE_OUTPUT_ALLOWED_KEYS)[number];
+
+/**
+ * 이 union 과 위 배열을 양쪽으로 묶는다. union 에만 키를 더하거나 배열에만 키를 더하면 아래
+ * 두 줄 중 하나가 타입 오류를 낸다. 그래서 이름 충돌 검사가 실제 목록과 같은 키를 본다.
+ */
+const assertWireOnlyKeysAreAllowed: WireOnlyNodeOutputKey extends AllowedNodeOutputKey
+  ? true
+  : never = true;
+const assertAllowlistIsHandlerContractPlusWireOnly: [
+  Exclude<AllowedNodeOutputKey, PublicHandlerOutputKey | WireOnlyNodeOutputKey>,
+] extends [never]
+  ? true
+  : never = true;
+void assertWireOnlyKeysAreAllowed;
+void assertAllowlistIsHandlerContractPlusWireOnly;
+
+/**
+ * `NodeHandlerOutput` 의 어떤 키도 wire 전용 이름을 쓰지 않는다. 겹치면 이 줄이 타입 오류를
+ * 낸다. 새 내부 필드라면 다른 이름을 고르고, 외부에 내보낼 공개 키라면 wire 전용 갈래가 아니라
+ * 공개 키 갈래로 옮긴다.
+ */
+const assertWireOnlyKeysDoNotCollideWithHandlerContract: [
+  Extract<keyof NodeHandlerOutput, WireOnlyNodeOutputKey>,
+] extends [never]
+  ? true
+  : never = true;
+void assertWireOnlyKeysDoNotCollideWithHandlerContract;
 
 /**
  * {@link NODE_OUTPUT_ALLOWED_KEYS} 에 없는 **최상위** 키를 떨어뜨린다 (fail-closed).
