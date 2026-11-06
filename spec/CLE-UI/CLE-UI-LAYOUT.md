@@ -2,19 +2,19 @@
 id: "CLE-UI-LAYOUT"
 title: "레이아웃과 내비게이션"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-LAYOUT-001", "REQ-LAYOUT-002", "REQ-LAYOUT-003", "REQ-LAYOUT-004", "REQ-LAYOUT-005", "REQ-LAYOUT-006", "REQ-LAYOUT-007", "REQ-LAYOUT-008", "REQ-LAYOUT-009", "REQ-LAYOUT-010", "REQ-LAYOUT-011", "REQ-LAYOUT-012", "REQ-LAYOUT-013", "REQ-LAYOUT-014", "REQ-LAYOUT-015", "REQ-LAYOUT-016", "REQ-LAYOUT-017", "REQ-LAYOUT-018", "REQ-LAYOUT-019", "REQ-LAYOUT-020", "REQ-LAYOUT-021", "REQ-LAYOUT-022", "REQ-LAYOUT-023", "REQ-LAYOUT-024", "REQ-LAYOUT-025", "REQ-LAYOUT-026", "REQ-LAYOUT-027", "REQ-LAYOUT-028", "REQ-LAYOUT-029", "REQ-LAYOUT-030", "REQ-LAYOUT-031", "REQ-LAYOUT-032", "REQ-LAYOUT-033", "REQ-LAYOUT-034", "REQ-LAYOUT-035", "REQ-LAYOUT-036", "REQ-LAYOUT-037", "REQ-LAYOUT-038", "REQ-LAYOUT-039", "REQ-LAYOUT-040", "REQ-LAYOUT-041", "REQ-LAYOUT-042", "REQ-LAYOUT-043"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "9c27a2c032f4628794f07804e2bbe7de4cbbac255f7617d4711e52781320368a"
+content_hash: "ba4d3c38bd39a291fb163a24d1d43cf917e338dd99f45958d30f9ee374a6d0d6"
 read_as: "approved_fallback"
-task: "CLE-T-6YY7KY"
+task: "CLE-T-3158TZ"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "f5d823c3cf2edd477453a2b285e4966633b3ff3247b95e167b688c326fac48d1"
-etag: "sha256-a39388b27e9f3c1fced1891fd0533d7293f242d99f6a6ad5422a94a2a0d41f5a"
+mirror_sha256: "ee129fa7d260808df26f9fca9695fa5a83350c2ac686c8ac295550d0db5fa0c8"
+etag: "sha256-22f727f872cb0cd5b3233e1435f1218829eba789045bb6785cc12dc0a3e8f172"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/_layout.md` (§1 레이아웃 구조, §2 사이드바, §4 메인 컨텐츠 영역, §5 공통 헤더, Rationale), `spec/2-navigation/_product-overview.md` (§1 개요, §2 내비게이션 구조), `spec/0-overview.md` (§3 공통 UI 패턴, Rationale «Inline Alert 의 위치») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -91,7 +91,7 @@ etag: "sha256-a39388b27e9f3c1fced1891fd0533d7293f242d99f6a6ad5422a94a2a0d41f5a"
 ### 반응형과 테마
 
 - REQ-LAYOUT-040 WHEN 에디터·대시보드 같은 작업형 페이지를 그리면 THE SYSTEM SHALL 1280x720 을 최소 권장 해상도로 삼는다. (원본: 0-overview §3.5)
-- REQ-LAYOUT-041 WHEN 사용자가 테마를 고르면 THE SYSTEM SHALL 라이트와 다크 테마를 모두 지원한다. (원본: 0-overview §3.5)
+- REQ-LAYOUT-041 WHEN 사용자가 테마를 고르면 THE SYSTEM SHALL 라이트·다크와 OS 색상 모드를 따르는 시스템 테마를 지원한다. (원본: 0-overview §3.5, 시스템 추가)
 - REQ-LAYOUT-042 WHEN 사용자가 모바일에서 워크플로우 에디터를 열면 THE SYSTEM SHALL 뷰어 모드만 제공한다. (원본: 0-overview §3.5)
 - REQ-LAYOUT-043 WHILE 뷰포트 너비가 1024px 미만인 동안 THE SYSTEM SHALL 사용자 가이드 같은 열람형 페이지를 상세 드로어(`SlideDrawer`) 진입으로 최소한 열람할 수 있게 한다. (원본: 0-overview §3.5)
 
@@ -210,7 +210,7 @@ etag: "sha256-a39388b27e9f3c1fced1891fd0533d7293f242d99f6a6ad5422a94a2a0d41f5a"
 ### 반응형과 테마
 
 - 최소 해상도 1280x720 은 에디터·대시보드 같은 작업형 페이지의 권장 기준이다.
-- 라이트·다크 테마를 지원한다. 테마를 바꾸는 곳은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) 의 환경설정이다.
+- 라이트·다크 테마와 OS 색상 모드를 따르는 시스템 테마를 지원한다. 테마를 바꾸는 곳은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) 의 환경설정이다. 저장한 테마는 로그인 뒤 모든 화면에 적용된다. 적용 방식은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md#테마) 이 정한다.
 - 워크플로우 에디터는 데스크톱 전용이다. 모바일에서는 뷰어 모드만 준다([미결 사항](#미결-사항)).
 - 사용자 가이드(`/docs`) 같은 열람형 페이지는 1024px(lg) 미만에서도 상세 드로어(`SlideDrawer`) 진입으로 최소한 열람할 수 있다([사용자 가이드](CLE-UI-GUIDE.md)).
 
@@ -256,3 +256,7 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. [메뉴 항목](#메뉴-항목) 표는 �
 
 - 기각한 대안: 영어 이름을 괄호로 함께 적는 안. 영어 이름은 영어 화면 문구 사전의 값이다. 두 사전의 값을 이 표에 옮기면 문구가 바뀔 때마다 표가 뒤처진다. 영어 값은 사전에서 찾는다.
 - 같은 Task 에서 「상세 패널」 을 [용어 사전](../CLE-GLOSSARY.md) 의 표준 용어 「상세 드로어」 로 맞췄다. 개요와 공통 UI 패턴의 절 제목이다. 절 제목이 바뀌어 앵커도 바뀌었다. 이 앵커를 가리키는 링크는 찾지 못했다.
+
+### 테마 요구에 시스템을 더했다
+
+2026-11-06 변경이다(NERV Task `CLE-T-6RY511`). 환경설정 카드와 저장 값에는 이미 `system` 이 있었다. 그런데 이 문서만 테마를 라이트·다크로 적고 있었다. 그래서 요구사항과 「반응형과 테마」 절에 시스템 테마를 더했다. 적용 규칙의 정본은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md#테마) 의 「테마」 절이다.

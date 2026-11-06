@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
   const t = useT();
   const queryClient = useQueryClient();
   const setThemeStore = useThemeStore((s) => s.setTheme);
+  const previewThemeStore = useThemeStore((s) => s.previewTheme);
+  const clearThemePreview = useThemeStore((s) => s.clearPreview);
   const setLocaleStore = useLocaleStore((s) => s.setLocale);
 
   const [mode, setMode] = useState<"view" | "edit">("view");
@@ -45,13 +47,20 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
 
   const dirty = tempTheme !== user.theme || tempLocale !== user.locale;
 
+  // 편집을 끝내지 않고 화면을 떠나면 미리보기를 거두고 확정한 테마로 돌린다
+  // (CLE-ACCT-PROFILE §테마). 미리보기는 localStorage 에 쓰지 않으므로 새로 고침에도 남지 않는다.
+  useEffect(() => clearThemePreview, [clearThemePreview]);
+
   const mutation = useMutation({
     mutationFn: async (patch: PreferencesPatch) => {
       await apiClient.patch("/users/me", patch);
     },
     onSuccess: (_data, patch) => {
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
+      // 의도적 중복: 프로필 쿼리 재수신 뒤 ThemeSync 가 같은 값을 다시 적용하지만,
+      // 재수신을 기다리는 동안 미리보기만 거두면 화면이 이전 테마로 깜박이므로 즉시 확정한다.
       if (patch.theme !== undefined) setThemeStore(patch.theme);
+      clearThemePreview();
       if (patch.locale !== undefined) setLocaleStore(patch.locale);
       toast.success(t("profile.saved"));
       setShowDiff(false);
@@ -73,13 +82,13 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
   function handleCancel() {
     setTempTheme(user.theme);
     setTempLocale(user.locale);
-    setThemeStore(user.theme); // 라이브 프리뷰 원복
+    clearThemePreview(); // 라이브 프리뷰 원복
     setMode("view");
   }
 
   function handleThemePreview(next: ServerTheme) {
     setTempTheme(next);
-    setThemeStore(next); // 라이브 프리뷰
+    previewThemeStore(next); // 라이브 프리뷰 — 저장 전이라 기억한 값은 바꾸지 않는다
   }
 
   function handleSaveClick() {
@@ -95,7 +104,7 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
   function handleDiffClose() {
     // spec §2.0: 모달 닫힘 시 라이브 프리뷰 원복 (사용자가 시각적으로 변경한
     // theme 가 모달 dismiss 만으로 사라지지 않으면 의도와 어긋난다).
-    setThemeStore(user.theme);
+    clearThemePreview();
     setShowDiff(false);
   }
 

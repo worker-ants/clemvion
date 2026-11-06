@@ -515,6 +515,77 @@ describe('Cafe24 install endpoint (e2e)', () => {
         integration_id: id,
       });
     });
+
+    /**
+     * `oauth/begin` 을 `new` 가 아닌 모드로 직접 부르면 본문의 상점이 대상 통합의 `credentials.mall_id` 와 같아야 한다
+     * (REQ-INTOAUTH-071, Task CLE-T-9J6W7H). 다르면 콜백이 다른 상점의 토큰을 그 통합에 쓰므로 state 를 만들지 않고 거절한다.
+     * 대상 행의 자격 증명은 DB 에서 읽어 견준다.
+     */
+    it.each(['reauthorize', 'request_scopes'] as const)(
+      'oauth/begin %s — 본문의 상점이 대상 통합과 다르면 400 OAUTH_TARGET_MISMATCH 이고 state 를 만들지 않는다',
+      async (mode) => {
+        const mallId = 'mall-' + randomBytes(4).toString('hex');
+        const otherMallId = 'mall-' + randomBytes(4).toString('hex');
+        const id = await insertPublicIntegration({
+          mallId,
+          status: 'connected',
+        });
+
+        const res = await request(BASE_URL)
+          .post('/api/integrations/oauth/begin')
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .set('X-Workspace-Id', workspaceId)
+          .send({
+            service: 'cafe24',
+            scopes: ['mall.read_product'],
+            mode,
+            integrationId: id,
+            mallId: otherMallId,
+            appType: 'public',
+          });
+        expect(res.status).toBe(400);
+        expect(res.body.error.code).toBe('OAUTH_TARGET_MISMATCH');
+
+        const states = await db.query<{ count: string }>(
+          'SELECT count(*) FROM integration_oauth_state WHERE integration_id = $1',
+          [id],
+        );
+        expect(states.rows[0].count).toBe('0');
+      },
+    );
+
+    it('oauth/begin reauthorize — 본문의 상점이 대상 통합과 같으면 그 상점의 인증 URL 을 반환한다', async () => {
+      const mallId = 'mall-' + randomBytes(4).toString('hex');
+      const id = await insertPublicIntegration({ mallId, status: 'connected' });
+
+      const res = await request(BASE_URL)
+        .post('/api/integrations/oauth/begin')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({
+          service: 'cafe24',
+          scopes: ['mall.read_product'],
+          mode: 'reauthorize',
+          integrationId: id,
+          mallId,
+          appType: 'public',
+        });
+      expect(res.status).toBe(200);
+      const authUrl = new URL(res.body.data.authUrl as string);
+      expect(authUrl.origin).toBe(`https://${mallId}.cafe24api.com`);
+
+      const state = await db.query<{
+        mode: string;
+        integration_id: string;
+      }>(
+        'SELECT mode, integration_id FROM integration_oauth_state WHERE state = $1',
+        [res.body.data.state],
+      );
+      expect(state.rows[0]).toEqual({
+        mode: 'reauthorize',
+        integration_id: id,
+      });
+    });
   });
 
   describe('happy path', () => {

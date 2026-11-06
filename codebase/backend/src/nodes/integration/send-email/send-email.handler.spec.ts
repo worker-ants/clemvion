@@ -794,5 +794,142 @@ describe('SendEmailHandler', () => {
         handler.execute(null, baseConfig, abortedCtx),
       ).rejects.toMatchObject({ name: 'AbortError' });
     });
+
+    // -----------------------------------------------------------------
+    // 성공 포트 · 일부 거부 (REQ-EMAIL-018)
+    // -----------------------------------------------------------------
+    it('returns port "out" explicitly on a normal send', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(baseConfig),
+      )) as unknown as { port?: string };
+      expect(out.port).toBe('out');
+    });
+
+    it('routes a partial reject to the out port with output.rejected filled', async () => {
+      sendMailMock.mockResolvedValueOnce({
+        messageId: 'msg-456',
+        accepted: ['a@example.com'],
+        rejected: ['x@y.com'],
+      });
+      const { service, logUsage } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const sendConfig = { ...baseConfig, to: ['a@example.com', 'x@y.com'] };
+      const out = (await handler.execute(
+        null,
+        sendConfig,
+        makeContext(sendConfig),
+      )) as unknown as {
+        port?: string;
+        output: { accepted: string[]; rejected: string[]; error?: unknown };
+        meta: { deliveryStatus: string };
+      };
+      expect(out.port).toBe('out');
+      expect(out.output.accepted).toEqual(['a@example.com']);
+      expect(out.output.rejected).toEqual(['x@y.com']);
+      expect(out.output.error).toBeUndefined();
+      expect(out.meta.deliveryStatus).toBe('sent');
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
+        expect.objectContaining({ status: 'success' }),
+      );
+    });
+
+    // -----------------------------------------------------------------
+    // 빈 수신자 → 에러 포트 EMAIL_NO_RECIPIENTS (REQ-EMAIL-010)
+    // -----------------------------------------------------------------
+    describe('empty recipients after normalization', () => {
+      type ErrorResult = {
+        port?: string;
+        status?: string;
+        config: { to: unknown };
+        output: {
+          subject: string;
+          body: string;
+          error: {
+            code: string;
+            message: string;
+            details: { to: string[]; integrationCode?: string };
+          };
+        };
+        meta: { deliveryStatus: string; durationMs: number };
+      };
+
+      function expectNoRecipientsError(out: ErrorResult) {
+        expect(out.port).toBe('error');
+        expect(out.status).toBeUndefined();
+        expect(out.output.error.code).toBe('EMAIL_NO_RECIPIENTS');
+        expect(out.output.error.details.integrationCode).toBe(
+          'EMAIL_NO_RECIPIENTS',
+        );
+        expect(out.output.error.details.to).toEqual([]);
+        expect(out.output.error.message).toMatch(/No valid recipients/);
+        expect(out.meta.deliveryStatus).toBe('failed');
+        expect(typeof out.meta.durationMs).toBe('number');
+        // 평가된 제목 · 본문은 실패해도 보존한다(디버깅).
+        expect(out.output.subject).toBe('hi');
+        expect(out.output.body).toBe('hello');
+      }
+
+      it.each([
+        ['an expression that evaluated to an empty string', ['']],
+        ['whitespace-only elements', ['  ', '\t']],
+        ['a non-array value (defensive normalization)', 'a@example.com'],
+      ])(
+        'routes to the error port when `to` is %s',
+        async (_label, evaluatedTo) => {
+          const { service, logUsage } = makeService();
+          const handler = new SendEmailHandler(service as never);
+          const rawConfig = { ...baseConfig, to: ['{{ $input.email }}'] };
+          const out = (await handler.execute(
+            null,
+            { ...baseConfig, to: evaluatedTo },
+            makeContext(rawConfig),
+          )) as unknown as ErrorResult;
+
+          expectNoRecipientsError(out);
+          // 설정 에코는 사용자가 입력한 원본 템플릿이다(Principle 7).
+          expect(out.config.to).toEqual(['{{ $input.email }}']);
+          // 통합을 얻기 전에 끝났으므로 조회 · 발송 · 활동 로그가 없다.
+          expect(service.getForExecution).not.toHaveBeenCalled();
+          expect(sendMailMock).not.toHaveBeenCalled();
+          expect(logUsage).not.toHaveBeenCalled();
+        },
+      );
+
+      it('checks recipients before the dry-run branch', async () => {
+        const { service, logUsage } = makeService();
+        const handler = new SendEmailHandler(service as never);
+        const sendConfig = { ...baseConfig, to: [''] };
+        const ctx = makeContext(sendConfig);
+        ctx.variables = { ...ctx.variables, __dryRun: true };
+        const out = (await handler.execute(
+          null,
+          sendConfig,
+          ctx,
+        )) as unknown as ErrorResult & { output: { _dryRun?: boolean } };
+
+        expectNoRecipientsError(out);
+        expect(out.output._dryRun).toBeUndefined();
+        expect(sendMailMock).not.toHaveBeenCalled();
+        expect(logUsage).not.toHaveBeenCalled();
+      });
+
+      it('checks recipients before the requires_integration fallback', async () => {
+        const handler = new SendEmailHandler();
+        const sendConfig = { ...baseConfig, to: [''] };
+        const out = (await handler.execute(
+          null,
+          sendConfig,
+          makeContext(sendConfig),
+        )) as unknown as ErrorResult;
+
+        expectNoRecipientsError(out);
+        expect(sendMailMock).not.toHaveBeenCalled();
+      });
+    });
   });
 });
