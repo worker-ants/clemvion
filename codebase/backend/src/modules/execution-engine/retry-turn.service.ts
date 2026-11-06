@@ -815,7 +815,13 @@ export class RetryTurnService {
           // `COALESCE` 가 **어느 쪽을 골랐는지는 DB 만 안다** — 되받지 않으면 caller 가
           // 로컬 T2 를 emit 해 "DB 는 T1, wire 는 T2" 가 된다. 희귀 레이스가 아니라
           // "retry-turn 처리 중 Stop" 이라는 일반 흐름에서 결정적으로 갈렸다.
-          .returning(['duration_ms', 'finished_at'])
+          // 배열 인자는 **엔티티 속성 경로**다. TypeORM 이 `findColumnsWithPropertyPath`
+          // 로 찾아 `RETURNING "duration_ms", "finished_at"` 을 만든다. 컬럼 이름
+          // (`'duration_ms'`)을 넘기면 매칭되는 속성이 없어 RETURNING 절이 통째로
+          // 빠지고 `raw` 가 빈 배열이 된다(실 Postgres e2e
+          // `test/retry-turn-guard-sql.e2e-spec.ts` 가 잡았다). 돌아오는 행의 키는
+          // DB 컬럼 이름이라 아래 되쓰기는 `row.duration_ms` 로 읽는다.
+          .returning(['durationMs', 'finishedAt'])
           .execute();
         if ((result.affected ?? 0) > 0) {
           // 영속값을 in-memory 에 되쓴다. 이후 emit 이 `resolveTerminalDurationMs`

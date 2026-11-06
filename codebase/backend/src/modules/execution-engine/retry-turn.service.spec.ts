@@ -1897,10 +1897,10 @@ describe('RetryTurnService', () => {
           PERSISTED_T1,
         );
         // 되받을 컬럼을 실제로 요청했는가 — 두 컬럼 모두 `COALESCE` 대상이다.
-        expect(returningSpy).toHaveBeenCalledWith([
-          'duration_ms',
-          'finished_at',
-        ]);
+        // 배열 인자는 엔티티 속성 경로라야 RETURNING 절이 생긴다. 컬럼 이름을 넘기면
+        // TypeORM 이 RETURNING 을 빼서 실 Postgres 에서 되쓰기가 조용히 꺼진다
+        // (`test/retry-turn-guard-sql.e2e-spec.ts` 의 G3 가 실제 DB 로 고정한다).
+        expect(returningSpy).toHaveBeenCalledWith(['durationMs', 'finishedAt']);
         // `finished_at` 되쓰기도 고정한다. 종전엔 이 블록을 통째로 지워도 GREEN 이었다
         // — 두 컬럼을 되쓰기로 해 놓고 한 컬럼만 단언했다.
         expect(execArg.finishedAt).toEqual(new Date(PERSISTED_FINISHED_AT));
