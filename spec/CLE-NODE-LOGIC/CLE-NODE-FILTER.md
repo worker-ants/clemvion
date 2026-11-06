@@ -3,18 +3,18 @@ id: "CLE-NODE-FILTER"
 title: "Filter 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-FILTER-001", "REQ-FILTER-002", "REQ-FILTER-003", "REQ-FILTER-004", "REQ-FILTER-005", "REQ-FILTER-006", "REQ-FILTER-007", "REQ-FILTER-008", "REQ-FILTER-009", "REQ-FILTER-010", "REQ-FILTER-011", "REQ-FILTER-012", "REQ-FILTER-013", "REQ-FILTER-014", "REQ-FILTER-015", "REQ-FILTER-016", "REQ-FILTER-017"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
 content_hash: "a9811ebdc41ba95ef326832ce838416c45a30b024125c7805ae3db5922ffb947"
-read_as: "approved"
-task: null
+read_as: "task_basis"
+task: "CLE-T-4EV45V"
 source_paths: ["spec/4-nodes/1-logic/8-filter.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "23693ad0a173d3514f4852abe1ec069c00ecdc33f06d9f02801cfa7ea5a3f44f"
-etag: "sha256-995c19f05053a6869fcca2a00a29d1c65b768aede9b278cce3d5ec81d103f5fc"
+mirror_sha256: "702bd4299dca641103758ae5f5dac1df2c6a89c29e5e933380803a24fe1349df"
+etag: "sha256-c64db7780b4787da359152db5bede7f1f86da3d068aa26f5a03a95348510a4cb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/8-filter.md`, `spec/4-nodes/_product-overview.md` (§4.8) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
