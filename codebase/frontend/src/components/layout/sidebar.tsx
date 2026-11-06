@@ -40,6 +40,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSidebarStore, selectCollapsed } from "@/lib/stores/sidebar-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
@@ -435,7 +436,6 @@ export function Sidebar() {
     router.push("/login");
   }
 
-  const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? "U";
   const userName = user?.name ?? t("sidebar.user");
 
   return (
@@ -855,9 +855,17 @@ export function Sidebar() {
               collapsed && "justify-center px-2",
             )}
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-xs font-semibold text-[hsl(var(--primary-foreground))]">
-              {userInitial}
-            </div>
+            {/* 아바타 이미지가 없거나 불러오지 못하면 이니셜. 프로필 카드와 같은 규칙이다.
+                펼친 상태는 옆에 이름이 보이므로 이미지는 장식(alt="")이다. */}
+            <UserAvatar
+              src={user?.avatarUrl}
+              name={user?.name}
+              email={user?.email}
+              alt={collapsed ? userName : ""}
+              className="h-8 w-8 text-xs font-semibold"
+              imageTestId="sidebar-user-avatar-image"
+              initialsTestId="sidebar-user-avatar-initials"
+            />
             {!collapsed && <span>{userName}</span>}
           </button>
         </div>
