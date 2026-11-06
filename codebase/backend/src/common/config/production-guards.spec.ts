@@ -14,6 +14,7 @@ import {
   isFlagOn,
   isSwaggerEnabled,
   INSECURE_JWT_SECRETS,
+  INSECURE_INTERACTION_JWT_SECRETS,
   INSECURE_INTEGRATION_ENCRYPTION_KEYS,
   KNOWN_EXAMPLE_ENCRYPTION_KEYS,
   MIN_JWT_SECRET_LENGTH,
@@ -348,6 +349,134 @@ describe('assertProductionConfig', () => {
     });
   });
 
+  // CLE-T-0VV3VR — 실행 단위 인터랙션 토큰(`iext_*`)의 서명 비밀. 설정했을 때만 JWT_SECRET 과 같은 규칙으로 본다.
+  describe('INTERACTION_JWT_SECRET (CLE-T-0VV3VR)', () => {
+    const VALID_INTERACTION = 'a-real-long-random-interaction-secret-9876543210';
+
+    it('passes when unset (JWT_SECRET signs iext_* and is checked separately)', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ INTERACTION_JWT_SECRET: undefined })),
+      ).not.toThrow();
+    });
+
+    it('passes for a sufficiently long random secret', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ INTERACTION_JWT_SECRET: VALID_INTERACTION }),
+        ),
+      ).not.toThrow();
+    });
+
+    // 서명 비밀을 고르는 코드가 `??` 로 대체하므로 빈 문자열은 JWT_SECRET 으로 넘어가지 않는다 — «미설정» 이 아니다.
+    it('throws when set to an empty string', () => {
+      expect(() =>
+        assertProductionConfig(prodEnv({ INTERACTION_JWT_SECRET: '' })),
+      ).toThrow(/INTERACTION_JWT_SECRET/);
+    });
+
+    it.each([' ', '\n', ' \t\n ', ' '.repeat(MIN_JWT_SECRET_LENGTH + 8)])(
+      'throws for a whitespace-only value (%p)',
+      (v) => {
+        expect(() =>
+          assertProductionConfig(prodEnv({ INTERACTION_JWT_SECRET: v })),
+        ).toThrow(/INTERACTION_JWT_SECRET/);
+      },
+    );
+
+    it('throws for each known example value', () => {
+      for (const bad of INSECURE_INTERACTION_JWT_SECRETS) {
+        expect(() =>
+          assertProductionConfig(prodEnv({ INTERACTION_JWT_SECRET: bad })),
+        ).toThrow(/INTERACTION_JWT_SECRET/);
+      }
+    });
+
+    it('INSECURE_INTERACTION_JWT_SECRETS is a superset of INSECURE_JWT_SECRETS', () => {
+      for (const v of INSECURE_JWT_SECRETS) {
+        expect(INSECURE_INTERACTION_JWT_SECRETS.has(v)).toBe(true);
+      }
+    });
+
+    it.each(['{key}\n', ' {key} ', '\t{key}\r\n'])(
+      'throws for an example value wrapped in whitespace (%p)',
+      (template) => {
+        for (const bad of INSECURE_INTERACTION_JWT_SECRETS) {
+          expect(() =>
+            assertProductionConfig(
+              prodEnv({
+                INTERACTION_JWT_SECRET: template.replace('{key}', bad),
+              }),
+            ),
+          ).toThrow(/INTERACTION_JWT_SECRET/);
+        }
+      },
+    );
+
+    it('throws when shorter than the minimum length after trimming', () => {
+      const short = 'x'.repeat(MIN_JWT_SECRET_LENGTH - 1);
+      expect(() =>
+        assertProductionConfig(prodEnv({ INTERACTION_JWT_SECRET: short })),
+      ).toThrow(/INTERACTION_JWT_SECRET 가 너무 짧습니다/);
+      // 공백으로 32자를 채워도 뗀 길이로 잰다.
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ INTERACTION_JWT_SECRET: `${short}\n` }),
+        ),
+      ).toThrow(/INTERACTION_JWT_SECRET 가 너무 짧습니다/);
+    });
+
+    it('passes at exactly the minimum length', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({
+            INTERACTION_JWT_SECRET: 'y'.repeat(MIN_JWT_SECRET_LENGTH),
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it('passes for a long non-example secret that has surrounding whitespace', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({ INTERACTION_JWT_SECRET: ` ${VALID_INTERACTION}\n` }),
+        ),
+      ).not.toThrow();
+    });
+
+    it('does not echo the rejected value in the error message', () => {
+      for (const bad of [
+        ...INSECURE_INTERACTION_JWT_SECRETS,
+        'short-interaction-secret',
+      ]) {
+        const message = thrownMessage(
+          prodEnv({ INTERACTION_JWT_SECRET: bad }),
+        );
+        expect(message).not.toContain(bad);
+      }
+    });
+
+    // JWT_SECRET 은 액세스 토큰도 서명하므로 INTERACTION_JWT_SECRET 이 유효해도 따로 막는다.
+    it('still rejects an insecure JWT_SECRET when INTERACTION_JWT_SECRET is valid', () => {
+      expect(() =>
+        assertProductionConfig(
+          prodEnv({
+            INTERACTION_JWT_SECRET: VALID_INTERACTION,
+            JWT_SECRET: 'dev-jwt-secret',
+          }),
+        ),
+      ).toThrow(/JWT_SECRET 가 미설정이거나/);
+    });
+
+    it('is a no-op outside production', () => {
+      expect(() =>
+        assertProductionConfig({
+          NODE_ENV: 'development',
+          INTERACTION_JWT_SECRET: 'change-me-to-a-long-random-interaction-secret',
+        }),
+      ).not.toThrow();
+    });
+  });
+
   it('does NOT throw for ALLOW_PRIVATE_HOST_TARGETS=true (warn-only policy, handled in main.ts)', () => {
     expect(() =>
       assertProductionConfig(prodEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' })),
@@ -604,6 +733,15 @@ describe('blacklist Set sync — .env.example & jwt.config.ts', () => {
   });
 });
 
+/** 운영 비밀의 예시 값이 커밋된 저장소 파일(저장소 루트 기준). */
+const EXAMPLE_FILES = [
+  'codebase/backend/.env.example',
+  'k8s/base/secret.example.yaml',
+  'k8s/overlays/local/secret.yaml',
+  'docker-compose.e2e.yml',
+  'README.md',
+];
+
 // 저장소에 커밋된 예시 · 로컬 · e2e 설정의 `JWT_SECRET` 과 두 암호화 키 값이 운영 가드의 예시값 집합에 다 들어 있는지
 // 본다. 누가 이 값을 그대로 운영에 복사해도 부팅이 막혀야 한다. 파일에 키 줄을 더하거나 값을 바꾸면
 // 집합도 함께 고쳐야 이 테스트가 통과한다(옛 값은 집합에서 지우지 않는다).
@@ -611,19 +749,11 @@ describe('example key values committed in the repo are all rejected in productio
   // `KEY=value` (dotenv · README) 와 `KEY: value` / `KEY: "value"` (YAML) 를 함께 받는다.
   const keyLine = (key: string) =>
     new RegExp(`^[ \\t]*${key}[ \\t]*[=:][ \\t]*"?([^"\\s#]+)"?`, 'gm');
-  const FILES = [
-    'codebase/backend/.env.example',
-    'k8s/base/secret.example.yaml',
-    'k8s/overlays/local/secret.yaml',
-    'docker-compose.e2e.yml',
-    'README.md',
-  ];
-
   function valuesOf(content: string, key: string): string[] {
     return [...content.matchAll(keyLine(key))].map((m) => m[1]);
   }
 
-  it.each(FILES)('%s', (rel) => {
+  it.each(EXAMPLE_FILES)('%s', (rel) => {
     const content = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
     const jwtValues = valuesOf(content, 'JWT_SECRET');
     const encValues = valuesOf(content, 'ENCRYPTION_KEY');
@@ -664,6 +794,42 @@ describe('example key values committed in the repo are all rejected in productio
         value: v,
         rejected: true,
       });
+    }
+  });
+});
+
+// CLE-T-0VV3VR — `INTERACTION_JWT_SECRET` 은 `.env.example` 에 주석 줄로만 있다. 운영자가 주석을 풀어 그대로 쓰는
+// 경우를 막아야 하므로 주석 줄의 값도 예시 값으로 본다. 파일마다 이 키가 있을 필요는 없지만 전체에서 하나도 못 잡으면
+// 정규식이 어긋난 것이라 실패시킨다.
+describe('INTERACTION_JWT_SECRET example values committed in the repo (commented lines included) are rejected', () => {
+  const interactionLine =
+    /^[ \t]*#?[ \t]*INTERACTION_JWT_SECRET[ \t]*[=:][ \t]*"?([^"\s#]+)"?/gm;
+
+  it('every committed example value is in INSECURE_INTERACTION_JWT_SECRETS', () => {
+    const found: Array<{ file: string; value: string; rejected: boolean }> =
+      [];
+    for (const rel of EXAMPLE_FILES) {
+      const content = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+      for (const m of content.matchAll(interactionLine)) {
+        found.push({
+          file: rel,
+          value: m[1],
+          rejected: INSECURE_INTERACTION_JWT_SECRETS.has(m[1]),
+        });
+      }
+    }
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.filter((f) => !f.rejected)).toEqual([]);
+  });
+
+  it('the guard rejects each committed example value in production', () => {
+    for (const rel of EXAMPLE_FILES) {
+      const content = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+      for (const m of content.matchAll(interactionLine)) {
+        expect(() =>
+          assertProductionConfig(prodEnv({ INTERACTION_JWT_SECRET: m[1] })),
+        ).toThrow(/INTERACTION_JWT_SECRET/);
+      }
     }
   });
 });

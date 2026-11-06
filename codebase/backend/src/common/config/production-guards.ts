@@ -3,12 +3,13 @@
  *
  * `NODE_ENV=production` 에서 **비보안 stub / 미설정·예시 secret / 위험 플래그**가 켜진 채
  * 부팅하려 하면 즉시 throw 해 기동을 거부한다. 기존 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`
- * 인라인 가드(옛 main.ts)를 같은 블록으로 응집하고, 동형 secret(`INTERACTION_JWT_SECRET` 의
- * fail-closed — `InteractionTokenService` 생성자 throw)과 대칭을 맞춘다.
+ * 인라인 가드(옛 main.ts)를 같은 블록으로 응집하고, 서명 비밀(`JWT_SECRET` · `INTERACTION_JWT_SECRET`)의
+ * 예시 값 · 짧은 값도 여기서 막는다.
  * 정본: NERV 스펙 `CLE-ACCT-SESSION` 「운영 환경 가드」(미러 `spec/CLE-ACCT/CLE-ACCT-SESSION.md`) 표가 이
  * 함수가 검사하는 대상의 전체 목록이다. 검사를 더하거나 빼면 표에도 행을 더하거나 뺀다 —
  * `production-guards.spec.ts` 가 이 함수가 읽는 환경 변수와 표의 첫 열을 대조한다.
- * `INTERACTION_JWT_SECRET` 은 `CLE-EIA` 가 정한다.
+ * `INTERACTION_JWT_SECRET` 의 서명 용도는 `CLE-EIA`(REQ-EIA-018)가 정하고, 이 함수가 무엇을 거부하는지는
+ * 같은 표가 정한다(CLE-T-0VV3VR).
  *
  * **dev/test/e2e 영향 없음**: 전부 `NODE_ENV !== 'production'` 에서 early-return.
  * (e2e 는 `NODE_ENV=test` — docker-compose.e2e.yml.)
@@ -20,10 +21,11 @@
  * throw 하고, 정당 용도가 있는 플래그(예: `ALLOW_PRIVATE_HOST_TARGETS`)의 warn 정책은
  * 호출자(`main.ts`)가 담당한다 — 신규 플래그 추가 시 "throw 면 여기, warn 이면 main.ts" 가 기준.
  *
- * **의도적 비통합**: `INTERACTION_JWT_SECRET`(EIA) 의 fail-closed 는 `InteractionTokenService`
- * 생성자 throw 로, CORS·`WEBAUTHN_*` 등은 각 모듈에서 유지한다 — 모듈 로컬 컨텍스트(DI·요청
+ * **의도적 비통합**: CORS·`WEBAUTHN_*` 등은 각 모듈에서 유지한다 — 모듈 로컬 컨텍스트(DI·요청
  * 시점)가 필요하거나 정당 용도(WebAuthn 미사용 셀프호스팅 boot 허용)가 달라서다. 본 모듈에는
- * **env 만으로 부팅 직전 판정 가능한 절대-금지 항목**만 넣는다.
+ * **env 만으로 부팅 직전 판정 가능한 절대-금지 항목**만 넣는다. `InteractionTokenService` 생성자의
+ * throw(`INTERACTION_JWT_SECRET` · `JWT_SECRET` 이 둘 다 없을 때)는 `main.ts` 를 거치지 않는 경로를 위한
+ * 이중 방어로 남는다.
  */
 
 /**
@@ -41,6 +43,18 @@ export const INSECURE_JWT_SECRETS: ReadonlySet<string> = new Set([
   'local-dev-jwt-secret-change-me-32-bytes-minimum', // k8s/overlays/local/secret.yaml
   'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7', // docker-compose.e2e.yml
   '<secret>', // 루트 README.md 예시
+]);
+
+/**
+ * production 에서 거부되는 INTERACTION_JWT_SECRET 값. `INSECURE_JWT_SECRETS` 의 상위 집합이다 — 이 변수를
+ * 설정하지 않으면 `JWT_SECRET` 으로 서명하므로, JWT_SECRET 예시 값을 이 자리에 옮겨 넣는 실수도 막는다.
+ * 나머지는 저장소에 커밋된 예시 값이다(주석 처리한 예시 줄 포함).
+ * **동기화 의무**: 예시 파일의 INTERACTION_JWT_SECRET 값을 바꾸면 *옛 값을 지우지 말고* 새 값을 더한다.
+ * 예시 파일 목록과 값 대조는 `production-guards.spec.ts` 가 한다.
+ */
+export const INSECURE_INTERACTION_JWT_SECRETS: ReadonlySet<string> = new Set([
+  ...INSECURE_JWT_SECRETS,
+  'change-me-to-a-long-random-interaction-secret', // codebase/backend/.env.example (주석 줄)
 ]);
 
 /**
@@ -181,7 +195,7 @@ export function assertProductionConfig(
   }
 
   // 04 C-1 — JWT_SECRET 미설정/기본 sentinel/예시값이면 기본 secret 으로 서명된
-  // 토큰 위조(인증 우회)가 가능하므로 부팅 거부. INTERACTION_JWT_SECRET 의 fail-closed 와 동형.
+  // 토큰 위조(인증 우회)가 가능하므로 부팅 거부.
   // 앞뒤 공백을 뗀 값으로 검사한다(CLE-T-HD6SJ4) — Secret · `.env` 로 옮기다 붙은 개행이 예시 값 대조와
   // 길이 하한을 빠져나가지 않게 한다. 뗀 값은 검사에만 쓰고 서명에 쓰는 값(`jwt.config.ts`)은 그대로다.
   const jwtSecret = env.JWT_SECRET?.trim();
@@ -196,6 +210,29 @@ export function assertProductionConfig(
         '약한 secret 은 무차별 대입에 취약합니다. `openssl rand -hex 32` 등으로 충분히 긴 ' +
         '무작위 값을 설정하세요(CWE-521).',
     );
+  }
+
+  // CLE-T-0VV3VR — INTERACTION_JWT_SECRET 은 외부 인터랙션 토큰(`iext_*`)을 서명한다. 설정하지 않으면
+  // JWT_SECRET 으로 서명하므로(위에서 검사) 설정했을 때만 본다. 빈 문자열은 미설정으로 보지 않고 막는다 —
+  // `InteractionTokenService` 는 `??` 로 대체하므로 빈 값을 JWT_SECRET 으로 대신하지 않는다.
+  // 앞뒤 공백을 뗀 값으로 예시 대조와 길이 하한을 건다(JWT_SECRET 과 같은 규칙). 거부한 값은 메시지에 넣지 않는다.
+  const rawInteractionSecret = env.INTERACTION_JWT_SECRET;
+  if (rawInteractionSecret !== undefined) {
+    const interactionSecret = rawInteractionSecret.trim();
+    if (
+      !interactionSecret ||
+      INSECURE_INTERACTION_JWT_SECRETS.has(interactionSecret)
+    ) {
+      fail(
+        'INTERACTION_JWT_SECRET 가 빈 값이거나 공백뿐이거나 예시/기본값입니다 — 운영용 무작위 secret 을 ' +
+          '설정하거나, JWT_SECRET 으로 서명하려면 변수를 지우세요(예시 값 서명은 인터랙션 토큰 위조 위험).',
+      );
+    } else if (interactionSecret.length < MIN_JWT_SECRET_LENGTH) {
+      fail(
+        `INTERACTION_JWT_SECRET 가 너무 짧습니다(앞뒤 공백을 뺀 길이 ${interactionSecret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
+          '`openssl rand -hex 32` 등으로 충분히 긴 무작위 값을 설정하세요(CWE-521).',
+      );
+    }
   }
 
   // 04 M-4 — ENCRYPTION_KEY 가 미설정이거나 공개 .env.example 예시 키면 secret store 가

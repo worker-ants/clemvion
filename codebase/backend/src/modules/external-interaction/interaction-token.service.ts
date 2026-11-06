@@ -55,7 +55,8 @@ export function newPerTriggerToken(): string {
  * 모듈 로드 시 1회 생성하는 **ephemeral random** 이라 버전 이력에 예측 가능한 고정 secret 을 남기지
  * 않는다(예: 옛 하드코딩 `'interaction-fallback'` 제거). 같은 프로세스 안에서는 일관돼 mint↔verify
  * 라운드트립이 가능하나, 재시작마다 값이 바뀌어 dev 토큰은 재시작 후 무효가 된다. **prod 는 env
- * secret 필수(아래 fail-closed) — 본 키는 절대 쓰이지 않는다.**
+ * secret 필수(아래 fail-closed) — 본 키는 절대 쓰이지 않는다.** 설정한 `INTERACTION_JWT_SECRET` 의 예시 값 ·
+ * 공백뿐인 값 · 짧은 값은 `assertProductionConfig`(`common/config/production-guards.ts`)가 부팅 때 막는다.
  */
 const DEV_EPHEMERAL_SECRET = randomBytes(32).toString('hex');
 
@@ -135,6 +136,8 @@ export class InteractionTokenService {
       // interaction 토큰 secret 이 없으면 비보안 fallback 으로 서명하지 않고 즉시
       // throw 해 부팅을 막는다. (실무상 JWT_SECRET 가 앱 인증에 필수라 도달 드물지만,
       // 계약을 명시해 fallback 서명 가능성을 원천 차단.) dev/test 는 placeholder 유지.
+      // 운영 부팅의 정식 검사는 `main.ts` 의 `assertProductionConfig` 다(CLE-EIA REQ-EIA-018,
+      // CLE-T-0VV3VR). 이 throw 는 `main.ts` 를 거치지 않는 경로를 위한 이중 방어로 남긴다.
       if (process.env.NODE_ENV === 'production') {
         throw new Error(
           'InteractionTokenService: INTERACTION_JWT_SECRET (또는 JWT_SECRET) 미설정 — ' +

@@ -81,7 +81,6 @@
     "codebase/backend/migrations/V132__trigger_endpoint_path_global_unique.sql": 2,
     "codebase/backend/migrations/V133__webhook_endpoint_reservation.sql": 2,
     "codebase/backend/src/common/config/app.config.ts": 1,
-    "codebase/backend/src/common/config/interaction.config.ts": 1,
     "codebase/backend/src/common/config/llm.config.ts": 1,
     "codebase/backend/src/common/config/s3.config.ts": 1,
     "codebase/backend/src/common/config/webauthn.config.ts": 1,
