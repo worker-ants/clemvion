@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "2e073c4007410714c6e5016de6c8740c61bdbd32c59b28cf0295c67c1c556358"
+content_hash: "2bbbfeeb8fdc910ccb66aa3fbf5b372e26f012edae4a1aec5bd8c13e943c9fca"
 read_as: "approved_fallback"
-task: "CLE-T-NAT45Z"
+task: "CLE-T-FX354C"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "52a9a83d1e216e1d7a557b459db09c3a08574f2252a9a6419155e5e159c1c1fa"
-etag: "sha256-71b5c00bdc8ab138411428334fa012c2973d354f3b5e9a946626707fbf595de7"
+mirror_sha256: "988c915568786e85056a21d38f24122a23e533d7b4e9f13e7d34226f95d1b0dd"
+etag: "sha256-3d734d81f88cde1198d96b62023300d830a879cb046dd607237ef42c50855602"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,7 +53,7 @@ etag: "sha256-71b5c00bdc8ab138411428334fa012c2973d354f3b5e9a946626707fbf595de7"
 8. 트리거 행이 없어질 때(트리거·스케줄·워크플로우·워크스페이스 삭제) 그 트리거의 모든 참조를 `deleteByPrefix('secret://triggers/{id}/')` 로 한꺼번에 지운다. 행 삭제가 커밋된 **뒤에** 지운다. provider 정리 작업이 이 비밀을 읽으므로 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다. DB FK 가 없으므로 애플리케이션 책임이다. 개별 `delete()` 보다 prefix 삭제를 쓴다.
 9. 트리거 락 밖에서 비밀을 쓴 뒤 락 안 재기록이 행 부재로 실패하면 `deleteByPrefix('secret://triggers/{id}/')` 로 되돌린다. 채팅 채널 설정과 저장된 옛 평문을 옮기는 PATCH 정규화(`migrateLegacyPlaintext`)가 이 경우다. 트리거 락 안에서 비밀을 쓰는 경로(생성 · PATCH 의 첫 알림 서명 시크릿 발급과 옛 평문 옮기기, 시크릿 승격)는 그 락을 쥔 트랜잭션의 매니저로 쓴다. 그래서 풀 연결을 더 쓰지 않는다. 그 트랜잭션이 예외로 끝나면 비밀 쓰기도 함께 롤백되므로 따로 되돌릴 것이 없다. 생성은 행을 넣은 트랜잭션 안에서 쓴다. 커밋 전의 행은 다른 트랜잭션이 지우지 못하므로 행 부재가 생기지 않는다. 남는 것은 시크릿 승격이다. 워크플로우 · 워크스페이스 삭제의 FK CASCADE 는 이 락을 거치지 않아 락 안에서도 행이 사라질 수 있다. 그때 승격의 `config` 쓰기는 예외 없이 0행으로 끝나고 비밀 쓰기는 커밋된다. 그래서 커밋 뒤 같은 prefix 로 되돌린다. 규칙 8 과 짝이다. 행이 없으므로 prefix 전체를 지워도 안전하다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)).
 10. 외부 API 호출 직전(메시지 전송, HMAC 서명 등)에는 매번 `resolve(ref)` 로 값을 가져온다. 캐싱 여부는 `SecretResolver` 내부가 정한다.
-11. 비밀 교체도 `rotate()`(UPSERT)로 쓴다. 채팅 채널 봇 토큰 재발급은 옛 토큰을 `bot-token.v2` 참조에 `rotate` 로 백업한 뒤 기본 참조(`bot-token`)를 새 토큰으로 `rotate` 한다([봇 토큰 재발급](#봇-토큰-재발급)). `.v2` 참조에 새 값을 쓰는 교체는 현재 없다.
+11. 비밀 교체도 `rotate()`(UPSERT)로 쓴다. 채팅 채널 봇 토큰 재발급은 옛 토큰을 `bot-token.v2` 참조에 `rotate` 로 백업한 뒤 기본 참조(`bot-token`)를 새 토큰으로 `rotate` 한다([봇 토큰 재발급](#봇-토큰-재발급)). 저장된 옛 토큰이 비었거나 공백만 있으면(규칙 27 이 생기기 전에 저장된 옛 행) 백업을 건너뛴다. `.v2` 참조에 새 값을 쓰는 교체는 현재 없다.
 12. `deleteByPrefix` 의 prefix 는 `secret://` 로 시작해야 한다. LIKE 메타문자(`%`·`_`·`\`)가 들어 있으면 throw 한다. 구현은 `ref LIKE :prefix` 에 `` `${prefix}%` `` 를 바인딩하고 `ESCAPE` 절을 두지 않는다. `ESCAPE` 절이 없다는 것도 계약의 일부다.
 13. `secret_store.workspace_id` 를 조건으로 지우는 경로는 두지 않는다. 워크스페이스 삭제도 트리거 단위 prefix 로 정리한다. 인터페이스에 워크스페이스 단위 삭제가 없고, 백엔드를 규약 변경 없이 바꿀 수 있어야 하기 때문이다. 트리거 설정 잠금 안에서 시크릿 저장소에 쓰는 경로는 이 전제의 예외다([다른 백엔드로 바꾸기](#다른-백엔드로-바꾸기)). 워크스페이스 삭제가 정리할 트리거를 빠짐없이 모으는 방법은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 사람이 돌리는 일회성 운영 SQL 은 이 규칙의 대상이 아니다(R10).
 14. 평문과 마스터키는 애플리케이션 메모리 안에만 존재한다. DB 쿼리, SQL 파라미터, 로그, 메트릭에 절대 내보내지 않는다. DB 는 항상 암호문만 본다. 저장소 예외 필드(규칙 3) 밖에서 알려진 예외가 하나 남아 있다. 이미 저장된 행에 남은 옛 평문 `notification.signing.secret` 이다. 이 평문을 새로 받는 경로는 2026-10-31 에 닫혔다. 요청 본문의 `config` 키 아래(원시 `config`)는 `notification` 키를 받지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 그 전에 저장된 평문은 시크릿 저장소로 옮겨지거나 지워질 때까지 트리거 `config` JSONB 에 남는다(지우는 경로는 시크릿 교체 승격과 참조가 있는 행에 `notification` 을 실은 PATCH 다). 옮기다 실패해도 남는다. 옮기는 시점은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 와 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. 외부 API 호출이 실패해 호출한 모듈이 만든 실패 문장에 평문이 실리면 그 모듈이 문장을 만든 자리에서 지운다(알려진 비밀 치환). 지금은 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 한다([채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10). 평문으로 외부 API 를 부르는 모듈이 늘면 이 목록에 더한다. «DB 는 항상 암호문만 본다» 는 시크릿 저장소(`secret_store`)가 다루는 비밀에 적용된다. 통합 암호화 키로 암호화하는 컬럼에 평문이 남을 수 있는 범위는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 가 정한다. (원본: SS-SE-01)
@@ -69,6 +69,7 @@ etag: "sha256-71b5c00bdc8ab138411428334fa012c2973d354f3b5e9a946626707fbf595de7"
 24. 저장된 리소스 설정의 시크릿 참조로 비밀을 읽거나 쓰는 경로는 저장값의 있음 · 없음만 읽고 참조는 그 리소스 id 로 다시 만든다. 트리거에서는 봇 토큰 재발급, 메시지 발송, 인바운드 서명 검증, 트리거 삭제 때의 provider 해제, 알림 서명이다. 채팅 채널 참조는 비어 있지 않은 값이면 있다고 본다. 알림 서명 참조는 `secret://` 형식의 문자열이면 있다고 본다. 트리거 생성과 PATCH 가 알림 서명 시크릿을 정할 때도 이 판정을 쓴다. 있으면 참조를 다시 만들고 없으면 옛 평문을 옮기거나 첫 시크릿을 발급한다. 이 분기의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다. 저장값과 다시 만든 참조를 정확히 비교하는 것은 에러 로그를 남기려는 것이고 쓰는 참조는 저장값과 상관없이 다시 만든 값이다. 로그에 저장값은 싣지 않는다. 읽기 관문은 없는 참조를 붙이지 않고 있는 참조를 지우지 않는다. 봇 토큰 재발급은 새 토큰을 쓰므로 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다. 자기 비밀이 없으면 `resolve` 가 실패해 닫힌다. 그때의 응답은 채팅 채널과 EIA 알림 웹훅 문서가 정한 실패 경로(발송 실패, 인바운드 401, 알림 `degraded`)다. 알림 서명은 참조가 있으면 옛 평문 `signing.secret` 으로 내려가지 않는다. 근거는 [R10 「저장된 참조는 읽는 쪽도 다시 만들고 rotate 는 다른 워크스페이스의 행을 덮어쓰지 않는다」](#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 에 있다.
 25. `rotate` 는 기존 행의 `workspace_id` 가 인자와 다르면 거부하고 값과 `workspace_id` 를 바꾸지 않는다. 대조는 행의 값과 인자만 본다. 이 거부 전용 에러 코드는 만들지 않는다. HTTP 응답은 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 예외 메시지는 참조와 워크스페이스 id 가 없는 고정 문구라 화면에 보이는 필드에 저장돼도 내부 위치가 드러나지 않는다. 참조와 두 워크스페이스 id 는 서버 로그에만 남긴다. 반복 배치는 거부된 리소스만 건너뛰고 나머지를 처리한다. 교차 행이 있으면 그 비밀의 진짜 소유자가 하는 재발급도 이 거부로 막힌다. 그때의 처리는 [교차 행 점검과 정리](#교차-행-점검과-정리) 에 있다. 근거는 R10 에 있다.
 26. 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 표의 컬럼을 암호화하는 키다. 통합 자격 증명과 인증 설정 자격 증명이 그 표에 든다. 이 키는 마스터키(`ENCRYPTION_KEY`)와 별개다. 키를 만드는 방식과 적용 컬럼의 규범은 그 절에 있다. 운영 환경 가드(`assertProductionConfig`)가 이 키를 거부하는 기준은 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 에 있다. 근거는 [R13 「통합 암호화 키를 마스터키와 따로 둔다」](#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
+27. `store` · `rotate` 는 평문이 문자열이 아니거나 빈 문자열이거나 공백만 있으면 거부(throw)하고 행을 만들거나 바꾸지 않는다. 이 거부 전용 에러 코드는 만들지 않는다. HTTP 응답으로 새면 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 예외 메시지는 참조와 워크스페이스 id 가 없는 고정 문구이고 참조는 서버 로그에만 남긴다. 규칙 18 · 25 와 같은 방식이다. 빈 값을 받게 하는 옵션(`allowEmpty`)은 두지 않는다. 근거는 [R18 「store · rotate 는 빈 평문을 거부한다」](#r18-store--rotate-는-빈-평문을-거부한다-2026-11-06) 에 있다.
 
 ## 참조 예시
 
@@ -122,10 +123,12 @@ interface SecretResolver {
   /** ref 로 plaintext 조회. 미존재 시 throw (메시지에 ref 를 싣지 않는다, 규칙 18). 정상 동작 경로에서만 호출 (config 가 ref 를 보유) */
   resolve(ref: string): Promise<string>;
 
-  /** plaintext 를 ref 로 저장. 이미 존재하면 throw (메시지에 ref 를 싣지 않는다, 규칙 18. 대신 rotate 사용) */
+  /** plaintext 를 ref 로 저장. 이미 존재하면 throw (메시지에 ref 를 싣지 않는다, 규칙 18. 대신 rotate 사용).
+   *  plaintext 가 문자열이 아니거나 비었거나 공백뿐이면 throw 하고 쓰지 않는다 (규칙 27) */
   store(ref: string, workspaceId: string, plaintext: string): Promise<void>;
 
   /** ref 의 plaintext 를 newPlaintext 로 교체 (UPSERT 의미). 기존 행의 workspace_id 가 인자와 다르면 throw 하고 바꾸지 않는다 (규칙 25).
+   *  newPlaintext 가 문자열이 아니거나 비었거나 공백뿐이어도 throw 하고 바꾸지 않는다 (규칙 27).
    *  manager 를 주면 그 트랜잭션에서 쓴다. 트리거 설정 잠금 안 쓰기가 이 인자를 쓴다 (규칙 9) */
   rotate(ref: string, workspaceId: string, newPlaintext: string, manager?: EntityManager): Promise<void>;
 
@@ -143,8 +146,8 @@ interface SecretResolver {
 | 함수 | 부작용 | 멱등성 |
 | --- | --- | --- |
 | `resolve` | DB SELECT 1회 | 순수(읽기 전용) |
-| `store` | DB INSERT | 멱등이 아니다. 중복 참조는 throw |
-| `rotate` | DB SELECT 뒤 UPSERT. `manager` 를 받으면 그 트랜잭션에서 한다. 기존 행의 `workspace_id` 가 인자와 다르면 throw 하고 쓰지 않는다 | 멱등. 같은 참조 · 워크스페이스 · 평문으로 다시 불러도 된다 |
+| `store` | DB INSERT. 평문이 문자열이 아니거나 비었거나 공백뿐이면 throw 하고 쓰지 않는다(규칙 27) | 멱등이 아니다. 중복 참조는 throw |
+| `rotate` | DB SELECT 뒤 UPSERT. `manager` 를 받으면 그 트랜잭션에서 한다. 기존 행의 `workspace_id` 가 인자와 다르면 throw 하고 쓰지 않는다. 평문이 문자열이 아니거나 비었거나 공백뿐이어도 throw 하고 쓰지 않는다(규칙 27) | 멱등. 같은 참조 · 워크스페이스 · 평문으로 다시 불러도 된다 |
 | `delete` | DB DELETE | 멱등. 없는 참조는 아무것도 하지 않는다 |
 | `exists` | DB SELECT 1회 | 순수 |
 | `deleteByPrefix` | DB DELETE(prefix 로 시작하는 행 전부). 삭제 행 수를 돌려준다 | 이 규약에 정의 없음 |
@@ -295,7 +298,7 @@ async removeTrigger(triggerId: string) {
 
 ### 봇 토큰 재발급
 
-봇 토큰 재발급은 기본 참조(`bot-token`)를 바로 새 토큰으로 바꾸고 `bot-token.v2` 에 옛 토큰을 24시간 보관한다. 별도 승격 단계는 없다. 재발급 순서와 유예 정리는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 과 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) 이 정한다.
+봇 토큰 재발급은 기본 참조(`bot-token`)를 바로 새 토큰으로 바꾸고 `bot-token.v2` 에 옛 토큰을 24시간 보관한다. 저장된 옛 토큰이 비었거나 공백만 있으면 보관하지 않는다(규칙 11). 별도 승격 단계는 없다. 재발급 순서와 유예 정리는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 과 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) 이 정한다.
 
 ### 채팅 채널 inbound 서명 자료 초기화
 
@@ -529,3 +532,33 @@ R9 「남긴 것」 과 R10 「이번에 정하지 않은 것」 이 이 Task �
 - 이 규약에 남는 것은 마스터키를 무엇에 쓰는지, 키를 어떻게 만드는지, `SecretResolver` 초기화가 없거나 빈 키를 막는 규칙(규칙 17)이다.
 - 날짜가 붙은 기록은 그때의 사실이라 문장을 고치지 않았다. R5 의 2026-10-10 확장 단락과 R13 의 결정 목록이 그렇다.
 - 정본을 이 규약에 두는 안도 견줬다. 그러면 가드 목록 가운데 두 키의 기준만 다른 문서로 떨어져 목록을 읽을 때 두 문서를 오가야 한다. 그래서 가드 목록이 있는 세션과 토큰을 정본으로 골랐다. 자세한 비교는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 에 있다.
+
+### R18. store · rotate 는 빈 평문을 거부한다 (2026-11-06)
+
+`store` · `rotate` 는 받은 평문을 검사하지 않았다. 빈 문자열도 그대로 암호화해 저장했다. 빈 비밀은 호출부마다 막아야 했고 그 가드가 빠진 경로가 두 곳 있었다.
+
+- **트리거 생성.** 봇 토큰 입력에 `@MinLength(1)` 이 붙기 전에는 트리거 생성 경로에서 빈 문자열(`''`)이 검증을 통과했다. 빈 시크릿이 먼저 저장되고 그 뒤 provider 호출이 실패했다(실측).
+- **채팅 채널 PATCH.** `setupChatChannel` 은 `cfg.botToken ?? ''` 를 조건 없이 `rotate` 했다. PATCH 본문에서 `botToken` 을 빼기만 했다면 저장된 봇 토큰이 빈 값으로 지워졌을 것이다. 당시에는 `botToken` 이 필수라 일어나지 않았다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 가 이 경로에서 비밀을 쓰지 않게 해서 닫았다. 그 항목의 「처방의 함정」 에 경위가 있다.
+
+두 경로는 각각 막혔다. 그래도 호출부마다 막는 방식은 새 호출부가 가드를 빠뜨리면 다시 열린다. R-CC-21 은 `rotate` 의 빈 값 가드를 다른 호출부를 위해 따로 검토하기로 했고 R10 도 이 가드를 넣지 않았다. 2026-11-06 에 아래와 같이 정했다(NERV Task `CLE-T-94Z6A5`).
+
+- **저장소가 빈 평문을 거부한다.** `store` · `rotate` 는 평문이 문자열이 아니거나 비었거나 공백만 있으면 throw 하고 행을 만들거나 바꾸지 않는다(규칙 27).
+- **전용 에러 코드를 만들지 않는다.** HTTP 로 새면 일반 `INTERNAL_ERROR` 500 이고 메시지는 5xx 가림 문구다. 빈 값이 저장소까지 오면 고칠 쪽은 호출부 코드이고 클라이언트가 분기할 조건이 아니다. R10 이 `rotate` 의 워크스페이스 불일치 거부에 든 기준과 같다. 예외 메시지에 참조와 워크스페이스 id 를 싣지 않는 이유도 같다. 채팅 채널 설정은 실패 메시지를 화면에 보이는 `chat_channel_last_error` 에 저장한다(규칙 18).
+- **호출부를 셌다.** 결정 때 `rotate` 호출부는 10곳이었다. 채팅 채널 바인더 3곳, 봇 토큰 재발급 3곳, 알림 서명 4곳이다. `store` 호출부는 없었다. 빈 값을 넘겨야 하는 호출부는 한 곳도 없었다.
+- **빈 값은 호출부가 먼저 거른다.** 결정 때 새 요청의 입력이 규칙 27 에 걸려 500 이 되는 경로는 없었다. 사용자 입력은 호출부가 400 으로 먼저 거르고 서버가 발급하는 값은 비지 않는다(아래 표). 그래서 규칙 27 에 걸리면 호출부 가드가 빠진 결함으로 본다. 새 호출부가 사용자 입력을 저장하면 규칙 27 앞에 400 검증을 둔다.
+- **재발급 백업은 비었거나 공백만 있는 옛 토큰을 건너뛴다.** 이 규칙이 생기기 전에 저장된 봇 토큰 가운데 비었거나 공백만 있는 행이 남아 있을 수 있다. 재발급이 그 값을 `bot-token.v2` 에 백업하려 하면 이 거부에 걸린다. 가드는 공백만 있는 값도 거부하므로 `''` 만 건너뛰면 `@MinLength(1)` 을 통과해 저장된 `" "` 같은 옛 행에서 재발급이 500 으로 실패한다. 이런 값은 보존할 토큰이 아니라서 백업을 건너뛴다(규칙 11).
+
+결정 때 호출부별 선행 검증은 다음과 같았다. 마지막 행(EIA 옛 평문 옮기기)은 같은 날 같은 Task 에서 고친 뒤의 상태다. 고치기 전에는 공백만 있는 옛 평문이 400 없이 `rotate` 까지 갔다. 경위는 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 의 Rationale 에 있다.
+
+| 호출부 | 값의 출처 | 선행 검증 | 빈 값이 오면 |
+| --- | --- | --- | --- |
+| 봇 토큰 저장(생성 · 재발급) | 사용자 입력 | 1~256자의 보이는 ASCII 만 받는다. 생성은 DTO 가, 재발급은 컨트롤러가 본다([채팅 채널 「R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다)) | 400(생성 `VALIDATION_ERROR`, 재발급 `INVALID_BOT_TOKEN`) |
+| Slack · Discord 인바운드 서명 자료(`inboundSigningPlaintext`) | 사용자 입력(프로바이더가 발급한 값) | DTO 가 32~128자를 보고 프로바이더별 lowercase hex 형식(Slack 32자, Discord 64자)을 본다. 바인더는 비어 있지 않은 문자열일 때만 `rotate` 한다 | 400 |
+| Telegram 인바운드 서명 자료(`secret_token`) | 서버 발급(`randomBytes(24)`) | 없다. 사용자 입력이 아니다 | 생기지 않는다 |
+| EIA 알림 서명 시크릿(첫 발급 · 교체 · 승격) | 서버 발급(`wsk_*`) | 없다. 요청 본문(`NotificationSigningDto`)은 `algorithm` 만 받는다. 승격은 v2 가 비어 있으면 건너뛴다 | 생기지 않는다 |
+| EIA 옛 평문 옮기기 | 2026-10-31 전에 원시 `config` 로 받아 저장된 옛 평문 `signing.secret` | `readStoredSigningSecret` 과 `migrateLegacyPlaintext` 가 같은 판정 `isUsableLegacyPlaintext` 를 쓴다. 비었거나 공백만 있는 값은 «없음» 으로 보고 `rotate` 에 넘기지 않는다. 새 값은 더 받지 않는다(R16) | 옮기지 않는다. `notification` 이 실린 PATCH(`settle`)가 그 행에 새 `wsk_*` 를 발급한다. 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다 |
+
+기각한 대안:
+
+- **`allowEmpty` 옵션을 둔다.** 빈 값이 필요한 호출부가 한 곳도 없다. 쓰는 곳 없는 옵션은 가드를 끄는 길만 열어 둔다.
+- **호출부 책임으로 문서에 적는다.** 위 두 경로는 호출부 가드가 빠지면 빈 비밀이 조용히 저장된다는 것을 보였다. 문서에 적어도 새 호출부가 가드를 빠뜨리는 일은 막지 못한다.
