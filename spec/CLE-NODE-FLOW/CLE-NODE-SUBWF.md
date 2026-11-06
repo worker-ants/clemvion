@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
-requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030"]
+requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "0972dff01a61fd6a4f305d2c13ac25a35182a46b5cceff16e10909b0f724e22c"
+content_hash: "47319a9bd1fa64adda16ecbf71cd7ccb8b87d324d4525c5501308b0e477fcfab"
 read_as: "approved_fallback"
-task: "CLE-T-HW2GKD"
+task: "CLE-T-0DGHGF"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "596b8989797102c40dae7a85aa876a5f7dfd9062dfb2120496595e20d01a9259"
-etag: "sha256-0881f276663e974b248d69d534080c69905f77b9c0835ab22929730cd2a20d71"
+mirror_sha256: "e8b0526b26ba2ab70d7b355e9ef0702abb6b813121054e2f7182b1226b4ee7ed"
+etag: "sha256-aee27a6b45b6324a31bbd96ee9ca5a4977d66e347ac8a691fae1466ec8d291c1"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,6 +61,7 @@ etag: "sha256-0881f276663e974b248d69d534080c69905f77b9c0835ab22929730cd2a20d71"
 - REQ-SUBWF-028 WHEN 캔버스에 노드를 그리면 THE SYSTEM SHALL `{{workflowName|fallback:workflowId}} · {{mode|default:sync}}` 형식의 설정 요약을 보인다.
 - REQ-SUBWF-029 IF `workflowId` 는 있는데 `workflowName` 이 비었으면 THE SYSTEM SHALL 캔버스에 `⚠ Missing workflow` 배지를 보인다.
 - REQ-SUBWF-030 IF `error` 포트에 연결선이 없는 상태에서 서브 워크플로우가 실패하면 THE SYSTEM SHALL [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md)의 일반 규칙대로 워크플로우 중단으로 대신 처리한다.
+- REQ-SUBWF-031 WHEN 동기 호출한 서브 워크플로우 안에서 Parallel 노드가 실행되면 THE SYSTEM SHALL 호출한 쪽 Parallel 의 중첩 깊이를 이어받지 않고 서브 워크플로우 안에서 깊이를 1부터 센다.
 
 ## 설정
 
@@ -155,6 +156,10 @@ flowchart TD
    - 예외: `ParkReleaseSignal`(서브 워크플로우 안 블로킹 노드의 park 신호)은 런타임 실패가 아니다. 에러 포트로 보내지 않고 그대로 다시 던진다. 엔진이 세그먼트를 끝내고 rehydration 으로 재개한다.
 5. 재귀 깊이(`recursionDepth`)를 누적한다. 자식을 부를 때 1 을 더해 넘긴다. 동기 호출은 실행 컨텍스트에, 비동기 호출은 실행 행(`Execution`)에 쌓인다. 기본 최대 깊이는 10 이고, 자기 자신을 직접 부르는 것(A→A)도 한도 안에서는 허용한다.
 6. 동기 호출한 서브 워크플로우의 진입점 트리거는 `manual_trigger` 만 허용한다. 다른 트리거 카테고리 노드를 만나면 엔진이 조용히 건너뛰지 않고 throw 한다. 현재 구현은 `INVALID_SUB_WORKFLOW_TRIGGER:` 로 시작하는 메시지를 던진다(`execution-engine.service.ts`). 지금 트리거 카테고리 노드는 `manual_trigger` 한 종류뿐이다.
+7. 동기 호출한 서브 워크플로우 안의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`, 코드 기본값). 그 Parallel 은 병렬 분기를 동시에 실행하고 완료 시점 엔진 덮어쓰기(`{ branches, count, skipped? }`, `port: 'done'`)를 받는다. 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다-2026-11-06) 가 정한다.
+   - 서브 워크플로우는 Parallel 중첩 깊이를 1부터 새로 센다(REQ-SUBWF-031). 병렬 분기 안에서 이 노드를 불러도 서브 워크플로우의 맨 바깥 Parallel 은 깊이 1 이다. 그래서 호출한 쪽 Parallel 과의 동시 실행 수 곱 상한 32 가 걸리지 않는다. `executeInline` 은 실행하는 동안 호출 컨텍스트의 `parentParallelConcurrency` 를 떼었다가 끝나면 되돌린다. 실패해도 되돌린다.
+   - 서브 워크플로우 안 Parallel 의 깊이 위반(`PARALLEL_NESTED_DEPTH_EXCEEDED:`)이나 병렬 분기 안 블로킹 노드(`PARALLEL_INVALID_CHILD:`) 같은 에러는 `executeInline` 이 던진다. 이 노드는 그 에러를 `error` 포트로 보낸다(REQ-SUBWF-018). `code` 는 `SUB_WORKFLOW_FAILED` 다.
+   - `PARALLEL_ENGINE=off` 되돌림 경로는 바뀌지 않는다. 병렬 분기 노드를 서브 워크플로우 루프가 차례로 실행한다.
 
 ### 최종 노드 출력
 
@@ -165,6 +170,7 @@ flowchart TD
 - 에러 처리 정책 `skip_node` 로 건너뛴 노드가 마지막이면 그 노드는 출력을 쓰지 않으므로 값이 비어 있다(`undefined`). 같은 실행에서 그 노드가 앞서 쓴 출력이 있으면 그 값이다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)).
 - 실행한 노드가 진입점 트리거뿐이면 서브 워크플로우 입력이다.
 - 컨테이너 노드가 마지막이면 컨테이너의 완료 출력이다.
+- 서브 워크플로우가 Parallel 로 끝나면(`done` 뒤에 노드가 없으면) Parallel 의 완료 출력이다. 병렬 분기 노드는 Parallel 안에서 실행되고 Parallel 의 완료 출력이 그 뒤에 쓰이기 때문이다. `done` 뒤에 노드가 있으면 그 노드의 출력이다. `PARALLEL_ENGINE=off` 되돌림 경로에는 완료 출력이 없다. 병렬 분기 노드도 서브 워크플로우 루프가 차례로 실행하므로 앞 규칙대로 마지막으로 실행한 노드의 출력이다.
 
 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 의 병렬 분기 결과는 이번 실행에서 출력을 쓴 노드 가운데서 고르므로 이 규칙과 다르다. 건너뛴 노드는 Parallel 결과 노드가 될 수 없지만 서브 워크플로우에서는 마지막으로 실행한 노드면 빈 값이 최종 노드 출력이 된다.
 
@@ -255,7 +261,7 @@ flowchart TD
 
 ### 런타임 에러 (port `error`)
 
-`executeInline`(동기) 또는 `executeAsync`(비동기)가 throw 한 모든 경우다. 서브 워크플로우 안 노드 실패, `Workflow not found`, 표현식 평가 에러, 큐 등록 실패 등이 해당한다. park 신호는 런타임 실패가 아니라서 여기에 들어가지 않는다([실행 로직](#실행-로직) 4번).
+`executeInline`(동기) 또는 `executeAsync`(비동기)가 throw 한 모든 경우다. 서브 워크플로우 안 노드 실패, 서브 워크플로우 안 Parallel 의 깊이 위반, `Workflow not found`, 표현식 평가 에러, 큐 등록 실패 등이 해당한다. park 신호는 런타임 실패가 아니라서 여기에 들어가지 않는다([실행 로직](#실행-로직) 4번).
 
 ```json
 {
@@ -345,6 +351,7 @@ flowchart TD
 - `codebase/backend/src/nodes/flow/workflow/workflow.handler.ts`: 핸들러, `mapSubWorkflowError`
 - `codebase/backend/src/nodes/flow/workflow/workflow.schema.ts`: 설정 스키마, `summaryTemplate`, 경고 규칙
 - `codebase/backend/src/nodes/flow/workflow/workflow.component.ts`: 컴포넌트
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`: 동기 호출 실행 `executeInline`(최종 노드 출력, Parallel 넘기기, Parallel 깊이 새로 세기)
 
 ## Rationale
 
@@ -371,3 +378,25 @@ flowchart TD
 기각한 대안은 Parallel 처럼 출력을 쓴 노드로 좁히는 안이다. 서브 워크플로우의 반환값이 바뀌므로 기존 워크플로우 동작이 달라지고 엔진 코드를 바꿔야 한다. 이번 정리는 문서를 동작에 맞추는 범위라 동작은 바꾸지 않았다.
 
 **기존 워크플로우 영향**: 없다. 문서만 동작에 맞췄다.
+
+### 서브 워크플로우의 Parallel 은 깊이를 새로 센다 (2026-11-06)
+
+이 개정 전에는 서브 워크플로우 루프(`executeInline`)가 Parallel 을 다른 노드처럼 핸들러만 불렀다. 병렬 분기 노드는 서브 워크플로우 루프가 차례로 실행했고 Parallel 에는 완료 출력이 없었다. 이제 이 루프도 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다(NERV Task `CLE-T-0DGHGF`). 실행 경로의 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다-2026-11-06) 가 정하고 컨테이너 본문 쪽은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문의-parallel-도-덮어쓰기를-받는다-2026-11-06) 이 정한다.
+
+**중첩 깊이**: 병렬 분기 안에서 이 노드를 부르면 핸들러 컨텍스트에 바깥 병렬 분기의 `parentParallelConcurrency` 가 따라온다. 그대로 두면 서브 워크플로우의 맨 바깥 Parallel 이 깊이 2 로 판정된다. 사람의 결정(NERV 질문 `01a1b05f-6988-7613-a9d3-78c9492b9a86`, 답 A)에 따라 동기 서브 워크플로우는 깊이를 새로 센다. 이유는 두 가지다.
+
+- 사전 검사의 범위가 저장 규칙과 같아진다. 저장 단계 규칙 `parallel:nested-depth-exceeded` 는 워크플로우 그래프 하나만 본다. 실행 시점 사전 검사도 워크플로우 그래프 하나 안에서 끝나므로 저장을 통과한 서브 워크플로우가 부르는 위치에 따라 실패하지 않는다.
+- 바깥 `continue` 가 흡수하는 예외를 만들지 않는다. 바깥 Parallel 의 사전 검사는 다른 워크플로우 그래프로 내려가지 않는다. `workflowId` 가 표현식이면 계획 시점에는 대상도 모른다. 호출한 쪽 깊이를 이어받으면 서브 워크플로우 안 위반은 서브 워크플로우를 실행할 때에야 드러나고 바깥 병렬 분기 하나의 실패가 된다. 그러면 바깥 `errorPolicy='continue'` 가 그 실패를 흡수한다. 깊이 위반이 실행을 실패시킨다는 [Parallel 노드 요구사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#요구사항) 에 예외가 생긴다.
+
+대가로 병렬 분기 안에서 부른 서브 워크플로우의 Parallel 에는 호출한 쪽의 동시 실행 수 곱 상한 32 가 걸리지 않는다. 바깥 Parallel 과 서브 워크플로우의 맨 바깥 Parallel 의 동시 실행 수 곱은 최대 16×16 이다.
+
+기각한 대안은 서브 워크플로우도 호출한 쪽 깊이를 이어받는 안이다. 곱 상한은 지키지만 위 두 문제가 생긴다.
+
+**최종 노드 출력**: 서브 워크플로우가 Parallel 로 끝나면 최종 노드 출력이 Parallel 의 완료 출력이 된다. 병렬 분기 노드는 Parallel 안에서 실행되고 Parallel 의 완료 출력이 그 뒤에 쓰이기 때문이다. 위 절 「최종 노드 출력은 마지막으로 실행한 노드의 출력이다」 의 정의는 바꾸지 않았다. 그 절이 기각한 안(출력을 쓴 노드로 좁히는 안)도 고르지 않았다. 실행 방식이 바뀌어 Parallel 이 마지막으로 출력을 쓰는 노드가 된 것이다.
+
+**기존 워크플로우 영향**:
+
+- 서브 워크플로우 안 Parallel 의 병렬 분기가 동시에 실행되고 Parallel 의 항목 에러 정책을 따른다. Parallel 이 `done` 포트로 완료 출력을 내고 `done` 뒤 노드는 시작 출력 대신 완료 출력을 받는다.
+- Parallel 로 끝나는 서브 워크플로우를 동기 호출하면 `output.result` 가 바뀐다. 전에는 위상 순서가 가장 늦은 병렬 분기 노드의 출력이었고 이제 `{ branches, count, skipped? }` 다. 그 노드의 출력을 `output.result.<필드>` 로 읽던 표현식은 `output.result.branches` 에서 읽도록 고쳐야 한다.
+- 서브 워크플로우 안에서 깊이 3 이 되는 그래프는 실행 때 실패하고 이 노드의 `error` 포트로 간다. 저장 규칙이 이미 깊이 3 을 거부하므로 그 규칙이 생기기 전에 저장된 워크플로우만 해당한다.
+- `PARALLEL_ENGINE=off` 되돌림 경로는 바뀌지 않는다.
