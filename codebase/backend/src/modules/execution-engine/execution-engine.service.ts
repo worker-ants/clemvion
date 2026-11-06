@@ -242,7 +242,7 @@ interface ContainerBodyPlan {
  */
 function pickContainerInternalEdges(
   childIds: ReadonlySet<string>,
-  allEdges: readonly Edge[],
+  allEdges: readonly GraphEdge[],
 ): GraphEdge[] {
   return allEdges
     .filter((e) => childIds.has(e.sourceNodeId) && childIds.has(e.targetNodeId))
