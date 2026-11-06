@@ -12,6 +12,7 @@ import { NodeExecutionStatus } from '../node-executions/entities/node-execution.
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { NodeHandler } from '../../nodes/core/node-handler.interface';
 import { ExecutionEventType } from '../websocket/websocket-events.types';
+import type { TransitionOptions } from './state/state-machine';
 import {
   buildAiMessageDebugFromResumeState,
   buildConversationConfigFromOutput,
@@ -115,7 +116,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         node: Node,
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -128,16 +129,12 @@ describe('AiTurnOrchestrator', () => {
       config: { mode: 'multi_turn' },
     };
 
-    // ai-review CRITICAL #1 (2026-07-30, 10차 라운드) — retry opts→DB가드 **번역
-    // 한 줄**(`opts?.retryReentry ? { allowRetryReentry: true } : undefined`)이 전
-    // 계층에서 무검증이었다. 8R 에서 내가 돌린 뮤턴트는 그 **인자 줄을 통째로 삭제**해
-    // 호출 shape 을 바꿨고, 아래 기존 단언들이 4번째 인자로 `undefined` 를 기대하므로
-    // shape 변화만 잡혔다. 리뷰어의 더 강한 뮤턴트(표현식만 `undefined` 로 치환, shape
-    // 유지)는 4개 spec 593건 전체 GREEN 이었다 — 직접 재현해 확인했다.
-    //
-    // 상태머신 계층과 DB-가드 계층은 각각 고립 테스트로 옳은데 **둘을 잇는 배선이
-    // 끊어져도 아무도 몰랐다.** 이 테스트가 그 배선을 잠근다.
-    it('retryReentry opts 를 받으면 driver 에 allowRetryReentry 를 번역해 전달한다 (10R CRITICAL)', async () => {
+    // 재진입 opts 를 driver 의 짝 전이까지 그대로 넘기는지 잠근다. 상태 머신과 DB 가드는
+    // 각자 고립 테스트로 옳아도 둘을 잇는 이 전달 줄이 끊기면 재진입 re-park 가 늘
+    // 0행이 된다(2026-07-30 ai-review CRITICAL). 뮤턴트는 호출 shape 을 유지한 채 넘기는
+    // 값만 `undefined` 로 바꾼 것이어야 한다. 인자를 지우면 shape 단언만 걸려 동작을
+    // 잠갔다고 오판한다.
+    it('재진입 opts 를 driver 에 그대로 전달한다 (10R CRITICAL)', async () => {
       const savedExecution = {
         id: executionId,
         // retry 재진입은 Execution 이 FAILED 인 상태에서 re-park 한다.
@@ -151,7 +148,7 @@ describe('AiTurnOrchestrator', () => {
         context,
         nodeExec,
         reparkNode as Node,
-        { retryReentry: true },
+        { allowRetryReentry: true },
       );
 
       expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
@@ -432,7 +429,7 @@ describe('AiTurnOrchestrator', () => {
   });
 
   // ai-review WARNING #2 (testing) — 짝 전이의 세 번째 소비처. retry-last-turn
-  // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {retryReentry:true})`
+  // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {allowRetryReentry:true})`
   // → `finalizeAiNode`)이 대화를 종료시키면 `savedExecution.status`(FAILED,
   // spawn row) 는 RUNNING 이 아니라 else 분기(RUNNING 재claim)를 탄다. 동시
   // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`shouldProceed === false`)
@@ -446,7 +443,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -469,7 +466,7 @@ describe('AiTurnOrchestrator', () => {
         contextService.createContext(executionId, workflowId),
         nodeExec,
         'COMPLETED',
-        { retryReentry: true },
+        { allowRetryReentry: true },
       );
 
     it('RUNNING 재claim 이 선점당하면(false) ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
@@ -561,7 +558,7 @@ describe('AiTurnOrchestrator', () => {
           context,
           nodeExec,
           'COMPLETED',
-          { retryReentry: true },
+          { allowRetryReentry: true },
         ),
       ).rejects.toBeInstanceOf(ExecutionCancelledError);
 
@@ -597,7 +594,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -700,6 +697,35 @@ describe('AiTurnOrchestrator', () => {
       expect(resumedEmitted).toBe(true);
       expect(driver.markNodeCancelled).not.toHaveBeenCalled();
     });
+
+    // CLE-T-5QG099 #24 — 이 분기에 재진입 opt-in 이 오면 잠금까지 그대로 넘긴다. 지금
+    // 호출 그래프에선 재진입이 실행 failed 일 때만 시작해 이 분기에 opt-in 으로 오지
+    // 않는다(근거는 finalizeAiNode 의 RUNNING 유지 분기 주석). 나중에 통로가 열려도
+    // 배선이 끊기지 않게 전달만 고정한다.
+    it('opt-in 을 받으면 tryLockActiveExecutionAndSaveNodeExec 에 그대로 넘긴다 (#24)', async () => {
+      const nodeExec = {
+        id: 'ne-end-crit1-retry',
+        nodeId: 'node-end-crit1',
+        startedAt: new Date(),
+      };
+
+      await (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        endNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'COMPLETED',
+        { allowRetryReentry: true },
+      );
+
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+        { allowRetryReentry: true },
+      );
+      expect(driver.updateExecutionStatus).not.toHaveBeenCalled();
+    });
   });
 
   // ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기가
@@ -717,7 +743,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -805,6 +831,82 @@ describe('AiTurnOrchestrator', () => {
       );
       expect(nodeFailedEmitted).toBe(true);
       expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+  });
+
+  // CLE-T-9WG82W — processAiResumeTurn 은 받은 opts 를 re-park · 종료 처리에 그대로
+  // 넘긴다(옛 finalizeOpts 번역을 없앤 자리). 분기마다 넘기는 줄이 따로 있어 한
+  // 분기만 끊겨도 그 경로의 짝 전이가 FAILED 행을 잡지 못한다.
+  describe('processAiResumeTurn — 재진입 opts 전달', () => {
+    const aiNode: Partial<Node> = {
+      id: 'node-reentry-opts',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const runTurn = (payload: unknown) =>
+      orchestrator.processAiResumeTurn(
+        // 재진입 턴은 실행이 failed 인 채로 돈다.
+        { id: executionId, status: ExecutionStatus.FAILED } as never,
+        executionId,
+        aiNode as Node,
+        contextService.createContext(executionId, workflowId),
+        {
+          id: 'ne-reentry-opts',
+          nodeId: 'node-reentry-opts',
+          startedAt: new Date(),
+        } as never,
+        { messages: [], turnCount: 1 },
+        payload,
+        { allowRetryReentry: true },
+      );
+
+    it.each([
+      ['형식이 깨진 payload', null],
+      ['button_click', { type: 'button_click' }],
+      ['알 수 없는 action', { type: 'unknown_action' }],
+    ])('%s 로 re-park 할 때 opts 를 넘긴다', async (_label, payload) => {
+      await runTurn(payload);
+
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        ExecutionStatus.WAITING_FOR_INPUT,
+        expect.objectContaining({ id: 'ne-reentry-opts' }),
+        { allowRetryReentry: true },
+      );
+    });
+
+    it('ai_end_conversation 으로 끝낼 때 opts 를 종료 처리에 넘긴다', async () => {
+      handlerRegistry.register(
+        'ai_agent',
+        {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(),
+          processMultiTurnMessage: jest.fn(),
+          endMultiTurnConversation: jest.fn(() => ({
+            config: { mode: 'multi_turn' },
+            output: {},
+            meta: {},
+            port: 'ended',
+            status: 'ended',
+          })),
+        } as unknown as NodeHandler,
+        // 실제 ai_agent 메타데이터와 같다. 오케스트레이터는 이 값을 읽지 않는다.
+        { kind: 'standard' },
+      );
+
+      await runTurn({ type: 'ai_end_conversation' });
+
+      // 실행이 failed 라 RUNNING 유지 분기가 아니라 else 짝 전이(RUNNING 재claim)로 간다.
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        ExecutionStatus.RUNNING,
+        expect.objectContaining({ id: 'ne-reentry-opts' }),
+        { allowRetryReentry: true },
+      );
     });
   });
 

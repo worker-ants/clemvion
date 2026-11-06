@@ -90,7 +90,11 @@ import {
   ParallelExecutor,
   ParallelErrorPolicy,
 } from './containers/parallel-executor';
-import { assertTransition } from './state/state-machine';
+import {
+  assertTransition,
+  nonTerminalStatuses,
+  type TransitionOptions,
+} from './state/state-machine';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 // C-1 step2 — sanitizeLastErrorMessage / extractRetryAfterMs 는 AI turn 오류
@@ -642,44 +646,35 @@ export class ExecutionEngineService
   ]);
 
   /**
-   * ai-review WARNING #8 (2026-07-26, 유지보수성) — `updateExecutionStatus` 의
-   * 짝 전이(FOR UPDATE) 쿼리와 else 분기 guarded UPDATE 쿼리가 손으로 중복
-   * 하드코딩하던 non-terminal status SQL 리터럴을 단일 출처로 통합한다.
-   * `ExecutionStatus` 값에서 `TERMINAL_STATUSES` 를 제외한 나머지를 SQL
-   * literal 리스트(`'pending', 'running', 'waiting_for_input'`)로 만든다 —
-   * enum 값 기반이라 인젝션 우려 없음(사용자 입력 아님).
+   * DB 가드(짝 전이 `FOR UPDATE` 잠금 · else 분기 조건부 UPDATE ·
+   * `tryLockActiveExecutionAndSaveNodeExec`)가 쓰는 status SQL 목록. 상태 머신의
+   * {@link nonTerminalStatuses} 에서 만든다(CLE-T-9WG82W). 손으로 맞춘 목록이 상태
+   * 머신 opt-in 과 어긋나 재진입 짝 전이가 늘 0행이던 것이 ai-review CRITICAL #1
+   * (2026-07-30)이었다. enum 값이라 인젝션 우려는 없다.
+   *
+   * 둘 중 하나를 고르는 규칙은 {@link guardStatusesSql} 한 곳에 있고, opt-in
+   * 불변식은 `TransitionOptions` JSDoc 에 있다. 두 상수 이름은 CLE-EXEC-STATE
+   * §원자성 보장 6 이 인용한다.
    */
-  private static readonly NON_TERMINAL_STATUSES_SQL = Object.values(
-    ExecutionStatus,
-  )
-    .filter((status) => !ExecutionEngineService.TERMINAL_STATUSES.has(status))
-    .map((status) => `'${status}'`)
-    .join(', ');
+  private static readonly NON_TERMINAL_STATUSES_SQL =
+    ExecutionEngineService.toStatusesSql(nonTerminalStatuses());
 
-  /**
-   * ai-review CRITICAL #1 (2026-07-30) — `execution.retry_last_turn` 재진입이
-   * 의존하는 FAILED→RUNNING/FAILED→WAITING_FOR_INPUT 짝 전이는 상태머신
-   * (`allowRetryReentry` opt-in, state-machine.ts)에서는 허용되지만, 이 DB 가드
-   * (`lockNonTerminalExecutionRow` FOR UPDATE 조회 + else 분기 guarded UPDATE)가
-   * 여전히 {@link NON_TERMINAL_STATUSES_SQL}(FAILED 무조건 배제)만 써서 opt-in
-   * 을 반영하지 못해 **항상 0행**이었다(재진입이 구조적으로 절대 persist 될 수
-   * 없었음). retry 재진입 경로에서만 FAILED 를 포함하는 별도 상수로 손 중복
-   * 문자열 조립을 피한다 — 이 파일은 이미 그 중복 때문에 WARNING #8
-   * (2026-07-26)을 받아 {@link NON_TERMINAL_STATUSES_SQL} 로 상수화한 이력이
-   * 있다. **호출부는 반드시 opts.allowRetryReentry === true 일 때만 이 상수를
-   * 선택해야 한다** — 기본 경로가 FAILED 를 되살릴 수 있게 열면 "실패 종결된
-   * 실행의 우발적 부활 차단" 방어가 무너진다.
-   */
-  private static readonly NON_TERMINAL_OR_FAILED_STATUSES_SQL = Object.values(
-    ExecutionStatus,
-  )
-    .filter(
-      (status) =>
-        !ExecutionEngineService.TERMINAL_STATUSES.has(status) ||
-        status === ExecutionStatus.FAILED,
-    )
-    .map((status) => `'${status}'`)
-    .join(', ');
+  /** 재진입 opt-in 용 목록. 기본 목록에 `failed` 가 더해진다. */
+  private static readonly NON_TERMINAL_OR_FAILED_STATUSES_SQL =
+    ExecutionEngineService.toStatusesSql(
+      nonTerminalStatuses({ allowRetryReentry: true }),
+    );
+
+  private static toStatusesSql(statuses: readonly ExecutionStatus[]): string {
+    return statuses.map((status) => `'${status}'`).join(', ');
+  }
+
+  /** DB 가드가 잡을 status 목록을 opts 로 고른다. opt-in 일 때만 `failed` 가 들어간다. */
+  private static guardStatusesSql(opts?: TransitionOptions): string {
+    return opts?.allowRetryReentry
+      ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
+      : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
+  }
 
   private readonly logger = new Logger(ExecutionEngineService.name);
 
@@ -8975,11 +8970,8 @@ export class ExecutionEngineService
    * 컬럼 집합이 다르다: 이 헬퍼 호출자는 NodeExecution 만, `updateExecutionStatus`
    * 는 Execution.status 포함).
    *
-   * @param opts.allowRetryReentry — ai-review CRITICAL #1 (2026-07-30) —
-   *   `execution.retry_last_turn` 재진입 전용. `true` 일 때만 잠금 조회 대상에
-   *   FAILED 를 포함한다({@link NON_TERMINAL_OR_FAILED_STATUSES_SQL}). 기본
-   *   (opts 없음/false)은 종전과 동일하게 FAILED 를 배제한다 — 일반 호출이
-   *   실패 종결된 실행을 되살릴 수 없도록.
+   * @param opts 재진입 opt-in. 잠금 대상 목록은 {@link guardStatusesSql} 가
+   *   고른다(불변식은 `TransitionOptions`).
    * @returns `true` 면 대상 execution 행이 non-terminal(또는 opt-in 시
    *   FAILED)이라 트랜잭션 안에서 행 잠금을 획득했다(커밋까지 유지). `false`
    *   는 동시 cancel/park 가 이미 terminal 로 옮겨(또는 opt-in 없이 FAILED 라)
@@ -8988,11 +8980,9 @@ export class ExecutionEngineService
   private async lockNonTerminalExecutionRow(
     manager: EntityManager,
     executionId: string,
-    opts?: { allowRetryReentry?: boolean },
+    opts?: TransitionOptions,
   ): Promise<boolean> {
-    const statusesSql = opts?.allowRetryReentry
-      ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
-      : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
+    const statusesSql = ExecutionEngineService.guardStatusesSql(opts);
     const live: unknown[] = await manager.query(
       `SELECT id FROM execution
         WHERE id = $1
@@ -9053,13 +9043,9 @@ export class ExecutionEngineService
   public async tryLockActiveExecutionAndSaveNodeExec(
     executionId: string,
     nodeExec: NodeExecution | null,
-    // ai-review CRITICAL #1 (2026-07-30) — 세 번째 잠금 소비처. retry 재진입은
-    // Execution 이 FAILED 인 상태에서 turn 을 돌리므로, opt-in 없이는 이 잠금이
-    // 0행이 되어 **살아있는 spawn row 가 "동시 cancel 선점" 으로 오판**된다
-    // (호출부가 짝 nodeExec 를 CANCELLED 로 재마킹하고 `ExecutionCancelledError`
-    // 를 던진다 → 재실패가 EXECUTION_FAILED 대신 취소로 오분류). opt-in 시에도
-    // COMPLETED/CANCELLED 는 여전히 배제되므로 진짜 동시 취소는 계속 막힌다.
-    opts?: { allowRetryReentry?: boolean },
+    // 재진입 턴은 실행이 failed 인 채로 돈다. opt-in 없이 잠그면 0행이라 살아 있는
+    // spawn row 를 「동시 cancel 선점」으로 오판한다(재실패가 취소로 오분류).
+    opts?: TransitionOptions,
   ): Promise<boolean> {
     let persisted = false;
     await this.dataSource.transaction(async (manager) => {
@@ -9204,7 +9190,7 @@ export class ExecutionEngineService
     execution: Execution,
     newStatus: ExecutionStatus,
     linkedNodeExec?: NodeExecution,
-    opts?: { allowRetryReentry?: boolean },
+    opts?: TransitionOptions,
   ): Promise<boolean> {
     assertTransition(execution.status, newStatus, opts);
     // PR2a — §8 active-running 누적 시간 추적. 모든 상태 전이의 단일 choke point.
@@ -9300,14 +9286,10 @@ export class ExecutionEngineService
     // 종결 포함) — linkedNodeExec 짝 전이만 범위 밖(위 if 분기가 별도 처리).
     // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — `finalizeFailedExecution`
     // 도 이 guarded 경로를 타면서 `error` 컬럼을 잃지 않도록 아래 SET 절에 포함.
-    // ai-review CRITICAL #1 (2026-07-30) — linkedNodeExec 분기와 동일하게, 이
-    // guarded UPDATE 도 `opts.allowRetryReentry` 를 반영해야 retry 재진입
-    // (FAILED → RUNNING, nodeExec 가 없는 호출 형태)이 이 분기로 떨어져도 항상
-    // 0행에 매칭되는 것을 피한다. 기본(opts 없음)은 종전과 동일하게 FAILED 배제.
+    // 가드 목록은 짝 전이 분기와 같은 규칙으로 고른다(재진입 FAILED → RUNNING 이
+    // nodeExec 없이 이 분기로 와도 0행이 되지 않게).
     execution.status = newStatus;
-    const elseStatusesSql = opts?.allowRetryReentry
-      ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
-      : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
+    const elseStatusesSql = ExecutionEngineService.guardStatusesSql(opts);
     // 여기서 `false` 는 "동시 cancel 이 이미 terminal 로 옮겼으니 종결 이벤트를 내지 말라"
     // 는 뜻이다. 배열이 아니면 그 신호가 조용히 켜져서 — **DB 는 UPDATE 됐는데
     // `execution.completed`/`failed` 가 영영 발행되지 않는다**(EIA §6 종결 이벤트 계약이

@@ -1,4 +1,8 @@
-import { canTransition, assertTransition } from './state-machine';
+import {
+  canTransition,
+  assertTransition,
+  nonTerminalStatuses,
+} from './state-machine';
 import { ExecutionStatus } from '../../executions/entities/execution.entity';
 
 describe('StateMachine', () => {
@@ -190,5 +194,86 @@ describe('StateMachine', () => {
         assertTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING),
       ).toThrow('Invalid state transition');
     });
+  });
+
+  // CLE-T-9WG82W — DB 가드(엔진의 `NON_TERMINAL_STATUSES_SQL` ·
+  // `NON_TERMINAL_OR_FAILED_STATUSES_SQL`)가 손으로 맞추던 status 목록을 전이 표에서
+  // 파생한다. 8R CRITICAL 은 두 진실 소스(상태 머신 opt-in · DB 가드 목록)가 어긋난
+  // 결함이었다. 그래서 목록 값 자체와 「전이 표와 같은 정의인가」를 함께 잠근다.
+  describe('nonTerminalStatuses', () => {
+    const ALL = Object.values(ExecutionStatus);
+
+    it('기본은 pending · running · waiting_for_input 이다', () => {
+      expect(nonTerminalStatuses()).toEqual([
+        ExecutionStatus.PENDING,
+        ExecutionStatus.RUNNING,
+        ExecutionStatus.WAITING_FOR_INPUT,
+      ]);
+    });
+
+    it('재진입 opt-in 이면 failed 가 더해진다', () => {
+      expect(nonTerminalStatuses({ allowRetryReentry: true })).toEqual([
+        ExecutionStatus.PENDING,
+        ExecutionStatus.RUNNING,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.WAITING_FOR_INPUT,
+      ]);
+    });
+
+    it('opt-in 이어도 completed · cancelled 는 빠진다', () => {
+      for (const opts of [undefined, { allowRetryReentry: true }]) {
+        expect(nonTerminalStatuses(opts)).not.toContain(
+          ExecutionStatus.COMPLETED,
+        );
+        expect(nonTerminalStatuses(opts)).not.toContain(
+          ExecutionStatus.CANCELLED,
+        );
+      }
+    });
+
+    it('allowRetryReentry: false 는 opt-in 이 없는 것과 같다', () => {
+      expect(nonTerminalStatuses({ allowRetryReentry: false })).toEqual(
+        nonTerminalStatuses(),
+      );
+    });
+
+    // 상태마다 「나가는 전이가 있는가」를 손으로 적어 둔다. 전이 표에 상태나 전이를
+    // 더하거나 빼면 이 표를 같이 고치지 않는 한 실패한다. 구현과 같은 식을 쓰지 않는다.
+    const S = ExecutionStatus;
+    it.each([
+      [
+        'opt-in 없음',
+        undefined,
+        {
+          [S.PENDING]: true,
+          [S.RUNNING]: true,
+          [S.WAITING_FOR_INPUT]: true,
+          [S.FAILED]: false,
+          [S.COMPLETED]: false,
+          [S.CANCELLED]: false,
+        },
+      ],
+      [
+        'opt-in',
+        { allowRetryReentry: true },
+        {
+          [S.PENDING]: true,
+          [S.RUNNING]: true,
+          [S.WAITING_FOR_INPUT]: true,
+          [S.FAILED]: true,
+          [S.COMPLETED]: false,
+          [S.CANCELLED]: false,
+        },
+      ],
+    ])(
+      '%s: 상태별로 나가는 전이 유무가 기대와 같다',
+      (_label, opts, expected) => {
+        expect(Object.keys(expected).sort()).toEqual([...ALL].sort());
+        const listed = new Set(nonTerminalStatuses(opts));
+        for (const from of ALL) {
+          expect([from, listed.has(from)]).toEqual([from, expected[from]]);
+        }
+      },
+    );
   });
 });
