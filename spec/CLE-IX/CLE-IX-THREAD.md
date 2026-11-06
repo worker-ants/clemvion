@@ -2,19 +2,19 @@
 id: "CLE-IX-THREAD"
 title: "대화 스레드"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "b6cd448c7116a50d539641b8f1a55c2510921cd947fc795da85e418dab4564ee"
+content_hash: "69e2517072a6daead21013bb4de2d15c31c3d8224bcf5fa598eb190d5221cceb"
 read_as: "approved_fallback"
-task: "CLE-T-ZHBMAC"
+task: "CLE-T-HW2GKD"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "164db998b6163146c26cce1a27462378090aee9a9c5ffc83bf56e6dcbd9bddff"
-etag: "sha256-d4bcd76891d2ceb682f15e095edc8d9556c9499c00f1701f5b32aa50cb80bb9a"
+mirror_sha256: "69648a38b81d4bb5b5eafcdfa795e7b0709914869bbcb81e89c671feb7b2272c"
+etag: "sha256-5cb906fa99ede0cb9b88cbb71cde88f3c3b9b23f955c10369d41094636d5033d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§1~§8, 1–467행. §9 미리보기 렌더 규칙과 §8.1·§8.2·§8.5 근거는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -225,7 +225,7 @@ AI 에이전트 단일 턴은 LLM 호출 전에 `ai_user` 항목을 쌓는다. L
 
 - **서브 워크플로우**: 워크플로우 호출 노드의 동기 `executeInline` 경로는 부모 실행 컨텍스트를 그대로 쓴다(`recursionDepth` 만 늘어남). 그래서 서브 워크플로우 안의 AI Agent 도 부모 스레드를 본다. 격리하려면 비동기 모드로 호출한다(별도 실행, 별도 스레드).
 - **Background**: `scheduleBackgroundBody` 가 적재할 때 스레드의 `turns` 배열까지 복사한 스냅샷을 만든다. 최소 `{ ...thread, turns: [...thread.turns] }` 형태다. 참조만 복사하지 않고 새 배열 인스턴스를 만들어, 백그라운드가 새 항목을 쌓아도 메인 스레드의 `turns` 가 바뀌지 않게 한다. 대화 기록 항목 자체는 바뀌지 않으므로 깊은 복사까지는 필요 없다. 그래서 메인 흐름이 이후 만든 항목은 백그라운드가 보지 못하고, 백그라운드 안의 항목은 메인 스레드에 영향이 없다. "백그라운드 실패가 메인 흐름의 실행 상태에 영향을 주지 않는다" 는 격리 원칙([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md))과 맞는다.
-- **컨테이너**: Loop·ForEach·Map·Parallel 은 별도 실행 컨텍스트를 만들지 않고 같은 `context.nodeOutputCache` 를 함께 쓴다. 스레드도 같은 정책이다. 반복 메타(인덱스 등)는 스레드에 자동으로 넣지 않는다. 필요하면 사용자가 `{{ $loop.index }}` 등으로 명시한다.
+- **컨테이너**: Loop·ForEach·Map 은 별도 실행 컨텍스트를 만들지 않고 같은 `context.nodeOutputCache` 를 함께 쓴다. Parallel 은 병렬 분기마다 실행 컨텍스트의 얕은 복사본을 만들어 `nodeOutputCache` 를 따로 둔다. 엔진은 노드 출력을 루트 컨텍스트에 쓰고 같은 항목을 그 병렬 분기의 사본에도 옮긴다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#실행-로직), REQ-PARALLEL-031). 스레드는 넷 모두 부모 스레드를 함께 쓴다. 얕은 복사라 병렬 분기 컨텍스트도 같은 `conversationThread` 를 가리킨다. 반복 메타(인덱스 등)는 스레드에 자동으로 넣지 않는다. 필요하면 사용자가 `{{ $loop.index }}` 등으로 명시한다.
 
 ## 영속화
 

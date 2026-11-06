@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "9447e005cff60f83293a46a1b57153301bf091b745b1a38a6792177f06a24337"
+content_hash: "918c86279815e1d2b6ff828aa5cd193cb4d056972cbab1a88eb45afa0804b482"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-HW2GKD"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "0d2de6329842469f3143808618a944ca3cd45f7674cd6792c9a25be490572b71"
-etag: "sha256-9e122611879f6ebf148d52a7e2b4c1c4d46d68f283d960847ff4384755da43e4"
+mirror_sha256: "57468e2540fce4384c949434d90f342a2ea1e0064b0cc33e75e3ca81adac08e2"
+etag: "sha256-4579c0e7aba698a5d2565852a68923d1389e610621f9d98b3e3c5abc1e24415d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-9e122611879f6ebf148d52a7e2b4c1c4d46d68f283d960847ff4384755da43e4"
 
 1. **안정 핵심(stable core)**: `ExecutionContext` 에는 모든 노드가 함께 쓰는 최소 필드만 둔다.
    - 식별: `workflowId`, `executionId`, `nodeExecutionId`, `nodeId?`
-   - 실행 표준: `variables`, `nodeOutputCache`, `structuredOutputCache`, `rawConfig`, `recursionDepth`. `nodeOutputCache` 와 `structuredOutputCache` 는 Parallel 분기에 들어갈 때 얕은 복사로 격리한다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md)).
+   - 실행 표준: `variables`, `nodeOutputCache`, `structuredOutputCache`, `rawConfig`, `recursionDepth`. `nodeOutputCache` 와 `structuredOutputCache` 는 Parallel 의 병렬 분기에 들어갈 때 얕은 복사로 격리한다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md)). 엔진은 노드 출력을 등록된 루트 컨텍스트에 쓰고 같은 항목을 그 병렬 분기의 사본에도 옮긴다(REQ-PARALLEL-031). 병렬 분기 안 안쪽 Parallel 의 병렬 분기가 쓴 출력은 바깥 병렬 분기의 사본에도 옮긴다.
    - 여러 기능이 함께 쓰는 취소: `abortSignal?: AbortSignal`. 선택 필드이고 best-effort 규약이다. 모든 노드가 지켜야 하는 것은 아니다.
    - 위 목록은 이 규약이 직접 다루는 발췌다. 전체 필드 정의의 기준은 `node-handler.interface.ts` 다(`conversationThread`, `itemContext`, `loopContext`, `expressionContext` 등 포함).
 2. **컨테이너 전용 필드**: 특정 컨테이너 노드 안에서만 뜻이 있는 필드는 `ExecutionContext` 에 바로 얹지 않고 별도 인터페이스로 확장한다.

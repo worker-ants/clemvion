@@ -3,18 +3,18 @@ id: "CLE-WF-WARN"
 title: "그래프 경고 규칙"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
 content_hash: "44c52e21d48ef5aae7d12e02aab559f19ba3707b001fc0256dd1bb137b981668"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-GGZSC2"
 source_paths: ["spec/conventions/cross-node-warning-rules.md"]
-mirror_sha256: "2cb91de4efb6ed268a04ed3359ab5e1fce8bb620ef171a9e994136157998d992"
-etag: "sha256-a47970a2fa5695c8678680910cfba78cc2a775fded6f22c87daa970c3b42ccc0"
+mirror_sha256: "8116a6cf98ae53c982daf7adc43bbcdca2bc9132be4ac20a072f070f7a0f013a"
+etag: "sha256-ea1a59ac3ef2b379a89b31ad701a2130610241132ff8a4a054ed6e6f82bfea2c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/cross-node-warning-rules.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

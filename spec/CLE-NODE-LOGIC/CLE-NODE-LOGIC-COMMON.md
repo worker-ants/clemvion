@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "c094ee453b449f0c2e9fbd4a6671b49192d68a526702e9a00da37b3e2c199185"
+content_hash: "335e96a3eee7cdc0d97d188fda0cf889d2cc2ef6c888f56ece69673b4342f49d"
 read_as: "approved_fallback"
-task: "CLE-T-REC4X3"
+task: "CLE-T-GGZSC2"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0c97a37fbd8dd2b825a0c65275236f79bc001dcfd4d60de6c54974202da5e940"
-etag: "sha256-7ac9e48e34db9f39b58092d95c37baed64f50f4584d4331eabbe2cd3a4a20b46"
+mirror_sha256: "cee8ca97dd76554ce44689538f934f1597ddfd9ba9f4998e21c4d5cfb8e9bd83"
+etag: "sha256-56b0851bde4bf9d0f763f095065e2c154d2552f259ec15c7a285efae8781db80"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -121,7 +121,7 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 
 | 값 | 동작 |
 |------|------|
-| `stop` (기본) | 첫 병렬 분기가 실패하면 에러를 던진다(Parallel 노드 실패) |
+| `stop` (기본) | 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호(`branch_i` 의 `i`)가 가장 작은 것의 에러를 던진다(Parallel 노드 실패). 실패 뒤에도 다른 병렬 분기를 멈추지 않는다 |
 | `continue` | 모든 병렬 분기가 끝나기를 기다린다. 실패한 병렬 분기 자리는 `output.branches[i] = null` 로 두고 실패 정보는 `output.skipped[]` 로 따로 모은다(ForEach 와 같은 형태) |
 | `cancel-others-on-fail` | 첫 실패에서 진행 중인 다른 병렬 분기를 `AbortSignal` 로 중단한다. signal 을 받는 노드만 일찍 정리하는 best-effort 동작이다 |
 
@@ -365,3 +365,9 @@ ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code`
 
 - `UPPER_SNAKE_CASE` 모양이면 출처를 가리지 않고 그대로 내는 안. 런타임 · 드라이버 `code` 가 카탈로그 밖 값으로 나가 규칙 8 의 예외로 남는다.
 - 런타임 · 드라이버 모양을 걸러 내는 안(`errno` · `syscall` 속성, `ERR_` · `ER_` 접두사, `E` 로 시작하는 한 단어). 목록을 관리하지 않아도 되지만 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다.
+
+### Parallel `stop` 설명을 실행기 동작에 맞춘다 (2026-11-06)
+
+이 문서는 Parallel 의 `stop` 을 "첫 병렬 분기가 실패하면 에러를 던진다" 로 적었다. 실행기는 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호가 가장 작은 것의 에러를 던진다. [Parallel 노드](CLE-NODE-PARALLEL.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다-2026-11-06) 가 같은 날 요구사항 문장을 이 동작에 맞췄고 이 표도 같은 말로 고쳤다(NERV Task `CLE-T-HW2GKD`). 동작을 바꾸지 않은 이유와 기각한 대안은 그 Rationale 에 있다.
+
+**기존 워크플로우 영향**: 없다. 문서만 실행기 동작에 맞췄다.

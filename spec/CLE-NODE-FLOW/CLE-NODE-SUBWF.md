@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "8bc3fc2dfe6152a8b54d1cffa85dfeb89e8ed803aac8713e3d1ad2de2d933739"
+content_hash: "0972dff01a61fd6a4f305d2c13ac25a35182a46b5cceff16e10909b0f724e22c"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-HW2GKD"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "cc2b237eea58199e7bb5c1c46f859e6383f7bb3068eae6f91a14b80cd569561b"
-etag: "sha256-f9f6cdcf0597b7af8920ff72ee2becd9636566c7c2c1d7af31fe4c97f447e7e5"
+mirror_sha256: "596b8989797102c40dae7a85aa876a5f7dfd9062dfb2120496595e20d01a9259"
+etag: "sha256-0881f276663e974b248d69d534080c69905f77b9c0835ab22929730cd2a20d71"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -148,13 +148,25 @@ flowchart TD
    - 동기 호출에서 `context._executedNodes` 가 없으면 `Inline execution requires _executedNodes in context` 를 throw 한다.
 2. 서브 워크플로우 입력을 만든다. `inputMapping` 이 하나 이상이면 `{ [paramName]: 평가한 expression }` 객체를 쓴다. 비어 있으면 부모 `input` 을 그대로 넘긴다.
 3. 호출 방식에 따라 나뉜다.
-   - 동기 호출: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` 를 부른다. 돌아온 값을 `output: { result: <inlineResult> }` 로 한 겹 감싼다([동기 호출 성공](#동기-호출-성공-port-out)). `invokerNodeId` 는 이 노드 자신의 `Node.id` 다. 서브 워크플로우 안의 블로킹 노드가 park 하면 이 값이 호출 스택(`resume_call_stack`) 프레임 키로 저장된다. rehydration 은 부모 그래프에서 이 노드까지 나아간 뒤 다시 들어온다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)).
+   - 동기 호출: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` 를 부른다. 돌아온 값을 `output: { result: <inlineResult> }` 로 한 겹 감싼다([동기 호출 성공](#동기-호출-성공-port-out)). 돌아온 값이 서브 워크플로우의 최종 노드 출력이고 아래 [최종 노드 출력](#최종-노드-출력) 이 정한다. `invokerNodeId` 는 이 노드 자신의 `Node.id` 다. 서브 워크플로우 안의 블로킹 노드가 park 하면 이 값이 호출 스택(`resume_call_stack`) 프레임 키로 저장된다. rehydration 은 부모 그래프에서 이 노드까지 나아간 뒤 다시 들어온다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)).
    - 비동기 호출: `executionEngine.executeAsync(workflowId, effectiveInput, { parentExecutionId, recursionDepth: depth+1 })` 를 부른다. `output: { executionId, workflowId, status: 'started' }` 와 최상위 `status: 'started'` 를 바로 돌려준다([비동기 호출 성공](#비동기-호출-성공-port-out)).
 4. 런타임 에러를 처리한다.
    - `executeInline`·`executeAsync` 가 throw 하면 `output.error.{code, message, details: {workflowId, mode}}` 와 `port: 'error'` 를 돌려준다([런타임 에러](#런타임-에러-port-error)). `code` 는 실행기 에러(typed error 또는 메시지)에 따라 정한다([에러 코드](#에러-코드)).
    - 예외: `ParkReleaseSignal`(서브 워크플로우 안 블로킹 노드의 park 신호)은 런타임 실패가 아니다. 에러 포트로 보내지 않고 그대로 다시 던진다. 엔진이 세그먼트를 끝내고 rehydration 으로 재개한다.
 5. 재귀 깊이(`recursionDepth`)를 누적한다. 자식을 부를 때 1 을 더해 넘긴다. 동기 호출은 실행 컨텍스트에, 비동기 호출은 실행 행(`Execution`)에 쌓인다. 기본 최대 깊이는 10 이고, 자기 자신을 직접 부르는 것(A→A)도 한도 안에서는 허용한다.
 6. 동기 호출한 서브 워크플로우의 진입점 트리거는 `manual_trigger` 만 허용한다. 다른 트리거 카테고리 노드를 만나면 엔진이 조용히 건너뛰지 않고 throw 한다. 현재 구현은 `INVALID_SUB_WORKFLOW_TRIGGER:` 로 시작하는 메시지를 던진다(`execution-engine.service.ts`). 지금 트리거 카테고리 노드는 `manual_trigger` 한 종류뿐이다.
+
+### 최종 노드 출력
+
+동기 호출이 돌려받는 최종 노드 출력은 엔진이 서브 워크플로우를 실행하면서 마지막으로 실행한 노드의 출력이다(`executeInline` 의 반환값).
+
+- 엔진은 노드를 하나 실행할 때마다 그 노드의 출력으로 이 값을 바꾼다. 끝나는 노드가 둘 이상이면 실행 순서에서 마지막 노드의 출력이다.
+- 비활성 노드는 실행하지 않으므로 이 값을 바꾸지 않는다.
+- 에러 처리 정책 `skip_node` 로 건너뛴 노드가 마지막이면 그 노드는 출력을 쓰지 않으므로 값이 비어 있다(`undefined`). 같은 실행에서 그 노드가 앞서 쓴 출력이 있으면 그 값이다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)).
+- 실행한 노드가 진입점 트리거뿐이면 서브 워크플로우 입력이다.
+- 컨테이너 노드가 마지막이면 컨테이너의 완료 출력이다.
+
+[Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 의 병렬 분기 결과는 이번 실행에서 출력을 쓴 노드 가운데서 고르므로 이 규칙과 다르다. 건너뛴 노드는 Parallel 결과 노드가 될 수 없지만 서브 워크플로우에서는 마지막으로 실행한 노드면 빈 값이 최종 노드 출력이 된다.
 
 ## 출력 구조
 
@@ -192,7 +204,7 @@ flowchart TD
 | `config.mode` | `'sync'` | 설정 에코 | 호출 방식(기본 `sync`) |
 | `config.inputMapping` | MappingDef[] | 설정 에코 | 사용자가 넣은 원본 매핑. `expression` 의 `{{ }}` 템플릿을 그대로 둔다. |
 | `config.timeout` | number | 설정 에코 | 타임아웃(초) |
-| `output.result` | 서브 워크플로우 출력 | 런타임, `executeInline` 반환값 | 서브 워크플로우 최종 노드 출력을 한 겹 감싸 담는다. 키 구조는 호출한 워크플로우에 전적으로 달려 있다. `workflow.schema.ts` 의 `workflowNodeOutputSchema` 는 이를 Tier 3 unknown 으로 표시한다. |
+| `output.result` | 서브 워크플로우 출력 | 런타임, `executeInline` 반환값 | 서브 워크플로우 [최종 노드 출력](#최종-노드-출력) 을 한 겹 감싸 담는다. 키 구조는 호출한 워크플로우에 전적으로 달려 있다. `workflow.schema.ts` 의 `workflowNodeOutputSchema` 는 이를 Tier 3 unknown 으로 표시한다. |
 | `meta.durationMs` | number | 핸들러가 채움 | 인라인 실행 소요 시간(ms). `executeInline` 을 부르기 직전부터 돌아올 때까지의 실제 시간 |
 | `port` | 생략(= `'out'`) | 핸들러 반환 | 단일 성공 출력 |
 
@@ -351,3 +363,11 @@ flowchart TD
 ### 워크스페이스 격리를 fail-closed 로 바꾼 이유 (PR #637)
 
 예전에는 호출자 워크스페이스 ID 가 없으면 로그만 남기고 통과시켰다(fail-open). 운영 호출처 세 곳(`executeInline` 두 곳, `executeAsync` 한 곳)을 모두 추적해 워크스페이스 ID 가 늘 공급된다는 것을 확인한 뒤, 값이 없을 때도 막는 fail-closed 로 바꿨다. 경위는 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)의 Rationale "C-1" 에 있다.
+
+### 최종 노드 출력은 마지막으로 실행한 노드의 출력이다 (2026-11-06)
+
+이 문서는 「최종 노드 출력」 을 정의 없이 썼다. [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 2026-11-02 에 병렬 분기 결과를 「이번 실행에서 출력을 쓴 노드 가운데 위상 순서가 가장 늦은 노드」 로 정하면서 두 문서의 "마지막 노드" 가 다르게 읽힐 수 있게 됐다. 그래서 지금 엔진 동작(`executeInline` 이 노드를 실행할 때마다 반환값을 바꾼다)을 정의로 적었다(NERV Task `CLE-T-HW2GKD`).
+
+기각한 대안은 Parallel 처럼 출력을 쓴 노드로 좁히는 안이다. 서브 워크플로우의 반환값이 바뀌므로 기존 워크플로우 동작이 달라지고 엔진 코드를 바꿔야 한다. 이번 정리는 문서를 동작에 맞추는 범위라 동작은 바꾸지 않았다.
+
+**기존 워크플로우 영향**: 없다. 문서만 동작에 맞췄다.

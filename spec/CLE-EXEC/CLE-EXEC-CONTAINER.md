@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "081c523499d4bb813b6f9533d54b76464fd263af81bb6180a5207adfc082d3e5"
+content_hash: "8750e8d5ef2326d401224513ed29f6b47eb8201b40dc2ce2b87aee489878e23a"
 read_as: "approved_fallback"
-task: "CLE-T-2HD471"
+task: "CLE-T-GGZSC2"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "3256968560fb11ca4c444877add9a0df301c073d63f8e35a477fce33f522e2ae"
-etag: "sha256-150436d797af26fc19830ba1699b99476bb1d0dd9cc83691d7f13a85263c4991"
+mirror_sha256: "4fd6495c53c31bc8b92b32f7159742157b5b5331e871752b7f850cea8e8220b5"
+etag: "sha256-9760d70a44b9488de4c80a9250fed811da6166acbcb8ad12e07d0ea87e7eb6cd"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -91,6 +91,8 @@ Parallel 의 `branches` 도 병렬 분기 번호(`branch_<index>` 의 index)를 
 Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기마다 어느 노드의 출력을 담는지는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다. `emit` 같은 수집 지점을 강제하지 않는 이유는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#결과-노드의-동률은-엔진-위상-순서로-가른다-2026-11-02) 의 Rationale 에 있다.
 
 `PARALLEL_ENGINE=off` 되돌림 경로에서는 엔진이 Parallel 을 덮어쓰지 않는다. Parallel 노드 출력은 시작 시점 형태로 남는다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
+
+컨테이너(Loop · ForEach · Map) 본문, 동기 서브 워크플로우, Background 본문에 둔 Parallel 은 아직 엔진의 Parallel 실행 경로를 타지 않으므로 이 덮어쓰기를 받지 않는다. 완료 출력이 없고 `done` 포트도 열리지 않는다([Parallel 노드 미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항)). 병렬 분기 안에 둔 안쪽 Parallel 은 이 경로를 타고 덮어쓰기를 받는다.
 
 시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 park · 재구동 없이 이어진 실행에서 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 배열이 남고 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
 
@@ -219,3 +221,9 @@ ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준�
 ### Background 본문은 컨테이너 소속 모델을 쓰지 않는다
 
 Background 본문은 메인 흐름과 따로 끝나며 결과가 메인으로 돌아오지 않는다. 반복하며 결과를 모으는 컨테이너 구조와 맞지 않아 `background` 포트 연결선으로 본문을 찾는 평면 구조를 택했다(PRD ND-BG-05). 본문이 부모와 같은 `executionId` 를 Map 키로 쓰던 때 먼저 끝난 부모가 본문 컨텍스트를 지우는 경쟁이 있었다. 그래서 메모리 Map 키만 따로 둔다. 결정 경위는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 에 있다.
+
+### Parallel 덮어쓰기의 예외를 적는다 (2026-11-06)
+
+2026-11-06 에 병렬 분기 안의 안쪽 Parallel 이 엔진의 Parallel 실행 경로를 타게 되면서([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기-안의-안쪽-parallel-을-parallel-실행-경로로-넘긴다-2026-11-06)) 이 경로를 아직 타지 않는 Parallel 은 컨테이너 · 동기 서브 워크플로우 · Background 본문에 둔 것만 남았다. 이 문서의 덮어쓰기 표만 보면 모든 Parallel 이 완료 출력을 받는 것처럼 읽히므로 예외를 엔진 덮어쓰기 절에 적었다(NERV Task `CLE-T-HW2GKD`). 그 Parallel 을 실행 경로에 넣는 일은 NERV Task `CLE-T-0DGHGF` 가 맡는다.
+
+**기존 워크플로우 영향**: 없다. 문서만 실행기 동작에 맞췄다.

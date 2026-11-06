@@ -7440,6 +7440,30 @@ describe('ExecutionEngineService', () => {
         1,
       ) as { allBodyNodeIds: Set<string> };
       expect(planDepth1.allBodyNodeIds.has('p3')).toBe(true);
+
+      // CLE-T-GGZSC2 — depth=1 계획이 안쪽 Parallel 의 본문도 미리 계획한다. 세 단계
+      // (p1 → p2 → p3) 면 바깥 Parallel 을 계획하는 시점에 던진다. 두 단계(p2 → p3)는
+      // 위에서 던지지 않았다.
+      const outer = { id: 'p1', type: 'parallel_depthtest', label: 'Outer' };
+      const threeLevelEdges = [
+        {
+          id: 'e0',
+          sourceNodeId: 'p1',
+          sourcePort: 'branch_0',
+          targetNodeId: 'p2',
+        },
+        ...forwardEdges,
+      ];
+      expect(() =>
+        planParallelBody(
+          outer,
+          [outer, inner, innermost],
+          threeLevelEdges,
+          [],
+          1,
+          1,
+        ),
+      ).toThrow(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /);
     });
 
     it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {
@@ -16139,6 +16163,428 @@ describe('ExecutionEngineService', () => {
               error: { code: 'UNKNOWN_ERROR', message: 'notify failed' },
             },
           ],
+        });
+      });
+
+      it('병렬 분기 출구 노드가 같은 병렬 분기 안 노드로도 이어지면 그 노드를 메인 루프가 다시 실행하지 않는다', async () => {
+        // branch_0 → x → y, x → m(합류), branch_1 → z → m. x 는 출구 노드다. 출구 노드의
+        // 도달 가능성을 넘길 때 같은 병렬 분기 본문 노드 y 까지 메인 루프에 넣으면 y 가
+        // 두 번 실행된다.
+        const runs: string[] = [];
+        for (const id of ['x', 'y', 'z', 'm']) {
+          registerHandler(`${id}_node`, async () => {
+            runs.push(id);
+            return mockOutput({ from: id });
+          });
+        }
+        await runGraph(
+          {},
+          [
+            pNode('x', 'x_node'),
+            pNode('y', 'y_node'),
+            pNode('z', 'z_node'),
+            pNode('m', 'm_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'x'),
+            pEdge('x', 'out', 'y'),
+            pEdge('x', 'out', 'm'),
+            pEdge('par', 'branch_1', 'z'),
+            pEdge('z', 'out', 'm'),
+          ],
+        );
+
+        expect([...runs].sort()).toEqual(['m', 'x', 'y', 'z']);
+      });
+
+      // CLE-T-GGZSC2 — 병렬 분기 안의 안쪽 Parallel 도 엔진의 Parallel 실행 경로를 탄다.
+      // 고치기 전에는 바깥 병렬 분기 루프가 안쪽 Parallel 의 핸들러만 실행하고 안쪽 병렬
+      // 분기 노드를 자기 루프에서 차례로 실행했다. 안쪽 done 연결선은 열리지 않았고
+      // 동시 실행 수 조정과 깊이 검사도 적용되지 않았다.
+      describe('병렬 분기 안의 안쪽 Parallel (REQ-PARALLEL-024 · 025)', () => {
+        const recordingHandlers = (ids: string[]) => {
+          const runs: string[] = [];
+          const inputs: Record<string, unknown> = {};
+          for (const id of ids) {
+            registerHandler(`${id}_node`, async (input) => {
+              runs.push(id);
+              inputs[id] = input;
+              return mockOutput({ from: id });
+            });
+          }
+          return { runs, inputs };
+        };
+        // 핸들러가 받는 실행 컨텍스트를 읽는다. 병렬 분기 안의 노드면 그 분기의 캐시
+        // 사본이다. spy 는 엔진이 넘긴 인자만 보므로 캐시에 실제로 남은 값은 이렇게 읽는다.
+        const registerProbe = (
+          type: string,
+          read: (ctx: ExecutionContext) => void,
+        ) => {
+          const handler: NodeHandler = {
+            validate: () => ({ valid: true, errors: [] }),
+            execute: jest.fn(
+              async (_input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+                read(ctx);
+                return mockOutput({ probed: type });
+              },
+            ) as NodeHandler['execute'],
+          };
+          handlerRegistry.register(type, handler);
+        };
+        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다. 같은 노드를
+        // 여러 번 기록했으면 마지막 호출의 payload 를 돌려준다.
+        const structuredOf = (nodeId: string) => {
+          const matched = structuredSpy.mock.calls
+            .map((call: unknown[]) => {
+              const [, id, payload] = call;
+              return { id, payload };
+            })
+            .filter((call) => call.id === nodeId);
+          return matched.length > 0
+            ? (matched[matched.length - 1].payload as Record<string, unknown>)
+            : undefined;
+        };
+        // par.branch_0 → par2 → [branch_0 → a, branch_1 → b], par.branch_1 → d,
+        // par.done → sink 를 기본 그래프로 한다. 테스트마다 달라지는 부분만 넘긴다.
+        const buildInnerParallelGraph = (
+          opts: {
+            innerConfig?: Record<string, unknown>;
+            types?: Partial<Record<'a' | 'b' | 'd', string>>;
+            extraNodes?: ReturnType<typeof pNode>[];
+            extraEdges?: ReturnType<typeof pEdge>[];
+          } = {},
+        ) => ({
+          nodes: [
+            pNode('par2', 'parallel', opts.innerConfig ?? { branchCount: 2 }),
+            pNode('a', opts.types?.a ?? 'a_node'),
+            pNode('b', opts.types?.b ?? 'b_node'),
+            pNode('d', opts.types?.d ?? 'd_node'),
+            pNode('sink', 'sink_node'),
+            ...(opts.extraNodes ?? []),
+          ],
+          edges: [
+            pEdge('par', 'branch_0', 'par2'),
+            pEdge('par2', 'branch_0', 'a'),
+            pEdge('par2', 'branch_1', 'b'),
+            pEdge('par', 'branch_1', 'd'),
+            pEdge('par', 'done', 'sink'),
+            ...(opts.extraEdges ?? []),
+          ],
+        });
+        const runInnerParallelGraph = async (
+          outerConfig: Record<string, unknown>,
+          opts: Parameters<typeof buildInnerParallelGraph>[0] = {},
+        ) => {
+          const g = buildInnerParallelGraph(opts);
+          await runGraph(outerConfig, g.nodes, g.edges);
+        };
+
+        it('안쪽 Parallel 이 자기 병렬 분기를 실행하고 done 포트로 완료 출력을 낸다', async () => {
+          // 안쪽 done 뒤에 c 를 잇는다.
+          const { runs, inputs } = recordingHandlers(['a', 'b', 'c', 'd']);
+          await runInnerParallelGraph(
+            {},
+            {
+              extraNodes: [pNode('c', 'c_node')],
+              extraEdges: [pEdge('par2', 'done', 'c')],
+            },
+          );
+
+          const innerDone = {
+            branches: [{ from: 'a' }, { from: 'b' }],
+            count: 2,
+          };
+          expect([...runs].sort()).toEqual(['a', 'b', 'c', 'd']);
+          expect(inputs.c).toEqual(innerDone);
+          expect(structuredOf('par2')).toEqual(
+            expect.objectContaining({ output: innerDone, port: 'done' }),
+          );
+          // 바깥 병렬 분기 0 의 결과 노드는 안쪽 done 뒤의 c 다.
+          expect(doneReceived).toEqual([
+            { branches: [{ from: 'c' }, { from: 'd' }], count: 2 },
+          ]);
+        });
+
+        it('캐시에 남은 안쪽 · 바깥 완료 출력의 구조화 출력 output 에는 라우팅 표지 _selectedPort 가 없다', async () => {
+          // 평면 출력을 쓰면 구조화 출력의 output 을 그 값으로 다시 만든다. 구조화 출력을
+          // 먼저 쓰면 `$node["Parallel"].output` 에 `_selectedPort` 가 섞인다.
+          recordingHandlers(['a', 'b', 'd']);
+          const seen: Record<string, unknown> = {};
+          registerProbe('c_probe', (ctx) => {
+            seen.innerInBranch = ctx.structuredOutputCache?.['par2'];
+          });
+          registerProbe('top_probe', (ctx) => {
+            seen.innerAtRoot = ctx.structuredOutputCache?.['par2'];
+            seen.outer = ctx.structuredOutputCache?.['par'];
+          });
+          await runInnerParallelGraph(
+            {},
+            {
+              extraNodes: [pNode('c', 'c_probe'), pNode('top', 'top_probe')],
+              extraEdges: [
+                pEdge('par2', 'done', 'c'),
+                pEdge('par', 'done', 'top'),
+              ],
+            },
+          );
+
+          const innerDone = {
+            branches: [{ from: 'a' }, { from: 'b' }],
+            count: 2,
+          };
+          // 바깥 병렬 분기 0 의 사본과 루트 컨텍스트 둘 다 본다.
+          expect(seen.innerInBranch).toEqual(
+            expect.objectContaining({ output: innerDone, port: 'done' }),
+          );
+          expect(seen.innerAtRoot).toEqual(
+            expect.objectContaining({ output: innerDone, port: 'done' }),
+          );
+          expect(seen.outer).toEqual(
+            expect.objectContaining({
+              output: {
+                branches: [{ probed: 'c_probe' }, { from: 'd' }],
+                count: 2,
+              },
+              port: 'done',
+            }),
+          );
+        });
+
+        it('안쪽 Parallel 이 바깥 병렬 분기의 마지막 노드면 바깥 branches[i] 는 안쪽 완료 출력이고 안쪽 병렬 분기 노드는 후보가 아니다', async () => {
+          recordingHandlers(['a', 'b', 'd']);
+          await runInnerParallelGraph({});
+
+          expect(doneReceived).toEqual([
+            {
+              branches: [
+                { branches: [{ from: 'a' }, { from: 'b' }], count: 2 },
+                { from: 'd' },
+              ],
+              count: 2,
+            },
+          ]);
+        });
+
+        it('안쪽 Parallel 의 합류 노드는 한 번만 실행되고 안쪽 병렬 분기 출력을 입력으로 받는다', async () => {
+          // 안쪽 병렬 분기 a, b 가 모두 m 으로 합류한다.
+          const { runs, inputs } = recordingHandlers(['a', 'b', 'm', 'd']);
+          await runInnerParallelGraph(
+            {},
+            {
+              extraNodes: [pNode('m', 'm_node')],
+              extraEdges: [pEdge('a', 'out', 'm'), pEdge('b', 'out', 'm')],
+            },
+          );
+
+          expect([...runs].sort()).toEqual(['a', 'b', 'd', 'm']);
+          // 입력이 여럿이면 원본 노드 ID 별로 모인다. 안쪽 병렬 분기가 쓴 출력이 바깥
+          // 병렬 분기 사본에도 보여야 한다.
+          expect(inputs.m).toEqual({ a: { from: 'a' }, b: { from: 'b' } });
+          expect(doneReceived).toEqual([
+            { branches: [{ from: 'm' }, { from: 'd' }], count: 2 },
+          ]);
+        });
+
+        it('안쪽 Parallel 의 병렬 분기는 동시에 실행된다', async () => {
+          let inFlight = 0;
+          let maxInFlight = 0;
+          registerHandler('slow_node', async () => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise((resolve) => setImmediate(resolve));
+            inFlight -= 1;
+            return mockOutput({ slow: true });
+          });
+          registerHandler('ok_node', async () => mockOutput({ ok: true }));
+          await runInnerParallelGraph(
+            {},
+            { types: { a: 'slow_node', b: 'slow_node', d: 'ok_node' } },
+          );
+          await flushPromises();
+
+          expect(maxInFlight).toBe(2);
+          expect(doneReceived).toHaveLength(1);
+        });
+
+        it('바깥 × 안쪽 동시 실행 수 곱이 32 를 넘으면 안쪽 동시 실행 수를 줄이고 meta.clampedConcurrency 에 기록한다', async () => {
+          recordingHandlers(['a', 'b', 'd']);
+          await runInnerParallelGraph(
+            { maxConcurrency: 16 },
+            { innerConfig: { branchCount: 2, maxConcurrency: 4 } },
+          );
+
+          // 16 × 4 = 64 > 32 → 안쪽은 max(1, floor(32 / 16)) = 2.
+          expect(structuredOf('par2')).toEqual(
+            expect.objectContaining({
+              port: 'done',
+              meta: {
+                clampedConcurrency: {
+                  intended: 4,
+                  actual: 2,
+                  parentEffective: 16,
+                  cap: 32,
+                },
+              },
+            }),
+          );
+          expect(structuredOf('par')).toBeDefined();
+          expect(structuredOf('par')).not.toHaveProperty('meta');
+        });
+
+        it('바깥 × 안쪽 동시 실행 수 곱이 32 이하면 안쪽 완료 출력에 meta 가 없다', async () => {
+          recordingHandlers(['a', 'b', 'd']);
+          await runInnerParallelGraph(
+            { maxConcurrency: 8 },
+            { innerConfig: { branchCount: 2, maxConcurrency: 4 } },
+          );
+
+          // 8 × 4 = 32 ≤ 32 → 줄이지 않는다.
+          expect(structuredOf('par2')).toEqual(
+            expect.objectContaining({ port: 'done' }),
+          );
+          expect(structuredOf('par2')).not.toHaveProperty('meta');
+        });
+
+        it('안쪽 Parallel 의 항목 에러 정책이 continue 면 실패한 안쪽 병렬 분기가 안쪽 완료 출력의 skipped 에 남고 바깥 병렬 분기는 이어진다', async () => {
+          const { runs, inputs } = recordingHandlers(['a', 'c', 'd']);
+          registerHandler('fail_node', async () => {
+            throw new Error('inner failed');
+          });
+          await runInnerParallelGraph(
+            {},
+            {
+              innerConfig: { branchCount: 2, errorPolicy: 'continue' },
+              types: { b: 'fail_node' },
+              extraNodes: [pNode('c', 'c_node')],
+              extraEdges: [pEdge('par2', 'done', 'c')],
+            },
+          );
+
+          const innerDone = {
+            branches: [{ from: 'a' }, null],
+            count: 2,
+            skipped: [
+              {
+                index: 1,
+                error: { code: 'UNKNOWN_ERROR', message: 'inner failed' },
+              },
+            ],
+          };
+          expect([...runs].sort()).toEqual(['a', 'c', 'd']);
+          expect(inputs.c).toEqual(innerDone);
+          expect(structuredOf('par2')).toEqual(
+            expect.objectContaining({ output: innerDone, port: 'done' }),
+          );
+          expect(doneReceived).toEqual([
+            { branches: [{ from: 'c' }, { from: 'd' }], count: 2 },
+          ]);
+        });
+
+        it('안쪽 병렬 분기가 실패해도 그때까지 쓴 출력은 바깥 병렬 분기의 사본에 옮겨진다', async () => {
+          // 안쪽 병렬 분기 1: b(성공) → bf(실패). 실패한 병렬 분기도 `finally` 에서
+          // 쓴 출력을 바깥 병렬 분기 사본에 옮기므로 안쪽 done 뒤의 c 가 b 를 본다.
+          const { runs } = recordingHandlers(['a', 'b', 'd']);
+          registerHandler('fail_node', async () => {
+            throw new Error('inner failed');
+          });
+          let partial: unknown;
+          registerProbe('c_probe', (ctx) => {
+            partial = ctx.nodeOutputCache['b'];
+          });
+          await runInnerParallelGraph(
+            {},
+            {
+              innerConfig: { branchCount: 2, errorPolicy: 'continue' },
+              extraNodes: [pNode('bf', 'fail_node'), pNode('c', 'c_probe')],
+              extraEdges: [pEdge('b', 'out', 'bf'), pEdge('par2', 'done', 'c')],
+            },
+          );
+
+          expect([...runs].sort()).toEqual(['a', 'b', 'd']);
+          expect(structuredOf('par2')).toEqual(
+            expect.objectContaining({
+              output: expect.objectContaining({
+                branches: [{ from: 'a' }, null],
+                skipped: [expect.objectContaining({ index: 1 })],
+              }),
+            }),
+          );
+          expect(partial).toEqual({ from: 'b' });
+        });
+
+        it('안쪽 Parallel 의 항목 에러 정책이 stop 이면 안쪽 실패가 바깥 병렬 분기의 실패가 되고 바깥 항목 에러 정책을 따른다', async () => {
+          const { runs } = recordingHandlers(['a', 'c', 'd']);
+          registerHandler('fail_node', async () => {
+            throw new Error('inner failed');
+          });
+          await runInnerParallelGraph(
+            { errorPolicy: 'continue' },
+            {
+              innerConfig: { branchCount: 2, errorPolicy: 'stop' },
+              types: { b: 'fail_node' },
+              extraNodes: [pNode('c', 'c_node')],
+              extraEdges: [pEdge('par2', 'done', 'c')],
+            },
+          );
+
+          // 안쪽 done 뒤 c 는 실행되지 않는다. 바깥 병렬 분기 0 이 실패로 남는다.
+          expect(runs).not.toContain('c');
+          expect(runs).toContain('d');
+          expect(doneReceived).toEqual([
+            {
+              branches: [null, { from: 'd' }],
+              count: 2,
+              skipped: [
+                {
+                  index: 0,
+                  error: expect.objectContaining({ message: 'inner failed' }),
+                },
+              ],
+            },
+          ]);
+        });
+
+        it('중첩 깊이가 2 를 넘으면 바깥 항목 에러 정책과 상관없이 병렬 분기를 시작하기 전에 실행을 PARALLEL_NESTED_DEPTH_EXCEEDED 로 실패시킨다', async () => {
+          // par(continue).branch_0 → par2.branch_0 → par3.branch_0 → x
+          const { runs } = recordingHandlers(['x', 'd']);
+          const failSpy = jest.spyOn(
+            service as unknown as {
+              finalizeFailedExecution: (...args: unknown[]) => Promise<void>;
+            },
+            'finalizeFailedExecution',
+          );
+          try {
+            await runGraph(
+              { errorPolicy: 'continue' },
+              [
+                pNode('par2', 'parallel', { branchCount: 2 }),
+                pNode('par3', 'parallel', { branchCount: 2 }),
+                pNode('x', 'x_node'),
+                pNode('d', 'd_node'),
+                pNode('sink', 'sink_node'),
+              ],
+              [
+                pEdge('par', 'branch_0', 'par2'),
+                pEdge('par2', 'branch_0', 'par3'),
+                pEdge('par3', 'branch_0', 'x'),
+                pEdge('par', 'branch_1', 'd'),
+                pEdge('par', 'done', 'sink'),
+              ],
+            );
+
+            expect(runs).toEqual([]);
+            expect(doneReceived).toEqual([]);
+            expect(failSpy).toHaveBeenCalledWith(
+              expect.anything(),
+              expect.objectContaining({
+                message: expect.stringMatching(
+                  /^PARALLEL_NESTED_DEPTH_EXCEEDED: /,
+                ),
+              }),
+            );
+          } finally {
+            failSpy.mockRestore();
+          }
         });
       });
     });
