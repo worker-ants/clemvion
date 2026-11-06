@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
 content_hash: "8d8c03464d1894937c8d960628f2df539a13471c4501ff877f310afa8019eeb4"
 read_as: "approved_fallback"
-task: "CLE-T-AB21M6"
+task: "CLE-T-M1P83C"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "e35826ac99965313abde87c30e2b24c255ff3002f7805c2c76c8c4ad83094a9f"
-etag: "sha256-73e1b0a0cbb3c521bd7631cb4098a664997321a54c81b477d131b8e48777a6fa"
+mirror_sha256: "048b5ea9a5a437dcd388e7e6da758347b436cea7b67cc4bb979f9f7478845aac"
+etag: "sha256-f394d931ae62e8390f45240e112896d1088081b25d94546d0c8fa560f0b754a4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

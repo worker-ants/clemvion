@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "d88ec2bae75ab42ebd5f6144deecfc73547dbf40c7499d93341028d9920b96a6"
+content_hash: "610ace212e487edfe8d87ea69b7991d3175682004120830e882733ccb67f9923"
 read_as: "approved_fallback"
-task: "CLE-T-AB21M6"
+task: "CLE-T-M1P83C"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "15337cc6ffa23daf56605f0818a6895c89cc45fdcef8dd74e71c744dfc3ff605"
-etag: "sha256-0a374837e5ef33a7250412abc9231a30d779a6dea7ce381584892ceaa9744679"
+mirror_sha256: "a9a26eb134bc38f63a5d146eff89ab9e22d742f0cc50509af40e7316248b7378"
+etag: "sha256-0faf4e59973ffb8b2262c43664a6447dd335ce20f82c184ff48c29fc57afe020"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -326,6 +326,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
   - 운영 밖: 기본으로 끈다. 값이 정확히 `1` 일 때만 켠다.
   - 등록 때는 DNS 를 풀지 않는다. 등록 때 IP 를 저장해 발송 때 IP 와 비교하지도 않는다.
   - DNS 조회가 실패하면 검사를 통과시킨다(fail-open). 발송도 같은 해석기로 연결하므로 대개 발송이 연결 전에 실패하고 재시도된다.
+  - 조회는 3초(`DNS_LOOKUP_TIMEOUT_MS`)까지 기다린다. 이 값은 코드 상수라 설정으로 바꿀 수 없다. 3초를 넘기면 조회가 실패한 것과 같이 통과시킨다. 이때 발송 작업이 그 트리거의 id 와 함께 경고 로그를 남긴다. 발송 건강도는 바꾸지 않는다.
   - 검사한 IP 로 연결을 고정하지 않는다. 그래서 검사와 연결 사이에 DNS 응답이 바뀌면 막지 못한다.
   - 근거와 측정은 [Rationale](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06) 에 있다.
 - 발송은 리다이렉트를 따라가지 않는다. 등록 때와 발송 직전의 검사는 등록 URL 의 호스트만 본다. 리다이렉트가 가리키는 주소는 어느 검사도 보지 않는다. 따라가면 공개 호스트가 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 이 검사들을 통과한다. 307 · 308 이면 서명한 본문도 그 주소로 간다. 3xx 응답의 처리는 [재시도와 실패 처리](#재시도와-실패-처리) 가 정한다.
@@ -513,10 +514,11 @@ NERV Task `CLE-T-M1P83C` 의 변경이다. [SSRF 방지 본문을 구현에 맞�
   - 발송 제한 시간 10초에 견주면 작다. 측정은 개발 장비의 해석기 기준이다. 운영 클러스터는 `ndots` 와 검색 도메인 때문에 질의가 더 늘 수 있다.
 - **`lookup` 으로 바꾼 이유**: `resolve4` · `resolve6` 는 네트워크 DNS 에만 묻고 `/etc/hosts` 와 OS 검색 도메인을 보지 않는다. `fetch` 는 `lookup`(getaddrinfo)으로 연결한다. 그래서 검사와 연결이 다른 답을 볼 수 있었다. Linux 컨테이너에서 자기 호스트 이름(`/etc/hosts` 의 172.17.0.2)을 풀자 `resolve4` · `resolve6` 는 `ENOTFOUND` · `ENODATA` 로 실패해 검사를 통과시켰고, `lookup` 은 사설 IP 를 돌려줘 막았다. 질의도 둘에서 하나로 준다. 통합 노드 가드(`assertSafeOutboundHostResolved`)도 `lookup` 을 쓴다.
 - **조회 실패는 통과시킨다**: 검사와 발송이 같은 해석기를 쓰므로 조회가 실패하면 발송도 대개 연결 전에 실패하고 재시도된다. 실패를 거부로 보면 일시적인 DNS 장애가 바로 `degraded` 와 알림 유실이 된다. [거부가 어떻게 보이는지 본문에 적는다](#거부가-어떻게-보이는지-본문에-적는다-2026-11-05) 에서 정한 대로 검사 거부는 재시도하지 않기 때문이다. 통합 노드 가드도 조회 실패를 통과시킨다.
+- **조회는 3초까지만 기다린다**: 해석기가 느리면 발송 작업이 HTTP 제한 시간(10초) 밖에서 조회에 묶인다. 위 측정의 최댓값(38.0ms)보다 훨씬 긴 3초를 넘기면 조회 실패와 같이 통과시킨다. 다만 실패와 달리 시간 초과는 연결 때 답이 와서 발송이 나갈 수 있다. 검사 없이 나간 발송을 운영자가 볼 수 있게 경고 로그를 남긴다. 시간을 넘긴 `getaddrinfo` 는 끝날 때까지 libuv 스레드풀 자리를 잡는다. 이 점은 검사와 연결의 조회를 하나로 합치는 주소 고정 후속(`CLE-T-GAQCF9`)에서 다룬다. 2026-11-06 코드 리뷰에서 더했다.
 - **끄는 값은 `0` 하나다**: 운영에서 `1` 이 아닌 값을 모두 꺼짐으로 보면 오타나 빈 값이 방어를 끈다. 켜짐을 기본으로 두고 정확히 `0` 일 때만 끄면 잘못 쓴 값은 켜짐으로 남는다.
 - **운영에서 끄는 길을 남긴다**: 사설 IP 로 풀리는 내부 수신기에 알림을 보내야 하는 자체 설치 배포가 있다. 정당한 용도가 있어 기동을 막지 않는다. 대신 `main.ts` 가 기동할 때 `[SECURITY]` 경고 로그를 남긴다. 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 와 같은 방식이다. 그래서 [운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 넣지 않았다.
 - **운영 밖은 꺼 둔다**: e2e 는 Docker 내장 DNS 가 사설 IP 로 푸는 컨테이너 이름으로 알림 수신기에 보낸다(`notification-webhook-redirect.e2e-spec.ts`). 개발 환경도 비슷하다. 운영 밖에서 켜려면 `1` 을 준다.
-- **남은 위험**: 검사한 IP 로 연결을 고정하지 않으므로 검사와 연결 사이에 DNS 응답이 바뀌면(TTL 0 rebinding) 막지 못한다. 권한 DNS 를 쥔 공격자가 검사 때는 조회 실패를, 연결 때는 내부 주소를 돌려주는 변형도 남는다. 고정하려면 `fetch` 의 연결 계층을 바꿔야 해서 후속 NERV Task `CLE-T-GAQCF9` 로 넘겼다. 외부 MCP · HTTP Request 노드의 같은 작업은 `CLE-T-BS1WD1` 이다.
+- **남은 위험**: 검사한 IP 로 연결을 고정하지 않으므로 검사와 연결 사이에 DNS 응답이 바뀌면(TTL 0 rebinding) 막지 못한다. 권한 DNS 를 쥔 공격자가 검사 때는 조회 실패를, 연결 때는 내부 주소를 돌려주는 변형도 남는다. 검사 때 답을 3초 넘게 늦추는 변형도 같다. 고정하려면 `fetch` 의 연결 계층을 바꿔야 해서 후속 NERV Task `CLE-T-GAQCF9` 로 넘겼다. 외부 MCP · HTTP Request 노드의 같은 작업은 `CLE-T-BS1WD1` 이다.
 
 기각한 대안:
 
@@ -524,3 +526,6 @@ NERV Task `CLE-T-M1P83C` 의 변경이다. [SSRF 방지 본문을 구현에 맞�
 - **예전 방식(`resolve4` · `resolve6`)을 그대로 켠다**: 위 측정처럼 질의가 둘이라 느리고, `/etc/hosts` 를 보지 않아 `fetch` 와 다른 답을 본다.
 - **운영에서 끄는 길을 없앤다**: 자체 설치 배포가 내부 수신기에 알림을 보낼 수 없게 된다.
 - **조회 실패를 거부로 본다(fail-closed)**: 위 「조회 실패는 통과시킨다」 를 보라. 연결을 고정하는 후속 작업에서 함께 다시 정한다.
+- **시간 초과를 거부로 본다**: 느린 해석기가 일시적으로 늦어도 바로 `degraded` 와 알림 유실이 된다. 조회 실패를 통과시키는 것과 같은 이유로 통과시키고 경고 로그로 남긴다.
+- **제한 시간 없이 기다린다**: 해석기가 멈추면 발송 작업이 HTTP 제한 시간과 상관없이 끝나지 않는다.
+
