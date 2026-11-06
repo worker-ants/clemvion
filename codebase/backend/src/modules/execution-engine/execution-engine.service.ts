@@ -729,6 +729,13 @@ export class ExecutionEngineService
   /**
    * 노드 배열 참조 → Parallel 사전 검사 그래프. 컨테이너 본문 안 Parallel 이 회차마다
    * `runParallel` 을 불러도 그래프는 한 번만 만든다. 배열이 GC 되면 같이 사라진다.
+   *
+   * 전제: 키로 쓰는 노드 배열과 연결선 배열은 실행 중 제자리에서 바뀌지 않는다.
+   * 두 배열은 실행 · 재개 · 서브 워크플로우 시작 때 `findBy` 로 한 번 읽은 값이고
+   * (`nodes` / `edges` / `subNodes` / `subEdges`), `runParallel` 을 부르는 곳들과
+   * `planContainerBody` 의 `plan.allNodes` / `plan.allEdges` 는 그 참조를 그대로 넘기며
+   * push · splice 같은 제자리 변경을 하지 않는다. 연결선 배열은 적중 때 참조까지 비교해
+   * 다른 배열이 오면 다시 만든다.
    */
   private readonly parallelCheckGraphCache = new WeakMap<
     readonly Node[],

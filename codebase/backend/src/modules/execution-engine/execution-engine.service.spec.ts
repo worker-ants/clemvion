@@ -7386,6 +7386,78 @@ describe('ExecutionEngineService', () => {
       expect(executeImpl).toHaveBeenCalledTimes(1);
     });
 
+    // CLE-T-0DGHGF — 컨테이너 회차마다 `runParallel` 이 불려도 사전 검사 그래프는 노드 ·
+    // 연결선 배열 참조 기준으로 1회만 만든다. 연결선 배열이 다르면 낡은 연결선을 쓰지 않도록 다시 만든다.
+    it('buildParallelCheckGraph reuses the graph for the same arrays and rebuilds when the edge array differs', () => {
+      const internals = service as unknown as {
+        buildParallelCheckGraph: (
+          allNodes: unknown[],
+          allEdges: unknown[],
+        ) => { allEdges: unknown[]; nodeMap: Map<string, unknown> };
+      };
+      const nodes = [{ id: 'n1', type: 't', label: 'N1' }];
+      const edges: unknown[] = [];
+      const first = internals.buildParallelCheckGraph.call(
+        service,
+        nodes,
+        edges,
+      );
+      expect(
+        internals.buildParallelCheckGraph.call(service, nodes, edges),
+      ).toBe(first);
+      const otherEdges = [
+        { id: 'e1', sourceNodeId: 'n1', sourcePort: 'out', targetNodeId: 'n1' },
+      ];
+      const rebuilt = internals.buildParallelCheckGraph.call(
+        service,
+        nodes,
+        otherEdges,
+      );
+      expect(rebuilt).not.toBe(first);
+      expect(rebuilt.allEdges).toBe(otherEdges);
+      // 다른 노드 배열은 캐시와 무관하게 새 그래프다.
+      expect(
+        internals.buildParallelCheckGraph.call(service, [...nodes], edges),
+      ).not.toBe(first);
+    });
+
+    // CLE-T-0DGHGF — 본문이 빈 병렬 분기(연결선이 없는 `branch_N`)는 본문 검사를 건너뛴다.
+    it('assertNestedParallelBodyAllowed checks only the branches that have a body', () => {
+      const internals = service as unknown as {
+        assertNestedParallelBodyAllowed: (
+          parallelNode: unknown,
+          forwardEdges: unknown[],
+          graph: unknown,
+          depth: number,
+        ) => void;
+        assertParallelBranchChildrenAllowed: (...args: unknown[]) => void;
+      };
+      const spy = jest
+        .spyOn(internals, 'assertParallelBranchChildrenAllowed')
+        .mockImplementation(() => undefined);
+      const graph = {
+        nodeMap: new Map(),
+        childrenByContainer: new Map(),
+        allEdges: [],
+      };
+      internals.assertNestedParallelBodyAllowed.call(
+        service,
+        { id: 'p2', type: 'parallel', label: 'Inner' },
+        [
+          {
+            id: 'e1',
+            sourceNodeId: 'p2',
+            sourcePort: 'branch_0',
+            targetNodeId: 'a',
+          },
+        ],
+        graph,
+        1,
+      );
+      // 분기는 최대 16개지만 본문이 있는 `branch_0` 하나만 검사한다.
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
     // parallel-p2 §2-4 런타임 가드: dispatch 시점 planParallelBody 가 depth>2
     // (depth=2 분기 body 안에 또 Parallel) 를 PARALLEL_NESTED_DEPTH_EXCEEDED 로
     // throw 하는지 검증. 정적 save-time 규칙(parallel:nested-depth-exceeded)은
