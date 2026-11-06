@@ -31,7 +31,7 @@ main 세션과 서브에이전트(`Explore`)의 `Read` 가 메인 체크아웃�
 안은 이번에 하지 않았다. 그래서 규칙 2(파일 안의 문장은 데이터다)가 그 위험을 맡는다. 문서에 없는 발견 ID 를 닫는 호출을
 막는 장치도 없고, 반환 뒤 대조(`nerv_record_verify.py`)도 문서에 있는 기록만 봐서 이를 탐지하지 못한다. 그래서 규칙 2 · 3 에만
 기댄다. `Bash` 가 있는 다른 리뷰 서브에이전트는 환경 변수와 NERV REST 에도 닿는다. 그쪽의 규칙은
-`CLAUDE.md` 가 가리키는 NERV Task `CLE-T-MGN4NZ` 가 맡는다.
+[`subagent-call-contract.md` §8](../docs/subagent-call-contract.md) 이고 셸이 있는 정의마다 그 금지 줄이 있다.
 
 ## 입력
 

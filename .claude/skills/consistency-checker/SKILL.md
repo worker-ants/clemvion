@@ -73,7 +73,7 @@ stdout 마지막 줄 = 세션 디렉토리.
 
 ### 2. Workflow 실행 (기본 경로)
 
-`--prepare` 가 만든 `_retry_state.json` 은 model-free manifest 다 (경로만, prompt body 없음). 이걸 짧게 Read 해 invocation 목록을 추출하고 `Workflow` tool 에 넘긴다 — fan-out·STATUS 추적·수렴을 Workflow 가 결정적으로 처리한다 (수작업 `--summary-state`/`--update`/`ScheduleWakeup` 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책).
+첫 호출(모드 인자 `--spec` · `--impl-prep` · `--impl-done`)이 만든 `_retry_state.json` 은 model-free manifest 다 (경로만, prompt body 없음). 이걸 짧게 Read 해 invocation 목록을 추출하고 `Workflow` tool 에 넘긴다 — fan-out·STATUS 추적·수렴을 Workflow 가 결정적으로 처리한다 (수작업 `--summary-state`/`--update`/`ScheduleWakeup` 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책).
 
 ```text
 1. Read <session_dir>/_retry_state.json — subagent_invocations[], summary_subagent_type, summary_output_file 추출 (작음: 경로뿐).
