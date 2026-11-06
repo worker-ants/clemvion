@@ -59,7 +59,7 @@ declare const fanoutEnvelopeBrand: unique symbol;
  * - 평범한 객체(`Record<string, unknown>`)를 이 자리에 넣으면 컴파일 에러다. 서비스 안의 새
  *   발행 경로가 `toFanoutEnvelope` 를 건너뛰고 fanout subject 에 넣는 것을 막는다.
  * - 타입 단언(`as FanoutEnvelope`)은 막지 못한다. 그 단언이 `toFanoutEnvelope` 밖에 없는지는
- *   `websocket.service.spec.ts` 의 소스 스캔 테스트가 본다.
+ *   `websocket-fanout-envelope.spec.ts` 의 소스 스캔 테스트가 본다.
  * - 이미 이 타입인 봉투를 spread 해 필드를 더해도 표지가 남는다. `{ ...envelope, extra }` 는
  *   여전히 `FanoutEnvelope` 로 통과한다.
  */
