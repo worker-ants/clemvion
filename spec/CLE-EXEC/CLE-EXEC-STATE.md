@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "59fc6fa48b884cec2d290bce2ac7f09f7614b153113f35731b2347761b2ad17a"
 read_as: "approved_fallback"
-task: "CLE-T-HW2GKD"
+task: "CLE-T-ZZ9TKQ"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "1194b62e48cc0e149cba8d74183460339e3fb7a266b7723681dc9e04babdabe8"
-etag: "sha256-a213396aad27e1ca6b27b3f6e0d6cca8ed2a1e2685fc2960eed64634eeb34646"
+mirror_sha256: "f01f0f21d75fb0c7ede20487f93f6ee55cfcff6d1df61ceb8b2fd4e425fd1965"
+etag: "sha256-4ac7cbe4d3d081ffd4c28df7af4657e3e80dab62fa1f28a75333751fedeb44e5"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
