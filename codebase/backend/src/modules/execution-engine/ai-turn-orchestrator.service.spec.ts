@@ -703,6 +703,35 @@ describe('AiTurnOrchestrator', () => {
       expect(resumedEmitted).toBe(true);
       expect(driver.markNodeCancelled).not.toHaveBeenCalled();
     });
+
+    // CLE-T-5QG099 #24 — 이 분기에 재진입 opt-in 이 오면 잠금까지 그대로 넘긴다. 지금
+    // 호출 그래프에선 재진입이 실행 failed 일 때만 시작해 이 분기에 opt-in 으로 오지
+    // 않는다(근거는 finalizeAiNode 의 RUNNING 유지 분기 주석). 나중에 통로가 열려도
+    // 배선이 끊기지 않게 전달만 고정한다.
+    it('opt-in 을 받으면 tryLockActiveExecutionAndSaveNodeExec 에 그대로 넘긴다 (#24)', async () => {
+      const nodeExec = {
+        id: 'ne-end-crit1-retry',
+        nodeId: 'node-end-crit1',
+        startedAt: new Date(),
+      };
+
+      await (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        endNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'COMPLETED',
+        { allowRetryReentry: true },
+      );
+
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+        { allowRetryReentry: true },
+      );
+      expect(driver.updateExecutionStatus).not.toHaveBeenCalled();
+    });
   });
 
   // ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기가
@@ -813,6 +842,81 @@ describe('AiTurnOrchestrator', () => {
 
   // ai_end_conversation 분기 — handler.endMultiTurnConversation 호출 + driver
   // finalize 경유 (RUNNING 진입 상태에서는 NodeExecution save 만, 상태 전이 skip).
+  // CLE-T-9WG82W — processAiResumeTurn 은 받은 opts 를 re-park · 종료 처리에 그대로
+  // 넘긴다(옛 finalizeOpts 번역을 없앤 자리). 분기마다 넘기는 줄이 따로 있어 한
+  // 분기만 끊겨도 그 경로의 짝 전이가 FAILED 행을 잡지 못한다.
+  describe('processAiResumeTurn — 재진입 opts 전달', () => {
+    const aiNode: Partial<Node> = {
+      id: 'node-reentry-opts',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const runTurn = (payload: unknown) =>
+      orchestrator.processAiResumeTurn(
+        // 재진입 턴은 실행이 failed 인 채로 돈다.
+        { id: executionId, status: ExecutionStatus.FAILED } as never,
+        executionId,
+        aiNode as Node,
+        contextService.createContext(executionId, workflowId),
+        {
+          id: 'ne-reentry-opts',
+          nodeId: 'node-reentry-opts',
+          startedAt: new Date(),
+        } as never,
+        { messages: [], turnCount: 1 },
+        payload,
+        { allowRetryReentry: true },
+      );
+
+    it.each([
+      ['형식이 깨진 payload', null],
+      ['button_click', { type: 'button_click' }],
+      ['알 수 없는 action', { type: 'unknown_action' }],
+    ])('%s 로 re-park 할 때 opts 를 넘긴다', async (_label, payload) => {
+      await runTurn(payload);
+
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        ExecutionStatus.WAITING_FOR_INPUT,
+        expect.objectContaining({ id: 'ne-reentry-opts' }),
+        { allowRetryReentry: true },
+      );
+    });
+
+    it('ai_end_conversation 으로 끝낼 때 opts 를 종료 처리에 넘긴다', async () => {
+      handlerRegistry.register(
+        'ai_agent',
+        {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(),
+          processMultiTurnMessage: jest.fn(),
+          endMultiTurnConversation: jest.fn(() => ({
+            config: { mode: 'multi_turn' },
+            output: {},
+            meta: {},
+            port: 'ended',
+            status: 'ended',
+          })),
+        } as unknown as NodeHandler,
+        { kind: 'blocking', interaction: 'ai_conversation' },
+      );
+
+      await runTurn({ type: 'ai_end_conversation' });
+
+      // 실행이 failed 라 RUNNING 유지 분기가 아니라 else 짝 전이(RUNNING 재claim)로 간다.
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        ExecutionStatus.RUNNING,
+        expect.objectContaining({ id: 'ne-reentry-opts' }),
+        { allowRetryReentry: true },
+      );
+    });
+  });
+
   describe('processAiResumeTurn — ai_end_conversation 종료', () => {
     const aiNode: Partial<Node> = {
       id: 'node-end',

@@ -1258,6 +1258,14 @@ export class AiTurnOrchestrator {
    * 2026-05-19 — `finalStatus` 추가 (spec §7.9). `'FAILED'` 시 NodeExecution.
    * status=FAILED + Execution.status=FAILED + NODE_FAILED + EXECUTION_FAILED
    * 분기로 진입. 기본값 `'COMPLETED'` 는 기존 흐름 유지.
+   *
+   * 재진입 opt-in(`opts.allowRetryReentry`)은 지금 호출 그래프에서 RUNNING 유지
+   * 분기에 오지 않는다(CLE-T-5QG099 #24). 재진입은 실행이 `failed` 일 때만 시작하고
+   * (`RetryTurnService.applyRetryLastTurn` 의 실행 상태 확인), `processAiResumeTurn`
+   * 안에는 이 메서드를 부르기 전에 `savedExecution.status` 를 바꾸는 코드가 없다.
+   * 그래서 opt-in 호출은 isFailed 분기나 else 짝 전이(RUNNING 재claim)로 간다.
+   * RUNNING 유지 분기도 opts 를 그대로 넘기고 그 전달만 테스트로 고정해 둔다. 이
+   * 분기로 오는 통로가 생기면 DB 가드가 `failed` 행을 잡는지 다시 확인한다.
    * @throws {ExecutionCancelledError} 세 분기 모두 동시 Stop 을 관측하면
    *   짝 `nodeExec` 를 CANCELLED 로 마킹한 뒤 던져 terminal emit 을 막는다
    *   ({@link assertLinkedTransitionApplied}): (1) retry-last-turn 재진입

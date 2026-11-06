@@ -5911,6 +5911,62 @@ describe('ExecutionEngineService', () => {
         expect(sql).not.toContain("'failed'");
       });
 
+      // CLE-T-5QG099 #26 — opt-in 이어도 completed · cancelled 행은 잡지 않는다. 상태
+      // 머신 계층의 대칭 테스트와 짝을 이루는 DB 가드 계층의 대조다. 진짜 동시 취소가
+      // 재진입 짝 전이에 덮이지 않는 것이 이 opt-in 설계의 전제다.
+      it.each([ExecutionStatus.COMPLETED, ExecutionStatus.CANCELLED])(
+        'opt-in 이어도 DB 가 %s 면 짝 전이는 persist 되지 않는다',
+        async (terminal) => {
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.FAILED,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+          const nodeExec = { id: 'ne-repark' } as unknown as NodeExecution;
+          dbExecutionStatus = terminal;
+
+          const persisted = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.WAITING_FOR_INPUT,
+            nodeExec,
+            { allowRetryReentry: true },
+          );
+
+          expect(persisted).toBe(false);
+          const lockSqls = mockTxManagerQuery.mock.calls
+            .map((c: unknown[]) => String(c[0]))
+            .filter((sql) => sql.includes('FOR UPDATE'));
+          expect(lockSqls.length).toBeGreaterThan(0);
+          expect(lockSqls.some((sql) => sql.includes("'failed'"))).toBe(true);
+          expect(lockSqls.some((sql) => sql.includes(`'${terminal}'`))).toBe(
+            false,
+          );
+        },
+      );
+
+      it('opt-in 이어도 else 분기 guarded UPDATE 는 completed · cancelled 를 조건에 넣지 않는다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.FAILED,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+
+        await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.RUNNING,
+          undefined,
+          { allowRetryReentry: true },
+        );
+
+        const sql = String(
+          (mockExecutionRepo.query.mock.calls.at(-1) as unknown[])[0],
+        );
+        expect(sql).toContain("'failed'");
+        expect(sql).not.toContain("'completed'");
+        expect(sql).not.toContain("'cancelled'");
+      });
+
       it('RUNNING 진입 시 segmentStart 기록, 이탈 시 active 시간 누적', async () => {
         const exec = {
           id: executionId,
@@ -6252,6 +6308,7 @@ describe('ExecutionEngineService', () => {
         tryLockActiveExecutionAndSaveNodeExec: (
           executionId: string,
           nodeExec: NodeExecution | null,
+          opts?: { allowRetryReentry?: boolean },
         ) => Promise<boolean>;
       };
 
@@ -6314,6 +6371,69 @@ describe('ExecutionEngineService', () => {
         expect.anything(),
       );
     });
+
+    // CLE-T-5QG099 #27 — 재진입 opt-in 경로. 재진입 턴은 실행이 failed 인 채로 돌아
+    // finalizeAiNode 가 이 잠금을 opts 와 함께 부른다. 형제 updateExecutionStatus 에만
+    // focused 테스트가 있고 여기는 통합 테스트 1건에 기대던 자리다.
+    it('opt-in 이면 DB 가 failed 여도 잠그고 nodeExec 를 save 한다', async () => {
+      dbExecutionStatus = ExecutionStatus.FAILED;
+      const nodeExec = {
+        id: 'node-exec-retry-lock',
+        status: NodeExecutionStatus.FAILED,
+      } as unknown as NodeExecution;
+
+      const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
+        executionId,
+        nodeExec,
+        { allowRetryReentry: true },
+      );
+
+      expect(persisted).toBe(true);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(nodeExec);
+      expect(mockTxManagerQuery).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /status IN \('pending', 'running', 'failed', 'waiting_for_input'\)/,
+        ),
+        [executionId],
+      );
+    });
+
+    it('opt-in 이 없으면 DB 가 failed 일 때 잠그지 않고 save 를 건너뛴다', async () => {
+      dbExecutionStatus = ExecutionStatus.FAILED;
+      const nodeExec = {
+        id: 'node-exec-retry-lock-2',
+        status: NodeExecutionStatus.FAILED,
+      } as unknown as NodeExecution;
+
+      const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
+        executionId,
+        nodeExec,
+      );
+
+      expect(persisted).toBe(false);
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    // #26 — opt-in 이어도 진짜 동시 취소 · 완료는 잡지 않는다.
+    it.each([ExecutionStatus.COMPLETED, ExecutionStatus.CANCELLED])(
+      'opt-in 이어도 DB 가 %s 면 잠그지 않고 save 를 건너뛴다',
+      async (terminal) => {
+        dbExecutionStatus = terminal;
+        const nodeExec = {
+          id: 'node-exec-retry-lock-3',
+          status: NodeExecutionStatus.FAILED,
+        } as unknown as NodeExecution;
+
+        const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
+          executionId,
+          nodeExec,
+          { allowRetryReentry: true },
+        );
+
+        expect(persisted).toBe(false);
+        expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      },
+    );
 
     it('nodeExec 가 null 이면(짝이 없는 호출) save 를 시도하지 않고 non-terminal 이면 true', async () => {
       const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
@@ -20837,6 +20957,77 @@ describe('ExecutionEngineService', () => {
         (c: unknown[]) => c[1] === 'execution.ai_message',
       );
       expect(aiMsg.length).toBeGreaterThan(0);
+    });
+
+    // 재시도한 턴은 성공했지만 대화가 끝나지 않았다 → 다음 입력을 기다린다(re-park).
+    //
+    // 9R 이 이 시나리오를 철회한 원인(CLE-T-5QG099 #25, 형태를 바꿔 실측했다):
+    // - 최상위 `_resumeState` 가 없으면 계속 분기가 AI_MESSAGE 를 보내며
+    //   `_resumeState.model` 을 읽다 TypeError 로 멈춘다. re-park · `FOR UPDATE` 전이다.
+    // - `{ config, output }` 이 없는 평면 반환은 `adaptHandlerReturn` 이 늘 엄격하게
+    //   거절한다(NODE_ENV 무관). 여기서도 잠금 전에 멈춘다.
+    // - `status: 'waiting_for_input'` 이 없으면 종료 턴으로 처리돼 re-park 가 아니다.
+    function continueTurn(): unknown {
+      const messages = [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'first' },
+        { role: 'assistant', content: 'ack' },
+        { role: 'user', content: 'please retry me' },
+        { role: 'assistant', content: 'retried — anything else?' },
+      ];
+      return {
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages,
+            message: 'retried — anything else?',
+            turnCount: 2,
+          },
+        },
+        meta: { interactionType: 'ai_conversation', model: 'test-model' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages,
+          turnCount: 2,
+          totalInputTokens: 20,
+          totalOutputTokens: 10,
+          toolCalls: 0,
+          model: 'test-model',
+        },
+      };
+    }
+
+    // CLE-T-5QG099 #25 — 턴 계속(re-park). 재진입 opt-in 이 re-park 의 짝 전이
+    // (FAILED → WAITING_FOR_INPUT)와 그 DB 가드까지 닿는지 통합으로 잠근다. 지금까지는
+    // 짝 전이 focused 테스트와 orchestrator seam 테스트 두 단만 있었다.
+    it('재시도한 턴이 계속되면 실행을 waiting_for_input 으로 re-park 한다 (#25)', async () => {
+      const { savedSpawn } = installReentry({ processReturn: continueTurn });
+
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // opt-in 이 DB 가드까지 닿아야 FAILED 행을 잠근다.
+      const lockSqls = mockTxManagerQuery.mock.calls
+        .map((c: unknown[]) => String(c[0]))
+        .filter((sql) => sql.includes('FOR UPDATE'));
+      expect(lockSqls.some((sql) => sql.includes("'failed'"))).toBe(true);
+      // 짝 전이가 persist 됐다 — 실행과 spawn row 모두 WAITING_FOR_INPUT.
+      expect(dbExecutionStatus).toBe(ExecutionStatus.WAITING_FOR_INPUT);
+      expect(savedSpawn.status).toBe(NodeExecutionStatus.WAITING_FOR_INPUT);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: SPAWNED,
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        }),
+      );
+      const executionEvents =
+        mockWebsocketService.emitExecutionEvent.mock.calls.map(
+          (c: unknown[]) => c[1],
+        );
+      expect(executionEvents).toContain('execution.waiting_for_input');
+      expect(executionEvents).not.toContain('execution.failed');
+      expect(executionEvents).not.toContain('execution.cancelled');
+      expect(executionEvents).not.toContain('execution.completed');
     });
 
     it('marks the Execution COMPLETED when the replayed conversation ends normally', async () => {
