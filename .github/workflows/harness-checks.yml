@@ -40,6 +40,10 @@ jobs:
     with:
       pathspecs: |
         .claude/agents/**
+        # test_subagent_network_rule.py 가 §8 의 금지 줄 인용을 정의마다 대조한다(CLE-T-MGN4NZ).
+        # 문구를 바꾸는 PR 은 이 문서만 고칠 수 있다. `.claude/docs/**` 로 넓히지 않는다(가드가
+        # 없는 문서 수정마다 스위트가 돈다). 파일 단위로만 둔다.
+        .claude/docs/subagent-call-contract.md
         # slash-command 정의도 sub-agent 계약 문구를 담아 test_summary_agent_contract.py 의
         # 검증 대상이다 — 목록에 없으면 이 파일들만 고친 PR 에서 스위트가 아예 안 돌았다.
         .claude/commands/**
