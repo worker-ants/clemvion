@@ -132,27 +132,16 @@ export class SecretResolverService implements OnModuleInit {
 
   /**
    * 평문이 문자열이 아니거나 비었거나 공백만 있으면 throw 한다(NERV Task `CLE-T-94Z6A5`). 저장소를 읽거나 쓰기
-   * 전에 거부하므로 행을 만들거나 바꾸지 않는다. 메시지는 고정 문구이고 참조는 로그에만 남긴다(값은 로그에도
-   * 싣지 않는다).
-   *
-   * 빈 시크릿은 호출부 가드가 빠질 때 조용히 저장됐다. 생성 경로는 빈 봇 토큰을 먼저 저장한 뒤 프로바이더
-   * 호출에서 실패했다. PATCH 경로는 필드만 뺐다면 `?? ''` 가 저장된 토큰을 빈 값으로 덮었을 것이다(채팅 채널
-   * R-CC-21 「처방의 함정」. 그때는 필드가 필수라 일어나지 않았다). 호출부마다 막으면 새 호출부가 생길 때 다시
-   * 열리므로 저장소가 마지막에 막는다. 빈 값을 정당하게 저장하는 호출부가 없어 예외 옵션은 두지 않는다. 앞뒤
-   * 공백이 붙은 비지 않은 값은 그대로 받는다. 형식 판정은 호출부 몫이다.
+   * 전에 거부하므로 행을 만들거나 바꾸지 않는다. 메시지는 고정 문구이고 참조는 로그에만 남긴다(값은 싣지 않는다).
+   * 앞뒤 공백이 붙은 비지 않은 값은 그대로 받는다. 형식 판정은 호출부 몫이다. 사고 경위는 채팅 채널 R-CC-21 에 있다.
    */
   private assertNonBlankPlaintext(
     method: 'store' | 'rotate',
     ref: string,
     plaintext: unknown,
   ): void {
-    if (typeof plaintext === 'string' && plaintext.trim() !== '') return;
-    const kind =
-      typeof plaintext !== 'string'
-        ? `non-string(${plaintext === null ? 'null' : typeof plaintext})`
-        : plaintext === ''
-          ? 'empty'
-          : 'whitespace-only';
+    const kind = describeBlankKind(plaintext);
+    if (kind === null) return;
     this.logger.warn(
       `SecretResolver.${method} 거부: 평문이 빈 값 (ref=${ref}, kind=${kind})`,
     );
@@ -290,4 +279,14 @@ export class SecretResolverService implements OnModuleInit {
       .execute();
     return result.affected ?? 0;
   }
+}
+
+/** 평문이 저장할 수 없는 값이면 그 종류를, 저장해도 되면 null 을 돌려준다. */
+function describeBlankKind(plaintext: unknown): string | null {
+  if (typeof plaintext !== 'string') {
+    return `non-string(${plaintext === null ? 'null' : typeof plaintext})`;
+  }
+  if (plaintext === '') return 'empty';
+  if (plaintext.trim() === '') return 'whitespace-only';
+  return null;
 }
