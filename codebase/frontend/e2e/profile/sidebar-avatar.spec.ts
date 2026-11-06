@@ -116,7 +116,7 @@ test.describe("사이드바 사용자 영역 아바타", () => {
     await expect(page.getByTestId("sidebar-user-avatar-initials")).toHaveText("AK");
 
     await page.getByTestId("profile-info-edit").click();
-    await page.getByLabel(/이름|Name/i).fill("Bob Lee");
+    await page.getByTestId("profile-name-input").fill("Bob Lee");
     await page.getByTestId("profile-info-save").click();
     await page.getByTestId("diff-confirm").click();
     await expect.poll(() => state.patchCalls).toEqual([{ name: "Bob Lee" }]);

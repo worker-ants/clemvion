@@ -57,6 +57,8 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
     },
     onSuccess: (_data, patch) => {
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
+      // 의도적 중복: 프로필 쿼리 재수신 뒤 ThemeSync 가 같은 값을 다시 적용하지만,
+      // 재수신을 기다리는 동안 미리보기만 거두면 화면이 이전 테마로 깜박이므로 즉시 확정한다.
       if (patch.theme !== undefined) setThemeStore(patch.theme);
       clearThemePreview();
       if (patch.locale !== undefined) setLocaleStore(patch.locale);

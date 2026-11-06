@@ -140,6 +140,9 @@ describe("ProfilePreferencesCard", () => {
     fireEvent.click(screen.getByTestId("diff-cancel"));
     expect(clearPreviewMock).toHaveBeenCalled();
     expect(setThemeStoreMock).not.toHaveBeenCalled();
+    // spec §2.0: 미리보기만 거두고 편집 모드와 임시 선택은 유지한다 (의도된 동작).
+    expect(screen.getByTestId("pref-theme-dark")).toBeInTheDocument();
+    expect(screen.getByTestId("profile-pref-save")).toBeInTheDocument();
   });
 
   it("편집 중에 화면을 떠나면 미리보기를 거둔다", () => {
@@ -206,5 +209,7 @@ describe("ProfilePreferencesCard", () => {
       expect(toast.error).toHaveBeenCalled();
     });
     expect(screen.getByTestId("pref-theme-dark")).toBeInTheDocument();
+    // 실패하면 테마를 확정하지 않는다.
+    expect(setThemeStoreMock).not.toHaveBeenCalled();
   });
 });
