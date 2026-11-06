@@ -7456,10 +7456,12 @@ export class ExecutionEngineService
    *
    * `currentDepth` (parallel-p2 결정 #3, 2026-05-30) — outermost Parallel 호출
    * 시 1, 외부의 분기 body 안에서 dispatch 되는 내부 Parallel 시 2. depth=1 의
-   * 분기 body 에 내부 Parallel 발견 시 허용 (depth=2 가 되는 시점에 dispatch
-   * 되어 내부 planParallelBody 가 다시 호출됨). depth=2 의 분기 body 에 또
-   * Parallel 발견 시 (= depth 3 시도) `PARALLEL_NESTED_DEPTH_EXCEEDED` throw.
-   * `runParallel` 가 context 가 `ParallelBranchContext` 인지 (즉
+   * 분기 body 에 내부 Parallel 발견 시 허용하되 그 본문을 depth=2 로 미리 계획해
+   * 본다(CLE-T-GGZSC2). depth=2 의 분기 body 에 또 Parallel 발견 시 (= depth 3
+   * 시도) `PARALLEL_NESTED_DEPTH_EXCEEDED` throw. 그래서 깊이 위반은 바깥
+   * Parallel 이 병렬 분기를 시작하기 전에 드러난다. 내부 Parallel 은
+   * {@link executeParallelBranchBody} 가 {@link runParallel} 로 넘길 때 depth=2 로
+   * 다시 계획된다. `runParallel` 가 context 가 `ParallelBranchContext` 인지 (즉
    * `parentParallelConcurrency` 보유 여부) 로 자기 depth 를 판별.
    */
   private planParallelBody(
@@ -7549,6 +7551,10 @@ export class ExecutionEngineService
       for (const id of reachPerBranch[i]) {
         if (allBodyNodeIds.has(id)) bodyNodeIds.add(id);
       }
+      const internalEdges = forwardEdges.filter(
+        (e) =>
+          bodyNodeIds.has(e.sourceNodeId) && bodyNodeIds.has(e.targetNodeId),
+      );
 
       // Reject disallowed child types inside this branch body.
       // PR-G — metadata flag (CRIT #3). buttons / ai_conversation 은 runtime
@@ -7569,6 +7575,21 @@ export class ExecutionEngineService
               `PARALLEL_NESTED_DEPTH_EXCEEDED: Nested Parallel node "${parallelNode.label ?? parallelNode.type}" body contains another Parallel node "${node.label ?? node.type}". Parallel nesting depth > 2 is not supported.`,
             );
           }
+          // CLE-T-GGZSC2 — 안쪽 Parallel 의 본문도 지금 검사한다. 안쪽 Parallel 이
+          // 실행될 때 검사하면 깊이 위반이 바깥 병렬 분기 하나의 실패가 되어 바깥
+          // 항목 에러 정책(`continue`)에 묻힌다. REQ-PARALLEL-024 는 실행을
+          // 실패시키므로 바깥 병렬 분기를 시작하기 전에 던진다. 안쪽 병렬 분기 수는
+          // 표현식일 수 있어 아직 모르므로 최대값으로 잡고 모든 `branch_N` 연결선을
+          // 따라간다. 저장 시 규칙(`parallel:nested-depth-exceeded`)도 병렬 분기 수와
+          // 상관없이 모든 `branch_N` 연결선을 따라가므로 이보다 넓다.
+          this.planParallelBody(
+            node,
+            allNodes,
+            internalEdges,
+            [],
+            PARALLEL_BRANCH_COUNT_MAX,
+            2,
+          );
         }
         if (childKind.kind === 'blocking') {
           throw new Error(
@@ -7577,10 +7598,6 @@ export class ExecutionEngineService
         }
       }
 
-      const internalEdges = forwardEdges.filter(
-        (e) =>
-          bodyNodeIds.has(e.sourceNodeId) && bodyNodeIds.has(e.targetNodeId),
-      );
       const graphNodes = Array.from(bodyNodeIds).map((id) => ({ id }));
       const sortedNodeIds = topologicalSort(graphNodes, internalEdges);
 
@@ -7755,6 +7772,32 @@ export class ExecutionEngineService
           executionId,
           branchInput,
         );
+      }
+
+      // CLE-T-GGZSC2 — 안쪽 Parallel 도 엔진의 Parallel 실행 경로로 넘긴다
+      // (REQ-PARALLEL-024 · 025). 이 루프는 `PARALLEL_ENGINE=v1` 에서만 닿으므로
+      // 플래그를 다시 보지 않는다. 연결선은 이 병렬 분기 본문 안의 것만 넘긴다.
+      // 안쪽 병렬 분기 탐색이 바깥 합류 노드로 새지 않고, `runParallel` 이 넓히는
+      // 도달 가능성도 이 병렬 분기 안에 머문다. 되돌아가는 연결선은
+      // `planParallelBody` 가 바깥 본문에서 이미 막았다. `runParallel` 이 `done`
+      // 포트와 안쪽 출구 노드의 다음 노드까지 `reachable` 에 넣으므로 아래 전파는
+      // 건너뛴다.
+      if (branchDispatchKind === 'parallel') {
+        await this.runParallel(
+          node,
+          allNodes,
+          allEdges,
+          plan.internalEdges,
+          [],
+          plan.outgoingEdgeMap,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+          reachable,
+          nodeInput,
+        );
+        continue;
       }
 
       const nodeOutput = context.nodeOutputCache[node.id] as
@@ -8054,17 +8097,21 @@ export class ExecutionEngineService
       branchParentContext,
       async (branchIndex, branchContext) => {
         const branchPlan = plan.branches[branchIndex];
-        resultNodeIds[branchIndex] = await this.executeParallelBranchBody(
-          parallelNode,
-          branchPlan,
-          allNodes,
-          allEdges,
-          branchContext,
-          executionId,
-          executedNodes,
-          executionMeta,
-          input,
-        );
+        try {
+          resultNodeIds[branchIndex] = await this.executeParallelBranchBody(
+            parallelNode,
+            branchPlan,
+            allNodes,
+            allEdges,
+            branchContext,
+            executionId,
+            executedNodes,
+            executionMeta,
+            input,
+          );
+        } finally {
+          this.publishBranchOutputsToParent(context, branchContext);
+        }
       },
       // 결정 #3 + G: 본 Parallel 이 inner (depth=2) 면 부모 분기가 넘긴
       // effectiveConcurrency 를 executor 에 명시 전달해 자기 concurrency 를
@@ -8103,13 +8150,6 @@ export class ExecutionEngineService
       ...(skipped.length > 0 ? { skipped } : {}),
     };
 
-    // Replace Parallel's output: `_selectedPort: 'done'` ensures only the
-    // `done` port fires while branch_N edges stay suppressed. `_selectedPort`
-    // 는 노드 출력 `port` 와 같은 모양이라 단일 문자열이다(CLE-EXEC-ENGINE).
-    context.nodeOutputCache[parallelNode.id] = {
-      _selectedPort: 'done',
-      ...doneOutput,
-    };
     // parallel-p2 결정 #3 + G + D (runtime 부분, 2026-05-30): 중첩 Parallel 의
     // concurrency cap silent clamp 발생 시 meta.clampedConcurrency 에 기록 —
     // run-results timeline + expression `$node["X"].meta.clampedConcurrency` 로
@@ -8127,6 +8167,17 @@ export class ExecutionEngineService
           : {}),
       },
     );
+    // Replace Parallel's output: `_selectedPort: 'done'` ensures only the
+    // `done` port fires while branch_N edges stay suppressed. `_selectedPort`
+    // 는 노드 출력 `port` 와 같은 모양이라 단일 문자열이다(CLE-EXEC-ENGINE).
+    // 바깥 병렬 분기 안의 안쪽 Parallel 이면 `context` 가 그 병렬 분기의 사본이다.
+    // 사본에만 쓰면 바깥 Parallel 이 루트 캐시에서 읽는 결과 노드 출력이 핸들러 출력
+    // 으로 남으므로 {@link commitNodeOutput} 으로 루트와 사본에 함께 쓴다. 위에서
+    // 쓴 구조화 출력도 사본에 함께 옮겨진다.
+    this.commitNodeOutput(context, parallelNode.id, {
+      _selectedPort: 'done',
+      ...doneOutput,
+    });
 
     // Activate `done` downstream via the main outgoingEdgeMap (Parallel →
     // done-port edges). Branch exit → join (Merge) edges are also activated.
@@ -8136,15 +8187,48 @@ export class ExecutionEngineService
       context.nodeOutputCache,
       reachable,
     );
+    // 출구 노드는 병렬 분기 밖으로 나가는 연결선과 함께 같은 병렬 분기 안으로
+    // 이어지는 연결선도 가질 수 있다. 병렬 분기 본문 노드는 이미 위에서 실행했으므로
+    // 본문 밖의 다음 노드(합류 노드 등)만 `reachable` 에 넣는다. 본문 노드를 넣으면
+    // 호출한 루프가 그 노드를 한 번 더 실행한다.
+    const exitTargets = new Set<string>();
     for (const branch of plan.branches) {
       for (const exitId of branch.exitNodeIds) {
         this.graphTraversal.propagateReachability(
           exitId,
           outgoingEdgeMap,
           context.nodeOutputCache,
-          reachable,
+          exitTargets,
         );
       }
+    }
+    for (const targetId of exitTargets) {
+      if (!plan.allBodyNodeIds.has(targetId)) reachable.add(targetId);
+    }
+  }
+
+  /**
+   * 병렬 분기 하나가 끝나면 그 분기가 쓴 노드 출력을 `parentContext` 의 캐시에도
+   * 옮긴다. 바깥 병렬 분기 안의 안쪽 Parallel 이면 `parentContext` 는 바깥 병렬
+   * 분기의 사본이다. 안쪽 병렬 분기가 쓴 출력은 루트와 안쪽 사본에만 있으므로, 옮기지
+   * 않으면 안쪽 완료 출력의 `branches[i]`, 출구 노드의 포트 라우팅, 바깥 병렬 분기
+   * 루프가 실행하는 안쪽 합류 노드의 입력이 그 출력을 못 본다. 옮긴 노드는 바깥
+   * 병렬 분기의 "쓴 노드" 에도 적힌다. 바깥 병렬 분기의 결과 노드는 그 루프가
+   * 실행한 노드에서만 고르므로 안쪽 병렬 분기 노드는 후보가 되지 않는다.
+   *
+   * 맨 바깥 Parallel 이면 `parentContext` 가 루트 컨텍스트라 아무것도 하지 않는다.
+   * 병렬 분기가 실패해도 그때까지 쓴 출력은 옮긴다(`finally`).
+   */
+  private publishBranchOutputsToParent(
+    parentContext: ExecutionContext,
+    branchContext: ExecutionContext,
+  ): void {
+    const written = this.parallelBranchWrittenNodeIds.get(
+      branchContext.nodeOutputCache,
+    );
+    if (!written) return;
+    for (const nodeId of written) {
+      this.syncParallelBranchCacheEntry(parentContext, nodeId);
     }
   }
 
