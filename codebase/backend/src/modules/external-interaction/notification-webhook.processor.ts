@@ -192,6 +192,7 @@ export class NotificationWebhookProcessor extends WorkerHost {
       }
       const dnsCheck = await checkResolvedHostIp(hostname);
       if (!dnsCheck.ok) {
+        // 이 접두어(`DNS rebinding 차단:`)에 k8s/README.md 운영 쿼리가 기댄다. notification-webhook.processor.spec.ts 가 접두어를 고정한다.
         const reason = `DNS rebinding 차단: ${dnsCheck.reason ?? 'private resolved IP'}`;
         await this.markDegraded(triggerId, reason);
         this.logger.warn(

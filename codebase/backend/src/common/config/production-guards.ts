@@ -171,6 +171,29 @@ const FORBIDDEN_FLAGS: ReadonlyArray<{ key: string; message: string }> = [
 ];
 
 /**
+ * 서명 비밀(`JWT_SECRET` · `INTERACTION_JWT_SECRET`) 검사 — 미설정 · 공백뿐 · 예시 값이면 `emptyMessage`,
+ * 앞뒤 공백을 뗀 길이가 하한 미만이면 길이 메시지로 `fail` 한다. 뗀 값은 검사에만 쓴다.
+ */
+function checkSigningSecret(opts: {
+  name: string;
+  raw: string | undefined;
+  rejected: ReadonlySet<string>;
+  emptyMessage: string;
+  shortHint: string;
+  fail: (message: string) => never;
+}): void {
+  const secret = opts.raw?.trim();
+  if (!secret || opts.rejected.has(secret)) {
+    opts.fail(opts.emptyMessage);
+  } else if (secret.length < MIN_JWT_SECRET_LENGTH) {
+    opts.fail(
+      `${opts.name} 가 너무 짧습니다(앞뒤 공백을 뺀 길이 ${secret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
+        opts.shortHint,
+    );
+  }
+}
+
+/**
  * production 부팅 가드. 위반 시 `Error` throw (fail-closed). 비-production 은 no-op.
  *
  * @param env 검사할 환경변수 맵 (기본 `process.env`). 테스트에서 주입.
@@ -198,41 +221,35 @@ export function assertProductionConfig(
   // 토큰 위조(인증 우회)가 가능하므로 부팅 거부.
   // 앞뒤 공백을 뗀 값으로 검사한다(CLE-T-HD6SJ4) — Secret · `.env` 로 옮기다 붙은 개행이 예시 값 대조와
   // 길이 하한을 빠져나가지 않게 한다. 뗀 값은 검사에만 쓰고 서명에 쓰는 값(`jwt.config.ts`)은 그대로다.
-  const jwtSecret = env.JWT_SECRET?.trim();
-  if (!jwtSecret || INSECURE_JWT_SECRETS.has(jwtSecret)) {
-    fail(
+  checkSigningSecret({
+    name: 'JWT_SECRET',
+    raw: env.JWT_SECRET,
+    rejected: INSECURE_JWT_SECRETS,
+    emptyMessage:
       'JWT_SECRET 가 미설정이거나 공백뿐이거나 예시/기본값입니다 — 운영용 무작위 secret 을 설정하세요 ' +
-        '(기본값 서명은 인증 우회 위험).',
-    );
-  } else if (jwtSecret.length < MIN_JWT_SECRET_LENGTH) {
-    fail(
-      `JWT_SECRET 가 너무 짧습니다(앞뒤 공백을 뺀 길이 ${jwtSecret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
-        '약한 secret 은 무차별 대입에 취약합니다. `openssl rand -hex 32` 등으로 충분히 긴 ' +
-        '무작위 값을 설정하세요(CWE-521).',
-    );
-  }
+      '(기본값 서명은 인증 우회 위험).',
+    shortHint:
+      '약한 secret 은 무차별 대입에 취약합니다. `openssl rand -hex 32` 등으로 충분히 긴 ' +
+      '무작위 값을 설정하세요(CWE-521).',
+    fail,
+  });
 
   // CLE-T-0VV3VR — INTERACTION_JWT_SECRET 은 외부 인터랙션 토큰(`iext_*`)을 서명한다. 설정하지 않으면
   // JWT_SECRET 으로 서명하므로(위에서 검사) 설정했을 때만 본다. 빈 문자열은 미설정으로 보지 않고 막는다 —
   // `InteractionTokenService` 는 `??` 로 대체하므로 빈 값을 JWT_SECRET 으로 대신하지 않는다.
   // 앞뒤 공백을 뗀 값으로 예시 대조와 길이 하한을 건다(JWT_SECRET 과 같은 규칙). 거부한 값은 메시지에 넣지 않는다.
-  const rawInteractionSecret = env.INTERACTION_JWT_SECRET;
-  if (rawInteractionSecret !== undefined) {
-    const interactionSecret = rawInteractionSecret.trim();
-    if (
-      !interactionSecret ||
-      INSECURE_INTERACTION_JWT_SECRETS.has(interactionSecret)
-    ) {
-      fail(
+  if (env.INTERACTION_JWT_SECRET !== undefined) {
+    checkSigningSecret({
+      name: 'INTERACTION_JWT_SECRET',
+      raw: env.INTERACTION_JWT_SECRET,
+      rejected: INSECURE_INTERACTION_JWT_SECRETS,
+      emptyMessage:
         'INTERACTION_JWT_SECRET 가 빈 값이거나 공백뿐이거나 예시/기본값입니다 — 운영용 무작위 secret 을 ' +
-          '설정하거나, JWT_SECRET 으로 서명하려면 변수를 지우세요(예시 값 서명은 인터랙션 토큰 위조 위험).',
-      );
-    } else if (interactionSecret.length < MIN_JWT_SECRET_LENGTH) {
-      fail(
-        `INTERACTION_JWT_SECRET 가 너무 짧습니다(앞뒤 공백을 뺀 길이 ${interactionSecret.length} < ${MIN_JWT_SECRET_LENGTH}) — ` +
-          '`openssl rand -hex 32` 등으로 충분히 긴 무작위 값을 설정하세요(CWE-521).',
-      );
-    }
+        '설정하거나, JWT_SECRET 으로 서명하려면 변수를 지우세요(예시 값 서명은 인터랙션 토큰 위조 위험).',
+      shortHint:
+        '`openssl rand -hex 32` 등으로 충분히 긴 무작위 값을 설정하세요(CWE-521).',
+      fail,
+    });
   }
 
   // 04 M-4 — ENCRYPTION_KEY 가 미설정이거나 공개 .env.example 예시 키면 secret store 가

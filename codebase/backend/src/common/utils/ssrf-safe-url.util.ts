@@ -14,9 +14,10 @@ import { lookup } from 'node:dns/promises';
  *      NAT64 `64:ff9b::/96` 는 품은 IPv4 를 위 IPv4 대역으로 판정한다
  *    - cloud metadata: 169.254.169.254 (AWS/Azure/GCP)
  *
- * 본 헬퍼는 **DNS resolution 을 수행하지 않는다** — register-time 에 외부 DNS 호출을 만들면
- * 테스트 환경에서 결정성이 깨지고 DNS rebinding 방어에도 불완전하다. 해석 결과 검사는 발송
- * 직전에 `checkResolvedHostIp` 로 한다(`notification-webhook.processor.ts`, CLE-EIA-NOTIFY 「SSRF」).
+ * `checkSsrfSafeUrl`(register-time 검증)은 **DNS resolution 을 수행하지 않는다** — register-time 에
+ * 외부 DNS 호출을 만들면 테스트 환경에서 결정성이 깨지고 DNS rebinding 방어에도 불완전하다.
+ * 해석 결과 검사는 발송 직전에 `checkResolvedHostIp` 로 한다(`notification-webhook.processor.ts`,
+ * CLE-EIA-NOTIFY 「SSRF」). `checkResolvedHostIp` 는 `node:dns/promises` 의 `lookup`(getaddrinfo)을 쓴다.
  *
  * @returns 검증 통과 시 `{ ok: true }`, 실패 시 `{ ok: false, reason }` — reason 은 사용자 표시용.
  */
@@ -230,6 +231,9 @@ export function shouldWarnNotificationDnsGuardOff(
   return env.NODE_ENV === 'production' && !isNotificationDnsGuardEnabled(env);
 }
 
+/** 발송 직전 DNS 조회를 기다리는 최대 시간(ms). 넘기면 조회 실패와 같이 통과시킨다. */
+export const DNS_LOOKUP_TIMEOUT_MS = 3000;
+
 /**
  * Post-resolve SSRF 검증 — URL 호스트를 OS 해석기(`dns.lookup`, getaddrinfo)로 풀어 나온 주소 중 하나라도
  * 사설 · loopback · metadata 대역이면 거부한다. DNS rebinding 방어용이다.
@@ -240,6 +244,9 @@ export function shouldWarnNotificationDnsGuardOff(
  *   네트워크 DNS 만 묻는 `resolve4` · `resolve6` 은 그 주소를 놓친다(CLE-EIA-NOTIFY Rationale 의 실측).
  * - 해석에 실패하면 통과시킨다(fail-open). 풀리지 않는 이름은 fetch 도 연결하지 못한다.
  * - 검사한 주소를 fetch 에 고정하지 않는다. 검사와 연결 사이에 DNS 응답이 바뀌는 경우는 남는다.
+ * - 해석이 `DNS_LOOKUP_TIMEOUT_MS` 안에 끝나지 않으면 해석 실패와 똑같이 통과시킨다(fail-open). 시간을 넘긴
+ *   `getaddrinfo` 는 libuv 스레드풀을 계속 점유한다. 그 점유는 여기서 풀지 않고, 주소 고정을 도입하는
+ *   후속 작업(CLE-T-GAQCF9)이 발송 쪽 조회와 합칠 때 다룬다.
  *
  * @param hostname `new URL(url).hostname` (IPv6 리터럴은 괄호를 포함한다).
  * @returns 통과면 `{ ok: true }`, 거부면 `{ ok: false, reason }`.
@@ -260,11 +267,29 @@ export async function checkResolvedHostIp(
       : { ok: true };
   }
   let addresses: Array<{ address: string; family: number }>;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    addresses = await lookup(hostname, { all: true });
+    const timedOut = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), DNS_LOOKUP_TIMEOUT_MS);
+    });
+    const result = await Promise.race([
+      lookup(hostname, { all: true }),
+      timedOut,
+    ]);
+    if (result === null) {
+      // 시간 초과 — 해석 실패와 같이 fail-open. 늦게 끝난 lookup 의 거부는 Promise.race 가 이미 붙인
+      // 처리기가 받으므로 처리되지 않은 거부로 남지 않는다.
+      return {
+        ok: true,
+        reason: `DNS lookup timed out after ${DNS_LOOKUP_TIMEOUT_MS}ms (fail-open)`,
+      };
+    }
+    addresses = result;
   } catch {
     // 해석 실패 — fail-open. 이어지는 fetch 도 같은 이름을 풀지 못해 연결 오류로 끝난다.
     return { ok: true };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   for (const { address } of addresses) {
     if (address.includes(':')) {

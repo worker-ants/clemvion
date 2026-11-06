@@ -160,7 +160,7 @@ CI 파이프라인에서는 `kustomize edit set image clemvion/backend=<registry
 | -- | ---- |
 | `DB_USERNAME`, `DB_PASSWORD` | 외부 DB 자격증명 |
 | `JWT_SECRET` | 32 byte 이상 랜덤 |
-| `INTERACTION_JWT_SECRET` | 선택. 외부 인터랙션 토큰(`iext_*`)의 서명 비밀. 키를 두지 않으면 `JWT_SECRET` 으로 서명한다. 키를 두면 `NODE_ENV=production` 은 빈 값 · 공백뿐인 값 · 예시값 · 앞뒤 공백을 뗀 길이 32자 미만이면 기동하지 않는다. 바꾸면 이미 발급한 `iext_*` 토큰이 모두 무효가 된다 |
+| `INTERACTION_JWT_SECRET` | 선택. 외부 인터랙션 토큰(`iext_*`)의 서명 비밀. 키를 두지 않으면 `JWT_SECRET` 으로 서명한다. `JWT_SECRET` 으로 서명하려면 변수 자체를 지운다(빈 값으로 두면 기동하지 않는다). 키를 두면 `NODE_ENV=production` 은 빈 값 · 공백뿐인 값 · 예시값 · 앞뒤 공백을 뗀 길이 32자 미만이면 기동하지 않는다. 바꾸면 이미 발급한 `iext_*` 토큰이 모두 무효가 된다 |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | IAM 사용자 / MinIO 루트 |
 | `ENCRYPTION_KEY` | 정확히 32 byte hex (= 64 hex char). `NODE_ENV=production` 은 미설정이거나 예시값(`REPLACE_ME_32_BYTE_HEX` 등)이면 기동하지 않는다 |
 | `INTEGRATION_ENCRYPTION_KEY` | 임의 길이, SHA-256 으로 파생됨. `NODE_ENV=production` 은 미설정이거나 예시값(`REPLACE_ME` 등)이면 기동하지 않는다. 바꾸면 기존 암호문을 읽지 못한다 |

@@ -3,6 +3,7 @@ import { lookup } from 'node:dns/promises';
 import {
   checkResolvedHostIp,
   checkSsrfSafeUrl,
+  DNS_LOOKUP_TIMEOUT_MS,
   embeddedIpv4FromIpv6,
   isNotificationDnsGuardEnabled,
   isPrivateIpv4,
@@ -538,5 +539,31 @@ describe('shouldWarnNotificationDnsGuardOff (CLE-T-M1P83C)', () => {
     const env: NodeJS.ProcessEnv = { NODE_ENV: nodeEnv };
     if (value !== undefined) env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = value;
     expect(shouldWarnNotificationDnsGuardOff(env)).toBe(false);
+  });
+});
+
+describe('checkResolvedHostIp — 조회 타임아웃', () => {
+  beforeEach(() => {
+    mockedLookup.mockReset();
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('조회가 끝나지 않으면 제한 시간 뒤 fail-open 으로 통과시키고 사유를 남긴다', async () => {
+    mockedLookup.mockReturnValue(new Promise<LookupAddress[]>(() => {}));
+    const pending = checkResolvedHostIp('example.com');
+    await jest.advanceTimersByTimeAsync(DNS_LOOKUP_TIMEOUT_MS);
+    const r = await pending;
+    expect(r.ok).toBe(true);
+    expect(r.reason).toMatch(/timed out/);
+  });
+
+  it('제한 시간 안에 끝나면 타이머를 지운다', async () => {
+    mockedLookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }]);
+    const r = await checkResolvedHostIp('example.com');
+    expect(r.ok).toBe(true);
+    expect(jest.getTimerCount()).toBe(0);
   });
 });
