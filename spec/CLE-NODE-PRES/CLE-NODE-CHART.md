@@ -10,11 +10,11 @@ parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
 content_hash: "853e908c58d8d28bdf2ad4196b88fcce1fe3cf2c2b1a0ad5c4fb2585e03602fa"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-N901G9"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "300a85bd69b7ac749342979a35f4fd6e3d82a0dd794854bbd71ffb77732d8133"
-etag: "sha256-eb6c1aab3da5adfba1be8cd0626b62aad0d1f01f76d74398177d964a56fd8aa2"
+mirror_sha256: "f31e918f668b120fc15a0a71c8ed55d2fd2744d13a1ba5b3335aef684e18d27c"
+etag: "sha256-b9f2efc6a24d7cec5fb493e479ba1c00d22c4fddeb9ab20f7aa6a69cef61bc72"
 ---
 > 구현 상태: 부분 구현 (미구현: 설정 화면의 Colors 입력 · Preview, 설정 요약 `summaryTemplate`, 에디터 렌더러의 축 라벨은 CLE-T-ETS2WE, `render_chart` 의 `data` 최소 검사는 CLE-T-N901G9, 포인트가 없을 때 웹채팅 위젯의 버튼 바는 CLE-T-670711) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
