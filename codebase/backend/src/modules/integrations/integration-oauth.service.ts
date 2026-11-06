@@ -151,7 +151,6 @@ export type BeginResult =
       appUrl: string;
       /** `${APP_URL}/api/3rd-party/makeshop/callback` — Redirect URI 등록용 */
       callbackUrl: string;
-      scopesAdded?: string[];
       /** 만들거나 다시 쓴 행의 공개 범위(REQ-INTOAUTH-067). */
       scope: string;
     };
@@ -746,6 +745,16 @@ export class IntegrationOAuthService {
       clientId = envClientId;
     }
 
+    // 판정은 다른 거절을 모두 지난 뒤, state 를 만들기 직전이다(REQ-INTOAUTH-071).
+    if (params.mode !== 'new' && params.integrationId) {
+      await this.assertBeginMatchesTarget(
+        params.workspaceId,
+        params.integrationId,
+        params.service,
+        providerMeta,
+      );
+    }
+
     // Fire-and-forget purge of expired records.
     void this.purgeExpired();
 
@@ -783,6 +792,45 @@ export class IntegrationOAuthService {
       }),
       state,
     };
+  }
+
+  /**
+   * `new` 가 아닌 모드의 begin 본문이 대상 통합과 같은 서비스 · 상점인지 본다(REQ-INTOAUTH-071).
+   *
+   * 콜백은 state 에 실린 서비스 · 상점으로 토큰을 받아 대상 통합에 쓴다. 본문이 대상과 다르면 다른 서비스나 다른 상점의
+   * 토큰이 그 통합에 들어간다. 그래서 state 를 만들기 전에 400 `OAUTH_TARGET_MISMATCH` 로 거절한다. 본문 값을 대상 행의
+   * 값으로 바꿔 채우지 않는다. 대상 행이 없으면 404 다.
+   *
+   * Cafe24 는 `credentials.mall_id` · `credentials.app_type` 과 견준다. 옛 행은 `mallId` 칼럼이 비어 있을 수 있어서
+   * 콜백이 읽는 자격 증명 쪽을 기준으로 둔다. `providerMeta` 는 Cafe24 Public 경로에서만 채워진다.
+   *
+   * 근거: [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](CLE-INT-OAUTH#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06)
+   */
+  private async assertBeginMatchesTarget(
+    workspaceId: string,
+    integrationId: string,
+    serviceType: string,
+    providerMeta: Record<string, unknown> | null,
+  ): Promise<void> {
+    const target = await this.integrationRepository.findOne({
+      where: { id: integrationId, workspaceId },
+    });
+    if (!target) {
+      throw integrationNotFoundError();
+    }
+    const credentials = target.credentials ?? {};
+    const mismatched =
+      target.serviceType !== serviceType ||
+      (providerMeta !== null &&
+        (credentials.mall_id !== providerMeta.mall_id ||
+          credentials.app_type !== providerMeta.app_type));
+    if (mismatched) {
+      throw new BadRequestException({
+        code: 'OAUTH_TARGET_MISMATCH',
+        message:
+          'The service, mall_id or app_type in the request does not match the target integration',
+      });
+    }
   }
 
   async handleCallback(
@@ -2436,7 +2484,8 @@ export class IntegrationOAuthService {
    * 만료 때 `mall_id` 를 비워 저절로 빠진다. 대체 경로는 `credentials.mall_id` 가 남아 있어 만료 행이 걸리므로
    * SQL 조건({@link keptStoreSlotBranches})으로 먼저 빼 `credentials` 를 읽고 복호화하지 않는다. 읽은 뒤의 판정은 방어선이다.
    *
-   * Performance — `Promise.all` 병렬 발행으로 평균 응답 latency 절반.
+   * 두 쿼리는 `Promise.all` 로 함께 낸다. 기본 저장소(연결 풀)에서는 두 쿼리가 서로 다른 연결에서 함께 돌아 기다리는
+   * 시간이 준다. 트랜잭션 저장소(`repo`)는 연결 하나를 쓰므로 두 쿼리가 차례로 돌고 기다리는 시간은 줄지 않는다.
    * legacy 쿼리는 backfill 완료 후 제거 예정이며 그 시점에 단일 쿼리로 회귀.
    */
   private async findAllCafe24RowsForMall(
