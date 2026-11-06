@@ -90,7 +90,8 @@ const edge = (
   type: EdgeType.DATA,
 });
 
-describe('Filter 다음 노드가 받는 입력 (CLE-T-4EV45V 실측)', () => {
+// 스펙과 다른 현재 동작을 그대로 고정한다. 어느 쪽을 고칠지는 CLE-T-2F5H0E 가 정한다.
+describe('Filter 다음 노드가 받는 입력: 현재 동작 실측 (CLE-T-4EV45V, 스펙과 불일치 · CLE-T-2F5H0E)', () => {
   let service: ExecutionEngineService;
   let handlerRegistry: NodeHandlerRegistry;
   let emitExecutionEvent: jest.Mock;
@@ -328,19 +329,34 @@ describe('Filter 다음 노드가 받는 입력 (CLE-T-4EV45V 실측)', () => {
     viaNodePort: '{{ $node["filter"].port }}',
   };
 
+  // jest 기본 제한(5초)보다 짧게 기다린다. 끝나지 않았거나 실패로 끝나면 원인을 담아 바로 실패한다.
+  const TERMINAL_WAIT_MS = 3_000;
   const waitForTerminalEvent = async () => {
-    const deadline = Date.now() + 5_000;
-    const terminal = () =>
-      emitExecutionEvent.mock.calls.some(
+    const deadline = Date.now() + TERMINAL_WAIT_MS;
+    const terminalCall = () =>
+      emitExecutionEvent.mock.calls.find(
         ([, type]) =>
           type === 'execution.completed' || type === 'execution.failed',
-      );
-    while (!terminal() && Date.now() < deadline) {
+      ) as unknown[] | undefined;
+    while (!terminalCall() && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const call = terminalCall();
+    if (!call) {
+      const seen = emitExecutionEvent.mock.calls.map(([, type]) => type);
+      throw new Error(
+        `실행이 ${TERMINAL_WAIT_MS}ms 안에 끝나지 않았다. 받은 이벤트: ${JSON.stringify(seen)}`,
+      );
+    }
+    if (call[1] === 'execution.failed') {
+      throw new Error(`실행이 실패로 끝났다: ${JSON.stringify(call[2])}`);
     }
   };
 
-  const runFilterGraph = async (items: unknown) => {
+  const runFilterGraph = async (
+    items: unknown,
+    ports: Array<'match' | 'unmatched'> = ['match', 'unmatched'],
+  ) => {
     sourceItems = items;
     mockNodeRepo.findBy.mockResolvedValue([
       node('source', 'items_source', NodeCategory.TRIGGER),
@@ -355,8 +371,9 @@ describe('Filter 다음 노드가 받는 입력 (CLE-T-4EV45V 실측)', () => {
     ]);
     mockEdgeRepo.findBy.mockResolvedValue([
       edge('source', 'out', 'filter'),
-      edge('filter', 'match', 'm'),
-      edge('filter', 'unmatched', 'u'),
+      ...ports.map((port) =>
+        edge('filter', port, port === 'match' ? 'm' : 'u'),
+      ),
     ]);
     await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
     await waitForTerminalEvent();
@@ -388,6 +405,8 @@ describe('Filter 다음 노드가 받는 입력 (CLE-T-4EV45V 실측)', () => {
 
       // 연결선의 sourcePort 와 상관없이 두 다음 노드는 같은 값을 받는다. 그 값은
       // Filter `output` 전체이고 `output.match` / `output.unmatched` 하위 키가 아니다.
+      // TODO(CLE-T-2F5H0E): 스펙대로 라우팅을 고치면 match 쪽은 expectedMatch,
+      // unmatched 쪽은 expectedUnmatched 를 받도록 이 단언을 뒤집는다.
       const whole = { match: expectedMatch, unmatched: expectedUnmatched };
       expect(matchCalls[0].input).toEqual(whole);
       expect(unmatchedCalls[0].input).toEqual(whole);
@@ -407,6 +426,18 @@ describe('Filter 다음 노드가 받는 입력 (CLE-T-4EV45V 실측)', () => {
     expect(matchCalls).toHaveLength(1);
     expect(matchCalls[0].config.viaNodePort).toBeNull();
     expect(unmatchedCalls[0].config.viaNodePort).toBeNull();
+  });
+
+  it('한쪽 포트에만 연결선이 있어도 그 다음 노드는 match · unmatched 를 함께 담은 객체를 받는다', async () => {
+    await runFilterGraph([alice, bob], ['unmatched']);
+
+    // TODO(CLE-T-2F5H0E): 스펙대로라면 [bob] 만 받는다.
+    expect(matchCalls).toHaveLength(0);
+    expect(unmatchedCalls).toHaveLength(1);
+    expect(unmatchedCalls[0].input).toEqual({
+      match: [alice],
+      unmatched: [bob],
+    });
   });
 
   it('inputField 가 null 로 해석되면 두 다음 노드가 모두 빈 match · unmatched 를 받는다', async () => {
