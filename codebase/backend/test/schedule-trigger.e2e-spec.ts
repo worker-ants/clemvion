@@ -25,7 +25,7 @@ import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-res
  *   - 비활성 스케줄은 trigger.isActive=false
  *   - 목록 조회가 워크스페이스로 격리되고 `next_run_at`(asc·desc)·기본 `created_at` 정렬이 적용됨
  *   - V110: schedule 인덱스가 `(workspace_id, next_run_at)` 로 실재 (스키마 drift 방지)
- *   - **`TriggerDto.workflow` 양성** — 목록(C-2)·PATCH(G·H) 세 자리. 이 파일이 이미
+ *   - **`TriggerDto.workflow` 양성** — 목록(C-2)·단건(C-4)·PATCH(G·H) 네 자리. 이 파일이 이미
  *     고정하던 `ScheduleDto.trigger.workflow` 와는 **다른 표면**이다
  */
 
@@ -274,6 +274,47 @@ describe('Schedule trigger (e2e)', () => {
     // `ScheduleDto.trigger.workflow`(`expectNarrowedScheduleTriggerRef`, 양성 3 + 음성 1)
     // 와는 **다른 표면**이고, 이쪽엔 양성이 한 건도 없었다.
     expectTriggerWorkflowRef(row, {
+      present: true,
+      expectedWorkflowId: workflowId,
+    });
+  });
+
+  /**
+   * 단건 조회는 목록과 다른 코드 경로다. `findOneDetail` 이 `findById`(`relations: { workflow: true }`)로 읽고
+   * schedule 행을 따로 조회해 붙인다. webhook 트리거의 단건 조회는 `trigger-workflow-ref.e2e-spec.ts` 가 보지만
+   * schedule 분기(`Object.assign` 으로 cron 필드를 덧붙이는 자리)는 어디서도 보지 않았다(CLE-T-FKYM4N).
+   */
+  it('C-4. GET /api/triggers/:id 단건이 schedule 트리거의 workflow · cron 을 싣는다', async () => {
+    const cron = '45 6 * * *';
+    const create = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-detail'),
+        cronExpression: cron,
+        timezone: 'Asia/Seoul',
+      });
+    expect(create.status).toBe(201);
+    const triggerId = create.body.data.triggerId as string;
+    expect(triggerId).toBeDefined();
+
+    const detail = await request(BASE_URL)
+      .get(`/api/triggers/${triggerId}`)
+      .set(authHeaders());
+    expect(detail.status).toBe(200);
+    const body = detail.body.data as Record<string, unknown>;
+    expect(body.id).toBe(triggerId);
+    expect(body.type).toBe('schedule');
+    expect(body.cronExpression).toBe(cron);
+    expect(body.timezone).toBe('Asia/Seoul');
+    expect(body.nextRunAt).toBeDefined();
+    expect(body.nextRunAt).not.toBeNull();
+
+    // 계약 대조는 선언에 없는 키(회전 secret 등)를 잡는다. `workflow` 는 키 생략형이라 부재를 잡지 못해
+    // 양성 단언을 따로 건다(C-2 와 같은 이유).
+    assertMatchesContract(body, await contractForDto(TriggerDto));
+    expectTriggerWorkflowRef(body, {
       present: true,
       expectedWorkflowId: workflowId,
     });

@@ -594,7 +594,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
 
-  function mockQb(rows: Trigger[]): void {
+  function mockQb(rows: Trigger[]): { orderBy: jest.Mock } {
     const qb = {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
@@ -606,6 +606,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
       getMany: jest.fn().mockResolvedValue(rows),
     };
     (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+    return qb;
   }
 
   beforeEach(async () => {
@@ -818,6 +819,26 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
     const row = (result.data as unknown as Array<Record<string, unknown>>)[0];
     expect(row.cronExpression).toBeUndefined();
     expect(row.nextRunAt).toBeUndefined();
+  });
+
+  /**
+   * REQ-TRIG-025 — 목록이 `sort` · `order` 를 정렬에 쓴다(CLE-T-FKYM4N).
+   * 매핑 규칙은 `triggers-list-sort.spec.ts` 가 보고, 여기서는 쿼리 파라미터가 ORDER BY 까지 가는지만 본다.
+   */
+  it('sort · order 를 ORDER BY 로 넘긴다', async () => {
+    const qb = mockQb([]);
+    await service.findAll('ws', { sort: 'name', order: 'asc' });
+    expect(qb.orderBy).toHaveBeenCalledTimes(1);
+    expect(qb.orderBy).toHaveBeenCalledWith({ 't.name': 'ASC', 't.id': 'ASC' });
+  });
+
+  it('sort · order 가 없으면 created_at DESC 다', async () => {
+    const qb = mockQb([]);
+    await service.findAll('ws', {} as never);
+    expect(qb.orderBy).toHaveBeenCalledWith({
+      't.created_at': 'DESC',
+      't.id': 'DESC',
+    });
   });
 });
 

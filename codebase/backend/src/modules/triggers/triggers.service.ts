@@ -66,6 +66,7 @@ import { assertRawConfigAccepted } from './trigger-config-internal-fields';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
+import { buildTriggerListOrderBy } from './triggers-list-sort';
 
 export type TriggerDetail = Trigger & {
   cronExpression?: string;
@@ -349,6 +350,8 @@ export class TriggersService {
       page = 1,
       limit = 20,
       search,
+      sort,
+      order,
       type,
       status,
       interactionEnabled,
@@ -380,7 +383,8 @@ export class TriggersService {
       );
     }
 
-    qb.orderBy('t.created_at', 'DESC');
+    // REQ-TRIG-025 — 허용 목록 · 폴백 · 같은 값끼리의 순서 규칙은 triggers-list-sort.ts 에 있다.
+    qb.orderBy(buildTriggerListOrderBy(sort, order));
 
     const totalItems = await qb.getCount();
     const data = await qb
