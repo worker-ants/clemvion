@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Loader2, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import {
@@ -51,19 +52,6 @@ class AvatarUploadError extends Error {
   }
 }
 
-function getInitials(name: string, email: string): string {
-  const trimmed = (name ?? "").trim();
-  if (trimmed) {
-    return trimmed
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }
-  return (email ?? "").charAt(0).toUpperCase() || "?";
-}
-
 /** 업로드 실패를 서버 에러 코드별 문구로 바꾼다. 모르는 코드는 서버 문구, 그것도 없으면 기본 문구다. */
 function avatarUploadErrorMessage(err: unknown, t: TFunction): string {
   if (axios.isAxiosError<ApiErrorBody>(err)) {
@@ -91,8 +79,6 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
   const currentAvatarUrl = user.avatarUrl ?? "";
   const avatar = useAvatarDraft(currentAvatarUrl);
   const { avatarDraft } = avatar;
-  // 깨진 이미지 URL 은 이니셜로 대신 보인다. src 가 바뀌면 다시 시도한다.
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
   const nameDirty = (name ?? "").trim() !== (user.name ?? "").trim();
   const dirty = nameDirty || avatarDraft.kind !== "keep";
@@ -199,7 +185,6 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
     else if (avatarDraft.kind === "url") shownAvatarSrc = avatarDraft.url;
     else if (avatarDraft.kind === "remove") shownAvatarSrc = null;
   }
-  const showImage = !!shownAvatarSrc && failedSrc !== shownAvatarSrc;
   const canRemove =
     avatarDraft.kind === "file" ||
     avatarDraft.kind === "url" ||
@@ -248,23 +233,16 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[hsl(var(--primary))] text-lg font-bold text-[hsl(var(--primary-foreground))]">
-              {showImage ? (
-                // 외부 URL 도 받아 도메인을 미리 알 수 없어 next/image 대신 <img> 를 쓴다.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={shownAvatarSrc!}
-                  alt={t("profile.avatar.alt")}
-                  className="h-full w-full object-cover"
-                  onError={() => setFailedSrc(shownAvatarSrc)}
-                  data-testid="profile-avatar-image"
-                />
-              ) : (
-                <span data-testid="profile-avatar-initials">
-                  {getInitials(mode === "edit" ? name : user.name, user.email)}
-                </span>
-              )}
-            </div>
+            {/* 깨진 이미지 URL 은 이니셜로 대신 보인다. src 가 바뀌면 다시 시도한다. */}
+            <UserAvatar
+              src={shownAvatarSrc}
+              name={mode === "edit" ? name : user.name}
+              email={user.email}
+              alt={t("profile.avatar.alt")}
+              className="h-16 w-16 text-lg font-bold"
+              imageTestId="profile-avatar-image"
+              initialsTestId="profile-avatar-initials"
+            />
             <div className="flex-1 space-y-4">
               {mode === "edit" && (
                 <AvatarEditor

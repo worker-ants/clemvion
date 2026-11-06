@@ -38,10 +38,17 @@ export class FormHandler implements NodeHandler {
     //
     // CONVENTIONS Principle 7 — config echoes raw user input (form fields'
     // defaultValue / label may carry `{{ ... }}` templates that the engine
-    // resolved before dispatch).
+    // resolved before dispatch). Schema fields are listed explicitly so
+    // keys outside `formNodeConfigSchema` (including future credential-shaped
+    // ones) can't slip into the echo via spread — same as Carousel.
     const rawConfig = context.rawConfig ?? config;
     return Promise.resolve({
-      config: { ...rawConfig },
+      config: {
+        title: rawConfig.title,
+        description: rawConfig.description,
+        submitLabel: rawConfig.submitLabel,
+        fields: rawConfig.fields,
+      },
       output: {},
       status: 'waiting_for_input',
       meta: { interactionType: 'form', durationMs: 0 },

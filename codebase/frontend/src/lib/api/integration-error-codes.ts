@@ -10,15 +10,18 @@ import {
 
 /**
  * Backend integration 에러 코드 중 frontend 가 도메인-aware 메시지로 remap 하는
- * 화이트리스트. 각 코드는 한글 primary 메시지 (i18n 키) 와 매핑되며,
- * `formatErrorToast` 등 toast 헬퍼가 본 매핑을 조회한다 — backend 의 영문
- * `message` 는 (괄호) 안 보조 정보로 노출.
+ * 화이트리스트. 각 코드는 번역 문구(i18n 키)와 짝을 이룬다. 토스트 헬퍼
+ * `formatIntegrationErrorToast` 가 이 매핑을 조회해 번역 문구를 앞에 두고
+ * backend 의 영문 `message` 를 괄호에 붙인다. 설치 대기 409
+ * (`*_INSTALL_PENDING`)처럼 `details.pendingInstallExpiresAt` 이 오면 번역 문구
+ * 뒤에 설치 기한 문장(`integrations.retryAfterPendingInstallExpiry`)을 더한다.
  *
  * 새 매핑 추가 시:
  *   1. INTEGRATION_LOCALIZED_ERROR_CODES 에 의미 기반 alias + 실제 backend 코드
  *   2. INTEGRATION_ERROR_CODE_TO_I18N 에 i18n 키 추가 (ko/en parity 유지)
- *   3. 호출자(`formatErrorToast` 등)는 본 모듈만 import — 코드 문자열을
- *      컴포넌트에 직접 박지 않는다 (ai-review W11 — 2026-05-16).
+ *   3. 호출자는 `formatIntegrationErrorToast` · `isIntegrationNameTaken` 처럼 이
+ *      모듈의 헬퍼만 import 한다. 코드 문자열을 컴포넌트에 직접 박지 않는다
+ *      (ai-review W11 — 2026-05-16).
  *
  * 코드 정의: NERV CLE-INT-MANAGE 「에러 코드」 · CLE-API-ERRCODES.
  */
