@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 26
+version: 28
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "f02b1c7c5b5cc4138c4b6403674ec2c70eb39587da65aecfc7e89bc9b19d3190"
+content_hash: "901ed19e3ee15c41058e80b6562ce11b2cb0c01e7513d979b0c85bd315adefd0"
 read_as: "approved_fallback"
-task: "CLE-T-REC4X3"
+task: "CLE-T-8MQMGQ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "c314b398f996c004a1b60013bc75ad81b0431b56e755eef25153341ffcbe250e"
-etag: "sha256-f54669dcbe99c28267eebb2cfd858c044925f1412a2a4867d72e0ff003bc32a5"
+mirror_sha256: "01a5a632c5e10484b75999a3954f2246b5888403ddbdcc7285c9b11986db88ec"
+etag: "sha256-b4fa184d0cafd022e248488c6c4a0c38f170cfa19c0e3ea751eb71853f6fcc52"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -211,7 +211,7 @@ etag: "sha256-f54669dcbe99c28267eebb2cfd858c044925f1412a2a4867d72e0ff003bc32a5"
 |------|------|------|-----------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패. 400 기본 코드. 발행 지점이 정해진 경우(`X-Workspace-Id` 형식 에러)는 아래 별도 행이다. 요청 본문의 참조 id 가 요청자의 워크스페이스나 같은 워크플로우 밖을 가리킬 때도 이 코드와 `details[].code='INVALID_FIELD'` 배열(아래 `INVALID_FIELD` 행)을 싣는다. 노드 생성 · 수정과 캔버스 저장에서 노드 `config` 의 통합 참조 자리에 쓸 수 없는 값(문자열이 아닌 값, 없는 통합, 이 워크플로우에서 쓸 수 없는 개인 통합)이 와도 같은 코드와 배열로 거절한다(`node-integration-ref-check.ts`) | 400 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
 | `PAYLOAD_TOO_LARGE` (요청 본문) | 요청 본문이 body-parser 한도를 넘음. 전역 기본 100KB, `/api/hooks/*` 인증 웹훅 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 바꾼다. `message` 는 내부 원문(`"request entity too large"` 등)을 싣지 않고 고정 문구 `"Request payload too large."` 만 돌려준다. 공개 웹훅의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§6.10) | 413 | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 고정 문구가 아니라 multer 원문 `"File too large"` 다 | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
+| `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 multer 원문(`"File too large"`)을 싣지 않고 요청 본문 행과 같은 고정 문구 `"Request payload too large."` 를 돌려준다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 「`message` 에 내부 원문을 싣지 않는다」) | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
 | `FILE_REQUIRED` | 업로드 요청에 파일이 없거나 내용이 비어 있음(`file?.buffer?.length` 가 0). 확장자 불허(`INVALID_FILE_TYPE`)와 다른 코드다. 클라이언트가 취할 행동이 다르기 때문이다("파일을 고르세요" 와 "다른 형식으로 바꾸세요"). 메시지 문자열 파싱이 금지돼 있으므로 코드로 갈라야 분기할 수 있다. 현재 발행처는 아바타 업로드다 | 400 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `INVALID_FILE_TYPE` | 확장자가 허용 목록에 없음. 지식 저장소 문서 업로드와 아바타 업로드가 함께 쓰고 허용 목록은 도메인마다 정한다(지식 저장소 `txt`·`md`·`pdf`·`csv`, 아바타 `png`·`jpg`·`jpeg`·`webp`·`gif`, SVG 제외) | 400 | [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md), [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트가 **없음**. `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다 | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
@@ -500,7 +500,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 통합 관리 API(`/api/integrations/*`, `POST /api/integrations/oauth/begin` 포함), 설치 엔드포인트(`GET /api/3rd-party/cafe24/install/:installToken` · `GET /api/3rd-party/makeshop/install/:installToken`), 통합 OAuth 콜백(`GET /api/3rd-party/:provider/callback`)이 내는 코드다. 이 경로들도 내는 공용 코드(§6.2 `NOT_A_MEMBER` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED`, §6.4 `VALIDATION_ERROR` · `RESOURCE_NOT_FOUND`)는 다시 적지 않는다. 통합 노드 · 연결 테스트 · AI 에이전트 도구의 코드는 §6.22 에 있다.
 
-- **설치 엔드포인트는 표준 봉투를 쓰지 않는다.** 실패 본문은 `{ error: { code, message } }` 이고 `requestId` 가 없다. 빈도 제한 · 토큰 형식 · 필수 query 검사는 늘 JSON 으로 답한다. 그 뒤 서비스가 거절하면 `Accept` 에 `text/html` 이 있을 때 코드와 메시지를 담은 HTML 페이지로 답한다.
+- **설치 엔드포인트도 표준 봉투 `{ error: { code, message, requestId } }` 로 답한다.** 전역 예외 필터를 거치지 않으므로 컨트롤러가 본문을 직접 조립하고 `requestId` 를 응답마다 새로 발급한다. 빈도 제한 · 토큰 형식 · 필수 query 검사는 늘 JSON 으로 답한다. 그 뒤 서비스가 거절하면 `Accept` 에 `text/html` 이 있을 때 코드 · 메시지 · `requestId` 를 담은 HTML 페이지로 답한다.
 - **콜백 코드는 HTTP 봉투에 실리지 않는다.** 서비스가 거절하면 콜백은 상태 200 의 HTML 페이지를 그린다. 페이지에는 메시지만 있고 코드는 없다. 콜백이 대상 통합을 알면 코드를 그 통합의 `last_error.code` 에 남긴다. state 를 소비하지 못한 실패, `new` 모드(아직 통합 행이 없다), 상점 자리를 놓은 만료 설치 대기 행, 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 남기지 않는다. 그래서 아래 표는 콜백 코드의 HTTP 칸을 「없음 (통합 `last_error.code`)」 와 「없음 (콜백 HTML)」 로 나눠 적는다. `last_error.code` 에는 노드와 도구 호출의 실패 코드도 들어온다(§6.22).
 - **소셜 로그인 콜백**(`GET /api/auth/oauth/:provider/callback`)의 내부 코드는 행을 두지 않는다. 실패는 모두 §3 의 소문자 URL 값(`invalid_state` · `token_exchange_failed` · `email_required` · `server_error`)으로 바뀐다. 소셜 로그인 시작(`GET /api/auth/oauth/:provider`)은 OAuth 앱 설정이 없으면 표준 봉투로 `OAUTH_CONFIG_MISSING`(500)을 낸다.
 
@@ -533,7 +533,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `CAFE24_INSTALL_REPLAY` · `MAKESHOP_INSTALL_REPLAY` | 400 | 설치 요청의 `timestamp` 가 ±5분 밖이거나 해석되지 않음, 또는 같은 요청을 다시 보냄(nonce 재사용) | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `CAFE24_INSTALL_INVALID_HMAC` | 403 | HMAC 검증 실패, 통합에 `client_secret` 이 없음, 또는 요청의 `mall_id` · 앱 유형이 토큰의 통합과 다름. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `MAKESHOP_INSTALL_INVALID_HMAC` | 403 | HMAC 검증 실패, 통합에 시크릿이 없음, 또는 요청의 `shop_uid` 가 토큰의 통합과 다름. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
-| `CAFE24_INSTALL_FAILED` · `MAKESHOP_INSTALL_FAILED` | 400 (기본) | 설치 처리 중 코드가 없는 예외가 남. 상태 코드는 예외의 상태이고 없으면 400 이다. `message` 는 예외 메시지를 그대로 싣는다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
+| `CAFE24_INSTALL_FAILED` · `MAKESHOP_INSTALL_FAILED` | 예외의 상태 · 500 | 설치 처리 중 코드가 없는 실패가 남. 코드가 없는 `HttpException` 이면 그 상태와 메시지를 싣는다. 그 밖의 예외(DB · 런타임 오류 등)는 500 과 고정 문구로 답하고 예외 원문은 `requestId` 와 함께 서버 로그에만 남긴다. IP 실패로 세지 않는다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `MAKESHOP_ALREADY_CONNECTED` | 409 | MakeShop 설치에서 같은 워크스페이스에 같은 `shop_uid` 의 연결된 MakeShop 통합이 이미 있음. 사전 검사와 상점 식별자 UNIQUE 경합에서 난다. 응답에 기존 통합의 ID 를 싣지 않는다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `MAKESHOP_INVALID_SHOP_UID` | 400 · 없음 (노드 `output.error.code`) | `shop_uid` 형식 위반. 설치 엔드포인트는 400 으로 답하고 MakeShop 노드는 에러 포트로 낸다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `OAUTH_STATE_EXPIRED` | 없음 (통합 `last_error.code`) | 콜백의 state 가 만료됨. `new` 모드 state 는 통합이 없어 HTML 로만 끝난다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
@@ -565,8 +565,8 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 |------|--------|------|-----------|
 | `CAFE24_404` · `CAFE24_422` · `CAFE24_4XX` · `CAFE24_5XX` | 없음 (노드 `output.error.code`) | Cafe24 API 가 2xx 가 아닌 상태로 답함. 상태별 분류와 이름의 경위는 §3. `details` 에 `statusCode` · `mallId` · `resource` · `operation` 을, 응답에 있으면 `cafe24ErrorCode` · `cafe24Message` 도 싣는다. 서버 본문은 `output.response` 에 둔다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드) |
 | `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` | 없음 (노드 `output.error.code`) | MakeShop API 가 2xx 가 아닌 상태로 답함. 상태별 분류와 이름의 경위는 §3. `details` 에 `statusCode` · `shopUid` · `resource` · `operation` 을, 응답에 있으면 `makeshopErrorCode` · `makeshopMessage` 도 싣는다. 서버 본문은 `output.response` 에 둔다 | [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
-| `CAFE24_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error` 가 되고 사유는 403 에 권한 범위 부족 신호가 있으면 `insufficient_scope`, 그 밖은 `auth_failed` 다. 연결 테스트: 토큰을 갱신하고 다시 보낸 요청이 전송 실패도 403 도 아닌 상태로 실패함(5xx 포함). 이 가운데 401 만 통합 상태를 바꾼다 | [Cafe24 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24) |
-| `MAKESHOP_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error(auth_failed)` 가 된다. 연결 테스트: 첫 요청이 403 이거나, 토큰을 갱신하고 다시 보낸 요청이 전송 실패가 아닌 상태로 실패함(5xx 포함). 다시 보낸 요청의 401 만 통합 상태를 바꾼다 | [MakeShop 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop) |
+| `CAFE24_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error` 가 되고 사유는 403 에 권한 범위 부족 신호가 있으면 `insufficient_scope`, 그 밖은 `auth_failed` 다. 연결 테스트: 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 두 경우 모두 통합은 `error(auth_failed)` 가 된다. 401 · 403 이 아닌 상태는 `CAFE24_API_ERROR` 다 | [Cafe24 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24) |
+| `MAKESHOP_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error(auth_failed)` 가 된다. 연결 테스트: 첫 요청이나 다시 보낸 요청이 403 이거나, 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 갱신 거절과 다시 보낸 요청의 401 만 통합 상태를 바꾼다. 401 · 403 이 아닌 상태는 `MAKESHOP_API_ERROR` 다 | [MakeShop 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop) |
 | `CAFE24_TRANSPORT_FAILED` · `MAKESHOP_TRANSPORT_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 요청이 응답을 받지 못함(DNS · 연결 · 타임아웃). 노드는 API 호출 중 분류되지 않은 예외도 이 코드로 내고 `meta.statusCode` 는 0 이다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_RATE_LIMITED` · `MAKESHOP_RATE_LIMITED` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | 429 를 받고 재시도를 다 씀. 노드는 `details` 에 `retries` · `lastRetryAfterSec` 를 싣는다. 설치 엔드포인트의 `*_INSTALL_RATE_LIMITED`(§6.21)와 다른 코드다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_UNKNOWN_OPERATION` · `MAKESHOP_UNKNOWN_OPERATION` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | `operation` 이 메타데이터에 없음. 도구는 도구 이름의 operation 이 그 통합의 도구 목록에 없을 때 낸다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
@@ -582,6 +582,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `DB_AUTH_FAILED` · `DB_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) | Database 통합 연결 테스트가 인증 거부를 받음 / 그 밖의 이유로 연결하지 못함. 노드의 `DB_CONNECTION_ERROR`(§6.6)와 다른 이름이다 | [서비스별 인증 방식과 자격 증명 「Database」](../CLE-INT/CLE-INT-AUTH.md#database) |
 | `EMAIL_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) | SMTP 통합 연결 테스트가 서버에 연결하거나 인증하지 못함 | [서비스별 인증 방식과 자격 증명 「Email (SMTP)」](../CLE-INT/CLE-INT-AUTH.md#email-smtp) |
 | `CAFE24_INSUFFICIENT_SCOPE` | 200 (연결 테스트 결과 `code`) | Cafe24 연결 테스트가 403 을 받음(권한 범위 부족 · 앱 미설치). 통합 상태는 바꾸지 않는다. 노드는 같은 403 을 `CAFE24_AUTH_FAILED` 로 낸다(§6.21 표 아래) | [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24) |
+| `CAFE24_API_ERROR` · `MAKESHOP_API_ERROR` | 200 (연결 테스트 결과 `code`) | 인증 실패가 아닌 응답 실패다. 401 · 403 은 `*_AUTH_FAILED` · `CAFE24_INSUFFICIENT_SCOPE` 이고 토큰 갱신 요청의 실패는 이 코드가 아니다. Cafe24 · MakeShop 연결 테스트가 2xx 가 아닌 상태 가운데 401 · 403 을 뺀 나머지(429 · 5xx · 404 등)를 받음. 첫 요청이면 토큰을 갱신하지 않는다. 토큰을 갱신하고 다시 보낸 요청이면 더 시도하지 않는다. 통합 상태는 바꾸지 않는다. 받은 상태는 `message` 에 싣는다. 노드는 같은 응답을 `CAFE24_5XX` · `CAFE24_RATE_LIMITED` 같은 노드 코드로 낸다 | [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop) |
 | `CAFE24_MCP_TOOL_NAME_INVALID` · `MAKESHOP_MCP_TOOL_NAME_INVALID` | 없음 (도구 결과 `error.code`) | LLM 이 부른 도구 이름에서 서버 id 나 operation 을 읽지 못함 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 | `CAFE24_MCP_NO_SESSION` · `MAKESHOP_MCP_NO_SESSION` | 없음 (도구 결과 `error.code`) | 이 실행에서 도구 목록을 만들지 않았는데 도구가 불림 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 | `CAFE24_MCP_INTEGRATION_UNKNOWN` · `MAKESHOP_MCP_INTEGRATION_UNKNOWN` | 없음 (도구 결과 `error.code`) | 도구 이름의 서버 id 에 맞는 통합이 이 실행의 도구 목록에 없음 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
@@ -926,3 +927,33 @@ ForEach · Map · Parallel 은 `errorPolicy='continue'` 에서 실패한 회차 
 - 클라이언트 대화 화면 코드(`conversation-utils.ts`)가 코드가 없는 에러에 같은 문자열을 화면 대체값으로 쓴다. 서버가 내는 값이 아니어서 이 행과 겹치지 않는다.
 - 허용 목록 76개를 카탈로그와 대조했다(2026-11-05). 그러다가 §6.6 표에 없던 에러 포트 코드 둘을 찾아 더했다. `INVALID_PARAMETERS`([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md))와 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md))는 이미 에러 포트로 나가고 있었다(규칙 8). 남은 `USER_CANCELLED` 는 `ErrorCode` 에 정의만 있고 내보내는 곳이 없어 표에 올리지 않았다. 목록과 카탈로그를 대조하는 테스트는 두지 않았다. 새 코드는 규칙 8 에 따라 등재한다.
 - 기각한 대안은 두 가지다. 하나는 `UPPER_SNAKE_CASE` 모양이면 그대로 내는 안이다. 런타임 · 드라이버의 `code`(`ECONNREFUSED` 등)가 카탈로그 밖 값으로 나간다. 다른 하나는 런타임 · 드라이버 모양을 걸러 내는 안이다. 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다. 자세한 근거는 [Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다.
+
+### 설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다 (2026-11-06)
+
+NERV Task `CLE-T-909H23` 이다. 설치 엔드포인트는 `@Res` 로 응답을 직접 써서 전역 예외 필터를 거치지 않는다. 그래서 코드가 없는 예외를 400 `*_INSTALL_FAILED` 로 바꾸면서 예외 메시지를 그대로 실었다. DB · 런타임 오류의 원문이 Cafe24 · MakeShop 콘솔에서 연 브라우저에 보였다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 규칙 2). 실패 본문에 `requestId` 가 없어 서버 로그와 이을 수도 없었다(같은 문서 규칙 3).
+
+- **코드 이름은 그대로 쓰고 상태와 문구만 바꿨다.** 코드가 없는 실패라는 뜻은 바뀌지 않는다. `INTERNAL_ERROR` 로 바꾸는 안은 기각했다. 이름 바꾸기는 호환을 깨는 변경이다(규칙 5).
+- **상태는 예외 종류로 가른다.** 코드가 없는 `HttpException` 의 상태와 문구는 작성자가 정한 값이라 전역 필터처럼 그대로 싣는다. 그 밖의 예외는 500 과 고정 문구로 가리고 원문은 `requestId` 와 함께 `logger.error` 로만 남긴다.
+- **예외를 전역 필터로 다시 던지는 안은 기각했다.** 필터는 JSON 만 그려서 콘솔에서 연 브라우저에 HTML 안내 페이지를 보일 수 없다. 열거 공격 실패 카운트도 컨트롤러가 해야 한다.
+- **앞단 가드(빈도 제한 · 토큰 형식 · 필수 query)의 JSON 에도 `requestId` 를 싣는다.** 한 엔드포인트의 실패 본문을 한 모양으로 맞췄다. §6.21 머리말의 「표준 봉투를 쓰지 않는다」 불릿은 이 변경에 맞춰 고쳤다. 그 불릿은 사실만 적었고 까닭을 적은 Rationale 은 없다. 응답을 `@Res` 로 직접 써서 전역 필터가 봉투와 `requestId` 를 채우지 못한 결과였다. 이제 컨트롤러가 봉투를 조립하고 `requestId` 를 발급하므로 표준 봉투로 맞췄다.
+- 열거 공격 실패 카운트는 바꾸지 않았다. `*_INSTALL_INVALID_TOKEN` · `*_INSTALL_INVALID_HMAC` 만 센다.
+
+### Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다 (2026-11-06)
+
+NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요청이 401 · 403 이 아닌 상태로 실패해도 401 처럼 토큰을 갱신하고 다시 보냈다. 다시 보낸 요청이 5xx · 429 로 실패하면 `*_AUTH_FAILED` 로 답해 서버 장애나 호출 제한을 인증 실패로 안내했다. 정의는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md#연결-테스트는-401-만-토큰-문제로-본다-2026-11-06) 에 있다.
+
+- **401 · 403 이 아닌 상태는 새 코드로 낸다.** 인증 실패가 아닌 새 조건이라 새 코드를 만들었다(규칙 6). 사용자가 할 일이 상태와 관계없이 «잠시 뒤 다시 시도하거나 상점 쪽 상태를 확인» 으로 같아서 코드를 하나로 묶고 받은 상태는 `message` 에 싣는다.
+- `*_TRANSPORT_FAILED` 를 쓰는 안은 기각했다. 그 코드는 응답을 받지 못한 실패다. 응답을 받은 실패까지 담으면 뜻이 갈린다.
+- 노드의 `*_RATE_LIMITED` 를 429 에 쓰는 안도 기각했다. 그 코드는 429 재시도를 다 썼다는 뜻인데 연결 테스트는 429 를 다시 시도하지 않는다. §6.21 표 아래 「빈도 제한 코드는 세 부류다」 의 구분도 흐려진다.
+- 노드처럼 `*_5XX` · `*_4XX` 로 상태를 나누는 안도 기각했다. 상태 번호 이름은 §3 예외라 새 코드의 선례가 아니다(규칙 7).
+- HTTP 통합 연결 테스트처럼 401 · 403 이 아닌 4xx 를 성공으로 보는 안도 기각했다. HTTP 통합은 사용자가 정한 주소를 부르므로 4xx 응답도 서버가 살아 있다는 신호다. Cafe24 · MakeShop 연결 테스트는 정해진 진단 주소를 부르므로 4xx 도 실패다.
+- 토큰 갱신 요청 자체가 401 · 403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 `*_TRANSPORT_FAILED` 의 뜻(응답을 받지 못한 실패)과 어긋난다. 위에서 `*_TRANSPORT_FAILED` 를 기각한 근거와 같은 어긋남이며 NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.
+
+### multipart 업로드 413 의 `message` 를 고정 문구로 바꿨다 (2026-11-06)
+
+NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `message` 를 multer 원문 `"File too large"` 로 적었다. 전역 예외 필터가 http-errors 미들웨어(body-parser)의 4xx 만 고정 문구로 바꾸고, Nest 가 multer `LIMIT_FILE_SIZE` 를 바꾼 `PayloadTooLargeException` 은 `HttpException` 이라 원문이 그대로 나갔기 때문이다. 필터가 `code` 를 지정하지 않은 `HttpException` 413 도 `"Request payload too large."` 로 바꾸게 되어 행을 고쳤다.
+
+- 같은 코드의 두 행이 서로 다른 `message` 규칙을 갖지 않게 했다. 클라이언트는 `code` 로 분기하지만 `message` 를 그대로 보여 주는 화면도 있어서, 한도를 넘은 원인에 따라 문구가 달라질 이유가 없다.
+- 라이브러리 원문을 응답에 싣지 않는 규칙과 그 범위는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 가 정한다. 이 문서는 카탈로그 행만 그 규칙에 맞춘다.
+- `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`)은 그 코드와 문구를 그대로 둔다.
+- 같은 날 더한 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다」 절은 코드가 없는 `HttpException` 의 문구를 「전역 필터처럼 그대로 싣는다」고 적었다. 이 변경 뒤 전역 필터는 코드가 없는 413 의 문구를 고정 문구로 바꾸므로 그 비교는 413 을 뺀 상태에만 맞다. 설치 엔드포인트는 전역 필터를 거치지 않아 이 변경의 영향을 받지 않는다.
