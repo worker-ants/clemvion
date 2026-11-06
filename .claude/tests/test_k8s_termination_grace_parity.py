@@ -65,7 +65,7 @@ def expected_termination_seconds(grace_ms: int) -> int:
     return math.ceil(grace_ms / 1000) + DRAIN_MARGIN_SECONDS
 
 
-def _dig(obj: object, *keys: str) -> dict:
+def _dig_mapping_or_empty(obj: object, *keys: str) -> dict:
     node = obj
     for key in keys:
         node = node.get(key) if isinstance(node, dict) else None
@@ -73,7 +73,7 @@ def _dig(obj: object, *keys: str) -> dict:
 
 
 def _identity(doc: dict) -> tuple[object, object]:
-    return doc.get("kind"), _dig(doc, "metadata").get("name")
+    return doc.get("kind"), _dig_mapping_or_empty(doc, "metadata").get("name")
 
 
 def parse_grace_ms(value: object, where: str) -> int:
@@ -96,9 +96,9 @@ def values_from_document(doc: object) -> tuple[object | None, object | None]:
     if not isinstance(doc, dict):
         return None, None
     ident = _identity(doc)
-    grace = _dig(doc, "data").get(GRACE_KEY) if ident == CONFIGMAP else None
+    grace = _dig_mapping_or_empty(doc, "data").get(GRACE_KEY) if ident == CONFIGMAP else None
     termination = (
-        _dig(doc, "spec", "template", "spec").get(TERMINATION_KEY) if ident == DEPLOYMENT else None
+        _dig_mapping_or_empty(doc, "spec", "template", "spec").get(TERMINATION_KEY) if ident == DEPLOYMENT else None
     )
     return grace, termination
 
@@ -139,7 +139,7 @@ def overlay_values(files: dict[str, str]) -> tuple[object | None, object | None]
                         continue
                     patch = yaml.safe_load(entry["patch"])
                     if isinstance(patch, list):
-                        take(values_from_json6902(patch, _dig(entry, "target")))
+                        take(values_from_json6902(patch, _dig_mapping_or_empty(entry, "target")))
                     else:
                         take(values_from_document(patch))
             continue
@@ -154,6 +154,30 @@ def mentions(files: dict[str, str], key: str) -> bool:
         for text in files.values()
         for line in text.splitlines()
         if not line.lstrip().startswith("#")
+    )
+
+
+def effective_pair(
+    base_grace: int, base_termination: int, files: dict[str, str], where: str
+) -> tuple[int, int]:
+    """(grace_ms, termination_seconds) in force once the overlay is applied.
+
+    Raises ManifestShapeError when the overlay mentions a key in a form that
+    `overlay_values` did not parse."""
+    grace, termination = overlay_values(files)
+    for key, value in ((GRACE_KEY, grace), (TERMINATION_KEY, termination)):
+        if value is None and mentions(files, key):
+            raise ManifestShapeError(f"{where}: mentions {key} in an unrecognized form")
+    grace_ms = base_grace if grace is None else parse_grace_ms(grace, where)
+    seconds = base_termination if termination is None else parse_termination_seconds(termination, where)
+    return grace_ms, seconds
+
+
+def mismatch_message(overlay: str, grace_ms: int, seconds: int) -> str:
+    return (
+        f"k8s/overlays/{overlay}: effective {TERMINATION_KEY}={seconds} but "
+        f"{GRACE_KEY}={grace_ms} needs ceil({grace_ms}/1000)+{DRAIN_MARGIN_SECONDS}. "
+        "Patch both values together."
     )
 
 
@@ -245,6 +269,28 @@ class ExtractorBoundaryTest(unittest.TestCase):
         self.assertFalse(mentions({"a.yaml": f"# {GRACE_KEY} is set in base\n"}, GRACE_KEY))
         self.assertTrue(mentions({"a.yaml": f"  - {GRACE_KEY}=60000\n"}, GRACE_KEY))
 
+    def test_effective_pair_detects_one_sided_patch(self):
+        patch = f"kind: ConfigMap\nmetadata: {{name: backend-config}}\ndata: {{{GRACE_KEY}: '60000'}}\n"
+        grace_ms, seconds = effective_pair(30000, 35, {"patch.yaml": patch}, "o")
+        self.assertEqual((grace_ms, seconds), (60000, 35))
+        self.assertNotEqual(seconds, expected_termination_seconds(grace_ms))
+
+    def test_effective_pair_rejects_unparsed_generator_form(self):
+        kustomization = f"configMapGenerator:\n  - name: backend-config\n    literals:\n      - {GRACE_KEY}=60000\n"
+        with self.assertRaises(ManifestShapeError):
+            effective_pair(30000, 35, {"kustomization.yaml": kustomization}, "o")
+
+    def test_effective_pair_passes_when_both_patched(self):
+        patch = (
+            f"kind: ConfigMap\nmetadata: {{name: backend-config}}\ndata: {{{GRACE_KEY}: '60000'}}\n---\n"
+            f"kind: Deployment\nmetadata: {{name: backend}}\nspec: {{template: {{spec: {{{TERMINATION_KEY}: 65}}}}}}\n"
+        )
+        grace_ms, seconds = effective_pair(30000, 35, {"patch.yaml": patch}, "o")
+        self.assertEqual(seconds, expected_termination_seconds(grace_ms))
+
+    def test_effective_pair_inherits_base_when_overlay_silent(self):
+        self.assertEqual(effective_pair(30000, 35, {"kustomization.yaml": "resources: []\n"}, "o"), (30000, 35))
+
 
 class TerminationGraceParityTest(unittest.TestCase):
 
@@ -265,25 +311,10 @@ class TerminationGraceParityTest(unittest.TestCase):
         base_grace, base_termination = base_values()
         for overlay, files in overlay_files().items():
             with self.subTest(overlay=overlay):
-                grace, termination = overlay_values(files)
-                for key, value in ((GRACE_KEY, grace), (TERMINATION_KEY, termination)):
-                    if value is None and mentions(files, key):
-                        self.fail(f"k8s/overlays/{overlay}: mentions {key} in an unrecognized form")
-                grace_ms = (
-                    base_grace if grace is None else parse_grace_ms(grace, f"k8s/overlays/{overlay}")
+                grace_ms, seconds = effective_pair(
+                    base_grace, base_termination, files, f"k8s/overlays/{overlay}"
                 )
-                seconds = (
-                    base_termination
-                    if termination is None
-                    else parse_termination_seconds(termination, f"k8s/overlays/{overlay}")
-                )
-                self.assertEqual(
-                    seconds,
-                    expected_termination_seconds(grace_ms),
-                    f"k8s/overlays/{overlay}: effective {TERMINATION_KEY}={seconds} but "
-                    f"{GRACE_KEY}={grace_ms} needs ceil({grace_ms}/1000)+{DRAIN_MARGIN_SECONDS}. "
-                    "Patch both values together.",
-                )
+                self.assertEqual(seconds, expected_termination_seconds(grace_ms), mismatch_message(overlay, grace_ms, seconds))
 
 
 if __name__ == "__main__":

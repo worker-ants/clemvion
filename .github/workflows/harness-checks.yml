@@ -110,12 +110,11 @@ jobs:
         scripts/minio/avatars-public-read.json
         # backend 안전 종료 유예 시간 — test_k8s_termination_grace_parity.py 가 base 의
         # SIGTERM_GRACE_MS(configmap) 와 terminationGracePeriodSeconds(deployment) 가 공식을 지키는지,
-        # overlay 마다 실제로 적용되는 쌍도 지키는지 본다(CLE-T-XB6J60). overlay 의 새 patch 파일은
-        # kustomization.yaml 에 묶여야 적용되므로 kustomization.yaml 을 등재하면 그 PR 에서 돈다.
+        # overlay 마다 실제로 적용되는 쌍도 지키는지 본다(CLE-T-XB6J60). 테스트가 overlay 디렉터리의
+        # *.yaml 을 모두 읽으므로 pathspec 도 overlay 의 *.yaml 전체를 등재한다.
         k8s/base/backend-deployment.yaml
         k8s/base/configmap.yaml
-        k8s/overlays/*/kustomization.yaml
-        k8s/overlays/local/configmap-patch.yaml
+        k8s/overlays/*/*.yaml
         # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
         # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
         scripts/report_playwright_flaky.py
