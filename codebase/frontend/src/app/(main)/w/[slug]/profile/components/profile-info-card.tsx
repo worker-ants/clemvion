@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Link from "next/link";
@@ -9,23 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImageUp, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import {
   axiosMessage,
   extractApiCode,
   type ApiErrorBody,
 } from "@/lib/api/errors";
-import {
-  AVATAR_EXTENSIONS,
-  AVATAR_MAX_BYTES,
-  USER_PROFILE_QUERY_KEY,
-  usersApi,
-} from "@/lib/api/users";
+import { USER_PROFILE_QUERY_KEY, usersApi } from "@/lib/api/users";
 import { useT } from "@/lib/i18n";
 import type { TFunction } from "@/lib/i18n/core";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { AvatarEditor } from "./avatar-editor";
+import {
+  isValidAvatarUrl,
+  useAvatarDraft,
+  type AvatarDraft,
+} from "./use-avatar-draft";
 import { ConfirmDiffDialog, type DiffEntry } from "./confirm-diff-dialog";
 
 interface ProfileInfoCardProps {
@@ -36,16 +37,6 @@ interface ProfileInfoCardProps {
     avatarUrl?: string | null;
   };
 }
-
-/**
- * 편집 중인 아바타의 목표 상태. `keep` 은 지금 값을 그대로 두고, `file` 은 이미지를 올리고
- * (`POST /users/me/avatar`), `url` · `remove` 는 `PATCH /users/me` 의 `avatarUrl` 로 바꾼다.
- */
-type AvatarDraft =
-  | { kind: "keep" }
-  | { kind: "file"; file: File }
-  | { kind: "url"; url: string }
-  | { kind: "remove" };
 
 /** 확인 모달을 연 순간의 저장 내용. 모달이 열린 동안 입력을 바꿔도 모달에 보인 값을 보낸다. */
 interface SaveSnapshot {
@@ -60,17 +51,6 @@ class AvatarUploadError extends Error {
   }
 }
 
-const AVATAR_ACCEPT = [
-  ...AVATAR_EXTENSIONS.map((ext) => `.${ext}`),
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-].join(",");
-
-/** 서버 `UpdateMeDto.avatarUrl` 의 `@MaxLength(500)` 과 같은 값. */
-const AVATAR_URL_MAX_LENGTH = 500;
-
 function getInitials(name: string, email: string): string {
   const trimmed = (name ?? "").trim();
   if (trimmed) {
@@ -82,30 +62,6 @@ function getInitials(name: string, email: string): string {
       .slice(0, 2);
   }
   return (email ?? "").charAt(0).toUpperCase() || "?";
-}
-
-/** 고른 파일을 서버와 같은 기준(확장자 · 크기 · 빈 파일)으로 미리 거른다. 통과하면 null. */
-function validateAvatarFile(file: File, t: TFunction): string | null {
-  const ext = file.name.includes(".")
-    ? file.name.split(".").pop()!.toLowerCase()
-    : "";
-  if (!(AVATAR_EXTENSIONS as readonly string[]).includes(ext)) {
-    return t("profile.avatar.invalidType");
-  }
-  if (file.size === 0) return t("profile.avatar.empty");
-  if (file.size > AVATAR_MAX_BYTES) return t("profile.avatar.tooLarge");
-  return null;
-}
-
-/** 외부 이미지 URL 은 http(s) 절대 URL 이고 500자 이하여야 한다. */
-function isValidAvatarUrl(value: string): boolean {
-  if (value.length > AVATAR_URL_MAX_LENGTH) return false;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 /** 업로드 실패를 서버 에러 코드별 문구로 바꾼다. 모르는 코드는 서버 문구, 그것도 없으면 기본 문구다. */
@@ -131,46 +87,12 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
   // diff 모달이 열린 시점에 확정될 payload 를 스냅샷으로 캡처해, 모달 열린 사이
   // 사용자가 input 을 추가로 만지더라도 모달이 보여준 값과 요청이 일치하도록 한다.
   const confirmedRef = useRef<SaveSnapshot>({ avatar: { kind: "keep" } });
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentAvatarUrl = user.avatarUrl ?? "";
-  // 아바타 편집 상태. 파일을 고르면 `avatarFile` 이, 아니면 URL 입력 칸이 목표를 정한다.
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarUrlText, setAvatarUrlText] = useState(currentAvatarUrl);
-  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatar = useAvatarDraft(currentAvatarUrl);
+  const { avatarDraft } = avatar;
   // 깨진 이미지 URL 은 이니셜로 대신 보인다. src 가 바뀌면 다시 시도한다.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-
-  const avatarDraft: AvatarDraft = useMemo(() => {
-    if (avatarFile) return { kind: "file", file: avatarFile };
-    const url = avatarUrlText.trim();
-    if (url === currentAvatarUrl) return { kind: "keep" };
-    if (url === "") return { kind: "remove" };
-    return { kind: "url", url };
-  }, [avatarFile, avatarUrlText, currentAvatarUrl]);
-
-  // 고른 파일의 미리보기 URL. 파일을 고를 때 만들고 바꾸거나 버릴 때 · 카드가 사라질 때 해제한다.
-  const [filePreview, setFilePreview] = useState<string | null>(null);
-  const previewRef = useRef<string | null>(null);
-  function replacePreview(file: File | null) {
-    if (previewRef.current && typeof URL.revokeObjectURL === "function") {
-      URL.revokeObjectURL(previewRef.current);
-    }
-    const next =
-      file && typeof URL.createObjectURL === "function"
-        ? URL.createObjectURL(file)
-        : null;
-    previewRef.current = next;
-    setFilePreview(next);
-  }
-  useEffect(
-    () => () => {
-      if (previewRef.current && typeof URL.revokeObjectURL === "function") {
-        URL.revokeObjectURL(previewRef.current);
-      }
-    },
-    [],
-  );
 
   const nameDirty = (name ?? "").trim() !== (user.name ?? "").trim();
   const dirty = nameDirty || avatarDraft.kind !== "keep";
@@ -199,7 +121,7 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
       toast.success(t("profile.saved"));
       setShowDiff(false);
-      resetAvatarDraft();
+      avatar.reset();
       setMode("view");
     },
     onError: (err) => {
@@ -215,53 +137,16 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
     },
   });
 
-  function resetAvatarDraft() {
-    setAvatarFile(null);
-    replacePreview(null);
-    setAvatarUrlText(user.avatarUrl ?? "");
-    setAvatarError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
   function handleEdit() {
     setName(user.name ?? "");
-    resetAvatarDraft();
+    avatar.reset();
     setMode("edit");
   }
 
   function handleCancel() {
     setName(user.name ?? "");
-    resetAvatarDraft();
+    avatar.reset();
     setMode("view");
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    // 같은 파일을 다시 골라도 change 가 나도록 값을 비운다.
-    e.target.value = "";
-    if (!file) return;
-    const error = validateAvatarFile(file, t);
-    if (error) {
-      setAvatarError(error);
-      return;
-    }
-    setAvatarError(null);
-    setAvatarFile(file);
-    replacePreview(file);
-  }
-
-  function handleAvatarUrlChange(value: string) {
-    setAvatarFile(null);
-    replacePreview(null);
-    setAvatarError(null);
-    setAvatarUrlText(value);
-  }
-
-  function handleRemoveAvatar() {
-    setAvatarFile(null);
-    replacePreview(null);
-    setAvatarError(null);
-    setAvatarUrlText("");
   }
 
   function handleSaveClick() {
@@ -271,7 +156,7 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
       return;
     }
     if (avatarDraft.kind === "url" && !isValidAvatarUrl(avatarDraft.url)) {
-      setAvatarError(t("profile.avatar.invalidUrl"));
+      avatar.setAvatarError(t("profile.avatar.invalidUrl"));
       return;
     }
     confirmedRef.current = {
@@ -310,7 +195,7 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
   // 보이는 아바타: 편집 중이면 목표 상태, 아니면 저장된 값.
   let shownAvatarSrc: string | null = currentAvatarUrl || null;
   if (mode === "edit") {
-    if (avatarDraft.kind === "file") shownAvatarSrc = filePreview;
+    if (avatarDraft.kind === "file") shownAvatarSrc = avatar.filePreview;
     else if (avatarDraft.kind === "url") shownAvatarSrc = avatarDraft.url;
     else if (avatarDraft.kind === "remove") shownAvatarSrc = null;
   }
@@ -382,80 +267,17 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
             </div>
             <div className="flex-1 space-y-4">
               {mode === "edit" && (
-                <div className="space-y-2" data-testid="profile-avatar-editor">
-                  <Label htmlFor="profile-avatar-url">
-                    {t("profile.avatar.label")}
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept={AVATAR_ACCEPT}
-                      className="hidden"
-                      onChange={handleFileChange}
-                      data-testid="profile-avatar-file"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={mutation.isPending}
-                      data-testid="profile-avatar-upload"
-                    >
-                      <ImageUp className="mr-2 h-4 w-4" />
-                      {t("profile.avatar.upload")}
-                    </Button>
-                    {canRemove && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleRemoveAvatar}
-                        disabled={mutation.isPending}
-                        data-testid="profile-avatar-remove"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {t("profile.avatar.remove")}
-                      </Button>
-                    )}
-                  </div>
-                  {avatarDraft.kind === "file" && (
-                    <p
-                      className="text-xs"
-                      data-testid="profile-avatar-selected-file"
-                    >
-                      {t("profile.avatar.newFile", {
-                        name: avatarDraft.file.name,
-                      })}
-                    </p>
-                  )}
-                  <Input
-                    id="profile-avatar-url"
-                    type="url"
-                    inputMode="url"
-                    value={avatarFile ? "" : avatarUrlText}
-                    onChange={(e) => handleAvatarUrlChange(e.target.value)}
-                    placeholder={t("profile.avatar.urlPlaceholder")}
-                    aria-describedby="profile-avatar-hint"
-                    data-testid="profile-avatar-url"
-                  />
-                  <p
-                    id="profile-avatar-hint"
-                    className="text-xs text-[hsl(var(--muted-foreground))]"
-                  >
-                    {t("profile.avatar.hint")}
-                  </p>
-                  {avatarError && (
-                    <p
-                      role="alert"
-                      className="text-xs text-[hsl(var(--destructive))]"
-                      data-testid="profile-avatar-error"
-                    >
-                      {avatarError}
-                    </p>
-                  )}
-                </div>
+                <AvatarEditor
+                  fileInputRef={avatar.fileInputRef}
+                  draft={avatarDraft}
+                  urlText={avatar.avatarUrlText}
+                  error={avatar.avatarError}
+                  canRemove={canRemove}
+                  disabled={mutation.isPending}
+                  onFileChange={avatar.handleFileChange}
+                  onUrlChange={avatar.handleUrlChange}
+                  onRemove={avatar.handleRemove}
+                />
               )}
               <div>
                 <Label htmlFor="profile-name">{t("profile.name")}</Label>
