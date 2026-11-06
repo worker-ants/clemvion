@@ -44,6 +44,11 @@ data:
   PARALLEL_ENGINE: "off"
   MAX_NODE_ITERATIONS: "100"
 
+  # 안전 종료 유예 시간(ms). SIGTERM 뒤 진행 중 실행을 이만큼 기다리고 남은 것을 SERVER_INTERRUPTED 로 마감한다.
+  # backend-deployment.yaml 의 terminationGracePeriodSeconds 와 함께 바꾼다: ceil(값 / 1000) + 5.
+  # (spec CLE-EXEC-RECOVERY 「환경 변수」, k8s/README.md 「안전 종료 유예 시간」)
+  SIGTERM_GRACE_MS: "30000"
+
   # SSRF guard (HTTP Request / DB Query 노드)
   # true 면 loopback/RFC 1918/link-local 등 차단 해제. 내부 DB·on-prem API 호출이
   # 필요한 self-hosted 배포에서만 의식적으로 true (외부 egress 방화벽 전제).

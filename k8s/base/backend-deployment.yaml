@@ -22,6 +22,12 @@ spec:
         app.kubernetes.io/name: clemvion
         app.kubernetes.io/component: backend
     spec:
+      # 안전 종료 유예 시간과 맞춘다: ceil(SIGTERM_GRACE_MS / 1000) + 5. 5초는 readiness drain 여유다.
+      # SIGTERM 을 받은 백엔드는 진행 중 실행을 SIGTERM_GRACE_MS(configmap.yaml) 동안 기다린 뒤 남은 것을
+      # SERVER_INTERRUPTED 로 마감한다. 이 값이 그보다 짧으면 마감 전에 SIGKILL 을 받는다.
+      # 두 값은 함께 바꾼다(k8s/README.md 「안전 종료 유예 시간」). .claude/tests/test_k8s_termination_grace_parity.py 가 대조한다.
+      # (spec CLE-EXEC-RECOVERY 「환경 변수」)
+      terminationGracePeriodSeconds: 35
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

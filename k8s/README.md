@@ -118,6 +118,43 @@ client bundle 에 인라인되는 한계상 환경별 이미지 빌드. `codebas
 - `readOnlyRootFilesystem: true` + `/tmp` 는 emptyDir.
 - `capabilities.drop: ["ALL"]`, `allowPrivilegeEscalation: false`.
 
+### 안전 종료 유예 시간
+
+backend 는 SIGTERM 을 받으면 새 실행을 503 으로 거절하고, 진행 중 실행을 `SIGTERM_GRACE_MS` 동안 기다린 뒤 남은 것을 `SERVER_INTERRUPTED` 로 마감한다(spec CLE-EXEC-RECOVERY 「안전 종료」). k8s 는 `terminationGracePeriodSeconds` 가 지나면 SIGKILL 을 보내므로 이 값이 유예 시간보다 짧으면 마감 전에 프로세스가 죽는다. k8s 기본값 30초는 백엔드 기본 유예 30초와 같아서 여유가 없다.
+
+그래서 두 값을 다음 공식으로 맞춘다. 5초는 readiness drain 여유다.
+
+```text
+terminationGracePeriodSeconds = ceil(SIGTERM_GRACE_MS / 1000) + 5
+```
+
+| 위치 | 키 | base 값 |
+| --- | --- | --- |
+| `base/configmap.yaml` (`backend-config`) | `SIGTERM_GRACE_MS` | `"30000"` |
+| `base/backend-deployment.yaml` (`backend` pod spec) | `terminationGracePeriodSeconds` | `35` |
+
+환경마다 유예 시간을 바꾸려면 overlay 에서 **두 값을 함께** 바꾼다. 예를 들어 60초로 늘리면 다음과 같다.
+
+```yaml
+patches:
+  - patch: |
+      - op: replace
+        path: /data/SIGTERM_GRACE_MS
+        value: "60000"
+    target:
+      kind: ConfigMap
+      name: backend-config
+  - patch: |
+      - op: replace
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 65
+    target:
+      kind: Deployment
+      name: backend
+```
+
+`.claude/tests/test_k8s_termination_grace_parity.py` 가 base 와 각 overlay 에서 실제로 적용되는 두 값이 공식을 지키는지 본다. overlay 가 한쪽만 바꾸거나 테스트가 읽지 못하는 형태로 바꾸면 실패한다.
+
 ### Access log — Cafe24 install_token 마스킹 (운영 ops, A-2)
 
 Cafe24 Private 앱 설치 진입점 `GET /api/3rd-party/cafe24/install/:installToken` 은 capability-token 성격의 `install_token`(16바이트 base64url, 22자) 을 **URL path segment 에 노출**한다. ingress/LB 가 전체 request URI 를 access log 에 남기면 토큰이 로그에 영속화되어, 로그 열람 권한자에게 토큰이 노출될 수 있다 (spec [`4-cafe24.md §9.8`](../spec/4-nodes/4-integration/4-cafe24.md) / 통합 화면 Rationale "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제" 의 위험 벡터).
