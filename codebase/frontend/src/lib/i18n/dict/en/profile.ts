@@ -66,8 +66,7 @@ export const profile: Dict["profile"] = {
   fieldBefore: "Before",
   fieldAfter: "After",
   changePasswordPageTitle: "Change password",
-  changePasswordPageDescription:
-    "Confirm your current password and set a new one.",
+  changePasswordPageDescription: "Confirm your current password and set a new one.",
   changePasswordSubmit: "Change",
   changePasswordSuccess: "Password updated",
   changePasswordCardHint: "Requires current-password confirmation",
@@ -86,15 +85,13 @@ export const profile: Dict["profile"] = {
     invalidType: "Only png, jpg, jpeg, webp, and gif images can be uploaded",
     tooLarge: "Images must be 2MB or smaller",
     empty: "Empty files can't be uploaded",
-    invalidUrl:
-      "Enter an image URL that starts with http:// or https:// (up to 500 characters)",
+    invalidUrl: "Enter an image URL that starts with http:// or https:// (up to 500 characters)",
     uploadFailed: "Couldn't upload the avatar image",
   },
   security: {
     title: "Security",
     twoFactor: "Two-factor Authentication",
-    twoFactorDescription:
-      "Set up two-factor authentication to protect your account",
+    twoFactorDescription: "Set up two-factor authentication to protect your account",
     twoFactorEnabled: "2FA enabled",
     twoFactorDisabled: "2FA disabled",
     enable: "Enable",
@@ -105,8 +102,7 @@ export const profile: Dict["profile"] = {
     verifyCodePlaceholder: "6-digit code",
     verifyButton: "Verify",
     backupCodes: "Backup Codes",
-    backupCodesDescription:
-      "Store these backup codes in a safe place. You can use them when you lose access to your device.",
+    backupCodesDescription: "Store these backup codes in a safe place. You can use them when you lose access to your device.",
     backupCodesUsed: "Backup codes remaining: {{remaining}}",
     regenerateBackup: "Regenerate backup codes",
     sessions: "Sessions",
@@ -119,8 +115,7 @@ export const profile: Dict["profile"] = {
     disableFailed: "Failed to disable 2FA",
     invalidCode: "Please enter a 6-digit code",
     pageTitle: "Security · Two-factor Authentication",
-    pageDescription:
-      "Authenticator apps (e.g., Google Authenticator, 1Password) will be required in addition to your password when signing in.",
+    pageDescription: "Authenticator apps (e.g., Google Authenticator, 1Password) will be required in addition to your password when signing in.",
     active: "2FA is Enabled",
     activeMessage:
       "Two-factor authentication is on. Enter your account password and the 6-digit code from your authenticator app (or a recovery code) to disable it.",
@@ -130,32 +125,25 @@ export const profile: Dict["profile"] = {
     setupCardTitle: "Set up 2FA",
     startSetup: "Start setup",
     qrAlt: "TOTP QR Code",
-    scanInstruction:
-      "Scan the QR code with your authenticator app, then enter the 6-digit code it shows.",
+    scanInstruction: "Scan the QR code with your authenticator app, then enter the 6-digit code it shows.",
     codeLabel: "Verification code",
     codePlaceholder: "123456",
     verifyActivateButton: "Verify & Enable",
-    recoveryCodesTitle:
-      "Recovery codes (shown once — save them somewhere safe)",
-    recoveryCodesHint:
-      "You can use each code once to sign in when you cannot access your authenticator app.",
+    recoveryCodesTitle: "Recovery codes (shown once — save them somewhere safe)",
+    recoveryCodesHint: "You can use each code once to sign in when you cannot access your authenticator app.",
     passwordRequired: "Please enter your password.",
     disableCodeRequired: "Please enter your verification code.",
     setupStartFailed: "Failed to start 2FA setup.",
     verifyFailed: "Invalid verification code.",
-    alreadyEnabled:
-      "2FA is already enabled. Disable it first to set it up again.",
+    alreadyEnabled: "2FA is already enabled. Disable it first to set it up again.",
     setupPasswordHint: "Enter your account password to start setup.",
     passwordInvalid: "The password is incorrect.",
-    passwordNotSet:
-      "This account has no password. Set one first with password reset.",
+    passwordNotSet: "This account has no password. Set one first with password reset.",
     verifySuccess: "2FA enabled.",
     disableSuccess: "2FA disabled.",
-    disableFailedDetail:
-      "The password or verification code did not match, or the request failed.",
+    disableFailedDetail: "The password or verification code did not match, or the request failed.",
     rateLimited: "Too many requests. Please try again in a moment.",
-    setupExpired:
-      "More than 10 minutes have passed since you started setup. Please start again.",
+    setupExpired: "More than 10 minutes have passed since you started setup. Please start again.",
     webauthn: {
       cardTitle: "Passkey · Security Key",
       unsupported: "This browser does not support Passkey · security key.",
@@ -165,8 +153,7 @@ export const profile: Dict["profile"] = {
       registerButton: "Register Passkey",
       registerSuccess: "Passkey registered.",
       registerFailed: "Failed to register Passkey.",
-      emptyHint:
-        "No Passkey registered. Add your first authenticator using the button above.",
+      emptyHint: "No Passkey registered. Add your first authenticator using the button above.",
       unnamedDevice: "Unnamed authenticator",
       editName: "Rename",
       saveName: "Save",
@@ -178,26 +165,21 @@ export const profile: Dict["profile"] = {
       never: "Never used",
       deleteButton: "Delete",
       deleteAria: "Delete this authenticator",
-      deleteConfirm:
-        "Delete this authenticator? If it is your last one, recovery codes are also discarded.",
+      deleteConfirm: "Delete this authenticator? If it is your last one, recovery codes are also discarded.",
       deleteSuccess: "Authenticator deleted.",
       deleteFailed: "Failed to delete.",
-      recoveryCodesTitle:
-        "WebAuthn recovery codes (shown once — store securely)",
-      recoveryCodesHint:
-        "Use a code once each to sign in when your Passkey is unavailable.",
+      recoveryCodesTitle: "WebAuthn recovery codes (shown once — store securely)",
+      recoveryCodesHint: "Use a code once each to sign in when your Passkey is unavailable.",
       dismissCodes: "Got it",
       regenLabel: "Regenerate recovery codes — confirm account password",
       regenButton: "Regenerate",
-      regenSuccess:
-        "New recovery codes issued. Previous unused codes are discarded.",
+      regenSuccess: "New recovery codes issued. Previous unused codes are discarded.",
       regenFailed: "Failed to regenerate recovery codes.",
     },
   },
   sessions: {
     pageTitle: "Sessions & Login history",
-    pageDescription:
-      "Review devices currently signed in and revoke anything that looks unfamiliar.",
+    pageDescription: "Review devices currently signed in and revoke anything that looks unfamiliar.",
     tabActive: "Active sessions",
     tabHistory: "Login history",
     currentBadge: "Current",
@@ -220,10 +202,8 @@ export const profile: Dict["profile"] = {
     dialogTitleSingle: "Revoke this session?",
     dialogTitleAll: "Revoke all other sessions?",
     dialogPasswordDescription: "Please re-enter your password to confirm.",
-    dialogTotpDescription:
-      "This OAuth-only account requires a 2FA code to confirm.",
-    dialogReauthUnavailable:
-      "Set a password or enable 2FA before performing this action.",
+    dialogTotpDescription: "This OAuth-only account requires a 2FA code to confirm.",
+    dialogReauthUnavailable: "Set a password or enable 2FA before performing this action.",
     dialogCancel: "Cancel",
     dialogConfirm: "Revoke",
     passwordPlaceholder: "Current password",
@@ -238,8 +218,7 @@ export const profile: Dict["profile"] = {
   },
   alerts: {
     title: "Alert rules",
-    description:
-      "Set up alert rules for failure rate, execution time, and LLM cost thresholds",
+    description: "Set up alert rules for failure rate, execution time, and LLM cost thresholds",
     newRule: "New rule",
     ruleName: "Rule name",
     ruleNamePlaceholder: "e.g., Payment failure alert",
@@ -265,8 +244,7 @@ export const profile: Dict["profile"] = {
     deleteConfirm: "Delete this alert rule?",
     empty: "No alert rules yet",
     pageTitle: "Alert Rules",
-    pageDescription:
-      "Receive in-app notifications when failure rate, execution time, or LLM cost crosses your thresholds.",
+    pageDescription: "Receive in-app notifications when failure rate, execution time, or LLM cost crosses your thresholds.",
     createdToast: "Alert rule created.",
     deletedToast: "Rule deleted.",
     createFailedToast: "Failed to create rule",
