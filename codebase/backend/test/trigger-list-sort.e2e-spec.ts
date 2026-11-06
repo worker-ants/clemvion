@@ -118,19 +118,29 @@ describe('GET /api/triggers sort · order (e2e)', () => {
         '2026-03-01T00:00:00Z',
       ],
     ];
-    for (const [
-      id,
-      isActive,
-      createdAt,
-      updatedAt,
-      lastTriggeredAt,
-    ] of fixtures) {
-      await db.query(
-        `UPDATE trigger
-            SET is_active = $2, created_at = $3, updated_at = $4, last_triggered_at = $5
-          WHERE id = $1`,
-        [id, isActive, createdAt, updatedAt, lastTriggeredAt],
-      );
+    // `trigger` 의 BEFORE UPDATE 트리거(`trg_trigger_updated_at`)가 `updated_at` 을 now() 로 덮는다.
+    // 복제 모드는 `SET LOCAL` 이라 이 트랜잭션에서만 켜지고 트리거가 돌지 않는다.
+    await db.query('BEGIN');
+    try {
+      await db.query('SET LOCAL session_replication_role = replica');
+      for (const [
+        id,
+        isActive,
+        createdAt,
+        updatedAt,
+        lastTriggeredAt,
+      ] of fixtures) {
+        await db.query(
+          `UPDATE trigger
+              SET is_active = $2, created_at = $3, updated_at = $4, last_triggered_at = $5
+            WHERE id = $1`,
+          [id, isActive, createdAt, updatedAt, lastTriggeredAt],
+        );
+      }
+      await db.query('COMMIT');
+    } catch (err) {
+      await db.query('ROLLBACK');
+      throw err;
     }
   });
 
