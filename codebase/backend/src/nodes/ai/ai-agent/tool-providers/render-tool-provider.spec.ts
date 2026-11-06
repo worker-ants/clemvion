@@ -339,6 +339,8 @@ describe('RenderToolProvider.execute — display-only', () => {
         arguments: JSON.stringify({
           chartType: 'bar',
           title: bigTitle,
+          // data 최소 검사(REQ-CHART-021)를 통과해야 1MB 상한 경로에 닿는다.
+          data: [{ x: 'Jan', y: 1 }],
         }),
       },
       { config: { presentationTools: [{ type: 'chart' }] }, workspaceId: 'ws' },
@@ -351,7 +353,146 @@ describe('RenderToolProvider.execute — display-only', () => {
       issues: string[];
     };
     expect(parsed.error).toBe('INVALID_PAYLOAD');
+    expect(parsed.issues).toHaveLength(1);
     expect(parsed.issues[0]).toMatch(/1MB cap/);
+  });
+});
+
+// CLE-NODE-CHART 「표시 도구 페이로드」 REQ-CHART-021 — `data` 는 chartConfigSchema
+// 밖이라 zod 가 보지 않는다. 도구 의미 검사가 최소 모양만 본다: 배열이 아니거나,
+// 항목이 있는데 객체(배열 · null 제외) 항목이 하나도 없으면 INVALID_PAYLOAD 로
+// 다시 부르게 한다. 빈 배열과 객체가 섞인 배열은 받는다(렌더러가 객체가 아닌
+// 항목을 건너뛴다).
+describe('RenderToolProvider.execute — render_chart data 최소 검사', () => {
+  const CHART_SHAPE = '{ x, y?, series? }[]';
+
+  // 테스트마다 새 provider 를 쓴다. 공유 provider 는 실행별 렌더 호출 수
+  // (RENDER_CALL_SOFT_CAP)를 세므로 앞 테스트의 렌더가 뒤 테스트를 막을 수 있다.
+  const runChart = (args: Record<string, unknown>) =>
+    new RenderToolProvider().execute(
+      {
+        id: 'call_chart_data',
+        name: 'render_chart',
+        arguments: JSON.stringify({ chartType: 'bar', ...args }),
+      },
+      { config: { presentationTools: [{ type: 'chart' }] }, workspaceId: 'ws' },
+    );
+
+  const expectViolation = (
+    result: Awaited<ReturnType<typeof runChart>>,
+  ): string[] => {
+    expect(result.status).toBe('error');
+    expect(result.presentationCall?.status).toBe('schema_violation');
+    expect(result.presentationPayload).toBeUndefined();
+    const parsed = JSON.parse(result.content) as {
+      error: string;
+      issues: string[];
+    };
+    expect(parsed.error).toBe('INVALID_PAYLOAD');
+    expect(parsed.issues).toHaveLength(1);
+    expect(result.presentationSchemaViolation?.issues).toEqual(parsed.issues);
+    // 안내 문구는 도구 설명과 같은 모양 표기(CHART_DATA_SHAPE)를 쓴다.
+    expect(parsed.issues[0]).toContain(CHART_SHAPE);
+    return parsed.issues;
+  };
+
+  it.each<[string, Record<string, unknown>]>([
+    ['data 가 없다', {}],
+    ['data 가 null', { data: null }],
+    ['data 가 포인트 객체 하나', { data: { x: 'Jan', y: 1 } }],
+    ['data 가 문자열', { data: '[{"x":"Jan","y":1}]' }],
+    ['data 가 숫자', { data: 3 }],
+  ])('배열이 아니면 INVALID_PAYLOAD — %s', async (_label, args) => {
+    const [issue] = expectViolation(await runChart(args));
+    expect(issue).toMatch(/^chart\.data must be an array/);
+  });
+
+  it.each<[string, unknown[]]>([
+    ['숫자만', [1, 2, 3]],
+    ['문자열만', ['Jan', 'Feb']],
+    ['null 만', [null, null]],
+    [
+      '배열만 (배열은 객체 항목이 아니다)',
+      [
+        ['Jan', 1],
+        ['Feb', 2],
+      ],
+    ],
+    ['원시값 · null · 배열 섞임', [1, 'a', null, [1], true]],
+  ])(
+    '항목이 있는데 객체 항목이 하나도 없으면 INVALID_PAYLOAD — %s',
+    async (_label, data) => {
+      const [issue] = expectViolation(await runChart({ data }));
+      expect(issue).toMatch(
+        /^chart\.data must contain at least one point object/,
+      );
+    },
+  );
+
+  it('빈 배열은 받는다 — 그릴 포인트가 없는 표시는 렌더러가 정한다', async () => {
+    const result = await runChart({ data: [] });
+    expect(result.status).toBe('success');
+    expect(result.presentationCall?.status).toBe('rendered');
+    expect(result.presentationPayload!.payload).toMatchObject({ data: [] });
+  });
+
+  // 최소 검사는 객체 항목이 있는지만 본다. 객체의 키(x · y)는 보지 않으므로 `[{}]`
+  // 도 받는다. 항목별 엄격 검증은 스펙이 기각한 대안이다.
+  it.each<[string, unknown[]]>([
+    ['객체가 가운데', [1, { x: 'Jan', y: 10 }, null, ['Feb', 2], 'Mar']],
+    ['객체가 마지막', [1, 'a', null, ['Feb', 2], { x: 'Jan', y: 10 }]],
+    ['키 없는 빈 객체 하나', [{}]],
+  ])(
+    '객체 항목이 하나라도 있으면 받고 data 를 고치지 않는다 — %s',
+    async (_label, data) => {
+      const result = await runChart({ data });
+      expect(result.status).toBe('success');
+      expect(result.presentationCall?.status).toBe('rendered');
+      expect(
+        (result.presentationPayload!.payload as { data: unknown[] }).data,
+      ).toEqual(data);
+    },
+  );
+
+  it('정상 포인트 배열(series 포함)은 그대로 렌더된다', async () => {
+    const data = [
+      { x: 'Jan', y: 1200, series: 'Seoul' },
+      { x: 'Jan', y: 800, series: 'Busan' },
+      { x: 'Feb', y: 1500, series: 'Seoul' },
+    ];
+    const result = await runChart({ data, title: 'Monthly' });
+    expect(result.status).toBe('success');
+    expect(JSON.parse(result.content)).toMatchObject({
+      ok: true,
+      rendered: true,
+      type: 'chart',
+    });
+    expect(result.presentationPayload!.type).toBe('chart');
+    expect(
+      (result.presentationPayload!.payload as { data: unknown[] }).data,
+    ).toEqual(data);
+  });
+
+  it('defaults 가 data 를 채우면 LLM 페이로드에 data 가 없어도 받는다', async () => {
+    const result = await new RenderToolProvider().execute(
+      {
+        id: 'call_chart_defaults',
+        name: 'render_chart',
+        arguments: JSON.stringify({ chartType: 'line' }),
+      },
+      {
+        config: {
+          presentationTools: [
+            { type: 'chart', defaults: { data: [{ x: 'Jan', y: 1 }] } },
+          ],
+        },
+        workspaceId: 'ws',
+      },
+    );
+    expect(result.status).toBe('success');
+    expect(
+      (result.presentationPayload!.payload as { data: unknown[] }).data,
+    ).toEqual([{ x: 'Jan', y: 1 }]);
   });
 });
 

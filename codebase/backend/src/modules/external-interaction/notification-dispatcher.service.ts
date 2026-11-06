@@ -41,6 +41,9 @@ export class NotificationDispatcher {
    *
    * Redis / BullMQ 가 미가용 (queue 없음) 시 fail-open 으로 로그만 남기고 skip. notification 은
    * 트리거의 부수 기능이므로 enqueue 실패가 워크플로우 실행 자체에 영향 주지 않도록 격리.
+   * 적재(`queue.add`)가 거부돼도 같다. 경고 로그를 남기고 `enqueue_failed` 로 건너뛴다. 다시 적재하지 않는다
+   * (CLE-T-AB21M6, CLE-EIA-DATA 「알림 웹훅 발송」 적재 실패). Redis 연결이 끊긴 동안 `queue.add` 는 바로
+   * 거부되지 않고 ioredis 재연결을 다 쓴 뒤 거부되므로 경고도 그만큼 늦게 남는다.
    */
   async enqueue(
     job: Omit<NotificationWebhookJob, 'deliveryId'> & { deliveryId?: string },
@@ -58,15 +61,23 @@ export class NotificationDispatcher {
       ...job,
       deliveryId,
     };
-    await this.queue.add(`notify:${job.eventType}`, payload, {
-      jobId: deliveryId, // dedup
-      attempts: opts.attempts ?? DEFAULT_NOTIFICATION_ATTEMPTS,
-      // base-4 custom backoff (1s · 4s · 16s · 64s …, CLE-EIA-NOTIFY#재시도와-실패-처리). 지연 계산은
-      // worker(NotificationWebhookProcessor)의 settings.backoffStrategy 가 담당.
-      backoff: { type: NOTIFICATION_BACKOFF_TYPE },
-      removeOnComplete: { age: 24 * 60 * 60, count: 1000 }, // 24h
-      removeOnFail: { age: 7 * 24 * 60 * 60 }, // 7d (debug 용)
-    });
+    try {
+      await this.queue.add(`notify:${job.eventType}`, payload, {
+        jobId: deliveryId, // dedup
+        attempts: opts.attempts ?? DEFAULT_NOTIFICATION_ATTEMPTS,
+        // base-4 custom backoff (1s · 4s · 16s · 64s …, CLE-EIA-NOTIFY#재시도와-실패-처리). 지연 계산은
+        // worker(NotificationWebhookProcessor)의 settings.backoffStrategy 가 담당.
+        backoff: { type: NOTIFICATION_BACKOFF_TYPE },
+        removeOnComplete: { age: 24 * 60 * 60, count: 1000 }, // 24h
+        removeOnFail: { age: 7 * 24 * 60 * 60 }, // 7d (debug 용)
+      });
+    } catch (err) {
+      this.logger.warn(
+        `NotificationDispatcher: 큐 적재 실패 — deliveryId=${deliveryId} 을 버린다 ` +
+          `(triggerId=${job.triggerId}, event=${job.eventType}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return { skipped: true, reason: 'enqueue_failed' };
+    }
     return { deliveryId };
   }
 }

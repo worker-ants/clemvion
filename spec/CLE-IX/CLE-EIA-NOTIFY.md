@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 9
+version: 11
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "8676e16332b3c3d0e089d4644e9544c96ea3e3402dfee2de9b964747950296f7"
+content_hash: "610ace212e487edfe8d87ea69b7991d3175682004120830e882733ccb67f9923"
 read_as: "approved_fallback"
-task: "CLE-T-4MV4BN"
+task: "CLE-T-M1P83C"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "3a4a17900a91a0a1a07d441f600fceba2d862431e1359b1b53112e8fe0f055fb"
-etag: "sha256-25edbdfe2e3ab798d281a6ba556307161e597979a83a3da52ed535c147cb9f7d"
+mirror_sha256: "a9a26eb134bc38f63a5d146eff89ab9e22d742f0cc50509af40e7316248b7378"
+etag: "sha256-0faf4e59973ffb8b2262c43664a6447dd335ce20f82c184ff48c29fc57afe020"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-009 IF 마지막 시도까지 실패하면 THE SYSTEM SHALL 트리거의 발송 건강도(`notification_health`)를 `degraded` 로 바꾸고 `notification_last_error` 를 기록하되 트리거를 끄지 않는다. (원본: EIA-NX-07)
 - REQ-EIANOTI-010 WHEN EIA 알림 웹훅을 보내면 THE SYSTEM SHALL 알림 웹훅 페이로드에 그 실행의 이벤트 순번(`seq`)을 싣는다. (원본: EIA-NX-08)
 - REQ-EIANOTI-011 IF `notification.url` 이 `https://` 가 아니면 THE SYSTEM SHALL 거부하되, 개발 환경 변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 트리거 생성 · 수정 요청에서는 `400 INVALID_NOTIFICATION_URL` 로 거부한다. 보내기 직전에 걸리면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. (원본: EIA-NX-09)
-- REQ-EIANOTI-012 IF `notification.url` 의 호스트가 사설 IP·loopback·메타데이터 주소의 IP 리터럴이거나 `localhost` · `0.0.0.0` 이면 THE SYSTEM SHALL 등록할 때와 보내기 직전에 모두 거부한다. 등록할 때 거부하면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다. 보내기 직전에 거부하면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. 호스트 이름을 DNS 로 풀어 보는 검사는 [SSRF 방지](#ssrf-방지) 의 선택 검사이고 기본은 꺼짐이다. 그래서 기본 설정에서는 사설 IP 로 풀리는 호스트 이름을 막지 않는다. (원본: EIA-NX-10)
+- REQ-EIANOTI-012 IF `notification.url` 의 호스트가 사설 IP·loopback·메타데이터 주소의 IP 리터럴이거나 `localhost` · `0.0.0.0` 이면 THE SYSTEM SHALL 등록할 때와 보내기 직전에 모두 거부한다. 등록할 때 거부하면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다. 보내기 직전에 거부하면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. 호스트 이름을 DNS 로 풀어 보는 검사는 [SSRF 방지](#ssrf-방지) 가 정한다. 운영 환경(`NODE_ENV=production`)에서는 이 검사가 기본으로 켜져 있어 보내기 직전에 사설 IP 로 풀리는 호스트 이름도 거부한다. 운영 밖에서는 기본으로 꺼져 있다. (원본: EIA-NX-10)
 - REQ-EIANOTI-013 WHEN EIA 알림 웹훅 URL 을 검증하면 THE SYSTEM SHALL 워크스페이스 단위 허용·차단 목록을 함께 적용한다. (원본: EIA-NX-10) (미구현)
 - REQ-EIANOTI-014 WHEN 한 트리거의 발송 성공이 분당 60건을 넘으면 THE SYSTEM SHALL EIA 알림 웹훅을 버리거나 늦추지 않고 보내되 발송 건강도를 `degraded` 로, `notification_last_error` 를 폭주 전용 메시지로 기록한다. (원본: EIA-NX-11)
 - REQ-EIANOTI-015 WHEN 폭주가 멎어 분당 60건 이내로 발송에 성공하면 THE SYSTEM SHALL 발송 건강도를 `healthy` 로 되돌린다. (원본: R-outbound-flood)
@@ -300,7 +300,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | 낡은 알림 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
 
-최소 한 번 전달은 발송 작업이 발송 큐(`notification-webhook`)에 적재된 뒤에만 성립한다. 적재 전에 프로세스가 끝나거나 적재가 실패하면 그 발송은 사라지고 발송 건강도에도 남지 않는다. 발송 큐 적재를 fail-open 으로 두는 근거는 [EIA 데이터와 흐름 「인프라 장애에는 fail-open 한다」](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 에 있다.
+최소 한 번 전달은 발송 작업이 발송 큐(`notification-webhook`)에 적재된 뒤에만 성립한다. 적재 전에 프로세스가 끝나거나 적재가 실패하면 그 발송은 사라지고 발송 건강도에도 남지 않는다. 적재가 실패하면 경고 로그만 남긴다. 적재 실패의 처리는 [EIA 데이터와 흐름 「알림 웹훅 발송」](CLE-EIA-DATA.md#알림-웹훅-발송) 이 정한다. 발송 큐 적재를 fail-open 으로 두는 근거는 [EIA 데이터와 흐름 「인프라 장애에는 fail-open 한다」](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 에 있다.
 
 발송 건강도(`notification_health`)는 `unknown`(확인 안 됨)·`healthy`(정상)·`degraded`(저하됨) 세 값이다. 발송 파이프라인(`NotificationFanout` → `NotificationDispatcher` → `notification-webhook` 큐 → `NotificationWebhookProcessor`)과 큐 설정은 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에 있다. `notification.retry` 설정의 뜻(시도 횟수와 간격)은 위 표가 정하고 다른 문서는 이 표를 가리킨다. 간격에 상한을 둔 이유는 [재시도 간격에 1시간 상한을 둔다](#재시도-간격에-1시간-상한을-둔다-2026-10-17) 에 있다. 리다이렉트를 따라가지 않는 이유는 [알림 웹훅 발송은 리다이렉트를 따라가지 않는다](#알림-웹훅-발송은-리다이렉트를-따라가지-않는다-2026-10-18) 에 있다.
 
@@ -319,9 +319,16 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 등록할 때 걸리면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4). 보내기 직전 검사는 발송 작업 안에서 돌아서 응답할 HTTP 요청이 없다. 걸리면 그 알림을 보내지 않고 재시도하지도 않는다. 발송 건강도를 `degraded` 로 바꾸고 `notification_last_error` 에 거부 사유를 남긴다. 아래 DNS 결과 검사에 걸려도 같다.
 
-- 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, fc00::/7, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사를 켰을 때만 막힌다.
+- 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, fc00::/7, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사가 켜져 있을 때만 막힌다. 이 검사는 운영 환경에서 기본으로 켜져 있다.
 - 마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`) 가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 달라 보지 않는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 범위를 쓴다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다.
-- DNS 결과 검사(DNS rebinding 방어): `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 이면 보내기 직전에 호스트 이름을 DNS 로 풀어(A · AAAA) 나온 IP 가운데 하나라도 위 대역에 들면 발송을 거부하고 발송 건강도를 `degraded` 로 둔다(`checkResolvedHostIp`). 등록 때 IP 를 저장해 발송 때 IP 와 비교하지는 않는다. DNS 조회가 실패하면 검사를 통과시킨다. 시도마다 DNS 를 조회해 비용과 지연이 늘어서 선택 사항이고 기본은 꺼짐이다. 근거는 [Rationale](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05) 에 있다.
+- DNS 결과 검사(DNS rebinding 방어): 보내기 직전에 호스트 이름을 OS 해석기로 풀어(`dns.lookup`, 나온 주소 전부) 하나라도 위 대역에 들면 발송을 거부하고 발송 건강도를 `degraded` 로 둔다(`checkResolvedHostIp`). 발송(`fetch`)이 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` 와 검색 도메인도 같게 본다. 켜짐 여부는 환경과 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 로 정한다.
+  - 운영 환경(`NODE_ENV=production`): 기본으로 켠다. 값이 정확히 `0` 일 때만 끈다. 끈 채로 기동하면 `main.ts` 가 `[SECURITY]` 경고 로그를 한 번 남긴다(`shouldWarnNotificationDnsGuardOff`). 기동을 막지는 않는다.
+  - 운영 밖: 기본으로 끈다. 값이 정확히 `1` 일 때만 켠다.
+  - 등록 때는 DNS 를 풀지 않는다. 등록 때 IP 를 저장해 발송 때 IP 와 비교하지도 않는다.
+  - DNS 조회가 실패하면 검사를 통과시킨다(fail-open). 발송도 같은 해석기로 연결하므로 대개 발송이 연결 전에 실패하고 재시도된다.
+  - 조회는 3초(`DNS_LOOKUP_TIMEOUT_MS`)까지 기다린다. 이 값은 코드 상수라 설정으로 바꿀 수 없다. 3초를 넘기면 조회가 실패한 것과 같이 통과시킨다. 이때 발송 작업이 그 트리거의 id 와 함께 경고 로그를 남긴다. 발송 건강도는 바꾸지 않는다.
+  - 검사한 IP 로 연결을 고정하지 않는다. 그래서 검사와 연결 사이에 DNS 응답이 바뀌면 막지 못한다.
+  - 근거와 측정은 [Rationale](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06) 에 있다.
 - 발송은 리다이렉트를 따라가지 않는다. 등록 때와 발송 직전의 검사는 등록 URL 의 호스트만 본다. 리다이렉트가 가리키는 주소는 어느 검사도 보지 않는다. 따라가면 공개 호스트가 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 이 검사들을 통과한다. 307 · 308 이면 서명한 본문도 그 주소로 간다. 3xx 응답의 처리는 [재시도와 실패 처리](#재시도와-실패-처리) 가 정한다.
 - 워크스페이스 단위 허용·차단 목록(원문 표기 `workspace_settings.notification_url_allow_pattern`)을 설정할 수 있어야 한다. [미결 사항](#미결-사항) 참조.
 - URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 운영 환경(`NODE_ENV=production`)에서 이 플래그가 `1` 이나 `true` 이면 서버가 기동하지 않는다([운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드)). 이 플래그는 스킴만 연다. 호스트 검사를 끄는 플래그는 없다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)의 사설망 허용 플래그(`ALLOW_PRIVATE_HOST_TARGETS`)도 이 검사에는 적용되지 않는다.
@@ -356,7 +363,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 검사·발송 건강도, 3xx 를 따라가지 않고 실패로 처리)
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts` (서명 계산, `verifySignatureHeader`)
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts` (폭주 감지 카운터)
-- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp`, IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
+- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp` 와 켜짐 판정 `isNotificationDnsGuardEnabled`, 운영에서 끈 경우의 기동 경고 판정 `shouldWarnNotificationDnsGuardOff`(`main.ts` 가 부른다), IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`, 등록 거부 `assertNotificationUrlSafe`(`400 INVALID_NOTIFICATION_URL`))
 - `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰는 서비스다. 첫 시크릿 발급이나 옛 평문 옮기기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 시크릿 발급 판정 `decideNotificationSigning`, 발송 처리기와 함께 쓰는 «있음» 판정 `readStoredSigningSecret`)
@@ -421,7 +428,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - 상한이 없으면 총 시도 횟수 10 의 마지막 간격은 65,536초(약 18.2시간)다. 간격을 모두 더하면 87,381초(약 24.3시간)다. 상한을 두면 같은 설정에서 12,165초(약 3.4시간)로 줄어든다.
 - 발송 건강도는 마지막 시도가 실패해야 `degraded` 가 된다. 재시도 창이 하루면 운영자는 발송 실패를 하루 늦게 안다.
 - 진행 중 이벤트는 낡은 알림 차단이 걸러 낸다. 종결 이벤트는 그 대상이 아니라서 하루 늦게라도 나간다.
-- 발송 직전 SSRF 검사는 시도마다 한다. 그러나 호스트 이름을 DNS 로 풀어 보는 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)는 기본 꺼짐이다. 재시도 창이 길수록 등록 뒤 바뀐 DNS 응답으로 보낼 여지도 길어진다.
+- 발송 직전 SSRF 검사는 시도마다 한다. 그러나 이 결정 때는 호스트 이름을 DNS 로 풀어 보는 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)가 기본 꺼짐이었다. 2026-11-06 부터 운영 환경에서는 기본으로 켠다([운영 환경에서 DNS 결과 검사를 기본으로 켠다](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06)). 재시도 창이 길수록 등록 뒤 바뀐 DNS 응답으로 보낼 여지도 길어진다.
 - 상한은 EIA 알림 웹훅에만 둔다. 재개 큐(`execution-continuation`)도 1초에서 4배씩 늘지만 상한이 없고 전략 이름(`continuation-exp4`)도 따로다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 알림 쪽 전략 이름 `exp-base4` 는 그대로 둔다.
 
 기각한 대안:
@@ -443,7 +450,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - **같은 출처 리다이렉트만 따라간다**: 새 허용 규칙이 필요하다. 등록 URL 을 최종 주소로 바꾸면 같은 결과를 얻는다.
 - **3xx 를 받으면 재시도 없이 바로 최종 실패(`degraded`)로 둔다**: 임시 리다이렉트는 상대 서버가 고치거나 사용자가 URL 을 고치면 회복될 수 있다. 다른 `2xx` 가 아닌 응답과 같은 재시도 규칙(REQ-EIANOTI-008)을 따르면 처리 분기가 늘지 않는다. 대신 영구 리다이렉트도 재시도가 끝날 때까지 `degraded` 표시가 늦어진다. 기본 설정(총 시도 5)이면 간격만 더해 85초, 총 시도 횟수 상한 10 이면 12,165초(약 3.4시간) 늦어진다.
 
-DNS 결과 검사의 기본값과 [SSRF 방지](#ssrf-방지) 본문 · REQ-EIANOTI-012 의 어긋남은 2026-11-05 에 정리했다([SSRF 방지 본문을 구현에 맞춘다](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05)).
+DNS 결과 검사의 기본값과 [SSRF 방지](#ssrf-방지) 본문 · REQ-EIANOTI-012 의 어긋남은 2026-11-05 에 정리했다([SSRF 방지 본문을 구현에 맞춘다](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05)). 운영 환경의 기본값은 2026-11-06 에 켜짐으로 바꿨다([운영 환경에서 DNS 결과 검사를 기본으로 켠다](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06)).
 
 ### IPv4 를 품은 IPv6 리터럴을 품은 IPv4 로 판정한다 (2026-11-01)
 
@@ -451,7 +458,7 @@ DNS 결과 검사의 기본값과 [SSRF 방지](#ssrf-방지) 본문 · REQ-EIAN
 
 - Node.js 의 `URL` 은 `https://[::ffff:127.0.0.1]/` 의 hostname 을 `[::ffff:7f00:1]` 로, `https://[::ffff:169.254.169.254]/` 를 `[::ffff:a9fe:a9fe]` 로 바꾼다. 그때까지 검사는 IPv6 에서 `::1` · `::` · fe80::/10 · fc00::/7 만 막았다. 그래서 두 주소가 등록 검사와 발송 직전 검사를 모두 지났다.
 - IPv4-mapped 주소는 IPv4 대상에 그대로 닿는다. 통합 노드 가드 코드(`http-safety.ts` 의 `mappedIPv4`)도 같은 이유로 IPv4-mapped 를 품은 IPv4 로 판정한다. 그 판정 범위와 실측은 아직 스펙에 없고 코드 주석에만 있다. 알림 웹훅에서는 서명한 POST 가 loopback · 메타데이터 주소로 가고 그 응답 코드가 `notification_last_error` 에 보인다.
-- `dns.resolve6` 는 mapped 주소를 점 표기(`::ffff:127.0.0.1`)로 돌려준다. 발송 직전 DNS 결과 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1`)도 같은 판정을 쓴다. 가드의 기본값은 바꾸지 않았다([SSRF 방지 본문을 구현에 맞춘다](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05)).
+- `dns.resolve6` 는 mapped 주소를 점 표기(`::ffff:127.0.0.1`)로 돌려준다. 발송 직전 DNS 결과 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1`)도 같은 판정을 쓴다. 가드의 기본값은 바꾸지 않았다([SSRF 방지 본문을 구현에 맞춘다](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05)). 2026-11-06 에 이 검사는 `dns.lookup` 으로 바뀌었고 운영 환경에서 기본으로 켜졌다([운영 환경에서 DNS 결과 검사를 기본으로 켠다](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06)). 판정 함수가 점 표기와 16진 표기를 같은 정규화로 읽으므로 판정 결과는 같다.
 - IPv4-compatible · SIIT · NAT64 표기도 같은 방식으로 본다. 통합 노드 가드는 이 셋을 막지 않는다. 그 코드 주석은 macOS · `node:24-alpine` 실측에서 이 표기로 IPv4 대상에 닿지 않았다고 적는다. 그러나 NAT64 는 `64:ff9b::a.b.c.d` 를 IPv4 `a.b.c.d` 로 바꿔 보내는 변환이다(RFC 6052 · RFC 6146). NAT64 게이트웨이가 있는 IPv6 전용 망에 배포하면 닿을 수 있다. 품은 IPv4 가 사설 · 특수 대역일 때만 막으므로 공인 주소로 가는 수신 서버는 영향이 없다.
 - 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 판정하지 않는다. 6to4 주소로 보낸 패킷은 그 IPv4 의 6to4 라우터가 받아 뒤쪽 IPv6 망으로 넘긴다. 품은 IPv4 의 TCP 서비스로는 가지 않는다. local-use prefix 는 운영자가 접두 길이를 정한다(RFC 8215). 그래서 IPv4 가 놓이는 자리가 망마다 다르다. 마지막 32비트를 읽으면 엉뚱한 IPv4 로 판정하게 된다.
 - [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 정규화 · 추출 헬퍼를 쓰고 판정 범위가 같다. 꺼낸 IPv4 를 판정하는 대역표는 가드마다 따로 있다.
@@ -493,3 +500,32 @@ NERV Task `CLE-T-5BZ3M2` 가 발행 중인 `INVALID_NOTIFICATION_URL` 을 [에�
 기각한 대안:
 
 - **보내기 직전 거부에도 에러 코드를 남긴다**: 이 초안을 쓰면서 검토했다. `notification_last_error` 는 사유 문장 하나만 담고 마지막 시도 실패와 폭주도 같은 필드를 쓴다. 코드를 따로 담으려면 저장 형식과 트리거 REST 응답이 바뀐다. 카탈로그에 올리는 일만 하는 이번 Task 의 범위를 넘는다.
+
+### 운영 환경에서 DNS 결과 검사를 기본으로 켠다 (2026-11-06)
+
+NERV Task `CLE-T-M1P83C` 의 변경이다. [SSRF 방지 본문을 구현에 맞춘다](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05) 가 이 Task 로 넘긴 일이다. [SSRF 방지](#ssrf-방지) 의 DNS 결과 검사와 REQ-EIANOTI-012 를 바꿨다.
+
+2026-11-05 결정은 기본값을 꺼짐으로 둔 채 본문을 구현에 맞췄고, 그 Rationale 은 «알림 웹훅만 기본으로 풀지 않는다» 고 적었다. 이번 변경은 그 기본값을 운영 환경에서 켜짐으로 바꾼다. 검사 함수도 `dns.resolve4` · `dns.resolve6` 에서 `dns.lookup` 으로 바꿨다. 앞선 Rationale 의 `resolve4` · `resolve6` 언급은 그때 구현을 적은 것이다.
+
+- **켜는 이유**: 기본이 꺼짐이면 사설 IP 로 풀리는 호스트 이름이 등록 검사와 발송 직전 검사를 모두 지난다. 내부 DNS 이름이나 공개 DNS 에 사설 IP 를 올린 이름이 그렇다. 그러면 서명한 알림 본문이 내부망 주소로 나간다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단) 와 [LLM 연결](../CLE-AI/CLE-AI-LLM.md) 은 이미 호스트 이름을 풀어 다시 검사한다.
+- **비용 측정**(2026-11-06, Node 26, 호스트 이름 넷 × 20회): 공개 호스트 셋(`example.com` · `hooks.slack.com` · `api.github.com`)과 없는 이름 하나를 풀었다.
+  - macOS 개발 장비: 예전 방식(`resolve4` 뒤 `resolve6`)은 이름별 중앙값 8.4~76.2ms, 최댓값 620.5ms(없는 이름)였다. `lookup` 은 중앙값 1.7~2.6ms, 최댓값 38.0ms 였다.
+  - Linux 컨테이너(`node:26-alpine`, Docker Desktop): 예전 방식은 중앙값 0.9~2.3ms, 최댓값 41.5ms 였다. `lookup` 은 중앙값 0.7~1.5ms, 최댓값 2.8ms 였다.
+  - 발송 제한 시간 10초에 견주면 작다. 측정은 개발 장비의 해석기 기준이다. 운영 클러스터는 `ndots` 와 검색 도메인 때문에 질의가 더 늘 수 있다.
+- **`lookup` 으로 바꾼 이유**: `resolve4` · `resolve6` 는 네트워크 DNS 에만 묻고 `/etc/hosts` 와 OS 검색 도메인을 보지 않는다. `fetch` 는 `lookup`(getaddrinfo)으로 연결한다. 그래서 검사와 연결이 다른 답을 볼 수 있었다. Linux 컨테이너에서 자기 호스트 이름(`/etc/hosts` 의 172.17.0.2)을 풀자 `resolve4` · `resolve6` 는 `ENOTFOUND` · `ENODATA` 로 실패해 검사를 통과시켰고, `lookup` 은 사설 IP 를 돌려줘 막았다. 질의도 둘에서 하나로 준다. 통합 노드 가드(`assertSafeOutboundHostResolved`)도 `lookup` 을 쓴다.
+- **조회 실패는 통과시킨다**: 검사와 발송이 같은 해석기를 쓰므로 조회가 실패하면 발송도 대개 연결 전에 실패하고 재시도된다. 실패를 거부로 보면 일시적인 DNS 장애가 바로 `degraded` 와 알림 유실이 된다. [거부가 어떻게 보이는지 본문에 적는다](#거부가-어떻게-보이는지-본문에-적는다-2026-11-05) 에서 정한 대로 검사 거부는 재시도하지 않기 때문이다. 통합 노드 가드도 조회 실패를 통과시킨다.
+- **조회는 3초까지만 기다린다**: 해석기가 느리면 발송 작업이 HTTP 제한 시간(10초) 밖에서 조회에 묶인다. 위 측정의 최댓값(38.0ms)보다 훨씬 긴 3초를 넘기면 조회 실패와 같이 통과시킨다. 다만 실패와 달리 시간 초과는 연결 때 답이 와서 발송이 나갈 수 있다. 검사 없이 나간 발송을 운영자가 볼 수 있게 경고 로그를 남긴다. 시간을 넘긴 `getaddrinfo` 는 끝날 때까지 libuv 스레드풀 자리를 잡는다. 이 점은 검사와 연결의 조회를 하나로 합치는 주소 고정 후속(`CLE-T-GAQCF9`)에서 다룬다. 2026-11-06 코드 리뷰에서 더했다.
+- **끄는 값은 `0` 하나다**: 운영에서 `1` 이 아닌 값을 모두 꺼짐으로 보면 오타나 빈 값이 방어를 끈다. 켜짐을 기본으로 두고 정확히 `0` 일 때만 끄면 잘못 쓴 값은 켜짐으로 남는다.
+- **운영에서 끄는 길을 남긴다**: 사설 IP 로 풀리는 내부 수신기에 알림을 보내야 하는 자체 설치 배포가 있다. 정당한 용도가 있어 기동을 막지 않는다. 대신 `main.ts` 가 기동할 때 `[SECURITY]` 경고 로그를 남긴다. 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 와 같은 방식이다. 그래서 [운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 넣지 않았다.
+- **운영 밖은 꺼 둔다**: e2e 는 Docker 내장 DNS 가 사설 IP 로 푸는 컨테이너 이름으로 알림 수신기에 보낸다(`notification-webhook-redirect.e2e-spec.ts`). 개발 환경도 비슷하다. 운영 밖에서 켜려면 `1` 을 준다.
+- **남은 위험**: 검사한 IP 로 연결을 고정하지 않으므로 검사와 연결 사이에 DNS 응답이 바뀌면(TTL 0 rebinding) 막지 못한다. 권한 DNS 를 쥔 공격자가 검사 때는 조회 실패를, 연결 때는 내부 주소를 돌려주는 변형도 남는다. 검사 때 답을 3초 넘게 늦추는 변형도 같다. 고정하려면 `fetch` 의 연결 계층을 바꿔야 해서 후속 NERV Task `CLE-T-GAQCF9` 로 넘겼다. 외부 MCP · HTTP Request 노드의 같은 작업은 `CLE-T-BS1WD1` 이다.
+
+기각한 대안:
+
+- **등록 때도 DNS 를 풀어 거부한다**: 등록 때 받은 답은 발송 때 다시 바뀔 수 있어 발송 직전 검사를 대신하지 못한다. 트리거 생성 · 수정 API 가 외부 DNS 의 가용성과 지연에 묶이고, 같은 URL 의 등록 결과가 시점마다 달라진다. 발송 직전 검사가 시도마다 보므로 등록 검사는 문자열 검사로 둔다.
+- **예전 방식(`resolve4` · `resolve6`)을 그대로 켠다**: 위 측정처럼 질의가 둘이라 느리고, `/etc/hosts` 를 보지 않아 `fetch` 와 다른 답을 본다.
+- **운영에서 끄는 길을 없앤다**: 자체 설치 배포가 내부 수신기에 알림을 보낼 수 없게 된다.
+- **조회 실패를 거부로 본다(fail-closed)**: 위 「조회 실패는 통과시킨다」 를 보라. 연결을 고정하는 후속 작업에서 함께 다시 정한다.
+- **시간 초과를 거부로 본다**: 느린 해석기가 일시적으로 늦어도 바로 `degraded` 와 알림 유실이 된다. 조회 실패를 통과시키는 것과 같은 이유로 통과시키고 경고 로그로 남긴다.
+- **제한 시간 없이 기다린다**: 해석기가 멈추면 발송 작업이 HTTP 제한 시간과 상관없이 끝나지 않는다.
+

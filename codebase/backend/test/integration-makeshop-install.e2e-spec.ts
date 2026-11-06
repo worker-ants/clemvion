@@ -47,6 +47,10 @@ type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
+/** 설치 엔드포인트 실패 응답의 `error.requestId` — 응답마다 새로 발급하는 uuid v4 (CLE-T-909H23). */
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 function makeInstallToken(): string {
   // INSTALL_TOKEN_BYTES = 16 → base64url 22자
   return randomBytes(16).toString('base64url');
@@ -271,6 +275,7 @@ describe('MakeShop install endpoint (e2e)', () => {
       expect(res.body?.code ?? res.body?.error?.code).toBe(
         'MAKESHOP_INSTALL_INVALID_TOKEN',
       );
+      expect(res.body?.error?.requestId).toMatch(UUID_V4);
     });
 
     it('missing shop_uid/timestamp/hmac → 400 MAKESHOP_INSTALL_MISSING_PARAMS', async () => {
@@ -285,6 +290,7 @@ describe('MakeShop install endpoint (e2e)', () => {
       expect(res.body?.code ?? res.body?.error?.code).toBe(
         'MAKESHOP_INSTALL_MISSING_PARAMS',
       );
+      expect(res.body?.error?.requestId).toMatch(UUID_V4);
     });
 
     it('malformed install_token (not 22-char base64url) → 404 MAKESHOP_INSTALL_INVALID_TOKEN', async () => {
@@ -300,6 +306,7 @@ describe('MakeShop install endpoint (e2e)', () => {
       expect(res.body?.code ?? res.body?.error?.code).toBe(
         'MAKESHOP_INSTALL_INVALID_TOKEN',
       );
+      expect(res.body?.error?.requestId).toMatch(UUID_V4);
     });
   });
 

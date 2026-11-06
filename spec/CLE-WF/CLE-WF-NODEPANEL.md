@@ -2,19 +2,19 @@
 id: "CLE-WF-NODEPANEL"
 title: "노드 포트와 설정 패널"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-NODEUI-001", "REQ-NODEUI-002", "REQ-NODEUI-003", "REQ-NODEUI-004", "REQ-NODEUI-005", "REQ-NODEUI-006", "REQ-NODEUI-007", "REQ-NODEUI-008", "REQ-NODEUI-009", "REQ-NODEUI-010", "REQ-NODEUI-011", "REQ-NODEUI-012", "REQ-NODEUI-013", "REQ-NODEUI-014", "REQ-NODEUI-015", "REQ-NODEUI-016", "REQ-NODEUI-017", "REQ-NODEUI-018", "REQ-NODEUI-019", "REQ-NODEUI-020", "REQ-NODEUI-021", "REQ-NODEUI-022", "REQ-NODEUI-023", "REQ-NODEUI-024", "REQ-NODEUI-025", "REQ-NODEUI-026", "REQ-NODEUI-027", "REQ-NODEUI-028", "REQ-NODEUI-029", "REQ-NODEUI-030", "REQ-NODEUI-031", "REQ-NODEUI-032", "REQ-NODEUI-033", "REQ-NODEUI-034", "REQ-NODEUI-035", "REQ-NODEUI-036", "REQ-NODEUI-037", "REQ-NODEUI-038", "REQ-NODEUI-039", "REQ-NODEUI-040", "REQ-NODEUI-041"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "fb8884699b72e99f5104bf0f2219d8fee87f2da410dd6e9a2a866eeca45edcf4"
+content_hash: "f8a39cec27a3d6507358db3a2709110ed8b9eef0dbacfb63c3ec1559753405e7"
 read_as: "approved_fallback"
-task: "CLE-T-KPDDKB"
+task: "CLE-T-GGZSC2"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "28e25fa5a934fcfc1e344d146198b47e9177beddaf25a2977ebb4d49b6145b33"
-etag: "sha256-3c009bf300043a4fad3be55f0420a278eb50bc8251b7ad67146c01826c453bcf"
+mirror_sha256: "31b87ac8c16a58280aff4bb7e39357aca8949d62bb3d2943fa7881fc3be9b70e"
+etag: "sha256-550e10bc2f704df25c9e561235a3335d8fc0f853ebd629280033108805b8d9e2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -233,7 +233,7 @@ ID 형식이 맞지 않을 때 `case_0` 같은 순번 ID 로 대신하는 규칙
 | 옵션(화면 라벨) | `policy` | 동작 |
 | --- | --- | --- |
 | 워크플로우 중단(Stop Workflow, 기본) | `stop_workflow` | 에러가 나면 워크플로우 실행을 멈춘다. 실행 상태는 `failed` 다. |
-| 노드 건너뛰기(Skip Node) | `skip_node` | 에러가 나면 이 노드를 건너뛰고 다음 노드로 간다. 출력은 `null` 이다. |
+| 노드 건너뛰기(Skip Node) | `skip_node` | 에러가 나면 이 노드를 건너뛰고 다음 노드로 간다. 이 노드의 출력은 쓰지 않으므로 다음 노드는 빈 값(`undefined`)을 입력으로 받는다. |
 | 기본 출력 사용(Use Default Output) | `use_default_output` | 에러가 나면 미리 정한 기본 출력을 쓴다. [기본 출력](#기본-출력) 참조 |
 | 재시도(Retry) | `retry` | 노드 재시도. 고르면 설정 패널에 `maxRetries`(최대 재시도 횟수)와 `retryInterval`(재시도 간격, ms) 입력이 나온다(`node-settings-panel.tsx`). 엔진은 `retryInterval × backoffMultiplier^attempt` 지수 백오프로 재시도한다(`backoffMultiplier` 기본 2). |
 | 에러 포트로 라우팅(Route to Error Port) | `route_to_error_port` | 에러 데이터를 `error` 포트로 보낸다. 고르면 노드에 동적 에러 포트가 생긴다(미구현). `error` 포트에 연결된 노드가 없으면 워크플로우 중단으로 대신한다. |
@@ -389,3 +389,7 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 ### R-5. Logic 노드의 에러 처리 정책 선택지를 막지 않는다 (2026-10-24)
 
 에러 처리 정책 선택지는 노드 카테고리와 상관없이 같다. Logic 노드도 "에러 포트로 라우팅" 을 고를 수 있다. 동적 에러 포트가 구현되기 전까지 Logic 노드에서 이 정책은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 결정과 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다(NERV Task `CLE-T-3HJ8MM`).
+
+### R-6. 노드 건너뛰기의 출력 설명을 엔진 동작에 맞춘다 (2026-11-06)
+
+이 문서는 노드 건너뛰기의 출력을 `null` 로 적었지만 엔진은 건너뛴 노드의 출력을 쓰지 않는다. [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#노드-건너뛰기는-출력을-쓰지-않는다-2026-11-06) 이 같은 날 문서를 엔진 동작에 맞추면서 이 표도 같은 말로 고쳤다(NERV Task `CLE-T-HW2GKD`). 동작은 바꾸지 않았다. 표현식에 미치는 영향은 그 Rationale 에 있다.

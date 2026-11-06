@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 16
+version: 17
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "a461781f155e53864451460d0dc9302e64230e15dc5ddd97dfb5e84ea3ff01b4"
+content_hash: "ed77fe67f6eea26687e3c5cc1c40ed10a19b7883b2b6f93ce940517d35ffef28"
 read_as: "approved_fallback"
-task: "CLE-T-SFWX84"
+task: "CLE-T-KG01YT"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "5dd7ee61299da9f9d15c55ec0e843b6574d7947a8ba1085bb84f5d6f5c9262c9"
-etag: "sha256-471237eb0efa3092832507648c3bc40af6968be7947146c7495669a45d5930d7"
+mirror_sha256: "dd37602b1ade6f9687fb2c802f5927f51cdcfcf8158ac1b2f0fdd5cb3c212d87"
+etag: "sha256-0f9a7a9905dc2ab8c2a17ee70b438b023713954941d7d34e6f5fb3872f842cda"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -216,7 +216,7 @@ etag: "sha256-471237eb0efa3092832507648c3bc40af6968be7947146c7495669a45d5930d7"
 이메일은 로그인 식별자다. 대소문자만 다른 이메일은 같은 이메일로 본다. 컬럼 제약과 조회 방식은 [계정과 워크스페이스 데이터 흐름 「User」](CLE-ACCT-DATA.md#user) 에 있다.
 
 - **저장**: 새로 저장하는 이메일은 앞뒤 공백을 지우고 소문자로 바꾼다. 일반 가입, 초대 가입, 소셜 로그인의 새 계정, 이메일 변경의 새 이메일이 여기에 든다.
-- **비교**: 로그인, 비밀번호 재설정 요청, 인증 메일 재발송, 소셜 로그인의 이메일 연결은 입력의 앞뒤 공백을 지운 뒤 대소문자를 구분하지 않고 계정을 찾는다. 가입 중복 검사, `POST /api/auth/check-email`, 이메일 변경의 중복 검사도 대소문자를 구분하지 않는다.
+- **비교**: 로그인, 비밀번호 재설정 요청, 인증 메일 재발송, 소셜 로그인의 이메일 연결, 워크스페이스 멤버 직접 추가와 초대는 입력의 앞뒤 공백을 지운 뒤 대소문자를 구분하지 않고 계정을 찾는다. 가입 중복 검사, `POST /api/auth/check-email`, 이메일 변경의 중복 검사도 대소문자를 구분하지 않는다.
 - **기존 값**: 이미 저장된 이메일 값은 바꾸지 않는다. 그래서 정규화 전에 가입한 계정 가운데 대소문자만 다른 계정이 둘 이상 있을 수 있다.
 
 계정을 찾을 때 대소문자만 다른 계정이 둘 이상 맞으면 입력과 대소문자까지 같은 계정을 쓴다. 그런 계정이 없으면 어느 계정인지 정할 수 없다. 이 경우는 모호한 입력으로 보고 거부한다.
@@ -225,11 +225,12 @@ etag: "sha256-471237eb0efa3092832507648c3bc40af6968be7947146c7495669a45d5930d7"
 | --- | --- |
 | 로그인 | 없는 계정과 같은 401 `LOGIN_FAILED` |
 | 비밀번호 재설정 요청, 인증 메일 재발송 | 계정이 없을 때와 같은 응답을 주고 메일을 보내지 않는다 |
+| 워크스페이스 멤버 직접 추가, 초대 | 가입하지 않은 이메일과 같게 다룬다. 직접 추가는 404 `USER_NOT_FOUND` 이고 초대는 인앱 알림 없이 초대 메일만 보낸다([워크스페이스와 멤버 「직접 추가」](CLE-ACCT-WS.md#직접-추가), [「초대」](CLE-ACCT-WS.md#초대)) |
 | 소셜 로그인 | 계정을 연결하지도 새로 만들지도 않고 `{frontend_url}/callback?error=server_error` 로 보낸다. 서버 내부 코드는 `OAUTH_ACCOUNT_AMBIGUOUS` 이고 서버 에러 로그를 남긴다. 운영자가 그 계정들을 정리해야 풀린다([에러 처리](#에러-처리)) |
 
 가입 중복 검사와 `check-email` 은 대소문자만 다른 계정이 하나라도 있으면 이미 쓰는 이메일로 본다. 가입은 409 `RESOURCE_CONFLICT`, `check-email` 은 `available: false` 다. 이메일 변경도 다른 계정이 대소문자만 다른 이메일을 쓰면 409 `RESOURCE_CONFLICT` 다.
 
-근거와 기각한 안은 Rationale 「[대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)」 에 있다. 대소문자를 무시하는 유일 인덱스는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대는 아직 대소문자를 구분해 기존 사용자를 찾는다. 이 차이는 NERV Task `CLE-T-KG01YT` 가 맡는다([워크스페이스와 멤버](CLE-ACCT-WS.md)).
+근거와 기각한 안은 Rationale 「[대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)」 에 있다. 대소문자를 무시하는 유일 인덱스는 NERV Task `CLE-T-6QZCYD` 가 맡는다.
 
 ## 로그인
 
@@ -1246,7 +1247,7 @@ NERV Task `CLE-T-SFWX84` 에서 사람 결정으로 정했다(질문 `01a1ac05-8
 - **기각: 묶음을 자동으로 합치거나 지운다.** 한쪽 계정의 데이터를 잃을 수 있다. 합칠지와 무엇을 남길지는 사람이 정해야 한다.
 - **기각: 가장 먼저 가입한 계정을 쓴다.** 로그인이나 재설정 메일이 입력한 사람과 다른 계정으로 갈 수 있다.
 - **기각: 소셜 로그인에 새 `error=` 값을 둔다.** 콜백의 `error=` 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §3 의 예외 등록 목록에 오른 `lower_snake_case` 예외다. 같은 문서 규칙 7 은 새 코드가 예외를 선례로 삼지 않게 한다. 값을 더하려면 그 예외 등록 목록을 개정해야 한다. 이 경우는 운영자가 정리해야 풀리고 사용자가 따로 할 일이 없다. 그래서 기존 `server_error` 를 쓴다. 서버 내부 코드 `OAUTH_ACCOUNT_AMBIGUOUS` 는 컨트롤러가 리다이렉트로 바꿔 응답 봉투로 나가지 않으므로 카탈로그에 올리지 않는다.
-- **후속**: 대소문자를 무시하는 유일 인덱스(`LOWER(email)`)는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대의 기존 사용자 조회는 NERV Task `CLE-T-KG01YT` 가 맡는다.
+- **후속**: 대소문자를 무시하는 유일 인덱스(`LOWER(email)`)는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대의 기존 사용자 조회는 NERV Task `CLE-T-KG01YT` 가 2026-11-06 에 이 규칙으로 맞췄다([워크스페이스와 멤버 Rationale](CLE-ACCT-WS.md#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다-2026-11-06)).
 
 ### 로그인 · 2단계 · 재설정 화면이 거부 코드별 문구와 서버 문구를 보여 준다 (2026-11-05)
 

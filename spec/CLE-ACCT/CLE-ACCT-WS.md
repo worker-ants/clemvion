@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 21
+version: 22
 status: "approved"
-requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069"]
+requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "73aa5bbe28c70777b136209144e9db3dcbdcf700469ff397c32376c3a2290435"
+content_hash: "a4983874ceffd7d0b8330b1c4ab685d3edd015480331d99b511ad4b608c52a28"
 read_as: "approved_fallback"
-task: "CLE-T-SFWX84"
+task: "CLE-T-KG01YT"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "3c14ae0515005952d7f43b24544b8c34a350750e2434db925ca289b000db9376"
-etag: "sha256-b30b6a6ddf7d1a848629ee11ad2567dd105854349e46138929114a4915e46dcf"
+mirror_sha256: "97d345554d1d450ac185e9f9352e943c5dd314e7c9806f91bd14c0f607728c92"
+etag: "sha256-a58b0fb9746ef49b8c636d5fc8a4dbff43b74f836be85554c980fb5ff779516c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -109,6 +109,9 @@ etag: "sha256-b30b6a6ddf7d1a848629ee11ad2567dd105854349e46138929114a4915e46dcf"
 - REQ-WSPACE-067 IF 초대 토큰 가입이 토큰 이메일 중복으로 거부되면 THE SYSTEM SHALL 사용자를 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 - REQ-WSPACE-068 IF 초대 가입 화면의 가입 여부 확인(`POST /api/auth/check-email`)이 실패하거나(429 · 네트워크 에러) 5초 안에 끝나지 않으면 THE SYSTEM SHALL 가입되지 않은 이메일로 보고 가입 폼을 보여 준다.
 - REQ-WSPACE-069 WHEN 나가기나 멤버 제거 확인 다이얼로그를 보이면 THE SYSTEM SHALL 그 멤버가 이 워크스페이스에 둔 개인 통합도 함께 지워진다는 문장을 보인다. 개인 통합이 있는지와 그 개수는 보이지 않고 늘 같은 문장을 보인다.
+- REQ-WSPACE-070 WHEN 멤버 직접 추가나 초대가 대상 이메일로 기존 계정을 찾으면 THE SYSTEM SHALL [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)대로 입력의 앞뒤 공백을 지우고 대소문자를 구분하지 않고 찾는다.
+- REQ-WSPACE-071 IF 직접 추가 대상 이메일에 대소문자만 다른 계정이 둘 이상 맞고 입력과 대소문자까지 같은 계정이 없으면 THE SYSTEM SHALL 가입하지 않은 이메일과 같은 404 `USER_NOT_FOUND` 로 거부한다.
+- REQ-WSPACE-072 IF 초대 대상 이메일에 대소문자만 다른 계정이 둘 이상 맞고 입력과 대소문자까지 같은 계정이 없으면 THE SYSTEM SHALL 가입하지 않은 이메일처럼 멤버 여부를 확인하지 않고 인앱 알림 `team_invite` 없이 초대 메일만 보낸다.
 
 ## 워크스페이스 종류와 생성
 
@@ -258,8 +261,11 @@ etag: "sha256-b30b6a6ddf7d1a848629ee11ad2567dd105854349e46138929114a4915e46dcf"
 | `role=owner` 지정 | 403 `CANNOT_ASSIGN_OWNER` |
 | 소유자가 아닌 요청자가 `role=admin` 지정 | 403 `OWNER_REQUIRED`. [관리자 역할 규칙](#관리자-역할-규칙) |
 | 가입하지 않은 이메일 | 404 `USER_NOT_FOUND`. 미가입자는 초대를 쓴다 |
+| 대소문자만 다른 계정이 둘 이상 맞고 입력과 대소문자까지 같은 계정이 없다 | 404 `USER_NOT_FOUND`. 가입하지 않은 이메일과 같은 응답이다. 어느 계정인지 정할 수 없어서 초대를 쓰거나 저장된 대소문자 그대로 입력해야 한다 |
 | 이미 멤버 | 409 `ALREADY_A_MEMBER` |
 | 팀이 아닌 워크스페이스 | 403 `WORKSPACE_TYPE_MISMATCH` |
+
+대상 사용자는 [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)대로 찾는다(`UsersService.lookupByEmail`). 입력의 앞뒤 공백을 지우고 대소문자를 구분하지 않고 비교한다. 대소문자만 다른 계정이 둘 이상 맞으면 입력과 대소문자까지 같은 계정을 쓴다. 입력은 소문자로 바꾸지 않는다. 근거는 Rationale 「[직접 추가와 초대는 어느 계정인지 정할 수 없으면 가입하지 않은 이메일처럼 다룬다](#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다-2026-11-06)」 에 있다.
 
 이 경로는 `WorkspacesService` 가 코드를 내므로 `UPPER_SNAKE_CASE` 를 쓴다. 초대 흐름의 소문자 `already_a_member`·`workspace_type_mismatch` 와 뜻은 같지만 별개 코드다. 모듈과 표기 관례가 달라 일부러 나눴고 합치지 않는다.
 
@@ -302,6 +308,8 @@ etag: "sha256-b30b6a6ddf7d1a848629ee11ad2567dd105854349e46138929114a4915e46dcf"
 | 만료 초대 정리 | 매일 04:00(Asia/Seoul) BullMQ 반복 작업(`WorkspaceInvitationsPrunerService`)이 만료되고 수락되지 않은 행을 지운다 | 운영 위생 목적 |
 
 초대 발급은 대상 이메일이 이미 멤버인지 확인하지만 가입자인지는 확인하지 않는다. 기존 가입자(비멤버)를 초대하면 초대 링크 메일과 함께 인앱 알림 `team_invite` 가 간다. 알림 쪽은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다.
+
+기존 가입자는 [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)대로 찾는다(`UsersService.lookupByEmail`). 관리자가 입력한 이메일의 앞뒤 공백을 지우고 대소문자를 구분하지 않고 비교한다. 대소문자만 다른 계정이 둘 이상 맞으면 입력과 대소문자까지 같은 계정을 쓴다. 그런 계정이 없으면 어느 계정인지 정할 수 없다. 이때는 가입하지 않은 이메일처럼 다룬다. 멤버 여부를 확인하지 않고 인앱 알림 없이 초대 메일만 보낸다. 수락은 로그인 이메일을 소문자로 바꿔 토큰 이메일과 비교하므로 그 계정들 가운데 어느 계정으로든 수락할 수 있다. 이미 멤버인 계정으로 수락하면 멤버십과 역할은 그대로이고 초대만 소비된다([이미 가입한 사용자의 수락 경로](#이미-가입한-사용자의-수락-경로) 3단계). 토큰 이메일은 이 조회와 따로 앞뒤 공백을 지우고 소문자로 바꿔 저장한다. 근거는 Rationale 「[직접 추가와 초대는 어느 계정인지 정할 수 없으면 가입하지 않은 이메일처럼 다룬다](#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다-2026-11-06)」 에 있다.
 
 ### 미가입자 가입 경로
 
@@ -563,6 +571,7 @@ sequenceDiagram
 - `codebase/backend/src/repo-guards/__tests__/workspace-param-binding*.ts`, `codebase/backend/src/repo-guards/__tests__/fixtures/workspace-param-binding/**` (경로 워크스페이스 `@Param` 바인딩 금지 가드와 대조군)
 - `codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts` (`RolesGuard` 전역 등록과 핸들러별 `@Roles` 고정)
 - `codebase/backend/test/workspace-rbac.e2e-spec.ts` (역할별 인가와 관리자 역할 규칙 e2e)
+- `codebase/backend/test/workspace-member-email-case.e2e-spec.ts` (직접 추가와 초대가 기존 사용자를 대소문자 구분 없이 찾는지, 어느 계정인지 정할 수 없을 때의 응답 e2e)
 - `codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/**` (`page.tsx`: 멤버 제거 · 나가기 확인 다이얼로그)
 - `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**` (수락 페이지. 대소문자를 구분하지 않는 이메일 비교, «다른 계정으로 로그인»)
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (슬러그 없는 `/invitations/accept` 를 쿼리를 둔 채 슬러그 경로로 넘긴다)
@@ -796,7 +805,7 @@ v5 미결 사항의 선택지는 세 가지였다.
 
 대문자가 섞인 이메일로 가입한 기존 계정이 가입되지 않은 것으로 판정되던 한계는 2026-11-05 에 풀렸다. NERV Task `CLE-T-SFWX84` 가 `check-email`, 가입의 이메일 중복 확인, 로그인이 이메일을 대소문자 구분 없이 비교하게 했다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그래서 이 사용자도 초대 가입 화면에서 가입된 이메일로 판정되고 로그인 화면으로 간다. 그 전에는 이 사용자에게 가입 폼이 보였다. 제출해도 가입의 중복 확인이 그 계정을 찾지 못해 409 없이 가입이 끝났다. 그 결과 소문자 이메일 계정이 새로 생기고 그 계정이 워크스페이스에 들어갔다.
 
-대소문자 비교의 한계는 워크스페이스 쪽에 남는다. 멤버 직접 추가와 초대는 아직 이메일을 대소문자까지 그대로 비교해 기존 사용자를 찾는다. 직접 추가는 관리자가 입력한 이메일을 바꾸지 않고 비교한다. 그래서 입력의 대소문자가 저장된 이메일과 다르면 가입한 사용자여도 404 `USER_NOT_FOUND` 다. 초대는 초대 이메일을 소문자로 바꿔 찾는다. 그래서 정규화 전에 대문자를 섞어 가입한 계정은 찾지 못한다. 그 계정이 이미 멤버여도 409 `already_a_member` 로 막히지 않는다. 멤버가 아니면 인앱 알림 `team_invite` 가 가지 않는다. 수락은 로그인 이메일을 소문자로 바꿔 비교하므로 그 계정도 초대를 수락할 수 있다. NERV Task `CLE-T-KG01YT` 가 맡는다.
+워크스페이스 쪽에 남았던 대소문자 비교의 한계는 2026-11-06 에 풀렸다. NERV Task `CLE-T-KG01YT` 가 멤버 직접 추가와 초대도 같은 규칙으로 기존 사용자를 찾게 했다([직접 추가](#직접-추가), [초대](#초대)). 그 전에는 두 경로가 이메일을 대소문자까지 그대로 비교했다. 직접 추가는 입력의 대소문자가 저장된 이메일과 다르면 가입한 사용자여도 404 `USER_NOT_FOUND` 였다. 초대는 소문자로 바꾼 초대 이메일로 찾아서 정규화 전에 대문자를 섞어 가입한 계정을 찾지 못했다. 그 계정이 이미 멤버여도 409 `already_a_member` 로 막히지 않았다. 멤버가 아니면 인앱 알림 `team_invite` 가 가지 않았다. 수락은 그때도 로그인 이메일을 소문자로 바꿔 비교해서 그 계정도 초대를 수락할 수 있었다.
 
 ### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다
 
@@ -811,7 +820,7 @@ v5 미결 사항의 선택지는 세 가지였다.
 
 이 확인으로 드러나는 것은 가입 여부뿐이다. 응답에는 `available` 하나만 있어 인증 상태나 잠금 여부는 드러나지 않는다. 그래서 이메일 인증 전 상태를 비밀번호가 맞을 때만 알리는 로그인 규칙과 어긋나지 않는다([가입과 로그인](CLE-ACCT-SIGNIN.md) Rationale 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」).
 
-`check-email` 은 2026-11-05 부터 이메일을 대소문자 구분 없이 비교한다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그 전의 대소문자 비교 한계와 워크스페이스 쪽에 남은 한계는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다) 에 있다.
+`check-email` 은 2026-11-05 부터 이메일을 대소문자 구분 없이 비교한다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그 전의 대소문자 비교 한계와 워크스페이스 쪽 한계를 푼 경과는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다) 에 있다.
 
 ### 초대 가입 뒤 도착 화면에 세션과 토큰 문서의 미결 사항을 이었다 (2026-10-22)
 
@@ -852,3 +861,15 @@ effect 를 그대로 두고 이동 가드만 보강하는 안은 택하지 않�
 머리 줄 구현 상태를 「부분 구현」 으로 바꿨다. REQ-WSPACE-069 와 나가기 · 제거 때의 개인 통합 삭제는 NERV Task `CLE-T-PS7JQY` 가 구현한다. 구현되면 「구현됨」 으로 되돌린다.
 
 2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 REQ-WSPACE-069 와 나가기 · 제거 때의 개인 통합 삭제를 구현했다. 멤버 제거 확인 다이얼로그도 이때 새로 만들었다. 그래서 머리 줄 구현 상태를 「구현됨」 으로 되돌리고 본문의 미결 구현 표시를 걷었다.
+
+### 직접 추가와 초대는 어느 계정인지 정할 수 없으면 가입하지 않은 이메일처럼 다룬다 (2026-11-06)
+
+NERV Task `CLE-T-KG01YT` 에서 정했다. 직접 추가와 초대가 기존 사용자를 찾는 규칙은 로그인과 같다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 남은 것은 대소문자만 다른 계정이 둘 이상 맞고 입력과 대소문자까지 같은 계정이 없는 경우다. 이 경우는 이메일 정규화 전에 가입한 계정에만 생긴다.
+
+- 직접 추가는 가입하지 않은 이메일과 같은 404 `USER_NOT_FOUND` 로 거부한다. 로그인도 이 경우를 없는 계정과 같게 다룬다. 관리자에게 남는 길은 둘이다. 초대를 보내면 메일을 받은 사람이 수락할 때 로그인한 계정으로 합류하므로 어느 계정으로 들어올지 본인이 고른다. 저장된 대소문자 그대로 입력하면 그 계정을 바로 추가할 수 있다.
+- 초대는 가입하지 않은 이메일처럼 초대 메일만 보낸다. 멤버 여부를 확인할 계정을 정할 수 없어서 409 `already_a_member` 검사를 건너뛴다. 그래서 묶음 가운데 이미 멤버인 계정이 있어도 초대가 나간다. 그 계정으로 수락해도 멤버십과 역할이 그대로라 권한은 바뀌지 않는다. 인앱 알림은 받을 계정을 정할 수 없어서 보내지 않는다.
+- 초대의 거부 코드와 응답 형식은 바꾸지 않는다. 직접 추가도 기존 코드를 쓴다.
+- 직접 추가와 초대 모두 기존 사용자 조회에는 관리자가 입력한 값을 소문자로 바꾸지 않고 쓴다. 소문자로 바꾸면 대소문자까지 같은 계정을 고르는 규칙이 소문자 계정만 고른다. 초대는 토큰 이메일을 저장할 때만 소문자 값을 쓴다.
+- **기각: 모호한 경우에 새 에러 코드를 둔다.** 관리자는 그 계정들을 정리할 수 없고 정리는 운영자가 한다([계정과 워크스페이스 데이터 흐름 「User」](CLE-ACCT-DATA.md#user)). 관리자가 할 수 있는 일은 위 두 길뿐이라 404 의 안내로 충분하다. 새 코드는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 와 화면 처리도 늘린다.
+- **기각: 묶음 가운데 한 계정을 골라 추가하거나 알린다.** 가장 먼저 가입한 계정을 쓰는 안은 로그인에서도 기각했다([가입과 로그인 Rationale](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)). 관리자가 뜻한 사람과 다른 계정이 멤버가 되거나 알림을 받을 수 있다.
+- **기각: 초대에서 묶음 가운데 하나라도 멤버면 409 로 막는다.** 멤버가 아닌 다른 계정이 초대받을 길이 막힌다. 모호한 경우에도 계정 묶음을 돌려주도록 `UsersService.lookupByEmail` 을 바꿔야 한다.

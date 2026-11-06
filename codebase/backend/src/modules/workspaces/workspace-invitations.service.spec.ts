@@ -76,6 +76,7 @@ describe('WorkspaceInvitationsService', () => {
   let updateMock: Mock;
   let notifications: { notify: Mock };
   let auditLogs: { record: Mock };
+  let usersService: { lookupByEmail: Mock };
 
   beforeEach(() => {
     invitationRepo = repo();
@@ -87,6 +88,9 @@ describe('WorkspaceInvitationsService', () => {
     };
     notifications = { notify: jest.fn().mockResolvedValue(undefined) };
     auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
+    usersService = {
+      lookupByEmail: jest.fn().mockResolvedValue({ kind: 'none' }),
+    };
     const built = buildDataSource({ invitationRepo, memberRepo });
     dataSource = built.dataSource;
     updateMock = built.updateMock;
@@ -99,6 +103,7 @@ describe('WorkspaceInvitationsService', () => {
       dataSource,
       notifications as never,
       auditLogs as never,
+      usersService as never,
     );
   });
 
@@ -127,9 +132,7 @@ describe('WorkspaceInvitationsService', () => {
           name: 'Team',
           type: 'team',
         });
-        userRepo.findOne
-          .mockResolvedValueOnce(null) // existingUser (invitee)
-          .mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
+        userRepo.findOne.mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
         invitationRepo.findOne.mockResolvedValueOnce(
           pendingRole
             ? {
@@ -221,7 +224,10 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne.mockResolvedValueOnce({ id: 'user-2' });
+      usersService.lookupByEmail.mockResolvedValueOnce({
+        kind: 'found',
+        user: { id: 'user-2' },
+      });
       await expect(
         service.invite('ws-1', 'b@x.com', 'editor', 'user-1'),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -234,9 +240,7 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne
-        .mockResolvedValueOnce(null) // existingUser lookup
-        .mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
+      userRepo.findOne.mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
       const existing = {
         id: 'inv-1',
         token: 'old-token',
@@ -275,9 +279,7 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne
-        .mockResolvedValueOnce(null) // existingUser (invitee)
-        .mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
+      userRepo.findOne.mockResolvedValueOnce({ id: 'user-1', name: 'Alice' }); // inviter
       invitationRepo.findOne.mockResolvedValueOnce(null);
 
       const result = await service.invite(
@@ -325,9 +327,11 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne
-        .mockResolvedValueOnce({ id: 'user-9', email: 'ex@x.com' }) // existingUser
-        .mockResolvedValueOnce({ id: 'inviter', name: 'Bob' }); // inviter
+      usersService.lookupByEmail.mockResolvedValueOnce({
+        kind: 'found',
+        user: { id: 'user-9', email: 'ex@x.com' },
+      });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'inviter', name: 'Bob' }); // inviter
       invitationRepo.findOne.mockResolvedValueOnce(null);
       invitationRepo.save.mockResolvedValueOnce({ id: 'inv-1' });
 
@@ -352,9 +356,7 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne
-        .mockResolvedValueOnce(null) // existingUser = 없음
-        .mockResolvedValueOnce({ id: 'inviter', name: 'Bob' });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'inviter', name: 'Bob' });
       invitationRepo.findOne.mockResolvedValueOnce(null);
 
       await service.invite('ws-1', 'new@x.com', 'editor', 'inviter');
@@ -371,9 +373,11 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne
-        .mockResolvedValueOnce({ id: 'user-9', email: 'ex@x.com' })
-        .mockResolvedValueOnce({ id: 'inviter', name: 'Bob' });
+      usersService.lookupByEmail.mockResolvedValueOnce({
+        kind: 'found',
+        user: { id: 'user-9', email: 'ex@x.com' },
+      });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'inviter', name: 'Bob' }); // inviter
       invitationRepo.findOne.mockResolvedValueOnce(null);
       invitationRepo.save.mockResolvedValueOnce({ id: 'inv-1' });
       notifications.notify.mockRejectedValueOnce(new Error('notif down'));
@@ -390,9 +394,7 @@ describe('WorkspaceInvitationsService', () => {
         name: 'Team',
         type: 'team',
       });
-      userRepo.findOne
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'user-1', name: 'Alice' });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'user-1', name: 'Alice' });
       invitationRepo.findOne.mockResolvedValueOnce(null);
       mailService.sendWorkspaceInvitationEmail.mockRejectedValueOnce(
         new Error('smtp down'),
@@ -406,6 +408,93 @@ describe('WorkspaceInvitationsService', () => {
       );
       expect(result).toBeDefined();
       expect(invitationRepo.save).toHaveBeenCalled();
+    });
+
+    /**
+     * NERV CLE-ACCT-WS REQ-WSPACE-070 · 072 — 기존 가입자는 가입과 로그인 「이메일 비교 규칙」
+     * (`UsersService.lookupByEmail`)대로 찾는다. 어느 계정인지 정할 수 없으면 가입하지 않은 이메일처럼
+     * 다룬다(CLE-T-KG01YT).
+     */
+    describe('기존 가입자는 이메일 비교 규칙으로 찾는다', () => {
+      function arrangeTeamInvite(): void {
+        workspaceRepo.findOne.mockResolvedValueOnce({
+          id: 'ws-1',
+          name: 'Team',
+          type: 'team',
+        });
+        userRepo.findOne.mockResolvedValue({ id: 'inviter', name: 'Bob' }); // inviter
+        invitationRepo.findOne.mockResolvedValueOnce(null);
+        invitationRepo.save.mockResolvedValueOnce({ id: 'inv-1' });
+      }
+
+      it('입력을 소문자로 바꾸지 않고 조회에 넘기고 토큰 이메일만 소문자로 저장한다', async () => {
+        memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
+        arrangeTeamInvite();
+
+        await service.invite('ws-1', 'Mixed.Case@X.com', 'editor', 'inviter');
+
+        // 소문자로 바꿔 넘기면 대소문자까지 같은 계정을 고르는 규칙이 소문자 계정만 고른다.
+        expect(usersService.lookupByEmail).toHaveBeenCalledWith(
+          'Mixed.Case@X.com',
+        );
+        expect(invitationRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'mixed.case@x.com' }),
+        );
+        // 사용자 저장소를 이메일로 직접 조회하지 않는다(대소문자를 그대로 비교하던 옛 경로).
+        for (const [arg] of userRepo.findOne.mock.calls as Array<
+          [{ where: Record<string, unknown> }]
+        >) {
+          expect(arg.where).not.toHaveProperty('email');
+        }
+      });
+
+      it('대문자가 섞여 저장된 계정이 이미 멤버면 409 already_a_member 이고 초대를 만들지 않는다', async () => {
+        memberRepo.findOne
+          .mockResolvedValueOnce({ role: 'admin' }) // 요청자
+          .mockResolvedValueOnce({ id: 'mem-9' }); // 찾은 계정은 이미 멤버
+        workspaceRepo.findOne.mockResolvedValueOnce({
+          id: 'ws-1',
+          name: 'Team',
+          type: 'team',
+        });
+        usersService.lookupByEmail.mockResolvedValueOnce({
+          kind: 'found',
+          user: { id: 'user-9', email: 'Legacy@X.com' },
+        });
+
+        await expect(
+          service.invite('ws-1', 'legacy@x.com', 'editor', 'inviter'),
+        ).rejects.toMatchObject({ response: { code: 'already_a_member' } });
+        expect(memberRepo.findOne).toHaveBeenLastCalledWith({
+          where: { workspaceId: 'ws-1', userId: 'user-9' },
+        });
+        expect(invitationRepo.save).not.toHaveBeenCalled();
+        expect(mailService.sendWorkspaceInvitationEmail).not.toHaveBeenCalled();
+      });
+
+      it('어느 계정인지 정할 수 없으면 멤버 여부를 보지 않고 인앱 알림 없이 초대 메일만 보낸다', async () => {
+        memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
+        arrangeTeamInvite();
+        usersService.lookupByEmail.mockResolvedValueOnce({ kind: 'ambiguous' });
+
+        const result = await service.invite(
+          'ws-1',
+          'DUP@x.com',
+          'editor',
+          'inviter',
+        );
+
+        expect(result).toEqual({ id: 'inv-1' });
+        // 요청자 역할 조회 한 번뿐이다. 찾은 계정의 멤버 조회가 없다.
+        expect(memberRepo.findOne).toHaveBeenCalledTimes(1);
+        expect(notifications.notify).not.toHaveBeenCalled();
+        expect(mailService.sendWorkspaceInvitationEmail).toHaveBeenCalledWith(
+          'dup@x.com',
+          'Team',
+          'Bob',
+          expect.any(String),
+        );
+      });
     });
   });
 
@@ -697,6 +786,7 @@ describe('WorkspaceInvitationsService', () => {
         built.dataSource,
         notifications as never,
         auditLogs as never,
+        usersService as never,
       );
       invitationRepo.findOne.mockResolvedValueOnce({
         id: 'inv-1',

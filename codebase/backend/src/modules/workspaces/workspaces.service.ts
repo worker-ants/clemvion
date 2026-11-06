@@ -12,7 +12,7 @@ import { EntityManager, In, Repository } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
-import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkspaceRole } from './dto/add-member.dto';
@@ -53,8 +53,7 @@ export class WorkspacesService {
     private readonly workspaceRepository: Repository<Workspace>,
     @InjectRepository(WorkspaceMember)
     private readonly memberRepository: Repository<WorkspaceMember>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly usersService: UsersService,
     private readonly auditLogsService: AuditLogsService,
     private readonly moduleRef: ModuleRef,
   ) {}
@@ -296,13 +295,17 @@ export class WorkspacesService {
       });
     }
     assertMayChangeAdminRole(requesterRole, role);
-    const user = await this.userRepository.findOne({ where: { email } });
-    if (!user) {
+    // 대상 사용자는 가입과 로그인 「이메일 비교 규칙」대로 찾는다. 입력은 소문자로 바꾸지 않고 넘긴다. 대소문자만 다른
+    // 계정이 여럿이면 입력과 대소문자까지 같은 계정을 고르기 때문이다. 어느 계정인지 정할 수 없으면(`ambiguous`)
+    // 가입하지 않은 이메일과 같은 404 다(NERV CLE-ACCT-WS 「직접 추가」 REQ-WSPACE-070 · 071, CLE-T-KG01YT).
+    const lookup = await this.usersService.lookupByEmail(email);
+    if (lookup.kind !== 'found') {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
         message: '해당 이메일로 가입된 사용자가 없습니다.',
       });
     }
+    const user = lookup.user;
     const existing = await this.memberRepository.findOne({
       where: { workspaceId, userId: user.id },
     });

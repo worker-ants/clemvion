@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "3766add81daeef182f64fec839ab31c3e0529bb8197e4ab170b88567781bf4d0"
+content_hash: "73f8df3c18f54e9fb22fdc8b24d8ebebefcd656e3197eb6b3d69a472daa8a41b"
 read_as: "approved_fallback"
-task: "CLE-T-Q38K9F"
+task: "CLE-T-HW2GKD"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "682085272019a2b69164c95c7f815d44d8126209a9493f7a45950a79151479fe"
-etag: "sha256-d2d28b9731753813df3cf3985fda683f5759a663980c0890af28bce89e95a2c9"
+mirror_sha256: "73ed1ba3422ab4fa5be3a2e9fbd8d9792aab7915998066db3dff4d6dfed75b99"
+etag: "sha256-dfb24e61aa81d27a1ba9905c67e465ff0e0772906a661f95cd71c2223fc0b5d0"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -68,7 +68,7 @@ etag: "sha256-d2d28b9731753813df3cf3985fda683f5759a663980c0890af28bce89e95a2c9"
 flowchart TD
     A[노드 에러 발생] --> B{에러 처리 정책}
     B -->|워크플로우 중단| C[실행 실패로 끝남]
-    B -->|노드 건너뛰기| D[노드 실행 건너뜀, 출력 null]
+    B -->|노드 건너뛰기| D[노드 실행 건너뜀, 출력 없음]
     B -->|기본 출력 사용| E[노드 실행 완료, 출력은 기본 출력]
     B -->|노드 재시도| F{재시도 남음?}
     F -->|예| G[간격을 두고 다시 실행]
@@ -88,7 +88,9 @@ flowchart TD
 2. 노드 건너뛰기(`skip_node`)
    - 노드 실행 상태(`NodeExecution.status`)를 `skipped` 로 둔다.
    - 에러 정보는 `NodeExecution.error = { message: "..." }` 에 남긴다.
-   - 출력은 `null` 이다. 다음 노드는 `null` 입력으로 실행한다.
+   - 엔진은 이 노드의 출력을 실행 캐시에 쓰지 않는다. 다음 노드는 이 노드에서 오는 입력이 빈 값(`undefined`)인 채로 실행한다.
+   - 고른 포트가 없으므로 이 노드의 출력 연결선은 포트와 상관없이 모두 활성화된다.
+   - [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 의 병렬 분기 안에서 건너뛴 노드는 출력을 쓰지 않으므로 그 병렬 분기의 결과 노드 후보가 아니다(REQ-PARALLEL-030).
 3. 기본 출력 사용(`use_default_output`)
    - 노드 실행 상태를 `completed` 로 둔다. 경고를 함께 남긴다.
    - 출력은 미리 설정한 기본 출력(`config.errorHandling.defaultOutput`)이다. 다음 노드는 이 값으로 실행한다.
@@ -186,6 +188,7 @@ flowchart TD
 ## 미결 사항
 
 - **워크플로우 수준 자동 재시도의 구현 상태**: 이 문서 4절은 트리거·스케줄 자동 실행에 워크플로우 설정 재시도(기본 0, 최대 5)를 약속하고, [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md)의 자동 재시도 요구는 구현 완료로 표시돼 있다. 반면 워크플로우 설정(`Workflow.settings`)에는 재시도 키가 없고([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)), 시작 큐(`execution-run`)는 `attempts:1` 로 애플리케이션 재시도를 하지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 코드에서 워크플로우 수준 재시도 구현을 찾지 못했다. 결정 필요: 4절을 미구현으로 표시하고 비기능 요구사항을 노드 재시도 기준으로 다시 쓸지, 기능을 구현할지.
+- **되돌아가는 연결선으로 다시 실행한 노드를 건너뛸 때 남는 앞 출력** (info): 노드 건너뛰기는 출력을 쓰지 않으므로 그 노드가 같은 실행에서 앞서 쓴 출력이 실행 캐시에 남는다. 다음 노드의 입력, 연결선 활성화, [서브 워크플로우의 최종 노드 출력](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#최종-노드-출력) 이 모두 그 앞 출력을 따른다. 건너뛸 때 앞 출력을 지울지 결정 필요.
 
 ## 구현 위치
 
@@ -242,3 +245,11 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 
 - 엔진이 `error` 포트 출력에도 `retry` 정책을 적용하는 안. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)와 [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)처럼 이미 `error` 포트를 쓰는 노드의 동작까지 바뀐다. 작성자가 `error` 연결선으로 고른 처리와 엔진 재시도가 겹친다.
 - `error` 포트를 쓰는 노드에서 정책 선택 UI 를 막는 안. AI 에이전트에는 아직 throw 경로가 남아 있다. 단일 턴의 노드 LLM 설정(`llmConfigId`) 조회 실패가 그렇다(NERV Task `CLE-T-T8FVCG`). 이 실패에는 지금도 정책이 걸린다. 롤링 요약 호출 실패와 요약 모델 설정 조회 실패는 2026-11-05 에 `error` 포트로 옮겼다(NERV Task `CLE-T-Q38K9F`).
+
+### 노드 건너뛰기는 출력을 쓰지 않는다 (2026-11-06)
+
+이 문서는 노드 건너뛰기(`skip_node`)의 출력을 `null` 로 적었지만 엔진은 건너뛴 노드의 출력을 실행 캐시에 쓰지 않는다. [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 의 2026-11-02 개정이 이 차이를 짚었고 이번에 문서를 엔진 동작에 맞췄다(NERV Task `CLE-T-HW2GKD`). 다음 노드가 받는 값은 `null` 이 아니라 빈 값(`undefined`)이다. 표현식에서 `null` 과 비교하면 둘이 다르게 보일 수 있다. 고른 포트도 없으므로 엔진은 이 노드의 출력 연결선을 포트와 상관없이 모두 활성화한다. 이 문장도 엔진의 지금 동작을 그대로 적은 것이다.
+
+기각한 대안은 엔진이 `null` 을 쓰게 바꾸는 안이다. 출력을 쓰면 Parallel 결과 노드 판정(REQ-PARALLEL-030)이 건너뛴 노드를 후보로 보게 되고 실행 캐시를 읽는 다른 규칙도 함께 바뀐다. 이번 정리는 문서를 동작에 맞추는 범위라 동작은 바꾸지 않았다.
+
+**기존 워크플로우 영향**: 엔진 동작은 바꾸지 않았으므로 실행 결과는 그대로다. 다만 옛 서술을 믿고 건너뛴 노드의 출력을 `null` 로 보고 짠 표현식은 처음부터 빈 값(`undefined`)을 받아 왔다. 그런 표현식이 `null` 과 엄격하게 비교하면 문서가 말한 결과와 다르게 나왔을 수 있으니 빈 값도 함께 검사하도록 고쳐야 한다. 같은 날 [노드 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정) 의 정책 표도 고쳤고 사용자 가이드의 같은 설명은 NERV Task `CLE-T-1JZFZW` 가 고친다.

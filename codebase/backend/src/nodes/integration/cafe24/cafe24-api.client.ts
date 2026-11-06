@@ -170,6 +170,7 @@ export type Cafe24PingCode =
   | 'CAFE24_AUTH_FAILED'
   | 'CAFE24_TRANSPORT_FAILED'
   | 'CAFE24_INSUFFICIENT_SCOPE'
+  | 'CAFE24_API_ERROR'
   | 'INTEGRATION_INCOMPLETE';
 
 /**
@@ -367,6 +368,9 @@ export class Cafe24ApiClient {
    *   `error(auth_failed)` 전이.
    * - 403 은 어느 시점이든 status 격하하지 않고 메시지만 전달 (스코프
    *   부족·앱 미설치는 사용자가 reauth/scope 추가로 해결).
+   * - 401 · 403 이 아닌 비-2xx(5xx · 429 등)는 토큰 문제가 아니라서 갱신하지
+   *   않고 status 도 격하하지 않는다. 1차든 재시도든 `CAFE24_API_ERROR` 로
+   *   돌려준다 (CLE-INT-AUTH 「연결 테스트」).
    * - transport 실패는 `consecutive_network_failures` 카운터에 합산하지
    *   않는다. 사용자가 직접 누른 진단 호출이라 노드 자동 호출의 신호로
    *   섞여서는 안 된다.
@@ -422,7 +426,15 @@ export class Cafe24ApiClient {
           message: this.formatAuthFailure(first.status, mallId, first.body),
         };
       }
-      // status === 401: 명시적 refresh 후 1회 재시도.
+      if (first.status !== 401) {
+        // 5xx · 429 등은 토큰 문제가 아니다. 갱신하지 않고 상태도 그대로 둔다.
+        return {
+          success: false,
+          code: 'CAFE24_API_ERROR',
+          message: this.formatApiFailure(first.status, mallId, first.body),
+        };
+      }
+      // 401: 명시적 refresh 후 1회 재시도.
       try {
         await this.refreshAccessToken(integration);
       } catch (err) {
@@ -449,10 +461,16 @@ export class Cafe24ApiClient {
           message: this.formatAuthFailure(second.status, mallId, second.body),
         };
       }
-      // 재시도도 401 — 토큰 자체 문제로 확정. status 격하.
-      if (second.status === 401) {
-        await this.markAuthFailed(integration);
+      if (second.status !== 401) {
+        // 갱신은 성공했고 재시도가 401 · 403 이 아닌 상태다. 토큰 문제가 아니라 격하하지 않는다.
+        return {
+          success: false,
+          code: 'CAFE24_API_ERROR',
+          message: this.formatApiFailure(second.status, mallId, second.body),
+        };
       }
+      // 재시도도 401 — 토큰 자체 문제로 확정. status 격하.
+      await this.markAuthFailed(integration);
       return {
         success: false,
         code: 'CAFE24_AUTH_FAILED',
@@ -521,6 +539,17 @@ export class Cafe24ApiClient {
     const summary = summarizeCafe24ErrorBody(body);
     const suffix = summary ? ` — ${summary}` : '';
     return `Cafe24 authentication failed (${status}) for mall ${mallId}${suffix}`;
+  }
+
+  /** 401 · 403 이 아닌 비-2xx 응답의 한 줄 요약 (연결 테스트 결과 메시지). */
+  private formatApiFailure(
+    status: number,
+    mallId: string,
+    body: unknown,
+  ): string {
+    const summary = summarizeCafe24ErrorBody(body);
+    const suffix = summary ? ` — ${summary}` : '';
+    return `Cafe24 API returned ${status} for mall ${mallId}${suffix}`;
   }
 
   private assertCredentials(creds: Cafe24Credentials): void {

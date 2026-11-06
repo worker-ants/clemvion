@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "0bad51a1cfddabc00f2a4faaa14960433658228ca6d4c1af56a0f6dfdff3b30d"
+content_hash: "8d8c03464d1894937c8d960628f2df539a13471c4501ff877f310afa8019eeb4"
 read_as: "approved_fallback"
-task: "CLE-T-YR4EK5"
+task: "CLE-T-M1P83C"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "a63e666c6f59bb17c2cdbe218854f141e518f57c27b61ddfa11a466cfa8f9e62"
-etag: "sha256-d0ec959bef63575bf79cbd16b081d8e91059c1d2882a1b7f21eb38318006d9c7"
+mirror_sha256: "048b5ea9a5a437dcd388e7e6da758347b436cea7b67cc4bb979f9f7478845aac"
+etag: "sha256-f394d931ae62e8390f45240e112896d1088081b25d94546d0c8fa560f0b754a4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -323,8 +323,9 @@ sequenceDiagram
 
 - **fanout 대상 이벤트 다섯 가지**: `execution.waiting_for_input`·`completed`·`failed`·`cancelled`·`ai_message`. 종료 때의 jti 폐기는 EIA 알림 웹훅 설정(`config.notification`) 유무와 관계없다. 인터랙션만 켠 트리거도 종료 때 토큰이 무효가 된다.
 - **낡은 알림 차단**: 진행 중 성격의 `waiting_for_input`·`ai_message` 는 보내기 직전 실행 상태를 다시 확인해 이미 종료면 건너뛴다(재시도해도 의미 없음).
-- **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 켠다(기본 꺼짐). 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
+- **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 이면 꺼진다. 운영 밖에서는 기본으로 꺼져 있고 `1` 이면 켜진다. 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
 - **서명**: `X-Clemvion-Signature: t=<unix>,v1=<hex>[,v1=<v2hex>]`(`notification-signature.util.ts`). 정규형 `{timestamp}.{rawBody}`, 알고리즘 `hmac-sha256`(기본)·`hmac-sha512`. 시크릿이 없거나 가져오지 못하면 서명 없이 보내지 않는다. 이때 발송 건강도를 `degraded`(저하됨)로 바꾼다. 주 시크릿이 없으면 v2 가 있어도 같다. v2 는 주 시크릿이 있을 때 보조 서명으로만 쓴다. 교체 유예 중에는 `notification_secret_v2` 로도 서명해 `v1=` 를 두 개 싣는다.
+- **적재 실패**: fanout 이 트리거를 다시 읽거나 발송 큐에 적재하다 실패하면 경고 로그를 남기고 그 알림을 버린다. 다시 적재하지 않는다. 실행과 단일 싱크는 영향을 받지 않는다. Redis 연결이 끊긴 동안에는 적재가 바로 실패하지 않는다. 연결된 적이 있으면 재연결을 20번 시도한 뒤(약 4분) 실패하고, 기동 때부터 닿지 않았으면 연결될 때까지 기다린다. 근거는 [알림 적재 실패를 경고 로그로 받는다](#알림-적재-실패를-경고-로그로-받는다-2026-11-06) 에 있다.
 - **실패 정책**: 실패로 보는 응답(3xx 포함)과 재시도는 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 마지막 시도가 실패해도 트리거를 끄지 않는다. `notification_health`·`notification_last_error`(500자로 자름)만 갱신한다. BullMQ `removeOnComplete` 24시간, `removeOnFail` 7일이다.
 - **폭주 감지**: 발송 성공(2xx)마다 `OutboundNotificationRateLimiterService.consume`(Redis 고정 윈도우 `INCR`+`EXPIRE NX`, fail-open)이 트리거당 분당 발송 수를 센다. 60건을 넘으면 `healthy` 대신 `degraded` 와 폭주 전용 `notification_last_error` 로 표시한다. 발송 실패로 바뀐 `degraded` 와는 `notification_last_error` 로 원인을 가른다. 초과분도 계속 보낸다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md)).
 
@@ -595,3 +596,16 @@ JWT 는 무상태로 검증할 수 있어 저장소가 필요 없어 보인다. 
   - 닫는 방식: 서버가 SSE 응답을 끝낸다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 그래서 새 이벤트 이름을 만들지 않았다. 닫기는 모든 서버 인스턴스에 미친다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17)).
   - 조용한 종료를 피하는 선례와의 관계: [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02) 은 만료 60초 전에 알린다. 클라이언트가 그 창에서 토큰을 다시 받아 끊김 없이 다시 연결하게 하려는 것이다. [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 는 재전송 버퍼가 요청 구간을 채우지 못하면 `execution.replay_unavailable` 을 보낸다. 클라이언트가 상태를 다시 조회하게 하려는 것이다. 트리거 단위 토큰의 닫기는 미리 알리지 않는다. 무효가 된 토큰으로는 클라이언트가 할 수 있는 일이 없다. 다시 연결할 때 받는 401 `TOKEN_INVALID` 로 새 토큰이 필요하다는 것을 알 수 있다.
 - **EIA 알림 웹훅 설정이 없는 트리거의 승격은 v2 를 비운다.** 승인본은 이런 트리거의 승격을 건너뛰고 v2 는 다음 교체 때 덮어쓴다고 적었다. 지금 코드(`promoteRotatedNotificationSecrets`)는 v2 와 `notification_rotated_at` 을 비우고 경고 로그를 남긴다. 이 항목은 승인본 서술을 코드에 맞춘 정정이다. 매 주기 건너뛰면 v2 평문이 DB 에 계속 남는다. 이 컬럼에 평문을 둘 수 있는 근거 가운데 하나는 평문이 잠시 머물다 비워지는 경유지라는 점이다([시크릿 저장소 「저장소 예외 필드」](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 의 `Trigger.notification_secret_v2`). 계속 남는 평문은 이 근거와 맞지 않는다.
+
+### 알림 적재 실패를 경고 로그로 받는다 (2026-11-06)
+
+NERV Task `CLE-T-AB21M6` 의 변경이다. [인프라 장애에는 fail-open 한다](#인프라-장애에는-fail-open-한다) 는 알림 적재를 기능 저하와 경고 로그로 적었다. 그런데 fanout 은 이벤트마다 처리를 기다리지 않고 띄웠고, 트리거 조회와 큐 적재의 예외를 받지 않았다. 그래서 DB 나 Redis 가 실패하면 처리되지 않은 Promise 거부가 됐다. 백엔드는 이 거부를 받는 처리기를 두지 않는다. Node 26 의 기본 동작은 그 거부로 프로세스를 끝내는 것이다(2026-11-06 확인, 종료 코드 1). 알림 하나의 적재 실패가 서버를 내릴 수 있었다.
+
+- **어디서 받는가**: 트리거 조회 실패는 fanout 이, 큐 적재 실패는 dispatcher 가 받아 경고 로그를 남긴다. dispatcher 는 큐가 없을 때처럼 건너뛴 결과를 돌려준다. fanout 은 그 밖의 예외도 이벤트 구독에서 한 번 더 받는다.
+- **Redis 장애 때 적재가 끝나는 시점**(2026-11-06 측정, BullMQ 6.4.1 · ioredis 6.0.0, 프로젝트와 같은 연결 옵션): 연결된 뒤 Redis 를 멈추자 적재는 238초 뒤 `MaxRetriesPerRequestError` 로 실패했다. ioredis 기본값대로 재연결을 20번 시도한 뒤다. 처음부터 닿지 않는 Redis 에서는 330초 동안 끝나지 않았다. 연결되기 전의 명령은 연결을 기다리기 때문이다. 기다리는 동안은 거부가 없으므로 경고 로그도 그 뒤에 남는다.
+- **다시 적재하지 않는다**: 이 Task 는 재시도나 outbox 를 새로 두지 않는다. 적재 전에 사라진 발송은 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 적은 대로 최소 한 번 전달의 범위 밖이다.
+
+기각한 대안:
+
+- **적재에 제한 시간을 둔다**: 시간이 지나도 명령은 Redis 클라이언트의 대기열에 남아 연결이 돌아오면 적재될 수 있다. 그러면 실패했다는 로그가 사실과 어긋난다. 대기열을 비우려면 연결 옵션을 바꿔야 하는데, 그 설정은 모든 BullMQ 큐가 함께 쓴다.
+- **프로세스 전역에서 처리되지 않은 거부를 받는다**: 다른 모듈의 결함까지 조용히 삼킨다. 실패를 아는 곳에서 받는 쪽을 택했다.

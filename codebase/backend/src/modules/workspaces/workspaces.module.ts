@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { forwardRef, Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Workspace } from './entities/workspace.entity';
@@ -16,6 +16,7 @@ import {
 import { MailModule } from '../mail/mail.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { UsersModule } from '../users/users.module';
 
 // RolesGuard 는 AppModule 의 APP_GUARD 로 등록되어 전역에서 동작한다.
 // RolesGuard 는 WorkspacesService 에 의존하므로, 이 모듈을 @Global 로 export 해두면
@@ -33,6 +34,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AuditLogsModule,
     // team_invite 알림 발사 (순환 무관 — NotificationsModule 은 MailModule/forFeature 만 의존).
     NotificationsModule,
+    // 직접 추가 · 초대가 기존 사용자를 `UsersService.lookupByEmail` 로 찾는다(가입과 로그인 「이메일 비교 규칙」).
+    // forwardRef: UsersModule → (forwardRef) AuthModule → WorkspacesModule 로 순환한다.
+    forwardRef(() => UsersModule),
     BullModule.registerQueue({ name: WORKSPACE_INVITATIONS_PRUNER_QUEUE }),
   ],
   controllers: [WorkspacesController, InvitationsController],
