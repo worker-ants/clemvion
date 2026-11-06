@@ -2678,6 +2678,47 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     );
   });
 
+  // 저장소가 빈 평문을 거부하기 전에 저장된 옛 빈 행이 있을 수 있다(NERV Task `CLE-T-94Z6A5`). 빈 값은 보존할
+  // 토큰이 아니라 v2 백업을 건너뛴다. 백업하려 들면 저장소가 거부해 재발급 전체가 실패한다.
+  it.each([
+    ['빈 문자열', ''],
+    ['공백만', '  \n'],
+  ])(
+    '저장된 이전 토큰이 %s 이면 v2 백업 skip + chatChannelTokenV2=null · 새 토큰은 저장한다',
+    async (_label, storedOld) => {
+      secrets.resolve.mockResolvedValueOnce(storedOld);
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        await service.rotateBotToken(
+          TRIGGER_ID,
+          WORKSPACE_ID,
+          NEW_TOKEN,
+          'user-1',
+        );
+        expect(warn.mock.calls.map(([m]) => String(m)).join('\n')).toContain(
+          TRIGGER_ID,
+        );
+      } finally {
+        warn.mockRestore();
+      }
+      const v2Calls = secrets.rotate.mock.calls.filter(([ref]) =>
+        ref.endsWith('bot-token.v2'),
+      );
+      expect(v2Calls).toHaveLength(0);
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        BOT_TOKEN_REF,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+      );
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: TRIGGER_ID },
+        expect.objectContaining({ chatChannelTokenV2: null }),
+      );
+    },
+  );
+
   it('issuedInboundSigning 없을 때 inbound-signing ref rotate 미호출', async () => {
     mockAdapter.setupChannel.mockResolvedValueOnce({
       registeredAt: new Date().toISOString(),

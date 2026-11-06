@@ -1604,9 +1604,15 @@ export class TriggersService {
       // 최초 rotation: secret store 에 아직 row 없음. v2 백업 skip.
     }
 
-    // 2. 기존 token 이 있으면 v2Ref 에 백업.
+    // 2. 기존 token 이 있으면 v2Ref 에 백업. 저장된 값이 비었거나 공백만이면 건너뛴다. 저장소가 빈 평문을
+    // 거부하기 전에 저장된 옛 빈 행이고(NERV Task `CLE-T-94Z6A5`) 보존할 토큰이 아니다. 백업하려 들면 저장소가
+    // 거부해 재발급 전체가 실패한다.
     let v2RefUsed: string | null = null;
-    if (oldPlaintext !== null) {
+    if (oldPlaintext !== null && oldPlaintext.trim() === '') {
+      this.logger.warn(
+        `rotateBotToken: 저장된 이전 봇 토큰이 빈 값이라 유예 백업을 건너뜁니다 (trigger=${trigger.id}).`,
+      );
+    } else if (oldPlaintext !== null) {
       await this.secrets.rotate(v2Ref, trigger.workspaceId, oldPlaintext);
       v2RefUsed = v2Ref;
     }

@@ -203,7 +203,8 @@ export class ChatChannelConfigDto {
   // 구현보다 넓었다.** `''` 는 문자열이라 통과하고, 그 값이 `setupChatChannel` 의
   // `[쓰기 ①]` 에서 `SecretResolver.rotate(botTokenRef, ws, '')` 로 들어가 **빈 시크릿이
   // 먼저 저장된다** — provider 호출(그리고 401 → `BOT_TOKEN_INVALID`)은 그 뒤다.
-  // 즉 요청은 실패하는데 시크릿 행은 남는다. `rotate` 자체의 빈 값 가드는 별개 항목이다.
+  // 즉 요청은 실패하는데 시크릿 행은 남는다. 이제 `rotate` 자체도 빈 평문을 거부한다(NERV Task
+  // `CLE-T-94Z6A5`). 여기서 먼저 막아야 400 이 되고, 저장소 가드는 그 뒤의 마지막 방어선이다.
   @MinLength(1)
   @MaxLength(BOT_TOKEN_MAX_LENGTH)
   // 공백 · 제어 문자 · ASCII 밖 문자는 `Authorization` 헤더에 실을 수 없어 fetch 가 요청을 만들지

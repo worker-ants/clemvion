@@ -427,6 +427,140 @@ describe('SecretResolverService', () => {
     });
   });
 
+  // 평문이 문자열이 아니거나 비었거나 공백만 있으면 store · rotate 가 행을 만들거나 바꾸지 않고 throw 한다
+  // (NERV Task `CLE-T-94Z6A5`). 빈 시크릿이 먼저 저장된 뒤 프로바이더 호출이 실패하던 생성 경로와, `?? ''` 가
+  // 저장된 토큰을 빈 값으로 덮던 PATCH 경로가 모두 호출부 가드가 빠졌을 때 생긴 사고다. 저장소가 마지막에 막는다.
+  describe('빈 평문 거부', () => {
+    const blankValues: Array<[string, unknown]> = [
+      ['빈 문자열', ''],
+      ['공백만', '   '],
+      ['탭 · 줄바꿈만', '\t\n'],
+      ['undefined', undefined],
+      ['null', null],
+      ['숫자', 12345],
+    ];
+
+    const newService = (repo = createInMemoryRepository()) => {
+      const svc = new SecretResolverService(
+        repo,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      return { svc, repo };
+    };
+
+    const captureRejection = (promise: Promise<unknown>) =>
+      promise.then(() => null).catch((err_: unknown) => err_);
+
+    // 메시지는 고정 문구다. 호출자가 화면에 보이는 필드(`chat_channel_last_error`)에 저장할 수 있어 참조 ·
+    // 워크스페이스를 싣지 않는다(CLE-INT-SECRET 규칙 4). 참조는 서버 로그에만 남긴다.
+    const expectFixedMessageAndLoggedRef = (
+      err: unknown,
+      ref: string,
+      warn: jest.SpiedFunction<Logger['warn']>,
+    ) => {
+      expect(err).toBeInstanceOf(Error);
+      const message = (err as Error).message;
+      expect(message).toMatch(/빈 값/);
+      expect(message).not.toContain('secret://');
+      expect(message).not.toContain('ws-1');
+      expect(message).not.toContain('12345');
+      expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+        ref,
+      );
+    };
+
+    it.each(blankValues)(
+      'store — %s 이면 throw 하고 행을 만들지 않는다',
+      async (_label, value) => {
+        const { svc, repo } = newService();
+        const ref = 'secret://triggers/abc/bot-token';
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        try {
+          const err = await captureRejection(
+            svc.store(ref, 'ws-1', value as string),
+          );
+          expectFixedMessageAndLoggedRef(err, ref, warn);
+          expect(await repo.findOne({ where: { ref } })).toBeNull();
+        } finally {
+          warn.mockRestore();
+        }
+      },
+    );
+
+    it.each(blankValues)(
+      'rotate — 기존 행이 있으면 %s 으로 덮지 않는다',
+      async (_label, value) => {
+        const { svc, repo } = newService();
+        const ref = 'secret://triggers/abc/bot-token';
+        await svc.store(ref, 'ws-1', 'old-token');
+        const before = await repo.findOne({ where: { ref } });
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        try {
+          const err = await captureRejection(
+            svc.rotate(ref, 'ws-1', value as string),
+          );
+          expectFixedMessageAndLoggedRef(err, ref, warn);
+        } finally {
+          warn.mockRestore();
+        }
+        const after = await repo.findOne({ where: { ref } });
+        expect(after?.encrypted).toEqual(before?.encrypted);
+        expect(await svc.resolve(ref)).toBe('old-token');
+      },
+    );
+
+    it.each(blankValues)(
+      'rotate — 미존재 ref 에 %s 이면 행을 만들지 않는다',
+      async (_label, value) => {
+        const { svc, repo } = newService();
+        const ref = 'secret://triggers/abc/bot-token.v2';
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        try {
+          const err = await captureRejection(
+            svc.rotate(ref, 'ws-1', value as string),
+          );
+          expectFixedMessageAndLoggedRef(err, ref, warn);
+          expect(await repo.findOne({ where: { ref } })).toBeNull();
+        } finally {
+          warn.mockRestore();
+        }
+      },
+    );
+
+    // 호출자의 트랜잭션 매니저를 받아도 저장소를 건드리기 전에 거부한다.
+    it('rotate — manager 를 넘겨도 저장소를 읽거나 쓰기 전에 거부한다', async () => {
+      const { svc } = newService();
+      const getRepository = jest.fn();
+      const manager = { getRepository } as unknown as EntityManager;
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const err = await captureRejection(
+          svc.rotate('secret://triggers/abc/bot-token', 'ws-1', '', manager),
+        );
+        expect(err).toBeInstanceOf(Error);
+      } finally {
+        warn.mockRestore();
+      }
+      expect(getRepository).not.toHaveBeenCalled();
+    });
+
+    it('앞뒤 공백이 붙은 비지 않은 값은 그대로 저장한다 — 형식 판정은 호출부 몫이다', async () => {
+      const { svc } = newService();
+      const ref = 'secret://triggers/abc/bot-token';
+      await svc.store(ref, 'ws-1', ' a ');
+      expect(await svc.resolve(ref)).toBe(' a ');
+    });
+  });
+
   describe('deleteByPrefix', () => {
     it('정상 — prefix 매칭 건만 삭제, 나머지는 보존', async () => {
       const svc = new SecretResolverService(

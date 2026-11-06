@@ -131,8 +131,39 @@ export class SecretResolverService implements OnModuleInit {
   }
 
   /**
+   * 평문이 문자열이 아니거나 비었거나 공백만 있으면 throw 한다(NERV Task `CLE-T-94Z6A5`). 저장소를 읽거나 쓰기
+   * 전에 거부하므로 행을 만들거나 바꾸지 않는다. 메시지는 고정 문구이고 참조는 로그에만 남긴다(값은 로그에도
+   * 싣지 않는다).
+   *
+   * 빈 시크릿은 호출부 가드가 빠질 때 조용히 저장됐다. 생성 경로는 빈 봇 토큰을 먼저 저장한 뒤 프로바이더
+   * 호출에서 실패했고, PATCH 경로는 `?? ''` 로 저장된 토큰을 빈 값으로 덮었다. 호출부마다 막으면 새 호출부가
+   * 생길 때 다시 열리므로 저장소가 마지막에 막는다. 빈 값을 정당하게 저장하는 호출부가 없어 예외 옵션은 두지
+   * 않는다. 앞뒤 공백이 붙은 비지 않은 값은 그대로 받는다. 형식 판정은 호출부 몫이다.
+   */
+  private assertNonBlankPlaintext(
+    method: 'store' | 'rotate',
+    ref: string,
+    plaintext: unknown,
+  ): void {
+    if (typeof plaintext === 'string' && plaintext.trim() !== '') return;
+    const kind =
+      typeof plaintext !== 'string'
+        ? `non-string(${plaintext === null ? 'null' : typeof plaintext})`
+        : plaintext === ''
+          ? 'empty'
+          : 'whitespace-only';
+    this.logger.warn(
+      `SecretResolver.${method} 거부: 평문이 빈 값 (ref=${ref}, kind=${kind})`,
+    );
+    throw new Error(
+      `SecretResolverService.${method}: 빈 값은 저장하지 않습니다.`,
+    );
+  }
+
+  /**
    * plaintext 를 새 row 로 저장. 이미 존재하는 ref 면 throw. 메시지에 ref 를 싣지 않고 로그에만
-   * 남긴다([시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 18).
+   * 남긴다([시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 18). 빈 평문은
+   * {@link SecretResolverService.assertNonBlankPlaintext} 가 거부한다.
    */
   async store(
     ref: string,
@@ -140,6 +171,7 @@ export class SecretResolverService implements OnModuleInit {
     plaintext: string,
   ): Promise<void> {
     this.assertRefFormat(ref);
+    this.assertNonBlankPlaintext('store', ref, plaintext);
     const existing = await this.repository.findOne({ where: { ref } });
     if (existing) {
       // 메시지에 참조를 싣지 않는다(`resolve` 의 미존재 분기와 같다). 참조는 로그에만 남긴다.
@@ -167,6 +199,8 @@ export class SecretResolverService implements OnModuleInit {
    * 오류 메시지에는 참조 · 워크스페이스 id 를 싣지 않는다. 호출자가 그 메시지를 화면에 보이는
    * 필드(`chat_channel_last_error` 등)에 저장할 수 있어서다. 둘은 서버 로그에만 남긴다.
    *
+   * 빈 평문은 저장소를 읽기 전에 거부한다({@link SecretResolverService.assertNonBlankPlaintext}).
+   *
    * @param manager 호출자가 이미 연 트랜잭션의 매니저. 주면 읽기와 쓰기를 그 트랜잭션 안에서 한다.
    *   트리거 설정 잠금(advisory lock)을 쥔 트랜잭션 안에서 부를 때 넘긴다 — 생략하면 풀에서 연결을 하나 더
    *   빌려 잠금 보유자가 연결 둘을 쥐고, 같은 트리거를 기다리는 요청이 풀을 채우면 서로 기다린다. 넘기면 시크릿
@@ -179,6 +213,7 @@ export class SecretResolverService implements OnModuleInit {
     manager?: EntityManager,
   ): Promise<void> {
     this.assertRefFormat(ref);
+    this.assertNonBlankPlaintext('rotate', ref, newPlaintext);
     const repository = manager
       ? manager.getRepository(SecretStore)
       : this.repository;
