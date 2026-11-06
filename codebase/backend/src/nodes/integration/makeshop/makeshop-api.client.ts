@@ -169,6 +169,7 @@ function pickString(v: unknown): string | null {
 export type MakeshopPingCode =
   | 'MAKESHOP_AUTH_FAILED'
   | 'MAKESHOP_TRANSPORT_FAILED'
+  | 'MAKESHOP_API_ERROR'
   | 'INTEGRATION_INCOMPLETE';
 
 /**
@@ -307,6 +308,9 @@ export class MakeshopApiClient {
   /**
    * 사용자 진단용 연결 테스트 (spec §5.9). `GET information` 핑으로
    * access_token 의 유효성을 확인한다. 401 시 명시적 refresh 후 1회 재시도.
+   * 401 · 403 이 아닌 비-2xx(5xx · 429 등)는 토큰 문제가 아니라서 갱신하지 않고
+   * status 도 격하하지 않는다. 1차든 재시도든 `MAKESHOP_API_ERROR` 로 돌려준다
+   * (CLE-INT-AUTH 「연결 테스트」).
    *
    * **never throws** — 자격증명 누락·refresh 실패·HTTP 실패·transport 실패
    * 모두 `{ success: false, code, message }` 형태로 변환해 반환한다.
@@ -350,7 +354,15 @@ export class MakeshopApiClient {
           message: this.formatAuthFailure(first.status, shopUid, first.body),
         };
       }
-      // status === 401: 명시적 refresh 후 1회 재시도.
+      if (first.status !== 401) {
+        // 5xx · 429 등은 토큰 문제가 아니다. 갱신하지 않고 상태도 그대로 둔다.
+        return {
+          success: false,
+          code: 'MAKESHOP_API_ERROR',
+          message: this.formatApiFailure(first.status, shopUid, first.body),
+        };
+      }
+      // 401: 명시적 refresh 후 1회 재시도.
       try {
         await this.refreshAccessToken(integration);
       } catch (err) {
@@ -369,9 +381,24 @@ export class MakeshopApiClient {
           message: second.message,
         };
       }
-      if (second.status === 401) {
-        await this.markAuthFailed(integration);
+      if (second.status === 403) {
+        // 1차 403 과 같게 status 를 격하하지 않는다.
+        return {
+          success: false,
+          code: 'MAKESHOP_AUTH_FAILED',
+          message: this.formatAuthFailure(second.status, shopUid, second.body),
+        };
       }
+      if (second.status !== 401) {
+        // 갱신은 성공했고 재시도가 401 · 403 이 아닌 상태다. 토큰 문제가 아니라 격하하지 않는다.
+        return {
+          success: false,
+          code: 'MAKESHOP_API_ERROR',
+          message: this.formatApiFailure(second.status, shopUid, second.body),
+        };
+      }
+      // 재시도도 401 — 토큰 자체 문제로 확정. status 격하.
+      await this.markAuthFailed(integration);
       return {
         success: false,
         code: 'MAKESHOP_AUTH_FAILED',
@@ -432,6 +459,17 @@ export class MakeshopApiClient {
     const summary = summarizeMakeshopErrorBody(body);
     const suffix = summary ? ` — ${summary}` : '';
     return `MakeShop authentication failed (${status}) for shop ${shopUid}${suffix}`;
+  }
+
+  /** 401 · 403 이 아닌 비-2xx 응답의 한 줄 요약 (연결 테스트 결과 메시지). */
+  private formatApiFailure(
+    status: number,
+    shopUid: string,
+    body: unknown,
+  ): string {
+    const summary = summarizeMakeshopErrorBody(body);
+    const suffix = summary ? ` — ${summary}` : '';
+    return `MakeShop API returned ${status} for shop ${shopUid}${suffix}`;
   }
 
   /**
