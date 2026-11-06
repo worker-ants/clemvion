@@ -28,7 +28,7 @@ import {
  */
 
 function makeJob(
-  data: Partial<ContinuationJob> & { type: string },
+  data: Omit<Partial<ContinuationJob>, 'type'> & { type: string },
   id = 'job-1',
 ): Job<ContinuationJob> {
   return {
