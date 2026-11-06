@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { LocaleSync } from "@/lib/i18n/locale-sync";
+import { ThemeSync } from "@/lib/theme/theme-sync";
 import { translate } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
@@ -60,6 +61,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       {/* syncs user profile locale to locale store on mount */}
       <LocaleSync />
+      {/* applies the signed-in user's saved theme app-wide (REQ-PROFILE-028) */}
+      <ThemeSync />
       {children}
       <Toaster position="top-right" richColors duration={5000} />
     </QueryClientProvider>

@@ -89,4 +89,67 @@ describe("useAuthStore", () => {
     useAuthStore.getState().setLoading(true);
     expect(useAuthStore.getState().isLoading).toBe(true);
   });
+
+  describe("syncProfile", () => {
+    const user = {
+      id: "1",
+      email: "test@test.com",
+      name: "Test",
+      avatarUrl: null,
+      locale: "ko",
+      theme: "light",
+      twoFactorEnabled: true,
+    };
+
+    it("프로필에서 다시 받은 이름 · 아바타 · 언어 · 테마를 로그인 사용자에 맞춘다", () => {
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().syncProfile({
+        id: "1",
+        name: "Renamed",
+        avatarUrl: "https://cdn.example.com/a.png",
+        locale: "en",
+        theme: "dark",
+      });
+
+      expect(useAuthStore.getState().user).toEqual({
+        ...user,
+        name: "Renamed",
+        avatarUrl: "https://cdn.example.com/a.png",
+        locale: "en",
+        theme: "dark",
+      });
+    });
+
+    it("다른 사용자의 프로필이면 바꾸지 않는다", () => {
+      useAuthStore.getState().setUser(user);
+      const before = useAuthStore.getState().user;
+      useAuthStore.getState().syncProfile({ ...user, id: "2", name: "Other" });
+
+      expect(useAuthStore.getState().user).toBe(before);
+      expect(useAuthStore.getState().user?.name).toBe("Test");
+    });
+
+    it("로그인 사용자가 없으면 아무것도 하지 않는다", () => {
+      useAuthStore.getState().syncProfile({ ...user });
+      expect(useAuthStore.getState().user).toBeNull();
+    });
+
+    it("값이 같으면 상태를 바꾸지 않아 구독자를 깨우지 않는다", () => {
+      useAuthStore.getState().setUser(user);
+      const listener = vi.fn();
+      const unsubscribe = useAuthStore.subscribe(listener);
+
+      useAuthStore.getState().syncProfile({ ...user });
+
+      unsubscribe();
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("아바타가 없으면 null 로 맞춘다", () => {
+      useAuthStore.getState().setUser({ ...user, avatarUrl: "https://cdn.example.com/a.png" });
+      useAuthStore.getState().syncProfile({ ...user, avatarUrl: undefined });
+
+      expect(useAuthStore.getState().user?.avatarUrl).toBeNull();
+    });
+  });
 });

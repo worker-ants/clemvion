@@ -2,19 +2,19 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027"]
+requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "937dcb5f853534735531c7e37cd6f2d7406f9cc70c227aca410b01a71342260a"
+content_hash: "89e099305db2ef8779500cd0e546da6059d0999fc9dd6dde8475e4cc99b7498b"
 read_as: "approved_fallback"
-task: "CLE-T-KTZ9YV"
+task: "CLE-T-3158TZ"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "5bcd170a83cbf54bd59de5b67664cd93e723fb7bfb73b427468b23935260bbca"
-etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
+mirror_sha256: "1bf316ce841a9d1535fe4dcc65b9ec7f6150c7bb7edea605b8abda37af8cc508"
+etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 ---
 > 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -57,17 +57,20 @@ etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
 - REQ-PROFILE-020 IF 아바타 파일이 2MB 를 넘으면 THE SYSTEM SHALL 413 `PAYLOAD_TOO_LARGE` 로 거부한다.
 - REQ-PROFILE-021 WHEN 사용자가 UI 언어를 바꾸면 THE SYSTEM SHALL `ko` 나 `en` 으로 저장한다.
 - REQ-PROFILE-022 WHEN 사용자가 테마를 바꾸면 THE SYSTEM SHALL 라이트·다크·시스템 가운데 고른 값을 저장하고 바로 적용한다. (원본: NAV-UP-06, system 추가)
-- REQ-PROFILE-023 WHEN 저장된 테마가 `system` 이면 THE SYSTEM SHALL 테마를 적용하는 순간의 `prefers-color-scheme` 값에 따라 라이트나 다크로 그린다.
+- REQ-PROFILE-023 WHEN 저장된 테마가 `system` 이면 THE SYSTEM SHALL OS 의 `prefers-color-scheme` 값에 따라 라이트나 다크로 그리며 OS 색상 모드가 바뀌면 새로 고치지 않아도 바로 따라 바꾼다.
 - REQ-PROFILE-024 WHEN 클라이언트가 `GET /api/users/me` 를 호출하면 THE SYSTEM SHALL 확인 대기 중인 새 이메일을 `pendingEmail` 로 싣고 없으면 null 을 싣는다.
 - REQ-PROFILE-025 WHEN 사용자가 보안 카드의 링크를 누르면 THE SYSTEM SHALL `/profile/security` 나 `/profile/sessions` 로 이동한다.
 - REQ-PROFILE-026 IF 프로필 수정 요청의 테마가 `light`·`dark`·`system` 밖의 값이면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부하고 저장된 테마를 바꾸지 않는다.
 - REQ-PROFILE-027 WHEN 클라이언트가 프로필 조회(`GET /api/users/me`)·수정(`PATCH /api/users/me`)·아바타 업로드(`POST /api/users/me/avatar`)를 호출하면 THE SYSTEM SHALL 돌려주는 프로필 응답(`UserProfileDto`)에 TOTP 2단계 인증이 켜져 있는지를 `twoFactorEnabled`(boolean)로 싣는다.
+- REQ-PROFILE-028 WHEN 로그인한 사용자가 어느 화면을 열거나 새로 고치면 THE SYSTEM SHALL 사용자 정보에 저장된 테마로 화면을 그린다.
+- REQ-PROFILE-029 WHEN 앱이 첫 화면을 그리면 THE SYSTEM SHALL 이 브라우저에서 마지막으로 확정한 테마로 먼저 그려 저장된 테마와 다른 테마가 잠깐 보이지 않게 한다.
 
 ## 사이드바 사용자 영역
 
 ### 기본 표시
 
-- 사용자 아바타. 이미지가 없으면 이름 이니셜을 쓴다.
+- 사용자 아바타. 이미지가 없거나 불러오지 못하면 이름 이니셜을 쓴다. 내 프로필 사용자 정보 카드와 같은 규칙이다(공용 컴포넌트 `components/ui/user-avatar.tsx`).
+- 내 프로필에서 이름이나 아바타를 저장하면 새로 고치지 않아도 사이드바에 바로 반영된다.
 - 사용자 이름.
 - 현재 워크스페이스 이름(작은 글씨).
 
@@ -129,10 +132,12 @@ etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
 ### 테마
 
 - 저장 값은 `light`·`dark`·`system` 세 가지이고 기본값은 `light` 다. 컬럼 제약은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 User 표에 있다.
-- 화면은 `<html>` 의 `.light`·`.dark` 클래스 하나로 테마를 그린다. `system` 은 적용하는 순간 `prefers-color-scheme` 로 OS 색상 모드를 읽어 둘 가운데 하나로 바꾼다.
+- 화면은 `<html>` 의 `.light`·`.dark` 클래스 하나로 테마를 그린다. `system` 은 `prefers-color-scheme` 로 OS 색상 모드를 읽어 둘 가운데 하나로 바꾼다. OS 색상 모드가 바뀌면(`change` 이벤트) 다시 읽어 바로 바꾼다.
 - Tailwind 의 `dark:` 와 로고도 OS 설정이 아니라 이 클래스를 따른다. 근거는 [브랜드](../CLE-UI/CLE-UI-BRAND.md) 의 Rationale 「로고 자리에 `theme="auto"` 를 쓰고 전용 어두운 배경을 두지 않는 이유」 다.
-- 적용한 뒤 OS 색상 모드가 바뀌어도 다시 읽지 않는다. 테마를 다시 적용할 때 그 순간의 값을 읽는다.
-- 저장한 테마는 `/profile` 을 열 때와 환경설정 카드에서 바꿀 때 화면에 적용된다(`profile/page.tsx`, `lib/stores/theme-store.ts`). `/profile` 밖의 화면에서 앱을 새로 열면 기본값 라이트로 그린다. 이 공백은 [미결 사항](#미결-사항) 에 있다.
+- 로그인 뒤 사용자 정보(`GET /api/users/me` 의 `theme`)를 받으면 그 값을 앱 전체에 적용한다. 앱 루트의 테마 동기화 컴포넌트(`lib/theme/theme-sync.tsx`)가 맡아서 `/profile` 밖의 화면과 워크플로우 에디터에도 같은 테마가 적용된다.
+- 이 브라우저에서 마지막으로 확정한 테마를 `localStorage` 의 `clemvion.theme` 에 기억한다. 문서를 그리기 전에 `<head>` 의 인라인 스크립트가 이 값을 읽어 클래스를 붙인다. 그래서 다크를 저장한 사용자가 새로 고쳐도 라이트가 잠깐 보이지 않는다. 기억한 값이 없으면 기본값 라이트로 그리고 사용자 정보를 받은 뒤 바꾼다.
+- 로그아웃해도 기억한 값은 지우지 않는다. 로그인 화면도 이 브라우저에서 마지막으로 확정한 테마로 그린다. UI 언어(`clemvion.locale`)와 같은 방식이다.
+- 환경설정 카드의 미리보기는 기억한 값을 바꾸지 않는다. 저장해야 바뀐다. 편집을 끝내지 않고 화면을 떠나면 미리보기를 거두고 확정한 테마로 돌린다.
 
 ### 보안 카드가 가리키는 화면
 
@@ -192,18 +197,22 @@ etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
 
 ## 미결 사항
 
-- **저장한 테마를 앱을 열 때 적용하는가**: 지금은 `/profile` 을 열 때와 환경설정 카드에서 바꿀 때만 저장한 테마를 화면에 적용한다. 앱 전체에 테마를 적용하는 공급자가 없어서, `/profile` 밖의 화면에서 새로 고치면 다크나 시스템을 저장한 사용자도 라이트로 본다. `system` 을 고른 사용자의 화면이 OS 색상 모드 변경을 따라가지 않는 것도 같은 자리에서 정할 일이다. 로그인 뒤 모든 화면에 저장한 테마를 적용하는 요구를 더할지, 더한다면 OS 변경도 따라갈지 결정 필요.
+없음.
 
 ## 구현 위치
 
 - `codebase/frontend/src/components/layout/sidebar.tsx` (사용자 영역과 팝업)
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/**` (`/profile`, `change-password`, 카드 컴포넌트. 환경설정 카드는 `components/profile-preferences-card.tsx`)
 - `codebase/frontend/src/lib/stores/theme-store.ts`, `codebase/frontend/src/lib/stores/locale-store.ts`
+- `codebase/frontend/src/lib/theme/**` (테마 적용 · 첫 화면 인라인 스크립트 · 앱 전체 동기화 `theme-sync.tsx`)
+- `codebase/frontend/src/app/layout.tsx` (`<head>` 의 테마 인라인 스크립트)
+- `codebase/frontend/src/components/ui/user-avatar.tsx` (사이드바 · 사용자 정보 카드의 아바타와 이니셜 대체)
 - `codebase/frontend/src/lib/api/users.ts`, `codebase/frontend/src/lib/api/sessions.ts`
 - `codebase/backend/src/modules/users/**` (`/api/users/me`, 아바타 업로드, 비밀번호 변경. 테마 허용 값은 `dto/update-me.dto.ts` 의 `USER_THEMES`)
 - `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (테마 CHECK `chk_user_theme`. V149 가 `NOT VALID` 로 걸고 V150 이 검증한 뒤 옛 제약을 지운다)
 - `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 범위 밖 값 거부)
 - `codebase/backend/test/users-me-two-factor.e2e-spec.ts` (`GET /api/users/me` 의 `twoFactorEnabled` 가 TOTP 켜기 · 끄기를 따르고 민감 컬럼을 싣지 않는다)
+- `codebase/frontend/e2e/profile/theme.spec.ts` (저장한 테마가 다른 화면을 새로 고쳐도 적용되고 `system` 이 OS 변경을 따른다)
 
 ## Rationale
 
@@ -232,7 +241,7 @@ etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
 | CHECK 를 넓혀 `system` 을 저장한다 | 채택. 화면과 DTO 가 이미 받는 값을 DB 도 받게 한다. 마이그레이션 방식은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 에 있다 |
 | DTO 와 화면에서 `system` 을 뺀다 | 기각. OS 색상 모드를 따르는 선택지를 잃는다. 제품 요구사항 NAV-UP-06 이 라이트·다크만 적은 것은 시스템 값을 막으려던 것이 아니라 적지 않은 것으로 봤다 |
 
-시스템 테마 요구(REQ-PROFILE-023)는 지금 구현의 범위로 적었다. 구현은 테마를 적용하는 순간 OS 색상 모드를 한 번 읽어 `.light`·`.dark` 클래스 하나로 바꾼다. 화면이 이 클래스만 따르는 것은 [브랜드](../CLE-UI/CLE-UI-BRAND.md) 의 결정과 같다. 예전 문장 «OS 색상 모드를 따른다» 는 OS 설정이 바뀌면 화면도 따라 바뀐다고 읽힐 수 있어서 좁혔다. 실시간으로 따라갈지는 [미결 사항](#미결-사항) 에서 테마 적용 시점과 함께 정한다.
+이때는 시스템 테마 요구(REQ-PROFILE-023)를 당시 구현의 범위로 적었다. 당시 구현은 테마를 적용하는 순간에 OS 색상 모드를 한 번만 읽어 `.light`·`.dark` 클래스 하나로 바꿨다. 화면이 이 클래스만 따르는 것은 [브랜드](../CLE-UI/CLE-UI-BRAND.md) 의 결정과 같다. 예전 문장 «OS 색상 모드를 따른다» 는 OS 설정이 바뀌면 화면도 따라 바뀐다고 읽힐 수 있어서 좁혔다. 실시간으로 따라갈지는 테마 적용 시점과 함께 미결 사항으로 남겼다. 2026-11-06 에 이 요구를 OS 변경까지 바로 따르도록 넓혔다. 아래 「저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다」 를 본다.
 
 범위 밖 값의 400 거부는 새 요구(REQ-PROFILE-026)로 따로 적었다. 예전에는 DTO 를 지난 `system` 이 DB 에서 500 으로 실패했다. 그래서 허용 값 밖의 값은 DTO 가 먼저 막고 저장된 값을 건드리지 않는다는 점을 요구로 남긴다.
 
@@ -250,3 +259,16 @@ etag: "sha256-98dc66d628662367a67d85b0cc4d7b6f18bf325168d71ed269efb9eab990f2d6"
 - 기각: Passkey 등록 여부까지 한 값으로 묶는다. Passkey 카드는 등록 목록(`GET /api/auth/2fa/webauthn/credentials`)을 따로 읽는다. 이 값이 필요한 곳은 TOTP 카드와 계정 재인증 입력이다. 그래서 TOTP 만 뜻하는 `user.two_factor_enabled` 를 같은 이름으로 옮겨 이름과 뜻을 맞췄다.
 - 켜짐 여부는 secret 이 아니다. 비밀번호 로그인 응답도 2단계 인증 수단(`methods`)을 알려 준다. TOTP secret 과 복구 코드는 지금처럼 싣지 않는다.
 - `PATCH /api/users/me` 와 아바타 업로드도 같은 프로필 응답(`UserProfileDto`)을 쓰므로 함께 싣는다. `pendingEmail` 을 조회 응답에만 싣고 수정 · 업로드 응답에서는 키를 빼는 기존 동작은 바꾸지 않았다. 이유는 [API](#api) 표의 `GET /api/users/me` 행에 있다.
+
+### 저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다
+
+2026-11-06 결정이다(NERV Task `CLE-T-6RY511`). 이 문서의 예전 미결 사항 «저장한 테마를 앱을 열 때 적용하는가» 를 닫는다. 예전에는 `/profile` 을 열 때와 환경설정 카드에서 바꿀 때만 저장한 테마를 적용했다. 그래서 다크나 시스템을 저장한 사용자도 다른 화면에서 새로 고치면 라이트로 봤다.
+
+- 앱 루트에서 사용자 정보의 테마를 적용한다. 프로필 화면에서만 적용하면 같은 사용자가 고른 테마가 화면마다 달라진다.
+- `system` 이면 OS 색상 모드의 `change` 이벤트를 구독한다. 한 번만 읽으면 해가 진 뒤 OS 가 다크로 바뀌어도 새로 고칠 때까지 라이트로 남는다. 그렇게 두면 «시스템» 선택지의 뜻과 어긋난다.
+- 첫 화면은 `localStorage` 에 기억한 값과 `<head>` 인라인 스크립트로 그린다.
+- 기각: 사용자 정보를 받은 뒤에만 적용한다. 세션을 복원하는 동안(액세스 토큰 갱신과 `GET /api/users/me`) 라이트가 보였다가 바뀐다.
+- 기각: 쿠키에 담아 서버가 `<html>` 클래스를 렌더링한다. 루트 레이아웃이 쿠키를 읽으면 모든 화면이 정적 사전 렌더링에서 빠진다. `system` 은 서버가 OS 설정을 알 수 없어서 어차피 브라우저에서 정해야 한다.
+- 로그아웃 뒤에도 기억한 값을 남긴다. 공유 기기에서는 다음 사람이 앞 사람의 테마를 보게 된다. 테마는 민감 정보가 아니라서 이 점은 받아들였다.
+- 기각: 로그인 화면은 늘 라이트로 그린다. 로그인 직후 테마가 바뀌며 화면이 깜빡인다. UI 언어와도 다르게 동작한다.
+- 미리보기는 기억한 값에 쓰지 않는다. 저장하지 않은 미리보기가 다음 새로 고침의 첫 화면에 남으면 저장된 테마와 다른 테마가 잠깐 보인다.

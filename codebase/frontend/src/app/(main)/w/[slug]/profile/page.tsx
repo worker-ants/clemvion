@@ -11,7 +11,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Loader2, ShieldCheck, History, KeyRound } from "lucide-react";
-import { useThemeStore } from "@/lib/stores/theme-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useT } from "@/lib/i18n";
 import { isLocale, type Locale } from "@/lib/i18n/types";
@@ -37,7 +37,7 @@ interface UserProfile {
 export default function ProfilePage() {
   const t = useT();
   const slug = useWorkspaceSlug();
-  const setTheme = useThemeStore((s) => s.setTheme);
+  const syncProfile = useAuthStore((s) => s.syncProfile);
   const setLocaleStore = useLocaleStore((s) => s.setLocale);
 
   const { data: user, isLoading, isError } = useQuery<UserProfile>({
@@ -49,18 +49,20 @@ export default function ProfilePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // 첫 로드 시 server 값을 client store 에 동기화. 카드 안의 라이브 프리뷰는
-  // 임시 state 로 격리되므로 본 effect 와 충돌하지 않는다.
+  // server 값을 client store 에 동기화한다. 저장 뒤 다시 받은 이름 · 아바타 · 테마를
+  // 로그인 사용자에 맞춰 사이드바와 앱 전체 테마(ThemeSync)가 바로 쓰게 한다.
+  // 카드의 테마 미리보기는 theme-store 의 preview 로 따로 두므로 본 effect 와 충돌하지 않는다.
   useEffect(() => {
     if (!user) return;
     if (isLocale(user.locale)) setLocaleStore(user.locale);
-    if (
-      user.theme === "light" ||
-      user.theme === "dark" ||
-      user.theme === "system"
-    )
-      setTheme(user.theme);
-  }, [user, setTheme, setLocaleStore]);
+    syncProfile({
+      id: user.id,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      locale: user.locale,
+      theme: user.theme,
+    });
+  }, [user, syncProfile, setLocaleStore]);
 
   if (isLoading) {
     return (
