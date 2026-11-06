@@ -41,6 +41,9 @@ export const ErrorCode = {
   // SMTP host 가 사설/loopback 대역이라 SSRF 가드에 차단된 경우 (기본 ON,
   // `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out). connection test / 발송 양쪽 공통.
   EMAIL_HOST_BLOCKED: 'EMAIL_HOST_BLOCKED',
+  // 수신자(`to`)를 정규화(trim · 빈 문자열 제거)한 결과가 비어 보낼 곳이 없는 경우.
+  // 표현식이 빈 값으로 평가될 때 생긴다. 에러 포트로 나간다(REQ-EMAIL-010).
+  EMAIL_NO_RECIPIENTS: 'EMAIL_NO_RECIPIENTS',
   // LLM
   LLM_CALL_FAILED: 'LLM_CALL_FAILED',
   LLM_RATE_LIMIT: 'LLM_RATE_LIMIT',
