@@ -195,13 +195,19 @@ describe('RetryTurnService', () => {
     // 중복 spawn 차단이라는 이 메서드의 핵심 불변식이 **가드를 지워도 초록**이었다.
     let consumeSetArgs: Array<Record<string, unknown>>;
     let consumeAndWhereSql: string[];
+    let consumeAndWhereParams: Array<Record<string, unknown> | undefined>;
 
     function installRetryMocks(nodeExec: Record<string, unknown> | null) {
       qbExecuteAffected = 1;
       createdEntities = [];
       consumeSetArgs = [];
       consumeAndWhereSql = [];
+      consumeAndWhereParams = [];
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(nodeExec);
+      // 재시도는 실행이 `failed` 일 때만 들어간다(CLE-T-DJ3VC8). 기본 실행은 failed 다.
+      mockExecutionRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: EXEC, status: ExecutionStatus.FAILED });
       // dataSource.transaction → manager with create / save / createQueryBuilder.
       (service as unknown as { dataSource: unknown }).dataSource = {
         transaction: jest.fn(
@@ -221,10 +227,13 @@ describe('RetryTurnService', () => {
                     return qb;
                   }),
                   where: jest.fn(() => qb),
-                  andWhere: jest.fn((sql: string) => {
-                    consumeAndWhereSql.push(sql);
-                    return qb;
-                  }),
+                  andWhere: jest.fn(
+                    (sql: string, params?: Record<string, unknown>) => {
+                      consumeAndWhereSql.push(sql);
+                      consumeAndWhereParams.push(params);
+                      return qb;
+                    },
+                  ),
                   execute: jest.fn(async () => ({
                     affected: qbExecuteAffected,
                   })),
@@ -255,13 +264,70 @@ describe('RetryTurnService', () => {
       // 기록된 다른 outputData 키가 사라진다.
       const setOutput = consumeSetArgs[0].outputData;
       expect(typeof setOutput).toBe('function');
-      expect((setOutput as () => string)()).toBe("output_data - '_retryState'");
+      // 키는 SQL 에 끼우지 않고 바인딩한다(CLE-T-ZZ9TKQ). `jsonb - $1` 은 파라미터
+      // 타입을 모르면 `jsonb - text`/`jsonb - int`/`jsonb - text[]` 중에서 고르지
+      // 못하므로 text 로 못박는다.
+      expect((setOutput as () => string)()).toBe(
+        'output_data - CAST(:retryStateKey AS text)',
+      );
 
       // 레이스를 차단하는 것은 이 가드다. `?` 대신 `jsonb_exists` 를 쓰는 이유는
       // pg 드라이버가 `?` 를 바인드 파라미터로 오인하기 때문(소스 주석 참조).
       expect(consumeAndWhereSql[0]).toBe(
-        "jsonb_exists(output_data, '_retryState')",
+        'jsonb_exists(output_data, :retryStateKey)',
       );
+      expect(consumeAndWhereParams[0]).toEqual({
+        retryStateKey: '_retryState',
+      });
+    });
+
+    // CLE-T-DJ3VC8 — 명령 시점 확인. 실행이 `failed` 가 아니면(에러 포트로 흐름이
+    // 이어졌거나 병렬 분기의 다른 분기가 아직 돈다) 재진입이 본 흐름과 겹친다.
+    // `_retryState` 를 소비하기 **전에** 거절해야 사용자가 나중에 다시 시도할 수 있다.
+    it.each([
+      ExecutionStatus.PENDING,
+      ExecutionStatus.RUNNING,
+      ExecutionStatus.WAITING_FOR_INPUT,
+      ExecutionStatus.COMPLETED,
+      ExecutionStatus.CANCELLED,
+    ])(
+      '실행이 %s 면 INVALID_EXECUTION_STATE 로 거절하고 _retryState 를 소비하지 않는다',
+      async (status) => {
+        installRetryMocks(makeFailedNodeExec());
+        mockExecutionRepo.findOneBy.mockResolvedValue({ id: EXEC, status });
+
+        await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+          code: 'INVALID_EXECUTION_STATE',
+        });
+
+        expect(mockExecutionRepo.findOneBy).toHaveBeenCalledWith({ id: EXEC });
+        const ds = (
+          service as unknown as { dataSource: { transaction: jest.Mock } }
+        ).dataSource;
+        expect(ds.transaction).not.toHaveBeenCalled();
+        expect(consumeSetArgs).toHaveLength(0);
+        expect(createdEntities).toHaveLength(0);
+      },
+    );
+
+    it('실행 행이 없으면 INVALID_EXECUTION_STATE 로 거절하고 _retryState 를 소비하지 않는다', async () => {
+      installRetryMocks(makeFailedNodeExec());
+      mockExecutionRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'INVALID_EXECUTION_STATE',
+      });
+      expect(consumeSetArgs).toHaveLength(0);
+      expect(createdEntities).toHaveLength(0);
+    });
+
+    it('대조: 실행이 failed 면 실행을 id 로 읽고 새 행을 만든다', async () => {
+      installRetryMocks(makeFailedNodeExec());
+
+      await service.retryLastTurn(EXEC, NE_ID);
+
+      expect(mockExecutionRepo.findOneBy).toHaveBeenCalledWith({ id: EXEC });
+      expect(createdEntities).toHaveLength(1);
     });
 
     it('spawns a new NodeExecution when TTL is valid', async () => {
@@ -551,13 +617,18 @@ describe('RetryTurnService', () => {
       // SET 절은 `_retryState` 키를 제거하는 raw JSONB 식이어야 한다.
       const setArg = setSpy.mock.calls[0][0] as { inputData: () => string };
       expect(typeof setArg.inputData).toBe('function');
-      expect(setArg.inputData()).toMatch(/input_data - '_retryState'/);
+      // 키는 SQL 에 끼우지 않고 바인딩한다(CLE-T-ZZ9TKQ).
+      expect(setArg.inputData()).toBe(
+        'input_data - CAST(:retryStateKey AS text)',
+      );
       expect(whereSpy).toHaveBeenCalledWith('id = :id', { id: SPAWNED_ID });
-      const andWhereSql = andWhereSpy.mock.calls
-        .map((c) => String(c[0]))
-        .join(' ');
-      expect(andWhereSql).toMatch(/status = :running/);
-      expect(andWhereSql).toMatch(/jsonb_exists\(input_data, '_retryState'\)/);
+      expect(andWhereSpy).toHaveBeenCalledWith('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      });
+      expect(andWhereSpy).toHaveBeenCalledWith(
+        'jsonb_exists(input_data, :retryStateKey)',
+        { retryStateKey: '_retryState' },
+      );
     });
 
     // ai-review CRITICAL #1 회귀 (2026-07-28, `review/code/2026/07/28/20_32_57`,
@@ -632,6 +703,7 @@ describe('RetryTurnService', () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: EXEC,
         workflowId: 'wf-1',
+        status: ExecutionStatus.FAILED,
         startedAt: new Date(),
       });
       mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
@@ -665,6 +737,49 @@ describe('RetryTurnService', () => {
       ).resolves.toBeUndefined();
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
+
+    // CLE-T-DJ3VC8 — 워커 진입 확인. 명령 시점에 `failed` 였어도 워커가 집기 전에
+    // 같은 실행의 다른 재시도가 먼저 재진입했거나 취소되면 실행은 `failed` 가 아니다.
+    // 그대로 들어가면 재진입 턴이 살아 있는 흐름과 겹친다. 새 행은 이 배달이 claim 한
+    // 것이라 다른 쪽이 쓰지 않으므로 `failed` 로 마감하고, `node.started` 전이라 노드
+    // 이벤트는 내지 않는다.
+    it.each([
+      ExecutionStatus.PENDING,
+      ExecutionStatus.RUNNING,
+      ExecutionStatus.WAITING_FOR_INPUT,
+      ExecutionStatus.COMPLETED,
+      ExecutionStatus.CANCELLED,
+    ])(
+      '(g) claim 뒤 실행이 %s 면 새 행을 failed 로 마감하고 재진입하지 않는다',
+      async (status) => {
+        const row = makeSpawnedRow();
+        mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+        mockExecutionRepo.findOneBy.mockResolvedValue({
+          id: EXEC,
+          status,
+          startedAt: new Date(),
+        });
+        mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+
+        await expect(
+          service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+        ).resolves.toBeUndefined();
+
+        expectGraphNotDriven();
+        expect(row.status).toBe(NodeExecutionStatus.FAILED);
+        expect(row.error).toEqual({
+          message: 'Retry re-entry rejected: execution is no longer failed',
+        });
+        expect(row.finishedAt).toBeInstanceOf(Date);
+        expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+        expect(
+          (row.inputData as Record<string, unknown>)._retryState,
+        ).toBeUndefined();
+        expect(mockEventEmitter.emitNode).not.toHaveBeenCalled();
+        expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+        expect(mockEventEmitter.emitTerminalExecution).not.toHaveBeenCalled();
+      },
+    );
 
     it('(d) marks spawned row FAILED when parent execution is not found', async () => {
       const row = makeSpawnedRow();
@@ -825,7 +940,9 @@ describe('RetryTurnService', () => {
       // `GET /executions/:id` 로 내부 message 가 노출되고 `finalizeCancelledExecution`
       // (취소 시 error 를 비움)과도 불일치했다. 취소 시 execution.error 자체가
       // 저장되지 않아야 한다.
-      expect(execution.error).toBeUndefined();
+      // 재진입 시작 때 옛 실패 필드를 비우므로(CLE-T-DJ3VC8) 값은 `null` 이다 —
+      // 앞선 실패의 error 가 취소 레코드에 남지 않는다.
+      expect(execution.error).toBeNull();
     });
 
     // W-6 (대조) — 일반 Error 면 EXECUTION_FAILED + status=FAILED + error 필드.
@@ -854,6 +971,215 @@ describe('RetryTurnService', () => {
       // ai-review W16 (2026-07-26) — 취소가 아닌 일반 실패는 기존과 동일하게
       // execution.error 가 DB 에 저장돼야 한다(대조군 — 위 취소 케이스와 대비).
       expect(execution.error).toEqual({ message: 'boom' });
+    });
+
+    // CLE-T-DJ3VC8 — 재시도는 FAILED 실행에서 시작하므로 엔티티에 앞선 실패의
+    // error·finishedAt·durationMs 가 있다. 턴 끝 전이(failed → running /
+    // waiting_for_input)가 엔티티 값을 함께 저장하므로 재진입 턴에 넘기기 **전에**
+    // 비워야 한다. 값은 호출 시점에 스냅샷한다(사후 단언은 뒤늦게 지워도 통과한다).
+    it('재진입 턴에 넘기기 전에 실행의 옛 실패 필드(error·finishedAt·durationMs)를 비운다', async () => {
+      execution.error = { message: '이전 시도의 실패' };
+      execution.finishedAt = new Date(Date.now() - 5_000);
+      execution.durationMs = 1234;
+      const NOT_CALLED = Symbol('turn-not-reached');
+      let seen: unknown = NOT_CALLED;
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockImplementation((exec: Record<string, unknown>) => {
+        seen = {
+          error: exec.error,
+          finishedAt: exec.finishedAt,
+          durationMs: exec.durationMs,
+        };
+        return Promise.resolve(PARK_RELEASED);
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(seen).not.toBe(NOT_CALLED);
+      expect(seen).toEqual({ error: null, finishedAt: null, durationMs: null });
+    });
+
+    // CLE-T-DJ3VC8 — `resolveTerminalDurationMs` 는 엔티티에 durationMs 가 있으면 그
+    // 값을 그대로 돌려준다. 옛 값을 비우지 않으면 재실패 종결이 **앞선 실패의
+    // durationMs** 를 다시 쓴다.
+    it('재진입이 다시 실패하면 durationMs 를 옛 값이 아니라 이번 종결 시각으로 계산한다', async () => {
+      execution.error = { message: '이전 시도의 실패' };
+      execution.finishedAt = new Date(Date.now() - 5_000);
+      execution.durationMs = 1234;
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockRejectedValue(new Error('boom'));
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      const failedCall = (
+        mockEventEmitter.emitTerminalExecution as jest.Mock
+      ).mock.calls.find((c) => (c[1] as { type: string }).type === 'failed');
+      expect(failedCall).toBeDefined();
+      const durationMs = (failedCall![1] as { durationMs: number }).durationMs;
+      expect(durationMs).not.toBe(1234);
+      // startedAt 이 10초 전이다.
+      expect(durationMs).toBeGreaterThanOrEqual(10_000);
+      expect(execution.durationMs).toBe(durationMs);
+    });
+
+    // CLE-T-DJ3VC8 — 재진입이 예외로 끝났는데 새 행이 아직 running 이면 그 행을
+    // 조건부로 마감한다. 턴 끝 전이가 동기로 거절되면(`assertTransition`) 새 행은
+    // DB 에서 running 인 채 남았다 — in-memory 는 이미 바뀌어 있어 판정은 DB 조건으로 한다.
+    describe('재진입 예외 때 running 새 행 마감', () => {
+      type CloseCall = {
+        set: Record<string, unknown>[];
+        where: unknown[][];
+        andWhere: unknown[][];
+      };
+      // 첫 query builder 는 배달 claim, 그다음이 마감 UPDATE 다.
+      function installCloseQb(closeResult: number | Error): CloseCall {
+        const calls: CloseCall = { set: [], where: [], andWhere: [] };
+        let built = 0;
+        mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
+          built += 1;
+          const isClaim = built === 1;
+          const qb: Record<string, jest.Mock> = {};
+          qb.update = jest.fn(() => qb);
+          qb.set = jest.fn((v: Record<string, unknown>) => {
+            if (!isClaim) calls.set.push(v);
+            return qb;
+          });
+          qb.where = jest.fn((...a: unknown[]) => {
+            if (!isClaim) calls.where.push(a);
+            return qb;
+          });
+          qb.andWhere = jest.fn((...a: unknown[]) => {
+            if (!isClaim) calls.andWhere.push(a);
+            return qb;
+          });
+          qb.execute = jest.fn(() => {
+            if (isClaim) return Promise.resolve({ affected: 1 });
+            return closeResult instanceof Error
+              ? Promise.reject(closeResult)
+              : Promise.resolve({ affected: closeResult });
+          });
+          return qb;
+        });
+        return calls;
+      }
+
+      const nodeEvents = () =>
+        (mockEventEmitter.emitNode as jest.Mock).mock.calls.map(
+          (c) => c[2] as NodeEventType,
+        );
+
+      it('일반 예외면 running 조건으로 failed 마감하고 NODE_FAILED 를 실행 종결 이벤트보다 먼저 낸다', async () => {
+        const calls = installCloseQb(1);
+        (
+          mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+        ).mockRejectedValue(new Error('boom'));
+
+        await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+        expect(calls.set).toHaveLength(1);
+        expect(calls.set[0]).toMatchObject({
+          status: NodeExecutionStatus.FAILED,
+          error: { message: 'boom' },
+        });
+        expect(calls.set[0].finishedAt).toBeInstanceOf(Date);
+        expect(typeof calls.set[0].durationMs).toBe('number');
+        expect(calls.where).toEqual([['id = :id', { id: SPAWNED_ID }]]);
+        expect(calls.andWhere).toEqual([
+          ['status = :running', { running: NodeExecutionStatus.RUNNING }],
+        ]);
+
+        expect(nodeEvents()).toEqual([
+          NodeEventType.NODE_STARTED,
+          NodeEventType.NODE_FAILED,
+        ]);
+        const failedEmit = (mockEventEmitter.emitNode as jest.Mock).mock
+          .calls[1] as [string, string, unknown, Record<string, unknown>];
+        expect(failedEmit[0]).toBe(EXEC);
+        expect(failedEmit[1]).toBe(NODE_ID);
+        expect(failedEmit[3]).toMatchObject({
+          nodeExecutionId: SPAWNED_ID,
+          status: NodeExecutionStatus.FAILED,
+          error: 'boom',
+        });
+        // 노드가 먼저 끝나고 실행이 끝난다.
+        const emitNodeOrder = (mockEventEmitter.emitNode as jest.Mock).mock
+          .invocationCallOrder[1];
+        const emitTerminalOrder = (
+          mockEventEmitter.emitTerminalExecution as jest.Mock
+        ).mock.invocationCallOrder[0];
+        expect(emitNodeOrder).toBeLessThan(emitTerminalOrder);
+        expect(spawnedRow.status).toBe(NodeExecutionStatus.FAILED);
+      });
+
+      it('취소 예외면 cancelled 로 마감하고 NODE_CANCELLED 를 내며 error 는 싣지 않는다', async () => {
+        const calls = installCloseQb(1);
+        (
+          mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+        ).mockRejectedValue(new ExecutionCancelledError());
+
+        await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+        expect(calls.set).toHaveLength(1);
+        expect(calls.set[0].status).toBe(NodeExecutionStatus.CANCELLED);
+        expect(calls.set[0]).not.toHaveProperty('error');
+        expect(nodeEvents()).toEqual([
+          NodeEventType.NODE_STARTED,
+          NodeEventType.NODE_CANCELLED,
+        ]);
+        const cancelledEmit = (mockEventEmitter.emitNode as jest.Mock).mock
+          .calls[1] as [string, string, unknown, Record<string, unknown>];
+        expect(cancelledEmit[3]).toMatchObject({
+          nodeExecutionId: SPAWNED_ID,
+          status: NodeExecutionStatus.CANCELLED,
+        });
+        expect(cancelledEmit[3]).not.toHaveProperty('error');
+      });
+
+      it('조건부 UPDATE 가 0행이면(턴 안에서 이미 마감) 노드 이벤트를 더 내지 않고 실행만 마감한다', async () => {
+        installCloseQb(0);
+        (
+          mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+        ).mockRejectedValue(new Error('boom'));
+
+        await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+        expect(nodeEvents()).toEqual([NodeEventType.NODE_STARTED]);
+        expect(spawnedRow.status).toBe(NodeExecutionStatus.RUNNING);
+        expect(mockEventEmitter.emitTerminalExecution).toHaveBeenCalledWith(
+          EXEC,
+          expect.objectContaining({ type: 'failed' }),
+        );
+      });
+
+      it('마감 UPDATE 가 실패해도 실행 마감은 그대로 진행한다', async () => {
+        installCloseQb(new Error('db down'));
+        (
+          mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+        ).mockRejectedValue(new Error('boom'));
+
+        await expect(
+          service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+        ).resolves.toBeUndefined();
+
+        expect(nodeEvents()).toEqual([NodeEventType.NODE_STARTED]);
+        expect(mockEventEmitter.emitTerminalExecution).toHaveBeenCalledWith(
+          EXEC,
+          expect.objectContaining({ type: 'failed' }),
+        );
+      });
+
+      it('재진입이 성공하면 마감 UPDATE 를 하지 않는다', async () => {
+        const calls = installCloseQb(1);
+        (
+          mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+        ).mockResolvedValue(PARK_RELEASED);
+
+        await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+        expect(calls.set).toHaveLength(0);
+      });
     });
 
     // 재진입이 re-park(PARK_RELEASED) 하면 graph 진행 없이 조기 반환.

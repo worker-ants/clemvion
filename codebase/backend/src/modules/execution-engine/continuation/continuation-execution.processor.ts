@@ -9,7 +9,39 @@ import {
   type ContinuationJob,
 } from '../queues/continuation-execution.queue';
 import { ExecutionEngineService } from '../execution-engine.service';
-import { RetryTurnService } from '../retry-turn.service';
+import {
+  RETRY_LAST_TURN_DELIVERY_CLAIM,
+  RetryTurnService,
+} from '../retry-turn.service';
+
+/**
+ * 재개 job 타입마다 배달 claim 을 누가 하는지 정한 표다(CLE-T-ZZ9TKQ).
+ *
+ * - `resume-entry`: 처리기가 `claimResumeEntry`(waiting_for_input → running 조건부
+ *   UPDATE)로 재개 진입을 먼저 얻는다. affected=0 이면 ack-and-discard 한다.
+ * - `RETRY_LAST_TURN_DELIVERY_CLAIM`: 대상이 대기 행이 아니라 spawn 된 RUNNING 행이라
+ *   위 전이가 성립하지 않는다. `RetryTurnService.applyRetryLastTurn` 이 `_retryState`
+ *   키 원자 제거로 배달 claim 을 직접 한다.
+ * - `none`: 재개 진입이 없다. `cancel` 은 실행 단위 처리라 대상 노드 실행이 없다.
+ *
+ * `Record<ContinuationJob['type'], …>` 라 새 타입을 더하면 이 표에 claim 방식을 정하기
+ * 전까지 컴파일되지 않는다. 표에 없는 값(롤링 배포 중 다른 버전이 넣은 job 등)은
+ * claim 하지 않는다. 처리할 분기가 없는 job 이 대기 행을 running 으로 바꿔 놓고
+ * 끝나면 그 행이 멈춘다.
+ */
+export const CONTINUATION_DELIVERY_CLAIM: Readonly<
+  Record<
+    ContinuationJob['type'],
+    'resume-entry' | typeof RETRY_LAST_TURN_DELIVERY_CLAIM | 'none'
+  >
+> = Object.freeze({
+  continue: 'resume-entry',
+  button_click: 'resume-entry',
+  ai_message: 'resume-entry',
+  ai_end_conversation: 'resume-entry',
+  cancel: 'none',
+  retry_last_turn: RETRY_LAST_TURN_DELIVERY_CLAIM,
+});
 
 /**
  * Phase 2 — Durable Continuation Worker.
@@ -84,17 +116,14 @@ export class ContinuationExecutionProcessor extends WorkerHost {
     // terminal)이면 ack-and-discard. 비원자 SELECT 재검증과 달리 check-then-act 창이
     // 없어 멀티 인스턴스·concurrency 상향에서도 이중 실행 0 을 기계적으로 보장한다.
     //
-    // retry_last_turn 은 이 claim 에서 제외 — 대상 row 는 WAITING 이 아니라 spawn 된
-    // RUNNING row 라 `waiting_for_input → running` 조건부 전이가 성립하지 않는다
-    // (spec §4.2 "새 row 재개"). **대신 `applyRetryLastTurn` 이 자체 원자 claim 을
-    // 수행한다** — `input_data - '_retryState'` JSONB 키 제거를 `status='running'` +
-    // `jsonb_exists` 조건부 UPDATE 로 걸어 affected=1 인 delivery 만 진행시킨다.
-    //
-    // (2026-07-28 정정. 이전 주석은 "자체 멱등 가드(RUNNING 검증)" 이라고만 적었는데, 그
-    // 검증은 read-then-branch 라 check-then-act 창이 있었다 — 즉 위 문단이 원자성의
-    // 필요조건으로 내세운 바로 그 성질을 `retry_last_turn` 만 충족하지 못했다. 이 주석이
-    // 그 상태의 근거로 인용되던 자기모순을 ai-review 5차 라운드가 CRITICAL 로 지적했다.)
-    if (type !== 'cancel' && type !== 'retry_last_turn') {
+    // 이 claim 을 하는 타입과 하지 않는 타입, 하지 않을 때 누가 대신 하는지는
+    // `CONTINUATION_DELIVERY_CLAIM` 표가 정한다. `retry_last_turn` 은 spawn 된 RUNNING
+    // 행이 대상이라 `applyRetryLastTurn` 이 `_retryState` 키를 `status='running'` +
+    // `jsonb_exists` 조건부 UPDATE 로 지워 affected=1 인 delivery 만 진행시킨다.
+    // (2026-07-28 정정. 예전 주석은 그 자리를 "자체 멱등 가드(RUNNING 검증)" 라고만
+    // 적었다. 그 검증은 read-then-branch 라 check-then-act 창이 있었고 ai-review 5차
+    // 라운드가 CRITICAL 로 지적했다.)
+    if (CONTINUATION_DELIVERY_CLAIM[type] === 'resume-entry') {
       const claimed = await this.engine.claimResumeEntry(
         executionId,
         nodeExecutionId,
