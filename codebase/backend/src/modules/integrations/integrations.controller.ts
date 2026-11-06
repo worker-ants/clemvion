@@ -71,12 +71,8 @@ import {
 } from './dto/integration.dto';
 
 /**
- * OAuth begin / reauthorize / request-scopes 세 엔드포인트가 동일한 분기
- * 응답을 갖는다 (popup `{ authUrl, state }` vs Cafe24 Private
- * `{ mode, integrationId, appUrl, callbackUrl, scopesAdded? }` vs MakeShop
- * `{ mode, integrationId, appUrl, callbackUrl, scope }`). DTO 가 추가될
- * 때 세 데코레이터를 따로 수정하지 않도록 공유 상수로 추출 (shotgun surgery
- * 방지).
+ * `oauth/begin` 의 oneOf 응답. 팝업 `{ authUrl, state }`, Cafe24 Private 설치 대기 안내, MakeShop 설치 대기 안내 셋이다.
+ * MakeShop 안내는 `new` 모드가 설치 대기 행을 만들거나 다시 쓸 때만 나온다.
  */
 const OAUTH_BEGIN_RESULT_DTOS = [
   OAuthBeginPopupResultDto,
@@ -85,12 +81,23 @@ const OAUTH_BEGIN_RESULT_DTOS = [
 ] as const;
 
 /**
- * Swagger description SoT — 세 엔드포인트의 oneOf 응답 설명을 한 곳에서 관리.
- * `scopesAdded` 는 `request_scopes` mode 에서만 채워지므로 표기 일관성을 위해
- * 항상 optional 마커 (`scopesAdded?`) 로 노출한다 (spec §9.2 §9.3).
+ * `:id/reauthorize` · `:id/request-scopes` 의 oneOf 응답. 두 경로는 MakeShop 통합을 400 으로 거절하므로
+ * MakeShop 안내가 빠진다. `oauth/begin` 과 응답 모양이 갈리므로 두 상수를 따로 둔다.
+ */
+const OAUTH_REAUTH_RESULT_DTOS = [
+  OAuthBeginPopupResultDto,
+  OAuthBeginCafe24PendingResultDto,
+] as const;
+
+/**
+ * `oauth/begin` 응답 설명. `scopesAdded` 는 추가 스코프 요청에서만 채워지므로 늘 optional 마커(`scopesAdded?`)로 적는다.
  */
 const OAUTH_BEGIN_RESULT_DESCRIPTION =
   '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl, scopesAdded?, scope? }. oauth/begin 의 MakeShop 흐름은 { mode: makeshop_pending_install, integrationId, appUrl, callbackUrl, scope } 다. scope 는 new 모드가 만들거나 다시 쓴 설치 대기 행의 공개 범위다.';
+
+/** `:id/reauthorize` · `:id/request-scopes` 응답 설명. 재설치 요청 안내에는 `scope` 를 싣지 않는다. */
+const OAUTH_REAUTH_RESULT_DESCRIPTION =
+  '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode: cafe24_private_pending, integrationId, appUrl, callbackUrl, scopesAdded? } 다. scopesAdded 는 추가 스코프 요청에서만 싣는다. MakeShop 통합은 400 이라 MakeShop 응답이 없다.';
 
 /*
  * 403 · 404 설명 — 거부 코드는 공유 거부 표(`common/constants/workspace-roles.ts`)의 `.code` 를 보간한다(코드명이 바뀌면
@@ -247,12 +254,16 @@ export class IntegrationsController {
   @ApiOperation({
     summary: 'OAuth 인증 시작',
     description:
-      'OAuth 흐름을 시작해 인증 URL과 state 토큰을 반환합니다. new/reauthorize/request_scopes 모드를 지원합니다.',
+      'OAuth 흐름을 시작합니다. new · reauthorize · request_scopes 모드를 받고, 모드와 서비스에 상관없이 편집자 이상이 부를 수 있습니다. Google · GitHub · Cafe24 Public 은 인증 URL 과 state 를 반환합니다. Cafe24 Private · MakeShop 의 new 모드는 같은 설치 대기 행(Cafe24 Private 은 같은 상점, MakeShop 은 같은 client_id)이 있으면 그 행을 다시 쓰고 없으면 새로 만든 뒤 App URL 안내를 반환합니다. 다시 쓸 설치 대기 행이 다른 멤버의 개인 통합이면 409 입니다. new 가 아닌 모드는 본문의 서비스 · 상점 · 앱 유형이 대상 통합과 같아야 합니다.',
   })
   @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
     description: OAUTH_BEGIN_RESULT_DESCRIPTION,
   })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
+  // 근거: [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](CLE-INT-OAUTH#oauthbegin-요청과-응답)
+  @ApiBadRequestResponse({
+    description:
+      '입력값 검증 실패 또는 미지원 서비스. OAUTH_TARGET_MISMATCH — reauthorize · request_scopes 모드에서 본문의 서비스가 대상 통합의 서비스 유형과 다르거나, Cafe24 요청의 상점 식별자 · 앱 유형이 대상 통합과 다름. state 를 만들지 않는다.',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
     description: forbiddenWithService(
@@ -603,8 +614,8 @@ export class IntegrationsController {
       'OAuth 통합의 재인증을 시작합니다. Cafe24 Private 은 재설치 요청을 기록하고 App URL 안내(`cafe24_private_pending`)를 반환합니다. 설치 대기·설치 토큰 없는 Cafe24 Private 과 MakeShop 은 400 입니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
-    description: OAUTH_BEGIN_RESULT_DESCRIPTION,
+  @ApiOkWrappedOneOfResponse(OAUTH_REAUTH_RESULT_DTOS, {
+    description: OAUTH_REAUTH_RESULT_DESCRIPTION,
   })
   @ApiBadRequestResponse({
     description:
@@ -636,8 +647,8 @@ export class IntegrationsController {
       'OAuth 통합에 추가 스코프를 요청합니다. 설치 토큰이 있는 Cafe24 Private 은 스코프를 저장하고 App URL 안내(`cafe24_private_pending`)를 반환합니다. 토큰 없는 Cafe24 Private 과 MakeShop 은 400 입니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
-    description: OAUTH_BEGIN_RESULT_DESCRIPTION,
+  @ApiOkWrappedOneOfResponse(OAUTH_REAUTH_RESULT_DTOS, {
+    description: OAUTH_REAUTH_RESULT_DESCRIPTION,
   })
   @ApiBadRequestResponse({
     description:
@@ -668,7 +679,7 @@ export class IntegrationsController {
   @ApiOperation({
     summary: '통합 범위 변경',
     description:
-      '개인(personal) ↔ 조직(organization) 범위를 변경합니다. 조직 범위로 올리려면 관리자 권한이 필요합니다.',
+      '개인(personal) ↔ 조직(organization) 범위를 변경합니다. 어느 방향이든 관리자 이상 권한이 필요합니다(뷰어 · 편집자는 ADMIN_REQUIRED).',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(IntegrationDto, {

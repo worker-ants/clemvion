@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { In, IsNull, Not, Or } from 'typeorm';
@@ -1328,14 +1329,15 @@ describe('IntegrationOAuthService — Cafe24', () => {
     it.each(['reauthorize', 'request_scopes'] as const)(
       'mode=%s — 대상 통합 자신이 연결됨이어도 막지 않고 authorize URL 을 돌려준다',
       async (mode) => {
-        integrationRepo.find = jest.fn().mockResolvedValue([
-          buildFakeCafe24Integration({
-            id: 'target-public',
-            status: 'connected',
-            mallId: 'pub-shop',
-            appType: 'public',
-          }),
-        ]);
+        const target = buildFakeCafe24Integration({
+          id: 'target-public',
+          status: 'connected',
+          mallId: 'pub-shop',
+          appType: 'public',
+        });
+        integrationRepo.find = jest.fn().mockResolvedValue([target]);
+        // 본문이 대상 통합과 맞는지 보려고 begin 이 대상 행을 다시 읽는다(REQ-INTOAUTH-071).
+        integrationRepo.findOne.mockResolvedValue(target);
 
         const result = await service.begin({
           ...publicBeginParams(),
@@ -1462,6 +1464,222 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect((error as { response?: { code?: string } }).response?.code).toBe(
         'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
       );
+    });
+  });
+
+  // REQ-INTOAUTH-071 — `new` 가 아닌 모드의 begin 은 본문의 서비스 · 상점 식별자 · 앱 유형이 대상 통합과 같아야 state 를
+  // 만든다. 다르면 콜백이 다른 상점의 토큰을 대상 통합에 쓴다(CLE-T-9J6W7H).
+  describe('begin — new 가 아닌 모드의 대상 통합 대조', () => {
+    const MODES = ['reauthorize', 'request_scopes'] as const;
+
+    function nonNewParams(
+      mode: (typeof MODES)[number],
+      meta: { mall_id: string; app_type: 'public' | 'private' },
+    ) {
+      return {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'cafe24',
+        scopes: ['mall.read_product'],
+        mode,
+        integrationId: 'target',
+        providerMeta: meta,
+      };
+    }
+
+    async function expectTargetMismatch(promise: Promise<unknown>) {
+      const error = await promise.catch((err: Error) => err);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(
+        (error as { response?: Record<string, unknown> }).response,
+      ).toEqual({
+        code: 'OAUTH_TARGET_MISMATCH',
+        message: expect.any(String),
+      });
+      expect(stateRepo.create).not.toHaveBeenCalled();
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    }
+
+    beforeEach(() => {
+      // 본문의 상점에 연결됨 행이 없다 — 앞선 409 사전 검사를 지나 대조까지 온다.
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+    });
+
+    it.each(MODES)(
+      'mode=%s — 본문의 상점 식별자가 대상 통합의 credentials.mall_id 와 다르면 400 OAUTH_TARGET_MISMATCH',
+      async (mode) => {
+        integrationRepo.findOne.mockResolvedValue(
+          buildFakeCafe24Integration({
+            id: 'target',
+            mallId: 'shop-a',
+            appType: 'public',
+          }),
+        );
+
+        await expectTargetMismatch(
+          service.begin(
+            nonNewParams(mode, { mall_id: 'shop-b', app_type: 'public' }),
+          ),
+        );
+        // 대상은 같은 워크스페이스 안에서만 찾는다.
+        expect(integrationRepo.findOne).toHaveBeenCalledWith({
+          where: { id: 'target', workspaceId: 'ws-1' },
+        });
+      },
+    );
+
+    it.each(MODES)(
+      'mode=%s — Cafe24 Private 통합을 가리키고 Public 본문을 실으면 400 OAUTH_TARGET_MISMATCH',
+      async (mode) => {
+        integrationRepo.findOne.mockResolvedValue(
+          buildFakeCafe24Integration({
+            id: 'target',
+            mallId: 'shop-a',
+            appType: 'private',
+          }),
+        );
+
+        await expectTargetMismatch(
+          service.begin(
+            nonNewParams(mode, { mall_id: 'shop-a', app_type: 'public' }),
+          ),
+        );
+      },
+    );
+
+    it.each(MODES)(
+      'mode=%s — 대상 통합이 Cafe24 가 아니면 400 OAUTH_TARGET_MISMATCH',
+      async (mode) => {
+        integrationRepo.findOne.mockResolvedValue({
+          id: 'target',
+          workspaceId: 'ws-1',
+          serviceType: 'google',
+          credentials: { scopes: [] },
+        });
+
+        await expectTargetMismatch(
+          service.begin(
+            nonNewParams(mode, { mall_id: 'shop-a', app_type: 'public' }),
+          ),
+        );
+      },
+    );
+
+    it('대상 통합에 credentials.mall_id 가 없으면 견줄 상점이 없어 400 OAUTH_TARGET_MISMATCH', async () => {
+      const target = buildFakeCafe24Integration({
+        id: 'target',
+        mallId: null,
+        appType: 'public',
+      });
+      delete (target.credentials as Record<string, unknown>).mall_id;
+      integrationRepo.findOne.mockResolvedValue(target);
+
+      await expectTargetMismatch(
+        service.begin(
+          nonNewParams('reauthorize', {
+            mall_id: 'shop-a',
+            app_type: 'public',
+          }),
+        ),
+      );
+    });
+
+    // 견줄 값은 `:id/reauthorize` · `:id/request-scopes` 가 넘기는 값과 같은 `credentials.mall_id` 다. 평문 `mall_id`
+    // 컬럼이 빈 옛 행도 credentials 값이 같으면 통과한다.
+    it('mall_id 컬럼이 빈 옛 행도 credentials.mall_id 가 같으면 state 를 만든다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        buildFakeCafe24Integration({
+          id: 'target',
+          mallId: null,
+          credentialsMallId: 'shop-a',
+          appType: 'public',
+        }),
+      );
+
+      const result = await service.begin(
+        nonNewParams('request_scopes', {
+          mall_id: 'shop-a',
+          app_type: 'public',
+        }),
+      );
+
+      expect((result as { authUrl: string }).authUrl).toMatch(
+        /^https:\/\/shop-a\.cafe24api\.com\/api\/v2\/oauth\/authorize\?/,
+      );
+      expect(stateRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('대상 통합이 그 사이 지워졌으면 404 RESOURCE_NOT_FOUND 로 거절하고 state 를 만들지 않는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+
+      const error = await service
+        .begin(
+          nonNewParams('reauthorize', {
+            mall_id: 'shop-a',
+            app_type: 'public',
+          }),
+        )
+        .catch((err: Error) => err);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'RESOURCE_NOT_FOUND',
+      );
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    // 판정은 state 를 만들기 직전이다. 앞선 거절이 내던 코드는 그대로다.
+    it('본문의 상점에 대상이 아닌 연결됨 행이 있으면 대조 전에 409 CAFE24_PRIVATE_APP_ALREADY_CONNECTED', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeCafe24Integration({
+          id: 'other-connected',
+          status: 'connected',
+          mallId: 'shop-b',
+          appType: 'public',
+        }),
+      ]);
+
+      const error = await service
+        .begin(
+          nonNewParams('reauthorize', {
+            mall_id: 'shop-b',
+            app_type: 'public',
+          }),
+        )
+        .catch((err: Error) => err);
+
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+      );
+      expect(integrationRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('상점 식별자 형식이 틀리면 대조 전에 400 CAFE24_INVALID_MALL_ID', async () => {
+      const error = await service
+        .begin(
+          nonNewParams('reauthorize', { mall_id: 'X!', app_type: 'public' }),
+        )
+        .catch((err: Error) => err);
+
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_INVALID_MALL_ID',
+      );
+      expect(integrationRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('mode=new 는 integrationId 를 받아도 대상과 견주지 않는다', async () => {
+      const result = await service.begin({
+        ...nonNewParams('reauthorize', {
+          mall_id: 'shop-a',
+          app_type: 'public',
+        }),
+        mode: 'new',
+      });
+
+      expect((result as { authUrl: string }).authUrl).toContain(
+        'shop-a.cafe24api.com',
+      );
+      expect(integrationRepo.findOne).not.toHaveBeenCalled();
     });
   });
 
