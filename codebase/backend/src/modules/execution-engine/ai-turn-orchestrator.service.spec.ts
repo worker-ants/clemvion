@@ -129,17 +129,11 @@ describe('AiTurnOrchestrator', () => {
       config: { mode: 'multi_turn' },
     };
 
-    // ai-review CRITICAL #1 (2026-07-30, 10차 라운드) — retry opts→DB가드 **번역
-    // 한 줄**(옛 `opts?.retryReentry ? { allowRetryReentry: true } : undefined`)이 전
-    // 계층에서 무검증이었다. CLE-T-9WG82W 로 이름을 `allowRetryReentry` 하나로 맞춰
-    // 번역 줄은 없어지고 opts 를 그대로 넘기는 줄이 남았다. 뮤턴트는 그 줄을
-    // `undefined` 로 바꾼 것이다. 8R 에서 내가 돌린 뮤턴트는 그 **인자 줄을 통째로 삭제**해
-    // 호출 shape 을 바꿨고, 아래 기존 단언들이 4번째 인자로 `undefined` 를 기대하므로
-    // shape 변화만 잡혔다. 리뷰어의 더 강한 뮤턴트(표현식만 `undefined` 로 치환, shape
-    // 유지)는 4개 spec 593건 전체 GREEN 이었다 — 직접 재현해 확인했다.
-    //
-    // 상태머신 계층과 DB-가드 계층은 각각 고립 테스트로 옳은데 **둘을 잇는 배선이
-    // 끊어져도 아무도 몰랐다.** 이 테스트가 그 배선을 잠근다.
+    // 재진입 opts 를 driver 의 짝 전이까지 그대로 넘기는지 잠근다. 상태 머신과 DB 가드는
+    // 각자 고립 테스트로 옳아도 둘을 잇는 이 전달 줄이 끊기면 재진입 re-park 가 늘
+    // 0행이 된다(2026-07-30 ai-review CRITICAL). 뮤턴트는 호출 shape 을 유지한 채 넘기는
+    // 값만 `undefined` 로 바꾼 것이어야 한다. 인자를 지우면 shape 단언만 걸려 동작을
+    // 잠갔다고 오판한다.
     it('재진입 opts 를 driver 에 그대로 전달한다 (10R CRITICAL)', async () => {
       const savedExecution = {
         id: executionId,
@@ -840,8 +834,6 @@ describe('AiTurnOrchestrator', () => {
     });
   });
 
-  // ai_end_conversation 분기 — handler.endMultiTurnConversation 호출 + driver
-  // finalize 경유 (RUNNING 진입 상태에서는 NodeExecution save 만, 상태 전이 skip).
   // CLE-T-9WG82W — processAiResumeTurn 은 받은 opts 를 re-park · 종료 처리에 그대로
   // 넘긴다(옛 finalizeOpts 번역을 없앤 자리). 분기마다 넘기는 줄이 따로 있어 한
   // 분기만 끊겨도 그 경로의 짝 전이가 FAILED 행을 잡지 못한다.
@@ -902,7 +894,8 @@ describe('AiTurnOrchestrator', () => {
             status: 'ended',
           })),
         } as unknown as NodeHandler,
-        { kind: 'blocking', interaction: 'ai_conversation' },
+        // 실제 ai_agent 메타데이터와 같다. 오케스트레이터는 이 값을 읽지 않는다.
+        { kind: 'standard' },
       );
 
       await runTurn({ type: 'ai_end_conversation' });
@@ -917,6 +910,8 @@ describe('AiTurnOrchestrator', () => {
     });
   });
 
+  // ai_end_conversation 분기 — handler.endMultiTurnConversation 호출 + driver
+  // finalize 경유 (RUNNING 진입 상태에서는 NodeExecution save 만, 상태 전이 skip).
   describe('processAiResumeTurn — ai_end_conversation 종료', () => {
     const aiNode: Partial<Node> = {
       id: 'node-end',

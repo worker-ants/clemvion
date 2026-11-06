@@ -9,7 +9,10 @@ import {
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
-import { nonTerminalStatuses } from './state/state-machine';
+import {
+  nonTerminalStatuses,
+  type TransitionOptions,
+} from './state/state-machine';
 import {
   userMessageSignalApplies,
   RehydrationError,
@@ -5761,7 +5764,7 @@ describe('ExecutionEngineService', () => {
           e: Partial<Execution>,
           s: ExecutionStatus,
           linkedNodeExec?: NodeExecution,
-          opts?: { allowRetryReentry?: boolean },
+          opts?: TransitionOptions,
         ) => Promise<boolean>;
       };
 
@@ -6266,7 +6269,7 @@ describe('ExecutionEngineService', () => {
       ExecutionEngineService as unknown as {
         NON_TERMINAL_STATUSES_SQL: string;
         NON_TERMINAL_OR_FAILED_STATUSES_SQL: string;
-        guardStatusesSql: (opts?: { allowRetryReentry?: boolean }) => string;
+        guardStatusesSql: (opts?: TransitionOptions) => string;
       };
     const toSql = (statuses: string[]) =>
       statuses.map((status) => `'${status}'`).join(', ');
@@ -6308,7 +6311,7 @@ describe('ExecutionEngineService', () => {
         tryLockActiveExecutionAndSaveNodeExec: (
           executionId: string,
           nodeExec: NodeExecution | null,
-          opts?: { allowRetryReentry?: boolean },
+          opts?: TransitionOptions,
         ) => Promise<boolean>;
       };
 
