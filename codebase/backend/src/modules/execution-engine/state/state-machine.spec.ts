@@ -1,4 +1,8 @@
-import { canTransition, assertTransition } from './state-machine';
+import {
+  canTransition,
+  assertTransition,
+  nonTerminalStatuses,
+} from './state-machine';
 import { ExecutionStatus } from '../../executions/entities/execution.entity';
 
 describe('StateMachine', () => {
@@ -189,6 +193,61 @@ describe('StateMachine', () => {
       expect(() =>
         assertTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING),
       ).toThrow('Invalid state transition');
+    });
+  });
+
+  // CLE-T-9WG82W — DB 가드(엔진의 `NON_TERMINAL_STATUSES_SQL` ·
+  // `NON_TERMINAL_OR_FAILED_STATUSES_SQL`)가 손으로 맞추던 status 목록을 전이 표에서
+  // 파생한다. 8R CRITICAL 은 두 진실 소스(상태 머신 opt-in · DB 가드 목록)가 어긋난
+  // 결함이었다. 그래서 목록 값 자체와 「전이 표와 같은 정의인가」를 함께 잠근다.
+  describe('nonTerminalStatuses', () => {
+    const ALL = Object.values(ExecutionStatus);
+
+    it('기본은 pending · running · waiting_for_input 이다', () => {
+      expect(nonTerminalStatuses()).toEqual([
+        ExecutionStatus.PENDING,
+        ExecutionStatus.RUNNING,
+        ExecutionStatus.WAITING_FOR_INPUT,
+      ]);
+    });
+
+    it('재진입 opt-in 이면 failed 가 더해진다', () => {
+      expect(nonTerminalStatuses({ allowRetryReentry: true })).toEqual([
+        ExecutionStatus.PENDING,
+        ExecutionStatus.RUNNING,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.WAITING_FOR_INPUT,
+      ]);
+    });
+
+    it('opt-in 이어도 completed · cancelled 는 빠진다', () => {
+      for (const opts of [undefined, { allowRetryReentry: true }]) {
+        expect(nonTerminalStatuses(opts)).not.toContain(
+          ExecutionStatus.COMPLETED,
+        );
+        expect(nonTerminalStatuses(opts)).not.toContain(
+          ExecutionStatus.CANCELLED,
+        );
+      }
+    });
+
+    it('allowRetryReentry: false 는 opt-in 이 없는 것과 같다', () => {
+      expect(nonTerminalStatuses({ allowRetryReentry: false })).toEqual(
+        nonTerminalStatuses(),
+      );
+    });
+
+    // 정의 대조 — 목록에 있는 상태는 나가는 전이가 하나 이상 있고, 없는 상태는 하나도
+    // 없다. 전이 표를 고치면 DB 가드 목록도 같이 바뀌는지 이 대조가 지킨다.
+    it.each([
+      ['opt-in 없음', undefined],
+      ['opt-in', { allowRetryReentry: true }],
+    ])('%s: 목록은 나가는 전이가 있는 상태와 같다', (_label, opts) => {
+      const listed = new Set(nonTerminalStatuses(opts));
+      for (const from of ALL) {
+        const hasOutgoing = ALL.some((to) => canTransition(from, to, opts));
+        expect([from, listed.has(from)]).toEqual([from, hasOutgoing]);
+      }
     });
   });
 });

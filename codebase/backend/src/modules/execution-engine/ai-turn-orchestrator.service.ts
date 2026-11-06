@@ -20,6 +20,7 @@ import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { extractAiTurnErrorPayload } from '../../nodes/ai/shared/llm-error-payload';
 import { ExecutionContextService } from './context/execution-context.service';
 import type { ResumeState } from './utils/resume-state.schema';
+import type { TransitionOptions } from './state/state-machine';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import {
   ExecutionEventType,
@@ -203,9 +204,9 @@ export class AiTurnOrchestrator {
    * 를 durable 영속 → 다음 turn rehydration 무손실. (응답은 `handleAiMessageTurn` 가
    * `AI_MESSAGE` 로, 이어 re-park 가 `EXECUTION_WAITING_FOR_INPUT` 로 emit.)
    *
-   * @param opts.retryReentry — retry-last-turn 재진입(`applyRetryLastTurn`)에서 true.
-   *   종료 turn 의 `finalizeAiNode` 가 FAILED→RUNNING 전이(state-machine retry 전용)를
-   *   허용하도록 전파한다. 일반 resume turn 은 미설정.
+   * @param opts 재진입 opt-in. `applyRetryLastTurn` 만 켜고 일반 resume turn 은 넘기지
+   *   않는다. 종료 turn 의 `finalizeAiNode` 와 계속 turn 의 re-park 에 그대로 넘긴다
+   *   (불변식은 {@link TransitionOptions}).
    * @returns 계속(re-park) 시 `PARK_RELEASED`, 종료 시 `void`.
    */
   async processAiResumeTurn(
@@ -216,12 +217,9 @@ export class AiTurnOrchestrator {
     nodeExec: NodeExecution | null,
     resumeState: Record<string, unknown>,
     payload: unknown,
-    opts?: { retryReentry?: boolean },
+    opts?: TransitionOptions,
   ): Promise<ProcessTurnResult> {
     const contextKey = this.driver.contextKeyOf(context);
-    const finalizeOpts = opts?.retryReentry
-      ? { retryReentry: true as const }
-      : undefined;
     // W10 (ai-review) — `payload` 는 §7.5 rehydration 의 새 진입점이라 방어적 null
     // guard. null/비객체(또는 `type` 부재) continuation 은 `action.type` 접근 전에
     // 걸러 warn 후 re-park 한다 (옛 loop 의 unknown 분기와 동형 — 대화 alive 유지).
@@ -238,7 +236,7 @@ export class AiTurnOrchestrator {
         context,
         nodeExec,
         node,
-        finalizeOpts,
+        opts,
       );
       return PARK_RELEASED;
     }
@@ -254,7 +252,7 @@ export class AiTurnOrchestrator {
         context,
         nodeExec,
         'COMPLETED',
-        finalizeOpts,
+        opts,
       );
       return;
     }
@@ -282,7 +280,7 @@ export class AiTurnOrchestrator {
           context,
           nodeExec,
           'FAILED',
-          finalizeOpts,
+          opts,
         );
         return;
       }
@@ -294,7 +292,7 @@ export class AiTurnOrchestrator {
           context,
           nodeExec,
           'COMPLETED',
-          finalizeOpts,
+          opts,
         );
         return;
       }
@@ -304,7 +302,7 @@ export class AiTurnOrchestrator {
         context,
         nodeExec,
         node,
-        finalizeOpts,
+        opts,
       );
       return PARK_RELEASED;
     }
@@ -322,7 +320,7 @@ export class AiTurnOrchestrator {
         context,
         nodeExec,
         node,
-        finalizeOpts,
+        opts,
       );
       return PARK_RELEASED;
     }
@@ -340,7 +338,7 @@ export class AiTurnOrchestrator {
       context,
       nodeExec,
       node,
-      finalizeOpts,
+      opts,
     );
     return PARK_RELEASED;
   }
@@ -458,14 +456,10 @@ export class AiTurnOrchestrator {
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
     node: Node,
-    // ai-review CRITICAL #1 (2026-07-30) — retry 재진입에서 turn 이 계속되면 이
-    // re-park 이 `FAILED → WAITING_FOR_INPUT` 전이를 요구한다. 그 전이는
-    // state-machine 의 `allowRetryReentry` opt-in 으로만 허용되므로 flag 를 여기까지
-    // 반드시 전파해야 한다 — 없으면 `assertTransition('failed','waiting_for_input')`
-    // 이 **동기 throw** 하고 그 일반 예외 메시지가 EXECUTION_FAILED payload 로
-    // 노출된다(동시성 없이 매 호출 결정적 실패). multi-turn 재진입의 가장 흔한
-    // 시나리오가 바로 이 경로다.
-    opts?: { retryReentry?: boolean },
+    // 재진입에서 turn 이 계속되면 이 re-park 이 `FAILED → WAITING_FOR_INPUT` 전이다.
+    // opts 가 빠지면 `assertTransition` 이 매번 동기 throw 한다(ai-review CRITICAL #1,
+    // 2026-07-30). multi-turn 재진입에서 가장 흔한 경로다.
+    opts?: TransitionOptions,
   ): Promise<void> {
     // §7.5 재개 진입 원자 claim(06 C-2) 이후 nodeExec 는 RUNNING 으로 로드된다
     // (claim 이 WFI→RUNNING 페어링 전이). re-park 는 이를 다시 WAITING_FOR_INPUT
@@ -480,7 +474,7 @@ export class AiTurnOrchestrator {
       savedExecution,
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
-      opts?.retryReentry ? { allowRetryReentry: true } : undefined,
+      opts,
     );
     await this.assertLinkedTransitionApplied(
       parked,
@@ -1288,13 +1282,11 @@ export class AiTurnOrchestrator {
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
     finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED',
-    // W5 / WARNING #5 — boolean flag → opts 객체 파라미터 (Flag Parameter 안티패턴 해소).
-    // retry 재진입(`applyRetryLastTurn`)에서 호출될 때만 `{ retryReentry: true }`.
-    // COMPLETED 분기의 FAILED → RUNNING 전이를 state-machine opt-in 으로 허용한다.
-    // 일반 multi-turn 완료(`waitForAiConversation`)는 opts 미전달 (WAITING/RUNNING → RUNNING).
-    opts?: { retryReentry?: boolean },
+    // 재진입(`applyRetryLastTurn`)에서만 `{ allowRetryReentry: true }` 가 온다. 세
+    // 분기(isFailed 잠금 · RUNNING 유지 잠금 · else 짝 전이)에 그대로 넘긴다. 일반
+    // multi-turn 완료(`waitForAiConversation`)는 넘기지 않는다.
+    opts?: TransitionOptions,
   ): Promise<void> {
-    const allowRetryReentry = opts?.retryReentry === true;
     const isFailed = finalStatus === 'FAILED';
     if (nodeExec) {
       nodeExec.status = isFailed
@@ -1363,7 +1355,7 @@ export class AiTurnOrchestrator {
         const applied = await this.driver.tryLockActiveExecutionAndSaveNodeExec(
           executionId,
           nodeExec,
-          allowRetryReentry ? { allowRetryReentry: true } : undefined,
+          opts,
         );
         await this.assertLinkedTransitionApplied(
           applied,
@@ -1453,7 +1445,7 @@ export class AiTurnOrchestrator {
       const applied = await this.driver.tryLockActiveExecutionAndSaveNodeExec(
         executionId,
         nodeExec,
-        allowRetryReentry ? { allowRetryReentry: true } : undefined,
+        opts,
       );
       await this.assertLinkedTransitionApplied(
         applied,
@@ -1472,7 +1464,7 @@ export class AiTurnOrchestrator {
         savedExecution,
         ExecutionStatus.RUNNING,
         nodeExec ?? undefined,
-        allowRetryReentry ? { allowRetryReentry: true } : undefined,
+        opts,
       );
       await this.assertLinkedTransitionApplied(
         applied,

@@ -9,6 +9,7 @@ import {
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
+import { nonTerminalStatuses } from './state/state-machine';
 import {
   userMessageSignalApplies,
   RehydrationError,
@@ -6201,6 +6202,50 @@ describe('ExecutionEngineService', () => {
   // RED 로 떨어진다(교차 검증 완료, 2026-07-26). (ai-review WARNING #5,
   // 2026-07-27, documentation — 하드코딩 줄 번호 대신 describe 이름 인용으로
   // 교체: 원래 "L4925" 는 이미 도입 시점부터 실제 위치와 어긋나 있었다.)
+  // CLE-T-9WG82W — DB 가드의 status 목록은 상태 머신에서 파생한다. 8R CRITICAL 은
+  // 상태 머신 opt-in 과 손으로 맞춘 이 목록이 어긋난 결함이었다. 목록 값과 파생 관계를
+  // 함께 잠가, 전이 표나 엔진 어느 한쪽만 바뀌면 여기서 드러나게 한다.
+  describe('DB 가드 status 목록 — 상태 머신 파생', () => {
+    const statics = () =>
+      ExecutionEngineService as unknown as {
+        NON_TERMINAL_STATUSES_SQL: string;
+        NON_TERMINAL_OR_FAILED_STATUSES_SQL: string;
+        guardStatusesSql: (opts?: { allowRetryReentry?: boolean }) => string;
+      };
+    const toSql = (statuses: string[]) =>
+      statuses.map((status) => `'${status}'`).join(', ');
+
+    it('기본 목록은 nonTerminalStatuses() 와 같다', () => {
+      expect(statics().NON_TERMINAL_STATUSES_SQL).toBe(
+        toSql(nonTerminalStatuses()),
+      );
+      expect(statics().NON_TERMINAL_STATUSES_SQL).toBe(
+        "'pending', 'running', 'waiting_for_input'",
+      );
+    });
+
+    it('opt-in 목록은 nonTerminalStatuses({ allowRetryReentry: true }) 와 같다', () => {
+      expect(statics().NON_TERMINAL_OR_FAILED_STATUSES_SQL).toBe(
+        toSql(nonTerminalStatuses({ allowRetryReentry: true })),
+      );
+      expect(statics().NON_TERMINAL_OR_FAILED_STATUSES_SQL).toBe(
+        "'pending', 'running', 'failed', 'waiting_for_input'",
+      );
+    });
+
+    it('guardStatusesSql 은 opt-in 일 때만 failed 를 포함한 목록을 고른다', () => {
+      const { guardStatusesSql } = statics();
+      expect(guardStatusesSql({ allowRetryReentry: true })).toBe(
+        statics().NON_TERMINAL_OR_FAILED_STATUSES_SQL,
+      );
+      for (const opts of [undefined, {}, { allowRetryReentry: false }]) {
+        expect(guardStatusesSql(opts)).toBe(
+          statics().NON_TERMINAL_STATUSES_SQL,
+        );
+      }
+    });
+  });
+
   describe('tryLockActiveExecutionAndSaveNodeExec — RUNNING 유지 분기 전용 원자 관측+save', () => {
     const priv = () =>
       service as unknown as {

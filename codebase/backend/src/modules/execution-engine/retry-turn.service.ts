@@ -476,7 +476,7 @@ export class RetryTurnService {
       // exec-park D6 full B3 — 옛 runAiConversationLoop(initialAction) 장수 루프 replay
       // 를 turn-park 모델의 단발 처리기로 이관한다. processAiResumeTurn 이 마지막 turn
       // (initialAction)을 외부 대기 없이 즉시 replay 하고, 종료면 finalizeAiNode
-      // (retryReentry → FAILED→RUNNING 전이 허용)로 단말 마킹, **계속이면 re-park**
+      // (allowRetryReentry → FAILED→RUNNING 전이 허용)로 단말 마킹, **계속이면 re-park**
       // (PARK_RELEASED) 해 다음 turn 을 fresh continuation 으로 받는다(코루틴 해제).
       const turnSignal = await this.aiTurnOrchestrator.processAiResumeTurn(
         execution,
@@ -486,7 +486,7 @@ export class RetryTurnService {
         spawnedRow,
         resumeState,
         initialAction,
-        { retryReentry: true },
+        { allowRetryReentry: true },
       );
       if (turnSignal === PARK_RELEASED) {
         // 대화 계속 — re-park 됨(Execution WAITING). graph 진행 없이 종료, 다음
@@ -775,8 +775,7 @@ export class RetryTurnService {
       // guarded UPDATE 가 항상 매칭될 것처럼 보이지만, FAILED → RUNNING 전이는
       // `allowRetryReentry` opt-in 으로 예외 허용된다 (state/state-machine.ts 의
       // ALLOWED_TRANSITIONS 주석 + `canTransition` 의 `allowRetryReentry` 분기;
-      // 호출부는 ai-turn-orchestrator.service.ts 의
-      // `allowRetryReentry ? { allowRetryReentry: true } : undefined`). 즉 동시
+      // 호출부는 ai-turn-orchestrator.service.ts 가 받은 opts 를 그대로 넘긴다). 즉 동시
       // retry 재진입이 위 SELECT 와 이 UPDATE 사이에 row 를 FAILED → RUNNING 으로
       // 옮기면 `andWhere('status = :status', { status: target })` 가 0행에
       // 매칭된다 — 그때 무조건 `true` 를 반환하면 DB 는 RUNNING(새 턴 진행 중)인데

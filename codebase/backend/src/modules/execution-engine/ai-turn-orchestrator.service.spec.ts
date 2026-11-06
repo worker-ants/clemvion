@@ -12,6 +12,7 @@ import { NodeExecutionStatus } from '../node-executions/entities/node-execution.
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { NodeHandler } from '../../nodes/core/node-handler.interface';
 import { ExecutionEventType } from '../websocket/websocket-events.types';
+import type { TransitionOptions } from './state/state-machine';
 import {
   buildAiMessageDebugFromResumeState,
   buildConversationConfigFromOutput,
@@ -115,7 +116,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         node: Node,
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -129,15 +130,17 @@ describe('AiTurnOrchestrator', () => {
     };
 
     // ai-review CRITICAL #1 (2026-07-30, 10차 라운드) — retry opts→DB가드 **번역
-    // 한 줄**(`opts?.retryReentry ? { allowRetryReentry: true } : undefined`)이 전
-    // 계층에서 무검증이었다. 8R 에서 내가 돌린 뮤턴트는 그 **인자 줄을 통째로 삭제**해
+    // 한 줄**(옛 `opts?.retryReentry ? { allowRetryReentry: true } : undefined`)이 전
+    // 계층에서 무검증이었다. CLE-T-9WG82W 로 이름을 `allowRetryReentry` 하나로 맞춰
+    // 번역 줄은 없어지고 opts 를 그대로 넘기는 줄이 남았다. 뮤턴트는 그 줄을
+    // `undefined` 로 바꾼 것이다. 8R 에서 내가 돌린 뮤턴트는 그 **인자 줄을 통째로 삭제**해
     // 호출 shape 을 바꿨고, 아래 기존 단언들이 4번째 인자로 `undefined` 를 기대하므로
     // shape 변화만 잡혔다. 리뷰어의 더 강한 뮤턴트(표현식만 `undefined` 로 치환, shape
     // 유지)는 4개 spec 593건 전체 GREEN 이었다 — 직접 재현해 확인했다.
     //
     // 상태머신 계층과 DB-가드 계층은 각각 고립 테스트로 옳은데 **둘을 잇는 배선이
     // 끊어져도 아무도 몰랐다.** 이 테스트가 그 배선을 잠근다.
-    it('retryReentry opts 를 받으면 driver 에 allowRetryReentry 를 번역해 전달한다 (10R CRITICAL)', async () => {
+    it('재진입 opts 를 driver 에 그대로 전달한다 (10R CRITICAL)', async () => {
       const savedExecution = {
         id: executionId,
         // retry 재진입은 Execution 이 FAILED 인 상태에서 re-park 한다.
@@ -151,7 +154,7 @@ describe('AiTurnOrchestrator', () => {
         context,
         nodeExec,
         reparkNode as Node,
-        { retryReentry: true },
+        { allowRetryReentry: true },
       );
 
       expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
@@ -432,7 +435,7 @@ describe('AiTurnOrchestrator', () => {
   });
 
   // ai-review WARNING #2 (testing) — 짝 전이의 세 번째 소비처. retry-last-turn
-  // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {retryReentry:true})`
+  // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {allowRetryReentry:true})`
   // → `finalizeAiNode`)이 대화를 종료시키면 `savedExecution.status`(FAILED,
   // spawn row) 는 RUNNING 이 아니라 else 분기(RUNNING 재claim)를 탄다. 동시
   // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`shouldProceed === false`)
@@ -446,7 +449,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -469,7 +472,7 @@ describe('AiTurnOrchestrator', () => {
         contextService.createContext(executionId, workflowId),
         nodeExec,
         'COMPLETED',
-        { retryReentry: true },
+        { allowRetryReentry: true },
       );
 
     it('RUNNING 재claim 이 선점당하면(false) ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
@@ -561,7 +564,7 @@ describe('AiTurnOrchestrator', () => {
           context,
           nodeExec,
           'COMPLETED',
-          { retryReentry: true },
+          { allowRetryReentry: true },
         ),
       ).rejects.toBeInstanceOf(ExecutionCancelledError);
 
@@ -597,7 +600,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
@@ -717,7 +720,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: { retryReentry?: boolean },
+        opts?: TransitionOptions,
       ) => Promise<void>;
     };
 
