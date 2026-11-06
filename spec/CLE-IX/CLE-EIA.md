@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "950d75afa7a30203feed4cb45a3a3aab86e453757169e6b81db55bde8574ad7d"
+content_hash: "86147c8c1426c4781510823fc0dfc244bdec65a945d6dddf0674f3cdf816a02a"
 read_as: "approved_fallback"
-task: "CLE-T-YR4EK5"
+task: "CLE-T-0VV3VR"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "a7f1ba671fd6feb4e23ae73d9010225642ed201da745614e03942d5d28ebb874"
-etag: "sha256-187bfe8db6b150cf3e2e52615ea68501df176a9d0f7d93fc446ef3bfdd5f5f4b"
+mirror_sha256: "9c1390e152b017874e090c054ce99656f12617c59a5b8039a5c93817bab9f975"
+etag: "sha256-1499c032a5b5d28a13baeab58365b4034029ca36289ce6df757d6d3b25a50261"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,7 +74,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-015 WHEN HTTP 진입점 가드가 요청 컨텍스트를 합성하면 THE SYSTEM SHALL `scope` 필드를 설정하지 않는다. (원본: §3.3.1-1)
 - REQ-EIA-016 WHEN HTTP 요청 본문·헤더·쿼리·경로 값을 역직렬화하면 THE SYSTEM SHALL `scope` 필드를 제거한다. (원본: §3.3.1-2)
 - REQ-EIA-017 WHILE `iext_*` 를 서명·검증하는 동안 THE SYSTEM SHALL HS256 과 `INTERACTION_JWT_SECRET`, 그것이 없으면 `JWT_SECRET` 을 쓴다. (원본: §8.3)
-- REQ-EIA-018 IF `NODE_ENV=production` 에서 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없으면 THE SYSTEM SHALL 서버 부팅을 막는다. (원본: §8.3)
+- REQ-EIA-018 IF `NODE_ENV=production` 에서 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없거나, 설정한 `INTERACTION_JWT_SECRET` 이 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 가 막는 값이면 THE SYSTEM SHALL 서버 부팅을 막는다. (원본: §8.3)
 - REQ-EIA-019 IF 개발 환경에서 두 시크릿이 모두 없으면 THE SYSTEM SHALL 프로세스 시작 때 한 번 만든 임시 무작위 키로 서명한다. (원본: §8.3)
 - REQ-EIA-020 WHEN 인바운드 요청이 토큰을 보내면 THE SYSTEM SHALL `Authorization: Bearer` 헤더로만 받고, 쿼리 파라미터(`?token=`)는 SSE 스트림에만 허용한다. (원본: §8.3)
 - REQ-EIA-021 WHILE 운영 환경인 동안 THE SYSTEM SHALL EIA 경로에 HTTPS 를 강제한다. (원본: §8.3)
@@ -256,7 +256,9 @@ PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. �
 서명 비밀은 설정 네임스페이스 `interaction.jwtSecret`(= `INTERACTION_JWT_SECRET`)을 먼저 보고, 없으면 `jwt.secret`(= `JWT_SECRET`)을 쓴다. 서비스 코드는 `process.env` 를 직접 읽지 않고 `registerAs` 네임스페이스로 읽는다. 두 값이 모두 없을 때의 동작은 환경마다 다르다.
 
 - 개발 환경: 프로세스 시작 때 한 번 만든 임시 무작위 키(`randomBytes(32)`)로 서명한다. 예측 가능한 고정 비밀이 버전 기록에 남지 않고, 재시작하면 개발용 토큰이 모두 무효가 된다.
-- 운영 환경(`NODE_ENV=production`): `InteractionTokenService` 생성자가 예외를 던져 부팅을 막는다. 다른 운영 환경 가드는 `common/config/production-guards.ts` 의 `assertProductionConfig` 에 모여 있다(전체 목록은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드)). 이 가드만은 모듈 안 컨텍스트가 필요해 생성자에 남아 있다.
+- 운영 환경(`NODE_ENV=production`): `main.ts` 가 부팅 첫 단계에서 부르는 `assertProductionConfig`(`common/config/production-guards.ts`)가 기동을 막는다. `JWT_SECRET` 은 원래 이 함수가 검사한다. `INTERACTION_JWT_SECRET` 을 설정했으면 그 값도 같은 규칙으로 검사한다. 무엇을 막는지는 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 있다. `InteractionTokenService` 생성자도 두 값이 모두 없으면 예외를 던진다. 이 예외는 `main.ts` 를 거치지 않고 모듈을 띄우는 경로를 위해 남긴다.
+
+서명 비밀을 바꾸면 이미 발급한 실행 단위 토큰(`iext_*`)은 모두 검증에 실패한다. 운영 환경 가드에 걸려 서명 비밀을 새로 만든 배포도 같다.
 
 토큰의 저장·폐기 흐름과 상태 전이(발급 → 갱신 → 폐기·만료)는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 에서 정한다. 갱신 엔드포인트와 토큰 검증 실패 응답은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 에서 정한다.
 
@@ -553,3 +555,11 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 ### 운영 환경 가드 목록은 링크로 둔다 (2026-10-31)
 
 「인터랙션 토큰」 절에는 `assertProductionConfig` 의 가드를 나열하지 않고 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 링크만 둔다. 이전 본문의 사본에는 `INTEGRATION_ENCRYPTION_KEY` · `MCP_ALLOW_INSECURE_URL` 가드가 빠져 있었다. 가드가 늘 때마다 사본은 낡으므로 목록은 한 곳에만 둔다(NERV Task `CLE-T-KQ37NJ`).
+
+### 인터랙션 서명 비밀도 운영 환경 가드가 검사한다 (2026-11-06)
+
+NERV Task `CLE-T-0VV3VR` 에서 REQ-EIA-018 과 「인터랙션 토큰」 의 운영 환경 문장을 바꿨다.
+
+- 예전 가드는 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없을 때만 부팅을 막았다. `INTERACTION_JWT_SECRET` 을 설정했으면 값이 `.env.example` 의 예시 값이든 공백뿐이든 짧든 그 값으로 `iext_*` 에 서명했다. 알려진 값으로 서명하면 누구나 실행 단위 토큰을 위조해 남의 실행에 입력을 보내거나 실행을 취소할 수 있다. 같은 위험의 `JWT_SECRET` 은 이미 예시 값 · 공백 · 32자 하한을 막고 있었다.
+- 예전 본문은 이 가드가 모듈 안 컨텍스트가 필요해 생성자에 남는다고 적었다. 실제 판정에는 환경 변수 둘이면 충분하다. 그래서 `assertProductionConfig` 로 옮겨 `JWT_SECRET` 과 같은 규칙을 쓴다. 위치를 정한 이유와 기각한 대안은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「`INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다 (2026-11-06)」 에 있다. 가드 목록은 링크로 둔다는 [운영 환경 가드 목록은 링크로 둔다](#운영-환경-가드-목록은-링크로-둔다-2026-10-31) 결정을 따라 이 문서에는 막는 값을 옮겨 적지 않는다.
+- 서명 방식(HS256)과 대체 순서(`INTERACTION_JWT_SECRET`, 없으면 `JWT_SECRET`)는 바꾸지 않았다. 빈 문자열을 `JWT_SECRET` 으로 대신하게 바꾸는 안은 대체 순서를 바꾸는 일이라 택하지 않았다. 빈 값은 지금처럼 운영 부팅을 막는다.

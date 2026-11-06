@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "e6f1511e8a576eda2d3406a7d929e4635010d6b8809f4a7ffefc202928dedaf4"
+content_hash: "6cee1b78394f7131a46543950ff3d2703ad57d35a985f3abd63b6516b0bc049b"
 read_as: "approved_fallback"
-task: "CLE-T-BYCGF1"
+task: "CLE-T-0VV3VR"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "944d2e0c00d265776e47f1b8af3f9345e7f68fec25b1a8ffc2f5d7c7f316b854"
-etag: "sha256-1a7f749e34359925a9eca07f4d1ba93850110734ea352adab0a00540ac85a831"
+mirror_sha256: "291519bb2648798c58c6d9e6f89dd97b228766a1845000d3c5cb11d22dd275e8"
+etag: "sha256-295b5354d3b1c0208d0f799333eaaed11af2733f01a0e2da8f3ffa8ed663a5a4"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -353,6 +353,7 @@ sequenceDiagram
 | 설정 | 기동을 막는 값 | 막는 위험 |
 | --- | --- | --- |
 | `JWT_SECRET` | 없음, 공백뿐인 값, 기본 sentinel(`dev-jwt-secret`), 저장소에 커밋된 예시 값, 앞뒤 공백을 뗀 길이가 32자 미만 | 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 우회한다(CWE-521 약한 비밀) |
+| `INTERACTION_JWT_SECRET` | 설정했을 때만 검사한다. 빈 값, 공백뿐인 값, 저장소에 커밋된 예시 값(`JWT_SECRET` 의 예시 값 포함), 앞뒤 공백을 뗀 길이가 32자 미만. 설정하지 않으면 `JWT_SECRET` 으로 서명하므로 위 행이 대신 막는다 | 실행 단위 인터랙션 토큰(`iext_*`)의 서명 비밀이다. 예측 가능한 값이면 누구나 토큰을 위조해 남의 실행에 입력을 보내거나 실행을 취소한다([External Interaction API 「인터랙션 토큰」](../CLE-IX/CLE-EIA.md#인터랙션-토큰)) |
 | `ENCRYPTION_KEY`(마스터키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 시크릿 저장소 값과 모델 설정의 API 키가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
 | `INTEGRATION_ENCRYPTION_KEY`(통합 암호화 키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 통합 자격 증명과 인증 설정이 평문으로 저장된다. 대상 컬럼은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 표에 있다 |
 | `MCP_ALLOW_INSECURE_URL` | 켜짐 | MCP 클라이언트의 SSRF 방어(https 만 허용, 호스트 차단 목록)를 통째로 우회한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) |
@@ -363,6 +364,8 @@ sequenceDiagram
 이 가드는 플래그 값이 정확히 `true` 또는 `1` 이면 켜진 것으로 보고 기동을 막는다(`isFlagOn`). `TRUE` · `yes` · `on` · 빈 문자열은 꺼진 것으로 본다. 기능을 실제로 켜는 판정은 설정마다 따로 한다. `OAUTH_STUB_MODE` · `LLM_STUB_MODE` 는 `true` 일 때만, `MCP_ALLOW_INSECURE_URL` 은 `true` 나 `1` 일 때, `ALLOW_HTTP_HOOKS` 는 `1` 일 때만 켜진다. 가드가 막는 값이 켜지는 값을 모두 담으므로 운영 환경에서 이 기능이 켜진 채 기동하는 일은 없다. 단위 테스트가 설정마다 기능을 켜는 판정과 가드를 대조해 이 관계를 확인한다.
 
 `JWT_SECRET` 은 앞뒤 공백을 뗀 값으로 검사한다. 뗀 값이 비었으면 공백뿐인 값으로 보고 막는다. 예시 값 대조와 길이 하한도 뗀 값에 적용한다. 뗀 값은 검사에만 쓰고 토큰 서명에 쓰는 값은 바꾸지 않는다. 예시 값 목록의 정본은 `production-guards.ts` 의 `INSECURE_JWT_SECRETS` 다. 코드의 기본 sentinel 과 저장소에 커밋된 예시 값(`.env.example`, 배포 예시 Secret, 로컬 · e2e 설정, README)을 담는다. 이 문서에는 예시 값을 옮기지 않는다. 단위 테스트가 저장소의 예시 파일 값과 이 목록을 대조한다.
+
+`INTERACTION_JWT_SECRET` 도 같은 방식으로 검사한다. 다만 변수가 없으면 검사하지 않는다. 그때는 `JWT_SECRET` 으로 서명하기 때문이다. 빈 문자열은 «설정하지 않음» 으로 보지 않고 막는다. 서명 비밀을 고르는 코드가 빈 값을 `JWT_SECRET` 으로 대신하지 않기 때문이다. 예시 값 목록의 정본은 `production-guards.ts` 의 `INSECURE_INTERACTION_JWT_SECRETS` 다. 이 목록은 `INSECURE_JWT_SECRETS` 를 모두 담는다. 그래서 `JWT_SECRET` 의 예시 값을 이 자리에 넣어도 막는다.
 
 ### 암호화 키 검사
 
@@ -383,7 +386,8 @@ sequenceDiagram
 
 `assertProductionConfig` 에는 환경 변수만으로 부팅 직전에 판정할 수 있고 정당한 용도가 없는 설정만 넣는다.
 
-- 모듈 안 컨텍스트가 필요한 부팅 검사는 그 모듈에 둔다. 운영 환경에서 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없으면 `InteractionTokenService` 생성자가 예외를 던진다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 「인터랙션 토큰」 절). EIA 의 종료 토큰 폐기 스케줄러 등록 fail-fast 도 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 있다. 워크스페이스 멤버십 가드의 부팅 자가 검증은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
+- 모듈 안 컨텍스트가 필요한 부팅 검사는 그 모듈에 둔다. EIA 의 종료 토큰 폐기 스케줄러 등록 fail-fast 는 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 있다. 워크스페이스 멤버십 가드의 부팅 자가 검증은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
+- `INTERACTION_JWT_SECRET` 은 환경 변수만으로 판정할 수 있어 이 함수가 검사한다. `InteractionTokenService` 생성자는 그와 별도로 두 서명 비밀이 모두 없으면 예외를 던진다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 「인터랙션 토큰」 절).
 - 정당한 용도가 있는 완화 플래그는 기동을 막지 않고 경고 로그만 남긴다. 이 판정은 `main.ts` 가 한다. 예를 들어 `ALLOW_PRIVATE_HOST_TARGETS` 의 뜻은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 이 정한다. 이 플래그가 기동을 막지 않고 경고만 남기는 이유는 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 에 있다. `MAIL_REQUIRE_TLS=false` 는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 이 정한다.
 
 ## 미결 사항
@@ -480,7 +484,7 @@ OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-passwor
 
 ### 운영 환경 가드를 한 함수에 모은다
 
-`NODE_ENV=production` 의 부팅 거부 검사를 `assertProductionConfig` 한 함수에 모았다. 같은 성격의 비밀·stub(`INTERACTION_JWT_SECRET`, `OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었다. 위치(`main.ts` 부팅)와 패턴도 같았다. 한 함수로 모으면 비밀을 더할 때 빠뜨리는 일을 구조로 막는다. 환경 변수만으로 부팅 직전에 판정할 수 있는 절대 금지 항목만 넣는다. DI 나 요청 컨텍스트가 필요한 항목(예: `INTERACTION_JWT_SECRET` 생성자 throw)과 정당한 용도가 있는 항목(예: throw 가 아니라 warn 인 `ALLOW_PRIVATE_HOST_TARGETS`)은 일부러 뺐다. 설정이 없으면 기동을 거부하는 쪽이 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다. 무엇을 막는지는 본문 [운영 환경 가드](#운영-환경-가드) 절에 있다.
+`NODE_ENV=production` 의 부팅 거부 검사를 `assertProductionConfig` 한 함수에 모았다. 같은 성격의 비밀·stub(`INTERACTION_JWT_SECRET`, `OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었다. 위치(`main.ts` 부팅)와 패턴도 같았다. 한 함수로 모으면 비밀을 더할 때 빠뜨리는 일을 구조로 막는다. 환경 변수만으로 부팅 직전에 판정할 수 있는 절대 금지 항목만 넣는다. DI 나 요청 컨텍스트가 필요한 항목(예: `INTERACTION_JWT_SECRET` 생성자 throw)과 정당한 용도가 있는 항목(예: throw 가 아니라 warn 인 `ALLOW_PRIVATE_HOST_TARGETS`)은 일부러 뺐다. 설정이 없으면 기동을 거부하는 쪽이 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다. 무엇을 막는지는 본문 [운영 환경 가드](#운영-환경-가드) 절에 있다. `INTERACTION_JWT_SECRET` 은 2026-11-06 에 이 함수로 옮겼다([`INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다](#interaction_jwt_secret-을-운영-환경-가드에-더했다-2026-11-06)).
 
 `JWT_SECRET` 에는 32자 길이 하한을 두고 두 암호화 키에는 두지 않는다. `JWT_SECRET` 은 서명 키라 짧으면 무차별 대입에 약하다. 두 암호화 키는 이미 그 키로 암호화한 값이 있으면 키를 바꾸는 순간 그 값을 복호화하지 못한다. 그래서 짧아도 비밀인 키는 막지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 공백뿐인 값과 앞뒤 공백이 붙은 예시 값까지 막는 이유는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 에 있다. `JWT_SECRET` 은 처음에 앞뒤 공백을 떼지 않고 대조했다. 두 암호화 키의 공백 처리는 R5 가 정했고 `JWT_SECRET` 에는 같은 결정이 없었다. 2026-11-05 에 두 암호화 키처럼 뗀 값으로 검사하도록 바꿨다(아래 「`JWT_SECRET` 을 앞뒤 공백을 뗀 값으로 검사하고 알림 웹훅 http 허용 플래그를 가드에 더했다」).
 
@@ -685,3 +689,19 @@ NERV Task `CLE-T-BYCGF1` 에서 정했다. 로그인 유지를 켜고 로그인�
 - **배포 시점의 백필**: 마이그레이션 `V156__refresh_token_remember_me.sql` 이 칸을 NOT NULL, 기본 false 로 더한다. 이어서 배포 시점에 살아 있는 행 가운데 30일로 발급된 행을 `remember_me = true` 로 채운다. 조건은 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 다. 이 조건에는 로그인 유지를 켜고 로그인한 뒤 아직 회전하지 않은 행만 든다.
 - **백필의 한계**: 이미 한 번 회전한 행은 7일로 발급됐다. 그래서 그 행만 보고는 로그인 유지 여부를 알 수 없고 false 로 남는다. 그 사용자는 다음 로그인부터 30일을 받는다.
 - **비밀번호 변경 · 이메일 변경의 재발급은 잇지 않는다**: 두 재발급은 로그인 유지 여부를 이어받지 않고 7일이다([로그인 유지](#로그인-유지)). 쿠키 Path 를 넓혀 두 요청이 현재 로그인 세션을 알게 하는 방법은 리프레시 쿠키가 붙는 인증 표면을 넓힌다. 그래서 이 작업에서 택하지 않았다. 잇는 방법은 NERV Task `CLE-T-XF3WMA` 가 정한다.
+
+### `INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다 (2026-11-06)
+
+NERV Task `CLE-T-0VV3VR` 의 변경이다. [운영 환경 가드](#운영-환경-가드) 표에 행을 더하고 「가드에 넣는 것과 넣지 않는 것」 의 예시를 고쳤다. 요구사항 줄은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 REQ-EIA-018 을 고쳤다. 서명 비밀의 쓰임과 대체 순서를 정하는 문서가 그쪽이라 이 문서에 새 요구 번호를 받지 않았다.
+
+- **무엇이 빠져 있었나**: 예전 운영 가드는 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없을 때만 부팅을 막았다(생성자 예외). `INTERACTION_JWT_SECRET` 을 설정했으면 값이 `.env.example` 의 예시 값이든 공백뿐이든 짧든 그 값으로 실행 단위 토큰(`iext_*`)에 서명했다. 이 토큰을 위조하면 남의 실행에 입력을 보내거나 실행을 취소할 수 있다. `JWT_SECRET` 과 위험의 성격이 같은데 규칙은 훨씬 느슨했다.
+- **결정을 바꾼 이유**: [운영 환경 가드를 한 함수에 모은다](#운영-환경-가드를-한-함수에-모은다) 는 이 항목을 DI 컨텍스트가 필요하다며 일부러 뺐다. 그 전제가 맞지 않았다. 서명 비밀은 환경 변수 둘로 정해진다. `INTERACTION_JWT_SECRET` 이 있으면 그 값이고, 없으면 `JWT_SECRET` 인데 그 값은 이 함수가 이미 검사한다. 그래서 「환경 변수만으로 부팅 직전에 판정할 수 있다」 는 이 함수의 기준을 만족한다. 같은 함수에 두면 `JWT_SECRET` 과 같은 규칙(앞뒤 공백을 뗀 값, 예시 값 목록, 32자 하한)을 함께 쓰고, 표와 코드를 대조하는 단위 테스트가 이 항목도 지킨다.
+- **변수가 없으면 검사하지 않는다**: 없으면 `JWT_SECRET` 으로 서명하므로 `JWT_SECRET` 행이 그 경우를 막는다. 같은 값을 두 번 검사하지 않는다.
+- **빈 문자열은 막는다**: 서명 비밀을 고르는 코드는 `??` 로 대체하므로 빈 문자열을 `JWT_SECRET` 으로 대신하지 않는다. 그래서 빈 값은 예전에도 생성자 예외로 운영 부팅이 막혔다. 이 가드도 같은 값을 막아 동작이 바뀌지 않는다.
+- **생성자 예외는 남긴다**: `main.ts` 를 거치지 않고 모듈을 띄우는 경로(테스트 · 스크립트)에서 서명 비밀 없이 운영 모드로 뜨지 않게 하는 마지막 방어다.
+- **배포 영향**: 운영에서 쓰던 `INTERACTION_JWT_SECRET` 이 이 가드에 걸리면 서버가 기동하지 않는다. 서명 비밀을 새로 만들어야 하고, 바꾸면 이미 발급한 `iext_*` 는 모두 검증에 실패한다.
+
+기각한 대안:
+
+- **생성자에 같은 검사를 더한다**: 규칙이 `assertProductionConfig` 와 생성자 두 곳으로 갈린다. 표와 코드를 대조하는 단위 테스트도 이 항목을 보지 못한다.
+- **빈 값을 `JWT_SECRET` 으로 대신 쓰게 바꾼다(`??` 를 `||` 로)**: 서명 비밀의 대체 순서를 바꾸는 일이라 이번 범위 밖이다. 이 Task 는 서명 방식과 대체 순서를 바꾸지 않는다.

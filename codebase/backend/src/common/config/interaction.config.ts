@@ -12,8 +12,9 @@ import { registerAs } from '@nestjs/config';
  *   `configService.get('interaction.jwtSecret') ?? configService.get('jwt.secret')` `??` 체인이
  *   `INTERACTION_JWT_SECRET` 미설정 시 `JWT_SECRET`(jwt namespace)으로 fallback 하도록 보존하기
  *   위함이다. `?? ''` 로 두면 빈 문자열이 non-nullish 라 fallback 체인이 깨진다.
- * - 프로덕션에서 둘 다 미설정이면 서비스 생성자가 fail-closed throw.
- *   SoT: spec/5-system/14-external-interaction-api.md §8.3.
+ * - 프로덕션에서 둘 다 미설정이면 서비스 생성자가 fail-closed throw. 설정한 값이 빈 값 · 공백뿐인 값 ·
+ *   예시 값 · 32자 미만이면 `assertProductionConfig`(`common/config/production-guards.ts`)가 부팅을 막는다.
+ *   정본: NERV 스펙 `CLE-EIA` REQ-EIA-018 · `CLE-ACCT-SESSION` 「운영 환경 가드」.
  */
 export const interactionConfig = registerAs('interaction', () => ({
   jwtSecret: process.env.INTERACTION_JWT_SECRET,
