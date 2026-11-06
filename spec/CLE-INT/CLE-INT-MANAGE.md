@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "28a4905c335b23b5f8223a6570550679b654e4235f5f4287ea1efd181caa3350"
 read_as: "approved_fallback"
-task: "CLE-T-9J6W7H"
+task: "CLE-T-92RQWB"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "b8fdfc3290551ec163dbbc353b8a1600aa0cd1da3cbf26d78b6b3d6db980e3c1"
-etag: "sha256-cce93898f549a2b20238f4c3e57cdecb6e268cc4e8b5b8f3ebf2241920e10219"
+mirror_sha256: "1a59262d6fb844a39e075137d9fc5b823837d0bcb8e9922131fd651a499596a3"
+etag: "sha256-f5d36235b88756dba40d880ac2016baeaa8b414ebb1e46dd1d208de68911ca83"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

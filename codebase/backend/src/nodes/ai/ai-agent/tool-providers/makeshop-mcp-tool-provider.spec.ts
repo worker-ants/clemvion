@@ -17,6 +17,7 @@ import {
 } from '../../../integration/makeshop/makeshop-api.client';
 import { listAllMakeshopOperations } from '../../../integration/makeshop/metadata/index';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
+import { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope';
 import type { ToolCall } from '../../../../modules/llm/interfaces/llm-client.interface';
 import {
   asIntegrationsService,
@@ -354,13 +355,14 @@ describe('MakeshopMcpToolProvider', () => {
     });
 
     // CLE-INT-MCP 「통합 조회 기준」 — 토큰 갱신 뒤 다시 읽는 조회도 첫 조회와 같은 `use` 로 판정한다.
-    it('첫 조회와 토큰 갱신 뒤 재조회에 같은 use(nodeId · fromExpression)를 넘긴다', async () => {
+    it('첫 조회와 토큰 갱신 뒤 재조회에 같은 use(nodeId · fromExpression)와 같은 조회 범위를 넘긴다', async () => {
       const expiredRow = makeIntegration({ status: 'expired' });
       const freshRow = makeIntegration({ status: 'connected' });
       integrationsService.getForExecution
         .mockResolvedValueOnce(expiredRow)
         .mockResolvedValueOnce(freshRow);
       apiClient.refreshTokenViaQueue.mockResolvedValue(undefined);
+      const scope = new ExecutionLookupScope();
 
       await provider.buildTools({
         config: {
@@ -369,6 +371,7 @@ describe('MakeshopMcpToolProvider', () => {
         workspaceId: 'ws-1',
         executionId: 'exec-1',
         nodeId: 'node-1',
+        integrationLookupScope: scope,
       });
 
       const use = { nodeId: 'node-1', fromExpression: false };
@@ -377,12 +380,15 @@ describe('MakeshopMcpToolProvider', () => {
         SID,
         'ws-1',
         use,
+        { scope },
       );
+      // 범위에 기억한 행은 갱신 전 것이라 재조회는 행을 다시 읽게 한다(CLE-T-92RQWB).
       expect(integrationsService.getForExecution).toHaveBeenNthCalledWith(
         2,
         SID,
         'ws-1',
         use,
+        { scope, reread: true },
       );
     });
 
@@ -400,6 +406,7 @@ describe('MakeshopMcpToolProvider', () => {
         SID,
         'ws-1',
         { nodeId: 'node-1', fromExpression: true },
+        { scope: undefined },
       );
     });
 

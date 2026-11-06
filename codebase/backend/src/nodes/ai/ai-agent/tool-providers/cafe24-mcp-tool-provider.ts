@@ -18,6 +18,7 @@ import {
 import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import type { IntegrationUse } from '../../../../modules/integrations/personal-integration-use.js';
+import type { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope.js';
 import { mcpServerRefUse } from '../mcp-server-ref-use.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
@@ -133,6 +134,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
           ref.integrationId,
           ctx.workspaceId,
           use,
+          { scope: ctx.integrationLookupScope },
         );
       } catch (err) {
         this.logger.warn(
@@ -159,7 +161,11 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       // 후 worker 가 status='connected' 로 전이시키면 fresh row 로 진행.
       // ensureFreshToken 직접 호출 금지 — BullMQ jobId dedup 우회 위험.
       if (integration.status === 'expired') {
-        const recovered = await this.tryRecoverExpired(integration, use);
+        const recovered = await this.tryRecoverExpired(
+          integration,
+          use,
+          ctx.integrationLookupScope,
+        );
         if (recovered.kind === 'recovered') {
           integration = recovered.integration;
         } else {
@@ -270,6 +276,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
   private async tryRecoverExpired(
     integration: Integration,
     use: IntegrationUse,
+    scope: ExecutionLookupScope | undefined,
   ): Promise<
     | { kind: 'recovered'; integration: Integration }
     | { kind: 'skipped'; skipReason: McpSkipReason }
@@ -308,10 +315,12 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     // SELECT 가 새 access_token / status='connected' 을 본다.
     let fresh: Integration;
     try {
+      // 범위에 기억한 행은 갱신 전 것이라 다시 읽는다. 판정 사실은 범위의 것을 그대로 쓴다.
       fresh = await this.integrationsService.getForExecution(
         integration.id,
         integration.workspaceId,
         use,
+        { scope, reread: true },
       );
     } catch (err) {
       this.logger.warn(

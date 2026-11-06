@@ -20,6 +20,7 @@ import {
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
 import { Integration } from './entities/integration.entity';
+import { ExecutionLookupScope } from './execution-lookup-scope';
 import {
   INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
@@ -3948,6 +3949,266 @@ describe('IntegrationsService', () => {
         service.getForExecution('int-1', 'ws-1', LITERAL_USE),
       ).rejects.toThrow(NotFoundException);
     });
+  });
+
+  // -----------------------------------------------------------------
+  // getForExecution — 조회 범위(한 노드 실행 · 한 에이전트 턴, NERV Task CLE-T-92RQWB)
+  // -----------------------------------------------------------------
+  describe('getForExecution — 조회 범위', () => {
+    const EXPRESSION_USE = { nodeId: NODE_ID, fromExpression: true };
+    const facts = (
+      workflowAuthorId: string | null,
+      ownerIsMember: boolean,
+    ): Array<Record<string, unknown>> => [
+      { workflow_author_id: workflowAuthorId, owner_is_member: ownerIsMember },
+    ];
+
+    function spyWarn(): jest.SpyInstance {
+      return jest
+        .spyOn(
+          (service as unknown as { logger: { warn: () => void } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+    }
+
+    function rejectionWarns(warn: jest.SpyInstance): unknown[] {
+      return warn.mock.calls.filter(
+        ([entry]) =>
+          (entry as { message?: string }).message ===
+          'Personal integration use rejected',
+      );
+    }
+
+    it('같은 범위에서 같은 항목을 세 프로바이더가 조회하면 통합 행 · 판정 사실을 한 번만 읽고 같은 통합을 돌려준다', async () => {
+      const scope = new ExecutionLookupScope();
+      const results = await Promise.all(
+        [1, 2, 3].map(() =>
+          service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+        ),
+      );
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(1);
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
+      expect(results[1]).toBe(results[0]);
+      expect(results[2]).toBe(results[0]);
+    });
+
+    it('범위 없이 부르면 조회마다 새로 읽는다', async () => {
+      await service.getForExecution('int-1', 'ws-1', LITERAL_USE);
+      await service.getForExecution('int-1', 'ws-1', LITERAL_USE);
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(dataSource.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('다음 턴(새 범위)은 다시 읽어 그 사이 멤버십 변경이 바로 반영된다', async () => {
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, {
+          scope: new ExecutionLookupScope(),
+        }),
+      ).resolves.toMatchObject({ id: 'int-1' });
+      dataSource.query.mockResolvedValueOnce(facts('user-1', false));
+      const warn = spyWarn();
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, {
+          scope: new ExecutionLookupScope(),
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(dataSource.query).toHaveBeenCalledTimes(2);
+      expect(rejectionWarns(warn)).toHaveLength(1);
+      warn.mockRestore();
+    });
+
+    it('같은 소유자의 개인 통합 둘은 통합 행을 따로 읽고 판정 사실은 한 번만 읽는다', async () => {
+      integrationRepo.findOne.mockImplementation(
+        async ({ where }: { where: { id: string } }) =>
+          makeIntegration({ id: where.id }),
+      );
+      const scope = new ExecutionLookupScope();
+      await service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope });
+      await service.getForExecution('int-2', 'ws-1', LITERAL_USE, { scope });
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('거절된 항목을 세 번 조회해도 응답은 같고 거절 WARN 은 한 번만 남는다', async () => {
+      dataSource.query.mockResolvedValue(facts('user-1', false));
+      const warn = spyWarn();
+      const scope = new ExecutionLookupScope();
+      const errors = await Promise.all(
+        [1, 2, 3].map(() =>
+          service
+            .getForExecution('int-1', 'ws-1', LITERAL_USE, { scope })
+            .catch((err: unknown) => err),
+        ),
+      );
+      for (const err of errors) expect(err).toBeInstanceOf(NotFoundException);
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(1);
+      expect(rejectionWarns(warn)).toEqual([
+        [
+          {
+            message: 'Personal integration use rejected',
+            workspaceId: 'ws-1',
+            context: {
+              path: 'execution',
+              nodeId: NODE_ID,
+              integrationId: 'int-1',
+              reason: 'owner_not_member',
+            },
+          },
+        ],
+      ]);
+      warn.mockRestore();
+    });
+
+    it('use 가 달라 결과를 같이 쓰지 못해도 같은 통합 · 같은 이유의 거절 WARN 은 한 번이다', async () => {
+      dataSource.query.mockResolvedValue(facts('user-1', false));
+      const warn = spyWarn();
+      const scope = new ExecutionLookupScope();
+      for (const use of [LITERAL_USE, EXPRESSION_USE]) {
+        await expect(
+          service.getForExecution('int-1', 'ws-1', use, { scope }),
+        ).rejects.toThrow(NotFoundException);
+      }
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
+      expect(rejectionWarns(warn)).toHaveLength(1);
+      warn.mockRestore();
+    });
+
+    it('이유가 다르면 각각 남긴다(리터럴 통과 · 표현식 거절)', async () => {
+      const warn = spyWarn();
+      const scope = new ExecutionLookupScope();
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).resolves.toMatchObject({ id: 'int-1' });
+      await expect(
+        service.getForExecution('int-1', 'ws-1', EXPRESSION_USE, { scope }),
+      ).rejects.toThrow(NotFoundException);
+      expect(rejectionWarns(warn)).toEqual([
+        [
+          expect.objectContaining({
+            context: expect.objectContaining({ reason: 'expression_ref' }),
+          }),
+        ],
+      ]);
+      warn.mockRestore();
+    });
+
+    it('없는 통합도 범위 안에서는 한 번만 읽는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      const scope = new ExecutionLookupScope();
+      for (const _ of [1, 2]) {
+        await expect(
+          service.getForExecution('missing', 'ws-1', LITERAL_USE, { scope }),
+        ).rejects.toThrow(NotFoundException);
+      }
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('reread 는 통합 행을 다시 읽고 판정 사실은 다시 읽지 않으며, 다시 읽은 통합이 이후 조회의 결과다', async () => {
+      const expired = makeIntegration({ status: 'expired' });
+      const fresh = makeIntegration({ status: 'connected' });
+      integrationRepo.findOne
+        .mockResolvedValueOnce(expired)
+        .mockResolvedValueOnce(fresh);
+      const scope = new ExecutionLookupScope();
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).resolves.toBe(expired);
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, {
+          scope,
+          reread: true,
+        }),
+      ).resolves.toBe(fresh);
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).resolves.toBe(fresh);
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('일시 오류로 실패한 통합 행 조회는 기억하지 않고 다음 조회가 다시 읽는다', async () => {
+      integrationRepo.findOne.mockRejectedValueOnce(
+        new Error('connection terminated'),
+      );
+      const scope = new ExecutionLookupScope();
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).rejects.toThrow('connection terminated');
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).resolves.toMatchObject({ id: 'int-1' });
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+    });
+
+    it('일시 오류로 실패한 판정 사실 조회는 기억하지 않고 다음 조회가 다시 읽는다', async () => {
+      dataSource.query.mockRejectedValueOnce(
+        new Error('connection terminated'),
+      );
+      const scope = new ExecutionLookupScope();
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).rejects.toThrow('connection terminated');
+      await expect(
+        service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+      ).resolves.toMatchObject({ id: 'int-1' });
+      expect(dataSource.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('자격 증명을 읽지 못한 통합은 범위 안에서 같은 예외로 기억한다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          credentials: { [UNREADABLE_KEY]: true } as unknown as Record<
+            string,
+            unknown
+          >,
+        }),
+      );
+      const scope = new ExecutionLookupScope();
+      for (const _ of [1, 2]) {
+        await expect(
+          service.getForExecution('int-1', 'ws-1', LITERAL_USE, { scope }),
+        ).rejects.toThrow(IntegrationCredentialsUnreadableError);
+      }
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it.each<[string, Array<Record<string, unknown>>, boolean]>([
+      ['통과', facts('user-1', true), false],
+      ['작성자 ≠ 소유자', facts('user-2', true), false],
+      ['작성자 불명', facts(null, true), false],
+      ['소유자가 멤버가 아님', facts('user-1', false), false],
+      ['표현식 참조', facts('user-1', true), true],
+    ])(
+      '판정 결과는 범위가 있든 없든 같다: %s',
+      async (_label, rows, fromExpression) => {
+        const use = { nodeId: NODE_ID, fromExpression };
+        const settle = (p: Promise<Integration>) =>
+          p.then(
+            (i) => ({ ok: true, id: i.id }),
+            (err: unknown) => ({
+              ok: false,
+              response: (err as NotFoundException).getResponse(),
+            }),
+          );
+        dataSource.query.mockResolvedValue(rows);
+        const warn = spyWarn();
+        const unscoped = await settle(
+          service.getForExecution('int-1', 'ws-1', use),
+        );
+        const scoped = await settle(
+          service.getForExecution('int-1', 'ws-1', use, {
+            scope: new ExecutionLookupScope(),
+          }),
+        );
+        expect(scoped).toEqual(unscoped);
+        const [first, second] = rejectionWarns(warn);
+        expect(second).toEqual(first);
+        warn.mockRestore();
+      },
+    );
   });
 
   // -----------------------------------------------------------------

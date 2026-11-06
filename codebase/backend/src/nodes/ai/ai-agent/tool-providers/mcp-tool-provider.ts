@@ -688,6 +688,7 @@ export class McpToolProvider implements AgentToolProvider {
       ref.integrationId,
       ctx.workspaceId,
       mcpServerRefUse(ctx.nodeId, ref),
+      { scope: ctx.integrationLookupScope },
     );
     if (integration.serviceType !== 'mcp') {
       // Spec MCP §6.2 의 `not_capable` skipReason — 본 provider 는 외부 HTTP

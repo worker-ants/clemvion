@@ -7,6 +7,7 @@ import { AiConditionEvaluator } from './ai-condition-evaluator';
 import { AiMemoryManager } from './ai-memory-manager';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import type { ProviderBuildCtx } from './tool-providers/agent-tool-provider.interface';
+import { ExecutionLookupScope } from '../../../modules/integrations/execution-lookup-scope';
 import { makeExecutionContext } from '../../../modules/execution-engine/__test__/make-execution-context';
 import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 
@@ -2024,6 +2025,43 @@ describe('AiTurnExecutor', () => {
       expect(buildTools.mock.calls[0][0].config.mcpServers).toEqual([
         { integrationId: A, fromExpression: true },
       ]);
+    });
+
+    // CLE-T-92RQWB — 한 번의 도구 목록 만들기 안에서 프로바이더들이 같은 통합 조회 범위를 쓰고, 다음 호출은 새 범위를 쓴다.
+    it('도구 목록을 만들 때마다 조회 범위를 하나 만들어 모든 프로바이더에 같은 것을 넘긴다', async () => {
+      const first = capturingProvider();
+      const second = capturingProvider();
+      const executor = buildExecutor({
+        toolProviders: [first.provider, { ...second.provider, key: 'cafe24' }],
+      });
+      const runTurn = () =>
+        executor.executeSingleTurn(
+          undefined,
+          {
+            mode: 'single_turn',
+            systemPrompt: 'sys',
+            userPrompt: 'go',
+            mcpServers: [{ integrationId: A, fromExpression: false }],
+          },
+          ctxWithRaw([{ integrationId: A }]),
+        );
+
+      await runTurn();
+      await runTurn();
+
+      expect(first.buildTools).toHaveBeenCalledTimes(2);
+      expect(second.buildTools).toHaveBeenCalledTimes(2);
+      const turn1 = first.buildTools.mock.calls[0][0].integrationLookupScope;
+      const turn2 = first.buildTools.mock.calls[1][0].integrationLookupScope;
+      expect(turn1).toBeInstanceOf(ExecutionLookupScope);
+      expect(second.buildTools.mock.calls[0][0].integrationLookupScope).toBe(
+        turn1,
+      );
+      expect(turn2).toBeInstanceOf(ExecutionLookupScope);
+      expect(turn2).not.toBe(turn1);
+      expect(second.buildTools.mock.calls[1][0].integrationLookupScope).toBe(
+        turn2,
+      );
     });
 
     it.each<[string, unknown]>([
