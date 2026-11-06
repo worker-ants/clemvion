@@ -8,7 +8,8 @@ interface User {
   id: string;
   email: string;
   name: string;
-  avatarUrl?: string;
+  /** 서버 프로필(`UserProfile`)과 같다. 아바타가 없으면 null 이 온다. */
+  avatarUrl?: string | null;
   locale: string;
   theme: string;
   /** TOTP 2단계 인증이 켜져 있는지. Passkey 등록 여부는 담지 않는다. */

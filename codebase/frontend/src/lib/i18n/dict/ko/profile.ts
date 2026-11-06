@@ -40,7 +40,8 @@ export const profile = {
   changeEmailPageDescription: "새 이메일로 확인 메일을 보내 변경을 완료해요.",
   newEmail: "새 이메일",
   newEmailPlaceholder: "새 이메일 주소",
-  changeEmailReauthHint: "본인 확인을 위해 비밀번호 또는 2FA 코드를 입력해 주세요.",
+  changeEmailReauthHint:
+    "본인 확인을 위해 비밀번호 또는 2FA 코드를 입력해 주세요.",
   totpCodeOptional: "2FA 코드 (사용 중인 경우)",
   totpCodePlaceholder: "6자리 코드",
   changeEmailSubmit: "확인 메일 보내기",
@@ -62,13 +63,30 @@ export const profile = {
   fieldBefore: "이전",
   fieldAfter: "변경 후",
   changePasswordPageTitle: "비밀번호 변경",
-  changePasswordPageDescription: "현재 비밀번호 확인 후 새 비밀번호를 설정해요.",
+  changePasswordPageDescription:
+    "현재 비밀번호 확인 후 새 비밀번호를 설정해요.",
   changePasswordSubmit: "변경",
   changePasswordSuccess: "비밀번호가 변경됐어요",
   changePasswordCardHint: "현재 비밀번호 확인이 필요해요",
   changePasswordCardCta: "변경하기 →",
   changePasswordMinLength: "비밀번호는 8자 이상이어야 해요",
   changePasswordMaxLength: "비밀번호는 100자 이하여야 해요",
+  avatar: {
+    label: "아바타",
+    alt: "프로필 이미지",
+    upload: "이미지 올리기",
+    remove: "제거",
+    urlPlaceholder: "또는 이미지 URL 입력 (https://…)",
+    hint: "png, jpg, jpeg, webp, gif · 최대 2MB. 올린 이미지는 주소를 아는 누구나 볼 수 있어요.",
+    none: "없음",
+    newFile: "새 이미지: {{name}}",
+    invalidType: "png, jpg, jpeg, webp, gif 이미지만 올릴 수 있어요",
+    tooLarge: "2MB 이하 이미지만 올릴 수 있어요",
+    empty: "비어 있는 파일은 올릴 수 없어요",
+    invalidUrl:
+      "http:// 또는 https:// 로 시작하는 500자 이하 이미지 URL 을 입력해 주세요",
+    uploadFailed: "아바타 이미지를 올리지 못했어요",
+  },
   security: {
     title: "보안",
     twoFactor: "2단계 인증",
@@ -83,7 +101,8 @@ export const profile = {
     verifyCodePlaceholder: "6자리 코드",
     verifyButton: "확인",
     backupCodes: "백업 코드",
-    backupCodesDescription: "아래 백업 코드를 안전한 곳에 보관해 주세요. 기기에 접근할 수 없을 때 사용할 수 있어요.",
+    backupCodesDescription:
+      "아래 백업 코드를 안전한 곳에 보관해 주세요. 기기에 접근할 수 없을 때 사용할 수 있어요.",
     backupCodesUsed: "남은 백업 코드: {{remaining}}개",
     regenerateBackup: "백업 코드 재생성",
     sessions: "로그인 세션",
@@ -96,7 +115,8 @@ export const profile = {
     disableFailed: "2FA 비활성화에 실패했어요",
     invalidCode: "6자리 코드를 입력해 주세요",
     pageTitle: "보안 · 2단계 인증",
-    pageDescription: "Authenticator 앱(예: Google Authenticator, 1Password)으로 발급되는 6자리 코드를 로그인 시 추가로 요구해요.",
+    pageDescription:
+      "Authenticator 앱(예: Google Authenticator, 1Password)으로 발급되는 6자리 코드를 로그인 시 추가로 요구해요.",
     active: "2FA 활성 상태",
     activeMessage:
       "2FA가 켜져 있어요. 비활성화하려면 계정 비밀번호와 Authenticator 앱의 6자리 코드(또는 복구 코드)를 입력해 주세요.",
@@ -106,25 +126,32 @@ export const profile = {
     setupCardTitle: "2FA 설정",
     startSetup: "설정 시작",
     qrAlt: "TOTP QR 코드",
-    scanInstruction: "Authenticator 앱으로 아래 QR 코드를 스캔한 뒤, 표시되는 6자리 코드를 입력해 주세요.",
+    scanInstruction:
+      "Authenticator 앱으로 아래 QR 코드를 스캔한 뒤, 표시되는 6자리 코드를 입력해 주세요.",
     codeLabel: "인증 코드",
     codePlaceholder: "123456",
     verifyActivateButton: "검증·활성화",
-    recoveryCodesTitle: "복구 코드 (한 번만 표시됩니다 — 안전한 곳에 저장하세요)",
-    recoveryCodesHint: "Authenticator 앱을 사용할 수 없을 때 각 코드를 한 번씩 사용해 로그인할 수 있어요.",
+    recoveryCodesTitle:
+      "복구 코드 (한 번만 표시됩니다 — 안전한 곳에 저장하세요)",
+    recoveryCodesHint:
+      "Authenticator 앱을 사용할 수 없을 때 각 코드를 한 번씩 사용해 로그인할 수 있어요.",
     passwordRequired: "비밀번호를 입력해 주세요.",
     disableCodeRequired: "인증 코드를 입력해 주세요.",
     setupStartFailed: "2FA 설정 시작에 실패했어요.",
     verifyFailed: "인증 코드가 올바르지 않아요.",
-    alreadyEnabled: "2FA가 이미 활성화돼 있어요. 다시 설정하려면 먼저 비활성화해 주세요.",
+    alreadyEnabled:
+      "2FA가 이미 활성화돼 있어요. 다시 설정하려면 먼저 비활성화해 주세요.",
     setupPasswordHint: "설정을 시작하려면 계정 비밀번호를 입력해 주세요.",
     passwordInvalid: "비밀번호가 맞지 않아요.",
-    passwordNotSet: "비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요.",
+    passwordNotSet:
+      "비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요.",
     verifySuccess: "2FA가 활성화됐어요.",
     disableSuccess: "2FA를 비활성화했어요.",
-    disableFailedDetail: "비밀번호나 인증 코드가 맞지 않거나 처리에 실패했어요.",
+    disableFailedDetail:
+      "비밀번호나 인증 코드가 맞지 않거나 처리에 실패했어요.",
     rateLimited: "요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.",
-    setupExpired: "설정을 시작한 지 10분이 지났어요. 처음부터 다시 시작해 주세요.",
+    setupExpired:
+      "설정을 시작한 지 10분이 지났어요. 처음부터 다시 시작해 주세요.",
     webauthn: {
       cardTitle: "Passkey · 보안 키",
       unsupported: "현재 브라우저는 Passkey · 보안 키를 지원하지 않아요.",
@@ -134,7 +161,8 @@ export const profile = {
       registerButton: "Passkey 등록",
       registerSuccess: "Passkey 가 등록됐어요.",
       registerFailed: "Passkey 등록에 실패했어요.",
-      emptyHint: "등록된 Passkey 가 없어요. 위 버튼으로 첫 인증기를 등록해 주세요.",
+      emptyHint:
+        "등록된 Passkey 가 없어요. 위 버튼으로 첫 인증기를 등록해 주세요.",
       unnamedDevice: "이름 없는 인증기",
       editName: "이름 변경",
       saveName: "저장",
@@ -146,21 +174,26 @@ export const profile = {
       never: "사용한 적 없음",
       deleteButton: "삭제",
       deleteAria: "이 인증기 삭제",
-      deleteConfirm: "정말 이 인증기를 삭제할까요? 마지막 인증기라면 복구 코드도 함께 폐기됩니다.",
+      deleteConfirm:
+        "정말 이 인증기를 삭제할까요? 마지막 인증기라면 복구 코드도 함께 폐기됩니다.",
       deleteSuccess: "인증기가 삭제됐어요.",
       deleteFailed: "삭제에 실패했어요.",
-      recoveryCodesTitle: "WebAuthn 복구 코드 (한 번만 표시됩니다 — 안전한 곳에 저장하세요)",
-      recoveryCodesHint: "Passkey 를 사용할 수 없을 때 각 코드를 한 번씩 사용해 로그인할 수 있어요.",
+      recoveryCodesTitle:
+        "WebAuthn 복구 코드 (한 번만 표시됩니다 — 안전한 곳에 저장하세요)",
+      recoveryCodesHint:
+        "Passkey 를 사용할 수 없을 때 각 코드를 한 번씩 사용해 로그인할 수 있어요.",
       dismissCodes: "확인하고 닫기",
       regenLabel: "복구 코드 재발급 — 계정 비밀번호 확인",
       regenButton: "재발급",
-      regenSuccess: "복구 코드가 새로 발급됐어요. 기존 미사용 코드는 폐기됐어요.",
+      regenSuccess:
+        "복구 코드가 새로 발급됐어요. 기존 미사용 코드는 폐기됐어요.",
       regenFailed: "복구 코드 재발급에 실패했어요.",
     },
   },
   sessions: {
     pageTitle: "세션·로그인 이력",
-    pageDescription: "현재 로그인된 디바이스를 확인하고, 의심스러운 세션은 즉시 종료하세요.",
+    pageDescription:
+      "현재 로그인된 디바이스를 확인하고, 의심스러운 세션은 즉시 종료하세요.",
     tabActive: "활성 세션",
     tabHistory: "로그인 이력",
     currentBadge: "현재",
@@ -183,8 +216,10 @@ export const profile = {
     dialogTitleSingle: "선택한 세션을 종료할까요?",
     dialogTitleAll: "다른 모든 세션을 종료할까요?",
     dialogPasswordDescription: "보안을 위해 비밀번호를 다시 입력해 주세요.",
-    dialogTotpDescription: "OAuth 로그인 계정이라 2단계 인증 코드를 다시 입력해 주세요.",
-    dialogReauthUnavailable: "이 작업을 수행하려면 먼저 비밀번호 설정 또는 2FA 활성화가 필요해요.",
+    dialogTotpDescription:
+      "OAuth 로그인 계정이라 2단계 인증 코드를 다시 입력해 주세요.",
+    dialogReauthUnavailable:
+      "이 작업을 수행하려면 먼저 비밀번호 설정 또는 2FA 활성화가 필요해요.",
     dialogCancel: "취소",
     dialogConfirm: "종료",
     passwordPlaceholder: "현재 비밀번호",
@@ -199,7 +234,8 @@ export const profile = {
   },
   alerts: {
     title: "알림 규칙",
-    description: "실패율, 실행 시간, LLM 비용 임계치에 대한 알림 규칙을 설정할 수 있어요",
+    description:
+      "실패율, 실행 시간, LLM 비용 임계치에 대한 알림 규칙을 설정할 수 있어요",
     newRule: "새 규칙",
     ruleName: "규칙 이름",
     ruleNamePlaceholder: "예: 결제 실패율 알림",
@@ -225,7 +261,8 @@ export const profile = {
     deleteConfirm: "이 알림 규칙을 삭제할까요?",
     empty: "등록된 알림 규칙이 없어요",
     pageTitle: "알림 규칙",
-    pageDescription: "실패율·실행 시간·LLM 비용이 임계값을 넘으면 앱 내 알림을 받아요.",
+    pageDescription:
+      "실패율·실행 시간·LLM 비용이 임계값을 넘으면 앱 내 알림을 받아요.",
     createdToast: "알림 규칙을 만들었어요.",
     deletedToast: "규칙을 삭제했어요.",
     createFailedToast: "규칙 생성 실패",
