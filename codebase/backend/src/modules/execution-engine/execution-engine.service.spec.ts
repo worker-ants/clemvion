@@ -16214,37 +16214,63 @@ describe('ExecutionEngineService', () => {
           }
           return { runs, inputs };
         };
+        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다. 같은 노드를
+        // 여러 번 기록했으면 마지막 호출의 payload 를 돌려준다.
         const structuredOf = (nodeId: string) => {
-          const calls = structuredSpy.mock.calls.filter(
-            (call: unknown[]) => call[1] === nodeId,
-          );
-          return calls.length > 0
-            ? (calls[calls.length - 1][2] as Record<string, unknown>)
+          const matched = structuredSpy.mock.calls
+            .map((call: unknown[]) => {
+              const [, id, payload] = call;
+              return { id, payload };
+            })
+            .filter((call) => call.id === nodeId);
+          return matched.length > 0
+            ? (matched[matched.length - 1].payload as Record<string, unknown>)
             : undefined;
+        };
+        // par.branch_0 → par2 → [branch_0 → a, branch_1 → b], par.branch_1 → d,
+        // par.done → sink 를 기본 그래프로 한다. 테스트마다 달라지는 부분만 넘긴다.
+        const buildInnerParallelGraph = (
+          opts: {
+            innerConfig?: Record<string, unknown>;
+            types?: Partial<Record<'a' | 'b' | 'd', string>>;
+            extraNodes?: ReturnType<typeof pNode>[];
+            extraEdges?: ReturnType<typeof pEdge>[];
+          } = {},
+        ) => ({
+          nodes: [
+            pNode('par2', 'parallel', opts.innerConfig ?? { branchCount: 2 }),
+            pNode('a', opts.types?.a ?? 'a_node'),
+            pNode('b', opts.types?.b ?? 'b_node'),
+            pNode('d', opts.types?.d ?? 'd_node'),
+            pNode('sink', 'sink_node'),
+            ...(opts.extraNodes ?? []),
+          ],
+          edges: [
+            pEdge('par', 'branch_0', 'par2'),
+            pEdge('par2', 'branch_0', 'a'),
+            pEdge('par2', 'branch_1', 'b'),
+            pEdge('par', 'branch_1', 'd'),
+            pEdge('par', 'done', 'sink'),
+            ...(opts.extraEdges ?? []),
+          ],
+        });
+        const runInnerParallelGraph = async (
+          outerConfig: Record<string, unknown>,
+          opts: Parameters<typeof buildInnerParallelGraph>[0] = {},
+        ) => {
+          const g = buildInnerParallelGraph(opts);
+          await runGraph(outerConfig, g.nodes, g.edges);
         };
 
         it('안쪽 Parallel 이 자기 병렬 분기를 실행하고 done 포트로 완료 출력을 낸다', async () => {
-          // par.branch_0 → par2 → [branch_0 → a, branch_1 → b] | done → c
-          // par.branch_1 → d, par.done → sink
+          // 안쪽 done 뒤에 c 를 잇는다.
           const { runs, inputs } = recordingHandlers(['a', 'b', 'c', 'd']);
-          await runGraph(
+          await runInnerParallelGraph(
             {},
-            [
-              pNode('par2', 'parallel', { branchCount: 2 }),
-              pNode('a', 'a_node'),
-              pNode('b', 'b_node'),
-              pNode('c', 'c_node'),
-              pNode('d', 'd_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('par2', 'done', 'c'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
+            {
+              extraNodes: [pNode('c', 'c_node')],
+              extraEdges: [pEdge('par2', 'done', 'c')],
+            },
           );
 
           const innerDone = {
@@ -16264,23 +16290,7 @@ describe('ExecutionEngineService', () => {
 
         it('안쪽 Parallel 이 바깥 병렬 분기의 마지막 노드면 바깥 branches[i] 는 안쪽 완료 출력이고 안쪽 병렬 분기 노드는 후보가 아니다', async () => {
           recordingHandlers(['a', 'b', 'd']);
-          await runGraph(
-            {},
-            [
-              pNode('par2', 'parallel', { branchCount: 2 }),
-              pNode('a', 'a_node'),
-              pNode('b', 'b_node'),
-              pNode('d', 'd_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
-          );
+          await runInnerParallelGraph({});
 
           expect(doneReceived).toEqual([
             {
@@ -16294,27 +16304,14 @@ describe('ExecutionEngineService', () => {
         });
 
         it('안쪽 Parallel 의 합류 노드는 한 번만 실행되고 안쪽 병렬 분기 출력을 입력으로 받는다', async () => {
-          // par.branch_0 → par2 → [branch_0 → a → m, branch_1 → b → m]
+          // 안쪽 병렬 분기 a, b 가 모두 m 으로 합류한다.
           const { runs, inputs } = recordingHandlers(['a', 'b', 'm', 'd']);
-          await runGraph(
+          await runInnerParallelGraph(
             {},
-            [
-              pNode('par2', 'parallel', { branchCount: 2 }),
-              pNode('a', 'a_node'),
-              pNode('b', 'b_node'),
-              pNode('m', 'm_node'),
-              pNode('d', 'd_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('a', 'out', 'm'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('b', 'out', 'm'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
+            {
+              extraNodes: [pNode('m', 'm_node')],
+              extraEdges: [pEdge('a', 'out', 'm'), pEdge('b', 'out', 'm')],
+            },
           );
 
           expect([...runs].sort()).toEqual(['a', 'b', 'd', 'm']);
@@ -16337,22 +16334,9 @@ describe('ExecutionEngineService', () => {
             return mockOutput({ slow: true });
           });
           registerHandler('ok_node', async () => mockOutput({ ok: true }));
-          await runGraph(
+          await runInnerParallelGraph(
             {},
-            [
-              pNode('par2', 'parallel', { branchCount: 2 }),
-              pNode('a', 'slow_node'),
-              pNode('b', 'slow_node'),
-              pNode('d', 'ok_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
+            { types: { a: 'slow_node', b: 'slow_node', d: 'ok_node' } },
           );
           await flushPromises();
 
@@ -16362,22 +16346,9 @@ describe('ExecutionEngineService', () => {
 
         it('바깥 × 안쪽 동시 실행 수 곱이 32 를 넘으면 안쪽 동시 실행 수를 줄이고 meta.clampedConcurrency 에 기록한다', async () => {
           recordingHandlers(['a', 'b', 'd']);
-          await runGraph(
+          await runInnerParallelGraph(
             { maxConcurrency: 16 },
-            [
-              pNode('par2', 'parallel', { branchCount: 2, maxConcurrency: 4 }),
-              pNode('a', 'a_node'),
-              pNode('b', 'b_node'),
-              pNode('d', 'd_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
+            { innerConfig: { branchCount: 2, maxConcurrency: 4 } },
           );
 
           // 16 × 4 = 64 > 32 → 안쪽은 max(1, floor(32 / 16)) = 2.
@@ -16397,32 +16368,33 @@ describe('ExecutionEngineService', () => {
           expect(structuredOf('par')).not.toHaveProperty('meta');
         });
 
+        it('바깥 × 안쪽 동시 실행 수 곱이 32 이하면 안쪽 완료 출력에 meta 가 없다', async () => {
+          recordingHandlers(['a', 'b', 'd']);
+          await runInnerParallelGraph(
+            { maxConcurrency: 8 },
+            { innerConfig: { branchCount: 2, maxConcurrency: 4 } },
+          );
+
+          // 8 × 4 = 32 ≤ 32 → 줄이지 않는다.
+          expect(structuredOf('par2')).toEqual(
+            expect.objectContaining({ port: 'done' }),
+          );
+          expect(structuredOf('par2')).not.toHaveProperty('meta');
+        });
+
         it('안쪽 Parallel 의 항목 에러 정책이 continue 면 실패한 안쪽 병렬 분기가 안쪽 완료 출력의 skipped 에 남고 바깥 병렬 분기는 이어진다', async () => {
           const { runs, inputs } = recordingHandlers(['a', 'c', 'd']);
           registerHandler('fail_node', async () => {
             throw new Error('inner failed');
           });
-          await runGraph(
+          await runInnerParallelGraph(
             {},
-            [
-              pNode('par2', 'parallel', {
-                branchCount: 2,
-                errorPolicy: 'continue',
-              }),
-              pNode('a', 'a_node'),
-              pNode('b', 'fail_node'),
-              pNode('c', 'c_node'),
-              pNode('d', 'd_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('par2', 'done', 'c'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
+            {
+              innerConfig: { branchCount: 2, errorPolicy: 'continue' },
+              types: { b: 'fail_node' },
+              extraNodes: [pNode('c', 'c_node')],
+              extraEdges: [pEdge('par2', 'done', 'c')],
+            },
           );
 
           const innerDone = {
@@ -16450,27 +16422,14 @@ describe('ExecutionEngineService', () => {
           registerHandler('fail_node', async () => {
             throw new Error('inner failed');
           });
-          await runGraph(
+          await runInnerParallelGraph(
             { errorPolicy: 'continue' },
-            [
-              pNode('par2', 'parallel', {
-                branchCount: 2,
-                errorPolicy: 'stop',
-              }),
-              pNode('a', 'a_node'),
-              pNode('b', 'fail_node'),
-              pNode('c', 'c_node'),
-              pNode('d', 'd_node'),
-              pNode('sink', 'sink_node'),
-            ],
-            [
-              pEdge('par', 'branch_0', 'par2'),
-              pEdge('par2', 'branch_0', 'a'),
-              pEdge('par2', 'branch_1', 'b'),
-              pEdge('par2', 'done', 'c'),
-              pEdge('par', 'branch_1', 'd'),
-              pEdge('par', 'done', 'sink'),
-            ],
+            {
+              innerConfig: { branchCount: 2, errorPolicy: 'stop' },
+              types: { b: 'fail_node' },
+              extraNodes: [pNode('c', 'c_node')],
+              extraEdges: [pEdge('par2', 'done', 'c')],
+            },
           );
 
           // 안쪽 done 뒤 c 는 실행되지 않는다. 바깥 병렬 분기 0 이 실패로 남는다.
