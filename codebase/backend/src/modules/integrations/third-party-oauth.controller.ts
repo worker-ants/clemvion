@@ -19,6 +19,7 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiTooManyRequestsResponse,
+  ApiInternalServerErrorResponse,
   ApiProduces,
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
@@ -84,7 +85,7 @@ export class ThirdPartyOAuthController {
   @ApiOperation({
     summary: 'Cafe24 Private 앱 설치 진입점 (App URL — install_token)',
     description:
-      'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 1회 검증 후 Cafe24 authorize URL 로 302 redirect 합니다.',
+      'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 1회 검증 후 Cafe24 authorize URL 로 302 redirect 합니다. 실패 본문은 `{ error: { code, message, requestId } }` 입니다. 서비스가 거절한 실패는 `Accept` 에 `text/html` 이 있으면 코드·메시지·requestId 를 담은 HTML 페이지로 답합니다.',
   })
   @ApiParam({
     name: 'installToken',
@@ -107,6 +108,10 @@ export class ThirdPartyOAuthController {
   @ApiTooManyRequestsResponse({
     description:
       'CAFE24_INSTALL_RATE_LIMITED — 같은 IP 의 install_token 조회/HMAC 실패가 임계치 초과(token oracle enumeration 방어 lockout). 성공 install 은 카운트하지 않음.',
+  })
+  @ApiInternalServerErrorResponse({
+    description:
+      'CAFE24_INSTALL_FAILED — 설치 처리 중 예상 밖 예외(DB·런타임 오류 등). 고정 문구로 답하고 예외 원문은 requestId 와 함께 서버 로그에만 남김.',
   })
   async cafe24Install(
     @Param('installToken') installToken: string,
@@ -220,7 +225,7 @@ export class ThirdPartyOAuthController {
   @ApiOperation({
     summary: 'MakeShop ShopStore 설치 진입점 (App URL — install_token)',
     description:
-      'MakeShop 마켓 설치 시 호출되는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 검증 후 MakeShop authorize URL (PKCE S256) 로 302 redirect 합니다.',
+      'MakeShop 마켓 설치 시 호출되는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 검증 후 MakeShop authorize URL (PKCE S256) 로 302 redirect 합니다. 실패 본문은 `{ error: { code, message, requestId } }` 입니다. 서비스가 거절한 실패는 `Accept` 에 `text/html` 이 있으면 코드·메시지·requestId 를 담은 HTML 페이지로 답합니다.',
   })
   @ApiParam({
     name: 'installToken',
@@ -242,6 +247,10 @@ export class ThirdPartyOAuthController {
   @ApiTooManyRequestsResponse({
     description:
       'MAKESHOP_INSTALL_RATE_LIMITED — 같은 IP 의 조회/HMAC 실패가 임계치 초과 (enumeration 방어 lockout).',
+  })
+  @ApiInternalServerErrorResponse({
+    description:
+      'MAKESHOP_INSTALL_FAILED — 설치 처리 중 예상 밖 예외(DB·런타임 오류 등). 고정 문구로 답하고 예외 원문은 requestId 와 함께 서버 로그에만 남김.',
   })
   async makeshopInstall(
     @Param('installToken') installToken: string,

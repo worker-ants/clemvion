@@ -761,8 +761,9 @@ describe('ThirdPartyOAuthController — makeshop install routes', () => {
 // 코드가 없는 예상 밖 예외는 500 과 고정 문구로 가린다(원문은 requestId 와 함께 로그로만).
 // 근거: [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](CLE-INT-OAUTH#설치-엔드포인트-app-url)
 describe('ThirdPartyOAuthController — install failure responses', () => {
-  const UUID_V4 =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const UUID_V4_BODY =
+    '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+  const UUID_V4 = new RegExp(`^${UUID_V4_BODY}$`);
   const validToken = 'AbCdEfGhIjKlMnOpQrStUv';
   const RAW_DB_ERROR =
     'relation "integrations" does not exist at /app/dist/integration-oauth.service.js:1802';
@@ -965,9 +966,8 @@ describe('ThirdPartyOAuthController — install failure responses', () => {
       expect(res.statusCode).toBe(404);
       const html = String(res.body);
       expect(html).toContain('Request ID');
-      expect(html).toMatch(
-        /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/,
-      );
+      // HTML 안에 박힌 값이라 앞뒤 고정 없는 패턴으로 찾는다.
+      expect(html).toMatch(new RegExp(UUID_V4_BODY));
     });
 
     it.each([

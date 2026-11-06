@@ -2528,6 +2528,62 @@ describe('Cafe24ApiClient', () => {
       },
     );
 
+    it('401 → refresh succeeds → retry 403 — returns CAFE24_INSUFFICIENT_SCOPE WITHOUT markAuthFailed', async () => {
+      // MakeShop 의 재시도 403(MAKESHOP_AUTH_FAILED, 격하 없음)과 같은 의도다.
+      // 403 은 권한 범위 문제라 재시도에서 받아도 상태를 낮추지 않는다.
+      const integration = freshIntegration();
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockResolvedValue(undefined),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      fetchMock
+        .mockResolvedValueOnce(
+          makeJsonResponse(
+            { error: 'invalid_token', error_description: 'expired' },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            access_token: 'new-access',
+            refresh_token: 'new-refresh',
+            expires_in: 7200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse(
+            {
+              error: {
+                code: 403,
+                message: 'insufficient scope',
+                error_code: 'INSUFFICIENT_SCOPE',
+              },
+            },
+            { status: 403 },
+          ),
+        );
+
+      const result = await client.pingConnection(integration);
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('CAFE24_INSUFFICIENT_SCOPE');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(repo.update).not.toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({ status: 'error' }),
+      );
+      expect(integration.status).toBe('connected');
+    });
+
     it('incomplete credentials — never throws, returns INTEGRATION_INCOMPLETE result', async () => {
       const integration = makeIntegration({
         credentials: {
