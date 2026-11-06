@@ -351,7 +351,8 @@ describe('assertProductionConfig', () => {
 
   // CLE-T-0VV3VR — 실행 단위 인터랙션 토큰(`iext_*`)의 서명 비밀. 설정했을 때만 JWT_SECRET 과 같은 규칙으로 본다.
   describe('INTERACTION_JWT_SECRET (CLE-T-0VV3VR)', () => {
-    const VALID_INTERACTION = 'a-real-long-random-interaction-secret-9876543210';
+    const VALID_INTERACTION =
+      'a-real-long-random-interaction-secret-9876543210';
 
     it('passes when unset (JWT_SECRET signs iext_* and is checked separately)', () => {
       expect(() =>
@@ -448,9 +449,7 @@ describe('assertProductionConfig', () => {
         ...INSECURE_INTERACTION_JWT_SECRETS,
         'short-interaction-secret',
       ]) {
-        const message = thrownMessage(
-          prodEnv({ INTERACTION_JWT_SECRET: bad }),
-        );
+        const message = thrownMessage(prodEnv({ INTERACTION_JWT_SECRET: bad }));
         expect(message).not.toContain(bad);
       }
     });
@@ -471,7 +470,8 @@ describe('assertProductionConfig', () => {
       expect(() =>
         assertProductionConfig({
           NODE_ENV: 'development',
-          INTERACTION_JWT_SECRET: 'change-me-to-a-long-random-interaction-secret',
+          INTERACTION_JWT_SECRET:
+            'change-me-to-a-long-random-interaction-secret',
         }),
       ).not.toThrow();
     });
@@ -806,8 +806,7 @@ describe('INTERACTION_JWT_SECRET example values committed in the repo (commented
     /^[ \t]*#?[ \t]*INTERACTION_JWT_SECRET[ \t]*[=:][ \t]*"?([^"\s#]+)"?/gm;
 
   it('every committed example value is in INSECURE_INTERACTION_JWT_SECRETS', () => {
-    const found: Array<{ file: string; value: string; rejected: boolean }> =
-      [];
+    const found: Array<{ file: string; value: string; rejected: boolean }> = [];
     for (const rel of EXAMPLE_FILES) {
       const content = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
       for (const m of content.matchAll(interactionLine)) {

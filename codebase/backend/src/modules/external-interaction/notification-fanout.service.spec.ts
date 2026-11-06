@@ -318,10 +318,8 @@ describe('NotificationFanout — 조회 · 적재 실패를 경고 로그로 받
       },
     });
     fanout.onModuleInit();
-    const subscriber = websocketService.executionEvents$.subscribe.mock
-      .calls[0][0] as unknown as {
-      next: (e: ExecutionChannelEvent) => void;
-    };
+    const [[subscriber]] = websocketService.executionEvents$.subscribe.mock
+      .calls as unknown as [[{ next: (e: ExecutionChannelEvent) => void }]];
 
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown): void => {

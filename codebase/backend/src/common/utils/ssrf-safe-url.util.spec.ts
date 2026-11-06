@@ -444,7 +444,9 @@ describe('checkResolvedHostIp — DNS rebinding 방어 [Spec EIA §8.1]', () => 
 
     it('해석 실패(ENOTFOUND)는 ok:true — fail-open', async () => {
       mockedLookup.mockRejectedValue(
-        Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+        Object.assign(new Error('getaddrinfo ENOTFOUND'), {
+          code: 'ENOTFOUND',
+        }),
       );
       const r = await checkResolvedHostIp('nowhere.example.invalid');
       expect(r).toEqual({ ok: true });

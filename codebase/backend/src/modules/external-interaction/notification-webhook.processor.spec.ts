@@ -828,14 +828,18 @@ describe('NotificationWebhookProcessor.process', () => {
 // CLE-T-M1P83C — 발송 직전 DNS 결과 검사는 운영에서 기본으로 켜고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 으로만 끈다.
 // 운영 밖은 `=1` 일 때만 켠다. 켜지면 사설 주소로 풀리는 호스트에는 보내지 않고 발송 건강도를 degraded 로 둔다.
 describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () => {
-  const ENV_KEYS = ['NODE_ENV', 'NOTIFICATION_ENFORCE_DNS_REBIND_GUARD'] as const;
+  const ENV_KEYS = [
+    'NODE_ENV',
+    'NOTIFICATION_ENFORCE_DNS_REBIND_GUARD',
+  ] as const;
   let saved: Record<(typeof ENV_KEYS)[number], string | undefined>;
   let triggerRepo: RepoMocks;
   let fetchSpy: jest.Mock;
 
   const setEnv = (nodeEnv: string, flag: string | undefined): void => {
     process.env.NODE_ENV = nodeEnv;
-    if (flag === undefined) delete process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
+    if (flag === undefined)
+      delete process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
     else process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = flag;
   };
 
