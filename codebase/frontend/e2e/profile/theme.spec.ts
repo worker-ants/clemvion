@@ -197,7 +197,7 @@ test.describe("저장한 테마를 앱 전체에 적용한다", () => {
     await expect(html(page)).not.toHaveClass(/\blight\b/);
   });
 
-  test("로그아웃 뒤 로그인 화면도 마지막으로 확정한 테마로 그린다", async ({ page }) => {
+  test("세션이 없는 새 문서의 로그인 화면도 마지막으로 확정한 테마로 그린다 (로그아웃 상태 전환은 theme-sync 단위 테스트가 검증)", async ({ page }) => {
     await setupMocks(page, "dark");
     await gotoWorkflows(page);
     await expect(html(page)).toHaveClass(/\bdark\b/);

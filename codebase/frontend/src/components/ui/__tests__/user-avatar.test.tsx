@@ -25,6 +25,7 @@ describe("UserAvatar", () => {
     const img = screen.getByTestId("avatar-image");
     expect(img).toHaveAttribute("src", "https://cdn.example.com/a.png");
     expect(img).toHaveAttribute("alt", "Alice");
+    expect(img).toHaveAttribute("referrerpolicy", "no-referrer");
     expect(screen.queryByTestId("avatar-initials")).toBeNull();
   });
 

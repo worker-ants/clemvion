@@ -65,6 +65,8 @@ export function UserAvatar({
         <img
           src={src}
           alt={alt}
+          // 사용자가 지정한 외부 URL 을 모든 화면에서 요청하므로 Referer 를 보내지 않는다.
+          referrerPolicy="no-referrer"
           className="h-full w-full object-cover"
           onError={() => setFailedSrc(src)}
           data-testid={imageTestId}
