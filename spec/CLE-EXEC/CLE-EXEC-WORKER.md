@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "719cce6c5bc338f950a4e9e7e42af3d8bd58ef066b83f7d76419127dab5a86ad"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-DJ3VC8"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "ce8ebbe7922f947016424df2f476aa56782a33783a99e907cf964000a8a5de32"
-etag: "sha256-44cb405006110f283a405e6f87db302be425a8f2d29b3cf9793d7fabb1c684b4"
+mirror_sha256: "a40ecb4e4055b4106d5e0148e756206dc35b27958935f3ed2b1654ba97b546f4"
+etag: "sha256-8e750cffab9241d64750dc1693314a6d3a4afc12d5a95c10d85d21f1ed502b4f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

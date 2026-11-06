@@ -1,8 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import type { Job } from 'bullmq';
-import { ContinuationExecutionProcessor } from './continuation-execution.processor';
+import {
+  CONTINUATION_DELIVERY_CLAIM,
+  ContinuationExecutionProcessor,
+} from './continuation-execution.processor';
 import { ExecutionEngineService } from '../execution-engine.service';
-import { RetryTurnService } from '../retry-turn.service';
+import {
+  RETRY_LAST_TURN_DELIVERY_CLAIM,
+  RetryTurnService,
+} from '../retry-turn.service';
 import {
   continuationBackoffStrategy,
   resolveContinuationWorkerConcurrency,
@@ -22,7 +28,7 @@ import {
  */
 
 function makeJob(
-  data: Partial<ContinuationJob> & { type: string },
+  data: Omit<Partial<ContinuationJob>, 'type'> & { type: string },
   id = 'job-1',
 ): Job<ContinuationJob> {
   return {
@@ -99,6 +105,44 @@ describe('ContinuationExecutionProcessor', () => {
       await processor.process(makeJob({ type: 'cancel' }));
       expect(engine.claimResumeEntry).not.toHaveBeenCalled();
       expect(engine.applyCancellation).toHaveBeenCalledWith('exec-1');
+    });
+  });
+
+  // ── 배달 claim 표 (CLE-T-ZZ9TKQ) ──────────────────────────────────────────
+
+  describe('CONTINUATION_DELIVERY_CLAIM', () => {
+    // 표가 claim 방식을 정하는 단일 지점이다. 값을 바꾸면 이 단언이 먼저 깨진다.
+    it('타입마다 claim 방식을 정하고 retry_last_turn 은 재시도 서비스의 자체 claim 을 가리킨다', () => {
+      expect(CONTINUATION_DELIVERY_CLAIM).toEqual({
+        continue: 'resume-entry',
+        button_click: 'resume-entry',
+        ai_message: 'resume-entry',
+        ai_end_conversation: 'resume-entry',
+        cancel: 'none',
+        retry_last_turn: RETRY_LAST_TURN_DELIVERY_CLAIM,
+      });
+      expect(Object.isFrozen(CONTINUATION_DELIVERY_CLAIM)).toBe(true);
+    });
+
+    it.each([
+      'continue',
+      'button_click',
+      'ai_message',
+      'ai_end_conversation',
+    ] as const)(
+      'type=%s 는 처리 전에 claimResumeEntry 로 재개 진입을 얻는다',
+      async (type) => {
+        await processor.process(makeJob({ type }));
+        expect(engine.claimResumeEntry).toHaveBeenCalledTimes(1);
+        expect(engine.claimResumeEntry).toHaveBeenCalledWith('exec-1', 'ne-1');
+      },
+    );
+
+    // 표에 없는 타입(롤링 배포 중 다른 버전이 넣은 job)은 처리할 분기가 없다.
+    // claim 하면 대기 행을 running 으로 바꿔 놓고 끝나서 그 행이 멈춘다.
+    it('표에 없는 타입은 claimResumeEntry 를 부르지 않는다', async () => {
+      await processor.process(makeJob({ type: 'unknown_future_type' }));
+      expect(engine.claimResumeEntry).not.toHaveBeenCalled();
     });
   });
 
