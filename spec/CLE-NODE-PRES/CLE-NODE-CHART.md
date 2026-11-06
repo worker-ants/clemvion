@@ -2,21 +2,21 @@
 id: "CLE-NODE-CHART"
 title: "Chart 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-CHART-001", "REQ-CHART-002", "REQ-CHART-003", "REQ-CHART-004", "REQ-CHART-005", "REQ-CHART-006", "REQ-CHART-007", "REQ-CHART-008", "REQ-CHART-009", "REQ-CHART-010", "REQ-CHART-011", "REQ-CHART-012", "REQ-CHART-013", "REQ-CHART-014", "REQ-CHART-015", "REQ-CHART-016", "REQ-CHART-017", "REQ-CHART-018", "REQ-CHART-019", "REQ-CHART-020", "REQ-CHART-021"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "853e908c58d8d28bdf2ad4196b88fcce1fe3cf2c2b1a0ad5c4fb2585e03602fa"
-read_as: "approved"
-task: null
+content_hash: "fd4b34081974f9d36bb11c6497870b0c544fe4b017747e6d07b26c5b3b5c6e70"
+read_as: "approved_fallback"
+task: "CLE-T-N901G9"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "300a85bd69b7ac749342979a35f4fd6e3d82a0dd794854bbd71ffb77732d8133"
-etag: "sha256-eb6c1aab3da5adfba1be8cd0626b62aad0d1f01f76d74398177d964a56fd8aa2"
+mirror_sha256: "ce2e907ceb321c7778bfedea7c2beeba9b6d69cfe22f3351441b9259a487a85d"
+etag: "sha256-ca6d39c7b35078280fb1d143c2fddc12a4885fa544ee576469f3d71628177efa"
 ---
-> 구현 상태: 부분 구현 (미구현: 설정 화면의 Colors 입력 · Preview, 설정 요약 `summaryTemplate`, 에디터 렌더러의 축 라벨은 CLE-T-ETS2WE, `render_chart` 의 `data` 최소 검사는 CLE-T-N901G9, 포인트가 없을 때 웹채팅 위젯의 버튼 바는 CLE-T-670711) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (미구현: 설정 화면의 Colors 입력 · Preview, 설정 요약 `summaryTemplate`, 에디터 렌더러의 축 라벨은 CLE-T-ETS2WE, 포인트가 없을 때 웹채팅 위젯의 버튼 바는 CLE-T-670711) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -52,7 +52,7 @@ Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입
 - REQ-CHART-018 WHEN `dataField` 가 비어 있고 저장된 설정에 `dataSource` 값이 있으면 THE SYSTEM SHALL 그 값을 데이터 배열로 쓰고 배열이 아니면 `[dataSource]` 로 감싸며, 빈 문자열과 `null` 은 값이 없는 것으로 본다.
 - REQ-CHART-019 WHEN 사용자가 Chart 설정 화면을 열면 THE SYSTEM SHALL 데이터 입력으로 `dataField` 입력란을 보여 주고, 노드에 저장된 `dataSource` 값이 있으면 그 값을 호환 안내와 함께 보여 주며 지울 수 있게 한다.
 - REQ-CHART-020 WHEN 화면이 차트를 그리면 THE SYSTEM SHALL `colors` 에서 허용 형식의 색만 남긴 목록(길이 n)을 만들어 bar·line·area 는 처음 나온 순서로 i 번째 시리즈에, pie·donut 은 i 번째 조각에 그 목록의 `i % n` 번째 색을 쓰고, 남은 색이 없으면 그 렌더러의 기본 팔레트에 같은 규칙을 쓴다.
-- REQ-CHART-021 IF `render_chart` 페이로드의 `data` 가 배열이 아니거나, 항목이 하나 이상인데 객체(배열 · `null` 제외)인 항목이 하나도 없으면 THE SYSTEM SHALL 도구 의미 검사에서 `INVALID_PAYLOAD` 를 돌려주어 LLM 이 다시 부르게 하고, 빈 배열은 그대로 받는다. (미구현, CLE-T-N901G9)
+- REQ-CHART-021 IF `render_chart` 페이로드의 `data` 가 배열이 아니거나, 항목이 하나 이상인데 객체(배열 · `null` 제외)인 항목이 하나도 없으면 THE SYSTEM SHALL 도구 의미 검사에서 `INVALID_PAYLOAD` 를 돌려주어 LLM 이 다시 부르게 하고, 빈 배열은 그대로 받는다.
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
@@ -407,7 +407,7 @@ Chart 는 항목 버튼이 없으므로 `output.interaction.data.selectedItem` �
 
 `data` 는 `chartConfigSchema` 에 선언하지 않는다. 이 스키마는 노드 설정 스키마이면서 도구 파라미터 스키마다. 여기에 런타임 출력인 `data` 를 넣으면 설정 스키마에 출력 값이 섞여 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다) Principle 1.1 과 부딪친다. 그래서 LLM 은 도구 설명 문구를 보고 이 모양을 안다. 모양 표기는 `chart.schema.ts` 의 상수 `CHART_DATA_SHAPE`(값 `'{ x, y?, series? }[]'`) 하나다. 도구 기본 설명(`render-tool-provider.ts` 의 `DEFAULT_DESCRIPTIONS.chart`)과 AI 에이전트 시스템 안내(`ai-turn-executor.ts` 의 `PRESENTATION_TOOLS_GUIDANCE`)가 이 상수를 함께 쓴다.
 
-zod 는 `data` 를 검사하지 않으므로 도구 의미 검사(`checkRenderToolSemanticIssues`)가 최소 모양을 본다. `data` 가 배열이 아니거나, 항목이 하나 이상인데 객체(배열 · `null` 제외)인 항목이 하나도 없으면 `INVALID_PAYLOAD` 를 돌려준다. 빈 배열은 받는다. 그 뒤의 재시도와 버림은 다른 표시 도구와 같은 [스키마 위반 처리와 정규화](CLE-NODE-PRES-COMMON.md#스키마-위반-처리와-정규화) 흐름을 따른다. 지금은 chart 분기에 이 검사가 없다(미구현, CLE-T-N901G9).
+zod 는 `data` 를 검사하지 않으므로 도구 의미 검사(`checkRenderToolSemanticIssues`)가 최소 모양을 본다. `data` 가 배열이 아니거나, 항목이 하나 이상인데 객체(배열 · `null` 제외)인 항목이 하나도 없으면 `INVALID_PAYLOAD` 를 돌려준다. 빈 배열은 받는다. 그 뒤의 재시도와 버림은 다른 표시 도구와 같은 [스키마 위반 처리와 정규화](CLE-NODE-PRES-COMMON.md#스키마-위반-처리와-정규화) 흐름을 따른다.
 
 검사를 통과한 `data` 에 객체가 아닌 항목이 섞여 있으면 렌더러가 그 항목을 건너뛴다. 빈 배열이나 남은 포인트가 없는 경우의 표시는 [시리즈와 색](#시리즈와-색) 이 정한다.
 

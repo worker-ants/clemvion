@@ -218,13 +218,33 @@ function checkRenderToolSemanticIssues(
       }
       break;
     }
-    case 'chart':
+    case 'chart': {
       // `data` 는 `chartConfigSchema` 밖이라 zod 검증을 받지 않는다. 모양
       // CHART_DATA_SHAPE 는 DEFAULT_DESCRIPTIONS.chart 문구가 LLM 에 주는
-      // 계약이다(CLE-NODE-CHART 「표시 도구 페이로드」).
+      // 계약이고, 여기서는 최소 모양만 본다(CLE-NODE-CHART 「표시 도구 페이로드」
+      // REQ-CHART-021): 배열이 아니거나, 항목이 있는데 객체 항목이 하나도 없으면
+      // 위반이다. 빈 배열은 받는다. 일부 항목만 객체가 아니면 받고 렌더러가 그
+      // 항목을 건너뛴다.
+      const data = payload.data;
+      if (!Array.isArray(data)) {
+        issues.push(
+          `chart.data must be an array of point objects shaped ${CHART_DATA_SHAPE}`,
+        );
+      } else if (data.length > 0 && !data.some(isChartPointObject)) {
+        issues.push(
+          `chart.data must contain at least one point object shaped ` +
+            `${CHART_DATA_SHAPE}; every item was a primitive, null or array`,
+        );
+      }
       break;
+    }
   }
   return issues;
+}
+
+/** `render_chart` 의 `data` 항목이 포인트 객체인지 — 배열 · `null` 은 객체로 치지 않는다. */
+function isChartPointObject(item: unknown): boolean {
+  return typeof item === 'object' && item !== null && !Array.isArray(item);
 }
 
 /**
