@@ -436,15 +436,23 @@ describe('RenderToolProvider.execute — render_chart data 최소 검사', () =>
     expect(result.presentationPayload!.payload).toMatchObject({ data: [] });
   });
 
-  it('객체 항목이 하나라도 있으면 받고 data 를 고치지 않는다 — 나머지는 렌더러가 건너뛴다', async () => {
-    const data = [1, { x: 'Jan', y: 10 }, null, ['Feb', 2], 'Mar'];
-    const result = await runChart({ data });
-    expect(result.status).toBe('success');
-    expect(result.presentationCall?.status).toBe('rendered');
-    expect(
-      (result.presentationPayload!.payload as { data: unknown[] }).data,
-    ).toEqual(data);
-  });
+  // 최소 검사는 객체 항목이 있는지만 본다. 객체의 키(x · y)는 보지 않으므로 `[{}]`
+  // 도 받는다. 항목별 엄격 검증은 스펙이 기각한 대안이다.
+  it.each<[string, unknown[]]>([
+    ['객체가 가운데', [1, { x: 'Jan', y: 10 }, null, ['Feb', 2], 'Mar']],
+    ['객체가 마지막', [1, 'a', null, ['Feb', 2], { x: 'Jan', y: 10 }]],
+    ['키 없는 빈 객체 하나', [{}]],
+  ])(
+    '객체 항목이 하나라도 있으면 받고 data 를 고치지 않는다 — %s',
+    async (_label, data) => {
+      const result = await runChart({ data });
+      expect(result.status).toBe('success');
+      expect(result.presentationCall?.status).toBe('rendered');
+      expect(
+        (result.presentationPayload!.payload as { data: unknown[] }).data,
+      ).toEqual(data);
+    },
+  );
 
   it('정상 포인트 배열(series 포함)은 그대로 렌더된다', async () => {
     const data = [
