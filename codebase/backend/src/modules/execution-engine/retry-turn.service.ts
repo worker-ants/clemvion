@@ -49,15 +49,20 @@ const RETRY_STATE_KEY = '_retryState';
  * `CAST(:retryStateKey AS text)` 로 타입을 정한다.
  */
 const RETRY_STATE_PARAM = 'retryStateKey';
+const RETRY_STATE_PARAMS = { [RETRY_STATE_PARAM]: RETRY_STATE_KEY } as const;
 
 /**
  * 재개 처리기의 claim 표(`CONTINUATION_DELIVERY_CLAIM`)가 `retry_last_turn` 에 거는
  * 값이다. 이 job 은 처리기의 `claimResumeEntry` 를 거치지 않고 `applyRetryLastTurn`
  * 이 `claimAndSyncRetryState` 로 배달 claim 을 직접 한다(CLE-T-ZZ9TKQ). 그 claim 을
  * 이 서비스에서 빼면 이 값도 함께 지워서 처리기 표가 컴파일되지 않게 한다.
+ *
+ * 이 값은 문자열이라 claim 호출만 지우면 컴파일은 통과한다. 그 경우는 컴파일러가 아니라
+ * `retry-turn.service.spec.ts` 가 막는다. `applyRetryLastTurn` 의 claim 호출과 claim
+ * UPDATE 조건을 단언하는 `applyRetryLastTurn — early-exit guards` 의 (b2) · (b3) 가
+ * 그 테스트다. claim 을 옮기거나 지우면 이 테스트와 처리기 표를 함께 고친다.
  */
 export const RETRY_LAST_TURN_DELIVERY_CLAIM = 'retry-self-claim' as const;
-const RETRY_STATE_PARAMS = { [RETRY_STATE_PARAM]: RETRY_STATE_KEY } as const;
 
 /**
  * C-1 step4 (strangler-fig, FINAL) — `execution.retry_last_turn` lifecycle 를
@@ -126,6 +131,9 @@ export class RetryTurnService {
    * 검증 순서 (spec §4.2 에러 코드 표):
    *  1. NodeExecution lookup (executionId 소속 확인). 미존재 → INVALID_EXECUTION_STATE.
    *  2. status !== FAILED → INVALID_EXECUTION_STATE.
+   *  2-1. 실행(Execution) 상태가 `failed` 가 아니면 INVALID_EXECUTION_STATE
+   *      (CLE-T-DJ3VC8). WS 게이트웨이가 이 에러의 `code` 를 그대로 `errorCode` 로
+   *      내고 프론트가 재시도 실패 문구(`systemErrorRetryFailedInvalidState`)로 보여 준다.
    *  3. `outputData.output.error.details.retryable !== true` → NODE_NOT_RETRYABLE.
    *  4. `outputData._retryState` 부재 또는 `now > expiresAt` → RETRY_STATE_NOT_FOUND.
    *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
@@ -329,6 +337,12 @@ export class RetryTurnService {
    *      아직 `running` 이면 먼저 마감하고(`closeSpawnedRowIfRunning`)
    *      `failRetryExecution` 이 Execution 을 FAILED 또는 CANCELLED 로 마감
    *      (일반 노드 종결 규칙 — spec §10).
+   *
+   * 남은 위험(CLE-T-T9HZX7 이 맡는다): 2-1 의 확인과 재진입 턴 끝의 전이 사이는
+   * 원자적이지 않다. 그 사이 다른 경로가 실행 상태를 바꾸면 엔티티 저장이 덮어쓸 수
+   * 있다. 워커가 2-1 에서 거절하면 이미 소비한 `_retryState` 는 되살리지 않고
+   * 클라이언트에도 거절을 알리지 않는다. 전이는 `state/state-machine.ts` ·
+   * EES 쪽이라 이 서비스에서 조건부 UPDATE 로 바꾸지 않는다.
    */
   async applyRetryLastTurn(
     executionId: string,
