@@ -3,18 +3,18 @@ id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
 content_hash: "856e1eccac51dc572c4d824f5c78a1af9c7672ba72594a0d5f1dc622180fae44"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-7ZYES5"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4b1e3c34eaeaf20630ef2da93536fd08b57b720dc60fc1e9cf7f4e4939d9fc92"
-etag: "sha256-715d1910296ff498166a491ff4e322a120245f3d640bd34b4665cbaebbfc5c02"
+mirror_sha256: "be57102fa3cebee751c927dab8ab9de778316a72557f3916e34874dcb028508e"
+etag: "sha256-97a2c2ada74ffc82a4be9c8f6a85970b37b2ce12b543840a8dbb7cad3aa937a7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

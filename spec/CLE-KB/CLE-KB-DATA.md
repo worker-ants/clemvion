@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
 content_hash: "94494647d39d3d6200dcf5cb0ff6d33e7dcbe6ecd9291a69682822e452ca1c11"
 read_as: "approved_fallback"
-task: "CLE-T-QTRRE6"
+task: "CLE-T-7ZYES5"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "52ffeacbf6c1154520b638278257d5cb2061a8c6ae1cb3dd6057766d2edb5e86"
-etag: "sha256-87eb579291b6a1b99ede6722c604a18d30b885aa127488fa8b0c26c0f7712da8"
+mirror_sha256: "9f63db08f915842bcda42f9e900d18dca08829a12eb91cd2ed5d331557775898"
+etag: "sha256-1a9b51a5efd5388ec326f8d0e4e7e50e23c4f11d8c11def1fe8d906351355b0e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/6-knowledge-base.md`, `spec/1-data-model.md` (§2.11 KnowledgeBase, §2.12 Document, §2.12.1~§2.12.4, Rationale «그래프 RAG 삭제 연쇄의 FK 인덱스 넷») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

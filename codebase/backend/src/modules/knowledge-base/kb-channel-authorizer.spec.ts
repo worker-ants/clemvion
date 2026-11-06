@@ -68,4 +68,21 @@ describe('KbChannelAuthorizer', () => {
 
     expect(result).toEqual({ error: 'Not authorized for this document' });
   });
+
+  /**
+   * 뷰어도 소유 검증만 지나면 구독한다. 인가 컨텍스트에 역할 필드가 없다는 전제와 그 전제가 바뀔 때
+   * 할 일은 `websocket/channel-authorizer.spec.ts` 한 곳에 있다.
+   */
+  it('뷰어도 소유 검증만 지나면 구독한다', async () => {
+    const verify = jest.fn().mockResolvedValue(true);
+    const authorizer = makeAuthorizer(verify);
+
+    const result = await authorizer.authorize(`kb:${VALID_DOC_ID}`, {
+      workspaceId: 'ws-1',
+      userId: 'viewer-1',
+    });
+
+    expect(result).toBeNull();
+    expect(verify).toHaveBeenCalledWith(VALID_DOC_ID, 'ws-1');
+  });
 });

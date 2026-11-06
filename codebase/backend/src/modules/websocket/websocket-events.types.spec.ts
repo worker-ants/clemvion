@@ -50,6 +50,9 @@ const TYPES_FILE = path.join(WS_DIR, 'websocket-events.types.ts');
 /** 이 모듈이 갖고 있어야 할 export — 선언이 딴 데로 옮겨가면 "간선 0" 이 공허해진다. */
 const EXPECTED_EXPORTS = [
   'ExecutionChannelEvent',
+  // fanout subject 입력 타입 (CLE-T-7ZYES5, EGRESS §6).
+  'FanoutEnvelope',
+  'FanoutExecutionChannelEvent',
   'ChatChannelRoutingInfo',
   'ExecutionRoutingContext',
   'ExecutionEventType',

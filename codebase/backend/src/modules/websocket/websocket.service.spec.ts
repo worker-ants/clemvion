@@ -230,9 +230,15 @@ describe('WebsocketService', () => {
 
     it('redacts the whole subtree when sanitize depth exceeds MAX_SANITIZE_DEPTH', () => {
       // depth 초과 경로에서는 credential 키 매칭을 더 수행할 수 없으므로
-      // 보수적으로 [REDACTED_DEPTH] 로 통째 마스킹 (Review 후속 #4).
+      // 보수적으로 하위 트리를 통째 마스킹 (Review 후속 #4).
       // MAX_SANITIZE_DEPTH 를 초과하는 깊이 페이로드 끝에 credential 을 박아
       // 통째 마스킹이 되는지 검증. 상수 변경 시 자동 추적되도록 매직넘버 대신 import.
+      //
+      // 남는 마커는 `[REDACTED_DEPTH]` 가 아니라 값 마커 `***` 다 (2026-11-06, EGRESS §3.11).
+      // 이 채널도 값 마스킹(`maskWireEnvelope`)을 지나게 됐고, 그 마스커의 깊이 상한
+      // (`MAX_REDACT_DEPTH`, `depth >= N`, 봉투 최상위부터 셈)이 키 마스커의 상한
+      // (`depth > N`, payload 최상위부터 셈)보다 얕은 곳에서 하위 트리를 자른다.
+      // `execution:` 채널은 2026-08-16 부터 같다. 원문은 어느 쪽이든 나가지 않는다.
       let deep: Record<string, unknown> = { api_key: 'should-not-leak' };
       for (let i = 0; i < MAX_SANITIZE_DEPTH + 2; i++) deep = { next: deep };
       service.emitBackgroundRunEvent(
@@ -247,7 +253,7 @@ describe('WebsocketService', () => {
       // 직렬화해서 어디에도 평문 secret 이 남아있지 않은지 strict 검증.
       const serialized = JSON.stringify(payload);
       expect(serialized).not.toContain('should-not-leak');
-      expect(serialized).toContain('[REDACTED_DEPTH]');
+      expect(serialized).toContain('"***"');
     });
   });
 
@@ -1443,6 +1449,126 @@ describe('WebsocketService', () => {
       });
       const fanout = await eventP;
       expect(fanout.payload.error).toBe('Node timed out after 30s');
+    });
+  });
+
+  /**
+   * `kb:<documentId>` · `background:run:<id>` 채널도 `execution:` wire 와 같은 값 마스킹을
+   * 지난다 (CLE-T-7ZYES5, EGRESS §3.11).
+   *
+   * 두 채널의 구독 인가는 워크스페이스 소유만 보고 역할을 보지 않는다. 그래서 뷰어도 이 wire
+   * 봉투를 그대로 받는다. 역할을 보지 않는다는 사실은 각 authorizer spec 의 「역할을 보지
+   * 않는다」 테스트가 고정한다. 이 describe 는 그 수신자에게 가는 값을 고정한다.
+   *
+   * 지금 발행처는 값을 미리 정제한다(kb `error` 는 고정 문구, background `errorMessage` 는
+   * `sanitizeErrorMessage`). 여기서는 발행처가 정제를 잊은 경우를 겨눈다. 그래서 입력에
+   * 자격 증명 모양을 직접 넣는다.
+   */
+  describe('kb · background 채널 값 마스킹 — 뷰어도 받는 wire', () => {
+    const LEAKY_ERROR =
+      'Upstream rejected: Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.LEAKED';
+    const TOKEN_FRAGMENT = 'eyJhbGciOiJIUzI1NiJ9';
+    const LEAKY_URI = 'db=postgres://user:pw@db.internal:5432/prod';
+
+    function onlyWire(): Record<string, unknown> {
+      expect(gateway.broadcastToChannel).toHaveBeenCalledTimes(1);
+      return gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+    }
+
+    it('emitKbEvent — error 값 안의 토큰을 가린다', () => {
+      service.emitKbEvent('doc-1', 'document:embedding_failed', {
+        error: LEAKY_ERROR,
+      });
+      const wire = onlyWire();
+      expect(wire.error).not.toContain(TOKEN_FRAGMENT);
+      // 양성 단언. 없으면 필드가 사라지는 회귀도 통과한다.
+      expect(wire.error).toContain('***');
+    });
+
+    it('emitKbEvent — 중첩 값 안의 자격 증명 URI 도 가린다', () => {
+      service.emitKbEvent('doc-1', 'document:graph_failed', {
+        detail: { source: LEAKY_URI },
+      });
+      const wire = onlyWire();
+      const detail = JSON.stringify(wire.detail);
+      expect(detail).not.toContain('user:pw');
+      expect(detail).toContain('db.internal');
+    });
+
+    it('emitBackgroundRunEvent — errorMessage 값 안의 토큰을 가린다', () => {
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        { status: 'failed', errorMessage: LEAKY_ERROR },
+      );
+      const wire = onlyWire();
+      expect(wire.errorMessage).not.toContain(TOKEN_FRAGMENT);
+      expect(wire.errorMessage).toContain('***');
+    });
+
+    it('emitBackgroundRunEvent — 중첩 값 안의 자격 증명 URI 도 가린다', () => {
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        { status: 'failed', detail: { source: LEAKY_URI } },
+      );
+      const wire = onlyWire();
+      const detail = JSON.stringify(wire.detail);
+      expect(detail).not.toContain('user:pw');
+      expect(detail).toContain('db.internal');
+    });
+
+    it('키 이름 마스킹의 `[REDACTED]` 마커를 `***` 로 덮지 않는다 (두 채널, 규칙 5)', () => {
+      service.emitKbEvent('doc-1', 'document:embedding_failed', {
+        apiKey: 'sk-live-CONTROL',
+      });
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        { apiKey: 'sk-live-CONTROL' },
+      );
+      const [kbWire, bgWire] = gateway.broadcastToChannel.mock.calls.map(
+        (c) => c[2] as Record<string, unknown>,
+      );
+      expect(kbWire.apiKey).toBe('[REDACTED]');
+      expect(bgWire.apiKey).toBe('[REDACTED]');
+    });
+
+    it('식별자 · 시각 · 평범한 문구는 그대로다 (마스킹이 과하지 않다)', () => {
+      service.emitKbEvent('doc-1', 'document:embedding_failed', {
+        error: 'Embedding failed',
+        chunkCount: 12,
+      });
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        {
+          executionId: 'exec-1',
+          status: 'failed',
+          errorMessage: 'Node timed out after 30s',
+          durationMs: 1200,
+        },
+      );
+      const [kbWire, bgWire] = gateway.broadcastToChannel.mock.calls.map(
+        (c) => c[2] as Record<string, unknown>,
+      );
+      expect(kbWire).toMatchObject({
+        documentId: 'doc-1',
+        error: 'Embedding failed',
+        chunkCount: 12,
+      });
+      expect(typeof kbWire.timestamp).toBe('string');
+      expect(bgWire).toMatchObject({
+        backgroundRunId: 'bg-run-1',
+        executionId: 'exec-1',
+        status: 'failed',
+        errorMessage: 'Node timed out after 30s',
+        durationMs: 1200,
+      });
+      expect(typeof bgWire.timestamp).toBe('string');
     });
   });
 

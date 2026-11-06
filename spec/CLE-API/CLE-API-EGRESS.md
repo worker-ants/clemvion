@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "0a2ee4260de976bc8d0f35ab0b92cc0c02328810e5dfe1527dd487c66b990e5d"
+content_hash: "d5da37e76f2cc7beb58be321e220188cf92ba1f81e082f328a520db1cf4a8a40"
 read_as: "approved_fallback"
-task: "CLE-T-FX354C"
+task: "CLE-T-P5BDNX"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "989aba2a50808eb34b80cec7e01ad965f1f751fb5d64df5e636b84131386df1b"
-etag: "sha256-8928b5d1780d84dd7d7e6510c4ac9b0e23475a8beb6ef342ef7ca63d8795e627"
+mirror_sha256: "587bc932ac81cbfddbe2cd878e185ec6b4c4008080cd5bdb8527aeb7f163df29"
+etag: "sha256-1b81e42b6160f7f38b79796af4d2f32ad13dd5fd567d97a0453503f95f6643f0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -47,7 +47,7 @@ etag: "sha256-8928b5d1780d84dd7d7e6510c4ac9b0e23475a8beb6ef342ef7ca63d8795e627"
 3. **적용 범위는 총칭이 아니라 열거다.** "모든 읽기 경로" 로 적지 않고 표면을 이름으로 적는다(§3).
 4. **마스킹은 공유 관문에서 건다.** 새 읽기·발행 경로가 그 관문을 지나면 마스킹을 구조적으로 이어받게 한다. 호출부마다 따로 걸지 않는다.
 5. **마스킹은 한 번이다.** 뒤 단계는 앞 단계가 남긴 마커를 다른 마커로 덮지 않는다. 예외는 하나다. fetch 헤더 값 검증 오류의 따옴표 안은 그 안에 든 마커까지 값 마커 하나로 바꾼다(§3.10, Rationale 「트리거 응답의 마지막 오류를 표면에 올린 이유」).
-6. **`toFanoutEnvelope` 는 정한 네 단계 순서를 지키고 뒤에서 다시 마스킹하지 않는다.**
+6. **`toFanoutEnvelope` 는 정한 네 단계 순서를 지키고 뒤에서 다시 마스킹하지 않는다.** fanout subject 는 `toFanoutEnvelope` 가 만든 봉투(`FanoutEnvelope` 타입)만 받는다(§6).
 7. **`llmCalls` 는 strip-only 다.** 외부 수신자에게는 필드째 빼고 내부 WebSocket wire 에서는 값 마스킹도 하지 않고 원문을 유지한다.
 8. **외부로 나가는 `nodeOutput` 은 fail-closed 허용 목록(allowlist)을 지난다.** 작성자가 정의한 워크플로우 출력(`result`)과 자유 형식 에러는 대상에서 뺀다.
 9. **다시 쓰이는 값(round-trip)은 카브아웃하지 않고 소비 쪽 마커 가드로 다룬다.** 마커가 실제 입력이 되지 않도록 프리필을 건너뛰거나 제출을 막는다.
@@ -100,6 +100,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 - `GET /api/executions/:id` 에는 `@Roles` 게이트가 없어 뷰어를 포함한 워크스페이스 멤버 전원이 조회하고 프론트엔드는 실패 배너에 `error.message` 를 그대로 보인다.
 - WebSocket `execution:<id>` 구독 인가는 워크스페이스 소유만 보고 역할을 받지 않는다([WebSocket 연결과 채널 구독](CLE-API-WS.md)). 수신 인구가 `GET /api/executions/:id` 와 같다.
 - 그래서 내부 읽기 경로와 내부 WebSocket wire 에도 외부 표면과 같은 값 마스킹을 건다. [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 의 R-5 가 적은 "안전성은 역할 게이팅이 아니라 서버 egress masking parity 에 의존한다" 는 원칙과 같다. R-5 의 직접 대상은 설정(Config) 탭이라 `Execution.error` 를 규정하지는 않는다. 원칙을 가져다 쓴 것이지 기존 판정이 아니다.
+- `kb:<documentId>`·`background:run:<id>` 구독 인가도 워크스페이스 소유만 보고 역할을 보지 않는다([WebSocket 연결과 채널 구독](CLE-API-WS.md)). 그래서 수신 인구가 `execution:<id>` 와 같다(§3.11). `notifications:<userId>` 는 본인만 받아 수신 인구가 다르다.
 
 ### 2.2 공유 관문
 
@@ -109,6 +110,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 |---|---|
 | `ExecutionsService.toResponseExecution` | 실행 REST 응답(§3.5 의 표면들) |
 | `WebsocketService.emitExecutionEvent`·`emitNodeEvent` | 모든 실행·노드 이벤트 발행(내부 WebSocket wire 와 외부 fanout) |
+| `WebsocketService.emitKbEvent`·`emitBackgroundRunEvent` | 지식 저장소 문서 처리 · Background 본문 실행 이벤트 발행(내부 WebSocket wire 만, fanout 없음, §3.11) |
 | `toTerminalErrorPayload` | 종결 이벤트의 `error` |
 | `redactThreadForPublic` | 대화 스레드의 공개 표면 |
 | `TriggersService.sanitizeForResponse` | 트리거 REST 응답(§3.10 의 표면들) |
@@ -216,10 +218,15 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 | 갈래 | 키 | 무엇이 지키나 |
 |---|---|---|
 | 노드 출력 공개 키 | `config`·`output`·`meta`·`port`·`status` | **컴파일 시점 assertion**. 그 타입에 공개 키가 늘면 빌드가 깨진다 |
-| wire 전용 (위젯 파서) | `formConfig`·`conversationConfig`·`buttonConfig`·`interactionType` | 리터럴 테스트 |
-| wire 전용 (채팅 채널 렌더러) | `payload`·`title`·`rendered`·`nodeType` | 리터럴 테스트 |
+| wire 전용 (위젯 파서) | `formConfig`·`conversationConfig`·`buttonConfig`·`interactionType` | 리터럴 테스트, `NodeHandlerOutput` 키와 이름이 겹치면 빌드가 깨지는 assertion |
+| wire 전용 (채팅 채널 렌더러) | `payload`·`title`·`rendered`·`nodeType` | 리터럴 테스트, `NodeHandlerOutput` 키와 이름이 겹치면 빌드가 깨지는 assertion |
 
-- 뒤 두 갈래는 타입에 없으므로 **리터럴 테스트가 유일한 방어**다. 목록에서 파생한 fixture 는 목록이 줄면 케이스도 함께 줄어 조용히 통과한다(실측으로 확인한 형태).
+- 뒤 두 갈래는 노드 출력 타입에 없다. 그래서 막는 수단이 둘로 나뉜다(2026-11-06).
+  - 목록이 줄어드는 것은 **리터럴 테스트**가 막는다. 목록에서 파생한 fixture 는 목록이 줄면 케이스도 함께 줄어 조용히 통과한다(실측으로 확인한 형태).
+  - 이름 충돌은 **컴파일 시점 assertion** 이 막는다. `NodeHandlerOutput` 의 키(엔진 내부 `_resumeState`·`_retryState` 포함)가 wire 전용 8키와 겹치면 빌드가 깨진다. 8키의 리터럴 union 과 `NODE_OUTPUT_ALLOWED_KEYS` 배열은 양방향으로 묶어 둘이 어긋나면 빌드가 깨진다.
+- **이름 기반 허용 목록의 한계.** 허용 목록은 키 이름만 본다. 엔진 내부 필드가 wire 전용 8키와 같은 이름으로 `nodeOutput` 최상위에 붙으면 목록을 통과한다. `NodeHandlerOutput` 타입에 선언된 필드는 위 assertion 이 막는다. 타입 밖에서 붙는 필드는 막지 못한다. 그래서 리뷰에서 두 가지를 확인한다.
+  - (가) `nodeOutput` 최상위에 새 필드를 붙일 때 이름이 wire 전용 8키와 겹치지 않는가.
+  - (나) 새 발행 경로가 `toFanoutEnvelope` 를 지나는가. 타입과 소스 스캔 테스트가 막지만 별칭을 거친 단언은 막지 못한다(§6).
 - 채팅 채널 4키를 표면별 별도 목록으로 가르지 않았다. Discord·Telegram·Slack 렌더러는 `nodeOutput` 을 평탄한 옛 형태(`nodeOutput.rendered` 등)로 읽고 위젯은 `output.rendered` 처럼 한 겹 아래로 읽는데 목록을 표면별로 나누면 손으로 맞출 지점이 둘 생긴다. 표면을 열거하는 것과 같은 이유로 **목록은 하나, 갈래는 주석**으로 둔다.
 - **이름이 겹치는 두 쌍을 갈라 둔다.**
   - `nodeOutput.nodeType`(카드 렌더 서브타입 `chart`·`table`·`carousel`, 외부 노출 대상)은 wire 최상위 `waitingNodeType`(`node.type`, 외부 소비 매핑 없는 WebSocket 내부 부가 식별자)과 **다른 필드**다. 값 공간이 겹쳐 오독하기 쉽지만 담긴 객체가 다르다. 엔진은 `nodeOutput` 안에 `nodeType` 을 넣지 않으며 허용 목록 항목은 렌더러의 방어적 읽기를 깨지 않으려는 예방적 허용이다([WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).
@@ -278,6 +285,25 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
   - 두 필드는 `TRIGGER_RESPONSE_REDACT_COLUMNS` 에 이름으로 올라 있다. `trigger` 에 마지막 오류 같은 진단 텍스트 컬럼을 더하면 이 목록과 위 표를 함께 고친다.
   - 생성 · 재발급은 보이는 ASCII(U+0021~U+007E) 밖 문자(공백 · 제어 문자 등)가 든 봇 토큰을 프로바이더를 부르기 전에 400 으로 거부한다([채팅 채널 「R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다), NERV Task `CLE-T-FX354C`). 이미 저장된 토큰은 바뀌지 않는다. 그런 토큰이 남은 트리거는 여전히 `degraded` 로 드러나고 토큰을 재발급해 고친다. 그래서 입력 거부가 있어도 알려진 비밀 치환은 그대로 필요하다.
 - **남는 표면 `config.notification.url`**: 같은 응답의 알림 URL 은 원문으로 나간다. URL 에 `user:pass@` 가 있으면 마지막 오류에서는 가려도 이 필드에는 남는다. §3.5 가 «같은 응답 안의 원문이 방어를 우회한다» 고 보고 닫은 형태와 같다. 이번에 닫지 않은 이유는 이 필드가 편집 폼이 다시 보내는 왕복 값이라 규칙 9 와 함께 정해야 해서다. 그런 URL 은 fetch 가 요청을 만들지 않아 한 번도 발송되지 않으므로 등록에서 거부하는 안을 먼저 본다(NERV Task `CLE-T-RCQGCC`). 그때까지 알림 URL 의 userinfo 차단은 완전하지 않다. 사용자명만 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)은 마지막 오류에서도 가려지지 않는다.
+
+### 3.11 지식 저장소 · Background 채널 발행 (2026-11-06)
+
+`execution:` 밖의 두 구독 채널에도 내부 WebSocket wire 와 같은 값 마스킹을 건다(NERV Task `CLE-T-7ZYES5`).
+
+| 구독 채널 | 발행 관문 | 이벤트 정의 |
+|---|---|---|
+| `kb:<documentId>` | `WebsocketService.emitKbEvent` | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 지식 저장소 문서 이벤트 절, [지식 저장소 데이터](../CLE-KB/CLE-KB-DATA.md) |
+| `background:run:<id>` | `WebsocketService.emitBackgroundRunEvent` | [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 실시간 갱신 절 |
+
+- **수신 인구**: 두 채널의 구독 인가는 워크스페이스 소유만 보고 역할을 보지 않는다. 뷰어도 받는다. `execution:<id>` 와 수신 인구가 같다(§2.1).
+- **처방**: 그래서 `execution:` wire 와 같은 `maskWireEnvelope` 를 건다. 값 패턴과 키 이름을 함께 본다. 키 이름 마스킹(`sanitizePayloadForWs`) 뒤에 건다.
+- **지금 wire 값은 바뀌지 않는다.** 두 채널에 실리는 값은 발행처가 이미 정제한다. kb 의 `error` 는 `sanitizeLlmErrorMessage` 가 고정 문구로 바꾼 값이다. background 의 `errorMessage` 는 `sanitizeErrorMessage` 를 거친다. 나머지는 숫자 · UUID · 시각과 상태 값(`completed`·`failed`)이다. 바뀌는 것은 발행처가 정제를 잊었을 때 관문이 막는다는 점이다(규칙 4).
+- **fanout 이 없다.** 두 채널은 외부 fanout 으로 가지 않는다. 그래서 `stripExternalOnlyFields` 와 허용 목록은 걸지 않는다.
+- **키 마커를 덮지 않는다.** 앞선 키 이름 마스킹이 남긴 `[REDACTED]` 는 그대로 남는다(규칙 5). §3.6 의 `execution:` wire 와 같은 동작이고 헤더 값 검증 오류의 예외도 같다.
+- **깊이 상한을 넘는 payload 는 `[REDACTED_DEPTH]` 가 아니라 값 마커 `***` 로 끝난다.** 값 마스커(`deepRedactSecretsPreserving`, 상한 `MAX_REDACT_DEPTH`, `depth >= N`, 봉투 최상위부터 센다)가 키 마스커(`sanitizePayloadForWs`, 상한 `MAX_SANITIZE_DEPTH`, `depth > N`, payload 최상위부터 센다)보다 얕은 곳에서 하위 트리를 자르기 때문이다(§7.1). 마커 위에 다른 마커를 덮는 것(규칙 5)이 아니다. 그 마커를 담은 하위 트리가 더 얕은 곳에서 잘린 결과다. 원문은 어느 쪽이든 나가지 않는다. `execution:` 채널은 2026-08-16(§3.6)부터 이미 이렇게 동작하고 두 채널은 이번에 그 동작을 따른다. 지금 두 채널의 payload 는 한 겹이라 이 상한에 닿지 않는다.
+- **대상 밖 두 채널**:
+  - `notifications:<userId>` 는 본인만 받는다. 수신 인구가 달라 이 절의 대상이 아니다.
+  - `workflow:<id>` 는 구독 인가만 있고 서버 발행처가 없다.
 
 ## 4. 다시 쓰이는 값과 재제출 거부
 
@@ -345,7 +371,11 @@ flowchart LR
 
 - 3단계 `allowlistFanoutNodeOutput`(2026-08-24, `#1209`)은 fail-closed 허용 목록이다. 앞의 `stripExternalOnlyFields` 가 이름을 아는 것을 빼는 deny-list(fail-open)인 반면, 이쪽은 `nodeOutput`·`buttonConfig.nodeOutput`·`output` **세 자리**에서 아는 것만 남긴다.
 - 순서가 중요하다. 허용 목록을 `attachRoutingContext` **뒤에** 걸면 그 함수가 얹은 `triggerId`·`chatChannel` 이 목록 밖이라 떨어진다.
-- **이 순서는 구조가 아니라 규율이다.** 세 번째 발행 경로가 순서를 다르게 조립해도 컴파일러도 가드도 막지 않는다. 그래서 여기 적는다.
+- **1단계 → fanout 진입과 subject 입력은 타입으로 묶었다(2026-11-06).** `maskWireEnvelope` 는 파일 안 brand 를 붙인 봉투(`MaskedWireEnvelope`)를 돌려주고 `toFanoutEnvelope` 는 그 타입만 받는다. `FanoutEnvelope` 를 만드는 곳은 `toFanoutEnvelope` 하나다. `executionEventSubject` 는 payload 가 `FanoutEnvelope` 인 `FanoutExecutionChannelEvent` 만 받는다. 그래서 값 마스킹을 건너뛴 봉투나 `toFanoutEnvelope` 를 지나지 않은 봉투를 subject 에 넣으면 빌드가 깨진다. 소비처가 보는 `executionEvents$` 의 `ExecutionChannelEvent` 는 그대로다(Rationale 「fanout 봉투를 타입으로 묶은 이유」).
+- **타입이 막지 못하는 것이 남는다.**
+  - 타입 단언(`as`)은 막지 못한다. brand 가 붙은 봉투를 spread 해 필드를 더하는 것도 막지 못한다.
+  - 표지 타입(`FanoutEnvelope`·`MaskedWireEnvelope`·`FanoutExecutionChannelEvent`)으로의 단언이 정한 자리(`toFanoutEnvelope`·`maskWireEnvelope`) 밖에 없는지, subject 에 넣는 payload 가 `toFanoutEnvelope` 의 결과인지는 소스 스캔 테스트(`websocket-fanout-envelope.spec.ts`)가 본다. 타입 이름으로 찾으므로 별칭을 거친 단언은 잡지 못한다.
+  - `toFanoutEnvelope` 안 2~4단계(strip → allowlist → attach)의 순서는 여전히 한 함수 안의 규율이다. 컴파일러도 가드도 그 순서를 보지 않는다. 그래서 여기 적는다.
 - **이 순서 계약을 확인한 범위는 `toFanoutEnvelope` 경로다.** 종결 에러 payload(`TerminalErrorPayload`)는 그 대상이 아니다(2026-08-29 전수 확인). 그 payload 를 채우는 `toTerminalErrorPayload` 호출부는 **5곳이고 모두 발행 쪽**(`chat-channel.dispatcher` 1, `execution-engine.service` 3, `retry-turn.service` 1, DB 쓰기 0)이다. 마스킹은 `sanitizeErrorMessage` 가 아니라 `redactTerminalError` → `deepRedactSecrets`(§7 표 2행)라는 **별도 관문**으로 걸린다. `sanitizeErrorMessage` 의 실제 범위는 알림 경로다. 두 경로는 방어 강도가 달라 하나의 "전 경로 불변식" 으로 묶지 않는다.
 
 ## 7. 마스커 좌표계
@@ -355,7 +385,7 @@ flowchart LR
 | # | 상한 | 값 | 비교 | 넘으면 | 소비처 (심볼) |
 |---|---|---|---|---|---|
 | 1 | `MAX_MASK_DEPTH` (`@workflow/masked-markers`) | **10** | 없음 | 없음 | **기준 상수.** 표 2·3행이 이 값을 참조한다 |
-| 2 | `MAX_REDACT_DEPTH` (백엔드 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답, 저장 에러, 대화 스레드, **워크플로우 AI 어시스턴트 탐색 응답**, **종결 에러 payload 발행**(`redactTerminalError` 경유, 2026-08-29 등재)) · `hasMaskedLeaf`(수동 실행 재제출 거부 판정) |
+| 2 | `MAX_REDACT_DEPTH` (백엔드 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답, 저장 에러, 대화 스레드, **워크플로우 AI 어시스턴트 탐색 응답**, **종결 에러 payload 발행**(`redactTerminalError` 경유, 2026-08-29 등재)) · `deepRedactSecretsPreserving`(**WebSocket 발행 wire 값 마스킹**: `execution:`·`kb:`·`background:run:`, `maskWireEnvelope` 경유, 2026-11-06 등재) · `hasMaskedLeaf`(수동 실행 재제출 거부 판정) |
 | 3 | 프론트엔드는 별칭 없이 `MAX_MASK_DEPTH` 를 직접 import | **10** (표 1행 그대로) | 값 검사를 **먼저** 하고 `depth >= N` 에서 내려가기를 멈춤 | 스캔 범위 `0..N` | `hasMaskedMarkerLeaf`(폼 프리필 건너뛰기, 재제출 차단) |
 | 4 | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`, **별개 불변식**) | **10** (따로 선언) | `depth > N` | `DEPTH_MASK_MARKER` | `sanitizePayloadForWs`(WebSocket 발행) |
 | 5 | `stripExternalOnlyFields(_, maxDepth)` | **호출부 지정** | `depth > maxDepth` | 하위 트리를 **보존**(손대지 않음) | 두 표면이 각자 **자매 sanitizer 의 상한**을 넘긴다 |
@@ -379,8 +409,11 @@ flowchart LR
 
 좌표계 표는 사람이 고쳐야 한다. 구현 위치 파일 목록의 존재만 테스트가 확인하고 표의 값·연산자·심볼이 소스와 맞는지는 검사하지 않는다.
 
+예외는 §6 에서 타입으로 묶은 부분이다(2026-11-06). 1단계 → fanout 진입과 subject 입력을 어기면 빌드가 깨진다.
+
 - **표가 낡는 조건**: 호출부가 줄어드는 것이 아니라 **마스커가 늘거나 합쳐지거나 상한·연산자가 바뀌는 것**이다. 이 표는 마스커(함수) 좌표계이고 호출부(응답 조립부) 좌표계가 아니다. 두 좌표계는 층이 달라 호출부를 아무리 묶어도 마스커 목록은 바뀌지 않는다.
 - **표를 고친 실례 (2026-08-23)**: 워크플로우 AI 어시스턴트 LLM 도구가 `deepRedactSecrets` 를 새로 겹치면서 표 2행 소비처가 실제로 늘었다. 그래서 그 열에 "워크플로우 AI 어시스턴트 탐색 응답" 을 더하고 구현 위치에 파일을 등재했다.
+- **표를 고친 실례 (2026-11-06)**: WebSocket 발행 wire 의 값 마스킹(`deepRedactSecretsPreserving`)은 2026-08-16(§3.6)부터 표 2행의 상한을 썼는데 소비처 열에 빠져 있었다. 이번에 `kb:`·`background:run:` 발행이 같은 마스커를 지나 소비처가 늘었다. 그래서 그 열에 함께 등재했다.
 - **틀린 예고의 실례 (2026-08-23)**: 한때 "`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 합치면 표 2행·5행 소비처가 낡는다" 고 예고했다. 합친 뒤 실측하니 표는 그대로였다. 새 래퍼(`redactStoredFieldsForResponse`)는 `deepRedactSecrets` 를 흡수하지 않고 `redactStoredDataForResponse` 위에 서서 여전히 그것을 부른다. 표 5행 호출부는 `websocket.service.ts`·`interaction.service.ts` 뿐이라 합친 게이트 4곳과 접점이 없다. 예고를 쓸 때 마스커 좌표계를 호출부 좌표계로 착각했다.
 
 ## 구현 위치
@@ -390,7 +423,9 @@ flowchart LR
 - `codebase/backend/src/shared/utils/strip-external-only-fields.ts`
 - `codebase/backend/src/shared/utils/redact-stored-error.ts` (`redactStoredErrorForResponse`)
 - `codebase/backend/src/shared/utils/terminal-error-payload.ts` (`toTerminalErrorPayload`)
-- `codebase/backend/src/modules/websocket/websocket.service.ts` (`sanitizePayloadForWs`, `MAX_SANITIZE_DEPTH`, `toFanoutEnvelope`)
+- `codebase/backend/src/modules/websocket/websocket.service.ts` (`sanitizePayloadForWs`, `MAX_SANITIZE_DEPTH`, `toFanoutEnvelope`, `maskWireEnvelope`, `emitKbEvent`, `emitBackgroundRunEvent`)
+- `codebase/backend/src/modules/websocket/websocket-events.types.ts` (`FanoutEnvelope`, `FanoutExecutionChannelEvent`)
+- `codebase/backend/src/nodes/core/node-output-allowlist.ts` (`NODE_OUTPUT_ALLOWED_KEYS`, wire 전용 키 이름 충돌 assertion)
 - `codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts` (`resolveTriggerParametersRejectingMasked`, `hasMaskedLeaf`)
 - `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts`
 - `codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` (`maskSensitiveFields`, `DEFAULT_SENSITIVE_KEYS`)
@@ -504,3 +539,17 @@ NERV Task `CLE-T-H0GF4K` 가 채팅 채널 어댑터와 알림 발송의 실패 
 2026-10-08 보강: 같은 Task 의 코드 · 일관성 검토에서 알려진 비밀 치환의 범위(클라이언트가 만든 실패 문장, 4xx 본문 제외, 양끝 공백 변형), 규칙 5 의 예외, 헤더 값 패턴의 2048자 상한을 더했다.
 
 2026-10-17 보강: 생성 · 수정 응답의 `data.secrets` 를 §3.10 비대상에 적었다(NERV Task `CLE-T-EMB0YG`, finding 01a11f6d-e21d-7263-90c7-deed20199670). 이 묶음은 서버가 그 요청에서 발급한 평문(첫 알림 서명 시크릿, 트리거 단위 토큰 `itk_*`)을 한 번 싣는다. 그래서 `sanitizeForResponse` 를 지난 응답에 붙인다. 이 묶음을 마스커에 통과시키는 안은 택하지 않았다. 키 이름 판정이나 값 패턴에 걸리면 호출자가 다시 받을 수 없는 평문이 가려진다. 면제 대상 응답의 목록은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 한 곳에 둔다.
+
+### 지식 저장소 · Background 채널에도 값 마스킹을 건 이유 (2026-11-06)
+
+두 채널은 뷰어도 받는다. 수신 인구가 `execution:` 과 같아 규칙 2 에 따라 같은 마스킹을 건다(§3.11). 지금 새는 값은 없다. 발행처가 이미 정제하기 때문이다.
+
+기각한 대안은 «걸지 않고 발행처 정제에 맡긴다» 이다. NERV Task `CLE-T-7ZYES5` 가 걸지 않을 경우 그 근거를 남기라고 열어 둔 선택지였다. 이 형태는 발행처마다 정제를 기억해야 한다. 규칙 4 가 피하려는 형태라 기각했다. payload 가 필드 몇 개라 비용은 작다.
+
+### fanout 봉투를 타입으로 묶은 이유 (2026-11-06)
+
+이전에는 §6 에 «이 순서는 구조가 아니라 규율이다» 라고 적고 JSDoc 으로 알렸다. subject 의 payload 타입이 `Record<string, unknown>` 이라 서비스 안의 새 발행 경로가 `toFanoutEnvelope` 를 건너뛰어도 컴파일됐다. 그래서 1단계 → fanout 진입과 subject 입력을 타입으로 묶었다(§6).
+
+기각한 대안은 소비처가 보는 `ExecutionChannelEvent` 자체에 brand 를 거는 안이다. SSE 어댑터의 replay 제어 프레임(`buildReplayUnavailableEvent`)과 Redis 버퍼 재구성이 그 타입을 직접 만든다. 그 타입에 brand 를 걸면 그쪽까지 단언이 퍼진다. 그래서 subject 입력 전용 타입 `FanoutExecutionChannelEvent` 를 따로 뒀다.
+
+타입이 막지 못하는 것(단언 · spread · 2~4단계 순서)은 §6 에 적었다.

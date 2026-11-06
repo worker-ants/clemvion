@@ -30,6 +30,8 @@ import type {
   ExecutionChannelEvent,
   ChatChannelRoutingInfo,
   ExecutionRoutingContext,
+  FanoutEnvelope,
+  FanoutExecutionChannelEvent,
   ToolCallStartedPayload,
   UserMessagePayload,
   ToolCallCompletedPayload,
@@ -90,6 +92,20 @@ export const MAX_SANITIZE_DEPTH = 10;
 const WIRE_PRESERVED_FIELDS: ReadonlySet<string> = new Set(
   EXTERNAL_STRIPPED_FIELDS,
 );
+
+/** {@link MaskedWireEnvelope} 의 표지. 값이 없는 `declare` 라 런타임 코드가 생기지 않는다. */
+declare const maskedWireEnvelopeBrand: unique symbol;
+
+/**
+ * {@link WebsocketService.maskWireEnvelope} 를 지난 wire 봉투 (EGRESS §6 1단계).
+ *
+ * `toFanoutEnvelope` 는 이 타입만 받는다. 값 마스킹을 건너뛴 봉투로 fanout 을 조립하면
+ * 컴파일 에러다. 이 파일 밖에서는 쓰지 않으므로 export 하지 않는다. 막지 못하는 형태(타입
+ * 단언, spread)는 `FanoutEnvelope` 의 JSDoc 과 같다.
+ */
+type MaskedWireEnvelope = Record<string, unknown> & {
+  readonly [maskedWireEnvelopeBrand]: true;
+};
 
 /**
  * 동일 객체 참조에 대한 sanitize 결과 캐시.
@@ -260,8 +276,12 @@ export class WebsocketService {
   /**
    * 외부 fan-out subject — execution: 채널 이벤트만 발행. SseAdapter / NotificationDispatcher 가
    * 본 stream 을 구독 (R10 facade 레이어).
+   *
+   * 입력 타입이 {@link FanoutExecutionChannelEvent} 라 `payload` 는 {@link toFanoutEnvelope}
+   * 가 만든 봉투만 들어온다 (EGRESS §6). 소비처는 아래 `executionEvents$` 로 상위 타입을 본다.
    */
-  private readonly executionEventSubject = new Subject<ExecutionChannelEvent>();
+  private readonly executionEventSubject =
+    new Subject<FanoutExecutionChannelEvent>();
 
   /** Observable form — listener 가 subscribe(). */
   readonly executionEvents$: Observable<ExecutionChannelEvent> =
@@ -331,7 +351,7 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = await this.seqAllocator.next(executionId);
-    const wireEnvelope: Record<string, unknown> = this.maskWireEnvelope({
+    const wireEnvelope = this.maskWireEnvelope({
       executionId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
         ? sanitizedPayload
@@ -387,13 +407,19 @@ export class WebsocketService {
   ): void {
     const channel = `kb:${documentId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
-    this.gateway.broadcastToChannel(channel, eventType, {
-      documentId,
-      ...((sanitizedPayload && typeof sanitizedPayload === 'object'
-        ? sanitizedPayload
-        : { data: sanitizedPayload }) as Record<string, unknown>),
-      timestamp: new Date().toISOString(),
-    });
+    // 구독 인가가 역할을 보지 않아 뷰어도 받는다. `execution:` wire 와 같은 값 마스킹을
+    // 건다 (EGRESS §3.11). fanout 이 없는 채널이라 strip · 허용 목록은 걸지 않는다.
+    this.gateway.broadcastToChannel(
+      channel,
+      eventType,
+      this.maskWireEnvelope({
+        documentId,
+        ...((sanitizedPayload && typeof sanitizedPayload === 'object'
+          ? sanitizedPayload
+          : { data: sanitizedPayload }) as Record<string, unknown>),
+        timestamp: new Date().toISOString(),
+      }),
+    );
   }
 
   async emitNodeEvent(
@@ -405,7 +431,7 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = await this.seqAllocator.next(executionId);
-    const wireEnvelope: Record<string, unknown> = this.maskWireEnvelope({
+    const wireEnvelope = this.maskWireEnvelope({
       executionId,
       nodeId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
@@ -428,6 +454,8 @@ export class WebsocketService {
 
   /**
    * **값-패턴 마스킹 초크포인트** — emit 되는 모든 execution/node 이벤트가 여기를 지난다.
+   * `kb:` · `background:run:` 채널 발행도 같은 함수를 지난다(2026-11-06, EGRESS §3.11). 두
+   * 채널의 구독 인가도 역할을 보지 않아 수신 인구가 `execution:` 과 같기 때문이다.
    *
    * ## 왜 키-이름 마스킹만으로 부족한가 (무수정 프로브로 실증)
    *
@@ -455,15 +483,16 @@ export class WebsocketService {
    * fanout 에서는 그 필드가 통째로 제거되므로 외부 노출은 늘지 않는다.
    *
    * @returns 마스킹된 **새 envelope** (`deepRedactSecretsPreserving` 의 copy-on-change 라
-   *   바뀐 것이 없으면 같은 참조). 입력은 변이되지 않는다.
+   *   바뀐 것이 없으면 같은 참조). 입력은 변이되지 않는다. 반환 타입
+   *   {@link MaskedWireEnvelope} 를 만드는 단언은 여기 한 곳이다.
    */
   private maskWireEnvelope(
     wireEnvelope: Record<string, unknown>,
-  ): Record<string, unknown> {
+  ): MaskedWireEnvelope {
     return deepRedactSecretsPreserving(
       wireEnvelope,
       WIRE_PRESERVED_FIELDS,
-    ) as Record<string, unknown>;
+    ) as MaskedWireEnvelope;
   }
 
   /**
@@ -503,15 +532,27 @@ export class WebsocketService {
    * **내부 WS 는 건드리지 않는다.** 호출 시점에 `wireEnvelope` 은 이미
    * `broadcastToChannel` 로 나갔고 여기서 만드는 것은 새 clone 이다 — 에디터 콘솔의
    * 디버깅 가치는 그대로다.
+   *
+   * ## 순서를 타입으로 묶는다 (2026-11-06, EGRESS §6)
+   *
+   * 입력은 {@link maskWireEnvelope} 가 낸 {@link MaskedWireEnvelope} 만 받고, 출력
+   * {@link FanoutEnvelope} 는 fanout subject 가 받는 유일한 payload 타입이다. 그래서 값
+   * 마스킹을 건너뛴 봉투나 이 함수를 지나지 않은 봉투를 subject 에 넣으면 컴파일 에러다.
+   * `FanoutEnvelope` 를 만드는 단언은 이 함수 안 한 곳이고, 다른 곳에 생기면 소스 스캔
+   * 테스트가 실패한다. 함수 안 strip → 허용 목록 → 라우팅 부착 순서는 여전히 이 본문이
+   * 지키는 규율이다.
    */
   private toFanoutEnvelope(
     executionId: string,
-    maskedWireEnvelope: Record<string, unknown>,
-  ): Record<string, unknown> {
+    maskedWireEnvelope: MaskedWireEnvelope,
+  ): FanoutEnvelope {
     const externalPayload = allowlistFanoutNodeOutput(
       stripExternalOnlyFields(maskedWireEnvelope, MAX_SANITIZE_DEPTH),
     );
-    return this.attachRoutingContext(executionId, externalPayload);
+    return this.attachRoutingContext(
+      executionId,
+      externalPayload,
+    ) as FanoutEnvelope;
   }
 
   /**
@@ -555,11 +596,16 @@ export class WebsocketService {
       string,
       unknown
     >;
-    this.gateway.broadcastToChannel(channel, eventType, {
-      backgroundRunId,
-      ...sanitizedPayload,
-      timestamp: new Date().toISOString(),
-    });
+    // kb 채널과 같다. 뷰어도 받으므로 `execution:` wire 와 같은 값 마스킹을 건다 (EGRESS §3.11).
+    this.gateway.broadcastToChannel(
+      channel,
+      eventType,
+      this.maskWireEnvelope({
+        backgroundRunId,
+        ...sanitizedPayload,
+        timestamp: new Date().toISOString(),
+      }),
+    );
   }
 
   /**
