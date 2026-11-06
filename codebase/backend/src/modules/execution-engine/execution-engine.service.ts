@@ -7828,8 +7828,11 @@ export class ExecutionEngineService
    *
    * **병렬 분기 안에서 실행되는 노드의 출력은 모두 이 메서드로 쓴다.** 쓰기와 사본
    * 반영을 따로 부르면 한쪽을 빠뜨려도 예외 없이 입력이 비거나 결과 노드가 `null` 이
-   * 되므로 두 동작을 한 곳에 묶었다. 구조화 출력(`setStructuredOutput`)은 이 메서드를
-   * 부르기 전에 써 둔다. 사본 반영이 `structuredOutputCache` 항목도 함께 옮긴다.
+   * 되므로 두 동작을 한 곳에 묶었다. 사본 반영은 `structuredOutputCache` 항목도 함께
+   * 옮긴다. 다만 `setNodeOutput` 이 평면 출력에서 구조화 출력의 `output` 을 다시
+   * 만들므로, 평면 출력에 라우팅 표지(`_selectedPort`)를 넣는 호출은 이 메서드 뒤에
+   * `setStructuredOutput` 을 쓰고 {@link syncParallelBranchCacheEntry} 로 다시 옮긴다
+   * ({@link runParallel} 의 완료 출력).
    * `contextService.setNodeOutput` 을 직접 부르는 다른 지점은 병렬 분기 본문에서
    * 닿지 않는다. 재개 시 캐시 복원, 서브워크플로 호출자 출력 주입, 서브워크플로 트리거
    * 출력은 분기 사본이 만들어지기 전이거나 별도 그래프의 루프에서 실행되고, 폼 · 버튼
@@ -8150,6 +8153,20 @@ export class ExecutionEngineService
       ...(skipped.length > 0 ? { skipped } : {}),
     };
 
+    // Replace Parallel's output: `_selectedPort: 'done'` ensures only the
+    // `done` port fires while branch_N edges stay suppressed. `_selectedPort`
+    // 는 노드 출력 `port` 와 같은 모양이라 단일 문자열이다(CLE-EXEC-ENGINE).
+    // 바깥 병렬 분기 안의 안쪽 Parallel 이면 `context` 가 그 병렬 분기의 사본이다.
+    // 사본에만 쓰면 바깥 Parallel 이 루트 캐시에서 읽는 결과 노드 출력이 핸들러 출력
+    // 으로 남으므로 {@link commitNodeOutput} 으로 루트와 사본에 함께 쓴다.
+    this.commitNodeOutput(context, parallelNode.id, {
+      _selectedPort: 'done',
+      ...doneOutput,
+    });
+    // 구조화 출력은 평면 출력을 쓴 **뒤에** 쓴다. `setNodeOutput` 이 평면 출력에서
+    // 구조화 출력의 `output` 을 다시 만들기 때문에, 순서가 바뀌면
+    // `$node["Parallel"].output` 에 라우팅 표지 `_selectedPort` 가 섞인다.
+    // 쓴 항목은 다시 사본에 옮긴다.
     // parallel-p2 결정 #3 + G + D (runtime 부분, 2026-05-30): 중첩 Parallel 의
     // concurrency cap silent clamp 발생 시 meta.clampedConcurrency 에 기록 —
     // run-results timeline + expression `$node["X"].meta.clampedConcurrency` 로
@@ -8167,17 +8184,7 @@ export class ExecutionEngineService
           : {}),
       },
     );
-    // Replace Parallel's output: `_selectedPort: 'done'` ensures only the
-    // `done` port fires while branch_N edges stay suppressed. `_selectedPort`
-    // 는 노드 출력 `port` 와 같은 모양이라 단일 문자열이다(CLE-EXEC-ENGINE).
-    // 바깥 병렬 분기 안의 안쪽 Parallel 이면 `context` 가 그 병렬 분기의 사본이다.
-    // 사본에만 쓰면 바깥 Parallel 이 루트 캐시에서 읽는 결과 노드 출력이 핸들러 출력
-    // 으로 남으므로 {@link commitNodeOutput} 으로 루트와 사본에 함께 쓴다. 위에서
-    // 쓴 구조화 출력도 사본에 함께 옮겨진다.
-    this.commitNodeOutput(context, parallelNode.id, {
-      _selectedPort: 'done',
-      ...doneOutput,
-    });
+    this.syncParallelBranchCacheEntry(context, parallelNode.id);
 
     // Activate `done` downstream via the main outgoingEdgeMap (Parallel →
     // done-port edges). Branch exit → join (Merge) edges are also activated.
