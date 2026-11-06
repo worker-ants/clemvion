@@ -2,19 +2,19 @@
 id: "CLE-EXEC-ENGINE"
 title: "실행 엔진 개요와 그래프 순회"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "574d3635e4d3c03d08924ed247182b6819cc4d77cff77654dd99c80756f22332"
+content_hash: "0f4e8fd182b3a263ad4507e8216effeea2d4362e88f4e7b5f5246d1623e9dc87"
 read_as: "approved_fallback"
-task: "CLE-T-XYR067"
+task: "CLE-T-HW2GKD"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "902a9c324219b5aeeea2f0e3eaee13ff90c29b019ae144007ff0f2157541d879"
-etag: "sha256-160fd807d0ee9b2b7b83291ab1a901807251c245b5991c90370c49ce57bf8696"
+mirror_sha256: "f10a1bae5e7a4f62d3dd71284e80227fb06fac1d94cb7a8e7a51994ce01ba714"
+etag: "sha256-b3a310966bc77e1ee3dad183ce6e5657e86013ee7b0ac5e5a83e7ab1ffa2f7d7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -147,7 +147,7 @@ dispatch 루프 `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 돌
 ### 되돌아가는 연결선의 활성화 조건
 
 - 소스 노드 출력에 `_selectedPort` 가 있으면 연결선의 `sourcePort` 가 선택된 포트와 같을 때만 활성화한다.
-- `_selectedPort` 가 배열이면(Parallel·Text Classifier 처럼 여러 포트를 한 번에 여는 경우) `sourcePort` 가 배열에 들어 있을 때 활성화한다. 포트 활성화 모델은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 5 를 따른다.
+- `_selectedPort` 가 배열이면(Parallel 핸들러의 시작 시점 출력이나 Text Classifier 처럼 여러 포트를 한 번에 여는 경우) `sourcePort` 가 배열에 들어 있을 때 활성화한다. Parallel 은 `PARALLEL_ENGINE=v1` 에서 모든 병렬 분기가 끝나면 엔진이 `_selectedPort` 를 `'done'` 으로 덮어쓰므로 그 뒤 Parallel 에서 나가는 연결선 판정에는 `'done'` 이 쓰인다. `PARALLEL_ENGINE=off` 되돌림 경로에서는 시작 시점 배열이 그대로 쓰인다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#엔진-덮어쓰기-계약)). 포트 활성화 모델은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 5 를 따른다.
 - 소스 노드 출력에 `_selectedPort` 가 없으면 연결선은 항상 활성화된다.
   - 그래서 `_selectedPort` 를 내지 않는 일반 노드(값을 그대로 넘기는 노드)에 되돌아가는 연결선을 달면 빠져나올 수 없는 무한 루프가 된다.
   - 이 루프는 `MAX_NODE_ITERATIONS` 한도에 걸려 결국 실패로 끝난다.

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "5177e547f62c3831807062c3e068f88075aeaab72d43e22aa0393387fdb79f4f"
+content_hash: "59fc6fa48b884cec2d290bce2ac7f09f7614b153113f35731b2347761b2ad17a"
 read_as: "approved_fallback"
-task: "CLE-T-KPDDKB"
+task: "CLE-T-HW2GKD"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "21b31eb161620183fd54c28c013af196a7c1db1799f77cf62354838e79ee27bd"
-etag: "sha256-ff06401f4b34f98e2bc4f4a92874159ae0e1b45f18176b1637659450f57c1775"
+mirror_sha256: "1194b62e48cc0e149cba8d74183460339e3fb7a266b7723681dc9e04babdabe8"
+etag: "sha256-a213396aad27e1ca6b27b3f6e0d6cca8ed2a1e2685fc2960eed64634eeb34646"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -299,6 +299,7 @@ sequenceDiagram
 ## 미결 사항
 
 - **rehydration 실패를 실행 `cancelled` 로 두는 결정의 유지 여부**: 원문 결정은 Re-run 버튼이 `cancelled` 상태에서 켜지므로 인프라 실패를 `cancelled` 로 두어야 다시 시도할 수 있다는 것을 근거로 들었다. 반면 [실행 내역](CLE-EXEC-HISTORY.md) 은 Re-run 버튼을 상태와 상관없이 항상 보이고 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 의 드로어는 `failed` 에서도 보인다. [재실행](CLE-EXEC-RERUN.md) API 에도 상태 제한이 없다. 그래서 [Rationale](#rationale) 에서 그 근거를 뺐다. 남은 근거(인프라 실패와 비즈니스 실패의 뜻 구분, Re-run 진입점의 원인 판별 부담)만으로 실행 `cancelled` · 노드 실행 `failed` 로 나누는 결정을 유지할지 다시 판단해야 한다. 결정 전까지 본문 규칙은 이분 결정을 따른다.
+- **병렬 분기 안에서 입력 대기를 낸 노드 실행의 종결 상태** (info): [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안 노드가 실행 중에 `waiting_for_input` 을 내면 그 병렬 분기는 메시지가 `PARALLEL_INVALID_CHILD:` 로 시작하는 에러로 실패한다(REQ-PARALLEL-032). 병렬 분기는 park 하지 않으므로 이 노드 실행은 재개로 끝나지 않는다. 그런데 이 노드 실행 행이 `waiting_for_input` 에서 어느 상태로 끝나는지는 위 전이도와 표에 없다. 종결 상태를 정해 전이도에 넣을지 [Parallel 노드 §미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항) 과 함께 결정 필요.
 
 ## 구현 위치
 
