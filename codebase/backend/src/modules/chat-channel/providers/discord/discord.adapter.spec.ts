@@ -171,6 +171,118 @@ describe('DiscordAdapter', () => {
         adapter.setupChannel(DISCORD_CONFIG, 'https://x'),
       ).rejects.toThrow(/Unauthorized/);
     });
+
+    /**
+     * 클라이언트가 재시도를 다 쓴 합성 실패에는 Discord 원본 숫자 `code` 가 없다(NERV Task
+     * `CLE-T-KX2Q2N`). 판정은 `ok: false` 표지로 한다. 예전에는 `code` 를 보고 판정해서 이
+     * 실패가 성공 경로로 흘러 "application 응답에 id 누락" 고정 문구로 원인이 가려졌다.
+     */
+    it('getApplicationMe 합성 실패(code 없음) → 클라이언트 실패 문장으로 throw · 자격 증명 거부 아님', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        ok: false,
+        message: 'Discord GET /applications/@me HTTP 503',
+      });
+      const cmdSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const caught: unknown = await adapter
+        .setupChannel(DISCORD_CONFIG, 'https://x/hook')
+        .then(() => null)
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toContain('HTTP 503');
+      expect((caught as { code?: unknown }).code).toBeUndefined();
+      expect(cmdSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([401, 403])(
+      'putApplicationCommands HTTP %i → code BOT_TOKEN_INVALID 로 setupChannel 실패',
+      async (status) => {
+        const client = new DiscordClient();
+        jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+          id: 'A123',
+          name: 'workflow-bot',
+          verify_key: 'pk',
+        });
+        jest.spyOn(client, 'putApplicationCommands').mockResolvedValue({
+          ok: false,
+          code: 0,
+          message: `${status}: Unauthorized`,
+          status,
+        });
+        const adapter = new DiscordAdapter(client, makeSecretsMock());
+        await expect(
+          adapter.setupChannel(DISCORD_CONFIG, 'https://x/hook'),
+        ).rejects.toMatchObject({
+          code: 'BOT_TOKEN_INVALID',
+          message: expect.stringContaining('putApplicationCommands'),
+        });
+      },
+    );
+
+    it.each([
+      [
+        '4xx 본문',
+        {
+          ok: false as const,
+          code: 50035,
+          message: 'Invalid Form Body',
+          status: 400,
+        },
+        'Invalid Form Body',
+      ],
+      [
+        '합성 실패(code 없음)',
+        { ok: false as const, message: 'Discord PUT HTTP 502' },
+        'HTTP 502',
+      ],
+    ])(
+      'putApplicationCommands %s → setupChannel throw · code 미부착',
+      async (_label, failure, expected) => {
+        const client = new DiscordClient();
+        jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+          id: 'A123',
+          name: 'workflow-bot',
+          verify_key: 'pk',
+        });
+        jest.spyOn(client, 'putApplicationCommands').mockResolvedValue(failure);
+        const adapter = new DiscordAdapter(client, makeSecretsMock());
+        const caught: unknown = await adapter
+          .setupChannel(DISCORD_CONFIG, 'https://x/hook')
+          .then(() => null)
+          .catch((err: unknown) => err);
+        expect(caught).toBeInstanceOf(Error);
+        expect((caught as Error).message).toContain(expected);
+        expect((caught as { code?: unknown }).code).toBeUndefined();
+      },
+    );
+  });
+
+  describe('teardownChannel', () => {
+    it('putApplicationCommands ok=false → throw 하지 않고 경고만 남긴다(best-effort)', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'putApplicationCommands').mockResolvedValue({
+        ok: false,
+        message: 'Discord PUT HTTP 503',
+      });
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const warn = jest
+        .spyOn(
+          (adapter as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      await expect(
+        adapter.teardownChannel({
+          ...DISCORD_CONFIG,
+          botIdentity: { botId: 123, username: 'workflow-bot' },
+        }),
+      ).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 503'));
+    });
   });
 
   describe('parseUpdate — parser 위임', () => {
@@ -263,6 +375,59 @@ describe('DiscordAdapter', () => {
       );
       const call = spy.mock.calls[0][2];
       expect(Array.isArray(call.components)).toBe(true);
+    });
+
+    /**
+     * 재시도를 다 쓴 합성 실패(`code` 없음)도 발송 실패다(NERV Task `CLE-T-KX2Q2N`). throw 해야
+     * 호출자가 건강도를 `degraded` 로 두고 마지막 오류를 남긴다(REQ-CHAT-031 · 032).
+     */
+    it.each([
+      ['text', { kind: 'text' as const, text: 'hi' }],
+      [
+        'buttons',
+        {
+          kind: 'buttons' as const,
+          text: '?',
+          buttons: [
+            {
+              id: 'b1',
+              label: 'OK',
+              type: 'callback' as const,
+              style: 'primary' as const,
+            },
+          ],
+        },
+      ],
+    ])(
+      '%s — postChannelMessage 합성 실패(code 없음) → throw',
+      async (_kind, body) => {
+        const client = new DiscordClient();
+        jest.spyOn(client, 'postChannelMessage').mockResolvedValue({
+          ok: false,
+          message: 'Discord POST /channels/C1/messages HTTP 500',
+        });
+        const adapter = new DiscordAdapter(client, makeSecretsMock());
+        await expect(
+          adapter.sendMessage({ conversationKey: 'C1', body }, DISCORD_CONFIG),
+        ).rejects.toThrow(/postChannelMessage.*HTTP 500/);
+      },
+    );
+
+    it('text — postChannelMessage 4xx(code 있음) → throw (기존 동작 유지)', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'postChannelMessage').mockResolvedValue({
+        ok: false,
+        code: 50001,
+        message: 'Missing Access',
+        status: 403,
+      });
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      await expect(
+        adapter.sendMessage(
+          { conversationKey: 'C1', body: { kind: 'text', text: 'hi' } },
+          DISCORD_CONFIG,
+        ),
+      ).rejects.toThrow(/Missing Access/);
     });
 
     it('conversationKey 누락 → throw', async () => {

@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "8d8c03464d1894937c8d960628f2df539a13471c4501ff877f310afa8019eeb4"
+content_hash: "900f6b31da9fa56d2d49671114ee48b38cf979e168f38c28de9af16a8bc054bc"
 read_as: "approved_fallback"
-task: "CLE-T-M1P83C"
+task: "CLE-T-94Z6A5"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "048b5ea9a5a437dcd388e7e6da758347b436cea7b67cc4bb979f9f7478845aac"
-etag: "sha256-f394d931ae62e8390f45240e112896d1088081b25d94546d0c8fa560f0b754a4"
+mirror_sha256: "d60b5728c63e7f04a7fb03b821c5e16506f712b757e4397a6fcec720778cf61d"
+etag: "sha256-815350cf9cb13a4125d66d657295af0be53274b0f8deba3ab15b442defe98306"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -97,7 +97,7 @@ External Interaction API(EIA)는 워크플로우 실행을 외부 시스템과 �
 
 저장 형태:
 
-- **알림 서명 시크릿**: `config.notification.signing.secretRef` 의 평문은 `SecretResolver` 가 관리하는 `secret_store` 테이블에 백엔드 AES-256-GCM 으로 암호화해 둔다. 정상 경로에서는 DB 에 암호문만 있고 설정 JSONB 에는 참조만 있다. 첫 시크릿은 서버가 발급한다. 언제 발급하고 언제 옛 평문을 옮기는지는 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. PATCH 의 잠금은 위 「PATCH 와 서버가 만든 값」 에 있다. 서버는 `wsk_<64hex>` 를 만들어 트리거 id 로 정해지는 정식 참조(`secret://triggers/{triggerId}/notification-signing`)에 넣는다. `config` 에는 `signing.secretRef` 만 남긴다. 트리거를 만들 때는 트리거 INSERT 와 서버가 만드는 값의 처리(첫 시크릿 발급, `itk_*` 발급)를 한 트랜잭션에서 한다. 그래서 어느 단계가 실패해도 트리거 행과 시크릿이 남지 않는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 평문은 발급한 그 응답에만 한 번 싣는다. 응답 위치(`data.secrets.notificationSigningSecret`)는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 가 정한다. `signing.secret` 은 옛 키다. 타입 필드 `notification.signing` 은 `algorithm` 만 받고 원시 `config` 는 `notification` 키를 받지 않으므로 이 평문을 새로 받는 경로는 없다. 이미 저장된 행에 옛 평문 `signing.secret` 이 남아 있으면 발송 때 그 값으로 서명한다. 서버는 새 시크릿을 발급하지 않는다. 이 옛 평문은 그 트리거의 PATCH 때 시크릿 저장소로 옮긴다. `notification` 이 실린 PATCH 에서는 `NotificationSigningSecretService.settle` 이 트리거 설정 잠금 안에서 옮긴다. 그 밖의 PATCH 에서는 행을 저장한 뒤 `NotificationSigningSecretService.migrateLegacyPlaintext` 가 옮긴다. 옮기는 시점의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 옮기기 전이나 옮기다 실패하면 JSONB 에 옛 평문이 남는다.
+- **알림 서명 시크릿**: `config.notification.signing.secretRef` 의 평문은 `SecretResolver` 가 관리하는 `secret_store` 테이블에 백엔드 AES-256-GCM 으로 암호화해 둔다. 정상 경로에서는 DB 에 암호문만 있고 설정 JSONB 에는 참조만 있다. 첫 시크릿은 서버가 발급한다. 언제 발급하고 언제 옛 평문을 옮기는지는 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. PATCH 의 잠금은 위 「PATCH 와 서버가 만든 값」 에 있다. 서버는 `wsk_<64hex>` 를 만들어 트리거 id 로 정해지는 정식 참조(`secret://triggers/{triggerId}/notification-signing`)에 넣는다. `config` 에는 `signing.secretRef` 만 남긴다. 트리거를 만들 때는 트리거 INSERT 와 서버가 만드는 값의 처리(첫 시크릿 발급, `itk_*` 발급)를 한 트랜잭션에서 한다. 그래서 어느 단계가 실패해도 트리거 행과 시크릿이 남지 않는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 평문은 발급한 그 응답에만 한 번 싣는다. 응답 위치(`data.secrets.notificationSigningSecret`)는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 가 정한다. `signing.secret` 은 옛 키다. 타입 필드 `notification.signing` 은 `algorithm` 만 받고 원시 `config` 는 `notification` 키를 받지 않으므로 이 평문을 새로 받는 경로는 없다. 이미 저장된 행에 옛 평문 `signing.secret` 이 남아 있으면 발송 때 그 값으로 서명한다. 서버는 새 시크릿을 발급하지 않는다. 이 옛 평문은 그 트리거의 PATCH 때 시크릿 저장소로 옮긴다. `notification` 이 실린 PATCH 에서는 `NotificationSigningSecretService.settle` 이 트리거 설정 잠금 안에서 옮긴다. 그 밖의 PATCH 에서는 행을 저장한 뒤 `NotificationSigningSecretService.migrateLegacyPlaintext` 가 옮긴다. 옮기는 시점의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 옮기기 전이나 옮기다 실패하면 JSONB 에 옛 평문이 남는다. 빈 문자열이거나 공백만 있는 `signing.secret` 은 옛 평문으로 보지 않는다. 발송 처리기는 주 시크릿이 없는 것으로 보고 발송 건강도를 `degraded` 로 둔다. 다음 `notification` PATCH 가 첫 시크릿을 발급한다. 저장 뒤 정규화(`migrateLegacyPlaintext`)는 그 값을 옮기지 않고 건너뛴다. 판정 기준은 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다.
 - **`notification_secret_v2`**: 참조 대신 새 시크릿 평문 자체를 담는다. `NotificationSigningSecretService.writeRotation` 이 `` `wsk_${randomBytes(32).toString('hex')}` `` 를 그대로 저장하고, 발송 쪽 `notification-webhook.processor.ts` 는 그 값을 `SecretResolver` 를 거치지 않고 보조 HMAC 키로 쓴다(주 키만 `resolveSigningSecret` 을 거친다). 같은 역할의 채팅 채널 컬럼 `chat_channel_token_v2` 는 참조를 담아 일부러 다르다. 두 컬럼은 뜻이 다르다(알림 서명 시크릿 대 외부 봇 토큰). 컬럼 이름에 관한 결정은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), 저장 형태 예외의 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한다. 유예가 끝나 승격하면 값을 `secrets.rotate(canonical ref, v2)` 로 시크릿 저장소에 옮기고 컬럼을 `null` 로 비운다. 이 컬럼은 비밀이 잠시 머무는 경유지다.
 - **`config.interaction.triggerToken`**: 설정 JSONB 에 평문으로 둔다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한 명시적 예외다(결정 2026-08-16). 이 예외는 값이 서버가 발급한 무작위 hex 로만 채워진다는 전제에 기댄다. 이 값은 서버가 만든 값이다. 호출자가 원시 `config` 로 이 값을 실으면 생성과 PATCH 모두 400 `VALIDATION_ERROR` 로 거부한다. 이 예외를 다른 필드를 평문으로 두는 선례로 쓰지 않는다.
 - **응답 비노출**: 저장된 값은 응답에 나가지 않는다. [시크릿 저장소 §규칙](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 의 목록에 오른 일회성 응답은 예외다. 어느 필드·컬럼이 대상인지와 시행 방식은 같은 규칙 4~6 이 기준이라 여기서 목록을 되풀이하지 않는다. 현재 구현은 `TriggersService` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS` 가 응답 경계에서 걷어 내고, `shared/testing/schedule-trigger-ref.ts`(스케줄 조인)와 `shared/testing/trigger-workflow-ref.ts`(트리거 직접 조회)가 부재를 단언한다. 저장 형태 예외(평문 보관)와 노출은 다른 문제다.
@@ -609,3 +609,7 @@ NERV Task `CLE-T-AB21M6` 의 변경이다. [인프라 장애에는 fail-open 한
 
 - **적재에 제한 시간을 둔다**: 시간이 지나도 명령은 Redis 클라이언트의 대기열에 남아 연결이 돌아오면 적재될 수 있다. 그러면 실패했다는 로그가 사실과 어긋난다. 대기열을 비우려면 연결 옵션을 바꿔야 하는데, 그 설정은 모든 BullMQ 큐가 함께 쓴다.
 - **프로세스 전역에서 처리되지 않은 거부를 받는다**: 다른 모듈의 결함까지 조용히 삼킨다. 실패를 아는 곳에서 받는 쪽을 택했다.
+
+### 공백만 있는 옛 평문은 옮기지 않는다 (2026-11-06)
+
+NERV Task `CLE-T-94Z6A5` 의 변경이다. 「저장 형태」 의 알림 서명 시크릿 항목에 빈 문자열이나 공백만 있는 `signing.secret` 의 처리를 더했다. 결정과 근거는 [EIA 알림 웹훅 「공백만 있는 옛 평문도 없는 것으로 본다」](CLE-EIA-NOTIFY.md#공백만-있는-옛-평문도-없는-것으로-본다-2026-11-06) 에 있다.

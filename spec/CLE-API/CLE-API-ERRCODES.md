@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 29
+version: 30
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "3f5972cdcc985adf2160f066ee01729116d7b9900e9cbf80e74f5cdb6cec021a"
+content_hash: "0ae9d4445d3eb8f58c8bcced0e1bdcf72eeefddf5ecd3c7e05e0df9b5446ae5e"
 read_as: "approved_fallback"
-task: "CLE-T-9J6W7H"
+task: "CLE-T-FX354C"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "880cee1d0f6bda869d1913e049f023b25482c96906942ca89542c9750526b6a2"
-etag: "sha256-78577345e08160f361fa68ff04b7a2a4f9e7ef1e9e3bd3eec0d68c76ebd26c27"
+mirror_sha256: "2afd03f1573a9f9a329b5412a06313d25a0328e5eff200c6424dfdd793ac2879"
+etag: "sha256-f18cff00fb882fb78904771dd944777d60d69395ce9c261951657436dded2416"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -279,7 +279,7 @@ etag: "sha256-78577345e08160f361fa68ff04b7a2a4f9e7ef1e9e3bd3eec0d68c76ebd26c27"
 |----------|------|-----------|
 | HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_TIMEOUT`(발행하지 않음, 아래) · `HTTP_BLOCKED`(사설망 차단, 모든 인증 방식 공통) | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) |
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) · `INVALID_PARAMETERS`(`parameters` 가 배열도 JSON 배열 문자열도 아님) | [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) |
-| Email | `EMAIL_SEND_FAILED`(`details.integrationCode` 에 원래 코드 `INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` 를 보존) · `EMAIL_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) | [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) |
+| Email | `EMAIL_SEND_FAILED`(`IntegrationError` 가 아닌 예외. `details.integrationCode` 는 넣지 않는다) · `EMAIL_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) · `EMAIL_NO_RECIPIENTS`(정규화한 수신자 `to` 가 비어 보낼 곳이 없음). `IntegrationError` 의 코드(`INTEGRATION_*` · `EMAIL_HOST_BLOCKED` · `EMAIL_NO_RECIPIENTS`)는 그대로 `output.error.code` 로 나오고 `details.integrationCode` 에도 같은 값이 들어간다 | [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) |
 | LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT`(발행하지 않음, 아래) · `MAX_COLLECTION_RETRIES_EXCEEDED` · `TOOL_DEFINITION_PAYLOAD_EXCEEDED`(AI 에이전트 도구 정의가 크기 · 개수 상한을 넘음). LLM 클라이언트 층 코드는 §6.17 | [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md), [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) |
 | Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT`(isolate 메모리 하드 리밋 초과, 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` 로 조정) | [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) |
 | 서브 워크플로우 | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE` | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
@@ -415,7 +415,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `INVALID_BOT_TOKEN` | **400** | `newBotToken` 이 없거나 문자열이 아님(컨트롤러 입력 검증) | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
+| `INVALID_BOT_TOKEN` | **400** | `newBotToken` 이 없거나 문자열이 아니거나 256자를 넘거나 보이는 ASCII(U+0021~U+007E) 밖의 문자가 있음(컨트롤러 입력 검증) | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 | `CHAT_CHANNEL_NOT_CONFIGURED` | **400** | `config.chatChannel` 이 설정되지 않은 트리거 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | **400** | registry 에 등록되지 않은 provider | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | **400** | 트리거 `endpointPath` 없음 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
@@ -423,6 +423,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `CHAT_CHANNEL_SETUP_FAILED` | **502** | 그 밖의 `setupChannel` 실패(provider 5xx, 네트워크, 타임아웃). 이 저장소의 첫 502 다(근거: [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-23 setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」 Rationale) | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 
 - **이름이 두 갈래라 헷갈리기 쉽다.** `INVALID_BOT_TOKEN`(입력 형식이 틀렸다)과 `BOT_TOKEN_INVALID`(provider 가 거부했다)는 어순만 다르고 뜻이 다르다. 합치거나 바꾸지 않는 이유는 §2 와 같다. 둘 다 이미 응답에 나갔고 프론트엔드 백엔드 라벨 매핑(`backend-labels.ts`)이 각각을 매핑한다.
+- **생성 경로의 같은 입력 오류는 `VALIDATION_ERROR` 다.** 트리거 생성(`POST /api/triggers` 의 `chatChannel.botToken`)은 DTO 검증이라 같은 형식 오류가 `400 VALIDATION_ERROR` 로 나간다.
 - **응답 본문에 provider 원문을 싣지 않는다.** `message` 는 고정된 클라이언트용 문자열이고 원문은 서버 로그에만 남긴다. 재개 명령 ack 의 내부 메시지 차단과 같은 이유다.
 
 ### 6.16 재실행 (도메인 문서 참조)
@@ -967,3 +968,19 @@ NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `mess
 - 라이브러리 원문을 응답에 싣지 않는 규칙과 그 범위는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 가 정한다. 이 문서는 카탈로그 행만 그 규칙에 맞춘다.
 - `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`)은 그 코드와 문구를 그대로 둔다.
 - 같은 날 더한 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다」 절은 코드가 없는 `HttpException` 의 문구를 「전역 필터처럼 그대로 싣는다」고 적었다. 이 변경 뒤 전역 필터는 코드가 없는 413 의 문구를 고정 문구로 바꾸므로 그 비교는 413 을 뺀 상태에만 맞다. 설치 엔드포인트는 전역 필터를 거치지 않아 이 변경의 영향을 받지 않는다.
+
+### Send Email 의 빈 수신자에 `EMAIL_NO_RECIPIENTS` 를 등재했다 (2026-11-06)
+
+NERV Task `CLE-T-3PRYB4` 이다. Send Email 노드는 정규화한 수신자(`to`)가 비면 실행을 실패시키지 않고 에러 포트로 `EMAIL_NO_RECIPIENTS` 를 낸다. 이 코드를 발행하기 시작해 규칙 9 에 따라 §6.6 Email 행에 등재했다.
+
+- 같은 행의 `EMAIL_SEND_FAILED` 설명을 구현에 맞췄다. 이전 판은 `INTEGRATION_INCOMPLETE` 같은 원래 코드를 `EMAIL_SEND_FAILED` 의 `details.integrationCode` 에 보존한다고 적었다. 실제로는 `IntegrationError` 의 코드가 그대로 `output.error.code` 로 나오고 `details.integrationCode` 에도 같은 값이 들어간다. `EMAIL_SEND_FAILED` 는 `IntegrationError` 가 아닌 예외에만 쓰고 이때 `details.integrationCode` 는 없다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 서술과 같다.
+- 빈 수신자를 에러 포트로 보내는 결정과 이유의 정본은 [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) Rationale 「빈 수신자를 에러 포트로 보낸다」 다.
+
+### `INVALID_BOT_TOKEN` 의 뜻을 길이 상한과 보이는 ASCII 위반까지 넓혔다 (2026-11-06)
+
+NERV Task `CLE-T-FX354C` 이다. 봇 토큰 재발급은 `newBotToken` 이 있는지와 문자열인지만 봤다. 공백 · 제어 문자 · ASCII 밖 문자가 든 토큰은 헤더에 실을 수 없어 fetch 가 요청을 만들지 못했고 응답은 `502 CHAT_CHANNEL_SETUP_FAILED` 였다. 사용자가 고칠 입력 오류이므로 400 으로 거부한다. 정의는 [채팅 채널 「R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다) 에 있다.
+
+- 새 코드는 만들지 않았다. `INVALID_BOT_TOKEN` 은 처음부터 입력 형식이 틀렸다는 뜻이고 길이 · 문자 집합 위반도 같은 뜻이다(규칙 6 의 새 조건이 아니다).
+- 재발급에도 생성과 같은 256자 상한을 둔다.
+- 생성 경로는 DTO 검증이라 같은 입력 오류가 `400 VALIDATION_ERROR` 다.
+- 입력 형식 오류는 400(`INVALID_BOT_TOKEN` · `VALIDATION_ERROR`)이고 프로바이더 장애는 502(`CHAT_CHANNEL_SETUP_FAILED`)다. 형식이 맞는데 프로바이더가 거부하면 `BOT_TOKEN_INVALID`(400)다.

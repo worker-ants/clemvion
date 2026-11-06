@@ -52,6 +52,13 @@ describe('decideNotificationSigning', () => {
     });
   });
 
+  // 시크릿 저장소는 공백만 있는 평문을 거부한다(NERV Task `CLE-T-94Z6A5`). 옮기려 들면 PATCH 가 500 이 된다.
+  it('공백만 있는 평문도 없는 것으로 보고 발급한다', () => {
+    expect(
+      decideNotificationSigning({ signing: { secret: ' \t\n ' } }),
+    ).toEqual({ kind: 'issue' });
+  });
+
   it('notification · signing 이 없거나 객체가 아니면 발급한다', () => {
     expect(decideNotificationSigning(undefined)).toEqual({ kind: 'issue' });
     expect(decideNotificationSigning({})).toEqual({ kind: 'issue' });
@@ -88,6 +95,12 @@ describe('readStoredSigningSecret', () => {
     ],
     ['형식이 틀린 참조만', { secretRef: 'not-a-ref' }, { kind: 'none' }],
     ['빈 문자열 평문', { secret: '' }, { kind: 'none' }],
+    ['공백만 있는 평문', { secret: ' \t\n ' }, { kind: 'none' }],
+    [
+      '앞뒤 공백이 있는 평문은 다듬지 않고 그대로 읽는다',
+      { secret: ' legacy ' },
+      { kind: 'legacy', plaintext: ' legacy ' },
+    ],
     ['문자열이 아닌 값', { secretRef: 1, secret: 2 }, { kind: 'none' }],
     ['빈 설정', {}, { kind: 'none' }],
     ['객체가 아닌 설정', 'x', { kind: 'none' }],
@@ -101,6 +114,7 @@ describe('readStoredSigningSecret', () => {
       { secretRef: REF },
       { secret: 'legacy' },
       { secret: '' },
+      { secret: '   ' },
       { secretRef: 'not-a-ref' },
       undefined,
     ];

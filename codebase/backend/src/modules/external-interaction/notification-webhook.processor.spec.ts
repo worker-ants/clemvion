@@ -420,6 +420,28 @@ describe('NotificationWebhookProcessor.process', () => {
     );
   });
 
+  // 공백만 있는 평문도 «없음» 이다(NERV Task `CLE-T-94Z6A5`). 발급 판정과 같은 `readStoredSigningSecret` 으로 읽으므로
+  // 다음 PATCH 가 새 시크릿을 발급하고, 그 전까지는 공백으로 서명하지 않고 degraded 로 둔다.
+  it('옛 평문이 공백만 있으면 없는 것으로 보고 degraded + skip', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: { algorithm: 'hmac-sha256', secret: ' \t ' },
+          },
+        },
+      }),
+    );
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      'trg-1',
+      expect.objectContaining({ notificationHealth: 'degraded' }),
+    );
+  });
+
   it('HTTP 5xx — throw + non-final attempt 에서는 health 변경 안 함', async () => {
     triggerRepo.findOne.mockResolvedValue(makeTrigger());
     fetchSpy.mockResolvedValue({ status: 500, statusText: 'Internal' });

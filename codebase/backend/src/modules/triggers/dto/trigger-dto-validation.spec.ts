@@ -995,9 +995,9 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
    * *"값이 null/빈 문자열이면 DTO 를 통과한다"* 케이스가 그 방향의 캐너리이므로, 만약
    * `@MinLength(1)` 이 `OmitType` 을 넘어 새면 그 테스트가 RED 가 된다.
    *
-   * **공백 전용 문자열(`'   '`)은 이 가드가 막지 못한다** — `@MinLength(1)` 은 길이만 본다.
-   * 그 경계는 이 PR 이 의도적으로 스코프 아웃했다(trim 정책은 별개 결정). *"빈 문자열 문제가
-   * 전부 닫혔다"* 로 읽지 말 것.
+   * **공백 전용 문자열(`'   '`)은 `@MinLength(1)` 이 막지 못한다** — 길이만 보기 때문이다.
+   * 그 경계는 아래 `[FX354C]` 의 `@Matches`(보이는 ASCII 만)가 닫는다. 서버가 trim 해서 받는
+   * 길은 고르지 않았다(NERV Task `CLE-T-FX354C`).
    */
   it('[C] CreateTriggerDto 는 botToken 빈 문자열을 거부한다', async () => {
     const createMeta = {
@@ -1024,5 +1024,69 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
     // `toContain` 만으로는 **다른 필드가 함께 터져도** 통과한다(파일 내 엄격도 불일치였다).
     expect(details).toHaveLength(1);
     expect(details?.map((d) => d.field)).toContain('chatChannel.botToken');
+  });
+
+  /**
+   * **[FX354C] 생성 경로의 봇 토큰은 1~256자의 보이는 ASCII(U+0021~U+007E)만 받는다.**
+   *
+   * 공백 · 제어 문자 · ASCII 밖 문자가 든 토큰은 `Authorization` 헤더에 실을 수 없어 fetch 가 요청을
+   * 만들지 못했다. 그런데 `[쓰기 ①]` 이 그 전에 시크릿을 저장하고 응답은 502 였다. 이제 DTO 가
+   * `VALIDATION_ERROR` 로 거부한다. 위반 하나는 `details` 항목 하나다 — 문자 집합 패턴이 빈 문자열을
+   * 거부하지 않아서 `''` 는 `@MinLength` 하나로만 걸린다(위 `[C]` 의 `toHaveLength(1)` 이 그 캐너리다).
+   * `details.message` 에 입력값이 실리지 않는지도 본다.
+   */
+  describe('[FX354C] CreateTriggerDto 의 botToken 문자 집합 · 길이', () => {
+    const createMeta = {
+      type: 'body',
+      metatype: CreateTriggerDto,
+    } as unknown as ArgumentMetadata;
+    const runCreate = async (botToken: string) => {
+      try {
+        await pipe.transform(
+          {
+            workflowId: VALID_UUID,
+            type: 'webhook',
+            name: 'T',
+            chatChannel: { ...cardBody('telegram'), botToken },
+          },
+          createMeta,
+        );
+        return null;
+      } catch (err) {
+        return (err as BadRequestException).getResponse() as {
+          code: string;
+          details: { field: string; message: string }[];
+        };
+      }
+    };
+
+    it.each([
+      ['공백만', '   '],
+      ['앞 공백', ' 111:SecretTok'],
+      ['끝 공백', '111:SecretTok '],
+      ['탭', '111:Secret\tTok'],
+      ['LF', '111:Secret\nTok'],
+      ['NUL', '111:SecretTok\u0000'],
+      ['ASCII 밖 문자', '111:SecretTok\u00e9'],
+      ['257자', 'S'.repeat(257)],
+    ])('%s → VALIDATION_ERROR · chatChannel.botToken 하나', async (_l, tok) => {
+      const res = await runCreate(tok);
+      expect(res?.code).toBe('VALIDATION_ERROR');
+      expect(res?.details).toHaveLength(1);
+      expect(res?.details[0].field).toBe('chatChannel.botToken');
+      expect(JSON.stringify(res)).not.toContain('SecretTok');
+      expect(JSON.stringify(res)).not.toContain('SSSS');
+    });
+
+    it('256자 보이는 ASCII 는 통과한다', async () => {
+      expect(await runCreate('a'.repeat(256))).toBeNull();
+    });
+
+    it('보이는 ASCII 94자 전체를 담은 토큰도 통과한다', async () => {
+      const all = Array.from({ length: 94 }, (_, i) =>
+        String.fromCharCode(0x21 + i),
+      ).join('');
+      expect(await runCreate(all)).toBeNull();
+    });
   });
 });

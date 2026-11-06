@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK"
 title: "Slack 어댑터"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-SLACK-001", "REQ-SLACK-002", "REQ-SLACK-003", "REQ-SLACK-004", "REQ-SLACK-005", "REQ-SLACK-006", "REQ-SLACK-007", "REQ-SLACK-008", "REQ-SLACK-009", "REQ-SLACK-010", "REQ-SLACK-011", "REQ-SLACK-012", "REQ-SLACK-013", "REQ-SLACK-014", "REQ-SLACK-015", "REQ-SLACK-016", "REQ-SLACK-017", "REQ-SLACK-018", "REQ-SLACK-019", "REQ-SLACK-020", "REQ-SLACK-021", "REQ-SLACK-022", "REQ-SLACK-023", "REQ-SLACK-024", "REQ-SLACK-025", "REQ-SLACK-026", "REQ-SLACK-027", "REQ-SLACK-028", "REQ-SLACK-029", "REQ-SLACK-030", "REQ-SLACK-031", "REQ-SLACK-032", "REQ-SLACK-033", "REQ-SLACK-034", "REQ-SLACK-035", "REQ-SLACK-036", "REQ-SLACK-037", "REQ-SLACK-038", "REQ-SLACK-039", "REQ-SLACK-040", "REQ-SLACK-041", "REQ-SLACK-042"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "f3044d87dcf027b3bf306f74102439481a359406c65bbdf8ed3165a5db83c655"
+content_hash: "2a53bbb9cfe7c5810a13b5a950d14a26cee9902bcca4a436c882c582a24abd70"
 read_as: "approved_fallback"
-task: "CLE-T-V4WVF2"
+task: "CLE-T-D41BY6"
 source_paths: ["spec/4-nodes/7-trigger/providers/slack.md"]
-mirror_sha256: "75b589f91ac07e5a7e1d07a5f69da6fac9d4e6993a0b1c8261f49d8f71b890f7"
-etag: "sha256-972096992ac754b2f2f60b4134134e1c5bca8c8b4a0d8241491075ebd629cb37"
+mirror_sha256: "1fa20f75d5a4b213a93754d56ce416dfecad7875da63d5af56746c32f1cc2136"
+etag: "sha256-8eccc84b6f79a0ae750cae866ca324eb28fd0f9b42d4943066eb5cfc49c466ec"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/slack.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 - REQ-SLACK-039 WHEN Slack 이 `429` 와 `Retry-After` 를 돌려주면 THE SYSTEM SHALL 그 초만큼 기다린 뒤 다시 시도한다. (원본: slack §8)
 - REQ-SLACK-040 WHILE Slack rate limit 안에서 보내는 동안 THE SYSTEM SHALL DM 채널 단위 큐와 메서드별 bucket 으로 발송 속도를 맞춘다. (원본: slack §8) (미구현)
 - REQ-SLACK-041 WHEN 같은 중복 제거 키가 30초 안에 다시 오면 THE SYSTEM SHALL 두 번째 update 를 무시한다. (원본: slack §8)
-- REQ-SLACK-042 WHEN 이전 봇 토큰을 revoke 하면 THE SYSTEM SHALL `auth.revoke` 를 부른다. (원본: slack §3.2)
+- REQ-SLACK-042 WHEN 봇 토큰 재발급 뒤 24시간 유예가 끝나 정리 작업이 이전 봇 토큰을 폐기하면 THE SYSTEM SHALL 그때 `auth.revoke` 를 부르고 재발급 시점에는 부르지 않는다. (원본: slack §3.2)
 
 요구사항 보충 설명은 다음과 같다.
 
@@ -90,7 +90,7 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 - 관련 REQ-SLACK-037: `/<prefix> help` 는 [명령 매핑](#명령-매핑) 상 `text_message`("help")가 되는데, `HooksService` 는 텍스트가 정확히 `/help` 일 때만 도움말을 보낸다. [미결 사항](#미결-사항) 참조.
 - 관련 REQ-SLACK-038·041: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기는 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않아 4초 대기는 생기지 않는다(`slack-client.ts` `call`).
 - 관련 REQ-SLACK-040: 현재 구현은 `429` 의 `Retry-After` 대기만 한다. 채널 단위 큐와 메서드별 bucket 은 확인되지 않았다.
-- 관련 REQ-SLACK-042: revoke 시점(재발급 즉시인지 24시간 유예 종료 정리인지)은 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- 관련 REQ-SLACK-042: `auth.revoke` 는 24시간 유예가 끝난 정리 작업이 부른다. 정리 작업은 `TriggersService.cleanupRotatedChatChannelTokens` 이고 `ChatChannelTokenRotatorService` 가 매시간 돌린다. 폐기 대상은 v2 참조(`bot-token.v2`)에 백업된 이전 토큰이다. 재발급(`TriggersService.rotateBotToken`) 시점에는 부르지 않는다. 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 다.
 
 ## Web API 호출 매핑
 
@@ -128,7 +128,7 @@ URL Verification(`type: "url_verification"`)은 Slack 이 Request URL 을 등록
 
 ### teardownChannel
 
-어댑터는 외부 호출을 하지 않는다. 사용자가 Slack 앱을 워크스페이스에서 지우면 Events API 도 저절로 무효가 된다. 봇 토큰 재발급을 하면 이전 토큰은 [`POST /api/auth.revoke`](https://api.slack.com/methods/auth.revoke)로 무효화한다. 원문은 24시간 유예 종료 때 `ChatChannelTokenRotatorService` 가 한다고 적었다([미결 사항](#미결-사항)).
+어댑터는 외부 호출을 하지 않는다. 사용자가 Slack 앱을 워크스페이스에서 지우면 Events API 도 저절로 무효가 된다. 봇 토큰을 재발급하면 이전 토큰은 24시간 유예가 끝난 뒤 정리 작업(`ChatChannelTokenRotatorService` 가 매시간 돌리는 `TriggersService.cleanupRotatedChatChannelTokens`)이 [`POST /api/auth.revoke`](https://api.slack.com/methods/auth.revoke)로 무효화한다. 재발급 시점에는 무효화하지 않는다(REQ-SLACK-042).
 
 ### views.open
 
@@ -316,7 +316,6 @@ Telegram 의 `/start`·`/cancel`·`/help` 와 뜻이 1:1 이고, Slack 은 prefi
 ## 미결 사항
 
 - **help 명령 경로**: `/<prefix> help` 는 slash command 매핑상 `text_message`("help")가 되지만 `HooksService` 는 텍스트가 정확히 `/help` 일 때만 도움말을 보낸다. 기본 도움말 문구도 Telegram 명령 형식이다. [Discord 어댑터](CLE-CHAT-DISCORD.md) 도 help 경로가 따로 있다. `ChannelUpdate` 에 help 명령을 정식 kind 로 둘지 결정 필요.
-- **이전 봇 토큰 revoke 시점**: 이 문서와 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 은 24시간 유예 종료 정리에서 `auth.revoke` 를 부른다고 적었고, [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 은 재발급 시점에 부른다고 적었다. 현재 구현은 정리 작업에서 부른다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 결정 필요.
 
 ## 구현 위치
 
@@ -375,3 +374,7 @@ Telegram `/start` 와 뜻이 같고, slash command prefix 가 워크스페이스
 ### R-S-10 취소 후 새로 시작은 start 명령에만 적용한다
 
 2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). 원문 명령 처리 표는 활성 실행이 있을 때 DM 메시지가 와도 기존 실행을 취소하고 새로 시작한다고 적었다. DM 텍스트는 멀티턴 AI 답장과 다단계 질문 답변이 들어오는 길이다. 이것을 재시작으로 보면 대화 중 답장마다 실행이 새로 시작된다. 그래서 재시작은 명시 명령인 `/<prefix> start` 에만 두고 DM 텍스트는 CCH-CV-03 대로 처리한다. 명령 우선 규칙의 근거는 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다. 이 결정으로 미결 «활성 실행 중 DM 메시지» 를 닫았다.
+
+### R-S-11 이전 봇 토큰의 auth.revoke 는 24시간 유예가 끝난 뒤 부른다
+
+2026-11-06 결정이다(NERV Task `CLE-T-D41BY6`). 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 에 있다. 이 결정으로 미결 «이전 봇 토큰 revoke 시점» 을 닫았다.

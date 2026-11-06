@@ -133,8 +133,10 @@ export class ChatChannelBinderService {
 
     // [쓰기 ①] secret store 에 botToken 저장 (UPSERT — 재시도 안전).
     // **PATCH 에서는 건너뛴다.** 종전에는 조건이 없어서, 값이 없으면 `?? ''` 가 빈 문자열로
-    // 회전해 저장된 토큰을 지웠다 — `SecretResolver.rotate` 에 빈 값 가드가 없기 때문이다
+    // 회전해 저장된 토큰을 지웠다. 그때는 `SecretResolver.rotate` 에 빈 값 가드가 없었다
     // (R-CC-21 「처방의 함정」). 필드를 막는 것만으로는 그 파괴를 못 막으므로 경로를 막는다.
+    // 지금은 `rotate` 가 빈 평문을 거부한다(NERV Task `CLE-T-94Z6A5`). 그래서 값이 없을 때 `?? ''` 는
+    // 저장된 토큰을 지우지 않고 throw 로 끝난다.
     if (storeUserSuppliedSecrets) {
       await this.secrets.rotate(
         botTokenRef,

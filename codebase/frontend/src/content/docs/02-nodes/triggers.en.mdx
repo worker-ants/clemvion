@@ -453,6 +453,8 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 The old token is honored for a **24-hour grace window** alongside the new one, so in-flight updates are not lost. Full response / error format — see [Telegram integration guide §6](/docs/06-integrations-and-config/telegram).
 
+A bot token must be 1–256 visible ASCII characters (letters, digits, symbols). If it contains whitespace, a control character such as a line break, or a non-ASCII character, rotate returns 400 `INVALID_BOT_TOKEN` and trigger creation returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`). When you copy a token, check that no spaces came along at either end.
+
 ### Supported interaction nodes
 
 - **AI Multi Turn** — free conversation with the bot

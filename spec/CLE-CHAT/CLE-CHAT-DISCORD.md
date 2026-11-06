@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "d4618c1665cb1f7574336d506e45a411663b3dee593a6e0f8bf57ef04824ad06"
+content_hash: "2eac42d8c040f05e1a88912d2cc377b731044cb4dc6e9ddcd362310bb7a504af"
 read_as: "approved_fallback"
-task: "CLE-T-W11BQ9"
+task: "CLE-T-KX2Q2N"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "72f15d26fc8400aa99f54d8ec0f4882f044485d25427c5b2f643d11f45222da2"
-etag: "sha256-a3525b13cdbb7930bfed76b4d29b9fafd57de479dfb7c453382ebf87c875dcde"
+mirror_sha256: "c770c7486d2482f5d3a9929c48d4c70b51fbe4bcfebd09fc00ae7e7d5551f8a1"
+etag: "sha256-7da4252e97f79bef4208dd046a4fd2564faecd23f22bda74bac70602fb4588f8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 
 - REQ-DISCORD-001 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `GET /applications/@me` 로 `botIdentity`(`botId: hashStringToInt(id)`, `username: name`, `publicKey: verify_key`)를 캐시한다. (원본: discord §3.1)
 - REQ-DISCORD-002 IF 응답의 `verify_key` 와 사용자가 입력한 public key 가 둘 다 있고 서로 다르면 THE SYSTEM SHALL `BOT_TOKEN_INVALID` 로 던져 setup 을 막는다. (원본: discord §3.1)
-- REQ-DISCORD-003 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 로 `/<prefix>` slash command(하위 `start`·`cancel`·`help`·`reply`)를 일괄 덮어써 등록한다. (원본: discord §3.1, R-D-2)
+- REQ-DISCORD-003 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 로 `/<prefix>` slash command(하위 `start`·`cancel`·`help`·`reply`)를 일괄 덮어써 등록하고 등록이 실패하면 에러를 던져 setup 을 막는다(HTTP 401·403 이면 `code: 'BOT_TOKEN_INVALID'`, 그 밖은 `code` 없는 에러). (원본: discord §3.1, R-D-2)
 - REQ-DISCORD-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 에 `[]` 를 보내 명령을 지우고 실패해도 트리거 삭제를 막지 않는다. (원본: discord §3.2)
 - REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `200 OK` 와 `{ type: 1 }` 로 답한다. (원본: discord §3.1, R-D-8)
 - REQ-DISCORD-006 WHEN Interactions payload 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `interaction.id` 를 중복 제거 키로 쓴다. (원본: discord §4)
@@ -88,7 +88,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 
 | 어댑터 함수 | Discord API |
 |---|---|
-| `setupChannel` | (a) [`GET /applications/@me`](https://discord.com/developers/docs/resources/application)로 application identity 캐시(id, name, `verify_key` → `botIdentity.publicKey`). 응답 `verify_key` 와 사용자 입력 public key(`inboundSigningRef`)를 교차 확인하고 다르면 `BOT_TOKEN_INVALID`. (b) [`PUT /applications/{app_id}/commands`](https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands)로 slash command 일괄 덮어쓰기(`/<prefix>` 와 하위 옵션) |
+| `setupChannel` | (a) [`GET /applications/@me`](https://discord.com/developers/docs/resources/application)로 application identity 캐시(id, name, `verify_key` → `botIdentity.publicKey`). 응답 `verify_key` 와 사용자 입력 public key(`inboundSigningRef`)를 교차 확인하고 다르면 `BOT_TOKEN_INVALID`. (b) [`PUT /applications/{app_id}/commands`](https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands)로 slash command 일괄 덮어쓰기(`/<prefix>` 와 하위 옵션). 등록이 실패(`ok: false`)하면 `setupChannel` 도 실패한다(HTTP 401·403 이면 `BOT_TOKEN_INVALID`, 그 밖은 `code` 없는 에러) |
 | `teardownChannel` | `PUT /applications/{app_id}/commands` 에 `[]`. 실패해도 막지 않는다(남은 명령은 같은 애플리케이션으로 새 트리거를 만들 때 setup 이 덮어쓴다) |
 | `parseUpdate` | Interactions Webhook payload(`type ∈ {1, 2, 3, 5}`: PING, APPLICATION_COMMAND, MESSAGE_COMPONENT, MODAL_SUBMIT) → `ChannelUpdate` |
 | `sendMessage`(text) | [`POST /channels/{channel_id}/messages`](https://discord.com/developers/docs/resources/channel#create-message)(content). DM 채널은 먼저 [`POST /users/@me/channels`](https://discord.com/developers/docs/resources/user#create-dm)로 만들고 channel_id 를 캐시한다 |
@@ -134,6 +134,8 @@ Body: [
 → 등록된 command 목록 반환
 ```
 
+`GET /applications/@me` 와 명령 일괄 등록의 결과는 클라이언트가 돌려준 `ok: false` 로 판정한다([채팅 채널 어댑터 규약 「클라이언트 실패 판정」](CLE-CHAT-ADAPTER.md#클라이언트-실패-판정)). 둘 중 하나라도 실패하면 `setupChannel` 이 실패 사유를 담은 에러를 던진다. HTTP 401·403 이면 `code: 'BOT_TOKEN_INVALID'` 를 싣고 그 밖의 실패는 `code` 없는 에러다. 호출자는 `code` 없는 에러를 일반 실패로 다룬다(봇 토큰 재발급이면 `502 CHAT_CHANNEL_SETUP_FAILED`). 명령 등록 결과를 보지 않으면 slash command 가 없는 봇이 정상 설정으로 보인다.
+
 Interactions Endpoint URL 은 Developer Portal 의 application 정적 설정이라 어댑터가 API 로 등록·해제하지 않는다. 사용자 가이드가 `${BASE_URL}/api/hooks/${trigger.endpointPath}` 입력을 안내한다(Slack R-S-2 와 같은 생각).
 
 PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 번, 그 뒤 주기적으로 보낸다. `parseUpdate` 가 `null` 을 돌려주고 호출자가 `{ type: 1 }` JSON 을 `200 OK` 로 답한다. Discord 는 PING 에 `200 + { type: 1 }` 만 성공으로 보므로 [채팅 채널](CLE-CHAT-CORE.md) 인바운드 응답 계약의 `202` 고정 정책에 대한 명시적 예외다(R-D-8). 트리거가 활성이면 워크플로우가 비활성이어도 답한다(2026-10-10 사용자 결정). 워크플로우가 비활성인 채로 Interactions Endpoint URL 을 등록해도 실패하지 않게 하려는 것이다. 관문은 트리거 활성 관문, 핸드셰이크 응답, …, 워크플로우 활성 관문 순서로 놓이므로 핸드셰이크 응답 단계에서는 워크플로우 상태를 확인하지 않는다. 순서의 기준은 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 다. 트리거가 비활성이면 PING 에 답하지 않고 `202`·`{ executionId: 'ignored' }` 다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-067, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)).
@@ -146,7 +148,7 @@ Authorization: Bot {botToken}
 Body: []
 ```
 
-부분 실패해도 트리거 삭제를 막지 않는다. 남은 명령은 같은 애플리케이션으로 새 트리거를 만들 때 setup 이 새 명령으로 덮어쓴다. Interactions Endpoint URL 은 우리 쪽에서 해제할 수 없어 사용자가 portal 에서 직접 비워야 한다(사용자 가이드 안내).
+부분 실패해도 트리거 삭제를 막지 않는다. 명령 해제 호출이 실패(`ok: false`)하면 경고 로그만 남긴다. 남은 명령은 같은 애플리케이션으로 새 트리거를 만들 때 setup 이 새 명령으로 덮어쓴다. Interactions Endpoint URL 은 우리 쪽에서 해제할 수 없어 사용자가 portal 에서 직접 비워야 한다(사용자 가이드 안내).
 
 ### MODAL
 
@@ -315,6 +317,7 @@ DM 첫 메시지로 자동 시작하는 것(Telegram `/start` 와 같은 뜻)은
 ## 비기능
 
 - `POST /channels/{id}/messages` 는 5초 타임아웃과 지수 백오프로 총 3회 시도한다. 대기는 1초, 2초 두 번이다. 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다.
+- 클라이언트(`discord-client.ts`)는 실패를 `ok: false` 로 돌려준다. 4xx 실패에는 Discord 응답 본문(원본 숫자 `code` 포함)과 HTTP `status` 가 함께 실린다. 재시도를 다 쓴 합성 실패(fetch 예외, 429 소진, 5xx)에는 `message` 만 있다. 어댑터는 `ok: false` 로 실패를 판정하고 원본 숫자 `code` 로는 판정하지 않는다([채팅 채널 어댑터 규약 「클라이언트 실패 판정」](CLE-CHAT-ADAPTER.md#클라이언트-실패-판정)). 발송이 실패하면 어댑터가 에러를 던지고 호출자가 건강도를 `degraded` 로 바꾼다. typing 은 UX 전용이라 실패해도 경고 로그만 남긴다.
 - Discord [Rate limits](https://discord.com/developers/docs/topics/rate-limits): 봇당 전역 초당 50건과 경로별 bucket(응답 헤더 `X-RateLimit-Bucket`·`X-RateLimit-Remaining`·`X-RateLimit-Reset-After`)이 있다. `429 Too Many Requests` 의 `Retry-After` 는 따른다(구현됨). bucket 단위 큐와 응답 헤더 기반 throttle 은 미구현이다.
 - `interaction.id` 중복 제거는 구현됐다(2026-08-13). 같은 id 가 30초 안에 다시 오면 무시한다(Discord 는 3회까지 재전송한다). 파서가 채운 `idempotencyKey = interaction.id`(snowflake, 재전송 때 같다)를 `ChatChannelDedupService` 가 Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<interactionId>` 로 인바운드 진입의 분당 한도 앞에서 거른다. Redis 가 없으면 통과시킨다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다.
 

@@ -47,6 +47,7 @@ import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { QueryTriggerDto } from './dto/query-trigger.dto';
 import { ChatChannelRotateBotTokenDto } from './dto/responses/chat-channel-rotate-bot-token-response.dto';
 import { ChatChannelRotateBotTokenRequestDto } from './dto/chat-channel-rotate-bot-token-request.dto';
+import { isWellFormedBotToken } from './dto/chat-channel-bot-token';
 import {
   TriggerDto,
   TriggerHistoryItemDto,
@@ -316,7 +317,7 @@ export class TriggersController {
   // 계약이라(R-CC-23) 한쪽만 적으면 나머지 절반이 문서에 없는 상태로 남는다.
   @ApiBadRequestResponse({
     description:
-      'VALIDATION_ERROR (:id 가 UUID 형식이 아님 — ParseUUIDPipe) · INVALID_BOT_TOKEN (newBotToken 누락/비-string) · BOT_TOKEN_INVALID (provider 가 자격 증명을 거부) · CHAT_CHANNEL_NOT_CONFIGURED · CHAT_CHANNEL_PROVIDER_UNKNOWN · CHAT_CHANNEL_ENDPOINT_REQUIRED',
+      'VALIDATION_ERROR (:id 가 UUID 형식이 아님 — ParseUUIDPipe) · INVALID_BOT_TOKEN (newBotToken 누락/비-string/256자 초과/보이는 ASCII 밖 문자) · BOT_TOKEN_INVALID (provider 가 자격 증명을 거부) · CHAT_CHANNEL_NOT_CONFIGURED · CHAT_CHANNEL_PROVIDER_UNKNOWN · CHAT_CHANNEL_ENDPOINT_REQUIRED',
   })
   @ApiBadGatewayResponse({
     description:
@@ -347,6 +348,16 @@ export class TriggersController {
       throw new BadRequestException({
         code: 'INVALID_BOT_TOKEN',
         message: 'newBotToken is required',
+      });
+    }
+    // 생성 경로(`ChatChannelConfigDto.botToken`)와 같은 형식 판정. 공백 · 제어 문자 · ASCII 밖 문자는
+    // fetch 가 헤더를 만들지 못해 502 로 갔다. 시크릿 저장 · 프로바이더 호출 전에 400 으로 거부한다.
+    // 메시지에 입력값을 싣지 않는다(NERV Task `CLE-T-FX354C`).
+    if (!isWellFormedBotToken(body.newBotToken)) {
+      throw new BadRequestException({
+        code: 'INVALID_BOT_TOKEN',
+        message:
+          'newBotToken must be 1-256 visible ASCII characters (U+0021-U+007E)',
       });
     }
     return this.triggersService.rotateBotToken(
