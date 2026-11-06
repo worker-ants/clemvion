@@ -237,17 +237,43 @@ describe('StateMachine', () => {
       );
     });
 
-    // 정의 대조 — 목록에 있는 상태는 나가는 전이가 하나 이상 있고, 없는 상태는 하나도
-    // 없다. 전이 표를 고치면 DB 가드 목록도 같이 바뀌는지 이 대조가 지킨다.
+    // 상태마다 「나가는 전이가 있는가」를 손으로 적어 둔다. 전이 표에 상태나 전이를
+    // 더하거나 빼면 이 표를 같이 고치지 않는 한 실패한다. 구현과 같은 식을 쓰지 않는다.
+    const S = ExecutionStatus;
     it.each([
-      ['opt-in 없음', undefined],
-      ['opt-in', { allowRetryReentry: true }],
-    ])('%s: 목록은 나가는 전이가 있는 상태와 같다', (_label, opts) => {
-      const listed = new Set(nonTerminalStatuses(opts));
-      for (const from of ALL) {
-        const hasOutgoing = ALL.some((to) => canTransition(from, to, opts));
-        expect([from, listed.has(from)]).toEqual([from, hasOutgoing]);
-      }
-    });
+      [
+        'opt-in 없음',
+        undefined,
+        {
+          [S.PENDING]: true,
+          [S.RUNNING]: true,
+          [S.WAITING_FOR_INPUT]: true,
+          [S.FAILED]: false,
+          [S.COMPLETED]: false,
+          [S.CANCELLED]: false,
+        },
+      ],
+      [
+        'opt-in',
+        { allowRetryReentry: true },
+        {
+          [S.PENDING]: true,
+          [S.RUNNING]: true,
+          [S.WAITING_FOR_INPUT]: true,
+          [S.FAILED]: true,
+          [S.COMPLETED]: false,
+          [S.CANCELLED]: false,
+        },
+      ],
+    ])(
+      '%s: 상태별로 나가는 전이 유무가 기대와 같다',
+      (_label, opts, expected) => {
+        expect(Object.keys(expected).sort()).toEqual([...ALL].sort());
+        const listed = new Set(nonTerminalStatuses(opts));
+        for (const from of ALL) {
+          expect([from, listed.has(from)]).toEqual([from, expected[from]]);
+        }
+      },
+    );
   });
 });
