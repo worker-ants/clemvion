@@ -46,7 +46,7 @@ describe('ParallelExecutor', () => {
 
   // CLE-T-0DGHGF — 컨테이너 본문 안 Parallel 의 병렬 분기 노드가 바깥 반복 변수
   // (`$item` · `$loop`)를 읽도록 병렬 분기 컨텍스트가 두 필드를 이어받는다
-  // (REQ-PARALLEL-009). 병렬 분기 컨텍스트는 객체가 따로라서 병렬 분기 안
+  // (REQ-PARALLEL-009 개정, CLE-NODE-PARALLEL v7). 병렬 분기 컨텍스트는 객체가 따로라서 병렬 분기 안
   // ForEach · Loop 가 필드를 다시 대입해도 다른 병렬 분기와 원래 컨텍스트는 그대로다.
   it('병렬 분기 컨텍스트는 바깥 itemContext · loopContext 를 이어받고 병렬 분기 안에서 다시 대입해도 다른 병렬 분기에 새지 않는다', async () => {
     const outerItem = baseContext.itemContext;

@@ -123,7 +123,7 @@ export class ParallelExecutor {
    * @param config — Parallel node config (branchCount, maxConcurrency, waitAll, errorPolicy).
    * @param context — Shared execution context. Each branch receives a shallow clone.
    *   `itemContext` · `loopContext` 는 부모 컨텍스트 값을 그대로 이어받는다
-   *   (REQ-PARALLEL-009, CLE-T-0DGHGF). 컨테이너 본문 안 Parallel 의 병렬 분기 노드가 바깥
+   *   (REQ-PARALLEL-009 개정, CLE-NODE-PARALLEL v7, CLE-T-0DGHGF). 컨테이너 본문 안 Parallel 의 병렬 분기 노드가 바깥
    *   반복 변수(`$item` · `$loop`)를 읽어야 하기 때문이다. 병렬 분기마다 객체가 따로라서
    *   병렬 분기 안 ForEach · Loop 가 두 필드를 다시 대입해도 다른 병렬 분기와 부모에 새지
    *   않는다(두 실행기는 필드를 새 객체로 대입하고 끝나면 되돌린다).

@@ -726,6 +726,14 @@ export class ExecutionEngineService
    * 조회) 여기 등록되지 않는다.
    */
   private readonly containerCancelCheckedAtMs = new Map<string, number>();
+  /**
+   * 노드 배열 참조 → Parallel 사전 검사 그래프. 컨테이너 본문 안 Parallel 이 회차마다
+   * `runParallel` 을 불러도 그래프는 한 번만 만든다. 배열이 GC 되면 같이 사라진다.
+   */
+  private readonly parallelCheckGraphCache = new WeakMap<
+    readonly Node[],
+    { allEdges: readonly Edge[]; graph: ParallelCheckGraph }
+  >();
 
   /**
    * 병렬 분기 컨텍스트의 `nodeOutputCache`(분기 전용 얕은 복사본) → 이번 분기 실행에서
@@ -7631,7 +7639,7 @@ export class ExecutionEngineService
     forwardEdges: GraphEdge[],
     backEdges: GraphEdge[],
     branchCount: number,
-    currentDepth = 1,
+    currentDepth: number,
   ): ParallelPlan {
     const {
       forwardAdj,
@@ -7661,9 +7669,9 @@ export class ExecutionEngineService
     const branches: ParallelBranchPlan[] = [];
     for (let i = 0; i < branchCount; i++) {
       const bodyNodeIds = bodyNodeIdsPerBranch[i];
-      const internalEdges = forwardEdges.filter(
-        (e) =>
-          bodyNodeIds.has(e.sourceNodeId) && bodyNodeIds.has(e.targetNodeId),
+      const internalEdges = pickContainerInternalEdges(
+        bodyNodeIds,
+        forwardEdges,
       );
       this.assertParallelBranchChildrenAllowed(
         parallelNode,
@@ -7794,9 +7802,11 @@ export class ExecutionEngineService
       PARALLEL_BRANCH_COUNT_MAX,
     );
     for (const bodyNodeIds of bodyNodeIdsPerBranch) {
-      const internalEdges = forwardEdges.filter(
-        (e) =>
-          bodyNodeIds.has(e.sourceNodeId) && bodyNodeIds.has(e.targetNodeId),
+      // 본문이 빈 병렬 분기(설정한 병렬 분기 수 밖의 `branch_N`)는 검사할 노드가 없다.
+      if (bodyNodeIds.size === 0) continue;
+      const internalEdges = pickContainerInternalEdges(
+        bodyNodeIds,
+        forwardEdges,
       );
       this.assertParallelBranchChildrenAllowed(
         parallelNode,
@@ -7870,6 +7880,9 @@ export class ExecutionEngineService
     allNodes: readonly Node[],
     allEdges: readonly Edge[],
   ): ParallelCheckGraph {
+    // 컨테이너 회차마다 같은 노드 · 연결선 배열로 불리므로 배열 참조 기준으로 1회만 만든다.
+    const cached = this.parallelCheckGraphCache.get(allNodes);
+    if (cached && cached.allEdges === allEdges) return cached.graph;
     const nodeMap = new Map<string, Node>();
     const childrenByContainer = new Map<string, Node[]>();
     for (const node of allNodes) {
@@ -7879,7 +7892,13 @@ export class ExecutionEngineService
       siblings.push(node);
       childrenByContainer.set(node.containerId, siblings);
     }
-    return { nodeMap, childrenByContainer, allEdges };
+    const graph: ParallelCheckGraph = {
+      nodeMap,
+      childrenByContainer,
+      allEdges,
+    };
+    this.parallelCheckGraphCache.set(allNodes, { allEdges, graph });
+    return graph;
   }
 
   /**
