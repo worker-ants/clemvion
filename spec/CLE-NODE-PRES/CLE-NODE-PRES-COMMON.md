@@ -2,21 +2,21 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "9da390a2d61dca14b588b6e3dd0ccca47188e2c2bf6b20e3672af296dcd7be86"
+content_hash: "8cba63722e628ad2f6ed8eee0df04bea44bea8f9a2fe0c6ee68bfe689e8610ba"
 read_as: "approved_fallback"
-task: "CLE-T-9W8F72"
+task: "CLE-T-N901G9"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8876ad9fc39c68ca771f5fd08b29c7fe37836c4eb5cfc4fe411fcd561c2082f4"
-etag: "sha256-ab0515f92d72339e90bf1712825a1daf1bfb4ac3942f53e4e2a9a27e60768c4e"
+mirror_sha256: "e22c571c51493e173b0ddcc1dd8226eaebd640fe0841d4fdd9a420421c581b3c"
+etag: "sha256-706a05985ac4a4d76b4b18218730d3e3194e87c481ed859936c218bc60ebecec"
 ---
-> 구현 상태: 구현됨 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, `render_chart` `data` 의미 검사, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -352,7 +352,7 @@ AI 에이전트 노드의 `presentationTools[]` 설정을 켜면 LLM 이 이 카
 
 zod 를 JSON Schema 로 바꾸는 일은 단일 유틸(`zodToToolParams`)이 맡는다. 다섯 노드 스키마를 고치면 LLM 도구 정의에 자동으로 반영되므로 구조적으로 어긋날 수 없다. 백엔드 `_shared/button.types.ts` 의 `MAX_BUTTONS_PER_NODE` 같은 이 문서의 상수도 같은 변환에 자동으로 반영된다.
 
-**예외는 `render_chart` 의 `data` 다.** 차트 포인트 배열 `data` 는 `chartConfigSchema` 에 없다. 그래서 LLM 에 주는 `data` 모양의 계약은 도구 설명 문구(`DEFAULT_DESCRIPTIONS.chart`) 하나뿐이고 시스템 안내가 같은 표기를 한 번 더 싣는다([도구 카탈로그](#도구-카탈로그)). `chartConfigSchema` 는 Chart 노드의 설정 스키마이면서 도구 파라미터 스키마다. 여기에 런타임 값인 `data` 를 넣으면 설정에 출력 값이 들어가 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다) Principle 1.1 과 부딪친다. 스키마가 `data` 를 검사하지 않으므로 `data` 의 최소 의미 검사는 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 가 정하고 [스키마 위반 처리와 정규화](#스키마-위반-처리와-정규화) 2단계의 도구 의미 검사로 한다. 이 검사는 아직 구현되지 않았다(구현 Task `CLE-T-N901G9`).
+**예외는 `render_chart` 의 `data` 다.** 차트 포인트 배열 `data` 는 `chartConfigSchema` 에 없다. 그래서 LLM 에 주는 `data` 모양의 계약은 도구 설명 문구(`DEFAULT_DESCRIPTIONS.chart`) 하나뿐이고 시스템 안내가 같은 표기를 한 번 더 싣는다([도구 카탈로그](#도구-카탈로그)). `chartConfigSchema` 는 Chart 노드의 설정 스키마이면서 도구 파라미터 스키마다. 여기에 런타임 값인 `data` 를 넣으면 설정에 출력 값이 들어가 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다) Principle 1.1 과 부딪친다. 스키마가 `data` 를 검사하지 않으므로 `data` 의 최소 의미 검사는 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 가 정하고 [스키마 위반 처리와 정규화](#스키마-위반-처리와-정규화) 2단계의 도구 의미 검사로 한다.
 
 ### 도구 카탈로그
 
@@ -404,7 +404,7 @@ flowchart LR
 ```
 
 1. LLM 페이로드를 해당 노드의 zod 스키마로 검증한다.
-2. 필수 필드 누락, 타입 불일치, 정합성 위배처럼 스키마를 어기거나 1MB 한도를 넘으면 도구 결과로 `{error: 'INVALID_PAYLOAD', issues: [...]}` 를 돌려준다. 한도 초과는 Carousel·Table 을 뒤에서 잘라도 원소가 하나도 들어가지 않는 경우처럼 한도를 적용할 수 없는 때를 말한다. 스키마 검증을 통과해도 도구 의미 검사(`checkRenderToolSemanticIssues`)에 걸리면 같은 `INVALID_PAYLOAD` 를 돌려준다. 의미 검사는 스키마가 잡지 못하는 조건을 본다. `render_chart` 의 `data` 최소 모양 검사가 그 예이고 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 가 정한다. chart 분기는 아직 구현되지 않았다(`CLE-T-N901G9`). 의미 검사에 걸린 호출은 스키마 위반과 똑같이 다룬다. 아래 5번의 재시도 · 버림과 위반 기록이 그대로 적용되고, [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 말하는 스키마 위반에도 이 경우가 들어간다.
+2. 필수 필드 누락, 타입 불일치, 정합성 위배처럼 스키마를 어기거나 1MB 한도를 넘으면 도구 결과로 `{error: 'INVALID_PAYLOAD', issues: [...]}` 를 돌려준다. 한도 초과는 Carousel·Table 을 뒤에서 잘라도 원소가 하나도 들어가지 않는 경우처럼 한도를 적용할 수 없는 때를 말한다. 스키마 검증을 통과해도 도구 의미 검사(`checkRenderToolSemanticIssues`)에 걸리면 같은 `INVALID_PAYLOAD` 를 돌려준다. 의미 검사는 스키마가 잡지 못하는 조건을 본다. `render_chart` 의 `data` 최소 모양 검사가 그 예이고 [Chart 노드](CLE-NODE-CHART.md#표시-도구-페이로드) 가 정한다. 의미 검사에 걸린 호출은 스키마 위반과 똑같이 다룬다. 아래 5번의 재시도 · 버림과 위반 기록이 그대로 적용되고, [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 말하는 스키마 위반에도 이 경우가 들어간다.
 3. **`button.id` UUID v4 채우기**: defaults 병합과 출력 크기 한도를 적용한 뒤 남은 버튼 가운데 `id` 가 없는 것에만 UUID v4 를 채운다. 대상은 carousel `buttons`·`itemButtons`·`items[].buttons` 와 table·chart·template `buttons` 다. `id` 가 있는 버튼은 그대로 둔다. [버튼 정의](#버튼-정의)의 "id 는 자동 생성하고 바꾸지 않는다" 원칙을 표시 도구 모드에도 적용한다. 워크플로우 에디터가 `crypto.randomUUID()` 로 id 를 넣는 것과 같은 의미를 백엔드 `render-tool-provider` 가 보장한다. 한도 적용 뒤에 하므로 잘려 나간 원소 안의 버튼은 처리하지 않는다. 프런트엔드에 닿지 않는 버튼이라 의도한 최적화다. 이 단계의 함수는 `backfillButtonUuids` 처럼 알아볼 수 있는 이름을 쓴다. 그래프 노드용 `normalizeNodeButtonIds`(label 을 slug 로 바꿈)와 섞이지 않게 하려는 것이다.
 4. **폼 `option.value` 결정적 채우기**: `render_form` 에만 적용한다. defaults 병합과 출력 크기 한도를 적용한 뒤 `fields[].options[]` 가운데 `value` 가 빈 문자열 `""`·`null`·`undefined` 인 항목에 결정적 값 `opt-{fieldIdx}-{optIdx}` 를 채운다. 형식은 인덱스 하나뿐이다. label 로 slug 를 만드는 방식은 한글 같은 다국어 label 에서 빈 slug 가 나와 다시 충돌하므로 쓰지 않는다. LLM 이 옵션의 `value` 를 빠뜨리면 zod 기본값이 모든 옵션 value 를 똑같이 `""` 로 만든다. 그러면 프런트엔드 `<select>` 의 placeholder(`value=""`)와 모든 옵션이 DOM 에서 같아져 골라도 placeholder 가 남는다. 3단계 버튼 ID 채우기와 같은 문제이므로 같은 층에서 푼다. UUID 대신 결정적 값을 쓰는 이유는 [Rationale](#폼-옵션-값-채우기) 에 적는다. 한도 적용 뒤에 하므로 잘려 나간 옵션은 처리하지 않는다. 이 단계의 함수는 3단계와 나란히 `backfillFormOptionValues` 처럼 이름 붙인다.
 5. LLM 은 같은 턴 안에서 다시 시도할 수 있다. 한 번 다시 시도해도 실패하면 조용히 버리고 `meta.presentationSchemaViolations[]` 에 쌓는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
