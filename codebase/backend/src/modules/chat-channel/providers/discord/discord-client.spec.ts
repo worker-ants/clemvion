@@ -67,8 +67,8 @@ describe('DiscordClient — 4xx 응답에 HTTP status 를 싣는다', () => {
  * 실패 원문에서 봇 토큰을 지운다(NERV Task `CLE-T-H0GF4K`).
  *
  * `authorization: Bot <토큰>` 에 CR · LF · NUL 이 있으면 fetch 가 헤더 값 전체를 원문에 싣는다.
- * 지금은 합성 실패 결과에 `code` 가 없어 어댑터가 이 원문을 `chat_channel_last_error` 에 쓰지
- * 않지만(NERV Task `CLE-T-KX2Q2N`) 로그에는 남는다. 시크릿 저장소 평문은 로그에도 닿으면 안 된다.
+ * 합성 실패의 이 원문은 로그에 남고, 어댑터가 `ok: false` 로 실패를 판정한 뒤로는(NERV Task
+ * `CLE-T-KX2Q2N`) `chat_channel_last_error` 에도 닿는다. 시크릿 저장소 평문은 어디에도 닿으면 안 된다.
  */
 describe('DiscordClient — 실패 원문에서 봇 토큰을 지운다', () => {
   const parts = ['MTAx.Yy', 'ZZZZ'];
@@ -106,4 +106,63 @@ describe('DiscordClient — 실패 원문에서 봇 토큰을 지운다', () => 
       }
     },
   );
+});
+
+/**
+ * typing 결과는 `ok: false` 표지로 판정한다(NERV Task `CLE-T-KX2Q2N`). 재시도를 다 쓴 합성
+ * 실패에는 Discord 원본 숫자 `code` 가 없어서 예전 판정(`code` 가 있으면 실패)은 성공으로 봤다.
+ */
+describe('DiscordClient.postChannelTyping — ok:false 로 판정한다', () => {
+  const typingWith = async (fetchMock: jest.Mock): Promise<{ ok: boolean }> => {
+    const original = global.fetch;
+    (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+    jest.useFakeTimers();
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      const pending = new DiscordClient().postChannelTyping('bot-token', 'C1');
+      await jest.advanceTimersByTimeAsync(10_000);
+      return await pending;
+    } finally {
+      warn.mockRestore();
+      jest.useRealTimers();
+      global.fetch = original;
+    }
+  };
+
+  it('5xx 를 세 번 받은 합성 실패 → ok:false', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: { get: () => null },
+      json: async () => ({ message: 'unavailable' }),
+    });
+    await expect(typingWith(fetchMock)).resolves.toEqual({ ok: false });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('fetch 예외를 세 번 받은 합성 실패 → ok:false', async () => {
+    const fetchMock = jest.fn().mockRejectedValue(new Error('ECONNRESET'));
+    await expect(typingWith(fetchMock)).resolves.toEqual({ ok: false });
+  });
+
+  it('4xx 본문(Discord 원본 code 있음) → ok:false', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: { get: () => null },
+      json: async () => ({ message: 'Missing Access', code: 50001 }),
+    });
+    await expect(typingWith(fetchMock)).resolves.toEqual({ ok: false });
+  });
+
+  it('204 No Content → ok:true', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 204,
+      headers: { get: () => null },
+    });
+    await expect(typingWith(fetchMock)).resolves.toEqual({ ok: true });
+  });
 });

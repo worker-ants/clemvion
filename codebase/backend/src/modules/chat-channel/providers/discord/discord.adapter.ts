@@ -16,12 +16,18 @@ import type {
 } from '../../types';
 import { credentialRejectedError } from '../../types';
 import { DiscordClient } from './discord-client';
+import {
+  isDiscordApiError,
+  type DiscordApiError,
+  type DiscordMessage,
+} from './discord.types';
 import { renderDiscordEvent } from './discord-message.renderer';
 import { parseDiscordUpdate } from './discord-update.parser';
 import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
 
 /**
- * `GET /applications/@me` 가 실어 준 HTTP status 중 "자격 증명 거부" 로 판정하는 값.
+ * `setupChannel` 의 Discord 호출(`GET /applications/@me` · `PUT /applications/{id}/commands`)이
+ * 실어 준 HTTP status 중 "자격 증명 거부" 로 판정하는 값.
  * Telegram(`TELEGRAM_CREDENTIAL_REJECTED_STATUSES`)·Slack(`SLACK_CREDENTIAL_REJECTED_ERRORS`)
  * 과 같은 이름 있는 상수 관례를 따른다 — 인라인 리터럴은 판정 기준이 바뀔 때 스타일 혼선을 낳는다.
  */
@@ -74,21 +80,12 @@ export class DiscordAdapter implements NativeFormAdapter {
   ): Promise<SetupResult> {
     const botToken = await this.resolveBotToken(config);
     const app = await this.client.getApplicationMe(botToken);
-    if ('code' in app && app.code != null) {
-      // `app.code` 는 **Discord 원본 응답의 숫자** 필드다 (§1.1.2 3중 표) — 우리 판별자
-      // `Error.code` 와 다른 네임스페이스이고, 인증 실패에 `0` 이 와서 값으로는 못 가른다.
-      // 자격 증명 거부 판정은 client 가 실어 준 HTTP `status` 로 한다.
-      const message = `Discord getApplicationMe failed: ${app.message ?? 'unknown'}`;
-      throw typeof app.status === 'number' &&
-        DISCORD_CREDENTIAL_REJECTED_STATUSES.includes(app.status)
-        ? credentialRejectedError(message)
-        : new Error(message);
+    // 실패는 `ok: false` 표지로 가른다. Discord 원본 숫자 `code` 는 재시도를 다 쓴 합성 실패에
+    // 없어서 그걸로 가르면 실패가 성공 경로로 흘렀다(NERV Task `CLE-T-KX2Q2N`).
+    if (isDiscordApiError(app)) {
+      throw toSetupError('getApplicationMe', app);
     }
-    const application = app as {
-      id: string;
-      name: string;
-      verify_key?: string;
-    };
+    const application = app;
     if (!application.id) {
       throw new Error('Discord application 응답에 id 누락');
     }
@@ -121,35 +118,44 @@ export class DiscordAdapter implements NativeFormAdapter {
     }
     // slash command bulk overwrite — default prefix '/workflow'.
     const slashPrefix = config.languageHints?.slashPrefix ?? 'workflow';
-    await this.client.putApplicationCommands(botToken, application.id, [
-      {
-        name: slashPrefix,
-        description: 'Workflow assistant',
-        type: 1,
-        options: [
-          { name: 'start', type: 1, description: 'Start a new conversation' },
-          {
-            name: 'cancel',
-            type: 1,
-            description: 'Cancel the active conversation',
-          },
-          { name: 'help', type: 1, description: 'Show help' },
-          {
-            name: 'reply',
-            type: 1,
-            description: 'Reply to the active AI conversation',
-            options: [
-              {
-                name: 'message',
-                type: 3,
-                description: 'Reply text',
-                required: true,
-              },
-            ],
-          },
-        ],
-      },
-    ]);
+    const commands = await this.client.putApplicationCommands(
+      botToken,
+      application.id,
+      [
+        {
+          name: slashPrefix,
+          description: 'Workflow assistant',
+          type: 1,
+          options: [
+            { name: 'start', type: 1, description: 'Start a new conversation' },
+            {
+              name: 'cancel',
+              type: 1,
+              description: 'Cancel the active conversation',
+            },
+            { name: 'help', type: 1, description: 'Show help' },
+            {
+              name: 'reply',
+              type: 1,
+              description: 'Reply to the active AI conversation',
+              options: [
+                {
+                  name: 'message',
+                  type: 3,
+                  description: 'Reply text',
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    );
+    // 명령 등록이 실패하면 slash command 가 없는 봇이 연결된 것처럼 보인다. setupChannel 실패로
+    // 올린다(401/403 은 자격 증명 거부). NERV Task `CLE-T-KX2Q2N`.
+    if (isDiscordApiError(commands)) {
+      throw toSetupError('putApplicationCommands', commands);
+    }
     return {
       registeredAt: new Date().toISOString(),
       identity: { applicationId: application.id, name: application.name },
@@ -176,7 +182,12 @@ export class DiscordAdapter implements NativeFormAdapter {
       const botToken = await this.resolveBotToken(config);
       const appId = String(config.botIdentity?.botId ?? '');
       if (!appId) return;
-      await this.client.putApplicationCommands(botToken, appId, []);
+      const res = await this.client.putApplicationCommands(botToken, appId, []);
+      if (isDiscordApiError(res)) {
+        this.logger.warn(
+          `DiscordAdapter.teardownChannel best-effort 실패: ${res.message ?? 'unknown'}`,
+        );
+      }
     } catch (err) {
       this.logger.warn(
         `DiscordAdapter.teardownChannel best-effort 실패: ${err instanceof Error ? err.message : String(err)}`,
@@ -446,11 +457,30 @@ function buildComponents(buttons: ChannelButton[]): unknown[] {
   return rows;
 }
 
+/**
+ * `setupChannel` 의 Discord 호출 실패를 Error 로 바꾼다. `res.code` 는 Discord 원본 숫자 필드라
+ * (§1.1.2 3중 표) 우리 판별자 `Error.code` 와 네임스페이스가 다르고 인증 실패에 `0` 이 온다.
+ * 자격 증명 거부 판정은 client 가 실어 준 HTTP `status` 로 한다. 합성 실패에는 `status` 가 없어
+ * 그냥 Error 다(호출자가 502).
+ */
+function toSetupError(context: string, res: DiscordApiError): Error {
+  const message = `Discord ${context} failed: ${res.message ?? 'unknown'}`;
+  return typeof res.status === 'number' &&
+    DISCORD_CREDENTIAL_REJECTED_STATUSES.includes(res.status)
+    ? credentialRejectedError(message)
+    : new Error(message);
+}
+
+/**
+ * 발송 결과를 `SendResult` 로 바꾼다. 실패(`ok: false`)는 throw 해서 호출자가 건강도를
+ * `degraded` 로 두게 한다. 재시도를 다 쓴 합성 실패에는 원본 `code` 가 없으므로 `code` 로
+ * 가르지 않는다(NERV Task `CLE-T-KX2Q2N`).
+ */
 function wrapSendResult(
-  res: { id?: string; ok?: boolean; code?: number; message?: string },
+  res: DiscordMessage | DiscordApiError,
   context: string,
 ): SendResult {
-  if ('code' in res && res.code != null) {
+  if (isDiscordApiError(res)) {
     throw new Error(`Discord ${context} failed: ${res.message ?? 'unknown'}`);
   }
   return {

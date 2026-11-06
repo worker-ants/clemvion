@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { replaceKnownSecret } from '../../../../shared/utils/sanitize-error-message';
-import type {
-  DiscordApiError,
-  DiscordApplication,
-  DiscordMessage,
+import {
+  isDiscordApiError,
+  type DiscordApiError,
+  type DiscordApplication,
+  type DiscordMessage,
 } from './discord.types';
 
 /**
@@ -64,7 +65,8 @@ export class DiscordClient {
       'POST',
       `/channels/${encodeURIComponent(channelId)}/typing`,
     ).then((r) => ({
-      ok: !('code' in r && r.code != null),
+      // 합성 실패에는 Discord 원본 `code` 가 없다. `ok: false` 표지로 가른다.
+      ok: !isDiscordApiError(r),
     }));
   }
 

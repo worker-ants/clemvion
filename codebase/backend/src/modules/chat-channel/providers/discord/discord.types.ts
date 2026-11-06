@@ -63,13 +63,17 @@ export interface DiscordInteractionData {
 /** Channel type values. DM=1, GROUP_DM=3, GUILD_TEXT=0 등. */
 export const DISCORD_CHANNEL_TYPE_DM = 1;
 
-/** Discord REST API generic 응답 — 4xx/5xx 는 별 형태. */
+/**
+ * Discord REST 클라이언트의 실패 결과. 4xx 본문이든 재시도를 다 쓴 합성 실패(5xx · 429 소진 ·
+ * fetch 예외)든 `ok: false` 를 싣는다. 실패 판정은 이 표지로 한다([isDiscordApiError]).
+ */
 export interface DiscordApiError {
   ok: false;
   /**
    * **Discord 원본 응답의 숫자 error code** — 우리 `Error.code` 판별자와 **다른 네임스페이스**다
    * ([spec/conventions/chat-channel-adapter.md §1.1.2] 3중 표). 인증 실패 시 `0` 이 올 수 있어
-   * 값만으로는 자격 증명 거부를 알 수 없다 — 그래서 `status` 를 따로 싣는다.
+   * 값만으로는 자격 증명 거부를 알 수 없다 — 그래서 `status` 를 따로 싣는다. 클라이언트가 만든
+   * 합성 실패에는 이 필드가 없으므로 실패 판정에 쓰지 않는다(NERV Task `CLE-T-KX2Q2N`).
    */
   code?: number;
   message?: string;
@@ -79,6 +83,19 @@ export interface DiscordApiError {
    * 4xx 를 반환할 때 채운다 ([spec/conventions/chat-channel-adapter.md §1.1.2]).
    */
   status?: number;
+}
+
+/**
+ * 클라이언트 결과가 실패인지 `ok: false` 표지로 가른다. Discord 원본 숫자 `code` 의 있고 없음으로
+ * 판정하면 합성 실패를 성공으로 본다(NERV Task `CLE-T-KX2Q2N`). 성공 응답 객체(메시지 · 애플리케이션 ·
+ * 명령 배열 · 204 의 빈 객체)에는 `ok: false` 가 없다.
+ */
+export function isDiscordApiError(res: unknown): res is DiscordApiError {
+  return (
+    typeof res === 'object' &&
+    res !== null &&
+    (res as { ok?: unknown }).ok === false
+  );
 }
 
 export interface DiscordMessage {
