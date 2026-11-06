@@ -158,4 +158,23 @@ describe('Knowledge Base (e2e)', () => {
     expect(stats.status).toBe(200);
     expect(stats.body.data).toBeDefined();
   });
+
+  it('G. 50MB 를 넘는 문서 업로드는 413 이고 message 는 고정 문구다', async () => {
+    // 아바타 업로드와 같은 multer `LIMIT_FILE_SIZE` 경로다. 전역 필터가 multer 원문
+    // ("File too large")을 고정 문구로 바꾸는지 이 엔드포인트에서도 확인한다(CLE-T-8MQMGQ).
+    const id = await createKb(uniqueName('kb-g'));
+    const tooBig = Buffer.alloc(50 * 1024 * 1024 + 1, 0);
+
+    const res = await request(BASE_URL)
+      .post(`/api/knowledge-bases/${id}/documents`)
+      .set(authHeaders())
+      .attach('file', tooBig, {
+        filename: 'huge.txt',
+        contentType: 'text/plain',
+      });
+
+    expect(res.status).toBe(413);
+    expect(res.body.error?.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(res.body.error?.message).toBe('Request payload too large.');
+  }, 120_000);
 });

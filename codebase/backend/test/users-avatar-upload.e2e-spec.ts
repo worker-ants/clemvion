@@ -136,6 +136,12 @@ describe('아바타 업로드 — 공개 버킷 정책 (e2e)', () => {
       });
 
     expect(res.status).toBe(413);
+    // multer 원문("File too large")을 싣지 않고 body-parser 413 과 같은 고정 문구를 낸다
+    // (CWE-209, CLE-API-ERROR · CLE-T-8MQMGQ).
+    const error = (res.body as { error?: { code?: string; message?: string } })
+      .error;
+    expect(error?.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(error?.message).toBe('Request payload too large.');
   }, 60_000);
 
   it('교체하면 옛 객체가 정리된다 (익명 GET 이 더 이상 200 이 아니다)', async () => {
