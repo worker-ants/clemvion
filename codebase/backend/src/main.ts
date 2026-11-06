@@ -54,6 +54,7 @@ import {
   shouldWarnPublicBaseIsPrivate,
 } from './common/config/s3.config';
 import { mailConfig, shouldWarnPlainSmtp } from './common/config/mail.config';
+import { shouldWarnNotificationDnsGuardOff } from './common/utils/ssrf-safe-url.util';
 
 /**
  * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
@@ -181,6 +182,17 @@ async function bootstrap() {
       '[SECURITY] MAIL_REQUIRE_TLS=false (production) — 시스템 메일이 STARTTLS 없이 평문 SMTP 로 ' +
         '나갈 수 있습니다. 인증 · 비밀번호 재설정 · 초대 링크와 SMTP 자격 증명이 노출될 수 있으니 ' +
         'STARTTLS 를 지원하지 않는 서버를 쓰는 경우에만 끄세요.',
+    );
+  }
+
+  // 알림 웹훅 발송 직전 DNS 결과 검사를 끈 운영 배포를 가시화한다(CLE-T-M1P83C). 사설 IP 로 풀리는 내부 수신기에
+  // 알림을 보내는 자체 설치 배포라는 정당한 용도가 있어 throw 하지 않는다(위 경고들과 같은 기준). 판정은
+  // `ssrf-safe-url.util.ts` 의 순수 함수에 있다.
+  if (shouldWarnNotificationDnsGuardOff(process.env)) {
+    logger.warn(
+      '[SECURITY] NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0 (production) — 알림 웹훅 발송 직전 DNS 결과 검사가 ' +
+        '꺼졌습니다. 사설 IP 로 풀리는 호스트 이름에도 알림을 보냅니다. 내부 수신기에 보내는 자체 설치 배포가 ' +
+        '아니면 이 값을 지우세요.',
     );
   }
 

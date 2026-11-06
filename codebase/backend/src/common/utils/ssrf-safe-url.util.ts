@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises';
+
 /**
  * SSRF (Server-Side Request Forgery) 방지 — outbound HTTP 호출 대상 URL 의 register-time
  * 검증 헬퍼.
@@ -13,9 +15,8 @@
  *    - cloud metadata: 169.254.169.254 (AWS/Azure/GCP)
  *
  * 본 헬퍼는 **DNS resolution 을 수행하지 않는다** — register-time 에 외부 DNS 호출을 만들면
- * 테스트 환경에서 결정성이 깨지고 DNS rebinding 방어에도 불완전하다. 발송 시점의
- * post-resolve 검증은 NotificationDispatcher (P3) 가 담당한다 (등록 시 IP 와 발송 시 IP 가
- * 다르면 발송 거부 — Spec EIA §8.1).
+ * 테스트 환경에서 결정성이 깨지고 DNS rebinding 방어에도 불완전하다. 해석 결과 검사는 발송
+ * 직전에 `checkResolvedHostIp` 로 한다(`notification-webhook.processor.ts`, CLE-EIA-NOTIFY 「SSRF」).
  *
  * @returns 검증 통과 시 `{ ok: true }`, 실패 시 `{ ok: false, reason }` — reason 은 사용자 표시용.
  */
@@ -49,7 +50,7 @@ export function isPrivateIpv4(host: string): boolean {
  * IPv6 리터럴을 WHATWG URL 파서로 한 모양(소문자 · 0 줄임 · 내장 IPv4 점 표기를 16진으로)으로 맞춘다.
  * `URL.hostname` 의 대괄호와 zone id(`fe80::1%eth0`)는 떼고 본다. IPv6 리터럴이 아니면 null.
  *
- * `URL.hostname` 은 이미 이 모양이지만 `dns.resolve6` 결과는 `::ffff:127.0.0.1` 같은 점 표기로 온다.
+ * `URL.hostname` 은 이미 이 모양이지만 `dns.lookup` 결과는 `::ffff:127.0.0.1` 같은 점 표기로 온다.
  */
 export function normalizeIpv6Literal(host: string): string | null {
   const unbracketed =
@@ -122,7 +123,7 @@ export function embeddedIpv4FromIpv6(normalized: string): string | null {
 export function isPrivateIpv6(host: string): boolean {
   const lower = normalizeIpv6Literal(host);
   // null 은 IPv6 리터럴이 아니라는 뜻이라 사설로 보지 않는다(fail-open). 호출자 셋이 넘기는 값은 `':'` 가 든 `URL.hostname` 이나
-  // `dns.resolve6` 결과뿐이라 URL 파서 · DNS 가 이미 IPv6 로 받은 문자열이다. 이 분기는 호출 경로에서 닿지 않는다.
+  // `dns.lookup` 의 IPv6 결과뿐이라 URL 파서 · DNS 가 이미 IPv6 로 받은 문자열이다. 이 분기는 호출 경로에서 닿지 않는다.
   if (lower === null) return false;
   if (lower === '::1' || lower === '::') return true;
   if (
@@ -198,14 +199,50 @@ export function checkSsrfSafeUrl(
 }
 
 /**
- * Post-resolve SSRF 검증 — URL 호스트의 DNS A/AAAA 레코드를 resolve 한 뒤 그 결과 IP 가 사설/
- * loopback/metadata 대역인지 검사. DNS rebinding 방어용.
+ * 알림 웹훅 발송 직전 DNS 결과 검사를 켤지 정한다(CLE-T-M1P83C, CLE-EIA-NOTIFY 「SSRF」).
  *
- * 환경변수 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 호출자가 사용. default 는 비활성
- * (DNS 호출 비용 + 발송 latency 증가).
+ * - `NODE_ENV=production` 은 기본으로 켠다. `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 가 정확히 `'0'` 일 때만 끈다.
+ *   오타나 다른 표기(`'false'` · `' 0'`)로 꺼지지 않게 끄는 값을 하나로 둔다.
+ * - 그 밖의 환경은 기본으로 끈다. 정확히 `'1'` 일 때만 켠다(e2e 는 러너 사설 주소로 웹훅을 받는다).
  *
- * [Spec EIA §8.1] — "DNS rebinding 방어: 등록 시 IP 와 실제 발송 시 IP 가 다르면 발송 거부".
- * 본 헬퍼는 "발송 시 IP 가 사설 대역" 까지만 검증 (등록 시 IP 와의 비교는 보관 필요해 비용 큼).
+ * @param env 읽을 환경 변수 맵 (기본 `process.env`).
+ * @returns 검사를 켜면 `true`.
+ */
+export function isNotificationDnsGuardEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const value = env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
+  if (env.NODE_ENV === 'production') return value !== '0';
+  return value === '1';
+}
+
+/**
+ * 운영에서 발송 직전 DNS 결과 검사를 끈 채로 기동하는지(CLE-T-M1P83C). 참이면 `main.ts` 가 기동 때 경고 로그를
+ * 한 번 남긴다. 사설 IP 로 풀리는 내부 수신기에 보내는 자체 설치 배포라는 정당한 용도가 있어 기동은 막지
+ * 않는다(`ALLOW_PRIVATE_HOST_TARGETS` 와 같은 기준). 판정을 부트스트랩 본문에 두지 않고 여기서 단위 테스트한다.
+ *
+ * @param env 읽을 환경 변수 맵 (기본 `process.env`).
+ * @returns 운영에서 검사가 꺼졌으면 `true`.
+ */
+export function shouldWarnNotificationDnsGuardOff(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.NODE_ENV === 'production' && !isNotificationDnsGuardEnabled(env);
+}
+
+/**
+ * Post-resolve SSRF 검증 — URL 호스트를 OS 해석기(`dns.lookup`, getaddrinfo)로 풀어 나온 주소 중 하나라도
+ * 사설 · loopback · metadata 대역이면 거부한다. DNS rebinding 방어용이다.
+ *
+ * 켤지 말지는 호출자가 `isNotificationDnsGuardEnabled` 로 정한다(운영은 기본으로 켠다).
+ *
+ * - `lookup` 은 fetch 가 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` · 검색 도메인으로 푸는 주소도 본다.
+ *   네트워크 DNS 만 묻는 `resolve4` · `resolve6` 은 그 주소를 놓친다(CLE-EIA-NOTIFY Rationale 의 실측).
+ * - 해석에 실패하면 통과시킨다(fail-open). 풀리지 않는 이름은 fetch 도 연결하지 못한다.
+ * - 검사한 주소를 fetch 에 고정하지 않는다. 검사와 연결 사이에 DNS 응답이 바뀌는 경우는 남는다.
+ *
+ * @param hostname `new URL(url).hostname` (IPv6 리터럴은 괄호를 포함한다).
+ * @returns 통과면 `{ ok: true }`, 거부면 `{ ok: false, reason }`.
  */
 export async function checkResolvedHostIp(
   hostname: string,
@@ -222,34 +259,25 @@ export async function checkResolvedHostIp(
       ? { ok: false, reason: 'resolved IPv6 is private' }
       : { ok: true };
   }
-  // 도메인 → DNS resolve
-  let dns: typeof import('dns/promises');
+  let addresses: Array<{ address: string; family: number }>;
   try {
-    dns = await import('dns/promises');
+    addresses = await lookup(hostname, { all: true });
   } catch {
-    // dns 모듈 미가용 (browser bundling 등) — fail-open.
+    // 해석 실패 — fail-open. 이어지는 fetch 도 같은 이름을 풀지 못해 연결 오류로 끝난다.
     return { ok: true };
   }
-  let addrs: string[];
-  try {
-    const v4 = await dns.resolve4(hostname).catch(() => [] as string[]);
-    const v6 = await dns.resolve6(hostname).catch(() => [] as string[]);
-    addrs = [...v4, ...v6];
-  } catch {
-    // resolve 실패 — fail-open (NotificationDispatcher 의 fetch 가 어차피 ECONNREFUSED 처리).
-    return { ok: true };
-  }
-  for (const ip of addrs) {
-    if (isPrivateIpv4(ip)) {
+  for (const { address } of addresses) {
+    if (address.includes(':')) {
+      if (isPrivateIpv6(address)) {
+        return {
+          ok: false,
+          reason: `resolved IPv6 ${address} falls in a private range`,
+        };
+      }
+    } else if (isPrivateIpv4(address)) {
       return {
         ok: false,
-        reason: `resolved IPv4 ${ip} falls in a private/loopback/metadata range`,
-      };
-    }
-    if (ip.includes(':') && isPrivateIpv6(ip)) {
-      return {
-        ok: false,
-        reason: `resolved IPv6 ${ip} falls in a private range`,
+        reason: `resolved IPv4 ${address} falls in a private/loopback/metadata range`,
       };
     }
   }

@@ -160,6 +160,7 @@ CI 파이프라인에서는 `kustomize edit set image clemvion/backend=<registry
 | -- | ---- |
 | `DB_USERNAME`, `DB_PASSWORD` | 외부 DB 자격증명 |
 | `JWT_SECRET` | 32 byte 이상 랜덤 |
+| `INTERACTION_JWT_SECRET` | 선택. 외부 인터랙션 토큰(`iext_*`)의 서명 비밀. 키를 두지 않으면 `JWT_SECRET` 으로 서명한다. 키를 두면 `NODE_ENV=production` 은 빈 값 · 공백뿐인 값 · 예시값 · 앞뒤 공백을 뗀 길이 32자 미만이면 기동하지 않는다. 바꾸면 이미 발급한 `iext_*` 토큰이 모두 무효가 된다 |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | IAM 사용자 / MinIO 루트 |
 | `ENCRYPTION_KEY` | 정확히 32 byte hex (= 64 hex char). `NODE_ENV=production` 은 미설정이거나 예시값(`REPLACE_ME_32_BYTE_HEX` 등)이면 기동하지 않는다 |
 | `INTEGRATION_ENCRYPTION_KEY` | 임의 길이, SHA-256 으로 파생됨. `NODE_ENV=production` 은 미설정이거나 예시값(`REPLACE_ME` 등)이면 기동하지 않는다. 바꾸면 기존 암호문을 읽지 못한다 |
@@ -233,18 +234,25 @@ docker build -f codebase/frontend/Dockerfile \
 
 트리거의 알림 웹훅(트리거 본문의 `notification`)은 등록 URL 로 실행 이벤트를 POST 합니다. 배포 전에 아래 세 가지를 확인합니다.
 
-**DNS rebinding 방어는 기본으로 꺼져 있습니다.** backend 환경 변수 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 가 정확히 `"1"` 일 때만 켜집니다. `true` 등 다른 값은 꺼진 것으로 봅니다.
+**DNS rebinding 방어는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있습니다.** backend 환경 변수 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 가 정확히 `"0"` 일 때만 꺼집니다. `false` 등 다른 값은 켜진 것으로 봅니다. 운영 밖에서는 정확히 `"1"` 일 때만 켜집니다.
 
-- 꺼져 있으면 등록 때와 발송 때 URL 문자열 검사만 합니다. URL 에 직접 적은 사설 IP · loopback · 메타데이터 주소는 막습니다. 호스트 이름이 사설 IP 로 풀리는 경우는 막지 못합니다. 등록 뒤 DNS 레코드를 바꾸는 DNS rebinding 도 여기에 들어갑니다.
-- 켜면 발송 직전마다 URL 의 호스트를 DNS 로 조회합니다. 조회한 IP 가 사설 · loopback · 메타데이터 대역이면 보내지 않고 트리거의 `notificationHealth` 를 `degraded` 로 바꿉니다.
-- 켜면 발송마다 DNS 조회가 하나 늘어 지연이 커집니다. DNS 조회가 실패하면 막지 않고 보냅니다(fail-open). 조회한 IP 를 실제 연결에 고정하지는 않습니다.
-- 워크스페이스 사용자가 임의의 알림 URL 을 등록할 수 있는 환경이면 켜 두기를 권장합니다.
+- 켜져 있으면 발송 직전마다 URL 의 호스트를 OS 해석기(`/etc/hosts` · 클러스터 DNS · 검색 도메인)로 조회합니다. 나온 IP 가 하나라도 사설 · loopback · 메타데이터 대역이면 보내지 않고 트리거의 `notificationHealth` 를 `degraded` 로 바꿉니다. 이 거부는 재시도하지 않습니다.
+- 발송마다 DNS 조회가 하나 늘어 지연이 조금 커집니다. DNS 조회가 실패하면 막지 않고 보냅니다(fail-open). 조회한 IP 를 실제 연결에 고정하지는 않습니다.
+- 꺼 두면 등록 때와 발송 때 URL 문자열 검사만 합니다. URL 에 직접 적은 사설 IP · loopback · 메타데이터 주소는 막지만, 호스트 이름이 사설 IP 로 풀리는 경우는 막지 못합니다. 등록 뒤 DNS 레코드를 바꾸는 DNS rebinding 도 여기에 들어갑니다.
 
-켜는 방법은 backend ConfigMap(`base/configmap.yaml` 또는 overlay 의 patch)에 값을 넣고 backend 를 다시 롤아웃하는 것입니다.
+이전 버전은 이 방어가 기본으로 꺼져 있었습니다. 사설 IP 로 풀리는 호스트 이름(클러스터 서비스 이름, 사내 DNS 이름 등)을 알림 URL 로 쓰던 트리거는 배포 직후부터 발송되지 않고 `degraded` 가 됩니다. 배포 뒤 아래 쿼리로 그런 트리거를 찾습니다. 발송이 한 번 시도된 뒤에야 보입니다.
+
+```sql
+SELECT id, workspace_id, notification_last_error
+FROM trigger
+WHERE notification_last_error LIKE 'DNS rebinding 차단:%';
+```
+
+내부 수신기에 알림을 보내야 하는 자체 설치 배포만 끕니다. backend ConfigMap(`base/configmap.yaml` 또는 overlay 의 patch)에 값을 넣고 backend 를 다시 롤아웃합니다. 끈 채로 기동하면 backend 가 `[SECURITY]` 경고 로그를 한 번 남깁니다.
 
 ```yaml
 data:
-  NOTIFICATION_ENFORCE_DNS_REBIND_GUARD: "1"
+  NOTIFICATION_ENFORCE_DNS_REBIND_GUARD: "0"
 ```
 
 **리다이렉트는 따라가지 않습니다.** 설정으로 바꿀 수 없습니다. 알림 URL 이 3xx 로 답하면 발송 실패로 보고 다른 실패와 같은 간격으로 다시 보냅니다. 그래서 공개 호스트가 리다이렉트로 사설 · loopback · 메타데이터 주소를 가리켜도 그 주소로는 보내지 않습니다. 리다이렉트하는 URL 대신 최종 주소를 알림 URL 로 등록하게 안내합니다.

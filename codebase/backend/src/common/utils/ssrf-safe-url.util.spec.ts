@@ -1,10 +1,25 @@
+import type { LookupAddress } from 'node:dns';
+import { lookup } from 'node:dns/promises';
 import {
+  checkResolvedHostIp,
   checkSsrfSafeUrl,
   embeddedIpv4FromIpv6,
+  isNotificationDnsGuardEnabled,
   isPrivateIpv4,
   isPrivateIpv6,
   normalizeIpv6Literal,
+  shouldWarnNotificationDnsGuardOff,
 } from './ssrf-safe-url.util';
+
+// 발송 직전 DNS 검사는 OS 해석기(`lookup`)를 부른다. 단위 테스트는 실제 DNS 에 닿지 않게 가짜로 바꾸고 해석 결과를
+// 테스트마다 정한다. 리터럴 IP 경로는 `lookup` 을 부르지 않는다.
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(),
+}));
+// 검사는 `lookup(host, { all: true })` 오버로드만 쓴다 — `jest.mocked(lookup)` 은 단일 주소 오버로드로 잡혀 배열을 거부한다.
+const mockedLookup = lookup as unknown as jest.MockedFunction<
+  (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
+>;
 
 describe('checkSsrfSafeUrl', () => {
   const ORIG_ENV = process.env.ALLOW_HTTP_HOOKS;
@@ -185,7 +200,7 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
   });
 
   /**
-   * 괄호 없는 점 형은 `dns.resolve6` 가 돌려주는 모양이다(발송 직전 DNS rebinding 검사가 이 값을 그대로 넘긴다).
+   * 괄호 없는 점 형은 `dns.lookup` 이 IPv6 로 돌려주는 모양이다(발송 직전 DNS rebinding 검사가 이 값을 그대로 넘긴다).
    */
   it.each([
     ['::ffff:127.0.0.1', '점 형'],
@@ -309,11 +324,9 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
 });
 
 describe('checkResolvedHostIp — DNS rebinding 방어 [Spec EIA §8.1]', () => {
-  // 본 테스트는 DNS resolve mock 없이 literal IP 경로만 검증. 실제 도메인 resolve 는 e2e 또는
-  // 통합 환경에서 검증 — unit 에서는 결정성 위해 literal 경로만.
-  const { checkResolvedHostIp } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('./ssrf-safe-url.util') as typeof import('./ssrf-safe-url.util');
+  beforeEach(() => {
+    mockedLookup.mockReset();
+  });
 
   it('빈 hostname → ok:false', async () => {
     const r = await checkResolvedHostIp('');
@@ -362,5 +375,166 @@ describe('checkResolvedHostIp — DNS rebinding 방어 [Spec EIA §8.1]', () => 
   it('공인 IPv4 를 품은 IPv6 리터럴 [::ffff:101:a00] → ok:true', async () => {
     const r = await checkResolvedHostIp('[::ffff:101:a00]');
     expect(r.ok).toBe(true);
+  });
+
+  it('리터럴 IP 는 DNS 를 묻지 않는다', async () => {
+    await checkResolvedHostIp('8.8.8.8');
+    await checkResolvedHostIp('[::ffff:7f00:1]');
+    expect(mockedLookup).not.toHaveBeenCalled();
+  });
+
+  // CLE-T-M1P83C — 도메인은 fetch 와 같은 OS 해석기(`lookup`)로 푼다. `/etc/hosts` · 검색 도메인도 fetch 가 실제로
+  // 닿는 주소와 같게 본다.
+  describe('도메인 해석 결과 검사 (lookup)', () => {
+    it('lookup 을 { all: true } 로 한 번 부른다', async () => {
+      mockedLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r).toEqual({ ok: true });
+      expect(mockedLookup).toHaveBeenCalledTimes(1);
+      expect(mockedLookup).toHaveBeenCalledWith('hooks.example.com', {
+        all: true,
+      });
+    });
+
+    it.each([
+      ['10.0.0.5', 4],
+      ['127.0.0.1', 4],
+      ['169.254.169.254', 4],
+      ['172.17.0.2', 4],
+      ['100.64.0.1', 4],
+    ])('사설 IPv4 %s 로 풀리면 ok:false', async (address, family) => {
+      mockedLookup.mockResolvedValue([{ address, family }]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain(address);
+    });
+
+    it.each([
+      ['::1', 6],
+      ['fd00::1', 6],
+      ['fe80::1', 6],
+      ['::ffff:127.0.0.1', 6],
+      ['64:ff9b::a00:1', 6],
+    ])('사설 IPv6 %s 로 풀리면 ok:false', async (address, family) => {
+      mockedLookup.mockResolvedValue([{ address, family }]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain(address);
+    });
+
+    it('주소 하나라도 사설이면 ok:false (공인 · 사설 섞임)', async () => {
+      mockedLookup.mockResolvedValue([
+        { address: '93.184.216.34', family: 4 },
+        { address: '2606:2800:220:1::1', family: 6 },
+        { address: '10.1.2.3', family: 4 },
+      ]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('10.1.2.3');
+    });
+
+    it('공인 IPv4 · IPv6 만이면 ok:true', async () => {
+      mockedLookup.mockResolvedValue([
+        { address: '93.184.216.34', family: 4 },
+        { address: '2606:2800:220:1::1', family: 6 },
+      ]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('해석 실패(ENOTFOUND)는 ok:true — fail-open', async () => {
+      mockedLookup.mockRejectedValue(
+        Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+      );
+      const r = await checkResolvedHostIp('nowhere.example.invalid');
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('해석 결과가 비면 ok:true', async () => {
+      mockedLookup.mockResolvedValue([]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r).toEqual({ ok: true });
+    });
+  });
+});
+
+describe('isNotificationDnsGuardEnabled (CLE-T-M1P83C)', () => {
+  const env = (
+    nodeEnv: string | undefined,
+    value: string | undefined,
+  ): NodeJS.ProcessEnv => {
+    const e: NodeJS.ProcessEnv = {};
+    if (nodeEnv !== undefined) e.NODE_ENV = nodeEnv;
+    if (value !== undefined) e.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = value;
+    return e;
+  };
+
+  // 운영은 기본으로 켠다. 정확히 '0' 일 때만 끈다 — 오타 · 다른 표기로 꺼지지 않게 한다.
+  it.each([undefined, '1', '', 'false', 'off', ' 0', '0 ', 'no'])(
+    'production 에서 값 %p 이면 켜진다',
+    (value) => {
+      expect(isNotificationDnsGuardEnabled(env('production', value))).toBe(
+        true,
+      );
+    },
+  );
+
+  it('production 에서 정확히 "0" 이면 꺼진다', () => {
+    expect(isNotificationDnsGuardEnabled(env('production', '0'))).toBe(false);
+  });
+
+  // 운영 밖은 기본으로 끈다. 정확히 '1' 일 때만 켠다(지금까지의 opt-in 규칙).
+  it.each(['development', 'test', undefined])(
+    'NODE_ENV=%p 에서 정확히 "1" 이면 켜진다',
+    (nodeEnv) => {
+      expect(isNotificationDnsGuardEnabled(env(nodeEnv, '1'))).toBe(true);
+    },
+  );
+
+  it.each([undefined, '0', 'true', '', ' 1'])(
+    'production 밖에서 값 %p 이면 꺼진다',
+    (value) => {
+      expect(isNotificationDnsGuardEnabled(env('test', value))).toBe(false);
+    },
+  );
+
+  it('인자를 주지 않으면 process.env 를 읽는다', () => {
+    const origNode = process.env.NODE_ENV;
+    const origFlag = process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
+      expect(isNotificationDnsGuardEnabled()).toBe(true);
+      process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = '0';
+      expect(isNotificationDnsGuardEnabled()).toBe(false);
+    } finally {
+      process.env.NODE_ENV = origNode;
+      if (origFlag === undefined)
+        delete process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
+      else process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = origFlag;
+    }
+  });
+});
+
+describe('shouldWarnNotificationDnsGuardOff (CLE-T-M1P83C)', () => {
+  it('production 에서 정확히 "0" 이면 경고한다', () => {
+    expect(
+      shouldWarnNotificationDnsGuardOff({
+        NODE_ENV: 'production',
+        NOTIFICATION_ENFORCE_DNS_REBIND_GUARD: '0',
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    ['production', undefined],
+    ['production', '1'],
+    ['production', 'false'],
+    ['test', '0'],
+    ['development', undefined],
+  ])('NODE_ENV=%s · 값 %p 이면 경고하지 않는다', (nodeEnv, value) => {
+    const env: NodeJS.ProcessEnv = { NODE_ENV: nodeEnv };
+    if (value !== undefined) env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = value;
+    expect(shouldWarnNotificationDnsGuardOff(env)).toBe(false);
   });
 });

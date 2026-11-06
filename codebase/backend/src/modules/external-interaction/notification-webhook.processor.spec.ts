@@ -1,3 +1,5 @@
+import type { LookupAddress } from 'node:dns';
+import { lookup } from 'node:dns/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
@@ -18,6 +20,15 @@ import {
   verifySignatureHeader,
 } from './notification-signature.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
+
+// 발송 직전 DNS 결과 검사(`checkResolvedHostIp`)가 부르는 OS 해석기. 검사는 운영 기본 또는 opt-in 때만 돌아서 다른
+// 테스트는 이 가짜에 닿지 않는다. 닿으면 공인 주소 하나로 답한다(실제 DNS 를 묻지 않게).
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(),
+}));
+const mockedLookup = lookup as unknown as jest.MockedFunction<
+  (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
+>;
 
 type Mock = jest.Mock;
 type RepoMocks = {
@@ -811,5 +822,140 @@ describe('NotificationWebhookProcessor.process', () => {
         expect.objectContaining({ notificationHealth: 'degraded' }),
       );
     });
+  });
+});
+
+// CLE-T-M1P83C — 발송 직전 DNS 결과 검사는 운영에서 기본으로 켜고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 으로만 끈다.
+// 운영 밖은 `=1` 일 때만 켠다. 켜지면 사설 주소로 풀리는 호스트에는 보내지 않고 발송 건강도를 degraded 로 둔다.
+describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () => {
+  const ENV_KEYS = ['NODE_ENV', 'NOTIFICATION_ENFORCE_DNS_REBIND_GUARD'] as const;
+  let saved: Record<(typeof ENV_KEYS)[number], string | undefined>;
+  let triggerRepo: RepoMocks;
+  let fetchSpy: jest.Mock;
+
+  const setEnv = (nodeEnv: string, flag: string | undefined): void => {
+    process.env.NODE_ENV = nodeEnv;
+    if (flag === undefined) delete process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD;
+    else process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD = flag;
+  };
+
+  const makeProcessor = (): NotificationWebhookProcessor => {
+    triggerRepo = makeTriggerRepo() as unknown as RepoMocks;
+    const secrets = makeSecretsMock();
+    (secrets.resolve as jest.Mock).mockRejectedValue(new Error('not found'));
+    return new NotificationWebhookProcessor(
+      triggerRepo as never,
+      makeExecutionRepo() as never,
+      secrets as never,
+      { consume: jest.fn().mockResolvedValue(false) } as never,
+    );
+  };
+
+  beforeEach(() => {
+    saved = {
+      NODE_ENV: process.env.NODE_ENV,
+      NOTIFICATION_ENFORCE_DNS_REBIND_GUARD:
+        process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD,
+    };
+    mockedLookup.mockReset();
+    mockedLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchSpy = jest.fn().mockResolvedValue({ status: 200, statusText: 'OK' });
+    (globalThis as unknown as { fetch: Mock }).fetch = fetchSpy;
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+    jest.restoreAllMocks();
+    (globalThis as unknown as { fetch: typeof realFetch }).fetch = realFetch;
+  });
+
+  it('운영 기본(값 없음) — 사설 주소로 풀리면 보내지 않고 degraded 로 둔다', async () => {
+    setEnv('production', undefined);
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    mockedLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(mockedLookup).toHaveBeenCalledWith('customer.example.com', {
+      all: true,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+      notificationHealth: 'degraded',
+      notificationLastError: expect.stringMatching(
+        /^DNS rebinding 차단: resolved IPv4 10\.0\.0\.5 /,
+      ),
+    });
+  });
+
+  it('운영 기본(값 없음) — 공인 주소로 풀리면 그대로 보낸다', async () => {
+    setEnv('production', undefined);
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(mockedLookup).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+      notificationHealth: 'healthy',
+      notificationLastError: null,
+    });
+  });
+
+  it('운영 기본 — 해석 실패는 그대로 보낸다(fail-open)', async () => {
+    setEnv('production', undefined);
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    mockedLookup.mockRejectedValue(
+      Object.assign(new Error('getaddrinfo EAI_AGAIN'), { code: 'EAI_AGAIN' }),
+    );
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('운영에서 =0 이면 검사하지 않고 보낸다', async () => {
+    setEnv('production', '0');
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    mockedLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(mockedLookup).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('운영 밖 기본(값 없음)은 검사하지 않는다', async () => {
+    setEnv('test', undefined);
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    mockedLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(mockedLookup).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('운영 밖에서 =1 이면 검사한다', async () => {
+    setEnv('test', '1');
+    const processor = makeProcessor();
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    mockedLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      'trg-1',
+      expect.objectContaining({ notificationHealth: 'degraded' }),
+    );
   });
 });
