@@ -165,6 +165,13 @@ jobs:
         codebase/backend/Dockerfile
         codebase/frontend/Dockerfile
         codebase/frontend/Dockerfile.playwright-e2e
+        # 운영 부팅 가드 spec 의 예시 파일 목록. test_backend_example_key_ci_coverage.py 가 이
+        # spec 의 `const EXAMPLE_FILES = [...]` 를 읽어 backend-checks 의 pathspecs 와 대조한다.
+        # #1637 이 배열 이름을 바꿨는데 등재가 없어 그 PR 에서 가드가 안 돌았고 main 이 깨진 채
+        # 남았다(CLE-T-HRZRC8). `codebase/` 아래라 test_harness_checks_paths_coverage.py 가 제품
+        # 경로로 빼므로 그 테스트의 SpecTriggersHarnessChecksTest 가 등재를 강제한다. backend 소스
+        # 전체로 넓히지 않고 이 파일 하나만 등재한다.
+        codebase/backend/src/common/config/production-guards.spec.ts
 
   unittest:
     needs: changes
