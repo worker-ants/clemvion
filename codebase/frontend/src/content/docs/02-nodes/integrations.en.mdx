@@ -151,7 +151,8 @@ Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_
 
 ### Ports
 
-- `out` — delivery result
+- `out` — delivery result. A partial reject by the server still exits here, with the rejected addresses in `rejected`.
+- `error` — the mail could not be sent. Tell the cause apart by `output.error.code` (e.g. `EMAIL_NO_RECIPIENTS`, `EMAIL_SEND_FAILED`, `EMAIL_HOST_BLOCKED`).
 
 <Callout type="note">
 The echoed `body` field in the output is capped at **256KB**. If it overflows, the body is truncated and `bodyTruncated: true` is added. The actual mail sent over SMTP is unaffected — only the echo body used by downstream nodes carries the cap.
@@ -188,7 +189,7 @@ The echoed `body` field in the output is capped at **256KB**. If it overflows, t
 </Example>
 
 <Callout type="note">
-To/CC/BCC accept both arrays and comma-separated strings. Values are trimmed, blanks dropped, and if no valid recipient remains the run fails with `"No valid recipients"`.
+To/CC/BCC take arrays. Each entry is trimmed and blanks are dropped. If no recipient is left in To, nothing is sent and the node exits through the error port with `EMAIL_NO_RECIPIENTS`. This happens when a recipient expression evaluates to an empty value.
 </Callout>
 
 ### SMTP security modes

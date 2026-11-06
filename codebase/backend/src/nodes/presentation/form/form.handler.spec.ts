@@ -112,6 +112,83 @@ describe('FormHandler', () => {
       expect(result.output).toEqual({});
     });
 
+    // Principle 7 — config 에코는 스키마 필드(title · description · submitLabel · fields)만 명시 나열한다.
+    // 스키마 밖 키(자격 증명 모양 포함)를 펼침으로 함께 내보내지 않는다.
+    describe('config echo lists only schema fields', () => {
+      const ALLOWED_KEYS = ['description', 'fields', 'submitLabel', 'title'];
+      const SECRET = 'sk-live-0123456789abcdef0123456789abcdef';
+      const configWithExtras = {
+        ...baseConfig,
+        description: 'Tell us about you',
+        apiKey: SECRET,
+        password: 'hunter2',
+        credentials: { token: SECRET },
+        someFutureKey: 'not-in-schema',
+      };
+
+      it.each([
+        ['context.rawConfig is set (engine dispatch)', true],
+        ['context.rawConfig is absent (direct call fallback)', false],
+      ])('drops unlisted keys when %s', async (_label, withRawConfig) => {
+        const ctx: ExecutionContext = withRawConfig
+          ? { ...context, rawConfig: Object.freeze({ ...configWithExtras }) }
+          : context;
+        const result = (await handler.execute(
+          null,
+          configWithExtras,
+          ctx,
+        )) as unknown as { config: Record<string, unknown> };
+
+        for (const key of Object.keys(result.config)) {
+          expect(ALLOWED_KEYS).toContain(key);
+        }
+        expect(result.config).not.toHaveProperty('apiKey');
+        expect(result.config).not.toHaveProperty('password');
+        expect(result.config).not.toHaveProperty('credentials');
+        expect(result.config).not.toHaveProperty('someFutureKey');
+        expect(JSON.stringify(result.config)).not.toContain(SECRET);
+        expect(JSON.stringify(result.config)).not.toContain('hunter2');
+        // 스키마 필드는 그대로 에코한다.
+        expect(result.config).toEqual({
+          title: 'Sign Up',
+          description: 'Tell us about you',
+          submitLabel: 'Submit',
+          fields: baseConfig.fields,
+        });
+      });
+
+      it('echoes the raw template, not the evaluated config', async () => {
+        const rawConfig = {
+          title: 'Hi {{ $input.name }}',
+          submitLabel: 'Send',
+          fields: [
+            { name: 'name', type: 'text', defaultValue: '{{ $input.name }}' },
+            { name: 'age', type: 'number' },
+          ],
+        };
+        const evaluatedConfig = {
+          title: 'Hi Alice',
+          submitLabel: 'Send',
+          fields: [
+            { name: 'name', type: 'text', defaultValue: 'Alice' },
+            { name: 'age', type: 'number' },
+          ],
+        };
+        const result = (await handler.execute(null, evaluatedConfig, {
+          ...context,
+          rawConfig: Object.freeze({ ...rawConfig }),
+        })) as unknown as {
+          config: { title: string; fields: Array<{ defaultValue?: unknown }> };
+          output: unknown;
+        };
+
+        expect(result.config.fields[0].defaultValue).toBe('{{ $input.name }}');
+        expect(result.config.title).toBe('Hi {{ $input.name }}');
+        // 대기 출력은 여전히 빈 객체다(REQ-FORM-007).
+        expect(result.output).toEqual({});
+      });
+    });
+
     it('does not depend on input', async () => {
       const result = (await handler.execute(
         { some: 'input' },

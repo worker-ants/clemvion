@@ -2,21 +2,21 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
-requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-009", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026"]
+requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "452e180b285268f3f5ab176e8d412b6191f6274bc595d767f41796b447ab48d6"
+content_hash: "66aa10bda9ff58292885e451abf6e6060bc4359b33b50669463f3f899da89608"
 read_as: "approved_fallback"
-task: "CLE-T-PTC4SF"
+task: "CLE-T-4EV45V"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "247656b28edb60ec25e680aab21242f12984be30979c3ba3a957c1c7133fb4f1"
-etag: "sha256-b61ef5b1a01fd2f2c259b3e912478ff96b49cc65bc699d9c9beb2ff005e213a1"
+mirror_sha256: "7a53834ab9cdc4aa9e532ff51a2fcb98a24befdeb25c99f944389ae4536806ab"
+etag: "sha256-10306af5245d9bba1d3edaf0a7a41bd9af92c1401ffe50f2660eac1a2a5c0c13"
 ---
-> 구현 상태: 부분 구현 (일부 에러 코드 노출은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (통합 없음 · 워크스페이스 누락의 전용 에러 코드는 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -34,11 +34,10 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - REQ-EMAIL-006 IF 첨부 항목에 `path`·`href` 키가 있으면 THE SYSTEM SHALL 그 키를 지우고 `disableFileAccess`·`disableUrlAccess` 를 켠 채 보낸다.
 - REQ-EMAIL-007 IF 수신자 필드(`to`·`cc`·`bcc`)가 배열이 아니면 THE SYSTEM SHALL 스키마와 검증기 단계에서 거부한다.
 - REQ-EMAIL-008 WHEN 수신자를 정규화하면 THE SYSTEM SHALL 각 원소를 trim 하고 빈 문자열을 뺀다.
-- REQ-EMAIL-009 IF 정규화한 `to` 가 비면 THE SYSTEM SHALL 에러 포트로 보내지 않고 노드 실행을 실패시킨다.
-- REQ-EMAIL-010 IF 정규화한 `to` 가 비면 THE SYSTEM SHALL `EMAIL_NO_RECIPIENTS` 로 에러 포트에 보낸다. (미구현)
+- REQ-EMAIL-010 IF 정규화한 `to` 가 비면 THE SYSTEM SHALL `EMAIL_NO_RECIPIENTS` 로 에러 포트에 보낸다.
 - REQ-EMAIL-011 WHEN 평가된 본문이 256KB 를 넘으면 THE SYSTEM SHALL `output.body` 를 자르고 `output.bodyTruncated` 를 `true` 로 둔다.
-- REQ-EMAIL-012 WHEN dry-run 으로 실행되면 THE SYSTEM SHALL SMTP 를 건드리지 않고 mock 결과로 `out` 포트에 보낸다.
-- REQ-EMAIL-013 WHILE `IntegrationsService` 가 주입되지 않은 동안 THE SYSTEM SHALL 외부 호출 없이 흐름 지시 상태 `requires_integration` 을 돌려준다.
+- REQ-EMAIL-012 WHEN 정규화한 `to` 가 비지 않은 채 dry-run 으로 실행되면 THE SYSTEM SHALL SMTP 를 건드리지 않고 mock 결과로 `out` 포트에 보낸다.
+- REQ-EMAIL-013 WHEN 정규화한 `to` 가 비지 않은 채 `IntegrationsService` 가 주입되지 않았으면 THE SYSTEM SHALL 외부 호출 없이 흐름 지시 상태 `requires_integration` 을 돌려준다.
 - REQ-EMAIL-014 WHEN SMTP 로 보내기 전이면 THE SYSTEM SHALL `credentials.host` 에 사설망 차단을 적용한다.
 - REQ-EMAIL-015 IF SMTP 호스트가 사설망 대역을 가리키면 THE SYSTEM SHALL `EMAIL_HOST_BLOCKED` 로 에러 포트에 보낸다.
 - REQ-EMAIL-016 WHEN 이메일을 보내면 THE SYSTEM SHALL 보낸 사람을 `credentials.default_from` 으로 둔다.
@@ -96,18 +95,20 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 |------|----|-------|------|---------|------|
 | 입력 | `in` | Input | data | false | 입력 데이터. 핸들러는 직접 쓰지 않고 표현식에서만 참조한다 |
 | 출력 | `out` | Output | data | false | 발송 성공(일부 거부 포함) |
-| 출력 | `error` | Error | error | false | 런타임 전송 실패. `EMAIL_SEND_FAILED`·`EMAIL_HOST_BLOCKED`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` |
+| 출력 | `error` | Error | error | false | 런타임 실패(수신자 없음 · 통합 해소 실패 · 전송 실패 · 사설망 차단). `EMAIL_SEND_FAILED`·`EMAIL_HOST_BLOCKED`·`EMAIL_NO_RECIPIENTS`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` |
 
-동적 포트는 없다. `handler.validate()` 실패와 빈 `to` 가드(try 밖)는 throw 로 노드 실행 자체를 실패시킨다. `execute()` 의 try/catch 안에서 난 실패만 `error` 포트로 간다.
+동적 포트는 없다. `handler.validate()` 실패만 throw 로 노드 실행 자체를 실패시킨다. 빈 `to` 를 포함해 `execute()` 의 try/catch 안에서 난 실패는 `error` 포트로 간다.
 
 ## 실행 로직
+
+핸들러는 아래 순서로 실행한다. 순서는 본문 제한 → 빈 수신자 확인 → dry-run 분기 → 서비스 미주입 확인 → 통합 조회 · 발송이다. 3단계(본문 제한)는 `execute()` 의 try 블록 앞에 있다. 4단계(빈 수신자 확인)부터 9단계(SMTP 발송)까지는 try/catch 범위 안이다. 그래서 4단계에서 던진 예외는 5단계(dry-run)와 6단계(서비스 미주입)에 닿기 전에 catch 로 가서 에러 포트로 나간다.
 
 1. **사전 검증**(`validate()`): `evaluateMetadataBlockingErrors`(경고 규칙 평가), `validateConfig`(수신자 배열만 허용), `subject`·`body` 문자열 확인, `bodyType` enum 확인. 실패하면 throw 로 노드 실행이 시작되지 않는다(실행 실패).
 2. **수신자 정규화**: `to`·`cc`·`bcc` 는 배열만 받는다.
    - 배열이면 원소를 `trim()` 하고 빈 문자열을 뺀다.
    - 배열이 아니면 방어적으로 `[]` 를 돌려준다. 원본은 스키마와 검증기가 이미 거부하므로 표준 경로에서는 도달하지 않는다. 옛 데이터와 직접 호출 경로를 위한 안전망이다.
 3. **본문 제한**: 평가된 `body` 를 `truncateBodyForOutput`(256KB)으로 제한한다. 넘치면 `output.bodyTruncated: true` 를 붙인다.
-4. **빈 수신자 확인**: 정규화한 `to.length === 0` 이면 try 블록 **밖**에서 `Error('No valid recipients after normalizing the \`to\` field')` 를 던진다. 에러 포트로 가지 않고 노드 실행 자체가 실패한다.
+4. **빈 수신자 확인**: 정규화한 `to.length === 0` 이면 try 블록 **안**에서 `IntegrationError('EMAIL_NO_RECIPIENTS')` 를 던진다. 메시지는 ``No valid recipients after normalizing the `to` field`` 다. catch 가 이 예외를 잡아 `EMAIL_NO_RECIPIENTS` 로 에러 포트에 보낸다. 통합을 얻기 전이라 활동 로그는 남지 않는다. 이 확인은 dry-run 분기와 서비스 미주입 확인보다 앞에 있다. 그래서 dry-run 과 서비스 미주입 환경에서도 빈 수신자는 에러 포트로 간다.
 5. **dry-run 분기**: `context.variables.__dryRun === true` 면(`metadata.supportsDryRun: true`) 실제 SMTP 발송 전에 `buildDryRunMock('send_email', { to, subject })` 로 끝낸다. 외부 SMTP 를 건드리지 않고 `out` 포트로 진행한다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) dry-run).
 6. **서비스 미주입 확인**: `IntegrationsService` 가 주입되지 않았으면 외부 호출 없이 `status: 'requires_integration'` 을 돌려준다(아래 "서비스 미주입").
 7. **통합 조회**: `getForExecution` 으로 SMTP 자격 증명을 복호화한다. 넘기는 인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다. `serviceType !== 'email'`·`status !== 'connected'`·필수 필드 누락은 `IntegrationError` 로 던져 catch 에서 에러 포트로 보낸다. 없는 `integrationId` 는 `NotFoundException`(`IntegrationError` 가 아님)이라 `EMAIL_SEND_FAILED` 로 흡수된다.
@@ -179,7 +180,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 ### 런타임 전송 실패 (`error`)
 
-`IntegrationError`(자격 증명 미충족, 유형·연결 상태 불일치) 또는 nodemailer `sendMail` 의 일반 전송 실패가 catch 로 떨어진 경우다.
+`IntegrationError`(빈 수신자, 자격 증명 미충족, 유형·연결 상태 불일치) 또는 nodemailer `sendMail` 의 일반 전송 실패가 catch 로 떨어진 경우다.
 
 ```json
 {
@@ -219,7 +220,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 | `output.bodyTruncated?` | boolean | 런타임 | 256KB 를 넘었을 때 `true` |
 | `output.error.code` | string (UPPER_SNAKE_CASE) | 핸들러 | 아래 에러 코드 표(Principle 3.2) |
 | `output.error.message` | string | 핸들러 | 사람이 읽는 메시지. `sanitizeMessage` 가 자격 증명·비밀 토큰을 `***` 로 가린다 |
-| `output.error.details.to` | string[] | 핸들러 | 정규화한 수신자를 `maskEmailForErrorDetails` 로 가린 값(`a***@example.com`) |
+| `output.error.details.to` | string[] | 핸들러 | 정규화한 수신자를 `maskEmailForErrorDetails` 로 가린 값(`a***@example.com`). 빈 수신자(`EMAIL_NO_RECIPIENTS`)면 `[]` 다 |
 | `output.error.details.subject` | string | 핸들러 | `truncateForErrorDetails(subject, 200)` 로 자른 제목 |
 | `output.error.details.integrationCode?` | string | 핸들러 | 원인이 `IntegrationError` 일 때만 넣는다. `output.error.code` 와 같은 값(관측 호환) |
 | `meta.durationMs` | number | 핸들러 | 실패까지 걸린 시간 |
@@ -235,7 +236,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 ### 서비스 미주입 (흐름 지시 상태)
 
-엔진이 `IntegrationsService` 를 주입하지 않은 환경(단위 테스트, 부팅 단계 등)에서만 생긴다. 외부 호출 없이 바로 돌려주며, `output: null` 이 아니라 `status: 'requires_integration'` 으로 식별한다. 컨테이너의 엔진 덮어쓰기 신호([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 9)와 구별하기 위해서다.
+엔진이 `IntegrationsService` 를 주입하지 않은 환경(단위 테스트, 부팅 단계 등)에서만 생긴다. 외부 호출 없이 바로 돌려주며, `output: null` 이 아니라 `status: 'requires_integration'` 으로 식별한다. 컨테이너의 엔진 덮어쓰기 신호([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 9)와 구별하기 위해서다. 정규화한 `to` 가 비면 이 분기에 오기 전에 REQ-EMAIL-010 대로 `EMAIL_NO_RECIPIENTS` 로 에러 포트에 나간다.
 
 ```json
 {
@@ -269,7 +270,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 ### dry-run (`out`, mock)
 
-`context.variables.__dryRun === true` 인 재실행 컨텍스트(`metadata.supportsDryRun: true`)에서만 생긴다. 설정 검증을 모두 통과한 뒤 실제 SMTP 발송 전에 끝나며, 어떤 SMTP 나 provider 도 건드리지 않고 정상(`out`) 흐름으로 진행한다. dry-run 규칙의 단일 기준은 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)이다. 이 분기는 본문 제한과 빈 수신자 확인 뒤, 서비스 미주입 확인과 실제 SMTP 발송 **앞**에 있다. `port` 는 생략한다(기본 `out`).
+`context.variables.__dryRun === true` 인 재실행 컨텍스트(`metadata.supportsDryRun: true`)에서만 생긴다. 설정 검증을 모두 통과한 뒤 실제 SMTP 발송 전에 끝나며, 어떤 SMTP 나 provider 도 건드리지 않고 정상(`out`) 흐름으로 진행한다. dry-run 규칙의 단일 기준은 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)이다. 이 분기는 본문 제한과 빈 수신자 확인 뒤, 서비스 미주입 확인과 실제 SMTP 발송 **앞**에 있다. 정규화한 `to` 가 비면 이 분기에 오기 전에 REQ-EMAIL-010 대로 `EMAIL_NO_RECIPIENTS` 로 에러 포트에 나간다. `port` 는 생략한다(기본 `out`).
 
 ```json
 {
@@ -316,18 +317,18 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 |------|------|
 | `EMAIL_SEND_FAILED` | nodemailer `sendMail` 이 던진 일반 전송 실패(네트워크·SMTP 응답 에러 등). `IntegrationError` 가 **아닌** 모든 catch 분기의 fallback 이다. 그래서 없는 `integrationId` 의 `NotFoundException` 과 워크스페이스 누락의 일반 `Error` 도 현재 이 코드로 흡수된다 |
 | `EMAIL_HOST_BLOCKED` | SMTP `host` 가 사설·loopback 대역이라 사설망 차단에 막힘. 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. `IntegrationError('EMAIL_HOST_BLOCKED')` 로 던져 그대로 나온다 |
+| `EMAIL_NO_RECIPIENTS` | 정규화한 `to` 가 비어 보낼 곳이 없음. 수신자 표현식이 빈 값으로 평가될 때 생긴다. `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던져 그대로 나온다. 통합을 얻기 전이라 활동 로그는 남지 않는다. dry-run 과 서비스 미주입 환경에서도 같다 |
 | `INTEGRATION_INCOMPLETE` | SMTP 자격 증명의 `host`·`port`·`secure`·`username`·`password`·`default_from` 중 하나라도 없음 |
 | `INTEGRATION_TYPE_MISMATCH` | 참조한 통합의 `serviceType` 이 `'email'` 이 아님 |
 | `INTEGRATION_NOT_CONNECTED` | 통합 상태가 `connected` 가 아님(`expired`·`error`·`pending_install`) |
 
-- `execute()` 의 try/catch 에서 `IntegrationError` 를 잡은 경우에만 그 `code` 가 `output.error.code` 로 **직접** 나온다(`EMAIL_HOST_BLOCKED`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`). nodemailer 전송 실패를 포함한 그 밖의 모든 throw 는 `EMAIL_SEND_FAILED` 로 바뀐다.
+- `execute()` 의 try/catch 에서 `IntegrationError` 를 잡은 경우에만 그 `code` 가 `output.error.code` 로 **직접** 나온다(`EMAIL_HOST_BLOCKED`·`EMAIL_NO_RECIPIENTS`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`). nodemailer 전송 실패를 포함한 그 밖의 모든 throw 는 `EMAIL_SEND_FAILED` 로 바뀐다.
 - `output.error.message` 는 `IntegrationHandlerBase.sanitizeMessage` 가 비밀 토큰(`Bearer …`, `password=…`, 32자 이상 hex·base64 등)을 `***` 로 가린 뒤 나간다. `output.error.details.to` 는 `maskEmailForErrorDetails` 로 로컬 파트를 가린다(`alice@example.com` → `a***@example.com`).
 
 ### 아직 에러 포트로 나오지 않는 코드 (Planned)
 
 다음 코드는 이 노드의 에러 포트로 **아직 나오지 않는다**.
 
-- `EMAIL_NO_RECIPIENTS`: 빈 `to` 가드가 try 블록 **밖**에서 일반 `Error('No valid recipients after normalizing the \`to\` field')` 를 던진다. 그래서 에러 포트로 가지 않고 노드 실행 자체가 실패한다(사전 검증 에러와 같은 결과). 가드를 try 안으로 옮겨 `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던지면 나온다. 근거: `send-email.handler.ts` 의 빈 수신자 가드.
 - 통합 없음(`INTEGRATION_NOT_FOUND` 로 부르던 경우): `getForExecution` → `requireEntity` 가 NestJS `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다. `IntegrationError` 가 아니라서 `EMAIL_SEND_FAILED` 로 흡수된다. 공통 규칙상 `INTEGRATION_NOT_FOUND` 라는 코드는 현재 없다([통합 노드 공통](CLE-NODE-INT-COMMON.md)).
 - `INTEGRATION_SERVICE_UNAVAILABLE`: `__workspaceId` 가 없으면 공통 베이스 `acquireIntegration` 이 일반 `Error('Missing workspace context …')` 를 던지고, `IntegrationError` 가 아니라서 `EMAIL_SEND_FAILED` 가 된다.
 - `INTEGRATION_CALL_FAILED`: 공통 베이스의 fallback 코드(`toLogError`)는 **활동 로그**에만 나오고 `output.error.code` 로는 나오지 않는다.
@@ -374,3 +375,14 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
 
 - 요구사항 변경: REQ-EMAIL-024 는 «실행이 끝나면» 에서 «통합을 얻은 뒤 실행이 끝나면» 으로 범위를 좁혔다.
+
+### 빈 수신자를 에러 포트로 보낸다 (2026-11-06)
+
+정규화한 `to` 가 비는 경우는 설정 형식 오류가 아니다. 수신자 표현식이 빈 값으로 평가될 때 생기므로 입력 데이터에 따라 결과가 달라진다. 워크플로우 작성자는 이런 실패를 에러 포트로 분기할 수 있어야 한다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.1 · 3.2). 예전처럼 노드 실행을 실패시키면 설정 오류와 구별되지 않는다. 평가된 제목과 본문도 출력에 남지 않는다. 그래서 확인을 `execute()` 의 try 블록 안으로 옮기고 `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던지게 했다.
+
+확인 위치는 dry-run 분기와 서비스 미주입 확인 앞에 두었다. 그래야 dry-run 에서도 실제 실행과 같은 에러 포트 출력이 나온다. 설정에 수신자가 하나도 없는 경우는 그대로 `handler.validate()` 의 사전 검증 에러다.
+
+옛 동작(에러 포트로 보내지 않고 노드 실행을 실패시킨다)을 적은 요구사항은 지우고 에러 포트로 보내는 요구사항으로 대체했다. 근거 Task 는 NERV `CLE-T-3PRYB4` 다.
+
+- 기각: 빈 수신자에 throw 를 유지하는 안. 노드 실행 전체가 실패하므로 워크플로우 작성자가 에러 포트 분기를 쓸 수 없다.
+- 요구사항 변경: REQ-EMAIL-009 를 지우고 REQ-EMAIL-010 으로 대체했다. REQ-EMAIL-010 의 미구현 표시를 걷었다. REQ-EMAIL-012 와 REQ-EMAIL-013 에는 정규화한 `to` 가 비지 않았다는 전제를 붙였다.
