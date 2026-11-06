@@ -1,4 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  BOT_TOKEN_MAX_LENGTH,
+  BOT_TOKEN_OPENAPI_PATTERN,
+} from './chat-channel-bot-token';
 
 // `POST /api/triggers/:id/chat-channel/rotate-bot-token` 요청 본문 — **OpenAPI 스키마 전용**.
 //
@@ -12,8 +16,17 @@ import { ApiProperty } from '@nestjs/swagger';
 
 /** Chat Channel bot token 회전 요청. */
 export class ChatChannelRotateBotTokenRequestDto {
-  /** 새 bot token 평문. 없거나 문자열이 아니면 400 `INVALID_BOT_TOKEN`. */
+  /**
+   * 새 bot token 평문. 1~256자의 보이는 ASCII(U+0021~U+007E)만 받는다. 없거나 문자열이 아니거나 이 형식이
+   * 아니면 400 `INVALID_BOT_TOKEN`.
+   */
   // secret store 에 들어가는 plaintext 라 `writeOnly` 가 의무다(`spec/conventions/swagger.md` §1-5).
-  @ApiProperty({ writeOnly: true })
+  // 길이 · 패턴은 광고만 한다. 판정은 핸들러가 `isWellFormedBotToken` 으로 한다(위 머리 주석).
+  @ApiProperty({
+    writeOnly: true,
+    minLength: 1,
+    maxLength: BOT_TOKEN_MAX_LENGTH,
+    pattern: BOT_TOKEN_OPENAPI_PATTERN,
+  })
   newBotToken: string;
 }

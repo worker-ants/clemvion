@@ -67,4 +67,25 @@ describe('POST /triggers/:id/chat-channel/rotate-bot-token 본문', () => {
     // secret store 입력 plaintext — `swagger.md` §1-5 의무.
     expect(token?.writeOnly).toBe(true);
   });
+
+  it('[렌더] newBotToken 의 길이 · 문자 집합을 생성 경로와 같게 광고한다 (NERV Task `CLE-T-FX354C`)', async () => {
+    @Controller('stub')
+    class StubController {
+      @Post()
+      @ApiBody({ type: ChatChannelRotateBotTokenRequestDto })
+      run(@Body() _body: unknown): void {}
+    }
+    const doc = await buildSwaggerDocument({ controllers: [StubController] });
+    const token = schemaOf(doc, 'ChatChannelRotateBotTokenRequestDto')
+      .properties?.newBotToken as
+      { minLength?: number; maxLength?: number; pattern?: string } | undefined;
+    expect(token?.minLength).toBe(1);
+    expect(token?.maxLength).toBe(256);
+    // 광고한 패턴이 실제 판정과 같은 집합인지 본다 — 문자열만 맞추면 선언과 구현이 갈려도 모른다.
+    const advertised = new RegExp(token?.pattern ?? '(?!)');
+    expect(advertised.test('111:abc-_~!')).toBe(true);
+    expect(advertised.test(' 111:abc')).toBe(false);
+    expect(advertised.test('111:abc\n')).toBe(false);
+    expect(advertised.test('111:abcé')).toBe(false);
+  });
 });

@@ -14,10 +14,17 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
   ValidationArguments,
+  Matches,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from '../chat-channel-rejection-messages.const';
+import {
+  BOT_TOKEN_CHARSET_MESSAGE,
+  BOT_TOKEN_CHARSET_PATTERN,
+  BOT_TOKEN_MAX_LENGTH,
+  BOT_TOKEN_OPENAPI_PATTERN,
+} from './chat-channel-bot-token';
 
 // 근거:
 //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
@@ -183,9 +190,11 @@ export class ChatChannelConfigDto {
     description:
       'Active bot token (provider 발급). telegram = BotFather 발급 `\\d+:[A-Za-z0-9_-]+` / ' +
       'slack = OAuth Install 시 발급 `xoxb-...` / discord = Developer Portal Bot 탭 발급. ' +
+      '보이는 ASCII(U+0021~U+007E)만 받는다 — 공백 · 제어 문자 · ASCII 밖 문자가 있으면 400 VALIDATION_ERROR. ' +
       '입력 전용 — 서버가 secret store 에 저장 후 응답에는 포함하지 않음.',
     minLength: 1,
-    maxLength: 256,
+    maxLength: BOT_TOKEN_MAX_LENGTH,
+    pattern: BOT_TOKEN_OPENAPI_PATTERN,
     example: '123456789:AAFakeTokenForExample',
     writeOnly: true,
   })
@@ -196,7 +205,12 @@ export class ChatChannelConfigDto {
   // 먼저 저장된다** — provider 호출(그리고 401 → `BOT_TOKEN_INVALID`)은 그 뒤다.
   // 즉 요청은 실패하는데 시크릿 행은 남는다. `rotate` 자체의 빈 값 가드는 별개 항목이다.
   @MinLength(1)
-  @MaxLength(256)
+  @MaxLength(BOT_TOKEN_MAX_LENGTH)
+  // 공백 · 제어 문자 · ASCII 밖 문자는 `Authorization` 헤더에 실을 수 없어 fetch 가 요청을 만들지
+  // 못했다(그 전에 `[쓰기 ①]` 이 시크릿을 저장하고 응답은 502 였다). 패턴은 빈 문자열을 거부하지
+  // 않는다 — `''` 는 `@MinLength` 하나로만 걸려야 `details` 가 위반 하나에 항목 하나다.
+  // 근거: [채팅 채널 「R-CC-32」](CLE-CHAT-CORE#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다)
+  @Matches(BOT_TOKEN_CHARSET_PATTERN, { message: BOT_TOKEN_CHARSET_MESSAGE })
   botToken: string;
 
   // 근거: [채팅 채널 「봇 토큰 변경 단일 경로」](CLE-CHAT-CORE#봇-토큰-변경-단일-경로)

@@ -80,6 +80,58 @@ describe('TriggersController.rotateBotToken', () => {
     expect(triggersService.rotateBotToken).not.toHaveBeenCalled();
   });
 
+  /**
+   * 봇 토큰 입력은 1~256자의 보이는 ASCII 만 받는다(NERV Task `CLE-T-FX354C`). 그 밖은 fetch 가
+   * 헤더를 만들지 못해 502 로 가던 입력이다. 서비스(시크릿 저장 · 프로바이더 호출)에 닿기 전에
+   * `INVALID_BOT_TOKEN` 으로 거부하고, 응답에 토큰을 싣지 않는다.
+   */
+  it.each([
+    ['앞 공백', ' 222222222:NewToken'],
+    ['끝 공백', '222222222:NewToken '],
+    ['LF', '222222222:New\nToken'],
+    ['NUL', '222222222:NewToken\u0000'],
+    ['ASCII 밖 문자', '222222222:NewTokén'],
+    ['공백만', '   '],
+    ['257자', 'a'.repeat(257)],
+  ])(
+    '실패 — newBotToken 이 %s 면 INVALID_BOT_TOKEN · 서비스 미호출',
+    async (_label, token) => {
+      const caught: unknown = await controller
+        .rotateBotToken(
+          TRIGGER_ID,
+          { newBotToken: token },
+          WORKSPACE_ID,
+          USER_ID,
+        )
+        .then(() => null)
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = (caught as BadRequestException).getResponse() as {
+        code?: string;
+        message?: string;
+      };
+      expect(response.code).toBe('INVALID_BOT_TOKEN');
+      expect(JSON.stringify(response)).not.toContain('NewToken');
+      expect(triggersService.rotateBotToken).not.toHaveBeenCalled();
+    },
+  );
+
+  it('정상 — 256자 보이는 ASCII 는 받는다(생성과 같은 상한)', async () => {
+    const token = 'a'.repeat(256);
+    await controller.rotateBotToken(
+      TRIGGER_ID,
+      { newBotToken: token },
+      WORKSPACE_ID,
+      USER_ID,
+    );
+    expect(triggersService.rotateBotToken).toHaveBeenCalledWith(
+      TRIGGER_ID,
+      WORKSPACE_ID,
+      token,
+      USER_ID,
+    );
+  });
+
   it('TriggersService 가 throw 하면 그대로 전파', async () => {
     triggersService.rotateBotToken.mockRejectedValueOnce(
       new Error('Telegram API error'),
@@ -285,6 +337,18 @@ describe('POST /triggers/:id/chat-channel/rotate-bot-token — :id 파이프 (HT
     // 파이프가 아니라 **핸들러**가 거부한 것 — 두 400 이 구분되지 않으면 위 단언은
     // "무언가가 400 을 냈다" 이상을 말하지 못한다.
     expect(res.body?.error?.code).toBe('INVALID_BOT_TOKEN');
+    expect(rotateBotToken).not.toHaveBeenCalled();
+  });
+
+  it('정상 UUID + 제어 문자가 든 토큰 → 400 INVALID_BOT_TOKEN (예전에는 502 였다)', async () => {
+    const res = await post(VALID_UUID).send({
+      newBotToken: '222222222:New\r\nToken',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe('INVALID_BOT_TOKEN');
+    expect(JSON.stringify(res.body)).not.toContain('NewToken');
+    expect(JSON.stringify(res.body)).not.toContain('New\\r\\nToken');
     expect(rotateBotToken).not.toHaveBeenCalled();
   });
 
