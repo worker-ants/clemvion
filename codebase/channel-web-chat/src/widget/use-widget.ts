@@ -12,7 +12,7 @@ import type {
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { stripTrailingSlash } from "@/lib/api-base";
-import { applyRefreshedToken, clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
+import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
@@ -360,7 +360,7 @@ export function useWidget() {
 
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약은 useTokenRefresh 캡슐화(§B).
   // staleness 는 여기 worldGenRef 를 주입해 공유한다(그 훅의 4번째 독립 가드였던 cancelledRef 를 대체).
-  const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({
+  const { scheduleRefresh, clearRefreshTimer, refreshSessionToken } = useTokenRefresh({
     sessionRef,
     clientRef,
     configRef,
@@ -469,6 +469,35 @@ export function useWidget() {
     [teardownSession],
   );
 
+  /**
+   * `execution.replay_unavailable` 재동기화(REQ-WCWIDGET-029) — 상태 조회 스냅샷으로 표면을 다시 그린다.
+   *
+   * **상태 조회를 두 번까지 한다.** 첫 조회가 `401` 이고 복구(`recoverFromExpiredToken`)로 토큰이
+   * 바뀌면 그 왕복에서는 표면을 못 그렸다. 복원 · 시작 경로는 그 뒤 `lastEventId="0"` 으로 SSE 를 열어
+   * `waiting_for_input` 을 다시 받지만, 이 경로는 스트림이 이미 열려 있고 버퍼도 비어 있어 아무도 표면을
+   * 다시 주지 않는다. 그래서 새 토큰으로 한 번 더 조회한다(CLE-T-76775M). 두 번째 조회도 `401` 이면
+   * 그 안의 복구가 새 토큰으로 refresh 를 보내고, 그것도 거부되면 종료로 확정한다. 더 반복하지 않는다.
+   *
+   * 토큰이 바뀐 것만 보고 두 번째 조회를 하므로, 첫 조회가 성공한 사이 주기 갱신이 회전을 마친 드문
+   * 경우에도 한 번 더 조회한다. 같은 스냅샷을 다시 그릴 뿐이라 해가 없다.
+   */
+  const resyncAfterReplayGap = useCallback(
+    async (client: EiaClient, session: SessionRef): Promise<void> => {
+      const seed = seedWaitingFromStatusRef.current;
+      if (!seed) return;
+      const gen = worldGenRef.current;
+      const outcome = await seed(client, session, { allowWhileStreaming: true });
+      // seed 안의 세대 검사와 이 검사 사이에는 microtask 경계뿐이라 그 사이 세계가 바뀌는 인터리빙을
+      // 테스트로 만들지 못했다(이 검사를 지우는 뮤턴트가 생존한다). 재현 실패는 부재의 증거가 아니라서
+      // 남긴다. 바뀐 세계에서 두 번째 조회를 하면 새 대화의 표면을 옛 스냅샷으로 덮을 수 있다.
+      if (outcome !== "continue" || isStale(gen)) return;
+      const live = sessionRef.current;
+      if (!live || live.token === session.token) return;
+      await seed(client, live, { allowWhileStreaming: true });
+    },
+    [isStale, worldGenRef],
+  );
+
   const handleEiaEvent = useCallback(
     (name: string, data: unknown) => {
       if (name === "execution.waiting_for_input") {
@@ -503,12 +532,11 @@ export function useWidget() {
         // 이벤트까지 유실된 경우 — `seedWaitingFromStatus` 가 `finalizeEnded` 로 종료를 확정한다.
         const client = clientRef.current;
         const session = sessionRef.current;
-        // `allowWhileStreaming: true` — 이 폴백은 **자기 스트림이 열린 채** 표면을 재동기화한다.
+        // `resyncAfterReplayGap` 은 `allowWhileStreaming: true` 로 seed 한다 — 이 폴백은 **자기 스트림이 열린 채** 표면을 재동기화한다.
         // seed 의 기본 가드(`sessionEstablished()` 면 WAITING 스킵)를 그대로 두면 여기선 항상 스킵돼
         // 재동기화가 no-op 이 된다. 복원/start 경로의 "다른 시도가 스트림을 가로챘나" 와 달리, 여기
         // 스트림 열림은 "내가 다시 그려야 함" 을 뜻하므로 opt-in 으로 통과시킨다.
-        if (client && session)
-          void seedWaitingFromStatusRef.current?.(client, session, { allowWhileStreaming: true });
+        if (client && session) void resyncAfterReplayGap(client, session);
         // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
@@ -516,7 +544,7 @@ export function useWidget() {
         finalizeEnded(name);
       }
     },
-    [finalizeEnded],
+    [finalizeEnded, resyncAfterReplayGap],
   );
 
   /**
@@ -597,20 +625,17 @@ export function useWidget() {
       gen: number,
     ): Promise<SeedOutcome> => {
       try {
-        const { token, expiresAt } = await client.refreshToken(
-          session.endpoints,
-          session.token,
-        );
-        if (isStale(gen)) return "stale";
-        const cfg = configRef.current;
-        if (!cfg) return "stale"; // 부팅 전으로 되돌아감 — 쓸 곳이 없다.
-        sessionRef.current = applyRefreshedToken(
-          session,
-          { token, expiresAt },
-          cfg.triggerEndpointPath,
-        );
+        // **refresh 를 직접 보내지 않는다.** 주기 갱신과 같은 진입점을 쓴다(CLE-T-76775M).
+        // 주기 타이머가 같은 토큰을 이미 회전시켰으면 보내지 않고 새 세션을 받고, 떠 있으면 그
+        // 요청에 합류한다. 직접 보내면 서버가 이미 blacklist 한 토큰으로 두 번째 refresh 가 나가
+        // `401` 을 받고, 아래 catch 가 살아 있는 대화를 `execution.token_revoked` 로 끝낸다.
+        // `sessionRef` · storage 교체도 그 진입점이 한다.
+        const refreshed = await refreshSessionToken(session);
+        if (isStale(gen) || !refreshed) return "stale";
         // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
         // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
+        // 스트림이 이미 열린 `replay_unavailable` 재동기화만 예외라 그 호출부가 한 번 더 조회한다
+        // (`resyncAfterReplayGap`).
         return "continue";
       } catch (refreshErr) {
         // **`401`/`410` 일 때만 종료로 확정한다** — §R4 문언이 그렇고, 그보다 넓게 잡으면
@@ -646,7 +671,7 @@ export function useWidget() {
         return "ended";
       }
     },
-    [finalizeEnded, isStale],
+    [finalizeEnded, isStale, refreshSessionToken],
   );
 
   /**

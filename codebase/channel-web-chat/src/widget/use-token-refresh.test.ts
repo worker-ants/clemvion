@@ -326,4 +326,209 @@ describe("useTokenRefresh (fake timer)", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
     expect(seen).toHaveLength(0);
   });
+
+  /**
+   * `refreshSessionToken` — 주기 타이머와 `useWidget` 의 `401` 복구가 refresh 한 건을 나눠 쓴다
+   * (CLE-T-76775M). 서버는 refresh 를 받으면 옛 토큰을 먼저 폐기하므로 같은 토큰으로 두 번 보내면
+   * 두 번째는 `401` 이고, 위젯은 그것을 복구 불가로 읽어 살아 있는 대화를 끝냈다. 위젯 단위의
+   * 재현은 `use-widget-refresh-race.test.ts` 에 있다.
+   */
+  describe("refreshSessionToken — 주기 갱신과 401 복구가 refresh 한 건을 나눠 쓴다", () => {
+    const freshExpiry = () => new Date(Date.now() + NINETY_MIN).toISOString();
+
+    it("이미 회전된 토큰이면 보내지 않고 현재 세션을 돌려준다", async () => {
+      const { result, refreshToken } = setup({ token: "iext_new" });
+      let got: PersistedSession | null = null;
+      await act(async () => {
+        got = await result.current.refreshSessionToken(session({ token: "iext_old" }));
+      });
+      expect(refreshToken).not.toHaveBeenCalled();
+      expect(got).toMatchObject({ token: "iext_new" });
+    });
+
+    it("타이머 갱신이 떠 있으면 같은 토큰의 요청은 합류한다 — refresh · 적용 · 통지가 한 번씩", async () => {
+      let resolveRefresh: ((v: { token: string; expiresAt: string }) => void) | null = null;
+      const seen: PersistedSession[] = [];
+      const { result, refs, refreshToken } = setup(
+        {},
+        () => new Promise((r) => { resolveRefresh = r; }),
+        (s) => { seen.push(s); },
+      );
+      act(() => result.current.scheduleRefresh());
+      await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+
+      const joined = result.current.refreshSessionToken(session());
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveRefresh?.({ token: "iext_x2", expiresAt: freshExpiry() });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await expect(joined).resolves.toMatchObject({ token: "iext_x2" });
+      expect(refs.sessionRef.current?.token).toBe("iext_x2");
+      expect(seen).toHaveLength(1);
+    });
+
+    it("401 복구가 먼저 보낸 요청에 타이머가 합류하고, 일시적 실패면 타이머는 백오프로 재시도한다", async () => {
+      let rejectRefresh: ((e: unknown) => void) | null = null;
+      const { result, refreshToken } = setup({}, () => new Promise((_, rej) => { rejectRefresh = rej; }));
+      act(() => result.current.scheduleRefresh());
+      // 복구가 먼저 보낸다(타이머 발화 전).
+      const recovery = result.current.refreshSessionToken(session()).then(
+        () => "resolved",
+        (e: unknown) => e,
+      );
+      await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+      // 타이머가 발화했지만 같은 토큰이 떠 있어 새로 보내지 않았다.
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        rejectRefresh?.(new TypeError("network down"));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(await recovery).toBeInstanceOf(TypeError);
+      // 합류해도 타이머의 재시도 사이클은 그대로다.
+      await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_BASE_MS); });
+      expect(refreshToken).toHaveBeenCalledTimes(2);
+    });
+
+    it("401 복구가 보낸 갱신이 성공해도 다음 만료 기준으로 재예약한다", async () => {
+      const { result, refreshToken } = setup();
+      await act(async () => {
+        await result.current.refreshSessionToken(session());
+      });
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+      expect(refreshToken).toHaveBeenCalledTimes(2);
+      expect(refreshToken.mock.calls[1]?.[1]).toBe("iext_x2");
+    });
+
+    it("끝난 요청에는 합류하지 않는다 — 실패 뒤 같은 토큰으로 다시 부르면 새로 보낸다", async () => {
+      let calls = 0;
+      const { result, refreshToken } = setup({}, () =>
+        ++calls === 1
+          ? Promise.reject(new TypeError("network down"))
+          : Promise.resolve({ token: "iext_x2", expiresAt: freshExpiry() }),
+      );
+      await act(async () => {
+        await expect(result.current.refreshSessionToken(session())).rejects.toBeInstanceOf(TypeError);
+      });
+      await act(async () => {
+        await result.current.refreshSessionToken(session());
+      });
+      expect(refreshToken).toHaveBeenCalledTimes(2);
+    });
+
+    it("응답 전에 세계가 바뀌면 null 을 돌려주고 세션을 건드리지 않는다", async () => {
+      let resolveRefresh: ((v: { token: string; expiresAt: string }) => void) | null = null;
+      const { result, refs } = setup({}, () => new Promise((r) => { resolveRefresh = r; }));
+      const pending = result.current.refreshSessionToken(session());
+      refs.worldGenRef.current += 1;
+      await act(async () => {
+        resolveRefresh?.({ token: "iext_stale", expiresAt: freshExpiry() });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await expect(pending).resolves.toBeNull();
+      expect(refs.sessionRef.current?.token).toBe("iext_x");
+    });
+
+    it("세대가 바뀐 응답은 onRefreshed 를 부르지 않고 storage 를 쓰지 않고 재예약하지 않는다", async () => {
+      let resolveRefresh: ((v: { token: string; expiresAt: string }) => void) | null = null;
+      const seen: PersistedSession[] = [];
+      const { result, refs, refreshToken } = setup(
+        {},
+        () => new Promise((r) => { resolveRefresh = r; }),
+        (s) => { seen.push(s); },
+      );
+      const pending = result.current.refreshSessionToken(session());
+      refs.worldGenRef.current += 1;
+      await act(async () => {
+        resolveRefresh?.({ token: "iext_stale", expiresAt: freshExpiry() });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await expect(pending).resolves.toBeNull();
+      expect(seen).toHaveLength(0);
+      expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+      // 재예약이 있었다면 다음 만료 기준으로 타이머가 발화한다.
+      await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS * 2); });
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+    });
+
+    it("부팅 전(clientRef null)이면 보내지 않고 null 로 끝난다", async () => {
+      const { result, refs, refreshToken } = setup();
+      refs.clientRef.current = null;
+      let got: PersistedSession | null | undefined;
+      await act(async () => {
+        got = await result.current.refreshSessionToken(session());
+      });
+      expect(got).toBeNull();
+      expect(refreshToken).not.toHaveBeenCalled();
+    });
+
+    it("응답이 왔을 때 configRef 가 null 이면 null 이고 세션 · storage · onRefreshed 가 그대로다", async () => {
+      let resolveRefresh: ((v: { token: string; expiresAt: string }) => void) | null = null;
+      const seen: PersistedSession[] = [];
+      const { result, refs } = setup(
+        {},
+        () => new Promise((r) => { resolveRefresh = r; }),
+        (s) => { seen.push(s); },
+      );
+      const pending = result.current.refreshSessionToken(session());
+      refs.configRef.current = null;
+      await act(async () => {
+        resolveRefresh?.({ token: "iext_x2", expiresAt: freshExpiry() });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await expect(pending).resolves.toBeNull();
+      expect(refs.sessionRef.current?.token).toBe("iext_x");
+      expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+      expect(seen).toHaveLength(0);
+    });
+
+    it("sessionRef 가 다른 실행의 다른 토큰이면 이미 회전됨으로 보지 않고 보낸다", async () => {
+      const { result, refreshToken } = setup({ executionId: "e2", token: "iext_other" });
+      await act(async () => {
+        await result.current.refreshSessionToken(session({ executionId: "e1", token: "iext_old" }));
+      });
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+      expect(refreshToken.mock.calls[0]?.[1]).toBe("iext_old");
+    });
+
+    it("떠 있는 요청과 다른 토큰으로 부르면 합류하지 않고 새로 보낸다", async () => {
+      const resolvers: Array<(v: { token: string; expiresAt: string }) => void> = [];
+      const { result, refs, refreshToken } = setup({}, () => new Promise((r) => { resolvers.push(r); }));
+      // sessionRef 는 첫 토큰을 든 채로 두어 "이미 회전됨" 단축을 피한다(같은 실행·같은 토큰).
+      const first = result.current.refreshSessionToken(session({ token: "iext_x" }));
+      // sessionRef 가 다른 실행을 가리키게 해 "이미 회전됨" 단축을 피한다. 호출 토큰만 다르다.
+      refs.sessionRef.current = session({ executionId: "e9", token: "iext_z" });
+      const second = result.current.refreshSessionToken(session({ token: "iext_y" }));
+      expect(refreshToken).toHaveBeenCalledTimes(2);
+      expect(refreshToken.mock.calls.map((c) => c[1])).toEqual(["iext_x", "iext_y"]);
+      await act(async () => {
+        resolvers.forEach((r) => r({ token: "iext_n", expiresAt: freshExpiry() }));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await Promise.all([first, second]);
+    });
+
+    it("합류 경로에서 401 이면 타이머는 재시도하지 않는다", async () => {
+      let rejectRefresh: ((e: unknown) => void) | null = null;
+      const { result, refreshToken } = setup({}, () => new Promise((_, rej) => { rejectRefresh = rej; }));
+      act(() => result.current.scheduleRefresh());
+      const recovery = result.current.refreshSessionToken(session()).then(
+        () => "resolved",
+        (e: unknown) => e,
+      );
+      await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        rejectRefresh?.(new EiaError("revoked", 401));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(await recovery).toBeInstanceOf(EiaError);
+      await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_MAX_DELAY_MS * 2); });
+      expect(refreshToken).toHaveBeenCalledTimes(1);
+    });
+  });
 });
