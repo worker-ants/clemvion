@@ -34,9 +34,10 @@ import type {
  * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이며,
  * step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시한다.
  *
- * 현재 멤버 수(2026-07-26 3차 라운드 실측): `EngineDriver` distinct **15**
- * (Core 2 + Interaction 1 + ReentryState 1 + AiTurn 자체 6 + Retry 자체 5),
- * `AiTurnEngineDriver` 합계 **10**. ai-review WARNING #1(3차 라운드) 로
+ * 현재 멤버 수(2026-07-26 3차 라운드 실측, 2026-11-07 배치 갱신): `EngineDriver`
+ * distinct **15** (Core 2 + Interaction 2 + ReentryState 1 + AiTurn 자체 5 +
+ * Retry 자체 5), `AiTurnEngineDriver` 합계 **10**. CLE-T-J6GRJ9 에서
+ * `markNodeCancelled` 를 AiTurn 에서 Interaction 으로 옮겼다(멤버 수 불변). ai-review WARNING #1(3차 라운드) 로
  * `assertActiveExecutionAndSaveNodeExec`(4차 라운드에 `tryLockActiveExecution
  * AndSaveNodeExec` 로 개명 — 아래 참조) 가 추가돼 이전 라운드의 14/9 에서
  * 다시 갱신됐다. `execution-engine.md ## Rationale` §C-1 의 수치는 아직
@@ -54,13 +55,12 @@ export interface CoreEngineDriver {
    * 한다**(규범). else 분기(linkedNodeExec 없음)는 guarded UPDATE 0행 매칭(M-3),
    * 짝 전이 분기는 트랜잭션 내 행 잠금 조회가 0행(2026-07-26 후속).
    *
-   * ai-review WARNING #3 (2026-07-26) — 실제 소비 현황: `AiTurnOrchestrator`
-   * 의 re-park/첫 turn park/retry-last-turn RUNNING 재claim 3곳만 반환값을
-   * 확인해 `ExecutionCancelledError` 로 전파한다({@link AiTurnEngineDriver}
-   * 계약). Form/Button interaction 의 park·재claim 4곳은 아직 반환값을
-   * 소비하지 않는다 — DB 는 이 가드로 안전하나 표시상 중복 이벤트 emit 이
-   * 남는 후속 항목이다 (plan `ie-resume-turn-boundary-cancel.md`
-   * "후속(본 PR 밖)" 참조).
+   * 짝 전이(`linkedNodeExec` 전달) 소비처는 반환값을 짝 전이 종결 가드
+   * (`linked-transition-guard.ts` 의 `assertLinkedTransitionApplied`)에 넘긴다.
+   * `false` 면 가드가 짝 NodeExecution 을 CANCELLED 로 마킹하고
+   * `ExecutionCancelledError` 로 취소를 넘긴다. AI turn 오케스트레이터와
+   * form · button 상호작용 서비스의 park · 재claim 이 모두 이 경로를 탄다
+   * (form · button 은 CLE-T-J6GRJ9 에서 합류).
    *
    * **choke point 예외 (ai-review WARNING #1, 2026-07-27, 7차 라운드)** —
    * `ExecutionEngineService.failFirstSegmentSetup` / `executeSync` timeout
@@ -90,7 +90,8 @@ export interface CoreEngineDriver {
 
 /**
  * Form/Button blocking-interaction 서비스(`FormInteractionService` /
- * `ButtonInteractionService`)가 소비하는 표면 — core + durable resume 스테이징.
+ * `ButtonInteractionService`)가 소비하는 표면 — core + durable resume 스테이징 +
+ * 짝 전이 종결 가드가 쓰는 노드 단위 취소 마감.
  */
 export interface InteractionEngineDriver extends CoreEngineDriver {
   /**
@@ -102,6 +103,28 @@ export interface InteractionEngineDriver extends CoreEngineDriver {
     execution: Execution,
     context: ExecutionContext,
   ): void;
+
+  /**
+   * 노드 단위 취소 종결 — `NodeExecution` 을 CANCELLED 로 마킹(finishedAt/
+   * durationMs 계산 + save)하고 `NODE_CANCELLED` 를 emit 한다. `outputData` 는
+   * 비우고, `error` 는 `errorEnvelope` 가 있으면 그 봉투, 없으면 비운다. 봉투가 없을 때
+   * client-facing 필드에 내부 message(executionId 포함 가능)를 싣지 않는다(W15/W19).
+   *
+   * 짝 전이 종결 가드(`linked-transition-guard.ts`)가 `updateExecutionStatus` 짝 전이
+   * no-op(`false`, 동시 Stop 선점)일 때 짝이었던 `NodeExecution` 을 terminal 로
+   * 마킹하는 데 쓴다. 그렇지 않으면 행이 영구히 non-terminal 로 남는다.
+   * AI turn 오케스트레이터만 쓰던 표면을 form · button 도 쓰게 되어 여기로 옮겼다
+   * (CLE-T-J6GRJ9).
+   *
+   * @throws {NodeCancelMarkingError} save 또는 emit 이 실패하면 `stage` 를 실어 던진다.
+   */
+  markNodeCancelled(
+    nodeExecution: NodeExecution,
+    node: Node,
+    context: ExecutionContext,
+    executionId: string,
+    errorEnvelope?: { code: string; message: string },
+  ): Promise<void>;
 }
 
 /**
@@ -165,25 +188,6 @@ export interface AiTurnEngineDriver
 
   /** legacy `{port, data}` envelope → `_selectedPort` 라우팅 flat shape 으로 변환. */
   applyPortSelection(output: unknown): unknown;
-
-  /**
-   * 노드 단위 취소 종결 — `NodeExecution` 을 CANCELLED 로 마킹(finishedAt/
-   * durationMs 계산 + save)하고 `NODE_CANCELLED` 를 emit 한다. `errorEnvelope`
-   * 미전달 시 client-facing 필드에 내부 message(executionId 포함 가능)를
-   * 싣지 않는다(W15/W19).
-   *
-   * ai-review WARNING #1 (2026-07-26, concurrency) — `updateExecutionStatus`
-   * 짝 전이 가드가 no-op(`false`)일 때(동시 Stop 이 선점) 짝이었던
-   * `NodeExecution` 을 terminal 로 마킹하는 데 재사용한다 — 그렇지 않으면
-   * 영구 RUNNING(non-terminal) 로 잔류한다.
-   */
-  markNodeCancelled(
-    nodeExecution: NodeExecution,
-    node: Node,
-    context: ExecutionContext,
-    executionId: string,
-    errorEnvelope?: { code: string; message: string },
-  ): Promise<void>;
 
   /**
    * ai-review WARNING #1 (2026-07-26, 3차 라운드) — `finalizeAiNode` 의 "이미

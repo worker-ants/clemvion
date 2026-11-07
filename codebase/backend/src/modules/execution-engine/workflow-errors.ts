@@ -333,3 +333,27 @@ export class ExecutionCancelledError extends Error {
     this.name = 'ExecutionCancelledError';
   }
 }
+
+/**
+ * `markNodeCancelled` 가 어느 단계에서 실패했는지 알리는 표지 오류(CLE-T-J6GRJ9).
+ *
+ * 마킹은 `save()` 다음에 `NODE_CANCELLED` 발행 순서로 간다. 두 단계는 실패의 뜻이 다르다.
+ * - `save`: 행이 CANCELLED 로 커밋되지 않았다. 행이 non-terminal 로 남을 수 있다.
+ * - `emit`: 행은 CANCELLED 로 커밋됐다. 클라이언트 타임라인만 terminal 이벤트를 받지 못했다.
+ *
+ * 짝 전이 종결 가드(`linked-transition-guard.ts`)가 이 값으로 진단 로그를 나눠 쓴다.
+ * `message` 는 원본 오류의 것을 그대로 둔다. `executeNode` 처럼 이 오류가 그대로 전파되는
+ * 경로에서 상위가 기록하는 실패 문구가 바뀌지 않게 하려는 것이다. 원본은 `cause` 에 있다.
+ *
+ * @internal — execution-engine 모듈 내부 전용.
+ */
+export class NodeCancelMarkingError extends Error {
+  constructor(
+    readonly stage: 'save' | 'emit',
+    readonly nodeExecutionId: string,
+    cause: unknown,
+  ) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'NodeCancelMarkingError';
+  }
+}
