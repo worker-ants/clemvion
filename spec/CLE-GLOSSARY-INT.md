@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "cb98373fa414e6ddc599beee9109dcf48a62ba023be46106b527898d1c240cbc"
+content_hash: "e446167ec3c9ade8440afa35bcb11806d35b6cf5f9222583f5aaad47ed1f6ae1"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-B4WH9N"
 source_paths: []
-mirror_sha256: "d560ab5974478f96adda6cbdac904b6275f2fe010d0425bd11d5cbd8340ec60d"
-etag: "sha256-7c0f26655083af5b54e48992cea2c83ec28c9a611f5c8cef46a4bfe245efefe9"
+mirror_sha256: "2b0b28db3ad1b9362be074dcf3d5668f65cf5cb8a44f7665b9ab6870fc113bd6"
+etag: "sha256-4b71856a7bb494d7b20e98a8d03d344a07a55ae8062fd535b658d9b8e5127ed9"
 ---
 ## 개요
 
@@ -30,7 +30,7 @@ etag: "sha256-7c0f26655083af5b54e48992cea2c83ec28c9a611f5c8cef46a4bfe245efefe9"
 | 서비스 유형 | `service_type` | 통합이 연결하는 외부 서비스의 유형(google, github, http, database, email, webhook, mcp, cafe24, makeshop). 화면 라벨은 "서비스" 다. | serviceType(본문), 서비스 종류 | [서비스별 인증 방식과 자격 증명](CLE-INT/CLE-INT-AUTH.md) |
 | 통합 인증 유형 | `auth_type` | 서비스별 인증 방식(oauth2, api_key, bearer_token, basic, connection_string, smtp, webhook_outbound, none). 화면 라벨은 "인증 유형" 이다. | 인증 방식(이 뜻으로) | [서비스별 인증 방식과 자격 증명](CLE-INT/CLE-INT-AUTH.md) |
 | 자격 증명 | credentials | 외부 시스템에 접근하는 비밀 값 묶음. 통합은 이를 암호화해 저장하고 응답에서 가린다. | 자격증명, 인증 정보, credential(s)(본문) | [서비스별 인증 방식과 자격 증명](CLE-INT/CLE-INT-AUTH.md) |
-| 공개 범위 | `Integration.scope` | 통합을 누가 쓸 수 있는지 정하는 값. 개인(`personal`)은 만든 사람만, 조직(`organization`)은 워크스페이스 멤버 전체가 쓴다. | scope(본문), 공유 범위, 범위 전환, Organization-scope, (Org) | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
+| 공개 범위 | `Integration.scope` | 통합을 누가 보고 쓸 수 있는지 정하는 값. 개인(`personal`)은 통합 소유자 한 사람의 통합이고 조직(`organization`)은 워크스페이스 멤버가 함께 쓰는 통합이다. 개인 통합을 노드에서 쓰는 조건은 [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 이 정한다. | scope(본문), 공유 범위, 범위 전환, Organization-scope, (Org) | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 권한 범위 | OAuth scope, `credentials.scopes` | OAuth 동의로 받은 권한 목록. 화면 탭 이름은 "권한" 이다. | scope(본문), 사용 권한 scope | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 통합 소유자 | `created_by` | 개인 통합을 보고 바꿀 수 있는 유일한 사용자. 역할이 높아도 남의 개인 통합은 다루지 못한다. | 본인, 생성자 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 저장자 | saver | 캔버스 저장이나 노드 생성·설정 수정을 요청한 사용자. 워크플로우 작성자와 같을 수도 다를 수도 있다. 역할 이름 편집자(Editor)로 쓰는 것은 막지 않는다. | 편집자(이 뜻으로) | [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) |
@@ -56,6 +56,7 @@ etag: "sha256-7c0f26655083af5b54e48992cea2c83ec28c9a611f5c8cef46a4bfe245efefe9"
 | 만료 알림·조치 필요 알림 | `integration_expired`, `integration_action_required` | 통합이 만료 임계에 닿을 때와 오류로 바뀔 때 보내는 인앱 알림 두 종류. | passive 알림, active 알림 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
 | 연속 네트워크 실패 | `consecutive_network_failures` | 노드 실행 중 연결 실패가 이어진 횟수. 정한 횟수에 이르면 통합 상태가 오류로 바뀐다. | 없음 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
 | 설치 우선 흐름 | install-first | Cafe24 Private 앱과 MakeShop 이 외부 마켓 앱 설치로 연결을 시작하는 흐름. 통합은 설치 대기 상태로 먼저 생긴다. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
+| 설치 대기 행 | pending install row | 설치 우선 흐름이 설치를 마치기 전에 만들어 두는 설치 대기(`pending_install`) 상태의 통합 행. 이름이 비슷한 409 `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` 은 상태 값이 아니다. | 없음 | [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) |
 | 설치 토큰 | `install_token` | App URL 경로에 들어가 설치 대기 통합을 가리키는 토큰. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | App URL·Redirect URI | `appUrl`, `callbackUrl` | 외부 마켓이 설치할 때 부르는 우리 서버 주소와 OAuth 콜백 주소. | 앱 URL | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 설치 시간 초과 | `install_timeout` | 정한 기한 안에 설치가 끝나지 않아 만료된 사유. Cafe24 Private 앱과 MakeShop 에 모두 적용한다. | 없음 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
@@ -148,3 +149,11 @@ NERV Task `CLE-T-KQ37NJ` 가 고쳤다. 운영 환경 가드가 통합 암호화
 - 「통합 암호화 키」 의 기준 문서 칸을 시크릿 저장소에서 [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) 로 옮겼다. 이 키와 transformer 동작의 규범은 그 절 한 곳에 있다. 두 키를 따로 두는 결정의 위치는 정의 안의 시크릿 저장소 링크로 남겼다.
 - 「마스터키」 를 더했다. 「통합 암호화 키」 정의가 마스터키와 다른 키라고 적는데 마스터키를 정의한 행이 용어 사전 하위 문서 어디에도 없었다(2026-10-31 NERV 검색).
 - 「복호화 불가 표식」 을 더했다. 키를 바꾸면 그 전 키로 암호화한 행이 이 표식이 된다. 저장 층의 표식과 응답 층의 `needs_reauth` · `credentials_unreadable` 을 같은 것으로 읽기 쉬워서 정의에는 층이 다르다는 것만 적었다. 표식에 원래 값을 담는 조건과 컬럼마다 표식이 어떻게 드러나는지는 기준 문서 칸이 가리키는 [통합 데이터와 흐름 「암호화」](CLE-INT/CLE-INT-DATA.md#암호화) 에 맡긴다. 이유는 2026-10-17 항목의 기각한 대안과 같다. 그 규칙은 표식이 된 원인과 컬럼에 따라 갈린다. 정의 칸에 옮기면 기준 문서와 어긋나도 잡아 줄 가드가 없다.
+
+### 「공개 범위」 정의를 고치고 「설치 대기 행」 을 더했다 (2026-11-07)
+
+NERV Task `CLE-T-B4WH9N` 가 고쳤다. 개인 통합의 노드 사용 기준을 정한 NERV Task `CLE-T-MG0EQZ` 의 후속이다.
+
+- 옛 「공개 범위」 정의는 개인 통합을 «만든 사람만» 쓴다고 적었다. [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 은 노드가 개인 통합을 쓸 수 있는지를 실행한 사람이 아니라 워크플로우 작성자로 가린다. 옛 정의로는 통합 소유자가 실행하기만 하면 쓸 수 있다고 읽힌다. 정의에는 개인 통합이 누구의 것인지만 적고 사용 조건은 그 절을 가리킨다. 판정 규칙을 정의 칸에 옮기지 않는 이유는 「용어 추가 (2026-10-24)」 와 같다.
+- 「설치 대기 행」 을 더했다. 설치 대기(`pending_install`)는 통합 상태 값이다. `oauth/begin` 의 409 `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` 도 이름에 «설치 대기» 가 들어 있어 상태 값으로 읽히기 쉽다. 두 코드는 `oauth/begin` 이 다시 쓸 설치 대기 행이 남의 개인 통합일 때 내는 거절 코드다. 그래서 정의에 상태 값이 아니라고 적었다.
+- `oauth/begin` 이 설치 대기 행을 다시 쓰는 규칙과 두 409 코드가 나는 조건은 정의에 적지 않았다. 기준 문서 칸이 그 규칙을 정한 [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) 을 가리킨다.
