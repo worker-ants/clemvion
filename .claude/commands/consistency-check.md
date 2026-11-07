@@ -44,7 +44,7 @@ checker 4개는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은
 - `.review/consistency/<session>/<checker>.md` — checker 별 상세
 - `.review/consistency/<session>/_retry_state.json` — pending/success/fatal 상태
 - `.review/consistency/<session>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
-- `.review/consistency/<session>/meta.json` — 모드·target·checker 명단
+- `.review/consistency/<session>/meta.json` — 모드·target·checker 명단. 예산 때문에 본문을 싣지 못한 문서가 있으면 `bundle_omissions` 에 checker · 묶음별로 남는다(`priority` · `omitted`, 잘린 diff 는 `unreadable`)
 
 ## 환경변수
 
