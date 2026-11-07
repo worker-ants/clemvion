@@ -2,19 +2,19 @@
 id: "CLE-NODE-SWITCH"
 title: "Switch 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-SWITCH-001", "REQ-SWITCH-002", "REQ-SWITCH-003", "REQ-SWITCH-004", "REQ-SWITCH-005", "REQ-SWITCH-006", "REQ-SWITCH-007", "REQ-SWITCH-008", "REQ-SWITCH-009", "REQ-SWITCH-010", "REQ-SWITCH-011", "REQ-SWITCH-012", "REQ-SWITCH-013", "REQ-SWITCH-014", "REQ-SWITCH-015", "REQ-SWITCH-016", "REQ-SWITCH-017", "REQ-SWITCH-018", "REQ-SWITCH-019", "REQ-SWITCH-020", "REQ-SWITCH-021", "REQ-SWITCH-022", "REQ-SWITCH-023", "REQ-SWITCH-024"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a9f1c614d3852b2239369d3804ebe6edaeafe5d53275ca06e5b34205da05389f"
-read_as: "approved"
-task: null
+content_hash: "4a6f2fe7a0fab11392744ec74892edfc5c1cefdf781f98caf66d14a1d5c4c421"
+read_as: "approved_fallback"
+task: "CLE-T-FZ6N7A"
 source_paths: ["spec/4-nodes/1-logic/2-switch.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "00eaa97df49d85e7f8b205e57b5c415f7a005f8fc3885c3b2f844c0534732f75"
-etag: "sha256-569aa7a42a122f9fea514c0cf558fd601eb5fa47d0eca6ba41ecd1f2f13681d7"
+mirror_sha256: "36640d3e607993b90c87473076a142c8f8339aea2e4fed238426243587ed9418"
+etag: "sha256-b99031f2ccbaa4f5fe1f72251ad901b86148aa1c92d10ebcd90f0544d27b7a53"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/2-switch.md`, `spec/4-nodes/_product-overview.md` (§4.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -129,7 +129,9 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
     "cases": [
       { "id": "case_admin", "label": "Admin", "value": "admin" },
       { "id": "case_guest", "label": "Guest", "value": "guest" }
-    ]
+    ],
+    "hasDefault": true,
+    "strictComparison": false
   },
   "output": { "user": { "role": "admin", "name": "Alice" } },
   "meta": {
@@ -149,6 +151,8 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 | `config.mode` | `'value'` / `'expression'` | 설정 에코 | 매칭 모드(기본 `value`) |
 | `config.switchValue` | unknown | 설정 에코 | 원래 형태. 사용자가 `{{ $input.user.role }}` 로 입력했으면 그대로 남는다. 평가한 값은 `meta.resolvedValue` 에 있다 |
 | `config.cases` | `CaseDef[]` | 설정 에코 | 사용자가 입력한 원래 케이스 목록. 케이스의 `value` / `condition` 도 원래 형태로 남는다 |
+| `config.hasDefault?` | boolean | 설정 에코 | `default` 포트 사용 여부. 핸들러는 스키마 기본값(`false`)도 동작 기본값(`true`)도 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 동작은 `true` 와 같다([실행 로직](#실행-로직) 4단계) |
+| `config.strictComparison?` | boolean | 설정 에코 | 엄격 비교 모드. 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 비교는 `false` 일 때와 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로. `output.view` / `output.type` 같은 판별자는 쓰지 않는다 |
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입한다 |
 | `meta.mode` | `'value'` / `'expression'` | 핸들러 반환 | 기본값을 적용한 뒤의 모드 |
@@ -181,7 +185,8 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
       { "id": "case_admin", "label": "Admin", "value": "admin" },
       { "id": "case_guest", "label": "Guest", "value": "guest" }
     ],
-    "hasDefault": true
+    "hasDefault": true,
+    "strictComparison": false
   },
   "output": { "user": { "role": "viewer", "name": "Charlie" } },
   "meta": {
@@ -197,7 +202,7 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.*` | 케이스 매칭과 같음 + `hasDefault` | 설정 에코 | `hasDefault: true` 도 싣는다 |
+| `config.*` | 케이스 매칭과 같음 | 설정 에코 | 케이스 매칭과 같은 다섯 키(`mode` · `switchValue` · `cases` · `hasDefault` · `strictComparison`)를 싣는다. 어느 포트로 가든 설정 에코는 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로 |
 | `meta.matchedCase` | `'default'` | 핸들러 반환 | 매칭 실패 때의 고정 문자열 |
 | `meta.matchedCaseLabel` | `undefined` | 핸들러 반환 | `default` 대체 때는 항상 `undefined` (전용 label 없음) |
