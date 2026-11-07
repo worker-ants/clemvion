@@ -165,11 +165,10 @@ describe('모델 설정 응답의 계약 (e2e)', () => {
       res.body.data,
       await contractForDto(ModelTestConnectionResultDto),
     );
-    const data = res.body.data as { success: boolean; message?: unknown };
-    if (data.success) {
-      expect(data).not.toHaveProperty('message');
-    } else {
-      expect(typeof data.message).toBe('string');
-    }
+    // backend-e2e 는 `LLM_STUB_MODE=true` 라 provider 와 무관하게 StubLlmClient 가 쓰이고
+    // `testConnection()` 이 늘 true 를 돌려준다. 그래서 성공 분기가 결정적이다.
+    // 실패 분기(`message` 가 문자열)는 llm.service.spec.ts 의 testConnection 단위 테스트가 덮는다.
+    expect(res.body.data.success).toBe(true);
+    expect(res.body.data).not.toHaveProperty('message');
   });
 });
