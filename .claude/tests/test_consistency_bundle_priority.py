@@ -5,14 +5,16 @@ truncation cuts on file boundaries and names what it dropped. This file pins the
 half that decides **which** files get dropped, and since NERV cutover 4e (NERV Task
 `CLE-T-VP5KDJ`) also what the target and the corpora ARE.
 
-`truncate_file_bundle` drops from the tail, so ordering by name alone let the work
-target lose its budget to alphabetically earlier files — **eight times** across
-separate sessions, twice with no checker covering the target at all, so `BLOCK: NO`
-meant "never looked". Ordering is the part the harness can guarantee.
+Truncation fills the budget in bundle order (a tail drop until NERV Task
+`CLE-T-TR583V`, greedy since — `test_consistency_bundle_survival`), so ordering
+by name alone let the work target lose its budget to alphabetically earlier
+files — **eight times** across separate sessions, twice with no checker
+covering the target at all, so `BLOCK: NO` meant "never looked".
+Ordering is the part the harness can guarantee.
 
 Since 4e the target and both corpora are the NERV spec mirror (`spec/CLE-*`), the
-old tree is out (deleted in cutover stage 5), and the ranking signals are the branch's own changes, the
-claim's keys (`--focus`), the documents whose `## 구현 위치` covers a changed file
+old tree is out (deleted in cutover stage 5), and the ranking signals are the
+branch's own changes, the claim's keys (`--focus`), the documents whose `## 구현 위치` covers a changed file
 (`--impl-done`) and the keys the target mentions. The plan-name signals left with
 `plan/` (cutover stage 3).
 
@@ -271,7 +273,9 @@ class CollectContextOnTheMirrorTest(unittest.TestCase):
                 if args.spec:
                     args.spec = os.path.join(tmp, args.spec)
                 ctx = orch.collect_context(args, root)
-                emit({k: (heads(v) if k != "mode" and k != "target_path" else v)
+                # `priority_rels` is a list of paths, not a bundle — passed through as is.
+                emit({k: (heads(v) if isinstance(v, str) and k not in ("mode", "target_path")
+                          else v)
                       for k, v in ctx.items()} | {"raw": ctx})
             """,
             {"setup": textwrap.dedent(setup), "kw": kw},
@@ -375,12 +379,24 @@ class ImplDoneCoveringDocumentsTest(unittest.TestCase):
         self.assertNotIn("spec/CLE-AAA/CLE-AAA-ONE.md", out["heads"])
         self.assertNotIn("구현 위치 대조", out["text"])
 
-    def test_the_diff_sits_right_after_the_on_topic_documents(self):
-        """맨 뒤면 가장 먼저 잘리고(2026-08-09 실측), 맨 앞이면 대상 문서보다 먼저 예산을 쓴다."""
+    def test_the_diff_leads_then_the_scope_then_the_covering_documents(self):
+        """diff → `--impl-done` 이 받은 scope → 구현 위치 대조로 더한 문서 순이다.
+
+        맨 뒤면 가장 먼저 잘렸다(2026-08-09 실측). 그다음 자리(대조 문서 뒤)에서도 잘렸다.
+        PR #1654 를 재연하면(2026-11-07, NERV Task `CLE-T-TR583V`) 대조 문서 7편이 앞을
+        채워 diff(30,605자)가 네 프롬프트 모두에서 빠졌다. 예전에는 "맨 앞이면 대상 문서보다
+        먼저 예산을 쓴다" 는 이유로 맨 앞을 피했다. greedy fill 로 바뀐 뒤에는 그 걱정이
+        줄었다. 몫에 안 들어가는 diff 는 뒤 문서를 끌고 가지 않고, 밀려난 문서는 우선
+        문서로 이름이 남아 `Read` 로 열 수 있다. diff 의 이름표는 파일이 아니라서 그렇게
+        되살릴 수 없다.
+
+        scope 문서(TWO)는 브랜치가 미러를 바꾸지 않아 tier 2·3 이지만 대조 문서(ONE, tier 1)
+        보다 앞이다. 검토를 요청받은 문서가 먼저다.
+        """
         out = self._done("codebase/a/x.ts")
         diff = next(h for h in out["heads"] if h.startswith("<git diff"))
         order = [h for h in out["heads"] if h.startswith(("spec/", "<git diff"))]
-        self.assertEqual(order, ["spec/CLE-AAA/CLE-AAA-ONE.md", diff, "spec/CLE-AAA/CLE-AAA-TWO.md"])
+        self.assertEqual(order, [diff, "spec/CLE-AAA/CLE-AAA-TWO.md", "spec/CLE-AAA/CLE-AAA-ONE.md"])
 
     def test_catalog_field_files_leave_the_diff_and_are_counted(self):
         out = self._done([["codebase/api-catalogs/cafe24/order.md", "색인 2\n"],
