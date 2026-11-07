@@ -2,19 +2,19 @@
 id: "CLE-NODE-SWITCH"
 title: "Switch 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-SWITCH-001", "REQ-SWITCH-002", "REQ-SWITCH-003", "REQ-SWITCH-004", "REQ-SWITCH-005", "REQ-SWITCH-006", "REQ-SWITCH-007", "REQ-SWITCH-008", "REQ-SWITCH-009", "REQ-SWITCH-010", "REQ-SWITCH-011", "REQ-SWITCH-012", "REQ-SWITCH-013", "REQ-SWITCH-014", "REQ-SWITCH-015", "REQ-SWITCH-016", "REQ-SWITCH-017", "REQ-SWITCH-018", "REQ-SWITCH-019", "REQ-SWITCH-020", "REQ-SWITCH-021", "REQ-SWITCH-022", "REQ-SWITCH-023", "REQ-SWITCH-024"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "4a6f2fe7a0fab11392744ec74892edfc5c1cefdf781f98caf66d14a1d5c4c421"
+content_hash: "51e59eebd32e157a4bd2a985146ef852c7622769c1c6aad24d7e09eca0db7662"
 read_as: "approved_fallback"
-task: "CLE-T-FZ6N7A"
+task: "CLE-T-ETAZAT"
 source_paths: ["spec/4-nodes/1-logic/2-switch.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "36640d3e607993b90c87473076a142c8f8339aea2e4fed238426243587ed9418"
-etag: "sha256-b99031f2ccbaa4f5fe1f72251ad901b86148aa1c92d10ebcd90f0544d27b7a53"
+mirror_sha256: "7298947dd7555a327ab319ff5949aa1246a3bbe64f968cb40ef98bcd91346b9c"
+etag: "sha256-75e5c46d40c7c1f43a9f58e7a695c4ff70c76988a8cd9e2364b06d49a7f152a5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/2-switch.md`, `spec/4-nodes/_product-overview.md` (§4.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -96,7 +96,7 @@ Switch 노드(Switch, `switch`)는 입력 값(`switchValue`)이나 케이스별 
 1. `config.cases[].id` 가 그대로 출력 포트 ID 가 된다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#동적-포트-id-불변성)).
 2. id 는 slug 형식 `^[a-zA-Z0-9_-]+$`, 최대 64자여야 한다(스키마 `caseDefSchema.id`). 공백·특수문자·HTML 엔티티는 스키마 단계에서 막히므로 경로 선택 키를 주입할 수 없다.
 3. 같은 노드 안에서 케이스 id 는 중복될 수 없다(`validateSwitchConfig` 가 거부).
-4. `default`, `out`, `error` 는 케이스 id 로 쓸 수 없다. 백엔드 `validateSwitchConfig` 의 `RESERVED_CASE_IDS` 집합이 거부한다(`switch.schema.ts:148,163-166`). 스키마 정규식은 문법(slug)만 검사하고 의미 충돌은 이 명령형 검증이 막는다. 예약어 집합은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+4. `default`, `out`, `error` 는 케이스 id 로 쓸 수 없다. 백엔드 `validateSwitchConfig` 의 `RESERVED_CASE_IDS` 집합이 거부한다(`switch.schema.ts`). 스키마 정규식은 문법(slug)만 검사하고 의미 충돌은 이 명령형 검증이 막는다. 예약어 집합은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 5. 케이스를 추가·삭제·재정렬해도 기존 케이스 id(곧 포트 ID)는 바뀌지 않으므로 연결된 연결선이 유지된다.
 6. id 가 비었거나 없으면 백엔드 포트 resolver 가 `case_${index}` 형태의 대체 id 를 발행한다. 이것은 긴급 우회 경로이고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 와 사용자 입력 모두 명시적인 stable id 를 쓰기를 권한다.
 
@@ -264,7 +264,7 @@ Switch 는 런타임 에러 포트가 없다. 검증 실패는 설정 검증 단
 
 `requiredWhen` DSL 은 단일 형태 `{ field, equals: T | readonly T[] }` 로 단순화했다. `equals` 가 값 하나면 동등 비교, 배열이면 화이트리스트(`.includes()`)로 평가한다.
 
-이 정리는 `requiredWhen` DSL 에 한정한다. `visibleWhen` DSL 은 `notEquals` / `oneOf` 형태를 당분간 유지한다. `ai-agent.schema.ts:151` 같은 사용처가 있어서다. `visibleWhen` 정리는 별도 후속 작업이다.
+이 정리는 `requiredWhen` DSL 에 한정한다. `visibleWhen` DSL 은 `notEquals` / `oneOf` 형태를 당분간 유지한다. `ai-agent.schema.ts` 의 `visibleWhen: { field: 'mode', notEquals: 'multi_turn' }` 같은 사용처가 있어서다. `visibleWhen` 정리는 별도 후속 작업이다.
 
 ### 새 모드를 추가할 때의 순서
 
