@@ -2,19 +2,19 @@
 id: "CLE-ENG-SPECEVIDENCE"
 title: "스펙과 구현 근거 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "e961be77ba0376e5ad0a490fa7ef6957c657881ec6fcea392244598c81a74aca"
+content_hash: "f874c8f3df28a8d39a3bd8eae76d4a7ac17011534bcd233554aba17f4486fa4b"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-5GYWFA"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "e66d7c5aaed661fbdc231666113edc7cac2984d82bb8fb35c290dfeee7548eb8"
-etag: "sha256-796402884adbe67a5ea9d659fc3a48412d4672b18038d78d8243187ec14c4d3f"
+mirror_sha256: "287fe793334e9978d7d05a9f21593f0aab8bf2265958f20e02b4c566d9380c47"
+etag: "sha256-709c0aaaa141cf0048cf1fd8bb4ea7df9761089c7d95ca1cfb468d17c8a53317"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -178,7 +178,7 @@ etag: "sha256-796402884adbe67a5ea9d659fc3a48412d4672b18038d78d8243187ec14c4d3f"
 - `.github/workflows/spec-link-checks.yml` (빌드 가드 워크플로의 변경 경로 판정) · `.claude/tests/test_spec_link_checks_scope.py` (네 루트를 모두 덮는지 대조)
 - `.claude/skills/code-review-agents/lib/role_instructions.py` · `.claude/agents/requirement-reviewer.md` · `.claude/config/doc-sync-matrix.json` (교차 참조. 「적용 대상」 에서 판정 없이 이 절을 따르는 곳이다. 대조 테스트는 없다)
 - `.claude/skills/consistency-checker/scripts/consistency_orchestrator.py` (교차 참조. `--impl-done` 의 구현 위치 대조. 「적용 대상」 셋째 항목)
-- `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref-guard.ts` · `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref.spec.ts` 와 대조군 `codebase/backend/src/repo-guards/__tests__/fixtures/openapi-internal-ref/**` (교차 참조. 범위 2 의 공개 OpenAPI 예외를 지키는 백엔드 가드다. 기준은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17. 키 패턴은 `SPEC_KEY_RE` 와 같은 모양의 사본이라 함께 고친다. 옛 `plan/` 경로는 `plan/in-progress/` · `plan/complete/` 둘만 센다. `public-surface-internal-refs` 도 같다. `legacy-path-ratchet` 은 `plan/research/` 까지 센다)
+- `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref-guard.ts` · `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref.spec.ts` 와 대조군 `codebase/backend/src/repo-guards/__tests__/fixtures/openapi-internal-ref/**` (교차 참조. 범위 2 의 공개 OpenAPI 예외를 지키는 백엔드 가드다. 기준은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17. 키 패턴은 `SPEC_KEY_RE` 와 같은 모양의 사본이라 함께 고친다. 옛 `plan/` 경로는 `plan/in-progress/` · `plan/complete/` · `plan/research/` 셋을 센다. `public-surface-internal-refs` · `legacy-path-ratchet` 도 같다. `plan/research/` 는 2026-11-07 에 더했고 경위는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) Rationale 에 있다)
 
 ## Rationale
 
