@@ -67,6 +67,7 @@ EXPECTED_OVERRIDES = {
     "source-map-js": "^1.2.2",
     "js-yaml@3>argparse": "^2.0.1",
     "handlebars": "^4.7.10",
+    "gcp-metadata@8>gaxios": "^7.3.1",
 }
 EXPECTED_ONLY_BUILT = {
     "isolated-vm",
@@ -77,7 +78,7 @@ EXPECTED_ONLY_BUILT = {
 }
 # 검토 후 수용(accept)한 CVE. 사유 · 근거 · 해소 조건의 정본은 pnpm-workspace.yaml 의 auditConfig
 # 주석이다. 항목을 더하거나 뺄 때는 그 주석과 **함께** 고친다.
-EXPECTED_IGNORED_CVES: set[str] = {"CVE-2026-93687"}
+EXPECTED_IGNORED_CVES: set[str] = {"CVE-2026-93687", "CVE-2026-118773", "CVE-2026-118764"}
 
 
 def _check_set(label, expected, actual, errors):
