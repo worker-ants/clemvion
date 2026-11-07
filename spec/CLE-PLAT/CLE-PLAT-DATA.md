@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "c14fdad2665d0157cf6fe35eefa26cbdcc4caea7c9b50650f6195d751353d6f4"
+content_hash: "7a11b80017c85ac6b51c53c3b6fc322bae787391ba8bdd18701cec9230ca4205"
 read_as: "approved_fallback"
 task: "CLE-T-1BQZ10"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "647176db85198885437cd4e44a13f5a60254de9cde8ddea61f37c5667fe35c89"
-etag: "sha256-d97d8e80d08a5752042cbc1a9c5701e0cc0289f26a79200b9f558dac017d659e"
+mirror_sha256: "98cb622e057abc63fca4decc4bd2bfcc9df9b6619f8c8940c5c7c888a9599300"
+etag: "sha256-fbde80fa3ac72989c79e2b4227fe718704d55521462da27c546226cc1002d3a2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -522,6 +522,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
   - `codebase/backend/test/integration-personal-use.e2e-spec.ts` (통합 참조의 경로별 거절 · 비우기)
 - 통합 참조 목록을 지키는 테스트: `codebase/backend/src/modules/integrations/node-integration-refs.spec.ts` (노드 스키마 위젯 대조, 「통합 참조 목록 ↔ 프런트엔드 사본」), `codebase/backend/src/repo-guards/__tests__/node-row-writers-guard.ts` · `node-row-writers.spec.ts` (노드 `config` 를 쓰는 지점의 허용 목록)
 - 조회 조건 규칙을 지키는 가드: `codebase/backend/src/repo-guards/__tests__/nullable-type-lie-cast*.ts`, `codebase/backend/src/common/__test-utils__/source-scan.ts` (`countNullishEscapeCasts`, nullish 를 타입 밖으로 빼는 캐스트)
+- 요청 본문 참조 id 의 소속 검사 호출을 지키는 가드: `codebase/backend/src/repo-guards/__tests__/reference-scope-guard.ts` · `reference-scope.spec.ts` (요청 DTO 참조 필드 전수 분류, 검사 자리 도달, 공개 서비스 메서드 대조)
 
 ## Rationale
 
@@ -550,7 +551,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 
 ### 워크스페이스 범위 참조를 복합 FK 로도 막는다 (2026-10-05)
 
-[본문 참조 id 도 저장 전에 소속을 본다](#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27) 는 새 쓰기 경로가 검사를 빠뜨리는 것을 막는 정적 가드가 없다고 적었다. 운영 점검은 저장 경계 이전의 행을 찾으려고 둔 것이지만 어떤 경로로 생긴 교차 행이든 결과에 나왔다. 그 점검을 [아래 결정](#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다-2026-10-05) 에서 걷었으므로 검사를 빠뜨린 경로가 만든 교차 행은 이제 찾을 수단이 없다. 이 공백 가운데 걷은 점검이 보던 열여섯 참조를 DB 가 막도록 복합 외래 키(복합 FK)를 더하기로 했다(사람 결정, NERV Task `CLE-T-N0RHDZ`). 2026-10-05 에 마이그레이션 V134~V147 로 구현했다(NERV Task `CLE-T-QTRRE6`). 구현 착수 때 대상을 열일곱으로 넓혔다(아래 «대상»).
+[본문 참조 id 도 저장 전에 소속을 본다](#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27) 는 새 쓰기 경로가 검사를 빠뜨리는 것을 막는 정적 가드가 없다고 적었다. 그 가드는 2026-11-07 에 더했다(그 결정의 «왜 저장 시점인가»). 운영 점검은 저장 경계 이전의 행을 찾으려고 둔 것이지만 어떤 경로로 생긴 교차 행이든 결과에 나왔다. 그 점검을 [아래 결정](#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다-2026-10-05) 에서 걷었으므로 검사를 빠뜨린 경로가 만든 교차 행은 이제 찾을 수단이 없다. 이 공백 가운데 걷은 점검이 보던 열여섯 참조를 DB 가 막도록 복합 외래 키(복합 FK)를 더하기로 했다(사람 결정, NERV Task `CLE-T-N0RHDZ`). 2026-10-05 에 마이그레이션 V134~V147 로 구현했다(NERV Task `CLE-T-QTRRE6`). 구현 착수 때 대상을 열일곱으로 넓혔다(아래 «대상»).
 
 - **대상**: 걷은 점검 SQL 의 `check_name` 열여섯과 같은 참조 컬럼이다. [참조의 소속](#참조의-소속) 표에 있는 참조 컬럼 열넷과 표 밖의 둘이다. 표 밖의 둘 가운데 스케줄 `trigger_id` 는 서버가 채운다(구현 때 세션 `workflowId` 를 표에 올려 지금 표의 참조 컬럼은 열다섯이다). 어시스턴트 세션 `workflow_id` 는 세션 생성 본문의 `workflowId` 이고 서비스가 워크스페이스로 대조해 404 `WORKFLOW_NOT_FOUND` 를 낸다. 구현 때 이 필드를 표에 올리고 404 를 예외 3 으로 적었다(사람 결정). 이미 나가던 응답이라 클라이언트의 분기를 바꾸지 않는다. 워크스페이스 범위 열둘은 트리거 `workflow_id` · `auth_config_id`, 스케줄 `trigger_id`, 알림 규칙 `workflow_id`, 워크플로우 `folder_id`, 폴더 `parent_id`, 어시스턴트 세션 `workflow_id` · `llm_config_id`, 지식 저장소 모델 설정 넷이다. 같은 워크플로우 범위 넷은 노드 `container_id` · `tool_owner_id` 와 연결선 끝점 둘이다. 부모 여섯(워크플로우, 인증 설정, 폴더, 모델 설정, 트리거, 노드)에 `UNIQUE (id, workspace_id)` 나 `UNIQUE (id, workflow_id)` 를 둔다. 구현 착수 때 워크플로우 테스트 데이터셋 `workflow_id` 를 더해 **열일곱**이 됐다(사람 결정). 이 테이블은 `workspace_id` 를 비정규화해 두므로(공통 컬럼 규칙 6) 두 값이 맞는지가 곧 이 불변식이다. 부모 `workflow` 의 UNIQUE 는 어차피 생기므로 더해지는 비용은 FK 교체 하나다. LLM 사용량 기록(`LlmUsageLog`)의 `workflow_id` · `llm_config_id` 는 넣지 않았다. 서버만 쓰는 기록이라는 이유를 적은 선택지를 사람이 골랐다. 공통 컬럼 규칙 6 의 다른 비정규화 컬럼 가운데 활동 로그의 `workflow_id` 는 부모(노드 실행)에 같은 범위 컬럼이 없어 복합 FK 를 만들 수 없다. 청크의 `knowledge_base_id` 는 문서 `(id, knowledge_base_id)` 로 만들 수 있지만 지식 저장소 범위라 이 결정(워크스페이스 · 워크플로우 범위)에 넣지 않았다. 테스트 데이터셋은 2026-10-05 운영 점검 밖이라 V134 가 처음 본다.
 - **견준 안**: 사람에게 세 안을 물었다. (a) 열여섯 모두 바꾼다. (b) 워크스페이스 범위 열둘만 바꾸고 쓰기가 잦은 노드 테이블에 UNIQUE 를 더하지 않는다. (c) 채택하지 않고 공백을 받아들인다. (a) 를 골랐다. (b) 는 2026-09-27 사고가 난 노드 · 연결선 참조를 저장 시점 검사에만 맡기고, (c) 는 탐지 수단도 없는 공백을 남긴다. 앱 불변식을 DB 로 한 번 더 막은 선례는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 개인 워크스페이스 부분 유니크 인덱스(V109)다.
@@ -598,7 +599,7 @@ TypeORM 0.3 은 where 의 null · undefined 키를 조용히 빼고 조회했다
 
 나머지는 끊긴 참조로 남았다. 소스 판독으로 본 부수 영향은 둘이고 둘 다 재지 않았다. 하나는 FK `ON DELETE` 때문에 상대가 행을 지우면 이쪽 행이 비워지는 것이다. 폴더 `parent_id` 는 CASCADE 라서 이쪽 폴더가 함께 지워진다. 다른 하나는 연결선 UNIQUE 에 `workflow_id` 가 없어 남의 연결 튜플을 선점할 수 있는 것이다.
 
-- **왜 저장 시점인가**: 모델 설정 `findEntity(id, workspaceId, kind)` 처럼 읽는 쪽이 거르는 자리도 있다. 그러나 당시 실행 엔진은 거르지 않았다. 읽는 자리마다 필터를 기대하는 것은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다) 의 "멤버십 검증은 가드 한 곳에서" 결정이 "74번째 라우트" 문제로 기각한 모양 그대로다. 저장이 입구 하나다. 현재 구현은 서비스마다 검사 헬퍼(`assertReferenceInScope` 등)를 부른다. 컬럼에 저장되는 참조 id 에는 새 쓰기 경로가 검사를 빠뜨리는 것을 막는 정적 가드가 없다. 노드 `config` 의 통합 참조는 `codebase/backend/src/repo-guards/__tests__/node-row-writers-guard.ts` 가 노드 `config` 를 쓰는 지점을 허용 목록으로 지킨다(위 «노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다»). 걷은 점검이 보던 열여섯 참조와 테스트 데이터셋 참조는 2026-10-05 에 DB 의 복합 FK 로 막았다([워크스페이스 범위 참조를 복합 FK 로도 막는다](#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)). 2026-10-05 에 엔진 진입(`execute()`) 한 곳에 워크스페이스 대조를 더했다. 이것은 읽는 자리마다 거는 필터가 아니라 트리거 · 스케줄의 워크플로우 참조에 대한 두 번째 방어선이고 저장이 첫 방어선이라는 이 결정은 그대로다([저장된 교차 행은 실행 때 한 번 더 막고 운영 점검으로 찾는다](#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다-2026-10-05)).
+- **왜 저장 시점인가**: 모델 설정 `findEntity(id, workspaceId, kind)` 처럼 읽는 쪽이 거르는 자리도 있다. 그러나 당시 실행 엔진은 거르지 않았다. 읽는 자리마다 필터를 기대하는 것은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다) 의 "멤버십 검증은 가드 한 곳에서" 결정이 "74번째 라우트" 문제로 기각한 모양 그대로다. 저장이 입구 하나다. 현재 구현은 서비스마다 검사 헬퍼(`assertReferenceInScope` 등)를 부른다. 2026-11-07 에 새 쓰기 경로가 그 호출을 빠뜨리는 것을 막는 정적 가드를 더했다(NERV Task `CLE-T-V6W99V`, `codebase/backend/src/repo-guards/__tests__/reference-scope.spec.ts`). 요청 DTO 의 `id` · `*Id` · `*Ids` 필드는 전부 «검사한다(서비스 메서드 목록)» 나 «범위 밖(사유)» 으로 분류해야 한다. 검사한다고 적은 메서드는 같은 클래스 안의 호출을 따라가 그 필드를 검사하는 호출(`assertReferenceInScope` 와 [참조의 소속](#참조의-소속) 예외 1~3 의 검증기)에 닿아야 한다. 검사 대상 필드를 나르는 DTO 를 받는 공개 서비스 메서드가 새로 생기면 그 메서드도 목록에 올라야 한다. 가드는 검사를 부르는지만 본다. 검사가 소속 조건을 제대로 싣는지는 서비스 단위 테스트와 e2e `codebase/backend/test/cross-workspace-references.e2e-spec.ts` 가 본다. 매개변수 타입이 DTO 가 아닌 새 저장 메서드(폴더 서비스가 그런 모양이다)는 가드가 알아보지 못한다. 노드 `config` 의 통합 참조는 `codebase/backend/src/repo-guards/__tests__/node-row-writers-guard.ts` 가 노드 `config` 를 쓰는 지점을 허용 목록으로 지킨다(위 «노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다»). 걷은 점검이 보던 열여섯 참조와 테스트 데이터셋 참조는 2026-10-05 에 DB 의 복합 FK 로 막았다([워크스페이스 범위 참조를 복합 FK 로도 막는다](#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)). 2026-10-05 에 엔진 진입(`execute()`) 한 곳에 워크스페이스 대조를 더했다. 이것은 읽는 자리마다 거는 필터가 아니라 트리거 · 스케줄의 워크플로우 참조에 대한 두 번째 방어선이고 저장이 첫 방어선이라는 이 결정은 그대로다([저장된 교차 행은 실행 때 한 번 더 막고 운영 점검으로 찾는다](#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다-2026-10-05)).
 - **에러**: 400 `VALIDATION_ERROR` 와 `details[]` 배열이다. 파이프가 내는 `VALIDATION_ERROR` 와 같은 모양이다. 캔버스 저장처럼 한 요청에서 여러 항목이 틀릴 수 있어 배열로 싣는다. 본문의 교차 참조는 리소스 부재가 아니라 입력값 유효성 문제로 본다. [에러 코드 규약과 카탈로그 §트리거 인증 설정 연결](../CLE-API/CLE-API-ERRCODES.md#614-트리거-인증-설정-연결-도메인-문서-참조) 의 판단을 따른 것이다. 그 절의 `AUTH_CONFIG_NOT_FOUND` 는 top-level 이 도메인 코드인 **예외**다. `details[].code` 를 싣는 다른 자리는 대부분 `VALIDATION_ERROR` 라서 새 자리는 다수를 따른다. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다. 2026-10-05 에 세션 생성 `workflowId` 를 표에 올리며 예외가 셋이 됐다. 목록은 본문 [참조의 소속](#참조의-소속) 의 예외 1~3 이다.
 - **모델 설정 참조와 세션 `workflowId` 만 404**: 지식 저장소 `embeddingModelConfigId` 는 이미 `findEntity` 로 404 `MODEL_CONFIG_NOT_FOUND` 를 낸다. 같은 요청의 `rerankConfigId` 등이 400 이면 한 본문 안에서 필드마다 코드가 갈린다. 그래서 같은 검증기를 다시 쓴다. 어시스턴트 세션 생성 `workflowId` 는 2026-10-05 에 표에 올렸다. 서비스가 이미 404 `WORKFLOW_NOT_FOUND` 를 내고 같은 본문의 `llmConfigId` 도 404 라서 그 응답을 그대로 적었다(사람 결정). 400 으로 바꾸면 이미 나가던 응답이 바뀐다.
 - **캔버스 저장의 노드 id 는 존재 신호를 준다**: 새 id 는 통과하고 이미 쓰이는 id 는 거부하므로 "있다·없다" 가 갈린다. 이 신호는 그 UUID 를 이미 가진 사람에게만 뜻이 있다. v4 UUID 라 추측할 수 없다. 대안이었던 "충돌한 id 를 서버가 조용히 새로 발급" 은 택하지 않았다. 같은 페이로드의 `containerId`·연결선이 가리키는 id 와 클라이언트가 가진 id 가 어긋나기 때문이다.
