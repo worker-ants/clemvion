@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -33,6 +33,7 @@ import {
   ENGINE_DRIVER,
   type InteractionEngineDriver,
 } from './engine-driver.interface';
+import { assertLinkedTransitionApplied } from './linked-transition-guard';
 
 /**
  * 버튼 클릭 재개 payload 의 판별유니온 (continuation-bus 가 publish 하는 wire-shape).
@@ -318,6 +319,8 @@ export function buildResumedStructuredOutput(
  */
 @Injectable()
 export class ButtonInteractionService {
+  private readonly logger = new Logger(ButtonInteractionService.name);
+
   constructor(
     private readonly contextService: ExecutionContextService,
     private readonly conversationThreadService: ConversationThreadService,
@@ -334,6 +337,9 @@ export class ButtonInteractionService {
    * executeInline 공통, exec-park D6 full B3). 버튼 클릭 재개는 §7.5 rehydration 의
    * 직접 처리기 {@link processButtonResumeTurn} 가 payload 로 _selectedPort 라우팅·
    * output 갱신을 수행한다. (`_graphEdges` 는 호출자 시그니처 호환용 — 미사용.)
+   *
+   * @throws {ExecutionCancelledError} WAITING 짝 전이가 동시 Stop 에 선점당하면 짝 행을
+   *   CANCELLED 로 마킹한 뒤 던진다(`assertLinkedTransitionApplied`).
    */
   async waitForButtonInteraction(
     savedExecution: Execution,
@@ -388,10 +394,23 @@ export class ButtonInteractionService {
     // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
     this.driver.stageDurableResumeSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
-    await this.driver.updateExecutionStatus(
+    const parked = await this.driver.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
+    );
+    // 동시 Stop 이 먼저 마감했으면(false) 대기 이벤트를 내지 않는다. 짝 행을 CANCELLED 로
+    // 마킹하고 취소로 넘긴다(CLE-EXEC-STATE §원자성 보장 5, CLE-T-J6GRJ9).
+    await assertLinkedTransitionApplied(
+      { driver: this.driver, logger: this.logger },
+      {
+        shouldProceed: parked,
+        nodeExec,
+        node,
+        context,
+        executionId,
+        phase: 'buttons park',
+      },
     );
 
     // Emit waiting event so frontend can render buttons
@@ -437,6 +456,9 @@ export class ButtonInteractionService {
    * pendingContinuations + firePayload 경로 대체 — buttonConfig/buttons/output 을
    * context 에서 재계산하고 port 선택·structured/flat output·thread append·
    * NodeExecution COMPLETED + RUNNING 전이·NODE_COMPLETED/EXECUTION_RESUMED emit.
+   *
+   * @throws {ExecutionCancelledError} RUNNING 재claim 짝 전이가 동시 Stop 에 선점당하면
+   *   짝 행을 CANCELLED 로 마킹한 뒤 던진다(`assertLinkedTransitionApplied`).
    */
   async processButtonResumeTurn(
     savedExecution: Execution,
@@ -559,10 +581,23 @@ export class ButtonInteractionService {
         await this.nodeExecutionRepository.save(nodeExec);
       }
     } else {
-      await this.driver.updateExecutionStatus(
+      const reclaimed = await this.driver.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.RUNNING,
         nodeExec ?? undefined,
+      );
+      // 재claim 이 동시 Stop 에 선점당했으면(false) NODE_COMPLETED · EXECUTION_RESUMED 를
+      // 내지 않는다. 짝 행을 CANCELLED 로 마킹하고 취소로 넘긴다(CLE-T-J6GRJ9).
+      await assertLinkedTransitionApplied(
+        { driver: this.driver, logger: this.logger },
+        {
+          shouldProceed: reclaimed,
+          nodeExec,
+          node,
+          context,
+          executionId,
+          phase: 'buttons 재개 RUNNING 재claim',
+        },
       );
     }
 

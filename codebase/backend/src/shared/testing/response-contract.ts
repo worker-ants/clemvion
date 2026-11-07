@@ -382,6 +382,38 @@ export function assertMatchesContract(
   }
 }
 
+/**
+ * 목록 응답에서 조건에 맞는 항목 하나를 골라 계약과 대조하고 그 항목을 돌려준다.
+ *
+ * e2e 가 목록 응답을 대조할 때 `find` → `expect(...).toBeDefined()` → `assertMatchesContract` 세 문장을
+ * 반복했다. 고른 항목이 없으면 `toBeDefined` 가 `undefined` 만 보여 줘서 어느 DTO 의 목록에서 무엇을 찾다
+ * 실패했는지 알 수 없었다. 이 함수는 못 찾으면 DTO 이름과 목록 길이를 담아 던진다. 돌려준 항목은
+ * `undefined` 가 아니므로 호출부가 뒤이은 단언에 `?.` 를 붙이지 않아도 된다.
+ *
+ * 목록이 배열이 아니어도 던진다. 응답이 `{ items }` 로 감싸였는데 `data` 를 그대로 넘긴 실수를 잡는다.
+ */
+export function pickMatchingContract<T>(
+  items: readonly T[],
+  predicate: (item: T) => boolean,
+  contract: DtoContract,
+  options: ContractCheckOptions = {},
+): T {
+  // `Array.isArray` 로 좁히면 `items` 가 `any[]` 가 된다. 판정만 `unknown` 으로 하고 원래 타입을 그대로 쓴다.
+  const raw: unknown = items;
+  if (!Array.isArray(raw)) {
+    const shape = raw === null ? 'null' : typeof raw;
+    throw new Error(`${contract.name} 목록이 배열이 아니다: ${shape}`);
+  }
+  const found = items.find(predicate);
+  if (found === undefined) {
+    throw new Error(
+      `${contract.name} 목록 ${items.length}건 중 조건에 맞는 항목이 없다`,
+    );
+  }
+  assertMatchesContract(found, contract, options);
+  return found;
+}
+
 /** DTO 클래스 → 진행 중이거나 완료된 계약 promise. 아래 `contractForDto` 전용. */
 const contractCache = new Map<Type<unknown>, Promise<DtoContract>>();
 

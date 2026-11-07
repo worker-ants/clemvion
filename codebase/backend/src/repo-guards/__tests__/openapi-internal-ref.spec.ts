@@ -65,7 +65,9 @@ describe('공개 OpenAPI 문장의 내부 참조', () => {
       'InternalRefFixtureDto.withKey jsdoc CLE-API-CONV',
       'InternalRefFixtureDto.withOldFile jsdoc 15-chat-channel.md',
       'InternalRefFixtureDto.withOldReq jsdoc WH-SC-01',
-      'InternalRefFixtureDto.withPlan jsdoc plan/in-progress/',
+      // 옛 plan 경로 세 갈래 가운데 마지막에 더한 research 갈래를 대조군으로 둔다. 세 갈래 모두는
+      // 같은 패턴을 복제한 프런트엔드 `public-surface-internal-refs` 대조군이 본다.
+      'InternalRefFixtureDto.withPlan jsdoc plan/research/',
       'InternalRefFixtureDto.withReq jsdoc REQ-GUIDE-032',
       'InternalRefFixtureDto.withSpecPath jsdoc spec/5',
       // 한 JSDoc 에 형태 둘 — 첫 형태에서 멈추면 하나만 잡힌다.

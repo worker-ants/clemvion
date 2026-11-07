@@ -2,19 +2,19 @@
 id: "CLE-NODE-IFELSE"
 title: "If/Else 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-IFELSE-001", "REQ-IFELSE-002", "REQ-IFELSE-003", "REQ-IFELSE-004", "REQ-IFELSE-005", "REQ-IFELSE-006", "REQ-IFELSE-007", "REQ-IFELSE-008", "REQ-IFELSE-009", "REQ-IFELSE-010", "REQ-IFELSE-011", "REQ-IFELSE-012", "REQ-IFELSE-013", "REQ-IFELSE-014", "REQ-IFELSE-015"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "20b66085b7730d6ebf630d4b6936a9e09b05136b97888618a15ea59e03ad7149"
-read_as: "approved"
-task: null
+content_hash: "e77042ebb41c0926bf8acabd274651a37eb1916ecfe2923f198dc6b37581e8f7"
+read_as: "approved_fallback"
+task: "CLE-T-X3AH4F"
 source_paths: ["spec/4-nodes/1-logic/1-if-else.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4a057c28b90f9f15d92510a91a6c851fc4bcc87b5023774514131623a4940019"
-etag: "sha256-dbaaf779a4784db0d5728cf6eb9886c791b1188c20876ea664d5a7fce8fb251c"
+mirror_sha256: "a556abc27db3ff1a02e68d6a2f5e17f6812886a8df72be0557e2d2c5f0613f5e"
+etag: "sha256-68c8c280a56869bc0bfaa3b34e02b04a0fd7933575b2fd9225d370e5039c1f7f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/1-if-else.md`, `spec/4-nodes/_product-overview.md` (§4.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,7 +74,7 @@ If/Else 는 동적 포트가 없다.
 
 ## 실행 로직
 
-1. 입력 데이터에 대해 모든 `conditions[i]` 를 `evaluateCondition` (`condition-evaluator.util.ts`)으로 평가한다. `strictComparison` 설정을 적용한다.
+1. 입력 데이터에 대해 모든 `conditions[i]` 를 `evaluateCondition` (`condition-evaluator.util.ts`)으로 평가한다. `strictComparison` 설정을 적용한다. 앞 조건으로 최종 결과가 정해져도 남은 조건을 건너뛰지 않는다(단락 평가 없음). 조건별 결과는 모두 `meta.matchedConditions` 에 실린다.
 2. `combineMode` 에 따라 결과를 결합한다. `and` 는 모두 참일 때, `or` 는 하나라도 참일 때 참이다.
 3. 결과가 참이면 `port: 'true'`, 거짓이면 `port: 'false'` 를 반환한다.
 4. 입력은 바꾸지 않고 그대로 `output` 에 복사한다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#패스스루-규약) 의 패스스루 규약).
@@ -91,7 +91,8 @@ If/Else 는 경로만 고르는 패스스루 노드라서 출력 케이스가 �
     "conditions": [
       { "field": "{{ $input.user.age }}", "operator": "gte", "value": 18 }
     ],
-    "combineMode": "and"
+    "combineMode": "and",
+    "strictComparison": false
   },
   "output": { "user": { "age": 25, "name": "Alice" } },
   "meta": {
@@ -109,10 +110,11 @@ If/Else 는 경로만 고르는 패스스루 노드라서 출력 케이스가 �
 |------|------|------|------|
 | `config.conditions` | `Condition[]` | 설정 에코 | 사용자가 입력한 원래 조건. 표현식 `{{ }}` 을 그대로 남긴다 |
 | `config.combineMode` | `'and'` / `'or'` | 설정 에코 | 결합 방식(기본 `and`) |
+| `config.strictComparison?` | boolean | 설정 에코 | 엄격 비교 모드. `combineMode` 와 달리 핸들러가 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 평가는 `false` 일 때와 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터를 바꾸지 않고 담는다 |
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입하므로 핸들러는 채우지 않는다 |
 | `meta.conditionResult` | boolean | 핸들러 반환 | 조건 평가의 최종 결과. `port` 문자열을 비교하지 않고 불리언으로 읽을 수 있다 |
-| `meta.matchedConditions` | Array | 핸들러 반환 | 조건마다의 평가 결과. `combineMode='or'` 일 때 어떤 조건이 참이었는지 확인하는 데 쓴다 |
+| `meta.matchedConditions` | Array | 핸들러 반환 | 조건마다의 평가 결과를 `conditions` 순서대로 담는다(REQ-IFELSE-011). 핸들러가 단락 평가를 하지 않으므로([실행 로직](#실행-로직) 1단계) `combineMode` 와 상관없이 모든 조건의 결과가 들어 있다. `and` 에서 앞 조건이 거짓이거나 `or` 에서 앞 조건이 참이어도 뒤 조건의 결과가 있다. `combineMode='or'` 일 때 어떤 조건이 참이었는지 확인하는 데 쓴다 |
 | `port` | `'true'` | 핸들러 반환 | 조건 만족 경로 |
 
 표현식 접근 예:
@@ -129,7 +131,8 @@ If/Else 는 경로만 고르는 패스스루 노드라서 출력 케이스가 �
     "conditions": [
       { "field": "{{ $input.user.age }}", "operator": "gte", "value": 18 }
     ],
-    "combineMode": "and"
+    "combineMode": "and",
+    "strictComparison": false
   },
   "output": { "user": { "age": 15, "name": "Bob" } },
   "meta": {

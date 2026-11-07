@@ -7,6 +7,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 import {
   assertMatchesContract,
   contractForDto,
+  pickMatchingContract,
 } from '../src/shared/testing/response-contract';
 import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
 import { expectNarrowedScheduleTriggerRef } from '../src/shared/testing/schedule-trigger-ref';
@@ -157,15 +158,15 @@ describe('Schedule trigger (e2e)', () => {
       .get('/api/schedules?limit=50')
       .set(authHeaders());
     expect(list.status).toBe(200);
-    const listed = (list.body.data as Array<Record<string, unknown>>).find(
+    const listed = pickMatchingContract(
+      list.body.data as Array<Record<string, unknown>>,
       (r) => r.id === scheduleId,
+      await contractForDto(ScheduleDto),
     );
-    expect(listed).toBeDefined();
-    assertMatchesContract(listed, await contractForDto(ScheduleDto));
     // 상세와 **같은 양성 대조**를 목록에도 건다. 계약 대조만으로는 좁히기 로직이 통째로
     // 사라져 `workflow` 가 안 실려도 통과한다 — §5.4 키 생략형은 부재를 위반으로 보지
     // 않기 때문이다 (`review/code/2026/09/06/00_24_34` W2).
-    expect(Object.keys(listed ?? {}).includes('trigger')).toBe(true);
+    expect(Object.keys(listed).includes('trigger')).toBe(true);
     expectNarrowedScheduleTriggerRef(
       (listed as { trigger?: unknown }).trigger,
       { withWorkflow: true },

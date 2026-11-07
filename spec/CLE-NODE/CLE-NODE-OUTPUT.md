@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "b0e02c46f31e4b7ae3963a6886cbfdf9e8157d60a68a5cc265991946aa47559c"
+content_hash: "def6115298ca1a9b0ef8903a900ddfd3fc04edbea329622b182b601df131afe5"
 read_as: "approved_fallback"
-task: "CLE-T-REC4X3"
+task: "CLE-T-ETAZAT"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "6e5c7c146228ac2a44e4434cfe8c669ea95ced6593c521488809558d37f9ca10"
-etag: "sha256-0c1b7a1f0555adf018d98e673ee908b38eb97e633caa96851394b7b0c85a3cdf"
+mirror_sha256: "ea69fb9e290d185726c76a553fc21e19f7993ada219d47f755c24b95c6780716"
+etag: "sha256-a4b46339cc356eebd833ef497685750bd6a57502711405e20e0d16a2beee007f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -378,7 +378,7 @@ egress 값 마스킹이 이 금지를 한 번 더 막는다. 위 금지는 핸�
 
 2. spread 로 싣지 않는다. `{ ...context.rawConfig }` 나 `{ ...rawConfig, ...overrides }` 형태를 금지한다. 이유는 [Rationale](#설정-에코를-명시-나열로-만드는-이유-결정-d1)에 있다.
 3. 기준 구현은 `background.handler.ts` 의 명시 나열 블록(`notes`, `notifyOnFailure`, `maxDurationMs` 만 나열)이다. `background.handler.spec.ts` 의 자격 증명 누출 방지 테스트가 이를 강제한다. 이 테스트는 rawConfig 에 가상의 `apiKey` 를 넣어도 에코에 새지 않는지 확인한다.
-4. 모든 노드 핸들러는 스키마의 비민감 필드를 항상 싣는다. 값이 `undefined` 여도 키를 둔다. 다음 노드의 누락은 이 규칙에 맞게 보강할 대상이다: `switch.hasDefault`, `if-else.strictComparison`, `map.errorPolicy`, `foreach.errorPolicy`, `carousel.maxItems`, `chart.dataField`·`groupBy`·`colors`, `template.helpers`, `table.pagination`, `variable-modification.recordValues` 등. 이 규칙과 다르게 적은 노드 문서가 있다. [미결 사항](#미결-사항) 참조.
+4. 모든 노드 핸들러는 스키마의 비민감 필드를 항상 싣는다. 값이 `undefined` 여도 키를 둔다. 이런 키는 출력을 JSON 으로 저장하거나 내보낼 때 빠지므로 저장된 출력과 API 응답에는 보이지 않는다. 표현식으로 읽으면 `undefined` 다. 설정하지 않은 필드에 핸들러가 기본값을 채우는지, 채우지 않으면 동작이 어떤 값일 때와 같은지는 노드 문서의 출력 필드 표에 필드마다 적는다. 이런 필드는 선택 필드라 표에 `?` 를 붙인다([Principle 11](#principle-11-출력-예시-작성-규칙) 규칙 2). 이 규칙과 다르게 적은 노드 문서가 있다. [미결 사항](#미결-사항) 참조.
 
 핸들러 구현 예는 다음과 같다. 핸들러는 `context.rawConfig` 를 싣고, 평가한 값으로 동작한다.
 
@@ -500,7 +500,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 ````
 
 1. JSON 예시에서 `undefined` 필드는 빼고 쓴다.
-2. 선택 필드는 표에 `?` 를 붙인다. 이 규약에서 선택인 필드라도 노드 문서가 그 케이스에서 늘 싣는다고 정하면 `?` 없이 쓴다. 예를 들어 AI 에이전트 단일 턴 케이스의 `meta.thinkingTokens` 다.
+2. 선택 필드는 표에 `?` 를 붙인다. 이 규약에서 선택인 필드라도 노드 문서가 그 케이스에서 늘 싣는다고 정하면 `?` 없이 쓴다. 예를 들어 AI 에이전트 단일 턴 케이스의 `meta.thinkingTokens` 다. 설정 에코에서 값이 `undefined` 일 수 있는 필드(사용자가 설정하지 않았고 핸들러가 기본값을 채우지 않는 필드)도 선택 필드다([Principle 7](#principle-7-설정-에코-원칙) 규칙 4).
 3. 케이스(성공, 에러, 재개 등)마다 따로 쓴다.
 4. 다섯 필드 밖의 최상위 키를 쓰지 않는다([Principle 0](#principle-0-노드-출력의-다섯-필드)의 내부 필드 예외는 제외).
 
@@ -580,6 +580,10 @@ spread 로 싣지 않는 이유는 세 가지다.
 1. 자격 증명 누출 위험. 스키마에 새 민감 필드가 생기면 자동으로 노출된다.
 2. 회귀를 알아채기 어렵다. 어떤 필드가 실리는지 단위 테스트로 명시해 검증할 수 없다.
 3. 죽은 필드가 계속 실린다. 폐기 예정 필드가 자동으로 계속 나온다.
+
+규칙 4 에는 처음에 핸들러가 빠뜨린 필드를 보강할 대상으로 적어 두었다(`switch.hasDefault`, `if-else.strictComparison`, `map.errorPolicy`, `foreach.errorPolicy`, `carousel.maxItems`, `chart.dataField` · `groupBy` · `colors`, `template.helpers`, `table.pagination`, `variable-modification.recordValues`). 2026-11-07 에 코드와 대조하니 핸들러가 이 필드를 모두 싣고 있어서 목록을 지웠다(NERV Task `CLE-T-ETAZAT`). If/Else · Switch · 변수 수정 문서의 출력 예시와 필드 표는 같은 날 맞췄다(NERV Task `CLE-T-FZ6N7A`).
+
+미설정 필드가 JSON 에서 빠진다는 점은 그동안 노드 문서에만 적혀 있어서 같은 날 규칙 4 와 Principle 11 규칙 2 에 함께 적었다. Map · ForEach · Table · Carousel · Template 문서의 출력 필드 표를 이 형식에 맞추는 일은 NERV Task `CLE-T-W0377J` 가 맡는다.
 
 ### 엔진 덮어쓰기 형태를 하나로 맞춘 이유
 

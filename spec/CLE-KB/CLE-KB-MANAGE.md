@@ -3,18 +3,18 @@ id: "CLE-KB-MANAGE"
 title: "지식 저장소 관리"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-KBUI-001", "REQ-KBUI-002", "REQ-KBUI-003", "REQ-KBUI-004", "REQ-KBUI-005", "REQ-KBUI-006", "REQ-KBUI-007", "REQ-KBUI-008", "REQ-KBUI-009", "REQ-KBUI-010", "REQ-KBUI-011", "REQ-KBUI-012", "REQ-KBUI-013", "REQ-KBUI-014", "REQ-KBUI-015", "REQ-KBUI-016", "REQ-KBUI-017", "REQ-KBUI-018", "REQ-KBUI-019", "REQ-KBUI-020", "REQ-KBUI-021", "REQ-KBUI-022", "REQ-KBUI-023", "REQ-KBUI-024", "REQ-KBUI-025", "REQ-KBUI-026", "REQ-KBUI-027", "REQ-KBUI-028", "REQ-KBUI-029", "REQ-KBUI-030", "REQ-KBUI-031", "REQ-KBUI-032", "REQ-KBUI-033", "REQ-KBUI-034", "REQ-KBUI-035", "REQ-KBUI-036", "REQ-KBUI-037", "REQ-KBUI-038", "REQ-KBUI-039", "REQ-KBUI-040", "REQ-KBUI-041", "REQ-KBUI-042", "REQ-KBUI-043", "REQ-KBUI-044", "REQ-KBUI-045", "REQ-KBUI-046", "REQ-KBUI-047", "REQ-KBUI-048", "REQ-KBUI-049", "REQ-KBUI-050", "REQ-KBUI-051", "REQ-KBUI-052", "REQ-KBUI-053", "REQ-KBUI-054", "REQ-KBUI-055", "REQ-KBUI-056", "REQ-KBUI-057", "REQ-KBUI-058"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
 content_hash: "ab89895d69e25ac517b9de6b092377b6dcea9783c77521a9db4a83c8d15cfd9b"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-4RHC81"
 source_paths: ["spec/2-navigation/5-knowledge-base.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "9186a474119512f7ba6ade01b0850b8a073531d9518450409a45b4d3a8641a95"
-etag: "sha256-752a2532d7869f8277867078b11448b52a1ff7966e225e19150159660dce9d20"
+mirror_sha256: "621f98d9a943b434f11bbfc351accf3ffdcd93ffffa80f95c54461186bcc5e8b"
+etag: "sha256-94bab529341e4af5a10639c6558da81ef3e07ba6b3bc8b3dd8d586c1ee1bb8ea"
 ---
 > 구현 상태: 부분 구현 (화면과 API 는 구현됨, PRD 요구사항 일부 미구현) · 원문: `spec/2-navigation/5-knowledge-base.md`, `spec/2-navigation/_product-overview.md` (§3.5), `spec/4-nodes/4-integration/_product-overview.md` (§3), `spec/4-nodes/3-ai/_product-overview.md` (§3.5, §5 NF-AI-05), `spec/data-flow/6-knowledge-base.md` (§1.6 임베딩 테스트) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

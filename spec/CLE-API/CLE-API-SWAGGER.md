@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER"
 title: "OpenAPI 문서화"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "3757d016f00d980cb0ae269a84655f2dd16fbc5552db41eb383a7a2b15820adb"
+content_hash: "f24fb0f8b2427151095da64fc56113780f1029e9f7c9aa2569eeadbd9f850327"
 read_as: "approved_fallback"
-task: "CLE-T-RSF163"
+task: "CLE-T-5GYWFA"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "f2366161be9352b528d11aaa8ce92f1c23e3d29e386c00b85b11b4c326aae42c"
-etag: "sha256-3d07b82e64304b1be6b82c70f2d752a5536f110bfe633c302963f8d02883ef94"
+mirror_sha256: "42069acdb298eb258ea5da7b3e4996c36547c661f2446728deed71a83ca64916"
+etag: "sha256-d10b856871779db9e1c5803f5c51d05a30afaff370b70faad6d5094ff7c04b07"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,7 +55,7 @@ etag: "sha256-3d07b82e64304b1be6b82c70f2d752a5536f110bfe633c302963f8d02883ef94"
 14. DTO 필드의 JSDoc 은 공개 OpenAPI 로 나간다. 정정 경위나 리뷰 참조 같은 내부 서사는 `//` 주석에 적는다.
 15. 엔드포인트 `summary` 는 10~20자, `description` 은 50~150자로 쓴다(강제). DTO `description` 은 한 줄 요약을 지향한다(강제 아님).
 16. 저장값과 응답값이 다를 수 있는 필드와 정책으로 거부될 수 있는 요청 필드는 길이와 무관하게 그 사실을 설명에 적는다.
-17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다. 리뷰 인용은 이 목록에 없고 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 정한다. 가드의 강제 범위와 못 보는 것은 Rationale 「공개 문장의 저장소 내부 참조를 왜 가드로 세는가」 에 적는다.
+17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다. 발견 ID · 옛 리뷰 경로 같은 리뷰 인용(Task 키 제외)은 이 목록에 없고 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 정한다. 가드의 강제 범위와 못 보는 것은 Rationale 「공개 문장의 저장소 내부 참조를 왜 가드로 세는가」 에 적는다.
 
 ## 0. Swagger UI 노출 정책
 
@@ -227,7 +227,7 @@ TypeORM 은 `numeric`·`decimal` 컬럼을 **문자열**로 준다. 정밀도 �
 - `access-token` 은 `main.ts` 에서 등록한 Bearer scheme 이름이다(`.addBearerAuth({ scheme: 'bearer', bearerFormat: 'JWT', ... }, 'access-token')`).
 - `main.ts` 는 `interaction-token` Bearer scheme 도 등록한다. External Interaction API 전용이고 실행 단위 토큰 `iext_<JWT>` 와 트리거 단위 토큰 `itk_<opaque>` 를 받는다. 해당 엔드포인트는 `@ApiBearerAuth('interaction-token')` 을 쓴다.
 - 모든 라우트가 `@Public()` 인 컨트롤러(health, hooks)는 `@ApiBearerAuth` 를 **넣지 않는다**.
-- 공개 라우트와 인증 라우트가 섞인 컨트롤러는 클래스 수준에 `@ApiBearerAuth('access-token')` 를 넣고 `@Public()` 엔드포인트에는 `@ApiSecurity({})` 대신 설명에 "인증 불필요" 를 적는다. auth 컨트롤러가 이 경우다. 로그인 같은 공개 라우트와 2FA 설정·해제, 워크스페이스 전환 같은 인증 필수 라우트가 함께 있다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 API 엔드포인트 절).
+- 공개 라우트와 인증 라우트가 섞인 컨트롤러는 클래스 수준에 `@ApiBearerAuth('access-token')` 를 넣고 `@Public()` 엔드포인트에는 `@ApiSecurity({})` 대신 설명에 "인증 불필요" 를 적는다. auth 컨트롤러가 이 경우다. 로그인 같은 공개 라우트와 2FA 설정·해제, 워크스페이스 전환 같은 인증 필수 라우트가 함께 있다([가입과 로그인 「API」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#api), [워크스페이스와 멤버 「전환 API 와 토큰」](../CLE-ACCT/CLE-ACCT-WS.md#전환-api-와-토큰)).
 
 ```ts
 import {
@@ -478,7 +478,7 @@ async create(...) { ... }
 - [ ] DTO 필드에 JSDoc 이 있고 필요하면 `@ApiProperty`(enum, example, format, nullable)로 보강했는가
 - [ ] `ApiOkWrappedResponse`·`ApiOkPaginatedResponse` 등 알맞은 래퍼를 썼는가
 - [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()`·`@WorkspaceParam(...)` 을 쓰는 엔드포인트에 `@ApiForbiddenResponse` 를 더했는가.
-  - `RolesGuard` 는 `@Roles()` 유무와 무관하게 워크스페이스 멤버십을 늘 검증한다. 그래서 `@WorkspaceId()`·`@WorkspaceParam(...)` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(근거: [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 "멤버십 검증은 가드 1곳에서", "경로 파라미터 워크스페이스도 가드가 본다" Rationale).
+  - `RolesGuard` 는 `@Roles()` 유무와 무관하게 워크스페이스 멤버십을 늘 검증한다. 그래서 `@WorkspaceId()`·`@WorkspaceParam(...)` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(근거: [워크스페이스와 멤버 「멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다), [워크스페이스와 멤버 「경로 파라미터 워크스페이스도 가드가 본다」](../CLE-ACCT/CLE-ACCT-WS.md#경로-파라미터-워크스페이스도-가드가-본다)).
   - 설명에는 **가드가 낼 수 있는 거부 코드를 모두** 싣는다. 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 이므로 대상 라우트는 모두 "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)" 을 싣는다. `@Roles()` 가 있으면 요구 역할 중 가장 낮은 역할의 코드를 더한다(예: "워크스페이스 멤버가 아님(`NOT_A_MEMBER`) 또는 Editor 이상 권한 필요(`EDITOR_REQUIRED`)"). `@Roles('viewer')` 는 멤버십과 같아 앞 문장뿐이다.
   - 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER`·`forbiddenForRole(role)`(`common/swagger`)로 만들고 서비스가 내는 403 은 그 뒤에 덧붙인다. 코드 목록은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 가드 거부 코드다.
   - 저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 빠진 가드 코드를 잡는다. 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으므로 `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. `@Public()` 라우트는 대상이 아니다.
@@ -561,7 +561,7 @@ OpenAPI `discriminator.propertyName` 은 "그 필드 값 → variant" 매핑이 
 
 EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 판별자처럼 보이지만 `buttons` 는 `buttonConfig` 를 실은 변형과(핸들러가 `buttonConfig` 를 싣지 못해 넘어간) `nodeOutput` 변형 **양쪽**에 나온다. `discriminator: { propertyName: 'interactionType' }` 을 선언하면 SDK 는 모든 `buttons` 응답을 `buttonConfig` 변형으로 좁히고 넘어간 경우에 `context.buttonConfig.buttons` 접근이 런타임 `undefined` 가 된다. 그래서 `oneOf` 만 선언하고 판별은 **키 존재**(`'buttonConfig' in context`)로 남긴다.
 
-넘어가는 경우 자체를 없애 판별자를 완전하게 만드는 대안은 wire 변경이라 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 SSE 형식 일치 계약을 건드린다. 별건으로 둔다. 이 규칙은 `api-wrapped.ts` `wrapOneOfDataSchema` 의 기존 JSDoc("호출자는 모든 DTO 가 동일 `propertyName` 필드를 보유함을 보장해야 한다")을 규약 수준으로 올린 것이다.
+넘어가는 경우 자체를 없애 판별자를 완전하게 만드는 대안은 wire 변경이라 [EIA 수신 API와 SSE 「단발 상태 조회」](../CLE-IX/CLE-EIA-INBOUND.md#단발-상태-조회) 의 SSE 형식 일치 계약을 건드린다. 별건으로 둔다. 이 규칙은 `api-wrapped.ts` `wrapOneOfDataSchema` 의 기존 JSDoc("호출자는 모든 DTO 가 동일 `propertyName` 필드를 보유함을 보장해야 한다")을 규약 수준으로 올린 것이다.
 
 ### EIA `context` 는 봉투만 스키마로 닫고 안쪽은 열어 두는 이유 (§1-4)
 
@@ -625,7 +625,7 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 
 ### 새 엔드포인트 체크리스트의 403 항목을 `@WorkspaceId()` 소비 라우트로 넓힌 배경 (§5-4, 2026-08-08)
 
-옛 §5-4 는 "`@Roles()` 가 있어야 403 이 가능하다" 는 opt-in 가드 모델을 전제로 적혀 있었다. 워크스페이스 멤버십 가드 보안 CRITICAL 수정 PR 이 `RolesGuard` 를 opt-out 할 수 없는 구조로 다시 짜면서 그 전제가 깨졌다. 멤버십 검증이 `@Roles()` 유무와 무관하게 늘 돌므로 `@WorkspaceId()` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(기준: [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 "멤버십 검증은 가드 1곳에서" Rationale). 이 정정은 동작 변경이 아니라 문서와 구현을 맞춘 것이다.
+옛 §5-4 는 "`@Roles()` 가 있어야 403 이 가능하다" 는 opt-in 가드 모델을 전제로 적혀 있었다. 워크스페이스 멤버십 가드 보안 CRITICAL 수정 PR 이 `RolesGuard` 를 opt-out 할 수 없는 구조로 다시 짜면서 그 전제가 깨졌다. 멤버십 검증이 `@Roles()` 유무와 무관하게 늘 돌므로 `@WorkspaceId()` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(기준: [워크스페이스와 멤버 「멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다)). 이 정정은 동작 변경이 아니라 문서와 구현을 맞춘 것이다.
 
 규약 문구까지 고치는 이유: §5-4 는 새 엔드포인트를 만들 때 판단 기준으로 쓰인다. 문구가 실제 403 발생 조건과 어긋나면 규약을 그대로 따른 다음 작성자에게서 같은 틈이 다시 생긴다. "사람이 규칙을 기억해야 하는 opt-in" 구조를 규약 수준에서 반복하지 않는다(그 PR 이 코드에서 닫은 것과 같은 결함 부류).
 
@@ -640,7 +640,7 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 
 ### 403 설명의 거부 코드: 왜 두 코드이고 왜 가드로 세는가 (§5-4, 2026-09-26)
 
-가드 거부에 코드가 붙은 뒤에도([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 "가드 거부의 오류 코드") 기존 라우트의 403 설명은 따라가지 않았다. §5-4 는 새 엔드포인트 체크리스트라 기존 라우트를 묶지 않았고 그 결정을 적용한 PR 은 경로 라우트 15곳과 재실행·chain 의 설명만 고쳤다. 2026-09-26 실측(`src/modules`, reflection)에서 가드가 403 을 낼 수 있는 라우트 157곳 중 129곳의 설명에 코드가 빠져 있었다. "워크스페이스 멤버가 아님" 54, "editor 이상 권한 필요" 53, "viewer 이상 권한 필요" 4, 표기가 제각각인 역할 문장 14, 비멤버 코드만 빠진 통합 4 였다.
+가드 거부에 코드가 붙은 뒤에도([워크스페이스와 멤버 「가드 거부에 에러 코드를 붙인다」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부에-에러-코드를-붙인다)) 기존 라우트의 403 설명은 따라가지 않았다. §5-4 는 새 엔드포인트 체크리스트라 기존 라우트를 묶지 않았고 그 결정을 적용한 PR 은 경로 라우트 15곳과 재실행·chain 의 설명만 고쳤다. 2026-09-26 실측(`src/modules`, reflection)에서 가드가 403 을 낼 수 있는 라우트 157곳 중 129곳의 설명에 코드가 빠져 있었다. "워크스페이스 멤버가 아님" 54, "editor 이상 권한 필요" 53, "viewer 이상 권한 필요" 4, 표기가 제각각인 역할 문장 14, 비멤버 코드만 빠진 통합 4 였다.
 
 - **`@Roles()` 라우트도 `NOT_A_MEMBER` 를 싣는다.** 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 라는 것이 그 결정의 채택안이다. 옛 문구("`@Roles()` 가 있으면 요구 역할과 코드")대로면 비멤버 코드가 광고에서 빠진다. 이미 코드를 싣던 28곳은 두 코드를 함께 싣고 있었고 문구를 그 실제에 맞췄다.
 - **`viewer` 는 코드가 하나다.** `@Roles('viewer')` 의 거부는 멤버십 거부와 같다(`ROLE_REQUIRED.viewer` 가 `NOT_A_MEMBER`). "viewer 이상 권한 필요" 라고 쓰면 오지 않는 코드를 암시한다.
@@ -668,10 +668,20 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 4c 가 걷은 곳은 모두 91곳(50파일)이다. 처음에는 네 형태(스펙 경로 · NERV 키 · 요구사항 ID · 옛 plan 경로)로 세 자리(DTO 필드 JSDoc · 컨트롤러 메서드 JSDoc · 데코레이터의 `description` · `summary` 문자열)를 세어 41곳을 걷었다. 옛 스펙 파일 이름 형태를 더해 2곳을 더 찾았다. 채널을 두 파일 종류의 모든 `/** */` 로 넓히고 옛 요구사항 ID 형태를 더해 48곳을 더 걷었다. 베이스라인은 0 이다.
 
 - **두 파일 종류의 `/** */` 를 모두 본다.** `*.dto.ts` · `*.controller.ts` 의 모든 `/** */` 블록(클래스 · 멤버 · 파일 수준 선언)과 두 파일 종류의 `description` · `summary` 문자열 속성을 본다. 파일 종류는 `nest-cli.json` 의 플러그인 suffix 와 같다. 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리도 같은 채널로 센다. [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 응답 DTO 파일의 `/** */` 를 한 채널로 보고 클래스 JSDoc 을 `//` 와 같게 보는 안 (A) 를 기각한 것과 같은 이유다. 쓰는 사람이 플러그인 동작을 보고 자리마다 판단하지 않아도 된다. 클래스 설명을 `@ApiSchema({ description })` 로 옮겨 적을 때 참조가 딸려 나가지도 않는다.
-- **찾는 형태는 여섯이다.** 저장소 스펙 경로(`spec/…`), 옛 스펙 파일 이름, NERV 스펙 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로(`plan/in-progress/` · `plan/complete/`)다. 옛 스펙 파일 이름은 `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)이다. 옛 트리 파일 이름은 번호로 시작하므로 가드는 번호로 시작하는 `.md` 이름(`\b\d+-[a-z][\w-]*\.md\b`)을 잡는다. 번호 없는 `README.md` 같은 이름은 잡지 않는다. 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID(`WH-SC-01` · `CCH-ERR-03`)다. 대문자 묶음 둘 이상 뒤에 두 자리 숫자가 오는 모양으로 잡는다. 옛 트리의 이런 ID 690개가 모두 두 자리라서(2026-10-03 실측) `HMAC-SHA-256` 같은 세 자리 표준 이름은 잡지 않는다. `SHA-256` 처럼 대문자 묶음이 하나인 이름도 잡지 않는다. NERV 키 패턴은 NERV Task 키(`CLE-T-…`)도 잡는다.
+- **찾는 형태는 여섯이다.** 저장소 스펙 경로(`spec/…`), 옛 스펙 파일 이름, NERV 스펙 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로(`plan/in-progress/` · `plan/complete/` · `plan/research/`)다. 옛 스펙 파일 이름은 `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)이다. 옛 트리 파일 이름은 번호로 시작하므로 가드는 번호로 시작하는 `.md` 이름(`\b\d+-[a-z][\w-]*\.md\b`)을 잡는다. 번호 없는 `README.md` 같은 이름은 잡지 않는다. 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID(`WH-SC-01` · `CCH-ERR-03`)다. 대문자 묶음 둘 이상 뒤에 두 자리 숫자가 오는 모양으로 잡는다. 옛 트리의 이런 ID 690개가 모두 두 자리라서(2026-10-03 실측) `HMAC-SHA-256` 같은 세 자리 표준 이름은 잡지 않는다. `SHA-256` 처럼 대문자 묶음이 하나인 이름도 잡지 않는다. NERV 키 패턴은 NERV Task 키(`CLE-T-…`)도 잡는다.
 - **`//` 와 `/* */` 주석은 보지 않는다.** 근거를 옮겨 적는 자리라 일부러 비워 둔다.
 - **기존 자리까지 걷었다.** §1-4 · §3 의 비소급 원칙은 내부 서사에 걸린다. 내부 참조는 기계로 판정되고 문구를 지우면 끝난다. 전환 단계 5 에서 옛 트리를 지운 뒤로는 죽은 문자열이다. 그래서 기존 자리까지 걷었다.
 - **베이스라인은 0 이다.** 공개 문장에서 내부 참조를 빼는 일은 언제나 할 수 있다. 그래서 예외를 둘 자리가 없다.
 - **못 보는 것이 있다.** 상수나 헬퍼로 조립한 설명은 보지 못한다. 가드는 문자열 리터럴과 `+` 연결, 템플릿 리터럴의 고정 부분만 읽는다. 두 파일 종류 밖의 파일(`*.query.ts` 등)과 `example` · `@ApiTags` 같은 다른 키도 보지 않는다. 경로 없는 절 번호 인용(`[Spec EIA §4]`, 상수로 조립한 설명 속 `(spec 통합 §8 · §9.2)` 등)은 모양이 일정하지 않아 잡지 못한다. 그 인용은 남아 있고 정리는 NERV Task `CLE-T-BCS6QZ` 가 맡는다.
-- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 그 규약 규칙 9 · 10 이 금지한 두 형태(`finding` 바로 뒤 소문자 16진 8자로 줄인 발견 ID, `.review/` 아래 code · consistency · merge · spec-coverage 경로)는 `review-citation-form` 이 `codebase/**` 의 텍스트 파일에서 본다(전환 단계 4g, 2026-10-03). 요청 DTO · 컨트롤러 JSDoc 과 `description` · `summary` 문자열도 그 범위에 든다. 그 가드가 읽는 파일, 잡는 형태, 잡지 못하는 형태는 그 규약의 [강제 범위](../CLE-ENG/CLE-ENG-REVIEWCITE.md#강제-범위) 에 있다. 규칙 17 의 「리뷰 인용은 이 목록에 없고」 는 발견 ID 와 옛 리뷰 경로처럼 Task 키가 아닌 리뷰 인용을 뜻한다. NERV Task 키(`CLE-T-…`)는 NERV 키 모양이라 규칙 17 의 여섯 형태에 든다. 그래서 Task 키 인용은 이 문서의 가드 `openapi-internal-ref` 가 NERV 키 형태로 잡는다. 그 밖의 리뷰 인용 형식(옛 리뷰 경로, 날짜 없는 시각, 전체 발견 ID)은 응답 DTO 파일 밖에서는 어느 가드도 보지 않는다(그 규약의 강제 범위).
+- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 그 규약 규칙 9 · 10 이 금지한 두 형태(`finding` 바로 뒤 소문자 16진 8자로 줄인 발견 ID, `.review/` 아래 code · consistency · merge · spec-coverage 경로)는 `review-citation-form` 이 `codebase/**` 의 텍스트 파일에서 본다(전환 단계 4g, 2026-10-03). 요청 DTO · 컨트롤러 JSDoc 과 `description` · `summary` 문자열도 그 범위에 든다. 그 가드가 읽는 파일, 잡는 형태, 잡지 못하는 형태는 그 규약의 [강제 범위](../CLE-ENG/CLE-ENG-REVIEWCITE.md#강제-범위) 에 있다. 규칙 17 이 목록 밖에 둔 리뷰 인용은 발견 ID 와 옛 리뷰 경로처럼 Task 키가 아닌 것이다(규칙 문구의 「Task 키 제외」). NERV Task 키(`CLE-T-…`)는 NERV 키 모양이라 규칙 17 의 여섯 형태에 든다. 그래서 Task 키 인용은 이 문서의 가드 `openapi-internal-ref` 가 NERV 키 형태로 잡는다. 그 밖의 리뷰 인용 형식(옛 리뷰 경로, 날짜 없는 시각, 전체 발견 ID)은 응답 DTO 파일 밖에서는 어느 가드도 보지 않는다(그 규약의 강제 범위).
 - **프런트엔드 공개 표면도 같은 패턴으로 본다.** `public-surface-internal-refs`(`codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts`)가 배포 SVG 와 외부 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 을 같은 패턴으로 본다.
+
+### 규칙 17 의 Task 키 문구와 옛 plan 경로, 인용 대상을 고쳤다 (규칙 17 · §2-1 · §5-4, 2026-11-07)
+
+전환 단계 4g(NERV Task `CLE-T-M7K35H`)의 구현 완료 검토가 이 문서의 어긋남 다섯 가지를 짚었다. 4g 전부터 있던 문면이다. 2026-11-07 에 고쳤다(NERV Task `CLE-T-5GYWFA`).
+
+- **규칙 17 에 「Task 키 제외」 를 적었다.** 규칙 17 은 리뷰 인용을 여섯 형태 목록 밖에 둔다고만 적었다. 그런데 NERV Task 키(`CLE-T-…`)는 NERV 키 모양이라 여섯 형태에 들고 가드도 그 형태로 잡는다. 4g 는 이 겹침을 Rationale 의 해석 문장으로만 풀었다. 규칙만 읽어도 알 수 있게 규칙 문구에 적었다. 판정은 그대로다.
+- **옛 plan 경로에 `plan/research/` 를 더했다.** 4c 는 가드를 세울 때 옛 plan 경로를 `plan/in-progress/` · `plan/complete/` 둘로 잡았다. 같은 날 세운 `legacy-path-ratchet` 의 `REMOVED_PLAN_PATH`(`codebase/frontend/src/lib/docs/__tests__/codebase-mentions.ts`)는 `plan/research/` 까지 센다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) R-15). 둘을 다르게 둔 근거는 어디에도 없었다. 전환 단계 3 에서 `plan/` 을 통째로 지웠으므로 `plan/research/` 도 죽은 경로다. 그래서 가드 `openapi-internal-ref` 와 프런트엔드 `public-surface-internal-refs` 의 패턴에 `plan/research/` 를 더했다. 두 패턴은 사본이라 함께 고친다. 2026-11-07 실측으로 두 가드가 보는 파일에 `plan/research/` 는 0건이라 걷을 자리는 없었다.
+- **가드 · 멤버십 결정의 출처를 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 로 고쳤다.** §5-4 의 403 항목과 이 Rationale 의 두 항목이 기준을 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 으로 적었다. 그 결정들은 워크스페이스와 멤버 문서의 Rationale 에 있다. 인용만 고쳤고 규칙과 동작은 그대로다.
+- **§2-1 의 워크스페이스 전환 출처와 «`discriminator` 는 판별자가 완전할 때만» 의 SSE 계약 출처를 고쳤다.** 워크스페이스 전환 API 는 가입과 로그인 문서가 아니라 [워크스페이스와 멤버 「전환 API 와 토큰」](../CLE-ACCT/CLE-ACCT-WS.md#전환-api-와-토큰) 에 있다. 단발 조회 결과가 SSE 와 같은 형식이라는 계약은 [EIA 수신 API와 SSE 「단발 상태 조회」](../CLE-IX/CLE-EIA-INBOUND.md#단발-상태-조회) 에 있다.
+- **리뷰 인용 금지의 범위를 맞췄다.** 규칙 17 은 DTO · 컨트롤러 파일의 `/** */` 전부를 공개 채널로 본다. [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 규칙 6 은 필드 · 컨트롤러 · 응답 DTO 클래스의 `/** */` 만 금지했다. 그래서 요청 DTO 클래스와 파일 수준 선언의 `/** */` 에 리뷰 인용을 써도 되는지는 어느 문서도 정하지 않았다. 같은 날 그 규약 규칙 6 의 범위를 두 파일 종류의 `/** */` 전부로 넓혀 규칙 17 과 맞췄다.

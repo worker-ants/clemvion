@@ -32,6 +32,7 @@ import {
   WorkflowForbiddenWorkspaceError,
   WorkflowNotFoundError,
   ExecutionCancelledError,
+  NodeCancelMarkingError,
 } from './workflow-errors';
 import { resolveWaitingSurface } from './waiting-surface-guard';
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
@@ -93,6 +94,7 @@ import { MapHandler } from '../../nodes/logic/map/map.handler';
 import { CodeHandler } from '../../nodes/data/code/code.handler';
 import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
+import { assertLinkedTransitionApplied } from './linked-transition-guard';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -7478,11 +7480,12 @@ describe('ExecutionEngineService', () => {
         'cancelled externally',
       );
       // ai-review 6R (testing) — 위 문자열 단언만으로는 부족하다. `markNodeCancelled`
-      // 이 `errorEnvelope` 없이 호출될 때 **`error` 키/필드 자체가 생기지 않는다**는
+      // 이 `errorEnvelope` 없이 호출될 때 **`error` 에 아무 내용도 싣지 않는다**는
       // 것이 이 헬퍼의 존재 이유(W15/W19: sentinel message 에 executionId 가 있다)인데,
       // 실측 mutation 에서 임의의 leaked `error` 를 강제 주입해도 기존 단언들이 전부
-      // GREEN 이었다. 구조적으로 고정한다.
-      expect(ne?.error).toBeUndefined();
+      // GREEN 이었다. 구조적으로 고정한다. CLE-T-J6GRJ9 부터 `markNodeCancelled` 가
+      // `error` 를 직접 비우므로(null) 행 쪽 기대값은 `null` 이다.
+      expect(ne?.error).toBeNull();
       expect(cancelCall?.[3]).not.toHaveProperty('error');
       // handler.execute 는 errorPolicy 재시도 없이 1회만 호출된다.
       expect(executeImpl).toHaveBeenCalledTimes(1);
@@ -7857,6 +7860,139 @@ describe('ExecutionEngineService', () => {
           expect.stringContaining('ERROR_PORT_FALLBACK'),
         ]),
       );
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // markNodeCancelled — 노드 단위 취소 마감 계약 (CLE-T-J6GRJ9).
+  //
+  // 짝 전이가 동시 Stop 에 선점당한 호출부(AI · form · button)는 성공 · 대기 · 실패
+  // payload 를 낙관적으로 채운 nodeExec 를 넘긴다. 비우는 일은 호출부 주석에 기대지
+  // 않고 이 메서드가 한다. 실패하면 어느 단계(save / emit)인지 표지 오류로 알린다.
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('markNodeCancelled', () => {
+    const node = {
+      id: 'n-mark',
+      type: 'form',
+      label: 'Form',
+    } as unknown as Node;
+    const makeNodeExec = (): NodeExecution =>
+      ({
+        id: 'ne-mark',
+        nodeId: 'n-mark',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(Date.now() - 1_000),
+        outputData: { output: { message: 'stale success payload' } },
+        error: { code: 'STALE', message: 'stale failure payload' },
+      }) as unknown as NodeExecution;
+    const ctx = () =>
+      ({ executionId, parentNodeExecutionId: undefined }) as never;
+
+    it('payload 를 비우고 CANCELLED 로 저장한 뒤 NODE_CANCELLED 를 낸다', async () => {
+      const ne = makeNodeExec();
+
+      await service.markNodeCancelled(ne, node, ctx(), executionId);
+
+      const saved = mockNodeExecutionRepo.save.mock.calls.at(-1)?.[0] as
+        NodeExecution | undefined;
+      expect(saved).toBe(ne);
+      expect(saved?.status).toBe(NodeExecutionStatus.CANCELLED);
+      expect(saved?.outputData).toBeNull();
+      expect(saved?.error).toBeNull();
+      expect(saved?.finishedAt).toBeInstanceOf(Date);
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-mark',
+        'execution.node.cancelled',
+        expect.not.objectContaining({ error: expect.anything() }),
+      );
+    });
+
+    it('errorEnvelope 가 있으면 error 를 그 봉투로 바꾸고 이벤트에도 싣는다', async () => {
+      const ne = makeNodeExec();
+      const envelope = { code: 'AbortError', message: 'aborted' };
+
+      await service.markNodeCancelled(ne, node, ctx(), executionId, envelope);
+
+      expect(ne.outputData).toBeNull();
+      expect(ne.error).toEqual(envelope);
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-mark',
+        'execution.node.cancelled',
+        expect.objectContaining({ error: envelope }),
+      );
+    });
+
+    it('save 가 실패하면 stage=save 표지 오류로 알리고 이벤트를 내지 않는다', async () => {
+      mockNodeExecutionRepo.save.mockRejectedValueOnce(
+        new Error('DB write failed'),
+      );
+
+      const promise = service.markNodeCancelled(
+        makeNodeExec(),
+        node,
+        ctx(),
+        executionId,
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(NodeCancelMarkingError);
+      await expect(promise).rejects.toMatchObject({
+        stage: 'save',
+        nodeExecutionId: 'ne-mark',
+        // 상위가 메시지로 실패를 기록하는 경로의 문구가 바뀌지 않게 원본 메시지를 쓴다.
+        message: 'DB write failed',
+      });
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'n-mark',
+        'execution.node.cancelled',
+        expect.anything(),
+      );
+    });
+
+    it('emit 이 실패하면 stage=emit 표지 오류로 알린다 — 저장은 이미 끝났다', async () => {
+      mockWebsocketService.emitNodeEvent.mockRejectedValueOnce(
+        new Error('ws publish failed'),
+      );
+      const ne = makeNodeExec();
+
+      const promise = service.markNodeCancelled(ne, node, ctx(), executionId);
+
+      await expect(promise).rejects.toMatchObject({
+        stage: 'emit',
+        nodeExecutionId: 'ne-mark',
+        message: 'ws publish failed',
+      });
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.CANCELLED }),
+      );
+    });
+
+    it('짝 전이 가드가 실제 markNodeCancelled 로 낙관적 payload 가 찬 행을 비워 CANCELLED 로 저장한다', async () => {
+      // 소비처 spec 은 driver 를 mock 으로 두므로, 가드 → 실제 마킹 연결은 여기서 잇는다.
+      const ne = makeNodeExec();
+
+      await expect(
+        assertLinkedTransitionApplied(
+          { driver: service, logger: { error: jest.fn() } },
+          {
+            shouldProceed: false,
+            nodeExec: ne,
+            node,
+            context: ctx(),
+            executionId,
+            phase: 'form park',
+          },
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      const saved = mockNodeExecutionRepo.save.mock.calls.at(-1)?.[0] as
+        NodeExecution | undefined;
+      expect(saved).toBe(ne);
+      expect(saved?.status).toBe(NodeExecutionStatus.CANCELLED);
+      expect(saved?.outputData).toBeNull();
+      expect(saved?.error).toBeNull();
     });
   });
 

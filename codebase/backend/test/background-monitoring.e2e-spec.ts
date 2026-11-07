@@ -6,8 +6,8 @@ import request from 'supertest';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 import {
-  assertMatchesContract,
   contractForDto,
+  pickMatchingContract,
 } from '../src/shared/testing/response-contract';
 import { NotificationDto } from '../src/modules/notifications/dto/responses/notification-response.dto';
 
@@ -423,11 +423,13 @@ describe('Background body monitoring (e2e)', () => {
       .set('X-Workspace-Id', workspaceId);
     expect(listRes.status).toBe(200);
     const listed = listRes.body.data as Array<Record<string, unknown>>;
-    const bgFailed = listed.find((n) => n.type === 'background_failed');
-    expect(bgFailed).toBeDefined();
-    assertMatchesContract(bgFailed, await contractForDto(NotificationDto));
+    const bgFailed = pickMatchingContract(
+      listed,
+      (n) => n.type === 'background_failed',
+      await contractForDto(NotificationDto),
+    );
     // resource_id 는 딥링크용 workflow id 로 노출되나, backgroundRunId 는 미노출.
     expect(bgFailed).not.toHaveProperty('backgroundRunId');
-    expect(bgFailed?.resourceId).toBe(workflowId);
+    expect(bgFailed.resourceId).toBe(workflowId);
   }, 45_000);
 });

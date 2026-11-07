@@ -2,19 +2,19 @@
 id: "CLE-NODE-VARSET"
 title: "변수 수정 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-VARSET-001", "REQ-VARSET-002", "REQ-VARSET-003", "REQ-VARSET-004", "REQ-VARSET-005", "REQ-VARSET-006", "REQ-VARSET-007", "REQ-VARSET-008", "REQ-VARSET-009", "REQ-VARSET-010", "REQ-VARSET-011", "REQ-VARSET-012", "REQ-VARSET-013", "REQ-VARSET-014", "REQ-VARSET-015", "REQ-VARSET-016", "REQ-VARSET-017", "REQ-VARSET-018", "REQ-VARSET-019", "REQ-VARSET-020", "REQ-VARSET-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "7d41ceeedbf145979b6677ebd77e6216c9558991fb5b709839150ab00ac27424"
-read_as: "approved"
-task: null
+content_hash: "8ce76a46c3f78e1db133d5bb472ea50c403d5e08b1ae8abd00be9ead2c55ff03"
+read_as: "approved_fallback"
+task: "CLE-T-FZ6N7A"
 source_paths: ["spec/4-nodes/1-logic/5-variable-modification.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c7499fffc6945c269dd2e2fe588224ea7c1f684a134f0a751c5a6b7f8df3ef0f"
-etag: "sha256-479d48ac3dd8ebf9ca305392e851e97ffbf40ce2a1aa9bb1d4e2e1fccac207a9"
+mirror_sha256: "29a09ed8eb6b6f455613fefb4d0496765c9cba63d671eb120e4b419b2450376b"
+etag: "sha256-7b272defc7ef4d9171831dc6f3223c2a27f3976a47d3604dc6ab01e03f211648"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/5-variable-modification.md`, `spec/4-nodes/_product-overview.md` (§4.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -117,7 +117,8 @@ etag: "sha256-479d48ac3dd8ebf9ca305392e851e97ffbf40ce2a1aa9bb1d4e2e1fccac207a9"
     "modifications": [
       { "variable": "counter", "operation": "increment", "value": "{{ $delta }}" },
       { "variable": "log",     "operation": "append",    "value": " done" }
-    ]
+    ],
+    "recordValues": false
   },
   "output": { "user": { "id": 7, "name": "Alice" } },
   "meta": {
@@ -135,6 +136,7 @@ etag: "sha256-479d48ac3dd8ebf9ca305392e851e97ffbf40ce2a1aa9bb1d4e2e1fccac207a9"
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.modifications` | `ModDef[]` | 설정 에코 | 사용자가 입력한 원래 수정 목록. `value` 의 `{{ }}` 표현식을 평가 전 형태로 남긴다(`variable-modification.handler.ts` 가 `context.rawConfig.modifications` 를 싣는다) |
+| `config.recordValues?` | boolean | 설정 에코 | 값 기록 여부. 핸들러는 스키마 기본값(`false`)을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 동작은 `false` 와 같다(REQ-VARSET-014). `true` 일 때만 `meta.modifications[i]` 에 `before` / `after` 가 붙는다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로. 부수 효과는 `context.variables` 에만 생긴다 |
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 모든 노드 공통이라 핸들러를 바꾸지 않아도 채워진다 |
 | `meta.modifications` | `Array<{ variable: string, operation: string, applied: boolean, before?: unknown, after?: unknown }>` | 핸들러 | 적용한 수정 목록. `variable` 누락이나 배열 아닌 값에 `pop` 처럼 아무것도 바꾸지 않은 항목은 `applied=false` 다(실행 메트릭). `config.recordValues=true` 일 때만 `before` / `after` 가 붙는다. 마스킹 규칙은 아래 표 |

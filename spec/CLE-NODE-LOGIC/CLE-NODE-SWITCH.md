@@ -2,19 +2,19 @@
 id: "CLE-NODE-SWITCH"
 title: "Switch 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 3
+status: "approved"
 requirements: ["REQ-SWITCH-001", "REQ-SWITCH-002", "REQ-SWITCH-003", "REQ-SWITCH-004", "REQ-SWITCH-005", "REQ-SWITCH-006", "REQ-SWITCH-007", "REQ-SWITCH-008", "REQ-SWITCH-009", "REQ-SWITCH-010", "REQ-SWITCH-011", "REQ-SWITCH-012", "REQ-SWITCH-013", "REQ-SWITCH-014", "REQ-SWITCH-015", "REQ-SWITCH-016", "REQ-SWITCH-017", "REQ-SWITCH-018", "REQ-SWITCH-019", "REQ-SWITCH-020", "REQ-SWITCH-021", "REQ-SWITCH-022", "REQ-SWITCH-023", "REQ-SWITCH-024"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a9f1c614d3852b2239369d3804ebe6edaeafe5d53275ca06e5b34205da05389f"
-read_as: "approved"
-task: null
+content_hash: "51e59eebd32e157a4bd2a985146ef852c7622769c1c6aad24d7e09eca0db7662"
+read_as: "approved_fallback"
+task: "CLE-T-ETAZAT"
 source_paths: ["spec/4-nodes/1-logic/2-switch.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "00eaa97df49d85e7f8b205e57b5c415f7a005f8fc3885c3b2f844c0534732f75"
-etag: "sha256-569aa7a42a122f9fea514c0cf558fd601eb5fa47d0eca6ba41ecd1f2f13681d7"
+mirror_sha256: "7298947dd7555a327ab319ff5949aa1246a3bbe64f968cb40ef98bcd91346b9c"
+etag: "sha256-75e5c46d40c7c1f43a9f58e7a695c4ff70c76988a8cd9e2364b06d49a7f152a5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/2-switch.md`, `spec/4-nodes/_product-overview.md` (§4.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -96,7 +96,7 @@ Switch 노드(Switch, `switch`)는 입력 값(`switchValue`)이나 케이스별 
 1. `config.cases[].id` 가 그대로 출력 포트 ID 가 된다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#동적-포트-id-불변성)).
 2. id 는 slug 형식 `^[a-zA-Z0-9_-]+$`, 최대 64자여야 한다(스키마 `caseDefSchema.id`). 공백·특수문자·HTML 엔티티는 스키마 단계에서 막히므로 경로 선택 키를 주입할 수 없다.
 3. 같은 노드 안에서 케이스 id 는 중복될 수 없다(`validateSwitchConfig` 가 거부).
-4. `default`, `out`, `error` 는 케이스 id 로 쓸 수 없다. 백엔드 `validateSwitchConfig` 의 `RESERVED_CASE_IDS` 집합이 거부한다(`switch.schema.ts:148,163-166`). 스키마 정규식은 문법(slug)만 검사하고 의미 충돌은 이 명령형 검증이 막는다. 예약어 집합은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+4. `default`, `out`, `error` 는 케이스 id 로 쓸 수 없다. 백엔드 `validateSwitchConfig` 의 `RESERVED_CASE_IDS` 집합이 거부한다(`switch.schema.ts`). 스키마 정규식은 문법(slug)만 검사하고 의미 충돌은 이 명령형 검증이 막는다. 예약어 집합은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 5. 케이스를 추가·삭제·재정렬해도 기존 케이스 id(곧 포트 ID)는 바뀌지 않으므로 연결된 연결선이 유지된다.
 6. id 가 비었거나 없으면 백엔드 포트 resolver 가 `case_${index}` 형태의 대체 id 를 발행한다. 이것은 긴급 우회 경로이고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 와 사용자 입력 모두 명시적인 stable id 를 쓰기를 권한다.
 
@@ -129,7 +129,9 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
     "cases": [
       { "id": "case_admin", "label": "Admin", "value": "admin" },
       { "id": "case_guest", "label": "Guest", "value": "guest" }
-    ]
+    ],
+    "hasDefault": true,
+    "strictComparison": false
   },
   "output": { "user": { "role": "admin", "name": "Alice" } },
   "meta": {
@@ -149,6 +151,8 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 | `config.mode` | `'value'` / `'expression'` | 설정 에코 | 매칭 모드(기본 `value`) |
 | `config.switchValue` | unknown | 설정 에코 | 원래 형태. 사용자가 `{{ $input.user.role }}` 로 입력했으면 그대로 남는다. 평가한 값은 `meta.resolvedValue` 에 있다 |
 | `config.cases` | `CaseDef[]` | 설정 에코 | 사용자가 입력한 원래 케이스 목록. 케이스의 `value` / `condition` 도 원래 형태로 남는다 |
+| `config.hasDefault?` | boolean | 설정 에코 | `default` 포트 사용 여부. 핸들러는 스키마 기본값(`false`)도 동작 기본값(`true`)도 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 동작은 `true` 와 같다([실행 로직](#실행-로직) 4단계) |
+| `config.strictComparison?` | boolean | 설정 에코 | 엄격 비교 모드. 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 비교는 `false` 일 때와 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로. `output.view` / `output.type` 같은 판별자는 쓰지 않는다 |
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입한다 |
 | `meta.mode` | `'value'` / `'expression'` | 핸들러 반환 | 기본값을 적용한 뒤의 모드 |
@@ -181,7 +185,8 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
       { "id": "case_admin", "label": "Admin", "value": "admin" },
       { "id": "case_guest", "label": "Guest", "value": "guest" }
     ],
-    "hasDefault": true
+    "hasDefault": true,
+    "strictComparison": false
   },
   "output": { "user": { "role": "viewer", "name": "Charlie" } },
   "meta": {
@@ -197,7 +202,7 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.*` | 케이스 매칭과 같음 + `hasDefault` | 설정 에코 | `hasDefault: true` 도 싣는다 |
+| `config.*` | 케이스 매칭과 같음 | 설정 에코 | 케이스 매칭과 같은 다섯 키(`mode` · `switchValue` · `cases` · `hasDefault` · `strictComparison`)를 싣는다. 어느 포트로 가든 설정 에코는 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로 |
 | `meta.matchedCase` | `'default'` | 핸들러 반환 | 매칭 실패 때의 고정 문자열 |
 | `meta.matchedCaseLabel` | `undefined` | 핸들러 반환 | `default` 대체 때는 항상 `undefined` (전용 label 없음) |
@@ -259,7 +264,7 @@ Switch 는 런타임 에러 포트가 없다. 검증 실패는 설정 검증 단
 
 `requiredWhen` DSL 은 단일 형태 `{ field, equals: T | readonly T[] }` 로 단순화했다. `equals` 가 값 하나면 동등 비교, 배열이면 화이트리스트(`.includes()`)로 평가한다.
 
-이 정리는 `requiredWhen` DSL 에 한정한다. `visibleWhen` DSL 은 `notEquals` / `oneOf` 형태를 당분간 유지한다. `ai-agent.schema.ts:151` 같은 사용처가 있어서다. `visibleWhen` 정리는 별도 후속 작업이다.
+이 정리는 `requiredWhen` DSL 에 한정한다. `visibleWhen` DSL 은 `notEquals` / `oneOf` 형태를 당분간 유지한다. `ai-agent.schema.ts` 의 `visibleWhen: { field: 'mode', notEquals: 'multi_turn' }` 같은 사용처가 있어서다. `visibleWhen` 정리는 별도 후속 작업이다.
 
 ### 새 모드를 추가할 때의 순서
 

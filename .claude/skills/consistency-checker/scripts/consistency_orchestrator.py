@@ -203,9 +203,9 @@ def _natural_key(path):
     """Sort key where a run of digits compares as a number, not as text.
 
     Lexicographically `"1" < "10" < "11" < "2" < "4"`, so `10-graph-rag.md` and
-    `11-mcp-client.md` sort ahead of `4-execution-engine.md` — and since the
-    budget fills from the front and drops from the tail, the file nobody was
-    working on kept the space. Measured on `spec/5-system/` (18 files):
+    `11-mcp-client.md` sort ahead of `4-execution-engine.md`. The budget fills
+    from the front, so the file nobody was working on kept the space while the
+    one being worked on was dropped. Measured on `spec/5-system/` (18 files):
     `4-execution-engine.md` sat at position 12 lexicographically and sits at 4
     here.
 
@@ -487,11 +487,11 @@ def prioritize_bundle_files(
 ):
     """Order a bundle so the documents this task is actually about survive truncation.
 
-    `truncate_file_bundle` drops whole files from the TAIL, so order decides
-    which files a checker never sees. Ordering by name alone is how the work
-    target lost its budget to alphabetically earlier files, eight times across
-    separate sessions — twice the checkers had no coverage of the target at all,
-    so `BLOCK: NO` meant "never looked", not "looks fine".
+    `_fit_bundle` fills the budget in bundle order, so order decides which
+    files a checker sees first and which ones lose out. Ordering by name alone
+    is how the work target lost its budget to alphabetically earlier files,
+    eight times across separate sessions — twice the checkers had no coverage
+    of the target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
 
     Tiers (stable, natural order inside each — see `_natural_key`):
       0. changed by this branch — a pulled spec is the work's own basis
@@ -504,8 +504,9 @@ def prioritize_bundle_files(
     repository in NERV cutover stage 3. Tier 1 is their successor: the task's
     own statement of what it targets, now the claim's `spec_ids`.
 
-    Reordering only. Nothing is dropped here; what does not fit is still dropped
-    by `truncate_file_bundle`, which names the omissions.
+    Reordering only. Nothing is dropped here; what does not fit is dropped by
+    `_fit_bundle`, which names the omissions and lists the tier 0-2 files apart
+    (`priority_rels`).
     """
     changed, focus, mentioned = set(changed_rels), set(focus_rels), set(mentioned_rels)
 
@@ -961,7 +962,14 @@ def collect_context(args, root):
         )
 
     if target_files:
-        target_files = ranked(target_files)
+        # `--impl-done`: the declared scope goes before the documents the `## 구현 위치`
+        # comparison added. Ranked as one list, the added ones (tier 1) went first
+        # and a scope document the branch had not pulled (tier 2/3) went behind
+        # them: replaying PR #1654 on 2026-11-07, seven added documents filled the
+        # target share ahead of the four the task named.
+        target_files = (
+            ranked([p for p in target_files if p not in added]) + ranked(list(added))
+        )
         bundle = format_file_bundle(target_files, root, f"검토 대상 스펙: `{target_path_rel}`")
 
     if args.impl_prep:
@@ -977,7 +985,7 @@ def collect_context(args, root):
         # then judged "spec vs implementation" with no implementation in front of
         # it and no way to notice. Named, it is dropped like any other entry.
         shown_paths = " ".join(diff_paths or cfg.get("code_areas") or [])
-        diff_label = f"<git diff {diff_base}...HEAD -- {shown_paths}>"
+        diff_label = f"{VIRTUAL_CHUNK_PREFIX}git diff {diff_base}...HEAD -- {shown_paths}>"  # prefix: see _is_virtual_chunk
         if diff_text.strip():
             diff_section = (
                 f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
@@ -988,17 +996,13 @@ def collect_context(args, root):
                 f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
                 "(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
             )
-        # The diff goes after the ON-TOPIC documents (tier 0/1) and BEFORE the
-        # rest. Appended at the end it was the last chunk and therefore the FIRST
-        # one dropped: measured 2026-08-09 on a 1,215,279 B folder dump, the diff
-        # was omitted at every budget tried, so five checkers judged "spec vs
-        # implementation" having seen no implementation.
-        on_topic = 0
-        for path in target_files:
-            if rel(path) in rank_changed or rel(path) in focus_rels:
-                on_topic += 1
-            else:
-                break
+        # The diff goes FIRST in the body. Appended at the end it was the first
+        # chunk dropped (measured 2026-08-09: omitted at every budget tried on a
+        # 1,215,279 B folder dump). After the on-topic documents it was still cut
+        # whenever they filled the share: replaying PR #1654 on 2026-11-07 it
+        # (30,605 characters) left all four prompts behind seven covering
+        # documents. A dropped spec can be opened by path; the diff label is not a
+        # file, so a checker without it judges "spec vs implementation" blind.
         catalog_skipped = _catalog_files_left_out(diff_base, root, diff_paths)
         # HEAD-basis notice and census go FIRST: `truncate_file_bundle` never
         # drops the head section, so the checker always reads the current-code
@@ -1010,7 +1014,7 @@ def collect_context(args, root):
                 covering={rel(p): files for p, files in added.items()},
                 catalog_skipped=catalog_skipped,
             )
-            + _splice_chunk(bundle, diff_section, on_topic)
+            + _splice_chunk(bundle, diff_section, 0)
         )
         mode_label = (
             f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "
@@ -1024,9 +1028,17 @@ def collect_context(args, root):
     convention_files = ranked([p for p in corpus if mirror_doc_type(p) == CONVENTION_TYPE])
     other_spec_files = ranked([p for p in corpus if mirror_doc_type(p) != CONVENTION_TYPE])
 
+    # What each corpus must not lose silently: the branch's edits, `--focus` and
+    # covering documents, and keys the target calls. `fit_checker_payload` lists
+    # their omissions apart and records them in `meta.json`.
+    mirror_rels = {rel(p) for p in mirror}
+    priority_rels = sorted(
+        ((rank_changed & mirror_rels) | focus_rels | mentioned_rels), key=_natural_key)
+
     return {
         "mode": mode_label,
         "target_path": target_path_rel,
+        "priority_rels": priority_rels,
         "target_doc": target_doc,
         "related_specs": format_file_bundle(other_spec_files, root, "관련 스펙 본문 (NERV 미러)"),
         "rationale_excerpts": extract_rationale_sections(rationale_extra + other_spec_files, root),
@@ -1064,6 +1076,12 @@ CHECKER_BUDGET_RATIO = {
 # tests assert on it and because a checker prompt that silently loses this
 # heading is the failure mode, not a cosmetic change.
 OMITTED_FILES_HEADING = "### ⚠️ 컨텍스트 예산 초과로 생략된 파일"
+# The two lists under it. Priority files are what the review is about (the target,
+# the branch's edits, `--focus` and covering documents, keys the target calls);
+# the checker is told to open them and to report the ones it could not.
+PRIORITY_OMITTED_HEADING = "#### 반드시 열어 볼 우선 문서"
+OTHER_OMITTED_HEADING = "#### 그 밖의 문서"
+UNREADABLE_OMITTED_HEADING = "#### 파일이 아닌 항목"
 
 # Splitting a rendered bundle back into per-file chunks needs a boundary that
 # file CONTENT cannot produce. ``\n#### `` alone cannot: spec bodies legitimately
@@ -1085,109 +1103,189 @@ OMITTED_FILES_HEADING = "### ⚠️ 컨텍스트 예산 초과로 생략된 파�
 _BUNDLE_FILE_SENTINEL = "\n<!-- @bundle-file -->\n"
 
 
-def _omitted_notice(rels):
+def _omitted_notice(priority_rels, other_rels=()):
     """Tell the checker what it is missing and what to do about it.
 
     A checker cannot tell "this area does not mention X" from "the part that
     mentions X was cut", and it answers the first while believing it answered
     the second. Checkers have `Read`, so a named omission is a directed
     instruction; an unnamed one is a wrong verdict.
+
+    The priority files (what the review is about, or what its target calls by
+    key) are listed apart with a stronger instruction. One flat list put them
+    among a hundred-odd ordinary documents with the same "open it if relevant",
+    and a checker that skipped them left no trace of having skipped them.
+
+    A chunk that is not a file (the `--impl-done` diff, labelled `<git diff …>`)
+    gets its own section: `Read` cannot reopen it, but the checker can rerun the
+    command in the label against the worktree.
     """
-    listed = "".join(f"\n- `{rel}`" for rel in rels)
-    return (
-        f"\n\n{OMITTED_FILES_HEADING} {len(rels)}개\n\n"
+    total = len(priority_rels) + len(other_rels)
+    out = (
+        f"\n\n{OMITTED_FILES_HEADING} {total}개\n\n"
         "아래 파일의 **본문은 이 프롬프트에 포함되지 않았다**. 여기 없다는 사실을 "
         "\"해당 내용이 없다\" 의 근거로 삼지 말 것 — 판정에 관련되면 `Read` 로 직접 열어라."
-        f"{listed}\n"
     )
+    # A chunk named `<git diff ...>` is not a file: `Read` cannot reopen it.
+    virtual_rels = [rel for rel in priority_rels if _is_virtual_chunk(rel)]
+    priority_rels = [rel for rel in priority_rels if not _is_virtual_chunk(rel)]
+    if priority_rels:
+        out += (
+            f"\n\n{PRIORITY_OMITTED_HEADING} {len(priority_rels)}개\n\n"
+            "검토 대상이거나 대상이 키로 부르는 문서다. 판정하기 전에 `Read` 로 연다. "
+            "열지 못한 문서는 리포트 `### 요약` 에 «미검증 관점: <경로> — <이유>» 로 적는다."
+            + "".join(f"\n- `{rel}`" for rel in priority_rels)
+        )
+    if virtual_rels:
+        out += (
+            f"\n\n{UNREADABLE_OMITTED_HEADING} {len(virtual_rels)}개\n\n"
+            "파일이 아니라서 `Read` 로 열 수 없다. 이름표에 적힌 `git diff` 를 머리말의 "
+            "워킹트리에서 `git -C <경로> diff …` 로 직접 돌려 본다. 보지 못했으면 리포트 "
+            "`### 요약` 에 «미검증 관점: <이름표> — <이유>» 로 적는다."
+            + "".join(f"\n- `{rel}`" for rel in virtual_rels)
+        )
+    if other_rels:
+        out += (
+            f"\n\n{OTHER_OMITTED_HEADING} {len(other_rels)}개\n"
+            + "".join(f"\n- `{rel}`" for rel in other_rels)
+        )
+    return out + "\n"
 
 
-def truncate_file_bundle(text, budget):
-    """Fit a `format_file_bundle` payload into `budget`, dropping WHOLE files.
+# Labels of chunks that are not files (the diff chunk) start with this. The diff
+# label above is built from it and _is_virtual_chunk tests it; keep them tied.
+VIRTUAL_CHUNK_PREFIX = "<"
 
-    Cutting on characters left the last surviving file ending mid-sentence while
-    looking complete, and said only "truncated due to size limit" — so the
-    reader could neither trust what was there nor know what was not. Dropping on
-    file boundaries makes both answerable: what is present is whole, and what is
-    absent is listed by path.
+
+def _is_virtual_chunk(rel):
+    """True for a chunk label that is not a file path, such as `<git diff ...>`."""
+    return rel.startswith(VIRTUAL_CHUNK_PREFIX)
+
+
+def _chunk_rel(chunk):
+    # `\n#### \`path\`\n` — the path is between the first pair of backticks.
+    parts = chunk.split("`")
+    return parts[1] if len(parts) > 1 else "?"
+
+
+def _chunk_stub(chunk):
+    """드롭된 청크가 **있던 자리**에 남기는 표식.
+
+    말미 이름 목록만으로는 "예산에 잘렸다" 와 "조립이 실패해 placeholder 가 남았다"
+    가 구분되지 않는다 — 실제로 한 checker 가 살아남은 이름표(`<git diff ...>`)를
+    "미치환 placeholder" 로 **오진해 CRITICAL 을 냈다**(2026-08-06). 자리에 잘린
+    사실과 원래 크기가 남아 있으면 그 오진이 불가능하다.
+
+    표식이 자기가 대체하는 청크보다 **크면 빈 문자열**을 준다. 그 경우 표식을 남기는
+    게 본문을 남기는 것보다 비싸다. 이름은 말미 목록이 SoT 이므로 표식을 생략해도
+    "kept-whole 아니면 named" 보장은 유지된다.
+    """
+    stub = (
+        f"{_BUNDLE_FILE_SENTINEL}#### `{_chunk_rel(chunk)}`\n\n"
+        f"> ⚠️ **본문 생략됨 — 컨텍스트 예산 초과** (원래 {len(chunk):,} 자). "
+        "조립 실패가 아니라 **의도된 절단**이다.\n"
+    )
+    return stub if len(stub) < len(chunk) else ""
+
+
+def _fit_bundle(text, budget, priority=None):
+    """Fit a `format_file_bundle` payload into `budget`; return `(text, dropped_rels)`.
+
+    Files are kept or dropped WHOLE. Cutting on characters left the last
+    surviving file ending mid-sentence while looking complete, and said only
+    "truncated due to size limit" — so the reader could neither trust what was
+    there nor know what was not. What is present is whole; what is absent is
+    named in `_omitted_notice`.
+
+    **Greedy fill in bundle order, not tail drop.** The tail-drop loop this
+    replaced popped the last file until the rest fit, so one file that did not
+    fit took every file behind it along. NERV Task `CLE-T-TR583V` measured it on
+    2026-11-07 with the default budget: `--impl-prep CLE-ENG-SPECEVIDENCE` sent
+    `cross_spec` **0 of 134** related specs, because the first ranked document
+    (101,434 characters) did not fit a 104,857 share once the notice was added.
+    The recorded 2026-09-10 case lost rank 3 (8,289) with rank 2 (29,470) while
+    22,078 was left. Now the accounting starts from "every body dropped" and
+    takes files back in bundle order whenever the exact new total fits, so the
+    ranking still decides who goes first and a file that fits is never thrown
+    away for one that does not.
+
+    `priority` is the set of paths this review is about. `None` means every file
+    is (the target bundle). Only priority drops leave a stub in place and they
+    are listed apart in the notice; the stubs of an unranked corpus cost 18% of
+    its share on the measured run and told the checker nothing the notice did not.
 
     A budget of 0 or negative means unlimited, matching
-    `session.truncate_to_budget`, which this replaces for bundles. Text with no
-    file markers (a single `--spec` document, or `--impl-done`'s diff
-    section) falls back to that function.
+    `session.truncate_to_budget`. Text with no file markers (a single `--spec`
+    document) falls back to that function.
     """
     if budget <= 0 or len(text) <= budget:
-        return text
+        return text, []
 
     head, sep, rest = text.partition(_BUNDLE_FILE_SENTINEL)
     if not sep:
-        return session.truncate_to_budget(text, budget)
+        return session.truncate_to_budget(text, budget), []
 
     chunks = [_BUNDLE_FILE_SENTINEL + part for part in rest.split(_BUNDLE_FILE_SENTINEL)]
+    rels = [_chunk_rel(c) for c in chunks]
+    wanted = None if priority is None else set(priority)
+    is_priority = [wanted is None or rel in wanted for rel in rels]
 
-    def rel_of(chunk):
-        # `\n#### \`path\`\n` — the path is between the first pair of backticks.
-        parts = chunk.split("`")
-        return parts[1] if len(parts) > 1 else "?"
-
-    def stub_of(chunk):
-        """드롭된 청크가 **있던 자리**에 남기는 표식.
-
-        말미 이름 목록만으로는 "예산에 잘렸다" 와 "조립이 실패해 placeholder 가 남았다"
-        가 구분되지 않는다 — 실제로 한 checker 가 살아남은 이름표(`<git diff ...>`)를
-        "미치환 placeholder" 로 **오진해 CRITICAL 을 냈다**(2026-08-06). 자리에 잘린
-        사실과 원래 크기가 남아 있으면 그 오진이 불가능하다.
-
-        표식이 자기가 대체하는 청크보다 **크면 빈 문자열**을 준다. 그 경우 표식을 남기는
-        게 본문을 남기는 것보다 비싸서, 드롭이 총량을 오히려 **늘린다** — 루프가 역행해
-        결국 아무것도 안 맞는 fallback 으로 떨어진다. 이름은 말미 목록이 SoT 이므로
-        표식을 생략해도 "kept-whole 아니면 named" 보장은 유지된다.
-        """
-        stub = (
-            f"{_BUNDLE_FILE_SENTINEL}#### `{rel_of(chunk)}`\n\n"
-            f"> ⚠️ **본문 생략됨 — 컨텍스트 예산 초과** (원래 {len(chunk):,} 자). "
-            "조립 실패가 아니라 **의도된 절단**이다.\n"
+    # Invariant, kept by every branch below:
+    #   total == len(head) + sum(stub or body per chunk) + len(notice_for(dropped_idx))
+    # `dropped_idx` holds chunk indexes; the return value maps them to rels.
+    def notice_for(dropped_idx):
+        if not dropped_idx:
+            return ""
+        return _omitted_notice(
+            [rels[i] for i in dropped_idx if is_priority[i]],
+            [rels[i] for i in dropped_idx if not is_priority[i]],
         )
-        return stub if len(stub) < len(chunk) else ""
 
-    kept, dropped = list(chunks), []
-    dropped_rels, dropped_stubs = [], []
-    # Running totals, not re-derived sums. The fit HAS to be re-checked after
-    # every drop — the notice and the stubs both grow as more files go, so a
-    # budget reserved up front overshoots exactly when it drops the most — but
-    # the naive form recomputed `sum(len(c) for c in kept)` and re-rendered
-    # every stub on each pass, which is quadratic. Measured before this change:
-    # doubling the chunk count multiplied the time by 3.9-4.0x (64/128/256/512
-    # chunks → 1.7/6.9/26.9/105.9 ms), and the real `spec/conventions` bundle
-    # (270 chunks, 2.6 MB) took 688 ms — per corpus, per checker. After: the
-    # same bundle takes 26.7 ms.
-    #
-    # It is NOT linear even now, and saying so is cheaper than pretending: the
-    # ratio is ~3.2x per doubling because `_omitted_notice` still re-renders the
-    # whole name list every pass. Making that incremental means computing the
-    # rendered length without rendering, i.e. a second copy of the notice's
-    # format — the drift trap this repo keeps paying for. 26.7 ms on the largest
-    # real bundle does not buy that risk.
-    kept_len = sum(len(c) for c in chunks)
-    stubs_len = 0
-    while kept:
-        notice = _omitted_notice(dropped_rels) if dropped_rels else ""
-        if len(head) + kept_len + stubs_len + len(notice) <= budget:
-            # 드롭은 항상 꼬리에서 일어나므로 dropped 는 연속된 suffix 다 — kept 뒤에
-            # 이어 붙이는 것이 곧 "있던 자리" 다.
-            return head + "".join(kept) + "".join(dropped_stubs) + notice
-        victim = kept.pop()
-        kept_len -= len(victim)
-        stub = stub_of(victim)
-        stubs_len += len(stub)
-        dropped_stubs.insert(0, stub)
-        dropped_rels.insert(0, rel_of(victim))
-        dropped.insert(0, victim)
+    dropped_idx = list(range(len(chunks)))
+    stubs = [_chunk_stub(c) if p else "" for c, p in zip(chunks, is_priority)]
+    notice_len = len(notice_for(dropped_idx))
+    total = len(head) + sum(len(s) for s in stubs) + notice_len
+    if total > budget:
+        # Stubs are a courtesy; the notice is the record. Give them up before
+        # giving up the files.
+        stubs = [""] * len(chunks)
+        total = len(head) + notice_len
+    if total > budget:
+        # Nothing fits. Report the omission anyway and clip it to the budget —
+        # an empty area would be the worst outcome, since it reads as "no content".
+        return session.truncate_to_budget(head + notice_for(dropped_idx), budget), rels
 
-    # Nothing fits. Report the omission anyway and clip it to the budget —
-    # an empty area would be the worst outcome, since it reads as "no content".
-    notice = _omitted_notice([rel_of(c) for c in dropped])
-    return session.truncate_to_budget(head + notice, budget)
+    # Keeping a file swaps its stub for its body and shortens the notice by one
+    # name. The current notice is an upper bound on the shorter one, so the
+    # first test is exact-or-stricter; only a file that fails it by less than
+    # the notice's length pays for rendering the exact notice. Passes repeat
+    # because keeping a tiny file can shrink the total and let an earlier one in.
+    changed = True
+    while changed:
+        changed = False
+        for i in list(dropped_idx):
+            grown = total + len(chunks[i]) - len(stubs[i])
+            if grown > budget:
+                if grown - notice_len > budget:
+                    continue
+                if grown - notice_len + len(notice_for([j for j in dropped_idx if j != i])) > budget:
+                    continue
+            dropped_idx.remove(i)
+            new_notice_len = len(notice_for(dropped_idx))
+            total = grown - notice_len + new_notice_len
+            notice_len = new_notice_len
+            changed = True
+
+    gone = set(dropped_idx)
+    out = head + "".join(
+        stubs[i] if i in gone else chunks[i] for i in range(len(chunks))
+    ) + notice_for(dropped_idx)
+    return out, [rels[i] for i in dropped_idx]
+
+
+def truncate_file_bundle(text, budget, priority=None):
+    """`_fit_bundle` without the dropped list. Kept for the existing tests."""
+    return _fit_bundle(text, budget, priority)[0]
 
 
 def _corpus_keys(checker_name):
@@ -1197,29 +1295,66 @@ def _corpus_keys(checker_name):
     return (CHECKER_INSTRUCTIONS[checker_name]["context_key"],)
 
 
-def budget_substitutions(context, max_context_size, checker_name):
-    """Fit one checker's payload into the window.
+def fit_checker_payload(context, max_context_size, checker_name):
+    """Fit one checker's payload into the window; return `(subs, omissions)`.
 
     Keys that checker does not read are emptied rather than truncated: leaving
     them populated is what made the target pay for corpora nobody would see.
+
+    The target is fitted first and whatever of its share it leaves unused goes
+    to the corpora, then each corpus passes its own leftover to the next. A
+    `--spec` draft is tens of thousands of characters, so a fixed 60% left most
+    of the window empty while the corpus behind it was being cut.
+
+    `omissions` maps a context key to `{"priority": [...], "omitted": n}` for
+    every key that lost a file — the mechanical record of a cut that used to
+    depend on a checker choosing to mention it. A dropped chunk that is not a
+    file (the `--impl-done` diff) goes under `"unreadable"` instead of
+    `"priority"`: it is the cut that matters most and `Read` cannot undo it.
+
+    A share is at least 1 character. `_fit_bundle` reads 0 as "unlimited", so a
+    window too small to split would otherwise carry a whole corpus.
     """
     out = {"mode": context["mode"], "target_path": context["target_path"]}
     keys = _corpus_keys(checker_name)
+    omissions = {}
 
     if max_context_size <= 0:
         out["target_doc"] = context.get("target_doc", "")
         for key in keys:
             out[key] = context.get(key, "")
-        return out
+        return out, omissions
 
-    out["target_doc"] = truncate_file_bundle(
-        context.get("target_doc", ""),
-        int(max_context_size * CHECKER_BUDGET_RATIO["target_doc"]),
-    )
-    share = int(max_context_size * CHECKER_BUDGET_RATIO["corpus"] / len(keys))
-    for key in keys:
-        out[key] = truncate_file_bundle(context.get(key, ""), share)
-    return out
+    priority = set(context.get("priority_rels") or ())
+
+    def fit(key, share, wanted):
+        text, dropped = _fit_bundle(context.get(key, ""), share, wanted)
+        out[key] = text
+        if dropped:
+            lost = dropped if wanted is None else [rel for rel in dropped if rel in wanted]
+            record = {
+                "priority": [rel for rel in lost if not _is_virtual_chunk(rel)],
+                "omitted": len(dropped),
+            }
+            unreadable = [rel for rel in lost if _is_virtual_chunk(rel)]
+            if unreadable:
+                record["unreadable"] = unreadable
+            omissions[key] = record
+        return share - len(text)
+
+    target_share = max(1, int(max_context_size * CHECKER_BUDGET_RATIO["target_doc"]))
+    left = int(max_context_size * CHECKER_BUDGET_RATIO["corpus"])
+    left += max(0, fit("target_doc", target_share, None))
+    for n, key in enumerate(keys):
+        share = max(1, left // (len(keys) - n))
+        left -= share
+        left += max(0, fit(key, share, priority))
+    return out, omissions
+
+
+def budget_substitutions(context, max_context_size, checker_name):
+    """`fit_checker_payload` without the omission record. Kept for the existing tests."""
+    return fit_checker_payload(context, max_context_size, checker_name)[0]
 
 
 def _checker_corpus(checker_name, subs):
@@ -1317,21 +1452,50 @@ def _preserve_spec_draft(session_dir, context):
     return os.path.relpath(dest, session_dir)
 
 
+def _report_priority_omissions(omissions):
+    """One stderr line per checker and key that lost a priority file or the diff.
+
+    The notice inside the prompt asks the checker to open what it lost; this
+    line is for the caller, who otherwise learns of the cut only if a checker
+    happens to mention it.
+    """
+    def names(rels):
+        more = len(rels) - 5
+        return ", ".join(rels[:5]) + (f" 외 {more}개" if more > 0 else "")
+
+    for checker, by_key in omissions.items():
+        for key, record in by_key.items():
+            if record.get("unreadable"):
+                print(
+                    f"⚠️ {checker} · {key}: 파일이 아닌 항목 {len(record['unreadable'])}개의 "
+                    f"본문을 싣지 못했다(`Read` 로 되살릴 수 없다). {names(record['unreadable'])}",
+                    file=sys.stderr,
+                )
+            if record["priority"]:
+                print(
+                    f"⚠️ {checker} · {key}: 우선 문서 {len(record['priority'])}개의 본문을 "
+                    f"싣지 못했다(생략 전체 {record['omitted']}개). {names(record['priority'])}",
+                    file=sys.stderr,
+                )
+
+
 def prepare_session(context, config):
     session_dir = session.create_session_dir(config["output_dir"])
     prompts_dir = os.path.join(session_dir, "_prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
     invocations = []
+    omissions = {}
     for checker in config["agents"]:
         prompt_path = os.path.join(prompts_dir, f"{checker}.md")
         output_path = os.path.join(session_dir, f"{checker}.md")
         # Budgeted per checker, not once for everyone: each prompt carries only
         # the corpus that checker reads, so sizing the target against all five
         # corpora was spending a window nobody occupied.
-        body = build_checker_prompt_body(
-            checker, budget_substitutions(context, config["max_context_size"], checker)
-        )
+        subs, omitted = fit_checker_payload(context, config["max_context_size"], checker)
+        if omitted:
+            omissions[checker] = omitted
+        body = build_checker_prompt_body(checker, subs)
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
         invocations.append({
@@ -1370,7 +1534,10 @@ def prepare_session(context, config):
     }
     if preserved:
         meta["target_snapshot"] = preserved
+    if omissions:
+        meta["bundle_omissions"] = omissions
     session.save_metadata(session_dir, meta)
+    _report_priority_omissions(omissions)
 
     debug_log(
         f"Prepared consistency session: {session_dir} "
