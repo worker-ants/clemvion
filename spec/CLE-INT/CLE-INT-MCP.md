@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "f4a97929d6220a088fb4fc71e801826040182e73149c78878548e67b0f40d336"
+content_hash: "dbf440db4a3e4cb1fba7141c5b56e30307b4c8097de4b3c7cc1b3e5817262c14"
 read_as: "approved_fallback"
-task: "CLE-T-RAPNHB"
+task: "CLE-T-68XG50"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "a063e83ce766b17f90b3f818e2ca84d45c85acd3f2e9dfbb36f43f4502291351"
-etag: "sha256-9e61776cb32a2726b00767eb7b0f1a9455587f98dba4332f305003a050e61c33"
+mirror_sha256: "dee3dafa933398b673b35ac36e2cadf4c447576ae4ebfb784682e65cb54a3a50"
+etag: "sha256-39743989587354fbc2cb57ca25f86d26311e0cda8f9ae39731b7f13fa4f3f417"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -436,7 +436,7 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 
 - 개인 통합이면 [개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)의 실행 시점 조건을 모두 통과해야 한다. AI 에이전트 노드가 속한 워크플로우의 작성자가 통합 소유자이고 통합 소유자가 지금 그 워크스페이스의 멤버여야 한다. 서브 워크플로우 안의 AI 에이전트 노드는 그 서브 워크플로우의 작성자로 판정한다.
 - 통과하지 못하거나 노드 ID 로 워크플로우 작성자를 구하지 못하면 그 서버를 `lookup_failed` 로 건너뛰고 나머지 서버는 그대로 쓴다. 건너뛴 서버에는 활동 로그를 남기지 않는다. 거절 이유는 서버 로그에만 남긴다([개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)).
-- 도구 프로바이더는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 노드 ID 와 서버 항목의 표현식 여부를 조회에 넘긴다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 외부 MCP 서버와 Cafe24 · MakeShop 내부 MCP 브리지가 같다. 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 같다.
+- 도구 프로바이더는 도구 목록 구성 문맥(`ProviderBuildCtx`)의 노드 ID 와 서버마다의 표현식 여부를 조회에 넘긴다([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 외부 MCP 서버와 Cafe24 · MakeShop 내부 MCP 브리지가 같다. 브리지가 토큰 갱신 뒤 통합을 다시 읽는 조회도 같다. 표현식 여부는 서버 항목 안이 아니라 그 문맥의 평행 배열 `mcpServerFromExpression` 에서 같은 위치의 값을 읽는다. 배열이 없거나 길이가 서버 목록과 다르면 모든 서버를 표현식으로 본다([실행 상태 머신과 대기·재개 「보존 예외 `_resumeCheckpoint`」](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint)).
 - 통합 조회는 도구 목록을 만들 때만 하고 토큰 갱신 뒤 재조회도 이 단계 안에서 일어난다. 도구 실행은 그때 얻은 통합을 쓴다(외부 MCP 서버는 그때 연 MCP 세션).
 - 그래서 판정한 뒤 도구를 실행하기 전에 통합이 지워지거나 통합 소유자가 워크스페이스를 떠나도 그 노드 실행 안에서는 반영되지 않는다. 멀티턴이면 입력 대기 뒤 재개 턴에서 도구 목록을 다시 만들 때 반영된다. 받아들인 잔여다.
 
@@ -668,7 +668,7 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-diagnostics.ts` (`finalizeMcpDiagnostics`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 내부 MCP 브리지)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 내부 MCP 브리지)
-- `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (서버 항목의 표현식 여부 `fromExpression` 을 정하고 통합 조회에 넘길 인자를 만든다. [통합 조회 기준](#통합-조회-기준))
+- `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (서버마다의 표현식 여부 배열 `mcpServerFromExpression` 을 정하고 통합 조회에 넘길 인자를 만든다. [통합 조회 기준](#통합-조회-기준))
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 건너뛴 호출의 결과)
 - `codebase/backend/src/nodes/core/dry-run.util.ts` (내부 MCP 브리지 operation 의 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
