@@ -2,19 +2,19 @@
 id: "CLE-INT"
 title: "통합"
 type: "area"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "05e6a76955e465bbd5d6258782463c52d9ef396178559263153640b27a52fd7f"
+content_hash: "c8f2e67c4c5cea50829a5628aa39301cfb879ecb046e0bdca44660effb591f1d"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-B4WH9N"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "54df1a95034e42790c04aab780957522551f7020a55cc1165f890f3df699b3d6"
-etag: "sha256-e242997f972fc917cdab6d9454bfc297c18600d2dc85befb9450f9a08430997e"
+mirror_sha256: "b70cf1b8cde5dd98d61ddefca5eaf57b70d2b836e672694e0eae790fdf8daac9"
+etag: "sha256-897ad6c1b2b331e7183eeaf7434b41031c81929f2e1bdc0ebdb74665a3d24cea"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/4-integration/_product-overview.md` (§1), `spec/2-navigation/4-integration.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -29,7 +29,8 @@ etag: "sha256-e242997f972fc917cdab6d9454bfc297c18600d2dc85befb9450f9a08430997e"
 - 자격 증명을 암호화해 저장하고 응답에서는 가린다. 암호화는 운영 환경 기준으로 보장한다. 예외는 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 에 있다. 결정 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - OAuth 토큰을 자동으로 갱신하고 갱신할 수 없는 만료와 오류는 상태·배지·인앱 알림으로 알린다.
 - 쓰이고 있는 통합은 지우지 못하게 막고 통합마다 사용처와 최근 호출 기록을 보여 준다.
-- 개인 통합은 통합 소유자만, 조직 통합의 변경은 관리자 이상만 다룬다.
+- 개인 통합은 통합 소유자만 보고 바꾼다. 쓰기는 편집자 이상이고 뷰어는 자기 개인 통합을 보고 지우는 것만 할 수 있다. 조직 통합의 변경은 관리자 이상만 한다.
+- 개인 통합은 통합 소유자가 작성한 워크플로우의 노드에서만 쓴다. 판정은 [통합 관리 「개인 통합 사용 판정」](CLE-INT-MANAGE.md#개인-통합-사용-판정) 이 정한다.
 
 통합을 노드 설정에서 어떻게 참조하고 노드가 어떻게 실행되는지는 [통합 노드](../CLE-NODE-INT/CLE-NODE-INT.md) 영역이 다룬다. 같은 제품 요구사항 문서에 함께 있던 지식 저장소와 마켓플레이스는 [지식 저장소](../CLE-KB/CLE-KB.md) 와 [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md) 에 있다.
 
