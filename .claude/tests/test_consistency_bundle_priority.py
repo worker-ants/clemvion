@@ -6,14 +6,15 @@ half that decides **which** files get dropped, and since NERV cutover 4e (NERV T
 `CLE-T-VP5KDJ`) also what the target and the corpora ARE.
 
 Truncation fills the budget in bundle order (a tail drop until NERV Task
-`CLE-T-TR583V`, greedy since — `test_consistency_bundle_survival`), so ordering by
-name alone let the work target lose its budget to alphabetically earlier files — **eight times** across
-separate sessions, twice with no checker covering the target at all, so `BLOCK: NO`
-meant "never looked". Ordering is the part the harness can guarantee.
+`CLE-T-TR583V`, greedy since — `test_consistency_bundle_survival`), so ordering
+by name alone let the work target lose its budget to alphabetically earlier
+files — **eight times** across separate sessions, twice with no checker
+covering the target at all, so `BLOCK: NO` meant "never looked".
+Ordering is the part the harness can guarantee.
 
 Since 4e the target and both corpora are the NERV spec mirror (`spec/CLE-*`), the
-old tree is out (deleted in cutover stage 5), and the ranking signals are the branch's own changes, the
-claim's keys (`--focus`), the documents whose `## 구현 위치` covers a changed file
+old tree is out (deleted in cutover stage 5), and the ranking signals are the
+branch's own changes, the claim's keys (`--focus`), the documents whose `## 구현 위치` covers a changed file
 (`--impl-done`) and the keys the target mentions. The plan-name signals left with
 `plan/` (cutover stage 3).
 

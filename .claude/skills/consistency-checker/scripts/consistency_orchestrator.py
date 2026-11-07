@@ -203,8 +203,9 @@ def _natural_key(path):
     """Sort key where a run of digits compares as a number, not as text.
 
     Lexicographically `"1" < "10" < "11" < "2" < "4"`, so `10-graph-rag.md` and
-    `11-mcp-client.md` sort ahead of `4-execution-engine.md` — and since the
-    budget fills from the front, the file nobody was working on kept the space. Measured on `spec/5-system/` (18 files):
+    `11-mcp-client.md` sort ahead of `4-execution-engine.md`. The budget fills
+    from the front, so the file nobody was working on kept the space while the
+    one being worked on was dropped. Measured on `spec/5-system/` (18 files):
     `4-execution-engine.md` sat at position 12 lexicographically and sits at 4
     here.
 
@@ -487,8 +488,8 @@ def prioritize_bundle_files(
     """Order a bundle so the documents this task is actually about survive truncation.
 
     `_fit_bundle` fills the budget in bundle order, so order decides which
-    files a checker sees first and which ones lose out. Ordering by name alone is how the work
-    target lost its budget to alphabetically earlier files, eight times across
+    files a checker sees first and which ones lose out. Ordering by name alone
+    is how the work target lost its budget to alphabetically earlier files, eight times across
     separate sessions — twice the checkers had no coverage of the target at all,
     so `BLOCK: NO` meant "never looked", not "looks fine".
 
@@ -1120,6 +1121,9 @@ def _omitted_notice(priority_rels, other_rels=()):
         "아래 파일의 **본문은 이 프롬프트에 포함되지 않았다**. 여기 없다는 사실을 "
         "\"해당 내용이 없다\" 의 근거로 삼지 말 것 — 판정에 관련되면 `Read` 로 직접 열어라."
     )
+    # A chunk named `<git diff ...>` is not a file: `Read` cannot reopen it.
+    virtual_rels = [rel for rel in priority_rels if _is_virtual_chunk(rel)]
+    priority_rels = [rel for rel in priority_rels if not _is_virtual_chunk(rel)]
     if priority_rels:
         out += (
             f"\n\n{PRIORITY_OMITTED_HEADING} {len(priority_rels)}개\n\n"
@@ -1127,12 +1131,24 @@ def _omitted_notice(priority_rels, other_rels=()):
             "열지 못한 문서는 리포트 `### 요약` 에 «미검증 관점: <경로> — <이유>» 로 적는다."
             + "".join(f"\n- `{rel}`" for rel in priority_rels)
         )
+    if virtual_rels:
+        out += (
+            "\n\n파일이 아니라서 `Read` 로 열 수 없는 항목(본문 재구성 불가, "
+            "컨텍스트 예산을 올려야 보인다)이 잘렸다. 이 항목에 대한 판정은 "
+            "«미검증 관점» 으로 적는다."
+            + "".join(f"\n- `{rel}`" for rel in virtual_rels)
+        )
     if other_rels:
         out += (
             f"\n\n{OTHER_OMITTED_HEADING} {len(other_rels)}개\n"
             + "".join(f"\n- `{rel}`" for rel in other_rels)
         )
     return out + "\n"
+
+
+def _is_virtual_chunk(rel):
+    """True for a chunk label that is not a file path, such as `<git diff ...>`."""
+    return rel.startswith("<")
 
 
 def _chunk_rel(chunk):
@@ -1203,17 +1219,20 @@ def _fit_bundle(text, budget, priority=None):
     wanted = None if priority is None else set(priority)
     is_priority = [wanted is None or rel in wanted for rel in rels]
 
-    def notice_for(dropped):
-        if not dropped:
+    # Invariant, kept by every branch below:
+    #   total == len(head) + sum(stub or body per chunk) + len(notice_for(dropped_idx))
+    # `dropped_idx` holds chunk indexes; the return value maps them to rels.
+    def notice_for(dropped_idx):
+        if not dropped_idx:
             return ""
         return _omitted_notice(
-            [rels[i] for i in dropped if is_priority[i]],
-            [rels[i] for i in dropped if not is_priority[i]],
+            [rels[i] for i in dropped_idx if is_priority[i]],
+            [rels[i] for i in dropped_idx if not is_priority[i]],
         )
 
-    dropped = list(range(len(chunks)))
+    dropped_idx = list(range(len(chunks)))
     stubs = [_chunk_stub(c) if p else "" for c, p in zip(chunks, is_priority)]
-    notice_len = len(notice_for(dropped))
+    notice_len = len(notice_for(dropped_idx))
     total = len(head) + sum(len(s) for s in stubs) + notice_len
     if total > budget:
         # Stubs are a courtesy; the notice is the record. Give them up before
@@ -1223,7 +1242,7 @@ def _fit_bundle(text, budget, priority=None):
     if total > budget:
         # Nothing fits. Report the omission anyway and clip it to the budget —
         # an empty area would be the worst outcome, since it reads as "no content".
-        return session.truncate_to_budget(head + notice_for(dropped), budget), rels
+        return session.truncate_to_budget(head + notice_for(dropped_idx), budget), rels
 
     # Keeping a file swaps its stub for its body and shortens the notice by one
     # name. The current notice is an upper bound on the shorter one, so the
@@ -1233,28 +1252,28 @@ def _fit_bundle(text, budget, priority=None):
     changed = True
     while changed:
         changed = False
-        for i in list(dropped):
+        for i in list(dropped_idx):
             grown = total + len(chunks[i]) - len(stubs[i])
             if grown > budget:
                 if grown - notice_len > budget:
                     continue
-                if grown - notice_len + len(notice_for([j for j in dropped if j != i])) > budget:
+                if grown - notice_len + len(notice_for([j for j in dropped_idx if j != i])) > budget:
                     continue
-            dropped.remove(i)
-            new_notice_len = len(notice_for(dropped))
+            dropped_idx.remove(i)
+            new_notice_len = len(notice_for(dropped_idx))
             total = grown - notice_len + new_notice_len
             notice_len = new_notice_len
             changed = True
 
-    gone = set(dropped)
+    gone = set(dropped_idx)
     out = head + "".join(
         stubs[i] if i in gone else chunks[i] for i in range(len(chunks))
-    ) + notice_for(dropped)
-    return out, [rels[i] for i in dropped]
+    ) + notice_for(dropped_idx)
+    return out, [rels[i] for i in dropped_idx]
 
 
 def truncate_file_bundle(text, budget, priority=None):
-    """`_fit_bundle` without the dropped list — the text a prompt carries."""
+    """테스트 호환용 래퍼. `_fit_bundle` 의 절단된 본문만 돌려준다."""
     return _fit_bundle(text, budget, priority)[0]
 
 
@@ -1297,6 +1316,7 @@ def fit_checker_payload(context, max_context_size, checker_name):
         out[key] = text
         if dropped:
             lost = dropped if wanted is None else [rel for rel in dropped if rel in wanted]
+            lost = [rel for rel in lost if not _is_virtual_chunk(rel)]
             omissions[key] = {"priority": lost, "omitted": len(dropped)}
         return share - len(text)
 
@@ -1311,7 +1331,7 @@ def fit_checker_payload(context, max_context_size, checker_name):
 
 
 def budget_substitutions(context, max_context_size, checker_name):
-    """`fit_checker_payload` without the omission record."""
+    """테스트 호환용 래퍼. `fit_checker_payload` 의 본문 묶음만 돌려준다."""
     return fit_checker_payload(context, max_context_size, checker_name)[0]
 
 
