@@ -489,9 +489,9 @@ def prioritize_bundle_files(
 
     `_fit_bundle` fills the budget in bundle order, so order decides which
     files a checker sees first and which ones lose out. Ordering by name alone
-    is how the work target lost its budget to alphabetically earlier files, eight times across
-    separate sessions — twice the checkers had no coverage of the target at all,
-    so `BLOCK: NO` meant "never looked", not "looks fine".
+    is how the work target lost its budget to alphabetically earlier files,
+    eight times across separate sessions — twice the checkers had no coverage
+    of the target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
 
     Tiers (stable, natural order inside each — see `_natural_key`):
       0. changed by this branch — a pulled spec is the work's own basis
@@ -1081,6 +1081,7 @@ OMITTED_FILES_HEADING = "### ⚠️ 컨텍스트 예산 초과로 생략된 파�
 # the checker is told to open them and to report the ones it could not.
 PRIORITY_OMITTED_HEADING = "#### 반드시 열어 볼 우선 문서"
 OTHER_OMITTED_HEADING = "#### 그 밖의 문서"
+UNREADABLE_OMITTED_HEADING = "#### 파일이 아닌 항목"
 
 # Splitting a rendered bundle back into per-file chunks needs a boundary that
 # file CONTENT cannot produce. ``\n#### `` alone cannot: spec bodies legitimately
@@ -1114,6 +1115,10 @@ def _omitted_notice(priority_rels, other_rels=()):
     key) are listed apart with a stronger instruction. One flat list put them
     among a hundred-odd ordinary documents with the same "open it if relevant",
     and a checker that skipped them left no trace of having skipped them.
+
+    A chunk that is not a file (the `--impl-done` diff, labelled `<git diff …>`)
+    gets its own section: `Read` cannot reopen it, but the checker can rerun the
+    command in the label against the worktree.
     """
     total = len(priority_rels) + len(other_rels)
     out = (
@@ -1133,9 +1138,10 @@ def _omitted_notice(priority_rels, other_rels=()):
         )
     if virtual_rels:
         out += (
-            "\n\n파일이 아니라서 `Read` 로 열 수 없는 항목(본문 재구성 불가, "
-            "컨텍스트 예산을 올려야 보인다)이 잘렸다. 이 항목에 대한 판정은 "
-            "«미검증 관점» 으로 적는다."
+            f"\n\n{UNREADABLE_OMITTED_HEADING} {len(virtual_rels)}개\n\n"
+            "파일이 아니라서 `Read` 로 열 수 없다. 이름표에 적힌 `git diff` 를 머리말의 "
+            "워킹트리에서 `git -C <경로> diff …` 로 직접 돌려 본다. 보지 못했으면 리포트 "
+            "`### 요약` 에 «미검증 관점: <이름표> — <이유>» 로 적는다."
             + "".join(f"\n- `{rel}`" for rel in virtual_rels)
         )
     if other_rels:
@@ -1297,7 +1303,12 @@ def fit_checker_payload(context, max_context_size, checker_name):
 
     `omissions` maps a context key to `{"priority": [...], "omitted": n}` for
     every key that lost a file — the mechanical record of a cut that used to
-    depend on a checker choosing to mention it.
+    depend on a checker choosing to mention it. A dropped chunk that is not a
+    file (the `--impl-done` diff) goes under `"unreadable"` instead of
+    `"priority"`: it is the cut that matters most and `Read` cannot undo it.
+
+    A share is at least 1 character. `_fit_bundle` reads 0 as "unlimited", so a
+    window too small to split would otherwise carry a whole corpus.
     """
     out = {"mode": context["mode"], "target_path": context["target_path"]}
     keys = _corpus_keys(checker_name)
@@ -1316,15 +1327,21 @@ def fit_checker_payload(context, max_context_size, checker_name):
         out[key] = text
         if dropped:
             lost = dropped if wanted is None else [rel for rel in dropped if rel in wanted]
-            lost = [rel for rel in lost if not _is_virtual_chunk(rel)]
-            omissions[key] = {"priority": lost, "omitted": len(dropped)}
+            record = {
+                "priority": [rel for rel in lost if not _is_virtual_chunk(rel)],
+                "omitted": len(dropped),
+            }
+            unreadable = [rel for rel in lost if _is_virtual_chunk(rel)]
+            if unreadable:
+                record["unreadable"] = unreadable
+            omissions[key] = record
         return share - len(text)
 
-    target_share = int(max_context_size * CHECKER_BUDGET_RATIO["target_doc"])
+    target_share = max(1, int(max_context_size * CHECKER_BUDGET_RATIO["target_doc"]))
     left = int(max_context_size * CHECKER_BUDGET_RATIO["corpus"])
     left += max(0, fit("target_doc", target_share, None))
     for n, key in enumerate(keys):
-        share = left // (len(keys) - n)
+        share = max(1, left // (len(keys) - n))
         left -= share
         left += max(0, fit(key, share, priority))
     return out, omissions
@@ -1431,21 +1448,28 @@ def _preserve_spec_draft(session_dir, context):
 
 
 def _report_priority_omissions(omissions):
-    """One stderr line per checker that lost a priority file, before any checker runs.
+    """One stderr line per checker and key that lost a priority file or the diff.
 
     The notice inside the prompt asks the checker to open what it lost; this
     line is for the caller, who otherwise learns of the cut only if a checker
     happens to mention it.
     """
+    def names(rels):
+        more = len(rels) - 5
+        return ", ".join(rels[:5]) + (f" 외 {more}개" if more > 0 else "")
+
     for checker, by_key in omissions.items():
         for key, record in by_key.items():
+            if record.get("unreadable"):
+                print(
+                    f"⚠️ {checker} · {key}: 파일이 아닌 항목 {len(record['unreadable'])}개의 "
+                    f"본문을 싣지 못했다(`Read` 로 되살릴 수 없다). {names(record['unreadable'])}",
+                    file=sys.stderr,
+                )
             if record["priority"]:
-                shown = ", ".join(record["priority"][:5])
-                more = len(record["priority"]) - 5
-                tail = f" 외 {more}개" if more > 0 else ""
                 print(
                     f"⚠️ {checker} · {key}: 우선 문서 {len(record['priority'])}개의 본문을 "
-                    f"싣지 못했다(생략 전체 {record['omitted']}개). {shown}{tail}",
+                    f"싣지 못했다(생략 전체 {record['omitted']}개). {names(record['priority'])}",
                     file=sys.stderr,
                 )
 

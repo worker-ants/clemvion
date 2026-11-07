@@ -106,21 +106,29 @@ def kept_bodies(text):
 
 
 def notice_sections(text):
-    """{"priority": [...], "other": [...]} as listed in the omission notice."""
+    """{"priority", "unreadable", "other"} → the names listed under each notice heading."""
+    sections = {"priority": [], "unreadable": [], "other": []}
     at = text.find(HEADING)
     if at < 0:
-        return {"priority": [], "other": []}
-    notice = text[at:]
-    p_at = notice.find(PRIORITY_HEADING)
-    o_at = notice.find(OTHER_MARK)
-    def names(part):
-        return re.findall(r"^- `([^`]+)`$", part, re.M)
-    priority = names(notice[p_at:o_at if o_at > p_at else None]) if p_at >= 0 else []
-    other = names(notice[o_at:]) if o_at >= 0 else []
-    return {"priority": priority, "other": other}
+        return sections
+    current = None
+    for line in text[at:].splitlines():
+        if line.startswith(PRIORITY_HEADING):
+            current = "priority"
+        elif line.startswith(UNREADABLE_MARK):
+            current = "unreadable"
+        elif line.startswith(OTHER_MARK):
+            current = "other"
+        else:
+            m = re.match(r"^- `([^`]+)`$", line)
+            if m and current:
+                sections[current].append(m.group(1))
+    return sections
 
 
 OTHER_MARK = run_in_orchestrator("emit(orch.OTHER_OMITTED_HEADING)")
+UNREADABLE_MARK = run_in_orchestrator("emit(orch.UNREADABLE_OMITTED_HEADING)")
+DIFF_LABEL = "<git diff origin/main...HEAD -- codebase>"
 # What `session.truncate_to_budget` leaves when it clips (the nothing-fits fallback).
 CLIPPED = "truncated due to size limit"
 
@@ -278,6 +286,92 @@ class PriorityNoticeTest(unittest.TestCase):
         self.assertEqual(sorted(notice_sections(out)["other"]), ["spec/p.md", "spec/q.md"])
 
 
+class FallbackTest(unittest.TestCase):
+    """The two branches for budgets below "every body dropped"."""
+
+    _SMALL = ("spec/CLE-F/CLE-F-small.md", "s" * 20)
+    _PAIRS = [(f"spec/CLE-F/CLE-F-{i}.md", "f" * 2_000) for i in range(10)] + [_SMALL]
+
+    def _floor(self):
+        """(head length, notice length) with every file dropped."""
+        return run_in_orchestrator(
+            """
+            text = ARG
+            head = text.split(orch._BUNDLE_FILE_SENTINEL)[0]
+            rels = [orch._chunk_rel(orch._BUNDLE_FILE_SENTINEL + c)
+                    for c in text.split(orch._BUNDLE_FILE_SENTINEL)[1:]]
+            emit([len(head), len(orch._omitted_notice(rels))])
+            """,
+            bundle(*self._PAIRS),
+        )
+
+    def test_stubs_are_given_up_before_the_names_and_the_files(self):
+        """Ten stubs (~150 characters each) do not fit; the names and the small file do.
+
+        Giving up the stubs is what leaves room for the small file. Going
+        straight to the nothing-fits branch also drops the stubs, so only the
+        small file tells the two apart.
+        """
+        head, notice = self._floor()
+        budget = head + notice + chunk_len(*self._SMALL) + 30
+        out = fit(bundle(*self._PAIRS), budget)
+        big = [rel for rel, _ in self._PAIRS[:-1]]
+        self.assertLessEqual(len(out["text"]), budget)
+        self.assertNotIn(CLIPPED, out["text"], "the notice fits and must not be clipped")
+        self.assertNotIn("본문 생략됨", out["text"], "stubs that do not fit were kept")
+        self.assertEqual(kept_bodies(out["text"]), [self._SMALL[0]])
+        self.assertEqual(sorted(notice_sections(out["text"])["priority"]), sorted(big))
+        self.assertEqual(sorted(out["dropped"]), sorted(big))
+
+    def test_nothing_fits_reports_every_file_dropped_within_the_budget(self):
+        head, notice = self._floor()
+        budget = head + notice // 2
+        out = fit(bundle(*self._PAIRS), budget)
+        self.assertLessEqual(len(out["text"]), budget)
+        self.assertEqual(sorted(out["dropped"]), sorted(rel for rel, _ in self._PAIRS))
+        self.assertIn(HEADING, out["text"], "the notice heading is the first thing to survive")
+
+
+class UnreadableChunkTest(unittest.TestCase):
+    """A dropped `--impl-done` diff is not a file: it must not be listed as one to `Read`.
+
+    Code round 1 on `CLE-T-TR583V` caught the target bundle sending the diff
+    label to the priority list with a `Read` instruction it cannot satisfy. The
+    record must still carry it: losing the diff is the cut that matters most.
+    """
+
+    _TEXT = bundle((DIFF_LABEL, "D" * 3_000), ("spec/a.md", "A" * 400))
+
+    def test_the_notice_lists_the_diff_apart_from_the_files_to_read(self):
+        out = fit(self._TEXT, 1_600)
+        self.assertEqual(out["dropped"], [DIFF_LABEL])
+        sections = notice_sections(out["text"])
+        self.assertEqual(sections["unreadable"], [DIFF_LABEL])
+        self.assertEqual(sections["priority"], [])
+        self.assertNotIn(PRIORITY_HEADING, out["text"])
+        self.assertIn("git -C", out["text"], "the checker is not told how to see the diff")
+        self.assertIn("미검증 관점", out["text"])
+
+    def test_the_payload_record_and_stderr_name_the_diff(self):
+        res = run_in_orchestrator(
+            """
+            import contextlib, io
+            ctx = {"mode": "impl_done", "target_path": "x", "target_doc": ARG,
+                   "related_specs": "", "priority_rels": []}
+            subs, omissions = orch.fit_checker_payload(ctx, 2_600, "cross_spec")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                orch._report_priority_omissions({"cross_spec": omissions})
+            emit({"omissions": omissions, "stderr": err.getvalue()})
+            """,
+            self._TEXT,
+        )
+        record = res["omissions"]["target_doc"]
+        self.assertEqual(record["priority"], [])
+        self.assertEqual(record["unreadable"], [DIFF_LABEL])
+        self.assertIn(DIFF_LABEL, res["stderr"], "prepare does not say the diff was cut")
+
+
 class TargetShareRolloverTest(unittest.TestCase):
     """The share the target does not use goes to the corpora; the window stays the same."""
 
@@ -311,6 +405,20 @@ class TargetShareRolloverTest(unittest.TestCase):
         self.assertGreater(sizes["conventions"], 40_000)
         self.assertLessEqual(
             sizes["target_doc"] + sizes["related_specs"] + sizes["conventions"], 100_000)
+
+    def test_a_window_too_small_to_split_does_not_carry_a_whole_corpus(self):
+        """`_fit_bundle` reads a share of 0 as unlimited, so a share is at least 1."""
+        ctx = dict(self._CTX, related_specs=bundle(("spec/r.md", "R" * 5_000)),
+                   conventions=bundle(("spec/c.md", "C" * 5_000)))
+        sizes = run_in_orchestrator(
+            """
+            subs = orch.budget_substitutions(ARG, 2, "naming_collision")
+            emit({k: len(v) for k, v in subs.items()})
+            """,
+            ctx,
+        )
+        self.assertLessEqual(sizes["related_specs"], 2, sizes)
+        self.assertLessEqual(sizes["conventions"], 2, sizes)
 
     def test_a_full_target_lends_nothing(self):
         ctx = dict(self._CTX, target_doc="T" * 400_000)
