@@ -530,10 +530,12 @@ describe('AiTurnOrchestrator', () => {
 
     // ai-review WARNING #10 (2026-07-26, concurrency) — 성공 경로가 짝 전이 결과
     // 확인 전에 nodeExec.outputData 를 먼저 낙관적으로 mutate 한다(위 `finalizeAiNode`
-    // 의 COMPLETED 셋업). 짝 전이가 거부되면 `markNodeCancelled` 가 status/finishedAt/
-    // durationMs 만 되돌리고 outputData/error 는 그대로 남아, 취소로 종결된
-    // NodeExecution 이 "성공" 페이로드를 갖게 되는 데이터 위생 문제였다.
-    it('markNodeCancelled 호출 전 outputData/error 를 비워 취소된 nodeExec 가 성공 페이로드를 남기지 않는다 (WARNING #10)', async () => {
+    // 의 COMPLETED 셋업). 짝 전이가 거부되면 취소로 종결된 NodeExecution 이 "성공"
+    // 페이로드를 갖게 되는 데이터 위생 문제였다. 예전에는 가드가 마킹 전에 비웠고,
+    // CLE-T-J6GRJ9 부터 `markNodeCancelled` 가 직접 비운다(engine spec 의
+    // `markNodeCancelled` 블록이 본다). 여기서는 낙관적으로 채운 그 nodeExec 가
+    // 마킹 대상으로 넘어가는지만 본다.
+    it('짝 전이가 거부되면 낙관적으로 채운 nodeExec 를 markNodeCancelled 에 넘긴다 (WARNING #10)', async () => {
       driver.updateExecutionStatus.mockResolvedValueOnce(false);
       const context = contextService.createContext(executionId, workflowId);
       // finalizeAiNode 가 nodeExec.outputData 를 이 캐시로부터 낙관적으로 채운다.
@@ -563,7 +565,7 @@ describe('AiTurnOrchestrator', () => {
       ).rejects.toBeInstanceOf(ExecutionCancelledError);
 
       expect(driver.markNodeCancelled).toHaveBeenCalledWith(
-        expect.objectContaining({ outputData: {}, error: {} }),
+        expect.objectContaining({ id: 'ne-retry-hygiene' }),
         retryNode,
         expect.anything(),
         executionId,
@@ -794,11 +796,10 @@ describe('AiTurnOrchestrator', () => {
         expect.anything(),
         executionId,
       );
-      // WARNING #10 계약과 동형 — isFailed 셋업이 채운 error 메시지가
-      // terminal 마킹 전에 비워져야 한다(취소된 NodeExecution 이 FAILED
-      // 페이로드를 남기지 않도록).
-      expect((nodeExec as { outputData: unknown }).outputData).toEqual({});
-      expect((nodeExec as { error: unknown }).error).toEqual({});
+      // WARNING #10 계약과 동형 — isFailed 셋업이 채운 error 메시지는 취소된
+      // NodeExecution 에 남으면 안 된다. 비우는 일은 CLE-T-J6GRJ9 부터
+      // `markNodeCancelled` 가 하므로(engine spec 의 `markNodeCancelled` 블록)
+      // 여기서는 위처럼 그 nodeExec 가 마킹 대상으로 넘어갔는지만 본다.
       const nodeFailedEmitted = mockEventEmitter.emitNode.mock.calls.some(
         (c) => c[2] === 'execution.node.failed',
       );
@@ -1273,9 +1274,8 @@ describe('AiTurnOrchestrator', () => {
           expect.anything(),
           executionId,
         );
-        // WARNING #10 계약과 동형 — terminal 마킹 전 성공 페이로드를 비운다.
-        expect(nodeExec.outputData).toEqual({});
-        expect(nodeExec.error).toEqual({});
+        // WARNING #10 계약과 동형 — 성공 페이로드를 비우는 일은 CLE-T-J6GRJ9 부터
+        // `markNodeCancelled` 가 한다(engine spec 의 `markNodeCancelled` 블록).
       });
 
       it('nodeExec === null 이면 markNodeCancelled 를 호출하지 않고 그대로 rethrow 한다', async () => {

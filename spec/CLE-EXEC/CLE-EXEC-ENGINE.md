@@ -2,19 +2,19 @@
 id: "CLE-EXEC-ENGINE"
 title: "실행 엔진 개요와 그래프 순회"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "0f4e8fd182b3a263ad4507e8216effeea2d4362e88f4e7b5f5246d1623e9dc87"
+content_hash: "c5d2afa4f86aa4471324115013425b22ba82273b1a7693d17e4e4e6815882352"
 read_as: "approved_fallback"
-task: "CLE-T-HW2GKD"
+task: "CLE-T-J6GRJ9"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "f10a1bae5e7a4f62d3dd71284e80227fb06fac1d94cb7a8e7a51994ce01ba714"
-etag: "sha256-b3a310966bc77e1ee3dad183ce6e5657e86013ee7b0ac5e5a83e7ab1ffa2f7d7"
+mirror_sha256: "f253792aef1a80fd6c64935e497a9ec95f44854a7a81fbe20489606a9dbbdbc2"
+etag: "sha256-6bf48d22a3ab464b9abf02315e62c4df92aab666e2d06dd42bf3e80b076609d3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -79,13 +79,13 @@ flowchart LR
 | 부분 인터페이스 | 멤버 | 소비자 |
 | --- | --- | --- |
 | `CoreEngineDriver` | `updateExecutionStatus`, `contextKeyOf` | 공통 기반 |
-| `InteractionEngineDriver` | Core + `stageDurableResumeSnapshot` | Form·Button 서비스 |
+| `InteractionEngineDriver` | Core + `stageDurableResumeSnapshot`, `markNodeCancelled` | Form·Button 서비스 |
 | `ReentryStateDriver` | `buildRetryReentryState` | AiTurn·Retry 공유 |
-| `AiTurnEngineDriver` | Interaction + Reentry + `buildResumeCheckpoint`, `isCheckpointEligibleNodeType`, `applyPortSelection`, 취소 가드 3종(`assertExecutionNotCancelled`, `markNodeCancelled`, `tryLockActiveExecutionAndSaveNodeExec`) | `AiTurnOrchestrator` |
+| `AiTurnEngineDriver` | Interaction + Reentry + `buildResumeCheckpoint`, `isCheckpointEligibleNodeType`, `applyPortSelection`, 취소 가드 2종(`assertExecutionNotCancelled`, `tryLockActiveExecutionAndSaveNodeExec`) | `AiTurnOrchestrator` |
 | `RetryEngineDriver` | Core + Reentry + `rehydrateContext`, `loadAndBuildGraph`, `runNodeDispatchLoop`, `findActivatedBackEdge`, `clearLlmDefaultConfigCache` | `RetryTurnService` |
 | `EngineDriver` | AiTurn + Retry 전체 | 엔진만 구현한다 |
 
-2026-07-27 기준으로 `EngineDriver` 의 서로 다른 멤버는 15개, `AiTurnEngineDriver` 는 10개다. 취소 가드 3종은 `AiTurnOrchestrator` 만 쓰므로 공유 기반이 아닌 그 인터페이스에 둔다. 정확한 멤버 목록의 기준은 언제나 `engine-driver.interface.ts` 의 타입 정의다. 스펙이 정하는 것은 "엔진 내부 계약은 `EngineDriver` 하나다" 라는 점까지이고 부분 인터페이스 분해는 코드 수준의 설계다.
+취소 가드 가운데 `assertExecutionNotCancelled` 와 `tryLockActiveExecutionAndSaveNodeExec` 는 `AiTurnOrchestrator` 만 쓰므로 그 인터페이스에 둔다. 노드 단위 취소 마감 `markNodeCancelled` 는 짝 전이 종결 가드를 함께 쓰는 Form·버튼 서비스도 부르므로 `InteractionEngineDriver` 에 둔다(CLE-T-J6GRJ9). 정확한 멤버 목록의 기준은 언제나 `engine-driver.interface.ts` 의 타입 정의다. 스펙이 정하는 것은 "엔진 내부 계약은 `EngineDriver` 하나다" 라는 점까지이고 부분 인터페이스 분해는 코드 수준의 설계다.
 
 엔진이 노드 핸들러에 주는 계약 `WorkflowExecutor` 는 엔진 내부 통신에 쓰지 않는다. 부팅 때 엔진 자신을 핸들러 의존성으로 넘기는 경로는 별도 토큰 `WORKFLOW_EXECUTOR` 로 주입한다.
 
@@ -213,6 +213,8 @@ dispatch 루프 `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 돌
 `WorkflowExecutor` 는 스펙상 엔진과 노드 사이의 계약이다. 이것을 엔진 내부 통신에 다시 쓰면 그 계약의 뜻이 여러 가지로 겹친다. 그래서 엔진 내부 전용 계약 `EngineDriver` 를 따로 두었다. 부팅 때의 엔진 자기 참조(`handlerDeps.build(this)`)는 `WORKFLOW_EXECUTOR` 토큰으로 바꿨다. 이쪽은 `WorkflowExecutor` 계약을 원래 뜻대로 쓰는 경우라 의미가 그대로 남는다. 이 변경으로 노드에서 엔진으로 향하던 역의존도 없어졌다(m-3).
 
 `EngineDriver` 멤버 수는 리팩터 때마다 바뀌어 문서의 숫자가 금방 낡았다. 그래서 정확한 멤버 목록은 타입 정의를 기준으로 한다고 적어 둔다.
+
+`markNodeCancelled` 는 처음에 `AiTurnOrchestrator` 만 불러서 `AiTurnEngineDriver` 에 두었다. CLE-T-J6GRJ9(2026-11-07)에서 짝 전이 종결 가드를 공용 헬퍼로 옮기면서 Form·버튼 서비스도 이 멤버를 부르게 됐다. 그래서 두 서비스가 받는 `InteractionEngineDriver` 로 옮겼다. Form·버튼 서비스에 `AiTurnEngineDriver` 를 주입하는 안은 택하지 않았다. 그렇게 하면 AI 전용 멤버까지 두 서비스에 드러나 부분 인터페이스로 나눈 뜻이 없어진다.
 
 ### 엔진에서 `RetryTurnService` 로 향하는 순환 주입을 없앤다 (후속 ④, 2026-06-19, PR #638)
 

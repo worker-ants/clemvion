@@ -14,6 +14,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import type { ExecutionContext } from '../../nodes/core/node-handler.interface';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
+import { ExecutionCancelledError } from './workflow-errors';
 
 // ────────────────────────────────────────────────────────────────────────────
 // C-1 step3 — FormInteractionService 단위 테스트.
@@ -56,6 +57,7 @@ describe('FormInteractionService', () => {
     };
     mockDriver = {
       updateExecutionStatus: jest.fn().mockResolvedValue(true),
+      markNodeCancelled: jest.fn().mockResolvedValue(undefined),
       stageDurableResumeSnapshot: jest.fn(),
       buildRetryReentryState: jest.fn(),
       buildResumeCheckpoint: jest.fn(),
@@ -630,6 +632,95 @@ describe('FormInteractionService', () => {
       // 재수화 경로에서도 interactionType 보존(W1) + durationMs 계산.
       expect(out.meta?.interactionType).toBe('form');
       expect(out.meta?.durationMs as number).toBeGreaterThanOrEqual(2000);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 짝 전이가 동시 Stop 에 선점당한 경우(`updateExecutionStatus` → false).
+  //
+  // CLE-EXEC-STATE §원자성 보장 5: 호출부는 대기 · 재개 이벤트를 내지 않고, 짝
+  // NodeExecution 을 CANCELLED 로 마킹하고, `ExecutionCancelledError` 로 취소를 넘긴다.
+  // 직전 커밋의 기준선은 반환값을 버려 이벤트를 그대로 냈다(CLE-T-J6GRJ9).
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('짝 전이 선점(false)', () => {
+    const parkLost = (nodeExecRow: Record<string, unknown> | null) => {
+      const nodeId = 'node-form-park-lost';
+      const ctx = makeContext();
+      ctx.nodeOutputCache[nodeId] = { status: 'waiting_for_input' };
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce(nodeExecRow);
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const node = makeFormNode(nodeId);
+      return {
+        node,
+        ctx,
+        promise: service.waitForFormSubmission(
+          makeExecution(),
+          execId,
+          node,
+          ctx,
+        ),
+      };
+    };
+
+    it('park — 대기 이벤트 없이 짝 행을 CANCELLED 로 마킹하고 취소를 넘긴다', async () => {
+      const row = { id: 'ne-park-lost', startedAt: new Date() };
+      const { node, ctx, promise } = parkLost(row);
+
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      await expect(promise).rejects.toThrow(/cancelled during form park/);
+      expect(mockDriver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ne-park-lost' }),
+        node,
+        ctx,
+        execId,
+      );
+      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalledWith(
+        execId,
+        'execution.waiting_for_input',
+        expect.anything(),
+      );
+    });
+
+    it('park — 짝 행이 없으면 마킹 없이 취소만 넘긴다', async () => {
+      const { promise } = parkLost(null);
+
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      expect(mockDriver.markNodeCancelled).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
+    });
+
+    it('재claim — NODE_COMPLETED · EXECUTION_RESUMED 없이 짝 행을 CANCELLED 로 마킹하고 취소를 넘긴다', async () => {
+      const nodeId = 'node-form-reclaim-lost';
+      mockNodeExecutionRepository.findOne = jest.fn().mockResolvedValue({
+        id: 'ne-reclaim-lost',
+        nodeId,
+        executionId: execId,
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const node = makeFormNode(nodeId);
+
+      const promise = service.processFormResumeTurn(
+        makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
+        execId,
+        node,
+        makeContext(),
+        { type: 'form_submitted', formData: { answer: 'late' } },
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      await expect(promise).rejects.toThrow(
+        /cancelled during form 재개 RUNNING 재claim/,
+      );
+      expect(mockDriver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ne-reclaim-lost' }),
+        node,
+        expect.anything(),
+        execId,
+      );
+      expect(mockEventEmitter.emitNode).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
     });
   });
 });

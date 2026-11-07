@@ -20,6 +20,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import type { ExecutionContext } from '../../nodes/core/node-handler.interface';
 import type { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
+import { ExecutionCancelledError } from './workflow-errors';
 
 // ────────────────────────────────────────────────────────────────────────────
 // C-1 step3 — ButtonInteractionService 단위 테스트.
@@ -61,6 +62,7 @@ describe('ButtonInteractionService', () => {
     };
     mockDriver = {
       updateExecutionStatus: jest.fn().mockResolvedValue(true),
+      markNodeCancelled: jest.fn().mockResolvedValue(undefined),
       stageDurableResumeSnapshot: jest.fn(),
       buildRetryReentryState: jest.fn(),
       buildResumeCheckpoint: jest.fn(),
@@ -532,6 +534,84 @@ describe('ButtonInteractionService', () => {
       expect(mockEventEmitter.emitNode).not.toHaveBeenCalled();
       // updateExecutionStatus 는 호출됨 (status !== RUNNING).
       expect(mockDriver.updateExecutionStatus).toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 짝 전이가 동시 Stop 에 선점당한 경우(`updateExecutionStatus` → false).
+  //
+  // CLE-EXEC-STATE §원자성 보장 5: 호출부는 대기 · 재개 이벤트를 내지 않고, 짝
+  // NodeExecution 을 CANCELLED 로 마킹하고, `ExecutionCancelledError` 로 취소를 넘긴다.
+  // 직전 커밋의 기준선은 반환값을 버려 이벤트를 그대로 냈다(CLE-T-J6GRJ9).
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('짝 전이 선점(false)', () => {
+    const buttonConfig: ButtonConfig = {
+      buttons: [{ id: 'b1', type: 'port', label: 'B1' }],
+    };
+
+    it('park — 대기 이벤트 없이 짝 행을 CANCELLED 로 마킹하고 취소를 넘긴다', async () => {
+      const nodeId = 'node-btn-park-lost';
+      const ctx = seedButtonContext(nodeId, buttonConfig);
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce({
+        id: 'ne-btn-park-lost',
+        nodeId,
+        startedAt: new Date(),
+      });
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const node = makeButtonNode(nodeId);
+
+      const promise = service.waitForButtonInteraction(
+        makeExecution(),
+        execId,
+        node,
+        ctx,
+        [],
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      await expect(promise).rejects.toThrow(/cancelled during buttons park/);
+      expect(mockDriver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ne-btn-park-lost' }),
+        node,
+        ctx,
+        execId,
+      );
+      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
+    });
+
+    it('재claim — NODE_COMPLETED · EXECUTION_RESUMED 없이 짝 행을 CANCELLED 로 마킹하고 취소를 넘긴다', async () => {
+      const nodeId = 'node-btn-reclaim-lost';
+      const ctx = seedButtonContext(nodeId, buttonConfig);
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce({
+        id: 'ne-btn-reclaim-lost',
+        nodeId,
+        executionId: execId,
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const node = makeButtonNode(nodeId);
+
+      const promise = service.processButtonResumeTurn(
+        makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
+        execId,
+        node,
+        ctx,
+        { type: 'button_click', buttonId: 'b1' },
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      await expect(promise).rejects.toThrow(
+        /cancelled during buttons 재개 RUNNING 재claim/,
+      );
+      expect(mockDriver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ne-btn-reclaim-lost' }),
+        node,
+        ctx,
+        execId,
+      );
+      expect(mockEventEmitter.emitNode).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
     });
   });
 });

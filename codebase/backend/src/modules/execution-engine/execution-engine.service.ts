@@ -26,6 +26,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   ExecutionCancelledError,
+  NodeCancelMarkingError,
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
   WorkflowForbiddenWorkspaceError,
@@ -1183,6 +1184,8 @@ export class ExecutionEngineService
             status: ExecutionStatus.CANCELLED,
             finishedAt: terminalFinishedAt,
             // 엔티티 미로드 경로 — 같은 문장에서 계산하고 RETURNING 으로 되받는다.
+            // `.returning()` 에는 속성 경로를 넘기고 raw 는 컬럼 이름으로 읽는다(근거는
+            // `finalizeStalledExhausted` 의 같은 자리 주석).
             durationMs: () => TERMINAL_DURATION_MS_SQL,
           })
           .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
@@ -1190,7 +1193,7 @@ export class ExecutionEngineService
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
-          .returning(['id', 'duration_ms'])
+          .returning(['id', 'durationMs'])
           .execute();
         cancelledDurationMs =
           toFiniteNumber(
@@ -1324,7 +1327,7 @@ export class ExecutionEngineService
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
-          .returning(['id', 'duration_ms'])
+          .returning(['id', 'durationMs'])
           .execute();
         cancelledDurationMs =
           toFiniteNumber(
@@ -2995,7 +2998,7 @@ export class ExecutionEngineService
             ExecutionStatus.RUNNING,
           ],
         })
-        .returning(['id', 'duration_ms'])
+        .returning(['id', 'durationMs'])
         .execute();
       // §7.5 / 방안 D — rehydration 실패로 cancelled 마킹 시 `EXECUTION_CANCELLED`
       // 를 emit 해 채널 어댑터(텔레그램 등)가 사용자에게 graceful "세션 만료 —
@@ -3052,7 +3055,7 @@ export class ExecutionEngineService
         .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
         .where('id = :id', { id: executionId })
         .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
-        .returning(['id', 'duration_ms'])
+        .returning(['id', 'durationMs'])
         .execute();
       if ((result.affected ?? 0) > 0) {
         await this.emitCancellationEvent(executionId, {
@@ -3520,10 +3523,13 @@ export class ExecutionEngineService
         .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
         .where('id = :id', { id: executionId })
         .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
-        .returning(['id', 'duration_ms'])
+        .returning(['id', 'durationMs'])
         .execute();
       if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
       // `raw` 는 드라이버 원본이라 컬럼명이 snake_case 다 (#1168 에서 배운 형태).
+      // 반대로 `.returning([...])` 배열은 **엔티티 속성 경로**(`durationMs`)를 받는다. 컬럼 이름을
+      // 넘기면 TypeORM 이 그 항목을 조용히 빼서 이 값이 늘 `null` 이었다(CLE-T-0WDZ5G). 정적 가드:
+      // `repo-guards/__tests__/returning-property-path.spec.ts`.
       stalledDurationMs =
         toFiniteNumber(
           (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
@@ -5028,11 +5034,19 @@ export class ExecutionEngineService
    * throw 는 호출부 책임으로 남긴다 — 각 분기가 던져야 할 원본 에러가 다르고,
    * 여기서 던지면 "무엇을 다시 던지는가" 가 호출부에서 보이지 않게 된다.
    *
-   * ai-review WARNING #1 (2026-07-26) — `AiTurnEngineDriver.markNodeCancelled`
-   * 로 노출해 `AiTurnOrchestrator` 가 짝 전이(linkedNodeExec) 가드 no-op 시
-   * 짝이었던 NodeExecution 을 동일하게 terminal 마킹하는 데 재사용한다.
+   * ai-review WARNING #1 (2026-07-26) — `InteractionEngineDriver.markNodeCancelled`
+   * 로 노출해 짝 전이 종결 가드(`linked-transition-guard.ts`)가 짝 전이(linkedNodeExec)
+   * 가드 no-op 시 짝이었던 NodeExecution 을 같은 방식으로 terminal 마킹하는 데 재사용한다.
+   * 소비처는 AI turn 오케스트레이터와 form · button 상호작용 서비스다(CLE-T-J6GRJ9).
+   *
+   * **payload 를 직접 비운다** (CLE-T-J6GRJ9) — 짝 전이 소비처는 성공 · 대기 · 실패 payload 를
+   * 낙관적으로 채운 행을 넘긴다. 예전에는 호출부가 미리 비워야 한다는 계약이 주석에만 있었다.
+   * `outputData` 는 `null`, `error` 는 봉투가 있으면 봉투, 없으면 `null` 이다.
+   *
+   * **실패는 단계를 실어 알린다** — `save()` 실패와 `NODE_CANCELLED` 발행 실패를
+   * {@link NodeCancelMarkingError} 의 `stage` 로 구분한다. 메시지는 원본 그대로다.
    */
-  // C-1 step2 후속 — EngineDriver member (AiTurnEngineDriver 표면, 2026-07-26).
+  // C-1 step2 후속 — EngineDriver member (InteractionEngineDriver 표면, CLE-T-J6GRJ9).
   public async markNodeCancelled(
     nodeExecution: NodeExecution,
     node: Node,
@@ -5041,27 +5055,36 @@ export class ExecutionEngineService
     errorEnvelope?: { code: string; message: string },
   ): Promise<void> {
     nodeExecution.status = NodeExecutionStatus.CANCELLED;
-    if (errorEnvelope) nodeExecution.error = errorEnvelope;
+    nodeExecution.outputData = null;
+    nodeExecution.error = errorEnvelope ?? null;
     nodeExecution.finishedAt = new Date();
     nodeExecution.durationMs =
       nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
-    await this.nodeExecutionRepository.save(nodeExecution);
-    await this.eventEmitter.emitNode(
-      executionId,
-      node.id,
-      NodeEventType.NODE_CANCELLED,
-      {
-        nodeExecutionId: nodeExecution.id,
-        parentNodeExecutionId: context.parentNodeExecutionId,
-        status: NodeExecutionStatus.CANCELLED,
-        ...(errorEnvelope ? { error: errorEnvelope } : {}),
-        nodeType: node.type,
-        nodeLabel: node.label ?? node.type,
-        input: nodeExecution.inputData,
-        startedAt: nodeExecution.startedAt?.toISOString?.(),
-        finishedAt: nodeExecution.finishedAt?.toISOString?.(),
-      },
-    );
+    try {
+      await this.nodeExecutionRepository.save(nodeExecution);
+    } catch (err) {
+      throw new NodeCancelMarkingError('save', nodeExecution.id, err);
+    }
+    try {
+      await this.eventEmitter.emitNode(
+        executionId,
+        node.id,
+        NodeEventType.NODE_CANCELLED,
+        {
+          nodeExecutionId: nodeExecution.id,
+          parentNodeExecutionId: context.parentNodeExecutionId,
+          status: NodeExecutionStatus.CANCELLED,
+          ...(errorEnvelope ? { error: errorEnvelope } : {}),
+          nodeType: node.type,
+          nodeLabel: node.label ?? node.type,
+          input: nodeExecution.inputData,
+          startedAt: nodeExecution.startedAt?.toISOString?.(),
+          finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+        },
+      );
+    } catch (err) {
+      throw new NodeCancelMarkingError('emit', nodeExecution.id, err);
+    }
   }
 
   /**
