@@ -98,8 +98,7 @@ export function isTestPath(rel: string): boolean {
  * 요청 DTO 파일인가 — 경로에 `dto` 디렉터리가 있고 응답 DTO 가 아니다.
  *
  * 응답 DTO 는 `dto/responses/` 아래에 두거나 파일 이름에 `response` 를 넣는다(`background-run-response.dto.ts`).
- * 요청 DTO 가 `dto/` 밖에 있는 경우는 2026-11-07 기준 없다(`src` 아래 `export class *Dto` 를 전수로 봤고, `dto/` 밖은 공용
- * 에러 응답 DTO 하나였다).
+ * 요청 DTO 를 `dto/` 밖에 두면 이 판정에 잡히지 않는다. 그런 DTO 를 만들면 이 함수의 규칙을 함께 고친다.
  */
 export function isRequestDtoPath(rel: string): boolean {
   if (isTestPath(rel)) return false;
@@ -127,7 +126,7 @@ export function findRequestReferenceFields(
         if (!ts.isIdentifier(member.name)) continue;
         const field = member.name.text;
         if (!REFERENCE_FIELD_PATTERN.test(field)) continue;
-        out.push({ file: rel, dto, field, key: `${dto}.${field}` });
+        out.push({ file: rel, dto, field, key: dtoFieldKey(dto, field) });
       }
     }
   }
@@ -350,7 +349,7 @@ export function findScopeChecksReachableFrom(
   if (owners.length === 0) return null;
   if (owners.length > 1) {
     throw new Error(
-      `${path.basename(file)}#${method}: 같은 이름의 메서드가 클래스 ${owners.length}개에 있다`,
+      `${siteKey(path.basename(file), method)}: 같은 이름의 메서드가 클래스 ${owners.length}개에 있다`,
     );
   }
   const methods = owners[0];
@@ -441,7 +440,7 @@ export function findPublicDtoConsumers(
           }
         }
         for (const dto of dtos) {
-          out.push({ key: `${rel}#${member.name.text}`, dto });
+          out.push({ key: siteKey(rel, member.name.text), dto });
         }
       }
     }
@@ -451,15 +450,26 @@ export function findPublicDtoConsumers(
   );
 }
 
+/** `<DTO>.<필드>` 키를 만든다. `splitDtoFieldKey` 와 한 쌍이다. */
+function dtoFieldKey(dto: string, field: string): string {
+  return `${dto}.${field}`;
+}
+
+/** `<DTO>.<필드>` 키를 나눈다. */
+function splitDtoFieldKey(key: string): { dto: string; field: string } {
+  const at = key.indexOf('.');
+  return { dto: key.slice(0, at), field: key.slice(at + 1) };
+}
+
+/** `<상대경로>#<메서드>` 키를 만든다. `splitSite` 와 한 쌍이다. */
+function siteKey(rel: string, method: string): string {
+  return `${rel}#${method}`;
+}
+
 /** `<상대경로>#<메서드>` 를 나눈다. */
 function splitSite(site: string): { rel: string; method: string } {
   const at = site.lastIndexOf('#');
   return { rel: site.slice(0, at), method: site.slice(at + 1) };
-}
-
-/** `<DTO>.<필드>` 키의 필드 이름. */
-function fieldOfKey(key: string): string {
-  return key.slice(key.indexOf('.') + 1);
 }
 
 /**
@@ -475,7 +485,7 @@ export function findUnboundSites(
   const out: string[] = [];
   const cache = new Map<string, ScopeCheckBinding[] | null>();
   for (const [key, sites] of checkedAt) {
-    const field = fieldOfKey(key);
+    const { field } = splitDtoFieldKey(key);
     for (const site of sites) {
       const { rel, method } = splitSite(site);
       const file = path.join(srcRoot, rel);
@@ -515,7 +525,7 @@ export function findUncheckedConsumers(
     if (exempt.has(consumer.key)) continue;
     for (const dto of bearing.get(consumer.dto) ?? []) {
       for (const [key, sites] of checkedAt) {
-        if (!key.startsWith(`${dto}.`)) continue;
+        if (splitDtoFieldKey(key).dto !== dto) continue;
         if (!sites.includes(consumer.key)) out.add(`${consumer.key} ← ${key}`);
       }
     }
