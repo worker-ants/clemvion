@@ -534,6 +534,78 @@ describe('ButtonInteractionService', () => {
       expect(mockDriver.updateExecutionStatus).toHaveBeenCalled();
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 짝 전이가 동시 Stop 에 선점당한 경우(`updateExecutionStatus` → false).
+  //
+  // [기준선 · 알려진 제한 — CLE-T-J6GRJ9] 지금은 반환값을 버려서 대기 · 재개 이벤트를
+  // 그대로 내고, 짝 NodeExecution 을 CANCELLED 로 마킹하지 않는다. DB 는 짝 전이의
+  // `FOR UPDATE` 가드가 지키지만 짝 행은 non-terminal 로 남는다.
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('짝 전이 선점(false)', () => {
+    const buttonConfig: ButtonConfig = {
+      buttons: [{ id: 'b1', type: 'port', label: 'B1' }],
+    };
+
+    it('[기준선] park — false 를 받아도 대기 이벤트를 내고 PARK_RELEASED 를 돌려준다', async () => {
+      const nodeId = 'node-btn-park-lost';
+      const ctx = seedButtonContext(nodeId, buttonConfig);
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce({
+        id: 'ne-btn-park-lost',
+        nodeId,
+        startedAt: new Date(),
+      });
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      const out = await service.waitForButtonInteraction(
+        makeExecution(),
+        execId,
+        makeButtonNode(nodeId),
+        ctx,
+        [],
+      );
+
+      expect(out).toBe(PARK_RELEASED);
+      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+        execId,
+        'execution.waiting_for_input',
+        expect.anything(),
+      );
+    });
+
+    it('[기준선] 재claim — false 를 받아도 NODE_COMPLETED 와 EXECUTION_RESUMED 를 낸다', async () => {
+      const nodeId = 'node-btn-reclaim-lost';
+      const ctx = seedButtonContext(nodeId, buttonConfig);
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce({
+        id: 'ne-btn-reclaim-lost',
+        nodeId,
+        executionId: execId,
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      await service.processButtonResumeTurn(
+        makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
+        execId,
+        makeButtonNode(nodeId),
+        ctx,
+        { type: 'button_click', buttonId: 'b1' },
+      );
+
+      expect(mockEventEmitter.emitNode).toHaveBeenCalledWith(
+        execId,
+        nodeId,
+        'execution.node.completed',
+        expect.anything(),
+      );
+      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+        execId,
+        'execution.resumed',
+        expect.anything(),
+      );
+    });
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
