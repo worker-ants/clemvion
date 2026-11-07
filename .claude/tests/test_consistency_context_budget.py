@@ -319,11 +319,11 @@ class FileBundleTruncationTest(unittest.TestCase):
     def test_files_are_dropped_whole(self):
         """The old behaviour cut mid-file, so the last file present looked
         complete while ending in the middle of a sentence."""
-        # 850: 드롭된 파일이 자리 표식을 남기게 된 뒤 실측한 값이다(하나만 살아남는
-        # 최소 예산 805). 헐거우면 아무것도 안 잘려 vacuous 해지는데, 아래 두 부정
-        # 단언이 그걸 막는다 — B·C 는 반드시 드롭돼야 한다.
+        # 1000: 생략 공지에 우선 문서 안내가 붙은 뒤(NERV Task `CLE-T-TR583V`) 다시 잰
+        # 값이다. 하나만 살아남는 최소 예산 927, 둘이 사는 최소 1,260. 헐거우면 아무것도
+        # 안 잘려 vacuous 해지는데, 아래 두 부정 단언이 그걸 막는다 — B·C 는 반드시 드롭돼야 한다.
         text = bundle(("a.md", "A" * 400), ("b.md", "B" * 400), ("c.md", "C" * 400))
-        out = self._truncate(text, 850)
+        out = self._truncate(text, 1000)
         self.assertIn("A" * 400, out, "the first file should survive intact")
         self.assertNotIn("B" * 10, out)
         self.assertNotIn("C" * 10, out)
@@ -341,8 +341,9 @@ class FileBundleTruncationTest(unittest.TestCase):
         실제로 한 checker 가 살아남은 이름표를 "미치환 placeholder" 로 오진해 CRITICAL 을
         냈다(2026-08-06). 자리에 잘린 사실이 남아 있으면 그 오진이 불가능하다.
         """
+        # 850: 첫 파일만 사는 최소 예산 821(`CLE-T-TR583V` 에서 다시 잼), 둘 다 사는 900 미만.
         text = bundle(("a.md", "A" * 400), ("gone/b.md", "B" * 400))
-        out = self._truncate(text, 800)
+        out = self._truncate(text, 850)
         self.assertIn("A" * 400, out, "첫 파일은 온전히 살아야 한다")
         self.assertNotIn("B" * 10, out, "드롭된 파일의 본문은 없어야 한다")
         # 자리 표식: 경로 + "생략" 사실 + 원래 크기

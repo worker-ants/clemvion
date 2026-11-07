@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "4cfa4fb368a5db6b033193beeec2553f3396ff60cd932080bfb4a3d15e78ae96"
+content_hash: "2fdd6c167d2b1a5f158b2fecfc009b33e73907d8dde04e5cb8e45a6ac0f991a9"
 read_as: "approved_fallback"
-task: "CLE-T-4EV45V"
+task: "CLE-T-B4WH9N"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "7a494a525639c64f71a75f5f0b9f42f7f9edbdd6502ef742df242ed4a1d649d3"
-etag: "sha256-4ababb1cd1c7b9a18ca21ecc3209f9a9edcc332738cfbd3e73b9de03575e15aa"
+mirror_sha256: "4fdb6714845e8eb9aa737a144dcb0e9b10f24af56c16b0d8d60e7d8168fba446"
+etag: "sha256-db430de03daf69af95c89ff18a53c80c5e56c4d87133d9c2b437b21d6e0a02aa"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -382,7 +382,7 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24). 실행 시점에 거절할 때의 노드 에러는 «통합이 없을 때와 같은 경로» 를 권하고 초안에서 확정하기로 했다. 이 초안에서 그대로 정했다. 워크플로우 작성자를 구하는 방법은 2026-10-25 에 고쳤다(아래 «워크플로우 작성자는 통합 서비스가 노드 ID 로 구한다»).
 
 - 전용 코드를 두면 노드 출력만 보고 그 ID 가 남의 개인 통합이라는 것을 알 수 있다. 관리 API 가 남의 개인 통합을 404 로 숨기는 것(2026-09-25)과 같은 원칙이다.
-- 거절된 조회를 기록하지 않는 근거와 `logUsage` 가 얻은 통합을 받게 한 이유는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 의 결정 4(실행 시점 거절도 없는 통합과 같은 노드 에러다)와 결정 17(활동 로그는 얻은 통합에만 쓴다)에 있다.
+- 거절된 조회를 기록하지 않는 근거와 `logUsage` 가 얻은 통합을 받게 한 이유는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 의 [「실행 시점 거절도 없는 통합과 같은 노드 에러다」](../CLE-INT/CLE-INT-MANAGE.md#실행-시점-거절도-없는-통합과-같은-노드-에러다) 와 [「활동 로그는 얻은 통합에만 쓴다」](../CLE-INT/CLE-INT-MANAGE.md#활동-로그는-얻은-통합에만-쓴다) 에 있다.
 - 조회 앞 단계에서 끝난 실패도 기록하지 않는다. 설정의 `integrationId` 만으로는 그 통합을 이 실행에서 쓸 수 있는지 모른다. 그 값으로 기록하면 거절된 조회를 기록하지 않는 목적이 같은 방식으로 깨진다. 다섯 통합 노드 문서는 이 규칙에 맞춰 «매 호출 활동 로그» 요구사항을 통합을 얻은 뒤의 호출로 좁혔다(REQ-CAFENODE-031 · REQ-DBQ-027 · REQ-EMAIL-024 · REQ-HTTP-029 · REQ-MKSNODE-029, finding 01a1705c-04aa-72ee-8cf6-f35f7537c46c · 01a17059-b864-7572-a6d2-505b00427454).
 - 통합을 얻은 뒤 외부 호출 전에 끝난 실패(3단계 유형 · 상태 검증 등)는 기록한다. 그 통합으로 실행하려다 실패한 시도이고 지금 코드의 바깥 catch 도 이 실패를 기록한다. [Cafe24 노드](CLE-NODE-CAFE24.md) Rationale 의 «실제로 나간 외부 호출의 기록» 은 dry-run 모의 출력을 빼려고 쓴 말이라 이 경우와 부딪치지 않는다.
 - 재개 턴의 서버별 표현식 여부를 서버 항목에 저장하는 이유와 값이 없는 옛 항목을 표현식으로 보는 이유는 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) Rationale 「MCP 서버 항목에 표현식 여부를 저장하고 스키마 버전을 올리지 않는다」 에 있다.

@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "2bbbfeeb8fdc910ccb66aa3fbf5b372e26f012edae4a1aec5bd8c13e943c9fca"
+content_hash: "e000c4d54a5938aa931225f8d17ffa6804329fb58c39470c844e4f5213f78e81"
 read_as: "approved_fallback"
-task: "CLE-T-FX354C"
+task: "CLE-T-5GYWFA"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "988c915568786e85056a21d38f24122a23e533d7b4e9f13e7d34226f95d1b0dd"
-etag: "sha256-3d734d81f88cde1198d96b62023300d830a879cb046dd607237ef42c50855602"
+mirror_sha256: "d2654a14073ec80d4355d3c847cf8080c4fbc58f07d57933c603a7f846fd36a2"
+etag: "sha256-dabc84ad6e80e417ff34f405648634afac051281fbfafec5b456f4c38524159a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -47,7 +47,7 @@ etag: "sha256-3d734d81f88cde1198d96b62023300d830a879cb046dd607237ef42c50855602"
    - 트리거 단위 토큰 재발급(`revoke-token`) 응답은 `Trigger.config.interaction.triggerToken` 에 들어가는 새 `itk_*` 를 `data.token` 에 싣는다.
    - 인증 설정 생성 · 키 재생성 응답은 평문 `config` 를 싣는다([외부 호출 인증 설정 「필드 마스킹과 평문 보기」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#필드-마스킹과-평문-보기)).
    - 인증 설정 평문 보기(`POST /api/auth-configs/:id/reveal`) 응답은 평문 `config` 를 싣는다. 값을 만든 응답이 아닌 유일한 항목이다. 비밀번호 재확인과 감사 기록을 거친 요청에만 한 번 싣는다([외부 호출 인증 설정 「평문 보기 흐름」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#평문-보기-흐름)).
-5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다. 규칙 4 의 예외 응답도 이 검증을 받는다. 그래서 평문을 싣는 필드는 그 응답의 DTO 에 선언한다. 같은 DTO 가 평문을 싣지 않는 응답에도 쓰이면 그 필드는 선택 필드로 선언하고 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b) 사유를 적는다.
+5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다. 규칙 4 의 예외 응답도 이 검증을 받는다. 그래서 평문을 싣는 필드는 그 응답의 DTO 에 선언한다. 같은 DTO 가 평문을 싣지 않는 응답에도 쓰이면 그 필드는 선택 필드로 선언하고 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b) 사유를 적는다. 두 축 모두 열린 맵(`additionalProperties: true` 로 선언한 객체, 예: `TriggerDto.config`) 안의 키는 보지 않는다. 그래서 열린 맵 안에 두는 저장소 예외 필드와 시크릿 참조는 응답에 그 키가 없음을 단언하는 e2e 를 함께 둔다. 공개 API 로 더는 저장할 수 없는 옛 값은 단위 테스트로 단언한다(R19).
 6. 엔티티를 그대로 반환하는 경로에서는 응답 경계에서 지운다. 컬럼 수준 `select: false` 는 쓰지 않는다. 그 컬럼을 읽는 내부 경로(교체 승격, 정리 스윕)가 예외 없이 `undefined` 를 받아 조용히 오작동하기 때문이다.
 7. 트리거를 만들 때(알림 웹훅·채팅 채널 설정 포함)와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때 비밀 저장은 `rotate(ref, workspaceId, plaintext)` 를 쓴다. PATCH 가 저장된 행의 옛 평문 `signing.secret` 을 시크릿 저장소로 옮길 때도 `rotate` 를 쓴다. UPSERT 라 같은 워크스페이스에서 설정을 다시 시도해도 안전하다(다른 워크스페이스의 행은 규칙 25). `store()` 도 결과는 같지만 같은 참조가 이미 있을 때의 동작(덮어쓰기 또는 throw)이 백엔드 구현에 따라 달라질 수 있다.
 8. 트리거 행이 없어질 때(트리거·스케줄·워크플로우·워크스페이스 삭제) 그 트리거의 모든 참조를 `deleteByPrefix('secret://triggers/{id}/')` 로 한꺼번에 지운다. 행 삭제가 커밋된 **뒤에** 지운다. provider 정리 작업이 이 비밀을 읽으므로 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다. DB FK 가 없으므로 애플리케이션 책임이다. 개별 `delete()` 보다 prefix 삭제를 쓴다.
@@ -359,7 +359,8 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 - 규칙 14 의 알려진 비밀 치환: `codebase/backend/src/shared/utils/sanitize-error-message.ts`(`replaceKnownSecret`), 채팅 채널 클라이언트 `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts` · `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts` · `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
 - 규칙 23 의 시행: `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts`(원시 `config` 거부. 내부 필드 경로 목록 · 타입 키 · `secret://` 값을 `assertRawConfigAccepted` 가 본다), `codebase/backend/src/modules/triggers/triggers.service.ts`(`rotateBotToken` 의 참조 유도)
 - 규칙 4 의 면제 응답 DTO: `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts`(`TriggerIssuedSecretsDto`), `codebase/backend/src/modules/triggers/dto/responses/trigger-response.dto.ts`(생성 · PATCH 응답의 `secrets`)
-- 저장소 예외 필드의 응답 부재 단언(규칙 4 · 6): `codebase/backend/src/shared/testing/trigger-workflow-ref.ts`, `codebase/backend/src/shared/testing/schedule-trigger-ref.ts`
+- 저장소 예외 필드의 응답 부재 단언(규칙 4 · 6, 최상위 컬럼): `codebase/backend/src/shared/testing/trigger-workflow-ref.ts`, `codebase/backend/src/shared/testing/schedule-trigger-ref.ts`
+- 열린 맵 `config` 안 비밀의 응답 부재 단언(규칙 5 · R19): `codebase/backend/test/trigger-issued-secrets.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`, `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(옛 평문 `signing.secret`)
 - 규칙 8 · 9 의 커밋 뒤 정리와 되돌리기: `codebase/backend/src/modules/triggers/trigger-resource-release.ts`(`cleanUpDeletedTriggersAfterCommit`), `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts`(`undoAbsentWrite`). 잠금 안 쓰기의 트리거 설정 잠금: `codebase/backend/src/modules/triggers/trigger-config-lock.ts`
 - 규칙 24 의 시행: `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts`(참조 유도와 읽기 관문), `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts`(알림 서명 참조 유도. 생성 · PATCH 의 첫 발급과 옛 평문 옮기기도 이 유도를 쓴다), `codebase/backend/src/modules/triggers/notification-signing-secret.ts`(첫 알림 서명 시크릿의 판정 `decideNotificationSigning` 과 서명 참조 얹기. 참조를 만드는 위 파일과 역할이 다르다). 관문을 쓰는 곳: `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`, `codebase/backend/src/modules/hooks/hooks.service.ts`, `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`, `codebase/backend/src/modules/triggers/triggers.service.ts`(봇 토큰 재발급, 알림 서명 승격), `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts`(알림 서명)
 - 규칙 24 의 읽기 관문과 규칙 25 의 `rotate` 대조(저장된 교차 행): `codebase/backend/test/trigger-stored-secret-refs.e2e-spec.ts`
@@ -562,3 +563,19 @@ R9 「남긴 것」 과 R10 「이번에 정하지 않은 것」 이 이 Task �
 
 - **`allowEmpty` 옵션을 둔다.** 빈 값이 필요한 호출부가 한 곳도 없다. 쓰는 곳 없는 옵션은 가드를 끄는 길만 열어 둔다.
 - **호출부 책임으로 문서에 적는다.** 위 두 경로는 호출부 가드가 빠지면 빈 비밀이 조용히 저장된다는 것을 보였다. 문서에 적어도 새 호출부가 가드를 빠뜨리는 일은 막지 못한다.
+
+### R19. 열린 맵 안의 비밀은 응답 부재를 테스트로 단언한다 (2026-11-07)
+
+규칙 5 의 두 축은 DTO 에 선언한 스키마를 기준으로 본다. 응답-계약 검증(`codebase/backend/src/shared/testing/response-contract.ts`)은 `$ref` 로 이어진 스키마만 따라 내려간다. `TriggerDto.config` 처럼 `additionalProperties: true` 로 선언한 인라인 객체는 열어 보지 않으므로 그 안에 어떤 키가 실려도 위반이 아니다. 정적 가드는 선언끼리만 대조하므로 맵 안의 키를 모른다. 그런데 저장소 예외 필드 둘(`config.interaction.triggerToken`, 옛 평문 `config.notification.signing.secret`)과 시크릿 참조(`config.notification.signing.secretRef`, `config.*.botTokenRef`, `config.*.inboundSigningRef`)가 바로 이 맵 안에 있다. 응답 경계의 스트립(`TriggersService` 의 `INTERACTION_RESPONSE_STRIP_KEYS` · `NOTIFICATION_SIGNING_STRIP_KEYS` · `CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)에서 키 하나가 빠져도 두 축은 알아채지 못한다. 보호는 손으로 쓴 부재 단언에만 기대고 같은 자리에 새 비밀을 넣는 사람이 그 사실을 알아야 이어진다.
+
+그래서 열린 맵 안에 두는 비밀은 응답에 그 키가 없음을 단언하는 e2e 를 함께 둔다(규칙 5). 2026-11-07 에는 다음 테스트가 맡는다.
+
+| 키 | 단언하는 테스트 |
+| --- | --- |
+| `config.interaction.triggerToken` · `config.notification.signing.secretRef` | `codebase/backend/test/trigger-issued-secrets.e2e-spec.ts` |
+| `config.chatChannel.botTokenRef` · `config.chatChannel.inboundSigningRef` | `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`. 응답-계약 검증(`assertMatchesContract`)을 통과한 같은 응답에서 두 키의 부재를 따로 단언한다 |
+| 옛 평문 `config.notification.signing.secret` | `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(단위). 2026-10-31 뒤로는 공개 API 로 이 키를 저장할 수 없다(R16). 그래서 e2e 대신 저장된 옛 값을 fixture 로 만든다 |
+
+`## 구현 위치` 의 두 헬퍼(`trigger-workflow-ref.ts` · `schedule-trigger-ref.ts`)는 최상위 컬럼(`notificationSecretV2` · `chatChannelTokenV2`)의 부재를 본다. 맵 안의 키는 위 테스트가 맡는다.
+
+이 규칙을 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 검증 층에 두는 안도 있었다(NERV Task `CLE-T-F7J4V4`). 지키려는 것이 비밀이라 노출 경계(규칙 4~6)를 정한 이 규약에 뒀다. 스트립을 선언으로 바꾸는 일은 이 결정에 들지 않는다.

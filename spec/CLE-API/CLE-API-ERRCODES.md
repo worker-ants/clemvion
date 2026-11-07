@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 30
+version: 31
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "0ae9d4445d3eb8f58c8bcced0e1bdcf72eeefddf5ecd3c7e05e0df9b5446ae5e"
+content_hash: "6243205347ea2bc9cad449d13ddabd65cd35653024f2787f7b7b0c8512b159c9"
 read_as: "approved_fallback"
-task: "CLE-T-FX354C"
+task: "CLE-T-5GYWFA"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "2afd03f1573a9f9a329b5412a06313d25a0328e5eff200c6424dfdd793ac2879"
-etag: "sha256-f18cff00fb882fb78904771dd944777d60d69395ce9c261951657436dded2416"
+mirror_sha256: "2e3a3358ce59a412cfd03781c30aa6341f73e1be8aed4826f3c934eee63d3f48"
+etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -165,8 +165,8 @@ etag: "sha256-f18cff00fb882fb78904771dd944777d60d69395ce9c261951657436dded2416"
 | `TOKEN_EXPIRED` | 토큰 만료 | 리프레시 토큰 단순 만료. 재사용 감지와 달리 세션 무효화·이력 기록 없이 거부한다(Rationale "`TOKEN_EXPIRED` 설명") | 401 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
 | `TOKEN_INVALID` | 토큰 무효 | 변조·형식 에러, refresh 토큰이 없거나 소유자가 없음, 또는 refresh 회전 때 조건부 폐기가 0건과 맞음(같은 토큰을 동시에 회전하는 경합) | 401 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
 | `FORBIDDEN` | 권한 없음 | 역할 권한 부족(일반). 403 기본 코드 | 403 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `ADMIN_REQUIRED` | 관리자 권한 필요 | 워크스페이스 소유자·관리자 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드. `RolesGuard` 의 `@Roles('admin')` 미달, `WorkspacesService.assertAdmin()`, `IntegrationsService` 의 조직 통합 변경 판정이 발행한다. 통합 OAuth 에서도 두 곳이 낸다. 관리자 미만 요청자가 `oauth/begin`(`new`)으로 조직 통합의 설치 대기 행을 다시 쓰려 할 때(REQ-INTOAUTH-062)와 콜백의 커밋 직전 재판정(`assertOrgScopeModifiable`, REQ-INTOAUTH-026)이다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
-| `EDITOR_REQUIRED` | 편집자 권한 필요 | 편집자 이상 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드(`RolesGuard` 의 `@Roles('editor')` 미달). 통합 OAuth 콜백의 커밋 직전 재판정(`assertPersonalWriteRole`, REQ-INTOAUTH-026)도 낸다. 개인 통합을 재인증하는 요청자의 역할이 편집자 미만이거나 역할을 모를 때(멤버가 아니게 됐거나 조회하지 못함)다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
+| `ADMIN_REQUIRED` | 관리자 권한 필요 | 워크스페이스 소유자·관리자 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드. `RolesGuard` 의 `@Roles('admin')` 미달, `WorkspacesService.assertAdmin()`, `IntegrationsService` 의 조직 통합 변경 판정이 발행한다. 통합 OAuth 에서도 세 곳이 낸다. 관리자 미만 요청자가 조직 공개 범위로 `oauth/begin`(`new`)을 부를 때(다시 쓸 설치 대기 행을 찾기 전, REQ-INTOAUTH-064), `oauth/begin`(`new`)으로 조직 통합의 설치 대기 행을 다시 쓰려 할 때(REQ-INTOAUTH-062), 콜백의 커밋 직전 재판정(`assertOrgScopeModifiable`, REQ-INTOAUTH-026)이다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
+| `EDITOR_REQUIRED` | 편집자 권한 필요 | 편집자 이상 역할이 필요할 때 쓰는 `FORBIDDEN` 의 맥락 특화 코드(`RolesGuard` 의 `@Roles('editor')` 미달). 통합 관리에서는 뷰어가 쓰기 라우트(생성 · 별칭 수정 · 자격 증명 교체 · 통합 재인증 · 추가 권한 요청 · 저장 전 연결 테스트)나 `oauth/begin`(REQ-INTOAUTH-063)을 부르면 라우트 가드가 대상의 공개 범위와 상관없이 이 코드를 낸다. 통합 OAuth 콜백의 커밋 직전 재판정(`assertPersonalWriteRole`, REQ-INTOAUTH-026)도 낸다. 개인 통합을 재인증하는 요청자의 역할이 편집자 미만이거나 역할을 모를 때(멤버가 아니게 됐거나 조회하지 못함)다. 콜백은 HTML 로 답하고 코드는 통합의 `last_error.code` 에 남긴다(§6.21) | 403 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md), [통합 관리 「권한」](../CLE-INT/CLE-INT-MANAGE.md#권한), [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
 | `OWNER_REQUIRED` | 소유자 권한 필요 | 소유자만 하는 동작을 소유자가 아닌 멤버가 요청함. 가드(`@Roles('owner')` 미달)와 서비스 계층(소유자 이양 재검증, 관리자 역할 규칙)이 함께 내고 메시지는 발행처마다 다르다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [워크스페이스와 멤버 「관리자 역할 규칙」](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할-규칙) |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과(5회 실패 시 10분). `UnauthorizedException` 이다(Rationale "423 오기 정정") | 401 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
@@ -984,3 +984,10 @@ NERV Task `CLE-T-FX354C` 이다. 봇 토큰 재발급은 `newBotToken` 이 있�
 - 재발급에도 생성과 같은 256자 상한을 둔다.
 - 생성 경로는 DTO 검증이라 같은 입력 오류가 `400 VALIDATION_ERROR` 다.
 - 입력 형식 오류는 400(`INVALID_BOT_TOKEN` · `VALIDATION_ERROR`)이고 프로바이더 장애는 502(`CHAT_CHANNEL_SETUP_FAILED`)다. 형식이 맞는데 프로바이더가 거부하면 `BOT_TOKEN_INVALID`(400)다.
+
+### `ADMIN_REQUIRED` · `EDITOR_REQUIRED` 행에 통합의 발행 경로를 더했다 (2026-11-07)
+
+NERV Task `CLE-T-B4WH9N`(통합 스펙 정리)이 최신 승인본과 대조해 넘긴 두 건이다. 이 초안은 `CLE-T-5GYWFA` 를 맡은 세션이 함께 열었다. 코드 변경은 없다. 이미 있는 발행 경로를 카탈로그가 빠뜨렸던 것을 채웠다.
+
+- **`ADMIN_REQUIRED`**: 관리자 미만이 조직 공개 범위로 `oauth/begin` 을 `new` 모드로 부르면 다시 쓸 설치 대기 행을 찾기 전에 이 코드로 거절한다(REQ-INTOAUTH-064). 컨트롤러가 통합 생성과 같은 판정(`IntegrationsService.assertCanCreate`)을 부른다. 통합 OAuth 의 발행 자리를 두 곳에서 세 곳으로 고쳤다.
+- **`EDITOR_REQUIRED`**: 통합 쓰기 라우트와 `oauth/begin`(REQ-INTOAUTH-063)에는 편집자 이상 라우트 가드가 붙는다. 뷰어가 부르면 대상의 공개 범위와 상관없이 이 코드다. 기준은 [통합 관리 「권한」](../CLE-INT/CLE-INT-MANAGE.md#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 다. 관련 문서 칸에 그 문서를 더했다.
