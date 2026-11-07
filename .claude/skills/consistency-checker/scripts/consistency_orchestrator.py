@@ -985,7 +985,7 @@ def collect_context(args, root):
         # then judged "spec vs implementation" with no implementation in front of
         # it and no way to notice. Named, it is dropped like any other entry.
         shown_paths = " ".join(diff_paths or cfg.get("code_areas") or [])
-        diff_label = f"<git diff {diff_base}...HEAD -- {shown_paths}>"
+        diff_label = f"{VIRTUAL_CHUNK_PREFIX}git diff {diff_base}...HEAD -- {shown_paths}>"  # prefix: see _is_virtual_chunk
         if diff_text.strip():
             diff_section = (
                 f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
@@ -1152,9 +1152,14 @@ def _omitted_notice(priority_rels, other_rels=()):
     return out + "\n"
 
 
+# Labels of chunks that are not files (the diff chunk) start with this. The diff
+# label above is built from it and _is_virtual_chunk tests it; keep them tied.
+VIRTUAL_CHUNK_PREFIX = "<"
+
+
 def _is_virtual_chunk(rel):
     """True for a chunk label that is not a file path, such as `<git diff ...>`."""
-    return rel.startswith("<")
+    return rel.startswith(VIRTUAL_CHUNK_PREFIX)
 
 
 def _chunk_rel(chunk):
