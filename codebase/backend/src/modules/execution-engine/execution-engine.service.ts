@@ -1183,6 +1183,8 @@ export class ExecutionEngineService
             status: ExecutionStatus.CANCELLED,
             finishedAt: terminalFinishedAt,
             // 엔티티 미로드 경로 — 같은 문장에서 계산하고 RETURNING 으로 되받는다.
+            // `.returning()` 에는 속성 경로를 넘기고 raw 는 컬럼 이름으로 읽는다(근거는
+            // `finalizeStalledExhausted` 의 같은 자리 주석).
             durationMs: () => TERMINAL_DURATION_MS_SQL,
           })
           .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
@@ -1190,7 +1192,7 @@ export class ExecutionEngineService
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
-          .returning(['id', 'duration_ms'])
+          .returning(['id', 'durationMs'])
           .execute();
         cancelledDurationMs =
           toFiniteNumber(
@@ -1324,7 +1326,7 @@ export class ExecutionEngineService
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
-          .returning(['id', 'duration_ms'])
+          .returning(['id', 'durationMs'])
           .execute();
         cancelledDurationMs =
           toFiniteNumber(
@@ -2995,7 +2997,7 @@ export class ExecutionEngineService
             ExecutionStatus.RUNNING,
           ],
         })
-        .returning(['id', 'duration_ms'])
+        .returning(['id', 'durationMs'])
         .execute();
       // §7.5 / 방안 D — rehydration 실패로 cancelled 마킹 시 `EXECUTION_CANCELLED`
       // 를 emit 해 채널 어댑터(텔레그램 등)가 사용자에게 graceful "세션 만료 —
@@ -3052,7 +3054,7 @@ export class ExecutionEngineService
         .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
         .where('id = :id', { id: executionId })
         .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
-        .returning(['id', 'duration_ms'])
+        .returning(['id', 'durationMs'])
         .execute();
       if ((result.affected ?? 0) > 0) {
         await this.emitCancellationEvent(executionId, {
@@ -3520,10 +3522,13 @@ export class ExecutionEngineService
         .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
         .where('id = :id', { id: executionId })
         .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
-        .returning(['id', 'duration_ms'])
+        .returning(['id', 'durationMs'])
         .execute();
       if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
       // `raw` 는 드라이버 원본이라 컬럼명이 snake_case 다 (#1168 에서 배운 형태).
+      // 반대로 `.returning([...])` 배열은 **엔티티 속성 경로**(`durationMs`)를 받는다. 컬럼 이름을
+      // 넘기면 TypeORM 이 그 항목을 조용히 빼서 이 값이 늘 `null` 이었다(CLE-T-0WDZ5G). 정적 가드:
+      // `repo-guards/__tests__/returning-property-path.spec.ts`.
       stalledDurationMs =
         toFiniteNumber(
           (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
