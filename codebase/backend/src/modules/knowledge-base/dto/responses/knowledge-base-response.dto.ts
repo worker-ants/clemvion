@@ -11,8 +11,9 @@ export class KnowledgeBaseDto {
   @ApiProperty({ example: '고객 FAQ' })
   name: string;
 
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  /** 설명. 없으면 null. */
+  @ApiProperty({ nullable: true, type: String })
+  description: string | null;
 
   @ApiProperty({
     example: 'text-embedding-3-small',
@@ -21,13 +22,14 @@ export class KnowledgeBaseDto {
   })
   embeddingModel: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 1536,
     nullable: true,
+    type: Number,
     description:
-      '저장된 청크들의 임베딩 차원. 첫 임베딩 후 자동으로 채워지며, 모델 변경 후 KB 재임베딩 시 재설정됩니다.',
+      '저장된 청크들의 임베딩 차원. 첫 임베딩 후 자동으로 채워지며, 모델 변경 후 KB 재임베딩 시 재설정됩니다. 첫 임베딩 전에는 null.',
   })
-  embeddingDimension?: number | null;
+  embeddingDimension: number | null;
 
   @ApiProperty({
     example: 'idle',
@@ -44,13 +46,14 @@ export class KnowledgeBaseDto {
   })
   ragMode: 'vector' | 'graph';
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     format: 'uuid',
+    type: String,
     description:
       'graph 모드 KB 의 추출 LLMConfig (NULL 이면 워크스페이스 default).',
   })
-  extractionLlmConfigId?: string | null;
+  extractionLlmConfigId: string | null;
 
   @ApiProperty({ example: 1, description: 'graph 검색 확장 깊이 (1 또는 2)' })
   maxHops: number;
@@ -164,43 +167,47 @@ export class DocumentDto {
   })
   embeddingRetryCount: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     format: 'date-time',
-    description: '마지막 임베딩 시도 시각',
+    type: String,
+    description: '마지막 임베딩 시도 시각 (시도 전에는 NULL)',
   })
-  embeddingLastAttemptedAt?: string | null;
+  embeddingLastAttemptedAt: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
+    type: String,
     description: '마지막 임베딩 오류 메시지 (성공 시 NULL)',
   })
-  embeddingErrorMessage?: string | null;
+  embeddingErrorMessage: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     enum: ['pending', 'processing', 'completed', 'error', 'failed'],
     description:
       "graph 모드 KB 의 그래프 추출 진행 상태. vector 모드 문서는 NULL. 'error'·'failed' 의미는 embeddingStatus 와 동일.",
   })
-  graphExtractionStatus?:
+  graphExtractionStatus:
     'pending' | 'processing' | 'completed' | 'error' | 'failed' | null;
 
   @ApiProperty({ example: 0, description: '그래프 추출 재시도 누적 횟수' })
   graphRetryCount: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     format: 'date-time',
-    description: '마지막 그래프 추출 시도 시각',
+    type: String,
+    description: '마지막 그래프 추출 시도 시각 (시도 전에는 NULL)',
   })
-  graphLastAttemptedAt?: string | null;
+  graphLastAttemptedAt: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
-    description: '마지막 그래프 추출 오류 메시지',
+    type: String,
+    description: '마지막 그래프 추출 오류 메시지 (없으면 NULL)',
   })
-  graphErrorMessage?: string | null;
+  graphErrorMessage: string | null;
 
   @ApiProperty({ example: 12 })
   chunkCount: number;
@@ -281,6 +288,12 @@ export class GraphEntityDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  // `knowledgeBaseId` · `lastSeenChunkId` 는 서비스가 엔티티를 그대로 내보내 이미 응답에 실리고 있었다(e2e 계약 대조로
+  // 확인). 선언만 빠져 있었으므로 응답을 줄이지 않고 선언을 실제에 맞춘다. 빼면 응답 모양이 바뀐다.
+  /** 소속 지식 베이스 UUID */
+  @ApiProperty({ format: 'uuid' })
+  knowledgeBaseId: string;
+
   @ApiProperty({ example: 'acme corp' })
   name: string;
 
@@ -292,11 +305,16 @@ export class GraphEntityDto {
   })
   type: string;
 
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  /** 설명. 추출 결과에 없으면 null. */
+  @ApiProperty({ nullable: true, type: String })
+  description: string | null;
 
   @ApiProperty({ example: 12 })
   mentionCount: number;
+
+  /** 마지막으로 등장한 청크 UUID. 기록이 없거나 그 청크가 지워졌으면 null. */
+  @ApiProperty({ format: 'uuid', nullable: true, type: String })
+  lastSeenChunkId: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt: string;

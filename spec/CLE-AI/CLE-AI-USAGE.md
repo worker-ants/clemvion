@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
 content_hash: "5cd0f5fc305fe7a331fc7774def25e8413181463df94b19833f1380e1cfe2d79"
 read_as: "approved_fallback"
-task: "CLE-T-MJ9G4C"
+task: "CLE-T-SHNJPQ"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "c1281e023de99e4784d1a704b1914a04141329bc2950df325247b7dea4d1deb6"
-etag: "sha256-0fcbd0e21a62bf2db80b58f096f29de4de8fb9151554d2720bc1e43a76605784"
+mirror_sha256: "79b9d2c238fff2ae6f1ce940eb250714db06be791ac1cf9fa3470c075bafc006"
+etag: "sha256-95728aba94fc3638bb25ac2dc5f1238dcb11d051b4f2282c1e4d6e70d28b9411"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/7-llm-usage.md`, `spec/1-data-model.md` (§2.16 ModelConfig, §2.24 LlmUsageLog) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

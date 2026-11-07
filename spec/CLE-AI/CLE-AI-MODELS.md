@@ -3,18 +3,18 @@ id: "CLE-AI-MODELS"
 title: "모델 설정"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-MODELS-001", "REQ-MODELS-002", "REQ-MODELS-003", "REQ-MODELS-004", "REQ-MODELS-005", "REQ-MODELS-006", "REQ-MODELS-007", "REQ-MODELS-008", "REQ-MODELS-009", "REQ-MODELS-010", "REQ-MODELS-011", "REQ-MODELS-012", "REQ-MODELS-013", "REQ-MODELS-014", "REQ-MODELS-015", "REQ-MODELS-016", "REQ-MODELS-017", "REQ-MODELS-018", "REQ-MODELS-019", "REQ-MODELS-020", "REQ-MODELS-021", "REQ-MODELS-022", "REQ-MODELS-023", "REQ-MODELS-024", "REQ-MODELS-025", "REQ-MODELS-026", "REQ-MODELS-027", "REQ-MODELS-028", "REQ-MODELS-029", "REQ-MODELS-030", "REQ-MODELS-031", "REQ-MODELS-032", "REQ-MODELS-033", "REQ-MODELS-034", "REQ-MODELS-035", "REQ-MODELS-036", "REQ-MODELS-037", "REQ-MODELS-038"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
 content_hash: "2338bb0e3a94db332b2744bbcab5c4d4da5f33307771d796ccb3ca9361dd3a13"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-4RHC81"
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "3d3d1f2b819ab2611a732fb1b4dd074f348d29fc5f2ea79f159658a31f7c39a6"
-etag: "sha256-54a5c8b284741a2524a8f57db6f47a6eb9cc471543af31fd82f8facb7482a3b4"
+mirror_sha256: "64444ce0faf2a7c88094e526250ceb37485fccf2c32154bb2a165af06a8162e7"
+etag: "sha256-55911b805fb4d0cf6d4ee38492f3e1c7fd146861b90b68f42acbf06dc7f90af8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표, R-1·R-3·R-4·R-5·R-7), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 NF-AI-04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

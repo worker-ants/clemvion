@@ -434,6 +434,8 @@ describe('LlmService', () => {
     it('should return success on successful connection', async () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({ success: true });
+      // toEqual 은 `message: undefined` 를 놓치므로 키 생략을 따로 확인한다.
+      expect(result).not.toHaveProperty('message');
       expect(mockClient.testConnection).toHaveBeenCalled();
     });
 
