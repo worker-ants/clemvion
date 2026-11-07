@@ -1465,6 +1465,7 @@ describe('AiTurnExecutor', () => {
         ...endState(),
         totalThinkingTokens: 7,
         mcpServers,
+        mcpServerFromExpression: [true],
         knowledgeBases,
         pendingFormToolCall,
       };
@@ -1475,9 +1476,26 @@ describe('AiTurnExecutor', () => {
       }) as Record<string, unknown>;
       const retryState = result._retryState as Record<string, unknown>;
       expect(retryState.mcpServers).toEqual(mcpServers);
+      expect(retryState.mcpServerFromExpression).toEqual([true]);
       expect(retryState.knowledgeBases).toEqual(knowledgeBases);
       expect(retryState.pendingFormToolCall).toEqual(pendingFormToolCall);
       expect(retryState.totalThinkingTokens).toBe(7);
+    });
+
+    // CLE-T-68XG50 — 배열이 없는 상태(이 규칙 전에 만든 행)는 빈 배열로 옮겨 서버 목록과 길이가 어긋나게 둔다(모두 표현식).
+    it('_retryState 의 표현식 여부 배열은 상태에 없으면 빈 배열이다', () => {
+      const executor = buildExecutor();
+      const result = executor.endMultiTurnConversation(
+        { ...endState(), mcpServers: [{ integrationId: 'srv-1' }] },
+        'error',
+        {
+          code: 'LLM_TIMEOUT',
+          message: 'timeout',
+          details: { retryable: true },
+        },
+      ) as Record<string, unknown>;
+      const retryState = result._retryState as Record<string, unknown>;
+      expect(retryState.mcpServerFromExpression).toEqual([]);
     });
 
     it('omits _retryState for non-retryable errors', () => {
@@ -1956,7 +1974,8 @@ describe('AiTurnExecutor', () => {
 
   // CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」 · CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」 —
   // 도구 목록 구성 문맥에 노드 ID 를 싣고, 서버 항목마다 첫 턴의 표현식 여부를 싣는다.
-  describe('ProviderBuildCtx — nodeId · 서버 항목의 fromExpression', () => {
+  // CLE-T-68XG50 — 서버의 표현식 여부는 서버 항목 밖 평행 배열 `mcpServerFromExpression` 으로만 넘긴다.
+  describe('ProviderBuildCtx — nodeId · 서버 표현식 여부 배열', () => {
     const A = '11111111-1111-4111-8111-111111111111';
     const B = '22222222-2222-4222-8222-222222222222';
     const capturingProvider = () => {
@@ -1980,7 +1999,7 @@ describe('AiTurnExecutor', () => {
         rawConfig: Object.freeze({ mcpServers: rawMcpServers }),
       });
 
-    it('single-turn: context.nodeId 를 싣고 원본과 비교한 fromExpression 으로 덮어쓴다', async () => {
+    it('single-turn: context.nodeId 와 원본과 비교한 표현식 여부 배열을 싣고 서버 항목의 키는 지운다', async () => {
       const { buildTools, provider } = capturingProvider();
       const executor = buildExecutor({ toolProviders: [provider] });
       await executor.executeSingleTurn(
@@ -1999,9 +2018,10 @@ describe('AiTurnExecutor', () => {
       const ctx = buildTools.mock.calls[0][0];
       expect(ctx.nodeId).toBe('node-1');
       expect(ctx.config.mcpServers).toEqual([
-        { integrationId: A, fromExpression: false },
-        { integrationId: B, fromExpression: true },
+        { integrationId: A },
+        { integrationId: B },
       ]);
+      expect(ctx.mcpServerFromExpression).toEqual([false, true]);
     });
 
     it('single-turn: rawConfig 가 없으면 모든 서버 항목이 표현식이다(평가값으로 폴백하지 않는다)', async () => {
@@ -2022,9 +2042,9 @@ describe('AiTurnExecutor', () => {
           variables: { __workspaceId: 'ws-1' },
         }),
       );
-      expect(buildTools.mock.calls[0][0].config.mcpServers).toEqual([
-        { integrationId: A, fromExpression: true },
-      ]);
+      const ctx = buildTools.mock.calls[0][0];
+      expect(ctx.config.mcpServers).toEqual([{ integrationId: A }]);
+      expect(ctx.mcpServerFromExpression).toEqual([true]);
     });
 
     // CLE-T-92RQWB — 한 번의 도구 목록 만들기 안에서 프로바이더들이 같은 통합 조회 범위를 쓰고, 다음 호출은 새 범위를 쓴다.
@@ -2041,7 +2061,7 @@ describe('AiTurnExecutor', () => {
             mode: 'single_turn',
             systemPrompt: 'sys',
             userPrompt: 'go',
-            mcpServers: [{ integrationId: A, fromExpression: false }],
+            mcpServers: [{ integrationId: A }],
           },
           ctxWithRaw([{ integrationId: A }]),
         );
@@ -2082,7 +2102,9 @@ describe('AiTurnExecutor', () => {
           },
           ctxWithRaw([{ integrationId: A }]),
         );
-        expect(buildTools.mock.calls[0][0].config.mcpServers).toEqual([]);
+        const ctx = buildTools.mock.calls[0][0];
+        expect(ctx.config.mcpServers).toEqual([]);
+        expect(ctx.mcpServerFromExpression).toEqual([]);
       },
     );
 
@@ -2098,33 +2120,42 @@ describe('AiTurnExecutor', () => {
         ctxWithRaw([{ integrationId: A }]),
       )) as { _resumeState: Record<string, unknown> };
       expect(result._resumeState.mcpServers).toEqual([]);
+      expect(result._resumeState.mcpServerFromExpression).toEqual([]);
     });
 
-    it('multi-turn 첫 턴: _resumeState.mcpServers 에 서버별 fromExpression 을 저장한다', async () => {
+    it('multi-turn 첫 턴: _resumeState 에 서버 목록과 표현식 여부 배열을 함께 저장한다', async () => {
       const executor = buildExecutor();
       const result = (await executor.executeMultiTurn(
         undefined,
         {
           mode: 'multi_turn',
           systemPrompt: 'sys',
-          mcpServers: [{ integrationId: A }, { integrationId: B }],
+          // 사용자 설정에 같은 키가 있어도 판정에 쓰지 않고 저장 항목에서 지운다.
+          mcpServers: [
+            { integrationId: A, fromExpression: false },
+            { integrationId: B },
+          ],
         },
-        ctxWithRaw([{ integrationId: '{{ $vars.a }}' }, { integrationId: B }]),
+        ctxWithRaw([
+          { integrationId: '{{ $vars.a }}', fromExpression: false },
+          { integrationId: B },
+        ]),
       )) as { _resumeState: Record<string, unknown> };
       expect(result._resumeState.nodeId).toBe('node-1');
       expect(result._resumeState.mcpServers).toEqual([
-        { integrationId: A, fromExpression: true },
-        { integrationId: B, fromExpression: false },
+        { integrationId: A },
+        { integrationId: B },
+      ]);
+      expect(result._resumeState.mcpServerFromExpression).toEqual([
+        true,
+        false,
       ]);
     });
 
-    it('재개 턴: 상태의 nodeId 와 저장된 서버 항목을 그대로 싣는다(원본과 다시 맞추지 않는다)', async () => {
+    it('재개 턴: 상태의 nodeId · 서버 목록 · 표현식 여부 배열을 그대로 싣는다(원본과 다시 맞추지 않는다)', async () => {
       const { buildTools, provider } = capturingProvider();
       const executor = buildExecutor({ toolProviders: [provider] });
-      const stored = [
-        { integrationId: A, fromExpression: false },
-        { integrationId: B },
-      ];
+      const stored = [{ integrationId: A }, { integrationId: B }];
       await executor.processMultiTurnMessage('hi', {
         llmConfigId: 'cfg-1',
         model: 'gpt-4o',
@@ -2133,6 +2164,7 @@ describe('AiTurnExecutor', () => {
         knowledgeBases: [],
         conditions: [],
         mcpServers: stored,
+        mcpServerFromExpression: [false, true],
         presentationTools: [],
         messages: [{ role: 'system', content: 'sys' }],
         turnCount: 0,
@@ -2153,6 +2185,37 @@ describe('AiTurnExecutor', () => {
       const ctx = buildTools.mock.calls[0][0];
       expect(ctx.nodeId).toBe('node-1');
       expect(ctx.config.mcpServers).toEqual(stored);
+      expect(ctx.mcpServerFromExpression).toEqual([false, true]);
+    });
+
+    it('재개 턴: 상태에 표현식 여부 배열이 없으면 프로바이더에 배열을 넘기지 않는다(모든 서버가 표현식)', async () => {
+      const { buildTools, provider } = capturingProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+      await executor.processMultiTurnMessage('hi', {
+        llmConfigId: 'cfg-1',
+        model: 'gpt-4o',
+        maxToolCalls: 10,
+        maxTurns: 20,
+        knowledgeBases: [],
+        conditions: [],
+        // 표식을 거치지 않은 상태: 서버 항목에 사용자 키가 남아 있어도 프로바이더는 배열만 읽는다.
+        mcpServers: [{ integrationId: A, fromExpression: false }],
+        presentationTools: [],
+        messages: [{ role: 'system', content: 'sys' }],
+        turnCount: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        nodeId: 'node-1',
+        memoryStrategy: 'manual',
+      });
+      expect(
+        buildTools.mock.calls[0][0].mcpServerFromExpression,
+      ).toBeUndefined();
     });
   });
 });

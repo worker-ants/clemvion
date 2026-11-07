@@ -1583,21 +1583,21 @@ export class AiTurnExecutor {
       preflightStartedAt,
     } = args;
     try {
-      // 서버 항목마다 표현식 여부를 싣는다. 원본은 `context.rawConfig` 에서만 읽는다(평가가 끝난 config 로 폴백하지 않는다).
-      // 평가한 목록이 배열이 아니면 빈 목록이 된다. 도구 프로바이더도 배열이 아닌 `mcpServers` 를 서버 없음으로 읽는다.
-      const toolConfig = {
-        ...config,
-        mcpServers: markMcpServerRefOrigins(
-          context.rawConfig?.mcpServers,
-          config.mcpServers,
-        ),
-      };
+      // 서버마다 표현식 여부를 정해 평행 배열로 넘긴다. 원본은 `context.rawConfig` 에서만 읽는다(평가가 끝난 config 로
+      // 폴백하지 않는다). 평가한 목록이 배열이 아니면 빈 목록이 된다. 도구 프로바이더도 배열이 아닌 `mcpServers` 를 서버
+      // 없음으로 읽는다.
+      const origins = markMcpServerRefOrigins(
+        context.rawConfig?.mcpServers,
+        config.mcpServers,
+      );
+      const toolConfig = { ...config, mcpServers: origins.mcpServers };
       const tools = await this.buildTools(
         toolConfig,
         workspaceId,
         context.executionId,
         mcpDiagnosticsAcc,
         context.nodeId ?? null,
+        origins.mcpServerFromExpression,
       );
       return { tools };
     } catch (err) {
@@ -2311,9 +2311,9 @@ export class AiTurnExecutor {
       maxTurns,
       // Persist mcpServers across multi-turn resumes so each post-resume turn
       // re-materializes MCP sessions deterministically from the saved config.
-      // 항목마다 첫 턴의 표현식 여부(`fromExpression`)를 함께 저장한다. 재개 · 재시도 턴은 이 값을 쓰고 원본과 다시
-      // 맞추지 않는다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」).
-      mcpServers: markMcpServerRefOrigins(
+      // 서버 목록과 함께 첫 턴의 표현식 여부 배열(`mcpServerFromExpression`)을 저장한다. 재개 · 재시도 턴은 이 배열을
+      // 쓰고 원본과 다시 맞추지 않는다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」).
+      ...markMcpServerRefOrigins(
         context.rawConfig?.mcpServers,
         config.mcpServers,
       ),
@@ -2979,6 +2979,7 @@ export class AiTurnExecutor {
       executionId,
       mcpDiagnosticsAcc,
       resumeState.nodeId ?? null,
+      resumeState.mcpServerFromExpression,
     );
 
     // ── Auto-memory 재주입 (매 turn, spec §6.2 d.5/d.6) ──
@@ -3669,6 +3670,8 @@ export class AiTurnExecutor {
       ragThreshold: source.ragThreshold,
       ragSources: source.ragSources ?? [],
       mcpServers: source.mcpServers ?? [],
+      // 서버 목록과 짝인 표현식 여부. 없으면 빈 배열이라 길이가 어긋나 모든 서버가 표현식으로 판정된다.
+      mcpServerFromExpression: source.mcpServerFromExpression ?? [],
       // NOTE — credential / context-binding 필드 (`llmConfigId`, `workspaceId`,
       // `executionId`, `presentationTools`, `conditions`, `maxTurns` 등) 는
       // **의도적으로 미동봉**. `_retryState` 는 DB 영속이므로 credential 참조를
@@ -3867,6 +3870,7 @@ export class AiTurnExecutor {
     executionId: string | undefined,
     mcpDiagnostics: McpDiagnosticsAccumulator | undefined,
     nodeId: string | null,
+    mcpServerFromExpression: readonly boolean[] | undefined,
   ): Promise<ToolDef[]> {
     // 일반 도구(`tool_*`) 입력 경로는 스키마에서 제거됨 — 재작성 시 새 디자인으로 복원.
     // 스키마 .passthrough() 로 DB 의 legacy toolNodeIds/toolOverrides 는 silently
@@ -3886,6 +3890,7 @@ export class AiTurnExecutor {
           workspaceId,
           executionId,
           nodeId,
+          mcpServerFromExpression,
           integrationLookupScope,
           // provider 는 serverSummaries / errors 두 sub-array 로만 push 한다
           // (카운터는 executor 소유, execute choke point 에서 증가).
