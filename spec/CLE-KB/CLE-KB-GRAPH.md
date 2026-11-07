@@ -3,18 +3,18 @@ id: "CLE-KB-GRAPH"
 title: "Graph RAG"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-GRAPHRAG-001", "REQ-GRAPHRAG-002", "REQ-GRAPHRAG-003", "REQ-GRAPHRAG-004", "REQ-GRAPHRAG-005", "REQ-GRAPHRAG-006", "REQ-GRAPHRAG-007", "REQ-GRAPHRAG-008", "REQ-GRAPHRAG-009", "REQ-GRAPHRAG-010", "REQ-GRAPHRAG-011", "REQ-GRAPHRAG-012", "REQ-GRAPHRAG-013", "REQ-GRAPHRAG-014", "REQ-GRAPHRAG-015", "REQ-GRAPHRAG-016", "REQ-GRAPHRAG-017", "REQ-GRAPHRAG-018", "REQ-GRAPHRAG-019", "REQ-GRAPHRAG-020", "REQ-GRAPHRAG-021", "REQ-GRAPHRAG-022", "REQ-GRAPHRAG-023", "REQ-GRAPHRAG-024", "REQ-GRAPHRAG-025", "REQ-GRAPHRAG-026", "REQ-GRAPHRAG-027", "REQ-GRAPHRAG-028", "REQ-GRAPHRAG-029", "REQ-GRAPHRAG-030", "REQ-GRAPHRAG-031", "REQ-GRAPHRAG-032", "REQ-GRAPHRAG-033", "REQ-GRAPHRAG-034", "REQ-GRAPHRAG-035", "REQ-GRAPHRAG-036", "REQ-GRAPHRAG-037", "REQ-GRAPHRAG-038", "REQ-GRAPHRAG-039", "REQ-GRAPHRAG-040", "REQ-GRAPHRAG-041", "REQ-GRAPHRAG-042", "REQ-GRAPHRAG-043"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
 content_hash: "595460e3e9709c695a9360154ee2873860e47ee84deebca69a39181c911505d1"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-SHNJPQ"
 source_paths: ["spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/10-graph-rag.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "bff91276324c9b967931c738caf596fd6152ec87cbe74d2308b6ce2e3a0c416f"
-etag: "sha256-0b3eca7d28ff88fa8ce373859c8b6a4dd41c2ab24a5fa79b7ab0dd66acfef151"
+mirror_sha256: "ee9f95dd35d5c32d184964c0891ece7632b4fe06e24b1092d04afbebd756fcc6"
+etag: "sha256-8e883cb7448cbc1e212a69d31745b95a9a2a85178f12dc0626988c87e0d10fc5"
 ---
 > 구현 상태: 구현됨 (P0~P2) · 원문: `spec/5-system/10-graph-rag.md`, `spec/4-nodes/4-integration/_product-overview.md` (§3.2 KB-MD-03, §3.4 KB-AG-04), `spec/data-flow/6-knowledge-base.md` (§1.2·§1.3 그래프 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

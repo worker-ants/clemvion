@@ -5,8 +5,8 @@ import request from 'supertest';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 import {
-  assertMatchesContract,
   contractForDto,
+  pickMatchingContract,
 } from '../src/shared/testing/response-contract';
 import { AlertRuleDto } from '../src/modules/alerts/dto/responses/alert-rule-response.dto';
 
@@ -98,12 +98,14 @@ describe('알림 규칙 threshold 의 wire 타입 (e2e)', () => {
     const listed = await request(BASE_URL).get('/api/alerts').set(headers());
     expect(listed.status).toBe(200);
     const rows = listed.body.data as Array<{ id: string; threshold: unknown }>;
-    const mine = rows.find((r) => r.id === createdRule.id);
-    expect(mine).toBeDefined();
-    assertMatchesContract(mine, await contractForDto(AlertRuleDto));
-    expect(typeof mine?.threshold).toBe('string');
+    const mine = pickMatchingContract(
+      rows,
+      (r) => r.id === createdRule.id,
+      await contractForDto(AlertRuleDto),
+    );
+    expect(typeof mine.threshold).toBe('string');
     // 소수부까지 정확히 왕복한다 — scale 4 를 꽉 채운 값이라 반올림·절삭이 있으면 어긋난다.
-    expect(mine?.threshold).toBe('12.3456');
+    expect(mine.threshold).toBe('12.3456');
 
     const patched = await request(BASE_URL)
       .patch(`/api/alerts/${createdRule.id}`)

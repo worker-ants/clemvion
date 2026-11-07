@@ -20,11 +20,12 @@ export class ModelConfigDto {
   name: string;
 
   /** 마스킹된 API Key (예: sk-****abcd). 자가호스팅 키 미설정 시 null. */
-  @ApiPropertyOptional({ nullable: true, example: 'sk-****abcd' })
-  apiKey?: string | null;
+  @ApiProperty({ nullable: true, type: String, example: 'sk-****abcd' })
+  apiKey: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
-  baseUrl?: string | null;
+  /** Provider 엔드포인트 URL. 설정하지 않으면 null. */
+  @ApiProperty({ nullable: true, type: String })
+  baseUrl: string | null;
 
   @ApiProperty({ example: 'gpt-4o-mini' })
   defaultModel: string;
@@ -32,8 +33,9 @@ export class ModelConfigDto {
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   defaultParams?: Record<string, unknown>;
 
-  @ApiPropertyOptional({ nullable: true, example: 1536 })
-  dimension?: number | null;
+  /** 임베딩 차원. 임베딩 설정에서 지정하지 않았거나 채팅 설정이면 null. */
+  @ApiProperty({ nullable: true, type: Number, example: 1536 })
+  dimension: number | null;
 
   @ApiProperty()
   isDefault: boolean;
@@ -54,8 +56,12 @@ export class ModelTestConnectionResultDto {
   // OpenAPI 가 없는 필드를 광고했다. 형제 `TestConnectionResultDto` 에도 같은 유령이 있었고
   // 함께 걷어냈다. `assertMatchesContract` 는 **선언되지 않은 키**를 잡으므로 이 방향
   // (선언됐지만 안 나가는 키)은 원리적으로 못 본다 — grep 이 유일한 검사다.
-  @ApiPropertyOptional({ nullable: true })
-  message?: string | null;
+  //
+  // `message` 는 서비스가 실패할 때만 싣는 키 생략형이다(`LlmService.testConnection`). 성공 응답은 키가 없고
+  // `null` 을 내는 경로는 없다.
+  /** 실패 사유. 성공 응답에는 실리지 않습니다. */
+  @ApiPropertyOptional()
+  message?: string;
 
   @ApiPropertyOptional({
     description:

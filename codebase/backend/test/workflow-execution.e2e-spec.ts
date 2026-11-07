@@ -5,8 +5,8 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import {
-  assertMatchesContract,
   contractForDto,
+  pickMatchingContract,
   type DtoContract,
 } from '../src/shared/testing/response-contract';
 import { ExecutionDto } from '../src/modules/executions/dto/responses/execution-response.dto';
@@ -150,9 +150,7 @@ describe('Workflow Execution (e2e)', () => {
     // 는 존재와 non-null 까지 엄격히 물지만, 나머지 10개(키 생략형)는 **있을 때만** 검사
     // 대상이고 그중 nullable 선언이 붙은 것은 null 도 허용된다. 반대 방향(선언에 없는 키가
     // 응답에 있다)은 22필드와 무관하게 전부 잡는다.
-    const mine = items.find((i) => i.id === executionId);
-    expect(mine).toBeDefined();
-    assertMatchesContract(mine, executionContract);
+    pickMatchingContract(items, (i) => i.id === executionId, executionContract);
   }, 30_000);
 
   it('C. cross-workspace stop → 404 IDOR 차단 (소속 워크스페이스 외 접근)', async () => {

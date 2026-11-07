@@ -42,12 +42,13 @@ export class IntegrationDto {
   })
   status: IntegrationStatus;
 
-  /** 상태 사유 코드 (snake_case). pending_install + callback 실패 시 `oauth_token_exchange_failed` 등 진단 단서. */
-  @ApiPropertyOptional({ nullable: true })
-  statusReason?: string | null;
+  /** 상태 사유 코드 (snake_case). pending_install + callback 실패 시 `oauth_token_exchange_failed` 등 진단 단서. 없으면 null. */
+  @ApiProperty({ nullable: true, type: String })
+  statusReason: string | null;
 
-  /** 마지막 에러 요약. callback / 노드 실행 실패의 진단 단서. */
-  @ApiPropertyOptional({
+  // 저장된 값을 현재 키로 복호화하지 못하면 `null` 로 내린다(`IntegrationsService.toPublic`).
+  /** 마지막 에러 요약. callback / 노드 실행 실패의 진단 단서. 없으면 null. */
+  @ApiProperty({
     type: 'object',
     nullable: true,
     properties: {
@@ -56,7 +57,7 @@ export class IntegrationDto {
       at: { type: 'string', format: 'date-time' },
     },
   })
-  lastError?: { code?: string; message?: string; at?: string } | null;
+  lastError: { code?: string; message?: string; at?: string } | null;
 
   /**
    * Safe-to-expose hints derived from credentials. Frontend must use these
@@ -83,13 +84,8 @@ export class IntegrationDto {
   @ApiProperty({ enum: ['ok', 'needs_reauth'], example: 'ok' })
   credentialsStatus: 'ok' | 'needs_reauth';
 
-  /** 마지막 확인 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastCheckedAt?: string | null;
-
-  /** 만료 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  expiresAt?: string | null;
+  // `lastCheckedAt` · `expiresAt` 선언은 지웠다. 엔티티 컬럼도 채우는 코드도 없어 응답에 한 번도 실린 적이 없다(실측).
+  // 토큰 만료 시각은 아래 `tokenExpiresAt` 이 싣는다.
 
   /** 생성자 UUID */
   @ApiProperty({ format: 'uuid' })
@@ -510,37 +506,64 @@ export class IntegrationUsagesDto {
   usages: IntegrationUsageItemDto[];
 }
 
+// 근거: [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
+// 서비스가 활동 로그 행(`IntegrationUsageLog`)을 그대로 싣는다. 컬럼이 NOT NULL 인 필드는 required, nullable 인 필드는
+// required + nullable 이다. 관계(`integration`)는 불러오지 않아 실리지 않는다.
 /** 최근 활동 로그 */
 export class IntegrationActivityItemDto {
+  /** 활동 로그 UUID */
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** 통합 UUID */
+  @ApiProperty({ format: 'uuid' })
+  integrationId: string;
+
+  /** 호출한 노드 실행 UUID */
+  @ApiProperty({ format: 'uuid' })
+  nodeExecutionId: string;
+
+  /** 호출한 워크플로우 UUID */
+  @ApiProperty({ format: 'uuid' })
+  workflowId: string;
+
+  /** 호출 결과 */
+  @ApiProperty({ enum: ['success', 'failed'], example: 'success' })
+  status: 'success' | 'failed';
+
+  /** 실패 코드와 메시지. 성공한 호출은 null. */
+  @ApiProperty({
+    type: 'object',
+    nullable: true,
+    properties: {
+      code: { type: 'string', description: 'UPPER_SNAKE_CASE 에러 코드' },
+      message: { type: 'string', description: '사람 친화 메시지' },
+    },
+  })
+  error: { code?: string; message?: string } | null;
+
+  /** 호출 소요 시간(ms) */
+  @ApiProperty({ example: 120 })
+  durationMs: number;
+
+  /** 호출 시각 */
   @ApiProperty({ format: 'date-time' })
-  createdAt: string;
-
-  @ApiProperty({ enum: ['success', 'failure'], example: 'success' })
-  status: string;
-
-  @ApiPropertyOptional({ nullable: true })
-  errorMessage?: string | null;
-
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  executionId?: string | null;
+  at: string;
 
   // 근거: [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA#호출-api-식별-채우기-규칙)
-  /** 호출된 API 의 catalog key. cafe24 = `cafe24.<resource>.<operation>`. */
-  @ApiPropertyOptional({ nullable: true })
-  apiLabel?: string | null;
+  /** 호출된 API 의 catalog key. cafe24 = `cafe24.<resource>.<operation>`. 채우지 않는 통합은 null. */
+  @ApiProperty({ nullable: true, type: String })
+  apiLabel: string | null;
 
   // 근거: [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA#호출-api-식별-채우기-규칙)
-  /** HTTP method / SQL 동사 / `SEND` 등. 채우는 값은 통합마다 다르다. */
-  @ApiPropertyOptional({ nullable: true })
-  apiMethod?: string | null;
+  /** HTTP method / SQL 동사 / `SEND` 등. 채우는 값은 통합마다 다르고 없으면 null. */
+  @ApiProperty({ nullable: true, type: String })
+  apiMethod: string | null;
 
   // 근거: [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA#호출-api-식별-채우기-규칙)
-  /** endpoint path / driver token / SMTP host 등. PII 제거 후 저장. */
-  @ApiPropertyOptional({ nullable: true })
-  apiPath?: string | null;
+  /** endpoint path / driver token / SMTP host 등. PII 제거 후 저장. 없으면 null. */
+  @ApiProperty({ nullable: true, type: String })
+  apiPath: string | null;
 }
 
 export class IntegrationActivityDto {
@@ -572,8 +595,10 @@ export class TestConnectionResultDto {
   @ApiPropertyOptional()
   code?: string;
 
-  @ApiPropertyOptional({ nullable: true })
-  message?: string | null;
+  // 서비스 결과 타입(`IntegrationTestResult.message`)이 필수 문자열이라 성공 · 실패 모두 실린다.
+  /** 결과 문구. 성공 · 실패 모두 실립니다. */
+  @ApiProperty()
+  message: string;
 
   // 아래 셋도 `code` 와 같은 방향의 결함이었다 — `IntegrationTestResult` 가 MCP 성공 시 싣는데(`testMcpTransport`)
   // 선언이 없었고, spec(`4-integration.md §5.6` · `11-mcp-client.md §9`)은 이미 문서화하고 있었다. 선언은 형제

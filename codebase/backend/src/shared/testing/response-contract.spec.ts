@@ -11,6 +11,7 @@ import {
   contractForDto,
   findContractViolations,
   formatViolations,
+  pickMatchingContract,
   type ContractViolation,
   type DtoContract,
 } from './response-contract';
@@ -461,6 +462,48 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       expect(() => assertMatchesContract(rest, contract)).toThrow(
         /ProbeDto.*1건[\s\S]*id \[missing\]/,
       );
+    });
+  });
+
+  describe('pickMatchingContract', () => {
+    const other = { ...VALID, id: 'other' };
+
+    it('조건에 맞는 항목을 대조하고 그 항목을 돌려준다', () => {
+      const picked = pickMatchingContract(
+        [other, VALID],
+        (i) => i.id === 'x',
+        contract,
+      );
+      expect(picked).toBe(VALID);
+    });
+
+    it('맞는 항목이 없으면 DTO 이름과 목록 길이를 담아 던진다', () => {
+      expect(() =>
+        pickMatchingContract([other], (i) => i.id === 'x', contract),
+      ).toThrow(/ProbeDto 목록 1건 중 조건에 맞는 항목이 없다/);
+    });
+
+    it('고른 항목이 계약과 어긋나면 그 위반으로 던진다', () => {
+      const { id: _drop, ...noId } = VALID;
+      expect(() =>
+        pickMatchingContract([noId], (i) => i.label === null, contract),
+      ).toThrow(/ProbeDto.*1건[\s\S]*id \[missing\]/);
+    });
+
+    it('목록이 배열이 아니면 던진다 — `{ items }` 로 감싼 응답을 그대로 넘긴 실수', () => {
+      const wrapped = { items: [VALID] } as unknown as (typeof VALID)[];
+      expect(() =>
+        pickMatchingContract(wrapped, (i) => i.id === 'x', contract),
+      ).toThrow(/ProbeDto 목록이 배열이 아니다: object/);
+    });
+
+    it('options 를 대조에 넘긴다', () => {
+      const extra = { ...VALID, internal: 1 };
+      expect(() =>
+        pickMatchingContract([extra], (i) => i.id === 'x', contract, {
+          allowUndeclared: ['internal'],
+        }),
+      ).not.toThrow();
     });
   });
 

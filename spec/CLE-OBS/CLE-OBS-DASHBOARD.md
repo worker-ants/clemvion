@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
 content_hash: "bdbe192fd3f2755531d947edf8051a0096ef2ad82f0ab2b3b1fab563cf054eef"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-SHNJPQ"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "f3c0e1bb90b982eed87b10830f946c949d8e924f28831661d0fbcebbcdabb8ca"
-etag: "sha256-8f5d96da305b460f8ccedaf6d5c1b761eb3c07813064f9addfb44fba90fdd582"
+mirror_sha256: "b112972ad7204b3e3414974a2aeedeb558ca75ed4d255de122deee5eaf5ab92f"
+etag: "sha256-6cff5de25d016b5684fdbb31df42771239b91410387498a09a71be026a19b2ef"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/0-dashboard.md`, `spec/data-flow/9-observability.md` (§1.2 의 대시보드 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
