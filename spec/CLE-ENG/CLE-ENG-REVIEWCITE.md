@@ -2,19 +2,19 @@
 id: "CLE-ENG-REVIEWCITE"
 title: "리뷰 산출물 인용 규약"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "0e2d7cb5284822919c1e685426a03e2b818d98a560e6eb8fbd42a8b57557ca04"
+content_hash: "f34bbc16dd6f527a857f26923c4b2264905c150e9901e89943d27f2f4e203dc8"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-5GYWFA"
 source_paths: ["spec/conventions/review-citations.md"]
-mirror_sha256: "67f52d0a6c0288376cc4c1926a51b3f94ef9a7aa378392cc52c3ddf1148163d2"
-etag: "sha256-becec8a179d2c25b88f77a820c88e045c8c5d4165680971e678e3c899354d1ae"
+mirror_sha256: "eb24734e4ccacd233ca05f57f0ca461f30b93a6dee86af2f3b2acdc08f1a8962"
+etag: "sha256-0e78ca80e029cfc330dc7c06432f566091932b1b7a5473131dcf1075e283a594"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/review-citations.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ etag: "sha256-becec8a179d2c25b88f77a820c88e045c8c5d4165680971e678e3c899354d1ae"
 3. 옛 산출물의 권장 형식은 전체 경로(`review/code/2026/09/04/23_02_51`)다. 날짜 + 시각(`2026-09-04 23_02_51`)도 허용한다.
 4. 지적 번호를 함께 적으면 더 좁혀진다. 예: `review/code/2026/09/04/23_02_51 W1`.
 5. 규칙 2~4 와 9~10 은 `codebase/**` 의 코드·테스트 주석, `scripts/**`·`.github/**`, NERV 스펙 문서에 적용한다([적용 범위](#적용-범위)).
-6. DTO 필드·컨트롤러의 `/** */` JSDoc 과 응답 DTO 클래스의 `/** */` JSDoc 에는 리뷰 인용을 **쓰지 않는다**. 바로 위 `//` 주석에 적고 그 `//` 주석은 규칙 2~4 나 9 를 따른다. NERV 발견 인용과 Task 키(`CLE-T-…`) 인용도 같다. DTO · 컨트롤러 파일의 `/** */` 와 데코레이터 문자열에 든 NERV 키 형태(Task 키 포함)는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 이 정하고 백엔드 가드 `openapi-internal-ref` 가 막는다.
+6. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록에는 리뷰 인용을 **쓰지 않는다**. 필드 · 메서드 · 클래스(요청 DTO 와 응답 DTO 모두)와 파일 수준 선언의 `/** */` 가 모두 든다. [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 이 공개 채널로 보는 범위와 같다. 바로 위 `//` 주석에 적고 그 `//` 주석은 규칙 2~4 나 9 를 따른다. NERV 발견 인용과 Task 키(`CLE-T-…`) 인용도 같다. DTO · 컨트롤러 파일의 `/** */` 와 데코레이터 문자열에 든 NERV 키 형태(Task 키 포함)는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 이 정하고 백엔드 가드 `openapi-internal-ref` 가 막는다.
 7. `plan/**` 문서와 `review/**` 산출물은 이 규약의 대상이 아니다. 둘 다 전환 단계 3 에서 저장소에서 지웠다(원문은 git 이력).
 8. 기존 날짜 없는 인용은 한꺼번에 바꾸지 않는다. 그 자리를 다음에 건드릴 때 함께 맞춘다.
 9. 전환 단계 2 이후의 리뷰는 NERV 리뷰 발견(finding)의 **전체 ID** 로 인용한다. 형식은 `finding <발견 전체 ID>` 다(예: `finding 00000000-0000-7000-8000-000000000000`). 앞 8자처럼 줄인 ID 는 쓰지 않는다. 발견 여럿은 `finding <ID> · <ID>` 로 나열한다. ID 만으로는 NERV 에 접근하지 않고 풀 수 없으니 지적의 요지를 한 줄 함께 적기를 권한다. 전환 단계 4e 전의 통합 검토(`kind=merge`)와 spec-coverage 감사(`kind=spec_coverage`) 결과에는 발견이 없다. 그 결과를 가리킬 때는 그 결과로 올린 NERV Task 키(`CLE-T-…`)를 쓴다.
@@ -70,6 +70,7 @@ etag: "sha256-becec8a179d2c25b88f77a820c88e045c8c5d4165680971e678e3c899354d1ae"
 | `scripts/**` · `.github/**` | **적용** | 같은 이유다. 저장소 가드와 CI 정의도 맥락 없이 읽힌다 |
 | DTO 필드 · 컨트롤러의 `/** */` JSDoc | **대상 아님**(쓰지 않음) | 그 JSDoc 은 공개 OpenAPI `description` 으로 나간다. DTO 필드는 swagger CLI 플러그인이 프로퍼티별 `description` 으로 싣는다. 리뷰 인용은 API 소비자가 읽을 문장이 아니므로 처음부터 거기에 쓰지 않는다. [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한 대로 바로 위 `//` 주석에 적는다 |
 | 응답 DTO 클래스의 `/** */` JSDoc | **대상 아님**(쓰지 않음) | 필드와 똑같이 쓰지 않는다. 지금 플러그인은 클래스 JSDoc 을 스키마에 싣지 않는다(프로퍼티 메타데이터만 만든다). 그래도 응답 DTO 파일의 `/** */` 를 **공개 문서 채널 하나**로 다룬다. 피하는 자리도 같다. 바로 위 `//` 주석이다(Rationale «응답 DTO 클래스 JSDoc») |
+| 요청 DTO 클래스와 파일 수준 선언의 `/** */` JSDoc | **대상 아님**(쓰지 않음) | 응답 DTO 클래스와 같은 이유로 쓰지 않는다. 쓰는 사람이 자리마다 플러그인이 무엇을 싣는지 따지지 않도록 두 파일 종류의 `/** */` 를 공개 문서 채널 하나로 다룬다. 피하는 자리도 바로 위 `//` 주석이다(Rationale «규칙 6 의 범위를 두 파일 종류의 `/** */` 전부로 넓혔다») |
 | NERV 스펙 문서(저장소 `spec/**` 는 그 미러) | **적용** | `codebase/**` 와 같은 논리다. 살아 있는 문서라 오래 읽힌다. 기존 날짜 없는 인용이 이미 많다. 규칙 8 이 이것을 다룬다 |
 | `plan/**` 문서 | 대상 아님(전환 단계 3 에서 지웠다) | 인용하던 라운드와 **같은 세션**에서 쓰였고 문서 자체가 그 맥락을 담았다. 작업 추적은 이제 NERV Task 다 |
 | `review/**` 산출물 | 대상 아님(전환 단계 3 에서 지웠다) | 시점 기록이었다. 나중에 고치는 대상이 아니었고 지금은 git 이력으로만 되짚는다 |
@@ -85,6 +86,7 @@ etag: "sha256-becec8a179d2c25b88f77a820c88e045c8c5d4165680971e678e3c899354d1ae"
 | 규칙 6, **응답 DTO** JSDoc 의 NERV 발견 인용(`finding <ID>`) | **예** | `dto-jsdoc-citation` 이 넷째 패턴 `\bfinding\s+[0-9a-f]{8}(?:-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\b` 로 센다(전환 단계 4g, 2026-10-03). 전체 ID 와 앞 8자로 줄인 ID 를 모두 잡는다. 끝을 `\b` 로 막아 앞 두 그룹으로 줄인 형태(`finding 01a10005-3522`)의 첫 8자도 잡는다 |
 | 규칙 6, **컨트롤러** JSDoc | **아니오** | 규칙 6 의 금지 전체를 세는 가드는 없다. `dto-jsdoc-citation` 은 `isResponseDtoFile()` 로 `dto/responses/**` 만 훑는다. 줄인 ID 와 `.review/**` 두 형태는 `review-citation-form` 이 센다. Task 키는 `openapi-internal-ref` 가 NERV 키 형태로 센다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17) |
 | 규칙 6, **요청 DTO** 필드 JSDoc | **아니오** | 규칙 6 의 금지 전체를 세는 가드는 없다. `dto-jsdoc-citation` 은 `dto/responses/**` 만 본다. 줄인 ID 와 `.review/**` 두 형태는 `review-citation-form` 이 센다. Task 키는 `openapi-internal-ref` 가 NERV 키 형태로 센다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17) |
+| 규칙 6, **요청 DTO** 클래스 JSDoc 과 두 파일 종류의 파일 수준 선언 JSDoc | **아니오** | 규칙 6 의 금지 전체를 세는 가드는 없다. `dto-jsdoc-citation` 은 `dto/responses/**` 만 본다. 응답 DTO 파일에서도 파일 수준 선언은 보지 않고 클래스 선언과 그 프로퍼티만 본다. 줄인 ID 와 `.review/**` 두 형태는 `review-citation-form` 이 센다. Task 키는 `openapi-internal-ref` 가 NERV 키 형태로 센다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17) |
 | 규칙 9(줄인 발견 ID 금지)·규칙 10(`.review/**` 금지), `codebase/**` | **예** | `review-citation-form`(`codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts`)이 `codebase/**` 텍스트 파일에서 두 형태가 0 인지 본다(전환 단계 4g). 읽는 파일과 잡는 형태는 아래 목록에 적는다 |
 | 규칙 9 · 10, `scripts/**` · `.github/**` · NERV 스펙 문서 | **아니오** | 가드 없음(Rationale «시행 가드를 넓힌 경위») |
 
@@ -105,6 +107,8 @@ etag: "sha256-becec8a179d2c25b88f77a820c88e045c8c5d4165680971e678e3c899354d1ae"
 ## 기존 인용
 
 기존 날짜 없는 인용은 소급 정리 대상이 아니다. 2026-09-05 측정으로 `codebase/**` 499건, `spec/**` 36건, `scripts/**`·`.github/**` 6건이었다. 그 자리를 **다음에 건드릴 때** 함께 맞춘다. 날짜를 코드 맥락으로 하나씩 가려야 하는 일이라 기계적으로 바꿀 수 없다. [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 새 DTO 규칙을 들일 때 세운 것과 같은 원칙이다.
+
+규칙 6 이 금지한 자리에 이미 있던 인용도 같다. 2026-11-07 측정으로 두 곳이었다. 요청 DTO 필드 JSDoc 의 날짜 없는 시각 한 곳과 가드 대조군 컨트롤러 메서드 JSDoc 의 옛 리뷰 경로 한 곳이다. 그 파일을 다음에 고칠 때 `//` 주석으로 옮긴다.
 
 ## NERV 이전 영향
 
@@ -268,3 +272,11 @@ git grep -nE '(^|[^[:alnum:]_])finding[[:space:]]+[0-9a-f]{8}([^0-9a-f-]|$)|(^|[
 `spec/**` 은 NERV 스펙의 읽기 전용 미러라 저장소에서 고칠 수 없다. 그래서 저장소 가드를 두지 않고 본문은 NERV 에서 검토한다.
 
 응답 DTO JSDoc 의 `.review/` 아래 code · consistency · merge 날짜 · 시각 경로는 `dto-jsdoc-citation` 의 첫 패턴에도 걸린다. 이 겹침은 우연이고 보장이 아니다. 규칙 10 을 지키는 가드는 `review-citation-form` 이다. 응답 DTO JSDoc 에 인용을 쓰지 않는 규칙 6 은 형식과 무관하게 그대로다.
+
+### 규칙 6 의 범위를 두 파일 종류의 `/** */` 전부로 넓혔다 (2026-11-07)
+
+규칙 6 은 필드 · 컨트롤러 · 응답 DTO 클래스의 `/** */` 만 금지했다. [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 은 DTO · 컨트롤러 파일의 `/** */` 전부를 공개 채널로 보고 리뷰 인용은 이 규약에 맡긴다. 그래서 요청 DTO 클래스와 파일 수준 선언의 `/** */` 에 리뷰 인용을 써도 되는지는 두 문서 어느 쪽도 정하지 않았다. 전환 단계 4g(NERV Task `CLE-T-M7K35H`)의 구현 완료 검토가 이 빈칸을 짚었고 2026-11-07 에 메웠다(NERV Task `CLE-T-5GYWFA`).
+
+- **경계를 규칙 17 과 같게 잡았다.** 이유는 «응답 DTO 클래스 JSDoc 도 인용을 쓰지 않는다» 에서 (B) 를 고른 것과 같다. 경계가 "두 파일 종류의 `/** */`" 하나면 쓰는 사람이 플러그인이 어느 자리를 스키마에 싣는지 알 필요가 없다. 설명을 `@ApiSchema({ description })` 로 옮겨 적을 때 인용이 따라 나가지도 않는다.
+- **가드는 넓히지 않았다.** 2026-11-07 실측으로 새로 든 자리(요청 DTO 클래스, 두 파일 종류의 파일 수준 선언)의 `/** */` 에는 옛 리뷰 경로 · 날짜 없는 시각 · 발견 ID · Task 키 형태가 0건이었다. 줄인 발견 ID 와 `.review/**` 경로는 `review-citation-form` 이, Task 키는 `openapi-internal-ref` 가 그 자리를 이미 센다(강제 범위 표).
+- **기존 자리는 소급해 걷지 않는다.** 같은 실측에서 규칙 6 이 전부터 금지한 자리에 리뷰 인용 두 곳이 남아 있었다. 요청 DTO 필드 JSDoc 의 날짜 없는 시각과 가드 대조군 컨트롤러 메서드 JSDoc 의 옛 리뷰 경로다. 범위를 넓혀 생긴 위반이 아니다. [기존 인용](#기존-인용) 과 [소급 정리를 하지 않는 이유](#소급-정리를-하지-않는-이유) 대로 그 파일을 고칠 때 바꾼다. 남은 두 곳은 본문 「기존 인용」 에도 적었다.

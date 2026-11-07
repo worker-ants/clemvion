@@ -24,7 +24,7 @@ const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
   /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/,
   /\bREQ-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b/,
   /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2}[a-z]?\b/,
-  /\bplan\/(?:in-progress|complete)\//,
+  /\bplan\/(?:in-progress|complete|research)\//,
 ];
 
 // 이 파일은 `codebase/frontend/src/lib/__tests__/` 에 있다.
@@ -118,7 +118,10 @@ describe("배포되는 정적 파일의 내부 참조", () => {
     expect(findInternalRefs("상세: CLE-UI-BRAND")).toEqual(["CLE-UI-BRAND"]);
     expect(findInternalRefs("REQ-GUIDE-032 참고")).toEqual(["REQ-GUIDE-032"]);
     expect(findInternalRefs("옛 요구사항 WH-SC-01")).toEqual(["WH-SC-01"]);
-    expect(findInternalRefs("옛 plan plan/in-progress/x.md")).toEqual(["plan/in-progress/"]);
+    // 지운 plan 경로 세 갈래를 모두 잡는다. 래칫이 줄 단위로 세므로 경로는 한 줄에 모은다.
+    for (const planPath of ["plan/in-progress/", "plan/complete/", "plan/research/"]) {
+      expect(findInternalRefs(`옛 plan ${planPath}x.md`)).toEqual([planPath]);
+    }
     expect(findInternalRefs("(../5-system/14-external-interaction-api.md)")).toEqual([
       "14-external-interaction-api.md",
     ]);

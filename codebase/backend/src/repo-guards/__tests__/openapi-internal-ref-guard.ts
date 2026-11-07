@@ -51,7 +51,7 @@ const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
   /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/,
   /\bREQ-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b/,
   /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2}[a-z]?\b/,
-  /\bplan\/(?:in-progress|complete)\//,
+  /\bplan\/(?:in-progress|complete|research)\//,
 ];
 
 /** 공개 문장으로 나가는 문자열 속성 이름. 데코레이터 인자(`@ApiProperty` · `@ApiOperation` 등)의 키다. */
