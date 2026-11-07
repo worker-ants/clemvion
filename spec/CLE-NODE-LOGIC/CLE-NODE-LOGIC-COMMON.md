@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "335e96a3eee7cdc0d97d188fda0cf889d2cc2ef6c888f56ece69673b4342f49d"
+content_hash: "8e66b6dc15b3174d101416bcad705019c4075de970f81e91d6340a139217b61f"
 read_as: "approved_fallback"
-task: "CLE-T-GGZSC2"
+task: "CLE-T-FZ6N7A"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "cee8ca97dd76554ce44689538f934f1597ddfd9ba9f4998e21c4d5cfb8e9bd83"
-etag: "sha256-56b0851bde4bf9d0f763f095065e2c154d2552f259ec15c7a285efae8781db80"
+mirror_sha256: "ba7602d35fe49c89417d7d49d17c69e53d85b6dead56bfa29b422f013d86e7a8"
+etag: "sha256-c14622cce140d969f3252b9d1fc4b9258fc1e65bb39f92ba1d1f6b40f82bffe1"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,7 +75,7 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 1. 비교 연산자는 If/Else, Switch expression 모드, Filter, Transform 노드의 `array_filter` 연산에서 똑같이 동작한다.
 2. `is_type` 의 비교 값이 위 7개 타입 이름이 아니면 조건은 `false` 다.
 3. 엄격 비교(`strictComparison`, 기본 `false`)를 켜면 타입 변환 없이 비교한다. 타입 변환 규칙과 엄격 모드 동작은 [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) 의 strict 모드 절이 정한다.
-4. `regex` 연산자는 사용자 패턴을 단일 헬퍼 `compileUserRegex` 로 컴파일한다. 이 헬퍼는 세 가지를 검사한다. 패턴 길이는 200자 이하여야 한다. `safe-regex` 가 위험하다고 본 패턴(지수 백트래킹, 예 `(a+)+$`)은 거부한다. 문법이 틀린 패턴도 거부한다.
+4. `regex` 연산자는 사용자 패턴을 단일 헬퍼 `compileUserRegex` 로 컴파일한다. 이 헬퍼는 세 가지를 검사한다. 패턴 길이는 200자 이하여야 한다(기준 상수 `MAX_REGEX_LENGTH`, `condition-evaluator.util.ts`). `safe-regex` 가 위험하다고 본 패턴(지수 백트래킹, 예 `(a+)+$`)은 거부한다. 문법이 틀린 패턴도 거부한다.
 5. 컴파일하지 못한 패턴(길이 초과·위험 패턴·문법 에러)은 에러를 던지지 않고 그 조건을 `false` 로 평가한다.
 6. If/Else 와 Switch expression 모드는 `compileRegexCache` 로 조건(케이스)마다 정규식을 미리 컴파일해 평가기(`evaluateCondition(input, cond, { strict, regex })`)에 넘긴다. Filter 와 Transform `array_filter` 도 같은 경로를 쓴다.
 7. Filter 는 거부한 패턴을 `meta.invalidRegexPatterns` 로 드러낸다. 자세한 형태는 [Filter 노드](CLE-NODE-FILTER.md) 가 정한다.
