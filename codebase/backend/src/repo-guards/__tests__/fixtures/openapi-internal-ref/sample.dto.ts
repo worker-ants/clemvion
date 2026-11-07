@@ -22,7 +22,7 @@ export class InternalRefFixtureDto {
   /** 요구사항 REQ-GUIDE-032 를 적었다. */
   withReq!: string;
 
-  /** 옛 작업 문서 plan/in-progress/demo 를 적었다. */
+  /** 옛 조사 문서 plan/research/demo 를 적었다. */
   withPlan!: string;
 
   /** 옛 스펙 파일 이름만 적었다 [Spec §4.1 / 15-chat-channel.md]. */
