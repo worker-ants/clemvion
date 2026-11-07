@@ -15,7 +15,7 @@ import {
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service';
 import type { IntegrationUse } from '../../../../modules/integrations/personal-integration-use.js';
-import { mcpServerRefUse } from '../mcp-server-ref-use';
+import { mcpServerUseAt } from '../mcp-server-ref-use';
 import {
   McpClientService,
   McpConnectParams,
@@ -610,12 +610,7 @@ export class McpToolProvider implements AgentToolProvider {
       }
       out.push({
         ref: r as McpServerRefConfig,
-        use: mcpServerRefUse(
-          ctx.nodeId,
-          ctx.mcpServerFromExpression,
-          index,
-          raw.length,
-        ),
+        use: mcpServerUseAt(ctx, index, raw.length),
       });
     });
     return out;

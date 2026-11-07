@@ -65,7 +65,7 @@ export interface ProviderBuildCtx {
   /**
    * `config.mcpServers` 와 같은 위치의 표현식 여부. i 번째 값이 i 번째 서버의 통합 참조가 평가 전 원본에서 표현식이었는지다.
    * 핸들러가 `markMcpServerRefOrigins` 로 정하고 재개 · 재시도 턴은 상태에서 이어 받는다(CLE-EXEC-STATE 「보존 예외
-   * `_resumeCheckpoint`」). 프로바이더는 `mcpServerRefUse` 로 이 배열만 읽고 서버 항목의 키는 읽지 않는다. 없거나 길이가
+   * `_resumeCheckpoint`」). 프로바이더는 `mcpServerUseAt` 로 이 배열만 읽고 서버 항목의 키는 읽지 않는다. 없거나 길이가
    * 서버 수와 다르면 모든 서버를 표현식으로 본다.
    */
   mcpServerFromExpression?: readonly boolean[];

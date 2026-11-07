@@ -3,6 +3,7 @@ import {
   capFormDataBytes,
   FORM_SUBMITTED_MAX_BYTES,
 } from './ai-turn-executor';
+import { mcpServerUseAt, restoreMcpServerOrigins } from './mcp-server-ref-use';
 import { AiConditionEvaluator } from './ai-condition-evaluator';
 import { AiMemoryManager } from './ai-memory-manager';
 import { ExecutionContext } from '../../core/node-handler.interface';
@@ -1496,6 +1497,47 @@ describe('AiTurnExecutor', () => {
       ) as Record<string, unknown>;
       const retryState = result._retryState as Record<string, unknown>;
       expect(retryState.mcpServerFromExpression).toEqual([]);
+    });
+
+    // 구형 `_retryState`(서버 항목에 `fromExpression: false`, 배열 없음)가 저장 → 엔진 재진입 → 도구 프로바이더 판정까지
+    // 이어질 때 리터럴 표식이 살아남지 않는 것을 한 번에 고정한다.
+    it('배열 없이 저장된 서버는 모두 표현식으로 떨어진다 (구형 _retryState 왕복)', () => {
+      const executor = buildExecutor();
+      const servers = [
+        { integrationId: 'srv-1', fromExpression: false },
+        { integrationId: 'srv-2', fromExpression: false },
+      ];
+      const result = executor.endMultiTurnConversation(
+        { ...endState(), mcpServers: servers },
+        'error',
+        {
+          code: 'LLM_TIMEOUT',
+          message: 'timeout',
+          details: { retryable: true },
+        },
+      ) as Record<string, unknown>;
+      const retryState = result._retryState as Record<string, unknown>;
+      expect(retryState.mcpServerFromExpression).toEqual([]);
+
+      const restored = restoreMcpServerOrigins(
+        retryState.mcpServers,
+        retryState.mcpServerFromExpression,
+        [],
+        [],
+      );
+      expect(restored.mcpServers).toHaveLength(2);
+      for (const index of [0, 1]) {
+        expect(
+          mcpServerUseAt(
+            {
+              nodeId: 'n1',
+              mcpServerFromExpression: restored.mcpServerFromExpression,
+            },
+            index,
+            restored.mcpServers.length,
+          ).fromExpression,
+        ).toBe(true);
+      }
     });
 
     it('omits _retryState for non-retryable errors', () => {

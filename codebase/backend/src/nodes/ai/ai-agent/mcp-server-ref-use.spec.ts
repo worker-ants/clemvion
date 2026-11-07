@@ -2,6 +2,7 @@ import {
   liftLegacyMcpServerFromExpression,
   markMcpServerRefOrigins,
   mcpServerRefUse,
+  mcpServerUseAt,
   restoreMcpServerOrigins,
 } from './mcp-server-ref-use';
 
@@ -263,5 +264,30 @@ describe('mcpServerRefUse — 평행 배열의 false 만 리터럴', () => {
       nodeId: null,
       fromExpression: false,
     });
+  });
+});
+
+describe('mcpServerUseAt — 컨텍스트에서 mcpServerRefUse 와 같은 판정', () => {
+  it('컨텍스트의 nodeId · 배열로 index 번째 서버를 판정한다', () => {
+    const ctx = { nodeId: 'node-1', mcpServerFromExpression: [true, false] };
+    expect(mcpServerUseAt(ctx, 1, 2)).toEqual(
+      mcpServerRefUse('node-1', [true, false], 1, 2),
+    );
+    expect(mcpServerUseAt(ctx, 1, 2)).toEqual({
+      nodeId: 'node-1',
+      fromExpression: false,
+    });
+    expect(mcpServerUseAt(ctx, 0, 2).fromExpression).toBe(true);
+  });
+
+  it('배열이 없거나 길이가 다르면 표현식, nodeId 가 없으면 null', () => {
+    expect(mcpServerUseAt({}, 0, 1)).toEqual({
+      nodeId: null,
+      fromExpression: true,
+    });
+    expect(
+      mcpServerUseAt({ nodeId: 'n', mcpServerFromExpression: [false] }, 0, 2)
+        .fromExpression,
+    ).toBe(true);
   });
 });

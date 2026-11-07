@@ -2,6 +2,7 @@ import {
   isLiteralReference,
   type IntegrationUse,
 } from '../../../modules/integrations/personal-integration-use.js';
+import type { ProviderBuildCtx } from './tool-providers/agent-tool-provider.interface.js';
 
 /*
  * AI 에이전트 MCP 서버의 실행 시점 조회 인자(CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」,
@@ -143,4 +144,21 @@ export function mcpServerRefUse(
     fromExpressionFlags.length === serverCount &&
     fromExpressionFlags[index] === false;
   return { nodeId: nodeId ?? null, fromExpression: !literal };
+}
+
+/**
+ * 프로바이더 빌드 컨텍스트에서 `index` 번째 서버의 `use` 를 만든다. {@link mcpServerRefUse} 를 컨텍스트의 `nodeId` ·
+ * `mcpServerFromExpression` 로 부르는 얇은 래퍼라서 프로바이더마다 인자 4개를 되풀이하지 않는다.
+ */
+export function mcpServerUseAt(
+  ctx: Pick<ProviderBuildCtx, 'nodeId' | 'mcpServerFromExpression'>,
+  index: number,
+  serverCount: number,
+): IntegrationUse {
+  return mcpServerRefUse(
+    ctx.nodeId,
+    ctx.mcpServerFromExpression,
+    index,
+    serverCount,
+  );
 }
