@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "4b1dc41d395c894d39f9c38a2182d58e89e5209d795c30e15270b56bbbac18ec"
+content_hash: "98493cf7c75b4a18c293bff12abf0863708ab882a5ecaabcc7034f078df306c6"
 read_as: "approved_fallback"
-task: "CLE-T-SFH6RG"
+task: "CLE-T-0WDZ5G"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "fff078cfe1e2a5cd1edaf92e7e727d1de210dd4c139ec80a14c349a90b6d935c"
-etag: "sha256-d7743383380a793913323dd6c4695589d8ce3dd1a6f419593ae9ca8224fea17b"
+mirror_sha256: "30ff28c39f4d961f54dd327a506d4b45f8f761382f16af2b25169a1ee81a2dd0"
+etag: "sha256-3c8c6499b22d1af6f693bce6d168d0baa5422601f569c56f21b7907ac039c74b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -169,7 +169,7 @@ catch 는 `isUpstreamAbort(err, upstream)` 로 두 `AbortError` 를 가른다. �
 | 노드 실행 `cancelled` 상태, `AbortError` 분류, dispatch 사전 확인, `execution.node.cancelled` 이벤트 | ✅ | `NodeExecutionStatus.CANCELLED` enum 과 V069 마이그레이션. `markNodeCancelled` 가 `NodeExecution.error` 에 `{ code: 'AbortError', message }` 를 남기고 같은 값을 이벤트 `error` 로 보낸다. 신호 경로 한정이고 실행 중지는 아래 가드 행이 맡는다 |
 | 노드 경계 취소 확인(`assertExecutionNotCancelled`) | ✅ | 선형 세 곳과 컨테이너(250ms 묶음)·Parallel 반복 루프. mutation 검증 완료 |
 | 멀티턴 AI 턴 경계 취소 확인 | ✅ | `ai-turn-orchestrator.service.ts` |
-| park·재개 짝 전이 종결 가드 | ✅ | `execution-engine.service.ts`. mutation 6/6 |
+| park·재개 짝 전이 종결 가드 | ✅ | `execution-engine.service.ts`. mutation 6/6. 선점을 본 소비처의 마감은 공용 헬퍼 `linked-transition-guard.ts` 가 맡는다. 짝 노드 실행을 `cancelled` 로 표시하고 `ExecutionCancelledError` 를 던진다. AI 턴 오케스트레이터와 Form·버튼 상호작용 서비스(park·재개 재claim)가 이 헬퍼를 함께 쓴다(`CLE-T-J6GRJ9`) |
 | 최상위 취소 종결 가드(`finalizeCancelledExecution`) | ✅ | 회귀 테스트 세 갈래(이미 취소, 다른 종결자 선점, 다시 읽기 실패) |
 | 마지막 턴 재시도 종결 가드 | ✅ | `retry-turn.service.ts`. mutation 13/13 |
 | 워크플로우 시간 한도·안전 종료의 노드 신호 연동 | — | 미구현(Planned). 시간 한도 자체는 노드 경계 판정으로 구현됐다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md)) |
@@ -179,7 +179,6 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 남은 과제는 NERV Task 가 추적한다.
 
 - `CLE-T-6WSCPE`: 워크플로우 시간 한도와 안전 종료를 진행 중 노드의 취소 신호와 잇는다.
-- `CLE-T-J6GRJ9`: Form·버튼 park 의 짝 전이 반환값을 소비해 취소된 실행을 정리한다.
 - `CLE-T-ST51H4`: 노드 경계 가드 호출 순서를 헬퍼 하나로 묶는다.
 - `CLE-T-WKESFB`: 실행 엔진 테스트를 정리한다.
 - `CLE-T-GZRYQ3`: 이웃 문서를 이 규약의 2026-10-10 개정과 2026-10-31 AI 노드 취소 판정에 맞추고 Database Query 노드의 취소 때 활동 로그 차이를 다룬다.
@@ -203,6 +202,7 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 - `codebase/backend/src/modules/llm/llm.service.ts` (`chat` 이 타임아웃 신호와 호출자 신호를 `AbortSignal.any` 로 합친다)
 - `codebase/backend/src/modules/executions/executions.controller.ts`, `executions.service.ts` (`stop()`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`assertExecutionNotCancelled`, 짝 전이 가드, `finalizeCancelledExecution`, `markNodeCancelled`)
+- `codebase/backend/src/modules/execution-engine/linked-transition-guard.ts` (`assertLinkedTransitionApplied`, 짝 전이 선점 때 짝 노드 실행 마감과 취소 전파)
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (턴 경계 가드)
 - `codebase/backend/src/modules/execution-engine/retry-turn.service.ts` (`finalizeGuarded`)
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts`
