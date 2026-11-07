@@ -371,6 +371,25 @@ class UnreadableChunkTest(unittest.TestCase):
         self.assertEqual(record["unreadable"], [DIFF_LABEL])
         self.assertIn(DIFF_LABEL, res["stderr"], "prepare does not say the diff was cut")
 
+    def test_stderr_shows_five_names_and_counts_the_rest(self):
+        rels = [f"spec/CLE-S/CLE-S-{i}.md" for i in range(7)]
+        err = run_in_orchestrator(
+            """
+            import contextlib, io
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                orch._report_priority_omissions({"cross_spec": {"target_doc": {
+                    "priority": ARG["rels"], "omitted": 9, "unreadable": [ARG["diff"]]}}})
+            emit(buf.getvalue())
+            """,
+            {"rels": rels, "diff": DIFF_LABEL},
+        )
+        lines = err.strip().splitlines()
+        self.assertEqual(len(lines), 2, err)
+        self.assertIn(DIFF_LABEL, lines[0])
+        self.assertIn(", ".join(rels[:5]) + " 외 2개", lines[1])
+        self.assertNotIn(rels[5], lines[1])
+
 
 class TargetShareRolloverTest(unittest.TestCase):
     """The share the target does not use goes to the corpora; the window stays the same."""

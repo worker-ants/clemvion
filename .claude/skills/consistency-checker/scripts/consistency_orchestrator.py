@@ -1284,7 +1284,7 @@ def _fit_bundle(text, budget, priority=None):
 
 
 def truncate_file_bundle(text, budget, priority=None):
-    """테스트 호환용 래퍼. `_fit_bundle` 의 절단된 본문만 돌려준다."""
+    """`_fit_bundle` without the dropped list. Kept for the existing tests."""
     return _fit_bundle(text, budget, priority)[0]
 
 
@@ -1353,7 +1353,7 @@ def fit_checker_payload(context, max_context_size, checker_name):
 
 
 def budget_substitutions(context, max_context_size, checker_name):
-    """테스트 호환용 래퍼. `fit_checker_payload` 의 본문 묶음만 돌려준다."""
+    """`fit_checker_payload` without the omission record. Kept for the existing tests."""
     return fit_checker_payload(context, max_context_size, checker_name)[0]
 
 
