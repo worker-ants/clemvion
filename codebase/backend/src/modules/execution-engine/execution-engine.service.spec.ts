@@ -94,6 +94,7 @@ import { MapHandler } from '../../nodes/logic/map/map.handler';
 import { CodeHandler } from '../../nodes/data/code/code.handler';
 import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
+import { assertLinkedTransitionApplied } from './linked-transition-guard';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -7966,6 +7967,32 @@ describe('ExecutionEngineService', () => {
       expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: NodeExecutionStatus.CANCELLED }),
       );
+    });
+
+    it('짝 전이 가드가 실제 markNodeCancelled 로 낙관적 payload 가 찬 행을 비워 CANCELLED 로 저장한다', async () => {
+      // 소비처 spec 은 driver 를 mock 으로 두므로, 가드 → 실제 마킹 연결은 여기서 잇는다.
+      const ne = makeNodeExec();
+
+      await expect(
+        assertLinkedTransitionApplied(
+          { driver: service, logger: { error: jest.fn() } },
+          {
+            shouldProceed: false,
+            nodeExec: ne,
+            node,
+            context: ctx(),
+            executionId,
+            phase: 'form park',
+          },
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      const saved = mockNodeExecutionRepo.save.mock.calls.at(-1)?.[0] as
+        NodeExecution | undefined;
+      expect(saved).toBe(ne);
+      expect(saved?.status).toBe(NodeExecutionStatus.CANCELLED);
+      expect(saved?.outputData).toBeNull();
+      expect(saved?.error).toBeNull();
     });
   });
 
