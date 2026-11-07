@@ -166,14 +166,11 @@ describe('McpToolProvider', () => {
 
     it('connects via Integration credentials and lists tools', async () => {
       const tools = await provider.buildTools({
-        config: {
-          mcpServers: [
-            { integrationId: integration.id, fromExpression: false },
-          ],
-        },
+        config: { mcpServers: [{ integrationId: integration.id }] },
         workspaceId: 'ws-1',
         executionId: 'exec-1',
         nodeId: 'node-1',
+        mcpServerFromExpression: [false],
       });
 
       expect(integrations.getForExecution).toHaveBeenCalledWith(
@@ -203,14 +200,11 @@ describe('McpToolProvider', () => {
     it('실행기가 넘긴 통합 조회 범위로 조회한다', async () => {
       const scope = new ExecutionLookupScope();
       await provider.buildTools({
-        config: {
-          mcpServers: [
-            { integrationId: integration.id, fromExpression: false },
-          ],
-        },
+        config: { mcpServers: [{ integrationId: integration.id }] },
         workspaceId: 'ws-1',
         executionId: 'exec-scope',
         nodeId: 'node-1',
+        mcpServerFromExpression: [false],
         integrationLookupScope: scope,
       });
 
@@ -220,6 +214,69 @@ describe('McpToolProvider', () => {
         { nodeId: 'node-1', fromExpression: false },
         { scope },
       );
+    });
+
+    // CLE-T-68XG50 — 표현식 여부는 서버 항목이 아니라 평행 배열 `mcpServerFromExpression` 만 읽는다.
+    describe('표현식 여부 평행 배열', () => {
+      it('서버 항목에 사용자가 넣은 fromExpression: false 는 믿지 않는다(배열 없음 → 표현식)', async () => {
+        await provider.buildTools({
+          config: {
+            mcpServers: [
+              { integrationId: integration.id, fromExpression: false },
+            ],
+          },
+          workspaceId: 'ws-1',
+          executionId: 'exec-user-key',
+          nodeId: 'node-1',
+        });
+
+        expect(integrations.getForExecution).toHaveBeenCalledWith(
+          integration.id,
+          'ws-1',
+          { nodeId: 'node-1', fromExpression: true },
+          { scope: undefined },
+        );
+      });
+
+      it('배열 길이가 서버 수와 다르면 모든 서버를 표현식으로 조회한다', async () => {
+        await provider.buildTools({
+          config: { mcpServers: [{ integrationId: integration.id }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-misaligned',
+          nodeId: 'node-1',
+          mcpServerFromExpression: [false, false],
+        });
+
+        expect(integrations.getForExecution).toHaveBeenCalledWith(
+          integration.id,
+          'ws-1',
+          { nodeId: 'node-1', fromExpression: true },
+          { scope: undefined },
+        );
+      });
+
+      it('앞 항목이 걸러져도 원래 위치의 값을 읽는다', async () => {
+        await provider.buildTools({
+          config: {
+            mcpServers: [
+              { integrationId: '' },
+              { integrationId: integration.id },
+            ],
+          },
+          workspaceId: 'ws-1',
+          executionId: 'exec-filtered',
+          nodeId: 'node-1',
+          mcpServerFromExpression: [true, false],
+        });
+
+        expect(integrations.getForExecution).toHaveBeenCalledTimes(1);
+        expect(integrations.getForExecution).toHaveBeenCalledWith(
+          integration.id,
+          'ws-1',
+          { nodeId: 'node-1', fromExpression: false },
+          { scope: undefined },
+        );
+      });
     });
 
     it('§6.2 connect+list 성공 → connected serverSummary push (toolCount)', async () => {

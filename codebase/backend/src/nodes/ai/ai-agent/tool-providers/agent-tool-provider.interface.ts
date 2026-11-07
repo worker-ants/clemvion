@@ -58,10 +58,17 @@ export interface ProviderBuildCtx {
   /**
    * 지금 실행 중인 AI 에이전트 노드 ID. 통합을 쓰는 프로바이더가 실행 시점 조회 인자(`use.nodeId`)로 넘긴다. 첫 턴은
    * `context.nodeId`, 재개 · 재시도 턴은 재구성한 상태의 `nodeId` 다. 없으면 워크플로우 작성자를 알 수 없어 개인 통합은
-   * 거절된다(CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」). 서버 항목의 표현식 여부는 `config.mcpServers[]`
-   * 항목의 `fromExpression` 에 있다.
+   * 거절된다(CLE-NODE-INT-COMMON 「IntegrationsService API (실행 엔진용)」). 서버의 표현식 여부는
+   * {@link ProviderBuildCtx.mcpServerFromExpression} 에 있다.
    */
   nodeId?: string | null;
+  /**
+   * `config.mcpServers` 와 같은 위치의 표현식 여부. i 번째 값이 i 번째 서버의 통합 참조가 평가 전 원본에서 표현식이었는지다.
+   * 핸들러가 `markMcpServerRefOrigins` 로 정하고 재개 · 재시도 턴은 상태에서 이어 받는다(CLE-EXEC-STATE 「보존 예외
+   * `_resumeCheckpoint`」). 프로바이더는 `mcpServerUseAt` 로 이 배열만 읽고 서버 항목의 키는 읽지 않는다. 없거나 길이가
+   * 서버 수와 다르면 모든 서버를 표현식으로 본다.
+   */
+  mcpServerFromExpression?: readonly boolean[];
   /**
    * 외부 자원 캐싱 단위. `executionId` 가 같은 buildTools/execute 호출은 같은
    * 노드 실행에 속한다 — provider 는 이 키로 세션 등을 캐시해 한 노드 실행 내에서

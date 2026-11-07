@@ -139,7 +139,7 @@ import {
   AI_LLM_PROVIDER_NODE_TYPES,
   AI_NO_LLM_PROVIDER_MESSAGE,
 } from '../../nodes/ai/llm-provider-rule';
-import { markMcpServerRefOrigins } from '../../nodes/ai/ai-agent/mcp-server-ref-use';
+import { restoreMcpServerOrigins } from '../../nodes/ai/ai-agent/mcp-server-ref-use';
 import {
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
@@ -5737,15 +5737,15 @@ export class ExecutionEngineService
       maxToolCalls: resolvedConfig.maxToolCalls ?? 10,
       conditions: resolvedConfig.conditions ?? [],
       presentationTools: resolvedConfig.presentationTools ?? [],
-      // 체크포인트에 서버 목록이 없으면 노드 설정에서 다시 만든다. 이때 항목의 `fromExpression` 은 첫 턴과 같이
-      // 평가 전 원본과 맞춰 정한다. 노드 설정의 사용자 값을 그대로 쓰면 `fromExpression: false` 로 개인 통합
-      // 사용 판정을 피할 수 있다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」).
-      mcpServers:
-        resumeFields.mcpServers ??
-        markMcpServerRefOrigins(
-          rawNodeConfig.mcpServers,
-          resolvedConfig.mcpServers,
-        ),
+      // 서버 목록과 표현식 여부 배열을 함께 다시 만든다. 목록이 없으면 노드 설정에서 첫 턴처럼 둘 다 다시 정하고
+      // (사용자가 넣은 `fromExpression` 은 쓰지 않는다), 배열이 없는 옛 행은 항목 값을 배열로 옮긴다
+      // (CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」). 위 `...resumeFields` 의 두 키를 덮어쓴다.
+      ...restoreMcpServerOrigins(
+        resumeFields.mcpServers,
+        resumeFields.mcpServerFromExpression,
+        rawNodeConfig.mcpServers,
+        resolvedConfig.mcpServers,
+      ),
       // information_extractor config 필드 재유도 (node.config) + 고유 runtime
       // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —
       // ai_agent 핸들러가 읽지 않으며, IE 핸들러만 자기 필드를 소비한다.
@@ -5860,6 +5860,8 @@ export class ExecutionEngineService
       ragThreshold: s.ragThreshold,
       ragSources: s.ragSources ?? [],
       mcpServers: s.mcpServers ?? [],
+      // 서버 목록과 짝인 표현식 여부. 없으면 빈 배열이라 길이가 어긋나 모든 서버가 표현식으로 판정된다.
+      mcpServerFromExpression: s.mcpServerFromExpression ?? [],
       // information_extractor 고유 runtime state (credential-free) — IE 멀티턴
       // 재개에 필요. ai_agent 의 _resumeState 에는 부재이므로 기본값(빈 객체/0)
       // 으로 inert. allow-list 합집합 정책 (spec §1.3).

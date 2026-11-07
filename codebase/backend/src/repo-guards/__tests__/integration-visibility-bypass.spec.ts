@@ -29,7 +29,7 @@ const SERVICE = path.join(
 const EXECUTION_CALLERS = [
   // 통합 노드 다섯 종의 공통 베이스. `context.nodeId` · `context.rawConfig` 로 `use` 를 만든다.
   'codebase/backend/src/nodes/integration/_base/integration-handler-base.ts',
-  // AI 에이전트 도구 프로바이더. `ProviderBuildCtx.nodeId` 와 서버 항목의 `fromExpression` 으로 `use` 를 만든다.
+  // AI 에이전트 도구 프로바이더. `ProviderBuildCtx.nodeId` 와 표현식 여부 배열 `mcpServerFromExpression` 으로 `use` 를 만든다.
   'codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts',
   'codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts',
   'codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts',

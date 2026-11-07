@@ -365,12 +365,11 @@ describe('MakeshopMcpToolProvider', () => {
       const scope = new ExecutionLookupScope();
 
       await provider.buildTools({
-        config: {
-          mcpServers: [{ integrationId: SID, fromExpression: false }],
-        },
+        config: { mcpServers: [{ integrationId: SID }] },
         workspaceId: 'ws-1',
         executionId: 'exec-1',
         nodeId: 'node-1',
+        mcpServerFromExpression: [false],
         integrationLookupScope: scope,
       });
 
@@ -392,12 +391,15 @@ describe('MakeshopMcpToolProvider', () => {
       );
     });
 
-    it('fromExpression 이 없는 서버 항목(옛 체크포인트)은 표현식으로 조회한다', async () => {
+    // CLE-T-68XG50 — 표현식 여부는 평행 배열 `mcpServerFromExpression` 만 읽는다. 서버 항목의 키는 판정에 쓰지 않는다.
+    it('서버 항목의 fromExpression: false 는 믿지 않고 배열이 없으면 표현식으로 조회한다', async () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ status: 'connected' }),
       );
       await provider.buildTools({
-        config: { mcpServers: [{ integrationId: SID }] },
+        config: {
+          mcpServers: [{ integrationId: SID, fromExpression: false }],
+        },
         workspaceId: 'ws-1',
         executionId: 'exec-1',
         nodeId: 'node-1',

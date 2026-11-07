@@ -19,7 +19,7 @@ import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import type { IntegrationUse } from '../../../../modules/integrations/personal-integration-use.js';
 import type { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope.js';
-import { mcpServerRefUse } from '../mcp-server-ref-use.js';
+import { mcpServerUseAt } from '../mcp-server-ref-use.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
 import {
@@ -133,11 +133,12 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
     const tools: ToolDef[] = [];
     const state = this.ensureState(ctx.executionId);
 
-    for (const ref of mcpServers) {
+    for (const [index, ref] of mcpServers.entries()) {
       if (!ref.integrationId) continue;
 
+      // 표현식 여부는 서버 항목이 아니라 같은 위치의 평행 배열에서 읽는다(`mcp-server-ref-use.ts`).
       // 토큰 갱신 뒤 다시 읽는 조회도 같은 `use` 로 판정한다(CLE-INT-MCP 「통합 조회 기준」).
-      const use = mcpServerRefUse(ctx.nodeId, ref);
+      const use = mcpServerUseAt(ctx, index, mcpServers.length);
       let integration: Integration;
       try {
         integration = await this.integrationsService.getForExecution(

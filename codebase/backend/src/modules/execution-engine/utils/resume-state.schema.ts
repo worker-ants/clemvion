@@ -60,6 +60,9 @@ const credentialStripSubsetShape = {
   ragThreshold: z.unknown(),
   ragSources: z.array(z.unknown()),
   mcpServers: z.array(z.unknown()),
+  // `mcpServers` 와 같은 위치의 표현식 여부(i 번째 값이 i 번째 서버). 서버 항목 안에 싣지 않고 따로 둔다
+  // (CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」, `mcp-server-ref-use.ts`). 이 규칙 전에 저장한 행에는 없다.
+  mcpServerFromExpression: z.array(z.boolean()),
   // information_extractor 고유 runtime state (credential-free, spec §1.3 합집합).
   partialResult: z.record(z.string(), z.unknown()),
   collectionRetryCount: z.number(),

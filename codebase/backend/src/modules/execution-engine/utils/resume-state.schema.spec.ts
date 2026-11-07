@@ -34,6 +34,7 @@ describe('resume-state.schema', () => {
     ragThreshold: 0.5,
     ragSources: [],
     mcpServers: [],
+    mcpServerFromExpression: [],
     partialResult: { name: 'Bob' },
     collectionRetryCount: 1,
   };
@@ -138,31 +139,41 @@ describe('resume-state.schema', () => {
     });
   });
 
-  // 개인 통합 사용 판정 — MCP 서버 항목의 `fromExpression` 은 첫 턴에 핸들러가 정해 상태 · 체크포인트로 이어 간다
-  // (CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」). 세 스키마 모두 그 값을 지우지 않아야 재개 턴의 조회가
-  // 리터럴 참조를 표현식으로 오인하지 않는다.
-  describe('mcpServers 항목의 fromExpression', () => {
+  // 개인 통합 사용 판정 — MCP 서버의 표현식 여부는 서버 항목 밖 평행 배열 `mcpServerFromExpression` 으로 상태 ·
+  // 체크포인트에 이어 간다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」). 세 스키마 모두 그 배열을 싣는다.
+  describe('MCP 서버의 표현식 여부 배열', () => {
     const servers = [
-      {
-        integrationId: '11111111-1111-4111-8111-111111111111',
-        fromExpression: false,
-      },
-      {
-        integrationId: '22222222-2222-4222-8222-222222222222',
-        fromExpression: true,
-      },
+      { integrationId: '11111111-1111-4111-8111-111111111111' },
+      { integrationId: '22222222-2222-4222-8222-222222222222' },
     ];
 
     it.each([
       ['resumeCheckpointSchema', resumeCheckpointSchema],
       ['retryStateSchema', retryStateSchema],
       ['resumeStateSchema', resumeStateSchema],
-    ] as const)('%s 가 항목의 값을 그대로 둔다', (_name, schema) => {
+    ] as const)('%s 가 서버 목록과 배열을 함께 싣는다', (_name, schema) => {
       const parsed = schema.parse({
         ...wellFormedCheckpoint,
         mcpServers: servers,
+        mcpServerFromExpression: [false, true],
       });
       expect(parsed.mcpServers).toEqual(servers);
+      expect(parsed.mcpServerFromExpression).toEqual([false, true]);
+    });
+
+    it('resumeCheckpointSchema 는 배열을 필수로 둔다(buildResumeCheckpoint 가 늘 싣는다)', () => {
+      const { mcpServerFromExpression: _omitted, ...withoutFlags } =
+        wellFormedCheckpoint;
+      expect(resumeCheckpointSchema.safeParse(withoutFlags).success).toBe(
+        false,
+      );
+    });
+
+    it('retryStateSchema · resumeStateSchema 는 배열이 없는 옛 행을 받는다', () => {
+      const { mcpServerFromExpression: _omitted, ...withoutFlags } =
+        wellFormedCheckpoint;
+      expect(retryStateSchema.safeParse(withoutFlags).success).toBe(true);
+      expect(resumeStateSchema.safeParse(withoutFlags).success).toBe(true);
     });
   });
 });

@@ -18171,74 +18171,124 @@ describe('ExecutionEngineService', () => {
       expect(resumeState.nodeId).toBe('node-1');
     });
 
-    // 개인 통합 사용 판정 — MCP 서버 항목의 `fromExpression` 은 첫 턴에 정한 값을 이어 받는다
-    // (CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」). 체크포인트에 서버 목록이 없어 노드 설정에서
-    // 다시 만들 때는 첫 턴과 같이 평가 전 원본과 맞춰 정하고 노드 설정의 사용자 값은 쓰지 않는다.
-    describe('MCP 서버 항목의 fromExpression', () => {
+    // 개인 통합 사용 판정 — MCP 서버의 표현식 여부는 서버 항목 밖 평행 배열 `mcpServerFromExpression` 으로
+    // 첫 턴에 정한 값을 이어 받는다(CLE-EXEC-STATE 「보존 예외 `_resumeCheckpoint`」, CLE-T-68XG50).
+    // 배열이 없는 옛 체크포인트는 복원할 때 항목 값을 옮기고, 서버 목록이 없으면 노드 설정에서 첫 턴처럼 다시 정한다.
+    describe('MCP 서버의 표현식 여부 배열', () => {
       const A = '11111111-1111-4111-8111-111111111111';
       const B = '22222222-2222-4222-8222-222222222222';
+      const reenter = (
+        execId: string,
+        checkpoint: Record<string, unknown>,
+        nodeMcpServers: unknown,
+        vars: Record<string, unknown> = {},
+      ) => {
+        const cp = cpSubject();
+        const ctx = cp.contextService.createContext(execId, 'wf-1', {
+          initialVariables: { __workspaceId: 'ws-1', ...vars },
+        });
+        return cp.buildRetryReentryState(
+          { id: execId, workflowId: 'wf-1', startedAt: new Date() },
+          {
+            id: 'node-1',
+            type: 'ai_agent',
+            config: { mode: 'multi_turn', mcpServers: nodeMcpServers },
+          },
+          ctx,
+          { messages: [], turnCount: 1, ...checkpoint },
+          { resumeMode: true },
+        ).resumeState;
+      };
 
-      it('buildResumeCheckpoint keeps fromExpression on mcpServers items', () => {
-        const servers = [
-          { integrationId: A, fromExpression: false },
-          { integrationId: B, fromExpression: true },
-        ];
+      it('buildResumeCheckpoint 는 서버 목록과 배열을 함께 싣는다', () => {
         const checkpoint = cpSubject().buildResumeCheckpoint({
           messages: [],
-          mcpServers: servers,
+          mcpServers: [{ integrationId: A }, { integrationId: B }],
+          mcpServerFromExpression: [false, true],
         });
-        expect(checkpoint?.mcpServers).toEqual(servers);
+        expect(checkpoint?.mcpServers).toEqual([
+          { integrationId: A },
+          { integrationId: B },
+        ]);
+        expect(checkpoint?.mcpServerFromExpression).toEqual([false, true]);
       });
 
-      it('buildRetryReentryState keeps the checkpoint mcpServers as they are', () => {
-        const cp = cpSubject();
-        const ctx = cp.contextService.createContext('exec-mcp-1', 'wf-1', {
-          initialVariables: { __workspaceId: 'ws-1' },
+      it('buildResumeCheckpoint 는 상태에 배열이 없으면 빈 배열을 싣는다(모든 서버가 표현식)', () => {
+        const checkpoint = cpSubject().buildResumeCheckpoint({
+          messages: [],
+          mcpServers: [{ integrationId: A }],
         });
-        const servers = [{ integrationId: A, fromExpression: false }];
-        const { resumeState } = cp.buildRetryReentryState(
-          { id: 'exec-mcp-1', workflowId: 'wf-1', startedAt: new Date() },
+        expect(checkpoint?.mcpServerFromExpression).toEqual([]);
+      });
+
+      it('buildRetryReentryState 는 체크포인트의 목록과 배열을 그대로 쓴다(노드 설정과 다시 맞추지 않는다)', () => {
+        const resumeState = reenter(
+          'exec-mcp-1',
           {
-            id: 'node-1',
-            type: 'ai_agent',
-            config: {
-              mode: 'multi_turn',
-              mcpServers: [{ integrationId: B, fromExpression: false }],
-            },
+            mcpServers: [{ integrationId: A }],
+            mcpServerFromExpression: [false],
           },
-          ctx,
-          { messages: [], turnCount: 1, mcpServers: servers },
-          { resumeMode: true },
+          [{ integrationId: '{{ $var.x }}' }],
         );
-        expect(resumeState.mcpServers).toEqual(servers);
+        expect(resumeState.mcpServers).toEqual([{ integrationId: A }]);
+        expect(resumeState.mcpServerFromExpression).toEqual([false]);
       });
 
-      it('buildRetryReentryState marks rebuilt mcpServers against node.config, ignoring a user-supplied fromExpression', () => {
-        const cp = cpSubject();
-        const ctx = cp.contextService.createContext('exec-mcp-2', 'wf-1', {
-          initialVariables: { __workspaceId: 'ws-1', mcpId: B },
-        });
-        const { resumeState } = cp.buildRetryReentryState(
-          { id: 'exec-mcp-2', workflowId: 'wf-1', startedAt: new Date() },
+      it('buildResumeCheckpoint → buildRetryReentryState 왕복에서 배열이 이어진다', () => {
+        const checkpoint = cpSubject().buildResumeCheckpoint({
+          messages: [],
+          turnCount: 1,
+          mcpServers: [{ integrationId: A }, { integrationId: B }],
+          mcpServerFromExpression: [true, false],
+        }) as Record<string, unknown>;
+        const resumeState = reenter('exec-mcp-rt', checkpoint, []);
+        expect(resumeState.mcpServers).toEqual([
+          { integrationId: A },
+          { integrationId: B },
+        ]);
+        expect(resumeState.mcpServerFromExpression).toEqual([true, false]);
+      });
+
+      it('배열이 없는 옛 체크포인트는 항목 값을 배열로 옮기고 항목에서 키를 지운다', () => {
+        const resumeState = reenter(
+          'exec-mcp-legacy',
           {
-            id: 'node-1',
-            type: 'ai_agent',
-            config: {
-              mode: 'multi_turn',
-              mcpServers: [
-                { integrationId: A, fromExpression: true },
-                { integrationId: '{{ $var.mcpId }}', fromExpression: false },
-              ],
-            },
+            mcpServers: [
+              { integrationId: A, fromExpression: false },
+              { integrationId: B, fromExpression: true },
+              { integrationId: B },
+            ],
           },
-          ctx,
-          { messages: [], turnCount: 1 },
-          { resumeMode: true },
+          [],
         );
         expect(resumeState.mcpServers).toEqual([
-          { integrationId: A, fromExpression: false },
-          { integrationId: B, fromExpression: true },
+          { integrationId: A },
+          { integrationId: B },
+          { integrationId: B },
         ]);
+        expect(resumeState.mcpServerFromExpression).toEqual([
+          false,
+          true,
+          true,
+        ]);
+      });
+
+      it('서버 목록이 없으면 노드 설정에서 첫 턴처럼 다시 정하고 사용자가 넣은 fromExpression 은 쓰지 않는다', () => {
+        const resumeState = reenter(
+          'exec-mcp-2',
+          // 목록과 짝이 아닌 배열은 버린다.
+          { mcpServerFromExpression: [false, false] },
+          [
+            { integrationId: A, fromExpression: true },
+            { integrationId: '{{ $var.mcpId }}', fromExpression: false },
+          ],
+          { mcpId: B },
+        );
+        expect(resumeState.mcpServers).toEqual([
+          { integrationId: A },
+          { integrationId: B },
+        ]);
+        expect(resumeState.mcpServerFromExpression).toEqual([false, true]);
       });
     });
 

@@ -14,7 +14,8 @@ import {
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service';
-import { mcpServerRefUse } from '../mcp-server-ref-use';
+import type { IntegrationUse } from '../../../../modules/integrations/personal-integration-use.js';
+import { mcpServerUseAt } from '../mcp-server-ref-use';
 import {
   McpClientService,
   McpConnectParams,
@@ -96,12 +97,19 @@ class McpBuildPhaseError extends Error {
 /** McpServerRef as declared in `aiAgentNodeConfigSchema.mcpServers`. */
 interface McpServerRefConfig {
   integrationId: string;
-  /** 첫 턴에 핸들러가 정한 표현식 여부. 사용자 설정 값이 아니다(`mcp-server-ref-use.ts`). */
-  fromExpression?: boolean;
   enabledTools?: string[];
   includeResources?: boolean;
   includePrompts?: boolean;
   toolOverrides?: Array<{ toolName: string; description?: string }>;
+}
+
+/**
+ * 서버 항목과 그 조회 인자. `use` 는 `integrationId` 가 없는 항목을 거르기 전의 위치로 정한다. 표현식 여부 배열은
+ * `config.mcpServers` 전체와 같은 위치라서 거른 뒤의 위치로 읽으면 다른 서버의 값을 읽는다.
+ */
+interface ResolvedMcpServerRef {
+  ref: McpServerRefConfig;
+  use: IntegrationUse;
 }
 
 /**
@@ -324,7 +332,7 @@ export class McpToolProvider implements AgentToolProvider {
   }
 
   async buildTools(ctx: ProviderBuildCtx): Promise<ToolDef[]> {
-    const refs = this.parseRefs(ctx.config);
+    const refs = this.parseRefs(ctx);
     if (refs.length === 0) return [];
     if (!ctx.executionId) {
       // Without an executionId we have no scope key to tie sessions to a
@@ -338,12 +346,13 @@ export class McpToolProvider implements AgentToolProvider {
 
     const execId = ctx.executionId;
     const sessions = this.getOrCreateSessionMap(execId);
-    const sidMap = assignSids(refs.map((r) => r.integrationId));
+    const sidMap = assignSids(refs.map((r) => r.ref.integrationId));
 
     const settled = await Promise.allSettled(
-      refs.map((ref) =>
+      refs.map(({ ref, use }) =>
         this.materializeServer(
           ref,
+          use,
           ctx,
           execId,
           sessions,
@@ -359,7 +368,7 @@ export class McpToolProvider implements AgentToolProvider {
         out.push(...r.value);
       } else {
         McpToolProvider.logger.warn(
-          `MCP server ${refs[i].integrationId} build failed — skipping: ${
+          `MCP server ${refs[i].ref.integrationId} build failed — skipping: ${
             r.reason instanceof Error ? r.reason.message : String(r.reason)
           }`,
         );
@@ -587,15 +596,24 @@ export class McpToolProvider implements AgentToolProvider {
     return m;
   }
 
-  private parseRefs(config: Record<string, unknown>): McpServerRefConfig[] {
-    const raw = config.mcpServers;
+  private parseRefs(ctx: ProviderBuildCtx): ResolvedMcpServerRef[] {
+    const raw = ctx.config.mcpServers;
     if (!Array.isArray(raw)) return [];
-    return raw.filter(
-      (r): r is McpServerRefConfig =>
-        !!r &&
-        typeof (r as { integrationId?: unknown }).integrationId === 'string' &&
-        (r as { integrationId: string }).integrationId.length > 0,
-    );
+    const out: ResolvedMcpServerRef[] = [];
+    raw.forEach((r: unknown, index) => {
+      if (
+        !r ||
+        typeof (r as { integrationId?: unknown }).integrationId !== 'string' ||
+        (r as { integrationId: string }).integrationId.length === 0
+      ) {
+        return;
+      }
+      out.push({
+        ref: r as McpServerRefConfig,
+        use: mcpServerUseAt(ctx, index, raw.length),
+      });
+    });
+    return out;
   }
 
   /**
@@ -612,6 +630,7 @@ export class McpToolProvider implements AgentToolProvider {
    */
   private async materializeServer(
     ref: McpServerRefConfig,
+    use: IntegrationUse,
     ctx: ProviderBuildCtx,
     execId: string,
     sessions: Map<string, ServerEntry>,
@@ -627,7 +646,7 @@ export class McpToolProvider implements AgentToolProvider {
     const inflightKey = `${execId}:${ref.integrationId}`;
     let pending = this.inflight.get(inflightKey);
     if (!pending) {
-      pending = this.openServer(ref, ctx, sid).finally(() => {
+      pending = this.openServer(ref, use, ctx, sid).finally(() => {
         this.inflight.delete(inflightKey);
       });
       this.inflight.set(inflightKey, pending);
@@ -681,13 +700,14 @@ export class McpToolProvider implements AgentToolProvider {
    */
   private async openServer(
     ref: McpServerRefConfig,
+    use: IntegrationUse,
     ctx: ProviderBuildCtx,
     sid: string,
   ): Promise<ServerEntry | null> {
     const integration = await this.integrationsService.getForExecution(
       ref.integrationId,
       ctx.workspaceId,
-      mcpServerRefUse(ctx.nodeId, ref),
+      use,
       { scope: ctx.integrationLookupScope },
     );
     if (integration.serviceType !== 'mcp') {
