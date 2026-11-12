@@ -8,16 +8,21 @@ import {
   assertMatchesContract,
   contractForDto,
 } from '../src/shared/testing/response-contract';
-import { DashboardSummaryDto } from '../src/modules/dashboard/dto/responses/dashboard-response.dto';
 import {
+  DashboardSummaryDto,
+  RecentExecutionDto,
+} from '../src/modules/dashboard/dto/responses/dashboard-response.dto';
+import {
+  LlmUsageByModelDto,
   LlmUsageSummaryDto,
+  LlmUsageTimeseriesItemDto,
   StatisticsSummaryDto,
 } from '../src/modules/statistics/dto/responses/statistics-response.dto';
 
 /**
- * e2e: 대시보드 · 통계 요약 응답이 응답 DTO 선언과 맞는가(API 규약 §5.5 「부재 표현」).
+ * e2e: 대시보드 · 통계 응답이 응답 DTO 선언과 맞는가(API 규약 §5.5 「부재 표현」).
  *
- * 세 요약은 서비스가 값을 계산해 돌려준다. 증감률 · 비용 · 상위 provider 는 비교할 직전 구간이나 비용 기록이 없으면
+ * 세 요약과 최근 실행 · LLM 사용 시계열 목록은 서비스가 값을 계산해 돌려준다. 증감률 · 비용 · 상위 provider 는 비교할 직전 구간이나 비용 기록이 없으면
  * `null` 이다. 그래서 같은 DTO 를 **null 인 응답과 값이 있는 응답** 두 번 대조한다. 한쪽만 보면 선언이 그 경우를
  * 덮는지 알 수 없다. 각 경우가 실제로 일어났는지는 값 단언으로 따로 확인한다. 계약 대조만으로는 시드가 빗나가
  * 두 응답이 같은 모양이 돼도 통과한다.
@@ -40,6 +45,8 @@ describe('대시보드 · 통계 요약 응답의 계약 (e2e)', () => {
   let busyWorkflowId: string;
   /** 현재 구간에만 실행이 있는 워크플로우 */
   let quietWorkflowId: string;
+  /** 끝난 실행과 아직 도는 실행을 하나씩 심는 워크스페이스 — 최근 실행 목록용 */
+  let recentWorkspaceId: string;
 
   function headers(ws: string) {
     return { Authorization: `Bearer ${token}`, 'X-Workspace-Id': ws } as const;
@@ -63,6 +70,15 @@ describe('대시보드 · 통계 요약 응답의 계약 (e2e)', () => {
       `INSERT INTO execution (workflow_id, status, started_at, finished_at, duration_ms)
        VALUES ($1, 'completed', $2, $2, 1200)`,
       [workflowId, at],
+    );
+  }
+
+  /** 아직 끝나지 않은 실행 — `finished_at` · `duration_ms` 가 비어 있다 */
+  async function seedRunningExecution(workflowId: string): Promise<void> {
+    await db.query(
+      `INSERT INTO execution (workflow_id, status, started_at)
+       VALUES ($1, 'running', $2)`,
+      [workflowId, new Date()],
     );
   }
 
@@ -113,6 +129,18 @@ describe('대시보드 · 통계 요약 응답의 계약 (e2e)', () => {
     // quiet: 현재 7일에 1건뿐 → 워크플로우로 좁히면 증감률 null.
     await seedExecution(quietWorkflowId, 1);
 
+    recentWorkspaceId = await createTeamWorkspace(
+      BASE_URL,
+      token,
+      uniqueName('DSC-recent'),
+    );
+    const recentWorkflowId = await createWorkflow(
+      recentWorkspaceId,
+      uniqueName('dsc-recent'),
+    );
+    await seedExecution(recentWorkflowId, 1);
+    await seedRunningExecution(recentWorkflowId);
+
     // busy 는 비용이 기록된 호출, quiet 는 비용을 모르는 호출만 둔다.
     await seedLlmUsage({
       workflowId: busyWorkflowId,
@@ -162,6 +190,24 @@ describe('대시보드 · 통계 요약 응답의 계약 (e2e)', () => {
         runs7dPrevious: 1,
         runs7dChangePercent: 200,
       });
+    });
+  });
+
+  describe('RecentExecutionDto', () => {
+    it('끝난 실행은 durationMs 가 숫자, 도는 실행은 null 로 실린다', async () => {
+      const res = await request(BASE_URL)
+        .get('/api/dashboard/recent-executions')
+        .set(headers(recentWorkspaceId));
+      expect(res.status).toBe(200);
+      const rows = res.body.data as Array<Record<string, unknown>>;
+      expect(rows).toHaveLength(2);
+      const contract = await contractForDto(RecentExecutionDto);
+      for (const row of rows) assertMatchesContract(row, contract);
+
+      const running = rows.find((r) => r.status === 'running');
+      const finished = rows.find((r) => r.status === 'completed');
+      expect(running).toHaveProperty('durationMs', null);
+      expect(finished).toHaveProperty('durationMs', 1200);
     });
   });
 
@@ -229,6 +275,10 @@ describe('대시보드 · 통계 요약 응답의 계약 (e2e)', () => {
         byModel: [{ provider: 'local', model: 'dsc-unpriced', costUsd: null }],
       });
       expect(res.body.data).toHaveProperty('totalCostUsd', null);
+      assertMatchesContract(
+        (res.body.data as { byModel: unknown[] }).byModel[0],
+        await contractForDto(LlmUsageByModelDto),
+      );
     });
 
     it('비용이 기록된 호출이 있으면 totalCostUsd 는 숫자다', async () => {
@@ -246,6 +296,32 @@ describe('대시보드 · 통계 요약 응답의 계약 (e2e)', () => {
         totalCostUsd: 0.25,
         topProvider: 'openai',
       });
+      const priced = (
+        res.body.data as { byModel: Array<Record<string, unknown>> }
+      ).byModel.find((m) => m.model === 'dsc-priced');
+      expect(priced).toHaveProperty('costUsd', 0.25);
+      assertMatchesContract(priced, await contractForDto(LlmUsageByModelDto));
+    });
+  });
+
+  describe('LlmUsageTimeseriesItemDto', () => {
+    it('일자 · provider 마다 한 줄이고 비용을 모르면 costUsd 가 null 이다', async () => {
+      const res = await request(BASE_URL)
+        .get('/api/statistics/llm-usage/timeseries')
+        .query({ period: '7d' })
+        .set(headers(workspaceId));
+      expect(res.status).toBe(200);
+      // 응답 본문은 `{ data: [...] }` 다. 항목을 `{ items }` 로 다시 감싸지 않는다.
+      expect(Array.isArray(res.body.data)).toBe(true);
+      const rows = res.body.data as Array<Record<string, unknown>>;
+      const contract = await contractForDto(LlmUsageTimeseriesItemDto);
+      for (const row of rows) assertMatchesContract(row, contract);
+
+      const local = rows.find((r) => r.provider === 'local');
+      const openai = rows.find((r) => r.provider === 'openai');
+      expect(local).toMatchObject({ totalTokens: 100 });
+      expect(local).toHaveProperty('costUsd', null);
+      expect(openai).toMatchObject({ totalTokens: 300, costUsd: 0.25 });
     });
   });
 });

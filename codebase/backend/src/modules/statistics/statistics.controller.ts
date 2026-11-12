@@ -21,7 +21,7 @@ import {
   ErrorAggregationDto,
   ExecutionPeriodItemDto,
   LlmUsageSummaryDto,
-  LlmUsageTimeseriesDto,
+  LlmUsageTimeseriesItemDto,
   NodeStatDto,
   StatisticsSummaryDto,
   TopWorkflowDto,
@@ -142,8 +142,8 @@ export class StatisticsController {
     description:
       '선택된 기간 동안 일자×프로바이더별 토큰 합계와 비용을 시계열로 반환합니다.',
   })
-  @ApiOkWrappedResponse(LlmUsageTimeseriesDto, {
-    description: '일자별 LLM 사용량',
+  @ApiOkWrappedArrayResponse(LlmUsageTimeseriesItemDto, {
+    description: '일자 · 프로바이더별 LLM 사용량',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })

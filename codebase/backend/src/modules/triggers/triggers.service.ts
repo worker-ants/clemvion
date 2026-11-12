@@ -71,8 +71,23 @@ import { buildTriggerListOrderBy } from './triggers-list-sort';
 export type TriggerDetail = Trigger & {
   cronExpression?: string;
   timezone?: string;
-  nextRunAt?: Date | null;
+  nextRunAt?: Date;
 };
+
+/**
+ * schedule 타입 트리거의 조회 응답에 덧붙이는 스케줄 필드. 셋 다 키 생략형이다
+ * ([HTTP API 규약 §5.5](CLE-API-CONV#55-부재-표현-null-과-키-생략) 기준 (b)). 다음 실행 시각이 비어 있으면(cron 해석
+ * 실패 등) `null` 을 싣지 않고 키를 뺀다.
+ */
+function scheduleFieldsOf(
+  schedule: Pick<Schedule, 'cronExpression' | 'timezone' | 'nextRunAt'>,
+): Pick<TriggerDetail, 'cronExpression' | 'timezone' | 'nextRunAt'> {
+  return {
+    cronExpression: schedule.cronExpression,
+    timezone: schedule.timezone,
+    ...(schedule.nextRunAt ? { nextRunAt: schedule.nextRunAt } : {}),
+  };
+}
 
 /**
  * 생성 · PATCH 의 결과. `secrets` 는 그 요청이 일회성 평문을 발급했을 때만 있고 그 밖의 응답에는 키가 없다
@@ -413,11 +428,7 @@ export class TriggersService {
         const schedule = scheduleByTriggerId.get(t.id);
         if (schedule) {
           return this.sanitizeForResponse(
-            Object.assign(t, {
-              cronExpression: schedule.cronExpression,
-              timezone: schedule.timezone,
-              nextRunAt: schedule.nextRunAt,
-            }),
+            Object.assign(t, scheduleFieldsOf(schedule)),
           );
         }
       }
@@ -493,11 +504,7 @@ export class TriggersService {
     });
     if (!schedule) return this.sanitizeForResponse(trigger);
     return this.sanitizeForResponse(
-      Object.assign(trigger, {
-        cronExpression: schedule.cronExpression,
-        timezone: schedule.timezone,
-        nextRunAt: schedule.nextRunAt,
-      }),
+      Object.assign(trigger, scheduleFieldsOf(schedule)),
     );
   }
 
@@ -1860,11 +1867,13 @@ export class TriggersService {
     }>
   > {
     await this.findById(id, workspaceId);
+    // `select` 는 엔티티 프로퍼티 경로로 준다. 컬럼명(`e.started_at`)을 주면 SQL 에는 실려도 엔티티에 담기지 않아
+    // `startedAt` · `durationMs` 가 응답에서 빠진다(TypeORM 은 `별칭.프로퍼티` 만 엔티티 열로 맞춘다).
     const executions = await this.executionRepository
       .createQueryBuilder('e')
-      .select(['e.id', 'e.status', 'e.started_at', 'e.duration_ms'])
+      .select(['e.id', 'e.status', 'e.startedAt', 'e.durationMs'])
       .where('e.trigger_id = :triggerId', { triggerId: id })
-      .orderBy('e.started_at', 'DESC')
+      .orderBy('e.startedAt', 'DESC')
       .limit(10)
       .getMany();
 

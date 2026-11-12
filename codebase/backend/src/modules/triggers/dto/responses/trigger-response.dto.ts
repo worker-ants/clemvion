@@ -64,16 +64,16 @@ export class TriggerDto {
   config: Record<string, unknown>;
 
   /** 엔드포인트 경로 (webhook 타입) */
-  @ApiPropertyOptional({ nullable: true, example: 'abcd1234' })
-  endpointPath?: string | null;
+  @ApiProperty({ type: String, nullable: true, example: 'abcd1234' })
+  endpointPath: string | null;
 
   /** 인증 설정 UUID */
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  authConfigId?: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  authConfigId: string | null;
 
   /** 마지막 실행 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastTriggeredAt?: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  lastTriggeredAt: string | null;
 
   /** Cron 식 (schedule 타입 트리거의 목록·단건 조회 모두 채워짐) */
   @ApiPropertyOptional({ example: '0 9 * * 1-5' })
@@ -83,9 +83,14 @@ export class TriggerDto {
   @ApiPropertyOptional({ example: 'Asia/Seoul' })
   timezone?: string;
 
-  /** 다음 실행 예정 시각 (schedule 타입 트리거의 목록·단건 조회 모두 채워짐) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  nextRunAt?: string | null;
+  /**
+   * 다음 실행 예정 시각 — **키 생략형**이다 (§5.5 기준 (b)).
+   *
+   * `cronExpression` · `timezone` 과 같이 schedule 타입 트리거의 목록 · 단건 조회에만 덧붙는다.
+   * 스케줄의 다음 실행 시각이 비어 있으면(cron 해석 실패 등) `null` 대신 키를 뺀다.
+   */
+  @ApiPropertyOptional({ format: 'date-time' })
+  nextRunAt?: string;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })
@@ -185,6 +190,6 @@ export class TriggerHistoryItemDto {
   startedAt: string;
 
   /** 소요 시간(ms) */
-  @ApiPropertyOptional({ nullable: true })
-  durationMs?: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  durationMs: number | null;
 }

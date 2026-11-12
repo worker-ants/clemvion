@@ -84,12 +84,12 @@ export class ScheduleDto {
   isActive: boolean;
 
   /** 다음 실행 예정 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  nextRunAt?: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  nextRunAt: string | null;
 
   /** 마지막 실행 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastRunAt?: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  lastRunAt: string | null;
 
   /** 파라미터 값 */
   @ApiProperty({ type: 'object', additionalProperties: true })
