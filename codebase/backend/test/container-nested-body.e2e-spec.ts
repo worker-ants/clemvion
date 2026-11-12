@@ -217,7 +217,22 @@ describe('Nested container and Background inside a container body (e2e)', () => 
         foreach(innerId, 'Inner', 'list', outerId),
         transform(leafId, 'Leaf', innerId),
         transform(collectId, 'Collect', outerId),
-        transform(echoId, 'Echo'),
+        // 컨테이너 출력은 다운스트림 식으로 읽는다(container-array-input-meta 와 같은 방식).
+        {
+          id: echoId,
+          type: 'transform',
+          category: 'data',
+          label: 'Echo',
+          config: {
+            operations: [
+              {
+                type: 'set_field',
+                field: 'count',
+                value: '{{ $node["Outer"].output.count }}',
+              },
+            ],
+          },
+        },
       ],
       [
         [startId, 'out', codeId, 'in'],
@@ -235,8 +250,8 @@ describe('Nested container and Background inside a container body (e2e)', () => 
     // 안쪽 본문은 바깥 회차마다 그 회차의 항목 수만큼 돈다(2 + 1).
     expect(await countRuns(executionId, leafId)).toBe(3);
     expect(await countRuns(executionId, collectId)).toBe(2);
-    const outer = await readOutput(executionId, outerId);
-    expect(outer.count).toBe(2);
+    const echo = await readOutput(executionId, echoId);
+    expect(echo.count).toBe(2);
   }, 60_000);
 
   it('enqueues and runs a Background body for every ForEach iteration', async () => {
