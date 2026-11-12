@@ -521,9 +521,14 @@ describe("useWidget — 명령 401 은 갱신을 한 번 시도한 뒤 판정한
     expect(result.current.state.commandFailed).toBeUndefined();
   });
 
+  // `400`(TOKEN_REFRESH_NOT_IN_WINDOW) · `403`(TOKEN_REFRESH_FORBIDDEN) · `429` 도 실행이 끝났다는 증거가 아니라
+  // 네트워크 에러 · 5xx 와 같은 갈래다(CLE-T-7MSJJR 사람 결정). 종료 판정을 `>= 400` 처럼 넓히면 여기서 깨진다.
   it.each<[string, RefreshReply]>([
     ["네트워크 에러", "network"],
     ["5xx", { status: 503 }],
+    ["400", { status: 400 }],
+    ["403", { status: 403 }],
+    ["429", { status: 429 }],
   ])("갱신이 %s 로 실패하면 위젯 세션을 유지한다(REQ-WCSESS-040)", async (_, refresh) => {
     const { server, getEs, result, endedReasons } = await startAt(TEXT_SURFACE);
     server.interactReply = { status: 401, body: { error: { code: "TOKEN_EXPIRED" } } };

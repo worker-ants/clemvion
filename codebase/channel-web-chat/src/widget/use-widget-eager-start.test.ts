@@ -541,11 +541,12 @@ describe("useWidget — eager 시작(§R6)", () => {
     vi.useRealTimers();
   });
 
-  it("§R4: refresh 가 `500` 으로 실패해도 종료로 확정하지 않는다 — 상태 **필터** 축", async () => {
+  it.each([500, 400, 403, 429])("§R4: refresh 가 `%i` 으로 실패해도 종료로 확정하지 않는다 — 상태 **필터** 축(REQ-WCSESS-027)", async (refreshStatus) => {
     // 위 테스트는 "`EiaError` 인가" 축만 가른다(네트워크 reject 는 `EiaError` 가 아니다).
     // `terminal = refreshErr instanceof EiaError` 로 **상태 필터만** 지운 뮤턴트는 그 테스트를
     // 통과한다(실측, testing reviewer 16_42_07). 이 케이스가 그 축을 겨냥한다 — `500` 은
-    // `EiaError` 이지만 `401`/`410` 이 아니므로 종료 대상이 아니다.
+    // `EiaError` 이지만 `401`/`410` 이 아니므로 종료 대상이 아니다. `400`(TOKEN_REFRESH_NOT_IN_WINDOW) ·
+    // `403`(TOKEN_REFRESH_FORBIDDEN) · `429` 도 실행이 끝났다는 증거가 아니라 같은 갈래다(CLE-T-7MSJJR).
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "prev", token: "iext_y", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
@@ -555,7 +556,7 @@ describe("useWidget — eager 시작(§R6)", () => {
       const u = String(url);
       if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
       if (u.includes("/refresh-token")) {
-        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+        return Promise.resolve({ ok: false, status: refreshStatus, json: async () => ({}) } as Response);
       }
       if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
         return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
