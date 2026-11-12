@@ -25,6 +25,33 @@ import type {
  */
 
 /**
+ * AI 대화 노드 출력 봉투의 `status` 값(재개 턴 스냅샷).
+ * 생산자(`buildAiResumedSnapshot`)와 판정자(`isAiResumedWaitingEnvelope`, REST 대기 정규화)가
+ * 같은 값을 쓰도록 여기서만 정의한다. 프런트 `isNodeWaitingForInput` 은 패키지 경계 밖이라
+ * 같은 리터럴을 따로 두고 계약 테스트로 맞춘다.
+ */
+export const AI_RESUMED_OUTPUT_STATUS = 'resumed';
+
+/** AI 대화 노드 출력 봉투의 `meta.interactionType` 값. */
+export const AI_CONVERSATION_INTERACTION_TYPE = 'ai_conversation';
+
+/**
+ * `outputData` 봉투가 AI 대화 재개 턴의 스냅샷인지 본다
+ * (`status === 'resumed'` + `meta.interactionType === 'ai_conversation'`).
+ * form · buttons 의 `resumed` 는 곧 종결되는 마지막 출력이라 `interactionType` 으로 제외한다.
+ */
+export function isAiResumedWaitingEnvelope(outputData: unknown): boolean {
+  const envelope = outputData as {
+    status?: unknown;
+    meta?: { interactionType?: unknown } | null;
+  } | null;
+  return (
+    envelope?.status === AI_RESUMED_OUTPUT_STATUS &&
+    envelope.meta?.interactionType === AI_CONVERSATION_INTERACTION_TYPE
+  );
+}
+
+/**
  * Phase 2.3a — §7.5 rehydration 경로 전용 에러. RehydrateAndResume 의 정상
  * 종결 분기는 RESUME_CHECKPOINT_MISSING / RESUME_INCOMPATIBLE_STATE / RESUME_FAILED
  * 세 코드 중 하나로 마무리되며, 본 클래스로 표현해 outer try/catch 가 분기.
@@ -88,7 +115,7 @@ export function buildConversationMetaFromResumeState(
   const inputTokens = (state.totalInputTokens as number) ?? 0;
   const outputTokens = (state.totalOutputTokens as number) ?? 0;
   return {
-    interactionType: 'ai_conversation',
+    interactionType: AI_CONVERSATION_INTERACTION_TYPE,
     model: state.model,
     inputTokens,
     outputTokens,
@@ -319,13 +346,13 @@ export function buildAiResumedSnapshot(params: {
   };
   delete meta.contextInjection;
   meta.durationMs = 0;
-  meta.interactionType = 'ai_conversation';
+  meta.interactionType = AI_CONVERSATION_INTERACTION_TYPE;
 
   return {
     config: asPlainRecord(previous?.config) ?? fallbackConfig,
     output,
     meta,
-    status: 'resumed',
+    status: AI_RESUMED_OUTPUT_STATUS,
     _resumeState: resumeState,
   };
 }

@@ -66,6 +66,15 @@ import {
 } from './engine-driver.interface';
 
 /**
+ * 재개 스냅샷을 노드 실행 행에 쓸 수 있는 행 상태. 재개 claim 뒤(`running`)이거나
+ * claim 없는 옛 진입(`waiting_for_input`)일 때만 쓴다. 그사이 취소 등으로 종결된 행은 덮지 않는다.
+ */
+const RESUME_SNAPSHOT_PERSISTABLE_ROW_STATUSES: NodeExecutionStatus[] = [
+  NodeExecutionStatus.RUNNING,
+  NodeExecutionStatus.WAITING_FOR_INPUT,
+];
+
+/**
  * C-1 step2 (strangler-fig) — AI 멀티턴 생명주기를 god-class
  * `ExecutionEngineService` 에서 추출한 전담 orchestrator.
  *
@@ -459,22 +468,13 @@ export class AiTurnOrchestrator {
       // Phase 1.1) 후속 turn 입력이 들어와도 §7.5 rehydration 이 구현되기
       // 전까지는 silent skip 된다 (Phase 2 에서 BullMQ continuation-queue +
       // rehydration 으로 본격 해결 예정).
-      const persistedOutput: Record<string, unknown> = {
-        ...(structured ?? nodeOutput),
-      };
-      delete persistedOutput._resumeState;
-      // §7.5 rehydration — full `_resumeState` 는 위에서 strip 하되, 재시작 후
-      // 재개를 위해 credential-strip 부분집합 `_resumeCheckpoint` 를 DB 영속한다.
-      // **`ai_agent` · `information_extractor`** (spec §1.3 allow-list 합집합).
-      // checkpoint allow-list 는 두 핸들러 runtime state 의 합집합이고 config
-      // 필드는 재개 시 node.config 에서 재유도된다. 그 외 ai_conversation 핸들러는
-      // 고유 state 미등록이라 미영속 → 재개 시 graceful reset.
-      if (this.driver.isCheckpointEligibleNodeType(node.type)) {
-        const checkpoint = this.driver.buildResumeCheckpoint(resumeState);
-        if (checkpoint) {
-          persistedOutput._resumeCheckpoint = checkpoint;
-        }
-      }
+      const persistedOutput = this.toPersistedOutputData(
+        node,
+        {
+          ...(structured ?? nodeOutput),
+        },
+        resumeState,
+      );
       // meta.interactionType 명시 — snapshot reconcile 이 정확한 분기로 hydrate.
       nodeExec.outputData = withInteractionMeta(
         persistedOutput,
@@ -596,6 +596,32 @@ export class AiTurnOrchestrator {
   }
 
   /**
+   * 출력 봉투를 노드 실행 행의 `outputData` 에 저장하는 형태로 바꾼다. 대기 저장
+   * (`emitAiWaitingForInput` · `handleAiMessageTurn`)과 재개 스냅샷 저장이 같은 규칙을
+   * 쓰도록 한 곳에 모았다.
+   *
+   * - `_resumeState` 는 뺀다. 엔진 내부 상태이고 자격 증명 후보가 들어 있다.
+   * - 체크포인트 대상 노드(`ai_agent` · `information_extractor`)면 자격 증명을 뺀 부분집합
+   *   `_resumeCheckpoint` 를 싣는다. 비대상 타입은 재시작 뒤 재개(rehydrate)하지 않으므로
+   *   체크포인트가 필요 없다.
+   */
+  private toPersistedOutputData(
+    node: Node,
+    output: Record<string, unknown>,
+    resumeState: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    const { _resumeState: _stripped, ...persisted } = output;
+    void _stripped;
+    if (this.driver.isCheckpointEligibleNodeType(node.type)) {
+      const checkpoint = this.driver.buildResumeCheckpoint(resumeState);
+      if (checkpoint) {
+        persisted._resumeCheckpoint = checkpoint;
+      }
+    }
+    return persisted;
+  }
+
+  /**
    * 재개 스냅샷(`status: 'resumed'`)을 구조화 캐시와 평면 캐시에 싣고 노드 실행 행의
    * `outputData` 에도 저장한다. 재개 턴의 LLM 호출 전에 한 번 부른다. 정본은 NERV
    * `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」 · `CLE-NODE-EXTRACTOR` 「멀티턴 재개」다.
@@ -655,6 +681,9 @@ export class AiTurnOrchestrator {
    * - 대기 저장과 같은 규칙을 따른다. `_resumeState` 는 빼고(엔진 내부 상태 · 자격
    *   증명 후보) 체크포인트 대상 노드면 `_resumeCheckpoint` 를 싣는다. LLM 호출 중
    *   서버가 재시작해도 재개 체크포인트가 남는다.
+   * - 재개 스냅샷은 직전 대기 봉투의 `config` · `output` · `meta` 만 이어 받는다. 그래서
+   *   체크포인트 비대상 노드 타입은 직전 대기 봉투의 `_resumeCheckpoint` 가 재개 행에서
+   *   빠진다. 비대상 타입은 rehydrate 하지 않으므로 의도한 동작이다.
    * - 행 상태가 `running`(재개 claim) 이나 `waiting_for_input`(claim 없는 옛 진입) 일
    *   때만 쓴다. 그사이 취소 등으로 종결된 행의 출력은 덮지 않는다. 엔티티 전체를
    *   `save` 하면 낡은 `status` 까지 다시 쓰므로 `outputData` 한 열만 조건부로 고친다.
@@ -673,26 +702,16 @@ export class AiTurnOrchestrator {
     snapshot: NodeHandlerOutput,
     resumeState: Record<string, unknown>,
   ): Promise<void> {
-    const { _resumeState: _stripped, ...rest } = snapshot as unknown as Record<
-      string,
-      unknown
-    >;
-    void _stripped;
-    const persisted: Record<string, unknown> = { ...rest };
-    if (this.driver.isCheckpointEligibleNodeType(node.type)) {
-      const checkpoint = this.driver.buildResumeCheckpoint(resumeState);
-      if (checkpoint) {
-        persisted._resumeCheckpoint = checkpoint;
-      }
-    }
+    const persisted = this.toPersistedOutputData(
+      node,
+      snapshot as unknown as Record<string, unknown>,
+      resumeState,
+    );
     try {
       const res = await this.nodeExecutionRepository.update(
         {
           id: nodeExec.id,
-          status: In([
-            NodeExecutionStatus.RUNNING,
-            NodeExecutionStatus.WAITING_FOR_INPUT,
-          ]),
+          status: In(RESUME_SNAPSHOT_PERSISTABLE_ROW_STATUSES),
         },
         // JSONB 열이라 `QueryDeepPartialEntity` 가 `Record<string, unknown>` 값을 받지 못한다.
         { outputData: persisted } as QueryDeepPartialEntity<NodeExecution>,
@@ -702,7 +721,7 @@ export class AiTurnOrchestrator {
       }
     } catch (err) {
       this.logger.error(
-        `handleAiMessageTurn: failed to persist resumed snapshot for ` +
+        `persistAiResumedSnapshot: failed to persist resumed snapshot for ` +
           `executionId=${nodeExec.executionId} nodeId=${node.id}: ${
             err instanceof Error ? err.message : String(err)
           }`,
@@ -850,7 +869,9 @@ export class AiTurnOrchestrator {
       );
     }
     // 재개 스냅샷(`status: 'resumed'`) — 실행 내역 관찰용. 연결선 라우팅은 없다.
-    // 행 저장까지 기다린 뒤 LLM 을 부른다(턴 끝 대기 저장과 순서를 지킨다).
+    // 행 저장까지 기다린 뒤 LLM 을 부른다. 병렬로 돌리면 조건부 update 가 턴 끝 대기 ·
+    // 종결 저장보다 늦게 닿아 최종 출력을 `resumed` 로 덮을 수 있다. 순서를 지키려고
+    // 첫 토큰까지의 지연에 DB 왕복 한 번을 의도적으로 더한다.
     await this.publishAiResumedSnapshot(
       contextKey,
       node,
@@ -949,22 +970,15 @@ export class AiTurnOrchestrator {
       // session, but the cross-tab snapshot cannot be hydrated. Warn loudly
       // instead of silently skipping so the gap shows up in logs.
       if (nodeExec) {
-        const { _resumeState: _stripped, ...safe } = adaptedNext as unknown as {
-          _resumeState?: unknown;
-        } & Record<string, unknown>;
-        // §7.5 rehydration — full `_resumeState` 는 strip, credential-strip
-        // 부분집합 `_resumeCheckpoint` 만 DB 영속해 재시작 후 재개를 보장한다.
-        // `ai_agent` · `information_extractor` (emitAiWaitingForInput 와 동일 —
-        // allow-list 합집합, spec §1.3).
-        if (this.driver.isCheckpointEligibleNodeType(node.type)) {
-          const checkpoint = this.driver.buildResumeCheckpoint(
-            _stripped as Record<string, unknown> | undefined,
-          );
-          if (checkpoint) {
-            (safe as Record<string, unknown>)._resumeCheckpoint = checkpoint;
-          }
-        }
-        void _stripped;
+        // §7.5 rehydration — `_resumeState` 는 strip 하고 credential-strip 부분집합
+        // `_resumeCheckpoint` 만 DB 영속해 재시작 후 재개를 보장한다
+        // (`emitAiWaitingForInput` 와 같은 규칙, spec §1.3).
+        const safe = this.toPersistedOutputData(
+          node,
+          adaptedNext as unknown as Record<string, unknown>,
+          (adaptedNext as { _resumeState?: Record<string, unknown> })
+            ._resumeState,
+        );
         nodeExec.outputData = withInteractionMeta(safe, 'ai_conversation');
         try {
           await this.nodeExecutionRepository.save(nodeExec);

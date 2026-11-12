@@ -423,17 +423,29 @@ export function buildConvConfigFromStructured(
 export function isNodeWaitingForInput(ne: NodeExecutionData): boolean {
   if (ne.status === "waiting_for_input") return true;
   if (ne.status === "running" || ne.status === "pending") {
-    const envelope = ne.outputData as {
-      status?: unknown;
-      meta?: { interactionType?: unknown } | null;
-    } | null;
-    if (envelope?.status === "waiting_for_input") return true;
-    return (
-      envelope?.status === "resumed" &&
-      envelope.meta?.interactionType === "ai_conversation"
-    );
+    const status = (ne.outputData as { status?: unknown } | null)?.status;
+    if (status === "waiting_for_input") return true;
+    return isAiResumedWaitingEnvelope(ne.outputData);
   }
   return false;
+}
+
+/**
+ * `outputData` 봉투가 AI 대화 재개 턴의 스냅샷인지 본다
+ * (`status === "resumed"` + `meta.interactionType === "ai_conversation"`).
+ * form · buttons 의 `resumed` 는 곧 종결되는 마지막 출력이라 `interactionType` 으로 제외한다.
+ * backend `isAiResumedWaitingEnvelope`(`ai-conversation-helpers.ts`)와 같은 조건이고,
+ * 두 쪽의 테스트가 같은 케이스 표를 쓴다.
+ */
+export function isAiResumedWaitingEnvelope(outputData: unknown): boolean {
+  const envelope = outputData as {
+    status?: unknown;
+    meta?: { interactionType?: unknown } | null;
+  } | null;
+  return (
+    envelope?.status === "resumed" &&
+    envelope.meta?.interactionType === "ai_conversation"
+  );
 }
 
 export function mapNodeStatus(

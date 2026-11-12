@@ -17,6 +17,7 @@ import {
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
 import { resolveTerminalDurationMs } from '../../shared/utils/terminal-duration';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
+import { isAiResumedWaitingEnvelope } from '../execution-engine/ai-conversation-helpers';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ErrorCode } from '../../nodes/core/error-codes';
@@ -209,15 +210,9 @@ function reconcilePreParkWaitingStatus(
  * 프런트 `isNodeWaitingForInput` 과 같은 조건이어야 한다.
  */
 function isWaitingEnvelope(outputData: unknown): boolean {
-  const envelope = outputData as {
-    status?: unknown;
-    meta?: { interactionType?: unknown } | null;
-  } | null;
-  if (envelope?.status === NodeExecutionStatus.WAITING_FOR_INPUT) return true;
-  return (
-    envelope?.status === 'resumed' &&
-    envelope.meta?.interactionType === 'ai_conversation'
-  );
+  const status = (outputData as { status?: unknown } | null)?.status;
+  if (status === NodeExecutionStatus.WAITING_FOR_INPUT) return true;
+  return isAiResumedWaitingEnvelope(outputData);
 }
 
 @Injectable()

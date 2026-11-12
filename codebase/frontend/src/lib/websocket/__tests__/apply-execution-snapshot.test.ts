@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   applyExecutionSnapshot,
   isNodeWaitingForInput,
+  isAiResumedWaitingEnvelope,
   isTerminalServerExecutionStatus,
   nextExecutionRefetchInterval,
   loadHistoricalExecution,
@@ -795,6 +796,31 @@ describe("isNodeWaitingForInput — 직접 unit", () => {
     ],
   ])("%s → false", (_label, status, outputData) => {
     expect(isNodeWaitingForInput({ status, outputData } as never)).toBe(false);
+  });
+});
+
+// backend `isAiResumedWaitingEnvelope`(ai-conversation-helpers.spec.ts)와 같은 케이스 표.
+describe("isAiResumedWaitingEnvelope — backend 와 같은 케이스 표", () => {
+  it("ai_conversation 재개 스냅샷은 대기다", () => {
+    expect(
+      isAiResumedWaitingEnvelope({
+        status: "resumed",
+        meta: { interactionType: "ai_conversation" },
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["form 의 resumed", { status: "resumed", meta: { interactionType: "form" } }],
+    ["interactionType 없음", { status: "resumed", meta: {} }],
+    ["meta null", { status: "resumed", meta: null }],
+    ["null 봉투", null],
+    [
+      "resumed 아님",
+      { status: "completed", meta: { interactionType: "ai_conversation" } },
+    ],
+  ])("대기가 아니다: %s", (_label, envelope) => {
+    expect(isAiResumedWaitingEnvelope(envelope)).toBe(false);
   });
 });
 

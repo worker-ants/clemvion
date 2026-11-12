@@ -2026,6 +2026,70 @@ describe('AiTurnOrchestrator', () => {
       expect(processMultiTurnMessage).toHaveBeenCalledTimes(1);
     });
 
+    it('체크포인트 비대상 노드는 직전 대기 봉투의 _resumeCheckpoint 를 재개 행에 옮기지 않는다', async () => {
+      const node = makeNode('node-resumed-ineligible', 'ai_agent');
+      registerCapturingHandler('ai_agent', node.id);
+      contextService.createContext(executionId, workflowId);
+      driver.isCheckpointEligibleNodeType.mockReturnValue(false);
+
+      await runTurn(
+        node,
+        {
+          id: 'ne-resumed-ineligible',
+          outputData: {
+            config: { mode: 'multi_turn' },
+            output: { result: { messages: [] } },
+            meta: { interactionType: 'ai_conversation' },
+            status: 'waiting_for_input',
+            _resumeCheckpoint: { schemaVersion: 1, turnCount: 1 },
+          },
+        },
+        { type: 'ai_message', message: 'x' },
+      );
+
+      const persisted = (
+        mockNodeExecutionRepo.update.mock.calls[0] as [
+          unknown,
+          { outputData: Record<string, unknown> },
+        ]
+      )[1].outputData;
+      // 스냅샷은 config · output · meta 만 이어 받는다. 비대상 타입은 rehydrate 하지 않는다.
+      expect(persisted).not.toHaveProperty('_resumeCheckpoint');
+      expect(driver.buildResumeCheckpoint).not.toHaveBeenCalled();
+    });
+
+    it('컨텍스트가 없으면 재개 스냅샷을 싣지 않고 행도 쓰지 않는다(새 throw 를 만들지 않는다)', async () => {
+      const node = makeNode('node-resumed-noctx', 'ai_agent');
+      registerCapturingHandler('ai_agent', node.id);
+      const context = contextService.createContext(executionId, workflowId);
+      // 컨텍스트 소실을 흉내 낸다. 가드가 없으면 setNodeOutput 이 throw 한다.
+      contextService.deleteContext(executionId);
+      const setNodeOutputSpy = jest.spyOn(contextService, 'setNodeOutput');
+
+      // 컨텍스트 소실 뒤의 기존 graceful 경로는 노드를 실패로 종결하며 그 오류를 던진다.
+      // 스냅샷 쪽이 다른 오류(TypeError 등)를 새로 만들지 않아야 한다.
+      await expect(
+        orchestrator.processAiResumeTurn(
+          { id: executionId, status: ExecutionStatus.RUNNING } as never,
+          executionId,
+          node,
+          context,
+          {
+            id: 'ne-resumed-noctx',
+            executionId,
+            startedAt: new Date(),
+            outputData: { status: 'waiting_for_input' },
+          } as never,
+          turnResumeState,
+          { type: 'ai_message', message: 'x' },
+        ),
+      ).rejects.toThrow('AI Agent turn failed');
+
+      expect(setNodeOutputSpy).not.toHaveBeenCalled();
+
+      expect(mockNodeExecutionRepo.update).not.toHaveBeenCalled();
+    });
+
     it('행 저장이 실패해도 오류 로그만 남기고 LLM 호출로 이어 간다', async () => {
       const node = makeNode('node-resumed-dberr', 'ai_agent');
       const { processMultiTurnMessage, seen } = registerCapturingHandler(
