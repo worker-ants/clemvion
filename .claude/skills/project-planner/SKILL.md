@@ -59,7 +59,7 @@ model: opus
 
 - 문서는 영역(`area`) 아래에 둔다. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(가장 가까운 영역 조상, 영역 문서는 자기 폴더).
 - 정식 규약은 `convention` 타입 문서로 둔다.
-- 카탈로그(`CLE-C24-*` · `CLE-MKS-*`)는 codebase 데이터가 정본이고 NERV 문서는 사본이다(결정 D4).
+- 카탈로그(`CLE-C24-CATALOG` · `CLE-MKS-CATALOG` 와 그 하위 문서)는 codebase 데이터가 정본이고 NERV 문서는 사본이다(결정 D4). 같은 영역의 `CLE-C24-META` · `CLE-C24-SCOPES` · `CLE-MKS-META` 는 NERV 가 정본인 규약 문서다.
 
 ## 구현 위임 패턴
 
