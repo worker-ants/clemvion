@@ -194,12 +194,29 @@ export function validationFieldErrors(err: unknown): Record<string, string> | un
   if (!(err instanceof EiaError) || err.status !== 400) return undefined;
   const body = err.detail as { error?: { code?: unknown; details?: unknown } } | undefined;
   if (body?.error?.code !== "VALIDATION_ERROR" || !Array.isArray(body.error.details)) return undefined;
-  const out: Record<string, string> = {};
+  // 서버가 필드 이름을 정하므로 `constructor` · `toString` · `__proto__` 도 올 수 있다. 프로토타입이 없는
+  // 객체로 만들어 `in` 검사와 대입이 그 이름들에서 오동작하지 않게 한다.
+  const out: Record<string, string> = Object.create(null);
   for (const d of body.error.details as Array<{ field?: unknown; message?: unknown }>) {
     if (typeof d?.field !== "string" || typeof d.message !== "string" || !d.message) continue;
-    if (!(d.field in out)) out[d.field] = d.message;
+    if (!Object.hasOwn(out, d.field)) {
+      // `__proto__` 는 일반 대입이 무시되므로 own 속성으로 정의한다.
+      Object.defineProperty(out, d.field, { value: d.message, enumerable: true, writable: true, configurable: true });
+    }
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** 명령 실패의 처리 갈래. `sendCommand` 가 이 값으로 분기한다. */
+export type CommandErrorKind = "gone" | "unauthorized" | "conflict" | "other";
+
+/** `interact` 가 던진 오류를 처리 갈래로 나눈다(410 종료 확정 · 401 토큰 갱신 · 409 재동기화 · 그 밖). */
+export function classifyCommandError(err: unknown): CommandErrorKind {
+  if (!(err instanceof EiaError)) return "other";
+  if (err.status === 410) return "gone";
+  if (err.status === 401) return "unauthorized";
+  if (err.status === 409) return "conflict";
+  return "other";
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   EiaError,
   isTerminalAuthError,
   redactToken,
+  classifyCommandError,
   validationFieldErrors,
   type EventSourceLike,
 } from "@/lib/eia-client";
@@ -20,7 +21,7 @@ import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-ev
 import { threadToMessages } from "@/lib/conversation";
 import { stripTrailingSlash } from "@/lib/api-base";
 import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
-import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
+import { initialState, isTextInputSurface, newLocalId, widgetReducer } from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
 import { useTokenRefresh } from "./use-token-refresh";
@@ -346,7 +347,7 @@ export function useWidget() {
     | ((
         client: EiaClient,
         session: SessionRef,
-        opts?: { allowWhileStreaming?: boolean },
+        opts?: { allowWhileStreaming?: boolean; keepCommandFeedback?: boolean },
       ) => Promise<SeedOutcome>)
     | null
   >(null);
@@ -491,18 +492,23 @@ export function useWidget() {
    * 경우에도 한 번 더 조회한다. 같은 스냅샷을 다시 그릴 뿐이라 해가 없다.
    */
   const resyncSurfaceFromStatus = useCallback(
-    async (client: EiaClient, session: SessionRef): Promise<void> => {
+    async (
+      client: EiaClient,
+      session: SessionRef,
+      resyncOpts?: { keepCommandFeedback?: boolean },
+    ): Promise<void> => {
       const seed = seedWaitingFromStatusRef.current;
       if (!seed) return;
       const gen = worldGenRef.current;
-      const outcome = await seed(client, session, { allowWhileStreaming: true });
+      const seedOpts = { allowWhileStreaming: true, keepCommandFeedback: resyncOpts?.keepCommandFeedback };
+      const outcome = await seed(client, session, seedOpts);
       // seed 안의 세대 검사와 이 검사 사이에는 microtask 경계뿐이라 그 사이 세계가 바뀌는 인터리빙을
       // 테스트로 만들지 못했다(이 검사를 지우는 뮤턴트가 생존한다). 재현 실패는 부재의 증거가 아니라서
       // 남긴다. 바뀐 세계에서 두 번째 조회를 하면 새 대화의 표면을 옛 스냅샷으로 덮을 수 있다.
       if (outcome !== "continue" || isStale(gen)) return;
       const live = sessionRef.current;
       if (!live || live.token === session.token) return;
-      await seed(client, live, { allowWhileStreaming: true });
+      await seed(client, live, seedOpts);
     },
     [isStale, worldGenRef],
   );
@@ -779,7 +785,7 @@ export function useWidget() {
     async (
       client: EiaClient,
       session: SessionRef,
-      opts?: { allowWhileStreaming?: boolean },
+      opts?: { allowWhileStreaming?: boolean; keepCommandFeedback?: boolean },
     ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
@@ -818,6 +824,7 @@ export function useWidget() {
               nodeId: parsed.nodeId,
             },
             threadMessages: threadToMessages(parsed.conversationThread),
+            keepCommandFeedback: opts?.keepCommandFeedback,
           });
         }
         return "continue";
@@ -1007,7 +1014,7 @@ export function useWidget() {
    * 로 나눈 것이 CLE-T-79PFHB 다.
    */
   const sendCommand = useCallback(
-    async (command: InteractCommand) => {
+    async (command: InteractCommand, localId?: string) => {
       const session = sessionRef.current;
       const client = clientRef.current;
       if (!session || !client) return;
@@ -1020,7 +1027,8 @@ export function useWidget() {
         // 옛 세션의 지연 도착 실패로 **살아있는 새 세션을 종료(410)시키거나 에러를 띄우면 안 된다**
         // (cross-session 오종료 — ai-review 2026-07-17 06_53_03 CRITICAL#1).
         if (isStale(gen)) return;
-        if (e instanceof EiaError && e.status === 410) {
+        const kind = classifyCommandError(e);
+        if (kind === "gone") {
           // 410 Gone(대화 종료됨)도 host 에 종료 통지 — SSE terminal·user_ended 와 동일하게
           // conversationEnded 를 발사해 모든 종료 경로의 host 통지를 일관되게 한다(2-sdk §3 wc:event).
           // `finalizeEnded` 경유 — SSE terminal 로 이미 종료된 뒤 in-flight 명령이 410 을 받으면
@@ -1030,7 +1038,7 @@ export function useWidget() {
         }
         // 서버 원문은 콘솔에만 남긴다. 화면에는 catalog 문구만 보인다(REQ-WCSEC-026).
         console.warn("[widget] command failed:", redactToken(e instanceof Error ? e.message : String(e)));
-        if (e instanceof EiaError && e.status === 401) {
+        if (kind === "unauthorized") {
           const outcome = await recoverFromExpiredToken(client, session, gen);
           // `ended` 는 갱신이 거부돼 그 안에서 종료로 확정했고 `stale` 은 그 사이 세계가 바뀌었다.
           if (outcome === "ended" || outcome === "stale" || isStale(gen)) return;
@@ -1039,11 +1047,12 @@ export function useWidget() {
           type: "COMMAND_FAILED",
           command: command.command,
           fieldErrors: command.command === "submit_form" ? validationFieldErrors(e) : undefined,
+          localId,
         });
-        if (e instanceof EiaError && e.status === 409) {
+        if (kind === "conflict") {
           // 표면이 서버와 어긋났다. 스트림은 열려 있어도 다시 그린다(REQ-WCSESS-034). 갱신으로 세션이
           // 바뀌었을 수 있어 지금 세션을 쓴다.
-          void resyncSurfaceFromStatus(client, sessionRef.current ?? session);
+          void resyncSurfaceFromStatus(client, sessionRef.current ?? session, { keepCommandFeedback: true });
         }
       }
     },
@@ -1070,8 +1079,9 @@ export function useWidget() {
         state.phase === "awaiting_user_message" &&
         isTextInputSurface(state.pending)
       ) {
-        dispatch({ type: "USER_MESSAGE", text });
-        void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: text });
+        const localId = newLocalId();
+        dispatch({ type: "USER_MESSAGE", text, localId });
+        void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: text }, localId);
       } else {
         // 큐(최신 1건) — booting/streaming 중 도착한 텍스트. flush effect 가 ai_conversation waiting 시 전송.
         enqueue(text);

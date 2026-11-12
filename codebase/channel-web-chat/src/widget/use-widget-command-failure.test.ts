@@ -365,6 +365,8 @@ describe("useWidget — 명령 409 는 상태 조회로 표면을 다시 맞춘�
     expect(result.current.state.phase).toBe("awaiting_user_message");
     // 되돌린 글은 입력창에 남는다(새 대기 표면이 안내만 지운다).
     expect(result.current.state.composerDraft).toEqual({ text: "어긋난 입력" });
+    // 재동기화가 방금 띄운 실패 안내를 지우지 않는다.
+    expect(result.current.state.commandFailed).toBe(true);
     expect(endedReasons).toEqual([]);
     expect(window.sessionStorage.getItem(STORAGE_KEY)).not.toBeNull();
   });

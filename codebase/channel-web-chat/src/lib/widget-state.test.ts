@@ -415,6 +415,29 @@ describe("widgetReducer — 명령 실패(COMMAND_FAILED · COMMAND_SENT)", () =
     expect(s.fieldErrors).toBeUndefined();
   });
 
+  it("겹친 전송에서 앞 명령의 늦은 실패는 뒤 전송의 말풍선을 거두지 않는다", () => {
+    const s0 = reduce([
+      { type: "BOOTED", executionId: "e1" },
+      { type: "WAITING", interaction: textSurface },
+      { type: "USER_MESSAGE", text: "첫째", localId: "a" },
+      { type: "USER_MESSAGE", text: "둘째", localId: "b" },
+    ]);
+    const stale = widgetReducer(s0, { type: "COMMAND_FAILED", command: "submit_message", localId: "a" });
+    expect(stale.commandFailed).toBe(true);
+    expect(stale.messages.map((m) => m.text)).toEqual(["첫째", "둘째"]);
+    expect(stale.unconfirmedSend?.localId).toBe("b");
+    const own = widgetReducer(s0, { type: "COMMAND_FAILED", command: "submit_message", localId: "b" });
+    expect(own.messages.map((m) => m.text)).toEqual(["첫째"]);
+    expect(own.composerDraft).toEqual({ text: "둘째" });
+  });
+
+  it("keepCommandFeedback 인 WAITING(409 재동기화)은 방금 띄운 안내를 지우지 않는다", () => {
+    const failed = widgetReducer(sentMessage(), { type: "COMMAND_FAILED", command: "submit_message" });
+    const s = widgetReducer(failed, { type: "WAITING", interaction: textSurface, keepCommandFeedback: true });
+    expect(s.commandFailed).toBe(true);
+    expect(s.unconfirmedSend).toBeUndefined();
+  });
+
   it("다시 보낸 메시지(USER_MESSAGE)는 안내와 되돌린 글을 지운다", () => {
     const failed = widgetReducer(sentMessage(), { type: "COMMAND_FAILED", command: "submit_message" });
     const s = widgetReducer(failed, { type: "USER_MESSAGE", text: "질문" });

@@ -317,6 +317,21 @@ describe("validationFieldErrors — Form 검증 실패의 필드 문구(REQ-WCWI
     expect(validationFieldErrors(err)).toEqual({ age: "첫 문구", name: "이름 필요" });
   });
 
+  it("프로토타입 키 이름(constructor · toString · __proto__)도 필드 문구로 남긴다", () => {
+    const out = validationFieldErrors(
+      validation([
+        { field: "constructor", message: "c 문구", code: "INVALID_FIELD" },
+        { field: "toString", message: "t 문구", code: "INVALID_FIELD" },
+        { field: "__proto__", message: "p 문구", code: "INVALID_FIELD" },
+      ]),
+    );
+    expect(out).toBeDefined();
+    expect(Object.hasOwn(out!, "constructor")).toBe(true);
+    expect(out!.constructor).toBe("c 문구");
+    expect(out!.toString).toBe("t 문구");
+    expect(Object.getOwnPropertyDescriptor(out!, "__proto__")?.value).toBe("p 문구");
+  });
+
   it("쓸 수 없는 항목은 건너뛰고 남는 것이 없으면 undefined", () => {
     expect(validationFieldErrors(validation([{ field: 1, message: "x" }, { field: "a", message: "" }, null]))).toBeUndefined();
     expect(validationFieldErrors(validation([]))).toBeUndefined();

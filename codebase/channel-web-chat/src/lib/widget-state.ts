@@ -77,7 +77,14 @@ export interface WidgetState {
    * 되돌린다. 서버가 처리했다는 신호(새 응답 · 새 대기 표면)나 종료가 오면 지운다. 그래서 이 값이 남아 있으면
    * 마지막 메시지가 아직 그 말풍선이다.
    */
-  unconfirmedSend?: { text: string; pending: PendingInteraction | null };
+  unconfirmedSend?: { text: string; pending: PendingInteraction | null; localId?: string };
+}
+
+let localIdSeq = 0;
+/** 메시지 전송 하나를 가리키는 식별자. `USER_MESSAGE` 와 그 명령의 `COMMAND_FAILED` 를 묶는다. */
+export function newLocalId(): string {
+  localIdSeq += 1;
+  return `m${localIdSeq}`;
 }
 
 export const initialState: WidgetState = {
@@ -96,16 +103,28 @@ export type WidgetAction =
   | { type: "START" }
   | { type: "RESTORED"; executionId: string }
   | { type: "BOOTED"; executionId: string }
-  | { type: "WAITING"; interaction: PendingInteraction; threadMessages?: DisplayMessage[] }
+  | {
+      type: "WAITING";
+      interaction: PendingInteraction;
+      threadMessages?: DisplayMessage[];
+      /** 명령 `409` 뒤 재동기화면 true. 방금 띄운 실패 안내와 필드 문구를 지우지 않는다. */
+      keepCommandFeedback?: boolean;
+    }
   | { type: "AI_MESSAGE"; text: string; presentations?: Array<Record<string, unknown>> }
-  | { type: "USER_MESSAGE"; text: string }
+  | { type: "USER_MESSAGE"; text: string; localId?: string }
   /** 명령을 보내기 직전. 지난 명령 실패 안내와 필드 문구를 지운다(REQ-WCWIDGET-056). */
   | { type: "COMMAND_SENT" }
   /**
    * 종료로 확정되지 않은 명령 실패(REQ-WCWIDGET-053). `fieldErrors` 가 있으면 Form 검증 실패라 일반 안내 대신
    * 필드 문구만 보인다(REQ-WCWIDGET-041).
    */
-  | { type: "COMMAND_FAILED"; command: InteractCommand["command"]; fieldErrors?: Record<string, string> }
+  | {
+      type: "COMMAND_FAILED";
+      command: InteractCommand["command"];
+      fieldErrors?: Record<string, string>;
+      /** 실패한 전송의 `USER_MESSAGE.localId`. 다른 전송의 낙관적 말풍선을 되돌리지 않으려고 일치할 때만 되돌린다. */
+      localId?: string;
+    }
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
   | { type: "BLOCKED"; reason?: "origin_not_allowed" | string }
@@ -190,7 +209,7 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       if (state.phase === "ended") return state;
       return {
         ...state,
-        ...CLEARED_COMMAND_FEEDBACK,
+        ...(action.keepCommandFeedback ? { unconfirmedSend: undefined } : CLEARED_COMMAND_FEEDBACK),
         phase: "awaiting_user_message",
         pending: action.interaction,
         messages: action.threadMessages
@@ -212,7 +231,7 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
         commandFailed: undefined,
         fieldErrors: undefined,
         composerDraft: undefined,
-        unconfirmedSend: { text: action.text, pending: state.pending },
+        unconfirmedSend: { text: action.text, pending: state.pending, localId: action.localId },
         phase: "streaming",
         pending: null,
         messages: [...state.messages, userMsg(action.text)],
@@ -222,7 +241,7 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       if (!state.commandFailed && !state.fieldErrors) return state;
       return { ...state, commandFailed: undefined, fieldErrors: undefined };
     case "COMMAND_FAILED":
-      return applyCommandFailure(state, action.command, action.fieldErrors);
+      return applyCommandFailure(state, action.command, action.fieldErrors, action.localId);
     case "ENDED":
       return { ...state, ...CLEARED_COMMAND_FEEDBACK, phase: "ended", pending: null };
     case "ERROR":
@@ -271,6 +290,7 @@ function applyCommandFailure(
   state: WidgetState,
   command: InteractCommand["command"],
   fieldErrors: Record<string, string> | undefined,
+  localId: string | undefined,
 ): WidgetState {
   if (state.phase === "ended" || state.phase === "blocked") return state;
   const next: WidgetState = {
@@ -279,7 +299,8 @@ function applyCommandFailure(
     fieldErrors,
   };
   const sent = state.unconfirmedSend;
-  if (command !== "submit_message" || !sent) return next;
+  // 슬롯은 마지막 전송 하나만 담는다. 실패한 전송이 그 전송이 아니면(겹친 전송) 말풍선을 거두지 않는다.
+  if (command !== "submit_message" || !sent || sent.localId !== localId) return next;
   return {
     ...next,
     phase: "awaiting_user_message",

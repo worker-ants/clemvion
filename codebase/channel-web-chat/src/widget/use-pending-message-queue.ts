@@ -5,6 +5,7 @@ import type { InteractCommand } from "@/lib/eia-types";
 import type { PersistedSession } from "@/lib/session-store";
 import {
   isTextInputSurface,
+  newLocalId,
   type PendingInteraction,
   type WidgetAction,
   type WidgetPhase,
@@ -19,7 +20,7 @@ interface PendingMessageQueueDeps {
   sessionRef: MutableRefObject<PersistedSession | null>;
   /** EIA interact 전송기 — flush 시 `submit_message` 발행. **stable identity 전제**(useWidget 에서 `useCallback(…, [])`):
    *  flush effect deps 에 포함되므로 매 렌더 새 함수면 의도치 않은 effect 재실행을 유발한다. */
-  sendCommand: (command: InteractCommand) => Promise<void>;
+  sendCommand: (command: InteractCommand, localId?: string) => Promise<void>;
   /** 위젯 reducer dispatch — flush 시 `USER_MESSAGE` 반영. */
   dispatch: Dispatch<WidgetAction>;
 }
@@ -61,10 +62,11 @@ export function usePendingMessageQueue({
     if (isTextInputSurface(pending)) {
       const queued = pendingSendRef.current;
       pendingSendRef.current = null;
-      dispatch({ type: "USER_MESSAGE", text: queued });
+      const localId = newLocalId();
+      dispatch({ type: "USER_MESSAGE", text: queued, localId });
       // pending 은 이 분기에서 null 일 수 있다(ai_conversation 도달 전 과도 상태 — isTextInputSurface(null)=true).
       // 따라서 `pending?.nodeId`(옵셔널 체이닝) 필수 — null 이면 nodeId 미동봉으로 submit_message.
-      void sendCommand({ command: "submit_message", nodeId: pending?.nodeId, message: queued });
+      void sendCommand({ command: "submit_message", nodeId: pending?.nodeId, message: queued }, localId);
     } else {
       // 첫 표면이 buttons/form → 텍스트 제출 비대상. 큐 폐기.
       pendingSendRef.current = null;
