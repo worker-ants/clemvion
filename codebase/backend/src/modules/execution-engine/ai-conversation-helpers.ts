@@ -1,4 +1,7 @@
-import type { ResumableMessageSource } from '../../nodes/core/node-handler.interface';
+import type {
+  NodeHandlerOutput,
+  ResumableMessageSource,
+} from '../../nodes/core/node-handler.interface';
 import type { WaitingInteractionType } from './execution-engine.service';
 import type {
   LlmCallRecord,
@@ -245,4 +248,85 @@ export function userMessageSignalApplies(
   source: ResumableMessageSource,
 ): boolean {
   return source !== 'form_submitted';
+}
+
+/** 재개 턴을 연 사용자 입력. 일반 메시지와 AI 가 띄운 폼(`render_form`) 제출 두 가지다. */
+export type AiResumeInteraction =
+  | { type: 'message_received'; content: string }
+  | { type: 'form_submitted'; data: Record<string, unknown> };
+
+function asPlainRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * 멀티턴 AI 재개 스냅샷(`status: 'resumed'`)을 만든다. 엔진이 재개 턴의 LLM 호출
+ * 전에 한 번 싣는 관찰용 스냅샷이고 연결선 라우팅은 없다. 정본은 NERV
+ * `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」 · `CLE-NODE-EXTRACTOR` 「멀티턴 재개」다.
+ *
+ * - `config` 는 직전 대기 스냅샷의 설정 에코를 그대로 쓴다. 없으면 `fallbackConfig`.
+ * - `output` 은 직전 대기 스냅샷을 이어 받는다(정보 추출기의 `output.partial` 포함).
+ *   일반 메시지는 `output.result.messages` 끝에 사용자 메시지를 더하고, 폼 제출은
+ *   다음 턴에 도구 결과로 들어가므로 `messages` 를 그대로 둔다.
+ *   `output.interaction` 은 이번 입력으로 바꾼다.
+ * - `meta` 는 직전 대기 스냅샷의 값을 두되 `contextInjection` 은 빼고
+ *   `durationMs` 는 `0` 으로 둔다(이 시점에는 LLM 호출이 없다).
+ *   `interactionType` 은 직전 대기의 AI 대화 분류를 유지하고 없으면 `ai_conversation` 이다.
+ * - `_resumeState` 는 이번 턴 처리에 쓰는 상태를 그대로 싣는다. DB 에 저장할 때는
+ *   호출 측이 빼야 한다.
+ */
+export function buildAiResumedSnapshot(params: {
+  previous: Record<string, unknown> | undefined;
+  fallbackConfig: Record<string, unknown>;
+  interaction: AiResumeInteraction;
+  receivedAt: string;
+  resumeState: Record<string, unknown>;
+}): NodeHandlerOutput {
+  const { previous, fallbackConfig, interaction, receivedAt, resumeState } =
+    params;
+  const output: Record<string, unknown> = {
+    ...(asPlainRecord(previous?.output) ?? {}),
+  };
+  if (interaction.type === 'message_received') {
+    const result = { ...(asPlainRecord(output.result) ?? {}) };
+    const messages = Array.isArray(result.messages)
+      ? (result.messages as unknown[])
+      : [];
+    result.messages = [
+      ...messages,
+      { role: 'user', content: interaction.content },
+    ];
+    output.result = result;
+    output.interaction = {
+      type: 'message_received',
+      data: { content: interaction.content, role: 'user' },
+      receivedAt,
+    };
+  } else {
+    output.interaction = {
+      type: 'form_submitted',
+      data: interaction.data,
+      receivedAt,
+    };
+  }
+
+  const meta: Record<string, unknown> = {
+    ...(asPlainRecord(previous?.meta) ?? {}),
+  };
+  delete meta.contextInjection;
+  meta.durationMs = 0;
+  meta.interactionType =
+    meta.interactionType === 'ai_form_render'
+      ? 'ai_form_render'
+      : 'ai_conversation';
+
+  return {
+    config: asPlainRecord(previous?.config) ?? fallbackConfig,
+    output,
+    meta,
+    status: 'resumed',
+    _resumeState: resumeState,
+  };
 }

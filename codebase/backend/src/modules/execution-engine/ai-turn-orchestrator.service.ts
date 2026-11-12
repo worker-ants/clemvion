@@ -50,7 +50,9 @@ import {
   buildConversationConfigFromOutput,
   buildConversationMetaFromResumeState,
   buildAiMessageDebugFromResumeState,
+  buildAiResumedSnapshot,
   userMessageSignalApplies,
+  type AiResumeInteraction,
 } from './ai-conversation-helpers';
 // C-1 step3 (W3) — `WaitingInteractionType` 정의는 interaction-type-registry.md
 // §1.1 핀에 따라 엔진 파일에 잔류한다. 타입 전용 import 라 런타임에 소거되어
@@ -272,6 +274,9 @@ export class AiTurnOrchestrator {
         resumeState,
         nodeExec,
         action.type === 'form_submitted' ? 'form_submitted' : 'ai_message',
+        action.type === 'form_submitted'
+          ? toFormDataRecord(action.formData)
+          : undefined,
       );
       if (turn.finalStatus === 'FAILED') {
         await this.finalizeAiNode(
@@ -564,8 +569,9 @@ export class AiTurnOrchestrator {
    * 진행 신호를 1회 emit 한다. `tool_call_*` 와 동형의 **비권위 라이브 신호**로
    * 영속 대상이 아니다 — 권위 출처는 turn 종료 `AI_MESSAGE.messages` 스냅샷.
    * `nodeExecutionId` 는 현재 `waiting_for_input` NodeExecution row PK,
-   * `receivedAt` 은 엔진 수신 시각 (handler 의 `output.interaction.receivedAt`
-   * 과 같은 수신 tick). 호출 게이팅은 {@link userMessageSignalApplies}.
+   * `receivedAt` 은 엔진 수신 시각이고 같은 턴 재개 스냅샷의
+   * `output.interaction.receivedAt` 과 같은 값이다({@link publishAiResumedSnapshot}).
+   * 호출 게이팅은 {@link userMessageSignalApplies}.
    * SoT: spec/5-system/6-websocket-protocol.md §4.4 / spec/4-nodes/3-ai/1-ai-agent.md §7.5.
    */
   private async emitUserMessageLiveSignal(
@@ -573,6 +579,7 @@ export class AiTurnOrchestrator {
     node: Node,
     nodeExec: NodeExecution | null,
     message: string,
+    receivedAt: string,
   ): Promise<void> {
     await this.eventEmitter.emitExecution(
       executionId,
@@ -581,9 +588,54 @@ export class AiTurnOrchestrator {
         nodeExecutionId: nodeExec?.id,
         nodeId: node.id,
         message,
-        receivedAt: new Date().toISOString(),
+        receivedAt,
       },
     );
+  }
+
+  /**
+   * 재개 스냅샷(`status: 'resumed'`)을 구조화 캐시와 평면 캐시에 싣는다. 재개 턴의
+   * LLM 호출 전에 한 번 부른다. 정본은 NERV `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」 ·
+   * `CLE-NODE-EXTRACTOR` 「멀티턴 재개」다.
+   *
+   * 직전 대기 스냅샷은 구조화 캐시에서 먼저 찾고 없으면 대기 행의 `outputData` 를 쓴다.
+   * park 가 턴마다 컨텍스트를 풀기 때문에 재개 턴에서는 보통 구조화 캐시가 비어 있다.
+   * LLM 응답이 오면 대기 · 종결 · 오류 출력이 같은 칸을 덮는다.
+   *
+   * 컨텍스트가 없으면 아무것도 하지 않는다. `setNodeOutput` 이 그 경우 throw 하는데,
+   * 컨텍스트 소실은 LLM 호출 뒤 가드가 graceful 로 처리하는 경로라 여기서 새 throw 를
+   * 만들지 않는다.
+   */
+  private publishAiResumedSnapshot(
+    contextKey: string,
+    node: Node,
+    nodeExec: NodeExecution | null,
+    resumeState: Record<string, unknown>,
+    interaction: AiResumeInteraction,
+    receivedAt: string,
+  ): void {
+    const context = this.contextService.getContext(contextKey);
+    if (!context) return;
+    const previous =
+      (context.structuredOutputCache?.[node.id] as unknown as
+        Record<string, unknown> | undefined) ??
+      nodeExec?.outputData ??
+      undefined;
+    const snapshot = buildAiResumedSnapshot({
+      previous,
+      fallbackConfig: node.config ?? {},
+      interaction,
+      receivedAt,
+      resumeState,
+    });
+    // 평면 캐시를 먼저 쓴다. `setNodeOutput` 은 구조화 캐시를 평면 값에서 다시
+    // 만들어 덮으므로, 스냅샷 원형을 남기려면 구조화 캐시를 나중에 쓴다.
+    this.contextService.setNodeOutput(
+      contextKey,
+      node.id,
+      toEngineFlatShape(snapshot),
+    );
+    this.contextService.setStructuredOutput(contextKey, node.id, snapshot);
   }
 
   /**
@@ -621,6 +673,11 @@ export class AiTurnOrchestrator {
      * `'form_submitted'` 를 결정적으로 전달.
      */
     source: ResumableMessageSource = 'ai_message',
+    /**
+     * `source === 'form_submitted'` 일 때 제출한 폼 값. 재개 스냅샷의
+     * `output.interaction.data` 에 싣는다. `message` 는 같은 값을 JSON 문자열로 바꾼 것이다.
+     */
+    submittedFormData?: Record<string, unknown>,
   ): Promise<{
     resumeState: Record<string, unknown>;
     ended: boolean;
@@ -709,14 +766,28 @@ export class AiTurnOrchestrator {
       );
     }
     // 사용자 발화(q) 조기 노출 — 다음 턴 LLM 호출 전에 1회 emit (§7.5 / WS §4.4).
+    // 라이브 신호와 재개 스냅샷은 같은 수신 시각을 쓴다.
+    const receivedAt = new Date().toISOString();
     if (userMessageSignalApplies(source)) {
       await this.emitUserMessageLiveSignal(
         executionId,
         node,
         nodeExec,
         message,
+        receivedAt,
       );
     }
+    // 재개 스냅샷(`status: 'resumed'`) — 실행 내역 관찰용. 연결선 라우팅은 없다.
+    this.publishAiResumedSnapshot(
+      contextKey,
+      node,
+      nodeExec,
+      resumeState,
+      source === 'form_submitted'
+        ? { type: 'form_submitted', data: submittedFormData ?? {} }
+        : { type: 'message_received', content: message },
+      receivedAt,
+    );
     // spec §7.9 — handler throw (LLM 429 / timeout / connection 등) 시 conversation
     // loop 를 자연 종료시키고 `finalizeAiNode(.., 'FAILED')` 로 노드 상태를
     // FAILED 전이한다. catch 없이 propagate 하면 `waitForAiConversation` 의
@@ -1436,4 +1507,17 @@ export class AiTurnOrchestrator {
       { status: ExecutionStatus.RUNNING },
     );
   }
+}
+
+/**
+ * continuation `form_submitted` 의 `formData` 를 재개 스냅샷용 객체로 맞춘다.
+ * 객체가 아니면(누락 · 배열 · 원시값) 빈 객체다. `message` 쪽
+ * `JSON.stringify(formData ?? {})` 와 같은 기준이다.
+ */
+function toFormDataRecord(formData: unknown): Record<string, unknown> {
+  return formData !== null &&
+    typeof formData === 'object' &&
+    !Array.isArray(formData)
+    ? (formData as Record<string, unknown>)
+    : {};
 }
