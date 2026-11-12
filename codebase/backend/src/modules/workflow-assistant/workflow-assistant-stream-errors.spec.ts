@@ -1,16 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface';
 import {
   ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
   ASSISTANT_STREAM_ERROR_MESSAGES,
-  noLlmConfigMessage,
-  toClientStreamErrorMessage,
-  tooManyToolCallsMessage,
+  assistantStreamError,
+  type AssistantStreamError,
+  type AssistantStreamErrorCode,
 } from './workflow-assistant-stream-errors';
 
 /**
- * REQ-ASSIST-048 — 어시스턴트 SSE `error` 이벤트의 `message` 는 이 모듈의 표 ·
- * 함수에서만 온다. 서버는 코드별 고정 영문만 보낸다.
+ * REQ-ASSIST-048 — 어시스턴트 SSE `error` 이벤트의 `{ code, message }` 는 이 모듈의
+ * 빌더(`assistantStreamError`)에서만 온다. 서버는 코드별 고정 영문만 보낸다.
  */
 
 /**
@@ -26,7 +27,7 @@ const TABLE_CODES = [
   'LLM_OUTPUT_MALFORMED',
   'LLM_RATE_LIMIT',
 ];
-/** 한도 숫자가 문구에 들어가 표 대신 함수(`tooManyToolCallsMessage`)로 두는 코드. */
+/** 한도 숫자가 문구에 들어가 표 대신 `assistantStreamError.tooManyToolCalls` 가 문구를 만드는 코드. */
 const FUNCTION_CODES = ['ASSISTANT_TOO_MANY_TOOL_CALLS'];
 
 /**
@@ -91,64 +92,128 @@ describe('ASSISTANT_STREAM_ERROR_MESSAGES', () => {
   });
 });
 
-describe('toClientStreamErrorMessage', () => {
-  it.each(Object.entries(ASSISTANT_STREAM_ERROR_MESSAGES))(
-    'returns the table message for %s',
-    (code, message) => {
-      expect(toClientStreamErrorMessage(code)).toBe(message);
-    },
-  );
+describe('assistantStreamError', () => {
+  describe('fromLlm', () => {
+    it.each([
+      'LLM_RATE_LIMIT',
+      'LLM_CONNECTION_ERROR',
+      'LLM_OUTPUT_MALFORMED',
+    ] as const)('keeps the %s code with the table message', (code) => {
+      expect(assistantStreamError.fromLlm(code)).toEqual({
+        code,
+        message: ASSISTANT_STREAM_ERROR_MESSAGES[code],
+      });
+    });
 
-  it('falls back to the fixed message for a code that is not in the table', () => {
-    expect(toClientStreamErrorMessage('LLM_SOMETHING_NEW')).toBe(
-      ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
+    // 타입은 위 세 코드로 닫혀 있지만 클라이언트가 런타임에 다른 문자열을 보낼 수 있다.
+    // 코드는 그대로 넘기고 문구만 고정 영문으로 바꾼다.
+    it('falls back to the fixed message for a code that is not in the table', () => {
+      expect(
+        assistantStreamError.fromLlm('LLM_SOMETHING_NEW' as LlmStreamErrorCode),
+      ).toEqual({
+        code: 'LLM_SOMETHING_NEW',
+        message: ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
+      });
+    });
+
+    // `code in table` 로 바꾸면 프로토타입 키가 함수 값을 돌려주고, 그 `message` 는
+    // JSON 직렬화에서 빠져 프런트엔드가 `message` 없는 이벤트를 받는다.
+    it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+      'falls back for the prototype key %s',
+      (code) => {
+        const { message } = assistantStreamError.fromLlm(
+          code as LlmStreamErrorCode,
+        );
+        expect(message).toBe(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE);
+        expect(typeof message).toBe('string');
+      },
+    );
+
+    it('has a fallback without provider detail', () => {
+      expect(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE).not.toMatch(/[가-힣]/);
+      expect(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE).not.toMatch(/https?:/i);
+      expect(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE).not.toContain('sk-');
+    });
+  });
+
+  describe('noLlmConfig', () => {
+    it('uses the table message when no usable config exists', () => {
+      expect(assistantStreamError.noLlmConfig(true)).toEqual({
+        code: 'ASSISTANT_NO_LLM_CONFIG',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
+      });
+    });
+
+    it('uses a separate fixed message when resolving the config failed', () => {
+      const event = assistantStreamError.noLlmConfig(false);
+      expect(event).toEqual({
+        code: 'ASSISTANT_NO_LLM_CONFIG',
+        message: 'Failed to resolve LLM config.',
+      });
+      expect(event.message).not.toBe(
+        assistantStreamError.noLlmConfig(true).message,
+      );
+    });
+  });
+
+  describe('streamFailed', () => {
+    it('uses the table message', () => {
+      expect(assistantStreamError.streamFailed()).toEqual({
+        code: 'ASSISTANT_STREAM_FAILED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+      });
+    });
+  });
+
+  describe('tooManyToolCalls', () => {
+    it.each([
+      ['round-limit', 50, 'round limit (50)', 'tool-call budget'],
+      ['tool-call-budget', 48, 'tool-call budget (48)', 'round limit'],
+    ] as const)(
+      'builds a fixed English message for %s',
+      (kind, limit, expected, otherKind) => {
+        const event = assistantStreamError.tooManyToolCalls(kind, limit);
+        expect(event.code).toBe('ASSISTANT_TOO_MANY_TOOL_CALLS');
+        expect(event.message).toContain(expected);
+        expect(event.message).not.toContain(otherKind);
+        expect(event.message).toMatch(/follow-up message/);
+        // 한국어 예시 문구를 싣지 않는다 (CLE-UI-I18N 규칙 3).
+        expect(event.message).not.toMatch(/[가-힣]/);
+      },
     );
   });
 
-  // `code in table` 로 바꾸면 프로토타입 키가 함수 값을 돌려주고, 그 `message` 는
-  // JSON 직렬화에서 빠져 프런트엔드가 `message` 없는 이벤트를 받는다.
-  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
-    'falls back for the prototype key %s',
-    (code) => {
-      const message = toClientStreamErrorMessage(code);
-      expect(message).toBe(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE);
-      expect(typeof message).toBe('string');
-    },
-  );
-
-  it('has a fallback without provider detail', () => {
-    expect(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE).not.toMatch(/[가-힣]/);
-    expect(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE).not.toMatch(/https?:/i);
-    expect(ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE).not.toContain('sk-');
-  });
-});
-
-describe('noLlmConfigMessage', () => {
-  it('uses the table message when no usable config exists', () => {
-    expect(noLlmConfigMessage(true)).toBe(
-      ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
-    );
-  });
-
-  it('uses a separate fixed message when resolving the config failed', () => {
-    const message = noLlmConfigMessage(false);
-    expect(message).toBe('Failed to resolve LLM config.');
-    expect(message).not.toBe(noLlmConfigMessage(true));
-  });
-});
-
-describe('tooManyToolCallsMessage', () => {
+  // 빌더 결과는 SSE `data` 로 그대로 직렬화된다. 타입 표지는 런타임 값에 없다.
   it.each([
-    ['round-limit', 50, 'round limit (50)'],
-    ['tool-call-budget', 48, 'tool-call budget (48)'],
-  ] as const)(
-    'builds a fixed English message for %s',
-    (kind, limit, expected) => {
-      const message = tooManyToolCallsMessage(kind, limit);
-      expect(message).toContain(expected);
-      expect(message).toMatch(/follow-up message/);
-      // 한국어 예시 문구를 싣지 않는다 (CLE-UI-I18N 규칙 3).
-      expect(message).not.toMatch(/[가-힣]/);
-    },
-  );
+    ['fromLlm', () => assistantStreamError.fromLlm('LLM_RATE_LIMIT')],
+    ['noLlmConfig', () => assistantStreamError.noLlmConfig(false)],
+    ['streamFailed', () => assistantStreamError.streamFailed()],
+    [
+      'tooManyToolCalls',
+      () => assistantStreamError.tooManyToolCalls('round-limit', 50),
+    ],
+  ] as const)('%s returns a plain { code, message } object', (_name, build) => {
+    const event = build();
+    expect(Object.keys(event).sort()).toEqual(['code', 'message']);
+    expect(JSON.parse(JSON.stringify(event))).toEqual(event);
+  });
+
+  /**
+   * 코드 유니온과 빌더 표지는 타입 검사에서만 동작한다. jest 는 타입을 지우므로 이
+   * 단언은 build 단계의 타입체크 ratchet(`tsconfig.json` 이 spec 을 포함한다)이 본다.
+   * 제약이 풀리면 아래 `@ts-expect-error` 가 «쓰이지 않는 지시어»(TS2578)가 되어
+   * ratchet 이 늘어난다.
+   */
+  it('rejects unknown codes and hand-built payloads (types — the build typecheck ratchet checks)', () => {
+    // @ts-expect-error — 유니온 밖의 코드는 SSE `error` 코드가 아니다
+    const unknownCode: AssistantStreamErrorCode = 'ASSISTANT_TYPO';
+    // @ts-expect-error — 빌더를 거치지 않은 객체는 `AssistantStreamError` 가 아니다
+    const handBuilt: AssistantStreamError = {
+      code: 'ASSISTANT_STREAM_FAILED',
+      message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+    };
+    // @ts-expect-error — 어시스턴트 코드는 LLM 클라이언트 코드 자리에 넣을 수 없다
+    assistantStreamError.fromLlm('ASSISTANT_STREAM_FAILED');
+    expect([unknownCode, handBuilt]).toHaveLength(2);
+  });
 });

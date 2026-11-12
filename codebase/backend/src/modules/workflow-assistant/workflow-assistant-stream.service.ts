@@ -48,10 +48,8 @@ import {
 } from './tools/assistant-turn-persistence.service';
 import { buildSystemPrompt } from './prompts/system-prompt';
 import {
-  ASSISTANT_STREAM_ERROR_MESSAGES,
-  noLlmConfigMessage,
-  toClientStreamErrorMessage,
-  tooManyToolCallsMessage,
+  assistantStreamError,
+  type AssistantStreamError,
 } from './workflow-assistant-stream-errors';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
@@ -124,7 +122,7 @@ export type AssistantStreamEvent =
       };
     }
   | { event: 'done'; data: { finishReason: string } }
-  | { event: 'error'; data: { code: string; message: string } };
+  | { event: 'error'; data: AssistantStreamError };
 
 // 한 turn 안에서 허용할 tool call 총합은 활성 plan 의 규모에 따라 동적으로
 // 결정된다 (`computeToolCallsBudget`). 기본 48, plan 이 크면 그에 비례해
@@ -225,10 +223,7 @@ export class WorkflowAssistantStreamService {
       }
       yield {
         event: 'error',
-        data: {
-          code: 'ASSISTANT_NO_LLM_CONFIG',
-          message: noLlmConfigMessage(configUnavailable),
-        },
+        data: assistantStreamError.noLlmConfig(configUnavailable),
       };
       return;
     }
@@ -376,13 +371,10 @@ export class WorkflowAssistantStreamService {
       if (roundCount > MAX_TOOL_LOOP_ROUNDS) {
         yield {
           event: 'error',
-          data: {
-            code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-            message: tooManyToolCallsMessage(
-              'round-limit',
-              MAX_TOOL_LOOP_ROUNDS,
-            ),
-          },
+          data: assistantStreamError.tooManyToolCalls(
+            'round-limit',
+            MAX_TOOL_LOOP_ROUNDS,
+          ),
         };
         await this.turnPersistence.persistAssistantTurn(
           sessionId,
@@ -430,13 +422,10 @@ export class WorkflowAssistantStreamService {
             if (totalToolCallsThisTurn > toolCallsBudget) {
               yield {
                 event: 'error',
-                data: {
-                  code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-                  message: tooManyToolCallsMessage(
-                    'tool-call-budget',
-                    toolCallsBudget,
-                  ),
-                },
+                data: assistantStreamError.tooManyToolCalls(
+                  'tool-call-budget',
+                  toolCallsBudget,
+                ),
               };
               hadError = true;
               break;
@@ -742,10 +731,7 @@ export class WorkflowAssistantStreamService {
             );
             yield {
               event: 'error',
-              data: {
-                code: ev.code,
-                message: toClientStreamErrorMessage(ev.code),
-              },
+              data: assistantStreamError.fromLlm(ev.code),
             };
             hadError = true;
             break;
@@ -754,13 +740,7 @@ export class WorkflowAssistantStreamService {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         this.logger.error(`Assistant stream failed: ${message}`);
-        yield {
-          event: 'error',
-          data: {
-            code: 'ASSISTANT_STREAM_FAILED',
-            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
-          },
-        };
+        yield { event: 'error', data: assistantStreamError.streamFailed() };
         hadError = true;
       }
 

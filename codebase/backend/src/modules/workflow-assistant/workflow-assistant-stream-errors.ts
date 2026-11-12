@@ -1,9 +1,12 @@
+import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface';
+
 /**
- * 어시스턴트 SSE `error` 이벤트의 `message` 를 정하는 단일 출처 (REQ-ASSIST-048).
+ * 어시스턴트 SSE `error` 이벤트의 `{ code, message }` 를 만드는 단일 출처 (REQ-ASSIST-048).
  *
  * 어시스턴트 모듈(스트림 서비스 · 컨트롤러)이 SSE `error` 이벤트로 보내는 모든
- * `message` 는 이 파일의 표 · 함수에서 온다. 서비스나 컨트롤러에 문구를 인라인
- * 으로 쓰지 않는다. 새 코드를 더할 때 문구를 둘 자리는 이 파일 하나다.
+ * `{ code, message }` 는 이 파일의 빌더 `assistantStreamError` 에서 온다. 서비스나
+ * 컨트롤러에 코드 문자열이나 문구를 인라인으로 쓰지 않는다. 새 코드를 더할 때
+ * 코드와 문구를 둘 자리는 이 파일 하나다.
  *
  * 프로바이더 · 라이브러리 예외 원문에는 요청 URL · 키 조각 · 응답 본문이 섞일
  * 수 있어 화면으로 보내지 않고 서버 로그에만 남긴다 (CWE-209, 에러 응답 규약
@@ -19,6 +22,33 @@
  * (`workflow-assistant-stream-errors.spec.ts`)가 프런트엔드 소스에서
  * `ERROR_MESSAGE_KEYS` 의 코드를 읽어 이 표와 맞춰 보므로 한쪽만 바꾸면 실패한다.
  */
+
+/** 어시스턴트 모듈이 스스로 내는 코드. */
+type AssistantOwnStreamErrorCode =
+  | 'ASSISTANT_NO_LLM_CONFIG'
+  | 'ASSISTANT_STREAM_FAILED'
+  | 'ASSISTANT_TOO_MANY_TOOL_CALLS';
+
+/**
+ * SSE `error` 이벤트의 코드. LLM 클라이언트의 스트림 `error` 코드는 그대로 넘긴다.
+ * 이 유니온 밖의 코드는 타입 검사에서 막힌다.
+ */
+export type AssistantStreamErrorCode =
+  AssistantOwnStreamErrorCode | LlmStreamErrorCode;
+
+/**
+ * 문구를 표로 정하는 코드. `ASSISTANT_TOO_MANY_TOOL_CALLS` 는 한도 숫자가 문구에
+ * 들어가서 표 대신 `tooManyToolCalls` 가 문구를 만든다.
+ */
+type TableStreamErrorCode = Exclude<
+  AssistantStreamErrorCode,
+  'ASSISTANT_TOO_MANY_TOOL_CALLS'
+>;
+
+/**
+ * 코드별 고정 영문. `satisfies` 가 표 코드마다 문구가 하나씩 있는지 본다. LLM
+ * 클라이언트 코드를 유니온에 더하고 문구를 빠뜨리면 컴파일이 실패한다.
+ */
 export const ASSISTANT_STREAM_ERROR_MESSAGES = {
   ASSISTANT_NO_LLM_CONFIG:
     'No LLM config available. Please configure one first.',
@@ -30,52 +60,94 @@ export const ASSISTANT_STREAM_ERROR_MESSAGES = {
     'The connection to the LLM provider failed. Please try again.',
   LLM_OUTPUT_MALFORMED:
     "The model exposed internal control tokens in its response, so the reply was stopped. Switch to another model or check the model's serving settings.",
-} as const satisfies Record<string, string>;
+} as const satisfies Record<TableStreamErrorCode, string>;
 
 /**
- * 위 표에 없는 코드가 LLM 클라이언트에서 올 때 쓰는 고정 영문. 클라이언트의
+ * 위 표에 없는 코드가 LLM 클라이언트에서 올 때 쓰는 고정 영문. 타입은 표에 있는
+ * 코드로 닫혀 있지만 클라이언트가 런타임에 다른 문자열을 보낼 수 있다. 클라이언트의
  * `message` 는 어느 코드에서도 화면으로 보내지 않는다.
  */
 export const ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE =
   'The LLM stream failed. Please try again.';
 
 /**
- * `ASSISTANT_NO_LLM_CONFIG` 의 두 갈래. 설정이 없거나 쓸 수 없어 서비스가
- * `BadRequestException` 을 받으면 표의 문구를, 그 밖의 예외로 설정을 읽지 못하면
- * 아래 문구를 보낸다. 예외 원문은 어느 쪽에서도 싣지 않는다.
+ * `ASSISTANT_NO_LLM_CONFIG` 의 두 갈래 중 설정을 읽지 못한 쪽의 문구. 설정이 없거나
+ * 쓸 수 없으면 표의 문구를 보낸다.
  */
 const NO_LLM_CONFIG_RESOLVE_FAILED_MESSAGE = 'Failed to resolve LLM config.';
 
-export function noLlmConfigMessage(configUnavailable: boolean): string {
-  return configUnavailable
-    ? ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG
-    : NO_LLM_CONFIG_RESOLVE_FAILED_MESSAGE;
-}
+/** 빌더 결과에만 붙는 타입 표지. 런타임 값에는 없다. */
+declare const builtByAssistantStreamError: unique symbol;
 
 /**
- * `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 두 갈래. 한도 숫자가 문구에 들어가는
- * 서버 발행 코드라서 표 대신 함수로 둔다.
- *  - `round-limit`: 한 턴의 LLM 호출 라운드 상한(`MAX_TOOL_LOOP_ROUNDS`)
- *  - `tool-call-budget`: 한 턴의 도구 호출 예산(`computeToolCallsBudget`)
+ * SSE `error` 이벤트의 `data`. `assistantStreamError` 만 이 타입을 만든다. 손으로
+ * 쓴 `{ code, message }` 객체는 표지가 없어 이벤트에 넣을 수 없다. 그래서 코드와
+ * 문구의 짝이 이 파일 밖에서 어긋나지 않는다.
  */
-export function tooManyToolCallsMessage(
-  kind: 'round-limit' | 'tool-call-budget',
-  limit: number,
-): string {
-  return kind === 'round-limit'
-    ? `Per-turn LLM round limit (${limit}) exceeded. Send a follow-up message to continue executing the remaining plan steps.`
-    : `Per-turn tool-call budget (${limit}) exhausted. Send a follow-up message to continue executing the remaining plan steps.`;
+export interface AssistantStreamError {
+  readonly code: AssistantStreamErrorCode;
+  readonly message: string;
+  readonly [builtByAssistantStreamError]: true;
 }
 
-/**
- * LLM 클라이언트의 `error` 이벤트 코드를 화면으로 보낼 `message` 로 바꾼다.
- * 클라이언트의 `message` 원문은 받지 않는다. 호출자가 서버 로그에 남긴다.
- */
-export function toClientStreamErrorMessage(code: string): string {
-  if (Object.hasOwn(ASSISTANT_STREAM_ERROR_MESSAGES, code)) {
-    return ASSISTANT_STREAM_ERROR_MESSAGES[
-      code as keyof typeof ASSISTANT_STREAM_ERROR_MESSAGES
-    ];
-  }
-  return ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE;
+function build(
+  code: AssistantStreamErrorCode,
+  message: string,
+): AssistantStreamError {
+  return { code, message } as AssistantStreamError;
 }
+
+/** SSE `error` 이벤트의 `{ code, message }` 빌더. */
+export const assistantStreamError = {
+  /**
+   * 설정을 고르지 못했다. 설정이 없거나 쓸 수 없어 서비스가
+   * `BadRequestException` 을 받으면(`configUnavailable`) 표의 문구를, 그 밖의
+   * 예외로 설정을 읽지 못하면 별도 문구를 보낸다. 예외 원문은 어느 쪽에서도
+   * 싣지 않는다.
+   */
+  noLlmConfig(configUnavailable: boolean): AssistantStreamError {
+    return build(
+      'ASSISTANT_NO_LLM_CONFIG',
+      configUnavailable
+        ? ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG
+        : NO_LLM_CONFIG_RESOLVE_FAILED_MESSAGE,
+    );
+  },
+
+  /** 스트림을 열기 전 실패와 턴 처리 중 내부 실패. 프로바이더 탓으로 쓰지 않는다. */
+  streamFailed(): AssistantStreamError {
+    return build(
+      'ASSISTANT_STREAM_FAILED',
+      ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+    );
+  },
+
+  /**
+   * 한 턴의 상한을 넘었다. 한도 숫자가 문구에 들어간다.
+   *  - `round-limit`: 한 턴의 LLM 호출 라운드 상한(`MAX_TOOL_LOOP_ROUNDS`)
+   *  - `tool-call-budget`: 한 턴의 도구 호출 예산(`computeToolCallsBudget`)
+   */
+  tooManyToolCalls(
+    kind: 'round-limit' | 'tool-call-budget',
+    limit: number,
+  ): AssistantStreamError {
+    return build(
+      'ASSISTANT_TOO_MANY_TOOL_CALLS',
+      kind === 'round-limit'
+        ? `Per-turn LLM round limit (${limit}) exceeded. Send a follow-up message to continue executing the remaining plan steps.`
+        : `Per-turn tool-call budget (${limit}) exhausted. Send a follow-up message to continue executing the remaining plan steps.`,
+    );
+  },
+
+  /**
+   * LLM 클라이언트의 스트림 `error` 이벤트. 코드는 그대로 넘기고 문구는 표에서
+   * 고른다. 클라이언트의 `message` 원문은 받지 않는다. 호출자가 서버 로그에 남긴다.
+   */
+  fromLlm(code: LlmStreamErrorCode): AssistantStreamError {
+    // `in` 은 프로토타입 키(`constructor` 등)에도 참이라 쓰지 않는다.
+    const message = Object.hasOwn(ASSISTANT_STREAM_ERROR_MESSAGES, code)
+      ? ASSISTANT_STREAM_ERROR_MESSAGES[code]
+      : ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE;
+    return build(code, message);
+  },
+} as const;

@@ -6,12 +6,14 @@ import {
 import {
   ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
   ASSISTANT_STREAM_ERROR_MESSAGES,
-  noLlmConfigMessage,
 } from './workflow-assistant-stream-errors';
 import { AssistantToolRouter } from './tools/assistant-tool-router.service';
 import { AssistantFinishGuard } from './tools/assistant-finish-guard.service';
 import { AssistantTurnPersistenceService } from './tools/assistant-turn-persistence.service';
-import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
+import type {
+  ChatStreamEvent,
+  LlmStreamErrorCode,
+} from '../llm/interfaces/llm-client.interface';
 import { z } from 'zod';
 import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
 import { evaluateMetadataBlockingErrors } from '../../nodes/core/metadata-validation';
@@ -2413,12 +2415,84 @@ describe('WorkflowAssistantStreamService', () => {
     expect((errEvent!.data as { code: string }).code).toBe(
       'ASSISTANT_TOO_MANY_TOOL_CALLS',
     );
-    // 재시도 안내 문구가 포함되어야 함 (UX 친절화).
+    // 예산 갈래(`tool-call-budget`)와 그 한도(기본 48)가 문구에 들어가야 한다.
+    // 라운드 상한 문구나 다른 숫자로 바뀌면 실패한다.
     const budgetMessage = (errEvent!.data as { message: string }).message;
-    expect(budgetMessage).toMatch(/follow-up message|budget/i);
+    expect(budgetMessage).toContain('tool-call budget (48)');
+    expect(budgetMessage).not.toContain('round limit');
+    // 재시도 안내 문구가 포함되어야 함 (UX 친절화).
+    expect(budgetMessage).toMatch(/follow-up message/);
     // 서버 message 는 고정 영문이다 — 한국어 예시 문구를 싣지 않는다
     // (REQ-ASSIST-048, CLE-UI-I18N 규칙 3).
     expect(budgetMessage).not.toMatch(/[가-힣]/);
+  });
+
+  it('stops with the round-limit message after MAX_TOOL_LOOP_ROUNDS (50) tool_calls rounds', async () => {
+    // 라운드마다 도구 호출 하나 + finishReason='tool_calls' 면 서버가 다음
+    // 라운드를 돈다. 도구 호출 예산(기본 48)이 라운드 상한보다 먼저 걸리지
+    // 않도록 승인된 큰 계획(20 step → 예산 68)을 이력에 둔다.
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '시작', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Many steps',
+          summary: '',
+          steps: Array.from({ length: 20 }, (_, i) => ({
+            id: `s${i}`,
+            action: 'add_node',
+            description: `step ${i}`,
+          })),
+          approvedAt: '2026-04-22T00:00:00Z',
+        },
+      },
+    ]);
+    let round = 0;
+    mocks.llmService.chatStream.mockImplementation(() => {
+      round++;
+      return asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: `call_${round}`,
+          name: 'get_current_workflow',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]);
+    });
+
+    const out = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    // 50 라운드를 돌고 51 번째 라운드에 들어가기 전에 멈춘다.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(50);
+    const errEvents = out.filter((e) => e.event === 'error');
+    expect(errEvents).toHaveLength(1);
+    const data = errEvents[0].data as { code: string; message: string };
+    expect(data.code).toBe('ASSISTANT_TOO_MANY_TOOL_CALLS');
+    expect(data.message).toContain('round limit (50)');
+    expect(data.message).not.toContain('tool-call budget');
+    expect(out[out.length - 1]).toEqual({
+      event: 'done',
+      data: { finishReason: 'error' },
+    });
   });
 
   it('forwards optional width/height from the request snapshot into the system prompt JSON', async () => {
@@ -3060,7 +3134,12 @@ describe('WorkflowAssistantStreamService', () => {
       const { service, mocks } = makeService();
       mocks.llmService.chatStream.mockImplementation(() =>
         asyncIter<ChatStreamEvent>([
-          { type: 'error', code: 'LLM_SOMETHING_NEW', message: RAW },
+          // 타입은 세 코드로 닫혀 있지만 클라이언트가 런타임에 다른 문자열을 보낼 수 있다.
+          {
+            type: 'error',
+            code: 'LLM_SOMETHING_NEW' as LlmStreamErrorCode,
+            message: RAW,
+          },
         ]),
       );
 
@@ -3108,7 +3187,7 @@ describe('WorkflowAssistantStreamService', () => {
 
       expect(errorEventOf(events)).toEqual({
         code: 'ASSISTANT_NO_LLM_CONFIG',
-        message: noLlmConfigMessage(false),
+        message: 'Failed to resolve LLM config.',
       });
       expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
       expect(loggedText()).toContain(RAW);
