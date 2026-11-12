@@ -95,6 +95,37 @@ describe('buildDiscordDefaultInteractionResponse', () => {
     });
   });
 
+  it('빈 languageHints.help 는 무시하고 기본 도움말을 쓴다', () => {
+    const res = buildDiscordDefaultInteractionResponse(slash('help'), {
+      ...config,
+      languageHints: { help: '' },
+    }) as { body: { data: { content: string } } };
+
+    expect(res.body.data.content.split('\n')[0]).toBe(
+      '/workflow start - 새 대화 시작',
+    );
+  });
+
+  it('languageHints.help 의 {prefix} 는 바꾸지 않는다', () => {
+    const res = buildDiscordDefaultInteractionResponse(slash('help'), {
+      ...config,
+      languageHints: { help: '/{prefix} 도움말', slashPrefix: 'bot' },
+    }) as { body: { data: { content: string } } };
+
+    expect(res.body.data.content).toBe('/{prefix} 도움말');
+  });
+
+  it('locale 을 모르면 ko 기본 도움말이다', () => {
+    const res = buildDiscordDefaultInteractionResponse(slash('help'), {
+      ...config,
+      languageLocale: 'de' as unknown as 'ko',
+    }) as { body: { data: { content: string } } };
+
+    expect(res.body.data.content.split('\n')[0]).toBe(
+      '/workflow start - 새 대화 시작',
+    );
+  });
+
   it('en locale 수신 문구는 영어다', () => {
     expect(
       buildDiscordDefaultInteractionResponse(slash('cancel'), {

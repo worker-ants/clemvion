@@ -3,6 +3,8 @@ import type {
   InboundInteractionResponse,
 } from '../../types';
 import {
+  pickLocaleDefault,
+  readLanguageHintOverride,
   resolveCommandReceivedMessage,
   type LanguageLocale,
 } from '../../shared/language-hint-defaults';
@@ -81,15 +83,17 @@ export function buildDiscordDefaultInteractionResponse(
   return undefined;
 }
 
-/** `languageHints.help` 가 있으면 그 문구, 없으면 등록한 prefix 를 넣은 기본 도움말이다. */
+/**
+ * `languageHints.help` 가 있으면 그 문구를 그대로 쓴다(`{prefix}` 를 바꾸지 않는다).
+ * 없으면 locale 기본 도움말에 등록한 prefix 를 넣는다. override · locale 규칙은
+ * {@link readLanguageHintOverride} · {@link pickLocaleDefault} 로 다른 문구와 같게 맞춘다.
+ */
 function resolveDiscordHelpText(config: ChatChannelConfig): string {
-  const override = config.languageHints?.help;
-  if (typeof override === 'string' && override.length > 0) return override;
+  const override = readLanguageHintOverride(config.languageHints, 'help');
+  if (override !== undefined) return override;
   const prefix =
     config.languageHints?.slashPrefix ?? DISCORD_DEFAULT_SLASH_PREFIX;
-  const template =
-    config.languageLocale === 'en'
-      ? DISCORD_HELP_DEFAULTS.en
-      : DISCORD_HELP_DEFAULTS.ko;
-  return template.split('{prefix}').join(prefix);
+  return pickLocaleDefault(DISCORD_HELP_DEFAULTS, config.languageLocale)
+    .split('{prefix}')
+    .join(prefix);
 }

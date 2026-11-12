@@ -12,6 +12,8 @@ import {
   resolveCommandReceivedMessage,
   COMMAND_RECEIVED_DEFAULTS,
   makeLocaleResolver,
+  pickLocaleDefault,
+  readLanguageHintOverride,
   type LanguageLocale,
 } from './language-hint-defaults';
 // canonical MarkdownV2 escaper 를 재사용 — 특수문자 집합을 손으로 재선언하면 telegram
@@ -33,6 +35,28 @@ describe('makeLocaleResolver (F-4 3-level lookup factory)', () => {
   });
   it('다른 키의 override 는 영향 없음', () => {
     expect(resolve({ otherKey: 'x' }, 'en')).toBe('english');
+  });
+});
+
+describe('readLanguageHintOverride · pickLocaleDefault', () => {
+  it('비어 있지 않은 문자열 override 만 돌려준다', () => {
+    expect(readLanguageHintOverride({ k: '값' }, 'k')).toBe('값');
+    expect(readLanguageHintOverride({ k: '' }, 'k')).toBeUndefined();
+    expect(readLanguageHintOverride(undefined, 'k')).toBeUndefined();
+    expect(readLanguageHintOverride({ other: 'x' }, 'k')).toBeUndefined();
+    expect(
+      readLanguageHintOverride(
+        { k: 3 } as unknown as Record<string, string>,
+        'k',
+      ),
+    ).toBeUndefined();
+  });
+  it('en 이면 en, 그 밖은 ko 기본값이다', () => {
+    const defaults = { ko: '한글', en: 'english' };
+    expect(pickLocaleDefault(defaults, 'en')).toBe('english');
+    expect(pickLocaleDefault(defaults, 'ko')).toBe('한글');
+    expect(pickLocaleDefault(defaults, undefined)).toBe('한글');
+    expect(pickLocaleDefault(defaults, 'de' as LanguageLocale)).toBe('한글');
   });
 });
 

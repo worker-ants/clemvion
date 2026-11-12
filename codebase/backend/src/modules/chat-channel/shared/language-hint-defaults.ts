@@ -19,6 +19,25 @@ const logger = new Logger('ChatChannelLanguageHint');
 
 export type LanguageLocale = 'ko' | 'en';
 
+/** lookup (1) — `languageHints[key]` 가 비어 있지 않은 문자열이면 그 값, 아니면 `undefined` 다. */
+export function readLanguageHintOverride(
+  languageHints: Record<string, string> | undefined,
+  key: string,
+): string | undefined {
+  const override = languageHints?.[key];
+  return typeof override === 'string' && override.length > 0
+    ? override
+    : undefined;
+}
+
+/** lookup (2)·(3) — `languageLocale` 의 기본 문구, locale 이 없거나 모르는 값이면 ko 다. */
+export function pickLocaleDefault(
+  defaults: Record<LanguageLocale, string>,
+  languageLocale: LanguageLocale | undefined,
+): string {
+  return languageLocale === 'en' ? defaults.en : defaults.ko;
+}
+
 /**
  * languageHints 3-level lookup resolver 공통 factory (F-4) —
  * (1) `languageHints[overrideKey]` 사용자 override(non-empty string) → (2) `languageLocale`
@@ -33,12 +52,9 @@ export function makeLocaleResolver(
   languageHints: Record<string, string> | undefined,
   languageLocale: LanguageLocale | undefined,
 ) => string {
-  return (languageHints, languageLocale) => {
-    const override = languageHints?.[overrideKey];
-    if (typeof override === 'string' && override.length > 0) return override;
-    if (languageLocale === 'en') return defaults.en;
-    return defaults.ko;
-  };
+  return (languageHints, languageLocale) =>
+    readLanguageHintOverride(languageHints, overrideKey) ??
+    pickLocaleDefault(defaults, languageLocale);
 }
 
 /**
