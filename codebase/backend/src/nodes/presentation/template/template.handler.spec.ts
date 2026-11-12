@@ -140,5 +140,137 @@ describe('TemplateHandler', () => {
         config: { outputFormat: 'html' },
       });
     });
+
+    // REQ-TEMPLATE-017 (CLE-T-P69YCH) — 실행 엔진은 스키마 기본값(`html`)을
+    // 채우지 않는다. 저장된 설정에 `outputFormat` 이 없으면 핸들러가 `text` 로
+    // 처리하고 에코에도 `text` 를 싣는다. 엔진 경로처럼 rawConfig 를 넘겨 확인한다.
+    describe('outputFormat fallback (REQ-TEMPLATE-017)', () => {
+      it.each([
+        ['missing', {}],
+        ['undefined', { outputFormat: undefined }],
+        ['null', { outputFormat: null }],
+      ])(
+        'echoes text when the stored outputFormat is %s',
+        async (_label, extra) => {
+          const stored = { template: '<b>Hi</b>', ...extra };
+          const result = (await handler.execute({}, stored, {
+            ...context,
+            rawConfig: Object.freeze({ ...stored }),
+          })) as { config: Record<string, unknown> };
+          expect(result.config.outputFormat).toBe('text');
+          expect(JSON.parse(JSON.stringify(result.config))).toMatchObject({
+            outputFormat: 'text',
+          });
+        },
+      );
+
+      it('keeps an explicit outputFormat instead of the fallback', async () => {
+        const stored = { template: '<b>Hi</b>', outputFormat: 'html' };
+        const result = (await handler.execute({}, stored, {
+          ...context,
+          rawConfig: Object.freeze({ ...stored }),
+        })) as { config: Record<string, unknown> };
+        expect(result.config.outputFormat).toBe('html');
+      });
+    });
+
+    // REQ-TEMPLATE-018 (CLE-T-KESVNR) — `output.rendered` 는 정화하거나 escape
+    // 하지 않은 치환 결과다. 정화는 그리는 쪽이 맡는다(REQ-TEMPLATE-019).
+    describe('rendered is not sanitized or escaped (REQ-TEMPLATE-018)', () => {
+      const unsafe =
+        '<script>alert(1)</script><img src="x" onerror="alert(2)">' +
+        '<a href="javascript:alert(3)">x</a> & < > " \' &amp;';
+
+      it.each(['html', 'markdown', 'text'])(
+        'passes markup through untouched for %s',
+        async (outputFormat) => {
+          const result = (await handler.execute(
+            {},
+            { template: unsafe, outputFormat },
+            context,
+          )) as { output: { rendered: unknown } };
+          expect(result.output.rendered).toBe(unsafe);
+        },
+      );
+    });
+
+    // CLE-NODE-OUTPUT Principle 7 규칙 4 — 표시 전용에서도 `buttons` 원문을
+    // 설정 에코에 싣는다(CLE-T-961M2W). 대기 판단은 status · buttonConfig 로 한다.
+    describe('config.buttons echo', () => {
+      type Result = {
+        config: Record<string, unknown>;
+        status?: string;
+        meta?: Record<string, unknown>;
+      };
+
+      it('echoes buttons on the display-only path', async () => {
+        const result = (await handler.execute(
+          {},
+          { template: 'Hi', outputFormat: 'text', buttons: [] },
+          context,
+        )) as unknown as Result;
+        expect(result.status).toBeUndefined();
+        expect(Object.keys(result.config)).toContain('buttons');
+        expect(result.config.buttons).toEqual([]);
+        expect(result.config.buttonConfig).toBeUndefined();
+      });
+
+      it('echoes the raw buttons value, not the evaluated one', async () => {
+        const result = (await handler.execute(
+          {},
+          { template: 'Hi', outputFormat: 'text', buttons: [] },
+          {
+            ...context,
+            rawConfig: Object.freeze({
+              template: 'Hi',
+              outputFormat: 'text',
+              buttons: '{{ $input.choices }}',
+            }),
+          },
+        )) as unknown as Result;
+        expect(result.status).toBeUndefined();
+        expect(result.config.buttons).toBe('{{ $input.choices }}');
+      });
+
+      it('leaves buttons out of the serialized echo when unset', async () => {
+        const result = (await handler.execute(
+          {},
+          { template: 'Hi', outputFormat: 'text' },
+          {
+            ...context,
+            rawConfig: Object.freeze({ template: 'Hi', outputFormat: 'text' }),
+          },
+        )) as unknown as Result;
+        const serialized = JSON.parse(JSON.stringify(result.config)) as Record<
+          string,
+          unknown
+        >;
+        expect(Object.keys(serialized)).not.toContain('buttons');
+      });
+
+      it('keeps the waiting path: raw buttons on config, evaluated on buttonConfig', async () => {
+        const evaluated = [{ id: 'yes', label: 'Yes' }];
+        const raw = [{ id: 'yes', label: '{{ $var.yesLabel }}' }];
+        const result = (await handler.execute(
+          {},
+          { template: 'Hi', outputFormat: 'text', buttons: evaluated },
+          {
+            ...context,
+            rawConfig: Object.freeze({
+              template: 'Hi',
+              outputFormat: 'text',
+              buttons: raw,
+            }),
+          },
+        )) as unknown as Result;
+        expect(result.status).toBe('waiting_for_input');
+        expect(result.meta).toEqual({
+          interactionType: 'buttons',
+          durationMs: 0,
+        });
+        expect(result.config.buttons).toEqual(raw);
+        expect(result.config.buttonConfig).toEqual({ buttons: evaluated });
+      });
+    });
   });
 });

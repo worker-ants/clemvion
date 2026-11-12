@@ -2,19 +2,19 @@
 id: "CLE-NODE-TABLE"
 title: "Table 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-TABLE-001", "REQ-TABLE-002", "REQ-TABLE-003", "REQ-TABLE-004", "REQ-TABLE-005", "REQ-TABLE-006", "REQ-TABLE-007", "REQ-TABLE-008", "REQ-TABLE-009", "REQ-TABLE-010", "REQ-TABLE-011", "REQ-TABLE-012", "REQ-TABLE-013", "REQ-TABLE-014", "REQ-TABLE-015", "REQ-TABLE-016", "REQ-TABLE-017", "REQ-TABLE-018", "REQ-TABLE-019", "REQ-TABLE-020"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "9ce64b8487221e4a135cda73230eed50cd6004749798271f79cf76aed0a054f4"
+content_hash: "65852f8ea8abe971cdab7bf37fe9733166d725a6e2f98831417ecf02a8214ca8"
 read_as: "approved_fallback"
-task: "CLE-T-W0377J"
+task: "CLE-T-961M2W"
 source_paths: ["spec/4-nodes/6-presentation/2-table.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7ce13749a1389d8e035bb0d53c884e6ad6b32ac620353586b0885a26080d7101"
-etag: "sha256-a7a729963005e0e60f4bd97754fb71628e70ead8f4b9fe2f2b36d8049e2a1a06"
+mirror_sha256: "bfeca0751cc8b6c74a65df35a14e3f034eeb32bff001312a4c004863d5ba43ea"
+etag: "sha256-7ea57e5b253422b9deca25bb171a2dfddf2caeec226985dba89f67d4fa670228"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/2-table.md`, `spec/4-nodes/_product-overview.md` (§9.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,7 +50,7 @@ Table 노드(Table, `table`)는 데이터를 표로 구조화해 보여 주는 P
 - REQ-TABLE-015 WHEN 동적 모드에서 컬럼 라벨에 `{{` 가 있으면 THE SYSTEM SHALL `$dataSource` 컨텍스트로 한 번 평가해 `output.columns` 에 싣는다.
 - REQ-TABLE-016 WHEN 직렬화한 행 배열이 1MB 를 넘으면 THE SYSTEM SHALL 뒤에서부터 원소 단위로 잘라 내고 `output.rowsTruncated`·`output.rowsTotalCount` 를 싣는다.
 - REQ-TABLE-017 WHEN 노드가 결과를 내면 THE SYSTEM SHALL 한도 적용 전 행 수를 `output.totalRows` 에 싣는다.
-- REQ-TABLE-018 WHEN 노드가 설정 에코를 만들면 THE SYSTEM SHALL 민감하지 않은 스키마 필드(`mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder`)를 모두 싣는다.
+- REQ-TABLE-018 WHEN 노드가 설정 에코를 만들면 THE SYSTEM SHALL 민감하지 않은 스키마 필드(`mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder`·`buttons`)를 모두 싣는다.
 - REQ-TABLE-019 IF `columns` 가 비었거나 없으면 THE SYSTEM SHALL 노드 경고 규칙 `table:no-columns` 로 캔버스에 알리고 설정 검증에서 거부한다.
 - REQ-TABLE-020 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 런타임 에러 포트는 쓰지 않는다.
 
@@ -173,7 +173,8 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
     ],
     "pageSize": 20,
     "sortBy": "name",
-    "sortOrder": "asc"
+    "sortOrder": "asc",
+    "buttons": []
   },
   "output": {
     "rows": [
@@ -189,7 +190,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 }
 ```
 
-**설정 에코는 모든 키를 싣는다**: 핸들러는 민감하지 않은 스키마 필드 `mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder` 를 모두 되돌린다. 핸들러가 기본값을 채우는 `mode`·`columns`·`sortOrder` 말고는 원문 값이 없으면 `undefined` 키로 남고 JSON 직렬화에서 빠진다. 위 예시는 `undefined` 필드를 생략했을 뿐 실제 에코 객체에는 모든 키가 있다(`table.handler.ts:166-177`, `configEcho`).
+**설정 에코는 모든 키를 싣는다**: 핸들러는 민감하지 않은 스키마 필드 `mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder`·`buttons` 를 모두 되돌린다. 핸들러가 기본값을 채우는 `mode`·`columns`·`sortOrder` 말고는 원문 값이 없으면 `undefined` 키로 남고 JSON 직렬화에서 빠진다. 위 예시는 `undefined` 필드를 생략했을 뿐 실제 에코 객체에는 모든 키가 있다(`table.handler.ts` 의 `configEcho`).
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
@@ -201,7 +202,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.pageSize?` | number | 설정 에코 | 페이지당 행 수 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 행 수를 자르지 않는다 |
 | `config.sortBy?` | string | 설정 에코 | 기본 정렬 컬럼 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 정렬하지 않는다 |
 | `config.sortOrder` | `'asc'` / `'desc'` | 설정 에코 | 정렬 방향. 설정하지 않았으면 핸들러가 `asc` 를 채운다(`rawConfig.sortOrder ?? sortOrder`) |
-| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의. 표시 전용이면 지금 핸들러가 싣지 않는다. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4 에 맞춰 싣도록 고치는 일은 NERV Task `CLE-T-961M2W` 가 맡는다 |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용에서도 싣는다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). 캔버스에서 만든 노드는 스키마 기본값 `[]` 를 저장하므로 보통 `[]` 가 실린다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 입력 대기 여부는 이 필드가 아니라 `status` 와 `config.buttonConfig` 로 판단한다 |
 | `output.rows` | `Record<string, unknown>[]` | 런타임 | 정적 모드는 `columns[*].field` 기준으로 고른 행, 동적 모드는 `dataSource` 항목별로 평가한 셀. 한도로 잘렸을 수 있다 |
 | `output.totalRows` | number | 런타임 | **한도 적용 전** 행 수(정렬과 `pageSize` 적용 후). `rows.length !== totalRows` 만으로도 잘림을 알 수 있다 |
 | `output.columns` | ColumnDef[] | 런타임 | `label` 표현식을 평가한 컬럼(동적 모드만). 설정의 원문 label 과 따로 둔다 |

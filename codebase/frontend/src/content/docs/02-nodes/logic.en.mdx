@@ -227,12 +227,12 @@ Split's output does not include other fields from the source. Reference them dir
 ### When to use it
 
 - When you need to **combine data from multiple paths** into one.
-- Useful when you want to wait for all inputs, or let only the first-arriving value through.
+- Useful for collecting the results of several paths, such as Parallel branches, into one array or object. Merge runs only after every connected input has finished.
 
 ### Fields
 
 <FieldTable rows={[
-  {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "Merge strategy. `wait_all` waits for all inputs, `first` takes whichever arrives first, `append` collects in arrival order.", default: "wait_all"},
+  {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "Merge strategy. `wait_all` keeps every input. `first` does not pick the first input to arrive: it keeps the input from the connected node whose ID sorts first, which can change when nodes are copied. `append` works the same as `wait_all`. Choosing `first` or `append` shows a warning but does not stop the run.", default: "wait_all"},
   {name: "outputFormat", required: false, type: "`array` / `merge_object` / `indexed`", description: "Output shape. Use `merge_object` for a shallow object merge.", default: "array"},
   {name: "timeout", required: false, type: "integer (seconds)", description: "Has no effect. Merge runs only after every connected input has finished, so there is nothing to wait for. A value above `0` shows a warning on the canvas, and the run fails at this node.", default: "0"},
   {name: "partialOnTimeout", required: false, type: "boolean", description: "Has no effect. Merge never times out, so there are no partial inputs to merge. Setting it to true shows a warning on the canvas, and the run fails at this node.", default: "false"}

@@ -106,6 +106,8 @@ The third line of a node's body shows a short summary of its key setting. An HTT
 
 If a required setting is left empty, a yellow warning triangle appears at the top-right of the node header. Hovering it explains exactly what's missing. An HTTP Request node without a URL shows a warning, for instance, and a Send Email node without a recipient does too — the exact message depends on the node type. The Manual Trigger node has no required settings, so it never shows this warning.
 
+Even when every required setting is filled, the same warning triangle appears if a chosen value may not behave the way you expect. For example, picking `first` or `append` as a Merge node's strategy shows a tooltip explaining what that value actually does. This warning doesn't block runs, and the summary line stays visible. If a required setting is also empty, only that warning appears.
+
 ### Execution status
 
 While a workflow is running, each node shows which stage it's currently in.

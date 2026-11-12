@@ -13540,6 +13540,13 @@ describe('ExecutionEngineService', () => {
           exitReason: 'break',
         }),
       );
+      // CLE-T-CYCGST — 완료 시점(엔진 덮어쓰기 뒤) config 에도 평가하지 않은
+      // breakCondition 원문이 남는다(CLE-NODE-LOOP 출력 구조).
+      expect(capturedLoopStructured?.config).toEqual(
+        expect.objectContaining({
+          breakCondition: '{{ $loop.index >= 2 }}',
+        }),
+      );
     });
 
     // engine-config-bug — Phase 3 raw-echo 리팩터링 이후 핸들러가 echo 한

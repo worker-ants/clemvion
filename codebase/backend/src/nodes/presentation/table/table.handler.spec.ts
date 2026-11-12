@@ -799,6 +799,79 @@ describe('TableHandler', () => {
       // `resolveColumnLabels` no-ops on already-literal labels.
       expect(out.columns).toEqual(evaluatedColumns);
     });
+
+    // CLE-NODE-OUTPUT Principle 7 규칙 4 — 표시 전용에서도 `buttons` 원문을
+    // 설정 에코에 싣는다(CLE-T-961M2W). 대기 판단은 status · buttonConfig 로 한다.
+    describe('config.buttons echo', () => {
+      type Result = {
+        config: Record<string, unknown>;
+        status?: string;
+        meta?: Record<string, unknown>;
+      };
+      const columns = [{ field: 'name', label: 'Name' }];
+
+      it('echoes buttons on the display-only path', async () => {
+        const result = (await handler.execute(
+          [{ name: 'Alice' }],
+          { mode: 'dynamic', columns, buttons: [] },
+          context,
+        )) as unknown as Result;
+        expect(result.status).toBeUndefined();
+        expect(Object.keys(result.config)).toContain('buttons');
+        expect(result.config.buttons).toEqual([]);
+        expect(result.config.buttonConfig).toBeUndefined();
+      });
+
+      it('echoes the raw buttons value, not the evaluated one', async () => {
+        const result = (await handler.execute(
+          [{ name: 'Alice' }],
+          { mode: 'dynamic', columns, buttons: [] },
+          {
+            ...context,
+            rawConfig: Object.freeze({
+              mode: 'dynamic',
+              columns,
+              buttons: '{{ $input.choices }}',
+            }),
+          },
+        )) as unknown as Result;
+        expect(result.status).toBeUndefined();
+        expect(result.config.buttons).toBe('{{ $input.choices }}');
+      });
+
+      it('leaves buttons out of the serialized echo when unset', async () => {
+        const result = (await handler.execute(
+          [{ name: 'Alice' }],
+          { mode: 'dynamic', columns },
+          {
+            ...context,
+            rawConfig: Object.freeze({ mode: 'dynamic', columns }),
+          },
+        )) as unknown as Result;
+        const serialized = JSON.parse(JSON.stringify(result.config)) as Record<
+          string,
+          unknown
+        >;
+        expect(Object.keys(serialized)).not.toContain('buttons');
+      });
+
+      // 입력 대기 경로는 이 Task 범위 밖이라 동작을 바꾸지 않는다. 대기 여부와
+      // buttonConfig 만 고정한다(`config.buttons` 가 원문인지 평가값인지는 따로 다룬다).
+      it('keeps the waiting path status and buttonConfig', async () => {
+        const evaluated = [{ id: 'yes', label: 'Yes' }];
+        const result = (await handler.execute(
+          [{ name: 'Alice' }],
+          { mode: 'dynamic', columns, buttons: evaluated },
+          context,
+        )) as unknown as Result;
+        expect(result.status).toBe('waiting_for_input');
+        expect(result.meta).toEqual({
+          interactionType: 'buttons',
+          durationMs: 0,
+        });
+        expect(result.config.buttonConfig).toEqual({ buttons: evaluated });
+      });
+    });
   });
 
   describe('output cap (PRESENTATION_MAX_BYTES = 1MB)', () => {

@@ -93,6 +93,61 @@ describe("PresentationContent", () => {
       expect(div!.getAttribute("class")).toBe("kept");
     });
 
+    // REQ-TEMPLATE-019 (CLE-T-SR92AZ) — 백엔드는 `rendered` 를 정화하지 않으므로
+    // (REQ-TEMPLATE-018) 드로어가 html · markdown 을 허용 목록으로 정화한 뒤 그린다.
+    describe("sanitizes html and markdown before rendering (REQ-TEMPLATE-019)", () => {
+      const unsafe =
+        '<p class="kept">safe</p>' +
+        "<script>window.__templateXss = 1</script>" +
+        '<img src="x.png" onerror="window.__templateXss = 2">' +
+        '<a href="javascript:alert(1)">bad link</a>' +
+        '<iframe src="https://example.com"></iframe>';
+
+      it.each(["html", "markdown"])("strips scripts, handlers and unsafe urls for %s", (outputFormat) => {
+        const { container } = render(
+          <PresentationContent
+            result={makeResult({
+              outputData: {
+                config: { outputFormat },
+                output: { rendered: unsafe },
+              },
+            })}
+          />,
+        );
+
+        const preview = container.querySelector(".prose");
+        expect(preview).not.toBeNull();
+        expect(preview!.querySelector("p.kept")?.textContent).toBe("safe");
+        expect(preview!.querySelector("script")).toBeNull();
+        expect(preview!.querySelector("iframe")).toBeNull();
+        const img = preview!.querySelector("img");
+        expect(img).not.toBeNull();
+        expect(img!.getAttribute("onerror")).toBeNull();
+        const link = preview!.querySelector("a");
+        expect(link?.textContent).toBe("bad link");
+        expect(link?.getAttribute("href") ?? "").not.toMatch(/^javascript:/i);
+        expect((window as { __templateXss?: unknown }).__templateXss).toBeUndefined();
+      });
+
+      it("shows text output as literal text without parsing markup", () => {
+        const { container } = render(
+          <PresentationContent
+            result={makeResult({
+              outputData: {
+                config: { outputFormat: "text" },
+                output: { rendered: unsafe },
+              },
+            })}
+          />,
+        );
+
+        expect(container.querySelector(".prose")).toBeNull();
+        expect(container.querySelector("script")).toBeNull();
+        expect(container.querySelector("img")).toBeNull();
+        expect(screen.getAllByText(/window\.__templateXss = 1/).length).toBeGreaterThan(0);
+      });
+    });
+
     it("renders markdown preview", () => {
       render(
         <PresentationContent

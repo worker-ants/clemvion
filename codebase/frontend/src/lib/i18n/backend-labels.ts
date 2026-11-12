@@ -423,6 +423,10 @@ export const WARNING_KO: Record<string, string> = {
     "Merge partialOnTimeout 은 동작하지 않아요. Merge 에는 타임아웃이 없어서 일부만 병합할 입력도 없어요. 이 설정을 꺼 주세요.",
   "Merge timeout has no effect — Merge runs only after every connected input has finished, so there is nothing to wait for. Set it to 0.":
     "Merge timeout 은 동작하지 않아요. Merge 는 연결된 입력이 모두 끝난 뒤에 실행돼서 기다릴 대상이 없어요. 0 으로 설정해 주세요.",
+  "Merge strategy 'first' does not pick the first input to arrive. It keeps the input from the connected node whose ID sorts first, which can change when nodes are copied.":
+    "Merge strategy 'first' 는 먼저 도착한 입력을 고르지 않아요. 연결된 노드 가운데 ID 가 가장 앞서는 노드의 입력을 남겨요. 노드를 복사하면 이 순서가 바뀔 수 있어요.",
+  "Merge strategy 'append' works the same as 'wait_all': it keeps every input.":
+    "Merge strategy 'append' 는 'wait_all' 과 똑같이 동작해요. 입력을 모두 남겨요.",
   "Mode must be either static or dynamic.": "Mode 는 static 또는 dynamic 이어야 합니다.",
   "Multi Turn mode requires System Prompt.": "Multi Turn 모드에서는 System Prompt 가 필요합니다.",
   "Operation must be selected.": "Operation 을 선택해야 합니다.",

@@ -307,6 +307,42 @@ describe('ExpressionResolverService', () => {
       expect(result.template).toBe('Alice');
     });
 
+    // REQ-TEMPLATE-018 (CLE-T-KESVNR) — Template 본문에 값을 끼워 넣을 때
+    // 해석기는 escape 하지 않는다. `{{ }}` 하나만 있는 본문(전체 표현식)과
+    // 다른 글자와 섞인 본문(혼합 문자열) 두 경로를 모두 본다.
+    describe('template interpolation is not escaped (REQ-TEMPLATE-018)', () => {
+      const unsafe =
+        '<script>alert("x")</script><img src=x onerror=alert(1)> & < > \' "';
+      const ctx = { ...baseContext, $input: { html: unsafe } };
+
+      it('keeps markup from a mixed string as is', () => {
+        const result = service.resolveConfig(
+          { template: '<div>{{ $input.html }}</div>', outputFormat: 'html' },
+          ctx,
+          'template',
+        );
+        expect(result.template).toBe(`<div>${unsafe}</div>`);
+      });
+
+      it('keeps markup from a full expression as is', () => {
+        const result = service.resolveConfig(
+          { template: '{{ $input.html }}', outputFormat: 'html' },
+          ctx,
+          'template',
+        );
+        expect(result.template).toBe(unsafe);
+      });
+
+      it('keeps markup from root-level input data as is', () => {
+        const result = service.resolveConfig(
+          { template: '<p>{{ html }}</p>', outputFormat: 'html' },
+          { ...baseContext, html: unsafe },
+          'template',
+        );
+        expect(result.template).toBe(`<p>${unsafe}</p>`);
+      });
+    });
+
     it('resolves expressions with built-in functions', () => {
       const config = { upper: '{{ uppercase($input.name) }}' };
       const result = service.resolveConfig(config, baseContext);

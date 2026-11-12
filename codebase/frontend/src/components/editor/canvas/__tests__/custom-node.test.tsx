@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { NodeProps, Node } from "@xyflow/react";
 
@@ -87,6 +87,8 @@ beforeAll(() => {
       "switch",
       "carousel",
       "table",
+      "merge",
+      "advised",
     ],
     definitions: {
       loop: make("loop", {
@@ -190,6 +192,36 @@ beforeAll(() => {
           kind: "presentation-buttons",
           continueId: "continue",
         },
+      }),
+      // Mirrors backend `merge.schema.ts`: blocking rules plus the two
+      // REQ-MERGE-018 advisory rules. No summaryTemplate.
+      merge: make("merge", {
+        warningRules: [
+          { id: "merge:no-strategy", when: "!strategy", message: "Merge strategy must be selected." },
+          { id: "merge:timeout-dormant", when: "timeout > 0", message: "Merge timeout has no effect" },
+          {
+            id: "merge:strategy-first-not-arrival-order",
+            when: "strategy == first",
+            message: "Merge strategy 'first' does not pick the first input to arrive.",
+            severity: "advisory",
+          },
+          {
+            id: "merge:strategy-append-same-as-wait-all",
+            when: "strategy == append",
+            message: "Merge strategy 'append' works the same as 'wait_all': it keeps every input.",
+            severity: "advisory",
+          },
+        ],
+      }),
+      // A node that has both a summaryTemplate and an advisory rule, so the
+      // tests can check that the summary line stays next to the advisory icon.
+      advised: make("advised", {
+        summaryTemplate: { template: "mode {{mode}}" },
+        warningRules: [
+          { id: "advised:no-mode", when: "!mode", message: "Mode not set" },
+          { id: "advised:risky", when: "mode == risky", message: "Risky mode hint", severity: "advisory" },
+          { id: "advised:also-risky", when: "mode == risky", message: "Second hint", severity: "advisory" },
+        ],
       }),
     },
   });
@@ -296,6 +328,103 @@ describe("CustomNode", () => {
     const header = container.querySelector(".rounded-t-lg");
     const warningSpan = header?.querySelector('[aria-label="warning"]');
     expect(warningSpan?.getAttribute("class")).toContain("text-white/70");
+  });
+
+  // REQ-MERGE-018 (CLE-T-1J0F6R) — advisory 노드 경고는 요약 줄을 그대로 두고
+  // 헤더 아이콘 툴팁으로 보인다. blocking 경고가 있으면 blocking 만 보인다.
+  describe("advisory warnings", () => {
+    const advisoryBadge = (container: HTMLElement) =>
+      container
+        .querySelector(".rounded-t-lg")
+        ?.querySelector('[data-testid="advisory-warning-badge"]');
+    const tooltipTexts = () =>
+      screen.queryAllByTestId("tooltip-content").map((el) => el.textContent ?? "");
+
+    it("shows a header icon with the advisory message for merge strategy first", () => {
+      const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "first" } });
+      expect(advisoryBadge(container)).toBeInTheDocument();
+      expect(container.querySelector('[aria-label="warning"]')).not.toBeInTheDocument();
+      expect(tooltipTexts().some((t) => t.includes("'first'"))).toBe(true);
+    });
+
+    it("shows the advisory icon for merge strategy append", () => {
+      const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "append" } });
+      expect(advisoryBadge(container)).toBeInTheDocument();
+      expect(tooltipTexts().some((t) => t.includes("'append'"))).toBe(true);
+    });
+
+    it("shows no advisory icon when no advisory rule fires", () => {
+      const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "wait_all" } });
+      expect(advisoryBadge(container)).not.toBeInTheDocument();
+    });
+
+    it("keeps the summary line next to the advisory icon and lists every message", () => {
+      const { container } = renderNode({ type: "advised", label: "Advised", category: "logic", config: { mode: "risky" } });
+      expect(screen.getByText("mode risky")).toBeInTheDocument();
+      expect(advisoryBadge(container)).toBeInTheDocument();
+      const tooltip = tooltipTexts().find((t) => t.includes("Risky mode hint"));
+      expect(tooltip).toContain("Second hint");
+    });
+
+    it("shows only the blocking warning when a blocking rule also fires", () => {
+      const { container } = renderNode({
+        type: "merge",
+        label: "Merge",
+        category: "logic",
+        config: { strategy: "first", timeout: 5 },
+      });
+      expect(container.querySelector('[aria-label="warning"]')).toBeInTheDocument();
+      expect(advisoryBadge(container)).not.toBeInTheDocument();
+      expect(tooltipTexts().some((t) => t.includes("'first'"))).toBe(false);
+    });
+
+    // headerHasLeadingItem — `ml-auto` 는 헤더 우측의 첫 요소만 받는다.
+    describe("header right alignment (ml-auto)", () => {
+      const setGraphWarning = () =>
+        useEditorStore.setState({
+          graphWarnings: {
+            results: [
+              { ruleId: "x", severity: "warning", nodeId: "node-1", message: "m" },
+            ],
+            hasError: false,
+            hasWarning: true,
+          },
+        } as never);
+      afterEach(() => {
+        useEditorStore.setState({
+          graphWarnings: { results: [], hasError: false, hasWarning: false },
+        } as never);
+      });
+
+      it("gives ml-auto to the advisory icon when it is the first right-side item", () => {
+        const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "first" } });
+        expect(advisoryBadge(container)?.getAttribute("class")).toContain("ml-auto");
+      });
+
+      it("does not give ml-auto to the graph-warning badge that follows the advisory icon", () => {
+        setGraphWarning();
+        const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "first" } });
+        expect(advisoryBadge(container)?.getAttribute("class")).toContain("ml-auto");
+        const graph = container.querySelector('[data-testid="graph-warning-badge"]');
+        expect(graph).toBeInTheDocument();
+        expect(graph?.getAttribute("class")).not.toContain("ml-auto");
+      });
+
+      it("gives ml-auto to the graph-warning badge when nothing leads it", () => {
+        setGraphWarning();
+        const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "wait_all" } });
+        const graph = container.querySelector('[data-testid="graph-warning-badge"]');
+        expect(graph?.getAttribute("class")).toContain("ml-auto");
+      });
+    });
+
+    it("hides the advisory icon when zoom < 50% like other summaries", () => {
+      const { container } = renderNode(
+        { type: "merge", label: "Merge", category: "logic", config: { strategy: "first" } },
+        { zoom: 0.3 },
+      );
+      expect(advisoryBadge(container)).not.toBeInTheDocument();
+    });
   });
 
   it("applies muted color to normal summary", () => {

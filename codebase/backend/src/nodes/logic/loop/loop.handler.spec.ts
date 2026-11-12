@@ -120,5 +120,51 @@ describe('LoopHandler', () => {
       expect(cfg.count).toBe('{{ $input.count }}');
       expect(result.output).toBeNull();
     });
+
+    // CLE-NODE-LOOP 출력 구조 `config.breakCondition?` — 평가하지 않은 원문을
+    // 싣는다(Principle 7). 표현식 평가 제외 목록에 있다고 에코에서 빠지지 않는다.
+    it('echoes the raw breakCondition expression without evaluating it', async () => {
+      const result = (await handler.execute(
+        {},
+        { count: 5, breakCondition: 'evaluated-should-not-appear' },
+        {
+          ...context,
+          rawConfig: Object.freeze({
+            count: 5,
+            breakCondition: '{{ $loop.index >= 2 }}',
+          }),
+        },
+      )) as unknown as Record<string, unknown>;
+      expect(result.config).toStrictEqual({
+        count: 5,
+        maxIterations: 1000,
+        breakCondition: '{{ $loop.index >= 2 }}',
+      });
+      expect(result.output).toBeNull();
+    });
+
+    it('echoes breakCondition from config when rawConfig is absent', async () => {
+      const result = (await handler.execute(
+        {},
+        { count: 3, breakCondition: '{{ $input.done }}' },
+        context,
+      )) as unknown as Record<string, unknown>;
+      const cfg = result.config as Record<string, unknown>;
+      expect(cfg.breakCondition).toBe('{{ $input.done }}');
+    });
+
+    it('leaves breakCondition out of the serialized echo when unset', async () => {
+      const result = (await handler.execute(
+        {},
+        { count: 3 },
+        context,
+      )) as unknown as Record<string, unknown>;
+      const cfg = result.config as Record<string, unknown>;
+      expect(cfg.breakCondition).toBeUndefined();
+      expect(JSON.parse(JSON.stringify(cfg))).toStrictEqual({
+        count: 3,
+        maxIterations: 1000,
+      });
+    });
   });
 });

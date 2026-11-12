@@ -55,6 +55,52 @@ describe('mergeNodeMetadata.warningRules', () => {
   });
 });
 
+// REQ-MERGE-018 — `first` · `append` 는 이름과 실제 동작이 달라 advisory 경고를
+// 띄운다. advisory 라서 실행 전 검증(handler.validate)은 막지 않는다.
+describe('merge strategy advisory rules (REQ-MERGE-018)', () => {
+  const fired = (config: Record<string, unknown>) =>
+    evaluateWarnings(config, mergeNodeMetadata.warningRules);
+  const rule = (id: string) =>
+    mergeNodeMetadata.warningRules?.find((r) => r.id === id);
+
+  it.each([
+    ['first', 'merge:strategy-first-not-arrival-order'],
+    ['append', 'merge:strategy-append-same-as-wait-all'],
+  ])('strategy=%s fires %s as advisory', (strategy, id) => {
+    const warnings = fired({ strategy }).filter((w) => w.id === id);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('advisory');
+    expect(rule(id)?.severity).toBe('advisory');
+  });
+
+  it('fires no strategy advisory for wait_all', () => {
+    expect(fired({ strategy: 'wait_all' })).toEqual([]);
+  });
+
+  it('fires no strategy advisory when strategy is missing', () => {
+    const ids = fired({}).map((w) => w.id);
+    expect(ids).toEqual(['merge:no-strategy']);
+  });
+
+  it.each(['first', 'append'])(
+    'strategy=%s does not block handler.validate',
+    (strategy) => {
+      expect(
+        evaluateMetadataBlockingErrors(mergeNodeMetadata, { strategy }),
+      ).toEqual([]);
+    },
+  );
+
+  it('uses the English messages from CLE-NODE-MERGE', () => {
+    expect(rule('merge:strategy-first-not-arrival-order')?.message).toBe(
+      "Merge strategy 'first' does not pick the first input to arrive. It keeps the input from the connected node whose ID sorts first, which can change when nodes are copied.",
+    );
+    expect(rule('merge:strategy-append-same-as-wait-all')?.message).toBe(
+      "Merge strategy 'append' works the same as 'wait_all': it keeps every input.",
+    );
+  });
+});
+
 describe('evaluateMetadataBlockingErrors integration (merge)', () => {
   it('emits the warning when strategy is missing', () => {
     expect(evaluateMetadataBlockingErrors(mergeNodeMetadata, {})).toEqual([

@@ -2,21 +2,21 @@
 id: "CLE-NODE-MERGE"
 title: "Merge 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-MERGE-001", "REQ-MERGE-002", "REQ-MERGE-003", "REQ-MERGE-004", "REQ-MERGE-005", "REQ-MERGE-006", "REQ-MERGE-007", "REQ-MERGE-008", "REQ-MERGE-009", "REQ-MERGE-010", "REQ-MERGE-011", "REQ-MERGE-012", "REQ-MERGE-013", "REQ-MERGE-014", "REQ-MERGE-015", "REQ-MERGE-016", "REQ-MERGE-017", "REQ-MERGE-018"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a7d46d52f5a1daf62bd18f710ec94580708b26b6f7d86e5efa410fb42926912e"
+content_hash: "993b5a4fa3665255aec9a4017977f79e5cc14c4629582c2ad1832e3629a3cb4d"
 read_as: "approved_fallback"
-task: "CLE-T-3XGCYA"
+task: "CLE-T-1J0F6R"
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8f8d224f35e9f11db4eed487232248251dfc117d247a191e618a0b229d74f59d"
-etag: "sha256-ed2e275927f0fea87dcccd842aca651dab131c4a42d0917cec36c9377a974574"
+mirror_sha256: "e87cf970c72c3bf205e93a4d23256745e20dc9d30aacfebbeeabd360f1835096"
+etag: "sha256-9a5216cdc587b620688b64889eefa617b58d2c2024afbdf4145e7f5ba0ffcce6"
 ---
-> 구현 상태: 부분 구현(`first` · `append` advisory 경고는 미구현) · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -48,7 +48,7 @@ Merge 노드(Merge, `merge`)는 여러 입력 경로의 데이터를 하나로 �
 - REQ-MERGE-015 IF `strategy` · `outputFormat` 이 enum 값이 아니거나 `timeout` 이 음수·숫자 아님이거나 `partialOnTimeout` 이 불리언이 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-MERGE-016 IF `timeout > 0` 이거나 `partialOnTimeout` 이 참이면 THE SYSTEM SHALL 노드 경고 규칙을 `blocking` 으로 평가해 캔버스 배지를 표시하고 `handler.validate` 를 막는다.
 - REQ-MERGE-017 WHEN Merge 노드를 정의하면 THE SYSTEM SHALL 노드 정의에 동적 포트·경로 선택 포트·에러 포트를 두지 않는다. 에러 처리 정책으로 생기는 동적 에러 포트는 [포트](#포트) 절이 정한다.
-- REQ-MERGE-018 IF `strategy` 가 `first` 나 `append` 면 THE SYSTEM SHALL `advisory` 노드 경고 규칙으로 캔버스에 경고 배지를 표시하고 `handler.validate` 와 실행은 막지 않는다. (미구현, NERV Task `CLE-T-1J0F6R`)
+- REQ-MERGE-018 IF `strategy` 가 `first` 나 `append` 면 THE SYSTEM SHALL `advisory` 노드 경고 규칙으로 캔버스에 경고 배지를 표시하고 `handler.validate` 와 실행은 막지 않는다.
 
 ## 설정
 
@@ -71,7 +71,7 @@ Merge 노드(Merge, `merge`)는 여러 입력 경로의 데이터를 하나로 �
 | `first` | 입력 객체의 키(선행 노드 ID)를 문자열로 정렬한 순서에서 첫 입력 하나만 남긴다. 도착 순서가 아니다. 노드 ID 는 무작위 UUID 라서 어느 선행 노드가 골라질지 사용자가 정할 수 없고 노드를 복사해 붙여 넣으면 바뀔 수 있다. 선행 노드가 하나면 엔진이 그 출력을 그대로 넘기므로 그 출력을 정규화한 첫 항목이 남는다([입력 정규화](#입력-정규화)) |
 | `append` | 결과가 `wait_all` 과 같다. 모든 입력을 [입력 정규화](#입력-정규화) 순서대로 쌓는다. 도착 순서가 아니다 |
 
-`first` · `append` 를 고르면 캔버스에 `advisory` 경고 배지를 띄운다. 실행과 `handler.validate` 는 막지 않는다(REQ-MERGE-018, [에러](#에러)). 이 의미로 정한 이유는 [Rationale](#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다-2026-11-12) 에 있다.
+`first` · `append` 를 고르면 캔버스에 `advisory` 경고 배지를 띄운다. 실행과 `handler.validate` 는 막지 않는다(REQ-MERGE-018, [에러](#에러)). 배지는 노드 헤더의 경고 아이콘이고 툴팁에 문구가 나온다. 요약 줄은 가리지 않는다. `blocking` 노드 경고가 함께 있으면 `blocking` 경고만 보인다. 이 의미로 정한 이유는 [Rationale](#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다-2026-11-12) 에 있다.
 
 ### 출력 형식
 
@@ -240,7 +240,7 @@ Merge 는 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다.
 
 ## 에러
 
-Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에러 포트는 [포트](#포트) 참조). 검증 실패는 모두 설정 검증 단계의 사전 검증 에러다. 메시지 기준은 영문 원문(`merge.schema.ts` 노드 경고 규칙과 핸들러 검증 문자열)이다. 프론트엔드는 노드 경고 규칙 메시지 세 개(`merge:no-strategy` · `merge:timeout-dormant` · `merge:partial-on-timeout-dormant`)만 `backend-labels.ts` 의 `WARNING_KO` 로 한국어를 렌더링한다. `handler.validate` 의 검증 문자열 네 개(`strategy` · `outputFormat` enum, `timeout` 음수, `partialOnTimeout` 불리언)는 `WARNING_KO` 에 항목이 없어서 영문 그대로 보인다. REQ-MERGE-018 의 `advisory` 규칙 두 개는 아직 구현되지 않았다. 구현할 때 `WARNING_KO` 에도 항목을 더한다(NERV Task `CLE-T-1J0F6R`).
+Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에러 포트는 [포트](#포트) 참조). 검증 실패는 모두 설정 검증 단계의 사전 검증 에러다. 메시지 기준은 영문 원문(`merge.schema.ts` 노드 경고 규칙과 핸들러 검증 문자열)이다. 프론트엔드는 노드 경고 규칙 메시지 다섯 개(`merge:no-strategy` · `merge:timeout-dormant` · `merge:partial-on-timeout-dormant` · `merge:strategy-first-not-arrival-order` · `merge:strategy-append-same-as-wait-all`)만 `backend-labels.ts` 의 `WARNING_KO` 로 한국어를 렌더링한다. `handler.validate` 의 검증 문자열 네 개(`strategy` · `outputFormat` enum, `timeout` 음수, `partialOnTimeout` 불리언)는 `WARNING_KO` 에 항목이 없어서 영문 그대로 보인다.
 
 | 발생 조건 | 메시지(영문 원문) | 시점 |
 |-----------|--------|------|
@@ -251,8 +251,8 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 | `partialOnTimeout` 이 불리언 아님 | `partialOnTimeout must be a boolean` | `handler.validate` |
 | `timeout > 0` (dormant) | `Merge timeout has no effect — Merge runs only after every connected input has finished, so there is nothing to wait for. Set it to 0.` | 노드 경고 규칙 `merge:timeout-dormant`. `severity` 가 없어 evaluator 기본값 `blocking` 으로 평가 → 캔버스 배지 + `handler.validate` 차단 |
 | `partialOnTimeout` 참(dormant) | `Merge partialOnTimeout has no effect — Merge never times out, so there are no partial inputs to merge. Turn it off.` | 노드 경고 규칙 `merge:partial-on-timeout-dormant`. `severity` 가 없어 기본값 `blocking` → `handler.validate` 차단 |
-| `strategy` 가 `first` | `Merge strategy 'first' does not pick the first input to arrive. It keeps the input from the connected node whose ID sorts first, which can change when nodes are copied.` | 노드 경고 규칙 `merge:strategy-first-not-arrival-order`. `severity: 'advisory'` 라서 캔버스 배지만 띄우고 `handler.validate` 를 막지 않는다. **미구현** |
-| `strategy` 가 `append` | `Merge strategy 'append' works the same as 'wait_all': it keeps every input.` | 노드 경고 규칙 `merge:strategy-append-same-as-wait-all`. `severity: 'advisory'`. **미구현** |
+| `strategy` 가 `first` | `Merge strategy 'first' does not pick the first input to arrive. It keeps the input from the connected node whose ID sorts first, which can change when nodes are copied.` | 노드 경고 규칙 `merge:strategy-first-not-arrival-order`. `severity: 'advisory'` 라서 캔버스 배지만 띄우고 `handler.validate` 를 막지 않는다. |
+| `strategy` 가 `append` | `Merge strategy 'append' works the same as 'wait_all': it keeps every input.` | 노드 경고 규칙 `merge:strategy-append-same-as-wait-all`. `severity: 'advisory'`. |
 
 1. **dormant 필드의 두 얼굴**: `timeout` / `partialOnTimeout` 은 실행(execute)에서는 결과에 영향이 없다. 하지만 검증(validate)에서는 위 두 규칙이 `blocking` 으로 평가돼 차단 에러로 집계된다(`packages/node-summary/src/evaluator.ts` `evaluateWarnings` 의 기본 severity 가 `blocking`). dormant 는 "런타임 무영향" 이지 "검증 무영향" 이 아니다.
 2. 위 두 dormant 메시지는 코드의 영문 원문 그대로다. 메시지에는 그 필드가 동작하지 않는다는 사실과 할 일이 들어 있다. 할 일은 `timeout` 을 0 으로 두기와 `partialOnTimeout` 끄기다. 나중 단계에서 값이 반영된다는 약속은 넣지 않는다. `WARNING_KO` 는 영문 원문을 키로 쓴다. 그래서 문구를 바꾸면 `backend-labels.ts` 의 `WARNING_KO` 영문 키도 같은 변경에서 바꾼다.
@@ -271,6 +271,8 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 - `codebase/packages/node-summary/src/evaluator.ts` (`evaluateWarnings` 기본 severity)
 - `codebase/backend/migrations/V148__merge_node_timeout_default_zero.sql` (저장된 `timeout` 300 → 0)
 - `codebase/frontend/src/lib/i18n/backend-labels.ts` (`LABEL_KO` 설정 화면 라벨 · `WARNING_KO` 경고 문구 한국어)
+- `codebase/frontend/src/lib/utils/node-config-summary.ts` (`getAdvisoryWarnings`. 발화한 `advisory` 노드 경고 문구)
+- `codebase/frontend/src/components/editor/canvas/custom-node.tsx` (헤더 `advisory` 경고 아이콘과 툴팁)
 
 ## Rationale
 
@@ -323,13 +325,15 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 ### `first` 와 `append` 를 지금 의미로 정하고 advisory 경고로 알린다 (2026-11-12)
 
-**결정**: `strategy` 의 `first` · `append` 를 지금 동작 그대로 정식 의미로 정한다. `first` 는 선행 노드 ID 를 정렬한 순서의 첫 입력 하나를 남기고 `append` 는 `wait_all` 과 결과가 같다. 두 값을 고르면 캔버스에 `advisory` 노드 경고를 띄우고 실행은 막지 않는다(REQ-MERGE-018). 경고 규칙 구현은 NERV Task `CLE-T-1J0F6R` 가 맡는다. REQ-MERGE-003 의 「부분 구현」 표기는 이름이 뜻하는 동작(먼저 도착한 입력, 도착 순서대로 쌓기)을 기준으로 붙어 있었다. 그 동작을 만들지 않기로 했으므로 지웠다(NERV Task `CLE-T-3XGCYA`). 머리 줄의 「부분 구현」 은 경고 규칙(REQ-MERGE-018)이 아직 없어서 붙였다.
+**결정**: `strategy` 의 `first` · `append` 를 지금 동작 그대로 정식 의미로 정한다. `first` 는 선행 노드 ID 를 정렬한 순서의 첫 입력 하나를 남기고 `append` 는 `wait_all` 과 결과가 같다. 두 값을 고르면 캔버스에 `advisory` 노드 경고를 띄우고 실행은 막지 않는다(REQ-MERGE-018). 경고 규칙은 NERV Task `CLE-T-1J0F6R` 에서 구현했다. REQ-MERGE-003 의 「부분 구현」 표기는 이름이 뜻하는 동작(먼저 도착한 입력, 도착 순서대로 쌓기)을 기준으로 붙어 있었다. 그 동작을 만들지 않기로 했으므로 지웠다(NERV Task `CLE-T-3XGCYA`). 머리 줄의 「부분 구현」 은 경고 규칙(REQ-MERGE-018)이 없던 동안 붙어 있었고 `CLE-T-1J0F6R` 에서 지웠다.
 
 **근거**: 엔진은 모든 선행 노드가 끝난 뒤 Merge 를 실행한다. 노드 단위 비동기 dispatch 를 두지 않는 [2026-07-17 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다-2026-07-17) 이 유지되는 한 Merge 는 도착 순서를 알 수 없다. 그래서 이름대로의 동작은 만들 수 없다. 두 값은 같은 입력이면 같은 결과를 낸다. 다만 `first` 가 고르는 선행 노드는 무작위 노드 ID 의 정렬 순서로 정해져 사용자가 고를 수 없고 노드를 복사해 붙여 넣으면 바뀔 수 있다. 이름과 다르게 도는 값이라 사용자가 알 수 있게 경고를 띄운다.
 
 **`timeout` 과 달리 막지 않는 이유**: `timeout > 0` · `partialOnTimeout` 은 값이 결과에 아무 영향이 없는데 사용자는 무언가를 기다린다고 믿는다. 그래서 `blocking` 으로 막는다([2026-10-10 결정](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다-2026-10-10)). `first` 는 결과를 바꾸는 값이고 `append` 는 기본값 `wait_all` 과 같은 결과를 낸다. 막으면 이 값으로 저장된 노드가 실행 전 검증에서 실패한다. 2026-10-10 에 기각한 「severity 완화」 는 `timeout` · `partialOnTimeout` 두 규칙에 대한 것이고 이 결정의 두 경고 규칙은 새 규칙이다.
 
-**Parallel 결정 K 와 다른 점**: [Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다-2026-05-30-결정-k) 는 `waitAll=false` 를 검증에서 거부한다. 그 값이 기대한 동작(병렬 분기가 끝나는 대로 다음 노드 시작)과 실제 동작의 차이는 실행 시점에만 생겨 출력만 봐서는 알 수 없다. 대신 쓸 Background 노드가 있어서 거부 메시지로 안내할 수도 있다. `first` 는 결과에 입력 하나만 남아서 다른 입력이 빠졌다는 것이 출력에 바로 드러난다. 도착 순서를 지키는 다른 노드가 없어서 거부해도 안내할 대안이 없다. 그래서 막지 않고 경고로 알린다. 경고 규칙이 구현되기 전(`CLE-T-1J0F6R`)에는 이 문서와 머리 줄 구현 상태만 이 차이를 알린다.
+**Parallel 결정 K 와 다른 점**: [Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다-2026-05-30-결정-k) 는 `waitAll=false` 를 검증에서 거부한다. 그 값이 기대한 동작(병렬 분기가 끝나는 대로 다음 노드 시작)과 실제 동작의 차이는 실행 시점에만 생겨 출력만 봐서는 알 수 없다. 대신 쓸 Background 노드가 있어서 거부 메시지로 안내할 수도 있다. `first` 는 결과에 입력 하나만 남아서 다른 입력이 빠졌다는 것이 출력에 바로 드러난다. 도착 순서를 지키는 다른 노드가 없어서 거부해도 안내할 대안이 없다. 그래서 막지 않고 경고로 알린다. 경고 규칙을 구현하기 전(`CLE-T-1J0F6R`)에는 이 문서와 머리 줄 구현 상태로만 이 차이를 알 수 있었다.
+
+**캔버스 표시 (2026-11-12, 구현 `CLE-T-1J0F6R`)**: 그때까지 캔버스에는 `advisory` 노드 경고가 표시되지 않았다. 설정 요약 배지에는 `blocking` 경고만 나왔고 `advisory` 는 어시스턴트 검토에만 나왔다. Merge 의 두 규칙이 `advisory` 를 쓰는 첫 노드 경고 규칙이다. 그래서 요약 줄은 그대로 두고 노드 헤더에 경고 아이콘을 띄워 툴팁으로 문구를 보이게 했다. `blocking` 경고가 함께 있으면 `blocking` 만 보인다. 사람이 정했다(NERV 질문 `01a1cefa-8407-76b4-b8d0-4c1511579abf`). 기각한 안은 둘이다. `blocking` 과 똑같이 보이면 요약 줄이 사라진다. 캔버스 표시를 미루면 REQ-MERGE-018 이 부분 구현으로 남는다. [워크플로우 에디터](../CLE-WF/CLE-WF-EDITOR.md#미설정-경고와-경고-배지) 에는 배지 조건이 아직 「필수 설정이 비었을 때」 로만 적혀 있다. 그 표에 `advisory` 행을 더하는 일은 NERV Task `CLE-T-D6C9HJ` 가 맡는다.
 
 **기각한 대안** (2026-11-12 사용자 선택):
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-TEMPLATE"
 title: "Template 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-TEMPLATE-001", "REQ-TEMPLATE-002", "REQ-TEMPLATE-003", "REQ-TEMPLATE-004", "REQ-TEMPLATE-005", "REQ-TEMPLATE-006", "REQ-TEMPLATE-007", "REQ-TEMPLATE-008", "REQ-TEMPLATE-009", "REQ-TEMPLATE-010", "REQ-TEMPLATE-011", "REQ-TEMPLATE-012", "REQ-TEMPLATE-013", "REQ-TEMPLATE-014", "REQ-TEMPLATE-015", "REQ-TEMPLATE-016", "REQ-TEMPLATE-017", "REQ-TEMPLATE-018", "REQ-TEMPLATE-019"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "43e4dde5e70251c9192084dd1a35d2f52abbd42a6d60397353458ed15a4652c1"
+content_hash: "e9702ef00a86dafdf3568e0ecb90eb8cc7efe4cd012ad392d1c934258705c654"
 read_as: "approved_fallback"
-task: "CLE-T-W0377J"
+task: "CLE-T-961M2W"
 source_paths: ["spec/4-nodes/6-presentation/5-template.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ae3c4b643c3b10461472786cbe3d430a8181f7287b8a39cccc258d4ea3624000"
-etag: "sha256-9f04c344edc3288a9b8e6db3180373476338037454c2c0ec098addaf591151c8"
+mirror_sha256: "3651620874b06a749dc3a4e45aadb35896698c222bdc8295c42847e127e4b606"
+etag: "sha256-08bcc99204f8b475e6ede7eb5998d3f6987e47dfeb201f749713e1de6d715c58"
 ---
 > 구현 상태: 구현됨 (Handlebars 블록 구문·내장 헬퍼 지원 여부는 [미결 사항](#미결-사항)) · 원문: `spec/4-nodes/6-presentation/5-template.md`, `spec/4-nodes/_product-overview.md` (§9.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -126,7 +126,8 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 {
   "config": {
     "outputFormat": "html",
-    "template": "<h1>Hello {{ $var.name }}</h1>"
+    "template": "<h1>Hello {{ $var.name }}</h1>",
+    "buttons": []
   },
   "output": {
     "rendered": "<h1>Hello Alice</h1>"
@@ -139,7 +140,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.outputFormat` | `'html'` / `'markdown'` / `'text'` | 설정 에코 | 사용자가 정한 출력 포맷. 설정하지 않았으면 핸들러가 `text` 를 채운다(`rawConfig.outputFormat ?? outputFormat`). 출력 값에 싣지 않는다 |
 | `config.template` | string | 설정 에코 | `{{ }}` 를 보존한 **원래** 템플릿. `context.rawConfig.template` 그대로 |
 | `config.helpers?` | boolean | 설정 에코 | 내장 헬퍼 토글 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 실행 동작에는 쓰이지 않는다([미결 사항](#미결-사항)) |
-| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용이면 지금 핸들러가 싣지 않는다. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4 에 맞춰 싣도록 고치는 일은 NERV Task `CLE-T-961M2W` 가 맡는다 |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용에서도 싣는다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). 캔버스에서 만든 노드는 스키마 기본값 `[]` 를 저장하므로 보통 `[]` 가 실린다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 입력 대기 여부는 이 필드가 아니라 `status` 와 `config.buttonConfig` 로 판단한다 |
 | `output.rendered` | string | 런타임(표현식 해석기) | `{{ }}` 치환이 끝난 최종 문자열 |
 
 `meta.durationMs` 는 엔진이 모든 노드에 공통으로 넣는다. `port`·`status` 는 두지 않고 `out` 포트 하나로 출력한다.
