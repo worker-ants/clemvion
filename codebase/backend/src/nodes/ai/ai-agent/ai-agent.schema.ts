@@ -366,7 +366,7 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'Temperature',
           widget: 'number',
-          hint: '0 = deterministic, 2 = creative',
+          hint: '0 = deterministic, 2 = creative. Not applied to Anthropic models',
           order: 30,
           group: 'Advanced',
         },
