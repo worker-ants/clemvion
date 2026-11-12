@@ -1,4 +1,7 @@
+import OpenAI from 'openai';
 import { OpenAIClient } from './openai.client';
+import { AzureOpenAIClient } from './azure-openai.client';
+import { LocalClient } from './local.client';
 import type { ChatStreamEvent } from '../interfaces/llm-client.interface';
 
 // Helper: build an async iterable from an array of SDK chunks so the
@@ -358,6 +361,64 @@ describe('OpenAIClient.stream', () => {
       expect(err!.message).toMatch(/harmony|gpt-oss|제어 토큰/);
     });
   });
+});
+
+// 특성화 테스트다. 지금 동작을 그대로 고정한다.
+// [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」: OpenAI 계열(OpenAI · Azure · Local)의
+// `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 `error` 이벤트
+// 없이 예외로 던진다. Anthropic · Google 은 같은 실패를 `error` 이벤트로 보낸다(각 spec).
+// 두 갈래를 하나로 맞추기로 하면 NERV Task `CLE-T-0R5SYN` 이 이 테스트도 함께 고친다.
+// Azure · Local 은 `stream()` 을 OpenAIClient 에서 물려받으므로 세 클래스를 함께 돌린다.
+describe.each([
+  ['OpenAIClient', () => new OpenAIClient('sk-test', 'gpt-4o')],
+  [
+    'AzureOpenAIClient',
+    () =>
+      new AzureOpenAIClient(
+        'azure-key',
+        'gpt-4o',
+        'https://example.openai.azure.com/',
+      ),
+  ],
+  ['LocalClient', () => new LocalClient('llama3', 'http://localhost:1234/v1')],
+] as const)('%s.stream — 스트림을 열 때 실패하면', (_name, makeClient) => {
+  it.each([
+    [
+      '429',
+      () =>
+        new OpenAI.RateLimitError(
+          429,
+          { message: 'Rate limit reached' },
+          undefined,
+          new Headers(),
+        ),
+    ],
+    ['SDK 요청 타임아웃', () => new OpenAI.APIConnectionTimeoutError()],
+    ['그 밖의 실패', () => new Error('socket hang up')],
+  ] as const)(
+    '%s: error 이벤트 없이 같은 예외를 던진다',
+    async (_label, makeError) => {
+      const failure = makeError();
+      const create = jest.fn().mockRejectedValue(failure);
+      const client = makeClient();
+      // @ts-expect-error — 내부 SDK client 를 stub 으로 바꾼다.
+      client.client = { chat: { completions: { create } } };
+
+      const seen: ChatStreamEvent[] = [];
+      const drain = async (): Promise<void> => {
+        for await (const ev of client.stream({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'x' }],
+        })) {
+          seen.push(ev);
+        }
+      };
+
+      await expect(drain()).rejects.toBe(failure);
+      expect(seen).toEqual([]);
+      expect(create).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe('OpenAIClient.listModels', () => {

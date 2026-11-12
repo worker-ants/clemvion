@@ -691,12 +691,13 @@ function SystemErrorDetail({ item }: { item: ConversationItem }) {
 }
 
 /**
- * Inline-row renderer for a `rag` turn — 엔진이 LLM 호출 **전** 자동 수행한 KB
- * 검색 (spec/conventions/conversation-thread.md §1.1.2 · §9.1).
+ * Inline-row renderer for a `rag` turn — 그 턴에 KB 도구(`kb_*`) 호출이 가져온
+ * 청크의 턴 단위 모음 ([대화 미리보기](CLE-EXEC-PREVIEW) 「출처별 시각 매핑」).
  *
- * §9.2 3중 신호로 🔧 `tool` 행과 구분한다 — 아이콘(🔎/🔧) · 컨테이너(**점선**
- * 라인 / 실선 카드) · chip(`KB · N chunk(s)` / tool name). 한 신호만 다르면
- * 사용자가 "LLM 이 KB 를 호출했다" 는 잘못된 인과를 읽는다 (§8.6).
+ * 3중 신호로 🔧 `tool` 행과 구분한다 — 아이콘(🔎/🔧) · 컨테이너(**점선**
+ * 라인 / 실선 카드) · chip(`KB · N chunk(s)` / tool name). 둘은 같은 `kb_*` 호출을
+ * 다른 단위로 보여 주므로, 한 신호만 다르면 사용자가 같은 검색을 두 번 한 것으로
+ * 잘못 읽는다 (「세 가지 구분 신호」).
  *
  * 문서명 표시는 `ReferencesChip` 을 재사용한다 — References 탭·📚 chip 과 같은
  * `sources[]` 를 같은 규칙으로 보여야 하기 때문 (**Inv-9**).
@@ -1150,7 +1151,7 @@ function SummaryView({
             // surface 의 retry 는 부모 prop drill (`onRetryLastTurn`) — 인스펙터
             // 의 SummaryView 가 호스트라 onRetry 가 set 안된 경우 (history view)
             // 는 SystemErrorRow 내부에서 button 자동 suppress.
-            // §9.1 — 🔎 KB 자동검색 행. §9.6 상 그룹 분류 대상 외이므로
+            // 🔎 KB 청크(`rag`) 행. 도구 호출 묶음 분류 대상 외이므로
             // groupToolCallItems 의 claim 을 받지 않고 독립 row 로 남는다.
             if (isRagRetrieval) {
               return (

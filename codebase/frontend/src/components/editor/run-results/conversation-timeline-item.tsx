@@ -69,8 +69,8 @@ export function ConversationTimelineItem({
           </span>
         </div>
       ) : item.type === "rag" ? (
-        // spec/conventions/conversation-thread.md §9.1 — 🔎 KB 자동검색 행.
-        // §9.6 이 Preview 와 본 실행 트리 timeline 양 surface 동시 적용을
+        // [대화 미리보기](CLE-EXEC-PREVIEW) 「출처별 시각 매핑」 — 🔎 KB 청크(`rag`) 행.
+        // 「도구 호출 묶음」 이 Preview 와 본 실행 트리 timeline 양 surface 동시 적용을
         // 강제한다. 한 줄 컴팩트 형태 (Inv-5 — 그룹 결과는 동일, 행 시각
         // 형식 차이는 허용). 🔧 도구 행과 아이콘·컨테이너로 구분.
         <div className="flex items-center gap-1.5">

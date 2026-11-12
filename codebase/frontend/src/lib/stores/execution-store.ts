@@ -127,11 +127,13 @@ export interface ConversationItem {
    */
   systemError?: SystemErrorTurnData;
   /**
-   * Structured payload for `type: "rag"` items — 엔진이 LLM 호출 전 자동 수행한
-   * KB 검색을 timeline 위 독립 행으로 표시한다 (LLM 이 호출한 도구(`tool`) 와
-   * 인과가 달라 시각 구분 — spec/conventions/conversation-thread.md §9.1·§9.2).
+   * Structured payload for `type: "rag"` items — 그 턴에 KB 도구(`kb_*`) 호출이
+   * 가져온 청크를 턴 단위로 모아 timeline 위 독립 행으로 표시한다. 같은 호출이
+   * 🔧 `tool` 행으로도 보이므로 보여 주는 단위(호출 하나 / 턴의 청크 모음)를
+   * 시각으로 구분한다 ([대화 미리보기](CLE-EXEC-PREVIEW) 「세 가지 구분 신호」).
    *
-   * SoT: §1.2.2. `turnIndex` 는 top-level 필드를 재사용한다 (payload 중복 금지).
+   * SoT: [대화 스레드](CLE-IX-THREAD) 「`rag` 데이터」. `turnIndex` 는 top-level
+   * 필드를 재사용한다 (payload 중복 금지).
    */
   rag?: { sources: RagSource[] };
   /**

@@ -580,6 +580,30 @@ describe('buildSummaryBufferUpdate — token budget + cache-protection invariant
     });
   });
 
+  // 특성화 테스트다. [AI 에이전트 노드](CLE-NODE-AGENT) 「LLM 호출 타임아웃」 은 턴 응답을
+  // 만드는 chat 호출에만 `AI_AGENT_LLM_CALL_TIMEOUT_MS` 를 걸고 롤링 요약 호출에는 걸지 않는다.
+  it('does not pass timeoutMs to the summary chat (no app-level timeout)', async () => {
+    const llm = makeLlmServiceMock('SUMMARY');
+    const big = 'v'.repeat(400);
+    const turns = [0, 1, 2, 3, 4, 5].map((s) => turn(s, big));
+    await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: undefined,
+      summarizedUpToSeq: undefined,
+      tokenBudget: 300,
+      systemPromptText: 'sys',
+      llmConfig,
+      model: 'gpt-4o',
+      llmService: llm,
+      llmContext: { workflowId: 'wf-1' },
+    });
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+    // chat(config, params, context, opts) — 4번째 인자 opts 에 timeoutMs 가 없다.
+    const opts = llm.chat.mock.calls[0][3] as
+      { timeoutMs?: number } | undefined;
+    expect(opts?.timeoutMs).toBeUndefined();
+  });
+
   it('falls back to no-change when the summary LLM returns empty content', async () => {
     const llm = makeLlmServiceMock('');
     const big = 'z'.repeat(400);

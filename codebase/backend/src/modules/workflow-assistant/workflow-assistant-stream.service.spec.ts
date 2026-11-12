@@ -3076,6 +3076,33 @@ describe('WorkflowAssistantStreamService', () => {
       expect(assistantPersist(mocks)?.finishReason).toBe('error');
     });
 
+    // 특성화 테스트다. 실제 `chatStream` 은 async generator 라서 OpenAI 계열 클라이언트가
+    // 스트림을 열 때 던진 예외(429 포함)는 호출 시점이 아니라 첫 `next()` 에서 나온다.
+    // 그 예외도 ASSISTANT_STREAM_FAILED 로 바뀐다. Anthropic · Google 의 같은 429 는
+    // `error` 이벤트라 LLM_RATE_LIMIT 로 온다(아래 it.each). [LLM 클라이언트](CLE-AI-LLM)
+    // 「미결 사항」 의 프로바이더 분기이고, 맞추기로 하면 NERV Task `CLE-T-0R5SYN` 이 고친다.
+    it('ends the turn with ASSISTANT_STREAM_FAILED when the stream rejects on its first read', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(new Error(RAW)),
+        }),
+      }));
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'ASSISTANT_STREAM_FAILED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+      });
+      expect(events[events.length - 1]).toEqual({
+        event: 'done',
+        data: { finishReason: 'error' },
+      });
+    });
+
     it('sends a fixed message for ASSISTANT_STREAM_FAILED and logs the raw text only', async () => {
       const { service, mocks } = makeService();
       mocks.llmService.chatStream.mockImplementation(() => {
