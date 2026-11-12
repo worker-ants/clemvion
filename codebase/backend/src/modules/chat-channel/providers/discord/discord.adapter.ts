@@ -296,9 +296,10 @@ export class DiscordAdapter implements NativeFormAdapter {
   }
 
   /**
-   * Spec §4.2 — Discord Interactivity 3초 ack 는 HooksController 의 HTTP response (type 5/6) 로
-   * 즉시 반환. 본 함수는 noop — 비동기 후속 갱신은 별 PATCH /webhooks/.../messages/@original
-   * 호출 (Phase 후속 v2).
+   * Discord 의 3초 ack 는 webhook HTTP 응답 본문이라 이 함수는 noop 이다. HooksService 가 컴포넌트
+   * 클릭 · 모달 제출에 `{ type: 6 }`(모달을 열면 type 9, 폼 제출 결과는 type 4)을 실어 200 으로
+   * 답한다(NERV Task `CLE-T-7XWVC5`). 슬래시 명령의 응답은 아직 정하지 않았다. 비동기 후속 갱신은
+   * 별 PATCH /webhooks/.../messages/@original 호출 (Phase 후속 v2).
    */
   ackInteraction(
     _update: ChannelUpdate,

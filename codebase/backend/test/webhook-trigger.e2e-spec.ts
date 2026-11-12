@@ -25,7 +25,7 @@ import { AuthConfigDto } from '../src/modules/auth-configs/dto/responses/auth-co
  *
  * 본문 크기 경계 (WH-NF-02 옵션 C): 인증 512KB 통과(J) / webhook 1MB 초과 413 PAYLOAD_TOO_LARGE
  * (K 공개·M 인증) / 공개 32KB 초과 413 PUBLIC_WEBHOOK_BODY_TOO_LARGE(L) / non-webhook 100KB
- * 초과 413(N, 전역 파서 방어선).
+ * 초과 413(N, 전역 파서 방어선). 공개 webhook 의 IP 시작 한도 초과 429(O).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -806,6 +806,32 @@ describe('Webhook trigger (e2e)', () => {
     expect(res.status).toBe(413);
     expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
     expect(res.body.error.requestId).toBeDefined();
+  });
+
+  // 근거: [웹훅 「요청 제한과 남용 방어」](CLE-TRIG-WEBHOOK#요청-제한과-남용-방어) — 공개 웹훅은 IP 시작 한도를
+  // 받는다. 채팅 채널 트리거는 받지 않는다(chat-channel-discord e2e). NERV Task `CLE-T-QKJ2TZ`.
+  it('O. 공개 webhook 은 같은 IP 에서 분당 시작 한도(10)를 넘기면 429 다', async () => {
+    const path = crypto.randomUUID();
+    await createWebhookTrigger(uniqueName('hook-o'), path); // auth_config_id IS NULL (공개)
+    // 다른 e2e 파일의 IP(203.0.113.0/24)와 겹치지 않게 TEST-NET-2 의 고정 IP 를 쓴다.
+    const ip = '198.51.100.31';
+    const statuses: number[] = [];
+    let limitedCode: unknown;
+    for (let i = 0; i < 11; i += 1) {
+      const res = await request(BASE_URL)
+        .post(`/api/hooks/${path}`)
+        .set('x-forwarded-for', ip)
+        .send({ seq: i });
+      statuses.push(res.status);
+      if (res.status === 429) limitedCode = res.body.error?.code;
+    }
+    // 같은 분 안에 다시 돌면 앞쪽부터 429 일 수 있어 개수가 아니라 존재로 본다.
+    expect(statuses).toContain(429);
+    expect(statuses.every((s) => s === 202 || s === 429)).toBe(true);
+    expect([
+      'PUBLIC_WEBHOOK_RATE_LIMIT',
+      'PUBLIC_WEBHOOK_HOURLY_LIMIT',
+    ]).toContain(limitedCode);
   });
 
   it('F. api_key AuthConfig — 헤더 누락/오류 401, 올바른 키 202', async () => {

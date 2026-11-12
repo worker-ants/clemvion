@@ -59,13 +59,38 @@ export interface WebhookInput {
 }
 
 /**
- * webhook 호출이 받는 실제 HTTP 응답 코드 — execution 시작에 성공한 경로는 항상
- * 202 Accepted 다 (HooksController `@HttpCode(HttpStatus.ACCEPTED)`). 인증 실패(401)·
+ * webhook 호출이 받는 실제 HTTP 응답 코드 — execution 시작에 성공한 경로는 202 Accepted 다
+ * (HooksController `@HttpCode(HttpStatus.ACCEPTED)`). 인증 실패(401)·
  * 검증 실패(400)·비활성(410) 은 execute() 호출 전에 throw 되어 Execution row 자체가
  * 생성되지 않으므로, 호출 이력에 남는 webhook 행의 response_code 는 이 값이다.
  * execution.response_code 컬럼(§A.3 호출 이력, WH-MG-05)에 영속된다.
+ * 예외는 Discord 컴포넌트 클릭 · 모달 제출이다. 그 응답은 200 이라 `INTERACTION_RESPONSE_CODE` 를 남긴다.
  */
 const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
+
+/**
+ * Discord 컴포넌트 클릭 · 모달 제출에 답하는 HTTP 응답 코드. HooksController 는
+ * `interactionHttpResponse` 가 있으면 200 으로 그 본문을 보낸다.
+ */
+const INTERACTION_RESPONSE_CODE = String(HttpStatus.OK);
+
+/** Discord interaction callback type 6 — DEFERRED_UPDATE_MESSAGE. */
+const DISCORD_DEFERRED_UPDATE_MESSAGE = 6;
+
+/** 채팅 채널 인바운드 처리 결과. HooksController 가 이 값으로 응답 형태를 고른다. */
+interface ChatChannelWebhookResult {
+  executionId: string;
+  status?: 'pending';
+  challenge?: string;
+  discordPing?: boolean;
+  /**
+   * provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON. HooksController 가 200 과 함께
+   * res.json 으로 보낸다. Discord modal open `{ type: 9 }` · MODAL_SUBMIT 결과 `{ type: 4 }` ·
+   * 컴포넌트 클릭 · 모달 제출의 기본 ack `{ type: 6 }`, Slack view_submission
+   * `{ response_action: 'errors' }` 가 있다. SoT: spec/conventions/chat-channel-adapter.md §4.1.
+   */
+  interactionHttpResponse?: unknown;
+}
 
 /**
  * 채팅 채널 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때 `chat_channel_last_error` 에 남기는
@@ -311,7 +336,9 @@ export class HooksService {
    *    입력도 미지원 update 안내 · dedup · rate limit · `enrichInbound` 를 거친 뒤 여기서 끝난다.
    * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
    * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
+   * 10. Discord 컴포넌트 클릭 · 모달 제출은 따로 정한 응답이 없으면 `{ type: 6 }` 으로 답한다
    *
+   * 4~9 단계는 `dispatchChatChannelUpdate` 가 한다.
    * 본 메서드는 200ms 안에 202 Accepted 응답해야 함 (WH-NF-01). 무거운 작업은 fire-and-forget.
    */
   private async handleChatChannelWebhook(
@@ -319,24 +346,7 @@ export class HooksService {
     config: ChatChannelConfig,
     input: WebhookInput,
     rawBodyString = '',
-  ): Promise<{
-    executionId: string;
-    status?: 'pending';
-    challenge?: string;
-    discordPing?: boolean;
-    /**
-     * §4.1 native modal — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
-     * (Discord modal open `{ type: 9 }` / MODAL_SUBMIT ack `{ type: 4 }` / Slack
-     * view_submission `{ response_action: 'errors' }`). HooksController 가 res.json 으로 전송.
-     * SoT: spec/conventions/chat-channel-adapter.md §4.1.
-     */
-    interactionHttpResponse?: unknown;
-  }> {
-    // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
-    // IP 추출은 헤더 기반(CF-gated → XFF, req.ip 폴백 없음 — spec/5-system/1-auth.md §2.3·Rationale
-    // 2.3.B). req.ip 폴백 확대는 별도 후속(plan/in-progress/webhook-public-ip-failopen-hardening.md).
-    const clientIp = extractClientIpFromHeaders(input.headers);
-
+  ): Promise<ChatChannelWebhookResult> {
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
@@ -376,6 +386,43 @@ export class HooksService {
     if (config.provider === 'discord' && isDiscordPing(input.body)) {
       return { executionId: 'ignored', discordPing: true };
     }
+
+    // Discord 는 컴포넌트 클릭 · 모달 제출마다 3초 안에 200 과 콜백 응답을 받아야 하고, 받지 못하면
+    // 클라이언트에 실패 표시를 띄운다(Spec providers/discord, NERV Task `CLE-T-7XWVC5`). 아래 처리가
+    // 무시 · 전달 · 새 실행 중 어느 쪽으로 끝나도 같다. 모달 열기(type 9) · 폼 제출 결과(type 4)처럼
+    // 따로 정한 응답이 있으면 그것을 보낸다. 슬래시 명령(type 2)은 type 6 을 받지 않아 지금처럼 202 다.
+    const discordAck =
+      config.provider === 'discord'
+        ? discordDeferredUpdateAck(input.body)
+        : undefined;
+    const result = await this.dispatchChatChannelUpdate(
+      trigger,
+      config,
+      input,
+      adapter,
+      discordAck ? INTERACTION_RESPONSE_CODE : WEBHOOK_ACCEPTED_RESPONSE_CODE,
+    );
+    if (discordAck && result.interactionHttpResponse === undefined) {
+      return { ...result, interactionHttpResponse: discordAck };
+    }
+    return result;
+  }
+
+  /**
+   * 서명 검증 · handshake 를 마친 채팅 채널 update 처리 (`handleChatChannelWebhook` 의 4~9 단계).
+   * `responseCode` 는 새 실행의 호출 이력(`response_code`)에 남길 실제 HTTP 응답 코드다.
+   */
+  private async dispatchChatChannelUpdate(
+    trigger: Trigger,
+    config: ChatChannelConfig,
+    input: WebhookInput,
+    adapter: ChatChannelAdapter,
+    responseCode: string,
+  ): Promise<ChatChannelWebhookResult> {
+    // §A.3 소스 IP — handleWebhook 의 `const clientIp` 패턴과 통일 (W-9).
+    // IP 추출은 헤더 기반(CF-gated → XFF, req.ip 폴백 없음 — spec/5-system/1-auth.md §2.3·Rationale
+    // 2.3.B). req.ip 폴백 확대는 별도 후속(plan/in-progress/webhook-public-ip-failopen-hardening.md).
+    const clientIp = extractClientIpFromHeaders(input.headers);
 
     const parsed = await adapter.parseUpdate(input.body, config);
     if (!parsed) {
@@ -767,9 +814,9 @@ export class HooksService {
           // 엔진은 이 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`).
           workspaceId: trigger.workspaceId,
           triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
-          // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
+          // §A.3 호출 이력 — chat-channel inbound 가 실제로 답하는 코드(202, Discord 컴포넌트 · 모달 제출은 200).
           sourceIp: clientIp,
-          responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
+          responseCode,
         },
       );
     } catch (err) {
@@ -1431,6 +1478,22 @@ function isSlackUrlVerification(body: unknown): boolean {
 function isDiscordPing(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 1;
+}
+
+/**
+ * Discord 컴포넌트 클릭(type 3 MESSAGE_COMPONENT) · 모달 제출(type 5 MODAL_SUBMIT)의 기본 응답
+ * `{ type: 6 }`(DEFERRED_UPDATE_MESSAGE). 메시지를 바꾸지 않고 받았다는 것만 알린다. 모달 제출에도
+ * 쓸 수 있는 것은 이 제품의 모달이 모두 메시지의 버튼에서 열리기 때문이다(버튼에서 연 모달의 제출만
+ * type 6 을 받는다). 그 밖의 type 은 undefined 다. Spec [providers/discord §인바운드 응답].
+ */
+function discordDeferredUpdateAck(
+  body: unknown,
+): { type: typeof DISCORD_DEFERRED_UPDATE_MESSAGE } | undefined {
+  if (!body || typeof body !== 'object') return undefined;
+  const type = (body as { type?: unknown }).type;
+  return type === 3 || type === 5
+    ? { type: DISCORD_DEFERRED_UPDATE_MESSAGE }
+    : undefined;
 }
 
 /**

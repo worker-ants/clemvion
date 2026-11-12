@@ -17,6 +17,7 @@ import {
   UNIDENTIFIED_IP_BUCKET,
 } from './public-webhook-quota.service';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
+import { readTriggerChatChannelProvider } from '../chat-channel/chat-channel-secret-refs';
 
 /**
  * 공개(인증 없음) webhook 남용 방어 Guard — `POST /api/hooks/:endpointPath` 전용.
@@ -25,7 +26,11 @@ import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
  * webhook(GitHub 등 고빈도)을 받는 **공유 엔드포인트**라 blanket throttle 은 정당한 webhook 을 깬다.
  * 따라서 **trigger 의 `auth_config_id IS NULL`(=공개) 여부를 먼저 해석한 뒤 그 경우에만** 적용한다:
  *   1. authConfigId 가 있으면(인증 webhook) → 무제한 통과.
- *   2. 공개 webhook → body 크기 제한 + IP 단위 시작 rate-limit/누적 상한.
+ *   2. 채팅 채널 트리거(`config.chatChannel.provider`) → 통과. 프로바이더 서명으로 인증하고,
+ *      한 IP(프로바이더 서버)에서 여러 대화가 몰려 오며, 32KB 를 넘는 정상 update 도 있다.
+ *      대화별 분당 한도(HooksService, CCH-NF-03)와 전역 throttler 가 대신 막는다
+ *      (Spec CLE-TRIG-WEBHOOK 「요청 제한과 남용 방어」, NERV Task `CLE-T-QKJ2TZ`).
+ *   3. 공개 webhook → body 크기 제한 + IP 단위 시작 rate-limit/누적 상한.
  *
  * Redis 미가용 시 quota 는 fail-open(PublicWebhookQuotaService). trigger 미존재 시엔
  * 통과시키고 HooksService 가 404 처리(이중 책임 회피).
@@ -87,7 +92,11 @@ export class PublicWebhookThrottleGuard implements CanActivate {
     // 2. 인증 webhook(authConfigId 존재) → 무제한 통과.
     if (trigger.authConfigId !== null) return true;
 
-    // 3. 공개 webhook — body 크기 제한.
+    // 3. 채팅 채널 트리거 → 통과. HooksService 가 채팅 채널 분기를 고르는 판정
+    //    (`readTriggerChatChannelConfig` 가 null 이 아님)과 같은 기준이라 두 자리가 어긋나지 않는다.
+    if (readTriggerChatChannelProvider(trigger.config) !== null) return true;
+
+    // 4. 공개 webhook — body 크기 제한.
     const bodyBytes = this.measureBodyBytes(req.rawBody, req.body);
     if (bodyBytes > this.maxBodyBytes) {
       throw new PayloadTooLargeException({
@@ -98,7 +107,7 @@ export class PublicWebhookThrottleGuard implements CanActivate {
       });
     }
 
-    // 4. IP 단위 시작 rate-limit/누적 상한.
+    // 5. IP 단위 시작 rate-limit/누적 상한.
     //    XFF/CF 신뢰 체계는 인프라·trust proxy 설정에 위임(W1/W3) — rate-limit 은 best-effort
     //    defense-in-depth 이지 인증 게이트가 아니다.
     //    D-12: IP 식별 불가(공격자가 XFF/CF 헤더 제거 등) 시 — 과거엔 fail-open(`if (!ip) return true`)

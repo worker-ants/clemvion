@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK"
 title: "Slack 어댑터"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-SLACK-001", "REQ-SLACK-002", "REQ-SLACK-003", "REQ-SLACK-004", "REQ-SLACK-005", "REQ-SLACK-006", "REQ-SLACK-007", "REQ-SLACK-008", "REQ-SLACK-009", "REQ-SLACK-010", "REQ-SLACK-011", "REQ-SLACK-012", "REQ-SLACK-013", "REQ-SLACK-014", "REQ-SLACK-015", "REQ-SLACK-016", "REQ-SLACK-017", "REQ-SLACK-018", "REQ-SLACK-019", "REQ-SLACK-020", "REQ-SLACK-021", "REQ-SLACK-022", "REQ-SLACK-023", "REQ-SLACK-024", "REQ-SLACK-025", "REQ-SLACK-026", "REQ-SLACK-027", "REQ-SLACK-028", "REQ-SLACK-029", "REQ-SLACK-030", "REQ-SLACK-031", "REQ-SLACK-032", "REQ-SLACK-033", "REQ-SLACK-034", "REQ-SLACK-035", "REQ-SLACK-036", "REQ-SLACK-037", "REQ-SLACK-038", "REQ-SLACK-039", "REQ-SLACK-040", "REQ-SLACK-041", "REQ-SLACK-042"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "2a53bbb9cfe7c5810a13b5a950d14a26cee9902bcca4a436c882c582a24abd70"
+content_hash: "044607910bc559cfe68e3a6179372105abf76c8bed95a616606fdf261e03cdf8"
 read_as: "approved_fallback"
-task: "CLE-T-D41BY6"
+task: "CLE-T-7XWVC5"
 source_paths: ["spec/4-nodes/7-trigger/providers/slack.md"]
-mirror_sha256: "1fa20f75d5a4b213a93754d56ce416dfecad7875da63d5af56746c32f1cc2136"
-etag: "sha256-8eccc84b6f79a0ae750cae866ca324eb28fd0f9b42d4943066eb5cfc49c466ec"
+mirror_sha256: "a3dcfa874ca92199332585e73fdc4ab150985a4a2cfcc1d66c4d01e93a93fed1"
+etag: "sha256-54ee04f5d8281f34551cce80734b77490813af272d7077621591ff631db4bb14"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/slack.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,14 +49,14 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 - REQ-SLACK-011 WHEN `block_actions` 의 `action_id` 가 `__open_form__` 이면 THE SYSTEM SHALL `{ kind: "open_form_modal", openContext: { triggerId } }` 로 바꾼다. (원본: slack §4.2)
 - REQ-SLACK-012 WHEN 버튼이나 select 메뉴의 `block_actions` 가 오면 THE SYSTEM SHALL `button_callback` 으로 바꾸고 `callbackData` 에 `actions[0].value` 나 `actions[0].selected_option.value` 를 넣는다. (원본: slack §4.2)
 - REQ-SLACK-013 WHEN `callback_id` 가 `clemvion_form` 인 `view_submission` 이 오면 THE SYSTEM SHALL `view.state.values` 를 `{ <field.name>: rawValue }` 로 펴 `form_submission` 으로 바꾼다. (원본: slack §4.2)
-- REQ-SLACK-014 WHEN Interactivity 요청이 오면 THE SYSTEM SHALL 3초 안에 `200 OK`(빈 본문이나 `response_action`)로 답한다. (원본: slack §4.2, R-S-8)
+- REQ-SLACK-014 WHEN Interactivity 요청이 오면 THE SYSTEM SHALL 3초 안에 `200 OK`(빈 본문이나 `response_action`)로 답한다. (원본: slack §4.2, R-S-8) (부분 구현)
 - REQ-SLACK-015 WHEN 설정한 slash command 가 `start` 나 빈 text 로 오면 THE SYSTEM SHALL `start` 로, `cancel` 이면 `cancel` 로, 그 밖이면 `text_message` 로 바꾼다. (원본: slack §4.3)
 - REQ-SLACK-016 WHEN 활성 실행이 없는 DM 에 첫 메시지가 오면 THE SYSTEM SHALL slash command 없이 새 실행을 시작한다. (원본: slack §4.3, R-S-9)
 - REQ-SLACK-017 WHEN update 를 파싱하면 THE SYSTEM SHALL 중복 제거 키를 Events API 는 `event_id`, Interactivity 는 `payload.trigger_id`, Slash Commands 는 `body.trigger_id` 로 만들고 만들지 못하면 `null` 을 돌려준다. (원본: slack §4.4, §8)
 - REQ-SLACK-018 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `<`·`>`·`&` 만 escape 한 `chat.postMessage` 로 보내고 3500자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: slack §5.1)
 - REQ-SLACK-019 WHEN typing 메시지를 보내야 하면 THE SYSTEM SHALL 아무것도 보내지 않는다. (원본: slack §5.5, R-S-5)
 - REQ-SLACK-020 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL Block Kit `actions` 블록의 `button` 요소로 만들고 `value` 에 `buttonId` 를, `style` 에 `primary`·`danger` 를 넣는다. (원본: slack §5.2)
-- REQ-SLACK-021 WHEN 버튼 `block_actions` 가 오면 THE SYSTEM SHALL 곧바로 빈 `200 OK` 로 답하고 EIA `click_button` 을 부른 뒤 `response_url` 에 `replace_original: true` 로 "선택 완료" 를 보내 키보드를 지운다. (원본: slack §5.2)
+- REQ-SLACK-021 WHEN 버튼 `block_actions` 가 오면 THE SYSTEM SHALL EIA `click_button` 요청을 큐에 넣고 `response_url` 에 `replace_original: true` 로 "선택 완료" 를 보내 키보드를 지운 뒤 3초 안에 빈 `200 OK` 로 답한다. (원본: slack §5.2) (부분 구현)
 - REQ-SLACK-022 WHEN `formMode` 가 `auto`·`native_modal` 이고 필드가 5개 이하이며 `file` 필드가 없는 Form 입력 대기가 오면 THE SYSTEM SHALL `form_modal` 버튼을 보내고 클릭 즉시 `views.open` 으로 모달을 연다. (원본: slack §3.3, §5.3)
 - REQ-SLACK-023 IF 모달 제출이 서버 쪽 검증에서 실패하면 THE SYSTEM SHALL `view_submission` 응답으로 `response_action: "errors"` 와 `details[0]` 필드 에러를 돌려줘 모달을 유지한다. (원본: slack §3.3)
 - REQ-SLACK-024 WHEN 모달 조건에 맞지 않는 Form 입력 대기가 오면 THE SYSTEM SHALL 다단계 질문으로 받고 필드 `type` 별 Block Kit 요소를 쓴다. (원본: slack §5.3)
@@ -83,6 +83,7 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 
 - 관련 REQ-SLACK-002·003: 이 다섯 값이 `BOT_TOKEN_INVALID` 판별의 전부이고 목록을 열어 두지 않는다. `ratelimited` 처럼 자격 증명과 무관한 값은 일부러 뺀다. "당신 토큰이 잘못됐다" 를 잘못 말하는 것이 `502`(그 밖의 실패)보다 나쁘다. 목록에 없는 값은 502 로 간다. 이 목록은 외부 API 응답이라 저장소 안에서 잴 수 없다. 늘리려면 Slack 이 문서화한 표준 auth 에러라는 근거를 대고 코드 상수(`slack.adapter.ts` 의 `SLACK_CREDENTIAL_REJECTED_ERRORS`)와 함께 늘린다. 한쪽만 바꾸면 판별이 조용히 갈린다. `token_expired` 는 통합 상태 사유(`Integration.status_reason`)의 `'token_expired'` 와 글자만 같고 다른 네임스페이스다([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)). 이쪽은 Slack API 응답 문자열이고 저쪽은 우리 DB 컬럼 값이다.
 - 관련 REQ-SLACK-008: `parseUpdate` 는 순수 계약을 지키고 보강(`HooksService.enrichInbound` 가 `SlackClient.filesInfo` 를 부른다)은 호출자가 한다. 진행 중인 다단계 질문에서는 `handleFormStep` 이 `file_upload` 를 폼 필드 값으로 쌓아 `submit_form` 을 부른다(`hooks.service.ts`, 구현됨). Form `file` 필드의 MIME 검증은 다단계 질문이 필드 제약을 상태에 저장하지 않는 `formState` v1 한계에 걸려 Planned 다.
+- 관련 REQ-SLACK-014·021: `click_button` 요청 큐 등록과 `ackInteraction` 의 `response_url` 갱신은 구현됐다. `block_actions` 의 웹훅 HTTP 응답은 지금 `202` 와 `{ data: { executionId, … } }` 봉투다. 빈 본문 `200 OK` 가 아니라 R-S-8 과 다르다. 결함이고 NERV Task `CLE-T-FCBG91` 이 고친다.
 - 관련 REQ-SLACK-016·034·035: 활성 실행이 있을 때 기존 실행을 취소하고 새로 시작하는 입력은 `/<prefix> start` 뿐이다. 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 활성 실행이 있는 DM 의 일반 텍스트는 기존 실행을 취소하지 않고 [채팅 채널](CLE-CHAT-CORE.md) 의 실행 상태 분기(REQ-CHAT-013·014)를 따른다(R-S-10). 트리거의 워크플로우가 비활성이면 활성 실행이 없는 DM 의 메시지와 `/<prefix> start` 는 새 실행을 시작하지 않고 버린다. 활성 실행이 있는 DM 의 `/<prefix> start` 도 기존 실행을 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
 - 관련 REQ-SLACK-025: [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 `validation.preset` 이 아직 없다. Slack 에는 연락처 공유에 해당하는 기능이 없다.
 - 관련 REQ-SLACK-027: 현재 구현(`slack-message.renderer.ts`)은 Carousel 카드를 제목·설명 텍스트로만 만든다.
@@ -105,7 +106,7 @@ v1 은 웹훅 모드만 지원한다. Slack Socket Mode(WebSocket 연결)는 오
 | `sendMessage`(form_modal) | `chat.postMessage` + `actions` 블록의 `action_id: "__open_form__"` 버튼("양식 작성하기"). 클릭하면 `HooksService` 가 `openFormModal` 에서 [`POST /api/views.open`](https://api.slack.com/methods/views.open)으로 모달을 연다 |
 | `sendMessage`(image) | [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2)(channel_id, file, filename, initial_comment=caption)로 PNG 업로드(구현됨, `client.filesUploadV2`). 실패하면 caption·`fallbackText` 를 `chat.postMessage` 텍스트로 보낸다 |
 | `sendMessage`(typing) | 없음. Slack Web API 에 서버가 보내는 typing 표시가 없다(R-S-5) |
-| `ackInteraction` | Interactivity 응답. 3초 안에 `200 OK`(빈 본문이나 `response_action`). 비동기 갱신은 [`response_url`](https://api.slack.com/interactivity/handling#message_responses) 을 쓴다 |
+| `ackInteraction` | 인터랙션 후처리. `button_callback` 이고 `response_url` 이 있으면 [`response_url`](https://api.slack.com/interactivity/handling#message_responses) 에 `replace_original: true` 로 POST 해 원본 메시지를 «선택 완료» 문구로 바꾼다. 실패는 로그만 남긴다. 3초 안 수신 확인은 웹훅 HTTP 응답이 맡는다([Interactivity](#interactivity)) |
 
 ### setupChannel
 
@@ -189,7 +190,7 @@ Slack 인바운드는 세 가지 envelope(Events API, Interactivity, Slash Comma
 | `"view_submission"`, `view.callback_id === "clemvion_form"` | `{ kind: "form_submission", fields }`. `view.state.values` 를 `{ <field.name>: rawValue }` 로 편다(block_id 가 필드 이름, 요소 값 추출, R-S-6) |
 | `"shortcut"`·`"message_action"`·`"view_closed"` | v1 `null`. `view_closed` 뒤에도 실행은 입력 대기를 유지하고 버튼 메시지가 남아 다시 누를 수 있다 |
 
-Slack Interactivity 는 3초 안에 `200 OK` 를 받아야 한다. `ackInteraction` 이 곧바로 빈 본문 200 으로 답한다(구현됨). 비동기 갱신용 `response_url`(1시간 유효, 5회 한도)의 `replace_original` POST 도 구현됐다(버튼 선택 뒤 "선택 완료" 로 갱신).
+Slack Interactivity 는 3초 안에 `200 OK` 를 받아야 한다. 이 수신 확인은 웹훅 HTTP 응답이 맡고 목표는 `200 OK`(빈 본문이나 `response_action`)다(R-S-8). 지금 `block_actions` 의 웹훅 HTTP 응답은 `202` 와 `{ data: { executionId, … } }` 봉투라 R-S-8 과 다르다. 결함이고 NERV Task `CLE-T-FCBG91` 이 고친다. 비동기 갱신용 `response_url`(1시간 유효, 5회 한도)의 `replace_original` POST 는 `ackInteraction` 이 하고 구현됐다(버튼 선택 뒤 «선택 완료» 로 갱신).
 
 ### Slash Commands
 
@@ -229,7 +230,7 @@ Slack slash command 는 워크스페이스마다 prefix 하나만 등록할 수 
 - 버튼 `value` 에 `buttonId`(UUID)를 넣는다. 한도 2000자라 여유가 있다.
 - `style: 'primary'` 는 `style: "primary"`, `'danger'` 는 `style: "danger"`, 그 밖은 지정하지 않는다.
 - 노드가 시각형이면 시각 메시지를 먼저 보내고 actions 블록은 다음 메시지로 보낸다.
-- `block_actions` 가 오면 (1) 곧바로 빈 `200 OK` 로 답하고(3초 ack), (2) EIA `click_button` 을 부르고, (3) `response_url` 에 `replace_original: true, text: "선택 완료: …"` 를 보내 키보드를 지우고 선택을 보여 준다(`ackInteraction`, 구현됨).
+- `block_actions` 가 오면 다음 순서로 처리한다. (1) EIA `click_button` 요청을 큐에 넣는다. 처리는 기다리지 않는다. (2) `ackInteraction` 이 `response_url` 에 `replace_original: true` 와 `text`(`languageHints.selectionDone`, 없으면 "선택 완료")를 보내 키보드를 지운다(구현됨). (3) 웹훅 HTTP 응답을 보낸다. 목표는 3초 안의 빈 `200 OK` 다. 지금은 `202` 와 `{ data }` 봉투다(NERV Task `CLE-T-FCBG91`).
 
 ### Form
 
@@ -378,3 +379,4 @@ Telegram `/start` 와 뜻이 같고, slash command prefix 가 워크스페이스
 ### R-S-11 이전 봇 토큰의 auth.revoke 는 24시간 유예가 끝난 뒤 부른다
 
 2026-11-06 결정이다(NERV Task `CLE-T-D41BY6`). 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 에 있다. 이 결정으로 미결 «이전 봇 토큰 revoke 시점» 을 닫았다.
+

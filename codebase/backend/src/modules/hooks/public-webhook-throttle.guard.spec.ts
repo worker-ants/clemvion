@@ -104,6 +104,57 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(quota.consumeStart).not.toHaveBeenCalled();
   });
 
+  // 근거: [웹훅 「요청 제한과 남용 방어」](CLE-TRIG-WEBHOOK#요청-제한과-남용-방어) — 채팅 채널 트리거는
+  // 공개 웹훅 제한(IP 시작 한도 · 32KB 본문 한도)을 받지 않는다. NERV Task `CLE-T-QKJ2TZ`.
+  describe('채팅 채널 트리거 (config.chatChannel)', () => {
+    const OVERSIZED_REQ: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: { 'x-forwarded-for': '9.9.9.9' },
+      rawBody: Buffer.alloc(
+        PublicWebhookThrottleGuard.DEFAULT_MAX_BODY_BYTES + 1,
+      ),
+    };
+
+    it.each(['telegram', 'slack', 'discord'])(
+      '%s 트리거는 본문 한도와 IP 시작 한도를 건너뛴다',
+      async (provider) => {
+        const trigger = {
+          authConfigId: null,
+          config: { chatChannel: { provider } },
+        } as Partial<Trigger>;
+        const { guard, quota } = makeGuard({
+          trigger,
+          consume: { allowed: false, reason: 'startup_rate' },
+        });
+        const req: ReqShape = { ...OVERSIZED_REQ };
+
+        await expect(guard.canActivate(makeContext(req))).resolves.toBe(true);
+        expect(quota.consumeStart).not.toHaveBeenCalled();
+        // W14: 통과해도 조회한 trigger 는 HooksService 가 재사용하도록 첨부한다.
+        expect(req.__publicWebhookTrigger).toBe(trigger);
+      },
+    );
+
+    it.each([
+      ['provider 가 없는 chatChannel', { chatChannel: {} }],
+      ['provider 가 빈 문자열', { chatChannel: { provider: '' } }],
+      ['chatChannel 이 객체가 아님', { chatChannel: 'discord' }],
+    ])('%s 이면 공개 웹훅 한도를 그대로 적용한다', async (_label, config) => {
+      const { guard, quota } = makeGuard({
+        trigger: { authConfigId: null, config } as Partial<Trigger>,
+        consume: { allowed: false, reason: 'startup_rate' },
+      });
+
+      await expect(
+        guard.canActivate(makeContext(PUBLIC_REQ)),
+      ).rejects.toMatchObject({ status: HttpStatus.TOO_MANY_REQUESTS });
+      expect(quota.consumeStart).toHaveBeenCalledWith('9.9.9.9');
+      await expect(
+        guard.canActivate(makeContext({ ...OVERSIZED_REQ })),
+      ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    });
+  });
+
   it('trigger 조회는 partial `select` 없이 full entity 로 한다 (보안 회귀 가드)', async () => {
     // 과거 `select: { authConfigId: true }` partial projection 이 authConfigId 를 비-null 로
     // 잘못 반환해 모든 공개 webhook 이 인증으로 오판 → 보호 우회. select 재도입을 차단한다.

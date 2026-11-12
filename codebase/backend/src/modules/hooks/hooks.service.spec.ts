@@ -1313,6 +1313,280 @@ describe('HooksService', () => {
 
     // 근거: [데이터 모델 개요 「참조의 소속」](CLE-PLAT-DATA#참조의-소속), R-CC-12
     // NERV Task `CLE-T-XYR067`. non-2xx 는 프로바이더의 재시도 · 비활성화를 부르므로 202 ignored 로 답한다.
+    // 근거: [Discord 「인바운드 응답」](CLE-CHAT-DISCORD) — 컴포넌트 클릭(type 3) · 모달 제출(type 5)은
+    // 3초 안에 200 과 콜백 응답을 받아야 클라이언트가 실패 표시를 띄우지 않는다. 따로 정한 응답
+    // (모달 열기 type 9 · 폼 제출 결과 type 4)이 없으면 { type: 6 } 으로 답한다. NERV Task `CLE-T-7XWVC5`.
+    describe('Discord 컴포넌트 · 모달 제출의 기본 ack', () => {
+      const DEFERRED_UPDATE = { type: 6 };
+      const discordTrigger = (provider = 'discord'): Trigger =>
+        ({
+          ...chatChannelTrigger,
+          config: {
+            chatChannel: {
+              ...(
+                chatChannelTrigger.config as {
+                  chatChannel: Record<string, unknown>;
+                }
+              ).chatChannel,
+              provider,
+            },
+          },
+        }) as unknown as Trigger;
+      const interactionInput = (type: number): WebhookInput => ({
+        ...chatInput,
+        body: { id: 'I100', type, token: 'tok', application_id: 'A' },
+      });
+      const updateOf = (command: unknown): Record<string, unknown> => ({
+        conversationKey: 'dm-1',
+        channelUserKey: 'user-1',
+        command,
+        idempotencyKey: 'I100',
+        receivedAt: new Date().toISOString(),
+      });
+      const waitingState = (extra: Record<string, unknown> = {}) => ({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-1',
+        startedAt: '2026-11-12T00:00:00.000Z',
+        lastUpdateAt: '2026-11-12T00:00:00.000Z',
+        ...extra,
+      });
+      const markWaitingForInput = () =>
+        (
+          moduleRef.get(ExecutionsService) as {
+            executionRepository: { findOne: jest.Mock };
+          }
+        ).executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+      const buttonCallback = {
+        kind: 'button_callback',
+        callbackData: 'btn:1',
+        callbackQueryId: '',
+      };
+
+      beforeEach(() => {
+        triggerRepo.findOne.mockResolvedValue(discordTrigger());
+      });
+
+      it('버튼 클릭이 새 실행을 시작하면 { type: 6 } 을 싣고 호출 이력 응답 코드는 200 이다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
+        engine.execute.mockResolvedValue('exec-new');
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'exec-new',
+          status: 'pending',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+        expect(engine.execute).toHaveBeenCalledWith(
+          'wf1',
+          expect.anything(),
+          expect.objectContaining({ responseCode: '200' }),
+        );
+      });
+
+      it('입력을 기다리는 실행에 버튼 클릭을 전달해도 { type: 6 } 으로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
+        conversationService.lookup.mockResolvedValue(waitingState());
+        markWaitingForInput();
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(interactionService.interact).toHaveBeenCalled();
+        expect(res).toEqual({
+          executionId: 'exec-active',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+        expect(engine.execute).not.toHaveBeenCalled();
+      });
+
+      it('Reply 모달 제출(type 5)을 기다리는 실행에 전달해도 { type: 6 } 으로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({ kind: 'text_message', text: 'my answer' }),
+        );
+        conversationService.lookup.mockResolvedValue(waitingState());
+        markWaitingForInput();
+
+        const res = await service.handleWebhook('abc', interactionInput(5));
+
+        expect(res).toEqual({
+          executionId: 'exec-active',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+      });
+
+      it('파싱하지 않는 컴포넌트(길드 채널 등)도 ignored 와 함께 { type: 6 } 으로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(null);
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+      });
+
+      it('재도착(CCH-SE-02)으로 무시한 클릭도 { type: 6 } 으로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
+        (
+          moduleRef.get(ChatChannelDedupService) as { claim: jest.Mock }
+        ).claim.mockResolvedValue(false);
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+      });
+
+      it('대화별 분당 한도(CCH-NF-03)를 넘긴 클릭도 { type: 6 } 으로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
+        (
+          moduleRef.get(ChatChannelRateLimiterService) as { consume: jest.Mock }
+        ).consume.mockResolvedValue(false);
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+        expect(engine.execute).not.toHaveBeenCalled();
+      });
+
+      it('워크플로우가 꺼져 있어 새 실행을 막은 클릭도 { type: 6 } 으로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
+        workflowRepo.findOne.mockResolvedValue({
+          id: 'wf1',
+          isActive: false,
+        } as Workflow);
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
+        expect(engine.execute).not.toHaveBeenCalled();
+      });
+
+      it('모달 열기 응답(type 9)은 기본 ack 로 덮지 않는다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({
+            kind: 'open_form_modal',
+            openContext: { interactionId: 'I100', interactionToken: 'tok' },
+          }),
+        );
+        const modal = { type: 9, data: { custom_id: 'clemvion_form' } };
+        Object.assign(mockAdapter, {
+          supportsNativeForm: true,
+          openFormModal: jest.fn().mockResolvedValue({ httpResponse: modal }),
+          buildFormSubmissionResponse: jest.fn().mockReturnValue({}),
+        });
+        conversationService.lookup.mockResolvedValue(
+          waitingState({
+            pendingFormModal: {
+              nodeId: 'node-form',
+              fields: [{ name: 'email', label: 'Email', type: 'email' }],
+            },
+          }),
+        );
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'exec-active',
+          interactionHttpResponse: modal,
+        });
+      });
+
+      it('폼 제출 결과 응답(type 4)은 기본 ack 로 덮지 않는다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(
+          updateOf({
+            kind: 'form_submission',
+            fields: { email: 'a@example.com' },
+          }),
+        );
+        const submitted = { type: 4, data: { content: 'ok', flags: 64 } };
+        Object.assign(mockAdapter, {
+          supportsNativeForm: true,
+          openFormModal: jest.fn(),
+          buildFormSubmissionResponse: jest
+            .fn()
+            .mockReturnValue({ httpResponse: submitted }),
+        });
+        conversationService.lookup.mockResolvedValue(
+          waitingState({
+            pendingFormModal: {
+              nodeId: 'node-form',
+              fields: [{ name: 'email', label: 'Email', type: 'email' }],
+            },
+          }),
+        );
+        markWaitingForInput();
+
+        const res = await service.handleWebhook('abc', interactionInput(5));
+
+        expect(res).toEqual({
+          executionId: 'exec-active',
+          interactionHttpResponse: submitted,
+        });
+      });
+
+      it('슬래시 명령(APPLICATION_COMMAND)은 기본 ack 없이 지금처럼 202 로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'start' }));
+        engine.execute.mockResolvedValue('exec-cmd');
+
+        const res = await service.handleWebhook('abc', interactionInput(2));
+
+        expect(res).toEqual({ executionId: 'exec-cmd', status: 'pending' });
+        expect(engine.execute).toHaveBeenCalledWith(
+          'wf1',
+          expect.anything(),
+          expect.objectContaining({ responseCode: '202' }),
+        );
+      });
+
+      it.each([
+        ['AUTOCOMPLETE(type 4)', { id: 'I100', type: 4 }],
+        ['문자열 type', { id: 'I100', type: '3' }],
+        ['type 없는 본문', { id: 'I100' }],
+      ])('%s 에는 기본 ack 를 붙이지 않는다', async (_label, body) => {
+        mockAdapter.parseUpdate.mockResolvedValue(null);
+
+        const res = await service.handleWebhook('abc', { ...chatInput, body });
+
+        expect(res).toEqual({ executionId: 'ignored' });
+      });
+
+      it('꺼진 트리거는 컴포넌트 클릭이어도 ack 없이 ignored 로 답한다', async () => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...discordTrigger(),
+          isActive: false,
+        } as Trigger);
+
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+      });
+
+      it.each(['telegram', 'slack'])(
+        '%s 트리거는 본문 type 이 3 이어도 기본 ack 를 붙이지 않는다',
+        async (provider) => {
+          triggerRepo.findOne.mockResolvedValue(discordTrigger(provider));
+          mockAdapter.parseUpdate.mockResolvedValue(null);
+
+          const res = await service.handleWebhook('abc', interactionInput(3));
+
+          expect(res).toEqual({ executionId: 'ignored' });
+        },
+      );
+    });
+
     describe('트리거의 워크플로우가 트리거의 워크스페이스에 없을 때', () => {
       const startUpdate = {
         conversationKey: 'chat-123',

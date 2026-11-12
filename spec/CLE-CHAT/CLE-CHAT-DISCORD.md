@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "2eac42d8c040f05e1a88912d2cc377b731044cb4dc6e9ddcd362310bb7a504af"
+content_hash: "512b957ffb4fd9c0140a1d781ce7a8b452b723afa7924f444dd3462b334a3df7"
 read_as: "approved_fallback"
-task: "CLE-T-KX2Q2N"
+task: "CLE-T-7XWVC5"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "c770c7486d2482f5d3a9929c48d4c70b51fbe4bcfebd09fc00ae7e7d5551f8a1"
-etag: "sha256-7da4252e97f79bef4208dd046a4fd2564faecd23f22bda74bac70602fb4588f8"
+mirror_sha256: "ca00659f5fda12675bd234538a86484c05112487e5ca1d5f15ef21d41a38bb70"
+etag: "sha256-31d2be3e7368bedcda766ba1aab1e0ddae8ef8a4fe0e734e9da808535e243ee3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -44,14 +44,14 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-006 WHEN Interactions payload 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `interaction.id` 를 중복 제거 키로 쓴다. (원본: discord §4)
 - REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
 - REQ-DISCORD-008 IF `member.user.bot === true` 이거나 DM 의 `user.bot === true` 이면 THE SYSTEM SHALL `null` 을 돌려준다. (원본: discord §4, §6)
-- REQ-DISCORD-009 WHEN Interactions 요청이 오면 THE SYSTEM SHALL 3초 안에 `200 OK` 와 `{ type: 5 }`·`{ type: 6 }`·`{ type: 9, data }` 가운데 알맞은 응답을 돌려준다. (원본: discord §3, §4)
+- REQ-DISCORD-009 WHEN Interactions 요청이 오면 THE SYSTEM SHALL 3초 안에 `200 OK` 와 `{ type: 4, data }`·`{ type: 5 }`·`{ type: 6 }`·`{ type: 9, data }` 가운데 알맞은 응답을 돌려준다. (원본: discord §3, §4) (부분 구현)
 - REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내고 2000자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-011 WHEN AI 응답을 보내면 THE SYSTEM SHALL 마지막 텍스트 조각에 "Reply" 버튼(`__reply__`)을 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-012 WHEN "Reply" 버튼이 눌리면 THE SYSTEM SHALL `custom_id` 가 `clemvion_reply` 인 단일 TEXT_INPUT 모달을 열고 제출 값을 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. (원본: discord §5.1)
 - REQ-DISCORD-013 WHEN `/<prefix> reply <message>` 가 오면 THE SYSTEM SHALL `{ kind: "text_message", text: <message> }` 로 바꾼다. (원본: discord §5.1)
 - REQ-DISCORD-014 WHEN LLM 응답 직전이면 THE SYSTEM SHALL `POST /channels/{id}/typing` 을 한 번 보내고 응답이 10초를 넘으면 5초마다 다시 보낸다. (원본: discord §5.1, §5.5)
 - REQ-DISCORD-015 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL ACTION_ROW 와 BUTTON 요소로 만들고 `custom_id` 에 `buttonId` 를 넣으며 `buttonLayout` 에 따라 행을 나눈다. (원본: discord §5.2)
-- REQ-DISCORD-016 WHEN 버튼 MESSAGE_COMPONENT 가 오면 THE SYSTEM SHALL 곧바로 `200 OK` 와 `{ type: 6 }` 으로 답하고 EIA `click_button` 을 부른다. (원본: discord §5.2)
+- REQ-DISCORD-016 WHEN 버튼 MESSAGE_COMPONENT 가 오면 THE SYSTEM SHALL EIA `click_button` 요청을 큐에 넣고 그 처리를 기다리지 않은 채 3초 안에 `200 OK` 와 `{ type: 6 }` 으로 답한다. (원본: discord §5.2)
 - REQ-DISCORD-017 WHEN `formMode` 가 `auto`·`native_modal` 이고 필드가 5개 이하이며 모두 텍스트 계열인 Form 입력 대기가 오면 THE SYSTEM SHALL `form_modal` 버튼을 보내고 클릭 때 `{ type: 9 }` MODAL(TEXT_INPUT)을 웹훅 응답 본문으로 돌려준다. (원본: discord §3.3, §5.3)
 - REQ-DISCORD-018 IF 모달 제출이 서버 쪽 검증에서 실패하면 THE SYSTEM SHALL 후속 메시지에 "다시 입력" 버튼(`__open_form__`)을 다시 보내 모달을 다시 열게 한다. (원본: discord §3.3)
 - REQ-DISCORD-019 WHEN Form 에 `select`·`radio`·`checkbox`·`file` 필드가 있거나 필드가 6개 이상이거나 `formMode` 가 `multi_step` 이면 THE SYSTEM SHALL 다단계 질문으로 받는다. (원본: discord §5.3)
@@ -75,6 +75,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 요구사항 보충 설명은 다음과 같다.
 
 - 관련 REQ-DISCORD-002: 인바운드 서명 검증의 기준은 여전히 `inboundSigningRef`(시크릿 저장소)와 생성 때 정규식 검증(REQ-DISCORD-027)이다. setup 때 교차 확인과 `publicKey` 캐시는 그 위의 추가 안전장치이자 identity 편의다.
+- 관련 REQ-DISCORD-009·016: 컴포넌트(MESSAGE_COMPONENT)와 모달 제출(MODAL_SUBMIT)의 응답은 구현됐다. 인터랙션 종류별 응답과 버린 클릭의 응답은 [명령 매핑](#명령-매핑) 의 Interactions 응답과 R-D-11 이 정한다. 슬래시 명령(APPLICATION_COMMAND)은 아직 `202` 와 `{ data: { executionId, … } }` 봉투로 답한다. 결함이고 NERV Task `CLE-T-TSEP9G` 가 고친다.
 - 관련 REQ-DISCORD-011~013: 두 입력 경로는 함께 있다. "Reply" 버튼 모달이 v1 기본 UX 이고 `/<prefix> reply` 는 숙련 사용자용 보조 옵션이다. 자유 DM 텍스트 답장은 v2 Gateway 에서 된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
 - 관련 REQ-DISCORD-020: [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 `validation.preset` 이 아직 없다. Discord 에는 연락처 공유에 해당하는 기능이 없다.
 - 관련 REQ-DISCORD-022·023: 현재 구현은 이미지 메시지를 caption(없으면 `fallbackText`) `content` 로만 보내 실제 이미지를 첨부하지 않고, Carousel 카드도 모두 텍스트로 보낸다(embeds 호출처 없음).
@@ -97,7 +98,8 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 | `sendMessage`(form_modal) | `POST /channels/{id}/messages` + "양식 작성하기" 버튼(`custom_id: "__open_form__"`). 클릭하면 `HooksService` 가 `openFormModal` 에서 interaction HTTP 응답 `{ type: 9, data: <modal> }` 로 TEXT_INPUT N개 모달을 연다 |
 | `sendMessage`(image) | 현재 v1 은 `content` 에 caption(없으면 `fallbackText`)만 보내고 이미지는 첨부하지 않는다. `attachments` multipart 업로드나 `embeds: [{image: {url}}]` 는 미구현 |
 | `sendMessage`(typing) | [`POST /channels/{channel_id}/typing`](https://discord.com/developers/docs/resources/channel#trigger-typing-indicator). 10초 유지 뒤 자동 만료 |
-| `ackInteraction` | Interactions 응답. 3초 안에 `200 OK` 와 `{ type: 5 }`(DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE), `{ type: 6 }`(DEFERRED_UPDATE_MESSAGE), `{ type: 9, data: <modal> }`(`__open_form__`·`__reply__` 클릭 때 MODAL). 비동기 갱신은 [`PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`](https://discord.com/developers/docs/interactions/receiving-and-responding#edit-original-interaction-response)(15분 유효, 5회 한도) |
+| `ackInteraction` | 빈 구현이다. 인터랙션 후처리로 할 일이 없다. 3초 안 Interactions 응답은 웹훅 HTTP 응답이 맡는다([명령 매핑](#명령-매핑) 의 Interactions 응답). 원본 메시지를 비동기로 갱신하는 [`PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`](https://discord.com/developers/docs/interactions/receiving-and-responding#edit-original-interaction-response)(15분 유효, 5회 한도)은 지금 부르지 않는다 |
+| `openFormModal` | `__open_form__`·`__reply__` 클릭 때 웹훅 HTTP 응답 본문 `{ type: 9, data: <modal> }`(MODAL)을 만든다. `__open_form__` 은 `clemvion_form` 폼 모달, `__reply__` 는 `clemvion_reply` 답장 모달이다([MODAL](#modal)) |
 
 ### setupChannel
 
@@ -205,7 +207,18 @@ Discord Interactions Webhook 은 envelope 하나(`type` 필드로 분기, `Conte
 
 자유 텍스트 메시지는 받지 못한다. Discord 의 [`MESSAGE_CREATE`](https://discord.com/developers/docs/topics/gateway-events#message-create) 는 Gateway 연결 때만 오고 v1 은 Interactions Webhook 만 쓰기 때문이다(R-D-3). 멀티턴 AI 답장은 slash command 의 text option 이나 모달 TEXT_INPUT 으로 받는다.
 
-Discord Interactions 는 3초 안에 응답해야 한다. `ackInteraction` 이 곧바로 `200 OK` 와 `{ type: 5 }`(DEFERRED, 비동기 후속 갱신)나 `{ type: 6 }`(UPDATE_MESSAGE, 기존 메시지 갱신)로 답한다. 비동기 갱신은 `PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`(15분 유효)이다.
+Discord Interactions 는 3초 안에 응답해야 한다. 이 응답은 웹훅 HTTP 응답이 맡는다. `HooksService` 가 인터랙션 응답 본문(`interactionHttpResponse`)을 돌려주면 `HooksController` 가 `{ data }` 봉투 없이 `200 OK` 로 보낸다. `ackInteraction` 은 빈 구현이다. 인터랙션 종류별 응답은 다음과 같다.
+
+| 인터랙션 | 웹훅 HTTP 응답 |
+|---|---|
+| `__open_form__`·`__reply__` 버튼 클릭(MESSAGE_COMPONENT)으로 모달을 연 경우 | `openFormModal` 이 만든 `200 OK` + `{ type: 9, data: <modal> }`(MODAL) |
+| Form 모달 제출(MODAL_SUBMIT, `custom_id: "clemvion_form"`)을 처리한 경우 | `buildFormSubmissionResponse` 가 만든 `200 OK` + `{ type: 4, data: { content, flags: 64 } }`. 본인에게만 보이는 메시지다 |
+| 그 밖의 MESSAGE_COMPONENT(버튼, 셀렉트)와 `clemvion_form` 이 아닌 모달 제출(Reply 모달 `clemvion_reply` 등) | `200 OK` + `{ type: 6 }`(DEFERRED_UPDATE_MESSAGE) |
+| APPLICATION_COMMAND(슬래시 명령) | 지금은 `202` 와 `{ data: { executionId, … } }` 봉투다. 결함이고 NERV Task `CLE-T-TSEP9G` 가 고친다 |
+
+트리거 활성 관문과 서명 검증을 지난 MESSAGE_COMPONENT 와 MODAL_SUBMIT 은 어느 경로로 끝나도 `200 OK` + `{ type: 6 }` 이다. `parseUpdate` 가 `null` 을 돌려준 update, 중복, 분당 한도 초과, 실행 중(입력 대기가 아님), 워크플로우 비활성, 입력 대기 실행으로 전달, 새 실행 시작이 모두 그렇다. 다만 그 경로가 응답 본문을 이미 만들었으면(`{ type: 9 }`, `{ type: 4 }`) 그 본문을 보낸다(R-D-11). 컴포넌트나 모달 제출로 새 실행을 시작하면 그 실행의 `response_code` 는 실제로 보낸 응답 코드인 `'200'` 이다. 그 밖의 새 실행은 `'202'` 다. 슬래시 명령에는 `{ type: 6 }` 을 쓸 수 없다. `{ type: 6 }` 은 원본 메시지가 있는 인터랙션(컴포넌트, 컴포넌트에서 연 모달의 제출)에만 맞는다. 슬래시 명령의 시작 안내 문구는 NERV Task `CLE-T-0400J6` 이 다룬다.
+
+원본 메시지를 비동기로 갱신하는 `PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`(15분 유효)은 지금 쓰지 않는다. `{ type: 5 }`(DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)를 보내는 경로도 지금은 없다.
 
 중복 제거 키(`idempotencyKey`)는 `interaction.id` 를 그대로 쓴다. Discord 가 interaction 마다 snowflake id 를 붙이고 재전송 때 같은 id 를 보낸다.
 
@@ -236,7 +249,7 @@ Discord Interactions 는 3초 안에 응답해야 한다. `ackInteraction` 이 �
 - `custom_id` 에 `buttonId`(UUID)를 넣는다. 한도 100자라 넉넉하다(R-D-5).
 - `style: 'primary'` 는 `style: 1`(PRIMARY), `'danger'` 는 `style: 4`(DANGER), 그 밖은 `style: 2`(SECONDARY).
 - 노드가 시각형이면 시각 메시지를 먼저 보내고 ACTION_ROW 는 다음 메시지로 보내거나 같은 메시지의 `components` 에 붙인다.
-- MESSAGE_COMPONENT 가 오면 (1) 곧바로 `200 OK + { type: 6 }`(3초 ack), (2) EIA `click_button`, (3) 선택으로 `PATCH /webhooks/{app_id}/{token}/messages/@original` 에 `components: []` 나 비활성 상태를 보내 중복 클릭을 막는다.
+- MESSAGE_COMPONENT 가 오면 다음 순서로 처리한다. (1) EIA `click_button` 요청을 큐에 넣는다. 처리는 기다리지 않는다. (2) 3초 안에 웹훅 HTTP 응답으로 `200 OK + { type: 6 }` 을 돌려준다. 클릭을 버린 경로도 같은 응답이다([명령 매핑](#명령-매핑)). (3) 중복 클릭을 막으려고 `PATCH /webhooks/{app_id}/{token}/messages/@original` 에 `components: []` 나 비활성 상태를 보내는 것은 선택이고 지금은 하지 않는다.
 
 ### Form
 
@@ -298,13 +311,13 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 - DM 밖 `channel.type` 은 진입점에서 `channel.type !== 1` 로 막고 `groupChatRefusal` 안내 뒤 버린다(CCH-CV-05).
 - 봇 멤버(`member.user.bot === true`, DM `user.bot === true`)도 무시한다.
 
-인바운드 HTTP 응답 정책은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 요점은 기본이 `202 Accepted` 이고 인증 실패는 `401`, 엔드포인트 미존재는 `404` 이며 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. Discord 예외는 두 가지다. (1) PING(`type: 1`)은 `200 OK + { type: 1 }` JSON 이 필수다. (2) Interactivity ack 는 3초 안에 `200 OK + { type: 5 | 6 }` 이고 `202` 를 인정하지 않는다. 두 예외는 [setupChannel](#setupchannel), [버튼](#버튼), [Form](#form) 에 적혀 있고 인바운드 응답 계약의 프로바이더별 응답 예외 조건에도 들어 있다(R-D-8). 트리거가 활성이면 워크플로우가 비활성이어도 PING 에는 답한다. 핸드셰이크 응답이 워크플로우 활성 관문보다 앞이기 때문이다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 새 실행을 시작할 update(`/<prefix> start` 와 활성 실행이 없는 대화의 입력)는 `202 + { executionId: 'ignored' }` 로 버린다. 진행 중인 대화의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다(REQ-CHAT-066~068, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다(REQ-CHAT-064). 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다.
+인바운드 HTTP 응답 정책은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 요점은 기본이 `202 Accepted` 이고 인증 실패는 `401`, 엔드포인트 미존재는 `404` 이며 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. Discord 예외는 두 가지다. (1) PING(`type: 1`)은 `200 OK + { type: 1 }` JSON 이 필수다. (2) 컴포넌트와 모달 제출은 3초 안에 `200 OK + { type: 6 }` 이다(모달 열기는 `{ type: 9 }`, Form 제출 결과는 `{ type: 4 }`). `202` 는 인정하지 않는다. 슬래시 명령은 아직 `202` 로 답한다. 결함이고 NERV Task `CLE-T-TSEP9G` 가 고친다. 두 예외는 [setupChannel](#setupchannel), [버튼](#버튼), [Form](#form) 에 적혀 있고 인바운드 응답 계약의 프로바이더별 응답 예외 조건에도 들어 있다(R-D-8). 트리거가 활성이면 워크플로우가 비활성이어도 PING 에는 답한다. 핸드셰이크 응답이 워크플로우 활성 관문보다 앞이기 때문이다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 새 실행을 시작할 update(`/<prefix> start` 와 활성 실행이 없는 대화의 입력)는 `202 + { executionId: 'ignored' }` 로 버린다. 그 update 가 컴포넌트나 모달 제출이면 `200 OK + { type: 6 }` 으로 답하고 버린다. 진행 중인 대화의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다(REQ-CHAT-066~068, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다(REQ-CHAT-064). 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다.
 
 ## 명령 처리
 
 | 사용자 입력 | 어댑터 처리 |
 |---|---|
-| `/<prefix> start`(활성 실행 없음) | 새 실행 시작, ack `{ type: 4, data: { content: languageHints.executionStarted } }` 나 deferred 뒤 후속 메시지. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| `/<prefix> start`(활성 실행 없음) | 새 실행 시작, ack `{ type: 4, data: { content: languageHints.executionStarted } }` 나 deferred 뒤 후속 메시지. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`). 웹훅 HTTP 응답은 지금 `202` 다(NERV Task `CLE-T-TSEP9G`) |
 | `/<prefix> start`(활성 실행 있음) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
 | `/<prefix> cancel` | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." 안내. 이 안내는 아직 보내지 않는다 |
 | `/<prefix> help` | 봇 기본 도움말(v1 정적, `languageHints.help` 나 기본 문구). [미결 사항](#미결-사항) 참조 |
@@ -396,3 +409,17 @@ Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구�
 ### R-D-10 활성 실행 중 start 명령은 기존 실행을 취소하고 새로 시작한다
 
 2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). 명령 처리 표는 활성 실행이 있어도 `/<prefix> start` 면 기존 실행을 취소하고 새로 시작한다고 적었는데, [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-CV-03 에는 `/start` 예외가 없었다. 채팅 채널 문서에 명령 우선 규칙(REQ-CHAT-062~065)을 두어 이 표를 정본으로 맞췄다. 근거는 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다. Discord 는 v1 에서 자유 DM 텍스트를 받지 못하므로(R-D-3) [Slack 어댑터 「R-S-10 취소 후 새로 시작은 start 명령에만 적용한다」](CLE-CHAT-SLACK.md#r-s-10-취소-후-새로-시작은-start-명령에만-적용한다) 같은 DM 텍스트 구분이 필요 없다. 이 결정으로 미결 «활성 실행 중 `/start`» 를 닫았다.
+
+### R-D-11 컴포넌트와 모달 제출은 어느 경로로 끝나도 type 6 으로 답한다
+
+NERV Task `CLE-T-7XWVC5` 의 결정이다. Discord 는 interaction response 객체가 아닌 응답이나 `202` 를 받으면 그 인터랙션을 실패로 처리하고 사용자 화면에 «This interaction failed» 를 띄운다. 이 결정 전에는 버튼·셀렉트 클릭에 `202` 와 `{ data }` 봉투로 답했다. 그래서 클릭을 처리해도 화면에는 실패가 떴다.
+
+`{ type: 6 }`(DEFERRED_UPDATE_MESSAGE)은 화면을 바꾸지 않고 후속 메시지도 요구하지 않는다. 그래서 중복, 분당 한도 초과, 실행 중처럼 클릭을 버린 경로에 보내도 안전하다. 경로가 이미 만든 응답(`{ type: 9 }` 모달 열기, `{ type: 4 }` Form 제출 결과)이 있으면 그것을 보낸다. 슬래시 명령은 원본 메시지가 없어 `{ type: 6 }` 을 쓸 수 없으므로 이 결정에서 뺐다(NERV Task `CLE-T-TSEP9G`). 새 실행의 `response_code` 는 실행 데이터 정의(실제 HTTP 응답 코드)대로 `'200'` 을 남긴다.
+
+기각한 대안은 둘이다.
+
+- `ackInteraction` 이 `{ type: 6 }` 을 보내게 하는 안: 채널 어댑터 함수는 웹훅 HTTP 응답을 만들지 못한다. [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 도 이 함수를 인바운드 명령 처리 뒤의 후처리로 정했다.
+- 처리한 경로만 `{ type: 6 }` 으로 답하고 버린 경로는 `202` 로 두는 안: 버린 클릭마다 사용자 화면에 실패가 뜬다.
+
+이 항목은 R-D-8 이 정한 예외(Interactivity ack 는 `200 OK`) 안에서 그 응답 본문과 적용 범위를 정한다.
+
