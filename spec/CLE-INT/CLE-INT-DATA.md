@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "74333cc0d19bcdac7df263ee1b7d51c8dae4ed33ad02b929956b096ed516765e"
+content_hash: "b0914246c976b455cecb2155fcbaadec303bef431176810c016a5406c0d1f170"
 read_as: "approved_fallback"
-task: "CLE-T-B4WH9N"
+task: "CLE-T-J6TZGK"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "b2049c8f5a34e807bb71450332177aa954f2cfcac8fefec60502c03044cc468b"
-etag: "sha256-5b5cf5cd4a377e11d5a9759dce703f22c59a9b1b44f0ff60e86aecddde9864bb"
+mirror_sha256: "13d165cc50dfdd8e2b0a7fbbe7624b0c217c78ae035149a096c4ee611adeaf56"
+etag: "sha256-f71f525742502e2fbea5ca00dc537a10d1feb77ee35e6414eba6c6300b792d4e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -345,6 +345,11 @@ sequenceDiagram
 - 설치 대기 행과, 재설치 대기 표시가 유효한 Cafe24 Private 행은 커밋 직전 인가 재판정을 하지 않는다. 이 행의 state 는 App URL(설치 토큰과 HMAC 이 인가한다)이 만들어 `user_id` 가 요청자가 아니라 통합 소유자다. 표시를 남긴 요청자의 인가는 표시를 남길 때 이미 확인했다. 재판정하면 관리자가 요청한 조직 통합의 재설치가 통합 소유자 기준으로 `ADMIN_REQUIRED` 가 되어 실패한다. Cafe24 Public 행과 MakeShop 행은 표시 값과 관계없이 재판정하고 표시를 남긴 지 24시간이 지난 Cafe24 Private 행도 재판정한다.
 - 설치 토큰이 있는 Cafe24 Private 행의 통합 재인증과 추가 권한 요청은 `oauth/begin` 을 거치지 않고 state 도 만들지 않는다. 통합 재인증은 판정한 행 조건으로 `reinstall_requested_at` 만 현재 시각으로 UPDATE 하고 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 추가 권한 요청은 `credentials.scopes` 를 합쳐 저장하면서 설치 대기가 아니면 같은 값을 쓴다. 이미 표시가 있으면 새 시각으로 덮어써 24시간을 다시 센다. 상태·상태 사유·토큰은 그대로다. state 는 사용자가 «테스트 실행» 을 눌러 App URL 이 불릴 때 생긴다([Cafe24 Private 앱 설치](#cafe24-private-앱-설치)).
 - 자격 증명 교체(`POST /api/integrations/:id/rotate`)는 OAuth 흐름이 아니다. 연결 테스트를 통과하면 자격 증명을 합치고 `last_rotated_at` 을 갱신하며 연결됨으로 되돌린다.
+  - 연결 테스트는 요청 시점에 읽은 행에 새 값을 합친 자격 증명으로 트랜잭션 밖에서 돈다. 실패하면 행을 건드리지 않고 `INTEGRATION_TEST_FAILED` 로 거절한다(응답은 [통합 관리 「에러 코드」](CLE-INT-MANAGE.md#에러-코드)).
+  - 통과하면 트랜잭션을 열고 `SELECT integration FOR UPDATE`(`pessimistic_write`)로 행을 다시 읽는다. 다시 읽은 행으로 보기 권한과 수정 권한을 다시 판정한다. 조직 통합이면 요청자의 역할도 같은 트랜잭션에서 다시 읽는다. 행이 없거나 요청자에게 보이지 않게 됐으면 404 `RESOURCE_NOT_FOUND` 다.
+  - 새 값은 다시 읽은 행의 자격 증명 위에 다시 합치고 구조 검증을 한 번 더 한다. 그다음 바꾸는 컬럼(`credentials`·`last_rotated_at`·`status`·`status_reason`·`last_error`)만 UPDATE 한다. 테스트하는 몇 초 사이 먼저 커밋된 다른 교체를 요청 시점의 옛 값으로 되돌리지 않기 위해서다. 엔티티 전체를 저장하지 않으므로 그사이 활동 기록이 쓴 `last_used_at` 같은 컬럼도 되돌리지 않는다.
+  - 잠금 안에서는 외부를 부르지 않는다. 위 통합 재인증 콜백도 토큰을 교환한 뒤에 `FOR UPDATE` 로 행을 잡는다. 잠금을 쥔 채 HTTP 요청을 하면 DB 커넥션 점유가 길어지기 때문이다. 토큰 갱신이 advisory lock 을 뺀 이유도 같다([OAuth 연결과 토큰 갱신 「여러 인스턴스의 갱신 경쟁은 BullMQ `jobId` 중복 제거로 푼다」](CLE-INT-OAUTH.md#여러-인스턴스의-갱신-경쟁은-bullmq-jobid-중복-제거로-푼다)).
+  - 받아들인 잔여: 두 교체가 서로 다른 필드를 바꾸면 커밋된 조합은 테스트한 적이 없는 조합이다. 테스트는 옛 행 위에 합친 값으로 돌았고 커밋은 새 행 위에 합친 값이기 때문이다. 먼저 커밋된 필드가 옛 값으로 되돌아가는 것보다 낫다고 보고 받아들였다.
 - 자격 증명 교체와 통합 삭제 직후 `IntegrationsService` 는 `IntegrationCacheBus.publish(integrationId)` 로 Redis pub/sub 채널 `integration:cache:invalidate` 에 알린다. 모든 인스턴스의 로컬 자격 증명 캐시(예: Database Query 연결 풀)가 바로 비워져 교체 전 자격 증명으로 남은 연결을 끊는다. pub/sub 을 받지 못해도 핸들러의 자격 증명 해시 비교가 캐시를 비운다. 상세는 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md).
 
 #### Cafe24 Private 앱 설치
@@ -567,3 +572,11 @@ Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실�
 「미결 사항」 의 «복호화하지 못한 인증 설정의 복구» 항목을 지웠다. 키가 바뀌어 복호화하지 못한 인증 설정은 재생성으로 고쳐지지 않았다. 재생성이 표식에 새 값을 넣어 저장했는데 표식을 저장하면 원래 저장값이 그대로 다시 저장되기 때문이었다. 편집 `PATCH` 로 보낸 비밀이 아닌 config 도 같은 이유로 저장되지 않았다. NERV Task `CLE-T-SAMVX8` 이 이 두 결함을 고쳤다. 재생성은 표식을 버리고 새 config 를 만들고, 편집은 표식에 config 를 병합하지 않는다. 정본은 [외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성) 과 [「편집」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#편집) 이다.
 
 「암호화」 의 «복호화하지 못한 행» 표에서 `auth_config.config` 행의 복구 방법도 그에 맞게 고쳤다. transformer 의 동작은 바꾸지 않았다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 응답 `config` 에 표식을 그대로 싣고 통합의 `credentialsStatus` 같은 상태 표시로 바꾸지 않는 결정은 [외부 호출 인증 설정 「복호화 불가 표식을 응답에 그대로 둔다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다. 그래서 이 문서의 표식 정의와 용어 사전 「복호화 불가 표식」 은 바꾸지 않았다.
+
+### 자격 증명 교체는 연결 테스트 뒤 잠근 행 위에 다시 합친다 (2026-11-12)
+
+「OAuth 연결과 설치」 의 자격 증명 교체 항목에 잠금 순서를 적었다. 형제 흐름인 통합 재인증 · 추가 권한 요청 콜백은 `SELECT … FOR UPDATE` 를 적는데 자격 증명 교체만 빠져 있었다(NERV Task `CLE-T-J6TZGK`). 코드는 2026-09-20(PR #1368)부터 이 순서로 동작한다(`IntegrationsService.rotate`).
+
+그 전에는 요청 시점에 읽은 행 위에 새 값을 합쳐 저장했다. 연결 테스트가 몇 초 걸리는 동안 같은 통합의 다른 교체가 먼저 커밋되면 그 값이 옛 값으로 되돌아갔다. 그래서 테스트를 마친 뒤 잠근 행을 다시 읽고 그 위에 다시 합치도록 고쳤다.
+
+뺀 안: 연결 테스트까지 잠금 안에 넣으면 두 교체가 차례로 돌아 테스트하지 않은 조합이 생기지 않는다. 대신 잠금을 쥔 채 외부를 불러 DB 커넥션 점유가 길어진다. 토큰 갱신이 advisory lock 을 뺀 이유와 같다. 테스트하지 않은 조합은 두 교체가 서로 다른 필드를 바꿀 때만 생겨서 받아들였다.

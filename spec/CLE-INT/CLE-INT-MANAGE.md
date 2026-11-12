@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 17
+version: 18
 status: "approved"
 requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067", "REQ-INTMGMT-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "80a37d331cd8e0ce1eab7c5eeadb69f68c2e079260466cc1d58b67eed3ecb3ad"
+content_hash: "faac27e7678510b26e26fdda0b491671b37094b58eda36b4bb181deaf1262a11"
 read_as: "approved_fallback"
-task: "CLE-T-68XG50"
+task: "CLE-T-XCMNP6"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "347ba221bf953f3b83ed0cece7fa2bb3a69183253d22fbab312f2ce2ca3ff1bc"
-etag: "sha256-d303d9f34d443c93988aeb9f3db450f6b77e55b3ede22f25b9b2ce9826f67f01"
+mirror_sha256: "8edca7ecef9105bb0431765c1d40271a5c36f31eb69d12f1dce77acdd0f6920a"
+etag: "sha256-04c5b7b692bd1c153bb0df3c99d3fb03f01a534d10d76572f8c10126589905d8"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -444,11 +444,15 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | `POST /api/integrations/:id/test` | 저장된 자격 증명으로 연결 테스트 |
 | `POST /api/integrations/:id/rotate` | 안에서 새 자격 증명으로 연결 테스트를 하고 성공할 때만 저장 |
 
-- 결과는 `IntegrationTestResult`(`{ success, code, message }` 와 서비스별 추가 필드)다. 실패 코드는 노드 출력의 `output.error.code` 와 다른 이름공간이다. 서비스마다 무엇을 확인하고 어떤 코드를 내는지는 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 이 정한다.
+- 결과는 `IntegrationTestResult`(`{ success, code, message }` 와 서비스별 추가 필드)다. 서비스마다 무엇을 확인하고 어떤 코드를 내는지는 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 이 정한다.
+- 실패 코드는 노드 출력의 `output.error.code` 와 다른 이름공간이다. 노드 코드와 이름이 같은 값도 연결 테스트 결과로 받았으면 연결 테스트의 정의로 읽는다. 이름이 같은 값은 두 무리다.
+  - host 차단 코드(`EMAIL_HOST_BLOCKED`·`DB_HOST_BLOCKED`·`HTTP_BLOCKED`)는 노드와 같은 SSRF 가드의 판정이라 뜻도 같다.
+  - Cafe24·MakeShop 의 인증 실패와 전송 실패(`CAFE24_AUTH_FAILED`·`CAFE24_TRANSPORT_FAILED`·`MAKESHOP_AUTH_FAILED`·`MAKESHOP_TRANSPORT_FAILED`)는 노드와 같은 API 클라이언트가 내서 이름이 같다. 뜻은 다를 수 있다. MakeShop 연결 테스트는 403 을 `MAKESHOP_AUTH_FAILED` 로 내지만 통합 상태를 낮추지 않는다. 노드 실행은 같은 403 에 같은 코드를 내고 상태를 `error(auth_failed)` 로 낮춘다([서비스별 인증 방식과 자격 증명 「MakeShop」](CLE-INT-AUTH.md#makeshop)).
 - 외부를 실제로 부르는 서비스는 Email·MCP·HTTP·Database 이고 Cafe24·MakeShop·Google·GitHub·Webhook 은 저장 전 테스트에서 구조만 확인한다. Cafe24·MakeShop 은 저장 뒤 `:id/test` 에서 실제로 부른다.
 - 설치 대기 통합에 `:id/test` 를 부르면 외부 호출 없이 `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 로 바로 거절한다. 토큰이 없어 외부 호출이 의미가 없다. 서비스 유형이 아니라 상태만 보는 가드라 설치 대기를 쓰는 모든 서비스에 적용된다. 화면의 버튼 비활성을 우회한 API 직접 호출의 백엔드 방어다.
 - 같은 엔드포인트의 다른 가드도 같은 모양이다. 복호화 실패는 `INTEGRATION_CREDENTIALS_UNREADABLE`, Cafe24 자격 증명 필드 누락은 `INTEGRATION_INCOMPLETE` 를 200 과 `IntegrationTestResult` 로 돌려준다.
 - 사용자가 직접 누른 연결 테스트의 실패는 연속 네트워크 실패(`consecutive_network_failures`)에 합산하지 않는다.
+- 자격 증명 교체(`:id/rotate`)는 결과 객체를 돌려주지 않는다. 안의 연결 테스트가 실패하면 400 `INTEGRATION_TEST_FAILED` 에러 봉투로 거절하고 자격 증명과 상태를 바꾸지 않는다. 테스트 결과의 `message` 와 `code` 를 어디에 싣는지는 [에러 코드](#에러-코드) 가 정한다. `:id/test` 와 `preview-test` 의 실패는 이 코드를 쓰지 않는다.
 
 ## API
 
@@ -488,7 +492,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | GET | `/api/3rd-party/:provider/callback` | OAuth 콜백. `:provider ∈ {cafe24, google, github, makeshop}`. 같은 문서 |
 | POST | `/api/integrations/preview-test` | 저장 전 연결 테스트 |
 | POST | `/api/integrations/:id/reauthorize` | 통합 재인증. OAuth 통합은 `authUrl` 을 발급하고 OAuth 가 아닌 통합은 바로 연결됨으로 되돌린다. 설치 토큰이 있고 설치 대기가 아닌 Cafe24 Private 통합은 재설치 대기 표시만 남기고(이미 있으면 새 시각으로 덮어쓴다) `{ mode: 'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 을 돌려준다. 추가 권한 요청의 Private 응답과 같은 모양이고 `scopesAdded` 만 없다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합은 400 으로 거절한다(Cafe24 Private 의 코드는 [에러 코드](#에러-코드)). Cafe24 Public 통합은 행의 상점 식별자와 앱 유형으로 그 상점의 `authUrl` 을 발급한다. 같은 문서 |
-| POST | `/api/integrations/:id/rotate` | OAuth 가 아닌 자격 증명 교체. 본문은 새 자격 증명 객체. 안에서 테스트하고 성공할 때만 저장. `oauth2` 는 `INTEGRATION_ROTATE_UNSUPPORTED` |
+| POST | `/api/integrations/:id/rotate` | OAuth 가 아닌 자격 증명 교체. 본문은 새 자격 증명 객체. 안에서 테스트하고 성공할 때만 저장. 실패하면 400 `INTEGRATION_TEST_FAILED`. `oauth2` 는 `INTEGRATION_ROTATE_UNSUPPORTED` |
 | POST | `/api/integrations/:id/request-scopes` | 추가 권한 요청. 본문 `{ scopes: string[] }`. 설치 토큰이 있는 Cafe24 Private 통합은 OAuth 없이 권한 범위를 합쳐 저장하고 설치 대기가 아니면 재설치 대기 표시를 남긴 뒤(이미 있으면 새 시각으로 덮어쓴다) `{ mode: 'cafe24_private_pending', integrationId, appUrl, callbackUrl, scopesAdded: string[] }` 를 돌려준다. 설치 토큰이 없는 Cafe24 Private 통합(`CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING`)과 MakeShop 통합은 400 으로 거절한다. 그 밖의 응답 분기는 같은 문서 |
 | PATCH | `/api/integrations/:id/scope` | 공개 범위 전환(관리자) |
 
@@ -545,7 +549,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 | --- | --- | --- |
 | `INTEGRATION_IN_USE` | 409 | 사용처가 있어 삭제를 막았다. 사용처 목록은 `details.usages` 에 싣는다. 현재 구현은 목록을 싣지 못한다([미결](#미결-사항)) |
 | `INTEGRATION_NAME_TAKEN` | 409 | 워크스페이스에 같은 이름의 통합이 있다(`integration_workspace_name_unique`, 공개 범위 무관). 생성과 별칭 수정이 낸다. Cafe24 Private·MakeShop 의 `oauth/begin` 이 설치 대기 행을 만들 때도 낸다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 겹친 쪽이 남의 개인 통합이어도 난다(아래 Rationale 의 받아들인 잔여) |
-| `INTEGRATION_TEST_FAILED` | [미결](#미결-사항) | 연결 테스트 실패. 무엇을 확인하는지는 서비스마다 다르다([서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md)). HTTP 는 `base_url` 이 401·403 을 돌려줄 때만 자격 증명 거부를 안다 |
+| `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체(`:id/rotate`)가 새 자격 증명으로 돌린 연결 테스트가 실패했다. 자격 증명과 상태는 그대로다. `message` 는 테스트 결과의 `message` 다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣는다. 현재 구현은 `testCode` 를 싣지 않는다(Task `CLE-T-XCMNP6`). 무엇을 확인하는지는 서비스마다 다르다([서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md)). HTTP 는 `base_url` 이 401·403 을 돌려줄 때만 자격 증명 거부를 안다. `:id/test`·`preview-test` 의 실패는 이 코드가 아니라 200 결과 객체다([연결 테스트](#연결-테스트)) |
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스 유형·인증 유형 조합. 생성과 저장 전 연결 테스트가 공유하는 `IntegrationsService.validateServiceAuthType` 이 서비스 레지스트리(`findVariant`)에 없는 조합을 거부한다. 메시지 `Unsupported service/auth combination: {serviceType}/{authType}` |
 | `INTEGRATION_ROTATE_UNSUPPORTED` | | `oauth2` 통합에 자격 증명 교체를 요청했다 |
 | `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합. 공개 범위 전환 도중 워크스페이스와 함께 지워진 통합도 같다([위험 영역 탭](#위험-영역-탭)) |
@@ -630,7 +634,6 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 
 ## 미결 사항
 
-- **`INTEGRATION_TEST_FAILED` 의 HTTP 상태**: 통합 화면 정의의 에러 카탈로그는 422 로 적는다. [MCP 클라이언트](CLE-INT-MCP.md) 는 자격 증명 교체 경로에서 `BadRequestException`(400)으로 적는다. 현재 구현(`integrations.service.ts` rotate)은 400 이고 컨트롤러 Swagger 도 400 응답 설명에 이 코드를 적는다. 통합 화면 Rationale 도 이 서비스의 다른 throw 가 모두 400 이라고 적는다. API 계약이라 한쪽으로 정해야 한다. 422 로 가면 코드와 MCP 클라이언트 정의를 함께 바꾼다.
 - **노드 실행 중 403 의 에러 코드**: [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 는 403 을 `output.error.code=CAFE24_AUTH_FAILED` 로 내고 상태를 `auth_failed` 또는 `insufficient_scope` 로 바꾼다고 적는다. 이 문서의 에러 코드 표와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) 는 노드 실행 중 403 이 `INSUFFICIENT_SCOPE` 와 `details.missingScopes`·`requiresCafe24Approval` 을 낸다고 적는다. 워크플로우 작성자가 분기할 코드가 문서마다 다르다. 현재 구현에서 `CAFE24_INSUFFICIENT_SCOPE` 는 연결 테스트용으로 보인다(미확인). 노드 출력 코드와 `requiresCafe24Approval` 이 실리는 자리(`last_error.details` 로 보인다)를 확정해야 한다.
 - **MCP 서버 통합의 개인 공개 범위**: [MCP 클라이언트](CLE-INT-MCP.md) 는 MCP 통합의 기본값이 조직이고 개인 등록을 지원하지 않는다고 적는다. 이 문서의 추가 화면·권한 규칙과 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 에는 MCP 예외가 없어 모든 서비스가 개인을 고를 수 있다. MCP 전용 제한은 코드에서 찾지 못했다(미확인). MCP 개인 등록을 막을지 결정이 필요하다.
 - **삭제 차단 409 의 사용처 목록**: 이 문서는 `DELETE` 의 409 `INTEGRATION_IN_USE` 가 에러 봉투의 `details.usages` 에 사용처 목록을 싣는다고 정한다(REQ-INTMGMT-019). 현재 구현(`integrations.service.ts` 의 삭제 경로)은 목록을 예외 객체 최상위의 `usages` 에 담는다. 전역 예외 필터(`http-exception.filter.ts`)는 `code`·`message`·`details` 만 봉투로 옮기므로 목록이 응답에서 빠진다. 화면(`danger-tab.tsx`)도 응답 본문 최상위의 `usages` 를 읽어 경합으로 409 가 오면 늘 토스트로 끝난다. 삭제 전 `usages` 조회로 차단 다이얼로그를 띄우는 정상 흐름은 영향이 없다. 서버는 `details.usages` 로 싣고 화면은 `error.details.usages` 를 읽도록 함께 고쳐야 한다.
@@ -665,6 +668,16 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 - `codebase/backend/src/common/filters/http-exception.filter.ts` (에러 응답 봉투)
 
 ## Rationale
+
+### 자격 증명 교체의 연결 테스트 실패는 400 이다 (2026-11-12)
+
+`INTEGRATION_TEST_FAILED` 의 HTTP 상태가 문서마다 달랐다. 이 문서는 미결로 뒀고 [MCP 클라이언트](CLE-INT-MCP.md) 와 구현은 400 이었다. 2026-11-12 에 사용자가 세 가지를 정했다(NERV Task `CLE-T-J6TZGK`). 상태는 400 이다. 테스트 결과 코드는 `details.testCode` 에 싣는다. Cafe24 · MakeShop 이 노드와 같은 코드 이름을 쓰는 것은 예외로 적는다.
+
+- 400 으로 둔다. 실패 원인은 대개 새 값이다(틀린 비밀번호 · 토큰). 외부 서버 장애로 실패해도 클라이언트가 할 일은 값을 확인하고 다시 보내는 것으로 같다. 같은 경로가 자격 증명 구조 검증 실패(`INTEGRATION_INVALID_CREDENTIALS`)와 `oauth2` 교체 요청(`INTEGRATION_ROTATE_UNSUPPORTED`)도 400 으로 거절한다. 화면은 이 경로의 거절을 모두 400 으로 받는다.
+- 422 는 뺐다. 422 는 2026-04-12 에 이 문서의 전신(`spec/2-navigation/4-integration.md`)이 에러 카탈로그에 처음 적은 값이다. 같은 날 들어온 첫 구현은 400 이었고 그 뒤로 422 를 쓴 적이 없다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 은 422 를 비즈니스 로직 에러에 쓰지만 지금 백엔드에서 422 를 던지는 곳은 실행 API 한 곳(`executions.controller.ts`)뿐이다. 이 코드를 422 로 옮기면 클라이언트 계약이 바뀌는데 새로 얻는 구분이 없다.
+- 테스트 결과의 `code` 는 `details.testCode` 에 싣는다. 지금은 버려서 화면이 `HTTP_AUTH_FAILED` 와 `HTTP_CONNECT_FAILED` 같은 갈래를 문구로만 알 수 있다. 최상위 `code` 는 `INTEGRATION_TEST_FAILED` 로 둔다. 이름을 `details.code` 로 두지 않은 것은 값이 에러 코드 카탈로그가 아니라 연결 테스트 결과의 이름공간이기 때문이다. `details.code` 로 두면 에러 코드로 읽혀 «세부 사유는 한 자리에만 싣는다» 와 부딪힌다([에러 응답과 클라이언트 처리 2.3](../CLE-API/CLE-API-ERROR.md#23-도메인-세부-사유를-어디에-싣는가-top-level-code-교체와-detailscode)).
+- `:id/test` · `preview-test` 의 실패는 그대로 200 결과 객체다. 그 둘은 테스트가 요청의 목적이라 실패도 결과다([설치 대기 연결 테스트는 200 과 `success:false` 로 거절한다](#설치-대기-연결-테스트는-200-과-successfalse-로-거절한다)). 교체는 저장이 목적이고 테스트 실패는 저장을 거절한 이유다.
+- 연결 테스트 코드는 노드 코드와 다른 이름공간이라는 원칙은 그대로 두고 이름이 같은 두 무리를 예외로 적었다. Cafe24 · MakeShop 의 인증 · 전송 실패 코드는 연결 테스트와 노드가 같은 API 클라이언트를 써서 이름이 같아졌다. 이름을 연결 테스트 전용으로 가르면 같은 클라이언트가 호출 경로에 따라 다른 이름을 내야 한다. 그래서 이름은 두고 뜻이 다른 자리(MakeShop 403)를 [연결 테스트](#연결-테스트) 에 적었다.
 
 ### 나간 멤버의 개인 통합은 나갈 때 지운다 (2026-10-29)
 
