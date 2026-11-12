@@ -35,6 +35,13 @@ export interface BackgroundExecutionJob {
   workflowId: string;
   /** Background 컨테이너 안쪽 자식 노드의 진입점(들) */
   bodyEntryNodeIds: string[];
+  /**
+   * Background 노드가 컨테이너(Loop · ForEach · Map) 본문 안에 있으면 그 컨테이너 ID.
+   * 워커는 이 컨테이너의 본문 노드로 그래프를 만들어 본문을 실행한다. 맨 바깥
+   * Background 와 이 필드가 생기기 전에 큐에 들어간 작업에는 없고 그때는 맨 바깥
+   * 그래프를 쓴다(CLE-T-MR6ZH3).
+   */
+  containerScopeId?: string;
   /** 메인 흐름에서 컨테이너로 전달된 입력 (snapshot) */
   input: unknown;
   /** Snapshot of context.variables at enqueue time. */

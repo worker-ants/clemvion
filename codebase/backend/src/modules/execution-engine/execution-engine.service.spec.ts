@@ -2,7 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { In } from 'typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
-import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
+import {
+  BACKGROUND_EXECUTION_QUEUE,
+  BackgroundExecutionJob,
+} from './queues/background-execution.queue';
 import {
   EXECUTION_RUN_QUEUE,
   EXECUTION_RUN_PRIORITY,
@@ -91,6 +94,7 @@ import { mockOutput } from './__test__/mock-output';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
+import { BackgroundHandler } from '../../nodes/logic/background/background.handler';
 import { CodeHandler } from '../../nodes/data/code/code.handler';
 import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
@@ -14890,6 +14894,327 @@ describe('ExecutionEngineService', () => {
         expect(sinkCalls).toEqual([[1, 2, 3]]);
       },
     );
+
+    // CLE-T-MR6ZH3 — 컨테이너 본문 루프(`executeContainerBody`)도 메인 루프 · 병렬 분기
+    // 루프와 같은 규칙으로 노드를 실행 경로에 넘긴다. 본문 안 Loop · ForEach · Map 은
+    // `runContainer`, Background 는 `scheduleBackgroundBody` 로 간다.
+    describe('본문 안 중첩 컨테이너 · Background (CLE-T-MR6ZH3)', () => {
+      const cNode = (
+        id: string,
+        type: string,
+        containerId: string | null,
+        config: Record<string, unknown> = {},
+      ): Partial<Node> => ({
+        id,
+        workflowId,
+        type,
+        category:
+          type === 'test_node' ? NodeCategory.TRIGGER : NodeCategory.LOGIC,
+        label: id,
+        config,
+        isDisabled: false,
+        containerId,
+        toolOwnerId: null,
+      });
+      const cEdge = (
+        source: string,
+        sourcePort: string,
+        target: string,
+        targetPort = 'in',
+      ): Partial<Edge> => ({
+        id: `${source}.${sourcePort}->${target}.${targetPort}`,
+        workflowId,
+        sourceNodeId: source,
+        sourcePort,
+        targetNodeId: target,
+        targetPort,
+        type: EdgeType.DATA,
+      });
+      const recordingHandler = (
+        type: string,
+        output: (input: unknown, context: ExecutionContext) => unknown,
+      ) => {
+        const calls: { input: unknown; context: ExecutionContext }[] = [];
+        const handler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(
+            async (
+              input: unknown,
+              _config: unknown,
+              context: ExecutionContext,
+            ) => {
+              calls.push({ input, context });
+              return mockOutput(output(input, context));
+            },
+          ) as NodeHandler['execute'],
+        };
+        handlerRegistry.register(type, handler);
+        return calls;
+      };
+      const runGraph = async (
+        nodes: Partial<Node>[],
+        edges: Partial<Edge>[],
+      ) => {
+        mockNodeRepo.findBy.mockResolvedValue(nodes);
+        mockEdgeRepo.findBy.mockResolvedValue(edges);
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+      };
+      const backgroundQueueAdd = () =>
+        (service as unknown as { backgroundQueue: { add: jest.Mock } })
+          .backgroundQueue.add;
+
+      it('ForEach 본문 안 ForEach 가 바깥 회차마다 자기 본문을 항목 수만큼 실행하고 완료 출력을 다음 본문 노드에 넘긴다', async () => {
+        recordingHandler('test_node', () => ({
+          groups: [{ list: [1, 2] }, { list: [3] }],
+        }));
+        const leafCalls = recordingHandler('leaf_node', (input, ctx) => ({
+          value: input,
+          outerIndex: ctx.itemContext?.index,
+        }));
+        const collectCalls = recordingHandler('collect_node', (input) => ({
+          inner: input,
+        }));
+        const sinkCalls = recordingHandler('sink_node', (input) => input);
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('outer', 'foreach', null, { arrayField: 'groups' }),
+            cNode('inner', 'foreach', 'outer', { arrayField: 'list' }),
+            cNode('leaf', 'leaf_node', 'inner'),
+            cNode('collect', 'collect_node', 'outer'),
+            cNode('sink', 'sink_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'outer'),
+            cEdge('outer', 'body', 'inner'),
+            cEdge('inner', 'body', 'leaf'),
+            cEdge('leaf', 'out', 'inner', 'emit'),
+            cEdge('inner', 'done', 'collect'),
+            cEdge('collect', 'out', 'outer', 'emit'),
+            cEdge('outer', 'done', 'sink'),
+          ],
+        );
+
+        // 안쪽 본문은 바깥 회차마다 그 회차 항목의 `list` 길이만큼 돈다.
+        expect(leafCalls.map((c) => c.input)).toEqual([1, 2, 3]);
+        // 안쪽 본문 노드는 안쪽 ForEach 의 반복 변수를 본다(가림 규칙).
+        expect(leafCalls.map((c) => c.context.itemContext?.index)).toEqual([
+          0, 1, 0,
+        ]);
+        // `done` 뒤 본문 노드는 안쪽 ForEach 의 완료 출력을 받는다.
+        expect(collectCalls.map((c) => c.input)).toEqual([
+          {
+            items: [
+              { value: 1, outerIndex: 0 },
+              { value: 2, outerIndex: 1 },
+            ],
+            count: 2,
+          },
+          { items: [{ value: 3, outerIndex: 0 }], count: 1 },
+        ]);
+        expect(sinkCalls).toHaveLength(1);
+        expect(sinkCalls[0].input).toEqual({
+          items: [
+            {
+              inner: {
+                items: [
+                  { value: 1, outerIndex: 0 },
+                  { value: 2, outerIndex: 1 },
+                ],
+                count: 2,
+              },
+            },
+            { inner: { items: [{ value: 3, outerIndex: 0 }], count: 1 } },
+          ],
+          count: 2,
+        });
+      });
+
+      it('ForEach 본문 안 Loop 가 회차마다 count 만큼 본문을 실행하고 본문 노드가 바깥 $item 과 안쪽 $loop 를 함께 본다', async () => {
+        recordingHandler('test_node', () => ({ items: ['a', 'b'] }));
+        const tickCalls = recordingHandler('tick_node', (_input, ctx) => ({
+          item: ctx.itemContext?.item,
+          loopIndex: ctx.loopContext?.index,
+        }));
+        const sinkCalls = recordingHandler('sink_node', (input) => input);
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('fe', 'foreach', null, { arrayField: 'items' }),
+            cNode('lp', 'loop', 'fe', { count: 2 }),
+            cNode('tick', 'tick_node', 'lp'),
+            cNode('sink', 'sink_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'fe'),
+            cEdge('fe', 'body', 'lp'),
+            cEdge('lp', 'body', 'tick'),
+            cEdge('tick', 'out', 'lp', 'emit'),
+            cEdge('lp', 'out', 'fe', 'emit'),
+            cEdge('fe', 'done', 'sink'),
+          ],
+        );
+
+        expect(
+          tickCalls.map((c) => [
+            c.context.itemContext?.item,
+            c.context.loopContext?.index,
+          ]),
+        ).toEqual([
+          ['a', 0],
+          ['a', 1],
+          ['b', 0],
+          ['b', 1],
+        ]);
+        expect(sinkCalls).toHaveLength(1);
+        expect(sinkCalls[0].input).toEqual({
+          items: [
+            {
+              iterations: [
+                { item: 'a', loopIndex: 0 },
+                { item: 'a', loopIndex: 1 },
+              ],
+              count: 2,
+            },
+            {
+              iterations: [
+                { item: 'b', loopIndex: 0 },
+                { item: 'b', loopIndex: 1 },
+              ],
+              count: 2,
+            },
+          ],
+          count: 2,
+        });
+      });
+
+      it('ForEach 본문 안 Background 가 회차마다 본문을 큐에 넣고 본문 노드는 회차 루프에서 실행하지 않는다', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        recordingHandler('test_node', () => ({ items: [{ n: 1 }, { n: 2 }] }));
+        const afterCalls = recordingHandler('after_node', (input) => input);
+        const bgBodyCalls = recordingHandler('bg_body_node', (input) => input);
+        recordingHandler('sink_node', (input) => input);
+        backgroundQueueAdd().mockClear();
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('fe', 'foreach', null, { arrayField: 'items' }),
+            cNode('bg', 'background', 'fe'),
+            cNode('after', 'after_node', 'fe'),
+            // 에디터의 소속 전파(연결선 체인 규칙)가 Background 뒤 노드에도 같은
+            // 컨테이너 소속을 준다.
+            cNode('bgBody', 'bg_body_node', 'fe'),
+            cNode('sink', 'sink_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'fe'),
+            cEdge('fe', 'body', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+            cEdge('after', 'out', 'fe', 'emit'),
+            cEdge('fe', 'done', 'sink'),
+          ],
+        );
+
+        // 본문은 큐로만 간다(워커가 실행한다).
+        expect(bgBodyCalls).toHaveLength(0);
+        expect(afterCalls.map((c) => c.input)).toEqual([{ n: 1 }, { n: 2 }]);
+        const jobs = backgroundQueueAdd().mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(jobs).toHaveLength(2);
+        expect(jobs.map((job) => job.bodyEntryNodeIds)).toEqual([
+          ['bgBody'],
+          ['bgBody'],
+        ]);
+        // 본문 진입 입력은 그 회차의 입력이다(병렬 분기 루프와 같은 규칙).
+        expect(jobs.map((job) => job.input)).toEqual([{ n: 1 }, { n: 2 }]);
+        // 워커가 Background 와 같은 컨테이너 단계의 노드로 본문을 실행하도록
+        // 컨테이너 ID 를 싣는다.
+        expect(jobs.map((job) => job.containerScopeId)).toEqual(['fe', 'fe']);
+      });
+
+      // 워커 쪽: 큐에서 꺼낸 작업을 실제 executeInline 으로 돌린다.
+      const bgWorkerJob = (
+        over: Partial<BackgroundExecutionJob> = {},
+      ): BackgroundExecutionJob => ({
+        executionId,
+        parentNodeExecutionId: 'bg-row-1',
+        backgroundRunId: 'bg-run-mr6zh3',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['bgBody'],
+        input: { n: 1 },
+        variables: { __workspaceId: 'ws-1' },
+        nodeOutputCache: {},
+        expressionContext: {},
+        conversationThread: createEmptyConversationThread(),
+        config: { notifyOnFailure: false, maxDurationMs: 0 },
+        ...over,
+      });
+
+      it('워커는 containerScopeId 가 가리키는 컨테이너의 본문 노드로 그래프를 만들어 Background 본문을 끝까지 실행한다', async () => {
+        const bgBodyCalls = recordingHandler('bg_body_node', (input) => ({
+          step1: input,
+        }));
+        const bgTailCalls = recordingHandler('bg_tail_node', (input) => input);
+        const afterCalls = recordingHandler('after_node', (input) => input);
+        const srcCalls = recordingHandler('test_node', () => ({}));
+        mockNodeRepo.findBy.mockResolvedValue([
+          cNode('src', 'test_node', null),
+          cNode('fe', 'foreach', null, { arrayField: 'items' }),
+          cNode('bg', 'background', 'fe'),
+          cNode('after', 'after_node', 'fe'),
+          cNode('bgBody', 'bg_body_node', 'fe'),
+          cNode('bgTail', 'bg_tail_node', 'fe'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          cEdge('src', 'out', 'fe'),
+          cEdge('fe', 'body', 'bg'),
+          cEdge('bg', 'main', 'after'),
+          cEdge('bg', 'background', 'bgBody'),
+          cEdge('bgBody', 'out', 'bgTail'),
+          cEdge('after', 'out', 'fe', 'emit'),
+        ]);
+
+        await service.executeBackgroundSubgraph(
+          bgWorkerJob({ containerScopeId: 'fe' }),
+        );
+
+        expect(bgBodyCalls.map((c) => c.input)).toEqual([{ n: 1 }]);
+        expect(bgTailCalls.map((c) => c.input)).toEqual([{ step1: { n: 1 } }]);
+        // 진입점에서 닿지 않는 같은 단계 노드와 바깥 노드는 실행하지 않는다.
+        expect(afterCalls).toHaveLength(0);
+        expect(srcCalls).toHaveLength(0);
+      });
+
+      it('containerScopeId 가 없는 작업(맨 바깥 Background · 옛 작업)은 맨 바깥 그래프로 본문을 실행한다', async () => {
+        const bgBodyCalls = recordingHandler('bg_body_node', (input) => input);
+        const scopedCalls = recordingHandler('scoped_node', (input) => input);
+        mockNodeRepo.findBy.mockResolvedValue([
+          cNode('bg', 'background', null),
+          cNode('bgBody', 'bg_body_node', null),
+          // 다른 컨테이너 소속 노드는 진입점으로 지정돼도 맨 바깥 그래프에 없다.
+          cNode('scoped', 'scoped_node', 'fe'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          cEdge('bg', 'background', 'bgBody'),
+        ]);
+
+        await service.executeBackgroundSubgraph(
+          bgWorkerJob({ bodyEntryNodeIds: ['bgBody', 'scoped'] }),
+        );
+
+        expect(bgBodyCalls.map((c) => c.input)).toEqual([{ n: 1 }]);
+        expect(scopedCalls).toHaveLength(0);
+      });
+    });
   });
 
   describe('Parallel execution (PARALLEL_ENGINE=v1)', () => {

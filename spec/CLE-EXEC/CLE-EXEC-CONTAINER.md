@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "0ee301910b0b1933f055fb5b74ce83eb8f2ecbbdc0be8c03e3d9a090aac7a07a"
 read_as: "approved_fallback"
-task: "CLE-T-0DGHGF"
+task: "CLE-T-MR6ZH3"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "5133d86022eb655cef719612d495714f1c892bc91b4016b488bab0d9b3fc57ba"
-etag: "sha256-34f29692d586957355103c9fe5fe146c39b1db1a6edbeb8b057872ee6c23986d"
+mirror_sha256: "369a3f1f75f31ddf2752c2cb027a87a5031435c6147dd1d5c9f8fc28c3a59a7d"
+etag: "sha256-a52c53f2b1976099770d8e605df0ced6bdd01ada335901af2ec76fd3060b99a7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

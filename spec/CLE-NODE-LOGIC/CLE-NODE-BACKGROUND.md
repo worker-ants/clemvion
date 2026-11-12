@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
 content_hash: "856e1eccac51dc572c4d824f5c78a1af9c7672ba72594a0d5f1dc622180fae44"
 read_as: "approved_fallback"
-task: "CLE-T-7ZYES5"
+task: "CLE-T-MR6ZH3"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "be57102fa3cebee751c927dab8ab9de778316a72557f3916e34874dcb028508e"
-etag: "sha256-97a2c2ada74ffc82a4be9c8f6a85970b37b2ce12b543840a8dbb7cad3aa937a7"
+mirror_sha256: "65dd0639c267bc7dd2bbb646aa854efa5f4eb82e3729a71409047b4017d08039"
+etag: "sha256-3ba60897ab4aaca1ebd8cd8f97be533d84b4cac81bed81f80e76509680dd9210"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
