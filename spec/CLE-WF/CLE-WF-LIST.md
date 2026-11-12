@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST"
 title: "워크플로우 목록과 폴더"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051", "REQ-WFLIST-052", "REQ-WFLIST-053", "REQ-WFLIST-054", "REQ-WFLIST-055", "REQ-WFLIST-056"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "030646408006a9df00810cace64e8938bdee54ed3d5ed012125845bd5c0f3359"
+content_hash: "30e8ad067abc7cf7c6a0a42075551bfbd2217f8a5e240f41e0c145a60ecadf03"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "481ec625e35e4626ca901447fa287aaf7597c2b0a6447798314701286dbd539e"
-etag: "sha256-cbcc731fff46a06d4decbb845f6f6df7cc3a2eb98827b6117f0bc65a3088aa1d"
+mirror_sha256: "832c56d846d546b0e87fc9871172f20465600bd9b4f31cbcb02c32f63fb313c0"
+etag: "sha256-356885cba7359d08dde4ac8f82f76c9310f4aae9175244b8cc297a89ae288ca0"
 ---
 > 구현 상태: 부분 구현 (마켓플레이스 템플릿 추천, 폴더 관리 화면, 파일 형식 버전, 목록 표의 마지막 실행 시각 · 생성일 열은 미구현) · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -273,7 +273,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 "최대 깊이 5, 같은 워크스페이스, 비순환" 규칙을 폴더 생성뿐 아니라 `PATCH` 로 부모를 바꿀 때도 400 `VALIDATION_ERROR` 로 강제한다. 이전의 `update()` 는 `parentId` 를 검사 없이 저장해 깊이 초과·순환·다른 워크스페이스 부모가 그대로 통과했다. 순환은 조상 깊이 계산(`getDepth`)을 무한 루프로 만들어 서비스 거부 위험이 있었다(V-04).
 
 - **스펙을 생성 전용으로 낮추지 않고 코드를 고친 이유**: 깊이 제한은 스펙을 낮춰 완화할 수 있다. 순환은 데이터 무결성과 가용성의 결함(무한 루프)이라 스펙 문구로 사라지지 않는다. 그래서 규칙을 그대로 두고 코드를 맞췄다.
-- **에러 코드**: 세 위반(같은 워크스페이스·순환·깊이) 모두 생성 경로와 같은 `VALIDATION_ERROR` 를 쓴다. 노드 컨테이너의 `CONTAINER_CYCLE` 이나 워크플로우 그래프의 `CYCLE_DETECTED` 와 이름·뜻이 겹치는 폴더 전용 순환 코드를 새로 만들지 않아 영역 사이 혼동을 피한다.
+- **에러 코드**: 세 위반(같은 워크스페이스·순환·깊이) 모두 생성 경로와 같은 `VALIDATION_ERROR` 를 쓴다. 노드 컨테이너 순환의 메시지 접두 `CONTAINER_CYCLE: ` 이나 워크플로우 그래프의 `CYCLE_DETECTED` 와 이름·뜻이 겹치는 폴더 전용 순환 코드를 새로 만들지 않아 영역 사이 혼동을 피한다.
 - **무한 루프 방어**: `getDepth` 와 서브트리 순회는 방문 집합과 깊이 상한으로 막는다. 검사를 도입하기 전에 저장된 순환 데이터가 있어도 순회는 항상 끝난다.
 
 2026-09-27 정정: 이 결정 뒤에도 **생성** 경로는 깊이만 봤다. `getDepth` 가 다른 워크스페이스의 부모를 "없음" 으로 읽어 깊이 1 로 통과시켰다. 고치기 전 e2e 에서 다른 워크스페이스 부모로 만든 폴더가 201 이었다. 지금은 생성에도 부모 변경과 같은 소속 검사를 해서 생성·수정 모두 소속을 본다. 규칙은 [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 이 정한다.

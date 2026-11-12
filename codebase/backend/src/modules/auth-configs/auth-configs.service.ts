@@ -246,8 +246,9 @@ export class AuthConfigsService {
    *
    * **`triggers.service.ts` 의 `AUTH_CONFIG_NOT_FOUND` 와 다른 자리다.** 그쪽은 트리거가
    * 참조하려는 인증 설정이 같은 워크스페이스에 없을 때의 **400 요청 검증 실패**이고
-   * (`spec/5-system/3-error-handling.md` §1.11 이 «이 저장소의 유일한 `_NOT_FOUND`≠404 예외»
-   * 로 명시한 자리), 이쪽은 인증 설정 자체를 조회·삭제할 때의 **404 `RESOURCE_NOT_FOUND`** 다.
+   * (이름은 `_NOT_FOUND` 지만 404 가 아닌 코드다. 404 가 아닌 `*_NOT_FOUND` 는 이 코드 말고도
+   * 있다. 이름과 400 을 그대로 두는 결정은 NERV `CLE-API-ERRCODES` §6.14 에 있다),
+   * 이쪽은 인증 설정 자체를 조회·삭제할 때의 **404 `RESOURCE_NOT_FOUND`** 다.
    * 이름이 가깝지만 상태 코드도 코드 문자열도 다르므로 한쪽을 다른 쪽에 맞추면 안 된다.
    */
   private throwAuthConfigNotFound(): never {

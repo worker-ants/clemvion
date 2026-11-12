@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 17
+version: 18
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "ed77fe67f6eea26687e3c5cc1c40ed10a19b7883b2b6f93ce940517d35ffef28"
+content_hash: "d38c93cc3ec28937d717d9e3cec757691d090dcfacad1c433861bdd2e6a5da1f"
 read_as: "approved_fallback"
-task: "CLE-T-KG01YT"
+task: "CLE-T-3P4ENZ"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "dd37602b1ade6f9687fb2c802f5927f51cdcfcf8158ac1b2f0fdd5cb3c212d87"
-etag: "sha256-0f9a7a9905dc2ab8c2a17ee70b438b023713954941d7d34e6f5fb3872f842cda"
+mirror_sha256: "73176d2a30e915f67af4acef864a8c6c50652c5b0dbd3134ebd211a3165ea433"
+etag: "sha256-a48079154225a3cb40c30d04585bc2998cce966f5a32c6d095a36535f1ffd64f"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -746,11 +746,11 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 | POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8자 이상). 비밀번호를 먼저 확인한 뒤 등록 옵션과 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 준다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(등록 옵션과 `optionsToken` 을 만들지 않는다). 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 순서와 규칙은 [Passkey 등록·인증 흐름](#passkey-등록인증-흐름) |
 | POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 에러 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID`, TOTP 챌린지로 받은 챌린지 토큰 401 `CHALLENGE_METHOD_MISMATCH` |
-| POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
+| POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 응답의 credential 이 그 사용자의 것이 아니면 지금은 401 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 다(`WEBAUTHN_INVALID` 로 옮기기로 정함, [에러 코드](#에러-코드)). 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
 | POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID`. 챌린지 토큰 실패는 options 와 같다 |
 | GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ items: [{ id, deviceName, transports, lastUsedAt, createdAt }] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다. Passkey 기능이 꺼져 있으면 저장된 credential 이 있어도 200 `{ items: [] }` 다 |
-| PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 내 것이 아니면 404(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
-| DELETE | `/api/auth/2fa/webauthn/credentials/:id` | credential 삭제. 인증 필수(JWT). 마지막 credential 을 지우면 `WebAuthnService.deleteCredential` 이 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 204 |
+| PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록·인증 흐름](#passkey-등록인증-흐름)) |
+| DELETE | `/api/auth/2fa/webauthn/credentials/:id` | credential 삭제. 인증 필수(JWT). 마지막 credential 을 지우면 `WebAuthnService.deleteCredential` 이 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 204. 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지) |
 | POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 사용자당 분당 10회, 본문 `password` 로 비밀번호 재확인. 기존 미사용 코드를 버리고 10개를 새로 발급한다. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
 
 2단계 인증 활성화 API 는 `/api/auth/2fa/*` 만 있다. `/api/users/me/enable-2fa`·`/api/users/me/confirm-2fa` 같은 별칭 경로는 없다.
@@ -800,6 +800,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `WEBAUTHN_INVALID` | 401 | Passkey 인증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지로 온 검증도 이 코드이고 credential 을 지우지 않는다. counter 역행은 아래 `WEBAUTHN_COUNTER_REGRESSION` 이다 |
 | `WEBAUTHN_COUNTER_REGRESSION` | 401 | 처음 쓰는 Passkey 인증 챌린지로 온 인증 응답이 서명 검증을 통과했는데 sign counter 가 저장값 이하로 돌아감(둘 다 0 이면 역행이 아니다). 그 credential 을 지우고 리프레시 토큰을 모두 무효화한 뒤 거부한다([sign counter 역행과 동시성](#sign-counter-역행과-동시성)) |
 | `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 TOTP 로 로그인 2단계를 통과하려 함(`POST /api/auth/login/totp`). Passkey 만 있는 계정은 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 나지 않는다 |
+| `WEBAUTHN_CREDENTIAL_NOT_FOUND` | 404 · 401 | 등록한 Passkey 의 이름 변경 · 삭제에서 대상 credential 이 없거나 내 것이 아니면 404 다. 로그인 2단계 Passkey 검증에서 응답의 credential 이 그 사용자의 것이 아니면 지금은 401 이다. 이 401 은 `WEBAUTHN_INVALID` 로 옮기기로 정했고 아직 구현하지 않았다(NERV Task `CLE-T-ZPPWK4`). 구현되면 이 코드는 404 하나만 남는다 |
 | `RECOVERY_CODE_INVALID` | 401 | Passkey 복구 코드 불일치 |
 | `OAUTH_STATE_MISMATCH` | 400 | OAuth state 없음·만료·이미 소비, 다른 제공자가 발급한 state. 로그인 콜백에서는 컨트롤러가 이 응답 대신 `?error=invalid_state` 로 리다이렉트한다([에러 처리](#에러-처리)) |
 
@@ -807,7 +808,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ## 미결 사항
 
-- **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 이 문서의 에러 코드 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 같은 미등재 코드 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 Passkey 인증 검증에서 401, credential 삭제 · 이름 변경에서 404 로 쓰인다. 인증 검증 행의 실패 코드에도 아직 적지 않았다. 미등재 코드 `WEBAUTHN_NOT_REGISTERED` 도 있다. Passkey 가 없는 사용자의 인증 옵션 요청에서 400, Passkey 복구 코드 재발급에서 403 으로 쓰인다. 셋 다 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
+- **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 이 문서의 에러 코드 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 미등재 코드 `WEBAUTHN_NOT_REGISTERED` 도 있다. Passkey 가 없는 사용자의 인증 옵션 요청에서 400, Passkey 복구 코드 재발급에서 403 으로 쓰인다. 모두 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
 - **비밀번호 재설정 실패의 에러 코드**: 토큰 무효 · 만료와 새 비밀번호 규칙 위반이 모두 400 `VALIDATION_ERROR` 다. 사용자가 할 일은 다르다. 토큰 무효면 재설정 메일을 다시 받아야 하고 규칙 위반이면 비밀번호만 고치면 된다. 규약대로 가르려면 코드가 달라야 한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6). 응답이 바뀌는 일이라 후속 NERV Task `CLE-T-DTVTM9` 에서 정한다.
 - **다른 챌린지로 온 Passkey 응답의 순서가 뒤바뀐 경우의 역행 처분**: 두 탭에서 거의 동시에 인증하면 인증기가 서명한 정상 응답 두 개가 서로 다른 챌린지로 뒤바뀐 순서로 도착할 수 있다. 먼저 서명된 응답이 나중에 처리되면 갱신된 counter 를 읽고 역행으로 판정된다. 그러면 credential 이 지워지고 리프레시 토큰이 모두 무효가 된다. 챌린지 기록은 같은 챌린지의 재사용만 막아서 이 경우를 막지 못한다. 지금 동작을 유지할지, 대안 가운데 하나를 고를지 정해야 한다. 대안은 credential 단위로 직렬화해 처리 순서를 맞추는 안, 작은 역행을 허용하는 안, 이 경우는 credential 을 지우지 않고 거부하는 안이다. 후속 NERV Task `CLE-T-XFG7AE` 로 추적한다.
 - **로그인 응답 시간으로 계정이 드러나는 문제**: 없는 이메일, 잠긴 계정, 비밀번호가 없는 계정은 bcrypt 비교 없이 바로 401 을 받는다. 비밀번호가 있는 계정은 bcrypt 비교(cost 12)를 거친다. 그래서 응답 시간 차이로 비밀번호가 있는 계정이 있는지 알 수 있다. 인증 메일 재발송(`POST /api/auth/resend-verification`)도 같다. 응답 문구는 늘 같지만 인증 전 계정일 때만 메일 발송을 기다린 뒤 응답한다. 더미 비교와 기다리지 않는 메일 발송으로 응답 시간을 맞출지 정해야 한다.
@@ -1258,3 +1259,14 @@ NERV Task `CLE-T-MFWBE1` 에서 고쳤다. 로그인 · 로그인 2단계 · 비
 - **기각: 모든 거부에 서버의 `error.message` 를 그대로 보인다.** 화면은 코드를 키로 사전 문구를 고른다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 취지를 따른 것이다. 코드별 문구가 있는 코드까지 서버 문구로 보이면 이 취지와 어긋난다. 인증 화면 행은 아직 규칙 5 의 매핑 표에 없고 NERV Task `CLE-T-1K5CWP` 가 올린다.
 - **기각: 코드별 문구가 없는 코드도 일반 문구로 보인다.** 고치기 전 동작이다. 사용자가 거부 이유를 알 수 없다.
 - **후속**: 다른 화면의 같은 문제와 소셜 로그인 콜백 화면의 문구는 NERV Task `CLE-T-PRB4D3` 가 맡는다.
+
+### 로그인 검증에서 credential 을 찾지 못하면 `WEBAUTHN_INVALID` 로 거부하기로 했다 (2026-11-12)
+
+NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 구현은 NERV Task `CLE-T-ZPPWK4` 가 맡는다. 그때까지 응답은 401 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 이고 [에러 코드](#에러-코드) 표에 그 사실과 결정을 함께 적었다.
+
+- **한 이름이 두 뜻으로 쓰였다.** `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 등록한 Passkey 의 이름 변경 · 삭제에서 대상이 없다는 404 이고, 로그인 2단계 검증에서는 인증이 실패했다는 401 이다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 은 뜻이 갈리면 코드를 나누라고 정한다.
+- **로그인 쪽을 기존 `WEBAUTHN_INVALID` 로 옮긴다.** 서명이 틀린 응답과 이미 쓴 챌린지를 이 코드로 묶은 이유와 같다. 사용자가 할 일은 「Passkey 로 다시 시도」 하나다. credential 이 없다는 사실을 서명 실패와 구별해 알려 줄 이유도 없다. 로그인 화면은 `WEBAUTHN_INVALID` 만 안내 문구(`auth.login.webauthnFailed`)로 바꾸고 다른 코드는 서버 메시지를 그대로 보인다. 그래서 옮기면 이 경우에도 같은 안내가 나간다.
+- **기각: 로그인 쪽에 새 코드를 만든다.** 클라이언트가 그 코드로 따로 할 일이 없다. 코드만 하나 늘어난다.
+- **기각: 그대로 둔다.** 같은 이름이 404 와 401 로 나가면 클라이언트가 상태와 코드 가운데 무엇으로 분기할지 정할 수 없다.
+- **로그인 이력은 바꾸지 않는다.** 지금 이 경로는 로그인 이력을 남기지 않는다. 남길지는 이번 결정에 들지 않았다.
+- **이 코드를 이번에 에러 코드 표에 올렸다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남긴다.

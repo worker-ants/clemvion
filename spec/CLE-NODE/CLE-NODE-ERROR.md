@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "2ccbacfaed60f0f7fb78151d3ef27d417fc4753164f2b62b2be5145f960f3bf8"
+content_hash: "24c32b424c2a329042d7a8d48b1de02678d0f3a4053c74180e565d8796b1acef"
 read_as: "approved_fallback"
-task: "CLE-T-4EV45V"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "619cdc176fe00786d8152dd34da279c3324326ae9fb7df3a32dcec1dfa512032"
-etag: "sha256-5e1f908dfec30900f33a1067dd385e6d504e64795ae26176f5c04750e95548e4"
+mirror_sha256: "db0124246de56b7b7e67e08e5171a2bea121c8f32da2b16f21269d998099af15"
+etag: "sha256-4f4a55d275ee643b9b7c8cb69aec6791a617c4891f8ae27b8296d0efd843b2aa"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,7 +34,7 @@ etag: "sha256-5e1f908dfec30900f33a1067dd385e6d504e64795ae26176f5c04750e95548e4"
 1. ForEach·Map·Parallel 노드의 `config.errorHandling` 은 그 노드의 핸들러 호출이 실패할 때 적용한다.
 2. 본문 노드나 병렬 분기 안의 노드가 실패하면 그 노드 자신의 `config.errorHandling` 을 먼저 적용한다.
 3. 그 결과 반복 항목이나 병렬 분기 하나가 실패하면 ForEach·Map·Parallel 노드의 `config.errorPolicy` 를 적용한다.
-4. 반복 회차나 병렬 분기를 실행하는 단계에서 ForEach·Map·Parallel 노드 자신이 실패해도 그 노드의 `config.errorHandling` 은 적용하지 않는다. `config.errorPolicy` 가 `stop` 이라 노드가 실패한 경우와 `CONTAINER_MISSING_EMIT` 으로 실패한 경우가 여기에 든다.
+4. 반복 회차나 병렬 분기를 실행하는 단계에서 ForEach·Map·Parallel 노드 자신이 실패해도 그 노드의 `config.errorHandling` 은 적용하지 않는다. `config.errorPolicy` 가 `stop` 이라 노드가 실패한 경우와 메시지가 `CONTAINER_MISSING_EMIT: ` 로 시작하는 에러로 실패한 경우가 여기에 든다.
 5. Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다. 대응 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md)가 정한다. 이 예외를 둔 이유는 [두 키가 함께 있는 이유](#두-키가-함께-있는-이유)에 있다.
 
 레거시 평면 키 `config.errorPolicy` 의 단축값(`stop`, `skip`, `default_output`, `retry`, `error_port`)은 ForEach·Map·Parallel 이 아닌 노드에서만 에러 처리 정책으로 옮긴다. 설정 패널은 `config.errorHandling.policy` 가 없는 노드를 불러올 때 이 값을 대응하는 `policy`(`stop_workflow`, `skip_node`, `use_default_output`, `retry`, `route_to_error_port`)로 읽는다. 저장할 때는 `config.errorPolicy` 를 지운다. ForEach·Map·Parallel 에서는 이 키가 현행 항목 에러 정책이다. 그래서 설정 패널은 이 세 노드의 `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않고 저장할 때 지우지도 않는다. 결정 근거는 [레거시 평면 키 이전 범위를 좁힌 이유](#레거시-평면-키-이전-범위를-좁힌-이유)에 있다.

@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "5766529de2ddfb935deb4f449a04bd091c432f0b8f72b8c0cce80fa79cd0ee1b"
+content_hash: "16c52ecce0c62bb4cfc3f8b599ed761eedef8b348ba30ff7d29582e24c7489e9"
 read_as: "approved_fallback"
-task: "CLE-T-DM3AXQ"
+task: "CLE-T-HGBHF2"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "8dd393ce6d74638e8c07942b6b0dea3fbd32b6cd693ee9272f902e1b8b9829df"
-etag: "sha256-d3daa8eb55a5d9fd5d694aaf9c671923a390961c0859b374b6e0a7e50362f93a"
+mirror_sha256: "0a8c363f013c3dc391f08627efd4e8a086e9836530d1afc7ebb229c2620c9dfb"
+etag: "sha256-5bc8df8ae7e2fb582edb88affdb5144ab0ca5fe41f99ed2259ed3b439f3513f0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -168,6 +168,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 - 기본값은 `INVALID_FIELD` 다. `CustomValidationPipe` 가 이미 쓰는 일반 코드이고 카탈로그에 등재돼 있어 새로 등재할 필요가 없다.
 - 도메인 특화 사유가 있으면 그 코드를 쓴다(선례: `TRIGGER_ENDPOINT_PATH_CONFLICT`). 이때는 카탈로그 등재가 함께 필요하다.
 - `field` 가 없는 진단 payload 는 대상이 아니다. `details: { errors }`, `{ offenders }`, `{ reason }` 처럼 요청 전체나 집계를 서술하는 자리는 사유가 이미 top-level 특화 `code`(`GRAPH_VALIDATION_FAILED` 등)에 있다. 거기에 `details.code` 를 얹으면 §2.3 의 "겹쳐 쓰지 않는다" 를 어긴다.
+- 자격 증명 교체가 400 `INTEGRATION_TEST_FAILED` 로 거절할 때 싣는 `details: { testCode }` 도 `field` 가 없는 진단 payload 다. `testCode` 는 연결 테스트 결과의 코드이고 에러 코드 카탈로그의 이름공간이 아니다. 그래서 키 이름을 `code` 로 두지 않는다. `details.code` 로 두면 에러 코드로 읽혀 §2.3 의 "겹쳐 쓰지 않는다" 와 부딪힌다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). 지금 구현은 이 값을 싣지 않는다(NERV Task `CLE-T-XCMNP6`).
 
 ### 2.6 top-level 이 이미 특화 코드일 때 (2026-09-11)
 
@@ -310,6 +311,10 @@ body-parser 같은 http-errors 미들웨어가 던지는 4xx(예: 413 `request e
 NERV Task `CLE-T-DM3AXQ` 항목 10 에서 더했다. 트리거 파라미터 검증은 처음부터 top-level 특화 코드(`INVALID_TRIGGER_PARAMETERS` · `INVALID_WEBHOOK_PAYLOAD`)와 `details[].code` 의 필드별 사유를 함께 실었다. 그런데 §2.3 표는 이 선례의 top-level 을 기본값이라고 적었고 §2.6 표에는 이 경우가 없었다. 그래서 "둘을 겹쳐 쓰지 않는다" 를 어긴 것처럼 읽혔다.
 
 판별 기준(사유의 중복)은 바꾸지 않았다. 그 기준을 이 경우에 적용한 결과를 표에 한 행으로 적었다. 코드와 응답 형태는 바뀌지 않는다. 행마다의 설명은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 §4.2 와 `INVALID_TRIGGER_PARAMETERS` 행에 있다.
+
+### 자격 증명 교체의 `details.testCode` 를 §2.5 에 적었다 (2026-11-12)
+
+NERV Task `CLE-T-HGBHF2` 에서 더했다. [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12) 가 2026-11-12 에 자격 증명 교체의 연결 테스트 실패를 400 `INTEGRATION_TEST_FAILED` 로 두고 테스트 결과 코드를 `details.testCode` 에 싣기로 정했다(NERV Task `CLE-T-J6TZGK`). 이 payload 에는 `field` 가 없어 §2.5 의 대상이 아니다. 값이 에러 코드처럼 생겨 `details.code` 로 읽히기 쉬워서 키 이름을 `testCode` 로 둔 이유와 함께 §2.5 에 예로 적었다. 규칙은 바꾸지 않았다.
 
 ### 실행 에러 예시의 필드 이름을 `nodeLabel` 로 고친 이유 (2026-08-17)
 

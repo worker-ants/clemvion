@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "0b7811603bd35a2f8acfb16707c7b2d617286534ed50914b5c9ac8562f8e4137"
+content_hash: "3e7e389c60796ea84225894aee487de2ca541bf803949bd8c7d0b33f14730c64"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "d01faa1845142494d4dc013ccb526dbc95226a9011d3c7843e5852c8849bb9fa"
-etag: "sha256-33935ab4a1b11e05d8b2b974b5907401d9b2afb0715211299df0ce47ed652195"
+mirror_sha256: "5c4d02abb155180a207cb4e4d011cb3552bd016adb8f4bae2e8d4df93f261f95"
+etag: "sha256-9bbd93303eef21a728bbb56166ec3177534e112ff8241f820382e236f9c165e7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -116,8 +116,8 @@ erDiagram
 - `container_id`·`tool_owner_id` 는 **같은 워크플로우**의 노드만 가리킨다. 저장할 때 거부하고 DB 의 복합 FK(`fk_node_container_id` · `fk_node_tool_owner_id`)도 막는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 아래 유형·순환·트리거 자식 검사는 여전히 실행 때 한다.
 - `(id, workflow_id)` UNIQUE(V140, `uq_node_id_workflow_id`). 노드 구조 참조와 연결선 끝점 복합 FK 의 참조 대상이다.
 - `container_id` 가 가리키는 노드의 유형은 `loop`, `foreach`, `map` 가운데 하나여야 한다.
-- `container_id` 체인은 순환하면 안 된다. 실행 때 `CONTAINER_CYCLE` 에러로 거부한다.
-- 트리거 카테고리 노드(`manual_trigger` 등)는 `container_id` 를 가질 수 없다. 실행 때 `CONTAINER_INVALID_CHILD` 에러로 거부한다.
+- `container_id` 체인은 순환하면 안 된다. 실행 때 거부하고 에러 메시지가 `CONTAINER_CYCLE: ` 로 시작한다.
+- 트리거 카테고리 노드(`manual_trigger` 등)는 `container_id` 를 가질 수 없다. 실행 때 거부하고 에러 메시지가 `CONTAINER_INVALID_CHILD: ` 로 시작한다.
 - `tool_owner_id` 가 가리키는 노드의 유형은 `ai_agent` 여야 한다.
 
 `chk_node_placement` 와 워크플로우 소속 검사를 빼면 위 제약은 저장 때 검사하지 않는다([컨테이너 소속과 도구 영역 컬럼](#컨테이너-소속과-도구-영역-컬럼)).
@@ -243,12 +243,12 @@ sequenceDiagram
 
 | 동작 | 노드 컬럼 변화 | 검사 |
 | --- | --- | --- |
-| Loop·ForEach·Map 안에 자식 노드 배치 | `child.container_id = container.id` | `container.type ∈ {loop, foreach, map}`. 트리거 카테고리 자식 거부(`CONTAINER_INVALID_CHILD`). 순환 거부(`CONTAINER_CYCLE`) |
+| Loop·ForEach·Map 안에 자식 노드 배치 | `child.container_id = container.id` | `container.type ∈ {loop, foreach, map}`. 트리거 카테고리 자식 거부(메시지 접두 `CONTAINER_INVALID_CHILD: `). 순환 거부(메시지 접두 `CONTAINER_CYCLE: `) |
 | AI 에이전트 노드의 도구 영역에 배치(제거된 기능) | `tool.tool_owner_id = aiAgent.id` | `aiAgent.type = 'ai_agent'` |
 | 둘 다 설정 | 없음 | CHECK 제약 `chk_node_placement`(V001)가 거부 |
 | Background 본문 | `container_id` 를 쓰지 않는다. `background` 포트 연결선으로 알아본다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md)). | 없음 |
 
-위 표의 `container.type`·`CONTAINER_INVALID_CHILD`·`CONTAINER_CYCLE` 검사는 **편집·저장 때가 아니다**. (a) 실행 엔진이 실행할 때(`execution-engine.service.ts`)와 (b) AI 어시스턴트의 Shadow 검증(`ShadowWorkflow`)이 한다. 저장 경로(`saveCanvas`·노드 API)가 저장 때 보는 것은 **참조의 소속**뿐이다. `container_id`·`tool_owner_id` 는 같은 워크플로우의 노드여야 한다. 캔버스 저장은 이번 페이로드의 노드여야 한다. 아니면 400 `VALIDATION_ERROR` 다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). DB 가 강제하는 것은 CHECK `chk_node_placement`(둘 다 설정 금지)와 같은 워크플로우 소속(복합 FK, V146)이다. 유형 · 순환 · 트리거 자식은 DB 가 보지 않는다.
+위 표의 유형 · 트리거 자식 · 순환 검사는 **편집·저장 때가 아니다**. (a) 실행 엔진이 실행할 때(`execution-engine.service.ts`)와 (b) AI 어시스턴트의 Shadow 검증(`ShadowWorkflow`)이 한다. 저장 경로(`saveCanvas`·노드 API)가 저장 때 보는 것은 **참조의 소속**뿐이다. `container_id`·`tool_owner_id` 는 같은 워크플로우의 노드여야 한다. 캔버스 저장은 이번 페이로드의 노드여야 한다. 아니면 400 `VALIDATION_ERROR` 다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). DB 가 강제하는 것은 CHECK `chk_node_placement`(둘 다 설정 금지)와 같은 워크플로우 소속(복합 FK, V146)이다. 유형 · 순환 · 트리거 자식은 DB 가 보지 않는다.
 
 ## 어시스턴트 편집의 저장 경로
 
@@ -278,7 +278,7 @@ AI 어시스턴트의 편집 도구 호출은 **DB 를 직접 건드리지 않�
 | `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement`(둘 다 설정 금지). `container_id`·`tool_owner_id` 는 같은 워크플로우 노드만(저장 전 거부, 복합 FK). 캔버스 저장이 새 노드로 싣는 `id` 가 다른 행의 id 면 거부(그 행을 덮어쓰지 않는다) |
 | `node` | 복제 | INSERT. 추가와 같은 컬럼이다. `id` 를 새로 발급하고 `container_id`·`tool_owner_id` 를 사본 UUID 로 바꾼다. `config` 는 원본 그대로다(기본값 다시 채우기, 모델 설정 채우기 없음). | 같음. 원본이 이미 통과한 레이블 유일성은 다시 검사하지 않는다. |
 | `node` | 이동·설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | 없음 |
-| `node` | 컨테이너·도구 영역 배치 | UPDATE `container_id` 또는 `tool_owner_id` | 같은 워크플로우 노드만. 저장 전 거부하고 복합 FK 도 막는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 순환 검사는 실행 시와 AI 어시스턴트 Shadow 검증에서(`CONTAINER_CYCLE`) |
+| `node` | 컨테이너·도구 영역 배치 | UPDATE `container_id` 또는 `tool_owner_id` | 같은 워크플로우 노드만. 저장 전 거부하고 복합 FK 도 막는다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 순환 검사는 실행 시와 AI 어시스턴트 Shadow 검증에서 한다(실행 때 에러 메시지 접두 `CONTAINER_CYCLE: `) |
 | `edge` | 추가 | INSERT `workflow_id, source_node_id, source_port, target_node_id, target_port, type IN (data/error), condition?` | 끝점은 같은 워크플로우 노드만(저장 전 거부, 복합 FK). `(source_node_id, source_port, target_node_id, target_port)` UNIQUE, `chk_no_self_loop`, FK CASCADE. V121 `(target_node_id)`(노드 삭제 때 FK CASCADE 용) |
 | `edge` | 복제 | INSERT. 추가와 같은 컬럼이다. `source_node_id`·`target_node_id` 를 사본 노드 UUID 로 바꾼다. | 같음 |
 | `workflow_version` | 저장(버전 커밋) | INSERT `workflow_id, version, snapshot=JSONB, change_summary?, created_by, created_at` | `(workflow_id, version)` UNIQUE |

@@ -2,19 +2,19 @@
 id: "CLE-WF-EDGE"
 title: "연결선"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-EDGE-001", "REQ-EDGE-002", "REQ-EDGE-003", "REQ-EDGE-004", "REQ-EDGE-005", "REQ-EDGE-006", "REQ-EDGE-007", "REQ-EDGE-008", "REQ-EDGE-009", "REQ-EDGE-010", "REQ-EDGE-011", "REQ-EDGE-012", "REQ-EDGE-013", "REQ-EDGE-014", "REQ-EDGE-015", "REQ-EDGE-016", "REQ-EDGE-017", "REQ-EDGE-018", "REQ-EDGE-019", "REQ-EDGE-020", "REQ-EDGE-021", "REQ-EDGE-022", "REQ-EDGE-023", "REQ-EDGE-024", "REQ-EDGE-025", "REQ-EDGE-026", "REQ-EDGE-027", "REQ-EDGE-028", "REQ-EDGE-029", "REQ-EDGE-030", "REQ-EDGE-031", "REQ-EDGE-032", "REQ-EDGE-033", "REQ-EDGE-034", "REQ-EDGE-035", "REQ-EDGE-036", "REQ-EDGE-037", "REQ-EDGE-038", "REQ-EDGE-039"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "2541f92415d8a1109f9e64dc2918845505f555c2e413fbb15210cd6b812c09fc"
+content_hash: "e563408c2f1c82488580d034eea21fb73b3e6d2894a6e0bf5d55bcee5895932b"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "9e240a93585d27ae6d6427b26e4b0fe9a95b500e9c2a4450a19986ce6f0d0dbf"
-etag: "sha256-cb77512eae33d24de36a5f1a57e3372c30fe80c151a96c521556c69a7798d216"
+mirror_sha256: "1539d2801eac341f162f6e203bc926aece4cd437a50ab36f8193e07673bfc4e2"
+etag: "sha256-2caa4a069259081ab5c10788e337919196992d988bf9d6cae509e40a3baa4651"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/2-edge.md`, `spec/3-workflow-editor/_product-overview.md` (§3.3 ED-EG-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,7 +66,7 @@ etag: "sha256-cb77512eae33d24de36a5f1a57e3372c30fe80c151a96c521556c69a7798d216"
 - REQ-EDGE-032 WHEN 사용자가 데이터 미리보기 툴팁의 "전체 데이터 보기" 를 누르면 THE SYSTEM SHALL 줄이지 않은 전체 JSON 을 모달로 보여 준다.
 - REQ-EDGE-033 IF 출발 노드에 실행 데이터가 없으면 THE SYSTEM SHALL 데이터 미리보기 툴팁을 그리지 않는다.
 - REQ-EDGE-034 WHILE Loop·ForEach·Map 을 실행하는 동안 THE SYSTEM SHALL 본문 자식 가운데 정확히 하나가 컨테이너의 `emit` 포트에 연결돼 있기를 요구한다.
-- REQ-EDGE-035 IF `emit` 연결선이 없거나 둘 이상이면 THE SYSTEM SHALL 실행 전에 `CONTAINER_MISSING_EMIT` 또는 `CONTAINER_MULTIPLE_EMIT` 으로 실패시킨다.
+- REQ-EDGE-035 IF `emit` 연결선이 없거나 둘 이상이면 THE SYSTEM SHALL 실행 전에 메시지가 `CONTAINER_MISSING_EMIT: ` 또는 `CONTAINER_MULTIPLE_EMIT: ` 로 시작하는 에러로 실패시킨다.
 - REQ-EDGE-036 WHEN 에디터가 워크플로우를 불러오면 THE SYSTEM SHALL 지금 노드 설정의 포트 집합에 없는 포트에 붙은 연결선을 지운다.
 - REQ-EDGE-037 IF 불러올 때 연결선을 하나 이상 지웠으면 THE SYSTEM SHALL 지운 개수를 담은 경고 토스트를 보여 준다.
 - REQ-EDGE-038 WHILE 자동 정리한 연결선을 저장하지 않은 동안 THE SYSTEM SHALL 데이터베이스의 연결선을 그대로 둔다.
@@ -255,7 +255,7 @@ flowchart LR
 | --- | --- |
 | 진입 | 컨테이너의 `body` 포트에서 컨테이너 안 첫 자식 노드로 잇는다. |
 | 결과 수집(`emit` 포트) | Loop·ForEach·Map 은 본문 자식 가운데 **정확히 하나**가 컨테이너의 `emit` 입력 포트로 이어져야 한다. 반복마다 그 노드의 출력을 모은다. |
-| 검사 | `emit` 이 없으면 `CONTAINER_MISSING_EMIT`, 둘 이상이면 `CONTAINER_MULTIPLE_EMIT` 이다. 실행할 때 엔진이 먼저 검사한다. |
+| 검사 | `emit` 이 없으면 메시지가 `CONTAINER_MISSING_EMIT: ` 로, 둘 이상이면 `CONTAINER_MULTIPLE_EMIT: ` 로 시작하는 에러다. 실행할 때 엔진이 먼저 검사한다. 메시지 전체는 [컨테이너 실행 「emit 수집 규칙」](../CLE-EXEC/CLE-EXEC-CONTAINER.md#emit-수집-규칙) 에 있다. |
 | Loop·Map·ForEach | `emit` 출발 노드의 출력을 배열로 모아 `done` 포트로 보낸다. 항목 에러 정책(`errorPolicy`)이 `skip` · `continue` 면 ForEach 는 실패한 항목 자리 `output.items[i]` 를 `null` 로 두고 실패 정보를 `output.skipped[]` 에 모으고, Map 은 `output.mapped[i]` 에 `{ _skipped: true, error }` 를 넣는다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#foreach-와-map-실행)). |
 | Background | 컨테이너 모델을 쓰지 않는다. `background` 포트로 본문 시작 노드를 가리키고 본문 노드는 메인 흐름과 같은 캔버스 평면에 놓인다. `emit` 모델도 쓰지 않는다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)). |
 

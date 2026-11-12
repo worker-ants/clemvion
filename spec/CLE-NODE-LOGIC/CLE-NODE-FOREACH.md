@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "82d88df46bcc17c59218fdd0863b7c621eb3f6b0656cd5415cdd1a430466a3e2"
+content_hash: "6b915bb0194cf585305117c2ef3394af34d12c09f80dcf4090dd6d3d8c13d708"
 read_as: "approved_fallback"
-task: "CLE-T-W0377J"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d0e4854ded7bfa7f302e9752566eb086cf26e0b43269a0953f40f85c7bc5e399"
-etag: "sha256-889957cefc40a3a01f4eb4f16e04f39ab427e890f8c6b6daf290502935515391"
+mirror_sha256: "03b4335b915e6d50e64541442383c46e2a246feec9ca77703f4c9e926d9668da"
+etag: "sha256-9d47d5acc2eb121844f3a86a843268c1ea845d68f03e05c2181cb7bcdce52061"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -228,8 +228,9 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 |-----------|--------------|------|
 | `arrayField` 가 빈 문자열이거나 없음 | `Array field must be entered.` (기준: `foreach.schema.ts` 노드 경고 규칙 `foreach:no-array-field`. 캔버스 배지는 i18n 으로 번역) | 노드 경고 규칙(캔버스 배지) + `handler.validate` |
 | `errorPolicy` 가 enum 밖의 값 | `errorPolicy must be one of: stop, skip, continue` | `handler.validate` |
-| `emit` 포트에 본문 노드 연결 없음 | `CONTAINER_MISSING_EMIT` | 엔진 그래프 검증([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)) |
-| `emit` 포트에 본문 노드 2개 이상 | `CONTAINER_MULTIPLE_EMIT` | 엔진 그래프 검증 |
+| `emit` 포트에 본문 노드 연결 없음 | `CONTAINER_MISSING_EMIT: Container "<label>" has no body node wired to its "emit" port. ...` | 엔진 그래프 검증([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)) |
+| `emit` 포트에 본문 노드 2개 이상 | `CONTAINER_MULTIPLE_EMIT: Container "<label>" has <N> nodes wired to its "emit" port. Only one emit source is allowed.` | 엔진 그래프 검증 |
+| `emit` 의 출발 노드가 본문 노드가 아님 | `CONTAINER_MISSING_EMIT: ... that node isn't a body child of this container. ...` | 엔진 그래프 검증 |
 | 본문 안에 되돌아가는 연결선 / 블로킹 노드(form / buttons / ai_conversation) | 그래프 검증 에러 | 엔진 그래프 검증 |
 | 본문 회차 중 에러(`errorPolicy=stop`) | 곧바로 실행 실패(에러를 던짐) | 엔진 런타임 |
 | 본문 회차 중 에러(`errorPolicy=skip` / `continue`) | `output.items[i] = null` + `output.skipped[]` 에 `{ index, error: { code, message } }` 추가 + `meta.skippedCount` 증가 | 엔진 런타임([실패 항목 분리](#실패-항목-분리-errorpolicy-skip--continue)) |

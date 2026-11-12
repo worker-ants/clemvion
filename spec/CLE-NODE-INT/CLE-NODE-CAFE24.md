@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "b8442aaf993c95d1bf368966ffc763d00a511a3b3ddcf550c0fb1d3799819357"
+content_hash: "6dba232e97940254d9dc20a01db62cb747efff7fd5c68941772f4411bcbfbc89"
 read_as: "approved_fallback"
-task: "CLE-T-PTC4SF"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3ab81027257a067038d39aa174ee98fc2ff6782fa00cb75a3c9c21b655eaf1ed"
-etag: "sha256-62a99a52afc5723b15bcaf93a5966a7522f60efe2df15ac02ac0648feee9de9e"
+mirror_sha256: "43cd2cb41c72461a6bd4436d77abb259f4bd3f82214c2ab99c81c9e8027a2fe6"
+etag: "sha256-2c34416c44c1ecfd93d60f85a3db9d17c4b47f5641c9d6d76615bf96bb42126a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -372,6 +372,8 @@ Cafe24 API 4xx·5xx 응답:
 | `CAFE24_INVALID_MALL_ID` | `mall_id` 형식 위반(소문자 영숫자·하이픈, 3~50자 밖) | — | `0` |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_CALL_FAILED` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `__workspaceId` 누락 또는 `Cafe24ApiClient` 미주입(배포 구성 에러) | — | `0` |
+
+**경로 자리표시자가 남으면 `INTEGRATION_CALL_FAILED` 다.** operation 경로의 자리표시자(`{member_id}` 같은)가 요청을 보내기 직전까지 채워지지 않으면 외부 API 를 부르지 않고 실패한다. 메시지는 `CAFE24_UNRESOLVED_PATH_PARAM: operation '<id>' has unresolved path placeholder(s): <list>. Check that required fields are provided and field metadata location='path' is correct.` 다. 앞의 이름은 코드가 아니라 메시지 접두이고 출력 코드는 `INTEGRATION_CALL_FAILED` 다. 이 접두로 분기하지 않는다([에러 코드 규약과 카탈로그 「6.22」](../CLE-API/CLE-API-ERRCODES.md#622-통합-노드-도메인-문서-참조) · 규칙 4).
 
 ### 인증 실패 처리
 
