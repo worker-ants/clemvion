@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "def6115298ca1a9b0ef8903a900ddfd3fc04edbea329622b182b601df131afe5"
+content_hash: "54be63991274d3c18c68703d6aa502709de0f17dec7426413654026c7bf99ffc"
 read_as: "approved_fallback"
-task: "CLE-T-ETAZAT"
+task: "CLE-T-3XGCYA"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "ea69fb9e290d185726c76a553fc21e19f7993ada219d47f755c24b95c6780716"
-etag: "sha256-a4b46339cc356eebd833ef497685750bd6a57502711405e20e0d16a2beee007f"
+mirror_sha256: "31e725066eaa0c5d767e83c8b637218006b7d82e12f93896c69561e7c480b16e"
+etag: "sha256-fe75687ec0125d1fb7dfca624742787e85c978c442c18fd9b0c80b58d1f1a6f9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -117,6 +117,7 @@ etag: "sha256-a4b46339cc356eebd833ef497685750bd6a57502711405e20e0d16a2beee007f"
 | Code | `meta.durationMs`, `meta.success`, `meta.logs?`. 런타임 에러는 `output.error` 와 `port: 'error'` 로 낸다. `meta.error`, `meta.errorCode` 별칭은 폐기했다. |
 | 컨테이너 · Parallel | `meta.iterations`(Loop·ForEach·Map), `meta.skippedCount?`(ForEach·Map), `meta.fellBackToEmpty`(ForEach·Map), `meta.maxIterationsReached`·`meta.exitReason`(Loop). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency?` 를 싣는다 |
 | Split · Filter | `meta.fellBackToEmpty`([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값)) |
+| Merge | `meta.inputCount`, `meta.strategy`, `meta.outputFormat`, `meta.skippedKeys`, `meta.dormantFields`. `meta.strategy` · `meta.outputFormat` 은 설정 에코와 같은 값이라 이 원칙의 예외다. 예외로 둔 이유는 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다-2026-11-12) 에 있다 |
 
 AI 노드의 `meta` 필드는 다음과 같다.
 
@@ -511,7 +512,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 | [0](#principle-0-노드-출력의-다섯-필드) | 다섯 필드 고정 | 모든 노드 |
 | [1](#principle-1-출력-값에는-비즈니스-결과만-둔다) | `output` 에는 비즈니스 데이터만 | ai_agent |
 | [1.1](#principle-11-설정과-출력-값은-겹치지-않는다) | `config` 와 `output` 은 겹치지 않는다 | form, carousel, chart, template, ai_agent(멀티턴), information_extractor(멀티턴), manual_trigger, loop, parallel, workflow |
-| [2](#principle-2-실행-메트릭에는-관측-값만-둔다) | `meta` 에는 실행 메트릭만 | ai_agent, text_classifier, code, loop, foreach, map, parallel |
+| [2](#principle-2-실행-메트릭에는-관측-값만-둔다) | `meta` 에는 실행 메트릭만(Merge 에 설정 에코 예외가 있다) | ai_agent, text_classifier, code, loop, foreach, map, parallel, merge |
 | [3](#principle-3-에러-계약) | 에러 계약 통일 | send_email, code, transform |
 | [4](#principle-4-블로킹과-재개-계약) | 블로킹·재개 구조 통일 | form, carousel, chart, table, template, ai_agent(멀티턴), information_extractor(멀티턴) |
 | [5](#principle-5-출력-포트-선택-모델) | `port` 활성화 모델 | 동적 포트가 있는 모든 노드 |
@@ -524,7 +525,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 ## 미결 사항
 
-- **설정 에코에서 빼는 필드(Principle 7)**: 이 규약은 비민감 스키마 필드를 모두 항상 싣는다고 정한다. [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md)는 엔진이 직접 평가한다는 이유로 `breakCondition` 을 일부러 싣지 않는다. [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) 예시는 `errorPolicy` 를 빠뜨린다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)는 `outputSchema` 를 `schema` 키로 싣고 이를 미뤄 둔 알려진 결함으로 적는다. 결정 필요: 예외를 허용하고 이 규약에 예외 목록을 둘지, 노드를 규약에 맞출지.
+- **정보 추출기의 설정 에코 키 이름(Principle 7)**: 이 규약은 비민감 스키마 필드를 모두 항상 싣는다고 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)는 `outputSchema` 를 `schema` 키로 싣고 이를 미뤄 둔 알려진 결함으로 적는다. 결정 필요: 이 이름을 예외로 인정할지, 노드를 규약에 맞출지. 같은 항목에 있던 Loop `breakCondition` 은 2026-11-12 에 싣기로 정했다(결정 NERV Task `CLE-T-QV1NFT`, 구현 `CLE-T-CYCGST`). ForEach `errorPolicy` 는 핸들러가 이미 싣고 [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) 출력 표 정리는 NERV Task `CLE-T-W0377J` 가 맡는다.
 - **시스템 포트 예약어 집합과 거부 계층(Principle 6)**: 이 규약은 예약어 9개를 두고 프론트엔드가 거부한다고 적는다. [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md)는 이 원칙을 인용하면서 `default`, `out`, `error` 3개만 백엔드 `validateSwitchConfig` 에서 거부한다. [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)는 9개를 백엔드 스키마(`RESERVED_PORT_WORDS`)에서 거부한다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 조건 검증은 `out`, `in`, `error`, `user_ended`, `max_turns` 를 막는다. 케이스 ID `done` 이 허용되는지가 노드마다 다르다. Presentation 노드의 버튼 id 는 `validateButtons`(`button.types.ts`)가 `__item_` 포함과 중복만 거부하고 예약어는 검사하지 않는다. 그래서 버튼 id 로 `out`·`continue` 같은 고정 포트 ID 를 저장할 수 있다. 결정 필요: 공통 예약어 상수 하나와 거부 계층을 정할지, 노드별 허용 범위를 적을지. 정해지면 Presentation 버튼 검증에도 적용한다.
 - **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)**: 이 규약과 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 문서는 인증 실패(401·403)를 `retryable: false` 로 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 둔다. 현재 구현은 정보 추출기 핸들러가 코드 기반이라 항상 `true` 를 채우고, 텍스트 분류기 핸들러도 자기 문서와 달리 `LLM_CALL_FAILED` 를 항상 `true` 로 채운다. 같은 인증 실패에서 노드마다 `[다시 시도]` 버튼이 보이기도 하고 안 보이기도 한다. 또 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도를 지원하지 않아 `_retryState` 를 만들지 않는다. 화면이 노드 유형으로 버튼을 막지 않으면 버튼을 눌러도 `RETRY_STATE_NOT_FOUND` 가 난다. 결정 필요: HTTP 상태 기반 분류로 통일할지, 정보 추출기의 코드 기반 예외를 규약에 적을지, 재시도 버튼 노출 조건을 어디에 둘지.
 - **출력 포트가 둘인데 `port` 를 비우는 노드(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이고 여러 포트 동시 활성화는 `string[]` 로 나타낸다. [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md)는 출력이 둘(`match`, `unmatched`)인데 `port` 를 돌려주지 않고 두 포트를 모두 활성화한다. 결정 필요: "모든 출력 포트 활성화" 형태를 이 원칙에 더할지, Filter 가 `port: ['match', 'unmatched']` 를 돌려주게 할지.
@@ -584,6 +585,8 @@ spread 로 싣지 않는 이유는 세 가지다.
 규칙 4 에는 처음에 핸들러가 빠뜨린 필드를 보강할 대상으로 적어 두었다(`switch.hasDefault`, `if-else.strictComparison`, `map.errorPolicy`, `foreach.errorPolicy`, `carousel.maxItems`, `chart.dataField` · `groupBy` · `colors`, `template.helpers`, `table.pagination`, `variable-modification.recordValues`). 2026-11-07 에 코드와 대조하니 핸들러가 이 필드를 모두 싣고 있어서 목록을 지웠다(NERV Task `CLE-T-ETAZAT`). If/Else · Switch · 변수 수정 문서의 출력 예시와 필드 표는 같은 날 맞췄다(NERV Task `CLE-T-FZ6N7A`).
 
 미설정 필드가 JSON 에서 빠진다는 점은 그동안 노드 문서에만 적혀 있어서 같은 날 규칙 4 와 Principle 11 규칙 2 에 함께 적었다. Map · ForEach · Table · Carousel · Template 문서의 출력 필드 표를 이 형식에 맞추는 일은 NERV Task `CLE-T-W0377J` 가 맡는다.
+
+2026-11-12 에 규칙 4 에 예외 목록(노드 · 필드 · 이유)을 두는 안을 검토하고 기각했다. [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 는 엔진이 `breakCondition` 을 직접 평가한다는 이유로 이 필드를 싣지 않는다고 적어 두었다. 표현식 평가에서 빼는 것과 에코에서 빼는 것은 다른 일이라서 Code `code` 처럼 싣기로 했다. 예외를 두면 다음 노드가 노드마다 어떤 필드가 빠지는지 따로 알아야 한다. 결정은 NERV Task `CLE-T-QV1NFT`, 구현은 `CLE-T-CYCGST` 가 맡는다.
 
 ### 엔진 덮어쓰기 형태를 하나로 맞춘 이유
 

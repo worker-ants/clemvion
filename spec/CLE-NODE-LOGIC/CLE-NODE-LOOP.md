@@ -2,21 +2,21 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "64c72190889e4ced97d1705bacdd5050343b01d954c11fbc6ab80f1bf209c35d"
+content_hash: "e86137d3274b6c6d6541944b658283bd38855839bf6ca3b91805abb8e5c043f9"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-QV1NFT"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "293b08ae847b6a95e66e7bcd8a2f41302517ada3dd2af4609e2dc5b8bedc8c26"
-etag: "sha256-64235cda9d87aadd863cd8179a7559dba8391405d443e3cce479c38b7153e1e4"
+mirror_sha256: "d6d43ff592d378414f1168d5cabc7e130622d86a7f1dd34fb7bb4dabcc5e79e8"
+etag: "sha256-c83aaa7ab91ee87d602ba15bf9a93ac80e271f413cfedf91b9b6dc24f4bac30f"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현(`breakCondition` 설정 에코는 미구현) · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -78,7 +78,7 @@ Loop 는 동적 포트가 없다.
 
 ## 실행 로직
 
-1. **시작 시점(핸들러 실행)**: `LoopHandler.execute` 가 `{ config: { count, maxIterations }, output: null }` 을 반환한다. 엔진은 `output: null` 을 보고 엔진 덮어쓰기 계약을 활성화한다.
+1. **시작 시점(핸들러 실행)**: `LoopHandler.execute` 가 `{ config: { count, maxIterations, breakCondition }, output: null }` 을 반환한다(`breakCondition` 에코는 미구현. [출력 구조](#출력-구조) 참조). 엔진은 `output: null` 을 보고 엔진 덮어쓰기 계약을 활성화한다.
 2. **count 평가**: 엔진이 `engineResolvedConfig.count` 를 정수로 바꾼다(`coerceContainerNumber`). `count > maxIterations` 면 곧바로 `MAX_ITERATIONS_EXCEEDED` 를 던진다.
 3. **반복 실행**: `LoopExecutor.execute` 가 인덱스 0 부터 `count - 1` 까지 컨테이너 본문을 차례로 실행한다. 반복 회차마다 `context.loopContext = { index, count, isFirst, isLast }` 를 묶는다.
 4. **emit 수집**: 반복 회차마다 `emit` 포트에 연결된 본문 노드의 출력을 `LoopIterationResult { index, output }` 으로 모은다.
@@ -139,9 +139,10 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 |------|------|------|------|
 | `config.count` | number \| string | 설정 에코 | 사용자가 입력한 원래 값. 표현식 `{{ }}` 과 숫자 문자열을 그대로 남긴다 |
 | `config.maxIterations` | number | 설정 에코 | 원래 값 또는 기본값 `1000` |
+| `config.breakCondition?` | string | 설정 에코 | 사용자가 입력한 원래 표현식 문자열. 평가하지 않은 원문이다. 엔진은 반복 회차마다 이 식을 따로 평가한다([실행 로직](#실행-로직) 6번). 설정하지 않으면 `undefined` 라서 JSON 에서 빠진다. **현재 핸들러는 싣지 않는다**(NERV Task `CLE-T-CYCGST`) |
 | `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 신호. 엔진이 완료 시점 형태로 덮어쓴다 |
 
-- 핸들러는 `breakCondition` 을 설정 에코에 싣지 않는다. 엔진이 컨테이너 실행 계약의 일부로 직접 평가하고 다음 노드가 원래 표현식을 받아 다시 평가할 일이 없어서다. 이 예외는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 설정 에코 규칙과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+- `breakCondition` 도 다른 비민감 필드처럼 원문을 싣는다. 이 필드가 표현식 평가 제외 목록(`expression-exclusions.ts`)에 있는 것은 평가에서 뺀다는 뜻이고 에코에서 뺀다는 뜻은 아니다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)). 지금 핸들러(`loop.handler.ts`)는 `count` · `maxIterations` 만 싣는다. 결정과 근거는 [Rationale](#breakcondition-도-설정-에코에-싣는다-2026-11-12) 에 있다.
 - Loop 는 입력을 나눠 주지 않고 횟수로 도는 컨테이너다. 그래서 이 시점의 본문 입력은 `undefined` (첫 회차)이거나 직전 회차의 emit 출력이다.
 
 ### 완료 시점 (`done` 포트)
@@ -225,10 +226,6 @@ Loop 에는 노드 경고 규칙이 없다(`warningRules: []`). 이유는 [Ratio
 - 현재 구현은 `loop.schema.ts` 에 `summaryTemplate` 이 없어 캔버스에 이 요약을 표시하지 않는다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 참조.
 - 실행 중 컨테이너 헤더에는 현재 진행 인덱스를 표시한다(예: `Iteration 3/10`). 이 표시의 구현 여부도 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에 적었다.
 
-## 미결 사항
-
-- **`breakCondition` 을 설정 에코에 싣지 않는다** (warning): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 설정 에코 규칙은 모든 비민감 스키마 필드를 `undefined` 까지 항상 싣고 빠뜨린 노드는 보강하라고 정한다. 이 문서는 `breakCondition` 을 의도적으로 싣지 않는다. 규약에 예외 목록을 둘지 Loop 도 싣게 할지 결정 필요. (관련: [ForEach 노드](CLE-NODE-FOREACH.md) 의 같은 항목)
-
 ## 구현 위치
 
 - `codebase/backend/src/nodes/logic/loop/loop.*.ts`
@@ -269,3 +266,11 @@ Loop 에는 노드 경고 규칙이 없다(`warningRules: []`). 이유는 [Ratio
 ### `$loop` 는 네 키만 두고 `$parent` 를 두지 않는다
 
 엔진 원문만 `$loop.count` 와 `$parent.loop` 를 적었고 이 문서의 원문, [표현식 언어](../CLE-WF/CLE-WF-EXPR.md), 현재 구현은 모두 "`$loop` 는 네 키, `$parent` 없음" 이었다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#반복-변수-표면은-표현식-언어를-따른다) 이 소유 문서인 표현식 언어 기준으로 정리했으므로 이 문서도 그 기준을 현재 규칙으로 쓰고 미결을 닫았다.
+
+### `breakCondition` 도 설정 에코에 싣는다 (2026-11-12)
+
+**결정**: 핸들러가 `breakCondition` 원문을 시작 시점 `config` 에 싣는다. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4 에 예외를 두지 않는다. 구현은 NERV Task `CLE-T-CYCGST` 가 맡는다(결정 Task `CLE-T-QV1NFT`).
+
+**근거**: 이 문서는 엔진이 반복마다 원문 식을 직접 평가하고 다음 노드가 다시 평가할 일이 없다는 이유로 `breakCondition` 을 싣지 않는다고 적어 두었다. 그런데 같은 표현식 평가 제외 목록에 있는 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 의 `code` 는 규약이 싣는다고 정했다. 평가 제외 목록은 평가 대상에서 뺀다는 뜻일 뿐이라서다. 다음 노드가 원문 식을 다시 평가하지 않아도 어떤 조건으로 반복을 끝내게 설정했는지는 디버깅과 참조에 쓰인다. `config.breakCondition` 은 평가하지 않은 원문 문자열이다.
+
+**기각한 대안** (2026-11-12 사용자 선택): 규약 Principle 7 에 예외 목록(노드 · 필드 · 이유)을 두고 Loop `breakCondition` 을 올린다. 코드는 바꾸지 않아도 되지만 다음 노드가 노드마다 어떤 필드가 빠지는지 따로 알아야 하고 예외가 늘어날 길이 열린다.
