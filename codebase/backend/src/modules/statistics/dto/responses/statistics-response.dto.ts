@@ -147,7 +147,7 @@ export class LlmUsageSummaryDto {
   topProvider: string | null;
 }
 
-/** 일자별 LLM 사용량 */
+/** 일자 · 프로바이더별 LLM 사용량 */
 export class LlmUsageTimeseriesItemDto {
   @ApiProperty({ example: '2026-04-10' })
   date: string;
