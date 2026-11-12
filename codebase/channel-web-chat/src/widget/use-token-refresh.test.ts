@@ -336,7 +336,7 @@ describe("useTokenRefresh (fake timer)", () => {
   describe("refreshSessionToken — 주기 갱신과 401 복구가 refresh 한 건을 나눠 쓴다", () => {
     const freshExpiry = () => new Date(Date.now() + NINETY_MIN).toISOString();
 
-    it("이미 회전된 토큰이면 보내지 않고 현재 세션을 돌려준다", async () => {
+    it("이미 회전된 토큰이면 보내지 않고 현재 세션을 돌려준다(REQ-WCSESS-036)", async () => {
       const { result, refreshToken } = setup({ token: "iext_new" });
       let got: PersistedSession | null = null;
       await act(async () => {
@@ -346,7 +346,7 @@ describe("useTokenRefresh (fake timer)", () => {
       expect(got).toMatchObject({ token: "iext_new" });
     });
 
-    it("타이머 갱신이 떠 있으면 같은 토큰의 요청은 합류한다 — refresh · 적용 · 통지가 한 번씩", async () => {
+    it("타이머 갱신이 떠 있으면 같은 토큰의 요청은 합류한다 — refresh · 적용 · 통지가 한 번씩(REQ-WCSESS-035)", async () => {
       let resolveRefresh: ((v: { token: string; expiresAt: string }) => void) | null = null;
       const seen: PersistedSession[] = [];
       const { result, refs, refreshToken } = setup(
@@ -370,7 +370,7 @@ describe("useTokenRefresh (fake timer)", () => {
       expect(seen).toHaveLength(1);
     });
 
-    it("401 복구가 먼저 보낸 요청에 타이머가 합류하고, 일시적 실패면 타이머는 백오프로 재시도한다", async () => {
+    it("401 복구가 먼저 보낸 요청에 타이머가 합류하고, 일시적 실패면 타이머는 백오프로 재시도한다(REQ-WCSESS-035)", async () => {
       let rejectRefresh: ((e: unknown) => void) | null = null;
       const { result, refreshToken } = setup({}, () => new Promise((_, rej) => { rejectRefresh = rej; }));
       act(() => result.current.scheduleRefresh());
