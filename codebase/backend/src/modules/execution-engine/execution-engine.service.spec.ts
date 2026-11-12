@@ -12,6 +12,7 @@ import {
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
+import { SUB_WORKFLOW_MAX_RECURSION_DEPTH } from '../../nodes/core/node-types.constants';
 import {
   nonTerminalStatuses,
   type TransitionOptions,
@@ -117,6 +118,13 @@ function flushPromises(): Promise<void> {
 function flushResumeDrive(ms = 200): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// 부팅 스캔의 stale 임계(서비스 private 상수). 테스트가 숫자를 복제하지 않고 서비스 값을 읽는다.
+const STALE_MS = (
+  ExecutionEngineService as unknown as { STUCK_RECOVERY_STALE_MS: number }
+).STUCK_RECOVERY_STALE_MS;
+// 임계 시각 비교의 시계 허용 오차(테스트 실행 중 흐른 시간).
+const CLOCK_TOLERANCE_MS = 5_000;
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
@@ -1777,8 +1785,8 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ threshold: expect.any(Date) }),
       );
       const arg = (andWhere.mock.calls[0][1] as { threshold: Date }).threshold;
-      expect(Math.abs(arg.getTime() - (before - 30 * 60 * 1000))).toBeLessThan(
-        5_000,
+      expect(Math.abs(arg.getTime() - (before - STALE_MS))).toBeLessThan(
+        CLOCK_TOLERANCE_MS,
       );
       // 재점유된 각 id 를 re-drive + segment tracking baseline 기록.
       expect(redriveSpy).toHaveBeenCalledTimes(2);
@@ -1945,8 +1953,8 @@ describe('ExecutionEngineService', () => {
       // 노드 행 started_at 30분(STUCK_RECOVERY_STALE_MS 재사용).
       expect(subquery).toContain('ne.started_at < :orphanThreshold');
       expect(
-        Math.abs(params.orphanThreshold.getTime() - (before - 30 * 60 * 1000)),
-      ).toBeLessThan(5_000);
+        Math.abs(params.orphanThreshold.getTime() - (before - STALE_MS)),
+      ).toBeLessThan(CLOCK_TOLERANCE_MS);
       // 부모 실행이 종결 상태일 때만. 대기 · 실행 중 · 대기열 실행은 빠진다.
       expect(subquery).toContain('e.status IN (:...orphanTerminalStatuses)');
       expect([...params.orphanTerminalStatuses].sort()).toEqual(
@@ -1960,7 +1968,10 @@ describe('ExecutionEngineService', () => {
       expect(subquery).toContain('parent_node_execution_id');
       expect(subquery).toContain('n.type = :orphanBackgroundType');
       expect(params.orphanBackgroundType).toBe('background');
-      expect(params.orphanMaxDepth).toBeGreaterThanOrEqual(10);
+      // 부모 체인 깊이 한도는 서브 워크플로우 재귀 한도보다 커야 정상 체인이 잘리지 않는다.
+      expect(params.orphanMaxDepth).toBeGreaterThan(
+        SUB_WORKFLOW_MAX_RECURSION_DEPTH,
+      );
       // UpdateQueryBuilder 는 접두사 없는 낱말 중 NodeExecution 속성 이름(execution · node)을
       // 컬럼 이름(execution_id · node_id)으로 바꿔 쓴다. 테이블 이름은 모두 따옴표로 감싸야 한다.
       const tableRefs = [...subquery.matchAll(/\b(?:FROM|JOIN)\s+(\S+)/g)].map(

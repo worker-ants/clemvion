@@ -21,6 +21,10 @@ import { isAiResumedWaitingEnvelope } from '../execution-engine/ai-conversation-
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ErrorCode } from '../../nodes/core/error-codes';
+import {
+  NODE_TYPES,
+  SUB_WORKFLOW_MAX_RECURSION_DEPTH,
+} from '../../nodes/core/node-types.constants';
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { pickSortColumn } from '../../common/utils/list-sort';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -59,12 +63,9 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 // 무한 루프 방어로 한도의 2배에서 중단.
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
-// dry-run 사전 검사가 따라가는 서브 워크플로우 깊이 한도. 서브 워크플로우 재귀 한도
-// (`WorkflowHandler` · `ExecutionEngineService` 의 MAX_RECURSION_DEPTH = 10)와 같다.
+// dry-run 사전 검사가 따라가는 서브 워크플로우 깊이 한도. 실행 때 재귀 한도와 같은 상수를 쓴다.
 // 그보다 깊은 호출은 실행 때 재귀 한도로 실패하므로 볼 필요가 없다.
-const DRY_RUN_PRECHECK_MAX_DEPTH = 10;
-// 서브 워크플로우 노드의 type (`workflowNodeMetadata.type`).
-const SUB_WORKFLOW_NODE_TYPE = 'workflow';
+const DRY_RUN_PRECHECK_MAX_DEPTH = SUB_WORKFLOW_MAX_RECURSION_DEPTH;
 
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
@@ -628,32 +629,46 @@ export class ExecutionsService {
         where: { workflowId: In(frontier), workflow: { workspaceId } },
         select: { id: true, type: true, category: true, config: true },
       });
-      const offending = nodes.find((node) => {
-        if (node.category !== NodeCategory.INTEGRATION) return false;
-        const meta = this.nodeComponentRegistry.getComponent(
-          node.type,
-        )?.metadata;
-        return meta?.supportsDryRun !== true;
-      });
+      const offending = this.findDryRunUnsupportedNode(nodes);
       if (offending) {
         throw new BadRequestException({
           code: 'RERUN_DRY_RUN_NOT_APPLICABLE',
           message: `Workflow contains a node (type='${offending.type}') that does not support dry-run`,
         });
       }
-      const next: string[] = [];
-      for (const node of nodes) {
-        if (node.type !== SUB_WORKFLOW_NODE_TYPE) continue;
-        const target = (node.config as { workflowId?: unknown } | null)
-          ?.workflowId;
-        if (typeof target !== 'string') continue;
-        const id = target.trim();
-        if (id === '' || id.includes('{{') || visited.has(id)) continue;
-        visited.add(id);
-        next.push(id);
-      }
-      frontier = next;
+      frontier = this.collectSubWorkflowTargets(nodes, visited);
     }
+  }
+
+  /** Integration 노드 중 `supportsDryRun !== true` 인 첫 노드. 없으면 undefined. */
+  private findDryRunUnsupportedNode(nodes: Node[]): Node | undefined {
+    return nodes.find((node) => {
+      if (node.category !== NodeCategory.INTEGRATION) return false;
+      const meta = this.nodeComponentRegistry.getComponent(node.type)?.metadata;
+      return meta?.supportsDryRun !== true;
+    });
+  }
+
+  /**
+   * 서브 워크플로우 노드가 부르는 대상 워크플로우 ID 를 모은다. 표현식(`{{ … }}`)이거나
+   * 이미 본 ID(`visited`)는 뺀다. 새로 모은 ID 는 `visited` 에 넣는다.
+   */
+  private collectSubWorkflowTargets(
+    nodes: Node[],
+    visited: Set<string>,
+  ): string[] {
+    const next: string[] = [];
+    for (const node of nodes) {
+      if (node.type !== NODE_TYPES.WORKFLOW) continue;
+      const target = (node.config as { workflowId?: unknown } | null)
+        ?.workflowId;
+      if (typeof target !== 'string') continue;
+      const id = target.trim();
+      if (id === '' || id.includes('{{') || visited.has(id)) continue;
+      visited.add(id);
+      next.push(id);
+    }
+    return next;
   }
 
   /**

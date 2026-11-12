@@ -566,8 +566,8 @@ export class RetryTurnService {
    * 보통은 `finalizeAiNode` 가 새 행을 `failed`(재실패)나 `cancelled`(취소 가드)로
    * 마감한 뒤 던진다. 그 전에 던지는 경로(예: COMPLETED 분기의 `assertTransition`
    * 동기 throw)는 새 행을 `running` 으로 남긴다. 실행은 `failRetryExecution` 이
-   * 종결하므로 그 행은 stale RUNNING 실행 재구동에 걸리지 않는다. 부팅 스캔의 (d)
-   * 단계(`closeOrphanRunningNodeExecutions`, CLE-T-CCEQEC)가 30분 뒤에야 닫으므로
+   * 종결하므로 그 행은 stale RUNNING 실행 재구동에 걸리지 않는다. 부팅 스캔의 「종결된 실행 아래
+   * 남은 노드 실행 행」 정리 단계(`closeOrphanRunningNodeExecutions`, CLE-T-CCEQEC)가 30분 뒤에야 닫으므로
    * 그동안 `running` 으로 보이지 않게 여기서 바로 닫는다.
    *
    * in-memory `spawnedRow.status` 로는 판정하지 않는다. 턴이 DB 행을 다른 엔티티로
@@ -660,7 +660,7 @@ export class RetryTurnService {
    * 막힌다. 재배달은 claim 에 실패해 버려지고 그 턴은 다시 돌지 않는다. 남는 것은
    * `running` 새 행 하나이고, 실행은 이미 `failed` 라 형제 continuation 4종
    * (`claimResumeEntry`)이 기대는 stale RUNNING Execution 재구동에는 걸리지 않는다.
-   * 이 행은 부팅 스캔의 (d) 단계(`closeOrphanRunningNodeExecutions`)가 30분 뒤 닫는다
+   * 이 행은 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계(`closeOrphanRunningNodeExecutions`)가 30분 뒤 닫는다
    * (CLE-T-CCEQEC). 아래 "백스톱" 참조.
    *
    * **claim 은 반드시 "`_retryState` 부재 → 손상 판정" 보다 먼저 호출돼야 한다**
@@ -679,7 +679,7 @@ export class RetryTurnService {
    * **백스톱(CLE-T-CCEQEC)** — discard 뒤 실행은 이미 `failed` 라 case B 재구동의
    * `failOrphanRunningNodeExecutions` 가 닿지 않는다. 그 마감은 stale RUNNING
    * **Execution** 을 재구동할 때만 돈다. 그래서 버려진 새 행과 claim 성공 뒤 try 진입
-   * 전에 죽은 행은 부팅 스캔(`recoverStuckExecutions`)의 (d) 단계
+   * 전에 죽은 행은 부팅 스캔(`recoverStuckExecutions`)의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계
    * (`closeOrphanRunningNodeExecutions`)가 닫는다. 노드 행 `started_at` 이 30분을
    * 넘고 부모 실행이 종결 상태일 때 `failed` 로 닫는다. 닫히기 전까지(다음 부팅 스캔
    * 까지) 그 행은 타임라인과 진행률 집계에 `running` 으로 보인다. 그래도 discard 가

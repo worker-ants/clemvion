@@ -18,6 +18,7 @@ import {
   WorkflowForbiddenWorkspaceError,
 } from '../../../modules/execution-engine/workflow-errors.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
+import { SUB_WORKFLOW_MAX_RECURSION_DEPTH } from '../../core/node-types.constants.js';
 import { ParkReleaseSignal } from '../../../shared/execution-resume/park-release-signal.js';
 import { ExecutionCancelledError } from '../../../modules/execution-engine/workflow-errors.js';
 
@@ -34,7 +35,7 @@ interface WorkflowConfig {
   timeout?: number;
 }
 
-const MAX_RECURSION_DEPTH = 10;
+const MAX_RECURSION_DEPTH = SUB_WORKFLOW_MAX_RECURSION_DEPTH;
 
 export class WorkflowHandler implements NodeHandler {
   metadata = workflowNodeMetadata;
