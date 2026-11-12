@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR"
 title: "워크플로우 에디터와 캔버스"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-EDITOR-001", "REQ-EDITOR-002", "REQ-EDITOR-003", "REQ-EDITOR-004", "REQ-EDITOR-005", "REQ-EDITOR-006", "REQ-EDITOR-007", "REQ-EDITOR-008", "REQ-EDITOR-009", "REQ-EDITOR-010", "REQ-EDITOR-011", "REQ-EDITOR-012", "REQ-EDITOR-013", "REQ-EDITOR-014", "REQ-EDITOR-015", "REQ-EDITOR-016", "REQ-EDITOR-017", "REQ-EDITOR-018", "REQ-EDITOR-019", "REQ-EDITOR-020", "REQ-EDITOR-021", "REQ-EDITOR-022", "REQ-EDITOR-023", "REQ-EDITOR-024", "REQ-EDITOR-025", "REQ-EDITOR-026", "REQ-EDITOR-027", "REQ-EDITOR-028", "REQ-EDITOR-029", "REQ-EDITOR-030", "REQ-EDITOR-031", "REQ-EDITOR-032", "REQ-EDITOR-033", "REQ-EDITOR-034", "REQ-EDITOR-035", "REQ-EDITOR-036", "REQ-EDITOR-037", "REQ-EDITOR-038", "REQ-EDITOR-039", "REQ-EDITOR-040", "REQ-EDITOR-041", "REQ-EDITOR-042", "REQ-EDITOR-043", "REQ-EDITOR-044", "REQ-EDITOR-045", "REQ-EDITOR-046", "REQ-EDITOR-047", "REQ-EDITOR-048", "REQ-EDITOR-049", "REQ-EDITOR-050", "REQ-EDITOR-051", "REQ-EDITOR-052", "REQ-EDITOR-053", "REQ-EDITOR-054", "REQ-EDITOR-055", "REQ-EDITOR-056", "REQ-EDITOR-057", "REQ-EDITOR-058", "REQ-EDITOR-059"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "b51562fd23e55e41e2f43e564676b34f58fdc5b6fbab5d800abf99b242bdf9b8"
+content_hash: "c911510d7de867cb3c53b2cb31fc8938cd4259bad0daa999190cbf2cad70ef36"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "c68aad8da1e8a8bb7ab36ff90cac846cb68431a54cf6b7546907c0c7d77952fe"
-etag: "sha256-1bc0947a8fb65dc768f85fc3efe3a730e3d3138b434014c3efb600bde200e32f"
+mirror_sha256: "b58de71b0e37baf48473c085c2af45ae41851a35cc9311903225a2ff9c20390f"
+etag: "sha256-a8ef0283ad17566c116af0d8c158232be063bf7f03db671bc9c4c0c7bc9234e0"
 ---
 > 구현 상태: 부분 구현 (팔레트 Installed 섹션, AI 에이전트 · 정보 추출기 · 수동 트리거 노드의 설정 요약, Undo/Redo 를 줌 오버레이로 합치기는 미구현. 그리드 스냅은 미결 사항) · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -484,10 +484,10 @@ flowchart LR
 | 제약 | 동작 |
 | --- | --- |
 | 같은 워크플로우의 노드만 | `containerId`·`toolOwnerId` 와 연결선 끝점은 이 워크플로우의 노드만 가리킨다. 캔버스 저장은 이번 페이로드에 없는 노드를 가리키면 400 `VALIDATION_ERROR` 다(`details[].field` 예: `nodes[2].containerId`, [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 위 연결선 기반 재계산은 늘 페이로드 안의 노드를 가리키므로 정상 편집에서는 걸리지 않는다. |
-| 트리거 노드 자식 금지 | 트리거 카테고리 노드는 컨테이너 자식이 될 수 없다. 연결선 자동 전파가 거부하고, 실행 때도 백엔드가 `CONTAINER_INVALID_CHILD` 에러로 실패시킨다. |
+| 트리거 노드 자식 금지 | 트리거 카테고리 노드는 컨테이너 자식이 될 수 없다. 연결선 자동 전파가 거부한다. 실행 때도 백엔드가 거부하고 에러 메시지가 `CONTAINER_INVALID_CHILD: ` 로 시작한다. |
 | 자기 자신 자식 금지 | 컨테이너는 자기 자신을 `containerId` 로 가질 수 없다. |
-| 자손 컨테이너 자식 금지 | A 의 자손 컨테이너 B 를 다시 A 의 부모로 지정하면 순환이다. 실행 때 `CONTAINER_CYCLE` 에러로 거부한다. |
-| emit 필수 | 컨테이너를 실행할 때 `emit` 포트에 자식 노드가 정확히 하나 연결돼 있어야 한다(`CONTAINER_MISSING_EMIT`, `CONTAINER_MULTIPLE_EMIT`). emit 연결선은 있지만 출발 노드가 자식이 아니면 에러 메시지에 그 노드 이름과 해결 방법을 넣는다. |
+| 자손 컨테이너 자식 금지 | A 의 자손 컨테이너 B 를 다시 A 의 부모로 지정하면 순환이다. 실행 때 거부하고 에러 메시지가 `CONTAINER_CYCLE: ` 로 시작한다. |
+| emit 필수 | 컨테이너를 실행할 때 `emit` 포트에 자식 노드가 정확히 하나 연결돼 있어야 한다. 어기면 에러 메시지가 `CONTAINER_MISSING_EMIT: ` 나 `CONTAINER_MULTIPLE_EMIT: ` 로 시작한다. emit 연결선은 있지만 출발 노드가 자식이 아니면 에러 메시지에 그 노드 이름과 해결 방법을 넣는다. |
 | 본문 안 제약 | 되돌아가는 연결선(순환)과 블로킹 노드(form·buttons·ai_conversation)는 컨테이너 본문 안에서 쓸 수 없다. |
 
 이 제약 가운데 `CONTAINER_*` 검사는 저장 때가 아니라 실행 엔진과 AI 어시스턴트의 Shadow 검증이 한다([워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md)). 저장 때 보는 것은 첫 행의 참조 소속뿐이다.
@@ -518,7 +518,7 @@ flowchart LR
 | 항목 | 설명 |
 | --- | --- |
 | 중첩 허용 | 컨테이너 안에 다른 컨테이너를 둘 수 있다(`containerId` 체인). |
-| 깊이 제한 | 없다. 순환만 `CONTAINER_CYCLE` 로 거부한다. |
+| 깊이 제한 | 없다. 순환만 거부한다(에러 메시지 접두 `CONTAINER_CYCLE: `). |
 | 레벨별 시각 구분 | 없다. 시각 containment 를 쓰지 않으므로 배경 틴트나 깊이 표시를 두지 않는다. |
 
 깊이 제한(3)과 레벨별 배경 틴트는 도입하지 않기로 확정했다([Rationale](#rationale) R-4).

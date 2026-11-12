@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "62df4953fea7e3998e2a2aa04016593ef11d098348e67540f123894a1ca1b5db"
+content_hash: "38c79b000c401d04d5fe40d4e1692dfab6b76b9a701e65972208d30963157597"
 read_as: "approved_fallback"
-task: "CLE-T-W0377J"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "234ce4f8aab6cdbb879542a9c51e236ddcaa87807d7e418ac0babac23b8cab18"
-etag: "sha256-abf7f4be25ea318913d070493259e3096b2adf07e27bcce32d29bf94ea75ab32"
+mirror_sha256: "aedd33c922f16656255c387342d5511acc0438236e3224e64de10b88210c0873"
+etag: "sha256-ca8bd6e43e9820e73b100368cac50fac373d548ff83c642df4265e08196a6c32"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 - REQ-MAP-012 WHEN 다음 노드가 Map 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 `{ mapped, count }` 형태만 보여 준다. (부분 구현)
 - REQ-MAP-013 IF `inputField` 가 없거나 빈 문자열이거나 `null` / `undefined` 면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-MAP-014 IF `errorPolicy` 가 `stop` / `skip` / `continue` 가 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
-- REQ-MAP-015 IF `emit` 포트에 본문 노드가 없거나 2개 이상이면 THE SYSTEM SHALL 엔진 사전 검증에서 `CONTAINER_MISSING_EMIT` / `CONTAINER_MULTIPLE_EMIT` 로 실행을 실패시킨다.
+- REQ-MAP-015 IF `emit` 포트에 본문 노드가 없거나 2개 이상이면 THE SYSTEM SHALL 엔진 사전 검증에서 메시지가 `CONTAINER_MISSING_EMIT: ` 나 `CONTAINER_MULTIPLE_EMIT: ` 로 시작하는 에러로 실행을 실패시킨다.
 - REQ-MAP-016 IF 컨테이너 본문 안에 되돌아가는 연결선이나 블로킹 노드가 있으면 THE SYSTEM SHALL 엔진 사전 검증에서 실행을 실패시킨다.
 - REQ-MAP-017 WHILE Map 노드가 실행 중인 동안 THE SYSTEM SHALL 컨테이너 헤더에 현재 항목 인덱스(예 `Item 2/5`)를 표시한다.
 - REQ-MAP-018 WHEN Map 노드를 정의하면 THE SYSTEM SHALL 별도 `error` 출력 포트와 동적 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
@@ -195,8 +195,9 @@ Map 핸들러에는 런타임 에러 포트가 없다. 검증 실패는 설정 �
 |-----------|--------|------|
 | `inputField` 없음 / 빈 문자열 / `null` / `undefined` | `Input field must be entered.` | 노드 경고 규칙(캔버스 배지) + `handler.validate` |
 | `errorPolicy` 가 `stop` / `skip` / `continue` 가 아님 | `errorPolicy must be one of: stop, skip, continue` | `handler.validate` |
-| `emit` 포트 미연결 | `CONTAINER_MISSING_EMIT` | 엔진 사전 검증([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)) |
-| `emit` 포트에 2개 이상 연결 | `CONTAINER_MULTIPLE_EMIT` | 엔진 사전 검증 |
+| `emit` 포트 미연결 | `CONTAINER_MISSING_EMIT: Container "<label>" has no body node wired to its "emit" port. ...` | 엔진 사전 검증([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)) |
+| `emit` 포트에 2개 이상 연결 | `CONTAINER_MULTIPLE_EMIT: Container "<label>" has <N> nodes wired to its "emit" port. Only one emit source is allowed.` | 엔진 사전 검증 |
+| `emit` 의 출발 노드가 본문 노드가 아님 | `CONTAINER_MISSING_EMIT: ... that node isn't a body child of this container. ...` | 엔진 사전 검증 |
 | 본문 안에 되돌아가는 연결선 / 블로킹 노드(form / buttons / ai_conversation) | 컨테이너 제약 위반 | 엔진 사전 검증 |
 | 본문 회차 에러 + `errorPolicy: 'stop'` | 회차 에러 메시지를 그대로 전파 | 런타임, 엔진이 실패로 표시 |
 | 본문 회차 에러 + `errorPolicy: 'skip' / 'continue'` | `output.mapped[i]._skipped = true` 로 인라인 기록 | 런타임, 노드는 정상 종료 |

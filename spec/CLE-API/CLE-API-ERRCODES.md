@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 32
+version: 33
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "b4a80a7cb381517ef766a0a8f16d2697bdcc527b229040647868d57200356f8f"
+content_hash: "bf21df747cc40461aa0a012933c85dec121e0d7817430bd9214c789954dc67c7"
 read_as: "approved_fallback"
-task: "CLE-T-DM3AXQ"
+task: "CLE-T-HGBHF2"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "d7326198c59779d4b52f6b9649bf701534279e835f67c00d0dc068f6966b15d7"
-etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
+mirror_sha256: "02cf2088dc3d234dbf7b225c5cf6ed8c240b248de67d0e13952d4f21eb988aa4"
+etag: "sha256-273fa88d3509df2326ff3da0c5351425da5e28be8c23c5154a3051b157aa518b"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -191,6 +191,8 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 | `WEBAUTHN_INVALID` | 401 | Passkey 로그인 2단계 검증 실패. 서명이 맞지 않는 응답과 이미 쓴 Passkey 인증 챌린지(`optionsToken` 의 `challenge`)로 온 검증도 이 코드이고 credential 을 지우지 않는다. counter 역행은 별도 코드 `WEBAUTHN_COUNTER_REGRESSION` 이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `WEBAUTHN_COUNTER_REGRESSION` | 401 | Passkey 로그인 2단계에서 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 인증기의 sign counter 가 저장값 이하로 돌아감(저장값과 응답 값이 모두 0 이면 역행이 아니다). 서버가 그 credential 을 지우고 사용자의 리프레시 토큰을 모두 무효화한 뒤 이 코드로 거부한다. 로그인 이력 `failure_reason` 에는 같은 이름의 사유값이 남는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `WEBAUTHN_REQUIRED` | 401 | TOTP 가 켜져 있고 Passkey 도 등록된 계정이 로그인 2단계 TOTP 검증(`POST /api/auth/login/totp`)을 부름. Passkey 가 있으면 TOTP 로 로그인할 수 없다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다. Passkey 기능이 꺼져 있으면 TOTP 로 로그인하므로 나지 않는다 | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
+| `WEBAUTHN_CREDENTIAL_NOT_FOUND` (이름 변경 · 삭제) | 404 | 등록한 Passkey 의 이름 변경(`PATCH /api/auth/2fa/webauthn/credentials/:id`)이나 삭제(`DELETE` 같은 경로)에서 대상 credential 이 없거나 호출자의 것이 아님. 둘을 구분하지 않는다(존재 노출 방지) | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
+| `WEBAUTHN_CREDENTIAL_NOT_FOUND` (로그인 검증) | 401 | 로그인 2단계 Passkey 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 응답의 credential 이 그 사용자의 것이 아님. 이 401 은 `WEBAUTHN_INVALID` 로 옮기기로 정했다(표 아래) | [가입과 로그인 「에러 코드」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#에러-코드) |
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `REAUTH_NOT_AVAILABLE` | 403 | 비밀번호 해시도 TOTP 도 없는 OAuth 전용 계정이라 계정 재인증 수단이 없음. Passkey 만 등록한 계정도 여기에 든다. 이메일 변경과 로그인 세션 강제 종료의 계정 재인증이 함께 쓴다 | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
 | `REAUTH_REQUIRED` | 400 | 계정 재인증 자격 증명이 없거나 부족함(비밀번호와 TOTP 어느 것도 검증할 수 없음. 비밀번호가 없는 계정에 비밀번호만 보낸 경우 포함) | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) |
@@ -206,6 +208,7 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 - **비슷한 이름 주의**: 비밀번호 재확인 계열 에러 코드는 셋이다(`PASSWORD_INVALID`, `PASSWORD_REQUIRED`, `REAUTH_REQUIRED`). 옛 `INVALID_PASSWORD` 는 2026-09-02 에 은퇴해 응답에 나가지 않는다(§5). 접미사가 같은 `WEBAUTHN_REQUIRED`(§6.3)는 이 계열이 아니다. 입력이 빠진 것이 아니라 TOTP 와 Passkey 가 모두 있는 계정의 TOTP 로그인을 막는 코드다. 로그인의 `EMAIL_VERIFICATION_REQUIRED`(§6.2)는 응답 에러 코드다. `EMAIL_NOT_VERIFIED` 는 같은 경우에 로그인 이력 `failure_reason` 에 남는 사유값이고 응답에는 나가지 않는다.
 - **비슷한 이름 주의(TOTP 상태 코드)**: TOTP 상태 때문에 거부하는 코드는 셋이고 클라이언트가 할 일이 서로 다르다. `TOTP_ALREADY_ENABLED`(409)는 TOTP 가 이미 켜진 계정의 TOTP 설정 시작 · 활성화 검증이다. 클라이언트는 입력을 고치지 않고 켜진 상태를 다시 읽는다. `TOTP_NOT_ENABLED`(401)는 로그인 2단계 TOTP 검증 전용이고 클라이언트는 다시 로그인하게 안내한다. `TOTP_NOT_INITIALIZED`(400)는 대기 secret 없이(설정 시작 전이거나 10분이 지나 버림) 활성화 검증을 부른 경우이고 클라이언트는 설정 시작 단계로 돌아간다. 코드 불일치는 셋 가운데 어느 것도 아니고 `TOTP_INVALID`(401)다.
 - **2FA 비활성화**: `POST /api/auth/2fa/disable` 의 인증 코드 실패는 새 코드 없이 `TOTP_INVALID`(401)를 쓴다. 확인 순서, 복구 코드 소비, 로그인 이력에 남기지 않는 규칙은 [가입과 로그인 「TOTP 끄기」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-끄기) 가 정한다.
+- **로그인 검증의 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 `WEBAUTHN_INVALID` 로 옮긴다.** 2026-11-12 에 정했고 아직 구현하지 않았다(NERV Task `CLE-T-ZPPWK4`). 구현되면 로그인 2단계 Passkey 검증은 응답의 credential 이 그 사용자의 것이 아닐 때도 401 `WEBAUTHN_INVALID` 를 낸다. 그러면 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 이름 변경 · 삭제의 404 하나만 남고 「(로그인 검증)」 행을 지운다.
 
 ### 6.4 유효성 검증
 
@@ -226,7 +229,7 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 | `MODEL_CONFIG_DEFAULT_MISSING` | id 를 지정하지 않았는데 워크스페이스 기본 설정이 없음(설정 안내용). `resolveConfig` 의 chat/LLM 기본값 경로 전용이다. `resolveEmbedding` 의 기본값 부재는 `MODEL_CONFIG_NOT_FOUND`(404)를 쓴다(사용자 결정 2026-06-12) | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md). 이 코드는 도메인 문서에 적혀 있지 않다. [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) 는 임베딩 기본값 부재(404)와 구분할 때만 이름을 든다 |
 | `USER_NOT_FOUND` | 대상 사용자가 없음. `RESOURCE_NOT_FOUND` 의 사용자 특화 코드다. 사용자 API(`users.service.ts`, `users.controller.ts`), 알림 설정(`notifications.service.ts`), TOTP · Passkey(`totp.service.ts`, `webauthn.service.ts`), 멤버 직접 추가의 가입하지 않은 이메일(`workspaces.service.ts`)이 발행한다. 초대 모듈의 소문자 `user_not_found`(§3)와 별개 코드다. 로그인 감사값 `failure_reason='USER_NOT_FOUND'` 와는 문자열만 같다(§6.3) | 404 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md), [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `WORKSPACE_NOT_FOUND` (관리 경로) | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행이 없음(`workspaces.service.ts`). 사실상 동시 삭제 경합에서만 난다. `RESOURCE_NOT_FOUND` 의 워크스페이스 특화 코드다. 초대 모듈의 소문자 `workspace_not_found`(§3)와 별개 코드다 | 404 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
-| `WORKSPACE_NOT_FOUND` (토큰 검증) | 액세스 토큰은 유효한데 사용자가 쓸 워크스페이스가 하나도 없음(`jwt.strategy.ts`). 한 코드가 두 상태로 쓰이는 점은 [미결 사항](#미결-사항) 에 있다 | 401 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
+| `WORKSPACE_NOT_FOUND` (토큰 검증) | 액세스 토큰은 유효한데 사용자가 쓸 워크스페이스가 하나도 없음(`jwt.strategy.ts`). 이 401 은 새 코드로 옮기기로 정했다(표 아래) | 401 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
 | `RESOURCE_CONFLICT` | 리소스 충돌(이름 중복 등). 409 기본 코드 | 409 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `DUPLICATE_NODE_LABEL` | 노드 라벨 중복. `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드(`nodes.service.ts` 와 캔버스 일괄 저장 · 버전 복원 경로의 `workflows.service.ts` 발행). 버전 복원은 캔버스 저장과 같은 쓰기를 거친다 | 409 | [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md), [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
 | `RESERVED_VARIABLE_NAME` | 변수 선언·변수 수정 노드의 변수 이름이 시스템 예약 `__` prefix 로 시작함(`variables.__*` 는 엔진 시스템 네임스페이스). **이 행은 저장 시점(L0)만 다룬다.** `saveCanvas`·`importWorkflow` 가 `details.offenders[]` 와 함께 HTTP 400 을 낸다(`restoreVersion` 은 옛 데이터 탈출구라 면제). 저장을 우회한 리터럴은 엔진 사전 검증(L1)에서 `INVALID_NODE_CONFIG` 가 된다(§6.5 표 아래). 표현식이 예약 이름으로 평가되는 런타임(L2)은 HTTP 와 무관하다. 핸들러가 `RESERVED_VARIABLE_NAME:` 메시지 prefix 로 throw 해 노드 실패로 기록되지만 구조화 `error.code` 는 없다 | 400 (저장) / 없음 (런타임) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), [변수 선언 노드](../CLE-NODE-LOGIC/CLE-NODE-VARDECL.md), [변수 수정 노드](../CLE-NODE-LOGIC/CLE-NODE-VARSET.md) |
@@ -236,6 +239,8 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 | `INVALID_STATE` | 상태 전이 불가(이미 실행 중인 워크플로우 삭제 등). 422 기본 코드. 표면별 같은 뜻 코드는 §6 머리말. 로그인 OAuth 콜백의 소문자 URL 값 `invalid_state`(§3, state 불일치)와 별개 코드다 | 422 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [실행 데이터와 흐름 「입력으로 재개」](../CLE-EXEC/CLE-EXEC-DATA.md#입력으로-재개) |
 | `INVALID_FIELD` | 응답의 최상위 코드가 아니다. 400 응답의 `details` 안에서 문제 필드를 가리키는 필드 단위 표시다. `details` 가 배열이면 원소마다, 객체이면 그 객체에 `field` 와 `code: 'INVALID_FIELD'` 를 싣는다. 최상위 코드는 `VALIDATION_ERROR` 이고 트리거 인증 설정 연결만 `AUTH_CONFIG_NOT_FOUND`(§6.14)다. 클라이언트는 최상위 코드로 분기한다 | 없음 (400 응답 `details` 안의 `code`) | [에러 응답과 클라이언트 처리 「2.4 `details` 의 형태」](CLE-API-ERROR.md#24-details-의-형태), [에러 응답과 클라이언트 처리 「2.5 `field` 를 실으면 `code` 도 싣는다」](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11) |
 | `INVALID_NOTIFICATION_URL` | 트리거 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `notification.url` 이 알림 URL 안전 검사를 통과하지 못함. `message` 에 거절 사유를 싣는다. 보내기 직전 검사에 걸린 알림은 이 코드를 내지 않는다. 보내지 않고 발송 건강도를 `degraded` 로 둔다 | 400 | [EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) |
+
+**토큰 검증의 401 은 `NO_WORKSPACE_AVAILABLE` 로 옮긴다.** 2026-11-12 에 정했고 아직 구현하지 않았다(NERV Task `CLE-T-ZPPWK4`). 구현되면 액세스 토큰 검증은 쓸 워크스페이스가 하나도 없을 때 401 `NO_WORKSPACE_AVAILABLE` 을 낸다. 조건은 지금의 「`WORKSPACE_NOT_FOUND` (토큰 검증)」 행과 같다. 발행과 함께 이 코드를 표에 등재하고 그 행을 지운다. 관리 경로의 404 `WORKSPACE_NOT_FOUND` 는 그대로다. 이름을 고른 이유는 Rationale 에 있다.
 
 **`X-Workspace-Id` 세 갈래**: 같은 헤더 하나가 세 갈래로 갈린다.
 
@@ -249,7 +254,7 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 
 엔진 수준 에러다. 실행 상태가 `failed` 가 된다.
 
-**이 표는 한 곳에 모여 등재된 코드를 뜻하지 않는다.** 앵커가 셋으로 갈린다. `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`), `EngineErrorCode` const(`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`), 에러 클래스의 `readonly code`(`ERROR_PORT_FALLBACK`)다. 앵커 열이 `없음` 인 나머지 코드는 맨 문자열이라 오탈자가 `tsc` 를 통과한다. 다른 모듈(`shadow-workflow.ts` 의 union, `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다.
+**이 표는 한 곳에 모여 등재된 코드를 뜻하지 않는다.** 앵커가 셋으로 갈린다. `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`), `EngineErrorCode` const(`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`), 에러 클래스의 `readonly code`(`ERROR_PORT_FALLBACK`)다. 앵커 열이 `없음` 인 나머지 코드는 맨 문자열이라 오탈자가 `tsc` 를 통과한다. 앵커 열이 `메시지 접두` 인 행은 코드가 아니다. 엔진이 그 이름을 코드 필드에 싣지 않고 에러 메시지 앞에 쌍점과 함께 붙인다. 이 접두로 분기하지 않는다(규칙 4). 다른 모듈(`shadow-workflow.ts` 의 union, `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다.
 
 | 코드 | 앵커 | 설명 | 정의 문서 |
 |------|------|------|-----------|
@@ -257,7 +262,7 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 | `EXECUTION_TIME_LIMIT_EXCEEDED` | `ErrorCode` | 실행 하나의 **누적 active-running 시간** 초과(wall-clock 아님, 입력 대기 시간 제외). 실행 `failed` | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
 | `WORKER_HEARTBEAT_TIMEOUT` | `EngineErrorCode` | 활성 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) 시도를 다 씀(워커 최종 실패). 실행 `failed`. 2026-07-04 구현. 부팅 시 `recoverStuckExecutions` 재구동은 이 코드를 쓰지 않는다(재구동 불가는 `RESUME_CHECKPOINT_MISSING`). 이름의 경위는 §3 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RECURSION_DEPTH_EXCEEDED` | 없음 | 서브 워크플로우 재귀 깊이 초과. 발행 형태는 [미결 사항](#미결-사항) 참조 | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
-| `MAX_ITERATIONS_EXCEEDED` | 없음 | Loop 노드 최대 반복 횟수(`maxIterations`, 기본 1000) 초과 | [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) |
+| `MAX_ITERATIONS_EXCEEDED` | 메시지 접두 | 코드가 아니다. Loop 노드가 최대 반복 횟수(`maxIterations`, 기본 1000)를 넘으면 메시지 앞에 붙는 접두다. 메시지는 `MAX_ITERATIONS_EXCEEDED: Loop count <count> exceeds maximum <maxIterations>` 나 `MAX_ITERATIONS_EXCEEDED: Loop iteration <i> exceeds maximum <maxIterations>` 다. 행을 남긴 이유는 Rationale 에 있다 | [Loop 노드 「에러」](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md#에러) |
 | `CYCLE_DETECTED` | 없음 | 워크플로우 그래프에 순환 감지 | [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) |
 | `INVALID_EXPRESSION` | 없음 | 표현식 평가 실패 | [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) |
 | `VARIABLE_NOT_FOUND` | 없음 | 참조한 변수가 없음 | [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) |
@@ -266,6 +271,8 @@ etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 | `SERVER_INTERRUPTED` | `EngineErrorCode` | 서버가 안전 종료(SIGTERM)할 때 유예 시간(`SIGTERM_GRACE_MS`, 기본 30초)이 지나도 이 인스턴스가 맡은 노드 실행과 실행이 `running` 이면 `failed` 로 닫는다. 입력 대기 중인 실행은 건드리지 않는다 | [장애 복구와 안전 종료 「안전 종료」](../CLE-EXEC/CLE-EXEC-RECOVERY.md#안전-종료) |
 
 **`INVALID_NODE_CONFIG` 는 행이 없다.** 엔진은 노드를 실행하기 전에 노드 설정을 검사한다(`handler.validate`). 검사에 실패하면 메시지가 `INVALID_NODE_CONFIG: ` 로 시작하는 에러를 던진다. 구조화된 `error.code` 는 없고 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다. 코드가 아니라 메시지 접두라서 행을 두지 않는다. 이 접두로 분기하지 않는다(규칙 4).
+
+**컨테이너 구조 검사의 접두도 행이 없다.** 엔진은 Loop · ForEach · Map 본문을 실행하기 전에 구조를 검사한다. 어기면 메시지가 `CONTAINER_CYCLE: ` · `CONTAINER_INVALID_CHILD: ` · `CONTAINER_MISSING_EMIT: ` · `CONTAINER_MULTIPLE_EMIT: ` 로 시작하는 에러를 던진다. `INVALID_NODE_CONFIG: ` 와 같은 메시지 접두라서 행을 두지 않는다. 메시지 전체는 [컨테이너 실행 「공통 실행 모델」](../CLE-EXEC/CLE-EXEC-CONTAINER.md#공통-실행-모델) 에 있다. AI 어시스턴트 도구가 트리거 노드를 컨테이너 안에 넣으려 할 때 돌려주는 `error: 'CONTAINER_INVALID_CHILD'` 는 이 접두와 다른 도구 결과 값이다([워크플로우 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md)).
 
 **취소로 끝나는 시스템 코드**(위 `failed` 표와 구분한다). 둘 다 실행이 `cancelled`, `cancelledBy='timeout'` 으로 끝나고 `error.code` 로 원인을 가른다. §6.7 의 `RESUME_*` 와 같은 취소 귀결 부류다. 두 코드의 앵커는 모두 `EngineErrorCode` const 다. 그래서 `EngineErrorCode` 의 네 값은 위 `failed` 표의 `WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED` 와 이 표의 두 코드다.
 
@@ -407,9 +414,9 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 |------|--------|------|-----------|
 | `AUTH_CONFIG_NOT_FOUND` | **400** | `authConfigId` 가 호출자 워크스페이스의 인증 설정이 아님(없거나 다른 워크스페이스 소속. 존재 여부 노출을 막으려고 구분하지 않는다). `details: { field: 'authConfigId', code: 'INVALID_FIELD' }` 를 함께 싣는다(`INVALID_FIELD` 행은 §6.4) | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
 
-- **이름은 `_NOT_FOUND` 지만 404 가 아니다.** 이 카탈로그에서 HTTP 로 나가는 `*_NOT_FOUND` 가운데 404 가 아닌 코드는 이 코드 말고 둘이다. 액세스 토큰 검증의 `WORKSPACE_NOT_FOUND`(401, §6.4)와 트리거 단위 토큰 경로의 `EXECUTION_NOT_FOUND`(401, [§6.9 의 「트리거 단위 토큰」 행](#69-eia-rest-외부-표면-도메인-문서-참조))다. 나머지는 모두 404 이고 이 상태 일관성을 위해 코드를 쪼갠 선례도 있다(`MODEL_CONFIG_NOT_FOUND` 404 와 `MODEL_CONFIG_DEFAULT_MISSING` 400).
+- **이름은 `_NOT_FOUND` 지만 404 가 아니다.** 이 카탈로그에서 HTTP 로 나가는 `*_NOT_FOUND` 가운데 404 가 아닌 코드는 이 코드 말고 셋이다. 액세스 토큰 검증의 `WORKSPACE_NOT_FOUND`(401, §6.4), 로그인 2단계 Passkey 검증의 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(401, §6.3), 트리거 단위 토큰 경로의 `EXECUTION_NOT_FOUND`(401, [§6.9 의 「트리거 단위 토큰」 행](#69-eia-rest-외부-표면-도메인-문서-참조))다. 앞의 두 401 은 다른 코드로 옮기기로 정했다(NERV Task `CLE-T-ZPPWK4`). 나머지는 모두 404 이고 이 상태 일관성을 위해 코드를 쪼갠 선례도 있다(`MODEL_CONFIG_NOT_FOUND` 404 와 `MODEL_CONFIG_DEFAULT_MISSING` 400).
 - 400 인 근거: 다른 워크스페이스 참조는 리소스 부재가 아니라 입력값 유효성 문제다. 그래서 `details.field='authConfigId'` 로 필드를 지목하고 `BadRequestException` 으로 던진다.
-- 이름을 바꾸거나 404 로 바꿀지는 소비자 분기에 영향을 주는 별도 결정이다. NERV Task `CLE-T-3P4ENZ` 가 맡는다.
+- **이름과 400 을 그대로 둔다.** 2026-11-12 에 NERV Task `CLE-T-3P4ENZ` 에서 정했다. 이름을 더 정확하게 하려는 목적만으로는 바꾸지 않고(규칙 5), 뜻과 상태가 하나라 새 코드도 만들지 않는다(규칙 6). 이유는 Rationale 에 있다.
 - 특화 코드와 일반 `details[].code` 를 함께 싣는 것이 "겹쳐 쓰지 않는다" 에 걸리지 않는 근거는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 판별 기준이다.
 
 ### 6.15 채팅 채널 봇 토큰 재발급 (도메인 문서 참조)
@@ -530,7 +537,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 통합 범위 변경(`PATCH /api/integrations/:id/scope`)으로 조직 통합을 개인 통합으로 바꾸려는데 통합을 만든 사람이 워크스페이스 멤버가 아님 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_IN_USE` | 409 | 워크플로우 노드가 아직 참조하는 통합을 지우려 함(`DELETE /api/integrations/:id`). 서비스는 예외에 사용처 목록(`usages`)을 함께 넣지만 전역 예외 필터가 `code` · `message` · `details` 만 남겨 응답에는 실리지 않는다 | [통합 관리 「사용처 추적과 삭제 차단」](../CLE-INT/CLE-INT-MANAGE.md#사용처-추적과-삭제-차단), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | OAuth2 통합에 자격 증명 교체(`POST /api/integrations/:id/rotate`)를 요청함. OAuth2 통합은 재인증을 쓴다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
-| `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체가 새 자격 증명으로 연결 테스트를 했는데 실패함. `message` 는 연결 테스트 결과의 메시지다. [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 는 이 코드의 상태 코드를 미결로 두고 구현은 400 을 쓴다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체가 새 자격 증명으로 연결 테스트를 했는데 실패함. 상태는 400 이다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). `message` 는 연결 테스트 결과의 메시지다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣는다. 이 값은 에러 코드가 아니라 연결 테스트 결과의 코드다. 지금 구현은 `testCode` 를 싣지 않는다(NERV Task `CLE-T-XCMNP6`) | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | OAuth2 가 아닌 통합에 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)을 보냄 | [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](../CLE-INT/CLE-INT-OAUTH.md#통합-재인증과-추가-권한-요청) |
 | `CAFE24_INSTALL_RATE_LIMITED` · `MAKESHOP_INSTALL_RATE_LIMITED` | 429 | 설치 엔드포인트에서 같은 IP 의 실패가 쌓여 잠김. `details` 와 `Retry-After` 는 없다. 노드의 `CAFE24_RATE_LIMITED` · `MAKESHOP_RATE_LIMITED`(§6.22)와 다른 코드다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `CAFE24_INSTALL_INVALID_TOKEN` · `MAKESHOP_INSTALL_INVALID_TOKEN` | 404 | 설치 토큰의 형식이 틀렸거나 그 토큰의 통합이 없음. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
@@ -571,7 +578,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `CAFE24_404` · `CAFE24_422` · `CAFE24_4XX` · `CAFE24_5XX` | 없음 (노드 `output.error.code`) | Cafe24 API 가 2xx 가 아닌 상태로 답함. 상태별 분류와 이름의 경위는 §3. `details` 에 `statusCode` · `mallId` · `resource` · `operation` 을, 응답에 있으면 `cafe24ErrorCode` · `cafe24Message` 도 싣는다. 서버 본문은 `output.response` 에 둔다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드) |
 | `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` | 없음 (노드 `output.error.code`) | MakeShop API 가 2xx 가 아닌 상태로 답함. 상태별 분류와 이름의 경위는 §3. `details` 에 `statusCode` · `shopUid` · `resource` · `operation` 을, 응답에 있으면 `makeshopErrorCode` · `makeshopMessage` 도 싣는다. 서버 본문은 `output.response` 에 둔다 | [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error` 가 되고 사유는 403 에 권한 범위 부족 신호가 있으면 `insufficient_scope`, 그 밖은 `auth_failed` 다. 연결 테스트: 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 두 경우 모두 통합은 `error(auth_failed)` 가 된다. 401 · 403 이 아닌 상태는 `CAFE24_API_ERROR` 다 | [Cafe24 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「Cafe24」](../CLE-INT/CLE-INT-AUTH.md#cafe24) |
-| `MAKESHOP_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error(auth_failed)` 가 된다. 연결 테스트: 첫 요청이나 다시 보낸 요청이 403 이거나, 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 갱신 거절과 다시 보낸 요청의 401 만 통합 상태를 바꾼다. 401 · 403 이 아닌 상태는 `MAKESHOP_API_ERROR` 다 | [MakeShop 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop) |
+| `MAKESHOP_AUTH_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 노드 · 도구: 403 이거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 통합은 `error(auth_failed)` 가 된다. 연결 테스트: 첫 요청이나 다시 보낸 요청이 403 이거나, 토큰 갱신이 401 · 403 으로 거절되거나, 토큰을 갱신하고 다시 보낸 요청도 401 임. 갱신 거절과 다시 보낸 요청의 401 만 통합 상태를 바꾼다. 그래서 같은 403 에 노드는 통합을 `error(auth_failed)` 로 낮추고 연결 테스트는 낮추지 않는다. 이름은 두 경로가 같은 API 클라이언트를 써서 같다([통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트)). 401 · 403 이 아닌 상태는 `MAKESHOP_API_ERROR` 다 | [MakeShop 노드 「인증 실패 처리」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#인증-실패-처리), [서비스별 인증 방식과 자격 증명 「MakeShop」](../CLE-INT/CLE-INT-AUTH.md#makeshop), [통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트) |
 | `CAFE24_TRANSPORT_FAILED` · `MAKESHOP_TRANSPORT_FAILED` | 없음 (노드 `output.error.code`) · 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error.code`) | 요청이 응답을 받지 못함(DNS · 연결 · 타임아웃). 노드는 API 호출 중 분류되지 않은 예외도 이 코드로 내고 `meta.statusCode` 는 0 이다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_RATE_LIMITED` · `MAKESHOP_RATE_LIMITED` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | 429 를 받고 재시도를 다 씀. 노드는 `details` 에 `retries` · `lastRetryAfterSec` 를 싣는다. 설치 엔드포인트의 `*_INSTALL_RATE_LIMITED`(§6.21)와 다른 코드다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `CAFE24_UNKNOWN_OPERATION` · `MAKESHOP_UNKNOWN_OPERATION` | 없음 (노드 `output.error.code`) · 없음 (도구 결과 `error.code`) | `operation` 이 메타데이터에 없음. 도구는 도구 이름의 operation 이 그 통합의 도구 목록에 없을 때 낸다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
@@ -594,7 +601,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `CAFE24_MCP_TOOL_ARGS_INVALID` · `MAKESHOP_MCP_TOOL_ARGS_INVALID` | 없음 (도구 결과 `error.code`) | 도구 인자가 JSON 으로 해석되지 않음 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 | `CAFE24_CALL_FAILED` · `MAKESHOP_CALL_FAILED` | 없음 (도구 결과 `error.code`) | 도구 호출 중 분류되지 않은 예외. 도구 경로에서만 쓰는 대체값이다. 노드는 API 호출 중 분류되지 않은 예외를 `*_TRANSPORT_FAILED` 로 낸다 | [Cafe24 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#ai-에이전트-노출), [MakeShop 노드 「AI 에이전트 노출」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#ai-에이전트-노출) |
 
-- **경로 자리표시자 접두는 코드가 아니다(규칙 9).** Cafe24 · MakeShop 노드는 operation 경로의 자리표시자가 채워지지 않으면 메시지가 `CAFE24_UNRESOLVED_PATH_PARAM: …` · `MAKESHOP_UNRESOLVED_PATH_PARAM: …` 로 시작하는 에러를 던진다. 출력 코드는 `INTEGRATION_CALL_FAILED` 다. 이 접두로 분기하지 않는다(규칙 4).
+- **경로 자리표시자 접두는 코드가 아니다(규칙 9).** Cafe24 · MakeShop 노드는 operation 경로의 자리표시자가 채워지지 않으면 메시지가 `CAFE24_UNRESOLVED_PATH_PARAM: …` · `MAKESHOP_UNRESOLVED_PATH_PARAM: …` 로 시작하는 에러를 던진다. 출력 코드는 `INTEGRATION_CALL_FAILED` 다. 이 접두로 분기하지 않는다(규칙 4). 메시지 전체는 [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드) · [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) 에 있다.
 
 ### 6.23 MCP 클라이언트 (도메인 문서 참조)
 
@@ -628,12 +635,11 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 - **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. `INTERACTION_TIMEOUT`(§6.7)도 `error-codes.ts` 에 정의만 있고 발행처가 없다(2026-11-12 grep 0건). [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 재개 명령 에러 표에도 있어 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **발행하는데 행이 없는 어시스턴트 스트림 코드**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 스트림 `error` 이벤트는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `ASSISTANT_STREAM_FAILED` 를 내는데 이 카탈로그에 행이 없다(규칙 8). §6.19 는 세션 REST 코드만 싣는다. 어시스턴트 코드의 등재는 NERV Task `CLE-T-YFDSY7` 이 한다. `CLE-T-5BZ3M2` 는 통합 · MCP · Background Runs 코드를 도메인 참조 절(§6.21~6.24)로 등재했다. 이 코드들에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
-- **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_CREDENTIAL_NOT_FOUND` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다.
+- **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다. 같은 처지였던 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 2026-11-12 에 등재했다(NERV Task `CLE-T-3P4ENZ`).
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 - **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
 - **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **가이드 식별자 실재 가드의 소유**: `PROJECT.md` 는 가이드가 인용한 에러 코드·환경 변수가 코드에 실재하는지 보는 가드(`guide-identifier-existence`)의 기준 문서로 이 규약을 지목한다. 원문 규약에는 가이드 인용 규칙도 이 가드도 없어 여기 싣지 않았다. 어느 문서가 이 가드를 소유할지는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#미결-사항) 의 미결에서 정한다. 소유와 별개로 이 가드는 지금 이 문서 미러의 `## 6. 카탈로그` 절 제목을 찾아 그 아래 행을 읽는다(`guide-identifier-existence.test.ts` 의 `CATALOG_SECTION_HEADING`). 제목이 없으면 가드가 멈춘다. 그래서 이 절 제목을 바꾸는 초안은 `CATALOG_SECTION_HEADING` 을 함께 고치는 구현 PR 을 낸다.
-- **`WORKSPACE_NOT_FOUND` 의 두 상태**: 워크스페이스 관리 경로는 이 코드를 404 로 내고 액세스 토큰 검증은 401 로 낸다(§6.4). 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 401 경로에 별도 코드를 줄지는 NERV Task `CLE-T-3P4ENZ` 에서 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 결정 필요.
 
 ## 구현 위치
 
@@ -812,7 +818,7 @@ NERV Task `CLE-T-D331TT` 에서 사람이 정한 로그인 결정 셋을 이 카
 
 - **규칙 6 의 새 조건으로 보지 않았다.** 정의 문서는 이 401 도 부재(실행이 없거나 트리거가 지워짐)를 뜻한다고 적는다. 뜻은 404 와 같고 상태만 다르다. 워크스페이스 · 범위 경계 위반은 먼저 `TOKEN_SCOPE_MISMATCH`(401)가 되므로 이 코드에 들지 않는다.
 - **위 「모델 설정 코드 분리」 선례와 다르다.** 그 선례에서는 같은 코드가 두 상태를 가져 코드를 나눴다. 두 상태가 서로 다른 뜻(지정한 설정 없음, 기본값 미설정)을 담았기 때문이다. 이번에는 뜻이 하나다. 두 상태는 판정하는 자리만 다르다. 트리거 단위 토큰 경로에서는 핸들러가 아니라 가드가 부재를 판정한다.
-- **`WORKSPACE_NOT_FOUND` 의 두 상태와도 다르다.** 그 코드의 404 와 401 은 뜻이 달라 「미결 사항」 에 남아 있다. 이 코드의 두 상태는 뜻이 같아 미결로 올리지 않았다.
+- **`WORKSPACE_NOT_FOUND` 의 두 상태와도 다르다.** 그 코드의 404 와 401 은 뜻이 달라 「미결 사항」 에 올렸다(2026-11-12 에 401 을 새 코드로 나누기로 정했다). 이 코드의 두 상태는 뜻이 같아 미결로 올리지 않았다.
 - **상태를 하나로 맞출지는 정의 문서가 정한다.** 카탈로그는 정의 문서를 따른다(규칙 8). 그래서 정의 문서의 401 을 그대로 적었다.
 
 ### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)
@@ -1002,3 +1008,31 @@ NERV Task `CLE-T-PA0EMN` 에서 더했다. `workflows.service.ts` 가 캔버스 
 - **새 코드가 아니다.** 이미 내던 코드를 등재만 했다. 이름 · 상태 코드 · `details.errors` 형태는 그대로다.
 - **`VALIDATION_ERROR` 로 합치지 않는다.** 요청 본문 형식이 틀린 경우가 아니라 저장하려는 그래프가 규칙에 걸린 경우다. 클라이언트는 이 코드로 캔버스의 오류 배지를 보라는 안내를 고른다.
 - **도구 payload 예산 규칙도 이 코드를 쓴다.** 그래프 규칙 평가를 통과한 뒤 따로 평가하고 `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 일 때만 저장을 막는다. 막는 이유가 같아(저장할 그래프의 규칙 위반) 코드를 나누지 않았다.
+
+### 자격 증명 교체의 연결 테스트 실패를 통합 관리 결정에 맞췄다 (2026-11-12)
+
+NERV Task `CLE-T-HGBHF2` 에서 옮겼다. 결정의 정본은 [통합 관리 「자격 증명 교체의 연결 테스트 실패는 400 이다 (2026-11-12)」](../CLE-INT/CLE-INT-MANAGE.md#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12) 다(NERV Task `CLE-T-J6TZGK`).
+
+- **`INTEGRATION_TEST_FAILED` 의 상태는 400 이다.** 이 카탈로그는 통합 관리가 상태를 미결로 둔다고 적었다. 그 미결이 400 으로 닫혀서 행의 문장을 결정으로 바꿨다. 이름과 상태는 그대로라 새 코드가 아니다.
+- **테스트 결과 코드는 `details.testCode` 에 싣는다.** 값은 연결 테스트 결과의 이름공간이라 이 카탈로그에 등재하지 않는다. `details.code` 로 두지 않은 이유는 [에러 응답과 클라이언트 처리 2.5](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11) 에 적었다. 구현은 NERV Task `CLE-T-XCMNP6` 이다.
+- **`MAKESHOP_AUTH_FAILED` 행에 연결 테스트와 노드의 차이를 적었다.** 행의 조건 문장은 이미 연결 테스트의 403 이 통합 상태를 바꾸지 않는다고 적었다. 노드와 같은 이름이 다른 결과를 낸다는 것을 한 문장으로 드러내고 통합 관리의 정의 자리를 링크했다.
+
+### 컨테이너 구조 검사의 접두를 행 없이 메시지 접두로 적었다 (2026-11-12)
+
+NERV Task `CLE-T-1W44RD` 의 결정이다.
+
+- **`CONTAINER_*` 행을 두지 않았다.** 엔진은 컨테이너 구조 검사에 실패하면 `new Error()` 메시지 앞에 `CONTAINER_CYCLE: ` · `CONTAINER_INVALID_CHILD: ` · `CONTAINER_MISSING_EMIT: ` · `CONTAINER_MULTIPLE_EMIT: ` 를 붙이고 코드 필드에는 싣지 않는다. 행으로 등재하면 클라이언트가 분기할 코드처럼 읽혀 규칙 4 와 부딪친다. 그래서 `INVALID_NODE_CONFIG: ` 처럼 행 없이 §6.5 에 메시지 접두로 적었다. 노드 문서들의 에러 표도 이름만 적던 것을 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 처럼 메시지 전체로 바꿨다([컨테이너 실행 「공통 실행 모델」](../CLE-EXEC/CLE-EXEC-CONTAINER.md#공통-실행-모델)).
+- **`MAX_ITERATIONS_EXCEEDED` 는 행을 남기고 앵커 열에 `메시지 접두` 를 적었다.** 이 이름도 Loop 실행기가 메시지 앞에 붙이는 접두다. 규칙 9 는 이런 등재를 지우고 그 자리에 실측을 남기라고 한다. 이 행은 앵커 열과 설명에 실측(메시지 접두와 메시지 전체)을 적어 그 자리 구실을 한다. 행을 지우지 않은 것은 사용자 가이드 실행 결과 페이지의 에러 코드 표와 채팅 채널의 실행 실패 분류기(`execution-failure-classifier.ts`)가 이 이름을 코드로 싣고 있어서다. 독자는 그 이름을 이 카탈로그에서 찾는다. 가이드와 분류기를 고친 뒤 행을 지울지는 NERV Task `CLE-T-82M3MB` 가 정한다.
+- **경로 자리표시자 접두는 출력 코드를 바꾸지 않았다.** Cafe24 · MakeShop 노드가 경로 자리표시자를 채우지 못하면 던지는 `CAFE24_UNRESOLVED_PATH_PARAM: ` · `MAKESHOP_UNRESOLVED_PATH_PARAM: ` 은 노드의 바깥 catch 에서 `INTEGRATION_CALL_FAILED` 가 된다. `IntegrationError` 로 바꿔 서비스별 코드를 주는 안도 견줬다. 이 실패는 메타데이터나 입력 매핑의 오류라 흐름에서 따로 분기할 일이 없고, 그 안은 코드 변경과 새 코드 등재가 함께 필요하다. 그래서 출력은 그대로 두고 노드 문서의 에러 코드 절에 메시지 전체와 출력 코드를 적었다.
+- **가이드 식별자 가드의 주석이 이 결정을 기다리고 있었다.** `guide-identifier-scan.ts` 는 «`CONTAINER_*` 를 6.5 에 등재하면 카탈로그 탈출구가 발화한다» 를 근거로 그 탈출구를 남겨 두었다. 등재하지 않기로 했으므로 주석과 탈출구의 처분도 NERV Task `CLE-T-82M3MB` 가 맡는다.
+
+### 404 가 아닌 `*_NOT_FOUND` 세 코드를 정리했다 (2026-11-12)
+
+NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 이름은 `_NOT_FOUND` 인데 404 가 아닌 코드를 하나씩 따졌다.
+
+- **`AUTH_CONFIG_NOT_FOUND` 는 이름과 400 을 그대로 둔다.** 발행처는 트리거 생성 · 수정의 `authConfigId` 검증 한 곳이고 뜻도 상태도 하나다. 규칙 5 는 이름을 더 정확하게 하려는 목적만으로 바꾸지 않는다고 정한다. 뜻이 갈리지 않으니 규칙 6 에도 걸리지 않는다. 프런트엔드에 이 코드로 분기하는 곳이 없어서 바꿔도 얻는 것이 없다. 「`_NOT_FOUND` 는 404」 라는 기대는 이름의 부분 문자열로 상태를 짐작하는 읽기라서 규칙 4 가 막는다. 그래서 §6.14 의 설명으로 밝히는 데 그쳤다. 위 「모델 설정 코드 분리」 선례와는 경우가 다르다. 그 선례는 한 코드가 두 뜻과 두 상태를 가져서 나눴다.
+- **기각: `AUTH_CONFIG_NOT_FOUND` 를 404 로 바꾸거나 이름을 바꾼다.** 404 로 바꾸면 입력 필드를 지목하는 `details` 와 맞지 않는다. 다른 워크스페이스 참조는 리소스 부재가 아니라 입력값 문제로 봤다(§6.14). 이름 바꾸기는 규칙 5 에 어긋난다.
+- **로그인 검증의 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(401)는 `WEBAUTHN_INVALID` 로 옮긴다.** 같은 이름이 credential 이름 변경 · 삭제에서는 대상이 없다는 404 이고 로그인 2단계 검증에서는 인증이 실패했다는 401 이다. 뜻이 갈리므로 규칙 6 에 따라 나눈다. 로그인 쪽은 새 코드를 만들지 않고 기존 `WEBAUTHN_INVALID` 로 옮긴다. 서명이 틀린 응답과 이미 쓴 챌린지를 이 코드로 묶은 이유와 같다. 사용자가 할 일은 「Passkey 로 다시 시도」 하나다. credential 이 없다는 사실을 서명 실패와 구별해 알려 줄 이유도 없다. 로그인 화면도 `WEBAUTHN_INVALID` 만 안내 문구로 바꾼다. 자세한 근거는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 Rationale 에 있다.
+- **토큰 검증의 `WORKSPACE_NOT_FOUND`(401)는 새 코드 `NO_WORKSPACE_AVAILABLE` 로 옮긴다.** 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 뜻이 갈리므로 규칙 6 에 따라 나눈다. 이름은 조건이 워크스페이스 하나가 아니라 사용자의 상태라는 점이 읽히게 골랐다. 규칙 3 의 `<DOMAIN>_<CONDITION>` 은 권장이라 이 이름에서는 따르지 않았다. 다른 후보를 고르지 않은 이유는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 Rationale 에 있다.
+- **두 이동은 구현 전이라 표 아래 문장으로 적었다(규칙 9).** 지금 응답에 나가는 401 은 행으로 그대로 둔다(규칙 8). 구현하는 NERV Task `CLE-T-ZPPWK4` 가 발행과 함께 표를 고친다.
+- **`WEBAUTHN_CREDENTIAL_NOT_FOUND` 를 이번에 등재했다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_NOT_REGISTERED` 는 NERV Task `CLE-T-9KCQ7Y` 에 남긴다.

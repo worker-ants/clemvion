@@ -112,7 +112,7 @@
     "codebase/backend/src/modules/alerts/alerts-evaluator.service.spec.ts": 1,
     "codebase/backend/src/modules/audit-logs/audit-action.const.ts": 2,
     "codebase/backend/src/modules/auth-configs/auth-configs.service.spec.ts": 1,
-    "codebase/backend/src/modules/auth-configs/auth-configs.service.ts": 7,
+    "codebase/backend/src/modules/auth-configs/auth-configs.service.ts": 6,
     "codebase/backend/src/modules/auth-configs/dto/auth-config-ip-whitelist.dto.spec.ts": 2,
     "codebase/backend/src/modules/auth-configs/dto/create-auth-config.dto.ts": 1,
     "codebase/backend/src/modules/auth-configs/dto/is-ip-or-cidr.validator.ts": 2,

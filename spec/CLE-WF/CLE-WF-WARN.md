@@ -2,19 +2,19 @@
 id: "CLE-WF-WARN"
 title: "그래프 경고 규칙"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "44c52e21d48ef5aae7d12e02aab559f19ba3707b001fc0256dd1bb137b981668"
+content_hash: "5e6649c17b6de73eb16f1826c548e7cc28e96fb451f5537374f74abebb20e72f"
 read_as: "approved_fallback"
-task: "CLE-T-GGZSC2"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/conventions/cross-node-warning-rules.md"]
-mirror_sha256: "8116a6cf98ae53c982daf7adc43bbcdca2bc9132be4ac20a072f070f7a0f013a"
-etag: "sha256-ea1a59ac3ef2b379a89b31ad701a2130610241132ff8a4a054ed6e6f82bfea2c"
+mirror_sha256: "e92c50ce247df332e81ba01ac0b9656d7b4d759e34fb25bd215370b8c4b88bec"
+etag: "sha256-0d3ea9bbb518045545bf98ce02edffacf178d238faf63d72e7380f4fd92cb6eb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/cross-node-warning-rules.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -171,7 +171,7 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 
 이 규약의 범위 밖이다.
 
-- Loop·ForEach 의 중첩 깊이 정책: **도입하지 않기로 확정했다**(2026-07-08). 컨테이너 중첩은 허용하되 깊이 상한과 레벨별 시각 표시를 두지 않는다([워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md) 의 컨테이너 중첩, Rationale R-4). 순환만 `CONTAINER_CYCLE` 로 거부한다.
+- Loop·ForEach 의 중첩 깊이 정책: **도입하지 않기로 확정했다**(2026-07-08). 컨테이너 중첩은 허용하되 깊이 상한과 레벨별 시각 표시를 두지 않는다([워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md) 의 컨테이너 중첩, Rationale R-4). 순환만 실행 때 거부한다(에러 메시지 접두 `CONTAINER_CYCLE: `).
 - Map·Filter 의 부모 컨테이너 맥락 검사
 - 워크플로우 수준 그래프 검사: 순환은 `graph:unescapable-cycle` 로 **구현했다**(에디터는 경고만 하고 막지 않음). 도달할 수 없는 노드 탐지(`unreachable`)는 도입하지 않았다.
 

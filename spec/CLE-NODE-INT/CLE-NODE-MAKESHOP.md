@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP"
 title: "MakeShop 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046", "REQ-MKSNODE-047"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "0338a092764b597ad967773bff8804d553bc36a26b6920cde026c49e0d8b88aa"
+content_hash: "df0b3c776740d1a7819a14d0a31ec296d4ccd9c040dfc9254ec5bbf7a9d90af0"
 read_as: "approved_fallback"
-task: "CLE-T-PTC4SF"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "e14d938c2d30fab1eae3ae854ddd390ca85b98032d7dffd491e7d49c10ec644c"
-etag: "sha256-5a0f25f45c906eedb0378601f5ca5e413c8b357b63164011c4e0170f409e6d07"
+mirror_sha256: "5621f4473f35c5aa0606627d1b1d1c5adf61c1eea61180ee5cfb94ec205fbeea"
+etag: "sha256-fd35e805ca902e44eca62b29b019007e4a3d53507ccf47667b333bff4d883a72"
 ---
 > 구현 상태: 부분 구현 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -316,6 +316,8 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 | `MAKESHOP_INVALID_SHOP_UID` | `shop_uid` 형식 위반 |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_CALL_FAILED` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `__workspaceId` 누락 또는 `MakeshopApiClient` 미주입(배포 구성 에러). Cafe24 와 **같은 공용 코드**를 쓴다. 같은 조건을 두 코드로 나누지 않으려고 서비스별 접두(`MAKESHOP_`)를 붙이지 않는다 |
+
+**경로 자리표시자가 남으면 `INTEGRATION_CALL_FAILED` 다.** operation 경로의 자리표시자(`{member_id}` 같은)가 요청을 보내기 직전까지 채워지지 않으면 외부 API 를 부르지 않고 실패한다. 메시지는 `MAKESHOP_UNRESOLVED_PATH_PARAM: operation '<id>' has unresolved path placeholder(s): <list>. Check that required fields are provided and field metadata location='path' is correct.` 다. 앞의 이름은 코드가 아니라 메시지 접두이고 출력 코드는 `INTEGRATION_CALL_FAILED` 다. 이 접두로 분기하지 않는다([에러 코드 규약과 카탈로그 「6.22」](../CLE-API/CLE-API-ERRCODES.md#622-통합-노드-도메인-문서-참조) · 규칙 4).
 
 ### 인증 실패 처리
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 22
+version: 23
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "a4983874ceffd7d0b8330b1c4ab685d3edd015480331d99b511ad4b608c52a28"
+content_hash: "34cdcd941cc9617cc185290545361877953e164fee442ffde591875a4afbaa30"
 read_as: "approved_fallback"
-task: "CLE-T-KG01YT"
+task: "CLE-T-3P4ENZ"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "97d345554d1d450ac185e9f9352e943c5dd314e7c9806f91bd14c0f607728c92"
-etag: "sha256-a58b0fb9746ef49b8c636d5fc8a4dbff43b74f836be85554c980fb5ff779516c"
+mirror_sha256: "1898e81b24fe82af4f22928101308c9e1987f2a6ef19619fff4f2d6bba40cff0"
+etag: "sha256-453e9634780d3f00e5537c258e3dc2bb478f3163f8a22ed45bd6be89b0e5776e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -501,7 +501,7 @@ sequenceDiagram
 - 관리 경로는 인가를 먼저 한다. 비멤버와 없는 워크스페이스는 그 단계에서 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부된다([가드 거부 에러 코드](#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워진다. 그래서 404 는 사실상 인가와 조회 사이에 다른 요청이 그 워크스페이스를 지운 경합에서만 난다.
 - 통합을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 같은 경합에서 이 코드를 쓰지 않는다. 워크스페이스 자체가 아니라 그 안에 통합을 만드는 요청이라 가드와 같은 403 `NOT_A_MEMBER` 로 거부한다([가드 거부 에러 코드](#가드-거부-에러-코드)). 공개 범위 전환은 대상 통합도 워크스페이스와 함께 지워졌으므로 404 `RESOURCE_NOT_FOUND` 다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#위험-영역-탭)).
 - 토큰 검증의 401 은 액세스 토큰으로 인증하는 모든 요청에서 날 수 있다. 예를 들어 초대로 가입해 개인 워크스페이스가 없는 사용자가 유일한 팀 워크스페이스에서 나가면 그 뒤 요청은 이 401 이 된다. 토큰 클레임을 대신할 워크스페이스를 찾는 순서는 [전환 API 와 토큰](#전환-api-와-토큰) 과 같다.
-- 한 코드가 두 상태와 두 뜻으로 쓰이는 점은 [미결 사항](#미결-사항) 에 있다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+- 토큰 검증의 401 은 새 코드 `NO_WORKSPACE_AVAILABLE` 로 옮기기로 정했다(2026-11-12). 아직 구현하지 않아 지금은 `WORKSPACE_NOT_FOUND` 로 나간다. 구현은 NERV Task `CLE-T-ZPPWK4` 가 맡는다. 구현되면 `WORKSPACE_NOT_FOUND` 는 관리 경로의 404 하나만 남는다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 
 ### `X-Workspace-Id` 형식 검사
 
@@ -554,7 +554,6 @@ sequenceDiagram
 
 - **개인 워크스페이스의 기본 시간대와 설정이 없을 때의 폴백**: 가입 화면 원문은 개인 워크스페이스를 만들 때 시간대를 "브라우저 타임존(Accept-Language 헤더에서 추론) 또는 UTC" 로 채운다고 적는다. 데이터 모델은 그런 컬럼 없이 `settings.timezone` 이 없으면 서버 기본 `process.env.TZ`, 없으면 `UTC` 이고 AI 노드 시스템 컨텍스트와 스케줄 기본 시간대가 이 값을 쓴다고 적는다. 스케줄 원문은 `settings.timezone` 다음 `'Asia/Seoul'` 로 폴백한다고 적는다(관련: [스케줄 §미결 사항](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#미결-사항), [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)). 현재 구현의 `createPersonalWorkspace` 는 `settings={}` 로 만든다. Accept-Language 헤더로는 시간대를 추론할 수도 없다. 기본값 하나를 정할지, 스케줄과 AI 가 서로 다른 폴백을 써도 되는지 결정 필요.
 - **초대 요청 한도 초과 코드 `rate_limited`**: 초대 에러 표와 에러 코드 예외 목록은 초대 429 를 소문자 `rate_limited` 로 적고 예외 등록 코드로 올려 둔다. 원문 분석에 따르면 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾸며, 백엔드·프론트엔드 소스에 `'rate_limited'` 문자열은 0건이다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 같은 표에서 발행처 없는 `forbidden` 을 뺀 선례가 있다. 표와 예외 목록에서 `rate_limited` 를 빼고 `RATE_LIMITED` 로 적을지 결정 필요.
-- **`WORKSPACE_NOT_FOUND` 의 두 상태**: 워크스페이스 관리 경로는 이 코드를 404 로 내고 액세스 토큰 검증은 401 로 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 한 코드가 두 상태와 두 뜻으로 쓰인다. 401 경로에 별도 코드를 줄지는 NERV Task `CLE-T-3P4ENZ` 에서 정한다. 결정 필요.
 
 ## 구현 위치
 
@@ -873,3 +872,13 @@ NERV Task `CLE-T-KG01YT` 에서 정했다. 직접 추가와 초대가 기존 사
 - **기각: 모호한 경우에 새 에러 코드를 둔다.** 관리자는 그 계정들을 정리할 수 없고 정리는 운영자가 한다([계정과 워크스페이스 데이터 흐름 「User」](CLE-ACCT-DATA.md#user)). 관리자가 할 수 있는 일은 위 두 길뿐이라 404 의 안내로 충분하다. 새 코드는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 와 화면 처리도 늘린다.
 - **기각: 묶음 가운데 한 계정을 골라 추가하거나 알린다.** 가장 먼저 가입한 계정을 쓰는 안은 로그인에서도 기각했다([가입과 로그인 Rationale](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)). 관리자가 뜻한 사람과 다른 계정이 멤버가 되거나 알림을 받을 수 있다.
 - **기각: 초대에서 묶음 가운데 하나라도 멤버면 409 로 막는다.** 멤버가 아닌 다른 계정이 초대받을 길이 막힌다. 모호한 경우에도 계정 묶음을 돌려주도록 `UsersService.lookupByEmail` 을 바꿔야 한다.
+
+### 토큰 검증의 401 에 새 코드 `NO_WORKSPACE_AVAILABLE` 을 주기로 했다 (2026-11-12)
+
+NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 구현은 NERV Task `CLE-T-ZPPWK4` 가 맡는다. 그때까지 응답은 401 `WORKSPACE_NOT_FOUND` 이고 [워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때) 에 그 사실과 결정을 함께 적었다.
+
+- **한 코드가 두 뜻으로 쓰였다.** 관리 경로의 404 는 대상 워크스페이스가 없다는 뜻이다. 토큰 검증의 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 은 뜻이 갈리면 코드를 나누라고 정한다. 404 는 그대로 두고 401 에 새 코드를 준다. 프런트엔드에 이 코드로 분기하는 곳이 없어서 옮겨도 깨지는 소비자가 없다.
+- **이름은 사용자의 상태를 적는다.** 토큰 검증은 클레임의 워크스페이스, 개인 워크스페이스, 첫 멤버십을 차례로 찾고 셋 다 없을 때 거부한다. 조건은 워크스페이스 하나가 아니라 이 사용자에게 쓸 곳이 없다는 것이다.
+- **기각: `WORKSPACE_NOT_AVAILABLE`.** 특정 워크스페이스 하나를 쓸 수 없다는 뜻으로 읽힌다.
+- **기각: 멤버십을 넣은 이름(`NO_WORKSPACE_MEMBERSHIP` 류).** 개인 워크스페이스는 멤버십 행이 없어도 대상에 든다. 멤버십이 없다는 것만으로는 이 401 이 나지 않는다.
+- **규칙 3 의 `<DOMAIN>_<CONDITION>` 은 따르지 않았다.** 규칙 3 은 권장이다. `WORKSPACE_` 로 시작하는 이름은 위의 `WORKSPACE_NOT_AVAILABLE` 처럼 워크스페이스 하나의 상태로 읽혔다.

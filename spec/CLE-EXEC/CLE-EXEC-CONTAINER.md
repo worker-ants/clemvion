@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "82fd9dfa43b28844ab8b76726c92578281b058ab8d0de8ab0b92a43cda9a5cff"
+content_hash: "50bc545d6d07deac2e4d0f7086fd43880fd79915c3985b6612e7684b127f94bb"
 read_as: "approved_fallback"
-task: "CLE-T-MR6ZH3"
+task: "CLE-T-1W44RD"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "d1a68b46deffeac8557feedea0543a54f46788261557390bfc9418a8dad31ee0"
-etag: "sha256-ddd8921a6cd8c7f196df01253408e35f7bf08478480d1e3af2e0148d353dc8bb"
+mirror_sha256: "39df2135a738cb926a5643fb5d9b67813ed9dffecc5e2593565006499c3ac1a3"
+etag: "sha256-44c82b720ee461a59ded33ef5cff47b4e89fb86db5b711c058170b70485f3da3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,14 +56,19 @@ flowchart TD
 
 | 조건 | 결과 |
 | --- | --- |
-| `emit` 에 연결된 본문 노드가 0개 | 메시지가 `CONTAINER_MISSING_EMIT:` 으로 시작하는 에러로 실행 실패 |
-| `emit` 에 연결된 본문 노드가 2개 이상 | 메시지가 `CONTAINER_MULTIPLE_EMIT:` 으로 시작하는 에러로 실행 실패 |
+| `emit` 에 연결된 노드가 없음 | 실행 실패. 메시지는 `CONTAINER_MISSING_EMIT: Container "<label>" has no body node wired to its "emit" port. Connect the node whose output should be collected.` |
+| `emit` 에 본문 밖 노드만 연결됨 | 실행 실패. 메시지는 `CONTAINER_MISSING_EMIT: Container "<label>" has an "emit" wire from "<sources>" but that node isn't a body child of this container. Open its settings panel and set its "Container" to "<label>".` |
+| `emit` 에 연결된 본문 노드가 2개 이상 | 실행 실패. 메시지는 `CONTAINER_MULTIPLE_EMIT: Container "<label>" has <N> nodes wired to its "emit" port. Only one emit source is allowed.` |
 | `emit` 소스가 포트 라우팅 때문에 그 회차에 도달하지 못함 | 그 회차의 수집 값은 `undefined` |
 
-`CONTAINER_MISSING_EMIT` 과 `CONTAINER_MULTIPLE_EMIT` 은 에러 메시지 앞에 붙는 접두사다. `ErrorCode` enum 값이 아니다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴) 규칙 1). 접두사는 진단용이며 클라이언트가 분기 근거로 쓰지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 4). 안정된 코드로 올릴지는 NERV Task `CLE-T-REC4X3` 이 정한다.
+`<label>` 은 컨테이너 노드의 이름이고 이름이 없으면 노드 유형이다. `<sources>` 는 `emit` 에 연결된 본문 밖 노드의 이름을 쉼표로 이은 값이다.
+
+`CONTAINER_MISSING_EMIT: ` 과 `CONTAINER_MULTIPLE_EMIT: ` 은 에러 메시지 앞에 붙는 접두사다. `ErrorCode` enum 값이 아니다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴) 규칙 1). 접두사는 진단용이며 클라이언트가 분기 근거로 쓰지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 4). 코드가 아니어서 카탈로그에 행을 두지 않는다([에러 코드 규약과 카탈로그 「6.5」](../CLE-API/CLE-API-ERRCODES.md#65-워크플로우-실행-엔진-수준)).
 
 ### 본문 제약
 
+- **트리거 노드 금지**: 트리거 카테고리 노드는 컨테이너 자식이 될 수 없다. 자식에 있으면 실행 전에 `CONTAINER_INVALID_CHILD: Trigger node "<node>" cannot be placed inside container "<label>".` 에러로 실패한다.
+- **`containerId` 순환 금지**: 자식의 `containerId` 를 따라 올라가다 같은 노드를 다시 만나면 실행 전에 `CONTAINER_CYCLE: Container "<label>" is part of a containerId cycle involving node "<node>".` 에러로 실패한다. 이 두 접두사도 `emit` 검사의 접두사처럼 코드가 아니다.
 - **되돌아가는 연결선(순환) 금지**: 본문에 순환이 있으면 `Container body contains back-edges` 에러로 실패한다.
 - **입력 대기 노드 금지**: 본문에 Form·버튼·멀티턴 AI(`form`·`buttons`·`ai_conversation`) 노드를 둘 수 없다. 본문 안에서 입력 대기가 생기면 반복의 뜻이 흐려지기 때문이다. 입력 대기 여부의 판정 기준은 [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 를 따른다.
 - **중첩 허용**: 본문 안에 다른 컨테이너를 둘 수 있다. 본문 루프는 안쪽 Loop · ForEach · Map 을 컨테이너 실행 경로로 넘겨 회차마다 안쪽 본문을 끝까지 실행한다. 스코프 규칙은 [중첩 컨테이너 스코프](#중첩-컨테이너-스코프) 에 있다.
@@ -309,3 +314,9 @@ Background 본문은 여전히 `background` 포트 연결선으로 찾는다. �
 - **컨테이너 본문 안 Background 를 금지하는 안**: 지금 저장된 워크플로우가 실행 오류로 끝난다. 실행 경로를 정할 때도 같은 안을 기각했다.
 
 **호환**: `containerScopeId` 가 없는 작업은 맨 바깥 그래프로 실행한다. 그래서 필드를 넣기 전에 큐에 남은 작업도 그대로 돈다. 반복 변수가 없는 옛 작업은 본문에서 반복 변수가 비어 있다. 이 개정 전과 같은 동작이다. 롤링 배포 중에 옛 워커는 반복 변수 필드를 무시한다.
+
+### 컨테이너 구조 검사는 메시지 전체를 적는다 (2026-11-12)
+
+`emit` 표의 결과 열은 접두사 이름만 적고 있었다. 이름만 보면 `error.code` 값으로 읽히는데 엔진은 이 이름을 코드 필드에 싣지 않는다. 그래서 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 의 에러 표처럼 엔진이 던지는 메시지 전체를 적고, 같은 검사의 트리거 자식 · `containerId` 순환 메시지도 본문 제약에 함께 적었다. 카탈로그는 이 접두사들에 행을 두지 않고 `INVALID_NODE_CONFIG: ` 처럼 메시지 접두로 적는다(NERV Task `CLE-T-1W44RD`).
+
+옛 문장은 안정된 코드로 올릴지를 NERV Task `CLE-T-REC4X3` 에 넘겼다. 그 Task 는 실패한 회차의 `error.code` 값만 정하고 끝났고 `CONTAINER_*` 접두사는 코드로 올리지 않았다([Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)). 그래서 그 문장을 지웠다.
