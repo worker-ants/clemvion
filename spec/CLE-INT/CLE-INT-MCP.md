@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "dbf440db4a3e4cb1fba7141c5b56e30307b4c8097de4b3c7cc1b3e5817262c14"
+content_hash: "3e98f82d0494bcf13fefc9bead95ac4b07e134095709b8a7d877314f35e91068"
 read_as: "approved_fallback"
-task: "CLE-T-68XG50"
+task: "CLE-T-J6TZGK"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "dee3dafa933398b673b35ac36e2cadf4c447576ae4ebfb784682e65cb54a3a50"
-etag: "sha256-39743989587354fbc2cb57ca25f86d26311e0cda8f9ae39731b7f13fa4f3f417"
+mirror_sha256: "032d37904d222313de72003209e4e40826e70a4365aa8c510483ffed94c3af88"
+etag: "sha256-7de28a393db3047eda5868627072877dba7a700032ebca09b1ab73be45f3fab6"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -624,9 +624,9 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 }
 ```
 
-**실패 응답 형식**: `preview-test` 는 실패해도 예외를 던지지 않는다. HTTP 200 OK 본문에 `{ success: false, code, message }` 를 담아 돌려준다. `code` 는 [에러 코드](#에러-코드) 중 `MCP_HTTPS_REQUIRED`·`MCP_AUTH_FAILED`·`MCP_CONNECT_FAILED`·`MCP_LIST_FAILED`·`MCP_TIMEOUT` 이다. connect 나 `tools/list` 가 `TimeoutError` 로 만료되면 `MCP_TIMEOUT` 이다. 화면은 이 본문을 그대로 보여 준다.
+**실패 응답 형식**: `preview-test` 와 저장된 통합의 `POST /api/integrations/:id/test` 는 실패해도 예외를 던지지 않는다. HTTP 200 OK 본문에 `{ success: false, code, message }` 를 담아 돌려준다. MCP 테스트가 낸 실패의 `code` 는 [에러 코드](#에러-코드) 중 `MCP_HTTPS_REQUIRED`·`MCP_AUTH_FAILED`·`MCP_CONNECT_FAILED`·`MCP_LIST_FAILED`·`MCP_TIMEOUT` 이다. connect 나 `tools/list` 가 `TimeoutError` 로 만료되면 `MCP_TIMEOUT` 이다. 화면은 이 본문을 그대로 보여 준다. `:id/test` 가 테스트 전에 거절하는 경우(자격 증명 복호화 실패 등)의 코드는 [통합 관리 「연결 테스트」](CLE-INT-MANAGE.md#연결-테스트) 가 정한다.
 
-**이미 저장된 통합의 자격 증명 교체**: `POST /api/integrations/:id/rotate` 는 새 값으로 연결 테스트를 먼저 돌리고, 통과했을 때만 저장한다. 테스트가 실패하면 `INTEGRATION_TEST_FAILED` 로 거부한다. 신규 등록 미리보기인 `preview-test` 와 다른 경로다. 이 문서 원문은 `BadRequestException`(HTTP 400)으로 던진다고 적지만 에러 코드 목록과 정의가 갈린다. [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항 참조.
+**이미 저장된 통합의 자격 증명 교체**: `POST /api/integrations/:id/rotate` 는 새 값으로 연결 테스트를 먼저 돌려 통과했을 때만 저장한다. 테스트가 실패하면 저장하지 않고 400 `INTEGRATION_TEST_FAILED` 에러 봉투로 거절한다. 결과 객체가 아니다. 테스트 결과의 `message` 와 `code` 를 싣는 자리는 [통합 관리 「에러 코드」](CLE-INT-MANAGE.md#에러-코드) 가 정한다. 신규 등록 미리보기인 `preview-test` 와 다른 경로다.
 
 ## 클라이언트 라이브러리
 
@@ -651,7 +651,7 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 
 ## 미결 사항
 
-- 자격 증명 교체 실패 `INTEGRATION_TEST_FAILED` 의 HTTP 상태(400 대 422)와 MCP 통합의 개인 공개 범위 허용 여부는 [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항에서 다룬다. 이 문서 원문은 각각 400 과 «기본 `organization`, 개인 등록 미지원» 쪽이다.
+- MCP 통합의 개인 공개 범위 허용 여부는 [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항에서 다룬다. 이 문서 원문은 «기본 `organization`, 개인 등록 미지원» 쪽이다.
 - **`<sid>` 길이 규칙과 현재 구현의 차이**: 이 문서 원문은 `<sid>` 를 `Integration.id` 앞 8자로 두고 워크스페이스 안에서 겹치면 12자로 늘린다고 적는다. 현재 구현은 외부 `McpToolProvider` 가 한 노드의 `mcpServers` 안에서만 겹침을 보고 8 → 12 → 32자 순으로 늘리며(`assignSids`, `buildTools` 시점), 내부 MCP 브리지 프로바이더는 늘 앞 16자를 쓴다(`sanitizeSid`). 문서를 구현에 맞출지, 구현을 문서에 맞출지 정해야 한다. 결정 필요.
 - **dry-run 재실행의 도구 목록 구성 단계**: dry-run 부수효과 판정은 `execute` 단계에만 있다. `buildTools` 는 dry-run 재실행에서도 외부 MCP 서버에 connect·`initialize`·`tools/list` 를 보내고, 서버가 보고하면 `resources/list`·`prompts/list` 도 보낸다. Cafe24 · MakeShop 내부 MCP 브리지는 둘 다 `buildTools` 안에서 `expired` 상태 통합의 토큰 갱신을 한 번 시도한다(`tryRecoverExpired` → `refreshTokenViaQueue`). 이 시도는 각 통합의 토큰 갱신 엔드포인트를 부르고, 결과에 따라 저장된 토큰과 통합 상태가 바뀐다. 목록 조회를 dry-run 판정 범위에 넣을지, 토큰 갱신을 dry-run 에서 막을지 결정 필요. `execute` 단계에서 실제로 부른 GET 의 인증 실패(401 토큰 갱신, 403 `error(auth_failed)` 전환)도 통합 상태를 바꾸므로 같은 Task 에서 함께 본다. 담당 NERV Task `CLE-T-8B66BK`.
 - **외부 MCP 도구 인자의 `inputSchema` 검증**: [격리 원칙](#격리-원칙) 표와 [에러 코드](#에러-코드)의 `INVALID_TOOL_ARGUMENTS` 는 인자가 `inputSchema` 를 어기면 호출하지 않는다고 적는다. 현재 `McpToolProvider.execute` 는 일반 도구 인자의 JSON 파싱만 확인하고 `inputSchema` 검증은 하지 않는다. 메타 도구는 `uri`·`name` 같은 필수 인자만 확인한다. 그래서 dry-run 재실행에서는 형식이 틀린 인자도 건너뛴 호출의 결과를 받는다. 검증을 구현할지, 문서를 서버 쪽 검증에 맡기는 쪽으로 고칠지 결정 필요. 담당 NERV Task `CLE-T-RBMJP0`.

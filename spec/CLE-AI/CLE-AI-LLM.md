@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "9b79992e62e5550f840e67a67080202098b9c55b422dddfd6e83545180c57871"
+content_hash: "409d389e2c3925082b1af2a6031f8caec83393c1b65afb3bd46d50448f49a40e"
 read_as: "approved_fallback"
-task: "CLE-T-NAT45Z"
+task: "CLE-T-J6TZGK"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "40eb1309cd56cabfd47e182ef31688136fa44646aefd0ea0d8f179b1ff7aef58"
-etag: "sha256-a5c5fd60f6f0b492a98578916def69ab8d7c7e503bf879a74d402a7091a646a1"
+mirror_sha256: "65ac12781423d0fd92e3b72fb7809044eb617fa326756b0d08124a72b70e2900"
+etag: "sha256-ac40ee11a3d86166dcbcde86bcd64ed47716edc432853bc05f29e4fba1d12eb5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -513,6 +513,15 @@ class LlmService {
 |------|-------|------|
 | chat | `client.testConnection()` (모델 목록 조회 같은 가벼운 호출) | `{ success: true }` |
 | embedding | `client.embed(['connection test'], defaultModel)`. 실제 임베딩으로 연결과 모델 유효성을 함께 확인한다 | `{ success: true, dimension? }`. 반환 배열 첫 요소 길이(`vectors[0].length`)를 `dimension` 에 싣는다(0 이면 뺀다) |
+| 실패(종류 무관) | 설정 조회 · 클라이언트 생성 · 위 probe 가운데 하나가 던졌다 | `{ success: false, message }` |
+
+실패 응답 형식:
+
+- 실패해도 예외를 던지지 않는다. HTTP 200 과 성공 봉투 `{ data: { success: false, message } }` 로 돌려준다. 원본 에러는 서버 로그(warn)에만 남긴다.
+- `message` 는 `sanitizeLlmErrorMessage`(`utils/sanitize-error.util.ts`)가 원본 에러 문구를 보고 고른 고정 문구 여덟 개 가운데 하나다. 갈래는 인증 실패(401), 접근 거부(403), 모델이나 엔드포인트 없음(404), 속도 제한(429), 시간 초과, 연결 거부, 호스트 이름 해석 실패, 그 밖의 실패다. 프로바이더 원문 · 키 · 엔드포인트는 싣지 않는다.
+- 결과 객체에 `code` 는 없다. 통합 연결 테스트의 `IntegrationTestResult` 와 다르다([통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트)). 클라이언트 계층이 실패를 `LLM_RATE_LIMIT` 와 `LLM_CONNECTION_ERROR` 두 갈래로만 나누고 세분화 코드는 미구현이라([에러 처리](#에러-처리)), 코드를 실어도 거의 늘 `LLM_CONNECTION_ERROR` 다. 원인 갈래는 `message` 의 고정 문구가 이미 나눠 보여 준다.
+- 설정이 없거나 다른 워크스페이스의 설정이어도 404 가 아니라 같은 실패 모양이다. 설정 조회도 같은 `try` 안에 있어서 `MODEL_CONFIG_NOT_FOUND` 가 결과 객체로 바뀌고 `message` 는 «모델이나 엔드포인트 없음» 문구다. rerank 설정을 API 로 직접 부를 때도 클라이언트 생성이 실패해 같은 모양이다.
+- 역할 거부(403)와 요청 빈도 초과(429)는 핸들러 앞의 가드가 내므로 에러 봉투다.
 
 - `LLMClient.testConnection(): Promise<boolean>` 인터페이스는 바꾸지 않는다. 차원 추출은 서비스 계층 전용이며 `EmbedResponse`(미구현, `dimensions` 복수) 작업과 따로 간다.
 - 감지한 `dimension` 의 자동 저장과 폼의 읽기 전용 표시는 [모델 설정](CLE-AI-MODELS.md) 에서 정한다.
@@ -525,6 +534,7 @@ class LlmService {
 
 - **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
 - **공통 기본값**: 클라이언트 계층은 호출하는 쪽이 준 `timeoutMs` 만 건다. `LlmService` 에 공통 기본값을 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 이 함께 정한다(NERV Task `CLE-T-0R5SYN`). 120초 하향안을 기각한 이력은 [그 문서의 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
+- **없는 설정의 연결 테스트 응답**: [testConnection](#testconnection) 은 설정이 없거나 다른 워크스페이스의 설정이어도 200 실패 결과를 돌려준다. 그런데 `POST /api/model-configs/:id/test` 의 Swagger(`llm-model-config.controller.ts`)는 404 응답을 선언한다. 같은 컨트롤러의 `:id/models` 는 설정 조회가 `try` 밖이라 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다. 조회를 `try` 밖으로 빼 404 로 맞출지, Swagger 에서 404 를 지울지 정해야 한다. 담당 NERV Task `CLE-T-RH45H8`.
 
 2026-10-10 에 «LLM 호출 타임아웃 기준» 의 문서와 코드 정합을 닫았다. 결정은 Rationale 「LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)」 에 있다. 공통 기본값은 위 항목대로 열려 있다.
 
@@ -603,3 +613,12 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 LLM 스텁 모드 절은 운영 환경 가드가 검사하는 대상을 열거했었다. 가드가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)도 검사하게 된 뒤에도 이 열거는 바뀌지 않았다. 가드 대상이 늘 때마다 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 목록을 가리킨다. NERV Task `CLE-T-KQ37NJ` 에서 정했다.
 
 그 목록은 처음에 세션과 토큰의 Rationale 「운영 환경 가드」 절에 있었다. 2026-10-31 NERV Task `CLE-T-NAT45Z` 가 목록을 본문 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 절로 옮겨 링크도 그 절을 가리키게 고쳤다. 옛 문장은 `LLM_STUB_MODE=true` 만 적었지만 가드는 `true` 와 `1` 을 모두 켜짐으로 본다. 그래서 켜짐 판정은 링크한 절을 따른다고 적었다. 스텁을 실제로 켜는 설정(`llm.config.ts` 의 `stubMode`)은 `true` 만 본다. 가드가 막는 값이 더 넓어서 운영 환경에서 스텁이 켜진 채 기동하는 일은 없다. 같은 Task 에서 「API 키 보안」 의 암호화 키를 용어 사전의 «마스터키» 로 적었다. 이 키가 무엇을 암호화하는지는 [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키) 가 정한다.
+
+### 연결 테스트 실패는 200 결과 객체로 돌려준다 (2026-11-12)
+
+「testConnection」 에 실패 응답 형식을 적었다. 그전에는 성공 반환만 적혀 있어 실패 모양을 정하는 문서가 없었다. 그사이 사용자 가이드가 없는 에러 코드 다섯 개를 실패 결과로 적었고 PR #1330 이 걷어 냈다. 적은 내용은 현행 구현이다. NERV Task `CLE-T-J6TZGK` 에서 정했다.
+
+- 연결 테스트는 시험해 보고 결과를 알려 주는 요청이다. 외부 프로바이더의 거절은 시험 결과이고 요청 오류로 보지 않는다. 그래서 HTTP 200 결과 객체로 돌려준다. 통합의 연결 테스트(`:id/test`)도 같은 이유로 200 과 `IntegrationTestResult` 를 쓴다([통합 관리 「설치 대기 연결 테스트는 200 과 `success:false` 로 거절한다」](../CLE-INT/CLE-INT-MANAGE.md#설치-대기-연결-테스트는-200-과-successfalse-로-거절한다)).
+- 200 결과 객체의 필드 이름은 에러 봉투와 겹치지 않게 둔다. 결과 객체는 성공 봉투의 `data` 안에 있고 `error` 키를 쓰지 않는다. 클라이언트는 먼저 상태 코드로 가른다. 2xx 면 `data.success` 를 본다. 2xx 가 아니면 에러 봉투의 `error.code` 를 본다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 결과 객체에 `error` 를 두면 두 경로를 한 필드 이름으로 읽게 되어 클라이언트가 섞어 처리하기 쉽다.
+- 저장을 함께 하는 요청은 다르다. 통합 자격 증명 교체는 안에서 연결 테스트를 하지만 실패하면 저장을 거절하므로 에러 봉투로 돌려준다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
+- `code` 를 두지 않은 이유는 「testConnection」 에 적었다. 세분화 코드(`LLM_AUTH_ERROR` 등)를 구현하면 결과 객체에 `code` 를 더하는 것을 다시 본다.
