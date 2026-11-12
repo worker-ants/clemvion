@@ -15391,6 +15391,16 @@ describe('ExecutionEngineService', () => {
           expect.stringMatching(/UPDATE execution/),
           expect.arrayContaining([ExecutionStatus.COMPLETED]),
         );
+        // 실패 원인이 안쪽 본문 노드의 오류이고, 그 메시지가 execution.error 로 저장된다.
+        const failedUpdate = mockExecutionRepo.query.mock.calls.find(
+          (c) =>
+            /UPDATE execution/.test(String(c[0])) &&
+            (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+        );
+        expect(failedUpdate).toBeDefined();
+        expect((failedUpdate![1] as unknown[])[7]).toEqual(
+          expect.stringContaining('inner body boom'),
+        );
       });
 
       // 워커 쪽: 큐에서 꺼낸 작업을 실제 executeInline 으로 돌린다.
@@ -15483,7 +15493,7 @@ describe('ExecutionEngineService', () => {
           service.executeBackgroundSubgraph(
             bgWorkerJob({ containerScopeId: 'deleted-container' }),
           ),
-        ).resolves.not.toThrow();
+        ).resolves.toBeUndefined();
 
         expect(bgBodyCalls).toHaveLength(0);
       });
