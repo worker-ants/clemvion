@@ -450,3 +450,77 @@ describe('AnthropicClient.stream', () => {
     });
   });
 });
+
+// API 버전 2026-10-21(`@anthropic-ai/sdk` 1.0 부터 기본값)은 Messages 요청에
+// `temperature` · `top_p` · `top_k` 가 있으면 값이 기본값이어도 모든 모델에서 400 을
+// 낸다. 그래서 호출자가 `ChatParams.temperature` · `topP` 를 넘겨도 Anthropic
+// 요청 본문에는 넣지 않는다. 테스트는 SDK 를 stub 하므로 400 자체는 재현하지 못한다.
+// 대신 SDK 에 넘긴 요청 객체에 세 필드가 없음을 단언한다.
+describe('AnthropicClient — sampling parameters are not sent', () => {
+  const MODEL = 'claude-haiku-4-5-20251001';
+
+  function stubCreate(client: AnthropicClient, forStream: boolean): jest.Mock {
+    const createMock = jest.fn().mockResolvedValue(
+      forStream
+        ? asyncIter([])
+        : {
+            content: [{ type: 'text', text: 'ok' }],
+            stop_reason: 'end_turn',
+            model: MODEL,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+    );
+    // @ts-expect-error — stub
+    client.client = { messages: { create: createMock } };
+    return createMock;
+  }
+
+  const samplingCases = [
+    { label: 'temperature 0', params: { temperature: 0 } },
+    { label: 'temperature 1 (API default)', params: { temperature: 1 } },
+    { label: 'topP 0.9', params: { topP: 0.9 } },
+    {
+      label: 'temperature 0.7 and topP 1',
+      params: { temperature: 0.7, topP: 1 },
+    },
+    { label: 'neither', params: {} },
+  ];
+
+  it.each([
+    ...samplingCases.map((c) => ({ ...c, path: 'chat' as const })),
+    ...samplingCases.map((c) => ({ ...c, path: 'stream' as const })),
+  ])(
+    '$path(): omits temperature/top_p/top_k when given $label',
+    async ({ path, params }) => {
+      const client = new AnthropicClient('sk-test', MODEL);
+      const createMock = stubCreate(client, path === 'stream');
+      const chatParams = {
+        model: MODEL,
+        messages: [{ role: 'user' as const, content: 'hi' }],
+        maxTokens: 256,
+        ...params,
+      };
+
+      if (path === 'chat') {
+        await client.chat(chatParams);
+      } else {
+        await collect(client.stream(chatParams));
+      }
+
+      expect(createMock).toHaveBeenCalledTimes(1);
+      const req = createMock.mock.calls[0][0] as Record<string, unknown>;
+      expect(req).not.toHaveProperty('temperature');
+      expect(req).not.toHaveProperty('top_p');
+      expect(req).not.toHaveProperty('top_k');
+      // 빼는 것은 샘플링 필드뿐이다. 나머지 요청은 그대로 간다.
+      expect(req).toMatchObject({
+        model: MODEL,
+        max_tokens: 256,
+        messages: [{ role: 'user', content: 'hi' }],
+      });
+      if (path === 'stream') {
+        expect(req).toMatchObject({ stream: true });
+      }
+    },
+  );
+});
