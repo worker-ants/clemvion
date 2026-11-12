@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "934a475ab9c799438c796a277e51218276300626a09a94cb1cbc9769f7334682"
+content_hash: "3c51645bd3397ba3b46cdc26ee2cf559eda85b4efb6bc3f2027303fe534e30ee"
 read_as: "approved_fallback"
-task: "CLE-T-VRBS51"
+task: "CLE-T-QKJ2TZ"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "57874809335ee3fcaf11d2540185cd31255f7fbcc02f197f6730256644519969"
-etag: "sha256-c4c36ea619f7eb9627b176b10cf26ab25232b5134656300ba26b2c0942b77b15"
+mirror_sha256: "0cc9cdd36f42470f06ea5602b924d50807e6b69f09439eb8d7b9a725a5ce0170"
+etag: "sha256-63caf26a2cdf6e4bac8c307633a9e4bc045b1b94dd965bfc77100d559d45542a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -281,9 +281,9 @@ sequenceDiagram
 
 트리거가 활성이어도 워크플로우가 비활성이면 `410 WORKFLOW_INACTIVE` 다. 확인 자리, 조회 범위, 남지 않는 기록은 [워크플로우 활성 관문](#워크플로우-활성-관문) 이 정한다.
 
-202 응답 본문의 모양은 [웹훅 「수신 API」](CLE-TRIG-WEBHOOK.md#수신-api) 가 정한다. 트리거의 `config.interaction.enabled` 가 참이면 `HooksService` 가 결과에 `status` 와 `interaction` 을 더한다. `HooksController` 는 `HooksService` 가 돌려준 결과에 `message` 를 더한다. 전역 `TransformInterceptor` 가 그 결과를 `{ data }` 로 감싼다. 실행 단위 토큰의 발급과 저장은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#토큰-발급) 이 정한다. 채팅 채널 분기의 Slack challenge · Discord PING 응답과 네이티브 모달 응답은 감싸지 않고 그대로 보낸다. 이 문서의 다른 곳에 적은 `{ executionId: 'ignored' }` 는 `data` 감싸기와 `message` 를 뺀 줄임 표기다.
+202 응답 본문의 모양은 [웹훅 「수신 API」](CLE-TRIG-WEBHOOK.md#수신-api) 가 정한다. 트리거의 `config.interaction.enabled` 가 참이면 `HooksService` 가 결과에 `status` 와 `interaction` 을 더한다. `HooksController` 는 `HooksService` 가 돌려준 결과에 `message` 를 더한다. 전역 `TransformInterceptor` 가 그 결과를 `{ data }` 로 감싼다. 실행 단위 토큰의 발급과 저장은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#토큰-발급) 이 정한다. 채팅 채널 분기의 Slack challenge · Discord PING 응답, Discord 컴포넌트 · 모달 제출 응답, 네이티브 모달 응답은 감싸지 않고 그대로 보낸다. 이 문서의 다른 곳에 적은 `{ executionId: 'ignored' }` 는 `data` 감싸기와 `message` 를 뺀 줄임 표기다.
 
-진입 앞단에서 `PublicWebhookThrottleGuard` 가 공개 웹훅에 IP 단위 요청 빈도 제한과 본문 32KB 제한을 먼저 적용한다. 채팅 채널 트리거는 `auth_config_id` 가 없어도 이 가드의 대상이 아니다([웹훅 「요청 제한과 남용 방어」](CLE-TRIG-WEBHOOK.md#요청-제한과-남용-방어)). 지금 코드는 이 트리거에도 가드를 건다. 결함이고 NERV Task `CLE-T-QKJ2TZ` 가 고친다. 카운터는 Redis fixed-window 다([저장소 매핑](#저장소-매핑)). 같은 라우트의 두 번째 공개 엔드포인트 `GET /api/hooks/:endpointPath/embed-config`(웹채팅 위젯 임베드 설정 조회, [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md))는 실행을 시작하지 않는다.
+진입 앞단에서 `PublicWebhookThrottleGuard` 가 공개 웹훅에 IP 단위 요청 빈도 제한과 본문 32KB 제한을 먼저 적용한다. 채팅 채널 트리거는 `auth_config_id` 가 없어도 이 가드의 대상이 아니다([웹훅 「요청 제한과 남용 방어」](CLE-TRIG-WEBHOOK.md#요청-제한과-남용-방어)). 카운터는 Redis fixed-window 다([저장소 매핑](#저장소-매핑)). 같은 라우트의 두 번째 공개 엔드포인트 `GET /api/hooks/:endpointPath/embed-config`(웹채팅 위젯 임베드 설정 조회, [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md))는 실행을 시작하지 않는다.
 
 ### 스케줄 발사
 
@@ -327,6 +327,8 @@ sequenceDiagram
 
 `trigger.config.chatChannel` 이 있으면 웹훅 진입은 `handleChatChannelWebhook` 로 가서 일반 흐름의 `is_active` 410 관문, 인증 설정 인증, 트리거 파라미터 스키마 검증을 거치지 않는다. 대신 채널 프로바이더별 인바운드 서명으로 검증한다(Telegram `X-Telegram-Bot-Api-Secret-Token`, Slack `X-Slack-Signature`, Discord `X-Signature-Ed25519`). 비활성 트리거도 서명 검증을 먼저 하고(실패하면 401), 통과하면 `202` 와 `{ executionId: 'ignored' }` 로 조용히 무시한다. 워크플로우가 비활성이면 새 실행을 시작하는 자리에서만 같은 `202` 로 답한다. handshake 와 진행 중인 대화는 워크플로우가 비활성이어도 처리한다(아래 표).
 
+트리거가 활성이면 Discord 컴포넌트(type 3)와 모달 제출(type 5)에는 `202` 대신 `200` 으로 답한다. update 무시, 대기 실행에 전달, 새 실행, 워크플로우 없음, 워크플로우 비활성, 중복 update, 한도 초과 가운데 어느 경로로 끝나도 같다. 본문은 `{ type: 6 }` 이다. 모달을 열 때는 `{ type: 9 }`, Form 모달 제출 결과는 `{ type: 4 }` 다. 그래서 이 문서에서 채팅 채널이 `202` 와 `{ executionId: 'ignored' }` 로 답한다고 적은 곳도 Discord 컴포넌트 · 모달 제출이면 `200` 과 `{ type: 6 }` 이다. 비활성 트리거는 Discord 도 그대로 `202` 와 `{ executionId: 'ignored' }` 다. Discord 컴포넌트 · 모달 제출로 새 실행을 시작하면 실행 행의 `response_code` 는 실제 응답 코드인 `'200'` 이다. 슬래시 명령(type 2)은 지금 `202` 다. 응답 계약의 기준은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다.
+
 | 단계 | 처리(`hooks.service.ts` `handleChatChannelWebhook`) |
 |------|----------------------------------------------------|
 | 채널 어댑터 조회 | `channelAdapterRegistry.get(config.provider)`. 지원하지 않으면 400 |
@@ -343,12 +345,12 @@ sequenceDiagram
 
 ### 워크플로우 활성 관문
 
-워크플로우가 비활성이면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 생기지 않는다. 이 규칙의 기준은 이 절이다. 경로별 응답, 확인 위치, 조회 범위, 관문을 거치지 않는 경로를 여기서 정한다. [웹훅](CLE-TRIG-WEBHOOK.md) · [스케줄](CLE-TRIG-SCHEDULE.md) · [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 은 자기 경로에만 있는 차이를 적고 나머지는 이 절을 가리킨다. 응답은 트리거가 비활성일 때와 같은 규칙을 따른다. 세 경로는 공용 함수 `isWorkflowInactive(repo, workflowId, workspaceId)` 로 확인한다. 결정의 배경은 [Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다.
+워크플로우가 비활성이면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 생기지 않는다. 이 규칙의 기준은 이 절이다. 경로별 응답, 확인 위치, 조회 범위, 관문을 거치지 않는 경로를 여기서 정한다. [웹훅](CLE-TRIG-WEBHOOK.md) · [스케줄](CLE-TRIG-SCHEDULE.md) · [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 은 자기 경로에만 있는 차이를 적고 나머지는 이 절을 가리킨다. 응답은 트리거가 비활성일 때와 같은 규칙을 따른다. 채팅 채널의 Discord 컴포넌트 · 모달 제출은 예외다. 트리거가 비활성이면 `202` 이지만 워크플로우가 비활성이면 `200` 과 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)). 세 경로는 공용 함수 `isWorkflowInactive(repo, workflowId, workspaceId)` 로 확인한다. 결정의 배경은 [Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다.
 
 | 경로 | 확인 위치 | 트리거가 비활성일 때 | 워크플로우가 비활성일 때 |
 |------|-----------|----------------------|--------------------------|
 | 일반 웹훅 | 트리거 활성 확인 바로 뒤. 인증 설정 인증 · IP 화이트리스트 · 파라미터 검증 · 실행 생성보다 앞 | `410 Gone`, `TRIGGER_INACTIVE` | `410 Gone`, `WORKFLOW_INACTIVE`(메시지 `Workflow of this webhook trigger is inactive`) |
-| 채팅 채널 인입 | 새 실행을 시작하기 직전. `/start` 의 기존 실행 취소보다 앞 | 서명 검증 직후 `202` 와 `{ executionId: 'ignored' }`. handshake 를 포함해 모든 update 를 무시하므로 진행 중인 대화도 끊긴다 | 새 실행만 막는다. 활성 실행이 없을 때 온 첫 메시지와 `/start` 는 `202` 와 `{ executionId: 'ignored' }`. handshake 에 답하고 진행 중인 대화는 이어진다 |
+| 채팅 채널 인입 | 새 실행을 시작하기 직전. `/start` 의 기존 실행 취소보다 앞 | 서명 검증 직후 `202` 와 `{ executionId: 'ignored' }`. handshake 를 포함해 모든 update 를 무시하므로 진행 중인 대화도 끊긴다 | 새 실행만 막는다. 활성 실행이 없을 때 온 첫 메시지와 `/start` 는 `202` 와 `{ executionId: 'ignored' }`. Discord 컴포넌트 · 모달 제출은 `200` 과 `{ type: 6 }`([채팅 채널 분기](#채팅-채널-분기)). handshake 에 답하고 진행 중인 대화는 이어진다 |
 | 스케줄 발사 | 스케줄 비활성 확인 · 워크플로우 미연결 확인 다음. `execute()` 보다 앞 | 토글이 job scheduler 를 해제한다. 이미 들어온 작업은 `schedule.is_active=false` 로 건너뛴다 | 건너뛴다. `next_run_at` 만 다음 Cron 발화 시각으로 옮기고 로그를 남긴 뒤 job 을 정상 완료한다 |
 
 채팅 채널 인입은 새 실행을 시작하기 직전에 관문을 확인한다. 단계 전체 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 를 따른다.
@@ -360,7 +362,7 @@ sequenceDiagram
 - handshake: Slack `url_verification` challenge 와 Discord PING(type 1)에는 워크플로우가 비활성이어도 답한다.
 - 스케줄: 건너뛸 때 `next_run_at` 만 다음 Cron 발화 시각으로 옮긴다. Cron 을 해석하지 못하면 NULL 로 둔다. UPDATE 는 그 컬럼 하나만 쓰므로 그사이 사용자가 고친 다른 컬럼을 덮어쓰지 않는다. `last_run_at` 은 바꾸지 않는다. 스케줄 목록의 「다음 실행」 칸에 지난 시각이 남지 않게 하려는 것이다([스케줄](CLE-TRIG-SCHEDULE.md)).
 - 스케줄: 재시도하지 않고 `schedule_failed` 알림도 보내지 않는다. 스케줄 행의 활성 상태와 BullMQ job scheduler 는 그대로 둔다. 다음 Cron tick 에 다시 확인하므로 워크플로우를 활성으로 바꾸면 다음 발화부터 실행된다. 비활성인 동안 건너뛴 발화는 보충하지 않는다.
-- 조회 범위: 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. `execute()` 에 넘기는 워크스페이스와 같은 값이다. 그 워크스페이스에 없으면 관문은 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다. 일반 웹훅은 404 `TRIGGER_NOT_FOUND`, 채팅 채널은 `202` ignored 와 `degraded`, 스케줄은 에러 로그를 남기고 건너뛴다.
+- 조회 범위: 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. `execute()` 에 넘기는 워크스페이스와 같은 값이다. 그 워크스페이스에 없으면 관문은 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다. 일반 웹훅은 404 `TRIGGER_NOT_FOUND`, 채팅 채널은 `202` ignored 와 `degraded`, 스케줄은 에러 로그를 남기고 건너뛴다. 채팅 채널의 Discord 컴포넌트 · 모달 제출은 `202` 대신 `200` 과 `{ type: 6 }` 으로 답한다([채팅 채널 분기](#채팅-채널-분기)).
 - 빈 `workspaceId`: 값은 트리거 · 스케줄 행의 `workspace_id`(NOT NULL)에서 온다. 빈 문자열이 오면 맞는 워크플로우가 없으므로 관문은 통과하고 `execute()` 의 워크스페이스 대조가 거부한다. 엔진 대조와 같은 쪽(거부)으로 닫힌다.
 - 관문을 거치지 않는 경로: 에디터 수동 실행(`POST /api/workflows/:id/execute`), 재실행, 스케줄 "지금 실행"(`POST /api/schedules/:id/run-now`), 워크플로우 호출 노드의 서브 워크플로우 실행([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)), External Interaction API 의 진행 중 실행 명령, 채팅 채널의 진행 중인 대화. 이미 진행 중인 실행은 워크플로우를 비활성으로 바꿔도 취소하지 않는다.
 - 새 진입 경로: 실행을 시작하는 진입 경로를 새로 만들면 두 목록 가운데 한쪽에 더한다. 관문을 거치는 경로는 이 절의 경로 표와 `isWorkflowInactive` JSDoc 의 호출 지점 목록에 함께 더하고 거치지 않는 경로는 위 「관문을 거치지 않는 경로」 에 더한다. 빠뜨려도 자동으로 잡는 테스트는 없다([Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 「왜 엔진이 아니라 호출부에서 확인하는가」).
@@ -600,7 +602,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. processor 의 재계�
 
 결정(2026-10-10 사용자):
 
-- 워크플로우 활성 상태를 실행 관문으로 둔다. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행을 만들지 않는다. 응답은 트리거가 비활성일 때와 같은 규칙을 따른다. 일반 웹훅은 `410 Gone`, 채팅 채널은 `202` ignored, 스케줄은 건너뜀이다. 채팅 채널은 새 실행을 시작하는 자리에서만 막는다(아래 "진행 중인 대화를 막지 않는 이유").
+- 워크플로우 활성 상태를 실행 관문으로 둔다. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행을 만들지 않는다. 응답은 트리거가 비활성일 때와 같은 규칙을 따른다. 일반 웹훅은 `410 Gone`, 채팅 채널은 `202` ignored, 스케줄은 건너뜀이다. 채팅 채널은 새 실행을 시작하는 자리에서만 막는다(아래 "진행 중인 대화를 막지 않는 이유"). 채팅 채널의 Discord 컴포넌트 · 모달 제출은 이 결정 뒤에 `200` 과 `{ type: 6 }` 으로 답하도록 바뀌었다([채팅 채널 분기](#채팅-채널-분기)).
 - 일반 웹훅의 코드는 `TRIGGER_INACTIVE` 를 다시 쓰지 않고 새로 둔 `WORKFLOW_INACTIVE` 다. 호출자와 운영자가 트리거와 워크플로우 가운데 무엇을 활성으로 바꿔야 하는지 응답만 보고 안다.
 - 기각한 대안: 워크플로우 활성 상태를 표시용 플래그로 보고 워크플로우 쪽 문서의 약속만 고치는 안. 구현을 바꾸지 않아도 되지만 화면 문구대로 사용자는 워크플로우를 비활성으로 바꾸면 실행이 멈춘다고 생각한다. 그 상태로 두면 사용자가 비활성으로 바꾼 워크플로우가 외부 호출과 스케줄로 계속 돈다.
 - 영향: 워크플로우는 비활성 상태로 만들어진다. 그래서 비활성인 채 외부 호출이나 스케줄로 돌던 워크플로우는 배포 뒤 멈춘다. 사용자 공지는 배포 PR 본문에 싣는다.
