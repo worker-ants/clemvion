@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class AuditLogUserDto {
   @ApiProperty({ format: 'uuid' })
@@ -22,8 +22,9 @@ export class AuditLogDto {
   @ApiProperty({ format: 'uuid' })
   userId: string;
 
-  @ApiPropertyOptional({ type: () => AuditLogUserDto, nullable: true })
-  user?: AuditLogUserDto | null;
+  /** 기록한 사용자. `user_id` 는 NOT NULL 외래 키이고 삭제 규칙이 없어 늘 실린다. */
+  @ApiProperty({ type: () => AuditLogUserDto })
+  user: AuditLogUserDto;
 
   // 근거: [감사 로그 「감사 액션 카탈로그」](CLE-OBS-AUDIT#감사-액션-카탈로그)
   @ApiProperty({
@@ -49,8 +50,8 @@ export class AuditLogDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   details: Record<string, unknown>;
 
-  @ApiPropertyOptional({ nullable: true, example: '127.0.0.1' })
-  ipAddress?: string | null;
+  @ApiProperty({ type: String, nullable: true, example: '127.0.0.1' })
+  ipAddress: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt: string;

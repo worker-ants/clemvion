@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 /** 알림 응답 DTO */
 export class NotificationDto {
@@ -35,17 +35,18 @@ export class NotificationDto {
    * `workspace_invitation` (팀 초대) 등이 들어간다. 클라이언트는 unknown 값을 dead link 로 처리한다.
    * (Background 본문 실패의 per-run attribution 은 REST 에 노출되지 않는 내부 컬럼 `background_run_id` 가 담당.)
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
+    type: String,
     nullable: true,
     example: 'workflow',
     description:
       '연관 리소스 종류 (딥링크 라우팅 키) — 현재 발행되는 값: `workflow`, `integration`, `workspace_invitation`',
   })
-  resourceType?: string | null;
+  resourceType: string | null;
 
   /** 관련 리소스 UUID (딥링크 대상 — 실패 알림은 workflow id) */
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  resourceId?: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  resourceId: string | null;
 
   /** 읽음 여부 */
   @ApiProperty()
@@ -56,8 +57,8 @@ export class NotificationDto {
   channel: string;
 
   /** 이메일 발송 시각 (채널이 email 인 경우) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  emailSentAt?: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  emailSentAt: string | null;
 
   // 근거: [알림 「읽음과 닫기」](CLE-OBS-NOTIFY#읽음과-닫기)
   /**
@@ -65,8 +66,8 @@ export class NotificationDto {
    * 목록·미읽음 카운트는 `dismissed_at IS NULL` 만 반환하므로 본 응답에 나타나는
    * row 의 값은 일반적으로 `null` 이다.
    */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  dismissedAt?: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  dismissedAt: string | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })

@@ -21,8 +21,8 @@ export class WorkflowDto {
   name: string;
 
   /** 설명 */
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
 
   /** 활성화 여부 */
   @ApiProperty()
@@ -33,8 +33,8 @@ export class WorkflowDto {
   tags: string[];
 
   /** 폴더 UUID (루트이면 null) */
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  folderId?: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  folderId: string | null;
 
   /** 워크플로우 설정 객체 */
   @ApiProperty({ type: 'object', additionalProperties: true })
@@ -293,8 +293,8 @@ export class ExportWorkflowDto {
   name: string;
 
   /** 설명 */
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
 
   /** 태그 */
   @ApiProperty({ type: [String] })

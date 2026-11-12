@@ -32,6 +32,7 @@ import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOkWrappedResponse } from '../../common/swagger';
 import {
+  CurrentUserProfileDto,
   MessageResponseDto,
   PasswordChangeResultDto,
   UserProfileDto,
@@ -103,7 +104,9 @@ export class UsersController {
     summary: '현재 사용자 프로필 조회',
     description: '액세스 토큰의 subject에 해당하는 사용자 프로필을 반환합니다.',
   })
-  @ApiOkWrappedResponse(UserProfileDto, { description: '현재 사용자 프로필' })
+  @ApiOkWrappedResponse(CurrentUserProfileDto, {
+    description: '현재 사용자 프로필',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '사용자를 찾을 수 없음' })
   async getMe(@CurrentUser() payload: JwtPayload) {

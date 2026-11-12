@@ -544,6 +544,30 @@ describe('TriggersService.findOneDetail', () => {
     expect(result.nextRunAt).toBeUndefined();
   });
 
+  it('schedule 의 nextRunAt 이 null 이면 응답에 그 키가 없다 (§5.5 기준 b)', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'schedule',
+      name: '일시정지',
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue({
+      id: 's1',
+      cronExpression: '0 9 * * *',
+      timezone: 'Asia/Seoul',
+      nextRunAt: null,
+    } as unknown as Schedule);
+
+    const result = (await service.findOneDetail(
+      't1',
+      'ws',
+    )) as unknown as Record<string, unknown>;
+
+    expect(result.cronExpression).toBe('0 9 * * *');
+    expect(result.timezone).toBe('Asia/Seoul');
+    expect(result).not.toHaveProperty('nextRunAt');
+  });
+
   it('webhook 타입은 schedule 조회를 skip', async () => {
     triggerRepo.findOne.mockResolvedValue({
       id: 't2',
@@ -727,6 +751,32 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
     expect(row.notificationLastError).toBe(
       'network: Request cannot be constructed from a URL that includes credentials: https://***@h/x',
     );
+  });
+
+  it('목록에서도 nextRunAt 이 null 인 schedule 은 그 키를 싣지 않는다 (§5.5 기준 b)', async () => {
+    mockQb([
+      {
+        id: 's-trig-1',
+        workspaceId: 'ws',
+        type: 'schedule',
+        name: 'paused',
+      } as unknown as Trigger,
+    ]);
+    scheduleRepo.find.mockResolvedValue([
+      {
+        id: 's1',
+        triggerId: 's-trig-1',
+        cronExpression: '0 9 * * *',
+        timezone: 'UTC',
+        nextRunAt: null,
+      } as unknown as Schedule,
+    ]);
+
+    const page = await service.findAll('ws', {} as never);
+    const row = (page.data as unknown as Record<string, unknown>[])[0];
+
+    expect(row.cronExpression).toBe('0 9 * * *');
+    expect(row).not.toHaveProperty('nextRunAt');
   });
 
   it('여러 schedule 행을 단일 IN 배치로 enrichment 하고 webhook 행은 건드리지 않는다 (N+1 회피)', async () => {

@@ -10,7 +10,7 @@ import {
   contractForDto,
 } from '../src/shared/testing/response-contract';
 import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
-import { UserProfileDto } from '../src/modules/users/dto/responses/user-response.dto';
+import { CurrentUserProfileDto } from '../src/modules/users/dto/responses/user-response.dto';
 
 /**
  * e2e: NERV CLE-ACCT-PROFILE REQ-PROFILE-027 (CLE-T-KTZ9YV).
@@ -47,7 +47,7 @@ describe('GET /api/users/me twoFactorEnabled (e2e)', () => {
     expect(fresh.body.data.twoFactorEnabled).toBe(false);
     assertMatchesContract(
       fresh.body.data,
-      await contractForDto(UserProfileDto),
+      await contractForDto(CurrentUserProfileDto),
     );
 
     // 설정만 시작하고 검증하지 않은 계정은 아직 꺼져 있다.
