@@ -85,7 +85,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 
 - `endpoint_path` is generated as a UUID at trigger-creation time, which makes it hard to guess. Even if someone already knows the path, registering it on a different workspace is rejected — the path has to be unique across the whole service. Copy the full URL with the 📋 button on the trigger list.
 - Only `POST` is accepted. `Content-Type` must be `application/json` or `application/x-www-form-urlencoded`.
-- Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (`413 PAYLOAD_TOO_LARGE` on exceed).
+- Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (`413 PAYLOAD_TOO_LARGE` on exceed). Triggers linked to a chat channel (Telegram, Slack, Discord) are not subject to the public webhook's 32KB cap or per-IP start limits (10 per minute, 20 per hour), even without an auth setting. They authenticate with the provider's signature and are limited instead by the per-conversation per-minute limit (trigger setting `rateLimitPerMinute`, default 60) and the instance-wide limit.
 
 ### Authentication settings
 
@@ -143,8 +143,8 @@ HMAC verification reads the **raw bytes** of the request body. If a relay middle
 | `401 Unauthorized` | Authentication failed. |
 | `404 Not Found` | No trigger exists for that `endpoint_path`. |
 | `410 Gone` | The trigger or its workflow is turned off. The code is `TRIGGER_INACTIVE` when the trigger is off and `WORKFLOW_INACTIVE` when the workflow is off. Turn the inactive one back on before retrying. |
-| `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**Authenticated webhook:** body over 1MB (`PAYLOAD_TOO_LARGE`). |
-| `429 Too Many Requests` | Exceeded the instance-wide global 100 req/min rate limit. The response carries a `Retry-After` header telling you when to retry. |
+| `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`). Does not apply to triggers linked to a chat channel.<br/>**Authenticated webhook:** body over 1MB (`PAYLOAD_TOO_LARGE`). |
+| `429 Too Many Requests` | Exceeded the instance-wide global 100 req/min rate limit. The response carries a `Retry-After` header telling you when to retry.<br/>**Public webhook:** exceeded the per-IP start limit (10 per minute, 20 per hour; `PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT`). Does not apply to triggers linked to a chat channel. |
 
 ### Accessing the webhook payload inside the workflow
 
@@ -422,6 +422,8 @@ curl -X POST https://<your-host>/api/triggers \
 1. From the [Discord Developer Portal](https://discord.com/developers/applications), create an Application + Bot, then copy the **Bot Token** (Bot tab) and the **Application Public Key** (General Information tab, ed25519 lowercase hex 64 chars). Full steps are in the [Discord integration guide](/docs/06-integrations-and-config/discord).
 2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (external chatbot)" → Provider = Discord → enter Bot Token + Application Public Key → Create.**
 3. Copy the trigger's endpoint URL into the Developer Portal's **Interactions Endpoint URL** to complete the PING handshake automatically.
+
+The server answers button and select-menu clicks and modal submissions within 3 seconds, so the Discord app does not show "This interaction failed".
 
 <Callout type="warn">
 Discord v1 limitation: plain DM free-text messages are not received. AI conversation replies are only available through the slash command (`/workflow reply <message>`) or the modal triggered by the **Reply** button on AI response messages.

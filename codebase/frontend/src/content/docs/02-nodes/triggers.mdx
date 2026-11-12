@@ -96,7 +96,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 
 - `endpoint_path`는 트리거 생성 시 UUID로 자동 발급돼요 — 경로를 추측하기 어렵게 만들어요. 이미 경로를 알고 있더라도 다른 워크스페이스에 같은 경로로 등록하려 하면 거부돼요 — 경로는 서비스 전체에서 유일해야 하거든요. 트리거 목록 화면에서 📋 버튼으로 전체 URL을 복사할 수 있어요.
 - 메서드는 `POST`만 받아요. `Content-Type`은 `application/json` 또는 `application/x-www-form-urlencoded`.
-- 본문 최대 크기는 webhook 종류에 따라 달라요 — 공개(인증 미연결) webhook 은 **32KB**(초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`), 인증 webhook 은 **1MB**(초과 시 `413 PAYLOAD_TOO_LARGE`).
+- 본문 최대 크기는 webhook 종류에 따라 달라요 — 공개(인증 미연결) webhook 은 **32KB**(초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`), 인증 webhook 은 **1MB**(초과 시 `413 PAYLOAD_TOO_LARGE`). 채팅 채널(Telegram · Slack · Discord)을 연결한 트리거는 인증 설정이 없어도 공개 webhook 의 32KB 한도와 IP 단위 시작 한도(분당 10 · 시간당 20)를 받지 않아요. 프로바이더 서명으로 인증하고, 대화별 분당 한도(트리거 설정 `rateLimitPerMinute`, 기본 60)와 인스턴스 전역 한도가 대신 막아요.
 
 ### 인증 설정
 
@@ -154,8 +154,8 @@ HMAC을 쓰면 서버가 본문 원본 바이트로 서명을 검증해요. 외�
 | `401 Unauthorized` | 인증 실패. |
 | `404 Not Found` | 해당 `endpoint_path`의 트리거가 존재하지 않아요. |
 | `410 Gone` | 트리거나 워크플로우가 꺼져 있어요. 트리거가 꺼져 있으면 `TRIGGER_INACTIVE`, 워크플로우가 꺼져 있으면 `WORKFLOW_INACTIVE` 코드가 와요. 꺼진 쪽을 다시 켜야 받을 수 있어요. |
-| `413 Payload Too Large` | **공개 webhook:** 본문 32KB 초과 (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`).<br/>**인증 webhook:** 본문 1MB 초과 (`PAYLOAD_TOO_LARGE`). |
-| `429 Too Many Requests` | 인스턴스 전역 글로벌 100 req/min rate limit 초과. 응답에 `Retry-After` 헤더로 재시도 대기 시간을 안내해요. |
+| `413 Payload Too Large` | **공개 webhook:** 본문 32KB 초과 (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`). 채팅 채널 연결 트리거에는 적용되지 않아요.<br/>**인증 webhook:** 본문 1MB 초과 (`PAYLOAD_TOO_LARGE`). |
+| `429 Too Many Requests` | 인스턴스 전역 글로벌 100 req/min rate limit 초과. 응답에 `Retry-After` 헤더로 재시도 대기 시간을 안내해요.<br/>**공개 webhook:** IP 단위 시작 한도(분당 10 · 시간당 20) 초과 (`PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT`). 채팅 채널 연결 트리거에는 적용되지 않아요. |
 
 ### 워크플로우 안에서 웹훅 페이로드 접근
 
@@ -433,6 +433,8 @@ curl -X POST https://<your-host>/api/triggers \
 1. [Discord Developer Portal](https://discord.com/developers/applications) 에서 Application + Bot 을 만들고 **Bot Token** (Bot 탭) 과 **Application Public Key** (General Information 탭, ed25519 lowercase hex 64 chars) 를 받아 두세요. 자세한 단계는 [Discord 통합 가이드](/docs/06-integrations-and-config/discord)를 참조해요.
 2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Discord → Bot Token + Application Public Key 입력 → 만들기.**
 3. 생성된 트리거의 endpoint URL 을 복사해 Developer Portal 의 **Interactions Endpoint URL** 에 입력하면 PING handshake 가 자동 처리돼 연결이 완료돼요.
+
+버튼 · 선택 메뉴 클릭과 모달 제출에는 서버가 3초 안에 응답해서 Discord 앱에 "This interaction failed" 표시가 뜨지 않아요.
 
 <Callout type="warn">
 Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대화 reply 는 슬래시 명령(`/workflow reply <message>`) 또는 응답 메시지의 **Reply** 버튼을 통한 modal 입력으로만 가능해요.
