@@ -276,7 +276,8 @@ describe('Nested container and Background inside a container body (e2e)', () => 
         },
         transform(afterId, 'After', feId),
         // 에디터는 연결선 체인 규칙으로 Background 뒤 노드에도 같은 컨테이너 소속을 준다.
-        // 본문 노드는 큐에 넣은 회차의 반복 변수를 식으로 읽는다(질문 01a1cd70 답 A).
+        // 본문 노드는 큐에 넣은 회차의 반복 변수를 식으로 읽는다(질문 01a1cd70 답 A,
+        // REQ-BGRUN-028).
         {
           id: bgBodyId,
           type: 'transform',
@@ -286,6 +287,13 @@ describe('Nested container and Background inside a container body (e2e)', () => 
           config: {
             operations: [
               { type: 'set_field', field: 'seen', value: '{{ $item.n }}' },
+              { type: 'set_field', field: 'index', value: '{{ $itemIndex }}' },
+              {
+                type: 'set_field',
+                field: 'first',
+                value: '{{ $itemIsFirst }}',
+              },
+              { type: 'set_field', field: 'last', value: '{{ $itemIsLast }}' },
             ],
           },
         },
@@ -306,17 +314,25 @@ describe('Nested container and Background inside a container body (e2e)', () => 
     expect(await countRuns(executionId, afterId)).toBe(2);
     // 회차마다 큐에 들어간 본문을 워커가 컨테이너 단계의 그래프로 실행한다.
     expect(await waitForRuns(executionId, bgBodyId, 2)).toBe(2);
-    // 본문은 자기를 큐에 넣은 회차의 $item 을 읽는다. 두 작업의 실행 순서는 정해져
-    // 있지 않아 정렬해서 본다.
-    const seen = await db.query<{
-      output_data: { output?: { seen?: unknown } };
-    }>(
+    // 본문은 자기를 큐에 넣은 회차의 $item · $itemIndex · $itemIsFirst · $itemIsLast 를
+    // 읽는다. 두 작업의 실행 순서는 정해져 있지 않아 $item 으로 정렬해서 본다.
+    type BgBodyOutput = {
+      seen?: number;
+      index?: unknown;
+      first?: unknown;
+      last?: unknown;
+    };
+    const seen = await db.query<{ output_data: { output?: BgBodyOutput } }>(
       `SELECT output_data FROM node_execution
          WHERE execution_id = $1 AND node_id = $2 AND status = 'completed'`,
       [executionId, bgBodyId],
     );
-    expect(seen.rows.map((r) => r.output_data?.output?.seen).sort()).toEqual([
-      1, 2,
+    const outputs = seen.rows
+      .map((r) => r.output_data?.output ?? {})
+      .sort((a, b) => (a.seen ?? 0) - (b.seen ?? 0));
+    expect(outputs.map((o) => [o.seen, o.index, o.first, o.last])).toEqual([
+      [1, 0, true, false],
+      [2, 1, false, true],
     ]);
   }, 60_000);
 });

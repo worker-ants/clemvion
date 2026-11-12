@@ -15242,6 +15242,60 @@ describe('ExecutionEngineService', () => {
         });
       });
 
+      it('Map 본문 안 Background 도 회차마다 본문을 큐에 넣고 작업에 Map 의 컨테이너 ID 와 그 회차의 반복 변수를 싣는다 (REQ-BGRUN-027 · 028)', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        handlerRegistry.register('map', new MapHandler(), {
+          kind: 'container',
+        });
+        recordingHandler('test_node', () => ({ list: [10, 20] }));
+        recordingHandler('after_node', (input) => input);
+        const bgBodyCalls = recordingHandler('bg_body_node', (input) => input);
+        backgroundQueueAdd().mockClear();
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('mp', 'map', null, { inputField: 'list' }),
+            cNode('bg', 'background', 'mp'),
+            cNode('after', 'after_node', 'mp'),
+            cNode('bgBody', 'bg_body_node', 'mp'),
+          ],
+          [
+            cEdge('src', 'out', 'mp'),
+            cEdge('mp', 'body', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+            cEdge('after', 'out', 'mp', 'emit'),
+          ],
+        );
+
+        // 본문은 큐로만 간다(워커가 실행한다).
+        expect(bgBodyCalls).toHaveLength(0);
+        const jobs = backgroundQueueAdd().mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(
+          jobs.map((job) => [
+            job.containerScopeId,
+            job.bodyEntryNodeIds,
+            job.itemContext,
+          ]),
+        ).toEqual([
+          [
+            'mp',
+            ['bgBody'],
+            { item: 10, index: 0, isFirst: true, isLast: false },
+          ],
+          [
+            'mp',
+            ['bgBody'],
+            { item: 20, index: 1, isFirst: false, isLast: true },
+          ],
+        ]);
+      });
+
       it('맨 바깥 Background 작업에는 반복 변수 필드를 싣지 않는다', async () => {
         handlerRegistry.register('background', new BackgroundHandler(), {
           kind: 'background',
@@ -15498,7 +15552,7 @@ describe('ExecutionEngineService', () => {
         expect(bgBodyCalls).toHaveLength(0);
       });
 
-      it('워커는 작업 스냅샷의 반복 변수를 본문 실행 컨텍스트에 되살려 본문 노드 식이 그 회차의 $item · $itemIndex · $loop 를 읽는다', async () => {
+      it('워커는 작업 스냅샷의 반복 변수를 본문 실행 컨텍스트에 되살려 본문 노드 식이 그 회차의 $item · $itemIndex · $itemIsFirst · $itemIsLast · $loop 를 읽는다 (REQ-BGRUN-028)', async () => {
         const bodyConfigs: unknown[] = [];
         const bodyCtx: ExecutionContext[] = [];
         handlerRegistry.register('bg_expr_node', {
@@ -15521,6 +15575,8 @@ describe('ExecutionEngineService', () => {
           cNode('bgBody', 'bg_expr_node', 'fe', {
             item: '{{ $item.n }}',
             itemIndex: '{{ $itemIndex }}',
+            itemIsFirst: '{{ $itemIsFirst }}',
+            itemIsLast: '{{ $itemIsLast }}',
             loopIndex: '{{ $loop.index }}',
           }),
         ]);
@@ -15554,7 +15610,13 @@ describe('ExecutionEngineService', () => {
           isFirst: false,
           isLast: true,
         });
-        expect(bodyConfigs[0]).toEqual({ item: 7, itemIndex: 1, loopIndex: 2 });
+        expect(bodyConfigs[0]).toEqual({
+          item: 7,
+          itemIndex: 1,
+          itemIsFirst: false,
+          itemIsLast: true,
+          loopIndex: 2,
+        });
       });
 
       it('반복 변수가 없는 작업(맨 바깥 Background · 옛 작업)은 본문에서 반복 변수가 비어 있다', async () => {
