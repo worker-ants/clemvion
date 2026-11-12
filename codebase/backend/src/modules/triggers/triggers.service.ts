@@ -1635,7 +1635,8 @@ export class TriggersService {
     // 근거: [채팅 데이터 「봇 토큰 라이프사이클」](CLE-CHAT-DATA#봇-토큰-라이프사이클).
     const journal = new SecretWriteJournal(this.secrets, trigger.workspaceId);
 
-    // 1. 기존 botToken 을 읽는다. 행이 없거나 읽지 못하면 백업하지 않는다(최초 rotation).
+    // 1. 기존 botToken 을 읽는다. 행이 없거나(absent) 읽지 못하면(unreadable) 백업하지 않는다. 최초 rotation 은
+    // 앞쪽이다. 읽지 못한 쪽은 3단계 쓰기의 `priorPrimary` 로 넘겨 실패해도 지우지 않게 한다.
     const priorPrimary = await journal.read(botTokenRef);
     const oldPlaintext =
       priorPrimary.state === 'present' ? priorPrimary.plaintext : null;
@@ -1707,7 +1708,7 @@ export class TriggersService {
           trigger.id,
           // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다.
           //
-          // **`patch` 는 델타여야 한다 — 스냅샷 전체가 아니다.** 앞 라운드에서 `mergedChannel`
+          // **`patch` 는 델타여야 한다 — 스냅샷 전체가 아니다.** 앞 라운드에서 `merged`(당시 이름 `mergedChannel`)
           // 을 `patch` 로 넘겼는데, 그건 함수 시작 시점의 `chatChannelCfg` 를 스프레드한 **전체**
           // 객체라 재읽기로 얻은 `rateLimitPerMinute`·`uiMapping`·`languageLocale` 을 무조건
           // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다

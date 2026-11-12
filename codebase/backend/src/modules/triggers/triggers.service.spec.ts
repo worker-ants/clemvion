@@ -3027,6 +3027,51 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       expect(store.has(V2_REF)).toBe(false);
     });
 
+    it('쓰기 전 primary 를 읽지 못했으면(unreadable) 새 값을 지우지 않고 error 로그만 남긴다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN });
+      // 재발급 1단계의 읽기만 복호화 실패로 만든다. 그 뒤의 읽기는 저장소 값을 그대로 돌려준다.
+      const stored = secrets.resolve.getMockImplementation()!;
+      let primaryReads = 0;
+      secrets.resolve.mockImplementation((ref: string) => {
+        if (ref === BOT_TOKEN_REF && primaryReads++ === 0) {
+          return Promise.reject(new Error('decrypt failed'));
+        }
+        return stored(ref);
+      });
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('telegram down'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadGatewayException).getStatus()).toBe(502);
+      // 원래 값을 모르므로 지우거나 되살리지 않는다. 읽지 못했을 뿐인 행을 잃지 않는다.
+      expect(store.get(BOT_TOKEN_REF)).toBe(NEW_TOKEN);
+      // 읽지 못한 값은 유예 백업으로도 옮기지 않는다.
+      expect(store.has(V2_REF)).toBe(false);
+      const logged = errorSpy.mock.calls.map(([m]) => String(m)).join('\n');
+      expect(logged).toContain(BOT_TOKEN_REF);
+      expect(logged).not.toContain(NEW_TOKEN);
+    });
+
+    it('저장된 primary 가 공백뿐이면 백업 없이 진행하고, 실패하면 새 primary 를 지운다', async () => {
+      // 저장소는 빈 평문을 받지 않는다. 공백뿐인 값을 백업하거나 되살리려 들면 거부된다.
+      useStore({ [BOT_TOKEN_REF]: '   ' }, (_ref, plaintext) => {
+        return plaintext.trim() === '';
+      });
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('telegram down'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadGatewayException).getStatus()).toBe(502);
+      expect(secrets.rotate.mock.calls.some(([ref]) => ref === V2_REF)).toBe(
+        false,
+      );
+      expect(Object.fromEntries(store)).toEqual({});
+    });
+
     it('되돌리기가 실패해도 원래 오류(400)를 던지고 error 로그에 평문을 싣지 않는다', async () => {
       useStore({ [BOT_TOKEN_REF]: OLD_TOKEN });
       secrets.delete.mockRejectedValueOnce(new Error('secret store down'));
