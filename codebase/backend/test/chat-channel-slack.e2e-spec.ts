@@ -5,7 +5,10 @@ import request from 'supertest';
 
 import { createDbClient } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
-import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
+import {
+  insertChatChannelTriggerRow,
+  setupChatChannelTrigger,
+} from './helpers/e2e-chat-channel-fixture';
 
 /**
  * e2e: Slack Chat Channel adapter ([Spec providers/slack.md §3~§6]).
@@ -18,6 +21,8 @@ import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
  *    - 5분 replay window 밖 → 401
  * 3. DM message event_callback → 202 + execution 시작 (or ignored)
  * 4. group chat (channel_type !== 'im') → 202 + ignored (groupChatRefusal)
+ * 5. Interactivity(block_actions · view_submission) → 200 + 빈 본문. 트리거가 꺼져 있어도 같다
+ *    (NERV Task `CLE-T-FCBG91`)
  *
  * 본 e2e 는 chat.postMessage 외부 호출은 검증 안 함 — fake 가 없으면 실 API 호출이라
  * degraded health 갱신만 결과. 핵심은 HooksController + signing + parser dispatch flow.
@@ -35,6 +40,30 @@ function signSlack(body: string, ts: string, secret: string): string {
 
 function nowSec(offset = 0): string {
   return String(Math.floor(Date.now() / 1000) + offset);
+}
+
+/** 서명 검증을 건너뛰도록 `inboundSigningRef` 를 뺀 설정으로 바꾼다. */
+async function dropSigningRef(db: Client, triggerId: string): Promise<void> {
+  await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
+    JSON.stringify({
+      chatChannel: {
+        provider: 'slack',
+        botTokenRef: `secret://triggers/${triggerId}/bot-token`,
+      },
+    }),
+    triggerId,
+  ]);
+}
+
+/** Interactivity 요청 — Slack 은 `payload=<JSON>` 을 form-urlencoded 로 보낸다. */
+function postInteractivity(path: string, payload: unknown) {
+  return request(BASE_URL)
+    .post(`/api/hooks/${path}`)
+    .set('x-forwarded-for', nextE2eClientIp())
+    .set('content-type', 'application/x-www-form-urlencoded')
+    .send(
+      `payload=${encodeURIComponent(typeof payload === 'string' ? payload : JSON.stringify(payload))}`,
+    );
 }
 
 // inbound-signing secret 저장 (AES-256-GCM application encryption — secret_store INSERT 는
@@ -209,6 +238,110 @@ describe('Slack Chat Channel e2e', () => {
       await db
         .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
         .catch(() => undefined);
+    });
+  });
+
+  // 근거: [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK) · Slack 공식 문서(Handling user interaction) —
+  // Interactivity 요청에는 3초 안에 HTTP 200 으로 답해야 한다. 본문은 비워도 된다. 트리거가 꺼져 있어도
+  // 같다(2026-11-12 사람 결정, NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`). NERV Task `CLE-T-FCBG91`.
+  describe('Interactivity 응답', () => {
+    const blockActions = (id: string) => ({
+      type: 'block_actions',
+      trigger_id: `trg-${id}`,
+      user: { id: `U-${id}` },
+      channel: { id: `D-${id}` },
+      container: { channel_id: `D-${id}` },
+      actions: [{ action_id: 'btn', value: 'choice:1' }],
+    });
+
+    let on: { endpointPath: string; triggerId: string };
+    let off: { endpointPath: string; triggerId: string };
+
+    beforeAll(async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      await dropSigningRef(db, setup.triggerId);
+      on = { endpointPath: setup.endpointPath, triggerId: setup.triggerId };
+      off = await insertChatChannelTriggerRow(db, {
+        workspaceId: setup.workspaceId,
+        workflowId: setup.workflowId,
+        name: 'slack-e2e-off',
+        provider: 'slack',
+        isActive: false,
+      });
+      await dropSigningRef(db, off.triggerId);
+    });
+
+    afterAll(async () => {
+      await db
+        .query('DELETE FROM trigger WHERE id = ANY($1::uuid[])', [
+          [on.triggerId, off.triggerId],
+        ])
+        .catch(() => undefined);
+    });
+
+    it('block_actions(진행 중인 대화 없음) → 200 + 빈 본문', async () => {
+      const res = await postInteractivity(
+        on.endpointPath,
+        blockActions(`ba-${Date.now()}`),
+      );
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('');
+    });
+
+    it('같은 block_actions 가 다시 와도(재도착 무시) 200 + 빈 본문', async () => {
+      const payload = blockActions(`dup-${Date.now()}`);
+      const first = await postInteractivity(on.endpointPath, payload);
+      const second = await postInteractivity(on.endpointPath, payload);
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(second.text).toBe('');
+    });
+
+    it('view_submission(알 수 없는 모달) → 200 + 빈 본문', async () => {
+      const res = await postInteractivity(on.endpointPath, {
+        type: 'view_submission',
+        trigger_id: `trg-vs-${Date.now()}`,
+        user: { id: 'U-vs' },
+        view: { id: `V-${Date.now()}`, callback_id: 'other_modal' },
+      });
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('');
+    });
+
+    it('JSON 이 아닌 payload → 200 + 빈 본문', async () => {
+      const res = await postInteractivity(on.endpointPath, 'not-json');
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('');
+    });
+
+    it('꺼진 트리거의 block_actions → 200 + 빈 본문', async () => {
+      const res = await postInteractivity(
+        off.endpointPath,
+        blockActions(`off-${Date.now()}`),
+      );
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('');
+    });
+
+    it('꺼진 트리거의 Events API 메시지는 지금처럼 202 다', async () => {
+      const res = await request(BASE_URL)
+        .post(`/api/hooks/${off.endpointPath}`)
+        .set('x-forwarded-for', nextE2eClientIp())
+        .set('content-type', 'application/json')
+        .send(
+          JSON.stringify({
+            type: 'event_callback',
+            event_id: `Ev-off-${Date.now()}`,
+            event: {
+              type: 'message',
+              channel_type: 'im',
+              channel: 'D-off',
+              user: 'U-off',
+              text: 'hi',
+            },
+          }),
+        );
+      expect(res.status).toBe(202);
     });
   });
 });
