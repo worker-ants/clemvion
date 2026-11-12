@@ -72,9 +72,16 @@ export const DISCORD_INTERACTION_TYPE = {
   MODAL_SUBMIT: 5,
 } as const;
 
+/** 메시지 컴포넌트 `type`. */
+export const DISCORD_COMPONENT_TYPE = {
+  ACTION_ROW: 1,
+  TEXT_INPUT: 4,
+} as const;
+
 /**
  * interaction 응답(callback)의 `type`. 3초 안에 200 과 함께 보낸다.
- * DEFERRED_UPDATE_MESSAGE(6)는 MODAL_SUBMIT 과 컴포넌트 interaction 에만 쓸 수 있다.
+ * DEFERRED_UPDATE_MESSAGE(6)는 컴포넌트(버튼)와, 버튼에서 연 모달의 MODAL_SUBMIT 에만 쓸 수 있다.
+ * 이 제품의 모달은 모두 버튼에서 연다.
  */
 export const DISCORD_INTERACTION_CALLBACK_TYPE = {
   PONG: 1,

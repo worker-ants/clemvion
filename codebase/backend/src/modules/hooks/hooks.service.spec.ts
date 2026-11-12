@@ -1888,6 +1888,19 @@ describe('HooksService', () => {
         expectDroppedAck();
       });
 
+      it('수신 확인이 끝나지 않아도 ignored 로 바로 답한다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(callbackUpdate);
+        (
+          moduleRef.get(ChatChannelRateLimiterService) as { consume: jest.Mock }
+        ).consume.mockResolvedValue(false);
+        ackDroppedUpdate.mockReturnValue(new Promise<void>(() => undefined));
+
+        const res = await service.handleWebhook('abc', callbackInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expectDroppedAck();
+      });
+
       it('수신 확인이 실패해도 ignored 로 답하고 로그만 남긴다', async () => {
         mockAdapter.parseUpdate.mockResolvedValue(callbackUpdate);
         (
@@ -1900,6 +1913,7 @@ describe('HooksService', () => {
 
         try {
           const res = await service.handleWebhook('abc', callbackInput);
+          await new Promise((resolve) => setImmediate(resolve));
 
           expect(res).toEqual({ executionId: 'ignored' });
           expect(warnSpy).toHaveBeenCalledWith(

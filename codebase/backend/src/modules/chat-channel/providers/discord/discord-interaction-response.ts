@@ -36,7 +36,8 @@ export const DISCORD_HELP_DEFAULTS: Record<LanguageLocale, string> = {
  * Discord interaction 에 3초 안에 200 으로 돌려줄 기본 응답(Spec CLE-CHAT-DISCORD 「인바운드 응답」).
  *
  * - 컴포넌트 클릭(type 3) · 모달 제출(type 5): `{ type: 6 }`(DEFERRED_UPDATE_MESSAGE). 메시지를 바꾸지
- *   않고 받았다는 것만 알린다. type 6 은 모든 MODAL_SUBMIT 과 컴포넌트에 쓸 수 있다.
+ *   않고 받았다는 것만 알린다. type 6 은 컴포넌트(버튼)와
+ *   버튼에서 연 모달의 제출에만 쓸 수 있다. 이 제품의 모달은 모두 버튼에서 연다.
  * - 슬래시 명령(type 2): 본인에게만 보이는 `{ type: 4 }`. `help` 는 도움말
  *   (`languageHints.help` 나 기본 문구), 나머지는 수신 문구(`languageHints.commandReceived` 나 기본
  *   문구)다. type 6 은 슬래시 명령에 쓸 수 없다. 2026-11-12 사람 결정(NERV Task `CLE-T-TSEP9G`).

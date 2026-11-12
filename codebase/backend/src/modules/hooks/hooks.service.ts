@@ -37,6 +37,7 @@ import {
   CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
 } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
+import { isDiscordPing } from '../chat-channel/providers/discord/discord-update.parser';
 import {
   ChannelUpdate,
   ChatChannelAdapter,
@@ -425,26 +426,30 @@ export class HooksService {
 
   /**
    * 버린 update 를 `{ executionId: 'ignored' }` 로 끝낸다. 그 전에 프로바이더가 요구하는 수신 확인을
-   * 보낸다(Telegram 버튼 클릭의 `answerCallbackQuery`, 키보드는 남긴다). 수신 확인이 실패해도 처리를
-   * 막지 않고 로그만 남긴다. 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011, NERV Task `CLE-T-K8Z2W0`.
+   * 보낸다(Telegram 버튼 클릭의 `answerCallbackQuery`, 키보드는 남긴다). 수신 확인은 응답을 기다리게
+   * 하지 않는다(WH-NF-01, Task `CLE-T-K8Z2W0` 경계). 보내기만 하고 끝나기를 기다리지 않으며, 실패는
+   * 경고 로그만 남기고 삼킨다. 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011.
    */
-  private async dropChatChannelUpdate(
+  private dropChatChannelUpdate(
     input: WebhookInput,
     config: ChatChannelConfig,
     adapter: ChatChannelAdapter,
   ): Promise<ChatChannelWebhookResult> {
     if (adapter.ackDroppedUpdate) {
-      try {
-        await adapter.ackDroppedUpdate(input.body, config);
-      } catch (err) {
+      const warn = (err: unknown): void => {
         this.logger.warn(
           `chat-channel 버린 update 의 수신 확인 실패(무시, provider=${config.provider}): ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
+      };
+      try {
+        void adapter.ackDroppedUpdate(input.body, config).catch(warn);
+      } catch (err) {
+        warn(err);
       }
     }
-    return { executionId: 'ignored' };
+    return Promise.resolve({ executionId: 'ignored' });
   }
 
   /**
@@ -1509,15 +1514,6 @@ function isEnqueueFailedError(err: unknown): boolean {
 function isSlackUrlVerification(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 'url_verification';
-}
-
-/**
- * Discord Interactions Webhook PING (type=1) envelope 여부 — controller 가 `{ type: 1 }`
- * 200 응답으로 handshake 처리하기 위한 분기. Spec [providers/discord §3.1].
- */
-function isDiscordPing(body: unknown): boolean {
-  if (!body || typeof body !== 'object') return false;
-  return (body as { type?: unknown }).type === 1;
 }
 
 /**

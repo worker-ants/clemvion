@@ -23,6 +23,7 @@ import {
   isDiscordApiError,
   type DiscordApiError,
   type DiscordMessage,
+  DISCORD_COMPONENT_TYPE,
 } from './discord.types';
 import { renderDiscordEvent } from './discord-message.renderer';
 import { parseDiscordUpdate } from './discord-update.parser';
@@ -337,10 +338,10 @@ export class DiscordAdapter implements NativeFormAdapter {
           ),
           components: [
             {
-              type: 1,
+              type: DISCORD_COMPONENT_TYPE.ACTION_ROW,
               components: [
                 {
-                  type: 4,
+                  type: DISCORD_COMPONENT_TYPE.TEXT_INPUT,
                   custom_id: 'message',
                   label:
                     params.config.languageHints?.replyModalLabel ?? '메시지',
@@ -366,10 +367,10 @@ export class DiscordAdapter implements NativeFormAdapter {
         components: params.fields
           .slice(0, NATIVE_MODAL_MAX_FIELDS)
           .map((f) => ({
-            type: 1,
+            type: DISCORD_COMPONENT_TYPE.ACTION_ROW,
             components: [
               {
-                type: 4,
+                type: DISCORD_COMPONENT_TYPE.TEXT_INPUT,
                 custom_id: f.name,
                 label: f.label,
                 style: f.type === 'textarea' ? 2 : 1,
