@@ -176,6 +176,14 @@ function sanitizeGeminiSchema(input: unknown): Record<string, unknown> | null {
   return out;
 }
 
+/**
+ * Gemini Developer API 버전. SDK 기본값에 맡기지 않고 v1beta 로 고정한다.
+ * `@google/genai` 3.0 부터 기본값이 v1beta 에서 v1 으로 바뀌었는데, 우리가 쓰는
+ * 임베딩(taskType) · thoughtSignature · functionCall.id · `*-latest` 별칭 모델이
+ * v1 에서 되는지 아직 확인하지 않았다. v1 이전은 NERV Task CLE-T-752NN3.
+ */
+const GEMINI_API_VERSION = 'v1beta';
+
 export class GoogleClient implements LLMClient {
   private readonly ai: GoogleGenAI;
   private readonly logger = new Logger(GoogleClient.name);
@@ -184,7 +192,7 @@ export class GoogleClient implements LLMClient {
     apiKey: string,
     private readonly defaultModel: string,
   ) {
-    this.ai = new GoogleGenAI({ apiKey });
+    this.ai = new GoogleGenAI({ apiKey, apiVersion: GEMINI_API_VERSION });
   }
 
   private buildToolConfig(params: ChatParams):
