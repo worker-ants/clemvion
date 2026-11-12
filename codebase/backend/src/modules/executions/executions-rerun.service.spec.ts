@@ -332,7 +332,9 @@ describe('ExecutionsService — reRun (decision F2)', () => {
       let level = 0;
       nodeRepo.find.mockImplementation(() => {
         level += 1;
-        return Promise.resolve([subWorkflowNode(`n${level}`, `wf-deep-${level}`)]);
+        return Promise.resolve([
+          subWorkflowNode(`n${level}`, `wf-deep-${level}`),
+        ]);
       });
 
       await service.reRun('e1', 'ws-1', user, { dryRun: true });

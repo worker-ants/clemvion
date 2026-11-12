@@ -359,8 +359,7 @@ describe('Execution Re-run (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send({});
     expect(exec.status).toBe(202);
-    const originalId = (exec.body.data as { executionId: string })
-      .executionId;
+    const originalId = (exec.body.data as { executionId: string }).executionId;
     await pollExecution(originalId, ownerToken, workspaceId, isTerminal);
     const originalChildren = await childOf(originalId);
     expect(originalChildren).toHaveLength(1);
