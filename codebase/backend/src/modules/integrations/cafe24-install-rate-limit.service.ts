@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * Cafe24 install endpoint 의 token oracle enumeration 방어 — 실패 시도 페널티
@@ -29,6 +30,9 @@ import Redis from 'ioredis';
  *   `recordFailure`=no-op). nonce-cache 와 동일한 graceful degradation — in-memory 등가물이
  *   없는 순수 강화 layer 라, Redis 부재 시 차단을 끄고 기존 정책(±5분 윈도우 + capability-token)
  *   으로 회귀하는 게 정상 install 을 막지 않아 안전하다 (가용성 우선).
+ * - Redis 명령 오류로 물러난 경우는 `clemvion.redis.fail_open{component=cafe24_install_lockout}`
+ *   카운터에 한 번 센다. `isLockedOut` 의 GET 실패는 `get_failed`, `recordFailure` 의 INCR 실패는
+ *   `incr_failed` 다. Redis 미설정 · 생성자의 Redis 초기화 실패 · `close()` 의 quit 실패는 세지 않는다.
  *
  * 본 서비스는 install endpoint 의 미인증 IP throttle (Layer 1, `@Throttle({ limit: 30,
  * ttl: 60_000 })`) 위에 얹는 보강이다. Layer 1 의 Redis 분산 store 이전은 전역 storage
@@ -78,6 +82,7 @@ export class Cafe24InstallRateLimitService implements OnModuleDestroy {
     @Optional()
     @Inject('CAFE24_INSTALL_RATE_LIMIT_REDIS')
     injectedRedis?: Redis,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     if (injectedRedis) {
       // 테스트가 mock redis 를 주입할 수 있게 한다.
@@ -133,6 +138,7 @@ export class Cafe24InstallRateLimitService implements OnModuleDestroy {
       this.logger.warn(
         `Cafe24InstallRateLimitService: isLockedOut 실패 — graceful degradation(fail-open): ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('cafe24_install_lockout', 'get_failed');
       return false;
     }
   }
@@ -154,6 +160,10 @@ export class Cafe24InstallRateLimitService implements OnModuleDestroy {
     } catch (err) {
       this.logger.warn(
         `Cafe24InstallRateLimitService: recordFailure 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'cafe24_install_lockout',
+        'incr_failed',
       );
     }
   }

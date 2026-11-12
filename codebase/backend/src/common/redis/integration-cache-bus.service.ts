@@ -3,9 +3,11 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { RedisConnectionProvider } from './redis-connection.provider';
+import { BusinessMetricsService } from '../../modules/metrics/business-metrics.service';
 
 /**
  * 인스턴스-로컬 자격증명 캐시를 integrationId 단위로 evict 하는 콜백.
@@ -37,6 +39,9 @@ export const INTEGRATION_CACHE_INVALIDATE_CHANNEL =
  * **fail-safe**: pub/sub 는 즉시성 보강 계층일 뿐이다 — Redis 순단으로 메시지가
  * 유실돼도 각 핸들러의 credsHash 비교 evict 가 다음 실행에서 stale 자원을 교체하므로
  * 정합성은 깨지지 않는다(안전 degrade). 따라서 모든 pub/sub 실패는 경고만 남기고 삼킨다.
+ * 삼킨 실패는 `clemvion.redis.fail_open{component=integration_cache_bus}` 카운터에 한 번 센다.
+ * PUBLISH 실패는 `publish_failed`, SUBSCRIBE 실패와 구독 연결 `'error'` 는 `subscribe_failed` 다.
+ * invalidator(핸들러) 오류 · 구독 연결 quit 실패 · Redis 미설정은 세지 않는다.
  *
  * **연결 분리**: 기존 공유 Redis 연결은 command-only 라 단일 연결 multiplexing 안전성을
  * 위해 SUBSCRIBE 를 보내지 않는다 (구독은 연결을 subscriber 모드로 전환). 따라서 구독은
@@ -48,7 +53,10 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
   private readonly invalidators = new Set<IntegrationCacheInvalidator>();
   private subscriber: Redis | null = null;
 
-  constructor(private readonly redis: RedisConnectionProvider) {}
+  constructor(
+    private readonly redis: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
+  ) {}
 
   /**
    * 인스턴스-로컬 자격증명 캐시 evict 콜백을 등록한다. 핸들러가 부팅 시 1회 호출
@@ -73,6 +81,10 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
         `integration cache invalidate publish 실패 (${integrationId}): ${errMessage(
           err,
         )}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'integration_cache_bus',
+        'publish_failed',
       );
     }
   }
@@ -100,6 +112,10 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `integration cache subscriber 연결 오류: ${err.message}`,
       );
+      this.metrics?.recordRedisFailOpen(
+        'integration_cache_bus',
+        'subscribe_failed',
+      );
     });
     sub.on('message', (channel: string, message: string) => {
       if (channel !== INTEGRATION_CACHE_INVALIDATE_CHANNEL) return;
@@ -113,6 +129,10 @@ export class IntegrationCacheBus implements OnModuleInit, OnModuleDestroy {
           `integration cache 채널 구독 실패(로컬 evict 로 degrade): ${errMessage(
             err,
           )}`,
+        );
+        this.metrics?.recordRedisFailOpen(
+          'integration_cache_bus',
+          'subscribe_failed',
         );
       });
     this.subscriber = sub;

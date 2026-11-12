@@ -19,7 +19,8 @@ describe('Health probe (e2e)', () => {
     const res = await request(BASE_URL).get('/api/health');
     expect(res.status).toBe(200);
     // TransformInterceptor 가 { data: {...} } 로 감싼다.
-    const body = res.body.data ?? res.body;
+    expect(res.body).toHaveProperty('data');
+    const body = res.body.data;
     expect(body.status).toBe('healthy');
     expect(body.checks.database.status).toBe('healthy');
   });
@@ -27,7 +28,6 @@ describe('Health probe (e2e)', () => {
   it('GET /api/health/live → 200 + status ok (항상)', async () => {
     const res = await request(BASE_URL).get('/api/health/live');
     expect(res.status).toBe(200);
-    const body = res.body.data ?? res.body;
-    expect(body.status).toBe('ok');
+    expect(res.body).toEqual({ data: { status: 'ok' } });
   });
 });

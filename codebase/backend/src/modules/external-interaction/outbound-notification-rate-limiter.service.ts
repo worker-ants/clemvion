@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * Outbound notification 발송 빈도 감지 — **trigger 당 분당 60건** (Spec EIA §8.4 / §3.1
@@ -37,6 +38,7 @@ export class OutboundNotificationRateLimiterService {
     @Inject('OUTBOUND_NOTIF_RL_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
@@ -49,6 +51,8 @@ export class OutboundNotificationRateLimiterService {
   /**
    * trigger 의 이번 발송을 카운트하고 분당 한도 초과 여부를 반환한다.
    * Redis 미가용/오류 시 fail-open → `false`(초과 아님).
+   * Redis 오류(pipeline 거부 · INCR 명령 오류)는 `clemvion.redis.fail_open{component=outbound_rate_limit,
+   * reason=incr_failed}` 로 센다. Redis 미설정(null)은 세지 않는다.
    */
   async consume(triggerId: string): Promise<boolean> {
     if (!this.redis) return false;
@@ -72,6 +76,7 @@ export class OutboundNotificationRateLimiterService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      this.metrics?.recordRedisFailOpen('outbound_rate_limit', 'incr_failed');
       return false;
     }
   }

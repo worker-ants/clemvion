@@ -28,8 +28,15 @@ interface Booted {
   handlers: jest.Mocked<SseFanoutHandlers>;
 }
 
-/** 구독 연결을 테스트가 잡을 수 있게 `duplicate()` 를 가로채고 부팅한다. */
-function boot(server: FakeRedisServer): Booted {
+/** `BusinessMetricsService` 중 이 서비스가 부르는 메서드만. */
+interface MetricsStub {
+  recordRedisFailOpen: jest.Mock;
+}
+
+/**
+ * 구독 연결을 테스트가 잡을 수 있게 `duplicate()` 를 가로채고 부팅한다. `metrics` 를 주면 fail-open 기록을 받는다.
+ */
+function boot(server: FakeRedisServer, metrics?: MetricsStub): Booted {
   const base = server.client();
   const sub = server.client();
   let duplicateOptions: unknown;
@@ -37,9 +44,12 @@ function boot(server: FakeRedisServer): Booted {
     duplicateOptions = options;
     return sub;
   };
-  const service = new SseFanoutService({
-    getClientOrNull: () => base as unknown as Redis,
-  } as unknown as RedisConnectionProvider);
+  const service = new SseFanoutService(
+    {
+      getClientOrNull: () => base as unknown as Redis,
+    } as unknown as RedisConnectionProvider,
+    metrics as never,
+  );
   service.onModuleInit();
   const handlers = {
     onLiveEvent: jest.fn(),
@@ -851,5 +861,369 @@ describe('SseFanoutService', () => {
       await flush();
       expect(warnings('연결 상한')).toHaveLength(3);
     });
+  });
+});
+
+/**
+ * Redis 강등이 `clemvion.redis.fail_open` 카운터에 `sse_fanout/<reason>` 으로 잡히는지 본다. 경고 로그는 같은 실패 종류마다
+ * 복구 전까지 한 번만 남지만 카운터는 실패마다 오른다. 반환값은 위 블록이 고정한 실패 값 그대로여야 한다.
+ */
+describe('SseFanoutService — fail-open 관측 (metrics)', () => {
+  let server: FakeRedisServer;
+  let metrics: MetricsStub;
+  let warn: jest.SpyInstance;
+  let log: jest.SpyInstance;
+  let error: jest.SpyInstance;
+
+  beforeEach(() => {
+    server = new FakeRedisServer();
+    metrics = { recordRedisFailOpen: jest.fn() };
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    log = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    warn.mockRestore();
+    log.mockRestore();
+    error.mockRestore();
+  });
+
+  function warnings(op: string): unknown[][] {
+    return warn.mock.calls.filter(([m]) => String(m).includes(op));
+  }
+
+  function expectRecordedOnce(reason: string): void {
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'sse_fanout',
+      reason,
+    );
+  }
+
+  describe('subscribe_failed', () => {
+    it('구독 연결 오류는 경고를 한 번만 남겨도 오류마다 센다', () => {
+      const { sub } = boot(server, metrics);
+      sub.emit('error', new Error('ECONNRESET'));
+      sub.emit('error', new Error('ECONNRESET'));
+      expect(warnings('구독 연결')).toHaveLength(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(2);
+      expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+        1,
+        'sse_fanout',
+        'subscribe_failed',
+      );
+      expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+        2,
+        'sse_fanout',
+        'subscribe_failed',
+      );
+    });
+
+    it('부팅 때 닫기 채널 SUBSCRIBE 가 실패하면 센다', async () => {
+      server.failing = true;
+      boot(server, metrics);
+      await flush();
+      expectRecordedOnce('subscribe_failed');
+    });
+
+    it('live 채널 SUBSCRIBE 가 실패하면 false 이고 센다', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      server.failing = true;
+      expect(await service.retainLive('exec-1')).toBe(false);
+      expectRecordedOnce('subscribe_failed');
+    });
+
+    it('live 채널 SUBSCRIBE 가 2초를 넘기면 한 번 세고 늦은 확인은 더 세지 않는다', async () => {
+      jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick'] });
+      try {
+        const { service, sub } = boot(server, metrics);
+        await flushMicrotasks();
+        let resolve: (n: number) => void = () => undefined;
+        sub.subscribe = () =>
+          new Promise<number>((r) => {
+            resolve = r;
+          });
+        const confirmed = service.retainLive('exec-1');
+        await jest.advanceTimersByTimeAsync(2_000);
+        expect(await confirmed).toBe(false);
+        resolve(1);
+        await flushMicrotasks();
+        expectRecordedOnce('subscribe_failed');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('live 채널 UNSUBSCRIBE 가 실패하면 센다', async () => {
+      const { service, sub } = boot(server, metrics);
+      expect(await service.retainLive('exec-1')).toBe(true);
+      sub.unsubscribe = () => Promise.reject(new Error('ECONNRESET'));
+      service.releaseLive('exec-1');
+      await flush();
+      expectRecordedOnce('subscribe_failed');
+    });
+
+    it('ready 뒤 재구독이 실패하면 센다', async () => {
+      const { service, sub } = boot(server, metrics);
+      await service.retainLive('exec-1');
+      server.failing = true;
+      sub.emit('ready');
+      await flush();
+      expectRecordedOnce('subscribe_failed');
+    });
+  });
+
+  describe('append', () => {
+    it.each<[string, string, string, (s: FakeRedisServer) => void]>([
+      [
+        'pipeline exec 가 reject',
+        'failed',
+        'write_failed',
+        (s) => {
+          s.failing = true;
+        },
+      ],
+      [
+        'XADD 명령 오류',
+        'failed',
+        'write_failed',
+        (s) => {
+          s.failPipelineCommands.add('xadd');
+        },
+      ],
+      [
+        'exec() 가 결과 없이 끝남',
+        'failed',
+        'write_failed',
+        (s) => {
+          s.pipelineExecReturnsNull = true;
+        },
+      ],
+      [
+        'PEXPIRE 만 실패',
+        'stored',
+        'write_failed',
+        (s) => {
+          s.failPipelineCommands.add('pexpire');
+        },
+      ],
+      [
+        'PUBLISH 만 실패',
+        'stored',
+        'publish_failed',
+        (s) => {
+          s.failPipelineCommands.add('publish');
+        },
+      ],
+      [
+        'PEXPIRE 와 PUBLISH 가 함께 실패',
+        'stored',
+        'publish_failed',
+        (s) => {
+          s.failPipelineCommands.add('pexpire');
+          s.failPipelineCommands.add('publish');
+        },
+      ],
+    ])('%s → %s 이고 %s 를 한 번 센다', async (_, result, reason, fail) => {
+      const { service } = boot(server, metrics);
+      await flush();
+      fail(server);
+      expect(await service.append(ev(1))).toBe(result);
+      expectRecordedOnce(reason);
+    });
+
+    it('경고는 복구 전까지 한 번이어도 실패마다 센다', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      server.failing = true;
+      expect(await service.append(ev(1))).toBe('failed');
+      expect(await service.append(ev(2))).toBe('failed');
+      expect(warnings('버퍼 쓰기')).toHaveLength(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(2);
+      expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+        2,
+        'sse_fanout',
+        'write_failed',
+      );
+    });
+
+    it('JSON 으로 바꾸지 못하는 payload 는 Redis 실패가 아니라 세지 않는다 (failed · 경고 · 복구는 그대로)', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      const unserializable: ExecutionChannelEvent = {
+        executionId: 'exec-1',
+        eventType: 'execution.node.started',
+        seq: 1,
+        payload: { big: BigInt(1) },
+      };
+      expect(await service.append(unserializable)).toBe('failed');
+      expect(warnings('버퍼 쓰기')).toHaveLength(1);
+      expect(await service.append(ev(2))).toBe('stored');
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('버퍼 쓰기 복구'),
+      );
+      expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('read_failed', () => {
+    it('readBuffer 의 XRANGE 가 실패하면 null 이고 센다', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      server.failing = true;
+      expect(await service.readBuffer('exec-1')).toBeNull();
+      expectRecordedOnce('read_failed');
+    });
+
+    it('readLatestSeq 의 GET 이 실패하면 null 이고 센다', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      server.failing = true;
+      expect(await service.readLatestSeq('exec-1')).toBeNull();
+      expectRecordedOnce('read_failed');
+    });
+  });
+
+  describe('slot_failed', () => {
+    it('acquireSlot 의 EVAL 이 실패하면 null 이고 센다', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      server.failing = true;
+      expect(await service.acquireSlot('exec-1', 's1', 3)).toBeNull();
+      expectRecordedOnce('slot_failed');
+    });
+
+    it.each<[string, (s: FakeRedisServer) => void]>([
+      [
+        'exec 가 reject',
+        (s) => {
+          s.failing = true;
+        },
+      ],
+      [
+        'ZADD 명령 오류',
+        (s) => {
+          s.failPipelineCommands.add('zadd');
+        },
+      ],
+      [
+        'PEXPIRE 명령 오류',
+        (s) => {
+          s.failPipelineCommands.add('pexpire');
+        },
+      ],
+      [
+        'exec() 가 결과 없이 끝남',
+        (s) => {
+          s.pipelineExecReturnsNull = true;
+        },
+      ],
+    ])('refreshSlot: %s → 한 번 센다', async (_, fail) => {
+      const { service } = boot(server, metrics);
+      await service.acquireSlot('exec-1', 's1', 3);
+      fail(server);
+      service.refreshSlot('exec-1', 's1');
+      await flush();
+      expectRecordedOnce('slot_failed');
+    });
+
+    it('releaseSlot 의 ZREM 이 실패하면 센다', async () => {
+      const { service } = boot(server, metrics);
+      await service.acquireSlot('exec-1', 's1', 3);
+      server.failing = true;
+      service.releaseSlot('exec-1', 's1');
+      await flush();
+      expectRecordedOnce('slot_failed');
+    });
+  });
+
+  describe('publish_failed (닫기 신호)', () => {
+    it('publishClose 실패는 던지지 않고 호출마다 센다', async () => {
+      const { service } = boot(server, metrics);
+      await flush();
+      server.failing = true;
+      await expect(service.publishClose([TRIGGER_1])).resolves.toBeUndefined();
+      await service.publishClose([TRIGGER_1]);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(2);
+      expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+        1,
+        'sse_fanout',
+        'publish_failed',
+      );
+      expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+        2,
+        'sse_fanout',
+        'publish_failed',
+      );
+    });
+  });
+
+  it('성공 경로에서는 기록하지 않는다', async () => {
+    const { service, sub } = boot(server, metrics);
+    await flush();
+    expect(await service.append(ev(1))).toBe('stored');
+    expect(await service.readBuffer('exec-1')).not.toBeNull();
+    server.strings.set('exec:seq:exec-1', '1');
+    expect(await service.readLatestSeq('exec-1')).toBe(1);
+    expect(await service.retainLive('exec-1')).toBe(true);
+    sub.emit('ready');
+    await flush();
+    service.releaseLive('exec-1');
+    await service.publishClose([TRIGGER_1]);
+    expect(await service.acquireSlot('exec-1', 's1', 3)).toBe(true);
+    service.refreshSlot('exec-1', 's1');
+    service.releaseSlot('exec-1', 's1');
+    await flush();
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 없이 부팅하면 모든 명령이 실패 값이어도 기록하지 않는다', async () => {
+    const service = new SseFanoutService(
+      { getClientOrNull: () => null } as unknown as RedisConnectionProvider,
+      metrics as never,
+    );
+    service.onModuleInit();
+    expect(await service.append(ev(1))).toBe('failed');
+    expect(await service.readBuffer('exec-1')).toBeNull();
+    expect(await service.readLatestSeq('exec-1')).toBeNull();
+    expect(await service.retainLive('exec-1')).toBe(false);
+    expect(await service.acquireSlot('exec-1', 's1', 3)).toBeNull();
+    await service.publishClose([TRIGGER_1]);
+    service.releaseLive('exec-1');
+    service.refreshSlot('exec-1', 's1');
+    service.releaseSlot('exec-1', 's1');
+    await flush();
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('구독 연결 quit 실패는 세지 않는다', async () => {
+    const { service, sub } = boot(server, metrics);
+    await flush();
+    sub.quit = () => Promise.reject(new Error('ECONNRESET'));
+    await expect(service.onModuleDestroy()).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const { service, sub } = boot(server);
+    await flush();
+    server.failing = true;
+    sub.emit('error', new Error('ECONNRESET'));
+    expect(await service.append(ev(1))).toBe('failed');
+    expect(await service.readBuffer('exec-1')).toBeNull();
+    expect(await service.readLatestSeq('exec-1')).toBeNull();
+    expect(await service.retainLive('exec-1')).toBe(false);
+    expect(await service.acquireSlot('exec-1', 's1', 3)).toBeNull();
+    await expect(service.publishClose([TRIGGER_1])).resolves.toBeUndefined();
+    service.refreshSlot('exec-1', 's1');
+    service.releaseSlot('exec-1', 's1');
+    await flush();
   });
 });

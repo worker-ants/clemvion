@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import { ChannelConversationState } from './types';
 
 /**
@@ -32,6 +33,11 @@ export const RELEASE_LOCK_SCRIPT =
  *
  * Redis 미가용 시 graceful degradation — lookup 은 null, upsert 는 noop (워크플로우 실행 자체
  * 차단 회피). 본 케이스에서는 매 update 가 새 execution 으로 처리됨 (fallback).
+ *
+ * Redis 오류로 삼킨 실패는 `clemvion.redis.fail_open` 카운터에 `chat_conversation` 으로 센다.
+ * reason 은 메서드마다 다르다(lookup `get_failed` · upsert `set_failed` · clear `del_failed` ·
+ * clearExecutionIdIfMatches `cas_failed` · acquireLock `lock_failed` · releaseLock `unlock_failed`).
+ * Redis 미설정, compare-and-set 재시도 소진, 저장된 값의 JSON 손상은 Redis 실패가 아니라 세지 않는다.
  */
 @Injectable()
 export class ChannelConversationService {
@@ -47,6 +53,7 @@ export class ChannelConversationService {
     @Inject('CHAT_CHANNEL_CONVERSATION_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     // 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
     // 미가용 시 null 로 degrade — lookup null / upsert noop (graceful degradation).
@@ -76,6 +83,10 @@ export class ChannelConversationService {
       this.logger.warn(
         `ChannelConversationService.lookup 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
       );
+      // 저장된 값이 JSON 이 아니면(JSON.parse 의 SyntaxError) Redis 실패가 아니라 세지 않는다.
+      if (!(err instanceof SyntaxError)) {
+        this.metrics?.recordRedisFailOpen('chat_conversation', 'get_failed');
+      }
       return null;
     }
   }
@@ -101,6 +112,7 @@ export class ChannelConversationService {
       this.logger.warn(
         `ChannelConversationService.upsert 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_conversation', 'set_failed');
     }
   }
 
@@ -117,6 +129,7 @@ export class ChannelConversationService {
       this.logger.warn(
         `ChannelConversationService.clear 실패: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_conversation', 'del_failed');
     }
   }
 
@@ -166,6 +179,10 @@ export class ChannelConversationService {
       this.logger.warn(
         `ChannelConversationService.clearExecutionIdIfMatches 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
       );
+      // 읽기(GET)와 교체(EVAL) 실패를 함께 센다. 저장된 값의 JSON 손상(SyntaxError)은 세지 않는다.
+      if (!(err instanceof SyntaxError)) {
+        this.metrics?.recordRedisFailOpen('chat_conversation', 'cas_failed');
+      }
       return false;
     }
   }
@@ -196,6 +213,7 @@ export class ChannelConversationService {
       this.logger.warn(
         `ChannelConversationService.acquireLock 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_conversation', 'lock_failed');
       return true;
     }
   }
@@ -218,6 +236,7 @@ export class ChannelConversationService {
       this.logger.warn(
         `ChannelConversationService.releaseLock 실패 (TTL 로 자연 만료): ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_conversation', 'unlock_failed');
     }
   }
 

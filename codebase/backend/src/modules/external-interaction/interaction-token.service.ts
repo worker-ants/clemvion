@@ -15,6 +15,7 @@ import { ExecutionToken } from './entities/execution-token.entity';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { WEBCHAT_IDLE_REAP_BATCH_LIMIT } from './webchat-idle-reaper.types';
 import { processInBatches } from '../../common/utils/process-in-batches';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -27,6 +28,8 @@ import { processInBatches } from '../../common/utils/process-in-batches';
  * Redis 가 down 인 경우 `blacklist` 검사 자체가 fail-open (graceful degrade) — 단명 토큰의 위험은
  * 제한적이지만, 보안 핵심 경로이므로 로그로 명시 경고를 남긴다. 본 정책은 [Spec EIA §8.3] 의
  * "execution 종료 시 즉시 blacklist 등록" 의무가 만족되지 않는 환경에서도 시스템이 멈추지 않도록 함.
+ * blacklist 명령이 실패해 넘어간 건은 `clemvion.redis.fail_open{component=token_blacklist}` 로 센다
+ * (GET 실패 `get_failed`, SET 실패 `set_failed`). Redis 미설정 · `execution_token` 테이블 오류는 세지 않는다.
  */
 
 export const IEXT_PREFIX = 'iext_';
@@ -119,6 +122,7 @@ export class InteractionTokenService {
     @InjectRepository(ExecutionToken)
     private readonly executionTokenRepository?: Repository<ExecutionToken>,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     // Redis: 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
     // 미가용(config 누락/장애) 시 null 로 degrade — blacklist 검사 fail-open (위 클래스 주석).
@@ -250,6 +254,7 @@ export class InteractionTokenService {
         this.logger.warn(
           `InteractionTokenService: blacklist GET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
         );
+        this.metrics?.recordRedisFailOpen('token_blacklist', 'get_failed');
       }
     }
     return { valid: true, executionId: sub, jti };
@@ -278,6 +283,7 @@ export class InteractionTokenService {
       this.logger.warn(
         `InteractionTokenService: blacklist SET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('token_blacklist', 'set_failed');
     }
   }
 

@@ -3,12 +3,17 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { validate as isUuid } from 'uuid';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { TimeoutError, withTimeout } from '../../common/utils/with-timeout';
+import {
+  BusinessMetricsService,
+  type RedisFailOpenReason,
+} from '../metrics/business-metrics.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 // 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P`.
@@ -152,6 +157,9 @@ export interface SseFanoutHandlers {
  * **실패 정책**: 부팅 때 Redis 가 없으면(`getClientOrNull()` 이 `null`) 아무것도 하지 않는다. 명령이 실패하면 호출자에게
  * 실패를 값(`false` · `null`)으로 알리고 던지지 않는다. 호출자(`SseAdapter`)는 이 서버 인스턴스의 메모리로 동작한다.
  * 경고는 실패 종류마다 한 번만 남기고 그 종류가 다시 성공하면 복구를 남긴다.
+ * 카운터 `clemvion.redis.fail_open{component=sse_fanout}` 는 경고 억제와 따로 실패마다 오른다. reason 은 버퍼 쓰기 ·
+ * TTL(`write_failed`), 버퍼 · 순번 읽기(`read_failed`), 연결 상한(`slot_failed`), live · 닫기 신호 발행(`publish_failed`),
+ * 구독 연결 · 구독 · 구독 해제 · 재구독(`subscribe_failed`)이다. Redis 미설정 · JSON 변환 실패 · quit 실패는 세지 않는다.
  */
 @Injectable()
 export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
@@ -174,7 +182,10 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
   /** 경고를 남긴 실패 종류. 같은 종류가 다시 성공할 때까지 경고를 다시 남기지 않는다. */
   private readonly degradedOps = new Set<string>();
 
-  constructor(private readonly redis: RedisConnectionProvider) {}
+  constructor(
+    private readonly redis: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
+  ) {}
 
   onModuleInit(): void {
     const base = this.redis.getClientOrNull();
@@ -188,7 +199,9 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     const sub = base.duplicate({
       connectionName: SSE_SUBSCRIBER_CONNECTION_NAME,
     });
-    sub.on('error', (err: Error) => this.degrade('구독 연결', err));
+    sub.on('error', (err: Error) =>
+      this.degrade('구독 연결', 'subscribe_failed', err),
+    );
     sub.on('message', (channel: string, message: string) =>
       this.onMessage(channel, message),
     );
@@ -201,7 +214,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       readyBefore = true;
     });
     sub.subscribe(SSE_CLOSE_CHANNEL).catch((err: unknown) => {
-      this.degrade('닫기 채널 구독', err);
+      this.degrade('닫기 채널 구독', 'subscribe_failed', err);
     });
     this.subscriber = sub;
   }
@@ -235,8 +248,15 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
   async append(event: ExecutionChannelEvent): Promise<SseAppendResult> {
     const client = this.client;
     if (!client) return 'failed';
+    let message: string;
     try {
-      let message = this.encodeEvent(event);
+      message = this.encodeEvent(event);
+    } catch (err) {
+      // JSON 변환 실패는 Redis 실패가 아니라 카운터에 세지 않는다. 경고와 복구 로그는 버퍼 쓰기 실패와 같이 남긴다.
+      this.markDegraded('버퍼 쓰기', err);
+      return 'failed';
+    }
+    try {
       let result: SseAppendResult = 'stored';
       if (
         !SSE_TERMINAL_EVENT_TYPES.has(event.eventType) &&
@@ -266,7 +286,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
         ? results[0]?.[0]
         : new Error('pipeline 결과 없음');
       if (!results || xaddError) {
-        this.degrade('버퍼 쓰기', xaddError);
+        this.degrade('버퍼 쓰기', 'write_failed', xaddError);
         return 'failed';
       }
       this.recover('버퍼 쓰기');
@@ -274,13 +294,19 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       // 클라이언트가 Last-Event-Id 로 다시 연결해 replay 로 받는다.
       const restError = results.slice(1).find(([err]) => err)?.[0];
       if (restError) {
-        this.degrade('버퍼 TTL · 발행', restError);
+        // 카운터는 PUBLISH 가 실패했으면 발행 실패로, PEXPIRE 만 실패했으면 버퍼 쓰기 실패로 센다. 둘 다 실패해도 한 번이다.
+        const publishFailed = Boolean(results[2]?.[0]);
+        this.degrade(
+          '버퍼 TTL · 발행',
+          publishFailed ? 'publish_failed' : 'write_failed',
+          restError,
+        );
       } else {
         this.recover('버퍼 TTL · 발행');
       }
       return result;
     } catch (err) {
-      this.degrade('버퍼 쓰기', err);
+      this.degrade('버퍼 쓰기', 'write_failed', err);
       return 'failed';
     }
   }
@@ -307,7 +333,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       );
       this.recover('버퍼 읽기');
     } catch (err) {
-      this.degrade('버퍼 읽기', err);
+      this.degrade('버퍼 읽기', 'read_failed', err);
       return null;
     }
     const events: BufferedSseEvent[] = [];
@@ -348,7 +374,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       const seq = raw === null ? NaN : Number(raw);
       return Number.isSafeInteger(seq) ? seq : null;
     } catch (err) {
-      this.degrade('순번 읽기', err);
+      this.degrade('순번 읽기', 'read_failed', err);
       return null;
     }
   }
@@ -381,7 +407,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       },
       (err: unknown) => {
         timedOut = err instanceof TimeoutError;
-        this.degrade('live 채널 구독', err);
+        this.degrade('live 채널 구독', 'subscribe_failed', err);
         return false;
       },
     );
@@ -410,7 +436,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     const sub = this.subscriber;
     if (!sub) return;
     sub.unsubscribe(sseLiveChannel(executionId)).catch((err: unknown) => {
-      this.degrade('live 채널 구독 해제', err);
+      this.degrade('live 채널 구독 해제', 'subscribe_failed', err);
     });
   }
 
@@ -440,6 +466,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `EIA SSE Redis 닫기 신호 발행 실패 — 다른 서버 인스턴스의 트리거 단위 토큰 스트림은 토큰 재확인 때 닫힌다. triggerIds=${triggerIds.join(',')}: ${errMessage(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('sse_fanout', 'publish_failed');
     }
   }
 
@@ -473,7 +500,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       this.recover('연결 상한');
       return Number(acquired) === 1;
     } catch (err) {
-      this.degrade('연결 상한', err);
+      this.degrade('연결 상한', 'slot_failed', err);
       return null;
     }
   }
@@ -495,12 +522,14 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
           ? results.find(([err]) => err)?.[0]
           : new Error('pipeline 결과 없음');
         if (failure) {
-          this.degrade('연결 상한 갱신', failure);
+          this.degrade('연결 상한 갱신', 'slot_failed', failure);
         } else {
           this.recover('연결 상한 갱신');
         }
       })
-      .catch((err: unknown) => this.degrade('연결 상한 갱신', err));
+      .catch((err: unknown) =>
+        this.degrade('연결 상한 갱신', 'slot_failed', err),
+      );
   }
 
   /** 연결이 끝나면 부른다. 지우지 못해도 TTL 이 지나면 다음 연결 때 지워진다. */
@@ -509,7 +538,9 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     if (!client) return;
     client
       .zrem(sseConnectionSlotsKey(executionId), subscriberId)
-      .catch((err: unknown) => this.degrade('연결 상한 해제', err));
+      .catch((err: unknown) =>
+        this.degrade('연결 상한 해제', 'slot_failed', err),
+      );
   }
 
   /**
@@ -527,7 +558,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
         if (still.length > 0) this.handlers?.onLiveResumed(still);
       },
       (err: unknown) => {
-        this.degrade('재구독', err);
+        this.degrade('재구독', 'subscribe_failed', err);
       },
     );
   }
@@ -639,7 +670,21 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     return ids as string[];
   }
 
-  private degrade(op: string, err: unknown): void {
+  /**
+   * Redis 명령 실패로 메모리 동작으로 넘어간다. 카운터는 경고 억제와 따로 실패마다 센다. 경고는 {@link markDegraded} 가
+   * 실패 종류(`op`)마다 복구 전까지 한 번만 남긴다. `reason` 은 호출부마다 리터럴로 넘긴다(라벨 쌍 가드가 호출부를 읽는다).
+   */
+  private degrade(
+    op: string,
+    reason: RedisFailOpenReason<'sse_fanout'>,
+    err: unknown,
+  ): void {
+    this.metrics?.recordRedisFailOpen('sse_fanout', reason);
+    this.markDegraded(op, err);
+  }
+
+  /** 실패 종류를 기록하고 경고를 남긴다. 같은 종류가 복구되기 전이면 다시 남기지 않는다. 카운터는 세지 않는다. */
+  private markDegraded(op: string, err: unknown): void {
     if (this.degradedOps.has(op)) return;
     this.degradedOps.add(op);
     this.logger.warn(

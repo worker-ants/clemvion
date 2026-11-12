@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * 공개(인증 없음) webhook 남용 방어용 IP 단위 quota 카운터.
@@ -14,6 +15,8 @@ import { RedisConnectionProvider } from '../../common/redis/redis-connection.pro
  * 구현: Redis fixed-window 카운터. pipeline 으로 INCR+EXPIRE 원자화(W7/W15).
  * Redis 미가용/오류 시 **fail-open**(허용) — 정당한 webhook 을 인프라 장애로 깨지 않는다
  * (ChannelConversationService 와 동일 graceful degradation 정책).
+ * Redis 명령 오류로 허용한 경우는 `clemvion.redis.fail_open{component=public_webhook_quota,
+ * reason=incr_failed}` 카운터에 한 번 센다. Redis 미설정(null)으로 허용한 경우는 세지 않는다.
  *
  * DI 토큰(W4): `PUBLIC_WEBHOOK_QUOTA_REDIS` 는 `@Optional()` 로 주입 — 주입 시
  * Redis 인스턴스를 재사용(테스트·공용 RedisModule 연동). 미주입 시
@@ -44,6 +47,7 @@ export class PublicWebhookQuotaService {
     @Inject('PUBLIC_WEBHOOK_QUOTA_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     this.startupPerMinute =
       configService?.get<number>('publicWebhook.startupPerMinute') ??
@@ -95,6 +99,7 @@ export class PublicWebhookQuotaService {
       this.logger.warn(
         `PublicWebhookQuotaService.consumeStart 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('public_webhook_quota', 'incr_failed');
       return { allowed: true, reason: null };
     }
   }

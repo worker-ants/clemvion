@@ -29,21 +29,66 @@ interface LlmTokenUsage {
 }
 
 /**
- * `clemvion.redis.fail_open` 의 라벨 값 — **닫힌 집합**이다.
+ * `clemvion.redis.fail_open` 의 (`component`, `reason`) 라벨 쌍 — **닫힌 집합**이다.
  *
  * Prometheus 라벨은 값마다 시계열이 하나씩 생긴다. 사용자 입력이나 에러 메시지가 여기로
  * 흘러들면 cardinality 가 터지므로, 라벨 값은 코드가 열거한 것만 허용한다. 문자열 타입으로
  * 두면 그 규칙이 주석에만 있고 컴파일러는 아무것도 막지 않는다.
+ *
+ * 키가 `component`, 값이 그 component 가 낼 수 있는 `reason` 이다. component 마다 reason 을
+ * 따로 묶어 두어 "그 서비스에 없는 경로" 의 라벨(예: rate limiter 의 `lock_failed`)이 타입에서
+ * 막힌다. 쌍마다 프로덕션 호출부가 있어야 한다(`redis-fail-open-catalog.spec.ts`). 호출부가
+ * 없는 쌍의 `0` 은 "정상" 인지 "미계측" 인지 구분되지 않기 때문이다.
+ *
+ * reason 은 실패한 Redis 동작이다. 서비스 사이에 같은 이름을 쓴다.
+ * - `get_failed` · `set_failed` · `del_failed`: 값 조회 · 저장 · 삭제
+ * - `incr_failed`: 고정 창 카운터 증가(창 TTL 설정 · 조회 포함)
+ * - `cas_failed`: 비교 후 교체(Lua)
+ * - `lock_failed` · `unlock_failed`: 잠금 획득 · 해제
+ * - `publish_failed` · `subscribe_failed`: pub/sub 발행 · 구독(구독 연결 오류 포함)
+ * - `write_failed` · `read_failed` · `slot_failed`: SSE 버퍼 쓰기 · 읽기, 연결 상한 슬롯
+ * - `serialize_failed` · `entry_corrupt` · `payload_corrupt`: EIA 멱등 캐시 고유
  */
-export type RedisFailOpenComponent = 'idempotency';
+export interface RedisFailOpenReasonMap {
+  idempotency:
+    | 'get_failed'
+    | 'set_failed'
+    | 'serialize_failed'
+    | 'entry_corrupt'
+    | 'payload_corrupt';
+  chat_conversation:
+    | 'get_failed'
+    | 'set_failed'
+    | 'del_failed'
+    | 'cas_failed'
+    | 'lock_failed'
+    | 'unlock_failed';
+  chat_dedup: 'set_failed' | 'del_failed';
+  chat_rate_limit: 'incr_failed';
+  interaction_rate_limit: 'incr_failed';
+  token_blacklist: 'get_failed' | 'set_failed';
+  outbound_rate_limit: 'incr_failed';
+  public_webhook_quota: 'incr_failed';
+  cafe24_install_lockout: 'get_failed' | 'incr_failed';
+  cafe24_install_nonce: 'set_failed';
+  execution_seq: 'incr_failed' | 'del_failed';
+  sse_fanout:
+    | 'write_failed'
+    | 'read_failed'
+    | 'slot_failed'
+    | 'publish_failed'
+    | 'subscribe_failed';
+  integration_cache_bus: 'publish_failed' | 'subscribe_failed';
+  chat_listener_bus: 'publish_failed' | 'subscribe_failed';
+}
 
-/** 강등 원인. `IdempotencyInterceptor` 의 fail-open 다섯 경로에 1:1 대응한다. */
-export type RedisFailOpenReason =
-  | 'get_failed'
-  | 'set_failed'
-  | 'serialize_failed'
-  | 'entry_corrupt'
-  | 'payload_corrupt';
+/** fail-open 으로 물러난 기능. */
+export type RedisFailOpenComponent = keyof RedisFailOpenReasonMap;
+
+/** 강등 원인. component 를 주면 그 component 의 reason 으로 좁혀진다. */
+export type RedisFailOpenReason<
+  C extends RedisFailOpenComponent = RedisFailOpenComponent,
+> = RedisFailOpenReasonMap[C];
 
 /**
  * Prometheus 라벨 값의 상한. 초과분은 잘라 낸다.
@@ -147,11 +192,13 @@ export class BusinessMetricsService {
    * 그 "닫힌 집합" 을 **타입으로 강제한다**. 종전에는 이 문단이 닫혔다고 주장만 하고 시그니처는
    * 평범한 `string` 이라, 호출부가 사용자 입력을 그대로 넘겨도 컴파일러가 막지 않았다
    * (`recordExecutionError` 는 같은 위험을 클램핑으로 실제 방어하는데 이쪽만 무방비였다).
-   * 새 값이 필요하면 아래 유니온에 추가하는 것이 곧 검토 지점이 된다.
+   * 새 값이 필요하면 `RedisFailOpenReasonMap` 에 추가하는 것이 곧 검토 지점이 된다.
+   * `reason` 은 `component` 의 reason 으로 좁혀진다. 그래서 component 인자는 리터럴로 넘긴다.
+   * 유니온 타입 변수를 넘기면 모든 component 의 reason 이 허용된다.
    */
-  recordRedisFailOpen(
-    component: RedisFailOpenComponent,
-    reason: RedisFailOpenReason,
+  recordRedisFailOpen<C extends RedisFailOpenComponent>(
+    component: C,
+    reason: RedisFailOpenReason<C>,
   ): void {
     this.redisFailOpen.add(1, { component, reason });
   }

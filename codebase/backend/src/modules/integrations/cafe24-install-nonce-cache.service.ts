@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * Cafe24 install endpoint 의 timestamp+hmac 재전송 방지 nonce cache.
@@ -20,6 +21,8 @@ import { RedisConnectionProvider } from '../../common/redis/redis-connection.pro
  *   (`isReplay` 가 false 반환). graceful degradation — 보안 강화는 0 이지만
  *   기존 정책 (timestamp 윈도우만) 으로 fallback. 본 cache 가 OFF 여도
  *   spec 의 잔여 위험 절은 그대로 유효.
+ *   SETNX 가 Redis 오류로 실패해 검사를 건너뛴 경우는 `clemvion.redis.fail_open{component=
+ *   cafe24_install_nonce, reason=set_failed}` 카운터에 한 번 센다. Redis 미설정(null)은 세지 않는다.
  *
  * spec/4-nodes/4-integration/4-cafe24.md (HMAC verification / replay 절) 참조.
  */
@@ -35,6 +38,7 @@ export class Cafe24InstallNonceCache {
     @Optional() _configService?: ConfigService,
     @Optional() @Inject('CAFE24_INSTALL_NONCE_REDIS') injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     // 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
     // 미가용 시 null 로 degrade — nonce 검사 skip (graceful degradation).
@@ -69,6 +73,7 @@ export class Cafe24InstallNonceCache {
       this.logger.warn(
         `Cafe24InstallNonceCache: SETNX 실패 — graceful degradation, replay 검사 skip: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('cafe24_install_nonce', 'set_failed');
       return false;
     }
   }

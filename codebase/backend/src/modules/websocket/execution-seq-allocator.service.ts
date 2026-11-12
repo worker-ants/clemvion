@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * `exec:cont:seq:` (continuation-bus) 와 별개의 emit-event seq 네임스페이스 default TTL.
@@ -24,6 +25,9 @@ const DEFAULT_SEQ_KEY_TTL_SECONDS = 86_400;
  * Redis 미가용 시 in-memory per-instance counter 로 **degrade** — 분산 monotonic 은
  * 포기하되(single-instance baseline 과 동등) 엔진 emit 이 멈추지 않도록 best-effort
  * 단조 발급을 유지하고 `logger.warn` 으로 degraded mode 를 기록한다.
+ * 연결을 얻은 뒤 Redis 명령이 실패해 degrade 한 발급은 `clemvion.redis.fail_open{component=
+ * execution_seq, reason=incr_failed}` 카운터에 한 번 센다. config 누락으로 연결을 얻지 못한
+ * 경우(Redis 미설정)는 세지 않는다. {@link release} 의 DEL 실패는 `del_failed` 로 센다.
  *
  * **in-memory mirror**: Redis 정상 발급 시에도 본 인스턴스가 발급한 마지막 seq 를
  * {@link fallbackCounters} 에 mirror 한다. Redis 장애로 전환되더라도 이 인스턴스를
@@ -50,7 +54,10 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
 
   private readonly seqKeyTtlSeconds: number;
 
-  constructor(private readonly redisConn: RedisConnectionProvider) {
+  constructor(
+    private readonly redisConn: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
+  ) {
     // ENV 오버라이드 (양수 정수만 채택). continuation-bus 의 NaN/음수 방어 패턴 동일.
     const parsed = Number(process.env.EXECUTION_SEQ_TTL_SECONDS);
     this.seqKeyTtlSeconds =
@@ -73,8 +80,11 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
    */
   async next(executionId: string): Promise<number> {
     const key = `${ExecutionSeqAllocator.SEQ_KEY_PREFIX}${executionId}`;
+    // getClient() 가 throw 하면(config 누락) null 로 남는다. 아래 catch 는 이 값으로
+    // Redis 미설정과 연결을 얻은 뒤의 명령 실패를 가른다(뒤쪽만 fail-open 카운터에 센다).
+    let client: Redis | null = null;
     try {
-      const client = this.getClient();
+      client = this.getClient();
       // INCR + sliding-window EXPIRE 를 **단일 round-trip pipeline** 으로 묶는다 —
       // emit 당 Redis RTT 를 2회 → 1회로 절감 (대규모 ForEach / AI multi-turn 워크플로
       // latency 누적 방지). exec() → [[incrErr, seq], [expireErr, _]]. 연결 자체
@@ -115,6 +125,9 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
             err instanceof Error ? err.message : String(err)
           }`,
       );
+      if (client) {
+        this.metrics?.recordRedisFailOpen('execution_seq', 'incr_failed');
+      }
       return degradedSeq;
     }
   }
@@ -138,6 +151,7 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
             err instanceof Error ? err.message : String(err)
           }`,
         );
+        this.metrics?.recordRedisFailOpen('execution_seq', 'del_failed');
         return 0;
       });
     }

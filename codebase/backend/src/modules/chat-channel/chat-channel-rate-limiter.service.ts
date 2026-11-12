@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /** per-chat fixed-window rate-limit 키. 테스트가 import 해 직접 의존 방지. */
 export const makeChatRateLimitKey = (
@@ -22,7 +23,9 @@ export const CHAT_RATE_LIMIT_DEFAULT_PER_MIN = 60;
  * Redis 기반이라 멀티 인스턴스에서도 전역 카운트가 정확하다.
  *
  * Redis 미가용/에러 시 **fail-open** (항상 허용) — rate-limit 은 방어적 기능이라 부재 시
- * 차단보다 통과가 안전 (R-CC-19, `PublicWebhookQuotaService` 동일 정책).
+ * 차단보다 통과가 안전 (R-CC-19, `PublicWebhookQuotaService` 동일 정책). Redis 오류(pipeline 거부 ·
+ * INCR 결과 오류)로 통과시킨 건은 `clemvion.redis.fail_open` 카운터에 `chat_rate_limit/incr_failed`
+ * 로 센다. Redis 미설정과 exec 가 오류 없이 빈 결과를 돌려준 분기는 세지 않는다.
  *
  * 한도 초과분의 처리(skip + `chat_channel_health=degraded`)는 호출자(HooksService)의 책임.
  */
@@ -36,6 +39,7 @@ export class ChatChannelRateLimiterService {
     @Inject('CHAT_CHANNEL_RATE_LIMIT_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     // 테스트 주입 우선, 아니면 공유 command connection, 미가용 시 null (fail-open).
     this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
@@ -72,6 +76,7 @@ export class ChatChannelRateLimiterService {
       this.logger.warn(
         `chat-channel rate-limit consume 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_rate_limit', 'incr_failed');
       return true; // fail-open
     }
   }

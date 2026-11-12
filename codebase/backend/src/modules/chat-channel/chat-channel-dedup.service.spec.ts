@@ -148,3 +148,96 @@ describe('ChatChannelDedupService (CCH-SE-02)', () => {
     });
   });
 });
+
+/**
+ * fail-open 경로가 `clemvion.redis.fail_open` 카운터에 잡히는지 본다. warn 한 줄로는 비율 · 추세
+ * 알람을 걸 수 없다. 선점(SET NX) 실패와 해제(DEL) 실패를 각자 다른 `reason` 으로 한 번씩만
+ * 세는지, 정상 경로와 Redis 미주입에서는 세지 않는지, metrics 를 주지 않아도 fail-open 이
+ * 그대로인지(optional DI)를 고정한다.
+ */
+describe('ChatChannelDedupService — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function makeServiceWithMetrics(
+    redis: unknown,
+    metrics: { recordRedisFailOpen: jest.Mock },
+  ): ChatChannelDedupService {
+    return new ChatChannelDedupService(
+      redis as never,
+      undefined,
+      metrics as never,
+    );
+  }
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('claim 의 SET NX 실패 → chat_dedup/set_failed 1번, fail-open(true) 그대로', async () => {
+    const metrics = makeMetrics();
+    const redis = makeRedis(
+      jest.fn().mockRejectedValue(new Error('ECONNRESET')),
+    );
+
+    await expect(
+      makeServiceWithMetrics(redis, metrics).claim('trig-1', 'update-42'),
+    ).resolves.toBe(true);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_dedup',
+      'set_failed',
+    );
+  });
+
+  it('release 의 DEL 실패 → chat_dedup/del_failed 1번, 던지지 않는다', async () => {
+    const metrics = makeMetrics();
+    const redis = makeRedis();
+    redis.del.mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(
+      makeServiceWithMetrics(redis, metrics).release('trig-1', 'update-42'),
+    ).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_dedup',
+      'del_failed',
+    );
+  });
+
+  it('정상 경로(선점 · 재도착 · 해제)에서는 세지 않는다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeServiceWithMetrics(makeRedis(), metrics);
+    await svc.claim('trig-1', 'update-42');
+    await svc.release('trig-1', 'update-42');
+    await makeServiceWithMetrics(
+      makeRedis(jest.fn().mockResolvedValue(null)),
+      metrics,
+    ).claim('trig-1', 'update-42');
+
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미주입이면 세지 않는다 — 장애가 아니라 미설정이다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeServiceWithMetrics(undefined, metrics);
+    expect(await svc.claim('trig-1', 'update-42')).toBe(true);
+    await svc.release('trig-1', 'update-42');
+
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 fail-open 이 죽지 않는다 (optional DI)', async () => {
+    const redis = makeRedis(
+      jest.fn().mockRejectedValue(new Error('ECONNRESET')),
+    );
+    redis.del.mockRejectedValue(new Error('ECONNRESET'));
+    const svc = makeService(redis);
+
+    await expect(svc.claim('trig-1', 'update-42')).resolves.toBe(true);
+    await expect(svc.release('trig-1', 'update-42')).resolves.toBeUndefined();
+  });
+});

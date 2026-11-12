@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /** update dedup 키. 테스트가 import 해 문자열 중복 정의를 피한다. */
 export const makeChatDedupKey = (
@@ -29,7 +30,9 @@ export const CHAT_DEDUP_WINDOW_SEC = 30;
  *
  * Redis 미가용/에러 시 **fail-open**(중복 억제 포기, 처리 진행) — 같은 모듈의 rate-limiter ·
  * `PublicWebhookQuotaService` 와 동일 정책이다. 방어 기능 부재가 정상 트래픽을 끊는 것보다
- * 낫다. 다만 그 구간에는 중복 처리가 가능하다는 뜻이므로 warn 을 남긴다.
+ * 낫다. 다만 그 구간에는 중복 처리가 가능하다는 뜻이므로 warn 을 남긴다. Redis 오류로 삼킨
+ * 실패는 `clemvion.redis.fail_open` 카운터에도 `chat_dedup` 으로 센다(선점 `set_failed` · 해제
+ * `del_failed`). Redis 미설정은 세지 않는다.
  */
 @Injectable()
 export class ChatChannelDedupService {
@@ -41,6 +44,7 @@ export class ChatChannelDedupService {
     @Inject('CHAT_CHANNEL_DEDUP_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
@@ -70,6 +74,7 @@ export class ChatChannelDedupService {
       this.logger.warn(
         `chat-channel update dedup 실패 — fail-open(중복 처리 가능): ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_dedup', 'set_failed');
       return true; // fail-open
     }
   }
@@ -92,6 +97,7 @@ export class ChatChannelDedupService {
       this.logger.warn(
         `chat-channel update dedup 해제 실패 — ${CHAT_DEDUP_WINDOW_SEC}초 뒤 만료로 풀린다: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_dedup', 'del_failed');
     }
   }
 }
