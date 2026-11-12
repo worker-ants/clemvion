@@ -7,11 +7,13 @@ import { lookup } from 'node:dns/promises';
  * 검증 정책 ([Spec EIA §3.1 EIA-NX-09 / §8.1 / §R12]):
  * 1. URL 파싱 가능해야 함.
  * 2. protocol 은 `https:` (개발 환경 환경변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http:` 허용).
- * 3. hostname 이 literal IP 형태인 경우 사설 IP / metadata service IP / loopback 차단:
- *    - IPv4: 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 100.64/10 (CGNAT), 0/8
- *    - IPv6: ::1, fe80::/10 (link-local), fc00::/7 (ULA), unspecified ::
+ * 3. hostname 이 literal IP 형태인 경우 사설 IP / metadata service IP / loopback · 특수 용도 대역 차단:
+ *    - IPv4: 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 100.64/10 (CGNAT), 0/8,
+ *      192.0.0/24 (IETF 프로토콜 할당), 198.18/15 (벤치마크), 224/4 (멀티캐스트), 240/4 (예약 · 브로드캐스트)
+ *    - IPv6: ::1, fe80::/10 (link-local), fc00::/7 (ULA), unspecified ::, fec0::/10 (옛 site-local),
+ *      ff00::/8 (멀티캐스트), 64:ff9b:1::/48 (NAT64 로컬 용도, 대역 전체)
  *    - IPv4 를 품은 IPv6: IPv4-mapped `::ffff:0:0/96` · IPv4-compatible `::/96` · SIIT `::ffff:0:0:0/96` ·
- *      NAT64 `64:ff9b::/96` 는 품은 IPv4 를 위 IPv4 대역으로 판정한다
+ *      NAT64 `64:ff9b::/96` · 6to4 `2002::/16` 는 품은 IPv4 를 위 IPv4 대역으로 판정한다
  *    - cloud metadata: 169.254.169.254 (AWS/Azure/GCP)
  *
  * `checkSsrfSafeUrl`(register-time 검증)은 **DNS resolution 을 수행하지 않는다** — register-time 에
@@ -34,6 +36,10 @@ const PRIVATE_IPV4_PATTERNS: RegExp[] = [
   /^169\.254\./, // link-local (includes 169.254.169.254 metadata)
   /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // 100.64.0.0/10 CGNAT
   /^0\./, // 0.0.0.0/8
+  /^192\.0\.0\./, // 192.0.0.0/24 IETF protocol assignments
+  /^198\.1[89]\./, // 198.18.0.0/15 benchmarking
+  /^(22[4-9]|23[0-9])\./, // 224.0.0.0/4 multicast
+  /^(24[0-9]|25[0-5])\./, // 240.0.0.0/4 reserved (incl. 255.255.255.255)
 ];
 
 const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
@@ -94,7 +100,8 @@ function ipv6Groups(normalized: string): number[] | null {
  * - SIIT `::ffff:0:0:0/96` (RFC 2765)
  * - NAT64 well-known prefix `64:ff9b::/96` (RFC 6052)
  *
- * 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 위치가 달라 보지 않는다.
+ * 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 위치가 달라 이 함수가 보지 않는다. 두 대역은
+ * {@link isPrivateIpv6} 가 따로 본다(6to4 는 {@link sixToFourIpv4}, NAT64 local-use 는 {@link isSpecialIpv6Prefix}).
  *
  * 인자는 {@link normalizeIpv6Literal} 이 돌려준 값이다(소문자 · 대괄호 없음 · 점 표기 없음). 그 모양이 아니면 틀린 IPv4 를
  * 돌려주지 않고 null 을 돌려준다. null 은 "품은 IPv4 가 없다" 와 "정규화된 입력이 아니다" 를 함께 뜻하므로, 값을 직접 받아 쓰는
@@ -104,8 +111,8 @@ function ipv6Groups(normalized: string): number[] | null {
  * 만 품은 IPv4 로 본다. macOS · `node:24-alpine` 에서 127.0.0.1 전용 서버에 닿는 표기가 mapped 뿐이었고, compatible · SIIT ·
  * NAT64 는 `EHOSTUNREACH`/`ENETUNREACH` 로 닿지 않았기 때문이다. 알림 웹훅 · MCP 는 NAT64(RFC 6052 · 6146) 망에서
  * `64:ff9b::a.b.c.d` 가 NAT64 게이트웨이를 거쳐 IPv4 `a.b.c.d` 로 변환되므로 /96 넷을 모두 막는다. 막는 것은 품은 IPv4 가 사설 ·
- * 특수 대역일 때뿐이라 공인 수신 서버에는 영향이 없다. 6to4 · NAT64 local-use prefix 는 IPv4 자리가 마지막 32비트가 아니라 판정하지
- * 않는다. 두 가드의 정규화와 IPv4 대역표가 따로 있는 중복은 NERV Task `CLE-T-753725` 가 모으고, 판정 범위를 맞출지는
+ * 특수 대역일 때뿐이라 공인 수신 서버에는 영향이 없다. MCP 가드는 이 함수만 쓰므로 6to4 · NAT64 local-use prefix 를 보지 않는다.
+ * 두 가드의 정규화와 IPv4 대역표가 따로 있는 중복은 NERV Task `CLE-T-753725` 가 모으고, 판정 범위를 맞출지는
  * `CLE-T-63RSH6` 가 정한다. 한쪽 정책을 바꿀 때는 `http-safety.ts` 의 `mappedIPv4` 와 그 테스트를 함께 본다.
  */
 export function embeddedIpv4FromIpv6(normalized: string): string | null {
@@ -118,7 +125,49 @@ export function embeddedIpv4FromIpv6(normalized: string): string | null {
     (zeroPrefix && e === 0xffff && f === 0) || // SIIT
     (a === 0x64 && b === 0xff9b && c === 0 && d === 0 && e === 0 && f === 0); // NAT64
   if (!embeds) return null;
+  return ipv4FromGroups(hi, lo);
+}
+
+/** 16비트 그룹 두 개(상위 · 하위)를 점 표기 IPv4 로 바꾼다. */
+function ipv4FromGroups(hi: number, lo: number): string {
   return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+}
+
+/**
+ * 6to4 주소(`2002::/16`, RFC 3056)가 품은 IPv4 를 꺼낸다. 6to4 가 아니면 null(CLE-T-W95HND).
+ *
+ * IPv4 자리는 둘째 · 셋째 16비트(16~47비트)로 고정이다. 6to4 주소로 가는 트래픽은 6to4 릴레이를 거쳐 그 IPv4 로 가므로 품은
+ * IPv4 를 IPv4 대역표로 판정한다. 공인 IPv4 를 품었으면 통과한다. 6to4 는 RFC 7526 이 폐기해서 대역 전체를 막아도 잃는 수신
+ * 서버는 거의 없지만, 판정할 수 있는 대역은 판정하는 쪽을 골랐다(NERV 질문 `01a1d020-ca83-7514-99d7-493572d58129` 답).
+ *
+ * {@link embeddedIpv4FromIpv6} 에 넣지 않았다. 그 함수는 MCP 가드(`mcp-client.service.ts`)도 써서 거기 넣으면 MCP 의 판정
+ * 범위가 함께 바뀐다. 인자는 {@link normalizeIpv6Literal} 이 돌려준 값이다.
+ */
+function sixToFourIpv4(normalized: string): string | null {
+  const groups = ipv6Groups(normalized);
+  if (!groups || groups[0] !== 0x2002) return null;
+  return ipv4FromGroups(groups[1], groups[2]);
+}
+
+/**
+ * 접두로 판정하는 특수 용도 IPv6 대역(CLE-T-W95HND).
+ * - `fec0::/10` 옛 site-local (RFC 3879 가 폐기했지만 사설망에서 쓰일 수 있다)
+ * - `ff00::/8` 멀티캐스트
+ * - `64:ff9b:1::/48` NAT64 로컬 용도 (RFC 8215). 운영자가 접두 길이(/48 ~ /96)를 골라 IPv4 를 싣고 그 길이에 따라 IPv4
+ *   자리가 달라진다(RFC 6052 §2.2). 주소만 보고는 자리를 알 수 없어서 품은 IPv4 를 꺼내지 않고 대역 전체를 막는다.
+ *   틀린 자리에서 꺼내면 사설 IPv4 를 품은 주소를 공인으로 볼 수 있다.
+ *
+ * 문자열 접두가 아니라 그룹 값으로 본다. 정규화된 표기는 앞자리 0 을 지우므로 `fec::1`(0x0fec) · `ff::1`(0x00ff) 처럼
+ * 접두만 같은 다른 주소가 있다. 인자는 {@link normalizeIpv6Literal} 이 돌려준 값이다.
+ */
+function isSpecialIpv6Prefix(normalized: string): boolean {
+  const groups = ipv6Groups(normalized);
+  if (!groups) return false;
+  const [first, second, third] = groups;
+  if ((first & 0xffc0) === 0xfec0) return true; // fec0::/10
+  if ((first & 0xff00) === 0xff00) return true; // ff00::/8
+  if (first === 0x64 && second === 0xff9b && third === 0x1) return true; // 64:ff9b:1::/48
+  return false;
 }
 
 export function isPrivateIpv6(host: string): boolean {
@@ -141,7 +190,8 @@ export function isPrivateIpv6(host: string): boolean {
     // fc00::/7 (ULA)
     return true;
   }
-  const embedded = embeddedIpv4FromIpv6(lower);
+  if (isSpecialIpv6Prefix(lower)) return true;
+  const embedded = embeddedIpv4FromIpv6(lower) ?? sixToFourIpv4(lower);
   return embedded !== null && isPrivateIpv4(embedded);
 }
 
