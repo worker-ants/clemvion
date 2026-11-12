@@ -74,7 +74,7 @@ describe('clemvion.redis.fail_open (component, reason) 선언 · 실배선 정�
     ).toEqual([]);
   });
 
-  it('현재 배선된 component 는 14개다 (넓어지면 여기서 알린다)', () => {
+  it('배선된 component 목록이 바뀌면 알린다', () => {
     // 이 단언은 "고정" 이 아니라 **알림**이다. 새 소비자를 배선하면 여기가 RED 가 되고,
     // 그때 선언을 함께 넓혔는지 위 단언들이 확인한다. `CLE-OBS-LOGGING` 카탈로그 표도
     // 함께 넓힌다(NERV 스펙 초안). 값을 늘릴 때 이 줄을 같이 늘리는 것이 곧 체크리스트다.
