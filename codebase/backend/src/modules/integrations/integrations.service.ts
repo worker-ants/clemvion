@@ -1437,9 +1437,12 @@ export class IntegrationsService {
       merged,
     );
     if (!test.success) {
+      // 테스트 결과의 `code` 는 연결 테스트 이름공간이라 최상위 `code` 나 `details.code` 가 아니라 `details.testCode` 에
+      // 싣는다. 결과에 `code` 가 없으면 `details` 를 싣지 않는다(NERV CLE-INT-MANAGE 「에러 코드」 · Rationale 2026-11-12).
       throw new BadRequestException({
         code: 'INTEGRATION_TEST_FAILED',
         message: test.message,
+        ...(test.code ? { details: { testCode: test.code } } : {}),
       });
     }
 

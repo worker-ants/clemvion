@@ -584,7 +584,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패 또는 자격 증명 유효성 오류, 새 값의 연결 테스트 실패(`INTEGRATION_TEST_FAILED`)',
+      '입력값 검증 실패 또는 자격 증명 유효성 오류, 새 값의 연결 테스트 실패(`INTEGRATION_TEST_FAILED`). 연결 테스트 실패면 `error.message` 는 테스트 결과 문구이고, 결과 코드(`HTTP_AUTH_FAILED` 등)가 있으면 `error.details.testCode` 에 싣는다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })

@@ -14,7 +14,9 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 통합은 SSRF 가드에 막혀야 한다 — 그 결과가 세 경로(preview-test · `:id/test` · rotate)에 모두 나타나는지가
  * 이 파일의 대상이다. 실제 접속 · 인증 분기는 테스터 unit spec 이 본다.
  *
- * rotate 의 **상태 코드는 단언하지 않는다** — 구현 400 · spec §9.4 422 가 어긋나 있고 트래커에서 정한다.
+ * rotate 실패는 400 `INTEGRATION_TEST_FAILED` 에러 봉투이고 테스트 결과 코드는 `error.details.testCode` 에 싣는다
+ * (NERV CLE-INT-MANAGE 「에러 코드」, 2026-11-12 결정 · Task CLE-T-XCMNP6). 결과 코드가 없는 실패에 `details` 를 싣지 않는
+ * 갈래는 HTTP 로 만들 수 없어(실제 테스터는 실패마다 코드를 싣는다) `integrations.service.spec.ts` 가 본다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -205,11 +207,14 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
       credentials: loopbackHttp,
     });
 
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(res.status).toBeLessThan(500);
-    expect(res.body?.code ?? res.body?.error?.code).toBe(
-      'INTEGRATION_TEST_FAILED',
-    );
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({
+      code: 'INTEGRATION_TEST_FAILED',
+      details: { testCode: 'HTTP_BLOCKED' },
+    });
+    // 테스트 결과의 차단 문구를 그대로 싣고, 차단된 host 는 싣지 않는다(B 와 같은 규칙).
+    expect(typeof res.body.error.message).toBe('string');
+    expect(res.body.error.message).not.toMatch(/127\.0\.0\.1/);
     const after = (await readRow()).rows[0];
     expect(after).toEqual(before);
   });

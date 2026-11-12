@@ -216,7 +216,7 @@ When you save, the server checks only the integration choices that are new or ch
 ## Tips & notes
 
 - Credentials are stored encrypted with AES-256-GCM. API responses return only masked previews like `****4f2a`.
-- For non-OAuth integrations, `Rotate credentials` only overwrites the existing secret after the new value passes the connection test. On failure, the existing credential is untouched.
+- For non-OAuth integrations, `Rotate credentials` only overwrites the existing secret after the new value passes the connection test. On failure, the existing credential is untouched and the toast shows why the connection test failed.
 - To register multiple accounts for the same service, add separate integrations with different aliases. Aliases must be unique within a workspace.
 - An integration in use cannot be deleted. The exception is when a member leaves or is removed: that member's Personal integrations are deleted along with the membership even if they are in use. Clicking `Delete integration` first checks its usages; if it's still in use, a delete-blocked dialog shows which workflows and nodes reference it (AI Agent MCP-server references are marked with an `MCP` badge). Follow the workflow link in the dialog, switch the node's `integrationId` to another integration or remove the node, then delete again.
 - To expose external tools and resources to the LLM from an AI Agent, register an MCP server integration and wire it into the AI Agent node's `MCP Servers` field. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).

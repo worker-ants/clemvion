@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils/date";
+import { formatIntegrationErrorToast } from "@/lib/api/integration-error-codes";
 import {
   integrationsApi,
   type IntegrationDto,
@@ -91,9 +92,13 @@ export function SecurityTab({
       setNewCredentials({});
       onChanged();
     },
+    // 통합 화면 공통 토스트 규칙을 따른다(CLE-UI-I18N 규칙 5). 연결 테스트 실패(`INTEGRATION_TEST_FAILED`)는 매핑에
+    // 없는 코드라 봉투의 `error.message`(테스트 결과 문구)가 보인다. 응답 문구가 없으면 오류 객체의 문구(네트워크
+    // 오류면 axios 의 "Network Error")를 쓴다. 둘 다 없을 때만 기본 문구를 쓴다.
     onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message ?? t("integrations.rotateFailedDefault"));
+      toast.error(
+        formatIntegrationErrorToast(err, t, "integrations.rotateFailedDefault"),
+      );
     },
   });
 
