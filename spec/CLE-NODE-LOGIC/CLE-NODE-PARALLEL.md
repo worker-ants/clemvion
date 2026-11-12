@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "6caa453758d8e8f691c97a3e25e01ba35bb78695aa6025672ee413ecb9e5bf68"
+content_hash: "fba24757632b3b4d8f43c4f60222b358659cf19dfe09c4140e9abf095c4e6cb3"
 read_as: "approved_fallback"
-task: "CLE-T-MR6ZH3"
+task: "CLE-T-BTR4ZA"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "179eb1273e4c65acdf5f628e6b81ff2648b46d89ae3918119720c46810d50d4d"
-etag: "sha256-34200a7f986a2981ef07e68583deac76527cfbca9303fa28c0d4016f516196e8"
+mirror_sha256: "fe4cfcac9df60bc8d4a96bd4fdf80e06555da596e9f4abb515b5182b1e63ceb5"
+etag: "sha256-11254dfbcbebbf407322baf4ee8cfcf8e2571be82571a6612c06fae0da554b77"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -156,13 +156,14 @@ Parallel 은 워크플로우 맨 바깥, 다른 Parallel 의 병렬 분기 안, 
 | 병렬 분기 밖 컨테이너 본문 | 1 | 걸리지 않음 | 컨테이너 시작(`runContainerInner`, 첫 반복 전) |
 | 병렬 분기 안 컨테이너 본문 | 2(바깥 병렬 분기의 깊이를 이어받음) | 바깥 동시 실행 수와 곱해 적용 | 바깥 Parallel 의 `planParallelBody`(바깥 병렬 분기 시작 전) |
 | 동기 서브 워크플로우 | 1(새로 셈) | 호출한 쪽과 곱하지 않음 | 서브 워크플로우 실행 안에서 위 규칙대로 |
-| Background 본문 | 1(실행할 때 새로 셈) | 호출한 쪽과 곱하지 않음 | Background 본문 실행 안에서 위 규칙대로. 병렬 분기 안 Background 면 바깥 Parallel 의 `planParallelBody` 가 바깥 깊이를 이어서 먼저 검사한다([저장 규칙과 실행 검사의 범위](#저장-규칙과-실행-검사의-범위)) |
+| Background 본문 | 1(실행할 때 새로 셈) | 호출한 쪽과 곱하지 않음 | Background 본문 실행 안에서 위 규칙대로. 병렬 분기 본문에 바로 둔 Background 면 바깥 Parallel 의 `planParallelBody` 가 바깥 깊이를 이어서 먼저 검사한다([저장 규칙과 실행 검사의 범위](#저장-규칙과-실행-검사의-범위)) |
+| 컨테이너 안 Background 본문 | 1(실행할 때 새로 셈) | 호출한 쪽과 곱하지 않음 | 컨테이너 시작(`runContainerInner`, 첫 반복 전)이 깊이 1 부터 센다. 병렬 분기 안 컨테이너면 바깥 Parallel 의 `planParallelBody` 가 깊이 1 부터 세어 먼저 검사한다 |
 
 컨테이너 반복 회차는 컨테이너가 받은 컨텍스트를 그대로 쓴다. 그래서 병렬 분기 안 컨테이너 본문의 Parallel 은 바깥 병렬 분기 컨텍스트의 `parentParallelConcurrency` 를 보고 깊이 2 로 실행한다(REQ-PARALLEL-035). 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 안쪽 동시 실행 수를 줄이고 `meta.clampedConcurrency` 에 남긴다(REQ-PARALLEL-025).
 
 동기 서브 워크플로우는 실행하는 동안 호출한 쪽 컨텍스트의 `parentParallelConcurrency` 를 떼어 둔다. 서브 워크플로우가 끝나면 실패했더라도 그 값을 되돌린다. 그래서 서브 워크플로우의 Parallel 은 깊이 1 부터 센다(REQ-PARALLEL-036). 병렬 분기 안에서 부른 서브 워크플로우의 Parallel 에는 호출한 쪽의 곱 상한이 걸리지 않으므로 동시 실행 수가 바깥 16 × 서브 워크플로우 16 까지 늘 수 있다. Background 본문은 새 컨텍스트에서 실행하므로 깊이 1 부터 센다.
 
-깊이 검사는 병렬 분기나 반복 회차가 시작되기 전에 한다(REQ-PARALLEL-037). 바깥 Parallel 은 병렬 분기 본문을 계획할 때(`planParallelBody`) 본문에서 안쪽 Parallel 이나 컨테이너를 만나면 그 본문까지 내려가 검사한다. 컨테이너 본문은 `containerId` 로 찾고 중첩된 컨테이너 본문까지 내려간다. 컨테이너도 시작할 때 첫 반복 전에 자기 본문의 Parallel 깊이를 검사한다(`runContainerInner`). 회차 안에서 처음 검사하면 깊이 위반이 회차 하나의 실패가 되어 컨테이너의 `errorPolicy` 가 흡수하고 병렬 분기 안이면 바깥 Parallel 의 `continue` 도 흡수한다. 미리 검사하면 위반이 실행 실패로 드러난다.
+깊이 검사는 병렬 분기나 반복 회차가 시작되기 전에 한다(REQ-PARALLEL-037). 바깥 Parallel 은 병렬 분기 본문을 계획할 때(`planParallelBody`) 본문에서 안쪽 Parallel 이나 컨테이너를 만나면 그 본문까지 내려가 검사한다. 컨테이너 본문은 `containerId` 로 찾고 중첩된 컨테이너 본문까지 내려간다. 컨테이너도 시작할 때 첫 반복 전에 자기 본문의 Parallel 깊이를 검사한다(`runContainerInner`). 에디터의 연결선 체인 규칙 때문에 컨테이너 안 Background 의 `background` 연결선 뒤 노드도 그 컨테이너의 `containerId` 를 가진다. 두 사전 검사는 컨테이너 본문 노드 가운데 Background 본문으로만 닿는 노드를 골라(`collectBackgroundOnlyNodeIds`) 그 안의 Parallel 을 깊이 1 부터 센다. 회차 본문에서도 닿는 노드는 회차 루프가 실행하므로 컨테이너 본문 깊이로 센다. 회차 안에서 처음 검사하면 깊이 위반이 회차 하나의 실패가 되어 컨테이너의 `errorPolicy` 가 흡수하고 병렬 분기 안이면 바깥 Parallel 의 `continue` 도 흡수한다. 미리 검사하면 위반이 실행 실패로 드러난다.
 
 서브 워크플로우는 다른 그래프라서 호출한 쪽의 사전 검사가 보지 않는다. 서브 워크플로우 안의 깊이 위반은 그 실행에서 에러로 던져지고 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 가 그 에러를 `error` 포트로 돌린다. Background 본문의 실패는 메인 실행에 영향을 주지 않는다([Background 노드](CLE-NODE-BACKGROUND.md)).
 
@@ -179,12 +180,13 @@ Parallel 은 워크플로우 맨 바깥, 다른 Parallel 의 병렬 분기 안, 
 | 합류 노드 | 본문으로 세고 그 뒤 노드까지 따라간다 | 둘 이상의 병렬 분기가 닿는 노드는 본문에서 뺀다 |
 | 컨테이너 본문 | 컨테이너 `body` 연결선을 따라 들어간다 | `containerId` 로 찾아 들어간다(중첩 컨테이너 포함) |
 | 병렬 분기 안 Background 본문 | `background` 연결선도 따라가 병렬 분기 본문으로 센다 | 같다. 앞으로 가는 연결선을 포트와 상관없이 따라간다 |
+| 병렬 분기 안 컨테이너에 둔 Background 본문 | 컨테이너 `body` 연결선과 `background` 연결선을 따라가 병렬 분기 본문으로 센다 | Background 본문으로만 닿는 노드를 가려 깊이 1 부터 센다 |
 | 서브 워크플로우 | 보지 않는다 | 보지 않는다 |
-| 구현 | `codebase/packages/graph-warning-rules/src/rules/parallel.ts` (`collectParallelBranchBodyNodeIds`) | `collectParallelBranchMembership` 과 `planParallelBody` |
+| 구현 | `codebase/packages/graph-warning-rules/src/rules/parallel.ts` (`collectParallelBranchBodyNodeIds`) | `collectParallelBranchMembership` 과 `planParallelBody`, 컨테이너 본문은 `assertContainerBodyParallelsAllowed` 와 `collectBackgroundOnlyNodeIds` |
 
-연결선으로 이어진 노드만 보면 저장 단계 규칙이 실행 검사보다 넓다. 합류 노드 뒤의 Parallel 과 설정한 병렬 분기 수 밖 `branch_N` 아래의 Parallel 은 저장할 때만 중첩으로 센다. 실행 검사는 컨테이너 본문을 `containerId` 로 찾으므로 컨테이너 `body` 연결선에서 닿지 않는 본문 노드도 본다. 호출한 쪽 그래프의 두 검사는 서브 워크플로우 안을 보지 않는다. 서브 워크플로우는 자기를 저장할 때와 실행할 때 따로 검사한다.
+연결선으로 이어진 노드만 보면 저장 단계 규칙이 실행 검사보다 넓다. 합류 노드 뒤의 Parallel 과 설정한 병렬 분기 수 밖 `branch_N` 아래의 Parallel 은 저장할 때만 중첩으로 센다. 병렬 분기 안 컨테이너에 둔 Background 본문의 Parallel 도 저장할 때만 바깥 병렬 분기 깊이를 이어서 센다. 실행 검사는 컨테이너 본문을 `containerId` 로 찾으므로 컨테이너 `body` 연결선에서 닿지 않는 본문 노드도 본다. 호출한 쪽 그래프의 두 검사는 서브 워크플로우 안을 보지 않는다. 서브 워크플로우는 자기를 저장할 때와 실행할 때 따로 검사한다.
 
-병렬 분기 안 Background 본문은 두 검사 모두 실제 실행보다 엄격하게 본다. 실행 그래프의 순방향 연결선 분류(`back-edge-identifier.ts`)와 병렬 분기 소속 판정(`collectParallelBranchMembership`)은 포트를 보지 않는다. 그래서 병렬 분기 안에 Background 가 있으면 `background` 연결선 뒤의 본문 노드도 그 병렬 분기 본문으로 잡힌다. 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 는 둘 다 그 Background 본문의 Parallel 을 바깥 병렬 분기 깊이를 이어서 센다. 그래서 깊이 2 병렬 분기 안 Background 본문에 Parallel 을 두면 저장 단계에서 거부된다. 실행 때도 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 실패한다. 그 Background 본문이 실제로 실행되면 깊이 1 로 돌 수 있는 그래프다. REQ-PARALLEL-036 은 Background 본문이 실제로 실행될 때의 깊이를 정하고 이 두 검사는 그보다 엄격하다. 실행 검사의 블로킹 노드 금지(`PARALLEL_INVALID_CHILD`)도 같은 이유로 병렬 분기 안 Background 본문에 걸린다. 연결선을 포트와 상관없이 따라가는 동작은 이번 개정 전부터 있었다. 검사 범위에서 뺄지는 [미결 사항](#미결-사항) 에 남겼다.
+병렬 분기 본문에 바로 둔 Background 의 본문은 두 검사 모두 실제 실행보다 엄격하게 본다. 실행 그래프의 순방향 연결선 분류(`back-edge-identifier.ts`)와 병렬 분기 소속 판정(`collectParallelBranchMembership`)은 포트를 보지 않는다. 그래서 병렬 분기 안에 Background 가 있으면 `background` 연결선 뒤의 본문 노드도 그 병렬 분기 본문으로 잡힌다. 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 는 둘 다 그 Background 본문의 Parallel 을 바깥 병렬 분기 깊이를 이어서 센다. 그래서 깊이 2 병렬 분기 안 Background 본문에 Parallel 을 두면 저장 단계에서 거부된다. 실행 때도 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 실패한다. 그 Background 본문이 실제로 실행되면 깊이 1 로 돌 수 있는 그래프다. REQ-PARALLEL-036 은 Background 본문이 실제로 실행될 때의 깊이를 정하고 이 두 검사는 그보다 엄격하다. 실행 검사의 블로킹 노드 금지(`PARALLEL_INVALID_CHILD`)도 같은 이유로 병렬 분기 안 Background 본문에 걸린다. 연결선을 포트와 상관없이 따라가는 동작은 이번 개정 전부터 있었다. 검사 범위에서 뺄지는 [미결 사항](#미결-사항) 에 남겼다. 컨테이너에 둔 Background 의 본문은 이 문단에 해당하지 않는다. 실행 검사는 컨테이너 본문을 병렬 분기 소속 판정이 아니라 `containerId` 로 찾고 그 가운데 Background 본문으로만 닿는 노드를 깊이 1 부터 센다. 저장 규칙만 바깥 깊이를 이어서 센다.
 
 ## 출력 구조
 
@@ -311,7 +313,7 @@ Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 �
 - **`PARALLEL_ENGINE=off` 에서 `done` 뒤 노드의 실행 시점** (info): 되돌림 경로에서 `done` 연결선 뒤 노드가 병렬 분기 완료를 기다리는지 정하지 않았다. 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화하므로 `done` 뒤 노드는 실행되고 Parallel 의 시작 시점 출력을 받는다(2026-11-06 확인). 실행 순서 확인과 결정 필요.
 - **k8s 기본 매니페스트의 `PARALLEL_ENGINE`** (warning): 코드 기본값과 `.env.example` 은 `v1` 이다. k8s 기본 매니페스트(`k8s/base/configmap.yaml`)는 `PARALLEL_ENGINE: "off"` 다. 그래서 지금 k8s 기본 매니페스트로 배포하면 되돌림 경로(REQ-PARALLEL-027)로 실행되고 완료 출력(`branches` · `count` · `skipped`)이 나오지 않는다. 매니페스트를 `v1` 로 바꿀지 결정 필요.
 - **입력 대기로 실패한 자식 노드의 실행 기록 상태** (info): REQ-PARALLEL-032 로 병렬 분기가 실패할 때 `waiting_for_input` 을 낸 자식 노드의 실행 기록이 어느 상태로 끝나는지 정하지 않았다. 지금 테스트도 이 상태를 확인하지 않는다. 종결 상태를 정하고 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 전이 표에 넣을지 결정 필요.
-- **병렬 분기 안 Background 본문의 검사 범위** (info): 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 는 병렬 분기 안 Background 본문을 바깥 병렬 분기 본문으로 보고 깊이를 이어서 센다. 사전 검사는 그 본문의 블로킹 노드도 막는다. 그 본문은 실제로 실행될 때 새 컨텍스트에서 깊이 1 부터 센다([저장 규칙과 실행 검사의 범위](#저장-규칙과-실행-검사의-범위)). Background 본문을 검사 범위에서 뺄지 결정 필요. 빼려면 저장 규칙과 실행 검사를 함께 고쳐야 한다. 후속 NERV Task `CLE-T-B7A8B2`.
+- **병렬 분기 안 Background 본문의 검사 범위** (info): 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 는 병렬 분기 안 Background 본문을 바깥 병렬 분기 본문으로 보고 깊이를 이어서 센다. 사전 검사는 그 본문의 블로킹 노드도 막는다. 그 본문은 실제로 실행될 때 새 컨텍스트에서 깊이 1 부터 센다([저장 규칙과 실행 검사의 범위](#저장-규칙과-실행-검사의-범위)). Background 본문을 검사 범위에서 뺄지 결정 필요. 빼려면 저장 규칙과 실행 검사를 함께 고쳐야 한다. 병렬 분기 안 컨테이너에 둔 Background 본문은 실행 검사가 이미 깊이 1 부터 세고(2026-11-12) 저장 규칙만 바깥 깊이를 이어서 센다. 저장 규칙을 고친다면 이 경우도 함께 본다. 후속 NERV Task `CLE-T-B7A8B2`.
 
 ## 구현 위치
 
@@ -319,6 +321,7 @@ Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 �
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts` (`ParallelExecutor`, `ParallelBranchContext`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planParallelBody` · `executeParallelBranchBody` · `runParallel` 완료 시점 덮어쓰기, 완료 출력 쓰기 `commitParallelDoneOutput`, 엔진 공통 출력 쓰기 지점 `commitNodeOutput`, 병렬 분기 사본 반영 `syncParallelBranchCacheEntry`, 안쪽 병렬 분기 출력을 바깥 병렬 분기 사본에 옮기는 `publishBranchOutputsToParent`, 컨테이너 본문 루프 `executeContainerBody` 와 동기 서브 워크플로우 · Background 본문 루프 `executeInline` 의 Parallel 넘김, 깊이 판별 `parallelDepthOf`, 사전 깊이 검사 `assertParallelBranchChildrenAllowed` · `assertNestedParallelBodyAllowed` · `assertContainerBodyParallelsAllowed`)
 - `codebase/backend/src/modules/execution-engine/graph/parallel-branch-membership.ts` (`collectParallelBranchMembership`, 병렬 분기 소속과 합류 노드 판정)
+- `codebase/backend/src/modules/execution-engine/graph/background-body-membership.ts` (`collectBackgroundOnlyNodeIds`, 컨테이너 본문 노드 가운데 Background 본문으로만 닿는 노드 판정)
 - `codebase/backend/src/modules/execution-engine/graph/topological-sort.ts` (위상 순서)
 
 ## Rationale
@@ -548,7 +551,7 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 
 어느 안을 골라도 Background 본문은 깊이를 새로 센다. 새 컨텍스트에서 시작해 이어받을 깊이가 없기 때문이다.
 
-병렬 분기 안 Background 본문에는 (C) 를 기각한 이유인 저장 규칙과 실행 깊이의 어긋남이 있다. 바깥 사전 검사도 저장 규칙처럼 깊이를 이어서 세므로 두 검사끼리는 맞는다. 두 검사가 실제 실행 깊이보다 엄격할 뿐이다. 검사 범위를 실행 깊이에 맞출지는 [미결 사항](#미결-사항) 에 남겼다. 이 일은 NERV Task `CLE-T-B7A8B2` 가 맡는다.
+병렬 분기 안 Background 본문에는 (C) 를 기각한 이유인 저장 규칙과 실행 깊이의 어긋남이 있다. 바깥 사전 검사도 저장 규칙처럼 깊이를 이어서 세므로 두 검사끼리는 맞는다. 두 검사가 실제 실행 깊이보다 엄격할 뿐이다. 검사 범위를 실행 깊이에 맞출지는 [미결 사항](#미결-사항) 에 남겼다. 이 일은 NERV Task `CLE-T-B7A8B2` 가 맡는다. (2026-11-12 덧붙임: 이 문단은 병렬 분기 본문에 바로 둔 Background 를 말한다. 병렬 분기 안 컨테이너에 둔 Background 의 본문은 실행 검사가 깊이 1 부터 센다. [2026-11-12 절](#컨테이너-안-background-본문의-parallel-은-사전-검사도-깊이-1-부터-센다-2026-11-12) 참고.)
 
 **병렬 분기의 반복 변수 (NERV 질문 `01a1b060-de22-7734-a37a-69c25ee314a3`)**: 병렬 분기 컨텍스트가 바깥 반복 변수(`itemContext` · `loopContext`, 표현식의 `$item` · `$itemIndex` · `$loop`)를 이어받는다(A, 채택). REQ-PARALLEL-009 의 「비운다」를 「부모 컨텍스트 값을 그대로 둔다」로 고쳤다. 맨 바깥과 병렬 분기 안의 Parallel 에서는 두 필드가 늘 비어 있었으므로 동작이 바뀌지 않는다. 병렬 분기마다 컨텍스트 객체가 따로라서 병렬 분기 안 ForEach · Loop 가 반복 변수를 바꿔도 다른 병렬 분기에 새지 않는다. 처음에 두 필드를 비운 이유가 중첩 ForEach · Loop 상태가 새지 않게 하려는 것이었는데 이 격리로 충분하다.
 
@@ -575,3 +578,22 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 기각한 대안은 `stop` 이 첫 실패에서 다른 병렬 분기를 기다리지 않고 곧바로 던지게 바꾸는 안이다. 끝나지 않은 병렬 분기는 계속 돌면서 루트 컨텍스트에 출력을 쓰는데 Parallel 노드는 이미 실패로 끝나 실행 상태와 출력이 어긋난다. 멈추기까지 하려면 `cancel-others-on-fail` 과 같은 abort 가 필요해 두 정책의 차이가 사라진다.
 
 **기존 워크플로우 영향**: 없다. 문서만 실행기 동작에 맞췄다.
+
+### 컨테이너 안 Background 본문의 Parallel 은 사전 검사도 깊이 1 부터 센다 (2026-11-12)
+
+이 개정 전에는 컨테이너 본문 사전 검사(`assertContainerBodyParallelsAllowed`)가 컨테이너의 자식 노드 전부를 컨테이너 본문으로 보고 그 안의 Parallel 을 컨테이너가 받은 깊이로 셌다. 에디터의 연결선 체인 규칙 때문에 컨테이너 안 Background 의 `background` 연결선 뒤 노드도 같은 `containerId` 를 가진다. 그래서 Background 본문의 Parallel 도 컨테이너 깊이로 셌다. 워커는 그 본문을 새 컨텍스트에서 실행하므로 깊이 1 부터 센다(REQ-PARALLEL-036). 사전 검사가 실행보다 엄격해서 다음 두 조합이 실행 전에 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 실패했다(NERV Task `CLE-T-BTR4ZA`).
+
+- 깊이 2 병렬 분기 안 컨테이너의 Background 본문에 Parallel 을 둔 경우. 워커에서는 깊이 1 이다.
+- 깊이 1 병렬 분기 안 컨테이너의 Background 본문에 Parallel 을 두 단 둔 경우. 워커에서는 깊이 2 까지다.
+
+이 사전 검사는 2026-11-06(NERV Task `CLE-T-0DGHGF`)부터 있었다. 컨테이너 안 Background 본문은 NERV Task `CLE-T-MR6ZH3` 전에는 아예 실행되지 않았다.
+
+**(A) Background 본문으로만 닿는 노드를 깊이 1 부터 세는 안** (채택): 사전 검사는 컨테이너 본문 노드 가운데 Background 본문으로만 닿는 노드를 가려(`collectBackgroundOnlyNodeIds`) 그 안의 Parallel 을 깊이 1 부터 센다. Background 노드의 `background` 연결선 대상에서 포트와 상관없이 따라가 닿는 노드가 Background 본문 쪽이다. 본문 안 Background 의 본문도 들어간다. 컨테이너 `body` 연결선 대상에서 Background 의 `background` 연결선만 건너뛰고 따라가 닿는 노드가 회차 본문 쪽이다. 두 쪽에서 모두 닿는 노드는 회차 루프도 실행하므로 컨테이너 본문 깊이로 센다. 컨테이너 시작(`runContainerInner`)과 바깥 Parallel 의 `planParallelBody` 가 같은 함수로 컨테이너 본문을 검사하므로 두 지점이 함께 바뀐다. 실행할 때의 깊이 판별(`parallelDepthOf`)은 바꾸지 않았다.
+
+- **(B) 컨테이너 사전 검사에서 Background 본문 노드를 빼는 안** (기각): 워커가 본문을 실행할 때 다시 검사하므로 깊이 위반은 결국 드러난다. 그러나 Background 본문의 실패는 메인 실행에 영향을 주지 않으므로 메인 실행은 성공한다. Background 본문 안에서도 깊이 3 이 되는 그래프(Parallel 세 단)는 첫 반복 전에 잡아야 [놓인 위치별 실행과 중첩 깊이](#놓인-위치별-실행과-중첩-깊이) 의 「미리 검사하면 위반이 실행 실패로 드러난다」 와 맞는다.
+
+병렬 분기 본문에 바로 둔 Background 의 본문은 이번에 바꾸지 않았다. 그 본문은 병렬 분기 소속 판정(`collectParallelBranchMembership`)이 바깥 병렬 분기 본문으로 잡으므로 고치려면 그 판정과 저장 규칙을 함께 바꿔야 한다. [미결 사항](#미결-사항) 에 남긴 그대로 NERV Task `CLE-T-B7A8B2` 가 맡는다.
+
+**저장 규칙과의 차이**: 저장 규칙 `parallel:nested-depth-exceeded` 는 바꾸지 않았다. 그 규칙은 컨테이너 `body` 연결선과 `background` 연결선을 따라가 바깥 병렬 분기 깊이를 이어서 센다. 그래서 위 두 조합은 지금도 저장 단계에서 거부된다. 실행 검사가 저장 규칙보다 느슨한 경우가 하나 늘었다. 합류 노드 뒤 Parallel 처럼 [저장 규칙과 실행 검사의 범위](#저장-규칙과-실행-검사의-범위) 에 이미 적은 차이와 같은 종류다. 2026-11-06 절은 컨테이너 반복 회차마다 깊이를 새로 세는 안(C)을 저장 규칙과 어긋난다는 이유로 기각했다. 그 대상은 컨테이너가 받은 컨텍스트를 그대로 쓰는 회차 본문이다. 회차 본문의 Parallel 은 실제로 바깥 병렬 분기 깊이로 실행되므로 새로 세면 실행이 저장 규칙보다 느슨해진다. Background 본문은 새 컨텍스트에서 실행되어 실제 깊이가 1 이다(REQ-PARALLEL-036). 이번 개정은 실행 깊이를 바꾸지 않고 사전 검사를 실제 실행 깊이에 맞춘 것이라 (C) 를 기각한 이유와 부딪치지 않는다. 남는 차이는 저장 규칙이 더 엄격한 쪽 하나다.
+
+**기존 워크플로우 영향**: 저장 단계 규칙이 두 조합을 이미 거부하므로 그 규칙을 통과해 저장된 워크플로우의 동작은 바뀌지 않는다. 그 규칙을 거치지 않고 저장된 워크플로우만 이제 실행 전에 실패하지 않고 Background 본문을 큐에 넣는다.
