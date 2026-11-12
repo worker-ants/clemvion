@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
 import {
   NodeExecution,
@@ -58,6 +58,13 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 // re_run_of walk 의 안전 상한 — 사이클은 구조상 불가(부모는 항상 더 이른 행)하나
 // 무한 루프 방어로 한도의 2배에서 중단.
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
+
+// dry-run 사전 검사가 따라가는 서브 워크플로우 깊이 한도. 서브 워크플로우 재귀 한도
+// (`WorkflowHandler` · `ExecutionEngineService` 의 MAX_RECURSION_DEPTH = 10)와 같다.
+// 그보다 깊은 호출은 실행 때 재귀 한도로 실패하므로 볼 필요가 없다.
+const DRY_RUN_PRECHECK_MAX_DEPTH = 10;
+// 서브 워크플로우 노드의 type (`workflowNodeMetadata.type`).
+const SUB_WORKFLOW_NODE_TYPE = 'workflow';
 
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
@@ -466,7 +473,7 @@ export class ExecutionsService {
     // 안전 가드.
     const dryRun = dto.dryRun ?? false;
     if (dryRun) {
-      await this.assertDryRunSupported(original.workflowId);
+      await this.assertDryRunSupported(original.workflowId, workspaceId);
     }
 
     // RR-PL-05 — chain 깊이 32 제한 (새 실행 포함 시 초과면 거부).
@@ -595,24 +602,57 @@ export class ExecutionsService {
    * 있으면 `RERUN_DRY_RUN_NOT_APPLICABLE` 로 거부한다. mock 출력을 보장할 수
    * 없는 노드가 dry-run 으로 실행돼 실제 외부 호출이 일어나는 것을 차단.
    *
-   * @throws {BadRequestException} RERUN_DRY_RUN_NOT_APPLICABLE — 워크플로에
-   *   `supportsDryRun !== true` 인 Integration 노드가 존재할 때.
+   * 서브 워크플로우 노드(`workflow`)가 부르는 워크플로우도 같은 규칙으로 본다
+   * (CLE-T-Y2F1NG). 동기 자식은 부모 context 를, 비동기 자식은 실행 행의 `dry_run` 을
+   * 이어받아 dry-run 으로 돌기 때문이다. 탐색은 너비 우선이고 이미 본 워크플로우는
+   * 다시 보지 않는다(순환 가드). 깊이는 서브 워크플로우 재귀 한도
+   * ({@link DRY_RUN_PRECHECK_MAX_DEPTH})까지만 본다. 그보다 깊은 호출은 실행 때
+   * 재귀 한도로 실패한다. 대상 ID 가 표현식(`{{ … }}`)이면 실행 전에는 알 수 없어
+   * 보지 않고, 같은 워크스페이스 밖의 워크플로우는 엔진이 실행 때 막으므로 보지 않는다.
+   *
+   * @throws {BadRequestException} RERUN_DRY_RUN_NOT_APPLICABLE — 워크플로나 그
+   *   서브 워크플로에 `supportsDryRun !== true` 인 Integration 노드가 존재할 때.
    */
-  private async assertDryRunSupported(workflowId: string): Promise<void> {
-    const nodes = await this.nodeRepository.find({
-      where: { workflowId },
-      select: { id: true, type: true, category: true },
-    });
-    const offending = nodes.find((node) => {
-      if (node.category !== NodeCategory.INTEGRATION) return false;
-      const meta = this.nodeComponentRegistry.getComponent(node.type)?.metadata;
-      return meta?.supportsDryRun !== true;
-    });
-    if (offending) {
-      throw new BadRequestException({
-        code: 'RERUN_DRY_RUN_NOT_APPLICABLE',
-        message: `Workflow contains a node (type='${offending.type}') that does not support dry-run`,
+  private async assertDryRunSupported(
+    workflowId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const visited = new Set<string>([workflowId]);
+    let frontier = [workflowId];
+    for (
+      let depth = 0;
+      frontier.length > 0 && depth <= DRY_RUN_PRECHECK_MAX_DEPTH;
+      depth++
+    ) {
+      const nodes = await this.nodeRepository.find({
+        where: { workflowId: In(frontier), workflow: { workspaceId } },
+        select: { id: true, type: true, category: true, config: true },
       });
+      const offending = nodes.find((node) => {
+        if (node.category !== NodeCategory.INTEGRATION) return false;
+        const meta = this.nodeComponentRegistry.getComponent(
+          node.type,
+        )?.metadata;
+        return meta?.supportsDryRun !== true;
+      });
+      if (offending) {
+        throw new BadRequestException({
+          code: 'RERUN_DRY_RUN_NOT_APPLICABLE',
+          message: `Workflow contains a node (type='${offending.type}') that does not support dry-run`,
+        });
+      }
+      const next: string[] = [];
+      for (const node of nodes) {
+        if (node.type !== SUB_WORKFLOW_NODE_TYPE) continue;
+        const target = (node.config as { workflowId?: unknown } | null)
+          ?.workflowId;
+        if (typeof target !== 'string') continue;
+        const id = target.trim();
+        if (id === '' || id.includes('{{') || visited.has(id)) continue;
+        visited.add(id);
+        next.push(id);
+      }
+      frontier = next;
     }
   }
 

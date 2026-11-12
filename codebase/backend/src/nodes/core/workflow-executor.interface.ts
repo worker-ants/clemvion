@@ -11,6 +11,12 @@ export interface SubWorkflowOptions {
    * 옛 동작과의 호환을 위해 optional 이지만, 모든 신규 호출자는 반드시 전달해야 한다.
    */
   parentWorkspaceId?: string;
+  /**
+   * 부모 실행이 dry-run 이면 `true`. 비동기 자식 실행은 이 값을 자기 실행 행
+   * (`execution.dry_run`)에 남기고 `context.variables.__dryRun` 으로 이어받는다
+   * ([재실행](CLE-EXEC-RERUN) 의 dry-run 절, CLE-T-Y2F1NG). 비우면 `false` 다.
+   */
+  dryRun?: boolean;
 }
 
 export interface SubWorkflowResult {

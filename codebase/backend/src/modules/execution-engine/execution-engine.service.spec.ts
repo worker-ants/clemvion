@@ -40,6 +40,7 @@ import {
 import { resolveWaitingSurface } from './waiting-surface-guard';
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
+import { isDryRun } from '../../nodes/core/dry-run.util';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 import { FormInteractionService } from './form-interaction.service';
@@ -3911,6 +3912,56 @@ describe('ExecutionEngineService', () => {
         expect(result).toBe(executionId);
       });
 
+      // CLE-T-Y2F1NG — 비동기 자식 실행은 부모의 dry-run 을 실행 행에 남기고 그 값으로
+      // `__dryRun` 을 만든다. 끊기면 dry-run 재실행의 자식 안 부수효과 노드가 실제로 돈다.
+      it.each([
+        ['true', true, true],
+        ['false', false, false],
+        ['미지정', undefined, false],
+      ])(
+        'dryRun=%s → 자식 실행 행의 dryRun 과 자식 노드 context 의 __dryRun 이 같은 값이다',
+        async (_label, dryRun, expected) => {
+          // 이 describe 는 노드 0개로 줄여 두었다. 자식 노드 context 를 보려고 기본
+          // 그래프(test_node)로 되돌린다.
+          mockNodeRepo.findBy.mockResolvedValue(mockNodes);
+          mockEdgeRepo.findBy.mockResolvedValue(mockEdges);
+          const base = mockExecutionRepo.create() as Partial<Execution>;
+          mockExecutionRepo.create.mockClear();
+          mockExecutionRepo.create.mockImplementationOnce(
+            (entity: Partial<Execution>) => ({ ...base, ...entity }),
+          );
+          const seenContexts: ExecutionContext[] = [];
+          (mockHandler.execute as jest.Mock).mockImplementation(
+            async (
+              input: unknown,
+              _config: unknown,
+              context: ExecutionContext,
+            ) => {
+              seenContexts.push(context);
+              return mockOutput({ processed: true, input });
+            },
+          );
+
+          await service.executeAsync(
+            workflowId,
+            { foo: 'bar' },
+            { parentWorkspaceId: 'ws-1', parentExecutionId: 'parent-1', dryRun },
+          );
+          await flushPromises();
+
+          expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+              parentExecutionId: 'parent-1',
+              dryRun: expected,
+            }),
+          );
+          expect(seenContexts.length).toBeGreaterThan(0);
+          for (const ctx of seenContexts) {
+            expect(ctx.variables['__dryRun']).toBe(expected);
+          }
+        },
+      );
+
       // W-6 fail-closed — executeAsync 도 parentWorkspaceId 없으면 차단.
       it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId is absent (fail-closed)', async () => {
         await expect(
@@ -4094,6 +4145,34 @@ describe('ExecutionEngineService', () => {
       expect(contextService.getContext(bgKey)).toBeUndefined();
       inlineSpy.mockRestore();
     });
+
+    // CLE-T-Y2F1NG — 워커가 작업 스냅샷의 `__dryRun` 을 본문 context 로 그대로 옮긴다.
+    // 본문 노드의 부수효과 가드(`isDryRun`)가 이 값을 읽는다.
+    it.each([
+      ['true', true],
+      ['false', false],
+    ])(
+      '작업 스냅샷의 __dryRun=%s 이 본문 context 로 이어진다',
+      async (_label, dryRun) => {
+        let captured: boolean | undefined;
+        const inlineSpy = jest
+          .spyOn(service, 'executeInline')
+          .mockImplementation((_w, _i, options) => {
+            captured = isDryRun(options.context);
+            return Promise.resolve(undefined);
+          });
+
+        await service.executeBackgroundSubgraph(
+          makeBgJob({
+            backgroundRunId: `bg-run-dry-${dryRun}`,
+            variables: { __dryRun: dryRun },
+          }),
+        );
+
+        expect(captured).toBe(dryRun);
+        inlineSpy.mockRestore();
+      },
+    );
 
     it('cleans up the bgKey context even when the body throws', async () => {
       const contextService = (
@@ -15267,6 +15346,51 @@ describe('ExecutionEngineService', () => {
         // Loop 밖이라 $loop 는 싣지 않는다.
         expect(jobs.every((job) => !('loopContext' in job))).toBe(true);
       });
+
+      // CLE-T-Y2F1NG — dry-run 실행의 Background 본문도 dry-run 으로 돈다. 큐 작업
+      // 스냅샷이 `context.variables` 를 통째로 복사하므로 `__dryRun` 이 실린다. 이 연결이
+      // 끊기면 본문 안 부수효과 노드가 dry-run 실행에서 실제로 돈다.
+      it.each([
+        ['true', true],
+        ['false', false],
+      ])(
+        'dry-run=%s 실행의 Background 는 작업 스냅샷 variables 에 같은 __dryRun 을 싣는다',
+        async (_label, dryRun) => {
+          handlerRegistry.register('background', new BackgroundHandler(), {
+            kind: 'background',
+          });
+          recordingHandler('test_node', () => ({ v: 1 }));
+          recordingHandler('after_node', (input) => input);
+          recordingHandler('bg_body_node', (input) => input);
+          backgroundQueueAdd().mockClear();
+          // 기본 create mock 은 입력과 무관한 고정 row 를 돌려준다. dryRun 이 row 에
+          // 실려야 runExecution 이 그 값을 `__dryRun` 으로 읽는다.
+          const base = mockExecutionRepo.create() as Partial<Execution>;
+          mockExecutionRepo.create.mockImplementationOnce(
+            (entity: Partial<Execution>) => ({ ...base, ...entity }),
+          );
+          mockNodeRepo.findBy.mockResolvedValue([
+            cNode('src', 'test_node', null),
+            cNode('bg', 'background', null),
+            cNode('after', 'after_node', null),
+            cNode('bgBody', 'bg_body_node', null),
+          ]);
+          mockEdgeRepo.findBy.mockResolvedValue([
+            cEdge('src', 'out', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+          ]);
+
+          await service.execute(workflowId, {}, { workspaceId: 'ws-1', dryRun });
+          await flushPromises();
+
+          const jobs = backgroundQueueAdd().mock.calls.map(
+            (call: unknown[]) => call[1] as BackgroundExecutionJob,
+          );
+          expect(jobs).toHaveLength(1);
+          expect(jobs[0].variables['__dryRun']).toBe(dryRun);
+        },
+      );
 
       it('ForEach 본문 안 Loop 본문의 Background 는 바깥 $item 과 안쪽 $loop 를 함께 싣는다', async () => {
         handlerRegistry.register('background', new BackgroundHandler(), {

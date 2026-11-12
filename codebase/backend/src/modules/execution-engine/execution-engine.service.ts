@@ -4584,6 +4584,10 @@ export class ExecutionEngineService
       inputData: (input as Record<string, unknown>) ?? {},
       parentExecutionId: options?.parentExecutionId ?? undefined,
       recursionDepth: depth,
+      // CLE-T-Y2F1NG — 부모가 dry-run 이면 자식 실행 행에도 남긴다. runExecution 과
+      // rehydrateContext 가 이 컬럼으로 `__dryRun` 을 만들어 자식 안 부수효과 노드가
+      // 모의 출력으로 돈다.
+      dryRun: options?.dryRun === true,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;

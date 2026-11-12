@@ -236,6 +236,123 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     );
   });
 
+  // CLE-T-Y2F1NG — 서브 워크플로우(동기 · 비동기) 자식도 dry-run 을 이어받으므로 사전
+  // 검사가 자식 워크플로우의 노드까지 본다.
+  describe('dry-run pre-flight — 서브 워크플로우 재귀', () => {
+    const dryRunOriginal = () => ({
+      id: 'e1',
+      workflowId: 'wf-1',
+      workflow: { workspaceId: 'ws-1' },
+      executedBy: 'user-1',
+      inputData: {},
+      chainId: null,
+    });
+    const subWorkflowNode = (id: string, target: unknown, mode = 'sync') => ({
+      id,
+      type: 'workflow',
+      category: 'flow',
+      config: { workflowId: target, mode },
+    });
+    const supportsDryRun = () =>
+      registry.getComponent.mockImplementation((type: string) => ({
+        metadata: { supportsDryRun: type !== 'legacy_side_effect' },
+      }));
+    const proceed = () =>
+      jest
+        .spyOn(service, 'findById')
+        .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    it.each(['sync', 'async'])(
+      '%s 서브 워크플로우 안의 dry-run 미지원 노드도 거부한다',
+      async (mode) => {
+        getOneQueue = [dryRunOriginal()];
+        supportsDryRun();
+        nodeRepo.find
+          .mockResolvedValueOnce([subWorkflowNode('n1', 'wf-child', mode)])
+          .mockResolvedValueOnce([
+            { id: 'c1', type: 'legacy_side_effect', category: 'integration' },
+          ]);
+
+        await expect(
+          service.reRun('e1', 'ws-1', user, { dryRun: true }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(engine.execute).not.toHaveBeenCalled();
+        // 두 번째 조회가 자식 워크플로우를 같은 워크스페이스로 좁혀 읽는다.
+        expect(nodeRepo.find).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            where: {
+              workflowId: expect.objectContaining({ _value: ['wf-child'] }),
+              workflow: { workspaceId: 'ws-1' },
+            },
+          }),
+        );
+      },
+    );
+
+    it('순환 호출(wf-1 → wf-child → wf-1)은 한 번씩만 보고 통과한다', async () => {
+      getOneQueue = [dryRunOriginal()];
+      chainDepth = 1;
+      supportsDryRun();
+      proceed();
+      nodeRepo.find
+        .mockResolvedValueOnce([subWorkflowNode('n1', 'wf-child')])
+        .mockResolvedValueOnce([subWorkflowNode('c1', 'wf-1')])
+        .mockResolvedValue([]);
+
+      await service.reRun('e1', 'ws-1', user, { dryRun: true });
+
+      expect(nodeRepo.find).toHaveBeenCalledTimes(2);
+      expect(engine.execute).toHaveBeenCalled();
+    });
+
+    it('대상이 표현식이거나 비었으면 따라가지 않는다', async () => {
+      getOneQueue = [dryRunOriginal()];
+      chainDepth = 1;
+      supportsDryRun();
+      proceed();
+      nodeRepo.find.mockResolvedValueOnce([
+        subWorkflowNode('n1', '{{ $json.target }}'),
+        subWorkflowNode('n2', ''),
+        subWorkflowNode('n3', undefined),
+      ]);
+
+      await service.reRun('e1', 'ws-1', user, { dryRun: true });
+
+      expect(nodeRepo.find).toHaveBeenCalledTimes(1);
+      expect(engine.execute).toHaveBeenCalled();
+    });
+
+    it('재귀 한도(10)보다 깊은 서브 워크플로우는 보지 않는다', async () => {
+      getOneQueue = [dryRunOriginal()];
+      chainDepth = 1;
+      supportsDryRun();
+      proceed();
+      // 매 단계가 새 워크플로우를 하나씩 부르는 끝없는 사슬.
+      let level = 0;
+      nodeRepo.find.mockImplementation(() => {
+        level += 1;
+        return Promise.resolve([subWorkflowNode(`n${level}`, `wf-deep-${level}`)]);
+      });
+
+      await service.reRun('e1', 'ws-1', user, { dryRun: true });
+
+      // 루트(깊이 0)부터 깊이 10 까지 11번 읽고 멈춘다.
+      expect(nodeRepo.find).toHaveBeenCalledTimes(11);
+      expect(engine.execute).toHaveBeenCalled();
+    });
+
+    it('dry-run 이 아니면 사전 검사를 하지 않는다', async () => {
+      getOneQueue = [dryRunOriginal()];
+      chainDepth = 1;
+      proceed();
+
+      await service.reRun('e1', 'ws-1', user, { dryRun: false });
+
+      expect(nodeRepo.find).not.toHaveBeenCalled();
+    });
+  });
+
   it('rejects when chain depth limit (32) is exceeded', async () => {
     getOneQueue = [
       {
