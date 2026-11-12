@@ -59,7 +59,7 @@ function buttonsOf(config: Record<string, unknown> | undefined): ButtonDef[] {
 
 export function Panel({ state, config, actions }: PanelProps) {
   const t = useTranslation();
-  const { messages, pending, phase, error } = state;
+  const { messages, pending, phase, error, commandFailed, fieldErrors, composerDraft } = state;
   const isEnded = phase === "ended";
   const fresh = messages.length === 0;
   const welcomeSuggestions = config.welcome?.suggestions ?? config.launcher?.suggestions ?? [];
@@ -155,7 +155,7 @@ export function Panel({ state, config, actions }: PanelProps) {
         )}
 
         {pending?.type === "form" && (
-          <DynamicForm config={pending.config} onSubmit={actions.submitForm} />
+          <DynamicForm config={pending.config} fieldErrors={fieldErrors} onSubmit={actions.submitForm} />
         )}
 
         {fresh && welcomeSuggestions.length > 0 && (
@@ -172,6 +172,12 @@ export function Panel({ state, config, actions }: PanelProps) {
 
         {/* 렌더되는 에러는 항상 generic(use-widget ERROR 경로) — BLOCKED 코드는 blocked phase 라 미렌더. */}
         {error && <div className="wc-error" role="alert">{t("error.generic")}</div>}
+        {/* 명령 실패는 대화를 끝내지 않는다 — 같은 표면에서 다시 보낸다(REQ-WCWIDGET-053). 서버 원문은 보이지 않는다. */}
+        {commandFailed && !isEnded && (
+          <div className="wc-error" role="alert">
+            {t("error.commandFailed")}
+          </div>
+        )}
 
         {isEnded && (
           <div className="wc-ended">
@@ -190,6 +196,7 @@ export function Panel({ state, config, actions }: PanelProps) {
         <Composer
           loading={phase === "booting" || phase === "streaming"}
           disabled={phase !== "awaiting_user_message" || !isTextInputSurface(pending)}
+          draft={composerDraft}
           onSend={actions.submitMessage}
         />
       )}

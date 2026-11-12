@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { EiaClient, EiaError, isTerminalAuthError, redactToken, unwrapEnvelope, type EventSourceLike } from "./eia-client";
+import { EiaClient, EiaError, isTerminalAuthError, redactToken, unwrapEnvelope, validationFieldErrors, type EventSourceLike } from "./eia-client";
 import type { InteractionEndpoints } from "./eia-types";
 
 const endpoints: InteractionEndpoints = {
@@ -296,5 +296,38 @@ describe("redactToken — 로그에 단명 토큰을 남기지 않는다", () =>
 
   it("토큰이 없으면 그대로 둔다", () => {
     expect(redactToken("plain message")).toBe("plain message");
+  });
+});
+
+describe("validationFieldErrors — Form 검증 실패의 필드 문구(REQ-WCWIDGET-041)", () => {
+  const validation = (details: unknown, status = 400, code = "VALIDATION_ERROR") =>
+    new EiaError(`명령 실패(${status})`, status, { error: { code, message: "검증 실패", details } });
+
+  it("details[] 를 field → message 로 꺼낸다", () => {
+    const err = validation([{ field: "email", message: "이메일 형식이 아니에요", code: "INVALID_FIELD" }]);
+    expect(validationFieldErrors(err)).toEqual({ email: "이메일 형식이 아니에요" });
+  });
+
+  it("같은 필드가 여러 번 나오면 첫 문구를 쓴다", () => {
+    const err = validation([
+      { field: "age", message: "첫 문구", code: "INVALID_FIELD" },
+      { field: "age", message: "둘째 문구", code: "INVALID_FIELD" },
+      { field: "name", message: "이름 필요", code: "INVALID_FIELD" },
+    ]);
+    expect(validationFieldErrors(err)).toEqual({ age: "첫 문구", name: "이름 필요" });
+  });
+
+  it("쓸 수 없는 항목은 건너뛰고 남는 것이 없으면 undefined", () => {
+    expect(validationFieldErrors(validation([{ field: 1, message: "x" }, { field: "a", message: "" }, null]))).toBeUndefined();
+    expect(validationFieldErrors(validation([]))).toBeUndefined();
+    expect(validationFieldErrors(validation(undefined))).toBeUndefined();
+  });
+
+  it("400 VALIDATION_ERROR 가 아니면 undefined", () => {
+    const details = [{ field: "a", message: "x", code: "INVALID_FIELD" }];
+    expect(validationFieldErrors(validation(details, 400, "MESSAGE_TOO_LONG"))).toBeUndefined();
+    expect(validationFieldErrors(validation(details, 409))).toBeUndefined();
+    expect(validationFieldErrors(new EiaError("명령 실패(400)", 400, undefined))).toBeUndefined();
+    expect(validationFieldErrors(new TypeError("Failed to fetch"))).toBeUndefined();
   });
 });

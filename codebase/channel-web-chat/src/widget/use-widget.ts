@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { EiaClient, EiaError, isTerminalAuthError, redactToken, type EventSourceLike } from "@/lib/eia-client";
+import {
+  EiaClient,
+  EiaError,
+  isTerminalAuthError,
+  redactToken,
+  validationFieldErrors,
+  type EventSourceLike,
+} from "@/lib/eia-client";
 import type {
   AiMessageEvent,
   ExecutionMessageEvent,
@@ -470,7 +477,9 @@ export function useWidget() {
   );
 
   /**
-   * `execution.replay_unavailable` 재동기화(REQ-WCWIDGET-029) — 상태 조회 스냅샷으로 표면을 다시 그린다.
+   * 자기 스트림이 열린 채 상태 조회 스냅샷으로 표면을 다시 그린다. `execution.replay_unavailable`
+   * 재동기화(REQ-WCWIDGET-029)와 명령 `409`(REQ-WCWIDGET-055)가 함께 쓴다. 스냅샷이 종료 상태면 seed 가
+   * 종료로 확정한다.
    *
    * **상태 조회를 두 번까지 한다.** 첫 조회가 `401` 이고 복구(`recoverFromExpiredToken`)로 토큰이
    * 바뀌면 그 왕복에서는 표면을 못 그렸다. 복원 · 시작 경로는 그 뒤 `lastEventId="0"` 으로 SSE 를 열어
@@ -481,7 +490,7 @@ export function useWidget() {
    * 토큰이 바뀐 것만 보고 두 번째 조회를 하므로, 첫 조회가 성공한 사이 주기 갱신이 회전을 마친 드문
    * 경우에도 한 번 더 조회한다. 같은 스냅샷을 다시 그릴 뿐이라 해가 없다.
    */
-  const resyncAfterReplayGap = useCallback(
+  const resyncSurfaceFromStatus = useCallback(
     async (client: EiaClient, session: SessionRef): Promise<void> => {
       const seed = seedWaitingFromStatusRef.current;
       if (!seed) return;
@@ -532,11 +541,11 @@ export function useWidget() {
         // 이벤트까지 유실된 경우 — `seedWaitingFromStatus` 가 `finalizeEnded` 로 종료를 확정한다.
         const client = clientRef.current;
         const session = sessionRef.current;
-        // `resyncAfterReplayGap` 은 `allowWhileStreaming: true` 로 seed 한다 — 이 폴백은 **자기 스트림이 열린 채** 표면을 재동기화한다.
+        // `resyncSurfaceFromStatus` 는 `allowWhileStreaming: true` 로 seed 한다 — 이 폴백은 **자기 스트림이 열린 채** 표면을 재동기화한다.
         // seed 의 기본 가드(`sessionEstablished()` 면 WAITING 스킵)를 그대로 두면 여기선 항상 스킵돼
         // 재동기화가 no-op 이 된다. 복원/start 경로의 "다른 시도가 스트림을 가로챘나" 와 달리, 여기
         // 스트림 열림은 "내가 다시 그려야 함" 을 뜻하므로 opt-in 으로 통과시킨다.
-        if (client && session) void resyncAfterReplayGap(client, session);
+        if (client && session) void resyncSurfaceFromStatus(client, session);
         // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
@@ -544,7 +553,7 @@ export function useWidget() {
         finalizeEnded(name);
       }
     },
-    [finalizeEnded, resyncAfterReplayGap],
+    [finalizeEnded, resyncSurfaceFromStatus],
   );
 
   /**
@@ -607,6 +616,7 @@ export function useWidget() {
    * (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다.
    * §R4 의 결정: 한 번 시도한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만
    * 믿으면 blacklist 세션을 못 끊는다.
+   * 명령 `401`(`sendCommand`)도 같은 규칙으로 이 함수를 쓴다(REQ-WCSESS-038~040).
    *
    * **분리한 이유**: `seedWaitingFromStatus` 의 catch 안에 두면 중첩이 3단계(catch→if→try/catch)
    * 가 되고 그 함수가 "getStatus 실패 분류" 와 "401 복구 시퀀스" 두 책임을 진다
@@ -635,7 +645,7 @@ export function useWidget() {
         // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
         // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
         // 스트림이 이미 열린 `replay_unavailable` 재동기화만 예외라 그 호출부가 한 번 더 조회한다
-        // (`resyncAfterReplayGap`).
+        // (`resyncSurfaceFromStatus`).
         return "continue";
       } catch (refreshErr) {
         // **`401`/`410` 일 때만 종료로 확정한다** — §R4 문언이 그렇고, 그보다 넓게 잡으면
@@ -978,12 +988,31 @@ export function useWidget() {
     }
   }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, worldGenRef]);
 
+  /**
+   * 입력·선택·제출 명령(`interact`)을 보낸다. 실패는 종료가 확정될 때만 종료로 간다
+   * (CLE-WEBCHAT-WIDGET 「명령 실패」, CLE-WEBCHAT-SESSION REQ-WCSESS-037~040).
+   *
+   * - `410` → 종료 확정(`finalizeEnded("gone")`).
+   * - `401` → 주기 갱신과 같은 refresh 진입점으로 한 번 갱신한다(`recoverFromExpiredToken`). 갱신이
+   *   `401`·`410` 으로 거부되면 그 안에서 종료로 확정한다. 성공하거나 네트워크 · 5xx 로 실패하면 아래
+   *   공통 처리를 한다. 명령은 다시 보내지 않는다. 네트워크 · 5xx 뒤 재시도는 주기 갱신의 백오프가 맡는다.
+   * - 그 밖(`400`·`409`·`429`·5xx·네트워크 에러) → `COMMAND_FAILED`. 위젯 세션과 SSE 는 그대로 둔다.
+   *   `409` 는 상태 조회 스냅샷으로 표면을 다시 맞춘다(REQ-WCWIDGET-055).
+   *
+   * **410 이 아닌 실패에서 세션을 지우지 않는다.** 한때 여기서 `teardownSession()` 을 불렀다("에러도
+   * 종료다" 라는 전제). 일시적 `500` 직후 새로고침하면 `getStatus` 는 내내 `200 {status:"running"}` 인데
+   * `phase=collapsed`·`executionId` 없음으로 살아 있는 대화를 영구히 잃었다(그 한 줄만 빼면 `streaming`·`e1`
+   * 로 정상 복원. ai-review 2026-07-17 18_39_11 requirement CRITICAL). 그 줄을 되돌린 뒤에도 리듀서는 명령
+   * 실패를 `ERROR` → `[ended]` 로 그려서 화면은 끝났는데 스트림은 살아 있었다. 그 실패를 `COMMAND_FAILED`
+   * 로 나눈 것이 CLE-T-79PFHB 다.
+   */
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
       const session = sessionRef.current;
       const client = clientRef.current;
       if (!session || !client) return;
       const gen = worldGenRef.current;
+      dispatch({ type: "COMMAND_SENT" });
       try {
         await client.interact(session.endpoints, session.token, command);
       } catch (e) {
@@ -997,32 +1026,28 @@ export function useWidget() {
           // `finalizeEnded` 경유 — SSE terminal 로 이미 종료된 뒤 in-flight 명령이 410 을 받으면
           // host 가 같은 종료를 2회 통지받으므로 `endedRef` 1회 가드를 공유한다.
           finalizeEnded("gone");
-        } else {
-          // **비-410 명령 실패는 종료가 아니다 — 세션을 지우지 않는다.**
-          //
-          // `3-auth-session.md` §3.1-3 은 storage 정리 조건을 **명시 열거**한다: SSE terminal,
-          // 복원 시 200+terminal status·404·복구불가 401, 그리고 명령 응답 **410 Gone**. "그 외
-          // 명령 실패" 는 그 목록에 **없다**. 오히려 §3.1-2 가 "200 + status ∈ {running/
-          // waiting_for_input} → SSE 재연결 → 복원" 을 명시한다 — 서버가 살아있다고 답하면
-          // 복원해야 한다. `interact()` 는 410 만 특수 처리하고 5xx·409·form 검증 4xx·순수
-          // 네트워크 실패를 전부 같은 예외로 던지므로(`eia-client.ts`), 여기서 세션을 지우면
-          // **서버 execution 이 멀쩡히 살아있는데 사용자가 대화를 영구히 잃는다**.
-          //
-          // 한때 여기서 `teardownSession()` 을 불렀다 — "에러도 종료다" 라는 전제였다. 실측으로
-          // 반증됐다: 일시적 500 직후 새로고침하면 `phase=collapsed`·`executionId` 없음(그 한 줄만
-          // 빼면 `streaming`·`e1` 로 정상 복원. `getStatus` 는 내내 `200 {status:"running"}`).
-          // 그 fix 가 막으려던 부작용(재전송 시 `getStatus`·SSE 재발사)은 이미 `applyConfig` 의
-          // `sessionEstablished()` 복원-스킵이 막고 있었다 — 불필요했을 뿐 아니라 유해했다.
-          // (ai-review 2026-07-17 18_39_11 requirement CRITICAL — 재현·단일라인 귀속 확인)
-          //
-          // 남은 gap(이 PR 범위 밖): `ERROR` 가 `phase: "ended"` 로 보내는 것 자체가
-          // `1-widget-app.md` §2 Form 행의 "실패 시 error.details 표시·재제출" 약속과 어긋난다.
-          // 이 PR 이전부터 있던 문제라 여기서 넓히지 않고 plan 에 이월했다.
-          dispatch({ type: "ERROR", message: errMessage(e) });
+          return;
+        }
+        // 서버 원문은 콘솔에만 남긴다. 화면에는 catalog 문구만 보인다(REQ-WCSEC-026).
+        console.warn("[widget] command failed:", redactToken(e instanceof Error ? e.message : String(e)));
+        if (e instanceof EiaError && e.status === 401) {
+          const outcome = await recoverFromExpiredToken(client, session, gen);
+          // `ended` 는 갱신이 거부돼 그 안에서 종료로 확정했고 `stale` 은 그 사이 세계가 바뀌었다.
+          if (outcome === "ended" || outcome === "stale" || isStale(gen)) return;
+        }
+        dispatch({
+          type: "COMMAND_FAILED",
+          command: command.command,
+          fieldErrors: command.command === "submit_form" ? validationFieldErrors(e) : undefined,
+        });
+        if (e instanceof EiaError && e.status === 409) {
+          // 표면이 서버와 어긋났다. 스트림은 열려 있어도 다시 그린다(REQ-WCSESS-034). 갱신으로 세션이
+          // 바뀌었을 수 있어 지금 세션을 쓴다.
+          void resyncSurfaceFromStatus(client, sessionRef.current ?? session);
         }
       }
     },
-    [finalizeEnded, isStale, worldGenRef],
+    [finalizeEnded, isStale, recoverFromExpiredToken, resyncSurfaceFromStatus, worldGenRef],
   );
 
   // C1(§R6) 보류 메시지 큐 — booting/streaming 중 텍스트를 보관했다가 awaiting_user_message 진입 시 flush.

@@ -9,13 +9,25 @@ interface ComposerProps {
   /** AI 응답 처리 중(booting/streaming) — 전송 버튼 자리에 스피너로 "응답 중" 표시. spec 1-widget-app §R6. */
   loading?: boolean;
   placeholder?: string;
+  /**
+   * 입력창에 되돌릴 글. 메시지 전송이 실패하면 보낸 글을 다시 채운다(REQ-WCWIDGET-054). 객체가 바뀔 때만
+   * 반영하므로 사용자가 고쳐 쓰던 글을 재렌더로 덮지 않는다.
+   */
+  draft?: { text: string };
   onSend: (text: string) => void;
 }
 
 // 입력창 — 엔터/전송 → submit_message. spec 1-widget-app §2.
-export function Composer({ disabled, loading, placeholder, onSend }: ComposerProps) {
+export function Composer({ disabled, loading, placeholder, draft, onSend }: ComposerProps) {
   const t = useTranslation();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(draft?.text ?? "");
+  // 되돌릴 글이 바뀌면 렌더 중에 한 번 반영한다(React 문서의 "prop 이 바뀔 때 state 조정" 패턴).
+  // effect 에서 setState 하면 한 번 더 그린다.
+  const [appliedDraft, setAppliedDraft] = useState(draft);
+  if (draft !== appliedDraft) {
+    setAppliedDraft(draft);
+    if (draft) setText(draft.text);
+  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

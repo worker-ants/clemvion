@@ -181,6 +181,28 @@ export function isTerminalAuthError(err: unknown): boolean {
 }
 
 /**
+ * Form 제출의 `400 VALIDATION_ERROR` 응답에서 필드별 문구를 꺼낸다(REQ-WCWIDGET-041).
+ *
+ * 응답 본문은 `{error:{code:"VALIDATION_ERROR", details:[{field, message, code}]}}` 다(EIA 수신 API).
+ * `details[].message` 는 EIA 가 사용자에게 보이려고 만든 검증 문구라 그대로 쓴다. 같은 필드가 여러 번
+ * 나오면 첫 문구를 쓴다.
+ *
+ * @returns `field → message`. 이 형태가 아니거나 쓸 수 있는 항목이 없으면 `undefined` 다. 호출부는
+ *   `undefined` 를 일반 명령 실패로 다룬다.
+ */
+export function validationFieldErrors(err: unknown): Record<string, string> | undefined {
+  if (!(err instanceof EiaError) || err.status !== 400) return undefined;
+  const body = err.detail as { error?: { code?: unknown; details?: unknown } } | undefined;
+  if (body?.error?.code !== "VALIDATION_ERROR" || !Array.isArray(body.error.details)) return undefined;
+  const out: Record<string, string> = {};
+  for (const d of body.error.details as Array<{ field?: unknown; message?: unknown }>) {
+    if (typeof d?.field !== "string" || typeof d.message !== "string" || !d.message) continue;
+    if (!(d.field in out)) out[d.field] = d.message;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
  * 로그로 내보낼 문자열에서 **쿼리의 per_execution 토큰을 지운다**.
  *
  * SSE 는 `EventSource` 가 헤더를 못 실어 토큰을 쿼리로 보낸다(위 `openStream`, EIA §8.3).

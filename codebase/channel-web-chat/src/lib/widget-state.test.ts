@@ -322,3 +322,132 @@ describe("widgetReducer — WAITING threadMessages 병합(mergeMessages, 복원 
     expect(s.pending?.type).toBe("ai_conversation");
   });
 });
+// 명령 실패(CLE-WEBCHAT-WIDGET 「명령 실패」, REQ-WCWIDGET-041 · 053~056). `ERROR` 와 달리 `[ended]` 로 가지 않는다.
+describe("widgetReducer — 명령 실패(COMMAND_FAILED · COMMAND_SENT)", () => {
+  const textSurface = { type: "ai_conversation" as const, nodeId: "n1" };
+  const sentMessage = (): WidgetState =>
+    reduce([
+      { type: "BOOTED", executionId: "e1" },
+      { type: "WAITING", interaction: textSurface },
+      { type: "USER_MESSAGE", text: "질문" },
+    ]);
+
+  it("메시지 전송 실패 → 말풍선을 거두고 글을 입력창에 되돌려 awaiting_user_message 로 돌아간다(REQ-WCWIDGET-054)", () => {
+    const s = widgetReducer(sentMessage(), { type: "COMMAND_FAILED", command: "submit_message" });
+    expect(s.phase).toBe("awaiting_user_message");
+    expect(s.pending).toEqual(textSurface);
+    expect(s.messages).toEqual([]);
+    expect(s.composerDraft).toEqual({ text: "질문" });
+    expect(s.commandFailed).toBe(true);
+    expect(s.unconfirmedSend).toBeUndefined();
+    expect(s.error).toBeUndefined();
+  });
+
+  it("실패 전에 SSE 응답이 왔으면 되돌리지 않고 안내만 보인다(서버가 처리했다)", () => {
+    const s = reduce(
+      [
+        { type: "AI_MESSAGE", text: "답" },
+        { type: "COMMAND_FAILED", command: "submit_message" },
+      ],
+      sentMessage(),
+    );
+    expect(s.phase).toBe("streaming");
+    expect(s.messages.map((m) => m.text)).toEqual(["질문", "답"]);
+    expect(s.composerDraft).toBeUndefined();
+    expect(s.commandFailed).toBe(true);
+  });
+
+  it("실패 전에 새 대기 표면이 왔으면 되돌리지 않는다", () => {
+    const next = { type: "buttons" as const, nodeId: "n2" };
+    const s = reduce(
+      [
+        { type: "WAITING", interaction: next },
+        { type: "COMMAND_FAILED", command: "submit_message" },
+      ],
+      sentMessage(),
+    );
+    expect(s.phase).toBe("awaiting_user_message");
+    expect(s.pending).toEqual(next);
+    expect(s.messages.map((m) => m.text)).toEqual(["질문"]);
+    expect(s.composerDraft).toBeUndefined();
+  });
+
+  it("메시지가 아닌 명령의 실패는 낙관적 말풍선을 건드리지 않는다", () => {
+    const s = widgetReducer(sentMessage(), { type: "COMMAND_FAILED", command: "end_conversation" });
+    expect(s.phase).toBe("streaming");
+    expect(s.messages.map((m) => m.text)).toEqual(["질문"]);
+    expect(s.commandFailed).toBe(true);
+  });
+
+  it("버튼 표면의 실패 → 표면을 그대로 두고 안내를 보인다(REQ-WCWIDGET-053)", () => {
+    const buttons = { type: "buttons" as const, nodeId: "n2" };
+    const s = reduce([
+      { type: "WAITING", interaction: buttons },
+      { type: "COMMAND_SENT" },
+      { type: "COMMAND_FAILED", command: "click_button" },
+    ]);
+    expect(s.phase).toBe("awaiting_user_message");
+    expect(s.pending).toEqual(buttons);
+    expect(s.commandFailed).toBe(true);
+  });
+
+  it("Form 검증 실패 → 필드 문구만 두고 일반 안내는 보이지 않는다(REQ-WCWIDGET-041)", () => {
+    const form = { type: "form" as const, nodeId: "n3" };
+    const s = reduce([
+      { type: "WAITING", interaction: form },
+      { type: "COMMAND_FAILED", command: "submit_form", fieldErrors: { email: "형식이 맞지 않아요" } },
+    ]);
+    expect(s.phase).toBe("awaiting_user_message");
+    expect(s.pending).toEqual(form);
+    expect(s.fieldErrors).toEqual({ email: "형식이 맞지 않아요" });
+    expect(s.commandFailed).toBeUndefined();
+  });
+
+  it("다음 명령을 보내면 안내와 필드 문구를 지운다(REQ-WCWIDGET-056)", () => {
+    const failed = reduce([
+      { type: "WAITING", interaction: { type: "form" } },
+      { type: "COMMAND_FAILED", command: "submit_form", fieldErrors: { a: "x" } },
+      { type: "COMMAND_FAILED", command: "submit_form" },
+    ]);
+    expect(failed.commandFailed).toBe(true);
+    const s = widgetReducer(failed, { type: "COMMAND_SENT" });
+    expect(s.commandFailed).toBeUndefined();
+    expect(s.fieldErrors).toBeUndefined();
+  });
+
+  it("다시 보낸 메시지(USER_MESSAGE)는 안내와 되돌린 글을 지운다", () => {
+    const failed = widgetReducer(sentMessage(), { type: "COMMAND_FAILED", command: "submit_message" });
+    const s = widgetReducer(failed, { type: "USER_MESSAGE", text: "질문" });
+    expect(s.commandFailed).toBeUndefined();
+    expect(s.composerDraft).toBeUndefined();
+    expect(s.unconfirmedSend).toEqual({ text: "질문", pending: textSurface });
+  });
+
+  it("새 대기 표면을 받으면 안내를 지운다(REQ-WCWIDGET-056)", () => {
+    const failed = widgetReducer(sentMessage(), { type: "COMMAND_FAILED", command: "submit_message" });
+    const s = widgetReducer(failed, { type: "WAITING", interaction: textSurface });
+    expect(s.commandFailed).toBeUndefined();
+    // 되돌린 글은 사용자 입력이라 남긴다 — 409 재동기화가 같은 표면을 다시 그려도 입력창이 비지 않는다.
+    expect(s.composerDraft).toEqual({ text: "질문" });
+  });
+
+  it("이미 끝난 화면은 바꾸지 않는다(종료 뒤 늦게 온 실패)", () => {
+    const ended = reduce([{ type: "ENDED" }], sentMessage());
+    expect(widgetReducer(ended, { type: "COMMAND_FAILED", command: "submit_message" })).toBe(ended);
+    const blocked = reduce([{ type: "BLOCKED" }]);
+    expect(widgetReducer(blocked, { type: "COMMAND_FAILED", command: "click_button" })).toBe(blocked);
+  });
+
+  it("종료 · ERROR 는 명령 실패 표시를 지운다", () => {
+    const failed = reduce([
+      { type: "WAITING", interaction: { type: "form" } },
+      { type: "COMMAND_FAILED", command: "submit_form" },
+    ]);
+    for (const end of [{ type: "ENDED" } as const, { type: "ERROR", message: "x" } as const]) {
+      const s = widgetReducer(failed, end);
+      expect(s.phase).toBe("ended");
+      expect(s.commandFailed).toBeUndefined();
+      expect(s.fieldErrors).toBeUndefined();
+    }
+  });
+});

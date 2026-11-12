@@ -3,7 +3,7 @@
 // 워크플로우는 패널 open 시 시작한다(eager, §R6) — 첫 사용자 입력을 기다리지 않으며 firstMessage 미사용.
 
 import type { DisplayMessage } from "./conversation";
-import type { ExternalInteractionType } from "./eia-types";
+import type { ExternalInteractionType, InteractCommand } from "./eia-types";
 
 export type WidgetPhase =
   | "collapsed"
@@ -60,6 +60,24 @@ export interface WidgetState {
   unread: number;
   executionId?: string;
   error?: string;
+  /**
+   * 명령 실패 안내(catalog `error.commandFailed`)를 보일지. 명령이 실패했지만 종료가 확정되지 않았을 때
+   * 켠다(REQ-WCWIDGET-053). 다음 명령을 보내거나 새 대기 표면을 받으면 끈다(REQ-WCWIDGET-056).
+   */
+  commandFailed?: boolean;
+  /** Form 검증 실패(`400 VALIDATION_ERROR`)의 필드별 문구. 키는 `details[].field` 다(REQ-WCWIDGET-041). */
+  fieldErrors?: Record<string, string>;
+  /**
+   * 입력창에 되돌릴 글(REQ-WCWIDGET-054). Composer 는 이 **객체가 바뀔 때** 한 번 반영한다.
+   * 같은 글을 두 번 되돌려도 다시 반영되도록 문자열이 아니라 객체로 둔다.
+   */
+  composerDraft?: { text: string };
+  /**
+   * 응답을 확인하지 못한 채 낙관적으로 그린 사용자 메시지와 그 직전 표면. 메시지 전송이 실패하면 이 값으로
+   * 되돌린다. 서버가 처리했다는 신호(새 응답 · 새 대기 표면)나 종료가 오면 지운다. 그래서 이 값이 남아 있으면
+   * 마지막 메시지가 아직 그 말풍선이다.
+   */
+  unconfirmedSend?: { text: string; pending: PendingInteraction | null };
 }
 
 export const initialState: WidgetState = {
@@ -81,6 +99,13 @@ export type WidgetAction =
   | { type: "WAITING"; interaction: PendingInteraction; threadMessages?: DisplayMessage[] }
   | { type: "AI_MESSAGE"; text: string; presentations?: Array<Record<string, unknown>> }
   | { type: "USER_MESSAGE"; text: string }
+  /** 명령을 보내기 직전. 지난 명령 실패 안내와 필드 문구를 지운다(REQ-WCWIDGET-056). */
+  | { type: "COMMAND_SENT" }
+  /**
+   * 종료로 확정되지 않은 명령 실패(REQ-WCWIDGET-053). `fieldErrors` 가 있으면 Form 검증 실패라 일반 안내 대신
+   * 필드 문구만 보인다(REQ-WCWIDGET-041).
+   */
+  | { type: "COMMAND_FAILED"; command: InteractCommand["command"]; fieldErrors?: Record<string, string> }
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
   | { type: "BLOCKED"; reason?: "origin_not_allowed" | string }
@@ -165,6 +190,7 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       if (state.phase === "ended") return state;
       return {
         ...state,
+        ...CLEARED_COMMAND_FEEDBACK,
         phase: "awaiting_user_message",
         pending: action.interaction,
         messages: action.threadMessages
@@ -174,6 +200,8 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "AI_MESSAGE":
       return {
         ...state,
+        // 응답이 왔으면 서버가 앞선 메시지를 처리했다 — 나중에 그 명령이 실패로 끝나도 되돌리지 않는다.
+        unconfirmedSend: undefined,
         messages: [...state.messages, assistantMsg(action.text, action.presentations)],
         // 패널 닫힌 채 도착한 in-flight 메시지 → unread(N4).
         unread: state.open ? state.unread : state.unread + 1,
@@ -181,14 +209,24 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "USER_MESSAGE":
       return {
         ...state,
+        commandFailed: undefined,
+        fieldErrors: undefined,
+        composerDraft: undefined,
+        unconfirmedSend: { text: action.text, pending: state.pending },
         phase: "streaming",
         pending: null,
         messages: [...state.messages, userMsg(action.text)],
       };
+    case "COMMAND_SENT":
+      // 지울 것이 없으면 같은 객체를 돌려줘 다시 그리지 않는다(명령마다 발행된다).
+      if (!state.commandFailed && !state.fieldErrors) return state;
+      return { ...state, commandFailed: undefined, fieldErrors: undefined };
+    case "COMMAND_FAILED":
+      return applyCommandFailure(state, action.command, action.fieldErrors);
     case "ENDED":
-      return { ...state, phase: "ended", pending: null };
+      return { ...state, ...CLEARED_COMMAND_FEEDBACK, phase: "ended", pending: null };
     case "ERROR":
-      return { ...state, phase: "ended", pending: null, error: action.message };
+      return { ...state, ...CLEARED_COMMAND_FEEDBACK, phase: "ended", pending: null, error: action.message };
     case "BLOCKED":
       // 임베드 허용 안 된 호스트 — 위젯을 띄우지 않는다(렌더 거부 + 시작 차단).
       return {
@@ -212,6 +250,44 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     default:
       return state;
   }
+}
+
+/** 종료 · 새 대기 표면에서 함께 지우는 명령 실패 표시. `composerDraft` 는 사용자 입력이라 남긴다. */
+const CLEARED_COMMAND_FEEDBACK = {
+  commandFailed: undefined,
+  fieldErrors: undefined,
+  unconfirmedSend: undefined,
+} as const satisfies Partial<WidgetState>;
+
+/**
+ * 종료로 확정되지 않은 명령 실패를 화면에 반영한다(CLE-WEBCHAT-WIDGET 「명령 실패」).
+ *
+ * `[ended]` 로 가지 않는다. 메시지 전송이 실패했고 그 뒤 SSE 로 응답이나 대기 표면이 오지 않았으면
+ * 낙관적으로 그린 말풍선을 거두고 보낸 글을 입력창에 되돌린다(REQ-WCWIDGET-054). 응답이 이미 왔으면
+ * 서버가 처리한 것이라 안내만 보인다. 그 판정은 `unconfirmedSend` 가 남아 있는지 하나로 한다(응답 · 대기
+ * 표면이 오면 지운다). 이미 끝났거나 차단된 화면은 바꾸지 않는다.
+ */
+function applyCommandFailure(
+  state: WidgetState,
+  command: InteractCommand["command"],
+  fieldErrors: Record<string, string> | undefined,
+): WidgetState {
+  if (state.phase === "ended" || state.phase === "blocked") return state;
+  const next: WidgetState = {
+    ...state,
+    commandFailed: fieldErrors ? undefined : true,
+    fieldErrors,
+  };
+  const sent = state.unconfirmedSend;
+  if (command !== "submit_message" || !sent) return next;
+  return {
+    ...next,
+    phase: "awaiting_user_message",
+    pending: sent.pending,
+    messages: state.messages.slice(0, -1),
+    composerDraft: { text: sent.text },
+    unconfirmedSend: undefined,
+  };
 }
 
 /**

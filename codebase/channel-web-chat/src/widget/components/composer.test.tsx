@@ -49,3 +49,37 @@ describe("Composer — loading 상태 (§R6 AI 응답 중)", () => {
     expect(btn).not.toHaveAttribute("aria-busy");
   });
 });
+
+describe("Composer — draft (명령 실패 뒤 되돌린 글, REQ-WCWIDGET-054)", () => {
+  it("draft 가 있으면 입력창을 그 글로 채운다", () => {
+    render(<Composer draft={{ text: "되돌린 글" }} onSend={vi.fn()} />);
+    expect(screen.getByLabelText("메시지 입력")).toHaveValue("되돌린 글");
+  });
+
+  it("마운트 뒤 새 draft 객체가 오면 입력창을 다시 채운다", () => {
+    const { rerender } = render(<Composer onSend={vi.fn()} />);
+    const input = screen.getByLabelText("메시지 입력");
+    expect(input).toHaveValue("");
+    rerender(<Composer draft={{ text: "첫 실패" }} onSend={vi.fn()} />);
+    expect(input).toHaveValue("첫 실패");
+    // 같은 글이라도 새 실패면 새 객체다 — 사용자가 지운 뒤 다시 실패해도 채운다.
+    fireEvent.change(input, { target: { value: "" } });
+    rerender(<Composer draft={{ text: "첫 실패" }} onSend={vi.fn()} />);
+    expect(input).toHaveValue("첫 실패");
+  });
+
+  it("같은 draft 객체로 다시 렌더되면 사용자가 고친 글을 덮지 않는다", () => {
+    const draft = { text: "되돌린 글" };
+    const { rerender } = render(<Composer draft={draft} onSend={vi.fn()} />);
+    const input = screen.getByLabelText("메시지 입력");
+    fireEvent.change(input, { target: { value: "고친 글" } });
+    rerender(<Composer draft={draft} onSend={vi.fn()} />);
+    expect(input).toHaveValue("고친 글");
+  });
+
+  it("draft 가 사라져도(undefined) 입력창 글은 그대로 둔다", () => {
+    const { rerender } = render(<Composer draft={{ text: "되돌린 글" }} onSend={vi.fn()} />);
+    rerender(<Composer onSend={vi.fn()} />);
+    expect(screen.getByLabelText("메시지 입력")).toHaveValue("되돌린 글");
+  });
+});
