@@ -8345,6 +8345,77 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    // CLE-T-TDAV1G — 재개 경로(`runNodeDispatchLoop`)의 범위 입력은 `{}` 다. 재개 뒤
+    // 실행한 Background 도 Background 노드가 받은 입력으로 본문을 큐에 넣는다.
+    it('재개 뒤 실행한 Background 는 범위 입력이 아니라 Background 노드가 받은 입력(앞 노드 출력)으로 본문을 큐에 넣는다 (CLE-T-TDAV1G)', async () => {
+      handlerRegistry.register('background', new BackgroundHandler(), {
+        kind: 'background',
+      });
+      handlerRegistry.register('pre_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({ marker: 'pre-output' })),
+      });
+      const [startNode, formNode, endNode] = formNodes;
+      mockNodeRepo.findBy.mockResolvedValue([
+        startNode,
+        formNode,
+        { ...endNode, id: 'node-pre', type: 'pre_node', label: 'Pre' },
+        { ...endNode, id: 'node-bg', type: 'background', label: 'Bg' },
+        endNode,
+        { ...endNode, id: 'node-bg-body', label: 'BgBody' },
+      ]);
+      const [startToForm, formToEnd] = formEdges;
+      mockEdgeRepo.findBy.mockResolvedValue([
+        startToForm,
+        { ...formToEnd, id: 'edge-form-pre', targetNodeId: 'node-pre' },
+        {
+          ...formToEnd,
+          id: 'edge-pre-bg',
+          sourceNodeId: 'node-pre',
+          targetNodeId: 'node-bg',
+        },
+        {
+          ...formToEnd,
+          id: 'edge-bg-end',
+          sourceNodeId: 'node-bg',
+          sourcePort: 'main',
+          targetNodeId: 'node-end',
+        },
+        {
+          ...formToEnd,
+          id: 'edge-bg-body',
+          sourceNodeId: 'node-bg',
+          sourcePort: 'background',
+          targetNodeId: 'node-bg-body',
+        },
+      ]);
+      const queueAdd = (
+        service as unknown as { backgroundQueue: { add: jest.Mock } }
+      ).backgroundQueue.add;
+      queueAdd.mockClear();
+
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
+      await flushPromises();
+      // 폼에서 멈췄으므로 Background 는 아직 실행하지 않았다.
+      expect(queueAdd).not.toHaveBeenCalled();
+
+      armSlowPathResume('node-form', formNode);
+      void service.continueExecution(executionId, { approved: true });
+      await flushResumeDrive();
+
+      const jobs = queueAdd.mock.calls.map(
+        (call: unknown[]) => call[1] as BackgroundExecutionJob,
+      );
+      expect(jobs.map((job) => job.bodyEntryNodeIds)).toEqual([
+        ['node-bg-body'],
+      ]);
+      expect(jobs.map((job) => job.input)).toEqual([{ marker: 'pre-output' }]);
+    });
+
     // ai-review C2 (2026-07-26) — mutation 실측: `runNodeDispatchLoop` 상단의
     // §2.3 가드(`assertExecutionNotCancelled`)를 제거해도 이전엔 407/407 GREEN
     // 이었다(커버리지 0). §7.5 재개 경로(driveResumeAwaited → runNodeDispatchLoop)
@@ -15249,6 +15320,60 @@ describe('ExecutionEngineService', () => {
         });
       });
 
+      it('Map 본문 안 Background 도 회차마다 본문을 큐에 넣고 작업에 Map 의 컨테이너 ID 와 그 회차의 반복 변수를 싣는다 (REQ-BGRUN-027 · 028)', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        handlerRegistry.register('map', new MapHandler(), {
+          kind: 'container',
+        });
+        recordingHandler('test_node', () => ({ list: [10, 20] }));
+        recordingHandler('after_node', (input) => input);
+        const bgBodyCalls = recordingHandler('bg_body_node', (input) => input);
+        backgroundQueueAdd().mockClear();
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('mp', 'map', null, { inputField: 'list' }),
+            cNode('bg', 'background', 'mp'),
+            cNode('after', 'after_node', 'mp'),
+            cNode('bgBody', 'bg_body_node', 'mp'),
+          ],
+          [
+            cEdge('src', 'out', 'mp'),
+            cEdge('mp', 'body', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+            cEdge('after', 'out', 'mp', 'emit'),
+          ],
+        );
+
+        // 본문은 큐로만 간다(워커가 실행한다).
+        expect(bgBodyCalls).toHaveLength(0);
+        const jobs = backgroundQueueAdd().mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(
+          jobs.map((job) => [
+            job.containerScopeId,
+            job.bodyEntryNodeIds,
+            job.itemContext,
+          ]),
+        ).toEqual([
+          [
+            'mp',
+            ['bgBody'],
+            { item: 10, index: 0, isFirst: true, isLast: false },
+          ],
+          [
+            'mp',
+            ['bgBody'],
+            { item: 20, index: 1, isFirst: false, isLast: true },
+          ],
+        ]);
+      });
+
       it('맨 바깥 Background 작업에는 반복 변수 필드를 싣지 않는다', async () => {
         handlerRegistry.register('background', new BackgroundHandler(), {
           kind: 'background',
@@ -15505,7 +15630,7 @@ describe('ExecutionEngineService', () => {
         expect(bgBodyCalls).toHaveLength(0);
       });
 
-      it('워커는 작업 스냅샷의 반복 변수를 본문 실행 컨텍스트에 되살려 본문 노드 식이 그 회차의 $item · $itemIndex · $loop 를 읽는다', async () => {
+      it('워커는 작업 스냅샷의 반복 변수를 본문 실행 컨텍스트에 되살려 본문 노드 식이 그 회차의 $item · $itemIndex · $itemIsFirst · $itemIsLast · $loop 를 읽는다 (REQ-BGRUN-028)', async () => {
         const bodyConfigs: unknown[] = [];
         const bodyCtx: ExecutionContext[] = [];
         handlerRegistry.register('bg_expr_node', {
@@ -15528,6 +15653,8 @@ describe('ExecutionEngineService', () => {
           cNode('bgBody', 'bg_expr_node', 'fe', {
             item: '{{ $item.n }}',
             itemIndex: '{{ $itemIndex }}',
+            itemIsFirst: '{{ $itemIsFirst }}',
+            itemIsLast: '{{ $itemIsLast }}',
             loopIndex: '{{ $loop.index }}',
           }),
         ]);
@@ -15561,7 +15688,13 @@ describe('ExecutionEngineService', () => {
           isFirst: false,
           isLast: true,
         });
-        expect(bodyConfigs[0]).toEqual({ item: 7, itemIndex: 1, loopIndex: 2 });
+        expect(bodyConfigs[0]).toEqual({
+          item: 7,
+          itemIndex: 1,
+          itemIsFirst: false,
+          itemIsLast: true,
+          loopIndex: 2,
+        });
       });
 
       it('반복 변수가 없는 작업(맨 바깥 Background · 옛 작업)은 본문에서 반복 변수가 비어 있다', async () => {
@@ -15583,6 +15716,99 @@ describe('ExecutionEngineService', () => {
         expect(bodyCtx).toHaveLength(1);
         expect(bodyCtx[0].itemContext).toBeUndefined();
         expect(bodyCtx[0].loopContext).toBeUndefined();
+      });
+
+      // CLE-T-TDAV1G — 질문 01a1cef7 답 A. 맨 바깥 실행 · 서브 워크플로우(`executeInline`)도
+      // 컨테이너 본문 루프처럼 Background 노드가 받은 입력으로 본문을 큐에 넣는다
+      // (CLE-NODE-BACKGROUND 의 진입 입력 표). 재개 경로는 「Form node blocking」, 병렬 분기
+      // 루프는 「done 포트 완료 출력」 describe 에 있다.
+      describe('Background 본문 진입 입력 (CLE-T-TDAV1G)', () => {
+        const preOutput = { marker: 'pre-output' };
+        const triggerOutput = { marker: 'trigger-output' };
+        // src → pre → bg, bg.main → after, bg.background → bgBody. 앞 노드 pre 를 두어
+        // 실행 범위의 입력과 Background 노드의 입력을 가른다.
+        const backgroundAfterPre = () => {
+          handlerRegistry.register('background', new BackgroundHandler(), {
+            kind: 'background',
+          });
+          recordingHandler('test_node', () => triggerOutput);
+          recordingHandler('pre_node', () => preOutput);
+          recordingHandler('after_node', (input) => input);
+          recordingHandler('bg_body_node', (input) => input);
+          backgroundQueueAdd().mockClear();
+          return {
+            nodes: [
+              cNode('src', 'test_node', null),
+              cNode('pre', 'pre_node', null),
+              cNode('bg', 'background', null),
+              cNode('after', 'after_node', null),
+              cNode('bgBody', 'bg_body_node', null),
+            ],
+            edges: [
+              cEdge('src', 'out', 'pre'),
+              cEdge('pre', 'out', 'bg'),
+              cEdge('bg', 'main', 'after'),
+              cEdge('bg', 'background', 'bgBody'),
+            ],
+          };
+        };
+        const queuedInputs = () =>
+          backgroundQueueAdd().mock.calls.map(
+            (call: unknown[]) => (call[1] as BackgroundExecutionJob).input,
+          );
+
+        it('맨 바깥 실행은 실행 입력이 아니라 Background 노드가 받은 입력(앞 노드 출력)으로 본문을 큐에 넣는다', async () => {
+          const g = backgroundAfterPre();
+
+          await runGraph(g.nodes, g.edges);
+
+          expect(queuedInputs()).toEqual([preOutput]);
+        });
+
+        it('트리거 바로 뒤 Background 는 트리거 출력으로 본문을 큐에 넣는다', async () => {
+          const g = backgroundAfterPre();
+
+          await runGraph(
+            g.nodes.filter((node) => node.id !== 'pre'),
+            [
+              cEdge('src', 'out', 'bg'),
+              ...g.edges.filter((edge) => edge.sourceNodeId === 'bg'),
+            ],
+          );
+
+          expect(queuedInputs()).toEqual([triggerOutput]);
+        });
+
+        it('서브 워크플로우 인라인 실행(executeInline)도 그 실행의 입력이 아니라 Background 노드가 받은 입력으로 본문을 큐에 넣는다', async () => {
+          const g = backgroundAfterPre();
+          // 서브 워크플로우 진입점은 manual_trigger 만 허용되므로 트리거를 빼고 pre 가
+          // 그 실행의 입력을 받는 진입 노드가 된다.
+          mockNodeRepo.findBy.mockResolvedValue(
+            g.nodes.filter((node) => node.id !== 'src'),
+          );
+          mockEdgeRepo.findBy.mockResolvedValue(
+            g.edges.filter((edge) => edge.sourceNodeId !== 'src'),
+          );
+          const contextService = (
+            service as unknown as { contextService: ExecutionContextService }
+          ).contextService;
+
+          await service.executeInline(
+            workflowId,
+            { marker: 'inline-input' },
+            {
+              executionId,
+              context: withWorkspace(
+                contextService.createContext(executionId, workflowId),
+              ),
+              executedNodes: new Set<string>(),
+              recursionDepth: 1,
+            },
+          );
+          await flushPromises();
+
+          expect(queuedInputs()).toEqual([preOutput]);
+        });
       });
     });
   });
@@ -17778,6 +18004,48 @@ describe('ExecutionEngineService', () => {
         });
       });
 
+      // CLE-T-TDAV1G — 병렬 분기 루프도 Parallel 이 받은 입력이 아니라 Background 노드가
+      // 받은 입력으로 본문을 큐에 넣는다(CLE-NODE-BACKGROUND 의 진입 입력 표).
+      it('병렬 분기 안 Background 는 Parallel 입력이 아니라 Background 노드가 받은 입력(앞 노드 출력)으로 본문을 큐에 넣는다 (CLE-T-TDAV1G)', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        registerHandler('pre_node', async () =>
+          mockOutput({ marker: 'pre-output' }),
+        );
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        const queueAdd = (
+          service as unknown as { backgroundQueue: { add: jest.Mock } }
+        ).backgroundQueue.add;
+        queueAdd.mockClear();
+
+        await runGraph(
+          {},
+          [
+            pNode('pre', 'pre_node'),
+            pNode('bg', 'background'),
+            pNode('bgBody', 'ok_node'),
+            pNode('b', 'ok_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'pre'),
+            pEdge('pre', 'out', 'bg'),
+            pEdge('bg', 'background', 'bgBody'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        const jobs = queueAdd.mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(jobs.map((job) => job.bodyEntryNodeIds)).toEqual([['bgBody']]);
+        expect(jobs.map((job) => job.input)).toEqual([
+          { marker: 'pre-output' },
+        ]);
+      });
+
       // CLE-T-0DGHGF — 컨테이너 본문 루프와 동기 서브 워크플로우 루프도 Parallel 을 엔진의
       // Parallel 실행 경로로 넘긴다. 고치기 전에는 두 루프가 Parallel 핸들러만 실행했다.
       // 핸들러가 연 branch_N 포트로 병렬 분기 노드를 차례로 실행했고 done 포트는 열리지
@@ -18120,6 +18388,205 @@ describe('ExecutionEngineService', () => {
             expect(failedMessages).toEqual([
               expect.stringMatching(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /),
             ]);
+          });
+
+          // CLE-T-BTR4ZA — 컨테이너 안 Background 의 `background` 포트 뒤 노드도 그 컨테이너의
+          // `containerId` 를 가진다. 워커는 그 본문을 새 컨텍스트에서 깊이 1 부터 세어 실행하므로
+          // 사전 검사도 깊이 1 부터 센다(CLE-NODE-PARALLEL 「놓인 위치별 실행과 중첩 깊이」).
+          describe('컨테이너 안 Background 본문의 Parallel 사전 깊이 검사 (CLE-T-BTR4ZA)', () => {
+            // fe 본문: fe.body → bg, bg.main → y(emit), bg.background → 본문
+            const foreachWithBackgroundBody = (bgBody: {
+              nodes: Partial<Node>[];
+              edges: Partial<Edge>[];
+            }) => {
+              handlerRegistry.register('background', new BackgroundHandler(), {
+                kind: 'background',
+              });
+              return foreachWithBody({
+                nodes: [
+                  pNode('bg', 'background'),
+                  pNode('y', 'y_node'),
+                  ...bgBody.nodes,
+                ],
+                edges: [
+                  pEdge('fe', 'body', 'bg'),
+                  pEdge('bg', 'main', 'y'),
+                  emitFrom('y'),
+                  ...bgBody.edges,
+                ],
+              });
+            };
+            const queueAddOf = () =>
+              (service as unknown as { backgroundQueue: { add: jest.Mock } })
+                .backgroundQueue.add;
+            const queuedEntries = () =>
+              queueAddOf().mock.calls.map(
+                (call: unknown[]) =>
+                  (call[1] as BackgroundExecutionJob).bodyEntryNodeIds,
+              );
+            // 실행을 실패로 마감했으면 그 메시지를 돌려준다.
+            const failuresOf = async (run: () => Promise<void>) => {
+              const failSpy = jest.spyOn(
+                service as unknown as {
+                  finalizeFailedExecution: (
+                    ...args: unknown[]
+                  ) => Promise<void>;
+                },
+                'finalizeFailedExecution',
+              );
+              try {
+                await run();
+                return failSpy.mock.calls.map(
+                  (call: unknown[]) => (call[1] as Error).message,
+                );
+              } finally {
+                failSpy.mockRestore();
+              }
+            };
+
+            it('깊이 2 병렬 분기 안 ForEach 의 Background 본문 Parallel 은 깊이 1 로 보고 회차마다 본문을 큐에 넣는다', async () => {
+              recordRuns(['y', 'd', 'e', 'x']);
+              queueAddOf().mockClear();
+              // par(1).branch_0 → par2(2).branch_0 → src → fe, 본문 bg.background → bpar → x
+              const g = foreachWithBackgroundBody({
+                nodes: [
+                  pNode('bpar', 'parallel', { branchCount: 2 }),
+                  pNode('x', 'x_node'),
+                ],
+                edges: [
+                  pEdge('bg', 'background', 'bpar'),
+                  pEdge('bpar', 'branch_0', 'x'),
+                ],
+              });
+              const failures = await failuresOf(() =>
+                runGraph(
+                  {},
+                  [
+                    pNode('par2', 'parallel', { branchCount: 2 }),
+                    ...g.nodes,
+                    pNode('d', 'd_node'),
+                    pNode('e', 'e_node'),
+                  ],
+                  [
+                    pEdge('par', 'branch_0', 'par2'),
+                    pEdge('par2', 'branch_0', 'src'),
+                    pEdge('par2', 'branch_1', 'e'),
+                    ...g.edges,
+                    pEdge('par', 'branch_1', 'd'),
+                  ],
+                ),
+              );
+
+              expect(failures).toEqual([]);
+              expect(queuedEntries()).toEqual([['bpar'], ['bpar']]);
+            });
+
+            it('깊이 1 병렬 분기 안 ForEach 의 Background 본문에 둔 Parallel 안 Parallel(워커 깊이 2)을 막지 않는다', async () => {
+              recordRuns(['y', 'd', 'x', 'z']);
+              queueAddOf().mockClear();
+              // par(1).branch_0 → src → fe, 본문 bg.background → bpar → bpar2 → x
+              const g = foreachWithBackgroundBody({
+                nodes: [
+                  pNode('bpar', 'parallel', { branchCount: 2 }),
+                  pNode('bpar2', 'parallel', { branchCount: 2 }),
+                  pNode('x', 'x_node'),
+                  pNode('z', 'z_node'),
+                ],
+                edges: [
+                  pEdge('bg', 'background', 'bpar'),
+                  pEdge('bpar', 'branch_0', 'bpar2'),
+                  pEdge('bpar2', 'branch_0', 'x'),
+                  pEdge('bpar', 'branch_1', 'z'),
+                ],
+              });
+              const failures = await failuresOf(() =>
+                runGraph(
+                  {},
+                  [...g.nodes, pNode('d', 'd_node')],
+                  [
+                    pEdge('par', 'branch_0', 'src'),
+                    ...g.edges,
+                    pEdge('par', 'branch_1', 'd'),
+                  ],
+                ),
+              );
+
+              expect(failures).toEqual([]);
+              expect(queuedEntries()).toEqual([['bpar'], ['bpar']]);
+            });
+
+            it('Background 본문에서도 깊이 3 이 되는 Parallel 은 회차를 시작하기 전에 실행을 실패시킨다', async () => {
+              const { runs } = recordRuns(['y', 'x']);
+              queueAddOf().mockClear();
+              // 맨 바깥 fe, 본문 bg.background → bpar(1) → bpar2(2) → bpar3(3) → x
+              const g = foreachWithBackgroundBody({
+                nodes: [
+                  pNode('bpar', 'parallel', { branchCount: 2 }),
+                  pNode('bpar2', 'parallel', { branchCount: 2 }),
+                  pNode('bpar3', 'parallel', { branchCount: 2 }),
+                  pNode('x', 'x_node'),
+                ],
+                edges: [
+                  pEdge('bg', 'background', 'bpar'),
+                  pEdge('bpar', 'branch_0', 'bpar2'),
+                  pEdge('bpar2', 'branch_0', 'bpar3'),
+                  pEdge('bpar3', 'branch_0', 'x'),
+                ],
+              });
+              const failures = await runFromTrigger(g.nodes, g.edges);
+
+              expect(runs).toEqual([]);
+              expect(queuedEntries()).toEqual([]);
+              expect(failures).toEqual([
+                expect.stringMatching(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /),
+              ]);
+            });
+
+            it('회차 본문과 Background 본문 양쪽에서 닿는 Parallel 은 컨테이너 깊이로 센다', async () => {
+              const { runs } = recordRuns(['y', 'd', 'x', 'bb']);
+              queueAddOf().mockClear();
+              // par(1).branch_0 → src → fe(본문 깊이 2). mpar 는 bg.main 과 Background 본문 bb
+              // 양쪽에서 닿는다. 회차 루프에서 깊이 2 로 실행되므로 그 안의 mpar2 는 깊이 3 이다.
+              handlerRegistry.register('background', new BackgroundHandler(), {
+                kind: 'background',
+              });
+              const g = foreachWithBody({
+                nodes: [
+                  pNode('bg', 'background'),
+                  pNode('bb', 'bb_node'),
+                  pNode('mpar', 'parallel', { branchCount: 2 }),
+                  pNode('mpar2', 'parallel', { branchCount: 2 }),
+                  pNode('x', 'x_node'),
+                  pNode('y', 'y_node'),
+                ],
+                edges: [
+                  pEdge('fe', 'body', 'bg'),
+                  pEdge('bg', 'main', 'mpar'),
+                  pEdge('bg', 'background', 'bb'),
+                  pEdge('bb', 'out', 'mpar'),
+                  pEdge('mpar', 'branch_0', 'mpar2'),
+                  pEdge('mpar2', 'branch_0', 'x'),
+                  pEdge('mpar', 'branch_1', 'y'),
+                  emitFrom('y'),
+                ],
+              });
+              const failures = await failuresOf(() =>
+                runGraph(
+                  {},
+                  [...g.nodes, pNode('d', 'd_node')],
+                  [
+                    pEdge('par', 'branch_0', 'src'),
+                    ...g.edges,
+                    pEdge('par', 'branch_1', 'd'),
+                  ],
+                ),
+              );
+
+              expect(runs).toEqual([]);
+              expect(failures).toEqual([
+                expect.stringMatching(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /),
+              ]);
+            });
           });
 
           it('PARALLEL_ENGINE=off 이면 컨테이너 본문 Parallel 은 지금처럼 병렬 분기 노드를 차례로 실행하고 완료 출력을 만들지 않는다', async () => {
