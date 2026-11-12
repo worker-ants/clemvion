@@ -31,26 +31,107 @@ const TABLE_CODES = [
 const FUNCTION_CODES = ['ASSISTANT_TOO_MANY_TOOL_CALLS'];
 
 /**
- * 프런트엔드 `ERROR_MESSAGE_KEYS` 의 코드. 두 패키지가 공유하는 상수가 없어서
- * 소스의 `new Map([["CODE", "assistant.key"], ...])` 리터럴에서 키를 뽑는다.
+ * 프런트엔드 짝 표(`ERROR_MESSAGE_KEYS`)가 있는 파일. `backend-checks.yml` 의
+ * pathspecs 에도 이 파일이 있어서 이 파일만 바꾼 PR 에서도 아래 대조가 돈다
+ * (`.claude/tests/test_assistant_error_codes_ci_coverage.py` 가 이 경로를 읽어 확인한다).
  */
-function frontendErrorMessageCodes(): string[] {
-  const source = readFileSync(
-    join(
-      __dirname,
-      '../../../../frontend/src/components/editor/assistant-panel/assistant-message.tsx',
-    ),
-    'utf8',
-  );
+const FRONTEND_TABLE_FILE = join(
+  __dirname,
+  '../../../../frontend/src/components/editor/assistant-panel/assistant-message.tsx',
+);
+
+/** 이 테스트가 읽을 수 있는 `ERROR_MESSAGE_KEYS` 선언 형태. 파싱 실패 메시지에 싣는다. */
+const REQUIRED_LITERAL_SHAPE = [
+  'export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([',
+  '  ["CODE", "assistant.key"],',
+  '  ...',
+  ']);',
+].join('\n');
+
+/**
+ * 프런트엔드 소스에서 `ERROR_MESSAGE_KEYS` 의 코드를 뽑는다. 두 패키지가 공유하는
+ * 상수가 없어서 선언 줄(`export const ERROR_MESSAGE_KEYS`)에서 시작하는
+ * `new Map([...])` 리터럴을 읽는다. 식별자의 다른 등장(사용처)에서 시작하면 그
+ * 뒤의 엉뚱한 Map 을 읽을 수 있어서 선언 줄로 묶는다. 선언을 못 찾거나 코드를 하나도
+ * 뽑지 못하면 지켜야 할 리터럴 형태를 실어 던진다.
+ */
+function extractErrorMessageCodes(source: string): string[] {
   const literal =
-    /ERROR_MESSAGE_KEYS\b[^=]*=\s*new Map\(\[([\s\S]*?)\]\);/.exec(source);
+    /^export const ERROR_MESSAGE_KEYS\b[^=\n]*=\s*new Map\(\[([\s\S]*?)\]\);/m.exec(
+      source,
+    );
   if (!literal) {
-    throw new Error('ERROR_MESSAGE_KEYS Map literal not found');
+    throw new Error(
+      `ERROR_MESSAGE_KEYS declaration not found in ${FRONTEND_TABLE_FILE}. Keep this shape:\n${REQUIRED_LITERAL_SHAPE}`,
+    );
   }
-  return [...literal[1].matchAll(/\[\s*"([A-Z][A-Z0-9_]*)"\s*,/g)].map(
+  const codes = [...literal[1].matchAll(/\[\s*"([A-Z][A-Z0-9_]*)"\s*,/g)].map(
     (m) => m[1],
   );
+  if (codes.length === 0) {
+    throw new Error(
+      `No ["CODE", ...] entry could be read from ERROR_MESSAGE_KEYS. Keep this shape:\n${REQUIRED_LITERAL_SHAPE}`,
+    );
+  }
+  return codes;
 }
+
+function frontendErrorMessageCodes(): string[] {
+  return extractErrorMessageCodes(readFileSync(FRONTEND_TABLE_FILE, 'utf8'));
+}
+
+describe('extractErrorMessageCodes', () => {
+  it('reads the codes of the exported declaration', () => {
+    const source = [
+      'export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([',
+      '  ["A_CODE", "assistant.a"],',
+      '  ["B_CODE", "assistant.b"],',
+      ']);',
+    ].join('\n');
+    expect(extractErrorMessageCodes(source)).toEqual(['A_CODE', 'B_CODE']);
+  });
+
+  it('reads the declaration, not a Map that follows an earlier use of the name', () => {
+    // 사용처에서 매칭을 시작하면 그 뒤 첫 `= new Map([...])` 를 읽는다.
+    const source = [
+      'const hint = ERROR_MESSAGE_KEYS.get(code);',
+      'const OTHER = new Map([["WRONG_CODE", "x"]]);',
+      'export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([',
+      '  ["RIGHT_CODE", "assistant.right"],',
+      ']);',
+    ].join('\n');
+    expect(extractErrorMessageCodes(source)).toEqual(['RIGHT_CODE']);
+  });
+
+  it('reads a declaration that prettier wrapped after `=`', () => {
+    const source = [
+      'export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> =',
+      '  new Map([',
+      '    ["A_CODE", "assistant.a"],',
+      '  ]);',
+    ].join('\n');
+    expect(extractErrorMessageCodes(source)).toEqual(['A_CODE']);
+  });
+
+  it('fails with the required shape when the declaration is missing', () => {
+    const source = 'const ERROR_MESSAGE_KEYS = new Map([["A_CODE", "a"]]);';
+    expect(() => extractErrorMessageCodes(source)).toThrow(
+      REQUIRED_LITERAL_SHAPE,
+    );
+  });
+
+  it('fails with the required shape when no entry can be read', () => {
+    // 작은따옴표 항목은 추출식이 읽지 못한다. 빈 목록으로 대조를 통과시키지 않는다.
+    const source = [
+      'export const ERROR_MESSAGE_KEYS = new Map([',
+      "  ['A_CODE', 'assistant.a'],",
+      ']);',
+    ].join('\n');
+    expect(() => extractErrorMessageCodes(source)).toThrow(
+      REQUIRED_LITERAL_SHAPE,
+    );
+  });
+});
 
 describe('ASSISTANT_STREAM_ERROR_MESSAGES', () => {
   it('covers exactly the listed codes (with the function-built code)', () => {

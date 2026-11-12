@@ -9,7 +9,7 @@ import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface'
  * 코드와 문구를 둘 자리는 이 파일 하나다.
  *
  * 프로바이더 · 라이브러리 예외 원문에는 요청 URL · 키 조각 · 응답 본문이 섞일
- * 수 있어 화면으로 보내지 않고 서버 로그에만 남긴다 (CWE-209, 에러 응답 규약
+ * 수 있어 화면으로 보내지 않고 서버 로그에만 남긴다 (CWE-209, CLE-API-ERROR
  * 규칙 2 와 같은 동기). LLM 클라이언트가 사용자용으로 쓴 `message`
  * (`LLM_OUTPUT_MALFORMED` 의 안내문 등)도 같은 규칙으로 로그에만 남는다. 서버는
  * 코드별 고정 영문만 보내고(백엔드 응답에 한국어를 넣지 않는다, CLE-UI-I18N
@@ -20,7 +20,9 @@ import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface'
  * 의 `ERROR_MESSAGE_KEYS`. 새 코드를 더하면 양쪽을 함께 고친다. 두 패키지가
  * 코드를 공유하는 상수는 만들지 않았다. 대신 이 모듈의 테스트
  * (`workflow-assistant-stream-errors.spec.ts`)가 프런트엔드 소스에서
- * `ERROR_MESSAGE_KEYS` 의 코드를 읽어 이 표와 맞춰 보므로 한쪽만 바꾸면 실패한다.
+ * `ERROR_MESSAGE_KEYS` 의 코드를 읽어 이 표와 맞춰 본다. `backend-checks.yml` 의
+ * pathspecs 에 그 프런트엔드 파일이 있어서 프런트엔드만 바꾼 PR 에서도 이 대조가
+ * 돈다. 사전 키가 실제로 있는지는 프런트엔드 테스트가 따로 본다.
  */
 
 /** 어시스턴트 모듈이 스스로 내는 코드. */
