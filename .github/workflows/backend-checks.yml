@@ -67,6 +67,12 @@ jobs:
         # 세 스택이 함께 읽는 테스트 픽스처. backend 의 `chart.handler.spec.ts` 가 차트 시리즈 사례를
         # 읽는다. 픽스처만 바꾼 PR 도 그 대조를 돌려야 한다(`codebase/shared-fixtures/README.md`).
         codebase/shared-fixtures/**
+        # 어시스턴트 에러 코드 표의 짝 대조. backend 의 `workflow-assistant-stream-errors.spec.ts` 가
+        # 이 프런트엔드 파일의 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 백엔드 문구 표와 코드 집합을 맞춘다.
+        # 등재 전에는 이 파일만 바꾼 PR 이 이 잡을 건너뛰어 불일치가 뒤의 무관한 backend PR 에서
+        # 드러났다(CLE-T-GXCJAB, `.claude/tests/test_assistant_error_codes_ci_coverage.py`).
+        # 아래 예시 키 파일들처럼 파일 단위로만 등재한다. 프런트엔드 변경마다 backend 잡이 돌지 않게 한다.
+        codebase/frontend/src/components/editor/assistant-panel/assistant-message.tsx
         # 운영 부팅 가드의 예시 키 대조. `production-guards.spec.ts` 의 마지막 describe 가 저장소에
         # 커밋된 예시 파일의 ENCRYPTION_KEY · INTEGRATION_ENCRYPTION_KEY 값이 거부 목록에 다 있는지
         # 읽는다. `codebase/backend/.env.example` 만 위 `codebase/backend/**` 에 들어 있고, 아래 세

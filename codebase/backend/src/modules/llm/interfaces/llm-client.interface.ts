@@ -79,6 +79,15 @@ export interface ModelInfo {
 }
 
 /**
+ * Codes a client puts on a streaming `error` event. The workflow assistant
+ * forwards the code to the browser and picks a fixed message per code
+ * (`workflow-assistant-stream-errors.ts`), so a new code needs a message there;
+ * its table fails to compile until one is added.
+ */
+export type LlmStreamErrorCode =
+  'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPUT_MALFORMED';
+
+/**
  * Streaming event emitted by `LLMClient.stream()`.
  *
  * Providers accumulate `tool_call_delta` events for each tool call until the
@@ -113,7 +122,7 @@ export type ChatStreamEvent =
       model: string;
       finishReason: ChatResult['finishReason'] | 'aborted';
     }
-  | { type: 'error'; code: string; message: string };
+  | { type: 'error'; code: LlmStreamErrorCode; message: string };
 
 export interface LLMClient {
   /**

@@ -62,6 +62,35 @@ function throwingStream(err: unknown): () => AsyncIterable<StreamEvent> {
   });
 }
 
+describe('WorkflowAssistantController.sendMessage — SSE framing', () => {
+  it('writes each stream event as an `event:` line and a JSON `data:` line', async () => {
+    const events: StreamEvent[] = [
+      { event: 'text', data: { delta: 'hi' } },
+      {
+        event: 'error',
+        data: { code: 'LLM_RATE_LIMIT', message: 'fixed' },
+      },
+      { event: 'done', data: { finishReason: 'error' } },
+    ];
+    const { controller } = makeController(async function* () {
+      yield* events;
+    });
+    const res = makeRes();
+
+    await send(controller, res);
+
+    expect(res.write.mock.calls.map((c) => String(c[0]))).toEqual([
+      'event: text\n',
+      `data: ${JSON.stringify({ delta: 'hi' })}\n\n`,
+      'event: error\n',
+      `data: ${JSON.stringify({ code: 'LLM_RATE_LIMIT', message: 'fixed' })}\n\n`,
+      'event: done\n',
+      `data: ${JSON.stringify({ finishReason: 'error' })}\n\n`,
+    ]);
+    expect(res.end).toHaveBeenCalled();
+  });
+});
+
 describe('WorkflowAssistantController.sendMessage — outer catch', () => {
   let loggerError: jest.SpyInstance;
   beforeEach(() => {

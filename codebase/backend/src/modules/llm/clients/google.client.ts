@@ -43,6 +43,7 @@ import {
   ChatParams,
   ChatResult,
   ChatStreamEvent,
+  LlmStreamErrorCode,
   ModelInfo,
   ToolCall,
 } from '../interfaces/llm-client.interface';
@@ -68,7 +69,7 @@ function mapGoogleFinishReason(
   }
 }
 
-function classifyStreamError(message: string): string {
+function classifyStreamError(message: string): LlmStreamErrorCode {
   return message.includes('429') ? 'LLM_RATE_LIMIT' : 'LLM_CONNECTION_ERROR';
 }
 

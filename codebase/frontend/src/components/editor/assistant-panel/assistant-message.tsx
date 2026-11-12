@@ -111,13 +111,16 @@ const RESUMABLE_ERROR_CODES = new Set(['ASSISTANT_TOO_MANY_TOOL_CALLS']);
  * 고정 영문이고 프로바이더 원문을 싣지 않는다. 여기 없는 코드만 그 영문을
  * 그대로 보인다.
  *
- * 짝이 되는 백엔드 표:
+ * 짝이 되는 백엔드 표와 함수:
  * `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts`
- * 의 `ASSISTANT_STREAM_ERROR_MESSAGES` · `tooManyToolCallsMessage`. 새 코드를
- * 더하면 양쪽을 함께 고친다. 두 패키지가 코드를 공유하는 상수는 만들지 않았다.
- * 대신 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 이 Map 의
- * 코드를 소스에서 읽어 백엔드 표와 맞춰 보므로 한쪽만 바꾸면 실패한다. 그 테스트가
- * 읽을 수 있게 `new Map([["CODE", "assistant.key"], ...])` 리터럴 형태를 유지한다.
+ * 의 `ASSISTANT_STREAM_ERROR_MESSAGES` · `assistantStreamError.tooManyToolCalls`.
+ * 새 코드를 더하면 양쪽을 함께 고친다. 두 패키지가 코드를 공유하는 상수는 만들지
+ * 않았다. 대신 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 이 Map 의
+ * 코드를 소스에서 읽어 백엔드 표와 맞춰 본다. `backend-checks.yml` 의 pathspecs 에
+ * 이 파일이 있어서 이 파일만 바꾼 PR 에서도 그 대조가 돈다. 그 테스트는
+ * `export const ERROR_MESSAGE_KEYS` 선언 줄에서 시작하는
+ * `new Map([["CODE", "assistant.key"], ...])` 리터럴을 읽는다. 이 형태를 바꾸면 그
+ * 테스트의 추출식도 함께 고친다.
  */
 export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([
   ["ASSISTANT_NO_LLM_CONFIG", "assistant.errorNoLlmConfig"],

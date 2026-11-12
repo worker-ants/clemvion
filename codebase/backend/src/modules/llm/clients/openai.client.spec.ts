@@ -348,7 +348,7 @@ describe('OpenAIClient.stream', () => {
         }),
       );
       const err = events.find(
-        (e): e is { type: 'error'; code: string; message: string } =>
+        (e): e is Extract<ChatStreamEvent, { type: 'error' }> =>
           e.type === 'error',
       );
       expect(err).toBeDefined();

@@ -183,6 +183,10 @@ jobs:
         # 경로로 빼므로 그 테스트의 SpecTriggersHarnessChecksTest 가 등재를 강제한다. backend 소스
         # 전체로 넓히지 않고 이 파일 하나만 등재한다.
         codebase/backend/src/common/config/production-guards.spec.ts
+        # 어시스턴트 에러 코드 대조 spec. test_assistant_error_codes_ci_coverage.py 가 이 spec 에서
+        # 프런트엔드 파일 경로를 읽어 backend-checks 의 pathspecs 와 대조한다. 위 항목과 같은 이유로
+        # 등재하고, 그 테스트의 SpecTriggersHarnessChecksTest 가 등재를 강제한다.
+        codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.spec.ts
 
   unittest:
     needs: changes

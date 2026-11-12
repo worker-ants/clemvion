@@ -34,11 +34,14 @@ import { WorkspaceId } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
-import { WorkflowAssistantStreamService } from './workflow-assistant-stream.service';
+import {
+  WorkflowAssistantStreamService,
+  type AssistantStreamEvent,
+} from './workflow-assistant-stream.service';
 import { CreateAssistantSessionDto } from './dto/create-assistant-session.dto';
 import { UpdateAssistantSessionDto } from './dto/update-assistant-session.dto';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
-import { ASSISTANT_STREAM_ERROR_MESSAGES } from './workflow-assistant-stream-errors';
+import { assistantStreamError } from './workflow-assistant-stream-errors';
 import {
   FORBIDDEN_NOT_A_MEMBER,
   forbiddenForRole,
@@ -51,6 +54,12 @@ import {
   AssistantSessionDetailDto,
   AssistantSessionDto,
 } from './dto/responses/assistant-session-response.dto';
+
+/** SSE 이벤트 한 건을 `event:` · `data:` 줄로 쓴다. 정상 경로와 에러 경로가 같이 쓴다. */
+function writeSseEvent(res: Response, ev: AssistantStreamEvent): void {
+  res.write(`event: ${ev.event}\n`);
+  res.write(`data: ${JSON.stringify(ev.data)}\n\n`);
+}
 
 @ApiTags('Workflow AI Assistant')
 @ApiBearerAuth('access-token')
@@ -229,9 +238,7 @@ export class WorkflowAssistantController {
         dto,
         abort.signal,
       )) {
-        const payload = JSON.stringify(ev.data);
-        res.write(`event: ${ev.event}\n`);
-        res.write(`data: ${payload}\n\n`);
+        writeSseEvent(res, ev);
       }
     } catch (err) {
       // 상세 에러는 서버 로그에만 남기고, 클라이언트에는 코드만 노출한다.
@@ -241,13 +248,10 @@ export class WorkflowAssistantController {
         err instanceof Error ? err.stack : String(err),
       );
       if (!res.writableEnded) {
-        res.write(`event: error\n`);
-        res.write(
-          `data: ${JSON.stringify({
-            code: 'ASSISTANT_STREAM_FAILED',
-            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
-          })}\n\n`,
-        );
+        writeSseEvent(res, {
+          event: 'error',
+          data: assistantStreamError.streamFailed(),
+        });
       }
     } finally {
       clearInterval(keepalive);
