@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HYDRATION"
 title: "실행 화면 복원 규약"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "33ad468d6038937f91ada935375aaa5c489d003113c0ff5a7b4dc47c01db562a"
-read_as: "approved"
-task: null
+content_hash: "1d8ecf643795442f311cdc970a17a9648831ea3b809a22ea93f3e1dae874aad2"
+read_as: "approved_fallback"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/conventions/data-hydration-surfaces.md"]
-mirror_sha256: "3a9eb1aa3fb2249193980b3d7e3083d8234c6c2b9bdb87228e2d27974d0171bc"
-etag: "sha256-1a7cbd2c9f719be39fe50cc9546997359eb7e9b93b3e130eaaa4ba3f6ede0150"
+mirror_sha256: "d054d289cc02d0b18c0ccf980a879bb9b5d7df370e214296b269c3c6443e1897"
+etag: "sha256-14a1fce98a2b86ab30279ed4e838442d1219f808a0e2d22ed3d9560bb6c78399"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/data-hydration-surfaces.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,7 +58,7 @@ etag: "sha256-1a7cbd2c9f719be39fe50cc9546997359eb7e9b93b3e130eaaa4ba3f6ede0150"
 | `output.result.messages` | 모든 멀티턴 종료와 대기 틱 | (a)~(c)와 (d) `threadTurnsToConversationItems`(라이브 스레드 스냅샷의 대체 경로) |
 | `output.result.turnCount`(와 `config.maxTurns`) | 위와 같다 | (a)~(c)에 더해 두 곳. `SummaryView`(`ConversationInspector`)의 라이브 턴 카운터는 분모 `M` 을 별도 prop `conversationConfig.maxTurns`(종료 노드 출력의 최상위 `config.maxTurns`)에서 읽는다. `ResultTimeline` 의 "Turn N/M" 은 구조화 출력(`{config, output}`)이면 `buildConvConfigFromStructured`(`apply-execution-snapshot.ts` 와 공유하는 헬퍼)로 최상위 `config.maxTurns` 와 `output.result.turnCount` 를 합쳐 분모 `M` 을 표시한다. 옛 형태만 `output.conversationConfig` 를 직접 읽는다. `maxTurns` 는 정적 설정 값이라 `output.result.*` 에 싣지 않는다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 원칙 1.1) |
 | `output.result.presentations` | AI 에이전트 출력 규약의 presentations 싣기. single-turn `out`, 멀티턴 최종, 조건 경로(`buildMultiTurnFinalOutput`·`buildConditionOutput` 의 `metadata.allPresentations`) | (a) `parseHistoryMessages` 의 마지막 assistant 부착 (b) `threadTurnsToConversationItems` 의 턴 단위 presentations 부착 (c) `AssistantPresentationsBlock` 렌더 (d) `applyExecutionSnapshot` 의 대화 채우기 경로 |
-| `output.interaction`(resumed) | 멀티턴 `resumed` transient, `ai_form_render` 대기. AI 메시지 턴의 structured `resumed` 스냅샷(`message_received`)은 현재 내보내지 않는다(Planned, [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)). `resumed` 스냅샷은 form·buttons 경로에만 있다 | (a) `pauseForConversation` 의 대화 설정 부착 (b) WebSocket `handleAiMessage` |
+| `output.interaction`(resumed) | 멀티턴 `resumed` 일시 스냅샷(AI 메시지 턴 `message_received`, AI 폼 제출 턴 `form_submitted`, form·buttons 재개 틱), `ai_form_render` 대기. AI 경로의 형식과 저장 범위는 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 재개 절이 정한다 | (a) `pauseForConversation` 의 대화 설정 부착 (b) WebSocket `handleAiMessage` |
 | `output.error`(멀티턴 에러 종료) | 멀티턴 `port: 'error'`. `buildMultiTurnFinalOutput` 의 `errorPayload` 경로(단일 출처 `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`). `details.retryable`·`retryAfterSec` 표준 필드는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 LLM 계열 `details` 공통 필드가 정한다 | (a) `parseHistoryMessages` 가 `output.error` 가 있는 멀티턴 종료 노드의 스레드 끝에 `system_error` 항목 합성 (b) `threadTurnsToConversationItems` 의 `system_error` 출처 매핑 (c) `applyExecutionSnapshot` 의 종료 분기 (d) WebSocket `execution.node.failed`·에러가 있는 `node.completed` → `useExecutionStore` APPEND([대화 미리보기](CLE-EXEC-PREVIEW.md) 의 이벤트별 store 변환) |
 | `meta.interactionType` | 모든 멀티턴 대기 | (a) `isConversationOutput` (b) `inferInteractionTypeFromNodeType` 대체 경로 (c) `applyExecutionSnapshot` 의 interactionType 분기 |
 | `meta.presentationCalls`, `meta.presentationSchemaViolations` | AI 에이전트의 `render_*` 호출 기록 | 디버그 패널만(대화 미리보기의 도구 항목) |

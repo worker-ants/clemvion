@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "918c86279815e1d2b6ff828aa5cd193cb4d056972cbab1a88eb45afa0804b482"
+content_hash: "d67539f2f4a50b07937bfa11b9c6428d605a86b958f2ce170728caf6b8b18a4c"
 read_as: "approved_fallback"
-task: "CLE-T-HW2GKD"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "57468e2540fce4384c949434d90f342a2ea1e0064b0cc33e75e3ca81adac08e2"
-etag: "sha256-4579c0e7aba698a5d2565852a68923d1389e610621f9d98b3e3c5abc1e24415d"
+mirror_sha256: "eeb670b0d03e15370e6298b1d34f1af1c61f18a5baaf547f838b2f83e8793e10"
+etag: "sha256-affb6ea410609fd96f523837e278c4cbf73a9c8df816223c2ba07552edb395e7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -220,6 +220,7 @@ type ExecuteOptions = {
 | 노드 완료 때 | 메모리 + PostgreSQL | 메모리 컨텍스트의 노드 출력 캐시를 갱신하고 노드 실행 행과 `execution_node_log`(노드 순서)를 PostgreSQL 에 저장한다 |
 | 노드 훅 때 | 메모리(`ExecutionContext.conversationThread` 일부) | `ConversationThreadService.append*` 가 Presentation 재개 `interaction`, 멀티턴 AI 메시지와 응답이 생길 때 메모리 스레드를 갱신한다. 실행 내역 화면의 기준은 `NodeExecution.outputData`(`output.interaction`·`output.messages`·`output.result.response`)이고 재개용 스냅샷은 아래 입력 대기 행에서 따로 커밋한다 |
 | 입력 대기 진입 때 | PostgreSQL(`NodeExecution.outputData`, `Execution.conversation_thread`, `Execution.user_variables`, `Execution.resume_call_stack`) | 다음 노드를 재개하는 데 필요한 모든 것을 커밋한다. 메모리 컨텍스트는 park 때 사라지고 재개는 이 컬럼들에서 rehydration 이 다시 만든다. 커밋 항목은 아래 목록과 같다 |
+| AI 대화 재개 때 | PostgreSQL(`NodeExecution.outputData`, 조건부 갱신) | 멀티턴 AI 노드가 사용자 메시지나 `render_form` 제출로 재개하면 엔진이 다음 턴 LLM 호출 전에 `resumed` 스냅샷을 노드 실행 행에 저장한다. 행 상태가 `running` 이나 `waiting_for_input` 일 때만 쓰는 조건부 갱신이다. `_resumeState` 는 싣지 않고 체크포인트 대상 노드면 직전 대기와 같은 `_resumeCheckpoint` 를 싣는다. 형태와 시점은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)가 정한다 |
 | 실행 완료 때 | PostgreSQL | 최종 출력과 상태를 영구 저장하고 메모리 실행 컨텍스트를 지운다(`finalizeRehydrationCleanup` 또는 세그먼트 종료) |
 
 입력 대기에 들어갈 때 커밋하는 항목:
@@ -232,7 +233,7 @@ type ExecuteOptions = {
 
 재개용 별도 컬럼 `_continuationCheckpoint` 는 만들지 않는다. 1·2 는 기존 기준인 `NodeExecution.outputData` 를 rehydration 의 단일 기준으로 쓴다. 5 의 `resume_call_stack` 은 park 시점의 **중첩 실행 위치**(호출 체인)를 저장한다. 재개 데이터를 나르는 컬럼이 아니므로 `_continuationCheckpoint` 기각과 범주가 다르다.
 
-**실시간 조기 표시 신호는 저장하지 않는다**: 멀티턴 재개 공통 경로(WebSocket `execution.submit_message` 와 채널 텍스트 수신이 함께 지나는 `message_received` 재개 시점)는 다음 턴 LLM 호출 전에 WebSocket `execution.user_message` 이벤트를 내 사용자 발화를 바로 보여 준다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)). 이 신호는 `tool_call_*` 와 같은 실시간 진행 신호이고 저장 대상이 아니다. `NodeExecution.outputData` 는 위 표대로 턴 경계에서만 저장되고 사용자 발화의 저장 정합은 턴이 끝날 때의 `execution.ai_message` 스냅샷(`output.result.messages`)이 보장한다. "재개 전용 WebSocket 이벤트를 새로 만들지 않는다" 는 원칙은 이미 `node.*` 이벤트로 알 수 있는 재개 사실을 다시 알리는 이벤트(`resumed_after_restart`)를 기각한 것이다. 발화 내용을 싣는 이벤트가 따로 없던 이 신호에는 해당하지 않는다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)).
+**실시간 조기 표시 신호는 저장하지 않는다**: 멀티턴 재개 공통 경로(WebSocket `execution.submit_message` 와 채널 텍스트 수신이 함께 지나는 `message_received` 재개 시점)는 다음 턴 LLM 호출 전에 WebSocket `execution.user_message` 이벤트를 내 사용자 발화를 바로 보여 준다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)). 이 신호는 `tool_call_*` 와 같은 실시간 진행 신호이고 저장 대상이 아니다. `NodeExecution.outputData` 는 위 표의 시점에만 저장한다. AI 대화 재개 때 저장하는 `resumed` 스냅샷의 `output.result.messages` 에도 사용자 발화가 들어가지만 이는 노드 출력의 저장이고 이 이벤트를 저장하는 것이 아니다. 사용자 발화의 최종 저장 정합은 턴이 끝날 때의 `execution.ai_message` 스냅샷(`output.result.messages`)이 보장한다. "재개 전용 WebSocket 이벤트를 새로 만들지 않는다" 는 원칙은 이미 `node.*` 이벤트로 알 수 있는 재개 사실을 다시 알리는 이벤트(`resumed_after_restart`)를 기각한 것이다. 발화 내용을 싣는 이벤트가 따로 없던 이 신호에는 해당하지 않는다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)).
 
 ## 재실행과 조회 정책
 
@@ -338,3 +339,11 @@ Code 노드는 `$vars` 를 통째로 바꿔 넣으므로 사용자 코드가 `$v
 ### 멀티턴 설정은 턴마다 새로 만든다 (D3)
 
 턴마다 rehydration 이 `buildRetryReentryState` 로 `node.config` 를 새로 만들므로 park 중 워크플로우 편집이 다음 턴부터 반영된다. 체크포인트에 원본 설정을 저장해 대화 전체를 고정하는 대안은 구현 복잡도를 더하고 최신 정의를 반영하는 편이 더 자연스러워 택하지 않았다. 같은 입력의 재현성이 턴 단위로 약해지는 것은 모든 재개를 rehydration 한 경로로 모으기 위한 trade-off 다. park 해제 결정의 전체 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
+
+### AI 대화 재개 스냅샷을 턴 중간에 저장한다 (2026-11-12)
+
+그 전에는 `NodeExecution.outputData` 를 턴 경계(노드 완료, 입력 대기 진입, 실행 완료)에서만 저장했다. AI 대화 경로가 재개 스냅샷을 내면서 사람 결정으로 이를 노드 실행 행에도 저장하게 됐다(NERV Task `CLE-T-TBJ863`). 메모리 캐시에만 실으면 LLM 응답이 곧 덮어 실행 내역 어디에서도 보이지 않는다. 결정과 기각한 대안은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md#rationale) Rationale 의 2026-11-12 항목에 있다.
+
+- **조건부 갱신으로 출력 컬럼만 쓴다**: 행 상태가 `running` 이나 `waiting_for_input` 일 때만 쓴다. 엔티티를 통째로 저장하면 메모리에 있던 낡은 상태가 그사이 들어온 취소를 덮는다.
+- **재개 체크포인트를 지우지 않는다**: 저장본에 직전 대기와 같은 `_resumeCheckpoint` 를 싣는다. 이 저장이 체크포인트 없는 출력으로 행을 덮으면 LLM 호출 중 서버가 재시작했을 때 재개 체크포인트가 사라진다.
+- **`execution.user_message` 이벤트는 여전히 저장하지 않는다**: 저장하는 것은 노드 출력이다. 이벤트는 실시간 진행 신호로 남는다.

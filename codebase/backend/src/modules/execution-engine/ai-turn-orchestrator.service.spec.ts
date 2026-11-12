@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { In } from 'typeorm';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 import { ExecutionCancelledError } from './workflow-errors';
 import type { AiTurnEngineDriver } from './engine-driver.interface';
@@ -71,7 +72,11 @@ describe('AiTurnOrchestrator', () => {
   let contextService: ExecutionContextService;
   let driver: jest.Mocked<AiTurnEngineDriver>;
   let mockEventEmitter: { emitExecution: jest.Mock; emitNode: jest.Mock };
-  let mockNodeExecutionRepo: { save: jest.Mock; findOne: jest.Mock };
+  let mockNodeExecutionRepo: {
+    save: jest.Mock;
+    findOne: jest.Mock;
+    update: jest.Mock;
+  };
 
   beforeEach(() => {
     handlerRegistry = new NodeHandlerRegistry();
@@ -84,6 +89,7 @@ describe('AiTurnOrchestrator', () => {
     mockNodeExecutionRepo = {
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
       findOne: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     orchestrator = new AiTurnOrchestrator(
@@ -1562,6 +1568,553 @@ describe('AiTurnOrchestrator', () => {
         (c) => c[1] === ExecutionEventType.USER_MESSAGE,
       );
       expect(userMessageEmitted).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 재개 스냅샷(`status: 'resumed'`) — NERV CLE-T-TBJ863. 정본은
+  // CLE-NODE-AGENT-OUTPUT 「멀티턴 재개」 · CLE-NODE-EXTRACTOR 「멀티턴 재개」.
+  // 엔진은 재개 턴의 LLM 호출 전에 스냅샷을 한 번 싣고, 응답이 오면 같은 칸을
+  // 대기 · 종결 출력이 덮는다. 그래서 핸들러가 불리는 순간의 캐시를 잡아 단언한다.
+  // -------------------------------------------------------------------------
+  describe('재개 스냅샷 (status: resumed)', () => {
+    const turnResumeState = { messages: [], turnCount: 1, model: 'gpt' };
+
+    const makeNode = (id: string, type: string): Node =>
+      ({
+        id,
+        workflowId,
+        type,
+        category: NodeCategory.AI,
+        label: type,
+        config: { mode: 'multi_turn', fromNodeConfig: true },
+      }) as unknown as Node;
+
+    type CapturedAtHandler = {
+      structured?: Record<string, unknown>;
+      flat?: unknown;
+      updateCalls?: number;
+    };
+
+    /** 행 저장 조건. 재개 claim 뒤(running)나 claim 없는 옛 진입(waiting)만 쓴다. */
+    const persistCriteria = (id: string) => ({
+      id,
+      status: In([
+        NodeExecutionStatus.RUNNING,
+        NodeExecutionStatus.WAITING_FOR_INPUT,
+      ]),
+    });
+
+    /** 핸들러가 불릴 때 두 캐시에 있던 값을 잡는 resumable handler 를 등록한다. */
+    const registerCapturingHandler = (
+      nodeType: string,
+      nodeId: string,
+    ): {
+      seen: CapturedAtHandler;
+      processMultiTurnMessage: jest.Mock;
+    } => {
+      const seen: CapturedAtHandler = {};
+      const processMultiTurnMessage = jest.fn().mockImplementation(() => {
+        const ctx = contextService.getContext(executionId);
+        seen.structured = ctx?.structuredOutputCache[nodeId] as unknown as
+          Record<string, unknown> | undefined;
+        seen.flat = ctx?.nodeOutputCache[nodeId];
+        // 행 저장은 LLM 호출 전에 끝나 있어야 한다.
+        seen.updateCalls = mockNodeExecutionRepo.update.mock.calls.length;
+        return Promise.resolve({
+          config: { mode: 'multi_turn' },
+          output: { result: { message: 'next', messages: [], turnCount: 2 } },
+          meta: {},
+          status: 'waiting_for_input',
+          _resumeState: { messages: [], turnCount: 2, model: 'gpt' },
+        });
+      });
+      handlerRegistry.register(
+        nodeType,
+        {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(),
+          processMultiTurnMessage,
+          endMultiTurnConversation: jest.fn(),
+        } as unknown as NodeHandler,
+        { kind: 'standard' },
+      );
+      return { seen, processMultiTurnMessage };
+    };
+
+    const runTurn = (
+      node: Node,
+      nodeExec: Record<string, unknown> | null,
+      payload: unknown,
+    ) =>
+      orchestrator.processAiResumeTurn(
+        { id: executionId, status: ExecutionStatus.RUNNING } as never,
+        executionId,
+        node,
+        contextService.getContext(executionId) ??
+          contextService.createContext(executionId, workflowId),
+        nodeExec as never,
+        turnResumeState,
+        payload,
+      );
+
+    const userMessageReceivedAt = (): string | undefined => {
+      const call = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.USER_MESSAGE,
+      );
+      return (call?.[2] as { receivedAt?: string } | undefined)?.receivedAt;
+    };
+
+    it('AI 에이전트: 대기 행 outputData 를 이어 받아 사용자 메시지를 더한 resumed 스냅샷을 LLM 호출 전에 싣는다', async () => {
+      const node = makeNode('node-resumed-agent', 'ai_agent');
+      const { seen } = registerCapturingHandler('ai_agent', node.id);
+      contextService.createContext(executionId, workflowId);
+      driver.isCheckpointEligibleNodeType.mockReturnValue(true);
+      driver.buildResumeCheckpoint.mockReturnValue({
+        schemaVersion: 1,
+        turnCount: 1,
+      });
+      const waitingOutputData = {
+        config: { mode: 'multi_turn', model: 'gpt-4o', maxTurns: 20 },
+        output: {
+          result: {
+            message: '무엇을 도와드릴까요?',
+            messages: [{ role: 'assistant', content: '무엇을 도와드릴까요?' }],
+            turnCount: 1,
+          },
+        },
+        meta: {
+          interactionType: 'ai_conversation',
+          durationMs: 1200,
+          contextInjection: { injectedCount: 2 },
+          turnDebug: [{ turn: 1 }],
+        },
+        status: 'waiting_for_input',
+        _resumeCheckpoint: { schemaVersion: 1 },
+      };
+
+      await runTurn(
+        node,
+        {
+          id: 'ne-resumed-agent',
+          startedAt: new Date(),
+          outputData: waitingOutputData,
+        },
+        { type: 'ai_message', message: '환불 문의입니다' },
+      );
+
+      const receivedAt = userMessageReceivedAt();
+      expect(typeof receivedAt).toBe('string');
+      expect(seen.structured).toEqual({
+        config: { mode: 'multi_turn', model: 'gpt-4o', maxTurns: 20 },
+        output: {
+          result: {
+            message: '무엇을 도와드릴까요?',
+            messages: [
+              { role: 'assistant', content: '무엇을 도와드릴까요?' },
+              { role: 'user', content: '환불 문의입니다' },
+            ],
+            turnCount: 1,
+          },
+          interaction: {
+            type: 'message_received',
+            data: { content: '환불 문의입니다', role: 'user' },
+            // 같은 턴의 라이브 신호와 같은 값이다.
+            receivedAt,
+          },
+        },
+        // contextInjection 은 빼고 durationMs 는 0 이다.
+        meta: {
+          interactionType: 'ai_conversation',
+          durationMs: 0,
+          turnDebug: [{ turn: 1 }],
+        },
+        status: 'resumed',
+        _resumeState: turnResumeState,
+      });
+      // 평면 캐시도 같은 tick 에 resumed 다.
+      expect((seen.flat as { status?: unknown }).status).toBe('resumed');
+      // 직전 대기 스냅샷 객체는 바꾸지 않는다.
+      expect(waitingOutputData.output.result.messages).toHaveLength(1);
+      expect(waitingOutputData.meta.contextInjection).toBeDefined();
+      // LLM 응답(대기)이 오면 같은 칸을 덮는다.
+      expect(
+        contextService.getContext(executionId)?.structuredOutputCache[node.id]
+          ?.status,
+      ).toBe('waiting_for_input');
+
+      // 행에도 저장한다. `_resumeState` 는 빼고 체크포인트를 싣는다.
+      expect(seen.updateCalls).toBe(1);
+      expect(driver.buildResumeCheckpoint).toHaveBeenCalledWith(
+        turnResumeState,
+      );
+      const { _resumeState: _omit, ...expectedPersisted } =
+        seen.structured as Record<string, unknown>;
+      void _omit;
+      expect(mockNodeExecutionRepo.update).toHaveBeenCalledTimes(1);
+      expect(mockNodeExecutionRepo.update).toHaveBeenCalledWith(
+        persistCriteria('ne-resumed-agent'),
+        {
+          outputData: {
+            ...expectedPersisted,
+            _resumeCheckpoint: { schemaVersion: 1, turnCount: 1 },
+          },
+        },
+      );
+      // 턴 끝의 대기 저장이 재개 스냅샷 저장 뒤에 온다.
+      expect(
+        mockNodeExecutionRepo.update.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockNodeExecutionRepo.save.mock.invocationCallOrder[0]);
+    });
+
+    it('정보 추출기: 구조화 캐시의 직전 대기 스냅샷에서 output.partial 을 유지한다', async () => {
+      const node = makeNode('node-resumed-extractor', 'information_extractor');
+      const { seen } = registerCapturingHandler(
+        'information_extractor',
+        node.id,
+      );
+      contextService.createContext(executionId, workflowId);
+      const partial = {
+        extracted: { orderNumber: null, issueType: 'refund' },
+        missingFields: ['orderNumber'],
+        collectionRetryCount: 0,
+      };
+      contextService.setStructuredOutput(executionId, node.id, {
+        config: { mode: 'multi_turn', maxCollectionRetries: 3 },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: '환불 요청합니다.' },
+              { role: 'assistant', content: '주문번호를 알려주세요.' },
+            ],
+          },
+          partial,
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+      });
+
+      await runTurn(
+        node,
+        // 구조화 캐시가 있으면 outputData 보다 먼저 본다.
+        { id: 'ne-resumed-extractor', outputData: { config: { stale: true } } },
+        { type: 'ai_message', message: 'ORD-12345 입니다' },
+      );
+
+      expect(seen.structured).toMatchObject({
+        config: { mode: 'multi_turn', maxCollectionRetries: 3 },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: '환불 요청합니다.' },
+              { role: 'assistant', content: '주문번호를 알려주세요.' },
+              { role: 'user', content: 'ORD-12345 입니다' },
+            ],
+          },
+          partial,
+          interaction: {
+            type: 'message_received',
+            data: { content: 'ORD-12345 입니다', role: 'user' },
+            receivedAt: userMessageReceivedAt(),
+          },
+        },
+        meta: { interactionType: 'ai_conversation', durationMs: 0 },
+        status: 'resumed',
+      });
+    });
+
+    it('AI 폼 제출(form_submitted): interaction 에 제출 값을 싣고 messages 는 그대로 둔다', async () => {
+      const node = makeNode('node-resumed-form', 'ai_agent');
+      const { seen } = registerCapturingHandler('ai_agent', node.id);
+      contextService.createContext(executionId, workflowId);
+      const messages = [
+        { role: 'assistant', content: '아래 폼을 채워 주세요.' },
+      ];
+
+      await runTurn(
+        node,
+        {
+          id: 'ne-resumed-form',
+          outputData: {
+            config: { mode: 'multi_turn' },
+            output: {
+              result: { messages },
+              interaction: { type: 'form_preview', data: { fields: [] } },
+            },
+            meta: { interactionType: 'ai_form_render' },
+            status: 'waiting_for_input',
+          },
+        },
+        { type: 'form_submitted', formData: { email: 'a@example.com' } },
+      );
+
+      // 폼 제출은 라이브 신호를 내지 않는다.
+      expect(userMessageReceivedAt()).toBeUndefined();
+      const output = seen.structured?.output as Record<string, unknown>;
+      expect(output.result).toEqual({ messages });
+      expect(output.interaction).toEqual({
+        type: 'form_submitted',
+        data: { email: 'a@example.com' },
+        receivedAt: expect.any(String),
+      });
+      // 폼을 제출하면 폼 입력을 더 기다리지 않으므로 대화 대기로 둔다.
+      expect(seen.structured?.meta).toEqual({
+        interactionType: 'ai_conversation',
+        durationMs: 0,
+      });
+      expect(seen.structured?.status).toBe('resumed');
+      // 체크포인트 대상이 아니면(기본 mock) 체크포인트 없이 저장한다.
+      expect(driver.buildResumeCheckpoint).not.toHaveBeenCalled();
+      const persisted = (
+        mockNodeExecutionRepo.update.mock.calls[0] as [
+          unknown,
+          { outputData: Record<string, unknown> },
+        ]
+      )[1].outputData;
+      expect(persisted).not.toHaveProperty('_resumeState');
+      expect(persisted).not.toHaveProperty('_resumeCheckpoint');
+      expect(persisted.meta).toEqual({
+        interactionType: 'ai_conversation',
+        durationMs: 0,
+      });
+    });
+
+    it.each([
+      ['누락', undefined],
+      ['배열', ['x']],
+      ['문자열', 'x'],
+    ])(
+      'AI 폼 제출의 formData 가 객체가 아니면(%s) data 는 빈 객체다',
+      async (_label, formData) => {
+        const node = makeNode('node-resumed-form-bad', 'ai_agent');
+        const { seen } = registerCapturingHandler('ai_agent', node.id);
+        contextService.createContext(executionId, workflowId);
+
+        await runTurn(
+          node,
+          { id: 'ne-form-bad', outputData: null },
+          {
+            type: 'form_submitted',
+            formData,
+          },
+        );
+
+        expect(
+          (seen.structured?.output as { interaction?: { data?: unknown } })
+            .interaction?.data,
+        ).toEqual({});
+      },
+    );
+
+    it('직전 대기 스냅샷이 없으면 node.config 를 설정 에코로 쓰고 사용자 메시지 하나로 시작한다', async () => {
+      const node = makeNode('node-resumed-empty', 'ai_agent');
+      const { seen } = registerCapturingHandler('ai_agent', node.id);
+      contextService.createContext(executionId, workflowId);
+
+      await runTurn(node, null, { type: 'ai_message', message: '안녕하세요' });
+
+      // 대기 행이 없으면 저장하지 않는다.
+      expect(mockNodeExecutionRepo.update).not.toHaveBeenCalled();
+
+      expect(seen.structured).toEqual({
+        config: { mode: 'multi_turn', fromNodeConfig: true },
+        output: {
+          result: { messages: [{ role: 'user', content: '안녕하세요' }] },
+          interaction: {
+            type: 'message_received',
+            data: { content: '안녕하세요', role: 'user' },
+            receivedAt: userMessageReceivedAt(),
+          },
+        },
+        meta: { interactionType: 'ai_conversation', durationMs: 0 },
+        status: 'resumed',
+        _resumeState: turnResumeState,
+      });
+    });
+
+    it('turn 경계에서 취소를 관측하면 재개 스냅샷을 싣지 않는다', async () => {
+      const node = makeNode('node-resumed-cancel', 'ai_agent');
+      const { processMultiTurnMessage } = registerCapturingHandler(
+        'ai_agent',
+        node.id,
+      );
+      contextService.createContext(executionId, workflowId);
+      driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+        new ExecutionCancelledError(executionId),
+      );
+
+      await expect(
+        runTurn(
+          node,
+          { id: 'ne-resumed-cancel' },
+          {
+            type: 'ai_message',
+            message: 'x',
+          },
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      expect(processMultiTurnMessage).not.toHaveBeenCalled();
+      expect(
+        contextService.getContext(executionId)?.structuredOutputCache[node.id],
+      ).toBeUndefined();
+      expect(mockNodeExecutionRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('행이 종결돼 저장 조건에 맞지 않으면(affected 0) 메모리의 outputData 를 바꾸지 않는다', async () => {
+      const node = makeNode('node-resumed-terminal', 'ai_agent');
+      const { processMultiTurnMessage } = registerCapturingHandler(
+        'ai_agent',
+        node.id,
+      );
+      contextService.createContext(executionId, workflowId);
+      mockNodeExecutionRepo.update.mockResolvedValueOnce({ affected: 0 });
+      const waitingOutputData = {
+        output: { result: { messages: [] } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+      };
+      const nodeExec = {
+        id: 'ne-resumed-terminal',
+        outputData: waitingOutputData,
+      };
+      let outputDataAtHandler: unknown;
+      processMultiTurnMessage.mockImplementationOnce(() => {
+        outputDataAtHandler = nodeExec.outputData;
+        return Promise.resolve({
+          config: {},
+          output: { result: { messages: [] } },
+          meta: {},
+          status: 'waiting_for_input',
+          _resumeState: { messages: [] },
+        });
+      });
+
+      await runTurn(node, nodeExec, { type: 'ai_message', message: 'x' });
+
+      expect(mockNodeExecutionRepo.update).toHaveBeenCalledTimes(1);
+      expect(outputDataAtHandler).toBe(waitingOutputData);
+    });
+
+    it('행 저장이 끝나기 전에는 LLM 을 부르지 않는다', async () => {
+      const node = makeNode('node-resumed-order', 'ai_agent');
+      const { processMultiTurnMessage } = registerCapturingHandler(
+        'ai_agent',
+        node.id,
+      );
+      contextService.createContext(executionId, workflowId);
+      let release!: (v: { affected: number }) => void;
+      mockNodeExecutionRepo.update.mockReturnValueOnce(
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+      );
+
+      const turn = runTurn(
+        node,
+        { id: 'ne-resumed-order', outputData: null },
+        { type: 'ai_message', message: 'x' },
+      );
+      for (let i = 0; i < 5; i += 1) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      expect(mockNodeExecutionRepo.update).toHaveBeenCalledTimes(1);
+      expect(processMultiTurnMessage).not.toHaveBeenCalled();
+
+      release({ affected: 1 });
+      await turn;
+      expect(processMultiTurnMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('체크포인트 비대상 노드는 직전 대기 봉투의 _resumeCheckpoint 를 재개 행에 옮기지 않는다', async () => {
+      const node = makeNode('node-resumed-ineligible', 'ai_agent');
+      registerCapturingHandler('ai_agent', node.id);
+      contextService.createContext(executionId, workflowId);
+      driver.isCheckpointEligibleNodeType.mockReturnValue(false);
+
+      await runTurn(
+        node,
+        {
+          id: 'ne-resumed-ineligible',
+          outputData: {
+            config: { mode: 'multi_turn' },
+            output: { result: { messages: [] } },
+            meta: { interactionType: 'ai_conversation' },
+            status: 'waiting_for_input',
+            _resumeCheckpoint: { schemaVersion: 1, turnCount: 1 },
+          },
+        },
+        { type: 'ai_message', message: 'x' },
+      );
+
+      const persisted = (
+        mockNodeExecutionRepo.update.mock.calls[0] as [
+          unknown,
+          { outputData: Record<string, unknown> },
+        ]
+      )[1].outputData;
+      // 스냅샷은 config · output · meta 만 이어 받는다. 비대상 타입은 rehydrate 하지 않는다.
+      expect(persisted).not.toHaveProperty('_resumeCheckpoint');
+      expect(driver.buildResumeCheckpoint).not.toHaveBeenCalled();
+    });
+
+    it('컨텍스트가 없으면 재개 스냅샷을 싣지 않고 행도 쓰지 않는다(새 throw 를 만들지 않는다)', async () => {
+      const node = makeNode('node-resumed-noctx', 'ai_agent');
+      registerCapturingHandler('ai_agent', node.id);
+      const context = contextService.createContext(executionId, workflowId);
+      // 컨텍스트 소실을 흉내 낸다. 가드가 없으면 setNodeOutput 이 throw 한다.
+      contextService.deleteContext(executionId);
+      const setNodeOutputSpy = jest.spyOn(contextService, 'setNodeOutput');
+
+      // 컨텍스트 소실 뒤의 기존 graceful 경로는 노드를 실패로 종결하며 그 오류를 던진다.
+      // 스냅샷 쪽이 다른 오류(TypeError 등)를 새로 만들지 않아야 한다.
+      await expect(
+        orchestrator.processAiResumeTurn(
+          { id: executionId, status: ExecutionStatus.RUNNING } as never,
+          executionId,
+          node,
+          context,
+          {
+            id: 'ne-resumed-noctx',
+            executionId,
+            startedAt: new Date(),
+            outputData: { status: 'waiting_for_input' },
+          } as never,
+          turnResumeState,
+          { type: 'ai_message', message: 'x' },
+        ),
+      ).rejects.toThrow('AI Agent turn failed');
+
+      expect(setNodeOutputSpy).not.toHaveBeenCalled();
+
+      expect(mockNodeExecutionRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('행 저장이 실패해도 오류 로그만 남기고 LLM 호출로 이어 간다', async () => {
+      const node = makeNode('node-resumed-dberr', 'ai_agent');
+      const { processMultiTurnMessage, seen } = registerCapturingHandler(
+        'ai_agent',
+        node.id,
+      );
+      contextService.createContext(executionId, workflowId);
+      mockNodeExecutionRepo.update.mockRejectedValueOnce(new Error('db down'));
+      const errorSpy = jest
+        .spyOn((orchestrator as unknown as { logger: Logger }).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      await runTurn(
+        node,
+        { id: 'ne-resumed-dberr', executionId, outputData: null },
+        { type: 'ai_message', message: 'x' },
+      );
+
+      expect(processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      // 메모리 캐시에는 실어 둔다.
+      expect(seen.structured?.status).toBe('resumed');
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to persist resumed snapshot'),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('db down'));
     });
   });
 

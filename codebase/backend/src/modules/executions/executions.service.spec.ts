@@ -737,6 +737,75 @@ describe('ExecutionsService', () => {
       expect(triggerNe?.status).toBe('completed'); // 변경 없음
       expect(carouselNe?.status).toBe('waiting_for_input'); // 정규화 적용
     });
+
+    // AI 대화 재개 턴 — 재개 claim 이 행을 running 으로 바꾸고 엔진이 LLM 호출 전에
+    // 재개 스냅샷(status 'resumed')을 저장한다. LLM 호출 동안 대기로 보여야 실행 상세
+    // 폴링이 대화 화면을 비우지 않는다(NERV CLE-NODE-AGENT-OUTPUT 「멀티턴 재개」).
+    it("AI 대화 재개 스냅샷(status='running' + outputData.status='resumed' + ai_conversation)을 waiting_for_input 으로 정규화", async () => {
+      const row = baseFake({ id: 'eW5', status: ExecutionStatus.RUNNING });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne-agent',
+          nodeId: 'agent-node',
+          status: 'running',
+          outputData: {
+            config: { mode: 'multi_turn' },
+            output: {
+              result: { messages: [{ role: 'user', content: 'hi' }] },
+              interaction: {
+                type: 'message_received',
+                data: { content: 'hi', role: 'user' },
+                receivedAt: '2026-11-12T00:00:00.000Z',
+              },
+            },
+            meta: { interactionType: 'ai_conversation', durationMs: 0 },
+            status: 'resumed',
+          },
+        },
+      ]);
+      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'agent-node' }]);
+
+      const result = (await service.findById('eW5')) as {
+        nodeExecutions: { status: string }[];
+      };
+      expect(result.nodeExecutions[0].status).toBe('waiting_for_input');
+    });
+
+    it.each([
+      [
+        'form · buttons 의 resumed(곧 종결되는 마지막 출력)',
+        'running',
+        { status: 'resumed', meta: { interactionType: 'form' } },
+      ],
+      [
+        'interactionType 이 없는 resumed',
+        'running',
+        { status: 'resumed', meta: {} },
+      ],
+      ['meta 가 null 인 resumed', 'running', { status: 'resumed', meta: null }],
+      [
+        '종결 행에 남은 AI 재개 스냅샷',
+        'completed',
+        { status: 'resumed', meta: { interactionType: 'ai_conversation' } },
+      ],
+    ])('%s 는 정규화하지 않는다', async (_label, status, outputData) => {
+      const row = baseFake({ id: 'eW6', status: ExecutionStatus.RUNNING });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        { id: 'ne-x', nodeId: 'x-node', status, outputData },
+      ]);
+      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'x-node' }]);
+
+      const result = (await service.findById('eW6')) as {
+        nodeExecutions: { status: string }[];
+      };
+      expect(result.nodeExecutions[0].status).toBe(status);
+    });
   });
 
   // C-1 (06-concurrency) — WAITING 실행 stop 은 cancelWaitingExecution 의 publish

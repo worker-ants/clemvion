@@ -330,4 +330,5 @@ Multi Turn 모드에서 `inputField`를 비워 두면 LLM을 호출하지 않고
   - Text Classifier 단일 결과: `$node["TC"].output.result.category` · multi-label: `$node["TC"].output.result.categories`
   - Information Extractor 추출 결과: `$node["IE"].output.result.extracted.<fieldName>`
   - 모델/토큰 메트릭: `$node["X"].meta.{model, inputTokens, outputTokens, totalTokens}`
+  - AI Agent 단일 턴의 토큰 값은 그 턴에서 부른 LLM 호출을 모두 더한 값이에요. 도구를 쓰느라 여러 번 부른 호출도 들어가요.
   - 에러 분기: `$node["X"].output.error?.code` / `$node["X"].port === 'error'`

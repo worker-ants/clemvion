@@ -1469,6 +1469,8 @@ export class AiTurnExecutor {
     // condition-route turn duration 단일 캡처 (03 C-2 review INFO-3) — trace
     // durationMs 와 turnDebug 가 동일 시각을 참조하도록.
     const condRouteDurationMs = Date.now() - singleTurnStartedAt;
+    // 정상 완료 · LLM 실패와 같은 기준: 이 조건 호출까지 성공한 `chat` 호출 usage 의 합.
+    const tokens = sumLlmCallUsage(llmCalls);
     return this.buildConditionOutput(
       matchedCondition,
       reason,
@@ -1476,9 +1478,9 @@ export class AiTurnExecutor {
       1,
       {
         model: result.model ?? (model || llmConfig.defaultModel),
-        totalInputTokens: result.usage?.inputTokens ?? 0,
-        totalOutputTokens: result.usage?.outputTokens ?? 0,
-        totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
+        totalInputTokens: tokens.inputTokens,
+        totalOutputTokens: tokens.outputTokens,
+        totalThinkingTokens: tokens.thinkingTokens,
         toolCalls: toolCallCount,
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
@@ -1630,18 +1632,15 @@ export class AiTurnExecutor {
    * 집합을 쓰도록 한 곳에서 만든다. 키를 더하거나 고칠 때 두 경로가 함께 바뀐다.
    * 조건 라우팅 종결은 {@link AiTurnExecutor.buildConditionOutput} 이 따로 조립한다.
    *
-   * `tokens` 의 의미는 호출부가 정하며 두 경로가 다르다. 토큰 의미의 정본은 여기다.
-   *  - 정상 완료: 마지막 `chat` 결과 하나의 usage 만 싣는다(기존 동작). 도구 반복이
-   *    있으면 앞선 호출의 usage 는 합산하지 않아 과소 집계다. 호출별 usage 는
-   *    `turnDebug[0].llmCalls[].responsePayload.usage` 에 남는다. 조건 라우팅 종결
-   *    (`handleSingleTurnConditionRoute`)도 같다.
-   *  - LLM 실패: 실패 전에 성공한 호출 usage 의 합이다({@link sumLlmCallUsage}).
-   * 정상 완료도 성공 호출의 합으로 맞추는 일은 후속 Task CLE-T-9VRXGD 가 맡는다.
+   * 토큰 4종은 `accumulators.llmCalls` 에 기록된(성공한) `chat` 호출 usage 의 합이다
+   * ({@link sumLlmCallUsage}). 정상 완료는 마지막 호출까지, LLM 실패는 실패 전까지의
+   * 성공 호출이 대상이다. 조건 라우팅 종결(`handleSingleTurnConditionRoute`)도 같은 합을
+   * 넘긴다. 롤링 요약 `chat` 은 `llmCalls` 에 기록되지 않아 합에 들지 않는다.
+   * 정본: CLE-NODE-AI-COMMON 「토큰 회계」.
    */
   private static buildSingleTurnMeta(args: {
     durationMs: number;
     model: string | undefined;
-    tokens: TokenTotals;
     toolCallCount: number;
     accumulators: TurnOutputAccumulators;
     singleTurnInjection: SingleTurnInjection;
@@ -1650,7 +1649,6 @@ export class AiTurnExecutor {
     const {
       durationMs,
       model,
-      tokens,
       toolCallCount,
       accumulators,
       singleTurnInjection,
@@ -1668,7 +1666,7 @@ export class AiTurnExecutor {
     return {
       durationMs,
       model,
-      ...tokens,
+      ...sumLlmCallUsage(llmCalls),
       toolCalls: toolCallCount,
       ragSources: ragAcc.getSources(),
       ragDiagnostics: ragAcc.getDiagnostics(),
@@ -1706,7 +1704,7 @@ export class AiTurnExecutor {
    * `chat` 과 자동 메모리 주입(롤링 요약 `chat` · 요약 모델 설정 해석) 실패가 여기로 온다.
    * `code` · `details.retryable` 은 멀티턴 재개와 같은 {@link extractAiTurnErrorPayload}
    * 로 정한다. `meta` 는 {@link AiTurnExecutor.buildSingleTurnMeta} 로 정상 완료와 같은
-   * 키에 실패 전까지 쌓인 값만 싣는다(토큰 의미는 그 JSDoc 참조).
+   * 키에 실패 전까지 쌓인 값만 싣는다(토큰은 실패 전에 성공한 호출의 합).
    * 최종 `ai_assistant` thread push 와 메모리 추출은 하지 않는다. 노드 취소는 여기
    * 오지 않는다. 호출부 catch 가 먼저 `rethrowIfNodeCancelled` 로 던진다.
    */
@@ -1746,7 +1744,6 @@ export class AiTurnExecutor {
       meta: AiTurnExecutor.buildSingleTurnMeta({
         durationMs: Date.now() - startedAt,
         model: model || llmConfig.defaultModel,
-        tokens: sumLlmCallUsage(accumulators.llmCalls),
         toolCallCount,
         accumulators,
         singleTurnInjection,
@@ -2181,11 +2178,10 @@ export class AiTurnExecutor {
             : {}),
         },
       },
-      // 토큰은 마지막 `chat` 결과 하나의 usage 다. 의미는 `buildSingleTurnMeta` JSDoc 참조.
+      // 토큰은 도구 반복을 포함해 성공한 `chat` 호출 전부의 합이다(`buildSingleTurnMeta`).
       meta: AiTurnExecutor.buildSingleTurnMeta({
         durationMs: singleTurnDurationMs,
         model: result.model,
-        tokens: toTokenTotals(result.usage),
         toolCallCount,
         accumulators,
         singleTurnInjection,

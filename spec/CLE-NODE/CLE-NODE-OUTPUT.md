@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "54be63991274d3c18c68703d6aa502709de0f17dec7426413654026c7bf99ffc"
+content_hash: "f20089e31aad5496449bc4b20e84e278b202e4e2a7d03426e677ac343cefb539"
 read_as: "approved_fallback"
-task: "CLE-T-3XGCYA"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "31e725066eaa0c5d767e83c8b637218006b7d82e12f93896c69561e7c480b16e"
-etag: "sha256-fe75687ec0125d1fb7dfca624742787e85c978c442c18fd9b0c80b58d1f1a6f9"
+mirror_sha256: "304f82a2d6169f143671f3ab3b2c9bc062e39b8b718c6329485f08da80e80958"
+etag: "sha256-fd51a7da03bd42a46213dc8fde982d6c486807c8d7027112432d5bd58fa0955d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -205,7 +205,7 @@ stateDiagram-v2
 ```
 
 1. 블로킹 노드에 도달하면 `status: "waiting_for_input"` 을 돌려주고 엔진이 실행을 멈춘다. `output` 에는 이 시점에 계산한 런타임 값만 둔다([Principle 1.1](#principle-11-설정과-출력-값은-겹치지-않는다), [4.3](#43-입력-대기-상태의-출력-값-노드별)).
-2. 사용자 입력을 받으면 `status: "resumed"` 로 통일한다. `output` 은 입력 대기 시점 값을 그대로 두고 `interaction` 을 더한다. `interaction` 은 `type`(`form_submitted`, `button_click`, `button_continue`, `message_received`), `data`(type 별 형태), `receivedAt`(ISO 8601)이다.
+2. 사용자 입력을 받으면 `status: "resumed"` 로 통일한다. `output` 은 입력 대기 시점 값을 그대로 두고 `interaction` 을 더한다. `interaction` 은 `type`(`form_submitted`, `button_click`, `button_continue`, `message_received`), `data`(type 별 형태), `receivedAt`(ISO 8601)이다. AI 대화 노드(`ai_agent`, `information_extractor` 멀티턴)의 재개 출력은 두 가지가 다르다. 사용자 메시지로 재개하면 그 메시지를 `output.result.messages` 끝에 더한다. `meta` 는 직전 대기 출력의 값을 이어받아 `interactionType` 을 `ai_conversation`, `durationMs` 를 `0` 으로 두고 `contextInjection` 은 뺀다. AI 에이전트가 `render_form` 폼 제출로 재개할 때(`interaction.type` 은 `form_submitted`)도 이 `meta` 규칙을 따른다. 형태와 시점은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 멀티턴 재개 절이 정한다.
 3. 멀티턴 AI 노드가 종료 조건에 닿으면 `status: "ended"` 를 돌려준다. `port` 는 조건 ID 이거나 시스템 포트(`user_ended`·`max_turns`·`error`, 정보 추출기는 `completed` 도)다. `output` 은 `{ result: {...} }` 또는 `{ error: {...} }` 다. 멀티턴 AI 에이전트에는 `out` 포트가 없다. AI 에이전트 단일 턴도 끝날 때 `status: "ended"` 를 돌려준다. 포트는 정상 완료면 `out`, 조건 분기면 조건 ID, LLM 호출 실패 · 도구 정의 크기 예산 초과면 `error` 다. 노드별 종료 포트는 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)와 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)의 포트 절이 정한다.
 4. 상태가 바뀌는 시점과 엔진이 하는 일(park, 저장, 재구성)은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)가 정한다.
 
@@ -293,7 +293,7 @@ stateDiagram-v2
 | `form_submitted` | `{ [fieldName]: value, via?: 'ai_render' }`. 제출한 필드 값이다. `via: 'ai_render'` 표시는 AI 에이전트의 `render_form` 도구 응답일 때만 붙는다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). | `form`, `ai_agent`(`render_form`) |
 | `button_click` | `{ buttonId, buttonLabel, selectedItem? }` | `carousel`, `table`, `chart`, `template` |
 | `button_continue` | `{ buttonId, buttonLabel, url?, selectedItem? }`. `url` 은 링크 버튼 URL 이 있을 때, `selectedItem` 은 Carousel 항목 버튼일 때만 싣는다(`ButtonInteractionService`). | Presentation 노드 링크 버튼의 계속 포트 |
-| `message_received` | `{ content, role: "user" }` | `ai_agent`, `information_extractor` 멀티턴. 이 재개 스냅샷은 AI 경로에서 아직 내보내지 않는다(미구현). 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)다. |
+| `message_received` | `{ content, role: "user" }` | `ai_agent`, `information_extractor` 멀티턴. 재개 스냅샷은 다음 턴 LLM 호출 전에 한 번 내고 노드 실행 행에도 저장한다. 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)다. |
 
 이 `interaction` 은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md)에 자동으로 쌓인다. 뒤에 오는 AI 에이전트 노드는 대화 맥락 설정(`contextScope`)으로 이것을 자동으로 받아 쓸 수 있다.
 
@@ -640,3 +640,7 @@ spread 로 싣지 않는 이유는 세 가지다.
 ### `skipped[].error.code` 의 임시 예외를 닫는다 (2026-11-05)
 
 NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 실패 회차 `error.code` 를 한 규칙으로 정리했다. 값은 이제 백엔드가 직접 싣는 카탈로그 코드, [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 `AbortError`, 대체값 `UNKNOWN_ERROR` 중 하나다. 그래서 9.2 의 임시 예외 문장을 지우고 그 규칙을 가리키게 했다. `UNKNOWN_ERROR` 의 §6.6 행은 이 문서와 함께 검토 요청한 ERRCODES 초안에 있다. 규칙과 근거, 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다. 이 개정은 규약 문장을 그 결정에 맞추기만 하므로 따로 기각한 대안이 없다.
+
+### AI 대화 노드의 재개 출력을 규약에 올린다 (2026-11-12)
+
+AI 대화 경로가 재개 스냅샷을 내고 노드 실행 행에 저장하게 됐다(NERV Task `CLE-T-TBJ863`). 그래서 4.5 의 `message_received` 행에서 미구현 문장을 지우고 4.1 의 재개 규칙에 AI 대화 노드가 다른 점 두 가지를 적었다. 사용자 메시지를 `output.result.messages` 에 더하면 저장된 스냅샷만 보고도 이번 턴에 받은 발화를 알 수 있다. `meta.interactionType` 을 고정하는 것은 읽기 쪽 대기 판정이 이 값으로 form · buttons 의 `resumed` 와 AI 재개 스냅샷을 가르기 때문이다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md#rationale) Rationale 의 2026-11-12 항목). 결정과 기각한 대안은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md#rationale) Rationale 의 2026-11-12 항목에 있다.

@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "eebee3f19072f4689f52b5fdf020c426d058b18482896f04b1c6a7de605bfe1e"
+content_hash: "df3e0160f624c3717ff12cdb9d32880a040f3d22ff726322bca0f9bd929c65c7"
 read_as: "approved_fallback"
-task: "CLE-T-GKZPKY"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d1513fe81eec3a1172ebaa69c0d31b9f4a68813a551ded630fffadfc2b61625e"
-etag: "sha256-ef20c9af04c90447add21d75fdbd8d6aa3e7d7964cbb703a0653688ddcb7417f"
+mirror_sha256: "502bfded8030c123568a9f9b95a608a0e039b59d680349e088b313dfd8f652c2"
+etag: "sha256-153ea126f01cda8f6eb42156cad79d263fbb58e8a5737d18eff8077b358120b9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -385,7 +385,7 @@ stateDiagram-v2
 1. **첫 턴**: 시스템 프롬프트와 도구를 준비하고 접두를 맨 앞에 붙인다(후속 턴에도 유지, `$now` 고정이라 값이 같다). 첫 LLM 호출은 미루고 바로 `waiting_for_input` 으로 들어간다. `output` 에는 빈 `messages` 와 `_resumeState` 를 싣는다. 클라이언트 채팅 화면이 입력 칸을 켠다.
 2. **사용자 메시지를 받으면**
     - a. 클라이언트가 `execution.submit_message`(채팅)나 `execution.submit_form`(`render_form` 응답)을 보낸다. `submit_form` 은 `pendingFormToolCall` 이 있을 때만 유효하고 맞는 `toolCallId` 가 없으면 거부한다(c.fallback 과의 관계는 [미결 사항](#미결-사항)).
-    - b. 엔진이 `status: 'resumed'` 스냅샷을 한 번 낸다. 채팅은 `output.interaction.{type:'message_received', data:{content, role:'user'}, receivedAt}`, 폼은 `{type:'form_submitted', data:{<field>:value}, receivedAt}` 이다. 이 구조화 스냅샷은 목표 계약이며 AI 대화 경로에서는 아직 내지 않는다(미구현). 채팅이면 엔진은 같은 시점에 WS `execution.user_message` 를 보내 사용자 발화를 AI 응답보다 먼저 보여 준다(구현됨).
+    - b. 엔진이 `status: 'resumed'` 스냅샷을 한 번 낸다. 채팅은 `output.interaction.{type:'message_received', data:{content, role:'user'}, receivedAt}`, 폼은 `{type:'form_submitted', data:{<field>:value}, receivedAt}` 이다. 엔진이 LLM 을 부르기 전에 이 스냅샷을 노드 출력 캐시에 싣는다. 노드 실행 행의 `outputData` 에도 저장한다(형식은 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 의 재개 절). 채팅이면 엔진은 같은 시점에 WS `execution.user_message` 를 보내 사용자 발화를 AI 응답보다 먼저 보여 준다(구현됨).
     - c. 메시지를 대화 이력에 더하고 스레드에 `ai_user`(채팅) 또는 `presentation_user`(폼) 턴을 넣는다. 폼이면 `data.via: 'ai_render'` 표지를 박아 그래프 Form 노드 출처(`data.via` 없음)와 나누고, 화면은 `<AI 에이전트 라벨> · form via AI render` 카드로 그린다. tool_result 는 `{ok:true, type:'form_submitted', data:{…}, message:'<재호출 금지 안내문>'}` 로 채운다. 제출 데이터가 10KB 를 넘으면 문자열 필드를 고르게 잘라 `...<truncated>` 를 붙이고(비문자열은 그대로) `formDataTruncation: { originalBytes, bytesAfterCap, truncatedFields }` 를 붙인다. 이후 `pendingFormToolCall` 을 지운다.
     - c.bypass. **폼 우회**: `pendingFormToolCall` 이 있는데 `submit_message` 가 오면 폼 호출 tool_result 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채워 짝 요건을 맞추고, `pendingFormToolCall` 을 지우고, 텍스트를 일반 `ai_user` 턴으로 넣어 다음 LLM 을 부른다. LLM 은 취소를 알고 다음 행동을 스스로 정한다. 메시지 입력 칸은 늘 켜져 있어 폼 대신 텍스트를 보낼 수 있다.
     - c.fallback. **대기 중인 폼 호출이 없을 때(불변식 예외)**: 폼 제출 경로로 들어왔는데 `pendingFormToolCall` 이 없으면(직접 보낸 `submit_form`, 경합으로 늦게 온 제출 등) 버리지 않는다. 폼 JSON 을 일반 `ai_user` 메시지로 넣어 LLM 이 자연어로 답하게 하고 `logger.warn('[processMultiTurnMessage] form submission without pendingFormToolCall — fallback to plain user message', { executionId, nodeId, formData })` 를 남긴다. "`ai_form_render` 진입과 `pendingFormToolCall` 존재는 1:1" 불변식의 예외 경로다.
@@ -480,7 +480,6 @@ stateDiagram-v2
 - **dry-run 재실행의 도구 목록 구성 단계**: 단일 턴 9.d.iii 의 부수효과 판정 밖에 있는 도구 목록 구성(`buildTools`) 단계를 판정 범위에 넣을지는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 에서 다룬다(CLE-T-8B66BK).
 - **dry-run 재실행의 메모리 추출**: `persistent` 전략의 메모리 추출(단일 턴 8단계)은 dry-run 여부를 보지 않는다. 현재 구현은 dry-run 재실행에서도 추출한 사실·선호를 `agent_memory` 에 저장한다(`AiMemoryManager.scheduleMemoryExtraction` 과 공유 헬퍼 `scheduleMemoryExtraction` 에 `isDryRun` 확인이 없다). `memoryKey` 를 주면 이 기록은 실행을 넘어 이후 실행의 회수에 쓰인다. 저장과 회수 규칙의 기준 문서는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 다. dry-run 에서 추출을 막을지 정의가 없어 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 으로 넘긴다. 담당 작업은 CLE-T-C9GF9F 다.
 - 추출 기준점 저장 키 경로는 [에이전트 메모리 미결 사항](../CLE-AI/CLE-AI-MEMORY.md#미결-사항) 에서 다룬다.
-- **단일 턴 `meta` 토큰 기준**: 정상 완료와 LLM 호출 실패의 토큰 집계 기준이 다르다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)). NERV Task `CLE-T-9VRXGD` 가 맡는다.
 - **실패하거나 취소된 단일 턴이 남긴 항목**: [대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항) 이 맡는다(단일 턴 11단계).
 
 ## 구현 위치
@@ -633,7 +632,7 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 - **단일 턴 전용 분류 함수를 따로 두는 안은 기각했다.** 단일 턴의 분류 규칙이 멀티턴과 갈라질 수 있다. 두 모드는 REQ-AGENT-024 를 함께 따른다. [에러 코드](#에러-코드) 절도 두 모드가 같은 분류를 쓴다고 정한다.
 - **롤링 요약 호출은 이번 범위에서 뺐다.** 이 호출을 같은 catch 에 넣으려면 설정 에코 조립과 호출 순서를 바꿔야 한다. 그래서 범위를 턴 응답을 만드는 LLM `chat` 두 곳(첫 호출과 도구 루프 호출)으로 묶었다. 남은 범위는 NERV Task `CLE-T-Q38K9F` 가 마쳤다([2026-11-05 결정](#단일-턴-롤링-요약-실패도-error-포트로-보낸-이유-2026-11-05)).
 - **노드 취소는 `error` 포트로 보내지 않는다.** [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙대로 AbortError 를 던져 노드를 `cancelled` 로 끝낸다. 취소를 `error` 포트로 보내면 노드가 `failed` 로 기록되고 `error` 연결선의 다음 노드가 실행된다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)).
-- **부분 결과를 `meta` 에 남긴다.** 실패 전에 성공한 LLM 호출의 토큰, 실행한 도구 호출 수, `turnDebug` 를 싣는다. 실패 전 호출에도 비용이 들었으므로 이를 버리면 비용 추적과 디버깅 단서를 잃는다. 정상 완료 출력의 토큰 값(마지막 호출 1건)은 이번에 바꾸지 않았다. 바꾸면 기존 값의 뜻이 달라져 `CLE-T-ZHBMAC` 범위를 넘는다. 두 기준은 NERV Task `CLE-T-9VRXGD` 가 맞춘다.
+- **부분 결과를 `meta` 에 남긴다.** 실패 전에 성공한 LLM 호출의 토큰, 실행한 도구 호출 수, `turnDebug` 를 싣는다. 실패 전 호출에도 비용이 들었으므로 이를 버리면 비용 추적과 디버깅 단서를 잃는다. 정상 완료 출력의 토큰 값(마지막 호출 1건)은 이번에 바꾸지 않았다. 바꾸면 기존 값의 뜻이 달라져 `CLE-T-ZHBMAC` 범위를 넘는다. 두 기준은 NERV Task `CLE-T-9VRXGD` 가 맞춘다. 2026-11-12 에 정상 완료 출력도 성공한 호출의 합으로 맞췄다([AI 노드 공통](CLE-NODE-AI-COMMON.md#rationale) Rationale 의 2026-11-12 항목).
 - **사용자 발화는 남기고 응답 턴은 만들지 않는다.** `ai_user` 턴은 LLM 호출 전에 넣으므로 실패해도 남는다. 응답이 없으므로 마지막 assistant 턴은 넣지 않고 메모리 추출도 예약하지 않는다. 노드 취소는 이 결정의 범위가 아니다. 취소된 단일 턴에 `ai_user` 항목이 남는 것은 현재 구현의 동작이다. 취소된 노드가 대화 스레드에 결과를 쌓지 않는 [정보 추출기 노드](CLE-NODE-EXTRACTOR.md#노드-취소는-error-포트로-보내지-않는다-2026-10-31)의 결정과 맞출지는 [대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항) 에서 정한다.
 - **동작이 바뀐다.** 전에는 throw 라서 노드 에러 처리 정책(재시도 등)이 걸렸다. 이제는 `error` 포트 출력이라 정책이 걸리지 않는다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)). `error` 연결선이 있으면 그쪽으로 가고 없으면 `ERROR_PORT_FALLBACK` 으로 멈춘다. `error` 포트로 실패를 내는 다른 노드도 같다. 이 규칙을 정한 근거는 [노드 에러 처리 정책 Rationale](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다-2026-11-01) 에 있다.
 

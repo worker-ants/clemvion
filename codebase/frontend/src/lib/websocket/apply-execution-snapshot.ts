@@ -406,6 +406,13 @@ export function buildConvConfigFromStructured(
  * terminal(completed/failed/skipped/cancelled) row 는 stale 봉투 문자열이
  * 재트리거하지 않도록 제외 — `running`/`pending` 일 때만 봉투 신호를 채택한다.
  *
+ * AI 대화 노드(AI 에이전트 · 정보 추출기)의 재개 턴도 대기로 본다. 재개 claim 이 행을
+ * `running` 으로 바꾸고 엔진은 LLM 호출 전에 재개 스냅샷(`outputData.status ===
+ * 'resumed'`, `meta.interactionType === 'ai_conversation'`)을 저장한다. 이 행을 대기로
+ * 보지 않으면 LLM 호출 동안 `resumeFromConversation()` 이 대화 화면을 비운다(NERV
+ * `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」, `CLE-EXEC-STATE`). form · buttons 의
+ * `resumed` 는 곧 종결되는 마지막 출력이라 `interactionType` 으로 제외한다.
+ *
  * **Backend 동기 변경 필요**: 이 함수의 판정 조건(`status` + `outputData.status`
  * 봉투 신호 채택 범위, terminal 제외 기준)을 변경할 때는 backend
  * `executions.service.ts: reconcilePreParkWaitingStatus` 도 **동일 조건으로**
@@ -416,12 +423,29 @@ export function buildConvConfigFromStructured(
 export function isNodeWaitingForInput(ne: NodeExecutionData): boolean {
   if (ne.status === "waiting_for_input") return true;
   if (ne.status === "running" || ne.status === "pending") {
-    return (
-      (ne.outputData as { status?: unknown } | null)?.status ===
-      "waiting_for_input"
-    );
+    const status = (ne.outputData as { status?: unknown } | null)?.status;
+    if (status === "waiting_for_input") return true;
+    return isAiResumedWaitingEnvelope(ne.outputData);
   }
   return false;
+}
+
+/**
+ * `outputData` 봉투가 AI 대화 재개 턴의 스냅샷인지 본다
+ * (`status === "resumed"` + `meta.interactionType === "ai_conversation"`).
+ * form · buttons 의 `resumed` 는 곧 종결되는 마지막 출력이라 `interactionType` 으로 제외한다.
+ * backend `isAiResumedWaitingEnvelope`(`ai-conversation-helpers.ts`)와 같은 조건이고,
+ * 두 쪽의 테스트가 같은 케이스 표를 쓴다.
+ */
+export function isAiResumedWaitingEnvelope(outputData: unknown): boolean {
+  const envelope = outputData as {
+    status?: unknown;
+    meta?: { interactionType?: unknown } | null;
+  } | null;
+  return (
+    envelope?.status === "resumed" &&
+    envelope.meta?.interactionType === "ai_conversation"
+  );
 }
 
 export function mapNodeStatus(

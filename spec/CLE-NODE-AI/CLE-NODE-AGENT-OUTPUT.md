@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT"
 title: "AI 에이전트 노드 출력과 디버그"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "3e24384bf5bc6ec893163fbddec56793d9eb2355669cdfeb6c34556c906598f7"
+content_hash: "8d805b01598903210be204fd9b6512ad0eef3c681b5adb6525134ce03bc18480"
 read_as: "approved_fallback"
-task: "CLE-T-KPDDKB"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "9de2e8ae7f9ad15a62800a20e42e6fe6477466f60e9be18fcbe9e3e7074e1289"
-etag: "sha256-c50d4d7c2357212d9aaaaea5dd92f86b66b52de78b6876c6adef45111bab588f"
+mirror_sha256: "7be1195a162145a305dc20d00a24c28426e9307fc5f24320303d3fc50735c220"
+etag: "sha256-1b88a415bd427a46bf580989856b61b9b0cc720b34b2c2c3628b72c78001762c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -134,8 +134,8 @@ etag: "sha256-c50d4d7c2357212d9aaaaea5dd92f86b66b52de78b6876c6adef45111bab588f"
 | `output.result.presentations[]` | `PresentationPayload[]?` | 핸들러 반환 | 표시 도구 호출이 있었을 때만 싣는다("표시물 페이로드 운반" 절) |
 | `meta.durationMs` | number | 엔진 + 핸들러 | 노드 실행 소요 시간(ms) |
 | `meta.model` | string | LLM provider 응답 | 실제로 부른 모델 ID(`config.model` 평가 결과) |
-| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | LLM provider 응답 | 토큰 회계([AI 노드 공통](CLE-NODE-AI-COMMON.md)) |
-| `meta.thinkingTokens` | number | LLM provider 응답 | 늘 싣는다. 모델이 보고하지 않으면 `0`([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
+| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | LLM provider 응답 | 그 턴에서 성공한 LLM 호출 `usage` 의 합이다. 도구 루프로 여러 번 부르면 모두 더한다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
+| `meta.thinkingTokens` | number | LLM provider 응답 | 성공한 호출의 합이다. 늘 싣고 모델이 보고하지 않으면 `0` 이다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
 | `meta.toolCalls` | number | 핸들러 누적 | 도구 호출 횟수 합산. 조건 도구는 뺀다. 현재 구현은 프로바이더(지식 저장소·MCP·표시) 실행 수와 일반 도구 stub 수를 더한다 |
 | `meta.ragSources` | Array | `RagAccumulator` | 지식 저장소 도구가 가져온 청크 누적(chunkId 중복 제거). graph 모드 지식 저장소는 `origin: 'seed' \| 'expanded'` 를 붙인다. 스키마는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) |
 | `meta.ragDiagnostics` | object | `RagAccumulator` | 검색 진단(`attempted`·`searchedKbCount`·`queriesUsed`·`resultCount`·`skipReason?`·`rerank?`). `rerank?` 는 리랭킹이 켜진 지식 저장소 호출 때만 싣는다. 스키마는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) |
@@ -261,7 +261,7 @@ etag: "sha256-c50d4d7c2357212d9aaaaea5dd92f86b66b52de78b6876c6adef45111bab588f"
 | `output.error.details.retryable` | boolean | 필수. 일시적 오류인지. `true` 는 HTTP 429·5xx·타임아웃 같은 일시 오류(예: 503), `false` 는 인증 실패·스키마 치명 오류. 단일 턴은 `_retryState` 를 만들지 않아 `true` 여도 [다시 시도] 버튼이 없다([대화 미리보기 §다시 시도 버튼 조건](../CLE-EXEC/CLE-EXEC-PREVIEW.md#다시-시도-버튼-조건)). |
 | `output.error.details.retryAfterSec` | number? | 재시도 권장 대기 초(있을 때). 멀티턴 에러와 같은 형식 |
 | `meta.*` | | 정상 완료와 같은 키를 실패 직전까지 모은 값으로 싣는다. `durationMs`(단일 턴 시작부터)·`model`·토큰·`toolCalls`·`ragSources`·`ragDiagnostics`·`mcpDiagnostics?`·`turnDebug` 가 들어간다. `presentationCalls`·`presentationSchemaViolations`·`contextInjection`·`memory` 는 있을 때만 싣는다. 도구 정의 크기 예산 초과는 `model`·`durationMs` 만 싣는다 |
-| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | 실패 전에 성공한 LLM 호출의 `usage` 합이다. 첫 호출이 실패하면 0 이다. 정상 완료 `out` 과 기준이 다른 점은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 있다 |
+| `meta.inputTokens`·`outputTokens`·`totalTokens` | number | 실패 전에 성공한 LLM 호출의 `usage` 합이다. 첫 호출이 실패하면 0 이다. 정상 완료 `out` 과 같은 기준이다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
 | `meta.thinkingTokens` | number | 실패 전에 성공한 호출의 합이다. 늘 싣고 보고가 없으면 `0` 으로 두는 기준은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 있다. 도구 정의 크기 예산 초과 에러에는 싣지 않는다(`meta.*` 행) |
 | `meta.toolCalls` | number | 실패 전까지 실행한 도구 호출 수 |
 | `meta.turnDebug[0].llmCalls` | Array | 성공한 LLM 호출만 담는다. 실패한 호출은 응답이 없어 넣지 않는다. 첫 호출이 실패하면 `[]` |
@@ -359,16 +359,20 @@ etag: "sha256-c50d4d7c2357212d9aaaaea5dd92f86b66b52de78b6876c6adef45111bab588f"
 
 ## 멀티턴 재개 (`status: "resumed"`, 일시)
 
-사용자 메시지를 받은 직후, 다음 턴 LLM 호출 전에 한 번 낸다. 이 스냅샷은 일시적이다. 엔진은 곧바로 다음 턴을 처리해 `waiting_for_input` 이나 `ended` 로 수렴한다. `resumed` 시점에는 연결선 라우팅이 없고, 이 스냅샷은 실행 내역·타임라인 관찰에만 기록한다.
+사용자 메시지나 `render_form` 폼 제출을 받으면 엔진이 다음 턴 LLM 호출 전에 한 번 낸다. 이 스냅샷은 일시적이다. 엔진은 곧바로 다음 턴을 처리해 `waiting_for_input` 이나 `ended` 로 수렴한다. `resumed` 시점에는 연결선 라우팅이 없다.
 
-> 구현 현황: 구조화한 `resumed` 스냅샷은 목표 관찰 계약이며 AI 대화 경로에서는 아직 내지 않는다(미구현). 현재 엔진의 AI 대화 턴 경로(`ai-turn-orchestrator.service.ts` 의 `processAiResumeTurn` → `handleAiMessageTurn`)는 `message_received` interaction 과 `status:'resumed'` 스냅샷을 `setStructuredOutput` 으로 내지 않는다. `resumed` 스냅샷은 form·buttons 경로에만 있다. 대신 아래 라이브 조기 노출은 구현돼 있어 진행 신호는 유지된다. 구현하거나 이 절을 폐기할지는 `plan/in-progress/node-output-redesign/ai-agent.md` 가 추적한다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 도 같은 상태이며 함께 처리하기를 권한다.
+엔진은 이 스냅샷을 노드 출력 캐시에 싣고 그 노드 실행 행의 `outputData` 에도 저장한다. 저장본에서는 `_resumeState` 를 빼고 체크포인트 대상 노드면 `_resumeCheckpoint` 를 싣는다. 행 상태가 `running` 이나 `waiting_for_input` 일 때만 저장하므로 그사이 취소로 종결된 행의 출력은 덮지 않는다. 엔진은 저장을 마친 뒤 LLM 을 부른다. LLM 응답이 오면 대기나 종결 출력이 두 곳을 다시 덮는다. 그래서 재개 턴의 LLM 호출 동안 REST 로 읽은 실행 상세에만 보인다. 그동안 행 상태는 `running` 이고 출력 상태는 `resumed` 다. REST 대기 정규화와 프런트 대기 판정은 `meta.interactionType` 이 `ai_conversation` 인 이 조합도 대기로 본다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)).
 
-**라이브 조기 노출(`execution.user_message`)**: 위 관찰 기록과 별개로, 엔진은 같은 수신 시점(다음 턴 LLM 호출 전)에 WS 이벤트 `execution.user_message` 를 한 번 보내 사용자 발화를 라이브 대화 화면에 바로 보여 준다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)).
+스냅샷은 엔진이 직전 대기 스냅샷(노드 출력 캐시, 없으면 노드 실행 행의 `outputData`)을 이어 만든다. 핸들러는 만들지 않는다. 취소된 실행이면 내지 않는다.
+
+**라이브 조기 노출(`execution.user_message`)**: 채팅 메시지 턴이면 엔진은 같은 수신 시점(다음 턴 LLM 호출 전)에 WS 이벤트 `execution.user_message` 를 한 번 보내 사용자 발화를 라이브 대화 화면에 바로 보여 준다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)).
 
 - 이 이벤트의 `nodeExecutionId` 는 그 시점에 `waiting_for_input` 이던 NodeExecution 행의 PK 다. 엔진의 `execution_id + node_id + status='waiting_for_input'` 단일 매칭과 같은 행이다.
-- `receivedAt` 은 `output.interaction.receivedAt` 과 같은 수신 시점이다. 엔진과 핸들러가 각각 만들어 ms 차이가 날 수 있지만 중복 제거·재조정은 정확한 일치에 기대지 않는다.
-- 권위 출처는 여전히 턴 종료 `execution.ai_message.messages` 스냅샷이다. `user_message` 는 라이브 전용 비권위 진행 신호이며 영속 대상이 아니다. `output.result.messages` 의 턴 경계 영속 정책은 바뀌지 않는다.
+- `receivedAt` 은 같은 턴 재개 스냅샷의 `output.interaction.receivedAt` 과 같은 값이다. 엔진이 한 번 만들어 두 곳에 쓴다. 중복 제거·재조정은 이 값의 일치에 기대지 않는다.
+- 권위 출처는 여전히 턴 종료 `execution.ai_message.messages` 스냅샷이다. `user_message` 는 라이브 전용 비권위 진행 신호이며 영속 대상이 아니다. 재개 스냅샷 저장본의 `output.result.messages` 에도 이 발화가 들어가지만 그것은 노드 출력을 저장한 것이고 턴이 끝나면 대기나 종결 출력이 덮는다.
 - 이 이벤트는 엔진의 멀티턴 메시지 턴 공통 경로에서 나가므로 노드 타입과 무관하다. 정보 추출기 등 다른 `ai_conversation` 재개 노드에도 똑같이 적용된다.
+
+아래 예시는 노드 출력 캐시에 싣는 형태다. 노드 실행 행 저장본은 `_resumeState` 를 빼고 체크포인트 대상 노드면 `_resumeCheckpoint` 를 싣는다.
 
 ```json
 {
@@ -393,11 +397,14 @@ etag: "sha256-c50d4d7c2357212d9aaaaea5dd92f86b66b52de78b6876c6adef45111bab588f"
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `output.result.messages` | ChatMessage[] | 사용자 메시지를 더한 직후의 누적 대화(모델 응답은 아직 없음) |
-| `output.interaction.type` | `"message_received"` | 사용자 입력 기록 종류(Principle 4.5) |
-| `output.interaction.data.content` | string | 사용자가 입력한 메시지 |
-| `output.interaction.data.role` | `"user"` | 고정값 |
-| `output.interaction.receivedAt` | ISO8601 string | 수신 시각 |
+| `config.*` | | 직전 대기 스냅샷의 설정 에코를 잇는다. 직전 스냅샷이 없으면(재시도로 다시 들어온 턴 등) 노드 설정을 쓴다 |
+| `output.result.messages` | ChatMessage[] | 직전 대기의 누적 대화 끝에 사용자 메시지를 더한 값(모델 응답은 아직 없음). 폼 제출 턴은 더하지 않는다 |
+| `output.result` 의 다른 키 | | 직전 대기 값을 그대로 잇는다 |
+| `output.interaction.type` | `"message_received"` \| `"form_submitted"` | 사용자 입력 기록 종류(Principle 4.5). `render_form` 폼을 제출한 턴은 `form_submitted` 다 |
+| `output.interaction.data` | object | 채팅은 `{ content, role: "user" }`, 폼은 제출 값 `{ <field>: value }` 다 |
+| `output.interaction.receivedAt` | ISO8601 string | 엔진의 수신 시각. 같은 턴 `execution.user_message` 의 `receivedAt` 과 같다 |
+| `meta.*` | | 직전 대기의 `meta` 를 잇는다. 진행 중 누적 토큰과 `turnDebug` 가 남는다. `contextInjection` 은 빼고 `durationMs` 는 `0` 이다 |
+| `meta.interactionType` | `"ai_conversation"` | 늘 `ai_conversation` 이다. `render_form` 폼을 제출한 턴도 폼 입력을 더는 기다리지 않는다 |
 | `status` | `"resumed"` | 1회성 일시 표지 |
 
 `maxTurns` 는 정적 설정 값이라 출력에 에코하지 않고 `config.maxTurns` 로만 노출한다(Principle 1.1). 사용자 입력 기록은 뜻을 나눠 `output.interaction.*` 에 둔다.
@@ -655,7 +662,7 @@ type PresentationPayload = {
 - `$thread.turns` 에서 `source === 'ai_assistant'` 인 턴의 `presentations` 로 접근한다.
 - 보통은 `output.result.response` 텍스트만 보면 된다. 후속 노드(예: Send Email)가 페이로드를 직접 다루려면 스레드 접근이 1차다.
 
-**`render_form` 의 멀티턴 운반**: `render_form` 이 불린 턴은 입력 대기 형식을 따르되 `output.interaction` 이 폼 미리보기를 싣고 `_resumeState.pendingFormToolCall.toolCallId` 가 설정된다. 사용자가 제출하면 재개 스냅샷이 `output.interaction.{type:'form_submitted', data, receivedAt}` 로 나오고(AI 경로 스냅샷은 미구현), 다음 턴의 대화 기록 항목에 `source: 'presentation_user'` 누적이 일어난다(`ai_user` 가 아님).
+**`render_form` 의 멀티턴 운반**: `render_form` 이 불린 턴은 입력 대기 형식을 따르되 `output.interaction` 이 폼 미리보기를 싣고 `_resumeState.pendingFormToolCall.toolCallId` 가 설정된다. 사용자가 제출하면 재개 스냅샷이 `output.interaction.{type:'form_submitted', data, receivedAt}` 로 나오고, 다음 턴의 대화 기록 항목에 `source: 'presentation_user'` 누적이 일어난다(`ai_user` 가 아님).
 
 ## LLM 호출 기록 (`meta.turnDebug`)
 
@@ -718,7 +725,8 @@ type PresentationPayload = {
 - `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` (멀티턴 사용자 종료와 최대 턴 도달의 진입점)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-condition-evaluator.ts` (조건 매칭의 `condition.reason`)
 - `codebase/backend/src/nodes/ai/shared/llm-error-payload.ts` (단일 턴 에러 출력의 LLM 에러 분류. 멀티턴 재개와 공유)
-- `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 에러와 재개 경로)
+- `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 에러와 재개 경로, 재개 스냅샷 싣기 · 저장)
+- `codebase/backend/src/modules/execution-engine/ai-conversation-helpers.ts` (`buildAiResumedSnapshot`, 재개 스냅샷 형식)
 - `codebase/backend/src/modules/execution-engine/retry-turn.service.ts` (마지막 턴 재시도)
 - `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (재개 체크포인트와 재시도 상태 필드)
 - `codebase/backend/src/shared/conversation-thread/conversation-thread.types.ts` (표시물 페이로드 타입)
@@ -754,3 +762,19 @@ type PresentationPayload = {
 ### 멀티턴 에러 예시도 구현에 맞춘다 (2026-11-05)
 
 [멀티턴 에러](#멀티턴-에러-error) 절의 JSON 예시를 단일 턴 에러 예시와 같은 기준으로 고쳤다(NERV Task `CLE-T-KPDDKB`). 멀티턴도 단일 턴과 같은 분류 함수(`extractAiTurnErrorPayload`)를 거친다. 이 함수는 에러 객체가 실은 `details` 위에 `retryable` · `retryAfterSec` 만 얹고 `provider` · `statusCode` 를 만들어 넣지 않는다. 2026-11-01 정리는 단일 턴 절만 고쳐서 멀티턴 예시에는 구현이 내지 않는 두 키가 남아 있었다.
+
+### AI 대화 경로도 재개 스냅샷을 낸다 (2026-11-12)
+
+멀티턴 재개 절은 목표 계약으로만 남아 있었다. form · buttons 경로만 `resumed` 스냅샷을 냈고 AI 대화 턴 경로는 내지 않았다. 사람 결정으로 이 계약을 AI 에이전트와 정보 추출기에도 구현했다(NERV Task `CLE-T-TBJ863`).
+
+- 스냅샷은 엔진이 만든다. 직전 대기 스냅샷을 잇고 사용자 메시지와 `output.interaction` 만 바꾼다. 핸들러는 다음 턴을 처리하기 전이라 새 값이 없다. 그래서 핸들러를 고치지 않고 두 노드가 같은 코드를 쓴다.
+- 시점은 LLM 호출 전이다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 는 「다음 `waiting_for_input` 직전」이라고 적었지만 그때는 LLM 응답이 이미 와 있어 대기 출력이 바로 덮는다. 사용자 입력을 받은 순간을 남기려면 LLM 호출 전이어야 한다.
+- `receivedAt` 은 엔진이 한 번 만들어 이 스냅샷과 `execution.user_message` 에 함께 쓴다. 예전 문서는 둘을 따로 만든다고 보고 ms 차이를 허용했다.
+- `meta` 는 직전 대기 값을 잇는다. LLM 호출 동안에도 누적 토큰과 `turnDebug` 가 남아 LLM 사용량 탭이 비지 않는다. `contextInjection` 은 대기 스냅샷처럼 싣지 않는다.
+- `meta.interactionType` 만은 직전 값과 상관없이 `ai_conversation` 으로 둔다. `render_form` 대기(`ai_form_render`)에서 폼을 제출하면 그 턴은 폼 입력을 더는 기다리지 않는다.
+- `render_form` 폼 제출 턴도 같은 재개 경로를 지나므로 `form_submitted` 스냅샷을 낸다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 재개 단계가 채팅과 폼을 함께 적고 있어서다.
+- 노드 실행 행의 `outputData` 에도 저장한다(사람 결정). 메모리 캐시에만 실으면 LLM 응답이 곧 덮어 어디에서도 보이지 않는다.
+- 저장하면 LLM 호출 동안 행 상태는 `running`, 출력 상태는 `resumed` 다. REST 대기 정규화(`reconcilePreParkWaitingStatus`)와 프런트 대기 판정(`isNodeWaitingForInput`)이 이 조합을 대기로 보지 않으면 실행 상세의 2초 폴링이 대화 화면을 비운다. 그래서 두 판정을 `meta.interactionType` 이 `ai_conversation` 인 재개 스냅샷까지 함께 넓혔다(사람 결정, [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)).
+- 저장본에는 체크포인트 대상 노드면 `_resumeCheckpoint` 를 싣는다. 직전 대기와 같은 재개 상태로 만들므로 LLM 호출 중 서버가 재시작해도 재개 체크포인트가 남는다.
+- 저장은 행 상태가 `running` 이나 `waiting_for_input` 일 때만 하는 조건부 갱신이다. 엔티티를 통째로 저장하면 메모리에 있던 낡은 상태까지 써서 그사이 들어온 취소를 덮는다.
+- 엔진은 저장을 마친 뒤 LLM 을 부른다. 기다리지 않으면 늦게 끝난 이 저장이 턴 끝의 대기 저장을 덮을 수 있다.

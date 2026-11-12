@@ -1,4 +1,7 @@
-import type { ResumableMessageSource } from '../../nodes/core/node-handler.interface';
+import type {
+  NodeHandlerOutput,
+  ResumableMessageSource,
+} from '../../nodes/core/node-handler.interface';
 import type { WaitingInteractionType } from './execution-engine.service';
 import type {
   LlmCallRecord,
@@ -20,6 +23,33 @@ import type {
  * 소거되어 순환을 만들지 않는다). 엔진은 외부 import 호환을 위해 본 파일의
  * 심볼을 re-export 한다.
  */
+
+/**
+ * AI 대화 노드 출력 봉투의 `status` 값(재개 턴 스냅샷).
+ * 생산자(`buildAiResumedSnapshot`)와 판정자(`isAiResumedWaitingEnvelope`, REST 대기 정규화)가
+ * 같은 값을 쓰도록 여기서만 정의한다. 프런트 `isNodeWaitingForInput` 은 패키지 경계 밖이라
+ * 같은 리터럴을 따로 두고 계약 테스트로 맞춘다.
+ */
+export const AI_RESUMED_OUTPUT_STATUS = 'resumed';
+
+/** AI 대화 노드 출력 봉투의 `meta.interactionType` 값. */
+export const AI_CONVERSATION_INTERACTION_TYPE = 'ai_conversation';
+
+/**
+ * `outputData` 봉투가 AI 대화 재개 턴의 스냅샷인지 본다
+ * (`status === 'resumed'` + `meta.interactionType === 'ai_conversation'`).
+ * form · buttons 의 `resumed` 는 곧 종결되는 마지막 출력이라 `interactionType` 으로 제외한다.
+ */
+export function isAiResumedWaitingEnvelope(outputData: unknown): boolean {
+  const envelope = outputData as {
+    status?: unknown;
+    meta?: { interactionType?: unknown } | null;
+  } | null;
+  return (
+    envelope?.status === AI_RESUMED_OUTPUT_STATUS &&
+    envelope.meta?.interactionType === AI_CONVERSATION_INTERACTION_TYPE
+  );
+}
 
 /**
  * Phase 2.3a — §7.5 rehydration 경로 전용 에러. RehydrateAndResume 의 정상
@@ -85,7 +115,7 @@ export function buildConversationMetaFromResumeState(
   const inputTokens = (state.totalInputTokens as number) ?? 0;
   const outputTokens = (state.totalOutputTokens as number) ?? 0;
   return {
-    interactionType: 'ai_conversation',
+    interactionType: AI_CONVERSATION_INTERACTION_TYPE,
     model: state.model,
     inputTokens,
     outputTokens,
@@ -245,4 +275,84 @@ export function userMessageSignalApplies(
   source: ResumableMessageSource,
 ): boolean {
   return source !== 'form_submitted';
+}
+
+/** 재개 턴을 연 사용자 입력. 일반 메시지와 AI 가 띄운 폼(`render_form`) 제출 두 가지다. */
+export type AiResumeInteraction =
+  | { type: 'message_received'; content: string }
+  | { type: 'form_submitted'; data: Record<string, unknown> };
+
+function asPlainRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * 멀티턴 AI 재개 스냅샷(`status: 'resumed'`)을 만든다. 엔진이 재개 턴의 LLM 호출
+ * 전에 한 번 싣는 관찰용 스냅샷이고 연결선 라우팅은 없다. 정본은 NERV
+ * `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」 · `CLE-NODE-EXTRACTOR` 「멀티턴 재개」다.
+ *
+ * - `config` 는 직전 대기 스냅샷의 설정 에코를 그대로 쓴다. 없으면 `fallbackConfig`.
+ * - `output` 은 직전 대기 스냅샷을 이어 받는다(정보 추출기의 `output.partial` 포함).
+ *   일반 메시지는 `output.result.messages` 끝에 사용자 메시지를 더하고, 폼 제출은
+ *   다음 턴에 도구 결과로 들어가므로 `messages` 를 그대로 둔다.
+ *   `output.interaction` 은 이번 입력으로 바꾼다.
+ * - `meta` 는 직전 대기 스냅샷의 값을 두되 `contextInjection` 은 빼고
+ *   `durationMs` 는 `0` 으로 둔다(이 시점에는 LLM 호출이 없다).
+ *   `interactionType` 은 늘 `ai_conversation` 이다. 폼을 제출한 턴도 폼 입력을 더
+ *   기다리지 않기 때문이다. REST 대기 정규화(`reconcilePreParkWaitingStatus`)와 프런트
+ *   `isNodeWaitingForInput` 이 이 값과 `status: 'resumed'` 로 재개 턴의 행을 대기로 본다.
+ * - `_resumeState` 는 이번 턴 처리에 쓰는 상태를 그대로 싣는다. DB 에 저장할 때는
+ *   호출 측이 빼야 한다.
+ */
+export function buildAiResumedSnapshot(params: {
+  previous: Record<string, unknown> | undefined;
+  fallbackConfig: Record<string, unknown>;
+  interaction: AiResumeInteraction;
+  receivedAt: string;
+  resumeState: Record<string, unknown>;
+}): NodeHandlerOutput {
+  const { previous, fallbackConfig, interaction, receivedAt, resumeState } =
+    params;
+  const output: Record<string, unknown> = {
+    ...(asPlainRecord(previous?.output) ?? {}),
+  };
+  if (interaction.type === 'message_received') {
+    const result = { ...(asPlainRecord(output.result) ?? {}) };
+    const messages = Array.isArray(result.messages)
+      ? (result.messages as unknown[])
+      : [];
+    result.messages = [
+      ...messages,
+      { role: 'user', content: interaction.content },
+    ];
+    output.result = result;
+    output.interaction = {
+      type: 'message_received',
+      data: { content: interaction.content, role: 'user' },
+      receivedAt,
+    };
+  } else {
+    output.interaction = {
+      type: 'form_submitted',
+      data: interaction.data,
+      receivedAt,
+    };
+  }
+
+  const meta: Record<string, unknown> = {
+    ...(asPlainRecord(previous?.meta) ?? {}),
+  };
+  delete meta.contextInjection;
+  meta.durationMs = 0;
+  meta.interactionType = AI_CONVERSATION_INTERACTION_TYPE;
+
+  return {
+    config: asPlainRecord(previous?.config) ?? fallbackConfig,
+    output,
+    meta,
+    status: AI_RESUMED_OUTPUT_STATUS,
+    _resumeState: resumeState,
+  };
 }
