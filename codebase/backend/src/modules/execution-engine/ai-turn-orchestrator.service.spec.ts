@@ -1637,7 +1637,7 @@ describe('AiTurnOrchestrator', () => {
           processMultiTurnMessage,
           endMultiTurnConversation: jest.fn(),
         } as unknown as NodeHandler,
-        { kind: 'blocking', interaction: 'ai_conversation' },
+        { kind: 'standard' },
       );
       return { seen, processMultiTurnMessage };
     };
