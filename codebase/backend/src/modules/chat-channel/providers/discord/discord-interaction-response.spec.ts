@@ -3,7 +3,7 @@ import { buildDiscordDefaultInteractionResponse } from './discord-interaction-re
 
 // 근거: [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD) · Discord 공식 문서
 // (Receiving and Responding) — interaction 은 3초 안에 200 과 콜백 응답을 받아야 클라이언트가 실패
-// 표시를 띄우지 않는다. type 6 은 컴포넌트(버튼)와 버튼에서 연 모달의 제출에만 쓸 수 있어 슬래시 명령은 type 4 다.
+// 표시를 띄우지 않는다. type 6 은 MODAL_SUBMIT 과 컴포넌트 interaction 에만 쓸 수 있어 슬래시 명령은 type 4 다.
 // 슬래시 명령의 응답 모양은 2026-11-12 사람 결정(NERV 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5`):
 // 본인에게만 보이는 type 4, help 는 도움말, 나머지는 공통 수신 문구. NERV Task `CLE-T-TSEP9G`.
 describe('buildDiscordDefaultInteractionResponse', () => {

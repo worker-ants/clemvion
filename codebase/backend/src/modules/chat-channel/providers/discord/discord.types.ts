@@ -80,8 +80,8 @@ export const DISCORD_COMPONENT_TYPE = {
 
 /**
  * interaction 응답(callback)의 `type`. 3초 안에 200 과 함께 보낸다.
- * DEFERRED_UPDATE_MESSAGE(6)는 컴포넌트(버튼)와, 버튼에서 연 모달의 MODAL_SUBMIT 에만 쓸 수 있다.
- * 이 제품의 모달은 모두 버튼에서 연다.
+ * DEFERRED_UPDATE_MESSAGE(6)는 MODAL_SUBMIT 과 컴포넌트 interaction 에만 쓸 수 있다(Discord 문서 각주).
+ * 문서는 모달을 어디서 열었는지 따지지 않는다. 이 제품의 모달은 모두 버튼에서 연다.
  */
 export const DISCORD_INTERACTION_CALLBACK_TYPE = {
   PONG: 1,
