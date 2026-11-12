@@ -566,8 +566,9 @@ export class RetryTurnService {
    * 보통은 `finalizeAiNode` 가 새 행을 `failed`(재실패)나 `cancelled`(취소 가드)로
    * 마감한 뒤 던진다. 그 전에 던지는 경로(예: COMPLETED 분기의 `assertTransition`
    * 동기 throw)는 새 행을 `running` 으로 남긴다. 실행은 `failRetryExecution` 이
-   * 종결하므로 그 행은 복구 백스톱(stale RUNNING 실행 재구동)에도 걸리지 않는 고아가
-   * 된다.
+   * 종결하므로 그 행은 stale RUNNING 실행 재구동에 걸리지 않는다. 부팅 스캔의 (d)
+   * 단계(`closeOrphanRunningNodeExecutions`, CLE-T-CCEQEC)가 30분 뒤에야 닫으므로
+   * 그동안 `running` 으로 보이지 않게 여기서 바로 닫는다.
    *
    * in-memory `spawnedRow.status` 로는 판정하지 않는다. 턴이 DB 행을 다른 엔티티로
    * 저장할 수 있어서다. 조건부 UPDATE(`status = 'running'`)로 이미 마감된 행은
@@ -656,12 +657,11 @@ export class RetryTurnService {
    *     창이 실재하므로 claim 자체가 상태까지 CAS 해야 한다.
    *
    * 대가(의도된 트레이드오프): 크래시로 중단된 턴의 BullMQ 재배달도 함께
-   * 막힌다. 형제 continuation 4종(`claimResumeEntry`)은 `recoverStuckExecutions`
-   * (stale RUNNING Execution 재claim) 백스톱이 커버하지만, **이 2차 claim
-   * 경로는 그 백스톱이 닿지 않는다** — 실측 근거는 아래 "알려진 백스톱 갭"
-   * 참조 (W2 정정, ai-review 7R `review/code/2026/07/30/11_41_20`: 이 문단의
-   * 구 서술이 아래 실측 결과와 자기모순으로 공존해 앞부분만 읽으면 정반대로
-   * 오독할 소지가 있었다).
+   * 막힌다. 재배달은 claim 에 실패해 버려지고 그 턴은 다시 돌지 않는다. 남는 것은
+   * `running` 새 행 하나이고, 실행은 이미 `failed` 라 형제 continuation 4종
+   * (`claimResumeEntry`)이 기대는 stale RUNNING Execution 재구동에는 걸리지 않는다.
+   * 이 행은 부팅 스캔의 (d) 단계(`closeOrphanRunningNodeExecutions`)가 30분 뒤 닫는다
+   * (CLE-T-CCEQEC). 아래 "백스톱" 참조.
    *
    * **claim 은 반드시 "`_retryState` 부재 → 손상 판정" 보다 먼저 호출돼야 한다**
    * (ai-review CRITICAL #1, 2026-07-28, `review/code/2026/07/28/20_32_57`) —
@@ -676,17 +676,17 @@ export class RetryTurnService {
    * 을 모두 같은 방식(discard)으로 흡수하므로 별도의 파괴적 종결 분기가
    * 불필요하다.
    *
-   * **알려진 백스톱 갭(리뷰어 제안과 다름 — 실측으로 확정)** — 리뷰어는 "진짜
-   * corruption 방어는 `recoverStuckExecutions` 류 backstop 에 위임" 하라 했으나,
-   * 실측 결과 그 백스톱은 이 케이스에 닿지 않는다: `failOrphanRunningNodeExecutions`
-   * 는 `recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만
-   * 호출되는데, discard 후 Execution 은 이미 `failed`(terminal) 로 남아 재구동
-   * 대상이 아니다 — 그 spawn row 는 RUNNING orphan 으로 영구 잔류할 수 있다
-   * (타임라인/진행률 집계 오염). 그래도 discard 가 옳다: 이전 코드(claim 이전
-   * FAILED 마킹)는 **살아있는 작업을 죽이는** 활성 피해를 내지만, discard 는
-   * 이론적 orphan row 만 남긴다 — 그리고 `retryLastTurn` 이 항상 `_retryState`
-   * 를 seed 하므로 "한 번도 seed 안 된 진짜 corruption" 은 구조적으로 발생하지
-   * 않는다. 이 갭은 NERV Task `CLE-T-CCEQEC` 가 후속으로 맡는다.
+   * **백스톱(CLE-T-CCEQEC)** — discard 뒤 실행은 이미 `failed` 라 case B 재구동의
+   * `failOrphanRunningNodeExecutions` 가 닿지 않는다. 그 마감은 stale RUNNING
+   * **Execution** 을 재구동할 때만 돈다. 그래서 버려진 새 행과 claim 성공 뒤 try 진입
+   * 전에 죽은 행은 부팅 스캔(`recoverStuckExecutions`)의 (d) 단계
+   * (`closeOrphanRunningNodeExecutions`)가 닫는다. 노드 행 `started_at` 이 30분을
+   * 넘고 부모 실행이 종결 상태일 때 `failed` 로 닫는다. 닫히기 전까지(다음 부팅 스캔
+   * 까지) 그 행은 타임라인과 진행률 집계에 `running` 으로 보인다. 그래도 discard 가
+   * 옳다. 이전 코드(claim 이전 FAILED 마킹)는 **살아 있는 작업을 죽이는** 활성 피해를
+   * 냈고, discard 가 남기는 것은 백스톱이 닫는 행 하나다. `retryLastTurn` 이 항상
+   * `_retryState` 를 seed 하므로 "한 번도 seed 안 된 진짜 corruption" 은 구조적으로
+   * 생기지 않는다.
    *
    * @returns `true` 면 이 delivery 가 claim 했다(DB 의 `_retryState` 키가 원자
    *   제거됨 — caller 는 in-memory `spawnedRow.inputData` 도 함께 동기화해야

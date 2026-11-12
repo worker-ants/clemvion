@@ -462,8 +462,7 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
       '__e2e_delay_ms:5000 turn-two-crash',
     );
     let crashRow:
-      | { id: string; output_data: Record<string, unknown> }
-      | undefined;
+      { id: string; output_data: Record<string, unknown> } | undefined;
     let crashThread: unknown;
     const captureStart = Date.now();
     while (Date.now() - captureStart < 10_000) {
@@ -600,5 +599,303 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
           s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
       ),
     ).toBe('waiting_for_input');
+  }, 120_000);
+
+  /** CLE-T-CCEQEC — 크래시가 남긴 모양의 노드 실행 행을 직접 넣는다. */
+  async function insertNodeRow(row: {
+    executionId: string;
+    nodeId: string;
+    status: string;
+    startedAgo: string;
+    parentId?: string | null;
+    inputData?: Record<string, unknown>;
+  }): Promise<string> {
+    const id = randomUUID();
+    await db.query(
+      `INSERT INTO node_execution
+         (id, execution_id, node_id, status, started_at, input_data, parent_node_execution_id)
+       VALUES ($1, $2, $3, $4, NOW() - $5::interval, $6::jsonb, $7)`,
+      [
+        id,
+        row.executionId,
+        row.nodeId,
+        row.status,
+        row.startedAgo,
+        JSON.stringify(row.inputData ?? {}),
+        row.parentId ?? null,
+      ],
+    );
+    return id;
+  }
+
+  it('종결된 실행 아래 30분 넘게 running 으로 남은 노드 실행 행을 부팅 스캔이 failed 로 닫고, 살아 있을 수 있는 행은 그대로 둔다 (CLE-T-CCEQEC)', async () => {
+    // 1. trigger → Background(main → codeMain, background → codeBody). 실제 Background
+    //    노드 행을 부모 체인의 조상으로 쓰려고 한 번씩 정상 실행한다.
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const bg: CanvasNode = {
+      id: randomUUID(),
+      type: 'background',
+      category: 'logic',
+      label: 'Bg',
+      positionX: 240,
+      positionY: 0,
+    };
+    const codeMain: CanvasNode = {
+      id: randomUUID(),
+      type: 'code',
+      category: 'data',
+      label: 'Main',
+      positionX: 480,
+      positionY: 0,
+      config: { language: 'javascript', code: 'return { m: 1 };', timeout: 5 },
+    };
+    const codeBody: CanvasNode = {
+      id: randomUUID(),
+      type: 'code',
+      category: 'data',
+      label: 'Body',
+      positionX: 480,
+      positionY: 160,
+      config: { language: 'javascript', code: 'return { b: 1 };', timeout: 5 },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, bg, codeMain, codeBody],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: bg.id,
+          targetPort: 'in',
+        },
+        {
+          sourceNodeId: bg.id,
+          sourcePort: 'main',
+          targetNodeId: codeMain.id,
+          targetPort: 'in',
+        },
+        {
+          sourceNodeId: bg.id,
+          sourcePort: 'background',
+          targetNodeId: codeBody.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    async function runToEnd(): Promise<string> {
+      const res = await request(BASE_URL)
+        .post(`/api/workflows/${workflowId}/execute`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({});
+      expect(res.status).toBe(202);
+      const id = (res.body.data as { executionId: string }).executionId;
+      expect(
+        await poll(id, (s) => TERMINAL_STATUSES.includes(s as never)),
+      ).toBe('completed');
+      // Background 본문은 실행이 끝난 뒤에도 돈다. 본문 행이 끝날 때까지 기다려 아래
+      // 합성과 섞이지 않게 한다.
+      const start = Date.now();
+      while (Date.now() - start < 20_000) {
+        const r = await db.query(
+          `SELECT status FROM node_execution WHERE execution_id = $1 AND node_id = $2`,
+          [id, codeBody.id],
+        );
+        if (r.rows[0]?.status === 'completed') return id;
+        await new Promise((res2) => setTimeout(res2, 200));
+      }
+      throw new Error(`background body did not complete (execution=${id})`);
+    }
+
+    const failedExecId = await runToEnd();
+    const cancelledExecId = await runToEnd();
+    const waitingExecId = await runToEnd();
+
+    const bgRow = await db.query(
+      `SELECT id FROM node_execution WHERE execution_id = $1 AND node_id = $2`,
+      [failedExecId, bg.id],
+    );
+    const bgRowId = bgRow.rows[0]?.id as string;
+    expect(bgRowId).toBeDefined();
+
+    // 2. 크래시가 남긴 상태를 합성한다.
+    //    실행 상태: retry_last_turn 출처는 failed, 취소 출처는 cancelled. 비교군 하나는
+    //    입력 대기(종결 아님)로 둔다.
+    await db.query(`UPDATE execution SET status = 'failed' WHERE id = $1`, [
+      failedExecId,
+    ]);
+    await db.query(`UPDATE execution SET status = 'cancelled' WHERE id = $1`, [
+      cancelledExecId,
+    ]);
+    await db.query(
+      `UPDATE execution SET status = 'waiting_for_input', finished_at = NULL WHERE id = $1`,
+      [waitingExecId],
+    );
+
+    // 닫혀야 하는 행
+    // 출처 1 · 2: retry_last_turn 2차 claim 이 _retryState 를 지운 뒤 버려졌거나
+    // try 진입 전에 죽은 새 행.
+    const retryClaimedRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+    });
+    // 재진입 작업을 잃어 _retryState 가 남은 새 행. 입력 내용과 관계없이 닫힌다.
+    const retryUnclaimedRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      inputData: { _retryState: { turnCount: 1 } },
+    });
+    // 출처 3: 실행이 cancelled 로 커밋된 뒤 markNodeCancelled 전에 죽은 행.
+    const cancelWindowRow = await insertNodeRow({
+      executionId: cancelledExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+    });
+    // Background 가 아닌 부모(서브 워크플로우 · 컨테이너 자리) 아래 행도 닫힌다.
+    const plainParent = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'completed',
+      startedAgo: '40 minutes',
+    });
+    const plainChildRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: plainParent,
+    });
+
+    // 그대로 둬야 하는 행
+    // 30분이 안 된 행: 재시도 재진입 턴 · 취소 커밋 직후의 창.
+    const freshRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '5 minutes',
+    });
+    // Background 본문 행: 부모가 Background 노드 행이다.
+    const bodyRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeBody.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: bgRowId,
+    });
+    // 본문 안 컨테이너 · 서브 워크플로우 아래 행: Background 가 두 단계 위에 있다.
+    const bodyMid = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeBody.id,
+      status: 'completed',
+      startedAgo: '40 minutes',
+      parentId: bgRowId,
+    });
+    const nestedBodyRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeBody.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: bodyMid,
+    });
+    // running 이 아닌 행.
+    const waitingNodeRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'waiting_for_input',
+      startedAgo: '31 minutes',
+    });
+    // 종결되지 않은 실행 아래 행.
+    const liveExecRow = await insertNodeRow({
+      executionId: waitingExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+    });
+
+    // 3. 부팅 스캔(on-demand, NODE_ENV=test 게이팅). 엔드포인트가 스캔을 기다린 뒤 답한다.
+    const recoverRes = await request(BASE_URL)
+      .post(`/api/executions/_test/recover-stuck-executions`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(recoverRes.status).toBe(202);
+
+    const rows = await db.query(
+      `SELECT id, status, error, finished_at FROM node_execution WHERE id = ANY($1::uuid[])`,
+      [
+        [
+          retryClaimedRow,
+          retryUnclaimedRow,
+          cancelWindowRow,
+          plainChildRow,
+          freshRow,
+          bodyRow,
+          nestedBodyRow,
+          waitingNodeRow,
+          liveExecRow,
+        ],
+      ],
+    );
+    const byId = new Map(
+      (
+        rows.rows as Array<{
+          id: string;
+          status: string;
+          error: { message?: string } | null;
+          finished_at: Date | null;
+        }>
+      ).map((r) => [r.id, r]),
+    );
+
+    for (const closedId of [
+      retryClaimedRow,
+      retryUnclaimedRow,
+      cancelWindowRow,
+      plainChildRow,
+    ]) {
+      const r = byId.get(closedId);
+      expect(r?.status).toBe('failed');
+      expect(r?.error?.message).toContain('boot recovery scan');
+      expect(r?.finished_at).not.toBeNull();
+    }
+    expect(byId.get(freshRow)?.status).toBe('running');
+    expect(byId.get(bodyRow)?.status).toBe('running');
+    expect(byId.get(nestedBodyRow)?.status).toBe('running');
+    expect(byId.get(waitingNodeRow)?.status).toBe('waiting_for_input');
+    expect(byId.get(liveExecRow)?.status).toBe('running');
+
+    // 실행 상태는 바꾸지 않는다.
+    const execs = await db.query(
+      `SELECT id, status FROM execution WHERE id = ANY($1::uuid[])`,
+      [[failedExecId, cancelledExecId, waitingExecId]],
+    );
+    const execStatus = new Map(
+      (execs.rows as Array<{ id: string; status: string }>).map((r) => [
+        r.id,
+        r.status,
+      ]),
+    );
+    expect(execStatus.get(failedExecId)).toBe('failed');
+    expect(execStatus.get(cancelledExecId)).toBe('cancelled');
+    expect(execStatus.get(waitingExecId)).toBe('waiting_for_input');
+
+    // 입력 대기로 꾸민 실행은 끝내 둔다. 행이 없는 입력 대기 실행을 남기지 않는다.
+    await db.query(`UPDATE execution SET status = 'cancelled' WHERE id = $1`, [
+      waitingExecId,
+    ]);
   }, 120_000);
 });

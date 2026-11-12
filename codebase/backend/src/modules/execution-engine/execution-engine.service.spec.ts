@@ -1863,6 +1863,141 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // CLE-T-CCEQEC — 종결된 실행 아래 running 으로 남은 노드 실행 행을 부팅 스캔이 거둔다.
+  // SQL 의미(부모 체인 · Background 제외)는 실제 DB 가 있는 e2e
+  // (test/execution-crash-redrive.e2e-spec.ts)가 확인한다. 여기서는 스캔에 붙는 위치,
+  // 조건부 UPDATE 모양, 넘기는 임계값과 상태 목록, 실패가 부팅을 막지 않는 것을 고정한다.
+  describe('closeOrphanRunningNodeExecutions (CLE-T-CCEQEC 부팅 스캔 백스톱)', () => {
+    let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
+    let nodeExecute: jest.Mock;
+    let nodeReturning: jest.Mock;
+    let nodeAndWhere: jest.Mock;
+    let nodeWhere: jest.Mock;
+    let nodeSet: jest.Mock;
+    let nodeUpdate: jest.Mock;
+    let execExecute: jest.Mock;
+
+    beforeEach(() => {
+      // reclaimStuckRunningExecution — 재점유 0건(재구동 없음).
+      execExecute = jest.fn().mockResolvedValue({ affected: 0, raw: [] });
+      const execReturning = jest.fn().mockReturnValue({ execute: execExecute });
+      const execAndWhere = jest
+        .fn()
+        .mockReturnValue({ returning: execReturning });
+      const execWhere = jest.fn().mockReturnValue({ andWhere: execAndWhere });
+      const execSet = jest.fn().mockReturnValue({ where: execWhere });
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({ set: execSet }),
+      });
+      // recoverOrphanPendingExecutions — 대상 없음.
+      mockExecutionRepo.find = jest.fn().mockResolvedValue([]);
+      // 이 단계의 UPDATE … RETURNING id — 기본 2건 마감.
+      nodeExecute = jest
+        .fn()
+        .mockResolvedValue({ affected: 2, raw: [{ id: 'n1' }, { id: 'n2' }] });
+      nodeReturning = jest.fn().mockReturnValue({ execute: nodeExecute });
+      nodeAndWhere = jest.fn().mockReturnValue({ returning: nodeReturning });
+      nodeWhere = jest.fn().mockReturnValue({ andWhere: nodeAndWhere });
+      nodeSet = jest.fn().mockReturnValue({ where: nodeWhere });
+      nodeUpdate = jest.fn().mockReturnValue({ set: nodeSet });
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue({ update: nodeUpdate });
+      mockBus = (service as unknown as { continuationBus: typeof mockBus })
+        .continuationBus;
+      mockBus.acquireLock.mockResolvedValue(true);
+      mockBus.releaseLock.mockResolvedValue(true);
+    });
+
+    const runScan = () =>
+      (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+
+    it('재점유할 실행이 없어도 종결된 실행 아래 30분 넘은 running 노드 행을 failed 로 마감한다', async () => {
+      const before = Date.now();
+      await runScan();
+
+      expect(nodeUpdate).toHaveBeenCalledWith(NodeExecution);
+      const setArg = nodeSet.mock.calls[0][0] as {
+        status: unknown;
+        error: { message: string };
+        finishedAt: unknown;
+      };
+      expect(setArg.status).toBe(NodeExecutionStatus.FAILED);
+      expect(setArg.error.message).toContain('boot recovery scan');
+      expect(setArg.finishedAt).toBeInstanceOf(Date);
+      // 조건부 UPDATE — 그 사이 마감된 행은 건드리지 않는다.
+      expect(nodeWhere).toHaveBeenCalledWith('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      });
+      expect(nodeReturning).toHaveBeenCalledWith('id');
+
+      const [subquery, params] = nodeAndWhere.mock.calls[0] as [
+        string,
+        {
+          orphanThreshold: Date;
+          orphanTerminalStatuses: string[];
+          orphanBackgroundType: string;
+          orphanMaxDepth: number;
+        },
+      ];
+      // 노드 행 started_at 30분(STUCK_RECOVERY_STALE_MS 재사용).
+      expect(subquery).toContain('ne.started_at < :orphanThreshold');
+      expect(
+        Math.abs(params.orphanThreshold.getTime() - (before - 30 * 60 * 1000)),
+      ).toBeLessThan(5_000);
+      // 부모 실행이 종결 상태일 때만. 대기 · 실행 중 · 대기열 실행은 빠진다.
+      expect(subquery).toContain('e.status IN (:...orphanTerminalStatuses)');
+      expect([...params.orphanTerminalStatuses].sort()).toEqual(
+        [
+          ExecutionStatus.CANCELLED,
+          ExecutionStatus.COMPLETED,
+          ExecutionStatus.FAILED,
+        ].sort(),
+      );
+      // 부모 체인에 Background 노드 행이 있는 본문 행은 뺀다.
+      expect(subquery).toContain('parent_node_execution_id');
+      expect(subquery).toContain('n.type = :orphanBackgroundType');
+      expect(params.orphanBackgroundType).toBe('background');
+      expect(params.orphanMaxDepth).toBeGreaterThanOrEqual(10);
+      // UpdateQueryBuilder 는 접두사 없는 낱말 중 NodeExecution 속성 이름(execution · node)을
+      // 컬럼 이름(execution_id · node_id)으로 바꿔 쓴다. 테이블 이름은 모두 따옴표로 감싸야 한다.
+      const tableRefs = [...subquery.matchAll(/\b(?:FROM|JOIN)\s+(\S+)/g)].map(
+        (m) => m[1],
+      );
+      expect(tableRefs.length).toBeGreaterThan(0);
+      for (const ref of tableRefs) {
+        if (ref === 'candidate' || ref === 'ancestor') continue; // CTE 이름
+        expect(ref).toMatch(/^"[a-z_]+"$/);
+      }
+      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+    });
+
+    it('마감 단계가 실패해도 부팅 스캔은 throw 하지 않고 lock 을 해제한다 (오류는 error 로그)', async () => {
+      nodeExecute.mockRejectedValueOnce(new Error('db hiccup'));
+      const logger = (
+        service as unknown as { logger: { error: (m: string) => void } }
+      ).logger;
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
+      try {
+        await expect(runScan()).resolves.toBeUndefined();
+        expect(
+          errorSpy.mock.calls.some((c) => String(c[0]).includes('db hiccup')),
+        ).toBe(true);
+        expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    it('lock 을 얻지 못하면 마감 단계도 돌지 않는다', async () => {
+      mockBus.acquireLock.mockResolvedValueOnce(false);
+      await runScan();
+      expect(nodeUpdate).not.toHaveBeenCalled();
+    });
+  });
+
   // §8 orphan pending backstop (2026-07-04) — admission 재큐 job 소실로 재-pick up
   // 안 되는 대기 초과 pending 을 recoverStuckExecutions 부팅 스캔이 wait-timeout cancel.
   describe('recoverOrphanPendingExecutions (orphan pending backstop §8)', () => {
@@ -3945,7 +4080,11 @@ describe('ExecutionEngineService', () => {
           await service.executeAsync(
             workflowId,
             { foo: 'bar' },
-            { parentWorkspaceId: 'ws-1', parentExecutionId: 'parent-1', dryRun },
+            {
+              parentWorkspaceId: 'ws-1',
+              parentExecutionId: 'parent-1',
+              dryRun,
+            },
           );
           await flushPromises();
 
@@ -15381,7 +15520,11 @@ describe('ExecutionEngineService', () => {
             cEdge('bg', 'background', 'bgBody'),
           ]);
 
-          await service.execute(workflowId, {}, { workspaceId: 'ws-1', dryRun });
+          await service.execute(
+            workflowId,
+            {},
+            { workspaceId: 'ws-1', dryRun },
+          );
           await flushPromises();
 
           const jobs = backgroundQueueAdd().mock.calls.map(
