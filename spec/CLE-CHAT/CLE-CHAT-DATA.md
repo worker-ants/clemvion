@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "737520bb20abfc66fd67af67480aff3723e40adb654da738b81f2f5eecd5e7f2"
+content_hash: "8d4b2dbd7257db79ae7dbcca4b4faea595836fd02e1578cf0e3cb81d06d35d51"
 read_as: "approved_fallback"
-task: "CLE-T-XKK9KH"
+task: "CLE-T-Q353Y4"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "ce3805e2fede0793bfe04edf0b8e82a77f083473eecdd6dd69cb0170c270f3ca"
-etag: "sha256-ce0209af953914b5e0ecbb08d1fd0a733cb31b4b5fc1101ef749641b2155fcd2"
+mirror_sha256: "a80064661fa7da0230a4512659b606e06194967e70f4ebe5f6f8a6d6413c887b"
+etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -357,19 +357,33 @@ sequenceDiagram
 | `chatChannel` 이 실린 PATCH | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 사용자가 보낸 비밀은 쓰지 않아 봇 토큰과 Slack·Discord 서명 값은 그대로다. Telegram 은 새 `secret_token` 이 등록되므로 `inboundSigningRef` 가 매번 갱신된다(건너뛰면 인바운드 401). `botTokenRef` · `inboundSigningRef` 의 값은 저장값을 쓰지 않고 트리거 id 에서 만든다(`chatChannelSecretRef`). `botTokenRef` 는 저장할 설정에 늘 싣는다. `inboundSigningRef` 는 이번 요청에서 서명 자료를 새로 저장했거나(Telegram 의 `issuedInboundSigning`) 요청 전 저장값이나 잠금 안에서 다시 읽은 행에 이미 있을 때만 싣는다. 참조가 없던 행에는 싣지 않는다. 서명 자료가 없는 행에 참조를 실으면 인바운드 검증 결과가 달라진다. 구현은 `chat-channel-binder.service.ts` 의 `setupChatChannel` 이다. `triggers.service.ts` 의 `update` 가 병합 전에 집어 둔 `inboundSigningRef` 를 이 함수에 넘긴다 | UPDATE `trigger.config`·`chat_channel_setup_at`·건강도. `secret_store` 는 봇 토큰·Slack·Discord 서명 무변경, Telegram `inbound-signing` 행만 갱신 |
 | 켜고 끄는 PATCH(`{ isActive }` 만) | `setupChannel()` · `teardownChannel()` 을 부르지 않는다. 봇 토큰 · 인바운드 서명 · 프로바이더 등록이 그대로다. 켤 때만 트리거 단위 listener 레지스트리에 등록한다. 레지스트리는 메모리에 있고 등록은 pub/sub 로 다른 서버 인스턴스에 알린다. 끌 때는 해제하지 않는다. 근거는 [채팅 채널 「R-CC-29 트리거를 켜고 끌 때 외부 채널 등록은 건드리지 않는다」](CLE-CHAT-CORE.md#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다) 다 | `trigger.is_active` 만 바뀐다. 시크릿 저장소는 무변경 |
 | PATCH 거부 | 비밀 필드를 실었거나, 채팅 채널을 나중에 붙이려 했거나, `provider` 를 바꾸려 했으면 `400 VALIDATION_ERROR` 로 아무것도 쓰지 않고 끝난다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 변경 단일 경로 | 무변경(DB·시크릿 저장소) |
-| 재발급 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 토큰 resolve(없으면 ② 건너뜀. 저장된 이전 토큰이 비었거나 공백만 있어도(빈 값 거부 이전에 저장된 옛 행) ② 의 백업을 건너뛴다) ② v2 참조(`bot-token.v2`)에 토큰 보관 ③ primary 참조에 새 토큰 UPSERT ④ 새 토큰으로 `setupChannel` 재호출(서명 자료 재발급) ⑤ `issuedInboundSigning` 저장 ⑥ 트리거 컬럼 갱신. ② 에서 v2 참조에 옛 토큰을 백업하고 ③ 에서 primary 를 새 토큰으로 바꾸므로 v2 를 primary 로 올리는 단계는 없다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `botTokenRef` · `inboundSigningRef` 는 저장값을 쓰지 않고 `rotateBotToken` 이 `chatChannelSecretRef(trigger.id, …)` 로 트리거 id 에서 만든다(NERV Task `CLE-T-M9QKKX`). ④ 에서 `setupChannel` 에 넘기는 설정에는 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24) | UPDATE `chat_channel_token_v2`(v2 참조), `chat_channel_rotated_at`, `chat_channel_health='healthy'` |
+| 재발급 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 토큰 resolve(없으면 ② 건너뜀. 저장된 이전 토큰이 비었거나 공백만 있어도(빈 값 거부 이전에 저장된 옛 행) ② 의 백업을 건너뛴다) ② v2 참조(`bot-token.v2`)에 토큰 보관 ③ primary 참조에 새 토큰 UPSERT ④ 새 토큰으로 `setupChannel` 재호출(서명 자료 재발급) ⑤ `issuedInboundSigning` 저장 ⑥ 트리거 컬럼 갱신. ② 에서 v2 참조에 옛 토큰을 백업하고 ③ 에서 primary 를 새 토큰으로 바꾸므로 v2 를 primary 로 올리는 단계는 없다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `botTokenRef` · `inboundSigningRef` 는 저장값을 쓰지 않고 `rotateBotToken` 이 `chatChannelSecretRef(trigger.id, …)` 로 트리거 id 에서 만든다(NERV Task `CLE-T-M9QKKX`). ④ 에서 `setupChannel` 에 넘기는 설정에는 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24). ②~⑥ 가운데 어디서 실패하면 이 요청이 쓴 시크릿을 재발급 전 값으로 되돌린다(표 아래) | UPDATE `chat_channel_token_v2`(v2 참조), `chat_channel_rotated_at`, `chat_channel_health='healthy'`. 실패하면 DB · 시크릿 저장소 모두 재발급 전 값 |
 | 유예 종료 정리 | BullMQ `chat-channel-token-rotator` 큐의 repeatable job(`0 * * * *`, `upsertJobScheduler` 라 여러 인스턴스에서도 전역 1회)이 `cleanupRotatedChatChannelTokens` 를 부른다. `chat_channel_token_v2 IS NOT NULL AND chat_channel_rotated_at <= now-24h` 후보마다 프로바이더 `revokeBotToken?` 을 실패 흡수 방식으로 부르고(Slack `auth.revoke` 만, Telegram·Discord 는 revoke API 없음) `secrets.delete(v2Ref)` 한다. 재발급 시점에는 폐기하지 않는다. 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 다 | `secret_store` v2 행 DELETE, UPDATE `chat_channel_token_v2=NULL`·`chat_channel_rotated_at=NULL` |
 
 재발급 실패의 응답 분류(자격 증명 거부 `400 BOT_TOKEN_INVALID`, 그 밖 `502 CHAT_CHANNEL_SETUP_FAILED`)는 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 재발급 API 가 기준이라 여기 다시 적지 않는다. 봇 토큰 변경은 재발급 API 한 경로다.
 
-재발급은 실패한 단계 앞의 쓰기를 되돌리지 않는다. 이 문단과 아래 목록은 지금 코드의 동작을 적는다. 되돌리지 않는 것은 결함이고 NERV Task `CLE-T-Q353Y4` 가 고친다. ②, ③, ⑤ 의 시크릿 저장소 쓰기는 그 참조의 기존 행이 다른 워크스페이스 소유면 거부된다. 이때 응답은 500 `INTERNAL_ERROR` 다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 25). ④ 가 실패하면 위 응답 분류대로 400 이나 502 로 끝난다. 어느 경우든 ⑥ 에 닿지 않으므로 `chat_channel_token_v2` · `chat_channel_rotated_at` · 채널 건강도는 재발급 전 값 그대로다.
+재발급이 ②~⑥ 가운데 어디서 실패하면 그 요청이 시크릿 저장소에 쓴 행을 재발급 전 값으로 되돌리고 실패한 단계의 오류로 응답한다(NERV Task `CLE-T-Q353Y4`). ⑥ 의 트리거 행 갱신은 커밋되지 않으므로 `chat_channel_token_v2` · `chat_channel_rotated_at` · 채널 건강도도 재발급 전 값 그대로다. ②, ③, ⑤ 의 시크릿 저장소 쓰기는 그 참조의 기존 행이 다른 워크스페이스 소유면 거부되고 응답은 500 `INTERNAL_ERROR` 다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 25). ④ 가 실패하면 위 응답 분류대로 400 이나 502 다. ⑥ 에서 그 사이 트리거 행이 지워져 쓰지 못하면 되돌리지 않는다. 대신 프로바이더 등록을 해제하고 그 트리거의 시크릿을 모두 지운 뒤 404 로 끝난다([트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제)).
 
-- ② 거부: 쓰기가 없다. 시크릿 저장소와 트리거 컬럼 모두 재발급 전 그대로다.
-- ③ 거부: ② 가 쓴 `bot-token.v2` 행이 남는다. 그 행의 토큰은 지금 primary 에 있는 토큰과 같다.
-- ④ 실패: primary 는 이미 새 토큰이고 `bot-token.v2` 행에는 옛 토큰이 있다. `400 BOT_TOKEN_INVALID` 로 끝났으면 primary 의 새 토큰은 프로바이더가 거부한 토큰이다.
-- ⑤ 거부(Telegram 만): primary 와 `bot-token.v2` 는 ④ 실패와 같다. ④ 가 Telegram 에 새 `secret_token` 을 등록했지만 시크릿 저장소의 `inbound-signing` 행은 옛 값이다. 두 값이 다시 맞을 때까지 인바운드는 401 로 거부된다.
+되돌리는 규칙은 다음과 같다. 구현은 `secret-write-journal.ts` 의 `SecretWriteJournal` 이다.
 
-재발급 전 트리거가 `PrimaryOnly` 였으면 `chat_channel_token_v2` 가 NULL 로 남는다. 유예 종료 정리는 이 컬럼이 NULL 이 아닌 행만 찾으므로 그 `bot-token.v2` 행을 지우지 않는다. Slack 의 revoke 도 부르지 않는다. 그 행은 다음 재발급이 성공해 컬럼을 채울 때까지 남는다. 그 전에 트리거 행을 없애면 트리거 단위 시크릿 정리(`secret://triggers/{id}/` 접두 삭제)가 지운다. 재발급 전에 이미 `Grace` 였으면 컬럼이 같은 `bot-token.v2` 참조를 가리킨다. 그래서 앞선 재발급 시각에서 24시간이 지나면 정리가 그 행의 토큰을 revoke(Slack 만)하고 지운다. ③ 거부였다면 그 토큰은 지금도 primary 로 쓰는 토큰이다.
+- 이 요청에서 성공한 쓰기만 되돌린다. 거부된 쓰기는 되돌리지 않는다. 다른 워크스페이스 행이라 거부된 쓰기를 «없던 행» 으로 보고 지우면 남의 비밀을 지운다.
+- 마지막 쓰기부터 거꾸로 되돌린다.
+- 되돌리기 직전에 행을 다시 읽어 이 요청이 쓴 값이 아니면 건드리지 않고 warn 로그를 남긴다. 그 사이 같은 트리거의 다른 재발급이 성공했으면 그 결과를 덮지 않는다. 다시 읽은 뒤 되돌리기까지의 창은 남는다.
+- 쓰기 전에 값이 있었으면 그 값을 다시 쓴다. 행이 없었거나 값이 비었거나 공백만 있었으면 행을 지운다. 저장소는 빈 평문을 받지 않아 빈 값은 되살릴 수 없다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 27).
+- 쓰기 전 값을 읽지 못했으면(복호화 실패 등) 되돌리지 않고 error 로그를 남긴다. 이 요청이 쓴 값이 남는다.
+- 한 행을 되돌리다 실패하면 error 로그를 남기고 나머지 행을 계속 되돌린다. 응답은 그래도 실패한 단계의 오류다. 로그에는 참조와 오류 메시지만 남기고 평문은 남기지 않는다.
+
+실패한 단계별로 되돌린 뒤의 시크릿 저장소는 다음과 같다.
+
+- ② 거부: 쓰기가 없어 되돌릴 것도 없다.
+- ③ 거부: ② 가 쓴 `bot-token.v2` 행을 되돌린다. 재발급 전에 `PrimaryOnly` 였으면 그 행이 지워지고, `Grace` 였으면 유예 중이던 옛 토큰으로 돌아온다.
+- ④ 실패: primary 는 재발급 전 토큰으로 돌아오고 `bot-token.v2` 는 ③ 거부와 같다. `400 BOT_TOKEN_INVALID` 로 끝났어도 프로바이더가 거부한 토큰은 primary 에 남지 않는다.
+- ⑤ 거부(Telegram 만): ④ 실패와 같다.
+- ⑥ 실패: ④ 실패와 같고, ⑤ 가 쓴 `inbound-signing`(Telegram 만)도 재발급 전 값으로 돌아온다.
+
+프로바이더 등록은 되돌리지 않는다. ④ 가 새 토큰으로 한 등록은 뒤 단계가 실패해도 프로바이더에 남는다. Telegram 은 ④ 에서 웹훅과 새 `secret_token` 을 먼저 등록하고 `getMe` 를 부르므로 ④ 가 `getMe` 에서 실패해도 등록은 남는다. 새 토큰이 같은 봇의 토큰이면 그 봇에 등록된 `secret_token` 과 시크릿 저장소의 `inbound-signing` 이 달라진다. 두 값이 다시 맞을 때까지(재발급 성공이나 `chatChannel` 이 실린 PATCH) 그 봇의 인바운드는 401 로 거부된다. Slack 의 ④ 는 `auth.test` 만 부르므로 남는 등록이 없다. Discord 의 ④ 는 새 토큰의 애플리케이션에 명령을 등록하고 옛 애플리케이션의 등록은 바꾸지 않는다.
+
+재발급 전에 이미 `Grace` 였으면 되돌린 뒤에도 컬럼이 같은 `bot-token.v2` 참조를 가리킨다. 그래서 앞선 재발급 시각에서 24시간이 지나면 정리가 유예 중이던 옛 토큰을 revoke(Slack 만)하고 지운다.
 
 ```mermaid
 stateDiagram-v2
@@ -453,6 +467,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/chat-channel/channel-listener.registry.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.bus.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.restorer.ts`: 트리거 단위 listener 레지스트리, `chat-channel:listener` 발행 · 구독, 재시작 · 구독 확립 때의 일괄 복원(`ChannelListenerRestorer`)
 - `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts`: 트리거 행을 없애기 전의 외부 해제 단계에서 채팅 채널 트리거의 레지스트리 해제와 그 변경 메시지 발행
 - `codebase/backend/src/modules/triggers/triggers.service.ts`: `rotateBotToken`·`cleanupRotatedChatChannelTokens`, `update` 의 켜는 PATCH 커밋 뒤 레지스트리 등록(`registerListenerOnActivation` 호출)
+- `codebase/backend/src/modules/triggers/secret-write-journal.ts`: 재발급이 실패하면 그 요청이 쓴 시크릿을 되돌리는 `SecretWriteJournal`
 - `codebase/backend/src/modules/web-chat-cors/web-chat-cors-origin.resolver.ts`, `codebase/backend/src/modules/hooks/embed-config.service.ts`: 웹채팅 경로(소유 문서는 웹채팅)
 
 ## Rationale
@@ -519,3 +534,17 @@ NERV Task `CLE-T-EA7B5M` 에서 사람이 정했다(NERV 질문 `01a19048-6f1c-7
 - 지금 동작을 유지한다는 결정을 스펙에 올린다. 참조 없는 행은 웹훅 경로의 무작위성에만 기댄다.
 
 두 안 모두 참조 없는 행이 몇 개인지 모르는 채로 정해야 한다. 그래서 먼저 잰다. 참조가 없는 행이 0 이면 401 로 막고 하나라도 있으면 지금 동작을 유지한다는 결정을 스펙에 올린다.
+
+### 재발급이 실패하면 그 요청이 쓴 시크릿을 되돌린다 (2026-11-12)
+
+NERV Task `CLE-T-Q353Y4` 의 결정이다. 앞 판은 재발급이 실패한 단계 앞의 쓰기를 되돌리지 않는다고 적고 그것을 결함으로 올렸다. 되돌리지 않으면 세 가지가 남았다.
+
+- ④ 가 `400 BOT_TOKEN_INVALID` 로 끝나도 프로바이더가 거부한 새 토큰이 primary 에 남아 아웃바운드 발송이 그 토큰으로 나갔다.
+- 재발급 전에 `PrimaryOnly` 였으면 `chat_channel_token_v2` 가 가리키지 않는 `bot-token.v2` 행이 남았다. 유예 종료 정리는 그 행을 찾지 못했다.
+- 재발급 전에 `Grace` 였으면 유예 중이던 옛 토큰이 재발급 전 primary 토큰으로 덮였다. 정리는 앞선 재발급 시각에서 24시간 뒤 그 토큰을 revoke(Slack 만)했다.
+
+되돌리기는 시크릿 저장소 행만 다룬다. ④ 가 프로바이더에 남긴 등록까지 되돌리려면 옛 토큰으로 `setupChannel` 을 다시 불러야 한다. 이 Task 에서는 그 안을 택하지 않았다. 다시 부르는 호출도 실패할 수 있어 실패 처리가 한 겹 더 생긴다. Telegram 은 부를 때마다 새 `secret_token` 을 발급하므로 저장할 쓰기도 다시 생긴다. 남는 Telegram 인바운드 401 은 재발급을 다시 하거나 `chatChannel` 이 실린 PATCH 로 풀린다.
+
+되돌리기 직전에 행을 다시 읽어 이 요청이 쓴 값일 때만 되돌린다. 같은 트리거의 재발급 두 건이 겹쳐 하나만 성공하면 실패한 쪽이 성공한 쪽의 primary 를 옛 토큰으로 덮을 수 있어서다. 쓰기 전 값을 읽지 못한 행은 지우지 않는다. 읽지 못했을 뿐 원래 행이 있을 수 있어서다.
+
+[시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 는 ⑤ 에서 거부되면 그 앞에서 쓴 `bot-token.v2` 백업 행이 남아 유예 정리 대상이 되지 않는다고 적는다. 이 판부터는 그 행을 되돌리므로 맞지 않는다. 그 문서의 정정은 이 Task 범위 밖이라 후속으로 남긴다.

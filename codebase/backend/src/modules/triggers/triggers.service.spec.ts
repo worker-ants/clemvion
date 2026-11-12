@@ -2843,6 +2843,256 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       response: { code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED' },
     });
   });
+
+  /**
+   * NERV Task `CLE-T-Q353Y4` — 재발급이 중간에 실패하면 앞서 쓴 비밀을 재발급 전 값으로 되돌린다.
+   *
+   * 종전엔 되돌리지 않아 provider 가 거부한 토큰이 primary 에 남았고, 유예 백업(v2)은 덮이거나 행이
+   * 가리키지 않는 채로 남았다. 저장소를 `Map` 으로 흉내 내 **남은 값**을 단언한다. 호출 기록만 보면
+   * «되돌렸다» 와 «되돌리는 척 다른 값을 썼다» 가 구별되지 않는다.
+   */
+  describe('실패하면 앞서 쓴 비밀을 되돌린다 (CLE-T-Q353Y4)', () => {
+    const V2_REF = 'secret://triggers/trig-1/bot-token.v2';
+    const GRACE_TOKEN = '000000000:GraceToken';
+    const OLD_SIGNING = 'oldWebhookSecret';
+    let store: Map<string, string>;
+    let warnSpy: jest.SpyInstance;
+    let errorSpy: jest.SpyInstance;
+
+    /** `failRotate` 가 참을 돌려주는 쓰기는 저장하지 않고 던진다. */
+    function useStore(
+      initial: Record<string, string>,
+      failRotate: (ref: string, plaintext: string) => boolean = () => false,
+    ): void {
+      store = new Map(Object.entries(initial));
+      secrets.resolve.mockImplementation((ref: string) => {
+        const value = store.get(ref);
+        return value === undefined
+          ? Promise.reject(new NotFoundException('Secret not found'))
+          : Promise.resolve(value);
+      });
+      secrets.rotate.mockImplementation(
+        (ref: string, _ws: string, plaintext: string) => {
+          if (failRotate(ref, plaintext)) {
+            return Promise.reject(new Error(`rotate failed: ${ref}`));
+          }
+          store.set(ref, plaintext);
+          return Promise.resolve();
+        },
+      );
+      secrets.delete.mockImplementation((ref: string) => {
+        store.delete(ref);
+        return Promise.resolve();
+      });
+    }
+
+    function rotateCaught(): Promise<unknown> {
+      return service
+        .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'user-1')
+        .then(() => null)
+        .catch((err: unknown) => err);
+    }
+
+    beforeEach(() => {
+      warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it('성공하면 새 값을 그대로 둔다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN, [SECRET_TOKEN_REF]: OLD_SIGNING });
+
+      await expect(rotateCaught()).resolves.toBeNull();
+
+      expect(Object.fromEntries(store)).toEqual({
+        [BOT_TOKEN_REF]: NEW_TOKEN,
+        [V2_REF]: OLD_TOKEN,
+        [SECRET_TOKEN_REF]: ISSUED_SECRET,
+      });
+      expect(secrets.delete).not.toHaveBeenCalled();
+    });
+
+    it('④ 자격 증명 거부 — 유예 중이던 v2 와 primary 를 되돌리고 400 은 그대로다', async () => {
+      useStore({
+        [BOT_TOKEN_REF]: OLD_TOKEN,
+        [V2_REF]: GRACE_TOKEN,
+        [SECRET_TOKEN_REF]: OLD_SIGNING,
+      });
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        credentialRejectedError('Telegram setWebhook failed: 401 Unauthorized'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadRequestException).getResponse()).toMatchObject({
+        code: 'BOT_TOKEN_INVALID',
+      });
+      expect(Object.fromEntries(store)).toEqual({
+        [BOT_TOKEN_REF]: OLD_TOKEN,
+        [V2_REF]: GRACE_TOKEN,
+        [SECRET_TOKEN_REF]: OLD_SIGNING,
+      });
+    });
+
+    it('④ 그 밖의 실패 — 없던 v2 는 지우고 502 는 그대로다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN, [SECRET_TOKEN_REF]: OLD_SIGNING });
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('telegram down'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadGatewayException).getStatus()).toBe(502);
+      expect(Object.fromEntries(store)).toEqual({
+        [BOT_TOKEN_REF]: OLD_TOKEN,
+        [SECRET_TOKEN_REF]: OLD_SIGNING,
+      });
+    });
+
+    it('④ 실패 — 첫 재발급이면 새로 만든 primary 를 지운다', async () => {
+      useStore({});
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('telegram down'),
+      );
+
+      await rotateCaught();
+
+      expect(Object.fromEntries(store)).toEqual({});
+    });
+
+    it('③ primary 쓰기 실패 — 먼저 쓴 v2 만 되돌린다', async () => {
+      useStore(
+        { [BOT_TOKEN_REF]: OLD_TOKEN, [V2_REF]: GRACE_TOKEN },
+        (ref) => ref === BOT_TOKEN_REF,
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as Error).message).toContain(BOT_TOKEN_REF);
+      expect(Object.fromEntries(store)).toEqual({
+        [BOT_TOKEN_REF]: OLD_TOKEN,
+        [V2_REF]: GRACE_TOKEN,
+      });
+      expect(mockAdapter.setupChannel).not.toHaveBeenCalled();
+    });
+
+    it('⑤ 인입 서명 쓰기 실패 — primary 와 v2 를 되돌린다', async () => {
+      useStore(
+        { [BOT_TOKEN_REF]: OLD_TOKEN, [SECRET_TOKEN_REF]: OLD_SIGNING },
+        (ref) => ref === SECRET_TOKEN_REF,
+      );
+
+      await rotateCaught();
+
+      expect(Object.fromEntries(store)).toEqual({
+        [BOT_TOKEN_REF]: OLD_TOKEN,
+        [SECRET_TOKEN_REF]: OLD_SIGNING,
+      });
+    });
+
+    it('⑥ 행 갱신 실패 — 인입 서명까지 되돌리고 원래 오류를 던진다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN, [SECRET_TOKEN_REF]: OLD_SIGNING });
+      const dbDown = new Error('db down');
+      triggerRepo.update.mockRejectedValueOnce(dbDown);
+
+      const caught = await rotateCaught();
+
+      expect(caught).toBe(dbDown);
+      expect(Object.fromEntries(store)).toEqual({
+        [BOT_TOKEN_REF]: OLD_TOKEN,
+        [SECRET_TOKEN_REF]: OLD_SIGNING,
+      });
+      expect(auditLogs.record).not.toHaveBeenCalled();
+    });
+
+    it('그 사이 다른 요청이 primary 를 바꿨으면 덮지 않는다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN });
+      const CONCURRENT = '333333333:Concurrent';
+      mockAdapter.setupChannel.mockImplementationOnce(() => {
+        store.set(BOT_TOKEN_REF, CONCURRENT);
+        return Promise.reject(new Error('telegram down'));
+      });
+
+      await rotateCaught();
+
+      expect(store.get(BOT_TOKEN_REF)).toBe(CONCURRENT);
+      expect(store.has(V2_REF)).toBe(false);
+    });
+
+    it('쓰기 전 primary 를 읽지 못했으면(unreadable) 새 값을 지우지 않고 error 로그만 남긴다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN });
+      // 재발급 1단계의 읽기만 복호화 실패로 만든다. 그 뒤의 읽기는 저장소 값을 그대로 돌려준다.
+      const stored = secrets.resolve.getMockImplementation()!;
+      let primaryReads = 0;
+      secrets.resolve.mockImplementation((ref: string) => {
+        if (ref === BOT_TOKEN_REF && primaryReads++ === 0) {
+          return Promise.reject(new Error('decrypt failed'));
+        }
+        return stored(ref);
+      });
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('telegram down'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadGatewayException).getStatus()).toBe(502);
+      // 원래 값을 모르므로 지우거나 되살리지 않는다. 읽지 못했을 뿐인 행을 잃지 않는다.
+      expect(store.get(BOT_TOKEN_REF)).toBe(NEW_TOKEN);
+      // 읽지 못한 값은 유예 백업으로도 옮기지 않는다.
+      expect(store.has(V2_REF)).toBe(false);
+      const logged = errorSpy.mock.calls.map(([m]) => String(m)).join('\n');
+      expect(logged).toContain(BOT_TOKEN_REF);
+      expect(logged).not.toContain(NEW_TOKEN);
+    });
+
+    it('저장된 primary 가 공백뿐이면 백업 없이 진행하고, 실패하면 새 primary 를 지운다', async () => {
+      // 저장소는 빈 평문을 받지 않는다. 공백뿐인 값을 백업하거나 되살리려 들면 거부된다.
+      useStore({ [BOT_TOKEN_REF]: '   ' }, (_ref, plaintext) => {
+        return plaintext.trim() === '';
+      });
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('telegram down'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadGatewayException).getStatus()).toBe(502);
+      expect(secrets.rotate.mock.calls.some(([ref]) => ref === V2_REF)).toBe(
+        false,
+      );
+      expect(Object.fromEntries(store)).toEqual({});
+    });
+
+    it('되돌리기가 실패해도 원래 오류(400)를 던지고 error 로그에 평문을 싣지 않는다', async () => {
+      useStore({ [BOT_TOKEN_REF]: OLD_TOKEN });
+      secrets.delete.mockRejectedValueOnce(new Error('secret store down'));
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        credentialRejectedError('Telegram setWebhook failed: 401 Unauthorized'),
+      );
+
+      const caught = await rotateCaught();
+
+      expect((caught as BadRequestException).getResponse()).toMatchObject({
+        code: 'BOT_TOKEN_INVALID',
+      });
+      // v2 는 지우지 못했지만 primary 는 되돌렸다.
+      expect(store.get(BOT_TOKEN_REF)).toBe(OLD_TOKEN);
+      const logged = errorSpy.mock.calls.map(([m]) => String(m)).join('\n');
+      expect(logged).toContain(V2_REF);
+      expect(logged).toContain(TRIGGER_ID);
+      expect(logged).not.toContain(OLD_TOKEN);
+      expect(logged).not.toContain(NEW_TOKEN);
+    });
+  });
 });
 
 describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-triggers §1.4)', () => {
