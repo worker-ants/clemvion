@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "2ffbbfd85055e98cab7216daf07ff4c79be5df647a0b8659a7e4c7caf3ee3ede"
+content_hash: "737520bb20abfc66fd67af67480aff3723e40adb654da738b81f2f5eecd5e7f2"
 read_as: "approved_fallback"
-task: "CLE-T-FX354C"
+task: "CLE-T-XKK9KH"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "ece3218f417394657dc33d96224bd55f9d6506fd68f38ee09f6ca77a3f16e6fe"
-etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
+mirror_sha256: "ce3805e2fede0793bfe04edf0b8e82a77f083473eecdd6dd69cb0170c270f3ca"
+etag: "sha256-ce0209af953914b5e0ecbb08d1fd0a733cb31b4b5fc1101ef749641b2155fcd2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,9 +22,9 @@ etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
 
 이 문서는 [채팅 채널](CLE-CHAT-CORE.md) 이 저장하는 데이터와 그 데이터가 흐르는 경로를 정한다. 다루는 것은 `Trigger.config.chatChannel` 필드, 안내 문구(`languageHints`) 기본값, 트리거의 `chat_channel_*` 컬럼, 채널 대화 상태(`ChannelConversation`)와 Redis 키, 인바운드·아웃바운드 흐름, 봇 토큰 라이프사이클, 상태 전이다.
 
-저장 모델의 핵심 사실이 하나 있다. 채널 대화 상태는 Postgres 테이블이 아니라 Redis 키-값(`chat-channel:{triggerId}:{conversationKey}`, TTL 7일)이다. Redis 를 쓸 수 없으면 조용히 기능을 낮춘다(조회는 null, 저장은 no-op 이라 update 마다 새 실행이 시작된다). 영속 데이터는 `trigger` 테이블의 `chat_channel_*` 컬럼 5개와 `trigger.config.chatChannel` JSON, 그리고 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 행뿐이다.
+저장 모델의 핵심 사실이 하나 있다. 채널 대화 상태는 Postgres 테이블이 아니라 Redis 키-값(`chat-channel:{triggerId}:{conversationKey}`, TTL(Time To Live) 7일)이다. Redis 를 쓸 수 없으면 조용히 기능을 낮춘다(조회는 null, 저장은 no-op 이라 update 마다 새 실행이 시작된다). 영속 데이터는 `trigger` 테이블의 `chat_channel_*` 컬럼 5개와 `trigger.config.chatChannel` JSON, 그리고 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 행뿐이다.
 
-웹훅 진입에서 채팅 채널로 갈라지는 지점은 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 정하고, 이 문서는 그 분기 뒤의 흐름을 맡는다. 요구사항과 API 계약은 [채팅 채널](CLE-CHAT-CORE.md), 프로바이더별 응답 JSON·서명 알고리즘·Form 모달 세부는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 과 프로바이더 문서가 정한다. 웹채팅 위젯은 채팅 채널 모듈을 거치지 않는다([웹채팅 경로](#웹채팅-경로)).
+웹훅 진입에서 채팅 채널로 갈라지는 지점은 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 정하고, 이 문서는 그 분기 뒤의 흐름을 맡는다. 요구사항과 API 계약은 [채팅 채널](CLE-CHAT-CORE.md), 채널 프로바이더별 응답 JSON·서명 알고리즘·Form 모달 세부는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 과 프로바이더 문서가 정한다. 웹채팅 위젯은 채팅 채널 모듈을 거치지 않는다([웹채팅 경로](#웹채팅-경로)).
 
 ## Trigger.config.chatChannel
 
@@ -35,9 +35,9 @@ etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
 ```jsonc
 {
   "chatChannel": {
-    "provider": "telegram",                    // 채널 프로바이더. 지원 목록은 채팅 채널 문서의 카탈로그(v1: telegram / slack / discord)
-    "botToken": "<provider 발급 plaintext>",   // 입력 전용. 생성 요청(POST /api/triggers) 본문의 chatChannel.botToken 으로만 받는다. 원시 config.chatChannel.botToken 은 400 이다(트리거 관리 REQ-TRIG-053). 서비스가 SecretResolver.rotate 로 옮긴 뒤 지운다. 응답·DB JSONB 에 없다(SS-SE-01).
-                                               // 1~256자의 보이는 ASCII(U+0021~U+007E)만 받는다. 공백·제어 문자·ASCII 밖 문자가 있으면 400 VALIDATION_ERROR(채팅 채널 R-CC-32)
+    "provider": "telegram",                    // 채널 프로바이더. 지원 목록은 채팅 채널 문서의 카탈로그(1차 범위: telegram / slack / discord)
+    "botToken": "<provider 발급 plaintext>",   // 입력 전용. 생성 요청(POST /api/triggers) 본문의 chatChannel.botToken 으로만 받는다. 원시 config.chatChannel.botToken 은 400 이다(트리거 관리 REQ-TRIG-053). 서비스가 SecretResolver.rotate 로 옮긴 뒤 지운다. 응답·DB JSONB 에 없다(시크릿 저장소 「규칙」 규칙 14).
+                                               // 1~256자의 보이는 ASCII(U+0021~U+007E)만 받는다. 공백·제어 문자·ASCII 밖 문자가 있으면 400 VALIDATION_ERROR(채팅 채널 「R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다」)
                                                // telegram = BotFather `\d+:[A-Za-z0-9_-]+` (입력 안내일 뿐 서버는 이 형식을 검증하지 않는다. 잘못된 토큰은 setupChannel 실패 때 BOT_TOKEN_INVALID 로 드러난다)
                                                // slack = `xoxb-*` / discord = Developer Portal Bot Token
     "inboundSigningPlaintext": "<provider-issued plaintext>",  // 입력 전용, slack·discord 만(telegram 은 서버가 발급). slack = 소문자 hex 32자(signing secret), discord = 소문자 hex 64자(ed25519 application public key).
@@ -51,8 +51,8 @@ etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
       "teamId": "T012ABCDE",                    // 선택. workspace·team 개념이 있는 프로바이더(Slack 등)만
       "publicKey": "<verify_key>"               // 선택. Discord 의 GET /applications/@me verify_key 캐시(비민감 공개키)
     },
-    "uiMapping": {                              // 선택. 노드를 채널 UI 로 바꾸는 옵션
-      "formMode": "auto",                       // "multi_step" | "native_modal" | "auto"(기본). 뜻은 어댑터 규약의 Form 입력 흐름
+    "uiMapping": {                              // 선택. 노드를 채팅 채널 UI 로 바꾸는 옵션
+      "formMode": "auto",                       // "multi_step" | "native_modal" | "auto"(기본). 뜻은 채팅 채널 어댑터 규약의 Form 입력 흐름
       "visualNode": "auto",                     // "text" | "photo" | "auto"(기본). 예전 "text_only" 는 읽을 때 "text" 로 바꾼다
       "buttonLayout": "auto"                    // "auto" | "vertical" | "horizontal"
     },
@@ -65,11 +65,11 @@ etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
       "executionCompleted":            "워크플로우가 완료되었습니다.",
       "executionStillRunning":         "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",
       "help":                          "사용 가능한 명령: /start, /cancel, /help",
-      "formValidationFailed":          "입력값을 다시 확인해주세요.",
-      "formNextField":                 "다음 항목을 입력해주세요.",
+      "formValidationFailed":          "입력값을 다시 확인해 주세요.",
+      "formNextField":                 "다음 항목을 입력해 주세요.",
       "formOpenLabel":                 "양식 작성하기",
       "sessionExpired":                "대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다.",
-      "surfaceMismatch":               "지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요",
+      "surfaceMismatch":               "지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요.",
       "executionFailedThirdParty4xx":  "외부 서비스 요청이 거부되었습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.",
       "executionFailedThirdParty5xx":  "외부 서비스에 일시적인 문제가 발생했습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.",
       "executionFailedThirdParty":     "외부 서비스 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.",
@@ -90,21 +90,21 @@ etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
 | `groupChatRefusal` | 그룹 대화 거절 안내 |
 | `unsupportedMessageKind` | 그룹이 아닌 미지원 update 안내 |
 | `executionStarted` · `executionCompleted` | 실행 시작·완료 안내 |
-| `executionStillRunning` | 처리 중(`running`·`pending`) 메시지 안내 |
+| `executionStillRunning` | 실행 중 · 대기 중(`running`·`pending`)에 온 메시지 안내 |
 | `help` | `/help` 기본 도움말 |
 | `formValidationFailed` · `formNextField` | 다단계 질문의 검증 실패 재질문, 다음 필드 질문 |
 | `formOpenLabel` | 네이티브 모달을 여는 `form_modal` 버튼 라벨 |
 | `sessionExpired` | 멀티턴 재개 실패(`RESUME_*`) 안내 |
 | `surfaceMismatch` | 대기 표면과 명령 불일치(409 `STATE_MISMATCH`) 안내 |
-| `executionFailed*` 여섯 개 | 실행 실패 안내. 분류 결과 키이고, 허용 자리표시자는 `{statusCode}`(정수) 하나다. 그 밖의 자리표시자는 DTO validator 가 등록 때 거부한다 |
+| `executionFailed*` 여섯 개 | 실행 실패 안내. 분류 결과 키이고, 허용 자리표시자는 `{statusCode}`(정수) 하나다. 그 밖의 자리표시자는 등록 요청의 입력 검증이 거부한다 |
 
 프로바이더 문서는 이 목록에 없는 키도 참조한다. [Telegram 어댑터](CLE-CHAT-TELEGRAM.md) 는 일반 취소 안내로 `executionCancelled` 를, [Discord 어댑터](CLE-CHAT-DISCORD.md) 는 모달 제목 fallback 으로 `formModalTitle` 을 쓴다. [미결 사항](#미결-사항) 참조.
 
-`botTokenRef`·`inboundSigningRef` 는 `SecretResolver` 가 풀어 쓴다. 설정 JSON 에는 참조만 두고, 평문은 백엔드가 AES-256-GCM 으로 암호화해 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 둔다. EIA 알림 웹훅의 `notification.signing.secretRef` 와 같은 정책, 같은 백엔드다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)). 두 참조는 응답에 싣지 않는다. 응답은 파생 필드 `hasBotToken` 만 싣는다([채팅 채널](CLE-CHAT-CORE.md) 의 응답 파생 필드). `inboundSigningRef` 의 프로바이더별 자원 성격·발급 주체·검증 알고리즘(Telegram 서버 발급 shared secret, Slack HMAC key, Discord ed25519 공개키)은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 정한다.
+`botTokenRef`·`inboundSigningRef` 는 `SecretResolver` 가 풀어 쓴다. 설정 JSON 에는 참조만 두고, 평문은 백엔드가 AES-256-GCM 으로 암호화해 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 둔다. External Interaction API(EIA) 알림 웹훅의 `notification.signing.secretRef` 와 같은 정책, 같은 백엔드다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)). 두 참조는 응답에 싣지 않는다. 응답은 파생 필드 `hasBotToken` 만 싣는다([채팅 채널](CLE-CHAT-CORE.md) 의 응답 파생 필드). `inboundSigningRef` 의 프로바이더별 자원 성격·발급 주체·검증 알고리즘(Telegram 서버 발급 shared secret, Slack HMAC(Hash-based Message Authentication Code) key, Discord ed25519 공개키)은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 정한다.
 
 ## 안내 문구 기본값
 
-실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. `formOpenLabel` 은 네이티브 모달과 함께 들어와 두 locale 을 모두 가진다.
+실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. `formOpenLabel` 은 네이티브 모달과 함께 들어와 두 locale 을 모두 가진다.
 
 | key | KO 기본값 | EN 기본값 |
 |---|---|---|
@@ -116,13 +116,15 @@ etag: "sha256-dd749e949f304a11ef1222e6b2fd8edcde93ebfda26794e90ce4bfb7382c22cd"
 | `executionFailedInternal` | "서비스에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해 주세요." | "The service is temporarily unavailable. Please try again later." |
 | `formOpenLabel` | "양식 작성하기" | "Open form" |
 | `sessionExpired` | "대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다." | "This conversation session has expired and cannot be resumed. Send a new message to start a fresh conversation." |
-| `surfaceMismatch` | "지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요" | "This input can't be accepted here right now, please use the form or buttons shown above" |
+| `surfaceMismatch` | "지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요." | "This input can't be accepted here right now, please use the form or buttons shown above" |
 
 `{statusCode}` 는 두 locale 에서 같은 자리에 있다. 그래서 치환 코드가 locale 분기 없이 한 경로로 동작한다.
 
-`sessionExpired` 는 멀티턴 AI 대화가 서버 재시작이나 체크포인트 부재로 재개할 수 없을 때(`execution.cancelled` 와 `RESUME_*` 코드) 일반 취소 안내 대신 보낸다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 찾는 순서는 `formOpenLabel` 과 같다. 사용자의 다음 메시지는 새 실행으로 시작한다(취소된 실행은 새 실행을 시작시킨다).
+봇 안내 문구는 메신저로 나가는 봇 메시지라 [다국어와 화면 문구 「규칙」](../CLE-UI/CLE-UI-I18N.md#규칙) 7(화면 한국어 문자열의 표기 · 문체)의 대상이 아니다. 한국어 기본 문구는 합쇼체로 쓰고 «~해 주세요» 처럼 띄어 쓴다. 이 표와 위 `languageHints` 예시가 그 기준이다. 지금 백엔드 기본 문구의 `surfaceMismatch` 와 «~해주세요» 로 붙여 쓴 Form 안내 두 개는 이 기준과 다르고 NERV Task `CLE-T-A0G1FB` 가 맞춘다.
 
-`surfaceMismatch` 는 인바운드 명령이 현재 대기 노드의 표면과 맞지 않아 재개 명령 발행기가 409 `STATE_MISMATCH` 로 거부했을 때 보내는 부수 안내다. 예를 들어 Form·버튼 대기 중에 자유 텍스트가 오면 `text_message → submit_message` 고정 매핑이 거부된다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 표면 매트릭스). 로그만 남기던 경우에도 사용자에게 알려 주려는 것이다. 현재 구현은 `HooksService.forwardToInteractionService` 가 거부를 흡수하면서 `sendSurfaceMismatchNotice` 로 보낸다.
+`sessionExpired` 는 멀티턴 AI 대화가 서버 재시작이나 AI 재개 체크포인트 부재로 재개할 수 없을 때(`execution.cancelled` 와 `RESUME_*` 코드) 일반 취소 안내 대신 보낸다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 찾는 순서는 `formOpenLabel` 과 같다. 사용자의 다음 메시지는 새 실행으로 시작한다(취소된 실행은 새 실행을 시작시킨다).
+
+`surfaceMismatch` 는 인바운드 명령이 지금 입력을 기다리는 블로킹 노드의 대기 표면과 맞지 않아 재개 명령 발행기가 409 `STATE_MISMATCH` 로 거부했을 때 보내는 부수 안내다. 예를 들어 Form·버튼 입력 대기 중에 자유 텍스트가 오면 `text_message → submit_message` 고정 매핑이 거부된다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 표면 매트릭스). 로그만 남기던 경우에도 사용자에게 알려 주려는 것이다. 현재 구현은 `HooksService.forwardToInteractionService` 가 거부를 흡수하면서 `sendSurfaceMismatchNotice` 로 보낸다.
 
 ### 제어 안내의 프로바이더별 escape
 
@@ -143,7 +145,7 @@ ALTER TABLE trigger
   ADD COLUMN chat_channel_health     VARCHAR(16) NOT NULL DEFAULT 'unknown',  -- 'unknown'|'healthy'|'degraded'
   ADD COLUMN chat_channel_last_error TEXT NULL,
   ADD COLUMN chat_channel_setup_at   TIMESTAMPTZ NULL,
-  ADD COLUMN chat_channel_token_v2   TEXT NULL,   -- 24시간 유예 동안 옛 봇 토큰을 백업한 시크릿 참조(secret://triggers/{id}/bot-token.v2). 토큰이 아니라 참조만 둔다. primary 로 올리는 단계는 없다(CCH-SE-04-C)
+  ADD COLUMN chat_channel_token_v2   TEXT NULL,   -- 24시간 유예 동안 옛 봇 토큰을 백업한 시크릿 참조(secret://triggers/{id}/bot-token.v2). 토큰이 아니라 참조만 둔다. primary 로 올리는 단계는 없다(채팅 채널 「신뢰성과 보안」)
   ADD COLUMN chat_channel_rotated_at TIMESTAMPTZ NULL;
 
 ALTER TABLE trigger
@@ -151,14 +153,14 @@ ALTER TABLE trigger
   CHECK (chat_channel_health IN ('unknown', 'healthy', 'degraded'));
 ```
 
-- `chat_channel_health` 는 `VARCHAR(16)` 이고 CHECK 제약 `chk_trigger_chat_channel_health` 가 `unknown`/`healthy`/`degraded` 세 값만 받는다(V062). EIA 알림 웹훅의 `notification_health` 도 같은 세 값을 같은 방식으로 막는다(`VARCHAR(16)` 과 CHECK 제약 `chk_trigger_notification_health`, V059). 두 컬럼이 함께 쓰는 DB 타입은 없다. 두 제약은 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 제약 목록에도 있다.
-- `chat_channel_token_v2` 는 24시간 뒤 `ChatChannelTokenRotatorService` 가 참조와 시크릿 저장소 행을 함께 정리한다. 이름 패턴은 `notification_secret_v2` 와 같다(R-K).
+- `chat_channel_health` 는 `VARCHAR(16)` 이고 CHECK 제약 `chk_trigger_chat_channel_health` 가 `unknown`/`healthy`/`degraded` 세 값만 받는다(마이그레이션 V062). EIA 알림 웹훅의 `notification_health` 도 같은 세 값을 같은 방식으로 막는다(`VARCHAR(16)` 과 CHECK 제약 `chk_trigger_notification_health`, 마이그레이션 V059). 두 컬럼이 함께 쓰는 DB 타입은 없다. 두 제약은 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 제약 목록에도 있다.
+- `chat_channel_token_v2` 는 24시간 뒤 `ChatChannelTokenRotatorService` 가 참조와 시크릿 저장소 행을 함께 정리한다. 이름 패턴은 `notification_secret_v2` 와 같다. 근거는 [Rationale](#rationale) 의 「R-K chat_channel_token_v2 이름을 notification_secret_v2 와 같은 패턴으로 둔다」 에 있다.
 
 컬럼과 설정 JSON 의 읽기·쓰기는 다음과 같다.
 
 | 저장소 | 흐름 | 읽기·쓰기 |
 |---|---|---|
-| `trigger` | setup·설정 | `config.chatChannel` JSON(`provider`, `botTokenRef`, `inboundSigningRef`, `botIdentity`, `uiMapping`, `rateLimitPerMinute`, `languageLocale`, `languageHints`). 평문 비밀 필드는 저장 전에 지운다(SS-SE-01) |
+| `trigger` | setup·설정 | `config.chatChannel` JSON(`provider`, `botTokenRef`, `inboundSigningRef`, `botIdentity`, `uiMapping`, `rateLimitPerMinute`, `languageLocale`, `languageHints`). 평문 비밀 필드는 저장 전에 지운다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 14) |
 | `trigger` | setup 완료 | UPDATE `chat_channel_setup_at` |
 | `trigger` | 채널 건강도 | UPDATE `chat_channel_health`(`healthy`/`degraded`), `chat_channel_last_error`(1024자에서 자른다. 봇 토큰은 프로바이더 API 클라이언트가 먼저 지운다) |
 | `trigger` | 봇 토큰 재발급 | UPDATE `chat_channel_token_v2`(v2 시크릿 참조 문자열, 토큰 아님), `chat_channel_rotated_at`. 정리 때 둘 다 NULL |
@@ -168,26 +170,27 @@ ALTER TABLE trigger
 
 ## 채널 대화 상태
 
-채널 대화 상태는 "이 채팅방이 지금 어느 실행에 이어져 있는가" 를 담는 Redis 값이다. 대화 스레드([대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 의 `ConversationThread`)와 다르다.
+채널 대화 상태는 "이 채팅방이 지금 어느 실행에 이어져 있는가" 를 담는 Redis 값이다. 대화 스레드([대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 의 `ConversationThread`)와 다르다. `ChannelConversation` 은 이 값의 개념 이름이다. 코드의 타입은 `ChannelConversationState`(`chat-channel/types.ts`)이고 읽고 쓰는 서비스는 `ChannelConversationService` 다.
 
 ```text
 key:    chat-channel:{triggerId}:{conversationKey}
 value:  {
   executionId:      string | null,   // 활성 실행. 종결되면 null
-  threadId:         string,          // 대화 스레드 id(v1 은 "default")
+  threadId:         string,          // 대화 스레드 id(1차 범위에서는 "default")
   channelUserKey:   string,          // 채널 사용자 키(Telegram: user_id)
   startedAt:        ISO8601,
   lastUpdateAt:     ISO8601,
   formState?:       object,          // 다단계 질문 진행 상태
-  pendingFormModal?: object          // 네이티브 모달 대기 상태(fields 등)
+  pendingFormModal?: object          // 네이티브 모달 입력 대기 상태(fields 등)
 }
-TTL: 7일(저장할 때마다 갱신, 사용자가 떠나면 자동 만료)
+TTL: 7일(저장할 때마다 다시 건다)
 ```
 
-- 대화 키(`conversationKey`)는 프로바이더마다 다르다. Telegram 은 `chat_id`, Slack 은 DM 채널 ID(`channel_id`, 1:1 DM 이라 `thread_ts` 는 쓰지 않는다, [Slack 어댑터](CLE-CHAT-SLACK.md)), 후보인 카카오는 `user_id` 다.
+- 대화 키(`conversationKey`)는 프로바이더마다 다르다. Telegram 은 `chat_id`, Slack 은 DM 채널 ID(`channel_id`, 1:1 DM 이라 `thread_ts` 는 쓰지 않는다, [Slack 어댑터](CLE-CHAT-SLACK.md)), 후보인 Kakao 는 `user_id` 다.
 - 같은 `triggerId + conversationKey` 의 다음 메시지는 활성 실행이 있으면 전달하고 없으면 새 실행을 시작한다. `/start` 는 예외로 활성 실행이 있어도 그 실행을 취소하고 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062).
 - 키는 콜론으로 나눈 계층형이라 다른 모듈 접두와 겹치지 않는다.
-- `channelUserKey` 는 이 Redis 값에만 둔다. `ConversationThread` 에는 필드를 더하지 않고, 여러 사용자 대화(v2) 때 다시 논의한다.
+- TTL 은 저장할 때만 다시 건다. 새 실행 시작, Form 입력 대기 이벤트의 갱신, 네이티브 모달 제출 처리, 다단계 질문 단계 처리, `executionId` 정리가 저장한다. 활성 실행에 입력을 전달(`interact`)하기만 할 때는 저장하지 않는다. 만료 뒤 남는 입력 대기 실행은 [Rationale](#rationale) 의 「채널 대화 상태를 Redis 에만 둔다」 에 적었다.
+- `channelUserKey` 는 이 Redis 값에만 둔다. `ConversationThread` 에는 필드를 더하지 않는다. 여러 사용자 대화는 후속 범위에서 다시 논의한다.
 - `formState` 와 `pendingFormModal` 은 서로 배타적이다([상태 전이](#상태-전이)).
 
 ## Redis 키
@@ -196,19 +199,19 @@ TTL: 7일(저장할 때마다 갱신, 사용자가 떠나면 자동 만료)
 |---|---|---|---|
 | `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장, `/cancel` 의 `executionId` 정리), `ChatChannelDispatcher`(그 실행을 가리킬 때만 `pendingFormModal`·`formState` 갱신, 종결 이벤트의 `executionId` 정리) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다. `executionId` 를 비우는 쓰기는 compare-and-set 이다([아웃바운드 흐름](#아웃바운드-흐름)) |
 | `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit` | `form_submission` 처리(`SET NX EX 30`) | 같다 | 네이티브 모달 중복 제출 방지 잠금. Lua 로 소유권을 확인하고 푼다. Redis 가 없으면 통과 |
-| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(`DEL`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거(CCH-SE-02). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 키를 지워 프로바이더의 재전송을 받는다. 지우지 못하면 warn 을 남기고 TTL 로 풀린다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](#rationale)) |
-| `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume`(`INCR`+`EXPIRE NX`) | 같다 | 대화 단위 분당 한도(CCH-NF-03). TTL 60초(fixed-window). 넘치면 건너뛰고 `degraded`. Redis 가 없으면 통과 |
+| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(`DEL`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 키를 지워 프로바이더의 재전송을 받는다. 지우지 못하면 warn 을 남기고 TTL 로 풀린다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](#rationale)) |
+| `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume`(`INCR`+`EXPIRE NX`) | 같다 | 대화 단위 분당 한도([채팅 채널 「비기능」](CLE-CHAT-CORE.md#비기능)). TTL 60초(fixed-window). 넘치면 건너뛰고 `degraded`. Redis 가 없으면 통과 |
 | `chat-channel-token-rotator`(BullMQ) | repeatable job scheduler(`0 * * * *`) | `ChatChannelTokenRotatorService` | payload 없음. 매시간 정리 |
 
 pub/sub 채널은 아래 표와 같다.
 
-| 채널 | 보내는 쪽 | 받는 쪽 | 내용 |
+| pub/sub 채널 | 보내는 쪽 | 받는 쪽 | 내용 |
 |---|---|---|---|
 | `chat-channel:listener` | `ChannelListenerRegistry` 의 `register`·`unregister`. 자기 레지스트리에 반영한 뒤 `ChannelListenerBus.publish` 가 공유 연결로 보낸다 | 다른 서버 인스턴스의 `ChannelListenerBus`(전용 복제 연결로 구독) | 트리거 단위 listener 레지스트리의 변경 한 건. JSON `{ v: 1, origin, op, triggerId, provider }` 이고 `op` 는 `register` 나 `unregister` 다. `provider` 는 `register` 에만 있다. `origin` 은 보낸 프로세스의 id 이고(HTTP `Origin` 헤더와 무관하다) 받는 쪽이 자기 메시지를 건너뛰는 데 쓴다. 형식이 맞지 않거나 `v` 를 모르면 버린다. 메시지를 저장하지 않는다(TTL 없음). 등록은 그 등록을 낳은 행 쓰기가 커밋된 뒤에 보낸다. 생성 · `chatChannel` PATCH 는 `setupChannel()` 결과의 잠금 안 재기록, 켜는 PATCH 는 그 PATCH 의 쓰기다. 해제는 행을 지우기 전의 외부 해제 단계에서 보낸다. 구독이 확립될 때마다 구독 응답 뒤에 활성 트리거를 DB 에서 다시 일괄 등록해 끊긴 사이 놓친 등록을 메운다. 실패 정책은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-073 이 정하고 전파 규칙은 REQ-CHAT-071 · 072 가 정한다 |
 
 pub/sub 채널 이름은 키 공간과 따로라 같은 접두의 `chat-channel:{triggerId}:{conversationKey}` 키와 겹치지 않는다.
 
-위 네 Redis 키와 pub/sub 채널의 용도·TTL·실패 정책은 이 두 표가 기준이다. 키 모양 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md), 전역 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 가진다. 새 키나 채널을 만들면 양쪽을 함께 고친다.
+위 네 Redis 키와 pub/sub 채널의 용도·TTL·실패 정책은 이 두 표가 기준이다. 키 모양 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md), 전역 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 가진다. 새 키나 pub/sub 채널을 만들면 양쪽을 함께 고친다.
 
 ## 인바운드 흐름
 
@@ -263,7 +266,7 @@ sequenceDiagram
   Hk-->>Ext: 202 executionId
 ```
 
-서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 새 대화의 `execute()` 입력에는 `__triggerSource:'webhook'` 과 `chatChannel:{provider, conversationKey, channelUserKey}` 가 들어가고 `trigger.last_triggered_at` 을 갱신한다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)). 저장된 설정에 인바운드 서명 자료 참조가 없는 행은 서명 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행)).
+서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 새 대화의 `execute()` 입력은 `{ __triggerSource:'webhook', parameters: {}, body, headers, query, method, chatChannel:{provider, conversationKey, channelUserKey} }` 다. `parameters` 는 트리거 파라미터를 해석하지 않은 빈 객체다. `headers` 는 민감 헤더를 가린 값이다. 진입 경로별 입력은 [실행 컨텍스트 「트리거 입력 파라미터 싣기」](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기) 가 정한다. 새 실행을 시작하면 `trigger.last_triggered_at` 을 갱신한다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)). 첨부 정보 보강(`enrichInbound`)은 두 게이트 뒤, `/help` 처리와 대화 조회 앞에서 부른다. `enrichInbound` 는 채널 어댑터의 선택 메서드다. 지금은 Slack 만 구현한다. 저장된 설정에 인바운드 서명 자료 참조가 없는 행은 서명 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행)).
 
 관문의 순서는 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 위 다이어그램은 그 순서를 따르되 `/help`·`/cancel` 같은 분기를 생략했다. 비활성 트리거와 비활성 워크플로우가 막는 범위의 차이도 그 절에 있다. 세 경로에 공통인 관문 규칙은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 워크플로우가 비활성이면 새 실행을 시작할 update(새 대화, `/start`)만 `202 ignored` 로 끝나고 채널 대화 상태, 채널 건강도, 중복 제거 키는 그대로다. 활성 실행이 있는 대화의 입력과 `/cancel`·`/help` 는 워크플로우가 비활성이어도 아래 표대로 처리한다.
 
@@ -273,7 +276,7 @@ sequenceDiagram
 |---|---|
 | `text_message` 가 `/help` | 대화 조회 전에 정적 안내를 `adapter.sendMessage` 로 보내고 `202 ignored`(실행 없음) |
 | `cancel` | 활성 실행이 있으면 `executionsService.stop` 하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 null 로 바꾼다(compare-and-set, [아웃바운드 흐름](#아웃바운드-흐름) 의 종결 이벤트 정리와 같다). 취소 메시지를 재개 큐에 넣지 못하면 `executionId` 를 비우지 않는다. 이때 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 실행이 먼저 끝나 취소가 `INVALID_STATE` 나 `RESOURCE_NOT_FOUND` 로 거부되면 채널 건강도를 바꾸지 않고 `202` 로 답한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-074 · 075) |
-| `text_message`·`button_callback`·`contact_share`·`file_upload`(활성 실행) | `formState` 가 진행 중이면 다단계 질문 단계를 처리하고, 아니면 `InteractionService.interact` 로 서버 안 전달(EIA-AU-08). 재개 명령을 재개 큐에 넣지 못했을 때의 처리는 표 아래에 있다 |
+| `text_message`·`button_callback`·`contact_share`·`file_upload`(활성 실행) | `formState` 가 진행 중이면 다단계 질문 단계를 처리하고, 아니면 `InteractionService.interact` 로 서버 안 전달([External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출)). 재개 명령을 재개 큐에 넣지 못했을 때의 처리는 표 아래에 있다 |
 | `open_form_modal` | 채널 대화 상태의 `pendingFormModal.fields` 와 프로바이더 openContext 로 `adapter.openFormModal`. Discord 는 웹훅 HTTP 응답 본문으로 모달을 돌려준다. `channelUserKey` 가 다르면 거부한다(그룹 안 가로채기 방어) |
 | `form_submission` | 대화 단위 Redis 잠금(`SET NX EX 30`)을 잡고 필드 허용 목록 필터와 클라이언트 쪽 검증을 한 뒤 `interact(submit_form)`. 성공하면 `pendingFormModal` 을 지운다. 실패하면 "양식 작성하기" 버튼을 다시 보내고 `pendingFormModal` 은 둔다. 재개 명령을 재개 큐에 넣지 못했을 때의 처리는 표 아래에 있다 |
 | `start`(활성 실행) | 워크플로우가 비활성이면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다. 활성이면 기존 실행을 `executionsService.stop` 으로 취소하고(이미 끝났거나 없으면 취소 없이 진행) 새 대화와 같이 `execute()` 한 뒤 채널 대화 상태를 새 실행으로 다시 저장한다(`startedAt` 은 그대로). 취소가 그 밖의 에러로 실패하면 그 update 의 `cc:dedup:` 키를 지우고 새 실행 없이 그 에러로 응답한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064) |
@@ -281,7 +284,7 @@ sequenceDiagram
 
 활성 실행으로 가는 재개 명령(`submit_message`·`click_button`·`submit_form`)을 재개 큐에 넣지 못하면(`queued:false`) 내부 신뢰 호출이라 `503` 이 나지 않는다. 이때 `HooksService` 는 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 고정 문구는 `/cancel` 의 큐 적재 실패와 같다. 입력이 실행에 닿지 않았으므로 실행은 입력 대기에 그대로 남는다. 사용자가 같은 입력을 다시 보내면 새 update 로 들어와 다시 처리된다. 규칙은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-076 과 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다.
 
-분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅의 IP 한도(`PublicWebhookThrottleGuard`)와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 인바운드 서명 인증을 쓰므로 그 가드의 "인증 없음" 조건에 기댈 수 없다.
+분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅 가드(`PublicWebhookThrottleGuard`)의 IP 단위 시작 한도와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 그 가드의 대상이 아니다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 지금 코드는 `auth_config_id` 가 없는 채팅 채널 트리거에도 그 가드를 건다. 결함이고 NERV Task `CLE-T-QKJ2TZ` 가 고친다.
 
 ### 인바운드 서명 자료 참조가 없는 행
 
@@ -301,7 +304,7 @@ Slack · Discord 는 생성 때 서명 자료(`inboundSigningPlaintext`)를 필�
 
 ## 아웃바운드 흐름
 
-`ChatChannelDispatcher` 는 `WebsocketService.executionEvents$` 를 `onModuleInit` 에서 직접 구독한다(단일 sink, [채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 받는 이벤트는 EIA 다섯 가지(`execution.waiting_for_input`·`ai_message`·`completed`·`failed`·`cancelled`)와 채팅 채널 내부 `execution.node.completed`(표시 전용 `carousel`·`table`·`chart`·`template` 완료만)다.
+`ChatChannelDispatcher` 는 `WebsocketService.executionEvents$` 를 `onModuleInit` 에서 직접 구독한다(단일 sink, [채팅 채널 「R4 단일 sink 를 직접 구독한다」](CLE-CHAT-CORE.md#r4-단일-sink-를-직접-구독한다)). 받는 이벤트는 EIA 다섯 가지(`execution.waiting_for_input`·`ai_message`·`completed`·`failed`·`cancelled`)와 채팅 채널 내부 `execution.node.completed`(표시 전용 `carousel`·`table`·`chart`·`template` 완료만)다.
 
 ```mermaid
 sequenceDiagram
@@ -318,8 +321,8 @@ sequenceDiagram
   D->>PG: SELECT trigger(config.chatChannel, 채널 건강도), 행이 없으면 건너뜀
   D->>Ad: renderNode(toChatChannelEvent(event), config)
   alt Form 입력 대기
-    D->>R: 대화 상태 조회
-    opt 대화 상태가 그 실행을 가리킴
+    D->>R: 채널 대화 상태 조회
+    opt 채널 대화 상태가 그 실행을 가리킴
       D->>R: pendingFormModal 저장 또는 formState 초기화
     end
   end
@@ -337,16 +340,16 @@ sequenceDiagram
   end
 ```
 
-- **라우팅 키**: 이벤트의 `triggerId` 와 `chatChannel.conversationKey` 다. `HooksService` 가 `execute()` 입력에 넣은 값이 WebsocketService 의 라우팅 문맥 레지스트리를 거쳐 fanout 봉투에 자동으로 붙는다. 둘 중 하나라도 없으면 건너뛴다(수동 실행은 채널 대상이 아니다).
+- **라우팅 키**: 이벤트의 `triggerId` 와 `chatChannel.conversationKey` 다. `HooksService` 가 `execute()` 입력에 넣은 값이 WebsocketService 의 라우팅 문맥 레지스트리를 거쳐 이벤트 봉투에 자동으로 붙는다. 둘 중 하나라도 없으면 건너뛴다(수동 실행은 채팅 채널 발송 대상이 아니다).
 - **빈 텍스트**: 본문이 빈 텍스트 메시지는 조용히 건너뛰고 warn 을 남긴다.
-- **Form 입력 대기의 대화 상태 갱신**: Form 대기(`interactionType=form`)의 `execution.waiting_for_input` 이 오면 채널 대화 상태를 조회한다. 그 `executionId` 가 이벤트의 실행을 가리킬 때만 렌더 결과에 따라 `pendingFormModal` 이나 `formState` 를 바꿔 다시 저장한다. 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 건너뛰고 debug 로그만 남긴다. `/start`·`/cancel` 이 끊은 옛 실행의 Form 대기 이벤트가 늦게 와도 새 실행의 폼 대기 상태를 덮어쓰지 않게 하려는 것이다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-069). 렌더한 메시지는 이 조건과 관계없이 보낸다. 이 저장은 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 덮어쓸 수 있다. 이 창의 크기는 재지 않았다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
-- **종결 이벤트의 대화 상태 정리**: completed·failed·cancelled 가 오면 채널 대화 상태의 `executionId` 가 그 이벤트의 실행을 가리킬 때만 비운다(`clearExecutionIdIfMatches`). 저장된 JSON 문자열을 읽어 `executionId` 를 확인한 뒤, 저장된 값이 읽은 문자열과 같을 때만 새 값으로 바꾸는 Lua 스크립트를 부른다(TTL 7일도 다시 건다). 다른 쓰기에 밀리면 다시 읽고 최대 3회까지 시도한다. 키가 없거나 다른 실행을 가리키면 바꾸지 않는다. Redis 를 쓸 수 없거나 에러가 나거나 3회 모두 밀리면 warn 을 남기고 비우지 않는다. 그때 남은 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-065). `/cancel` 의 정리도 같은 메서드를 쓴다.
+- **Form 입력 대기의 채널 대화 상태 갱신**: Form 입력 대기(`interactionType=form`)의 `execution.waiting_for_input` 이 오면 채널 대화 상태를 조회한다. 그 `executionId` 가 이벤트의 실행을 가리킬 때만 렌더 결과에 따라 `pendingFormModal` 이나 `formState` 를 바꿔 다시 저장한다. 채널 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 건너뛰고 debug 로그만 남긴다. `/start`·`/cancel` 이 끊은 옛 실행의 Form 입력 대기 이벤트가 늦게 와도 새 실행의 Form 입력 대기 상태를 덮어쓰지 않게 하려는 것이다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-069). 렌더한 메시지는 이 조건과 관계없이 보낸다. 이 저장은 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 덮어쓸 수 있다. 이 창의 크기는 재지 않았다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
+- **종결 이벤트의 채널 대화 상태 정리**: completed·failed·cancelled 가 오면 채널 대화 상태의 `executionId` 가 그 이벤트의 실행을 가리킬 때만 비운다(`clearExecutionIdIfMatches`). 저장된 JSON 문자열을 읽어 `executionId` 를 확인한 뒤, 저장된 값이 읽은 문자열과 같을 때만 새 값으로 바꾸는 Lua 스크립트를 부른다(TTL 7일도 다시 건다). 다른 쓰기에 밀리면 다시 읽고 최대 3회까지 시도한다. 키가 없거나 다른 실행을 가리키면 바꾸지 않는다. Redis 를 쓸 수 없거나 에러가 나거나 3회 모두 밀리면 warn 을 남기고 비우지 않는다. 그때 남은 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-065). `/cancel` 의 정리도 같은 메서드를 쓴다.
 - **트리거 단위 listener 레지스트리**: `setupChatChannel` 이 성공해 잠금 안 재기록이 커밋되면 등록한다. 재기록이 행이 없어 쓰지 못하면 등록하지 않는다. 트리거를 켜는 PATCH 도 커밋 뒤 `setupChannel()` 없이 등록한다([채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 끄는 PATCH 는 해제하지 않고 트리거 행을 없앨 때 해제한다. 등록 · 해제는 pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스의 레지스트리에도 반영된다([Redis 키](#redis-키)). 재시작 때와 그 pub/sub 채널의 구독이 확립될 때마다 `ChannelListenerRestorer`(`channel-listener.restorer.ts`)가 활성 채팅 채널 트리거를 DB 에서 한꺼번에 복원한다(`bulkRegister`). 미등록 트리거의 이벤트는 DB 왕복 없이 건너뛴다.
-- **자동 비활성화 없음**: 실패해도 `degraded` 만 기록하고 트리거를 끄지 않는다(CCH-SE-01).
+- **자동 비활성화 없음**: 실패해도 `degraded` 만 기록하고 트리거를 끄지 않는다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)).
 
 ## 봇 토큰 라이프사이클
 
-봇 토큰 평문은 `trigger.config` 에 저장하지 않고 시크릿 참조로만 가리킨다(SS-SE-01, [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)). 각 단계의 소유 파일이 다르다. 최초 setup·teardown 은 `chat-channel-binder.service.ts`, PATCH 검증은 `chat-channel-input-rules.ts`, 재발급·정리는 `triggers.service.ts` 다.
+봇 토큰 평문은 `trigger.config` 에 저장하지 않고 시크릿 참조로만 가리킨다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 14). 각 단계의 소유 파일이 다르다. 최초 setup·teardown 은 `chat-channel-binder.service.ts`, PATCH 검증은 `chat-channel-input-rules.ts`, 재발급·정리는 `triggers.service.ts` 다.
 
 | 단계 | 흐름 | 저장 |
 |---|---|---|
@@ -354,10 +357,19 @@ sequenceDiagram
 | `chatChannel` 이 실린 PATCH | `setupChannel()` 을 다시 불러 프로바이더 등록만 갱신한다. 사용자가 보낸 비밀은 쓰지 않아 봇 토큰과 Slack·Discord 서명 값은 그대로다. Telegram 은 새 `secret_token` 이 등록되므로 `inboundSigningRef` 가 매번 갱신된다(건너뛰면 인바운드 401). `botTokenRef` · `inboundSigningRef` 의 값은 저장값을 쓰지 않고 트리거 id 에서 만든다(`chatChannelSecretRef`). `botTokenRef` 는 저장할 설정에 늘 싣는다. `inboundSigningRef` 는 이번 요청에서 서명 자료를 새로 저장했거나(Telegram 의 `issuedInboundSigning`) 요청 전 저장값이나 잠금 안에서 다시 읽은 행에 이미 있을 때만 싣는다. 참조가 없던 행에는 싣지 않는다. 서명 자료가 없는 행에 참조를 실으면 인바운드 검증 결과가 달라진다. 구현은 `chat-channel-binder.service.ts` 의 `setupChatChannel` 이다. `triggers.service.ts` 의 `update` 가 병합 전에 집어 둔 `inboundSigningRef` 를 이 함수에 넘긴다 | UPDATE `trigger.config`·`chat_channel_setup_at`·건강도. `secret_store` 는 봇 토큰·Slack·Discord 서명 무변경, Telegram `inbound-signing` 행만 갱신 |
 | 켜고 끄는 PATCH(`{ isActive }` 만) | `setupChannel()` · `teardownChannel()` 을 부르지 않는다. 봇 토큰 · 인바운드 서명 · 프로바이더 등록이 그대로다. 켤 때만 트리거 단위 listener 레지스트리에 등록한다. 레지스트리는 메모리에 있고 등록은 pub/sub 로 다른 서버 인스턴스에 알린다. 끌 때는 해제하지 않는다. 근거는 [채팅 채널 「R-CC-29 트리거를 켜고 끌 때 외부 채널 등록은 건드리지 않는다」](CLE-CHAT-CORE.md#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다) 다 | `trigger.is_active` 만 바뀐다. 시크릿 저장소는 무변경 |
 | PATCH 거부 | 비밀 필드를 실었거나, 채팅 채널을 나중에 붙이려 했거나, `provider` 를 바꾸려 했으면 `400 VALIDATION_ERROR` 로 아무것도 쓰지 않고 끝난다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 변경 단일 경로 | 무변경(DB·시크릿 저장소) |
-| 재발급 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 토큰 resolve(없으면 ② 건너뜀. 저장된 이전 토큰이 비었거나 공백만 있어도(빈 값 거부 이전에 저장된 옛 행) ② 의 백업을 건너뛴다) ② v2 참조(`bot-token.v2`)에 토큰 보관 ③ primary 참조에 새 토큰 UPSERT ④ 새 토큰으로 `setupChannel` 재호출(서명 자료 재발급) ⑤ `issuedInboundSigning` 저장 ⑥ 트리거 컬럼 갱신. ② 에서 v2 참조에 옛 토큰을 백업하고 ③ 에서 primary 를 새 토큰으로 바꾸므로 v2 를 primary 로 올리는 단계는 없다(CCH-SE-04-C). `botTokenRef` · `inboundSigningRef` 는 저장값을 쓰지 않고 `rotateBotToken` 이 `chatChannelSecretRef(trigger.id, …)` 로 트리거 id 에서 만든다(NERV Task `CLE-T-M9QKKX`). ④ 에서 `setupChannel` 에 넘기는 설정에는 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24) | UPDATE `chat_channel_token_v2`(v2 참조), `chat_channel_rotated_at`, `chat_channel_health='healthy'` |
+| 재발급 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 토큰 resolve(없으면 ② 건너뜀. 저장된 이전 토큰이 비었거나 공백만 있어도(빈 값 거부 이전에 저장된 옛 행) ② 의 백업을 건너뛴다) ② v2 참조(`bot-token.v2`)에 토큰 보관 ③ primary 참조에 새 토큰 UPSERT ④ 새 토큰으로 `setupChannel` 재호출(서명 자료 재발급) ⑤ `issuedInboundSigning` 저장 ⑥ 트리거 컬럼 갱신. ② 에서 v2 참조에 옛 토큰을 백업하고 ③ 에서 primary 를 새 토큰으로 바꾸므로 v2 를 primary 로 올리는 단계는 없다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `botTokenRef` · `inboundSigningRef` 는 저장값을 쓰지 않고 `rotateBotToken` 이 `chatChannelSecretRef(trigger.id, …)` 로 트리거 id 에서 만든다(NERV Task `CLE-T-M9QKKX`). ④ 에서 `setupChannel` 에 넘기는 설정에는 `botTokenRef` 를 늘 싣고 `inboundSigningRef` 는 저장된 행에 있을 때만 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24) | UPDATE `chat_channel_token_v2`(v2 참조), `chat_channel_rotated_at`, `chat_channel_health='healthy'` |
 | 유예 종료 정리 | BullMQ `chat-channel-token-rotator` 큐의 repeatable job(`0 * * * *`, `upsertJobScheduler` 라 여러 인스턴스에서도 전역 1회)이 `cleanupRotatedChatChannelTokens` 를 부른다. `chat_channel_token_v2 IS NOT NULL AND chat_channel_rotated_at <= now-24h` 후보마다 프로바이더 `revokeBotToken?` 을 실패 흡수 방식으로 부르고(Slack `auth.revoke` 만, Telegram·Discord 는 revoke API 없음) `secrets.delete(v2Ref)` 한다. 재발급 시점에는 폐기하지 않는다. 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 다 | `secret_store` v2 행 DELETE, UPDATE `chat_channel_token_v2=NULL`·`chat_channel_rotated_at=NULL` |
 
 재발급 실패의 응답 분류(자격 증명 거부 `400 BOT_TOKEN_INVALID`, 그 밖 `502 CHAT_CHANNEL_SETUP_FAILED`)는 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 재발급 API 가 기준이라 여기 다시 적지 않는다. 봇 토큰 변경은 재발급 API 한 경로다.
+
+재발급은 실패한 단계 앞의 쓰기를 되돌리지 않는다. 이 문단과 아래 목록은 지금 코드의 동작을 적는다. 되돌리지 않는 것은 결함이고 NERV Task `CLE-T-Q353Y4` 가 고친다. ②, ③, ⑤ 의 시크릿 저장소 쓰기는 그 참조의 기존 행이 다른 워크스페이스 소유면 거부된다. 이때 응답은 500 `INTERNAL_ERROR` 다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 25). ④ 가 실패하면 위 응답 분류대로 400 이나 502 로 끝난다. 어느 경우든 ⑥ 에 닿지 않으므로 `chat_channel_token_v2` · `chat_channel_rotated_at` · 채널 건강도는 재발급 전 값 그대로다.
+
+- ② 거부: 쓰기가 없다. 시크릿 저장소와 트리거 컬럼 모두 재발급 전 그대로다.
+- ③ 거부: ② 가 쓴 `bot-token.v2` 행이 남는다. 그 행의 토큰은 지금 primary 에 있는 토큰과 같다.
+- ④ 실패: primary 는 이미 새 토큰이고 `bot-token.v2` 행에는 옛 토큰이 있다. `400 BOT_TOKEN_INVALID` 로 끝났으면 primary 의 새 토큰은 프로바이더가 거부한 토큰이다.
+- ⑤ 거부(Telegram 만): primary 와 `bot-token.v2` 는 ④ 실패와 같다. ④ 가 Telegram 에 새 `secret_token` 을 등록했지만 시크릿 저장소의 `inbound-signing` 행은 옛 값이다. 두 값이 다시 맞을 때까지 인바운드는 401 로 거부된다.
+
+재발급 전 트리거가 `PrimaryOnly` 였으면 `chat_channel_token_v2` 가 NULL 로 남는다. 유예 종료 정리는 이 컬럼이 NULL 이 아닌 행만 찾으므로 그 `bot-token.v2` 행을 지우지 않는다. Slack 의 revoke 도 부르지 않는다. 그 행은 다음 재발급이 성공해 컬럼을 채울 때까지 남는다. 그 전에 트리거 행을 없애면 트리거 단위 시크릿 정리(`secret://triggers/{id}/` 접두 삭제)가 지운다. 재발급 전에 이미 `Grace` 였으면 컬럼이 같은 `bot-token.v2` 참조를 가리킨다. 그래서 앞선 재발급 시각에서 24시간이 지나면 정리가 그 행의 토큰을 revoke(Slack 만)하고 지운다. ③ 거부였다면 그 토큰은 지금도 primary 로 쓰는 토큰이다.
 
 ```mermaid
 stateDiagram-v2
@@ -378,21 +390,21 @@ stateDiagram-v2
 
 유예 중에 봇 토큰을 다시 재발급하면 재발급 6단계가 그대로 돈다. ② 가 v2 참조를 그때의 primary 토큰(직전 재발급에서 넣은 토큰)으로 덮고 ⑥ 이 `chat_channel_rotated_at` 을 지금 시각으로 바꾼다. 24시간 유예는 그때부터 다시 센다. 덮이기 전 v2 에 있던 처음 토큰은 시크릿 저장소에서 사라진다. 정리는 v2 에 있는 토큰만 revoke 하므로 처음 토큰은 revoke 되지 않는다. revoke API 가 있는 프로바이더는 Slack 뿐이라 이 차이는 Slack 에만 생긴다.
 
-[EIA 데이터와 흐름 「알림 서명 시크릿」](../CLE-IX/CLE-EIA-DATA.md#알림-서명-시크릿) 도 유예 중 재호출 때 앞의 v2 를 덮고 24시간 유예를 다시 시작한다. 두 회전의 차이는 v2 에 담는 값이다. 알림 서명 시크릿의 v2 는 새 시크릿이고 봇 토큰의 v2 는 옛 토큰 백업이다(R-K).
+[EIA 데이터와 흐름 「알림 서명 시크릿」](../CLE-IX/CLE-EIA-DATA.md#알림-서명-시크릿) 도 유예 중 재호출 때 앞의 v2 를 덮고 24시간 유예를 다시 시작한다. 봇 토큰 재발급과 시크릿 교체의 차이는 v2 에 담는 값이다. 알림 서명 시크릿의 v2 는 새 시크릿이고 봇 토큰의 v2 는 옛 토큰 백업이다. 두 컬럼 이름을 같은 패턴으로 둔 근거는 [Rationale](#rationale) 의 「R-K chat_channel_token_v2 이름을 notification_secret_v2 와 같은 패턴으로 둔다」 에 있다.
 
 ## 상태 전이
 
-### 채널 대화 상태
+### 채널 대화 상태 전이
 
 | 전이 | 계기 |
 |---|---|
 | 없음 → 활성 | 새 대화에서 `execute()` 직후 저장(`executionId` 설정) |
 | `executionId` → 새 실행 | 활성 실행이 있는 대화의 `/start` 가 기존 실행을 취소하고 새 실행을 시작한 직후 다시 저장 |
 | `executionId` → null | 종결 이벤트(completed·failed·cancelled)가 오면 dispatcher 가, `/cancel` 을 처리하면 `HooksService` 가 비운다. 둘 다 `executionId` 가 그 실행을 가리킬 때만 비운다(compare-and-set). `/cancel` 의 취소를 재개 큐에 넣지 못하면 실행이 그대로라 비우지 않는다 |
-| `formState` ↔ `pendingFormModal` | 서로 배타적이다. Form 입력 대기 이벤트가 오고 조회한 대화 상태가 그 이벤트의 실행을 가리킬 때만 바꾼다. 렌더 결과가 `form_modal` 이면 `pendingFormModal` 을 저장하고 `formState` 를 지운다. 다단계 질문(`form_prompt`)이면 `formState` 를 초기화하고 `pendingFormModal` 을 지운다 |
-| 소멸 | TTL 7일 만료(사용자 이탈)나 명시적 `clear` |
+| `formState` ↔ `pendingFormModal` | 서로 배타적이다. Form 입력 대기 이벤트가 오고 조회한 채널 대화 상태가 그 이벤트의 실행을 가리킬 때만 바꾼다. 렌더 결과가 `form_modal` 이면 `pendingFormModal` 을 저장하고 `formState` 를 지운다. 다단계 질문(`form_prompt`)이면 `formState` 를 초기화하고 `pendingFormModal` 을 지운다 |
+| 소멸 | 마지막 저장에서 7일이 지나 TTL 이 만료된다. `ChannelConversationService.clear` 도 키를 지우지만 지금 코드에서 부르는 곳이 없다 |
 
-상태가 남아 있는 동안 같은 `conversationKey` 의 다음 update 는 같은 실행의 재개(서버 안 `interact`)로 흐르고, 만료되거나 실행이 끝나면 새 실행이 시작된다. `/start` 는 예외로 기존 실행을 취소하고 새 실행으로 바꾼다. 멀티턴 대화의 park·재개를 잇는 고리다. 실행 쪽 대기·재개 모델은 [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) 을 본다.
+상태가 남아 있는 동안 같은 `conversationKey` 의 다음 update 는 같은 실행의 재개(서버 안 `interact`)로 흐르고, 만료되거나 실행이 끝나면 새 실행이 시작된다. 키가 만료돼도 그 키가 가리키던 입력 대기 실행은 끝나지 않는다([Rationale](#rationale) 의 「채널 대화 상태를 Redis 에만 둔다」). `/start` 는 예외로 기존 실행을 취소하고 새 실행으로 바꾼다. 멀티턴 대화의 park·재개를 잇는 고리다. 실행 쪽 대기·재개 모델은 [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) 을 본다.
 
 ### 채널 건강도
 
@@ -400,11 +412,11 @@ stateDiagram-v2
 |---|---|
 | `unknown` | 컬럼 기본값. 아직 setup·발송 결과가 없다 |
 | `healthy` | setup·재발급 성공 때, 또는 아웃바운드 첫 성공 때 올린다(`chat_channel_last_error=null`). 인바운드 처리가 성공해도 올리지 않는다 |
-| `degraded` | 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 인바운드에서 생기는 원인(분당 한도 초과, 워크플로우 없음, `/cancel` 과 재개 명령의 큐 적재 실패)은 이미 `degraded` 면 다시 쓰지 않는다. 그래서 `chat_channel_last_error` 에는 먼저 `degraded` 가 된 원인의 문구가 남는다. 트리거를 자동으로 끄지 않는다(CCH-SE-01). 다음 성공 때 다시 `healthy` |
+| `degraded` | 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 인바운드에서 생기는 원인(분당 한도 초과, 워크플로우 없음, `/cancel` 과 재개 명령의 큐 적재 실패)은 이미 `degraded` 면 다시 쓰지 않는다. 그래서 `chat_channel_last_error` 에는 먼저 `degraded` 가 된 원인의 문구가 남는다. 트리거를 자동으로 끄지 않는다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). 다음 성공 때 다시 `healthy` |
 
 ## 웹채팅 경로
 
-웹채팅은 채팅 채널이 아니다. 위젯은 채널 어댑터가 아니라 EIA 의 순수 외부 HTTP 소비자라 채팅 채널 모듈을 거치지 않는다. 위젯 부팅(`GET /api/hooks/:endpointPath/embed-config` 공개 조회), 대화 시작(일반 웹훅 경로와 202 응답의 인터랙션 토큰), 실시간 수신(`/api/external/executions/:id/stream` SSE 와 `interact`)은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 의 흐름을 그대로 쓴다.
+웹채팅은 채팅 채널이 아니다. 위젯은 채널 어댑터가 아니라 EIA 의 순수 외부 HTTP 소비자라 채팅 채널 모듈을 거치지 않는다. 위젯 부팅(`GET /api/hooks/:endpointPath/embed-config` 공개 조회), 대화 시작(일반 웹훅 경로와 202 응답의 인터랙션 토큰), 실시간 수신(`/api/external/executions/:id/stream` SSE(Server-Sent Events)와 `interact`)은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 의 흐름을 그대로 쓴다.
 
 웹채팅의 서버 쪽 구성 요소와 그 쓰기 경로는 [웹채팅 구조 §서버 쪽 구성 요소](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md#서버-쪽-구성-요소) 가 목록의 기준이다. 임베드 설정 공개 조회, `/api/external/*` 경로별 CORS 처리, 공개 웹훅 가드(`PublicWebhookThrottleGuard`)가 있고, 실행 상태를 바꾸는 쓰기 경로는 유휴 입력 대기 회수(`WebChatIdleReaperService`, BullMQ `webchat-idle-reaper`)뿐이다. 회수 규칙은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정한다.
 
@@ -416,7 +428,7 @@ stateDiagram-v2
 |---|---|---|
 | 트리거 | 인바운드 진입 | 웹훅 분기([트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md)) |
 | 실행 | 양방향 | 새 대화의 `execute()` 진입과 실행 이벤트 아웃바운드([실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md)) |
-| EIA(`InteractionService`) | 인바운드 재개 | `scope:'in_process_trusted'` 서버 안 전달(EIA-AU-08). 실행 토큰·SSE·EIA 알림 웹훅 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
+| EIA(`InteractionService`) | 인바운드 재개 | 내부 신뢰 호출(`scope: 'in_process_trusted'`)로 서버 안 전달([External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출)). 실행 토큰·SSE·EIA 알림 웹훅 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | 시크릿 저장소 | 토큰 보관 | `secret://triggers/{id}/...` 참조 세 가지([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
 | Telegram API | 아웃바운드·setup | `setWebhook`(setup), `sendMessage` 등(아웃바운드). 인바운드 검증은 `X-Telegram-Bot-Api-Secret-Token` 동일성 |
 | Slack API | 아웃바운드·모달·정리 | `auth.test`·`views.open`·`chat.postMessage`, `auth.revoke`(토큰 정리). 인바운드 검증은 `X-Slack-Signature` HMAC |
@@ -426,6 +438,7 @@ stateDiagram-v2
 
 - **`languageHints` 키 목록**: 프로바이더 문서가 참조하는 `executionCancelled`(Telegram 일반 취소 안내)와 `formModalTitle`(Discord 모달 제목 fallback)이 필드 목록에 없다. 코드 주석에는 `slashPrefix` 키도 있다(현재 구현). 목록에 올리고 기본 문구를 둘지 결정 필요.
 - **인바운드 서명 자료 참조가 없는 행의 검증 생략**: [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 401 로 막을지 NERV Task `CLE-T-AAGZRW` 가 운영 데이터를 잰 뒤 정한다.
+- **TTL 만료 뒤 남는 입력 대기 실행**: 채널 대화 상태의 TTL 이 만료되면 그 값이 가리키던 입력 대기 실행을 끝내는 경로가 없다. 활성 실행에 입력을 전달하기만 할 때는 TTL 을 다시 걸지 않는다. 이 실행의 회수 여부와 TTL 을 다시 거는 시점을 정해야 한다. 지금 동작은 [Rationale](#rationale) 의 「채널 대화 상태를 Redis 에만 둔다」 에 있다.
 
 ## 구현 위치
 
@@ -433,9 +446,10 @@ stateDiagram-v2
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`: 프로바이더별 인바운드 서명 검증(`verify`). 저장된 `inboundSigningRef` 가 없는 행은 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행))
 - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD, `executionId` 의 compare-and-set 정리(`clearExecutionIdIfMatches`), Form 제출 잠금
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 인바운드 중복 제거 선점(`claim`)과 해제(`release`)
-- `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`), Form 대기 상태 갱신 가드, 종결 이벤트의 대화 상태 정리
+- `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`), Form 입력 대기 상태 갱신 가드, 종결 이벤트의 채널 대화 상태 정리
 - `codebase/backend/src/modules/triggers/chat-channel-token-rotator.service.ts`: `chat-channel-token-rotator` 큐(매시간 정리, 정리 로직과 같은 triggers 모듈)
-- `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`: `setupChatChannel`·`teardownChatChannel`(어댑터 바인딩, 시크릿 쓰기와 참조 보존), 켤 때의 레지스트리 등록(`registerListenerOnActivation`)
+- `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`: `setupChatChannel`·`teardownChatChannel`(채널 어댑터 바인딩, 시크릿 쓰기와 참조 보존), 켤 때의 레지스트리 등록(`registerListenerOnActivation`)
+- `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts`: 트리거 id 로 `botTokenRef` · `inboundSigningRef` 를 만드는 `chatChannelSecretRef`, 저장된 설정을 읽을 때 참조를 트리거 id 로 다시 맞추는 읽기 관문(`pinChatChannelSecretRefs` · `readTriggerChatChannelConfig`), 레지스트리 등록용 `provider` 읽기(`readTriggerChatChannelProvider`)
 - `codebase/backend/src/modules/chat-channel/channel-listener.registry.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.bus.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.restorer.ts`: 트리거 단위 listener 레지스트리, `chat-channel:listener` 발행 · 구독, 재시작 · 구독 확립 때의 일괄 복원(`ChannelListenerRestorer`)
 - `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts`: 트리거 행을 없애기 전의 외부 해제 단계에서 채팅 채널 트리거의 레지스트리 해제와 그 변경 메시지 발행
 - `codebase/backend/src/modules/triggers/triggers.service.ts`: `rotateBotToken`·`cleanupRotatedChatChannelTokens`, `update` 의 켜는 PATCH 커밋 뒤 레지스트리 등록(`registerListenerOnActivation` 호출)
@@ -443,25 +457,29 @@ stateDiagram-v2
 
 ## Rationale
 
-### 대화 상태를 Redis 에만 둔다
+### 채널 대화 상태를 Redis 에만 둔다
 
-채널 대화 상태는 "지금 이 채팅방이 어느 실행에 이어져 있는가" 라는 휘발성 라우팅 정보다. TTL 7일이 곧 이탈 정리 정책이다. Redis 를 쓸 수 없어도 워크플로우 실행 자체는 막지 않는다. update 마다 새 실행으로 넘어가는 것이 의도한 기능 저하다. 영속이 필요한 것은 채널 설정, 토큰 참조, 건강도뿐이라 `trigger` 컬럼으로 충분하다.
+채널 대화 상태는 "지금 이 채팅방이 어느 실행에 이어져 있는가" 라는 휘발성 라우팅 정보다. Redis 를 쓸 수 없어도 워크플로우 실행 자체는 막지 않는다. update 마다 새 실행으로 넘어가는 것이 의도한 기능 저하다. 영속이 필요한 것은 채팅 채널 설정, 토큰 참조, 건강도뿐이라 `trigger` 컬럼으로 충분하다.
+
+TTL 7일이 지나면 사용자가 떠난 대화의 라우팅 값이 지워진다. 지워지는 것은 이 값뿐이다. 그 값이 가리키던 입력 대기 실행은 그대로 남는다. 실행 엔진은 입력 대기 실행을 기한 없이 보존한다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 키가 만료된 뒤 같은 대화의 다음 메시지는 새 실행을 시작한다. 옛 실행으로 다시 이어지는 경로는 없다. 웹채팅 위젯 유휴 실행 회수도 토큰 행이 없는 채팅 채널 실행을 대상에서 뺀다([External Interaction API 「공개 위젯의 방치된 입력 대기 회수」](../CLE-IX/CLE-EIA.md#공개-위젯의-방치된-입력-대기-회수)). 그래서 지금은 그 실행을 끝내는 경로가 없다.
+
+이전 판은 7일을 이탈한 대화의 정리 정책이라고 적었다. 그러나 지워지는 것은 라우팅 값뿐이고 입력 대기 실행을 회수하는 경로는 없어서 정리 정책이라 할 수 없다. 그래서 이 판에서 그 설명을 뺐다. 7일이라는 값을 고른 근거는 기록에 없다. [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 는 입력 대기 실행과 재개 체크포인트에 TTL 을 두지 않기로 했다. 이 키에만 TTL 을 둔 이유도 기록에 없다. TTL 은 저장할 때만 다시 걸린다. 활성 실행에 입력을 전달하기만 할 때는 저장하지 않는다. 그래서 대화가 이어지는 중에도 마지막 저장에서 7일이 지나면 키가 사라질 수 있다. 이 문단은 지금 동작만 적는다. 정할 일은 [미결 사항](#미결-사항) 에 있다.
 
 ### executionId 는 그 실행을 가리킬 때만 비운다
 
 2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). `/start` 가 기존 실행을 취소하고 새 실행을 대화에 이으면 옛 실행의 `execution.cancelled` 가 그 뒤에 올 수 있다. 종결 이벤트가 `executionId` 를 무조건 비우면 새 실행의 매핑이 지워지고, 다음 메시지는 입력 대기 실행인 새 실행에 가지 않고 또 다른 실행을 시작한다. 그래서 읽은 값의 `executionId` 가 그 실행일 때만 비운다. 읽은 뒤 다른 요청이 대화를 새 실행에 이었을 수 있으므로 저장된 값이 읽은 문자열과 같을 때만 바꾸고, 다르면 다시 읽는다. JSON 을 Lua 안에서 다시 만들지 않고 문자열 그대로 비교한다. Redis Lua 의 cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을 망가뜨린다. 결정의 근거는 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
 
-Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 Form 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다. 이 갱신은 조회한 값을 고쳐 다시 저장하므로 compare-and-set 이 아니다. 남는 경합은 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 의 미룬 문제에 있다.
+Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 Form 입력 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다. 이 갱신은 조회한 값을 고쳐 다시 저장하므로 compare-and-set 이 아니다. 남는 경합은 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 의 미룬 문제에 있다.
 
 ### chat_channel_token_v2 에 토큰이 아니라 참조를 둔다
 
-컬럼에는 시크릿 참조 문자열만 둔다. 평문이 DB 에 닿지 않게 하는 SS-SE-01 을 그대로 적용한 것이다. 24시간 유예는 재발급 직후 옛 토큰으로 오는 프로바이더 쪽 진행 중 호출과 캐시를 위한 안전 창이다. 유예 종료를 별도 cron 프로세스가 아니라 BullMQ repeatable job 으로 둔 것은 스케줄 발사, 알림 서명 시크릿 교체와 같은 "Redis 중앙 등록, 여러 인스턴스에서 전역 1회" 패턴을 다시 쓰려는 것이다.
+컬럼에는 시크릿 참조 문자열만 둔다. 평문이 DB 에 닿지 않게 하는 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 14 를 그대로 적용한 것이다. 24시간 유예는 재발급 직후 옛 토큰으로 오는 프로바이더 쪽 진행 중 호출과 캐시를 위한 안전 창이다. 유예 종료를 별도 cron 프로세스가 아니라 BullMQ repeatable job 으로 둔 것은 스케줄 발사, 알림 서명 시크릿 교체와 같은 "Redis 중앙 등록, 여러 인스턴스에서 전역 1회" 패턴을 다시 쓰려는 것이다.
 
 ### R-K chat_channel_token_v2 이름을 notification_secret_v2 와 같은 패턴으로 둔다
 
-`notification_secret_v2` 는 EIA 알림 웹훅 서명 시크릿의 v2 이고 `chat_channel_token_v2` 는 외부 프로바이더 봇 토큰 참조의 v2 다. 두 컬럼은 뜻이 다르지만(서명 시크릿 대 외부 봇 토큰) 이름 패턴(`<channel>_<resource>_v2`)은 같게 둔다. 이름 일관성을 앞세우고 뜻 차이는 컬럼 설명에 적는다. 나중에 공용 회전 패턴으로 합치면 두 컬럼 모두 영향을 받는다.
+`notification_secret_v2` 는 EIA 알림 웹훅 서명 시크릿의 v2 이고 `chat_channel_token_v2` 는 외부 프로바이더 봇 토큰 참조의 v2 다. 두 컬럼은 뜻이 다르지만(서명 시크릿 대 외부 봇 토큰) 이름 패턴(`<channel>_<resource>_v2`)은 같게 둔다. 이름 일관성을 앞세우고 뜻 차이는 컬럼 설명에 적는다. 나중에 봇 토큰 재발급과 시크릿 교체를 한 패턴으로 합치면 두 컬럼 모두 영향을 받는다.
 
-원문 R-K 는 `chat_channel_token_v2` 를 "유예 기간의 신규 token" 으로 적었다. 그러나 CCH-SE-04-C, 원문 컬럼 정의, 데이터 흐름 원문, 현재 구현(`rotateBotToken`)은 모두 v2 에 옛 토큰을 24시간 백업하고 승격 단계를 두지 않는다. 그래서 요구사항 쪽으로 맞추고 R-K 의 그 표현을 고쳤다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 도 같은 규칙을 적는다. 이름 패턴은 같아도 두 v2 의 뜻은 반대다. `notification_secret_v2` 는 유예 기간의 새 서명 시크릿이고 승격 때 기준 참조를 바꾼다. `chat_channel_token_v2` 는 옛 봇 토큰 백업이고 유예가 끝나면 지운다.
+이 항목의 원문은 `chat_channel_token_v2` 를 "유예 기간의 신규 token" 으로 적었다. 그러나 재발급 정리 요구사항(지금은 [채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)), 원문 컬럼 정의, 데이터 흐름 원문, 현재 구현(`rotateBotToken`)은 모두 v2 에 옛 토큰을 24시간 백업하고 승격 단계를 두지 않는다. 그래서 요구사항 쪽으로 맞추고 이 항목의 그 표현을 고쳤다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 도 같은 규칙을 적는다. 이름 패턴은 같아도 두 v2 의 뜻은 반대다. `notification_secret_v2` 는 유예 기간의 새 서명 시크릿이고 승격 때 기준 참조를 바꾼다. `chat_channel_token_v2` 는 옛 봇 토큰 백업이고 유예가 끝나면 지운다.
 
 ### 유예 중 봇 토큰 재발급은 현재 코드 동작을 적은 것이다 (2026-10-17)
 
@@ -473,7 +491,7 @@ v2 가 덮일 때 처음 토큰을 revoke 하지 않는 이유도 정한 결정�
 
 ### 웹채팅을 채팅 채널 모듈 밖에 둔다
 
-위젯은 서버 쪽 어댑터(봇 토큰, 서명 검증, 프로바이더 API)가 필요 없는 브라우저 클라이언트다. 그래서 채널 어댑터 인터페이스 대신 EIA 표면(웹훅 202 의 인터랙션 토큰, `interact`·SSE)을 그대로 쓴다. 채팅 채널을 EIA 소비자로만 둔 결정([채팅 채널 「R2 채팅 채널을 EIA 의 소비자로만 둔다」](CLE-CHAT-CORE.md#r2-채팅-채널을-eia-의-소비자로만-둔다))과 대칭이다. 웹채팅의 서버 쪽 구성 요소 목록은 [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) 가 정한다.
+위젯은 서버 쪽 채널 어댑터(봇 토큰, 서명 검증, 프로바이더 API)가 필요 없는 브라우저 클라이언트다. 그래서 채널 어댑터 인터페이스 대신 EIA 표면(웹훅 202 의 인터랙션 토큰, `interact`·SSE)을 그대로 쓴다. 채팅 채널을 EIA 소비자로만 둔 결정([채팅 채널 「R2 채팅 채널을 EIA 의 소비자로만 둔다」](CLE-CHAT-CORE.md#r2-채팅-채널을-eia-의-소비자로만-둔다))과 대칭이다. 웹채팅의 서버 쪽 구성 요소 목록은 [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) 가 정한다.
 
 ### `/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다 (2026-10-17)
 
@@ -485,7 +503,7 @@ NERV Task `CLE-T-EQDYC1` · `CLE-T-EMB0YG` 의 결정이다. `/cancel` 의 취�
 
 ### `chat_channel_health` 의 공용 DB 타입 검토 문구를 거둔다 (2026-10-17)
 
-NERV Task `CLE-T-EMB0YG` 의 승인본 동기화다. 이 문서는 `chat_channel_health` 와 `notification_health` 를 공용 DB 타입으로 합치는 것을 나중에 검토한다고 적었다. 두 컬럼은 이미 같은 방식으로 값을 막는다. 둘 다 `VARCHAR(16)` 이고 세 값만 받는 CHECK 제약이 있다(V059 · V062). 이 저장소의 마이그레이션에서 Postgres enum 타입(`CREATE TYPE`)은 V001 에만 있다. 검토를 맡은 Task 도 없었다. 그래서 검토 문구를 지우고 지금 저장 형태를 [트리거 컬럼](#트리거-컬럼) 에 적었다.
+NERV Task `CLE-T-EMB0YG` 의 승인본 동기화다. 이 문서는 `chat_channel_health` 와 `notification_health` 를 공용 DB 타입으로 합치는 것을 나중에 검토한다고 적었다. 두 컬럼은 이미 같은 방식으로 값을 막는다. 둘 다 `VARCHAR(16)` 이고 세 값만 받는 CHECK 제약이 있다(마이그레이션 V059 · V062). 이 저장소의 마이그레이션에서 Postgres enum 타입(`CREATE TYPE`)은 V001 에만 있다. 검토를 맡은 Task 도 없었다. 그래서 검토 문구를 지우고 지금 저장 형태를 [트리거 컬럼](#트리거-컬럼) 에 적었다.
 
 기각한 대안은 공용 enum 타입으로 합치는 것이다. 값을 더할 때 `ALTER TYPE` 이 필요하다. 두 컬럼은 이미 같은 값 집합을 각자의 CHECK 제약으로 막고 있어 합쳐서 막을 수 있는 잘못된 값이 없다.
 
@@ -497,7 +515,7 @@ NERV Task `CLE-T-EA7B5M` 에서 사람이 정했다(NERV 질문 `01a19048-6f1c-7
 
 지금 고르지 않은 안은 둘이다(후속 Task `CLE-T-AAGZRW` 가 계측 결과로 고른다).
 
-- 지금 401 로 막는다. 참조 없는 옛 Slack · Discord 행이 있으면 그 채널의 수신이 바로 끊긴다. 두 프로바이더의 서명 자료는 PATCH 로 넣을 수 없어서(v1 미정의) 트리거를 다시 만들어야 한다.
+- 지금 401 로 막는다. 참조 없는 옛 Slack · Discord 행이 있으면 그 채팅 채널의 수신이 바로 끊긴다. 두 채널 프로바이더의 서명 자료는 PATCH 로 넣을 수 없어서(1차 범위에 그 경로가 없다) 트리거를 다시 만들어야 한다.
 - 지금 동작을 유지한다는 결정을 스펙에 올린다. 참조 없는 행은 웹훅 경로의 무작위성에만 기댄다.
 
 두 안 모두 참조 없는 행이 몇 개인지 모르는 채로 정해야 한다. 그래서 먼저 잰다. 참조가 없는 행이 0 이면 401 로 막고 하나라도 있으면 지금 동작을 유지한다는 결정을 스펙에 올린다.
