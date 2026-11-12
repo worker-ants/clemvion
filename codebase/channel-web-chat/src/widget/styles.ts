@@ -34,6 +34,8 @@ export const widgetStyles = `
 .wc-form-row input, .wc-form-row select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; }
 .wc-form-submit, .wc-newchat { align-self: flex-start; background: #5B4FE9; color: #fff; border: 0; border-radius: 10px; padding: 8px 14px; cursor: pointer; }
 .wc-error { color: #b91c1c; font-size: 13px; }
+.wc-form-row [aria-invalid="true"] { border-color: #b91c1c; }
+.wc-form-error { color: #b91c1c; font-size: 12px; margin: 0; }
 .wc-ended { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; font-size: 14px; }
 .wc-composer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid #f0f0f0; }
 .wc-composer-input { flex: 1; border: 1px solid #d1d5db; border-radius: 18px; padding: 8px 14px; font-size: 14px; }

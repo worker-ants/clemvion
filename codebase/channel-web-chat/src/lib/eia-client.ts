@@ -181,6 +181,45 @@ export function isTerminalAuthError(err: unknown): boolean {
 }
 
 /**
+ * Form 제출의 `400 VALIDATION_ERROR` 응답에서 필드별 문구를 꺼낸다(REQ-WCWIDGET-041).
+ *
+ * 응답 본문은 `{error:{code:"VALIDATION_ERROR", details:[{field, message, code}]}}` 다(EIA 수신 API).
+ * `details[].message` 는 EIA 가 사용자에게 보이려고 만든 검증 문구라 그대로 쓴다. 같은 필드가 여러 번
+ * 나오면 첫 문구를 쓴다.
+ *
+ * @returns `field → message`. 이 형태가 아니거나 쓸 수 있는 항목이 없으면 `undefined` 다. 호출부는
+ *   `undefined` 를 일반 명령 실패로 다룬다.
+ */
+export function validationFieldErrors(err: unknown): Record<string, string> | undefined {
+  if (!(err instanceof EiaError) || err.status !== 400) return undefined;
+  const body = err.detail as { error?: { code?: unknown; details?: unknown } } | undefined;
+  if (body?.error?.code !== "VALIDATION_ERROR" || !Array.isArray(body.error.details)) return undefined;
+  // 서버가 필드 이름을 정하므로 `constructor` · `toString` · `__proto__` 도 올 수 있다. 프로토타입이 없는
+  // 객체로 만들어 `in` 검사와 대입이 그 이름들에서 오동작하지 않게 한다.
+  const out: Record<string, string> = Object.create(null);
+  for (const d of body.error.details as Array<{ field?: unknown; message?: unknown }>) {
+    if (typeof d?.field !== "string" || typeof d.message !== "string" || !d.message) continue;
+    if (!Object.hasOwn(out, d.field)) {
+      // `__proto__` 는 일반 대입이 무시되므로 own 속성으로 정의한다.
+      Object.defineProperty(out, d.field, { value: d.message, enumerable: true, writable: true, configurable: true });
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** 명령 실패의 처리 갈래. `sendCommand` 가 이 값으로 분기한다. */
+export type CommandErrorKind = "gone" | "unauthorized" | "conflict" | "other";
+
+/** `interact` 가 던진 오류를 처리 갈래로 나눈다(410 종료 확정 · 401 토큰 갱신 · 409 재동기화 · 그 밖). */
+export function classifyCommandError(err: unknown): CommandErrorKind {
+  if (!(err instanceof EiaError)) return "other";
+  if (err.status === 410) return "gone";
+  if (err.status === 401) return "unauthorized";
+  if (err.status === 409) return "conflict";
+  return "other";
+}
+
+/**
  * 로그로 내보낼 문자열에서 **쿼리의 per_execution 토큰을 지운다**.
  *
  * SSE 는 `EventSource` 가 헤더를 못 실어 토큰을 쿼리로 보낸다(위 `openStream`, EIA §8.3).

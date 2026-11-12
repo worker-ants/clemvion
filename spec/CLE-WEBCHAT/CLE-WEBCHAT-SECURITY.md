@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SECURITY"
 title: "웹채팅 보안"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-WCSEC-001", "REQ-WCSEC-002", "REQ-WCSEC-003", "REQ-WCSEC-004", "REQ-WCSEC-005", "REQ-WCSEC-006", "REQ-WCSEC-007", "REQ-WCSEC-008", "REQ-WCSEC-009", "REQ-WCSEC-010", "REQ-WCSEC-011", "REQ-WCSEC-012", "REQ-WCSEC-013", "REQ-WCSEC-014", "REQ-WCSEC-015", "REQ-WCSEC-016", "REQ-WCSEC-017", "REQ-WCSEC-018", "REQ-WCSEC-019", "REQ-WCSEC-020", "REQ-WCSEC-021", "REQ-WCSEC-022", "REQ-WCSEC-023", "REQ-WCSEC-024", "REQ-WCSEC-025", "REQ-WCSEC-026", "REQ-WCSEC-027", "REQ-WCSEC-028", "REQ-WCSEC-029", "REQ-WCSEC-030", "REQ-WCSEC-031"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "153fc6a51a1131dab9a00dbbb54e5029216e86881f26cce7c763057b56d339f0"
-read_as: "approved"
-task: null
+content_hash: "b11a2cf8fe0aa82afc030253a89c7a041037be630a913db3fc6365f1d521424b"
+read_as: "approved_fallback"
+task: "CLE-T-79PFHB"
 source_paths: ["spec/7-channel-web-chat/4-security.md"]
-mirror_sha256: "103047db2625391f85260eb48c27fe68e87f808e60a355d4d3a4da745a0d1998"
-etag: "sha256-f91e9345771db43a3c8eb323a45a4722346b34a65a92ec56f59e880541b696c8"
+mirror_sha256: "a2a5d410bf8d3b5d4def0c4da707d79073cab4c411f1d3eba89294fec328529b"
+etag: "sha256-d38faf2f9b14dc4714d610851733de80d06f14f10773c15bf6ed42c2cc3375cc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/4-security.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,7 +53,7 @@ etag: "sha256-f91e9345771db43a3c8eb323a45a4722346b34a65a92ec56f59e880541b696c8"
 - REQ-WCSEC-023 WHEN 위젯이 링크를 그리면 THE SYSTEM SHALL URL 스킴을 http(s)·mailto·상대 경로·앵커로 제한하고 `target=_blank` 와 `rel="noopener noreferrer nofollow"` 를 붙인다.
 - REQ-WCSEC-024 WHEN 메인 앱 AI 어시스턴트 패널이 메시지를 그리면 THE SYSTEM SHALL `rehype-raw` 없이 raw HTML 을 텍스트로 escape 하고 `javascript:`·`data:` 같은 위험 스킴을 막는다.
 - REQ-WCSEC-025 IF sanitize 입력이 비었거나 공백뿐이면 THE SYSTEM SHALL 예외 없이 안전한 문자열을 돌려준다.
-- REQ-WCSEC-026 IF 서버나 예외에서 에러가 나면 THE SYSTEM SHALL 위젯 화면에 원문 대신 일반화 문구(`GENERIC_ERROR_MESSAGE`, catalog `error.generic`)만 보이고 원문은 `console.warn` 으로만 남긴다.
+- REQ-WCSEC-026 IF 서버나 예외에서 에러가 나면 THE SYSTEM SHALL 위젯 화면에 원문 대신 일반화 문구(`GENERIC_ERROR_MESSAGE`, catalog `error.generic`, 명령 실패는 `error.commandFailed`)만 보이고 원문은 `console.warn` 으로만 남긴다.
 - REQ-WCSEC-027 WHEN `apiBase` 를 iframe 쿼리나 `wc:boot` 로 받으면 THE SYSTEM SHALL 두 경로 모두 http(s) 스킴만 받아들인다.
 - REQ-WCSEC-028 IF `apiBase` 가 http(s) 스킴이 아니면 THE SYSTEM SHALL 그 필드만 버리고 `console.warn` 을 남기며 부팅은 계속한다.
 - REQ-WCSEC-029 WHEN 로더가 iframe 을 만들면 THE SYSTEM SHALL `sandbox="allow-scripts allow-forms allow-same-origin"` 을 붙인다.
@@ -71,7 +71,7 @@ etag: "sha256-f91e9345771db43a3c8eb323a45a4722346b34a65a92ec56f59e880541b696c8"
 | iframe sandbox | `sandbox="allow-scripts allow-forms allow-same-origin"`(필요한 최소). `allow-same-origin` 은 위젯이 자기 쿠키·storage 에 접근하고 postMessage origin 고정을 유지하는 데 필요하다. 이 속성이 없으면 iframe 문서가 opaque origin 으로 강등된다. 트레이드오프는 same-origin 동봉 배포에서 같은 origin 의 악성 스크립트가 sandbox 를 벗어날 수 있다는 점이다. 동봉 위젯은 제품과 같은 릴리스로 나가 공급망 무결성이 보장되므로 허용한다. 외부 CDN(`NEXT_PUBLIC_WIDGET_CDN_BASE`)을 쓰는 환경은 cross-origin 이라 이 속성이 있어도 sandbox 탈출 위협이 없다 |
 | postMessage | 양방향 `event.origin` 검증. 방향별 방식은 [웹채팅 SDK](CLE-WEBCHAT-SDK.md). 토큰과 대화 내용은 호스트 페이지로 보내지 않는다 |
 | 토큰 노출 | 실행 단위 토큰만 쓰므로 클라이언트에 오래 사는 비밀이 없다. 단명 토큰은 sessionStorage 에 두어 탭을 닫으면 지워진다(다층 방어, [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md)) |
-| 에러 메시지 노출 | 임베드 위젯은 다른 사이트에서 돌므로 서버·예외 원문을 화면에 보이지 않는다. 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 보이고 진단 원문은 `console.warn` 으로만 남긴다. 내부 구현과 인프라 정보가 드러나는 것을 줄인다. 에러 → `[ended]` + "새 대화 시작" 동작([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md))은 그대로 두고 표시 문구만 일반화한다. 표시 문구는 위젯 로컬 catalog(`error.generic`)를 `panel` 이 `t()` 로 그 언어에 맞게 그린다. 코드 기준은 `use-widget.ts` 의 `errMessage` |
+| 에러 메시지 노출 | 임베드 위젯은 다른 사이트에서 돌므로 서버·예외 원문을 화면에 보이지 않는다. 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 보이고 진단 원문은 `console.warn` 으로만 남긴다. 내부 구현과 인프라 정보가 드러나는 것을 줄인다. 에러 뒤의 상태 전이([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md). 시작·복원 실패는 `[ended]` + "새 대화 시작", 명령 실패는 현재 표면 유지)는 그대로 두고 표시 문구만 일반화한다. Form 검증 실패의 `details[].message` 는 EIA 가 사용자에게 보이려고 만든 필드 문구라 일반화하지 않는다. 표시 문구는 위젯 로컬 catalog(`error.generic`·`error.commandFailed`)를 `panel` 이 `t()` 로 그 언어에 맞게 그린다. 코드 기준은 `use-widget.ts` 의 `errMessage` |
 | `apiBase` 입력 검증 | 두 입력 경로 모두 `apiBase` 를 http(s) 스킴만 받는다(`safeApiBase`). `javascript:`·`data:`·상대 경로를 fetch 기준 주소로 쓰지 않게 거른다. 맞지 않으면 그 필드만 무시하고 `console.warn` 을 남기며 부팅은 막지 않는다. 두 경로는 정상 임베드에서 차례로 모두 쓰인다. SDK 의 `resolveIframeTarget` 이 같은 `apiBase` 를 iframe `src` 쿼리에 실어 위젯이 마운트될 때 그 값으로 먼저 부팅을 시도하고 이어서 `wc:boot` postMessage 가 도착해 세대 판정으로 대체한다. 쿼리 경로를 "호스트 없는 직접 로드·샘플 전용" 으로 보고 없애면 모든 정상 임베드의 부트스트랩이 깨진다. 코드 기준은 `use-widget.ts` 의 `safeApiBase`·`configFromQuery`·`mergeBootConfig` |
 | 위젯 세션의 발급 주소 바인딩 | 저장된 위젯 세션(실행 ID + 토큰)은 발급할 때의 `apiBase` 에 묶인다. 재전송이 `apiBase` 를 바꾸면 옛 주소가 발급한 토큰을 새 주소로 보내지 않고 버린 뒤 다시 시작한다(`loadSession(path, apiBase)` 가 다르면 버린다). 이 축이 없으면 호스트가 `apiBase` 만 바꾼 재전송으로 A 주소의 자격을 B 주소에 흘릴 수 있다. 판정할 수 없으면 버린다(fail-closed). 근거는 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) |
 | 호출 수 제한·남용 | EIA 자체 한도([External Interaction API](../CLE-IX/CLE-EIA.md)) + 공개 웹훅 남용 방어([아래](#공개-웹훅-남용-방어)) |

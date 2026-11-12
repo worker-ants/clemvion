@@ -3520,7 +3520,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
             embedResolvers.push(r);
           });
         }
-        // 명령이 500 으로 실패 → ERROR → ended.
+        // 명령이 500 으로 실패 → 명령 실패(대화는 이어진다, REQ-WCWIDGET-053).
         if (u.includes("/interact")) {
           return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
         }
@@ -3548,7 +3548,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     });
     await waitFor(() => expect(result.current.state.phase).toBe("streaming")); // 복원됨.
 
-    // 대기 표면 → 명령 전송 → 500 → ERROR → ended. **이 경로는 세션을 지우지 않는다.**
+    // 대기 표면 → 명령 전송 → 500 → 명령 실패. **이 경로는 세션을 지우지 않는다.**
     act(() => {
       getEs()?.emit("execution.waiting_for_input", {
         interactionType: "ai_conversation",
@@ -3558,7 +3558,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     });
     await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
     act(() => result.current.actions.submitMessage("실패할 명령"));
-    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    await waitFor(() => expect(result.current.state.commandFailed).toBe(true));
 
     // **세션이 보존된다** — 서버 execution 은 `running` 이고, spec 은 그런 세션을 복원하라고 한다.
     // (실제 복원은 새로고침 경로에서 일어난다 — 아래 테스트.)
@@ -3580,9 +3580,10 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 살아있는 세션을 영구 파괴했다 — 스킵 판정이 이미 같은 일을 하고 있었다.
     expect(statusCalls).toBe(statusCallsAfterError);
     expect(getEs()).toBe(esAfterError);
-    // phase 는 `ended` 로 남는다 — `ERROR` → `ended` 자체가 이 PR 이전부터의 gap 이다
-    // (`1-widget-app.md` §2 Form 은 "실패 시 재제출" 을 약속한다). plan 에 이월.
-    expect(result.current.state.phase).toBe("ended");
+    // 대화는 끝나지 않는다. 낙관적 말풍선을 거두고 입력 대기로 돌아가 같은 글을 다시 보낼 수 있다
+    // (REQ-WCWIDGET-053·054, CLE-T-79PFHB). 예전에는 `ERROR` 가 여기서 `[ended]` 를 그렸다.
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    expect(result.current.state.composerDraft).toEqual({ text: "실패할 명령" });
   });
 
   // 위 테스트의 사용자 관점 짝 — **탭 새로고침**으로 복원되는가. `wc:boot` 재전송(같은 마운트)이
@@ -3639,7 +3640,8 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     });
     await waitFor(() => expect(first.result.current.state.phase).toBe("awaiting_user_message"));
     act(() => first.result.current.actions.submitMessage("일시적으로 실패할 명령"));
-    await waitFor(() => expect(first.result.current.state.phase).toBe("ended"));
+    await waitFor(() => expect(first.result.current.state.commandFailed).toBe(true));
+    expect(first.result.current.state.phase).toBe("awaiting_user_message");
 
     // 탭 새로고침 = 언마운트 → 새 마운트.
     const esBeforeReload = getEs();

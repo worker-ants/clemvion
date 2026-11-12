@@ -59,8 +59,10 @@ export const WIDGET_STRINGS = deepFreeze({
     // dynamic form
     "form.selectPlaceholder": "선택",
     "form.submit": "제출",
-    // 전역 에러 (유일 사용자 노출 에러 — use-widget GENERIC_ERROR_MESSAGE 가 이 값을 state 로 저장, 표시는 t 경유)
+    // 전역 에러 (대화가 끝나는 에러 — use-widget GENERIC_ERROR_MESSAGE 가 이 값을 state 로 저장, 표시는 t 경유)
     "error.generic": "일시적인 오류로 대화를 진행할 수 없어요. 잠시 후 새 대화로 다시 시도해 주세요.",
+    // 명령 실패 (대화는 이어진다 — 같은 표면에서 다시 보낸다. CLE-WEBCHAT-WIDGET 「명령 실패」)
+    "error.commandFailed": "요청을 처리하지 못했어요. 잠시 후 다시 보내 주세요.",
   },
   en: {
     "composer.placeholder": "Type a message.",
@@ -98,6 +100,7 @@ export const WIDGET_STRINGS = deepFreeze({
     "form.selectPlaceholder": "Select",
     "form.submit": "Submit",
     "error.generic": "Something went wrong. Please start a new chat and try again shortly.",
+    "error.commandFailed": "We couldn't process that. Please try sending it again in a moment.",
   },
 } as const);
 

@@ -28,8 +28,12 @@ describe("usePendingMessageQueue (C1 §R6)", () => {
     const { result, rerender, sendCommand, dispatch } = setup(INITIAL_PROPS);
     act(() => result.current.enqueue("큐텍스트"));
     act(() => rerender({ phase: "awaiting_user_message", pending: { type: "ai_conversation", nodeId: "n1" } }));
-    expect(dispatch).toHaveBeenCalledWith({ type: "USER_MESSAGE", text: "큐텍스트" });
-    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: "n1", message: "큐텍스트" });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "USER_MESSAGE",
+      text: "큐텍스트",
+      localId: expect.any(String),
+    });
+    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: "n1", message: "큐텍스트" }, expect.any(String));
   });
 
   it("첫 표면 buttons → 큐 폐기(미전송)", () => {
@@ -54,7 +58,7 @@ describe("usePendingMessageQueue (C1 §R6)", () => {
     act(() => result.current.enqueue("두번째"));
     act(() => rerender({ phase: "awaiting_user_message", pending: { type: "ai_conversation", nodeId: "n1" } }));
     expect(sendCommand).toHaveBeenCalledTimes(1);
-    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: "n1", message: "두번째" });
+    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: "n1", message: "두번째" }, expect.any(String));
   });
 
   it("clearQueue 후엔 awaiting 진입해도 flush 안 됨", () => {
@@ -79,6 +83,6 @@ describe("usePendingMessageQueue (C1 §R6)", () => {
     const { result, rerender, sendCommand } = setup(INITIAL_PROPS);
     act(() => result.current.enqueue("선행 텍스트"));
     act(() => rerender({ phase: "awaiting_user_message", pending: null }));
-    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: undefined, message: "선행 텍스트" });
+    expect(sendCommand).toHaveBeenCalledWith({ command: "submit_message", nodeId: undefined, message: "선행 텍스트" }, expect.any(String));
   });
 });

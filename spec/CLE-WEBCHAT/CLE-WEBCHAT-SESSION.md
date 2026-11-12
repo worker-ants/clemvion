@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SESSION"
 title: "웹채팅 인증과 세션"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-WCSESS-001", "REQ-WCSESS-002", "REQ-WCSESS-003", "REQ-WCSESS-004", "REQ-WCSESS-005", "REQ-WCSESS-006", "REQ-WCSESS-007", "REQ-WCSESS-008", "REQ-WCSESS-009", "REQ-WCSESS-010", "REQ-WCSESS-011", "REQ-WCSESS-012", "REQ-WCSESS-013", "REQ-WCSESS-014", "REQ-WCSESS-015", "REQ-WCSESS-016", "REQ-WCSESS-017", "REQ-WCSESS-018", "REQ-WCSESS-019", "REQ-WCSESS-020", "REQ-WCSESS-021", "REQ-WCSESS-022", "REQ-WCSESS-023", "REQ-WCSESS-024", "REQ-WCSESS-025", "REQ-WCSESS-026", "REQ-WCSESS-027", "REQ-WCSESS-028", "REQ-WCSESS-029", "REQ-WCSESS-030", "REQ-WCSESS-031", "REQ-WCSESS-032", "REQ-WCSESS-033", "REQ-WCSESS-034"]
+requirements: ["REQ-WCSESS-001", "REQ-WCSESS-002", "REQ-WCSESS-003", "REQ-WCSESS-004", "REQ-WCSESS-005", "REQ-WCSESS-006", "REQ-WCSESS-007", "REQ-WCSESS-008", "REQ-WCSESS-009", "REQ-WCSESS-010", "REQ-WCSESS-011", "REQ-WCSESS-012", "REQ-WCSESS-013", "REQ-WCSESS-014", "REQ-WCSESS-015", "REQ-WCSESS-016", "REQ-WCSESS-017", "REQ-WCSESS-018", "REQ-WCSESS-019", "REQ-WCSESS-020", "REQ-WCSESS-021", "REQ-WCSESS-022", "REQ-WCSESS-023", "REQ-WCSESS-024", "REQ-WCSESS-025", "REQ-WCSESS-026", "REQ-WCSESS-027", "REQ-WCSESS-028", "REQ-WCSESS-029", "REQ-WCSESS-030", "REQ-WCSESS-031", "REQ-WCSESS-032", "REQ-WCSESS-033", "REQ-WCSESS-034", "REQ-WCSESS-035", "REQ-WCSESS-036", "REQ-WCSESS-037", "REQ-WCSESS-038", "REQ-WCSESS-039", "REQ-WCSESS-040"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "cd5938525ae3040b66998b950e6169a27a4503f43eb867c555a8704e34cd3733"
+content_hash: "df67d4814cc32dccdc24d6ef28cb4e8272878ba1026353cd36653e136e16ad29"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-79PFHB"
 source_paths: ["spec/7-channel-web-chat/3-auth-session.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "c9a37f19698b9fae1731050121439129412cef5f003c9582aa35e2d3f92ade07"
-etag: "sha256-c3a2b39330475803258c988d86b9c82511187d2e708d49798f93e54cba9abaf1"
+mirror_sha256: "11a714df52bfe6ca1faae38efa68351951c77a89865d306a3e08f4e09084970f"
+etag: "sha256-7bfdb3164d1036ad5874f64b2453ed07d9d753512f4cee95768aa09be8028a37"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/3-auth-session.md`, `spec/7-channel-web-chat/5-admin-console.md` (§6 첫 노드 race 보정) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,7 +61,13 @@ etag: "sha256-c3a2b39330475803258c988d86b9c82511187d2e708d49798f93e54cba9abaf1"
 - REQ-WCSESS-031 WHEN SSE 가 이미 열린 뒤에 상태 조회 스냅샷이 도착하면 THE SYSTEM SHALL 스냅샷으로 표면을 되감지 않는다.
 - REQ-WCSESS-032 IF 대체된 부팅 시도가 종료를 발견하면 THE SYSTEM SHALL 그 종료를 버리지 않고 확정한다.
 - REQ-WCSESS-033 WHEN 스트림을 열려 하면 THE SYSTEM SHALL 이미 열린 스트림이 있는지 다시 확인하고 있으면 새 연결을 만들지 않는다.
-- REQ-WCSESS-034 WHEN 버퍼 만료로 자기 스트림의 표면을 다시 맞추면 THE SYSTEM SHALL 스트림이 열려 있어도 표면을 다시 그린다.
+- REQ-WCSESS-034 WHEN 버퍼 만료나 명령 `409` 로 자기 스트림의 표면을 다시 맞추면 THE SYSTEM SHALL 스트림이 열려 있어도 표면을 다시 그린다.
+- REQ-WCSESS-035 WHEN 주기 토큰 갱신과 `401` 복구가 같은 토큰을 갱신하려 하면 THE SYSTEM SHALL refresh 요청을 하나만 보내고 두 경로가 그 결과를 함께 쓴다.
+- REQ-WCSESS-036 IF 갱신하려는 토큰이 이미 같은 실행의 새 토큰으로 바뀌었으면 THE SYSTEM SHALL refresh 를 보내지 않고 바뀐 토큰을 쓴다.
+- REQ-WCSESS-037 IF 명령이 `410`·`401` 이 아닌 응답이나 네트워크 에러로 실패하면 THE SYSTEM SHALL 위젯 세션과 SSE 를 그대로 두고 대화를 끝내지 않는다.
+- REQ-WCSESS-038 WHEN 명령 응답이 `401` 이면 THE SYSTEM SHALL 주기 갱신과 같은 refresh 진입점으로 토큰 갱신을 한 번 시도하고 명령은 다시 보내지 않는다.
+- REQ-WCSESS-039 IF 명령 `401` 뒤의 갱신이 `401` 이나 `410` 으로 거부되면 THE SYSTEM SHALL 종료로 확정하고 위젯 세션을 지운다.
+- REQ-WCSESS-040 IF 명령 `401` 뒤의 갱신이 네트워크 에러나 5xx 로 실패하면 THE SYSTEM SHALL 위젯 세션을 유지하고 주기 토큰 갱신의 재시도에 맡긴다.
 
 ## 공개 웹훅
 
@@ -106,7 +112,7 @@ sequenceDiagram
 4. SSE `execution.waiting_for_input` 이 오면 `interactionType` 별로 첫 표면을 그린다. `ai_conversation` 이면 입력창, `buttons`·carousel 이면 선택지, `form` 이면 폼이다.
 5. 사용자가 입력하거나 선택하면 `POST .../:id/interact { command: submit_message|click_button|submit_form, ... }` 를 `Authorization: Bearer iext_*` 로 보낸다.
 6. SSE `execution.ai_message`(+ `presentations`)가 오면 말풍선을 그리고 다시 `waiting_for_input` 을 기다린다.
-7. 만료가 30분 이내이고 대화가 살아 있으면 `POST .../:id/refresh-token` 으로 토큰을 갱신한다. 갱신이 실패하면 지수 백오프로 다시 시도한다.
+7. 만료가 30분 이내이고 대화가 살아 있으면 `POST .../:id/refresh-token` 으로 토큰을 갱신한다. 갱신이 실패하면 지수 백오프로 다시 시도한다. 상태 조회 `401` 뒤의 복구도 같은 갱신 진입점을 쓴다. 같은 토큰의 refresh 는 한 번만 나간다([refresh 는 진입점 하나로 보낸다](#refresh-는-진입점-하나로-보낸다-같은-토큰은-한-번만)).
 8. 종료나 `completed` 가 오면 SSE 를 닫는다. 토큰은 무효가 되고 위젯은 `[ended]` 가 된다.
 
 새로고침 뒤에도 대화를 잇도록 실행 ID 와 단명 토큰을 iframe origin 의 sessionStorage 에 둔다. 같은 탭의 새로고침은 유지되고 탭을 닫으면 자동으로 지워진다. 절차는 [재로드 복원](#재로드-복원)에 있다. v1 사용자는 익명이다.
@@ -128,7 +134,7 @@ sequenceDiagram
    - 위젯 세션은 발급된 `apiBase` 에 묶인다. 현재 `apiBase` 와 다르거나 `apiBase` 가 기록돼 있지 않으면 버리고 새로 시작한다. 재전송([웹채팅 SDK](CLE-WEBCHAT-SDK.md))이 `apiBase` 를 바꿀 때 옛 주소에서 발급된 단명 토큰이 새 주소로 가는 것을 막는다. 세션과 엔드포인트의 축을 나누는 것이다.
    - 비교할 때는 끝의 슬래시만 정규화하고 경로는 보존한다. `apiBase` 에 경로를 넣을 수 있는지는 정의가 갈린다. [웹채팅 SDK 미결 사항](CLE-WEBCHAT-SDK.md#미결-사항) 참조.
 2. `GET /api/external/executions/:id` 로 현재 상태를 확인한다. 종료된 실행도 `200 OK` 와 `status` 로 응답한다([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)). 종료된 실행에 대한 명령의 `410 Gone`(원본: EIA-IN-12)은 명령에만 나오고 상태 조회에는 나오지 않는다. 결과에 따라 아래 표대로 나눈다.
-3. **위젯 세션 정리 책임**: 종료(`completed`·`failed`·`cancelled`)를 받았을 때, 복원 중 `200`+종료 상태·`404`·복구 불가 `401`·`410` 을 확인했을 때, 명령 응답 `410 Gone`(원본: EIA-IN-12)을 받았을 때 위젯은 바로 sessionStorage 항목을 지운다. 낡은 토큰을 남기지 않는다. 명령 응답 `401 TOKEN_REVOKED` 를 받았을 때 위젯 세션을 지울지는 아직 정하지 않았다([미결 사항](#미결-사항)).
+3. **위젯 세션 정리 책임**: 종료(`completed`·`failed`·`cancelled`)를 받았을 때, 복원 중 `200`+종료 상태·`404`·복구 불가 `401`·`410` 을 확인했을 때, 명령 응답 `410 Gone`(원본: EIA-IN-12)을 받았을 때 위젯은 바로 sessionStorage 항목을 지운다. 낡은 토큰을 남기지 않는다. 명령 응답 `401` 을 받으면 갱신을 한 번 시도하고 그 갱신이 `401`·`410` 으로 거부될 때만 지운다(REQ-WCSESS-038~040). 그 밖의 명령 실패(`409`·`400`·`429`·5xx·네트워크 에러)는 정리 조건이 아니다. 위젯 세션과 SSE 를 그대로 두고 대화를 잇는다(REQ-WCSESS-037). 근거는 [`410` 이 아닌 명령 실패는 종료가 아니다](#410-이-아닌-명령-실패는-종료가-아니다).
 
 | 상태 조회 결과 | 위젯 처리 |
 |---|---|
@@ -153,8 +159,8 @@ sequenceDiagram
 
 ## 미결 사항
 
-- **재로드 `401` 뒤 한 번의 갱신 시도를 유지할지**: EIA 규칙상 재로드 `401`(만료·폐기)은 갱신으로 복구되지 않으므로 REQ-WCSESS-024~026 의 한 번 시도는 대개 다시 `401` 로 끝난다([재로드 `401` 은 한 번 갱신을 시도한 뒤 결과를 세 갈래로 나눈다](#재로드-401-은-한-번-갱신을-시도한-뒤-결과를-세-갈래로-나눈다)). 이 시도가 실제로 살리는 경우(예: 회전 경합, 네트워크 에러 뒤 만료 전 토큰)가 있는지, 없으면 `TOKEN_EXPIRED`·`TOKEN_REVOKED` 코드로 바로 종료를 확정할지 결정 필요. 결과(`[ended]`)는 같아 급하지 않다.
-- **종료된 실행에 대한 명령 응답 코드**: 이 문서는 명령 응답 `410 Gone`(원본: EIA-IN-12)만 종료 신호로 다루고 [웹채팅 SDK](CLE-WEBCHAT-SDK.md)의 `conversationEnded.reason` 에도 `gone` = 410 만 있다. EIA 는 실행이 끝나면 토큰을 바로 폐기하고(원본: EIA-AU-04) Guard 가 폐기된 토큰을 핸들러 전에 `401 TOKEN_REVOKED` 로 거부한다. 그러면 정상 경로에서 종료된 실행에 대한 명령은 `410` 이 아니라 `401` 을 받고 `410` 은 폐기가 빠졌을 때만 나온다. EIA 안에서도 EIA-IN-12 와 토큰 폐기+Guard 가 다른 코드를 예고한다. 명령 `401 TOKEN_REVOKED` 를 받았을 때 위젯 세션을 지울지 정해져 있지 않고 위젯 코드의 실제 처리도 확인되지 않았다. EIA 쪽에서 정상 응답 코드를 하나로 정한 뒤 이 문서에 명령 `401` 처리 규칙을 더해야 한다. 결정 필요([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)).
+- **재로드 `401` 뒤 한 번의 갱신 시도를 유지할지**: EIA 규칙상 재로드 `401`(만료·폐기)은 갱신으로 복구되지 않으므로 REQ-WCSESS-024~026 의 한 번 시도는 대개 다시 `401` 로 끝난다([재로드 `401` 은 한 번 갱신을 시도한 뒤 결과를 세 갈래로 나눈다](#재로드-401-은-한-번-갱신을-시도한-뒤-결과를-세-갈래로-나눈다)). 이 시도가 실제로 살리는 경우(예: 네트워크 에러 뒤 만료 전 토큰)가 있는지, 없으면 `TOKEN_EXPIRED`·`TOKEN_REVOKED` 코드로 바로 종료를 확정할지 결정 필요. 결과(`[ended]`)는 같아 급하지 않다. 주기 갱신과 겹친 회전 경합은 이 시도가 살리는 경우가 아니다. 갱신 진입점이 "이미 회전됨" 이나 "떠 있는 요청에 합류" 로 처리하고 따로 refresh 를 보내지 않는다([refresh 는 진입점 하나로 보낸다](#refresh-는-진입점-하나로-보낸다-같은-토큰은-한-번만)).
+- **종료된 실행에 대한 명령 응답 코드**: 이 문서는 명령 응답 `410 Gone`(원본: EIA-IN-12)만 바로 종료 신호로 다루고 [웹채팅 SDK](CLE-WEBCHAT-SDK.md)의 `conversationEnded.reason` 에도 `gone` = 410 만 있다. EIA 는 실행이 끝나면 토큰을 바로 폐기하고(원본: EIA-AU-04) Guard 가 폐기된 토큰을 핸들러 전에 `401 TOKEN_REVOKED` 로 거부한다. 그러면 정상 경로에서 종료된 실행에 대한 명령은 `410` 이 아니라 `401` 을 받고 `410` 은 폐기가 빠졌을 때만 나온다. EIA 안에서도 EIA-IN-12 와 토큰 폐기+Guard 가 다른 코드를 예고한다. 위젯의 명령 `401` 처리는 정했다. 갱신을 한 번 시도하고 그 갱신도 `401`·`410` 이면 종료로 확정해 위젯 세션을 지운다(REQ-WCSESS-038~040). 종료된 실행의 토큰은 이미 폐기됐으므로 이 갱신도 `401` 을 받아 `[ended]` 로 간다. 남은 것은 EIA 쪽에서 정상 응답 코드를 하나로 정하는 일이다. 정해지면 두 경로가 호스트에 보내는 `conversationEnded.reason` 을 맞출지 함께 본다. 결정 필요([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)).
 - **웹채팅 트리거 경로의 비밀성**: [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)과 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)는 인증 없는 웹훅의 `endpointPath` UUID 를 사실상 비밀 키(capability token)로 보고 CSPRNG 발급을 요구한다. [웹채팅 SDK](CLE-WEBCHAT-SDK.md)와 [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)은 웹채팅 트리거의 경로를 "비밀 아님" 으로 보고 이를 근거로 뷰어에게 설치 스크립트 전체를 보인다. 이 문서의 원문은 "사실상 비밀 키이며 스니펫에 노출돼도 무방" 이라고 둘을 함께 적는다. 웹채팅 트리거는 설치 스크립트로 경로가 공개되므로 실제로 비밀이 아니지만 일반 웹훅 규칙과의 예외 관계가 어디에도 적혀 있지 않다. 웹훅 문서에 "웹채팅(공개 설치 스크립트) 트리거의 경로는 공개된다" 는 예외를 둘지, 뷰어 공개 정책이 일반 웹훅에도 번지는지 확인 필요.
 
 ## 구현 위치
@@ -162,9 +168,9 @@ sequenceDiagram
 - `codebase/channel-web-chat/src/lib/session-store.ts` (위젯 세션 저장·발급 주소 바인딩)
 - `codebase/channel-web-chat/src/lib/api-base.ts` (`apiBase` 정규화)
 - `codebase/channel-web-chat/src/lib/eia-client.ts` (EIA 호출, 응답 봉투 벗기기)
-- `codebase/channel-web-chat/src/widget/use-widget.ts` (시퀀스·재로드 복원 소비처)
+- `codebase/channel-web-chat/src/widget/use-widget.ts` (시퀀스·재로드 복원·명령 실패 처리 소비처)
 - `codebase/channel-web-chat/src/widget/use-session-generations.ts` 재로드 복원 중 새 부팅 시도가 들어오면 앞선 시도의 결과를 적용하지 않는 `isAttemptStale` 판정의 정본
-- `codebase/channel-web-chat/src/widget/use-token-refresh.ts` (주기 토큰 갱신)
+- `codebase/channel-web-chat/src/widget/use-token-refresh.ts` (주기 갱신과 `401` 복구가 함께 쓰는 refresh 진입점 `refreshSessionToken`, 주기 토큰 갱신 예약)
 
 ## Rationale
 
@@ -181,6 +187,38 @@ sequenceDiagram
 그러나 토큰 규칙의 기준인 [External Interaction API](../CLE-IX/CLE-EIA.md) 는 만료된 JWT 를 `InteractionGuard` 가 갱신 핸들러에 닿기 전에 `401` 로 막는다고 정한다(현재 구현도 갱신 경로에 같은 가드를 건다). 가드는 만료와 폐기를 `TOKEN_EXPIRED`·`TOKEN_REVOKED` 로 나눠 낸다. 그래서 "단순 만료면 복구된다" 와 "원인을 가릴 수 없다" 는 두 전제는 맞지 않고, 이 문서는 원인 설명을 EIA 쪽으로 맞췄다. 결과(`[ended]`)는 같다. 한 번의 갱신 시도가 실제로 살리는 경우가 있는지는 [미결 사항](#미결-사항) 이다.
 
 **"다시 실패" 는 `401`·`410` 만 뜻한다.** 네트워크 에러나 5xx 까지 종료로 보면 일시 장애가 살아 있는 대화를 끝낸다. 이 영역이 실제로 겪은 사고다. 그렇다고 그대로 진행할 수도 없다. 서버가 방금 거부한 토큰으로 SSE 를 열면 이벤트가 하나도 오지 않아 위젯이 스피너에서 멈춘다. 두 실패의 부작용이 반대 방향이라 결과를 복원·종료·스트림 유예의 세 갈래로 나눈다. 유예는 "위젯 세션은 살아 있고 스트림만 나중" 이라는 뜻이며 그 "나중" 을 맡는 것은 주기 토큰 갱신이다. 갱신이 성공하면 그때 SSE 를 열고 실패하면 지수 백오프로 다시 시도한다. 유예가 성립하려면 갱신 주기가 실제로 복구까지 이어져야 한다. 갱신 성공이 스트림을 열지 않거나 갱신 실패가 다시 예약 없이 끝나면 이 갈래는 "종료 안 함" 이라는 이름의 영구 정지일 뿐이다.
+
+### refresh 는 진입점 하나로 보낸다 (같은 토큰은 한 번만)
+
+서버의 토큰 갱신은 옛 jti 를 먼저 블랙리스트에 올린 뒤 새 토큰을 발급한다([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)). 그래서 같은 토큰으로 refresh 를 두 번 보내면 두 번째는 반드시 `401` 이다. 위젯에서 refresh 를 보내는 경로는 둘이다. 주기 토큰 갱신(시퀀스 7단계)과 상태 조회 `401` 뒤의 복구(REQ-WCSESS-024)다. 두 경로가 서로를 모르면 경합이 생긴다. `replay_unavailable` 재동기화가 상태 조회에서 `401` 을 받는 사이 주기 갱신이 같은 토큰을 회전시키면 복구는 이미 폐기된 토큰으로 refresh 를 다시 보낸다. 그 `401` 을 받은 복구는 살아 있는 대화를 `execution.token_revoked` 로 끝낸다. 주기 갱신 응답이 오기 전인 창과 상태 조회가 서버에 닿기 전에 회전이 끝난 창 모두에서 재현됐다(CLE-T-76775M).
+
+그래서 두 경로는 refresh 진입점 하나를 함께 쓴다(REQ-WCSESS-035 · 036).
+
+- 위젯 세션이 같은 실행의 다른 토큰을 들고 있으면 이미 회전된 것이다. 보내지 않고 그 세션을 쓴다. 같은 대화 안에서 위젯 세션의 토큰은 앞으로만 바뀌므로 다른 토큰은 곧 더 새 토큰이다.
+- 같은 토큰의 요청이 떠 있으면 새로 보내지 않고 그 결과를 함께 기다린다. 성공한 응답의 적용(위젯 세션 교체 · 저장 · 다음 갱신 예약)은 누가 보냈든 한 번만 한다.
+- 합류 키는 토큰 문자열이다. 새 대화 · 종료 때마다 올라가는 세대 값은 키에 넣지 않는다. 토큰은 실행마다 새로 발급되므로 다른 대화가 같은 토큰을 들 수 없다. 세대를 키에 넣으면 세대가 다른 두 요청이 따로 나가고 두 번째는 서버가 이미 폐기한 토큰이라 `401` 을 받는다. 세대는 응답을 적용하기 직전에만 다시 보고 옛 대화의 응답을 버린다.
+
+고르지 않은 대안은 둘이다.
+
+- **`401` 복구가 주기 갱신 타이머를 먼저 취소한다**: 경합이 나는 순간에는 타이머가 이미 발화해 refresh 가 떠 있거나 끝난 뒤다. 취소할 것이 없다.
+- **종료 확정 조건을 좁힌다**: 복구의 refresh 가 `401` 을 받아도 바로 종료로 보지 않는 방식이다. 상태 조회가 서버에 닿기 전에 회전이 끝난 창을 막지 못하고 refresh 는 여전히 두 번 나간다. 진짜 폐기와 경합을 가를 신호도 없다.
+
+재동기화가 상태 조회를 한 번 더 할지는 위젯 세션의 토큰이 바뀌었는지로 판정한다([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md) 「SSE 재연결」). 아래 「표면 되감기 방어는 "스트림이 열렸는가" 로 한다」 절이 부팅 세대 비교를 고르지 않은 것과 같은 원칙이다. 대리 신호 대신 바뀐 사실을 직접 본다.
+
+### `410` 이 아닌 명령 실패는 종료가 아니다
+
+명령이 `410` 이 아닌 이유로 실패해도 대화를 끝내지 않는다. 위젯 세션과 SSE 를 그대로 두고 현재 표면에서 다시 보낼 수 있게 한다(REQ-WCSESS-037, 화면 동작은 [웹채팅 위젯](CLE-WEBCHAT-WIDGET.md) 「명령 실패」). 2026-11-12 사람 결정(NERV 질문 `01a1cef8-acde-708e-9e07-07c2dcc98def`)으로 정했다.
+
+명령 실패 하나로는 실행이 끝났는지 알 수 없다. 5xx·`503`·`429`·네트워크 에러는 일시 장애나 한도 초과다. `400 VALIDATION_ERROR` 뒤에도 EIA 는 실행을 입력 대기로 둔다(REQ-EIAIN-028). 실행이 끝났으면 SSE 종료 이벤트가 따로 온다(REQ-WCSESS-014). `409 STATE_MISMATCH` 는 위젯이 그린 표면이 서버 상태와 어긋났다는 뜻이고 그 원인에는 실행 종료도 있다(REQ-EIAIN-031). 그래서 `409` 도 바로 종료로 보지 않는다. 상태 조회 스냅샷으로 표면을 다시 맞추고 스냅샷이 종료 상태일 때 종료로 확정한다.
+
+에러를 종료로 봤다가 되돌린 사고가 있다. `webchat-boot-single-flight` 작업이 "에러도 종료다" 를 전제로 명령 실패 때 위젯 세션을 지우게(`teardownSession`) 바꿨다. 일시적인 `500` 뒤 새로고침하면 상태 조회는 내내 `200 {status:"running"}` 인데 위젯은 `collapsed` 로 돌아가 살아 있는 대화를 영구히 잃었다(ai-review 2026-07-17 `18_39_11` requirement CRITICAL. 그 한 줄만 빼면 정상 복원돼 원인을 그 줄로 확인했다). 그 줄은 되돌렸지만 리듀서는 명령 실패를 계속 `[ended]` 로 보냈다. 그래서 같은 마운트에서는 `[ended]` 인데 위젯 세션과 SSE 는 살아 있는 상태가 남았고 Form 검증 실패 뒤 다시 제출하게 한다는 약속(REQ-WCWIDGET-041)도 지킬 수 없었다. 이제 명령 실패는 `[ended]` 로 가지 않으므로 이 불일치도 생기지 않는다.
+
+명령 `401` 은 한 번 더 확인한다. 토큰이 만료되거나 폐기됐다는 뜻이라 그대로 두면 다음 명령도 같은 `401` 을 받는다. 주기 갱신과 같은 refresh 진입점으로 갱신을 한 번 시도하고([refresh 는 진입점 하나로 보낸다](#refresh-는-진입점-하나로-보낸다-같은-토큰은-한-번만)) 결과는 재로드 `401` 과 같은 기준으로 나눈다(REQ-WCSESS-026·027). 거부(`401`·`410`)면 종료이고 네트워크 에러나 5xx 면 위젯 세션을 유지한다. EIA 는 실행이 끝나면 토큰을 바로 폐기하므로 종료된 실행에 대한 명령은 대개 `401 TOKEN_REVOKED` 를 받고 이 갱신도 거부돼 `[ended]` 로 간다([미결 사항](#미결-사항)). 이 확인이 대화를 살리는 경우는 명령이 나간 사이 주기 갱신이 토큰을 회전시킨 경합이다. 명령은 막 폐기된 옛 토큰으로 `401 TOKEN_REVOKED` 를 받지만 갱신 진입점은 위젯 세션이 이미 새 토큰을 든 것을 보고 refresh 없이 그 토큰을 쓴다(REQ-WCSESS-036). `TOKEN_*` 코드만 보고 바로 끝내면 이 경합에서 살아 있는 대화가 끝난다. 갱신에 성공해도 명령은 다시 보내지 않는다. 표면과 입력이 그대로 남아 사용자가 바로 다시 보낼 수 있다.
+
+고르지 않은 대안은 결정 질문에 함께 올린 둘이다. 원래 계획(CLE-T-QB5D34)에 있던 선택지다.
+
+- **모든 명령 실패를 종료로 본다**: 위젯 세션 정리 조건에 "그 밖의 명령 실패" 를 더하는 방식이다. 일시적인 `500` 한 번에 대화를 영구히 잃는 것을 받아들이는 셈이고 위 사고가 그 결과였다.
+- **에러 종류로 나눠 5xx·네트워크 에러는 재시도 뒤 종료한다**: 재시도를 다 써도 실행이 끝났다는 증거는 되지 않는다. 실행 종료는 SSE 종료 이벤트, 명령 `410`, 명령 `401` 뒤의 갱신 거부가 따로 알린다.
 
 ### REST 응답 봉투를 벗기고 없으면 그대로 쓴다
 
@@ -214,7 +252,7 @@ sequenceDiagram
 
 **이 가드는 표면 되감기만 막는다. 이중 스트림은 스트림 열기 자체가 막는다.** 시드와 스트림 열기 사이에 microtask 경계가 있어, 겹친 두 시드가 같은 flush 에서 끝나면 둘 다 시드 시점에 "안 열림" 을 보고 통과한 뒤 각자 스트림을 열려 한다. 그래서 스트림 열기 진입에서 소유권을 다시 확인하고 이미 열려 있으면 아무것도 하지 않고 "다른 시도가 소유 중" 을 돌려준다. 최종 상태는 어차피 스트림 하나로 모이지만 이 가드가 낭비되는 두 번째 연결 자체를 없앤다. 이 재확인은 호출부마다 손으로 넣지 않고 스트림 열기 진입에 두어 구조적으로 강제한다. 호출부가 늘어나도 빠뜨릴 수 없다. 호출부는 결과를 부정 비교로 거른다. 앞으로 "중단해야 하는" 결과가 늘어도 기본값이 중단이다(fail-closed).
 
-예외는 버퍼 만료 재동기화다. 자기 스트림의 표면을 다시 맞추는 경우만 스트림이 열려 있어도 표면을 다시 그린다. 다른 시도가 가로챈 것이 아니라 스스로 다시 그려야 하는 경우다.
+예외는 버퍼 만료 재동기화와 명령 `409` 뒤의 재동기화다. 둘 다 자기 스트림의 표면을 다시 맞추는 경우라 스트림이 열려 있어도 표면을 다시 그린다. 다른 시도가 가로챈 것이 아니라 스스로 다시 그려야 하는 경우다.
 
 이 불변식은 되감기 수정을 세 번 거쳐 나왔다. 스트림 열기 재확인은 "시드 반환 직후 동기로 실행되니 원천 차단된다" 는 처음 판단이 microtask 경계를 놓친 오판임이 재현으로 드러나 더해졌다. 대안(부팅 세대 비교)이 두 번 실패했으므로 되살리려면 위 두 구멍을 먼저 반증해야 한다.
 

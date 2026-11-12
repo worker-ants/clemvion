@@ -90,8 +90,9 @@ interface InflightRefresh {
  * 이미 떠 있는 응답은 world 세대 검사로 폐기(`worldGenRef` dep JSDoc 참조).
  *
  * **실패는 두 갈래다**(종전엔 한 갈래 — console.warn 후 끝, 그래서 한 번 실패하면 갱신 사이클이 죽었다):
- * - `401`/`410`(만료·jti blacklist·종료): 재시도해도 못 산다 → 멈춘다. SSE 는 hard expiry 까지 유지되고
- *   다음 입력의 401 을 sendCommand 가 ERROR 로 처리한다.
+ * - `401`/`410`(만료·jti blacklist·종료): 재시도해도 못 산다 → 멈춘다. SSE 는 hard expiry 까지 유지된다.
+ *   다음 명령이 `401` 을 받으면 `sendCommand` 가 이 훅의 `refreshSessionToken` 으로 한 번 더 갱신해 보고,
+ *   그것도 거부되면 종료로 확정한다(REQ-WCSESS-038·039).
  * - 그 외(네트워크·5xx): **지수 백오프로 재예약**한다(`retryDelayMs`, 상한 `TOKEN_REFRESH_RETRY_MAX_DELAY_MS`).
  *   재로드 복구가 `"refresh_deferred"` 로 이 훅에 복구를 맡기므로, 여기서 포기하면 위젯이 스피너에 고착된다.
  *
@@ -257,7 +258,7 @@ export function useTokenRefresh({
           if (worldGenRef.current !== gen) return;
           console.warn("[widget] token refresh failed:", err instanceof Error ? err.message : String(err));
           // `401`/`410` 은 재시도해도 살아나지 않는다(만료·jti blacklist·종료). 종전대로 여기서 멈춘다 —
-          // SSE 는 hard expiry 까지 유지되고, 다음 입력의 401 을 sendCommand 가 ERROR 로 처리한다.
+          // SSE 는 hard expiry 까지 유지되고, 다음 명령의 `401` 은 `sendCommand` 가 한 번 더 갱신해 보고 판정한다.
           if (isTerminalAuthError(err)) return;
           // **일시적 실패(네트워크·5xx)는 재예약한다.** 종전엔 로그만 남기고 끝나서 **한 번의
           // 실패로 이 세션의 갱신 사이클이 통째로 죽었다** — 재로드 복구가 `"refresh_deferred"`

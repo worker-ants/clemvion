@@ -309,3 +309,74 @@ describe("Panel — 헤더 세션 컨트롤(새 대화/종료) + 가벼운 확�
     expect(BASE_ACTIONS.newChat).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Panel — 명령 실패 안내 (error.commandFailed, REQ-WCWIDGET-053)", () => {
+  it("commandFailed → role=alert 로 다시 보내라는 안내, 대화는 그대로(입력 가능 · 종료 화면 없음)", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message", commandFailed: true })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("요청을 처리하지 못했어요");
+    expect(screen.queryByText("새 대화 시작")).toBeNull();
+    expect(screen.getByLabelText("메시지 입력")).toBeEnabled();
+  });
+
+  it("EN Provider → 영어 안내", () => {
+    render(
+      <I18nProvider locale="en">
+        <Panel
+          state={makeState({ phase: "awaiting_user_message", commandFailed: true })}
+          config={BASE_CONFIG}
+          actions={BASE_ACTIONS}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("We couldn't process that");
+  });
+
+  it("phase=ended 면 commandFailed 가 남아 있어도 안내를 그리지 않는다", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "ended", commandFailed: true })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.queryByText(/요청을 처리하지 못했어요/)).toBeNull();
+  });
+
+  it("commandFailed 없음 → 안내 없음", () => {
+    render(<Panel state={makeState({})} config={BASE_CONFIG} actions={BASE_ACTIONS} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("fieldErrors 는 Form 표면으로, composerDraft 는 입력창으로 전달된다", () => {
+    const { unmount } = render(
+      <Panel
+        state={makeState({
+          phase: "awaiting_user_message",
+          pending: { type: "form", config: { fields: [{ name: "email", label: "이메일" }] } },
+          fieldErrors: { email: "이메일 형식이 아닙니다" },
+        })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.getByLabelText("이메일")).toHaveAccessibleDescription("이메일 형식이 아닙니다");
+    // Form 검증 실패는 필드 문구만 — 일반 명령 실패 안내는 그리지 않는다.
+    expect(screen.queryByText(/요청을 처리하지 못했어요/)).toBeNull();
+    unmount();
+
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message", composerDraft: { text: "되돌린 글" } })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.getByLabelText("메시지 입력")).toHaveValue("되돌린 글");
+  });
+});
