@@ -99,8 +99,8 @@ export function getConfigSummary(
 export function getAdvisoryWarnings(
   nodeType: string,
   config: NodeConfig,
-  locale: Locale = DEFAULT_LOCALE,
   context?: SummaryContext,
+  locale: Locale = DEFAULT_LOCALE,
 ): string[] {
   if (nodeType === "manual_trigger") return [];
   if (getConfigSummary(nodeType, config, context, locale)?.isWarning) return [];

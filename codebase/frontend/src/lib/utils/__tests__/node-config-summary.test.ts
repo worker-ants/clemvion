@@ -347,18 +347,18 @@ describe("getAdvisoryWarnings", () => {
 
   it("returns the advisory message that fires", () => {
     seedMerge();
-    expect(getAdvisoryWarnings("merge", { strategy: "first" }, "en")).toEqual([FIRST_EN]);
-    expect(getAdvisoryWarnings("merge", { strategy: "append" }, "en")).toEqual([APPEND_EN]);
+    expect(getAdvisoryWarnings("merge", { strategy: "first" }, undefined, "en")).toEqual([FIRST_EN]);
+    expect(getAdvisoryWarnings("merge", { strategy: "append" }, undefined, "en")).toEqual([APPEND_EN]);
   });
 
   it("returns nothing when no advisory rule fires", () => {
     seedMerge();
-    expect(getAdvisoryWarnings("merge", { strategy: "wait_all" }, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("merge", { strategy: "wait_all" }, undefined, "en")).toEqual([]);
   });
 
   it("never returns blocking warnings", () => {
     seedMerge();
-    expect(getAdvisoryWarnings("merge", {}, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("merge", {}, undefined, "en")).toEqual([]);
   });
 
   it("returns nothing while a blocking warning fires on the same node", () => {
@@ -375,20 +375,37 @@ describe("getAdvisoryWarnings", () => {
         ],
       }),
     });
-    expect(getAdvisoryWarnings("merge", { strategy: "first" }, "en")).toEqual([FIRST_EN]);
-    expect(getAdvisoryWarnings("merge", { strategy: "first", timeout: 5 }, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("merge", { strategy: "first" }, undefined, "en")).toEqual([FIRST_EN]);
+    expect(getAdvisoryWarnings("merge", { strategy: "first", timeout: 5 }, undefined, "en")).toEqual([]);
   });
 
   it("localizes the message through WARNING_KO", () => {
     seedMerge();
-    const [ko] = getAdvisoryWarnings("merge", { strategy: "append" }, "ko");
+    const [ko] = getAdvisoryWarnings("merge", { strategy: "append" }, undefined, "ko");
     expect(ko).not.toBe(APPEND_EN);
     expect(ko).toContain("wait_all");
   });
 
+  it("returns nothing when the LLM-missing blocking warning fires, and the advisory once a default LLM config suppresses it", () => {
+    seedStore({
+      ai_agent: stubDefinition("ai_agent", {
+        warningRules: [
+          { id: "ai_agent:no-llm-provider", when: "!model", message: "LLM provider is not set." },
+          { id: "ai_agent:advice", when: "mode == risky", message: "Risky mode hint", severity: "advisory" },
+        ],
+      }),
+    });
+    const config = { mode: "risky" };
+    expect(getAdvisoryWarnings("ai_agent", config, { hasDefaultLlmConfig: false }, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("ai_agent", config, undefined, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("ai_agent", config, { hasDefaultLlmConfig: true }, "en")).toEqual([
+      "Risky mode hint",
+    ]);
+  });
+
   it("returns nothing for unknown types and manual_trigger", () => {
     seedMerge();
-    expect(getAdvisoryWarnings("missing", { strategy: "first" }, "en")).toEqual([]);
-    expect(getAdvisoryWarnings("manual_trigger", {}, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("missing", { strategy: "first" }, undefined, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("manual_trigger", {}, undefined, "en")).toEqual([]);
   });
 });

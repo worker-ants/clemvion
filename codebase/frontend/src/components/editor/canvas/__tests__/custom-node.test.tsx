@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { NodeProps, Node } from "@xyflow/react";
 
@@ -376,6 +376,46 @@ describe("CustomNode", () => {
       expect(container.querySelector('[aria-label="warning"]')).toBeInTheDocument();
       expect(advisoryBadge(container)).not.toBeInTheDocument();
       expect(tooltipTexts().some((t) => t.includes("'first'"))).toBe(false);
+    });
+
+    // headerHasLeadingItem — `ml-auto` 는 헤더 우측의 첫 요소만 받는다.
+    describe("header right alignment (ml-auto)", () => {
+      const setGraphWarning = () =>
+        useEditorStore.setState({
+          graphWarnings: {
+            results: [
+              { ruleId: "x", severity: "warning", nodeId: "node-1", message: "m" },
+            ],
+            hasError: false,
+            hasWarning: true,
+          },
+        } as never);
+      afterEach(() => {
+        useEditorStore.setState({
+          graphWarnings: { results: [], hasError: false, hasWarning: false },
+        } as never);
+      });
+
+      it("gives ml-auto to the advisory icon when it is the first right-side item", () => {
+        const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "first" } });
+        expect(advisoryBadge(container)?.getAttribute("class")).toContain("ml-auto");
+      });
+
+      it("does not give ml-auto to the graph-warning badge that follows the advisory icon", () => {
+        setGraphWarning();
+        const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "first" } });
+        expect(advisoryBadge(container)?.getAttribute("class")).toContain("ml-auto");
+        const graph = container.querySelector('[data-testid="graph-warning-badge"]');
+        expect(graph).toBeInTheDocument();
+        expect(graph?.getAttribute("class")).not.toContain("ml-auto");
+      });
+
+      it("gives ml-auto to the graph-warning badge when nothing leads it", () => {
+        setGraphWarning();
+        const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "wait_all" } });
+        const graph = container.querySelector('[data-testid="graph-warning-badge"]');
+        expect(graph?.getAttribute("class")).toContain("ml-auto");
+      });
     });
 
     it("hides the advisory icon when zoom < 50% like other summaries", () => {
