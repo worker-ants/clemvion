@@ -103,7 +103,7 @@ Workflow AI Assistant 와 AI Agent 의 토큰 단위 스트리밍 응답은 모�
 | Connection test failed. Please check your configuration. | 위 어디에도 해당하지 않는 실패예요 |
 
 <Callout type="info">
-  **에러 코드는 워크플로우 실행 쪽에 있어요.** AI 노드가 실행 중에 실패하면 `LLM_RATE_LIMIT` · `LLM_TIMEOUT` 같은 코드가 실행 결과에 남아요 — 그건 연결 테스트와 다른 경로예요. 코드 목록은 [실행 결과 보기](/docs/05-run-and-debug/run-results) 에서 봐요.
+  **에러 코드는 워크플로우 실행 쪽에 있어요.** AI 노드가 실행 중에 실패하면 `LLM_RATE_LIMIT` · `LLM_CALL_FAILED` 같은 코드가 실행 결과에 남아요. 연결 테스트와는 다른 경로예요. 코드 목록은 [실행 결과 보기](/docs/05-run-and-debug/run-results) 에서 봐요.
 </Callout>
 
 ---

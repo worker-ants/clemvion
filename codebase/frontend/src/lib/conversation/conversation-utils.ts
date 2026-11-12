@@ -287,12 +287,13 @@ export function threadTurnsToConversationItems(
         break;
       }
       case "rag": {
-        // spec/conventions/conversation-thread.md §1.1.2 — `rag` 는 wire
+        // [대화 스레드](CLE-IX-THREAD) 「`rag`」 — `rag` 는 wire
         // (`conversationThread.turns`, backend enum 5값) 에 실려오지 않는 frontend
         // 합성 source 다. 실제 item 은 `mergeRagRetrievalItems` 가
-        // `meta.turnDebug[].ragSources` 에서 만든다 (§9.11 변환 contract).
+        // `meta.turnDebug[].ragSources` 에서 만든다
+        // ([대화 미리보기](CLE-EXEC-PREVIEW) 「변환 함수 계약」).
         // 본 case 는 `_exhaustive: never` 가 컴파일 타임에 강제하는 방어 분기 —
-        // `system_error` 와 동일 구조 (interaction-type-registry.md §2).
+        // `system_error` 와 동일 구조 ([인터랙션 타입 레지스트리](CLE-IX-TYPES)).
         break;
       }
       case "system_error": {
@@ -928,22 +929,28 @@ export function groupToolCallItems(items: ConversationItem[]): {
 }
 
 /**
- * 엔진이 LLM 호출 **전** 자동 수행한 KB 검색을 🔎 `rag` 행으로 timeline 에 끼워
- * 넣는다 (spec/conventions/conversation-thread.md §1.1.2 · §9.1).
+ * 그 턴에 지식 저장소 도구(`kb_*`) 호출이 가져온 청크를 턴 단위로 모아 🔎 `rag`
+ * 행으로 timeline 에 끼워 넣는다 ([대화 미리보기](CLE-EXEC-PREVIEW) 「출처별 시각
+ * 매핑」, [대화 스레드](CLE-IX-THREAD) 「`rag`」). 엔진은 LLM 호출 전에 KB 를 미리
+ * 검색하지 않는다([RAG 검색](CLE-KB-SEARCH)). 그래서 같은 호출이 🔧 `tool` 행으로도
+ * 보인다. 도구 행은 호출 하나와 그 결과이고, `rag` 행은 그 턴에 모인 청크를
+ * `chunkId` 중복 없이 보여 준다.
  *
  * `mergeOrphanToolItems` 와 같은 **후처리 병합** 계열이다 — 대화 turn 을 만들지
- * 않고 보조 관찰성 레인(§9.3)의 행만 추가하므로 §9.11 의 1차 변환 등가성 정의
- * 양변에 들어가지 않는다. 대신 **Inv-9** 가 References 탭·📚 chip 과의 `sources[]`
- * 동일성을 규정하며, 그래서 호출자는 `turnRefIndex` 와 **동일 소스**
- * (`aiMetadata.turnDebug`) 를 넘겨야 한다.
+ * 않고 보조 관찰성 레인(「데이터 소스」)의 행만 추가하므로 「변환 함수 계약」 의
+ * 1차 변환 등가성 정의 양변에 들어가지 않는다. 대신 **Inv-9** 가 References 탭·📚
+ * chip 과의 `sources[]` 동일성을 규정하며, 그래서 호출자는 `turnRefIndex` 와
+ * **동일 소스**(`aiMetadata.turnDebug`) 를 넘겨야 한다.
  *
- * 삽입 위치는 같은 `turnIndex` 의 **첫 assistant 앞** — 검색은 그 턴의 LLM 호출
- * 직전에 일어나기 때문. assistant 가 없는 턴(타 노드가 발생시킨 turn 등)에는
- * 붙이지 않는다: thread 는 execution 스코프지만 `meta` 는 노드 스코프라 스코프가
- * 다르다 (§8.6 · CT-S20).
+ * 삽입 위치는 같은 `turnIndex` 의 **첫 assistant 앞**이다. 행은 그 턴 전체의 청크
+ * 모음이라 턴 머리에 두고, 시각도 그 assistant 항목의 시각(턴 기준 시각)을 그대로
+ * 쓴다. 실제 검색은 그 뒤 도구 호출에서 일어나고 호출마다의 시각은 🔧 도구 행에
+ * 있다(「요소별 시각과 소요 시간」). assistant 가 없는 턴(타 노드가 발생시킨 turn
+ * 등)에는 붙이지 않는다: thread 는 execution 스코프지만 `meta` 는 노드 스코프라
+ * 스코프가 다르다 (「UI 불변량」 · CT-S20).
  *
  * `ragSources` 가 비어있으면(검색했으나 결과 0건) 행을 만들지 않는다 — 표시할
- * 청크가 없어 chip·행 모두 무의미하고, §9.12 결측 내성과도 정합 (CT-S19).
+ * 청크가 없어 chip·행 모두 무의미하고, 결측 허용 규칙과도 정합 (CT-S19).
  */
 export function mergeRagRetrievalItems(
   items: ConversationItem[],

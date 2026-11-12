@@ -180,7 +180,7 @@ Slack에서 Signing Secret 를 재발급했다면 **트리거를 삭제하고 �
 | `executionFailedThirdParty4xx` | 외부 서비스(LLM / MCP / HTTP 노드)가 4xx 거부 (`HTTP_4XX`) | 선택 |
 | `executionFailedThirdParty5xx` | 외부 서비스 5xx 일시 오류 (`HTTP_5XX`) | 선택 |
 | `executionFailedThirdParty` | 외부 서비스 응답 없음 (timeout 제외, status code 없음) | 불허 |
-| `executionFailedTimeout` | 처리 시간 초과 (`HTTP_TIMEOUT` / `LLM_TIMEOUT` / `EXECUTION_TIMEOUT` 등) | 불허 |
+| `executionFailedTimeout` | 처리 시간 초과 (`HTTP_TIMEOUT` / `EXECUTION_TIMEOUT` 등) | 불허 |
 | `executionFailedRateLimit` | 요청량 초과 (`LLM_RATE_LIMIT`) | 불허 |
 | `executionFailedInternal` | 서버 내부 오류 (DB / CODE / SUB_WORKFLOW 실패 + 미분류 fallback) | 불허 |
 

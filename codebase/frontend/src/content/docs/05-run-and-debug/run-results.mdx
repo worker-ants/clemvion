@@ -189,7 +189,7 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 ```json
 {
   "error": {
-    "code": "LLM_TIMEOUT",
+    "code": "LLM_CALL_FAILED",
     "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
     "nodeLabel": "AI Agent",
@@ -207,9 +207,11 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 | HTTP Request | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_BLOCKED` |
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED` |
 | Email | `EMAIL_SEND_FAILED` · `EMAIL_HOST_BLOCKED` · `EMAIL_NO_RECIPIENTS` |
-| AI · LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| AI · LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` |
 | Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE` |
+
+LLM 호출 시간이 초과돼도 전용 코드는 없어요. 이때는 `LLM_CALL_FAILED` 로 표시돼요.
 
 `*_HOST_BLOCKED` 는 노드가 사설망·loopback 주소로 요청하려 할 때 서버가 **미리 막은** 경우예요 — 워크플로우 밖으로 나가면 안 되는 주소로의 호출을 차단해요. 주소를 공개 호스트로 바꾸면 풀려요.
 
@@ -218,12 +220,13 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 <FieldTable rows={[
   { name: "EXECUTION_TIMEOUT", type: "타임아웃", description: "노드 또는 전체 워크플로우 실행 시간이 초과됐어요." },
   { name: "INVALID_EXPRESSION", type: "표현식", description: "표현식 평가 실패예요. 문법, null 접근, 타입 불일치를 확인해요." },
-  { name: "MAX_ITERATIONS_EXCEEDED", type: "반복", description: "Loop/ForEach 최대 반복 횟수를 넘었어요." },
   { name: "ERROR_PORT_FALLBACK", type: "폴백", description: "`Route to Error Port` 정책인데 error 포트에 연결된 연결선이 없어 Stop Workflow로 폴백된 경우예요." },
   { name: "RETRY_STATE_NOT_FOUND", type: "재시도", description: "재시도 정보가 만료됐거나(기본 60분) 이미 한 번 재시도해 소비됐어요. 워크플로우를 다시 실행해 주세요." },
   { name: "NODE_NOT_RETRYABLE", type: "재시도", description: "이 오류는 재시도 대상이 아니에요(예: 인증 오류 401/403). LLM 설정에서 인증 정보를 점검한 뒤 다시 실행해 주세요." },
   { name: "RETRY_TOO_EARLY", type: "재시도", description: "프로바이더가 요청한 대기 시간이 아직 지나지 않았어요. 잠시 후 다시 시도해 주세요." }
 ]} />
+
+Loop 노드가 최대 반복 횟수(`maxIterations`, 기본 1000)를 넘으면 에러 메시지가 `MAX_ITERATIONS_EXCEEDED:` 로 시작해요. 코드가 아니라 메시지 앞머리라서 `code` 로는 나오지 않아요. 메시지를 보고 Loop 의 반복 횟수 설정을 확인해요.
 
 ## 팁 & 참고
 
