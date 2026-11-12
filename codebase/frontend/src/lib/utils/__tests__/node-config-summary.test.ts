@@ -361,6 +361,24 @@ describe("getAdvisoryWarnings", () => {
     expect(getAdvisoryWarnings("merge", {}, "en")).toEqual([]);
   });
 
+  it("returns nothing while a blocking warning fires on the same node", () => {
+    seedStore({
+      merge: stubDefinition("merge", {
+        warningRules: [
+          { id: "merge:timeout-dormant", when: "timeout > 0", message: "Merge timeout is not applied." },
+          {
+            id: "merge:strategy-first-not-arrival-order",
+            when: "strategy == first",
+            message: FIRST_EN,
+            severity: "advisory",
+          },
+        ],
+      }),
+    });
+    expect(getAdvisoryWarnings("merge", { strategy: "first" }, "en")).toEqual([FIRST_EN]);
+    expect(getAdvisoryWarnings("merge", { strategy: "first", timeout: 5 }, "en")).toEqual([]);
+  });
+
   it("localizes the message through WARNING_KO", () => {
     seedMerge();
     const [ko] = getAdvisoryWarnings("merge", { strategy: "append" }, "ko");
