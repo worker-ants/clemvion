@@ -7156,8 +7156,9 @@ export class ExecutionEngineService
    *
    * 본문 안 Loop · ForEach · Map 은 {@link runContainer} 로, Background 는
    * {@link scheduleBackgroundBody} 로 넘긴다(CLE-T-MR6ZH3). 메인 루프 · 병렬 분기 루프와
-   * 같은 규칙이고 Parallel 플래그와 상관없다. Background 본문은 회차 입력으로 큐에 들어가고
-   * 워커는 작업의 `containerScopeId` 로 이 컨테이너 단계의 그래프를 만들어 실행한다.
+   * 같은 규칙이고 Parallel 플래그와 상관없다. Background 본문은 그 회차에 Background 가
+   * 받은 입력으로 큐에 들어가고 워커는 작업의 `containerScopeId` 로 이 컨테이너 단계의
+   * 그래프를 만들어 실행한다.
    */
   private async executeContainerBody(
     containerNode: Node,
@@ -7279,16 +7280,17 @@ export class ExecutionEngineService
         );
       }
 
-      // Background 는 본문을 큐에 넣고 회차를 이어 간다. 본문 진입 입력은 병렬 분기
-      // 루프가 병렬 분기 입력을 넘기는 것처럼 회차 입력이다. `background` 포트 뒤
-      // 노드는 핸들러가 `main` 만 고르므로 이 회차 루프에서 실행되지 않는다.
+      // Background 는 본문을 큐에 넣고 회차를 이어 간다. 본문 진입 입력은 Background
+      // 노드가 이번 회차에 받은 입력이다(CLE-NODE-BACKGROUND 의 진입 입력 표).
+      // `background` 포트 뒤 노드는 핸들러가 `main` 만 고르므로 이 회차 루프에서
+      // 실행되지 않는다.
       if (bodyDispatchKind === 'background') {
         await this.scheduleBackgroundBody(
           node,
           plan.allEdges,
           context,
           executionId,
-          iterInput,
+          nodeInput,
         );
       }
 

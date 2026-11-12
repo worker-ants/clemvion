@@ -15096,6 +15096,8 @@ describe('ExecutionEngineService', () => {
           kind: 'background',
         });
         recordingHandler('test_node', () => ({ items: [{ n: 1 }, { n: 2 }] }));
+        // Background 앞에 노드를 하나 두어 회차 입력과 Background 의 입력을 가른다.
+        recordingHandler('pre_node', (input) => ({ pre: input }));
         const afterCalls = recordingHandler('after_node', (input) => input);
         const bgBodyCalls = recordingHandler('bg_body_node', (input) => input);
         recordingHandler('sink_node', (input) => input);
@@ -15105,6 +15107,7 @@ describe('ExecutionEngineService', () => {
           [
             cNode('src', 'test_node', null),
             cNode('fe', 'foreach', null, { arrayField: 'items' }),
+            cNode('pre', 'pre_node', 'fe'),
             cNode('bg', 'background', 'fe'),
             cNode('after', 'after_node', 'fe'),
             // 에디터의 소속 전파(연결선 체인 규칙)가 Background 뒤 노드에도 같은
@@ -15114,7 +15117,8 @@ describe('ExecutionEngineService', () => {
           ],
           [
             cEdge('src', 'out', 'fe'),
-            cEdge('fe', 'body', 'bg'),
+            cEdge('fe', 'body', 'pre'),
+            cEdge('pre', 'out', 'bg'),
             cEdge('bg', 'main', 'after'),
             cEdge('bg', 'background', 'bgBody'),
             cEdge('after', 'out', 'fe', 'emit'),
@@ -15124,7 +15128,10 @@ describe('ExecutionEngineService', () => {
 
         // 본문은 큐로만 간다(워커가 실행한다).
         expect(bgBodyCalls).toHaveLength(0);
-        expect(afterCalls.map((c) => c.input)).toEqual([{ n: 1 }, { n: 2 }]);
+        expect(afterCalls.map((c) => c.input)).toEqual([
+          { pre: { n: 1 } },
+          { pre: { n: 2 } },
+        ]);
         const jobs = backgroundQueueAdd().mock.calls.map(
           (call: unknown[]) => call[1] as BackgroundExecutionJob,
         );
@@ -15133,8 +15140,12 @@ describe('ExecutionEngineService', () => {
           ['bgBody'],
           ['bgBody'],
         ]);
-        // 본문 진입 입력은 그 회차의 입력이다(병렬 분기 루프와 같은 규칙).
-        expect(jobs.map((job) => job.input)).toEqual([{ n: 1 }, { n: 2 }]);
+        // 본문 진입 입력은 Background 노드가 그 회차에 받은 입력이다
+        // (CLE-NODE-BACKGROUND 의 진입 입력 표). 회차 입력({ n })이 아니다.
+        expect(jobs.map((job) => job.input)).toEqual([
+          { pre: { n: 1 } },
+          { pre: { n: 2 } },
+        ]);
         // 워커가 Background 와 같은 컨테이너 단계의 노드로 본문을 실행하도록
         // 컨테이너 ID 를 싣는다.
         expect(jobs.map((job) => job.containerScopeId)).toEqual(['fe', 'fe']);
@@ -17539,6 +17550,49 @@ describe('ExecutionEngineService', () => {
             );
             expect(doneReceived).toEqual([
               { items: [{ from: 'after' }, { from: 'after' }], count: 2 },
+            ]);
+          });
+
+          it('ForEach 본문 안 Parallel 의 병렬 분기에 둔 Background 도 회차마다 컨테이너 ID 를 실어 본문을 큐에 넣는다 (CLE-T-MR6ZH3)', async () => {
+            handlerRegistry.register('background', new BackgroundHandler(), {
+              kind: 'background',
+            });
+            const { runs } = recordRuns(['b', 'after', 'bgBody']);
+            const queueAdd = (
+              service as unknown as { backgroundQueue: { add: jest.Mock } }
+            ).backgroundQueue.add;
+            queueAdd.mockClear();
+            const g = foreachWithBody({
+              nodes: [
+                pNode('cpar', 'parallel', { branchCount: 2 }),
+                pNode('bg', 'background'),
+                pNode('bgBody', 'bgBody_node'),
+                pNode('b', 'b_node'),
+                pNode('after', 'after_node'),
+              ],
+              edges: [
+                pEdge('fe', 'body', 'cpar'),
+                pEdge('cpar', 'branch_0', 'bg'),
+                pEdge('bg', 'background', 'bgBody'),
+                pEdge('cpar', 'branch_1', 'b'),
+                pEdge('cpar', 'done', 'after'),
+                emitFrom('after'),
+              ],
+            });
+            await runFromTrigger(g.nodes, g.edges);
+
+            // 본문 노드는 회차 루프 · 병렬 분기 루프에서 실행하지 않는다.
+            expect(runs.filter((id) => id === 'bgBody')).toHaveLength(0);
+            const jobs = queueAdd.mock.calls.map(
+              (call: unknown[]) => call[1] as BackgroundExecutionJob,
+            );
+            expect(jobs.map((job) => job.bodyEntryNodeIds)).toEqual([
+              ['bgBody'],
+              ['bgBody'],
+            ]);
+            expect(jobs.map((job) => job.containerScopeId)).toEqual([
+              'fe',
+              'fe',
             ]);
           });
 
