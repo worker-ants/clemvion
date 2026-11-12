@@ -66,6 +66,7 @@ import { assertRawConfigAccepted } from './trigger-config-internal-fields';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
+import { SecretWriteJournal } from './secret-write-journal';
 import { buildTriggerListOrderBy } from './triggers-list-sort';
 
 export type TriggerDetail = Trigger & {
@@ -1607,33 +1608,7 @@ export class TriggersService {
       'inboundSigningRef',
     );
 
-    // 1. 기존 botToken resolve (실패 시 skip — 최초 rotation).
-    let oldPlaintext: string | null = null;
-    try {
-      oldPlaintext = await this.secrets.resolve(botTokenRef);
-    } catch {
-      // 최초 rotation: secret store 에 아직 row 없음. v2 백업 skip.
-    }
-
-    // 2. 기존 token 이 있으면 v2Ref 에 백업. 저장된 값이 비었거나 공백만이면 건너뛴다. 저장소가 빈 평문을
-    // 거부하기 전에 저장된 옛 빈 행이고(NERV Task `CLE-T-94Z6A5`) 보존할 토큰이 아니다. 백업하려 들면 저장소가
-    // 거부해 재발급 전체가 실패한다.
-    let v2RefUsed: string | null = null;
-    if (oldPlaintext !== null && oldPlaintext.trim() === '') {
-      this.logger.warn(
-        `rotateBotToken: 저장된 이전 봇 토큰이 빈 값이라 유예 백업을 건너뜁니다 (trigger=${trigger.id}).`,
-      );
-    } else if (oldPlaintext !== null) {
-      await this.secrets.rotate(v2Ref, trigger.workspaceId, oldPlaintext);
-      v2RefUsed = v2Ref;
-    }
-
-    // 3. primary botTokenRef 에 새 token 저장 (UPSERT).
-    await this.secrets.rotate(botTokenRef, trigger.workspaceId, newBotToken);
-
-    // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
-    // [Spec Chat Channel §5.4] **자격 증명 거부**는 BOT_TOKEN_INVALID 400, 그 밖의 실패는
-    // CHAT_CHANNEL_SETUP_FAILED 502 로 변환. 판별은 adapter 가 부착한 `code` (CCA §1.1.2).
+    // 4단계 입력은 비밀을 쓰기 전에 만든다. 저장소를 읽지 않는 계산이라 여기서 던지면 되돌릴 쓰기가 없다.
     //
     // 어댑터에 넘기는 설정에도 저장된 참조를 싣지 않는다. Discord 어댑터는 `inboundSigningRef` 를
     // resolve 해 `verify_key` 와 대조하므로 다른 트리거의 참조가 남아 있으면 그 비밀을 읽는다
@@ -1653,74 +1628,112 @@ export class TriggersService {
       baseUrl: this.configService.get<string>('app.url'),
       endpointPath: trigger.endpointPath,
     });
-    let result: SetupResult;
-    try {
-      result = await adapter.setupChannel(mergedConfig, callbackUrl);
-    } catch (err) {
-      // **provider 원문은 여기서만 남는다** — §5.4 가 응답 본문에 원문을 싣지 못하게 하므로
-      // (§7.5.2 보안 게이트와 같은 이유) 진단 단서를 서버 로그로 옮긴다. 변환 함수는
-      // `chat-channel-input-rules.ts` 의 순수 함수라 logger 를 갖지 않는다.
-      this.logger.warn(
-        `rotateBotToken setupChannel 실패 (trigger=${trigger.id} provider=${chatChannelCfg.provider}): ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      throw translateSetupChannelError(err);
-    }
-    const mergedChannel: ChatChannelConfig = {
-      ...mergedConfig,
-      ...(result.configUpdates ?? {}),
-      botTokenRef,
-      inboundSigningRef,
-    };
 
-    // 5. issuedInboundSigning plaintext → secret store.
-    if (result.issuedInboundSigning) {
-      await this.secrets.rotate(
-        inboundSigningRef,
-        trigger.workspaceId,
-        result.issuedInboundSigning,
-      );
-    }
+    // 2~6단계 중 어디서 실패해도 이 요청이 쓴 비밀을 재발급 전 값으로 되돌리고 원래 오류를 그대로 던진다
+    // (NERV Task `CLE-T-Q353Y4`). 되돌리는 규칙은 `SecretWriteJournal` 에 있다. 4단계가 provider 에 남긴
+    // 등록은 되돌리지 않는다.
+    // 근거: [채팅 데이터 「봇 토큰 라이프사이클」](CLE-CHAT-DATA#봇-토큰-라이프사이클).
+    const journal = new SecretWriteJournal(this.secrets, trigger.workspaceId);
 
-    // 6. trigger 컬럼 갱신 — **락 안에서 config 를 다시 읽어 머지한다.**
-    //
-    // 위 `adapter.setupChannel` 은 이미 끝났으므로 외부 호출이 임계 구간에 들어가지 않는다
-    // (근거는 `trigger-config-lock.ts` JSDoc). `mergedChannel` 은 이 회전의 산출이라 그대로
-    // 쓰고, 되살려야 하는 것은 **다른 요청이 그 사이 커밋한 `config` 의 나머지 키**다 —
-    // 종전엔 1단계 `findById` 시점의 `trigger.config` 스냅샷으로 통째로 덮어 그것들을 잃었다.
-    //
-    // 아래 네 컬럼은 «이번 회전의 결과» 라 머지 대상이 아니다.
-    const rotatedAt = new Date();
-    const wrote = await rewriteTriggerConfigLocked(
-      this.triggerRepository.manager,
-      trigger.id,
-      // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다.
-      //
-      // **`patch` 는 델타여야 한다 — 스냅샷 전체가 아니다.** 앞 라운드에서 `mergedChannel`
-      // 을 `patch` 로 넘겼는데, 그건 함수 시작 시점의 `chatChannelCfg` 를 스프레드한 **전체**
-      // 객체라 재읽기로 얻은 `rateLimitPerMinute`·`uiMapping`·`languageLocale` 을 무조건
-      // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다
-      // (`/ai-review` `review/code/2026/09/14/23_38_09` side_effect·maintainability C1).
-      //
-      // 두 ref 는 델타에 **포함한다** — `chatChannelSecretRef(trigger.id, …)` 로 매번 재유도되는
-      // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
-      (freshConfig) =>
-        mergeIntoFreshSubKey(
-          freshConfig,
-          'chatChannel',
-          {
-            ...(result.configUpdates ?? {}),
-            botTokenRef,
+    // 1. 기존 botToken 을 읽는다. 행이 없거나 읽지 못하면 백업하지 않는다(최초 rotation).
+    const priorPrimary = await journal.read(botTokenRef);
+    const oldPlaintext =
+      priorPrimary.state === 'present' ? priorPrimary.plaintext : null;
+
+    const { wrote, mergedChannel, rotatedAt } = await journal.undoOnFailure(
+      this.logger,
+      `TriggersService.rotateBotToken trigger=${trigger.id}`,
+      async () => {
+        // 2. 기존 token 이 있으면 v2Ref 에 백업. 저장된 값이 비었거나 공백만이면 건너뛴다. 저장소가 빈 평문을
+        // 거부하기 전에 저장된 옛 빈 행이고(NERV Task `CLE-T-94Z6A5`) 보존할 토큰이 아니다. 백업하려 들면
+        // 저장소가 거부해 재발급 전체가 실패한다.
+        let v2RefUsed: string | null = null;
+        if (oldPlaintext !== null && oldPlaintext.trim() === '') {
+          this.logger.warn(
+            `rotateBotToken: 저장된 이전 봇 토큰이 빈 값이라 유예 백업을 건너뜁니다 (trigger=${trigger.id}).`,
+          );
+        } else if (oldPlaintext !== null) {
+          await journal.write(v2Ref, oldPlaintext, await journal.read(v2Ref));
+          v2RefUsed = v2Ref;
+        }
+
+        // 3. primary botTokenRef 에 새 token 저장 (UPSERT).
+        await journal.write(botTokenRef, newBotToken, priorPrimary);
+
+        // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
+        // [Spec Chat Channel §5.4] **자격 증명 거부**는 BOT_TOKEN_INVALID 400, 그 밖의 실패는
+        // CHAT_CHANNEL_SETUP_FAILED 502 로 변환. 판별은 adapter 가 부착한 `code` (CCA §1.1.2).
+        let result: SetupResult;
+        try {
+          result = await adapter.setupChannel(mergedConfig, callbackUrl);
+        } catch (err) {
+          // **provider 원문은 여기서만 남는다** — §5.4 가 응답 본문에 원문을 싣지 못하게 하므로
+          // (§7.5.2 보안 게이트와 같은 이유) 진단 단서를 서버 로그로 옮긴다. 변환 함수는
+          // `chat-channel-input-rules.ts` 의 순수 함수라 logger 를 갖지 않는다.
+          this.logger.warn(
+            `rotateBotToken setupChannel 실패 (trigger=${trigger.id} provider=${chatChannelCfg.provider}): ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          throw translateSetupChannelError(err);
+        }
+        const merged: ChatChannelConfig = {
+          ...mergedConfig,
+          ...(result.configUpdates ?? {}),
+          botTokenRef,
+          inboundSigningRef,
+        };
+
+        // 5. issuedInboundSigning plaintext → secret store.
+        if (result.issuedInboundSigning) {
+          await journal.write(
             inboundSigningRef,
+            result.issuedInboundSigning,
+            await journal.read(inboundSigningRef),
+          );
+        }
+
+        // 6. trigger 컬럼 갱신 — **락 안에서 config 를 다시 읽어 머지한다.**
+        //
+        // 위 `adapter.setupChannel` 은 이미 끝났으므로 외부 호출이 임계 구간에 들어가지 않는다
+        // (근거는 `trigger-config-lock.ts` JSDoc). `merged` 는 이 회전의 산출이라 그대로
+        // 쓰고, 되살려야 하는 것은 **다른 요청이 그 사이 커밋한 `config` 의 나머지 키**다 —
+        // 종전엔 1단계 `findById` 시점의 `trigger.config` 스냅샷으로 통째로 덮어 그것들을 잃었다.
+        //
+        // 아래 네 컬럼은 «이번 회전의 결과» 라 머지 대상이 아니다.
+        const at = new Date();
+        const written = await rewriteTriggerConfigLocked(
+          this.triggerRepository.manager,
+          trigger.id,
+          // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다.
+          //
+          // **`patch` 는 델타여야 한다 — 스냅샷 전체가 아니다.** 앞 라운드에서 `mergedChannel`
+          // 을 `patch` 로 넘겼는데, 그건 함수 시작 시점의 `chatChannelCfg` 를 스프레드한 **전체**
+          // 객체라 재읽기로 얻은 `rateLimitPerMinute`·`uiMapping`·`languageLocale` 을 무조건
+          // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다
+          // (`/ai-review` `review/code/2026/09/14/23_38_09` side_effect·maintainability C1).
+          //
+          // 두 ref 는 델타에 **포함한다** — `chatChannelSecretRef(trigger.id, …)` 로 매번 재유도되는
+          // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
+          (freshConfig) =>
+            mergeIntoFreshSubKey(
+              freshConfig,
+              'chatChannel',
+              {
+                ...(result.configUpdates ?? {}),
+                botTokenRef,
+                inboundSigningRef,
+              },
+              merged as unknown as Record<string, unknown>,
+            ),
+          {
+            chatChannelTokenV2: v2RefUsed,
+            chatChannelRotatedAt: at,
+            chatChannelHealth: 'healthy',
+            chatChannelLastError: null,
           },
-          mergedChannel as unknown as Record<string, unknown>,
-        ),
-      {
-        chatChannelTokenV2: v2RefUsed,
-        chatChannelRotatedAt: rotatedAt,
-        chatChannelHealth: 'healthy',
-        chatChannelLastError: null,
+        );
+        return { wrote: written, mergedChannel: merged, rotatedAt: at };
       },
     );
     // **쓰기가 skip 됐으면 성공으로 응답하지 않는다.** 그 사이 트리거가 삭제되면 헬퍼는

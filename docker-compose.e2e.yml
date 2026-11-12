@@ -227,6 +227,11 @@ services:
       DB_USERNAME: clemvion
       DB_PASSWORD: clemvion-e2e
       DB_DATABASE: clemvion_e2e
+      # 서버(backend-e2e)와 같은 키. 재발급 실패 뒤 secret_store 행을 복호화해 되돌린 값을 확인할 때 쓴다
+      # (chat-channel-bot-token-rotation-undo.e2e-spec.ts). 암호문은 IV 가 매번 달라 비교할 수 없다.
+      # YAML 앵커로 묶지 않는다. 예시 키 가드(production-guards.spec.ts)가 줄의 값을 그대로 읽는다.
+      # 서버 값을 바꾸면 여기도 함께 바꾼다.
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       # 실 Redis 직결 e2e (integration-cache-invalidate / execution-seq-allocator-load)
       # 가 같은 docker network 의 redis 컨테이너로 ioredis 연결할 때 사용 (x-redis-env anchor).
       <<: *redis-env
