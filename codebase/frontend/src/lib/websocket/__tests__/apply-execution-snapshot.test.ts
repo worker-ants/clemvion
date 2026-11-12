@@ -424,7 +424,7 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
             },
           },
         ],
-      }),
+      }) as unknown as ExecutionData,
     );
 
     const state = useExecutionStore.getState();
