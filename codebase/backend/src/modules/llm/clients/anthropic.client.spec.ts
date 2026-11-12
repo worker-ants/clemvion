@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { AnthropicClient } from './anthropic.client';
 import type { ChatStreamEvent } from '../interfaces/llm-client.interface';
 
@@ -267,6 +268,57 @@ describe('AnthropicClient.stream', () => {
       code: 'LLM_CONNECTION_ERROR',
     });
   });
+
+  // 특성화 테스트다. 지금 동작을 그대로 고정한다.
+  // [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」: Anthropic 은 스트림을 열기 전의
+  // 429 와 SDK 요청 타임아웃을 예외 대신 `error` 이벤트 하나로 보내고 끝낸다. OpenAI 계열은
+  // 같은 실패를 예외로 던진다(`openai.client.spec.ts`). 두 갈래를 하나로 맞추기로 하면
+  // NERV Task `CLE-T-0R5SYN` 이 이 테스트도 함께 고친다.
+  it.each([
+    [
+      '429',
+      () =>
+        new Anthropic.RateLimitError(
+          429,
+          {
+            type: 'error',
+            error: { type: 'rate_limit_error', message: 'Rate limited' },
+          },
+          undefined,
+          new Headers(),
+        ),
+      'LLM_RATE_LIMIT',
+    ],
+    [
+      'SDK 요청 타임아웃',
+      () => new Anthropic.APIConnectionTimeoutError(),
+      'LLM_CONNECTION_ERROR',
+    ],
+  ] as const)(
+    '스트림을 열기 전 %s 이면 예외 대신 error 이벤트 하나로 끝낸다',
+    async (_label, makeError, code) => {
+      const failure = makeError();
+      const create = jest.fn().mockRejectedValue(failure);
+      const client = new AnthropicClient(
+        'sk-test',
+        'claude-haiku-4-5-20251001',
+      );
+      // @ts-expect-error — stub
+      client.client = { messages: { create } };
+
+      const events = await collect(
+        client.stream({
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'x' }],
+        }),
+      );
+
+      expect(events).toEqual([
+        { type: 'error', code, message: failure.message },
+      ]);
+      expect(create).toHaveBeenCalledTimes(1);
+    },
+  );
 
   // 어시스턴트 시스템 프롬프트는 LLM 에게 독립 edit 을 단일 메시지에 batch 로
   // 내도록 지시한다. Anthropic SDK 기본은 허용이지만, 명시적으로

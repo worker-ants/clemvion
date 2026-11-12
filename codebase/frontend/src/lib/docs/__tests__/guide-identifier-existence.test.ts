@@ -527,7 +527,8 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
 
       // 대조 — `CONTAINER_MISSING_EMIT` 는 소비자 인용이 없어 접두-전용으로 남고,
-      // 카탈로그에도 없어 등록이 필요했다. 두 토큰이 갈리는 자리가 정확히 여기다.
+      // 카탈로그에도 없어 등록이 필요하다(행으로 등재하지 않기로 정했다, NERV Task
+      // `CLE-T-1W44RD`). 두 토큰이 갈리는 자리가 정확히 여기다.
       expect(prefixOnly("CONTAINER_MISSING_EMIT")).toBe(true);
       expect(catalogCodes.has("CONTAINER_MISSING_EMIT")).toBe(false);
     });
@@ -536,12 +537,15 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 전수 실측: 인용된 «접두 전용» 중 카탈로그 등재 0종. 즉 이 필터는 현재 죽은
       // 경로다 — 그 사실을 숨기지 않고 **숫자로 고정**한다.
       //
-      // 그래도 지우지 않는 이유: NERV Task `CLE-T-DM3AXQ` 항목 5 가 `CONTAINER_*` 를
-      // `CLE-API-ERRCODES` 「6.5」 에 등재할지 정한다. 등재되면 이 탈출구가 발화해 등록
-      // 2종이 자동으로 불필요해진다. 지우면 그 항목의 서술이 거짓이 된다.
+      // `CONTAINER_*` 는 「6.5」 에 등재하지 않기로 정했다(2026-11-12, NERV Task
+      // `CLE-T-1W44RD`). 그래서 등재로 이 탈출구가 발화할 일은 없다. 그래도 남기는 이유는
+      // `collectCatalogCodes` JSDoc 「그래도 남기는 이유」 에 있다.
       //
-      // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다** — 그때는 등록 항목을
-      // 지울 수 있다는 신호다.
+      // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다.** 가장 먼저 올 후보는
+      // `MAX_ITERATIONS_EXCEEDED` 다. 분류기 인용이 지워지면(NERV Task `CLE-T-8WXV7T`) 이
+      // 탈출구가 «코드가 아니다» 라고 적은 카탈로그 행으로 그 이름을 구한다. 그 RED 는
+      // 등록을 지워도 된다는 뜻이 아니다. 카탈로그 행을 지우거나 그 이름을
+      // `GUIDE_NON_EMITTED_VOCABULARY` 에 등록한다.
       // **정본으로 센다** — 카탈로그를 비운 집합으로 한 번 더 돌려, 그 차이가 곧
       // «탈출구가 구한 토큰» 이다. 손 계산이 아니라 판정 함수 자신의 출력 차이다.
       const withCatalog = computeNonEmittedOffenders(

@@ -1402,9 +1402,9 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
   });
 });
 
-// spec/conventions/conversation-thread.md §9.10 CT-S18 / CT-S19 / CT-S20
-// — 엔진이 LLM 호출 전 자동 수행한 KB 검색을 🔎 `rag` 행으로 표시 (§1.1.2).
-// LLM 이 호출한 KB 도구(`tool`) 와 인과가 달라 별도 행으로 구분한다 (§9.2).
+// [대화 미리보기](CLE-EXEC-PREVIEW) 「회귀 차단 시나리오」 CT-S18 / CT-S19 / CT-S20
+// — 그 턴에 KB 도구(`kb_*`) 호출이 가져온 청크를 턴 단위로 모아 🔎 `rag` 행으로 표시.
+// 같은 호출의 🔧 `tool` 행과 보여 주는 단위가 달라 별도 행으로 구분한다 (「세 가지 구분 신호」).
 describe("mergeRagRetrievalItems (CT-S18/S19/S20)", () => {
   const src = (name: string) => ({
     chunkId: `c-${name}`,
@@ -1414,7 +1414,7 @@ describe("mergeRagRetrievalItems (CT-S18/S19/S20)", () => {
     score: 0.9,
   });
 
-  it("CT-S18: KB 자동검색과 도구 호출이 같은 턴에 있어도 각각 독립 행으로 남는다", () => {
+  it("CT-S18: KB 청크 행과 같은 턴의 도구 호출 행이 각각 독립 행으로 남는다", () => {
     const items: ConversationItem[] = [
       { type: "user", content: "환불 규정?", turnIndex: 1 },
       {

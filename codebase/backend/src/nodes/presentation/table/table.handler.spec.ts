@@ -855,9 +855,34 @@ describe('TableHandler', () => {
         expect(Object.keys(serialized)).not.toContain('buttons');
       });
 
-      // 입력 대기 경로는 이 Task 범위 밖이라 동작을 바꾸지 않는다. 대기 여부와
-      // buttonConfig 만 고정한다(`config.buttons` 가 원문인지 평가값인지는 따로 다룬다).
-      it('keeps the waiting path status and buttonConfig', async () => {
+      // 입력 대기에서도 `config.buttons` 는 원문이고, 버튼을 그리는 표면이 읽는
+      // `buttonConfig.buttons` 는 평가한 값이다(CLE-NODE-TABLE 「입력 대기」, CLE-T-079J24).
+      it('keeps the waiting path: raw buttons on config, evaluated on buttonConfig', async () => {
+        const evaluated = [{ id: 'yes', label: 'Yes' }];
+        const raw = [{ id: 'yes', label: '{{ $var.yesLabel }}' }];
+        const result = (await handler.execute(
+          [{ name: 'Alice' }],
+          { mode: 'dynamic', columns, buttons: evaluated },
+          {
+            ...context,
+            rawConfig: Object.freeze({
+              mode: 'dynamic',
+              columns,
+              buttons: raw,
+            }),
+          },
+        )) as unknown as Result;
+        expect(result.status).toBe('waiting_for_input');
+        expect(result.meta).toEqual({
+          interactionType: 'buttons',
+          durationMs: 0,
+        });
+        expect(result.config.buttons).toEqual(raw);
+        expect(result.config.buttonConfig).toEqual({ buttons: evaluated });
+      });
+
+      // rawConfig 가 없는 호출(단위 테스트 · 옛 호출 경로)은 설정 값을 그대로 싣는다.
+      it('falls back to the given buttons when rawConfig is absent on the waiting path', async () => {
         const evaluated = [{ id: 'yes', label: 'Yes' }];
         const result = (await handler.execute(
           [{ name: 'Alice' }],
@@ -865,10 +890,7 @@ describe('TableHandler', () => {
           context,
         )) as unknown as Result;
         expect(result.status).toBe('waiting_for_input');
-        expect(result.meta).toEqual({
-          interactionType: 'buttons',
-          durationMs: 0,
-        });
+        expect(result.config.buttons).toEqual(evaluated);
         expect(result.config.buttonConfig).toEqual({ buttons: evaluated });
       });
     });

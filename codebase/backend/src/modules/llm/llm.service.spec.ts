@@ -7,6 +7,7 @@ import {
   contractForDto,
 } from '../../shared/testing/response-contract';
 import { ModelTestConnectionResultDto } from '../model-config/dto/responses/model-config-response.dto';
+import type { ChatStreamEvent } from './interfaces/llm-client.interface';
 
 // ─── Shared test fixtures ────────────────────────────────────────────────────
 
@@ -320,6 +321,142 @@ describe('LlmService', () => {
         };
         expect(forwarded.messages).toEqual([{ role: 'user', content: 'hi' }]);
       });
+    });
+  });
+
+  // 특성화 테스트다. 지금 동작을 그대로 고정한다.
+  // [LLM 클라이언트](CLE-AI-LLM) 「호출 신뢰성 계약」: `chatStream` 은 `withRetry` 를 거치지
+  // 않아 스트림을 열 때도 도중에도 다시 시도하지 않는다. 사용량은 `done` 이벤트에서만 기록한다.
+  describe('chatStream', () => {
+    const config = {
+      id: 'config-1',
+      workspaceId: 'ws-1',
+      provider: 'openai',
+      defaultModel: 'gpt-4o',
+      apiKey: 'encrypted',
+    } as never;
+    const params = {
+      model: 'gpt-4o',
+      messages: [{ role: 'user' as const, content: 'hi' }],
+    };
+    const usage = { inputTokens: 3, outputTokens: 2, totalTokens: 5 };
+
+    function streamOf(events: ChatStreamEvent[]): jest.Mock {
+      return jest.fn(async function* () {
+        for (const ev of events) yield ev;
+      });
+    }
+
+    const recordMock = (): jest.Mock =>
+      (service as unknown as { usageLogService: { record: jest.Mock } })
+        .usageLogService.record;
+
+    async function drain(
+      stream: AsyncIterable<ChatStreamEvent>,
+      seen: ChatStreamEvent[] = [],
+    ): Promise<ChatStreamEvent[]> {
+      for await (const ev of stream) seen.push(ev);
+      return seen;
+    }
+
+    it('429 error 이벤트를 받으면 다시 열지 않고 그 이벤트를 넘긴다', async () => {
+      const rateLimited: ChatStreamEvent = {
+        type: 'error',
+        code: 'LLM_RATE_LIMIT',
+        message: '429 rate limit exceeded',
+      };
+      mockClient.stream = streamOf([rateLimited]);
+
+      const events = await drain(service.chatStream(config, params));
+
+      expect(events).toEqual([rateLimited]);
+      expect(mockClient.stream).toHaveBeenCalledTimes(1);
+    });
+
+    it('스트림을 열 때 429 예외가 나면 다시 열지 않고 그 예외를 던진다', async () => {
+      const failure = new Error('429 rate limit exceeded');
+      mockClient.stream = jest.fn(() => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(failure),
+        }),
+      }));
+
+      await expect(drain(service.chatStream(config, params))).rejects.toBe(
+        failure,
+      );
+      expect(mockClient.stream).toHaveBeenCalledTimes(1);
+    });
+
+    it('done 으로 끝나면 사용량을 한 번 기록한다', async () => {
+      mockClient.stream = streamOf([
+        { type: 'text_delta', delta: 'ok' },
+        { type: 'done', usage, model: 'gpt-4o-2024', finishReason: 'stop' },
+      ]);
+
+      await drain(service.chatStream(config, params));
+
+      expect(recordMock()).toHaveBeenCalledTimes(1);
+      expect(recordMock()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          llmConfigId: 'config-1',
+          provider: 'openai',
+          model: 'gpt-4o-2024',
+          usage,
+        }),
+      );
+    });
+
+    it('error 이벤트로 끝나면 사용량을 기록하지 않는다', async () => {
+      mockClient.stream = streamOf([
+        { type: 'text_delta', delta: 'partial' },
+        { type: 'error', code: 'LLM_CONNECTION_ERROR', message: 'reset' },
+      ]);
+
+      await drain(service.chatStream(config, params));
+
+      expect(recordMock()).not.toHaveBeenCalled();
+    });
+
+    it('스트림을 열 때 예외가 나면 사용량을 기록하지 않는다', async () => {
+      mockClient.stream = jest.fn(() => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(new Error('socket hang up')),
+        }),
+      }));
+
+      await expect(drain(service.chatStream(config, params))).rejects.toThrow(
+        'socket hang up',
+      );
+      expect(recordMock()).not.toHaveBeenCalled();
+    });
+
+    it('읽는 쪽이 done 전에 멈추면 사용량을 기록하지 않는다', async () => {
+      mockClient.stream = streamOf([
+        { type: 'text_delta', delta: 'partial' },
+        { type: 'done', usage, model: 'gpt-4o', finishReason: 'stop' },
+      ]);
+
+      for await (const ev of service.chatStream(config, params)) {
+        if (ev.type === 'text_delta') break;
+      }
+
+      expect(recordMock()).not.toHaveBeenCalled();
+    });
+
+    it('취소로 온 done(aborted) 의 사용량이 0 이면 기록하지 않는다', async () => {
+      mockClient.stream = streamOf([
+        {
+          type: 'done',
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          model: 'gpt-4o',
+          finishReason: 'aborted',
+        },
+      ]);
+
+      await drain(service.chatStream(config, params));
+
+      expect(recordMock()).not.toHaveBeenCalled();
     });
   });
 

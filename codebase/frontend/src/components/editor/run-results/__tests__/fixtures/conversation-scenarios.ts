@@ -373,9 +373,11 @@ export const ctS17HistoryFailedConversation = {
 } as const;
 
 /**
- * CT-S18/S19/S20 — 🔎 KB 자동검색(`rag`) 행과 🔧 도구 행의 시각 구분 (§1.1.2·§9.1).
+ * CT-S18/S19/S20 — 🔎 KB 청크(`rag`) 행과 🔧 도구 행의 시각 구분
+ * ([대화 미리보기](CLE-EXEC-PREVIEW) 「세 가지 구분 신호」).
  *
- * 엔진이 LLM 호출 **전** 자동 수행한 검색이라 LLM 이 호출한 도구와 인과가 다르다.
+ * `rag` 행은 그 턴에 KB 도구(`kb_*`) 호출이 가져온 청크의 턴 단위 모음이다. 같은
+ * 호출이 도구 행으로도 보이므로 보여 주는 단위가 다르다는 것을 시각으로 구분한다.
  * 데이터는 `meta.turnDebug[].ragSources` — References 탭·📚 chip 과 **동일 소스**
  * 여야 한다 (Inv-9).
  */
@@ -389,7 +391,7 @@ function ragChunk(name: string) {
   };
 }
 
-/** CT-S18 — 한 턴에 자동 KB 검색 + KB 도구 호출이 동시 발생. */
+/** CT-S18 — 한 턴의 KB 도구 호출이 청크를 가져와 🔎 행과 🔧 도구 행이 함께 보인다. */
 export const ctS18RagAndToolSameTurn = {
   /** 노드 output — References 탭·🔎 행이 공유하는 meta.turnDebug */
   outputData: {
