@@ -1767,7 +1767,7 @@ describe('HooksService', () => {
       });
     });
 
-    // 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011 · CLE-CHAT-ADAPTER 「ackDroppedUpdate」 — 버린 update 에는
+    // 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011 · CLE-CHAT-ADAPTER 「인터랙션 기본 응답과 수신 확인」 — 버린 update 에는
     // 어댑터의 `ackDroppedUpdate` 를 부르고(Telegram `answerCallbackQuery`, 키보드는 남긴다) 실패는 처리를
     // 막지 않는다. 처리한 update 는 `ackInteraction` 이 맡고, 꺼진 트리거는 외부 호출을 하지 않는다.
     // 2026-11-12 사람 결정. NERV Task `CLE-T-K8Z2W0`.

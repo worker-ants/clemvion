@@ -89,7 +89,7 @@ interface ChatChannelWebhookResult {
    * res.json 으로 보낸다. Discord modal open `{ type: 9 }` · MODAL_SUBMIT 결과 `{ type: 4 }` ·
    * 컴포넌트 클릭 · 모달 제출의 기본 ack `{ type: 6 }` · 슬래시 명령의 수신 응답 `{ type: 4 }`,
    * Slack view_submission `{ response_action: 'errors' }` 가 있다.
-   * SoT: CLE-CHAT-ADAPTER 「네이티브 폼 모달」 · 「인터랙션 기본 응답」.
+   * SoT: CLE-CHAT-ADAPTER 「네이티브 모달 경로」 · 「인터랙션 기본 응답과 수신 확인」.
    */
   interactionHttpResponse?: unknown;
   /**
