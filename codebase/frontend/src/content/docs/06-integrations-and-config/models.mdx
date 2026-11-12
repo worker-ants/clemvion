@@ -73,9 +73,9 @@ Workflow AI Assistant 와 AI Agent 의 토큰 단위 스트리밍 응답은 모�
 프로바이더 단위로 기본 파라미터를 저장해 두면, AI 노드가 이 값을 초깃값으로 상속받아요. 노드의 설정 패널에서 개별적으로 덮어쓸 수 있어요.
 
 <FieldTable rows={[
-  { name: "temperature", type: "number (0.0 ~ 2.0)", required: "선택", description: "응답 창의성. 기본 0.7." },
+  { name: "temperature", type: "number (0.0 ~ 2.0)", required: "선택", description: "응답 창의성. 기본 0.7. Anthropic 모델에는 보내지 않아요." },
   { name: "max_tokens", type: "integer", required: "Anthropic 필수", description: "최대 출력 토큰 수. 기본 4096." },
-  { name: "top_p", type: "number (0.0 ~ 1.0)", required: "선택", description: "누적 확률 기반 샘플링. 기본 1.0." },
+  { name: "top_p", type: "number (0.0 ~ 1.0)", required: "선택", description: "누적 확률 기반 샘플링. 기본 1.0. Anthropic 모델에는 보내지 않아요." },
   { name: "frequency_penalty", type: "number", required: "선택", description: "반복 토큰 억제. 기본 0.0." },
   { name: "presence_penalty", type: "number", required: "선택", description: "새 토큰 유도. 기본 0.0." }
 ]} />

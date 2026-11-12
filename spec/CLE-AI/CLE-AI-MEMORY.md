@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
 content_hash: "cb504fd5261a3a45f933c62c2ac7641a1a0974a167b71bbb671460bf3746f2a2"
 read_as: "approved_fallback"
-task: "CLE-T-MG0EQZ"
+task: "CLE-T-GKZPKY"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "c8c189bb9f7733aa284303c8c4763428a615cf5ac9f746b8abf4dafc761d41ec"
-etag: "sha256-96152be20c022af42603fea57064ab4da9d6dfaa62c4ced172b0d6261fe45c7d"
+mirror_sha256: "8bb66e06c92c4988d56a968ce193d135d9887fad5b878706e23208be45c7be94"
+etag: "sha256-10848abcd1fcc49fe39035ff0c431ccd205532db651a0d2840108d92b168677c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

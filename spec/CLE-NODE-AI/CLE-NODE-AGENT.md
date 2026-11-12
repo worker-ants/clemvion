@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "d65119e776d5b4c488230410706e8fb5af979120d46b87bfdecc2db7ace46672"
+content_hash: "eebee3f19072f4689f52b5fdf020c426d058b18482896f04b1c6a7de605bfe1e"
 read_as: "approved_fallback"
-task: "CLE-T-KPDDKB"
+task: "CLE-T-GKZPKY"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "fb66bfa7d0631c47c31af3f543a33255e4c913fe66baaa64c30f474f9a551a27"
-etag: "sha256-6c19b057c26632c3a03d8910417179ac5fa1ec3505281593e2e327ba6d179657"
+mirror_sha256: "d1513fe81eec3a1172ebaa69c0d31b9f4a68813a551ded630fffadfc2b61625e"
+etag: "sha256-ef20c9af04c90447add21d75fdbd8d6aa3e7d7964cbb703a0653688ddcb7417f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 - REQ-AGENT-001 WHEN 노드가 실행되면 THE SYSTEM SHALL 설정한 모델로 LLM 을 불러 AI 에이전트를 실행한다. (원본: ND-AG-01)
 - REQ-AGENT-002 WHEN 사용자가 시스템 프롬프트를 입력하면 THE SYSTEM SHALL 마크다운과 표현식을 허용한다. (원본: ND-AG-02)
 - REQ-AGENT-003 WHEN 사용자가 모델을 고르면 THE SYSTEM SHALL 모델 설정에 등록한 Chat 프로바이더와 모델 중에서 고르게 한다. (원본: ND-AG-03)
-- REQ-AGENT-004 WHEN `temperature`·`maxTokens` 를 지정하면 THE SYSTEM SHALL 모델 설정 기본값 대신 그 값을 쓴다. (원본: ND-AG-04)
+- REQ-AGENT-004 WHEN `temperature`·`maxTokens` 를 지정하면 THE SYSTEM SHALL 모델 설정 기본값 대신 그 값을 쓴다. 단 Anthropic 모델에는 `temperature` 를 보내지 않는다. (원본: ND-AG-04)
 - REQ-AGENT-005 WHEN 지식 저장소를 연결하면 THE SYSTEM SHALL 지식 저장소 도구를 LLM 에 노출해 RAG 검색을 가능하게 한다. (원본: ND-AG-05)
 - REQ-AGENT-006 WHEN 대화 맥락 설정을 켜면 THE SYSTEM SHALL 대화 스레드를 설정한 범위와 형식으로 LLM 입력에 넣는다. (원본: ND-AG-07)
 - REQ-AGENT-007 WHEN `responseFormat` 이 `json` 이면 THE SYSTEM SHALL 최종 응답을 JSON 으로 파싱하고 `jsonSchema` 가 있으면 출력 스키마로 쓴다. (원본: ND-AG-08)
@@ -103,7 +103,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 | `model` | String (표현식) | | 없음 | 모델 ID. `{{ }}` 허용 |
 | `systemPrompt` | String (표현식) | | 없음 | 마크다운·표현식 지원 |
 | `userPrompt` | String (표현식) | | 없음 | 단일 턴 전용. 멀티턴으로 바꾸면 프런트엔드 `clearFields` 가 지우고 백엔드도 무시한다(서버 쪽 안전망) |
-| `temperature` | Float | | 모델 설정 기본 파라미터 | 덮어쓰기 |
+| `temperature` | Float | | 모델 설정 기본 파라미터 | 덮어쓰기. Anthropic 모델에는 보내지 않는다 |
 | `maxTokens` | Integer | | 모델 설정 기본 파라미터(`max_tokens`, 새 설정 폼 기본값 4096) | 덮어쓰기. 기본 파라미터는 [모델 설정](../CLE-AI/CLE-AI-MODELS.md#기본-파라미터-기본값) 이 정한다 |
 | `responseFormat` | `text` / `json` | ✓ | `text` | 응답 형식 |
 | `jsonSchema` | JSONSchema | | 없음 | `responseFormat=json` 일 때 출력 스키마 |
@@ -132,7 +132,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 | `conditions` | ConditionDef[] | | `[]` | 조건 목록. 조건마다 `{condition.id}` 포트 |
 | `presentationTools` | PresentationToolDef[] | | `[]` | 표시 도구 등록 목록. 비어 있으면 꺼짐 |
 
-현재 구현은 모델 설정에 저장한 기본 파라미터(`defaultParams`)를 LLM 호출에 넣지 않는다. `temperature`·`maxTokens` 를 비우면 값 없이 부르고, Anthropic 클라이언트만 `max_tokens` 를 4096 으로 채운다. 나머지 프로바이더는 자체 기본값을 쓴다.
+현재 구현은 모델 설정에 저장한 기본 파라미터(`defaultParams`)를 LLM 호출에 넣지 않는다. `temperature`·`maxTokens` 를 비우면 값 없이 부르고, Anthropic 클라이언트만 `max_tokens` 를 4096 으로 채운다. 나머지 프로바이더는 자체 기본값을 쓴다. Anthropic 클라이언트는 `temperature` 를 지정해도 보내지 않는다([LLM 클라이언트 「Anthropic」](../CLE-AI/CLE-AI-LLM.md#anthropic)).
 
 세 모델 설정 선택 필드는 노드 `llmConfigId` 와 독립이며, 고른 설정 자신의 provider·credential·defaultModel 로 부른다. 설정 스키마의 단일 기준은 `ai-agent.schema.ts` 의 `aiAgentNodeConfigSchema` 다. 스키마는 `.passthrough()` 라 DB 에 남은 옛 키는 조용히 통과하지만 핸들러는 읽지 않는다.
 
@@ -656,3 +656,7 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 - **토큰 기준은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 둔다.** 이 문서와 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 는 링크와 한 줄 요약만 둔다. 세 문서가 따로 적으면 `CLE-T-9VRXGD` 로 기준을 바꿀 때 한 곳이 낡는다.
 - **롤링 요약 · 요약 모델 설정 조회 실패의 처리는 이 문서가 정한다.** [AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 의 타임아웃 표는 결과만 한 줄로 적고 이 문서를 링크한다.
 - **이웃 문서를 맞췄으므로 미결 항목을 지웠다.** [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) · [용어 사전 — 노드](../CLE-GLOSSARY-NODE.md) · [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) · [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) · [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 이 단일 턴의 재시도 버튼 없음, 에러 처리 정책 미적용, `ended` 종료를 적는다.
+
+### Anthropic 모델에는 temperature 를 보내지 않는다 (2026-11-12)
+
+Anthropic 예외를 REQ-AGENT-004 에 둔 것은 Anthropic API 버전 `2026-10-21` 이 Messages 요청에 `temperature` 가 있으면 값과 모델에 상관없이 400 으로 거절하기 때문이다. 2026-11-12 사용자가 Anthropic 요청에서 `temperature` 를 빼기로 정했다. 자세한 근거와 기각한 대안은 [LLM 클라이언트 Rationale](../CLE-AI/CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12) 에 있다(NERV Task `CLE-T-GKZPKY`).
