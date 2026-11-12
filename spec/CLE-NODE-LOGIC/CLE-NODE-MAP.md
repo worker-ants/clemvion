@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "66d053c199227c848634a7bc8d9d2e9a187fcc36eb71b5acb43d9b24062b4002"
+content_hash: "62df4953fea7e3998e2a2aa04016593ef11d098348e67540f123894a1ca1b5db"
 read_as: "approved_fallback"
-task: "CLE-T-REC4X3"
+task: "CLE-T-W0377J"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "bbf188a2ca5566641fb6eed59d7497286074a3ff31fac74d368cccec3734de57"
-etag: "sha256-f8f672a3230d41cd277a2a854d56e718ef7aeb2116e7c2588c607ef324a0a623"
+mirror_sha256: "234ce4f8aab6cdbb879542a9c51e236ddcaa87807d7e418ac0babac23b8cab18"
+etag: "sha256-abf7f4be25ea318913d070493259e3096b2adf07e27bcce32d29bf94ea75ab32"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -113,7 +113,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.inputField` | Expression | 설정 에코 | 사용자가 입력한 원래 표현식. `{{ }}` 을 남긴다 |
-| `config.errorPolicy` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책(기본 `stop`) |
+| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 엔진은 `stop` 일 때와 같이 동작한다 |
 | `output` | unknown[] | 런타임, 핸들러 반환 | 해석한 원래 배열(항목이 본문으로 나뉜다). `inputField` 가 배열이 아니거나 해석되지 않으면 `[]` |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `inputField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 

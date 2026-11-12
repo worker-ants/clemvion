@@ -2,19 +2,19 @@
 id: "CLE-NODE-TEMPLATE"
 title: "Template 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-TEMPLATE-001", "REQ-TEMPLATE-002", "REQ-TEMPLATE-003", "REQ-TEMPLATE-004", "REQ-TEMPLATE-005", "REQ-TEMPLATE-006", "REQ-TEMPLATE-007", "REQ-TEMPLATE-008", "REQ-TEMPLATE-009", "REQ-TEMPLATE-010", "REQ-TEMPLATE-011", "REQ-TEMPLATE-012", "REQ-TEMPLATE-013", "REQ-TEMPLATE-014", "REQ-TEMPLATE-015", "REQ-TEMPLATE-016"]
+requirements: ["REQ-TEMPLATE-001", "REQ-TEMPLATE-002", "REQ-TEMPLATE-003", "REQ-TEMPLATE-004", "REQ-TEMPLATE-005", "REQ-TEMPLATE-006", "REQ-TEMPLATE-007", "REQ-TEMPLATE-008", "REQ-TEMPLATE-009", "REQ-TEMPLATE-010", "REQ-TEMPLATE-011", "REQ-TEMPLATE-012", "REQ-TEMPLATE-013", "REQ-TEMPLATE-014", "REQ-TEMPLATE-015", "REQ-TEMPLATE-016", "REQ-TEMPLATE-017", "REQ-TEMPLATE-018", "REQ-TEMPLATE-019"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "858749ccef2fc8c3145d176c56b3e0840406afe58d7710ca1420d0e655f51ad7"
+content_hash: "43e4dde5e70251c9192084dd1a35d2f52abbd42a6d60397353458ed15a4652c1"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-W0377J"
 source_paths: ["spec/4-nodes/6-presentation/5-template.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "bb4c1fc55bf1e739d616b1a0c92d9e569a2c678411c3f913695d484dbc584d80"
-etag: "sha256-b160820eaa976e52856a5e3ece8bc8388cdc1153c012c8760f63bb6b8043adc1"
+mirror_sha256: "ae3c4b643c3b10461472786cbe3d430a8181f7287b8a39cccc258d4ea3624000"
+etag: "sha256-9f04c344edc3288a9b8e6db3180373476338037454c2c0ec098addaf591151c8"
 ---
 > 구현 상태: 구현됨 (Handlebars 블록 구문·내장 헬퍼 지원 여부는 [미결 사항](#미결-사항)) · 원문: `spec/4-nodes/6-presentation/5-template.md`, `spec/4-nodes/_product-overview.md` (§9.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -27,7 +27,7 @@ Template 노드(Template, `template`)는 사용자가 적은 템플릿 문자열
 범위 밖:
 
 - 버튼 정의·버튼 편집기·포트 구성·블로킹 모드 흐름·재개 출력 규격: [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md)
-- 실행 결과 드로어의 Template 표시(HTML 샌드박스 iframe, Markdown 변환, Text `<pre>`): [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#실행-결과-드로어-표시)
+- 실행 결과 드로어의 Template 표시(HTML 은 정화한 뒤 표시, Markdown 은 HTML 로 바꾸고 정화한 뒤 표시, Text 는 `<pre>`): [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#실행-결과-드로어-표시)
 - 표시 도구 `render_template`: [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#표시-도구-모드)
 - 표현식 문법·내장 변수: [표현식 언어](../CLE-WF/CLE-WF-EXPR.md)
 
@@ -43,12 +43,15 @@ Template 노드(Template, `template`)는 사용자가 적은 템플릿 문자열
 - REQ-TEMPLATE-008 IF 입력 데이터가 배열이나 원시값이면 THE SYSTEM SHALL 최상위 변수로 펼치지 않는다.
 - REQ-TEMPLATE-009 WHEN 핸들러가 실행되면 THE SYSTEM SHALL `config.template` 을 `String()` 으로 바꿔 `output.rendered` 에 담고 별도 템플릿 엔진은 돌리지 않는다.
 - REQ-TEMPLATE-010 WHEN 설정 에코를 만들면 THE SYSTEM SHALL `config.template` 에 `{{ }}` 를 보존한 원래 문자열을 싣는다.
-- REQ-TEMPLATE-011 WHEN `outputFormat` 이 설정되어 있지 않으면 THE SYSTEM SHALL 스키마 기본값 `html` 을 쓴다.
+- REQ-TEMPLATE-011 WHEN 캔버스에서 노드를 만들거나 워크플로우를 가져올 때 `outputFormat` 이 비어 있으면 THE SYSTEM SHALL 스키마 기본값 `html` 을 설정에 저장한다.
 - REQ-TEMPLATE-012 WHEN 재개 출력을 만들면 THE SYSTEM SHALL 입력 대기 시점의 `output.rendered` 를 그대로 두고 `output.interaction` 을 더한다.
 - REQ-TEMPLATE-013 IF 표현식 평가가 실패하면 THE SYSTEM SHALL 엔진 수준 에러로 던져 실행 전체를 실패 처리한다.
 - REQ-TEMPLATE-014 IF `template` 이 비어 있거나 없으면 THE SYSTEM SHALL 노드 경고 규칙으로 캔버스에 알리고 설정 검증에서 거부한다.
 - REQ-TEMPLATE-015 IF 설정 검증에 실패하면 THE SYSTEM SHALL 실행 전 검증 단계에서 에러를 던지고 `output.error` 나 `port: 'error'` 는 쓰지 않는다.
 - REQ-TEMPLATE-016 WHEN 링크 버튼과 포트 버튼이 섞여 있고 사용자가 링크 버튼을 누르면 THE SYSTEM SHALL 새 탭에서 URL 만 열고 실행 상태는 바꾸지 않는다.
+- REQ-TEMPLATE-017 IF 실행할 때 저장된 설정에 `outputFormat` 이 없으면 THE SYSTEM SHALL `text` 로 처리하고 설정 에코에도 `text` 를 싣는다.
+- REQ-TEMPLATE-018 WHEN 노드가 `output.rendered` 를 만들면 THE SYSTEM SHALL 치환 결과를 정화하거나 escape 하지 않고 그대로 싣는다.
+- REQ-TEMPLATE-019 WHEN 실행 결과 드로어가 `html` 이나 `markdown` 출력을 그리면 THE SYSTEM SHALL 허용 목록으로 정화한 뒤 그린다.
 
 Handlebars 블록 구문과 내장 헬퍼(ND-TP-03)는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
@@ -65,9 +68,9 @@ Handlebars 블록 구문과 내장 헬퍼(ND-TP-03)는 정의가 갈린다. [미
 | `helpers` | Boolean | ✗ | `true` | 내장 헬퍼 사용(UI 에 보임). 원문은 "표현식 해석기의 헬퍼 등록 토글" 로 적는다. 실제 효과는 [미결 사항](#미결-사항) 참조 |
 | `buttons` | ButtonDef[] | ✗ | `[]` | 전역 버튼 정의. 1개 이상이면 블로킹 모드. 구조는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#버튼-정의) |
 
-**`outputFormat` 기본값 차이**: 스키마(`templateNodeConfigSchema`) 기본값은 `html` 이다. 핸들러가 `config.outputFormat` 없는 입력을 직접 받으면 `text` 로 대신한다. 정상 실행 경로는 스키마를 거치므로 `html` 이 쓰이고 단위 테스트처럼 핸들러를 직접 부를 때만 `text` 가 보인다.
+**`outputFormat` 기본값 차이**: 스키마(`templateNodeConfigSchema`) 기본값은 `html` 이다. 이 기본값은 캔버스에서 노드를 만들 때와 워크플로우를 가져올 때 설정에 저장된다. 실행 엔진은 스키마 기본값을 채우지 않는다. 그래서 저장된 설정에 `outputFormat` 이 없으면 핸들러가 `text` 로 대신하고 설정 에코에도 `text` 를 싣는다.
 
-**HTML sanitize 주의**: `output.rendered` 는 sanitize 하지 않는다. 신뢰할 수 없는 입력이 `{{ }}` 로 들어가면 템플릿 작성자가 직접 escape 해야 한다. sanitize 는 별도 보안 과제로 다룬다. 실행 결과 드로어는 HTML 을 샌드박스 iframe 안에서 그리고 외부 스크립트 실행을 막는다.
+**HTML 정화 책임**: 백엔드는 `output.rendered` 를 정화하거나 escape 하지 않는다. 표현식 해석기도 `{{ }}` 자리에 넣는 값을 escape 하지 않는다. 그래서 신뢰할 수 없는 입력이 `{{ }}` 로 들어가면 `output.rendered` 에 그대로 남는다. 본문을 HTML 로 해석해 그리는 표면(실행 결과 드로어, 웹채팅 위젯)은 그리기 전에 허용 목록으로 정화한다. 허용 목록에 없는 태그와 속성(`<script>`, 이벤트 핸들러, `style` 속성 등)은 화면에 그릴 때 빠진다. 채팅 채널 · EIA 응답 · 웹훅으로 내보낼 때는 HTML 정화를 하지 않는다. 채팅 채널 문법 escape 는 채널 어댑터가 맡는다. 소비처별 처리는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#template-본문-정화-책임) 에 있다.
 
 스키마 단일 기준은 `codebase/backend/src/nodes/presentation/template/template.schema.ts` 의 `templateNodeConfigSchema` 다.
 
@@ -133,8 +136,10 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.outputFormat` | `'html'` / `'markdown'` / `'text'` | 설정 에코 | 사용자가 정한 출력 포맷. 출력 값에 싣지 않는다 |
+| `config.outputFormat` | `'html'` / `'markdown'` / `'text'` | 설정 에코 | 사용자가 정한 출력 포맷. 설정하지 않았으면 핸들러가 `text` 를 채운다(`rawConfig.outputFormat ?? outputFormat`). 출력 값에 싣지 않는다 |
 | `config.template` | string | 설정 에코 | `{{ }}` 를 보존한 **원래** 템플릿. `context.rawConfig.template` 그대로 |
+| `config.helpers?` | boolean | 설정 에코 | 내장 헬퍼 토글 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 실행 동작에는 쓰이지 않는다([미결 사항](#미결-사항)) |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용이면 지금 핸들러가 싣지 않는다. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4 에 맞춰 싣도록 고치는 일은 NERV Task `CLE-T-961M2W` 가 맡는다 |
 | `output.rendered` | string | 런타임(표현식 해석기) | `{{ }}` 치환이 끝난 최종 문자열 |
 
 `meta.durationMs` 는 엔진이 모든 노드에 공통으로 넣는다. `port`·`status` 는 두지 않고 `out` 포트 하나로 출력한다.
@@ -176,6 +181,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 |------|------|------|------|
 | `config.outputFormat` | enum | 설정 에코 | 표시 전용과 같다 |
 | `config.template` | string | 설정 에코 | 표시 전용과 같다. `{{ }}` 원문 보존 |
+| `config.helpers?` | boolean | 설정 에코 | 표시 전용과 같다 |
 | `config.buttons` | ButtonDef[] | 설정 에코 | 사용자 정의 버튼 배열 |
 | `config.buttonConfig.buttons` | ButtonDef[] | 핸들러 생성 | 블로킹 모드 흐름의 `buttonConfig` 페이로드(`NodeExecution` 보존용) |
 | `output.rendered` | string | 런타임 | 평가한 최종 문자열. 재개 때도 바뀌지 않는다 |
@@ -321,7 +327,8 @@ Template 핸들러는 `output.error` 나 `port: 'error'` 를 돌려주지 않는
 - `codebase/backend/src/nodes/presentation/template/template.component.ts`
 - `codebase/backend/src/nodes/presentation/template/template.handler.ts` (no-op 렌더러, `validateTemplateConfig`)
 - `codebase/backend/src/nodes/presentation/template/template.schema.ts` (`templateNodeConfigSchema`, `warningRules`)
-- `codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx`
+- `codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx` (드로어 표시, 정화 `SANITIZE_CONFIG` · `sanitizeHtml`)
+- `codebase/channel-web-chat/src/lib/safe-html.ts` (웹채팅 위젯 정화 `renderTemplateHtml`)
 - `codebase/frontend/src/lib/utils/node-config-summary.ts` (설정 요약)
 
 ## Rationale
@@ -329,3 +336,11 @@ Template 핸들러는 `output.error` 나 `port: 'error'` 를 돌려주지 않는
 ### 설정 요약을 한 포맷으로 통일한다 (2026-06-03)
 
 처음 명세는 버튼 유무에 따라 `{outputFormat} · {N} lines`(버튼 없음)와 `{outputFormat} · {N} buttons`(버튼 있음) 두 포맷을 적었다. 그런데 `summaryTemplate` 은 정적 문자열 하나라 설정(버튼 유무)으로 나눌 수 없다. "N lines"(템플릿 줄 수)는 `summaryTemplate` 문법이 줄바꿈 세기를 지원하지 않는다. 그래서 `{{outputFormat}} · {{buttons.length}} buttons` 한 포맷으로 통일했다. 버튼이 0개일 때 `html · 0 buttons` 로 보이는 것은 차선이지만 일관된다.
+
+### `outputFormat` 기본값은 저장할 때만 채워진다고 고쳐 적는다 (2026-11-12)
+
+이전 판은 "정상 실행 경로는 스키마를 거치므로 `html` 이 쓰이고 단위 테스트처럼 핸들러를 직접 부를 때만 `text` 가 보인다" 고 적었고 REQ-TEMPLATE-011 도 미설정이면 `html` 을 쓴다고 정했다. 코드와 대조하니 실행 엔진은 스키마 기본값을 채우지 않는다. 스키마 기본값은 캔버스에서 노드를 만들 때(`node-component.registry.ts` 의 `resolveDefaultConfig`)와 워크플로우를 가져올 때(`applyConfigDefaults`)만 설정에 저장된다. 그래서 `outputFormat` 없이 저장된 노드는 실행 때 핸들러 대체값 `text` 로 나온다. REQ-TEMPLATE-011 은 저장 동작으로 좁히고 실행 때 대체는 REQ-TEMPLATE-017 로 따로 적었다(NERV Task `CLE-T-W0377J`). 핸들러 대체값을 `html` 로 바꾸는 안은 고르지 않았다. 이미 `outputFormat` 없이 저장된 노드의 설정 에코와 실행 결과 화면 표시 방식이 바뀌는 동작 변경이라 문서를 실제 동작에 맞추는 이 Task 의 범위 밖이다.
+
+### HTML 정화는 그리는 쪽이 맡는다 (2026-11-12)
+
+이전 판은 "sanitize 는 별도 보안 과제로 다룬다" 며 정화 책임을 미뤄 두고 실행 결과 드로어가 HTML 을 샌드박스 iframe 안에서 그린다고 적었다. 코드와 대조하니 드로어는 iframe 을 쓰지 않고 DOMPurify 허용 목록으로 정화한 뒤 그린다. 웹채팅 위젯도 따로 정화한다. 사용자가 2026-11-12 에 정화 책임을 소비 쪽에 두기로 정했다(NERV 질문 `01a1cd71-0bab-70ba-9168-49e83c564256`, NERV Task `CLE-T-MBGDA4`). 그래서 `output.rendered` 는 정화하지 않은 데이터로 정하고 위 문단과 REQ-TEMPLATE-018 · 019 를 적었다. 백엔드에서 정화하는 안과 백엔드 · 소비처 양쪽에서 정화하는 안을 기각한 이유는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#template-본문은-그리는-쪽이-정화한다-2026-11-12) 에 있다.
