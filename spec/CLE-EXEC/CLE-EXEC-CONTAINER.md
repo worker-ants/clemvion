@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "0ee301910b0b1933f055fb5b74ce83eb8f2ecbbdc0be8c03e3d9a090aac7a07a"
+content_hash: "82fd9dfa43b28844ab8b76726c92578281b058ab8d0de8ab0b92a43cda9a5cff"
 read_as: "approved_fallback"
 task: "CLE-T-MR6ZH3"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "369a3f1f75f31ddf2752c2cb027a87a5031435c6147dd1d5c9f8fc28c3a59a7d"
-etag: "sha256-a52c53f2b1976099770d8e605df0ced6bdd01ada335901af2ec76fd3060b99a7"
+mirror_sha256: "d1a68b46deffeac8557feedea0543a54f46788261557390bfc9418a8dad31ee0"
+etag: "sha256-ddd8921a6cd8c7f196df01253408e35f7bf08478480d1e3af2e0148d353dc8bb"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,8 +66,9 @@ flowchart TD
 
 - **되돌아가는 연결선(순환) 금지**: 본문에 순환이 있으면 `Container body contains back-edges` 에러로 실패한다.
 - **입력 대기 노드 금지**: 본문에 Form·버튼·멀티턴 AI(`form`·`buttons`·`ai_conversation`) 노드를 둘 수 없다. 본문 안에서 입력 대기가 생기면 반복의 뜻이 흐려지기 때문이다. 입력 대기 여부의 판정 기준은 [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 를 따른다.
-- **중첩 허용**: 본문 안에 다른 컨테이너를 둘 수 있다. 스코프 규칙은 [중첩 컨테이너 스코프](#중첩-컨테이너-스코프) 에 있다.
+- **중첩 허용**: 본문 안에 다른 컨테이너를 둘 수 있다. 본문 루프는 안쪽 Loop · ForEach · Map 을 컨테이너 실행 경로로 넘겨 회차마다 안쪽 본문을 끝까지 실행한다. 스코프 규칙은 [중첩 컨테이너 스코프](#중첩-컨테이너-스코프) 에 있다.
 - **Parallel 허용**: 본문 안에 Parallel 을 둘 수 있다. 실행 방식과 중첩 깊이는 [본문 안 Parallel](#본문-안-parallel) 에 있다.
+- **Background 허용**: 본문 안에 Background 를 둘 수 있다. 회차마다 본문을 큐에 넣는다. 규칙은 [컨테이너 본문 안 Background](#컨테이너-본문-안-background) 에 있다.
 
 ### 결과 배열의 인덱스
 
@@ -175,7 +176,7 @@ Loop 안에 ForEach 가 있을 때:
 
 ## Background 본문 실행
 
-Background 노드는 컨테이너 소속(`container_id`) 모델을 쓰지 않는다. `background` 포트 연결선으로 본문 진입점을 찾고 별도 BullMQ 큐 `background-execution` 과 워커가 본문을 비동기로 실행한다(PRD ND-BG-05 평면 구조). 노드 동작·격리 계약·모니터링 API 는 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 가 기준이다. 이 절은 엔진 쪽 동작만 적는다.
+Background 노드는 컨테이너 소속(`container_id`) 모델을 쓰지 않는다. `background` 포트 연결선으로 본문 진입점을 찾고 별도 BullMQ 큐 `background-execution` 과 워커가 본문을 비동기로 실행한다(PRD ND-BG-05 평면 구조). Background 자체는 컨테이너가 아니다. 컨테이너 본문 안에 둔 Background 라면 본문 노드에도 `containerId` 가 있다. 이 값은 에디터 연결선 체인 규칙이 준 위치 속성이고 Background 가 놓인 컨테이너를 가리킬 뿐이다. 본문 범위는 `background` 포트에서 연결선으로 닿는 노드로 정하고 워커는 그 컨테이너 단계의 노드로 그래프를 만든다([컨테이너 본문 안 Background](#컨테이너-본문-안-background)). 노드 동작·격리 계약·모니터링 API 는 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 가 기준이다. 이 절은 엔진 쪽 동작만 적는다.
 
 ```mermaid
 sequenceDiagram
@@ -205,12 +206,27 @@ sequenceDiagram
 - 본문이 실패하고 `notifyOnFailure=true` 이면 **워크스페이스 관리자에게 인앱 알림**을 보낸다. 알림은 `type: background_failed`, `channel: in_app` 이다. 이메일 채널과 실행자(`executed_by`) 수신은 현재 지원하지 않고 불리언 `notifyOnFailure` 하나로만 켜고 끈다.
 - 실행 상세 화면은 성공·실패와 상관없이 Background 본문 결과를 별도 섹션으로 보인다. 화면은 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 의 실행 결과 드로어에 있다.
 
+### 컨테이너 본문 안 Background
+
+Loop · ForEach · Map 본문 안의 Background 도 메인 흐름의 Background 처럼 본문을 큐에 넣는다. 본문 루프는 `PARALLEL_ENGINE` 값과 상관없이 Background 를 이 경로로 넘긴다.
+
+| 규칙 | 설명 |
+| --- | --- |
+| 발행 횟수 | 회차마다 한 번 큐에 넣는다. 회차가 3번이면 작업도 3개다 |
+| 진입 입력 | 그 회차에 Background 노드가 받은 입력이다. 기준은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-background-포트-fire-and-forget) 의 본문 진입 입력 표다 |
+| 회차 루프 | `background` 포트 뒤 노드는 회차 루프에서 실행하지 않는다. 워커만 실행한다 |
+| 본문 노드 소속 | 에디터의 연결선 체인 규칙에 따라 `background` 포트 뒤 노드도 Background 와 같은 컨테이너 소속을 받는다 |
+| 작업 범위 | 작업에 Background 가 속한 컨테이너 ID(`containerScopeId`)를 싣는다. 워커는 그 컨테이너의 본문 노드만으로 그래프를 만들어 진입점부터 실행한다. 큐에 넣은 뒤 그 컨테이너가 워크플로우에서 지워졌으면 워커가 만든 그래프가 비어 본문을 실행하지 않고 오류 없이 끝난다. 필드가 없는 작업(맨 바깥 Background, 필드를 넣기 전에 큐에 들어간 작업)은 맨 바깥 그래프로 실행한다 |
+| 병렬 분기 | 컨테이너 본문 안 Parallel 의 병렬 분기에 둔 Background 도 같은 컨테이너 ID 를 싣는다 |
+| 반복 변수 | 큐에 넣는 시점의 실행 컨텍스트에 반복 변수가 있으면 그 값을 작업 스냅샷에 복사해 싣는다. ForEach · Map 의 `itemContext`(`$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast`)와 Loop 의 `loopContext`(`$loop`)다. 워커는 이 값을 본문 실행 컨텍스트에 되살린다. 그래서 본문 노드의 식은 큐에 넣은 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 값을 복사해 실으므로 컨테이너가 다음 회차로 넘어가도 이미 넣은 작업의 값은 바뀌지 않는다. 병렬 분기에 둔 Background 는 그 병렬 분기가 이어받은 반복 변수를 싣는다. 병렬 분기가 바깥 반복 변수를 이어받는 규칙([본문 안 Parallel](#본문-안-parallel), [Parallel 노드 요구사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#요구사항))과 같다(NERV 질문 `01a1cd70-d2c0-74dd-9078-f6f0b3492ff3`, 답 A). 맨 바깥 Background 의 작업과 필드를 넣기 전에 큐에 들어간 작업에는 반복 변수가 없다. 이 작업의 본문에서는 반복 변수가 비어 있다 |
+
 ## 구현 위치
 
 - `codebase/backend/src/modules/execution-engine/containers/loop-executor.ts`
 - `codebase/backend/src/modules/execution-engine/containers/foreach-executor.ts` (ForEach·Map 공용)
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts`
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planContainerBody`, 본문 안 Parallel 넘기기(`executeContainerBody`)와 깊이 검사(`runContainerInner`), 엔진 덮어쓰기, `scheduleBackgroundBody`, `executeBackgroundSubgraph`)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planContainerBody`, 본문 안 컨테이너 · Background · Parallel 넘기기(`executeContainerBody`)와 깊이 검사(`runContainerInner`), 엔진 덮어쓰기, `scheduleBackgroundBody`, `executeBackgroundSubgraph`)
+- `codebase/backend/src/modules/execution-engine/graph/graph-builder.ts` (`buildGraph` 의 컨테이너 범위)
 - `codebase/backend/src/modules/execution-engine/queues/background-execution.queue.ts`, `background-execution.processor.ts`
 
 ## Rationale
@@ -236,6 +252,8 @@ ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준�
 ### Background 본문은 컨테이너 소속 모델을 쓰지 않는다
 
 Background 본문은 메인 흐름과 따로 끝나며 결과가 메인으로 돌아오지 않는다. 반복하며 결과를 모으는 컨테이너 구조와 맞지 않아 `background` 포트 연결선으로 본문을 찾는 평면 구조를 택했다(PRD ND-BG-05). 본문이 부모와 같은 `executionId` 를 Map 키로 쓰던 때 먼저 끝난 부모가 본문 컨텍스트를 지우는 경쟁이 있었다. 그래서 메모리 Map 키만 따로 둔다. 결정 경위는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 에 있다.
+
+컨테이너 본문 안 Background 의 본문 노드가 받는 `containerId` 와 이 결정의 관계는 [본문 안 컨테이너와 Background 도 실행 경로로 넘긴다 (2026-11-12)](#본문-안-컨테이너와-background-도-실행-경로로-넘긴다-2026-11-12) 에 있다.
 
 ### Parallel 덮어쓰기의 예외를 적는다 (2026-11-06)
 
@@ -267,3 +285,27 @@ Background 본문은 메인 흐름과 따로 끝나며 결과가 메인으로 �
 - 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 라서 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 동시 실행 수가 줄어든다.
 - 깊이 3 이 되는 그래프는 컨테이너의 첫 반복 회차 전이나 바깥 병렬 분기가 시작되기 전에 실행이 실패한다. 저장 규칙이 이미 깊이 3 을 거부하므로 그 규칙이 생기기 전에 저장된 워크플로우만 새로 실패한다.
 - `PARALLEL_ENGINE=off` 되돌림 경로는 바뀌지 않는다.
+
+### 본문 안 컨테이너와 Background 도 실행 경로로 넘긴다 (2026-11-12)
+
+이 개정 전에는 본문 루프가 Parallel 만 실행 경로로 넘기고 다른 노드는 핸들러만 돌렸다. 그래서 본문 안 Loop · ForEach · Map 은 핸들러만 돌고 안쪽 본문은 한 번도 실행되지 않았다. 본문 안 Background 는 핸들러가 `main` 으로 입력만 넘겨 본문이 큐에 들어가지 않았다. 워커도 맨 바깥 노드로만 그래프를 만들어 컨테이너 소속 본문 노드를 실행하지 못했다. 스펙은 중첩을 허용한다고 적었지만 구현이 따라가지 않았다.
+
+메인 루프와 병렬 분기 루프가 노드 종류에 따라 실행 경로를 고르는 규칙을 본문 루프에도 적용했다(NERV Task `CLE-T-MR6ZH3`).
+
+Background 본문은 여전히 `background` 포트 연결선으로 찾는다. 이 점은 위 [Background 본문은 컨테이너 소속 모델을 쓰지 않는다](#background-본문은-컨테이너-소속-모델을-쓰지-않는다) 결정을 그대로 따른다. 컨테이너 ID 는 워커가 그래프를 만들 단계를 고르는 데만 쓴다.
+
+기각한 대안은 네 가지다.
+
+- **워커가 소속을 무시하고 진입점에서 닿는 노드를 모두 모으는 안**: 안쪽 컨테이너의 본문 노드까지 평평하게 실행해 회차 구분이 깨진다.
+- **에디터가 `background` 포트 뒤 노드에 컨테이너 소속을 주지 않게 바꾸는 안**: 저장된 워크플로우의 소속을 옮기는 마이그레이션이 필요하고 캔버스 배치도 바뀐다.
+- **컨테이너 본문 안 Background 를 금지하는 안**: 이미 저장된 워크플로우가 검증에서 막히고 회차마다 비동기 작업을 띄우는 쓰임을 잃는다.
+- **Background 본문을 컨테이너 소속 모델로 바꾸는 안**: 평면 구조 결정(PRD ND-BG-05)을 뒤집는다.
+
+반복 변수는 사람이 정했다(NERV 질문 `01a1cd70-d2c0-74dd-9078-f6f0b3492ff3`, 답 A). 큐에 넣는 시점의 반복 변수(`itemContext` · `loopContext`)를 작업 스냅샷에 복사해 싣고 워커가 본문 실행 컨텍스트에 되살린다. 본문 노드는 큐에 넣은 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 병렬 분기가 바깥 반복 변수를 이어받는 결정(NERV 질문 `01a1b060-de22-7734-a37a-69c25ee314a3`, 답 A, [Parallel 노드 요구사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#요구사항))과 같은 규칙이다.
+
+반복 변수를 정할 때 기각한 대안은 두 가지다.
+
+- **반복 변수를 싣지 않는 안**: 본문에서 반복 변수를 읽을 수 없어 필요한 값은 앞 노드 출력으로 넘겨야 한다. 에디터는 `background` 포트 뒤 노드를 컨테이너 본문 노드처럼 그린다. 이 안은 그 모델과 어긋나고 병렬 분기가 반복 변수를 이어받는 규칙과도 갈린다.
+- **컨테이너 본문 안 Background 를 금지하는 안**: 지금 저장된 워크플로우가 실행 오류로 끝난다. 실행 경로를 정할 때도 같은 안을 기각했다.
+
+**호환**: `containerScopeId` 가 없는 작업은 맨 바깥 그래프로 실행한다. 그래서 필드를 넣기 전에 큐에 남은 작업도 그대로 돈다. 반복 변수가 없는 옛 작업은 본문에서 반복 변수가 비어 있다. 이 개정 전과 같은 동작이다. 롤링 배포 중에 옛 워커는 반복 변수 필드를 무시한다.
