@@ -15151,6 +15151,126 @@ describe('ExecutionEngineService', () => {
         expect(jobs.map((job) => job.containerScopeId)).toEqual(['fe', 'fe']);
       });
 
+      it('ForEach 본문 안 Map 이 회차마다 결과 배열을 만들어 done 뒤 본문 노드에 넘긴다', async () => {
+        handlerRegistry.register('map', new MapHandler(), {
+          kind: 'container',
+        });
+        recordingHandler('test_node', () => ({
+          groups: [{ list: [1, 2] }, { list: [3] }],
+        }));
+        recordingHandler('leaf_node', (input) => ({ v: input }));
+        const collectCalls = recordingHandler('collect_node', (input) => input);
+        recordingHandler('sink_node', (input) => input);
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('outer', 'foreach', null, { arrayField: 'groups' }),
+            cNode('inner', 'map', 'outer', { inputField: 'list' }),
+            cNode('leaf', 'leaf_node', 'inner'),
+            cNode('collect', 'collect_node', 'outer'),
+            cNode('sink', 'sink_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'outer'),
+            cEdge('outer', 'body', 'inner'),
+            cEdge('inner', 'body', 'leaf'),
+            cEdge('leaf', 'out', 'inner', 'emit'),
+            cEdge('inner', 'done', 'collect'),
+            cEdge('collect', 'out', 'outer', 'emit'),
+            cEdge('outer', 'done', 'sink'),
+          ],
+        );
+
+        // Map 의 완료 출력은 `{ mapped, count }` 이다.
+        expect(collectCalls.map((c) => c.input)).toEqual([
+          { mapped: [{ v: 1 }, { v: 2 }], count: 2 },
+          { mapped: [{ v: 3 }], count: 1 },
+        ]);
+      });
+
+      it('안쪽 컨테이너 입력 배열이 비면 본문은 0회 실행하고 done 뒤 노드는 빈 완료 출력으로 실행한다', async () => {
+        recordingHandler('test_node', () => ({
+          groups: [{ list: [] }, { list: [7] }],
+        }));
+        const leafCalls = recordingHandler('leaf_node', (input) => input);
+        const collectCalls = recordingHandler('collect_node', (input) => input);
+        recordingHandler('sink_node', (input) => input);
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('outer', 'foreach', null, { arrayField: 'groups' }),
+            cNode('inner', 'foreach', 'outer', { arrayField: 'list' }),
+            cNode('leaf', 'leaf_node', 'inner'),
+            cNode('collect', 'collect_node', 'outer'),
+            cNode('sink', 'sink_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'outer'),
+            cEdge('outer', 'body', 'inner'),
+            cEdge('inner', 'body', 'leaf'),
+            cEdge('leaf', 'out', 'inner', 'emit'),
+            cEdge('inner', 'done', 'collect'),
+            cEdge('collect', 'out', 'outer', 'emit'),
+            cEdge('outer', 'done', 'sink'),
+          ],
+        );
+
+        expect(leafCalls.map((c) => c.input)).toEqual([7]);
+        expect(collectCalls.map((c) => c.input)).toEqual([
+          { items: [], count: 0 },
+          { items: [7], count: 1 },
+        ]);
+      });
+
+      it('안쪽 컨테이너 본문 노드가 실패하면 done 뒤 노드와 바깥 done 뒤 노드를 실행하지 않고 실행을 실패로 마감한다', async () => {
+        recordingHandler('test_node', () => ({
+          groups: [{ list: [1] }, { list: [2] }],
+        }));
+        const failHandler: NodeHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => {
+            throw new Error('inner body boom');
+          }) as NodeHandler['execute'],
+        };
+        handlerRegistry.register('fail_node', failHandler);
+        const collectCalls = recordingHandler('collect_node', (input) => input);
+        const sinkCalls = recordingHandler('sink_node', (input) => input);
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('outer', 'foreach', null, { arrayField: 'groups' }),
+            cNode('inner', 'foreach', 'outer', { arrayField: 'list' }),
+            cNode('leaf', 'fail_node', 'inner'),
+            cNode('collect', 'collect_node', 'outer'),
+            cNode('sink', 'sink_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'outer'),
+            cEdge('outer', 'body', 'inner'),
+            cEdge('inner', 'body', 'leaf'),
+            cEdge('leaf', 'out', 'inner', 'emit'),
+            cEdge('inner', 'done', 'collect'),
+            cEdge('collect', 'out', 'outer', 'emit'),
+            cEdge('outer', 'done', 'sink'),
+          ],
+        );
+
+        expect(failHandler.execute).toHaveBeenCalledTimes(1);
+        expect(collectCalls).toHaveLength(0);
+        expect(sinkCalls).toHaveLength(0);
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(/UPDATE execution/),
+          expect.arrayContaining([ExecutionStatus.FAILED]),
+        );
+        expect(mockExecutionRepo.query).not.toHaveBeenCalledWith(
+          expect.stringMatching(/UPDATE execution/),
+          expect.arrayContaining([ExecutionStatus.COMPLETED]),
+        );
+      });
+
       // 워커 쪽: 큐에서 꺼낸 작업을 실제 executeInline 으로 돌린다.
       const bgWorkerJob = (
         over: Partial<BackgroundExecutionJob> = {},
@@ -15224,6 +15344,26 @@ describe('ExecutionEngineService', () => {
 
         expect(bgBodyCalls.map((c) => c.input)).toEqual([{ n: 1 }]);
         expect(scopedCalls).toHaveLength(0);
+      });
+
+      it('워커에 없는 컨테이너를 가리키는 containerScopeId 가 오면 그래프가 비어 본문을 실행하지 않고 오류 없이 끝난다', async () => {
+        const bgBodyCalls = recordingHandler('bg_body_node', (input) => input);
+        mockNodeRepo.findBy.mockResolvedValue([
+          cNode('fe', 'foreach', null, { arrayField: 'items' }),
+          cNode('bg', 'background', 'fe'),
+          cNode('bgBody', 'bg_body_node', 'fe'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          cEdge('bg', 'background', 'bgBody'),
+        ]);
+
+        await expect(
+          service.executeBackgroundSubgraph(
+            bgWorkerJob({ containerScopeId: 'deleted-container' }),
+          ),
+        ).resolves.not.toThrow();
+
+        expect(bgBodyCalls).toHaveLength(0);
       });
     });
   });
