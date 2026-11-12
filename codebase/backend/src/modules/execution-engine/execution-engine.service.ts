@@ -84,6 +84,7 @@ import { EngineErrorCode } from '../../nodes/core/error-codes';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { collectParallelBranchMembership } from './graph/parallel-branch-membership';
+import { collectBackgroundOnlyNodeIds } from './graph/background-body-membership';
 import { identifyBackEdges } from './graph/back-edge-identifier';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
@@ -278,6 +279,13 @@ const PARALLEL_MAX_CONCURRENCY_MAX = 16;
  * 한도를 "자식 · 손자" 두 단계 탐색으로 표현하므로 이 상수를 읽지 않는다.
  */
 const PARALLEL_MAX_NESTED_DEPTH = 2;
+
+/**
+ * Background 본문에 둔 Parallel 의 중첩 깊이. 워커가 본문을 새 컨텍스트에서 실행하므로
+ * 큐에 넣은 쪽의 깊이를 이어받지 않는다(REQ-PARALLEL-036). 컨테이너 본문 사전 검사가
+ * 컨테이너 안 Background 본문을 셀 때 쓴다(CLE-T-BTR4ZA).
+ */
+const BACKGROUND_BODY_PARALLEL_DEPTH = 1;
 
 // C-1 step2 — 추출된 AiTurnOrchestrator 의 emit 메서드가 동일 union 을 타입
 // 주석으로 참조하므로 export (interaction-type-registry.md §1.1 의 정의 자체는
@@ -7922,6 +7930,14 @@ export class ExecutionEngineService
    * 본문 안 컨테이너는 Parallel 깊이를 늘리지 않고 그 본문까지 내려간다. `containerId`
    * 가 돌고 도는 그래프는 `visited` 로 멈춘다(그런 컨테이너는 실행할 때
    * `CONTAINER_CYCLE` 로 실패한다).
+   *
+   * 본문 안 Background 의 `background` 포트로만 닿는 노드도 같은 `containerId` 를 가진다.
+   * 그 노드는 워커가 새 컨텍스트에서 실행하므로 깊이를 1 부터 센다
+   * ({@link collectBackgroundOnlyNodeIds}, CLE-T-BTR4ZA). 회차 본문에서도 닿는 노드는
+   * 회차 루프에서 실행되므로 컨테이너 깊이로 센다. 본문 Parallel 의 병렬 분기 안에 둔
+   * Background 의 본문은 그 병렬 분기 본문으로도 잡혀 바깥 깊이를 이어서 센다
+   * ({@link assertNestedParallelBodyAllowed}). 병렬 분기 안 Background 본문을 이렇게
+   * 엄격하게 세는 동작은 CLE-NODE-PARALLEL 「미결 사항」에 남아 있다.
    */
   private assertContainerBodyParallelsAllowed(
     containerNode: Node,
@@ -7933,30 +7949,55 @@ export class ExecutionEngineService
     visited.add(containerNode.id);
     const children = graph.childrenByContainer.get(containerNode.id) ?? [];
     let bodyEdges: GraphEdge[] | undefined;
+    let backgroundOnlyIds: ReadonlySet<string> | undefined;
+    const bodyEdgesOf = () =>
+      (bodyEdges ??= pickContainerInternalEdges(
+        new Set(children.map((c) => c.id)),
+        graph.allEdges,
+      ));
+    // Background 본문 노드는 워커가 새 컨텍스트에서 실행하므로 깊이 1 이다.
+    const depthOf = (child: Node): number => {
+      backgroundOnlyIds ??= collectBackgroundOnlyNodeIds(
+        graph.allEdges
+          .filter(
+            (e) =>
+              e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
+          )
+          .map((e) => e.targetNodeId),
+        bodyEdgesOf(),
+        (id) => {
+          const node = graph.nodeMap.get(id);
+          return (
+            node !== undefined &&
+            this.handlerRegistry.getMetadata(node.type).kind === 'background'
+          );
+        },
+      );
+      return backgroundOnlyIds.has(child.id)
+        ? BACKGROUND_BODY_PARALLEL_DEPTH
+        : parallelDepth;
+    };
     for (const child of children) {
       const childKind = this.handlerRegistry.getMetadata(child.type).kind;
       if (childKind === 'parallel') {
-        if (parallelDepth > PARALLEL_MAX_NESTED_DEPTH) {
+        const childDepth = depthOf(child);
+        if (childDepth > PARALLEL_MAX_NESTED_DEPTH) {
           throw new Error(
-            `PARALLEL_NESTED_DEPTH_EXCEEDED: Parallel node "${child.label ?? child.type}" in the body of container "${containerNode.label ?? containerNode.type}" would run at nesting depth ${parallelDepth}. Parallel nesting depth > ${PARALLEL_MAX_NESTED_DEPTH} is not supported.`,
+            `PARALLEL_NESTED_DEPTH_EXCEEDED: Parallel node "${child.label ?? child.type}" in the body of container "${containerNode.label ?? containerNode.type}" would run at nesting depth ${childDepth}. Parallel nesting depth > ${PARALLEL_MAX_NESTED_DEPTH} is not supported.`,
           );
         }
-        bodyEdges ??= pickContainerInternalEdges(
-          new Set(children.map((c) => c.id)),
-          graph.allEdges,
-        );
         this.assertNestedParallelBodyAllowed(
           child,
-          bodyEdges,
+          bodyEdgesOf(),
           graph,
-          parallelDepth,
+          childDepth,
         );
       }
       if (childKind === 'container') {
         this.assertContainerBodyParallelsAllowed(
           child,
           graph,
-          parallelDepth,
+          depthOf(child),
           visited,
         );
       }
