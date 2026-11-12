@@ -190,17 +190,6 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
   });
 
   /**
-   * 품은 IPv4 의 자리가 다르거나 접두가 다른 표기는 판정하지 않는다(6to4 `2002::/16` 은 둘째 · 셋째 16비트, NAT64 로컬 접두
-   * `64:ff9b:1::/48` 은 접두 길이에 따라 자리가 바뀐다). 판정 범위를 넓히는 변경이 이 경계를 조용히 옮기지 못하게 고정한다.
-   */
-  it.each([
-    ['2002:7f00:1::', '6to4 2002:7f00:1::'],
-    ['64:ff9b:1::7f00:1', 'NAT64 로컬 접두 64:ff9b:1::/48'],
-  ])('/96 표기가 아니면 품은 IPv4 로 보지 않는다(현 정책): %s — %s', (host) => {
-    expect(isPrivateIpv6(host)).toBe(false);
-  });
-
-  /**
    * 괄호 없는 점 형은 `dns.lookup` 이 IPv6 로 돌려주는 모양이다(발송 직전 DNS rebinding 검사가 이 값을 그대로 넘긴다).
    */
   it.each([
@@ -243,6 +232,10 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
     expect(embeddedIpv4FromIpv6(host)).toBe(expected);
   });
 
+  /**
+   * 6to4 · NAT64 로컬 접두는 `isPrivateIpv6` 가 따로 본다(아래 「특수 용도 대역」). 이 함수는 MCP 가드(`mcp-client.service.ts`)도
+   * 쓰므로 두 대역을 여기서 꺼내면 MCP 의 판정 범위가 함께 바뀐다. MCP 를 맞추는 일은 NERV Task `CLE-T-753725` 의 몫이라 고정한다.
+   */
   it.each([
     ['2002:c0a8:101::', '6to4'],
     ['64:ff9b:1::c0a8:101', 'NAT64 로컬 접두'],
@@ -426,6 +419,62 @@ describe('특수 용도 대역 (CLE-T-W95HND)', () => {
     expect(isPrivateIpv6('ff02::1%eth0')).toBe(true);
   });
 
+  /**
+   * 6to4(`2002::/16`, RFC 3056)는 IPv4 자리가 둘째 · 셋째 16비트로 고정이라 꺼내서 판정한다. 공인 IPv4 를 품었으면 통과한다.
+   * NAT64 로컬 접두(`64:ff9b:1::/48`, RFC 8215)는 운영자가 고른 접두 길이에 따라 IPv4 자리가 달라서(RFC 6052 §2.2) 꺼내지 않고
+   * 대역 전체를 막는다. 마지막 32비트에 공인 IPv4 가 있어도 막힌다.
+   */
+  describe('6to4 · NAT64 로컬 접두', () => {
+    const blockedEmbedding: Array<[string, string]> = [
+      ['2002:7f00:1::', '6to4 → 127.0.0.1'],
+      ['2002:a00:1::1', '6to4 → 10.0.0.1'],
+      ['2002:a9fe:a9fe::', '6to4 → 169.254.169.254'],
+      [
+        '2002:c0a8:101:1:2:3:4:5',
+        '6to4 → 192.168.1.1 (서브넷 · 인터페이스 비트가 있어도)',
+      ],
+      ['2002:e000:fb::', '6to4 → 224.0.0.251'],
+      ['2002::1', '6to4 → 0.0.0.0'],
+      ['64:ff9b:1::', 'NAT64 로컬 — 시작'],
+      ['64:ff9b:1::808:808', 'NAT64 로컬 — 마지막 32비트가 공인 IPv4'],
+      ['64:ff9b:1:abcd::1', 'NAT64 로컬 — 중간'],
+      ['64:ff9b:1:ffff:ffff:ffff:ffff:ffff', 'NAT64 로컬 — 끝'],
+    ];
+    const passedEmbedding: Array<[string, string]> = [
+      ['2002:808:808::1', '6to4 → 8.8.8.8'],
+      // 둘째 · 셋째 16비트의 순서가 바뀌면 10.0.1.1 로 읽혀 막힌다.
+      ['2002:101:a00::', '6to4 → 1.1.10.0 (hi/lo 비대칭)'],
+      ['2001:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '2002::/16 바로 앞'],
+      ['2003::1', '2002::/16 바로 뒤'],
+      ['64:ff9b:0:ffff:ffff:ffff:ffff:ffff', '64:ff9b:1::/48 바로 앞'],
+      ['64:ff9b:2::', '64:ff9b:1::/48 바로 뒤'],
+      ['64:ff9b::808:808', 'NAT64 well-known /96 → 8.8.8.8'],
+    ];
+
+    it.each(blockedEmbedding)('isPrivateIpv6 차단 — %s (%s)', (host) => {
+      expect(isPrivateIpv6(host)).toBe(true);
+    });
+
+    it.each(passedEmbedding)('isPrivateIpv6 통과 — %s (%s)', (host) => {
+      expect(isPrivateIpv6(host)).toBe(false);
+    });
+
+    it.each(blockedEmbedding)('checkSsrfSafeUrl 차단 — [%s] (%s)', (host) => {
+      const r = checkSsrfSafeUrl(`https://[${host}]/x`);
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/private IPv6/);
+    });
+
+    it.each(passedEmbedding)('checkSsrfSafeUrl 통과 — [%s] (%s)', (host) => {
+      expect(checkSsrfSafeUrl(`https://[${host}]/x`).ok).toBe(true);
+    });
+
+    it('대문자 · 대괄호 표기도 같은 대역으로 본다', () => {
+      expect(isPrivateIpv6('2002:7F00:1::')).toBe(true);
+      expect(isPrivateIpv6('[64:FF9B:1::1]')).toBe(true);
+    });
+  });
+
   describe('발송 직전 검사(checkResolvedHostIp)', () => {
     beforeEach(() => {
       mockedLookup.mockReset();
@@ -438,6 +487,8 @@ describe('특수 용도 대역 (CLE-T-W95HND)', () => {
       ['255.255.255.255', 4],
       ['fec0::1', 6],
       ['ff02::1', 6],
+      ['2002:a9fe:a9fe::1', 6],
+      ['64:ff9b:1::808:808', 6],
     ])('도메인이 특수 대역 %s 로 풀리면 ok:false', async (address, family) => {
       mockedLookup.mockResolvedValue([{ address, family }]);
       const r = await checkResolvedHostIp('hooks.example.com');
@@ -450,6 +501,8 @@ describe('특수 용도 대역 (CLE-T-W95HND)', () => {
       ['198.20.0.0', 4],
       ['223.255.255.255', 4],
       ['fe7f::1', 6],
+      ['2002:808:808::1', 6],
+      ['64:ff9b:2::1', 6],
     ])(
       '도메인이 바로 옆 공인 주소 %s 로 풀리면 ok:true',
       async (address, family) => {
@@ -459,14 +512,17 @@ describe('특수 용도 대역 (CLE-T-W95HND)', () => {
       },
     );
 
-    it.each(['198.19.0.1', '[ff02::1]', '[fec0::1]'])(
-      '리터럴 %s → ok:false (DNS 를 묻지 않는다)',
-      async (host) => {
-        const r = await checkResolvedHostIp(host);
-        expect(r.ok).toBe(false);
-        expect(mockedLookup).not.toHaveBeenCalled();
-      },
-    );
+    it.each([
+      '198.19.0.1',
+      '[ff02::1]',
+      '[fec0::1]',
+      '[2002:7f00:1::]',
+      '[64:ff9b:1::1]',
+    ])('리터럴 %s → ok:false (DNS 를 묻지 않는다)', async (host) => {
+      const r = await checkResolvedHostIp(host);
+      expect(r.ok).toBe(false);
+      expect(mockedLookup).not.toHaveBeenCalled();
+    });
   });
 });
 
